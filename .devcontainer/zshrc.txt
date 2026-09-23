@@ -411,9 +411,9 @@ function update(){
 # cleanup-workspace.bash を参照）。
 # 新しいシェルを開くたびに毎回実行すると重複起動になるため、
 # 24 時間 (86400 秒) に 1 回へ間引く。手動での定期実行を要求しない。
-function maatlog_periodic_cleanup(){
+function workspace_periodic_cleanup(){
     command -v cleanup-workspace.bash >/dev/null 2>&1 || return 0
-    local state_dir="${MAATLOG_CLEANUP_STATE_DIR:-$HOME/.cache/maatlog}"
+    local state_dir="${WORKSPACE_CLEANUP_STATE_DIR:-$HOME/.cache/workspace-cleanup}"
     local stamp="${state_dir}/cleanup-workspace.stamp"
     mkdir -p "$state_dir" 2>/dev/null || return 0
     if [ -f "$stamp" ]; then
@@ -436,7 +436,7 @@ function maatlog_periodic_cleanup(){
         cleanup-workspace.bash >"${state_dir}/cleanup-workspace.log" 2>&1
     ) 9>"${stamp}.lock" &!
 }
-maatlog_periodic_cleanup
+workspace_periodic_cleanup
 
 # Starship プロンプト
 eval "$(starship init zsh)"

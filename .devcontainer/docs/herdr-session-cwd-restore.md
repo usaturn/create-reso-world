@@ -2,7 +2,7 @@
 
 ## 背景
 
-Dev Container を Reopen したあと、ターミナルの作業ディレクトリが `/workspaces/maatlog`
+Dev Container を Reopen したあと、ターミナルの作業ディレクトリが `/workspaces/reso-world`
 ではなく `/home/vscode` になる。`.devcontainer/zshrc.txt` の `herdrstart` は
 `cd -- "$workspace_dir"` を実行しているにもかかわらず、その結果がペインに反映されない。
 
@@ -11,10 +11,10 @@ Dev Container を Reopen したあと、ターミナルの作業ディレクト�
 herdr はセッション復元時、`~/.config/herdr/session.json` に保存済みの cwd を最優先し、
 クライアントが渡す startup cwd を**明示的に無視する**。
 
-サーバログ（`~/.config/herdr/herdr-server.log`）:
+サーバログ（`~/.config/herdr/herdr-server.log`）の再現例（cwd はこの環境のパスに置換）:
 
 ```
-herdr::server::headless: restored session already has workspaces; ignoring startup cwd cwd=/workspaces/maatlog
+herdr::server::headless: restored session already has workspaces; ignoring startup cwd cwd=/workspaces/reso-world
 ```
 
 `herdrstart` の `cd` が効くのは、herdr サーバが**新規**セッションを作る初回だけである
@@ -45,8 +45,8 @@ startup workspace が `/home/vscode` となり `session.json` を汚染する。
 
 | 保存されていた cwd | `new_cwd` | 復元後のペイン cwd |
 | --- | --- | --- |
-| `/home/vscode` | `/workspaces/maatlog` | `/home/vscode` |
-| `/workspaces/maatlog/.worktrees/maatlog-mvp` | `/workspaces/maatlog` | `/workspaces/maatlog/.worktrees/maatlog-mvp` |
+| `/home/vscode` | `/workspaces/reso-world` | `/home/vscode` |
+| `/workspaces/reso-world/.worktrees/example-worktree` | `/workspaces/reso-world` | `/workspaces/reso-world/.worktrees/example-worktree` |
 
 `new_cwd` が効くのは復元ではない新規ペイン・タブ・ワークスペース作成時のみで、目的を
 達成しない。
@@ -84,7 +84,7 @@ startup workspace が `/home/vscode` となり `session.json` を汚染する。
 各 workspace の `identity_cwd` と各 pane の `cwd` を検査する。
 
 - **保持**: `$HERDR_WORKSPACE_ROOT`（既定 `/workspaces`）配下に実在するディレクトリ。
-  `/workspaces/maatlog/.worktrees/...` はここで保持される
+  `/workspaces/reso-world/.worktrees/...` はここで保持される
 - **是正**: それ以外（`/home/vscode`、削除済み worktree など）は引数で受け取った
   ワークスペースディレクトリへ書き換える
 
@@ -158,7 +158,7 @@ status が厳密に `running: false` と確認できた場合だけ修復する�
 分離セッション（`herdr --session <name>` と `HERDR_CONFIG_PATH`）を使えば、稼働中の
 セッションを壊さずに検証できる。
 
-1. `session.json` に `/home/vscode` を仕込み、復元ペインが `/workspaces/maatlog` に
+1. `session.json` に `/home/vscode` を仕込み、復元ペインが `/workspaces/reso-world` に
    なること
 2. `session.json` に worktree パスを仕込み、**保持される**こと（退行防止）
 3. サーバ稼働中は `session.json` が書き換わらないこと

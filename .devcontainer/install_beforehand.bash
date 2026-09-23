@@ -44,7 +44,7 @@ ensure_user_writable_dir() {
 }
 
 # スクリプトはどの cwd から呼ばれても親 workspace root を正とする。
-# `.devcontainer/...` への相対参照と public/ submodule の検査を同一 root で行う。
+# `.devcontainer/...` と `scripts/...` への相対参照を同一 root で行う。
 WORKSPACE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)" || fail "Cannot resolve workspace root."
 readonly WORKSPACE_ROOT
 cd -- "$WORKSPACE_ROOT" || fail "Cannot enter workspace root."

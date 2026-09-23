@@ -1,36 +1,18 @@
 # 個人開発環境
 
-このディレクトリとルートのエージェント設定は、private な親リポジトリで
-実ファイルとして管理する。環境構築に旧 `devenv` サブモジュールや
-`setup.sh` は使用しない。
-
-公開用リポジトリは `public/` サブモジュールに置く。`public/` はアプリの正本の
-チェックアウトであり、`install_beforehand.bash` はこの checkout の locked な
-依存を使って Playwright を導入する。`public/` を通常の開発作業ツリーにはしない。
+このディレクトリには、resoloop と Blender を使うワークスペース向けの
+Dev Container 設定とエージェント用ツールのセットアップを置く。
 
 `postCreateCommand` は `/bin/bash .devcontainer/install_beforehand.bash` である。
 `.devcontainer/` を変更した場合は Dev Containers: Rebuild Container を実行する。
 Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を参照する。
 
-## `public/` checkout の検査と復旧
-
-`install_beforehand.bash` は初期化の早い段階で `public/` submodule を検査する。
-未初期化なら `git submodule update --init public` で親の gitlink が指すコミットを
-checkout し、clean であることと `pyproject.toml` / `uv.lock` の存在を確認する。
-clean な checkout の HEAD が gitlink と異なる場合は警告に留め、その checkout を
-そのまま使う（公開 `main` の方が進んでいる通常状態を許容するため）。
-
-`public/` が dirty な場合、または中身のある未初期化ディレクトリの場合は
-ERROR で停止し、既存の内容を上書きしない。次で利用者が状態を調べて解消する。
-
-```bash
-git -C public status --short
-```
-
-スクリプト側には force / reset / clean の経路を用意しない。
-
-この変更を含むコンテナの実 rebuild は `Dev Containers: Rebuild Container` で
-人間が行い、実施者・日時・結果は H の受け入れ証跡へ記録する。
+`cleanup-workspace.bash` はレビュー用の一時ディレクトリを安全条件を確認して掃除する。
+手動で確認するときは `WORKSPACE_CLEANUP_DRY_RUN=1 bash .devcontainer/cleanup-workspace.bash` を使う。
+掃除先は `WORKSPACE_CLEANUP_TMP_ROOT`、定期実行の状態保存先は
+`WORKSPACE_CLEANUP_STATE_DIR` で変更できる。清掃スクリプトは旧
+`MAATLOG_CLEANUP_*` も安全のため代替として受け付けるが、新しい名前が優先される。
+定期実行の状態保存先は新しい名前に移行する。
 
 ## npm への一本化（#147）と既存環境の移行
 
@@ -98,7 +80,7 @@ herdr server reload-config
 
 ## エージェント向けツールの導入
 
-`install_beforehand.bash` は Claude Code のプラグインと Playwright chromium を
+`install_beforehand.bash` は Claude Code のプラグインと各種エージェント用 CLI を
 導入する。Dev Container を使う限り手動実行は不要で、リビルド時も自動で再実行される。
 
 Dev Container を使わないローカル環境のみ、以下を手動で順に実行する。
@@ -107,22 +89,17 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 2. `claude plugin install example-skills@anthropic-agent-skills`
 3. `claude plugin install web-quality-skills@addy-web-quality-skills`
 4. `claude plugin install ripgrep@alberto-marketplace`
-5. `cd public && uv run --locked playwright install --with-deps chromium`
-6. `mkdir -p ~/.pi/agent && cp .devcontainer/pi-models.json ~/.pi/agent/models.json`
-7. `mkdir -p ~/.local/bin && install -m 0755 .devcontainer/pigo ~/.local/bin/pigo`
-8. `install -m 0755 .devcontainer/pigod ~/.local/bin/pigod`
-9. `install -m 0755 .devcontainer/pigou ~/.local/bin/pigou`
-10. `install -m 0755 .devcontainer/piccg ~/.local/bin/piccg`
-11. `install -m 0755 .devcontainer/piccd ~/.local/bin/piccd`
-12. `install -m 0755 .devcontainer/piga ~/.local/bin/piga`
-13. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
-14. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
-15. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
-16. `zsh scripts/setup_pi_superagents.zsh`
-
-`--with-deps` は sudo を使うため、エージェントではなく人間が実行する。
-OS 依存を省くと `libglib-2.0.so.0` が見つからず起動に失敗する
-（Dev Container では `libglib2.0-0t64` を apt で導入済み）。
+5. `mkdir -p ~/.pi/agent && cp .devcontainer/pi-models.json ~/.pi/agent/models.json`
+6. `mkdir -p ~/.local/bin && install -m 0755 .devcontainer/pigo ~/.local/bin/pigo`
+7. `install -m 0755 .devcontainer/pigod ~/.local/bin/pigod`
+8. `install -m 0755 .devcontainer/pigou ~/.local/bin/pigou`
+9. `install -m 0755 .devcontainer/piccg ~/.local/bin/piccg`
+10. `install -m 0755 .devcontainer/piccd ~/.local/bin/piccd`
+11. `install -m 0755 .devcontainer/piga ~/.local/bin/piga`
+12. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
+13. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
+14. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
+15. `zsh scripts/setup_pi_superagents.zsh`
 
 プラグインの有効化は `.claude/settings.json` の `extraKnownMarketplaces` と
 `enabledPlugins` で行う。設定の反映には Claude Code の再起動が必要である。
@@ -523,7 +500,7 @@ v1.14.3 の隔離検証では、自動探索と同じ絶対パスに解決され
 
 ##### 検証範囲
 
-[隔離検証 #409](https://github.com/usaturn/maatlog-poc/issues/409#issuecomment-5773449902)では、
+[移行元リポジトリの隔離検証 #409](https://github.com/usaturn/maatlog-poc/issues/409#issuecomment-5773449902)では、
 pi-superagents 1.14.3 / Pi loader 0.85.1 / Superpowers 6.4.1 について、
 旧エントリあり・なしと `includeProject` true・false の4条件で、
 `using-superpowers`、`brainstorming`、`writing-plans`、

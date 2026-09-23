@@ -235,7 +235,7 @@ test_launch_and_guards() {
 test_session_cwd_repair() {
     local test_home="${TEST_ROOT}/home-repair"
     local workspace_root="${TEST_ROOT}/workspaces"
-    local workspace_dir="${workspace_root}/maatlog"
+    local workspace_dir="${workspace_root}/reso-world"
     local worktree_dir="${workspace_dir}/.worktrees/feature"
     local session_file="${test_home}/.config/herdr/session.json"
     make_stub_home "$test_home"
@@ -360,7 +360,7 @@ PY
 test_session_cwd_repair_multi_workspace() {
     local test_home="${TEST_ROOT}/home-repair-multi"
     local workspace_root="${TEST_ROOT}/workspaces-multi"
-    local workspace_dir="${workspace_root}/maatlog"
+    local workspace_dir="${workspace_root}/reso-world"
     local session_file="${test_home}/.config/herdr/session.json"
     make_stub_home "$test_home"
 

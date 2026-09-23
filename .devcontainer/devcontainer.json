@@ -34,7 +34,8 @@
 		"--security-opt",
 		"seccomp=unconfined",
 		"--security-opt",
-		"apparmor=unconfined"
+		"apparmor=unconfined",
+		"--network=host"
 	],
   "features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {},

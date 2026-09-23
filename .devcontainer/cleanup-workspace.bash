@@ -41,18 +41,19 @@
 # verify.sh のログ rotation はこのスクリプトの対象外（#150 の責務）。
 #
 # 環境変数（既定値はコンテナの実運用、テストでは差し替える）:
-#   MAATLOG_CLEANUP_TMP_ROOT       pr-review-* / review-fix-planning.* を探すルート（既定 /tmp）
-#   MAATLOG_CLEANUP_MIN_AGE_DAYS   最終更新からの最小経過日数。0 以下で無効化（既定 1）
-#   MAATLOG_CLEANUP_YARN_CACHE_DIR yarn キャッシュのパス（既定 $HOME/.cache/yarn）
-#   MAATLOG_CLEANUP_DRY_RUN        1 で実際には削除・git worktree remove をせず
+#   WORKSPACE_CLEANUP_TMP_ROOT       pr-review-* / review-fix-planning.* を探すルート（既定 /tmp）
+#   WORKSPACE_CLEANUP_MIN_AGE_DAYS   最終更新からの最小経過日数。0 以下で無効化（既定 1）
+#   WORKSPACE_CLEANUP_YARN_CACHE_DIR yarn キャッシュのパス（既定 $HOME/.cache/yarn）
+#   WORKSPACE_CLEANUP_DRY_RUN        1 で実際には削除・git worktree remove をせず
 #                                  対象だけ表示する（既定 0）
+# 旧 MAATLOG_CLEANUP_* は安全のため代替として受け付け、新しい名前を優先する。
 
 set -u
 
-readonly TMP_ROOT="${MAATLOG_CLEANUP_TMP_ROOT:-/tmp}"
-readonly MIN_AGE_DAYS="${MAATLOG_CLEANUP_MIN_AGE_DAYS:-1}"
-readonly YARN_CACHE_DIR="${MAATLOG_CLEANUP_YARN_CACHE_DIR:-${HOME:-/root}/.cache/yarn}"
-readonly DRY_RUN="${MAATLOG_CLEANUP_DRY_RUN:-0}"
+readonly TMP_ROOT="${WORKSPACE_CLEANUP_TMP_ROOT:-${MAATLOG_CLEANUP_TMP_ROOT:-/tmp}}"
+readonly MIN_AGE_DAYS="${WORKSPACE_CLEANUP_MIN_AGE_DAYS:-${MAATLOG_CLEANUP_MIN_AGE_DAYS:-1}}"
+readonly YARN_CACHE_DIR="${WORKSPACE_CLEANUP_YARN_CACHE_DIR:-${MAATLOG_CLEANUP_YARN_CACHE_DIR:-${HOME:-/root}/.cache/yarn}}"
+readonly DRY_RUN="${WORKSPACE_CLEANUP_DRY_RUN:-${MAATLOG_CLEANUP_DRY_RUN:-0}}"
 
 # cleanup_pr_review_dirs が削除した（dry-run では削除するとみなした）ディレクトリ。
 # loose ファイルの掃除は「同じ PR 番号のディレクトリがもう残っていないか」で
