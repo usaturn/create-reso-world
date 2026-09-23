@@ -86,7 +86,7 @@ step "Installing the base packages"
 if ! sudo apt update; then
     fail "apt update failed before installing the base packages."
 fi
-if ! sudo apt install -y vim tig ripgrep fzf bubblewrap libglib2.0-0t64; then
+if ! sudo apt install -y vim tig ripgrep fzf bubblewrap libglib2.0-0t64 blender; then
     fail "apt install of the base packages failed."
 fi
 

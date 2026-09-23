@@ -25,6 +25,9 @@
     "containerEnv": {
         "SHELL": "/usr/bin/zsh"
     },
+    "remoteEnv": {
+        "PATH": "${containerEnv:PATH}:/home/vscode/.dotnet/tools"
+    },
 	"initializeCommand": "/bin/bash .devcontainer/initialize.bash",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/base:ubuntu26.04",
@@ -39,6 +42,9 @@
 	],
   "features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/devcontainers/features/dotnet:2": {
+			"version": "10.0"
+		},
 		"ghcr.io/devcontainers/features/node:2": {
 		"nodeGypDependencies": true,
 		// #147: リポジトリのタスク・CLI 導入は npm に一本化した。yarn を apt 経由で
