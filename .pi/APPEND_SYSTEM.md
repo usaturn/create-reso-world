@@ -8,14 +8,6 @@
   を実行し、Herdr 左サイドバーへ担当タスクを反映すること。
   詳細は `.agents/skills/herdr-agent-task/SKILL.md` を参照すること
 
-## リポジトリの分担
-
-- アプリケーション（`src/`・`tests/`・`docs/` 等の公開内容）の Issue・worktree・検証・PR は、公開リポジトリ `usaturn/maatlog` が操作先。親では `public/` submodule として checkout し、worktree は公開側の `origin/main` から作る
-- 開発環境の同じ操作は親 `usaturn/maatlog-poc` が操作先。worktree は親の `origin/main` から作る
-- 操作前に、親の `git remote get-url origin` が `usaturn/maatlog-poc` を指し、`git -C public remote get-url origin` が `.gitmodules` の `submodule.public.url`（`usaturn/maatlog`）と一致することを確認する
-- 親での通常 commit に `public` の gitlink を stage しない
-- 正本の手順は `.agents/skills/repository-ownership/SKILL.md`
-
 ## サブエージェントの起動
 
 - 起動前に `subagent` ツールへ `{ action: "list", capabilities: true }` を投げ、`executable` かつ `launchable` なエージェントを確認する
