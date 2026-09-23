@@ -11,7 +11,7 @@ readonly DSH_COMMANDCODE_PROVIDER_VERSION="0.10.6"
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
 # （workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=27
+readonly STEP_TOTAL=24
 STEP_NUMBER=0
 
 step() {
@@ -88,6 +88,17 @@ if ! sudo apt update; then
 fi
 if ! sudo apt install -y vim tig ripgrep fzf bubblewrap libglib2.0-0t64 blender; then
     fail "apt install of the base packages failed."
+fi
+
+step "Installing or updating the latest ResoLoop tool"
+export PATH="${HOME}/.dotnet/tools:${PATH}"
+if ! bash .devcontainer/install_resoloop.bash; then
+    fail "ResoLoop installation or update failed."
+fi
+
+step "Verifying the Resonite development toolchain"
+if ! bash .devcontainer/verify-resonite-tooling.bash; then
+    fail "Resonite development toolchain verification failed."
 fi
 
 step "Generating the Japanese locale"

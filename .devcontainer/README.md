@@ -14,6 +14,25 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 `MAATLOG_CLEANUP_*` も安全のため代替として受け付けるが、新しい名前が優先される。
 定期実行の状態保存先は新しい名前に移行する。
 
+## Resonite ワールド開発ツール
+
+Dev Container の作成時に .NET 10 SDK と Blender を導入し、ResoLoop を
+プレビュー版を含む利用可能な最新版へインストールまたは更新する。
+Blender は画面を開かずに実行する。Resonite 本体と ResoniteLink は
+Windows ホスト側で準備する。接続確認の `resoloop doctor`、
+Blender の GUI、ホスト側のネットワーク設定はこのセットアップの対象外とする。
+
+導入を確認するにはコンテナ内で次を実行する。
+
+```bash
+dotnet --list-sdks
+resoloop --version
+bash .devcontainer/verify-resonite-tooling.bash
+```
+
+ResoLoop の公式要件には Windows 10/11 が記載されている。Linux で
+CLI が動作しない場合は `postCreateCommand` を失敗とし、成功扱いにはしない。
+
 ## npm への一本化（#147）と既存環境の移行
 
 リポジトリのタスクおよび Codex CLI の導入・更新は npm に一本化した
