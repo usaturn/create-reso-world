@@ -1,0 +1,9 @@
+.. Dedicated negative page. Copy to docs/negative-unresolved-reference.rst
+.. and add ``negative-unresolved-reference`` to the index toctree.
+
+.. _negative_unresolved_reference:
+
+Unresolved reference negative
+=============================
+
+Missing :ref:`absent_label_for_eval`.

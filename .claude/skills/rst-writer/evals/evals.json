@@ -1,0 +1,824 @@
+{
+  "skill_name": "rst-writer",
+  "evals": [
+    {
+      "id": 0,
+      "name": "generic-explanation",
+      "prompt": "遅延再試行とキューの関係を解説する .rst 文書を作成してください。遅延再試行の発生条件・待機時間・試行上限・失敗時の扱いも説明してください。document_type=explanation、language=ja。作業対象は評価者が用意した MaatLog 構成（親/公開）で、新規 draft は親の docs_draft/ 配下に置き、専門用語は公開側の docs/glossary.rst と照合してください。変更ファイル・用語集の変更有無・実行した検査と結果を報告してください。",
+      "expected_output": "親 docs_draft/ 配下の日本語解説書。遅延再試行の4要素を説明し、読点を4つ以上使って語句を列挙する場合は箇条書きまたはフィールドリストで整理する。既存のキュー/queue 別名は追記なしで本文全出現を :term: 化し、新語の遅延再試行だけを既存 glossary へ追記。作成ファイルと編集した glossary に4段階 lint。",
+      "files": [
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/public/pyproject.toml",
+        "evals/fixtures/maatlog-env/.gitmodules"
+      ],
+      "assertions": [
+        "作成先は親 checkout の docs_draft/ 配下であり、先頭ラベル・概要・末尾単独の「以上」を含む RST 構造になっている",
+        "本文で使ったキュー/queue と遅延再試行の全出現が :term: でマークされている（コード・見出し等の対象外を除く）",
+        "公開側 docs/glossary.rst には遅延再試行のエントリだけが追記され、キュー/queue・監査ログの既存エントリは不変である",
+        "日本語の地の文は一文あたりの読点「、」が3つ以下である（コード・リテラル・図・list-table セル内は対象外）",
+        "読点「、」を4つ以上使って語句を列挙する箇所は箇条書きまたはフィールドリストに分解されている",
+        "実コマンド記録が inline-spacing→strong-spacing→sentence-breaks→heading-width の4段階を --fix で（最後のみ --backup-suffix .bak）、作成ファイルと編集した glossary の両方に示す",
+        "uv project として公開 checkout（APP_ROOT）が使われ、親 project や他環境を代用していない"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 1,
+      "name": "oss-landing",
+      "prompt": "profile=oss-python-extension, document_type=landing-page, target_path=docs/index.rst, language=en. Update the landing page of the supplied project: state what the extension is for and where a reader should start, and keep the existing navigation structure intact. Report the files changed and the actual validation results.",
+      "expected_output": "English docs/index.rst that presents the extension's purpose and reading starting points, keeps every existing toctree entry, and passes the four lint steps plus the project build with no warnings.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/index.rst",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/Makefile",
+        "evals/fixtures/oss-extension/pyproject.toml"
+      ],
+      "assertions": [
+        "docs/index.rst still contains a toctree with every originally listed entry; no entry was dropped or renamed",
+        "The page now states the extension's purpose and gives explicit starting points for readers",
+        "Only docs/index.rst changed among source files; conf.py, navigation targets, and all other pages are byte-identical",
+        "Command records show the four lint steps in order on the edited file, then the existing project build (make docs wrapper or equivalent) finishing with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 2,
+      "name": "oss-quickstart-en",
+      "prompt": "profile=oss-python-extension, document_type=quickstart, target_path=docs/quickstart.rst, language=en. Expand this page into a short quickstart for the supplied extension project: enable the extension, run a minimal queue-summary example, and show the expected output. Use the project's real sample or code where helpful. Report the files changed and the actual validation results.",
+      "expected_output": "English quickstart that flows intro -> configure -> run -> expected output, uses console/python code blocks appropriately, and does not import MaatLog-only conventions.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/quickstart.rst",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/src/queue_ext/__init__.py",
+        "evals/fixtures/oss-extension/examples/basic.py",
+        "evals/fixtures/oss-extension/Makefile"
+      ],
+      "assertions": [
+        "The page leads with a short introduction, then shows configuration, then how to run it, then the expected output",
+        "Code blocks use language-appropriate directives (e.g. console/python), and any shown API usage matches the real source",
+        "No MaatLog-only conventions appear (fixed 概要 section, trailing 以上, or Japanese-only style rules) in the English page",
+        "Only docs/quickstart.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 3,
+      "name": "oss-quickstart-ja",
+      "prompt": "profile=oss-python-extension, document_type=quickstart, target_path=docs/quickstart.rst, language=ja. Expand this page into a short quickstart matching the project's existing documentation style: enable the extension, run a minimal queue-summary example, and show the expected output. Report the files changed and the actual validation results.",
+      "expected_output": "Japanese quickstart in the project's existing style (no MaatLog-only 概要/以上 conventions), covering intro -> configure -> run -> expected output, with the four lint steps and a warning-free build.",
+      "files": [
+        "evals/fixtures/oss-extension/variants/ja/docs/quickstart.rst",
+        "evals/fixtures/oss-extension/variants/ja/docs/index.rst",
+        "evals/fixtures/oss-extension/variants/ja/docs/conf.py",
+        "evals/fixtures/oss-extension/src/queue_ext/__init__.py"
+      ],
+      "assertions": [
+        "The written page is natural Japanese consistent with the project's existing style and document-type role",
+        "MaatLog-only conventions are not applied (no forced 概要 section or trailing standalone 以上)",
+        "Configuration/run/output content matches the real extension (extension name, directive, expected result)",
+        "Only docs/quickstart.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["apply the ja variant: replace docs/ with variants/ja/docs (including its conf.py)"],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 4,
+      "name": "oss-configuration-modern",
+      "prompt": "profile=oss-python-extension, document_type=configuration-reference, target_path=docs/configuration.rst, language=en. Write the configuration reference for this project. The values queue_limit (int, default 3) and queue_prefix (str, default 'task') must match the source registration exactly. Use the documentation build the project already provides. Report the files changed and the actual validation results.",
+      "expected_output": "English configuration reference whose definitions match the source (queue_limit: int=3, queue_prefix: str='task'), expressed with confval markup that resolves in the project's build.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/configuration.rst",
+        "evals/fixtures/oss-extension/docs/objects.rst",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/src/queue_ext/__init__.py",
+        "evals/fixtures/oss-extension/Makefile"
+      ],
+      "assertions": [
+        "queue_limit and queue_prefix are defined with confval markup (:type:/:default:) whose values match the source registration exactly",
+        "References to the values (e.g. :confval:) resolve under -n; rendered HTML links reach the definitions on the written page",
+        "No duplicate definitions of the same config values remain elsewhere in the tree (objects.rst setup removal is the evaluator's, not the agent's)",
+        "Only docs/configuration.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["remove the two confval blocks (queue_limit, queue_prefix) from docs/objects.rst so the target page becomes the canonical location"],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 6,
+      "name": "oss-directive",
+      "prompt": "profile=oss-python-extension, document_type=directive-reference, target_path=docs/directives.rst, language=en. Write the directive reference for queue-summary: its one required argument, its body content, and the max-items option, matching src/queue_ext exactly, with a working usage example. Report the files changed and the actual validation results.",
+      "expected_output": "English directive reference that describes queue-summary's signature, content, and max-items option per the real implementation, using rst-domain markup and a usage example that builds.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/directives.rst",
+        "evals/fixtures/oss-extension/docs/objects.rst",
+        "evals/fixtures/oss-extension/src/queue_ext/__init__.py",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/Makefile"
+      ],
+      "assertions": [
+        "The reference uses .. rst:directive:: queue-summary with a nested .. rst:directive:option:: max-items (or resolves equivalently), and the described argument/option contract matches the implementation (1 required arg, content body, non-negative int default 3)",
+        "A real .. queue-summary:: usage example is present and builds without warnings",
+        "References to the directive resolve under -n and rendered HTML reaches the definition on the written page",
+        "Only docs/directives.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["remove the rst:directive queue-summary block from docs/objects.rst so the target page becomes the canonical location"],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 7,
+      "name": "oss-role",
+      "prompt": "profile=oss-python-extension, document_type=role-reference, target_path=docs/roles.rst, language=en. Write the role reference for queue-name: what it displays, matching the real implementation, with a usage example whose rendered output matches the implementation. Report the files changed and the actual validation results.",
+      "expected_output": "English role reference that describes queue-name as an inline-literal display of the given name, using rst-domain markup and an example whose rendering matches the implementation.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/roles.rst",
+        "evals/fixtures/oss-extension/docs/objects.rst",
+        "evals/fixtures/oss-extension/src/queue_ext/__init__.py",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/Makefile"
+      ],
+      "assertions": [
+        "The reference uses .. rst:role:: queue-name and the described behavior matches the implementation (inline literal of the given name)",
+        "A real :queue-name: usage example is present and renders the name as literal in the built HTML",
+        "References to the role resolve under -n",
+        "Only docs/roles.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["remove the rst:role queue-name block from docs/objects.rst so the target page becomes the canonical location"],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 8,
+      "name": "oss-api",
+      "prompt": "profile=oss-python-extension, document_type=api-reference, target_path=docs/api.rst, language=en. Write the API reference for queue_ext: format_badge(name, prefix='task') -> str (a blank name raises ValueError) and setup(app), matching the real source, with types/defaults, an example, and references to related pages. Do not register the same object twice. Report the files changed and the actual validation results.",
+      "expected_output": "English API reference whose documented signature, defaults, and error behavior match the source exactly, with one canonical definition per object and resolvable references.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/api.rst",
+        "evals/fixtures/oss-extension/docs/objects.rst",
+        "evals/fixtures/oss-extension/src/queue_ext/__init__.py",
+        "evals/fixtures/oss-extension/HISTORY.txt",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/Makefile"
+      ],
+      "assertions": [
+        "format_badge and setup are defined exactly once on the page (manual py directives or autodoc, not both for the same object)",
+        "Documented signature/default (prefix='task'), return value, and the ValueError-on-blank behavior match src/queue_ext",
+        "The prefix parameter addition in 0.2.0 is noted per the real history (versionchanged or equivalent), not invented version facts",
+        "References to the objects resolve under -n; no 'duplicate object description' warning appears",
+        "Only docs/api.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["remove the py:module/py:function blocks (queue_ext, format_badge, setup, main) from docs/objects.rst so the target page becomes the canonical location"],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 9,
+      "name": "oss-cross-reference",
+      "prompt": "profile=oss-python-extension, document_type=explanation, target_path=docs/cross-reference.rst, language=en. Write a page explaining how this project cross-references its API, configuration values, directive, role, the existing glossary concept, and a section of another page. References must resolve to real targets. Report the files changed and the actual validation results.",
+      "expected_output": "English explanation page whose semantic references resolve to the real definitions on docs/objects.rst and docs/glossary.rst, with no :doc: usage.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/cross-reference.rst",
+        "evals/fixtures/oss-extension/docs/objects.rst",
+        "evals/fixtures/oss-extension/docs/glossary.rst",
+        "evals/fixtures/oss-extension/docs/index.rst",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/Makefile"
+      ],
+      "assertions": [
+        "Semantic roles (:py:func:, :confval:, :rst:dir:, :rst:role:, :term:, :ref:) are used where a real target exists, and each resolves under -n",
+        "Rendered HTML links reach the intended definitions on objects.rst / glossary.rst / the referenced section",
+        "No :doc: role is used anywhere; no unresolved reference warnings remain",
+        "Only docs/cross-reference.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 10,
+      "name": "oss-literal-include",
+      "prompt": "profile=oss-python-extension, document_type=how-to, target_path=docs/how-to.rst, language=en. Update only this page to explain the existing examples/basic.py sample. Use the supplied project as cwd and its configured documentation build. Report the files changed and actual validation results.",
+      "expected_output": "English how-to page whose included code matches the real sample, with four lint steps then a warning-free build and no other source changes.",
+      "files": [
+        "evals/fixtures/oss-extension/examples/basic.py",
+        "evals/fixtures/oss-extension/src/queue_ext/__init__.py",
+        "evals/fixtures/oss-extension/docs/how-to.rst",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/Makefile",
+        "evals/fixtures/oss-extension/pyproject.toml"
+      ],
+      "assertions": [
+        "Generated RST uses a valid relative literalinclude path to examples/basic.py; the rendered snippet equals that file's selected lines",
+        "The diff changes only docs/how-to.rst among source files; examples/basic.py, conf.py, navigation and glossary remain byte-identical",
+        "Harness command records and actual logs show all four lint steps in order followed by the existing build; the final build has exit 0 and no warning"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 11,
+      "name": "validation-existing-build",
+      "prompt": "profile=oss-python-extension, document_type=explanation, target_path=docs/validation.rst, language=en. Update this page describing how documentation changes are validated in this project. Actually perform the validation steps for your own edit using the project's configured tooling, and record them in your report. Report the files changed and the actual validation results.",
+      "expected_output": "English validation page plus a report whose recorded commands show the four lint steps then the existing make docs wrapper, in order, with cwd and exit codes.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/validation.rst",
+        "evals/fixtures/oss-extension/Makefile",
+        "evals/fixtures/oss-extension/pyproject.toml",
+        "evals/fixtures/oss-extension/lint/pyproject.toml",
+        "evals/fixtures/oss-extension/docs/conf.py"
+      ],
+      "assertions": [
+        "Command records show inline-spacing, strong-spacing, sentence-breaks, then heading-width --fix --backup-suffix .bak, in that order, on the edited file",
+        "The build step uses the project's existing wrapper (make docs) rather than a hand-rolled command, with cwd and exit code recorded",
+        "A reply that only lists commands without corresponding run records fails this eval",
+        "Only docs/validation.rst changed; the final build has exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"},
+      "artifact_requirements": ["commands.jsonl must contain the ordered lint and build entries with real exit codes"]
+    },
+    {
+      "id": 12,
+      "name": "validation-no-wrapper",
+      "prompt": "profile=oss-python-extension, document_type=explanation, target_path=docs/validation.rst, language=en. Update this page describing how documentation changes are validated in this project. Actually perform the validation steps for your own edit using the project's configured tooling, and record them in your report. Report the files changed and the actual validation results.",
+      "expected_output": "English validation page plus a report showing the four lint steps then a direct sphinx-build -n -W --keep-going run (no Makefile wrapper), with cwd and exit codes recorded.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/validation.rst",
+        "evals/fixtures/oss-extension/pyproject.toml",
+        "evals/fixtures/oss-extension/lint/pyproject.toml",
+        "evals/fixtures/oss-extension/docs/conf.py"
+      ],
+      "assertions": [
+        "The build runs as a direct sphinx-build -n -W --keep-going -b html invocation on the confirmed docs source, not via a removed wrapper",
+        "The four lint steps ran in order on the edited file before the build, with real exit codes",
+        "The report does not claim a wrapper or target that does not exist in the copy",
+        "Only docs/validation.rst changed; the final build has exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["remove Makefile so no docs wrapper exists"],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"},
+      "artifact_requirements": ["commands.jsonl must show the direct sphinx-build argv"]
+    },
+    {
+      "id": 13,
+      "name": "oss-changelog-preserve",
+      "prompt": "profile=oss-python-extension, document_type=changelog, target_path=docs/changelog.rst, language=en. Add the 0.2.0 release to the changelog following the file's existing format. Take the facts from the project's own HISTORY.txt and preserve the existing entry, dates, labels, and format. Report the files changed and the actual validation results.",
+      "expected_output": "changelog.rst gains a 0.2.0 section above 0.1.0 in the file's existing format and facts from HISTORY.txt; the 0.1.0 entry is byte-preserved.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/changelog.rst",
+        "evals/fixtures/oss-extension/HISTORY.txt",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/Makefile"
+      ],
+      "assertions": [
+        "The 0.1.0 section text, label, and date are byte-identical to the shipped version",
+        "A 0.2.0 entry is added in the same format whose facts (the prefix parameter on format_badge) come from HISTORY.txt, not invented",
+        "No unrelated reformatting, label renames, or extra sections appear",
+        "Only docs/changelog.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 14,
+      "name": "oss-without-glossary",
+      "prompt": "profile=oss-python-extension, document_type=explanation, target_path=docs/concepts.rst, language=en. Expand this page explaining the queue concepts used by this project. Report the files changed and the actual validation results.",
+      "expected_output": "English concepts page written as normal prose; no technical objects are registered into a glossary and no new glossary is created.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/concepts.rst",
+        "evals/fixtures/oss-extension/docs/index.rst",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/Makefile"
+      ],
+      "assertions": [
+        "Concepts are written as normal descriptive text; :term: is not used for targets that no longer exist",
+        "No .. glossary:: block is created or edited on any page to force resolution",
+        "Technical objects are not registered as glossary terms",
+        "Only docs/concepts.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["remove docs/glossary.rst and its toctree entry in docs/index.rst"],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 15,
+      "name": "oss-label-collision",
+      "prompt": "profile=oss-python-extension, document_type=explanation, target_path=docs/admin/overview.rst, language=en. Create this page: an overview of the admin area of the extension. Another page with the same basename already exists under docs/guide/. Report the files changed and the actual validation results.",
+      "expected_output": "A new docs/admin/overview.rst whose page label is unique despite the same basename as docs/guide/overview.rst; existing labels stay unchanged and references resolve.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/guide/overview.rst",
+        "evals/fixtures/oss-extension/docs/index.rst",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/Makefile"
+      ],
+      "assertions": [
+        "The new page's label does not collide with the existing ``overview`` label on docs/guide/overview.rst (e.g. an admin-prefixed label is used)",
+        "No existing label or page content was modified to make room; guide/overview.rst is byte-identical",
+        "A :ref: to the new page resolves under -n",
+        "Only docs/admin/overview.rst is created; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["remove docs/admin/overview.rst; keep its toctree entry so the build reports a missing document until the page is recreated"],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 16,
+      "name": "oss-semantic-unavailable",
+      "prompt": "profile=oss-python-extension, document_type=explanation, target_path=docs/fallback.rst, language=en. Write a page explaining how to reference this extension's objects when advanced markup is unavailable, matching what this project actually supports. Report the files changed and the actual validation results.",
+      "expected_output": "English fallback page that keeps usable rst/py definitions, falls back to literal/ref for unregistered objects, and adds no extensions or invented event roles.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/fallback.rst",
+        "evals/fixtures/oss-extension/docs/objects.rst",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/src/queue_ext/__init__.py",
+        "evals/fixtures/oss-extension/Makefile"
+      ],
+      "assertions": [
+        "Objects resolvable in the project's build are referenced with working markup; unregistered ones fall back to literal or :ref:",
+        "No autodoc/intersphinx/figure extension is added or assumed; no fake event or hook roles appear",
+        "The page explains the fallback choice briefly (registration or resolution reason)",
+        "Only docs/fallback.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [
+        "remove sphinx.ext.autodoc from extensions in docs/conf.py"
+      ],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 17,
+      "name": "unknown-profile",
+      "prompt": "profile=unknown-service-profile, document_type=explanation, target_path=docs_draft/notes.rst, language=ja. 与えられた環境で解説文書を作成してください。変更ファイルと検査結果を報告してください。",
+      "expected_output": "No files are created or modified. The reply reports that the given profile is unknown and states what input is needed next.",
+      "files": [
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst"
+      ],
+      "assertions": [
+        "The reply names the unknown profile value and the information needed to proceed",
+        "No RST file is created, no glossary is touched, no .bak is produced, and no lint command was run",
+        "The agent did not silently substitute a default or known profile"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": [],
+      "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
+    },
+    {
+      "id": 18,
+      "name": "unknown-document-type",
+      "prompt": "profile=oss-python-extension, document_type=index, target_path=docs/index.rst, language=en. Update the page for the supplied project and report files changed plus validation results.",
+      "expected_output": "No files are created or modified. The reply reports that 'index' is not a valid document_type and lists what is needed, without silently mapping it to landing-page.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/index.rst"
+      ],
+      "assertions": [
+        "The reply identifies 'index' as an invalid document_type for this profile and does not convert it to landing-page",
+        "No RST file is created or edited and no lint or build was run",
+        "The needed next input (a valid document_type) is stated"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": [],
+      "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
+    },
+    {
+      "id": 19,
+      "name": "missing-oss-target",
+      "prompt": "profile=oss-python-extension, document_type=quickstart, language=en. Write the quickstart for the supplied extension project and report files changed plus validation results.",
+      "expected_output": "No files are created. The reply reports that target_path is required for this profile and does not guess docs_draft or any path.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/conf.py"
+      ],
+      "assertions": [
+        "The reply states that target_path is missing and required for the OSS profile",
+        "No file is created anywhere (including docs_draft/) and no lint or build was run",
+        "The agent did not pick a plausible-looking path on its own"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": [],
+      "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
+    },
+    {
+      "id": 20,
+      "name": "missing-oss-language",
+      "prompt": "profile=oss-python-extension, document_type=quickstart, target_path=docs/quickstart.rst. Expand this page into a quickstart for the supplied extension project and report files changed plus validation results.",
+      "expected_output": "No files are created or modified. The reply reports that language is required for this profile and does not guess it from existing pages.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/quickstart.rst"
+      ],
+      "assertions": [
+        "The reply states that language is missing and required for the OSS profile",
+        "docs/quickstart.rst and all other files are unchanged; no lint or build was run",
+        "The agent did not infer en or ja from the existing files"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": [],
+      "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
+    },
+    {
+      "id": 21,
+      "name": "empty-profile",
+      "prompt": "profile='', document_type=procedure, language=ja. 与えられた環境で手順書を作成してください。変更ファイルと検査結果を報告してください。",
+      "expected_output": "No files are created. The reply reports that an empty profile value is invalid input, without converting it to the maatlog default.",
+      "files": [
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst"
+      ],
+      "assertions": [
+        "The reply identifies the empty profile string as a missing/invalid value rather than an omitted one",
+        "profile=maatlog was not silently assumed",
+        "No file is created, no glossary is touched, and no lint was run"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": [],
+      "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
+    },
+    {
+      "id": 22,
+      "name": "unsupported-minimum",
+      "prompt": "profile=oss-python-extension, document_type=configuration-reference, target_path=docs/configuration.rst, language=en. Write the configuration reference for this project matching the source registration exactly. Report the files changed, the Sphinx facts you relied on, and the actual validation results.",
+      "expected_output": "The reply stops before writing because the project's declared Sphinx constraint (needs_sphinx = \"7.4\") allows versions below 9.1, which the OSS profile does not support. It reports the declared constraint and the running Sphinx version, changes no files, and does not raise needs_sphinx.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/configuration.rst",
+        "evals/fixtures/oss-extension/docs/objects.rst",
+        "evals/fixtures/oss-extension/docs/conf.py",
+        "evals/fixtures/oss-extension/src/queue_ext/__init__.py"
+      ],
+      "assertions": [
+        "The reply reports that the declared needs_sphinx \"7.4\" allows Sphinx below 9.1 and that the project is therefore out of scope for the OSS profile",
+        "No file in the project changes, including docs/configuration.rst and docs/conf.py (needs_sphinx is not raised)",
+        "Lint and build are not reported as passed; the task is not reported as complete"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": ["set needs_sphinx = \"7.4\" in docs/conf.py (the build env stays Sphinx 9.1.0)"],
+      "expected_status": {"component": "stopped-blocked", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "stopped-blocked"}
+    },
+    {
+      "id": 23,
+      "name": "glossary-alias-reuse",
+      "prompt": "キューの働きを解説する .rst 文書を作成してください。document_type=explanation、language=ja。本文では「キュー」と「queue」の両表記を使います。作業対象は評価者が用意した MaatLog 構成で、新規 draft は親 docs_draft/ 配下、用語は公開側 docs/glossary.rst と照合してください。変更ファイル・用語集の変更有無・検査結果を報告してください。",
+      "expected_output": "親 docs_draft/ 配下の日本語解説書。キュー/queue の全出現が :term: でマークされ、既存エントリの別名として解決するため glossary 追記はゼロ。glossary 未編集なら lint 対象外。",
+      "files": [
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/public/pyproject.toml",
+        "evals/fixtures/maatlog-env/.gitmodules"
+      ],
+      "assertions": [
+        "本文中のキュー/queue の全出現が :term: でマークされ、同一エントリの別名として解決している（表示名とキーの使い分けを含む）",
+        "公開側 docs/glossary.rst は byte 不変（新規エントリも別名重複もない）",
+        "glossary を編集していないので lint は作成ファイルのみに4段階で実行された",
+        "監査ログなど本文に出ない既存語や、他文書の語を先回りで追加していない"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 24,
+      "name": "glossary-markup-exclusions",
+      "prompt": "添付資料（prompts/exclusions.rst.txt）を題材に、キューの振る舞いを解説する .rst 文書を作成してください。document_type=explanation、language=ja。作業対象は評価者が用意した MaatLog 構成で、新規 draft は親 docs_draft/ 配下、用語は公開側 docs/glossary.rst と照合してください。変更ファイル・用語集の変更有無・検査結果を報告してください。",
+      "expected_output": "親 docs_draft/ 配下の日本語解説書。キュー は地の文の全出現だけ :term: で、見出し・コード・リテラル・Mermaid 内は無変更。新語は本文使用分のみ glossary へ追記。",
+      "files": [
+        "evals/fixtures/maatlog-env/prompts/exclusions.rst.txt",
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/public/pyproject.toml"
+      ],
+      "assertions": [
+        "地の文のキュー の全出現が :term: でマークされている",
+        "見出し・code-block・literal block・inline literal・Mermaid 内の同じ語はマークされず残っている（list-table セルは任意）",
+        "glossary への追記は本文で実際に使った未定義語だけであり、対象外箇所の語を理由に増やしていない",
+        "lint が作成ファイルと（編集した場合のみ）glossary に4段階で実行された"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 25,
+      "name": "maatlog-missing-glossary",
+      "prompt": "キューの役割を解説する .rst 文書を作成してください。document_type=explanation、language=ja。作業対象は評価者が用意した MaatLog 構成で、新規 draft は親 docs_draft/ 配下に置き、用語は公開側 docs/glossary.rst と照合してください。変更ファイルと検査結果を報告してください。",
+      "expected_output": "No files are created. The reply reports that APP_ROOT/docs/glossary.rst is missing, states the needed repair, and does not substitute the parent glossary or create a new one.",
+      "files": [
+        "evals/fixtures/maatlog-env/public/pyproject.toml",
+        "evals/fixtures/maatlog-env/.gitmodules"
+      ],
+      "assertions": [
+        "The reply identifies docs/glossary.rst as missing in the public checkout and states the required repair",
+        "Neither the parent docs/glossary.rst nor a newly created glossary is used as a substitute",
+        "No draft is created and no lint was run"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": ["remove public/docs/glossary.rst from the MaatLog copy"],
+      "expected_status": {"component": "stopped-blocked", "entrypoint_before_393": "stopped-blocked", "entrypoint_after_393": "stopped-blocked"}
+    },
+    {
+      "id": 26,
+      "name": "maatlog-procedure-default",
+      "prompt": "キューの滞留を解消する手順書を作成してください。document_type=procedure、language=ja。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
+      "expected_output": "親 docs_draft/ 配下の手順書（procedure template 構成: 前提条件・手順の流れ・実施手順・結果確認）。lint project は公開 checkout。",
+      "files": [
+        "evals/fixtures/maatlog-env/public/pyproject.toml",
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/.gitmodules"
+      ],
+      "assertions": [
+        "出力先は親 checkout の docs_draft/ で、procedure の構成（前提条件・手順の流れ・実施手順・結果確認）に従う",
+        "用語集照合は公開側 docs/glossary.rst で行い、本文使用分の未定義語だけ追記された",
+        "lint は公開 project を uv project として作成ファイル（と編集時のみ glossary）に4段階で実行された",
+        "親/公開の取り違えがない（draft が公開側や lint が親 project になっていない）"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 27,
+      "name": "maatlog-procedure-explicit",
+      "prompt": "profile=maatlog、document_type=procedure、language=ja。キューの滞留を解消する手順書を作成してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
+      "expected_output": "親 docs_draft/ 配下の手順書。profile 明示時も省略時と同じ仕様（構成・出力先・用語集・lint project）で、公開/親の取り違えなし。",
+      "files": [
+        "evals/fixtures/maatlog-env/public/pyproject.toml",
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/.gitmodules"
+      ],
+      "assertions": [
+        "出力先は親 checkout の docs_draft/ で、procedure の構成に従う",
+        "用語集照合・追記範囲・lint project の選択は省略時（id 26）と同じ仕様である",
+        "親/公開の取り違えがない"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 28,
+      "name": "maatlog-explanation-default",
+      "prompt": "document_type=explanation、language=ja、target_path=docs_draft/queue-model.rst。キューの構造を解説する文書を作成してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
+      "expected_output": "明示された docs_draft/queue-model.rst に解説書（explanation 構成）。明示 target_path が既定命名に置き換えられない。",
+      "files": [
+        "evals/fixtures/maatlog-env/public/pyproject.toml",
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/.gitmodules"
+      ],
+      "assertions": [
+        "出力先は明示された docs_draft/queue-model.rst であり、profile 既定の命名で置き換えられていない",
+        "explanation の構成（概念・構造・比較・関連資料）に従う",
+        "用語集照合と lint の対象・project は既定仕様どおり"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 29,
+      "name": "maatlog-explanation-explicit",
+      "prompt": "profile=maatlog、document_type=explanation、language=ja、target_path=docs_draft/queue-model.rst。キューの構造を解説する文書を作成してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
+      "expected_output": "明示 target_path の解説書。profile 明示時も省略時と同じ仕様で、暗黙の procedure 化や置き換えなし。",
+      "files": [
+        "evals/fixtures/maatlog-env/public/pyproject.toml",
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/.gitmodules"
+      ],
+      "assertions": [
+        "出力先は docs_draft/queue-model.rst で、explanation 構成のまま procedure 化していない",
+        "profile 明示による仕様差はなく、用語集・lint の扱いは省略時と同じ",
+        "親/公開の取り違えがない"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 30,
+      "name": "maatlog-operational-default",
+      "prompt": "document_type=operational、language=ja。キューの待機件数を確認する短い手順を作成してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
+      "expected_output": "親 docs_draft/ 配下の短い確認手順（procedure 共用 template、不要な前提条件・手順の流れは省略可）で、確認結果が示される。",
+      "files": [
+        "evals/fixtures/maatlog-env/public/pyproject.toml",
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/.gitmodules"
+      ],
+      "assertions": [
+        "operational は procedure の簡易版として書かれ、不要な前提条件や手順の流れが無理に埋められていない",
+        "確認結果を示す節があり、出力先は親 docs_draft/ である",
+        "用語集・lint の扱いは既定仕様どおり"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 31,
+      "name": "maatlog-operational-explicit",
+      "prompt": "profile=maatlog、document_type=operational、language=ja。キューの待機件数を確認する短い手順を作成してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
+      "expected_output": "親 docs_draft/ 配下の短い確認手順。profile 明示時も省略時と同じ operational 仕様。",
+      "files": [
+        "evals/fixtures/maatlog-env/public/pyproject.toml",
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/.gitmodules"
+      ],
+      "assertions": [
+        "出力先・構成・用語集・lint の扱いは省略時（id 30）と同じ仕様である",
+        "親/公開の取り違えがない"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 32,
+      "name": "maatlog-edit-default",
+      "prompt": "公開 checkout の docs/existing.rst の「対象節」だけを、遅延再試行の扱いを追記して更新してください。language=ja。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
+      "expected_output": "指定節だけが更新され、先頭ラベル・対象外の節・コメントは保持される。遅延再試行は新語として既存 glossary へ追記。親 checkout へはコピーしない。",
+      "files": [
+        "evals/fixtures/maatlog-env/public/docs/existing.rst",
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/public/pyproject.toml"
+      ],
+      "assertions": [
+        "変更は「対象節」のみで、先頭ラベル・「対象外の節」・コメント行は保持される",
+        "編集は公開 checkout 内の指定ファイルに限定され、親 checkout へ複写・反映していない",
+        "本文で使った遅延再試行だけが既存 glossary へ追記された",
+        "lint は編集した existing.rst と glossary に4段階で実行された"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 33,
+      "name": "maatlog-edit-explicit",
+      "prompt": "profile=maatlog、language=ja。公開 checkout の docs/existing.rst の「対象節」だけを、遅延再試行の扱いを追記して更新してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
+      "expected_output": "指定節だけが更新され番兵は保持される。profile 明示時も省略時と同じ編集境界で、実際に編集した glossary だけが lint 対象に加わる。",
+      "files": [
+        "evals/fixtures/maatlog-env/public/docs/existing.rst",
+        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
+        "evals/fixtures/maatlog-env/public/pyproject.toml"
+      ],
+      "assertions": [
+        "編集境界は省略時（id 32）と同じで、番兵（ラベル・対象外節・コメント）が保持される",
+        "実際に編集した glossary だけが lint 対象に追加された（未編集の他ファイルは対象外）",
+        "親/公開の取り違えがない"
+      ],
+      "fixture": "maatlog-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 34,
+      "name": "missing-oss-type",
+      "prompt": "profile=oss-python-extension, target_path=docs/quickstart.rst, language=en. Write the page for the supplied extension project and report files changed plus validation results.",
+      "expected_output": "No files are created or modified. The reply reports that document_type is required for this profile.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/quickstart.rst"
+      ],
+      "assertions": [
+        "The reply states that document_type is missing and required for the OSS profile",
+        "No file is created or edited and no lint or build was run",
+        "The agent did not infer a document type from the target filename"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": [],
+      "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
+    },
+    {
+      "id": 35,
+      "name": "whitespace-target",
+      "prompt": "profile=oss-python-extension, document_type=quickstart, target_path='   ', language=en. Write the quickstart for the supplied extension project and report files changed plus validation results.",
+      "expected_output": "No files are created. The reply reports that a whitespace-only target_path is invalid input and is not treated as cwd or a real path.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/conf.py"
+      ],
+      "assertions": [
+        "The reply identifies the whitespace-only target_path as missing/invalid rather than a usable path",
+        "It is not interpreted as the project root or cwd",
+        "No file is created and no lint or build was run"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": [],
+      "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
+    },
+    {
+      "id": 36,
+      "name": "null-language",
+      "prompt": "profile=oss-python-extension, document_type=quickstart, target_path=docs/quickstart.rst, language=null. Expand this page into a quickstart for the supplied extension project and report files changed plus validation results.",
+      "expected_output": "No files are modified. The reply reports that language=null is missing/invalid input and is not treated as an omitted or default language.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/quickstart.rst"
+      ],
+      "assertions": [
+        "The reply identifies language=null as missing/invalid rather than omitted",
+        "No default language is silently assumed",
+        "docs/quickstart.rst and all other files are unchanged; no lint or build was run"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": [],
+      "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
+    },
+    {
+      "id": 37,
+      "name": "conflicting-target",
+      "prompt": "profile=oss-python-extension, document_type=explanation, target_path=docs/a.rst, language=en. docs/b.rst を編集してください。Report files changed and validation results.",
+      "expected_output": "Neither docs/a.rst nor docs/b.rst is created or modified. The reply reports the contradiction between the explicit target_path and the natural-language edit request.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/index.rst"
+      ],
+      "assertions": [
+        "The reply reports the explicit contradiction (target_path=docs/a.rst vs the request to edit docs/b.rst) instead of choosing one",
+        "Neither file is created or modified and no lint or build was run",
+        "The needed disambiguation is stated"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint"],
+      "setup": [],
+      "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
+    },
+    {
+      "id": 38,
+      "name": "validation-unprovided-linter",
+      "prompt": "profile=oss-python-extension, document_type=explanation, target_path=docs/validation.rst, language=en. Update this page describing how documentation changes are validated in this project. Perform the validation you can for your own edit and record it in your report. Report the files changed and the actual validation results.",
+      "expected_output": "English validation page with a report that honestly marks lint as unverified (the project copy provides no linter and none was designated), distinguishes it from the build result, and does not borrow a sibling environment or create a new one.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/validation.rst",
+        "evals/fixtures/oss-extension/pyproject.toml",
+        "evals/fixtures/oss-extension/docs/conf.py"
+      ],
+      "assertions": [
+        "The report states lint was not verified because no LINT_PROJECT could be determined, and keeps it distinct from the build result",
+        "No sibling or parent environment's linter was used implicitly and no new lint environment was created",
+        "The build still ran and its exit code/warnings are reported accurately",
+        "Only docs/validation.rst changed"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["remove the lint/ directory so the project copy no longer provides wabun-rst-ulint (sibling copies still have it)"],
+      "expected_status": {"component": "generated-with-caveat", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "generated-with-caveat"}
+    },
+    {
+      "id": 39,
+      "name": "validation-warning-remains",
+      "prompt": "profile=oss-python-extension, document_type=explanation, target_path=docs/validation.rst, language=en. Update this page describing how documentation changes are validated in this project. Perform the validation you can for your own edit and record it in your report. Report the files changed and the actual validation results.",
+      "expected_output": "The agent edits only its page and runs lint on it, the build fails on the pre-existing missing document outside the target, and the agent reports the failure honestly instead of editing out-of-scope files or claiming success.",
+      "files": [
+        "evals/fixtures/oss-extension/docs/validation.rst",
+        "evals/fixtures/oss-extension/docs/index.rst",
+        "evals/fixtures/oss-extension/pyproject.toml",
+        "evals/fixtures/oss-extension/docs/conf.py"
+      ],
+      "assertions": [
+        "docs/index.rst and its toctree are not modified to remove or suppress the out-of-scope missing-document entry",
+        "The final reply reports the build failure (missing/nonexisting document) as the document's validation state instead of claiming completion",
+        "The four lint steps ran on the edited file and are reported separately from the build failure",
+        "Only docs/validation.rst changed; case passes on correct reporting while document_validation stays failed"
+      ],
+      "fixture": "oss-extension",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["add 'nonexistent-page' as an entry in the docs/index.rst toctree (missing-document injection outside the target)"],
+      "expected_status": {"component": "reported-failure", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "reported-failure"},
+      "artifact_requirements": ["the failing build log must be preserved; document_validation=failed is the expected state"]
+    }
+  ]
+}

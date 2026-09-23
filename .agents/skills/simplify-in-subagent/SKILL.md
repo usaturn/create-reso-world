@@ -1,0 +1,79 @@
+---
+name: simplify-in-subagent
+description: "Subagent-portable /simplify: git-diff-scoped code simplification. Use when /simplify slash unavailable, parent requests simplify equivalent, or handling --staged/--ref/file-scoped simplify in subagent/worktree. Not main-session /simplify."
+---
+
+# Simplify in Subagent
+
+Only changed lines. Never whole-file refactors. Run every `git` command in own cwd, not the parent's.
+
+## Inputs
+
+- Required routing context: target repository and intended working root, resolved by the caller using `repository-ownership` before delegation. Pass these as task context, not new slash-command flags. Do not infer the target from the current cwd, the skill's location, or the presence of `src/`.
+- Required: one of ref (default `HEAD`), `--staged`, or explicit file list. Parent SHOULD state which.
+- Optional: test command. Default: relevant existing tests.
+
+## Repository preflight
+
+Before deriving files or reading diffs, confirm the routing context for every input mode: default `HEAD`, `--ref`, `--staged`, and explicit files. `repository-ownership` is the routing authority. If the target repository or intended working root cannot be established, stop and report the missing context.
+
+Run these read-only commands in your own cwd:
+
+```bash
+git rev-parse --show-toplevel
+git remote get-url origin
+```
+
+Compare the Git root with the intended working root using their resolved filesystem paths. Compare origin's GitHub owner/repository with the declared target. Standard GitHub HTTPS and SSH URLs, with or without a trailing `.git`, can identify the same repository; different hosts, owners, repositories, or unrecognized URL forms do not pass. Do not guess SSH aliases.
+
+| Task | Target repository | Working root | Meaning of `origin/main` |
+| --- | --- | --- | --- |
+| Application | `usaturn/maatlog` | `public/` or a worktree from the public repository | Public repository's remote-tracking ref |
+| Environment | `usaturn/maatlog-poc` | Parent checkout or a worktree from the parent repository | Parent repository's remote-tracking ref |
+
+For `--ref=origin/main`, only after the route matches, resolve the ref in that same cwd:
+
+```bash
+git rev-parse --verify 'origin/main^{commit}'
+```
+
+Record its SHA before continuing. Other input modes still require the route check; they do not require `origin/main` unless they use it.
+
+If a command fails, the root or origin differs, or the selected ref cannot be resolved, stop before deriving files or editing. Report expected target/root, observed root/origin, and the failing command/reason. Do not use the empty-diff `HEAD~1` fallback to bypass a failed preflight. Do not change cwd, use another repository via `git -C`, rewrite remotes, or fetch as an implicit repair; the caller must supply a correct working context and rerun.
+
+## Workflow
+
+1. **Derive files.** After the repository preflight succeeds, run the matching `name-status` command. Map `M→modified`, `A→added`, `R→renamed`, `C→copied`; renamed/copied use the new path. Ignore other statuses.
+
+   | Request | Command in own cwd |
+   | --- | --- |
+   | default | `git diff --name-status HEAD` |
+   | `--staged` | `git diff --name-status --cached` |
+   | `--ref=X` | Replace `HEAD` with `X` above |
+   | `<files>` | Treat as `modified`, skip `name-status` |
+   | empty result | Fall back to `git diff --name-status HEAD~1` once |
+
+2. **Derive lines.** Per file (skip `added`), parse `+start,count` hunks from `git diff --unified=0 --no-ext-diff <ref|--cached> -- <path>` into ranges; merge adjacent. `added` = entire file. Zero ranges = deletions only.
+3. **Apply inside ranges only.** Preserve functionality; follow `CLAUDE.md`/`AGENTS.md`; reduce nesting and redundancy, improve names; keep rationale/intent comments, remove only true noise; no nested ternary; no clever code, mega-functions, or removed abstractions. Read surroundings for context. One file at a time. No features, API changes, or unchanged-code edits.
+4. **Verify, report.** Run relevant tests. Output per-file changes with reasons plus out-of-scope ideas (mentioned, never edited). Include the verified target repository, Git root, origin, and comparison ref (with resolved SHA when applicable) in the report.
+
+## Validation
+
+- Repository preflight succeeded before any diff or edit.
+- Ranges derived before any edit; `added`/deletions-only handled per step 2.
+- Every edit inside a listed range; surrounding code read-only.
+- Tests pass before reporting.
+
+## Recovery
+
+- Route or ref check failed → follow the Repository preflight stop-and-report procedure before any diff or edit.
+- No changed files (including after fallback) → report that and stop.
+- Diff failed → inspect `git diff` manually before editing; do not guess ranges.
+- File missing or path empty in own cwd → stop, report mismatch; do not edit substitutes.
+- Format-only tools (ruff/prettier) never substitute for the clarity pass.
+
+## Examples
+
+- Application: caller declares target `usaturn/maatlog` and a public worktree as the working root for `/simplify --ref=origin/main`. In that worktree, verify root/origin, resolve that repository's `origin/main`, then simplify `src/foo.py` lines 10–18 from the diff. Only those changed lines may be edited; run relevant tests and report the route and changes.
+- Environment: caller declares target `usaturn/maatlog-poc` and a parent worktree for `/simplify --ref=origin/main`. Verify root/origin there before using that repository's `origin/main` for changed lines in `tools/devenv/...`.
+- Wrong route: target is `usaturn/maatlog`, but the current cwd is the parent checkout while the request names `src/foo.py` and `--ref=origin/main`. Stop at preflight, report the mismatch, and ask the caller to rerun in the intended public worktree. Do not read the parent's diff or invoke fallback.

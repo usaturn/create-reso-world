@@ -1,0 +1,6 @@
+interface:
+  display_name: "Planning Parallel Issues"
+  short_description: "Prepare parallel Issue boards and complete planning handoffs"
+  default_prompt: "Use $planning-parallel-issues to prepare a parent Issue and parallel Sub Issues, or take one ready child through Spec, Plan, and agent-handoff."
+policy:
+  allow_implicit_invocation: true

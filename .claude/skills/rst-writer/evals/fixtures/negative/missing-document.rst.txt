@@ -1,0 +1,4 @@
+.. Not a page. Add the entry line below inside the ``toctree`` of
+.. docs/index.rst (same indentation as the other entries).
+
+   nonexistent-page

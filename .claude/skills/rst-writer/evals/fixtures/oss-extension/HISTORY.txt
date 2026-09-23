@@ -1,0 +1,15 @@
+Queue Extension release history
+===============================
+
+0.2.0 (2026-06-20)
+------------------
+
+- ``format_badge`` gained the optional ``prefix`` parameter.
+  The default remains ``'task'``, so existing calls are unchanged.
+
+0.1.0 (2026-01-15)
+------------------
+
+- Initial release.
+  Provides ``format_badge``, the ``queue-summary`` directive,
+  and the ``queue-name`` role.

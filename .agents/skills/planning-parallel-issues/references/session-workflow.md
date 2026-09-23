@@ -1,0 +1,45 @@
+# Taking one child through planning handoff
+
+## Select from live evidence
+
+Read the parent as the entry point, then fetch native children, current bodies, every page of comments, dependencies, PR states, and claim refs. Do not treat the first comments response as complete evidence: follow pagination before state selection, using `gh api --paginate` when using GitHub CLI. Verify target-branch inclusion for required changes, not just a closed Issue. Default eligibility requires each predecessor to be closed with `state_reason=completed` and its necessary PRs merged. `not_planned` and `duplicate` are unsatisfied; replace a duplicate predecessor with its canonical Issue in the board and evaluate that Issue before selection. For artifact-only predecessors, require their explicit completion evidence. An earlier planning gate is usable only if the board names it and its required inputs are verified.
+
+Skip claimed children and already planning-ready children with valid recoverable artifacts. Select one eligible child, using the board's priority or the smallest number as a stable tie-breaker. If resuming a named planning-ready child, validate/recover its artifacts and report that endpoint instead of generating duplicates. If nothing is eligible, report each blocker and finish without polling indefinitely or accumulating claims.
+
+Acquire and validate ownership with [github-operations.md](github-operations.md). Check readiness again after acquisition. If it changed, release your own claim and reevaluate. Track elapsed time and major task durations when repository policy requires it.
+
+## Continue without routine approval pauses
+
+The requested endpoint is **Spec → Plan → agent-handoff**, using recommended choices. Read and apply those installed skills in sequence; do not merely imitate their headings. This workflow carries the user's authorization to complete routine planning steps. Record recommended choices and their rationale as agent decisions, never as human approval. Do not stop at a design presentation, after the Spec, or at writing-plans' execution-mode choice.
+
+The user explicitly requires written artifacts for every child. This takes precedence over brainstorming's bounded-task shortcut that omits Spec and Plan. Use its written-spec path even for a small existing-code change; scale document detail to the task, then continue to writing-plans and handoff. Do not reclassify a simple change as complex merely to justify the requested documents.
+
+| Observable condition | Action |
+|---|---|
+| Existing full-text Spec/Plan with hash | Restore exact bytes, verify, inspect fit with current Issue/base, reuse valid portions |
+| Ordinary ambiguity with a compatible default | Choose the recommendation, record alternatives/reason, continue |
+| Spec changes while planning | Update Spec and its hash, then reconcile Plan and handoff |
+| Valid completed planning handoff | Recover and verify; do not restart brainstorming merely to recreate files |
+| Missing required input/authorization or scope-changing unresolved decision | Preserve partial artifacts, record blocker and specific recovery action; release your claim after recording progress |
+| Required skill missing | Search installed skills; report exact missing dependency if unavailable, preserve partial work; never label a substitute as having run that skill |
+
+An existing artifact's hash establishes byte identity, not design validity. Read its decisions and check current interfaces before accepting it. If inheriting another agent's artifacts, apply `agent-handoff` on the reading side too.
+
+## Required artifact set
+
+Determine paths from repository instructions. Superpowers defaults apply only when the repository does not override them. Ignored draft files still need remote recovery; do not force-add ignored artifacts merely to make links work.
+
+1. **Spec:** goal, scope/exclusions, constraints, proposed design, alternatives with recommended choice, interfaces, acceptance criteria, dependency evidence, and decided ambiguities. Use `superpowers:brainstorming`, including its review steps. Mark the continuation authority accurately.
+2. **Plan:** use `superpowers:writing-plans`, including review. Link the real Spec; specify exact files, task sequence, interface details, meaningful verification with expected results, and landing constraints. Preserve child ownership and prerequisite gates. Implementation/test commands are future instructions, not claims of execution. Follow repository contingency requirements.
+3. **Handoff pair:** use `agent-handoff` and its installed schema. Write `tmp/docs_draft/claude_handoffs/<timestamp>-<session>.handoff.md` and matching `.handoff.json`, with the same facts. Schema v2 requires `schema_version`, `generated_at`, `project_dir`, `session.id/stop_reason`, `decisions`, `out_of_scope`, `verification.commands/isolation`, `landing.branch/pr/prohibited`, `git.worktree/branch/head/status`, and `sources.spec`. Also include `sources.plan` and the next action. Populate actual Git facts, not the parent checkout by accident; verify every non-null source path exists. A not-yet-created PR is null, with its permitted creation/reuse policy stated.
+4. **Recovery manifest:** store one entry per file with role, portable path, SHA-256, byte count, remote URL/comment ID, encoding/chunk order, artifact revision and base SHA. Retain original host paths only as provenance; explain how a receiver maps them to the new checkout and regenerates host-specific handoff facts. Link all entries from a final child status comment.
+
+## Publish, recover, then release
+
+Before each external write, confirm the claim still equals the saved SHA. Publish through authorized Issue comments or a repository location. Preserve exact bytes. Small files can use fenced full text; for reliable arbitrary content use base64 chunks with ordering and decoded byte hashes. Never publish credentials or private runtime logs. Include the full Spec, Plan, and both handoff files; a local path, summary, SHA alone, or unpushed commit is not recovery.
+
+Fetch the published contents into a new empty directory without copying local originals. Decode/reconstruct all four files and verify manifest hashes and byte counts. Parse the handoff JSON, check required fields, compare its facts with Markdown, and resolve portable source paths in the reconstructed bundle. Check Spec/Plan consistency. Only after this round trip publish `planning: ready`, `implementation: not-started`, the manifest link and an actionable next step. Keep implementation Issues open; planning completion does not satisfy downstream implementation dependencies.
+
+Release using the exact-SHA lease and confirm absence. A failed upload/round trip yields `planning: incomplete`, partial-result pointers, and a recovery action; release only your own claim after publishing progress. If GitHub is unavailable, save the recovery record locally and report an unreleased claim explicitly. A foreign SHA means ownership lost: stop writes and do not delete it. Never finish with an unexplained held claim waiting for the receiver.
+
+Final response: child URL, actual four artifact paths/remote manifest, checks actually performed, planning/implementation state, claim-release result, and next action. Do not offer to create the Plan or handoff later; they are part of this task.

@@ -1,0 +1,10 @@
+.. Dedicated negative page. Copy to docs/negative-autodoc-import-failure.rst
+.. and add ``negative-autodoc-import-failure`` to the index toctree.
+.. Requires sphinx.ext.autodoc enabled (present in the normal fixture).
+
+.. _negative_autodoc_import_failure:
+
+Autodoc import failure negative
+===============================
+
+.. autofunction:: missing_queue_ext.format_badge

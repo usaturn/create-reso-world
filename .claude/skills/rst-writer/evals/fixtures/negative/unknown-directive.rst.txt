@@ -1,0 +1,9 @@
+.. Dedicated negative page. Copy to docs/negative-unknown-directive.rst
+.. and add ``negative-unknown-directive`` to the index toctree.
+
+.. _negative_unknown_directive:
+
+Unknown directive negative
+==========================
+
+.. queue-unknown:: alpha

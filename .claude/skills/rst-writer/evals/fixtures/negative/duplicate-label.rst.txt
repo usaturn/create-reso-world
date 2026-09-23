@@ -1,0 +1,10 @@
+.. Dedicated negative page. Copy to docs/negative-duplicate-label.rst
+.. and add ``negative-duplicate-label`` to the index toctree.
+.. The label below deliberately reuses the ``objects`` page label.
+
+.. _objects:
+
+Duplicate label negative
+========================
+
+This page duplicates the ``objects`` label on purpose.

@@ -1,0 +1,9 @@
+.. Dedicated negative page. Copy to docs/negative-unknown-role.rst
+.. and add ``negative-unknown-role`` to the index toctree.
+
+.. _negative_unknown_role:
+
+Unknown role negative
+=====================
+
+Unknown :queue-unknown:`alpha`.

@@ -1,0 +1,9 @@
+{
+  "superagents": {
+    "modelTiers": {
+      "cheap": { "model": "opencode-go/union-alpha", "thinking": "max" },
+      "balanced": { "model": "opencode-go/union-alpha", "thinking": "max" },
+      "max": { "model": "opencode-go/union-alpha", "thinking": "max" }
+    }
+  }
+}

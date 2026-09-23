@@ -1,0 +1,97 @@
+{
+  "skill_name": "review-fix-planning",
+  "evals": [
+    {
+      "id": 1,
+      "name": "resolved-findings-are-dropped",
+      "prompt": "reviews/<branch>/ に複数 HEAD 世代のレビューが入っている。修正計画をたてて。古い世代の指摘の多くは既にコミットで解消されている。",
+      "expected_output": "A triage that drops already-fixed findings into Resolved with a one-line basis each, and carries only live findings forward.",
+      "files": [],
+      "expectations": [
+        "Every review file under the given directory is read and its target HEAD recorded.",
+        "Findings that no longer reproduce at current HEAD are placed in Resolved with a basis.",
+        "The result reports a count per bucket and assigns every finding to exactly one bucket."
+      ]
+    },
+    {
+      "id": 2,
+      "name": "verification-uses-committed-content",
+      "prompt": "レビュー結果ディレクトリを渡された。ディレクトリは .gitignore 対象でレビューファイルは未コミットである。作業ツリーには他の作業者の未コミット変更が入っており、一部の指摘が既に直っているように見える。現在 checkout 中の HEAD と reviewed HEAD が異なる。修正計画をたてて。",
+      "expected_output": "Verdicts based on `git show <HEAD>:<path>` or an isolated detached worktree, so a finding fixed only in the dirty working tree is still classified as Fix.",
+      "files": [],
+      "expectations": [
+        "Review files under the given directory are read and used as input even though the directory is gitignored and the files are uncommitted.",
+        "The result does not treat a working-tree file as evidence that a finding is resolved.",
+        "Committed content at the reviewed HEAD is used for verification.",
+        "Uncommitted changes from other worktrees are kept out of the plan.",
+        "Behavioural reproduction creates an isolated worktree with separate explicit path and reviewed-HEAD arguments.",
+        "The worktree HEAD is checked against the reviewed HEAD before its contents are used as evidence."
+      ]
+    },
+    {
+      "id": 3,
+      "name": "spec-written-on-bounded-path",
+      "prompt": "レビュー結果ディレクトリを渡された。残っている指摘はどれも既存モジュール内の局所修正で済む。修正計画をたてて。",
+      "expected_output": "A bounded classification from brainstorming that still produces a Spec file, followed by a stop for approval.",
+      "files": [],
+      "expectations": [
+        "superpowers:brainstorming is invoked and the path is stated.",
+        "A Spec file is written even though the path is bounded.",
+        "The result stops and waits for an explicit go-ahead instead of implementing."
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no-over-fixing-under-time-pressure",
+      "prompt": "レビュー結果ディレクトリを渡された。時間がないので手早く修正計画をたてて。ドキュメントの細かい直しも一緒に片付けておいて。",
+      "expected_output": "Fix limited to items meeting (a)-(d); behaviour questions and third-party-compatibility items land in Skip with a one-line reason.",
+      "files": [],
+      "expectations": [
+        "Items that only affect third-party themes or downstream users are placed in Skip.",
+        "Questions of intended behaviour are placed in Skip, not raised as Hold questions.",
+        "Documentation items are included only when the user named them or they are factually wrong at current HEAD.",
+        "Each Fix cites one of conditions (a)-(d); Fix eligibility is not limited by an aggregate severity-count quota."
+      ]
+    },
+    {
+      "id": 5,
+      "name": "land-on-existing-pr-after-related-tests",
+      "prompt": "承認済み Spec の Fix 項目を実装し終えた。変更ファイルに対する関連テストは通った。CLAUDE.md は検証入口を ./scripts/ci/verify.sh full としている。finishing-a-development-branch は統合メニューを出せと書いてある。レビュー対象の PR はまだ open である。次に何をするか。",
+      "expected_output": "Related tests already passing is the landing gate. Commit on the reviewed branch, push to the existing PR, and post or update this agent's status comment covering レビュー状況 / 作業判断 / 作業結果. Do not run ./scripts/ci/verify.sh full as a landing gate, do not open a new PR, and do not present the finishing-a-development-branch menu.",
+      "files": [],
+      "expectations": [
+        "Only tests related to the implementation are treated as the landing gate; ./scripts/ci/verify.sh full is not.",
+        "The result commits on the reviewed branch after those tests pass.",
+        "The result pushes to the existing reviewed PR rather than opening a new PR.",
+        "The result does not present the finishing-a-development-branch menu.",
+        "The result posts or updates a Japanese status comment on that PR before finishing."
+      ]
+    },
+    {
+      "id": 6,
+      "name": "post-status-after-landing",
+      "prompt": "承認済み Spec の Fix 項目を実装し、commit / push まで終えたターンである。対象 PR は open。作業結果を残して終了して。",
+      "expected_output": "A Japanese PR comment posted or updated after landing, covering レビュー状況 / 作業判断 / 作業結果. The comment updates this agent's existing marker comment instead of creating a second one; --edit-last is not used.",
+      "files": [],
+      "expectations": [
+        "The result posts or updates the status comment on the existing reviewed PR after landing.",
+        "The comment uses the headings レビュー状況, 作業判断, and 作業結果.",
+        "An existing comment from the same agent is updated instead of creating a second one.",
+        "gh pr comment --edit-last is not used."
+      ]
+    },
+    {
+      "id": 7,
+      "name": "number-argument-resolves-review-directory",
+      "prompt": "#300 のレビューを読んで修正計画をたてて。reviews/ 直下には #300-fix-issue-299-pr-review-budget/ と他の #<番号>-* ディレクトリが複数ある。",
+      "expected_output": "The `#300` argument resolves to the single top-level `reviews/` directory whose name starts with `#300-`, and every review file under it is read. No recursive scan.",
+      "files": [],
+      "expectations": [
+        "Only directories directly under reviews/ are considered when resolving `#300`.",
+        "A single `#300-` prefix match becomes the review directory; on multiple matches the run stops and lists the candidate names.",
+        "`#300` does not match directories with a different number (e.g. `#3000-*`); a match requires the `#300-` prefix.",
+        "Review files under the resolved directory are read and each target HEAD is recorded."
+      ]
+    }
+  ]
+}

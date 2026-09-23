@@ -1,0 +1,22 @@
+# Dev Container の初回起動時に ~/.dsh/settings.yaml へコピーされる雛形（#282）。
+# API key の値は保存せず、環境変数名だけを参照する。
+llm-deepseek:
+  apiKeyEnv: OPENCODE_API_KEY
+  baseURL: https://opencode.ai/zen/go/v1
+  reasoningEffort: max
+
+  models:
+    - id: deepseek-v4.1-flash
+      name: DeepSeek V4.1 Flash (OpenCode Go)
+      contextWindow: 1000000
+      inputModalities:
+        - text
+
+llm-commandcode:
+  apiKeyEnv: COMMANDCODE_API_KEY
+  webSearch: false
+
+agent-default-model:
+  provider: deepseek-official
+  model: deepseek-v4.1-flash
+  reasoningEffort: max

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Review Fix Planning"
+  short_description: "レビュー結果ディレクトリから妥当な指摘だけを選別し Spec と承認を経て修正計画にする"
+  default_prompt: "$review-fix-planning を使い、指定したレビュー結果ディレクトリの指摘を現行 HEAD で検証して選別し、Spec を書いて承認を待ってください。"
+policy:
+  allow_implicit_invocation: true

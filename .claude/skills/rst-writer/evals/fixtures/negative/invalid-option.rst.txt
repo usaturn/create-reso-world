@@ -1,0 +1,12 @@
+.. Dedicated negative page. Copy to docs/negative-invalid-option.rst
+.. and add ``negative-invalid-option`` to the index toctree.
+
+.. _negative_invalid_option:
+
+Invalid option negative
+=======================
+
+.. queue-summary:: alpha
+   :unknown-option: invalid
+
+   entry one
