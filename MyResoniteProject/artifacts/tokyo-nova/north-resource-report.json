@@ -3,14 +3,14 @@
   "seed": 240918,
   "coordinate_system": "Resonite XYZ (Y up); Blender conversion is a single XZY coordinate swap",
   "source_strategy": "editable named part meshes merged into per-assembly/material static mesh batches",
-  "assembly_count": 8,
+  "assembly_count": 6,
   "assemblies": [
     {
       "kind": "food_stall",
       "name": "北の立ち食い屋台",
       "parts": 105,
-      "vertices": 2831,
-      "triangles": 4292,
+      "vertices": 2056,
+      "triangles": 3692,
       "materials": [
         "ceramic",
         "cream_plastic",
@@ -30,7 +30,7 @@
       ],
       "bounds_max": [
         -32.75,
-        3.12,
+        3.0125,
         14.769
       ],
       "mesh_batches": 10
@@ -39,8 +39,8 @@
       "kind": "terminal_repair",
       "name": "端末修理・トロン中古店",
       "parts": 121,
-      "vertices": 3701,
-      "triangles": 4980,
+      "vertices": 2120,
+      "triangles": 3756,
       "materials": [
         "concrete",
         "cool_light",
@@ -71,8 +71,8 @@
       "kind": "patched_housing_facade",
       "name": "補修跡のある増築長屋正面",
       "parts": 150,
-      "vertices": 3774,
-      "triangles": 5007,
+      "vertices": 2193,
+      "triangles": 3783,
       "materials": [
         "cloth",
         "concrete",
@@ -104,8 +104,8 @@
       "kind": "pocket_phone",
       "name": "修理台のポケットロン",
       "parts": 22,
-      "vertices": 852,
-      "triangles": 1160,
+      "vertices": 480,
+      "triangles": 872,
       "materials": [
         "cool_light",
         "exposed_metal",
@@ -118,12 +118,12 @@
       ],
       "bounds_min": [
         -26.0775,
-        1.146,
+        1.1745,
         16.625
       ],
       "bounds_max": [
         -26.0025,
-        1.154,
+        1.1825,
         16.775
       ],
       "mesh_batches": 8
@@ -132,8 +132,8 @@
       "kind": "north_frontage_pavement",
       "name": "Wet/dry repaired north frontage",
       "parts": 16,
-      "vertices": 249,
-      "triangles": 316,
+      "vertices": 156,
+      "triangles": 244,
       "materials": [
         "asphalt_dry",
         "asphalt_wet",
@@ -155,70 +155,24 @@
     },
     {
       "kind": "north_facility_connector",
-      "name": "Shared canopy and service tray",
+      "name": "Supported canopy and service tray",
       "parts": 9,
-      "vertices": 175,
-      "triangles": 276,
+      "vertices": 144,
+      "triangles": 252,
       "materials": [
         "exposed_metal",
         "painted_metal",
         "rust"
       ],
       "bounds_min": [
-        -31.58,
-        3.21,
-        12.1
+        -32.885,
+        2.96,
+        13.38
       ],
       "bounds_max": [
-        -28.42,
-        3.81,
-        13.035
-      ],
-      "mesh_batches": 3
-    },
-    {
-      "kind": "ar_menu",
-      "name": "Hideable 0.8 × 0.5 m menu",
-      "parts": 4,
-      "vertices": 126,
-      "triangles": 160,
-      "materials": [
-        "cool_light",
-        "exposed_metal",
-        "painted_metal"
-      ],
-      "bounds_min": [
-        -35.4,
-        2.38,
-        13.05215
-      ],
-      "bounds_max": [
-        -34.6,
-        2.88,
-        13.1025
-      ],
-      "mesh_batches": 3
-    },
-    {
-      "kind": "ar_repair_ad",
-      "name": "Hideable 2.0 × 0.7 m repair notice",
-      "parts": 4,
-      "vertices": 126,
-      "triangles": 160,
-      "materials": [
-        "exposed_metal",
-        "painted_metal",
-        "warm_light"
-      ],
-      "bounds_min": [
-        -26.0,
-        2.44,
-        12.93215
-      ],
-      "bounds_max": [
-        -24.0,
-        3.14,
-        12.9825
+        -27.275,
+        3.539,
+        14.26
       ],
       "mesh_batches": 3
     }
@@ -230,8 +184,8 @@
       "parts": 1
     },
     "asphalt_wet": {
-      "vertices": 165,
-      "triangles": 204,
+      "vertices": 72,
+      "triangles": 132,
       "parts": 3
     },
     "ceramic": {
@@ -240,94 +194,94 @@
       "parts": 3
     },
     "cloth": {
-      "vertices": 220,
-      "triangles": 272,
+      "vertices": 96,
+      "triangles": 176,
       "parts": 4
     },
     "concrete": {
-      "vertices": 877,
-      "triangles": 1156,
+      "vertices": 536,
+      "triangles": 892,
       "parts": 45
     },
     "cool_light": {
-      "vertices": 126,
-      "triangles": 164,
-      "parts": 3
+      "vertices": 40,
+      "triangles": 72,
+      "parts": 2
     },
     "cream_plastic": {
-      "vertices": 280,
-      "triangles": 380,
+      "vertices": 156,
+      "triangles": 284,
       "parts": 7
     },
     "exposed_metal": {
-      "vertices": 3710,
-      "triangles": 5476,
-      "parts": 163
+      "vertices": 2624,
+      "triangles": 4612,
+      "parts": 159
     },
     "faded_teal": {
-      "vertices": 197,
-      "triangles": 260,
+      "vertices": 104,
+      "triangles": 188,
       "parts": 5
     },
     "glass": {
-      "vertices": 326,
-      "triangles": 520,
+      "vertices": 264,
+      "triangles": 472,
       "parts": 14
     },
     "painted_metal": {
-      "vertices": 2415,
-      "triangles": 3056,
-      "parts": 54
+      "vertices": 1096,
+      "triangles": 1984,
+      "parts": 52
     },
     "patched_concrete": {
-      "vertices": 275,
-      "triangles": 340,
+      "vertices": 120,
+      "triangles": 220,
       "parts": 5
     },
     "plastic": {
-      "vertices": 1184,
-      "triangles": 1512,
+      "vertices": 564,
+      "triangles": 1032,
       "parts": 24
     },
     "rubber": {
-      "vertices": 505,
-      "triangles": 756,
+      "vertices": 412,
+      "triangles": 684,
       "parts": 34
     },
     "rust": {
-      "vertices": 788,
-      "triangles": 1187,
+      "vertices": 633,
+      "triangles": 1067,
       "parts": 49
     },
     "warm_light": {
-      "vertices": 291,
-      "triangles": 368,
-      "parts": 6
+      "vertices": 112,
+      "triangles": 204,
+      "parts": 5
     },
     "wood": {
-      "vertices": 371,
-      "triangles": 508,
+      "vertices": 216,
+      "triangles": 388,
       "parts": 11
     }
   },
-  "total_parts": 431,
-  "total_vertices": 11834,
-  "total_triangles": 16351,
-  "blender_object_count": 57,
+  "total_parts": 423,
+  "total_vertices": 7149,
+  "total_triangles": 12599,
+  "blender_object_count": 51,
   "material_count": 17,
   "texture_transfer_adaptation": "No image textures in live export; shared Principled color/metallic/roughness plus authored edge wear, cracks, repair patches, rust streak geometry and wet/dry surface materials.",
   "blend_path": "/workspaces/reso-world/MyResoniteProject/artifacts/tokyo-nova/north.blend",
   "blender_version": "5.0.1",
-  "reopened_mesh_objects": 57,
-  "reopened_uv_meshes": 57,
-  "reopened_valid_normal_polygons": 6247,
+  "reopened_mesh_objects": 51,
+  "reopened_uv_meshes": 51,
+  "reopened_valid_normal_polygons": 6119,
   "preview_scene_objects": [
     "PREVIEW_ONLY_Ground_not_exported",
     "PREVIEW_ONLY_WarmShopKey",
     "PREVIEW_ONLY_CoolFill",
     "PREVIEW_ONLY_FrontSoftbox"
   ],
-  "offline_render_status": "not rendered: Blender process lacks libEGL.so.1; install prohibited",
+  "offline_render_status": "The source builder saved offline preview cameras without rendering. Separate 640 x 360 CPU Cycles north-eye and phone-close previews rendered offline; they are not Resonite runtime evidence.",
   "export_collection": "TokyoNovaNorth",
   "preview_collection_excluded_from_export": "TokyoNovaNorthPreviewOnly"
 }

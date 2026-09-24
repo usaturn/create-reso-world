@@ -58,7 +58,7 @@ def box(name: str, center: Sequence[float], size: Sequence[float], material: str
 
 
 def beveled_box(name: str, center: Sequence[float], size: Sequence[float], bevel: float, material: str) -> MeshData:
-    """Create a faceted chamfered box; clamp bevels to preserve thin sheet thickness."""
+    """Create a closed chamfered box with shared vertices and outward face winding."""
     c = _vec(center, "center")
     s = _vec(size, "size")
     if min(s) <= 0 or bevel <= 0:
@@ -66,81 +66,100 @@ def beveled_box(name: str, center: Sequence[float], size: Sequence[float], bevel
     bevel = min(float(bevel), min(s) * 0.45)
     half = tuple(value / 2 for value in s)
     vertices: list[Vec3] = []
-    index_by_point: dict[Vec3, int] = {}
+    vertex_indices: dict[Vec3, int] = {}
     faces: list[Face] = []
 
-    def add_face(points: Sequence[Vec3]) -> None:
-        indices = []
-        for point in points:
-            rounded = (round(point[0], 10), round(point[1], 10), round(point[2], 10))
-            if rounded not in index_by_point:
-                index_by_point[rounded] = len(vertices)
-                vertices.append(rounded)  # type: ignore[arg-type]
-            indices.append(index_by_point[rounded])
-        faces.append(tuple(indices))
+    def intern(point: Vec3) -> int:
+        key = (round(point[0], 12), round(point[1], 12), round(point[2], 12))
+        if key not in vertex_indices:
+            vertex_indices[key] = len(vertices)
+            vertices.append(key)
+        return vertex_indices[key]
 
-    # Eight-sided inset polygons on each of the six original box faces.
+    def add_outward_face(points: Sequence[Vec3]) -> None:
+        normal = (
+            (points[1][1] - points[0][1]) * (points[2][2] - points[0][2]) - (points[1][2] - points[0][2]) * (points[2][1] - points[0][1]),
+            (points[1][2] - points[0][2]) * (points[2][0] - points[0][0]) - (points[1][0] - points[0][0]) * (points[2][2] - points[0][2]),
+            (points[1][0] - points[0][0]) * (points[2][1] - points[0][1]) - (points[1][1] - points[0][1]) * (points[2][0] - points[0][0]),
+        )
+        centroid = tuple(sum(point[axis] for point in points) / len(points) for axis in range(3))
+        outward = tuple(centroid[axis] - c[axis] for axis in range(3))
+        if sum(normal[axis] * outward[axis] for axis in range(3)) < 0:
+            points = tuple(reversed(points))
+        face = tuple(intern(point) for point in points)
+        if len(set(face)) != len(face):
+            raise ValueError(f"beveled box {name} has a collapsed face")
+        faces.append(face)
+
+    # The six original planes are inset rectangles; edge strips and corner
+    # triangles share their exact boundary vertices with these rectangles.
     for normal_axis in range(3):
-        tangent = [axis for axis in range(3) if axis != normal_axis]
-        a, b = tangent
+        tangents = tuple(axis for axis in range(3) if axis != normal_axis)
+        a, b = tangents
+        inset_a, inset_b = half[a] - bevel, half[b] - bevel
         for sign in (-1, 1):
-            aa, bb = half[a], half[b]
-            inset_a, inset_b = aa - bevel, bb - bevel
-            uv = ((-inset_a, -bb), (inset_a, -bb), (aa, -inset_b), (aa, inset_b),
-                  (inset_a, bb), (-inset_a, bb), (-aa, inset_b), (-aa, -inset_b))
             points = []
-            for u, v in uv:
-                point = [0.0, 0.0, 0.0]
+            for sign_a, sign_b in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+                point = [c[0], c[1], c[2]]
                 point[normal_axis] = c[normal_axis] + sign * half[normal_axis]
-                point[a] = c[a] + u
-                point[b] = c[b] + v
+                point[a] = c[a] + sign_a * inset_a
+                point[b] = c[b] + sign_b * inset_b
                 points.append(_vec(point, "beveled face vertex"))
-            if sign < 0:
-                points.reverse()
-            add_face(points)
+            add_outward_face(points)
 
-    # Beveled edge strips shared by adjacent face insets.
-    for axis in range(3):
-        others = [value for value in range(3) if value != axis]
-        u, v = others
+    # Twelve longitudinal strips fill each original box edge.
+    for edge_axis in range(3):
+        u, v = tuple(axis for axis in range(3) if axis != edge_axis)
         for sign_u in (-1, 1):
             for sign_v in (-1, 1):
-                lo, hi = -half[axis] + bevel, half[axis] - bevel
-                p0 = [c[0], c[1], c[2]]
-                p1 = list(p0)
-                p2 = list(p0)
-                p3 = list(p0)
-                p0[axis], p1[axis], p2[axis], p3[axis] = c[axis] + lo, c[axis] + hi, c[axis] + hi, c[axis] + lo
-                p0[u] = p1[u] = c[u] + sign_u * (half[u] - bevel)
-                p2[u] = p3[u] = c[u] + sign_u * half[u]
-                p0[v] = p3[v] = c[v] + sign_v * half[v]
-                p1[v] = p2[v] = c[v] + sign_v * (half[v] - bevel)
-                add_face((_vec(p0, "beveled edge vertex"), _vec(p1, "beveled edge vertex"), _vec(p2, "beveled edge vertex"), _vec(p3, "beveled edge vertex")))
+                lo, hi = -half[edge_axis] + bevel, half[edge_axis] - bevel
+                points = []
+                for edge_value, inset_u in ((lo, False), (hi, False), (hi, True), (lo, True)):
+                    point = [c[0], c[1], c[2]]
+                    point[edge_axis] = c[edge_axis] + edge_value
+                    point[u] = c[u] + sign_u * (half[u] - (bevel if inset_u else 0.0))
+                    point[v] = c[v] + sign_v * (half[v] - (0.0 if inset_u else bevel))
+                    points.append(_vec(point, "beveled edge vertex"))
+                add_outward_face(points)
 
-    # Triangular facets at the eight corners close the chamfered edge bands.
+    # Eight triangular chamfer planes close the three face corners at every box vertex.
     for sx in (-1, 1):
         for sy in (-1, 1):
             for sz in (-1, 1):
-                add_face((
+                add_outward_face((
                     (c[0] + sx * half[0], c[1] + sy * (half[1] - bevel), c[2] + sz * (half[2] - bevel)),
                     (c[0] + sx * (half[0] - bevel), c[1] + sy * half[1], c[2] + sz * (half[2] - bevel)),
                     (c[0] + sx * (half[0] - bevel), c[1] + sy * (half[1] - bevel), c[2] + sz * half[2]),
                 ))
-    return mesh(name, vertices, faces, material)
 
+    return MeshData(name, tuple(vertices), tuple(faces), material)
 
-def cylinder(name: str, center: Sequence[float], radius: float, depth: float, material: str, segments: int = 16) -> MeshData:
-    """Create a capped cylinder along local Y, suitable for pots, lids and buttons."""
-    cx, cy, cz = _vec(center, "center")
-    if radius <= 0 or depth <= 0 or segments < 6:
-        raise ValueError("cylinder needs positive radius/depth and at least six segments")
+def cylinder(name: str, center: Sequence[float], radius: float, depth: float, material: str, segments: int = 16, *, axis: Sequence[float] = (0.0, 1.0, 0.0)) -> MeshData:
+    """Create a capped cylinder whose depth axis can follow a surface normal."""
+    c = _vec(center, "center")
+    n_raw = _vec(axis, "axis")
+    axis_length = math.sqrt(sum(value * value for value in n_raw))
+    if radius <= 0 or depth <= 0 or segments < 6 or axis_length <= 1e-9:
+        raise ValueError("cylinder needs positive radius/depth, a nonzero axis, and at least six segments")
+    n = tuple(value / axis_length for value in n_raw)
+    reference = (1.0, 0.0, 0.0) if abs(n[0]) < 0.9 else (0.0, 1.0, 0.0)
+    u_raw = (n[1] * reference[2] - n[2] * reference[1], n[2] * reference[0] - n[0] * reference[2], n[0] * reference[1] - n[1] * reference[0])
+    u_length = math.sqrt(sum(value * value for value in u_raw))
+    u = tuple(value / u_length for value in u_raw)
+    v = (n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0])
     vertices: list[Vec3] = []
-    for y in (cy - depth / 2, cy + depth / 2):
-        vertices.extend((cx + radius * math.cos(math.tau * i / segments), y, cz + radius * math.sin(math.tau * i / segments)) for i in range(segments))
+    for end_sign in (-1.0, 1.0):
+        for index in range(segments):
+            angle = math.tau * index / segments
+            cosine, sine = math.cos(angle), math.sin(angle)
+            vertices.append(_vec(tuple(
+                c[axis_index] + end_sign * n[axis_index] * depth / 2
+                + radius * (u[axis_index] * cosine + v[axis_index] * sine)
+                for axis_index in range(3)
+            ), "cylinder vertex"))
     faces: list[Face] = [tuple(reversed(range(segments))), tuple(range(segments, 2 * segments))]
-    faces.extend((i, (i + 1) % segments, (i + 1) % segments + segments, i + segments) for i in range(segments))
+    faces.extend((index, (index + 1) % segments, (index + 1) % segments + segments, index + segments) for index in range(segments))
     return mesh(name, vertices, faces, material)
-
 
 def pipe(name: str, start: Sequence[float], end: Sequence[float], radius: float, material: str, segments: int = 8) -> MeshData:
     """Create a closed round pipe segment between arbitrary 3D points."""

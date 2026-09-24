@@ -2006,8 +2006,7 @@
                 "Mesh": "$component:north_yatai_floor_mesh",
                 "Materials": [
                   "$component:mat_floor"
-                ],
-                "Enabled": false
+                ]
               }
             },
             {
@@ -2089,7 +2088,8 @@
                   7.0,
                   4.56,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2153,7 +2153,8 @@
                   0.28,
                   4.56,
                   6.0
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2217,7 +2218,8 @@
                   0.28,
                   4.56,
                   6.0
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2281,7 +2283,8 @@
                   2.9,
                   4.56,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2345,7 +2348,8 @@
                   2.9,
                   4.56,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2409,7 +2413,8 @@
                   7.0,
                   2.4599999999999995,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2473,7 +2478,8 @@
                   7.3,
                   0.22,
                   6.3
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2531,8 +2537,7 @@
                 "Mesh": "$component:north_terminal_repair_floor_mesh",
                 "Materials": [
                   "$component:mat_floor"
-                ],
-                "Enabled": false
+                ]
               }
             },
             {
@@ -2614,7 +2619,8 @@
                   7.0,
                   5.56,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2678,7 +2684,8 @@
                   0.28,
                   5.56,
                   6.0
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2742,7 +2749,8 @@
                   0.28,
                   5.56,
                   6.0
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2806,7 +2814,8 @@
                   2.9,
                   5.56,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2870,7 +2879,8 @@
                   2.9,
                   5.56,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2934,7 +2944,8 @@
                   7.0,
                   3.4599999999999995,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -2998,7 +3009,8 @@
                   7.3,
                   0.22,
                   6.3
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -3056,8 +3068,7 @@
                 "Mesh": "$component:north_machiya_floor_mesh",
                 "Materials": [
                   "$component:mat_floor"
-                ],
-                "Enabled": false
+                ]
               }
             },
             {
@@ -3139,7 +3150,8 @@
                   6.0,
                   8.56,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -3203,7 +3215,8 @@
                   0.28,
                   8.56,
                   6.0
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -3267,7 +3280,8 @@
                   0.28,
                   8.56,
                   6.0
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -3331,7 +3345,8 @@
                   2.4,
                   8.56,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -3395,7 +3410,8 @@
                   2.4,
                   8.56,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -3459,7 +3475,8 @@
                   6.0,
                   6.460000000000001,
                   0.28
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -3523,7 +3540,8 @@
                   6.3,
                   0.22,
                   6.3
-                ]
+                ],
+                "Enabled": false
               }
             }
           ]
@@ -16936,118 +16954,6 @@
           "children": [
             {
               "slot": {
-                "key": "provider_mat_material_TokyoNova_cool_light_a53f0e53",
-                "name": "mat_material_TokyoNova_cool_light_a53f0e53"
-              },
-              "components": [
-                {
-                  "key": "mat_material_TokyoNova_cool_light_a53f0e53",
-                  "type": "FrooxEngine.PBS_Metallic",
-                  "fields": {
-                    "AlbedoColor": [
-                      0.43662706283816693,
-                      0.6943609777074484,
-                      0.7483790695192482,
-                      1.0
-                    ],
-                    "Metallic": 0.0,
-                    "Smoothness": 0.5399999916553497,
-                    "EmissiveColor": [
-                      0.11207493883570277,
-                      0.2624418204263283,
-                      0.3094393025359505,
-                      1
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "slot": {
-                "key": "provider_mat_material_TokyoNova_exposed_metal_4c97bb7c",
-                "name": "mat_material_TokyoNova_exposed_metal_4c97bb7c"
-              },
-              "components": [
-                {
-                  "key": "mat_material_TokyoNova_exposed_metal_4c97bb7c",
-                  "type": "FrooxEngine.PBS_Metallic",
-                  "fields": {
-                    "AlbedoColor": [
-                      0.6499564513286469,
-                      0.6651850891023338,
-                      0.6576277105937022,
-                      1.0
-                    ],
-                    "Metallic": 0.8299999833106995,
-                    "Smoothness": 0.6100000143051147,
-                    "EmissiveColor": [
-                      0.0,
-                      0.0,
-                      0.0,
-                      1
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "slot": {
-                "key": "provider_mat_material_TokyoNova_painted_metal_253cef5a",
-                "name": "mat_material_TokyoNova_painted_metal_253cef5a"
-              },
-              "components": [
-                {
-                  "key": "mat_material_TokyoNova_painted_metal_253cef5a",
-                  "type": "FrooxEngine.PBS_Metallic",
-                  "fields": {
-                    "AlbedoColor": [
-                      0.5926193754143848,
-                      0.4613561380496703,
-                      0.3810918544541135,
-                      1.0
-                    ],
-                    "Metallic": 0.7200000286102295,
-                    "Smoothness": 0.4399999976158142,
-                    "EmissiveColor": [
-                      0.0,
-                      0.0,
-                      0.0,
-                      1
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "slot": {
-                "key": "provider_mat_material_TokyoNova_warm_light_e728709b",
-                "name": "mat_material_TokyoNova_warm_light_e728709b"
-              },
-              "components": [
-                {
-                  "key": "mat_material_TokyoNova_warm_light_e728709b",
-                  "type": "FrooxEngine.PBS_Metallic",
-                  "fields": {
-                    "AlbedoColor": [
-                      0.9546871607410429,
-                      0.6499564513286469,
-                      0.34919021513783693,
-                      1.0
-                    ],
-                    "Metallic": 0.0,
-                    "Smoothness": 0.6299999952316284,
-                    "EmissiveColor": [
-                      0.626209676390788,
-                      0.36316548355491696,
-                      0.16994257333192028,
-                      1
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "slot": {
                 "key": "provider_mat_material_TokyoNova_ceramic_b2c753fc",
                 "name": "mat_material_TokyoNova_ceramic_b2c753fc"
               },
@@ -17104,6 +17010,34 @@
             },
             {
               "slot": {
+                "key": "provider_mat_material_TokyoNova_exposed_metal_4c97bb7c",
+                "name": "mat_material_TokyoNova_exposed_metal_4c97bb7c"
+              },
+              "components": [
+                {
+                  "key": "mat_material_TokyoNova_exposed_metal_4c97bb7c",
+                  "type": "FrooxEngine.PBS_Metallic",
+                  "fields": {
+                    "AlbedoColor": [
+                      0.6499564513286469,
+                      0.6651850891023338,
+                      0.6576277105937022,
+                      1.0
+                    ],
+                    "Metallic": 0.8299999833106995,
+                    "Smoothness": 0.6100000143051147,
+                    "EmissiveColor": [
+                      0.0,
+                      0.0,
+                      0.0,
+                      1
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "slot": {
                 "key": "provider_mat_material_TokyoNova_glass_d51d1086",
                 "name": "mat_material_TokyoNova_glass_d51d1086"
               },
@@ -17120,6 +17054,34 @@
                     ],
                     "Metallic": 0.23000000417232513,
                     "Smoothness": 0.8199999928474426,
+                    "EmissiveColor": [
+                      0.0,
+                      0.0,
+                      0.0,
+                      1
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "slot": {
+                "key": "provider_mat_material_TokyoNova_painted_metal_253cef5a",
+                "name": "mat_material_TokyoNova_painted_metal_253cef5a"
+              },
+              "components": [
+                {
+                  "key": "mat_material_TokyoNova_painted_metal_253cef5a",
+                  "type": "FrooxEngine.PBS_Metallic",
+                  "fields": {
+                    "AlbedoColor": [
+                      0.5926193754143848,
+                      0.4613561380496703,
+                      0.3810918544541135,
+                      1.0
+                    ],
+                    "Metallic": 0.7200000286102295,
+                    "Smoothness": 0.4399999976158142,
                     "EmissiveColor": [
                       0.0,
                       0.0,
@@ -17208,6 +17170,34 @@
                       0.0,
                       0.0,
                       0.0,
+                      1
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "slot": {
+                "key": "provider_mat_material_TokyoNova_warm_light_e728709b",
+                "name": "mat_material_TokyoNova_warm_light_e728709b"
+              },
+              "components": [
+                {
+                  "key": "mat_material_TokyoNova_warm_light_e728709b",
+                  "type": "FrooxEngine.PBS_Metallic",
+                  "fields": {
+                    "AlbedoColor": [
+                      0.9546871607410429,
+                      0.6499564513286469,
+                      0.34919021513783693,
+                      1.0
+                    ],
+                    "Metallic": 0.0,
+                    "Smoothness": 0.6299999952316284,
+                    "EmissiveColor": [
+                      0.626209676390788,
+                      0.36316548355491696,
+                      0.16994257333192028,
                       1
                     ]
                   }
@@ -17409,6 +17399,34 @@
                   }
                 }
               ]
+            },
+            {
+              "slot": {
+                "key": "provider_mat_material_TokyoNova_cool_light_a53f0e53",
+                "name": "mat_material_TokyoNova_cool_light_a53f0e53"
+              },
+              "components": [
+                {
+                  "key": "mat_material_TokyoNova_cool_light_a53f0e53",
+                  "type": "FrooxEngine.PBS_Metallic",
+                  "fields": {
+                    "AlbedoColor": [
+                      0.43662706283816693,
+                      0.6943609777074484,
+                      0.7483790695192482,
+                      1.0
+                    ],
+                    "Metallic": 0.0,
+                    "Smoothness": 0.5399999916553497,
+                    "EmissiveColor": [
+                      0.11207493883570277,
+                      0.2624418204263283,
+                      0.3094393025359505,
+                      1
+                    ]
+                  }
+                }
+              ]
             }
           ]
         }
@@ -17427,13 +17445,13 @@
             "position": [
               -35.0,
               2.58,
-              12.96
+              12.924
             ],
             "rotation": [
               0.0,
               1.0,
               0.0,
-              0.0
+              6.123233995736766e-17
             ]
           },
           "components": [
@@ -17461,13 +17479,13 @@
             "position": [
               -25.0,
               2.6,
-              12.85
+              12.8375
             ],
             "rotation": [
               0.0,
               1.0,
               0.0,
-              0.0
+              6.123233995736766e-17
             ]
           },
           "components": [
@@ -17495,13 +17513,13 @@
             "position": [
               -15.0,
               3.95,
-              12.3
+              12.177499999999998
             ],
             "rotation": [
               0.0,
               1.0,
               0.0,
-              0.0
+              6.123233995736766e-17
             ]
           },
           "components": [
@@ -17536,14 +17554,14 @@
             "name": "Hideable AR menu · 0.8 × 0.5 m",
             "position": [
               -35.0,
-              2.63,
-              13.04
+              2.58,
+              12.174
             ],
             "rotation": [
               0.0,
               1.0,
               0.0,
-              0.0
+              6.123233995736766e-17
             ]
           },
           "components": [
@@ -17577,14 +17595,14 @@
             "name": "Hideable AR repair notice · 2.0 × 0.7 m",
             "position": [
               -25.0,
-              2.79,
-              12.96
+              2.6,
+              12.0875
             ],
             "rotation": [
               0.0,
               1.0,
               0.0,
-              0.0
+              6.123233995736766e-17
             ]
           },
           "components": [
@@ -17608,156 +17626,6 @@
                 ],
                 "HorizontalAutoSize": false,
                 "VerticalAutoSize": false
-              }
-            }
-          ]
-        },
-        {
-          "slot": {
-            "key": "object_North_ar_menu_cool_light_78d1d102",
-            "name": "North_ar_menu_cool_light"
-          },
-          "components": [
-            {
-              "key": "mesh_North_ar_menu_cool_light_78d1d102",
-              "type": "FrooxEngine.StaticMesh",
-              "fields": {
-                "URL": "$asset:mesh_North_ar_menu_cool_light_78d1d102"
-              }
-            },
-            {
-              "key": "renderer_North_ar_menu_cool_light_78d1d102",
-              "type": "FrooxEngine.MeshRenderer",
-              "fields": {
-                "Mesh": "$component:mesh_North_ar_menu_cool_light_78d1d102",
-                "Materials": [
-                  "$component:mat_material_TokyoNova_cool_light_a53f0e53"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "slot": {
-            "key": "object_North_ar_menu_exposed_metal_64c50f22",
-            "name": "North_ar_menu_exposed_metal"
-          },
-          "components": [
-            {
-              "key": "mesh_North_ar_menu_exposed_metal_64c50f22",
-              "type": "FrooxEngine.StaticMesh",
-              "fields": {
-                "URL": "$asset:mesh_North_ar_menu_exposed_metal_64c50f22"
-              }
-            },
-            {
-              "key": "renderer_North_ar_menu_exposed_metal_64c50f22",
-              "type": "FrooxEngine.MeshRenderer",
-              "fields": {
-                "Mesh": "$component:mesh_North_ar_menu_exposed_metal_64c50f22",
-                "Materials": [
-                  "$component:mat_material_TokyoNova_exposed_metal_4c97bb7c"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "slot": {
-            "key": "object_North_ar_menu_painted_metal_9d9348f6",
-            "name": "North_ar_menu_painted_metal"
-          },
-          "components": [
-            {
-              "key": "mesh_North_ar_menu_painted_metal_9d9348f6",
-              "type": "FrooxEngine.StaticMesh",
-              "fields": {
-                "URL": "$asset:mesh_North_ar_menu_painted_metal_9d9348f6"
-              }
-            },
-            {
-              "key": "renderer_North_ar_menu_painted_metal_9d9348f6",
-              "type": "FrooxEngine.MeshRenderer",
-              "fields": {
-                "Mesh": "$component:mesh_North_ar_menu_painted_metal_9d9348f6",
-                "Materials": [
-                  "$component:mat_material_TokyoNova_painted_metal_253cef5a"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "slot": {
-            "key": "object_North_ar_repair_ad_exposed_metal_3cfab811",
-            "name": "North_ar_repair_ad_exposed_metal"
-          },
-          "components": [
-            {
-              "key": "mesh_North_ar_repair_ad_exposed_metal_3cfab811",
-              "type": "FrooxEngine.StaticMesh",
-              "fields": {
-                "URL": "$asset:mesh_North_ar_repair_ad_exposed_metal_3cfab811"
-              }
-            },
-            {
-              "key": "renderer_North_ar_repair_ad_exposed_metal_3cfab811",
-              "type": "FrooxEngine.MeshRenderer",
-              "fields": {
-                "Mesh": "$component:mesh_North_ar_repair_ad_exposed_metal_3cfab811",
-                "Materials": [
-                  "$component:mat_material_TokyoNova_exposed_metal_4c97bb7c"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "slot": {
-            "key": "object_North_ar_repair_ad_painted_metal_0841d417",
-            "name": "North_ar_repair_ad_painted_metal"
-          },
-          "components": [
-            {
-              "key": "mesh_North_ar_repair_ad_painted_metal_0841d417",
-              "type": "FrooxEngine.StaticMesh",
-              "fields": {
-                "URL": "$asset:mesh_North_ar_repair_ad_painted_metal_0841d417"
-              }
-            },
-            {
-              "key": "renderer_North_ar_repair_ad_painted_metal_0841d417",
-              "type": "FrooxEngine.MeshRenderer",
-              "fields": {
-                "Mesh": "$component:mesh_North_ar_repair_ad_painted_metal_0841d417",
-                "Materials": [
-                  "$component:mat_material_TokyoNova_painted_metal_253cef5a"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "slot": {
-            "key": "object_North_ar_repair_ad_warm_light_6132626a",
-            "name": "North_ar_repair_ad_warm_light"
-          },
-          "components": [
-            {
-              "key": "mesh_North_ar_repair_ad_warm_light_6132626a",
-              "type": "FrooxEngine.StaticMesh",
-              "fields": {
-                "URL": "$asset:mesh_North_ar_repair_ad_warm_light_6132626a"
-              }
-            },
-            {
-              "key": "renderer_North_ar_repair_ad_warm_light_6132626a",
-              "type": "FrooxEngine.MeshRenderer",
-              "fields": {
-                "Mesh": "$component:mesh_North_ar_repair_ad_warm_light_6132626a",
-                "Materials": [
-                  "$component:mat_material_TokyoNova_warm_light_e728709b"
-                ]
               }
             }
           ]
@@ -17907,30 +17775,6 @@
     }
   ],
   "assets": {
-    "mesh_North_ar_menu_cool_light_78d1d102": {
-      "kind": "mesh",
-      "source": "export/mesh_North_ar_menu_cool_light_78d1d102.mesh.json"
-    },
-    "mesh_North_ar_menu_exposed_metal_64c50f22": {
-      "kind": "mesh",
-      "source": "export/mesh_North_ar_menu_exposed_metal_64c50f22.mesh.json"
-    },
-    "mesh_North_ar_menu_painted_metal_9d9348f6": {
-      "kind": "mesh",
-      "source": "export/mesh_North_ar_menu_painted_metal_9d9348f6.mesh.json"
-    },
-    "mesh_North_ar_repair_ad_exposed_metal_3cfab811": {
-      "kind": "mesh",
-      "source": "export/mesh_North_ar_repair_ad_exposed_metal_3cfab811.mesh.json"
-    },
-    "mesh_North_ar_repair_ad_painted_metal_0841d417": {
-      "kind": "mesh",
-      "source": "export/mesh_North_ar_repair_ad_painted_metal_0841d417.mesh.json"
-    },
-    "mesh_North_ar_repair_ad_warm_light_6132626a": {
-      "kind": "mesh",
-      "source": "export/mesh_North_ar_repair_ad_warm_light_6132626a.mesh.json"
-    },
     "mesh_North_food_stall_ceramic_893ca250": {
       "kind": "mesh",
       "source": "export/mesh_North_food_stall_ceramic_893ca250.mesh.json"

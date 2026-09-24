@@ -1554,8 +1554,8 @@
       "kind": "food_stall",
       "dimensions": [
         4.5,
-        2.86,
-        2.1
+        2.7525,
+        2.099
       ],
       "units": "meters",
       "materials": [
@@ -1601,7 +1601,7 @@
       "dimensions": [
         4.8,
         3.36,
-        5.15
+        5.1475
       ],
       "units": "meters",
       "materials": [
@@ -1697,7 +1697,7 @@
         "origin_offset": [
           0,
           0,
-          -3.0
+          -2.5
         ]
       },
       "recognition": "deep two-level openings, patched wall, improvised balcony/laundry and a mismatched AC unit read as occupied housing rather than a blank blockout shell"
@@ -1783,9 +1783,9 @@
     {
       "kind": "north_facility_connector",
       "dimensions": [
-        3.16,
-        0.6,
-        0.935
+        5.61,
+        0.579,
+        0.88
       ],
       "units": "meters",
       "materials": [
@@ -1795,15 +1795,15 @@
         "rubber"
       ],
       "parts": [
-        "overhead replacement rain sheet",
-        "three corrugation ribs",
-        "two wall brackets",
+        "canopy sized between the real food-awning post and repair-shop header",
+        "two bearing supports from those attachment points",
+        "corrugation ribs",
         "rain gutter and downspout",
         "shared cable tray"
       ],
       "wear": [
-        "two mismatched roofing sheets",
-        "rust on old brackets",
+        "mismatched roofing sheet",
+        "rust at bearing brackets",
         "repaired cable sleeve"
       ],
       "placement": {
@@ -1811,72 +1811,68 @@
           "north_yatai",
           "north_terminal_repair"
         ],
-        "root_local_center": [
-          -30.0,
-          3.55,
-          12.55
-        ],
+        "attachment_points": "derived from placed facade geometry",
         "walk_clearance_m": 3.0
       },
-      "recognition": "elevated continuous rain cover and cable tray visibly join the neighboring food and repair facades while preserving a clear passage below"
+      "recognition": "supported continuous rain cover bears on both neighboring facilities and leaves the passage below clear"
     },
     {
       "kind": "ar_menu",
       "dimensions": [
         0.8,
         0.5,
-        0.045
+        0.0
       ],
       "units": "meters",
       "materials": [
-        "painted_metal",
         "cool_light"
       ],
       "parts": [
-        "thin framed menu panel",
-        "restrained emissive face",
-        "Japanese TextRenderer content",
-        "service brackets",
-        "bezel and diffuse face"
+        "bounded Japanese TextRenderer plane",
+        "separate hideable group",
+        "no opaque backing or support",
+        "restrained emission tint",
+        "explicit 0.8 × 0.5 m bounds"
       ],
       "wear": [
-        "steady low-luminance cool tint; no animation"
+        "steady low-luminance text tint; no animation"
       ],
       "placement": {
         "building_key": "north_yatai",
         "group": "north_ar_displays",
-        "front": "south"
+        "front": "south",
+        "clear_of_physical_sign_m": 0.75
       },
-      "recognition": "separately hideable 0.8 m × 0.5 m menu surface showing a short meal list and hours"
+      "recognition": "separately hideable 0.8 m × 0.5 m Japanese menu text in open space south of the physical sign"
     },
     {
       "kind": "ar_repair_ad",
       "dimensions": [
         2.0,
         0.7,
-        0.045
+        0.0
       ],
       "units": "meters",
       "materials": [
-        "painted_metal",
         "warm_light"
       ],
       "parts": [
-        "slender framed repair-hours panel",
-        "restrained emissive face",
-        "Japanese TextRenderer content",
-        "service brackets",
-        "bezel and diffuse face"
+        "bounded Japanese TextRenderer plane",
+        "separate hideable group",
+        "no opaque backing or support",
+        "restrained emission tint",
+        "explicit 2.0 × 0.7 m bounds"
       ],
       "wear": [
-        "steady low-brightness warm lettering; no flashing"
+        "steady low-brightness text tint; no flashing"
       ],
       "placement": {
         "building_key": "north_terminal_repair",
         "group": "north_ar_displays",
-        "front": "south"
+        "front": "south",
+        "clear_of_physical_sign_m": 0.75
       },
-      "recognition": "separately hideable 2.0 m × 0.7 m repair notice distinct from the physical fascia"
+      "recognition": "separately hideable 2.0 m × 0.7 m Japanese repair text in open space south of the physical fascia"
     }
   ]
 }

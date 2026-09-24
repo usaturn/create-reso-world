@@ -24,6 +24,7 @@ class Assembly:
     origin: Vec3
     rotation: float
     parts: list[geo.MeshData] = field(default_factory=list)
+    attachments: dict[str, Vec3] = field(default_factory=dict)
 
     @property
     def bounds(self) -> tuple[Vec3, Vec3]:
@@ -56,8 +57,8 @@ def _pipe(parts: list[geo.MeshData], name: str, start: Vec3, end: Vec3, radius: 
     parts.append(geo.pipe(name, start, end, radius, material, segments=8))
 
 
-def _cylinder(parts: list[geo.MeshData], name: str, center: Vec3, radius: float, depth: float, material: str, segments: int = 12) -> None:
-    parts.append(geo.cylinder(name, center, radius, depth, material, segments=segments))
+def _cylinder(parts: list[geo.MeshData], name: str, center: Vec3, radius: float, depth: float, material: str, segments: int = 12, axis: Vec3 = (0.0, 1.0, 0.0)) -> None:
+    parts.append(geo.cylinder(name, center, radius, depth, material, segments=segments, axis=axis))
 
 
 def _food_stall() -> list[geo.MeshData]:
@@ -73,10 +74,10 @@ def _food_stall() -> list[geo.MeshData]:
             rx = x - width * 0.39 + ridge * width * 0.19
             _pipe(parts, f"awning_corrugation_{index}_{ridge}", (rx, 2.815, 0.02), (rx, 2.74, 1.25), 0.009, "exposed_metal")
     for x in (-2.15, 2.15):
-        _pipe(parts, f"awning_front_post_{x}", (x, 0.18, 1.28), (x, 2.68, 1.28), 0.045, "painted_metal")
-        _pipe(parts, f"awning_rear_post_{x}", (x, 0.18, -0.55), (x, 2.94, -0.55), 0.04, "exposed_metal")
-        _pipe(parts, f"awning_diagonal_brace_{x}", (x, 2.20, 0.2), (x, 2.72, 1.23), 0.025, "rust")
-    _pipe(parts, "awning_front_beam", (-2.16, 2.68, 1.26), (2.16, 2.68, 1.26), 0.035, "exposed_metal")
+        _pipe(parts, f"awning_front_post_{x}", (x, 0.18, 1.20), (x, 2.78, 1.20), 0.045, "painted_metal")
+        _pipe(parts, f"awning_rear_post_{x}", (x, 0.18, 0.04), (x, 2.78, 0.04), 0.04, "exposed_metal")
+        _pipe(parts, f"awning_diagonal_brace_{x}", (x, 2.20, 0.2), (x, 2.72, 1.18), 0.025, "rust")
+    _pipe(parts, "awning_front_beam", (-2.16, 2.78, 1.20), (2.16, 2.78, 1.20), 0.035, "exposed_metal")
     # Counter with separate rolled rim, two fascia strips and stout side supports.
     _box(parts, "counter_body", (0, 1.02, 0.25), (4.35, 0.72, 0.78), "wood", 0.045)
     _box(parts, "counter_top", (0, 1.42, 0.25), (4.5, 0.09, 0.91), "exposed_metal", 0.025)
@@ -144,21 +145,30 @@ def _repair_shop() -> list[geo.MeshData]:
         _box(parts, f"drawer_{x}", (x, 0.67, 0.57), (0.94, 0.31, 0.13), "painted_metal", 0.018)
         _pipe(parts, f"drawer_pull_{x}", (x - 0.10, 0.67, 0.65), (x + 0.10, 0.67, 0.65), 0.012, "exposed_metal")
     _box(parts, "anti_static_mat", (0, 1.012, -0.04), (1.90, 0.025, 0.63), "faded_teal", 0.015)
-    # Exactly 45 cm monitor with bezel, stand, knobs and rear cooling slots.
-    _box(parts, "monitor_45cm_shell", (-0.76, 1.72, -0.27), (0.45, 0.31, 0.055), "plastic", 0.035)
-    _box(parts, "monitor_45cm_glass", (-0.76, 1.73, -0.238), (0.414, 0.263, 0.008), "glass", 0.018)
-    _box(parts, "monitor_stand_neck", (-0.76, 1.48, -0.28), (0.045, 0.20, 0.05), "exposed_metal", 0.012)
-    _box(parts, "monitor_stand_foot", (-0.76, 1.365, -0.25), (0.27, 0.025, 0.18), "plastic", 0.012)
-    _cylinder(parts, "monitor_status_lamp", (-0.58, 1.57, -0.237), 0.012, 0.008, "cool_light", 8)
+    mat_top = 1.012 + 0.025 / 2
+    monitor_foot_height = 0.025
+    monitor_foot_center = mat_top + monitor_foot_height / 2
+    monitor_neck_height = 0.20
+    monitor_neck_center = monitor_foot_center + monitor_foot_height / 2 + monitor_neck_height / 2
+    monitor_shell_height = 0.31
+    monitor_shell_center = monitor_neck_center + monitor_neck_height / 2 + monitor_shell_height / 2
+    # The foot contacts the ESD mat; the neck contacts both foot and housing.
+    _box(parts, "monitor_45cm_shell", (-0.76, monitor_shell_center, -0.27), (0.45, monitor_shell_height, 0.055), "plastic", 0.035)
+    _box(parts, "monitor_45cm_glass", (-0.76, monitor_shell_center + 0.01, -0.238), (0.414, 0.263, 0.008), "glass", 0.018)
+    _box(parts, "monitor_stand_neck", (-0.76, monitor_neck_center, -0.28), (0.045, monitor_neck_height, 0.05), "exposed_metal", 0.012)
+    _box(parts, "monitor_stand_foot", (-0.76, monitor_foot_center, -0.25), (0.27, monitor_foot_height, 0.18), "plastic", 0.012)
+    _cylinder(parts, "monitor_status_lamp", (-0.58, monitor_shell_center - 0.15, -0.237), 0.012, 0.008, "cool_light", 8)
     for vent in range(7):
-        _box(parts, f"monitor_rear_vent_{vent}", (-0.90 + vent * 0.047, 1.57, -0.298), (0.018, 0.055, 0.006), "exposed_metal")
-    # 35 cm repairable terminal mainboard, vented enclosure and removable cover.
-    _box(parts, "terminal_box_35cm", (0.15, 1.19, 0.03), (0.35, 0.18, 0.29), "painted_metal", 0.025)
-    _box(parts, "terminal_removable_cover", (0.15, 1.19, 0.184), (0.32, 0.15, 0.012), "exposed_metal", 0.012)
+        _box(parts, f"monitor_rear_vent_{vent}", (-0.90 + vent * 0.047, monitor_shell_center - 0.15, -0.298), (0.018, 0.055, 0.006), "exposed_metal")
+    # The 35 cm vented case rests on the same measured support plane.
+    terminal_box_height = 0.18
+    terminal_box_center = mat_top + terminal_box_height / 2
+    _box(parts, "terminal_box_35cm", (0.15, terminal_box_center, 0.03), (0.35, terminal_box_height, 0.29), "painted_metal", 0.025)
+    _box(parts, "terminal_removable_cover", (0.15, terminal_box_center, 0.184), (0.32, 0.15, 0.012), "exposed_metal", 0.012)
     for vent in range(6):
-        _box(parts, f"terminal_box_vent_{vent}", (0.035 + vent * 0.044, 1.19, 0.194), (0.012, 0.09, 0.004), "rubber")
+        _box(parts, f"terminal_box_vent_{vent}", (0.035 + vent * 0.044, terminal_box_center, 0.194), (0.012, 0.09, 0.004), "rubber")
     for screw_x in (-0.005, 0.305):
-        for screw_y in (1.13, 1.25):
+        for screw_y in (terminal_box_center - 0.06, terminal_box_center + 0.06):
             _cylinder(parts, f"terminal_cover_fastener_{screw_x}_{screw_y}", (screw_x, screw_y, 0.195), 0.008, 0.004, "rust", 8)
     # Two tray levels and a grounded ESD parts tray with compartments.
     for index, x in enumerate((-1.35, 1.30)):
@@ -177,7 +187,7 @@ def _repair_shop() -> list[geo.MeshData]:
         _pipe(parts, f"precision_driver_handle_{index}", (x, 1.06, -0.10), (x, 1.16, -0.10), 0.022, "rubber")
         _pipe(parts, f"precision_driver_shaft_{index}", (x, 1.16, -0.10), (x + 0.035, 1.30, -0.10), 0.006, "exposed_metal")
     _box(parts, "hot_air_rework_station", (0.98, 1.15, -0.42), (0.49, 0.28, 0.39), "plastic", 0.025)
-    _cylinder(parts, "rework_station_dial", (0.82, 1.18, -0.216), 0.043, 0.025, "exposed_metal", 12)
+    _cylinder(parts, "rework_station_dial", (0.82, 1.18, -0.216), 0.043, 0.025, "exposed_metal", 12, axis=(0.0, 0.0, 1.0))
     _pipe(parts, "rework_air_hose", (1.14, 1.28, -0.40), (1.39, 1.58, -0.44), 0.016, "rubber")
     _pipe(parts, "soldering_iron", (0.42, 1.04, -0.25), (0.62, 1.23, -0.21), 0.018, "exposed_metal")
     _box(parts, "soldering_iron_grip", (0.48, 1.10, -0.23), (0.13, 0.045, 0.05), "rubber", 0.018)
@@ -262,8 +272,8 @@ def _housing_facade() -> list[geo.MeshData]:
         _box(parts, f"hanging_laundry_{index}", (x + 0.17, 6.45, -0.34), (0.34, 0.42, 0.035), "cloth", 0.012)
     _box(parts, "wall_ac_mount", (2.48, 4.28, -0.27), (0.52, 0.10, 0.38), "exposed_metal", 0.015)
     _box(parts, "wall_ac_body", (2.48, 4.59, -0.30), (0.74, 0.55, 0.42), "cream_plastic", 0.065)
-    _cylinder(parts, "wall_ac_fan", (2.48, 4.59, -0.525), 0.18, 0.025, "exposed_metal", 20)
-    _cylinder(parts, "wall_ac_fan_hub", (2.48, 4.59, -0.543), 0.045, 0.012, "plastic", 12)
+    _cylinder(parts, "wall_ac_fan", (2.48, 4.59, -0.525), 0.18, 0.025, "exposed_metal", 20, axis=(0.0, 0.0, -1.0))
+    _cylinder(parts, "wall_ac_fan_hub", (2.48, 4.59, -0.543), 0.045, 0.012, "plastic", 12, axis=(0.0, 0.0, -1.0))
     for vent in range(5):
         _box(parts, f"ac_outlet_louver_{vent}", (2.25 + vent * 0.11, 4.37, -0.52), (0.07, 0.025, 0.018), "exposed_metal")
     # Elbowed downpipe, cleanout, clamps and several real patch scars/cracks.
@@ -294,26 +304,28 @@ def _housing_facade() -> list[geo.MeshData]:
 
 def _phone() -> list[geo.MeshData]:
     parts: list[geo.MeshData] = []
-    # Exact 75 × 8 × 150 mm body, front screen up (+Y), removable rear panel.
-    parts.append(geo.beveled_box("phone_shell", (0, 0, 0), (0.075, 0.008, 0.150), 0.0033, "plastic"))
-    parts.append(geo.beveled_box("rounded_glass", (0, 0.00355, 0), (0.0705, 0.00065, 0.1455), 0.003, "glass"))
-    parts.append(geo.beveled_box("screen_display", (0, 0.00391, 0), (0.063, 0.00012, 0.131), 0.0025, "cool_light"))
+    # Keep the 75 × 8 × 150 mm envelope while recessing the shell below the
+    # screen and narrowing its sides so the keys remain exposed.
+    parts.append(geo.beveled_box("phone_shell", (0, 0, 0), (0.0736, 0.0074, 0.150), 0.0033, "plastic"))
+    parts.append(geo.beveled_box("rounded_glass", (0, 0.00347, 0), (0.0705, 0.00035, 0.1455), 0.003, "glass"))
+    parts.append(geo.beveled_box("screen_display", (0, 0.00394, 0), (0.063, 0.00012, 0.131), 0.0025, "cool_light"))
     parts.append(geo.beveled_box("removable_back", (0, -0.00354, 0), (0.068, 0.00072, 0.139), 0.003, "faded_teal"))
-    # Recess seams make the back cover visibly serviceable.
     for x in (-0.032, 0.032):
         _box(parts, f"back_panel_seam_{x}", (x, -0.00394, 0), (0.0014, 0.00008, 0.118), "exposed_metal")
     for side in (-1, 1):
-        _box(parts, f"side_buttons_{side}", (side * 0.0352, 0.0013, 0.024), (0.0020, 0.0014, 0.018), "exposed_metal", 0.00065)
-        _box(parts, f"side_button_lower_{side}", (side * 0.0350, 0.0012, -0.005), (0.0018, 0.0011, 0.010), "painted_metal", 0.0005)
-    # Raised grouping bezel, ring bezels and lens glass make the rear camera cluster distinct.
-    parts.append(geo.beveled_box("camera_cluster", (0, -0.00385, 0.056), (0.053, 0.00025, 0.018), 0.0001, "plastic"))
-    _box(parts, "side_buttons", (0.0358, 0.00125, 0.012), (0.0014, 0.0010, 0.027), "exposed_metal", 0.0002)
+        button_x = side * 0.03715
+        _box(parts, f"side_buttons_{side}", (button_x, 0.0010, 0.024), (0.0007, 0.0012, 0.018), "exposed_metal", 0.0002)
+        _box(parts, f"side_button_lower_{side}", (button_x, 0.0008, -0.005), (0.0007, 0.0010, 0.010), "painted_metal", 0.0002)
+    # The rear camera island and optics rise beyond the back shell, but stay
+    # inside the exact 8 mm overall thickness.
+    parts.append(geo.beveled_box("camera_cluster", (0, -0.00382, 0.056), (0.053, 0.00024, 0.018), 0.0001, "plastic"))
+    _box(parts, "side_buttons", (0.03715, 0.0010, 0.012), (0.0007, 0.0010, 0.027), "exposed_metal", 0.0002)
     for index, (x, z) in enumerate(((-0.021, 0.056), (0.0, 0.056), (0.021, 0.056))):
         _cylinder(parts, f"camera_cluster_ring_{index}", (x, -0.00390, z), 0.006, 0.00016, "exposed_metal", 12)
-        _cylinder(parts, f"camera_lens_{index}", (x, -0.00393, z), 0.0037, 0.00008, "glass", 12)
-    _cylinder(parts, "camera_flash", (0.026, -0.00391, 0.040), 0.0021, 0.00012, "warm_light", 8)
-    _box(parts, "earpiece_grill", (0, 0.00385, 0.0685), (0.018, 0.00012, 0.0018), "exposed_metal", 0.0007)
-    _box(parts, "speaker_grill", (0, 0.00385, -0.067), (0.021, 0.00012, 0.0018), "exposed_metal", 0.0007)
+        _cylinder(parts, f"camera_lens_{index}", (x, -0.00396, z), 0.0037, 0.00008, "glass", 12)
+    _cylinder(parts, "camera_flash", (0.026, -0.00396, 0.040), 0.0021, 0.00008, "warm_light", 8)
+    _box(parts, "earpiece_grill", (0, 0.00384, 0.0685), (0.018, 0.00012, 0.0018), "exposed_metal", 0.0007)
+    _box(parts, "speaker_grill", (0, 0.00384, -0.067), (0.021, 0.00012, 0.0018), "exposed_metal", 0.0007)
     _cylinder(parts, "charging_port", (0, 0, -0.071), 0.0025, 0.0012, "rubber", 8)
     return parts
 
