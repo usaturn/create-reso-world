@@ -12,7 +12,7 @@
     "transform": {
       "position": [
         0.0,
-        0.0,
+        30.0,
         120.0
       ],
       "rotation": [
@@ -27,7 +27,7 @@
         1.0
       ]
     },
-    "world_ground_alignment": "Root Y=0 aligns plaza and street finish with observed Ground Y=0"
+    "world_ground_alignment": "Root world Y=30 preserves root-local plaza Y=0 and keeps basement depths clear of existing Ground"
   },
   "plaza": {
     "bounds_xz": [
@@ -188,7 +188,7 @@
       "center": [
         15.0,
         0.0,
-        15.0
+        5.0
       ],
       "size": [
         6.0,
@@ -214,7 +214,7 @@
     },
     {
       "key": "east_roof_garden",
-      "kind": "roof_garden",
+      "kind": "roof_utility_deck",
       "center": [
         15.0,
         0.0,
@@ -276,9 +276,9 @@
       "key": "south_rehearsal",
       "kind": "rehearsal_room",
       "center": [
-        15.0,
+        35.0,
         0.0,
-        -15.0
+        -35.0
       ],
       "size": [
         6.0,
@@ -351,31 +351,31 @@
       "key": "west_talisman_shop",
       "kind": "talisman_shop",
       "center": [
-        -15.0,
+        -35.0,
         0.0,
-        -15.0
+        -25.0
       ],
       "size": [
         6.0,
         6.0
       ],
       "height": 5.0,
-      "front": "east"
+      "front": "west"
     },
     {
       "key": "west_game_room",
       "kind": "game_room",
       "center": [
-        -15.0,
+        -25.0,
         0.0,
-        15.0
+        -35.0
       ],
       "size": [
         6.0,
         6.0
       ],
       "height": 6.0,
-      "front": "east"
+      "front": "south"
     },
     {
       "key": "west_shared_kitchen",
@@ -585,12 +585,12 @@
           5
         ],
         [
-          -5,
+          -18,
           0,
           5
         ],
         [
-          -5,
+          -18,
           0,
           -5
         ],
@@ -702,6 +702,60 @@
           46
         ]
       ]
+    },
+    {
+      "key": "alley_south_rehearsal_access",
+      "kind": "alley",
+      "width": 1.5,
+      "points": [
+        [
+          35,
+          0,
+          -24
+        ],
+        [
+          35,
+          0,
+          -32
+        ]
+      ],
+      "building_access_key": "south_rehearsal"
+    },
+    {
+      "key": "alley_west_game_room_access",
+      "kind": "alley",
+      "width": 1.5,
+      "points": [
+        [
+          -25,
+          0,
+          -48
+        ],
+        [
+          -25,
+          0,
+          -38
+        ]
+      ],
+      "building_access_key": "west_game_room"
+    },
+    {
+      "key": "alley_west_talisman_shop_access",
+      "kind": "alley",
+      "width": 1.5,
+      "points": [
+        [
+          -48,
+          0,
+          -25
+        ],
+        [
+          -38,
+          0,
+          -25
+        ]
+      ],
+      "building_access_key": "west_talisman_shop"
     }
   ],
   "facilities": [
@@ -779,7 +833,7 @@
       "position": [
         15.0,
         0.0,
-        15.0
+        5.0
       ]
     },
     {
@@ -876,9 +930,9 @@
       "kind": "retail",
       "building_key": "west_talisman_shop",
       "position": [
-        -15.0,
+        -35.0,
         0.0,
-        -15.0
+        -25.0
       ]
     },
     {
@@ -887,9 +941,9 @@
       "kind": "recreation",
       "building_key": "west_game_room",
       "position": [
-        -15.0,
+        -25.0,
         0.0,
-        15.0
+        -35.0
       ]
     },
     {
@@ -908,22 +962,71 @@
     "building_key": "west_roof_access",
     "kind": "external_walkable_ramp_to_roof_landing",
     "clear_width": 1.8,
-    "target_height": 9.0
+    "target_height": 9.11
   },
   "basement_access": [
     {
       "key": "south_theatre_basement_ramp",
       "building_key": "south_theatre",
       "kind": "open_ramp_and_landing",
+      "entry_side": "north",
       "clear_width": 1.8,
-      "depth_below_grade": 2.4
+      "depth_below_grade": 2.4,
+      "approach_run": 5.0,
+      "floor_opening": {
+        "axis": "z",
+        "center": [
+          0.0,
+          0.5
+        ],
+        "size": [
+          1.8,
+          5.0
+        ],
+        "depth": 5.0
+      },
+      "floor_key_prefix": "theatre",
+      "landing_key": "theatre_basement_landing",
+      "landing_center_offset": [
+        0.0,
+        -2.0
+      ],
+      "landing_size": [
+        2.4,
+        2.4
+      ]
     },
     {
       "key": "west_bar_basement_stairs",
       "building_key": "west_basement_bar",
       "kind": "open_stairwell_and_landing",
+      "entry_side": "east",
       "clear_width": 1.5,
-      "depth_below_grade": 2.2
+      "depth_below_grade": 2.2,
+      "approach_run": 3.0,
+      "steps": 12,
+      "floor_opening": {
+        "axis": "x",
+        "center": [
+          1.5,
+          0.0
+        ],
+        "size": [
+          3.0,
+          1.8
+        ],
+        "depth": 3.0
+      },
+      "floor_key_prefix": "bar",
+      "landing_key": "bar_basement_landing",
+      "landing_center_offset": [
+        -1.2,
+        0.0
+      ],
+      "landing_size": [
+        2.4,
+        2.2
+      ]
     }
   ],
   "prop_catalog": [
@@ -996,14 +1099,6 @@
       "kind": "shop_counter"
     },
     {
-      "key": "ticket_dispenser",
-      "kind": "ticket_dispenser"
-    },
-    {
-      "key": "coin_return_mechanism",
-      "kind": "coin_return_mechanism"
-    },
-    {
       "key": "handwritten_menu_board",
       "kind": "handwritten_menu_board"
     },
@@ -1022,6 +1117,14 @@
     {
       "key": "rice_container",
       "kind": "rice_container"
+    },
+    {
+      "key": "folding_service_table",
+      "kind": "folding_service_table"
+    },
+    {
+      "key": "reusable_food_cover",
+      "kind": "reusable_food_cover"
     },
     {
       "key": "soldering_station",
@@ -1120,20 +1223,20 @@
       "kind": "weighing_scale"
     },
     {
-      "key": "theatre_ticket_window",
-      "kind": "theatre_ticket_window"
+      "key": "theatre_programme_rack",
+      "kind": "theatre_programme_rack"
     },
     {
-      "key": "stage_truss",
-      "kind": "stage_truss"
+      "key": "fixed_projection_screen_frame",
+      "kind": "fixed_projection_screen_frame"
     },
     {
       "key": "blackout_curtain_track",
       "kind": "blackout_curtain_track"
     },
     {
-      "key": "floor_monitor_speaker",
-      "kind": "floor_monitor_speaker"
+      "key": "theatre_acoustic_baffles",
+      "kind": "theatre_acoustic_baffles"
     },
     {
       "key": "barrel_table",
@@ -1164,8 +1267,8 @@
       "kind": "folding_rain_screen"
     },
     {
-      "key": "roof_planter_trough",
-      "kind": "roof_planter_trough"
+      "key": "roof_drain_filter_basket",
+      "kind": "roof_drain_filter_basket"
     },
     {
       "key": "stair_landing_handrail",
@@ -1182,6 +1285,22 @@
     {
       "key": "inspection_hatch",
       "kind": "inspection_hatch"
+    },
+    {
+      "key": "theatre_floor_seating",
+      "kind": "theatre_floor_seating"
+    },
+    {
+      "key": "fixed_projection_shelf",
+      "kind": "fixed_projection_shelf"
+    },
+    {
+      "key": "sound_absorbing_door_seal",
+      "kind": "sound_absorbing_door_seal"
+    },
+    {
+      "key": "roof_service_cable_tray",
+      "kind": "roof_service_cable_tray"
     }
   ],
   "cameras": [
@@ -1189,12 +1308,12 @@
       "key": "plaza_north_eye",
       "position": [
         6.0,
-        1.6,
+        31.6,
         148.0
       ],
       "target": [
         0.0,
-        1.1,
+        31.1,
         120.0
       ],
       "coordinate_space": "world",
@@ -1213,12 +1332,12 @@
       "key": "plaza_south_eye",
       "position": [
         -6.0,
-        1.6,
+        31.6,
         92.0
       ],
       "target": [
         0.0,
-        1.1,
+        31.1,
         120.0
       ],
       "coordinate_space": "world",
@@ -1237,12 +1356,12 @@
       "key": "west_entry_eye",
       "position": [
         -28.0,
-        1.6,
+        31.6,
         126.0
       ],
       "target": [
         0.0,
-        1.1,
+        31.1,
         120.0
       ],
       "coordinate_space": "world",
@@ -1261,12 +1380,12 @@
       "key": "east_entry_eye",
       "position": [
         28.0,
-        1.6,
+        31.6,
         114.0
       ],
       "target": [
         0.0,
-        1.1,
+        31.1,
         120.0
       ],
       "coordinate_space": "world",
@@ -1285,18 +1404,18 @@
       "key": "roof_overlook",
       "position": [
         -15.0,
-        9.0,
+        40.71,
         155.0
       ],
       "target": [
         0.0,
-        2.0,
+        32.0,
         120.0
       ],
       "coordinate_space": "world",
       "local_position": [
         -15,
-        9,
+        10.71,
         35
       ],
       "local_target": [
@@ -1309,12 +1428,12 @@
       "key": "north_market_detail",
       "position": [
         14.0,
-        1.6,
+        31.6,
         131.0
       ],
       "target": [
         25.0,
-        3.0,
+        33.0,
         135.0
       ],
       "coordinate_space": "world",
@@ -1333,12 +1452,12 @@
       "key": "south_workshop_detail",
       "position": [
         -5.0,
-        1.6,
+        31.6,
         109.0
       ],
       "target": [
         -25.0,
-        3.0,
+        33.0,
         105.0
       ],
       "coordinate_space": "world",
@@ -1357,12 +1476,12 @@
       "key": "street_overview",
       "position": [
         44.0,
-        18.0,
+        48.0,
         164.0
       ],
       "target": [
         0.0,
-        3.0,
+        33.0,
         120.0
       ],
       "coordinate_space": "world",

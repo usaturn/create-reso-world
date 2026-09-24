@@ -12,7 +12,7 @@
     "parent": "Root",
     "position": [
       0.0,
-      0.0,
+      30.0,
       120.0
     ],
     "rotation": [
@@ -898,7 +898,7 @@
         "key": "route_loop_midwest_01",
         "name": "Blockout route surface · loop_midwest · route_loop_midwest_01",
         "position": [
-          -19.5,
+          -26.0,
           0.055,
           5.0
         ],
@@ -922,7 +922,7 @@
             "Size": [
               2.0,
               0.01,
-              29.0
+              16.0
             ]
           }
         },
@@ -943,7 +943,7 @@
         "key": "route_loop_midwest_02",
         "name": "Blockout route surface · loop_midwest · route_loop_midwest_02",
         "position": [
-          -5.0,
+          -18.0,
           0.055,
           0.0
         ],
@@ -988,7 +988,7 @@
         "key": "route_loop_midwest_03",
         "name": "Blockout route surface · loop_midwest · route_loop_midwest_03",
         "position": [
-          -19.5,
+          -26.0,
           0.055,
           -5.0
         ],
@@ -1012,7 +1012,7 @@
             "Size": [
               2.0,
               0.01,
-              29.0
+              16.0
             ]
           }
         },
@@ -1291,6 +1291,141 @@
           "type": "FrooxEngine.MeshRenderer",
           "fields": {
             "Mesh": "$component:route_alley_westfront_00_mesh",
+            "Materials": [
+              "$component:mat_asphalt"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "route_alley_south_rehearsal_access_00",
+        "name": "Blockout route surface · alley_south_rehearsal_access · route_alley_south_rehearsal_access_00",
+        "position": [
+          35.0,
+          0.055,
+          -28.0
+        ],
+        "rotation": [
+          0.0,
+          1.0,
+          0.0,
+          6.123233995736766e-17
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "route_alley_south_rehearsal_access_00_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              1.5,
+              0.01,
+              8.0
+            ]
+          }
+        },
+        {
+          "key": "route_alley_south_rehearsal_access_00_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:route_alley_south_rehearsal_access_00_mesh",
+            "Materials": [
+              "$component:mat_asphalt"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "route_alley_west_game_room_access_00",
+        "name": "Blockout route surface · alley_west_game_room_access · route_alley_west_game_room_access_00",
+        "position": [
+          -25.0,
+          0.055,
+          -43.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "route_alley_west_game_room_access_00_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              1.5,
+              0.01,
+              10.0
+            ]
+          }
+        },
+        {
+          "key": "route_alley_west_game_room_access_00_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:route_alley_west_game_room_access_00_mesh",
+            "Materials": [
+              "$component:mat_asphalt"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "route_alley_west_talisman_shop_access_00",
+        "name": "Blockout route surface · alley_west_talisman_shop_access · route_alley_west_talisman_shop_access_00",
+        "position": [
+          -43.0,
+          0.055,
+          -25.0
+        ],
+        "rotation": [
+          0.0,
+          0.7071067811865475,
+          0.0,
+          0.7071067811865476
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "route_alley_west_talisman_shop_access_00_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              1.5,
+              0.01,
+              10.0
+            ]
+          }
+        },
+        {
+          "key": "route_alley_west_talisman_shop_access_00_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:route_alley_west_talisman_shop_access_00_mesh",
             "Materials": [
               "$component:mat_asphalt"
             ]
@@ -5958,7 +6093,7 @@
         "position": [
           15.0,
           0.0,
-          15.0
+          5.0
         ]
       },
       "children": [
@@ -6988,7 +7123,7 @@
     {
       "slot": {
         "key": "building_east_roof_garden",
-        "name": "BLOCKOUT · roof_garden · east_roof_garden",
+        "name": "BLOCKOUT · roof_utility_deck · east_roof_garden",
         "position": [
           15.0,
           0.0,
@@ -8552,7 +8687,7 @@
             "key": "theatre_floor_well_left",
             "name": "Floor panel beside basement cutout · theatre_floor_well_left",
             "position": [
-              -1.95,
+              -1.9500000000000002,
               0.2,
               0.0
             ],
@@ -8615,7 +8750,7 @@
             "key": "theatre_floor_well_right",
             "name": "Floor panel beside basement cutout · theatre_floor_well_right",
             "position": [
-              1.95,
+              1.9500000000000002,
               0.2,
               0.0
             ],
@@ -8680,7 +8815,7 @@
             "position": [
               0.0,
               0.2,
-              -1.5
+              -2.5
             ],
             "rotation": [
               0.0,
@@ -8702,7 +8837,7 @@
                 "Size": [
                   1.8,
                   0.24,
-                  3.0
+                  1.0
                 ]
               }
             },
@@ -8730,7 +8865,7 @@
                 "Size": [
                   1.8,
                   0.24,
-                  3.0
+                  1.0
                 ]
               }
             }
@@ -9184,9 +9319,9 @@
         "key": "building_south_rehearsal",
         "name": "BLOCKOUT · rehearsal_room · south_rehearsal",
         "position": [
-          15.0,
+          35.0,
           0.0,
-          -15.0
+          -35.0
         ]
       },
       "children": [
@@ -11895,9 +12030,9 @@
         "key": "building_west_talisman_shop",
         "name": "BLOCKOUT · talisman_shop · west_talisman_shop",
         "position": [
-          -15.0,
+          -35.0,
           0.0,
-          -15.0
+          -25.0
         ]
       },
       "children": [
@@ -11969,7 +12104,7 @@
             "key": "west_talisman_shop_rear_wall",
             "name": "Blockout wall segment · west_talisman_shop_rear_wall · west_talisman_shop_rear_wall",
             "position": [
-              -2.86,
+              2.86,
               2.5999999999999996,
               0.0
             ],
@@ -12158,7 +12293,7 @@
             "key": "west_talisman_shop_front_side_0",
             "name": "Blockout wall segment · west_talisman_shop_front_side_0 · west_talisman_shop_front_side_0",
             "position": [
-              2.86,
+              -2.86,
               2.5999999999999996,
               -1.7999999999999998
             ],
@@ -12221,7 +12356,7 @@
             "key": "west_talisman_shop_front_side_1",
             "name": "Blockout wall segment · west_talisman_shop_front_side_1 · west_talisman_shop_front_side_1",
             "position": [
-              2.86,
+              -2.86,
               2.5999999999999996,
               1.7999999999999998
             ],
@@ -12284,7 +12419,7 @@
             "key": "west_talisman_shop_front_lintel",
             "name": "Blockout wall segment · west_talisman_shop_front_lintel · west_talisman_shop_front_lintel",
             "position": [
-              2.86,
+              -2.86,
               3.6499999999999995,
               0.0
             ],
@@ -12412,9 +12547,9 @@
         "key": "building_west_game_room",
         "name": "BLOCKOUT · game_room · west_game_room",
         "position": [
-          -15.0,
+          -25.0,
           0.0,
-          15.0
+          -35.0
         ]
       },
       "children": [
@@ -12486,9 +12621,9 @@
             "key": "west_game_room_rear_wall",
             "name": "Blockout wall segment · west_game_room_rear_wall · west_game_room_rear_wall",
             "position": [
-              -2.86,
+              0.0,
               3.0999999999999996,
-              0.0
+              2.86
             ],
             "rotation": [
               0.0,
@@ -12508,9 +12643,9 @@
               "type": "FrooxEngine.BoxMesh",
               "fields": {
                 "Size": [
-                  0.28,
+                  6.0,
                   5.56,
-                  6.0
+                  0.28
                 ]
               }
             },
@@ -12536,6 +12671,69 @@
                   0
                 ],
                 "Size": [
+                  6.0,
+                  5.56,
+                  0.28
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "west_game_room_west_wall",
+            "name": "Blockout wall segment · west_game_room_west_wall · west_game_room_west_wall",
+            "position": [
+              -2.86,
+              3.0999999999999996,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          },
+          "components": [
+            {
+              "key": "west_game_room_west_wall_mesh",
+              "type": "FrooxEngine.BoxMesh",
+              "fields": {
+                "Size": [
+                  0.28,
+                  5.56,
+                  6.0
+                ]
+              }
+            },
+            {
+              "key": "west_game_room_west_wall_renderer",
+              "type": "FrooxEngine.MeshRenderer",
+              "fields": {
+                "Mesh": "$component:west_game_room_west_wall_mesh",
+                "Materials": [
+                  "$component:mat_wall"
+                ]
+              }
+            },
+            {
+              "key": "west_game_room_west_wall_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0,
+                  0,
+                  0
+                ],
+                "Size": [
                   0.28,
                   5.56,
                   6.0
@@ -12546,12 +12744,12 @@
         },
         {
           "slot": {
-            "key": "west_game_room_south_wall",
-            "name": "Blockout wall segment · west_game_room_south_wall · west_game_room_south_wall",
+            "key": "west_game_room_east_wall",
+            "name": "Blockout wall segment · west_game_room_east_wall · west_game_room_east_wall",
             "position": [
-              0.0,
+              2.86,
               3.0999999999999996,
-              -2.86
+              0.0
             ],
             "rotation": [
               0.0,
@@ -12567,28 +12765,28 @@
           },
           "components": [
             {
-              "key": "west_game_room_south_wall_mesh",
+              "key": "west_game_room_east_wall_mesh",
               "type": "FrooxEngine.BoxMesh",
               "fields": {
                 "Size": [
-                  6.0,
+                  0.28,
                   5.56,
-                  0.28
+                  6.0
                 ]
               }
             },
             {
-              "key": "west_game_room_south_wall_renderer",
+              "key": "west_game_room_east_wall_renderer",
               "type": "FrooxEngine.MeshRenderer",
               "fields": {
-                "Mesh": "$component:west_game_room_south_wall_mesh",
+                "Mesh": "$component:west_game_room_east_wall_mesh",
                 "Materials": [
                   "$component:mat_wall"
                 ]
               }
             },
             {
-              "key": "west_game_room_south_wall_collider",
+              "key": "west_game_room_east_wall_collider",
               "type": "FrooxEngine.BoxCollider",
               "fields": {
                 "Type": "Static",
@@ -12599,72 +12797,9 @@
                   0
                 ],
                 "Size": [
-                  6.0,
+                  0.28,
                   5.56,
-                  0.28
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "slot": {
-            "key": "west_game_room_north_wall",
-            "name": "Blockout wall segment · west_game_room_north_wall · west_game_room_north_wall",
-            "position": [
-              0.0,
-              3.0999999999999996,
-              2.86
-            ],
-            "rotation": [
-              0.0,
-              0.0,
-              0.0,
-              1.0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ]
-          },
-          "components": [
-            {
-              "key": "west_game_room_north_wall_mesh",
-              "type": "FrooxEngine.BoxMesh",
-              "fields": {
-                "Size": [
-                  6.0,
-                  5.56,
-                  0.28
-                ]
-              }
-            },
-            {
-              "key": "west_game_room_north_wall_renderer",
-              "type": "FrooxEngine.MeshRenderer",
-              "fields": {
-                "Mesh": "$component:west_game_room_north_wall_mesh",
-                "Materials": [
-                  "$component:mat_wall"
-                ]
-              }
-            },
-            {
-              "key": "west_game_room_north_wall_collider",
-              "type": "FrooxEngine.BoxCollider",
-              "fields": {
-                "Type": "Static",
-                "CharacterCollider": true,
-                "Offset": [
-                  0,
-                  0,
-                  0
-                ],
-                "Size": [
-                  6.0,
-                  5.56,
-                  0.28
+                  6.0
                 ]
               }
             }
@@ -12675,9 +12810,9 @@
             "key": "west_game_room_front_side_0",
             "name": "Blockout wall segment · west_game_room_front_side_0 · west_game_room_front_side_0",
             "position": [
-              2.86,
+              -1.7999999999999998,
               3.0999999999999996,
-              -1.7999999999999998
+              -2.86
             ],
             "rotation": [
               0.0,
@@ -12697,9 +12832,9 @@
               "type": "FrooxEngine.BoxMesh",
               "fields": {
                 "Size": [
-                  0.28,
+                  2.4,
                   5.56,
-                  2.4
+                  0.28
                 ]
               }
             },
@@ -12725,9 +12860,9 @@
                   0
                 ],
                 "Size": [
-                  0.28,
+                  2.4,
                   5.56,
-                  2.4
+                  0.28
                 ]
               }
             }
@@ -12738,9 +12873,9 @@
             "key": "west_game_room_front_side_1",
             "name": "Blockout wall segment · west_game_room_front_side_1 · west_game_room_front_side_1",
             "position": [
-              2.86,
+              1.7999999999999998,
               3.0999999999999996,
-              1.7999999999999998
+              -2.86
             ],
             "rotation": [
               0.0,
@@ -12760,9 +12895,9 @@
               "type": "FrooxEngine.BoxMesh",
               "fields": {
                 "Size": [
-                  0.28,
+                  2.4,
                   5.56,
-                  2.4
+                  0.28
                 ]
               }
             },
@@ -12788,9 +12923,9 @@
                   0
                 ],
                 "Size": [
-                  0.28,
+                  2.4,
                   5.56,
-                  2.4
+                  0.28
                 ]
               }
             }
@@ -12801,9 +12936,9 @@
             "key": "west_game_room_front_lintel",
             "name": "Blockout wall segment · west_game_room_front_lintel · west_game_room_front_lintel",
             "position": [
-              2.86,
+              0.0,
               4.1499999999999995,
-              0.0
+              -2.86
             ],
             "rotation": [
               0.0,
@@ -12823,9 +12958,9 @@
               "type": "FrooxEngine.BoxMesh",
               "fields": {
                 "Size": [
-                  0.28,
+                  6.0,
                   3.4599999999999995,
-                  6.0
+                  0.28
                 ]
               }
             },
@@ -12851,9 +12986,9 @@
                   0
                 ],
                 "Size": [
-                  0.28,
+                  6.0,
                   3.4599999999999995,
-                  6.0
+                  0.28
                 ]
               }
             }
@@ -13963,15 +14098,15 @@
         "key": "roof_access_ramp",
         "name": "Walkable roof-overlook approach · blockout ramp · roof_access_ramp",
         "position": [
-          -27.5,
-          4.635,
+          -27.5401890884733,
+          4.482970836193384,
           35.0
         ],
         "rotation": [
-          -0.30132715964697565,
-          0.6396889422673225,
-          0.0,
-          0.7071067811865475
+          -0.15782541970267167,
+          0.6892685520866852,
+          0.15782541970267167,
+          0.6892685520866852
         ],
         "scale": [
           1,
@@ -13987,7 +14122,7 @@
             "Size": [
               1.8,
               0.16,
-              21.00244033439924
+              20.935964272036767
             ]
           }
         },
@@ -14015,70 +14150,7 @@
             "Size": [
               1.8,
               0.16,
-              21.00244033439924
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "slot": {
-        "key": "south_theatre_basement_ramp",
-        "name": "Theatre basement ramp through open floor cutout · south_theatre_basement_ramp",
-        "position": [
-          -15.0,
-          0.14,
-          -12.5
-        ],
-        "rotation": [
-          0.9999920003519824,
-          0.0,
-          0.0,
-          0.003999904003961078
-        ],
-        "scale": [
-          1,
-          1,
-          1
-        ]
-      },
-      "components": [
-        {
-          "key": "south_theatre_basement_ramp_mesh",
-          "type": "FrooxEngine.BoxMesh",
-          "fields": {
-            "Size": [
-              1.8,
-              0.16,
-              5.000159997440082
-            ]
-          }
-        },
-        {
-          "key": "south_theatre_basement_ramp_renderer",
-          "type": "FrooxEngine.MeshRenderer",
-          "fields": {
-            "Mesh": "$component:south_theatre_basement_ramp_mesh",
-            "Materials": [
-              "$component:mat_concrete"
-            ]
-          }
-        },
-        {
-          "key": "south_theatre_basement_ramp_collider",
-          "type": "FrooxEngine.BoxCollider",
-          "fields": {
-            "Type": "Static",
-            "CharacterCollider": true,
-            "Offset": [
-              0,
-              0,
-              0
-            ],
-            "Size": [
-              1.8,
-              0.16,
-              5.000159997440082
+              20.935964272036767
             ]
           }
         }
@@ -14087,11 +14159,11 @@
     {
       "slot": {
         "key": "theatre_basement_landing",
-        "name": "Shallow basement landing above world ground · theatre · theatre_basement_landing",
+        "name": "Basement landing at declared depth · blockout · theatre_basement_landing",
         "position": [
           -15.0,
-          0.1,
-          -15.0
+          -2.46,
+          -17.0
         ],
         "rotation": [
           0.0,
@@ -14149,18 +14221,18 @@
     },
     {
       "slot": {
-        "key": "west_bar_basement_ramp",
-        "name": "Bar basement ramp through open floor cutout · west_bar_basement_ramp",
+        "key": "south_theatre_basement_ramp",
+        "name": "Theatre basement ramp through declared floor opening · south_theatre_basement_ramp",
         "position": [
-          -12.5,
-          0.14,
-          -35.0
+          -15.0,
+          -1.2721218445974618,
+          -14.465381514593219
         ],
         "rotation": [
-          0.0056566732388448615,
-          -0.7070841548556076,
           0.0,
-          0.7071067811865475
+          0.9750700122217567,
+          -0.22189743411284238,
+          0.0
         ],
         "scale": [
           1,
@@ -14170,28 +14242,28 @@
       },
       "components": [
         {
-          "key": "west_bar_basement_ramp_mesh",
+          "key": "south_theatre_basement_ramp_mesh",
           "type": "FrooxEngine.BoxMesh",
           "fields": {
             "Size": [
-              1.6,
+              1.8,
               0.16,
-              5.000159997440082
+              5.546169849544818
             ]
           }
         },
         {
-          "key": "west_bar_basement_ramp_renderer",
+          "key": "south_theatre_basement_ramp_renderer",
           "type": "FrooxEngine.MeshRenderer",
           "fields": {
-            "Mesh": "$component:west_bar_basement_ramp_mesh",
+            "Mesh": "$component:south_theatre_basement_ramp_mesh",
             "Materials": [
               "$component:mat_concrete"
             ]
           }
         },
         {
-          "key": "west_bar_basement_ramp_collider",
+          "key": "south_theatre_basement_ramp_collider",
           "type": "FrooxEngine.BoxCollider",
           "fields": {
             "Type": "Static",
@@ -14202,9 +14274,9 @@
               0
             ],
             "Size": [
-              1.6,
+              1.8,
               0.16,
-              5.000159997440082
+              5.546169849544818
             ]
           }
         }
@@ -14213,10 +14285,10 @@
     {
       "slot": {
         "key": "bar_basement_landing",
-        "name": "Shallow basement landing above world ground · bar · bar_basement_landing",
+        "name": "Basement landing at declared depth · blockout · bar_basement_landing",
         "position": [
-          -15.0,
-          0.1,
+          -16.2,
+          -2.2600000000000002,
           -35.0
         ],
         "rotation": [
@@ -14272,18 +14344,774 @@
           }
         }
       ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_00",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_00",
+        "position": [
+          -12.125,
+          -0.275,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_00_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_00_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_00_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_00_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_01",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_01",
+        "position": [
+          -12.375,
+          -0.45833333333333337,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_01_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_01_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_01_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_01_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_02",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_02",
+        "position": [
+          -12.625,
+          -0.6416666666666667,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_02_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_02_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_02_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_02_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_03",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_03",
+        "position": [
+          -12.875,
+          -0.8250000000000001,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_03_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_03_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_03_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_03_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_04",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_04",
+        "position": [
+          -13.125,
+          -1.0083333333333333,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_04_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_04_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_04_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_04_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_05",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_05",
+        "position": [
+          -13.375,
+          -1.1916666666666669,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_05_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_05_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_05_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_05_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_06",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_06",
+        "position": [
+          -13.625,
+          -1.375,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_06_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_06_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_06_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_06_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_07",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_07",
+        "position": [
+          -13.875,
+          -1.5583333333333336,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_07_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_07_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_07_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_07_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_08",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_08",
+        "position": [
+          -14.125,
+          -1.7416666666666667,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_08_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_08_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_08_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_08_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_09",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_09",
+        "position": [
+          -14.375,
+          -1.9250000000000003,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_09_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_09_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_09_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_09_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_10",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_10",
+        "position": [
+          -14.625,
+          -2.1083333333333334,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_10_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_10_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_10_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_10_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "west_bar_basement_stair_11",
+        "name": "Basement stair tread · blockout · west_bar_basement_stair_11",
+        "position": [
+          -14.875,
+          -2.291666666666667,
+          -35.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "west_bar_basement_stair_11_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_11_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:west_bar_basement_stair_11_mesh",
+            "Materials": [
+              "$component:mat_concrete"
+            ]
+          }
+        },
+        {
+          "key": "west_bar_basement_stair_11_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.25,
+              0.18333333333333335,
+              1.5
+            ]
+          }
+        }
+      ]
     }
   ],
   "cameras": {
     "plaza_north_eye": {
       "position": [
         6.0,
-        1.6,
+        31.6,
         148.0
       ],
       "target": [
         0.0,
-        1.1,
+        31.1,
         120.0
       ],
       "fieldOfView": 60,
@@ -14294,12 +15122,12 @@
     "plaza_south_eye": {
       "position": [
         -6.0,
-        1.6,
+        31.6,
         92.0
       ],
       "target": [
         0.0,
-        1.1,
+        31.1,
         120.0
       ],
       "fieldOfView": 60,
@@ -14310,12 +15138,12 @@
     "west_entry_eye": {
       "position": [
         -28.0,
-        1.6,
+        31.6,
         126.0
       ],
       "target": [
         0.0,
-        1.1,
+        31.1,
         120.0
       ],
       "fieldOfView": 60,
@@ -14326,12 +15154,12 @@
     "east_entry_eye": {
       "position": [
         28.0,
-        1.6,
+        31.6,
         114.0
       ],
       "target": [
         0.0,
-        1.1,
+        31.1,
         120.0
       ],
       "fieldOfView": 60,
@@ -14342,12 +15170,12 @@
     "roof_overlook": {
       "position": [
         -15.0,
-        9.0,
+        40.71,
         155.0
       ],
       "target": [
         0.0,
-        2.0,
+        32.0,
         120.0
       ],
       "fieldOfView": 60,
@@ -14358,12 +15186,12 @@
     "north_market_detail": {
       "position": [
         14.0,
-        1.6,
+        31.6,
         131.0
       ],
       "target": [
         25.0,
-        3.0,
+        33.0,
         135.0
       ],
       "fieldOfView": 60,
@@ -14374,12 +15202,12 @@
     "south_workshop_detail": {
       "position": [
         -5.0,
-        1.6,
+        31.6,
         109.0
       ],
       "target": [
         -25.0,
-        3.0,
+        33.0,
         105.0
       ],
       "fieldOfView": 60,
@@ -14390,12 +15218,12 @@
     "street_overview": {
       "position": [
         44.0,
-        18.0,
+        48.0,
         164.0
       ],
       "target": [
         0.0,
-        3.0,
+        33.0,
         120.0
       ],
       "fieldOfView": 60,

@@ -58,8 +58,16 @@
     "blend_path": ".resoloop/tokyo-nova/probe.blend",
     "export_directory": ".resoloop/tokyo-nova/probe-export",
     "integration_manifest": ".resoloop/tokyo-nova/probe-integration.json",
-    "blender_dimensions_m": [1.0, 0.6, 0.8],
-    "resonite_dimensions_m": [1.0, 0.8, 0.6],
+    "blender_dimensions_m": [
+      1.0,
+      0.6,
+      0.8
+    ],
+    "resonite_dimensions_m": [
+      1.0,
+      0.8,
+      0.6
+    ],
     "polygon_count": 8,
     "export_triangles": 20,
     "export_vertices": 49,
@@ -93,12 +101,28 @@
   "layout_verification": {
     "root_local_coordinate_system": "Resonite XYZ; Blender conversion swaps Y/Z once at export boundary.",
     "root_transform_world": {
-      "position": [0, 0, 120],
-      "rotation_xyzw": [0, 0, 0, 1],
-      "scale": [1, 1, 1]
+      "position": [
+        0,
+        0,
+        120
+      ],
+      "rotation_xyzw": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
     },
     "clear_plaza": {
-      "size_m": [20, 20],
+      "size_m": [
+        20,
+        20
+      ],
       "area_m2": 400,
       "result": "Layout validator confirms all 24 building footprints remain outside [-10,10] on X/Z; continuous plaza slab generated."
     },
@@ -108,22 +132,37 @@
     "entrance_width_m": 3.5,
     "loop_count": 2,
     "main_route_width_m": 3.5,
-    "alley_width_range_m": [1.5, 2.0],
+    "alley_width_range_m": [
+      1.5,
+      2.0
+    ],
     "scene_summary": {
       "file": ".resoloop/tokyo-nova/scene-summary.json",
       "valid": true,
       "issues": [],
       "slots": 252,
       "declared_components": 662,
-      "world_bounds_min": [-50, -0.25243235, 70],
-      "world_bounds_max": [50, 10.11, 170]
+      "world_bounds_min": [
+        -50,
+        -0.25243235,
+        70
+      ],
+      "world_bounds_max": [
+        50,
+        10.11,
+        170
+      ]
     }
   },
   "apply_verification": {
     "root_created": true,
     "root_id": "Reso_6654",
     "root_name": "TokyoNova_WestSlum",
-    "world_position": [0, 0, 120],
+    "world_position": [
+      0,
+      0,
+      120
+    ],
     "state_path": ".resoloop/tokyo-nova/state/blockout.json",
     "initial_live_result": "Applied within owned root; 252 Slots and 663 Components, including ResoLoop-managed AI_GeneratedContent. No deletions or asset imports.",
     "plan_review": "915 create operations; zero updates and zero deletes; offline and strict validation passed before apply.",
@@ -162,7 +201,11 @@
     "root_key": "tokyo-nova-west-slum",
     "root_id": "Reso_6654",
     "root_name": "TokyoNova_WestSlum",
-    "root_world_position": [0, 0, 120],
+    "root_world_position": [
+      0,
+      0,
+      120
+    ],
     "state_path": ".resoloop/tokyo-nova/state/blockout.json",
     "probe_root_key": "tokyo-nova-probe",
     "probe_root_id": null,
@@ -174,5 +217,189 @@
     "Resonite layout coordinates are root-local XYZ; Blender conversion swaps Y/Z once at the generation boundary.",
     "Existing content/main.json and content/sunset.json are unchanged task inputs.",
     "The blockout is untextured native geometry and is not claimed to be production-finished. No save/reload or manual VR traversal was performed."
-  ]
+  ],
+  "fix_round_1": {
+    "recorded_at": "2026-09-24T11:40:44+09:00",
+    "timing": {
+      "first_durable_red_log_mtime": "2026-09-24T11:08:00+09:00",
+      "elapsed_minutes_from_red_artifact_to_record": 32.7,
+      "note": "The task was already in progress when this fix-specific test RED was captured; this interval is a lower-bound evidence window, not the entire session duration."
+    },
+    "summary": "Applied Task 1 review corrections under the existing owned root; no other Resonite content was changed.",
+    "source_configuration": "content/tokyo-nova/pipeline-config.json",
+    "evidence_preservation": {
+      "generator_writes_static_source_config_only": true,
+      "existing_live_evidence_file_unchanged_by_regeneration": ".resoloop/tokyo-nova/pipeline.json",
+      "sha256_before_and_after_regeneration": "0324139595a595d1ad0651b28c328cb472a6b0e16f7435375c32ff59c5d8c66a"
+    },
+    "ownership": {
+      "root_key": "tokyo-nova-west-slum",
+      "root_id": "Reso_6654",
+      "root_name": "TokyoNova_WestSlum",
+      "world_position": [
+        0,
+        30,
+        120
+      ],
+      "rotation_xyzw": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "state_path": ".resoloop/tokyo-nova/state/blockout.json",
+      "adopt_used": false
+    },
+    "layout_corrections": {
+      "building_count": 24,
+      "pairwise_building_footprint_overlaps": 0,
+      "routes_and_door_approaches": "17 routes including offset access spurs; validator rejects building AABB collisions and mis-targeted door spurs.",
+      "basements": [
+        {
+          "key": "south_theatre_basement_ramp",
+          "declared_depth_below_grade_m": 2.4,
+          "floor_opening_depth_m": 5.0
+        },
+        {
+          "key": "west_bar_basement_stairs",
+          "declared_depth_below_grade_m": 3.0,
+          "steps": 12,
+          "floor_opening_depth_m": 3.0
+        }
+      ],
+      "roof_access": "Gravity-up ramp frame; top contact starts at grade and ends at the exterior west edge of the roof slab.",
+      "roof_camera": "Position raised to at least 1.6m above roof surface.",
+      "excluded_prop_catalog_near_misses_removed": [
+        "ticket/payment mechanisms",
+        "stage/live-monitor hardware",
+        "natural roof-garden planters"
+      ],
+      "roof_building_kind": "roof_utility_deck"
+    },
+    "plaza_world_measurement": {
+      "observed_root_position": [
+        0,
+        30,
+        120
+      ],
+      "observed_plaza_local_position": [
+        0,
+        0.01,
+        0
+      ],
+      "observed_plaza_box_mesh_size": [
+        20,
+        0.06,
+        20
+      ],
+      "world_surface_top_y_m": 30.04,
+      "world_top_corners_xyz_m": [
+        [
+          -10,
+          30.04,
+          110
+        ],
+        [
+          -10,
+          30.04,
+          130
+        ],
+        [
+          10,
+          30.04,
+          110
+        ],
+        [
+          10,
+          30.04,
+          130
+        ]
+      ],
+      "observation_artifact": ".resoloop/tokyo-nova/fix-round-1/plaza-world-measurement.json"
+    },
+    "prevalidation": {
+      "offline": {
+        "valid": true,
+        "strict": false,
+        "slots": 266,
+        "components": 701,
+        "issues": 0
+      },
+      "strict_live": {
+        "valid": true,
+        "strict": true,
+        "slots": 266,
+        "components": 702,
+        "issues": 0
+      },
+      "plan": {
+        "operation_count": 106,
+        "creates": 65,
+        "updates": 34,
+        "renames": 4,
+        "deletes": 3,
+        "delete_candidates": [
+          "west_bar_basement_ramp",
+          "west_game_room_south_wall",
+          "west_game_room_north_wall"
+        ],
+        "all_candidates_inside_owned_root": true
+      },
+      "plan_artifact": ".resoloop/tokyo-nova/fix-round-1/plan.json"
+    },
+    "apply": {
+      "command": "resoloop apply content/tokyo-nova/blockout.json --prune --yes --json --state .resoloop/tokyo-nova/state/blockout.json --url ws://localhost:54238/",
+      "root_id": "Reso_6654",
+      "slots_created": 17,
+      "slots_updated": 22,
+      "components_added": 48,
+      "components_updated": 16,
+      "slots_deleted": 3,
+      "components_deleted": 0,
+      "assets_imported": 0,
+      "result_artifact": ".resoloop/tokyo-nova/fix-round-1/apply.json"
+    },
+    "no_op_replay": {
+      "same_apply_command_reused": true,
+      "slots_created": 0,
+      "slots_updated": 0,
+      "slots_deleted": 0,
+      "slots_unchanged": 266,
+      "components_added": 0,
+      "components_updated": 0,
+      "components_deleted": 0,
+      "components_unchanged": 702,
+      "assets_imported": 0,
+      "result_artifact": ".resoloop/tokyo-nova/fix-round-1/reapply-zero-write.json"
+    },
+    "scene_summary": {
+      "valid": true,
+      "issues": 0,
+      "slots": 266,
+      "components": 701,
+      "artifact": ".resoloop/tokyo-nova/fix-round-1/scene-summary.json"
+    },
+    "tests": {
+      "red_command": "uv run python -m unittest discover -s tests/tokyo_nova -p 'test_task1_fix_regressions.py' -v",
+      "red_artifact": ".resoloop/tokyo-nova/fix-round-1/red-unittest.log",
+      "initial_focused_red_failures": 11,
+      "green_command": "uv run python -m unittest discover -s tests/tokyo_nova -p 'test_*.py' -v",
+      "green_result": "26 tests passed",
+      "green_artifact": ".resoloop/tokyo-nova/fix-round-1/final-unit-tests.log",
+      "ruff": "uv run --with ruff ruff check modeling/tokyo_nova tests/tokyo_nova — all checks passed.",
+      "pyright_targeted": "0 errors for modeling/tokyo_nova/layout.py, modeling/tokyo_nova/pipeline.py, and tests/tokyo_nova/test_task1_fix_regressions.py.",
+      "pyright_full_suite": "18 errors remain in probe.py (missing Blender bmesh/bpy stubs) and pre-existing test_layout.py/test_pipeline.py Optional diagnostics; no errors in the changed implementation or fix regression test.",
+      "pyright_full_artifact": ".resoloop/tokyo-nova/fix-round-1/pyright-full.log"
+    },
+    "remaining_concerns": [
+      "Visual inspection, VR traversal/collider feel, and save/reload persistence remain unverified; no further texture import or capture timeout experiment was run.",
+      "The initial focused RED (11 failures) and final GREEN (26 passes) are retained. Several geometry assertions were strengthened after the first GREEN without a separate durable RED run for each refinement; strict test-first evidence is incomplete for those refinements.",
+      "The full-worktree pyright check reports 18 existing/unavailable-environment diagnostics; targeted changed-file checks pass."
+    ]
+  }
 }

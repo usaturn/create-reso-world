@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "destination": {
+    "session": "usaturn World",
+    "url": "ws://localhost:54238/",
+    "resonite_version": "2026.9.18.82",
+    "resonite_link_version": "0.13.1.0"
+  },
+  "blender": {
+    "executable": "/usr/bin/blender",
+    "version": "5.0.1"
+  },
+  "commands": {
+    "doctor": "resoloop doctor --url ws://localhost:54238/ --json",
+    "reflection": "resoloop type describe '<FrooxEngine type>' --json --url ws://localhost:54238/",
+    "blender_probe": "resoloop blender run modeling/tokyo_nova/probe.py --arg=.resoloop/tokyo-nova/probe.blend --json",
+    "blender_export": "resoloop blender export .resoloop/tokyo-nova/probe.blend --output .resoloop/tokyo-nova/probe-export --name ResoLoop_Test_TokyoNovaProbe --parent Root --pack-pbr --json",
+    "probe_prepare": "uv run python -m modeling.tokyo_nova.pipeline --prepare-probe .resoloop/tokyo-nova/probe-export/model.apply.json --probe-output .resoloop/tokyo-nova/probe-integration.json",
+    "offline_validate": "resoloop validate content/tokyo-nova/blockout.json --json",
+    "strict_validate": "resoloop validate content/tokyo-nova/blockout.json --strict --json",
+    "plan_diff": "resoloop diff content/tokyo-nova/blockout.json --changes-only --json --state .resoloop/tokyo-nova/state/blockout.json --url ws://localhost:54238/",
+    "apply": "resoloop apply content/tokyo-nova/blockout.json --json --state .resoloop/tokyo-nova/state/blockout.json --url ws://localhost:54238/",
+    "reapply_noop": "resoloop apply content/tokyo-nova/blockout.json --json --state .resoloop/tokyo-nova/state/blockout.json --url ws://localhost:54238/"
+  },
+  "reflected_types": {
+    "StaticMesh": "[FrooxEngine]FrooxEngine.StaticMesh",
+    "MeshRenderer": "[FrooxEngine]FrooxEngine.MeshRenderer",
+    "PBS_Metallic": "[FrooxEngine]FrooxEngine.PBS_Metallic",
+    "BoxCollider": "[FrooxEngine]FrooxEngine.BoxCollider",
+    "Light": "[FrooxEngine]FrooxEngine.Light",
+    "UnlitMaterial": "[FrooxEngine]FrooxEngine.UnlitMaterial",
+    "StaticTexture2D": "[FrooxEngine]FrooxEngine.StaticTexture2D",
+    "StaticFont": "[FrooxEngine]FrooxEngine.StaticFont",
+    "TextUnlitMaterial": "[FrooxEngine]FrooxEngine.TextUnlitMaterial",
+    "TextRenderer": "[FrooxEngine]FrooxEngine.TextRenderer",
+    "Skybox": "[FrooxEngine]FrooxEngine.Skybox",
+    "ProceduralSkyMaterial": "[FrooxEngine]FrooxEngine.ProceduralSkyMaterial",
+    "BoxMesh": "[FrooxEngine]FrooxEngine.BoxMesh",
+    "InteractiveCamera": "[FrooxEngine]FrooxEngine.InteractiveCamera"
+  },
+  "metadata_directory": ".resoloop/tokyo-nova/metadata",
+  "transfer_requirements": {
+    "mesh": "ResoLoop client transports mesh bytes.",
+    "textures": "StaticTexture2D import reads the source path on the Resonite host; use an authorized shared absolute path or run the client on that host.",
+    "source_workspace": "/workspaces/reso-world/MyResoniteProject"
+  },
+  "capture_plan": {
+    "formats": [
+      "png",
+      "jpg"
+    ],
+    "output_directory": ".resoloop/tokyo-nova/captures",
+    "svg_is_runtime_evidence": false
+  },
+  "ownership": {
+    "root_key": "tokyo-nova-west-slum",
+    "root_name": "TokyoNova_WestSlum",
+    "root_world_position": [
+      0,
+      30,
+      120
+    ],
+    "state_path": ".resoloop/tokyo-nova/state/blockout.json",
+    "probe_root_key": "tokyo-nova-probe",
+    "probe_state_path": ".resoloop/tokyo-nova/state/probe.json"
+  },
+  "notes": [
+    "Owned root is raised to world Y=30; layout and plaza remain root-local Y=0, leaving existing Ground untouched.",
+    "Layout coordinates use Resonite XYZ; Blender conversion swaps Y/Z exactly once at the generation boundary.",
+    "Live command results, current-session IDs, transfer outcomes and screenshots are recorded separately in .resoloop/tokyo-nova/pipeline.json.",
+    "Existing content/main.json and content/sunset.json are not changed."
+  ]
+}

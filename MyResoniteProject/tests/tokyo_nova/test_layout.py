@@ -78,12 +78,12 @@ class LayoutTests(unittest.TestCase):
         manifest = self.pipeline_module.build_blockout_manifest(self.build_layout())
         self.assertEqual(manifest["ownership"]["key"], "tokyo-nova-west-slum")
         self.assertEqual(manifest["slot"]["key"], "root")
-        self.assertEqual(manifest["slot"]["position"], [0.0, 0.0, 120.0])
+        self.assertEqual(manifest["slot"]["position"], [0.0, 30.0, 120.0])
         all_slots = list(self.pipeline_module.iter_slots(manifest))
         all_keys = [slot["slot"]["key"] for slot in all_slots]
         self.assertEqual(len(all_keys), len(set(all_keys)))
         self.assertEqual(sum(key.startswith("building_") for key in all_keys), 24)
-        for key in ("plaza_floor", "outer_ground", "roof_access_ramp", "south_theatre_basement_ramp", "west_bar_basement_ramp"):
+        for key in ("plaza_floor", "outer_ground", "roof_access_ramp", "south_theatre_basement_ramp", "west_bar_basement_stair_00"):
             self.assertIn(key, all_keys)
         self.assertIn("theatre_floor_well_left", all_keys)
         self.assertIn("bar_floor_well_back", all_keys)
