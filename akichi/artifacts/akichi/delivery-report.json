@@ -13,7 +13,7 @@
   "lights_added": 0,
   "driving_components": 0,
   "pending": [
-    "実機画像による3距離レビュー（遠景シルエット / 中景の構造・素材分離・ネオン発光・瓦礫密度 / 近接のエッジ・汚染・サイン可読性）: 未実施。(a) 環境制約: Resonite は Windows ホスト側で動作し、スクリーンショットの書き出し先 Pictures/Resonite が dev container から参照できない（/mnt は空、Windowsドライブのマウントなし）ため、resoloop capture は4カメラすべて CAPTURE_EXPORT_TIMEOUT（exit 8）となった。(b) 撮影トリガ自体は成功しているため、Windows 側の Pictures/Resonite に 2026-09-25 06:46–06:48(JST) の PNG（1280×720）が残っている可能性がある（残っていれば artifacts/akichi/qa-overview.png / qa-vacant-street.png / qa-market-close.png / qa-nightlife-alley.png として取り込めばレビューを再実行できる）。(c) コンテンツはライブセッション（ws://localhost:32136/ の Akichi_Slum = Reso_698C）に適用済みなので、ユーザが直接ワールドを見て確認することもできる。この環境制約は controller ruling により許容済み（再試行・Blender レンダー代替はしない）",
+    "実機画像による3距離レビュー（遠景シルエット / 中景の構造・素材分離・ネオン発光・瓦礫密度 / 近接のエッジ・汚染・サイン可読性）: 未実施。(a) 環境制約: Resonite は Windows ホスト側で動作し、スクリーンショットの書き出し先 Pictures/Resonite が dev container から参照できない（/mnt は空、Windowsドライブのマウントなし）ため、resoloop capture は4カメラすべて CAPTURE_EXPORT_TIMEOUT（exit 8）となった。(b) 撮影トリガ自体は成功しているため、Windows 側の Pictures/Resonite に 2026-09-25 06:46–06:48(JST) の PNG（1280×720）が残っている可能性がある（残っていれば artifacts/akichi/qa-overview.png / qa-vacant-street.png / qa-market-close.png / qa-nightlife-alley.png として取り込めばレビューを再実行できる）。(c) コンテンツはライブセッション（ws://localhost:32136/ の Akichi_Slum（セッションスコープの slot ID Reso_698C））に適用済みなので、ユーザが直接ワールドを見て確認することもできる。この環境制約は controller ruling により許容済み（再試行・Blender レンダー代替はしない）",
     "保存・再ロード後のポータビリティ: 監査ポリシー上は portable=true（外部参照55件はレビュー済みロール3件の許可によりすべて classification=explicitly-allowed-role / severity=info になり、unmatchedExternalRoles は空・ITEM_ALLOW_ROLE_UNUSED なし）。ただし非 strict の監査は『保存→再ロード→展開して実用できる』ことの証明にはならないため、ラウンドトリップ試験（保存 / 再ロード / スポーン後の参照解決）は未実施のまま pending。監査は hasGrabbable=false も報告しており、ワールド常設の街区としては想定内だが、インベントリのアイテムとして保存する使い方をする場合は Grabbable の付与が必要になる",
     "VR歩行・コライダー接触感: 未実施（コライダー11個の存在と配置は実機で確認済みだが、アバターでの接触・歩行試験はしていない）",
     "屋根広告脚の貫通（ad-19 / ad-22）と屋台屋根上のケーブル端点浮遊（最大0.85m）の目視判定: 幾何と貫通量は数値で確定させたが、見て問題になるかの最終判定は実機画像がないため保留（適用済みのライブワールドを直接見れば確認できる）。概要カメラ換算でパネル見かけ高が約12pxのため、修正する場合は全セクタの再ビルド〜再 apply が必要",
@@ -92,7 +92,7 @@
       "scatter_method": "n/a"
     }
   ],
-  "notes": "advisory閾値超過の根拠: (1) 8マテリアルadvisoryを5セクタが超過（最大10）— 異種プロップ間で共有するマテリアルファミリー（コンクリート系/錆系/トタン系/ネオン系）を使い、かつ『オブジェクトごとに1メッシュ』原則で後からインスペクターで触りやすくするため。実測の使用マテリアルは27種（すべてPBS_Metallic）。(2) draw sections 442 は Σ(mesh×submesh) の構造的推定であり、実測フレームコストではない。(3) vacant bundle は約11MBで、転送上限38sは初回apply実績（55.1s/507 slots/440 assets）からの導出値。CLIはbundle単体の転送時間を分離計測できない。(4) exporter のadvisory閾値（50k tri / 8 mat / 16 draw sections / 2048px）はレビュー契機であり予算ではない。リソース合計は7セクタのレポートから再計算し、バンドル実データで相互検証（mesh_*.mesh.json 440件、Σ submesh 442、三角形合計 50,580、使用マテリアル27種）。実機実測（root Reso_698C, 2026-09-25）: 507 slots / 933 components（offline 932 + 所有rootへ自動付与された AI_GeneratedContent 1）、BoxCollider 11（Ground 1 + Tower 01..10）、StaticMeshCollider 0、TextRenderer 14、Light 0、ProtoFlux 0。テクスチャ0: マニフェストのassetは mesh 440件のみで画像テクスチャを持たず、実機マテリアルも AlbedoTexture=None / EmissiveMap=None。ネオン・AR広告はフラットemissiveで適用済み（EmissiveColor が1超・EmissiveMap None・BlendMode Opaque。例: neon_magenta EmissiveColor=(2.008,0.537,1.612)、holo_panel=(0.506,1.314,1.410)）。ワールド照明は変更していない（ライト0個追加、接続先セッションの既存設定を尊重）。実機FPSは計測しない（プロジェクト規約により、個別モデルをFPSでは判定しない。draw sections は上記のとおり構造的推定であり、実測フレームコストではない）ので、性能の判定材料には用いていない。",
+  "notes": "advisory閾値超過の根拠: (1) 8マテリアルadvisoryを5セクタが超過（最大10）— 異種プロップ間で共有するマテリアルファミリー（コンクリート系/錆系/トタン系/ネオン系）を使い、かつ『オブジェクトごとに1メッシュ』原則で後からインスペクターで触りやすくするため。実測の使用マテリアルは27種（すべてPBS_Metallic）。(2) draw sections 442 は Σ(mesh×submesh) の構造的推定であり、実測フレームコストではない。(3) vacant バンドルのディレクトリは 13,090,631 B（約13.1MB / 28ファイル、du -sb 実測）で、その大半は GN scatter を実体化した単一メッシュ資産 mesh_AkichiVacantScatterBaked_67d6a2d2.mesh.json の 11,070,545 B（約11MB、wc -c 実測）。単一バンドルの転送時間は CLI では分離計測できないため、初回 apply 実績（55.1s / 507 slots / 440 assets）から導いた上限バウンド 38s を保守側の値として記録する（実測値ではなく上限）。(4) exporter のadvisory閾値（50k tri / 8 mat / 16 draw sections / 2048px）はレビュー契機であり予算ではない。リソース合計は7セクタのレポートから再計算し、バンドル実データで相互検証（mesh_*.mesh.json 440件、Σ submesh 442、三角形合計 50,580、使用マテリアル27種）。(5) total_vertices 32028 はセクタ別レポートの『Blender 上の一意頂点数』の合計。バンドルのメッシュに書き出した頂点バッファの総数は 124,823（440メッシュ、submesh 境界と UV コーナー分割による重複を含む）で、数え方が違うため両方を併記する。total_vertices は従来どおり 32,028 とする。実機実測（所有 root のセッションスコープ slot ID Reso_698C、2026-09-25）: 507 slots / 933 components（offline 932 + 所有rootへ自動付与された AI_GeneratedContent 1）、BoxCollider 11（Ground 1 + Tower 01..10）、StaticMeshCollider 0、TextRenderer 14、Light 0、ProtoFlux 0。テクスチャ0: マニフェストのassetは mesh 440件のみで画像テクスチャを持たず、実機マテリアルも AlbedoTexture=None / EmissiveMap=None。ネオン・AR広告はフラットemissiveで適用済み（EmissiveColor が1超・EmissiveMap None・BlendMode Opaque。例: neon_magenta EmissiveColor=(2.008,0.537,1.612)、holo_panel=(0.506,1.314,1.410)）。ワールド照明は変更していない（ライト0個追加、接続先セッションの既存設定を尊重）。実機FPSは計測しない（プロジェクト規約により、個別モデルをFPSでは判定しない。draw sections は上記のとおり構造的推定であり、実測フレームコストではない）ので、性能の判定材料には用いていない。",
   "capture": {
     "attempted_at": "2026-09-25T06:46:29+09:00 .. 06:48:45+09:00",
     "command": "resoloop capture content/akichi/akichi-slum.json --camera <bookmark> --output artifacts/akichi/qa-<bookmark>.png --screenshots-dir /workspaces/reso-world/akichi/tmp/task11/screenshots --capture-timeout 30 --url auto --json",
@@ -130,15 +130,19 @@
     "temporary_capture_slots_after_failure": 0,
     "root_children_after_capture": 7,
     "reason": "Resonite は Windows ホスト側で動作し、スクリーンショットの書き出し先（Pictures/Resonite）が dev container に共有されていない（/mnt は空、Windowsドライブのマウントなし）。CLI は既定で <Pictures>/Resonite を見るが、コンテナでは $HOME/Pictures が解決できず作業ディレクトリ配下にフォールバックする。",
-    "recovery": "Windows 側 Pictures/Resonite に書き出された 2026-09-25 06:46-06:48(JST) のPNG（1280×720）を artifacts/akichi/qa-overview.png / qa-vacant-street.png / qa-market-close.png / qa-nightlife-alley.png として取り込めば、3距離レビューを再実行できる。取り込みが難しい場合でも、コンテンツはライブセッションに適用済み（ws://localhost:32136/ の Akichi_Slum = Reso_698C）なのでユーザが直接確認できる。",
+    "recovery": "Windows 側 Pictures/Resonite に書き出された 2026-09-25 06:46-06:48(JST) のPNG（1280×720）を artifacts/akichi/qa-overview.png / qa-vacant-street.png / qa-market-close.png / qa-nightlife-alley.png として取り込めば、3距離レビューを再実行できる。取り込みが難しい場合でも、コンテンツはライブセッションに適用済み（ws://localhost:32136/ の Akichi_Slum（セッションスコープの slot ID Reso_698C））なのでユーザが直接確認できる。",
     "ruling": "環境制約として許容済み（controller ruling R1）。再試行および Blender レンダーによる代替はしない",
     "retry_policy": "CAPTURE_EXPORT_TIMEOUT は再試行しない。撮影トリガは成功しており、解決すべきは Windows 側からのファイル取り込み経路"
   },
   "item_audit": {
     "target": {
       "root_id": "Reso_698C",
+      "root_id_source": "ライブ接続の slot ID。セッションスコープであり再接続時は再観察が必要",
       "root_name": "Akichi_Slum",
       "root_path": "Root/Akichi_Slum",
+      "root_path_source": "resoloop find --name Akichi_Slum --exact（ライブ階層のパス表記）",
+      "audit_rootPath_field": "Reso_698C",
+      "audit_rootPath_field_source": "item audit 自身が返す rootPath。階層パスではなくセッションスコープの slot ID をそのまま入れる実装なので、パス表記として引用しない",
       "url": "ws://localhost:32136/",
       "session": "usaturn World"
     },
