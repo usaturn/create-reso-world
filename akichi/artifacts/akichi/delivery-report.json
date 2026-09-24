@@ -13,11 +13,11 @@
   "lights_added": 0,
   "driving_components": 0,
   "pending": [
-    "実機画像による3距離レビュー（遠景シルエット / 中景の構造・素材分離・ネオン発光・瓦礫密度 / 近接のエッジ・汚染・サイン可読性）: 未実施。resoloop capture は4カメラすべてで CAPTURE_EXPORT_TIMEOUT（exit 8）となりPNGを取得できなかった。Resonite は Windows ホスト側で動作し、スクリーンショット書き出し先（Pictures/Resonite）が dev container から参照できないため（tokyo_nova でも同一の制約で blocked-CAPTURE_EXPORT_TIMEOUT）。撮影自体はトリガ成功しており、一時 InteractiveCamera は作成後に削除され残存0件を確認済み",
-    "保存・再ロード後のポータビリティ: 未確立。item audit の結果は portable=false で、外部参照55件はすべて required-world-element（PBS_Metallic._shader 27 / TextRenderer.Font 14 / TextRenderer.Materials[0] 14）。方針どおり --allow-external-role は付与していない（_shader は自動許可しない）。実際の保存→再ロード試験は未実施",
+    "実機画像による3距離レビュー（遠景シルエット / 中景の構造・素材分離・ネオン発光・瓦礫密度 / 近接のエッジ・汚染・サイン可読性）: 未実施。(a) 環境制約: Resonite は Windows ホスト側で動作し、スクリーンショットの書き出し先 Pictures/Resonite が dev container から参照できない（/mnt は空、Windowsドライブのマウントなし）ため、resoloop capture は4カメラすべて CAPTURE_EXPORT_TIMEOUT（exit 8）となった。(b) 撮影トリガ自体は成功しているため、Windows 側の Pictures/Resonite に 2026-09-25 06:46–06:48(JST) の PNG（1280×720）が残っている可能性がある（残っていれば artifacts/akichi/qa-overview.png / qa-vacant-street.png / qa-market-close.png / qa-nightlife-alley.png として取り込めばレビューを再実行できる）。(c) コンテンツはライブセッション（ws://localhost:32136/ の Akichi_Slum = Reso_698C）に適用済みなので、ユーザが直接ワールドを見て確認することもできる。この環境制約は controller ruling により許容済み（再試行・Blender レンダー代替はしない）",
+    "保存・再ロード後のポータビリティ: 監査ポリシー上は portable=true（外部参照55件はレビュー済みロール3件の許可によりすべて classification=explicitly-allowed-role / severity=info になり、unmatchedExternalRoles は空・ITEM_ALLOW_ROLE_UNUSED なし）。ただし非 strict の監査は『保存→再ロード→展開して実用できる』ことの証明にはならないため、ラウンドトリップ試験（保存 / 再ロード / スポーン後の参照解決）は未実施のまま pending。監査は hasGrabbable=false も報告しており、ワールド常設の街区としては想定内だが、インベントリのアイテムとして保存する使い方をする場合は Grabbable の付与が必要になる",
     "VR歩行・コライダー接触感: 未実施（コライダー11個の存在と配置は実機で確認済みだが、アバターでの接触・歩行試験はしていない）",
-    "屋根広告脚の貫通（ad-19 / ad-22）と屋台屋根上のケーブル端点浮遊（最大0.85m）の目視判定: 幾何と貫通量は数値で確定させたが、見て問題になるかの最終判定は実機画像がないため保留",
-    "瓦礫の接地（埋没量・浮き）の実機確認: 数値ではマッド面(上面0.162m)より上の頂点が25.5%、露出高の中央値0.207m・最大0.822m と確認したが、画面での『瓦礫が大量』の見え方は未確認",
+    "屋根広告脚の貫通（ad-19 / ad-22）と屋台屋根上のケーブル端点浮遊（最大0.85m）の目視判定: 幾何と貫通量は数値で確定させたが、見て問題になるかの最終判定は実機画像がないため保留（適用済みのライブワールドを直接見れば確認できる）。概要カメラ換算でパネル見かけ高が約12pxのため、修正する場合は全セクタの再ビルド〜再 apply が必要",
+    "瓦礫の接地（埋没量・浮き）の実機確認: 数値ではマッド面(上面0.162m)より上の頂点が25.5%、露出高の中央値0.207m・最大0.822m と確認したが、画面での『瓦礫が大量』の見え方は未確認（適用済みのライブワールドを直接見れば確認できる）",
     "Blender レンダーによる代替プレビュー: 方針（Blenderレンダーを最終検証にしない）に従い未実施"
   ],
   "sector_reports": [
@@ -130,49 +130,109 @@
     "temporary_capture_slots_after_failure": 0,
     "root_children_after_capture": 7,
     "reason": "Resonite は Windows ホスト側で動作し、スクリーンショットの書き出し先（Pictures/Resonite）が dev container に共有されていない（/mnt は空、Windowsドライブのマウントなし）。CLI は既定で <Pictures>/Resonite を見るが、コンテナでは $HOME/Pictures が解決できず作業ディレクトリ配下にフォールバックする。",
-    "recovery": "Windows 側 Pictures/Resonite に書き出された 2026-09-25 06:46-06:48(JST) のPNGを artifacts/akichi/qa-overview.png / qa-vacant-street.png / qa-market-close.png / qa-nightlife-alley.png として取り込めば、3距離レビューを再実行できる。"
+    "recovery": "Windows 側 Pictures/Resonite に書き出された 2026-09-25 06:46-06:48(JST) のPNG（1280×720）を artifacts/akichi/qa-overview.png / qa-vacant-street.png / qa-market-close.png / qa-nightlife-alley.png として取り込めば、3距離レビューを再実行できる。取り込みが難しい場合でも、コンテンツはライブセッションに適用済み（ws://localhost:32136/ の Akichi_Slum = Reso_698C）なのでユーザが直接確認できる。",
+    "ruling": "環境制約として許容済み（controller ruling R1）。再試行および Blender レンダーによる代替はしない",
+    "retry_policy": "CAPTURE_EXPORT_TIMEOUT は再試行しない。撮影トリガは成功しており、解決すべきは Windows 側からのファイル取り込み経路"
   },
   "item_audit": {
-    "command": "resoloop item audit Reso_698C --url auto --json",
-    "error_code": "ITEM_NOT_PORTABLE",
-    "exit_code": 6,
-    "root_id": "Reso_698C",
-    "root_name": "Akichi_Slum",
-    "portable": false,
-    "strict": false,
-    "hasGrabbable": false,
-    "slots": 507,
-    "components": 933,
-    "members": 7922,
-    "references": 937,
-    "internalReferences": 882,
-    "externalReferences": 55,
-    "issue_counts": {
-      "ITEM_EXTERNAL_REFERENCE": 55,
-      "ITEM_GRABBABLE_MISSING": 1
+    "target": {
+      "root_id": "Reso_698C",
+      "root_name": "Akichi_Slum",
+      "root_path": "Root/Akichi_Slum",
+      "url": "ws://localhost:32136/",
+      "session": "usaturn World"
     },
-    "external_references_by_role": {
-      "[FrooxEngine]FrooxEngine.PBS_Metallic:_shader": 27,
-      "[FrooxEngine]FrooxEngine.TextRenderer:Font": 14,
-      "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]": 14
-    },
-    "external_reference_targets": {
-      "Reso_4DBA": "IAssetProvider<Shader>（ワールド既定シェーダ）",
-      "Reso_10": "IAssetProvider<FontSet>（ワールド既定フォント）",
-      "Reso_18": "IAssetProvider<Material>（TextRenderer既定マテリアル）"
-    },
-    "classifications": {
-      "required-world-element": 55,
-      "item-root": 1
-    },
-    "externalRoleCandidates": [
-      "[FrooxEngine]FrooxEngine.PBS_Metallic:_shader",
-      "[FrooxEngine]FrooxEngine.TextRenderer:Font",
-      "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]"
+    "runs": [
+      {
+        "run": "1. review only (allow list なし)",
+        "command": "resoloop item audit Reso_698C --url auto --json",
+        "error_code": "ITEM_NOT_PORTABLE",
+        "exit_code": 6,
+        "portable": false,
+        "strict": false,
+        "hasGrabbable": false,
+        "slots": 507,
+        "components": 933,
+        "members": 7922,
+        "references": 937,
+        "internalReferences": 882,
+        "externalReferences": 55,
+        "issue_counts": {
+          "ITEM_EXTERNAL_REFERENCE": 55,
+          "ITEM_GRABBABLE_MISSING": 1
+        },
+        "severities": {
+          "error": 55,
+          "warning": 1
+        },
+        "classifications": {
+          "item-root": 1,
+          "required-world-element": 55
+        },
+        "external_references_by_role": {
+          "[FrooxEngine]FrooxEngine.PBS_Metallic:_shader": 27,
+          "[FrooxEngine]FrooxEngine.TextRenderer:Font": 14,
+          "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]": 14
+        },
+        "external_reference_targets": {
+          "Reso_4DBA": "IAssetProvider<Shader>（ワールド既定シェーダ）",
+          "Reso_10": "IAssetProvider<FontSet>（ワールド既定フォント）",
+          "Reso_18": "IAssetProvider<Material>（TextRenderer 既定マテリアル）"
+        },
+        "externalRoleCandidates": [
+          "[FrooxEngine]FrooxEngine.PBS_Metallic:_shader",
+          "[FrooxEngine]FrooxEngine.TextRenderer:Font",
+          "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]"
+        ],
+        "unmatchedExternalRoles": [],
+        "allow_external_role_applied": false
+      },
+      {
+        "run": "2. レビュー済みロールを許可（type-wide role 3件）",
+        "command": "resoloop item audit Reso_698C --url auto --allow-external-role '[FrooxEngine]FrooxEngine.PBS_Metallic:_shader' --allow-external-role '[FrooxEngine]FrooxEngine.TextRenderer:Font' --allow-external-role '[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]' --json",
+        "exit_code": 0,
+        "portable": true,
+        "strict": false,
+        "hasGrabbable": false,
+        "slots": 507,
+        "components": 933,
+        "members": 7922,
+        "references": 937,
+        "internalReferences": 882,
+        "externalReferences": 55,
+        "issue_counts": {
+          "ITEM_EXTERNAL_ROLE_ALLOWED": 55,
+          "ITEM_GRABBABLE_MISSING": 1
+        },
+        "severities": {
+          "info": 55,
+          "warning": 1
+        },
+        "classifications": {
+          "explicitly-allowed-role": 55,
+          "item-root": 1
+        },
+        "matched_allow_entries": {
+          "[FrooxEngine]FrooxEngine.PBS_Metallic:_shader": 27,
+          "[FrooxEngine]FrooxEngine.TextRenderer:Font": 14,
+          "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]": 14
+        },
+        "allow_role_unused_present": false,
+        "unmatchedExternalRoles": [],
+        "remaining_issues": [
+          {
+            "code": "ITEM_GRABBABLE_MISSING",
+            "severity": "warning",
+            "classification": "item-root",
+            "message": "The audited root does not contain a Grabbable Component.",
+            "note": "ワールド常設の街区を監査しており、インベントリ保存用アイテムではないため想定内"
+          }
+        ]
+      }
     ],
-    "unmatchedExternalRoles": [],
-    "allow_external_role_applied": false,
-    "warning": "ITEM_GRABBABLE_MISSING: 監査rootにGrabbableが無い（静的街区としては想定内。ワールド常設物を対象にした監査であり、インベントリ保存用のアイテムではない）"
+    "allow_entry_format_note": "--allow-external-role は COMPONENT_TYPE:MEMBER_PATH 形式（最後の ':' で分割）で、値は externalRoleCandidates が返した role 文字列そのもの。分類名 required-world-element を渡すと ITEM_ALLOW_ROLE_INVALID（exit 2）になることを実測で確認した（tmp/task11/item-audit-role-invalid.json）",
+    "decision": "55件の外部参照はすべてホストワールド供給の標準要素（既定シェーダ / 既定フォント / TextRenderer 既定マテリアル）で role は required-world-element。レビュー済みの type-wide role 3件として許可し、portable=true を得た。許可したのは型単位の role のみでセッション ID 依存の entry は使っていない（再起動後も有効）。_shader を含むため、この許可は本監査の判断として明示的に記録する",
+    "policy_scope": "許可は inventory 保存・配布用に外部依存を許容するものではなく、監査の error を『レビュー済みの想定内依存』に分類し直すもの。実際に保存→再ロードで動くかは別途のラウンドトリップ試験が必要（pending 参照）"
   },
   "qa_observations": [
     {
