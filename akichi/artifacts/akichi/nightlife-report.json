@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "sector": "nightlife",
+  "seed": 250925,
+  "assembly_count": 11,
+  "total_parts": 130,
+  "total_vertices": 1168,
+  "total_triangles": 1816,
+  "blender_object_count": 40,
+  "material_count": 10,
+  "scatter_method": "n/a",
+  "uv_issue_count": 0,
+  "blend_path": "/workspaces/reso-world/akichi/artifacts/akichi/nightlife.blend",
+  "blender_version": "5.0.1",
+  "reopened_export_meshes": 40,
+  "source_collection": "AkichiNightlife",
+  "export_collection": "AkichiNightlifeExport"
+}

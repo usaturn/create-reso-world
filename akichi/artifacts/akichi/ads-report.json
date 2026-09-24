@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "sector": "ads",
+  "seed": 250925,
+  "assembly_count": 27,
+  "total_parts": 229,
+  "total_vertices": 2056,
+  "total_triangles": 3196,
+  "blender_object_count": 71,
+  "material_count": 9,
+  "scatter_method": "n/a",
+  "uv_issue_count": 0,
+  "blend_path": "/workspaces/reso-world/akichi/artifacts/akichi/ads.blend",
+  "blender_version": "5.0.1",
+  "reopened_export_meshes": 71,
+  "source_collection": "AkichiAds",
+  "export_collection": "AkichiAdsExport"
+}

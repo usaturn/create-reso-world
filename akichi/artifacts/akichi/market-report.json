@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "sector": "market",
+  "seed": 250925,
+  "assembly_count": 36,
+  "total_parts": 479,
+  "total_vertices": 5472,
+  "total_triangles": 9028,
+  "blender_object_count": 128,
+  "material_count": 10,
+  "scatter_method": "n/a",
+  "uv_issue_count": 0,
+  "blend_path": "/workspaces/reso-world/akichi/artifacts/akichi/market.blend",
+  "blender_version": "5.0.1",
+  "reopened_export_meshes": 128,
+  "source_collection": "AkichiMarket",
+  "export_collection": "AkichiMarketExport"
+}
