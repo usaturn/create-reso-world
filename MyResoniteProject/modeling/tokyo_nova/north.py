@@ -172,7 +172,7 @@ def build_north_sector(layout: dict[str, Any]) -> list[Assembly]:
     phone_origin = (
         (min(mat_x) + max(mat_x)) / 2 - 0.60,
         max(mat_y) - phone_min[1],
-        (min(mat_z) + max(mat_z)) / 2 - 0.14,
+        (min(mat_z) + max(mat_z)) / 2,
     )
     assemblies.append(create("pocket_phone", phone_origin, 0.0))
     assemblies.extend((_frontage_pavement(), _facility_connector(food, repair)))

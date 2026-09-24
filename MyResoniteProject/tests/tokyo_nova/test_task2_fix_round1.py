@@ -248,6 +248,24 @@ class Task2FixRound1Tests(unittest.TestCase):
         self.assertLessEqual(phone_bounds[1][2], mat_bounds[1][2], "phone front edge must be inside the actual mat")
         self.assertAlmostEqual(phone_bounds[0][1], mat_bounds[1][1], places=7, msg="phone back must rest on the ESD mat")
 
+    def test_phone_bounds_do_not_overlap_other_repair_desk_parts(self) -> None:
+        assemblies = {assembly.kind: assembly for assembly in north.build_north_sector(build_layout())}
+        repair, phone = assemblies["terminal_repair"], assemblies["pocket_phone"]
+        phone_bounds = phone.bounds
+        support_parts = {"anti_static_mat", "repair_bench_top"}
+        overlaps = []
+        for part in repair.transformed_parts():
+            if part.name in support_parts:
+                continue
+            part_bounds = _bounds(part)
+            if all(
+                phone_bounds[0][axis] < part_bounds[1][axis] - 1e-9
+                and phone_bounds[1][axis] > part_bounds[0][axis] + 1e-9
+                for axis in range(3)
+            ):
+                overlaps.append(part.name)
+        self.assertEqual(overlaps, [], "phone geometry must not overlap raised repair-desk equipment")
+
     def test_sign_text_faces_south_and_ar_is_spaced_without_opaque_backplates(self) -> None:
         layout = build_layout()
         assemblies = north.build_north_sector(layout)
