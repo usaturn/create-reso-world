@@ -33,7 +33,8 @@ resoloop + Blender パイプラインで、サイバーパンク世界のスラ�
 ## 前提（設計上の解釈）
 
 - 風俗店はネオンサイン・看板・ファサード（カーテン、張り紙、怪しい照明）までの示唆的表現とし、露骨なコンテンツは作らない
-- 看板の文字: 抽象ネオングラフィックは Python 生成の emissive テクスチャ、日本語テキストは Resonite ネイティブ `TextRenderer`（フォント依存回避、tokyo_nova 実績あり）
+- **イメージテクスチャ不使用**（tokyo_nova 実証済みの適応）: dev container から Windows の Resonite ホストと共有する検証済みマウント（/mnt/c 等）が存在せず、`ImportTexture2DFile` がパスを読めない。素材表現はフラットな Principled パラメータ（色・金属度・粗さ・emission）+ モデリングされたディテール（錆ストリーク、クラック、補修パッチのジオメトリ）で担う
+- ネオン・AR 広告はフラット emissive マテリアル（定数 emission 色 + 強度）で表現。日本語テキストは Resonite ネイティブ `TextRenderer`（フォント依存回避、tokyo_nova 実績あり）。ホログラム風パネルは exporter が transparency 非対応のため、不透明 emissive + 暗色フレームで代替
 - アート方向: Cyberpunk（高密度縦サイン・ケーブル・ネオン）× brutalist（コンクリートの塊感、打ちっぱし型の目地）× dark-gritty（原因のある錆・油・接触摩耗。保護面はきれいなまま残す）
 - 全体ライティングはローカル資産の要求から変更しない（スキル方針）。夜景の雰囲気は emissive と素材色で表現し、ワールド照明は接続先セッションの既存設定を尊重する
 
@@ -76,7 +77,7 @@ akichi/
 
 ### マテリアル方針
 
-- 共有マテリアルファミリー: コンクリート系バリアント、錆金属、トタン、ベニヤ、ガラス、ネオン emissive、ホログラム半透明
+- 共有マテリアルファミリー: コンクリート系バリアント、錆金属、トタン、ベニヤ、ガラス、ネオン emissive（フラット色）、ホログラム風 emissive
 - 汚染は原因と位置で使い分ける（湿気が溜まる箇所の錆、可動部の油、接触部の摩耗、保護面は清潔）
 - エクスポートは PBS_Metallic 変換の制約に従う（Principled BSDF、`Smoothness = 1 - Roughness`、emission は sRGB 画像 + 一定強度。非対応ノードグラフは使わず、必要ならベイク）
 - ホログラム風広告は emissive + alpha の扱いに注意（exporter の transparency 制約を確認し、必要なら不透明 emissive パネル + 縁取りで代替）
