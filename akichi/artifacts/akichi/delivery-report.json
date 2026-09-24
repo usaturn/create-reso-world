@@ -1,0 +1,209 @@
+{
+  "delivered_at": "2026-09-25T07:05:00+09:00",
+  "total_triangles": 50580,
+  "total_vertices": 32028,
+  "mesh_count": 440,
+  "material_count": 27,
+  "draw_sections": 442,
+  "texture_count": 0,
+  "colliders": {
+    "BoxCollider": 11,
+    "StaticMeshCollider": 0
+  },
+  "lights_added": 0,
+  "driving_components": 0,
+  "pending": [
+    "実機画像による3距離レビュー（遠景シルエット / 中景の構造・素材分離・ネオン発光・瓦礫密度 / 近接のエッジ・汚染・サイン可読性）: 未実施。resoloop capture は4カメラすべてで CAPTURE_EXPORT_TIMEOUT（exit 8）となりPNGを取得できなかった。Resonite は Windows ホスト側で動作し、スクリーンショット書き出し先（Pictures/Resonite）が dev container から参照できないため（tokyo_nova でも同一の制約で blocked-CAPTURE_EXPORT_TIMEOUT）。撮影自体はトリガ成功しており、一時 InteractiveCamera は作成後に削除され残存0件を確認済み",
+    "保存・再ロード後のポータビリティ: 未確立。item audit の結果は portable=false で、外部参照55件はすべて required-world-element（PBS_Metallic._shader 27 / TextRenderer.Font 14 / TextRenderer.Materials[0] 14）。方針どおり --allow-external-role は付与していない（_shader は自動許可しない）。実際の保存→再ロード試験は未実施",
+    "VR歩行・コライダー接触感: 未実施（コライダー11個の存在と配置は実機で確認済みだが、アバターでの接触・歩行試験はしていない）",
+    "屋根広告脚の貫通（ad-19 / ad-22）と屋台屋根上のケーブル端点浮遊（最大0.85m）の目視判定: 幾何と貫通量は数値で確定させたが、見て問題になるかの最終判定は実機画像がないため保留",
+    "瓦礫の接地（埋没量・浮き）の実機確認: 数値ではマッド面(上面0.162m)より上の頂点が25.5%、露出高の中央値0.207m・最大0.822m と確認したが、画面での『瓦礫が大量』の見え方は未確認",
+    "Blender レンダーによる代替プレビュー: 方針（Blenderレンダーを最終検証にしない）に従い未実施"
+  ],
+  "sector_reports": [
+    {
+      "sector": "ground",
+      "triangles": 588,
+      "vertices": 392,
+      "meshes": 7,
+      "materials": 6,
+      "uv_issue_count": 0,
+      "scatter_method": "n/a"
+    },
+    {
+      "sector": "vacant",
+      "triangles": 13100,
+      "vertices": 8008,
+      "meshes": 26,
+      "materials": 9,
+      "uv_issue_count": 0,
+      "scatter_method": "geometry-nodes",
+      "scatter": {
+        "triangles": 10716,
+        "vertices": 6624,
+        "expected_instances": 372,
+        "area_m2": 1064.0,
+        "uv_exempt": true
+      }
+    },
+    {
+      "sector": "towers",
+      "triangles": 18064,
+      "vertices": 12000,
+      "meshes": 86,
+      "materials": 10,
+      "uv_issue_count": 0,
+      "scatter_method": "n/a"
+    },
+    {
+      "sector": "market",
+      "triangles": 9028,
+      "vertices": 5472,
+      "meshes": 128,
+      "materials": 10,
+      "uv_issue_count": 0,
+      "scatter_method": "n/a"
+    },
+    {
+      "sector": "shacks",
+      "triangles": 4788,
+      "vertices": 2932,
+      "meshes": 82,
+      "materials": 8,
+      "uv_issue_count": 0,
+      "scatter_method": "n/a"
+    },
+    {
+      "sector": "nightlife",
+      "triangles": 1816,
+      "vertices": 1168,
+      "meshes": 40,
+      "materials": 10,
+      "uv_issue_count": 0,
+      "scatter_method": "n/a"
+    },
+    {
+      "sector": "ads",
+      "triangles": 3196,
+      "vertices": 2056,
+      "meshes": 71,
+      "materials": 9,
+      "uv_issue_count": 0,
+      "scatter_method": "n/a"
+    }
+  ],
+  "notes": "advisory閾値超過の根拠: (1) 8マテリアルadvisoryを5セクタが超過（最大10）— 異種プロップ間で共有するマテリアルファミリー（コンクリート系/錆系/トタン系/ネオン系）を使い、かつ『オブジェクトごとに1メッシュ』原則で後からインスペクターで触りやすくするため。実測の使用マテリアルは27種（すべてPBS_Metallic）。(2) draw sections 442 は Σ(mesh×submesh) の構造的推定であり、実測フレームコストではない。(3) vacant bundle は約11MBで、転送上限38sは初回apply実績（55.1s/507 slots/440 assets）からの導出値。CLIはbundle単体の転送時間を分離計測できない。(4) exporter のadvisory閾値（50k tri / 8 mat / 16 draw sections / 2048px）はレビュー契機であり予算ではない。リソース合計は7セクタのレポートから再計算し、バンドル実データで相互検証（mesh_*.mesh.json 440件、Σ submesh 442、三角形合計 50,580、使用マテリアル27種）。実機実測（root Reso_698C, 2026-09-25）: 507 slots / 933 components（offline 932 + 所有rootへ自動付与された AI_GeneratedContent 1）、BoxCollider 11（Ground 1 + Tower 01..10）、StaticMeshCollider 0、TextRenderer 14、Light 0、ProtoFlux 0。テクスチャ0: マニフェストのassetは mesh 440件のみで画像テクスチャを持たず、実機マテリアルも AlbedoTexture=None / EmissiveMap=None。ネオン・AR広告はフラットemissiveで適用済み（EmissiveColor が1超・EmissiveMap None・BlendMode Opaque。例: neon_magenta EmissiveColor=(2.008,0.537,1.612)、holo_panel=(0.506,1.314,1.410)）。ワールド照明は変更していない（ライト0個追加、接続先セッションの既存設定を尊重）。実機FPSは計測しない（プロジェクト規約により、個別モデルをFPSでは判定しない。draw sections は上記のとおり構造的推定であり、実測フレームコストではない）ので、性能の判定材料には用いていない。",
+  "capture": {
+    "attempted_at": "2026-09-25T06:46:29+09:00 .. 06:48:45+09:00",
+    "command": "resoloop capture content/akichi/akichi-slum.json --camera <bookmark> --output artifacts/akichi/qa-<bookmark>.png --screenshots-dir /workspaces/reso-world/akichi/tmp/task11/screenshots --capture-timeout 30 --url auto --json",
+    "result": "CAPTURE_EXPORT_TIMEOUT",
+    "exit_code": 8,
+    "images_written": 0,
+    "cameras": [
+      {
+        "bookmark": "overview-north",
+        "result": "CAPTURE_EXPORT_TIMEOUT",
+        "output": "artifacts/akichi/qa-overview.png",
+        "written": false
+      },
+      {
+        "bookmark": "vacant-street",
+        "result": "CAPTURE_EXPORT_TIMEOUT",
+        "output": "artifacts/akichi/qa-vacant-street.png",
+        "written": false
+      },
+      {
+        "bookmark": "market-close",
+        "result": "CAPTURE_EXPORT_TIMEOUT",
+        "output": "artifacts/akichi/qa-market-close.png",
+        "written": false
+      },
+      {
+        "bookmark": "nightlife-alley",
+        "result": "CAPTURE_EXPORT_TIMEOUT",
+        "output": "artifacts/akichi/qa-nightlife-alley.png",
+        "written": false
+      }
+    ],
+    "camera_bookmarks_resolved": true,
+    "capture_trigger_succeeded": true,
+    "temporary_capture_slots_after_failure": 0,
+    "root_children_after_capture": 7,
+    "reason": "Resonite は Windows ホスト側で動作し、スクリーンショットの書き出し先（Pictures/Resonite）が dev container に共有されていない（/mnt は空、Windowsドライブのマウントなし）。CLI は既定で <Pictures>/Resonite を見るが、コンテナでは $HOME/Pictures が解決できず作業ディレクトリ配下にフォールバックする。",
+    "recovery": "Windows 側 Pictures/Resonite に書き出された 2026-09-25 06:46-06:48(JST) のPNGを artifacts/akichi/qa-overview.png / qa-vacant-street.png / qa-market-close.png / qa-nightlife-alley.png として取り込めば、3距離レビューを再実行できる。"
+  },
+  "item_audit": {
+    "command": "resoloop item audit Reso_698C --url auto --json",
+    "error_code": "ITEM_NOT_PORTABLE",
+    "exit_code": 6,
+    "root_id": "Reso_698C",
+    "root_name": "Akichi_Slum",
+    "portable": false,
+    "strict": false,
+    "hasGrabbable": false,
+    "slots": 507,
+    "components": 933,
+    "members": 7922,
+    "references": 937,
+    "internalReferences": 882,
+    "externalReferences": 55,
+    "issue_counts": {
+      "ITEM_EXTERNAL_REFERENCE": 55,
+      "ITEM_GRABBABLE_MISSING": 1
+    },
+    "external_references_by_role": {
+      "[FrooxEngine]FrooxEngine.PBS_Metallic:_shader": 27,
+      "[FrooxEngine]FrooxEngine.TextRenderer:Font": 14,
+      "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]": 14
+    },
+    "external_reference_targets": {
+      "Reso_4DBA": "IAssetProvider<Shader>（ワールド既定シェーダ）",
+      "Reso_10": "IAssetProvider<FontSet>（ワールド既定フォント）",
+      "Reso_18": "IAssetProvider<Material>（TextRenderer既定マテリアル）"
+    },
+    "classifications": {
+      "required-world-element": 55,
+      "item-root": 1
+    },
+    "externalRoleCandidates": [
+      "[FrooxEngine]FrooxEngine.PBS_Metallic:_shader",
+      "[FrooxEngine]FrooxEngine.TextRenderer:Font",
+      "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]"
+    ],
+    "unmatchedExternalRoles": [],
+    "allow_external_role_applied": false,
+    "warning": "ITEM_GRABBABLE_MISSING: 監査rootにGrabbableが無い（静的街区としては想定内。ワールド常設物を対象にした監査であり、インベントリ保存用のアイテムではない）"
+  },
+  "qa_observations": [
+    {
+      "checkpoint": "1. サインテキスト14枚（Nightlife 4 / Market 4 / Ads 6）",
+      "status": "構造確認済み / 画面上の可読性は保留",
+      "finding": "実機で14枚すべて Enabled、HorizontalAlign=Center、VerticalAlign=Middle、日本語テキストあり、Size 0.26–0.47（設計範囲0.25–0.5）、フォントはワールド既定の Reso_10。内訳は Nightlife Sign_01-04、Market Sign_05-08、Ads Sign_09-14 で計画どおり。向きは接続先オブジェクトのyawと同一で、オフセットは局所+Z（前面）側（クラブ z=2.56 / 屋台 z=0.93 / ホロパネル z=0.06）",
+      "evidence": "resoloop find --component TextRenderer --under Reso_698C と14件の component inspect（Text/HorizontalAlign/Size/Color/Font/Enabled）"
+    },
+    {
+      "checkpoint": "2. ad-19 / ad-22 屋根広告脚と machine-room の交差",
+      "status": "数値確定（貫通あり・微小）/ 目視判定は保留",
+      "finding": "ad-19（tower-01）は4本の脚（0.07m角）が machine-room 箱の内部に完全に収まり（重なり 0.07×1.07×0.07 m³/本）、パネル下端18.82m は箱上面19.75m より0.93m低い＝パネル下半分が箱の中。ad-22（tower-09）は4本の脚が machine-room を貫通（0.07×2.0×0.07 m³/本）し、箱上面からパネル下端までの0.385mだけが見える。ad-20 / ad-21 は交差なし。概要カメラ（115m）でのパネル見かけ高は約11px、空地通りカメラ（72m）で約18px であり、貫通部は数px規模",
+      "evidence": "buildings.build_tower / props.build_ad（適用済みマニフェストと同じ純Pythonビルダー）による世界座標AABB交差計算（tmp/task11/qa-checks-out.json）"
+    },
+    {
+      "checkpoint": "3. 空地の瓦礫（GN scatter realize）の埋没・密度",
+      "status": "数値確定 / 画面上の密度感は保留",
+      "finding": "実export scatterメッシュは三角形10,716（レポートと一致）、ワールドy範囲 -0.698..0.822、footprint x -14.33..14.42 / z -19.15..19.35（空地28×38m内）。マッド面（上面0.162m）より上の頂点は25.5%、露出高の中央値0.207m・最大0.822m。69.9%の頂点は表層(0.102m)より下にあり、扁平な slab 原型は回転次第でほぼ完全に埋没する。密度は 372 instances / 1064 m² = 0.35/m²",
+      "evidence": "content/akichi/vacant-v1/mesh_AkichiVacantScatterBaked_*.mesh.json と ground-v1/mesh_vacant-base__mud_*.mesh.json の頂点集計"
+    },
+    {
+      "checkpoint": "4. ケーブル端点の浮遊（最大0.85m）",
+      "status": "数値確定 / 画面での目立ち方は保留",
+      "finding": "屋台屋根に接続する端点4本の浮遊は 0.06 / 0.12 / 0.31 / 0.85m（屋台屋根頂2.75m に対し端点y 2.81 / 2.87 / 3.06 / 3.60）。残り8本は塔壁面に接しており浮遊なし。最も近い market-close カメラ（約9m）で0.31mの浮遊は約21px、vacant-street カメラ（約34m）で約6px",
+      "evidence": "layout.build_layout() の cables 仕様と props.build_stall の実測屋根高の比較"
+    },
+    {
+      "checkpoint": "5. アート方向（Cyberpunk × brutalist × dark-gritty）と風俗店表現",
+      "status": "素材・テキストレベルで確認 / 画面の見え方は保留",
+      "finding": "マテリアル27種のうち8種がemissive（neon_magenta/cyan/orange/purple/lime/pink, holo_panel, warm_light、EmissiveIntensity相当4.5–5.0、アルベドは暗色ベース）で『派手な色のAR広告』の要件を満たす。コンクリート系は albedo 0.20–0.31 / roughness 0.90–0.94、湿潤アスファルトは albedo 0.045–0.068 / roughness 0.25、錆は metallic 0.5–0.55 / roughness 0.82–0.86 で dark-gritty の質感分離がある。風俗店サイン4枚の日本語は『ピンクサロン 夢の国』『マッサージ 桃源郷』『スナック 星屑』『ガールズバー NEON』で、示唆的表現のみ・露骨な内容なし（設計どおり）",
+      "evidence": "modeling/akichi/materials.py のパレット、実機 PBS_Metallic 2件（neon_magenta / holo_panel）の EmissiveColor、14サインの Text 実測"
+    }
+  ]
+}
