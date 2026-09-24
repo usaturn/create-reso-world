@@ -233,7 +233,7 @@ def _sign_slots_by_sector(layout: dict[str, Any], used: set[str]) -> dict[str, l
                             "Text": sign["text"],
                             "Size": sign["size"],
                             "Color": list(sign["color"]),
-                            "Alignment": "Center",
+                            "HorizontalAlign": "Center",
                         },
                     }
                 ],
