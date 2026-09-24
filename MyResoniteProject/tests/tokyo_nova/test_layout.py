@@ -83,7 +83,7 @@ class LayoutTests(unittest.TestCase):
         all_keys = [slot["slot"]["key"] for slot in all_slots]
         self.assertEqual(len(all_keys), len(set(all_keys)))
         self.assertEqual(sum(key.startswith("building_") for key in all_keys), 24)
-        for key in ("plaza_floor", "outer_ground", "roof_access_ramp", "south_theatre_basement_ramp", "west_bar_basement_stair_00"):
+        for key in ("plaza_floor", "outer_ground_tile_00", "roof_access_ramp", "south_theatre_basement_ramp", "west_bar_basement_stair_00"):
             self.assertIn(key, all_keys)
         self.assertIn("theatre_floor_well_left", all_keys)
         self.assertIn("bar_floor_well_back", all_keys)

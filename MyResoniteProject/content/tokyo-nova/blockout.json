@@ -130,10 +130,10 @@
   "children": [
     {
       "slot": {
-        "key": "outer_ground",
-        "name": "Tokyo Nova blockout perimeter ground · outer_ground",
+        "key": "outer_ground_tile_00",
+        "name": "Tokyo Nova supporting ground tile · cut around basement openings · outer_ground_tile_00",
         "position": [
-          0.0,
+          -32.95,
           -0.04,
           0.0
         ],
@@ -151,23 +151,545 @@
       },
       "components": [
         {
-          "key": "outer_ground_mesh",
+          "key": "outer_ground_tile_00_mesh",
           "type": "FrooxEngine.BoxMesh",
           "fields": {
             "Size": [
-              100.0,
+              34.1,
               0.08,
               100.0
             ]
           }
         },
         {
-          "key": "outer_ground_renderer",
+          "key": "outer_ground_tile_00_renderer",
           "type": "FrooxEngine.MeshRenderer",
           "fields": {
-            "Mesh": "$component:outer_ground_mesh",
+            "Mesh": "$component:outer_ground_tile_00_mesh",
             "Materials": [
               "$component:mat_ground"
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_00_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              34.1,
+              0.08,
+              100.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "outer_ground_tile_01",
+        "name": "Tokyo Nova supporting ground tile · cut around basement openings · outer_ground_tile_01",
+        "position": [
+          -15.45,
+          -0.04,
+          -33.5
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "outer_ground_tile_01_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.9000000000000004,
+              0.08,
+              33.0
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_01_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:outer_ground_tile_01_mesh",
+            "Materials": [
+              "$component:mat_ground"
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_01_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.9000000000000004,
+              0.08,
+              33.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "outer_ground_tile_02",
+        "name": "Tokyo Nova supporting ground tile · cut around basement openings · outer_ground_tile_02",
+        "position": [
+          -15.45,
+          -0.04,
+          19.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "outer_ground_tile_02_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.9000000000000004,
+              0.08,
+              62.0
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_02_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:outer_ground_tile_02_mesh",
+            "Materials": [
+              "$component:mat_ground"
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_02_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.9000000000000004,
+              0.08,
+              62.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "outer_ground_tile_03",
+        "name": "Tokyo Nova supporting ground tile · cut around basement openings · outer_ground_tile_03",
+        "position": [
+          -14.55,
+          -0.04,
+          -42.95
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "outer_ground_tile_03_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.9000000000000004,
+              0.08,
+              14.100000000000001
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_03_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:outer_ground_tile_03_mesh",
+            "Materials": [
+              "$component:mat_ground"
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_03_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.9000000000000004,
+              0.08,
+              14.100000000000001
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "outer_ground_tile_04",
+        "name": "Tokyo Nova supporting ground tile · cut around basement openings · outer_ground_tile_04",
+        "position": [
+          -14.55,
+          -0.04,
+          -25.55
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "outer_ground_tile_04_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.9000000000000004,
+              0.08,
+              17.1
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_04_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:outer_ground_tile_04_mesh",
+            "Materials": [
+              "$component:mat_ground"
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_04_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.9000000000000004,
+              0.08,
+              17.1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "outer_ground_tile_05",
+        "name": "Tokyo Nova supporting ground tile · cut around basement openings · outer_ground_tile_05",
+        "position": [
+          -14.55,
+          -0.04,
+          19.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "outer_ground_tile_05_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              0.9000000000000004,
+              0.08,
+              62.0
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_05_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:outer_ground_tile_05_mesh",
+            "Materials": [
+              "$component:mat_ground"
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_05_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              0.9000000000000004,
+              0.08,
+              62.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "outer_ground_tile_06",
+        "name": "Tokyo Nova supporting ground tile · cut around basement openings · outer_ground_tile_06",
+        "position": [
+          -13.05,
+          -0.04,
+          -42.95
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "outer_ground_tile_06_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              2.0999999999999996,
+              0.08,
+              14.100000000000001
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_06_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:outer_ground_tile_06_mesh",
+            "Materials": [
+              "$component:mat_ground"
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_06_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              2.0999999999999996,
+              0.08,
+              14.100000000000001
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "outer_ground_tile_07",
+        "name": "Tokyo Nova supporting ground tile · cut around basement openings · outer_ground_tile_07",
+        "position": [
+          -13.05,
+          -0.04,
+          7.949999999999999
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "outer_ground_tile_07_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              2.0999999999999996,
+              0.08,
+              84.1
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_07_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:outer_ground_tile_07_mesh",
+            "Materials": [
+              "$component:mat_ground"
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_07_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              2.0999999999999996,
+              0.08,
+              84.1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "outer_ground_tile_08",
+        "name": "Tokyo Nova supporting ground tile · cut around basement openings · outer_ground_tile_08",
+        "position": [
+          19.0,
+          -0.04,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "outer_ground_tile_08_mesh",
+          "type": "FrooxEngine.BoxMesh",
+          "fields": {
+            "Size": [
+              62.0,
+              0.08,
+              100.0
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_08_renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:outer_ground_tile_08_mesh",
+            "Materials": [
+              "$component:mat_ground"
+            ]
+          }
+        },
+        {
+          "key": "outer_ground_tile_08_collider",
+          "type": "FrooxEngine.BoxCollider",
+          "fields": {
+            "Type": "Static",
+            "CharacterCollider": true,
+            "Offset": [
+              0,
+              0,
+              0
+            ],
+            "Size": [
+              62.0,
+              0.08,
+              100.0
             ]
           }
         }

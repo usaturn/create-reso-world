@@ -6,6 +6,7 @@ import json
 import math
 import os
 from collections.abc import Iterable, Sequence
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -82,6 +83,77 @@ def _box_slot(key: str, name: str, position: Sequence[float], size: Sequence[flo
     if collider:
         components.append(_component(f"{key}_collider", "FrooxEngine.BoxCollider", {"Type": "Static", "CharacterCollider": True, "Offset": [0, 0, 0], "Size": [float(v) for v in size]}))
     return {"slot": {"key": key, "name": f"{name} · {key}", "position": [float(v) for v in position], "rotation": [float(v) for v in rotation], "scale": [1, 1, 1]}, "components": components}
+
+
+_GROUND_BOUNDS_XZ = (-50.0, 50.0, -50.0, 50.0)
+_GROUND_THICKNESS = 0.08
+
+
+def _basement_cutout_rectangles(layout: dict[str, Any]) -> list[tuple[float, float, float, float]]:
+    """Return root-local (xmin, xmax, zmin, zmax) holes from declared floor openings."""
+    accesses = layout.get("basement_access", [])
+    if len(accesses) != 2:
+        raise ValueError(f"the blockout ground requires exactly two basement cutouts, found {len(accesses)}")
+    buildings = {building["key"]: building for building in layout["buildings"]}
+    holes = []
+    for access in accesses:
+        building = buildings[access["building_key"]]
+        opening = access["floor_opening"]
+        center_x = float(building["center"][0]) + float(opening["center"][0])
+        center_z = float(building["center"][2]) + float(opening["center"][1])
+        size_x, size_z = (float(value) for value in opening["size"])
+        if size_x <= 0 or size_z <= 0:
+            raise ValueError(f"basement access {access['key']} has a nonpositive ground cutout")
+        hole = (center_x - size_x / 2, center_x + size_x / 2, center_z - size_z / 2, center_z + size_z / 2)
+        xmin, xmax, zmin, zmax = _GROUND_BOUNDS_XZ
+        if hole[0] < xmin or hole[1] > xmax or hole[2] < zmin or hole[3] > zmax:
+            raise ValueError(f"basement access {access['key']} ground cutout lies outside the perimeter ground")
+        holes.append(hole)
+    return holes
+
+
+def _partition_ground(layout: dict[str, Any]) -> list[tuple[float, float, float, float]]:
+    """Tile the perimeter ground without overlap, leaving each declared access open."""
+    xmin, xmax, zmin, zmax = _GROUND_BOUNDS_XZ
+    holes = _basement_cutout_rectangles(layout)
+    x_edges = sorted({xmin, xmax, *(edge for hole in holes for edge in hole[:2])})
+    regions: list[tuple[float, float, float, float]] = []
+    for x0, x1 in pairwise(x_edges):
+        midpoint = (x0 + x1) / 2
+        blocked = sorted((hole[2], hole[3]) for hole in holes if hole[0] < midpoint < hole[1])
+        merged: list[tuple[float, float]] = []
+        for low, high in blocked:
+            if merged and low <= merged[-1][1] + 1e-9:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], high))
+            else:
+                merged.append((low, high))
+        cursor = zmin
+        for low, high in merged:
+            if low > cursor + 1e-9:
+                regions.append((x0, x1, cursor, low))
+            cursor = max(cursor, high)
+        if cursor < zmax - 1e-9:
+            regions.append((x0, x1, cursor, zmax))
+    if not regions:
+        raise ValueError("basement cutouts removed the complete perimeter ground")
+    return regions
+
+
+def _ground_tile_slots(layout: dict[str, Any]) -> list[dict[str, Any]]:
+    """Emit the sole grade-level collision topology from the partition rectangles."""
+    tiles = []
+    for index, (xmin, xmax, zmin, zmax) in enumerate(_partition_ground(layout)):
+        width, depth = xmax - xmin, zmax - zmin
+        key = f"outer_ground_tile_{index:02d}"
+        tiles.append(_box_slot(
+            key,
+            "Tokyo Nova supporting ground tile · cut around basement openings",
+            [(xmin + xmax) / 2, -_GROUND_THICKNESS / 2, (zmin + zmax) / 2],
+            [width, _GROUND_THICKNESS, depth],
+            "mat_ground",
+            collider=True,
+        ))
+    return tiles
 
 
 def _segment_rotation(start: Sequence[float], end: Sequence[float]) -> tuple[float, float, float, float]:
@@ -332,10 +404,10 @@ def build_blockout_manifest(layout: dict[str, Any]) -> dict[str, Any]:
         _component("mat_floor", "FrooxEngine.PBS_Metallic", {"AlbedoColor": [0.25, 0.24, 0.21, 1], "Metallic": 0.02, "Smoothness": 0.24}),
         _component("mat_concrete", "FrooxEngine.PBS_Metallic", {"AlbedoColor": [0.35, 0.33, 0.28, 1], "Metallic": 0.03, "Smoothness": 0.18}),
     ]
-    children = [
-        _box_slot("outer_ground", "Tokyo Nova blockout perimeter ground", [0, -0.04, 0], [100, 0.08, 100], "mat_ground"),
-        _box_slot("plaza_floor", "Continuous clear plaza floor · 20m × 20m", [0, 0.01, 0], [20, 0.06, 20], "mat_plaza"),
-    ]
+    # These partitioned slabs are the only grade-level collision topology. Plaza and
+    # road boxes remain render-only accents above them and do not cross basement holes.
+    children = _ground_tile_slots(layout)
+    children.append(_box_slot("plaza_floor", "Continuous clear plaza floor · 20m × 20m", [0, 0.01, 0], [20, 0.06, 20], "mat_plaza"))
     for route in layout["routes"]:
         for index, (start, end) in enumerate(zip(route["points"], route["points"][1:])):
             length = math.hypot(float(end[0] - start[0]), float(end[2] - start[2]))
