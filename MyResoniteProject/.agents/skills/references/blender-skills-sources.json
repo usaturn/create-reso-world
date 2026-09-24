@@ -1,0 +1,125 @@
+{
+  "repository": "https://github.com/arjun988/blender-skills",
+  "commit": "8f778d2405a214b508d4c7d80742be8e43acdd52",
+  "license": {
+    "name": "MIT",
+    "source_path": "LICENSE",
+    "output_path": ".agents/skills/references/blender-skills-LICENSE.txt",
+    "copyright": "Copyright (c) 2026 blender-skills contributors"
+  },
+  "documents": {
+    "blender-modeler": {
+      "source_paths": [
+        ".claude/skills/blender-modeler/SKILL.md",
+        ".claude/skills/blender-modeler/references/modifier-stack.md",
+        ".claude/skills/blender-modeler/references/scene-organization.md"
+      ],
+      "modifications": "Rebuilt as concise Blender modeling guidance; removed MCP workflow, unsupported fixed cleanup thresholds, unapproved delegates and hard budgets; added ResoLoop execution and ownership boundaries.",
+      "output_paths": [".agents/skills/blender-modeler/SKILL.md"]
+    },
+    "hard-surface": {
+      "source_paths": [
+        ".claude/skills/hard-surface/SKILL.md",
+        ".claude/skills/hard-surface/references/boolean-workflow.md",
+        ".claude/skills/hard-surface/references/greeble-patterns.md"
+      ],
+      "modifications": "Retained form hierarchy, manufacturing seams, cutter organization, Boolean/bevel order and reusable detail; removed MCP, alternate-engine workflow, fixed bevel/poly budgets and unsupported delegates; added pivot and ResoLoop handoff guidance.",
+      "output_paths": [".agents/skills/hard-surface/SKILL.md"]
+    },
+    "prop-artist": {
+      "source_paths": [
+        ".claude/skills/prop-artist/SKILL.md",
+        ".claude/skills/prop-artist/references/everyday-prop-checklist.md",
+        ".claude/skills/prop-artist/references/kitbash-library.md",
+        ".claude/skills/prop-artist/references/prop-tiers.md"
+      ],
+      "modifications": "Adapted scale, tier-dependent attention, causal wear, reusable parts and functional pivots; removed fixed triangle/material budgets and non-ResoLoop handoffs; linked shared modular and set-dressing references and clarified runtime collision ownership.",
+      "output_paths": [".agents/skills/prop-artist/SKILL.md"]
+    },
+    "uv-workflow": {
+      "source_paths": [
+        ".claude/skills/uv-workflow/SKILL.md",
+        ".claude/skills/uv-workflow/references/texel-density.md",
+        ".claude/skills/uv-workflow/references/trim-sheets.md"
+      ],
+      "modifications": "Kept seam, role-based density, overlap, packing, atlas and trim-sheet decisions; removed engine lightmap rules, universal budgets and MCP steps; clarified render-active UV0 preservation and non-default UDIM handling.",
+      "output_paths": [".agents/skills/uv-workflow/SKILL.md"]
+    },
+    "procedural-modeling": {
+      "source_paths": [".claude/skills/procedural-modeling/SKILL.md"],
+      "modifications": "Retained parameterized systems, stable seeds, boundary testing and evaluated output; removed MCP and alternate-engine instructions, rejected treating different seeds as LODs, and added editable source/static-mesh handoff boundaries.",
+      "output_paths": [".agents/skills/procedural-modeling/SKILL.md"]
+    },
+    "geometry-nodes": {
+      "source_paths": [
+        ".claude/skills/geometry-nodes/SKILL.md",
+        ".claude/skills/geometry-nodes/references/building-generators.md",
+        ".claude/skills/geometry-nodes/references/scatter-systems.md"
+      ],
+      "modifications": "Kept reusable seeded authoring, scatter/building/curve validation and evaluated counts; removed MCP, other-engine instance claims and fixed instance caps; added API verification, source preservation, export-copy realization and ResoLoop ownership boundaries.",
+      "output_paths": [".agents/skills/geometry-nodes/SKILL.md"]
+    },
+    "horror-style": {
+      "source_paths": [
+        ".claude/skills/horror-style/SKILL.md",
+        ".claude/skills/horror-style/references/analog-props.md",
+        ".claude/skills/horror-style/references/horror-layouts.md"
+      ],
+      "modifications": "Retained restrained environmental storytelling and optional spatial examples; removed MCP and unapproved style pack links; made fog, proportions, lighting and geometry choices optional, preserved navigation/readability, allowed requested modern technology, and clarified static-export limitations.",
+      "output_paths": [".agents/skills/horror-style/SKILL.md"]
+    },
+    "sci-fi-punk-worlds": {
+      "source_paths": [
+        ".claude/skills/sci-fi-punk-worlds/SKILL.md",
+        ".claude/skills/sci-fi-punk-worlds/references/cyberpunk.md",
+        ".claude/skills/sci-fi-punk-worlds/references/diesel-atom.md",
+        ".claude/skills/sci-fi-punk-worlds/references/hard-space.md",
+        ".claude/skills/sci-fi-punk-worlds/references/solar-bio-clock.md",
+        ".claude/skills/sci-fi-punk-worlds/references/steampunk.md"
+      ],
+      "modifications": "Expanded the source's one-lane principle with concise sourced lane cues; scoped activation to explicit art direction and named locations, and framed cross-lane mixing as a local intentional exception.",
+      "output_paths": [".agents/skills/sci-fi-punk-worlds/SKILL.md"]
+    },
+    "dark-gritty-mood": {
+      "source_paths": [
+        ".claude/skills/dark-gritty-mood/SKILL.md",
+        ".claude/skills/dark-gritty-mood/references/gritty-materials.md"
+      ],
+      "modifications": "Expanded terse mood cues into localized causal wear examples; avoided uniform noise, global lighting changes and invented material/shader rules; assigned final material and runtime review to standard skills.",
+      "output_paths": [".agents/skills/dark-gritty-mood/SKILL.md"]
+    },
+    "brutalist-mood": {
+      "source_paths": [
+        ".claude/skills/brutalist-mood/SKILL.md",
+        ".claude/skills/brutalist-mood/references/brutalist-forms.md"
+      ],
+      "modifications": "Expanded brief form cues into concise massing and formwork guidance; scoped invocation to explicit architecture direction and separated monumental visual scale from usable route and collision verification.",
+      "output_paths": [".agents/skills/brutalist-mood/SKILL.md"]
+    },
+    "modular-environment-design.md": {
+      "source_paths": [
+        ".claude/skills/environment-artist/SKILL.md",
+        ".claude/skills/environment-artist/references/modular-kits.md"
+      ],
+      "modifications": "Extracted grid intent and corner/edge/fill/trim/opening compatibility into a standalone module-design reference; removed environment orchestration, fixed kit counts, engine instructions and hard-coded dimensions.",
+      "output_paths": [".agents/skills/references/modular-environment-design.md"]
+    },
+    "set-dressing-patterns.md": {
+      "source_paths": [
+        ".claude/skills/set-dressing/SKILL.md",
+        ".claude/skills/set-dressing/references/story-clusters.md",
+        ".claude/skills/set-dressing/references/density-map.md"
+      ],
+      "modifications": "Extracted narrative clusters, intentional density, negative space and clear travel/sightline principles; excluded whole-world composition, lighting and QA orchestration.",
+      "output_paths": [".agents/skills/references/set-dressing-patterns.md"]
+    },
+    "texture-baking.md": {
+      "source_paths": [
+        ".claude/skills/texture-workflow/SKILL.md",
+        ".claude/skills/texture-workflow/references/bake-troubleshooting.md"
+      ],
+      "modifications": "Extracted high-to-low normal projection, cage tuning, AO/curvature, atlas-region planning and margin review; excluded engine-specific channel packing, shader conventions and fixed resolution/margin prescriptions.",
+      "output_paths": [".agents/skills/references/texture-baking.md"]
+    }
+  }
+}
