@@ -316,8 +316,9 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"`
     # 東側 x∈[22,42] に2棟、西側 x∈[-42,-22] に2棟。
     # footprint は帯域内に完全収まり、相互に2m以上離隔
   ],
-  "stalls": [  # 屋台12軒。ring-east 沿い x∈[23,30] に z=-16..16 で 2.9m 間隔の6軒、
-               # ring-west 沿いに同様の6軒。rotation は通りの向き + 0/180
+  "stalls": [  # 屋台12軒。ring-east 帯内 x=17.5 付近に z=-16..16 で 2.9m 間隔の6軒、
+               # ring-west 帯内 x=-17.5 付近に同様の6軒。rotation は通りの向き + 0/180
+               #（Ruling: 旧記載 x∈[23,30] は ring 帯 x∈[14,22] と検査項目4に矛盾するため帯内配置に修正）
     {"id": "stall-01", "center": [x, z], "rotation": deg, "kind": "junk"|"parts"|"food", "awning": "tarp_blue"|"tarp_orange"},
   ],
   "shacks": [  # 掘っ立て小屋10棟。南西ブロック x∈[-42,-24], z∈[-42,-28] に
