@@ -2006,7 +2006,8 @@
                 "Mesh": "$component:north_yatai_floor_mesh",
                 "Materials": [
                   "$component:mat_floor"
-                ]
+                ],
+                "Enabled": true
               }
             },
             {
@@ -2024,7 +2025,8 @@
                   7.0,
                   0.24,
                   6.0
-                ]
+                ],
+                "Enabled": true
               }
             }
           ]
@@ -2537,7 +2539,8 @@
                 "Mesh": "$component:north_terminal_repair_floor_mesh",
                 "Materials": [
                   "$component:mat_floor"
-                ]
+                ],
+                "Enabled": true
               }
             },
             {
@@ -2555,7 +2558,8 @@
                   7.0,
                   0.24,
                   6.0
-                ]
+                ],
+                "Enabled": true
               }
             }
           ]
@@ -3068,7 +3072,8 @@
                 "Mesh": "$component:north_machiya_floor_mesh",
                 "Materials": [
                   "$component:mat_floor"
-                ]
+                ],
+                "Enabled": true
               }
             },
             {
@@ -3086,7 +3091,8 @@
                   6.0,
                   0.24,
                   6.0
-                ]
+                ],
+                "Enabled": true
               }
             }
           ]
@@ -17427,6 +17433,2164 @@
                   }
                 }
               ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "north_collision_geometry",
+        "name": "North detailed collision geometry"
+      },
+      "children": [
+        {
+          "slot": {
+            "key": "north_collision_food_stall_counter_body",
+            "name": "North collider · food_stall · counter_body",
+            "position": [
+              -35.0,
+              1.2,
+              13.75
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_food_stall_counter_body_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  4.349999999999994,
+                  0.7199999999999998,
+                  0.7800000000000011
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_food_stall_counter_top",
+            "name": "North collider · food_stall · counter_top",
+            "position": [
+              -35.0,
+              1.6,
+              13.75
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_food_stall_counter_top_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  4.5,
+                  0.09000000000000008,
+                  0.9100000000000001
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_terminal_repair_repair_front_header",
+            "name": "North collider · terminal_repair · repair_front_header",
+            "position": [
+              -25.0,
+              3.37,
+              13.68
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_terminal_repair_repair_front_header_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  4.780000000000001,
+                  0.23999999999999977,
+                  0.20000000000000107
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_terminal_repair_repair_front_pier_-2.31",
+            "name": "North collider · terminal_repair · repair_front_pier_-2.31",
+            "position": [
+              -22.69,
+              1.77,
+              13.680000000000001
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_terminal_repair_repair_front_pier_-2.31_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.17999999999999972,
+                  3.1799999999999997,
+                  0.1999999999999993
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_terminal_repair_repair_front_pier_2.31",
+            "name": "North collider · terminal_repair · repair_front_pier_2.31",
+            "position": [
+              -27.31,
+              1.77,
+              13.68
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_terminal_repair_repair_front_pier_2.31_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.17999999999999972,
+                  3.1799999999999997,
+                  0.20000000000000107
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_terminal_repair_repair_shop_rear_wall",
+            "name": "North collider · terminal_repair · repair_shop_rear_wall",
+            "position": [
+              -25.0,
+              1.8299999999999998,
+              17.740000000000002
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_terminal_repair_repair_shop_rear_wall_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  4.659999999999997,
+                  3.36,
+                  0.16000000000000014
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_terminal_repair_repair_shop_side_wall_-2.31",
+            "name": "North collider · terminal_repair · repair_shop_side_wall_-2.31",
+            "position": [
+              -22.689999999999998,
+              1.8299999999999998,
+              16.78
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_terminal_repair_repair_shop_side_wall_-2.31_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.16000000000000014,
+                  3.36,
+                  1.950000000000001
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_terminal_repair_repair_shop_side_wall_2.31",
+            "name": "North collider · terminal_repair · repair_shop_side_wall_2.31",
+            "position": [
+              -27.310000000000002,
+              1.8299999999999998,
+              16.78
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_terminal_repair_repair_shop_side_wall_2.31_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.16000000000000014,
+                  3.36,
+                  1.9499999999999993
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_terminal_repair_repair_window_glass_0",
+            "name": "North collider · terminal_repair · repair_window_glass_0",
+            "position": [
+              -23.619999999999997,
+              1.92,
+              13.620000000000001
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_terminal_repair_repair_window_glass_0_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.0500000000000007,
+                  1.4299999999999997,
+                  0.025000000000000355
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_terminal_repair_repair_window_glass_1",
+            "name": "North collider · terminal_repair · repair_window_glass_1",
+            "position": [
+              -26.380000000000003,
+              1.92,
+              13.620000000000001
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_terminal_repair_repair_window_glass_1_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.0500000000000007,
+                  1.4299999999999997,
+                  0.025000000000000355
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_terminal_repair_retracted_rolling_shutter",
+            "name": "North collider · terminal_repair · retracted_rolling_shutter",
+            "position": [
+              -25.55,
+              1.19,
+              13.560000000000002
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_terminal_repair_retracted_rolling_shutter_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.21999999999999886,
+                  1.86,
+                  0.025000000000000355
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_entry_door_leaf",
+            "name": "North collider · patched_housing_facade · entry_door_leaf",
+            "position": [
+              -15.0,
+              1.22,
+              12.31
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_entry_door_leaf_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.0700000000000003,
+                  2.36,
+                  0.08999999999999986
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_0_0",
+            "name": "North collider · patched_housing_facade · housing_masonry_0_0",
+            "position": [
+              -17.645,
+              1.2,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_0_0_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.4299999999999997,
+                  2.4,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_0_1",
+            "name": "North collider · patched_housing_facade · housing_masonry_0_1",
+            "position": [
+              -17.645,
+              2.4699999999999998,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_0_1_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.4299999999999997,
+                  0.14000000000000057,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_0_2",
+            "name": "North collider · patched_housing_facade · housing_masonry_0_2",
+            "position": [
+              -17.645,
+              3.0700000000000003,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_0_2_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.4299999999999997,
+                  1.0600000000000005,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_0_3",
+            "name": "North collider · patched_housing_facade · housing_masonry_0_3",
+            "position": [
+              -17.645,
+              4.675,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_0_3_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.4299999999999997,
+                  2.1500000000000004,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_0_4",
+            "name": "North collider · patched_housing_facade · housing_masonry_0_4",
+            "position": [
+              -17.645,
+              6.35,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_0_4_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.4299999999999997,
+                  1.1999999999999993,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_0_5",
+            "name": "North collider · patched_housing_facade · housing_masonry_0_5",
+            "position": [
+              -17.645,
+              7.824999999999999,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_0_5_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.4299999999999997,
+                  1.75,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_1_0",
+            "name": "North collider · patched_housing_facade · housing_masonry_1_0",
+            "position": [
+              -16.78,
+              1.2,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_1_0_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.3000000000000007,
+                  2.4,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_1_3",
+            "name": "North collider · patched_housing_facade · housing_masonry_1_3",
+            "position": [
+              -16.78,
+              4.675,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_1_3_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.3000000000000007,
+                  2.1500000000000004,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_1_5",
+            "name": "North collider · patched_housing_facade · housing_masonry_1_5",
+            "position": [
+              -16.78,
+              7.824999999999999,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_1_5_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.3000000000000007,
+                  1.75,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_2_0",
+            "name": "North collider · patched_housing_facade · housing_masonry_2_0",
+            "position": [
+              -15.89,
+              1.2,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_2_0_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.47999999999999865,
+                  2.4,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_2_1",
+            "name": "North collider · patched_housing_facade · housing_masonry_2_1",
+            "position": [
+              -15.89,
+              2.4699999999999998,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_2_1_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.47999999999999865,
+                  0.14000000000000057,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_2_2",
+            "name": "North collider · patched_housing_facade · housing_masonry_2_2",
+            "position": [
+              -15.89,
+              3.0700000000000003,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_2_2_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.47999999999999865,
+                  1.0600000000000005,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_2_3",
+            "name": "North collider · patched_housing_facade · housing_masonry_2_3",
+            "position": [
+              -15.89,
+              4.675,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_2_3_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.47999999999999865,
+                  2.1500000000000004,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_2_4",
+            "name": "North collider · patched_housing_facade · housing_masonry_2_4",
+            "position": [
+              -15.89,
+              6.35,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_2_4_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.47999999999999865,
+                  1.1999999999999993,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_2_5",
+            "name": "North collider · patched_housing_facade · housing_masonry_2_5",
+            "position": [
+              -15.89,
+              7.824999999999999,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_2_5_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.47999999999999865,
+                  1.75,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_3_2",
+            "name": "North collider · patched_housing_facade · housing_masonry_3_2",
+            "position": [
+              -15.0,
+              3.0700000000000003,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_3_2_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.3000000000000007,
+                  1.0600000000000005,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_3_3",
+            "name": "North collider · patched_housing_facade · housing_masonry_3_3",
+            "position": [
+              -15.0,
+              4.675,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_3_3_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.3000000000000007,
+                  2.1500000000000004,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_3_4",
+            "name": "North collider · patched_housing_facade · housing_masonry_3_4",
+            "position": [
+              -15.0,
+              6.35,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_3_4_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.3000000000000007,
+                  1.1999999999999993,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_3_5",
+            "name": "North collider · patched_housing_facade · housing_masonry_3_5",
+            "position": [
+              -15.0,
+              7.824999999999999,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_3_5_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.3000000000000007,
+                  1.75,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_4_0",
+            "name": "North collider · patched_housing_facade · housing_masonry_4_0",
+            "position": [
+              -14.23,
+              1.2,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_4_0_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.2400000000000002,
+                  2.4,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_4_1",
+            "name": "North collider · patched_housing_facade · housing_masonry_4_1",
+            "position": [
+              -14.23,
+              2.4699999999999998,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_4_1_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.2400000000000002,
+                  0.14000000000000057,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_4_2",
+            "name": "North collider · patched_housing_facade · housing_masonry_4_2",
+            "position": [
+              -14.23,
+              3.0700000000000003,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_4_2_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.2400000000000002,
+                  1.0600000000000005,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_4_3",
+            "name": "North collider · patched_housing_facade · housing_masonry_4_3",
+            "position": [
+              -14.23,
+              4.675,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_4_3_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.2400000000000002,
+                  2.1500000000000004,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_4_4",
+            "name": "North collider · patched_housing_facade · housing_masonry_4_4",
+            "position": [
+              -14.23,
+              6.35,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_4_4_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.2400000000000002,
+                  1.1999999999999993,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_4_5",
+            "name": "North collider · patched_housing_facade · housing_masonry_4_5",
+            "position": [
+              -14.23,
+              7.824999999999999,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_4_5_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.2400000000000002,
+                  1.75,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_5_0",
+            "name": "North collider · patched_housing_facade · housing_masonry_5_0",
+            "position": [
+              -13.46,
+              1.2,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_5_0_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.299999999999999,
+                  2.4,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_5_3",
+            "name": "North collider · patched_housing_facade · housing_masonry_5_3",
+            "position": [
+              -13.46,
+              4.675,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_5_3_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.299999999999999,
+                  2.1500000000000004,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_5_5",
+            "name": "North collider · patched_housing_facade · housing_masonry_5_5",
+            "position": [
+              -13.46,
+              7.824999999999999,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_5_5_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.299999999999999,
+                  1.75,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_6_0",
+            "name": "North collider · patched_housing_facade · housing_masonry_6_0",
+            "position": [
+              -12.475000000000001,
+              1.2,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_6_0_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.6699999999999999,
+                  2.4,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_6_1",
+            "name": "North collider · patched_housing_facade · housing_masonry_6_1",
+            "position": [
+              -12.475000000000001,
+              2.4699999999999998,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_6_1_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.6699999999999999,
+                  0.14000000000000057,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_6_2",
+            "name": "North collider · patched_housing_facade · housing_masonry_6_2",
+            "position": [
+              -12.475000000000001,
+              3.0700000000000003,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_6_2_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.6699999999999999,
+                  1.0600000000000005,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_6_3",
+            "name": "North collider · patched_housing_facade · housing_masonry_6_3",
+            "position": [
+              -12.475000000000001,
+              4.675,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_6_3_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.6699999999999999,
+                  2.1500000000000004,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_6_4",
+            "name": "North collider · patched_housing_facade · housing_masonry_6_4",
+            "position": [
+              -12.475000000000001,
+              6.35,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_6_4_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.6699999999999999,
+                  1.1999999999999993,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_housing_masonry_6_5",
+            "name": "North collider · patched_housing_facade · housing_masonry_6_5",
+            "position": [
+              -12.475000000000001,
+              7.824999999999999,
+              12.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_housing_masonry_6_5_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  0.6699999999999999,
+                  1.75,
+                  0.23000000000000043
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_window_glazing_3.0_-1.78",
+            "name": "North collider · patched_housing_facade · window_glazing_3.0_-1.78",
+            "position": [
+              -16.78,
+              3.0,
+              12.33
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_window_glazing_3.0_-1.78_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.129999999999999,
+                  1.0099999999999998,
+                  0.021999999999998465
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_window_glazing_3.0_1.54",
+            "name": "North collider · patched_housing_facade · window_glazing_3.0_1.54",
+            "position": [
+              -13.46,
+              3.0,
+              12.33
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_window_glazing_3.0_1.54_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.1300000000000008,
+                  1.0099999999999998,
+                  0.021999999999998465
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_window_glazing_6.35_-1.78",
+            "name": "North collider · patched_housing_facade · window_glazing_6.35_-1.78",
+            "position": [
+              -16.78,
+              6.35,
+              12.33
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_window_glazing_6.35_-1.78_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.129999999999999,
+                  1.0099999999999998,
+                  0.021999999999998465
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "slot": {
+            "key": "north_collision_patched_housing_facade_window_glazing_6.35_1.54",
+            "name": "North collider · patched_housing_facade · window_glazing_6.35_1.54",
+            "position": [
+              -13.46,
+              6.35,
+              12.33
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "components": [
+            {
+              "key": "north_collision_patched_housing_facade_window_glazing_6.35_1.54_box_collider",
+              "type": "FrooxEngine.BoxCollider",
+              "fields": {
+                "Enabled": true,
+                "Type": "Static",
+                "CharacterCollider": true,
+                "Offset": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Size": [
+                  1.1300000000000008,
+                  1.0099999999999998,
+                  0.021999999999998465
+                ]
+              }
             }
           ]
         }

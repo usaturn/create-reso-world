@@ -117,12 +117,12 @@
         "warm_light"
       ],
       "bounds_min": [
-        -26.0775,
+        -25.6375,
         1.1745,
         16.625
       ],
       "bounds_max": [
-        -26.0025,
+        -25.5625,
         1.1825,
         16.775
       ],
@@ -270,7 +270,7 @@
   "blender_object_count": 51,
   "material_count": 17,
   "texture_transfer_adaptation": "No image textures in live export; shared Principled color/metallic/roughness plus authored edge wear, cracks, repair patches, rust streak geometry and wet/dry surface materials.",
-  "blend_path": "/workspaces/reso-world/MyResoniteProject/artifacts/tokyo-nova/north.blend",
+  "blend_path": "/workspaces/reso-world/MyResoniteProject/.resoloop/tokyo-nova/fix-round-2-3items/north-candidate.blend",
   "blender_version": "5.0.1",
   "reopened_mesh_objects": 51,
   "reopened_uv_meshes": 51,
@@ -281,7 +281,7 @@
     "PREVIEW_ONLY_CoolFill",
     "PREVIEW_ONLY_FrontSoftbox"
   ],
-  "offline_render_status": "The source builder saved offline preview cameras without rendering. Separate 640 x 360 CPU Cycles north-eye and phone-close previews rendered offline; they are not Resonite runtime evidence.",
+  "offline_render_status": "No CPU render was run for this fix round. The prior fix-round-1 CPU Cycles previews predate the phone's corrected mat footprint and are not evidence for the current phone placement.",
   "export_collection": "TokyoNovaNorth",
   "preview_collection_excluded_from_export": "TokyoNovaNorthPreviewOnly"
 }

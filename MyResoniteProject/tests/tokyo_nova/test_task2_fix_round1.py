@@ -1,4 +1,4 @@
-"""TDD regressions for the seven north-asset findings in Task 2 review."""
+"""TDD regressions for the Task 2 north-asset review findings."""
 from __future__ import annotations
 
 import json
@@ -41,6 +41,31 @@ def _ring_center(vertices: tuple[tuple[float, float, float], ...] | list[tuple[f
         sum(vertex[1] for vertex in vertices) / len(vertices),
         sum(vertex[2] for vertex in vertices) / len(vertices),
     )
+
+
+def _placed_point(assembly: props.Assembly, point: tuple[float, float, float]) -> tuple[float, float, float]:
+    cosine, sine = math.cos(assembly.rotation), math.sin(assembly.rotation)
+    return (
+        assembly.origin[0] + point[0] * cosine + point[2] * sine,
+        assembly.origin[1] + point[1],
+        assembly.origin[2] - point[0] * sine + point[2] * cosine,
+    )
+
+
+def _point_hits_colliders(point: tuple[float, float, float], colliders: list[dict]) -> bool:
+    for slot in colliders:
+        for component in slot.get("components", []):
+            if component.get("type") != "FrooxEngine.BoxCollider":
+                continue
+            fields = component.get("fields", {})
+            if fields.get("Enabled") is not True:
+                continue
+            slot_position = slot.get("slot", {}).get("position", [0.0, 0.0, 0.0])
+            offset = fields.get("Offset", [0.0, 0.0, 0.0])
+            size = fields["Size"]
+            if all(abs(point[axis] - slot_position[axis] - offset[axis]) <= size[axis] / 2 + 1e-9 for axis in range(3)):
+                return True
+    return False
 
 
 class Task2FixRound1Tests(unittest.TestCase):
@@ -93,9 +118,17 @@ class Task2FixRound1Tests(unittest.TestCase):
                 self.assertLessEqual(high[axis], half_extent + 1e-9, part.name)
 
     def test_hidden_north_placeholders_do_not_leave_invisible_walls_or_lose_floor_support(self) -> None:
-        base_path = PROJECT_ROOT / "content/tokyo-nova/blockout.json"
+        source_base = PROJECT_ROOT / "content/tokyo-nova/blockout.json"
         with tempfile.TemporaryDirectory(prefix="tokyo-nova-collision-review-") as temporary:
             folder = Path(temporary)
+            base_manifest = json.loads(source_base.read_text(encoding="utf-8"))
+            for slot in _slot_tree(base_manifest):
+                if slot.get("slot", {}).get("key") in {"north_yatai_floor", "north_terminal_repair_floor", "north_machiya_floor"}:
+                    for component in slot.get("components", []):
+                        if component.get("type") in {"FrooxEngine.MeshRenderer", "FrooxEngine.BoxCollider"}:
+                            component.setdefault("fields", {})["Enabled"] = False
+            base_path = folder / "blockout-with-disabled-floors.json"
+            base_path.write_text(json.dumps(base_manifest), encoding="utf-8")
             export_path = folder / "export/model.apply.json"
             export_path.parent.mkdir()
             export_path.write_text(json.dumps({
@@ -117,9 +150,9 @@ class Task2FixRound1Tests(unittest.TestCase):
                 colliders = [component for component in slot.get("components", []) if component.get("type") == "FrooxEngine.BoxCollider"]
                 if slot_key.endswith("_floor"):
                     self.assertTrue(renderers, slot_key)
-                    self.assertTrue(all(component.get("fields", {}).get("Enabled", True) is not False for component in renderers), slot_key)
                     self.assertTrue(colliders, slot_key)
-                    self.assertTrue(all(component.get("fields", {}).get("Enabled", True) is not False for component in colliders), slot_key)
+                    self.assertTrue(all(component.get("fields", {}).get("Enabled") is True for component in renderers), slot_key)
+                    self.assertTrue(all(component.get("fields", {}).get("Enabled") is True for component in colliders), slot_key)
                 else:
                     self.assertTrue(all(component.get("fields", {}).get("Enabled") is False for component in renderers), slot_key)
                     self.assertTrue(all(component.get("fields", {}).get("Enabled") is False for component in colliders), slot_key)
@@ -130,6 +163,90 @@ class Task2FixRound1Tests(unittest.TestCase):
             self.assertIs(collider.get("fields", {}).get("Enabled"), False, key)
         floor_collider = next(component for component in slots["north_yatai_floor"]["components"] if component.get("type") == "FrooxEngine.BoxCollider")
         self.assertIsNot(floor_collider.get("fields", {}).get("Enabled"), False)
+
+    def test_detailed_north_colliders_match_solid_geometry_and_leave_passages_open(self) -> None:
+        layout = build_layout()
+        assemblies = {assembly.kind: assembly for assembly in north.build_north_sector(layout)}
+        with tempfile.TemporaryDirectory(prefix="tokyo-nova-collider-manifest-") as temporary:
+            folder = Path(temporary)
+            export_path = folder / "export/model.apply.json"
+            export_path.parent.mkdir()
+            export_path.write_text(json.dumps({
+                "schemaVersion": "1",
+                "slot": {"key": "root", "name": "North export"},
+                "assets": {}, "components": [], "children": [],
+            }), encoding="utf-8")
+            manifest = integrate_north_manifest(
+                PROJECT_ROOT / "content/tokyo-nova/blockout.json",
+                export_path,
+                folder / "north-apply.json",
+            )
+
+        slots = {slot.get("slot", {}).get("key"): slot for slot in _slot_tree(manifest)}
+        collision_group = slots.get("north_collision_geometry")
+        if collision_group is None:
+            self.fail("detailed wall/counter colliders must be emitted under their own group")
+        colliders = collision_group.get("children", [])
+        by_key = {slot["slot"]["key"]: slot for slot in colliders}
+
+        expected_parts = {
+            "food_stall": {"counter_body", "counter_top"},
+            "terminal_repair": {
+                "repair_shop_rear_wall", "repair_shop_side_wall_-2.31", "repair_shop_side_wall_2.31",
+                "repair_front_pier_-2.31", "repair_front_pier_2.31", "repair_front_header",
+                "repair_window_glass_0", "repair_window_glass_1", "retracted_rolling_shutter",
+            },
+            "patched_housing_facade": {
+                part.name for part in assemblies["patched_housing_facade"].parts if part.name.startswith("housing_masonry_")
+            } | {
+                part.name for part in assemblies["patched_housing_facade"].parts if part.name.startswith("window_glazing_")
+            } | {"entry_door_leaf"},
+        }
+        expected_keys = {
+            f"north_collision_{kind}_{part_name}"
+            for kind, names in expected_parts.items()
+            for part_name in names
+        }
+        self.assertEqual(set(by_key), expected_keys, "only named solid surfaces should receive colliders")
+
+        for kind, names in expected_parts.items():
+            parts = {part.name: part for part in assemblies[kind].transformed_parts()}
+            for part_name in names:
+                collider_slot = by_key[f"north_collision_{kind}_{part_name}"]
+                mesh_bounds = _bounds(parts[part_name])
+                component = next(entry for entry in collider_slot["components"] if entry["type"] == "FrooxEngine.BoxCollider")
+                fields = component["fields"]
+                expected_center = [(mesh_bounds[0][axis] + mesh_bounds[1][axis]) / 2 for axis in range(3)]
+                expected_size = [mesh_bounds[1][axis] - mesh_bounds[0][axis] for axis in range(3)]
+                self.assertEqual(collider_slot["slot"]["rotation"], [0.0, 0.0, 0.0, 1.0], part_name)
+                self.assertEqual(collider_slot["slot"]["scale"], [1.0, 1.0, 1.0], part_name)
+                for axis in range(3):
+                    self.assertAlmostEqual(collider_slot["slot"]["position"][axis], expected_center[axis], places=7, msg=part_name)
+                    self.assertAlmostEqual(fields["Size"][axis], expected_size[axis], places=7, msg=part_name)
+                    self.assertEqual(fields["Offset"][axis], 0.0, part_name)
+                self.assertIs(fields["Enabled"], True, part_name)
+                self.assertIs(fields["CharacterCollider"], True, part_name)
+                self.assertEqual(fields["Type"], "Static", part_name)
+
+        food, repair, housing = assemblies["food_stall"], assemblies["terminal_repair"], assemblies["patched_housing_facade"]
+        self.assertTrue(_point_hits_colliders(_placed_point(food, (0.0, 1.0, 0.0)), colliders), "the visible food counter must block through its solid body")
+        self.assertFalse(_point_hits_colliders(_placed_point(food, (0.0, 1.0, 1.0)), colliders), "the aisle in front of the counter must remain passable")
+        self.assertTrue(_point_hits_colliders(_placed_point(repair, (0.0, 1.68, -0.94)), colliders), "the visible repair-shop back wall must block")
+        self.assertTrue(_point_hits_colliders(_placed_point(repair, (2.31, 1.68, 0.02)), colliders), "the visible repair-shop side wall must block")
+        self.assertFalse(_point_hits_colliders(_placed_point(repair, (0.0, 1.0, 3.14)), colliders), "the actual repair-shop doorway must remain open")
+        self.assertTrue(_point_hits_colliders(_placed_point(housing, (0.0, 4.5, 0.0)), colliders), "closed housing masonry must block")
+        self.assertTrue(_point_hits_colliders(_placed_point(housing, (-1.78, 3.0, -0.17)), colliders), "visible window glazing must have a matching collider")
+
+    def test_phone_footprint_is_inside_mat_and_rests_on_its_top(self) -> None:
+        assemblies = {assembly.kind: assembly for assembly in north.build_north_sector(build_layout())}
+        repair, phone = assemblies["terminal_repair"], assemblies["pocket_phone"]
+        mat = next(part for part in repair.transformed_parts() if part.name == "anti_static_mat")
+        mat_bounds, phone_bounds = _bounds(mat), phone.bounds
+        self.assertGreaterEqual(phone_bounds[0][0], mat_bounds[0][0], "phone left edge must be inside the actual mat")
+        self.assertLessEqual(phone_bounds[1][0], mat_bounds[1][0], "phone right edge must be inside the actual mat")
+        self.assertGreaterEqual(phone_bounds[0][2], mat_bounds[0][2], "phone back edge must be inside the actual mat")
+        self.assertLessEqual(phone_bounds[1][2], mat_bounds[1][2], "phone front edge must be inside the actual mat")
+        self.assertAlmostEqual(phone_bounds[0][1], mat_bounds[1][1], places=7, msg="phone back must rest on the ESD mat")
 
     def test_sign_text_faces_south_and_ar_is_spaced_without_opaque_backplates(self) -> None:
         layout = build_layout()

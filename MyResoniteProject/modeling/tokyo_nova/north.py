@@ -162,11 +162,75 @@ def build_north_sector(layout: dict[str, Any]) -> list[Assembly]:
     repair = place("terminal_repair", "north_terminal_repair", REPAIR_SHOP_OFFSET, SOUTH_FACING_YAW)
     repair.attachments["shared_canopy"] = _placed_point(repair.origin, repair.rotation, (2.31, 3.22, 3.12))
     place("patched_housing_facade", "north_machiya", HOUSING_OFFSET, 0.0)
-    # Place the phone's rear face exactly on the ESD mat top.
-    phone_origin = (repair.origin[0] - 1.04, repair.origin[1] + 1.0285, repair.origin[2] - 0.10)
+    # Fit the phone on the actual ESD mat footprint and derive its underside from the top.
+    mat = next(part for part in repair.transformed_parts() if part.name == "anti_static_mat")
+    mat_x = tuple(vertex[0] for vertex in mat.vertices)
+    mat_y = tuple(vertex[1] for vertex in mat.vertices)
+    mat_z = tuple(vertex[2] for vertex in mat.vertices)
+    phone_template = create("pocket_phone", (0.0, 0.0, 0.0))
+    phone_min, _ = phone_template.bounds
+    phone_origin = (
+        (min(mat_x) + max(mat_x)) / 2 - 0.60,
+        max(mat_y) - phone_min[1],
+        (min(mat_z) + max(mat_z)) / 2 - 0.14,
+    )
     assemblies.append(create("pocket_phone", phone_origin, 0.0))
     assemblies.extend((_frontage_pavement(), _facility_connector(food, repair)))
     return assemblies
+
+
+def collision_manifest_entries(layout: dict[str, Any]) -> dict[str, Any]:
+    """Return precise colliders for visible solid north walls and furniture only."""
+    assemblies = {assembly.kind: assembly for assembly in build_north_sector(layout)}
+    housing_parts = assemblies["patched_housing_facade"].parts
+    parts_by_kind = {
+        "food_stall": {"counter_body", "counter_top"},
+        "terminal_repair": {
+            "repair_shop_rear_wall", "repair_shop_side_wall_-2.31", "repair_shop_side_wall_2.31",
+            "repair_front_pier_-2.31", "repair_front_pier_2.31", "repair_front_header",
+            "repair_window_glass_0", "repair_window_glass_1", "retracted_rolling_shutter",
+        },
+        "patched_housing_facade": {
+            part.name for part in housing_parts
+            if part.name.startswith("housing_masonry_") or part.name.startswith("window_glazing_")
+        } | {"entry_door_leaf"},
+    }
+    colliders: list[dict[str, Any]] = []
+    for kind, names in parts_by_kind.items():
+        parts = {part.name: part for part in assemblies[kind].transformed_parts()}
+        for part_name in sorted(names):
+            part = parts.get(part_name)
+            if part is None:
+                raise ValueError(f"collider source part does not exist: {kind}/{part_name}")
+            minimum = tuple(min(vertex[axis] for vertex in part.vertices) for axis in range(3))
+            maximum = tuple(max(vertex[axis] for vertex in part.vertices) for axis in range(3))
+            size = [maximum[axis] - minimum[axis] for axis in range(3)]
+            if any(extent <= 0.0 for extent in size):
+                raise ValueError(f"collider source part must have positive volume: {kind}/{part_name}")
+            center = [(minimum[axis] + maximum[axis]) / 2 for axis in range(3)]
+            key = f"north_collision_{kind}_{part_name}"
+            colliders.append({
+                "slot": {
+                    "key": key,
+                    "name": f"North collider · {kind} · {part_name}",
+                    "position": center,
+                    "rotation": [0.0, 0.0, 0.0, 1.0],
+                    "scale": [1.0, 1.0, 1.0],
+                },
+                "components": [{
+                    "key": f"{key}_box_collider",
+                    "type": "FrooxEngine.BoxCollider",
+                    "fields": {
+                        "Enabled": True,
+                        "Type": "Static",
+                        "CharacterCollider": True,
+                        "Offset": [0.0, 0.0, 0.0],
+                        "Size": size,
+                    },
+                }],
+            })
+    return {"slot": {"key": "north_collision_geometry", "name": "North detailed collision geometry"}, "children": colliders}
+
 
 def sign_manifest_entries(layout: dict[str, Any]) -> dict[str, Any]:
     """Place physical text on south-facing sign faces and AR text clear of those faces."""

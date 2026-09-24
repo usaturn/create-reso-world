@@ -7,7 +7,11 @@ import os
 from pathlib import Path
 from typing import Any
 
-from modeling.tokyo_nova.north import asset_catalog, sign_manifest_entries
+from modeling.tokyo_nova.north import (
+    asset_catalog,
+    collision_manifest_entries,
+    sign_manifest_entries,
+)
 
 
 def enrich_layout(layout: dict[str, Any]) -> dict[str, Any]:
@@ -37,11 +41,12 @@ def _walk_slots(slot: dict[str, Any]):
 
 
 def _disable_reviewed_placeholder_renderers(children: list[dict[str, Any]]) -> None:
-    """Hide reviewed north blockout shapes and disable only unsupported colliders.
+    """Hide replaced north shell pieces and explicitly restore each visible floor.
 
-    The three legacy shell floors retain their visible surface and collider as
-    grade support. All other shell renderers and colliders are disabled on their
-    own Slots so replaced walls, lintels, and roofs cannot obstruct the detail.
+    The three legacy floor renderers and colliders are set Enabled=true so an
+    earlier false field cannot survive manifest composition. Other shell
+    renderers and colliders are disabled; matching detail colliders are generated
+    from visible counter, wall, glazing and door parts separately.
     """
     targets = {"building_north_yatai", "building_north_terminal_repair", "building_north_machiya"}
     for child in children:
@@ -51,10 +56,9 @@ def _disable_reviewed_placeholder_renderers(children: list[dict[str, Any]]) -> N
             slot_key = slot.get("slot", {}).get("key", "")
             for component in slot.get("components", []):
                 component_type = component.get("type")
-                if not slot_key.endswith("_floor") and component_type in {
-                    "FrooxEngine.MeshRenderer", "FrooxEngine.BoxCollider"
-                }:
-                    component.setdefault("fields", {})["Enabled"] = False
+                if component_type not in {"FrooxEngine.MeshRenderer", "FrooxEngine.BoxCollider"}:
+                    continue
+                component.setdefault("fields", {})["Enabled"] = slot_key.endswith("_floor")
 
 
 def _source_for_output(asset: dict[str, Any], export_directory: Path, output_directory: Path) -> str:
@@ -74,11 +78,12 @@ def _is_ar_model(slot: dict[str, Any]) -> bool:
 
 
 def integrate_north_manifest(base_path: Path, export_path: Path, output_path: Path) -> dict[str, Any]:
-    """Merge exported north meshes into the existing ownership root without pruning.
+    """Merge exported north meshes and matched detail colliders without pruning.
 
     Existing root pose and state identity are inherited from the Task 1 manifest. Reviewed
-    north-shell wall/roof renderers and colliders are disabled while the three floor surfaces
-    and colliders remain active. Repeated composition replaces only these exact owned keys.
+    north-shell wall/roof renderers and colliders are disabled, floor fields are explicitly
+    restored, and detail colliders come only from selected visible solid parts. Recomposition
+    replaces only these exact owned keys.
     """
     base_path, export_path, output_path = base_path.resolve(), export_path.resolve(), output_path.resolve()
     manifest = json.loads(base_path.read_text(encoding="utf-8"))
@@ -88,7 +93,7 @@ def integrate_north_manifest(base_path: Path, export_path: Path, output_path: Pa
     if manifest.get("ownership", {}).get("key") != "tokyo-nova-west-slum":
         raise ValueError("base manifest is not the TokyoNova_WestSlum owned root")
 
-    old_owned_keys = {"north_detail", "north_physical_japanese_signage", "north_ar_displays"}
+    old_owned_keys = {"north_detail", "north_collision_geometry", "north_physical_japanese_signage", "north_ar_displays"}
     children = [child for child in manifest.get("children", []) if child.get("slot", {}).get("key") not in old_owned_keys]
     _disable_reviewed_placeholder_renderers(children)
 
@@ -116,7 +121,9 @@ def integrate_north_manifest(base_path: Path, export_path: Path, output_path: Pa
         "slot": {"key": "north_detail", "name": "North frontage detailed Blender assemblies"},
         "children": sector_models,
     })
-    sign_groups = sign_manifest_entries(enrich_layout_source(manifest, base_path))
+    source_layout = enrich_layout_source(manifest, base_path)
+    manifest["children"].append(collision_manifest_entries(source_layout))
+    sign_groups = sign_manifest_entries(source_layout)
     physical = sign_groups["physical"]
     manifest["children"].append(physical)
     ar_group = sign_groups["ar"]
