@@ -270,7 +270,7 @@
   "blender_object_count": 51,
   "material_count": 17,
   "texture_transfer_adaptation": "No image textures in live export; shared Principled color/metallic/roughness plus authored edge wear, cracks, repair patches, rust streak geometry and wet/dry surface materials.",
-  "blend_path": "/workspaces/reso-world/MyResoniteProject/.resoloop/tokyo-nova/fix-round-2-3items/north-candidate.blend",
+  "blend_path": "/workspaces/reso-world/MyResoniteProject/artifacts/tokyo-nova/north.blend",
   "blender_version": "5.0.1",
   "reopened_mesh_objects": 51,
   "reopened_uv_meshes": 51,
