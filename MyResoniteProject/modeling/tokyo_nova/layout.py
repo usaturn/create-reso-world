@@ -28,7 +28,7 @@ _BUILDING_ROWS = (
     ("south_repair_yard", "repair_yard", -35, -15, 8, 6, 6, "north"),
     ("south_machine_shop", "machine_shop", -25, -15, 7, 6, 7, "north"),
     ("south_theatre", "underground_theatre", -15, -15, 6, 6, 8, "north"),
-    ("south_rehearsal", "rehearsal_room", 35, -35, 6, 6, 6, "north"),
+    ("south_rehearsal", "clothing_repair", 35, -35, 6, 6, 6, "north"),
     ("south_reclaimed_warehouse", "warehouse", 25, -15, 8, 6, 9, "north"),
     ("south_battery_shop", "battery_shop", 35, -15, 8, 6, 6, "north"),
     ("west_basement_bar", "basement_bar", -15, -35, 6, 7, 6, "east"),
@@ -58,6 +58,7 @@ _FACILITIES = (
     ("talisman_shop", "お守りと修繕糸", "retail", "west_talisman_shop"),
     ("game_room", "中古ゲーム卓", "recreation", "west_game_room"),
     ("shared_kitchen", "共同炊事場", "community", "west_shared_kitchen"),
+    ("clothing_repair", "古着仕立て・縫い直し", "repair", "south_rehearsal"),
 )
 
 _PROP_CATALOG = (

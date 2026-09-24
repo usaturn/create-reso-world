@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import os
@@ -12,6 +13,7 @@ from typing import Any
 
 from modeling.tokyo_nova.layout import build_layout, validate_layout
 from modeling.tokyo_nova.sector_pipeline import (  # noqa: F401
+    _source_for_output,
     enrich_layout,
     integrate_north_manifest,
 )
@@ -440,6 +442,168 @@ def build_blockout_manifest(layout: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+
+
+def _city_facility_signage(layout: dict[str, Any]) -> dict[str, Any]:
+    """Add restrained Japanese service labels for new facilities, outside their front walls."""
+    by_key = {building["key"]: building for building in layout["buildings"]}
+    signs = []
+    preserved_north_signs = {"eatery", "terminal_repair"}
+    for facility in layout["facilities"]:
+        if facility["key"] in preserved_north_signs:
+            continue
+        building = by_key[facility["building_key"]]
+        x, _y, z = (float(value) for value in building["center"])
+        width, depth = (float(value) for value in building["size"])
+        front = building["front"]
+        sign_x, sign_z = x, z
+        if front == "north":
+            sign_z += depth / 2 + .04
+            yaw = 0.0
+        elif front == "south":
+            sign_z -= depth / 2 + .04
+            yaw = math.pi
+        elif front == "east":
+            sign_x += width / 2 + .04
+            yaw = math.pi / 2
+        else:
+            sign_x -= width / 2 + .04
+            yaw = -math.pi / 2
+        key = f"city_sign_{facility['key']}"
+        signs.append({
+            "slot": {"key": key, "name": facility["name"], "position": [sign_x, 2.48, sign_z], "rotation": [0.0, math.sin(yaw / 2), 0.0, math.cos(yaw / 2)], "scale": [1.0, 1.0, 1.0]},
+            "components": [{"key": f"{key}_text", "type": "FrooxEngine.TextRenderer", "fields": {"Text": facility["name"], "Size": 0.12, "Color": [0.93, 0.76, 0.48, 1.0], "ParseRichText": False}}],
+        })
+    return {"slot": {"key": "city_facility_signage", "name": "市街地の施設案内"}, "children": signs}
+
+def _disable_city_blockout_shells(manifest: dict[str, Any]) -> None:
+    """Replace non-north generic shells; retain only the already-tuned north floors."""
+    from modeling.tokyo_nova.sector_pipeline import (
+        _disable_reviewed_placeholder_renderers,
+    )
+
+    children = manifest.get("children", [])
+    north_keys = {"north_yatai", "north_terminal_repair", "north_machiya"}
+    for building in (child for child in children if child.get("slot", {}).get("key", "").startswith("building_")):
+        key = building["slot"]["key"].removeprefix("building_")
+        if key in north_keys:
+            continue
+        for slot in iter_slots(building):
+            for component in slot.get("components", []):
+                if component.get("type") in {"FrooxEngine.MeshRenderer", "FrooxEngine.BoxCollider"}:
+                    component.setdefault("fields", {})["Enabled"] = False
+    _disable_reviewed_placeholder_renderers(children)
+
+
+def _city_collision_group(city: dict[str, Any]) -> dict[str, Any]:
+    from modeling.tokyo_nova.districts import collision_parts
+
+    owners = {assembly.name for assembly in city["assemblies"] if assembly.kind in {"district_building", "interior_room"}}
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for building_key, part_name, minimum, maximum in collision_parts(city["assemblies"]):
+        if building_key not in owners:
+            raise ValueError(f"collider owner has no emitted building or room geometry: {building_key}")
+        size = [maximum[axis] - minimum[axis] for axis in range(3)]
+        center = [(minimum[axis] + maximum[axis]) / 2 for axis in range(3)]
+        key = f"city_collision_{building_key}_{part_name}"
+        grouped.setdefault(building_key, []).append({"key": f"{key}_box", "type": "FrooxEngine.BoxCollider", "fields": {
+            "Enabled": True, "Type": "Static", "CharacterCollider": True, "Offset": center, "Size": size,
+        }})
+    result = [
+        {"slot": {"key": f"city_collision_building_{building_key}", "name": f"City wall/floor collision set · {building_key}", "position": [0.0, 0.0, 0.0], "rotation": [0.0, 0.0, 0.0, 1.0], "scale": [1.0, 1.0, 1.0]}, "components": components}
+        for building_key, components in sorted(grouped.items())
+    ]
+    return {"slot": {"key": "city_collision_geometry", "name": "Tokyo Nova colliders derived from visible walls, floors and rails"}, "children": result}
+
+
+def build_city_manifest(layout: dict[str, Any], city: dict[str, Any], *, exported: dict[str, Any] | None = None, export_path: Path | None = None, output_path: Path | None = None, base_manifest: dict[str, Any] | None = None, base_source_dir: Path | None = None) -> dict[str, Any]:
+    """Compose full city geometry, native collisions/lights and current north assets under its owned root."""
+    from modeling.tokyo_nova.north import (
+        collision_manifest_entries,
+        sign_manifest_entries,
+    )
+
+    if base_manifest is not None:
+        manifest = copy.deepcopy(base_manifest)
+    else:
+        north_manifest_path = Path("content/tokyo-nova/north/north-apply.json")
+        manifest = json.loads(north_manifest_path.read_text(encoding="utf-8")) if north_manifest_path.exists() else build_blockout_manifest(enrich_layout(layout))
+    if manifest.get("slot", {}).get("key") != "root" or manifest.get("ownership", {}).get("key") != ROOT_KEY:
+        raise ValueError("city base manifest must retain the Tokyo Nova owned root")
+    if base_source_dir is None:
+        base_source_dir = Path("content/tokyo-nova/north")
+    if output_path is not None:
+        for asset in manifest.get("assets", {}).values():
+            source = str(asset.get("source", ""))
+            if not source or "://" in source:
+                continue
+            source_path = Path(source)
+            if not source_path.is_absolute():
+                source_path = (base_source_dir / source_path).resolve()
+            asset["source"] = Path(os.path.relpath(source_path, output_path.parent.resolve())).as_posix()
+    _disable_city_blockout_shells(manifest)
+    children = manifest.setdefault("children", [])
+    managed_groups = {"city_detail", "city_collision_geometry"}
+    children[:] = [child for child in children if child.get("slot", {}).get("key") not in managed_groups]
+    if not any(child.get("slot", {}).get("key") == "north_collision_geometry" for child in children):
+        children.append(collision_manifest_entries(layout))
+    if not any(child.get("slot", {}).get("key") == "north_physical_japanese_signage" for child in children):
+        sign_groups = sign_manifest_entries(layout)
+        children.append(sign_groups["physical"])
+        children.append(sign_groups["ar"])
+    children.append(_city_collision_group(city))
+
+    for light in city["lighting"]["lights"]:
+        children.append({
+            "slot": {"key": light["key"], "name": light["name"], "position": light["position"], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1]},
+            "components": [{"key": f"{light['key']}_component", "type": "FrooxEngine.Light", "fields": light["fields"]}],
+        })
+
+    assets = manifest.setdefault("assets", {})
+    root_components = manifest.setdefault("components", [])
+    if exported is not None:
+        if exported.get("slot", {}).get("key") != "root":
+            raise ValueError("Blender city export is missing the stable root key")
+        if export_path is None or output_path is None:
+            raise ValueError("export_path and output_path are required when merging a Blender export")
+        component_keys = {component.get("key") for component in root_components}
+        for component in exported.get("components", []):
+            if component.get("key") in component_keys:
+                existing = next(item for item in root_components if item.get("key") == component.get("key"))
+                if existing != component:
+                    raise ValueError(f"Blender city component collides with differing base component {component.get('key')}")
+                continue
+            root_components.append(component)
+            component_keys.add(component.get("key"))
+        for key, asset in exported.get("assets", {}).items():
+            if key in assets and assets[key] != asset:
+                raise ValueError(f"Blender city asset key collides with base asset {key}")
+            assets[key] = {**asset, "source": _source_for_output(asset, export_path.parent, output_path.parent)}
+        # Reuse the already-managed North material providers; export only City geometry slots here.
+        extension_children = [child for child in exported.get("children", []) if child.get("slot", {}).get("key") != "blender_providers"]
+        extension_children.append(_city_facility_signage(layout))
+        children.append({"slot": {"key": "city_detail", "name": "Tokyo Nova full detailed city meshes, interiors and owned sky"}, "children": copy.deepcopy(extension_children)})
+
+    manifest.setdefault("limits", {})["expandedNodes"] = max(int(manifest["limits"].get("expandedNodes", 0)), 60000)
+    manifest["tests"] = [{"name": "tokyo-nova-owned-root-and-open-plaza", "assertions": [{"target": "$slot:root", "exists": True}]}]
+    if output_path is not None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return manifest
+
+
+def integrate_city_manifest(base_path: Path, export_path: Path, output_path: Path, layout_path: Path = Path("content/tokyo-nova/layout.json")) -> dict[str, Any]:
+    """Merge exported city meshes into a fresh stable blockout root and retain measured source state."""
+    from modeling.tokyo_nova.build import build_city
+
+    layout = json.loads(layout_path.read_text(encoding="utf-8"))
+    city = build_city(layout)
+    base = json.loads(base_path.read_text(encoding="utf-8"))
+    exported = json.loads(export_path.read_text(encoding="utf-8"))
+    if base.get("ownership", {}).get("key") != ROOT_KEY:
+        raise ValueError("city source manifest is outside the Tokyo Nova ownership root")
+    return build_city_manifest(layout, city, exported=exported, export_path=export_path.resolve(), output_path=output_path.resolve(), base_manifest=base, base_source_dir=base_path.resolve().parent)
+
 def build_pipeline_config() -> dict[str, Any]:
     """Return reproducible source configuration, without session observations."""
     types = ("StaticMesh", "MeshRenderer", "PBS_Metallic", "BoxCollider", "Light", "UnlitMaterial", "StaticTexture2D", "StaticFont", "TextUnlitMaterial", "TextRenderer", "Skybox", "ProceduralSkyMaterial", "BoxMesh", "InteractiveCamera")
@@ -510,9 +674,16 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=Path("content/tokyo-nova"))
     parser.add_argument("--pipeline-config", type=Path)
     parser.add_argument("--prepare-probe", type=Path)
+    parser.add_argument("--integrate-city", type=Path)
+    parser.add_argument("--city-apply-output", type=Path)
+    parser.add_argument("--layout-path", type=Path, default=Path("content/tokyo-nova/layout.json"))
     parser.add_argument("--probe-output", type=Path)
     args = parser.parse_args()
-    if args.prepare_probe:
+    if args.integrate_city:
+        if args.city_apply_output is None:
+            parser.error("--city-apply-output is required with --integrate-city")
+        integrate_city_manifest(Path("content/tokyo-nova/north/north-apply.json"), args.integrate_city, args.city_apply_output, args.layout_path)
+    elif args.prepare_probe:
         if args.probe_output is None:
             parser.error("--probe-output is required with --prepare-probe")
         prepare_probe_manifest(args.prepare_probe, args.probe_output)

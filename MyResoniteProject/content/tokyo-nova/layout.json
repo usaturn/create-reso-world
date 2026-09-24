@@ -274,7 +274,7 @@
     },
     {
       "key": "south_rehearsal",
-      "kind": "rehearsal_room",
+      "kind": "clothing_repair",
       "center": [
         35.0,
         0.0,
@@ -955,6 +955,17 @@
         -15.0,
         0.0,
         25.0
+      ]
+    },
+    {
+      "key": "clothing_repair",
+      "name": "古着仕立て・縫い直し",
+      "kind": "repair",
+      "building_key": "south_rehearsal",
+      "position": [
+        35.0,
+        0.0,
+        -35.0
       ]
     }
   ],
