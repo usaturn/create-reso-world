@@ -103,7 +103,7 @@ def test_cylinder_axis_and_segments():
     c = geometry.cylinder("c", (0, 0, 0), 0.5, 2.0, 8, "dark_metal", axis="Y")
     ys = [v[1] for v in c.vertices]
     assert min(ys) == -1.0 and max(ys) == 1.0
-    assert len(c.faces) == 8 * 2 + 2  # 側面 + 上下 cap
+    assert len(c.faces) == 10  # 側面 8 quad + 上下 cap 2 n-gon
 
 
 def test_prism_roof_shape():
@@ -198,7 +198,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
   - `materials.make_blender_materials() -> dict[str, Any]` — bpy ランタイムで Principled マテリアルを生成（base_color/metallic/roughness のみ接続、emission ありは Emission Color + Emission Strength 接続。それ以外のソケットは接続しない）
   - `materials.NEON_COLORS: list[str]` — ネオンマテリアル名の順序固定リスト
 
-マテリアル一覧（24種、tokyo_nova パレットを cyberpunk 方向に拡張）:
+マテリアル一覧（27種、tokyo_nova パレットを cyberpunk 方向に拡張）:
 
 | 名前 | base_color (sRGB近似) | metallic | roughness | 用途 |
 |---|---|---|---|---|
@@ -347,7 +347,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"`
 
 **validate_layout の検査項目:**
 1. towers/shacks/stalls/nightlife の footprint が site 境界内
-2. towers 相互の footprint 離隔 >= 2.0m、shacks 相互 >= 1.5m
+2. towers 相互の footprint 離隔 >= 2.0m、shacks 相互 >= 1.5m、nightlife と towers の footprint 離隔 >= 2.0m
 3. vacant 矩形内 towers/shacks/stalls/nightlife の footprint が侵入しない（ads kind=holo で vacant 外周 2m 以内も不可）
 4. stalls が streets 帯（ring）内に収まる
 5. ads kind=wall/rooftop の position が対応 tower の面から 0.5m 以内（壁面吸着）— tower ID を `attach` フィールドで参照して検査
@@ -609,7 +609,7 @@ def test_cable_sags_between_endpoints():
     spec = {"id": "cable-01", "from": [0, 8, 0], "to": [10, 6, 0], "sag": 1.5, "radius": 0.04}
     cable = props.build_cable(spec)
     ys = [v[1] for p in cable.parts for v in p.vertices]
-    assert min(ys) < 6.0 - 1.0  # 中央で端点より大きく下がる
+    assert min(ys) <= 5.6  # 中央で端点(y=8/6)より sag=1.5 分下がる（中点 ≈ 5.5）
 
 
 def test_rubble_prototypes_are_small():
@@ -653,7 +653,9 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"`
 - `market`: stalls 12 + junk_pile 各屋台脇 1 + 地面パッチ
 - `shacks`: shacks 10 + 周囲に junk_pile 5 + cable 4
 - `nightlife`: clubs 4 + ads kind=wall のうち club 隣接分 + cable 4
-- `ads`: 残り全 ads + cable 4（cables は layout で割り当てたリストを ads セクタでまとめて生成してよい）
+- `ads`: 残り全 ads + cable 4（cables のセクタ割り当ては index 順で固定: `cables[0:4]` → shacks、`cables[4:8]` → nightlife、`cables[8:12]` → ads）
+
+**GN realize メッシュの UV 監査除外**: scatter で realize した瓦礫メッシュは原型が UV を持たないため `uv_triangle_issues` 監査の対象外とし、レポートに `"gn_scatter_uv_exempt": true` を記録する。UV 監査（uv_issue_count）は material バッチメッシュのみに適用する。
 
 **GN scatter（vacant のみ、geometry-nodes スキル準拠）:**
 1. scatter 対象 plane（vacant 矩形）に Geometry Nodes modifier を追加。ノードグループは最小構成: `Distribute Points on Faces`（density 0.35/m²、seed 固定 250925）→ 3 prototype を `Instance on Points`（`Random Index` で選択、seed 固定）→ ランダム回転（`Random Value` rotation、seed 固定）→ `Realize Instances`
