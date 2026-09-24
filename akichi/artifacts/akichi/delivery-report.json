@@ -184,8 +184,8 @@
     {
       "checkpoint": "2. ad-19 / ad-22 屋根広告脚と machine-room の交差",
       "status": "数値確定（貫通あり・微小）/ 目視判定は保留",
-      "finding": "ad-19（tower-01）は4本の脚（0.07m角）が machine-room 箱の内部に完全に収まり（重なり 0.07×1.07×0.07 m³/本）、パネル下端18.82m は箱上面19.75m より0.93m低い＝パネル下半分が箱の中。ad-22（tower-09）は4本の脚が machine-room を貫通（0.07×2.0×0.07 m³/本）し、箱上面からパネル下端までの0.385mだけが見える。ad-20 / ad-21 は交差なし。概要カメラ（115m）でのパネル見かけ高は約11px、空地通りカメラ（72m）で約18px であり、貫通部は数px規模",
-      "evidence": "buildings.build_tower / props.build_ad（適用済みマニフェストと同じ純Pythonビルダー）による世界座標AABB交差計算（tmp/task11/qa-checks-out.json）"
+      "finding": "ad-19（tower-01）は4本の脚（0.07m角）が machine-room 箱の内部に完全に収まり（重なり 0.07×1.07×0.07 m³/本、脚のy範囲 17.75–18.82 が箱のy範囲 17.75–19.75 に含まれる）、パネル（y 18.76–21.02、全高2.26m）の下 0.99m が箱の高さ範囲に入り、箱の角領域と 0.2×0.99×4.66 = 0.92 m³ 交差する。ad-22（tower-09）は4本の脚が machine-room を貫通（0.07×2.0×0.07 m³/本、脚の上端31.925 は箱上面31.54 より0.385m上に出る）し、パネル下端31.865 は箱上面から0.325m上で交差しない。ad-20 / ad-21 は交差なし。概要カメラ（fov60・約115m）でのパネル見かけ高は約12px、空地通りカメラ（fov70・約62m）で約19px であり、貫通部は数px規模",
+      "evidence": "buildings.build_tower / props.build_ad（適用済みマニフェストと同じ純Pythonビルダー）による世界座標AABB交差計算（tmp/task11/qa-checks-out.json）と、パネルを含む再計算（sign-* 部品のAABB）"
     },
     {
       "checkpoint": "3. 空地の瓦礫（GN scatter realize）の埋没・密度",
