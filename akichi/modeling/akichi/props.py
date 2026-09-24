@@ -404,9 +404,18 @@ def build_ad(spec: dict, seed: int) -> Assembly:
         parts = _sign_panel(width, height, color, frame)
         bottom = -(height + 0.1) / 2
         if kind == "rooftop":
+            # Rooftop boards stand on their tower: the legs top out at the panel's
+            # bottom edge and run down to the roof plane, given as a world y in
+            # ``spec["roof_height"]``. Without it (hand-written specs) they keep the
+            # fixed 1m length the wall ads use.
+            if "roof_height" in spec:
+                leg_bottom = float(spec["roof_height"]) - position[1]
+            else:
+                leg_bottom = bottom - 1.0
+            leg_length = bottom - leg_bottom
             for index, (sx, sz) in enumerate(((-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0))):
-                parts.append(geo.box(f"rooftop-leg-{index}", (sx * max(0.15, width / 2 - 0.2), bottom - 0.5, sz * 0.09),
-                                     (0.07, 1.0, 0.07), "dark_metal"))
+                parts.append(geo.box(f"rooftop-leg-{index}", (sx * max(0.15, width / 2 - 0.2), (bottom + leg_bottom) / 2, sz * 0.09),
+                                     (0.07, leg_length, 0.07), "dark_metal"))
         else:
             for index, sx in enumerate((-1.0, 1.0)):
                 parts.append(geo.box(f"ad-bracket-{index}", (sx * max(0.12, width / 2 - 0.3), bottom - 0.2, -0.02),

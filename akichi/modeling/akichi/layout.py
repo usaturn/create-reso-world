@@ -11,7 +11,9 @@ Coordinate system: Resonite XYZ (Y up, metres). Ground positions are spelled
 ``[x, z]`` with the site spanning x: -50..50, z: -50..50; elevations use ``y``.
 Ads of kind ``wall``/``rooftop``/``lantern`` carry an ``attach`` field naming
 the tower (or stall) they are mounted on, and wall ads also carry the ``face``
-they sit on so validation item 5 can verify the 0.5m catch.
+they sit on so validation item 5 can verify the 0.5m catch. Rooftop ads also
+carry ``roof_height``, the world y of the attached tower's roof plane, so the
+prop builder can reach it with the panel's legs.
 """
 from __future__ import annotations
 
@@ -621,6 +623,9 @@ def _build_ads(
                 "size": [w, h],
                 "frame": frame,
                 "attach": tower_id,
+                # world y of the attached tower's roof plane, so the prop builder
+                # can size the legs down to it (derived, so it consumes no rng).
+                "roof_height": tower["height"],
             }
         )
 

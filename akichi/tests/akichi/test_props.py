@@ -41,6 +41,65 @@ def test_ad_kinds():
         assert any(p.material in ("neon_cyan", "holo_panel", "warm_light") for p in ad.parts), kind
 
 
+# --- rooftop 広告の脚と塔屋根の接地（Task 5 修正） -----------------------------
+
+
+def _legs(ad):
+    return [p for p in ad.parts if p.name.startswith("rooftop-leg-")]
+
+
+def test_rooftop_ad_legs_reach_the_roof_plane():
+    """roof_height を持つ rooftop 広告は、脚下端が塔屋根面 (world y) に一致する。"""
+    spec = {"id": "ad-rooftop", "kind": "rooftop", "position": [0.0, 12.25, 0.0], "rotation": 0,
+            "size": [4.0, 2.5], "color": "neon_pink", "frame": "dark_metal",
+            "attach": "tower-01", "roof_height": 9.0}
+    ad = props.build_ad(spec, seed=4)
+    legs = _legs(ad)
+    assert len(legs) == 4
+    low = min(v[1] for p in legs for v in p.vertices) + ad.origin[1]
+    assert low == pytest.approx(9.0, abs=1e-6)
+
+
+def test_rooftop_ad_legs_touch_the_panel_bottom():
+    """脚上端は sign-core 下端に接する（面下端との差は core のリップ 0.05m 以内）。"""
+    spec = {"id": "ad-rooftop", "kind": "rooftop", "position": [0.0, 12.25, 0.0], "rotation": 0,
+            "size": [4.0, 2.5], "color": "neon_pink", "frame": "dark_metal",
+            "attach": "tower-01", "roof_height": 9.0}
+    ad = props.build_ad(spec, seed=4)
+    legs = _legs(ad)
+    core = next(p for p in ad.parts if p.name == "sign-core")
+    leg_top = max(v[1] for p in legs for v in p.vertices) + ad.origin[1]
+    core_bottom = min(v[1] for v in core.vertices) + ad.origin[1]
+    assert leg_top == pytest.approx(core_bottom, abs=1e-6)
+    # sign-core はパネル面より上下に 0.05m はみ出すので、面下端との差は 0.05m。
+    face_bottom = ad.origin[1] - float(spec["size"][1]) / 2
+    assert 0.0 <= face_bottom - leg_top <= 0.05 + 1e-6
+
+
+def test_rooftop_ad_without_roof_height_keeps_one_meter_legs():
+    """roof_height のない spec は従来どおり 1.0m 固定の脚（後方互換）。"""
+    spec = {"id": "ad-rooftop", "kind": "rooftop", "position": [0, 5, 0], "rotation": 0,
+            "size": [2, 1.5], "color": "neon_cyan", "frame": "dark_metal"}
+    ad = props.build_ad(spec, seed=4)
+    legs = _legs(ad)
+    assert len(legs) == 4
+    ys = [v[1] for p in legs for v in p.vertices]
+    assert max(ys) - min(ys) == pytest.approx(1.0, abs=1e-6)
+    assert max(ys) + ad.origin[1] == pytest.approx(-(1.5 + 0.1) / 2 + 5.0, abs=1e-6)
+
+
+def test_layout_rooftop_ad_legs_all_reach_their_tower_roof():
+    """layout の全 rooftop 広告で脚下端が塔屋根に一致する（浮遊なし）。"""
+    data = layout.build_layout()
+    roof_of = {tower["id"]: tower["height"] for tower in data["towers"]}
+    rooftop = [spec for spec in data["ads"] if spec["kind"] == "rooftop"]
+    assert len(rooftop) == 4
+    for spec in rooftop:
+        ad = props.build_ad(spec, seed=250925)
+        low = min(v[1] for p in _legs(ad) for v in p.vertices) + ad.origin[1]
+        assert low == pytest.approx(roof_of[spec["attach"]], abs=1e-6), spec["id"]
+
+
 def test_cable_sags_between_endpoints():
     spec = {"id": "cable-01", "from": [0, 8, 0], "to": [10, 6, 0], "sag": 1.5, "radius": 0.04}
     cable = props.build_cable(spec)
