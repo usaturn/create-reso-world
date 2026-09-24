@@ -78,6 +78,8 @@ _PROP_CATALOG = (
     "arcade_control_panel", "repairable_bicycle_stand", "folding_rain_screen", "roof_drain_filter_basket",
     "stair_landing_handrail", "emergency_ladder_cage", "basement_sump_pump", "inspection_hatch",
     "theatre_floor_seating", "fixed_projection_shelf", "sound_absorbing_door_seal", "roof_service_cable_tray",
+    "north_patched_housing_facade", "secondhand_terminal_repair_assembly", "pocket_phone",
+    "reusable_cfc_food_container", "north_ar_menu_surface", "north_corrugated_food_awning",
 )
 
 

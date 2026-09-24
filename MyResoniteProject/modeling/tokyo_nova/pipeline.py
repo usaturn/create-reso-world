@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from modeling.tokyo_nova.layout import build_layout, validate_layout
+from modeling.tokyo_nova.sector_pipeline import (  # noqa: F401
+    enrich_layout,
+    integrate_north_manifest,
+)
 
 RESOLOOP_URL = "ws://localhost:54238/"
 ROOT_KEY = "tokyo-nova-west-slum"
@@ -492,7 +496,7 @@ def write_outputs(output_dir: Path, pipeline_config_path: Path | None = None) ->
     resolved_config = pipeline_config_path.resolve()
     if ".resoloop" in resolved_config.parts:
         raise ValueError("pipeline source config must not overwrite live evidence under .resoloop")
-    layout = build_layout()
+    layout = enrich_layout(build_layout())
     manifest = build_blockout_manifest(layout)
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "layout.json").write_text(json.dumps(layout, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

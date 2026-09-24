@@ -1301,6 +1301,58 @@
     {
       "key": "roof_service_cable_tray",
       "kind": "roof_service_cable_tray"
+    },
+    {
+      "key": "north_patched_housing_facade",
+      "kind": "north_patched_housing_facade"
+    },
+    {
+      "key": "secondhand_terminal_repair_assembly",
+      "kind": "secondhand_terminal_repair_assembly"
+    },
+    {
+      "key": "pocket_phone",
+      "kind": "pocket_phone"
+    },
+    {
+      "key": "reusable_cfc_food_container",
+      "kind": "reusable_cfc_food_container"
+    },
+    {
+      "key": "north_ar_menu_surface",
+      "kind": "north_ar_menu_surface"
+    },
+    {
+      "key": "north_corrugated_food_awning",
+      "kind": "north_corrugated_food_awning"
+    },
+    {
+      "key": "food_stall",
+      "kind": "food_stall"
+    },
+    {
+      "key": "terminal_repair",
+      "kind": "terminal_repair"
+    },
+    {
+      "key": "patched_housing_facade",
+      "kind": "patched_housing_facade"
+    },
+    {
+      "key": "north_frontage_pavement",
+      "kind": "north_frontage_pavement"
+    },
+    {
+      "key": "north_facility_connector",
+      "kind": "north_facility_connector"
+    },
+    {
+      "key": "ar_menu",
+      "kind": "ar_menu"
+    },
+    {
+      "key": "ar_repair_ad",
+      "kind": "ar_repair_ad"
     }
   ],
   "cameras": [
@@ -1495,6 +1547,336 @@
         3,
         0
       ]
+    }
+  ],
+  "north_assets": [
+    {
+      "kind": "food_stall",
+      "dimensions": [
+        4.5,
+        2.86,
+        2.1
+      ],
+      "units": "meters",
+      "materials": [
+        "wood",
+        "painted_metal",
+        "exposed_metal",
+        "rust",
+        "ceramic",
+        "plastic",
+        "cloth",
+        "warm_light"
+      ],
+      "parts": [
+        "mismatched corrugated awning and braces",
+        "rolled-rim service counter",
+        "lidded steel pots",
+        "ceramic bowls and chopsticks",
+        "condiment trays",
+        "reusable CFC containers",
+        "vented under-counter refrigerator",
+        "fan and task light",
+        "physical Japanese menu board"
+      ],
+      "wear": [
+        "uneven replacement sheets",
+        "rust streaks",
+        "painted and exposed frame edges",
+        "reused wood counter"
+      ],
+      "placement": {
+        "building_key": "north_yatai",
+        "front": "south",
+        "origin_offset": [
+          0,
+          0.18,
+          -1.0
+        ]
+      },
+      "recognition": "busy standing counter under a mismatched ribbed awning; lidded pots and ceramic serviceware are visible from the aisle"
+    },
+    {
+      "kind": "terminal_repair",
+      "dimensions": [
+        4.8,
+        3.36,
+        5.15
+      ],
+      "units": "meters",
+      "materials": [
+        "concrete",
+        "wood",
+        "painted_metal",
+        "exposed_metal",
+        "rust",
+        "plastic",
+        "glass",
+        "rubber",
+        "faded_teal",
+        "warm_light"
+      ],
+      "parts": [
+        "repair bench and three drawers",
+        "45 cm monitor and stand",
+        "35 cm vented terminal box",
+        "removable terminal cover",
+        "component bins",
+        "repair trays",
+        "precision drivers",
+        "hot-air station and hose",
+        "solder iron and stand",
+        "cables and task lamp",
+        "rear and side walls",
+        "glazed frontage with open doorway",
+        "physical repair fascia"
+      ],
+      "wear": [
+        "replaceable bench edge",
+        "mixed metal panels",
+        "scuffed ESD mat",
+        "different-age drawer bins",
+        "repaired cable trunk"
+      ],
+      "placement": {
+        "building_key": "north_terminal_repair",
+        "front": "south",
+        "origin_offset": [
+          0,
+          0.15,
+          1.8
+        ]
+      },
+      "recognition": "open workbench with a separate 45 cm display, compact vented 35 cm equipment case, tools, trays, open front door and warm Japanese repair fascia"
+    },
+    {
+      "kind": "patched_housing_facade",
+      "dimensions": [
+        5.94,
+        8.83,
+        1.11
+      ],
+      "units": "meters",
+      "materials": [
+        "concrete",
+        "patched_concrete",
+        "faded_teal",
+        "painted_metal",
+        "exposed_metal",
+        "rust",
+        "glass",
+        "wood",
+        "cloth",
+        "warm_light",
+        "rubber"
+      ],
+      "parts": [
+        "masonry split around real door and window openings",
+        "deep reveal windows",
+        "mullions and unequal shutters",
+        "recessed entry and lintel",
+        "upper balcony and rails",
+        "laundry lines",
+        "wall air conditioner and louver",
+        "elbowed drainpipe and cleanout",
+        "roof service addition",
+        "cables",
+        "wall lamp",
+        "nameplate"
+      ],
+      "wear": [
+        "three branching cracks",
+        "exposed patch repairs",
+        "paint loss at edges",
+        "rusted drain clamps",
+        "asymmetric altered openings"
+      ],
+      "placement": {
+        "building_key": "north_machiya",
+        "front": "south",
+        "origin_offset": [
+          0,
+          0,
+          -3.0
+        ]
+      },
+      "recognition": "deep two-level openings, patched wall, improvised balcony/laundry and a mismatched AC unit read as occupied housing rather than a blank blockout shell"
+    },
+    {
+      "kind": "pocket_phone",
+      "dimensions": [
+        0.075,
+        0.008,
+        0.15
+      ],
+      "units": "meters",
+      "materials": [
+        "plastic",
+        "glass",
+        "faded_teal",
+        "exposed_metal",
+        "rubber",
+        "cool_light",
+        "warm_light"
+      ],
+      "parts": [
+        "rounded structural shell",
+        "glass and display",
+        "raised volume/power buttons",
+        "three-lens camera cluster",
+        "flash",
+        "removable back cover",
+        "speaker grills",
+        "charging port"
+      ],
+      "wear": [
+        "serviceable seam",
+        "individual metal camera rings",
+        "small edge keys",
+        "matte replaceable rear cover"
+      ],
+      "placement": {
+        "building_key": "north_terminal_repair",
+        "surface": "repair_bench",
+        "orientation": "screen faces up"
+      },
+      "recognition": "75 mm by 150 mm smartphone silhouette with a distinct 8 mm rounded edge, camera cluster and side keys; no oversized tablet geometry"
+    },
+    {
+      "kind": "north_frontage_pavement",
+      "dimensions": [
+        26.0,
+        0.052,
+        0.34
+      ],
+      "units": "meters",
+      "materials": [
+        "asphalt_dry",
+        "asphalt_wet",
+        "patched_concrete",
+        "rust",
+        "exposed_metal"
+      ],
+      "parts": [
+        "dry repaired asphalt strip",
+        "three shallow puddle patches",
+        "broken seam and crack scars",
+        "small drain grate and ribs",
+        "exposed patch edges"
+      ],
+      "wear": [
+        "alternating dull dry asphalt and smooth damp asphalt",
+        "local cracks and repaired joints"
+      ],
+      "placement": {
+        "building_key": "north_yatai",
+        "span_buildings": [
+          "north_yatai",
+          "north_terminal_repair",
+          "north_machiya"
+        ],
+        "root_local_z": 11.82,
+        "noncollidable": true
+      },
+      "recognition": "thin wet/dry frontage strip sits clear of the north path; puddles and repaired seams separate material response without filling the plaza"
+    },
+    {
+      "kind": "north_facility_connector",
+      "dimensions": [
+        3.16,
+        0.6,
+        0.935
+      ],
+      "units": "meters",
+      "materials": [
+        "painted_metal",
+        "exposed_metal",
+        "rust",
+        "rubber"
+      ],
+      "parts": [
+        "overhead replacement rain sheet",
+        "three corrugation ribs",
+        "two wall brackets",
+        "rain gutter and downspout",
+        "shared cable tray"
+      ],
+      "wear": [
+        "two mismatched roofing sheets",
+        "rust on old brackets",
+        "repaired cable sleeve"
+      ],
+      "placement": {
+        "between": [
+          "north_yatai",
+          "north_terminal_repair"
+        ],
+        "root_local_center": [
+          -30.0,
+          3.55,
+          12.55
+        ],
+        "walk_clearance_m": 3.0
+      },
+      "recognition": "elevated continuous rain cover and cable tray visibly join the neighboring food and repair facades while preserving a clear passage below"
+    },
+    {
+      "kind": "ar_menu",
+      "dimensions": [
+        0.8,
+        0.5,
+        0.045
+      ],
+      "units": "meters",
+      "materials": [
+        "painted_metal",
+        "cool_light"
+      ],
+      "parts": [
+        "thin framed menu panel",
+        "restrained emissive face",
+        "Japanese TextRenderer content",
+        "service brackets",
+        "bezel and diffuse face"
+      ],
+      "wear": [
+        "steady low-luminance cool tint; no animation"
+      ],
+      "placement": {
+        "building_key": "north_yatai",
+        "group": "north_ar_displays",
+        "front": "south"
+      },
+      "recognition": "separately hideable 0.8 m × 0.5 m menu surface showing a short meal list and hours"
+    },
+    {
+      "kind": "ar_repair_ad",
+      "dimensions": [
+        2.0,
+        0.7,
+        0.045
+      ],
+      "units": "meters",
+      "materials": [
+        "painted_metal",
+        "warm_light"
+      ],
+      "parts": [
+        "slender framed repair-hours panel",
+        "restrained emissive face",
+        "Japanese TextRenderer content",
+        "service brackets",
+        "bezel and diffuse face"
+      ],
+      "wear": [
+        "steady low-brightness warm lettering; no flashing"
+      ],
+      "placement": {
+        "building_key": "north_terminal_repair",
+        "group": "north_ar_displays",
+        "front": "south"
+      },
+      "recognition": "separately hideable 2.0 m × 0.7 m repair notice distinct from the physical fascia"
     }
   ]
 }
