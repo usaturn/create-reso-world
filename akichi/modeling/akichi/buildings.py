@@ -125,9 +125,11 @@ def _windows(parts: list[geo.MeshData], rng: random.Random, volumes, door_face_i
     """Window grid on every face: recessed dark pane with a proud frame rim.
 
     The tower body is a solid box, so a true cavity would be invisible; the
-    recess is expressed as a stepped panel instead (frame proud 0.125m, glass
-    0.1m behind the frame front). Broken windows keep only the frame, which is
-    what makes the missing glass readable.
+    recess is expressed as a stepped panel instead. The frame box is 0.15m deep
+    and centred 0.05m off the wall plane, so its front face stands 0.125m proud;
+    the 0.05m glass slab sits on the wall plane itself, 0.1m behind that front
+    face. Broken windows keep only the frame, which is what makes the missing
+    glass readable.
     """
     count = 0
     for volume_index, (hx, hz, y_bottom, y_top) in enumerate(volumes):
@@ -250,7 +252,11 @@ def _rooftop(parts: list[geo.MeshData], rng: random.Random, width: float, depth:
 
 
 def _rust_streaks(parts: list[geo.MeshData], rng: random.Random, volumes, door_face_index: int) -> None:
-    """Dark drip marks below window sills and seams, 8-20 across the facades."""
+    """Dark drip marks below window sills and seams, 8-20 across the facades.
+
+    Low-rise volumes that offer fewer than 8 anchors (windows + seams) produce
+    no streaks at all instead of failing.
+    """
     candidates: list[tuple[int, float, float, float, float, float]] = []
     for volume_index, (hx, hz, y_bottom, y_top) in enumerate(volumes):
         for face_index, (_face, axis, sign) in enumerate(_FACES):
@@ -269,6 +275,10 @@ def _rust_streaks(parts: list[geo.MeshData], rng: random.Random, volumes, door_f
                     if skip_door and abs(u) < 1.8 and source_y < 3.1:
                         continue
                     candidates.append((axis, sign, plane, span, u, source_y))
+    if len(candidates) < 8:
+        # A low-rise volume can offer fewer than 8 window/seam anchors. There is
+        # nothing to drip from then, and rng.randint(8, <8) would raise.
+        return
     count = rng.randint(8, min(20, len(candidates)))
     for k, (axis, sign, plane, span, u, source_y) in enumerate(rng.sample(candidates, count)):
         width = rng.uniform(0.1, 0.3)

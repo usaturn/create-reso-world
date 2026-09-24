@@ -131,10 +131,6 @@ def _relocated(
     )
 
 
-def _point_in_rect(point: Vec3, lo: Vec3, hi: Vec3) -> bool:
-    return lo[0] <= point[0] <= hi[0] and lo[1] <= point[1] <= hi[1] and lo[2] <= point[2] <= hi[2]
-
-
 def _vacant_spot(
     rng: random.Random,
     vmin: list[float],

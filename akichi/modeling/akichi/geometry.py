@@ -136,6 +136,7 @@ def beveled_box(name: str, center: Sequence[float], size: Sequence[float], bevel
 
     return MeshData(name, tuple(vertices), tuple(faces), material)
 
+
 def cylinder(name: str, center: Sequence[float], radius: float, height: float, segments: int, material: str, axis: str = "Y") -> MeshData:
     """Create a closed cylinder along a world axis, capped at both ends.
 

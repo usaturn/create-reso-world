@@ -1,4 +1,6 @@
-from modeling.akichi import buildings, layout
+import random
+
+from modeling.akichi import buildings
 
 
 def _tower_spec(**overrides):
@@ -53,3 +55,21 @@ def test_perimeter_wall_segments():
     wall = buildings.build_perimeter_wall(seed=5)
     assert wall.kind == "perimeter"
     assert len(wall.parts) >= 20
+
+
+def test_rust_streaks_low_rise_volume_returns_empty():
+    """Lowering towers below 8 anchors must not raise (randint(8, <8) guard)."""
+    parts = []
+    # 窓 1 列 x 1 行 x 3 面（入口面は skip）= 3 candidates
+    buildings._rust_streaks(parts, random.Random(7), [(1.0, 1.0, 0.0, 3.0)], 0)
+    assert parts == []
+    # 窓もシームも取れない極小 volume = 0 candidates
+    buildings._rust_streaks(parts, random.Random(7), [(1.0, 1.0, 0.0, 2.0)], 0)
+    assert parts == []
+
+
+def test_rust_streaks_present_on_regular_tower():
+    """The >= 8 anchor path keeps emitting its 8-20 streaks."""
+    tower = buildings.build_tower(_tower_spec(), seed=6)
+    streaks = [p for p in tower.parts if p.name.startswith("streak-")]
+    assert 8 <= len(streaks) <= 20
