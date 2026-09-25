@@ -1,0 +1,18 @@
+{
+  "measured_at": "2026-09-26",
+  "blender_version": "5.0.1",
+  "exporter": "resoloop blender export --parent Root --preserve-hierarchy (offline, not applied)",
+  "attribute": {
+    "name": "Col",
+    "type": "FLOAT_COLOR",
+    "domain": "POINT",
+    "active_color": true,
+    "render_color_index": 0,
+    "written": [0.5, 0.25, 0.1, 1.0]
+  },
+  "exported_sample": [0.5, 0.25, 0.10000000149011612, 1.0],
+  "exported_vertex_colors_flag": true,
+  "hdr_check": {"written": [1.3, 0.05, 0.5, 1.0], "exported_sample": [1.2999999523162842, 0.05000000074505806, 0.5, 1.0], "clamped": false},
+  "space": "Linear",
+  "notes": "Exporter copies FLOAT_COLOR/POINT values verbatim (no sRGB encode, no clamp to 1). postprocess.VERTEX_COLOR_SPACE = \"Linear\". Exporter warns that PBS_Metallic does not display vertex colours; a vertex-colour material (PBS_VertexColorMetallic) must be bound."
+}
