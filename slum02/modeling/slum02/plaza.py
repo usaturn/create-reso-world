@@ -54,7 +54,6 @@ def _add(a, b):
 _sub, _mul, _dot, _cross, _norm = g.sub, g.mul, g.dot, g.cross, g.norm
 signed_volume = g.signed_volume
 _outward, _planarize, _combine, _fan_prism = g.outward, g.planarize, g.combine, g.fan_prism
-_newell = g.face_normal
 _basis, _frame, _beam = g.basis, g.frame, g.beam
 
 

@@ -442,8 +442,8 @@ def merge_assembly(assembly: Assembly) -> MergedMesh:
 
 # --------------------------------------------------------------------------- shared mesh ops
 #
-# Vector + shell helpers shared by the sector generators (plaza.py, towers.py,
-# ground.py). They used to be copied verbatim into each generator; keep the
+# Vector + shell helpers shared by the sector generators (plaza.py, towers.py)
+# and vcolor.py. They used to be copied verbatim into each generator; keep the
 # single implementation here so R11 (outward/CCW, positive signed volume) is
 # enforced the same way everywhere.
 
@@ -465,6 +465,11 @@ def mul(a: Vec3, s: float) -> Vec3:
 
 
 def norm(a: Vec3) -> Vec3:
+    """Unit vector along ``a``. Contract: a zero vector returns ``(0, 0, 0)``
+    instead of raising (the tolerant behaviour the former towers.py copy had;
+    plaza.py's copy used to raise ZeroDivisionError). Callers only ever pass
+    non-zero vectors — endpoints/offsets are separated by construction — so
+    both contracts agree on every real input."""
     length = math.sqrt(dot(a, a)) or 1.0
     return mul(a, 1.0 / length)
 

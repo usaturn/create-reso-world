@@ -109,6 +109,17 @@ def _edge_consistent(mesh):
     return True
 
 
+def test_norm_contract():
+    """Shared ``g.norm`` (Fix round 2): unit for non-zero input; a zero vector
+    returns the zero vector instead of raising — one tolerant contract for the
+    former plaza (strict) and towers (tolerant) copies. Callers only feed it
+    non-zero vectors, so both contracts agree on every real input."""
+    assert g.norm((3.0, 0.0, 4.0)) == pytest.approx((0.6, 0.0, 0.8))
+    n = g.norm((-2.0, 1.0, 2.0))
+    assert math.sqrt(g.dot(n, n)) == pytest.approx(1.0)
+    assert g.norm((0.0, 0.0, 0.0)) == (0.0, 0.0, 0.0)
+
+
 def test_straight_tube_is_outward():
     """R11: Blender no longer recalculates normals, so tube sides and caps must wind outward."""
     m = g.tube("t", [(1.0, 2.0, 3.0), (1.0, 2.0, 4.0), (1.0, 2.0, 5.0)], 0.2, 8, "rust")
