@@ -1,0 +1,27 @@
+{
+  "sector": "backdrop",
+  "objects": 19,
+  "triangles": 17720,
+  "vertices": 11728,
+  "submeshes": 76,
+  "materials": [
+    "backdrop_ground",
+    "backdrop_mass",
+    "holo_cyan",
+    "holo_magenta",
+    "neon_red",
+    "steel_dark",
+    "window_lit"
+  ],
+  "material_count": 7,
+  "ao": {
+    "baked": 19,
+    "seconds": 1.2,
+    "samples": 48
+  },
+  "uv_issue_count": 0,
+  "blend_path": "/workspaces/reso-world/slum02/artifacts/slum02/backdrop.blend",
+  "blender_version": "5.0.1",
+  "export_collection": "Slum02BackdropExport",
+  "triangles_blender": 17720
+}

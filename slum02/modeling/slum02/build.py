@@ -32,7 +32,7 @@ def _reset(bpy) -> None:
         bpy.data.meshes.remove(m)
 
 
-def write_scene(sector: str, output: Path, *, ao: bool = True) -> dict:
+def write_scene(sector: str, output: Path, *, ao: bool = True, ao_samples: int = 16) -> dict:
     import bmesh
     import bpy
     from modeling.slum02 import blender_io as io
@@ -65,7 +65,7 @@ def write_scene(sector: str, output: Path, *, ao: bool = True) -> dict:
         extra_objects, extra_report = hook(bpy, bmesh, data, lookup, export)
         objects += extra_objects
         report.update(extra_report)
-    report["ao"] = io.bake_ao(bpy, objects) if ao else {"baked": 0, "skipped": True}
+    report["ao"] = io.bake_ao(bpy, objects, samples=ao_samples) if ao else {"baked": 0, "skipped": True}
     for obj in objects:
         io.combine_ao(obj)
     report["uv_issue_count"] = uv_issues
@@ -91,8 +91,9 @@ def main() -> None:
     p.add_argument("--sector", choices=SECTORS, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--no-ao", action="store_true")
+    p.add_argument("--ao-samples", type=int, default=16, help="Cycles samples for the AO vertex bake (raise for large flats)")
     args = p.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
-    print("SLUM02_SECTOR_REPORT=" + json.dumps(write_scene(args.sector, args.output, ao=not args.no_ao), ensure_ascii=False))
+    print("SLUM02_SECTOR_REPORT=" + json.dumps(write_scene(args.sector, args.output, ao=not args.no_ao, ao_samples=args.ao_samples), ensure_ascii=False))
 
 
 if __name__ == "__main__":
