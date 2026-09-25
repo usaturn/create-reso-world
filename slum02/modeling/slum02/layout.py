@@ -14,6 +14,7 @@ Conventions
 """
 from __future__ import annotations
 
+import functools
 import json
 import math
 import random
@@ -41,6 +42,13 @@ HOLO_SCROLL = ["holo_cyan_scroll", "holo_magenta_scroll"]
 # Sightline tuning: extra metres added to rng heights of outer towers (cap 44 m).
 HEIGHT_BOOST: dict[str, float] = {}
 MAX_OUTER_HEIGHT = 44.0
+
+# Story pitch of the tower generators (Task 8 ``towers.FLOOR_H``); layout cannot import
+# towers (towers imports layout), so the value is duplicated here.
+TOWER_FLOOR_H = 3.2
+# Dedicated draw stream for ``collapse`` so downstream layout values (stalls, shacks,
+# ads, cables) keep the draws they were tuned against.
+COLLAPSE_SEED = SEED + 61
 
 ROT_FOR_FRONT = {"-z": 180.0, "+z": 0.0, "-x": 270.0, "+x": 90.0}
 
@@ -635,10 +643,98 @@ def _occluders(towers, bridges, wall_boxes) -> list[dict[str, Any]]:
     return occ
 
 
-def build_layout() -> dict[str, Any]:
+def _apply_collapse(towers: list[dict[str, Any]], rng: random.Random) -> None:
+    """Draw per-tower ``collapse`` floors and the resulting intact ``core_height``.
+
+    Outer towers lose 0-2 top floors on one corner, inner towers 0-3. The facade below
+    ``core_height`` stays intact; the generators (Task 8) turn the floors above into the
+    collapsed corner zone.
+    """
+    for t in towers:
+        hi = 2 if t["role"] == "outer" else 3
+        t["collapse"] = rng.randint(0, hi)
+        t["core_height"] = round(t["height"] - t["collapse"] * TOWER_FLOOR_H - 0.5, 2)
+
+
+def _binding_margins(data: dict[str, Any]) -> dict[str, float]:
+    """Smallest clearance below the baseline occluder top (``height - 2.0``) among plaza
+    sightline rays that an outer tower catches alone (its first hit, with no non-tower
+    box also catching the ray inside the site).
+
+    A collapsed top is only safe while every such ray still enters the tower's box, so
+    this margin caps how much height the tower may lose (``_clamp_collapse`` below).
+    """
+    towers = {t["id"]: t for t in data["towers"]}
+    boxes: list[tuple[list[float], list[float], str]] = []
+    for o in data["occluders"]:
+        lo, hi = list(o["min"]), list(o["max"])
+        t = towers.get(o["source"])
+        if t is not None:
+            hi[1] = round(t["height"] - 2.0, 2)          # baseline top of the passing layout
+        boxes.append((lo, hi, o["source"]))
+    wall = data["east_wall"]
+    c, s = wall["center"], wall["size"]
+    boxes.append(([c[0] - s[0] / 2, 0.0, c[2] - s[2] / 2],
+                  [c[0] + s[0] / 2, s[1], c[2] + s[2] / 2], "east-wall"))
+    margins: dict[str, float] = {}
+    grid = [-9.0, -4.5, 0.0, 4.5, 9.0]
+    for vx in grid:
+        for vz in grid:
+            origin = (vx, EYE, vz)
+            for az in range(0, 360, 5):
+                for el in range(0, 26, 5):
+                    a, e = math.radians(az), math.radians(el)
+                    d = (math.cos(e) * math.sin(a), math.sin(e), math.cos(e) * math.cos(a))
+                    hits = []
+                    for lo, hi, src in boxes:
+                        t = ray_hit_distance(origin, d, lo, hi)
+                        if t is None:
+                            continue
+                        p = [origin[i] + d[i] * t for i in range(3)]
+                        hits.append((t, src, hi[1] - p[1],
+                                     abs(p[0]) <= HALF + 1e-6 and abs(p[2]) <= HALF + 1e-6))
+                    if not hits:
+                        continue
+                    hits.sort(key=lambda h: h[0])
+                    t0, src, margin, inside = hits[0]
+                    if not inside or not src.startswith("tower"):
+                        continue
+                    covered = any(h[3] and not h[1].startswith("tower") for h in hits[1:])
+                    if not covered:
+                        margins[src] = min(margins.get(src, math.inf), margin)
+    return margins
+
+
+def _clamp_collapse_for_sightlines(data: dict[str, Any]) -> None:
+    """Reduce ``collapse`` on outer towers so the plaza sightline seal survives (N-8).
+
+    A bound ray enters its occluder box ``margin`` metres below the baseline top
+    (``height - 2.0``); the collapsed top ``height - collapse*FLOOR_H - 0.5`` must stay
+    above it, i.e. ``collapse * FLOOR_H < margin + 1.5``. Inner towers are not occluders
+    and keep their full draw.
+    """
+    towers = {t["id"]: t for t in data["towers"]}
+    if not any(t["role"] == "outer" and t["collapse"] > 0 for t in towers.values()):
+        return
+    margins = _binding_margins(data)
+    occluders = {o["source"]: o for o in data["occluders"]}
+    for t in towers.values():
+        if t["role"] != "outer" or t["collapse"] == 0:
+            continue
+        safe = max(0, min(2, math.floor((margins.get(t["id"], math.inf) + 1.5 - 1e-6) / TOWER_FLOOR_H)))
+        if t["collapse"] > safe:
+            t["collapse"] = safe
+            t["core_height"] = round(t["height"] - safe * TOWER_FLOOR_H - 0.5, 2)
+            occ = occluders.get(t["id"])
+            if occ is not None:
+                occ["max"][1] = t["core_height"]
+
+
+def _assemble() -> dict[str, Any]:
     rng = random.Random(SEED)
     streets = _streets()
     towers = _outer_towers(rng) + _inner_towers(rng)
+    _apply_collapse(towers, random.Random(COLLAPSE_SEED))
     stalls = _stalls(rng, towers, streets)
     clubs = _clubs()
     blocked = [_street_rect(s) for s in streets] + [_aabb(x) for x in [*towers, *stalls, *clubs]]
@@ -671,7 +767,20 @@ def build_layout() -> dict[str, Any]:
         "backdrop": backdrop,
         "plaza_features": plaza_features,
     }
-    return json.loads(json.dumps(data))  # normalise tuples -> lists
+    data = json.loads(json.dumps(data))  # normalise tuples -> lists
+    _clamp_collapse_for_sightlines(data)
+    return data
+
+
+@functools.lru_cache(maxsize=4)
+def _assembled_json(boost_key: str) -> str:
+    return json.dumps(_assemble(), ensure_ascii=False)
+
+
+def build_layout() -> dict[str, Any]:
+    # Cached: the sightline collapse clamp costs one ray sweep, so the assembled layout
+    # is serialised once per HEIGHT_BOOST configuration and re-parsed per caller.
+    return json.loads(_assembled_json(repr(sorted(HEIGHT_BOOST.items()))))
 
 
 # --------------------------------------------------------------------------- validation

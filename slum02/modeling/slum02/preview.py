@@ -64,9 +64,26 @@ def _pick_engine() -> str:
     return "BLENDER_EEVEE" if ctypes.util.find_library("EGL") else "CYCLES"
 
 
-def render(blend: Path, output: Path, camera: dict, size=(768, 432)) -> dict:
+def _append_exports(bpy, blend: Path) -> list[str]:
+    """Link in every ``Slum02*Export`` collection from another sector .blend (multi-sector shots)."""
+    before = set(bpy.data.collections)
+    with bpy.data.libraries.load(str(blend.resolve()), link=False) as (data_from, data_to):
+        names = [n for n in data_from.collections if n.startswith("Slum02") and n.endswith("Export")]
+        if not names:
+            return []
+        data_to.collections = names
+    linked = [c.name for c in bpy.data.collections if c not in before]
+    for c in data_to.collections:
+        if c is not None:
+            bpy.context.scene.collection.children.link(c)
+    return linked
+
+
+def render(blend: Path, output: Path, camera: dict, extra_blends: list[Path] | None = None,
+           size=(768, 432)) -> dict:
     import bpy
     bpy.ops.wm.open_mainfile(filepath=str(blend.resolve()))
+    appended = [n for extra in (extra_blends or []) for n in _append_exports(bpy, extra)]
     _show_vertex_colors(bpy)
     scene = bpy.context.scene
     cam_data = bpy.data.cameras.new("PreviewCam")
@@ -94,16 +111,18 @@ def render(blend: Path, output: Path, camera: dict, size=(768, 432)) -> dict:
         scene.cycles.device = "CPU"
         scene.cycles.samples = 24
     bpy.ops.render.render(write_still=True)
-    return {"output": str(output), "engine": engine, "size": list(size)}
+    return {"output": str(output), "engine": engine, "size": list(size), "appended": appended}
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--blend", type=Path, required=True)
+    p.add_argument("--extra-blend", type=Path, action="append", default=[],
+                   help="append Slum02*Export collections from these .blend files (repeatable)")
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--camera", required=True, help='JSON {"position":[x,y,z],"target":[x,y,z],"fov":70}')
     a = p.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
-    print("SLUM02_PREVIEW=" + json.dumps(render(a.blend, a.output, json.loads(a.camera))))
+    print("SLUM02_PREVIEW=" + json.dumps(render(a.blend, a.output, json.loads(a.camera), a.extra_blend)))
 
 
 if __name__ == "__main__":
