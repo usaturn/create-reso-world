@@ -44,119 +44,14 @@ NEON_MATS = ("neon_magenta", "neon_cyan", "neon_lime", "neon_orange", "neon_pink
 PARASITE_MATS = ("corrugated", "corrugated_rust", "paint_teal_faded", "paint_yellow_faded")
 
 
-# --------------------------------------------------------------------------- small mesh helpers (kept local; see plaza.py twins)
+# Vector/shell helpers are shared in geometry.py (deduplicated from plaza.py copies).
+_beam = g.beam
+_planarize = g.planarize
+_combine = g.combine
+_fan_prism = g.fan_prism
+signed_volume = g.signed_volume     # re-exported for tests
+BEAM_HINT = (0.0, 0.0, 1.0)   # section orientation used by the original towers.py _beam
 
-
-def _dot(a, b):
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-
-
-def _cross(a, b):
-    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
-
-
-def _sub(a, b):
-    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
-
-
-def _mul(a, s):
-    return (a[0] * s, a[1] * s, a[2] * s)
-
-
-def _norm(a):
-    length = math.sqrt(_dot(a, a)) or 1.0
-    return _mul(a, 1.0 / length)
-
-
-def _face_normal(pts):
-    nx = ny = nz = 0.0
-    for a, b in zip(pts, (*pts[1:], pts[0])):
-        nx += (a[1] - b[1]) * (a[2] + b[2])
-        ny += (a[2] - b[2]) * (a[0] + b[0])
-        nz += (a[0] - b[0]) * (a[1] + b[1])
-    length = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
-    return (nx / length, ny / length, nz / length)
-
-
-def signed_volume(m: g.MeshData) -> float:
-    total = 0.0
-    for face in m.faces:
-        p0 = m.vertices[face[0]]
-        for i in range(1, len(face) - 1):
-            total += _dot(p0, _cross(m.vertices[face[i]], m.vertices[face[i + 1]])) / 6
-    return total
-
-
-def _outward(m: g.MeshData) -> g.MeshData:
-    """Flip a consistently wound closed shell if it came out inside-out (R11)."""
-    if signed_volume(m) > 0:
-        return m
-    return g.MeshData(m.name, m.vertices, tuple(tuple(reversed(f)) for f in m.faces), m.material)
-
-
-def _planarize(m: g.MeshData, tol: float = 1e-6) -> g.MeshData:
-    """Split non-planar polygons into triangles so metric UVs stay exact."""
-    faces: list[tuple[int, ...]] = []
-    changed = False
-    for f in m.faces:
-        if len(f) > 3:
-            pts = [m.vertices[i] for i in f]
-            n = _face_normal(pts)
-            c = tuple(sum(p[k] for p in pts) / len(pts) for k in range(3))
-            if max(abs(_dot(_sub(p, c), n)) for p in pts) > tol:
-                faces.extend((f[0], f[k], f[k + 1]) for k in range(1, len(f) - 1))
-                changed = True
-                continue
-        faces.append(f)
-    return g.MeshData(m.name, m.vertices, tuple(faces), m.material) if changed else m
-
-
-def _combine(name: str, meshes: Sequence[g.MeshData], material: str | None = None) -> g.MeshData:
-    verts: list[Vec] = []
-    faces: list[tuple[int, ...]] = []
-    for m in meshes:
-        off = len(verts)
-        verts.extend(m.vertices)
-        faces.extend(tuple(off + i for i in f) for f in m.faces)
-    return g.mesh(name, verts, faces, material or meshes[0].material)
-
-
-def _fan_prism(name: str, ring: Sequence[tuple[float, float]], y0: float, y1: float, material: str) -> g.MeshData:
-    """Closed prism over a star-shaped (x, z) outline; caps are fans around the centroid."""
-    n = len(ring)
-    cx, cz = sum(p[0] for p in ring) / n, sum(p[1] for p in ring) / n
-    verts = [(x, y0, z) for x, z in ring] + [(x, y1, z) for x, z in ring] + [(cx, y0, cz), (cx, y1, cz)]
-    bc, tc = 2 * n, 2 * n + 1
-    faces = []
-    for i in range(n):
-        k = (i + 1) % n
-        faces.append((bc, i, k))
-        faces.append((tc, n + k, n + i))
-        faces.append((i, n + i, n + k, k))
-    return _outward(g.mesh(name, verts, faces, material))
-
-
-def _basis(d: Vec, hint: Vec) -> tuple[Vec, Vec, Vec]:
-    d = _norm(d)
-    u = _sub(hint, _mul(d, _dot(hint, d)))
-    if _dot(u, u) < 1e-10:
-        alt = (1.0, 0.0, 0.0) if abs(d[0]) < 0.9 else (0.0, 0.0, 1.0)
-        u = _sub(alt, _mul(d, _dot(alt, d)))
-    u = _norm(u)
-    return u, d, _cross(u, d)   # right-handed: identity when u=X, d=Y
-
-
-def _frame(m: g.MeshData, origin: Sequence[float], d: Vec, hint: Vec, name: str | None = None) -> g.MeshData:
-    u, dd, w = _basis(d, hint)
-    verts = tuple(tuple(origin[k] + p[0] * u[k] + p[1] * dd[k] + p[2] * w[k] for k in range(3)) for p in m.vertices)
-    return g.MeshData(name or m.name, verts, m.faces, m.material)  # type: ignore[arg-type]
-
-
-def _beam(name: str, p0: Vec, p1: Vec, su: float, sw: float, material: str, hint: Vec = (0.0, 0.0, 1.0)) -> g.MeshData:
-    """Box beam between two points; ``su``/``sw`` are the section sizes, axis along p0->p1."""
-    d = _sub(p1, p0)
-    length = math.sqrt(_dot(d, d))
-    return _frame(g.box(name, (0, length / 2, 0), (su, length, sw), material), p0, d, hint)
 
 
 # --------------------------------------------------------------------------- layout helpers
@@ -298,7 +193,8 @@ def _balconies(parts: list[g.MeshData], w: float, hz: float, tarp_mats,
             parts.append(g.box(f"balcony-{idx}-ps{int(sgn)}", (bx + sgn * (bw / 2 - 0.03), fy + 0.64, z0 + 0.6),
                                (0.06, 1.0, 1.14), "concrete_dark"))
             parts.append(_beam(f"balcony-{idx}-strut{int(sgn)}", (bx + sgn * bw * 0.33, fy - 1.1, hz - 0.05),
-                               (bx + sgn * bw * 0.33, fy + 0.02, z0 + 0.95), 0.07, 0.07, "steel_dark"))
+                               (bx + sgn * bw * 0.33, fy + 0.02, z0 + 0.95), 0.07, 0.07, "steel_dark",
+                               hint=BEAM_HINT))
         roll = rng.random()
         if roll < 0.12:    # laundry line + cloth
             parts.append(g.pipe(f"balcony-{idx}-line", (bx - bw / 2 + 0.12, fy + 1.02, z0 + 0.95),
@@ -334,15 +230,17 @@ def _parasites(parts: list[g.MeshData], w: float, d: float, hx: float, hz: float
         y_c = rng.uniform(max(FLOOR_H * 2, intact_top * 0.35), max(FLOOR_H * 2 + 0.5, intact_top * 0.8 - bh))
         mat = rng.choice(parasite_mats)
         yaw, off = _face_transform(side, hx, hz)
-        box_ = g.box(f"para-box-{n}", (u, y_c, depth / 2 - 0.06), (bw, bh, depth), mat)
+        box_ = g.box(f"para-box-{n}", (u, y_c, depth / 2 - 0.06 + WALL_T / 2), (bw, bh, depth), mat)
         parts.append(g.transformed(box_, yaw, off, name=f"parasite-{n}"))
         brk = []
         for sgn in (-1.0, 1.0):
             brk.append(_beam(f"pb-{n}{int(sgn)}", (u + sgn * bw * 0.36, y_c - bh / 2 - 0.9, 0.02),
-                             (u + sgn * bw * 0.36, y_c - bh / 2 + 0.02, depth - 0.12), 0.06, 0.06, "steel_dark"))
+                             (u + sgn * bw * 0.36, y_c - bh / 2 + 0.02, depth - 0.12), 0.06, 0.06, "steel_dark",
+                             hint=BEAM_HINT))
         parts.append(_combine(f"parasite-brk-{n}", [g.transformed(m, yaw, off) for m in brk], "steel_dark"))
         if rng.random() < 0.6:   # tiny dark window on the outer face
-            win = g.box(f"pw-{n}", (u + rng.uniform(-0.3, 0.3), y_c + rng.uniform(-0.2, 0.3), depth - 0.045),
+            win = g.box(f"pw-{n}", (u + rng.uniform(-0.3, 0.3), y_c + rng.uniform(-0.2, 0.3),
+                                    depth - 0.045 + WALL_T / 2),
                         (0.6, 0.55, 0.03), "glass_dark")
             parts.append(g.transformed(win, yaw, off, name=f"parasite-win-{n}"))
 
@@ -395,7 +293,7 @@ def _scaffold(parts: list[g.MeshData], side: str, hx: float, hz: float, width: f
     u_start = -width / 2 + margin + rng.uniform(0.0, max(0.0, width - 2 * margin - nw * cell))
     yaw, off = _face_transform(side, hx, hz)
     pipes: list[g.MeshData] = []
-    out0, out1 = 0.12, 0.55
+    out0, out1 = WALL_T / 2 + 0.12, WALL_T / 2 + 0.55   # standoff measured from the facade surface
     for i in range(nw + 1):
         for out in (out0, out1):
             pipes.append(g.pipe(f"sc-v-{i}-{int(out*10)}", (u_start + i * cell, 0.0, out),
@@ -440,9 +338,9 @@ def _ac_units(parts: list[g.MeshData], w: float, d: float, hx: float, hz: float,
         u = -width / 2 + margin + BAY * (b + 0.5) + rng.uniform(0.75, 1.15) * rng.choice((-1, 1))
         y = f * FLOOR_H + 0.62
         yaw, off = _face_transform(side, hx, hz)
-        body = g.beveled_box(f"ac-b-{n}", (u, y, 0.21), (0.8, 0.6, 0.34), 0.04, "steel_dark")
+        body = g.beveled_box(f"ac-b-{n}", (u, y, WALL_T / 2 + 0.13), (0.8, 0.6, 0.34), 0.04, "steel_dark")
         units.append(g.transformed(body, yaw, off))
-        fans.append(g.transformed(g.cylinder(f"ac-f-{n}", (u, y, 0.40), 0.21, 0.05, 8, "steel_dark", axis="Z"), yaw, off))
+        fans.append(g.transformed(g.cylinder(f"ac-f-{n}", (u, y, WALL_T / 2 + 0.315), 0.21, 0.05, 8, "steel_dark", axis="Z"), yaw, off))
     parts.append(_combine("ac-00", units + fans, "steel_dark"))
 
 
@@ -548,7 +446,7 @@ def _neon_strip(parts: list[g.MeshData], spec: dict, w: float, hz: float,
                            (0.02, h - 0.25, depth - 0.12), neon))
     for sgn in (-0.3, 0.3):
         parts.append(_beam(f"neon-strip-arm{int(sgn*10)}", (x, y_c + sgn * h, hz - 0.02),
-                           (x, y_c + sgn * h, hz + 0.3), 0.05, 0.05, "steel_dark"))
+                           (x, y_c + sgn * h, hz + 0.3), 0.05, 0.05, "steel_dark", hint=BEAM_HINT))
 
 
 # --------------------------------------------------------------------------- tower assembly
@@ -679,7 +577,7 @@ def build_tower(spec: dict) -> g.Assembly:
                 top = intact_top
             if top < 1.0:
                 continue
-            fin = g.box("fin", (u, top / 2, FIN_OUT / 2 - 0.12), (FIN_W, top, FIN_OUT + 0.24), facade_mat)
+            fin = g.box("fin", (u, top / 2, WALL_T / 2 + FIN_OUT / 2 - 0.12), (FIN_W, top, FIN_OUT + 0.24), facade_mat)
             parts.append(g.transformed(fin, yaw, off, name=f"fin-{side[0]}{b}"))
         for f in range(1, int(H // FLOOR_H) + 1):
             y = f * FLOOR_H
@@ -694,7 +592,7 @@ def build_tower(spec: dict) -> g.Assembly:
                     u1 = -d / 2 + d * keep_r[jj + 1]
             if u1 - u0 < 0.4:
                 continue
-            lip = g.box("slip", ((u0 + u1) / 2, y, 0.07), (u1 - u0, LIP_H, 0.26), "concrete_dark")
+            lip = g.box("slip", ((u0 + u1) / 2, y, WALL_T / 2 + 0.07), (u1 - u0, LIP_H, 0.26), "concrete_dark")
             parts.append(g.transformed(lip, yaw, off, name=f"slab-lip-{side[0]}{f}"))
 
     # --- podium entrance --------------------------------------------------------

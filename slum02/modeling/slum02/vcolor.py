@@ -5,7 +5,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from modeling.slum02.geometry import MergedMesh, Vec3
+from modeling.slum02.geometry import MergedMesh, Vec3, face_normal as _face_normal
 from modeling.slum02.materials import MATERIALS
 
 
@@ -78,16 +78,6 @@ def _clamp(v, lo=0.0, hi=1.0):
 def _smooth(a, b, x):
     t = _clamp((x - a) / (b - a))
     return t * t * (3 - 2 * t)
-
-
-def _face_normal(pts: Sequence[Vec3]) -> Vec3:
-    nx = ny = nz = 0.0
-    for a, b in zip(pts, (*pts[1:], pts[0])):  # Newell
-        nx += (a[1] - b[1]) * (a[2] + b[2])
-        ny += (a[2] - b[2]) * (a[0] + b[0])
-        nz += (a[0] - b[0]) * (a[1] + b[1])
-    length = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
-    return (nx / length, ny / length, nz / length)
 
 
 def vertex_colors(merged: MergedMesh, origin: Sequence[float], seed: int,

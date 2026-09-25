@@ -165,3 +165,16 @@
 - 残課題: 影側立面は基調がコンクリート一色で暗い（峡谷としては妥当だが、実機で要確認）。崩落コーナーの破断面は近景でもう少し荒くてもよいかもしれない（今回はコスト内の範囲で実装）
 
 プレビュー: `towers-plaza-north.png`、`towers-alley-se.png`、`towers-near.png`、`towers-aerial.png` / `towers-aerial-ao.png`（AO 有無の比較）、`towers-sun-east.png`
+
+## towers 修正 第1回（Fix round 1: 付加物の張り出し + ヘルパー集約）
+
+視点: `towers-fix1-facade-oblique`（`[30,8,4]→[19,10,19]`、towers-c＋towers-a 合成）、`towers-fix1-north-row`（`[-10,6,6]→[8,15,33]`、北列の正面）。AO 32 samples あり
+
+指摘対応:
+- `fin` / `slab-lip` / `ac` / `parasite` / `scaffold` は壁中心からオフセットしており `WALL_T / 2`（0.25m）が抜けていた。壁外面を基準に再配置: fin は外面から 0.35m（壁内側に 0.24m 食い込み維持）、slab-lip は 0.20m ちょうど、AC は本体 0.30m＋ファン盤面まで 0.34m。寄生箱・足場の支持位置も外面基準に揃えた
+- 計測: `test_facade_additions_protrude_past_the_wall` で全 22 塔の 4 面について壁外面（各壁スキンの Newell 法線と頂点投影の最大値）からの実測張り出しを検証。fin 0.35±0.02・lip 0.20±0.02・AC 0.30–0.37m、back 面には AC なし。死んだ（壁に埋没した）ジオメトリは無し
+- ヘルパー集約: `_dot/_cross/_sub/_mul/_norm/_face_normal/signed_volume/_outward/_planarize/_combine/_fan_prism/_basis/_frame/_beam`（約 120 行）を `geometry.py` の共有実装に集約。plaza/towers/vcolor は `g.*` へエイリアス。towers の `_beam` は hint (0,0,1) を明示引数にして断面方向を維持
+- 回帰検証: 修正前コミットから旧 towers.py/plaza.py を取り出して同一 seed で再生成し比較。plaza 585 パーツ・塔の非対象 1033 パーツすべて頂点・面・素材が完全一致（集約は幾何中立）。付加物のみ意図通り外側へ移動。三角形数も towers-a/b/c = 66848/66980/36238 で不変、AO bake 8/8/6 オブジェクト・uv_issue_count 0
+- プレビュー判断: 斜め俯瞰・北列ビューでフィンの垂直リブと各階スラブリップの水平線が壁面から抜けて見え、AC 室外機が壁面に取り付く読み取りになる。残課題: 影側の立面は依然暗め（路地峡谷の範囲内）
+
+プレビュー: `towers-fix1-facade-oblique.png`、`towers-fix1-north-row.png`（新規 2 枚）

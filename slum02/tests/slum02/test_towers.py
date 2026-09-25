@@ -128,6 +128,67 @@ def test_facade_skins_face_outward(towers):
         assert dot > 0 and abs(n[axis]) == max(abs(c) for c in n), (name, n)
 
 
+def _facade_planes(a):
+    """(unit outward normal, exterior plane offset) per facade side of one tower.
+
+    The dominant Newell normal of each wall skin is the outward direction; the
+    exterior surface is the maximum vertex projection onto it.
+    """
+    planes = {}
+    for side in ("front", "back", "left", "right"):
+        wall = next(p for p in a.parts if p.name == f"facade-{side}")
+        nx = ny = nz = 0.0
+        for f in wall.faces:
+            pts = [wall.vertices[i] for i in f]
+            for u, v in zip(pts, (*pts[1:], pts[0])):
+                nx += (u[1] - v[1]) * (u[2] + v[2])
+                ny += (u[2] - v[2]) * (u[0] + v[0])
+                nz += (u[0] - v[0]) * (u[1] + v[1])
+        n = g.norm((nx, ny, nz))
+        planes[side] = (n, max(g.dot(v, n) for v in wall.vertices))
+    return planes
+
+
+def _projected(part, planes, side):
+    n, off = planes[side]
+    return max(g.dot(v, n) for v in part.vertices) - off
+
+
+def test_facade_additions_protrude_past_the_wall(towers):
+    """Measured projection: fins ~0.35 m, slab lips 0.2 m, AC units ~0.3 m.
+
+    Regression for fix round 1: these parts used to be positioned relative to
+    the wall centre, so WALL_T / 2 was silently embedded and AC units floated
+    half-buried. Measure every face on every tower.
+    """
+    letter = {"f": "front", "b": "back", "l": "left", "r": "right"}
+    ac_sides = set()
+    for a in towers:
+        planes = _facade_planes(a)
+        fin_sides, lip_sides = set(), set()
+        for p in a.parts:
+            if p.name.startswith("fin-"):
+                side = letter[p.name.split("-")[1][0]]
+                fin_sides.add(side)
+                assert _projected(p, planes, side) == pytest.approx(0.35, abs=0.02), (a.name, p.name)
+            elif p.name.startswith("slab-lip-"):
+                side = letter[p.name.split("-")[2][0]]
+                lip_sides.add(side)
+                assert _projected(p, planes, side) == pytest.approx(0.20, abs=0.02), (a.name, p.name)
+        # every tower keeps fins and lips on all four facades
+        assert fin_sides == {"front", "back", "left", "right"}, (a.name, fin_sides)
+        assert lip_sides == {"front", "back", "left", "right"}, (a.name, lip_sides)
+        # AC units: combined mesh on front + both sides, never on the back
+        ac = next(p for p in a.parts if p.name == "ac-00")
+        for side in ("front", "left", "right"):
+            proj = _projected(ac, planes, side)
+            if proj > 0.02:                      # this face actually carries units
+                ac_sides.add(side)
+                assert 0.30 <= proj <= 0.37, (a.name, side, proj)
+        assert _projected(ac, planes, "back") <= 0.02, a.name
+    assert ac_sides == {"front", "left", "right"}   # placement covers all intended faces
+
+
 def test_outer_towers_expose_occluder(data, towers):
     for a in towers:
         spec = next(t for t in data["towers"] if t["id"] == a.name)

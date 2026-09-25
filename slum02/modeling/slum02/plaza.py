@@ -50,71 +50,15 @@ def _add(a, b):
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
 
-def _sub(a, b):
-    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
-
-
-def _mul(a, s):
-    return (a[0] * s, a[1] * s, a[2] * s)
-
-
-def _dot(a, b):
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-
-
-def _cross(a, b):
-    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
-
-
-def _norm(a):
-    length = math.sqrt(_dot(a, a))
-    return _mul(a, 1.0 / length)
+# Shared vector/shell helpers live in geometry.py (Task 8 fix: deduplicated copies).
+_sub, _mul, _dot, _cross, _norm = g.sub, g.mul, g.dot, g.cross, g.norm
+signed_volume = g.signed_volume
+_outward, _planarize, _combine, _fan_prism = g.outward, g.planarize, g.combine, g.fan_prism
+_newell = g.face_normal
+_basis, _frame, _beam = g.basis, g.frame, g.beam
 
 
 # --------------------------------------------------------------------------- mesh helpers
-
-
-def signed_volume(m: g.MeshData) -> float:
-    total = 0.0
-    for face in m.faces:
-        p0 = m.vertices[face[0]]
-        for i in range(1, len(face) - 1):
-            total += _dot(p0, _cross(m.vertices[face[i]], m.vertices[face[i + 1]])) / 6
-    return total
-
-
-def _outward(m: g.MeshData) -> g.MeshData:
-    """Flip a consistently wound closed shell if it came out inside-out (R11)."""
-    if signed_volume(m) > 0:
-        return m
-    return g.MeshData(m.name, m.vertices, tuple(tuple(reversed(f)) for f in m.faces), m.material)
-
-
-def _planarize(m: g.MeshData, tol: float = 1e-6) -> g.MeshData:
-    """Split non-planar polygons (bent tubes, torn plates) into triangles so metric UVs stay exact."""
-    faces: list[tuple[int, ...]] = []
-    changed = False
-    for f in m.faces:
-        if len(f) > 3:
-            pts = [m.vertices[i] for i in f]
-            n = _newell(pts)
-            c = tuple(sum(p[k] for p in pts) / len(pts) for k in range(3))
-            if max(abs(_dot(_sub(p, c), n)) for p in pts) > tol:
-                faces.extend((f[0], f[k], f[k + 1]) for k in range(1, len(f) - 1))
-                changed = True
-                continue
-        faces.append(f)
-    return g.MeshData(m.name, m.vertices, tuple(faces), m.material) if changed else m
-
-
-def _newell(pts):
-    nx = ny = nz = 0.0
-    for a, b in zip(pts, (*pts[1:], pts[0])):
-        nx += (a[1] - b[1]) * (a[2] + b[2])
-        ny += (a[2] - b[2]) * (a[0] + b[0])
-        nz += (a[0] - b[0]) * (a[1] + b[1])
-    length = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
-    return (nx / length, ny / length, nz / length)
 
 
 def _tessellate(m: g.MeshData, max_edge: float) -> g.MeshData:
@@ -146,16 +90,6 @@ def _tessellate(m: g.MeshData, max_edge: float) -> g.MeshData:
     return b.build(m.name, m.material)
 
 
-def _combine(name: str, meshes: Sequence[g.MeshData], material: str | None = None) -> g.MeshData:
-    verts: list[Vec] = []
-    faces: list[tuple[int, ...]] = []
-    for m in meshes:
-        off = len(verts)
-        verts.extend(m.vertices)
-        faces.extend(tuple(off + i for i in f) for f in m.faces)
-    return g.mesh(name, verts, faces, material or meshes[0].material)
-
-
 def _hexa(name: str, corners: Sequence[Sequence[float]], material: str) -> g.MeshData:
     """Deformed box from 8 corners in ``geometry.box`` order (-x-y-z, +x-y-z, +x+y-z, -x+y-z, ... +z)."""
     return _outward(g.mesh(name, corners, _BOX_FACES, material))
@@ -168,29 +102,6 @@ def _block(name: str, x0: float, x1: float, z0: float, z1: float, y0: float,
     t = tops
     return _hexa(name, ((x0, b[0], z0), (x1, b[1], z0), (x1, t[1], z0), (x0, t[0], z0),
                         (x0, b[3], z1), (x1, b[2], z1), (x1, t[2], z1), (x0, t[3], z1)), material)
-
-
-def _basis(d: Vec, hint: Vec) -> tuple[Vec, Vec, Vec]:
-    d = _norm(d)
-    u = _sub(hint, _mul(d, _dot(hint, d)))
-    if _dot(u, u) < 1e-10:
-        alt = (1.0, 0.0, 0.0) if abs(d[0]) < 0.9 else (0.0, 0.0, 1.0)
-        u = _sub(alt, _mul(d, _dot(alt, d)))
-    u = _norm(u)
-    return u, d, _cross(u, d)  # right-handed: identity when u=X, d=Y
-
-
-def _frame(m: g.MeshData, origin: Sequence[float], d: Vec, hint: Vec, name: str | None = None) -> g.MeshData:
-    """Map local (x, y, z) to origin + x*u + y*d + z*w (a proper rotation, so winding survives)."""
-    u, dd, w = _basis(d, hint)
-    verts = tuple(tuple(origin[k] + p[0] * u[k] + p[1] * dd[k] + p[2] * w[k] for k in range(3)) for p in m.vertices)
-    return g.MeshData(name or m.name, verts, m.faces, m.material)  # type: ignore[arg-type]
-
-
-def _beam(name: str, p0: Vec, p1: Vec, su: float, sw: float, material: str, hint: Vec = (0.0, 1.0, 0.0)) -> g.MeshData:
-    d = _sub(p1, p0)
-    length = math.sqrt(_dot(d, d))
-    return _frame(g.box(name, (0, length / 2, 0), (su, length, sw), material), p0, d, hint)
 
 
 def _move(m: g.MeshData, offset: Sequence[float], yaw: float = 0.0, name: str | None = None) -> g.MeshData:
@@ -1269,21 +1180,6 @@ def _chunk(name: str, size: Sequence[float], seed: int, material: str = "concret
         j = [(value_noise3(v[0] * 3.1 + 11.7 * k, v[1] * 3.1, v[2] * 3.1, seed + k) - 0.5) * 2 * 0.18 * size[k] for k in range(3)]
         verts.append((v[0] + j[0], v[1] if v[1] <= 1e-9 else v[1] + j[1], v[2] + j[2]))
     return _outward(_planarize(g.MeshData(name, tuple(verts), box.faces, material)))
-
-
-def _fan_prism(name: str, ring: Sequence[tuple[float, float]], y0: float, y1: float, material: str) -> g.MeshData:
-    """Closed prism over a star-shaped (x, z) outline; caps are fans around the centroid."""
-    n = len(ring)
-    cx, cz = sum(p[0] for p in ring) / n, sum(p[1] for p in ring) / n
-    verts = [(x, y0, z) for x, z in ring] + [(x, y1, z) for x, z in ring] + [(cx, y0, cz), (cx, y1, cz)]
-    bc, tc = 2 * n, 2 * n + 1
-    faces = []
-    for i in range(n):
-        k = (i + 1) % n
-        faces.append((bc, i, k))
-        faces.append((tc, n + k, n + i))
-        faces.append((i, n + i, n + k, k))
-    return _outward(g.mesh(name, verts, faces, material))
 
 
 def _slate_sheet(rng: random.Random) -> list[g.MeshData]:
