@@ -109,3 +109,19 @@ def test_all_closed_parts_wound_outward():
                 continue
             assert _closed_consistent(part), (assembly.name, part.name)
             assert _signed_volume(part) > 0, (assembly.name, part.name)
+
+
+def test_ground_is_open_under_plaza_pits():
+    """The plaza's machine pits go below grade, so no ground sheet or slab may cover them."""
+    data = build_layout()
+    base = _by_name(ground.ground_assemblies(data))["ground-base"]
+    for x0, z0, x1, z1 in data["plaza_features"]["pits"]:
+        probes = [(x0 + (x1 - x0) * fx, z0 + (z1 - z0) * fz) for fx in (0.1, 0.5, 0.9) for fz in (0.1, 0.5, 0.9)]
+        for part in base.parts:
+            for face in part.faces:
+                pts = [part.vertices[i] for i in face]
+                if max(p[1] for p in pts) - min(p[1] for p in pts) > 1e-6:
+                    continue  # only horizontal (axis-aligned rectangle) faces can cover a pit
+                lx, hx = min(p[0] for p in pts), max(p[0] for p in pts)
+                lz, hz = min(p[2] for p in pts), max(p[2] for p in pts)
+                assert not any(lx < px < hx and lz < pz < hz for px, pz in probes), part.name

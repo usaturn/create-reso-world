@@ -96,9 +96,28 @@ def _blockers(data: dict[str, Any]) -> list[Rect]:
 # --------------------------------------------------------------------------- ground base
 
 
-def _base_parts(streets: list[Rect]) -> list[g.MeshData]:
-    cuts_x = sorted({c for r in (*streets, PLAZA_RECT) for c in (r[0], r[2]) if -HALF < c < HALF})
-    cuts_z = sorted({c for r in (*streets, PLAZA_RECT) for c in (r[1], r[3]) if -HALF < c < HALF})
+def _slab_pieces(holes: list[Rect]) -> list[Rect]:
+    """Split the 80 x 80 m slab into x-strips of z-intervals that leave every hole open."""
+    xs = sorted({-HALF, HALF, *(c for r in holes for c in (r[0], r[2]))})
+    pieces: list[Rect] = []
+    for x0, x1 in zip(xs, xs[1:]):
+        mid = (x0 + x1) / 2
+        cuts = sorted((r[1], r[3]) for r in holes if r[0] < mid < r[2])
+        z = -HALF
+        for z0, z1 in cuts:
+            if z0 > z:
+                pieces.append((x0, z, x1, z0))
+            z = max(z, z1)
+        if z < HALF:
+            pieces.append((x0, z, x1, HALF))
+    return pieces
+
+
+def _base_parts(streets: list[Rect], holes: list[Rect] = ()) -> list[g.MeshData]:
+    """Ground sheet + slab. ``holes`` (the plaza's below-grade pits) are left open in both."""
+    holes = list(holes)
+    cuts_x = sorted({c for r in (*streets, PLAZA_RECT, *holes) for c in (r[0], r[2]) if -HALF < c < HALF})
+    cuts_z = sorted({c for r in (*streets, PLAZA_RECT, *holes) for c in (r[1], r[3]) if -HALF < c < HALF})
     xs = g._splits(-HALF, HALF, CELL, cuts_x)
     zs = g._splits(-HALF, HALF, CELL, cuts_z)
     nx, nz = len(xs) - 1, len(zs) - 1
@@ -108,6 +127,8 @@ def _base_parts(streets: list[Rect]) -> list[g.MeshData]:
     for i in range(nx):
         for j in range(nz):
             x0, x1, z0, z1 = xs[i], xs[i + 1], zs[j], zs[j + 1]
+            if any(_in_rect((x0 + x1) / 2, (z0 + z1) / 2, h) for h in holes):
+                continue  # the plaza pit liner closes the hole
             top = STREET_TOP if street[i][j] else GROUND_TOP
             # (x0,z0)->(x0,z1)->(x1,z1)->(x1,z0) is +Y by Newell in Resonite XYZ.
             (road if street[i][j] else block).quad((x0, top, z0), (x0, top, z1), (x1, top, z1), (x1, top, z0))
@@ -142,7 +163,9 @@ def _base_parts(streets: list[Rect]) -> list[g.MeshData]:
     for k, (cx, cz, sx, sz) in enumerate(((HALF - sk / 2, 0, sk, 2 * HALF), (-HALF + sk / 2, 0, sk, 2 * HALF),
                                           (0, HALF - sk / 2, 2 * HALF - 2 * sk, sk), (0, -HALF + sk / 2, 2 * HALF - 2 * sk, sk))):
         parts.append(g.box(f"skirt-{k}", (cx, y0 + h / 2, cz), (sx, h, sz), "concrete_dark"))
-    parts.append(g.box("slab-body", (0, -0.1, 0), (80, 0.16, 80), "concrete_dark"))
+    for k, (x0, z0, x1, z1) in enumerate(_slab_pieces(holes)):
+        name = "slab-body" if not holes else f"slab-body-{k:02d}"
+        parts.append(g.box(name, ((x0 + x1) / 2, -0.1, (z0 + z1) / 2), (x1 - x0, 0.16, z1 - z0), "concrete_dark"))
     return parts
 
 
@@ -567,7 +590,8 @@ def ground_assemblies(data: dict[str, Any]) -> list[g.Assembly]:
     streets = _street_rects(data)
     blockers = _blockers(data)
     tower_rects = [_aabb(t) for t in data["towers"]]
-    base = _base_parts(streets)
+    pits = [tuple(p) for p in data.get("plaza_features", {}).get("pits", [])]
+    base = _base_parts(streets, pits)
     curbs, grates, gutter = _curbs_and_grates(streets, tower_rects, random.Random(SEED + 101))
     manholes, avoid, rust = _manholes(data, random.Random(SEED + 102))
     puddles, halos = _puddles(streets, avoid, random.Random(SEED + 103))
