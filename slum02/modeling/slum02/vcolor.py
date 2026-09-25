@@ -25,6 +25,9 @@ class Spray:
     radius: float
     color: tuple[float, float, float]
     strength: float
+    # Optional palette names: when set, only vertices of those materials are tinted (a tint that
+    # greys one paint can push another towards a saturated hue, e.g. teal fade vs. yellow paint).
+    materials: tuple[str, ...] = ()
 
 
 WEAR: dict[str, WearProfile] = {
@@ -92,6 +95,7 @@ def vertex_colors(merged: MergedMesh, origin: Sequence[float], seed: int,
     n = len(merged.vertices)
     normals: list[list[Vec3]] = [[] for _ in range(n)]
     family: list[str | None] = [None] * n
+    material: list[str | None] = [None] * n
     for face, mat in zip(merged.faces, merged.face_materials):
         fn = _face_normal([merged.vertices[i] for i in face])
         fam = MATERIALS[merged.materials[mat]].family
@@ -99,6 +103,7 @@ def vertex_colors(merged: MergedMesh, origin: Sequence[float], seed: int,
             normals[i].append(fn)
             if family[i] is None:
                 family[i] = fam
+                material[i] = merged.materials[mat]
     top = max(v[1] for v in merged.vertices) + origin[1]
     out = []
     for idx, v in enumerate(merged.vertices):
@@ -122,6 +127,8 @@ def vertex_colors(merged: MergedMesh, origin: Sequence[float], seed: int,
             r = prof.rust * _smooth(0.55, 0.85, value_noise3(P[0] * 0.9, P[1] * 0.9, P[2] * 0.9, seed + 5)) * (0.5 + 0.5 * _clamp(1 - P[1] / 2.5))
             rgb = [c + (c * t - c) * r for c, t in zip(rgb, (1.1, 0.55, 0.3))]
         for sp in sprays:
+            if sp.materials and material[idx] not in sp.materials:
+                continue
             d = math.dist(P, sp.center) / sp.radius
             k = sp.strength * (1 - _smooth(0.4, 1.0, d))
             if k > 0:

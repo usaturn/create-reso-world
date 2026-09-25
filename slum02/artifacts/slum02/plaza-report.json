@@ -1,8 +1,8 @@
 {
   "sector": "plaza",
   "objects": 12,
-  "triangles": 47946,
-  "vertices": 26009,
+  "triangles": 49654,
+  "vertices": 26883,
   "submeshes": 53,
   "materials": [
     "asphalt_wet",
@@ -73,12 +73,12 @@
   },
   "ao": {
     "baked": 14,
-    "seconds": 0.8,
+    "seconds": 0.9,
     "samples": 16
   },
   "uv_issue_count": 0,
   "blend_path": "/workspaces/reso-world/slum02/artifacts/slum02/plaza.blend",
   "blender_version": "5.0.1",
   "export_collection": "Slum02PlazaExport",
-  "triangles_blender": 70452
+  "triangles_blender": 72160
 }

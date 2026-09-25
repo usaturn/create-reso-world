@@ -876,13 +876,22 @@ def _press(x: float, z: float, yaw: float, rng: random.Random) -> g.Assembly:
     # Flywheel with a hub and belt guard on the +X side.
     L.append(g.cylinder("press-flywheel", (1.75, y0 + 3.3, 0.2), 0.78, 0.22, 28, "rust_dark", axis="X"))
     L.append(g.cylinder("press-hub", (1.75, y0 + 3.3, 0.2), 0.16, 0.36, 12, "steel_dark", axis="X"))
-    L.append(_block("press-guard", 1.95, 1.99, -0.7, 1.1, y0 + 2.4, [y0 + 4.1] * 4, "paint_yellow_faded"))
+    # Yellow sheet-metal parts are tessellated too and carry their own flaked patches, so the fade
+    # and grime vary across the panel instead of sitting only on its corners.
+    L.append(_tessellate(_block("press-guard", 1.95, 1.99, -0.7, 1.1, y0 + 2.4, [y0 + 4.1] * 4, "paint_yellow_faded"), 0.2))
+    for k, (gy, gz, r) in enumerate(((y0 + 2.55, -0.35, 0.09), (y0 + 2.6, 0.55, 0.12), (y0 + 3.3, 1.0, 0.06),
+                                     (y0 + 3.95, -0.1, 0.07), (y0 + 2.9, 0.1, 0.05))):
+        gy = min(max(gy, y0 + 2.4 + 1.5 * r), y0 + 4.1 - 1.5 * r)
+        gz = min(max(gz, -0.7 + r), 1.1 - r)
+        L.append(_rust_patch(f"press-flake-guard-{k}", (1.99, gy, gz), 0, 1, r, rng, "rust_dark" if k % 2 else "rust"))
     # Motor on the crown, control box with a hanging door, hydraulic lines.
     L.append(g.cylinder("press-motor", (-0.7, y0 + 4.78, -0.55), 0.26, 0.8, 16, "paint_teal_faded", axis="X"))
     L.append(g.box("press-motor-foot", (-0.7, y0 + 4.56, -0.55), (0.6, 0.12, 0.4), "steel_dark"))
-    L.append(g.box("press-control-box", (-1.15, y0 + 2.0, 0.95), (0.5, 0.8, 0.3), "paint_yellow_faded"))
-    door = g.box("press-control-door", (0.25, 0.0, 0.0), (0.5, 0.78, 0.02), "paint_yellow_faded")
-    L.append(g.transformed_xyz(door, 0.0, math.radians(-110), math.radians(-8), (-1.4, y0 + 2.0, 1.12)))
+    L.append(_tessellate(g.box("press-control-box", (-1.15, y0 + 2.0, 0.95), (0.5, 0.8, 0.3), "paint_yellow_faded"), 0.15))
+    door = [_tessellate(g.box("press-control-door", (0.25, 0.0, 0.0), (0.5, 0.78, 0.02), "paint_yellow_faded"), 0.15),
+            _rust_patch("press-flake-door-0", (0.36, -0.25, 0.01), 2, 1, 0.06, rng, "rust"),
+            _rust_patch("press-flake-door-1", (0.12, 0.22, -0.01), 2, -1, 0.05, rng, "rust_dark")]
+    L += [g.transformed_xyz(m, 0.0, math.radians(-110), math.radians(-8), (-1.4, y0 + 2.0, 1.12)) for m in door]
     L.append(g.tube("press-hose-a", [(0.3, y0 + 4.7, -0.35), (0.9, y0 + 4.5, -0.9), (1.35, y0 + 3.2, -0.95), (1.4, y0 + 1.2, -0.95)], 0.035, 6, "rubber"))
     L.append(g.tube("press-hose-b", [(-0.3, y0 + 4.7, -0.35), (-0.8, y0 + 4.4, -1.0), (-1.2, y0 + 1.0, -1.0), (-1.3, FLOOR_TOP + 0.06, -1.6)], 0.03, 6, "rubber"))
     # Stiffening ribs on the uprights and the crown (layered, cast-steel look) and a crown handrail.
@@ -895,28 +904,41 @@ def _press(x: float, z: float, yaw: float, rng: random.Random) -> g.Assembly:
             L.append(g.box(f"press-crown-rib-{zf}-{rx}", (rx, y0 + 4.0, zf * 0.99), (0.07, 0.94, 0.08), "paint_teal_faded"))
         L.append(g.box(f"press-crown-band-{zf}", (0.0, y0 + 3.62, zf * 0.99), (3.0, 0.12, 0.1), "rust_dark"))
     rail_pts = [(-1.45, -0.85), (1.45, -0.85), (1.45, 0.85), (-1.45, 0.85)]
+    def rail_tube(name, p0, p1, radius):   # rings every ~0.25 m so the wear varies along the rail
+        n = max(2, math.ceil(math.dist(p0, p1) / 0.25))
+        return g.tube(name, [tuple(p0[k] + (p1[k] - p0[k]) * i / n for k in range(3)) for i in range(n + 1)],
+                      radius, 6, "paint_yellow_faded")
     for k, (px, pz) in enumerate(rail_pts):
-        L.append(g.pipe(f"press-rail-post-{k}", (px, y0 + 4.5, pz), (px, y0 + 5.5, pz), 0.025, "paint_yellow_faded", 6))
+        L.append(rail_tube(f"press-rail-post-{k}", (px, y0 + 4.5, pz), (px, y0 + 5.5, pz), 0.025))
     for k in range(3):  # one side of the handrail is gone
         a, b2 = rail_pts[k], rail_pts[k + 1]
-        L.append(g.pipe(f"press-rail-{k}", (a[0], y0 + 5.45, a[1]), (b2[0], y0 + 5.45, b2[1]), 0.022, "paint_yellow_faded", 6))
+        L.append(rail_tube(f"press-rail-{k}", (a[0], y0 + 5.45, a[1]), (b2[0], y0 + 5.45, b2[1]), 0.022))
     L.append(g.box("press-nameplate", (0.0, y0 + 0.55, 0.905), (0.5, 0.22, 0.01), "steel_bare"))
     # Guard panel that fell off and leans on the bed.
-    panel = _block("press-fallen-guard", -0.6, 0.6, -0.01, 0.01, 0.0, [0.9] * 4, "paint_yellow_faded")
-    L.append(g.transformed_xyz(panel, math.radians(-28), 0.0, 0.0, (-0.2, FLOOR_TOP + 0.36, -1.45)))
+    panel = [_tessellate(_block("press-fallen-guard", -0.6, 0.6, -0.01, 0.01, 0.0, [0.9] * 4, "paint_yellow_faded"), 0.15),
+             _rust_patch("press-flake-fallen-0", (-0.35, 0.12, 0.01), 2, 1, 0.08, rng, "rust"),
+             _rust_patch("press-flake-fallen-1", (0.3, 0.2, 0.01), 2, 1, 0.1, rng, "rust_dark"),
+             _rust_patch("press-flake-fallen-2", (0.1, 0.7, -0.01), 2, -1, 0.07, rng, "rust")]
+    L += [g.transformed_xyz(m, math.radians(-28), 0.0, 0.0, (-0.2, FLOOR_TOP + 0.36, -1.45)) for m in panel]
     parts = [g.transformed(m, math.radians(yaw), (x, 0.0, z)) for m in L]
-    # Decades outdoors: the teal is chalked and dirtied towards grey-brown everywhere, grime splashes up
-    # from the base, rust bleeds out under the flakes, oil leaked from the cylinder, rain washed dirt down
-    # from the crown edge in streaks, and dust lies on the top.
-    sprays = [Spray((x, y0 + 0.9, z), 3.2, (1.3, 0.45, 0.4), 0.9),
-              Spray((x, y0 + 4.2, z), 3.4, (1.3, 0.45, 0.4), 0.9),
+    yellow = ("paint_yellow_faded",)
+    not_yellow = tuple(sorted({m.material for m in L} - set(yellow)))
+    # Decades outdoors: both paints are chalked and dirtied towards grey-brown, grime splashes up from
+    # the base, rust bleeds out under the flakes, oil leaked from the cylinder, rain washed dirt down from
+    # the crown edge in streaks, and dirt settled on the top. The fade is a per-channel tint, so the teal
+    # tint (red up, green/blue down) is kept off the yellow paint, which would turn saturated orange;
+    # the yellow gets its own tint (red/green down, blue up) that greys it towards khaki.
+    sprays = [Spray((x, y0 + 0.9, z), 3.2, (1.3, 0.45, 0.4), 0.9, not_yellow),
+              Spray((x, y0 + 4.2, z), 3.4, (1.3, 0.45, 0.4), 0.9, not_yellow),
+              Spray((x, y0 + 2.8, z), 6.0, (0.55, 0.65, 1.3), 0.9, yellow),
+              Spray((x + 1.97, y0 + 2.6, z + 0.2), 0.9, (0.45, 0.42, 0.4), 0.6, yellow),  # belt grime on the guard
               Spray((x, y0 + 0.1, z), 2.2, (0.42, 0.38, 0.34), 0.85),                   # grime at the foot
               Spray((x + 0.3, y0 + 4.5, z - 0.95), 0.9, (0.3, 0.27, 0.24), 0.8),       # hydraulic oil leak
               Spray((x + 0.3, y0 + 3.4, z - 0.95), 0.8, (0.35, 0.3, 0.26), 0.7),
-              Spray((x - 1.15, y0 + 1.3, z + 0.8), 0.9, (1.15, 0.6, 0.35), 0.8),        # rust bleeding through paint
-              Spray((x + 1.15, y0 + 1.0, z - 0.8), 0.9, (1.15, 0.6, 0.35), 0.8),
-              Spray((x - 1.3, y0 + 0.4, z - 0.9), 0.7, (1.15, 0.6, 0.35), 0.75),
-              Spray((x + 0.9, y0 + 0.3, z + 0.9), 0.7, (1.15, 0.6, 0.35), 0.75),
+              Spray((x - 1.15, y0 + 1.3, z + 0.8), 0.9, (1.15, 0.6, 0.35), 0.8, not_yellow),   # rust bleeding through paint
+              Spray((x + 1.15, y0 + 1.0, z - 0.8), 0.9, (1.15, 0.6, 0.35), 0.8, not_yellow),
+              Spray((x - 1.3, y0 + 0.4, z - 0.9), 0.7, (1.15, 0.6, 0.35), 0.75, not_yellow),
+              Spray((x + 0.9, y0 + 0.3, z + 0.9), 0.7, (1.15, 0.6, 0.35), 0.75, not_yellow),
               Spray((x, y0 + 4.6, z), 1.5, (0.8, 0.7, 0.62), 0.6)]                     # dirt settled on the crown
     for zf in (-1, 1):
         for rx in (-0.9, -0.3, 0.3, 0.9):
