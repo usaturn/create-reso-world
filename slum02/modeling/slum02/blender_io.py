@@ -23,17 +23,15 @@ def resonite_to_blender(p) -> Vec3:
 
 def create_object(bpy, bmesh, merged: MergedMesh, origin, material_lookup, *, uv_exempt=False):
     me = bpy.data.meshes.new(f"Slum02_{merged.name}_Mesh")
-    me.from_pydata([resonite_to_blender(v) for v in merged.vertices], [], [list(f) for f in merged.faces])
+    # Generators author outward/CCW winding in Resonite XYZ (R11). The XZY swap is a mirror,
+    # so reversing every face restores outward normals in Blender. Normals are deliberately
+    # not recalculated: Blender's heuristic cannot orient open cards or flat sheets.
+    me.from_pydata([resonite_to_blender(v) for v in merged.vertices], [], [list(reversed(f)) for f in merged.faces])
     me.update()
     for name in merged.materials:
         me.materials.append(material_lookup[name])
     for poly, mat in zip(me.polygons, merged.face_materials):
         poly.material_index = mat
-    bm = bmesh.new()
-    bm.from_mesh(me)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.to_mesh(me)
-    bm.free()
     uv_layer = me.uv_layers.new(name="UV0")
     issues = 0
     for poly in me.polygons:

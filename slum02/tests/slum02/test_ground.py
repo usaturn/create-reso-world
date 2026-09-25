@@ -18,7 +18,7 @@ def test_ground_slab_extent_and_top():
     assert abs(hi[1] - ground.GROUND_TOP) < 0.03
     mats = {p.material for p in base.parts}
     assert {"asphalt", "concrete_stained"} <= mats
-    # Walkable surfaces must face +Y by winding alone (Blender's recalc cannot decide an open sheet).
+    # Walkable surfaces must face +Y by winding alone (R11: create_object never recalculates normals).
     merged = g.merge_assembly(g.Assembly("walk", "walk", "ground", (0.0, 0.0, 0.0),
                                          [p for p in base.parts if p.material in ("asphalt", "concrete_stained")
                                           and max(v[1] for v in p.vertices) - min(v[1] for v in p.vertices) < 0.03
@@ -75,3 +75,37 @@ def test_backdrop_ring_faces_up():
                 assert _face_normal(pts)[1] > 0.99
                 tops += 1
     assert tops == ground.RING_SEGMENTS
+
+
+def _closed_consistent(mesh):
+    directed = set()
+    for face in mesh.faces:
+        for a, b in zip(face, (*face[1:], face[0])):
+            if (a, b) in directed:
+                return False
+            directed.add((a, b))
+    return all((b, a) in directed for a, b in directed)
+
+
+def _signed_volume(mesh):
+    total = 0.0
+    for face in mesh.faces:
+        p0 = mesh.vertices[face[0]]
+        for i in range(1, len(face) - 1):
+            p1, p2 = mesh.vertices[face[i]], mesh.vertices[face[i + 1]]
+            total += (p0[0] * (p1[1] * p2[2] - p1[2] * p2[1])
+                      - p0[1] * (p1[0] * p2[2] - p1[2] * p2[0])
+                      + p0[2] * (p1[0] * p2[1] - p1[1] * p2[0])) / 6
+    return total
+
+
+def test_all_closed_parts_wound_outward():
+    """R11: Blender no longer recalculates normals, so every closed part must be outward/CCW."""
+    data = build_layout()
+    open_sheets = {"base-asphalt", "base-blocks"}  # up-facing sheets, checked in the slab test
+    for assembly in [*ground.ground_assemblies(data), *ground.backdrop_assemblies(data)]:
+        for part in assembly.parts:
+            if part.name in open_sheets:
+                continue
+            assert _closed_consistent(part), (assembly.name, part.name)
+            assert _signed_volume(part) > 0, (assembly.name, part.name)

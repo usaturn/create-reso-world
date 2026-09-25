@@ -8,8 +8,9 @@ Ground
     ``ground-base`` is one 80 x 80 m sheet split on a 1 m grid whose lines also follow
     every street edge, so the asphalt / block boundary sits exactly where the curbs are.
     Street cells sit 0.02 m below the block top (``GROUND_TOP``) and a vertical step face
-    closes every boundary. Walkable faces are wound to face +Y by vertex order alone:
-    ``create_object`` recalculates normals, which cannot orient an open, flat sheet.
+    closes every boundary. All parts follow the R11 winding rule (outward/CCW in Resonite
+    XYZ; ``create_object`` only mirrors, it never recalculates normals): walkable sheets face
+    +Y by vertex order and every other part is a closed, outward shell.
     Dirt is caused rather than uniform: ``vcolor.Spray`` masks darken the foot of every
     building wall, the gutter band along each curb, oil drips, puddle rims and the rust
     bleed around manholes.
@@ -52,23 +53,6 @@ LITTER_MATERIALS = ("plywood", "plywood", "tarp_blue", "tarp_orange", "tarp_gree
 
 
 # --------------------------------------------------------------------------- helpers
-
-
-def _oriented(name: str, points: Sequence[Sequence[float]], normal: Sequence[float], material: str) -> g.MeshData:
-    """Single polygon whose vertex order gives a Newell normal along ``normal``."""
-    pts = [tuple(float(c) for c in p) for p in points]
-    n = _face_normal(pts)  # type: ignore[arg-type]
-    if sum(n[k] * normal[k] for k in range(3)) < 0:
-        pts.reverse()
-    return g.mesh(name, pts, [tuple(range(len(pts)))], material)
-
-
-def _add_quad(builder: g.GridBuilder, pts: Sequence[Sequence[float]], normal: Sequence[float]) -> None:
-    pts = [tuple(float(c) for c in p) for p in pts]
-    n = _face_normal(pts)  # type: ignore[arg-type]
-    if sum(n[k] * normal[k] for k in range(3)) < 0:
-        pts.reverse()
-    builder.quad(*pts)
 
 
 def _in_rect(x: float, z: float, r: Rect, pad: float = 0.0) -> bool:
@@ -129,7 +113,7 @@ def _base_parts(streets: list[Rect]) -> list[g.MeshData]:
             (road if street[i][j] else block).quad((x0, top, z0), (x0, top, z1), (x1, top, z1), (x1, top, z0))
     parts = [road.build("base-asphalt", "asphalt"), block.build("base-blocks", "concrete_stained")]
     # 0.02 m step where a block cell meets a street cell. Each straight run is one closed thin box
-    # (open vertical quads would be oriented arbitrarily by Blender's normal recalculation).
+    # (closed thin shells survive later welding/editing better than stray vertical quads).
     runs: list[tuple[str, float, float, float]] = []
     for i in range(nx - 1):
         for j in range(nz):
@@ -375,45 +359,45 @@ def _crack_strip(name: str, points: list[tuple[float, float]], y: float, width: 
         px, pz = -dz / length * hw, dx / length * hw
         left.append((x + px, y, z + pz))
         right.append((x - px, y, z - pz))
-    for k in range(n - 1):
-        _add_quad(b, [left[k], left[k + 1], right[k + 1], right[k]], (0.0, 1.0, 0.0))
-    _close_down(b, left + right[::-1], DECAL_DEPTH)
-    for k in range(n - 1):
-        _add_quad(b, [_down(p) for p in (left[k], left[k + 1], right[k + 1], right[k])], (0.0, -1.0, 0.0))
-    return b.build(name, material)
+    tops = [[left[k], left[k + 1], right[k + 1], right[k]] for k in range(n - 1)]
+    return _extrude_down(name, tops, DECAL_DEPTH, material)
 
 
 DECAL_DEPTH = 0.006
+
+
+def _extrude_down(name: str, tops: Sequence[Sequence[Sequence[float]]], depth: float, material: str) -> g.MeshData:
+    """Closed thin shell under flat top polygons: +Y tops, -Y bottoms, outward side walls.
+
+    Generators author outward/CCW winding in Resonite space (R11); the side wall for every
+    boundary edge a->b of the top is (b, a, a_down, b_down), so the shell is edge-consistent
+    and has positive signed volume.
+    """
+    b = g.GridBuilder()
+    top_faces = []
+    for poly in tops:
+        pts = [tuple(float(c) for c in p) for p in poly]
+        if _face_normal(pts)[1] < 0:  # type: ignore[arg-type]
+            pts.reverse()
+        top_faces.append(tuple(b.v(p) for p in pts))
+    b.faces.extend(top_faces)
+    directed = {(f[i], f[(i + 1) % len(f)]) for f in top_faces for i in range(len(f))}
+    boundary = [(x, y) for x, y in directed if (y, x) not in directed]
+    for f in top_faces:
+        b.faces.append(tuple(b.v(_down(b.vertices[i], depth)) for i in reversed(f)))
+    for x, y in sorted(boundary):
+        px, py = b.vertices[x], b.vertices[y]
+        b.faces.append((y, x, b.v(_down(px, depth)), b.v(_down(py, depth))))
+    return b.build(name, material)
 
 
 def _down(p: Sequence[float], depth: float = DECAL_DEPTH) -> tuple[float, float, float]:
     return (p[0], p[1] - depth, p[2])
 
 
-def _close_down(b: g.GridBuilder, loop: Sequence[Sequence[float]], depth: float) -> None:
-    """Side walls around a flat decal outline so the decal is a closed shell.
-
-    ``create_object`` recalculates normals; on an open flat sheet Blender's heuristic may
-    point it down (back-face culled in Resonite). A thin closed shell orients reliably.
-    """
-    cx = sum(p[0] for p in loop) / len(loop)
-    cz = sum(p[2] for p in loop) / len(loop)
-    for a, c in zip(loop, (*loop[1:], loop[0])):
-        mx, mz = (a[0] + c[0]) / 2 - cx, (a[2] + c[2]) / 2 - cz
-        _add_quad(b, [a, c, _down(c, depth), _down(a, depth)], (mx, 0.0, mz))
-
-
 def _decal_polygon(name: str, outline: Sequence[Sequence[float]], material: str) -> g.MeshData:
-    """Closed thin slab from a flat convex-ish outline (top faces +Y)."""
-    b = g.GridBuilder()
-    top = [tuple(float(c) for c in p) for p in outline]
-    if _face_normal(top)[1] < 0:  # type: ignore[arg-type]
-        top.reverse()
-    idx = [b.v(p) for p in top]
-    b.faces.append(tuple(idx))
-    b.faces.append(tuple(b.v(_down(p)) for p in reversed(top)))
-    _close_down(b, top, DECAL_DEPTH)
-    return b.build(name, material)
+    """Closed thin slab from a flat outline (top face +Y)."""
+    return _extrude_down(name, [outline], DECAL_DEPTH, material)
 
 
 def _cracks(streets: list[Rect], blockers: list[Rect], rng: random.Random) -> list[g.MeshData]:
@@ -627,7 +611,7 @@ def _ring_parts() -> list[g.MeshData]:
         if _face_normal([verts[i] for i in q])[1] < 0:
             q = tuple(reversed(q))
         faces.append(q)
-    # Close the annulus (bottom, inner and outer walls) so Blender's normal recalculation keeps +Y up.
+    # Close the annulus (bottom, inner and outer walls) as an outward shell (R11).
     n = len(verts)
     verts += [(x, BACKDROP_TOP - 0.1, z) for x, y, z in verts]
     for k in range(RING_SEGMENTS):
@@ -717,8 +701,7 @@ def _mass_parts(m: dict[str, Any], rng: random.Random, holo: str | None) -> list
                     seg = rng.uniform(5.0, 18.0)
                     e = min(s + seg, face_len / 2 - 1.0)
                     if rng.random() < 0.55 and e - s > 1.0:
-                        # 0.05 m thick band floating 0.05 m off the facade; a closed box so
-                        # Blender's normal recalculation cannot turn it to face the wall.
+                        # 0.05 m thick band floating 0.05 m off the facade (closed outward box).
                         mid, length = along_c + (s + e) / 2, e - s
                         off = face_pos + sign * 0.025
                         if axis == 0:

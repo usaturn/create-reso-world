@@ -97,3 +97,44 @@ def test_merge_assembly_groups_materials_in_first_seen_order():
     assert merged.face_materials[:6] == (0,) * 6 and merged.face_materials[6:12] == (1,) * 6
     assert len(merged.vertices) == 24
     assert g.bounds([g.mesh("x", merged.vertices, merged.faces, "m")])[0] == pytest.approx((-0.5, 0.0, -0.5))
+
+
+def _edge_consistent(mesh):
+    directed = set()
+    for face in mesh.faces:
+        for a, b in zip(face, (*face[1:], face[0])):
+            if (a, b) in directed:
+                return False
+            directed.add((a, b))
+    return True
+
+
+def test_straight_tube_is_outward():
+    """R11: Blender no longer recalculates normals, so tube sides and caps must wind outward."""
+    m = g.tube("t", [(1.0, 2.0, 3.0), (1.0, 2.0, 4.0), (1.0, 2.0, 5.0)], 0.2, 8, "rust")
+    assert _closed(m) and _edge_consistent(m)
+    octagon = 2 * math.sqrt(2) * 0.2 ** 2
+    assert _signed_volume(m) == pytest.approx(octagon * 2.0, rel=1e-6)
+
+
+@pytest.mark.parametrize("make", [
+    lambda: g.box("b", (1, 2, 3), (1, 2, 3), "rust"),
+    lambda: g.beveled_box("b", (1, 2, 3), (1, 2, 3), 0.1, "rust"),
+    lambda: g.cylinder("c", (1, 2, 3), 0.5, 2.0, 12, "rust", "X"),
+    lambda: g.cylinder("c", (1, 2, 3), 0.5, 2.0, 12, "rust", "Y"),
+    lambda: g.cylinder("c", (1, 2, 3), 0.5, 2.0, 12, "rust", "Z"),
+    lambda: g.prism("p", (1, 2, 3), (1, 2, 3), "rust"),
+    lambda: g.pipe("p", (0, 0, 0), (1, 2, 3), 0.3, "rust"),
+    lambda: g.pipe("p", (0, 0, 0), (0, 2, 0), 0.3, "rust"),
+    lambda: g.subdivided_box("s", (1, 2, 3), (1, 2, 3), 0.4, "rust"),
+    lambda: g.wall_with_openings("w", 4.0, 3.0, 0.3, [(-1.0, 1.0, 0.0, 2.0)], 0.1, 0.5, "rust"),
+    lambda: g.tube("t", g.catenary((0, 3, 0), (4, 3, 2), 0.5, 6), 0.05, 6, "rust"),
+], ids=["box", "beveled_box", "cylinder-x", "cylinder-y", "cylinder-z", "prism", "pipe", "pipe-y",
+        "subdivided_box", "wall_with_openings", "tube-catenary"])
+def test_closed_primitives_have_positive_signed_volume(make):
+    m = make()
+    assert _closed(m) and _edge_consistent(m)
+    assert _signed_volume(m) > 0
+    # Consistent winding makes the volume independent of the origin.
+    shifted = g.transformed(m, 0.0, (7.0, -3.0, 5.0))
+    assert _signed_volume(shifted) == pytest.approx(_signed_volume(m), rel=1e-6)

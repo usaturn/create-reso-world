@@ -68,3 +68,9 @@
 指摘:
 - `backdrop-holo` で、マゼンタとシアンの巨大ホロが敷地の建物越しの高さに見えることを確認
 - 残課題: 窓明かりはすべて同じ色温度・同じ明るさ（`window_lit` の 1 素材）。遠景として許容範囲
+
+## ground / backdrop R11 対応後の確認
+
+- `create_object` の法線再計算をやめ、面の頂点順を反転する方式に変更した後、両セクタを再ビルドした（AO 48 サンプル）
+- 裏面を赤で表示する確認用の描画（Geometry > Backfacing）で、`ground-lane`・`ground-near`・`backdrop-holo` の 3 視点に裏面は写らなかった
+- 保存しているプレビュー PNG は再ビルド後の .blend から描き直した
