@@ -9,9 +9,10 @@ R11 winding rule: every part is a closed shell with outward winding (positive si
 volume). Hand-built shells go through ``_outward`` which flips a consistently wound
 shell if it came out inside-out, so no part depends on Blender's normal recalculation.
 
-The Blender-side text meshing and the rubble scatter come in Task 7; this module only
-publishes the lettering layout (``spray_layout``), the ◎ glyph (``ring_glyph``) and the
-overspray masks (``east-wall`` ``meta["sprays"]``).
+The lettering layout (``spray_layout``), the ◎ glyph (``ring_glyph``) and the overspray
+masks (``east-wall`` ``meta["sprays"]``) are pure Python; the Blender hook
+(``blender_hook``) meshes the font into the ``spray-art`` object and bakes the Geometry
+Nodes rubble scatter (``rubble_prototypes`` on ``scatter_surface``) into ``plaza-rubble``.
 """
 from __future__ import annotations
 
@@ -20,10 +21,11 @@ import random
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from modeling.slum02 import SEED
+from modeling.slum02 import FONT_PATH, SEED
 from modeling.slum02 import geometry as g
-from modeling.slum02.sectors import register
-from modeling.slum02.vcolor import Spray
+from modeling.slum02.materials import BLENDER_PREFIX
+from modeling.slum02.sectors import register, register_blender_hook
+from modeling.slum02.vcolor import Spray, value_noise3, vertex_colors
 
 FLOOR_TOP = 0.12
 WALL_ORIGIN = (9.6, FLOOR_TOP - 0.12, 0.0)
@@ -113,6 +115,35 @@ def _newell(pts):
         nz += (a[0] - b[0]) * (a[1] + b[1])
     length = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
     return (nx / length, ny / length, nz / length)
+
+
+def _tessellate(m: g.MeshData, max_edge: float) -> g.MeshData:
+    """Split quads into a bilinear grid (no edge above ``max_edge``) so per-vertex wear and AO resolve.
+
+    Both quads on a shared edge derive the same split count from that edge, and vertices are
+    interned, so a closed shell stays closed. Triangles must already be short (bevel corners).
+    """
+    b = g.GridBuilder()
+    for face in m.faces:
+        pts = [m.vertices[i] for i in face]
+        if len(pts) == 3:
+            if max(math.dist(pts[k], pts[k - 1]) for k in range(3)) > max_edge + 1e-9:
+                raise ValueError(f"{m.name}: long triangle edge cannot be tessellated without T-junctions")
+            b.faces.append(tuple(b.v(p) for p in pts))
+            continue
+        if len(pts) != 4:
+            raise ValueError(f"{m.name}: only quads and short triangles can be tessellated")
+        p0, p1, p2, p3 = pts
+        nu = max(1, math.ceil(max(math.dist(p0, p1), math.dist(p3, p2)) / max_edge - 1e-9))
+        nv = max(1, math.ceil(max(math.dist(p0, p3), math.dist(p1, p2)) / max_edge - 1e-9))
+
+        def at(i, j):
+            u, v = i / nu, j / nv
+            return tuple((1 - u) * (1 - v) * p0[k] + u * (1 - v) * p1[k] + u * v * p2[k] + (1 - u) * v * p3[k] for k in range(3))
+        for i in range(nu):
+            for j in range(nv):
+                b.quad(at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1))
+    return b.build(m.name, m.material)
 
 
 def _combine(name: str, meshes: Sequence[g.MeshData], material: str | None = None) -> g.MeshData:
@@ -756,18 +787,88 @@ def _truss(rng: random.Random) -> g.Assembly:
 # --------------------------------------------------------------------------- machines
 
 
+def _rust_patch(name: str, center: Vec, axis: int, sign: int, radius: float, rng: random.Random,
+                material: str = "rust") -> g.MeshData:
+    """Paint flaked off a face: an irregular 3 mm plate on the face with normal ``sign`` x axis ``axis``."""
+    ta, tb = [k for k in range(3) if k != axis]
+    ring = []
+    for i in range(8):
+        a = math.tau * i / 8 + rng.uniform(-0.25, 0.25)
+        r = radius * rng.uniform(0.55, 1.0)
+        ring.append((r * math.cos(a) * rng.uniform(0.8, 1.5), r * math.sin(a)))
+    local = _fan_prism(name, ring, 0.0, 0.003, material)   # thickness along local y
+
+    def place(p):
+        out = [0.0, 0.0, 0.0]
+        out[axis] = center[axis] + sign * p[1]
+        out[ta] = center[ta] + p[0]
+        out[tb] = center[tb] + p[2]
+        return tuple(out)
+    return _outward(g.MeshData(name, tuple(place(p) for p in local.vertices), local.faces, material))
+
+
+def _press_rust(y0: float, rng: random.Random) -> list[g.MeshData]:
+    """Flaked paint where water sits and hands, chains and forklifts hit: low on the bed, at the upright feet,
+    along the crown edges and in puddles on its top."""
+    # Flat face areas (inside the bevels): axis, sign, plane, (lo, hi) along the first and second tangent axes.
+    faces = {
+        "bed-z": lambda s: (2, s, s * 0.9, (-1.34, 1.34), (y0 + 0.06, y0 + 0.84)),
+        "bed-x": lambda s: (0, s, s * 1.4, (y0 + 0.06, y0 + 0.84), (-0.84, 0.84)),
+        "upright-x": lambda s: (0, s, s * 1.425, (y0 + 1.5, y0 + 3.45), (-0.7, 0.7)),
+        "crown-z": lambda s: (2, s, s * 0.95, (-1.48, 1.48), (y0 + 3.68, y0 + 4.43)),
+        "crown-x": lambda s: (0, s, s * 1.55, (y0 + 3.57, y0 + 4.43), (-0.88, 0.88)),
+        "crown-top": lambda s: (1, 1, y0 + 4.5, (-1.48, 1.48), (-0.88, 0.88)),
+    }
+    parts: list[g.MeshData] = []
+
+    def add(face: str, s: int, a: float, b: float, r: float) -> None:
+        axis, sign, plane, (a0, a1), (b0, b1) = faces[face](s)
+        a = min(max(a, a0 + 1.5 * r), a1 - 1.5 * r)   # the outline stretches up to 1.5 r along the first tangent
+        b = min(max(b, b0 + r), b1 - r)
+        c = [0.0, 0.0, 0.0]
+        c[axis] = plane
+        ta, tb = [k for k in range(3) if k != axis]
+        c[ta], c[tb] = a, b
+        k = len(parts)
+        parts.append(_rust_patch(f"press-flake-{k:02d}", tuple(c), axis, sign, r, rng, "rust_dark" if k % 3 else "rust"))
+
+    for zf in (-1, 1):
+        a = -1.3
+        while a < 1.3:                                                      # bed: a ragged rust band along the foot
+            r = rng.uniform(0.1, 0.2)
+            add("bed-z", zf, a + r, y0, r)
+            a += r * rng.uniform(1.6, 3.2)
+        for xe in (-1.34, 1.34):                                            # bed: knocked vertical edges
+            add("bed-z", zf, xe, y0 + rng.uniform(0.3, 0.7), rng.uniform(0.06, 0.1))
+        for _ in range(5):                                                  # crown: top edge, between the ribs
+            add("crown-z", zf, rng.choice((-0.9, -0.3, 0.3, 0.9)) + rng.uniform(-0.1, 0.1), y0 + 4.43, rng.uniform(0.05, 0.1))
+        for _ in range(3):                                                  # crown: water line above the band
+            add("crown-z", zf, rng.choice((-0.9, -0.3, 0.3, 0.9)) + rng.uniform(-0.1, 0.1), y0 + 3.7, rng.uniform(0.04, 0.07))
+    for s in (-1, 1):
+        for _ in range(3):                                                  # upright outer faces, above the rust band
+            add("upright-x", s, y0 + rng.uniform(1.6, 2.3), rng.uniform(-0.7, 0.7), rng.uniform(0.07, 0.14))
+        add("bed-x", s, y0 + rng.uniform(0.1, 0.4), rng.uniform(-0.8, 0.8), rng.uniform(0.1, 0.18))
+        add("crown-x", s, y0 + rng.uniform(3.6, 4.4), rng.uniform(-0.8, 0.8), rng.uniform(0.07, 0.14))
+    for _ in range(5):                                                      # rust puddles on the crown top
+        add("crown-top", 1, rng.uniform(-1.3, 1.3), rng.uniform(-0.8, 0.8), rng.uniform(0.12, 0.24))
+    return parts
+
+
 def _press(x: float, z: float, yaw: float, rng: random.Random) -> g.Assembly:
     y0 = FLOOR_TOP + 0.35
     L: list[g.MeshData] = []
-    L.append(g.beveled_box("press-bed", (0, y0 + 0.45, 0), (2.8, 0.9, 1.8), 0.06, "paint_teal_faded"))
+    # The big painted castings are tessellated (0.2 m) so the grime, rust bleed and AO read per vertex.
+    L.append(_tessellate(g.beveled_box("press-bed", (0, y0 + 0.45, 0), (2.8, 0.9, 1.8), 0.06, "paint_teal_faded"), 0.2))
     L.append(g.box("press-bolster", (0, y0 + 0.96, 0), (2.2, 0.12, 1.4), "steel_dark"))
     for s in (-1, 1):
-        L.append(g.beveled_box(f"press-upright-{s}", (s * 1.15, y0 + 0.9 + 1.3, 0), (0.55, 2.6, 1.5), 0.05, "paint_teal_faded"))
+        L.append(_tessellate(g.beveled_box(f"press-upright-{s}", (s * 1.15, y0 + 0.9 + 1.3, 0), (0.55, 2.6, 1.5), 0.05,
+                                           "paint_teal_faded"), 0.2))
         L.append(g.box(f"press-upright-rust-{s}", (s * 1.15, y0 + 1.25, 0), (0.57, 0.5, 1.52), "rust"))
         for r in (-0.5, 0.5):
             L.append(g.cylinder(f"press-tierod-{s}-{r}", (s * 1.5, y0 + 2.3, r), 0.06, 4.6, 10, "steel_bare"))
             L.append(g.cylinder(f"press-tienut-{s}-{r}", (s * 1.5, y0 + 4.56, r), 0.1, 0.12, 6, "steel_dark"))
-    L.append(g.beveled_box("press-crown", (0, y0 + 3.5 + 0.5, 0), (3.1, 1.0, 1.9), 0.07, "paint_teal_faded"))
+    L.append(_tessellate(g.beveled_box("press-crown", (0, y0 + 3.5 + 0.5, 0), (3.1, 1.0, 1.9), 0.07, "paint_teal_faded"), 0.2))
+    L += _press_rust(y0, rng)
     L.append(g.cylinder("press-cylinder", (0, y0 + 4.85, 0), 0.36, 0.7, 20, "steel_dark"))
     L.append(g.cylinder("press-cylinder-flange", (0, y0 + 4.54, 0), 0.46, 0.08, 20, "rust_dark"))
     L.append(g.beveled_box("press-ram", (0, y0 + 2.35, 0), (1.7, 0.7, 1.3), 0.04, "steel_dark"))
@@ -804,12 +905,23 @@ def _press(x: float, z: float, yaw: float, rng: random.Random) -> g.Assembly:
     panel = _block("press-fallen-guard", -0.6, 0.6, -0.01, 0.01, 0.0, [0.9] * 4, "paint_yellow_faded")
     L.append(g.transformed_xyz(panel, math.radians(-28), 0.0, 0.0, (-0.2, FLOOR_TOP + 0.36, -1.45)))
     parts = [g.transformed(m, math.radians(yaw), (x, 0.0, z)) for m in L]
-    sprays = [Spray((x, y0 + 0.3, z), 2.2, (0.5, 0.45, 0.4), 0.7),                      # grime at the foot
+    # Decades outdoors: the teal is chalked and dirtied towards grey-brown everywhere, grime splashes up
+    # from the base, rust bleeds out under the flakes, oil leaked from the cylinder, rain washed dirt down
+    # from the crown edge in streaks, and dust lies on the top.
+    sprays = [Spray((x, y0 + 0.9, z), 3.2, (1.3, 0.45, 0.4), 0.9),
+              Spray((x, y0 + 4.2, z), 3.4, (1.3, 0.45, 0.4), 0.9),
+              Spray((x, y0 + 0.1, z), 2.2, (0.42, 0.38, 0.34), 0.85),                   # grime at the foot
               Spray((x + 0.3, y0 + 4.5, z - 0.95), 0.9, (0.3, 0.27, 0.24), 0.8),       # hydraulic oil leak
               Spray((x + 0.3, y0 + 3.4, z - 0.95), 0.8, (0.35, 0.3, 0.26), 0.7),
-              Spray((x - 1.15, y0 + 1.3, z + 0.8), 0.9, (1.15, 0.6, 0.35), 0.7),        # rust bleeding through paint
-              Spray((x + 1.15, y0 + 1.0, z - 0.8), 0.9, (1.15, 0.6, 0.35), 0.7),
-              Spray((x, y0 + 5.0, z), 1.6, (0.62, 0.6, 0.56), 0.6)]                     # dust on the crown
+              Spray((x - 1.15, y0 + 1.3, z + 0.8), 0.9, (1.15, 0.6, 0.35), 0.8),        # rust bleeding through paint
+              Spray((x + 1.15, y0 + 1.0, z - 0.8), 0.9, (1.15, 0.6, 0.35), 0.8),
+              Spray((x - 1.3, y0 + 0.4, z - 0.9), 0.7, (1.15, 0.6, 0.35), 0.75),
+              Spray((x + 0.9, y0 + 0.3, z + 0.9), 0.7, (1.15, 0.6, 0.35), 0.75),
+              Spray((x, y0 + 4.6, z), 1.5, (0.8, 0.7, 0.62), 0.6)]                     # dirt settled on the crown
+    for zf in (-1, 1):
+        for rx in (-0.9, -0.3, 0.3, 0.9):
+            for k, (dy, strength) in enumerate(((4.35, 0.65), (4.05, 0.5), (3.8, 0.35))):
+                sprays.append(Spray((x + rx + 0.05 * k * zf, y0 + dy, z + zf * 0.95), 0.28, (0.45, 0.42, 0.4), strength))
     return g.Assembly("plaza-press", "plaza-press", "plaza", (0.0, 0.0, 0.0), parts, meta={"sprays": sprays})
 
 
@@ -850,7 +962,9 @@ def _conveyor(x: float, z: float, yaw: float, rng: random.Random) -> g.Assembly:
         normals.append(_norm(_cross((0.0, 0.0, 1.0), t)))
     L.append(_sweep("belt", belt_pts, across, normals, 0.8, 0.012, "rubber"))
     parts = [g.transformed(m, math.radians(yaw), (x, 0.0, z), f"conveyor-{m.name}") for m in L]
-    return g.Assembly("plaza-conveyor", "plaza-conveyor", "plaza", (0.0, 0.0, 0.0), parts)
+    drive = g.rotate_y((3.05, 0.0, 0.95), math.radians(yaw))
+    sprays = [Spray((x + drive[0], y_top - 0.25, z + drive[2]), 0.9, (1.3, 0.45, 0.4), 0.9)]   # weathered drive paint
+    return g.Assembly("plaza-conveyor", "plaza-conveyor", "plaza", (0.0, 0.0, 0.0), parts, meta={"sprays": sprays})
 
 
 def _tank(x: float, z: float, yaw: float, rng: random.Random) -> g.Assembly:
@@ -1103,6 +1217,617 @@ def _perimeter(data: dict[str, Any], rng: random.Random) -> g.Assembly:
         p = (t, FLOOR_TOP + 0.9, fixed) if axis == "x" else (fixed, FLOOR_TOP + 0.9, t)
         sprays.append(Spray(p, rng.uniform(0.4, 0.6), TAG_COLORS[k % 3], 0.4))
     return g.Assembly("plaza-perimeter", "plaza-perimeter", "plaza", (0.0, 0.0, 0.0), parts, meta={"sprays": sprays})
+
+
+# --------------------------------------------------------------------------- rubble prototypes + scatter surface
+
+
+SCATTER_CLASSES = {"small": (3.0, 0.15, 0.40), "medium": (0.6, 0.4, 0.9), "large": (0.12, 0.9, 1.8)}
+SCATTER_CELL = 0.5
+SCATTER_EDGE = 9.0        # cell centres stay 0.25 m inside this, so chunks stop inside the perimeter walls
+SCATTER_EAST = 8.5        # the east wall pilasters stand 0.35 m proud of x = 9.2
+PATH_HALF_WIDTH = 0.7     # 1.4 m walkway from each exit to the plaza centre
+
+
+def _sunk(parts: Sequence[g.MeshData]) -> list[g.MeshData]:
+    """Shift parts together so the base sits at y = -0.1 x height (10 % sink, origin at the base)."""
+    lo, hi = g.bounds(parts)
+    dy = -lo[1] - 0.1 * (hi[1] - lo[1])
+    return [g.MeshData(p.name, tuple((v[0], v[1] + dy, v[2]) for v in p.vertices), p.faces, p.material) for p in parts]
+
+
+def _chunk(name: str, size: Sequence[float], seed: int, material: str = "concrete_raw") -> g.MeshData:
+    """Jittered concrete lump: subdivided box (max edge 0.5) with +-18 % value-noise jitter per axis.
+
+    The base vertices keep their y so the lump still sits flat before the 10 % sink.
+    """
+    box = g.subdivided_box(name, (0.0, size[1] / 2, 0.0), size, 0.5, material)
+    verts = []
+    for v in box.vertices:
+        j = [(value_noise3(v[0] * 3.1 + 11.7 * k, v[1] * 3.1, v[2] * 3.1, seed + k) - 0.5) * 2 * 0.18 * size[k] for k in range(3)]
+        verts.append((v[0] + j[0], v[1] if v[1] <= 1e-9 else v[1] + j[1], v[2] + j[2]))
+    return _outward(_planarize(g.MeshData(name, tuple(verts), box.faces, material)))
+
+
+def _fan_prism(name: str, ring: Sequence[tuple[float, float]], y0: float, y1: float, material: str) -> g.MeshData:
+    """Closed prism over a star-shaped (x, z) outline; caps are fans around the centroid."""
+    n = len(ring)
+    cx, cz = sum(p[0] for p in ring) / n, sum(p[1] for p in ring) / n
+    verts = [(x, y0, z) for x, z in ring] + [(x, y1, z) for x, z in ring] + [(cx, y0, cz), (cx, y1, cz)]
+    bc, tc = 2 * n, 2 * n + 1
+    faces = []
+    for i in range(n):
+        k = (i + 1) % n
+        faces.append((bc, i, k))
+        faces.append((tc, n + k, n + i))
+        faces.append((i, n + i, n + k, k))
+    return _outward(g.mesh(name, verts, faces, material))
+
+
+def _slate_sheet(rng: random.Random) -> list[g.MeshData]:
+    """Broken corrugated slate: 6 folded crests, two back-to-back single-sided sheets, one long edge propped up."""
+    width, amp, crests = 0.9, 0.045, 6
+    xs = [-width / 2 + width * i / (2 * crests) for i in range(2 * crests + 1)]
+    ends = [1.05 - rng.uniform(0.0, 0.25) for _ in xs]          # ragged broken far end
+    tilt = math.radians(8.0)
+    top: list[Vec] = []
+    bot: list[Vec] = []
+    for i, x in enumerate(xs):
+        y = amp * (i % 2)
+        for z in (-0.5, -0.5 + ends[i]):
+            for layer, dy in ((top, 0.002), (bot, -0.002)):
+                layer.append(g.rotate_xyz((x, y + dy, z), 0.0, 0.0, tilt))
+    ft, fb = [], []
+    for i in range(len(xs) - 1):
+        a, d, b, c = 2 * i, 2 * i + 1, 2 * i + 2, 2 * i + 3     # a/b at the near end, d/c at the far end
+        ft.append((a, d, c, b))                                # faces up
+        fb.append((a, b, c, d))                                # faces down
+    return [g.mesh("slate-top", top, ft, "concrete_patch"), g.mesh("slate-bottom", bot, fb, "concrete_patch")]
+
+
+def _rubble_parts() -> list[tuple[str, str, list[g.MeshData]]]:
+    """(size_class, name, parts) for the 8 rubble prototypes; parts may mix materials (rebar)."""
+    rng = random.Random(SEED + 240)
+    out: list[tuple[str, str, list[g.MeshData]]] = []
+    out.append(("small", "concrete-chunk-a", [_chunk("concrete-chunk-a", (0.5, 0.55, 0.45), SEED + 241)]))
+    out.append(("medium", "concrete-chunk-b", [_chunk("concrete-chunk-b", (0.9, 0.6, 0.75), SEED + 242)]))
+    out.append(("large", "concrete-chunk-c", [_chunk("concrete-chunk-c", (0.8, 0.55, 0.7), SEED + 243, "concrete_stained")]))
+    core = _chunk("rebar-chunk-core", (0.75, 0.6, 0.65), SEED + 244)
+    bars = []
+    for k in range(3):
+        a = math.tau * k / 3 + rng.uniform(-0.4, 0.4)
+        p0 = (0.1 * math.cos(a), 0.3, 0.1 * math.sin(a))
+        p1 = (0.45 * math.cos(a), 0.45 + rng.uniform(0.0, 0.2), 0.45 * math.sin(a))
+        p2 = (0.62 * math.cos(a + 0.3), 0.75 + rng.uniform(0.0, 0.25), 0.62 * math.sin(a + 0.3))
+        bars.append(g.tube(f"rebar-chunk-bar-{k}", [p0, p1, p2], 0.014, 5, "rust"))
+    out.append(("large", "rebar-chunk", [core, *bars]))
+    ring = []
+    for k in range(7):
+        a = math.tau * k / 7 + rng.uniform(-0.2, 0.2)
+        r = rng.uniform(0.28, 0.4)
+        ring.append((r * math.cos(a) * 1.15, r * math.sin(a)))
+    slab = _fan_prism("slab-shard", ring, 0.0, 0.13, "factory_floor")
+    # Spalled top: lift/drop the top outline so it does not read as a flat paving stone.
+    bumps = {i: rng.uniform(-0.035, 0.03) for i, v in enumerate(slab.vertices) if v[1] > 0.1}
+    slab = _planarize(g.MeshData(slab.name, tuple((v[0], v[1] + bumps.get(i, 0.0), v[2]) for i, v in enumerate(slab.vertices)),
+                                 slab.faces, slab.material))
+    out.append(("large", "slab-shard", [g.transformed_xyz(slab, 0.0, 0.0, math.radians(7.0), (0.0, 0.0, 0.0))]))
+    bricks = [g.box("brick-0", (0.0, 0.1, -0.17), (0.66, 0.2, 0.32), "concrete_stained"),
+              g.box("brick-1", (0.05, 0.1, 0.17), (0.66, 0.2, 0.32), "concrete_stained"),
+              g.box("brick-2", (0.25, 0.3, 0.0), (0.66, 0.2, 0.32), "concrete_stained")]
+    out.append(("small", "brick-block", [_combine("brick-block", bricks, "concrete_stained")]))
+    beam = h_beam("beam-stub", 0.9, depth=0.24, flange=0.22, t=0.028, material="rust", rng=rng, tear=0.15, tear_bottom=0.15)
+    out.append(("medium", "beam-stub", [g.transformed_xyz(beam, 0.0, 0.0, -math.pi / 2, (-0.45, 0.0, 0.0))]))
+    out.append(("medium", "slate-sheet", _slate_sheet(rng)))
+    return [(cls, name, _sunk(parts)) for cls, name, parts in out]
+
+
+def rubble_prototypes() -> list[tuple[str, g.MeshData, str]]:
+    """``(size_class, mesh, name)`` for the 8 scatter prototypes; origin at the base centre, base at y = -0.1 x height."""
+    return [(cls, _combine(name, parts, parts[0].material), name) for cls, name, parts in _rubble_parts()]
+
+
+def _local_bounds(parts: Sequence[g.MeshData], cx: float, cz: float, yaw_deg: float, max_y: float | None = None):
+    """(x0, z0, x1, z1) of the part vertices in the frame centred on (cx, cz) and yawed by ``yaw_deg``."""
+    pts = [g.rotate_y((v[0] - cx, 0.0, v[2] - cz), -math.radians(yaw_deg))
+           for p in parts for v in p.vertices if max_y is None or v[1] <= max_y]
+    return min(p[0] for p in pts), min(p[2] for p in pts), max(p[0] for p in pts), max(p[2] for p in pts)
+
+
+def _scatter_keepouts(data: dict[str, Any]) -> list[Callable[[float, float], bool]]:
+    """Keep-out tests for the rubble grid, measured from the actual plaza assemblies."""
+    feats = data["plaza_features"]
+    named = {a.name: a for a in plaza_assemblies(data)}
+    low = FLOOR_TOP + 0.6
+    tests: list[Callable[[float, float], bool]] = []
+
+    def box(x0, z0, x1, z1, margin, cx=0.0, cz=0.0, yaw=0.0):
+        def blocked(x, z):
+            p = g.rotate_y((x - cx, 0.0, z - cz), -math.radians(yaw))
+            return x0 - margin <= p[0] <= x1 + margin and z0 - margin <= p[2] <= z1 + margin
+        return blocked
+
+    def circle(cx, cz, r):
+        return lambda x, z: (x - cx) ** 2 + (z - cz) ** 2 <= r * r
+
+    for p in feats["pits"]:
+        tests.append(box(*p, 0.2))
+    for part in named["plaza-machine-bases"].parts:
+        if part.name.startswith("base-"):
+            tests.append(box(*_local_bounds([part], 0.0, 0.0, 0.0), 0.15))
+    # Wreckage: every part that comes within 0.6 m of the floor keeps its own low footprint clear
+    # (per part, in the machine's yaw frame), so debris can still gather between legs and members.
+    machines = {m[3]: m for m in feats["machines"]}
+    for name, (mx, mz, yaw) in (("plaza-press", machines["press"][:3]), ("plaza-tank", machines["tank"][:3]),
+                                ("plaza-conveyor", machines["conveyor"][:3]), ("plaza-truss", (0.0, 0.0, 0.0)),
+                                ("plaza-crane-rail", (0.0, 0.0, 0.0))):
+        for part in named[name].parts:
+            if min(v[1] for v in part.vertices) < low:
+                tests.append(box(*_local_bounds([part], mx, mz, yaw, max_y=low), 0.15, mx, mz, yaw))
+    cx, cz, cyaw = feats["car"]
+    car = named["plaza-car"].parts
+    tests.append(box(*_local_bounds([p for p in car if p.name != "car-bumper-rear"], cx, cz, cyaw), 0.3, cx, cz, cyaw))
+    tests.append(box(*_local_bounds([p for p in car if p.name == "car-bumper-rear"], 0.0, 0.0, 0.0), 0.2))
+    fx, fz = feats["fire_barrel"]
+    tests.append(circle(fx, fz, 1.6))
+    for x, z, _t, _h in feats["columns"]:
+        tests.append(circle(x, z, 0.65))
+    fallen = [p for p in named["plaza-columns"].parts if p.name.startswith("fallen-")]
+    tests.append(box(*_local_bounds(fallen, 0.0, 0.0, 0.0), 0.2))
+    for x0, z0, x1, z1 in feats["exits"]:
+        ex, ez = (x0 + x1) / 2, (z0 + z1) / 2
+        length = math.hypot(ex, ez)
+        tests.append(box(0.0, -PATH_HALF_WIDTH, length, PATH_HALF_WIDTH, 0.0, 0.0, 0.0,
+                         math.degrees(math.atan2(-ez, ex))))
+    return tests
+
+
+def scatter_density(x: float, z: float) -> float:
+    """Density factor written to the ``density`` point attribute: piles and clear patches."""
+    return 0.35 + 0.65 * value_noise3(x * 0.25, 0.0, z * 0.25, SEED + 9)
+
+
+def scatter_surface(data: dict[str, Any]) -> g.MeshData:
+    """Plaza floor cells (0.5 m, y = FLOOR_TOP, facing up) where rubble may land."""
+    tests = _scatter_keepouts(data)
+    b = g.GridBuilder()
+    n = int(round(20.0 / SCATTER_CELL))
+    for i in range(n):
+        for j in range(n):
+            x0, z0 = -10.0 + i * SCATTER_CELL, -10.0 + j * SCATTER_CELL
+            x1, z1 = x0 + SCATTER_CELL, z0 + SCATTER_CELL
+            cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+            if abs(cx) > SCATTER_EDGE - 0.25 or abs(cz) > SCATTER_EDGE - 0.25 or cx > SCATTER_EAST - 0.25:
+                continue
+            if any(t(cx, cz) for t in tests):
+                continue
+            b.quad((x0, FLOOR_TOP, z0), (x0, FLOOR_TOP, z1), (x1, FLOOR_TOP, z1), (x1, FLOOR_TOP, z0))
+    return b.build("plaza-scatter-surface", "factory_floor")
+
+
+# --------------------------------------------------------------------------- Blender hook: spray art
+
+
+PILASTER_CLEAR_Z = 8.0 - 0.3 - 0.1   # the full-height pilasters at z = +-8 must not cover any letter
+DRIP_COUNT = 22
+
+
+def _text_mesh(bpy, text: str, size: float, offset: float, extrude: float, font):
+    curve = bpy.data.curves.new(f"spray_{text}_{offset}", "FONT")
+    curve.body = text
+    curve.font = font
+    curve.size = size
+    curve.offset = offset          # >0 fattens glyphs -> black outline layer (absolute metres, probed)
+    curve.extrude = extrude        # absolute half-depth: the solid spans z = -extrude .. +extrude
+    curve.align_x = "CENTER"
+    obj = bpy.data.objects.new(curve.name, curve)
+    bpy.context.scene.collection.objects.link(obj)
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    me = bpy.data.meshes.new_from_object(obj.evaluated_get(depsgraph))
+    bpy.data.objects.remove(obj, do_unlink=True)
+    bpy.data.curves.remove(curve)
+    verts = [tuple(v.co) for v in me.vertices]
+    faces = [tuple(p.vertices) for p in me.polygons]
+    bpy.data.meshes.remove(me)
+    return verts, faces   # Blender XY plane, glyphs face +Z, baseline at y = 0
+
+
+def _ink_bounds(verts) -> tuple[float, float, float, float]:
+    return min(v[0] for v in verts), max(v[0] for v in verts), min(v[1] for v in verts), max(v[1] for v in verts)
+
+
+def _glyphs_to_wall(name: str, verts, faces, *, scale_x: float, center_z: float, base_y: float, y0: float,
+                    plane: float, material: str) -> g.MeshData:
+    """Text space -> wall: (x, y, z) -> (plane - z, base_y + (y - y0), center_z - x * scale_x).
+
+    Seen from the plaza (looking +X) the text reads towards -Z. The map is a mirror, so the
+    faces are reversed to keep the authored facing towards the plaza (R11).
+    """
+    wall = [(plane - v[2], base_y + (v[1] - y0), center_z - v[0] * scale_x) for v in verts]
+    return g.mesh(name, wall, [tuple(reversed(f)) for f in faces], material)
+
+
+def _layout_line(line: dict[str, Any], ink: tuple[float, float, float, float], scale_x: float) -> float:
+    """Wall z of the text-space origin for a line, honouring align/edge_z (R13)."""
+    x0, x1 = ink[0] * scale_x, ink[1] * scale_x
+    align = line.get("align", "center")
+    if align == "right":      # the viewer's right edge (max text x) sits on edge_z
+        return line["edge_z"] + x1
+    if align == "left":       # the viewer's left edge (min text x) sits on edge_z
+        return line["edge_z"] + x0
+    return line["center_z"] + (x0 + x1) / 2
+
+
+def _drips(reds: list[tuple[int, g.MeshData]], lay: dict[str, Any], stop_above: dict[int, float]) -> list[g.MeshData]:
+    """Paint runs from the lowest red vertex of each 0.3 m column of each line, clear of the pilaster stubs."""
+    candidates = []
+    for li, mesh in reds:
+        low: dict[int, Vec] = {}
+        for v in mesh.vertices:
+            key = math.floor(v[2] / 0.3)
+            if key not in low or v[1] < low[key][1]:
+                low[key] = v
+        for key in sorted(low):
+            v = low[key]
+            if any(abs(v[2] - pz) < 0.45 for pz in PILASTER_Z[1:4]) and li != 0:
+                continue
+            if abs(v[2]) > PILASTER_CLEAR_Z:
+                continue
+            candidates.append((li, v))
+    rng = random.Random(SEED + 31)
+    picks = rng.sample(candidates, min(DRIP_COUNT, len(candidates)))
+    x = lay["plane_x"] - lay["red_offset"]
+    parts = []
+    for k, (li, v) in enumerate(picks):
+        w = rng.uniform(0.03, 0.06)
+        length = rng.uniform(0.2, 1.4)
+        top = v[1] + 0.03                       # starts inside the letter so the run stays attached
+        bottom = max(v[1] - length, stop_above.get(li, 0.35))
+        if top - bottom < 0.12:
+            bottom = top - 0.12
+        z = v[2]
+        xf, xb = x - 0.0015, x + 0.0025          # 1.5 mm behind the red face, in front of the black layer
+        wt, wb = w / 2, w * 0.3
+        parts.append(_hexa(f"drip-{k:02d}", ((xf, bottom, z - wb), (xb, bottom, z - wb), (xb, top, z - wt), (xf, top, z - wt),
+                                              (xf, bottom, z + wb), (xb, bottom, z + wb), (xb, top, z + wt), (xf, top, z + wt)),
+                           "spray_red"))
+        parts.append(g.beveled_box(f"drip-drop-{k:02d}", (x - 0.001, bottom - 0.015, z), (0.008, 0.05, max(0.05, w * 1.25)),
+                                   0.003, "spray_red"))
+    return parts
+
+
+def _spray_art(bpy, io, lookup) -> tuple[Any, dict[str, Any]]:
+    lay = spray_layout()
+    plane = lay["plane_x"]
+    report: dict[str, Any] = {"method": "font-mesh", "width_m": 0.0, "drips": 0}
+    ring_line = next(line for line in lay["lines"] if "ring" in line)
+    ring = ring_line["ring"]
+    ring_red, ring_black = ring_glyph(ring["center"], ring["outer_radius"], ring["band"], ring["depth"])
+    try:
+        font = bpy.data.fonts.load(str(FONT_PATH))
+    except Exception as exc:  # TextRenderer fallback is added in Task 14
+        report.update(method="text-renderer", error=f"{type(exc).__name__}: {exc}")
+        merged = g.merge_assembly(g.Assembly("spray-art", "spray-art", "plaza", (0.0, 0.0, 0.0), [ring_black, ring_red]))
+        obj, issues = io.create_object(bpy, None, merged, (0.0, 0.0, 0.0), lookup)
+        io.write_colors(obj, vertex_colors(merged, (0.0, 0.0, 0.0), SEED + 71))
+        report["uv_issues"] = issues
+        return obj, report
+    grow = lay["black_grow"]
+    texts = [(i, line) for i, line in enumerate(lay["lines"]) if "text" in line]
+    # Size every line from its ink height at size 1, then find one horizontal condense factor that
+    # keeps the second row (N ... VA hug the ◎) and the first row clear of the full-height pilasters.
+    sizes, inks = {}, {}
+    for i, line in texts:
+        v, _f = _text_mesh(bpy, line["text"], 1.0, 0.0, 0.003, font)
+        ink = _ink_bounds(v)
+        sizes[i] = line["height"] / (ink[3] - ink[2])
+        inks[i] = tuple(c * sizes[i] for c in ink)
+    condense = 1.0
+    for i, line in texts:
+        x0, x1 = inks[i][0], inks[i][1]
+        if line.get("align") == "right":
+            room = PILASTER_CLEAR_Z - line["edge_z"] - grow
+        elif line.get("align") == "left":
+            room = PILASTER_CLEAR_Z + line["edge_z"] - grow
+        else:
+            room = 2 * PILASTER_CLEAR_Z - 2 * grow
+        condense = min(condense, room / (x1 - x0))
+    first = texts[0][0]
+    width = (inks[first][1] - inks[first][0]) * condense + 2 * grow
+    if width > lay["max_width"]:   # brief rule: shrink the first row uniformly past 17 m
+        shrink = (lay["max_width"] - 2 * grow) / (width - 2 * grow)
+        sizes[first] *= shrink
+        inks[first] = tuple(c * shrink for c in inks[first])
+        width = lay["max_width"]
+    report.update(width_m=round(width, 3), condense=round(condense, 3),
+                  line_heights={lay["lines"][i]["text"]: round(inks[i][3] - inks[i][2], 3) for i, _ in texts})
+    blacks: list[g.MeshData] = [ring_black]
+    reds: list[tuple[int, g.MeshData]] = []
+    tops: dict[int, float] = {}
+    for i, line in texts:
+        rv, rf = _text_mesh(bpy, line["text"], sizes[i], 0.0, 0.003, font)
+        bv, bf = _text_mesh(bpy, line["text"], sizes[i], grow, 0.002, font)
+        ink = _ink_bounds(rv)
+        cz = _layout_line(line, ink, condense)
+        common = {"scale_x": condense, "center_z": cz, "base_y": line["baseline_y"], "y0": ink[2]}
+        reds.append((i, _glyphs_to_wall(f"spray-red-{i}", rv, rf, plane=plane - lay["red_offset"], material="spray_red", **common)))
+        blacks.append(_glyphs_to_wall(f"spray-black-{i}", bv, bf, plane=plane - lay["black_offset"], material="spray_black", **common))
+        tops[i] = line["baseline_y"] + ink[3] - ink[2] + grow
+    bpy.data.fonts.remove(font)
+    # First-row runs stop short of the second row's outline; second-row runs stop above the floor grime.
+    stop = {first: max(tops[i] for i, _ in texts if i != first) + 0.08}
+    drips = _drips(reds, lay, stop)
+    report["drips"] = len(drips) // 2
+    parts = blacks + [m for _, m in reds] + [ring_red] + drips
+    merged = g.merge_assembly(g.Assembly("spray-art", "spray-art", "plaza", (0.0, 0.0, 0.0), parts))
+    obj, issues = io.create_object(bpy, None, merged, (0.0, 0.0, 0.0), lookup)
+    io.write_colors(obj, vertex_colors(merged, (0.0, 0.0, 0.0), SEED + 71))
+    report.update(uv_issues=issues, triangles=sum(len(f) - 2 for f in merged.faces),
+                  z_extent=[round(min(v[2] for v in merged.vertices), 3), round(max(v[2] for v in merged.vertices), 3)])
+    return obj, report
+
+
+# --------------------------------------------------------------------------- Blender hook: GN rubble scatter
+
+
+_GN_TREE = "Slum02PlazaScatter"
+_GN_TMP = "Slum02PlazaScatterTmp"
+
+
+def _cleanup_gn(bpy) -> None:
+    tmp = bpy.data.collections.get(_GN_TMP)
+    if tmp is not None:
+        for coll in [tmp, *tmp.children_recursive]:
+            for obj in list(coll.objects):
+                bpy.data.objects.remove(obj, do_unlink=True)
+        for coll in list(tmp.children_recursive):
+            bpy.data.collections.remove(coll)
+        bpy.data.collections.remove(tmp)
+    tree = bpy.data.node_groups.get(_GN_TREE)
+    if tree is not None:
+        bpy.data.node_groups.remove(tree)
+    for me in [m for m in bpy.data.meshes if m.users == 0]:
+        bpy.data.meshes.remove(me)
+
+
+def _merged_from_blender(name: str, verts, faces, face_mats, slot_names) -> g.MergedMesh:
+    """Blender (XZY, reversed winding) -> Resonite MergedMesh; unused/None slots are dropped."""
+    used = sorted(set(face_mats))
+    remap = {old: k for k, old in enumerate(used)}
+    return g.MergedMesh(name, tuple((v[0], v[2], v[1]) for v in verts), tuple(tuple(reversed(f)) for f in faces),
+                        tuple(remap[m] for m in face_mats), tuple(slot_names[m] for m in used))
+
+
+def _gn_scatter(bpy, bmesh, io, surface: g.MeshData, lookup) -> tuple[g.MergedMesh, dict[str, Any]]:
+    tmp = bpy.data.collections.new(_GN_TMP)
+    bpy.context.scene.collection.children.link(tmp)
+    classes = list(SCATTER_CLASSES)
+    by_class: dict[str, list[tuple[str, list[g.MeshData]]]] = {c: [] for c in classes}
+    for cls, name, parts in _rubble_parts():
+        by_class[cls].append((name, parts))
+    proto_class: dict[str, str] = {}
+    colls = {}
+    for cls in classes:
+        coll = bpy.data.collections.new(f"{_GN_TMP}_{cls}")
+        tmp.children.link(coll)
+        for name, parts in by_class[cls]:
+            merged = g.merge_assembly(g.Assembly(name, name, "plaza", (0.0, 0.0, 0.0), list(parts)))
+            obj, _ = io.create_object(bpy, bmesh, merged, (0.0, 0.0, 0.0), lookup, uv_exempt=True)
+            obj.name = f"Slum02Proto_{name}"
+            obj.hide_render = True
+            coll.objects.link(obj)
+            proto_class[obj.name] = cls
+        colls[cls] = coll
+    me = bpy.data.meshes.new("Slum02PlazaScatterSurface_Mesh")
+    me.from_pydata([(v[0], v[2], v[1]) for v in surface.vertices], [], [list(reversed(f)) for f in surface.faces])
+    me.update()
+    attr = me.attributes.new("density", "FLOAT", "POINT")
+    attr.data.foreach_set("value", [scatter_density(v[0], v[2]) for v in surface.vertices])
+    plane = bpy.data.objects.new("Slum02PlazaScatterSurface", me)
+    plane.hide_render = True
+    tmp.objects.link(plane)
+
+    # Node and socket names verified against Blender 5.0.1 RNA (akichi probe); Random Value has no
+    # ROTATION type, so an XYZ euler FLOAT_VECTOR converts implicitly into the Rotation socket.
+    tree = bpy.data.node_groups.new(_GN_TREE, "GeometryNodeTree")
+    tree.interface.new_socket(name="Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    tree.interface.new_socket(name="Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    nodes, links = tree.nodes, tree.links
+    node_in, node_out = nodes.new("NodeGroupInput"), nodes.new("NodeGroupOutput")
+    in_geom = next(s for s in node_in.outputs if s.type == "GEOMETRY")
+    out_geom = next(s for s in node_out.inputs if s.type == "GEOMETRY")
+    join = nodes.new("GeometryNodeJoinGeometry")
+    links.new(join.outputs["Geometry"], out_geom)
+    named = nodes.new("GeometryNodeInputNamedAttribute")
+    named.data_type = "FLOAT"
+    named.inputs["Name"].default_value = "density"
+    info: dict[str, Any] = {"density_factor": True}
+    realizes = []
+
+    def sock(coll, ident):
+        return next(s for s in coll if s.identifier == ident)
+
+    # Random Value keeps one socket set per data type (probed in 5.0.1): FLOAT_VECTOR "Min"/"Max"/"Value",
+    # FLOAT "Min_001"/"Max_001"/"Value_001", INT "Min_002"/"Max_002"/"Value_002".
+    rv_ids = {"FLOAT_VECTOR": ("Min", "Max", "Value"), "FLOAT": ("Min_001", "Max_001", "Value_001"),
+              "INT": ("Min_002", "Max_002", "Value_002")}
+
+    def random_value(data_type, lo, hi, seed):
+        node = nodes.new("FunctionNodeRandomValue")
+        node.data_type = data_type
+        i_min, i_max, o_val = rv_ids[data_type]
+        sock(node.inputs, i_min).default_value = lo
+        sock(node.inputs, i_max).default_value = hi
+        node.inputs["Seed"].default_value = seed
+        return sock(node.outputs, o_val)
+
+    for ci, cls in enumerate(classes):
+        density, s_min, s_max = SCATTER_CLASSES[cls]
+        dist = nodes.new("GeometryNodeDistributePointsOnFaces")
+        dist.inputs["Seed"].default_value = SEED + ci
+        density_factor = sock(dist.inputs, "Density Factor")
+        if density_factor.enabled:
+            dist.inputs["Density"].default_value = density
+            links.new(named.outputs["Attribute"], density_factor)
+            info["density_socket"] = "Density Factor"
+        else:
+            # 5.0.1 only enables "Density Factor" for Poisson disk; the Random mode "Density" input
+            # is itself a field, so class density x density attribute gives the same variation.
+            info["distribute_inputs"] = [s.name for s in dist.inputs if s.enabled]
+            mul = nodes.new("ShaderNodeMath")
+            mul.operation = "MULTIPLY"
+            links.new(named.outputs["Attribute"], mul.inputs[0])
+            mul.inputs[1].default_value = density
+            links.new(mul.outputs["Value"], dist.inputs["Density"])
+            info["density_socket"] = "Density (field: class density x density attribute)"
+        links.new(in_geom, dist.inputs["Mesh"])
+        cinfo = nodes.new("GeometryNodeCollectionInfo")
+        cinfo.inputs["Collection"].default_value = colls[cls]
+        cinfo.inputs["Separate Children"].default_value = True
+        cinfo.inputs["Reset Children"].default_value = True
+        pick = random_value("INT", 0, len(by_class[cls]) - 1, SEED + 300 + ci)
+        rot = random_value("FLOAT_VECTOR", (-0.26, -0.26, -math.pi), (0.26, 0.26, math.pi), SEED + 310 + ci)
+        scale = random_value("FLOAT", s_min, s_max, SEED + 320 + ci)
+        inst = nodes.new("GeometryNodeInstanceOnPoints")
+        inst.inputs["Pick Instance"].default_value = True
+        links.new(dist.outputs["Points"], inst.inputs["Points"])
+        links.new(cinfo.outputs["Instances"], inst.inputs["Instance"])
+        links.new(pick, inst.inputs["Instance Index"])
+        links.new(rot, inst.inputs["Rotation"])
+        links.new(scale, inst.inputs["Scale"])
+        realize = nodes.new("GeometryNodeRealizeInstances")
+        links.new(inst.outputs["Instances"], realize.inputs["Geometry"])
+        links.new(realize.outputs["Geometry"], join.inputs["Geometry"])
+        realizes.append(realize)
+    mod = plane.modifiers.new("Slum02PlazaScatter", "NODES")
+    mod.node_group = tree
+
+    # Count instances with the realize nodes muted (instances pass through), then bake realized.
+    for r in realizes:
+        r.mute = True
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    depsgraph.update()
+    counts = {c: 0 for c in classes}
+    for inst in depsgraph.object_instances:
+        if inst.is_instance and inst.parent is not None and inst.parent.original == plane:
+            cls = proto_class.get(inst.object.original.name)
+            if cls:
+                counts[cls] += 1
+    for r in realizes:
+        r.mute = False
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    depsgraph.update()
+    ev = plane.evaluated_get(depsgraph)
+    out = ev.to_mesh()
+    if out is None or not out.polygons or not out.materials:
+        ev.to_mesh_clear()
+        raise RuntimeError("GN scatter produced an empty or material-less mesh")
+    verts = [tuple(v.co) for v in out.vertices]
+    faces = [tuple(p.vertices) for p in out.polygons]
+    mats = [p.material_index for p in out.polygons]
+    slots = [m.name[len(BLENDER_PREFIX):] if m is not None else "concrete_raw" for m in out.materials]
+    ev.to_mesh_clear()
+    _cleanup_gn(bpy)
+    if sum(counts.values()) == 0:
+        raise RuntimeError("GN scatter instance count is zero")
+    info["instances"] = {**counts, "total": sum(counts.values())}
+    return _merged_from_blender("plaza-rubble", verts, faces, mats, slots), info
+
+
+def _euler_blender(p: Vec, e: Vec) -> Vec:
+    """XYZ euler rotation in Blender axes (same order as Instance on Points)."""
+    x, y, z = p
+    c, s = math.cos(e[0]), math.sin(e[0])
+    y, z = y * c - z * s, y * s + z * c
+    c, s = math.cos(e[1]), math.sin(e[1])
+    x, z = x * c + z * s, -x * s + z * c
+    c, s = math.cos(e[2]), math.sin(e[2])
+    x, y = x * c - y * s, x * s + y * c
+    return (x, y, z)
+
+
+def _python_scatter(surface: g.MeshData) -> tuple[g.MergedMesh, dict[str, Any]]:
+    """Fallback with the GN graph's densities, scale and rotation ranges (``random.Random(SEED + 250)``)."""
+    rng = random.Random(SEED + 250)
+    protos: dict[str, list[g.MergedMesh]] = {c: [] for c in SCATTER_CLASSES}
+    for cls, name, parts in _rubble_parts():
+        protos[cls].append(g.merge_assembly(g.Assembly(name, name, "plaza", (0.0, 0.0, 0.0), list(parts))))
+    verts: list[Vec] = []
+    faces: list[tuple[int, ...]] = []
+    fmats: list[int] = []
+    mats: list[str] = []
+    counts = {c: 0 for c in SCATTER_CLASSES}
+    for cls, (density, s_min, s_max) in SCATTER_CLASSES.items():
+        for face in surface.faces:
+            pts = [surface.vertices[i] for i in face]
+            xs, zs = [p[0] for p in pts], [p[2] for p in pts]
+            lam = density * (max(xs) - min(xs)) * (max(zs) - min(zs)) * scatter_density(sum(xs) / 4, sum(zs) / 4)
+            n = int(lam) + (1 if rng.random() < lam - int(lam) else 0)
+            for _ in range(n):
+                px, pz = rng.uniform(min(xs), max(xs)), rng.uniform(min(zs), max(zs))
+                proto = rng.choice(protos[cls])
+                e = (rng.uniform(-0.26, 0.26), rng.uniform(-0.26, 0.26), rng.uniform(-math.pi, math.pi))
+                s = rng.uniform(s_min, s_max)
+                off = len(verts)
+                for v in proto.vertices:
+                    b = _euler_blender((v[0] * s, v[2] * s, v[1] * s), e)   # Resonite -> Blender axes
+                    verts.append((px + b[0], FLOOR_TOP + b[2], pz + b[1]))
+                for f, m in zip(proto.faces, proto.face_materials):
+                    mat = proto.materials[m]
+                    if mat not in mats:
+                        mats.append(mat)
+                    faces.append(tuple(off + i for i in f))
+                    fmats.append(mats.index(mat))
+                counts[cls] += 1
+    merged = g.MergedMesh("plaza-rubble", tuple(verts), tuple(faces), tuple(fmats), tuple(mats))
+    return merged, {"instances": {**counts, "total": sum(counts.values())}, "density_factor": True}
+
+
+def _rubble(bpy, bmesh, io, data: dict[str, Any], lookup) -> tuple[Any, dict[str, Any]]:
+    surface = scatter_surface(data)
+    errors: list[str] = []
+    result = None
+    for attempt in (1, 2):
+        try:
+            merged, info = _gn_scatter(bpy, bmesh, io, surface, lookup)
+            result = (merged, {"method": "geometry-nodes", "attempts": attempt, **info})
+            break
+        except Exception as exc:
+            errors.append(f"{type(exc).__name__}: {exc}")
+            _cleanup_gn(bpy)
+    if result is None:
+        merged, info = _python_scatter(surface)
+        result = (merged, {"method": "python-fallback", "attempts": 2, **info})
+    merged, info = result
+    if errors:
+        info["errors"] = errors
+    exposed = sum(1 for v in merged.vertices if v[1] > FLOOR_TOP) / len(merged.vertices)
+    if exposed < 0.45:  # Review Focus 5: avoid akichi's buried-rubble look
+        raise RuntimeError(f"rubble exposed_fraction {exposed:.3f} < 0.45")
+    obj, _ = io.create_object(bpy, bmesh, merged, (0.0, 0.0, 0.0), lookup, uv_exempt=True)
+    io.write_colors(obj, vertex_colors(merged, (0.0, 0.0, 0.0), SEED + 77))
+    info.update(triangles=sum(len(f) - 2 for f in merged.faces), vertices=len(merged.vertices),
+                exposed_fraction=round(exposed, 3), surface_area_m2=len(surface.faces) * SCATTER_CELL ** 2,
+                materials=list(merged.materials))
+    return obj, info
+
+
+@register_blender_hook("plaza")
+def blender_hook(bpy, bmesh, data, lookup, export_collection):
+    """Adds the ``spray-art`` lettering and the baked ``plaza-rubble`` scatter (one object each)."""
+    from modeling.slum02 import blender_io as io
+    report: dict[str, Any] = {}
+    art, report["spray_art"] = _spray_art(bpy, io, lookup)
+    rubble, report["scatter"] = _rubble(bpy, bmesh, io, data, lookup)
+    objects = []
+    for obj, kind in ((art, "spray-art"), (rubble, "plaza-rubble")):
+        obj["slum02_kind"] = kind
+        obj["slum02_sector"] = "plaza"
+        if kind == "plaza-rubble":
+            obj["evaluated_from_geometry_nodes"] = report["scatter"]["method"] == "geometry-nodes"
+        export_collection.objects.link(obj)
+        objects.append(obj)
+    return objects, report
 
 
 # --------------------------------------------------------------------------- sector
