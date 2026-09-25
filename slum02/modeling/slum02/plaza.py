@@ -959,7 +959,18 @@ def _car(x: float, z: float, yaw: float) -> g.Assembly:
     L.append(g.box("car-trunk-seam", (-1.6, body_y + 0.352, 0.0), (0.02, 0.006, 1.5), "steel_dark"))
     for s in (-1, 1):
         L.append(g.box(f"car-door-seam-{s}", (0.05, body_y, s * 0.902), (0.02, 0.5, 0.006), "steel_dark"))
-    parts = [g.transformed_xyz(m, math.radians(5.0), math.radians(yaw), 0.0, (x, FLOOR_TOP - 0.03, z)) for m in L]
+    # The shell lists 5 deg towards +Z: the burnt springs on that side sagged, the other side hangs at
+    # full droop. Lift the car until the low-side rims just bite into the floor, then drop each
+    # high-side wheel (rim + hub) straight down onto the floor as well.
+    rest = FLOOR_TOP - 0.015
+    parts = [g.transformed_xyz(m, math.radians(5.0), math.radians(yaw), 0.0, (x, 0.0, z)) for m in L]
+    def low_y(m: g.MeshData) -> float:
+        return min(v[1] for v in m.vertices)
+    lift = rest - min(low_y(m) for m in parts if m.name.startswith("car-rim-"))
+    parts = [g.transformed(m, 0.0, (0.0, lift, 0.0)) for m in parts]
+    drop = {m.name[len("car-rim-"):]: low_y(m) - rest for m in parts if m.name.startswith("car-rim-")}
+    parts = [g.transformed(m, 0.0, (0.0, -drop.get(m.name.split("-", 2)[-1], 0.0), 0.0))
+             if m.name.startswith(("car-rim-", "car-hub-")) else m for m in parts]
     bumper = g.box("car-bumper-rear", (0, 0, 0), (0.16, 0.1, 1.7), "steel_dark")  # fell off, lying flat
     rear = g.rotate_y((-2.6, 0.0, 0.5), math.radians(yaw))
     parts.append(g.transformed_xyz(bumper, 0.06, math.radians(yaw + 35), 0.0, (x + rear[0], FLOOR_TOP + 0.05, z + rear[2])))

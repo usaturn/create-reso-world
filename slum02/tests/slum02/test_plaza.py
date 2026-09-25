@@ -163,6 +163,22 @@ def test_car_and_fire_barrel_materials():
     assert max(v[1] for p in embers for v in p.vertices) < drum_top
 
 
+def test_car_rims_rest_on_the_floor():
+    car = {p.name: p for p in _named()["plaza-car"].parts}
+    rims = [n for n in car if n.startswith("car-rim-")]
+    assert len(rims) == 4
+    for n in rims:
+        low = min(v[1] for v in car[n].vertices)
+        assert plaza.FLOOR_TOP - 0.03 <= low <= plaza.FLOOR_TOP + 0.03, (n, low)
+        # The hub stays centred on its rim.
+        rim_mid = sum(g.bounds([car[n]])[i][1] for i in range(2)) / 2
+        hub = car[n.replace("car-rim-", "car-hub-")]
+        assert abs(sum(g.bounds([hub])[i][1] for i in range(2)) / 2 - rim_mid) < 0.02, n
+    # The shell still lists: one side of the body sits clearly lower than the other.
+    body = car["car-body"].vertices
+    assert max(v[1] for v in body) - min(v[1] for v in body) > 0.7 + 0.1
+
+
 def test_machine_bases_have_anchor_bolts():
     bases = _named()["plaza-machine-bases"]
     assert sum(1 for p in bases.parts if p.name.startswith("base-") and p.material == "concrete_raw") == 5
