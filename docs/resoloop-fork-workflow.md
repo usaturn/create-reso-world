@@ -51,7 +51,7 @@ fork の checkout は `external/resoloop`（ルートの `.gitignore` で無視�
 
 終了コード: 0 成功、1 状態が期待と違う（git の checkout でない、remote の食い違い、未コミットの変更、コミットが `origin` に無い、fork の `main` が上流から分岐、導入後の版の不一致など）、2 使い方の誤り、3 前提不足（ロックの欠落・不正、git / dotnet が無い、SDK が無い、checkout が無い）、4 git や dotnet のコマンドの失敗。
 
-環境変数 `RESOLOOP_LOCK_FILE`（ロックファイル）と `RESOLOOP_FORK_CHECKOUT`（checkout の位置）で既定の場所を差し替えられる。主にテスト用。
+環境変数 `RESOLOOP_LOCK_FILE`（ロックファイル）と `RESOLOOP_FORK_CHECKOUT`（checkout の位置）で既定の場所を差し替えられる。テストと特殊な運用向け。
 
 ## 状態を確かめる
 

@@ -377,7 +377,7 @@ docs_draft/
 node_modules/
 ```
 
-（実装後の最終レビューで `**/` 前置に修正された。理由は仕様 4.4 を参照。）
+（この節の `tmp/` と `docs_draft/` は実装後の最終レビューを受けた書き方で、末尾だけに `/` があるのでどの階層にも一致する。`**/` の前置は、途中に `/` を含むパターンにだけ要る。フェーズ 6 で注記を訂正した。）
 
 - [ ] **Step 4: lock を追跡し、`slum02/.gitignore` を削除し、下書き文書を移動する**
 
@@ -827,7 +827,7 @@ Expected: `trpg texts no longer visible to git`（`private/` は現行の .gitig
 ## マージ後にユーザが行うこと（随時追記）
 
 1. `git -C /workspaces/reso-world fetch origin` の後、`feat/slum02-slum` を `origin/main` に rebase するか ff-merge する。
-2. `CLAUDE.md` と `.pi/APPEND_SYSTEM.md` の未コミット変更は新設計に取り込み済みなので `git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md` で破棄してよい。`.claude/settings.local.json` は追跡解除後もローカルファイルとして残る。
+2. `CLAUDE.md` と `.pi/APPEND_SYSTEM.md` の未コミット変更は新設計に取り込み済みなので `git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md` で破棄してよい。`.claude/settings.local.json` はマージで削除されるので、マージの前に退避してマージ後に書き戻す（この雛形は古い。現行の手順は `docs/integration.md`。フェーズ 6 で注記）。
 3. `MyResoniteProject/modeling/tokyo_nova/layout.py.orig` は新しい `.gitignore` で見えなくなる。不要なら削除する。
 ```
 

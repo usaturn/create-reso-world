@@ -1,6 +1,6 @@
 # 再設計の統合手順
 
-仕様: `docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md` 10.1 節。フェーズ 6 で完成させる。ここには各フェーズで実施した「メイン作業ツリー側の操作」と、マージ後に必要な手順を積み上げる。
+仕様: `docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md` 10.1 節。各フェーズで実施した「メイン作業ツリー側の操作」、PR を出す前に行ったこと、マージの前後にユーザが行うこと、Rebuild 後の確認をまとめる。
 
 ## フェーズ 0 で実施したこと
 
@@ -14,10 +14,20 @@
 - `.git/info/exclude` から存在しない `.devin/mcp_config.local.json` の行を外した（同じ規則はルート `.gitignore` に移した）。
 - `.git/info/exclude`（全 worktree 共通）に `/private/` を暫定追加した。マージ後はルート `.gitignore` が同じ規則を持つので、この行は削除してよい。
 
+## PR を出す前に行ったこと（フェーズ 6）
+
+1. `chore/repo-redesign` に、その時点の `feat/slum02-slum` をマージした（マージコミット）。仕様 10.1 は rebase としていたが、`chore/repo-redesign` は push 済みで force push をしないため、マージに置き換えた（フェーズ 6 の判断事項）。
+2. `main` を `feat/slum02-slum` の HEAD へ fast-forward し（`git fetch . feat/slum02-slum:main`）、`main` と `chore/repo-redesign` を push してから、`main` 宛ての PR を 1 本だけ開いた。
+3. 下の「マージ前にユーザが行うこと」の手順 2 の一覧を PR の直前に作り直し、件数を更新した。
+
 ## マージ前にユーザが行うこと
 
-1. 作業ツリー（`/workspaces/reso-world`）の `.claude/settings.local.json` は `feat/slum02-slum` で追跡されており、未コミットの変更が乗っている。`chore/repo-redesign` はこのファイルを index から削除するため、マージ・rebase の前に `cp /workspaces/reso-world/.claude/settings.local.json ~/settings.local.json.bak` などで退避し、マージ後に元の場所へ戻す（マージ後は ignore 対象になるので再追跡されない）。`feat/tokyo-nova-world` と `wip/tokyo-nova-refinement` も同じファイルを追跡しているため、これらを新しい `main` に rebase するときも同様の退避が必要。
-2. `chore/repo-redesign` が新しく追跡するパスのうち、作業ツリーに未追跡のまま存在するものは、マージや rebase の checkout を中断させる（git は未追跡ファイルを上書きしない）。まず一覧を NUL 区切りでファイルに書き出して確認する。`origin/chore/repo-redesign` をまだ取得していない場合は、先に `git fetch origin` を実行する（Task 14 で push 済みならこれで参照できる）。
+手順 1〜3 は同じシェルで続けて実行する（手順 2 の `list` 変数を手順 3 まで使う）。
+
+1. 作業ツリー（`/workspaces/reso-world`）の未コミットの変更のうち、マージで上書きされるものを片付ける。
+   - `.claude/settings.local.json` は `feat/slum02-slum` で追跡されており、未コミットの変更が乗っている。`chore/repo-redesign` はこのファイルを index から削除するため、`cp /workspaces/reso-world/.claude/settings.local.json ~/settings.local.json.bak` で退避してから `git checkout -- .claude/settings.local.json` で変更を戻す。マージ後に退避した内容を元の場所へ戻す（マージ後は ignore 対象になるので再追跡されない）。`feat/tokyo-nova-world` と `wip/tokyo-nova-refinement` も同じファイルを追跡しているため、これらを新しい `main` に rebase するときも同様の退避が必要。
+   - `CLAUDE.md` と `.pi/APPEND_SYSTEM.md` の未コミット変更は、フェーズ 2 で新設計（`AGENTS.md` と新しい `.pi/APPEND_SYSTEM.md`）に取り込み済みであることを確認したうえで、`git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md` で破棄する。どちらもマージで変わるため、変更が残っているとマージが止まる。
+2. `chore/repo-redesign` が新しく追跡するパスのうち、作業ツリーに未追跡のまま存在するものは、マージや rebase の checkout を中断させる（git は未追跡ファイルを上書きしない）。まず一覧を NUL 区切りでファイルに書き出して確認する。`origin/chore/repo-redesign` を最新にするため、先に `git fetch origin` を実行する。
 
    ```bash
    cd /workspaces/reso-world
@@ -51,22 +61,34 @@
    done
    ```
 
-   2026-09-26 時点の該当: 68 件。内訳は次のとおり。
+   2026-09-27 時点の該当: 68 件（2026-09-26 と同じ）。内訳は次のとおり。
    - MyResoniteProject と akichi の resoloop scaffold（各 27 件、計 54 件）: `AGENTS.md`、`.resoloop.json`、`.resoloop/.gitignore`、`.agents/skills/.resoloop-bundled.json`、resonite-blender/resonite-build/resonite-debug/resonite-flux/resonite-inspect/resonite-uix の `SKILL.md` 6 件、resonite-uix の `recipes/` 配下 8 件と `references/` 配下 5 件、`flux/` 配下 4 ファイル（`.gitignore`、`Main.pg`、`protograph.toml`、`resoloop.flux.json`）
    - `MyResoniteProject/.agents/sp-implementer.md`: 1 件
    - `slum02/.resoloop/.gitignore`: 1 件
    - ルート `.claude/skills/` の Blender 系 symlink 10 件（blender-modeler、brutalist-mood、dark-gritty-mood、geometry-nodes、hard-surface、horror-style、procedural-modeling、prop-artist、sci-fi-punk-worlds、uv-workflow）と `references`: 計 11 件
    - `.devcontainer/devcontainer-lock.json`: 1 件
-3. `~/reso-world-untracked-backup/` へ退避したファイルは、マージ後に同じパスに入る追跡版と内容を比べてから削除する。`AGENTS.md`（先頭を resoloop preview.14 の文面に揃え、固有節を追加）と `.resoloop/.gitignore`（`cache/` を追加）以外は同一のはず。
+3. `~/reso-world-untracked-backup/` へ退避したファイルは、マージ後に同じパスに入る追跡版と内容を比べてから削除する。`AGENTS.md`（先頭を resoloop preview.14 の文面に揃え、固有節を追加。仕様 4.2）と `.resoloop/.gitignore`（`cache/` を追加。仕様 4.3）以外は同一のはず。`MyResoniteProject/.agents/sp-implementer.md` はブランチでは `../../.agents/sp-implementer.md` への symlink なので、退避した実ファイルはルートの `.agents/sp-implementer.md` と比べる。
 
-## マージ後にユーザが行うこと（随時追記）
+## マージ後にユーザが行うこと
 
-1. `git -C /workspaces/reso-world fetch origin` の後、`feat/slum02-slum` を `origin/main` に rebase するか ff-merge する。
-2. `CLAUDE.md` と `.pi/APPEND_SYSTEM.md` の未コミット変更は、フェーズ 2 で新設計に取り込み済みであることを確認したうえで `git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md` で破棄する。`.claude/settings.local.json` は「マージ前にユーザが行うこと」で退避した内容を元の場所へ戻す。
+1. `git -C /workspaces/reso-world fetch origin` の後、`feat/slum02-slum` を `origin/main` に追従させる。PR の後に `feat/slum02-slum` へコミットしていなければ `git merge --ff-only origin/main` で済む。コミットしていれば rebase するかマージする。
+2. `.claude/settings.local.json` は「マージ前にユーザが行うこと」で退避した内容を元の場所へ戻す。
 3. `MyResoniteProject/modeling/tokyo_nova/layout.py.orig` は新しい `.gitignore` で見えなくなる。不要なら削除する。
-4. `.git/info/exclude` に暫定追加した `/private/` の行を削除する（ルート `.gitignore` の `/private/` 規則に置き換わる）。
-5. 不要になった未追跡物を削除する。`akichi/.agents/skills/` の Blender 系 10 スキルと `references/`・`tests/`（ルートの `.agents/skills/` に移ったため）、`akichi/.claude/skills/` と `MyResoniteProject/.claude/skills/` の Blender 系 symlink、ルート `.claude/skills/` の `resonite-*` の未追跡 symlink（resonite-* はプロジェクト側で読む）、`MyResoniteProject/.agents/sp-*.md` のうち `sp-implementer.md` 以外の 8 件（pi-superagents の組み込み定義と同一のため）。
+4. `.git/info/exclude` に暫定追加した `/private/` の行は、`feat/tokyo-nova-world` と `wip/tokyo-nova-refinement` を新しい `main` に rebase した後に削除する（ルート `.gitignore` の `/private/` 規則に置き換わる）。それまでは、古い `.gitignore` のままのブランチで TRPG 本文を見えなくするために要る。
+5. 不要になった未追跡物を削除する（どれも追跡している正本が別の場所にある。仕様 4.2 と 5.1）。`akichi/.agents/skills/` の Blender 系 10 スキルと `references/`・`tests/`（ルートの `.agents/skills/` に移ったため）、`akichi/.claude/skills/` と `MyResoniteProject/.claude/skills/` の Blender 系 symlink、ルート `.claude/skills/` の `resonite-*` の未追跡 symlink（resonite-* はプロジェクト側で読む）、`MyResoniteProject/.agents/sp-*.md` のうち `sp-implementer.md` 以外の 8 件（pi-superagents の組み込み定義と同一のため）。
 6. `MyResoniteProject/` で `uv sync` を実行し、`uv run pytest` が通ることを確認する（プロジェクト専用の環境になった）。
 7. `bash scripts/check-layout.sh` がすべて `ok` で `PASS: check-layout` になることを確認する。
 8. （任意）Rebuild の前に `tmp/resoloop-blender5-uv-20260925` を `external/resoloop` へ移すと、postCreate の clone を省ける。手順は `docs/resoloop-fork-workflow.md` の「`tmp/` にある旧 checkout の整理」にある。
 9. Rebuild の postCreate は `.devcontainer/resoloop.lock` の fork をビルドして導入する（ネットワークと数分を要する）。終わったら `bash scripts/resoloop-fork.sh status` で、導入済みの版と checkout がロックと一致することを確認する。`tmp/` の残りの旧 checkout は同じ節の手順で整理する。
+
+## Rebuild 後に確かめること（仕様 9.3）
+
+Dev Containers: Rebuild Container を実行した後、コンテナの中で次を確かめる。
+
+1. `bash .devcontainer/verify-resonite-tooling.bash` が 0 で終わる。`dotnet --list-sdks` に `10.0.201` がある。
+2. postCreate の fork のビルドと導入が通っている: `bash scripts/resoloop-fork.sh status` で導入済みの版と checkout がロックと一致し、`resoloop --version` がロックの `RESOLOOP_FORK_PACKAGE_VERSION` を返す。fork へ push する `bash scripts/resoloop-fork.sh sync` を初めて使うときは、GitHub への push の認証が通ることを確かめる。
+3. VS Code のターミナルと、エージェントが起動するプロセスの PATH に `/home/vscode/.local/bin`・`/home/vscode/bin`・`/home/vscode/.dotnet/tools` がある（`remoteEnv.PATH`）。
+4. ホストに `~/.config/create-reso-world` が mode 700 で作られ、コンテナに mount されている。`env` を置いた場合は、新しいシェルでその変数が export されている。
+5. `bash scripts/check-layout.sh`、`bash .devcontainer/run-tests.bash`、各プロジェクトの `uv run pytest` が通る。
+6. Devin で simplify-in-subagent を呼んだとき、サブエージェントが edit と exec のツールを持つ。
+7. GitHub Actions の CI（devcontainer-tests、layout、skill-tests、gitleaks）がすべて成功する。PR の時点では、アカウントの課金の設定によりジョブが開始されず、GitHub 上では確かめられていない。

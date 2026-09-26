@@ -141,11 +141,11 @@ Blender 系スキル（arjun988/blender-skills 派生の 10 スキルと referen
 - Blender: `*.blend1`、`*.blend2`、`*.blend@`
 - 編集の残骸: `*.orig`、`*.rej`、`*.bak`、`*.log`
 - resoloop: `**/.resoloop/**` と `!**/.resoloop/.gitignore`（state、flux-state、cache、作業物をすべて除外）、`**/flux/build/`、`**/flux/.protograph/`、`*.brson`
-- ローカル専用ディレクトリ: `/tmp/`、`**/tmp/`、`/docs_draft/`、`**/docs_draft/`、`/reviews/`、`/external/`、`/private/`、`/.worktrees/`、`/.claude/worktrees/`、`/.superpowers/`、`/.restructure-backup/`、`/MyResoniteProject/content/tokyo-nova/city/export-static/`、`/MyResoniteProject/content/tokyo-nova/city/export-refinement/`
+- ローカル専用ディレクトリ: `tmp/`、`docs_draft/`、`/reviews/`、`/external/`、`/private/`、`/.worktrees/`、`/.claude/worktrees/`、`/.superpowers/`、`/.restructure-backup/`、`/MyResoniteProject/content/tokyo-nova/city/export-static/`、`/MyResoniteProject/content/tokyo-nova/city/export-refinement/`
 - 個人設定: `**/.claude/settings.local.json`、`**/.devin/mcp_config.local.json`、`.env`、`.env.*`、`.secrets/`
 - Node（npx などが作る）: `node_modules/`
 
-途中に `/` を含むパターンはリポジトリルート基準で固定されるため、`slum02/` や `akichi/` などプロジェクト配下にも届かせるには `**/` を前置している。
+途中に `/` を含むパターンはリポジトリルート基準で固定されるため、`slum02/` や `akichi/` などプロジェクト配下にも届かせるには `**/` を前置している。末尾だけに `/` がある `tmp/` と `docs_draft/` は、どの階層のディレクトリにも一致するので 1 行で足りる（フェーズ 6 で実際の `.gitignore` に表記を揃えた）。
 
 `devcontainer-lock.json` は追跡に戻す。`.claude/settings.local.json` は `git rm --cached` で追跡を外す。`MyResoniteProject/.resoloop/tokyo-nova/pipeline.json`（セッション記録）は `tests/tokyo_nova/test_task1_fix_regressions.py` が証跡ファイルとして参照しており、tokyo-nova の進行中作業と競合するため今回は移動しない。追跡済みのまま `**/.resoloop/**` の ignore 規則の既知の例外として `scripts/check-layout.sh` の許可リストに載せ、tokyo-nova 側の作業で `artifacts/` へ移す候補として記録する。`MyResoniteProject/docs_draft/` の強制追加済み 2 件は `docs/worlds/tokyo-nova/` へ移す。`slum02/.gitignore` はルートに吸収して削除する。
 
@@ -257,7 +257,7 @@ SDK は `devcontainer.json` の dotnet Feature に `"additionalVersions": "10.0.
 `docs/resoloop-fork-workflow.md` に次を書く。
 
 - checkout の位置（`external/resoloop`）と remote 構成、`/workspaces` 直下に置かない理由（root 所有のコンテナ内ディレクトリで再作成時に消える）
-- 修正の流れ: `sync` → ブランチ作成 → 修正 → `test` → ロックのコミットを差し替えて `install` → fork へ push → 上流へ PR
+- 修正の流れ: `sync` → ブランチ作成 → 修正 → `test` → ロックのコミットを差し替えて `install` → fork へ push → 上流へ PR（運用文書では、ロックを差し替える前に fork へ push する。`install` の `checkout` は origin にあるコミットしか取り出せないため）
 - fork 内 PR（usaturn/resoloop#1）はレビュー用としてマージしない。上流にマージ・リリースされたら `RESOLOOP_MODE=nuget` と `RESOLOOP_NUGET_VERSION` を更新する
 - 上流への PR 候補: scaffold の `.resoloop/.gitignore` に `cache/` が無い、global.json の `rollForward` が `latestPatch` で SDK の feature band を跨げない
 - `tmp/` の旧 checkout の整理手順（uv0-fix の未コミット草稿は patch として保存してから削除する）
@@ -284,7 +284,7 @@ SDK は `devcontainer.json` の dotnet Feature に `"additionalVersions": "10.0.
 ### 7.2 変更点
 
 - `initialize.bash`: mount のソース 14 個（既存 13 ＋秘密情報）をすべて `mkdir -p` する。
-- `devcontainer.json`: `name` を `create-reso-world`、`remoteEnv.PATH` に `${containerEnv:HOME}/.local/bin` と `${containerEnv:HOME}/bin` と `${containerEnv:HOME}/.dotnet/tools` を追加、dotnet Feature に `additionalVersions`、秘密情報の mount を追加。`devcontainer-lock.json` を追跡する。
+- `devcontainer.json`: `name` を `create-reso-world`、`remoteEnv.PATH` に `${containerEnv:HOME}/.local/bin` と `${containerEnv:HOME}/bin` と `${containerEnv:HOME}/.dotnet/tools` を追加（実装では mounts と同じく `/home/vscode/...` を直接書いた。`${containerEnv:HOME}` が root の HOME に解決されるおそれがあるため。フェーズ 4 の D-10）、dotnet Feature に `additionalVersions`、秘密情報の mount を追加。`devcontainer-lock.json` を追跡する。
 - `install_beforehand.bash`: Codex 導入ステップと Claude プラグイン（superpowers、feature-dev）を追加、uv の導入を pi 設定より前に移し `python3 scripts/setup_pi_tool_display.py` を `uv run` に置換、重複した `apt update` と `PATH` export を削除、pi 用スクリプトの移動に伴うパス修正、`STEP_TOTAL` の更新。
 - `zshrc.txt`: `cod`、`genv`、`buni`、`update()` の各項目を `command -v` で保護。`BUN_INSTALL` は `$HOME` 基準。秘密情報 `env` の読み込みを追加。
 - `starship.toml`: `custom.uv_python` は `$PWD` から上方向に最寄りの `.venv/pyvenv.cfg` を探す。
@@ -329,7 +329,7 @@ SDK は `devcontainer.json` の dotnet Feature に `"additionalVersions": "10.0.
 
 終了コード非 0 で失敗を報告する。CI と review-fix-planning の検証ゲートで使う。
 
-- ルート: `.claude/skills/*` がすべて `.agents/skills` への解決可能な symlink であり、`.agents/skills/*/SKILL.md` ごとに対応する symlink があること
+- ルート: `.claude/skills/*` がすべて `.agents/skills` への解決可能な symlink であり、ファイルを 1 つ以上持つ `.agents/skills` 直下のディレクトリごとに対応する symlink があること（`references/` のように SKILL.md を持たない共有ディレクトリも含む。フェーズ 3 の D-7）
 - 各プロジェクト（`.resoloop.json` を持つ直下ディレクトリ）: 4.2 の必須ファイルと symlink が存在し解決できること、`.claude/skills` が `.agents/skills` の実ディレクトリと 1:1 であること、`AGENTS.md` に固有節があること、`.resoloop/.gitignore` に `cache/` があること
 - resoloop が使える環境では `resoloop skills sync --check` が各プロジェクトで成功すること（無い環境では skip と表示）
 - 追跡ファイルに禁止パターンが無いこと（`ATS.txt`、`BTD.txt`、`TNX.txt`、`.claude/settings.local.json`、`*.blend1`、`*.orig`）
@@ -343,13 +343,13 @@ SDK は `devcontainer.json` の dotnet Feature に `"additionalVersions": "10.0.
 - `devcontainer-tests`: `bash .devcontainer/run-tests.bash`
 - `layout`: `bash scripts/check-layout.sh`（resoloop 無しの環境）
 - `skill-tests`: `uv run pytest tests/skills .agents/skills`
-- `gitleaks`: gitleaks の公式 Action
+- `gitleaks`: gitleaks の公式 Action（設定は `.gitleaks.toml`。resoloop のマニフェストの識別子を誤検出から外し、`[[allowlists]]` を読める版を `GITLEAKS_VERSION` で固定する。フェーズ 4 の D-13）
 
 ワールドのビルド（Blender）は CI で実行しない。
 
 ### 9.3 実機確認（ユーザが実施）
 
-マージ後に Dev Containers: Rebuild Container を実行し、`bash .devcontainer/verify-resonite-tooling.bash`、`dotnet --list-sdks` に 10.0.201 があること、`resoloop --version` がロックと一致すること、`bash scripts/check-layout.sh`、各プロジェクトで `uv run pytest` を確認する。
+マージ後に Dev Containers: Rebuild Container を実行し、`bash .devcontainer/verify-resonite-tooling.bash`、`dotnet --list-sdks` に 10.0.201 があること、`resoloop --version` がロックと一致すること、`bash scripts/check-layout.sh`、各プロジェクトで `uv run pytest` を確認する。あわせて、postCreate の fork のビルドと導入、`remoteEnv.PATH`、秘密情報の mount と `env` の読み込み、Devin の simplify-in-subagent のサブエージェントのツール、GitHub Actions の 4 ジョブの成功を確かめる（手順は `docs/integration.md` の「Rebuild 後に確かめること」）。
 
 ## 10. 実装フェーズと統合
 
@@ -369,9 +369,9 @@ SDK は `devcontainer.json` の dotnet Feature に `"additionalVersions": "10.0.
 
 ### 10.1 統合手順（`docs/integration.md`）
 
-1. `chore/repo-redesign` を最新の `feat/slum02-slum` に rebase し、`main` を再度 slum02 の HEAD へ ff してから PR を `main` に出す。
+1. `chore/repo-redesign` に最新の `feat/slum02-slum` を取り込み、`main` を再度 slum02 の HEAD へ ff（`git fetch . feat/slum02-slum:main`）してから PR を `main` に出す。取り込みは、push 済みのブランチを force push しないよう rebase ではなくマージで行う（フェーズ 6 の判断事項）。
 2. マージ後、作業ツリー側で `git fetch origin` し、`feat/slum02-slum` を `origin/main` に rebase するか ff-merge する。
-3. 作業ツリーに残る `CLAUDE.md` と `.pi/APPEND_SYSTEM.md` の未コミット変更は、フェーズ 2 で新設計に取り込み済みであることを確認したうえで `git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md` で破棄する。`.claude/settings.local.json` はマージ前に `~/settings.local.json.bak` などへ退避しておき、この時点で元の場所へ書き戻す（マージ後は ignore 対象になるので再追跡されない）。
+3. マージの前に、作業ツリーに残る `CLAUDE.md` と `.pi/APPEND_SYSTEM.md` の未コミット変更を、フェーズ 2 で新設計に取り込み済みであることを確認したうえで `git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md` で破棄する。`.claude/settings.local.json` は `~/settings.local.json.bak` などへ退避してから `git checkout -- .claude/settings.local.json` で変更を戻し、マージ後に元の場所へ書き戻す（マージ後は ignore 対象になるので再追跡されない）。手順の詳細は `docs/integration.md`。
 4. Dev Containers: Rebuild Container を実行し、9.3 を確認する。
 5. pi と Claude Code の trust を再承認し、Codex は初回起動時にプロジェクトの trust を承認する。
 
