@@ -440,6 +440,23 @@ def test_sector_budget(built):
     assert sum(g.triangle_count(p) for a in built for p in a.parts) <= 60000
 
 
+def test_no_quad_face_is_self_intersecting(built):
+    """Regression: the hard elbow in ac-pipe folded inner-side tube quads into bowties
+    (the 6 uv_issues in the report). A quad's two fan halves must share the normal side."""
+    for a in built:
+        for p in a.parts:
+            for f in p.faces:
+                if len(f) != 4:
+                    continue
+                pts = [p.vertices[i] for i in f]
+                n1 = g.cross(g.sub(pts[1], pts[0]), g.sub(pts[2], pts[0]))
+                n2 = g.cross(g.sub(pts[2], pts[0]), g.sub(pts[3], pts[0]))
+                l1, l2 = math.sqrt(g.dot(n1, n1)), math.sqrt(g.dot(n2, n2))
+                if l1 <= 1e-12 or l2 <= 1e-12:
+                    continue
+                assert g.dot(n1, n2) / (l1 * l2) > -0.5, (a.name, p.name, f)
+
+
 # Sloped or wall-sized parts whose AABBs cover their neighbours without the solids touching
 # (panels, roof sheets, rafters, posts/plates, the chimney through the roof); contacts with them
 # are measured exactly in the lap / roof / weight tests above. The pairs below are joints by design.

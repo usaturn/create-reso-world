@@ -376,7 +376,8 @@ def catenary(a: Sequence[float], b: Sequence[float], sag: float, segments: int) 
     return pts  # type: ignore[return-value]
 
 
-def tube(name: str, points: Sequence[Sequence[float]], radius: float, sides: int, material: str) -> MeshData:
+def tube(name: str, points: Sequence[Sequence[float]], radius: float, sides: int, material: str,
+         ref: Vec3 | None = None) -> MeshData:
     if len(points) < 2 or radius <= 0 or sides < 3:
         raise ValueError("tube needs >=2 points, positive radius and >=3 sides")
     verts: list[Vec3] = []
@@ -386,9 +387,15 @@ def tube(name: str, points: Sequence[Sequence[float]], radius: float, sides: int
         d = [next_p[i] - prev_p[i] for i in range(3)]
         length = math.sqrt(sum(x * x for x in d)) or 1.0
         d = [x / length for x in d]
-        ref = (0.0, 1.0, 0.0) if abs(d[1]) < 0.9 else (1.0, 0.0, 0.0)
-        s = [d[1] * ref[2] - d[2] * ref[1], d[2] * ref[0] - d[0] * ref[2], d[0] * ref[1] - d[1] * ref[0]]
+        # ref pins the ring basis for every span (planar bends need one roll reference; the
+        # default heuristic flips axis near vertical and twists the quads into bowties).
+        base = ref if ref is not None else ((0.0, 1.0, 0.0) if abs(d[1]) < 0.9 else (1.0, 0.0, 0.0))
+        s = [d[1] * base[2] - d[2] * base[1], d[2] * base[0] - d[0] * base[2], d[0] * base[1] - d[1] * base[0]]
         sl = math.sqrt(sum(x * x for x in s))
+        if sl <= 1e-9:
+            base = (0.0, 1.0, 0.0) if abs(d[1]) < 0.9 else (1.0, 0.0, 0.0)
+            s = [d[1] * base[2] - d[2] * base[1], d[2] * base[0] - d[0] * base[2], d[0] * base[1] - d[1] * base[0]]
+            sl = math.sqrt(sum(x * x for x in s))
         s = [x / sl for x in s]
         o = [d[1] * s[2] - d[2] * s[1], d[2] * s[0] - d[0] * s[2], d[0] * s[1] - d[1] * s[0]]
         for j in range(sides):

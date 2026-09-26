@@ -734,8 +734,18 @@ def build_shack(spec: dict, data: dict[str, Any] | None = None) -> g.Assembly:
                 cand.append(g.cylinder("ac-fan", fan_c, 0.17, 0.02, 12, "steel_dark", axis))
                 up = ob + 0.2
                 ow = wall.outer(uc + 0.26, uc + 0.3, 0.93, 0.97)
-                cand.append(g.tube("ac-pipe", [_pt(side, hx, hz, uc + 0.28, 0.6, up), _pt(side, hx, hz, uc + 0.28, 0.95, up),
-                                               _pt(side, hx, hz, uc + 0.28, 0.95, ow)], 0.018, 6, "rubber"))
+                # Fillet the elbow (v, dep plane): a hard corner folds the inner-side tube
+                # quads into self-intersecting bowties, which the UV audit flags. The bend is
+                # planar (u constant), so pin the ring basis to the u-axis for a smooth roll.
+                s = 1.0 if ow > up else -1.0
+                rc = min(0.05, 0.4 * abs(ow - up))
+                ov, oo = 0.95 - rc, up + s * rc        # fillet centre, rc from both legs
+                elbow = [_pt(side, hx, hz, uc + 0.28, 0.6, up), _pt(side, hx, hz, uc + 0.28, ov, up)]
+                elbow += [_pt(side, hx, hz, uc + 0.28, ov + rc * math.cos(a), oo + rc * math.sin(a))
+                          for a in (-s * math.pi / 3, -s * math.pi / 6, 0.0)]
+                elbow.append(_pt(side, hx, hz, uc + 0.28, 0.95, ow))
+                uref = (1.0, 0.0, 0.0) if side in ("front", "back") else (0.0, 0.0, 1.0)
+                cand.append(g.tube("ac-pipe", elbow, 0.018, 6, "rubber", uref))
                 ac_parts = cand
                 ac_side = side
                 sprays.append((_pt(side, hx, hz, uc, 0.05, ob + 0.2), 0.5, GRIME, 0.6, ("concrete_raw", wall_mat[side])))
