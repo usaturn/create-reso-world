@@ -1,7 +1,7 @@
 ---
 name: review-fix-planning
 description: レビュー結果が格納されたディレクトリ（例 `reviews/ブランチ名/`、`docs/reviews/main/`、`reviews/#<PR番号>-<ブランチ>/` を指す `#番号`）を渡されて、修正計画・対応方針・指摘の取捨選択を求められたときに使う。「レビュー結果を確認して修正計画をたてて」「妥当な指摘だけ拾って直したい」「指摘のどれに対応するか決めたい」「複数モデルのレビューをまとめて」などの依頼が該当する。承認済みの review-fix 作業を実装する／対象ブランチへ反映させる依頼も該当する
-allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *), Bash(rm *), Bash(test *), Bash(uv run *), Bash(./scripts/ci/*), Write(docs_draft/superpowers/**), Edit(docs_draft/superpowers/**)
+allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *), Bash(rm *), Bash(test *), Bash(uv run *), Bash(bash .devcontainer/run-tests.bash*), Bash(bash scripts/check-layout.sh*), Bash(bash tests/scripts/*), Write(docs/superpowers/specs/**), Edit(docs/superpowers/specs/**)
 ---
 
 # レビュー指摘の選別と修正計画
@@ -14,10 +14,10 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
 
 第1引数が `#<番号>`（例 `#300`）のとき、手順に入る前にレビューディレクトリへ解決する:
 
-- 親リポジトリルートの `reviews/` 直下と、`public/reviews/`（`usaturn/maatlog` の PR レビューが置かれる場所）の直下にあるディレクトリだけを見る。再帰せず、その階層のファイルは候補にしない。
+- リポジトリのルートの `reviews/` 直下と、`external/resoloop/reviews/`（resoloop の PR のレビューが置かれる場所）の直下にあるディレクトリだけを見る。再帰せず、その階層のファイルは候補にしない。
 - ディレクトリ名が `#<番号>-` で開始されるものを一致とする（`#<番号>` の直後にハイフンが続くもの。例 `reviews/#300-fix-issue-299-pr-review-budget/`）。
 - 1 件だけ一致したら、そのディレクトリをレビューディレクトリとする。
-- 0 件なら、`reviews/` と `public/reviews/` の直下に一致するディレクトリが無い旨を報告して停止する。
+- 0 件なら、`reviews/` と `external/resoloop/reviews/` の直下に一致するディレクトリが無い旨を報告して停止する。
 - 複数一致したら、候補のディレクトリ名を列挙して停止し、フルパスでの指定を求める。
 
 `#<番号>` 以外の第1引数は従来どおりレビューディレクトリのパスとして扱う。
@@ -29,7 +29,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
 それ以外は、各項目をランタイムの plan / todo 機能のタスクにしてから開始する（Claude Code では TodoWrite、Codex では `update_plan`）。
 
 1. **範囲を固定する** — 解決したレビューディレクトリ配下の全ファイルを読む。各ファイル冒頭の「対象 HEAD」を記録する。複数世代が混在するのが普通である。レビュー成果物は gitignore 対象で未コミットのことがある（本リポジトリの `reviews/` がそうである）が、指定ディレクトリ内であれば Git の追跡状態にかかわらず正規の入力である。
-2. **現行 HEAD を特定する** — レビュー対象のブランチ／PR の現在の先端を `git` / `gh` で確認する。対象 PR のリポジトリもここで確定する: `PR_REPO` にその `owner/name` を設定し、`MAIN_ROOT` を `pr-review` と同じ規則で解決する — `usaturn/maatlog-poc` なら親の toplevel `$TOPLEVEL`（親 checkout で `git rev-parse --show-toplevel`）、`usaturn/maatlog` なら検証済み public submodule の `$TOPLEVEL/public`（`git -C "$TOPLEVEL/public" remote get-url origin` が `.gitmodules` の `submodule.public.url` と一致すること）、それ以外は推測せず停止する。`upsert_pr_comment.py` などのスキル helper は親リポジトリにだけ存在するため、`$MAIN_ROOT` ではなく `$TOPLEVEL` から解決する。
+2. **現行 HEAD を特定する** — レビュー対象のブランチ／PR の現在の先端を `git` / `gh` で確認する。対象 PR のリポジトリもここで確定する: `PR_REPO` にその `owner/name` を設定し、`MAIN_ROOT` を `pr-review` と同じ規則（ルート `AGENTS.md` の「リポジトリ境界」の表）で解決する — `usaturn/create-reso-world` ならこのリポジトリの toplevel `$TOPLEVEL`（`git rev-parse --show-toplevel`）、`usaturn/resoloop` または `orange3134/resoloop` なら fork の checkout `$TOPLEVEL/external/resoloop`（`origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` であること。満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は推測せず停止する。`upsert_pr_comment.py` などのスキル helper はこのリポジトリにだけ存在するため、`$MAIN_ROOT` ではなく `$TOPLEVEL` から解決する。
 3. **各指摘を現行 HEAD の「コミット済み」内容で検証する** — `git show <HEAD>:<path>` で読む。指摘された path の `REVIEWED_HEAD` にある committed source/test blob は検証根拠として許可する。挙動の指摘は、path と reviewed HEAD を別引数にした隔離 worktree で再現する:
 
    ```bash
@@ -63,21 +63,25 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
 
 **PR への反映 — この順で行う:**
 
-1. **実装に関連したテスト** だけを走らせる。Spec の各「対応する」項目に書いた検証方法、変更ファイルをカバーするテスト、今回の Fix で追加したテスト。
-2. 失敗したら直す。commit しない。
-3. `git fetch origin` し、レビュー対象ブランチの先端を確認する。関連テストが通ったら、レビュー対象ブランチ（既存 PR の head）へ commit する。`main` ではない。新しい `*-review-fixes` ブランチでもない。
-4. そのブランチを **既存 PR** へ `git push` する。push の成功を確認する。reject されたら rebase または merge し、関連テストを再走してから再度 push する。新しい PR を開かない。`finishing-a-development-branch` のメニューを出さない。
-5. 完了報告の前に **作業終了前の PR 投稿** を実行する。
+1. **実装に関連したテスト** を走らせる。Spec の各「対応する」項目に書いた検証方法、変更ファイルをカバーするテスト、今回の Fix で追加したテスト。
+2. **変更の種類に応じた検証** を続けて通す。
+   - 環境の変更（ルートの `.devcontainer/`・`scripts/`・`tests/`・`templates/`・`.agents/`・設定ファイルなど）: `bash .devcontainer/run-tests.bash` と `bash scripts/check-layout.sh`。スキル（`.agents/skills/`・`tests/skills/`）を変えた場合は `uv run pytest tests/skills .agents/skills` も
+   - ワールドのプロジェクトの変更: そのプロジェクトのディレクトリで `uv run pytest`
+   - resoloop fork（`external/resoloop`）の変更: 変更したプロジェクトに関連する `dotnet test`
+3. 失敗したら直す。commit しない。
+4. `git fetch origin` し、レビュー対象ブランチの先端を確認する。手順 1・2 が通ったら、レビュー対象ブランチ（既存 PR の head）へ commit する。`main` ではない。新しい `*-review-fixes` ブランチでもない。
+5. そのブランチを **既存 PR** へ `git push` する。push の成功を確認する。reject されたら rebase または merge し、手順 1・2 を再走してから再度 push する。新しい PR を開かない。`finishing-a-development-branch` のメニューを出さない。
+6. 完了報告の前に **作業終了前の PR 投稿** を実行する。
 
 レビュー対象ブランチに open な PR が無いなら、作らず停止して報告する。ユーザが作れと言うまで作らない。コメントの投稿もしない。
 
 **この節が commit / push の常設指示である。** 二度目の「commit」「push」を待たない。「進めて」は実装の承認であり、この手順が PR への反映である。
 
-**commit / push の条件にしないもの:** レビュー対象リポジトリの full verifier（`usaturn/maatlog` では `./scripts/ci/verify.sh full`、`usaturn/maatlog-poc` では `./scripts/ci/verify-devenv.sh`。既存 PR の CI がまだ走る）、スイート全体、`superpowers:verification-before-completion` のフルスイート、`superpowers:finishing-a-development-branch`。
+**commit / push の条件にしないもの:** 上の検証に含まれない一括検証（変更と関係の無いワールドのプロジェクトの `uv run pytest`、`scripts/resoloop-fork.sh test` による fork の全テストなど。既存 PR の CI がまだ走る）、`superpowers:verification-before-completion` のフルスイート、`superpowers:finishing-a-development-branch`。
 
-例: Spec の検証が `uv run pytest tests/theme/test_rail.py` —— アプリケーションの変更なので、レビュー対象 PR は `usaturn/maatlog` の #142 で、`MAIN_ROOT` は検証済み `public/` checkout。そのファイルと、変更した CSS をカバーするテストが通る。`feature/issue-102-author-right-rail` に commit し、`git -C "$MAIN_ROOT" push origin HEAD` で公開 PR へ反映する。status comment の `PR_REPO` は `usaturn/maatlog`。先に `./scripts/ci/verify.sh full` は走らせない。`feature/issue-102-review-fixes` は開かない。push 後、同じ PR にレビュー状況・作業判断・作業結果のコメントを作成または更新する。
+例: レビュー対象 PR は `usaturn/create-reso-world` の #12 で、Spec の検証が `bash tests/scripts/test-check-layout.bash` —— `scripts/check-layout.sh` を直す環境の変更なので、`MAIN_ROOT` は toplevel。そのテストに続けて `bash .devcontainer/run-tests.bash` と `bash scripts/check-layout.sh` を通す。`fix/check-layout-mounts` に commit し、`git -C "$MAIN_ROOT" push origin HEAD` で既存 PR へ反映する。status comment の `PR_REPO` は `usaturn/create-reso-world`。変更と関係の無いプロジェクトの `uv run pytest` は走らせない。`fix/check-layout-mounts-review-fixes` は開かない。push 後、同じ PR にレビュー状況・作業判断・作業結果のコメントを作成または更新する。
 
-親の開発環境 PR も同じ規則が親経路で成立する: `PR_REPO=usaturn/maatlog-poc`、`MAIN_ROOT` は親の toplevel で、親の full verifier は `./scripts/ci/verify-devenv.sh` であり、これも反映の条件にしない。
+resoloop の上流への PR も同じ規則が fork の経路で成立する: `PR_REPO=orange3134/resoloop`、`MAIN_ROOT` は `$TOPLEVEL/external/resoloop` で、PR の head branch は fork（`origin`）にあるので `git -C "$MAIN_ROOT" push origin HEAD` で反映する。検証は変更したプロジェクトに関連する `dotnet test` までで、`scripts/resoloop-fork.sh test` による全テストは反映の条件にしない。
 
 ## 作業終了前の PR 投稿
 
@@ -112,13 +116,13 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
 
 ### 作業結果
 - このターン: 計画のみ | push 済み | 途中停止
-- Spec: `<path>`（gitignore 対象でローカルにしか無い）または未作成
+- Spec: `<path>`（コミットしていなければローカルにしか無い）または未作成
 - commit / push: `<sha>` またはしていない
 - 次: 承認待ち | 完了 | 停止理由
 ```
 
 ```bash
-TOPLEVEL="$(git rev-parse --show-toplevel)"   # 親 checkout で実行する
+TOPLEVEL="$(git rev-parse --show-toplevel)"   # このリポジトリの中で実行する（external/resoloop の中では実行しない）
 HELPER="$TOPLEVEL/.agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"
 uv run --no-project python "$HELPER" --pr "$PR_NUMBER" --repo "$PR_REPO" --model-name "$MODEL_NAME" <<EOF
 ## review-fix-planning（$MODEL_NAME）
@@ -155,13 +159,13 @@ EOF
 - **第三者テーマ・外部利用者の互換性のみに影響するもの** — 公式の経路が一貫していれば対応しない
 - 将来の保険、性能の過剰近似、Info 級の記載漏れ
 
-リポジトリの方針ファイル（CLAUDE.md 等）が既に決着させている論点は「対応しない」に置き、その方針を根拠として引く。
+リポジトリの方針ファイル（`AGENTS.md`・`CLAUDE.md` 等）が既に決着させている論点は「対応しない」に置き、その方針を根拠として引く。
 
 ## Spec は経路に関わらず必須
 
 `superpowers:brainstorming` は bounded / spike 経路では Spec 不要と書いているが、**このスキルではユーザ指示が優先し、3 経路すべてで Spec を書く。**
 
-- 配置: CLAUDE.md の規定に従う（本リポジトリでは `$TOPLEVEL/docs_draft/superpowers/` — 常に親側。`docs_draft/` は親でだけ gitignore 対象なので、`MAIN_ROOT` が `public/` のとき `$MAIN_ROOT` 配下へ置いてはならない）
+- 配置: `$TOPLEVEL/docs/superpowers/specs/`（ルート `AGENTS.md` の規定）。常にこのリポジトリ側に置き、`MAIN_ROOT` が `external/resoloop` のときも fork の中へ置かない
 - 命名: `YYYY-MM-DD-<topic>-review-fixes-design.md`
 - 必須の中身:
   - 全指摘の一覧と 4 区分の振り分け（1 件も落とさない）
@@ -194,10 +198,10 @@ EOF
 | 「必須テンプレートの仕様を直せば根本解決する」 | 第三者互換の作り込み。方針ファイルが決着させているなら対応しない |
 | 「仕様の是非なのでユーザに聞こう」 | 判断保留は潜在バグの数行修正だけ。仕様論点は「対応しない」＋ Spec に 1 行 |
 | 「進めては実装許可であり commit/push の許可ではない」 | この節が commit/push の指示である。関連テストが通ったら PR へ反映する |
-| 「関連テストでは足りない。CLAUDE.md は verify.sh full が入口」 | ローカルの commit / push 条件は実装に関連したテスト。full verify は既存 PR の CI |
+| 「念のため全プロジェクトの `uv run pytest` と fork の全テストも通してから push する」 | 反映の条件は、実装に関連したテストと変更の種類に応じた検証だけである。それ以外は既存 PR の CI が確かめる |
 | 「ユーザが commit と打つまで commit しない」 | このワークフローではこの節がその指示である |
 | 「finishing-a-development-branch のメニューを出す」 | 出さない。既存 PR に push する |
-| 「レビュー修正は別 PR。#144 がそうだった」 | レビュー対象の既存 PR に push する。`*-review-fixes` の追加 PR はしない |
+| 「レビュー修正は別 PR にするものだ」 | レビュー対象の既存 PR に push する。`*-review-fixes` の追加 PR はしない |
 | 「すでに review-fixes ブランチがある。捨てるのは無駄」 | サンクコスト。レビュー対象 PR の head ブランチに載せる |
 | 「チャットに計画を書けば十分」 | PR への記録も反映作業の一部である。計画のみのターンの投稿は任意である |
 | 「実装していないので投稿不要」 | 計画のみの投稿は任意である。commit / push まで完了したターンのみ必須である |
@@ -213,7 +217,8 @@ EOF
 - Fix / 対応する に置いた finding ごとに、(a)〜(d) のどれを満たすかと根拠を示せない
 - 「解消済み」の根拠が working tree のファイルである
 - 判断保留に仕様・設計の質問が入っている
-- `./scripts/ci/verify.sh full` や `./scripts/ci/verify-devenv.sh` を commit/push の条件として走らせようとしている
+- 変更と関係の無い一括検証（別のプロジェクトの `uv run pytest`、`scripts/resoloop-fork.sh test` など）を commit/push の条件として走らせようとしている
+- 環境の変更なのに `bash .devcontainer/run-tests.bash` と `bash scripts/check-layout.sh` を通さずに commit しようとしている
 - レビュー修正のために新しい PR を開こうとしている、または `*-review-fixes` ブランチへ push しようとしている
 - `finishing-a-development-branch` のメニューを出そうとしている
 - 実装に関連したテストが通ったあと、二度目の「commit」「push」を待っている

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import os
-import re
 from pathlib import Path
+
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 AGENTS_SKILL = REPO_ROOT / ".agents/skills/review-fix-planning/SKILL.md"
 AGENTS_HELPER = REPO_ROOT / ".agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"
+EVALS = REPO_ROOT / ".agents/skills/review-fix-planning/evals/evals.json"
 
 
 def read(path: Path) -> str:
@@ -26,7 +29,17 @@ def assert_shared_landing_contract(content: str) -> None:
     lowered = content.lower()
     assert "commit" in lowered
     assert "push" in lowered
-    assert "./scripts/ci/verify.sh full" in content
+    # The gate depends on what changed: environment, skills, a world project, the fork.
+    landing = content.split("## 実装後", 1)[1].split("## 作業終了前の PR 投稿", 1)[0]
+    gate = landing.split("2. **変更の種類に応じた検証**", 1)[1].split("\n3. ", 1)[0]
+    for check in (
+        "`bash .devcontainer/run-tests.bash` と `bash scripts/check-layout.sh`",
+        "`uv run pytest tests/skills .agents/skills`",
+        "そのプロジェクトのディレクトリで `uv run pytest`",
+        "変更したプロジェクトに関連する `dotnet test`",
+    ):
+        assert check in gate, check
+    assert "scripts/resoloop-fork.sh test" in landing
     assert "finishing-a-development-branch" in content
     assert "upsert_pr_comment.py" in content
     assert "<!-- review-fix-planning:agent:" in content
@@ -85,17 +98,17 @@ def test_helper_has_one_real_copy_shared_through_the_skill_symlink() -> None:
 
 
 def test_pr_comment_lists_skipped_findings_without_spec_dependency() -> None:
-    """Issue #235 A: no dangling reference to the gitignored Spec."""
+    """The comment stands alone; an uncommitted Spec exists only locally."""
     content = read(AGENTS_SKILL)
     assert "全件は Spec を参照" not in content
     spec_lines = [line for line in content.splitlines() if line.strip().startswith("- Spec:")]
     assert spec_lines, "the template must keep a Spec: line"
-    assert any("gitignore" in line for line in spec_lines)
+    assert any("ローカルにしか無い" in line for line in spec_lines)
     assert "単体で読める" in content
 
 
 def test_pr_posting_required_only_after_landing() -> None:
-    """Issue #235 B: mandatory posting is limited to landing turns."""
+    """Mandatory posting is limited to landing turns."""
     content = read(AGENTS_SKILL)
     assert "計画のみのセッションも投稿する" not in content
     assert "承認待ちで止まるターンは停止直前に1回" not in content
@@ -104,7 +117,7 @@ def test_pr_posting_required_only_after_landing() -> None:
 
 
 def test_pr_comment_purpose_is_record_not_stall_relief() -> None:
-    """Issue #235 C: the comment is only a durable record, not stall relief."""
+    """The comment is only a durable record, not stall relief."""
     content = read(AGENTS_SKILL)
     assert "永続的な記録" in content
     assert "stall" in content.lower()
@@ -112,59 +125,72 @@ def test_pr_comment_purpose_is_record_not_stall_relief() -> None:
 
 
 def test_skill_descriptions_do_not_advertise_pr_posting() -> None:
-    """Issue #235 D: posting lives in the body section, not the description."""
+    """Posting lives in the body section, not the description."""
     description = frontmatter_description(read(AGENTS_SKILL))
     assert "作業終了前の PR 投稿" not in description
     assert "Before finishing, post review status" not in description
 
 
-def test_merged_skill_keeps_claude_code_allowed_tools() -> None:
-    assert "allowed-tools:" in frontmatter_description(read(AGENTS_SKILL))
+def test_allowed_tools_match_the_verification_and_spec_location() -> None:
+    tools = yaml.safe_load(frontmatter_description(read(AGENTS_SKILL)))["allowed-tools"]
+    assert isinstance(tools, str)
+    for entry in (
+        "Bash(uv run *)",
+        "Bash(bash .devcontainer/run-tests.bash*)",
+        "Bash(bash scripts/check-layout.sh*)",
+        "Bash(bash tests/scripts/*)",
+        "Write(docs/superpowers/specs/**)",
+        "Edit(docs/superpowers/specs/**)",
+    ):
+        assert entry in tools, entry
+    assert "scripts/ci/" not in tools
+    assert "docs_draft" not in tools
 
 
-def test_review_fix_examples_distinguish_public_and_parent_prs() -> None:
-    """Issue #377 F-3: the application example names usaturn/maatlog and
-    resolves MAIN_ROOT to the public checkout; the environment example points
-    to the parent. Both keep related tests, not a full verifier, as the
-    commit/push gate."""
-    for path in (AGENTS_SKILL,):
-        content = read(path)
-        assert re.search(r"usaturn/maatlog(?!-)", content), path
-        assert "usaturn/maatlog-poc" in content, path
-        assert "./scripts/ci/verify-devenv.sh" in content, path
+def test_review_fix_examples_cover_this_repository_and_the_fork() -> None:
+    """MAIN_ROOT follows the repository boundary table; the gate is the
+    change-specific checks, not every suite."""
+    content = read(AGENTS_SKILL)
+    # Skill helpers live only in this repository; resolve via TOPLEVEL.
+    assert '"$TOPLEVEL/.agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"' in content
+    assert '"$MAIN_ROOT/.agents/skills/review-fix-planning' not in content
+    assert "リポジトリ境界" in content
+    assert "scripts/resoloop-fork.sh clone" in content
 
-        # Skill helpers live only in the parent repo; resolve via TOPLEVEL.
-        assert '"$TOPLEVEL/.agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"' in content, path
-        assert '"$MAIN_ROOT/.agents/skills/review-fix-planning' not in content, path
+    example_lines = [line for line in content.splitlines() if line.lstrip().startswith("例:")]
+    assert example_lines, "expected an example line"
+    example = example_lines[0]
+    assert "usaturn/create-reso-world" in example
+    assert "bash .devcontainer/run-tests.bash" in example
+    assert "bash scripts/check-layout.sh" in example
 
-        # The application-PR example names the public repo and the public
-        # root, and never invokes the parent's verifier for it.
-        example_lines = [line for line in content.splitlines() if line.lstrip().startswith(("Example:", "例:"))]
-        assert example_lines, f"{path}: expected an example line"
-        app_example = example_lines[0]
-        assert re.search(r"usaturn/maatlog(?!-)", app_example), app_example
-        assert "public/" in app_example, app_example
-        assert "verify-devenv.sh" not in app_example, app_example
-
-        # An environment-PR example points to the parent and names its verifier.
-        env_lines = [
-            line for line in content.splitlines() if "usaturn/maatlog-poc" in line and "verify-devenv.sh" in line
-        ]
-        assert env_lines, f"{path}: expected a parent-PR example"
+    fork_lines = [
+        line for line in content.splitlines() if "orange3134/resoloop" in line and "scripts/resoloop-fork.sh test" in line
+    ]
+    assert fork_lines, "expected a fork example"
+    assert "$TOPLEVEL/external/resoloop" in fork_lines[0]
 
 
-def test_number_argument_searches_public_reviews_too() -> None:
-    """Issue #377 review: public-PR review directories live under
-    public/reviews/, so #<number> resolution must look there as well."""
-    for path in (AGENTS_SKILL,):
-        content = read(path)
-        assert "public/reviews/" in content, path
+def test_number_argument_searches_the_fork_reviews_too() -> None:
+    """pr-review saves resoloop PR reviews under external/resoloop/reviews/."""
+    section = read(AGENTS_SKILL).split("## 第1引数の解決", 1)[1].split("## 手順", 1)[0]
+    scope = next(line for line in section.splitlines() if "ディレクトリだけを見る" in line)
+    assert "`reviews/`" in scope
+    assert "`external/resoloop/reviews/`" in scope
 
 
-def test_spec_location_stays_in_parent_docs_draft() -> None:
-    """Issue #377 review: docs_draft/ is only gitignored in the parent repo;
-    pinning Specs to $MAIN_ROOT would drop them unignored into public/."""
-    for path in (AGENTS_SKILL,):
-        content = read(path)
-        assert "$MAIN_ROOT/docs_draft" not in content, path
-        assert "$TOPLEVEL/docs_draft/superpowers/" in content, path
+def test_spec_goes_to_docs_superpowers_specs_of_this_repository() -> None:
+    content = read(AGENTS_SKILL)
+    assert "$TOPLEVEL/docs/superpowers/specs/" in content
+    assert "$MAIN_ROOT/docs" not in content
+    assert "docs_draft" not in content
+
+
+def test_landing_eval_uses_the_change_specific_gate() -> None:
+    evals = {item["id"]: item for item in json.loads(read(EVALS))["evals"]}
+    landing = evals[5]
+    assert any(
+        "bash .devcontainer/run-tests.bash" in item and "bash scripts/check-layout.sh" in item
+        for item in landing["expectations"]
+    )
+    assert "scripts/ci/" not in json.dumps(landing, ensure_ascii=False)

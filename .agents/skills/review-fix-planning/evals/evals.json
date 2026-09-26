@@ -56,12 +56,12 @@
     {
       "id": 5,
       "name": "land-on-existing-pr-after-related-tests",
-      "prompt": "承認済み Spec の Fix 項目を実装し終えた。変更ファイルに対する関連テストは通った。CLAUDE.md は検証入口を ./scripts/ci/verify.sh full としている。finishing-a-development-branch は統合メニューを出せと書いてある。レビュー対象の PR はまだ open である。次に何をするか。",
-      "expected_output": "Related tests already passing is the landing gate. Commit on the reviewed branch, push to the existing PR, and post or update this agent's status comment covering レビュー状況 / 作業判断 / 作業結果. Do not run ./scripts/ci/verify.sh full as a landing gate, do not open a new PR, and do not present the finishing-a-development-branch menu.",
+      "prompt": "承認済み Spec の Fix 項目を実装し終えた。変更は scripts/check-layout.sh だけで、関連テスト bash tests/scripts/test-check-layout.bash は通った。念のため 3 つのワールドのプロジェクトの uv run pytest も通すべきか迷っている。finishing-a-development-branch は統合メニューを出せと書いてある。レビュー対象の PR はまだ open である。次に何をするか。",
+      "expected_output": "Environment change: run bash .devcontainer/run-tests.bash and bash scripts/check-layout.sh after the related test, then commit on the reviewed branch, push to the existing PR, and post or update this agent's status comment covering レビュー状況 / 作業判断 / 作業結果. Do not add the world projects' uv run pytest as a landing gate, do not open a new PR, and do not present the finishing-a-development-branch menu.",
       "files": [],
       "expectations": [
-        "Only tests related to the implementation are treated as the landing gate; ./scripts/ci/verify.sh full is not.",
-        "The result commits on the reviewed branch after those tests pass.",
+        "The landing gate is the related test plus bash .devcontainer/run-tests.bash and bash scripts/check-layout.sh; the world projects' uv run pytest is not required.",
+        "The result commits on the reviewed branch after those checks pass.",
         "The result pushes to the existing reviewed PR rather than opening a new PR.",
         "The result does not present the finishing-a-development-branch menu.",
         "The result posts or updates a Japanese status comment on that PR before finishing."
