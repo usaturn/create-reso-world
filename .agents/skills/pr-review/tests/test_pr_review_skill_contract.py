@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -10,11 +11,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 AGENTS_SKILL = REPO_ROOT / ".agents/skills/pr-review/SKILL.md"
-CLAUDE_SKILL = REPO_ROOT / ".claude/skills/pr-review/SKILL.md"
-DEVIN_SKILL = REPO_ROOT / ".devin/skills/pr-review/SKILL.md"
 AGENTS_HELPER = REPO_ROOT / ".agents/skills/pr-review/scripts/pr_review_workspace.py"
-CLAUDE_HELPER = REPO_ROOT / ".claude/skills/pr-review/scripts/pr_review_workspace.py"
-DEVIN_HELPER = REPO_ROOT / ".devin/skills/pr-review/scripts/pr_review_workspace.py"
+CLAUDE_LINK = REPO_ROOT / ".claude/skills/pr-review"
 BUDGET_REFERENCE = REPO_ROOT / ".agents/skills/pr-review/references/time-budget.md"
 
 
@@ -255,12 +253,12 @@ def assert_skip_verify_sh_allows_other_verification_contract(content: str) -> No
     assert "npm test" not in content
 
 
-@pytest.mark.parametrize("skill", [AGENTS_SKILL, CLAUDE_SKILL, DEVIN_SKILL])
+@pytest.mark.parametrize("skill", [AGENTS_SKILL])
 def test_pr_review_skills_define_review_update_contract(skill: Path) -> None:
     assert_review_contract(read(skill))
 
 
-@pytest.mark.parametrize("skill", [AGENTS_SKILL, CLAUDE_SKILL, DEVIN_SKILL])
+@pytest.mark.parametrize("skill", [AGENTS_SKILL])
 def test_pr_review_skills_skip_verify_sh_and_allow_other_verification(skill: Path) -> None:
     assert_skip_verify_sh_allows_other_verification_contract(read(skill))
 
@@ -280,35 +278,56 @@ def assert_cleanup_contract(content: str) -> None:
     assert "最終応答後も削除しない" not in content
 
 
-@pytest.mark.parametrize("skill", [AGENTS_SKILL, CLAUDE_SKILL, DEVIN_SKILL])
+@pytest.mark.parametrize("skill", [AGENTS_SKILL])
 def test_pr_review_skills_require_session_cleanup(skill: Path) -> None:
     assert_cleanup_contract(read(skill))
 
 
-def test_pr_review_helpers_are_identical() -> None:
-    assert CLAUDE_HELPER.read_bytes() == AGENTS_HELPER.read_bytes()
-    # DEVIN_HELPER is a relative symlink to the .agents implementation.
-    assert DEVIN_HELPER.read_bytes() == AGENTS_HELPER.read_bytes()
+def test_helper_has_one_real_copy_shared_through_the_skill_symlink() -> None:
+    assert AGENTS_HELPER.is_file() and not AGENTS_HELPER.is_symlink()
+    assert AGENTS_HELPER.stat().st_size > 0
+    assert CLAUDE_LINK.is_symlink()
+    assert os.readlink(CLAUDE_LINK) == "../../.agents/skills/pr-review"
+    assert not (REPO_ROOT / ".devin/skills/pr-review").exists()
 
 
-def test_devin_skill_interpolates_only_target_line() -> None:
-    content = read(DEVIN_SKILL)
-    # Devin CLI interpolates $ARGUMENTS and $1-$9 in the skill body. Only the
-    # target-PR line may carry $ARGUMENTS, and no positional token may appear.
+def test_skill_interpolation_is_limited_to_the_target_line() -> None:
+    content = read(AGENTS_SKILL)
+    # Claude Code and Devin replace $ARGUMENTS and $0-$9 in the body with the
+    # invocation arguments. Only the target-PR line may carry $ARGUMENTS, and
+    # embedded shell code must not use positional parameters.
     assert content.count("$ARGUMENTS") == 1
-    assert re.search(r"\$[1-9]", content) is None
+    assert "対象 PR（スキル呼び出しの引数）: $ARGUMENTS" in content
+    assert re.search(r"\$[0-9]", content) is None
 
 
-def test_claude_skill_allows_required_commands() -> None:
-    content = read(CLAUDE_SKILL)
-    assert "Bash(date *)" in content
+def test_skill_keeps_claude_code_permissions_consistent() -> None:
+    content = read(AGENTS_SKILL)
+    head = content.split("---", 2)[1]
+    assert "allowed-tools:" in head
+    assert "Bash(date *)" in head
+    assert "Edit(/tmp/pr-review-*/review-backup/**)" in head
+    assert 'argument-hint: "<PR番号またはURL>"' in head
     assert '--model-name "$MODEL_NAME"' in content
-    assert ".claude/skills/pr-review/scripts/pr_review_workspace.py" in content
-    # Claude allowed-tools only permit Edit/Write under /tmp/pr-review-*/...
-    assert "--temp-root /tmp" in content
+    assert "CODEX_THREAD_ID" in content
+    create_lines = [line for line in content.splitlines() if '"$HELPER" create' in line]
+    assert len(create_lines) >= 2
+    for line in create_lines:
+        # allowed-tools only permits Edit/Write under /tmp/pr-review-*, so every
+        # runtime pins the helper's temp root there.
+        assert "--temp-root /tmp" in line, line
 
 
-@pytest.mark.parametrize("skill_path", [AGENTS_SKILL, CLAUDE_SKILL, DEVIN_SKILL])
+def test_skill_keeps_runtime_specific_notes() -> None:
+    content = read(AGENTS_SKILL)
+    assert "## ランタイム別の注意" in content
+    for heading in ("### 対象 PR の受け取り", "### Claude Code", "### Codex", "### Devin", "### pi"):
+        assert heading in content
+    assert "You are powered by" in content
+    assert "pi-model-name" in content
+
+
+@pytest.mark.parametrize("skill_path", [AGENTS_SKILL])
 @pytest.mark.parametrize(
     ("pr_url", "expected_root"),
     [
@@ -325,7 +344,7 @@ def test_pr_review_resolver_selects_only_registered_repositories(
     assert resolver_fixture.resolve(pr_url, skill_path=skill_path) == expected_root
 
 
-@pytest.mark.parametrize("skill_path", [AGENTS_SKILL, CLAUDE_SKILL, DEVIN_SKILL])
+@pytest.mark.parametrize("skill_path", [AGENTS_SKILL])
 def test_pr_review_resolver_stops_for_unknown_repository(skill_path: Path, resolver_fixture: ResolverFixture) -> None:
     with pytest.raises(ResolverStopped):
         resolver_fixture.resolve(
@@ -336,17 +355,13 @@ def test_pr_review_resolver_stops_for_unknown_repository(skill_path: Path, resol
 
 @pytest.mark.parametrize("forbidden", ["$TOPLEVEL/devenv", "submodule status -- devenv"])
 def test_pr_review_skills_have_no_legacy_path_selection(forbidden: str) -> None:
-    for skill in (AGENTS_SKILL, CLAUDE_SKILL, DEVIN_SKILL):
+    for skill in (AGENTS_SKILL,):
         assert forbidden not in skill.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
     ("skill", "relative"),
-    [
-        (AGENTS_SKILL, "references/time-budget.md"),
-        (CLAUDE_SKILL, "../../../.agents/skills/pr-review/references/time-budget.md"),
-        (DEVIN_SKILL, "../../../.agents/skills/pr-review/references/time-budget.md"),
-    ],
+    [(AGENTS_SKILL, "references/time-budget.md")],
 )
 def test_review_budget_reference_is_required_and_resolves(skill: Path, relative: str) -> None:
     content = read(skill)
@@ -390,7 +405,7 @@ def test_review_budget_has_fixed_deadlines_and_safe_fallback() -> None:
     )
 
 
-@pytest.mark.parametrize("skill", [AGENTS_SKILL, CLAUDE_SKILL, DEVIN_SKILL])
+@pytest.mark.parametrize("skill", [AGENTS_SKILL])
 def test_pr_review_skills_keep_delegation_optional_and_readonly(skill: Path) -> None:
     content = read(skill)
     assert "読み取り専用の補助委譲として" in content
@@ -398,7 +413,7 @@ def test_pr_review_skills_keep_delegation_optional_and_readonly(skill: Path) -> 
     assert "並行して起動する" not in content
 
 
-@pytest.mark.parametrize("skill", [AGENTS_SKILL, CLAUDE_SKILL, DEVIN_SKILL])
+@pytest.mark.parametrize("skill", [AGENTS_SKILL])
 def test_incomplete_reviews_preserve_pending_and_gate_approval(skill: Path) -> None:
     content = read(skill)
     for section in (
