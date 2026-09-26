@@ -44,7 +44,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 - [時間予算と委譲規約](references/time-budget.md)を最初の PR API 呼び出しより前に全文を読む。開始時刻・期限・委譲可否・打ち切りはその規約に従う
 - レビュー出力は助言として扱われる
 - プロダクトコード・テストを編集しない
-- レビュー中に重い一括検証を再実行しない。対象は `bash .devcontainer/run-tests.bash`、リポジトリ全体やワールドのプロジェクト全体の `uv run pytest`、`scripts/resoloop-fork.sh test`（fork の `dotnet test` 全体）などである。実装時と CI で確認済みであり、レビューで再実行すると時間がかかり冗長だからである。関連する pytest（ファイルやテスト名で絞ったもの）、個別のテストスクリプト、REPL、最小再現スクリプトなど、指摘の検証に必要な範囲の実行はしてよい。helper の `verify`（destination フィンガープリント確認）はテストの実行ではない。この規定は、`AGENTS.md` が示す完了前の検証手順より優先する
+- レビュー中に重い一括検証を再実行しない。対象は `bash .devcontainer/run-tests.bash`、リポジトリ全体やワールドのプロジェクト全体の `uv run pytest`、`scripts/resoloop-fork.sh test`（fork の `dotnet test` 全体）などである。実装時と CI で確認済みであり、レビューで再実行すると時間がかかり冗長だからである。関連する pytest（ファイルやテスト名で絞ったもの）、個別のテストスクリプト、REPL、最小再現スクリプトなど、指摘の検証に必要な範囲の実行はしてよい。helper の `verify`（destination フィンガープリント確認）はテストの実行ではない。この規定は、`AGENTS.md` や他のスキルが求める完了前の検証より優先する（レビューでは一括検証を再実行しない）
 - レビュー中は `git clean`、`git checkout -f`、`git reset --hard` を実行しない。既存 worktree を再利用・初期化しない
 - 自セッションの worktree の削除は helper の `cleanup` だけが行う。`git worktree remove`、`rm -rf` などの削除コマンドを自分で組み立てない。`cleanup` が拒否した場合も手で代行しない
 - `cleanup` は保存成功（`$DESTINATION` の内容が `$DRAFT` と一致）を検証できたときだけ削除する。検証できない場合は何も削除せず停止し、`$WT` と `$DRAFT` の完全パスを報告してユーザの判断に委ねる

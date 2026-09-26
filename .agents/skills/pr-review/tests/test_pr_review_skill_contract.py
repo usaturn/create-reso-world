@@ -234,7 +234,7 @@ def assert_heavy_verification_is_not_rerun_contract(content: str) -> None:
     assert "REPL" in content
     assert "最小再現スクリプト" in content
     assert "helper の `verify`" in content
-    assert "`AGENTS.md` が示す完了前の検証手順より優先する" in content
+    assert "`AGENTS.md` や他のスキルが求める完了前の検証より優先する" in content
     assert "scripts/ci/" not in content
     assert "動かして確かめることも行わない" not in content
     assert "プロジェクトのテストを実行しない" not in content
