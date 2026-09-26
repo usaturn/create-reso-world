@@ -1,0 +1,5 @@
+{
+  "timeoutSeconds": 30,
+  "commandTimeoutSeconds": 900,
+  "fluxExecutable": "flux-sdk"
+}

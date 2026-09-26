@@ -15,3 +15,9 @@ Use `resoloop` as the only mutation interface for Resonite content in this proje
 - Put experiments below an unmistakable `ResoLoop_Test_*` Slot and clean only its exact verified ID.
 - Review delete candidates before `--prune --yes`. Slot delete and Component remove always require explicit `--yes`.
 - Treat ResoniteLink IDs as session-scoped and re-observe after a session restart.
+
+## このプロジェクト固有
+
+- テスト: このディレクトリで `uv run pytest` を実行する
+- ワールド: slum02（サイバーパンクのスラム）。所有キーは `slum02`、所有ルートスロットは `Slum02_Slum`。akichi の `Akichi_Slum` を含む所有範囲外のコンテンツは変更しない
+- state ファイル: `.resoloop/slum02/state/slum02.json`
