@@ -20,10 +20,20 @@ setopt no_beep
 # プロンプトが表示されるたびにプロンプト文字列を評価、置換する
 setopt prompt_subst
 
+# 未導入のツール（grok・gcloud・glab・bun など）を呼ぶ関数は、先にコマンドの有無を確かめる。
+# 無ければ理由を表示して 127 を返す（仕様 7.1）
+function require_command(){
+    command -v "$1" >/dev/null 2>&1 && return 0
+    print -u2 "$funcstack[2]: $1 not found"
+    return 127
+}
+
 # for Google Cloud
 function genv(){
-        GOOGLE_CLOUD_SDK_CONFIG=$(gcloud config configurations list  --format="value(name)" | fzf)
-        gcloud config configurations activate ${GOOGLE_CLOUD_SDK_CONFIG}
+        require_command gcloud || return
+        require_command fzf || return
+         GOOGLE_CLOUD_SDK_CONFIG=$(gcloud config configurations list  --format="value(name)" | fzf)
+         gcloud config configurations activate ${GOOGLE_CLOUD_SDK_CONFIG}
 }
 # プロンプト指定(コマンドの続き)
 PROMPT2='[%n]> '
@@ -201,6 +211,7 @@ function claude-opencode-union ccdu () {
 }
 
 function cod(){
+    require_command codex || return
     if [[ -z "$CONTEXT7_API_KEY" ]]; then
         read -rs "CONTEXT7_API_KEY?Context7 API key: "
         export CONTEXT7_API_KEY
@@ -209,16 +220,25 @@ function cod(){
     codex --dangerously-bypass-approvals-and-sandbox "$@"
 }
 
-# bun completions
-[ -s "/home/vscode/.bun/_bun" ] && source "/home/vscode/.bun/_bun"
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+# bun completions
+[ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
 function buni(){
+    require_command bun || return
     ls -ld node_modules && rm -rf node_modules
     bun install
     bun run test
 }
+
+# 秘密情報（API トークンなど）は bind mount した ~/.config/create-reso-world/env に KEY=VALUE で置く。
+# ファイルがあるときだけ読み込み、書いた変数はすべて export する
+if [ -f "$HOME/.config/create-reso-world/env" ]; then
+    set -a
+    source "$HOME/.config/create-reso-world/env"
+    set +a
+fi
 
 export EDITOR=code
 export LANG=ja_JP.utf8
@@ -399,19 +419,30 @@ function herdrstart(){
     herdr
 }
 
+# update() の 1 項目。$1 のコマンドが無ければ、残りを実行せずに飛ばしたことを表示する
+function update_if_present(){
+    local tool="$1"
+    shift
+    if command -v "$tool" >/dev/null 2>&1; then
+        "$@"
+    else
+        print -u2 "update: $tool not found; skipped: $*"
+    fi
+}
+
 function update(){
-    claude update
-    npm install -g @openai/codex@latest
-    grok update
-    pi update
-    pi update --extensions
-    agent update
-    devin update
-    devin plugins update superpowers
+    update_if_present claude claude update
+    update_if_present npm npm install -g @openai/codex@latest
+    update_if_present grok grok update
+    update_if_present pi pi update
+    update_if_present pi pi update --extensions
+    update_if_present agent agent update
+    update_if_present devin devin update
+    update_if_present devin devin plugins update superpowers
 }
 
 
-# ディスクを圧迫する使い捨て debris を間引いて掃除する（#146。詳細は
+# ディスクを圧迫する使い捨て debris を間引いて掃除する（詳細は
 # cleanup-workspace.bash を参照）。
 # 新しいシェルを開くたびに毎回実行すると重複起動になるため、
 # 24 時間 (86400 秒) に 1 回へ間引く。手動での定期実行を要求しない。

@@ -26,9 +26,10 @@ disabled = true
 disabled = true
 
 [custom.uv_python]
-description = "uv 管理の Python バージョン（.venv/pyvenv.cfg の version_info）"
-command = "awk -F' = ' '/^version_info/ {print $2}' \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.venv/pyvenv.cfg\""
-when = "test -f \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.venv/pyvenv.cfg\""
+# プロジェクト（slum02/ など）ごとに .venv を持つため、カレントディレクトリから上へ最寄りの .venv/pyvenv.cfg を探す
+description = "uv 管理の Python バージョン（最寄りの .venv/pyvenv.cfg の version_info）"
+command = '''d="$PWD"; while [ ! -f "$d/.venv/pyvenv.cfg" ]; do [ "$d" != / ] || exit 0; d="$(dirname "$d")"; done; awk -F' = ' '/^version_info/ {print $2}' "$d/.venv/pyvenv.cfg"'''
+when = '''d="$PWD"; while [ ! -f "$d/.venv/pyvenv.cfg" ]; do [ "$d" != / ] || exit 1; d="$(dirname "$d")"; done'''
 shell = ["bash", "--noprofile", "--norc"]
 symbol = "🐍 "
 style = "bold yellow"
