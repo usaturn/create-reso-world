@@ -1,0 +1,11 @@
+# gitleaks の設定（CI の gitleaks ジョブと、手元で gitleaks を実行するとき）。既定の規則をそのまま使い、
+# resoloop のマニフェストが持つ識別子（"key": "mat_material_Slum02_rubber_d4d07289" など）を
+# generic-api-key の検出から外すことだけを足す。形式の決まったトークン（ghp_・sk-ant- など）は専用の規則で検出される
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "resoloop manifest keys are identifiers, not secrets"
+targetRules = ["generic-api-key"]
+regexTarget = "match"
+regexes = ['''^key"\s*:\s*"[A-Za-z][A-Za-z0-9]*(?:[_.:/-]+[A-Za-z0-9]+)+"$''']
