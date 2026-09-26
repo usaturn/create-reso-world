@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SKILL_DIR = REPO_ROOT / ".agents/skills/agent-handoff"
 AGENTS_SKILL = SKILL_DIR / "SKILL.md"
-CLAUDE_SKILL = REPO_ROOT / ".claude/skills/agent-handoff/SKILL.md"
+CLAUDE_LINK = REPO_ROOT / ".claude/skills/agent-handoff"
 SCHEMA = SKILL_DIR / "references/handoff-schema.md"
 EVALS = SKILL_DIR / "evals/evals.json"
 
@@ -71,31 +72,21 @@ def assert_shared_handoff_contract(content: str) -> None:
     assert "nova-parser-claude-handoff" not in content
 
 
-def test_agents_skill_states_the_handoff_contract() -> None:
+def test_skill_states_the_handoff_contract() -> None:
     content = read(AGENTS_SKILL)
-    assert_shared_handoff_contract(content)
-    lowered = content.lower()
-    assert "writing a handoff" in lowered
-    assert "reading a handoff" in lowered
-    assert "binding" in lowered
-
-
-def test_claude_skill_states_the_handoff_contract() -> None:
-    content = read(CLAUDE_SKILL)
     assert_shared_handoff_contract(content)
     assert "handoff を書く" in content
     assert "handoff を読む" in content
     assert "拘束力" in content
 
 
-def test_claude_skill_declares_allowed_tools() -> None:
-    """Claude Code versions in this repository gate their own tool surface."""
-    assert "allowed-tools:" in read(CLAUDE_SKILL)
+def test_skill_declares_claude_code_allowed_tools() -> None:
+    """Claude Code gates the skill's tool surface; Codex and pi ignore the key."""
+    assert "allowed-tools:" in read(AGENTS_SKILL).split("---", 2)[1]
 
 
-def test_claude_skill_covers_claude_code_specific_gaps() -> None:
-    """The three ways a hand-written handoff loses Claude Code state."""
-    content = read(CLAUDE_SKILL)
+def test_skill_covers_the_gaps_hand_written_handoffs_drop() -> None:
+    content = read(AGENTS_SKILL)
     assert "TodoWrite" in content
     assert "heredoc" in content
     assert "サブエージェント" in content
@@ -117,7 +108,7 @@ def test_every_referenced_path_exists() -> None:
     Validation section named a test module that did not exist.
     """
     missing: list[str] = []
-    for source in (AGENTS_SKILL, CLAUDE_SKILL, SCHEMA):
+    for source in (AGENTS_SKILL, SCHEMA):
         for token in referenced_paths(read(source)):
             if not any(path.exists() for path in resolve(token)):
                 missing.append(f"{source.name}: {token}")
@@ -168,10 +159,14 @@ def test_schema_allows_null_sources_spec() -> None:
     assert "none" in spec_line.lower() or "`null`" in spec_line
 
 
-def test_validation_quick_validates_claude_skill() -> None:
-    needle = "quick_validate.py .claude/skills/agent-handoff"
-    assert needle in read(AGENTS_SKILL)
-    assert needle in read(CLAUDE_SKILL)
+def test_validation_quick_validates_the_shared_skill() -> None:
+    assert "quick_validate.py .agents/skills/agent-handoff" in read(AGENTS_SKILL)
+
+
+def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
+    assert CLAUDE_LINK.is_symlink()
+    assert os.readlink(CLAUDE_LINK) == "../../.agents/skills/agent-handoff"
+    assert CLAUDE_LINK.resolve() == SKILL_DIR.resolve()
 
 
 #
@@ -186,14 +181,12 @@ SKILL_CREATOR_RESOLUTIONS = (
 )
 
 
-def test_validation_placeholder_comes_with_a_resolution() -> None:
-    for source in (AGENTS_SKILL, CLAUDE_SKILL):
-        content = read(source)
-        if "<skill-creator-path>" not in content:
-            continue
-        assert any(hint in content for hint in SKILL_CREATOR_RESOLUTIONS), (
-            f"{source.name}: <skill-creator-path> is used without naming how to resolve it"
-        )
+def test_validation_names_every_runtime_resolution() -> None:
+    content = read(AGENTS_SKILL)
+    assert "<skill-creator-path>" in content
+    for hint in SKILL_CREATOR_RESOLUTIONS:
+        assert hint in content
+    assert "skill-efficiency-check.py" in content
 
 
 def test_agents_skill_documents_the_pi_fallback() -> None:
