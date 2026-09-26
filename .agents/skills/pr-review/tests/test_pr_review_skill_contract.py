@@ -288,7 +288,7 @@ def test_helper_has_one_real_copy_shared_through_the_skill_symlink() -> None:
     assert AGENTS_HELPER.stat().st_size > 0
     assert CLAUDE_LINK.is_symlink()
     assert os.readlink(CLAUDE_LINK) == "../../.agents/skills/pr-review"
-    assert not (REPO_ROOT / ".devin/skills/pr-review").exists()
+    assert not (REPO_ROOT / ".devin/skills").exists()
 
 
 def test_skill_interpolation_is_limited_to_the_target_line() -> None:

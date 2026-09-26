@@ -1,16 +1,27 @@
 ---
 name: simplify-in-subagent
 description: "Subagent-portable /simplify: git-diff-scoped code simplification. Use when /simplify slash unavailable, parent requests simplify equivalent, or handling --staged/--ref/file-scoped simplify in subagent/worktree. Not main-session /simplify."
+argument-hint: "[--staged|--ref=<ref>|<files>]"
+subagent: true
 ---
 
 # Simplify in Subagent
 
+対象指定: $ARGUMENTS
+
 Only changed lines. Never whole-file refactors. Run every `git` command in own cwd, not the parent's.
+
+## ランタイム別の注意
+
+- 冒頭の `対象指定` 行は、呼び出し引数を本文へ展開するランタイム（Claude Code、Devin）が埋める補間欄である。値が空欄、またはドル記号で始まるプレースホルダ表記のまま残っている場合は未指定とみなし、呼び出し元のメッセージで指定された ref・`--staged`・ファイル一覧を使う。どれも無ければ既定の `HEAD` との diff を対象にする
+- 引数を展開するランタイムは `＄ARGUMENTS` と `＄0`〜`＄9`（ドル記号と数字 1 文字）を置換する（この節では置換されないよう全角で書いている）。埋め込みのコードに位置パラメータを書かず、入力は stdin や名前付き変数で受ける
+- Devin では `subagent: true` により本文がサブエージェントの task として実行される。サブエージェントでは `ask_user_question` が使えないため、不明点や異常は質問にせず Recovery に従って報告に回す。`run_subagent` / `read_subagent` もサブエージェント内では無効だが、本手順はネストしたサブエージェントを必要としない
+- Devin には `/simplify` 相当の組み込みコマンドが無いため、メインセッションからの直呼び出しでも `subagent: true` によりサブエージェントで実行される
 
 ## Inputs
 
 - Required routing context: target repository and intended working root, resolved by the caller using `repository-ownership` before delegation. Pass these as task context, not new slash-command flags. Do not infer the target from the current cwd, the skill's location, or the presence of `src/`.
-- Required: one of ref (default `HEAD`), `--staged`, or explicit file list. Parent SHOULD state which.
+- Required: one of ref (default `HEAD`), `--staged`, or explicit file list, taken from the interpolated 対象指定 line. An empty or placeholder line means `HEAD`.
 - Optional: test command. Default: relevant existing tests.
 
 ## Repository preflight
