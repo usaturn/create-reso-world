@@ -312,4 +312,35 @@ expect_exit 1 'CONFLICT: .claude is not a directory' "$tmp/r30" --apply --no-syn
 [ "$before" = "$(snapshot "$tmp/r30/demo")" ] || fail 'case 30 changed files'
 [ "$before_target" = "$(snapshot "$tmp/r30/claude-elsewhere")" ] || fail 'case 30 wrote through the .claude symlink'
 
+# 31. 既存プロジェクトの AGENTS.md が壊れた symlink なら 3。resoloop init を勧めず、何も変更しない（N-23）
+new_root "$tmp/r31"
+run "$tmp/r31" --no-sync demo >/dev/null
+rm "$tmp/r31/demo/AGENTS.md" && ln -s ../missing-agents.md "$tmp/r31/demo/AGENTS.md"
+before="$(snapshot "$tmp/r31/demo")"
+expect_exit 3 'demo/AGENTS.md is a broken symlink' "$tmp/r31" --apply --no-sync demo
+if grep -qF 'run resoloop init first' "$tmp/out.txt"; then fail 'case 31 still suggests resoloop init'; fi
+grep -qF 'instead of running resoloop init in an existing project' "$tmp/out.txt" || fail 'case 31 does not warn against resoloop init'
+[ "$before" = "$(snapshot "$tmp/r31/demo")" ] || fail 'case 31 changed files'
+
+# 32. 既存プロジェクトに AGENTS.md が無くても同じく 3 で、init を勧めない（N-23）
+new_root "$tmp/r32"
+run "$tmp/r32" --no-sync demo >/dev/null
+rm "$tmp/r32/demo/AGENTS.md"
+before="$(snapshot "$tmp/r32/demo")"
+expect_exit 3 'demo/AGENTS.md is missing or not a regular file' "$tmp/r32" --apply --no-sync demo
+if grep -qF 'run resoloop init first' "$tmp/out.txt"; then fail 'case 32 still suggests resoloop init'; fi
+grep -qF 'instead of running resoloop init in an existing project' "$tmp/out.txt" || fail 'case 32 does not warn against resoloop init'
+[ "$before" = "$(snapshot "$tmp/r32/demo")" ] || fail 'case 32 changed files'
+
+# 33. 新規作成で resoloop init が AGENTS.md を作らなければ 3（init をもう一度実行させない）
+new_root "$tmp/r33"
+mkdir -p "$tmp/init-noagents"
+cat > "$tmp/init-noagents/resoloop" <<EOF
+#!/bin/bash
+"$tmp/mockbin/resoloop" "\$@" || exit
+[ "\$1" != init ] || rm -f "\$2/AGENTS.md"
+EOF
+chmod +x "$tmp/init-noagents/resoloop"
+PATH="$tmp/init-noagents:$PATH" expect_exit 3 'resoloop init did not create demo/AGENTS.md' "$tmp/r33" --no-sync demo
+
 printf 'PASS: new-world script behaves as specified\n'

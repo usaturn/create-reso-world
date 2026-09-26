@@ -62,7 +62,16 @@ if [ "$apply" -eq 0 ]; then
   initialized=1
 fi
 [ -f "$proj/.resoloop.json" ] || die 3 "$name is not a resoloop project (.resoloop.json is missing)"
-[ -f "$proj/AGENTS.md" ] || die 3 "$name/AGENTS.md is missing; run resoloop init first"
+if [ ! -f "$proj/AGENTS.md" ]; then
+  # 既存プロジェクトの中で resoloop init を実行すると content/main.json やスキルを作り直すので、init は勧めない
+  [ "$apply" -eq 1 ] || die 3 "resoloop init did not create $name/AGENTS.md"
+  if [ -L "$proj/AGENTS.md" ] && [ ! -e "$proj/AGENTS.md" ]; then
+    what='is a broken symlink'
+  else
+    what='is missing or not a regular file'
+  fi
+  die 3 "$name/AGENTS.md $what; restore the project's AGENTS.md (for example with git restore) instead of running resoloop init in an existing project"
+fi
 
 render() { sed -e "s/{{name}}/$name/g" "$1"; }
 # リンクが要る .agents/skills 直下のディレクトリ: ファイルを 1 つ以上持つもの（SKILL.md の有無は問わない）。
