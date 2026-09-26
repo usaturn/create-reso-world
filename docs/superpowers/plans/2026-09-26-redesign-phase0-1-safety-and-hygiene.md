@@ -860,7 +860,7 @@ Expected: 3 つの検査が PASS。Dev Container テストは 8 本 PASS、`test
 
 ```bash
 git -C "$W" status --short | wc -l        # 0
-git -C "$W" log --oneline main..HEAD | wc -l   # 10（spec 2 件 + plan 1 件 + 本計画の 7 コミット）
+git -C "$W" log --oneline main..HEAD | wc -l   # 10（文書コミット 3 件 + 本計画の 7 コミット）
 ```
 
 - [ ] **Step 3: push する**
