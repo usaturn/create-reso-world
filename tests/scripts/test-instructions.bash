@@ -29,6 +29,10 @@ actual="$(grep -E '^## ' AGENTS.md)"
 $actual"
 grep -qxF '### SDD 実行運用' AGENTS.md || fail 'AGENTS.md lacks ### SDD 実行運用'
 [ "$(head -n 1 AGENTS.md)" = '# create-reso-world 共通規約' ] || fail 'AGENTS.md title'
+# 冒頭（最初の節より前）で、本文のパスがリポジトリのルート基準であることを示す（プロジェクトを cwd にして読まれるため）
+intro="$(sed -n '1,/^## /p' AGENTS.md)"
+[[ "$intro" == *'本文に書くパスは、プロジェクトを cwd にしている場合も含めて、特記が無ければリポジトリのルート基準である。'* ]] \
+  || fail 'AGENTS.md intro must say that paths are relative to the repository root'
 
 # メイン作業ツリーの未コミット変更（統合時に破棄される）を取り込んでいる
 for s in 'オブジェクトごとに、1つのメッシュにする' '長大なタスクであった場合は分割して実装する' 'agent-handoff' \

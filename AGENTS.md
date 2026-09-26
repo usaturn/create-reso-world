@@ -1,6 +1,7 @@
 # create-reso-world 共通規約
 
 このリポジトリで作業するコーディングエージェント（Claude Code、Codex、pi、Cursor、Devin、dsh）の共通規約。Claude Code 固有の注意は `CLAUDE.md`、pi 固有の注意は `.pi/APPEND_SYSTEM.md` にある。ワールドのプロジェクトでは、この規約に加えてプロジェクト直下の `AGENTS.md` が適用される。
+本文に書くパスは、プロジェクトを cwd にしている場合も含めて、特記が無ければリポジトリのルート基準である。
 
 ## リポジトリ概要
 
