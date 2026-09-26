@@ -1,35 +1,36 @@
 ---
 name: review-fix-planning
-description: Use when handed a directory of review results (e.g. `reviews/BRANCH/`, `docs/reviews/main/`, or `#<number>` for `reviews/#<number>-*`) and asked for a fix plan, a disposition for the findings, or which findings to act on — including requests like "read the reviews and plan the fixes", "only pick up the valid findings", or "consolidate these multi-model reviews" — or when implementing or landing already-approved review-fix work for a reviewed branch or PR
+description: レビュー結果が格納されたディレクトリ（例 `reviews/ブランチ名/`、`docs/reviews/main/`、`reviews/#<PR番号>-<ブランチ>/` を指す `#番号`）を渡されて、修正計画・対応方針・指摘の取捨選択を求められたときに使う。「レビュー結果を確認して修正計画をたてて」「妥当な指摘だけ拾って直したい」「指摘のどれに対応するか決めたい」「複数モデルのレビューをまとめて」などの依頼が該当する。承認済みの review-fix 作業を実装する／対象ブランチへ反映させる依頼も該当する
+allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *), Bash(rm *), Bash(test *), Bash(uv run *), Bash(./scripts/ci/*), Write(docs_draft/superpowers/**), Edit(docs_draft/superpowers/**)
 ---
 
-# Review Fix Planning
+# レビュー指摘の選別と修正計画
 
-Select only the findings that are still alive at the current HEAD, then reach a fix plan through a Spec and an explicit approval.
+複数モデルのレビュー結果から、**現行 HEAD でまだ生きている指摘だけ**を選び、Spec と承認を経て修正計画にする。
 
-**Core principle: a review is advice about a past HEAD. A finding that does not reproduce against current code is not a finding.**
+**中核原則: レビューは過去の HEAD に対する助言である。現行コードで再現しない指摘は指摘ではない。**
 
-## Resolving the review directory
+## 第1引数の解決
 
-When the first argument is `#<number>` (e.g. `#300`), resolve it to a review directory before starting the procedure:
+第1引数が `#<番号>`（例 `#300`）のとき、手順に入る前にレビューディレクトリへ解決する:
 
-- Look only at directories directly under `reviews/` at the parent repository root and under `public/reviews/` (where `usaturn/maatlog` PR reviews land). Do not recurse; files at those levels are not candidates.
-- A directory matches when its name starts with the given `#<number>-` (i.e. the number followed by a hyphen, e.g. `reviews/#300-fix-issue-299-pr-review-budget/`).
-- Exactly one match → that directory is the review directory.
-- No match → stop and report that nothing under `reviews/` or `public/reviews/` starts with the argument.
-- Multiple matches → stop, list the candidate directory names, and ask the user to pass the full path.
+- 親リポジトリルートの `reviews/` 直下と、`public/reviews/`（`usaturn/maatlog` の PR レビューが置かれる場所）の直下にあるディレクトリだけを見る。再帰せず、その階層のファイルは候補にしない。
+- ディレクトリ名が `#<番号>-` で開始されるものを一致とする（`#<番号>` の直後にハイフンが続くもの。例 `reviews/#300-fix-issue-299-pr-review-budget/`）。
+- 1 件だけ一致したら、そのディレクトリをレビューディレクトリとする。
+- 0 件なら、`reviews/` と `public/reviews/` の直下に一致するディレクトリが無い旨を報告して停止する。
+- 複数一致したら、候補のディレクトリ名を列挙して停止し、フルパスでの指定を求める。
 
-A first argument that is not `#<number>` keeps its existing meaning: the path to the review directory.
+`#<番号>` 以外の第1引数は従来どおりレビューディレクトリのパスとして扱う。
 
-## Procedure
+## 手順
 
-If the request is only to land already-approved, already-implemented review-fix work (no new triage), skip steps 1–7. Confirm the reviewed branch / PR with `git` / `gh`, then run **After implementation**.
+依頼が承認済み Spec の実装完了／PR への反映のみで、新しい選別を求めていないなら、手順 1–7 を再実行しない。レビュー対象のブランチ／PR を `git` / `gh` で確認してから **実装後** の反映手順だけを実行する。
 
-Otherwise, create one task per procedure item using the runtime's plan/todo facility (for Codex, use `update_plan`) before starting.
+それ以外は、各項目をランタイムの plan / todo 機能のタスクにしてから開始する（Claude Code では TodoWrite、Codex では `update_plan`）。
 
-1. **Fix the scope** — read every file under the resolved review directory. Record the target HEAD stated at the top of each. Multiple generations of HEAD are the norm. Review artifacts are often gitignored and uncommitted (this repository's `reviews/` is), but anything inside the given directory is valid input regardless of its Git tracking state.
-2. **Identify the current HEAD** — confirm the tip of the reviewed branch / PR with `git` / `gh`. Fix the reviewed PR's repository here too: `PR_REPO` is its `owner/name`, and `MAIN_ROOT` resolves the way `pr-review` does — `usaturn/maatlog-poc` → the parent toplevel `$TOPLEVEL` (`git rev-parse --show-toplevel` in the parent checkout), `usaturn/maatlog` → the verified public submodule at `$TOPLEVEL/public` (`git -C "$TOPLEVEL/public" remote get-url origin` must equal `submodule.public.url` in `.gitmodules`), anything else → stop. Skill helpers such as `upsert_pr_comment.py` exist only in the parent repository, so resolve them from `$TOPLEVEL`, never `$MAIN_ROOT`.
-3. **Verify each finding against COMMITTED content at the current HEAD** — read with `git show <HEAD>:<path>`. A committed source or test blob at `REVIEWED_HEAD` for a cited path is valid verification evidence. For behavioural findings, reproduce in an isolated worktree whose path and reviewed HEAD are separate arguments:
+1. **範囲を固定する** — 解決したレビューディレクトリ配下の全ファイルを読む。各ファイル冒頭の「対象 HEAD」を記録する。複数世代が混在するのが普通である。レビュー成果物は gitignore 対象で未コミットのことがある（本リポジトリの `reviews/` がそうである）が、指定ディレクトリ内であれば Git の追跡状態にかかわらず正規の入力である。
+2. **現行 HEAD を特定する** — レビュー対象のブランチ／PR の現在の先端を `git` / `gh` で確認する。対象 PR のリポジトリもここで確定する: `PR_REPO` にその `owner/name` を設定し、`MAIN_ROOT` を `pr-review` と同じ規則で解決する — `usaturn/maatlog-poc` なら親の toplevel `$TOPLEVEL`（親 checkout で `git rev-parse --show-toplevel`）、`usaturn/maatlog` なら検証済み public submodule の `$TOPLEVEL/public`（`git -C "$TOPLEVEL/public" remote get-url origin` が `.gitmodules` の `submodule.public.url` と一致すること）、それ以外は推測せず停止する。`upsert_pr_comment.py` などのスキル helper は親リポジトリにだけ存在するため、`$MAIN_ROOT` ではなく `$TOPLEVEL` から解決する。
+3. **各指摘を現行 HEAD の「コミット済み」内容で検証する** — `git show <HEAD>:<path>` で読む。指摘された path の `REVIEWED_HEAD` にある committed source/test blob は検証根拠として許可する。挙動の指摘は、path と reviewed HEAD を別引数にした隔離 worktree で再現する:
 
    ```bash
    REPRO_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/review-fix-planning.XXXXXX")"
@@ -38,61 +39,61 @@ Otherwise, create one task per procedure item using the runtime's plan/todo faci
    test "$(git -C "$WT" rev-parse HEAD)" = "$(git -C "$MAIN_ROOT" rev-parse "$REVIEWED_HEAD^{commit}")"
    ```
 
-   `WT` is a unique temporary path outside the main checkout. If the SHA does not match, stop and do not use that worktree as evidence. Anything that does not reproduce drops to "resolved".
+   `WT` はメイン checkout 外の一意な一時 path とする。SHA が一致しなければその worktree を根拠に使わず停止する。再現しないものは「解消済み」に落とす。
 
-   **Never read the source/test under verification from working-tree files.** A working tree may carry someone's uncommitted changes and will produce false "already fixed" verdicts. This misjudgement has actually occurred. This constrains verification evidence only; it does not apply to reading the review artifacts that are the input.
+   **検証対象の source/test を working tree のファイルから読まない。** 手元の作業ツリーには誰かの未コミット変更が入っていることがあり、「もう直っている」という誤判定を生む。実際にこの誤判定は起きている。これは検証根拠の制約であり、入力であるレビュー成果物の読み取りには適用しない。
 
-   **Containment:** Put every temporary file this session creates for verification (HEAD notes, logs, pytest output, scratch) under `$REPRO_ROOT`. Do not create `review-fix-planning-*`, `review-fix-planning-*.txt`, or hyphenated names such as `review-fix-planning-wt` / `review-fix-planning-head` / `review-fix-planning-repro-root` directly in `${TMPDIR:-/tmp}`. The only path at that root is the directory `mktemp` returned.
+   **閉じ込め:** このセッションが検証のために作る一時ファイル（HEAD メモ、ログ、pytest 出力、スクラッチ）はすべて `$REPRO_ROOT` 配下に置く。`${TMPDIR:-/tmp}` 直下へ `review-fix-planning-*`、`review-fix-planning-*.txt`、ハイフン区切り名（`review-fix-planning-wt` / `review-fix-planning-head` / `review-fix-planning-repro-root`）を作らない。そのルートに置いてよいのは `mktemp` が返したディレクトリだけである。
 
-   **Teardown (end of step 3):** After every finding that needed `$WT` has been verified, remove this session's worktree and then the parent directory. Do not wait until spec writing or approval. If you need to re-verify later, create a new `mktemp` directory; do not reuse a removed one.
+   **teardown（手順 3 の終わり）:** `$WT` を使う検証がすべて終わったら、このセッションの worktree を外し、続けて親ディレクトリを消す。Spec 作成や承認待ちまで残さない。あとで再検証が必要なら新しい `mktemp` を作る。消したディレクトリは再利用しない。
 
    ```bash
    git -C "$MAIN_ROOT" worktree remove --force "$WT" && rm -rf -- "$REPRO_ROOT"
    ```
 
-   If `worktree remove` fails, do not `rm -rf` the parent (that would leave git's worktree registration pointing at a missing path). Stop, report the full paths of `$WT` and `$REPRO_ROOT`, and leave the directory for `.devcontainer/cleanup-workspace.bash`. Do not hand-assemble `rm -rf` without `worktree remove`.
-4. **Sort every finding into the four buckets below.**
-5. **Invoke `superpowers:brainstorming`** — bring the triage to it, let it classify the path (spike / bounded / architectural), and work the design in that path's style.
-6. **Write the Spec** — always, whatever the path (see below).
-7. **Stop for approval** — present the Spec and do not start implementing until the user explicitly says to proceed. Posting **PR status comment before finishing** without implementation is optional (任意); it is required only after landing. After that implementation is done, follow **After implementation**.
+   `worktree remove` が失敗したら親を `rm -rf` しない（git の worktree 登録が欠けたパスを指す）。停止し、`$WT` と `$REPRO_ROOT` の完全パスを報告する。残りは `.devcontainer/cleanup-workspace.bash` に委ねる。`worktree remove` 無しで `rm -rf` だけを組み立てない。
+4. **下記「分類の仕様」に従って全指摘を 4 区分に振り分ける。**
+5. **`superpowers:brainstorming` を呼ぶ** — 選別結果を持って経路（spike / bounded / architectural）を判定させ、その経路の作法で設計を詰める。
+6. **Spec を書く** — 経路に関わらず必ず書く（下記「Spec は経路に関わらず必須」）。
+7. **承認を得て停止する** — Spec を提示し、ユーザが明示的に「進めて」と言うまで実装に入らない。実装せず止まる場合の **作業終了前の PR 投稿** は任意であり、commit / push まで完了したターンのみ必須である。実装が終わったら **実装後** に従う。
 
-## After implementation
+## 実装後
 
-This section runs only after the user has explicitly approved the Spec and the Fix items are implemented. Planning still stops at step 7. It also runs when a later request is only to land that already-approved, already-implemented work. When implementing, create one task per recipe step.
+この節は、ユーザが Spec を明示承認し、対応する項目を実装し終えたあとだけ実行する。計画は手順 7 で止まる。後続の依頼が、その承認済み実装を PR に反映するだけの場合もこの節を実行する。実装に入ったら、下記の手順の各段をタスクにする。
 
-**Landing recipe — do this, in this order:**
+**PR への反映 — この順で行う:**
 
-1. Run **only the tests related to the implementation**: the verification method recorded per Fix item in the Spec, tests that cover the files you changed, and tests added as part of the Fix.
-2. If they fail: fix them. Do not commit.
-3. `git fetch origin` and confirm the reviewed branch tip. If the related tests pass: commit on the reviewed branch (the existing PR's head). Not `main`. Not a new `*-review-fixes` branch.
-4. `git push` that branch to the **existing PR**. Confirm the push succeeded. If it is rejected, rebase or merge, re-run the related tests, and push again. Do not open a new PR. Do not present the `finishing-a-development-branch` menu.
-5. Run **PR status comment before finishing** before reporting completion.
+1. **実装に関連したテスト** だけを走らせる。Spec の各「対応する」項目に書いた検証方法、変更ファイルをカバーするテスト、今回の Fix で追加したテスト。
+2. 失敗したら直す。commit しない。
+3. `git fetch origin` し、レビュー対象ブランチの先端を確認する。関連テストが通ったら、レビュー対象ブランチ（既存 PR の head）へ commit する。`main` ではない。新しい `*-review-fixes` ブランチでもない。
+4. そのブランチを **既存 PR** へ `git push` する。push の成功を確認する。reject されたら rebase または merge し、関連テストを再走してから再度 push する。新しい PR を開かない。`finishing-a-development-branch` のメニューを出さない。
+5. 完了報告の前に **作業終了前の PR 投稿** を実行する。
 
-If there is no open PR for the reviewed branch, stop and report. Do not create one unless the user asks. Do not post a comment either.
+レビュー対象ブランチに open な PR が無いなら、作らず停止して報告する。ユーザが作れと言うまで作らない。コメントの投稿もしない。
 
-**This section is the standing commit/push instruction.** Do not wait for a second "commit" or "push". 「進めて」 approved implementation; this recipe lands it.
+**この節が commit / push の常設指示である。** 二度目の「commit」「push」を待たない。「進めて」は実装の承認であり、この手順が PR への反映である。
 
-**Not a landing gate:** the full verifier of the reviewed PR's repository (`./scripts/ci/verify.sh full` in `usaturn/maatlog`, `./scripts/ci/verify-devenv.sh` in `usaturn/maatlog-poc`; CI still runs it on the existing PR), the whole suite, `superpowers:verification-before-completion`'s full-suite rule, `superpowers:finishing-a-development-branch`.
+**commit / push の条件にしないもの:** レビュー対象リポジトリの full verifier（`usaturn/maatlog` では `./scripts/ci/verify.sh full`、`usaturn/maatlog-poc` では `./scripts/ci/verify-devenv.sh`。既存 PR の CI がまだ走る）、スイート全体、`superpowers:verification-before-completion` のフルスイート、`superpowers:finishing-a-development-branch`。
 
-Example: Spec verification named `uv run pytest tests/theme/test_rail.py` — an application change, so the reviewed PR is `usaturn/maatlog` #142 and `MAIN_ROOT` is the verified `public/` checkout. That file plus tests covering the CSS you changed pass. Commit on `feature/issue-102-author-right-rail` and `git -C "$MAIN_ROOT" push origin HEAD` to the public PR, with `PR_REPO=usaturn/maatlog` for the status comment. Do not run `./scripts/ci/verify.sh full` first. Do not open `feature/issue-102-review-fixes`. After the push, create or update the status comment on that same PR.
+例: Spec の検証が `uv run pytest tests/theme/test_rail.py` —— アプリケーションの変更なので、レビュー対象 PR は `usaturn/maatlog` の #142 で、`MAIN_ROOT` は検証済み `public/` checkout。そのファイルと、変更した CSS をカバーするテストが通る。`feature/issue-102-author-right-rail` に commit し、`git -C "$MAIN_ROOT" push origin HEAD` で公開 PR へ反映する。status comment の `PR_REPO` は `usaturn/maatlog`。先に `./scripts/ci/verify.sh full` は走らせない。`feature/issue-102-review-fixes` は開かない。push 後、同じ PR にレビュー状況・作業判断・作業結果のコメントを作成または更新する。
 
-A parent environment PR works the same way on the parent route: `PR_REPO=usaturn/maatlog-poc`, `MAIN_ROOT` is the parent toplevel, and the parent's full verifier `./scripts/ci/verify-devenv.sh` is likewise not a landing gate.
+親の開発環境 PR も同じ規則が親経路で成立する: `PR_REPO=usaturn/maatlog-poc`、`MAIN_ROOT` は親の toplevel で、親の full verifier は `./scripts/ci/verify-devenv.sh` であり、これも反映の条件にしない。
 
-## PR status comment before finishing
+## 作業終了前の PR 投稿
 
-The purpose of this comment is only a durable record for later agents and reviewers. It is not a stall remedy for waiting on completion notices; stalls are the monitor's (Monitor / PID) problem.
+この節の目的は後続エージェント・レビュアーへの永続的な記録に限る。完了通知待ちの停止（stall）対策ではない。stall は監視側（Monitor / PID）の課題である。
 
-The comment must stand alone: a reader with only the PR can understand the decisions without the Spec.
+コメントは単体で読めること。PR だけを読む読み手が Spec 無しで判断を理解できるように書く。
 
-**Required only after landing (only after landing turns with commit / push).** If this turn implements through landing, post once after landing. If this turn stops for approval without implementation, posting is optional (任意). Update this agent's existing comment when one exists; otherwise create a new one. Other agents' comments may be read but must not be edited.
+**commit / push まで完了したターンのみ必須である。** commit / push まで実装したターンは push 後に1回投稿する。承認待ちで止まるだけのターンの投稿は任意である。同じエージェントの既存コメントがあれば更新し、無ければ新規作成する。他エージェントのコメントは読んでよいが編集しない。
 
-**Do not post** when the reviewed branch has no open PR. As elsewhere, do not create one; report in chat and stop.
+レビュー対象ブランチに open な PR が無い場合は投稿しない。PR を作ることもしない。チャットで報告して止まる。
 
-**Repository:** set `PR_REPO` to the `owner/name` holding the reviewed PR. The helper never infers it from the working directory, so a PR number alone cannot reach the wrong repository.
+**リポジトリ:** レビュー対象 PR を持つ `owner/name` を `PR_REPO` にする。ヘルパーは作業ディレクトリから推測しないため、PR 番号だけで別リポジトリへ投稿されることはない。
 
-**Model identifier:** set `MODEL_NAME` to the exact identifier the runtime presents. Do not guess from filenames or family names. If it cannot be obtained, stop and ask instead of posting.
+**モデル識別子:** ランタイムが提示する正確な識別子を `MODEL_NAME` にする。ファイル名や系列名から推測しない。取得できなければ投稿せず確認する。
 
-**Write the comment in Japanese.** Use only these three headings, in this order. Do not paste the full Spec. On an early stop, write what is known and mark unfinished sections as `未実施`. A landing-only request still summarises the approved Spec under レビュー状況 and 作業判断; do not re-verify.
+**コメントは日本語で書く。** 次の3見出しだけをこの順で使う。Spec 全文は貼らない。早期停止では分かる範囲を書き、未実施の節は `未実施` とする。PR への反映のみの依頼でも、承認済み Spec の要旨をレビュー状況と作業判断にまとめる。再検証はしない。
 
 ```markdown
 ## review-fix-planning（<MODEL_NAME>）
@@ -117,7 +118,7 @@ The comment must stand alone: a reader with only the PR can understand the decis
 ```
 
 ```bash
-TOPLEVEL="$(git rev-parse --show-toplevel)"   # run from the parent checkout
+TOPLEVEL="$(git rev-parse --show-toplevel)"   # 親 checkout で実行する
 HELPER="$TOPLEVEL/.agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"
 uv run --no-project python "$HELPER" --pr "$PR_NUMBER" --repo "$PR_REPO" --model-name "$MODEL_NAME" <<EOF
 ## review-fix-planning（$MODEL_NAME）
@@ -133,95 +134,95 @@ uv run --no-project python "$HELPER" --pr "$PR_NUMBER" --repo "$PR_REPO" --model
 EOF
 ```
 
-The helper prefixes `<!-- review-fix-planning:agent:<sanitized> -->` and updates only the comment that already carries that marker. Do not use `gh pr comment --edit-last`; that would overwrite another agent sharing the same GitHub account. If the helper fails, stop and report stderr; do not assemble a substitute `gh` call. Multiple comments with this agent's marker are also a stop.
+ヘルパーは `<!-- review-fix-planning:agent:<sanitized> -->` を付与し、そのマーカーを持つコメントだけを更新する。`gh pr comment --edit-last` は使わない。同じ GitHub アカウントを共有する別エージェントのコメントを上書きしてしまう。ヘルパーが失敗したら stderr を報告して止まる。代替の `gh` 呼び出しを組み立てない。自エージェントのマーカーを持つコメントが複数ある場合も停止する。
 
-## The classification contract
+## 分類の仕様
 
-Place every finding in exactly one bucket and report a count per bucket.
+全指摘をこの 4 区分のいずれかに置き、区分ごとの件数を出す。どの指摘もいずれか 1 つに属する。
 
-| Bucket | What belongs here |
+| 区分 | ここに入れてよいもの |
 |---|---|
-| **Resolved** | Verified against current HEAD and does not reproduce. Add a one-line basis (commit, line) |
-| **Fix** | Only what satisfies one of:<br>(a) a malfunction reproduced at current HEAD<br>(b) a statement (code comment, docs) confirmed factually wrong at current HEAD<br>(c) restoring a regression guard that was removed without reason<br>(d) the user asked for that specific finding by name |
-| **Hold** | Not the above, but a **few-line fix that removes a latent bug**. This only. Offer it in one line and let the user choose |
-| **Skip** | Everything else. Write a one-line reason |
+| **解消済み** | 現行 HEAD のコードで検証し、再現しないと確認できたもの。根拠（コミット・該当行）を 1 行添える |
+| **対応する** | 次の 4 つのいずれかを満たすものだけ:<br>(a) 現行 HEAD で再現を確認した誤動作<br>(b) 現行 HEAD で事実誤認と確認できた記述（コード内コメント・ドキュメント）<br>(c) 理由なく削除された回帰ガードの復元<br>(d) ユーザがその指摘を名指しで依頼した |
+| **判断保留** | 上記を満たさないが、**修正が数行で済み潜在バグを消す**もの。これに限る。1 行で提示してユーザに選ばせる |
+| **対応しない** | それ以外すべて。理由を 1 行書く |
 
-**Skip is the default.** Anything failing (a)–(d) lands there. Adding documentation and adding tests are both work — do not slip them in because they are cheap.
+**「対応しない」が既定である。** (a)〜(d) を満たさないものは全てここに入る。ドキュメント追記もテスト追加も対応である — 軽いから足しておく、をしない。
 
-Typical Skip material:
+既定で「対応しない」に入る典型:
 
-- **Questions of intended behaviour** ("which behaviour is correct?") — do not put these in Hold and do not ask the user. Skip them and leave the question as one line in the Spec
-- **Compatibility that only affects third-party themes or downstream users** — skip when the first-party path is self-consistent
-- Future-proofing, conservative over-approximation of performance, Info-level omissions
+- **仕様・設計の是非**（「どちらの挙動が正しいか」）— 判断保留にしてユーザに問わない。「対応しない」に置き、論点を Spec に 1 行残す
+- **第三者テーマ・外部利用者の互換性のみに影響するもの** — 公式の経路が一貫していれば対応しない
+- 将来の保険、性能の過剰近似、Info 級の記載漏れ
 
-A question a repository policy file (CLAUDE.md and friends) has already settled goes to Skip, citing that policy.
+リポジトリの方針ファイル（CLAUDE.md 等）が既に決着させている論点は「対応しない」に置き、その方針を根拠として引く。
 
-## The Spec is mandatory on every path
+## Spec は経路に関わらず必須
 
-`superpowers:brainstorming` says bounded and spike paths need no Spec. **Here the user's instruction wins: write a Spec on all three paths.**
+`superpowers:brainstorming` は bounded / spike 経路では Spec 不要と書いているが、**このスキルではユーザ指示が優先し、3 経路すべてで Spec を書く。**
 
-- Location: follow the repository's own rule (in this repository, `$TOPLEVEL/docs_draft/superpowers/` — always the parent; `docs_draft/` is only gitignored there, so a Spec must never go under `$MAIN_ROOT` when `MAIN_ROOT` is `public/`)
-- Naming: `YYYY-MM-DD-<topic>-review-fixes-design.md`
-- Required contents:
-  - Every finding and its bucket (drop none)
-  - A one-line basis for each Resolved and each Skip
-  - Fix approach and verification method per Fix item
-  - The path brainstorming classified
+- 配置: CLAUDE.md の規定に従う（本リポジトリでは `$TOPLEVEL/docs_draft/superpowers/` — 常に親側。`docs_draft/` は親でだけ gitignore 対象なので、`MAIN_ROOT` が `public/` のとき `$MAIN_ROOT` 配下へ置いてはならない）
+- 命名: `YYYY-MM-DD-<topic>-review-fixes-design.md`
+- 必須の中身:
+  - 全指摘の一覧と 4 区分の振り分け（1 件も落とさない）
+  - 「解消済み」「対応しない」それぞれの根拠 1 行
+  - 「対応する」項目ごとの修正方針と検証方法
+  - brainstorming が判定した経路名
 
-## Scope
+## スコープ
 
-Work only on the resolved review directory and the branch / PR it reviews.
+解決したレビューディレクトリと、そのレビューが対象とするブランチ／PR だけを扱う。
 
-- **Do not go read uncommitted changes in other worktrees or branches.** If you find them, keep them out of the plan
-- Do not go hunting for problems the reviews did not raise
-- Implementation comes after approval. Do not edit product code during planning
-- After implementation, land on the reviewed PR. Do not open a second PR
-- After landing, post review status, decisions, and results on the reviewed existing PR. Posting without implementation is optional (任意). Do not open a second PR
+- **他の worktree やブランチの未コミット差分を読みに行かない。** 見つけても計画に取り込まない
+- レビューに挙がっていない問題を新たに探しに行かない
+- 実装は承認後。計画フェーズでプロダクトコードを編集しない
+- 実装後はレビュー対象の既存 PR に載せる。第二の PR を開かない
+- PR への反映後は、レビュー状況・作業判断・作業結果をレビュー対象の既存 PR へ投稿する。実装せず止まるターンの投稿は任意である。第二の PR を開かない
 
-## Rationalizations and what is actually true
+## 合理化とその実態
 
-| Excuse | Reality |
+| 言い訳 | 実態 |
 |---|---|
-| "It is bounded, so no Spec" | The user's instruction outranks the skill. Write one on all three paths |
-| "I presented the whole plan, so approval is implied" | Presenting is not approving. Wait for an explicit go-ahead |
-| "One line of docs is not over-fixing" | Docs are work too. Failing (a)–(d), it goes to Skip |
-| "It needs a design call, but it is only one extra test" | Adding a test is work. If a call is needed, ask for the call |
-| "There were already changes in another worktree, so let me build on them" | A diff of unknown provenance is out of scope. Look only at what you were given |
-| "Four models flagged it, so obviously fix it" | The basis is reproduction at current HEAD, not vote count |
-| "I can design this myself, so skip brainstorming" | Path classification and the approval gate live in brainstorming |
-| "The working tree shows it fixed, so it is resolved" | That may be someone's uncommitted diff. Confirm with `git show <HEAD>:<path>` |
-| "Fixing the required-template contract solves it at the root" | Third-party compatibility work. If policy settled it, skip it |
-| "It is a question of intended behaviour, so let me ask" | Hold is for few-line latent-bug fixes. Behaviour questions go to Skip plus one Spec line |
-| "進めて is implementation only, not commit/push" | This section is the commit/push instruction. After related tests pass, land |
-| "Related tests are not enough; CLAUDE.md wants verify.sh full" | Local landing gate is related tests. Full verify is CI on the existing PR |
-| "Don't commit unless the user types commit" | This section is that instruction for this workflow |
-| "Present the finishing-a-development-branch menu" | Do not. Push to the existing PR |
-| "Review fixes get their own PR / that's how #144 did it" | Push to the existing reviewed PR. Extra `*-review-fixes` PRs are out |
-| "The extra review-fixes branch already exists, throwing it away is waste" | Sunk cost. Land on the reviewed PR's head branch |
-| "The plan is enough in chat" | After landing, leaving results on the PR is part of landing; planning-only turns post only optionally (任意) |
-| "I did not implement, so I should not post" | Planning-only posting is optional (任意); only landing turns must post |
-| "I already pushed, so a comment is unnecessary" | Leaving results on the PR is part of landing |
-| "--edit-last is enough" | That overwrites another agent sharing the same GitHub account. Update only the comment with this agent's marker |
+| 「bounded だから Spec は要らない」 | ユーザ指示がスキルに優先する。3 経路すべてで書く |
+| 「計画を全文提示したので承認は不要」 | 提示は承認ではない。明示的な「進めて」を待つ |
+| 「ドキュメント 1 行なら過剰対応ではない」 | ドキュメントも対応。(a)〜(d) を満たさなければ「対応しない」 |
+| 「要設計判断だがテストを 1 本足すだけなら」 | テスト追加も対応。判断が要るなら判断を仰ぐ |
+| 「別 worktree に既に差分があったので活かす」 | 誰の何か分からない差分は範囲外。指定された範囲だけを見る |
+| 「4 モデルが指摘しているので当然対応する」 | 票数ではなく現行 HEAD での再現が根拠 |
+| 「brainstorming は自分で設計できるので省く」 | 経路判定と承認ゲートを持つのは brainstorming 側 |
+| 「working tree を見たら直っていたので解消済み」 | それは誰かの未コミット差分かもしれない。`git show <HEAD>:<path>` で確かめる |
+| 「必須テンプレートの仕様を直せば根本解決する」 | 第三者互換の作り込み。方針ファイルが決着させているなら対応しない |
+| 「仕様の是非なのでユーザに聞こう」 | 判断保留は潜在バグの数行修正だけ。仕様論点は「対応しない」＋ Spec に 1 行 |
+| 「進めては実装許可であり commit/push の許可ではない」 | この節が commit/push の指示である。関連テストが通ったら PR へ反映する |
+| 「関連テストでは足りない。CLAUDE.md は verify.sh full が入口」 | ローカルの commit / push 条件は実装に関連したテスト。full verify は既存 PR の CI |
+| 「ユーザが commit と打つまで commit しない」 | このワークフローではこの節がその指示である |
+| 「finishing-a-development-branch のメニューを出す」 | 出さない。既存 PR に push する |
+| 「レビュー修正は別 PR。#144 がそうだった」 | レビュー対象の既存 PR に push する。`*-review-fixes` の追加 PR はしない |
+| 「すでに review-fixes ブランチがある。捨てるのは無駄」 | サンクコスト。レビュー対象 PR の head ブランチに載せる |
+| 「チャットに計画を書けば十分」 | PR への記録も反映作業の一部である。計画のみのターンの投稿は任意である |
+| 「実装していないので投稿不要」 | 計画のみの投稿は任意である。commit / push まで完了したターンのみ必須である |
+| 「push したのでコメントは不要」 | PR に結果を残すことも反映の一部である |
+| 「--edit-last で十分」 | 同じ GitHub アカウントを共有する別エージェントのコメントを上書きする。自エージェントのマーカーを持つコメントだけを更新する |
 
-## Red flags — stop and return to the procedure
+## Red flags — 止まって手順に戻る
 
-- You cannot state the Spec's path
-- You cannot state the reproduction steps for something you put in Fix
-- A finding or review artifact brought in from outside the resolved review directory, or an uncommitted source/test file, is load-bearing as verification evidence (review artifacts inside the resolved directory are valid input whatever their tracking state)
-- You are about to implement without the user's explicit go-ahead
-- For a finding placed in Fix / 対応する, you cannot show which of (a)–(d) it satisfies and the evidence
-- A Resolved verdict rests on a working-tree file
-- Hold contains a question about intended behaviour
-- You are about to run `./scripts/ci/verify.sh full` or `./scripts/ci/verify-devenv.sh` as a condition of commit/push
-- You are about to open a new PR for the review fixes, or push a `*-review-fixes` branch
-- You are about to present the `finishing-a-development-branch` menu
-- You are waiting for a second "commit" / "push" after related tests passed
-- You are about to commit with failing related tests
-- You are about to write `review-fix-planning-*` directly under `${TMPDIR:-/tmp}`
-- You are about to skip `worktree remove` and only `rm -rf` (breaks git registration)
-- You are about to leave `$REPRO_ROOT` in place after step 3
-- You are about to use a hyphenated name (`review-fix-planning-wt`, `-head`, `-repro-root`) instead of `mktemp`
-- You are about to finish a landing turn (commit / push) while the reviewed PR is open and no status comment was posted
-- You are about to use `gh pr comment --edit-last`
-- You are about to edit another agent's PR comment
-- You are about to create a new comment when this agent's marker already exists
+- Spec ファイルのパスを言えない
+- 「対応する」に入れた項目の再現手順を言えない
+- 解決した review directory 外から持ち込んだ finding / review artifact、または未コミットの source/test ファイルが検証根拠になっている（解決した review directory 内のレビュー成果物は追跡状態にかかわらず正規の入力である）
+- ユーザの「進めて」を受け取らないまま実装を始めようとしている
+- Fix / 対応する に置いた finding ごとに、(a)〜(d) のどれを満たすかと根拠を示せない
+- 「解消済み」の根拠が working tree のファイルである
+- 判断保留に仕様・設計の質問が入っている
+- `./scripts/ci/verify.sh full` や `./scripts/ci/verify-devenv.sh` を commit/push の条件として走らせようとしている
+- レビュー修正のために新しい PR を開こうとしている、または `*-review-fixes` ブランチへ push しようとしている
+- `finishing-a-development-branch` のメニューを出そうとしている
+- 実装に関連したテストが通ったあと、二度目の「commit」「push」を待っている
+- 実装に関連したテストが失敗したまま commit しようとしている
+- `${TMPDIR:-/tmp}` 直下へ `review-fix-planning-*` を書こうとしている
+- `worktree remove` を飛ばして `rm -rf` だけしようとしている（git の worktree 登録が壊れる）
+- 手順 3 のあと `$REPRO_ROOT` を残そうとしている
+- mktemp ではなくハイフン区切り名（`review-fix-planning-wt` / `-head` / `-repro-root`）を使おうとしている
+- commit / push まで完了したターンなのに、レビュー対象に open な PR があるのに status comment を投稿せず終了しようとしている
+- `gh pr comment --edit-last` を使おうとしている
+- 他エージェントの PR コメントを編集しようとしている
+- 自エージェントのマーカーが既にあるのに新規コメントを作ろうとしている
