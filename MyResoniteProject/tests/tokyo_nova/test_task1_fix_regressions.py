@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from modeling.tokyo_nova.districts import build_districts
 from modeling.tokyo_nova.layout import build_layout, validate_layout
 from modeling.tokyo_nova.pipeline import build_blockout_manifest, iter_slots
 
@@ -258,17 +259,25 @@ class Task1ReviewRegressionTests(unittest.TestCase):
     def test_roof_ramp_frame_is_gravity_up_and_contact_ends_meet_grade_and_roof(self) -> None:
         layout = build_layout()
         manifest = build_blockout_manifest(layout)
-        roof = next(building for building in layout["buildings"] if building["key"] == "west_roof_access")
-        ramp = _slot_by_key(manifest, "roof_access_ramp")
-        self.assertIsNotNone(ramp)
-        assert ramp is not None
-        start, end, right = _ramp_surface_endpoints(ramp)
-        self.assertAlmostEqual(start[1], 0.0, places=6)
-        self.assertAlmostEqual(end[1], roof["height"] + 0.11, places=6)
-        self.assertAlmostEqual(end[0], roof["center"][0] - (roof["size"][0] + 0.3) / 2, places=6)
-        self.assertAlmostEqual(end[2], roof["center"][2], places=6)
-        self.assertAlmostEqual(right[1], 0.0, places=6)
-        self.assertGreater(_rotated(ramp["slot"]["rotation"], (0.0, 1.0, 0.0))[1], 0.0)
+        _, records = build_districts(layout)
+        roof = records[layout["roof_access"]["building_key"]]
+        flights = layout["roof_access"]["flights"]
+        for index, flight in enumerate(flights):
+            ramp = _slot_by_key(manifest, flight["key"])
+            self.assertIsNotNone(ramp)
+            assert ramp is not None
+            start, end, right = _ramp_surface_endpoints(ramp)
+            expected_end = flight.get("end", roof["roof_entry_point"])
+            for axis in range(3):
+                self.assertAlmostEqual(start[axis], flight["start"][axis], places=6)
+                self.assertAlmostEqual(end[axis], expected_end[axis], places=6)
+            if index == 0:
+                self.assertAlmostEqual(start[1], 0.0, places=6)
+            if index == len(flights) - 1:
+                self.assertAlmostEqual(end[1], roof["roof_slab_bounds"][1][1], places=6)
+                self.assertAlmostEqual(end[0], roof["roof_slab_bounds"][0][0], places=6)
+            self.assertAlmostEqual(right[1], 0.0, places=6)
+            self.assertGreater(_rotated(ramp["slot"]["rotation"], (0.0, 1.0, 0.0))[1], 0.0)
 
     def test_roof_overlook_camera_is_above_the_roof_by_eye_height(self) -> None:
         layout = build_layout()

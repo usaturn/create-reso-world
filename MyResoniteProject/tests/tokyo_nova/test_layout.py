@@ -85,8 +85,8 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(sum(key.startswith("building_") for key in all_keys), 24)
         for key in ("plaza_floor", "outer_ground_tile_00", "roof_access_ramp", "south_theatre_basement_ramp", "west_bar_basement_stair_00"):
             self.assertIn(key, all_keys)
-        self.assertIn("theatre_floor_well_left", all_keys)
-        self.assertIn("bar_floor_well_back", all_keys)
+        self.assertIn("theatre_floor_well_west", all_keys)
+        self.assertIn("bar_floor_well_rear", all_keys)
 
     def test_manifest_expansion_limit_covers_reflected_blockout_without_maxing_cli_budget(self) -> None:
         manifest = self.pipeline_module.build_blockout_manifest(self.build_layout())
@@ -122,7 +122,8 @@ class LayoutTests(unittest.TestCase):
         x, y, z, w = ramp["slot"]["rotation"]
         rotated_z = (2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y))
         self.assertGreater(rotated_z[0], 0.5)
-        self.assertGreater(rotated_z[1], 0.1)
+        self.assertGreater(rotated_z[1], 0.0)
+        self.assertLessEqual(rotated_z[1] / rotated_z[0], 0.20)
         self.assertAlmostEqual(rotated_z[2], 0.0, places=6)
 
     def test_japanese_engine_text_is_added_idempotently_to_probe_manifest(self) -> None:

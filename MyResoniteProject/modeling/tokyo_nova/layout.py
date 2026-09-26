@@ -144,6 +144,14 @@ def build_layout() -> dict[str, Any]:
     return {
         "schema_version": 1,
         "seed": SEED,
+        "generation": {
+            "seed": SEED,
+            "storeys_min": 3,
+            "storeys_max": 8,
+            "storey_height_m": 2.86,
+            "facade_module_width_m": 1.5,
+            "facade_detail_density": 0.65,
+        },
         "coordinate_system": {
             "world_axes": "Resonite XYZ (X right, Y up, Z depth)",
             "layout_positions": "root-local Resonite meters",
@@ -170,7 +178,22 @@ def build_layout() -> dict[str, Any]:
         "buildings": buildings,
         "routes": routes,
         "facilities": facilities,
-        "roof_access": {"building_key": "west_roof_access", "kind": "external_walkable_ramp_to_roof_landing", "clear_width": 1.8, "target_height": 9.11},
+        "roof_access": {
+            "building_key": "west_roof_access",
+            "kind": "guarded_switchback_ramp_to_emitted_roof_surface",
+            "clear_width": 1.8,
+            "handrail_height": 1.05,
+            "landing_size": [4.0, 4.0],
+            "flights": [
+                {"key": "roof_access_ramp_lower", "start": [-48.0, 0.0, 33.0], "end": [-29.0, 3.0, 33.0]},
+                {"key": "roof_access_ramp_middle", "start": [-29.0, 3.0, 35.0], "end": [-46.0, 6.0, 35.0]},
+                {"key": "roof_access_ramp", "start": [-46.0, 6.0, 37.0], "roof_entry_z_offset": 2.0},
+            ],
+            "turn_landings": [
+                {"key": "roof_switchback_landing_1", "center": [-27.0, 3.0, 34.0]},
+                {"key": "roof_switchback_landing_2", "center": [-48.0, 6.0, 36.0]},
+            ],
+        },
         "basement_access": [
             {
                 "key": "south_theatre_basement_ramp", "building_key": "south_theatre", "kind": "open_ramp_and_landing",
@@ -181,7 +204,7 @@ def build_layout() -> dict[str, Any]:
             {
                 "key": "west_bar_basement_stairs", "building_key": "west_basement_bar", "kind": "open_stairwell_and_landing",
                 "entry_side": "east", "clear_width": 1.5, "depth_below_grade": 2.2, "approach_run": 3.0, "steps": 12,
-                "floor_opening": {"axis": "x", "center": [1.5, 0.0], "size": [3.0, 1.8], "depth": 3.0}, "floor_key_prefix": "bar",
+                "floor_opening": {"axis": "x", "center": [1.35, 0.0], "size": [3.3, 1.8], "depth": 3.0}, "floor_key_prefix": "bar",
                 "landing_key": "bar_basement_landing", "landing_center_offset": [-1.2, 0.0], "landing_size": [2.4, 2.2]
             },
         ],
@@ -302,6 +325,20 @@ def validate_layout(layout: dict[str, Any]) -> list[str]:
         errors.append("owned root world placement must remain [0, 30, 120]")
     if root_transform.get("rotation") != [0.0, 0.0, 0.0, 1.0] or root_transform.get("scale") != [1.0, 1.0, 1.0]:
         errors.append("owned root must retain identity rotation and unit scale")
+    generation = layout.get("generation", {})
+    generation_limits = (
+        ("storey_height_m", 2.4, 3.4),
+        ("facade_module_width_m", 0.8, 2.4),
+        ("facade_detail_density", 0.25, 1.0),
+    )
+    if generation.get("storeys_min", 0) < 3 or generation.get("storeys_max", 0) > 8 or generation.get("storeys_min", 0) > generation.get("storeys_max", 0):
+        errors.append("generation storey bounds must be ordered within 3–8")
+    for key, low, high in generation_limits:
+        value = generation.get(key)
+        if not isinstance(value, (int, float)) or not low <= value <= high:
+            errors.append(f"generation {key} must be within {low}–{high}")
+    if generation.get("seed") != layout.get("seed"):
+        errors.append("generation seed must match the city seed")
     if layout.get("plaza", {}).get("bounds_xz") != PLAZA_BOUNDS_XZ:
         errors.append(f"plaza bounds must remain {PLAZA_BOUNDS_XZ}")
     buildings = layout.get("buildings", [])
@@ -388,6 +425,18 @@ def validate_layout(layout: dict[str, Any]) -> list[str]:
             errors.append(f"basement access {access.get('key')} floor opening must span its declared approach run")
         if opening.get("axis") not in ("x", "z") or len(opening.get("size", [])) != 2:
             errors.append(f"basement access {access.get('key')} has invalid floor-opening geometry")
+
+    roof_access = layout.get("roof_access", {})
+    roof_flights = roof_access.get("flights", [])
+    if len(roof_flights) != 3 or len(roof_access.get("turn_landings", [])) != 2:
+        errors.append("roof access must contain three ramp flights and two turn landings")
+    if not isinstance(roof_access.get("clear_width"), (int, float)) or roof_access.get("clear_width", 0) < 1.5:
+        errors.append("roof access must provide at least 1.5 m clear width")
+    if not isinstance(roof_access.get("handrail_height"), (int, float)) or roof_access.get("handrail_height", 0) < 0.9:
+        errors.append("roof access must provide 0.9 m or taller handrails")
+    for flight in roof_flights:
+        if "start" not in flight or ("end" not in flight and "roof_entry_z_offset" not in flight):
+            errors.append(f"roof flight {flight.get('key', '<unknown>')} lacks an authored connection")
 
     facilities = layout.get("facilities", [])
     if len(facilities) < 12:

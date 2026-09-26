@@ -248,7 +248,10 @@ class GroundTopologyTests(unittest.TestCase):
             else:
                 steps = [item for item in iter_slots(self.manifest) if item["slot"].get("key", "").startswith(prefix)]
                 self.assertEqual(len(steps), int(access["steps"]))
-                self.assertTrue(all(_component(step, "FrooxEngine.BoxCollider") is not None for step in steps))
+                self.assertTrue(all(_component(step, "FrooxEngine.BoxCollider") is None for step in steps))
+                surface = next(item for item in iter_slots(self.manifest) if item["slot"].get("key") == f"{access['key']}_walk_surface")
+                self.assertIsNotNone(_component(surface, "FrooxEngine.BoxCollider"))
+                self.assertIsNone(_component(surface, "FrooxEngine.MeshRenderer"))
 
     def _opening_matches_access(self, rect: tuple[float, float, float, float], access: dict[str, Any]) -> bool:
         buildings = {item["key"]: item for item in self.layout["buildings"]}

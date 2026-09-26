@@ -1,6 +1,14 @@
 {
   "schema_version": 1,
   "seed": 240918,
+  "generation": {
+    "seed": 240918,
+    "storeys_min": 3,
+    "storeys_max": 8,
+    "storey_height_m": 2.86,
+    "facade_module_width_m": 1.5,
+    "facade_detail_density": 0.65
+  },
   "coordinate_system": {
     "world_axes": "Resonite XYZ (X right, Y up, Z depth)",
     "layout_positions": "root-local Resonite meters",
@@ -971,9 +979,68 @@
   ],
   "roof_access": {
     "building_key": "west_roof_access",
-    "kind": "external_walkable_ramp_to_roof_landing",
+    "kind": "guarded_switchback_ramp_to_emitted_roof_surface",
     "clear_width": 1.8,
-    "target_height": 9.11
+    "handrail_height": 1.05,
+    "landing_size": [
+      4.0,
+      4.0
+    ],
+    "flights": [
+      {
+        "key": "roof_access_ramp_lower",
+        "start": [
+          -48.0,
+          0.0,
+          30.0
+        ],
+        "end": [
+          -27.0,
+          3.0,
+          30.0
+        ]
+      },
+      {
+        "key": "roof_access_ramp_middle",
+        "start": [
+          -27.0,
+          3.0,
+          32.0
+        ],
+        "end": [
+          -48.0,
+          6.0,
+          32.0
+        ]
+      },
+      {
+        "key": "roof_access_ramp",
+        "start": [
+          -48.0,
+          6.0,
+          34.0
+        ],
+        "roof_entry_z_offset": 2.0
+      }
+    ],
+    "turn_landings": [
+      {
+        "key": "roof_switchback_landing_1",
+        "center": [
+          -27.0,
+          3.0,
+          31.0
+        ]
+      },
+      {
+        "key": "roof_switchback_landing_2",
+        "center": [
+          -48.0,
+          6.0,
+          33.0
+        ]
+      }
+    ]
   },
   "basement_access": [
     {
@@ -988,11 +1055,11 @@
         "axis": "z",
         "center": [
           0.0,
-          0.5
+          0.75
         ],
         "size": [
           1.8,
-          5.0
+          5.5
         ],
         "depth": 5.0
       },
@@ -1019,11 +1086,11 @@
       "floor_opening": {
         "axis": "x",
         "center": [
-          1.5,
+          1.65,
           0.0
         ],
         "size": [
-          3.0,
+          3.6,
           1.8
         ],
         "depth": 3.0

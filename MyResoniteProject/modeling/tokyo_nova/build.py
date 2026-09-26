@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from collections import defaultdict
 from collections.abc import Iterable
@@ -22,6 +23,7 @@ from modeling.tokyo_nova.layout import build_layout, validate_layout
 from modeling.tokyo_nova.materials import make_blender_materials
 from modeling.tokyo_nova.north import build_north_sector
 from modeling.tokyo_nova.props import Assembly
+from modeling.tokyo_nova.uv import metric_face_uvs, uv_triangle_issues
 
 
 def _triangle_count(part: geometry.MeshData) -> int:
@@ -100,36 +102,253 @@ def _join_part_data(parts: list[geometry.MeshData]) -> tuple[list[tuple[float, f
 
 def _create_batch_object(bpy: Any, bmesh: Any, collection: Any, material_lookup: dict[str, Any], kind: str, material_name: str, parts: list[geometry.MeshData], prefix: str = "North") -> Any:
     vertices, faces, names = _join_part_data(parts)
+    if kind == "night_sky_dome":
+        # The XZY handedness change reverses faces. Undo it explicitly; recalculating
+        # these normals would incorrectly turn an interior sky shell back outward.
+        faces = [tuple(reversed(face)) for face in faces]
     mesh_data = bpy.data.meshes.new(f"{prefix}_{kind}_{material_name}_Mesh")
     mesh_data.from_pydata(vertices, [], faces)
     mesh_data.update()
-    bm = bmesh.new()
-    bm.from_mesh(mesh_data)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.to_mesh(mesh_data)
-    bm.free()
-    uv_layer = mesh_data.uv_layers.new(name="NorthPlanarMeters")
+    if kind != "night_sky_dome":
+        bm = bmesh.new()
+        bm.from_mesh(mesh_data)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(mesh_data)
+        bm.free()
+    uv_layer = mesh_data.uv_layers.new(name="UV0")
     for polygon in mesh_data.polygons:
-        normal = polygon.normal
-        dominant = max(range(3), key=lambda axis: abs(normal[axis]))
-        for loop_index in polygon.loop_indices:
-            co = mesh_data.vertices[mesh_data.loops[loop_index].vertex_index].co
-            if dominant == 2:
-                uv = (co.x, co.y)
-            elif dominant == 1:
-                uv = (co.x, co.z)
-            else:
-                uv = (co.y, co.z)
-            uv_layer.data[loop_index].uv = uv
+        if kind == "night_sky_dome":
+            loop_ids = list(polygon.loop_indices)
+            projected = []
+            for loop_index in loop_ids:
+                co = mesh_data.vertices[mesh_data.loops[loop_index].vertex_index].co
+                radial_z = max(-1.0, min(1.0, (co.z + 18.0) / 78.0))
+                projected.append([math.atan2(co.y, co.x) / (2 * math.pi) + 0.5, math.acos(radial_z) / math.pi])
+            if max(point[0] for point in projected) - min(point[0] for point in projected) > 0.5:
+                for point in projected:
+                    if point[0] < 0.5:
+                        point[0] += 1.0
+            for loop_index, uv in zip(loop_ids, projected):
+                uv_layer.data[loop_index].uv = uv
+        else:
+            loop_ids = list(polygon.loop_indices)
+            points = [mesh_data.vertices[mesh_data.loops[index].vertex_index].co for index in loop_ids]
+            uv_values = metric_face_uvs(points, polygon.normal, uv_per_meter=0.5)
+            for loop_index, uv in zip(loop_ids, uv_values):
+                uv_layer.data[loop_index].uv = uv
     obj = bpy.data.objects.new(f"{prefix}_{kind}_{material_name}", mesh_data)
     collection.objects.link(obj)
     obj.data.materials.append(material_lookup[material_name])
     obj["asset_kind"] = kind
     obj["material_batch"] = material_name
     obj["editable_source_parts"] = json.dumps(names, ensure_ascii=False)
+    obj["uv_policy"] = "spherical hemisphere UV0" if kind == "night_sky_dome" else "0.5 UV/m face-local metric tiling; island overlap intentional for shared tileable materials"
     if not obj.data.uv_layers or not all(polygon.normal.length > 0.99 for polygon in obj.data.polygons):
         raise RuntimeError(f"mesh batch {obj.name} is missing UVs or valid normals")
     return obj
+
+
+def _uv_quality_report(mesh: Any, *, metric: bool = False) -> dict[str, Any]:
+    uv_layer = mesh.uv_layers.active
+    if uv_layer is None:
+        return {"faces": 0, "degenerate_faces": 0, "channels": []}
+    density, aspect_scales = [], []
+    degenerate = 0
+    face_count = 0
+    metric_issues: dict[str, int] = defaultdict(int)
+    for polygon in mesh.polygons:
+        if polygon.area <= 1e-12:
+            continue
+        indices = list(polygon.loop_indices)
+        uv = [uv_layer.data[index].uv for index in indices]
+        area_uv = abs(sum(uv[index].x * uv[(index + 1) % len(uv)].y - uv[(index + 1) % len(uv)].x * uv[index].y for index in range(len(uv)))) / 2
+        face_count += 1
+        if metric:
+            points = [mesh.vertices[mesh.loops[index].vertex_index].co for index in indices]
+            for corner in range(1, len(indices) - 1):
+                for issue in uv_triangle_issues(
+                    (points[0], points[corner], points[corner + 1]),
+                    (uv[0], uv[corner], uv[corner + 1]), polygon.normal,
+                ):
+                    metric_issues[issue] += 1
+        if area_uv <= 1e-10:
+            degenerate += 1
+            continue
+        density.append(math.sqrt(area_uv / polygon.area))
+        for offset, loop_index in enumerate(indices):
+            next_index = indices[(offset + 1) % len(indices)]
+            va = mesh.vertices[mesh.loops[loop_index].vertex_index].co
+            vb = mesh.vertices[mesh.loops[next_index].vertex_index].co
+            edge_length = (vb - va).length
+            uv_edge = (uv[(offset + 1) % len(uv)] - uv[offset]).length
+            if edge_length > 1e-9:
+                aspect_scales.append(uv_edge / edge_length)
+    ordered = sorted(density)
+    return {
+        "faces": face_count,
+        "degenerate_faces": degenerate,
+        "degenerate_fraction": degenerate / max(1, face_count),
+        "metric_issues": dict(metric_issues),
+        "channels": [layer.name for layer in mesh.uv_layers],
+        "metric_uv_density_range_uv_per_m": [round(ordered[0], 5), round(ordered[-1], 5)] if ordered else [],
+        "metric_edge_scale_range_uv_per_m": [round(min(aspect_scales), 5), round(max(aspect_scales), 5)] if aspect_scales else [],
+        "overlap_policy": "intentional face-local overlap for seamless shared-material tiling; no unique texture atlases are authored",
+    }
+
+
+
+def geometry_nodes_authoring_spec() -> dict[str, Any]:
+    """Describe bounded, seeded cast-tie controls and the editable-to-static workflow."""
+    return {
+        "editable_source": True,
+        "evaluated_static_export": True,
+        "static_export_material_policy": "single nonempty material slot; all face indices normalize to zero",
+        "static_export_geometry_policy": "rebuild applied node output from explicit vertices and polygon indices",
+        "controls": {
+            "Facade Module Width": {"socket_type": "NodeSocketFloat", "default": 1.6, "minimum": 0.8, "maximum": 2.4},
+            "Storey Height": {"socket_type": "NodeSocketFloat", "default": 2.8, "minimum": 2.4, "maximum": 3.4},
+            "Tie Density": {"socket_type": "NodeSocketFloat", "default": 0.72, "minimum": 0.25, "maximum": 1.0},
+            "Pattern Seed": {"socket_type": "NodeSocketInt", "default": 2026, "minimum": 0, "maximum": 2147483647},
+        },
+        "nodes": (
+            "GeometryNodeMeshGrid", "GeometryNodeInputIndex", "FunctionNodeRandomValue",
+            "FunctionNodeCompare", "GeometryNodeDeleteGeometry", "GeometryNodeMeshIcoSphere",
+            "GeometryNodeInstanceOnPoints", "GeometryNodeSetMaterial",
+        ),
+        "feature": "seeded cast-in-place facade tie pattern",
+    }
+
+
+def _create_procedural_facade_authoring(bpy: Any, author_collection: Any, export_collection: Any, material: Any, roof_record: dict[str, Any], building: dict[str, Any]) -> dict[str, Any]:
+    """Retain the live Geometry Nodes graph and export its evaluated static result."""
+    spec = geometry_nodes_authoring_spec()
+    if not spec["editable_source"] or not spec["evaluated_static_export"]:
+        raise RuntimeError("the procedural city authoring workflow must retain and bake its source graph")
+    tree = bpy.data.node_groups.new("GN_TokyoNovaCastTieModule_Authoring", "GeometryNodeTree")
+    tree.interface.new_socket(name="Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    tree.interface.new_socket(name="Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    control_sockets = {}
+    for name, control in spec["controls"].items():
+        socket = tree.interface.new_socket(name=name, in_out="INPUT", socket_type=control["socket_type"])
+        socket.default_value = control["default"]
+        socket.min_value = control["minimum"]
+        socket.max_value = control["maximum"]
+        control_sockets[name] = socket
+    nodes, links = tree.nodes, tree.links
+    input_node, output_node = nodes.new("NodeGroupInput"), nodes.new("NodeGroupOutput")
+    grid = nodes.new("GeometryNodeMeshGrid")
+    grid.inputs["Vertices X"].default_value = 4
+    grid.inputs["Vertices Y"].default_value = 5
+    row_extent, col_extent = nodes.new("ShaderNodeMath"), nodes.new("ShaderNodeMath")
+    row_extent.operation = col_extent.operation = "MULTIPLY"
+    row_extent.inputs[1].default_value, col_extent.inputs[1].default_value = 3.0, 4.0
+    links.new(input_node.outputs["Storey Height"], row_extent.inputs[0])
+    links.new(input_node.outputs["Facade Module Width"], col_extent.inputs[0])
+    links.new(row_extent.outputs[0], grid.inputs["Size X"])
+    links.new(col_extent.outputs[0], grid.inputs["Size Y"])
+    index, random = nodes.new("GeometryNodeInputIndex"), nodes.new("FunctionNodeRandomValue")
+    random.data_type = "FLOAT"
+    links.new(index.outputs["Index"], random.inputs["ID"])
+    links.new(input_node.outputs["Pattern Seed"], random.inputs["Seed"])
+    compare = nodes.new("FunctionNodeCompare")
+    compare.data_type, compare.operation = "FLOAT", "GREATER_THAN"
+    links.new(random.outputs["Value"], compare.inputs["A"])
+    links.new(input_node.outputs["Tie Density"], compare.inputs["B"])
+    delete = nodes.new("GeometryNodeDeleteGeometry")
+    delete.domain = "POINT"
+    links.new(grid.outputs["Mesh"], delete.inputs["Geometry"])
+    links.new(compare.outputs["Result"], delete.inputs["Selection"])
+    sphere = nodes.new("GeometryNodeMeshIcoSphere")
+    sphere.inputs["Radius"].default_value = 0.055
+    sphere.inputs["Subdivisions"].default_value = 2
+    points = nodes.new("GeometryNodeInstanceOnPoints")
+    links.new(delete.outputs["Geometry"], points.inputs["Points"])
+    links.new(sphere.outputs["Mesh"], points.inputs["Instance"])
+    set_material = nodes.new("GeometryNodeSetMaterial")
+    set_material.inputs["Material"].default_value = material
+    links.new(points.outputs["Instances"], set_material.inputs["Geometry"])
+    links.new(set_material.outputs["Geometry"], output_node.inputs["Geometry"])
+    actual_nodes = {node.bl_idname for node in nodes}
+    if not set(spec["nodes"]).issubset(actual_nodes):
+        raise RuntimeError("the authored Geometry Nodes graph is missing a required facade-forming node")
+    for node, location in ((input_node, (-900, 100)), (grid, (-420, 180)), (row_extent, (-650, 360)), (col_extent, (-650, 100)), (index, (-650, -220)), (random, (-420, -260)), (compare, (-180, -180)), (delete, (40, 160)), (sphere, (40, -80)), (points, (260, 160)), (set_material, (660, 160)), (output_node, (850, 160))):
+        node.location = location
+    source_mesh = bpy.data.meshes.new("GN_CastTie_Authoring_EmptySource")
+    source = bpy.data.objects.new("GN_CastTie_Authoring_Source", source_mesh)
+    author_collection.objects.link(source)
+    source.hide_render = True
+    try:
+        position = (
+            float(building["center"][0]) - (float(building["size"][0]) + 0.18) / 2 - 0.012,
+            float(roof_record["roof_walk_y"]) / 2,
+            float(building["center"][2]),
+        )
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise ValueError("the procedural facade needs a valid roof grade and building center/size") from exc
+    source.location = _resonite_to_blender(position)
+    source.rotation_euler[1] = -math.pi / 2
+    modifier = source.modifiers.new("Procedural structural cast-tie layout", "NODES")
+    modifier.node_group = tree
+    values = {"Facade Module Width": 1.6, "Storey Height": 2.8, "Tie Density": 0.72, "Pattern Seed": 2026}
+    for name, socket in control_sockets.items():
+        modifier[socket.identifier] = values[name]
+    evaluated = source.copy()
+    evaluated.data = source.data.copy()
+    evaluated.name = "City_GeometryNodesEvaluated_CastTiePattern"
+    export_collection.objects.link(evaluated)
+    evaluated.hide_render = False
+    # Keep the authoring group instanced. Only the export copy needs an explicit
+    # Realize Instances node so modifier_apply produces an ordinary static mesh.
+    export_tree = tree.copy()
+    export_tree.name = "GN_TokyoNovaCastTieModule_StaticExport"
+    export_nodes, export_links = export_tree.nodes, export_tree.links
+    export_points = next(node for node in export_nodes if node.bl_idname == "GeometryNodeInstanceOnPoints")
+    export_material = next(node for node in export_nodes if node.bl_idname == "GeometryNodeSetMaterial")
+    export_realize = export_nodes.new("GeometryNodeRealizeInstances")
+    export_realize.location = (470, 160)
+    export_links.new(export_points.outputs["Instances"], export_realize.inputs["Geometry"])
+    export_links.new(export_realize.outputs["Geometry"], export_material.inputs["Geometry"])
+    evaluated.modifiers[modifier.name].node_group = export_tree
+    bpy.ops.object.select_all(action="DESELECT")
+    evaluated.select_set(True)
+    bpy.context.view_layer.objects.active = evaluated
+    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    if evaluated.modifiers or len(evaluated.data.vertices) < 4 or not evaluated.data.polygons:
+        raise RuntimeError("the evaluated cast-tie graph did not produce a static export mesh")
+    # Rebuild node-generated geometry with ordinary mesh data before handing it to
+    # ResoLoop's serializer; Blender's applied node attributes trigger its mesh reader.
+    generated_mesh = evaluated.data
+    vertices = [tuple(vertex.co) for vertex in generated_mesh.vertices]
+    faces = [tuple(polygon.vertices) for polygon in generated_mesh.polygons]
+    clean_mesh = bpy.data.meshes.new("GN_CastTie_StaticExport_Mesh")
+    clean_mesh.from_pydata(vertices, [], faces)
+    clean_mesh.update()
+    evaluated.data = clean_mesh
+    if generated_mesh.users == 0:
+        bpy.data.meshes.remove(generated_mesh)
+    for slot_index in reversed(range(len(evaluated.data.materials))):
+        evaluated.data.materials.pop(index=slot_index)
+    evaluated.data.materials.append(material)
+    for polygon in evaluated.data.polygons:
+        polygon.material_index = 0
+    if not evaluated.data.uv_layers:
+        uv_layer = evaluated.data.uv_layers.new(name="UV0")
+        for polygon in evaluated.data.polygons:
+            loop_ids = list(polygon.loop_indices)
+            points = [evaluated.data.vertices[evaluated.data.loops[index].vertex_index].co for index in loop_ids]
+            for loop_index, uv in zip(loop_ids, metric_face_uvs(points, polygon.normal, uv_per_meter=0.5)):
+                uv_layer.data[loop_index].uv = uv
+    evaluated["asset_kind"] = "geometry_nodes_facade_ties"
+    evaluated["material_batch"] = "exposed_metal"
+    evaluated["evaluated_from_geometry_nodes"] = tree.name
+    return {
+        "node_group": tree.name, "source_object": source.name, "evaluated_export_object": evaluated.name,
+        "controls": {name: {"identifier": socket.identifier, **spec["controls"][name]} for name, socket in control_sockets.items()},
+        "nodes": sorted(actual_nodes), "static_export_node_group": export_tree.name,
+        "authoring_collection": author_collection.name,
+        "evaluated_export_vertex_count": len(evaluated.data.vertices),
+        "evaluation": "the saved node group remains editable; only its evaluated duplicate is baked for the static Resonite export",
+    }
 
 
 def _look_at(camera: Any, target: tuple[float, float, float]) -> None:
@@ -148,7 +367,6 @@ def _setup_preview(bpy: Any, scene: Any, preview_collection: Any, output_path: P
     preview_collection.objects.link(ground)
     ground_material = bpy.data.materials.new("PREVIEW_ONLY_DarkDryStage")
     ground_material.diffuse_color = (0.025, 0.035, 0.041, 1)
-    ground_material.use_nodes = True
     ground_shader = ground_material.node_tree.nodes.get("Principled BSDF") if ground_material.node_tree else None
     if ground_shader is not None:
         ground_shader.inputs["Base Color"].default_value = (0.025, 0.035, 0.041, 1)
@@ -271,7 +489,9 @@ def build_city(layout: dict[str, Any]) -> dict[str, Any]:
     loop_count = sum(bool(route.get("loop")) for route in layout["routes"])
     roof_key = layout["roof_access"]["building_key"]
     roof_record = building_geometry[roof_key]
-    roof_route_continuous = float(layout["roof_access"]["target_height"]) >= float(roof_record.get("roof_walk_y", 8.8))
+    roof_assembly = next(assembly for assembly in district_assemblies if assembly.name == roof_key)
+    roof_connection = districts.roof_access_report(layout, roof_assembly, roof_record)
+    roof_route_continuous = bool(roof_connection["continuous"])
     accessibility = {
         "route_keys": [route["key"] for route in layout["routes"]],
         "entrances": [route["key"] for route in layout["routes"] if route["kind"] == "entrance"],
@@ -279,6 +499,7 @@ def build_city(layout: dict[str, Any]) -> dict[str, Any]:
         "roof_route_continuous": roof_route_continuous,
         "roof_building_key": roof_key,
         "roof_geometry_height": roof_record["height"],
+        "roof_connection": roof_connection,
         "open_doorways": {key: record["door_width"] for key, record in building_geometry.items()},
         "accessible_rooms": list(accessible),
         "room_count": len(accessible),
@@ -321,7 +542,10 @@ def build_blend(layout_path: Path, output_path: Path, sector: str = "north") -> 
     import bmesh  # type: ignore[import-not-found]
     import bpy  # type: ignore[import-not-found]
 
-    layout = json.loads(layout_path.read_text(encoding="utf-8"))
+    try:
+        layout = json.loads(layout_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot read city layout at {layout_path}") from exc
     errors = validate_layout(layout)
     if errors:
         raise ValueError("layout validation failed: " + "; ".join(errors))
@@ -346,21 +570,36 @@ def build_blend(layout_path: Path, output_path: Path, sector: str = "north") -> 
     if source_collection.name not in bpy.context.scene.collection.children:
         bpy.context.scene.collection.children.link(source_collection)
     city_collection = None
+    city_export_collection = None
+    procedural_author_collection = None
     if city is not None:
         city_collection = bpy.data.collections.new("TokyoNovaCity")
         bpy.context.scene.collection.children.link(city_collection)
+        city_export_collection = bpy.data.collections.new("TokyoNovaCityExport")
+        bpy.context.scene.collection.children.link(city_export_collection)
+        procedural_author_collection = bpy.data.collections.new("TokyoNovaProceduralAuthoring")
+        bpy.context.scene.collection.children.link(procedural_author_collection)
     material_lookup = make_blender_materials()
     if city is None:
         for (kind, material_name), parts in sorted(_mesh_batches(assemblies).items()):
             _create_batch_object(bpy, bmesh, source_collection, material_lookup, kind, material_name, parts)
     else:
+        if city_collection is None or city_export_collection is None or procedural_author_collection is None:
+            raise RuntimeError("city source and export collections were not created")
         retained_north = {"food_stall", "terminal_repair", "patched_housing_facade", "pocket_phone", "north_frontage_pavement", "north_facility_connector"}
         north_assets = [assembly for assembly in assemblies if assembly.kind in retained_north]
         city_assets = [assembly for assembly in assemblies if assembly.kind not in retained_north]
         for (kind, material_name), parts in sorted(_mesh_batches(north_assets).items()):
             _create_batch_object(bpy, bmesh, source_collection, material_lookup, kind, material_name, parts, "North")
         for (kind, material_name), parts in sorted(_mesh_batches(city_assets).items()):
-            _create_batch_object(bpy, bmesh, city_collection, material_lookup, kind, material_name, parts, "City")
+            obj = _create_batch_object(bpy, bmesh, city_collection, material_lookup, kind, material_name, parts, "City")
+            city_export_collection.objects.link(obj)
+        roof_key = layout["roof_access"]["building_key"]
+        roof_building = next(item for item in layout["buildings"] if item["key"] == roof_key)
+        report["geometry_nodes_authoring"] = _create_procedural_facade_authoring(
+            bpy, procedural_author_collection, city_export_collection, material_lookup["exposed_metal"],
+            city["building_geometry"][roof_key], roof_building,
+        )
     preview_collection = bpy.data.collections.new("TokyoNovaPreviewOnly")
     bpy.context.scene.collection.children.link(preview_collection)
     scene = bpy.context.scene
@@ -377,27 +616,69 @@ def build_blend(layout_path: Path, output_path: Path, sector: str = "north") -> 
     expected_north_batches = len(_mesh_batches([assembly for assembly in assemblies if assembly.kind in {"food_stall", "terminal_repair", "patched_housing_facade", "pocket_phone", "north_frontage_pavement", "north_facility_connector"}])) if city is not None else report["blender_object_count"]
     if len(objects) != expected_north_batches:
         raise RuntimeError(f"expected {expected_north_batches} north material batches, reopened {len(objects)}")
+    export_objects: list[Any] = []
     if city is not None and city_collection is not None:
         city_collection = bpy.data.collections.get("TokyoNovaCity")
         city_objects = [obj for obj in city_collection.objects if obj.type == "MESH"] if city_collection else []
         expected_city_batches = report["blender_object_count"] - expected_north_batches
         if len(city_objects) != expected_city_batches:
             raise RuntimeError(f"expected {expected_city_batches} city-extension material batches, reopened {len(city_objects)}")
+        export_group = bpy.data.collections.get("TokyoNovaCityExport")
+        export_objects = [obj for obj in export_group.objects if obj.type == "MESH"] if export_group else []
+        if len(export_objects) != expected_city_batches + 1:
+            raise RuntimeError(f"expected {expected_city_batches + 1} exported city meshes including the evaluated node group, reopened {len(export_objects)}")
+        author_collection = bpy.data.collections.get("TokyoNovaProceduralAuthoring")
+        author_objects = [obj for obj in author_collection.objects if obj.type == "MESH"] if author_collection else []
+        author = next((obj for obj in author_objects if obj.name == "GN_CastTie_Authoring_Source"), None)
+        if author is None or not any(mod.type == "NODES" and mod.node_group is not None for mod in author.modifiers):
+            raise RuntimeError("the editable Geometry Nodes authoring object did not survive the Blender round trip")
+        export_gn = [obj for obj in export_objects if obj.get("evaluated_from_geometry_nodes")]
+        if len(export_gn) != 1 or export_gn[0].modifiers:
+            raise RuntimeError("the static city export does not contain exactly one baked Geometry Nodes result")
+        if not export_gn[0].data.uv_layers or not all(poly.normal.length > 0.99 for poly in export_gn[0].data.polygons):
+            raise RuntimeError("the procedural export mesh lacks UVs or valid static normals")
+        export_materials = [item.name for item in export_gn[0].data.materials if item is not None]
+        export_material_indices = {polygon.material_index for polygon in export_gn[0].data.polygons}
+        if len(export_materials) != 1 or export_material_indices != {0}:
+            raise RuntimeError("the evaluated procedural export must use one assigned material slot at index zero")
+        report["geometry_nodes_authoring"]["round_trip"] = {
+            "source_node_modifiers": [mod.node_group.name for mod in author.modifiers if mod.type == "NODES"],
+            "evaluated_export_is_static": not export_gn[0].modifiers,
+            "static_mesh_is_rebuilt": export_gn[0].data.name == "GN_CastTie_StaticExport_Mesh",
+            "export_material_slots": export_materials,
+            "export_material_indices": sorted(export_material_indices),
+            "export_uv_quality": _uv_quality_report(export_gn[0].data),
+        }
     else:
         city_objects = []
     if any(not obj.data.polygons or not obj.data.uv_layers for obj in [*objects, *city_objects]):
         raise RuntimeError("reopened source contains an empty mesh or missing UVs")
+    uv_meshes = [*objects, *city_objects]
+    if city is not None:
+        uv_meshes.extend(obj for obj in export_objects if obj.get("evaluated_from_geometry_nodes"))
+    uv_reports = {obj.name: _uv_quality_report(obj.data, metric="night_sky_dome" not in obj.name) for obj in uv_meshes}
+    metric_issues = {name: item["metric_issues"] for name, item in uv_reports.items() if item["metric_issues"]}
+    if metric_issues:
+        raise RuntimeError(f"reopened source has non-metric UV0 triangles: {list(metric_issues.items())[:4]}")
+    uv_faces = sum(item["faces"] for item in uv_reports.values())
+    uv_degenerate = sum(item["degenerate_faces"] for item in uv_reports.values())
+    if uv_faces and uv_degenerate / uv_faces > 0.01:
+        raise RuntimeError(f"{uv_degenerate} of {uv_faces} reopened mesh faces have zero UV area")
     report.update({
+        "uv_quality": {"mesh_count": len(uv_reports), "face_count": uv_faces, "degenerate_face_count": uv_degenerate, "degenerate_fraction": uv_degenerate / max(1, uv_faces), "meshes": uv_reports, "secondary_uv_policy": "existing UV layers are copied with mesh data and never removed; new meshes author UV0"},
         "blend_path": str(output_path.resolve()),
         "blender_version": bpy.app.version_string,
         "reopened_mesh_objects": len(objects) + len(city_objects),
         "reopened_north_meshes": len(objects),
         "reopened_city_extension_meshes": len(city_objects),
+        "reopened_city_export_meshes": len(export_objects) if city is not None else 0,
         "reopened_uv_meshes": sum(bool(obj.data.uv_layers) for obj in [*objects, *city_objects]),
         "reopened_valid_normal_polygons": sum(sum(poly.normal.length > 0.99 for poly in obj.data.polygons) for obj in [*objects, *city_objects]),
         "preview_scene_objects": preview_outputs,
         "offline_render_status": "not rendered yet; run modeling/tokyo_nova/render_city_previews.py with CPU Cycles",
-        "export_collection": "TokyoNovaNorth" if sector == "north" else "TokyoNovaCity",
+        "export_collection": "TokyoNovaNorth" if sector == "north" else "TokyoNovaCityExport",
+        "editable_city_source_collection": "TokyoNovaCity" if sector == "all" else None,
+        "geometry_nodes_authoring_collection": "TokyoNovaProceduralAuthoring" if sector == "all" else None,
         "preserved_north_export_collection": "TokyoNovaNorth" if sector == "all" else None,
         "preview_collection_excluded_from_export": "TokyoNovaPreviewOnly",
     })

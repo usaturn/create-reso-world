@@ -26,30 +26,36 @@ def _dome() -> Assembly:
         for col in range(segments):
             a, b = start_a + col, start_a + (col + 1) % segments
             c, d = start_b + (col + 1) % segments, start_b + col
-            faces.append((a, b, c, d))
+            # All rows face the inhabited side; the pole fan above is inward-wound too.
+            faces.append((a, d, c, b))
     return Assembly("night_sky_dome", "Owned inner-facing rain-night dome", (0, 0, 0), 0.0, [geo.mesh("night_dome_inner_shell", vertices, faces, "glass")])
 
 
 def _horizon_layers() -> list[Assembly]:
     parts: list[geo.MeshData] = []
-    # Curved ribbon mesh is geometry, not a global Skybox/sky-material override.
-    radius, base_y = 62.0, -9.0
-    for band, (low, high, material) in enumerate(((0.12, 0.24, "cool_light"), (0.26, 0.31, "faded_teal"), (0.35, 0.39, "warm_light"))):
-        verts = []
-        faces = []
-        count = 72
-        for i in range(count + 1):
-            phi = math.tau * i / count
-            for angle in (low, high):
-                verts.append((radius * math.sin(angle) * math.cos(phi), base_y + radius * math.cos(angle), radius * math.sin(angle) * math.sin(phi)))
-        for i in range(count):
-            a = i * 2
-            faces.append((a, a + 1, a + 3, a + 2))
-        parts.append(geo.mesh(f"horizon_glow_band_{band}", verts, faces, material))
-    # Cloud wisps are irregular, separated translucent-looking matte forms above the skyline.
+    # Split, far-horizon ribbons do not close into a small orange circle over the plaza.
+    for band, (radius, base_y, material) in enumerate(((58.0, 2.2, "cool_light"), (62.0, 4.1, "faded_teal"), (65.0, 5.8, "warm_light"))):
+        for sector in range(8):
+            if band == 2 and sector % 3 != 0:
+                continue
+            start = math.tau * sector / 8 + 0.11 + band * 0.03
+            stop = math.tau * (sector + 1) / 8 - 0.13 - band * 0.02
+            count = 7
+            verts = []
+            faces = []
+            for index in range(count + 1):
+                phi = start + (stop - start) * index / count
+                waviness = math.sin(index * 1.7 + sector * 0.8) * (0.35 + band * 0.1)
+                for height in (base_y + waviness, base_y + 1.15 + waviness):
+                    verts.append((radius * math.cos(phi), height, radius * math.sin(phi)))
+            for index in range(count):
+                start_vertex = index * 2
+                faces.append((start_vertex, start_vertex + 2, start_vertex + 3, start_vertex + 1))
+            parts.append(geo.mesh(f"distant_horizon_glow_band_{band}_sector_{sector}", verts, faces, material))
+    # Wispy cloud strips sit beyond the owned blocks and carry no lit ground-facing loop.
     for cloud in range(12):
         phi = cloud * math.tau / 12 + .17
-        radius = 48.0 + (cloud % 3) * 2.5
+        radius = 54.0 + (cloud % 3) * 2.5
         y = 22.0 + (cloud % 4) * 2.2
         tangent = (-math.sin(phi), 0.0, math.cos(phi))
         center = (radius * math.cos(phi), y, radius * math.sin(phi))
@@ -60,8 +66,8 @@ def _horizon_layers() -> list[Assembly]:
             (center[0] + tangent[0] * length / 2, y + .68 + (cloud % 2) * .2, center[2] + tangent[2] * length / 2),
             (center[0] - tangent[0] * length / 2, y + .20, center[2] - tangent[2] * length / 2),
         )
-        parts.append(geo.mesh(f"cloud_wisp_{cloud}", points, ((0, 1, 2, 3),), "faded_teal" if cloud % 3 else "cool_light"))
-    return [Assembly("night_atmosphere", "Layered cloud wisps and horizon glow", (0, 0, 0), 0.0, parts)]
+        parts.append(geo.mesh(f"distant_cloud_wisp_{cloud}", points, ((0, 1, 2, 3),), "faded_teal" if cloud % 3 else "cool_light"))
+    return [Assembly("night_atmosphere", "Segmented distant glow and separated cloud wisps", (0, 0, 0), 0.0, parts)]
 
 
 def _far_city() -> Assembly:
@@ -104,13 +110,29 @@ def build_skyline(layout: dict[str, Any] | None = None) -> list[Assembly]:
 
 
 def sky_report(assemblies: list[Assembly]) -> dict[str, Any]:
+    dome = next((assembly for assembly in assemblies if assembly.kind == "night_sky_dome"), None)
+    inner_facing = dome is not None
+    if dome is not None:
+        for part in dome.parts:
+            for face in part.faces:
+                a, b, c = (part.vertices[index] for index in face[:3])
+                ab = tuple(b[axis] - a[axis] for axis in range(3))
+                ac = tuple(c[axis] - a[axis] for axis in range(3))
+                normal = (ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0])
+                centroid = tuple(sum(part.vertices[index][axis] for index in face) / len(face) for axis in range(3))
+                if sum(normal[axis] * (centroid[axis] - (0.0, -18.0, 0.0)[axis]) for axis in range(3)) >= -1e-7:
+                    inner_facing = False
+                    break
+            if not inner_facing:
+                break
     return {
-        "inner_facing": True,
+        "inner_facing": inner_facing,
         "owned_root_only": True,
         "mutates_global_skybox": False,
         "layer_count": len(assemblies),
         "layers": [{"kind": item.kind, "parts": len(item.parts), "triangles": sum(len(face) - 2 for part in item.parts for face in part.faces)} for item in assemblies],
-        "city_extent": "far skyline begins beyond the 50 m owned ground and uses original non-geographic silhouettes",
+        "city_extent": "artistic far-city silhouettes begin beyond the 50 m owned ground; cloud wisps and split glow arcs sit beyond 54 m",
+        "horizon_glow": "warm accents use separated 65 m arcs; there is no closed near-plaza emissive ring",
         "visual_limit": "global directional lighting may affect owned geometry; no world-wide light/sky component was edited",
     }
 

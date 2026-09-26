@@ -240,39 +240,35 @@ def _front_wall_parts(building: dict[str, Any], wall_base: float, wall_top: floa
 
 
 def _basement_floor_panels(key: str, width: float, depth: float, access: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    """Build floor panels around the opening declared by this basement access."""
+    """Emit native floor panels around the same opening used by the actual descent."""
     floor_y, thickness = 0.20, 0.24
     if access is None:
         return [_box_slot(f"{key}_floor", "Blockout interior floor slab", [0, floor_y, 0], [width, thickness, depth], "mat_floor", collider=True)]
     opening = access["floor_opening"]
     panel_prefix = access.get("floor_key_prefix", key)
-    center_x, center_z = opening["center"]
-    first_size, second_size = opening["size"]
-    if opening["axis"] == "z":
-        opening_width, opening_depth = first_size, second_size
-        side = (width - opening_width) / 2
-        z_min = -depth / 2
-        remaining = center_z - opening_depth / 2 - z_min
-        panels = [
-            _box_slot(f"{panel_prefix}_floor_well_left", "Floor panel beside basement cutout", [center_x - opening_width / 2 - side / 2, floor_y, 0], [side, thickness, depth], "mat_floor", collider=True),
-            _box_slot(f"{panel_prefix}_floor_well_right", "Floor panel beside basement cutout", [center_x + opening_width / 2 + side / 2, floor_y, 0], [side, thickness, depth], "mat_floor", collider=True),
-        ]
-        if remaining > 1e-8:
-            panels.append(_box_slot(f"{panel_prefix}_floor_well_back", "Floor panel beyond basement cutout", [center_x, floor_y, z_min + remaining / 2], [opening_width, thickness, remaining], "mat_floor", collider=True))
-        return panels
-    if opening["axis"] == "x":
-        opening_depth, opening_width = first_size, second_size
-        side = (depth - opening_width) / 2
-        x_min = -width / 2
-        remaining = center_x - opening_depth / 2 - x_min
-        panels = [
-            _box_slot(f"{panel_prefix}_floor_well_left", "Floor panel beside basement cutout", [0, floor_y, center_z - opening_width / 2 - side / 2], [width, thickness, side], "mat_floor", collider=True),
-            _box_slot(f"{panel_prefix}_floor_well_right", "Floor panel beside basement cutout", [0, floor_y, center_z + opening_width / 2 + side / 2], [width, thickness, side], "mat_floor", collider=True),
-        ]
-        if remaining > 1e-8:
-            panels.append(_box_slot(f"{panel_prefix}_floor_well_back", "Floor panel beyond basement cutout", [x_min + remaining / 2, floor_y, center_z], [remaining, thickness, opening_width], "mat_floor", collider=True))
-        return panels
-    raise ValueError(f"unsupported basement floor opening axis: {opening['axis']}")
+    center_x, center_z = (float(value) for value in opening["center"])
+    size_x, size_z = (float(value) for value in opening["size"])
+    xmin, xmax, zmin, zmax = -width / 2, width / 2, -depth / 2, depth / 2
+    hole_x0, hole_x1 = max(xmin, center_x - size_x / 2), min(xmax, center_x + size_x / 2)
+    hole_z0, hole_z1 = max(zmin, center_z - size_z / 2), min(zmax, center_z + size_z / 2)
+    if hole_x1 <= hole_x0 or hole_z1 <= hole_z0:
+        raise ValueError(f"basement opening for {key} does not cross its actual floor slab")
+    rectangles = (
+        ("west", xmin, hole_x0, zmin, zmax),
+        ("east", hole_x1, xmax, zmin, zmax),
+        ("rear", hole_x0, hole_x1, zmin, hole_z0),
+        ("front", hole_x0, hole_x1, hole_z1, zmax),
+    )
+    result = []
+    for side, x0, x1, z0, z1 in rectangles:
+        if x1 - x0 <= 0.03 or z1 - z0 <= 0.03:
+            continue
+        result.append(_box_slot(
+            f"{panel_prefix}_floor_well_{side}", "Floor panel beside basement cutout",
+            [(x0 + x1) / 2, floor_y, (z0 + z1) / 2], [x1 - x0, thickness, z1 - z0],
+            "mat_floor", collider=True,
+        ))
+    return result
 
 
 def _building_shell(building: dict[str, Any], basement_access: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -349,7 +345,7 @@ def _stair_treads(access: dict[str, Any], building: dict[str, Any]) -> list[dict
         else:
             position = [center_x, top_y - rise / 2, center_z + outward[1] * distance]
             size = [clear_width, rise, tread]
-        result.append(_box_slot(f"{prefix}_stair_{index:02d}", "Basement stair tread · blockout", position, size, "mat_concrete", collider=True))
+        result.append(_box_slot(f"{prefix}_stair_{index:02d}", "Basement stair tread · visual detail", position, size, "mat_concrete", collider=False))
     return result
 
 
@@ -392,9 +388,101 @@ def _basement_access_slots(layout: dict[str, Any]) -> list[dict[str, Any]]:
             result.append(_ramp_slot(access["key"], "Theatre basement ramp through declared floor opening", start, end, float(access["clear_width"])))
         elif access["kind"] == "open_stairwell_and_landing":
             result.extend(_stair_treads(access, building))
+            start = [start_xz[0], 0.0, start_xz[1]]
+            end = [start_xz[0] + inward[0] * run, -depth_below_grade, start_xz[1] + inward[1] * run]
+            surface = _ramp_slot(f"{access['key']}_walk_surface", "Continuous basement stair collision", start, end, float(access["clear_width"]))
+            # Keep the authored stair silhouette, with no step edges in the walking
+            # collision and no rendered ramp covering the visible treads.
+            surface["components"] = [c for c in surface["components"] if c["type"] == "FrooxEngine.BoxCollider"]
+            result.append(surface)
         else:
             raise ValueError(f"unsupported basement access kind: {access['kind']}")
     return result
+
+def _roof_access_slots(layout: dict[str, Any], roof_record: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Create a guarded switchback whose final ramp terminates on the emitted roof slab."""
+    roof_access = layout["roof_access"]
+    if roof_record is None:
+        from modeling.tokyo_nova.districts import build_districts
+        _assemblies, records = build_districts(layout)
+        roof_record = records[roof_access["building_key"]]
+    entry = roof_record["roof_entry_point"]
+    flights = roof_access["flights"]
+    resolved = []
+    for index, flight in enumerate(flights):
+        start = [float(value) for value in flight["start"]]
+        if "end" in flight:
+            end = [float(value) for value in flight["end"]]
+        else:
+            end = [float(entry[0]), float(entry[1]), float(entry[2])]
+        horizontal_run = math.hypot(end[0] - start[0], end[2] - start[2])
+        if horizontal_run < 1e-4 or abs(end[1] - start[1]) / horizontal_run > 0.20:
+            raise ValueError(f"roof ramp {flight['key']} exceeds its safe 1:5 rise/run")
+        resolved.append((flight["key"], start, end))
+
+    landing_size = [float(value) for value in roof_access["landing_size"]]
+    handrail_height = float(roof_access["handrail_height"])
+    clear_width = float(roof_access["clear_width"])
+    children: list[dict[str, Any]] = []
+    for index, landing in enumerate(roof_access["turn_landings"]):
+        x, y, z = (float(value) for value in landing["center"])
+        key = landing["key"]
+        children.append(_box_slot(key, "Level switchback turning platform with static collision", [x, y - 0.06, z], [landing_size[0], 0.12, landing_size[1]], "mat_roof", collider=True))
+        rail_y = y + handrail_height
+        hx, hz = landing_size[0] / 2, landing_size[1] / 2
+        contacts = ((resolved[index], True), (resolved[index + 1], False))
+        # Cut only the incident flight footprints out of each perimeter rail. For
+        # oblique flights the opening is the projected width at this edge plane.
+        for axis, label, half_span in ((0, "x", hx), (2, "z", hz)):
+            normal_axis = 2 if axis == 0 else 0
+            for side in (-1, 1):
+                edge = [x, rail_y, z]
+                edge[normal_axis] += side * (hz if axis == 0 else hx)
+                intervals = [(edge[axis] - half_span, edge[axis] + half_span)]
+                for (_, start, end), at_end in contacts:
+                    contact = end if at_end else start
+                    if abs(contact[normal_axis] - edge[normal_axis]) > 1e-5:
+                        continue
+                    run = math.hypot(end[0] - start[0], end[2] - start[2])
+                    normal_run = abs(end[normal_axis] - start[normal_axis])
+                    if normal_run < 1e-6:
+                        raise ValueError(f"roof flight is tangent to landing {key}")
+                    half_opening = clear_width / 2 * run / normal_run + 0.04
+                    gap_low, gap_high = contact[axis] - half_opening, contact[axis] + half_opening
+                    intervals = [piece for low, high in intervals for piece in
+                                 ((low, min(high, gap_low)), (max(low, gap_high), high))
+                                 if piece[1] - piece[0] > 1e-5]
+                for segment, (low, high) in enumerate(intervals):
+                    center = list(edge)
+                    center[axis] = (low + high) / 2
+                    size = [0.06, 0.06, 0.06]
+                    size[axis] = high - low
+                    suffix = "" if segment == 0 else f"_segment_{segment}"
+                    children.append(_box_slot(f"{key}_guardrail_{label}_{side}{suffix}", "Landing perimeter guardrail with flight opening", center, size, "mat_roof", collider=True))
+        for side in (-1, 1):
+            for corner in (-1, 1):
+                children.append(_box_slot(f"{key}_guardrail_post_{side}_{corner}", "Landing guardrail post", [x + side * (hx - 0.04), y + handrail_height / 2, z + corner * (hz - 0.04)], [0.07, handrail_height, 0.07], "mat_roof", collider=True))
+
+    for key, start, end in resolved:
+        children.append(_ramp_slot(key, "Guarded walkable roof switchback flight", start, end, clear_width))
+        direction = [end[axis] - start[axis] for axis in range(3)]
+        length = math.sqrt(sum(value * value for value in direction))
+        rotation = _gravity_up_ramp_rotation(direction)
+        right = _rotate_vector(rotation, (1.0, 0.0, 0.0))
+        up = _rotate_vector(rotation, (0.0, 1.0, 0.0))
+        middle = [(start[axis] + end[axis]) / 2 for axis in range(3)]
+        post_count = max(1, math.ceil(length / 2.0))
+        for side in (-1, 1):
+            offset = side * (clear_width / 2 + 0.08)
+            rail_center = [middle[axis] + right[axis] * offset + up[axis] * handrail_height for axis in range(3)]
+            children.append(_box_slot(f"{key}_handrail_{side}", "Continuous roof-flight handrail", rail_center, [0.055, 0.055, length], "mat_roof", rotation=rotation, collider=True))
+            for post in range(post_count + 1):
+                t = post / post_count
+                base = [start[axis] + (end[axis] - start[axis]) * t for axis in range(3)]
+                center = [base[axis] + right[axis] * offset + up[axis] * (handrail_height / 2) for axis in range(3)]
+                children.append(_box_slot(f"{key}_handrail_post_{side}_{post}", "Roof-flight handrail support", center, [0.055, handrail_height, 0.055], "mat_roof", rotation=rotation, collider=True))
+    return {"slot": {"key": "roof_access_geometry", "name": "Geometry-derived guarded roof switchback"}, "children": children}
+
 
 def build_blockout_manifest(layout: dict[str, Any]) -> dict[str, Any]:
     """Create a deterministic native-geometry blockout manifest from layout data."""
@@ -423,15 +511,7 @@ def build_blockout_manifest(layout: dict[str, Any]) -> dict[str, Any]:
             children.append(_box_slot(f"route_{route['key']}_{index:02d}", f"Blockout route surface · {route['key']}", position, [float(route["width"]), 0.01, length], "mat_asphalt", rotation=_segment_rotation(start, end)))
     access_by_building = {access["building_key"]: access for access in layout["basement_access"]}
     children.extend(_building_shell(building, access_by_building.get(building["key"])) for building in layout["buildings"])
-    roof = next(building for building in layout["buildings"] if building["key"] == layout["roof_access"]["building_key"])
-    roof_west_edge = float(roof["center"][0]) - (float(roof["size"][0]) + 0.3) / 2
-    children.append(_ramp_slot(
-        "roof_access_ramp",
-        "Walkable roof-overlook approach · blockout ramp",
-        [-37, 0.0, float(roof["center"][2])],
-        [roof_west_edge, float(layout["roof_access"]["target_height"]), float(roof["center"][2])],
-        float(layout["roof_access"]["clear_width"]),
-    ))
+    children.append(_roof_access_slots(layout))
     children.extend(_basement_access_slots(layout))
     return {
         "schemaVersion": "1", "ownership": {"key": ROOT_KEY}, "limits": {"expandedNodes": 12000},
@@ -543,8 +623,21 @@ def build_city_manifest(layout: dict[str, Any], city: dict[str, Any], *, exporte
             asset["source"] = Path(os.path.relpath(source_path, output_path.parent.resolve())).as_posix()
     _disable_city_blockout_shells(manifest)
     children = manifest.setdefault("children", [])
-    managed_groups = {"city_detail", "city_collision_geometry"}
-    children[:] = [child for child in children if child.get("slot", {}).get("key") not in managed_groups]
+    managed_groups = {"city_detail", "city_collision_geometry", "roof_access_geometry"}
+    basement_slots = _basement_access_slots(layout)
+    basement_keys = {node["slot"]["key"] for node in basement_slots}
+    previous_roof_slots = {"roof_access_ramp", "roof_access_ramp_lower", "roof_access_ramp_middle", "roof_switchback_landing_1", "roof_switchback_landing_2"}
+    # These stable tiles are this owned root's only grade-level collision surface. Rebuild
+    # their partition from declared access wells while leaving north content and world Ground untouched.
+    children[:] = [
+        child for child in children
+        if child.get("slot", {}).get("key") not in managed_groups | previous_roof_slots | basement_keys
+        and not child.get("slot", {}).get("key", "").startswith("outer_ground_tile_")
+    ]
+    children.extend(_ground_tile_slots(layout))
+    # The North checkpoint contains old native basement geometry. Refresh only
+    # these exact managed keys, rather than leaving a stale descent in the city.
+    children.extend(basement_slots)
     if not any(child.get("slot", {}).get("key") == "north_collision_geometry" for child in children):
         children.append(collision_manifest_entries(layout))
     if not any(child.get("slot", {}).get("key") == "north_physical_japanese_signage" for child in children):
@@ -552,6 +645,8 @@ def build_city_manifest(layout: dict[str, Any], city: dict[str, Any], *, exporte
         children.append(sign_groups["physical"])
         children.append(sign_groups["ar"])
     children.append(_city_collision_group(city))
+    roof_key = layout["roof_access"]["building_key"]
+    children.append(_roof_access_slots(layout, city["building_geometry"][roof_key]))
 
     for light in city["lighting"]["lights"]:
         children.append({
@@ -584,7 +679,9 @@ def build_city_manifest(layout: dict[str, Any], city: dict[str, Any], *, exporte
         extension_children.append(_city_facility_signage(layout))
         children.append({"slot": {"key": "city_detail", "name": "Tokyo Nova full detailed city meshes, interiors and owned sky"}, "children": copy.deepcopy(extension_children)})
 
-    manifest.setdefault("limits", {})["expandedNodes"] = max(int(manifest["limits"].get("expandedNodes", 0)), 60000)
+    # The composed structural candidate measures ~63k JSON values (not Slots).
+    # Keep modest headroom; full mesh export is validated separately in Task3E.
+    manifest.setdefault("limits", {})["expandedNodes"] = max(int(manifest["limits"].get("expandedNodes", 0)), 70000)
     manifest["tests"] = [{"name": "tokyo-nova-owned-root-and-open-plaza", "assertions": [{"target": "$slot:root", "exists": True}]}]
     if output_path is not None:
         output_path.parent.mkdir(parents=True, exist_ok=True)

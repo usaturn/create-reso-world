@@ -132,179 +132,65 @@ def _b(name: str, center: Vec3, size: Vec3, material: str, bevel: float = 0.0) -
 
 
 def _build_prop(kind: str, center: Vec3, rotation: float, spec: tuple[str, str, tuple[float, float, float], str, str]) -> Assembly:
-    _key, family, size, primary, secondary = spec
-    sx, sy, sz = size
-    parts: list[geo.MeshData] = []
-    def box(name: str, pos: Vec3, dimensions: Vec3, material: str = primary, bevel: float = 0.0) -> None:
-        parts.append(_b(f"{kind}_{name}", pos, dimensions, material, min(bevel, min(dimensions) * .4) if bevel else 0))
-    def pipe(name: str, start: Vec3, end: Vec3, radius: float, material: str = secondary) -> None:
-        parts.append(geo.pipe(f"{kind}_{name}", start, end, radius, material, segments=8))
-    def cylinder(name: str, pos: Vec3, radius: float, depth: float, material: str = primary, axis: Vec3 = (0.0, 1.0, 0.0)) -> None:
-        parts.append(geo.cylinder(f"{kind}_{name}", pos, radius, depth, material, segments=12, axis=axis))
+    """Delegate to the named, function-specific asset-form library."""
+    from modeling.tokyo_nova.prop_forms import build_prop
 
-    if family == "architectural":
-        box("main_leaf", (0, sy * .5, 0), (sx, max(.035, sy * .76), sz), primary, .025)
-        box("stiffener", (0, sy * .19, sz * .54), (sx * .94, .055, .035), secondary)
-        for side in (-1, 1):
-            pipe(f"hinge_{side}", (side * sx * .43, sy * .18, -sz * .50), (side * sx * .43, sy * .82, -sz * .50), .018)
-        for n in range(5):
-            box(f"corrugation_{n}", (0, sy * (.25 + n * .11), sz * .54), (sx * .92, .018, .018), secondary)
-    elif family == "utility":
-        box("casing", (0, sy * .50, 0), (sx * .82, sy * .82, sz * .74), primary, .04)
-        box("service_cover", (0, sy * .52, -sz * .40), (sx * .62, sy * .62, .025), secondary, .018)
-        cylinder("gauge", (0, sy * .60, -sz * .43), min(sx, sy) * .15, .025, "glass", axis=(0, 0, -1))
-        for xside in (-1, 1):
-            pipe(f"hose_{xside}", (xside * sx * .40, sy * .18, 0), (xside * sx * .42, sy * .05, sz * .40), .018)
-        for n in range(3):
-            box(f"vent_{n}", (0, sy * (.30 + n * .12), -sz * .43), (sx * .50, .025, .018), "rubber")
-    elif family in ("medical", "food", "daily", "logistics", "community", "storage", "bar", "tailor", "workshop", "arcade", "theatre", "talisman", "vehicle"):
-        # Each function family has different useful geometry, support and wear cues.
-        if kind in {"lidded_stockpot", "cfc_food_canister", "laundry_bucket", "detergent_canister", "roof_tank_filter", "shared_kitchen_kettle"}:
-            cylinder("vessel", (0, sy * .48, 0), min(sx, sz) * .45, sy * .76, primary)
-            cylinder("rolled_rim", (0, sy * .86, 0), min(sx, sz) * .48, .035, secondary)
-            cylinder("lid", (0, sy * .91, 0), min(sx, sz) * .43, .035, "cream_plastic" if primary != "cream_plastic" else "exposed_metal")
-            for side in (-1, 1):
-                pipe(f"handle_{side}", (side * sx * .43, sy * .60, 0), (side * sx * .58, sy * .60, 0), .025)
-        elif kind in {"diagnostic_table", "serving_counter", "classroom_desk", "stained_bar_counter", "wooden_pallet", "warehouse_strapped_crates", "shipping_crate"}:
-            box("top_or_body", (0, sy * .80, 0), (sx, sy * .18, sz), primary, .035)
-            for xi in (-1, 1):
-                for zi in (-1, 1):
-                    box(f"leg_{xi}_{zi}", (xi * sx * .42, sy * .40, zi * sz * .38), (max(.035, sx * .07), sy * .75, max(.035, sz * .07)), secondary, .012)
-            box("front_apron", (0, sy * .55, sz * .47), (sx * .88, sy * .18, .045), secondary)
-            if kind in {"shipping_crate", "warehouse_strapped_crates"}:
-                for side in (-1, 1):
-                    box(f"strap_{side}", (side * sx * .27, sy * .50, -sz * .515), (sx * .10, sy * .88, .025), "faded_teal")
-        elif kind in {"recliner_seat", "repair_chair", "classroom_chair"}:
-            box("seat_cushion", (0, sy * .40, 0), (sx * .82, sy * .13, sz * .65), primary, .045)
-            box("back_cushion", (0, sy * .70, -sz * .28), (sx * .76, sy * .48, sz * .13), "cloth" if primary != "cloth" else secondary, .04)
-            for side in (-1, 1):
-                box(f"leg_{side}", (side * sx * .32, sy * .18, sz * .20), (.045, sy * .36, .045), secondary)
-                if kind == "recliner_seat":
-                    box(f"arm_{side}", (side * sx * .46, sy * .52, sz * .05), (.10, .15, sz * .66), secondary, .025)
-            if kind == "recliner_seat":
-                pipe("tilt_link", (-sx * .28, sy * .20, -sz * .12), (sx * .28, sy * .27, -sz * .12), .022)
-        elif kind in {"motorcycle_static", "engine_case_half", "wheel_and_hub", "fuel_cell_turbine"}:
-            if kind == "motorcycle_static":
-                for wheel_x in (-sx * .36, sx * .36):
-                    cylinder(f"tire_{wheel_x:+.2f}", (wheel_x, sy * .20, 0), sy * .20, .12, "rubber", axis=(1, 0, 0))
-                    cylinder(f"hub_{wheel_x:+.2f}", (wheel_x, sy * .20, 0), sy * .09, .14, "exposed_metal", axis=(1, 0, 0))
-                pipe("lower_frame", (-sx * .34, sy * .22, 0), (sx * .12, sy * .47, 0), .032)
-                pipe("upper_frame", (-sx * .34, sy * .22, 0), (sx * .25, sy * .28, 0), .027)
-                pipe("front_fork", (sx * .32, sy * .21, 0), (sx * .43, sy * .62, 0), .026)
-                box("engine_block", (0, sy * .40, 0), (sx * .30, sy * .28, sz * .48), "exposed_metal", .035)
-                box("seat", (-sx * .02, sy * .71, 0), (sx * .36, sy * .11, sz * .36), "rubber", .03)
-                box("opened_side_cowl", (-sx * .20, sy * .48, -sz * .37), (sx * .32, sy * .26, .025), primary, .02)
-                pipe("handlebar", (sx * .38, sy * .75, -sz * .32), (sx * .38, sy * .75, sz * .32), .02)
-                pipe("detached_cover_lead", (-sx * .25, sy * .53, -sz * .42), (-sx * .46, sy * .38, -sz * .28), .012, "rubber")
-            else:
-                box("housing", (0, sy * .52, 0), (sx * .78, sy * .62, sz * .72), primary, .045)
-                for n in range(5):
-                    box(f"cooling_fin_{n}", (-sx * .28 + n * sx * .14, sy * .52, -sz * .40), (.035, sy * .44, .035), secondary)
-                cylinder("bearing", (0, sy * .22, 0), min(sx, sz) * .22, .06, "rust", axis=(0, 1, 0))
-                for side in (-1, 1):
-                    pipe(f"mount_{side}", (side * sx * .38, sy * .16, 0), (side * sx * .46, sy * .05, 0), .025)
-        elif kind in {"arcade_cabinet", "old_tron_terminal", "abstract_sea_screen", "donation_terminal"}:
-            box("lower_case", (0, sy * .30, 0), (sx, sy * .58, sz), primary, .045)
-            box("bezel", (0, sy * .69, -sz * .42), (sx * .82, sy * .31, .065), secondary, .025)
-            box("glass_or_screen", (0, sy * .70, -sz * .46), (sx * .68, sy * .23, .022), "cool_light" if kind in {"arcade_cabinet", "abstract_sea_screen"} else "glass", .015)
-            box("maintenance_door", (0, sy * .23, -sz * .515), (sx * .70, sy * .28, .018), "painted_metal")
-            for side in (-1, 1):
-                cylinder(f"control_{side}", (side * sx * .18, sy * .53, -sz * .48), .035, .035, "exposed_metal", axis=(0, 0, -1))
-            if kind == "abstract_sea_screen":
-                screen_z = -sz * .46 + .025
-                for wave in range(4):
-                    vertices = []
-                    faces = []
-                    for segment in range(9):
-                        x = -sx * .30 + segment * sx * .075
-                        center_y = sy * (.61 + wave * .052) + math.sin(segment * .82 + wave * .93) * sy * .018
-                        vertices.extend(((x, center_y - .012, screen_z), (x, center_y + .012, screen_z)))
-                    for segment in range(8):
-                        start = segment * 2
-                        faces.append((start, start + 2, start + 3, start + 1))
-                    parts.append(geo.mesh(f"{kind}_sea_wave_{wave}", vertices, faces, "cool_light" if wave % 2 else "faded_teal"))
-                for bubble in range(3):
-                    cylinder(f"{kind}_sea_glint_{bubble}", ((bubble - 1) * sx * .16, sy * (.63 + bubble * .055), screen_z + .004), .026, .012, "warm_light", axis=(0, 0, 1))
-        elif kind in {"clinic_privacy_curtain", "welding_curtain", "booth_partition", "patchwork_garment_rail", "amulet_shelf", "shared_mailboxes"}:
-            if "curtain" in kind or kind == "booth_partition":
-                pipe("top_rail", (-sx * .48, sy * .92, 0), (sx * .48, sy * .92, 0), .022)
-                box("fabric", (0, sy * .48, 0), (sx * .86, sy * .78, sz), primary, .008)
-                for n in range(5):
-                    box(f"pleat_{n}", (-sx * .34 + n * sx * .17, sy * .48, sz * .55), (.025, sy * .75, .025), secondary)
-            else:
-                box("back_or_body", (0, sy * .50, 0), (sx, sy * .84, max(.06, sz * .18)), primary, .025)
-                for side in (-1, 1):
-                    pipe(f"upright_{side}", (side * sx * .44, .04, 0), (side * sx * .44, sy, 0), .025, secondary)
-                for n in range(3):
-                    box(f"shelf_{n}", (0, sy * (.18 + n * .28), sz * .30), (sx * .90, .045, sz * .72), primary)
-                if kind == "shared_mailboxes":
-                    for row in range(3):
-                        for col in range(2):
-                            box(f"mail_door_{row}_{col}", ((col - .5) * sx * .42, sy * (.20 + row * .25), -sz * .12), (sx * .36, sy * .19, .025), secondary)
-        elif kind in {"slip_on_shoes", "stitched_charm_pouches", "paper_talisman_bundle", "clothes_hanger", "thread_spools", "stacked_textbooks", "game_cartridge_case", "score_card_tray", "prepaid_card_tray", "zipper_and_patch_cards", "sewing_tool_roll", "sorted_food_tubs", "reuse_container_stack", "tray_of_tools"}:
-            box("tray_or_case", (0, sy * .45, 0), (sx, sy * .30, sz), primary, .025)
-            for n in range(3):
-                box(f"item_{n}", (-sx * .30 + n * sx * .30, sy * .72, 0), (sx * .20, sy * .32, sz * .55), secondary if n % 2 else primary, .015)
-            if kind in {"stitched_charm_pouches", "paper_talisman_bundle"}:
-                for n in range(3):
-                    pipe(f"suspension_thread_{n}", (-sx * .30 + n * sx * .30, sy * .90, -sz * .18), (-sx * .30 + n * sx * .30, sy * .65, -sz * .18), .008, "rust")
-        else:
-            # Distinct assembled utility furniture: a load-bearing top, four legs and fitted fittings.
-            box("body", (0, sy * .54, 0), (sx * .82, sy * .74, sz * .74), primary, .025)
-            box("access_panel", (0, sy * .52, -sz * .40), (sx * .58, sy * .42, .025), secondary, .012)
-            for side in (-1, 1):
-                pipe(f"support_{side}", (side * sx * .35, sy * .16, sz * .30), (side * sx * .40, sy * .02, sz * .34), .02, secondary)
-                cylinder(f"fastener_{side}", (side * sx * .23, sy * .52, -sz * .43), .018, .012, "rust", axis=(0, 0, -1))
-            for n in range(2):
-                box(f"service_detail_{n}", ((n - .5) * sx * .25, sy * .34, -sz * .42), (sx * .08, sy * .12, .02), "warm_light" if n == 0 and kind in {"repair_lamp", "donation_terminal"} else "rubber")
-    else:
-        raise ValueError(f"unsupported prop family {family!r} for {kind}")
-
-    # Avoid zero-volume/coplanar parts, and put every assembly at the specified room position.
-    return Assembly("interior_props", kind, center, rotation, parts)
+    return build_prop(kind, center, rotation, spec)
 
 
-def _room_shell(building: dict[str, Any], facility_key: str, basement_y: float | None = None) -> Assembly:
-    width, depth = (float(v) for v in building["size"])
+def _room_shell(
+    building: dict[str, Any], facility_key: str, basement_y: float | None = None,
+    access: dict[str, Any] | None = None,
+) -> Assembly:
+    """Emit room floors and entry surfaces around the same real basement opening."""
+    width, depth = (float(value) for value in building["size"])
     ybase = float(basement_y or 0.0)
     height = 2.85
     front = str(building["front"])
-    thickness = .12
+    thickness = 0.12
     door = 1.5 if facility_key == "west_basement_bar" else (1.8 if facility_key == "south_theatre" else 1.3)
     inner_width, inner_depth = width - .42, depth - .42
-    floor_thickness = 0.05 if ybase < 0 else 0.06
-    floor_surface_y = ybase + (0.05 if ybase < 0 else 0.06)
+    floor_thickness = .05 if ybase < 0 else .06
+    floor_surface_y = ybase + floor_thickness
     floor_center_y = floor_surface_y - floor_thickness / 2
-    if ybase < 0:
-        # Keep the continuous basement stair/ramp corridor open; no hidden floor collider crosses it.
-        corridor_width = 1.5 if facility_key == "west_basement_bar" else 1.8
-        if facility_key == "west_basement_bar":
-            side_width = (inner_depth - corridor_width) / 2
-            parts: list[geo.MeshData] = [
-                geo.box(f"{facility_key}_room_floor_left", (0, floor_center_y, -corridor_width / 2 - side_width / 2), (inner_width, floor_thickness, side_width), "wood"),
-                geo.box(f"{facility_key}_room_floor_right", (0, floor_center_y, corridor_width / 2 + side_width / 2), (inner_width, floor_thickness, side_width), "wood"),
-            ]
-        else:
-            side_width = (inner_width - corridor_width) / 2
-            parts = [
-                geo.box(f"{facility_key}_room_floor_left", (-corridor_width / 2 - side_width / 2, floor_center_y, 0), (side_width, floor_thickness, inner_depth), "wood"),
-                geo.box(f"{facility_key}_room_floor_right", (corridor_width / 2 + side_width / 2, floor_center_y, 0), (side_width, floor_thickness, inner_depth), "wood"),
-            ]
+    parts: list[geo.MeshData] = []
+
+    if ybase < 0 and access is not None:
+        opening = access["floor_opening"]
+        hole_x, hole_z = (float(value) for value in opening["center"])
+        hole_width, hole_depth = (float(value) for value in opening["size"])
+        xmin, xmax, zmin, zmax = -inner_width / 2, inner_width / 2, -inner_depth / 2, inner_depth / 2
+        x0, x1 = max(xmin, hole_x - hole_width / 2), min(xmax, hole_x + hole_width / 2)
+        z0, z1 = max(zmin, hole_z - hole_depth / 2), min(zmax, hole_z + hole_depth / 2)
+        if x1 <= x0 or z1 <= z0:
+            raise ValueError(f"basement room opening for {facility_key} misses its emitted floor")
+        for label, rect in (("west", (xmin, x0, zmin, zmax)), ("east", (x1, xmax, zmin, zmax)), ("rear", (x0, x1, zmin, z0)), ("front", (x0, x1, z1, zmax))):
+            left, right, back, forward = rect
+            if right - left > .03 and forward - back > .03:
+                parts.append(geo.box(
+                    f"{facility_key}_room_floor_{label}",
+                    ((left + right) / 2, floor_center_y, (back + forward) / 2),
+                    (right - left, floor_thickness, forward - back),
+                    "wood",
+                ))
     else:
-        parts = [geo.box(f"{facility_key}_room_floor", (0, floor_center_y, 0), (inner_width, floor_thickness, inner_depth), "wood")]
+        parts.append(geo.box(f"{facility_key}_room_floor", (0, floor_center_y, 0), (inner_width, floor_thickness, inner_depth), "wood"))
+
     if front in ("north", "south"):
         rear_z = -(inner_depth - thickness) / 2 if front == "north" else (inner_depth - thickness) / 2
         parts.append(geo.box(f"{facility_key}_room_rear_wall", (0, ybase + height / 2, rear_z), (inner_width, height, thickness), "patched_concrete"))
     else:
         rear_x = -(inner_width - thickness) / 2 if front == "east" else (inner_width - thickness) / 2
         parts.append(geo.box(f"{facility_key}_room_rear_wall", (rear_x, ybase + height / 2, 0), (thickness, height, inner_depth), "patched_concrete"))
-    # Omit the actual front wall entry and the corresponding section of one adjacent return wall.
+
+    # Basement passages have no low header across the descent; the opening remains head-clear.
     if front in ("north", "south"):
         front_z = (inner_depth - thickness) / 2 * (1 if front == "north" else -1)
         side_w = (inner_width - door) / 2
         for side in (-1, 1):
             parts.append(geo.box(f"{facility_key}_room_front_jamb_{side}", (side * (door / 2 + side_w / 2), ybase + height / 2, front_z), (side_w, height, thickness), "painted_metal"))
-        parts.append(geo.box(f"{facility_key}_room_front_lintel", (0, ybase + height - .26, front_z), (inner_width, .52, thickness), "exposed_metal"))
+        if ybase >= 0:
+            parts.append(geo.box(f"{facility_key}_room_front_lintel", (0, ybase + height - .26, front_z), (inner_width, .52, thickness), "exposed_metal"))
         for side in (-1, 1):
             parts.append(geo.box(f"{facility_key}_room_side_{side}", (side * (inner_width - thickness) / 2, ybase + height / 2, 0), (thickness, height, inner_depth), "concrete"))
     else:
@@ -312,9 +198,11 @@ def _room_shell(building: dict[str, Any], facility_key: str, basement_y: float |
         side_d = (inner_depth - door) / 2
         for side in (-1, 1):
             parts.append(geo.box(f"{facility_key}_room_front_jamb_{side}", (front_x, ybase + height / 2, side * (door / 2 + side_d / 2)), (thickness, height, side_d), "painted_metal"))
-        parts.append(geo.box(f"{facility_key}_room_front_lintel", (front_x, ybase + height - .26, 0), (thickness, .52, inner_depth), "exposed_metal"))
+        if ybase >= 0:
+            parts.append(geo.box(f"{facility_key}_room_front_lintel", (front_x, ybase + height - .26, 0), (thickness, .52, inner_depth), "exposed_metal"))
         for side in (-1, 1):
             parts.append(geo.box(f"{facility_key}_room_side_{side}", (0, ybase + height / 2, side * (inner_depth - thickness) / 2), (inner_width, height, thickness), "concrete"))
+
     center = building["center"]
     origin = (float(center[0]), float(center[1]), float(center[2]))
     return Assembly("interior_room", facility_key, origin, 0, parts)
@@ -329,6 +217,7 @@ def build_interiors(layout: dict[str, Any]) -> tuple[list[Assembly], dict[str, d
     access: dict[str, dict[str, Any]] = {}
     facility_geometry: dict[str, dict[str, Any]] = {}
     emitted_assets: dict[str, dict[str, Any]] = {}
+    basement_access_by_building = {item["building_key"]: item for item in layout["basement_access"]}
     slot_positions = ((-1.30, -0.80), (0.0, -0.85), (1.28, -0.75), (-1.18, 0.85), (0.05, 0.90), (1.22, 0.82), (-0.82, 0.05), (0.85, 0.08))
     for facility_index, (building_key, prop_keys) in enumerate(_FACILITY_PROPS.items()):
         building = buildings[building_key]
@@ -341,7 +230,7 @@ def build_interiors(layout: dict[str, Any]) -> tuple[list[Assembly], dict[str, d
             # These three authored Task 2 assemblies are already detailed and tuned; do not overlay them.
             facility_geometry[facility["key"]] = {"facility_key": facility["key"], "building_key": building_key, "asset_kinds": (), "room_part_count": 0, "asset_part_count": 0, "emitted_geometry": True, "preserved_existing_north_geometry": True}
             continue
-        shell = _room_shell(building, building_key, base_y)
+        shell = _room_shell(building, building_key, base_y, basement_access_by_building.get(building_key))
         assemblies.append(shell)
         for prop_index, key in enumerate(prop_keys):
             spec = specs[key]
@@ -407,8 +296,9 @@ def build_interiors(layout: dict[str, Any]) -> tuple[list[Assembly], dict[str, d
             left_jamb = next(part for part in room_parts if part.name == f"{building_key}_room_front_jamb_-1")
             right_jamb = next(part for part in room_parts if part.name == f"{building_key}_room_front_jamb_1")
             door_width = min(vertex[front_axis] for vertex in right_jamb.vertices) - max(vertex[front_axis] for vertex in left_jamb.vertices)
-            lintel = next(part for part in room_parts if part.name == f"{building_key}_room_front_lintel")
-            door_height = min(vertex[1] for vertex in lintel.vertices) - floor_surface_y
+            lintel = next((part for part in room_parts if part.name == f"{building_key}_room_front_lintel"), None)
+            opening_top = min(vertex[1] for vertex in lintel.vertices) if lintel else base_y + 2.85
+            door_height = opening_top - floor_surface_y
             front = building["front"]
             cx, _cy, cz = (float(value) for value in building["center"])
             build_width, build_depth = (float(value) for value in building["size"])
