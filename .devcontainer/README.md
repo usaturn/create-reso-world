@@ -109,19 +109,22 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 
 1. `claude plugin marketplace add dashed/claude-marketplace`
 2. `claude plugin install example-skills@anthropic-agent-skills`
-3. `claude plugin install web-quality-skills@addy-web-quality-skills`
-4. `claude plugin install ripgrep@alberto-marketplace`
-5. `mkdir -p ~/.pi/agent && cp .devcontainer/pi-models.json ~/.pi/agent/models.json`
-6. `mkdir -p ~/.local/bin && install -m 0755 .devcontainer/pigo ~/.local/bin/pigo`
-7. `install -m 0755 .devcontainer/pigod ~/.local/bin/pigod`
-8. `install -m 0755 .devcontainer/pigou ~/.local/bin/pigou`
-9. `install -m 0755 .devcontainer/piccg ~/.local/bin/piccg`
-10. `install -m 0755 .devcontainer/piccd ~/.local/bin/piccd`
-11. `install -m 0755 .devcontainer/piga ~/.local/bin/piga`
-12. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
-13. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
-14. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
-15. `zsh .devcontainer/setup_pi_superagents.zsh`
+3. `claude plugin install superpowers@claude-plugins-official`
+4. `claude plugin install feature-dev@claude-plugins-official`
+5. `claude plugin install web-quality-skills@addy-web-quality-skills`
+6. `claude plugin install ripgrep@alberto-marketplace`
+7. `npm install -g @openai/codex@latest`
+8. `mkdir -p ~/.pi/agent && cp .devcontainer/pi-models.json ~/.pi/agent/models.json`
+9. `mkdir -p ~/.local/bin && install -m 0755 .devcontainer/pigo ~/.local/bin/pigo`
+10. `install -m 0755 .devcontainer/pigod ~/.local/bin/pigod`
+11. `install -m 0755 .devcontainer/pigou ~/.local/bin/pigou`
+12. `install -m 0755 .devcontainer/piccg ~/.local/bin/piccg`
+13. `install -m 0755 .devcontainer/piccd ~/.local/bin/piccd`
+14. `install -m 0755 .devcontainer/piga ~/.local/bin/piga`
+15. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
+16. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
+17. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
+18. `zsh .devcontainer/setup_pi_superagents.zsh`
 
 プラグインの有効化は `.claude/settings.json` の `extraKnownMarketplaces` と
 `enabledPlugins` で行う。設定の反映には Claude Code の再起動が必要である。
@@ -376,7 +379,7 @@ tool result 圧縮は続く。Bash 専用の tool-display 表示は使えなく�
 既存環境へ反映するときは、リポジトリのルートで次を実行し、Pi で `/reload` する。
 
 ```bash
-python3 .devcontainer/setup_pi_tool_display.py
+uv run --no-project .devcontainer/setup_pi_tool_display.py
 ```
 
 スクリプトは `PI_CODING_AGENT_DIR` を指定している場合、その agent directory 内の

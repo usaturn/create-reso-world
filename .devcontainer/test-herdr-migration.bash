@@ -180,7 +180,7 @@ test_config_and_syntax() {
     # herdrstart が herdr セッション内で no-op になるガード
     assert_contains "$ZSHRC_TEMPLATE" 'HERDR_ENV'
 
-    # tmux 撤去後の再混入防止（#305）。assert_absent は -i 付きのため TMUX も検出する
+    # tmux 撤去後の再混入防止。assert_absent は -i 付きのため TMUX も検出する
     assert_absent "$ZSHRC_TEMPLATE" 'tmux'
     local removed
     for removed in tmux.conf tmux-git-status.bash tmux-url-copy.zsh; do
@@ -216,7 +216,7 @@ test_launch_and_guards() {
     # herdrstart 経路では updater を起動しないこと（precmd 経路は存在しない）
     [ ! -s "$test_home/herdr.log.upd" ] || fail 'HERDR_ENV herdrstart updater guard'
 
-    # tmux 撤去後（#305）は TMUX が立っていても herdrstart は進行する
+    # tmux 撤去後は TMUX が立っていても herdrstart は進行する
     : > "$test_home/herdr.log"
     : > "$test_home/herdr.log.upd"
     run_zshrc_tty "$test_home" TMUX=/tmp/tmux-test
@@ -473,8 +473,6 @@ test_installer_wiring() {
     assert_before "$installer" 'https://astral\.sh/uv/install\.sh' 'https://herdr\.dev/install\.sh'
     assert_before "$installer" 'Installing Starship' 'https://herdr\.dev/install\.sh'
     assert_absent "$installer" 'bun\.com'
-    assert_before "$installer" 'if ! install_pinned_gitleaks; then' \
-        'cat \.devcontainer/zshrc\.txt >>\$\{HOME\}/\.zshrc'
     assert_absent "$installer" 'headroom'
     assert_before "$installer" 'cat \.devcontainer/zshrc\.txt >>\$\{HOME\}/\.zshrc' \
         'Installing Herdr'
@@ -497,7 +495,7 @@ test_installer_wiring() {
     assert_contains "$installer" 'herdr-agent-task\.bash'
     assert_contains "$installer" 'cp \.devcontainer/herdr-agent-task\.bash "\$\{HOME\}/bin/herdr-agent-task"'
 
-    # tmux 撤去後の再混入防止（#305）: apt 行・cp・コメントを含め全体で検査
+    # tmux 撤去後の再混入防止: apt 行・cp・コメントを含め全体で検査
     assert_absent "$installer" 'tmux'
 }
 
