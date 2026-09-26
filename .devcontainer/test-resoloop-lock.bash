@@ -81,6 +81,9 @@ printf '{\n  // "additionalVersions": "10.0.201"\n  "a": { "version": "10.0" }\n
 if resoloop_lock_sdk_declared "$tmp/comment.json" 10.0.201; then fail 'counted a commented-out line'; fi
 if resoloop_lock_sdk_declared "$tmp/list.json" 10.0.2; then fail 'matched a version prefix'; fi
 if resoloop_lock_sdk_declared "$tmp/none.json" 10.0.201; then fail 'accepted a missing devcontainer.json'; fi
+# 値の後ろの // コメントは読み飛ばす（キーと値は同じ行に書く前提。devcontainer.json を改訂したときに見直す）
+printf '{\n  "a": {\n    "additionalVersions": "10.0.201" // fork の SDK\n  }\n}\n' > "$tmp/trailing.json"
+resoloop_lock_sdk_declared "$tmp/trailing.json" 10.0.201 || fail 'a trailing comment hid the SDK'
 
 # 7. resoloop --version の出力から版を取り出す
 [ "$(resoloop_version_of $'0.1.0-preview.14\n')" = 0.1.0-preview.14 ] || fail 'plain version'

@@ -34,7 +34,9 @@ esac
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 lock="${RESOLOOP_LOCK_FILE:-$root/.devcontainer/resoloop.lock}"
-dir="${RESOLOOP_FORK_CHECKOUT:-$root/external/resoloop}"
+# 相対パスの RESOLOOP_FORK_CHECKOUT は呼び出し時の cwd を基準に絶対パスにする（install は $root に cd してから
+# --add-source を渡すため）。symlink は解決しない
+dir="$(realpath -ms -- "${RESOLOOP_FORK_CHECKOUT:-$root/external/resoloop}")"
 # shellcheck source=../.devcontainer/resoloop-lock.bash
 source "$root/.devcontainer/resoloop-lock.bash"
 resoloop_lock_load "$lock" || die 3 "fix $lock first"
@@ -52,9 +54,11 @@ is_checkout() {  # $dir がそれ自体 git の checkout のルートなら 0（
   [ "$(cd "$top" && pwd -P)" = "$(cd "$dir" && pwd -P)" ]
 }
 
+not_a_checkout="exists but is not a git checkout of its own; remove it (or move a checkout there) and rerun scripts/resoloop-fork.sh clone"
+
 require_checkout() {
   [ -e "$dir" ] || [ -L "$dir" ] || die 3 "$dir is missing; run scripts/resoloop-fork.sh clone"
-  is_checkout || die 1 "$dir exists but is not a git checkout of its own; remove it (or move a checkout there) and rerun scripts/resoloop-fork.sh clone"
+  is_checkout || die 1 "$dir $not_a_checkout"
 }
 
 check_remotes() {  # origin と upstream をロックと比べ、食い違いを 1 件 1 行で出力する。食い違いがあれば 1
@@ -86,7 +90,7 @@ dirty() {  # 追跡ファイルに未コミットの変更があれば 0（未�
 
 do_clone() {
   if [ -e "$dir" ] || [ -L "$dir" ]; then
-    is_checkout || die 1 "$dir exists but is not a git checkout of its own; remove it (or move a checkout there) and rerun scripts/resoloop-fork.sh clone"
+    is_checkout || die 1 "$dir $not_a_checkout"
     require_remotes
     printf 'ok: %s is already cloned (origin and upstream match the lock)\n' "$dir"
     return
@@ -222,10 +226,12 @@ do_status() {
   printf 'lock commit: %s (%s)\n' "$RESOLOOP_FORK_COMMIT" "$RESOLOOP_FORK_REF"
   if [ ! -e "$dir" ] && [ ! -L "$dir" ]; then
     printf 'checkout: %s is missing (run scripts/resoloop-fork.sh clone)\n' "$dir"
+    printf 'remotes: unknown (no checkout)\n'
     return
   fi
   if ! is_checkout; then
-    printf 'checkout: %s exists but is not a git checkout of its own\n' "$dir"
+    printf 'checkout: %s %s\n' "$dir" "$not_a_checkout"
+    printf 'remotes: unknown (no checkout)\n'
     return
   fi
   head="$(git -C "$dir" rev-parse -q --verify HEAD || printf 'none')"

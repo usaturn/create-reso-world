@@ -6,7 +6,8 @@ lock="${RESOLOOP_LOCK_FILE:-$root/.devcontainer/resoloop.lock}"
 # shellcheck source=resoloop-lock.bash
 source "$root/.devcontainer/resoloop-lock.bash"
 
-if ! dotnet --list-sdks | grep -qE '^10\.'; then
+# 一覧を変数に取ってから探す（pipefail の下で grep -q が dotnet を SIGPIPE で止めないように）
+if ! sdks="$(dotnet --list-sdks </dev/null)" || ! grep -qE '^10\.' <<<"$sdks"; then
     echo 'Toolchain verification: .NET 10 SDK is unavailable.' >&2
     exit 1
 fi

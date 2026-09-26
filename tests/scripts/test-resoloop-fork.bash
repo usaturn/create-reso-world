@@ -64,6 +64,7 @@ case "$1" in
   tool)
     case "$2" in
       list)
+        [ "${MOCK_LIST_FAIL:-0}" = 0 ] || exit 1
         printf 'Package Id      Version      Commands\n'
         [ ! -s "$MOCK_STATE" ] || printf 'resoloop      %s      resoloop\n' "$(cat "$MOCK_STATE")" ;;
       install|update)
@@ -267,5 +268,76 @@ printf '#!/bin/bash\nprintf "%%s\\n" %q\n' 0.1.0-preview.14.pr1.test > "$HOME/.d
 chmod +x "$HOME/.dotnet/tools/resoloop"
 printf '0.1.0-preview.14.pr1.test\n' > "$MOCK_STATE"
 MOCK_SDKS='10.0.401 [/usr/share/dotnet/sdk]' expect_exit 0 'is already installed' install
+
+# 23. 相対パスの RESOLOOP_FORK_CHECKOUT は呼び出し時の cwd を基準に絶対パスにする。install は build と pack を
+#     checkout の中で実行し、--add-source にも絶対パスを渡す
+mkdir -p "$tmp/work"
+printf '0.0.1\n' > "$MOCK_STATE"
+: > "$MOCK_LOG"
+(cd "$tmp/work" && RESOLOOP_FORK_CHECKOUT=external/resoloop expect_exit 0 'ok: resoloop --version is 0.1.0-preview.14.pr1.test' install)
+grep -qF "cloned: $co" "$tmp/out.txt" || fail 'install did not clone into the absolute path'
+grep -qxF "dotnet build ResoLoop.slnx -c Release --nologo (cwd=$co)" "$MOCK_LOG" || fail 'install did not build'
+grep -qxF "dotnet pack src/RLoop.Cli/RLoop.Cli.csproj -c Release --nologo -o artifacts/fork -p:PackageVersion=0.1.0-preview.14.pr1.test -p:Version=0.1.0-preview.14.pr1.test (cwd=$co)" "$MOCK_LOG" \
+  || fail 'install did not pack'
+grep -qxF "dotnet tool update --global ResoLoop --add-source $co/artifacts/fork --version 0.1.0-preview.14.pr1.test --allow-downgrade (cwd=$repo_root)" "$MOCK_LOG" \
+  || fail 'install passed a relative --add-source'
+(cd "$tmp/work" && RESOLOOP_FORK_CHECKOUT=external/resoloop expect_exit 0 "checkout: $co at $fix_commit (detached, clean, matches the lock)" status)
+
+# 24. status は導入済み版と checkout の食い違いを DIFFERS、導入済み版を読めないときは unknown と表示する
+git -C "$co" checkout -q main
+main_head="$(git -C "$co" rev-parse HEAD)"
+printf '0.0.1\n' > "$MOCK_STATE"
+expect_exit 0 "checkout: $co at $main_head (main, clean, DIFFERS from the lock)" status
+grep -qF 'installed version: 0.0.1 (DIFFERS from the lock)' "$tmp/out.txt" || fail 'status did not flag the installed version'
+MOCK_LIST_FAIL=1 expect_exit 0 'installed version: unknown (dotnet tool list --global failed)' status
+
+# 25. 末尾の .git の有無だけが違う URL も同じとみなす
+git -C "$co" remote set-url origin "$tmp/origin"
+expect_exit 0 'is already cloned' clone
+git -C "$co" remote set-url origin "$tmp/origin.git"
+
+# 26. remote が食い違っていれば、sync は fetch も push もせずに 1
+git -C "$co" remote set-url upstream "$tmp/origin.git"
+origin_before="$(git -C "$tmp/origin.git" rev-parse main)"
+expect_exit 1 'has unexpected remotes' sync
+grep -qF "remote upstream is $tmp/origin.git (expected $tmp/upstream.git)" "$tmp/out.txt" || fail 'sync did not name the mismatching remote'
+[ "$(git -C "$tmp/origin.git" rev-parse main)" = "$origin_before" ] || fail 'sync pushed despite mismatching remotes'
+git -C "$co" remote set-url upstream "$tmp/upstream.git"
+
+# 27. main を checkout 中でも、きれいなローカル main は sync が fast-forward する。上流に無いコミットを持つローカル
+#     main は動かさずに 1（origin への push は済ませる）
+git -C "$tmp/seed" checkout -q main
+printf 'v4\n' >> "$tmp/seed/file.txt"
+git -C "$tmp/seed" commit -q -am v4
+git -C "$tmp/seed" push -q "$tmp/upstream.git" main
+v4="$(git -C "$tmp/seed" rev-parse HEAD)"
+expect_exit 0 "updated: local main -> $v4" sync
+[ "$(git -C "$co" rev-parse HEAD)" = "$v4" ] && [ "$(git -C "$co" symbolic-ref --short HEAD)" = main ] || fail 'sync did not fast-forward the checked-out main'
+[ -z "$(git -C "$co" status --porcelain --untracked-files=no)" ] || fail 'sync left changes to tracked files'
+printf 'local\n' >> "$co/file.txt" && git -C "$co" commit -q -am local
+local_main="$(git -C "$co" rev-parse main)"
+printf 'v5\n' >> "$tmp/seed/file.txt"
+git -C "$tmp/seed" commit -q -am v5
+git -C "$tmp/seed" push -q "$tmp/upstream.git" main
+v5="$(git -C "$tmp/seed" rev-parse HEAD)"
+expect_exit 1 'local main has commits that upstream/main lacks' sync
+[ "$(git -C "$tmp/origin.git" rev-parse main)" = "$v5" ] || fail 'sync did not push origin main'
+[ "$(git -C "$co" rev-parse main)" = "$local_main" ] || fail 'sync moved a diverged local main'
+
+# 28. origin に後から push されたコミットも、checkout は fetch してから取り出す
+git -C "$tmp/seed" checkout -q fix/x
+printf 'fix2\n' >> "$tmp/seed/file.txt"
+git -C "$tmp/seed" commit -q -am fix2
+git -C "$tmp/seed" push -q "$tmp/origin.git" fix/x
+fix2="$(git -C "$tmp/seed" rev-parse HEAD)"
+if git -C "$co" cat-file -e "$fix2^{commit}" 2>/dev/null; then fail 'case 28 needs a commit the checkout has not fetched'; fi
+write_lock fork "$fix2"
+expect_exit 0 "checked out: $co at $fix2 (detached)" checkout
+write_lock fork
+
+# 29. checkout が無い・自前の checkout でないときも、status は remotes の行を出す。後者は対処も示す
+RESOLOOP_FORK_CHECKOUT="$tmp/work/none" expect_exit 0 'remotes: unknown (no checkout)' status
+RESOLOOP_FORK_CHECKOUT="$tmp/outer/external/resoloop" expect_exit 0 'is not a git checkout of its own; remove it (or move a checkout there) and rerun scripts/resoloop-fork.sh clone' status
+grep -qF 'remotes: unknown (no checkout)' "$tmp/out.txt" || fail 'status lacks the remotes line for a directory that is not a checkout'
 
 printf 'PASS: resoloop-fork script behaves as specified\n'

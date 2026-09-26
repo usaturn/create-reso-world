@@ -132,6 +132,10 @@ if grep -q '^tool ' "$DOTNET_CALLS"; then fail 'fork mode ran dotnet tool itself
 : > "$DOTNET_CALLS"
 expect_ok '1.2.3-preview.4.pr1.test is already installed'
 [ ! -s "$DOTNET_CALLS" ] || fail 'fork mode rebuilt an installed version'
+# 導入済みと判定しても --version は照合する（shim が別の版を返せば失敗する）
+printf '#!/bin/bash\nprintf "0.0.1\\n"\n' > "$HOME/.dotnet/tools/resoloop"
+expect_fail 'resoloop --version reports 0.0.1, but'
+[ ! -s "$DOTNET_CALLS" ] || fail 'fork mode rebuilt an installed version after the check failed'
 reset
 expect_fail 'building and installing the fork failed' FORK_FAIL=1
 
