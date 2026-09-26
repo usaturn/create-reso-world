@@ -279,14 +279,7 @@ def _stall_parts(spec: dict, rng: random.Random) -> tuple[list[g.MeshData], dict
         spans = ((rx0, split + 0.1), (split - 0.1, rx1))
         for k, ((x0, x1), mat) in enumerate(zip(spans, mats)):
             lift = 0.0 if k == 0 else CORR_LAP                    # second sheet laps over the first
-            cols = []
-            pitch, amp = 0.19, CORR_AMP
-            steps = max(2, round((x1 - x0) / pitch)) * 4
-            for c in range(steps + 1):
-                x = x0 + (x1 - x0) * c / steps
-                phase = c % 4
-                cols.append((x, (0.0, amp, amp, 0.0)[phase]))
-            grid = [[(x, roof_y(z) + dy + lift, z) for z in (zr0, zr1)] for x, dy in cols]
+            grid = [[(x, roof_y(z) + dy + lift, z) for z in (zr0, zr1)] for x, dy in g.corrugation(x0, x1, 0.19, CORR_AMP)]
             parts.append(g.thick_sheet(f"roof-sheet-{k}", grid, (0.0, -0.006, 0.0), mat))
         # tyres weigh the sheets down (on the roof, over the posts). Spin about Y first, then tilt
         # about X so the tyre lies parallel to the roof pitch (rising towards +Z), then drop it until
@@ -300,8 +293,7 @@ def _stall_parts(spec: dict, rng: random.Random) -> tuple[list[g.MeshData], dict
             tyre = g.torus(f"weight-tire-{k}", (0.0, 0.0, 0.0), 0.24, 0.075, 12, 6, "rubber")
             tyre = g.transformed_xyz(g.transformed(tyre, rng.uniform(0, math.pi), (0.0, 0.0, 0.0)),
                                      -slope, 0.0, 0.0, (0.0, 0.0, 0.0))
-            y = max(ridge_top(tx + v[0], tz + v[2]) - v[1] for v in tyre.vertices)
-            parts.append(g.transformed(tyre, 0.0, (tx, y, tz)))
+            parts.append(g.seat(g.transformed(tyre, 0.0, (tx, 0.0, tz)), ridge_top))
         sprays.append(("runoff", (0.0, roof_y(zr0), zr0), 1.4, ((1.05, 0.6, 0.38), 0.6, ("corrugated",))))
         roof_mats = mats
 

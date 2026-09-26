@@ -1,0 +1,36 @@
+{
+  "sector": "shacks",
+  "objects": 12,
+  "triangles": 52460,
+  "vertices": 27996,
+  "submeshes": 174,
+  "materials": [
+    "asphalt_wet",
+    "cloth_red",
+    "concrete_raw",
+    "corrugated",
+    "corrugated_rust",
+    "paint_teal_faded",
+    "pallet_wood",
+    "plywood",
+    "rubber",
+    "rust",
+    "rust_dark",
+    "steel_bare",
+    "steel_dark",
+    "tarp_blue",
+    "tarp_green",
+    "tarp_orange"
+  ],
+  "material_count": 16,
+  "ao": {
+    "baked": 12,
+    "seconds": 0.5,
+    "samples": 16
+  },
+  "uv_issue_count": 6,
+  "blend_path": "/workspaces/reso-world/slum02/artifacts/slum02/shacks.blend",
+  "blender_version": "5.0.1",
+  "export_collection": "Slum02ShacksExport",
+  "triangles_blender": 52460
+}

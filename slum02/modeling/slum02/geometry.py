@@ -5,7 +5,7 @@ Mesh vertices use Resonite XYZ (Y is up, metres); the build step converts once t
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 
 Vec3 = tuple[float, float, float]
@@ -622,3 +622,23 @@ def thick_sheet(name: str, grid: Sequence[Sequence[Sequence[float]]], offset: Se
     for p, q in zip(loop, (*loop[1:], loop[0])):
         faces.append((q, p, p + n, q + n))
     return outward(planarize(mesh(name, verts, faces, material)))
+
+
+def corrugation(x0: float, x1: float, pitch: float = 0.19, amp: float = 0.028) -> list[tuple[float, float]]:
+    """Trapezoidal corrugation profile over [x0, x1]: ``(x, height above the valley)`` breakpoints.
+
+    Four breakpoints per pitch (valley, rise, ridge, fall), so a sheet built on these columns
+    has planar strips. Shared by the stall roofs and the shack roofs.
+    """
+    steps = max(2, round((x1 - x0) / pitch)) * 4
+    return [(x0 + (x1 - x0) * c / steps, (0.0, amp, amp, 0.0)[c % 4]) for c in range(steps + 1)]
+
+
+def seat(m: MeshData, top: Callable[[float, float], float]) -> MeshData:
+    """Drop (or lift) ``m`` vertically until its lowest point rests on the surface ``top(x, z)``.
+
+    ``top`` is usually a ridge envelope of a corrugated sheet, so the weight touches the ridges
+    and never sinks into the sheet (Task 9 roof-tyre lesson). Orient the mesh before seating.
+    """
+    dy = max(top(v[0], v[2]) - v[1] for v in m.vertices)
+    return transformed(m, 0.0, (0.0, dy, 0.0))
