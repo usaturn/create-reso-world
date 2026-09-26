@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Install the shells and tools the tests use
         run: |
           sudo apt-get update
@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
       - run: uv run pytest tests/skills .agents/skills
 
   gitleaks:
@@ -46,3 +46,6 @@ jobs:
           GITLEAKS_CONFIG: .gitleaks.toml
           # PR へのコメントには書き込み権限が要る。結果はジョブの成否とサマリーで見る
           GITLEAKS_ENABLE_COMMENTS: false
+          # gitleaks-action@v3 は既定で 8.24.3 を入れるが、.gitleaks.toml の [[allowlists]] / targetRules は
+          # gitleaks 8.25 以降でないと読まれない。8.30.1 はこの設定を検証したバージョン
+          GITLEAKS_VERSION: "8.30.1"

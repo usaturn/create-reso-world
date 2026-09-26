@@ -42,6 +42,26 @@ for job in jobs.values():
     assert job["runs-on"] == "ubuntu-latest"
     assert "blender" not in str(job).lower(), "CI does not build worlds with Blender"
 
+# CI が使う action の参照をピン留めする。astral-sh/setup-uv は v10 のような major タグを打っておらず
+# (git ls-remote --tags で確認済み。exact タグの v10.2.0 のみ存在)、存在しないタグを指すと job がそこで
+# 失敗する。actions/checkout・gitleaks/gitleaks-action は major タグがあるのでそのままでよい。
+# これらの参照は git ls-remote --tags で存在を確認したものであり、更新するときはこのテストも合わせて直す
+all_uses = [step["uses"] for job in jobs.values() for step in job["steps"] if "uses" in step]
+checkout_uses = [u for u in all_uses if u.startswith("actions/checkout@")]
+setup_uv_uses = [u for u in all_uses if u.startswith("astral-sh/setup-uv@")]
+gitleaks_uses = [u for u in all_uses if u.startswith("gitleaks/gitleaks-action@")]
+assert checkout_uses, "no actions/checkout step found"
+assert all(u == "actions/checkout@v7" for u in checkout_uses), checkout_uses
+assert setup_uv_uses, "no astral-sh/setup-uv step found"
+assert all(u == "astral-sh/setup-uv@v10.2.0" for u in setup_uv_uses), setup_uv_uses
+assert gitleaks_uses == ["gitleaks/gitleaks-action@v3"], gitleaks_uses
+
+# gitleaks-action@v3 は既定で 8.24.3 を入れるが、.gitleaks.toml の [[allowlists]] は
+# gitleaks 8.25 以降でないと読まれないため、GITLEAKS_VERSION で明示していることを確かめる
+version = leaks["env"]["GITLEAKS_VERSION"]
+parsed = tuple(int(part) for part in version.split("."))[:2]
+assert parsed >= (8, 25), version
+
 config = tomllib.load(open(".gitleaks.toml", "rb"))
 assert config["extend"]["useDefault"] is True, config
 allowlists = config["allowlists"]
