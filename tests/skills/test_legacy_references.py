@@ -22,7 +22,7 @@ REMOVED_SKILLS = ("repository-ownership",)
 # (the world projects hold large text meshes), then the patterns decide.
 CANDIDATES = ("maatlog", "public/", "submodule", "-C public", "scripts/ci/verify", "verify.sh", "verify-devenv")
 LEGACY = re.compile(
-    r"maatlog|(^|[^a-z0-9_./-])public/|submodule.{0,20}public|-C public|scripts/ci/verify|verify\.sh|verify-devenv",
+    r"maatlog|(^|[^a-z0-9_-])public/|submodule.{0,20}public|-C public|scripts/ci/verify|verify\.sh|verify-devenv",
     re.IGNORECASE,
 )
 # The design records describe the migration itself, and these tests spell the
@@ -59,3 +59,20 @@ def test_tracked_files_do_not_refer_to_the_migration_source() -> None:
     # Each line is "<path>:<line number>:<text>"; only the text decides.
     hits = [line for line in result.stdout.splitlines() if LEGACY.search(line.split(":", 2)[2])]
     assert not hits, "tracked files still refer to the migration source:\n" + "\n".join(hits)
+
+
+@pytest.mark.parametrize(
+    "text,should_match",
+    [
+        ("cd $TOPLEVEL/public/app.py", True),
+        ("see external/public/README.md", True),
+        ("./public/x", True),
+        ("cd public/", True),
+        ("the public/ submodule", True),
+        ("republic/", False),
+        ("my-public/", False),
+        ("public_html/", False),
+    ],
+)
+def test_legacy_regex_pattern(text: str, should_match: bool) -> None:
+    assert bool(LEGACY.search(text)) is should_match, f"text={text!r} should_match={should_match}"
