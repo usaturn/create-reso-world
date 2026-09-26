@@ -1,6 +1,10 @@
 #!/bin/bash
 # ルート .gitignore が仕様 4.4 の追跡方針どおりに働くことを検査する
 set -euo pipefail
+# GIT_CONFIG_GLOBAL=/dev/null だけでは XDG 既定の ~/.config/git/ignore が働いてしまうため、
+# core.excludesFile も無効化し、システム設定も外してユーザの git 設定から隔離する
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.excludesFile GIT_CONFIG_VALUE_0=/dev/null
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 
@@ -22,7 +26,11 @@ for p in \
   external/resoloop/README.md private/trpg/TNX.txt reviews/x.md .worktrees/x/README.md \
   .claude/worktrees/x/README.md .superpowers/sdd/x.log \
   .claude/settings.local.json .devin/mcp_config.local.json .env .env.local .secrets/x \
-  slum02/flux/build/x slum02/flux/x.brson node_modules/x; do
+  slum02/flux/build/x slum02/flux/x.brson node_modules/x \
+  slum02/.claude/settings.local.json akichi/.devin/mcp_config.local.json \
+  akichi/flux/build/x MyResoniteProject/flux/.protograph/x \
+  MyResoniteProject/content/tokyo-nova/city/export-static/x.mesh.json \
+  MyResoniteProject/content/tokyo-nova/city/export-refinement/x.mesh.json; do
   expect_ignored "$p"
 done
 
@@ -30,7 +38,8 @@ for p in \
   slum02/.resoloop/.gitignore .devcontainer/devcontainer-lock.json \
   slum02/assets/images/tex.png MyResoniteProject/lib/foo.py slum02/build/x.json docs/x.pdf \
   slum02/artifacts/slum02/market.blend akichi/content/x.mesh.json templates/world-project/CLAUDE.md \
-  docs/worlds/tokyo-nova/tokyo-nova-assets.rst scripts/new-world.sh; do
+  docs/worlds/tokyo-nova/tokyo-nova-assets.rst scripts/new-world.sh \
+  MyResoniteProject/content/tokyo-nova/city/export/x.mesh.json; do
   expect_not_ignored "$p"
 done
 

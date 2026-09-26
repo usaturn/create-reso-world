@@ -1,6 +1,10 @@
 #!/bin/bash
 # scripts/check-layout.sh が通過・失敗を正しく判定することを一時リポジトリで検査する
 set -euo pipefail
+# GIT_CONFIG_GLOBAL=/dev/null だけでは XDG 既定の ~/.config/git/ignore が働いてしまうため、
+# core.excludesFile も無効化し、システム設定も外してユーザの git 設定から隔離する
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.excludesFile GIT_CONFIG_VALUE_0=/dev/null
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 checker="$root/scripts/check-layout.sh"
 tmp="$(mktemp -d)"
@@ -16,9 +20,13 @@ new_repo() {
 }
 
 expect_fail_with() {
-  local dir="$1" needle="$2" out="$tmp/out.txt"
-  if bash "$checker" --root "$dir" > "$out" 2>&1; then
+  local dir="$1" needle="$2" out="$tmp/out.txt" code=0
+  bash "$checker" --root "$dir" > "$out" 2>&1 || code=$?
+  if [ "$code" -eq 0 ]; then
     printf 'FAIL: %s was accepted\n' "$dir" >&2; exit 1
+  fi
+  if [ "$code" -ne 1 ]; then
+    printf 'FAIL: expected exit code 1 for %s, got %d\n' "$dir" "$code" >&2; cat "$out" >&2; exit 1
   fi
   grep -qF "$needle" "$out" || { printf 'FAIL: expected message %q for %s\n' "$needle" "$dir" >&2; cat "$out" >&2; exit 1; }
 }
