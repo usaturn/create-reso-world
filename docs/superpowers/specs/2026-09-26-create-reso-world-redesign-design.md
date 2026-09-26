@@ -144,7 +144,7 @@ Blender 系スキル（arjun988/blender-skills 派生の 10 スキルと referen
 - ローカル専用ディレクトリ: `/tmp/`、`**/tmp/`、`/docs_draft/`、`**/docs_draft/`、`/reviews/`、`/external/`、`/private/`、`/.worktrees/`、`/.claude/worktrees/`、`/.superpowers/`、`/.restructure-backup/`
 - 個人設定: `.claude/settings.local.json`、`.devin/mcp_config.local.json`、`.env`、`.env.*`、`.secrets/`
 
-`devcontainer-lock.json` は追跡に戻す。`.claude/settings.local.json` は `git rm --cached` で追跡を外す。`MyResoniteProject/.resoloop/tokyo-nova/pipeline.json`（セッション記録）は `artifacts/tokyo-nova/` へ移す。`MyResoniteProject/docs_draft/` の強制追加済み 2 件は `docs/worlds/tokyo-nova/` へ移す。`slum02/.gitignore` はルートに吸収して削除する。
+`devcontainer-lock.json` は追跡に戻す。`.claude/settings.local.json` は `git rm --cached` で追跡を外す。`MyResoniteProject/.resoloop/tokyo-nova/pipeline.json`（セッション記録）は `tests/tokyo_nova/test_task1_fix_regressions.py` が証跡ファイルとして参照しており、tokyo-nova の進行中作業と競合するため今回は移動しない。追跡済みのまま `.resoloop/**` の ignore 規則の既知の例外として `scripts/check-layout.sh` の許可リストに載せ、tokyo-nova 側の作業で `artifacts/` へ移す候補として記録する。`MyResoniteProject/docs_draft/` の強制追加済み 2 件は `docs/worlds/tokyo-nova/` へ移す。`slum02/.gitignore` はルートに吸収して削除する。
 
 TRPG 本文（`MyResoniteProject/ATS.txt`、`BTD.txt`、`TNX.txt`）は `private/trpg/` へ移し、`tokyo_nova_resoloop_world_prompt.md` の参照を書き換える。`tmp/` の同一コピーは触らない。
 
