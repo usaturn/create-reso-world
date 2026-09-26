@@ -54,7 +54,7 @@ is_checkout() {  # $dir がそれ自体 git の checkout のルートなら 0（
 
 require_checkout() {
   [ -e "$dir" ] || [ -L "$dir" ] || die 3 "$dir is missing; run scripts/resoloop-fork.sh clone"
-  is_checkout || die 1 "$dir exists but is not a git checkout of its own"
+  is_checkout || die 1 "$dir exists but is not a git checkout of its own; remove it (or move a checkout there) and rerun scripts/resoloop-fork.sh clone"
 }
 
 check_remotes() {  # origin と upstream をロックと比べ、食い違いを 1 件 1 行で出力する。食い違いがあれば 1
@@ -86,7 +86,7 @@ dirty() {  # 追跡ファイルに未コミットの変更があれば 0（未�
 
 do_clone() {
   if [ -e "$dir" ] || [ -L "$dir" ]; then
-    is_checkout || die 1 "$dir exists but is not a git checkout of its own"
+    is_checkout || die 1 "$dir exists but is not a git checkout of its own; remove it (or move a checkout there) and rerun scripts/resoloop-fork.sh clone"
     require_remotes
     printf 'ok: %s is already cloned (origin and upstream match the lock)\n' "$dir"
     return
@@ -119,6 +119,7 @@ do_sync() {
   git -C "$dir" merge-base --is-ancestor "$local_main" "$up" \
     || die 1 "local main has commits that upstream/main lacks; left it unchanged"
   if [ "$(git -C "$dir" symbolic-ref -q --short HEAD || true)" = main ]; then
+    dirty && die 1 "$dir has uncommitted changes on main; local main was left unchanged (origin/main is already synced)"
     run 'git merge --ff-only' git -C "$dir" merge --quiet --ff-only "$up"
   else
     run 'git branch -f main' git -C "$dir" branch --quiet -f main "$up"
@@ -190,6 +191,7 @@ do_install() {
   if [ "$installed" = "$want" ]; then
     printf 'ok: ResoLoop %s is already installed (to install a rebuilt package, raise RESOLOOP_FORK_PACKAGE_VERSION in the lock)\n' "$want"
   else
+    require_sdk
     do_clone
     do_checkout
     do_build

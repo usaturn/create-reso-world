@@ -44,7 +44,7 @@ fork の checkout は `external/resoloop`（ルートの `.gitignore` で無視�
 | `checkout` | ロックの `RESOLOOP_FORK_COMMIT` を detached で取り出す（手元に無ければ `origin` から fetch）。追跡ファイルに未コミットの変更があれば止まる | 必要なときだけ取得 |
 | `build` | `RESOLOOP_FORK_SDK` があることを確かめ、`dotnet build ResoLoop.slnx -c Release` と `dotnet pack`（`artifacts/fork` に `ResoLoop.<期待版>.nupkg`）を実行する | NuGet の復元 |
 | `test` | `dotnet test ResoLoop.slnx` を実行する。postCreate では実行しない | NuGet の復元 |
-| `install` | 導入済みの版が期待版と違えば `clone` → `checkout` → `build` → `dotnet tool install` / `update --allow-downgrade` を実行する。最後に `resoloop --version` を照合する。`nuget` モードでは止まる | 取得のみ |
+| `install` | 導入済みの版が期待版と違えば `clone` → `checkout` → `build` → `dotnet tool install` / `update --allow-downgrade` を実行する。最後に `resoloop --version` を照合する。`nuget` モードでは止まる | 取得と NuGet の復元 |
 | `status` | ロックの期待版、導入済みの版、checkout の HEAD と状態、remote の構成を表示する。何も変更しない | なし |
 
 `build`・`test` と `install` のビルドは `external/resoloop` に `cd` して実行する（dotnet は `global.json` をカレントディレクトリから探すため）。
@@ -59,7 +59,7 @@ fork の checkout は `external/resoloop`（ルートの `.gitignore` で無視�
 bash scripts/resoloop-fork.sh status
 ```
 
-`installed version` が `matches the lock` で、`checkout` が `matches the lock` かつ `clean`、`remotes` がロックと一致していれば、手元はロックどおりである。`DIFFERS from the lock` が出たら、ロックを正として `bash .devcontainer/install_resoloop.bash`（または `bash scripts/resoloop-fork.sh install`）で導入し直す。
+`installed version` が `matches the lock` で、`checkout` が `matches the lock` かつ `clean`、`remotes` がロックと一致していれば、手元はロックどおりである。`installed version` が `DIFFERS from the lock` なら、ロックを正として `bash .devcontainer/install_resoloop.bash`（または `bash scripts/resoloop-fork.sh install`）で導入し直す。`checkout` が `DIFFERS from the lock` なら `bash scripts/resoloop-fork.sh checkout` でロックのコミットへ戻す。ただし、自分の作業ブランチにいるだけなら、そのままにしてよい（`install` はビルドが必要なときだけ checkout をロックのコミットへ切り替える）。
 
 ## 修正の流れ
 

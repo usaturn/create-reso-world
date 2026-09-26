@@ -128,6 +128,7 @@ git -C "$co" remote add upstream "$tmp/upstream.git"
 # 6. 外側のリポジトリの中にある、git の checkout でないディレクトリは 1（外側の remote を見ない）
 git init -q "$tmp/outer" && mkdir -p "$tmp/outer/external/resoloop"
 RESOLOOP_FORK_CHECKOUT="$tmp/outer/external/resoloop" expect_exit 1 'is not a git checkout of its own' clone
+grep -qF 'rerun scripts/resoloop-fork.sh clone' "$tmp/out.txt" || fail 'clone message lacks the remediation hint'
 RESOLOOP_FORK_CHECKOUT="$tmp/outer/external/resoloop" expect_exit 0 'is not a git checkout of its own' status
 
 # 7. clone に失敗したら 4 で、checkout を残さない
@@ -232,5 +233,39 @@ MOCK_TOOL_FAIL=1 expect_exit 4 'dotnet tool update failed' install
 write_lock nuget
 expect_exit 1 'RESOLOOP_MODE is nuget' install
 write_lock fork
+
+# 21. main を checkout 中で dirty なまま sync すると、origin への push は済ませつつローカル main は動かさず 1 で止まる
+# (case 13 は origin/main を upstream から分岐させたままにし、case 17 以降の install の再 clone で $co のローカル
+# main も stray まで進んでいるので、ここでは seed から origin.git の main を upstream の先端 v2 まで戻し、
+# $co のローカル main も v2 まで戻してから使う)
+git -C "$tmp/seed" push -q -f "$tmp/origin.git" "$v2:refs/heads/main"
+git -C "$tmp/seed" checkout -q main
+printf 'v3\n' >> "$tmp/seed/file.txt"
+git -C "$tmp/seed" commit -q -am v3
+git -C "$tmp/seed" push -q "$tmp/upstream.git" main
+v3="$(git -C "$tmp/seed" rev-parse HEAD)"
+git -C "$co" branch -f main "$v2"
+git -C "$co" checkout -q main
+printf 'dirty\n' >> "$co/file.txt"
+expect_exit 1 'has uncommitted changes on main' sync
+[ "$(git -C "$tmp/origin.git" rev-parse main)" = "$v3" ] || fail 'sync did not push origin main forward despite the dirty local main'
+[ "$(git -C "$co" rev-parse main)" = "$v2" ] || fail 'sync moved local main despite uncommitted changes on main'
+git -C "$co" checkout -q -- file.txt
+bash "$script" checkout >/dev/null
+
+# 22. install は SDK をビルドが要るときだけ確かめる: 導入済みが期待版と違えば SDK 不足で 3 になり、
+# clone も dotnet build/pack/tool install/update も行わない。導入済みが期待版と同じなら SDK 不足でも成功する
+rm -rf "$co"
+printf '0.0.1\n' > "$MOCK_STATE"
+: > "$MOCK_LOG"
+MOCK_SDKS='10.0.401 [/usr/share/dotnet/sdk]' expect_exit 3 '.NET SDK 10.0.201 is not installed' install
+[ ! -e "$co" ] || fail 'install cloned despite the missing SDK'
+if grep -qE '^dotnet (build|pack|tool install|tool update) ' "$MOCK_LOG"; then
+  fail 'install ran dotnet build/pack/tool install/update without the required SDK'
+fi
+printf '#!/bin/bash\nprintf "%%s\\n" %q\n' 0.1.0-preview.14.pr1.test > "$HOME/.dotnet/tools/resoloop"
+chmod +x "$HOME/.dotnet/tools/resoloop"
+printf '0.1.0-preview.14.pr1.test\n' > "$MOCK_STATE"
+MOCK_SDKS='10.0.401 [/usr/share/dotnet/sdk]' expect_exit 0 'is already installed' install
 
 printf 'PASS: resoloop-fork script behaves as specified\n'
