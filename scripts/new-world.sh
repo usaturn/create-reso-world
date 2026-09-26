@@ -2,7 +2,12 @@
 # ワールドのプロジェクトを作る、または既存プロジェクトに雛形の不足分を適用する。
 # 仕様: docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md 4.2・4.3 節
 # 使い方: scripts/new-world.sh [--apply] [--no-sync] [--root DIR] <name>
-# 終了コード: 0 成功 / 1 既存ファイルとの食い違いあり（何も変更しない） / 2 使い方の誤り / 3 前提不足
+# 終了コード:
+#   0 成功
+#   1 既存ファイルとの食い違いあり。雛形の変更は何もしない（新規作成では resoloop init が作ったディレクトリだけが残り、その旨を表示する）
+#   2 使い方の誤り。何も変更しない
+#   3 前提不足。uv（同期ありのとき）・resoloop・ルートの共有物（.claude/settings.json、.pi）の欠落は何かを作る前に検出する。
+#     resoloop init の失敗や init 後の生成物の不足では init が作ったものが残る。uv sync の失敗では雛形の適用は済んでおり、その旨を表示する
 set -euo pipefail
 
 usage() {
@@ -27,7 +32,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ "$name_given" -eq 1 ] || usage
-[[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || die 2 "invalid project name '$name' (use letters, digits, '-' and '_'; start with a letter or digit)"
+name_re='^[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?$'
+[[ "$name" =~ $name_re ]] || die 2 "invalid project name '$name' (use letters, digits, '-' and '_'; start and end with a letter or digit)"
 [ -n "$root" ] || root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 tmpl="$root/templates/world-project"
 [ -d "$tmpl" ] || die 3 "template directory not found: $tmpl"
@@ -37,8 +43,19 @@ if [ -e "$proj" ] || [ -L "$proj" ]; then
   [ "$apply" -eq 1 ] || die 2 "$name already exists; use --apply to add the missing scaffold"
 else
   [ "$apply" -eq 0 ] || die 2 "$name does not exist; drop --apply to create it"
+fi
+# 何かを作る前に前提を確かめる
+if [ "$sync" -eq 1 ]; then
+  command -v uv >/dev/null 2>&1 || die 3 "uv not found; install it or pass --no-sync"
+fi
+initialized=0
+if [ "$apply" -eq 0 ]; then
   command -v resoloop >/dev/null 2>&1 || die 3 "resoloop not found; install it before creating a project"
-  resoloop init "$proj" --json >/dev/null
+  for shared in .claude/settings.json .pi; do
+    [ -e "$root/$shared" ] || die 3 "$shared is missing at the repository root ($root/$shared); the new project links to it"
+  done
+  resoloop init "$proj" --json >/dev/null || die 3 "resoloop init failed for $name"
+  initialized=1
 fi
 [ -f "$proj/.resoloop.json" ] || die 3 "$name is not a resoloop project (.resoloop.json is missing)"
 [ -f "$proj/AGENTS.md" ] || die 3 "$name/AGENTS.md is missing; run resoloop init first"
@@ -102,7 +119,11 @@ done
 
 if [ ${#conflicts[@]} -gt 0 ]; then
   printf 'CONFLICT: %s\n' "${conflicts[@]}" >&2
-  printf 'no changes were made to %s\n' "$name" >&2
+  if [ "$initialized" -eq 1 ]; then
+    printf '%s was created by resoloop init and remains; no scaffold changes were applied to it\n' "$name" >&2
+  else
+    printf 'no changes were made to %s\n' "$name" >&2
+  fi
   exit 1
 fi
 
@@ -129,7 +150,8 @@ for entry in ${plan_links[@]+"${plan_links[@]}"}; do
 done
 
 if [ "$sync" -eq 1 ]; then
-  (cd "$proj" && uv sync)
+  (cd "$proj" && uv sync) \
+    || die 3 "uv sync failed in $name; the scaffold changes were already applied and only the sync failed (fix the cause, then run 'uv sync' in $name)"
   if ! command -v resoloop >/dev/null 2>&1; then
     printf 'skip: resoloop not found (skills sync check)\n'
   elif resoloop skills sync "$proj" --check; then

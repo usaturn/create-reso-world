@@ -63,7 +63,7 @@ snapshot() {
 
 # 1. 不正な名前は 2
 new_root "$tmp/r1"
-for bad in '' 'a b' '../x' '-x' 'x/y' '.hidden'; do
+for bad in '' 'a b' '../x' '-x' 'x/y' '.hidden' 'demo-' 'a_'; do
   expect_exit 2 '' "$tmp/r1" --no-sync "$bad"
 done
 [ -z "$(ls -A "$tmp/r1" | grep -vxE 'scripts|templates|\.claude|\.pi|\.agents|\.git')" ] || fail 'invalid name created something'
@@ -149,5 +149,52 @@ expect_exit 0 'DONE: demo' "$tmp/r13" --apply --no-sync demo
 if [ -e "$tmp/r13/demo/.claude/skills/leftover" ] || [ -L "$tmp/r13/demo/.claude/skills/leftover" ]; then
   fail 'linked a directory without SKILL.md'
 fi
+
+# 14. 同期ありで uv sync が失敗したら 3 を返し、雛形の適用が済んでいることを伝える
+new_root "$tmp/r14"
+mkdir -p "$tmp/uv-fail"
+printf '#!/bin/bash\nexit 1\n' > "$tmp/uv-fail/uv"
+chmod +x "$tmp/uv-fail/uv"
+PATH="$tmp/uv-fail:$PATH" expect_exit 3 'already applied' "$tmp/r14" demo
+[ "$(cat "$tmp/r14/demo/CLAUDE.md")" = '@AGENTS.md' ] || fail 'scaffold was not applied before the failing uv sync'
+
+# 15. 同期ありで uv が無ければ、resoloop も呼ばず何も作らずに 3
+new_root "$tmp/r15"
+mkdir -p "$tmp/resoloop-only"
+cp "$tmp/mockbin/resoloop" "$tmp/resoloop-only/resoloop"
+if PATH=/usr/bin:/bin command -v uv >/dev/null 2>&1; then fail 'uv visible on the reduced PATH'; fi
+: > "$MOCK_LOG"
+PATH="$tmp/resoloop-only:/usr/bin:/bin" expect_exit 3 'uv not found' "$tmp/r15" demo
+[ ! -e "$tmp/r15/demo" ] || fail 'created the project although uv is missing'
+[ ! -s "$MOCK_LOG" ] || fail 'ran resoloop although uv is missing'
+
+# 16. ルートの .pi が無ければ、新規作成は resoloop init を呼ばず何も作らずに 3
+new_root "$tmp/r16"
+rm -rf "$tmp/r16/.pi"
+: > "$MOCK_LOG"
+expect_exit 3 '.pi is missing at the repository root' "$tmp/r16" --no-sync demo
+[ ! -e "$tmp/r16/demo" ] || fail 'created the project although the root .pi is missing'
+[ ! -s "$MOCK_LOG" ] || fail 'ran resoloop init although the root .pi is missing'
+
+# 17. resoloop init が失敗したら 3（resoloop 自身の終了コードをそのまま返さない）
+new_root "$tmp/r17"
+mkdir -p "$tmp/init-fail"
+printf '#!/bin/bash\nexit 1\n' > "$tmp/init-fail/resoloop"
+chmod +x "$tmp/init-fail/resoloop"
+PATH="$tmp/init-fail:$PATH" expect_exit 3 'resoloop init failed for demo' "$tmp/r17" --no-sync demo
+
+# 18. 新規作成で resoloop init の後に食い違いが見つかったら、init が作ったディレクトリが残ることを伝えて 1
+new_root "$tmp/r18"
+mkdir -p "$tmp/init-claude"
+cat > "$tmp/init-claude/resoloop" <<EOF
+#!/bin/bash
+"$tmp/mockbin/resoloop" "\$@" || exit
+[ "\$1" != init ] || printf 'other\n' > "\$2/CLAUDE.md"
+EOF
+chmod +x "$tmp/init-claude/resoloop"
+PATH="$tmp/init-claude:$PATH" expect_exit 1 'demo was created by resoloop init and remains' "$tmp/r18" --no-sync demo
+if grep -qF 'no changes were made' "$tmp/out.txt"; then fail 'claimed no changes after resoloop init created the project'; fi
+[ "$(cat "$tmp/r18/demo/CLAUDE.md")" = 'other' ] || fail 'changed CLAUDE.md after the conflict'
+if [ -e "$tmp/r18/demo/.pi" ] || [ -L "$tmp/r18/demo/.pi" ]; then fail 'applied links after the conflict'; fi
 
 printf 'PASS: new-world script behaves as specified\n'
