@@ -196,7 +196,7 @@ git fetch --prune
 bash scripts/resoloop-fork.sh sync
 ```
 
-`sync` は fork（`usaturn/resoloop`）の `main` へ push するので、ゲート B と同じくユーザー確認を得てから実行する。fork の `main` に上流に無いコミットがある場合や、`external/resoloop` の `main` に未コミットの変更がある場合、スクリプトは何も push せずに止まる。その出力をそのまま報告し、手で push や reset をしない。詳しい流れは `docs/resoloop-fork-workflow.md` にある。
+`sync` は fork（`usaturn/resoloop`）の `main` へ push するので、ゲート B と同じくユーザー確認を得てから実行する（Claude Code では AskUserQuestion を使う）。fork の `main` に上流に無いコミットがある場合、スクリプトは何も push せずに止まる。`external/resoloop` で `main` を checkout していて未コミットの変更がある場合は、fork の `main` への push を済ませてから、ローカルの `main` を動かさずに止まる（出力に `origin/main is already synced` と出る）。その出力をそのまま報告し、手で push や reset をしない。詳しい流れは `docs/resoloop-fork-workflow.md` にある。
 
 ### 11. 最終状態を報告する
 

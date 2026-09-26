@@ -101,3 +101,16 @@ def test_evals_cover_the_rules_of_this_repository() -> None:
     } <= names
     assert "stay-detached-without-local-main" not in names
     assert "force-remove-only-clean-worktree" not in names
+
+
+def test_fork_sync_describes_push_semantics_correctly() -> None:
+    # The sync step must correctly describe when fork/main is pushed.
+    content = read(SKILL)
+    # After the fix: fork's main is pushed when local main is clean,
+    # but not when local main has uncommitted changes (though origin/main is synced).
+    assert "fork の `main` への push を済ませてから" in content
+    assert "origin/main is already synced" in content
+    # The old incorrect description must be gone.
+    assert "未コミットの変更がある場合、スクリプトは何も push せずに止まる" not in content
+    # User confirmation must be requested via AskUserQuestion.
+    assert "（Claude Code では AskUserQuestion を使う）" in content
