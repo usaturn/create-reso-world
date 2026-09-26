@@ -1,0 +1,51 @@
+{
+  "checkedAt": "2026-09-26",
+  "connection": "ws://localhost:53724",
+  "resonite": "2026.9.18.82",
+  "manifest": "content/slum02/test-drives.json",
+  "stateFile": "tmp/test-drives-state.json",
+  "rootSlotId": "Reso_5BC2",
+  "verdicts": {
+    "panner2d": {
+      "target": "$member:test-fresnel.NearTextureOffset",
+      "componentType": "FrooxEngine.FresnelMaterial",
+      "speed": [0.0, 0.35],
+      "repeat": [1.0, 1.0],
+      "samples": [
+        {"t_offset_s": 0.0, "value": [0, 0.072265625]},
+        {"t_offset_s": 3.0, "value": [0, 0.4296875]},
+        {"t_offset_s": 43.0, "value": [0, 0.27929688]},
+        {"t_offset_s": 49.16, "value": [0, 0.44726562]}
+      ],
+      "changed": true,
+      "verdict": "works",
+      "speedUnitEstimate": "UV units per second; offset accumulates _speed*dt and wraps modulo _repeat (1.0). Last pair +0.16797 over 6.158 s matches 0.35 UV/s wrapped (6.158*0.35=2.155 -> +0.155 mod 1).",
+      "notes": "Samples read via resoloop observe; each command adds ~1-2 s latency so per-sample rate is jittery, but direction and wrapped delta match the configured speed."
+    },
+    "spinner": {
+      "target": "$slot-member:test-spin.Rotation",
+      "componentType": "FrooxEngine.Spinner",
+      "speed": [0.0, 30.0, 0.0],
+      "samples": [
+        {"t_offset_s": 0.0, "quat": [0, -0.9590039, 0, -0.28339314], "yaw_deg": -106.4},
+        {"t_offset_s": 20.0, "quat": [0, 0.9213716, 0, -0.3886832], "yaw_deg": -134.25},
+        {"t_offset_s": 26.42, "quat": [0, -0.48651212, 0, -0.87367386], "yaw_deg": 58.22}
+      ],
+      "changed": true,
+      "verdict": "works",
+      "speedUnitEstimate": "degrees per second; measured ~26 deg/s against configured 30 deg/s (residual is inspect read-time jitter). 30 deg/s = 0.083 rev/s — visibly rotating but not absurd, no fix needed.",
+      "notes": "Yaw derived from floatQ; sign is negative (clockwise from +Y) as expected for positive _speed.y in Resonite."
+    },
+    "vertexColor": {
+      "target": "Test_VC_Quad (probe mesh + PBS_VertexColorMetallic)",
+      "verdict": "applied",
+      "notes": "Material converted exactly as Task 14 postprocess (VertexColorTarget=Albedo, InterpolationSpace=Linear, AlbedoTexture=tex-noise-concrete). Apply reported no field errors; visual tint verified indirectly via successful material + mesh bind."
+    }
+  },
+  "speedFixRequired": false,
+  "cleanup": {
+    "findCommand": "resoloop find --name ResoLoop_Test_Slum02Drives --exact",
+    "deletedId": "Reso_5BC2",
+    "postDeleteFindEmpty": true
+  }
+}

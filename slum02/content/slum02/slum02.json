@@ -6572,6 +6572,10 @@
               1.0,
               1.0,
               1.0
+            ],
+            "managedFields": [
+              "position",
+              "scale"
             ]
           },
           "components": [
@@ -6715,6 +6719,10 @@
               1.0,
               1.0,
               1.0
+            ],
+            "managedFields": [
+              "position",
+              "scale"
             ]
           },
           "components": [
@@ -6860,6 +6868,10 @@
               1.0,
               1.0,
               1.0
+            ],
+            "managedFields": [
+              "position",
+              "scale"
             ]
           },
           "components": [
@@ -7005,6 +7017,10 @@
               1.0,
               1.0,
               1.0
+            ],
+            "managedFields": [
+              "position",
+              "scale"
             ]
           },
           "components": [
@@ -14897,6 +14913,6 @@
     }
   ],
   "limits": {
-    "expandedNodes": 13688
+    "expandedNodes": 13702
   }
 }

@@ -422,6 +422,11 @@ def drive_components(manifest: dict[str, Any], layout: dict[str, Any]) -> None:
             "type": "FrooxEngine.Spinner",
             "fields": {"_target": f"$slot-member:{slot_key}.Rotation", "_speed": [0.0, 30.0, 0.0]},
         })
+        # The Spinner owns Rotation at runtime; keep it out of managed fields so
+        # re-apply does not fight the driver (live verified on Reso_6B34: without
+        # this, each apply rewrote the four panel rotations and never converged
+        # to zero writes).
+        node["slot"]["managedFields"] = ["position", "scale"]
 
 
 def postprocess(manifest: dict[str, Any], layout: dict[str, Any],

@@ -1,0 +1,361 @@
+{
+  "schemaVersion": "1",
+  "ownership": {
+    "key": "slum02-test"
+  },
+  "slot": {
+    "key": "root",
+    "name": "ResoLoop_Test_Slum02Drives",
+    "position": [
+      0,
+      1.5,
+      -45
+    ],
+    "rotation": [
+      0,
+      0,
+      0,
+      1
+    ],
+    "scale": [
+      1,
+      1,
+      1
+    ],
+    "parent": "Root"
+  },
+  "assets": {
+    "mesh-probe": {
+      "kind": "mesh",
+      "source": "../../tmp/probe/vc-v1/mesh_Probe_3bd51ab9.mesh.json"
+    }
+  },
+  "children": [
+    {
+      "slot": {
+        "key": "test-providers",
+        "name": "Test_Providers",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "test-vc-mat",
+          "type": "FrooxEngine.PBS_VertexColorMetallic",
+          "fields": {
+            "AlbedoColor": [
+              0.6180314265202079,
+              0.6097116265037417,
+              0.5926193754143848,
+              1.0
+            ],
+            "Metallic": 0.0,
+            "Smoothness": 0.07999998331069946,
+            "EmissiveColor": [
+              0.0,
+              0.0,
+              0.0,
+              1
+            ],
+            "VertexColorTarget": "Albedo",
+            "VertexColorInterpolationSpace": "Linear",
+            "AlphaHandling": "Opaque",
+            "Culling": "Back",
+            "TextureScale": [
+              0.35,
+              0.35
+            ],
+            "AlbedoTexture": "$component:tex-noise-concrete"
+          }
+        },
+        {
+          "key": "test-fresnel",
+          "type": "FrooxEngine.FresnelMaterial",
+          "fields": {
+            "NearColor": [
+              0.017499999999999998,
+              0.2975,
+              0.35,
+              0.25
+            ],
+            "FarColor": [
+              0.06,
+              1.0,
+              1.0,
+              0.85
+            ],
+            "Exponent": 1.6,
+            "GammaCurve": 1.0,
+            "BlendMode": "Additive",
+            "Sidedness": "Double",
+            "ZWrite": "Off",
+            "UseVertexColors": false,
+            "NearTexture": "$component:tex-test-holo",
+            "FarTexture": "$component:tex-test-holo",
+            "NearTextureScale": [
+              1.0,
+              4.0
+            ],
+            "FarTextureScale": [
+              1.0,
+              4.0
+            ]
+          }
+        },
+        {
+          "key": "tex-noise-concrete",
+          "type": "FrooxEngine.NoiseTexture",
+          "identityFields": [
+            "Seed"
+          ],
+          "fields": {
+            "Size": [
+              256,
+              256
+            ],
+            "Seed": 11,
+            "Monochrome": true,
+            "MonochromeMin": [
+              0.72,
+              0.72,
+              0.72,
+              1.0
+            ],
+            "MonochromeMax": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "Bias": 0.0,
+            "Gain": 0.0,
+            "FilterMode": "Anisotropic",
+            "WrapModeU": "Repeat",
+            "WrapModeV": "Repeat",
+            "Mipmaps": true
+          }
+        },
+        {
+          "key": "tex-test-holo",
+          "type": "FrooxEngine.NoiseTexture",
+          "identityFields": [
+            "Seed"
+          ],
+          "fields": {
+            "Size": [
+              128,
+              128
+            ],
+            "Seed": 16,
+            "Monochrome": true,
+            "MonochromeMin": [
+              0.25,
+              0.25,
+              0.25,
+              1.0
+            ],
+            "MonochromeMax": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "Bias": 0.0,
+            "Gain": 0.0,
+            "FilterMode": "Anisotropic",
+            "WrapModeU": "Repeat",
+            "WrapModeV": "Repeat",
+            "Mipmaps": true
+          }
+        },
+        {
+          "key": "test-panner",
+          "type": "FrooxEngine.Panner2D",
+          "identityFields": [
+            "_target"
+          ],
+          "fields": {
+            "_target": "$member:test-fresnel.NearTextureOffset",
+            "_speed": [
+              0.0,
+              0.35
+            ],
+            "_repeat": [
+              1.0,
+              1.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "test-vc",
+        "name": "Test_VC_Quad",
+        "position": [
+          -1.5,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "mesh-test-vc",
+          "type": "FrooxEngine.StaticMesh",
+          "fields": {
+            "URL": "$asset:mesh-probe"
+          }
+        },
+        {
+          "key": "renderer-test-vc",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:mesh-test-vc",
+            "Materials": [
+              "$component:test-vc-mat"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "test-fresnel-quad",
+        "name": "Test_Fresnel_Quad",
+        "position": [
+          1.5,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "mesh-test-fresnel-quad",
+          "type": "FrooxEngine.StaticMesh",
+          "fields": {
+            "URL": "$asset:mesh-probe"
+          }
+        },
+        {
+          "key": "renderer-test-fresnel-quad",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:mesh-test-fresnel-quad",
+            "Materials": [
+              "$component:test-fresnel"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "test-spin",
+        "name": "Test_Spin",
+        "position": [
+          0,
+          1.2,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "components": [
+        {
+          "key": "mesh-test-spin",
+          "type": "FrooxEngine.StaticMesh",
+          "fields": {
+            "URL": "$asset:mesh-probe"
+          }
+        },
+        {
+          "key": "renderer-test-spin",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:mesh-test-spin",
+            "Materials": [
+              "$component:test-vc-mat"
+            ]
+          }
+        },
+        {
+          "key": "test-spinner",
+          "type": "FrooxEngine.Spinner",
+          "fields": {
+            "_target": "$slot-member:test-spin.Rotation",
+            "_speed": [
+              0.0,
+              30.0,
+              0.0
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "name": "root-exists",
+      "assertions": [
+        {
+          "target": "$slot:root",
+          "exists": true
+        }
+      ]
+    },
+    {
+      "name": "spin-exists",
+      "assertions": [
+        {
+          "target": "$slot:test-spin",
+          "exists": true
+        }
+      ]
+    }
+  ]
+}
