@@ -1,0 +1,233 @@
+{
+  "project": "slum02",
+  "generatedAt": "2026-09-26T07:13Z",
+  "connection": "ws://localhost:53724",
+  "liveRoot": {
+    "id": "Reso_6B34",
+    "name": "Slum02_Slum",
+    "path": "Root/Slum02_Slum",
+    "slots": 332,
+    "components": 479,
+    "assets": 159,
+    "note": "ResoniteLink IDs are session-scoped; re-verify with resoloop find --name Slum02_Slum --exact after a session restart."
+  },
+  "structureQA": {
+    "countsMatchManifest": true,
+    "counts": [
+      {"type": "Light", "manifest": 25, "live": 25},
+      {"type": "TextRenderer", "manifest": 16, "live": 16},
+      {"type": "Spinner", "manifest": 4, "live": 4},
+      {"type": "Panner2D", "manifest": 4, "live": 4},
+      {"type": "PBS_VertexColorMetallic", "manifest": 38, "live": 38},
+      {"type": "FresnelMaterial", "manifest": 6, "live": 6},
+      {"type": "NoiseTexture", "manifest": 6, "live": 6},
+      {"type": "BoxCollider", "manifest": 61, "live": 61},
+      {"type": "MeshRenderer", "manifest": 159, "live": 159},
+      {"type": "PBS_Metallic", "manifest": 0, "live": 0}
+    ],
+    "representativeMaterials": [
+      {
+        "key": "mat_material_Slum02_concrete_raw_8dd3317a",
+        "id": "Reso_6C8C",
+        "type": "PBS_VertexColorMetallic",
+        "albedoColor": [0.61803144, 0.60971165, 0.59261936, 1.0],
+        "albedoTexture": "Reso_6E13 (tex-noise-concrete)",
+        "metallic": 0.0,
+        "smoothness": 0.07999998,
+        "textureScale": [0.35, 0.35],
+        "vertexColorTarget": "Albedo",
+        "vertexColorInterpolationSpace": "Linear",
+        "alphaHandling": "Opaque",
+        "culling": "Back"
+      },
+      {
+        "key": "mat_material_Slum02_rust_81a2d46e",
+        "id": "Reso_6CB2",
+        "type": "PBS_VertexColorMetallic",
+        "albedoColor": [0.6342527, 0.3655646, 0.20598416, 1.0],
+        "albedoTexture": "Reso_6E15 (tex-noise-metal)",
+        "metallic": 0.55,
+        "smoothness": 0.19999999,
+        "textureScale": [0.8, 0.8],
+        "vertexColorTarget": "Albedo",
+        "vertexColorInterpolationSpace": "Linear",
+        "alphaHandling": "Opaque",
+        "culling": "Back"
+      },
+      {
+        "key": "mat_material_Slum02_holo_cyan_scroll_8087a16b",
+        "id": "Reso_6DA9",
+        "type": "FresnelMaterial",
+        "shader": "Reso_4DC1 (world built-in Fresnel shader)",
+        "nearColor": [0.0175, 0.2975, 0.35, 0.25],
+        "farColor": [0.06, 1.0, 1.0, 0.85],
+        "exponent": 1.6,
+        "blendMode": "Additive",
+        "sidedness": "Double",
+        "zWrite": "Off",
+        "nearFarTexture": "Reso_6E18 (tex-noise-holo)",
+        "textureScale": [1.0, 4.0],
+        "observedOffsets": {"near": [0.0, 0.30078125], "far": [0.0, 0.4580078]},
+        "note": "非零かつ near/far で異なる offset が観測され、Panner2D が実機で駆動中であることを裏付ける"
+      }
+    ],
+    "representativeLights": [
+      {
+        "key": "light-01-light",
+        "id": "Reso_6E5F",
+        "lightType": "Point",
+        "intensity": 2.2,
+        "color": [1.0, 0.45, 0.12, 1.0],
+        "shadowType": "Soft",
+        "range": 9.0
+      },
+      {
+        "key": "light-02-light",
+        "id": "Reso_6E60",
+        "lightType": "Spot",
+        "intensity": 3.0,
+        "color": [1.0, 0.78, 0.5, 1.0],
+        "shadowType": "Hard",
+        "range": 18.0,
+        "spotAngle": 55.0
+      },
+      {
+        "key": "light-10-light",
+        "id": "Reso_6E68",
+        "lightType": "Point",
+        "intensity": 1.2,
+        "color": [1.0, 0.6, 0.25, 1.0],
+        "shadowType": "None",
+        "range": 5.0
+      }
+    ]
+  },
+  "sectors": [
+    {"sector": "ground", "objects": 4, "triangles": 31586, "vertices": 18683, "submeshes": 14, "materials": 13},
+    {"sector": "backdrop", "objects": 19, "triangles": 17720, "vertices": 11728, "submeshes": 76, "materials": 7},
+    {"sector": "plaza", "objects": 12, "triangles": 49654, "trianglesBlender": 72160, "vertices": 26883, "submeshes": 53, "materials": 18,
+     "note": "objects は生成パーツ数。east-wall と spray-art（font-mesh）を含む実メッシュは 14、GN 瓦礫 scatter 実メッシュ化分を含む Blender 三角形は 72,160"},
+    {"sector": "towers-a", "objects": 8, "triangles": 66848, "vertices": 38961, "submeshes": 81, "materials": 19},
+    {"sector": "towers-b", "objects": 8, "triangles": 66980, "vertices": 39102, "submeshes": 78, "materials": 17},
+    {"sector": "towers-c", "objects": 6, "triangles": 36238, "vertices": 21350, "submeshes": 63, "materials": 17},
+    {"sector": "market", "objects": 18, "triangles": 69946, "vertices": 39871, "submeshes": 197, "materials": 17},
+    {"sector": "nightlife", "objects": 4, "triangles": 35496, "vertices": 18844, "submeshes": 68, "materials": 18},
+    {"sector": "shacks", "objects": 12, "triangles": 52676, "vertices": 28104, "submeshes": 174, "materials": 16},
+    {"sector": "ads", "objects": 34, "triangles": 4624, "vertices": 2964, "submeshes": 100, "materials": 12},
+    {"sector": "overhead", "objects": 32, "triangles": 18890, "vertices": 10101, "submeshes": 100, "materials": 10}
+  ],
+  "totals": {
+    "generatorObjects": 157,
+    "postprocessAddedMeshes": ["east-wall", "spray-art"],
+    "meshRenderersLive": 159,
+    "trianglesGenerator": 450658,
+    "trianglesBlenderIncludingScatterAndSpray": 473164,
+    "vertices": 256591,
+    "submeshes": 1004,
+    "uniqueMaterials": 42,
+    "materialComponents": {"PBS_VertexColorMetallic": 38, "FresnelMaterial": 6, "PBS_Metallic": 0},
+    "budgetNote": "全体 40〜60 万三角形の目安に対し 45〜47 万で範囲内。backdrop 17,720 は 2 万以下の目安を遵守。マテリアル 42 種は目安 30〜40 をわずかに超過（advisoryOverruns 参照）"
+  },
+  "noiseTextures": {
+    "count": 6,
+    "textures": [
+      {"key": "tex-noise-concrete", "size": [256, 256], "seed": 11},
+      {"key": "tex-noise-asphalt", "size": [256, 256], "seed": 12},
+      {"key": "tex-noise-metal", "size": [256, 256], "seed": 13},
+      {"key": "tex-noise-wood", "size": [128, 128], "seed": 14},
+      {"key": "tex-noise-fabric", "size": [128, 128], "seed": 15},
+      {"key": "tex-noise-holo", "size": [128, 128], "seed": 16}
+    ],
+    "allMonochrome": true,
+    "filterMode": "Anisotropic",
+    "wrapMode": "Repeat",
+    "mipmaps": true,
+    "estimatedMemoryBytes": {
+      "pixels": 245760,
+      "pixelsWithMipmaps": 327680,
+      "mono8": 327680,
+      "rgba8UpperBound": 1310720,
+      "note": "エンジン内生成テクスチャのためアセット転送は不要。実メモリは形式依存で 0.31〜1.25 MiB 程度"
+    }
+  },
+  "lights": {"count": 25, "shadowed": 3, "shadowTypes": {"Soft": 1, "Hard": 2}, "lightTypes": {"Point": 23, "Spot": 2}, "budget": "20〜30 灯・影あり 3 灯以下の目安を遵守"},
+  "driveComponents": {
+    "Spinner": 4,
+    "Panner2D": 4,
+    "verification": "Task 15 の test-drives で Spinner=deg/s・Panner2D=UV/s を実測済み。本 QA でも holo_cyan_scroll の texture offset が非零かつ near/far で異なる値（Panner2D 駆動中）を確認"
+  },
+  "colliders": {"BoxCollider": 61, "note": "実機の歩行・接触確認は pending"},
+  "aoBake": {"objectsBaked": 159, "totalSeconds": 11.2, "samplesPerSector": "16〜48", "uvIssues": 0},
+  "rubbleScatter": {"method": "geometry-nodes (Random Density フィールド)", "instances": {"small": 407, "medium": 83, "large": 16, "total": 506}, "exposed_fraction": 0.746, "surfaceAreaM2": 211.25, "triangles": 16606},
+  "sprayArt": {"method": "font-mesh (Dela Gothic One をメッシュ化、黒縁＋赤塗り＋◎＋垂れ 22 本)", "widthM": 12.762, "condense": 0.717, "triangles": 5900, "uvIssues": 0},
+  "sightlines": {
+    "method": "広場内 5×5 視点 × 方位 5° 刻み × 仰角 0〜25° のレイキャスト（occluder AABB + 東壁）",
+    "failures": 0,
+    "evidence": "tests/slum02/test_layout.py::test_sightlines_from_plaza_are_closed（全パス）、preview/review.md overhead 第1回の 8 方位合成スクリーンショットでも地平線の露出なしを確認"
+  },
+  "capture": {
+    "attempted": true,
+    "command": "resoloop capture content/slum02/slum02.json --camera overview --output artifacts/slum02/qa/capture-overview.png --capture-timeout 30",
+    "result": "CAPTURE_EXPORT_TIMEOUT",
+    "retried": false,
+    "reason": "akichi 裁定 R1 と同一の環境制約（スクリーンショットのエクスポート経路が応答しない）。ブリーフの指示どおり 1 回のみ試行し再試行しない",
+    "threeDistanceReview": "未実施（画像なし）。実機での見た目確認は pending に記録"
+  },
+  "itemAudit": {
+    "auditedId": "Reso_6B34",
+    "firstRun": {
+      "portable": false,
+      "error": "ITEM_NOT_PORTABLE",
+      "externalReferences": 76,
+      "issueRoles": {
+        "[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic:_regular -> Reso_4DC9 (Shader)": 38,
+        "[FrooxEngine]FrooxEngine.FresnelMaterial:_shader -> Reso_4DC1 (Shader)": 6,
+        "[FrooxEngine]FrooxEngine.TextRenderer:Font -> Reso_10 (FontSet)": 16,
+        "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0] -> Reso_18 (Material)": 16
+      },
+      "allClassified": "required-world-element"
+    },
+    "allowedRun": {
+      "allowExternalRoles": [
+        "[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic:_regular",
+        "[FrooxEngine]FrooxEngine.FresnelMaterial:_shader",
+        "[FrooxEngine]FrooxEngine.TextRenderer:Font",
+        "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]"
+      ],
+      "portable": true,
+      "issues": {"info_ITEM_EXTERNAL_ROLE_ALLOWED": 76, "warning_ITEM_GRABBABLE_MISSING": 1},
+      "grabbableNote": "ワールド内に常設する構造物であり、掴んで持ち運ぶ item ではないため Grabbable なしは想定どおり"
+    },
+    "shaderAllowReason": "Reso_4DC9 / Reso_4DC1 は PBS_VertexColorMetallic と FresnelMaterial のワールド標準（ビルトイン）シェーダのアセットプロバイダで、audit 自身が required-world-element と分類している。どの Resonite ワールドにも既定で存在する要素であり、item と一緒に持ち運ぶ必要がないため、型単位で _regular / _shader を許可した。TextRenderer の Font(Reso_10) と既定マテリアル(Reso_18) も同様にワールド標準要素"
+  },
+  "advisoryOverruns": {
+    "policy": "exporter の閾値（5万三角形・8マテリアル・16サブメッシュ・2048px）は advisory review trigger であり、エラーや予算上限ではない（plan review 方針）",
+    "details": [
+      {"scope": "market / shacks / towers-a / towers-b / plaza(Blender実測)", "trigger": ">50,000 triangles", "justification": "1 オブジェクト 1 メッシュ方針により建物・セクタ集合を 1 エクスポート単位にまとめている。実表示単位はオブジェクトごとのメッシュ（最大でも塔 1 棟 ~8k tris 級）であり、セクタ合計が閾値を超えるのはまとめ方による。全体 45〜47 万 tris は計画予算 40〜60 万の範囲内"},
+      {"scope": "ground / market / nightlife / overhead / plaza / shacks / towers-abc / ads", "trigger": ">8 materials", "justification": "素材分離は汚れ・経年の原因ベース表現（錆、煤、退色、濡れ）を頂点カラー＋素材で分ける設計の結果。統合すると可視の素材差を犠牲にするため維持"},
+      {"scope": "ads / backdrop / market / nightlife / overhead / plaza / shacks / towers-abc", "trigger": ">16 submeshes/draw sections", "justification": "サブメッシュは 1 オブジェクト内の素材スロット分割。1 オブジェクト 1 メッシュの可触性を優先し、素材ごとのサブメッシュは仕様どおり"},
+      {"scope": "全体", "trigger": "unique materials 42 > 目安 30〜40", "justification": "44 素材定義のうち 42 を使用。色彩バリエーション（タープ 3 色、ネオン 7 色、ホロ 6 色、塗装退色 2 色）が賑わい表現の中核であり、削減すると見た目の密度が下がる。コンポーネント数は 44（PBS 38 + Fresnel 6）で Light 25・影あり 3 は予算内"}
+    ]
+  },
+  "previewSelfReviewSummary": "全 11 セクタで Cycles プレビューを 1〜3 往復し、裏返り・浮き・めり込み・UV 歪みを幾何テストと目視で潰した。主な修正: 平面デカールの閉じたシェル化（法線不定の解消）、車のリム接地、タンクと文字の干渉回避、重ねパネルの接触計測、室外機・庇の接触テスト、窓グリッド共有化による爆発抑制（47 万→17 万 tris）。overhead の 8 方位合成で視線の抜け・地平線の露出がないことを確認（sightline 失敗 0 と一致）。詳細は artifacts/slum02/preview/review.md",
+  "applySummary": {
+    "appliedAt": "Task 15（約 56 秒）",
+    "slotsCreated": 332,
+    "componentsAdded": 479,
+    "assetsImported": 159,
+    "reapplyConvergence": "managedFields 修正後の再 apply で writes 0、収束確認",
+    "manifestTests": "13/13 pass",
+    "strictValidate": "ok（warning は Panner2D 同一 Slot の APPLY_COMPONENT_IDENTITY_RISK 1 件のみ、identityFields 宣言済みの設計どおり）"
+  },
+  "pending": [
+    "実機での見た目確認（CAPTURE_EXPORT_TIMEOUT のため撮影できず。VR/デスクトップでの目視: ネオン・ホロの発光感、Fresnel の透過、Light の実効、3 距離レビュー）",
+    "VR 歩行とコライダー接触の確認（61 BoxCollider の歩行可否・引っかかり）",
+    "保存→再ロードのポータビリティ確認（item audit は allowed で portable:true だが、実際の保存/再ロードは未実施）"
+  ],
+  "knownLimitations": [
+    "昼の空（Root/Skybox は仕様上変更しない）のため、ネオン・ホロ・窓明かりのコントラストは夜想定より弱い。発光値は夜でも読める強度で設定済みだが、日中の見え方は実機確認が必要",
+    "ResoniteLink ID はセッションスコープ。本レポートの Reso_* ID は現セッションのもの",
+    "頂点カラーの汚れ境界は頂点密度（ground 1m 格子）に依存し、境界は柔らかい（プレビューで許容範囲と判断）",
+    "Fresnel マテリアルの見た目は Blender プレビューで再現できず、配置・サイズのみ検証済み（発光感の最終確認は実機）"
+  ]
+}
