@@ -1,9 +1,10 @@
 #!/bin/bash
 # リポジトリのレイアウト検査。仕様: docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md 9.1 節
 # 使い方: scripts/check-layout.sh [--root DIR]
-# 追跡の有無と mode、symlink の行き先、ファイルの中身はすべて git の index から読む。作業ツリーの未ステージの変更は
-# 結果を変えず、core.symlinks=false の checkout（symlink が通常ファイルになる）でも同じ結果になる。
-# 例外として、追跡中の symlink が解決できるか（検査 2）だけは作業ツリーで確かめる。
+# 追跡の有無と mode、symlink の行き先、ファイルの中身は git の index から読む（検査 1・4・5・6）。これらの結果は
+# 作業ツリーの未ステージの変更で変わらず、core.symlinks=false の checkout（symlink が通常ファイルになる）でも同じになる。
+# 例外として次の 3 つは作業ツリーを読む: 検査 2（追跡中の symlink が解決できるか）、検査 3（ignore 規則は作業ツリーの
+# .gitignore と .git/info/exclude から git が読む）、検査 7（resoloop が作業ツリーのプロジェクトを読む）。
 set -euo pipefail
 
 usage() {
@@ -94,7 +95,7 @@ check_symlinks_resolve() {
   fi
 }
 
-# 3. 追跡中かつ ignore 対象は既知の例外だけ
+# 3. 追跡中かつ ignore 対象は既知の例外だけ（ignore 規則は作業ツリーの .gitignore から読まれる）
 check_tracked_ignored() {
   local allow='MyResoniteProject/.resoloop/tokyo-nova/pipeline.json'
   if ! git -c core.excludesFile=/dev/null ls-files -z -i -c --exclude-standard > "$tmp_list"; then
@@ -256,7 +257,7 @@ check_project() {
   check_skill_links "$p/"
 }
 
-# 7. resoloop が使える環境では resoloop skills sync --check が各プロジェクトで成功する。失敗したら resoloop の出力を字下げして示す
+# 7. resoloop が使える環境では resoloop skills sync --check が各プロジェクトで成功する。失敗したら resoloop の出力を字下げして示す（resoloop は作業ツリーを読む）
 check_resoloop_skills() {
   local p out
   if ! command -v resoloop >/dev/null 2>&1; then
