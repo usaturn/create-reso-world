@@ -26,7 +26,6 @@ evals/
     repo-env/                 create-reso-world profile 用の一時リポジトリの素材
       .gitignore              /docs_draft/
       docs/resoloop-notes.rst 既存文書の編集ケース（42）の対象
-      prompts/exclusions.rst.txt      markup 対象外の入力資料
     negative/*.rst.txt        7種の負例断片（正常 tree には混ぜない）
 ```
 
