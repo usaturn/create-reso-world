@@ -1,27 +1,28 @@
 # 基本ルール
 
-- CLAUDE.md を遵守すること
+- AGENTS.md を遵守すること。プロジェクトを cwd にしている場合は、プロジェクトとリポジトリルートの両方の AGENTS.md が対象になる
 - 独立した調査・検証は積極的に subagent に委譲して並列化すること
 - メインコンテキストには要約結果だけを戻し、メイン Agent は設計・実装・統合判断に集中すること
+- 区切りのいいところでの引き継ぎは `/skill:agent-handoff` で行うこと
 - `HERDR_ENV=1` のときは、タスクに着手した直後と完了したときに
   `herdr-agent-task set "<タスク名>"` / `herdr-agent-task set "<タスク名>" --state completed`
   を実行し、Herdr 左サイドバーへ担当タスクを反映すること。
-  詳細は `.agents/skills/herdr-agent-task/SKILL.md` を参照すること
+  詳細は herdr-agent-task スキル（リポジトリルートの `.agents/skills/herdr-agent-task/SKILL.md`）を参照すること
 
 ## サブエージェントの起動
 
 - 起動前に `subagent` ツールへ `{ action: "list", capabilities: true }` を投げ、`executable` かつ `launchable` なエージェントを確認する
 - 単発起動は同期実行とし、`async: false` を必ず指定する（例: `{ agent: "worker", task: "...", async: false }`）
 - `async` の省略は禁止。省略時はバックグラウンド起動扱いとなる
-- `async: true` のワークフロー一括起動は、この環境では使用しない。pi がスタンドアロン版で `@earendil-works/pi-server` 系が無く、child session を作成できず失敗する（2026-09-06 確認。検証記録: `docs_draft/subagent-launch-verification-20260906.rst`）
+- `async: true` のワークフロー一括起動は、この環境では使用しない。pi がスタンドアロン版で `@earendil-works/pi-server` 系が無く、child session を作成できず失敗する（2026-09-06 確認）
 - 複数タスクは同期呼び出しで直列に回す。worktree を共有する場合は同時書き込みを避け、一度に書く子は1件にする
 - `reviewer` に bash は無い。テスト実行の裏取りは bash 持ち（implementer / worker / delegate）にやらせるか、調整役が引き受ける。レビュー子には差分照合だけを頼む
 - 予約 ref・Issue 更新・PR は調整役の一元管理とし、子には触らせない
-- サブエージェントが /simplify を使いたいときは @.agents/skills/simplify-in-subagent/SKILL.md を使う
+- サブエージェントが /simplify を使いたいときは simplify-in-subagent スキルを使う
 
 ## モデル名の抽出
 
-スキル: pr-review の `MODEL_NAME` は `.agents/skills/pi-model-name/SKILL.md` の手順で決める。
+スキル: pr-review の `MODEL_NAME` は pi-model-name スキルの手順で決める。
 
 1. pi の bash ツール内で `PI_PROVIDER` と `PI_MODEL` の両方を確認する。スクリプトを使う場合は、同スキルに記載された親 checkout からの絶対パス取得手順に従う。
 2. 片方でも空なら停止し、ユーザに正確なモデル識別子を確認する。セッション履歴の `model_change` や `PI_DISTILL_MODEL` を正式な `MODEL_NAME` の根拠にしない。
