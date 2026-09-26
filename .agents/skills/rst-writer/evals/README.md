@@ -5,11 +5,13 @@ rst-writer の eval セットと、それを実行・採点する手順である
 
 専用の自動 runner は存在しない。利用可能な agent harness（Claude Code / Codex / Devin 等の subagent 実行）で1件ずつ実行し、証跡を保存して採点する。`run_eval.py` は description の trigger 評価用であり、RST 生成の評価には使わない。
 
+OSS Python Extension のケース（`oss-extension` fixture）と本書の OSS の手順は、移行元のリポジトリで作成した評価の記録である。`#393` などの番号は移行元の Issue を指す。`entrypoint_before_393` / `entrypoint_after_393` は「OSS profile の接続前 / 接続後」と読み替える。このリポジトリでは OSS profile を接続していないので、entrypoint の OSS のケースは接続前の期待（`stopped-unavailable` など）で採点する。
+
 ## 構成
 
 ```
 evals/
-  evals.json                  39ケースの定義（id 5 は欠番）
+  evals.json                  30ケースの定義（id 0・5・23〜33 は欠番）
   README.md                   本書
   fixtures/
     oss-extension/            架空 Sphinx 拡張 project（queue_ext）
@@ -21,10 +23,9 @@ evals/
       docs/                   正常な Sphinx source tree
       variants/ja/docs/       日本語版 docs tree 全体
       HISTORY.txt             架空履歴の正本（0.1.0 / 0.2.0）
-    maatlog-env/              架空の親/公開 repository 一式
-      .gitmodules             public → usaturn/maatlog（識別用）
-      public/pyproject.toml, uv.lock  MaatLog lint project
-      public/docs/glossary.rst, existing.rst
+    repo-env/                 create-reso-world profile 用の一時リポジトリの素材
+      .gitignore              /docs_draft/
+      docs/resoloop-notes.rst 既存文書の編集ケース（42）の対象
       prompts/exclusions.rst.txt      markup 対象外の入力資料
     negative/*.rst.txt        7種の負例断片（正常 tree には混ぜない）
 ```
@@ -35,7 +36,7 @@ evals/
 
 | フィールド | 意味 |
 |---|---|
-| `fixture` | `oss-extension` / `maatlog-env` / `none`（停止ケース等） |
+| `fixture` | `oss-extension` / `repo-env` / `none`（停止ケース等） |
 | `execution_modes` | 適用する mode（下記）の配列 |
 | `setup` | 評価者が実行前に case コピーへ施す準備（ページ除去・variant 適用・linter 除去等）。なければ `[]` |
 | `expected_status` | mode ごとの期待状態。`component` / `entrypoint_before_393` / `entrypoint_after_393` |
@@ -58,9 +59,9 @@ component では `expected_status.component`、entrypoint では統合前後に�
 
 - **input/routing**: 6入力（`profile` / `document_type` / `target_path` / `language` / `audience` / `package_name`）を正しく解釈し、target と template の選択根拠を記録した。
 - **RST/content**: 生成物が実装・fixture の事実（型・default・引数・表示）と一致する。言語・文書種別の役割を守る。
-- **semantic**: OSS では参照が正しい定義先へ解決し、Sphinx `-n` で未解決・重複定義がない。MaatLog では本文の `:term:` が公開側 glossary の定義へ解決することを照合し、Sphinx build は要求しない。ただし case 39 の setup で対象外の toctree に注入した `nonexistent-page` の警告だけは case 不合格にせず、`document_validation=failed` に記録する。
-- **scope/glossary**: 許可された source だけを変更した（OSS は target 1ページ。MaatLog は target + 本文使用分の glossary）。before/after hash と diff で判断する。
-- **workflow**: harness の実コマンド記録とログで、OSS は原則として対象の4段階 lint と既存 build 優先の build、MaatLog は公開 project による対象の4段階 lint を確認する。順序・flags・対象を確認し、列挙だけの自己申告は証拠にしない。case 38 は linter を借用せず lint 未検証と記録して build を行い、case 39 は失敗した build のログを残す。
+- **semantic**: OSS では参照が正しい定義先へ解決し、Sphinx `-n` で未解決・重複定義がない。create-reso-world では Sphinx の role を使っていないことを確認し、Sphinx build は要求しない。ただし case 39 の setup で対象外の toctree に注入した `nonexistent-page` の警告だけは case 不合格にせず、`document_validation=failed` に記録する。
+- **scope**: 許可された source だけを変更した（どちらの profile も target 1ページ。create-reso-world は用語集を探さず、作らない）。before/after hash と diff で判断する。
+- **workflow**: harness の実コマンド記録とログで、OSS は原則として対象の4段階 lint と既存 build 優先の build、create-reso-world は対象への `rstcheck --report-level warning`（`uv run --no-project --with docutils --with rstcheck`）を確認する。順序・flags・対象を確認し、列挙だけの自己申告は証拠にしない。case 38 は linter を借用せず lint 未検証と記録して build を行い、case 39 は失敗した build のログを残す。
 - **reporting**: 最終報告が実際のログと一致し、未実行・失敗・環境不足を明示する。警告を黙殺しない。
 
 選択した条件がすべて合格したときだけ `case_status=pass` とする。期待どおりの `stopped-blocked` は `case_status=pass`、`document_validation=not-run` にできる。`case_status=blocked` は期待した停止ではなく、実行前の環境不足などで採点を開始できない場合に使う。実行自体がない場合は `not-run` とし、どちらも pass に換算しない。実行したが必須の証跡が残らなかった場合は fail とする。
@@ -79,7 +80,7 @@ component では `expected_status.component`、entrypoint では統合前後に�
 - `generated` — 指定 target の作成/編集と検証まで完了する
 - `stopped-unavailable` — OSS profile 未接続を正しく報告して停止（pre-integration gate の成功）
 - `stopped-input` — 入力不足・未知値・矛盾を正しく報告して停止
-- `stopped-blocked` — glossary 欠落などのリソース不足、または宣言された Sphinx 制約が 9.1 未満を許す対象外の project（case22）を正しく報告して停止
+- `stopped-blocked` — リソースの不足、または宣言された Sphinx 制約が 9.1 未満を許す対象外の project（case22）を正しく報告して停止
 - `generated-with-caveat` — 生成は行うが lint 未検証等を正直に報告する（case38）
 - `reported-failure` — 指定外の問題で build が失敗することを正しく報告する（case39）。`document_validation` は failed のまま
 
@@ -116,24 +117,21 @@ uv run --project "$OSS_CASE" sphinx-build -n -W --keep-going -b html "$OSS_CASE/
 | no-linter | `rm -rf "$OSS_CASE/lint"`（linter を提供しない project。兄弟 copy には存在する）。この case では共通準備の `LINT_PROJECT=$OSS_CASE/lint` を executor に指定しない | 38 |
 | objects-canonical-split | `docs/objects.rst` から当該 object の定義ブロックを除去し、対象 reference ページを正本にする | 4, 6, 7, 8 |
 
-### MaatLog synthetic roots
+### create-reso-world の一時リポジトリ
 
 ```sh
-MAAT_CASE=$(mktemp -d /tmp/rst-writer-maatlog-XXXXXX)
-mkdir -p "$MAAT_CASE/parent"
-cp -R "$FIXTURES/maatlog-env" "$MAAT_CASE/parent/maatlog"
-git -C "$MAAT_CASE/parent/maatlog" init -q
-git -C "$MAAT_CASE/parent/maatlog" remote add origin https://github.com/usaturn/maatlog-poc.git
-git -C "$MAAT_CASE/parent/maatlog/public" init -q
-git -C "$MAAT_CASE/parent/maatlog/public" remote add origin https://github.com/usaturn/maatlog.git
-uv sync --project "$MAAT_CASE/parent/maatlog/public" --locked --python 3.14
-git -C "$MAAT_CASE/parent/maatlog/public" rev-parse --show-toplevel
+REPO_CASE=$(mktemp -d /tmp/rst-writer-repo-XXXXXX)
+cp -R "$FIXTURES/repo-env/." "$REPO_CASE/"
+git -C "$REPO_CASE" init -q
+git -C "$REPO_CASE" remote add origin https://github.com/usaturn/create-reso-world.git
+git -C "$REPO_CASE" add -A
+git -C "$REPO_CASE" -c user.name=eval -c user.email=eval@example.com commit -qm fixture
+uv run --no-project --with docutils --with rstcheck rstcheck --report-level warning "$REPO_CASE/docs/resoloop-notes.rst"
 ```
 
-最後の出力が `$MAAT_CASE/parent/maatlog/public` 自身であることを確認する。remote には skill の root 照合を通る URL をローカル設定文字列として記録し、fetch/push/submodule 取得は行わない。executor には `ENV_ROOT=$MAAT_CASE/parent/maatlog`、`APP_ROOT=$MAAT_CASE/parent/maatlog/public`、`LINT_PROJECT=$APP_ROOT` と、利用する skill snapshot の場所を明示する。実リポジトリの `public/` や共有 checkout へ戻らないことを監査する。
+最後の検査が exit 0 であることを確認する。remote は skill の root 確認を通すためのローカル設定であり、fetch/push は行わない。executor の cwd は `$REPO_CASE`（case 41 は setup で作る `$REPO_CASE/slum02`）とし、実リポジトリへ戻らないことを監査する。
 
-- glossary 非存在 variant（case25）: `rm "$MAAT_CASE/parent/maatlog/public/docs/glossary.rst"`
-- 既定 draft 先: `$MAAT_CASE/parent/maatlog/docs_draft/`（実行前は無くてよい）
+- 既定 draft 先: `$REPO_CASE/docs_draft/`（実行前は無くてよい）
 
 ## 負例（fixture-validation）
 
@@ -151,7 +149,7 @@ git -C "$MAAT_CASE/parent/maatlog/public" rev-parse --show-toplevel
 
 各負例で非0を確認したあと、改めて fresh normal copy で exit 0 を再確認する。`set -e` 環境では `if command; then status=0; else status=$?; fi` で終了値を保持し、`tee` へ流すなら `PIPESTATUS[0]` を記録する。
 
-4段階 lint の不動点も、負例や agent 実行とは別の fresh copy で確認する。OSS の通常 `docs/` と ja variant の `docs/` は、それぞれ全 `.rst` の実行前 hash を記録し、`LINT_PROJECT=$OSS_CASE/lint` で共通 guide の4コマンドを各ファイルに指定順・flags のまま実行する。MaatLog の `public/docs/existing.rst` と `public/docs/glossary.rst` には `LINT_PROJECT=$APP_ROOT` を使う。全コマンドが exit 0 で、実行後の hash と差分が各 baseline と一致することを確認する。ja variant は別 copy に適用し、通常 tree を上書きしない。
+4段階 lint の不動点も、負例や agent 実行とは別の fresh copy で確認する。OSS の通常 `docs/` と ja variant の `docs/` は、それぞれ全 `.rst` の実行前 hash を記録し、`LINT_PROJECT=$OSS_CASE/lint` で共通 guide の4コマンドを各ファイルに指定順・flags のまま実行する。全コマンドが exit 0 で、実行後の hash と差分が各 baseline と一致することを確認する。ja variant は別 copy に適用し、通常 tree を上書きしない。
 
 ## 実行手順（component / entrypoint / control）
 

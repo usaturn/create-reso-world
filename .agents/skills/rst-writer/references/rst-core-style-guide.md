@@ -1,6 +1,6 @@
 # 共通 RST 記述規則
 
-全 profile に共通する構造と静的検査を定める。言語、文体、出力先、用語集、コード言語・図の選択、build 方針は選択した profile を読む。
+全 profile に共通する構造と、`wabun-rst-ulint` による静的検査を定める。言語、文体、出力先、用語集、コード言語・図の選択、静的検査の手段、build 方針は選択した profile を読む。
 入力と利用可能性の確認は [入力仕様](profile-interface.md)、template の選択は [文書種別表](document-types.md) に従う。
 
 ## ページと見出し
@@ -42,6 +42,8 @@
 
 参照先の実在とラベルを確認する。ラベルを追加するために依頼範囲外のファイルを編集する必要があれば、不足作業として報告する。
 外部リンクは匿名参照（末尾 `__`）を使う。
+
+Sphinx を使わない profile（create-reso-world）では `:ref:` を解釈できない。ラベルの付け方はこの節のとおりにし、参照はその profile の書き方に従う。
 
 ```rst
 `Sphinx の参照記法 <https://www.sphinx-doc.org/en/master/usage/referencing.html>`__
@@ -102,7 +104,9 @@
 手順の連番は `#.`、箇条書きは `-` を使う。箇条書きの入れ子は2スペース字下げする。
 リスト内のブロックは項目本文の字下げを基準にする。
 
-## 共通の静的検査
+## `wabun-rst-ulint` による静的検査
+
+検査用 Python project（`LINT_PROJECT`）を確定する profile が、この検査を使う。確定しない profile は、その profile の検査手順に従う（create-reso-world は rstcheck による構文検査）。
 
 profile が確定した検査用 Python project の絶対パスを `LINT_PROJECT`、今回作成・編集した RST の絶対パスを `TARGET` として、ファイルごとに次を順に実行する。
 対象ファイルの置き場所と uv project は別である。親 cwd の暗黙の project discovery に頼らない。

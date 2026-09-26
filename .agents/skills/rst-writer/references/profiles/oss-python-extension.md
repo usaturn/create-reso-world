@@ -1,7 +1,7 @@
 # OSS Python Extension profile
 
 `profile=oss-python-extension` に適用する執筆・環境確認・検証方針である。
-この文書は **#393 の統合で entrypoint が接続されたあとに使う**。統合前に直接この文書を使う評価・作業では、呼び出し仕様の停止条件ではなく本書の手順を適用する。
+この文書は **entrypoint が接続されたあとに使う**（現在は未接続。[文書種別表](../document-types.md) を参照）。接続前に直接この文書を使う評価・作業では、呼び出し仕様の停止条件ではなく本書の手順を適用する。
 
 RST 構造・ラベル・4段階 lint は [共通 guide](../rst-core-style-guide.md)、6つの入力と停止条件は [入力仕様](../profile-interface.md)、document_type とリソースの対応は [文書種別表](../document-types.md) を正本とする。
 role・directive の選択条件と fallback は [Sphinx semantic markup](../sphinx-semantic-markup.md) を読む。
@@ -10,12 +10,12 @@ role・directive の選択条件と fallback は [Sphinx semantic markup](../sph
 
 - 入力は共通の6つ。OSS では `document_type` / `target_path` / `language` が必須で、`audience` / `package_name` は任意である。必須値の欠落・空値・未知値・明示値同士の矛盾は、入力仕様の停止条件に従い書き込み前に報告する。追加の呼び出しパラメータは作らない。
 - Sphinx 9.1.0 以上を前提とし、版による記法の分岐はしない。前提を満たさない project は下記「環境の確認順」で停止する。
-- 対象は呼び出し側が指定した project/cwd と `target_path` から確定する。相対パスはその project/cwd 基準で解決し、MaatLog の `public/` や `docs_draft/` へ読み替えない。
+- 対象は呼び出し側が指定した project/cwd と `target_path` から確定する。相対パスはその project/cwd 基準で解決し、create-reso-world の `docs_draft/` へ読み替えない。
 - 既存ページの編集では対象を先に読み、依頼範囲外の本文・ラベル・コメントを保持する。
 
 ## 書き込み先と副作用の境界
 
-- 今回書き込んでよいのは **`target_path` の1ファイルだけ**である。MaatLog の用語集追記のような例外は OSS にはない。
+- 今回書き込んでよいのは **`target_path` の1ファイルだけ**である。例外は無い。
 - toctree への登録、別ページのラベル追加・本文修正、glossary の新設・追記、conf.py・依存設定・サンプルコードの変更はすべて指定外であり、実行せず必要な作業として報告する。参照先ラベルが別ファイルに必要な場合も同様である。
 - 依存の追加、sample・fixture の新設、テンプレートファイルの生成もこの単一ページ作業に含めない。
 - 新規ページが toctree に登録できないことによる警告を `:orphan:` などで消して成功に見せかけない。警告を残し、toctree 登録を必要な後続作業として報告する。
@@ -45,7 +45,7 @@ role・directive の選択条件と fallback は [Sphinx semantic markup](../sph
 
 - 対象 project 自身が `wabun-rst-ulint` を提供するなら `PROJECT_ROOT` を使う。
 - 呼び出し側が検査用 project を明示した場合は、その絶対パスと指定根拠を記録して使う。
-- 上記以外の project（親・兄弟・共有環境）は、存在し linter を提供していても **暗黙に採用しない**。MaatLog の配置を転用しない。
+- 上記以外の project（親・兄弟・共有環境）は、存在し linter を提供していても **暗黙に採用しない**。
 - 対象提供でも呼び出し側の明示でもない場合に、作業者側で新しい検査環境を新設して lint 済みとしない。一時的な `uv run --with` 等で実行しても `LINT_PROJECT` 確定の扱いにはしない。
 - いずれも得られなければ lint は未検証とし、lint 合格とは報告しない。
 
@@ -53,7 +53,7 @@ role・directive の選択条件と fallback は [Sphinx semantic markup](../sph
 
 ## 執筆方針
 
-- `language` と対象の既存スタイルを使う。日本語・である調、固定の「概要」、末尾の単独「以上」、zsh、Python 以外の一律 `::` などの MaatLog 制限は持ち込まない。ページ・節ラベル、一意性、RST 構造、`:doc:` 不使用、4段階 lint は共通 guide に従い維持する。
+- `language` と対象の既存スタイルを使う。日本語・である調、固定の「概要」、末尾の単独「以上」、zsh などの create-reso-world profile の決まりは持ち込まない。ページ・節ラベル、一意性、RST 構造、`:doc:` 不使用、4段階 lint は共通 guide に従い維持する。
 - 言語・用途が明確なら `.. code-block::` に `console` / `python` / `rst` / `json` / `yaml` / `toml` / `text` を使う。shell 固有機能にだけ shell 系を明示する。
 - 実在する sample は `.. literalinclude::` を優先する。包含元 RST からの相対パス、選択範囲（`:lines:` 等）、対象ファイルの実在を確認する。短い説明用の例は `code-block` を使う。
 - 実行可能な Python 例は、対象の既存 doctest 環境が使える場合だけ実行を検討する。表示だけの例を実行済みとはしない。

@@ -2,30 +2,6 @@
   "skill_name": "rst-writer",
   "evals": [
     {
-      "id": 0,
-      "name": "generic-explanation",
-      "prompt": "遅延再試行とキューの関係を解説する .rst 文書を作成してください。遅延再試行の発生条件・待機時間・試行上限・失敗時の扱いも説明してください。document_type=explanation、language=ja。作業対象は評価者が用意した MaatLog 構成（親/公開）で、新規 draft は親の docs_draft/ 配下に置き、専門用語は公開側の docs/glossary.rst と照合してください。変更ファイル・用語集の変更有無・実行した検査と結果を報告してください。",
-      "expected_output": "親 docs_draft/ 配下の日本語解説書。遅延再試行の4要素を説明し、読点を4つ以上使って語句を列挙する場合は箇条書きまたはフィールドリストで整理する。既存のキュー/queue 別名は追記なしで本文全出現を :term: 化し、新語の遅延再試行だけを既存 glossary へ追記。作成ファイルと編集した glossary に4段階 lint。",
-      "files": [
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/public/pyproject.toml",
-        "evals/fixtures/maatlog-env/.gitmodules"
-      ],
-      "assertions": [
-        "作成先は親 checkout の docs_draft/ 配下であり、先頭ラベル・概要・末尾単独の「以上」を含む RST 構造になっている",
-        "本文で使ったキュー/queue と遅延再試行の全出現が :term: でマークされている（コード・見出し等の対象外を除く）",
-        "公開側 docs/glossary.rst には遅延再試行のエントリだけが追記され、キュー/queue・監査ログの既存エントリは不変である",
-        "日本語の地の文は一文あたりの読点「、」が3つ以下である（コード・リテラル・図・list-table セル内は対象外）",
-        "読点「、」を4つ以上使って語句を列挙する箇所は箇条書きまたはフィールドリストに分解されている",
-        "実コマンド記録が inline-spacing→strong-spacing→sentence-breaks→heading-width の4段階を --fix で（最後のみ --backup-suffix .bak）、作成ファイルと編集した glossary の両方に示す",
-        "uv project として公開 checkout（APP_ROOT）が使われ、親 project や他環境を代用していない"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
-    },
-    {
       "id": 1,
       "name": "oss-landing",
       "prompt": "profile=oss-python-extension, document_type=landing-page, target_path=docs/index.rst, language=en. Update the landing page of the supplied project: state what the extension is for and where a reader should start, and keep the existing navigation structure intact. Report the files changed and the actual validation results.",
@@ -51,7 +27,7 @@
       "id": 2,
       "name": "oss-quickstart-en",
       "prompt": "profile=oss-python-extension, document_type=quickstart, target_path=docs/quickstart.rst, language=en. Expand this page into a short quickstart for the supplied extension project: enable the extension, run a minimal queue-summary example, and show the expected output. Use the project's real sample or code where helpful. Report the files changed and the actual validation results.",
-      "expected_output": "English quickstart that flows intro -> configure -> run -> expected output, uses console/python code blocks appropriately, and does not import MaatLog-only conventions.",
+      "expected_output": "English quickstart that flows intro -> configure -> run -> expected output, uses console/python code blocks appropriately, and does not import the conventions of the create-reso-world profile.",
       "files": [
         "evals/fixtures/oss-extension/docs/quickstart.rst",
         "evals/fixtures/oss-extension/docs/conf.py",
@@ -62,7 +38,7 @@
       "assertions": [
         "The page leads with a short introduction, then shows configuration, then how to run it, then the expected output",
         "Code blocks use language-appropriate directives (e.g. console/python), and any shown API usage matches the real source",
-        "No MaatLog-only conventions appear (fixed 概要 section, trailing 以上, or Japanese-only style rules) in the English page",
+        "No create-reso-world profile conventions appear (fixed 概要 section, trailing 以上, or Japanese-only style rules) in the English page",
         "Only docs/quickstart.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
       ],
       "fixture": "oss-extension",
@@ -74,7 +50,7 @@
       "id": 3,
       "name": "oss-quickstart-ja",
       "prompt": "profile=oss-python-extension, document_type=quickstart, target_path=docs/quickstart.rst, language=ja. Expand this page into a short quickstart matching the project's existing documentation style: enable the extension, run a minimal queue-summary example, and show the expected output. Report the files changed and the actual validation results.",
-      "expected_output": "Japanese quickstart in the project's existing style (no MaatLog-only 概要/以上 conventions), covering intro -> configure -> run -> expected output, with the four lint steps and a warning-free build.",
+      "expected_output": "Japanese quickstart in the project's existing style (no 概要/以上 conventions of the create-reso-world profile), covering intro -> configure -> run -> expected output, with the four lint steps and a warning-free build.",
       "files": [
         "evals/fixtures/oss-extension/variants/ja/docs/quickstart.rst",
         "evals/fixtures/oss-extension/variants/ja/docs/index.rst",
@@ -83,7 +59,7 @@
       ],
       "assertions": [
         "The written page is natural Japanese consistent with the project's existing style and document-type role",
-        "MaatLog-only conventions are not applied (no forced 概要 section or trailing standalone 以上)",
+        "The create-reso-world profile conventions are not applied (no forced 概要 section or trailing standalone 以上)",
         "Configuration/run/output content matches the real extension (extension name, directive, expected result)",
         "Only docs/quickstart.rst changed; command records show the four lint steps in order then the project build with exit 0 and no warnings"
       ],
@@ -376,15 +352,13 @@
       "name": "unknown-profile",
       "prompt": "profile=unknown-service-profile, document_type=explanation, target_path=docs_draft/notes.rst, language=ja. 与えられた環境で解説文書を作成してください。変更ファイルと検査結果を報告してください。",
       "expected_output": "No files are created or modified. The reply reports that the given profile is unknown and states what input is needed next.",
-      "files": [
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst"
-      ],
+      "files": [],
       "assertions": [
         "The reply names the unknown profile value and the information needed to proceed",
-        "No RST file is created, no glossary is touched, no .bak is produced, and no lint command was run",
+        "No RST file is created, no .bak is produced, and no check command was run",
         "The agent did not silently substitute a default or known profile"
       ],
-      "fixture": "maatlog-env",
+      "fixture": "none",
       "execution_modes": ["component", "entrypoint"],
       "setup": [],
       "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
@@ -447,16 +421,14 @@
       "id": 21,
       "name": "empty-profile",
       "prompt": "profile='', document_type=procedure, language=ja. 与えられた環境で手順書を作成してください。変更ファイルと検査結果を報告してください。",
-      "expected_output": "No files are created. The reply reports that an empty profile value is invalid input, without converting it to the maatlog default.",
-      "files": [
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst"
-      ],
+      "expected_output": "No files are created. The reply reports that an empty profile value is invalid input, without converting it to the create-reso-world default.",
+      "files": [],
       "assertions": [
         "The reply identifies the empty profile string as a missing/invalid value rather than an omitted one",
-        "profile=maatlog was not silently assumed",
-        "No file is created, no glossary is touched, and no lint was run"
+        "profile=create-reso-world was not silently assumed",
+        "No file is created and no check command was run"
       ],
-      "fixture": "maatlog-env",
+      "fixture": "none",
       "execution_modes": ["component", "entrypoint"],
       "setup": [],
       "expected_status": {"component": "stopped-input", "entrypoint_before_393": "stopped-input", "entrypoint_after_393": "stopped-input"}
@@ -481,228 +453,6 @@
       "execution_modes": ["component", "entrypoint"],
       "setup": ["set needs_sphinx = \"7.4\" in docs/conf.py (the build env stays Sphinx 9.1.0)"],
       "expected_status": {"component": "stopped-blocked", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "stopped-blocked"}
-    },
-    {
-      "id": 23,
-      "name": "glossary-alias-reuse",
-      "prompt": "キューの働きを解説する .rst 文書を作成してください。document_type=explanation、language=ja。本文では「キュー」と「queue」の両表記を使います。作業対象は評価者が用意した MaatLog 構成で、新規 draft は親 docs_draft/ 配下、用語は公開側 docs/glossary.rst と照合してください。変更ファイル・用語集の変更有無・検査結果を報告してください。",
-      "expected_output": "親 docs_draft/ 配下の日本語解説書。キュー/queue の全出現が :term: でマークされ、既存エントリの別名として解決するため glossary 追記はゼロ。glossary 未編集なら lint 対象外。",
-      "files": [
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/public/pyproject.toml",
-        "evals/fixtures/maatlog-env/.gitmodules"
-      ],
-      "assertions": [
-        "本文中のキュー/queue の全出現が :term: でマークされ、同一エントリの別名として解決している（表示名とキーの使い分けを含む）",
-        "公開側 docs/glossary.rst は byte 不変（新規エントリも別名重複もない）",
-        "glossary を編集していないので lint は作成ファイルのみに4段階で実行された",
-        "監査ログなど本文に出ない既存語や、他文書の語を先回りで追加していない"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
-    },
-    {
-      "id": 24,
-      "name": "glossary-markup-exclusions",
-      "prompt": "添付資料（prompts/exclusions.rst.txt）を題材に、キューの振る舞いを解説する .rst 文書を作成してください。document_type=explanation、language=ja。作業対象は評価者が用意した MaatLog 構成で、新規 draft は親 docs_draft/ 配下、用語は公開側 docs/glossary.rst と照合してください。変更ファイル・用語集の変更有無・検査結果を報告してください。",
-      "expected_output": "親 docs_draft/ 配下の日本語解説書。キュー は地の文の全出現だけ :term: で、見出し・コード・リテラル・Mermaid 内は無変更。新語は本文使用分のみ glossary へ追記。",
-      "files": [
-        "evals/fixtures/maatlog-env/prompts/exclusions.rst.txt",
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/public/pyproject.toml"
-      ],
-      "assertions": [
-        "地の文のキュー の全出現が :term: でマークされている",
-        "見出し・code-block・literal block・inline literal・Mermaid 内の同じ語はマークされず残っている（list-table セルは任意）",
-        "glossary への追記は本文で実際に使った未定義語だけであり、対象外箇所の語を理由に増やしていない",
-        "lint が作成ファイルと（編集した場合のみ）glossary に4段階で実行された"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
-    },
-    {
-      "id": 25,
-      "name": "maatlog-missing-glossary",
-      "prompt": "キューの役割を解説する .rst 文書を作成してください。document_type=explanation、language=ja。作業対象は評価者が用意した MaatLog 構成で、新規 draft は親 docs_draft/ 配下に置き、用語は公開側 docs/glossary.rst と照合してください。変更ファイルと検査結果を報告してください。",
-      "expected_output": "No files are created. The reply reports that APP_ROOT/docs/glossary.rst is missing, states the needed repair, and does not substitute the parent glossary or create a new one.",
-      "files": [
-        "evals/fixtures/maatlog-env/public/pyproject.toml",
-        "evals/fixtures/maatlog-env/.gitmodules"
-      ],
-      "assertions": [
-        "The reply identifies docs/glossary.rst as missing in the public checkout and states the required repair",
-        "Neither the parent docs/glossary.rst nor a newly created glossary is used as a substitute",
-        "No draft is created and no lint was run"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint"],
-      "setup": ["remove public/docs/glossary.rst from the MaatLog copy"],
-      "expected_status": {"component": "stopped-blocked", "entrypoint_before_393": "stopped-blocked", "entrypoint_after_393": "stopped-blocked"}
-    },
-    {
-      "id": 26,
-      "name": "maatlog-procedure-default",
-      "prompt": "キューの滞留を解消する手順書を作成してください。document_type=procedure、language=ja。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
-      "expected_output": "親 docs_draft/ 配下の手順書（procedure template 構成: 前提条件・手順の流れ・実施手順・結果確認）。lint project は公開 checkout。",
-      "files": [
-        "evals/fixtures/maatlog-env/public/pyproject.toml",
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/.gitmodules"
-      ],
-      "assertions": [
-        "出力先は親 checkout の docs_draft/ で、procedure の構成（前提条件・手順の流れ・実施手順・結果確認）に従う",
-        "用語集照合は公開側 docs/glossary.rst で行い、本文使用分の未定義語だけ追記された",
-        "lint は公開 project を uv project として作成ファイル（と編集時のみ glossary）に4段階で実行された",
-        "親/公開の取り違えがない（draft が公開側や lint が親 project になっていない）"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
-    },
-    {
-      "id": 27,
-      "name": "maatlog-procedure-explicit",
-      "prompt": "profile=maatlog、document_type=procedure、language=ja。キューの滞留を解消する手順書を作成してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
-      "expected_output": "親 docs_draft/ 配下の手順書。profile 明示時も省略時と同じ仕様（構成・出力先・用語集・lint project）で、公開/親の取り違えなし。",
-      "files": [
-        "evals/fixtures/maatlog-env/public/pyproject.toml",
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/.gitmodules"
-      ],
-      "assertions": [
-        "出力先は親 checkout の docs_draft/ で、procedure の構成に従う",
-        "用語集照合・追記範囲・lint project の選択は省略時（id 26）と同じ仕様である",
-        "親/公開の取り違えがない"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
-    },
-    {
-      "id": 28,
-      "name": "maatlog-explanation-default",
-      "prompt": "document_type=explanation、language=ja、target_path=docs_draft/queue-model.rst。キューの構造を解説する文書を作成してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
-      "expected_output": "明示された docs_draft/queue-model.rst に解説書（explanation 構成）。明示 target_path が既定命名に置き換えられない。",
-      "files": [
-        "evals/fixtures/maatlog-env/public/pyproject.toml",
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/.gitmodules"
-      ],
-      "assertions": [
-        "出力先は明示された docs_draft/queue-model.rst であり、profile 既定の命名で置き換えられていない",
-        "explanation の構成（概念・構造・比較・関連資料）に従う",
-        "用語集照合と lint の対象・project は既定仕様どおり"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
-    },
-    {
-      "id": 29,
-      "name": "maatlog-explanation-explicit",
-      "prompt": "profile=maatlog、document_type=explanation、language=ja、target_path=docs_draft/queue-model.rst。キューの構造を解説する文書を作成してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
-      "expected_output": "明示 target_path の解説書。profile 明示時も省略時と同じ仕様で、暗黙の procedure 化や置き換えなし。",
-      "files": [
-        "evals/fixtures/maatlog-env/public/pyproject.toml",
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/.gitmodules"
-      ],
-      "assertions": [
-        "出力先は docs_draft/queue-model.rst で、explanation 構成のまま procedure 化していない",
-        "profile 明示による仕様差はなく、用語集・lint の扱いは省略時と同じ",
-        "親/公開の取り違えがない"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
-    },
-    {
-      "id": 30,
-      "name": "maatlog-operational-default",
-      "prompt": "document_type=operational、language=ja。キューの待機件数を確認する短い手順を作成してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
-      "expected_output": "親 docs_draft/ 配下の短い確認手順（procedure 共用 template、不要な前提条件・手順の流れは省略可）で、確認結果が示される。",
-      "files": [
-        "evals/fixtures/maatlog-env/public/pyproject.toml",
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/.gitmodules"
-      ],
-      "assertions": [
-        "operational は procedure の簡易版として書かれ、不要な前提条件や手順の流れが無理に埋められていない",
-        "確認結果を示す節があり、出力先は親 docs_draft/ である",
-        "用語集・lint の扱いは既定仕様どおり"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
-    },
-    {
-      "id": 31,
-      "name": "maatlog-operational-explicit",
-      "prompt": "profile=maatlog、document_type=operational、language=ja。キューの待機件数を確認する短い手順を作成してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
-      "expected_output": "親 docs_draft/ 配下の短い確認手順。profile 明示時も省略時と同じ operational 仕様。",
-      "files": [
-        "evals/fixtures/maatlog-env/public/pyproject.toml",
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/.gitmodules"
-      ],
-      "assertions": [
-        "出力先・構成・用語集・lint の扱いは省略時（id 30）と同じ仕様である",
-        "親/公開の取り違えがない"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
-    },
-    {
-      "id": 32,
-      "name": "maatlog-edit-default",
-      "prompt": "公開 checkout の docs/existing.rst の「対象節」だけを、遅延再試行の扱いを追記して更新してください。language=ja。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
-      "expected_output": "指定節だけが更新され、先頭ラベル・対象外の節・コメントは保持される。遅延再試行は新語として既存 glossary へ追記。親 checkout へはコピーしない。",
-      "files": [
-        "evals/fixtures/maatlog-env/public/docs/existing.rst",
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/public/pyproject.toml"
-      ],
-      "assertions": [
-        "変更は「対象節」のみで、先頭ラベル・「対象外の節」・コメント行は保持される",
-        "編集は公開 checkout 内の指定ファイルに限定され、親 checkout へ複写・反映していない",
-        "本文で使った遅延再試行だけが既存 glossary へ追記された",
-        "lint は編集した existing.rst と glossary に4段階で実行された"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
-    },
-    {
-      "id": 33,
-      "name": "maatlog-edit-explicit",
-      "prompt": "profile=maatlog、language=ja。公開 checkout の docs/existing.rst の「対象節」だけを、遅延再試行の扱いを追記して更新してください。作業対象は評価者が用意した MaatLog 構成です。変更ファイル・用語集の変更有無・検査結果を報告してください。",
-      "expected_output": "指定節だけが更新され番兵は保持される。profile 明示時も省略時と同じ編集境界で、実際に編集した glossary だけが lint 対象に加わる。",
-      "files": [
-        "evals/fixtures/maatlog-env/public/docs/existing.rst",
-        "evals/fixtures/maatlog-env/public/docs/glossary.rst",
-        "evals/fixtures/maatlog-env/public/pyproject.toml"
-      ],
-      "assertions": [
-        "編集境界は省略時（id 32）と同じで、番兵（ラベル・対象外節・コメント）が保持される",
-        "実際に編集した glossary だけが lint 対象に追加された（未編集の他ファイルは対象外）",
-        "親/公開の取り違えがない"
-      ],
-      "fixture": "maatlog-env",
-      "execution_modes": ["component", "entrypoint", "control"],
-      "setup": [],
-      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
     },
     {
       "id": 34,
@@ -819,6 +569,59 @@
       "setup": ["add 'nonexistent-page' as an entry in the docs/index.rst toctree (missing-document injection outside the target)"],
       "expected_status": {"component": "reported-failure", "entrypoint_before_393": "stopped-unavailable", "entrypoint_after_393": "reported-failure"},
       "artifact_requirements": ["the failing build log must be preserved; document_validation=failed is the expected state"]
+    },
+    {
+      "id": 40,
+      "name": "repo-procedure-default",
+      "prompt": "Blender で作ったメッシュを resoloop でワールドへ反映する手順書を作成してください。document_type=procedure、language=ja。作業対象は評価者が用意したこのリポジトリの複製で、cwd はそのルートです。変更ファイルと検査結果を報告してください。",
+      "expected_output": "リポジトリのルートの docs_draft/ 配下の日本語手順書（前提条件・手順の流れ・手順・結果確認）。用語集は探さず、rstcheck の構文検査が exit 0。",
+      "files": [],
+      "assertions": [
+        "作成先はリポジトリのルートの docs_draft/ 配下で、先頭ラベル・概要・前提条件・手順の流れ・手順・結果確認・末尾単独の「以上」を持つ",
+        "用語集（glossary）を探したり、作成・編集したりしていない",
+        "Sphinx の role（:ref: / :term: / :doc:）や Sphinx 拡張の directive を使っていない",
+        "実コマンド記録に uv run --no-project --with docutils --with rstcheck rstcheck --report-level warning <作成ファイル> があり、exit 0 である",
+        "作成ファイル以外の source を変更していない"
+      ],
+      "fixture": "repo-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 41,
+      "name": "repo-explanation-explicit-target",
+      "prompt": "profile=create-reso-world、document_type=explanation、target_path=docs_draft/world-projects.rst、language=ja。ワールドのプロジェクトとリポジトリの関係（プロジェクトを cwd にしてエージェントを起動すること、共有スキルの置き場所）を解説してください。作業対象は評価者が用意したこのリポジトリの複製で、cwd はその中のプロジェクト slum02/ です。変更ファイルと検査結果を報告してください。",
+      "expected_output": "リポジトリのルート基準の docs_draft/world-projects.rst に日本語の解説書。explanation template の構成に従い、rstcheck の構文検査が exit 0。",
+      "files": [],
+      "assertions": [
+        "作成先はリポジトリのルート基準の docs_draft/world-projects.rst であり、cwd のプロジェクト slum02/ の下ではない",
+        "explanation template の構成（概要・トピックの節・関連資料・末尾単独の「以上」）に従い、未確認の関連 URL を埋め草として残していない",
+        "用語集の照合・追記をしていない",
+        "作成ファイルに rstcheck を --report-level warning で実行し、exit 0 を記録している"
+      ],
+      "fixture": "repo-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": ["mkdir slum02 (the cwd of the executor)"],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
+    },
+    {
+      "id": 42,
+      "name": "repo-edit-existing",
+      "prompt": "docs/resoloop-notes.rst の「更新の手順」節だけを、ロックファイルを更新してコミットしてから導入し直す流れを追記して更新してください。language=ja。作業対象は評価者が用意したこのリポジトリの複製です。変更ファイルと検査結果を報告してください。",
+      "expected_output": "指定節だけが更新され、先頭ラベル・他の節・コメント行は保持される。docs_draft/ に複製は作らない。編集したファイルに rstcheck の構文検査が exit 0。",
+      "files": [
+        "evals/fixtures/repo-env/docs/resoloop-notes.rst"
+      ],
+      "assertions": [
+        "変更は「更新の手順」節だけで、先頭ラベル・「ロックファイル」「対象外の節」・コメント行は保持される",
+        "編集は docs/resoloop-notes.rst に限られ、docs_draft/ に複製を作っていない",
+        "編集したファイルに rstcheck を --report-level warning で実行し、exit 0 を記録している"
+      ],
+      "fixture": "repo-env",
+      "execution_modes": ["component", "entrypoint", "control"],
+      "setup": [],
+      "expected_status": {"component": "generated", "entrypoint_before_393": "generated", "entrypoint_after_393": "generated"}
     }
   ]
 }

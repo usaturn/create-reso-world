@@ -6,7 +6,7 @@ description: Use when creating or editing a single reStructuredText (.rst) docum
 # RST の作成・編集
 
 単一ページを、入力仕様と選択した profile に従って書く。
-現在利用可能なのは **MaatLog** の3種である。OSS Python Extension は予約仕様であり、#393 の統合までは生成に使えない。
+現在利用可能なのは、このリポジトリの文書を書く **create-reso-world** の3種である。OSS Python Extension は予約仕様であり、生成には使えない。
 
 ## 入力を確認する
 
@@ -15,16 +15,16 @@ description: Use when creating or editing a single reStructuredText (.rst) docum
 自然言語依頼も同じ仕様で整理し、明示値を推論・既定値より優先する。
 
 入力仕様の順に、明示値の整合、必要情報、profile の利用可能性、root と変更対象、必要なリソースを確認する。
-省略時の `profile` は `maatlog`。空値や未知値を省略扱いしない。
-不足・不整合・未接続・リソースの欠落では、具体的な問題と必要な次の入力を返し、文書生成・用語集更新・lint を行わない。
+省略時の `profile` は `create-reso-world`。空値や未知値を省略扱いしない。
+不足・不整合・未接続・リソースの欠落では、具体的な問題と必要な次の入力を返し、文書生成・検査を行わない。
 
 ## 利用可能なリソースを読む
 
-MaatLog の確認を通った場合だけ、以下を読む。
+create-reso-world の確認を通った場合だけ、以下を読む。
 
-1. [共通 RST guide](references/rst-core-style-guide.md): ページ・節ラベル、構造、参照、表・リスト、インライン記法、4段階の静的検査
-2. [MaatLog profile](references/profiles/maatlog.md): 文体、出力先、用語集、コード・図、検査方針
-3. [文書種別表](references/document-types.md) が指定する `assets/maatlog/` の template
+1. [共通 RST guide](references/rst-core-style-guide.md): ページ・節ラベル、構造、参照、表・リスト、インライン記法
+2. [create-reso-world profile](references/profiles/create-reso-world.md): 出力先、文体、コード、Sphinx を使わない書き方、検査
+3. [文書種別表](references/document-types.md) が指定する `assets/create-reso-world/` の template
 
 `procedure` と `operational` は手順書 template、`explanation` は解説書 template を使う。
 既存編集では指定ファイルを読み、その内容を保持して依頼の変更を加える。
@@ -32,19 +32,17 @@ MaatLog の確認を通った場合だけ、以下を読む。
 ## 作成・編集と検査
 
 1. 確定した言語・種別・対象パスに従って作成または編集する。
-   新規・出力先省略時の draft は選択した **親 checkout** の `docs_draft/` に置く。
-2. MaatLog profile に従って本文の全出現の専門用語をマークし、選択した **公開 checkout** の `docs/glossary.rst` と照合する。
-   今回本文で使った未定義語だけ既存用語集へ追記する。
-3. 公開 checkout を uv project に指定し、作成・編集した RST の絶対パスに共通 guide の4検査を実行する。
-   用語集にも同じ検査を行うのは、今回用語集を編集した場合だけである。
-4. 最終差分と終了値を確認し、対象パス、用語集の変更有無、実行した検査と結果を報告する。
-   解決した親 root・公開 root・cwd・uv project を記録し、未実行・失敗・不足を区別する。
+   新規・出力先省略時の draft は、リポジトリのルート（`git rev-parse --show-toplevel`）の `docs_draft/` に置く。
+2. 用語集は探さず、作成・照合もしない。専門用語はその場で説明する。
+3. 作成・編集した RST の絶対パスに、profile の検査 `uv run --no-project --with docutils --with rstcheck rstcheck --report-level warning` を実行する。
+4. 最終差分と終了値を確認し、対象パスと、実行した検査と結果を報告する。
+   解決したリポジトリのルートと cwd を記録し、未実行・失敗・不足を区別する。
 
 ## 取り違えやすい点
 
 | 状況 | 判断 |
 |---|---|
-| 親 cwd から呼び出された | draft の親 root と用語集・lint の公開 root を分けて確認する |
+| ワールドのプロジェクト（`slum02/` など）を cwd にして呼び出された | draft の置き場はリポジトリのルートの `docs_draft/` である |
 | 出力先や言語が明示された | profile の既定値で置換しない |
-| OSS 用ファイルが存在する | 種別表が reserved の間は統合待ちで停止する |
-| 旧 guide を指定された | [移行案内](references/rst-style-guide.md) から共通 guide と MaatLog profile を読む |
+| OSS 用ファイルが存在する | 種別表が reserved の間は未接続として停止する |
+| `:ref:` や `:term:` を使いたくなった | Sphinx は無い。profile の「Sphinx を使わない」に従う |

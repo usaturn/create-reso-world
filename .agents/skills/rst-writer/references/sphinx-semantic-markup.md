@@ -1,6 +1,6 @@
 # Sphinx semantic markup
 
-Sphinx 拡張機能など OSS Python project のドキュメントで、意味的 role / directive（`py:func`、`confval`、`option`、`term` など）をいつ使い、いつ代替へ落とすかを決める手順。この文書は `oss-python-extension` profile の記法選択ルールであり、共通の見た目・構造ルールは `rst-core-style-guide.md`、MaatLog 内部 project の記法は `profiles/maatlog.md` を参照する。
+Sphinx 拡張機能など OSS Python project のドキュメントで、意味的 role / directive（`py:func`、`confval`、`option`、`term` など）をいつ使い、いつ代替へ落とすかを決める手順。この文書は `oss-python-extension` profile の記法選択ルールであり、共通の見た目・構造ルールは `rst-core-style-guide.md`、このリポジトリの文書の記法は `profiles/create-reso-world.md` を参照する。
 
 この guide は一度読むだけでなく、リンクした文書を含めて全ルールを個別ページへ適用する。Sphinx 9.1.0 以上を前提とし、記法を選ぶ前に必ず対象 project の登録と参照先を調べる。「Sphinx 文書に存在するから」だけで role / directive を選ばない。
 
