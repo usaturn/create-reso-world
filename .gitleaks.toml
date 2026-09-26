@@ -9,3 +9,9 @@ description = "resoloop manifest keys are identifiers, not secrets"
 targetRules = ["generic-api-key"]
 regexTarget = "match"
 regexes = ['''^key"\s*:\s*"[A-Za-z][A-Za-z0-9]*(?:[_.:/-]+[A-Za-z0-9]+)+"$''']
+
+[[allowlists]]
+description = "the fake token tests/scripts/test-ci.bash uses to check that random values are still reported"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+regexes = ['''^Zx9Qm2Lp8Rt4Vw6Yb1Nc3Kd5Hf7Jg0Ss$''']

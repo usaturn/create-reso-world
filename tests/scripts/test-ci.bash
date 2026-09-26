@@ -44,13 +44,24 @@ for job in jobs.values():
 
 config = tomllib.load(open(".gitleaks.toml", "rb"))
 assert config["extend"]["useDefault"] is True, config
-(allow,) = config["allowlists"]
-assert allow["targetRules"] == ["generic-api-key"] and allow["regexTarget"] == "match", allow
-(pattern,) = allow["regexes"]
+allowlists = config["allowlists"]
+assert len(allowlists) == 2, allowlists
+identifiers = next(a for a in allowlists if a["regexTarget"] == "match")
+assert identifiers["targetRules"] == ["generic-api-key"], identifiers
+(pattern,) = identifiers["regexes"]
+# 既定の規則に当たる形の偽のトークン。.gitleaks.toml の 2 つ目の allowlist が、この値そのものだけを除外する
+fake_token = "Zx9Qm2Lp8Rt4Vw6Yb1Nc3Kd5Hf7Jg0Ss"
 for identifier in ('key":"mat_material_Slum02_rubber_d4d07289"', 'key": "mesh_junk-pile-01__corrugated_1a2b3c4d"'):
     assert re.search(pattern, identifier), identifier
-for secret in ('key": "Zx9Qm2Lp8Rt4Vw6Yb1Nc3Kd5Hf7Jg0Ss"', 'api_key": "mat_material_x"'):
+for secret in (f'key": "{fake_token}"', 'api_key": "mat_material_x"'):
     assert not re.search(pattern, secret), secret
+fixture = next(a for a in allowlists if a["regexTarget"] == "secret")
+assert fixture["targetRules"] == ["generic-api-key"], fixture
+(fixture_pattern,) = fixture["regexes"]
+assert re.search(fixture_pattern, fake_token), fixture_pattern
+# 別の値（実行時に作る逆順の文字列）や、前後に文字が付いた値は除外しない
+for other in (fake_token[::-1], fake_token + "x", "x" + fake_token):
+    assert not re.search(fixture_pattern, other), other
 PY
 
 printf 'PASS: CI workflow and gitleaks config follow spec 9.2\n'

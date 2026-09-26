@@ -25,7 +25,7 @@ bash "$runner" "$tmp/pass.bash" "$tmp/fail.bash" > "$tmp/out" 2>&1 || code=$?
 [ "$code" -eq 1 ] || fail "expected exit 1, got $code"
 grep -qE "^PASS $tmp/pass\.bash \([0-9]+s\)$" "$tmp/out" || fail 'no PASS line'
 grep -qE "^FAIL $tmp/fail\.bash \([0-9]+s\)$" "$tmp/out" || fail 'no FAIL line'
-grep -qxF '    broken-detail' "$tmp/out" || fail 'the failing output was shown'
+grep -qxF '    broken-detail' "$tmp/out" || fail 'the failing output was not shown'
 if grep -qF quiet-output "$tmp/out"; then fail 'the passing output was shown'; fi
 grep -qxF "FAIL: 1 of 2 test(s) failed: $tmp/fail.bash" "$tmp/out" || fail 'no summary line'
 
