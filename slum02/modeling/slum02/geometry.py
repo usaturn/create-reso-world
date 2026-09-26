@@ -571,3 +571,54 @@ def beam(name: str, p0: Vec3, p1: Vec3, su: float, sw: float, material: str,
     d = sub(p1, p0)
     length = math.sqrt(dot(d, d))
     return frame(box(name, (0, length / 2, 0), (su, length, sw), material), p0, d, hint)
+
+
+def torus(name: str, center: Sequence[float], major: float, minor: float, segments: int, sides: int,
+          material: str) -> MeshData:
+    """Closed outward torus around the Y axis through ``center`` (tyres, cable rings)."""
+    c = _vec(center, "center")
+    if major <= minor or minor <= 0 or segments < 3 or sides < 3:
+        raise ValueError("torus needs 0 < minor < major and at least three segments/sides")
+    verts: list[Vec3] = []
+    for i in range(segments):
+        a = math.tau * i / segments
+        for j in range(sides):
+            b = math.tau * j / sides
+            r = major + minor * math.cos(b)
+            verts.append((c[0] + r * math.cos(a), c[1] + minor * math.sin(b), c[2] + r * math.sin(a)))
+    faces = [(i * sides + j, ((i + 1) % segments) * sides + j, ((i + 1) % segments) * sides + (j + 1) % sides,
+              i * sides + (j + 1) % sides) for i in range(segments) for j in range(sides)]
+    return outward(mesh(name, verts, faces, material))
+
+
+def thick_sheet(name: str, grid: Sequence[Sequence[Sequence[float]]], offset: Sequence[float],
+                material: str) -> MeshData:
+    """Closed thin shell over a (rows x cols) point grid and the same grid moved by ``offset``.
+
+    Used for sagging tarps, corrugated sheets and sign boards: a single-sided card would be
+    culled from one side (R11 forbids relying on Blender normal recalculation), a thin closed
+    shell reads from both. Non-planar grid cells are triangulated for metric UVs.
+    """
+    rows, cols = len(grid), len(grid[0])
+    if rows < 2 or cols < 2 or any(len(r) != cols for r in grid):
+        raise ValueError("thick_sheet needs a rectangular grid of at least 2 x 2 points")
+    o = _vec(offset, "offset")
+    top = [_vec(p, "grid point") for r in grid for p in r]
+    verts = top + [(p[0] + o[0], p[1] + o[1], p[2] + o[2]) for p in top]
+    n = rows * cols
+
+    def t(i: int, j: int) -> int:
+        return i * cols + j
+
+    faces: list[Face] = []
+    for i in range(rows - 1):
+        for j in range(cols - 1):
+            a, b, c_, d = t(i, j), t(i + 1, j), t(i + 1, j + 1), t(i, j + 1)
+            faces.append((a, b, c_, d))
+            faces.append((a + n, d + n, c_ + n, b + n))
+    # boundary loop of the top grid in the same direction as its quads' boundary edges
+    loop = ([t(i, 0) for i in range(rows)] + [t(rows - 1, j) for j in range(1, cols)]
+            + [t(i, cols - 1) for i in range(rows - 2, -1, -1)] + [t(0, j) for j in range(cols - 2, 0, -1)])
+    for p, q in zip(loop, (*loop[1:], loop[0])):
+        faces.append((q, p, p + n, q + n))
+    return outward(planarize(mesh(name, verts, faces, material)))
