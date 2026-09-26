@@ -106,7 +106,7 @@ def test_specs_and_plans_live_in_docs_superpowers() -> None:
 
 
 def test_overview_does_not_count_runtimes() -> None:
-    # Codex, pi, Devin, Cursor and Claude Code all read this one file.
+    # Every runtime reads this one file (.claude/skills/agent-handoff is a symlink to it), so the overview must not count runtimes.
     assert "両ランタイム" not in read(AGENTS_SKILL)
 
 
