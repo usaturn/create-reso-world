@@ -1,7 +1,7 @@
 ---
 name: repo-cleanup-after-merge
 description: Use when ユーザーが、PR がマージされた後のローカルリポジトリの片付けを依頼する場合。マージ済み branch の削除、使い終わった worktree の整理、レビュー用の使い捨て worktree の残骸の掃除、作業ツリーの origin/main への追従が対象。未マージの作業のリベース、コンフリクト解消、リリース作業には使用しない。例:「PR が全て Merge されたことを確認して branch, worktree を整理してローカルを更新して」「マージ済みのブランチを消して」「worktree を掃除して」「origin/main に追従して」「リポジトリを整理して」
-allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(git *), Bash(gh *), Bash(ls *), Bash(diff *), Bash(cmp *), Bash(find *), Bash(rm *)
+allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(git *), Bash(gh *), Bash(ls *), Bash(diff *), Bash(cmp *), Bash(find *), Bash(cp *), Bash(rm *), Bash(uv run --no-project python -c *), Bash(bash scripts/resoloop-fork.sh sync)
 ---
 
 # マージ後のリポジトリ整理
@@ -19,11 +19,13 @@ git の操作はほぼ全て取り消せる。取り消せないのは次の 2 �
 
 ## 対象リポジトリの確定
 
-整理対象の PR が属するリポジトリで root を決める。`usaturn/maatlog`（公開アプリケーション）の PR なら `public/` submodule の checkout が root であり、Git コマンドは `git -C public ...`、`gh` 呼び出しには `--repo usaturn/maatlog` を付けて実行する。親 `usaturn/maatlog-poc` の PR なら親の toplevel が root である。両リポジトリにまたがる整理は、リポジトリごとにこの手順を回す。
+整理対象の PR が属するリポジトリで root を決める。対応はルート `AGENTS.md` の「リポジトリ境界」の表に従う。
 
-公開経路では次が変わる。手順 7 の `git submodule update --init public` は親側だけの操作なので実行しない。手順 6 の `session.json` の `destination` は対象リポジトリ側の `reviews/` を指す（公開 PR なら `public/reviews/`）。手順 1 の `gh pr list` は `--repo usaturn/maatlog` で公開側を見る。
+- `usaturn/create-reso-world`（このリポジトリ）の PR: リポジトリのルート（`git rev-parse --show-toplevel`）が root である
+- `usaturn/resoloop` または `orange3134/resoloop` の PR: fork の checkout `external/resoloop`（リポジトリのルート基準）が root である。Git コマンドは `git -C external/resoloop ...`、`gh` 呼び出しには PR が属するリポジトリに合わせて `--repo usaturn/resoloop` か `--repo orange3134/resoloop` を付けて実行する。checkout が無い、または `origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` でない場合は、`scripts/resoloop-fork.sh clone` を案内して停止する
+- それ以外: 推測せず停止する
 
-公開 checkout で手順 7 を実行すると、親には `modified: public (new commits)` が残る。これは次回 checkpoint までの正常な状態であり、`git submodule update` で巻き戻したり gitlink を stage して「直さない」。
+両方にまたがる整理は、リポジトリごとにこの手順を回す。fork の経路では、手順 6 の `session.json` の `destination` は fork 側の `reviews/`（`external/resoloop/reviews/`）を指す。
 
 ## ワークフロー
 
@@ -72,9 +74,12 @@ git log --oneline origin/main..<branch>
 
 ```bash
 git -C <worktree の絶対パス> status --short
+git -C <worktree の絶対パス> status --short --ignored
 ```
 
-`-C` には絶対パスを渡す。worktree 隔離セッションでは相対パスが拒否されることがある。出力がある worktree は **削除しない**。ユーザーへ報告して判断を仰ぐ。
+`-C` には絶対パスを渡す。worktree 隔離セッションでは相対パスが拒否されることがある。1 つ目に出力がある worktree は **削除しない**。ユーザーへ報告して判断を仰ぐ。
+
+`git worktree remove` は ignore 対象のファイルを確認せずに消す。2 つ目の出力の `!!` の行（ignore 対象）も確かめる。再生成できるキャッシュ（`.venv/`、`.uv-cache/`、`.pytest_cache/`、`.ruff_cache/`、`__pycache__/`、`node_modules/`）だけなら、worktree と一緒に消えてよい。それ以外（`reviews/`、`docs_draft/`、`tmp/`、`external/`、`private/`、`.superpowers/`、各プロジェクトの `.resoloop/` など）が 1 つでもある worktree は **削除しない**。一覧をユーザーへ報告し、正本への退避か削除の確認を得るまで残す（ゲート A と同じ扱い）。
 
 #### 毎回ここで止まるなら、直すのは片付け側ではなく生成側である
 
@@ -88,20 +93,14 @@ untracked ファイルは正本と照合する述語を持たないため、ゲ�
 
 ### 5. worktree を削除する
 
-手順 1 で対象外にした worktree（オープン PR の `headRefOid` と HEAD が一致するもの、`/tmp/pr-review-*` で親 `session.json` の `head_branch` がオープン PR と一致するもの）は削除しない。
-
-submodule（本リポジトリの `public`）を含む worktree では `git worktree remove` が次で失敗する。
-
-```
-fatal: working trees containing submodules cannot be moved or removed
-```
-
-手順 4 で clean を確認済みの worktree に限り `--force` を付ける。確認していない worktree に `--force` を付けない。
+手順 1 で対象外にした worktree（オープン PR の `headRefOid` と HEAD が一致するもの、`/tmp/pr-review-*` で親 `session.json` の `head_branch` がオープン PR と一致するもの）は削除しない。削除するのは、手順 4 で clean を確認し、ignore 対象が再生成できるキャッシュだけだった worktree に限る。
 
 ```bash
-git worktree remove --force <path>
+git worktree remove <path>
 git worktree prune
 ```
+
+`--force` は付けない。`git worktree remove` が拒否した場合（未追跡のファイルがある、lock されているなど）は、理由をユーザーへ報告して止まる。
 
 worktree 本体の削除と、手順 6 の残骸削除は **別の判断**である。worktree 本体は追跡済みの内容であり、マージ済み・clean を確認していれば削除してよい。手順 6 で保留が発生しても、worktree 本体の削除まで止める必要はない。
 
@@ -112,7 +111,7 @@ worktree 本体の削除と、手順 6 の残骸削除は **別の判断**であ
 正本パスは残骸ディレクトリの `session.json` の `destination` から取る。branch 名の変換で推測しない。
 
 ```bash
-python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["destination"])' <残骸ディレクトリ>/session.json
+uv run --no-project python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["destination"])' <残骸ディレクトリ>/session.json
 ```
 
 `session.json` が無い、`destination` が読めない、またはその親がリポジトリの `reviews/` 配下に無い場合は削除せず停止する。
@@ -144,15 +143,15 @@ cp <残骸ディレクトリ>/review-backup/<model>.md <正本ディレクトリ
 メイン作業ツリーの `git status --short` が空であることを確認する。空でなければ checkout も branch 削除もせず、ユーザーへ報告する。
 
 ```bash
-git checkout --detach origin/main
-git submodule update --init public
+git switch main
+git merge --ff-only origin/main
 ```
 
-ローカル `main` branch は作成しない（プロジェクト規約）。
+ローカル `main` が無ければ、`git switch main` が `origin/main` を追跡する branch として作る。`main` を別の worktree が checkout していて `git switch` が拒否した場合は、代わりに `git checkout --detach origin/main` で更新する。`--ff-only` が失敗した場合（ローカル `main` に `origin/main` に無いコミットがある）は、merge や reset をせずユーザーへ報告する。
 
 ### 8. マージ済みローカル branch を削除する
 
-手順 7 の detach のあとで実行する。メイン作業ツリーが feature を checkout したままだと `git branch -d` は `used by worktree` / `checked out` で失敗する。
+手順 7 のあとで実行する。メイン作業ツリーが feature を checkout したままだと `git branch -d` は `used by worktree` / `checked out` で失敗する。
 
 ```bash
 git branch -d <branch>
@@ -162,7 +161,7 @@ git branch -d <branch>
 
 `-d` が拒否した場合、理由で分岐する。拒否を未マージと同一視しない。
 
-- `used by worktree` または `checked out`: 未マージではない。手順 7 の detach が済んでいなければ手順 7 に戻る。他 worktree が掴んでいるならその worktree を残し、この branch は削除しない
+- `used by worktree` または `checked out`: 未マージではない。手順 7 が済んでいなければ手順 7 に戻る。他 worktree が掴んでいるならその worktree を残し、この branch は削除しない
 - `not fully merged`: 未マージである。手順 3 の判定が誤っている。削除しない
 
 detached HEAD では次の warning が出るが、**削除が成功していれば正常**である。upstream にマージ済みであることは確認できており、拒否ではない。
@@ -189,7 +188,17 @@ git push origin --delete <branch>
 git fetch --prune
 ```
 
-### 10. 最終状態を報告する
+### 10. resoloop の上流に追従する（fork の経路だけ）
+
+上流 `orange3134/resoloop` で PR がマージされたら、fork の `main` を上流へ追従させる。リポジトリのルートで実行する。
+
+```bash
+bash scripts/resoloop-fork.sh sync
+```
+
+`sync` は fork（`usaturn/resoloop`）の `main` へ push するので、ゲート B と同じくユーザー確認を得てから実行する。fork の `main` に上流に無いコミットがある場合や、`external/resoloop` の `main` に未コミットの変更がある場合、スクリプトは何も push せずに止まる。その出力をそのまま報告し、手で push や reset をしない。詳しい流れは `docs/resoloop-fork-workflow.md` にある。
+
+### 11. 最終状態を報告する
 
 ```bash
 git status
@@ -208,8 +217,9 @@ git branch -a
 - `Files ... differ` や `diff` の失敗を無視して「固有ファイルが無いから消してよい」としている
 - リモート branch を削除してから「不要なら戻せます」と報告しようとしている
 - 「時間が無い」「手早く」と言われたので確認を飛ばそうとしている
+- `git worktree remove` の前に `status --short --ignored` を見ていない
 
-**いずれかに該当したら、削除を中止して手順 6 または 9 に戻る。**
+**いずれかに該当したら、削除を中止して手順 4・6・9 のいずれかに戻る。**
 
 ## 言い訳と現実
 
@@ -219,7 +229,7 @@ git branch -a
 | 「ディレクトリ名が stale なので消してよい」 | 名前は中身を保証しない。照合していないなら未保存データの有無を知らないだけである |
 | 「中を見たら軽微なメモだった」 | 軽微だと判断したのではなく、正本と照合していないだけである。照合は `diff -r` 1 回で済む |
 | 「内容差分があっても固有ファイルが無ければ失うものはない」 | 同名の未保存稿は `Files ... differ` になる。`previous-review.md` だけをコピーして消すと新しい原稿が消える |
-| 「worktree は clean だったのでデータ損失はない」 | `git status` は gitignore 対象ファイルも、worktree の外にある残骸も見ない |
+| 「worktree は clean だったのでデータ損失はない」 | `git status` は gitignore 対象ファイルも、worktree の外にある残骸も見ない。`git worktree remove` は worktree 内の gitignore 対象ファイルを確認せずに消す |
 | 「消した後で問題があれば言ってもらえばいい」 | `rm -rf` に取り消しは無い。削除の前だけが確認である |
 | 「マージ済み branch の削除は cleanup の一環」 | ローカルはそうである。リモートは他人が見る共有物であり、外向きの操作である |
 | 「手早くと言われた」 | 照合は数秒で終わる。失ったレビューの再生成はそれより桁違いに高い |
@@ -228,15 +238,13 @@ git branch -a
 
 ## ガードレール
 
-- ローカル `main` branch を作成しない。
 - `git branch -D` でマージ判定を握り潰さない。
-- clean を確認していない worktree に `--force` を付けない。
-- ユーザー確認なしに `git push`（`--delete` を含む）を実行しない。
+- `git worktree remove` に `--force` を付けない。
+- ユーザー確認なしに `git push`（`--delete` を含む）や `scripts/resoloop-fork.sh sync` を実行しない。
 - Open PR が残っている branch と worktree を削除しない。detached な pr-review worktree も含む。
-- `reviews/` や `docs_draft/` など gitignore 対象ディレクトリの内容を、照合せずに削除しない。
+- gitignore 対象のファイルは、再生成できるキャッシュを除き、正本と照合するかユーザーの確認を得るまで削除しない（`reviews/`、`docs_draft/`、`tmp/`、`external/` など。worktree ごと消す場合も同じ）。
 - コンフリクト解消、rebase、リリース作業は行わない。
 
 ## 関連スキル
 
 - `pr-review` — `/tmp/pr-review-*/` の使い捨て worktree と `review-backup/` を作る側。手順 6 の残骸はこのスキルの生成物である
-- `version-export` — リリース手順。一時生成物を worktree の外（scratchpad）へ出す原則を共有する

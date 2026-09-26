@@ -66,10 +66,10 @@
     },
     {
       "id": "q10",
-      "query": "バージョンを 0.1.0 に上げて公開リポジトリに反映してリリースして",
+      "query": "ResoLoop のロックファイルの版を上げて、fork をビルドし直して導入して",
       "should_trigger": false,
       "expected_terms": [],
-      "notes": "Negative: version-export スキルの領域"
+      "notes": "Negative: ResoLoop の版の更新（scripts/resoloop-fork.sh の領域）"
     },
     {
       "id": "q11",

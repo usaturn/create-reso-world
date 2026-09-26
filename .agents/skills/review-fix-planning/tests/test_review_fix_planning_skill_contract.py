@@ -7,7 +7,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[4]
 AGENTS_SKILL = REPO_ROOT / ".agents/skills/review-fix-planning/SKILL.md"
 AGENTS_HELPER = REPO_ROOT / ".agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"
-REPO_CLEANUP_SKILLS = (REPO_ROOT / ".agents/skills/repo-cleanup-after-merge/SKILL.md",)
 
 
 def read(path: Path) -> str:
@@ -77,13 +76,12 @@ def test_agents_skill_lands_on_existing_pr_after_related_tests() -> None:
     assert_japanese_landing_contract(read(AGENTS_SKILL))
 
 
-def test_helper_has_one_real_copy_shared_through_the_skill_symlinks() -> None:
+def test_helper_has_one_real_copy_shared_through_the_skill_symlink() -> None:
     assert AGENTS_HELPER.is_file() and not AGENTS_HELPER.is_symlink()
     assert AGENTS_HELPER.stat().st_size > 0
-    for name in ("review-fix-planning", "repo-cleanup-after-merge"):
-        link = REPO_ROOT / ".claude/skills" / name
-        assert link.is_symlink(), link
-        assert os.readlink(link) == f"../../.agents/skills/{name}"
+    link = REPO_ROOT / ".claude/skills/review-fix-planning"
+    assert link.is_symlink(), link
+    assert os.readlink(link) == "../../.agents/skills/review-fix-planning"
 
 
 def test_pr_comment_lists_skipped_findings_without_spec_dependency() -> None:
@@ -120,15 +118,8 @@ def test_skill_descriptions_do_not_advertise_pr_posting() -> None:
     assert "Before finishing, post review status" not in description
 
 
-def test_merged_skills_keep_claude_code_allowed_tools() -> None:
-    for path in (AGENTS_SKILL, *REPO_CLEANUP_SKILLS):
-        assert "allowed-tools:" in frontmatter_description(read(path)), path
-
-
-def test_repo_cleanup_keeps_gh_failure_stop_and_user_confirmation() -> None:
-    content = read(REPO_CLEANUP_SKILLS[0])
-    assert "が非0終了した場合、PR の状態は不明である" in content
-    assert "AskUserQuestion" in content
+def test_merged_skill_keeps_claude_code_allowed_tools() -> None:
+    assert "allowed-tools:" in frontmatter_description(read(AGENTS_SKILL))
 
 
 def test_review_fix_examples_distinguish_public_and_parent_prs() -> None:
@@ -177,13 +168,3 @@ def test_spec_location_stays_in_parent_docs_draft() -> None:
         content = read(path)
         assert "$MAIN_ROOT/docs_draft" not in content, path
         assert "$TOPLEVEL/docs_draft/superpowers/" in content, path
-
-
-def test_repo_cleanup_selects_public_root_for_public_prs() -> None:
-    """Issue #377 F-3: cleanup of a merged usaturn/maatlog PR runs inside the
-    public/ checkout with gh calls pinned to the public repository."""
-    for path in REPO_CLEANUP_SKILLS:
-        content = read(path)
-        assert re.search(r"usaturn/maatlog(?!-)", content), path
-        assert "git -C public" in content, path
-        assert "--repo usaturn/maatlog" in content, path
