@@ -1,6 +1,6 @@
-"""Packaging and behavior guards for the staged ResoLoop Blender skills.
+"""Packaging and behavior guards for the shared Blender skills under .agents/skills.
 
-Run with: uv run --with pyyaml python -m unittest discover -s tests -v
+Run with: uv run pytest tests/skills/test_skill_packages.py -q
 For sequential validation, run the targeted test with SKILL_UNDER_TEST=<name>.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-SKILLS_ROOT = Path(__file__).resolve().parents[1]
+SKILLS_ROOT = Path(__file__).resolve().parents[2] / ".agents" / "skills"
 SKILL_NAMES = (
     "blender-modeler", "hard-surface", "prop-artist", "uv-workflow",
     "procedural-modeling", "geometry-nodes", "horror-style",
