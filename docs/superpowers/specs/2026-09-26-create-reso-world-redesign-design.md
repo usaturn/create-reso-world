@@ -137,16 +137,19 @@ Blender 系スキル（arjun988/blender-skills 派生の 10 スキルと referen
 
 ルート `.gitignore` は次の項目だけで構成し、テンプレ由来の広いパターン（`images/`、`lib/`、`build/`、`dist/`、`site/`、`util/`、`Output/`、`*.pdf`、`*.zip`、`*.mp3`、`*.spec`、`*.manifest`、`trpg_*` など）は削除する。
 
-- Python と uv: `__pycache__/`、`*.py[cod]`、`.venv/`、`.uv-cache/`、`.pytest_cache/`、`.ruff_cache/`、`.coverage`
+- Python と uv: `__pycache__/`、`*.py[cod]`、`.venv/`、`.uv-cache/`、`.pytest_cache/`、`.ruff_cache/`、`.coverage`、`.coverage.*`
 - Blender: `*.blend1`、`*.blend2`、`*.blend@`
 - 編集の残骸: `*.orig`、`*.rej`、`*.bak`、`*.log`
-- resoloop: `.resoloop/**` と `!.resoloop/.gitignore`（state、flux-state、cache、作業物をすべて除外）、`flux/build/`、`flux/.protograph/`、`*.brson`
-- ローカル専用ディレクトリ: `/tmp/`、`**/tmp/`、`/docs_draft/`、`**/docs_draft/`、`/reviews/`、`/external/`、`/private/`、`/.worktrees/`、`/.claude/worktrees/`、`/.superpowers/`、`/.restructure-backup/`
-- 個人設定: `.claude/settings.local.json`、`.devin/mcp_config.local.json`、`.env`、`.env.*`、`.secrets/`
+- resoloop: `**/.resoloop/**` と `!**/.resoloop/.gitignore`（state、flux-state、cache、作業物をすべて除外）、`**/flux/build/`、`**/flux/.protograph/`、`*.brson`
+- ローカル専用ディレクトリ: `/tmp/`、`**/tmp/`、`/docs_draft/`、`**/docs_draft/`、`/reviews/`、`/external/`、`/private/`、`/.worktrees/`、`/.claude/worktrees/`、`/.superpowers/`、`/.restructure-backup/`、`/MyResoniteProject/content/tokyo-nova/city/export-static/`、`/MyResoniteProject/content/tokyo-nova/city/export-refinement/`
+- 個人設定: `**/.claude/settings.local.json`、`**/.devin/mcp_config.local.json`、`.env`、`.env.*`、`.secrets/`
+- Node（npx などが作る）: `node_modules/`
 
-`devcontainer-lock.json` は追跡に戻す。`.claude/settings.local.json` は `git rm --cached` で追跡を外す。`MyResoniteProject/.resoloop/tokyo-nova/pipeline.json`（セッション記録）は `tests/tokyo_nova/test_task1_fix_regressions.py` が証跡ファイルとして参照しており、tokyo-nova の進行中作業と競合するため今回は移動しない。追跡済みのまま `.resoloop/**` の ignore 規則の既知の例外として `scripts/check-layout.sh` の許可リストに載せ、tokyo-nova 側の作業で `artifacts/` へ移す候補として記録する。`MyResoniteProject/docs_draft/` の強制追加済み 2 件は `docs/worlds/tokyo-nova/` へ移す。`slum02/.gitignore` はルートに吸収して削除する。
+途中に `/` を含むパターンはリポジトリルート基準で固定されるため、`slum02/` や `akichi/` などプロジェクト配下にも届かせるには `**/` を前置している。
 
-TRPG 本文（`MyResoniteProject/ATS.txt`、`BTD.txt`、`TNX.txt`）は `private/trpg/` へ移し、`tokyo_nova_resoloop_world_prompt.md` の参照を書き換える。`tmp/` の同一コピーは触らない。
+`devcontainer-lock.json` は追跡に戻す。`.claude/settings.local.json` は `git rm --cached` で追跡を外す。`MyResoniteProject/.resoloop/tokyo-nova/pipeline.json`（セッション記録）は `tests/tokyo_nova/test_task1_fix_regressions.py` が証跡ファイルとして参照しており、tokyo-nova の進行中作業と競合するため今回は移動しない。追跡済みのまま `**/.resoloop/**` の ignore 規則の既知の例外として `scripts/check-layout.sh` の許可リストに載せ、tokyo-nova 側の作業で `artifacts/` へ移す候補として記録する。`MyResoniteProject/docs_draft/` の強制追加済み 2 件は `docs/worlds/tokyo-nova/` へ移す。`slum02/.gitignore` はルートに吸収して削除する。
+
+TRPG 本文（`MyResoniteProject/ATS.txt`、`BTD.txt`、`TNX.txt`）は `private/trpg/` へ移す。`tokyo_nova_resoloop_world_prompt.md` は添付ファイル名に触れるだけで本文の記述は変更しない。`tmp/` の同一コピーは触らない。
 
 ## 5. 指示ファイルとスキルの配置
 
@@ -171,7 +174,7 @@ Cursor と dsh の「不可視」は README に制約として明記する。Cod
 2. 基本方針（曖昧なら質問、設計を決めてから実装、Python は uv 必須。例外として Dev Container のブートストラップと zsh ヘルパーは python3 を使ってよい）
 3. resoloop 注意（1 オブジェクト 1 メッシュ、長大タスクの分割、区切りでの handoff）
 4. 日本語表現
-5. ファイルとドラフト（`docs_draft/` はローカル下書きで ignore、残す文書は `docs/` に置く）
+5. ファイルとドラフト（`docs_draft/` はローカル下書きで ignore、残す文書は `docs/` に置く。ユーザから依頼された文書は `docs_draft/` に Markdown で作成する）
 6. プロジェクト運用（プロジェクトを cwd にして起動する、`scripts/new-world.sh` で作る、各プロジェクトのテストは `uv run pytest`、`resoloop skills sync --check` の確認）
 7. リポジトリ境界（5.4 の表）
 8. ResoLoop の版管理（`.devcontainer/resoloop.lock` を正とし、更新は明示操作）
@@ -368,7 +371,7 @@ SDK は `devcontainer.json` の dotnet Feature に `"additionalVersions": "10.0.
 
 1. `chore/repo-redesign` を最新の `feat/slum02-slum` に rebase し、`main` を再度 slum02 の HEAD へ ff してから PR を `main` に出す。
 2. マージ後、作業ツリー側で `git fetch origin` し、`feat/slum02-slum` を `origin/main` に rebase するか ff-merge する。
-3. 作業ツリーに残る `CLAUDE.md` と `.pi/APPEND_SYSTEM.md` の未コミット変更は新設計に取り込み済みなので `git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md` で破棄してよい。`.claude/settings.local.json` は追跡解除後もローカルファイルとして残る。
+3. 作業ツリーに残る `CLAUDE.md` と `.pi/APPEND_SYSTEM.md` の未コミット変更は、フェーズ 2 で新設計に取り込み済みであることを確認したうえで `git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md` で破棄する。`.claude/settings.local.json` はマージ前に `~/settings.local.json.bak` などへ退避しておき、この時点で元の場所へ書き戻す（マージ後は ignore 対象になるので再追跡されない）。
 4. Dev Containers: Rebuild Container を実行し、9.3 を確認する。
 5. pi と Claude Code の trust を再承認し、Codex は初回起動時にプロジェクトの trust を承認する。
 

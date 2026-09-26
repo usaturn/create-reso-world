@@ -349,10 +349,10 @@ __pycache__/
 *.log
 
 ## resoloop の状態・キャッシュ・作業物（scaffold の .gitignore だけは追跡する）
-.resoloop/**
-!.resoloop/.gitignore
-flux/build/
-flux/.protograph/
+**/.resoloop/**
+!**/.resoloop/.gitignore
+**/flux/build/
+**/flux/.protograph/
 *.brson
 
 ## ローカル専用ディレクトリ
@@ -367,8 +367,8 @@ docs_draft/
 /.restructure-backup/
 
 ## 個人設定・秘密情報
-.claude/settings.local.json
-.devin/mcp_config.local.json
+**/.claude/settings.local.json
+**/.devin/mcp_config.local.json
 .env
 .env.*
 .secrets/
@@ -376,6 +376,8 @@ docs_draft/
 ## Node（npx などが作る）
 node_modules/
 ```
+
+（実装後の最終レビューで `**/` 前置に修正された。理由は仕様 4.4 を参照。）
 
 - [ ] **Step 4: lock を追跡し、`slum02/.gitignore` を削除し、下書き文書を移動する**
 
@@ -395,7 +397,7 @@ Expected: `A .devcontainer/devcontainer-lock.json`、`D slum02/.gitignore`、`R 
 
 ```bash
 bash "$W/tests/scripts/test-gitignore.bash"
-git -C "$W" check-ignore -v --no-index slum02/.resoloop/cache/reflection/x.json   # .gitignore の .resoloop/** 行
+git -C "$W" check-ignore -v --no-index slum02/.resoloop/cache/reflection/x.json   # .gitignore の **/.resoloop/** 行
 ```
 
 Expected: `PASS: root .gitignore matches the tracking policy`。
