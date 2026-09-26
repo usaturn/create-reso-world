@@ -26,6 +26,16 @@ test "${HERDR_ENV:-}" = 1
 これが偽なら何もしない。`herdr-agent-task` は `herdr` が PATH に無ければ何もせず終了する
 ため、誤って呼んでも壊れない。
 
+## コマンドの場所
+
+`herdr-agent-task` の実体は、リポジトリのルート基準で `.devcontainer/herdr-agent-task.bash` にある。
+Dev Container の postCreate が `~/bin/herdr-agent-task` として導入するので、通常は PATH 上のコマンドとして呼ぶ。
+PATH に無い場合（コンテナを作り直す前など）は、このリポジトリの中（ルートかワールドのプロジェクト）から実体を直接呼ぶ。
+
+```bash
+bash "$(git rev-parse --show-toplevel)/.devcontainer/herdr-agent-task.bash" set "Implement page transition"
+```
+
 ## 使い方
 
 タスクに着手したとき:
