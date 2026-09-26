@@ -23,6 +23,18 @@ expect_fail_with() {
   grep -qF "$needle" "$out" || { printf 'FAIL: expected message %q for %s\n' "$needle" "$dir" >&2; cat "$out" >&2; exit 1; }
 }
 
+assert_exit_code() {
+  local expected="$1" out="$tmp/exit-out.txt"
+  shift
+  local actual=0
+  "$@" > "$out" 2>&1 || actual=$?
+  if [ "$actual" -ne "$expected" ]; then
+    printf 'FAIL: expected exit %d, got %d for: %s\n' "$expected" "$actual" "$*" >&2
+    cat "$out" >&2
+    exit 1
+  fi
+}
+
 # 1. 何も問題の無いリポジトリは通過する
 new_repo "$tmp/clean"
 bash "$checker" --root "$tmp/clean" | grep -qF 'PASS: check-layout'
@@ -47,11 +59,37 @@ git -C "$tmp/ignored" add -f .gitignore secret.txt && git -C "$tmp/ignored" comm
 expect_fail_with "$tmp/ignored" 'tracked but ignored'
 
 # 5. 不正な引数は 64
-if bash "$checker" --bogus > /dev/null 2>&1; then
-  printf 'FAIL: bogus argument accepted\n' >&2; exit 1
-fi
+assert_exit_code 64 bash "$checker" --bogus
 
 # 6. このリポジトリ自身が通過する
 bash "$checker" | grep -qF 'PASS: check-layout'
+
+# 7. --root が git リポジトリでないディレクトリなら 64
+mkdir -p "$tmp/notgit"
+assert_exit_code 64 bash "$checker" --root "$tmp/notgit"
+
+# 8. --root が存在しないパスなら 64
+assert_exit_code 64 bash "$checker" --root "$tmp/does-not-exist"
+
+# 9. --root にリポジトリのサブディレクトリを渡しても、トップレベルの禁止ファイルを検出する
+new_repo "$tmp/subdir"
+mkdir -p "$tmp/subdir/nested/deep"
+printf 'x\n' > "$tmp/subdir/TNX.txt"
+git -C "$tmp/subdir" add TNX.txt && git -C "$tmp/subdir" commit -q -m add
+expect_fail_with "$tmp/subdir/nested/deep" 'forbidden tracked files'
+
+# 10. 非 ASCII パス配下の追跡禁止ファイルも検出する
+new_repo "$tmp/nonascii-forbidden"
+mkdir -p "$tmp/nonascii-forbidden/資料"
+printf 'x\n' > "$tmp/nonascii-forbidden/資料/TNX.txt"
+git -C "$tmp/nonascii-forbidden" add 資料/TNX.txt && git -C "$tmp/nonascii-forbidden" commit -q -m add
+expect_fail_with "$tmp/nonascii-forbidden" 'forbidden tracked files'
+
+# 11. 行き先のある非 ASCII 名の symlink は誤検知しない
+new_repo "$tmp/nonascii-symlink"
+printf 't\n' > "$tmp/nonascii-symlink/target"
+ln -s target "$tmp/nonascii-symlink/リンク"
+git -C "$tmp/nonascii-symlink" add target リンク && git -C "$tmp/nonascii-symlink" commit -q -m link
+bash "$checker" --root "$tmp/nonascii-symlink" | grep -qF 'PASS: check-layout'
 
 printf 'PASS: check-layout script behaves as specified\n'
