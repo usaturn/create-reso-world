@@ -79,7 +79,7 @@ check_symlinks_resolve() {
 # 3. 追跡中かつ ignore 対象は既知の例外だけ
 check_tracked_ignored() {
   local allow='MyResoniteProject/.resoloop/tokyo-nova/pipeline.json'
-  if ! git ls-files -z -i -c --exclude-standard > "$tmp_list"; then
+  if ! git -c core.excludesFile=/dev/null ls-files -z -i -c --exclude-standard > "$tmp_list"; then
     fail "git ls-files -i failed"
     return
   fi
@@ -95,9 +95,86 @@ check_tracked_ignored() {
   fi
 }
 
+# 4. <prefix>.claude/skills の各エントリが <prefix>.agents/skills の同名ディレクトリへの symlink で、1:1 に対応する（仕様 4.2・8.1・9.1）
+# 引数: 接頭辞。ルートは ""、プロジェクトは "slum02/" のように末尾に / を付ける
+check_skill_links() {
+  local prefix="$1"
+  local agents="${prefix}.agents/skills/" claude="${prefix}.claude/skills/"
+  local -A dirs=() links=()
+  local problems=() path record meta mode rest name target
+  if ! git ls-files -z -- "${prefix}.agents/skills" > "$tmp_list"; then
+    fail "git ls-files failed for ${agents}"
+    return
+  fi
+  while IFS= read -r -d '' path; do
+    rest="${path#"$agents"}"
+    [ "$rest" != "${rest#*/}" ] || continue   # 直下のファイル（.resoloop-bundled.json など）は対象外
+    dirs["${rest%%/*}"]=1
+  done < "$tmp_list"
+  if ! git ls-files -s -z -- "${prefix}.claude/skills" > "$tmp_list"; then
+    fail "git ls-files -s failed for ${claude}"
+    return
+  fi
+  while IFS= read -r -d '' record; do
+    meta="${record%%$'\t'*}"
+    path="${record#*$'\t'}"
+    mode="${meta%% *}"
+    rest="${path#"$claude"}"
+    name="${rest%%/*}"
+    [ -z "${links[$name]+x}" ] || continue
+    links["$name"]=1
+    if [ "$mode" != 120000 ] || [ "$rest" != "$name" ]; then
+      problems+=("${claude}${name} is not a symlink")
+      continue
+    fi
+    target="$(readlink "$path" 2>/dev/null || true)"
+    [ "$target" = "../../.agents/skills/$name" ] || problems+=("${claude}${name} has unexpected target ${target:-<none>}")
+    [ -n "${dirs[$name]+x}" ] || problems+=("${claude}${name} has no matching ${agents}${name}")
+  done < "$tmp_list"
+  for name in "${!dirs[@]}"; do
+    [ -n "${links[$name]+x}" ] || problems+=("${claude%/}: missing link ${name}")
+  done
+  if [ ${#problems[@]} -gt 0 ]; then
+    local p
+    for p in "${problems[@]}"; do fail "$p"; done
+  else
+    ok "${claude%/} links are 1:1 with ${agents%/}"
+  fi
+}
+
+# 5. 旧 .devin/skills を追跡していない。スキル配下に 0 バイトの追跡ファイルが無い（仕様 5.5・8.1・11 章）
+check_skill_hygiene() {
+  local hits=() record meta path mode re='(^|/)\.(agents|claude)/skills/'
+  if ! git ls-files -z -- .devin/skills > "$tmp_list"; then
+    fail "git ls-files failed for .devin/skills"
+    return
+  fi
+  [ ! -s "$tmp_list" ] || hits+=(".devin/skills is still tracked")
+  if ! git ls-files -s -z > "$tmp_list"; then
+    fail "git ls-files -s failed"
+    return
+  fi
+  while IFS= read -r -d '' record; do
+    meta="${record%%$'\t'*}"
+    path="${record#*$'\t'}"
+    mode="${meta%% *}"
+    [ "$mode" != 120000 ] || continue
+    [[ "$path" =~ $re ]] || continue
+    [ -s "$path" ] || hits+=("empty tracked file: $path")
+  done < "$tmp_list"
+  if [ ${#hits[@]} -gt 0 ]; then
+    local h
+    for h in "${hits[@]}"; do fail "$h"; done
+  else
+    ok "skill trees hold no retired or empty tracked files"
+  fi
+}
+
 check_forbidden_tracked
 check_symlinks_resolve
 check_tracked_ignored
+check_skill_links ""
+check_skill_hygiene
 
 if [ "$failures" -gt 0 ]; then
   printf 'FAIL: check-layout (%d failure(s))\n' "$failures" >&2

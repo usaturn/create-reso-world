@@ -103,6 +103,68 @@ bash "$checker" --root "$tmp/nonascii-symlink" | grep -qF 'PASS: check-layout'
 # 12. リポジトリの外にコピーしたスクリプトでも --root を渡せば動く
 mkdir -p "$tmp/detached"
 cp "$checker" "$tmp/detached/check-layout.sh"
-bash "$tmp/detached/check-layout.sh" --root "$tmp/clean" | grep -qF 'PASS: check-layout'
+GIT_CEILING_DIRECTORIES="$tmp" bash "$tmp/detached/check-layout.sh" --root "$tmp/clean" | grep -qF 'PASS: check-layout'
+
+# .agents/skills/foo を持つ一時リポジトリを作る（.claude 側は各ケースで作る）
+skill_repo() {
+  new_repo "$1"
+  mkdir -p "$1/.agents/skills/foo" "$1/.claude/skills"
+  printf -- '---\nname: foo\ndescription: d\n---\n' > "$1/.agents/skills/foo/SKILL.md"
+}
+commit_paths() {  # $1=リポジトリ、残り=追加するパス
+  local r="$1"; shift
+  git -C "$r" add -- "$@" && git -C "$r" commit -q -m change
+}
+
+# 13. .agents/skills と .claude/skills が 1:1 の symlink なら通過する
+skill_repo "$tmp/skills-ok"
+ln -s ../../.agents/skills/foo "$tmp/skills-ok/.claude/skills/foo"
+commit_paths "$tmp/skills-ok" .agents .claude
+bash "$checker" --root "$tmp/skills-ok" | grep -qF 'PASS: check-layout'
+
+# 14. symlink が無ければ失敗する
+skill_repo "$tmp/skills-missing"
+commit_paths "$tmp/skills-missing" .agents
+expect_fail_with "$tmp/skills-missing" 'missing link foo'
+
+# 15. .claude/skills/foo が実ディレクトリなら失敗する
+skill_repo "$tmp/skills-realdir"
+mkdir -p "$tmp/skills-realdir/.claude/skills/foo"
+cp "$tmp/skills-realdir/.agents/skills/foo/SKILL.md" "$tmp/skills-realdir/.claude/skills/foo/SKILL.md"
+commit_paths "$tmp/skills-realdir" .agents .claude
+expect_fail_with "$tmp/skills-realdir" '.claude/skills/foo is not a symlink'
+
+# 16. 行き先が .agents/skills/foo でなければ失敗する
+skill_repo "$tmp/skills-target"
+mkdir -p "$tmp/skills-target/other/foo" && printf 'x\n' > "$tmp/skills-target/other/foo/SKILL.md"
+ln -s ../../other/foo "$tmp/skills-target/.claude/skills/foo"
+commit_paths "$tmp/skills-target" .agents .claude other
+expect_fail_with "$tmp/skills-target" '.claude/skills/foo has unexpected target ../../other/foo'
+
+# 17. 対応する .agents/skills の無いリンクは失敗する
+skill_repo "$tmp/skills-extra"
+ln -s ../../.agents/skills/foo "$tmp/skills-extra/.claude/skills/foo"
+mkdir -p "$tmp/skills-extra/elsewhere/bar" && printf 'x\n' > "$tmp/skills-extra/elsewhere/bar/SKILL.md"
+ln -s ../../elsewhere/bar "$tmp/skills-extra/.claude/skills/bar"
+commit_paths "$tmp/skills-extra" .agents .claude elsewhere
+expect_fail_with "$tmp/skills-extra" '.claude/skills/bar has no matching .agents/skills/bar'
+
+# 18. .devin/skills を追跡していれば失敗する
+new_repo "$tmp/devin"
+mkdir -p "$tmp/devin/.devin/skills/x" && printf 'x\n' > "$tmp/devin/.devin/skills/x/SKILL.md"
+commit_paths "$tmp/devin" .devin
+expect_fail_with "$tmp/devin" '.devin/skills is still tracked'
+
+# 19. スキル配下の 0 バイトの追跡ファイルは失敗する
+skill_repo "$tmp/empty"
+ln -s ../../.agents/skills/foo "$tmp/empty/.claude/skills/foo"
+mkdir -p "$tmp/empty/.agents/skills/foo/scripts" && : > "$tmp/empty/.agents/skills/foo/scripts/helper.py"
+commit_paths "$tmp/empty" .agents .claude
+expect_fail_with "$tmp/empty" 'empty tracked file: .agents/skills/foo/scripts/helper.py'
+
+# 20. ユーザのグローバル ignore が追跡ファイルを ignore していても誤検知しない（L72）
+printf 'README.md\n' > "$tmp/global-ignore"
+printf '[core]\n\texcludesFile = %s\n' "$tmp/global-ignore" > "$tmp/global-gitconfig"
+GIT_CONFIG_COUNT=0 GIT_CONFIG_GLOBAL="$tmp/global-gitconfig" bash "$checker" --root "$tmp/clean" | grep -qF 'PASS: check-layout'
 
 printf 'PASS: check-layout script behaves as specified\n'
