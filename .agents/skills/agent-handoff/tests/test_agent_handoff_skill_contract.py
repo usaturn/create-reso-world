@@ -5,12 +5,15 @@ import os
 import re
 from pathlib import Path
 
+import yaml
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SKILL_DIR = REPO_ROOT / ".agents/skills/agent-handoff"
 AGENTS_SKILL = SKILL_DIR / "SKILL.md"
 CLAUDE_LINK = REPO_ROOT / ".claude/skills/agent-handoff"
 SCHEMA = SKILL_DIR / "references/handoff-schema.md"
 EVALS = SKILL_DIR / "evals/evals.json"
+TRIGGERS = SKILL_DIR / "evals/trigger_queries.json"
 
 #
 # Fields only the outgoing agent can supply. The whole point of the
@@ -82,7 +85,35 @@ def test_skill_states_the_handoff_contract() -> None:
 
 def test_skill_declares_claude_code_allowed_tools() -> None:
     """Claude Code gates the skill's tool surface; Codex and pi ignore the key."""
-    assert "allowed-tools:" in read(AGENTS_SKILL).split("---", 2)[1]
+    tools = yaml.safe_load(read(AGENTS_SKILL).split("---", 2)[1])["allowed-tools"]
+    assert isinstance(tools, str)
+    for entry in (
+        "Write(tmp/docs_draft/claude_handoffs/**)",
+        "Edit(tmp/docs_draft/claude_handoffs/**)",
+        "Write(docs/superpowers/**)",
+        "Edit(docs/superpowers/**)",
+    ):
+        assert entry in tools, entry
+    assert "docs_draft/superpowers" not in tools
+
+
+def test_specs_and_plans_live_in_docs_superpowers() -> None:
+    # AGENTS.md keeps specs and plans under docs/superpowers/; docs_draft/ is a
+    # gitignored scratch area that a receiver on another checkout cannot read.
+    content = read(AGENTS_SKILL)
+    assert "`docs/superpowers/`" in content
+    assert "docs_draft/superpowers" not in content
+
+
+def test_overview_does_not_count_runtimes() -> None:
+    # Codex, pi, Devin, Cursor and Claude Code all read this one file.
+    assert "両ランタイム" not in read(AGENTS_SKILL)
+
+
+def test_trigger_queries_belong_to_this_repository() -> None:
+    queries = {item["id"]: item for item in json.loads(read(TRIGGERS))["queries"]}
+    assert queries["q2"]["should_trigger"] is True
+    assert "python-tdd-team" not in json.dumps(queries, ensure_ascii=False)
 
 
 def test_skill_covers_the_gaps_hand_written_handoffs_drop() -> None:

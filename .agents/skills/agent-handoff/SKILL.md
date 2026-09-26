@@ -1,7 +1,7 @@
 ---
 name: agent-handoff
 description: エージェント間で作業を受け渡すときに使う。渡す側 —「区切りのいい所で停止して引き継ぎ資料を作って」「別のエージェントに実装させる」「この Spec を渡せば足りるか」「handoff を書いて」と言われたとき。受け取る側 — 他のエージェント（Codex / Grok / 別セッションの Claude Code）が superpowers・brainstorming・writing-plans・review-fix-planning・subagent-driven-development で進めた作業を「引き継いで」「続きをやって」「どこまで終わったか確認して」と言われたとき。tmp/docs_draft/claude_handoffs/ の handoff アーティファクトを読み書きし、決定済みの裁定・触ってはいけない範囲・検証手順・反映先まで引き渡す
-allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Bash(gh *), Bash(uv run *), Write(tmp/docs_draft/claude_handoffs/**), Edit(tmp/docs_draft/claude_handoffs/**), Write(docs_draft/superpowers/**), Edit(docs_draft/superpowers/**)
+allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Bash(gh *), Bash(uv run *), Write(tmp/docs_draft/claude_handoffs/**), Edit(tmp/docs_draft/claude_handoffs/**), Write(docs/superpowers/**), Edit(docs/superpowers/**)
 ---
 
 # エージェント引き継ぎ
@@ -10,7 +10,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Ba
 
 引き継ぎ先のエージェントは**コールドスタート**である。持っているのはリポジトリと、こちらが書き残したものだけで、それ以外は何も無い。このスキルは受け渡しの両端を扱う。作業を止める側の **handoff を書く**手順と、続きを引き取る側の **handoff を読む**手順である。
 
-アーティファクトは `tmp/docs_draft/claude_handoffs/` に置く Markdown と JSON の対で、スキーマは `.agents/skills/agent-handoff/references/handoff-schema.md` にある（両ランタイムで同じ 1 本を正本として共有する）。書く前・解釈する前に必ず読む。
+アーティファクトは `tmp/docs_draft/claude_handoffs/` に置く Markdown と JSON の対で、スキーマは `.agents/skills/agent-handoff/references/handoff-schema.md` にある（どのランタイムもこの 1 本を読む）。書く前・解釈する前に必ず読む。
 
 **引き継ぎが失敗する原因は、要約の不足ではないことがほとんどである。** 差分ならコールドなエージェントでも読み直せる。読み直せないのは「何を決めて、何を棄却したか」である。高くつく失敗は次の 4 つに集中する。決着済みの判断を蒸し返す、意図的に除外した指摘に手を出す、独自の検証を発明して実環境に対して走らせる、二本目の PR を開く。`decisions` / `out_of_scope` / `verification` / `landing` はこの 4 つのためだけに存在する。
 
@@ -25,7 +25,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Ba
 
 1. **区切りを決めて、それを明記する。** 編集の途中で書いた handoff は、handoff が無いより悪い。作業単位を完了させるか元に戻すかを選び、どちらにしたかを `session.stop_reason` に書く。適用途中の編集を作業ツリーに残すなら、冒頭の節で必ず宣言する。書かなければ受け手は「作業ツリー＝ `git.head`」と仮定して踏む。
 
-2. **理屈の置き場所を決める。** 長い論証は Spec / Plan 側（本リポジトリでは `docs_draft/superpowers/`）に置き、handoff は 1 行の裁定だけを持って `sources.spec` で指す。両方に書くと必ず食い違う。Spec が無いときは `sources.spec` を `null`（JSON）/ `none`（Markdown）にし、理由を書く。存在しないパスを捏造しない。
+2. **理屈の置き場所を決める。** 長い論証は Spec / Plan 側（本リポジトリでは `docs/superpowers/` の `specs/` と `plans/`）に置き、handoff は 1 行の裁定だけを持って `sources.spec` で指す。両方に書くと必ず食い違う。Spec が無いときは `sources.spec` を `null`（JSON）/ `none`（Markdown）にし、理由を書く。存在しないパスを捏造しない。
 
 3. **対の 2 ファイルを手書きする。** `tmp/docs_draft/claude_handoffs/<timestamp>-<session>.handoff.md` と同名の `.handoff.json` をスキーマに従って手書きする。
 
