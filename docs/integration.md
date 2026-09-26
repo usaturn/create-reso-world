@@ -68,3 +68,5 @@
 5. 不要になった未追跡物を削除する。`akichi/.agents/skills/` の Blender 系 10 スキルと `references/`・`tests/`（ルートの `.agents/skills/` に移ったため）、`akichi/.claude/skills/` と `MyResoniteProject/.claude/skills/` の Blender 系 symlink、ルート `.claude/skills/` の `resonite-*` の未追跡 symlink（resonite-* はプロジェクト側で読む）、`MyResoniteProject/.agents/sp-*.md` のうち `sp-implementer.md` 以外の 8 件（pi-superagents の組み込み定義と同一のため）。
 6. `MyResoniteProject/` で `uv sync` を実行し、`uv run pytest` が通ることを確認する（プロジェクト専用の環境になった）。
 7. `bash scripts/check-layout.sh` がすべて `ok` で `PASS: check-layout` になることを確認する。
+8. （任意）Rebuild の前に `tmp/resoloop-blender5-uv-20260925` を `external/resoloop` へ移すと、postCreate の clone を省ける。手順は `docs/resoloop-fork-workflow.md` の「`tmp/` にある旧 checkout の整理」にある。
+9. Rebuild の postCreate は `.devcontainer/resoloop.lock` の fork をビルドして導入する（ネットワークと数分を要する）。終わったら `bash scripts/resoloop-fork.sh status` で、導入済みの版と checkout がロックと一致することを確認する。`tmp/` の残りの旧 checkout は同じ節の手順で整理する。

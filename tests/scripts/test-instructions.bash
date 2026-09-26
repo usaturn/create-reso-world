@@ -37,6 +37,11 @@ for s in 'オブジェクトごとに、1つのメッシュにする' '長大な
   'monitoring-long-tasks' '.agents/monitoring-runtimes.md' 'find-docs' '3 回まで'; do
   has AGENTS.md "$s"
 done
+# AGENTS.md が参照するファイルが実在する（ResoLoop の版管理の 3 件はフェーズ 3 で作成、持ち越し N-5）
+for f in .devcontainer/resoloop.lock scripts/resoloop-fork.sh docs/resoloop-fork-workflow.md \
+  scripts/new-world.sh scripts/check-layout.sh .agents/monitoring-runtimes.md; do
+  [ -e "$f" ] || fail "AGENTS.md refers to missing $f"
+done
 # 旧リポジトリ由来の記述とツール固有の記述を持ち込まない
 for s in 'reStructuredText' 'Gitleaks' 'contingency' 'verify.sh' 'verify-devenv' 'AskUserQuestion' 'TaskOutput' 'npx ctx7'; do
   lacks AGENTS.md "$s"
