@@ -888,7 +888,7 @@ test_install_script_drops_pi_subagents() {
         && fail "install_beforehand.bash must not install npm:pi-subagents"
     grep -q 'pi remove npm:pi-subagents' "$INSTALL_SCRIPT" \
         || fail "install_beforehand.bash must remove npm:pi-subagents"
-    # 一覧（settings）だけでなく、pi が管理する npm マニフェストも見る（#289）。
+    # 一覧（settings）だけでなく、pi が管理する npm マニフェストも見る。
     grep -q 'package-lock.json' "$INSTALL_SCRIPT" \
         || fail "install_beforehand.bash must inspect the managed npm manifests"
     return 0
@@ -956,7 +956,7 @@ case "$cmd" in
             mv "${state}.tmp" "$state"
         fi
         # 実物の pi remove は、settings に未登録でも管理マニフェストの記載は掃除し、
-        # 「No matching package found」で exit 1 を返す。この差が #289 の論点なので、
+        # 「No matching package found」で exit 1 を返す。この差が論点なので、
         # fake でも同じ振る舞いを再現する。
         if [ -n "${PI_FAKE_NPM_DIR:-}" ]; then
             for manifest in "${PI_FAKE_NPM_DIR}/package.json" "${PI_FAKE_NPM_DIR}/package-lock.json"; do
@@ -1059,7 +1059,7 @@ test_install_skips_remove_when_old_absent() {
 test_install_removes_stale_manifest_residue() {
     # settings の一覧が綺麗でも、pi が管理する npm マニフェストに旧拡張が残っていれば
     # 削除を呼ぶ。残っていると `pi update --extensions`（zsh の update()）で
-    # node_modules ごと復活し、subagent ツール名の衝突で pigo / pigod が起動できない（#289）。
+    # node_modules ごと復活し、subagent ツール名の衝突で pigo / pigod が起動できない。
     rm -f "$FAKE_STATE" "$FAKE_LOG"
     local npm_dir="${TEST_ROOT}/fake-home/.pi/agent/npm"
     mkdir -p "$npm_dir"

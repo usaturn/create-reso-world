@@ -1,4 +1,4 @@
-# Dev Container の初回起動時に ~/.dsh/settings.yaml へコピーされる雛形（#282）。
+# Dev Container の初回起動時に ~/.dsh/settings.yaml へコピーされる雛形。
 # API key の値は保存せず、環境変数名だけを参照する。
 llm-deepseek:
   apiKeyEnv: OPENCODE_API_KEY

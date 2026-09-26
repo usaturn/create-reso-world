@@ -2,10 +2,10 @@
 #
 # .devcontainer/cleanup-workspace.bash
 #
-# ディスクを圧迫する使い捨て debris を安全に掃除する（Issue #146）。
+# ディスクを圧迫する使い捨て debris を安全に掃除する。
 #   - /tmp/pr-review-* の残骸（pr-review スキルが `worktree` サブディレクトリに
-#     git worktree を作る。PR #159 以降は save 成功時に worktree・session state を
-#     自動削除するが、異常終了や cleanup 失敗時には残るため掃除は引き続き必要。
+#     git worktree を作る。save 成功時には worktree・session state を
+#     自動削除するが、異常終了や cleanup 失敗時には残るため掃除は必要。
 #     残骸の大半は「登録されたままの worktree」で、単純な rm -rf は git 側の
 #     worktree 登録と不整合を起こすため使えない。なお loose なセッション状態
 #     ファイルは pr-review 側の削除対象に含まれないため、ディレクトリの有無と
@@ -15,9 +15,8 @@
 #     行うが、異常終了時には残るため本スクリプトが安全網として pr-review と同じ
 #     安全条件で掃除する。公式 mktemp のドット区切り（review-fix-planning.*）のみ対象。
 #     ハイフン区切りの歴史的残骸（-wt / -head.txt 等）は対象外で手動対応）
-#   - yarn キャッシュ（#147 で npm に一本化したため不要）
 #
-# 安全条件（Issue #152 共有仕様 §4。すべて AND で判断する）:
+# 安全条件（すべて AND で判断する）:
 #   - 未コミット変更のある git 作業ツリーを含むものは削除しない
 #   - 使用中（プロセスの cwd）と判定できるものは削除しない
 #   - 経過日数のみを削除条件にしない
@@ -32,28 +31,23 @@
 #   - loose なセッション状態ファイル（pr-review-<PR>-*.patch / *session.env /
 #     pr-review-<PR>.diff 等、/tmp 直下に置かれるもの）は、ディレクトリの
 #     削除有無とは無関係に、実行のたびに独立したパスで TMP_ROOT 全体を
-#     走査して片付ける（このディレクトリ削除への従属が Issue #146 の
-#     再発を招いていたため、本ブランチで分離した）。同じ PR 番号の
+#     走査して片付ける（ディレクトリ削除に従属させると、ディレクトリを
+#     自分で消す pr-review の残したファイルが二度と片付かないため）。同じ PR 番号の
 #     pr-review-<PR>-* ディレクトリが他に 1 つも残っていない場合に限り、
 #     ディレクトリと同じ MIN_AGE_DAYS を満たすものだけ削除する。1 つでも
 #     残っていれば、他インスタンスがまだ参照し得るため一切触らない
 #
-# verify.sh のログ rotation はこのスクリプトの対象外（#150 の責務）。
-#
 # 環境変数（既定値はコンテナの実運用、テストでは差し替える）:
 #   WORKSPACE_CLEANUP_TMP_ROOT       pr-review-* / review-fix-planning.* を探すルート（既定 /tmp）
 #   WORKSPACE_CLEANUP_MIN_AGE_DAYS   最終更新からの最小経過日数。0 以下で無効化（既定 1）
-#   WORKSPACE_CLEANUP_YARN_CACHE_DIR yarn キャッシュのパス（既定 $HOME/.cache/yarn）
 #   WORKSPACE_CLEANUP_DRY_RUN        1 で実際には削除・git worktree remove をせず
 #                                  対象だけ表示する（既定 0）
-# 旧 MAATLOG_CLEANUP_* は安全のため代替として受け付け、新しい名前を優先する。
 
 set -u
 
-readonly TMP_ROOT="${WORKSPACE_CLEANUP_TMP_ROOT:-${MAATLOG_CLEANUP_TMP_ROOT:-/tmp}}"
-readonly MIN_AGE_DAYS="${WORKSPACE_CLEANUP_MIN_AGE_DAYS:-${MAATLOG_CLEANUP_MIN_AGE_DAYS:-1}}"
-readonly YARN_CACHE_DIR="${WORKSPACE_CLEANUP_YARN_CACHE_DIR:-${MAATLOG_CLEANUP_YARN_CACHE_DIR:-${HOME:-/root}/.cache/yarn}}"
-readonly DRY_RUN="${WORKSPACE_CLEANUP_DRY_RUN:-${MAATLOG_CLEANUP_DRY_RUN:-0}}"
+readonly TMP_ROOT="${WORKSPACE_CLEANUP_TMP_ROOT:-/tmp}"
+readonly MIN_AGE_DAYS="${WORKSPACE_CLEANUP_MIN_AGE_DAYS:-1}"
+readonly DRY_RUN="${WORKSPACE_CLEANUP_DRY_RUN:-0}"
 
 # cleanup_pr_review_dirs が削除した（dry-run では削除するとみなした）ディレクトリ。
 # loose ファイルの掃除は「同じ PR 番号のディレクトリがもう残っていないか」で
@@ -200,7 +194,7 @@ _contains() {
 # （pr-review-<PR>-diff.patch、pr-review-<PR>-session.env、pr-review-<PR>.diff 等）
 # を片付ける。
 #
-# PR #159 以降、pr-review スキルは save 成功時に自身の worktree・セッション
+# pr-review スキルは save 成功時に自身の worktree・セッション
 # ディレクトリを削除する。そのため「ディレクトリを削除したとき」を契機にすると
 # loose ファイルには二度と掃除が来ない。ディレクトリの有無と独立に走らせる。
 #
@@ -317,30 +311,11 @@ cleanup_review_fix_planning_dirs() {
     cleanup_tmp_dirs "review-fix-planning" "" "${TMP_ROOT}"/review-fix-planning.*
 }
 
-cleanup_yarn_cache() {
-    if [ -d "$YARN_CACHE_DIR" ]; then
-        local size
-        size="$(du -sh "$YARN_CACHE_DIR" 2>/dev/null | cut -f1)"
-        if [ "$DRY_RUN" = "1" ]; then
-            echo "dry-run: would remove yarn cache: ${YARN_CACHE_DIR} (${size:-unknown size})"
-            return 0
-        fi
-        if rm -rf -- "$YARN_CACHE_DIR"; then
-            echo "removed yarn cache: ${YARN_CACHE_DIR} (${size:-unknown size})"
-        else
-            echo "failed to remove yarn cache: ${YARN_CACHE_DIR}" >&2
-        fi
-    else
-        echo "yarn cache cleanup: nothing to remove at ${YARN_CACHE_DIR}"
-    fi
-}
-
 main() {
     echo "=== workspace cleanup: $(date -u +%Y-%m-%dT%H:%M:%SZ) (root=${TMP_ROOT}) ==="
     cleanup_pr_review_dirs
     cleanup_orphaned_pr_session_files
     cleanup_review_fix_planning_dirs
-    cleanup_yarn_cache
 }
 
 main "$@"
