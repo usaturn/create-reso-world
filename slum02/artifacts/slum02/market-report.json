@@ -26,7 +26,7 @@
   "material_count": 17,
   "ao": {
     "baked": 18,
-    "seconds": 2.3,
+    "seconds": 2.0,
     "samples": 32
   },
   "uv_issue_count": 0,

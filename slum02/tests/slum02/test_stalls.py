@@ -224,3 +224,51 @@ def test_torus_primitive_is_closed_outward():
     assert _closed_consistent(t) and g.signed_volume(t) > 0
     expected = 2 * math.pi ** 2 * 0.3 * 0.08 ** 2
     assert g.signed_volume(t) == pytest.approx(expected, rel=0.25)   # hexagonal section, 12 segments
+
+
+def _top_surface(sheets, x, z):
+    """Highest upward-facing sheet face above (x, z), by barycentric test on fan triangles; None if none."""
+    best = None
+    for m in sheets:
+        for face in m.faces:
+            pts = [m.vertices[i] for i in face]
+            if g.face_normal(pts)[1] <= 0.5:
+                continue
+            for k in range(1, len(pts) - 1):
+                a, b, c = pts[0], pts[k], pts[k + 1]
+                det = (b[2] - c[2]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[2] - c[2])
+                if abs(det) < 1e-12:
+                    continue
+                l1 = ((b[2] - c[2]) * (x - c[0]) + (c[0] - b[0]) * (z - c[2])) / det
+                l2 = ((c[2] - a[2]) * (x - c[0]) + (a[0] - c[0]) * (z - c[2])) / det
+                l3 = 1 - l1 - l2
+                if min(l1, l2, l3) >= -1e-9:
+                    y = l1 * a[1] + l2 * b[1] + l3 * c[1]
+                    best = y if best is None else max(best, y)
+    return best
+
+
+def test_weight_tyres_rest_on_the_corrugated_sheets():
+    """Regression (review fix 1): tyres were tilted against the pitch and sank through the sheets."""
+    checked = 0
+    for s in build_layout()["stalls"]:
+        a = stalls.build_stall(s)
+        if a.meta["roof"] != "corrugated":
+            continue
+        sheets = [p for p in a.parts if p.name.startswith("roof-sheet")]
+        for tyre in [p for p in a.parts if p.name.startswith("weight-tire")]:
+            gaps, contact = [], []
+            for v in tyre.vertices:
+                top = _top_surface(sheets, v[0], v[2])
+                if top is None:
+                    continue
+                gaps.append(v[1] - top)
+                # ridge envelope: highest sheet top within one corrugation pitch along x
+                env = max(t for t in (_top_surface(sheets, v[0] + dx * 0.02, v[2]) for dx in range(-5, 6))
+                          if t is not None)
+                contact.append(v[1] - env)
+            assert gaps, (s["id"], tyre.name)
+            assert min(gaps) >= -1e-4, (s["id"], tyre.name, min(gaps))       # never below the top skin
+            assert min(contact) <= 0.01, (s["id"], tyre.name, min(contact))  # and not floating
+            checked += 1
+    assert checked >= 12

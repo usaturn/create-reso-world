@@ -35,6 +35,8 @@ EAVE = 0.3              # roof overhang past the plot front edge towards the lan
 POST_R = 0.035
 POST_INSET = 0.08
 COUNTER_TOP = 0.9
+CORR_AMP = 0.028        # corrugation ridge height above the valley
+CORR_LAP = 0.03         # the second corrugated sheet laps 3 cm above the first
 MAX_PER_LEVEL = 6       # goods per back-shelf level, leaves gaps so single items read
 SIGN_UP = 0.3           # sign anchor height above the roof front edge (layout ``_signs``)
 TARPS = ("tarp_blue", "tarp_orange", "tarp_green")
@@ -276,9 +278,9 @@ def _stall_parts(spec: dict, rng: random.Random) -> tuple[list[g.MeshData], dict
         split = rng.uniform(-0.25, 0.25)
         spans = ((rx0, split + 0.1), (split - 0.1, rx1))
         for k, ((x0, x1), mat) in enumerate(zip(spans, mats)):
-            lift = 0.0 if k == 0 else 0.03                    # second sheet laps over the first
+            lift = 0.0 if k == 0 else CORR_LAP                    # second sheet laps over the first
             cols = []
-            pitch, amp = 0.19, 0.028
+            pitch, amp = 0.19, CORR_AMP
             steps = max(2, round((x1 - x0) / pitch)) * 4
             for c in range(steps + 1):
                 x = x0 + (x1 - x0) * c / steps
@@ -286,14 +288,20 @@ def _stall_parts(spec: dict, rng: random.Random) -> tuple[list[g.MeshData], dict
                 cols.append((x, (0.0, amp, amp, 0.0)[phase]))
             grid = [[(x, roof_y(z) + dy + lift, z) for z in (zr0, zr1)] for x, dy in cols]
             parts.append(g.thick_sheet(f"roof-sheet-{k}", grid, (0.0, -0.006, 0.0), mat))
-        # tyres weigh the sheets down (on the roof, over the posts)
+        # tyres weigh the sheets down (on the roof, over the posts). Spin about Y first, then tilt
+        # about X so the tyre lies parallel to the roof pitch (rising towards +Z), then drop it until
+        # its lowest point rests on the ridge envelope of the sheet underneath (lap sheet 3 cm higher).
+        slope = math.atan2(drop, zr1 - zr0)
+
+        def ridge_top(x: float, z: float) -> float:
+            return roof_y(z) + CORR_AMP + (CORR_LAP if x >= split - 0.1 else 0.0)
+
         for k, (tx, tz) in enumerate(((rx0 + 0.45, zb + 0.35), (rx1 - 0.5, zf - 0.25), (split, 0.0))[: 2 + (w > 3.5)]):
-            on_top = 0.03 if tx > split - 0.1 else 0.0          # lapped second sheet is 3 cm higher
-            y = roof_y(tz) + 0.028 + on_top + 0.075 - 0.01
             tyre = g.torus(f"weight-tire-{k}", (0.0, 0.0, 0.0), 0.24, 0.075, 12, 6, "rubber")
-            slope = math.atan2(drop, zr1 - zr0)
-            parts.append(g.transformed(g.transformed_xyz(tyre, slope, 0.0, 0.0, (0.0, 0.0, 0.0)),
-                                       rng.uniform(0, math.pi), (tx, y, tz)))
+            tyre = g.transformed_xyz(g.transformed(tyre, rng.uniform(0, math.pi), (0.0, 0.0, 0.0)),
+                                     -slope, 0.0, 0.0, (0.0, 0.0, 0.0))
+            y = max(ridge_top(tx + v[0], tz + v[2]) - v[1] for v in tyre.vertices)
+            parts.append(g.transformed(tyre, 0.0, (tx, y, tz)))
         sprays.append(("runoff", (0.0, roof_y(zr0), zr0), 1.4, ((1.05, 0.6, 0.38), 0.6, ("corrugated",))))
         roof_mats = mats
 

@@ -202,3 +202,17 @@
 - 残課題: タープのたわみ（0.12〜0.25m）は下からの陰影では弱い。夜間照明（Light）と TextRenderer を付けた状態での確認は実機で行う（未実施）
 
 プレビュー: `market-lane.png`、`market-near.png`、`market-aerial.png`、`market-south.png`
+
+## market 第2回（Task 9 Fix 1: 重しタイヤのめり込み）
+
+視点: `market-tyres`（新規。`[16,4.6,-17.6]→[19.5,2.9,-20.3]`、トタン屋根を斜め上から見る）、`market-lane` / `market-aerial` / `market-south`（上書き）。AO 32 samples あり
+
+指摘（レビュー）:
+- タイヤを屋根の傾斜ぶん X 軸まわりに傾けてから Y 軸まわりにランダムに回していたため、傾きの向きが屋根の勾配とずれていた。さらに傾きの符号が勾配（+Z 側が高い）と逆だった。その結果、17 個中 15 個が屋根板の下面から 2.1〜7.7cm 突き抜け、lane から見上げると屋根裏に黒いゴムが見えていた。第1回の「浮き・めり込みは見当たらない」は誤りだった
+
+修正内容:
+- torus を先に Y 軸まわりに回し、その後で `-slope` だけ傾けて屋根の勾配（+Z 側が高い）と平行にした。高さは、全頂点のうち最も深く沈む点が波板の山の包絡面（`roof_y + CORR_AMP`、重ね板の範囲では `+CORR_LAP`）にちょうど接するように決めた
+- 回帰テスト `test_weight_tyres_rest_on_the_corrugated_sheets` を追加した。全 17 個について、全頂点が屋根板の上面より下に出ないこと、山の包絡面から 1cm 以内に接していることを確認する
+- 画像: `market-tyres` で、タイヤが波板の上に平らに載っている。`market-south` の屋根裏にゴムは見えない
+
+プレビュー: `market-tyres.png`（新規）、`market-lane.png`・`market-aerial.png`・`market-south.png`（上書き）
