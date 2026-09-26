@@ -436,6 +436,40 @@ FLOAT_ANCHORS = [  # (x, z, yaw) over streets; yaw faces along the street
     (-6.0, -18.0, 90.0), (14.0, -18.0, 270.0),
 ]
 
+# R18: club-mounted vertical ads must clear the physical sign board and the entrance.
+# nightlife.build_club centres the board on the facade at min(facade - 2*0.35 - 0.4,
+# text_width + 0.5) wide around the layout sign anchor (sign.size 0.8); the entrance
+# door with its neon frame spans +-0.75. The facade's edge columns (0.35 wide,
+# projecting 0.15 past the facade) cap the usable band. Layout cannot import
+# nightlife (cycle), so the board estimate is duplicated here.
+CLUB_BOARD_GAP = 0.10    # ad edge clearance beside the sign board
+CLUB_EDGE_GAP = 0.10     # ad edge clearance inside the column line
+CLUB_DOOR_HALF = 0.75    # door + neon frame half-width on club facades
+CLUB_COL_W = 0.35        # nightlife.COL_W
+
+
+def _text_width(text: str, size: float) -> float:
+    """Same estimate nightlife uses to size club sign boards (CJK glyphs count full size)."""
+    return sum(size if ord(ch) > 0x2000 else size * 0.55 for ch in text)
+
+
+def _club_ad_offset(club: dict[str, Any], along: float) -> tuple[float, float]:
+    """Along-facade centre and width for a club-mounted vertical ad (R18).
+
+    The ad goes to the side the jitter draw picked, between the sign board edge and
+    the inner face of the facade's edge columns. When the board is too wide for a
+    1.2 m panel it narrows into the band that is left (nobori proportions).
+    """
+    w, d = _extent(club)
+    facade = d if club["front"] in ("-x", "+x") else w
+    text = CLUB_SIGNS[(int(club["id"].rsplit("-", 1)[1]) - 1) % len(CLUB_SIGNS)]
+    board_w = min(facade - 2 * CLUB_COL_W - 0.4, _text_width(text, 0.8) + 0.5)
+    keep_out = max(board_w / 2, CLUB_DOOR_HALF) + CLUB_BOARD_GAP
+    edge = facade / 2 - CLUB_COL_W - CLUB_EDGE_GAP
+    width = _r(min(1.2, edge - keep_out))
+    side = 1.0 if along >= 0 else -1.0
+    return side * (keep_out + width / 2), width
+
 
 def _ads(rng: random.Random, towers, clubs):
     ads: list[dict[str, Any]] = []
@@ -460,17 +494,21 @@ def _ads(rng: random.Random, towers, clubs):
         lx_off = rng.uniform(-0.25, 0.25)
         w, d = _extent(m)
         front = m["front"]
-        # local offset of a point 0.12 m in front of the facade centre (+ jitter along it)
+        along = lx_off * (d if front in ("-x", "+x") else w)
+        ad_w = 1.2
+        if is_club:
+            along, ad_w = _club_ad_offset(m, along)       # R18: beside the sign board
+        # local offset of a point 0.12 m in front of the facade (+ jitter/offset along it)
         if front in ("-z", "+z"):
             sgn = -1 if front == "-z" else 1
-            lx, lz = lx_off * w, sgn * (d / 2 + 0.12)
+            lx, lz = along, sgn * (d / 2 + 0.12)
         else:
             sgn = -1 if front == "-x" else 1
-            lx, lz = sgn * (w / 2 + 0.12), lx_off * d
+            lx, lz = sgn * (w / 2 + 0.12), along
         x, z = _to_world(m, lx, lz)
         scroll = k < 6
         ads.append({"kind": "vertical", "position": _rv([x, bottom + h / 2, z]), "rotation": m["rotation"],
-                    "size": _rv([1.2, h]), "mount": m["id"],
+                    "size": _rv([ad_w, h]), "mount": m["id"],
                     "material": HOLO_SCROLL[k % 2] if scroll else HOLO_STATIC[k % 4],
                     "anim": "scroll" if scroll else "none"})
     out = []
