@@ -17,12 +17,36 @@
 ## マージ前にユーザが行うこと
 
 1. 作業ツリー（`/workspaces/reso-world`）の `.claude/settings.local.json` は `feat/slum02-slum` で追跡されており、未コミットの変更が乗っている。`chore/repo-redesign` はこのファイルを index から削除するため、マージ・rebase の前に `cp /workspaces/reso-world/.claude/settings.local.json ~/settings.local.json.bak` などで退避し、マージ後に元の場所へ戻す（マージ後は ignore 対象になるので再追跡されない）。`feat/tokyo-nova-world` と `wip/tokyo-nova-refinement` も同じファイルを追跡しているため、これらを新しい `main` に rebase するときも同様の退避が必要。
-2. `chore/repo-redesign` が新しく追跡するパスのうち、作業ツリーに未追跡のまま存在するものは、マージや rebase の checkout を中断させる（git は未追跡ファイルを上書きしない）。次のコマンドで一覧を標準出力に出し、同じ相対パスのまま `~/reso-world-untracked-backup/` へ移してからマージする。
+2. `chore/repo-redesign` が新しく追跡するパスのうち、作業ツリーに未追跡のまま存在するものは、マージや rebase の checkout を中断させる（git は未追跡ファイルを上書きしない）。まず一覧を NUL 区切りでファイルに書き出して確認する。`origin/chore/repo-redesign` をまだ取得していない場合は、先に `git fetch origin` を実行する（Task 14 で push 済みならこれで参照できる）。
 
    ```bash
-   git -C /workspaces/reso-world ls-tree -r -z --name-only origin/chore/repo-redesign | while IFS= read -r -d '' p; do
-     if [ -e "/workspaces/reso-world/$p" ] || [ -L "/workspaces/reso-world/$p" ]; then
-       git -C /workspaces/reso-world ls-files --error-unmatch -- "$p" >/dev/null 2>&1 || printf '%s\n' "$p"
+   cd /workspaces/reso-world
+   git fetch origin
+   list="$HOME/reso-world-untracked-backup.list"
+   git ls-tree -r -z --name-only origin/chore/repo-redesign | while IFS= read -r -d '' p; do
+     if [ -e "$p" ] || [ -L "$p" ]; then
+       git ls-files --error-unmatch -- "$p" >/dev/null 2>&1 || printf '%s\0' "$p"
+     fi
+   done > "$list"
+   tr '\0' '\n' < "$list"
+   echo "件数: $(tr -cd '\0' < "$list" | wc -c)"
+   ```
+
+   一覧を確認したら、同じ相対パスのまま `~/reso-world-untracked-backup/` へ退避する。`mv` はシンボリックリンクをリンクのまま（実体を追わずに）移動し、`-n` は退避先に同名のファイルがあっても上書きしない。
+
+   ```bash
+   while IFS= read -r -d '' p; do
+     mkdir -p "$HOME/reso-world-untracked-backup/$(dirname -- "$p")"
+     mv -n -- "$p" "$HOME/reso-world-untracked-backup/$p"
+   done < "$list"
+   ```
+
+   退避が終わったら、同じ一覧コマンドをもう一度実行して 0 件になることを確認してからマージする。1 件でも表示されたら、マージを進めずにその内容を確認する。
+
+   ```bash
+   git ls-tree -r -z --name-only origin/chore/repo-redesign | while IFS= read -r -d '' p; do
+     if [ -e "$p" ] || [ -L "$p" ]; then
+       git ls-files --error-unmatch -- "$p" >/dev/null 2>&1 || printf '%s\n' "$p"
      fi
    done
    ```
@@ -33,7 +57,7 @@
    - `slum02/.resoloop/.gitignore`: 1 件
    - ルート `.claude/skills/` の Blender 系 symlink 10 件（blender-modeler、brutalist-mood、dark-gritty-mood、geometry-nodes、hard-surface、horror-style、procedural-modeling、prop-artist、sci-fi-punk-worlds、uv-workflow）と `references`: 計 11 件
    - `.devcontainer/devcontainer-lock.json`: 1 件
-3. 退避したファイルは、マージ後に同じパスに入る追跡版と内容を比べてから削除する。`AGENTS.md`（先頭を resoloop preview.14 の文面に揃え、固有節を追加）と `.resoloop/.gitignore`（`cache/` を追加）以外は同一のはず。
+3. `~/reso-world-untracked-backup/` へ退避したファイルは、マージ後に同じパスに入る追跡版と内容を比べてから削除する。`AGENTS.md`（先頭を resoloop preview.14 の文面に揃え、固有節を追加）と `.resoloop/.gitignore`（`cache/` を追加）以外は同一のはず。
 
 ## マージ後にユーザが行うこと（随時追記）
 
