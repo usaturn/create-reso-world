@@ -41,7 +41,9 @@ Compare the Git root with the intended working root using their resolved filesys
 | Route | Declared target | Working root and remotes | Meaning of `origin/main` |
 | --- | --- | --- | --- |
 | This repository | `usaturn/create-reso-world` | This repository's checkout or one of its worktrees; origin is `usaturn/create-reso-world` | This repository's remote-tracking ref |
-| ResoLoop fork | `usaturn/resoloop` or `orange3134/resoloop` | `external/resoloop` under this repository's root, or a worktree of that checkout; origin is `usaturn/resoloop` and upstream is `orange3134/resoloop` | The fork's remote-tracking ref, which mirrors `upstream/main` |
+| ResoLoop fork | `usaturn/resoloop` or `orange3134/resoloop` | `external/resoloop` under this repository's root, or a worktree of that checkout; origin is `usaturn/resoloop` and upstream is `orange3134/resoloop` | The fork's remote-tracking ref, which mirrors `upstream/main` only right after a sync |
+
+On the fork route, `origin/main` mirrors `upstream/main` only immediately after `bash scripts/resoloop-fork.sh sync` has run. Before relying on `origin/main`, either run `sync` first (with the user's confirmation; in Claude Code, via AskUserQuestion), or, for an upstream PR, derive the changed-line ranges from `upstream/main` directly so they match the PR.
 
 Any other target repository has no route: stop before deriving files and report the declared target.
 
@@ -89,5 +91,5 @@ If a command fails, the root or origin differs, or the selected ref cannot be re
 ## Examples
 
 - This repository: caller declares target `usaturn/create-reso-world` and a worktree of this repository as the working root for `/simplify-in-subagent --ref=origin/main`. In that worktree, verify root/origin, resolve that repository's `origin/main`, then simplify `scripts/check-layout.sh` lines 10–18 from the diff. Only those changed lines may be edited; run relevant tests and report the route and changes.
-- ResoLoop fork: caller declares target `orange3134/resoloop` (an upstream PR) and `external/resoloop` as the working root for `/simplify-in-subagent --ref=origin/main`. Verify root, origin and upstream there before using the fork's `origin/main` for changed lines in `src/RLoop.Cli/...`.
+- ResoLoop fork: caller declares target `orange3134/resoloop` (an upstream PR) and `external/resoloop` as the working root for `/simplify-in-subagent --ref=origin/main`. Verify root, origin and upstream there. Since this is an upstream PR, either run `sync` first (with the user's confirmation) so `origin/main` mirrors `upstream/main`, or derive the changed-line ranges from `upstream/main` directly, before simplifying `src/RLoop.Cli/...`.
 - Wrong route: target is `usaturn/resoloop`, but the current cwd is this repository's root while the request names `src/RLoop.Cli/Program.cs` and `--ref=origin/main`. Stop at preflight, report the mismatch, and ask the caller to rerun in `external/resoloop`. Do not read this repository's diff or invoke fallback. Here, "ask the caller" means return this instruction in the result report; it does not require a question tool.
