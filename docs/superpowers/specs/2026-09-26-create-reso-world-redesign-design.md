@@ -257,7 +257,7 @@ SDK は `devcontainer.json` の dotnet Feature に `"additionalVersions": "10.0.
 `docs/resoloop-fork-workflow.md` に次を書く。
 
 - checkout の位置（`external/resoloop`）と remote 構成、`/workspaces` 直下に置かない理由（root 所有のコンテナ内ディレクトリで再作成時に消える）
-- 修正の流れ: `sync` → ブランチ作成 → 修正 → `test` → ロックのコミットを差し替えて `install` → fork へ push → 上流へ PR（運用文書では、ロックを差し替える前に fork へ push する。`install` の `checkout` は origin にあるコミットしか取り出せないため）
+- 修正の流れ: `sync` → ブランチ作成 → 修正 → `test` → ロックのコミットを差し替えて `install` → fork へ push → 上流へ PR（運用文書では、ロックを差し替える前に fork へ push する。別の環境の postCreate が、ロックのコミットを origin から取得できるようにするため）
 - fork 内 PR（usaturn/resoloop#1）はレビュー用としてマージしない。上流にマージ・リリースされたら `RESOLOOP_MODE=nuget` と `RESOLOOP_NUGET_VERSION` を更新する
 - 上流への PR 候補: scaffold の `.resoloop/.gitignore` に `cache/` が無い、global.json の `rollForward` が `latestPatch` で SDK の feature band を跨げない
 - `tmp/` の旧 checkout の整理手順（uv0-fix の未コミット草稿は patch として保存してから削除する）
@@ -370,8 +370,8 @@ SDK は `devcontainer.json` の dotnet Feature に `"additionalVersions": "10.0.
 ### 10.1 統合手順（`docs/integration.md`）
 
 1. `chore/repo-redesign` に最新の `feat/slum02-slum` を取り込み、`main` を再度 slum02 の HEAD へ ff（`git fetch . feat/slum02-slum:main`）してから PR を `main` に出す。取り込みは、push 済みのブランチを force push しないよう rebase ではなくマージで行う（フェーズ 6 の判断事項）。
-2. マージ後、作業ツリー側で `git fetch origin` し、`feat/slum02-slum` を `origin/main` に rebase するか ff-merge する。
-3. マージの前に、作業ツリーに残る `CLAUDE.md` と `.pi/APPEND_SYSTEM.md` の未コミット変更を、フェーズ 2 で新設計に取り込み済みであることを確認したうえで `git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md` で破棄する。`.claude/settings.local.json` は `~/settings.local.json.bak` などへ退避してから `git checkout -- .claude/settings.local.json` で変更を戻し、マージ後に元の場所へ書き戻す（マージ後は ignore 対象になるので再追跡されない）。手順の詳細は `docs/integration.md`。
+2. マージの前に、作業ツリーに残る `CLAUDE.md` と `.pi/APPEND_SYSTEM.md` の未コミット変更を、フェーズ 2 で新設計に取り込み済みであることを確認したうえで `git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md` で破棄する。`.claude/settings.local.json` は `~/settings.local.json.bak` などへ退避してから `git checkout -- .claude/settings.local.json` で変更を戻し、マージ後に元の場所へ書き戻す（マージ後は ignore 対象になるので再追跡されない）。手順の詳細は `docs/integration.md`。
+3. マージ後、作業ツリー側で `git fetch origin` し、`feat/slum02-slum` を `origin/main` に追従させる（ff-merge できなければ rebase かマージ）。
 4. Dev Containers: Rebuild Container を実行し、9.3 を確認する。
 5. pi と Claude Code の trust を再承認し、Codex は初回起動時にプロジェクトの trust を承認する。
 
@@ -393,6 +393,6 @@ SDK は `devcontainer.json` の dotnet Feature に `"additionalVersions": "10.0.
 | Devin が `.claude/skills` symlink を二重掲示する | `.devin/config.json` の設定キーを確認し、無ければ制約として明記する |
 | `allowed-tools` frontmatter を Codex と pi が無視するか | フェーズ 2 でスキル一覧の表示を確認する |
 | dotnet Feature の `additionalVersions` に `10.0.201` を指定した場合の実挙動 | 公式文書で `X.Y.Z` 形式を確認済み。Rebuild で実機確認する |
-| `dotnet tool update --allow-downgrade` の実挙動 | モックのテストで契約を固定し、Rebuild で実機確認する |
+| `dotnet tool update --allow-downgrade` の実挙動 | モックのテストで挙動を固定し、Rebuild で実機確認する |
 | fork ビルドが postCreate で必要とするネットワークとビルド時間 | 既存の導入ステップも同様にネットワーク前提。失敗は fail-loud で止める |
-| slum02 の別セッションとの競合 | 作業ツリーに触れず、統合時に rebase する |
+| slum02 の別セッションとの競合 | 作業ツリーに触れず、統合時にマージで取り込む（10.1 の 1） |

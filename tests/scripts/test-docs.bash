@@ -1,5 +1,5 @@
 #!/bin/bash
-# ルートの README.md と統合手順（docs/integration.md）が仕様 4.1・5.1・9.3・10.1 と持ち越しの N-3・N-4・N-12・N-17・N-18・N-24・N-25・P-1〜P-3・P-7 のとおりで、
+# ルートの README.md と統合手順（docs/integration.md）が仕様 4.1・5.1・9.3・10.1 と持ち越しの N-3・N-4・N-12・N-17・N-18・N-24・N-25・N-27・P-1〜P-3・P-7・M-5 のとおりで、
 # 書いてあるファイルや節が実在することを検査する
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -38,19 +38,18 @@ done
 
 # 3. N-3: エージェントごとに初回に要る操作と制約
 for s in 'trust' 'cursor-agent' '.devin/config.json' 'sp-*.md' 'Cursor と dsh'; do has README.md "$s"; done
-lacks README.md 'maatlog'
 
 # 4. 統合手順: マージ前の片付け（P-1）、一覧の件数（N-4）、sp-implementer.md の比較先と同じシェル（N-12）、
 #    main の再 ff（M-5）、/private/ の行を消す時期（P-2）、Rebuild 後の確認（N-17・N-18・N-25・N-27）
 doc=docs/integration.md
-before_merge="$(sed -n '/^## マージ前にユーザが行うこと$/,/^## マージ後にユーザが行うこと$/p' "$doc")"
+before_merge="$(sed -n '/^## PR のマージ前にユーザが行うこと$/,/^## PR のマージ後にユーザが行うこと$/p' "$doc")"
 for s in 'git checkout -- .claude/settings.local.json' 'git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md' \
-  '同じシェル' 'ルートの `.agents/sp-implementer.md` と比べる' '2026-09-27 時点の該当: 68 件'; do
+  '手順 2 の 2 つのコードブロックは同じシェルで実行する' 'ルートの `.agents/sp-implementer.md` と比べる' '2026-09-27 時点の該当: 68 件' 'reso-world-untracked-backup.list'; do
   grep -qF -- "$s" <<<"$before_merge" || fail "the pre-merge section of $doc lacks: $s"
 done
 for s in 'git fetch . feat/slum02-slum:main' 'マージに置き換えた' '## Rebuild 後に確かめること（仕様 9.3）' \
   'dotnet --list-sdks' '/home/vscode/.local/bin' '~/.config/create-reso-world' 'simplify-in-subagent' \
-  'GitHub Actions' 'resoloop-fork.sh sync' 'wip/tokyo-nova-refinement` を新しい `main` に rebase した後'; do
+  'GitHub Actions' 'resoloop-fork.sh sync' 'wip/tokyo-nova-refinement` を新しい `main` に rebase した後' 'Codex は初回の起動時にプロジェクトの trust を承認する'; do
   has "$doc" "$s"
 done
 lacks "$doc" '随時追記'
@@ -62,7 +61,7 @@ lacks "$spec" '`**/tmp/`'
 lacks "$spec" '`.agents/skills/*/SKILL.md` ごとに'
 has "$spec" 'git fetch . feat/slum02-slum:main'
 has "$spec" 'フェーズ 4 の D-10'
-has "$spec" '`install` の `checkout` は origin にあるコミットしか取り出せない'
+has "$spec" '別の環境の postCreate が、ロックのコミットを origin から取得できるようにするため'
 has docs/resoloop-fork-workflow.md 'テストと特殊な運用向け'
 lacks docs/resoloop-fork-workflow.md '主にテスト用'
 phase01=docs/superpowers/plans/2026-09-26-redesign-phase0-1-safety-and-hygiene.md
