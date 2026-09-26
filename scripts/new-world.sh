@@ -5,7 +5,7 @@
 # 終了コード:
 #   0 成功
 #   1 既存ファイルとの食い違いあり。雛形の変更は何もしない（新規作成では resoloop init が作ったディレクトリだけが残り、その旨を表示する）
-#   2 使い方の誤り。何も変更しない
+#   2 使い方の誤り（git に無視される名前を含む）。何も変更しない
 #   3 前提不足。uv（同期ありのとき）・resoloop・ルートの共有物（.claude/settings.json、.pi）の欠落は何かを作る前に検出する。
 #     resoloop init の失敗や init 後の生成物の不足では init が作ったものが残る。uv sync の失敗では雛形の適用は済んでおり、その旨を表示する
 set -euo pipefail
@@ -35,6 +35,10 @@ done
 name_re='^[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?$'
 [[ "$name" =~ $name_re ]] || die 2 "invalid project name '$name' (use letters, digits, '-' and '_'; start and end with a letter or digit)"
 [ -n "$root" ] || root="$(git -C "$script_dir" rev-parse --show-toplevel)"
+# ルートの .gitignore（や利用者の除外設定）で無視される名前のプロジェクトは、git からも check-layout からも見えない
+if git -C "$root" check-ignore -q -- "$name/.resoloop.json" 2>/dev/null; then
+  die 2 "'$name' is ignored by git in $root (root .gitignore or your excludes); choose another name"
+fi
 tmpl="$root/templates/world-project"
 [ -d "$tmpl" ] || die 3 "template directory not found: $tmpl"
 proj="$root/$name"
@@ -61,12 +65,33 @@ fi
 [ -f "$proj/AGENTS.md" ] || die 3 "$name/AGENTS.md is missing; run resoloop init first"
 
 render() { sed -e "s/{{name}}/$name/g" "$1"; }
+# リンクが要る .agents/skills 直下のディレクトリ: ファイルを 1 つ以上持つもの（SKILL.md の有無は問わない）。
+# scripts/check-layout.sh の定義（追跡ファイルを 1 つ以上持つディレクトリ）と揃えている
+has_files() { [ -d "$1" ] && [ -n "$(find "$1" -type f -print -quit 2>/dev/null)" ]; }
 
 # 1 周目: 作るもの・追記するものを集め、既存ファイルとの食い違いを集める。食い違いがあれば何も変更しない
-conflicts=() plan_files=() plan_links=() append_section=0 append_cache=0
+conflicts=() plan_file_rel=() plan_file_src=() plan_link_rel=() plan_link_target=() append_section=0 append_cache=0
+declare -A reported_parent=()
+
+parent_ok() {  # $1=相対パス。途中のディレクトリが symlink や通常ファイルなら食い違いに加え（1 回だけ）、1 を返す
+  local parent result=0
+  parent="$(dirname -- "$1")"
+  while [ "$parent" != . ]; do
+    if [ -L "$proj/$parent" ] || { [ -e "$proj/$parent" ] && [ ! -d "$proj/$parent" ]; }; then
+      if [ -z "${reported_parent[$parent]+x}" ]; then
+        conflicts+=("$parent is not a directory")
+        reported_parent["$parent"]=1
+      fi
+      result=1
+    fi
+    parent="$(dirname -- "$parent")"
+  done
+  return "$result"
+}
 
 want_file() {  # $1=相対パス、$2=雛形、$3=既存と比べるなら 1
   local rel="$1" src="$2" compare="$3"
+  parent_ok "$rel" || return 0
   if [ -L "$proj/$rel" ] || { [ -e "$proj/$rel" ] && [ ! -f "$proj/$rel" ]; }; then
     conflicts+=("$rel is not a regular file")
   elif [ -f "$proj/$rel" ]; then
@@ -74,12 +99,14 @@ want_file() {  # $1=相対パス、$2=雛形、$3=既存と比べるなら 1
       conflicts+=("$rel differs from templates/world-project/$(basename "$src")")
     fi
   else
-    plan_files+=("$rel|$src")
+    plan_file_rel+=("$rel")
+    plan_file_src+=("$src")
   fi
 }
 
 want_link() {  # $1=相対パス、$2=期待する行き先
   local rel="$1" target="$2" current
+  parent_ok "$rel" || return 0
   if [ -L "$proj/$rel" ]; then
     current="$(readlink "$proj/$rel")"
     [ "$current" = "$target" ] || conflicts+=("$rel points to $current, expected $target")
@@ -88,17 +115,24 @@ want_link() {  # $1=相対パス、$2=期待する行き先
   elif [ ! -e "$(realpath -m "$(dirname "$proj/$rel")/$target")" ]; then
     conflicts+=("$rel would point to missing $target")
   else
-    plan_links+=("$rel|$target")
+    plan_link_rel+=("$rel")
+    plan_link_target+=("$target")
   fi
 }
 
 want_file CLAUDE.md "$tmpl/CLAUDE.md" 1
 want_file pyproject.toml "$tmpl/pyproject.toml" 0
-grep -qxF '## このプロジェクト固有' "$proj/AGENTS.md" || append_section=1
-if [ -f "$proj/.resoloop/.gitignore" ] && [ ! -L "$proj/.resoloop/.gitignore" ]; then
-  grep -qxF 'cache/' "$proj/.resoloop/.gitignore" || append_cache=1
-else
-  want_file .resoloop/.gitignore "$tmpl/resoloop-gitignore" 0
+if [ -L "$proj/AGENTS.md" ]; then
+  conflicts+=("AGENTS.md is a symlink; refusing to append to its target")
+elif ! grep -qxF '## このプロジェクト固有' "$proj/AGENTS.md"; then
+  append_section=1
+fi
+if parent_ok .resoloop/.gitignore; then
+  if [ -f "$proj/.resoloop/.gitignore" ] && [ ! -L "$proj/.resoloop/.gitignore" ]; then
+    grep -qxF 'cache/' "$proj/.resoloop/.gitignore" || append_cache=1
+  else
+    want_file .resoloop/.gitignore "$tmpl/resoloop-gitignore" 0
+  fi
 fi
 want_link .claude/settings.json ../../.claude/settings.json
 want_link .pi ../.pi
@@ -106,16 +140,20 @@ for sp in "$root"/.agents/sp-*.md; do
   [ -f "$sp" ] || continue
   want_link ".agents/$(basename "$sp")" "../../.agents/$(basename "$sp")"
 done
-for f in "$proj"/.agents/skills/*/SKILL.md; do
-  [ -f "$f" ] || continue
-  n="$(basename "$(dirname "$f")")"
+# 隠しエントリ（.old など）も含めて、リンクが要るディレクトリと、対応するディレクトリの無いリンクを探す
+shopt -s dotglob
+for d in "$proj"/.agents/skills/*/; do
+  d="${d%/}"
+  has_files "$d" || continue
+  n="$(basename "$d")"
   want_link ".claude/skills/$n" "../../.agents/skills/$n"
 done
 for l in "$proj"/.claude/skills/*; do
   [ -e "$l" ] || [ -L "$l" ] || continue
   n="$(basename "$l")"
-  [ -f "$proj/.agents/skills/$n/SKILL.md" ] || conflicts+=(".claude/skills/$n has no matching .agents/skills/$n")
+  has_files "$proj/.agents/skills/$n" || conflicts+=(".claude/skills/$n has no matching .agents/skills/$n")
 done
+shopt -u dotglob
 
 if [ ${#conflicts[@]} -gt 0 ]; then
   printf 'CONFLICT: %s\n' "${conflicts[@]}" >&2
@@ -128,22 +166,23 @@ if [ ${#conflicts[@]} -gt 0 ]; then
 fi
 
 # 2 周目: 適用する
-for entry in ${plan_files[@]+"${plan_files[@]}"}; do
-  rel="${entry%%|*}" src="${entry#*|}"
+for i in "${!plan_file_rel[@]}"; do
+  rel="${plan_file_rel[$i]}" src="${plan_file_src[$i]}"
   mkdir -p "$(dirname "$proj/$rel")"
   render "$src" > "$proj/$rel"
   printf 'created: %s\n' "$rel"
 done
 if [ "$append_section" -eq 1 ]; then
-  { printf '\n'; render "$tmpl/AGENTS.local.md"; } >> "$proj/AGENTS.md"
+  # 改行で終わっていない AGENTS.md には、先に改行を足してから空行と固有節を追記する
+  { [ -z "$(tail -c 1 "$proj/AGENTS.md")" ] || printf '\n'; printf '\n'; render "$tmpl/AGENTS.local.md"; } >> "$proj/AGENTS.md"
   printf 'appended: AGENTS.md (## このプロジェクト固有)\n'
 fi
 if [ "$append_cache" -eq 1 ]; then
   printf 'cache/\n' >> "$proj/.resoloop/.gitignore"
   printf 'appended: .resoloop/.gitignore (cache/)\n'
 fi
-for entry in ${plan_links[@]+"${plan_links[@]}"}; do
-  rel="${entry%%|*}" target="${entry#*|}"
+for i in "${!plan_link_rel[@]}"; do
+  rel="${plan_link_rel[$i]}" target="${plan_link_target[$i]}"
   mkdir -p "$(dirname "$proj/$rel")"
   ln -s "$target" "$proj/$rel"
   printf 'linked: %s -> %s\n' "$rel" "$target"

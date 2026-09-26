@@ -104,17 +104,21 @@ before="$(snapshot "$tmp/r6/demo")"
 expect_exit 1 'CONFLICT: .pi exists and is not a symlink' "$tmp/r6" --apply --no-sync demo
 [ "$before" = "$(snapshot "$tmp/r6/demo")" ] || fail 'conflicting --apply changed files'
 
-# 7. CLAUDE.md が雛形と違えば 1
+# 7. CLAUDE.md が雛形と違えば 1 を返し、何も変更しない
 new_root "$tmp/r7"
 run "$tmp/r7" --no-sync demo >/dev/null
 printf 'other\n' > "$tmp/r7/demo/CLAUDE.md"
+before="$(snapshot "$tmp/r7/demo")"
 expect_exit 1 'CONFLICT: CLAUDE.md differs from templates/world-project/CLAUDE.md' "$tmp/r7" --apply --no-sync demo
+[ "$before" = "$(snapshot "$tmp/r7/demo")" ] || fail 'case 7 changed files'
 
-# 8. 対応する .agents/skills の無い .claude/skills のリンクは 1
+# 8. 対応する .agents/skills の無い .claude/skills のリンクは 1 を返し、何も変更しない
 new_root "$tmp/r8"
 run "$tmp/r8" --no-sync demo >/dev/null
 ln -s ../../.agents/skills/stale "$tmp/r8/demo/.claude/skills/stale"
+before="$(snapshot "$tmp/r8/demo")"
 expect_exit 1 'CONFLICT: .claude/skills/stale has no matching .agents/skills/stale' "$tmp/r8" --apply --no-sync demo
+[ "$before" = "$(snapshot "$tmp/r8/demo")" ] || fail 'case 8 changed files'
 
 # 9. resoloop プロジェクトでないディレクトリへの --apply は 3
 new_root "$tmp/r9"
@@ -196,5 +200,92 @@ PATH="$tmp/init-claude:$PATH" expect_exit 1 'demo was created by resoloop init a
 if grep -qF 'no changes were made' "$tmp/out.txt"; then fail 'claimed no changes after resoloop init created the project'; fi
 [ "$(cat "$tmp/r18/demo/CLAUDE.md")" = 'other' ] || fail 'changed CLAUDE.md after the conflict'
 if [ -e "$tmp/r18/demo/.pi" ] || [ -L "$tmp/r18/demo/.pi" ]; then fail 'applied links after the conflict'; fi
+
+# 19. ルートの .gitignore で無視される名前は、resoloop を呼ばず何も作らずに 2（N-9）
+new_root "$tmp/r19"
+printf 'tmp/\n/private/\n' > "$tmp/r19/.gitignore"
+: > "$MOCK_LOG"
+expect_exit 2 "'tmp' is ignored by git" "$tmp/r19" --no-sync tmp
+expect_exit 2 "'private' is ignored by git" "$tmp/r19" --no-sync private
+[ ! -e "$tmp/r19/tmp" ] && [ ! -e "$tmp/r19/private" ] || fail 'created an ignored project'
+[ ! -s "$MOCK_LOG" ] || fail 'ran resoloop for an ignored name'
+
+# 20. 改行で終わらない AGENTS.md には、改行と空行を挟んでから固有節を追記する（N-9）
+new_root "$tmp/r20"
+run "$tmp/r20" --no-sync demo >/dev/null
+printf '# guide' > "$tmp/r20/demo/AGENTS.md"
+expect_exit 0 'appended: AGENTS.md' "$tmp/r20" --apply --no-sync demo
+[ "$(sed -n '1p' "$tmp/r20/demo/AGENTS.md")" = '# guide' ] || fail 'the last line of AGENTS.md was changed'
+[ -z "$(sed -n '2p' "$tmp/r20/demo/AGENTS.md")" ] || fail 'no blank line before the section'
+[ "$(sed -n '3p' "$tmp/r20/demo/AGENTS.md")" = '## このプロジェクト固有' ] || fail 'the section does not start on its own line'
+
+# 21. SKILL.md の無いディレクトリ（隠しディレクトリを含む）でも、ファイルがあればリンクを張る（check-layout と同じ定義、N-10）
+new_root "$tmp/r21"
+run "$tmp/r21" --no-sync demo >/dev/null
+mkdir -p "$tmp/r21/demo/.agents/skills/shared-refs" && printf 'notes\n' > "$tmp/r21/demo/.agents/skills/shared-refs/notes.md"
+mkdir -p "$tmp/r21/demo/.agents/skills/.hidden-refs" && printf 'notes\n' > "$tmp/r21/demo/.agents/skills/.hidden-refs/notes.md"
+expect_exit 0 'linked: .claude/skills/shared-refs -> ../../.agents/skills/shared-refs' "$tmp/r21" --apply --no-sync demo
+grep -qF 'linked: .claude/skills/.hidden-refs -> ../../.agents/skills/.hidden-refs' "$tmp/out.txt" || fail 'hidden directory was not linked'
+expect_exit 0 'DONE: demo' "$tmp/r21" --apply --no-sync demo
+
+# 22. 途中のディレクトリが通常ファイルなら 1 を返し、何も変更しない（N-16）
+new_root "$tmp/r22"
+run "$tmp/r22" --no-sync demo >/dev/null
+rm -rf "$tmp/r22/demo/.claude" && printf 'x\n' > "$tmp/r22/demo/.claude"
+before="$(snapshot "$tmp/r22/demo")"
+expect_exit 1 'CONFLICT: .claude is not a directory' "$tmp/r22" --apply --no-sync demo
+[ "$(grep -c 'is not a directory' "$tmp/out.txt")" -eq 1 ] || fail 'reported the same parent more than once'
+[ "$before" = "$(snapshot "$tmp/r22/demo")" ] || fail 'case 22 changed files'
+
+# 23. .claude/skills の隠しエントリも、対応するディレクトリが無ければ 1（N-16）
+new_root "$tmp/r23"
+run "$tmp/r23" --no-sync demo >/dev/null
+ln -s ../../.agents/skills/.old "$tmp/r23/demo/.claude/skills/.old"
+expect_exit 1 'CONFLICT: .claude/skills/.old has no matching .agents/skills/.old' "$tmp/r23" --apply --no-sync demo
+
+# 24. AGENTS.md が symlink なら追記せずに 1（リンク先を書き換えない、N-16）
+new_root "$tmp/r24"
+run "$tmp/r24" --no-sync demo >/dev/null
+printf '# shared guide\n' > "$tmp/r24/shared-agents.md"
+rm "$tmp/r24/demo/AGENTS.md" && ln -s ../shared-agents.md "$tmp/r24/demo/AGENTS.md"
+expect_exit 1 'CONFLICT: AGENTS.md is a symlink' "$tmp/r24" --apply --no-sync demo
+[ "$(cat "$tmp/r24/shared-agents.md")" = '# shared guide' ] || fail 'wrote through the AGENTS.md symlink'
+
+# 25. 食い違いが複数あればすべて報告し、何も変更しない（N-16）
+new_root "$tmp/r25"
+run "$tmp/r25" --no-sync demo >/dev/null
+rm "$tmp/r25/demo/.pi" && mkdir "$tmp/r25/demo/.pi"
+printf 'other\n' > "$tmp/r25/demo/CLAUDE.md"
+before="$(snapshot "$tmp/r25/demo")"
+expect_exit 1 'CONFLICT: .pi exists and is not a symlink' "$tmp/r25" --apply --no-sync demo
+grep -qF 'CONFLICT: CLAUDE.md differs from templates/world-project/CLAUDE.md' "$tmp/out.txt" || fail 'did not report every conflict'
+[ "$before" = "$(snapshot "$tmp/r25/demo")" ] || fail 'case 25 changed files'
+
+# 26. 行き先の違う symlink は 1（N-16）
+new_root "$tmp/r26"
+run "$tmp/r26" --no-sync demo >/dev/null
+rm "$tmp/r26/demo/.pi" && ln -s ../other "$tmp/r26/demo/.pi"
+expect_exit 1 'CONFLICT: .pi points to ../other, expected ../.pi' "$tmp/r26" --apply --no-sync demo
+
+# 27. 行き先が存在しないことになる symlink は 1（N-16）
+new_root "$tmp/r27"
+run "$tmp/r27" --no-sync demo >/dev/null
+rm "$tmp/r27/demo/.claude/settings.json" "$tmp/r27/.claude/settings.json"
+expect_exit 1 'CONFLICT: .claude/settings.json would point to missing ../../.claude/settings.json' "$tmp/r27" --apply --no-sync demo
+
+# 28. ルートの .claude/settings.json が無ければ、新規作成は resoloop init を呼ばず何も作らずに 3（N-16）
+new_root "$tmp/r28"
+rm "$tmp/r28/.claude/settings.json"
+: > "$MOCK_LOG"
+expect_exit 3 '.claude/settings.json is missing at the repository root' "$tmp/r28" --no-sync demo
+[ ! -e "$tmp/r28/demo" ] || fail 'created the project although the root .claude/settings.json is missing'
+[ ! -s "$MOCK_LOG" ] || fail 'ran resoloop init although the root .claude/settings.json is missing'
+
+# 29. 名前に | を含むスキルディレクトリにも正しくリンクを張る（N-16）
+new_root "$tmp/r29"
+run "$tmp/r29" --no-sync demo >/dev/null
+mkdir -p "$tmp/r29/demo/.agents/skills/a|b" && printf -- '---\nname: ab\n---\n' > "$tmp/r29/demo/.agents/skills/a|b/SKILL.md"
+expect_exit 0 'DONE: demo' "$tmp/r29" --apply --no-sync demo
+[ "$(readlink "$tmp/r29/demo/.claude/skills/a|b")" = '../../.agents/skills/a|b' ] || fail 'link for a name containing |'
 
 printf 'PASS: new-world script behaves as specified\n'
