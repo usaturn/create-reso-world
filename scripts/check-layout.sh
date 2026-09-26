@@ -170,11 +170,75 @@ check_skill_hygiene() {
   fi
 }
 
+# 6. 各プロジェクト（.resoloop.json を追跡している直下のディレクトリ）が仕様 4.2 の標準レイアウトを満たす
+projects=()
+collect_projects() {
+  local path
+  if ! git ls-files -z -- '*/.resoloop.json' > "$tmp_list"; then
+    fail "git ls-files failed for */.resoloop.json"
+    return
+  fi
+  while IFS= read -r -d '' path; do
+    [[ "$path" =~ ^[^/]+/\.resoloop\.json$ ]] && projects+=("${path%%/*}")
+  done < "$tmp_list"
+}
+
+check_project() {
+  local p="$1" problems=() f link target sp
+  for f in AGENTS.md CLAUDE.md .resoloop.json .resoloop/.gitignore pyproject.toml uv.lock \
+           .agents/skills/.resoloop-bundled.json flux/resoloop.flux.json; do
+    git ls-files --error-unmatch -- "$p/$f" >/dev/null 2>&1 || problems+=("missing tracked file $f")
+  done
+  [ "$(cat "$p/CLAUDE.md" 2>/dev/null)" = '@AGENTS.md' ] || problems+=("CLAUDE.md must be exactly @AGENTS.md")
+  grep -qxF '## このプロジェクト固有' "$p/AGENTS.md" 2>/dev/null || problems+=("AGENTS.md lacks ## このプロジェクト固有")
+  grep -qxF 'cache/' "$p/.resoloop/.gitignore" 2>/dev/null || problems+=(".resoloop/.gitignore lacks cache/")
+  local links=(".claude/settings.json|../../.claude/settings.json" ".pi|../.pi")
+  if ! git ls-files -z -- '.agents/sp-*.md' > "$tmp_list"; then
+    fail "git ls-files failed for .agents/sp-*.md"
+    return
+  fi
+  while IFS= read -r -d '' sp; do
+    links+=(".agents/${sp##*/}|../../.agents/${sp##*/}")
+  done < "$tmp_list"
+  for link in "${links[@]}"; do
+    f="${link%%|*}" target="${link#*|}"
+    if [ "$(git ls-files -s -- "$p/$f" | cut -d' ' -f1)" != 120000 ] || [ "$(readlink "$p/$f" 2>/dev/null)" != "$target" ]; then
+      problems+=("$f must be a symlink to $target")
+    fi
+  done
+  if [ ${#problems[@]} -gt 0 ]; then
+    local q
+    for q in "${problems[@]}"; do fail "$p: $q"; done
+  else
+    ok "project $p layout"
+  fi
+  check_skill_links "$p/"
+}
+
+# 7. resoloop が使える環境では resoloop skills sync --check が各プロジェクトで成功する
+check_resoloop_skills() {
+  local p
+  if ! command -v resoloop >/dev/null 2>&1; then
+    printf 'skip: resoloop not found (skills sync check)\n'
+    return
+  fi
+  for p in ${projects[@]+"${projects[@]}"}; do
+    if resoloop skills sync "$p" --check >/dev/null 2>&1; then
+      ok "resoloop skills sync --check ($p)"
+    else
+      fail "resoloop skills sync --check failed for $p"
+    fi
+  done
+}
+
 check_forbidden_tracked
 check_symlinks_resolve
 check_tracked_ignored
 check_skill_links ""
 check_skill_hygiene
+collect_projects
+for p in ${projects[@]+"${projects[@]}"}; do check_project "$p"; done
+check_resoloop_skills
 
 if [ "$failures" -gt 0 ]; then
   printf 'FAIL: check-layout (%d failure(s))\n' "$failures" >&2
