@@ -9,7 +9,7 @@ Dev Container 設定とエージェント用ツールのセットアップを置
 `devcontainer.json`、`initialize.bash`、`install_beforehand.bash`、`zshrc.txt` はこの表に従う。
 Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を参照する。
 
-`cleanup-workspace.bash` はレビュー用の一時ディレクトリを安全条件を確認して掃除する。
+`cleanup-workspace.bash` はレビュー用の一時ディレクトリを、安全条件を確かめてから掃除する。
 手動で確認するときは `WORKSPACE_CLEANUP_DRY_RUN=1 bash .devcontainer/cleanup-workspace.bash` を使う。
 掃除先は `WORKSPACE_CLEANUP_TMP_ROOT`、定期実行の状態保存先は
 `WORKSPACE_CLEANUP_STATE_DIR` で変更できる。

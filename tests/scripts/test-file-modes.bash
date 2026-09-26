@@ -6,6 +6,8 @@ cd "$root"
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 
 # 対象: .devcontainer 配下の *.bash と *.zsh、pi のランチャー 9 本、scripts/*.sh、テスト（tests/scripts/*.bash）
+# 仕様 7.2 節: .devcontainer/*.bash はすべて 100755（mounts.bash・resoloop-lock.bash のように source される
+# ライブラリも含む）。一方 tests/scripts/lib/ 配下は source して使う補助であり、この規則の対象外で 100644 のままでよい
 launchers='piccd piccg piga pigl pigo pigod pigou pigs pixg'
 checked=0 bad=()
 while IFS= read -r -d '' record; do

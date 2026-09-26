@@ -32,8 +32,8 @@ function require_command(){
 function genv(){
         require_command gcloud || return
         require_command fzf || return
-         GOOGLE_CLOUD_SDK_CONFIG=$(gcloud config configurations list  --format="value(name)" | fzf)
-         gcloud config configurations activate ${GOOGLE_CLOUD_SDK_CONFIG}
+        GOOGLE_CLOUD_SDK_CONFIG=$(gcloud config configurations list  --format="value(name)" | fzf)
+        gcloud config configurations activate ${GOOGLE_CLOUD_SDK_CONFIG}
 }
 # プロンプト指定(コマンドの続き)
 PROMPT2='[%n]> '

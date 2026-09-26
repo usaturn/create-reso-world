@@ -51,6 +51,14 @@ done <<<"$expected"
 [ "$(cat "$home/.claude.json")" = '{"keep": true}' ] || fail 'initialize.bash changed ~/.claude.json'
 [ "$(stat -c %a "$home/.config/create-reso-world")" = 700 ] || fail '~/.config/create-reso-world must be mode 700'
 
+# 3b. ~/.claude.json が (Docker が先に作った) ディレクトリだと initialize.bash はエラーで終了する
+dirhome="$tmp/dirhome"
+mkdir -p "$dirhome/.claude.json"
+if out="$(HOME="$dirhome" bash "$init" 2>&1)"; then
+  fail "initialize.bash succeeded although ~/.claude.json is a directory: $out"
+fi
+grep -qF '.claude.json is a directory' <<<"$out" || fail "initialize.bash did not report the directory conflict: $out"
+
 # 4. postCreate はディレクトリの mount をすべて書き込み可能にする（ファイルの ~/.claude.json は除く）
 writable="$(sed -n '/^step "Ensuring user-writable directories under ~"$/,/; do$/p' "$installer")"
 while IFS= read -r rel; do

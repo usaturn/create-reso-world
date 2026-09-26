@@ -21,6 +21,11 @@ mkdir -p \
   "${HOME}/.config/gcloud" \
   "${HOME}/.config/create-reso-world"
 
+if [ -d "${HOME}/.claude.json" ]; then
+  echo "initialize: ~/.claude.json is a directory; remove it (Docker created it because the file did not exist) and rebuild" >&2
+  exit 1
+fi
+
 touch \
   "${HOME}/.claude.json"
 
