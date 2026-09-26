@@ -9,18 +9,24 @@ usage() {
 }
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-root="$(git -C "$script_dir" rev-parse --show-toplevel)"
+root=""
+root_given=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --root)
       [ $# -ge 2 ] || usage
-      resolved_root="$(git -C "$2" rev-parse --show-toplevel 2>/dev/null)" || usage
-      root="$resolved_root"
+      root="$(git -C "$2" rev-parse --show-toplevel)" || usage
+      root_given=1
       shift 2
       ;;
     *) usage ;;
   esac
 done
+# --root が無い場合だけ、スクリプト自身の位置からデフォルトのルートを求める。
+# 引数解析より前に求めると、リポジトリの外にコピーしたスクリプトが --root 付きでも動かない。
+if [ "$root_given" -eq 0 ]; then
+  root="$(git -C "$script_dir" rev-parse --show-toplevel)"
+fi
 cd "$root"
 
 failures=0

@@ -100,4 +100,9 @@ ln -s target "$tmp/nonascii-symlink/リンク"
 git -C "$tmp/nonascii-symlink" add target リンク && git -C "$tmp/nonascii-symlink" commit -q -m link
 bash "$checker" --root "$tmp/nonascii-symlink" | grep -qF 'PASS: check-layout'
 
+# 12. リポジトリの外にコピーしたスクリプトでも --root を渡せば動く
+mkdir -p "$tmp/detached"
+cp "$checker" "$tmp/detached/check-layout.sh"
+bash "$tmp/detached/check-layout.sh" --root "$tmp/clean" | grep -qF 'PASS: check-layout'
+
 printf 'PASS: check-layout script behaves as specified\n'
