@@ -1,0 +1,14 @@
+# ResoLoop の版を固定するロックファイル。仕様: docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md 6.1 節
+# 書式は KEY=VALUE の 1 行 1 項目（値に空白・引用符・$ を使わない）。bash で source できる書式だが、
+# スクリプトは .devcontainer/resoloop-lock.bash の resoloop_lock_load で検証してから読む。
+# 期待版は RESOLOOP_MODE=nuget なら RESOLOOP_NUGET_VERSION、fork なら RESOLOOP_FORK_PACKAGE_VERSION。
+# RESOLOOP_FORK_COMMIT を差し替えるときは RESOLOOP_FORK_PACKAGE_VERSION も変える（同じ版は導入済みとみなされ、再導入されない）。
+RESOLOOP_MODE=fork
+RESOLOOP_NUGET_VERSION=0.1.0-preview.14
+RESOLOOP_FORK_ORIGIN=https://github.com/usaturn/resoloop.git
+RESOLOOP_FORK_UPSTREAM=https://github.com/orange3134/resoloop.git
+RESOLOOP_FORK_REF=fix/blender5-uv-export
+RESOLOOP_FORK_COMMIT=1ef4d18ca4010b2d5740b36af9c0c7a67785a1ca
+RESOLOOP_FORK_PACKAGE_VERSION=0.1.0-preview.14.pr1.20260925
+RESOLOOP_FORK_PR=https://github.com/orange3134/resoloop/pull/2
+RESOLOOP_FORK_SDK=10.0.201

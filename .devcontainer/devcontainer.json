@@ -43,7 +43,9 @@
   "features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {},
 		"ghcr.io/devcontainers/features/dotnet:2": {
-			"version": "10.0"
+			"version": "10.0",
+			// resoloop fork の global.json が要求する SDK。.devcontainer/resoloop.lock の RESOLOOP_FORK_SDK と揃える
+			"additionalVersions": "10.0.201"
 		},
 		"ghcr.io/devcontainers/features/node:2": {
 		"nodeGypDependencies": true,
