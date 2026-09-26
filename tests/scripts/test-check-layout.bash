@@ -337,4 +337,59 @@ git clone -q -c core.symlinks=false "$tmp/proj-ok" "$tmp/nosymlinks"
 [ -f "$tmp/nosymlinks/demo/.pi" ] && [ ! -L "$tmp/nosymlinks/demo/.pi" ] || { printf 'FAIL: core.symlinks=false did not take effect\n' >&2; exit 1; }
 bash "$checker" --root "$tmp/nosymlinks" | grep -qF 'PASS: check-layout'
 
+# .devcontainer に devcontainer.json・ロック・読み込み関数を持つ一時リポジトリを作る。ロックの SDK は 10.0.201
+lock_repo() {
+  local r="$1"
+  new_repo "$r"
+  mkdir -p "$r/.devcontainer"
+  cp "$root/.devcontainer/resoloop-lock.bash" "$r/.devcontainer/resoloop-lock.bash"
+  printf '{\n\t"features": {\n\t\t"ghcr.io/devcontainers/features/dotnet:2": {\n\t\t\t"version": "10.0",\n\t\t\t"additionalVersions": "10.0.201"\n\t\t}\n\t}\n}\n' \
+    > "$r/.devcontainer/devcontainer.json"
+  cat > "$r/.devcontainer/resoloop.lock" <<'EOF'
+RESOLOOP_MODE=fork
+RESOLOOP_NUGET_VERSION=1.2.3-preview.4
+RESOLOOP_FORK_ORIGIN=https://example.com/fork/resoloop.git
+RESOLOOP_FORK_UPSTREAM=https://example.com/upstream/resoloop.git
+RESOLOOP_FORK_REF=fix/x
+RESOLOOP_FORK_COMMIT=0123456789abcdef0123456789abcdef01234567
+RESOLOOP_FORK_PACKAGE_VERSION=1.2.3-preview.4.pr1.test
+RESOLOOP_FORK_PR=https://example.com/upstream/resoloop/pull/1
+RESOLOOP_FORK_SDK=10.0.201
+EOF
+  commit_paths "$r" .devcontainer
+}
+
+# 43. 正しいロックは ok を表示して通過する。devcontainer.json を追跡していないリポジトリでは skip を表示する
+lock_repo "$tmp/lock-ok"
+bash "$checker" --root "$tmp/lock-ok" > "$tmp/lock-ok.out"
+grep -qF 'ok: resoloop lock (mode fork, expects 1.2.3-preview.4.pr1.test)' "$tmp/lock-ok.out"
+grep -qF 'PASS: check-layout' "$tmp/lock-ok.out"
+bash "$checker" --root "$tmp/clean" > "$tmp/lock-skip.out"
+grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (resoloop lock check)' "$tmp/lock-skip.out"
+
+# 44. devcontainer.json があるのにロックか読み込み関数が無ければ失敗する
+lock_repo "$tmp/lock-missing" && git -C "$tmp/lock-missing" rm -q .devcontainer/resoloop.lock && git -C "$tmp/lock-missing" commit -q -m rm
+expect_fail_with "$tmp/lock-missing" 'missing tracked file .devcontainer/resoloop.lock'
+lock_repo "$tmp/lock-nolib" && git -C "$tmp/lock-nolib" rm -q .devcontainer/resoloop-lock.bash && git -C "$tmp/lock-nolib" commit -q -m rm
+expect_fail_with "$tmp/lock-nolib" 'missing tracked file .devcontainer/resoloop-lock.bash'
+
+# 45. 必須キーの欠落は失敗する
+lock_repo "$tmp/lock-key" && sed -i '/^RESOLOOP_FORK_SDK=/d' "$tmp/lock-key/.devcontainer/resoloop.lock" && commit_paths "$tmp/lock-key" .devcontainer
+expect_fail_with "$tmp/lock-key" 'resoloop.lock: missing key RESOLOOP_FORK_SDK'
+
+# 46. RESOLOOP_FORK_SDK が additionalVersions に無ければ失敗する
+lock_repo "$tmp/lock-sdk" && sed -i 's/"additionalVersions": "10.0.201"/"additionalVersions": "10.0.100"/' "$tmp/lock-sdk/.devcontainer/devcontainer.json" \
+  && commit_paths "$tmp/lock-sdk" .devcontainer
+expect_fail_with "$tmp/lock-sdk" 'RESOLOOP_FORK_SDK 10.0.201 is not in additionalVersions of .devcontainer/devcontainer.json'
+
+# 47. ロックも index の内容で判定する（作業ツリーだけ壊れていても通過する）
+lock_repo "$tmp/lock-worktree"
+printf 'broken\n' > "$tmp/lock-worktree/.devcontainer/resoloop.lock"
+bash "$checker" --root "$tmp/lock-worktree" > "$tmp/lock-worktree.out"
+grep -qF 'ok: resoloop lock (' "$tmp/lock-worktree.out"
+
+# 48. このリポジトリのロックも検査される
+bash "$checker" > "$tmp/self.out"
+grep -qF 'ok: resoloop lock (' "$tmp/self.out"
+
 printf 'PASS: check-layout script behaves as specified\n'

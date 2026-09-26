@@ -37,9 +37,10 @@ failures=0
 fail() { failures=$((failures + 1)); printf 'FAIL: %s\n' "$1" >&2; }
 ok() { printf 'ok: %s\n' "$1"; }
 
-# git ls-files の出力を NUL 区切りで受け渡す一時ファイル。各 check 関数が使い捨てる
-tmp_list="$(mktemp)"
-trap 'rm -f "$tmp_list"' EXIT
+# 一時ディレクトリ。list は git ls-files の出力を NUL 区切りで受け渡すファイルで、各 check 関数が使い捨てる
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+tmp_list="$tmp_dir/list"
 empty_blob="$(git hash-object -t blob --stdin </dev/null)"
 
 # index（ステージ 0）にあるパスと完全に一致するエントリを "mode oid" で出力する。無ければ 1。
@@ -275,6 +276,43 @@ check_resoloop_skills() {
   done
 }
 
+# 8. ResoLoop のロック（仕様 6.1・9.1）。.devcontainer/devcontainer.json を追跡しているリポジトリだけが対象。
+# ロック・読み込み関数・devcontainer.json を index から取り出し、読み込み関数（.devcontainer/resoloop-lock.bash）で検証する
+check_resoloop_lock() {
+  local f out d="$tmp_dir/lock"
+  if ! index_entry .devcontainer/devcontainer.json >/dev/null; then
+    printf 'skip: .devcontainer/devcontainer.json is not tracked (resoloop lock check)\n'
+    return
+  fi
+  for f in resoloop.lock resoloop-lock.bash; do
+    if ! index_entry ".devcontainer/$f" >/dev/null; then
+      fail "missing tracked file .devcontainer/$f"
+      return
+    fi
+  done
+  mkdir -p "$d"
+  for f in resoloop.lock resoloop-lock.bash devcontainer.json; do
+    git cat-file blob ":.devcontainer/$f" > "$d/$f"
+  done
+  if out="$(validate_lock "$d" 2>&1)"; then
+    ok "resoloop lock ($out)"
+  else
+    while IFS= read -r f; do fail "$f"; done <<<"$out"
+  fi
+}
+
+# 検証はサブシェルで行い、読み込み関数が設定する変数を check-layout に持ち込まない
+validate_lock() (
+  # shellcheck source=/dev/null
+  source "$1/resoloop-lock.bash"
+  resoloop_lock_load "$1/resoloop.lock" || exit 1
+  if ! resoloop_lock_sdk_declared "$1/devcontainer.json" "$RESOLOOP_FORK_SDK"; then
+    printf 'resoloop.lock: RESOLOOP_FORK_SDK %s is not in additionalVersions of .devcontainer/devcontainer.json\n' "$RESOLOOP_FORK_SDK"
+    exit 1
+  fi
+  printf 'mode %s, expects %s' "$RESOLOOP_MODE" "$RESOLOOP_EXPECTED_VERSION"
+)
+
 check_forbidden_tracked
 check_symlinks_resolve
 check_tracked_ignored
@@ -283,6 +321,7 @@ check_skill_hygiene
 collect_projects
 for p in ${projects[@]+"${projects[@]}"}; do check_project "$p"; done
 check_resoloop_skills
+check_resoloop_lock
 
 if [ "$failures" -gt 0 ]; then
   printf 'FAIL: check-layout (%d failure(s))\n' "$failures" >&2
