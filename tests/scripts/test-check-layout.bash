@@ -248,4 +248,11 @@ project_repo "$tmp/p31"
 mkdir -p "$tmp/p31/notes" && printf '# notes\n' > "$tmp/p31/notes/AGENTS.md" && commit_paths "$tmp/p31" notes
 bash "$checker" --root "$tmp/p31" | grep -qF 'PASS: check-layout'
 
+# 32. ネストした .resoloop.json が（ソート順で）最後に列挙されても検査を継続する
+project_repo "$tmp/p32"
+mkdir -p "$tmp/p32/zzz/sub" && printf '{}\n' > "$tmp/p32/zzz/sub/.resoloop.json" && commit_paths "$tmp/p32" zzz
+bash "$checker" --root "$tmp/p32" > "$tmp/p32.out"
+grep -qF 'ok: project demo layout' "$tmp/p32.out"
+grep -qF 'PASS: check-layout' "$tmp/p32.out"
+
 printf 'PASS: check-layout script behaves as specified\n'

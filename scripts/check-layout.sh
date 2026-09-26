@@ -179,7 +179,8 @@ collect_projects() {
     return
   fi
   while IFS= read -r -d '' path; do
-    [[ "$path" =~ ^[^/]+/\.resoloop\.json$ ]] && projects+=("${path%%/*}")
+    [[ "$path" =~ ^[^/]+/\.resoloop\.json$ ]] || continue
+    projects+=("${path%%/*}")
   done < "$tmp_list"
 }
 
