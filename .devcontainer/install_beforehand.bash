@@ -90,7 +90,7 @@ if ! sudo apt install -y vim tig ripgrep fzf bubblewrap libglib2.0-0t64 blender;
     fail "apt install of the base packages failed."
 fi
 
-step "Installing or updating the latest ResoLoop tool"
+step "Installing the ResoLoop version pinned in .devcontainer/resoloop.lock"
 export PATH="${HOME}/.dotnet/tools:${PATH}"
 if ! bash .devcontainer/install_resoloop.bash; then
     fail "ResoLoop installation or update failed."
