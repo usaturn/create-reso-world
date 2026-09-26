@@ -35,7 +35,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Ba
    - `out_of_scope` — 拘束力を持つ。自明に思えても書く。特に紛らわしいもの、つまり「同じ修正が要りそうな隣のファイル」「ついでに直せそうなリファクタ」「ここでは完了条件でないテストスイート」を名指しする。
    - `verification` — 実行するコマンドと、それに必要な隔離。`isolation` を落とすと、設定まわりのバグを再現しようとした受け手がユーザの実環境に対して再現してしまう。
    - `landing` — 反映先のブランチ、既存 PR、やってはいけないこと（新規 PR、`*-review-fixes` のような別ブランチ、ここでは適用しないゲート）、リポジトリが要求する commit trailer。
-   - `git.worktree` / `git.branch` / `git.head` / `git.status` — 実際に作業がある場所と、そのチェックアウトの branch / HEAD / status。Claude Code では `.claude/worktrees/` 配下で作業し、親チェックアウトは detached のことが多い。両方を書く。片方しか書かないと、受け手はこちらのコマンドを親チェックアウトで走らせて別のツリーを編集する。
+   - `git.worktree` / `git.branch` / `git.head` / `git.status` — 実際に作業がある場所と、そのチェックアウトの branch / HEAD / status。親チェックアウトが detached だったり別のブランチにあったりして作業場所と違うときは、両方を書く。Claude Code では `.claude/worktrees/` 配下で作業し、親チェックアウトは detached のことが多い。片方しか書かないと、受け手はこちらのコマンドを親チェックアウトで走らせて別のツリーを編集する。
 
 5. **手書きで落としがちな項目を埋める。**特に Claude Code では次が定番の穴になる。他のランタイムでも、todo 機能を使わなかったセッション、シェル経由で書いたファイル、委譲した作業の根拠は同じ扱いにする。
 
