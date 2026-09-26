@@ -56,8 +56,11 @@ lacks .pi/APPEND_SYSTEM.md '@.agents/skills/'
 for s in '/skill:agent-handoff' 'async: false' 'herdr-agent-task' 'pi-model-name' 'simplify-in-subagent' 'MODEL_NAME'; do
   has .pi/APPEND_SYSTEM.md "$s"
 done
-# ペルソナ節（## Response Persona 以降）は 1 バイトも変えない
+# ペルソナ節（## Response Persona 以降）は利用者が書く部分で、エージェントは 1 バイトも変えない。
+# 利用者が意図して変えたときは、失敗の表示にある新しいハッシュで expected_persona を更新する
+expected_persona=906d9d2570a9662427a95609efcc29454a5f46f1591352f8b264b996895e2995
 persona="$(sed -n '/^## Response Persona/,$p' .pi/APPEND_SYSTEM.md | sha256sum | cut -d' ' -f1)"
-[ "$persona" = 906d9d2570a9662427a95609efcc29454a5f46f1591352f8b264b996895e2995 ] || fail 'persona section changed'
+[ "$persona" = "$expected_persona" ] \
+  || fail "persona section changed (sha256 $persona); if the change is intended, update expected_persona in tests/scripts/test-instructions.bash"
 
 printf 'PASS: root instruction files follow spec 5.2 and 5.3\n'

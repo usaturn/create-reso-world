@@ -1,9 +1,14 @@
 #!/bin/bash
 # scripts/new-world.sh の作成・適用・冪等性・食い違いの検出を、一時リポジトリとモックの resoloop / uv で検査する
 set -euo pipefail
-export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.excludesFile GIT_CONFIG_VALUE_0=/dev/null
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# ユーザの git 設定から隔離する（システム・グローバル設定と core.excludesFile を外す）。グローバル設定の
+# safe.directory も外れるので、このリポジトリだけは所有者が違っても読めるようにしておく
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.excludesFile GIT_CONFIG_VALUE_0=/dev/null \
+  GIT_CONFIG_KEY_1=safe.directory GIT_CONFIG_VALUE_1="$repo_root"
+# shellcheck source=lib/path.bash
+source "$repo_root/tests/scripts/lib/path.bash"
 script="$repo_root/scripts/new-world.sh"
 tmp="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$tmp"' EXIT
@@ -127,8 +132,9 @@ expect_exit 3 'not a resoloop project' "$tmp/r9" --apply --no-sync plain
 
 # 10. resoloop が無ければ新規作成は 3
 new_root "$tmp/r10"
-if PATH=/usr/local/bin:/usr/bin:/bin command -v resoloop >/dev/null 2>&1; then fail 'resoloop visible on the reduced PATH'; fi
-PATH=/usr/local/bin:/usr/bin:/bin expect_exit 3 'resoloop not found' "$tmp/r10" --no-sync demo
+no_resoloop="$(path_without "$tmp/no-resoloop" resoloop)"
+if PATH="$no_resoloop" command -v resoloop >/dev/null 2>&1; then fail 'resoloop visible on the PATH without resoloop'; fi
+PATH="$no_resoloop" expect_exit 3 'resoloop not found' "$tmp/r10" --no-sync demo
 
 # 11. 同期ありでは uv sync をプロジェクトで実行し、resoloop skills sync --check を呼ぶ
 new_root "$tmp/r11"
@@ -166,9 +172,10 @@ PATH="$tmp/uv-fail:$PATH" expect_exit 3 'already applied' "$tmp/r14" demo
 new_root "$tmp/r15"
 mkdir -p "$tmp/resoloop-only"
 cp "$tmp/mockbin/resoloop" "$tmp/resoloop-only/resoloop"
-if PATH=/usr/bin:/bin command -v uv >/dev/null 2>&1; then fail 'uv visible on the reduced PATH'; fi
+no_uv="$(path_without "$tmp/no-uv" uv resoloop)"
+if PATH="$no_uv" command -v uv >/dev/null 2>&1; then fail 'uv visible on the PATH without uv'; fi
 : > "$MOCK_LOG"
-PATH="$tmp/resoloop-only:/usr/bin:/bin" expect_exit 3 'uv not found' "$tmp/r15" demo
+PATH="$tmp/resoloop-only:$no_uv" expect_exit 3 'uv not found' "$tmp/r15" demo
 [ ! -e "$tmp/r15/demo" ] || fail 'created the project although uv is missing'
 [ ! -s "$MOCK_LOG" ] || fail 'ran resoloop although uv is missing'
 
@@ -241,7 +248,9 @@ expect_exit 1 'CONFLICT: .claude is not a directory' "$tmp/r22" --apply --no-syn
 new_root "$tmp/r23"
 run "$tmp/r23" --no-sync demo >/dev/null
 ln -s ../../.agents/skills/.old "$tmp/r23/demo/.claude/skills/.old"
+before="$(snapshot "$tmp/r23/demo")"
 expect_exit 1 'CONFLICT: .claude/skills/.old has no matching .agents/skills/.old' "$tmp/r23" --apply --no-sync demo
+[ "$before" = "$(snapshot "$tmp/r23/demo")" ] || fail 'case 23 changed files'
 
 # 24. AGENTS.md が symlink なら追記せずに 1（リンク先を書き換えない、N-16）
 new_root "$tmp/r24"
@@ -265,13 +274,17 @@ grep -qF 'CONFLICT: CLAUDE.md differs from templates/world-project/CLAUDE.md' "$
 new_root "$tmp/r26"
 run "$tmp/r26" --no-sync demo >/dev/null
 rm "$tmp/r26/demo/.pi" && ln -s ../other "$tmp/r26/demo/.pi"
+before="$(snapshot "$tmp/r26/demo")"
 expect_exit 1 'CONFLICT: .pi points to ../other, expected ../.pi' "$tmp/r26" --apply --no-sync demo
+[ "$before" = "$(snapshot "$tmp/r26/demo")" ] || fail 'case 26 changed files'
 
 # 27. 行き先が存在しないことになる symlink は 1（N-16）
 new_root "$tmp/r27"
 run "$tmp/r27" --no-sync demo >/dev/null
 rm "$tmp/r27/demo/.claude/settings.json" "$tmp/r27/.claude/settings.json"
+before="$(snapshot "$tmp/r27/demo")"
 expect_exit 1 'CONFLICT: .claude/settings.json would point to missing ../../.claude/settings.json' "$tmp/r27" --apply --no-sync demo
+[ "$before" = "$(snapshot "$tmp/r27/demo")" ] || fail 'case 27 changed files'
 
 # 28. ルートの .claude/settings.json が無ければ、新規作成は resoloop init を呼ばず何も作らずに 3（N-16）
 new_root "$tmp/r28"
@@ -287,5 +300,16 @@ run "$tmp/r29" --no-sync demo >/dev/null
 mkdir -p "$tmp/r29/demo/.agents/skills/a|b" && printf -- '---\nname: ab\n---\n' > "$tmp/r29/demo/.agents/skills/a|b/SKILL.md"
 expect_exit 0 'DONE: demo' "$tmp/r29" --apply --no-sync demo
 [ "$(readlink "$tmp/r29/demo/.claude/skills/a|b")" = '../../.agents/skills/a|b' ] || fail 'link for a name containing |'
+
+# 30. 途中のディレクトリがディレクトリへの symlink でも 1 を返し、リンク先にも手元にも書かない（N-16）
+new_root "$tmp/r30"
+run "$tmp/r30" --no-sync demo >/dev/null
+mv "$tmp/r30/demo/.claude" "$tmp/r30/claude-elsewhere" && ln -s ../claude-elsewhere "$tmp/r30/demo/.claude"
+rm "$tmp/r30/claude-elsewhere/settings.json"
+before="$(snapshot "$tmp/r30/demo")"
+before_target="$(snapshot "$tmp/r30/claude-elsewhere")"
+expect_exit 1 'CONFLICT: .claude is not a directory' "$tmp/r30" --apply --no-sync demo
+[ "$before" = "$(snapshot "$tmp/r30/demo")" ] || fail 'case 30 changed files'
+[ "$before_target" = "$(snapshot "$tmp/r30/claude-elsewhere")" ] || fail 'case 30 wrote through the .claude symlink'
 
 printf 'PASS: new-world script behaves as specified\n'

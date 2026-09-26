@@ -1,11 +1,14 @@
 #!/bin/bash
 # ルート .gitignore が仕様 4.4 の追跡方針どおりに働くことを検査する
 set -euo pipefail
-# GIT_CONFIG_GLOBAL=/dev/null だけでは XDG 既定の ~/.config/git/ignore が働いてしまうため、
-# core.excludesFile も無効化し、システム設定も外してユーザの git 設定から隔離する
-export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.excludesFile GIT_CONFIG_VALUE_0=/dev/null
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# GIT_CONFIG_GLOBAL=/dev/null だけでは XDG 既定の ~/.config/git/ignore が働いてしまうため、
+# core.excludesFile も無効化し、システム設定も外してユーザの git 設定から隔離する。
+# グローバル設定の safe.directory も外れるので、このリポジトリだけは所有者が違っても（CI のコンテナや
+# Dev Container の bind mount）読めるようにしておく
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.excludesFile GIT_CONFIG_VALUE_0=/dev/null \
+  GIT_CONFIG_KEY_1=safe.directory GIT_CONFIG_VALUE_1="$root"
 cd "$root"
 
 expect_ignored() {

@@ -1,11 +1,16 @@
 #!/bin/bash
 # scripts/check-layout.sh が通過・失敗を正しく判定することを一時リポジトリで検査する
 set -euo pipefail
-# GIT_CONFIG_GLOBAL=/dev/null だけでは XDG 既定の ~/.config/git/ignore が働いてしまうため、
-# core.excludesFile も無効化し、システム設定も外してユーザの git 設定から隔離する
-export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.excludesFile GIT_CONFIG_VALUE_0=/dev/null
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# GIT_CONFIG_GLOBAL=/dev/null だけでは XDG 既定の ~/.config/git/ignore が働いてしまうため、
+# core.excludesFile も無効化し、システム設定も外してユーザの git 設定から隔離する。
+# グローバル設定の safe.directory も外れるので、このリポジトリだけは所有者が違っても（CI のコンテナや
+# Dev Container の bind mount）読めるようにしておく
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.excludesFile GIT_CONFIG_VALUE_0=/dev/null \
+  GIT_CONFIG_KEY_1=safe.directory GIT_CONFIG_VALUE_1="$root"
+# shellcheck source=lib/path.bash
+source "$root/tests/scripts/lib/path.bash"
 checker="$root/scripts/check-layout.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -213,10 +218,11 @@ grep -qF 'ok: resoloop skills sync --check (demo)' "$tmp/proj-ok.out"
 grep -qF 'PASS: check-layout' "$tmp/proj-ok.out"
 
 # 22. resoloop が無い環境（CI）では skip を表示して通過する
-if PATH=/usr/local/bin:/usr/bin:/bin command -v resoloop >/dev/null 2>&1; then
-  printf 'FAIL: resoloop visible on the reduced PATH\n' >&2; exit 1
+no_resoloop="$(path_without "$tmp/no-resoloop" resoloop)"
+if PATH="$no_resoloop" command -v resoloop >/dev/null 2>&1; then
+  printf 'FAIL: resoloop visible on the PATH without resoloop\n' >&2; exit 1
 fi
-PATH=/usr/local/bin:/usr/bin:/bin bash "$checker" --root "$tmp/proj-ok" > "$tmp/proj-skip.out"
+PATH="$no_resoloop" bash "$checker" --root "$tmp/proj-ok" > "$tmp/proj-skip.out"
 grep -qF 'skip: resoloop not found (skills sync check)' "$tmp/proj-skip.out"
 grep -qF 'PASS: check-layout' "$tmp/proj-skip.out"
 
