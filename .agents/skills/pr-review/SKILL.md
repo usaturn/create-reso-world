@@ -44,17 +44,17 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 - [時間予算と委譲規約](references/time-budget.md)を最初の PR API 呼び出しより前に全文を読む。開始時刻・期限・委譲可否・打ち切りはその規約に従う
 - レビュー出力は助言として扱われる
 - プロダクトコード・テストを編集しない
-- レビュー中に `./scripts/ci/verify.sh` を実行しない。実装時に確認済みであり、レビューで再実行すると時間がかかり冗長だからである。関連する pytest、REPL、最小再現スクリプトなど、verify.sh 以外の検証は実行してよい。helper の `verify`（destination フィンガープリント確認）は `./scripts/ci/verify.sh` ではない。この禁止は `CLAUDE.md` の検証プロファイル規定より優先する
+- レビュー中に重い一括検証を再実行しない。対象は `bash .devcontainer/run-tests.bash`、リポジトリ全体やワールドのプロジェクト全体の `uv run pytest`、`scripts/resoloop-fork.sh test`（fork の `dotnet test` 全体）などである。実装時と CI で確認済みであり、レビューで再実行すると時間がかかり冗長だからである。関連する pytest（ファイルやテスト名で絞ったもの）、個別のテストスクリプト、REPL、最小再現スクリプトなど、指摘の検証に必要な範囲の実行はしてよい。helper の `verify`（destination フィンガープリント確認）はテストの実行ではない。この規定は、`AGENTS.md` が示す完了前の検証手順より優先する
 - レビュー中は `git clean`、`git checkout -f`、`git reset --hard` を実行しない。既存 worktree を再利用・初期化しない
 - 自セッションの worktree の削除は helper の `cleanup` だけが行う。`git worktree remove`、`rm -rf` などの削除コマンドを自分で組み立てない。`cleanup` が拒否した場合も手で代行しない
 - `cleanup` は保存成功（`$DESTINATION` の内容が `$DRAFT` と一致）を検証できたときだけ削除する。検証できない場合は何も削除せず停止し、`$WT` と `$DRAFT` の完全パスを報告してユーザの判断に委ねる
 - レビュー中に生成した検証ログ・スクリーンショット・一時スクリプト等の証跡を `$WT` に残さない。あとで見返す必要がある内容はレビュー本文の「根拠」に転記し、`$DESTINATION` だけで完結させる
 - 最終応答で `$WT` 配下のパスを参照しない（`cleanup` 成功後は `$WT` が存在しないため）。`cleanup` の失敗または停止確認不能による省略時は、残った `$WT` とセッションの完全パスを報告する
 - 独立したレビューを行うため、`reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文は、候補の洗い出し・重点観点の収集・重複確認・自分の指摘の検証を含むいかなる目的でも読まない。レビュー完了後も読まない。メインリポジトリ側と `$WT` 側（PR に同梱された `reviews/`）のどちらも対象とする
-- `MAIN_ROOT` は PR URL の GitHub `owner/repository` を現在のリポジトリの `origin` と照合して確定する。親リポジトリ一致なら toplevel、公開リポジトリ `usaturn/maatlog` なら登録済み `public/` submodule、それ以外は推測せず停止する
+- `MAIN_ROOT` は PR URL の GitHub `owner/repository` を、ルート `AGENTS.md` の「リポジトリ境界」の表に照らして確定する。このリポジトリ（toplevel の `origin` と一致）なら toplevel、`usaturn/resoloop` または `orange3134/resoloop` なら `<toplevel>/external/resoloop`（自前の checkout で、`origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` であること。満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は推測せず停止する
 - 自モデルの既存レビューはライブの `$DESTINATION` ではなく、`create` が返した `$PREVIOUS_REVIEW`（セッション内 snapshot）だけを読む。`$PREVIOUS_REVIEW` が空なら既存レビューなしとして扱う
 - Codex ではモデル名を自分で推測・短縮・一般化せず、`create` が Codex session metadata から確定した `model_name` を使用する。Codex 実行時は `create --model-name` を渡さない
-- Codex 以外では、実行中のエージェントランタイムが提示する正確なモデル識別子を `MODEL_NAME` として記録し、`create --model-name "$MODEL_NAME"` に一度だけ渡す。モデル系列の説明、設定ファイル、既存レビューのファイル名から推測しない（`/`・空白を含む形式もそのまま渡してよい。ヘルパーがファイル名用に `/`・空白類を `-` へ置換する）
+- Codex 以外では、実行中のエージェントランタイムが提示する正確なモデル識別子を `MODEL_NAME` として記録し、`create --model-name "$MODEL_NAME"` に一度だけ渡す。モデル系列の説明、設定ファイル、既存レビューのファイル名から推測・短縮・一般化しない（`/`・空白を含む形式もそのまま渡してよい。ヘルパーがファイル名用に `/`・空白類を `-` へ置換する）
 - Codex 以外で正確なモデル識別子を取得できない場合、または置換後も安全なファイル名にならない場合は、代替名で続行せず停止してユーザに確認する
 - 過去のセッション履歴（`~/.pi/agent/sessions` 配下の jsonl の `model_change` の `modelId` 等）は実行中のランタイムの提示ではないため、`MODEL_NAME` の根拠にしない。ランタイムが識別子を提示していない場合は履歴へフォールバックせず、前項の「取得できない場合」として停止してユーザに確認する
 - provider にかかわらず、draft と destination は `create` が返した値をそのまま使用する。`save` では model、draft、destination を再指定しない
@@ -79,6 +79,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 - 実行可能な指摘がない場合は、その旨を明確に伝える
 - レビューは日本語で返す
 - レビュー結果は常に `create` が返した `$DESTINATION` に作成する。`$DESTINATION` はヘルパーが `reviews/#<PR番号>-<変換後ブランチ名>/<model>.md` へ配置する。ブランチ名とモデル識別子に含まれる `/`・空白類およびディレクトリ名に使えない記号はヘルパーが使える記号へ変換する（例: PR 160・ブランチ `feature/issue-148-fail-fast` は `#160-feature-issue-148-fail-fast` 配下、モデル `opencode/deepseek-v4-flash-free` は `opencode-deepseek-v4-flash-free.md`、モデル `Cursor Grok 4.6` は `Cursor-Grok-4.6.md`）。`create` が返す `model_name` もこの変換後の値であり、エージェントが手で組み立てない
+- 保存先の `reviews/` は `MAIN_ROOT` の直下にある。resoloop の PR では `external/resoloop/reviews/` になり、fork の `.gitignore` はこれを無視しない。fork で commit するときは `git add` に明示したパスだけを渡し、`reviews/` を含めない
 - 同じ PR を同じモデルで再レビューする場合は、同一ファイルの内容全体を上書きし、別名ファイルを作らない。別モデルの結果は同じ PR ディレクトリ内の別ファイルへ保存する
 - PR 上で既に指摘済みの問題は重複報告しない（触れる場合は「既出」と明記する）
 - 件数表は active findings のみから計算する。重大度判定は active findings、確認不足判定は coverage と pending も参照する。Resolved findings は件数・重大度判定に含めない
@@ -96,12 +97,12 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 1. **PR情報の取得**:
    - 対象 PR は、冒頭の `対象 PR` 行が補間済みならその値、未指定ならユーザのメッセージで指定された PR 番号・URL から読み取り、前後空白を除去して `PR_ARG` に入れる。番号・`#` 始まり・GitHub URL はいずれも `gh pr view` がそのまま解釈できるため番号へ正規化しない。URL の owner/repository を失うと別リポジトリの同名番号 PR を取得する。行が空欄または `$` で始まるプレースホルダ表記のまま残っている場合は未指定とする。
    - `PR_ARG` が確定している場合、`PR_JSON=$(gh pr view "$PR_ARG" --json number,title,body,baseRefName,headRefName,headRefOid,url,additions,deletions,changedFiles)` を実行し、PRのタイトル、説明、ベースブランチ、ヘッドブランチなどのメタ情報を取得してコンテキストを把握する。PR 番号・ヘッドブランチ・正規 URL は機械的に `PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r .number)`・`HEAD_BRANCH=$(printf '%s' "$PR_JSON" | jq -r .headRefName)`・`PR_URL=$(printf '%s' "$PR_JSON" | jq -r .url)` で確定する。以降 `gh pr view`・`gh pr diff` には `"$PR_URL"` を使い、カレントリポジトリへの暗黙解決に依存しない。
-   - 未指定の場合、`PR_JSON=$(gh pr view --json number,title,body,baseRefName,headRefName,headRefOid,url,additions,deletions,changedFiles)` を実行して現在のブランチに関連付けられたPRの情報を取得し、同じく `PR_NUMBER`・`HEAD_BRANCH`・`PR_URL` を確定する。関連付けられたPRがない場合はユーザにPR番号の指定を促す。
+   - `PR_ARG` が確定しない場合（`対象 PR` 行が未指定で、ユーザのメッセージにも PR 番号・URL が無い場合）、`PR_JSON=$(gh pr view --json number,title,body,baseRefName,headRefName,headRefOid,url,additions,deletions,changedFiles)` を実行して現在のブランチに関連付けられたPRの情報を取得し、同じく `PR_NUMBER`・`HEAD_BRANCH`・`PR_URL` を確定する。関連付けられたPRがない場合はユーザにPR番号の指定を促す。
    - `gh pr view "$PR_URL" --comments` で既存のレビューコメント・議論を取得し、既出の指摘を把握する。
    - gh が未認証・API エラーの場合はエラー内容をそのまま報告し、`gh auth login` を案内する。
 2. **worktree への展開**:
    - ユーザの作業ブランチ・working tree に触れないため、`gh pr checkout` は使わない。
-   - `MAIN_ROOT` は、手順 1 で取得した `$PR_JSON` の `url` から GitHub `owner/repository` を抽出し、現在の toplevel の `origin` URL が示すリポジトリと照合して確定する。親と一致すれば toplevel、公開リポジトリ `usaturn/maatlog` なら登録済み `public/` submodule（`.gitmodules` URL・submodule status・checkout の `origin` を検証）、それ以外は推測せず停止する。
+   - `MAIN_ROOT` は、手順 1 で取得した `$PR_JSON` の `url` から GitHub `owner/repository` を抽出し、ルート `AGENTS.md` の「リポジトリ境界」の表に照らして確定する。現在の toplevel の `origin` と一致すれば toplevel、`usaturn/resoloop` または `orange3134/resoloop` なら `$TOPLEVEL/external/resoloop`（自前の checkout であることと `origin`・`upstream` を検証し、満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は推測せず停止する。PR の head を取得する remote `PR_REMOTE` も同時に決める。上流 `orange3134/resoloop` の PR は `upstream`、それ以外は `origin` から取得する。
 
      ```bash
      PR_URL=$(printf '%s' "$PR_JSON" | jq -r .url)
@@ -119,22 +120,24 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
      test -n "$origin_repository"
      if [[ "$pr_repository" == "$origin_repository" ]]; then
        MAIN_ROOT="$TOPLEVEL"
-     elif [[ "$pr_repository" == "usaturn/maatlog" ]]; then
-       test "$(git config -f "$TOPLEVEL/.gitmodules" \
-         --get submodule.public.url)" = \
-         "https://github.com/usaturn/maatlog.git"
-       git -C "$TOPLEVEL" submodule status -- public
-       test "$(git -C "$TOPLEVEL/public" remote get-url origin)" = \
-         "https://github.com/usaturn/maatlog.git"
-       MAIN_ROOT="$TOPLEVEL/public"
+       PR_REMOTE=origin
+     elif [[ "$pr_repository" == "usaturn/resoloop" || "$pr_repository" == "orange3134/resoloop" ]]; then
+       FORK_ROOT="$TOPLEVEL/external/resoloop"
+       if [[ "$(git -C "$FORK_ROOT" remote get-url origin 2>/dev/null | github_repository)" != "usaturn/resoloop" ]] ||
+         [[ "$(git -C "$FORK_ROOT" remote get-url upstream 2>/dev/null | github_repository)" != "orange3134/resoloop" ]]; then
+         printf '%s is not the resoloop fork checkout; run scripts/resoloop-fork.sh clone first\n' "$FORK_ROOT" >&2
+         exit 65
+       fi
+       MAIN_ROOT="$FORK_ROOT"
+       if [[ "$pr_repository" == "orange3134/resoloop" ]]; then PR_REMOTE=upstream; else PR_REMOTE=origin; fi
      else
        printf 'unsupported PR repository: %s\n' "$pr_repository" >&2
        exit 64
      fi
      ```
 
-   - `HELPER="$TOPLEVEL/.agents/skills/pr-review/scripts/pr_review_workspace.py"` を記録する。スキルは親リポジトリにのみ存在するため、`MAIN_ROOT` が `public/` を指す場合でも `$TOPLEVEL` から解決する。以降、メインリポジトリに対する Git コマンドには必ず `git -C "$MAIN_ROOT"` を使い、カレントディレクトリへ暗黙に作用させない。
-   - PR head は PR 番号ごとの専用 ref `PR_REF=refs/pr-review/<PR_NUMBER>` に固定する。`git -C "$MAIN_ROOT" fetch origin "+pull/<PR_NUMBER>/head:$PR_REF"` の後、`PR_HEAD=$(git -C "$MAIN_ROOT" rev-parse "$PR_REF")` で検証対象 SHA を確定する。共有の擬似参照 `FETCH_HEAD` は使わない。
+   - `HELPER="$TOPLEVEL/.agents/skills/pr-review/scripts/pr_review_workspace.py"` を記録する。スキルはこのリポジトリにのみ存在するため、`MAIN_ROOT` が `external/resoloop` を指す場合でも `$TOPLEVEL` から解決する。以降、メインリポジトリに対する Git コマンドには必ず `git -C "$MAIN_ROOT"` を使い、カレントディレクトリへ暗黙に作用させない。
+   - PR head は PR 番号ごとの専用 ref `PR_REF=refs/pr-review/<PR_NUMBER>` に固定する。`git -C "$MAIN_ROOT" fetch "$PR_REMOTE" "+pull/<PR_NUMBER>/head:$PR_REF"` の後、`PR_HEAD=$(git -C "$MAIN_ROOT" rev-parse "$PR_REF")` で検証対象 SHA を確定する。共有の擬似参照 `FETCH_HEAD` は使わない。
    - fetch 後に `git -C "$MAIN_ROOT" merge-base HEAD "$PR_REF"` が成功することを確認する。失敗した場合は `MAIN_ROOT` の選定が誤っている（無関係なリポジトリに PR のオブジェクトを取り込んだ状態）ため、保存を行わず停止して報告する。
    - dedicated ref fetch 後、次で GitHub の head と `PR_HEAD` の一致を確認する（HEAD consistency check 1/3）。不一致、空値、`gh` failure の場合は履歴を追記せず保存しない。
 
@@ -173,7 +176,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 
    - `$SHORT_HEAD` は固定した `$PR_HEAD` の 12 文字短縮 hash である。`git rev-parse` は `$WT` または `$MAIN_ROOT` など、当該 object を参照できるリポジトリ上で実行する。
    - `$PREVIOUS_REVIEW` が空なら Mode は `Initial`、helper が返した通常ファイル snapshot なら Mode は `Update` とする。ライブ `$DESTINATION` と他モデル files は読まない。
-   - 以降のファイル読解・テスト実行は `$WT` を対象に行う。ただし `./scripts/ci/verify.sh` は実行しない。レビュー成果物は `create` が返した `$DESTINATION`（メインリポジトリの `reviews/` 配下）に書き、`$WT` 内には書かない。
+   - 以降のファイル読解・テスト実行は `$WT` を対象に行う。ただし重い一括検証は再実行しない。レビュー成果物は `create` が返した `$DESTINATION`（`$MAIN_ROOT` 直下の `reviews/` 配下。resoloop の PR なら `external/resoloop/reviews/`）に書き、`$WT` 内には書かない。
 3. **既存レビューの読解（更新時）**:
    - `$PREVIOUS_REVIEW` が空でない場合だけ、その snapshot ファイルを読む。ライブ `$DESTINATION`、他モデルのレビュー本文、ディレクトリ一覧から自モデルを推測して読むことはしない。この読解はメインエージェントのみが行い、サブエージェントに委譲しない。既存 review 本文を委譲 prompt に含めない。
    - snapshot から active findings、Pending previous findings、既存の Review history、Resolved findings を把握する。旧形式で過去 HEAD が無い場合は推測せず、今回の Review history から開始し、旧形式 active 指摘の検出時 HEAD は `不明（旧形式）` とする。
@@ -198,7 +201,8 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 5. **コンテキスト読解（条件付き早期委譲）**:
    - 変更ファイル本体は、メインコンテキストで diff だけでなくファイル全体を読む。指摘の根拠となる精読をサブエージェント任せにしない。
    - 変更箇所の呼び出し元・呼び出し先の調査、依存関係ファイル（pyproject.toml / package.json / lock ファイル等）の確認、変更に対応する既存テストの探索は、[時間予算と委譲規約](references/time-budget.md)の「委譲」の起動条件をすべて満たす場合だけ、読み取り専用の補助委譲として最大 1 件を本体精読と並行して起動してよい。委譲先の調査範囲は `$WT` 上のコードと PR 差分のみとする。`reviews/` と既存 review 本文は委譲範囲・prompt から除外する。残り調査枠 10 分未満、停止手段なし、追加委譲・再委譲はしない。prompt の必須欄（対象・期限・制約・中間出力・終了）は具体値で埋める。
-6. **プロジェクト固有観点の取り込み**: CLAUDE.md とプロジェクト内の規約・設計ドキュメントがあれば読み、そのプロジェクトの重点観点（例: XSS 多層防御、並列・増分ビルド互換性）を優先順位のチェックリストに加える。メインリポジトリ側と `$WT` 側の `reviews/` にある他モデルのレビューは情報源にしない（サブエージェントに委譲する場合も調査範囲から除外する）。
+   - 委譲しない場合は、メインエージェントが自分で変更箇所の呼び出し元・呼び出し先を辿り、依存関係ファイルを確認し、変更に対応する既存テストを探す。
+6. **プロジェクト固有観点の取り込み**: `$WT` 上の `AGENTS.md`・`CLAUDE.md`（ワールドのプロジェクトを変更する PR では、そのプロジェクトの `AGENTS.md` も）と、規約・設計ドキュメントがあれば読み、そのプロジェクトの重点観点（例: 1 オブジェクト 1 メッシュ、resoloop の安全ルール、Python は uv で実行する）を優先順位のチェックリストに加える。メインリポジトリ側と `$WT` 側の `reviews/` にある他モデルのレビューは情報源にしない（サブエージェントに委譲する場合も調査範囲から除外する）。
 7. **候補洗い出し → 検証 → 報告**:
    - 優先順位に沿って候補指摘を洗い出し、検証プロトコルを通過したものだけを指摘フォーマットで報告する。
    - 調査期限・委譲期限を確認し、期限超過後は新規調査を止めて取得済み根拠で保存へ進む（[時間予算と委譲規約](references/time-budget.md)の「打ち切り」）。
@@ -247,7 +251,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 
 1. **精読**: 指摘に関わる実コードパスを最後まで読む（途中の早期 return・ガード・呼び出し規約を見落とさない）
 2. **反証試行**: 「この指摘が誤りだとしたらどこか」を明示的に検討する（既存のガード、テストによる固定、ドキュメント化された意図的トレードオフ等）。反証に成功したら報告しない
-3. **実行検証**: 挙動が不確かな場合、可能なら worktree 側で実行して確かめる（関連する pytest、REPL、最小再現スクリプト）。`./scripts/ci/verify.sh` は実行しない。テストコマンドが不明な場合は無理に実行しない。一時ホームが必要な場合は `env HOME="$tmpdir" ...` のワンショットだけを使い、永続シェルへ `export HOME=...` してはならない（後続の `gh` が別ホームを見て未認証になる）
+3. **実行検証**: 挙動が不確かな場合、可能なら worktree 側で実行して確かめる（関連する pytest、REPL、最小再現スクリプト）。重い一括検証は再実行しない（規約を参照）。テストコマンドが不明な場合は無理に実行しない。一時ホームが必要な場合は `env HOME="$tmpdir" ...` のワンショットだけを使い、永続シェルへ `export HOME=...` してはならない（後続の `gh` が別ホームを見て未認証になる）
 4. **期限確認**: phase 境界・呼び出し復帰時・委譲開始前・新規候補や実行検証の開始前に現在時刻を確認し、調査期限と委譲期限（絶対期限・実質無進捗 5 分）を再評価する。期限超過後は新規調査を増やさず保存へ進む
 
 反証試行のための追加委譲はしない。手順 5 で起動した 1 件の割当範囲内で得た報告は利用してよいが、確度ラベルの最終判定は、メインコンテキストが根拠（コードパス・実行結果）を直接確認した上で行う。サブエージェントの報告のみを根拠に【検証済み】を付けない。
@@ -401,11 +405,11 @@ Merge recommendation の判定基準:
 - 件数表と本文の active 指摘数が一致しているか
 - 全指摘に位置（`file:line`）・具体的な発生条件・確度ラベルがあるか
 - 各指摘に反証を試みたか
-- `./scripts/ci/verify.sh` を実行していないか。verify.sh 以外の検証は実行してよい
+- 重い一括検証（`bash .devcontainer/run-tests.bash` など）を再実行していないか。指摘の検証に必要な範囲の実行はしてよい
 - 「コメントしないこと」に該当する指摘が紛れていないか
 - メインリポジトリ側と `$WT` 側の `reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文を、自分でもサブエージェント経由でも開いたり検索対象に含めたりしていないか
 - Merge recommendation が判定基準と整合しているか。重大度判定は active findings、確認不足判定は coverage と pending も参照する
-- `MAIN_ROOT` は PR URL の `owner/repository` と `origin` の照合で確定したか（親=toplevel、`usaturn/maatlog`=検証済み `public/`、その他は停止）。`merge-base HEAD "$PR_REF"` の成功を確認したか
+- `MAIN_ROOT` は PR URL の `owner/repository` を「リポジトリ境界」の表に照らして確定したか（このリポジトリ=toplevel、resoloop=検証済みの `external/resoloop`、その他は停止）。PR の head を `$PR_REMOTE` から取得したか。`merge-base HEAD "$PR_REF"` の成功を確認したか
 - `create` が返した `model_name`、`draft`、`destination`、`previous_review` を変更・再構築せず使用したか
 - 正確な `$MODEL_NAME` を `--model-name "$MODEL_NAME"` で渡し、filename から推測していないか（Codex はヘルパーが確定する）
 - `save` を `--state "$STATE_FILE"` だけで実行し、caller-selected path を渡していないか
