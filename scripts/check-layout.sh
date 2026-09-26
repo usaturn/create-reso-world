@@ -1,6 +1,9 @@
 #!/bin/bash
 # リポジトリのレイアウト検査。仕様: docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md 9.1 節
 # 使い方: scripts/check-layout.sh [--root DIR]
+# 追跡の有無と mode、symlink の行き先、ファイルの中身はすべて git の index から読む。作業ツリーの未ステージの変更は
+# 結果を変えず、core.symlinks=false の checkout（symlink が通常ファイルになる）でも同じ結果になる。
+# 例外として、追跡中の symlink が解決できるか（検査 2）だけは作業ツリーで確かめる。
 set -euo pipefail
 
 usage() {
@@ -36,6 +39,21 @@ ok() { printf 'ok: %s\n' "$1"; }
 # git ls-files の出力を NUL 区切りで受け渡す一時ファイル。各 check 関数が使い捨てる
 tmp_list="$(mktemp)"
 trap 'rm -f "$tmp_list"' EXIT
+empty_blob="$(git hash-object -t blob --stdin </dev/null)"
+
+# index（ステージ 0）にあるパスと完全に一致するエントリを "mode oid" で出力する。無ければ 1。
+# パスはワイルドカードとして解釈しない。git ls-files はディレクトリの前方一致でも列挙するので、パスの一致を確かめる
+index_entry() {
+  local want="$1" record meta fields
+  while IFS= read -r -d '' record; do
+    [ "${record#*$'\t'}" = "$want" ] || continue
+    meta="${record%%$'\t'*}"
+    fields="${meta#* }"
+    printf '%s %s\n' "${meta%% *}" "${fields%% *}"
+    return 0
+  done < <(git ls-files -s -z -- ":(literal)$want")
+  return 1
+}
 
 # 1. 追跡してはいけないファイル（仕様 9.1）
 check_forbidden_tracked() {
@@ -55,7 +73,7 @@ check_forbidden_tracked() {
   fi
 }
 
-# 2. 追跡中の symlink がすべて解決できる
+# 2. 追跡中の symlink がすべて解決できる（作業ツリーで確かめる）
 check_symlinks_resolve() {
   if ! git ls-files -s -z > "$tmp_list"; then
     fail "git ls-files -s failed"
@@ -97,11 +115,14 @@ check_tracked_ignored() {
 
 # 4. <prefix>.claude/skills の各エントリが <prefix>.agents/skills の同名ディレクトリへの symlink で、1:1 に対応する（仕様 4.2・8.1・9.1）
 # 引数: 接頭辞。ルートは ""、プロジェクトは "slum02/" のように末尾に / を付ける
+# リンクが要るのは、追跡ファイルを 1 つ以上持つ .agents/skills 直下のディレクトリ。SKILL.md の有無は問わない
+# （ルートの references/ のように、SKILL.md を持たない共有ディレクトリにもリンクが要る）。
+# scripts/new-world.sh も、ファイルを 1 つ以上持つディレクトリという同じ定義でリンクを張る。
 check_skill_links() {
   local prefix="$1"
   local agents="${prefix}.agents/skills/" claude="${prefix}.claude/skills/"
   local -A dirs=() links=()
-  local problems=() path record meta mode rest name target
+  local problems=() names=() path record meta fields mode oid rest name target
   if ! git ls-files -z -- "${prefix}.agents/skills" > "$tmp_list"; then
     fail "git ls-files failed for ${agents}"
     return
@@ -119,6 +140,12 @@ check_skill_links() {
     meta="${record%%$'\t'*}"
     path="${record#*$'\t'}"
     mode="${meta%% *}"
+    fields="${meta#* }"
+    oid="${fields%% *}"
+    if [ "$path" = "${claude%/}" ]; then
+      problems+=("${claude%/} must be a directory, not a symlink")
+      continue
+    fi
     rest="${path#"$claude"}"
     name="${rest%%/*}"
     [ -z "${links[$name]+x}" ] || continue
@@ -127,11 +154,14 @@ check_skill_links() {
       problems+=("${claude}${name} is not a symlink")
       continue
     fi
-    target="$(readlink "$path" 2>/dev/null || true)"
+    target="$(git cat-file blob "$oid")"
     [ "$target" = "../../.agents/skills/$name" ] || problems+=("${claude}${name} has unexpected target ${target:-<none>}")
     [ -n "${dirs[$name]+x}" ] || problems+=("${claude}${name} has no matching ${agents}${name}")
   done < "$tmp_list"
-  for name in "${!dirs[@]}"; do
+  if [ ${#dirs[@]} -gt 0 ]; then
+    mapfile -t names < <(printf '%s\n' "${!dirs[@]}" | LC_ALL=C sort)
+  fi
+  for name in ${names[@]+"${names[@]}"}; do
     [ -n "${links[$name]+x}" ] || problems+=("${claude%/}: missing link ${name}")
   done
   if [ ${#problems[@]} -gt 0 ]; then
@@ -144,7 +174,7 @@ check_skill_links() {
 
 # 5. 旧 .devin/skills を追跡していない。スキル配下に 0 バイトの追跡ファイルが無い（仕様 5.5・8.1・11 章）
 check_skill_hygiene() {
-  local hits=() record meta path mode re='(^|/)\.(agents|claude)/skills/'
+  local hits=() record meta fields path mode re='(^|/)\.(agents|claude)/skills/'
   if ! git ls-files -z -- .devin/skills > "$tmp_list"; then
     fail "git ls-files failed for .devin/skills"
     return
@@ -158,9 +188,10 @@ check_skill_hygiene() {
     meta="${record%%$'\t'*}"
     path="${record#*$'\t'}"
     mode="${meta%% *}"
+    fields="${meta#* }"
     [ "$mode" != 120000 ] || continue
     [[ "$path" =~ $re ]] || continue
-    [ -s "$path" ] || hits+=("empty tracked file: $path")
+    [ "${fields%% *}" != "$empty_blob" ] || hits+=("empty tracked file: $path")
   done < "$tmp_list"
   if [ ${#hits[@]} -gt 0 ]; then
     local h
@@ -185,14 +216,22 @@ collect_projects() {
 }
 
 check_project() {
-  local p="$1" problems=() f link target sp
+  local p="$1" problems=() f link target sp entry content
   for f in AGENTS.md CLAUDE.md .resoloop.json .resoloop/.gitignore pyproject.toml uv.lock \
            .agents/skills/.resoloop-bundled.json flux/resoloop.flux.json; do
-    git ls-files --error-unmatch -- "$p/$f" >/dev/null 2>&1 || problems+=("missing tracked file $f")
+    if ! entry="$(index_entry "$p/$f")"; then
+      problems+=("missing tracked file $f")
+    elif [ "${entry%% *}" != 100644 ] && [ "${entry%% *}" != 100755 ]; then
+      problems+=("$f must be a regular file (index mode ${entry%% *})")
+    fi
   done
-  [ "$(cat "$p/CLAUDE.md" 2>/dev/null)" = '@AGENTS.md' ] || problems+=("CLAUDE.md must be exactly @AGENTS.md")
-  grep -qxF '## このプロジェクト固有' "$p/AGENTS.md" 2>/dev/null || problems+=("AGENTS.md lacks ## このプロジェクト固有")
-  grep -qxF 'cache/' "$p/.resoloop/.gitignore" 2>/dev/null || problems+=(".resoloop/.gitignore lacks cache/")
+  # 比較と検索は変数に取り込んでから行う（pipefail の下で grep -q が上流を SIGPIPE で落とすのを避ける）
+  content="$(git cat-file blob ":$p/CLAUDE.md" 2>/dev/null; printf x)"
+  [ "$content" = $'@AGENTS.md\nx' ] || problems+=("CLAUDE.md must be exactly @AGENTS.md")
+  content="$(git cat-file blob ":$p/AGENTS.md" 2>/dev/null || true)"
+  grep -qxF '## このプロジェクト固有' <<<"$content" || problems+=("AGENTS.md lacks ## このプロジェクト固有")
+  content="$(git cat-file blob ":$p/.resoloop/.gitignore" 2>/dev/null || true)"
+  grep -qxF 'cache/' <<<"$content" || problems+=(".resoloop/.gitignore lacks cache/")
   local links=(".claude/settings.json|../../.claude/settings.json" ".pi|../.pi")
   if ! git ls-files -z -- '.agents/sp-*.md' > "$tmp_list"; then
     fail "git ls-files failed for .agents/sp-*.md"
@@ -203,7 +242,8 @@ check_project() {
   done < "$tmp_list"
   for link in "${links[@]}"; do
     f="${link%%|*}" target="${link#*|}"
-    if [ "$(git ls-files -s -- "$p/$f" | cut -d' ' -f1)" != 120000 ] || [ "$(readlink "$p/$f" 2>/dev/null)" != "$target" ]; then
+    entry="$(index_entry "$p/$f" || true)"
+    if [ "${entry%% *}" != 120000 ] || [ "$(git cat-file blob "${entry#* }")" != "$target" ]; then
       problems+=("$f must be a symlink to $target")
     fi
   done
@@ -216,18 +256,20 @@ check_project() {
   check_skill_links "$p/"
 }
 
-# 7. resoloop が使える環境では resoloop skills sync --check が各プロジェクトで成功する
+# 7. resoloop が使える環境では resoloop skills sync --check が各プロジェクトで成功する。失敗したら resoloop の出力を字下げして示す
 check_resoloop_skills() {
-  local p
+  local p out
   if ! command -v resoloop >/dev/null 2>&1; then
     printf 'skip: resoloop not found (skills sync check)\n'
     return
   fi
   for p in ${projects[@]+"${projects[@]}"}; do
-    if resoloop skills sync "$p" --check >/dev/null 2>&1; then
+    # ./ を付けて、- で始まるプロジェクト名をオプションとして読ませない
+    if out="$(resoloop skills sync "./$p" --check 2>&1)"; then
       ok "resoloop skills sync --check ($p)"
     else
       fail "resoloop skills sync --check failed for $p"
+      [ -z "$out" ] || printf '%s\n' "$out" | sed 's/^/    /' >&2
     fi
   done
 }

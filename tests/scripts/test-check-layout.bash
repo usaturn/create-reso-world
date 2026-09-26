@@ -167,9 +167,10 @@ printf 'README.md\n' > "$tmp/global-ignore"
 printf '[core]\n\texcludesFile = %s\n' "$tmp/global-ignore" > "$tmp/global-gitconfig"
 GIT_CONFIG_COUNT=0 GIT_CONFIG_GLOBAL="$tmp/global-gitconfig" bash "$checker" --root "$tmp/clean" | grep -qF 'PASS: check-layout'
 
-# 仕様 4.2 を満たすプロジェクト demo を 1 つ持つリポジトリを作る
+# 仕様 4.2 を満たすプロジェクトを 1 つ持つリポジトリを作る。$2 はプロジェクト名（既定: demo）
 project_repo() {
-  local r="$1" p="$1/demo"
+  local r="$1" n="${2:-demo}"
+  local p="$r/$n"
   new_repo "$r"
   mkdir -p "$r/.claude" "$r/.pi" "$r/.agents" "$p/.agents/skills/resonite-build" "$p/.claude/skills" "$p/.resoloop" "$p/flux"
   printf '{}\n' > "$r/.claude/settings.json"
@@ -179,7 +180,7 @@ project_repo() {
   printf '@AGENTS.md\n' > "$p/CLAUDE.md"
   printf '{}\n' > "$p/.resoloop.json"
   printf 'state/\nflux-state/\ncache/\n' > "$p/.resoloop/.gitignore"
-  printf '[project]\nname = "demo"\n' > "$p/pyproject.toml"
+  printf '[project]\nname = "%s"\n' "$n" > "$p/pyproject.toml"
   printf 'version = 1\n' > "$p/uv.lock"
   printf '{}\n' > "$p/.agents/skills/.resoloop-bundled.json"
   printf -- '---\nname: resonite-build\ndescription: d\n---\n' > "$p/.agents/skills/resonite-build/SKILL.md"
@@ -188,14 +189,16 @@ project_repo() {
   ln -s ../../.claude/settings.json "$p/.claude/settings.json"
   ln -s ../.pi "$p/.pi"
   ln -s ../../.agents/sp-implementer.md "$p/.agents/sp-implementer.md"
-  commit_paths "$r" .claude .pi .agents demo
+  commit_paths "$r" .claude .pi .agents "$n"
 }
 
-# モックの resoloop: MOCK_RESOLOOP_FAIL と同名のプロジェクトだけ skills sync --check に失敗する
+# モックの resoloop: MOCK_RESOLOOP_FAIL と同名のプロジェクトだけ skills sync --check に失敗する。
+# 実物と同じく、- で始まるプロジェクト引数はオプションと解釈して拒む
 mkdir -p "$tmp/mockbin"
 cat > "$tmp/mockbin/resoloop" <<'EOF'
 #!/bin/bash
 [ "$1 $2 $4" = 'skills sync --check' ] || exit 64
+case "$3" in -*) echo "unknown option $3" >&2; exit 64 ;; esac
 case "$3" in "${MOCK_RESOLOOP_FAIL:-__none__}"|*/"${MOCK_RESOLOOP_FAIL:-__none__}") echo 'SKILL_SYNC_REQUIRED' >&2; exit 6 ;; esac
 exit 0
 EOF
@@ -219,6 +222,7 @@ grep -qF 'PASS: check-layout' "$tmp/proj-skip.out"
 
 # 23. resoloop 同梱スキルの同期ずれは失敗する
 PATH="$mock_path" MOCK_RESOLOOP_FAIL=demo expect_fail_with "$tmp/proj-ok" 'resoloop skills sync --check failed for demo'
+grep -qxF '    SKILL_SYNC_REQUIRED' "$tmp/out.txt" || { cat "$tmp/out.txt" >&2; printf 'FAIL: resoloop output was not relayed\n' >&2; exit 1; }
 
 # 24〜30. 標準レイアウトからの逸脱は失敗する（以降は mock の resoloop で実行する）
 export PATH="$mock_path"
@@ -254,5 +258,83 @@ mkdir -p "$tmp/p32/zzz/sub" && printf '{}\n' > "$tmp/p32/zzz/sub/.resoloop.json"
 bash "$checker" --root "$tmp/p32" > "$tmp/p32.out"
 grep -qF 'ok: project demo layout' "$tmp/p32.out"
 grep -qF 'PASS: check-layout' "$tmp/p32.out"
+
+# 33. .agents/skills 直下のファイルはリンクの対象外
+skill_repo "$tmp/direct-file"
+ln -s ../../.agents/skills/foo "$tmp/direct-file/.claude/skills/foo"
+printf '# index\n' > "$tmp/direct-file/.agents/skills/README.md"
+commit_paths "$tmp/direct-file" .agents .claude
+bash "$checker" --root "$tmp/direct-file" | grep -qF 'PASS: check-layout'
+
+# 34. .claude/skills/<name> が通常ファイル（mode 100644）なら失敗する
+skill_repo "$tmp/regular-file"
+printf '../../.agents/skills/foo\n' > "$tmp/regular-file/.claude/skills/foo"
+commit_paths "$tmp/regular-file" .agents .claude
+expect_fail_with "$tmp/regular-file" '.claude/skills/foo is not a symlink'
+
+# 35. .claude/skills 自体が symlink なら、そのことを失敗として示す
+skill_repo "$tmp/skills-dir-link"
+rmdir "$tmp/skills-dir-link/.claude/skills"
+ln -s ../.agents/skills "$tmp/skills-dir-link/.claude/skills"
+commit_paths "$tmp/skills-dir-link" .agents .claude
+expect_fail_with "$tmp/skills-dir-link" '.claude/skills must be a directory, not a symlink'
+if grep -qF '.claude/skills/.claude' "$tmp/out.txt"; then printf 'FAIL: misleading message for a symlinked .claude/skills\n' >&2; exit 1; fi
+
+# 36. 足りないリンクは名前順に報告する
+skill_repo "$tmp/order"
+for s in zeta alpha mid beta omega kappa delta; do   # bash の連想配列の列挙順が名前順にならない組
+  mkdir -p "$tmp/order/.agents/skills/$s" && printf -- '---\nname: %s\n---\n' "$s" > "$tmp/order/.agents/skills/$s/SKILL.md"
+done
+commit_paths "$tmp/order" .agents
+expect_fail_with "$tmp/order" 'missing link alpha'
+[ "$(grep -o 'missing link [a-z]*' "$tmp/out.txt" | sed 's/^missing link //' | tr '\n' ' ')" = 'alpha beta delta foo kappa mid omega zeta ' ] \
+  || { cat "$tmp/out.txt" >&2; printf 'FAIL: missing links are not sorted\n' >&2; exit 1; }
+
+# 37. プロジェクトの .claude/skills でも、余分・向き違い・実ディレクトリを検出する
+project_repo "$tmp/p37a"
+mkdir -p "$tmp/p37a/elsewhere/extra" && printf 'x\n' > "$tmp/p37a/elsewhere/extra/SKILL.md"
+ln -s ../../../elsewhere/extra "$tmp/p37a/demo/.claude/skills/extra"
+commit_paths "$tmp/p37a" elsewhere demo
+expect_fail_with "$tmp/p37a" 'demo/.claude/skills/extra has no matching demo/.agents/skills/extra'
+project_repo "$tmp/p37b"
+rm "$tmp/p37b/demo/.claude/skills/resonite-build" && ln -s ../../../.agents/skills/resonite-build "$tmp/p37b/demo/.claude/skills/resonite-build"
+commit_paths "$tmp/p37b" demo
+expect_fail_with "$tmp/p37b" 'demo/.claude/skills/resonite-build has unexpected target ../../../.agents/skills/resonite-build'
+project_repo "$tmp/p37c"
+rm "$tmp/p37c/demo/.claude/skills/resonite-build" && mkdir "$tmp/p37c/demo/.claude/skills/resonite-build"
+cp "$tmp/p37c/demo/.agents/skills/resonite-build/SKILL.md" "$tmp/p37c/demo/.claude/skills/resonite-build/SKILL.md"
+commit_paths "$tmp/p37c" demo
+expect_fail_with "$tmp/p37c" 'demo/.claude/skills/resonite-build is not a symlink'
+
+# 38. CLAUDE.md は @AGENTS.md の 1 行だけ（末尾の空行も認めない）
+project_repo "$tmp/p38" && printf '@AGENTS.md\n\n\n' > "$tmp/p38/demo/CLAUDE.md" && commit_paths "$tmp/p38" demo
+expect_fail_with "$tmp/p38" 'demo: CLAUDE.md must be exactly @AGENTS.md'
+
+# 39. 必須ファイルと同名のディレクトリ（demo/uv.lock/x）は必須ファイルとして数えない
+project_repo "$tmp/p39" && git -C "$tmp/p39" rm -q demo/uv.lock
+mkdir -p "$tmp/p39/demo/uv.lock" && printf 'x\n' > "$tmp/p39/demo/uv.lock/x" && commit_paths "$tmp/p39" demo
+expect_fail_with "$tmp/p39" 'demo: missing tracked file uv.lock'
+
+# 40. - で始まるプロジェクト名も検査でき、resoloop には ./ 付きで渡す
+project_repo "$tmp/p40" -dash
+bash "$checker" --root "$tmp/p40" > "$tmp/p40.out"
+grep -qF 'ok: project -dash layout' "$tmp/p40.out"
+grep -qF 'ok: resoloop skills sync --check (-dash)' "$tmp/p40.out"
+
+# 41. 作業ツリーだけの変更は結果を変えない（index の内容で判定する）
+project_repo "$tmp/p41a" && printf 'other\n' > "$tmp/p41a/demo/CLAUDE.md" && commit_paths "$tmp/p41a" demo
+printf '@AGENTS.md\n' > "$tmp/p41a/demo/CLAUDE.md"
+expect_fail_with "$tmp/p41a" 'demo: CLAUDE.md must be exactly @AGENTS.md'
+skill_repo "$tmp/p41b"
+ln -s ../../.agents/skills/foo "$tmp/p41b/.claude/skills/foo"
+commit_paths "$tmp/p41b" .agents .claude
+rm "$tmp/p41b/.agents/skills/foo/SKILL.md"
+bash "$checker" --root "$tmp/p41b" > "$tmp/p41b.out" 2>&1 || true
+if grep -qF 'empty tracked file:' "$tmp/p41b.out"; then printf 'FAIL: a file deleted only from the worktree was reported as empty\n' >&2; exit 1; fi
+
+# 42. core.symlinks=false の checkout（symlink が通常ファイルになる）でも通過する
+git clone -q -c core.symlinks=false "$tmp/proj-ok" "$tmp/nosymlinks"
+[ -f "$tmp/nosymlinks/demo/.pi" ] && [ ! -L "$tmp/nosymlinks/demo/.pi" ] || { printf 'FAIL: core.symlinks=false did not take effect\n' >&2; exit 1; }
+bash "$checker" --root "$tmp/nosymlinks" | grep -qF 'PASS: check-layout'
 
 printf 'PASS: check-layout script behaves as specified\n'
