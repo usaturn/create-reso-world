@@ -1,0 +1,38 @@
+{
+  "sector": "nightlife",
+  "objects": 4,
+  "triangles": 35496,
+  "vertices": 18844,
+  "submeshes": 68,
+  "materials": [
+    "cloth_red",
+    "concrete_patch",
+    "concrete_stained",
+    "corrugated",
+    "corrugated_rust",
+    "glass_dark",
+    "neon_magenta",
+    "neon_pink",
+    "neon_red",
+    "paint_teal_faded",
+    "paint_yellow_faded",
+    "rubber",
+    "steel_bare",
+    "steel_dark",
+    "tarp_blue",
+    "tarp_green",
+    "tarp_orange",
+    "warm_bulb"
+  ],
+  "material_count": 18,
+  "ao": {
+    "baked": 4,
+    "seconds": 0.9,
+    "samples": 32
+  },
+  "uv_issue_count": 0,
+  "blend_path": "/workspaces/reso-world/slum02/artifacts/slum02/nightlife.blend",
+  "blender_version": "5.0.1",
+  "export_collection": "Slum02NightlifeExport",
+  "triangles_blender": 35496
+}
