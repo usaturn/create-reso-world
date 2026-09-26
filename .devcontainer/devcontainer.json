@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
 {
-	"name": "Ubuntu",
+	"name": "create-reso-world",
 	"mounts": [
 		"source=${localEnv:HOME}/.codex,target=/home/vscode/.codex,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
@@ -15,7 +15,9 @@
 		"source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.cursor,target=/home/vscode/.cursor,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.config/glab-cli,target=/home/vscode/.config/glab-cli,type=bind,consistency=cached",
-		"source=${localEnv:HOME}/.config/gcloud,target=/home/vscode/.config/gcloud,type=bind,consistency=cached"
+		"source=${localEnv:HOME}/.config/gcloud,target=/home/vscode/.config/gcloud,type=bind,consistency=cached",
+		// 秘密情報（API トークンなど）。zshrc.txt が env を存在時だけ読み込む
+		"source=${localEnv:HOME}/.config/create-reso-world,target=/home/vscode/.config/create-reso-world,type=bind,consistency=cached"
 	],
     // 既定の loginInteractiveShell は ~/.zshrc を読むため herdrstart が走り、
     // herdr を起動したままハングする。残留シェルが herdr サーバを
@@ -26,7 +28,9 @@
         "SHELL": "/usr/bin/zsh"
     },
     "remoteEnv": {
-        "PATH": "${containerEnv:PATH}:/home/vscode/.dotnet/tools"
+        // ユーザ単位で導入するツール（claude・uv など、herdr の補助スクリプト、dotnet tool）。mounts と同じく
+        // /home/vscode を直接書く
+        "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin:/home/vscode/bin:/home/vscode/.dotnet/tools"
     },
 	"initializeCommand": "/bin/bash .devcontainer/initialize.bash",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
@@ -49,11 +53,11 @@
 		},
 		"ghcr.io/devcontainers/features/node:2": {
 		"nodeGypDependencies": true,
-		// #147: リポジトリのタスク・CLI 導入は npm に一本化した。yarn を apt 経由で
+		// リポジトリのタスク・CLI 導入は npm に一本化した。yarn を apt 経由で
 		// 常駐インストールする必要はなく、既定 (false) の corepack 経由に戻す。
 		"installYarnUsingApt": false,
 		"version": "24",
-		// #282: dsh plugin は PATH 上の pnpm を直接 spawn する。pnpmVersion "none" は
+		// dsh plugin は PATH 上の pnpm を直接 spawn する。pnpmVersion "none" は
 		// 導入省略のため、plugin 0.10.6 との組み合わせを隔離検証した 12.4.1 を明示する。
 		"pnpmVersion": "12.4.1",
 		"nvmVersion": "latest"
@@ -65,7 +69,7 @@
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-	// #282: 3080 は dsh web の既定ポート。
+	// 3080 は dsh web の既定ポート。
 	"forwardPorts": [8000, 3080],
 
 	// Use 'postCreateCommand' to run commands after the container is created.

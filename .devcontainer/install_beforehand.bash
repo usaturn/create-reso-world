@@ -53,7 +53,8 @@ step "Ensuring user-writable directories under ~"
 # bind mount target の中間ディレクトリ（~/.local/share 等）と target 自体は、
 # Docker が root 所有で作る・ホスト側に root 所有のまま残ることがある。
 # 以降の全ステップが $HOME 配下へ書き込むため、最初に親から順に書き込み可能を
-# 保証する。~/.claude.json はファイル mount のため対象外。
+# 保証する。~/.claude.json はファイル mount のため対象外。ディレクトリの mount はすべてここに並べる
+# （.devcontainer/test-initialize-mounts.bash が devcontainer.json の mounts と突き合わせる）。
 for dir in \
     "${HOME}/.local" \
     "${HOME}/.local/share" \
@@ -65,7 +66,10 @@ for dir in \
     "${HOME}/.config/gh" \
     "${HOME}/.config/glab-cli" \
     "${HOME}/.config/gcloud" \
+    "${HOME}/.config/create-reso-world" \
+    "${HOME}/.codex" \
     "${HOME}/.claude" \
+    "${HOME}/.grok" \
     "${HOME}/.pi" \
     "${HOME}/.dsh" \
     "${HOME}/.cursor"; do
