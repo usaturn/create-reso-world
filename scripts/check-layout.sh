@@ -1,7 +1,7 @@
 #!/bin/bash
 # リポジトリのレイアウト検査。仕様: docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md 9.1 節
 # 使い方: scripts/check-layout.sh [--root DIR]
-# 追跡の有無と mode、symlink の行き先、ファイルの中身は git の index から読む（検査 1・4・5・6・8）。これらの結果は
+# 追跡の有無と mode、symlink の行き先、ファイルの中身は git の index（ステージ 0）から読む（検査 1・4・5・6・8・9）。これらの結果は
 # 作業ツリーの未ステージの変更で変わらず、core.symlinks=false の checkout（symlink が通常ファイルになる）でも同じになる。
 # 例外として次の 3 つは作業ツリーを読む: 検査 2（追跡中の symlink が解決できるか）、検査 3（ignore 規則は作業ツリーの
 # .gitignore と .git/info/exclude から git が読む）、検査 7（resoloop が作業ツリーのプロジェクトを読む）。
@@ -43,15 +43,26 @@ trap 'rm -rf "$tmp_dir"' EXIT
 tmp_list="$tmp_dir/list"
 empty_blob="$(git hash-object -t blob --stdin </dev/null)"
 
-# index（ステージ 0）にあるパスと完全に一致するエントリを "mode oid" で出力する。無ければ 1。
-# パスはワイルドカードとして解釈しない。git ls-files はディレクトリの前方一致でも列挙するので、パスの一致を確かめる
+# git ls-files -s -z の 1 レコード（"<mode> <oid> <stage>\t<path>"）を rec_mode・rec_oid・rec_stage・rec_path に分ける
+rec_mode="" rec_oid="" rec_stage="" rec_path=""
+split_record() {
+  local meta="${1%%$'\t'*}"
+  rec_path="${1#*$'\t'}"
+  rec_mode="${meta%% *}"
+  meta="${meta#* }"
+  rec_oid="${meta%% *}"
+  rec_stage="${meta#* }"
+}
+
+# index のステージ 0 にあるパスと完全に一致するエントリを "mode oid" で出力する。無ければ 1（衝突の解決中で
+# ステージ 1〜3 にしか無いパスも 1）。パスはワイルドカードとして解釈しない。git ls-files はディレクトリの
+# 前方一致でも列挙するので、パスの一致を確かめる
 index_entry() {
-  local want="$1" record meta fields
+  local want="$1" record
   while IFS= read -r -d '' record; do
-    [ "${record#*$'\t'}" = "$want" ] || continue
-    meta="${record%%$'\t'*}"
-    fields="${meta#* }"
-    printf '%s %s\n' "${meta%% *}" "${fields%% *}"
+    split_record "$record"
+    [ "$rec_path" = "$want" ] && [ "$rec_stage" = 0 ] || continue
+    printf '%s %s\n' "$rec_mode" "$rec_oid"
     return 0
   done < <(git ls-files -s -z -- ":(literal)$want")
   return 1
@@ -81,13 +92,11 @@ check_symlinks_resolve() {
     fail "git ls-files -s failed"
     return
   fi
-  local broken=() record meta path mode
+  local broken=() record
   while IFS= read -r -d '' record; do
-    meta="${record%%$'\t'*}"
-    path="${record#*$'\t'}"
-    mode="${meta%% *}"
-    [ "$mode" = 120000 ] || continue
-    [ -e "$path" ] || broken+=("$path")
+    split_record "$record"
+    [ "$rec_mode" = 120000 ] || continue
+    [ -e "$rec_path" ] || broken+=("$rec_path")
   done < "$tmp_list"
   if [ ${#broken[@]} -gt 0 ]; then
     fail "dangling tracked symlinks: ${broken[*]}"
@@ -96,7 +105,7 @@ check_symlinks_resolve() {
   fi
 }
 
-# 3. 追跡中かつ ignore 対象は既知の例外だけ（ignore 規則は作業ツリーの .gitignore から読まれる）
+# 3. 追跡中かつ ignore 対象は既知の例外だけ（ignore 規則は作業ツリーの .gitignore と .git/info/exclude から読まれる）
 check_tracked_ignored() {
   local allow='MyResoniteProject/.resoloop/tokyo-nova/pipeline.json'
   if ! git -c core.excludesFile=/dev/null ls-files -z -i -c --exclude-standard > "$tmp_list"; then
@@ -124,7 +133,7 @@ check_skill_links() {
   local prefix="$1"
   local agents="${prefix}.agents/skills/" claude="${prefix}.claude/skills/"
   local -A dirs=() links=()
-  local problems=() names=() path record meta fields mode oid rest name target
+  local problems=() names=() path record rest name target
   if ! git ls-files -z -- "${prefix}.agents/skills" > "$tmp_list"; then
     fail "git ls-files failed for ${agents}"
     return
@@ -139,24 +148,23 @@ check_skill_links() {
     return
   fi
   while IFS= read -r -d '' record; do
-    meta="${record%%$'\t'*}"
-    path="${record#*$'\t'}"
-    mode="${meta%% *}"
-    fields="${meta#* }"
-    oid="${fields%% *}"
-    if [ "$path" = "${claude%/}" ]; then
+    split_record "$record"
+    if [ "$rec_path" = "${claude%/}" ]; then
       problems+=("${claude%/} must be a directory, not a symlink")
       continue
     fi
-    rest="${path#"$claude"}"
+    rest="${rec_path#"$claude"}"
     name="${rest%%/*}"
     [ -z "${links[$name]+x}" ] || continue
     links["$name"]=1
-    if [ "$mode" != 120000 ] || [ "$rest" != "$name" ]; then
+    if [ "$rec_mode" != 120000 ] || [ "$rest" != "$name" ]; then
       problems+=("${claude}${name} is not a symlink")
       continue
     fi
-    target="$(git cat-file blob "$oid")"
+    if ! target="$(git cat-file blob "$rec_oid" 2>/dev/null)"; then
+      problems+=("cannot read the target of ${claude}${name} from the index")
+      continue
+    fi
     [ "$target" = "../../.agents/skills/$name" ] || problems+=("${claude}${name} has unexpected target ${target:-<none>}")
     [ -n "${dirs[$name]+x}" ] || problems+=("${claude}${name} has no matching ${agents}${name}")
   done < "$tmp_list"
@@ -176,7 +184,7 @@ check_skill_links() {
 
 # 5. 旧 .devin/skills を追跡していない。スキル配下に 0 バイトの追跡ファイルが無い（仕様 5.5・8.1・11 章）
 check_skill_hygiene() {
-  local hits=() record meta fields path mode re='(^|/)\.(agents|claude)/skills/'
+  local hits=() record re='(^|/)\.(agents|claude)/skills/'
   if ! git ls-files -z -- .devin/skills > "$tmp_list"; then
     fail "git ls-files failed for .devin/skills"
     return
@@ -187,13 +195,10 @@ check_skill_hygiene() {
     return
   fi
   while IFS= read -r -d '' record; do
-    meta="${record%%$'\t'*}"
-    path="${record#*$'\t'}"
-    mode="${meta%% *}"
-    fields="${meta#* }"
-    [ "$mode" != 120000 ] || continue
-    [[ "$path" =~ $re ]] || continue
-    [ "${fields%% *}" != "$empty_blob" ] || hits+=("empty tracked file: $path")
+    split_record "$record"
+    [ "$rec_mode" != 120000 ] || continue
+    [[ "$rec_path" =~ $re ]] || continue
+    [ "$rec_oid" != "$empty_blob" ] || hits+=("empty tracked file: $rec_path")
   done < "$tmp_list"
   if [ ${#hits[@]} -gt 0 ]; then
     local h
@@ -276,28 +281,41 @@ check_resoloop_skills() {
   done
 }
 
+# .devcontainer/ の NAME... を index から DEST に書き出す（検査 8・9 が使う）。無いものと読めないものは
+# 1 件ずつ FAIL にし、1 つでもあれば 1 を返す
+extract_devcontainer_files() {
+  local dest="$1" name entry bad=0
+  shift
+  mkdir -p "$dest"
+  for name in "$@"; do
+    if ! entry="$(index_entry ".devcontainer/$name")"; then
+      if [ -n "$(git ls-files -u -- ":(literal).devcontainer/$name")" ]; then
+        fail ".devcontainer/$name has unresolved merge conflicts"
+      else
+        fail "missing tracked file .devcontainer/$name"
+      fi
+      bad=1
+    elif ! git cat-file blob "${entry#* }" > "$dest/$name" 2>/dev/null; then
+      fail "cannot read .devcontainer/$name from the index"
+      bad=1
+    fi
+  done
+  return "$bad"
+}
+
 # 8. ResoLoop のロック（仕様 6.1・9.1）。.devcontainer/devcontainer.json を追跡しているリポジトリだけが対象。
 # ロック・読み込み関数・devcontainer.json を index から取り出し、読み込み関数（.devcontainer/resoloop-lock.bash）で検証する
 check_resoloop_lock() {
-  local f out d="$tmp_dir/lock"
+  local out line d="$tmp_dir/lock"
   if ! index_entry .devcontainer/devcontainer.json >/dev/null; then
     printf 'skip: .devcontainer/devcontainer.json is not tracked (resoloop lock check)\n'
     return
   fi
-  for f in resoloop.lock resoloop-lock.bash; do
-    if ! index_entry ".devcontainer/$f" >/dev/null; then
-      fail "missing tracked file .devcontainer/$f"
-      return
-    fi
-  done
-  mkdir -p "$d"
-  for f in resoloop.lock resoloop-lock.bash devcontainer.json; do
-    git cat-file blob ":.devcontainer/$f" > "$d/$f"
-  done
+  extract_devcontainer_files "$d" resoloop.lock resoloop-lock.bash devcontainer.json || return 0
   if out="$(validate_lock "$d" 2>&1)"; then
     ok "resoloop lock ($out)"
   else
-    while IFS= read -r f; do fail "$f"; done <<<"$out"
+    while IFS= read -r line; do fail "$line"; done <<<"$out"
   fi
 }
 
@@ -313,6 +331,30 @@ validate_lock() (
   printf 'mode %s, expects %s' "$RESOLOOP_MODE" "$RESOLOOP_EXPECTED_VERSION"
 )
 
+# 9. devcontainer.json の mounts のソースと initialize.bash が作るパスが一致する（仕様 7.2・9.1）。
+# .devcontainer/devcontainer.json を追跡しているリポジトリだけが対象。3 つのファイルを index から取り出し、
+# .devcontainer/mounts.bash の mounts_compare で突き合わせる
+check_mounts() {
+  local out line d="$tmp_dir/mounts"
+  if ! index_entry .devcontainer/devcontainer.json >/dev/null; then
+    printf 'skip: .devcontainer/devcontainer.json is not tracked (mount check)\n'
+    return
+  fi
+  extract_devcontainer_files "$d" mounts.bash initialize.bash devcontainer.json || return 0
+  if out="$(compare_mounts "$d" 2>&1)"; then
+    ok "mounts match .devcontainer/initialize.bash"
+  else
+    while IFS= read -r line; do fail "$line"; done <<<"$out"
+  fi
+}
+
+# 比較はサブシェルで行い、mounts.bash の関数を check-layout に持ち込まない
+compare_mounts() (
+  # shellcheck source=/dev/null
+  source "$1/mounts.bash"
+  mounts_compare "$1/devcontainer.json" "$1/initialize.bash"
+)
+
 check_forbidden_tracked
 check_symlinks_resolve
 check_tracked_ignored
@@ -322,6 +364,7 @@ collect_projects
 for p in ${projects[@]+"${projects[@]}"}; do check_project "$p"; done
 check_resoloop_skills
 check_resoloop_lock
+check_mounts
 
 if [ "$failures" -gt 0 ]; then
   printf 'FAIL: check-layout (%d failure(s))\n' "$failures" >&2

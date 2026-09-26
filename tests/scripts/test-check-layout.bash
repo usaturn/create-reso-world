@@ -331,20 +331,36 @@ commit_paths "$tmp/p41b" .agents .claude
 rm "$tmp/p41b/.agents/skills/foo/SKILL.md"
 bash "$checker" --root "$tmp/p41b" > "$tmp/p41b.out" 2>&1 || true
 if grep -qF 'empty tracked file:' "$tmp/p41b.out"; then printf 'FAIL: a file deleted only from the worktree was reported as empty\n' >&2; exit 1; fi
+grep -qF 'ok: skill trees hold no retired or empty tracked files' "$tmp/p41b.out" || { cat "$tmp/p41b.out" >&2; printf 'FAIL: case 41b did not run the hygiene check to the end\n' >&2; exit 1; }
+grep -qF 'PASS: check-layout' "$tmp/p41b.out" || { cat "$tmp/p41b.out" >&2; printf 'FAIL: case 41b did not pass\n' >&2; exit 1; }
 
 # 42. core.symlinks=false の checkout（symlink が通常ファイルになる）でも通過する
 git clone -q -c core.symlinks=false "$tmp/proj-ok" "$tmp/nosymlinks"
 [ -f "$tmp/nosymlinks/demo/.pi" ] && [ ! -L "$tmp/nosymlinks/demo/.pi" ] || { printf 'FAIL: core.symlinks=false did not take effect\n' >&2; exit 1; }
 bash "$checker" --root "$tmp/nosymlinks" | grep -qF 'PASS: check-layout'
 
-# .devcontainer に devcontainer.json・ロック・読み込み関数を持つ一時リポジトリを作る。ロックの SDK は 10.0.201
+# .devcontainer に devcontainer.json・ロック・読み込み関数・mount の関数集・initialize.bash を持つ一時リポジトリを作る。
+# ロックの SDK は 10.0.201。mounts は ~/.claude と ~/.claude.json の 2 つ
 lock_repo() {
   local r="$1"
   new_repo "$r"
   mkdir -p "$r/.devcontainer"
-  cp "$root/.devcontainer/resoloop-lock.bash" "$r/.devcontainer/resoloop-lock.bash"
-  printf '{\n\t"features": {\n\t\t"ghcr.io/devcontainers/features/dotnet:2": {\n\t\t\t"version": "10.0",\n\t\t\t"additionalVersions": "10.0.201"\n\t\t}\n\t}\n}\n' \
-    > "$r/.devcontainer/devcontainer.json"
+  cp "$root/.devcontainer/resoloop-lock.bash" "$root/.devcontainer/mounts.bash" "$r/.devcontainer/"
+  cat > "$r/.devcontainer/devcontainer.json" <<'EOF'
+{
+	"mounts": [
+		"source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind,consistency=cached"
+	],
+	"features": {
+		"ghcr.io/devcontainers/features/dotnet:2": {
+			"version": "10.0",
+			"additionalVersions": "10.0.201"
+		}
+	}
+}
+EOF
+  printf '#!/bin/bash\nmkdir -p \\\n  "${HOME}/.claude"\ntouch \\\n  "${HOME}/.claude.json"\n' > "$r/.devcontainer/initialize.bash"
   cat > "$r/.devcontainer/resoloop.lock" <<'EOF'
 RESOLOOP_MODE=fork
 RESOLOOP_NUGET_VERSION=1.2.3-preview.4
@@ -363,9 +379,11 @@ EOF
 lock_repo "$tmp/lock-ok"
 bash "$checker" --root "$tmp/lock-ok" > "$tmp/lock-ok.out"
 grep -qF 'ok: resoloop lock (mode fork, expects 1.2.3-preview.4.pr1.test)' "$tmp/lock-ok.out"
+grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/lock-ok.out"
 grep -qF 'PASS: check-layout' "$tmp/lock-ok.out"
 bash "$checker" --root "$tmp/clean" > "$tmp/lock-skip.out"
 grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (resoloop lock check)' "$tmp/lock-skip.out"
+grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (mount check)' "$tmp/lock-skip.out"
 
 # 44. devcontainer.json があるのにロックか読み込み関数が無ければ失敗する
 lock_repo "$tmp/lock-missing" && git -C "$tmp/lock-missing" rm -q .devcontainer/resoloop.lock && git -C "$tmp/lock-missing" commit -q -m rm
@@ -382,14 +400,73 @@ lock_repo "$tmp/lock-sdk" && sed -i 's/"additionalVersions": "10.0.201"/"additio
   && commit_paths "$tmp/lock-sdk" .devcontainer
 expect_fail_with "$tmp/lock-sdk" 'RESOLOOP_FORK_SDK 10.0.201 is not in additionalVersions of .devcontainer/devcontainer.json'
 
-# 47. ロックも index の内容で判定する（作業ツリーだけ壊れていても通過する）
+# 47. ロックも index の内容で判定する（作業ツリーのロック・読み込み関数・devcontainer.json が壊れていても通過する）
 lock_repo "$tmp/lock-worktree"
 printf 'broken\n' > "$tmp/lock-worktree/.devcontainer/resoloop.lock"
+printf 'resoloop_lock_load() { return 1; }\n' > "$tmp/lock-worktree/.devcontainer/resoloop-lock.bash"
+sed -i 's/"additionalVersions": "10.0.201"/"additionalVersions": "10.0.100"/' "$tmp/lock-worktree/.devcontainer/devcontainer.json"
 bash "$checker" --root "$tmp/lock-worktree" > "$tmp/lock-worktree.out"
 grep -qF 'ok: resoloop lock (' "$tmp/lock-worktree.out"
 
-# 48. このリポジトリのロックも検査される
+# 48. このリポジトリのロックと mounts も検査される
 bash "$checker" > "$tmp/self.out"
 grep -qF 'ok: resoloop lock (' "$tmp/self.out"
+grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/self.out"
+
+# 49. nuget モードの期待版は RESOLOOP_NUGET_VERSION。devcontainer.json が作業ツリーにあっても追跡していなければ skip
+lock_repo "$tmp/lock-nuget" && sed -i 's/^RESOLOOP_MODE=fork$/RESOLOOP_MODE=nuget/' "$tmp/lock-nuget/.devcontainer/resoloop.lock" \
+  && commit_paths "$tmp/lock-nuget" .devcontainer
+bash "$checker" --root "$tmp/lock-nuget" > "$tmp/lock-nuget.out"
+grep -qF 'ok: resoloop lock (mode nuget, expects 1.2.3-preview.4)' "$tmp/lock-nuget.out"
+lock_repo "$tmp/lock-untracked" && git -C "$tmp/lock-untracked" rm -q --cached .devcontainer/devcontainer.json \
+  && git -C "$tmp/lock-untracked" commit -q -m untrack
+[ -f "$tmp/lock-untracked/.devcontainer/devcontainer.json" ] || { printf 'FAIL: case 49 lost the untracked file\n' >&2; exit 1; }
+bash "$checker" --root "$tmp/lock-untracked" > "$tmp/lock-untracked.out"
+grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (resoloop lock check)' "$tmp/lock-untracked.out"
+grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (mount check)' "$tmp/lock-untracked.out"
+
+# 50. 足りない追跡ファイルはまとめて報告する
+lock_repo "$tmp/lock-missing2" && git -C "$tmp/lock-missing2" rm -q .devcontainer/resoloop.lock .devcontainer/resoloop-lock.bash \
+  && git -C "$tmp/lock-missing2" commit -q -m rm
+expect_fail_with "$tmp/lock-missing2" 'missing tracked file .devcontainer/resoloop.lock'
+grep -qF 'missing tracked file .devcontainer/resoloop-lock.bash' "$tmp/out.txt" || { cat "$tmp/out.txt" >&2; printf 'FAIL: only the first missing file was reported\n' >&2; exit 1; }
+
+# 51. 衝突の解決中（ステージ 0 に無い）のロックは、終了コード 1 で解決を促す（128 で止まらない）
+lock_repo "$tmp/lock-conflict"
+git -C "$tmp/lock-conflict" checkout -q -b other
+sed -i 's|^RESOLOOP_FORK_REF=.*|RESOLOOP_FORK_REF=fix/other|' "$tmp/lock-conflict/.devcontainer/resoloop.lock" && commit_paths "$tmp/lock-conflict" .devcontainer
+git -C "$tmp/lock-conflict" checkout -q -
+sed -i 's|^RESOLOOP_FORK_REF=.*|RESOLOOP_FORK_REF=fix/mine|' "$tmp/lock-conflict/.devcontainer/resoloop.lock" && commit_paths "$tmp/lock-conflict" .devcontainer
+if git -C "$tmp/lock-conflict" merge -q other >/dev/null 2>&1; then printf 'FAIL: case 51 merged without a conflict\n' >&2; exit 1; fi
+expect_fail_with "$tmp/lock-conflict" '.devcontainer/resoloop.lock has unresolved merge conflicts'
+
+# 52. index から読めない blob（壊れたオブジェクト）は、終了コード 1 の FAIL として報告する
+remove_object() {  # $1=リポジトリ、$2=パス。index にある blob のオブジェクトファイルを消す
+  local oid
+  oid="$(git -C "$1" rev-parse ":$2")"
+  rm -f "$1/.git/objects/${oid:0:2}/${oid:2}"
+}
+lock_repo "$tmp/lock-corrupt" && remove_object "$tmp/lock-corrupt" .devcontainer/resoloop.lock
+expect_fail_with "$tmp/lock-corrupt" 'cannot read .devcontainer/resoloop.lock from the index'
+skill_repo "$tmp/link-corrupt"
+ln -s ../../.agents/skills/foo "$tmp/link-corrupt/.claude/skills/foo"
+commit_paths "$tmp/link-corrupt" .agents .claude
+remove_object "$tmp/link-corrupt" .claude/skills/foo
+expect_fail_with "$tmp/link-corrupt" 'cannot read the target of .claude/skills/foo from the index'
+
+# 53. mounts のソースと initialize.bash が作るパスが違えば失敗し、食い違いを示す
+lock_repo "$tmp/mount-diff" && sed -i 's|^  "${HOME}/.claude"$|  "${HOME}/.claude" \\\n  "${HOME}/.codex"|' "$tmp/mount-diff/.devcontainer/initialize.bash" \
+  && commit_paths "$tmp/mount-diff" .devcontainer
+expect_fail_with "$tmp/mount-diff" 'mounts: ~/.codex is created by initialize.bash but not mounted by devcontainer.json'
+lock_repo "$tmp/mount-missing" && git -C "$tmp/mount-missing" rm -q .devcontainer/initialize.bash .devcontainer/mounts.bash \
+  && git -C "$tmp/mount-missing" commit -q -m rm
+expect_fail_with "$tmp/mount-missing" 'missing tracked file .devcontainer/mounts.bash'
+grep -qF 'missing tracked file .devcontainer/initialize.bash' "$tmp/out.txt" || { cat "$tmp/out.txt" >&2; printf 'FAIL: missing initialize.bash was not reported\n' >&2; exit 1; }
+
+# 54. mounts も index の内容で判定する（作業ツリーの initialize.bash だけが違っても通過する）
+lock_repo "$tmp/mount-worktree"
+printf '#!/bin/bash\n' > "$tmp/mount-worktree/.devcontainer/initialize.bash"
+bash "$checker" --root "$tmp/mount-worktree" > "$tmp/mount-worktree.out"
+grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/mount-worktree.out"
 
 printf 'PASS: check-layout script behaves as specified\n'
