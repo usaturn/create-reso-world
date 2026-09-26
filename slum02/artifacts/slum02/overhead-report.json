@@ -1,0 +1,30 @@
+{
+  "sector": "overhead",
+  "objects": 32,
+  "triangles": 18890,
+  "vertices": 10101,
+  "submeshes": 100,
+  "materials": [
+    "cloth_red",
+    "corrugated",
+    "plastic_crate",
+    "plywood",
+    "rubber",
+    "steel_bare",
+    "steel_dark",
+    "tarp_blue",
+    "tarp_green",
+    "tarp_orange"
+  ],
+  "material_count": 10,
+  "ao": {
+    "baked": 32,
+    "seconds": 0.4,
+    "samples": 16
+  },
+  "uv_issue_count": 0,
+  "blend_path": "/workspaces/reso-world/slum02/artifacts/slum02/overhead.blend",
+  "blender_version": "5.0.1",
+  "export_collection": "Slum02OverheadExport",
+  "triangles_blender": 18890
+}
