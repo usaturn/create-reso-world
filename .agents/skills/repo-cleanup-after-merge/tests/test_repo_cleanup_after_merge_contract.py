@@ -72,6 +72,23 @@ def test_local_main_follows_origin_main_by_fast_forward() -> None:
     assert "`main` branch は作成しない" not in content
 
 
+def test_fork_route_syncs_first_and_skips_worktree_step() -> None:
+    # The fork's origin/main lags upstream/main until sync has run, so an
+    # upstream PR must be judged against upstream/main, sync must run before
+    # the merge check, and step 7 (git switch main) must not move the fork's
+    # detached checkout off its lock commit.
+    content = read(SKILL)
+    fork_section = content.split("### fork の経路", 1)[1].split("## ワークフロー", 1)[0]
+    assert "手順 10 の `sync` を先に実行し" in fork_section
+    assert "上流" in fork_section and "`upstream/main`" in fork_section
+    assert "fork 内" in fork_section and "`origin/main`" in fork_section
+    assert "手順 7" in fork_section and "実行しない" in fork_section
+    assert "detached" in fork_section
+    assert "リポジトリのルート" in fork_section
+    # Steps 3, 7 and 10 must point back at this paragraph.
+    assert content.count("「fork の経路だけの手順」") >= 2
+
+
 def test_ignored_files_in_a_worktree_are_checked_before_removal() -> None:
     # git worktree remove deletes ignored files without asking.
     content = read(SKILL)
@@ -91,6 +108,23 @@ def test_related_skills_exist() -> None:
         assert (REPO_ROOT / ".agents/skills" / name / "SKILL.md").is_file(), name
 
 
+def test_remote_branch_deletion_candidates_are_limited_to_origin() -> None:
+    # git branch -r --merged origin/main also lists upstream/* on the fork
+    # route; candidates for remote deletion must stay within origin/*.
+    content = read(SKILL)
+    assert (
+        "git branch -r --merged origin/main | grep -E '^ *origin/' "
+        "| grep -vE 'origin/(HEAD|main)$'"
+    ) in content
+
+
+def test_ignored_file_deletion_exception_is_stated_consistently() -> None:
+    # The "never delete ignored files without checking" rule has one
+    # exception (regenerable caches); it must read the same everywhere.
+    content = read(SKILL)
+    assert content.count("再生成できるキャッシュを除き") >= 3
+
+
 def test_evals_cover_the_rules_of_this_repository() -> None:
     names = {item["name"] for item in json.loads(read(EVALS))["evals"]}
     assert {
@@ -106,8 +140,7 @@ def test_evals_cover_the_rules_of_this_repository() -> None:
 def test_fork_sync_describes_push_semantics_correctly() -> None:
     # The sync step must correctly describe when fork/main is pushed.
     content = read(SKILL)
-    # After the fix: fork's main is pushed when local main is clean,
-    # but not when local main has uncommitted changes (though origin/main is synced).
+    # Step 10: sync pushes fork/main first, then stops without moving local main if it is dirty.
     assert "fork の `main` への push を済ませてから" in content
     assert "origin/main is already synced" in content
     # The old incorrect description must be gone.

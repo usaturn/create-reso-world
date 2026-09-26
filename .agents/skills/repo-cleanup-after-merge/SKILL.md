@@ -25,7 +25,17 @@ git の操作はほぼ全て取り消せる。取り消せないのは次の 2 �
 - `usaturn/resoloop` または `orange3134/resoloop` の PR: fork の checkout `external/resoloop`（リポジトリのルート基準）が root である。Git コマンドは `git -C external/resoloop ...`、`gh` 呼び出しには PR が属するリポジトリに合わせて `--repo usaturn/resoloop` か `--repo orange3134/resoloop` を付けて実行する。checkout が無い、または `origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` でない場合は、`scripts/resoloop-fork.sh clone` を案内して停止する
 - それ以外: 推測せず停止する
 
-両方にまたがる整理は、リポジトリごとにこの手順を回す。fork の経路では、手順 6 の `session.json` の `destination` は fork 側の `reviews/`（`external/resoloop/reviews/`）を指す。
+両方にまたがる整理は、リポジトリごとにこの手順を回す。手順 6 の `session.json` の `destination` は相対パス（`reviews/<dir>/<model>.md`）であり、同じ `session.json` の `main_root` に結合して正本パスを得る（fork の経路では `main_root` が `external/resoloop` 配下を指す）。
+
+### fork の経路（`external/resoloop`）だけの手順
+
+fork の checkout は `scripts/resoloop-fork.sh checkout` が固定した lock commit へ detached HEAD で置かれており、`build` はこれを動かさない。この前提から、fork の経路は次の順で進める。
+
+1. ユーザー確認を得てから（Claude Code では AskUserQuestion）、手順 10 の `sync` を先に実行し、fork の `main` を上流へ追従させる。手順 2 の `fetch --prune` の前でよい
+2. マージ済みかの判定（手順 3）は、上流 `orange3134/resoloop` 発の PR は `upstream/main` を、fork 内（`usaturn/resoloop` 発）の PR は `origin/main` を基準にする。`sync` を先に済ませていないと、上流でマージ済みの PR がこの fork の `origin/main` ではまだ未取り込みに見える
+3. 手順 7（`git switch main` / `merge --ff-only`）は実行しない。`external/resoloop` は detached のまま残す。誤って動かしていた場合は `bash scripts/resoloop-fork.sh checkout` で lock commit へ復元する
+
+`bash scripts/resoloop-fork.sh sync` と `git -C external/resoloop ...` は、エージェントがどの作業ディレクトリから開始していても、リポジトリのルート（`cd "$(git rev-parse --show-toplevel)"`）で実行する。
 
 ## ワークフロー
 
@@ -70,6 +80,8 @@ git log --oneline origin/main..<branch>
 - 出力が空: `origin/main` に取り込み済みである。`gh pr list --state all` の対応する要素が `"state": "MERGED"` であることも確認する。
 - 出力がある: 未取り込みである。この branch と対応する worktree は削除しない。
 
+fork の経路で上流 PR を判定する場合は基準が異なる。「fork の経路だけの手順」を見る。
+
 ### 4. worktree ごとに clean を確認する
 
 ```bash
@@ -89,7 +101,7 @@ untracked ファイルは正本と照合する述語を持たないため、ゲ�
 
 **生成物は worktree の外（scratchpad / `mktemp -d`）に出す。** untracked が発生しないので手順 4 で止まらない。本スキルは worktree 直下の untracked を機械的に照合する述語を持たない。手順 6 のゲート A は `session.json` を持つ残骸ディレクトリ専用であり、worktree 内に残す限り毎回ユーザー確認になる。
 
-`.gitignore` への追加で黙らせてはならない。gitignore 対象は本スキルのガードレールで照合なしの削除を禁じており、`git status` からも消えるため、照合する術が無いまま残り続ける。
+`.gitignore` への追加で黙らせてはならない。gitignore 対象は、再生成できるキャッシュを除き、本スキルのガードレールで照合なしの削除を禁じており、`git status` からも消えるため、照合する術が無いまま残り続ける。
 
 ### 5. worktree を削除する
 
@@ -108,13 +120,13 @@ worktree 本体の削除と、手順 6 の残骸削除は **別の判断**であ
 
 `git worktree remove` は作業ツリーだけを消す。親ディレクトリに残る `session.json` や `review-backup/` は **git 管理外**であり、`git status` にも `git worktree list` にも現れない。
 
-正本パスは残骸ディレクトリの `session.json` の `destination` から取る。branch 名の変換で推測しない。
+正本パスは残骸ディレクトリの `session.json` の `destination`（`reviews/<dir>/<model>.md` の相対パス）を、同じ `session.json` の `main_root` に結合して取る。branch 名の変換で推測しない。
 
 ```bash
-uv run --no-project python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["destination"])' <残骸ディレクトリ>/session.json
+uv run --no-project python -c 'import json,sys; d=json.load(open(sys.argv[1], encoding="utf-8")); print(d["main_root"] + "/" + d["destination"])' <残骸ディレクトリ>/session.json
 ```
 
-`session.json` が無い、`destination` が読めない、またはその親がリポジトリの `reviews/` 配下に無い場合は削除せず停止する。
+`session.json` が無い、`main_root` または `destination` が読めない、または結合した正本パスがリポジトリの `reviews/` 配下に無い場合は削除せず停止する。
 
 ```bash
 diff -rq <残骸ディレクトリ>/review-backup <正本ディレクトリ> > /tmp/gate-a.out 2> /tmp/gate-a.err; echo $?
@@ -139,6 +151,8 @@ cp <残骸ディレクトリ>/review-backup/<model>.md <正本ディレクトリ
 `reviews/` は `.gitignore` 対象であり、git は一切保護しない。
 
 ### 7. 作業ツリーを origin/main へ更新する
+
+fork の経路ではこの手順を実行しない。「fork の経路だけの手順」を見る。
 
 メイン作業ツリーの `git status --short` が空であることを確認する。空でなければ checkout も branch 削除もせず、ユーザーへ報告する。
 
@@ -176,7 +190,7 @@ warning: deleting branch '<branch>' that has been merged to
 手順 8 でローカル branch を消すと対象名が手元から消える。リモート側から独立に洗い出す。
 
 ```bash
-git branch -r --merged origin/main | grep -vE 'origin/(HEAD|main)$'
+git branch -r --merged origin/main | grep -E '^ *origin/' | grep -vE 'origin/(HEAD|main)$'
 ```
 
 候補が複数ある場合は、手順 1 で取得した `gh pr list --state all` の `headRefName` と突き合わせ、**どの PR 由来か**を添えて提示する。対応する PR が見つからないリモート branch は候補から外し、そのまま残す。
@@ -190,7 +204,7 @@ git fetch --prune
 
 ### 10. resoloop の上流に追従する（fork の経路だけ）
 
-上流 `orange3134/resoloop` で PR がマージされたら、fork の `main` を上流へ追従させる。リポジトリのルートで実行する。
+上流 `orange3134/resoloop` で PR がマージされたら、fork の `main` を上流へ追従させる。リポジトリのルートで実行する。fork の経路ではこの手順を手順 3 の判定より先に行う。「fork の経路だけの手順」を見る。
 
 ```bash
 bash scripts/resoloop-fork.sh sync
@@ -234,7 +248,7 @@ git branch -a
 | 「マージ済み branch の削除は cleanup の一環」 | ローカルはそうである。リモートは他人が見る共有物であり、外向きの操作である |
 | 「手早くと言われた」 | 照合は数秒で終わる。失ったレビューの再生成はそれより桁違いに高い |
 | 「untracked が出るのは仕方ない。毎回訊けばよい」 | 訊かれるのは、判定不能な生成物を作り続けている上流の手順があるからである。生成側を直せば訊く必要そのものが無くなる |
-| 「毎回同じ確認で面倒なので `.gitignore` に入れる」 | `git status` から消えるだけで、復元不能なファイルであることは変わらない。gitignore 対象は本スキルのガードレールで照合なしの削除を禁じており、判定不能なまま残り続ける |
+| 「毎回同じ確認で面倒なので `.gitignore` に入れる」 | `git status` から消えるだけで、復元不能なファイルであることは変わらない。gitignore 対象は、再生成できるキャッシュを除き、本スキルのガードレールで照合なしの削除を禁じており、判定不能なまま残り続ける |
 
 ## ガードレール
 
