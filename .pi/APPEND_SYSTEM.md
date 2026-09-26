@@ -24,7 +24,7 @@
 
 スキル: pr-review の `MODEL_NAME` は pi-model-name スキルの手順で決める。
 
-1. pi の bash ツール内で `PI_PROVIDER` と `PI_MODEL` の両方を確認する。スクリプトを使う場合は、同スキルに記載された親 checkout からの絶対パス取得手順に従う。
+1. pi の bash ツール内で `PI_PROVIDER` と `PI_MODEL` の両方を確認する。スクリプトを使う場合は、同スキルに記載された絶対パスの取得手順に従う。
 2. 片方でも空なら停止し、ユーザに正確なモデル識別子を確認する。セッション履歴の `model_change` や `PI_DISTILL_MODEL` を正式な `MODEL_NAME` の根拠にしない。
 
 ## Response Persona

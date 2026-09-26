@@ -35,7 +35,7 @@ echo "$PI_DISTILL_MODEL"
 grep -o '"modelId":"[^"]*"' ~/.pi/agent/sessions/--*/ *.jsonl | tail -1
 ```
 
-正式な `MODEL_NAME` に履歴を使わない。`PI_PROVIDER` / `PI_MODEL` が空なら履歴へフォールバックせず、停止してユーザに確認する。これは `pr-review` の契約と同じである。
+正式な `MODEL_NAME` に履歴を使わない。`PI_PROVIDER` / `PI_MODEL` が空なら履歴へフォールバックせず、停止してユーザに確認する。これは `pr-review` の規則と同じである。
 
 ## Quick Reference
 
@@ -54,14 +54,11 @@ grep -o '"modelId":"[^"]*"' ~/.pi/agent/sessions/--*/ *.jsonl | tail -1
 
 同梱スクリプトが strict 既定で表示する。ランタイム変数が揃い、現在のセッションファイルがある場合は、選択値と直近の応答記録を照合する。履歴読みは情報表示の明示指定だけに使う。
 
-親 checkout の root にいるうちにスクリプトの絶対パスを取得する。同じシェルなら `public/` や公開側 worktree に移動した後も使える。
+スクリプトはこのリポジトリにだけあるので、このリポジトリの中（ルートかワールドのプロジェクト）で絶対パスを取得する。`external/resoloop` は別のリポジトリで、そこで `git rev-parse --show-toplevel` を実行すると fork の checkout を返す。先に取得しておけば、同じシェルで `external/resoloop` に移動した後も使える。
 
 ```bash
-# 親 checkout の root で実行
+# このリポジトリの中で実行する
 PI_MODEL_SCRIPT="$(git rev-parse --show-toplevel)/.agents/skills/pi-model-name/scripts/print-pi-model.sh"
-
-# 公開側 checkout に移動した後も実行できる
-cd public
 
 # 既定: provider/model を表示。欠けたら exit 2 で停止
 "$PI_MODEL_SCRIPT"
