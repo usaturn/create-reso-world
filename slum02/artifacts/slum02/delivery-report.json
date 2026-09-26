@@ -124,9 +124,10 @@
     "trianglesBlenderIncludingScatterAndSpray": 473164,
     "vertices": 256591,
     "submeshes": 1004,
-    "uniqueMaterials": 42,
+    "uniqueMaterials": 44,
+    "uniqueMaterialsNote": "セクタジオメトリのレポートで名が出る素材は 42 種。spray_black / spray_red は Blender 側の spray-art パスで後から追加されたため、マニフェストではパレット定義 44 種すべてが使用されている",
     "materialComponents": {"PBS_VertexColorMetallic": 38, "FresnelMaterial": 6, "PBS_Metallic": 0},
-    "budgetNote": "全体 40〜60 万三角形の目安に対し 45〜47 万で範囲内。backdrop 17,720 は 2 万以下の目安を遵守。マテリアル 42 種は目安 30〜40 をわずかに超過（advisoryOverruns 参照）"
+    "budgetNote": "全体 40〜60 万三角形の目安に対し 45〜47 万で範囲内。backdrop 17,720 は 2 万以下の目安を遵守。マテリアル 44 種は目安 30〜40 をわずかに超過（advisoryOverruns 参照）"
   },
   "noiseTextures": {
     "count": 6,
@@ -206,7 +207,7 @@
       {"scope": "market / shacks / towers-a / towers-b / plaza(Blender実測)", "trigger": ">50,000 triangles", "justification": "1 オブジェクト 1 メッシュ方針により建物・セクタ集合を 1 エクスポート単位にまとめている。実表示単位はオブジェクトごとのメッシュ（最大でも塔 1 棟 ~8k tris 級）であり、セクタ合計が閾値を超えるのはまとめ方による。全体 45〜47 万 tris は計画予算 40〜60 万の範囲内"},
       {"scope": "ground / market / nightlife / overhead / plaza / shacks / towers-abc / ads", "trigger": ">8 materials", "justification": "素材分離は汚れ・経年の原因ベース表現（錆、煤、退色、濡れ）を頂点カラー＋素材で分ける設計の結果。統合すると可視の素材差を犠牲にするため維持"},
       {"scope": "ads / backdrop / market / nightlife / overhead / plaza / shacks / towers-abc", "trigger": ">16 submeshes/draw sections", "justification": "サブメッシュは 1 オブジェクト内の素材スロット分割。1 オブジェクト 1 メッシュの可触性を優先し、素材ごとのサブメッシュは仕様どおり"},
-      {"scope": "全体", "trigger": "unique materials 42 > 目安 30〜40", "justification": "44 素材定義のうち 42 を使用。色彩バリエーション（タープ 3 色、ネオン 7 色、ホロ 6 色、塗装退色 2 色）が賑わい表現の中核であり、削減すると見た目の密度が下がる。コンポーネント数は 44（PBS 38 + Fresnel 6）で Light 25・影あり 3 は予算内"}
+      {"scope": "全体", "trigger": "unique materials 44 > 目安 30〜40", "justification": "パレットの 44 素材定義をすべて使用（セクタレポートで名が出る 42 種 + Blender 側 spray-art パスで追加された spray_black / spray_red）。色彩バリエーション（タープ 3 色、ネオン 7 色、ホロ 6 色、塗装退色 2 色）が賑わい表現の中核であり、削減すると見た目の密度が下がる。コンポーネント数は 44（PBS 38 + Fresnel 6）で Light 25・影あり 3 は予算内"}
     ]
   },
   "previewSelfReviewSummary": "全 11 セクタで Cycles プレビューを 1〜3 往復し、裏返り・浮き・めり込み・UV 歪みを幾何テストと目視で潰した。主な修正: 平面デカールの閉じたシェル化（法線不定の解消）、車のリム接地、タンクと文字の干渉回避、重ねパネルの接触計測、室外機・庇の接触テスト、窓グリッド共有化による爆発抑制（47 万→17 万 tris）。overhead の 8 方位合成で視線の抜け・地平線の露出がないことを確認（sightline 失敗 0 と一致）。詳細は artifacts/slum02/preview/review.md",
