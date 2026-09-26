@@ -296,7 +296,7 @@ for extension in \
         fail "Failed to install the pi extension ${extension}."
     fi
 done
-if ! python3 scripts/setup_pi_tool_display.py; then
+if ! python3 .devcontainer/setup_pi_tool_display.py; then
     fail "Failed to disable the pi tool-display Bash override."
 fi
 
@@ -349,8 +349,8 @@ fi
 step "Writing the pi-superagents launcher configs"
 # pi-superagents のランチャー別 model tier 設定を配置する。既存の config は
 # 保持する。tier 表を変更したときは、リポジトリのルートで
-# zsh scripts/setup_pi_superagents.zsh を実行して反映する。
-if ! zsh scripts/setup_pi_superagents.zsh --if-absent; then
+# zsh .devcontainer/setup_pi_superagents.zsh を実行して反映する。
+if ! zsh .devcontainer/setup_pi_superagents.zsh --if-absent; then
     fail "Failed to set up pi-superagents launcher configs."
 fi
 

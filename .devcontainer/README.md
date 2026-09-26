@@ -121,7 +121,7 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 12. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
 13. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
 14. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
-15. `zsh scripts/setup_pi_superagents.zsh`
+15. `zsh .devcontainer/setup_pi_superagents.zsh`
 
 プラグインの有効化は `.claude/settings.json` の `extraKnownMarketplaces` と
 `enabledPlugins` で行う。設定の反映には Claude Code の再起動が必要である。
@@ -130,8 +130,8 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 
 `~/.pi` は `devcontainer.json` で bind mount している。認証情報
 （`~/.pi/agent/auth.json`）とモデル定義（`~/.pi/agent/models.json`）が
-ホスト側に残るため、リビルド後に `scripts/setup_pi.zsh`、
-`scripts/setup_pi_opencode_go.zsh`、`scripts/setup_pi_commandcode_goat.zsh`
+ホスト側に残るため、リビルド後に `.devcontainer/setup_pi.zsh`、
+`.devcontainer/setup_pi_opencode_go.zsh`、`.devcontainer/setup_pi_commandcode_goat.zsh`
 を実行し直す必要はない。
 
 `install_beforehand.bash` は次のものを配置する。挙動が異なるのは、
@@ -152,7 +152,7 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
   `.devcontainer/pi-superagents-exec.zsh` → `~/.local/bin/pi-superagents-exec.zsh`。
   `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 2 種を配置する
   （詳細は後述の「pi-superagents のランチャー別 model tier」を参照）
-- `scripts/setup_pi_tool_display.py` は
+- `.devcontainer/setup_pi_tool_display.py` は
   `~/.pi/agent/extensions/pi-tool-display/config.json` の Bash override だけを
   `false` にする。既存設定の他の項目は保持する
 
@@ -197,7 +197,7 @@ Warning: Model "deepseek-flash" not found for provider "opencode-go". Using cust
 使われる結果、context window は 262,144（本来は 1,000,000）、max output は
 65,536（本来は 384,000）になり、`supportsReasoningEffort` が false のため
 `--thinking max` の `reasoning_effort` も送られない。
-`scripts/setup_pi_opencode_go.zsh` の手順 6 は各ランチャーのモデル ID を
+`.devcontainer/setup_pi_opencode_go.zsh` の手順 6 は各ランチャーのモデル ID を
 `pi --list-models` で検証するので、この種の改名は setup の時点で失敗する。
 
 ID と表示名が一致しないモデルなので注意する。カタログ上の表示名は
@@ -254,7 +254,7 @@ provider が `opencode-go` のモデルへ `x-opencode-session` と
 （画像は別モデル `deepseek/deepseek-v4-flash-vision-exp` が担う）。
 
 既存の `~/.pi/agent/models.json` がある環境では、初回だけ
-`zsh scripts/setup_pi_commandcode_goat.zsh` を実行して `commandcode`
+`zsh .devcontainer/setup_pi_commandcode_goat.zsh` を実行して `commandcode`
 プロバイダを反映する必要がある。`install_beforehand.bash` は `piccg` と
 `piccd` を毎回配置する一方 models.json は既存ファイルを上書きしないため、
 この一度の実行を省くと `piccg` が pi の `Unknown provider "commandcode"` で
@@ -369,14 +369,14 @@ Distillation 専用の `deepinfra-distill` provider は通常利用の `deepinfr
 では、Pi 標準 Bash tool にセッション情報が渡らず、LLM が呼ぶ Bash tool 内の
 `PI_PROVIDER`、`PI_MODEL`、`PI_SESSION_ID`、`PI_REASONING_LEVEL` が空になる。
 `install_beforehand.bash` は `pi-distill` のインストール後に
-`scripts/setup_pi_tool_display.py` を実行し、`registerToolOverrides.bash` だけを
+`.devcontainer/setup_pi_tool_display.py` を実行し、`registerToolOverrides.bash` だけを
 `false` にする。これにより Pi 標準 Bash tool が実行を担当し、`pi-distill` の
 tool result 圧縮は続く。Bash 専用の tool-display 表示は使えなくなる。
 
 既存環境へ反映するときは、リポジトリのルートで次を実行し、Pi で `/reload` する。
 
 ```bash
-python3 scripts/setup_pi_tool_display.py
+python3 .devcontainer/setup_pi_tool_display.py
 ```
 
 スクリプトは `PI_CODING_AGENT_DIR` を指定している場合、その agent directory 内の
@@ -391,14 +391,14 @@ printf 'provider=<%s> model=<%s> session=<%s> reasoning=<%s>\n' \
 `/model` でモデルを切り替えて再実行すると provider / model が更新され、同じ
 session ID が維持される。長い Bash 出力の後に `/distill:stats` で圧縮実績を確認する。
 
-既存環境では `zsh scripts/setup_pi.zsh` を一度実行し、`deepinfra` と
+既存環境では `zsh .devcontainer/setup_pi.zsh` を一度実行し、`deepinfra` と
 `deepinfra-distill` を `~/.pi/agent/models.json` へ同期する
 （`install_beforehand.bash` は既存ファイルを上書きしないため）。
 
 ### setup スクリプトを使う場面
 
-`scripts/setup_pi.zsh`（deepinfra / deepinfra-distill）、`scripts/setup_pi_opencode_go.zsh`
-（opencode-go）、`scripts/setup_pi_commandcode_goat.zsh`（commandcode）は、
+`.devcontainer/setup_pi.zsh`（deepinfra / deepinfra-distill）、`.devcontainer/setup_pi_opencode_go.zsh`
+（opencode-go）、`.devcontainer/setup_pi_commandcode_goat.zsh`（commandcode）は、
 リビルドのたびに実行するものではない。次の場面で使う。
 
 - API キーをローテーションしたとき（`setup_pi_opencode_go.zsh` が
@@ -470,7 +470,7 @@ Grok の `max` が `xhigh`、Grok の `balanced` が `high`。
 tier を変更するときは、リポジトリの `.devcontainer/pi-superagents/<launcher>.json` を編集してから次を実行する。`install_beforehand.bash` は既存の設定を保持するため、rebuild だけでは反映されない。
 
 ```bash
-zsh scripts/setup_pi_superagents.zsh
+zsh .devcontainer/setup_pi_superagents.zsh
 ```
 
 `bwrap` が無い、またはランチャー用の設定が無い場合、ランチャーは起動せずに案内を出す。共有設定へ暗黙にフォールバックすると tier が警告なく混線するため。
@@ -509,7 +509,7 @@ pi update npm:@teelicht/pi-superagents
 指定を変更できる。既に v1.14.3 以降なら下げる必要はない。更新後に同じ版確認を行う。
 
 次に、#408 の撤去変更を含むリポジトリのセットアップへ更新してから、下の任意整理に進む。
-新しい `scripts/setup_pi_superagents.zsh` は `~/.pi/agent/settings.json` を
+新しい `.devcontainer/setup_pi_superagents.zsh` は `~/.pi/agent/settings.json` を
 作成・変更しない。旧セットアップを残したままエントリだけ削除すると、再実行で追加される。
 
 ##### 旧エントリの任意整理

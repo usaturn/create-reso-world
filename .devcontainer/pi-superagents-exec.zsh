@@ -121,7 +121,7 @@ pi_superagents_exec() {
         print -ru2 -- ""
         print -ru2 -- "リポジトリのルートで setup スクリプトを一度実行してください:"
         print -ru2 -- ""
-        print -ru2 -- "  zsh scripts/setup_pi_superagents.zsh"
+        print -ru2 -- "  zsh .devcontainer/setup_pi_superagents.zsh"
         return 1
     fi
 

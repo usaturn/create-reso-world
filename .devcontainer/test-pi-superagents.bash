@@ -578,7 +578,7 @@ test_pigou_models_json_uses_home_fallback() {
     assert_contains "$out" "union-alpha" "defined model must reach argv via fallback"
 }
 
-SETUP="${REPO_ROOT}/scripts/setup_pi_superagents.zsh"
+SETUP="${REPO_ROOT}/.devcontainer/setup_pi_superagents.zsh"
 
 run_setup() {
     local home="$1"; shift
@@ -800,8 +800,8 @@ PI_EOF
 # をランチャーから Pi へ渡す引数として示し、その経路が pi-superagents の bwrap
 # wrapper を通ることと、tier 設定が ~/.pi/agent/extensions/subagent.d/<launcher>/
 # config.json にあることを含める。
-SETUP_OPENCODE="${REPO_ROOT}/scripts/setup_pi_opencode_go.zsh"
-SETUP_COMMANDCODE="${REPO_ROOT}/scripts/setup_pi_commandcode_goat.zsh"
+SETUP_OPENCODE="${REPO_ROOT}/.devcontainer/setup_pi_opencode_go.zsh"
+SETUP_COMMANDCODE="${REPO_ROOT}/.devcontainer/setup_pi_commandcode_goat.zsh"
 
 # 両 setup スクリプトが command -v pi / pi --list-models / pi update --models を
 # 使うため、PATH 先頭に置く fake pi。実環境の pi には影響を与えない。

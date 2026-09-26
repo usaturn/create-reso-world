@@ -10,7 +10,7 @@ MODELS_JSON="${PI_DIR}/models.json"
 
 # モデル定義の正は .devcontainer/pi-models.json とする。
 # ここに定義を埋め込むと install_beforehand.bash が配置する内容とずれる。
-MODELS_SOURCE="${0:A:h}/../.devcontainer/pi-models.json"
+MODELS_SOURCE="${0:A:h}/pi-models.json"
 
 echo "=== Pi + DeepInfra setup ==="
 

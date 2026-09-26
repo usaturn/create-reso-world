@@ -18,8 +18,8 @@ set -euo pipefail
 # config は更新されない。
 #
 # 使い方:
-#   zsh scripts/setup_pi_superagents.zsh              置き直す（既存はバックアップ）
-#   zsh scripts/setup_pi_superagents.zsh --if-absent  無いものだけ置く
+#   zsh .devcontainer/setup_pi_superagents.zsh              置き直す（既存はバックアップ）
+#   zsh .devcontainer/setup_pi_superagents.zsh --if-absent  無いものだけ置く
 #
 
 readonly REPO_ROOT="${0:A:h}/.."

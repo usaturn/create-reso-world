@@ -36,7 +36,7 @@ readonly MODELS_JSON="${PI_DIR}/models.json"
 # The model definition is kept in the repository so that
 # install_beforehand.bash and this script cannot drift apart.
 #
-readonly MODELS_SOURCE="${0:A:h}/../.devcontainer/pi-models.json"
+readonly MODELS_SOURCE="${0:A:h}/pi-models.json"
 
 #
 # Launchers placed by this script, as parallel arrays: each launcher is
@@ -48,7 +48,7 @@ readonly MODELS_SOURCE="${0:A:h}/../.devcontainer/pi-models.json"
 #
 readonly LAUNCHER_NAMES=(pigo pigod pigou)
 readonly LAUNCHER_MODELS=("${MODEL}" "deepseek-v4.1-flash" "union-alpha")
-readonly LAUNCHER_DIR="${0:A:h}/../.devcontainer"
+readonly LAUNCHER_DIR="${0:A:h}"
 
 readonly BIN_DIR="${HOME}/.local/bin"
 

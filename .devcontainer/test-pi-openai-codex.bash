@@ -13,7 +13,7 @@ assert_eq() {
 }
 setup_for_home() {
     local output
-    output="$(env HOME="$1" zsh "${REPO_ROOT}/scripts/setup_pi_superagents.zsh" 2>&1)" \
+    output="$(env HOME="$1" zsh "${REPO_ROOT}/.devcontainer/setup_pi_superagents.zsh" 2>&1)" \
         || fail "pi-superagents setup failed: ${output}"
 }
 

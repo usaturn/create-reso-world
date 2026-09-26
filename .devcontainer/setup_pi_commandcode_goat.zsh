@@ -57,7 +57,7 @@ readonly MODELS_JSON="${PI_DIR}/models.json"
 # The model definition and the launchers are kept in the repository so
 # that install_beforehand.bash and this script cannot drift apart.
 #
-readonly DEVCONTAINER_DIR="${0:A:h}/../.devcontainer"
+readonly DEVCONTAINER_DIR="${0:A:h}"
 readonly MODELS_SOURCE="${DEVCONTAINER_DIR}/pi-models.json"
 
 readonly BIN_DIR="${HOME}/.local/bin"
