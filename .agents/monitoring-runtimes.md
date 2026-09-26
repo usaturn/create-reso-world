@@ -2,19 +2,19 @@
 
 `monitoring-long-tasks` が定める監視手順を、この Dev Container の各ランタイムでどのツールに割り当てるかだけを示す。
 
-- OR 待機の型、レポートが無いまま対象が消えた場合の異常終了扱い、`verify.sh` の PID 導出とログ末尾 `EXIT=<code>` の確認は、スキル step 1〜3 に従う。ここでは重複させない
+- OR 待機の型、レポートが無いまま対象が消えた場合の異常終了扱い、ログ名からの PID 導出と終了コードの確認は、スキル step 1〜3 に従う。ここでは重複させない
 - controller がターンを完了通知に委ねてよいかは扱わない
 
 ## 対応表
 
 | ランタイム | 完了 | 生存 | 進捗 / stall | OR 待機の組み方 |
 | --- | --- | --- | --- | --- |
-| Claude Code | Bash `run_in_background: true` の完了通知（終了コードを含む）。サブエージェントは `Agent` の完了通知 | 既知の PID を `kill -0` | 完了通知やツール結果が返す出力ファイル path を `Read`。`verify.sh` は印字されたログ path を使い、固定パスを仮定しない | 下の参考実装を `run_in_background: true` に渡す。進捗を都度イベントとして受け取るときだけ `Monitor` を使う |
-| Devin | バックグラウンド `exec`（`timeout: 0`、または既定の自動バックグラウンド化）で起動した対象を `get_output` で待つ。`get_output` は対象プロセスの終了で即復帰し、終了コードは出力末尾の `Exit code: <n>` で確認する。1 回の待機上限は約 280 秒のため、タイムアウトしたら呼び直す。非同期の完了通知が届くのは `run_subagent` のサブエージェント（`<subagent_completion_notification>`）だけであり、シェルプロセスの終了は push されない | 既知の PID を `kill -0`（`exec` 経由）。`verify.sh` の PID 同一性確認はスキル step 3 のまま適用する | `verify.sh` が印字したログ path を `read` で読む。mtime / サイズが必要なら `exec` で `stat` を使う | 下の参考実装をそのままバックグラウンド `exec`（`timeout: 0`）で動かし、その監視シェルを `get_output` で待つ。ループの脱出がそのまま `report exists OR worker is not alive` の解消になる |
+| Claude Code | Bash `run_in_background: true` の完了通知（終了コードを含む）。サブエージェントは `Agent` の完了通知 | 既知の PID を `kill -0` | 完了通知やツール結果が返す出力ファイル path を `Read`。ログ path を印字するコマンドはその path を使い、固定パスを仮定しない | 下の参考実装を `run_in_background: true` に渡す。進捗を都度イベントとして受け取るときだけ `Monitor` を使う |
+| Devin | バックグラウンド `exec`（`timeout: 0`、または既定の自動バックグラウンド化）で起動した対象を `get_output` で待つ。`get_output` は対象プロセスの終了で即復帰し、終了コードは出力末尾の `Exit code: <n>` で確認する。1 回の待機上限は約 280 秒のため、タイムアウトしたら呼び直す。非同期の完了通知が届くのは `run_subagent` のサブエージェント（`<subagent_completion_notification>`）だけであり、シェルプロセスの終了は push されない | 既知の PID を `kill -0`（`exec` 経由）。PID の同一性確認はスキル step 3 のまま適用する | コマンドが印字したログ path を `read` で読む。mtime / サイズが必要なら `exec` で `stat` を使う | 下の参考実装をそのままバックグラウンド `exec`（`timeout: 0`）で動かし、その監視シェルを `get_output` で待つ。ループの脱出がそのまま `report exists OR worker is not alive` の解消になる |
 | Cursor | TBD | TBD | TBD | TBD |
 
 ```bash
-# $pid の導出と、待機終了後の EXIT=<code> 確認はスキル step 3 に従う
+# $pid の導出と、待機終了後の終了コードの確認はスキル step 3 に従う
 until [ -f "$REPORT" ] || ! kill -0 "$pid" 2>/dev/null; do
   sleep 30
 done
