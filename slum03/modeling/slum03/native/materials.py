@@ -4,7 +4,8 @@ import re
 from modeling.slum03.materials import MATERIALS, NOISES
 from .common import add_component, group, walk
 
-_NAME = re.compile(r'mat_material_Slum03_(.+)_[0-9a-f]{8}$')
+# Merge may prepend one or more sector names (including hyphenated names).
+_NAME = re.compile(r'(?:[a-z0-9-]+-)?mat_material_Slum03_(.+)_[0-9a-f]{8}$')
 
 
 def palette_name(key: str) -> str | None:
@@ -54,7 +55,7 @@ def add_materials(manifest: dict) -> None:
                 continue
             key = component['key']
             name = palette_name(key)
-            if key.startswith('mat_material_Slum03_') and name not in MATERIALS:
+            if name is not None and name not in MATERIALS:
                 raise ValueError(f'unknown slum03 palette provider: {key}')
             if name is not None and name in MATERIALS:
                 n['components'][i] = convert(component, name)

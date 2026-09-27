@@ -215,3 +215,65 @@ def test_write_rebases_to_output_in_sibling_directory(tmp_path, monkeypatch):
     saved = json.loads(output.read_text())
     assert saved['assets']['mesh_a']['source'] == '../bundles/rev/ground/mesh_a.mesh.json'
     assert (output.parent / saved['assets']['mesh_a']['source']).read_bytes() == b'first'
+
+
+def test_materials_with_same_local_reference_spelling_but_different_targets_stay_distinct(tmp_path, monkeypatch):
+    directory = _setup(tmp_path, monkeypatch, second=b'first')
+    for sector, seed in (('ground', 1), ('plaza', 2)):
+        source = directory / sector / 'model.apply.json'
+        bundle = json.loads(source.read_text())
+        material = bundle['children'][1]['children'][0]['components'][0]
+        material['fields'] = {'AlbedoColor': [1, 0, 0, 1], 'AlbedoTexture': '$component:tex'}
+        bundle['children'][1]['children'].append({
+            'slot': {'key': 'provider_tex', 'name': 'tex_' + sector},
+            'components': [{'key': 'tex', 'type': 'FrooxEngine.NoiseTexture', 'fields': {'Seed': seed}}]})
+        source.write_text(json.dumps(bundle))
+    merged = pipeline.merge_bundles(directory)
+    comps = {c['key']: c for n in _nodes(merged) for c in n.get('components', [])}
+    assert comps['mat_a']['fields']['AlbedoTexture'] == '$component:tex'
+    assert comps['plaza-mat_a']['fields']['AlbedoTexture'] == '$component:plaza-tex'
+    plaza = next(n for n in _nodes(merged) if n['slot']['name'] == 'Plaza_driven')
+    renderer = next(c for c in plaza['components'] if c['type'] == 'FrooxEngine.MeshRenderer')
+    assert renderer['fields']['Materials'] == ['$component:plaza-mat_a', '$component:mat_b']
+
+
+def test_third_sector_reuses_second_sectors_identical_assets_and_materials(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, 'SECTORS', ('ground', 'plaza', 'market'))
+    directory = tmp_path / 'bundles' / 'rev'
+    _bundle(directory / 'ground', 'Ground', mesh=b'A', material={'AlbedoColor': [1, 0, 0, 1]})
+    _bundle(directory / 'plaza', 'Plaza', mesh=b'B', material={'AlbedoColor': [0, 0, 1, 1]})
+    _bundle(directory / 'market', 'Market', mesh=b'B', material={'AlbedoColor': [0, 0, 1, 1]})
+    merged = pipeline.merge_bundles(directory)
+    assert list(merged['assets']) == ['mesh_a', 'plaza-mesh_a']
+    assert [merged['assets'][k]['source'] for k in merged['assets']] == [
+        'ground/mesh_a.mesh.json', 'plaza/mesh_a.mesh.json']
+    comps = {c['key']: c for n in _nodes(merged) for c in n.get('components', [])}
+    assert 'market-mat_a' not in comps
+    assert comps['plaza-mat_a']['fields'] == {'AlbedoColor': [0, 0, 1, 1]}
+    market = next(n for n in _nodes(merged) if n['slot']['name'] == 'Market_driven')
+    assert market['components'][0]['fields']['URL'] == '$asset:plaza-mesh_a'
+    assert market['components'][1]['fields']['Materials'] == ['$component:plaza-mat_a', '$component:mat_b']
+    assert market['components'][1]['fields']['Mesh'] == '$component:market-mesh_a'
+
+
+def test_colliding_canonical_ads_material_still_converts_and_pans(tmp_path):
+    directory, layout = _full_setup(tmp_path)
+    key = 'mat_material_Slum03_holo_cyan_a06e351f'
+    ground = directory / 'ground' / 'model.apply.json'
+    bundle = json.loads(ground.read_text())
+    bundle['children'][1]['children'].append({
+        'slot': {'key': 'provider_' + key, 'name': 'ground_holo'},
+        'components': [{'key': key, 'type': 'FrooxEngine.PBS_Metallic',
+                        'fields': {'AlbedoColor': [1, 0, 0, 1]}}]})
+    ground.write_text(json.dumps(bundle))
+    final = pipeline.build_unified_manifest(directory, layout, {}, (0, 5, 0))
+    comps = {c['key']: c for n in _nodes(final) for c in n.get('components', [])}
+    renamed = 'ads-' + key
+    assert comps[renamed]['type'] == 'FrooxEngine.FresnelMaterial'
+    scan = next(n for n in _nodes(final) if n['slot']['name'] == 'nightlife-info-ad-driven')
+    renderer = next(c for c in scan['components'] if c['type'] == 'FrooxEngine.MeshRenderer')
+    clone = 'scan-' + scan['slot']['key'] + '-' + renamed
+    assert '$component:' + clone in renderer['fields']['Materials']
+    assert comps[clone]['type'] == 'FrooxEngine.FresnelMaterial'
+    for side in ('near', 'far'):
+        assert comps['panner-' + clone + '-' + side]['type'] == 'FrooxEngine.Panner2D'

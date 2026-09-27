@@ -140,8 +140,8 @@ def merge_bundles(bundle_dir: Path) -> Manifest:
     used = {'root'}
     used_assets: set[str] = set()
     assets: dict[str, dict] = {}
-    signatures: dict[str, tuple] = {}
-    providers: dict[str, tuple] = {}
+    asset_signatures: dict[str, dict[tuple[str, str], str]] = {}
+    material_signatures: dict[str, dict[str, str]] = {}
     children = []
     for sector in SECTORS:
         directory = bundle_dir / sector
@@ -156,12 +156,13 @@ def merge_bundles(bundle_dir: Path) -> Manifest:
                 raise ValueError(f'invalid asset key or entry: {key}')
             signature = (json.dumps({k: v for k, v in asset.items() if k != 'source'}, sort_keys=True),
                          hashlib.sha256(files[key].read_bytes()).hexdigest())
-            if key in signatures and signatures[key] == signature:
-                asset_keys[key] = key
+            reused = asset_signatures.get(key, {}).get(signature)
+            if reused is not None:
+                asset_keys[key] = reused
                 continue
             final = _claim(key, sector, used_assets)
             asset_keys[key] = final
-            signatures[final] = signature
+            asset_signatures.setdefault(key, {})[signature] = final
             assets[final] = {**asset, 'source': files[key].relative_to(bundle_dir).as_posix()}
         sector_key = _claim(f'sector-{sector}', sector, used)
         slot_keys = {'root': sector_key}
@@ -181,15 +182,19 @@ def merge_bundles(bundle_dir: Path) -> Manifest:
                 key = component['key']
                 if component.get('type') != 'FrooxEngine.PBS_Metallic':
                     continue
-                # Reuse only identical material declarations under the *same*
-                # stable key; never conflate similarly named but distinct fields.
+                # Local references can spell the same but point to different
+                # sector components/assets. Do not share reference-bearing
+                # material declarations without proving target identity.
                 identity = json.dumps(component, sort_keys=True, ensure_ascii=False)
-                if key in providers and providers[key] == identity:
-                    component_keys[key] = key
+                has_refs = any(_refs(component.get('fields', {})))
+                reused = None if has_refs else material_signatures.get(key, {}).get(identity)
+                if reused is not None:
+                    component_keys[key] = reused
                 else:
                     final = _claim(key, sector, used)
                     component_keys[key] = final
-                    providers[final] = identity
+                    if not has_refs:
+                        material_signatures.setdefault(key, {})[identity] = final
         maps = {'asset': asset_keys, 'slot': slot_keys, 'slot-member': slot_keys,
                 'component': component_keys, 'member': component_keys}
         emitted = []
