@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-27-slum03-cyberpunk-slum-design.md`（書面承認済み）。必ず計画と併読する。
 
-**Status:** 計画レビュー・実行方法選択待ち。ここに記したコード、テスト、雛形、生成物はまだ作成していない。
+**Status:** 計画承認済み。ユーザーはSubagent-driven（B）を選択し、中間承認なしの継続実行を指示した。必須のsubagent能力一覧呼出しがツールスキーマに拒否され、実装開始前に環境側の起動規約整合が必要。コード、テスト、雛形、生成物はまだ作成していない。
 
 ## Global Constraints
 
@@ -348,12 +348,12 @@ resoloop apply "$MANIFEST" --state "$STATE" --report ".resoloop/slum03/apply-$RU
 
 ## 計画レビューと実行方法の選択
 
-本計画の承認と実行方法の選択を得るまで、Task 1を開始しない。
+2026-09-28 JSTにユーザーが本計画と **Subagent-driven（B）** を承認し、途中の承認待ちなしで最後まで実行するよう指示した。起動規約を整合した後は、この承認を再取得せずTask 1から継続する。Nativeへ勝手に切り替えない。
 
 1. **Subagent-driven:** タスクごとに新しい実装担当とレビュー担当を使う。12の境界で見落としを減らせる一方、コンテキストとレビューの費用が増える。
 2. **Native:** controllerがタスク順に実装し、節目で引継ぎを保存し、最後に独立したレビューを受ける。共有レイアウト/Blender環境を一貫して扱いやすい。
 
-現環境のsubagent toolは同期Superpowers role APIで、ローカル規約が要求する `action:list / capabilities / async:false` を受け取れない。この不一致を解決せずに未対応引数や別経路で起動しない。現状では **Nativeを推奨**する。独立レビューを起動できない場合は、その制限を明示して別セッションへのレビュー引継ぎを用意し、独立レビュー済みとは報告しない。ユーザーがSubagent-drivenを選ぶ場合は、起動手順の整合を確認してから実行へ進む。
+起動前検査の実測: 規約どおり `subagent({action:"list", capabilities:true})` を呼んだが、`action: schema is false`、`capabilities: schema is false`、`must not have additional properties` で拒否された。現toolは同期Superpowers role APIで、必須の `async:false` も定義されていない。規約元は `.pi/APPEND_SYSTEM.md:12-18`。エージェントは一件も起動していない。現在のセッションに適用されている起動規約を無視・変更して迂回せず、環境側で現行APIと整合し再読込された後にBを再開する。起動規約の整合以外に、計画や実行方法の再承認は不要。
 
 ## 自己レビューの確認先
 
