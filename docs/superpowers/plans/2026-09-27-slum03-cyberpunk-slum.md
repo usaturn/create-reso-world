@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-27-slum03-cyberpunk-slum-design.md`（書面承認済み）。必ず計画と併読する。
 
-**Status:** 計画承認済み。ユーザーはSubagent-driven（B）を選択し、中間承認なしの継続実行を指示した。必須のsubagent能力一覧呼出しがツールスキーマに拒否され、実装開始前に環境側の起動規約整合が必要。コード、テスト、雛形、生成物はまだ作成していない。
+**Status:** 計画承認済み。ユーザーはSubagent-driven（B）と中間承認なしの継続実行を選択。起動規約の更新とreloadを完了し、隔離worktreeで実装中。進捗・レビュー・裁定は本計画専用のSDD ledgerに記録する。
 
 ## Global Constraints
 
@@ -353,7 +353,7 @@ resoloop apply "$MANIFEST" --state "$STATE" --report ".resoloop/slum03/apply-$RU
 1. **Subagent-driven:** タスクごとに新しい実装担当とレビュー担当を使う。12の境界で見落としを減らせる一方、コンテキストとレビューの費用が増える。
 2. **Native:** controllerがタスク順に実装し、節目で引継ぎを保存し、最後に独立したレビューを受ける。共有レイアウト/Blender環境を一貫して扱いやすい。
 
-起動前検査の実測: 規約どおり `subagent({action:"list", capabilities:true})` を呼んだが、`action: schema is false`、`capabilities: schema is false`、`must not have additional properties` で拒否された。現toolは同期Superpowers role APIで、必須の `async:false` も定義されていない。規約元は `.pi/APPEND_SYSTEM.md:12-18`。エージェントは一件も起動していない。現在のセッションに適用されている起動規約を無視・変更して迂回せず、環境側で現行APIと整合し再読込された後にBを再開する。起動規約の整合以外に、計画や実行方法の再承認は不要。
+旧起動規約とtool APIの不整合は、ユーザー承認による `.pi/APPEND_SYSTEM.md` の更新とreloadで解消済み。現行の同期Superpowers role APIを使い、未対応のaction/capabilities/async引数は付けない。起動とタスクレビューの成功を確認済み。モデル指定は現ツールの規則に従い、通常はロールの設定を利用する。
 
 ## 自己レビューの確認先
 
