@@ -45,8 +45,12 @@ def sector_assemblies(layout: Layout, sector: str) -> list[Assembly]:
     return result
 
 
-from . import ground, plaza
+from . import ground, plaza, ruins, shacks, overhead
 
 register('ground')(ground.build_assemblies)
 register('plaza')(plaza.build_assemblies)
+for _sector in ('ruins-west', 'ruins-north', 'ruins-east'):
+    register(_sector)(ruins.build_assemblies)
+register('shacks')(shacks.build_assemblies)
+register('overhead')(overhead.build_assemblies)
 register_blender_hook('plaza')(plaza.add_plaza)

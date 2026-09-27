@@ -300,8 +300,9 @@ def test_blockout_proxy_does_not_steal_real_placement_name_or_parent(tmp_path):
     assert report['export_names'][:2] == ['district-ground', 'district-ground-child']
     assert report['proxy_names']['district-ground'] == 'Slum03BlockoutProxy__district-ground'
     assert report['placements'] == len(build_layout().placements)
-    # The custom ground generator returns two real meshes; plaza is also registered.
-    registered = 2 + len(sectors.sector_assemblies(build_layout(), 'plaza'))
+    # The custom ground generator returns two; all other registered sectors still build.
+    registered = 2 + sum(len(sectors.sector_assemblies(build_layout(), sector))
+                         for sector in sectors.REGISTRY if sector != 'ground')
     assert report['source_objects'] == report['export_objects'] == report['placements'] + registered
     for kind, row in result.items():
         suffix = '_Source' if kind.endswith('Source') else ''

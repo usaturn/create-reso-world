@@ -1,0 +1,61 @@
+"""Open structural concrete shells: each lot becomes one independently editable building.
+
+All parts are in the Placement foot frame; the source/export merger makes one mesh
+per shell without merging neighbouring buildings. No solid filler occupies the rooms.
+"""
+from .geometry import Assembly, box, mesh, tube, wall_with_openings
+from .types import Layout
+
+
+def _broken_slab(width: float, depth: float, y: float):
+    """Irregular concrete cantilever: a real thick slab with a fractured edge."""
+    w, d = width / 2, depth / 2
+    outline = [(-w+.55, -d+.6), (w-.55, -d+.6), (w-.55, d-.85),
+               (w*.42, d-2.4), (w*.27, d-3.2), (w*.06, d-.3),
+               (-w*.22, d-1.15), (-w+.55, d-.7)]
+    n = len(outline)
+    vertices = [(x, y+dy, z) for dy in (0, .48) for x, z in outline]
+    faces = [tuple(range(n)), tuple(reversed(range(n, 2*n)))]
+    faces.extend((i, (i+1) % n, (i+1) % n+n, i+n) for i in range(n))
+    return mesh('broken-slab', vertices, faces, 'concrete_stained')
+
+
+def _shell(p):
+    w, h, d = p.size
+    facade_z = d/2 - .58
+    wall = wall_with_openings('facade-openings', w-1.2, h-1.1, 1.04,
+                              [(-1.15, 3.2, 1.15, 4.8),
+                               (-w*.34, 7.2, -w*.16, 9.0),
+                               (w*.16, 7.2, w*.34, 9.0)],
+                              .78, 1.5, 'concrete_stained')
+    parts = [mesh(wall.name, [(x, y, z+facade_z) for x, y, z in wall.vertices],
+                  wall.faces, wall.material)]
+    # The gaps between piers are empty space: slabs, an exposed rear service
+    # core and corner uprights define a shell rather than a filled cuboid.
+    for x in (-w/2+.68, w/2-.68):
+        for z in (-d/2+.65, d/2-.7):
+            parts.append(box('structural-pier', (x, (h-1.1)/2, z),
+                             (.9, h-1.1, .9), 'concrete_dark'))
+    parts.append(box('rear-service-core', (0, (h-1.1)/2, -d/2+.6),
+                     (w*.32, h-1.1, 1.1), 'concrete_raw'))
+    for y in range(5, int(h-1), 5):
+        parts.append(box('floor-slab', (0, y, -.2), (w-1, .55, d-1.2), 'concrete_raw'))
+        parts.append(box('edge-beam', (0, y-.43, d/2-.58),
+                         (w-1.1, .36, .45), 'concrete_dark'))
+    parts.append(_broken_slab(w, d, h-1.1))
+    parts.append(tube('cantilever-brace', [(w/2-.68, h-3, d/2-.7),
+                                              (w*.42, h-1.1, d/2-2.4)],
+                      .085, 8, 'steel_dark'))
+    for x in (w*.06, -w*.22):
+        # Steel emerges from the exposed slab edge, not from free space.
+        parts.append(tube('exposed-rebar', [(x, h-.85, d/2-.92),
+                                             (x+.08, h-.15, d/2-.76)],
+                          .052, 6, 'rust_dark'))
+    for y in (2.7, 5.4):
+        parts.append(box('pour-joint', (w*.28, y, facade_z+.53),
+                         (w*.17, .045, .015), 'concrete_dark'))
+    return Assembly('ruin', p.key, p.sector, p.origin, parts, {'placement_key': p.key})
+
+
+def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
+    return [_shell(p) for p in layout.placements if p.sector == sector and p.kind == 'ruin']

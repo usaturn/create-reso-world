@@ -17,15 +17,19 @@ def district_placements() -> tuple[Placement, ...]:
         place('plaza-rubble-west', 'plaza', 'rubble', -18.5, 0, -7, 2, 1.5, 4),
         place('plaza-rubble-east', 'plaza', 'rubble', 18.5, 0, -7, 2, 1.5, 4),
         place('ruin-west', 'ruins-west', 'ruin', -38, 0, 12, 17, 24, 18),
+        # A separately editable shell beyond the western building, clear of paths.
+        place('ruin-west-annex', 'ruins-west', 'ruin', -49, 0, 29, 10, 14, 12),
         place('ruin-north', 'ruins-north', 'ruin', -26, 0, 39, 16, 29, 18),
         place('ruin-east', 'ruins-east', 'ruin', 32, 0, 20, 13, 17, 14),
         place('shack-row', 'shacks', 'shack', -36, 0, -28, 15, 6, 12),
+        place('shack-west', 'shacks', 'shack', -49, 0, -28, 8, 5, 9),
         place('market-west', 'market', 'stall', -9, 0, -34, 6, 3, 12),
         place('market-east', 'market', 'stall', 9, 0, -34, 6, 3, 12),
         place('nightlife-east', 'nightlife', 'nightlife', 37, 0, -23, 13, 11, 16),
         place('yarol', 'yarol', 'yarol', 51, 0, 47, 14, 11, 12, 90,
               entrance='east', exterior_only=True),
-        place('overhead-west', 'overhead', 'overhead', -32, 12, -10, 12, 1, 2),
+        place('overhead-west', 'overhead', 'overhead', -32, 12, -10, 12, 13, 2,
+              local_y_min=-12),
     )
 
 
