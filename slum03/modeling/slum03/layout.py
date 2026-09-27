@@ -24,7 +24,7 @@ VIEWPOINTS = (
 REQUIRED = ('north-wall', 'yarol', 'bridge', 'checkpoint', 'forest',
             'arcology-terraces', 'arcology-gate', 'arcology-towers',
             'west-city', 'south-city', 'west-sidewalk', 'roadway', 'east-sidewalk',
-            'north-turnback')
+            'north-turnback', 'river', 'north-towers')
 DOMAINS = {'district', 'road', 'water', 'background'}
 
 
@@ -45,6 +45,10 @@ def build_layout(seed: int = config.DEFAULT_SEED) -> Layout:
 def _finite(values) -> bool:
     return all(isinstance(v, (int, float)) and not isinstance(v, bool)
                and math.isfinite(v) for v in values)
+
+
+def _vec_valid(values, count: int) -> bool:
+    return len(values) == count and _finite(values)
 
 
 def _rect_valid(rect: RectXZ) -> bool:
@@ -82,7 +86,8 @@ def validate_layout(layout: Layout) -> list[Issue]:
             issues.append(Issue('KEY', p.key, 'missing or duplicate placement key'))
         seen.add(p.key)
         if (p.domain not in DOMAINS or not p.sector or not p.kind or
-                not _finite((*p.origin, *p.size, p.yaw_deg)) or
+                not _vec_valid(p.origin, 3) or not _vec_valid(p.size, 3) or
+                not _finite((p.yaw_deg,)) or
                 any(s <= 0 for s in p.size) or not _params_finite(p.params) or
                 not _finite((p.params.get('local_y_min', 0),))):
             issues.append(Issue('PLACEMENT', p.key, 'invalid domain, size, pose or parameters'))
@@ -143,13 +148,14 @@ def validate_layout(layout: Layout) -> list[Issue]:
     if len({v.key for v in layout.viewpoints}) != len(layout.viewpoints):
         issues.append(Issue('KEY', 'viewpoints', 'duplicate viewpoint'))
     for v in layout.viewpoints:
-        if not _finite(v.eye):
+        if not _vec_valid(v.eye, 3):
             issues.append(Issue('VIEWPOINT', v.key, 'invalid eye'))
     if len({l.key for l in layout.labels}) != len(layout.labels):
         issues.append(Issue('KEY', 'labels', 'duplicate label'))
     for l in layout.labels:
         if (l.parent_name not in seen or not l.text or
-                not _finite((*l.offset, l.yaw_deg, l.height, *l.color)) or
+                not _vec_valid(l.offset, 3) or not _vec_valid(l.color, 4) or
+                not _finite((l.yaw_deg, l.height)) or
                 l.height <= 0):
             issues.append(Issue('LABEL', l.key, 'invalid or orphaned label'))
     issues.extend(validate_clearance(layout, {key: placement_bounds(p)

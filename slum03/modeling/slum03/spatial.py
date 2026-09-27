@@ -28,7 +28,8 @@ def validate_clearance(layout: Layout, bounds: Mapping[str, Bounds3]) -> list[Is
     placements = {p.key: p for p in layout.placements}
     issues = []
     for key, b in bounds.items():
-        if (any(not math.isfinite(v) for v in (*b.minimum, *b.maximum)) or
+        if (len(b.minimum) != 3 or len(b.maximum) != 3 or
+                any(not math.isfinite(v) for v in (*b.minimum, *b.maximum)) or
                 any(lo >= hi for lo, hi in zip(b.minimum, b.maximum))):
             issues.append(Issue('BOUNDS', key, 'invalid evaluated bounds'))
             continue

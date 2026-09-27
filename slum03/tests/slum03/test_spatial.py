@@ -1,5 +1,7 @@
 from dataclasses import replace
 
+import pytest
+
 from modeling.slum03.layout import build_layout
 from modeling.slum03.spatial import placement_bounds, validate_clearance
 from modeling.slum03.types import Bounds3, Placement
@@ -46,3 +48,15 @@ def test_evaluated_floor_protrusion_above_walkway_is_not_exempt():
     floor = next(p for p in a.placements if p.key == 'factory-floor')
     raised = Bounds3((-20, -.2, -15), (20, 1, 15))
     assert any(i.code == 'CLEARANCE' for i in validate_clearance(a, {floor.key: raised}))
+
+
+@pytest.mark.parametrize('bad_bounds', [
+    Bounds3((0, 0), (1, 1, 1)),
+    Bounds3((0, 0, 0, 0), (1, 1, 1)),
+    Bounds3((0, 0, 0), (1, 1)),
+    Bounds3((0, 0, 0), (1, 1, 1, 1)),
+])
+def test_evaluated_bounds_with_wrong_vector_lengths_report_issue(bad_bounds):
+    issues = validate_clearance(build_layout(), {'north-wall': bad_bounds})
+    assert any(issue.code == 'BOUNDS' and issue.object_key == 'north-wall'
+               for issue in issues)

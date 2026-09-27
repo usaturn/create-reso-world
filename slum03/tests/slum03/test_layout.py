@@ -154,3 +154,46 @@ def test_north_turnback_boundary_is_required():
     a = build_layout()
     bad = replace(a, placements=tuple(p for p in a.placements if p.key != 'north-turnback'))
     assert any(i.object_key == 'north-turnback' for i in validate_layout(bad))
+
+
+@pytest.mark.parametrize('key', ('river', 'north-towers'))
+def test_missing_required_environment_is_rejected_on_save_and_read(tmp_path, key):
+    layout = build_layout()
+    missing = replace(layout, placements=tuple(p for p in layout.placements if p.key != key))
+    assert any(issue.code == 'MISSING' and issue.object_key == key
+               for issue in validate_layout(missing))
+    with pytest.raises(ValueError, match='invalid layout'):
+        write_layout(missing, tmp_path / 'missing.json')
+    path = tmp_path / 'forged.json'
+    write_layout(layout, path)
+    data = json.loads(path.read_text(encoding='utf-8'))
+    data['placements'] = [p for p in data['placements'] if p['key'] != key]
+    path.write_text(json.dumps(data), encoding='utf-8')
+    with pytest.raises(ValueError, match='invalid layout JSON'):
+        read_layout(path)
+
+
+@pytest.mark.parametrize(('section', 'field', 'bad_value'), [
+    ('placements', 'origin', [1, 2]),
+    ('placements', 'origin', [1, 2, 3, 4]),
+    ('placements', 'size', [1, 2]),
+    ('placements', 'size', [1, 2, 3, 4]),
+    ('viewpoints', 'eye', [1, 2]),
+    ('viewpoints', 'eye', [1, 2, 3, 4]),
+    ('labels', 'offset', [1, 2]),
+    ('labels', 'offset', [1, 2, 3, 4]),
+    ('labels', 'color', [1, 2, 3]),
+    ('labels', 'color', [1, 2, 3, 4, 5]),
+])
+def test_read_layout_rejects_wrong_fixed_vector_lengths(tmp_path, section, field, bad_value):
+    path = tmp_path / 'layout.json'
+    write_layout(build_layout(), path)
+    data = json.loads(path.read_text(encoding='utf-8'))
+    if section == 'viewpoints':
+        data['viewpoints'].append({'key': 'optional-lookout', 'eye': bad_value,
+                                   'target_group': 'ads'})
+    else:
+        data[section][0][field] = bad_value
+    path.write_text(json.dumps(data), encoding='utf-8')
+    with pytest.raises(ValueError, match='invalid layout JSON'):
+        read_layout(path)
