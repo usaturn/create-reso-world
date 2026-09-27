@@ -246,3 +246,71 @@ def test_hook_cannot_export_unreported_object(tmp_path):
     assert report['errors'] == [{'code':'MESH', 'object_key':'forgotten',
                                  'message':'export object not returned by sector hook'}]
     assert not (tmp_path / 'bad.blend').exists()
+
+
+def test_blockout_proxy_does_not_steal_real_placement_name_or_parent(tmp_path):
+    import json
+    import subprocess
+    script = tmp_path / 'collision_blockout.py'
+    script.write_text(
+        'import sys, json\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n'
+        'import bpy\nfrom modeling.slum03 import sectors, probe_blender, geometry as g\n'
+        'def registered(layout, sector):\n'
+        '    return [g.Assembly("parent", "district-ground", sector, (10,0,0), '
+        '[g.box("p",(0,0,0),(1,1,1),"rust")]), '
+        'g.Assembly("child", "district-ground-child", sector, (5,0,0), '
+        '[g.box("c",(0,0,0),(1,1,1),"rust")], {"parent_name":"district-ground"})]\n'
+        'sectors.REGISTRY["ground"] = registered\n'
+        f'probe_blender.run(Path({str(tmp_path)!r}), "blockout")\n'
+        'bpy.context.view_layer.update()\n'
+        'collections = {name: bpy.data.collections[name] for name in '
+        '("Slum03BlockoutSource", "Slum03BlockoutExport")}\n'
+        'result = {}\n'
+        'for kind, col in collections.items():\n'
+        '    real = col.objects["district-ground" + ("_Source" if kind.endswith("Source") else "")]\n'
+        '    child = col.objects["district-ground-child" + ("_Source" if kind.endswith("Source") else "")]\n'
+        '    proxy = col.objects["Slum03BlockoutProxy__district-ground" + '
+        '("_Source" if kind.endswith("Source") else "")]\n'
+        '    result[kind] = {"parent": child.parent.name, '
+        '"world_x": float((child.matrix_world @ child.data.vertices[0].co).x), '
+        '"real_mesh": real.data.name, "proxy_mesh": proxy.data.name}\n'
+        f'Path({str(tmp_path / "collision-result.json")!r}).write_text(json.dumps(result))\n')
+    subprocess.run(['resoloop', 'blender', 'run', str(script), '--json'],
+                   check=True, capture_output=True, text=True)
+    result = json.loads((tmp_path / 'collision-result.json').read_text())
+    report = json.loads((tmp_path / 'blockout-probe.json').read_text())
+    assert (tmp_path / 'blockout.blend').exists()
+    assert report['export_names'][:2] == ['district-ground', 'district-ground-child']
+    assert report['proxy_names']['district-ground'] == 'Slum03BlockoutProxy__district-ground'
+    assert report['placements'] == len(build_layout().placements)
+    assert report['source_objects'] == report['export_objects'] == report['placements'] + 2
+    for kind, row in result.items():
+        suffix = '_Source' if kind.endswith('Source') else ''
+        assert row['parent'] == 'district-ground' + suffix
+        assert row['world_x'] == pytest.approx(14.5)
+        assert row['real_mesh'].startswith('Slum03_district-ground_Mesh')
+        assert 'Slum03BlockoutProxy__district-ground' in row['proxy_mesh']
+
+
+def test_blockout_proxy_namespace_never_overwrites_real_assembly_name(tmp_path):
+    import json
+    import subprocess
+    script = tmp_path / 'reserved_name.py'
+    script.write_text(
+        'import sys, json\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n'
+        'import bpy\nfrom modeling.slum03 import sectors, probe_blender, geometry as g\n'
+        'def registered(layout, sector):\n'
+        '    return [g.Assembly("real", "Slum03BlockoutProxy__district-ground", sector, '
+        '(3,0,0), [g.box("part",(0,0,0),(1,1,1),"rust")])]\n'
+        'sectors.REGISTRY["ground"] = registered\n'
+        f'probe_blender.run(Path({str(tmp_path)!r}), "blockout")\n'
+        'names = list(bpy.data.collections["Slum03BlockoutExport"].objects.keys())\n'
+        f'Path({str(tmp_path / "names.json")!r}).write_text(json.dumps(names))\n')
+    subprocess.run(['resoloop', 'blender', 'run', str(script), '--json'],
+                   check=True, capture_output=True, text=True)
+    names = json.loads((tmp_path / 'names.json').read_text())
+    report = json.loads((tmp_path / 'blockout-probe.json').read_text())
+    assert 'Slum03BlockoutProxy__district-ground' in names
+    assert report['export_names'][0] == 'Slum03BlockoutProxy__district-ground'
+    assert report['proxy_names']['district-ground'] == 'Slum03BlockoutProxy___district-ground'
+    assert 'Slum03BlockoutProxy___district-ground' in names

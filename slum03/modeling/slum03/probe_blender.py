@@ -14,6 +14,8 @@ from modeling.slum03.build import add_assembly
 from modeling.slum03.layout import build_layout
 from modeling.slum03.materials import make_blender_materials
 
+PROXY_PREFIX = "Slum03BlockoutProxy__"
+
 
 def _fixture(bpy, bmesh, output: Path):
     materials = make_blender_materials()
@@ -52,31 +54,41 @@ def _blockout(bpy, bmesh):
     bpy.context.scene.collection.children.link(export)
     mats = make_blender_materials()
     export_names = []
+    proxy_names = {}
     sources_by_name, exports_by_name = {}, {}
+    registered = []
     for sector in sectors.SECTORS:
-        if sector not in sectors.REGISTRY:
-            continue
-        for assembly in sectors.sector_assemblies(layout, sector):
-            copy, issues = add_assembly(bpy, bmesh, assembly, mats, source, export,
-                                        sources_by_name, exports_by_name, layout.seed)
-            if issues:
-                raise RuntimeError(issues)
-            export_names.append(copy.name)
+        if sector in sectors.REGISTRY:
+            registered.extend(sectors.sector_assemblies(layout, sector))
+    # Keep the preview namespace separate even if a future real asset takes its name.
+    real_object_names = {name for a in registered for name in (a.name, f'{a.name}_Source')}
+    proxy_prefix = PROXY_PREFIX
+    while any(name in real_object_names for p in layout.placements
+              for name in (f'{proxy_prefix}{p.key}', f'{proxy_prefix}{p.key}_Source')):
+        proxy_prefix += '_'
+    for assembly in registered:
+        copy, issues = add_assembly(bpy, bmesh, assembly, mats, source, export,
+                                    sources_by_name, exports_by_name, layout.seed)
+        if issues:
+            raise RuntimeError(issues)
+        export_names.append(copy.name)
     for p in layout.placements:
         # Lightweight footprint for every Placement, including unregistered sectors.
         part = geometry.box(p.key, (0, p.params.get('local_y_min', 0) + p.size[1] / 2, 0),
                             p.size, 'concrete_dark')
-        assembly = geometry.Assembly(p.kind, p.key, p.sector, p.origin, [part],
-                                     {'uv_exempt': True})
+        proxy_name = f"{proxy_prefix}{p.key}"
+        assembly = geometry.Assembly(p.kind, proxy_name, p.sector, p.origin, [part],
+                                     {'uv_exempt': True, 'placement_key': p.key})
         copy, issues = add_assembly(bpy, bmesh, assembly, mats, source, export,
                                     sources_by_name, exports_by_name, layout.seed)
         if issues:
             raise RuntimeError(issues)
         angle = __import__('math').radians(-p.yaw_deg)
-        sources_by_name[p.key].rotation_euler[2] = angle
+        sources_by_name[proxy_name].rotation_euler[2] = angle
         copy.rotation_euler[2] = angle
         export_names.append(copy.name)
-    return {'export_names': export_names, 'placements': len(layout.placements), 'source_objects': len(source.objects),
+        proxy_names[p.key] = copy.name
+    return {'export_names': export_names, 'proxy_names': proxy_names, 'placements': len(layout.placements), 'source_objects': len(source.objects),
             'export_objects': len(export.objects), 'export_collection': export.name}
 
 
