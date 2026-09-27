@@ -40,7 +40,7 @@ gate_heights = [(gate.matrix_world @ v.co).z for v in gate.data.vertices]
 checks['gate_actual_height'] = max(gate_heights)
 checks['gate_joint_vertices'] = sum(abs(y-796) < 1e-4 for y in gate_heights)
 assert abs(checks['gate_actual_height'] - 820) < 1e-4
-assert checks['gate_joint_vertices'] >= 12  # welded vertices where dwellings meet the crown
+assert checks['gate_joint_vertices'] >= 12  # height-coincident vertices where dwellings meet the crown (not topology weld evidence)
 checks['editable_patches'] = 12
 checks['realized_patches'] = len([o for o in forest_export.objects if o.name.startswith('forest-patch-')])
 assert checks['realized_patches'] == 12

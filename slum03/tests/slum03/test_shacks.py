@@ -104,3 +104,16 @@ def test_long_roof_joists_touch_both_end_posts_and_sheet_underside():
                 x0,y0,x1,y1 = pair
                 roof_under = y0+(y1-y0)*(cx-x0)/(x1-x0)
                 assert abs(high-roof_under) < .04, 'sloped beam top must touch the sheet'
+
+
+def test_last_corrugation_station_matches_final_fold_height():
+    from modeling.slum03.shacks import _roof, _eave_height
+    for building in sector_assemblies(build_layout(), 'shacks'):
+        p = next(p for p in build_layout().placements if p.key == building.name)
+        w, h, d = p.size
+        n = max(10, round(w/.36))
+        roof = _roof(w, h, d)
+        z = -d/2+.35
+        edge = max(v[0] for v in roof.vertices)
+        top = max(v[1] for v in roof.vertices if abs(v[0]-edge)<1e-6 and abs(v[2]-z)<1e-6)
+        assert abs(top - (_eave_height(h,d,z) + (.11 if n % 2 else 0))) < 1e-6

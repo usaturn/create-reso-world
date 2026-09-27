@@ -140,7 +140,7 @@ def write_scene(sector: str, output: Path) -> Report:
             errors.append(asdict(Issue('MESH', obj.name, 'hook export object missing or not a mesh')))
             continue
         evaluated = obj.evaluated_get(depsgraph)
-        mesh = evaluated.to_mesh()
+        mesh = evaluated.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
         if mesh is None:
             errors.append(asdict(Issue('MESH', obj.name, 'evaluated mesh is missing')))
             continue
@@ -152,11 +152,16 @@ def write_scene(sector: str, output: Path) -> Report:
             report['evaluated_bounds'][obj.name] = {
                 'minimum': [min(p[i] for p in points) for i in (0, 2, 1)],
                 'maximum': [max(p[i] for p in points) for i in (0, 2, 1)]}
+            if not mesh.uv_layers or not any(layer.active_render for layer in mesh.uv_layers):
+                errors.append(asdict(Issue('UV_MISSING', obj.name, 'evaluated UV0 absent')))
+            if not mesh.materials or any(p.material_index >= len(mesh.materials) or
+                                         mesh.materials[p.material_index] is None for p in mesh.polygons):
+                errors.append(asdict(Issue('MATERIAL_MISSING', obj.name, 'evaluated material missing')))
             report['triangles'] += sum(len(p.vertices) - 2 for p in mesh.polygons)
             report['vertices'] += len(mesh.vertices)
             used = {p.material_index for p in mesh.polygons}
             report['submeshes'] += len(used)
-            report['materials'] = sorted(set(report['materials']) | {mesh.materials[i].name for i in used})
+            report['materials'] = sorted(set(report['materials']) | {mesh.materials[i].name for i in used if i < len(mesh.materials) and mesh.materials[i]})
         finally:
             evaluated.to_mesh_clear()
     report['uv_issues'] = uv_issues

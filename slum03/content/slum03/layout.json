@@ -22,13 +22,49 @@
       "height": 1.2,
       "key": "yarol-sign",
       "offset": [
-        7.1,
+        5.9,
         4,
         0
       ],
       "parent_name": "yarol",
       "text": "Yarol",
       "yaw_deg": 90
+    },
+    {
+      "color": [
+        1,
+        0.15,
+        0.48,
+        1
+      ],
+      "height": 0.7,
+      "key": "nightlife-lantern-sign",
+      "offset": [
+        0,
+        3.5,
+        7.6
+      ],
+      "parent_name": "nightlife-east",
+      "text": "LANTERN",
+      "yaw_deg": 0
+    },
+    {
+      "color": [
+        0.92,
+        0.15,
+        0.68,
+        1
+      ],
+      "height": 0.7,
+      "key": "nightlife-velvet-sign",
+      "offset": [
+        0,
+        3.5,
+        7.6
+      ],
+      "parent_name": "nightlife-velvet",
+      "text": "VELVET",
+      "yaw_deg": 0
     },
     {
       "color": [
@@ -59,8 +95,8 @@
       "key": "product-copy",
       "offset": [
         0,
-        0,
-        -2
+        -1,
+        1.35
       ],
       "parent_name": "market-product-holo",
       "text": "AUGMENT",
@@ -78,11 +114,11 @@
       "offset": [
         0,
         1,
-        0
+        -0.9
       ],
       "parent_name": "nightlife-info-ad",
       "text": "NIGHT SHIFT",
-      "yaw_deg": 0.0
+      "yaw_deg": 180.0
     },
     {
       "color": [
@@ -96,7 +132,7 @@
       "offset": [
         0,
         0,
-        0
+        1.0
       ],
       "parent_name": "east-lane-ribbon",
       "text": "LIVE",
@@ -223,6 +259,24 @@
     },
     {
       "domain": "district",
+      "key": "ruin-west-annex",
+      "kind": "ruin",
+      "origin": [
+        -49,
+        0,
+        29
+      ],
+      "params": {},
+      "sector": "ruins-west",
+      "size": [
+        10,
+        14,
+        12
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
       "key": "ruin-north",
       "kind": "ruin",
       "origin": [
@@ -277,6 +331,24 @@
     },
     {
       "domain": "district",
+      "key": "shack-west",
+      "kind": "shack",
+      "origin": [
+        -49,
+        0,
+        -28
+      ],
+      "params": {},
+      "sector": "shacks",
+      "size": [
+        8,
+        5,
+        9
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
       "key": "market-west",
       "kind": "stall",
       "origin": [
@@ -284,7 +356,11 @@
         0,
         -34
       ],
-      "params": {},
+      "params": {
+        "awning_height": 2.7,
+        "shelf_depth": 0.8,
+        "shelf_height": 1.25
+      },
       "sector": "market",
       "size": [
         6,
@@ -302,7 +378,11 @@
         0,
         -34
       ],
-      "params": {},
+      "params": {
+        "awning_height": 2.7,
+        "shelf_depth": 0.8,
+        "shelf_height": 1.25
+      },
       "sector": "market",
       "size": [
         6,
@@ -316,14 +396,40 @@
       "key": "nightlife-east",
       "kind": "nightlife",
       "origin": [
-        37,
+        34,
         0,
         -23
       ],
-      "params": {},
+      "params": {
+        "shutter_width": 3.4,
+        "sign_height": 3.5,
+        "storefront_name": "LANTERN"
+      },
       "sector": "nightlife",
       "size": [
-        13,
+        6,
+        11,
+        16
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
+      "key": "nightlife-velvet",
+      "kind": "nightlife",
+      "origin": [
+        40,
+        0,
+        -23
+      ],
+      "params": {
+        "shutter_width": 3.4,
+        "sign_height": 3.5,
+        "storefront_name": "VELVET"
+      },
+      "sector": "nightlife",
+      "size": [
+        6,
         11,
         16
       ],
@@ -339,8 +445,12 @@
         47
       ],
       "params": {
+        "door_width": 2.2,
         "entrance": "east",
-        "exterior_only": true
+        "exterior_only": true,
+        "reveal_depth": 0.3,
+        "sign_height": 4,
+        "window_width": 2.3
       },
       "sector": "yarol",
       "size": [
@@ -359,11 +469,13 @@
         12,
         -10
       ],
-      "params": {},
+      "params": {
+        "local_y_min": -12
+      },
       "sector": "overhead",
       "size": [
         12,
-        1,
+        13,
         2
       ],
       "yaw_deg": 0.0
@@ -395,7 +507,7 @@
       "origin": [
         37,
         12,
-        -23
+        -16.55
       ],
       "params": {
         "motion": "slow-scan"
@@ -404,7 +516,7 @@
       "size": [
         5,
         4,
-        1
+        2
       ],
       "yaw_deg": 0.0
     },
@@ -433,9 +545,9 @@
       "key": "west-sidewalk",
       "kind": "sidewalk",
       "origin": [
-        63,
+        63.0,
         0,
-        15
+        15.0
       ],
       "params": {
         "local_y_min": -0.2,
@@ -443,9 +555,9 @@
       },
       "sector": "road-river",
       "size": [
-        6,
+        6.0,
         0.2,
-        230
+        230.0
       ],
       "yaw_deg": 0.0
     },
@@ -454,9 +566,9 @@
       "key": "roadway",
       "kind": "roadway",
       "origin": [
-        78,
+        78.0,
         0,
-        15
+        15.0
       ],
       "params": {
         "local_y_min": -0.3,
@@ -464,9 +576,9 @@
       },
       "sector": "road-river",
       "size": [
-        24,
+        24.0,
         0.3,
-        230
+        230.0
       ],
       "yaw_deg": 0.0
     },
@@ -475,9 +587,9 @@
       "key": "east-sidewalk",
       "kind": "sidewalk",
       "origin": [
-        93,
+        93.0,
         0,
-        15
+        15.0
       ],
       "params": {
         "local_y_min": -0.2,
@@ -485,9 +597,9 @@
       },
       "sector": "road-river",
       "size": [
-        6,
+        6.0,
         0.2,
-        230
+        230.0
       ],
       "yaw_deg": 0.0
     },
@@ -496,16 +608,16 @@
       "key": "river",
       "kind": "river",
       "origin": [
-        15,
-        -2,
-        95
+        15.0,
+        -4,
+        95.0
       ],
       "params": {},
       "sector": "road-river",
       "size": [
-        430,
+        430.0,
         0.2,
-        34
+        34.0
       ],
       "yaw_deg": 0.0
     },
@@ -514,19 +626,19 @@
       "key": "bridge",
       "kind": "bridge",
       "origin": [
-        78,
+        78.0,
         0,
-        95
+        95.0
       ],
       "params": {
-        "local_y_min": -0.4,
+        "local_y_min": -4,
         "walkable": true
       },
       "sector": "road-river",
       "size": [
-        36,
-        0.4,
-        46
+        36.0,
+        6.1,
+        46.0
       ],
       "yaw_deg": 0.0
     },
@@ -535,55 +647,19 @@
       "key": "checkpoint",
       "kind": "checkpoint",
       "origin": [
-        98,
+        78.0,
         0,
-        69
+        69.0
       ],
       "params": {
         "open": true,
-        "opening_width": 24
+        "opening_width": 24.0
       },
       "sector": "road-river",
       "size": [
-        3,
+        36.0,
         6,
-        4
-      ],
-      "yaw_deg": 0.0
-    },
-    {
-      "domain": "road",
-      "key": "bridge-rail-west",
-      "kind": "guardrail",
-      "origin": [
-        59.5,
-        0,
-        95
-      ],
-      "params": {},
-      "sector": "road-river",
-      "size": [
-        1,
-        1.4,
-        46
-      ],
-      "yaw_deg": 0.0
-    },
-    {
-      "domain": "road",
-      "key": "bridge-rail-east",
-      "kind": "guardrail",
-      "origin": [
-        96.5,
-        0,
-        95
-      ],
-      "params": {},
-      "sector": "road-river",
-      "size": [
-        1,
-        1.4,
-        46
+        6
       ],
       "yaw_deg": 0.0
     },
@@ -592,14 +668,32 @@
       "key": "north-turnback",
       "kind": "boundary",
       "origin": [
-        78,
+        78.0,
         0,
         130.5
       ],
       "params": {},
       "sector": "road-river",
       "size": [
-        36,
+        36.0,
+        3,
+        1
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "road",
+      "key": "south-road-end",
+      "kind": "boundary",
+      "origin": [
+        78.0,
+        0,
+        -100.5
+      ],
+      "params": {},
+      "sector": "road-river",
+      "size": [
+        36.0,
         3,
         1
       ],
@@ -814,6 +908,15 @@
         0
       ],
       "key": "east-forest",
+      "target_group": "east_forest"
+    },
+    {
+      "eye": [
+        54,
+        1.6,
+        0
+      ],
+      "key": "east-lane",
       "target_group": "east_forest"
     },
     {

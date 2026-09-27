@@ -12,7 +12,7 @@ def _eave_height(h: float, d: float, z: float) -> float:
 def _fold_height(w: float, x: float) -> float:
     """Piecewise linear corrugation shared by sheet and its longitudinal rafters."""
     n = max(10, round(w/.36))
-    index = max(0, min(n-1, (x+w/2-.25)*n/(w-.5)))
+    index = max(0, min(n, (x+w/2-.25)*n/(w-.5)))
     whole = floor(index)
     t = index-whole
     return .11*(t if whole % 2 == 0 else 1-t)

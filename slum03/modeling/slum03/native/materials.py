@@ -55,6 +55,8 @@ def add_materials(manifest: dict) -> None:
                 continue
             key = component['key']
             name = palette_name(key)
+            if (key.startswith('mat_material_Slum03_') or '-mat_material_Slum03_' in key) and name is None:
+                raise ValueError(f'malformed slum03 palette provider: {key}')
             if name is not None and name not in MATERIALS:
                 raise ValueError(f'unknown slum03 palette provider: {key}')
             if name is not None and name in MATERIALS:

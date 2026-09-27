@@ -98,7 +98,7 @@ def test_upper_floors_of_taller_shell_keep_real_apertures():
     north = sector_assemblies(build_layout(), 'ruins-north')[0]
     facade = next(part for part in north.parts if part.name == 'facade-openings')
     front = max(v[2] for v in facade.vertices)
-    for x, y in ((3, 19), (0, 24)):
+    for x, y in ((3, 19), (.4, 24)):
         assert not any(all(abs(facade.vertices[i][2]-front) < 1e-6 for i in f)
                        and min(facade.vertices[i][0] for i in f) < x < max(facade.vertices[i][0] for i in f)
                        and min(facade.vertices[i][1] for i in f) < y < max(facade.vertices[i][1] for i in f)

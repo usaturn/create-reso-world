@@ -46,3 +46,12 @@ def test_unknown_palette_or_provider_does_not_silently_claim_vertex_color_suppor
     m['slot']['name'] = 'Slum03_Slum'
     with pytest.raises(ValueError, match='unlisted'):
         postprocess(m, replace(build_layout(), labels=tuple(l for l in build_layout().labels if l.parent_name in ('market-product-holo', 'nightlife-info-ad', 'east-lane-ribbon'))), {}, (0, 0, 0))
+
+
+def test_malformed_palette_prefixed_provider_is_rejected():
+    from modeling.slum03.native.materials import add_materials
+    manifest = {'slot': {'key': 'root', 'name': 'Slum03_Slum'},
+                'components': [{'key': 'backdrop-north-mat_material_Slum03_holo_cyan_BADHASH',
+                                'type': 'FrooxEngine.PBS_Metallic', 'fields': {}}]}
+    with pytest.raises(ValueError, match='palette'):
+        add_materials(manifest)

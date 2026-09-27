@@ -1,0 +1,58 @@
+{
+  "sector": "shacks",
+  "export_collection": "Slum03shacksExport",
+  "objects": [
+    {
+      "key": "shack-row",
+      "placement_key": "shack-row",
+      "kind": "shack",
+      "mesh": "shack-row"
+    },
+    {
+      "key": "shack-west",
+      "placement_key": "shack-west",
+      "kind": "shack",
+      "mesh": "shack-west"
+    }
+  ],
+  "evaluated_bounds": {
+    "shack-row": {
+      "minimum": [
+        -43.275001525878906,
+        0.0,
+        -33.75
+      ],
+      "maximum": [
+        -28.725000381469727,
+        5.532291889190674,
+        -22.25
+      ]
+    },
+    "shack-west": {
+      "minimum": [
+        -52.775001525878906,
+        0.0,
+        -32.25
+      ],
+      "maximum": [
+        -45.224998474121094,
+        4.523055553436279,
+        -23.75
+      ]
+    }
+  },
+  "materials": [
+    "Slum03_corrugated",
+    "Slum03_corrugated_rust",
+    "Slum03_pallet_wood",
+    "Slum03_plywood",
+    "Slum03_rust",
+    "Slum03_rust_dark",
+    "Slum03_steel_dark"
+  ],
+  "triangles": 1272,
+  "vertices": 716,
+  "submeshes": 14,
+  "uv_issues": [],
+  "errors": []
+}
