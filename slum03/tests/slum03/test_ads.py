@@ -1,8 +1,9 @@
 """Ads regressions: flat impostors, moving headline, unmounted emitters, swept route collision."""
 import math
+from dataclasses import replace
 import pytest
 
-from modeling.slum03.geometry import bounds
+from modeling.slum03.geometry import bounds, face_normal, signed_volume
 from modeling.slum03.layout import build_layout
 from modeling.slum03.sectors import sector_assemblies
 from modeling.slum03.spatial import validate_clearance
@@ -19,13 +20,28 @@ def _world(p, v, spin=0):
             p.origin[2]-x*math.sin(a)+z*math.cos(a))
 
 
+def _projected_depth(assemblies):
+    # Projected surface/light only: support mast, mounting boxes, and emitter
+    # lenses cannot prove that the advertised content has any depth.
+    parts = [part for a in assemblies for part in a.parts
+             if part.material.startswith('holo_') and not part.name.startswith('emitter')]
+    assert parts
+    z = [vertex[2] for part in parts for vertex in part.vertices]
+    return max(z)-min(z)
+
+
 def test_three_hologram_families_have_depth():
     ads = sector_assemblies(build_layout(), 'ads')
     for kind in ('product-holo', 'info-ad', 'ribbon-ad'):
         pieces = [a for a in ads if a.kind == kind and a.parts]
         assert pieces, kind
-        coordinates = [v for a in pieces for part in a.parts for v in part.vertices]
-        assert max(v[2] for v in coordinates)-min(v[2] for v in coordinates) >= .55, kind
+        assert _projected_depth(pieces) >= .55, kind
+        # Negative control: flatten *only projected parts*, leaving the physical
+        # floor mast and grounded bracket intact; the depth check must fail.
+        flat = [replace(a, parts=[replace(part, vertices=tuple((x,y,0.) for x,y,_ in part.vertices))
+                                  if part.material.startswith('holo_') and not part.name.startswith('emitter')
+                                  else part for part in a.parts]) for a in pieces]
+        assert _projected_depth(flat) == 0, kind
     product = [a for a in ads if a.kind == 'product-holo']
     assert any('optic' in part.name for a in product for part in a.parts)
     assert any('arc' in part.name for a in product for part in a.parts)
@@ -34,6 +50,43 @@ def test_three_hologram_families_have_depth():
                for a in ribbon for part in a.parts)
     info = [a for a in ads if a.kind == 'info-ad']
     assert len({round(v[2], 1) for a in info for part in a.parts for v in part.vertices}) >= 4
+
+
+def test_optical_casing_faces_outward_including_caps():
+    product = [a for a in sector_assemblies(build_layout(), 'ads') if a.kind == 'product-holo']
+    housing = next(p for a in product for p in a.parts if p.name == 'optic-housing')
+    assert signed_volume(housing) > .5  # closed shell; catches globally inward winding
+    normals = [face_normal([housing.vertices[i] for i in face]) for face in housing.faces]
+    # Sides of the casing must point out towards +X, not back into the optic.
+    side = [(face, n) for face, n in zip(housing.faces, normals)
+            if 3 <= len(face) and sum(housing.vertices[i][0] for i in face)/len(face) > .23
+            and abs(sum(housing.vertices[i][1] for i in face)/len(face)-.48) < .9]
+    assert side and all(n[0] > 0 for _, n in side if n[0] != 0)
+    bottom = min(housing.vertices, key=lambda v: v[1])[1]
+    top = max(housing.vertices, key=lambda v: v[1])[1]
+    assert any(all(abs(housing.vertices[i][1]-bottom) < 1e-5 for i in face) and n[1] < -.9
+               for face,n in zip(housing.faces, normals))
+    assert any(all(abs(housing.vertices[i][1]-top) < 1e-5 for i in face) and n[1] > .9
+               for face,n in zip(housing.faces, normals))
+
+
+def test_product_reads_as_stepped_optical_cyberware_not_glowing_capsule():
+    product = [a for a in sector_assemblies(build_layout(), 'ads') if a.kind == 'product-holo']
+    parts = [part for a in product if a.meta.get('motion') for part in a.parts]
+    housing = next(p for p in parts if p.name == 'optic-housing')
+    assert not housing.material.startswith('holo_')  # metal casing, not an opaque cyan pill
+    barrels = [p for p in parts if p.name == 'lens-barrel']
+    assert barrels
+    barrel = barrels[0]
+    lo, hi = bounds([barrel])
+    assert hi[2]-lo[2] >= .25 and hi[0]-lo[0] >= .8
+    assert len({round(v[0]**2+(v[1]-.48)**2, 2) for v in barrel.vertices}) >= 3
+    assert signed_volume(barrel) > 0  # genuinely hollow outward stepped barrel
+    lens = [p for p in parts if p.name == 'cornea-lens']
+    assert lens and lens[0].material.startswith('holo_')
+    assert min(v[2] for v in lens[0].vertices) > lo[2]
+    assert max(v[2] for v in lens[0].vertices) > hi[2]
+    assert any(p.name == 'rear-connector' for p in parts)
 
 
 def test_primary_copy_is_not_driven():
@@ -130,3 +183,12 @@ def test_blender_reopens_real_anchor_hierarchy_and_world_transform(tmp_path):
     for exported_mesh in report['meshes']:
         data = json.loads((bundle/exported_mesh['file']).read_text())
         assert all(vertex.get('uvs') and vertex.get('color') for vertex in data['vertices'])
+    optical = next(m for m in report['meshes'] if m['name'] == 'market-product-holo-driven')
+    exported_data = json.loads((bundle/optical['file']).read_text())
+    # Unmodified casing corner is an asymmetric sample: check the *exported*
+    # normal, not only Blender's local face math or the mirrored XZY transform.
+    sample = [v for v in exported_data['vertices']
+              if abs(v['position']['x']-.405689) < 1e-3
+              and abs(v['position']['y']+.22) < 1e-3
+              and abs(v['position']['z']-.124705) < 1e-3]
+    assert sample and all(v['normal']['x'] > .2 for v in sample), sample

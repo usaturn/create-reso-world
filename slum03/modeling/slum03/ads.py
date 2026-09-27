@@ -30,9 +30,49 @@ def _optic():
     for k in range(len(levels)-1):
         for j in range(24):
             u = k*24+j; v = k*24+(j+1)%24
-            faces.append((u, v, v+24, u+24))
-    faces.extend((tuple(reversed(range(24))), tuple(range((len(levels)-1)*24, len(levels)*24))))
-    return mesh('optic-housing', vertices, faces, 'holo_cyan')
+            faces.append((u+24, v+24, v, u))
+    faces.extend((tuple(range(24)), tuple(reversed(range((len(levels)-1)*24, len(levels)*24)))))
+    return mesh('optic-housing', vertices, faces, 'steel_bare')
+
+
+
+def _lens_barrel():
+    """Hollow stepped optical collar: separate axial steps, open centre and two lips."""
+    profiles = ((.30,.48), (.45,.50), (.55,.43), (.68,.40), (.81,.35))  # Z, outer radius
+    n = 32
+    verts = []
+    for z, radius in (*profiles, (profiles[0][0],.26), (profiles[-1][0],.26)):
+        verts.extend((radius*math.cos(math.tau*j/n), .48+radius*math.sin(math.tau*j/n), z)
+                     for j in range(n))
+    faces = []
+    for k in range(len(profiles)-1):
+        for j in range(n):
+            a, b = k*n+j, k*n+(j+1)%n
+            faces.append((a, b, b+n, a+n))
+    front = (len(profiles)-1)*n
+    inner_back, inner_front = len(profiles)*n, (len(profiles)+1)*n
+    for j in range(n):
+        nxt = (j+1)%n
+        faces.extend(((front+j, front+nxt, inner_front+nxt, inner_front+j),
+                      (inner_back+j, inner_front+j, inner_front+nxt, inner_back+nxt),
+                      (inner_back+j, inner_back+nxt, nxt, j)))
+    return mesh('lens-barrel', verts, faces, 'steel_dark')
+
+
+def _cornea():
+    """Thin, domed emission shell over the iris aperture; not a billboard."""
+    rings = ((.27,.77), (.20,.86), (.10,.93))
+    n = 32
+    verts = [(r*math.cos(math.tau*j/n), .48+r*math.sin(math.tau*j/n), z)
+             for r,z in rings for j in range(n)]
+    verts.append((0,.48,.96))
+    faces = []
+    for k in range(len(rings)-1):
+        for j in range(n):
+            a, b = k*n+j, k*n+(j+1)%n
+            faces.append((a,b,b+n,a+n))
+    faces.extend(((2*n+j,2*n+(j+1)%n,3*n) for j in range(n)))
+    return mesh('cornea-lens', verts, faces, 'holo_cyan')
 
 
 def _product():
@@ -40,10 +80,30 @@ def _product():
              box('mast', (0, -2.1, 0), (.20, 3.55, .20), 'steel_bare'),
              box('emitter', (0, -.29, 0), (.68, .19, .68), 'steel_dark'),
              box('emitter-lens', (0, -.172, 0), (.33, .045, .33), 'holo_cyan')]
-    moving = [_optic(),
-              tube('iris', [(math.cos(t*math.tau/32)*.38, .49+math.sin(t*math.tau/32)*.38, .49)
-                            for t in range(33)], .026, 6, 'holo_magenta', ref=(0, 0, 1)),
-              box('pupil', (0, .49, .52), (.13, .26, .04), 'holo_magenta')]
+    moving = [_optic(), _lens_barrel(), _cornea(),
+              box('rear-connector', (.33, .03, -.51), (.27, .25, .30), 'steel_dark'),
+              box('connector-contact', (.33, .03, -.685), (.16, .15, .10), 'neon_cyan'),
+              tube('connector-lead', [(.33,.02,-.71), (.37,-.18,-.82), (.53,-.29,-.84)],
+                   .036, 6, 'steel_dark', ref=(1,0,0)),
+              tube('iris', [(math.cos(t*math.tau/32)*.32, .48+math.sin(t*math.tau/32)*.32, .825)
+                            for t in range(33)], .015, 6, 'holo_magenta', ref=(0, 0, 1)),
+              box('pupil', (0, .48, .964), (.11, .20, .018), 'holo_magenta')]
+    for sign in (-1, 1):
+        # A break in the casing and two exposed fasteners sell the optical cartridge.
+        moving.append(tube('casing-seam', [(sign*(radius+.018), y+.48, z)
+                                            for y, radius, z in ((-.7,.42,.06),(-.25,.57,.2),
+                                                                 (.35,.54,.21),(.76,.37,.08))],
+                           .017, 6, 'holo_cyan', ref=(0,0,1)))
+        for y in (-.09, .91):
+            moving.append(box('casing-bolt', (sign*.48, y, -.005),
+                              (.08,.08,.065), 'steel_dark'))
+    for i in range(8):
+        a0, a1 = math.tau*i/8, math.tau*(i+.72)/8
+        # Individual floating iris leaves, recessed below the convex lens.
+        moving.append(mesh('iris-blade',
+                           [(r*math.cos(a), .48+r*math.sin(a), z)
+                            for a,r,z in ((a0,.27,.756),(a0,.39,.74),(a1,.38,.74),(a1,.27,.756))],
+                           [(0,1,2),(0,2,3)], 'steel_bare'))
     for start, end, y, radius in ((-.95,-.15,.48,1.12), (.1,.92,.48,1.12),
                                   (1.18,2.04,.48,1.12), (2.26,2.96,.48,1.12),
                                   (-.62,.54,1.37,.78), (1.20,2.26,1.37,.78)):
