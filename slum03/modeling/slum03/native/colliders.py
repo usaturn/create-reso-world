@@ -3,16 +3,16 @@
 Dimensions follow ground.py and road_river.py; not enclosing mesh AABBs over openings.
 """
 from __future__ import annotations
-from .common import node
+from .common import node, yaw
 from modeling.slum03.types import Layout, Report
 
 
 def box(key: str, x0: float, x1: float, y0: float, y1: float,
-        z0: float, z1: float) -> dict:
+        z0: float, z1: float, rotation_deg: float = 0.) -> dict:
     if not (x0 < x1 and y0 < y1 and z0 < z1):
         raise ValueError(f'invalid collider bounds: {key}')
     n = node(f'collider-{key}', f'{key} Collider',
-             ((x0+x1)/2, (y0+y1)/2, (z0+z1)/2))
+             ((x0+x1)/2, (y0+y1)/2, (z0+z1)/2), yaw(rotation_deg))
     n['components'].append({'key': f'collider-{key}-box', 'type': 'FrooxEngine.BoxCollider',
                             'fields': {'Enabled': True, 'Type': 'Static',
                                        'CharacterCollider': True, 'Offset': [0., 0., 0.],
@@ -56,6 +56,11 @@ def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
         boxes.append(box(f'checkpoint-pier-{side}', a, b, 0, 4.6, z0+.4, z1-.4))
     boxes.append(box('checkpoint-canopy', x0, x1, 4.6, 5., z0, z1))
     boxes.append(box('checkpoint-crossbeam', x0, x1, 4.15, 4.6, z0+1, z0+1.45))
+    # Task6 road_river._end: body 0..1.8 and marker 1.8..2.0 share
+    # the full end-barrier footprint. Only ends, never the open checkpoint.
+    for name in ('south-road-end', 'north-turnback'):
+        end = p[name]; ex, ey, ez = end.origin; sx, _, sz = end.size
+        boxes.append(box(name, ex-sx/2, ex+sx/2, ey, ey+2., ez-sz/2, ez+sz/2))
     # Roofless facade obstruction is limited to the actual north-wall location.
     wall = p['north-wall']
     boxes.append(box('north-wall', wall.origin[0]-wall.size[0]/2,
@@ -67,14 +72,16 @@ def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
         item = p[name]; x, y, z = item.origin; sx, sy, sz = item.size
         # Approximate non-enterable volume; Yarol east doorway remains unblocked
         # outside the shell. Runtime walking/mesh fit remains pending.
-        boxes.append(box(name, x-sx/2, x+sx/2, y, y+sy*.8, z-sz/2, z+sz/2))
+        boxes.append(box(name, x-sx/2, x+sx/2, y, y+sy*.8, z-sz/2, z+sz/2, item.yaw_deg))
     # The supplied evaluated mesh reports bound actual exported objects, not
     # hypothetical full-placement boxes. Keep candidate boxes inside these
     # envelopes; physical surface fit still needs live walking verification.
     for sector, mesh, prefix in (('ground', 'district-foundation', 'district-ground-'),
                                  ('plaza', 'factory-floor', 'factory-floor'),
                                  ('road-river', 'bridge', 'bridge-'),
-                                 ('road-river', 'checkpoint', 'checkpoint-')):
+                                 ('road-river', 'checkpoint', 'checkpoint-'),
+                                 ('road-river', 'south-road-end', 'south-road-end'),
+                                 ('road-river', 'north-turnback', 'north-turnback')):
         report = reports.get(sector)
         if not report:
             continue

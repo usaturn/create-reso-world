@@ -62,3 +62,23 @@ def test_missing_or_ambiguous_driven_slot_fails():
             m['children'].append(clone)
         with pytest.raises(ValueError, match='market-product-holo-driven'):
             postprocess(m, layout, {}, (0, 0, 0))
+
+
+def test_missing_entire_driven_subtree_is_rejected():
+    m, layout = fixture()
+    anchor = next(n for n in m['children'] if n['slot']['name'] == 'market-product-holo')
+    anchor['children'] = [n for n in anchor['children']
+                          if n['slot']['name'] != 'market-product-holo-driven']
+    with pytest.raises(ValueError, match='market-product-holo-driven'):
+        postprocess(m, layout, {}, (0, 0, 0))
+
+
+def test_unrelated_static_mesh_key_rename_does_not_suppress_requested_motion():
+    m, layout = fixture()
+    node = next(n for n in nodes(m) if n['slot']['name'] == 'market-product-holo-driven')
+    mesh = next(c for c in node['components'] if c['type'] == 'FrooxEngine.StaticMesh')
+    mesh['key'] = 'mesh-renamed-unrelated-to-slot-name'
+    out = postprocess(m, layout, {}, (0, 0, 0))
+    driven = next(n for n in nodes(out) if n['slot']['name'] == 'market-product-holo-driven')
+    assert next(c for c in driven['components'] if c['type'] == 'FrooxEngine.Spinner')['fields']['_target'] == (
+        f'$slot-member:{driven["slot"]["key"]}.Rotation')

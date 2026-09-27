@@ -10,14 +10,8 @@ from .materials import palette_name
 
 def add_drivers(manifest: dict, layout: Layout) -> None:
     motions = [a.meta['motion'] for a in build_assemblies(layout, 'ads') if a.meta.get('motion')]
-    # Label-only offline fixtures contain anchor slots but no meshes. In an export,
-    # the mesh key still identifies an intended driven object even if name drifts.
-    exported = {c['key'] for n in walk(manifest) for c in n.get('components', [])
-                if c['type'] == 'FrooxEngine.StaticMesh'}
     for motion in motions:
         name = motion['driven_name']
-        if not any(name in key for key in exported):
-            continue
         slot_key = slot_key_by_name(manifest, name)
         driven = next(n for n in walk(manifest) if n['slot']['key'] == slot_key)
         if motion['kind'] == 'spin':

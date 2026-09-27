@@ -1,4 +1,6 @@
 import copy
+import glob
+import json
 import math
 import pytest
 
@@ -20,11 +22,13 @@ def test_anchor_rejects_invalid_inputs(floor, lowest, margin):
 
 
 def test_root_position_changes_only_owned_root():
-    source = {'schemaVersion': '1', 'ownership': {'key': 'slum03'},
-              'slot': {'key': 'root', 'name': 'Slum03_Slum', 'parent': 'Root'},
-              'components': [], 'children': []}
+    source = json.load(open(glob.glob('artifacts/slum03/task8-final-*/bundle/model.apply.json')[0], encoding='utf-8'))
+    source['ownership']['key'] = 'slum03'
+    source['slot']['name'] = 'Slum03_Slum'
     original = copy.deepcopy(source)
-    result = postprocess(source, replace(build_layout(), labels=()), {}, (0, 4.5, 0))
+    result = postprocess(source, replace(build_layout(), labels=tuple(label for label in build_layout().labels
+                                                             if label.parent_name in ('market-product-holo',
+                                                                                       'nightlife-info-ad', 'east-lane-ribbon'))), {}, (0, 4.5, 0))
     assert result['slot']['position'] == [0, 4.5, 0]
     assert result['slot']['parent'] == 'Root'
     assert source == original
