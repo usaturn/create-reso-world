@@ -12,7 +12,7 @@ def test_unknown_or_unimplemented_sector_fails_explicitly():
     with pytest.raises(KeyError):
         sectors.sector_assemblies(build_layout(), 'unknown')
     with pytest.raises(NotImplementedError):
-        sectors.sector_assemblies(build_layout(), 'forest')
+        sectors.sector_assemblies(build_layout(), 'ads')
 
 
 def test_registered_sector_builds_actual_mesh():

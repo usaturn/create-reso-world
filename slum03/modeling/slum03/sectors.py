@@ -45,7 +45,7 @@ def sector_assemblies(layout: Layout, sector: str) -> list[Assembly]:
     return result
 
 
-from . import ground, plaza, ruins, shacks, overhead, stalls, nightlife, yarol, road_river
+from . import ground, plaza, ruins, shacks, overhead, stalls, nightlife, yarol, road_river, forest, backdrop
 
 register('ground')(ground.build_assemblies)
 register('plaza')(plaza.build_assemblies)
@@ -57,4 +57,8 @@ register('nightlife')(nightlife.build_assemblies)
 register('yarol')(yarol.build_assemblies)
 register('overhead')(overhead.build_assemblies)
 register('road-river')(road_river.build_assemblies)
+register('forest')(forest.build_assemblies)
+register_blender_hook('forest')(forest.add_canopy)
+for _sector in ('backdrop-north', 'backdrop-west-south'):
+    register(_sector)(backdrop.build_assemblies)
 register_blender_hook('plaza')(plaza.add_plaza)

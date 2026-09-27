@@ -90,6 +90,11 @@ MATERIALS: dict[str, MaterialSpec] = {
     "spray_black": _vc((0.012, 0.012, 0.014), 0, 0.70, "paint"),
     "backdrop_mass": _vc((0.035, 0.037, 0.045), 0.1, 0.80, "backdrop"),
     "backdrop_ground": _vc((0.03, 0.03, 0.033), 0, 0.95, "backdrop"),
+    # Forest foliage stays matte and natural: no emissive neon on trees.
+    "bark": _vc((0.18, 0.115, 0.065), 0, 0.94, "wood", "wood"),
+    "leaf_deep": _vc((0.065, 0.13, 0.043), 0, 0.98, "ground"),
+    "leaf_moss": _vc((0.12, 0.20, 0.065), 0, 0.97, "ground"),
+    "leaf_olive": _vc((0.18, 0.19, 0.075), 0, 0.96, "ground"),
     # Neon.
     "neon_magenta": _glow("neon", (1.0, 0.05, 0.6), 6, 0.35),
     "neon_cyan": _glow("neon", (0.05, 0.9, 1.0), 6, 0.35),
