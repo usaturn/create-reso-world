@@ -1,0 +1,217 @@
+"""Merge contract: changing source bytes, reference mapping, or output base must break these tests."""
+import json
+import math
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+from modeling.slum03 import pipeline
+from modeling.slum03.types import Layout, RectXZ
+
+
+def _bundle(directory, name, *, mesh=b'first', material=None):
+    directory.mkdir(parents=True)
+    (directory / 'mesh_a.mesh.json').write_bytes(mesh)
+    material = material or {'AlbedoColor': [1, 0, 0, 1]}
+    payload = {
+        'schemaVersion': '1', 'ownership': {'key': 'blender_' + name},
+        'slot': {'key': 'root', 'name': name, 'parent': 'Root'},
+        'assets': {'mesh_a': {'kind': 'mesh', 'source': 'mesh_a.mesh.json'}},
+        'components': [],
+        'children': [
+            {'slot': {'key': 'object_a', 'name': name + '_fixed'}, 'children': [
+                {'slot': {'key': 'object_driven', 'name': name + '_driven',
+                          'position': [0, 1, 0]}, 'components': [
+                    {'key': 'mesh_a', 'type': 'FrooxEngine.StaticMesh', 'fields': {'URL': '$asset:mesh_a'}},
+                    {'key': 'renderer_a', 'type': 'FrooxEngine.MeshRenderer',
+                     'fields': {'Mesh': '$component:mesh_a', 'Materials': ['$component:mat_a', '$component:mat_b']}},
+                    {'key': 'driver_a', 'type': 'FrooxEngine.Spinner',
+                     'fields': {'_target': '$slot-member:object_driven.Rotation',
+                                'Anchor': '$slot:object_a', 'Source': '$member:mat_a.AlbedoColor'}},
+                ]}]},
+            {'slot': {'key': 'providers', 'name': 'Blender_Providers'}, 'children': [
+                {'slot': {'key': 'provider_mat_a', 'name': 'material_a'}, 'components': [
+                    {'key': 'mat_a', 'type': 'FrooxEngine.PBS_Metallic', 'fields': material}]},
+                {'slot': {'key': 'provider_mat_b', 'name': 'material_b'}, 'components': [
+                    {'key': 'mat_b', 'type': 'FrooxEngine.PBS_Metallic', 'fields': {'AlbedoColor': [0, 1, 0, 1]}}]},
+            ]},
+        ],
+    }
+    (directory / 'model.apply.json').write_text(json.dumps(payload), encoding='utf-8')
+    return payload
+
+
+def _nodes(m):
+    def walk(n):
+        yield n
+        for c in n.get('children', []):
+            yield from walk(c)
+    return list(walk(m))
+
+
+def _layout():
+    r = RectXZ(-1, 1, -1, 1)
+    return Layout(260927, r, r, r, (), (), (), ())
+
+
+def _setup(tmp_path, monkeypatch, *, second=b'second'):
+    monkeypatch.setattr(pipeline, 'SECTORS', ('ground', 'plaza'))
+    directory = tmp_path / 'bundles' / 'rev'
+    _bundle(directory / 'ground', 'Ground')
+    _bundle(directory / 'plaza', 'Plaza', mesh=second, material={'AlbedoColor': [0, 0, 1, 1]})
+    return directory
+
+
+def test_conflicting_asset_names_are_rewritten(tmp_path, monkeypatch):
+    directory = _setup(tmp_path, monkeypatch)
+    m = pipeline.merge_bundles(directory)
+    assert m['assets']['mesh_a']['source'] == 'ground/mesh_a.mesh.json'
+    assert m['assets']['plaza-mesh_a']['source'] == 'plaza/mesh_a.mesh.json'
+    nodes = {n['slot']['key']: n for n in _nodes(m)}
+    assert nodes['plaza-object_driven']['components'][0]['fields']['URL'] == '$asset:plaza-mesh_a'
+    assert nodes['plaza-object_driven']['components'][1]['fields'] == {
+        'Mesh': '$component:plaza-mesh_a', 'Materials': ['$component:plaza-mat_a', '$component:mat_b']}
+    assert nodes['plaza-object_driven']['components'][2]['fields'] == {
+        '_target': '$slot-member:plaza-object_driven.Rotation',
+        'Anchor': '$slot:plaza-object_a', 'Source': '$member:plaza-mat_a.AlbedoColor'}
+    assert nodes['plaza-object_driven'] in nodes['plaza-object_a']['children']
+    assert [c['key'] for c in nodes['plaza-provider_mat_a']['components']] == ['plaza-mat_a']
+    assert len({n['slot']['key'] for n in _nodes(m)}) == len(_nodes(m))
+
+
+def test_identical_assets_and_materials_share_provider(tmp_path, monkeypatch):
+    directory = _setup(tmp_path, monkeypatch, second=b'first')
+    payload_path = directory / 'plaza' / 'model.apply.json'
+    payload = json.loads(payload_path.read_text())
+    payload['children'][1]['children'][0]['components'][0]['fields'] = {'AlbedoColor': [1, 0, 0, 1]}
+    payload_path.write_text(json.dumps(payload))
+    m = pipeline.merge_bundles(directory)
+    assert list(m['assets']) == ['mesh_a']
+    comps = [c for n in _nodes(m) for c in n.get('components', [])]
+    assert [c['key'] for c in comps].count('mat_a') == 1
+    driven = next(n for n in _nodes(m) if n['slot']['name'] == 'Plaza_driven')
+    assert driven['components'][0]['fields']['URL'] == '$asset:mesh_a'
+    assert driven['components'][1]['fields']['Materials'] == ['$component:mat_a', '$component:mat_b']
+
+
+def _full_setup(tmp_path):
+    """Real ads export + tiny synthetic sectors, with wide evaluated bounds for native candidates."""
+    import shutil
+    from modeling.slum03.layout import build_layout
+    directory = tmp_path / 'bundles' / 'rev'
+    ads = Path('artifacts/slum03/task8-final-20260927T201851-2822336/bundle')
+    shutil.copytree(ads, directory / 'ads')
+    layout = build_layout()
+    for sector in pipeline.SECTORS:
+        if sector == 'ads':
+            continue
+        d = directory / sector
+        if sector in ('ground', 'plaza'):
+            _bundle(d, sector.title(), mesh=b'first' if sector == 'ground' else b'second')
+            payload = json.loads((d / 'model.apply.json').read_text())
+        else:
+            d.mkdir(parents=True)
+            payload = {'schemaVersion': '1', 'ownership': {'key': 'blender_' + sector},
+                       'slot': {'key': 'root', 'name': sector, 'parent': 'Root'},
+                       'assets': {}, 'components': [], 'children': []}
+        payload['children'].extend({'slot': {'key': 'label_' + label.parent_name,
+                                              'name': label.parent_name}, 'components': []}
+                                   for label in layout.labels if (label.parent_name == 'yarol' and sector == 'yarol')
+                                   or (label.parent_name in ('nightlife-east', 'nightlife-velvet') and sector == 'nightlife')
+                                   or (label.parent_name == 'market-west' and sector == 'market'))
+        (d / 'model.apply.json').write_text(json.dumps(payload))
+        (d / 'report.json').write_text(json.dumps({'sector': sector, 'errors': [],
+            'evaluated_bounds': {name: {'minimum': [-10000]*3, 'maximum': [10000]*3}
+                                 for name in ('district-foundation', 'factory-floor', 'bridge',
+                                              'checkpoint', 'south-road-end', 'north-turnback')}}))
+    return directory, layout
+
+
+def test_nested_bundle_paths_survive_final_write(tmp_path):
+    directory, layout = _full_setup(tmp_path)
+    m = pipeline.build_unified_manifest(directory, layout, {}, (0, 5, 0))
+    assert m['assets']['mesh_a']['source'] == str((directory / 'ground' / 'mesh_a.mesh.json').resolve())
+    output = tmp_path / 'slum03.json'
+    before = json.dumps(m, sort_keys=True)
+    pipeline.write_unified_manifest(m, output)
+    saved = json.loads(output.read_text())
+    assert json.dumps(m, sort_keys=True) == before
+    assert saved['assets']['mesh_a']['source'] == 'bundles/rev/ground/mesh_a.mesh.json'
+    assert (output.parent / saved['assets']['mesh_a']['source']).read_bytes() == b'first'
+    assert saved['slot']['position'] == [0, 5, 0]
+    assert saved['limits']['expandedNodes'] == math.ceil(1.2 * _count({k: v for k, v in saved.items() if k != 'limits'}))
+
+
+def _count(value):
+    return 1 + (sum(_count(v) for v in value.values()) if isinstance(value, dict)
+                else sum(_count(v) for v in value) if isinstance(value, list) else 0)
+
+
+def test_missing_sector_fails_closed(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, 'SECTORS', ('ground', 'plaza'))
+    _bundle(tmp_path / 'ground', 'Ground')
+    with pytest.raises(ValueError, match='missing sector'):
+        pipeline.merge_bundles(tmp_path)
+
+
+def test_material_provider_has_unique_slot(tmp_path, monkeypatch):
+    m = pipeline.merge_bundles(_setup(tmp_path, monkeypatch))
+    nodes = _nodes(m)
+    assert len({n['slot']['key'] for n in nodes}) == len(nodes)
+    for n in nodes:
+        for c in n.get('components', []):
+            if c['type'] == 'FrooxEngine.PBS_Metallic':
+                assert n['slot']['key'].startswith('provider_') or n['slot']['key'].startswith('plaza-provider_')
+    assert {'provider_mat_a', 'plaza-provider_mat_a'} <= {n['slot']['key'] for n in nodes}
+
+
+def test_same_manifest_is_deterministic(tmp_path, monkeypatch):
+    directory = _setup(tmp_path, monkeypatch)
+    assert json.dumps(pipeline.merge_bundles(directory)) == json.dumps(pipeline.merge_bundles(directory))
+
+
+def test_cli_reads_adjacent_sector_reports(tmp_path):
+    from modeling.slum03.layout import write_layout
+    directory, layout = _full_setup(tmp_path)
+    path = tmp_path / 'layout.json'
+    write_layout(layout, path)
+    output = tmp_path / 'slum03.json'
+    result = subprocess.run([sys.executable, '-m', 'modeling.slum03.pipeline', '--bundles', str(directory),
+                             '--layout', str(path), '--root-y', '5', '--output', str(output)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(output.read_text())['slot']['position'] == [0, 5.0, 0]
+    provenance = json.loads((tmp_path / 'slum03-provenance.json').read_text())
+    assert provenance['status'] == 'OFFLINE CANDIDATE'
+    assert provenance['currentReflectionValidated'] is False
+
+
+def test_native_postprocess_runs_once_on_merged_manifest(tmp_path, monkeypatch):
+    directory, layout = _full_setup(tmp_path)
+    real = pipeline.postprocess
+    received = []
+    def observe(manifest, passed_layout, reports, root_position):
+        received.append((manifest, passed_layout, reports, root_position))
+        return real(manifest, passed_layout, reports, root_position)
+    monkeypatch.setattr(pipeline, 'postprocess', observe)
+    final = pipeline.build_unified_manifest(directory, layout, {}, (0, 5, 0))
+    assert len(received) == 1
+    assert received[0][1:] == (layout, {}, (0, 5, 0))
+    assert [n['slot']['key'] for n in _nodes(final)].count('native-textures') == 1
+    assert final['slot']['name'] == 'Slum03_Slum'
+    assert final['ownership'] == {'key': 'slum03'}
+    assert final['slot']['parent'] == 'Root'
+
+
+def test_write_rebases_to_output_in_sibling_directory(tmp_path, monkeypatch):
+    directory = _setup(tmp_path, monkeypatch)
+    m = pipeline.merge_bundles(directory)
+    for asset in m['assets'].values():
+        asset['source'] = str((directory / asset['source']).resolve())
+    output = tmp_path / 'other' / 'slum03.json'
+    pipeline.write_unified_manifest(m, output)
+    saved = json.loads(output.read_text())
+    assert saved['assets']['mesh_a']['source'] == '../bundles/rev/ground/mesh_a.mesh.json'
+    assert (output.parent / saved['assets']['mesh_a']['source']).read_bytes() == b'first'
