@@ -2,7 +2,7 @@
 from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
-from .geometry import Assembly, box
+from .geometry import Assembly
 from .types import Layout, Report
 
 SECTORS = ('ground', 'plaza', 'ruins-west', 'ruins-north', 'ruins-east', 'market',
@@ -45,10 +45,8 @@ def sector_assemblies(layout: Layout, sector: str) -> list[Assembly]:
     return result
 
 
-@register('ground')
-def ground_assemblies(layout: Layout, sector: str) -> list[Assembly]:
-    """District foundation only; all other district features have separate sectors."""
-    x, z = layout.district.size
-    return [Assembly('foundation', 'district-foundation', sector, (0, 0, 0),
-                     [box('foundation', (0, -0.15, 0), (x, 0.3, z), 'concrete_raw')],
-                     {'placement_key': 'district-foundation'})]
+from . import ground, plaza
+
+register('ground')(ground.build_assemblies)
+register('plaza')(plaza.build_assemblies)
+register_blender_hook('plaza')(plaza.add_plaza)

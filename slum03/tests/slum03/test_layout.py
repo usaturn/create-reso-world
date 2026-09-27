@@ -114,7 +114,7 @@ def test_missing_landmark_and_blocked_exit_report_issues():
     shifted = replace(p, origin=(18, 0, 0), size=(4, 6, 4))
     problems = validate_layout(replace(a, placements=tuple(
         shifted if q.key == p.key else q for q in a.placements)))
-    assert any(i.code == 'CLEARANCE' and i.object_key == 'north-wall' for i in problems)
+    assert any(i.code == 'CLEARANCE_INTRUSION' and i.object_key == 'north-wall' for i in problems)
 
 
 def test_forest_boundary_and_open_checkpoint_cannot_drift_into_walkway():

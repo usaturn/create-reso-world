@@ -40,5 +40,5 @@ def validate_clearance(layout: Layout, bounds: Mapping[str, Bounds3]) -> list[Is
         if b.minimum[1] >= 3 or b.maximum[1] <= 0:
             continue
         if _intersects(b, layout.clear) or any(_intersects(b, r) for r in layout.routes):
-            issues.append(Issue('CLEARANCE', key, 'occupied central air or main 3m route'))
+            issues.append(Issue('CLEARANCE_INTRUSION', key, 'evaluated geometry occupies central air or main 3m route'))
     return issues

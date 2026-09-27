@@ -20,7 +20,7 @@ def test_evaluated_bounds_catch_intrusion_even_if_origin_is_outside():
     p = next(p for p in a.placements if p.key == 'north-wall')
     extended = Bounds3((-2, 0, 10), (2, 3, 15))
     issues = validate_clearance(a, {p.key: extended})
-    assert any(i.code == 'CLEARANCE' and i.object_key == p.key for i in issues)
+    assert any(i.code == 'CLEARANCE_INTRUSION' and i.object_key == p.key for i in issues)
 
 
 def test_obstacles_blocking_plaza_upper_air_or_routes_are_reported():
@@ -28,7 +28,7 @@ def test_obstacles_blocking_plaza_upper_air_or_routes_are_reported():
     p = next(p for p in a.placements if p.key == 'north-wall')
     for b in (Bounds3((-1, 2.5, -1), (1, 4, 1)),
               Bounds3((20, 0, -1), (23, 3, 1))):
-        assert any(i.code == 'CLEARANCE' for i in validate_clearance(a, {p.key: b}))
+        assert any(i.code == 'CLEARANCE_INTRUSION' for i in validate_clearance(a, {p.key: b}))
 
 
 def test_floor_surfaces_do_not_count_as_walkway_obstacles():
@@ -47,7 +47,7 @@ def test_evaluated_floor_protrusion_above_walkway_is_not_exempt():
     a = build_layout()
     floor = next(p for p in a.placements if p.key == 'factory-floor')
     raised = Bounds3((-20, -.2, -15), (20, 1, 15))
-    assert any(i.code == 'CLEARANCE' for i in validate_clearance(a, {floor.key: raised}))
+    assert any(i.code == 'CLEARANCE_INTRUSION' for i in validate_clearance(a, {floor.key: raised}))
 
 
 @pytest.mark.parametrize('bad_bounds', [

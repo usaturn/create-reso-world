@@ -34,10 +34,24 @@ def test_ground_build_reports_resonite_bounds_and_stable_export_name(tmp_path):
                f'--arg={tmp_path / "ground.blend"}', '--json']
     subprocess.run(command, check=True, capture_output=True, text=True)
     report = json.loads((tmp_path / 'ground-report.json').read_text())
-    assert report['objects'] == [{'key': 'district-foundation', 'kind': 'foundation',
+    assert report['objects'] == [{'key': 'district-ground', 'kind': 'foundation',
                                   'mesh': 'district-foundation'}]
     assert report['evaluated_bounds']['district-foundation']['minimum'] == pytest.approx([-60, -.3, -60])
     assert report['evaluated_bounds']['district-foundation']['maximum'] == pytest.approx([60, 0, 60])
+    # Reopen the actual artifact rather than trusting only the pre-save report.
+    probe = tmp_path / 'ground_reopen.py'
+    probe.write_text('import bpy, json, sys\n'
+                     'from pathlib import Path\n'
+                     'o=bpy.data.collections["Slum03groundExport"].objects["district-foundation"]\n'
+                     'top=[p for p in o.data.polygons if p.normal.z > .99]\n'
+                     'Path(sys.argv[sys.argv.index("--")+1]).write_text(json.dumps({"top":len(top), '
+                     '"uv": [u.name for u in o.data.uv_layers if u.active_render], '
+                     '"source_hidden":bpy.data.collections["Slum03groundSource"].hide_render}))\n')
+    out = tmp_path / 'ground-reopen.json'
+    subprocess.run(['resoloop', 'blender', 'run', str(probe), '--blend',
+                    str(tmp_path / 'ground.blend'), f'--arg={out}', '--json'],
+                   check=True, capture_output=True, text=True)
+    assert json.loads(out.read_text()) == {'top': 1, 'uv': ['UV0'], 'source_hidden': True}
 
 
 def test_blockout_exports_one_footprint_per_placement_plus_ground(tmp_path):
@@ -48,7 +62,9 @@ def test_blockout_exports_one_footprint_per_placement_plus_ground(tmp_path):
                     '--arg=blockout', '--json'], check=True, capture_output=True, text=True)
     report = json.loads((tmp_path / 'blockout-probe.json').read_text())
     assert report['placements'] == len(build_layout().placements)
-    assert report['source_objects'] == report['export_objects'] == report['placements'] + 1
+    registered = sum(len(sectors.sector_assemblies(build_layout(), sector))
+                     for sector in sectors.REGISTRY)
+    assert report['source_objects'] == report['export_objects'] == report['placements'] + registered
     assert report['export_names'][0] == 'district-foundation'
 
 
@@ -130,7 +146,7 @@ def test_hook_issue_objects_and_metrics_are_not_overwritten(tmp_path):
     assert result.returncode != 0, result.stdout
     report = json.loads((tmp_path / 'ground-report.json').read_text())
     assert report['objects'] == [
-        {'key': 'district-foundation', 'kind': 'foundation', 'mesh': 'district-foundation'},
+        {'key': 'district-ground', 'kind': 'foundation', 'mesh': 'district-foundation'},
         {'key': 'hook-extra', 'kind': 'hook', 'mesh': 'hook-extra'}]
     assert report['triangles'] == 24 and report['vertices'] == 16 and report['submeshes'] == 2
     assert report['evaluated_bounds']['hook-extra']['minimum'] == pytest.approx([3.5, -.5, -.5])
@@ -283,7 +299,9 @@ def test_blockout_proxy_does_not_steal_real_placement_name_or_parent(tmp_path):
     assert report['export_names'][:2] == ['district-ground', 'district-ground-child']
     assert report['proxy_names']['district-ground'] == 'Slum03BlockoutProxy__district-ground'
     assert report['placements'] == len(build_layout().placements)
-    assert report['source_objects'] == report['export_objects'] == report['placements'] + 2
+    # The custom ground generator returns two real meshes; plaza is also registered.
+    registered = 2 + len(sectors.sector_assemblies(build_layout(), 'plaza'))
+    assert report['source_objects'] == report['export_objects'] == report['placements'] + registered
     for kind, row in result.items():
         suffix = '_Source' if kind.endswith('Source') else ''
         assert row['parent'] == 'district-ground' + suffix

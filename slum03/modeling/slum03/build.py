@@ -73,6 +73,7 @@ def write_scene(sector: str, output: Path) -> Report:
     source = bpy.data.collections.new(f'Slum03{sector}Source')
     export = bpy.data.collections.new(f'Slum03{sector}Export')
     bpy.context.scene.collection.children.link(source)
+    source.hide_render = True  # never double-render source and static export copies
     bpy.context.scene.collection.children.link(export)
     materials = make_blender_materials()
     uv_issues: list[dict] = []
