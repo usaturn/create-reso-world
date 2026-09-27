@@ -79,3 +79,34 @@ def test_task5_sectors_build_uv_clean_and_reopen(tmp_path):
         data = json.loads(result.read_text())
         assert data == {"count": count, "source_hidden": True,
                         "uv": [["UV0"]]*count, "colors": [True]*count}
+
+
+def test_shelf_brace_ends_are_carried_by_vertical_uprights():
+    for stall in sector_assemblies(build_layout(), 'market'):
+        uprights = [part for part in stall.parts if part.name == 'shelf-upright']
+        braces = [part for part in stall.parts if part.name == 'shelf-brace']
+        assert len(uprights) == 2 and len(braces) == 4
+        for brace in braces:
+            # Last ring is the wall-side fixing: its actual XYZ location must
+            # overlap a ground-to-beam vertical pipe, not merely lie in the stall.
+            end = brace.vertices[-6:]
+            x = sum(v[0] for v in end)/len(end)
+            y = sum(v[1] for v in end)/len(end)
+            z = sum(v[2] for v in end)/len(end)
+            assert any(_touches(brace, post) and
+                       abs((bounds([post])[0][0]+bounds([post])[1][0])/2-x) < .12 and
+                       abs((bounds([post])[0][2]+bounds([post])[1][2])/2-z) < .12 and
+                       bounds([post])[0][1] <= y <= bounds([post])[1][1]
+                       for post in uprights), (stall.name,x,y,z)
+
+
+def test_task5_preview_renders_without_deprecation_warning(tmp_path):
+    import subprocess
+    from pathlib import Path
+    scene = Path('artifacts/slum03/task5-20260927T184805-2248710')
+    image = tmp_path / 'market.png'
+    result = subprocess.run(['resoloop', 'blender', 'run', str(scene/'reopen-preview.py'),
+                             '--blend', str(scene/'market.blend'), f'--arg={image}', '--json'],
+                            check=True, capture_output=True, text=True)
+    assert image.stat().st_size > 1000
+    assert 'DeprecationWarning' not in result.stdout + result.stderr

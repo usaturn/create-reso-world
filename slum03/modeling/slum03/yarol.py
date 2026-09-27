@@ -20,6 +20,23 @@ def _bar(p):
     parts.append(box('roof-slab', (0, h-.28, 0), (w, .56, d), 'concrete_raw'))
     parts.append(box('fascia', (0, sign_y+.65, z-.18), (w-.9, 2.1, .65), 'concrete_dark'))
     parts.append(box('sill', (0, .36, z-.12), (w-.9, .72, .55), 'concrete_raw'))
+    # Solid infill between the sealed door, shallow lit windows and corner
+    # piers. The reveal/glow stays uncovered; every remaining bay meets the
+    # fascia and the upper infill, not a hollow room behind the sign.
+    window_x = w*.32
+    inner = window_x-window/2
+    outer = window_x+window/2
+    pier_inner = w/2-.8
+    for side in (-1, 1):
+        for start, end in ((door/2, inner), (outer, pier_inner)):
+            parts.append(box('front-infill', (side*(start+end)/2, 1.8, z-.16),
+                             (end-start+.04, 3.6, .32), 'concrete_stained'))
+        parts.append(box('window-head', (side*window_x, 3.3, z-.16),
+                         (window+.04, .6, .32), 'concrete_dark'))
+    parts.append(box('door-head', (0, 3.1, z-.16),
+                     (door+.04, 1.0, .32), 'concrete_raw'))
+    parts.append(box('upper-front', (0, (5.7+h-.56)/2, z-.16),
+                     (w-.85, h-.56-5.7, .32), 'concrete_stained'))
     # Closed wood/steel-faced entrance is a full barrier, not a doorway cut
     # through the shell; the lit reveal is a shallow stage behind glazing.
     parts.append(box('closed-entrance', (0, 1.3, z+.03), (door, 2.6, .16), 'pallet_wood'))

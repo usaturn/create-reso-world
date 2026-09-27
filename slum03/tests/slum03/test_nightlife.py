@@ -58,3 +58,56 @@ def test_neon_outline_touches_each_storefront_mount():
 def _overlap(a, b):
     low, high = bounds([a]); lo, hi = bounds([b])
     return all(low[i] <= hi[i]+.005 and lo[i] <= high[i]+.005 for i in range(3))
+
+
+def _front_ray_hits(parts, start, direction, max_distance):
+    # Actual triangle intersections, not placement AABBs or a wall part name.
+    def dot(a, b):
+        return sum(x*y for x,y in zip(a,b))
+    def sub(a,b):
+        return tuple(x-y for x,y in zip(a,b))
+    def cross(a,b):
+        return (a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0])
+    for part in parts:
+        for face in part.faces:
+            for i in range(1, len(face)-1):
+                a,b,c = (part.vertices[j] for j in (face[0], face[i], face[i+1]))
+                edge, other = sub(b,a), sub(c,a)
+                h = cross(direction,other)
+                det = dot(edge,h)
+                if abs(det) < 1e-9:
+                    continue
+                rel = sub(start,a)
+                u = dot(rel,h)/det
+                if not -1e-7 <= u <= 1+1e-7:
+                    continue
+                q = cross(rel,edge)
+                v = dot(direction,q)/det
+                if v < -1e-7 or u+v > 1+1e-7:
+                    continue
+                distance = dot(other,q)/det
+                if 0 < distance <= max_distance:
+                    return True
+    return False
+
+
+def test_nightlife_front_has_no_walkthrough_gap_at_eye_or_upper_storey_height():
+    for facade in sector_assemblies(build_layout(), 'nightlife'):
+        for height in (.5, 1.4, 2.5, 3.75, 4.1, 6, 10):
+            for x in (-2.25, -2, -1.7, 0, 1.7, 2, 2.25):
+                assert _front_ray_hits(facade.parts, (x,height,8.1), (0,0,-1), 1.35), (facade.name,height,x)
+
+
+def test_nightlife_side_walls_close_both_external_perimeters():
+    for facade in sector_assemblies(build_layout(), 'nightlife'):
+        for sign in (-1,1):
+            for height in (1.5, 6, 9.5):
+                for z in (-5,0,5):
+                    assert _front_ray_hits(facade.parts, (sign*3.15,height,z), (-sign,0,0), .9), (facade.name,sign,height,z)
+
+
+def test_nightlife_shell_has_a_supported_roof_not_open_sky():
+    for facade in sector_assemblies(build_layout(), 'nightlife'):
+        for x in (-2.2, 0, 2.2):
+            for z in (-5, 0, 5):
+                assert _front_ray_hits(facade.parts, (x,11.25,z), (0,-1,0), .9), (facade.name,x,z)

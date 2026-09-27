@@ -1,4 +1,4 @@
-"""Offline saved-blend audit and Workbench preview; run via resoloop blender run --blend."""
+"""Offline saved-blend audit and Cycles preview; run via resoloop blender run --blend."""
 import bpy
 import json
 import sys
@@ -43,7 +43,6 @@ scene.render.engine = 'CYCLES'
 scene.cycles.device = 'CPU'
 scene.cycles.samples = 8
 world = bpy.data.worlds.new('Task5PreviewWorld')
-world.use_nodes = True
 world.node_tree.nodes['Background'].inputs['Color'].default_value = (.12, .16, .21, 1)
 world.node_tree.nodes['Background'].inputs['Strength'].default_value = 1.2
 scene.world = world

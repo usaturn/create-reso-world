@@ -24,6 +24,12 @@ def _stall(p):
                     for z in (z0, z1) for x in (a, b)]
         parts.append(mesh('awning', vertices, ((0, 1, 3, 2),),
                           'tarp_blue' if side == 1 else 'tarp_orange'))
+    # Mid-span uprights transfer both shelf-brace loads to grade and the
+    # longitudinal eave beam; the corner posts alone are 2.2 m away.
+    for z in (-3.5, 3.5):
+        parts.append(tube('shelf-upright', [(side*(w/2-.3), 0, z),
+                                            (side*(w/2-.3), eave-.04, z)],
+                          .065, 8, 'steel_dark'))
     sx = side*(w/2-.3-shelf_depth/2)
     for level in (shelf_height, shelf_height+.75):
         parts.append(box('shelf', (sx, level, 0), (shelf_depth, .12, d-.6), 'pallet_wood'))

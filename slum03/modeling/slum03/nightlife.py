@@ -15,13 +15,24 @@ def _front(p):
         parts.append(box('pier', (x, h/2, front_z-.15), (.5, h, .65), 'concrete_dark'))
         parts.append(box('pier', (x, h/2, -d/2+.5), (.5, h, .7), 'concrete_stained'))
         parts.append(box('side-beam', (x, h-.4, 0), (.45, .55, d-1.2), 'concrete_raw'))
+        parts.append(box('side-wall', (x, h/2, 0), (.35, h, d-1.1), 'concrete_stained'))
     parts.append(box('back-wall', (0, h/2, -d/2+.5), (w-.5, h, .65), 'concrete_dark'))
+    parts.append(box('roof-slab', (0, h-.23, 0), (w-.3, .46, d-1.1), 'concrete_raw'))
     parts.append(box('upper-cladding', (0, (h+4.2)/2, front_z-.25),
                      (w-.85, h-4.2, .4), 'concrete_stained'))
     for y in (5.8, 8.2):
         parts.append(box('pour-joint', (0, y, front_z-.035),
                          (w-.9, .045, .025), 'concrete_dark'))
     parts.append(box('lintel', (0, sign_y-.38, front_z-.13), (w-.55, .55, .52), 'concrete_raw'))
+    parts.append(box('sign-fascia', (0, (3.35+4.2)/2, front_z-.25),
+                     (w-.55, 4.2-3.35, .4), 'concrete_dark'))
+    gap_start = shutter/2
+    pier_inside = w/2-.55
+    for side in (-1, 1):
+        parts.append(box('front-jamb', (side*(gap_start+pier_inside)/2, 1.8, front_z-.22),
+                         (pier_inside-gap_start+.08, 3.6, .44), 'concrete_stained'))
+    parts.append(box('shutter-backing', (0, 1.46, front_z-.16),
+                     (shutter+.05, 2.92, .18), 'steel_dark'))
     for x in (-shutter/2, shutter/2):
         parts.append(box('shutter-guide', (x, 1.33, front_z+.08), (.13, 2.66, .16), 'rust_dark'))
     for i in range(12):

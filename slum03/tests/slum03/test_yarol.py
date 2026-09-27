@@ -56,3 +56,43 @@ def test_yarol_neon_is_physically_supported_by_wall_brackets():
         return all(lo[i] <= high[i]+.005 and low[i] <= hi[i]+.005 for i in range(3))
     assert all(overlaps(bracket, fascia) for bracket in brackets)
     assert all(any(overlaps(bracket, tube) for tube in trim) for bracket in brackets)
+
+
+def _front_ray_hits(parts, start, direction, max_distance):
+    # Actual triangle intersections, not placement AABBs or a wall part name.
+    def dot(a, b):
+        return sum(x*y for x,y in zip(a,b))
+    def sub(a,b):
+        return tuple(x-y for x,y in zip(a,b))
+    def cross(a,b):
+        return (a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0])
+    for part in parts:
+        for face in part.faces:
+            for i in range(1, len(face)-1):
+                a,b,c = (part.vertices[j] for j in (face[0], face[i], face[i+1]))
+                edge, other = sub(b,a), sub(c,a)
+                h = cross(direction,other)
+                det = dot(edge,h)
+                if abs(det) < 1e-9:
+                    continue
+                rel = sub(start,a)
+                u = dot(rel,h)/det
+                if not -1e-7 <= u <= 1+1e-7:
+                    continue
+                q = cross(rel,edge)
+                v = dot(direction,q)/det
+                if v < -1e-7 or u+v > 1+1e-7:
+                    continue
+                distance = dot(other,q)/det
+                if 0 < distance <= max_distance:
+                    return True
+    return False
+
+
+def test_yarol_front_grid_hits_closed_exterior_at_shallow_depth():
+    (bar,) = sector_assemblies(build_layout(), 'yarol')
+    # World-east approach. Check gaps between door/glazing and the upper storeys,
+    # not just the closed door and one illuminated window.
+    for height in (.9, 1.6, 2.35, 3.4, 5.9, 7.7, 10.1):
+        for north in (-5.9, -4.48, -3, -2, 0, 2, 3, 4.48, 5.9):
+            assert _front_ray_hits(bar.parts, (6.05,height,north), (-1,0,0), 1.2), (height,north)
