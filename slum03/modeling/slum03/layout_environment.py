@@ -1,4 +1,5 @@
 """Road, river, nonwalkable forest, and direction-specific skyline anchors."""
+from . import config
 from .types import Placement
 
 
@@ -7,25 +8,31 @@ def environment_placements() -> tuple[Placement, ...]:
         return Placement(key, sector, kind, (x, y, z), (sx, sy, sz), 0.,
                          domain, params)
 
+    def rect_place(key, kind, rect, y, height, **params):
+        return place(key, 'road-river', kind, 'water' if kind == 'river' else 'road',
+                     (rect.x_min+rect.x_max)/2, y, (rect.z_min+rect.z_max)/2,
+                     rect.size[0], height, rect.size[1], **params)
+
     return (
-        place('west-sidewalk', 'road-river', 'sidewalk', 'road', 63, 0, 15,
-              6, .2, 230, local_y_min=-.2, walkable=True),
-        place('roadway', 'road-river', 'roadway', 'road', 78, 0, 15,
-              24, .3, 230, local_y_min=-.3, walkable=True),
-        place('east-sidewalk', 'road-river', 'sidewalk', 'road', 93, 0, 15,
-              6, .2, 230, local_y_min=-.2, walkable=True),
-        place('river', 'road-river', 'river', 'water', 15, -2, 95,
-              430, .2, 34),
-        place('bridge', 'road-river', 'bridge', 'road', 78, 0, 95,
-              36, .4, 46, local_y_min=-.4, walkable=True),
-        place('checkpoint', 'road-river', 'checkpoint', 'road', 98, 0, 69,
-              3, 6, 4, opening_width=24, open=True),
-        place('bridge-rail-west', 'road-river', 'guardrail', 'road', 59.5, 0, 95,
-              1, 1.4, 46),
-        place('bridge-rail-east', 'road-river', 'guardrail', 'road', 96.5, 0, 95,
-              1, 1.4, 46),
-        place('north-turnback', 'road-river', 'boundary', 'road', 78, 0, 130.5,
-              36, 3, 1),
+        rect_place('west-sidewalk', 'sidewalk', config.WEST_SIDEWALK, 0, .2,
+                   local_y_min=-.2, walkable=True),
+        rect_place('roadway', 'roadway', config.ROADWAY, 0, .3,
+                   local_y_min=-.3, walkable=True),
+        rect_place('east-sidewalk', 'sidewalk', config.EAST_SIDEWALK, 0, .2,
+                   local_y_min=-.2, walkable=True),
+        rect_place('river', 'river', config.RIVER, -4, .2),
+        rect_place('bridge', 'bridge', config.BRIDGE, 0, 6.1,
+                   local_y_min=-4, walkable=True),
+        place('checkpoint', 'road-river', 'checkpoint', 'road',
+              (config.BRIDGE.x_min+config.BRIDGE.x_max)/2, 0, config.BRIDGE.z_min-3,
+              config.BRIDGE.size[0], 6, 6,
+              opening_width=config.ROADWAY.size[0], open=True),
+        place('north-turnback', 'road-river', 'boundary', 'road',
+              (config.BRIDGE.x_min+config.BRIDGE.x_max)/2, 0, config.ROAD_NORTH+.5,
+              config.BRIDGE.size[0], 3, 1),
+        place('south-road-end', 'road-river', 'boundary', 'road',
+              (config.BRIDGE.x_min+config.BRIDGE.x_max)/2, 0, config.ROAD_SOUTH-.5,
+              config.BRIDGE.size[0], 3, 1),
         place('forest', 'forest', 'forest', 'background', 160, 0, -10,
               120, 36, 155, nonwalkable=True),
         place('north-towers', 'backdrop-north', 'highrises', 'background',

@@ -28,12 +28,22 @@ def validate_clearance(layout: Layout, bounds: Mapping[str, Bounds3]) -> list[Is
     placements = {p.key: p for p in layout.placements}
     issues = []
     for key, b in bounds.items():
+        p = placements.get(key)
         if (len(b.minimum) != 3 or len(b.maximum) != 3 or
                 any(not math.isfinite(v) for v in (*b.minimum, *b.maximum)) or
-                any(lo >= hi for lo, hi in zip(b.minimum, b.maximum))):
+                any(lo > hi or (lo == hi and not (i == 1 and p and p.domain == 'water'))
+                    for i, (lo, hi) in enumerate(zip(b.minimum, b.maximum)))):
             issues.append(Issue('BOUNDS', key, 'invalid evaluated bounds'))
             continue
-        p = placements.get(key)
+        # A crossing and a roofed checkpoint have essential supports/railings
+        # above the walkway; their AABBs include open circulation air. Keep
+        # them inside their explicitly authored envelopes, then test their real
+        # meshes for free passage (the AABB cannot express an opening).
+        if p and p.kind in ('bridge', 'checkpoint'):
+            allowed = placement_bounds(p)
+            if all(allowed.minimum[i]-1e-6 <= b.minimum[i] <= b.maximum[i] <= allowed.maximum[i]+1e-6
+                   for i in range(3)):
+                continue
         if p and ((p.params.get('walkable') and b.maximum[1] <= 0) or
                   (p.domain == 'water' and b.maximum[1] <= 0)):
             continue
