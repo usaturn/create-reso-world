@@ -35,13 +35,19 @@ def _gate(p):
         _mass(parts, f'pier-{side}', (side*(w*.33), 220, 0), (w*.34, 440, d), 'backdrop_mass')
         _mass(parts, f'buttress-{side}', (side*(w*.425), 160, -d*.18),
               (w*.13, 320, d*.62), 'concrete_dark')
-        _mass(parts, f'upper-dwelling-{side}', (side*w*.31, 605, 0),
-              (w*.39, 335, d*.8), 'concrete_stained')
+        # The occupied pier extension meets the crown underside for every
+        # supported arcology height (500–900m), without filling the lower void.
+        crown_underside = h - 24
+        _mass(parts, f'upper-dwelling-{side}',
+              (side*w*.31, (440+crown_underside)/2, 0),
+              (w*.39, crown_underside-440, d*.8), 'concrete_stained')
         for level in range(3):
             _mass(parts, f'housing-deck-{side}-{level}',
                   (side*w*.33, 130+level*112, -d*.43),
                   (w*.38, 9, d*.2), 'steel_dark')
-    _mass(parts, 'gate-habitation-bridge', (0, 477, 0), (w*.98, 74, d), 'backdrop_mass')
+    bridge_height = min(74, h-464)
+    _mass(parts, 'gate-habitation-bridge', (0, 440+bridge_height/2, 0),
+          (w*.98, bridge_height, d), 'backdrop_mass')
     _mass(parts, 'gate-crown', (0, h-12, 0), (w*.94, 24, d*.88), 'concrete_dark')
     return parts
 

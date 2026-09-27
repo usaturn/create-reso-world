@@ -58,11 +58,12 @@ def sightline_report(layout: Layout, bounds_by_key: Mapping[str, Bounds3]) -> di
     forest = bounds_by_key.get('forest')
     east = False
     if forest and forest.maximum[1] >= 12:
-        for eye in (eyes['east-forest'], (63, 1.6, -35)):
+        visible_from = []
+        for eye in (eyes['east-forest'], eyes['east-lane']):
             points = [(forest.minimum[0], forest.minimum[1] + .55 * (forest.maximum[1]-forest.minimum[1]), z)
                       for z in (-35, 0, 35)]
-            if sum(_visible(eye, pt, 'forest', bounds_by_key) for pt in points) >= 2:
-                east = True
+            visible_from.append(sum(_visible(eye, pt, 'forest', bounds_by_key) for pt in points) >= 2)
+        east = all(visible_from)
     def city(view: str, key: str, axis: int, direction: int) -> bool:
         b = bounds_by_key.get(key)
         if b is None or b.maximum[1] < 12:

@@ -51,3 +51,32 @@ def test_west_floors_face_west_viewpoint_not_hidden_side_wall():
         assert all(min(v[0] for v in p.vertices) > 6 for p in strips)
         assert all(max(v[2] for v in p.vertices)-min(v[2] for v in p.vertices) > 8
                    for p in strips)
+
+
+def test_gate_crown_is_supported_by_dwellings_at_each_allowed_height():
+    from dataclasses import replace
+    from modeling.slum03.geometry import bounds
+    # These are genuine mesh bounds at the minimum, default and maximum
+    # allowed arcology heights, not the declared Placement envelope.
+    for width, height, depth in ((140, 500, 80), (180, 820, 100), (220, 900, 120)):
+        base = build_layout()
+        layout = replace(base, placements=tuple(
+            replace(p, size=(width, height, depth)) if p.key == 'arcology-gate' else p
+            for p in base.placements))
+        gate = next(a for a in sector_assemblies(layout, 'backdrop-north')
+                    if a.name == 'arcology-gate')
+        meshes = {p.name: p for p in gate.parts}
+        crown_min, crown_max = bounds([meshes['gate-crown']])
+        assert crown_max[1] == height
+        assert max(v[1] for part in gate.parts for v in part.vertices) <= height
+        for side in (-1, 1):
+            dwelling_min, dwelling_max = bounds([meshes[f'upper-dwelling-{side}']])
+            pier_max = bounds([meshes[f'pier-{side}']])[1]
+            assert dwelling_min[1] <= pier_max[1] + 1e-6
+            assert dwelling_max[1] + 1e-6 >= crown_min[1]
+            assert dwelling_min[0] < crown_max[0] and dwelling_max[0] > crown_min[0]
+            assert dwelling_min[2] < crown_max[2] and dwelling_max[2] > crown_min[2]
+        # Lower monumental gap stays empty while the high crown is supported.
+        assert not any(min(v[0] for v in p.vertices) < 0 < max(v[0] for v in p.vertices)
+                       and min(v[1] for v in p.vertices) < 180 < max(v[1] for v in p.vertices)
+                       for p in gate.parts)

@@ -52,6 +52,7 @@ def test_plan_includes_canonical_sector_anchors_and_distinct_domains():
                for p in a.placements if p.key.startswith('arcology-'))
     assert {(p.key, p.target_group) for p in a.viewpoints} == {
         ('plaza-north', 'north_arcologies'), ('east-forest', 'east_forest'),
+        ('east-lane', 'east_forest'),
         ('bridge-checkpoint', 'checkpoint'), ('west-city', 'west_city'),
         ('south-market', 'south_city'), ('ar-hero', 'ads')}
     assert any(label.text == 'Yarol' and label.parent_name == 'yarol' for label in a.labels)

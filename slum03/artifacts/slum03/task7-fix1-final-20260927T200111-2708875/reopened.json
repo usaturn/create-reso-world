@@ -1,0 +1,21 @@
+{
+  "forest": {
+    "objects": 36,
+    "uv0": true,
+    "colors": true
+  },
+  "backdrop-north": {
+    "objects": 15,
+    "uv0": true,
+    "colors": true
+  },
+  "backdrop-west-south": {
+    "objects": 36,
+    "uv0": true,
+    "colors": true
+  },
+  "gate_actual_height": 820.0,
+  "gate_joint_vertices": 12,
+  "editable_patches": 12,
+  "realized_patches": 12
+}

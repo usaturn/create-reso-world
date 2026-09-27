@@ -15,7 +15,7 @@ assert bpy.data.filepath.endswith('forest.blend')
 scene = bpy.context.scene
 forest_source = bpy.data.collections['Slum03forestSource']
 forest_export = bpy.data.collections['Slum03forestExport']
-for sector in ('backdrop-north', 'backdrop-west-south', 'ground', 'plaza', 'road-river'):
+for sector in ('backdrop-north', 'backdrop-west-south', 'ground', 'plaza', 'road-river', 'ruins-east'):
     path = (out if sector == 'backdrop-west-south' and (out/f'{sector}.blend').exists() else assets)/f'{sector}.blend'
     with bpy.data.libraries.load(str(path), link=False) as (src, dest):
         name = f'Slum03{sector}Export'
@@ -35,6 +35,12 @@ for sector in ('forest', 'backdrop-north', 'backdrop-west-south'):
 assert forest_source.hide_render
 assert len([o for o in forest_source.objects if o.modifiers and o.modifiers[0].type == 'NODES']) == 12
 assert all(not o.modifiers for o in forest_export.objects)
+gate = bpy.data.collections['Slum03backdrop-northExport'].objects['arcology-gate']
+gate_heights = [(gate.matrix_world @ v.co).z for v in gate.data.vertices]
+checks['gate_actual_height'] = max(gate_heights)
+checks['gate_joint_vertices'] = sum(abs(y-796) < 1e-4 for y in gate_heights)
+assert abs(checks['gate_actual_height'] - 820) < 1e-4
+assert checks['gate_joint_vertices'] >= 12  # welded vertices where dwellings meet the crown
 checks['editable_patches'] = 12
 checks['realized_patches'] = len([o for o in forest_export.objects if o.name.startswith('forest-patch-')])
 assert checks['realized_patches'] == 12
@@ -66,6 +72,7 @@ scene.render.image_settings.file_format = 'PNG'
 for name, eye, target, lens in (
     ('north', (0, -6, 1.6), (28, 440, 220), 11),
     ('east', (63, 0, 1.6), (143, 0, 15), 24),
+    ('east-lane', (54, 0, 1.6), (143, 0, 15), 24),
     ('west', (-54, 0, 1.6), (-118, 0, 17), 14),
     ('south', (0, -52, 1.6), (0, -126, 17), 14),
 ):

@@ -16,6 +16,7 @@ from .types import Issue, LabelSpec, Layout, Placement, RectXZ, Viewpoint
 VIEWPOINTS = (
     Viewpoint('plaza-north', (0, 1.6, -6), 'north_arcologies'),
     Viewpoint('east-forest', (63, 1.6, 0), 'east_forest'),
+    Viewpoint('east-lane', (54, 1.6, 0), 'east_forest'),
     Viewpoint('bridge-checkpoint', (63, 1.6, 50), 'checkpoint'),
     Viewpoint('west-city', (-54, 1.6, 0), 'west_city'),
     Viewpoint('south-market', (0, 1.6, -52), 'south_city'),

@@ -52,3 +52,30 @@ def test_west_south_background_rejects_exposed_horizon_end():
     report = sightline_report(layout, bounds)
     assert report['west_city'] is False
     assert report['south_city'] is False
+
+
+def test_east_laneway_eye_is_in_district_public_route():
+    layout = build_layout()
+    eye = next(v.eye for v in layout.viewpoints if v.key == 'east-lane')
+    sidewalk = next(v.eye for v in layout.viewpoints if v.key == 'east-forest')
+    assert eye != sidewalk and layout.district.x_min < eye[0] < layout.district.x_max
+    assert any(r.x_min <= eye[0] <= r.x_max and r.z_min <= eye[2] <= r.z_max
+               for r in layout.routes)
+    assert sightline_report(layout, _bounds(layout))['east_forest']
+
+
+def test_lane_blocked_but_sidewalk_open_fails_east_forest():
+    layout = build_layout()
+    bounds = _bounds(layout)
+    # In the district, before the sidewalk at x63; walking on sidewalk is still clear.
+    bounds['laneway-screen'] = Bounds3((57, 0, -40), (59, 45, 40))
+    assert sightline_report(layout, bounds)['east_forest'] is False
+
+
+def test_sidewalk_blocked_but_east_lane_open_fails_east_forest():
+    layout = build_layout()
+    bounds = _bounds(layout)
+    # Thin screen at the west sidewalk eye. The two oblique rays from x54
+    # bypass it, but all three rays originating at x63 hit it immediately.
+    bounds['sidewalk-screen'] = Bounds3((62.8, 0, -1), (63.2, 45, 1))
+    assert sightline_report(layout, bounds)['east_forest'] is False
