@@ -1,0 +1,48 @@
+{
+  "views": [
+    [
+      "product",
+      [
+        -5,
+        -40,
+        5.2
+      ],
+      [
+        -9,
+        -46,
+        3.4
+      ],
+      38
+    ],
+    [
+      "information",
+      [
+        37,
+        -25,
+        15.4
+      ],
+      [
+        37,
+        -16.55,
+        13.0
+      ],
+      34
+    ],
+    [
+      "ribbon",
+      [
+        26,
+        19,
+        9.0
+      ],
+      [
+        26,
+        10,
+        6.6
+      ],
+      35
+    ]
+  ],
+  "preview_only": true,
+  "blend": "/workspaces/create-reso-world/.worktrees/slum03/slum03/artifacts/slum03/task8-final-20260927T201851-2822336/ads.blend"
+}

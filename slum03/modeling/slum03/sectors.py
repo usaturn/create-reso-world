@@ -40,12 +40,13 @@ def sector_assemblies(layout: Layout, sector: str) -> list[Assembly]:
     if sector not in REGISTRY:
         raise NotImplementedError(f'sector {sector} has no generator yet')
     result = REGISTRY[sector](layout, sector)
-    if not result or any(a.sector != sector or not a.parts for a in result):
+    if not result or not any(a.parts for a in result) or any(
+            a.sector != sector or (not a.parts and not a.meta.get('anchor')) for a in result):
         raise ValueError(f'sector {sector} returned no valid meshes')
     return result
 
 
-from . import ground, plaza, ruins, shacks, overhead, stalls, nightlife, yarol, road_river, forest, backdrop
+from . import ground, plaza, ruins, shacks, overhead, stalls, nightlife, yarol, road_river, forest, backdrop, ads
 
 register('ground')(ground.build_assemblies)
 register('plaza')(plaza.build_assemblies)
@@ -56,6 +57,7 @@ register('market')(stalls.build_assemblies)
 register('nightlife')(nightlife.build_assemblies)
 register('yarol')(yarol.build_assemblies)
 register('overhead')(overhead.build_assemblies)
+register('ads')(ads.build_assemblies)
 register('road-river')(road_river.build_assemblies)
 register('forest')(forest.build_assemblies)
 register_blender_hook('forest')(forest.add_canopy)

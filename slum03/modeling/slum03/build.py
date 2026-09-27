@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict
 import json
+import math
 from pathlib import Path
 import sys
 
@@ -27,18 +28,30 @@ def add_assembly(bpy, bmesh, assembly: Assembly, materials: dict, source, export
     parent_name = assembly.meta.get('parent_name')
     if parent_name and parent_name not in sources_by_name:
         raise ValueError(f'{name}: unknown or unordered parent {parent_name}')
-    merged = merge_assembly(assembly)
-    obj, issues = blender_io.create_object(bpy, bmesh, merged, assembly.origin, materials,
-                                            uv_exempt=assembly.meta.get('uv_exempt', False))
-    blender_io.write_colors(obj, vertex_colors(merged, assembly.origin, seed,
-                                               assembly.meta.get('sprays', ())))
+    if assembly.meta.get('anchor'):
+        if assembly.parts or parent_name:
+            raise ValueError(f'{name}: placement anchor must be a root empty')
+        obj = bpy.data.objects.new(name, None)
+        obj.empty_display_size = .25
+        obj.location = blender_io.resonite_to_blender(assembly.origin)
+        # Resonite +Y yaw becomes Blender -Z after the XZY handedness swap.
+        obj.rotation_euler.z = -math.radians(assembly.meta.get('yaw_deg', 0.0))
+        obj['slum03_anchor'] = True
+        issues = []
+    else:
+        merged = merge_assembly(assembly)
+        obj, issues = blender_io.create_object(bpy, bmesh, merged, assembly.origin, materials,
+                                                uv_exempt=assembly.meta.get('uv_exempt', False))
+        blender_io.write_colors(obj, vertex_colors(merged, assembly.origin, seed,
+                                                   assembly.meta.get('sprays', ())))
     obj['slum03_kind'] = assembly.kind
     obj['slum03_sector'] = assembly.sector
     obj.name = f'{name}_Source'
     source.objects.link(obj)
     # Never export the editable source or parent export objects under source objects.
     copy = obj.copy()
-    copy.data = obj.data.copy()
+    if obj.type == 'MESH':
+        copy.data = obj.data.copy()
     copy.name = name
     export.objects.link(copy)
     if parent_name:
@@ -91,8 +104,11 @@ def write_scene(sector: str, output: Path) -> Report:
         mapped = [_issue_dict(issue) for issue in issues]
         uv_issues.extend(mapped)
         errors.extend(mapped)
-        report['objects'].append({'key': assembly.meta.get('placement_key', assembly.name),
-                                  'kind': assembly.kind, 'mesh': obj.name})
+        entry = {'key': assembly.meta.get('placement_key', assembly.name),
+                 'kind': assembly.kind, 'mesh': obj.name if obj.type == 'MESH' else None}
+        if obj.type == 'EMPTY':
+            entry['name'] = obj.name
+        report['objects'].append(entry)
     hook = sectors.BLENDER_HOOKS.get(sector)
     if hook:
         extras, extra_report = hook(bpy, layout, materials, source, export)
@@ -118,6 +134,8 @@ def write_scene(sector: str, output: Path) -> Report:
     bpy.context.view_layer.update()
     depsgraph = bpy.context.evaluated_depsgraph_get()
     for obj in objects:
+        if obj.type == 'EMPTY' and obj.get('slum03_anchor') and obj.name in export.objects:
+            continue
         if obj.name not in export.objects or obj.type != 'MESH':
             errors.append(asdict(Issue('MESH', obj.name, 'hook export object missing or not a mesh')))
             continue

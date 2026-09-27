@@ -8,9 +8,10 @@ def test_axis_swap_is_not_a_second_scale():
     assert blender_io.resonite_to_blender((1.0, 2.0, 3.0)) == (1.0, 3.0, 2.0)
 
 
-def test_unknown_or_unimplemented_sector_fails_explicitly():
+def test_unknown_or_unimplemented_sector_fails_explicitly(monkeypatch):
     with pytest.raises(KeyError):
         sectors.sector_assemblies(build_layout(), 'unknown')
+    monkeypatch.delitem(sectors.REGISTRY, 'ads')  # simulate a declared sector lacking its generator
     with pytest.raises(NotImplementedError):
         sectors.sector_assemblies(build_layout(), 'ads')
 
