@@ -1,0 +1,22 @@
+{
+  "bundle": "content/slum03/probes/fixture-20260927T165321-1530734",
+  "blender_version": "5.0.1",
+  "fixture_uv_order": [
+    "Aux",
+    "UV0"
+  ],
+  "export_uv_order": [
+    "UV0",
+    "Aux"
+  ],
+  "verified": [
+    "XZY coordinates and origin",
+    "asymmetric outward normal winding",
+    "render-active second layer exported UV0 first + Aux second, sampled values",
+    "Col FLOAT_COLOR POINT retained",
+    "two material submeshes"
+  ],
+  "warnings": [
+    "asymmetric-fixture: vertex colors are preserved in the mesh; PBS_Metallic does not automatically display them. Bind a verified vertex-color material if needed."
+  ]
+}

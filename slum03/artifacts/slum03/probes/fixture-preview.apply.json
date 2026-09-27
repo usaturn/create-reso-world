@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1",
+  "ownership": {
+    "key": "slum03"
+  },
+  "slot": {
+    "key": "root",
+    "name": "Slum03_Slum",
+    "parent": "Root",
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "assets": {
+    "mesh_asymmetric-fixture_09d293ad": {
+      "kind": "mesh",
+      "source": "../../../content/slum03/probes/fixture-20260927T165321-1530734/mesh_asymmetric-fixture_09d293ad.mesh.json"
+    }
+  },
+  "components": [],
+  "children": [
+    {
+      "slot": {
+        "key": "blockout-preview",
+        "name": "ResoLoop_Test_Slum03_Blockout"
+      },
+      "components": [],
+      "children": [
+        {
+          "slot": {
+            "key": "blockout-preview-bundle",
+            "name": "Slum03_Probe"
+          },
+          "components": [],
+          "children": [
+            {
+              "slot": {
+                "key": "object_asymmetric-fixture_09d293ad",
+                "name": "asymmetric-fixture",
+                "position": [
+                  1.0,
+                  2.0,
+                  3.0
+                ],
+                "rotation": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "scale": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              },
+              "components": [
+                {
+                  "key": "mesh_asymmetric-fixture_09d293ad",
+                  "type": "FrooxEngine.StaticMesh",
+                  "fields": {
+                    "URL": "$asset:mesh_asymmetric-fixture_09d293ad"
+                  }
+                },
+                {
+                  "key": "renderer_asymmetric-fixture_09d293ad",
+                  "type": "FrooxEngine.MeshRenderer",
+                  "fields": {
+                    "Mesh": "$component:mesh_asymmetric-fixture_09d293ad",
+                    "Materials": [
+                      "$component:mat_material_Slum03_concrete_raw_c29c65ea",
+                      "$component:mat_material_Slum03_steel_bare_e2140164"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "slot": {
+                "key": "blender_providers",
+                "name": "Blender_Providers"
+              },
+              "children": [
+                {
+                  "slot": {
+                    "key": "provider_mat_material_Slum03_concrete_raw_c29c65ea",
+                    "name": "mat_material_Slum03_concrete_raw_c29c65ea"
+                  },
+                  "components": [
+                    {
+                      "key": "mat_material_Slum03_concrete_raw_c29c65ea",
+                      "type": "FrooxEngine.PBS_Metallic",
+                      "fields": {
+                        "AlbedoColor": [
+                          0.6180314265202079,
+                          0.6097116265037417,
+                          0.5926193754143848,
+                          1.0
+                        ],
+                        "Metallic": 0.0,
+                        "Smoothness": 0.07999998331069946,
+                        "EmissiveColor": [
+                          0.0,
+                          0.0,
+                          0.0,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "slot": {
+                    "key": "provider_mat_material_Slum03_steel_bare_e2140164",
+                    "name": "mat_material_Slum03_steel_bare_e2140164"
+                  },
+                  "components": [
+                    {
+                      "key": "mat_material_Slum03_steel_bare_e2140164",
+                      "type": "FrooxEngine.PBS_Metallic",
+                      "fields": {
+                        "AlbedoColor": [
+                          0.6651850891023338,
+                          0.6726330187013186,
+                          0.6726330187013186,
+                          1.0
+                        ],
+                        "Metallic": 0.8999999761581421,
+                        "Smoothness": 0.5800000131130219,
+                        "EmissiveColor": [
+                          0.0,
+                          0.0,
+                          0.0,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

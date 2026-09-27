@@ -1,0 +1,33 @@
+{
+  "sector": "ground",
+  "export_collection": "Slum03groundExport",
+  "objects": [
+    {
+      "key": "district-foundation",
+      "kind": "foundation",
+      "mesh": "district-foundation.001"
+    }
+  ],
+  "evaluated_bounds": {
+    "district-foundation.001": {
+      "minimum": [
+        -60.0,
+        -60.0,
+        -0.30000001192092896
+      ],
+      "maximum": [
+        60.0,
+        60.0,
+        0.0
+      ]
+    }
+  },
+  "materials": [
+    "Slum03_concrete_raw"
+  ],
+  "triangles": 12,
+  "vertices": 8,
+  "submeshes": 1,
+  "uv_issues": [],
+  "errors": []
+}
