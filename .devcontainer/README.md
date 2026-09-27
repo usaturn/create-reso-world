@@ -5,22 +5,85 @@ Dev Container 設定とエージェント用ツールのセットアップを置
 
 `postCreateCommand` は `/bin/bash .devcontainer/install_beforehand.bash` である。
 `.devcontainer/` を変更した場合は Dev Containers: Rebuild Container を実行する。
+導入するツールと、その mount・シェル設定の対応は「導入ツール一覧」の表にまとめる。
+`devcontainer.json`、`initialize.bash`、`install_beforehand.bash`、`zshrc.txt` はこの表に従う。
 Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を参照する。
 
-`cleanup-workspace.bash` はレビュー用の一時ディレクトリを安全条件を確認して掃除する。
+`cleanup-workspace.bash` はレビュー用の一時ディレクトリを、安全条件を確かめてから掃除する。
 手動で確認するときは `WORKSPACE_CLEANUP_DRY_RUN=1 bash .devcontainer/cleanup-workspace.bash` を使う。
 掃除先は `WORKSPACE_CLEANUP_TMP_ROOT`、定期実行の状態保存先は
-`WORKSPACE_CLEANUP_STATE_DIR` で変更できる。清掃スクリプトは旧
-`MAATLOG_CLEANUP_*` も安全のため代替として受け付けるが、新しい名前が優先される。
-定期実行の状態保存先は新しい名前に移行する。
+`WORKSPACE_CLEANUP_STATE_DIR` で変更できる。
+
+## 導入ツール一覧
+
+各ツールの導入方法、bind mount するホスト側のパス、ホスト側で先に作るパス（`initialize.bash`）、
+`zshrc.txt` の関数と alias、`update()` の項目の対応である。mount と `initialize.bash` の列は
+`.devcontainer/test-readme.bash` がそれぞれのファイルと突き合わせる。
+
+<!-- tool-table:start -->
+| ツール | 導入方法 | mount | initialize.bash の mkdir | zshrc の関数 | update() の項目 |
+| --- | --- | --- | --- | --- | --- |
+| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`（alias）、`ccda`、`ccdd`、`ccddg`、`ccdu` | `claude update` |
+| Codex | `npm install -g @openai/codex@latest` | `~/.codex` | `~/.codex` | `cod` | `npm install -g @openai/codex@latest` |
+| pi | `npm install -g` で本体、`pi install` で拡張。ランチャー 9 本を `~/.local/bin` に置く | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
+| Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.local/share/cursor-agent` | `cur`（alias） | `agent update` |
+| Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`（alias） | `devin update`、`devin plugins update superpowers` |
+| dsh | `npm install -g @deepseek-ai/dsh@0.1.5-rc.1`（版を固定） | `~/.dsh` | `~/.dsh` | — | —（版を固定しているので更新しない） |
+| gh | Dev Container Feature（github-cli） | `~/.config/gh` | `~/.config/gh` | — | — |
+| grok / gcloud / glab / bun | 未導入（参照だけ残す） | `~/.grok`、`~/.config/gcloud`、`~/.config/glab-cli` | `~/.grok`、`~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | `grok update` |
+| 秘密情報 | — | `~/.config/create-reso-world` | `~/.config/create-reso-world`（mode 700） | env ファイルがあれば読み込む | — |
+<!-- tool-table:end -->
+
+未導入のツールを呼ぶ関数（`cod`、`genv`、`buni`）は、コマンドが無ければ理由を表示して 127 を返す。
+`update()` は無いツールの項目を飛ばし、飛ばした項目を表示する。
+
+## 秘密情報
+
+API トークンなどの秘密情報は、ホストの `~/.config/create-reso-world/env` に置き、リポジトリには置かない。
+このディレクトリは Dev Container に bind mount され（`initialize.bash` がホスト側に mode 700 で作る）、
+`zshrc.txt` がシェルの起動時に `env` を読み込んで、書いた変数をすべて export する。ファイルが無ければ何もしない。
+
+```bash
+# ホスト側で一度だけ作る
+mkdir -p ~/.config/create-reso-world && chmod 700 ~/.config/create-reso-world
+touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/env
+```
+
+書式は `KEY=VALUE` の 1 行 1 変数である（zsh が読むので、空白や記号を含む値は引用符で囲む）。
+対象は `DEEPINFRA_TOKEN`、`COMMANDCODE_API_KEY`、`OPENCODE_API_KEY`、`MAAS_ANTHROPIC_TOKEN`、`CONTEXT7_API_KEY` などで、
+書き換えたら新しいシェルを開く。
+
+## テストの実行
+
+リポジトリのルートで次を実行する。CI（`.github/workflows/ci.yml`）も同じコマンドを実行する。
+
+```bash
+bash .devcontainer/run-tests.bash          # .devcontainer/test-*.bash と tests/scripts/*.bash（CI の devcontainer-tests）
+bash scripts/check-layout.sh               # リポジトリのレイアウト（CI の layout。resoloop が無ければ skills sync の検査を skip）
+uv run pytest tests/skills .agents/skills  # スキルのテスト（CI の skill-tests）
+(cd slum02 && uv run pytest)               # 各プロジェクトのテスト（MyResoniteProject・akichi・slum02 で同じ）
+```
+
+テストは一時ディレクトリの `HOME` と、モックの resoloop・dotnet・Blender を使うので、実環境を変えない。
+1 本だけ実行するときは `bash .devcontainer/run-tests.bash <テストのパス>` のように渡す。
+CI の gitleaks ジョブは `.gitleaks.toml`（既定の規則に、resoloop のマニフェストが持つ識別子の除外を足したもの）で
+秘密情報の混入を検査する。CI では Blender によるワールドのビルドは行わない。
 
 ## Resonite ワールド開発ツール
 
 Dev Container の作成時に .NET 10 SDK と Blender を導入し、ResoLoop を
-プレビュー版を含む利用可能な最新版へインストールまたは更新する。
+`.devcontainer/resoloop.lock` が指定する版で導入する。既定の fork モードでは
+`scripts/resoloop-fork.sh install` が fork を `external/resoloop` に取得してビルドするため、
+ネットワークと数分の時間を要する。版の変え方と fork の運用は `docs/resoloop-fork-workflow.md` を参照する。
 Blender は画面を開かずに実行する。Resonite 本体と ResoniteLink は
 Windows ホスト側で準備する。接続確認の `resoloop doctor`、
 Blender の GUI、ホスト側のネットワーク設定はこのセットアップの対象外とする。
+
+コンテナの resoloop から ResoniteLink に届くことが前提である。WSL2 の mirrored networking
+（`.wslconfig` の `networkingMode=mirrored`）でホストの localhost を共有するか、
+`resoloop discover` で ResoniteLink の告知を確かめ、`--url ws://<ホスト>:<ポート>` または
+環境変数 `RESONITE_LINK_URL` で接続先を指定する。
+ProtoFlux 用の flux-sdk はこの環境の対象外で、導入しない。
 
 導入を確認するにはコンテナ内で次を実行する。
 
@@ -28,52 +91,24 @@ Blender の GUI、ホスト側のネットワーク設定はこのセットア�
 dotnet --list-sdks
 resoloop --version
 bash .devcontainer/verify-resonite-tooling.bash
+bash scripts/resoloop-fork.sh status
 ```
 
 ResoLoop の公式要件には Windows 10/11 が記載されている。Linux で
 CLI が動作しない場合は `postCreateCommand` を失敗とし、成功扱いにはしない。
 
-## npm への一本化（#147）と既存環境の移行
+## エージェントの読み込みの制約
 
-リポジトリのタスクおよび Codex CLI の導入・更新は npm に一本化した
-（`npm install -g @openai/codex@latest`）。yarn は使わない。`devcontainer.json`
-の Node feature も `installYarnUsingApt` を既定の `false`（corepack 経由）に戻し、
-apt 経由での yarn 常駐インストールをやめた。`npm prefix -g` の `bin`（nvm feature が
-入れる Node の `bin`）は既定で PATH 上にあるため、Codex CLI 用に PATH を追加設定
-する必要はない。
+プロジェクト（`slum02/` など）を cwd にしてエージェントを起動したとき、次の 2 つはスキルの一部が見えない。
 
-この変更は `$HOME` を再作成する Rebuild Container で完全に反映される
-(`$HOME` は `devcontainer.json` の `mounts` で明示している一部のディレクトリのみ
-ホスト側と共有し、それ以外は再作成のたびに作り直される)。**Rebuild していない
-既存のコンテナ**では、旧 `install_beforehand.bash` / `zshrc.txt` の内容が
-`~/.zshrc` に焼き込まれたままのため、以下のいずれかで手動移行する。
+- Cursor は workspace 配下の `.agents/skills` しか読まないため、ルートの共有スキルが見えない。
+  プロジェクトの resonite-* スキルは見える
+- dsh は git のルートの `.agents/skills` しか読まないため、プロジェクトの resonite-* スキルが見えない。
+  ルートの共有スキルは見える
 
-1. 推奨: Dev Containers: Rebuild Container を実行する。
-2. リビルドしない場合は、次を手動で実行する。
-
-   ```bash
-   npm install -g @openai/codex@latest
-   rm -f ~/.yarn/bin/codex   # yarn 経由の古い codex シンボリックリンクを削除する
-   ```
-
-   合わせて `~/.zshrc` 内の yarn 関連 PATH 設定と `update()` 内の
-   `yarn global add @openai/codex@latest` を、最新の `.devcontainer/zshrc.txt`
-   の内容に置き換える（またはシェルを再作成する）。
-
-## Codex で `CLAUDE.md` を指示ファイルとして読む
-
-Codex は標準では `CLAUDE.md` を自動で読まない。
-`~/.codex/config.toml` の最初の `[projects...]` などのテーブルより前に、次のトップレベル設定を追加する。
-既存の設定は残し、同じキーがある場合はその配列に `CLAUDE.md` を加える。
-
-```toml
-project_doc_fallback_filenames = ["CLAUDE.md"]
-```
-
-保存後に Codex を再起動し、新しいセッションで「読み込んだ指示ファイルを列挙して」と尋ね、リポジトリ直下の `CLAUDE.md` が含まれることを確認する。
-同じディレクトリに `AGENTS.override.md` または `AGENTS.md` がある場合はそちらが優先される。
-この設定は Dev Container に bind mount された `~/.codex` に保存される。
-詳しくは [Codex の指示ファイルの説明](https://learn.chatgpt.com/docs/agent-configuration/agents-md)を参照する。
+Codex はルートとプロジェクトの `AGENTS.md` を直接読むため、`~/.codex/config.toml` で
+`CLAUDE.md` を指示ファイルとして読ませる設定（`project_doc_fallback_filenames`）は不要である。
+既に設定してあっても害は無い。
 
 ## Herdr サイドバーの設定移行
 
@@ -106,19 +141,22 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 
 1. `claude plugin marketplace add dashed/claude-marketplace`
 2. `claude plugin install example-skills@anthropic-agent-skills`
-3. `claude plugin install web-quality-skills@addy-web-quality-skills`
-4. `claude plugin install ripgrep@alberto-marketplace`
-5. `mkdir -p ~/.pi/agent && cp .devcontainer/pi-models.json ~/.pi/agent/models.json`
-6. `mkdir -p ~/.local/bin && install -m 0755 .devcontainer/pigo ~/.local/bin/pigo`
-7. `install -m 0755 .devcontainer/pigod ~/.local/bin/pigod`
-8. `install -m 0755 .devcontainer/pigou ~/.local/bin/pigou`
-9. `install -m 0755 .devcontainer/piccg ~/.local/bin/piccg`
-10. `install -m 0755 .devcontainer/piccd ~/.local/bin/piccd`
-11. `install -m 0755 .devcontainer/piga ~/.local/bin/piga`
-12. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
-13. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
-14. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
-15. `zsh scripts/setup_pi_superagents.zsh`
+3. `claude plugin install superpowers@claude-plugins-official`
+4. `claude plugin install feature-dev@claude-plugins-official`
+5. `claude plugin install web-quality-skills@addy-web-quality-skills`
+6. `claude plugin install ripgrep@alberto-marketplace`
+7. `npm install -g @openai/codex@latest`
+8. `mkdir -p ~/.pi/agent && cp .devcontainer/pi-models.json ~/.pi/agent/models.json`
+9. `mkdir -p ~/.local/bin && install -m 0755 .devcontainer/pigo ~/.local/bin/pigo`
+10. `install -m 0755 .devcontainer/pigod ~/.local/bin/pigod`
+11. `install -m 0755 .devcontainer/pigou ~/.local/bin/pigou`
+12. `install -m 0755 .devcontainer/piccg ~/.local/bin/piccg`
+13. `install -m 0755 .devcontainer/piccd ~/.local/bin/piccd`
+14. `install -m 0755 .devcontainer/piga ~/.local/bin/piga`
+15. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
+16. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
+17. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
+18. `zsh .devcontainer/setup_pi_superagents.zsh`
 
 プラグインの有効化は `.claude/settings.json` の `extraKnownMarketplaces` と
 `enabledPlugins` で行う。設定の反映には Claude Code の再起動が必要である。
@@ -127,8 +165,8 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 
 `~/.pi` は `devcontainer.json` で bind mount している。認証情報
 （`~/.pi/agent/auth.json`）とモデル定義（`~/.pi/agent/models.json`）が
-ホスト側に残るため、リビルド後に `scripts/setup_pi.zsh`、
-`scripts/setup_pi_opencode_go.zsh`、`scripts/setup_pi_commandcode_goat.zsh`
+ホスト側に残るため、リビルド後に `.devcontainer/setup_pi.zsh`、
+`.devcontainer/setup_pi_opencode_go.zsh`、`.devcontainer/setup_pi_commandcode_goat.zsh`
 を実行し直す必要はない。
 
 `install_beforehand.bash` は次のものを配置する。挙動が異なるのは、
@@ -149,7 +187,7 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
   `.devcontainer/pi-superagents-exec.zsh` → `~/.local/bin/pi-superagents-exec.zsh`。
   `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 2 種を配置する
   （詳細は後述の「pi-superagents のランチャー別 model tier」を参照）
-- `scripts/setup_pi_tool_display.py` は
+- `.devcontainer/setup_pi_tool_display.py` は
   `~/.pi/agent/extensions/pi-tool-display/config.json` の Bash override だけを
   `false` にする。既存設定の他の項目は保持する
 
@@ -194,7 +232,7 @@ Warning: Model "deepseek-flash" not found for provider "opencode-go". Using cust
 使われる結果、context window は 262,144（本来は 1,000,000）、max output は
 65,536（本来は 384,000）になり、`supportsReasoningEffort` が false のため
 `--thinking max` の `reasoning_effort` も送られない。
-`scripts/setup_pi_opencode_go.zsh` の手順 6 は各ランチャーのモデル ID を
+`.devcontainer/setup_pi_opencode_go.zsh` の手順 6 は各ランチャーのモデル ID を
 `pi --list-models` で検証するので、この種の改名は setup の時点で失敗する。
 
 ID と表示名が一致しないモデルなので注意する。カタログ上の表示名は
@@ -251,7 +289,7 @@ provider が `opencode-go` のモデルへ `x-opencode-session` と
 （画像は別モデル `deepseek/deepseek-v4-flash-vision-exp` が担う）。
 
 既存の `~/.pi/agent/models.json` がある環境では、初回だけ
-`zsh scripts/setup_pi_commandcode_goat.zsh` を実行して `commandcode`
+`zsh .devcontainer/setup_pi_commandcode_goat.zsh` を実行して `commandcode`
 プロバイダを反映する必要がある。`install_beforehand.bash` は `piccg` と
 `piccd` を毎回配置する一方 models.json は既存ファイルを上書きしないため、
 この一度の実行を省くと `piccg` が pi の `Unknown provider "commandcode"` で
@@ -339,7 +377,7 @@ Grok 4.7 の thinking level は `low` / `medium` / `high` / `xhigh` で、
 ### pi-distill の分離（Main / Distillation）
 
 リポジトリ既定では Main は起動時に選んだモデルを使い、Distillation だけを
-`deepinfra-distill/openai/gpt-oss-20b` へ送る（#247）。`zshrc.txt` で
+`deepinfra-distill/openai/gpt-oss-20b` へ送る。`zshrc.txt` で
 `PI_DISTILL_MODEL` と `PI_DISTILL_ERROR_RETRY_COUNT=0` を設定しており、認証エラーや
 provider エラーなどの非タイムアウト失敗は再試行しない。タイムアウト再試行
 （`PI_DISTILL_TIMEOUT_RETRY_COUNT`）は変更していない。
@@ -366,14 +404,14 @@ Distillation 専用の `deepinfra-distill` provider は通常利用の `deepinfr
 では、Pi 標準 Bash tool にセッション情報が渡らず、LLM が呼ぶ Bash tool 内の
 `PI_PROVIDER`、`PI_MODEL`、`PI_SESSION_ID`、`PI_REASONING_LEVEL` が空になる。
 `install_beforehand.bash` は `pi-distill` のインストール後に
-`scripts/setup_pi_tool_display.py` を実行し、`registerToolOverrides.bash` だけを
+`.devcontainer/setup_pi_tool_display.py` を実行し、`registerToolOverrides.bash` だけを
 `false` にする。これにより Pi 標準 Bash tool が実行を担当し、`pi-distill` の
 tool result 圧縮は続く。Bash 専用の tool-display 表示は使えなくなる。
 
 既存環境へ反映するときは、リポジトリのルートで次を実行し、Pi で `/reload` する。
 
 ```bash
-python3 scripts/setup_pi_tool_display.py
+uv run --no-project .devcontainer/setup_pi_tool_display.py
 ```
 
 スクリプトは `PI_CODING_AGENT_DIR` を指定している場合、その agent directory 内の
@@ -388,14 +426,14 @@ printf 'provider=<%s> model=<%s> session=<%s> reasoning=<%s>\n' \
 `/model` でモデルを切り替えて再実行すると provider / model が更新され、同じ
 session ID が維持される。長い Bash 出力の後に `/distill:stats` で圧縮実績を確認する。
 
-既存環境では `zsh scripts/setup_pi.zsh` を一度実行し、`deepinfra` と
+既存環境では `zsh .devcontainer/setup_pi.zsh` を一度実行し、`deepinfra` と
 `deepinfra-distill` を `~/.pi/agent/models.json` へ同期する
 （`install_beforehand.bash` は既存ファイルを上書きしないため）。
 
 ### setup スクリプトを使う場面
 
-`scripts/setup_pi.zsh`（deepinfra / deepinfra-distill）、`scripts/setup_pi_opencode_go.zsh`
-（opencode-go）、`scripts/setup_pi_commandcode_goat.zsh`（commandcode）は、
+`.devcontainer/setup_pi.zsh`（deepinfra / deepinfra-distill）、`.devcontainer/setup_pi_opencode_go.zsh`
+（opencode-go）、`.devcontainer/setup_pi_commandcode_goat.zsh`（commandcode）は、
 リビルドのたびに実行するものではない。次の場面で使う。
 
 - API キーをローテーションしたとき（`setup_pi_opencode_go.zsh` が
@@ -418,7 +456,8 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
 
 ### API トークン
 
-`OPENCODE_API_KEY`、`DEEPINFRA_TOKEN`、`COMMANDCODE_API_KEY` は永続化せず、
+`OPENCODE_API_KEY`、`DEEPINFRA_TOKEN`、`COMMANDCODE_API_KEY` は、「秘密情報」の節の
+`~/.config/create-reso-world/env` に書けばシェルの起動時に export される。書かない場合は、
 必要なときに手動で export する。
 
 - `OPENCODE_API_KEY` は `pigo`・`pigod`・`pigou` の実行には不要である。bind mount した
@@ -467,7 +506,7 @@ Grok の `max` が `xhigh`、Grok の `balanced` が `high`。
 tier を変更するときは、リポジトリの `.devcontainer/pi-superagents/<launcher>.json` を編集してから次を実行する。`install_beforehand.bash` は既存の設定を保持するため、rebuild だけでは反映されない。
 
 ```bash
-zsh scripts/setup_pi_superagents.zsh
+zsh .devcontainer/setup_pi_superagents.zsh
 ```
 
 `bwrap` が無い、またはランチャー用の設定が無い場合、ランチャーは起動せずに案内を出す。共有設定へ暗黙にフォールバックすると tier が警告なく混線するため。
@@ -505,8 +544,9 @@ pi update npm:@teelicht/pi-superagents
 その場合は `pi install npm:@teelicht/pi-superagents@1.14.3` で確認済み基準版へ
 指定を変更できる。既に v1.14.3 以降なら下げる必要はない。更新後に同じ版確認を行う。
 
-次に、#408 の撤去変更を含むリポジトリのセットアップへ更新してから、下の任意整理に進む。
-新しい `scripts/setup_pi_superagents.zsh` は `~/.pi/agent/settings.json` を
+次に、旧エントリを追加していたセットアップを撤去した、現在のリポジトリのセットアップへ更新してから、
+下の任意整理に進む。
+新しい `.devcontainer/setup_pi_superagents.zsh` は `~/.pi/agent/settings.json` を
 作成・変更しない。旧セットアップを残したままエントリだけ削除すると、再実行で追加される。
 
 ##### 旧エントリの任意整理
@@ -519,7 +559,7 @@ v1.14.3 の隔離検証では、自動探索と同じ絶対パスに解決され
 
 ##### 検証範囲
 
-[移行元リポジトリの隔離検証 #409](https://github.com/usaturn/maatlog-poc/issues/409#issuecomment-5773449902)では、
+移行元リポジトリで行った隔離検証では、
 pi-superagents 1.14.3 / Pi loader 0.85.1 / Superpowers 6.4.1 について、
 旧エントリあり・なしと `includeProject` true・false の4条件で、
 `using-superpowers`、`brainstorming`、`writing-plans`、
@@ -533,7 +573,7 @@ bash .devcontainer/test-pi-superagents.bash
 bash .devcontainer/test-pi-openai-codex.bash
 ```
 
-## DeepSeek Harness（dsh）（#282）
+## DeepSeek Harness（dsh）
 
 `install_beforehand.bash` は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 （`dsh`）を `@deepseek-ai/dsh@0.1.5-rc.1` に固定して導入し、直後の `dsh --version` が
@@ -593,6 +633,7 @@ patch 層で行う。`install_beforehand.bash` は `dsh --profile web --dump-con
 API key はリポジトリにも `~/.dsh/settings.yaml` にも保存しない。設定は
 環境変数名（`OPENCODE_API_KEY` / `COMMANDCODE_API_KEY`）だけを参照する。
 `dsh web` を使うシェルで export しておく（`pigo` / `piccd` と同じ値を使う）。
+「秘密情報」の節の `~/.config/create-reso-world/env` に書けば、シェルの起動時に export される。
 
 Dev Container を使わないローカル環境では、`pnpm` を用意したうえで次の順に
 手動で導入する。既に `~/.dsh/` 側にファイルがある場合はコピーしない。

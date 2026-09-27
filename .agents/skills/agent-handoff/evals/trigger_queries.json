@@ -10,10 +10,10 @@
     },
     {
       "id": "q2",
-      "query": "python-tdd-team の Phase C がどこまで終わったか Codex で確認して",
+      "query": "Claude Code が進めていた再設計のフェーズ 4 がどこまで終わったか Codex で確認して",
       "should_trigger": true,
-      "expected_terms": ["python-tdd-team", "Phase", "Codex"],
-      "notes": "Reading side, repo-local Claude skill continuation"
+      "expected_terms": ["フェーズ", "Codex", "確認"],
+      "notes": "Reading side, continuing a phased plan another agent was executing"
     },
     {
       "id": "q3",

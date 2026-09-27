@@ -21,17 +21,21 @@ description: >-
 
 Retrieve current documentation and code examples for any library using the Context7 CLI.
 
-Make sure the CLI is up to date before running commands:
-
-```bash
-npm install -g ctx7@latest
-```
-
-Or run directly without installing:
+In this repository, run the CLI through `npx` without installing it. `ctx7` is not part of the Dev Container, and a global install would change the environment:
 
 ```bash
 npx ctx7@latest <command>
 ```
+
+The examples below write `ctx7` for short; run each of them as `npx ctx7@latest ...`.
+
+## Scope in this repository
+
+This skill is the canonical Context7 procedure. The root `AGENTS.md` keeps only the limit of three commands per question and points here.
+
+- Use it for the specifications of libraries, frameworks, SDKs, APIs, CLIs, and cloud services.
+- Do not use it for refactoring, business logic, or code review.
+- When the user gives an ID in the `/org/project` form, skip `ctx7 library` and query `ctx7 docs` with that ID.
 
 ## Workflow
 
@@ -127,21 +131,17 @@ The output contains two types of content: **code snippets** (titled, with langua
 
 ## Authentication
 
-Works without authentication. For higher rate limits:
+Works without authentication. For higher rate limits, either put `CONTEXT7_API_KEY=<key>` in `~/.config/create-reso-world/env` (the shell loads and exports it; see `.devcontainer/README.md`), or log in:
 
 ```bash
-# Option A: environment variable
-export CONTEXT7_API_KEY=your_key
-
-# Option B: OAuth login
-ctx7 login
+npx ctx7@latest login
 ```
 
 ## Error Handling
 
 If a command fails with a quota error ("Monthly quota reached" or "quota exceeded"):
 1. Inform the user their Context7 quota is exhausted
-2. Suggest they authenticate for higher limits: `ctx7 login`
+2. Suggest they authenticate for higher limits: `npx ctx7@latest login`, or `CONTEXT7_API_KEY` in `~/.config/create-reso-world/env`
 3. If they cannot or choose not to authenticate, answer from training knowledge and clearly note it may be outdated
 
 Do not silently fall back to training data — always tell the user why Context7 was not used.

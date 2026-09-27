@@ -8,6 +8,7 @@
   "enabledPlugins": {
     "example-skills@anthropic-agent-skills": true,
     "superpowers@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
     "web-quality-skills@addy-web-quality-skills": true,
     "ripgrep@alberto-marketplace": true
   },

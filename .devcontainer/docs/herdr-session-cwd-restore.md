@@ -2,7 +2,7 @@
 
 ## 背景
 
-Dev Container を Reopen したあと、ターミナルの作業ディレクトリが `/workspaces/reso-world`
+Dev Container を Reopen したあと、ターミナルの作業ディレクトリが `/workspaces/<repo>`
 ではなく `/home/vscode` になる。`.devcontainer/zshrc.txt` の `herdrstart` は
 `cd -- "$workspace_dir"` を実行しているにもかかわらず、その結果がペインに反映されない。
 
@@ -14,7 +14,7 @@ herdr はセッション復元時、`~/.config/herdr/session.json` に保存済�
 サーバログ（`~/.config/herdr/herdr-server.log`）の再現例（cwd はこの環境のパスに置換）:
 
 ```
-herdr::server::headless: restored session already has workspaces; ignoring startup cwd cwd=/workspaces/reso-world
+herdr::server::headless: restored session already has workspaces; ignoring startup cwd cwd=/workspaces/<repo>
 ```
 
 `herdrstart` の `cd` が効くのは、herdr サーバが**新規**セッションを作る初回だけである
@@ -45,8 +45,8 @@ startup workspace が `/home/vscode` となり `session.json` を汚染する。
 
 | 保存されていた cwd | `new_cwd` | 復元後のペイン cwd |
 | --- | --- | --- |
-| `/home/vscode` | `/workspaces/reso-world` | `/home/vscode` |
-| `/workspaces/reso-world/.worktrees/example-worktree` | `/workspaces/reso-world` | `/workspaces/reso-world/.worktrees/example-worktree` |
+| `/home/vscode` | `/workspaces/<repo>` | `/home/vscode` |
+| `/workspaces/<repo>/.worktrees/example-worktree` | `/workspaces/<repo>` | `/workspaces/<repo>/.worktrees/example-worktree` |
 
 `new_cwd` が効くのは復元ではない新規ペイン・タブ・ワークスペース作成時のみで、目的を
 達成しない。
@@ -84,14 +84,14 @@ startup workspace が `/home/vscode` となり `session.json` を汚染する。
 各 workspace の `identity_cwd` と各 pane の `cwd` を検査する。
 
 - **保持**: `$HERDR_WORKSPACE_ROOT`（既定 `/workspaces`）配下に実在するディレクトリ。
-  `/workspaces/reso-world/.worktrees/...` はここで保持される
+  `/workspaces/<repo>/.worktrees/...` はここで保持される
 - **是正**: それ以外（`/home/vscode`、削除済み worktree など）は引数で受け取った
   ワークスペースディレクトリへ書き換える
 
 配下判定は `os.path.realpath()` で両者を解決したうえで `os.path.commonpath()` を用いる。
 文字列の前方一致では `/workspaces-old` のような兄弟ディレクトリを誤って配下と判定するため。
-`realpath` を挟むのは、ワークスペース直下がシンボリックリンクである構成
-（本リポジトリの `.devcontainer` など）でも安定して判定するため。
+`realpath` を挟むのは、ワークスペースやその配下にシンボリックリンクを含む構成でも
+安定して判定するため。
 
 複数の workspace が是正対象に該当する場合、修復先を既に `identity_cwd` に持つ
 エントリが存在するときは 2 件目以降を書き換えない（pane を含むエントリ全体を
@@ -158,7 +158,7 @@ status が厳密に `running: false` と確認できた場合だけ修復する�
 分離セッション（`herdr --session <name>` と `HERDR_CONFIG_PATH`）を使えば、稼働中の
 セッションを壊さずに検証できる。
 
-1. `session.json` に `/home/vscode` を仕込み、復元ペインが `/workspaces/reso-world` に
+1. `session.json` に `/home/vscode` を仕込み、復元ペインが `/workspaces/<repo>` に
    なること
 2. `session.json` に worktree パスを仕込み、**保持される**こと（退行防止）
 3. サーバ稼働中は `session.json` が書き換わらないこと

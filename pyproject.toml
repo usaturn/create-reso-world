@@ -1,0 +1,19 @@
+[project]
+name = "create-reso-world"
+version = "0.0.0"
+description = "Dev Container environment for building Resonite worlds with resoloop and Blender"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pyyaml>=6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", ".agents/skills"]
+addopts = "-p no:cacheprovider"
+
+[tool.uv]
+package = false

@@ -207,7 +207,6 @@ that GitHub accepted a live mutation.
 - Both runtime entry paths pass `skill-creator/scripts/quick_validate.py`.
 - Local Markdown references, UI metadata, scenario JSON, and the relative Claude skill symlink resolve.
 - Related existing agent-handoff tests: 11 passed.
-- `./scripts/ci/verify.sh static`: `EXIT=0` (Ruff, formatting, Pyright, JavaScript/CSS lint/format/type checks).
 - No changes to the root detached checkout; no implementation or live Issue changes were made by these evaluations.
 
 ## Reproduction

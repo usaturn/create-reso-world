@@ -11,7 +11,7 @@ readonly DSH_COMMANDCODE_PROVIDER_VERSION="0.10.6"
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
 # （workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=24
+readonly STEP_TOTAL=25
 STEP_NUMBER=0
 
 step() {
@@ -53,7 +53,8 @@ step "Ensuring user-writable directories under ~"
 # bind mount target の中間ディレクトリ（~/.local/share 等）と target 自体は、
 # Docker が root 所有で作る・ホスト側に root 所有のまま残ることがある。
 # 以降の全ステップが $HOME 配下へ書き込むため、最初に親から順に書き込み可能を
-# 保証する（#296）。~/.claude.json はファイル mount のため対象外。
+# 保証する。~/.claude.json はファイル mount のため対象外。ディレクトリの mount はすべてここに並べる
+# （.devcontainer/test-initialize-mounts.bash が devcontainer.json の mounts と突き合わせる）。
 for dir in \
     "${HOME}/.local" \
     "${HOME}/.local/share" \
@@ -65,7 +66,10 @@ for dir in \
     "${HOME}/.config/gh" \
     "${HOME}/.config/glab-cli" \
     "${HOME}/.config/gcloud" \
+    "${HOME}/.config/create-reso-world" \
+    "${HOME}/.codex" \
     "${HOME}/.claude" \
+    "${HOME}/.grok" \
     "${HOME}/.pi" \
     "${HOME}/.dsh" \
     "${HOME}/.cursor"; do
@@ -83,14 +87,11 @@ if ! sudo apt update; then
 fi
 
 step "Installing the base packages"
-if ! sudo apt update; then
-    fail "apt update failed before installing the base packages."
-fi
 if ! sudo apt install -y vim tig ripgrep fzf bubblewrap libglib2.0-0t64 blender; then
     fail "apt install of the base packages failed."
 fi
 
-step "Installing or updating the latest ResoLoop tool"
+step "Installing the ResoLoop version pinned in .devcontainer/resoloop.lock"
 export PATH="${HOME}/.dotnet/tools:${PATH}"
 if ! bash .devcontainer/install_resoloop.bash; then
     fail "ResoLoop installation or update failed."
@@ -128,14 +129,39 @@ step "Installing the Claude Code plugins"
 if ! claude plugin marketplace add dashed/claude-marketplace; then
     fail "Failed to add the dashed/claude-marketplace marketplace."
 fi
+# 一覧は .claude/settings.json の enabledPlugins と同じにする（.devcontainer/test-install-beforehand.bash が検査する）
 for plugin in \
     example-skills@anthropic-agent-skills \
+    superpowers@claude-plugins-official \
+    feature-dev@claude-plugins-official \
     web-quality-skills@addy-web-quality-skills \
     ripgrep@alberto-marketplace; do
     if ! claude plugin install "$plugin"; then
         fail "Installing plugin ${plugin} failed."
     fi
 done
+
+step "Installing Codex"
+# Codex CLI は npm で導入し、zshrc.txt の update() も同じ npm で更新する。npm は Node feature が PATH に置く
+if ! npm install -g @openai/codex@latest; then
+    fail "Codex installation failed."
+fi
+if ! command -v codex >/dev/null 2>&1; then
+    fail "Codex installation completed without placing codex on PATH."
+fi
+
+step "Installing uv"
+# pi の設定ステップ（setup_pi_tool_display.py）が uv run を使うため、pi より前に導入する。
+# uv は ~/.local/bin に入り、この PATH は Claude Code の導入直後に通してある
+if ! (
+    set -o pipefail
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+); then
+    fail "uv installation failed."
+fi
+if ! command -v uv >/dev/null 2>&1; then
+    fail "uv installation completed without placing uv on PATH."
+fi
 
 step "Installing the Cursor CLI"
 # ~/.local/share/cursor-agent は devcontainer.json で bind mount している。ホスト側に
@@ -230,7 +256,7 @@ install_pi_extensions() {
     #    pi が管理する npm マニフェストも見る。一覧が綺麗でもマニフェストに残って
     #    いると、`pi update --extensions`（zsh の update() が実行する）で node_modules
     #    ごと再構築されて復活し、subagent ツール名が @teelicht/pi-superagents と
-    #    衝突して pigo / pigod が起動できなくなる（#289）。
+    #    衝突して pigo / pigod が起動できなくなる。
     legacy_listed=0
     case "$before" in
     *"npm:pi-subagents"*) legacy_listed=1 ;;
@@ -296,7 +322,7 @@ for extension in \
         fail "Failed to install the pi extension ${extension}."
     fi
 done
-if ! python3 scripts/setup_pi_tool_display.py; then
+if ! uv run --no-project .devcontainer/setup_pi_tool_display.py; then
     fail "Failed to disable the pi tool-display Bash override."
 fi
 
@@ -349,13 +375,13 @@ fi
 step "Writing the pi-superagents launcher configs"
 # pi-superagents のランチャー別 model tier 設定を配置する。既存の config は
 # 保持する。tier 表を変更したときは、リポジトリのルートで
-# zsh scripts/setup_pi_superagents.zsh を実行して反映する。
-if ! zsh scripts/setup_pi_superagents.zsh --if-absent; then
+# zsh .devcontainer/setup_pi_superagents.zsh を実行して反映する。
+if ! zsh .devcontainer/setup_pi_superagents.zsh --if-absent; then
     fail "Failed to set up pi-superagents launcher configs."
 fi
 
 step "Installing DeepSeek Harness"
-# DeepSeek Harness（dsh）は pi と並行して使う（#282）。dsh の plugin 管理は PATH 上の
+# DeepSeek Harness（dsh）は pi と並行して使う。dsh の plugin 管理は PATH 上の
 # pnpm を直接 spawn するため、devcontainer.json の Node feature で pnpm を明示導入
 # している（pnpmVersion "none" は導入省略）。
 install_deepseek_harness() {
@@ -435,14 +461,6 @@ if ! npx -y skills add vercel-labs/skills@find-skills -g -y -a claude-code -a pi
     fail "Failed to install the find-skills skill."
 fi
 
-step "Installing uv"
-if ! (
-    set -o pipefail
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-); then
-    fail "uv installation failed."
-fi
-
 step "Installing Starship"
 if ! (
     set -o pipefail
@@ -460,7 +478,7 @@ fi
 step "Placing the Herdr helper scripts in ~/bin"
 # herdrstart は PATH 上の herdr-status-updater（拡張子なし）を呼ぶ。
 # 各エージェントは PATH 上の herdr-agent-task（拡張子なし）を呼ぶ。
-# zshrc.txt がシェル起動のたびに間引いて呼ぶための実体も ~/bin に置く（#146）。
+# zshrc.txt がシェル起動のたびに間引いて呼ぶための実体も ~/bin に置く。
 # if ! ( set -e; ... ) では条件式の内側で errexit が無効になるため、関数内の || return 1 で失敗を伝える。
 place_herdr_helpers() {
     mkdir -p "${HOME}/bin" || return 1
@@ -480,13 +498,9 @@ place_herdr_helpers() {
 if ! place_herdr_helpers; then
     fail "Failed to place the Herdr helper scripts in ~/bin."
 fi
-if ! mkdir -p "${HOME}/.local/bin"; then
-    fail "Failed to create ~/.local/bin."
-fi
-export PATH="${HOME}/.local/bin:${PATH}"
 
 step "Cleaning up stale workspace debris"
-# コンテナ作成時点のディスクを圧迫する使い捨て debris を掃除する（#146。詳細は
+# コンテナ作成時点のディスクを圧迫する使い捨て debris を掃除する（詳細は
 # cleanup-workspace.bash を参照）。定期的な再発防止は zshrc.txt 側の間引き実行が
 # 担う。失敗しても以降の必須処理は続ける（唯一の意図的なベストエフォート）。
 if ! bash .devcontainer/cleanup-workspace.bash; then

@@ -92,16 +92,16 @@ def test_find_own_comment_ignores_other_agents_and_rejects_duplicates() -> None:
 def test_upsert_creates_when_no_own_comment() -> None:
     gh = FakeGh(
         pr_view={
-            "url": "https://github.com/usaturn/maatlog/pull/225",
+            "url": "https://github.com/usaturn/create-reso-world/pull/225",
             "number": 225,
         },
         comments=[],
         upsert_response={
             "id": 99,
-            "html_url": "https://github.com/usaturn/maatlog/pull/225#issuecomment-99",
+            "html_url": "https://github.com/usaturn/create-reso-world/pull/225#issuecomment-99",
         },
     )
-    result = mod.upsert(225, "usaturn/maatlog", "claude-opus-5", "### レビュー状況\n- ok", runner=gh)
+    result = mod.upsert(225, "usaturn/create-reso-world", "claude-opus-5", "### レビュー状況\n- ok", runner=gh)
     assert result["action"] == "created"
     assert result["comment_id"] == 99
     method_call = next(call for call in gh.calls if call[0][2] == "--method")
@@ -114,7 +114,7 @@ def test_upsert_creates_when_no_own_comment() -> None:
 def test_upsert_patches_existing_own_comment() -> None:
     gh = FakeGh(
         pr_view={
-            "url": "https://github.com/usaturn/maatlog/pull/225",
+            "url": "https://github.com/usaturn/create-reso-world/pull/225",
             "number": 225,
         },
         comments=[
@@ -125,52 +125,52 @@ def test_upsert_patches_existing_own_comment() -> None:
         ],
         upsert_response={
             "id": 41,
-            "html_url": "https://github.com/usaturn/maatlog/pull/225#issuecomment-41",
+            "html_url": "https://github.com/usaturn/create-reso-world/pull/225#issuecomment-41",
         },
     )
-    result = mod.upsert(225, "usaturn/maatlog", "claude-opus-5", "### 作業結果\n- push 済み", runner=gh)
+    result = mod.upsert(225, "usaturn/create-reso-world", "claude-opus-5", "### 作業結果\n- push 済み", runner=gh)
     assert result["action"] == "updated"
     method_call = next(call for call in gh.calls if call[0][2] == "--method")
     assert method_call[0][3] == "PATCH"
-    assert method_call[0][4] == "repos/usaturn/maatlog/issues/comments/41"
+    assert method_call[0][4] == "repos/usaturn/create-reso-world/issues/comments/41"
 
 
 def test_upsert_passes_the_requested_repository_to_gh_pr_view() -> None:
     gh = FakeGh(
         pr_view={
-            "url": "https://github.com/usaturn/maatlog/pull/7",
+            "url": "https://github.com/usaturn/create-reso-world/pull/7",
             "number": 7,
         },
         comments=[],
         upsert_response={
             "id": 12,
-            "html_url": "https://github.com/usaturn/maatlog/pull/7#issuecomment-12",
+            "html_url": "https://github.com/usaturn/create-reso-world/pull/7#issuecomment-12",
         },
     )
-    mod.upsert(7, "usaturn/maatlog", "claude-opus-5", "### レビュー状況\n- ok", runner=gh)
+    mod.upsert(7, "usaturn/create-reso-world", "claude-opus-5", "### レビュー状況\n- ok", runner=gh)
     view_call = next(call for call in gh.calls if call[0][1:3] == ("pr", "view"))
     argv = view_call[0]
     assert "--repo" in argv
-    assert argv[argv.index("--repo") + 1] == "usaturn/maatlog"
+    assert argv[argv.index("--repo") + 1] == "usaturn/create-reso-world"
 
 
 def test_upsert_stops_when_gh_resolves_a_different_repository() -> None:
-    """A PR number alone is ambiguous: #7 exists in both maatlog-poc and maatlog."""
+    """A PR number alone is ambiguous: #7 exists in both the fork and upstream."""
     gh = FakeGh(
         pr_view={
-            "url": "https://github.com/usaturn/maatlog-poc/pull/7",
+            "url": "https://github.com/usaturn/resoloop/pull/7",
             "number": 7,
         },
         comments=[],
         upsert_response={"id": 12, "html_url": ""},
     )
-    with pytest.raises(mod.CommentError, match="usaturn/maatlog-poc"):
-        mod.upsert(7, "usaturn/maatlog", "claude-opus-5", "### レビュー状況\n- ok", runner=gh)
+    with pytest.raises(mod.CommentError, match="usaturn/resoloop"):
+        mod.upsert(7, "orange3134/resoloop", "claude-opus-5", "### レビュー状況\n- ok", runner=gh)
     assert not [call for call in gh.calls if "--method" in call[0]]
 
 
 def test_validate_repo_rejects_anything_but_owner_name() -> None:
-    assert mod.validate_repo("usaturn/maatlog") == "usaturn/maatlog"
-    for bad in ("maatlog", "usaturn/maatlog/extra", "", "usaturn /maatlog"):
+    assert mod.validate_repo("usaturn/create-reso-world") == "usaturn/create-reso-world"
+    for bad in ("create-reso-world", "usaturn/create-reso-world/extra", "", "usaturn /create-reso-world"):
         with pytest.raises(mod.CommentError, match="owner/name"):
             mod.validate_repo(bad)

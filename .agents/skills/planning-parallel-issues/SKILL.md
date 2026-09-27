@@ -9,6 +9,10 @@ Make the parent Issue the entry point for independent sessions. Parallelism come
 
 Announce this skill. Read repository instructions, existing Issues, code, and available skills before writing. Use the user's language for Issue bodies and reports.
 
+## Target repository
+
+Boards, Issues and claim refs live in `usaturn/create-reso-world`, this repository's `origin`. Before the first write, confirm that `git remote get-url origin` names it, and use it wherever the references write `{owner}/{repo}`. Work on ResoLoop itself belongs to the fork (`usaturn/resoloop`, checked out at `external/resoloop`) under the repository boundary table in the root `AGENTS.md`; build a board there only when the user names that repository. Stop instead of guessing for any other repository.
+
 ## Choose the requested operation
 
 | Request | Required procedure | Finish line |

@@ -1,5 +1,7 @@
 # Dev Container による Resonite 開発ツールのセットアップ
 
+> **後継:** ResoLoop の版の方針（最新のプレビュー版を導入し、版を固定しない）は、`docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md` 6 章（`.devcontainer/resoloop.lock` による固定と fork 運用）で置き換えた。現在の手順は `docs/resoloop-fork-workflow.md` を参照する。本書の ResoLoop 以外の記述（.NET 10 SDK と Blender の導入、失敗時の扱い）は引き続き有効である。
+
 ## 目的と対象範囲
 
 Ubuntu 26.04 の Dev Container を作成すると、ResoLoop と Blender を用いた Resonite ワールド開発に必要なコマンドラインツールが揃うようにする。開発者とコーディングエージェントが .NET 10 SDK、プレビュー版を含む最新版の ResoLoop、GUI を使わずに実行できる Blender を利用できる状態を目指す。

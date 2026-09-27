@@ -40,13 +40,13 @@
     },
     {
       "id": 4,
-      "name": "force-remove-only-clean-worktree",
-      "prompt": "PR が全て Merge されたことを確認して branch と worktree を整理し、ローカルを更新して。worktree は 2 つあり、どちらも public submodule を含む。片方には未コミットの変更がある。",
-      "expected_output": "clean な worktree だけを --force で削除し、dirty な worktree は残して報告した結果。",
+      "name": "remove-only-clean-worktree",
+      "prompt": "PR が全て Merge されたことを確認して branch と worktree を整理し、ローカルを更新して。マージ済みの worktree は 2 つあり、片方には未コミットの変更がある。",
+      "expected_output": "clean な worktree だけを --force なしで削除し、dirty な worktree は残して報告した結果。",
       "files": [],
       "expectations": [
-        "The result runs git -C <worktree> status --short for every worktree before removing any.",
-        "The result uses git worktree remove --force only on the clean worktree, after the submodule error.",
+        "The result runs git -C <worktree> status --short and status --short --ignored for every worktree before removing any.",
+        "The result removes the clean worktree with git worktree remove and never passes --force.",
         "The result does not remove the worktree that has uncommitted changes and reports it to the user."
       ]
     },
@@ -64,14 +64,14 @@
     },
     {
       "id": 6,
-      "name": "stay-detached-without-local-main",
-      "prompt": "PR が全て Merge されたことを確認して branch と worktree を整理し、ローカルを更新して。作業ツリーは古い origin/main で detached HEAD になっている。",
-      "expected_output": "detached HEAD のまま最新の origin/main へ更新し、submodule を同期した結果。",
+      "name": "fast-forward-local-main",
+      "prompt": "PR が全て Merge されたことを確認して branch と worktree を整理し、ローカルを更新して。メイン作業ツリーはマージ済みの feature branch を checkout しており、ローカル main は origin/main より古い。",
+      "expected_output": "メイン作業ツリーを main に切り替えて origin/main へ fast-forward し、その後マージ済みの feature branch を削除した結果。",
       "files": [],
       "expectations": [
-        "The result runs git checkout --detach origin/main.",
-        "The result does not create a local main branch (no git switch -c main, no git checkout -b main).",
-        "The result runs git submodule update --init public."
+        "The result runs git switch main and git merge --ff-only origin/main after git fetch --all --prune.",
+        "The result does not use git reset --hard or a non-fast-forward merge to update main.",
+        "The result deletes the merged feature branch with git branch -d only after switching away from it."
       ]
     },
     {
@@ -97,6 +97,30 @@
         "The result runs gh pr list --state open with headRefOid and git worktree list --porcelain.",
         "The result does not git worktree remove the detached /tmp/pr-review-* worktree whose HEAD matches the open PR headRefOid.",
         "The result does not rm the parent leftover directory of that worktree."
+      ]
+    },
+    {
+      "id": 9,
+      "name": "hold-ignored-files-in-worktree",
+      "prompt": "PR が全て Merge されたことを確認して branch と worktree を整理し、ローカルを更新して。マージ済みの worktree .worktrees/feat-a は git status --short では clean だが、ignore 対象の docs_draft/notes.md と .venv/ がある。",
+      "expected_output": "status --short --ignored で docs_draft/notes.md を見つけ、その worktree を削除せずに報告し、退避か削除の確認を求めた結果。",
+      "files": [],
+      "expectations": [
+        "The result runs git -C <worktree> status --short --ignored before git worktree remove.",
+        "The result does not remove .worktrees/feat-a while docs_draft/notes.md is unresolved, and reports that file to the user.",
+        "The result treats .venv/ as a regenerable cache that alone would not block the removal."
+      ]
+    },
+    {
+      "id": 10,
+      "name": "sync-fork-after-upstream-merge",
+      "prompt": "orange3134/resoloop に出した PR がマージされた。external/resoloop の branch と worktree を整理して、fork の main も上流に追従させて。",
+      "expected_output": "external/resoloop を root に --repo orange3134/resoloop で PR の状態を確かめて整理し、scripts/resoloop-fork.sh sync はユーザー確認を得てから実行した結果。",
+      "files": [],
+      "expectations": [
+        "The result runs git commands with git -C external/resoloop and gh commands with --repo orange3134/resoloop.",
+        "The result checks that external/resoloop has origin usaturn/resoloop and upstream orange3134/resoloop before deleting anything.",
+        "The result asks for confirmation before running bash scripts/resoloop-fork.sh sync, because it pushes to the fork."
       ]
     }
   ]
