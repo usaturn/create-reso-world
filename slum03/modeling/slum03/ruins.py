@@ -23,11 +23,20 @@ def _broken_slab(width: float, depth: float, y: float):
 def _shell(p):
     w, h, d = p.size
     facade_z = d/2 - .58
+    openings = []
+    level = 0
+    while 4.8 + 5*level < h-1.1:
+        low, high = 3.2 + 5*level, 4.8 + 5*level
+        # Alternate single bays with paired slots; leave enough solid concrete
+        # at the damaged crown instead of stamping three windows on every tower.
+        if level % 2 == 0:
+            openings.append((-1.15, low, 1.15, high))
+        else:
+            openings.extend(((-w*.34, low, -w*.16, high),
+                             (w*.16, low, w*.34, high)))
+        level += 1
     wall = wall_with_openings('facade-openings', w-1.2, h-1.1, 1.04,
-                              [(-1.15, 3.2, 1.15, 4.8),
-                               (-w*.34, 7.2, -w*.16, 9.0),
-                               (w*.16, 7.2, w*.34, 9.0)],
-                              .78, 1.5, 'concrete_stained')
+                              openings, .78, 1.5, 'concrete_stained')
     parts = [mesh(wall.name, [(x, y, z+facade_z) for x, y, z in wall.vertices],
                   wall.faces, wall.material)]
     # The gaps between piers are empty space: slabs, an exposed rear service
@@ -42,14 +51,18 @@ def _shell(p):
         parts.append(box('floor-slab', (0, y, -.2), (w-1, .55, d-1.2), 'concrete_raw'))
         parts.append(box('edge-beam', (0, y-.43, d/2-.58),
                          (w-1.1, .36, .45), 'concrete_dark'))
-    parts.append(_broken_slab(w, d, h-1.1))
+    slab = _broken_slab(w, d, h-1.1)
+    parts.append(slab)
     parts.append(tube('cantilever-brace', [(w/2-.68, h-3, d/2-.7),
                                               (w*.42, h-1.1, d/2-2.4)],
                       .085, 8, 'steel_dark'))
-    for x in (w*.06, -w*.22):
-        # Steel emerges from the exposed slab edge, not from free space.
-        parts.append(tube('exposed-rebar', [(x, h-.85, d/2-.92),
-                                             (x+.08, h-.15, d/2-.76)],
+    for corner in (5, 6):
+        # Both positions come from the same polygon that defines the fractured
+        # edge (whose local width is half the footprint). Sink each root into
+        # the slab before bending the free end outward over the exposed edge.
+        x, _, edge_z = slab.vertices[corner]
+        parts.append(tube('exposed-rebar', [(x, h-.85, edge_z-.3),
+                                             (x+.08, h-.15, edge_z+.12)],
                           .052, 6, 'rust_dark'))
     for y in (2.7, 5.4):
         parts.append(box('pour-joint', (w*.28, y, facade_z+.53),

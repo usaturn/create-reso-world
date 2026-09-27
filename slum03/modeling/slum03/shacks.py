@@ -1,6 +1,31 @@
 """Individually editable occupied shack shells with a load path and rainwater outlet."""
+from math import floor
 from .geometry import Assembly, box, mesh, tube
 from .types import Layout
+
+
+def _eave_height(h: float, d: float, z: float) -> float:
+    """Unfolded roof elevation at any station, back (high) to front (low)."""
+    return h-.55 - (z+d/2)/d*.95
+
+
+def _fold_height(w: float, x: float) -> float:
+    """Piecewise linear corrugation shared by sheet and its longitudinal rafters."""
+    n = max(10, round(w/.36))
+    index = max(0, min(n-1, (x+w/2-.25)*n/(w-.5)))
+    whole = floor(index)
+    t = index-whole
+    return .11*(t if whole % 2 == 0 else 1-t)
+
+
+def _sloping_joist(w: float, h: float, d: float, x: float):
+    z0, z1 = -d/2+.45, d/2-.45
+    stock = box('roof-joist', (x, 0, (z0+z1)/2), (.2, .23, z1-z0), 'steel_dark')
+    vertices = []
+    for vx, vy, vz in stock.vertices:
+        top = _eave_height(h,d,vz)+_fold_height(w,x)-.075+.015
+        vertices.append((vx, top if vy > 0 else top-.23, vz))
+    return mesh(stock.name, vertices, stock.faces, stock.material)
 
 
 def _roof(w: float, h: float, d: float):
@@ -13,8 +38,8 @@ def _roof(w: float, h: float, d: float):
             for i in range(n+1):
                 x = (-w/2+.25) + (w-.5)*i/n
                 # Folded sections, not color stripes on a flat roof.
-                fold = .11 if i % 2 else 0
-                y = h-.55 - (z+d/2)/d*.95 + fold - side*.075
+                fold = _fold_height(w, x)
+                y = _eave_height(h,d,z) + fold - side*.075
                 vertices.append((x, y, z))
     row = n+1
     sheet = len(stations)*row
@@ -43,17 +68,17 @@ def _shack(p):
     parts = [box('pallet-floor', (0, .14, 0), (w-.45, .28, d-.5), 'pallet_wood')]
     for x in (-w/2+.4, w/2-.4):
         for z in (-d/2+.45, d/2-.45):
-            top = h-.62 - (z+d/2)/d*.95
+            top = _eave_height(h,d,z)+_fold_height(w,x)-.075-.06
             parts.append(box('post', (x, top/2, z), (.22, top, .22), 'pallet_wood'))
-        parts.append(box('roof-joist', (x, h-1.1, 0), (.2, .23, d-.7), 'steel_dark'))
+        parts.append(_sloping_joist(w, h, d, x))
     for z in (-d/2+.48, 0, d/2-.48):
-        top = h-.65 - (z+d/2)/d*.95
+        top = _eave_height(h,d,z)-.075+.015
         parts.append(box('roof-joist', (0, top-.2, z), (w-.55, .22, .18), 'pallet_wood'))
     parts.append(box('back-cladding', (0, (h-1.65)/2, -d/2+.49),
                      (w-.8, h-1.65, .09), 'plywood'))
-    for x in (-(w/4-.8), w/4-.8):
+    for x in (-(w/4+.325), w/4+.325):
         parts.append(box('door-side-cladding', (x, (h-1.85)/2, d/2-.48),
-                         (w/2-1.6, h-1.85, .08), 'corrugated'))
+                         (w/2-1.45, h-1.85, .08), 'corrugated'))
     parts.append(box('door-header', (0, h-1.85, d/2-.48),
                      (2.1, .24, .17), 'pallet_wood'))
     for x in (-w/2+.48, w/2-.48):

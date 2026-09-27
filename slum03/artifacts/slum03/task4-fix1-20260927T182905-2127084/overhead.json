@@ -1,0 +1,19 @@
+{
+  "source": 1,
+  "export": 1,
+  "names": [
+    "overhead-west"
+  ],
+  "blender_min": [
+    -37.54999923706055,
+    -10.300000190734863,
+    0.0
+  ],
+  "blender_max": [
+    -26.450000762939453,
+    -9.699999809265137,
+    12.220000267028809
+  ],
+  "uv0_and_color": true,
+  "render": "artifacts/slum03/task4-fix1-20260927T182905-2127084/overhead.png"
+}

@@ -70,3 +70,36 @@ def test_roof_collapse_recedes_deep_into_slab_and_is_braced():
     # The edge has a missing multi-metre bite; not just uniform roof trim.
     assert front - min(v[2] for v in slab.vertices if v[2] > 0) > 2
     assert any(p.name == 'cantilever-brace' for p in ruin.parts)
+
+
+def test_exposed_rebar_begins_inside_broken_concrete_not_outside_edge():
+    from math import hypot
+    for sector in ('ruins-west', 'ruins-north', 'ruins-east'):
+        for building in sector_assemblies(build_layout(), sector):
+            slab = next(p for p in building.parts if p.name == 'broken-slab')
+            base_y = min(v[1] for v in slab.vertices)
+            outline = [(slab.vertices[i][0], slab.vertices[i][2]) for i in slab.faces[0]]
+            for bar in (p for p in building.parts if p.name == 'exposed-rebar'):
+                x = sum(v[0] for v in bar.vertices[:6])/6
+                y = sum(v[1] for v in bar.vertices[:6])/6
+                z = sum(v[2] for v in bar.vertices[:6])/6
+                assert base_y+.052 < y < base_y+.48-.052
+                crossings = sum((az > z) != (bz > z) and
+                                x < ax+(z-az)*(bx-ax)/(bz-az)
+                                for (ax,az),(bx,bz) in zip(outline,outline[1:]+outline[:1]))
+                assert crossings % 2 == 1, (building.name, x, z)
+                # At least one full bar radius inboard of every exposed edge.
+                for (ax,az),(bx,bz) in zip(outline,outline[1:]+outline[:1]):
+                    t = max(0,min(1,((x-ax)*(bx-ax)+(z-az)*(bz-az))/((bx-ax)**2+(bz-az)**2)))
+                    assert hypot(x-(ax+t*(bx-ax)),z-(az+t*(bz-az))) > .052
+
+
+def test_upper_floors_of_taller_shell_keep_real_apertures():
+    north = sector_assemblies(build_layout(), 'ruins-north')[0]
+    facade = next(part for part in north.parts if part.name == 'facade-openings')
+    front = max(v[2] for v in facade.vertices)
+    for x, y in ((3, 19), (0, 24)):
+        assert not any(all(abs(facade.vertices[i][2]-front) < 1e-6 for i in f)
+                       and min(facade.vertices[i][0] for i in f) < x < max(facade.vertices[i][0] for i in f)
+                       and min(facade.vertices[i][1] for i in f) < y < max(facade.vertices[i][1] for i in f)
+                       for f in facade.faces), (x, y)

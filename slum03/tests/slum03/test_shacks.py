@@ -55,3 +55,52 @@ def test_folded_roof_exports_without_uv_metric_distortion_and_reopens(tmp_path):
     data = json.loads(evidence.read_text())
     assert data == {'source': 2, 'export': 2, 'hidden': True,
                     'uv': [['UV0'], ['UV0']], 'colors': [True, True]}
+
+
+def test_front_entrance_is_open_from_ground_to_header():
+    # A 2.1m doorway under the header, not two solid panels meeting at X=0.
+    for building in sector_assemblies(build_layout(), 'shacks'):
+        width = next(p.size[0] for p in build_layout().placements if p.key == building.name)
+        front_z = max(v[2] for part in building.parts if part.name == 'door-side-cladding'
+                      for v in part.vertices)
+        for x in (-.95, 0, .95):
+            for part in building.parts:
+                for face in part.faces:
+                    pts = [part.vertices[i] for i in face]
+                    assert not (min(v[0] for v in pts) <= x <= max(v[0] for v in pts)
+                                and min(v[1] for v in pts) <= 1.5 <= max(v[1] for v in pts)
+                                and min(v[2] for v in pts) <= front_z <= max(v[2] for v in pts))
+        assert width > 2.1
+
+
+def test_long_roof_joists_touch_both_end_posts_and_sheet_underside():
+    for building in sector_assemblies(build_layout(), 'shacks'):
+        roof = next(p for p in building.parts if p.name == 'corrugated-roof')
+        posts = [p for p in building.parts if p.name == 'post']
+        joists = [p for p in building.parts if p.name == 'roof-joist'
+                  and max(v[2] for v in p.vertices)-min(v[2] for v in p.vertices) > 4]
+        assert len(posts) == 4 and len(joists) == 2
+        for joist in joists:
+            cx = sum(v[0] for v in joist.vertices)/len(joist.vertices)
+            post_pair = [p for p in posts if abs(sum(v[0] for v in p.vertices)/len(p.vertices)-cx) < .01]
+            assert len(post_pair) == 2
+            for post in post_pair:
+                z = sum(v[2] for v in post.vertices)/len(post.vertices)
+                section = [v for v in joist.vertices if abs(v[2]-z) < .001]
+                assert section, 'joist must reach the post at the eave station'
+                low, high = min(v[1] for v in section), max(v[1] for v in section)
+                post_top = max(v[1] for v in post.vertices)
+                assert low < post_top < high, 'the upright actually intersects the beam'
+                # Interpolate roof undersurface at the joist centre X from the
+                # nearest corrugation crests/troughs at either roof station.
+                zs = sorted({v[2] for v in roof.vertices})
+                sheet_z = min(zs, key=lambda station: abs(station-z))
+                row = sorted((v[0], v[1]) for v in roof.vertices if abs(v[2]-sheet_z) < 1e-6)
+                # Two layers share each X; lower one is the roof underside.
+                row = sorted({x:min(y for px,y in row if abs(px-x)<1e-6) for x,_ in row}.items())
+                pair = next(((x0,y0,x1,y1) for (x0,y0),(x1,y1) in zip(row,row[1:])
+                             if x0 <= cx <= x1), None)
+                assert pair is not None
+                x0,y0,x1,y1 = pair
+                roof_under = y0+(y1-y0)*(cx-x0)/(x1-x0)
+                assert abs(high-roof_under) < .04, 'sloped beam top must touch the sheet'
