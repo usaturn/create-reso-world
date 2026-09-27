@@ -1,0 +1,1654 @@
+{
+  "schemaVersion": "1",
+  "ownership": {
+    "key": "sunset-vista"
+  },
+  "slot": {
+    "key": "root",
+    "name": "Sunset Vista | 夕日の風景",
+    "parent": "Root"
+  },
+  "components": [
+    {
+      "key": "sky",
+      "type": "FrooxEngine.UnlitMaterial",
+      "fields": {
+        "TintColor": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "Sidedness": "Double",
+        "UseVertexColors": true
+      }
+    },
+    {
+      "key": "sunCore",
+      "type": "FrooxEngine.UnlitMaterial",
+      "fields": {
+        "TintColor": [
+          1,
+          0.82,
+          0.43,
+          1
+        ],
+        "Sidedness": "Double"
+      }
+    },
+    {
+      "key": "halo",
+      "type": "FrooxEngine.UnlitMaterial",
+      "fields": {
+        "TintColor": [
+          1,
+          0.42,
+          0.17,
+          0.15
+        ],
+        "Sidedness": "Double",
+        "BlendMode": "Alpha",
+        "ZWrite": "Off"
+      }
+    },
+    {
+      "key": "cloudLit",
+      "type": "FrooxEngine.UnlitMaterial",
+      "fields": {
+        "TintColor": [
+          1,
+          0.5,
+          0.37,
+          1
+        ],
+        "Sidedness": "Double"
+      }
+    },
+    {
+      "key": "cloudWarm",
+      "type": "FrooxEngine.UnlitMaterial",
+      "fields": {
+        "TintColor": [
+          0.74,
+          0.29,
+          0.39,
+          1
+        ],
+        "Sidedness": "Double"
+      }
+    },
+    {
+      "key": "cloudDark",
+      "type": "FrooxEngine.UnlitMaterial",
+      "fields": {
+        "TintColor": [
+          0.31,
+          0.18,
+          0.37,
+          1
+        ],
+        "Sidedness": "Double"
+      }
+    },
+    {
+      "key": "land",
+      "type": "FrooxEngine.UnlitMaterial",
+      "fields": {
+        "TintColor": [
+          0.13,
+          0.13,
+          0.24,
+          1
+        ],
+        "Sidedness": "Double"
+      }
+    },
+    {
+      "key": "landNear",
+      "type": "FrooxEngine.UnlitMaterial",
+      "fields": {
+        "TintColor": [
+          0.075,
+          0.09,
+          0.17,
+          1
+        ],
+        "Sidedness": "Double"
+      }
+    },
+    {
+      "key": "glint",
+      "type": "FrooxEngine.UnlitMaterial",
+      "fields": {
+        "TintColor": [
+          1,
+          0.66,
+          0.37,
+          0.8
+        ],
+        "Sidedness": "Double",
+        "BlendMode": "Alpha",
+        "ZWrite": "Off"
+      }
+    },
+    {
+      "key": "glintPale",
+      "type": "FrooxEngine.UnlitMaterial",
+      "fields": {
+        "TintColor": [
+          1,
+          0.86,
+          0.6,
+          0.9
+        ],
+        "Sidedness": "Double",
+        "BlendMode": "Alpha",
+        "ZWrite": "Off"
+      }
+    }
+  ],
+  "children": [
+    {
+      "slot": {
+        "key": "upperSky",
+        "name": "Twilight • violet to rose",
+        "position": [
+          0,
+          10.5,
+          30
+        ]
+      },
+      "components": [
+        {
+          "key": "upperSky-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              44,
+              10
+            ],
+            "DualSided": true,
+            "UseVertexColors": true,
+            "UpperLeftColor": [
+              0.07,
+              0.09,
+              0.23,
+              1
+            ],
+            "UpperRightColor": [
+              0.07,
+              0.09,
+              0.23,
+              1
+            ],
+            "LowerLeftColor": [
+              0.55,
+              0.23,
+              0.39,
+              1
+            ],
+            "LowerRightColor": [
+              0.55,
+              0.23,
+              0.39,
+              1
+            ]
+          }
+        },
+        {
+          "key": "upperSky-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:upperSky-mesh",
+            "Materials": [
+              "$component:sky"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "lowerSky",
+        "name": "Dusk • rose to amber",
+        "position": [
+          0,
+          3.7,
+          29.95
+        ]
+      },
+      "components": [
+        {
+          "key": "lowerSky-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              44,
+              4
+            ],
+            "DualSided": true,
+            "UseVertexColors": true,
+            "UpperLeftColor": [
+              0.55,
+              0.23,
+              0.39,
+              1
+            ],
+            "UpperRightColor": [
+              0.55,
+              0.23,
+              0.39,
+              1
+            ],
+            "LowerLeftColor": [
+              0.98,
+              0.43,
+              0.25,
+              1
+            ],
+            "LowerRightColor": [
+              0.98,
+              0.43,
+              0.25,
+              1
+            ]
+          }
+        },
+        {
+          "key": "lowerSky-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:lowerSky-mesh",
+            "Materials": [
+              "$component:sky"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "sea",
+        "name": "Ocean • distant blue to plum",
+        "position": [
+          0,
+          0.95,
+          29.9
+        ]
+      },
+      "components": [
+        {
+          "key": "sea-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              44,
+              1.6
+            ],
+            "DualSided": true,
+            "UseVertexColors": true,
+            "UpperLeftColor": [
+              0.84,
+              0.39,
+              0.35,
+              1
+            ],
+            "UpperRightColor": [
+              0.84,
+              0.39,
+              0.35,
+              1
+            ],
+            "LowerLeftColor": [
+              0.19,
+              0.15,
+              0.33,
+              1
+            ],
+            "LowerRightColor": [
+              0.19,
+              0.15,
+              0.33,
+              1
+            ]
+          }
+        },
+        {
+          "key": "sea-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:sea-mesh",
+            "Materials": [
+              "$component:sky"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "sunHalo",
+        "name": "Warm corona",
+        "position": [
+          1.5,
+          4.7,
+          28.5
+        ],
+        "scale": [
+          3.05,
+          3.05,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "sunHalo-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "sunHalo-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:sunHalo-mesh",
+            "Materials": [
+              "$component:halo"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "sun",
+        "name": "Low golden sun",
+        "position": [
+          1.5,
+          4.7,
+          27.8
+        ],
+        "scale": [
+          1.62,
+          1.62,
+          0.16
+        ]
+      },
+      "components": [
+        {
+          "key": "sun-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "sun-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:sun-mesh",
+            "Materials": [
+              "$component:sunCore"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank01",
+        "name": "Cloud • bank01",
+        "position": [
+          -14,
+          6.6,
+          28
+        ],
+        "scale": [
+          5.5,
+          0.31,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank01-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank01-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank01-mesh",
+            "Materials": [
+              "$component:cloudDark"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank02",
+        "name": "Cloud • bank02",
+        "position": [
+          -10.5,
+          6.35,
+          28
+        ],
+        "scale": [
+          4,
+          0.26,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank02-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank02-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank02-mesh",
+            "Materials": [
+              "$component:cloudWarm"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank03",
+        "name": "Cloud • bank03",
+        "position": [
+          -11,
+          7.05,
+          28
+        ],
+        "scale": [
+          3.8,
+          0.22,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank03-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank03-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank03-mesh",
+            "Materials": [
+              "$component:cloudLit"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank04",
+        "name": "Cloud • bank04",
+        "position": [
+          -5.8,
+          8.1,
+          28
+        ],
+        "scale": [
+          3.4,
+          0.18,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank04-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank04-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank04-mesh",
+            "Materials": [
+              "$component:cloudWarm"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank05",
+        "name": "Cloud • bank05",
+        "position": [
+          8.4,
+          8.7,
+          28
+        ],
+        "scale": [
+          4.8,
+          0.25,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank05-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank05-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank05-mesh",
+            "Materials": [
+              "$component:cloudDark"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank06",
+        "name": "Cloud • bank06",
+        "position": [
+          13,
+          8.45,
+          28
+        ],
+        "scale": [
+          4.4,
+          0.27,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank06-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank06-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank06-mesh",
+            "Materials": [
+              "$component:cloudLit"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank07",
+        "name": "Cloud • bank07",
+        "position": [
+          12.4,
+          6.9,
+          28
+        ],
+        "scale": [
+          5,
+          0.38,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank07-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank07-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank07-mesh",
+            "Materials": [
+              "$component:cloudWarm"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank08",
+        "name": "Cloud • bank08",
+        "position": [
+          -7.5,
+          4.75,
+          28
+        ],
+        "scale": [
+          3.8,
+          0.18,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank08-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank08-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank08-mesh",
+            "Materials": [
+              "$component:cloudDark"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank09",
+        "name": "Cloud • bank09",
+        "position": [
+          7.6,
+          5.6,
+          28
+        ],
+        "scale": [
+          2.8,
+          0.18,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank09-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank09-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank09-mesh",
+            "Materials": [
+              "$component:cloudLit"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank10",
+        "name": "Cloud • bank10",
+        "position": [
+          -2,
+          10.6,
+          28
+        ],
+        "scale": [
+          2.2,
+          0.12,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank10-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank10-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank10-mesh",
+            "Materials": [
+              "$component:cloudLit"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank11",
+        "name": "Cloud • bank11",
+        "position": [
+          4,
+          11.1,
+          28
+        ],
+        "scale": [
+          2.7,
+          0.12,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank11-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank11-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank11-mesh",
+            "Materials": [
+              "$component:cloudWarm"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "bank12",
+        "name": "Cloud • bank12",
+        "position": [
+          -15,
+          9.2,
+          28
+        ],
+        "scale": [
+          2.8,
+          0.16,
+          0.12
+        ]
+      },
+      "components": [
+        {
+          "key": "bank12-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "bank12-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:bank12-mesh",
+            "Materials": [
+              "$component:cloudWarm"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "headlandLeft",
+        "name": "Horizon • headlandLeft",
+        "position": [
+          -17,
+          1.55,
+          27.5
+        ],
+        "scale": [
+          9,
+          1.18,
+          0.32
+        ]
+      },
+      "components": [
+        {
+          "key": "headlandLeft-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "headlandLeft-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:headlandLeft-mesh",
+            "Materials": [
+              "$component:land"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "ridgeLeft",
+        "name": "Horizon • ridgeLeft",
+        "position": [
+          -10,
+          1.42,
+          27.35
+        ],
+        "scale": [
+          6.2,
+          0.65,
+          0.32
+        ]
+      },
+      "components": [
+        {
+          "key": "ridgeLeft-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "ridgeLeft-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:ridgeLeft-mesh",
+            "Materials": [
+              "$component:land"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "isletRight",
+        "name": "Horizon • isletRight",
+        "position": [
+          13,
+          1.45,
+          27.5
+        ],
+        "scale": [
+          7.8,
+          0.77,
+          0.32
+        ]
+      },
+      "components": [
+        {
+          "key": "isletRight-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "isletRight-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:isletRight-mesh",
+            "Materials": [
+              "$component:land"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "isletFar",
+        "name": "Horizon • isletFar",
+        "position": [
+          8.4,
+          1.68,
+          27.45
+        ],
+        "scale": [
+          2.6,
+          0.22,
+          0.32
+        ]
+      },
+      "components": [
+        {
+          "key": "isletFar-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "isletFar-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:isletFar-mesh",
+            "Materials": [
+              "$component:land"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "shoreLeft",
+        "name": "Horizon • shoreLeft",
+        "position": [
+          -20,
+          -0.35,
+          26.5
+        ],
+        "scale": [
+          9,
+          1.15,
+          0.32
+        ]
+      },
+      "components": [
+        {
+          "key": "shoreLeft-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "shoreLeft-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:shoreLeft-mesh",
+            "Materials": [
+              "$component:landNear"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "shoreRight",
+        "name": "Horizon • shoreRight",
+        "position": [
+          21,
+          -0.45,
+          26.5
+        ],
+        "scale": [
+          10,
+          1.12,
+          0.32
+        ]
+      },
+      "components": [
+        {
+          "key": "shoreRight-mesh",
+          "type": "FrooxEngine.SphereMesh",
+          "fields": {
+            "Radius": 1,
+            "Segments": 24,
+            "Rings": 12
+          }
+        },
+        {
+          "key": "shoreRight-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:shoreRight-mesh",
+            "Materials": [
+              "$component:landNear"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark01",
+        "name": "Sun path • reflected light 01",
+        "position": [
+          1.5,
+          1.62,
+          26.8
+        ]
+      },
+      "components": [
+        {
+          "key": "spark01-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              1.55,
+              0.036
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark01-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark01-mesh",
+            "Materials": [
+              "$component:glintPale"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark02",
+        "name": "Sun path • reflected light 02",
+        "position": [
+          1.7773142665101194,
+          1.5190000000000001,
+          26.788
+        ]
+      },
+      "components": [
+        {
+          "key": "spark02-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              0.945,
+              0.048
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark02-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark02-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark03",
+        "name": "Sun path • reflected light 03",
+        "position": [
+          1.094617516523066,
+          1.4180000000000001,
+          26.776
+        ]
+      },
+      "components": [
+        {
+          "key": "spark03-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              1.04,
+              0.06
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark03-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark03-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark04",
+        "name": "Sun path • reflected light 04",
+        "position": [
+          1.6585745540283097,
+          1.3170000000000002,
+          26.764
+        ]
+      },
+      "components": [
+        {
+          "key": "spark04-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              1.835,
+              0.07200000000000001
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark04-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark04-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark05",
+        "name": "Sun path • reflected light 05",
+        "position": [
+          1.846270978191923,
+          1.2160000000000002,
+          26.752000000000002
+        ]
+      },
+      "components": [
+        {
+          "key": "spark05-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              1.23,
+              0.036
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark05-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark05-mesh",
+            "Materials": [
+              "$component:glintPale"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark06",
+        "name": "Sun path • reflected light 06",
+        "position": [
+          0.8250066105782751,
+          1.1150000000000002,
+          26.740000000000002
+        ]
+      },
+      "components": [
+        {
+          "key": "spark06-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              1.325,
+              0.048
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark06-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark06-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark07",
+        "name": "Sun path • reflected light 07",
+        "position": [
+          1.948791724148076,
+          1.014,
+          26.728
+        ]
+      },
+      "components": [
+        {
+          "key": "spark07-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              2.12,
+              0.06
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark07-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark07-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark08",
+        "name": "Sun path • reflected light 08",
+        "position": [
+          1.7549225380231341,
+          0.913,
+          26.716
+        ]
+      },
+      "components": [
+        {
+          "key": "spark08-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              1.5150000000000001,
+              0.07200000000000001
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark08-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark08-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark09",
+        "name": "Sun path • reflected light 09",
+        "position": [
+          0.6232676839236534,
+          0.812,
+          26.704
+        ]
+      },
+      "components": [
+        {
+          "key": "spark09-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              1.6099999999999999,
+              0.036
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark09-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark09-mesh",
+            "Materials": [
+              "$component:glintPale"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark10",
+        "name": "Sun path • reflected light 10",
+        "position": [
+          2.319369453669655,
+          0.7110000000000001,
+          26.692
+        ]
+      },
+      "components": [
+        {
+          "key": "spark10-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              2.4050000000000002,
+              0.048
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark10-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark10-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark11",
+        "name": "Sun path • reflected light 11",
+        "position": [
+          1.4903520728734598,
+          0.6100000000000001,
+          26.68
+        ]
+      },
+      "components": [
+        {
+          "key": "spark11-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              1.7999999999999998,
+              0.06
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark11-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark11-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark12",
+        "name": "Sun path • reflected light 12",
+        "position": [
+          0.5577810325879935,
+          0.5090000000000001,
+          26.668
+        ]
+      },
+      "components": [
+        {
+          "key": "spark12-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              1.895,
+              0.07200000000000001
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark12-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark12-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark13",
+        "name": "Sun path • reflected light 13",
+        "position": [
+          2.6985820786828287,
+          0.4079999999999999,
+          26.656000000000002
+        ]
+      },
+      "components": [
+        {
+          "key": "spark13-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              2.6900000000000004,
+              0.036
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark13-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark13-mesh",
+            "Materials": [
+              "$component:glintPale"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark14",
+        "name": "Sun path • reflected light 14",
+        "position": [
+          1.0716003910370588,
+          0.30699999999999994,
+          26.644000000000002
+        ]
+      },
+      "components": [
+        {
+          "key": "spark14-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              2.085,
+              0.048
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark14-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark14-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    },
+    {
+      "slot": {
+        "key": "spark15",
+        "name": "Sun path • reflected light 15",
+        "position": [
+          0.6784892067981735,
+          0.20599999999999996,
+          26.632
+        ]
+      },
+      "components": [
+        {
+          "key": "spark15-mesh",
+          "type": "FrooxEngine.QuadMesh",
+          "fields": {
+            "Size": [
+              2.18,
+              0.06
+            ],
+            "DualSided": true
+          }
+        },
+        {
+          "key": "spark15-renderer",
+          "type": "FrooxEngine.MeshRenderer",
+          "fields": {
+            "Mesh": "$component:spark15-mesh",
+            "Materials": [
+              "$component:glint"
+            ],
+            "ShadowCastMode": "Off"
+          }
+        }
+      ]
+    }
+  ],
+  "cameras": {
+    "vista": {
+      "position": [
+        0,
+        3,
+        -4
+      ],
+      "target": [
+        0,
+        6,
+        28
+      ],
+      "fieldOfView": 64,
+      "width": 1280,
+      "height": 720,
+      "representative": true
+    }
+  },
+  "tests": [
+    {
+      "name": "sunset-elements-exist",
+      "assertions": [
+        {
+          "target": "$slot:root",
+          "exists": true
+        },
+        {
+          "target": "$slot:sun",
+          "exists": true
+        },
+        {
+          "target": "$slot:sea",
+          "exists": true
+        }
+      ]
+    }
+  ]
+}
