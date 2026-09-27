@@ -10,6 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from modeling.slum03 import blender_io, geometry, sectors
+from modeling.slum03.build import add_assembly
 from modeling.slum03.layout import build_layout
 from modeling.slum03.materials import make_blender_materials
 
@@ -51,35 +52,29 @@ def _blockout(bpy, bmesh):
     bpy.context.scene.collection.children.link(export)
     mats = make_blender_materials()
     export_names = []
+    sources_by_name, exports_by_name = {}, {}
     for sector in sectors.SECTORS:
         if sector not in sectors.REGISTRY:
             continue
-        for a in sectors.sector_assemblies(layout, sector):
-            obj, issues = blender_io.create_object(bpy, bmesh, geometry.merge_assembly(a), a.origin, mats)
+        for assembly in sectors.sector_assemblies(layout, sector):
+            copy, issues = add_assembly(bpy, bmesh, assembly, mats, source, export,
+                                        sources_by_name, exports_by_name, layout.seed)
             if issues:
                 raise RuntimeError(issues)
-            obj.name = f'{a.name}_Source'
-            source.objects.link(obj)
-            copy = obj.copy()
-            copy.data = obj.data.copy()
-            copy.name = a.name
-            export.objects.link(copy)
             export_names.append(copy.name)
     for p in layout.placements:
         # Lightweight footprint for every Placement, including unregistered sectors.
         part = geometry.box(p.key, (0, p.params.get('local_y_min', 0) + p.size[1] / 2, 0),
                             p.size, 'concrete_dark')
-        obj, issues = blender_io.create_object(bpy, bmesh, geometry.merge_assembly(
-            geometry.Assembly(p.kind, p.key, p.sector, p.origin, [part])), p.origin, mats, uv_exempt=True)
+        assembly = geometry.Assembly(p.kind, p.key, p.sector, p.origin, [part],
+                                     {'uv_exempt': True})
+        copy, issues = add_assembly(bpy, bmesh, assembly, mats, source, export,
+                                    sources_by_name, exports_by_name, layout.seed)
         if issues:
             raise RuntimeError(issues)
-        obj.rotation_euler[2] = __import__('math').radians(-p.yaw_deg)
-        obj.name = f'{p.key}_Source'
-        source.objects.link(obj)
-        copy = obj.copy()
-        copy.data = obj.data.copy()
-        copy.name = p.key
-        export.objects.link(copy)
+        angle = __import__('math').radians(-p.yaw_deg)
+        sources_by_name[p.key].rotation_euler[2] = angle
+        copy.rotation_euler[2] = angle
         export_names.append(copy.name)
     return {'export_names': export_names, 'placements': len(layout.placements), 'source_objects': len(source.objects),
             'export_objects': len(export.objects), 'export_collection': export.name}

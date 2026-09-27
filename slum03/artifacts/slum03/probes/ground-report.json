@@ -5,20 +5,20 @@
     {
       "key": "district-foundation",
       "kind": "foundation",
-      "mesh": "district-foundation.001"
+      "mesh": "district-foundation"
     }
   ],
   "evaluated_bounds": {
-    "district-foundation.001": {
+    "district-foundation": {
       "minimum": [
         -60.0,
-        -60.0,
-        -0.30000001192092896
+        -0.30000001192092896,
+        -60.0
       ],
       "maximum": [
         60.0,
-        60.0,
-        0.0
+        0.0,
+        60.0
       ]
     }
   },

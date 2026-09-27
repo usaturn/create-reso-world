@@ -11,11 +11,51 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from modeling.slum03 import blender_io, sectors
-from modeling.slum03.geometry import merge_assembly
+from modeling.slum03.geometry import Assembly, merge_assembly
 from modeling.slum03.layout import build_layout
 from modeling.slum03.materials import make_blender_materials
 from modeling.slum03.types import Issue, Report
 from modeling.slum03.vcolor import vertex_colors
+
+
+def add_assembly(bpy, bmesh, assembly: Assembly, materials: dict, source, export,
+                 sources_by_name: dict, exports_by_name: dict, seed: int):
+    """Add independent editable/export meshes with identical local parent transforms."""
+    name = assembly.name
+    if name in sources_by_name or name in exports_by_name:
+        raise ValueError(f'duplicate assembly name: {name}')
+    parent_name = assembly.meta.get('parent_name')
+    if parent_name and parent_name not in sources_by_name:
+        raise ValueError(f'{name}: unknown or unordered parent {parent_name}')
+    merged = merge_assembly(assembly)
+    obj, issues = blender_io.create_object(bpy, bmesh, merged, assembly.origin, materials,
+                                            uv_exempt=assembly.meta.get('uv_exempt', False))
+    blender_io.write_colors(obj, vertex_colors(merged, assembly.origin, seed,
+                                               assembly.meta.get('sprays', ())))
+    obj['slum03_kind'] = assembly.kind
+    obj['slum03_sector'] = assembly.sector
+    obj.name = f'{name}_Source'
+    source.objects.link(obj)
+    # Never export the editable source or parent export objects under source objects.
+    copy = obj.copy()
+    copy.data = obj.data.copy()
+    copy.name = name
+    export.objects.link(copy)
+    if parent_name:
+        obj.parent = sources_by_name[parent_name]
+        copy.parent = exports_by_name[parent_name]
+    sources_by_name[name] = obj
+    exports_by_name[name] = copy
+    return copy, issues
+
+
+def _issue_dict(issue: Issue | dict) -> dict:
+    if isinstance(issue, Issue):
+        return asdict(issue)
+    if isinstance(issue, dict) and all(isinstance(issue.get(key), str)
+                                       for key in ('code', 'object_key', 'message')):
+        return {key: issue[key] for key in ('code', 'object_key', 'message')}
+    raise ValueError(f'invalid hook issue: {issue!r}')
 
 
 def write_scene(sector: str, output: Path) -> Report:
@@ -35,67 +75,77 @@ def write_scene(sector: str, output: Path) -> Report:
     bpy.context.scene.collection.children.link(source)
     bpy.context.scene.collection.children.link(export)
     materials = make_blender_materials()
-    issues: list[Issue] = []
+    uv_issues: list[dict] = []
+    errors: list[dict] = []
     objects = []
     sources_by_name = {}
     exports_by_name = {}
     report: Report = {'sector': sector, 'export_collection': export.name, 'objects': [],
                       'evaluated_bounds': {}, 'materials': [], 'triangles': 0, 'vertices': 0,
                       'submeshes': 0, 'uv_issues': [], 'errors': []}
-    for a in assemblies:
-        merged = merge_assembly(a)
-        obj, uv_issues = blender_io.create_object(bpy, bmesh, merged, a.origin, materials,
-                                                   uv_exempt=a.meta.get('uv_exempt', False))
-        blender_io.write_colors(obj, vertex_colors(merged, a.origin, layout.seed,
-                                                   a.meta.get('sprays', ())))
-        obj['slum03_kind'] = a.kind
-        obj['slum03_sector'] = sector
-        obj.name = f"{a.name}_Source"
-        source.objects.link(obj)
-        # Never export the editable source, only a distinct mesh/object copy.
-        copy = obj.copy()
-        copy.data = obj.data.copy()
-        copy.name = a.name
-        export.objects.link(copy)
-        parent_name = a.meta.get('parent_name')
-        if parent_name:
-            if parent_name not in sources_by_name:
-                raise ValueError(f'{a.name}: unknown or unordered parent {parent_name}')
-            obj.parent = sources_by_name[parent_name]
-            copy.parent = exports_by_name[parent_name]
-        sources_by_name[a.name] = obj
-        exports_by_name[a.name] = copy
-        objects.append(copy)
-        issues.extend(uv_issues)
-        report['objects'].append({'key': a.meta.get('placement_key', a.name), 'kind': a.kind, 'mesh': copy.name})
+    for assembly in assemblies:
+        obj, issues = add_assembly(bpy, bmesh, assembly, materials, source, export,
+                                   sources_by_name, exports_by_name, layout.seed)
+        objects.append(obj)
+        mapped = [_issue_dict(issue) for issue in issues]
+        uv_issues.extend(mapped)
+        errors.extend(mapped)
+        report['objects'].append({'key': assembly.meta.get('placement_key', assembly.name),
+                                  'kind': assembly.kind, 'mesh': obj.name})
     hook = sectors.BLENDER_HOOKS.get(sector)
     if hook:
         extras, extra_report = hook(bpy, layout, materials, source, export)
         objects.extend(extras)
-        report.update(extra_report)
+        reported = extra_report.get('objects', [])
+        report['objects'].extend(reported)
+        described = {entry['mesh'] for entry in reported}
+        for obj in extras:
+            if obj.name not in described:
+                report['objects'].append({'key': obj.name, 'kind': obj.get('slum03_kind', 'hook'),
+                                          'mesh': obj.name})
+        hook_uv = [_issue_dict(issue) for issue in extra_report.get('uv_issues', [])]
+        uv_issues.extend(hook_uv)
+        errors.extend(hook_uv)
+        errors.extend(_issue_dict(issue) for issue in extra_report.get('errors', []))
+        # The builder computes resource counts from actual objects, not hook estimates.
+        reserved = set(report)
+        report.update({key: value for key, value in extra_report.items() if key not in reserved})
+    returned_names = {obj.name for obj in objects}
+    for obj in export.objects:
+        if obj.name not in returned_names:
+            errors.append(asdict(Issue('MESH', obj.name, 'export object not returned by sector hook')))
     bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
     for obj in objects:
-        if obj.type != 'MESH':
-            issues.append(Issue('MESH', obj.name, 'export object is not a mesh'))
+        if obj.name not in export.objects or obj.type != 'MESH':
+            errors.append(asdict(Issue('MESH', obj.name, 'hook export object missing or not a mesh')))
             continue
-        points = [obj.matrix_world @ v.co for v in obj.data.vertices]
-        if not points:
-            issues.append(Issue('MESH', obj.name, 'empty mesh'))
+        evaluated = obj.evaluated_get(depsgraph)
+        mesh = evaluated.to_mesh()
+        if mesh is None:
+            errors.append(asdict(Issue('MESH', obj.name, 'evaluated mesh is missing')))
             continue
-        report['evaluated_bounds'][obj.name] = {
-            'minimum': [min(p[i] for p in points) for i in (0, 2, 1)],
-            'maximum': [max(p[i] for p in points) for i in (0, 2, 1)]}
-        report['triangles'] += sum(len(p.vertices) - 2 for p in obj.data.polygons)
-        report['vertices'] += len(obj.data.vertices)
-        used = {p.material_index for p in obj.data.polygons}
-        report['submeshes'] += len(used)
-        report['materials'] = sorted(set(report['materials']) | {obj.data.materials[i].name for i in used})
-    report['uv_issues'] = [asdict(i) for i in issues]
-    report['errors'] = [asdict(i) for i in issues]
+        try:
+            points = [evaluated.matrix_world @ v.co for v in mesh.vertices]
+            if not points:
+                errors.append(asdict(Issue('MESH', obj.name, 'empty evaluated mesh')))
+                continue
+            report['evaluated_bounds'][obj.name] = {
+                'minimum': [min(p[i] for p in points) for i in (0, 2, 1)],
+                'maximum': [max(p[i] for p in points) for i in (0, 2, 1)]}
+            report['triangles'] += sum(len(p.vertices) - 2 for p in mesh.polygons)
+            report['vertices'] += len(mesh.vertices)
+            used = {p.material_index for p in mesh.polygons}
+            report['submeshes'] += len(used)
+            report['materials'] = sorted(set(report['materials']) | {mesh.materials[i].name for i in used})
+        finally:
+            evaluated.to_mesh_clear()
+    report['uv_issues'] = uv_issues
+    report['errors'] = errors
     output.parent.mkdir(parents=True, exist_ok=True)
     (output.parent / f'{sector}-report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
-    if issues:
-        raise RuntimeError(f'{sector} mesh/UV errors: {report["errors"]}')
+    if errors:
+        raise RuntimeError(f'{sector} mesh/UV errors: {errors}')
     bpy.ops.wm.save_as_mainfile(filepath=str(output.resolve()))
     return report
 

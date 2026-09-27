@@ -105,3 +105,144 @@ def test_builder_parent_origin_is_local_not_world(tmp_path):
                    check=True, capture_output=True, text=True)
     report = json.loads((tmp_path / 'ground-report.json').read_text())
     assert report['evaluated_bounds']['child']['minimum'] == pytest.approx([14.5, -.5, -.5])
+
+
+def test_hook_issue_objects_and_metrics_are_not_overwritten(tmp_path):
+    import json
+    import subprocess
+    script = tmp_path / 'hook_sector.py'
+    script.write_text(
+        'import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n'
+        'import bpy, bmesh\nfrom modeling.slum03 import sectors, build, blender_io, geometry as g\n'
+        'from modeling.slum03.types import Issue\n'
+        'def hooked(bpy, layout, materials, source, export):\n'
+        '    part = g.box("part", (0,0,0), (1,1,1), "rust")\n'
+        '    mesh = g.merge_assembly(g.Assembly("hook", "hook-extra", "ground", (4,0,0), [part]))\n'
+        '    obj, issues = blender_io.create_object(bpy, bmesh, mesh, (4,0,0), materials)\n'
+        '    export.objects.link(obj)\n'
+        '    return [obj], {"objects": [{"key":"hook-extra", "kind":"hook", "mesh":"hook-extra"}], '
+        '"uv_issues":[Issue("UV", "hook-extra", "bad uv")], '
+        '"errors":[{"code":"HOOK", "object_key":"hook-extra", "message":"broken"}]}\n'
+        'sectors.BLENDER_HOOKS["ground"] = hooked\n'
+        f'build.write_scene("ground", Path({str(tmp_path / "hook.blend")!r}))\n')
+    result = subprocess.run(['resoloop', 'blender', 'run', str(script), '--json'],
+                            capture_output=True, text=True)
+    assert result.returncode != 0, result.stdout
+    report = json.loads((tmp_path / 'ground-report.json').read_text())
+    assert report['objects'] == [
+        {'key': 'district-foundation', 'kind': 'foundation', 'mesh': 'district-foundation'},
+        {'key': 'hook-extra', 'kind': 'hook', 'mesh': 'hook-extra'}]
+    assert report['triangles'] == 24 and report['vertices'] == 16 and report['submeshes'] == 2
+    assert report['evaluated_bounds']['hook-extra']['minimum'] == pytest.approx([3.5, -.5, -.5])
+    assert report['uv_issues'] == [{'code':'UV', 'object_key':'hook-extra', 'message':'bad uv'}]
+    assert report['errors'] == [{'code':'UV', 'object_key':'hook-extra', 'message':'bad uv'},
+                                {'code':'HOOK', 'object_key':'hook-extra', 'message':'broken'}]
+    assert not (tmp_path / 'hook.blend').exists()
+
+
+def test_blockout_respects_registered_assembly_parent_in_both_collections(tmp_path):
+    import json
+    import subprocess
+    script = tmp_path / 'parent_blockout.py'
+    script.write_text(
+        'import sys, json\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n'
+        'import bpy\nfrom modeling.slum03 import sectors, probe_blender, geometry as g\n'
+        'def nested(layout, sector):\n'
+        '    return [g.Assembly("parent", "test-parent", sector, (10,0,0), '
+        '[g.box("p",(0,0,0),(1,1,1),"rust")]), '
+        'g.Assembly("child", "test-child", sector, (5,0,0), '
+        '[g.box("c",(0,0,0),(1,1,1),"rust")], {"parent_name":"test-parent"})]\n'
+        'sectors.REGISTRY["ground"] = nested\n'
+        f'probe_blender.run(Path({str(tmp_path)!r}), "blockout")\n'
+        'bpy.context.view_layer.update()\n'
+        'results = {}\n'
+        'for collection, name in (("Slum03BlockoutSource", "test-child_Source"), '
+        '("Slum03BlockoutExport", "test-child")):\n'
+        '    o = bpy.data.collections[collection].objects[name]\n'
+        '    results[collection] = {"parent": o.parent.name, '
+        '"world_x": float((o.matrix_world @ o.data.vertices[0].co).x)}\n'
+        f'Path({str(tmp_path / "parents.json")!r}).write_text(json.dumps(results))\n')
+    subprocess.run(['resoloop', 'blender', 'run', str(script), '--json'],
+                   check=True, capture_output=True, text=True)
+    results = json.loads((tmp_path / 'parents.json').read_text())
+    assert results['Slum03BlockoutSource'] == {'parent': 'test-parent_Source', 'world_x': pytest.approx(14.5)}
+    assert results['Slum03BlockoutExport'] == {'parent': 'test-parent', 'world_x': pytest.approx(14.5)}
+
+
+def test_tracked_ground_probe_matches_current_world_coordinate_build():
+    import json
+    from pathlib import Path
+    report = json.loads(Path('artifacts/slum03/probes/ground-report.json').read_text())
+    assert report['objects'] == [{'key': 'district-foundation', 'kind': 'foundation',
+                                  'mesh': 'district-foundation'}]
+    assert report['evaluated_bounds']['district-foundation']['minimum'] == pytest.approx([-60, -.3, -60])
+    assert report['evaluated_bounds']['district-foundation']['maximum'] == pytest.approx([60, 0, 60])
+
+
+def test_hook_uv_issue_alone_blocks_export(tmp_path):
+    import json
+    import subprocess
+    script = tmp_path / 'uv_hook.py'
+    script.write_text(
+        'import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n'
+        'from modeling.slum03 import sectors, build\n'
+        'from modeling.slum03.types import Issue\n'
+        'def uv_hook(bpy, layout, materials, source, export):\n'
+        '    return [], {"uv_issues": [Issue("UV", "test-hook", "bad UV")]}\n'
+        'sectors.BLENDER_HOOKS["ground"] = uv_hook\n'
+        f'build.write_scene("ground", Path({str(tmp_path / "uv.blend")!r}))\n')
+    result = subprocess.run(['resoloop', 'blender', 'run', str(script), '--json'],
+                            capture_output=True, text=True)
+    assert result.returncode != 0
+    report = json.loads((tmp_path / 'ground-report.json').read_text())
+    assert report['uv_issues'] == report['errors'] == [
+        {'code':'UV', 'object_key':'test-hook', 'message':'bad UV'}]
+    assert not (tmp_path / 'uv.blend').exists()
+
+
+def test_hook_report_bounds_and_counts_include_evaluated_modifier(tmp_path):
+    import json
+    import subprocess
+    script = tmp_path / 'solidify_hook.py'
+    script.write_text(
+        'import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n'
+        'import bpy, bmesh\nfrom modeling.slum03 import sectors, build, blender_io, geometry as g\n'
+        'def hooked(bpy, layout, materials, source, export):\n'
+        '    sheet = g.mesh("sheet", [(0,0,0),(0,0,1),(1,0,0)], [(0,1,2)], "rust")\n'
+        '    merged = g.merge_assembly(g.Assembly("sheet", "thick-hook", "ground", (0,0,0), [sheet]))\n'
+        '    obj, issues = blender_io.create_object(bpy, bmesh, merged, (0,0,0), materials)\n'
+        '    assert not issues\n'
+        '    mod = obj.modifiers.new("Thickness", "SOLIDIFY")\n'
+        '    mod.thickness = 1\n    mod.offset = 1\n'
+        '    export.objects.link(obj)\n    return [obj], {}\n'
+        'sectors.BLENDER_HOOKS["ground"] = hooked\n'
+        f'build.write_scene("ground", Path({str(tmp_path / "solid.blend")!r}))\n')
+    subprocess.run(['resoloop', 'blender', 'run', str(script), '--json'],
+                   check=True, capture_output=True, text=True)
+    report = json.loads((tmp_path / 'ground-report.json').read_text())
+    assert report['evaluated_bounds']['thick-hook']['maximum'][1] == pytest.approx(1)
+    assert report['vertices'] > 11 and report['triangles'] > 13
+    assert report['objects'][-1] == {'key':'thick-hook', 'kind':'hook', 'mesh':'thick-hook'}
+
+
+def test_hook_cannot_export_unreported_object(tmp_path):
+    import json
+    import subprocess
+    script = tmp_path / 'unreported_hook.py'
+    script.write_text(
+        'import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n'
+        'import bpy, bmesh\nfrom modeling.slum03 import sectors, build, blender_io, geometry as g\n'
+        'def hooked(bpy, layout, materials, source, export):\n'
+        '    part = g.box("part", (0,0,0), (1,1,1), "rust")\n'
+        '    mesh = g.merge_assembly(g.Assembly("hook", "forgotten", "ground", (4,0,0), [part]))\n'
+        '    obj, issues = blender_io.create_object(bpy, bmesh, mesh, (4,0,0), materials)\n'
+        '    assert not issues\n    export.objects.link(obj)\n    return [], {}\n'
+        'sectors.BLENDER_HOOKS["ground"] = hooked\n'
+        f'build.write_scene("ground", Path({str(tmp_path / "bad.blend")!r}))\n')
+    result = subprocess.run(['resoloop', 'blender', 'run', str(script), '--json'],
+                            capture_output=True, text=True)
+    assert result.returncode != 0
+    report = json.loads((tmp_path / 'ground-report.json').read_text())
+    assert report['errors'] == [{'code':'MESH', 'object_key':'forgotten',
+                                 'message':'export object not returned by sector hook'}]
+    assert not (tmp_path / 'bad.blend').exists()

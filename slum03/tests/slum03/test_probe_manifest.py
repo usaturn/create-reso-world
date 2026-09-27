@@ -46,3 +46,16 @@ def test_probe_rejects_explicit_external_parent(tmp_path):
         'children': [{'slot': {'key': 'rogue', 'name': 'Rogue', 'parent': 'Root'}}]}))
     with pytest.raises(ValueError, match='parent'):
         probe_manifest.prepare_probe_manifest(source, tmp_path / 'preview.json', (0, 0, 0))
+
+
+@pytest.mark.parametrize('parent', ['$slot:root', '$slot:missing'])
+def test_probe_rejects_parent_reference_outside_source_bundle(tmp_path, parent):
+    source = tmp_path / 'bundle'
+    source.mkdir()
+    (source / 'model.apply.json').write_text(json.dumps({
+        'schemaVersion': '1', 'slot': {'key': 'source-root', 'name': 'Source', 'parent': 'Root'},
+        'children': [{'slot': {'key': 'child', 'name': 'Child', 'parent': parent}}]}))
+    out = tmp_path / 'preview.json'
+    with pytest.raises(ValueError, match='parent'):
+        probe_manifest.prepare_probe_manifest(source, out, (0, 0, 0))
+    assert not out.exists()

@@ -28,14 +28,29 @@ def prepare_probe_manifest(source: Path, output: Path, root_position: Vec3) -> M
     old_key = bundle['slot']['key']
     if not old_key or old_key == 'blockout-preview-bundle':
         raise ValueError('invalid bundle root key')
+    # Reserve the wrapper keys and validate all source slot keys before rebasing.
+    source_keys = set()
+    def collect_keys(node):
+        key = node['slot']['key']
+        if not isinstance(key, str) or not key or key in source_keys:
+            raise ValueError(f'duplicate or invalid bundle slot key: {key}')
+        if node is not bundle and key in ('root', 'blockout-preview', 'blockout-preview-bundle'):
+            raise ValueError(f'bundle slot key conflicts with preview wrapper: {key}')
+        source_keys.add(key)
+        for child in node.get('children', []):
+            collect_keys(child)
+    collect_keys(bundle)
     inner = _rewire(copy.deepcopy(bundle), old_key)
     inner_slot = inner['slot']
     inner_slot.pop('parent', None)
     inner_slot['key'] = 'blockout-preview-bundle'
+    owned_keys = (source_keys - {old_key}) | {'blockout-preview-bundle'}
     def check_parents(node):
         for child in node.get('children', []):
             parent = child['slot'].get('parent')
-            if parent is not None and parent != '$slot:blockout-preview-bundle' and not parent.startswith('$slot:'):
+            if parent is not None and (not isinstance(parent, str) or
+                                       not parent.startswith('$slot:') or
+                                       parent.removeprefix('$slot:') not in owned_keys):
                 raise ValueError(f'external parent in bundle: {parent}')
             check_parents(child)
     check_parents(inner)
