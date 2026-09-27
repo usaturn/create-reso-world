@@ -124,10 +124,32 @@ def add_graffiti(bpy, layout: Layout, materials: dict, export_collection) -> tup
     from .vcolor import vertex_colors
     import bmesh
     strokes = []
-    for x, height in [(-8.1,.63), (-5.6,.33), (-2.1,.86), (.8,.4), (4.6,.67), (8,.26)]:
-        strokes.append(box('spray-drip', (x, 3.35-height/2, 0), (.09, height, .008), 'spray_red'))
-    for x in (-10.5, -9.9, 9.8, 10.6):
-        strokes.append(box('spray-overshoot', (x, 5.1, 0), (.2, .06, .008), 'spray_black'))
+    # Select the lower edge from the *evaluated, transformed* red glyph mesh.
+    # No wall-coordinate guesses: a change to font, kerning, or size moves the
+    # streaks and nearby overspray with the rendered letters.
+    glyph = [red.matrix_world @ vertex.co for vertex in red.data.vertices]
+    lo_x, hi_x = min(v.x for v in glyph), max(v.x for v in glyph)
+    lo_y, hi_y = min(v.z for v in glyph), max(v.z for v in glyph)
+    for fraction, height in ((.10,.42),(.26,.3),(.42,.55),(.58,.36),(.74,.49),(.90,.28)):
+        target = lo_x + (hi_x-lo_x)*fraction
+        nearby = [v for v in glyph if abs(v.x-target) <= .1]
+        if not nearby:
+            nearby = [min(glyph, key=lambda v: abs(v.x-target))]
+        anchor = min(nearby, key=lambda v: v.z)
+        # Follow lower vertices along adjacent strokes until the local lower
+        # edge stops descending; this keeps the drip attached to actual paint.
+        for _ in range(32):
+            lower = min((v for v in glyph if abs(v.x-anchor.x) <= .08), key=lambda v: v.z)
+            if lower.z >= anchor.z - 1e-6:
+                break
+            anchor = lower
+        top = anchor.z + .04
+        strokes.append(box('spray-drip', (anchor.x-wall.origin[0], top-height/2-wall.origin[1], 0),
+                           (.09, height, .008), 'spray_red'))
+    for x, y in ((lo_x-.2,hi_y+.12),(lo_x-.36,lo_y+.11),
+                 (hi_x+.2,hi_y+.12),(hi_x+.36,lo_y+.11)):
+        strokes.append(box('spray-overshoot', (x-wall.origin[0], y-wall.origin[1], 0),
+                           (.15, .055, .008), 'spray_black'))
     merged = merge_assembly(Assembly('graffiti', 'north-wall-graffiti-drips', 'plaza',
                                      (0,0,0), strokes))
     # Blender Y coordinate = Resonite north Z; this lies just south of all paint.

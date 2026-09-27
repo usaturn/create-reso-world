@@ -43,7 +43,7 @@ def test_ground_build_reports_resonite_bounds_and_stable_export_name(tmp_path):
     probe.write_text('import bpy, json, sys\n'
                      'from pathlib import Path\n'
                      'o=bpy.data.collections["Slum03groundExport"].objects["district-foundation"]\n'
-                     'top=[p for p in o.data.polygons if p.normal.z > .99]\n'
+                     'top=[p for p in o.data.polygons if p.normal.z > .99 and abs(p.center.z) < 1e-7]\n'
                      'Path(sys.argv[sys.argv.index("--")+1]).write_text(json.dumps({"top":len(top), '
                      '"uv": [u.name for u in o.data.uv_layers if u.active_render], '
                      '"source_hidden":bpy.data.collections["Slum03groundSource"].hide_render}))\n')
@@ -51,7 +51,7 @@ def test_ground_build_reports_resonite_bounds_and_stable_export_name(tmp_path):
     subprocess.run(['resoloop', 'blender', 'run', str(probe), '--blend',
                     str(tmp_path / 'ground.blend'), f'--arg={out}', '--json'],
                    check=True, capture_output=True, text=True)
-    assert json.loads(out.read_text()) == {'top': 1, 'uv': ['UV0'], 'source_hidden': True}
+    assert json.loads(out.read_text()) == {'top': 4, 'uv': ['UV0'], 'source_hidden': True}
 
 
 def test_blockout_exports_one_footprint_per_placement_plus_ground(tmp_path):
@@ -148,7 +148,8 @@ def test_hook_issue_objects_and_metrics_are_not_overwritten(tmp_path):
     assert report['objects'] == [
         {'key': 'district-ground', 'kind': 'foundation', 'mesh': 'district-foundation'},
         {'key': 'hook-extra', 'kind': 'hook', 'mesh': 'hook-extra'}]
-    assert report['triangles'] == 24 and report['vertices'] == 16 and report['submeshes'] == 2
+    # Five foundation boxes (four strips plus subbase) and the hook cube.
+    assert report['triangles'] == 72 and report['vertices'] == 48 and report['submeshes'] == 2
     assert report['evaluated_bounds']['hook-extra']['minimum'] == pytest.approx([3.5, -.5, -.5])
     assert report['uv_issues'] == [{'code':'UV', 'object_key':'hook-extra', 'message':'bad uv'}]
     assert report['errors'] == [{'code':'UV', 'object_key':'hook-extra', 'message':'bad uv'},

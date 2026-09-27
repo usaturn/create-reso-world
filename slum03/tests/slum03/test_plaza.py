@@ -38,9 +38,23 @@ def test_generated_plaza_reopens_with_editable_scatter_and_static_uv_color_expor
     assert data['red_mesh_south_normals'] > 0 and data['red_mesh_polygons'] > 200
     assert -18 < data['letter_x_span'][0] < 0 < data['letter_x_span'][1] < 18
     assert {'Slum03_spray_red', 'Slum03_spray_black'} <= set(data['graffiti_materials'])
+    assert len(data['red_streaks']) >= 5
+    assert all(offset is not None and 0 <= offset <= .09
+               for offset in data['drip_offsets_from_glyph_base'])
+    assert len(data['overspray_x_gap']) >= 4
+    assert all(gap < .6 for gap in data['overspray_x_gap'])
+    assert all(data['red_y_span'][0]-.35 <= y <= data['red_y_span'][1]+.35
+               for y in data['overspray_y'])
     assert 'Slum03_asphalt_wet' in data['floor_materials']  # inlaid oil, not an obstacle
     assert 'Slum03_steel_dark' in data['variant_materials']['rubble-variant-1']
     assert 'Slum03_electronics' in data['variant_materials']['rubble-variant-2']
+    assert data['scale_linked']
+    assert sum(.45 <= s <= .72 for s in data['rubble_scales']) >= 10
+    assert sum(.9 <= s <= 1.15 for s in data['rubble_scales']) >= 8
+    assert sum(1.3 <= s <= 1.58 for s in data['rubble_scales']) >= 6
+    assert set(data['rubble_variants']) == {0, 1, 2}
+    assert data['truss_variant_span'][0] >= 2 and data['truss_variant_span'][1] >= 1
+    assert 'Slum03_steel_bare' in data['realized_rubble_materials']
     assert data['rubble_source_count'] >= 4
     assert data['rubble_source_count'] == data['rubble_export_count']
     assert all(m == ['NODES'] for m in data['source_modifiers'])
@@ -50,6 +64,9 @@ def test_generated_plaza_reopens_with_editable_scatter_and_static_uv_color_expor
     assert all(faces > 20 for faces in data['export_faces'])
     assert all('UV0' in uvs for uvs in data['export_uvs'])
     assert all('Col' in colors for colors in data['export_colors'])
+    rubble_heights = [b['maximum'][1] - b['minimum'][1]
+                      for k, b in report['evaluated_bounds'].items() if k.startswith('plaza-rubble-')]
+    assert min(rubble_heights) < .8 and max(rubble_heights) > 1.8
     for name, bounds in report['evaluated_bounds'].items():
         if name.startswith('plaza-rubble-'):
             x0, y0, z0 = bounds['minimum']; x1, y1, z1 = bounds['maximum']

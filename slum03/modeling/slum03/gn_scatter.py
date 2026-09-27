@@ -9,7 +9,7 @@ from .spatial import validate_clearance, placement_bounds
 from .types import Bounds3, Layout, Report, Vec3
 
 # Local shape envelope includes any protruding reinforcing bars after yaw rotation.
-MAX_EXTENT: Vec3 = (2.4, 1.8, 2.4)
+MAX_EXTENT: Vec3 = (3.2, 2.5, 3.2)  # largest rotated truss/rebar after scale 1.45
 
 
 def scatter_samples(layout: Layout, *, seed: int, count: int, max_extent: Vec3) -> tuple[Vec3, ...]:
@@ -28,8 +28,19 @@ def scatter_samples(layout: Layout, *, seed: int, count: int, max_extent: Vec3) 
         attempts += 1
         if attempts > max(1000, count * 500):
             raise ValueError('rubble cannot fit in available perimeter')
-        x = rng.uniform(layout.plaza.x_min + hx, layout.plaza.x_max - hx)
-        z = rng.uniform(layout.plaza.z_min + hz, layout.plaza.z_max - hz)
+        # Intentional heaps near the remnants; the remainder stays sparse.
+        if rng.random() < .72:
+            cx, cz = rng.choice(((-18, -8), (-18, 8), (18, -8), (18, 8),
+                                 (-11, -13), (11, -13), (-11, 12.6), (11, 12.6)))
+            spread = .55
+        else:
+            cx, cz = rng.choice(((-18, -4), (-18, 4), (18, -4), (18, 4),
+                                 (-5, -13), (5, -13), (-5, 12.6), (5, 12.6)))
+            spread = 1.05
+        x, z = rng.gauss(cx, spread), rng.gauss(cz, spread)
+        if not (layout.plaza.x_min + hx <= x <= layout.plaza.x_max - hx and
+                layout.plaza.z_min + hz <= z <= layout.plaza.z_max - hz):
+            continue
         b = Bounds3((x-hx, 0, z-hz), (x+hx, max_extent[1], z+hz))
         if validate_clearance(layout, {f'rubble-{len(result)}': b}):
             continue
@@ -46,7 +57,11 @@ def _variant(index):
         return [box('I-beam-web', (0,.4,0), (1.55,.6,.12), 'steel_dark'),
                 box('I-beam-upper-flange', (0,.73,0), (1.55,.09,.62), 'rust'),
                 box('I-beam-lower-flange', (0,.08,0), (1.55,.12,.62), 'steel_bare'),
-                tube('loose-rebar', [(-.4,.1,.35),(-.75,.51,.52)], .045, 7, 'rust_dark')]
+                tube('loose-rebar', [(-.4,.1,.35),(-.75,.51,.52)], .045, 7, 'rust_dark'),
+                box('truss-bottom-chord', (0,.16,-.1), (2.0,.08,.11), 'steel_dark'),
+                box('truss-top-chord', (0,1.09,-.1), (2.0,.08,.11), 'steel_bare'),
+                tube('truss-diagonal-a', [(-1,.2,-.1),(1,1.05,-.1)], .04, 6, 'rust'),
+                tube('truss-diagonal-b', [(1,.2,-.1),(-1,1.05,-.1)], .04, 6, 'steel_dark')]
     if index == 2:  # crushed equipment with dark casing and exposed circuit tray
         return [box('equipment-housing', (0,.36,0), (1.35,.72,1.1), 'steel_dark'),
                 box('broken-tray', (.03,.77,-.12), (1.04,.11,.65), 'electronics'),
@@ -81,11 +96,12 @@ def _node_group(bpy, name, variants, seed):
     instance.inputs['Pick Instance'].default_value = True
     links.new(geo.outputs['Geometry'], instance.inputs['Points'])
     links.new(join.outputs['Geometry'], instance.inputs['Instance'])
-    index = nodes.new('GeometryNodeInputIndex')
-    modulo = nodes.new('ShaderNodeMath'); modulo.operation = 'FLOORED_MODULO'
-    modulo.inputs[1].default_value = len(variants)
-    links.new(index.outputs['Index'], modulo.inputs[0])
-    links.new(modulo.outputs['Value'], instance.inputs['Instance Index'])
+    choice = nodes.new('GeometryNodeInputNamedAttribute')
+    choice.data_type = 'INT'; choice.inputs['Name'].default_value = 'rubble_variant'
+    links.new(choice.outputs['Attribute'], instance.inputs['Instance Index'])
+    size = nodes.new('GeometryNodeInputNamedAttribute')
+    size.data_type = 'FLOAT_VECTOR'; size.inputs['Name'].default_value = 'rubble_scale'
+    links.new(size.outputs['Attribute'], instance.inputs['Scale'])
     yaw = nodes.new('GeometryNodeInputNamedAttribute')
     yaw.data_type = 'FLOAT'; yaw.inputs['Name'].default_value = 'rubble_yaw'
     rotation = nodes.new('FunctionNodeAxisAngleToRotation')
@@ -104,27 +120,36 @@ def add_scatter(bpy, layout: Layout, materials: dict, source_collection, export_
     from . import blender_io
     import bmesh
     from .vcolor import vertex_colors
-    # Separate small heaps, not a fused district-wide rubble mesh.
-    samples = scatter_samples(layout, seed=layout.seed, count=72, max_extent=MAX_EXTENT)
+    # Each tier is sampled against its entire *maximum* rotated/raised envelope.
+    # Large fragments cannot fit the narrow north band in front of the wall; the
+    # sampler rejects that area for them rather than clipping the geometry later.
+    tiers = ((36, (1.8, 1.3, 1.8), (.54, .70)),
+             (24, (2.5, 1.9, 2.5), (.96, 1.10)),
+             (12, MAX_EXTENT, (1.32, 1.45)))
+    rng = random.Random(layout.seed)
+    samples = []
+    for tier, (count, extent, scale_range) in enumerate(tiers):
+        for p in scatter_samples(layout, seed=layout.seed+tier, count=count, max_extent=extent):
+            variant = len(samples) % 3
+            samples.append((p, extent, rng.uniform(*scale_range), variant))
     buckets = {'west': [], 'east': [], 'north': [], 'south': []}
-    for p in samples:
-        if p[0] + MAX_EXTENT[0]/2 <= layout.clear.x_min:
+    for p, extent, scale, variant in samples:
+        if p[0] + extent[0]/2 <= layout.clear.x_min:
             bucket = 'west'
-        elif p[0] - MAX_EXTENT[0]/2 >= layout.clear.x_max:
+        elif p[0] - extent[0]/2 >= layout.clear.x_max:
             bucket = 'east'
-        elif p[2] - MAX_EXTENT[2]/2 >= layout.clear.z_max:
+        elif p[2] - extent[2]/2 >= layout.clear.z_max:
             bucket = 'north'
         else:
             bucket = 'south'
-        buckets[bucket].append(p)
-    # Four-metre cells within each safe zone: small mounds with separate
-    # inspector meshes, not one long strip or one district-sized merged mesh.
-    heaps: dict[str, list[Vec3]] = {}
+        buckets[bucket].append((p, scale, variant))
+    # Three-metre cells plus at most 3.2m shape envelopes: independent heaps.
+    heaps = {}
     for side, points in buckets.items():
-        for p in points:
-            ix = math.floor((p[0] - layout.plaza.x_min) / 4)
-            iz = math.floor((p[2] - layout.plaza.z_min) / 4)
-            heaps.setdefault(f'{side}-{ix}-{iz}', []).append(p)
+        for p, scale, variant in points:
+            ix = math.floor((p[0] - layout.plaza.x_min) / 3)
+            iz = math.floor((p[2] - layout.plaza.z_min) / 3)
+            heaps.setdefault(f'{side}-{ix}-{iz}', []).append((p, scale, variant))
     heaps = dict(sorted(heaps.items()))
     variant_objects = []
     errors = []
@@ -149,10 +174,19 @@ def add_scatter(bpy, layout: Layout, materials: dict, source_collection, export_
     for name, points in heaps.items():
         cloud = bpy.data.meshes.new(f'Slum03_RubblePoints_{name}')
         # Each local cloud retains the fixed scatter points and yaw, editable in Blender.
-        origin = points[0]
-        cloud.from_pydata([(x-origin[0], z-origin[2], 0) for x, _, z in points], [], [])
+        origin = points[0][0]
+        cloud.from_pydata([(p[0]-origin[0], p[2]-origin[2], 0) for p, _, _ in points], [], [])
         cloud.update()
-        yaw = cloud.attributes.new('rubble_yaw', 'FLOAT', 'POINT')
+        cloud.attributes.new('rubble_scale', 'FLOAT_VECTOR', 'POINT')
+        cloud.attributes.new('rubble_variant', 'INT', 'POINT')
+        cloud.attributes.new('rubble_yaw', 'FLOAT', 'POINT')
+        # Creating another attribute can invalidate earlier RNA references.
+        scale_attr = cloud.attributes['rubble_scale']
+        variant_attr = cloud.attributes['rubble_variant']
+        yaw = cloud.attributes['rubble_yaw']
+        for i, (_, scale, variant) in enumerate(points):
+            scale_attr.data[i].vector = (scale, scale, scale)
+            variant_attr.data[i].value = variant
         for i, item in enumerate(yaw.data):
             item.value = math.radians(random.Random(f'{layout.seed}-{name}-{i}').uniform(-165, 165))
         author = bpy.data.objects.new(f'plaza-rubble-{name}_Source', cloud)

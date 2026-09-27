@@ -32,3 +32,17 @@ def test_scatter_rejects_extent_larger_than_factory_perimeter():
     import pytest
     with pytest.raises(ValueError, match='maximum extent exceeds plaza'):
         scatter_samples(build_layout(), seed=1, count=1, max_extent=(100, 1, 2))
+
+
+def test_scatter_has_dense_perimeter_piles_and_sparser_gaps():
+    import math
+    points = scatter_samples(build_layout(), seed=260927, count=72,
+                             max_extent=(1.8, 1.3, 1.8))
+    landmarks = [(-18, -8), (-18, 8), (18, -8), (18, 8),
+                 (-11, -13), (11, -13), (-11, 12.6), (11, 12.6)]
+    near = [min(math.dist((x, z), c) for c in landmarks) < 1.6
+            for x, _, z in points]
+    assert sum(near) >= 43  # designed accumulations, not uniform scatter
+    assert sum(not is_near for is_near in near) >= 7  # unfilled breathing room
+    assert sum(sum(math.dist((x,z), c) < 1.6 for x, _, z in points) >= 5
+               for c in landmarks) >= 4
