@@ -65,14 +65,19 @@ def _bridge(p, sidewalk_west, road, sidewalk_east, river):
                            z-.45, z+.45, 'concrete_dark'))
     # Solid lower parapet with spaced upper steel bars: no missing segment at
     # midspan or at either bank. Kept inside the placement envelope.
-    for x0, x1 in ((left, left+.5), (right-.5, right)):
+    for side, (x0, x1) in (('west', (left, left+.5)),
+                           ('east', (right-.5, right))):
         parts.append(_rect(p, 'bridge-parapet', x0, x1, 0, 1.5,
                            south, north, 'concrete_stained'))
         parts.append(_rect(p, 'rail-cap', x0, x1, 1.5, 1.65,
                            south, north, 'paint_yellow_faded'))
         for step in range(1, 9):
             z = south + (north-south)*step/9
-            parts.append(_rect(p, 'parapet-rib', x0, x1, 0, 2.1,
+            # Sink one face into the parapet, project the other toward the
+            # walkway: no coincident exposed faces along either outer edge.
+            rib0, rib1 = ((x0+.05, x1+.16) if side == 'west'
+                          else (x0-.16, x1-.05))
+            parts.append(_rect(p, 'parapet-rib', rib0, rib1, 0, 2.1,
                                z-.09, z+.09, 'steel_dark'))
     return Assembly('bridge', p.key, p.sector, p.origin, parts, {'placement_key': p.key})
 
@@ -100,12 +105,17 @@ def _checkpoint(p):
     # Both sidewalks and the entire roadway are open below the beam. Service
     # equipment sits on the side columns, not in the pedestrian route.
     parts = []
-    for a, b in ((x0, x0+.6), (x1-.6, x1)):
+    for side, (a, b) in (('west', (x0, x0+.6)),
+                         ('east', (x1-.6, x1))):
         parts.append(_rect(p, 'gate-pier', a, b, 0, 4.6,
                            z0+.4, z1-.4, 'concrete_dark'))
-        parts.append(_rect(p, 'scanner-housing', a, b, 2.65, 3.4,
+        # Embed the back 10 cm into the column, exposing the front 24 cm
+        # above head height without constricting the three-metre path.
+        device0, device1 = ((b-.1, b+.24) if side == 'west'
+                            else (a-.24, a+.1))
+        parts.append(_rect(p, 'scanner-housing', device0, device1, 2.65, 3.4,
                            z0+1, z1-1, 'steel_dark'))
-        parts.append(_rect(p, 'signal', a, b, 3.5, 3.9,
+        parts.append(_rect(p, 'signal', device0, device1, 3.5, 3.9,
                            z0+1, z1-1, 'paint_yellow_faded'))
     parts.append(_rect(p, 'gate-canopy', x0, x1, 4.6, 5.0,
                        z0, z1, 'corrugated_rust'))

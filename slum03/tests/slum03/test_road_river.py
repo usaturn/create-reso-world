@@ -147,3 +147,66 @@ def test_revetments_do_not_report_false_route_intrusion_from_merged_bounds():
         evaluated[a.name] = Bounds3(tuple(lo[i]+a.origin[i] for i in range(3)),
                                     tuple(hi[i]+a.origin[i] for i in range(3)))
     assert validate_clearance(layout, evaluated) == []
+
+
+def _face_coplanar_on_same_exposed_side(a, b):
+    """Compare actual polygon faces, not only names or overlapping bounding boxes."""
+    def side_faces(part):
+        low, high = bounds([part])
+        for face in part.faces:
+            xs = [part.vertices[i][0] for i in face]
+            if max(xs)-min(xs) < 1e-7:
+                side = 'min' if abs(xs[0]-low[0]) < 1e-7 else 'max' if abs(xs[0]-high[0]) < 1e-7 else None
+                if side:
+                    ys = [part.vertices[i][1] for i in face]
+                    zs = [part.vertices[i][2] for i in face]
+                    yield side, xs[0], (min(ys), max(ys)), (min(zs), max(zs))
+    for side_a, x_a, y_a, z_a in side_faces(a):
+        for side_b, x_b, y_b, z_b in side_faces(b):
+            if (side_a == side_b and abs(x_a-x_b) < 1e-7 and
+                    min(y_a[1], y_b[1])-max(y_a[0], y_b[0]) > 1e-5 and
+                    min(z_a[1], z_b[1])-max(z_a[0], z_b[0]) > 1e-5):
+                return True
+    return False
+
+
+def _contact_volume(a, b):
+    low_a, high_a = bounds([a])
+    low_b, high_b = bounds([b])
+    return all(min(high_a[i], high_b[i])-max(low_a[i], low_b[i]) > .01
+               for i in range(3))
+
+
+def test_gate_devices_are_surface_mounted_without_exposed_coplanar_faces():
+    gate = scene()['checkpoint']
+    columns = [part for part in gate.parts if part.name == 'gate-pier']
+    assert len(columns) == 2
+    for name in ('scanner-housing', 'signal'):
+        devices = [part for part in gate.parts if part.name == name]
+        assert len(devices) == len(columns)
+        for column, device in zip(columns, devices):
+            c0, c1 = bounds([column]); d0, d1 = bounds([device])
+            assert _contact_volume(column, device)  # no hovering attachment
+            assert d0[0] < c0[0] or d1[0] > c1[0], 'device must be visible past pier face'
+            assert not _face_coplanar_on_same_exposed_side(column, device)
+    # Outermost pedestrian routes still have more than three metres free.
+    for x in (62, 63, 64, 92, 93, 94):
+        assert not intersects_walk(gate, x, 69)
+
+
+def test_rail_stiffeners_protrude_without_coplanar_parapet_side_faces():
+    bridge = scene()['bridge']
+    parapets = [part for part in bridge.parts if part.name == 'bridge-parapet']
+    caps = [part for part in bridge.parts if part.name == 'rail-cap']
+    ribs = [part for part in bridge.parts if part.name == 'parapet-rib']
+    assert len(parapets) == len(caps) == 2 and len(ribs) >= 2
+    for rib in ribs:
+        rail = min(parapets, key=lambda p: abs(bounds([rib])[0][0] - bounds([p])[0][0]))
+        cap = min(caps, key=lambda p: abs(bounds([rib])[0][0] - bounds([p])[0][0]))
+        r0, r1 = bounds([rib]); p0, p1 = bounds([rail])
+        assert _contact_volume(rail, rib) and _contact_volume(cap, rib)
+        assert r0[0] < p0[0] or r1[0] > p1[0], 'rib must show at rail face'
+        assert not _face_coplanar_on_same_exposed_side(rail, rib)
+        assert not _face_coplanar_on_same_exposed_side(cap, rib)
+    for x in (62, 63, 64, 92, 93, 94):
+        assert not intersects_walk(bridge, x, 95)
