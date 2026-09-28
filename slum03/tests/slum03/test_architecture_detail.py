@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from modeling.slum03.geometry import bounds, rotate_y
+from modeling.slum03.geometry import bounds, box, face_normal, rotate_y, signed_volume
 from modeling.slum03.layout import read_layout
 from modeling.slum03.materials import MATERIALS
 from modeling.slum03.spatial import placement_bounds
@@ -26,6 +26,28 @@ def _sample(kind, variant, yaw=0):
 
 def _names(a):
     return {p.name for p in a.parts}
+
+
+def _shape(a):
+    # Face-connected positions, without component names or material identifiers.
+    # A painted/renamed clone still has exactly this shape.
+    return tuple(sorted(tuple(sorted(tuple(sorted(tuple(round(c, 6) for c in part.vertices[i])
+                                          for i in face)) for face in part.faces)) for part in a.parts))
+
+
+def _blocks_front_door(parts, w, d):
+    # A +Z sight ray through the *actual* front panel thickness at shoulder height.
+    front = d/2 - .43
+    for part in parts:
+        for face in part.faces:
+            verts = [part.vertices[i] for i in face]
+            z = verts[0][2]
+            if (all(abs(v[2] - z) < 1e-6 for v in verts)
+                    and abs(z-front) <= .11
+                    and min(v[0] for v in verts) < 0 < max(v[0] for v in verts)
+                    and min(v[1] for v in verts) < 1.5 < max(v[1] for v in verts)):
+                return True
+    return False
 
 
 def _assert_assembly(a, p):
@@ -70,7 +92,7 @@ def test_ruin_variants_have_different_load_paths_and_nonpainted_apertures():
                        for face in window.faces)
         assert 'joint-anchor' in _names(a) and 'work-crate' in _names(a)
     # Geometry/silhouette families, not a palette or rotation change.
-    assert len({tuple(sorted(_names(detailed_ruin(_sample('ruin', v), 260927))))
+    assert len({_shape(detailed_ruin(_sample('ruin', v), 260927))
                 for v in signatures}) == 6
 
 
@@ -87,12 +109,8 @@ def test_shack_variants_have_distinct_roofs_and_supported_occupied_shells():
                 'downspout', 'wash-basin', 'support-post'} <= _names(a)
         roof = next(part for part in a.parts if part.name == characteristic)
         assert max(v[1] for v in roof.vertices) - min(v[1] for v in roof.vertices) > .08
-        # Through-door from ground to header: no cladding panel crosses front center.
-        for part in a.parts:
-            if 'cladding' in part.name:
-                lo, hi = bounds([part])
-                assert not (lo[0] < 0 < hi[0] and lo[1] < 1.5 < hi[1] and lo[2] < p.size[2]/2-.3 < hi[2])
-    assert len({tuple(sorted(_names(detailed_shack(_sample('shack', v), 260927))))
+        assert not _blocks_front_door(a.parts, p.size[0], p.size[2])
+    assert len({_shape(detailed_shack(_sample('shack', v), 260927))
                 for v in signatures}) == 4
 
 
@@ -157,3 +175,50 @@ def test_reordering_placements_does_not_reseed_existing_buildings():
     second = {a.name: a for a in build_assemblies(reverse, 'ruins-west')}
     assert first == second
     assert len(first) > 2
+
+
+def test_shack_front_face_ray_catches_inserted_closed_door():
+    # Deleting/opening the central doorway, even with a different part name, matters.
+    from modeling.slum03.architecture_detail import detailed_shack
+    p = _sample('shack', 'plywood')
+    built = detailed_shack(p, 260927)
+    assert not _blocks_front_door(built.parts, *p.size[::2])
+    closed = [*built.parts, box('unlabelled', (0, 1.25, p.size[2]/2-.43),
+                                 (1.7, 2.5, .1), 'plywood')]
+    assert _blocks_front_door(closed, *p.size[::2])
+
+
+def test_custom_broken_slab_and_plank_roof_have_outward_normals():
+    # Reversing all faces currently makes both upper surfaces point down.
+    from modeling.slum03.architecture_detail import detailed_ruin, detailed_shack
+    slab = next(part for part in detailed_ruin(_sample('ruin', 'broken_corner'), 260927).parts
+                if part.name == 'sheared-corner-slab')
+    plank = next(part for part in detailed_shack(_sample('shack', 'plywood'), 260927).parts
+                 if part.name == 'staggered-board-roof')
+    for part, upper, lower in ((slab, 1, 0), (plank, 0, 1)):
+        assert face_normal([part.vertices[i] for i in part.faces[upper]])[1] > .9
+        assert face_normal([part.vertices[i] for i in part.faces[lower]])[1] < -.9
+        assert signed_volume(part) > 0
+    # Both ends and side walls must face out, not only the upper cap.
+    for face, axis, sign in ((2, 2, -1), (3, 0, 1), (8, 0, -1)):
+        normal = face_normal([slab.vertices[i] for i in slab.faces[face]])
+        assert normal[axis] * sign > .9
+    for face, axis, sign in ((2, 2, -1), (3, 2, 1), (4, 0, -1), (5, 0, 1)):
+        normal = face_normal([plank.vertices[i] for i in plank.faces[face]])
+        assert normal[axis] * sign > .9
+
+
+@pytest.mark.parametrize('kind,variant,channel,part_name,axis,base,span', [
+    ('ruin', 'slab_bay', 'repair', 'work-crate', 0, -2.8, .27),
+    ('shack', 'corrugated', 'basin', 'basin-stand', 0, -1.06, .18),
+])
+def test_lived_in_detail_uses_task1_stable_seed(kind, variant, channel, part_name, axis, base, span):
+    # A second hashing format drifts away from the shared placement/channel seed.
+    from modeling.slum03.architecture_detail import detailed_ruin, detailed_shack
+    from modeling.slum03.density_model import stable_seed
+    p = _sample(kind, variant)
+    assembly = (detailed_ruin if kind == 'ruin' else detailed_shack)(p, 260927)
+    part = next(part for part in assembly.parts if part.name == part_name)
+    actual = sum(v[axis] for v in part.vertices)/len(part.vertices)
+    expected = base + (stable_seed(260927, p.key, channel)/(2**256-1)-.5)*span
+    assert actual == pytest.approx(expected, abs=1e-9)

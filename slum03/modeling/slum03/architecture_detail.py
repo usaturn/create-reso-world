@@ -5,9 +5,9 @@ remain individually inspectable here but the exporter merges each Assembly.
 """
 from __future__ import annotations
 
-import hashlib
 import math
 
+from .density_model import stable_seed
 from .geometry import Assembly, MeshData, box, mesh, rotate_y, tube, wall_with_openings
 from .types import Placement
 
@@ -35,8 +35,7 @@ class _Kit:
 
 def _variation(seed: int, key: str, channel: str) -> float:
     """Stable for each owner and channel, regardless of build iteration order."""
-    digest = hashlib.sha256(f'{seed}:{key}:{channel}'.encode('utf-8')).digest()
-    return int.from_bytes(digest[:8], 'big') / (2**64 - 1)
+    return stable_seed(seed, key, channel) / (2**256 - 1)
 
 
 def _translated(part: MeshData, name: str, dx=0., dy=0., dz=0.) -> MeshData:
@@ -51,8 +50,8 @@ def _notched_slab(w: float, d: float, y: float) -> MeshData:
                (x-2.4, z-2.3), (x-2.8, z-.25), (-x, z-.25)]
     n = len(outline)
     vertices = [(a, y+height, b) for height in (0., .4) for a, b in outline]
-    faces = [tuple(reversed(range(n))), tuple(range(n, 2*n))]
-    faces += [(i, (i+1)%n, (i+1)%n+n, i+n) for i in range(n)]
+    faces = [tuple(range(n)), tuple(reversed(range(n, 2*n)))]
+    faces += [(i+n, (i+1)%n+n, (i+1)%n, i) for i in range(n)]
     return mesh('sheared-corner-slab', vertices, faces, 'concrete_stained')
 
 
@@ -142,8 +141,9 @@ def _strip(name: str, x0: float, x1: float, h: float, d: float, material: str) -
     back, fore = h-.48, h-1.06
     vertices = [(x, y, z) for y, z in ((back,z0), (fore,z1),
                                          (back-.07,z0), (fore-.07,z1)) for x in (x0,x1)]
-    return mesh(name, vertices, ((0,1,3,2), (4,6,7,5), (0,4,5,1),
-                                  (2,3,7,6), (0,2,6,4), (1,5,7,3)), material)
+    inward = ((0,1,3,2), (4,6,7,5), (0,4,5,1),
+              (2,3,7,6), (0,2,6,4), (1,5,7,3))
+    return mesh(name, vertices, tuple(tuple(reversed(face)) for face in inward), material)
 
 
 def detailed_shack(p: Placement, seed: int) -> Assembly:
