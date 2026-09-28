@@ -1,5 +1,6 @@
 """Delivery gates: losing evidence, build reports or a QA check cannot yield pass."""
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -138,5 +139,38 @@ def test_delivery_resources_and_build_evidence_match_canonical_bundle():
     assert len(report['checks']['build']['evidence']) == len(SECTORS)
     assert all(f'/{run}/' in path and Path(path).is_file()
                for path in report['checks']['build']['evidence'])
-    assert report['checks']['apply']['status'] == 'pending'
-    assert report['status'] == 'pending'
+    # This is a live-applied report now: pass needs independent manifest and
+    # command evidence, not merely an optimistic status string in this report.
+    verification_path = Path('artifacts/slum03/live-verification.json')
+    live = json.loads(verification_path.read_text(encoding='utf-8'))
+    manifest_path = Path(report['manifest'])
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    assert live['manifest_sha256'] == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    assert live['root_name'] == 'Slum03_Slum'
+    assert live['root_position'] == [0, 4.5, 0]
+    assert live['strict_validation']['status'] == 'pass'
+    assert live['strict_validation']['issue_count'] == 0
+    imported = sum(asset['kind'] == 'mesh' for asset in manifest['assets'].values())
+    assert imported == live['initial_apply']['counts']['assetsImported'] == 150
+    assert live['initial_apply']['counts']['slotsCreated'] == 339
+    assert live['initial_apply']['counts']['componentsAdded'] == 400
+    for key, record in (('apply', live['initial_apply']), ('reapply', live['reapply']),
+                        ('structure', live['structure'])):
+        check = report['checks'][key]
+        assert record['status'] == check['status'] == 'pass'
+        assert check['evidence'] == [str(verification_path)]
+        assert record['local_evidence'].startswith('.resoloop/slum03/')
+        assert check['details']['local_evidence'] == record['local_evidence']
+    assert report['checks']['apply']['details']['counts'] == live['initial_apply']['counts']
+    assert report['checks']['reapply']['details']['counts'] == live['reapply']['counts']
+    assert live['reapply']['same_manifest'] is True
+    assert all(value == 0 for value in live['reapply']['counts'].values())
+    assert report['checks']['reapply']['details']['unchanged_assets'] == imported
+    assert live['structure']['test_groups_passed'] == 1
+    assert report['checks']['structure']['details']['assertions_declared'] == live['structure']['assertions_declared'] == 23
+    assert report['checks']['portability']['status'] == 'fail'
+    assert report['checks']['portability']['details']['strict_audit']['remaining_issues'][0]['code'] == 'ITEM_GRABBABLE_MISSING'
+    assert report['checks']['visual']['status'] == 'pending'
+    assert report['checks']['walk']['status'] == 'pending'
+    assert report['checks']['resources']['status'] == 'pending'
+    assert report['status'] == 'fail'
