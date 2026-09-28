@@ -12,6 +12,14 @@
 
 **Status:** 計画承認済み。ユーザーはSubagent-driven（B）と中間承認なしの継続実行を選択。起動規約の更新とreloadを完了し、隔離worktreeで実装中。進捗・レビュー・裁定は本計画専用のSDD ledgerに記録する。
 
+## 実行チェックリスト（controller、2026-09-28更新）
+
+- [x] Tasks 1–10: コード実装・タスクレビュー済み。早期live blockoutとTask9現Reflectionは当時未接続のため別途保留。
+- [x] Task 11: fix round1までレビュー済み（e09bd9f）。全220テスト・資源検査成功。評価後UVとAR文字遮蔽を修正。
+- [x] Task 12: delivery実装・タスクレビュー（0ecac8e、全229テスト、offline validation issues=[]）。
+- [ ] Task 12 live: 現Reflection、実床高、diff/apply/reapply、構造・表示・歩行・保存再読込。
+- [ ] 全体検証・最終branch review・納品記録。
+
 ## Global Constraints
 
 - 街区は東西120 m × 南北120 m。道路と背景は外側。Resoniteは東=+X、上=+Y、北=+Z、地表ローカルY=0。
@@ -289,7 +297,7 @@ def test_conflicting_asset_names_are_rewritten(tmp_path, monkeypatch):
 **Files:** Modify `slum03/modeling/slum03/build.py`。Create `slum03/modeling/slum03/{preview,verify_assets}.py`、`slum03/tests/slum03/{helpers,test_build,test_asset_verification}.py`。Generate `slum03/artifacts/slum03/`、`slum03/content/slum03/bundles/`。
 **Interfaces:** `write_scene(sector: str, output: Path) -> Report`、`verify_assets(layout: Layout, reports: Mapping[str,Report]) -> list[Issue]`、`compare_geometry_exports(first: Path, second: Path) -> list[Issue]`、`preview(output_dir: Path, *, sector: str | None = None) -> Report`。
 
-- [ ] Step 1: 生成Reportを使い、壊れたUV/欠落材/不足セクタ/RF-1の評価後侵入を拒否するREDテストを書く。exportコピーだけが出力collectionにあり、GN source/graphが編集元へ残ることもBlender probeで検査する。
+- [x] Step 1: 生成Reportを使い、壊れたUV/欠落材/不足セクタ/RF-1の評価後侵入を拒否するREDテストを書く。exportコピーだけが出力collectionにあり、GN source/graphが編集元へ残ることもBlender probeで検査する。
 ```python
 def test_build_error_blocks_asset_verification():
     layout = build_layout()
@@ -298,20 +306,20 @@ def test_build_error_blocks_asset_verification():
     assert any(i.code == "BUILD_ERROR" for i in verify_assets(layout, reports))
 ```
   `tests/slum03/helpers.py` に `minimal_reports(layout)` を定義し、全SECTORSの合成Reportを同じスキーマで返す。実生成の証拠としては使わない。
-- [ ] Step 2: `uv run pytest tests/slum03/test_build.py tests/slum03/test_asset_verification.py -q` のREDを確認。
-- [ ] Step 3: Task 2のbuilderへ全区画のhookと評価後検査を統合。fresh Blenderシーンだけを初期化する。先にground/plaza、次に建物・屋台、道路・背景、最後にARの順でbuild。`resoloop blender run modeling/slum03/build.py --arg=--sector --arg=plaza --arg=--output --arg=artifacts/slum03/plaza.blend --json` を各区画へ展開する。
-- [ ] Step 4: 既存の生成ソースblendを変更する前に `.resoloop/slum03/backups/$RUN/` へ保全。編集元と実体化した出力を分け、`.blend`保存・再読込後にUV、色、GN graph、独立メッシュを再確認。評価メッシュ取得はdepsgraphと全データ層を指定し、使用後にtemporary meshを解放する。
-- [ ] Step 5: `resoloop blender export artifacts/slum03/plaza.blend --output content/slum03/bundles/$RUN/plaza --parent Root --name Slum03_Plaza --collection Slum03PlazaExport --preserve-hierarchy --json` を各区画へ展開。collection名はbuild Reportのexport_collectionを使う。不完全な出力は統合しない。
-- [ ] Step 6: `resoloop blender run modeling/slum03/preview.py --arg=--output --arg=artifacts/slum03/previews --json`。512〜768 px程度の反復用プレビューで近/中/遠を見て修正。全景視点はplaza-north、east-forest、bridge-checkpoint、west-city、south-market、ar-hero。実メッシュでも北の複数アーコロジーと東の森林を確認する。
-- [ ] Step 7: `uv run python -m modeling.slum03.verify_assets --reports artifacts/slum03 --layout content/slum03/layout.json` と全 `uv run pytest -q` をGREEN。再生成した別bundleのmesh/UV/tangent/colorの内容hashを比較し、パス/時刻以外の差を丸めて隠さない。
-- [ ] Step 8: 全体/区画のtriangles、expanded vertices、materials、draw sections、textures、lights、colliders、透明層を記録し、無意味なコストのみ整理。`git commit -m "feat: build and verify slum03 sector assets and previews"`。
+- [x] Step 2: `uv run pytest tests/slum03/test_build.py tests/slum03/test_asset_verification.py -q` のREDを確認。
+- [x] Step 3: Task 2のbuilderへ全区画のhookと評価後検査を統合。fresh Blenderシーンだけを初期化する。先にground/plaza、次に建物・屋台、道路・背景、最後にARの順でbuild。`resoloop blender run modeling/slum03/build.py --arg=--sector --arg=plaza --arg=--output --arg=artifacts/slum03/plaza.blend --json` を各区画へ展開する。
+- [x] Step 4: 既存の生成ソースblendを変更する前に `.resoloop/slum03/backups/$RUN/` へ保全。編集元と実体化した出力を分け、`.blend`保存・再読込後にUV、色、GN graph、独立メッシュを再確認。評価メッシュ取得はdepsgraphと全データ層を指定し、使用後にtemporary meshを解放する。
+- [x] Step 5: `resoloop blender export artifacts/slum03/plaza.blend --output content/slum03/bundles/$RUN/plaza --parent Root --name Slum03_Plaza --collection Slum03PlazaExport --preserve-hierarchy --json` を各区画へ展開。collection名はbuild Reportのexport_collectionを使う。不完全な出力は統合しない。
+- [x] Step 6: `resoloop blender run modeling/slum03/preview.py --arg=--output --arg=artifacts/slum03/previews --json`。512〜768 px程度の反復用プレビューで近/中/遠を見て修正。全景視点はplaza-north、east-forest、bridge-checkpoint、west-city、south-market、ar-hero。実メッシュでも北の複数アーコロジーと東の森林を確認する。
+- [x] Step 7: `uv run python -m modeling.slum03.verify_assets --reports artifacts/slum03 --layout content/slum03/layout.json` と全 `uv run pytest -q` をGREEN。再生成した別bundleのmesh/UV/tangent/colorの内容hashを比較し、パス/時刻以外の差を丸めて隠さない。
+- [x] Step 8: 全体/区画のtriangles、expanded vertices、materials、draw sections、textures、lights、colliders、透明層を記録し、無意味なコストのみ整理。`git commit -m "feat: build and verify slum03 sector assets and previews"`。
 
 ### Task 12: 安全なライブ反映・収束・実機QA・納品
 
 **Files:** Create `slum03/modeling/slum03/delivery.py`、`slum03/tests/slum03/test_delivery.py`。Generate `content/slum03/slum03.json`、`artifacts/slum03/{delivery-report.json,timing.md,apply-log.md}`。セッション情報は`.resoloop/slum03/`のみ。
 **Interfaces:** `summarize_delivery(layout: Layout, build_reports: Mapping[str,Report], live_results: Mapping[str,Any]) -> Report`。live_resultsはapply/reapply/structure/visual/walk/portability/resourcesの各キーに `{status:"pass"|"fail"|"pending", evidence:list[str], details:dict}` を持つ。必須キー欠落、未実施、passなのに根拠なしの項目はpendingとし、全体完了へ繰り上げない。根拠は実際のCLI全文report・画像・ユーザー確認記録へのパス/識別子を使う。
 
-- [ ] Step 1: `test_missing_live_visual_check_remains_pending`、`test_import_success_is_not_visual_success`、`test_portability_warning_is_not_pass`、`test_elapsed_and_task_times_are_distinct` を書き、`uv run pytest tests/slum03/test_delivery.py -q` でREDを確認。
+- [x] Step 1: `test_missing_live_visual_check_remains_pending`、`test_import_success_is_not_visual_success`、`test_portability_warning_is_not_pass`、`test_elapsed_and_task_times_are_distinct` を書き、`uv run pytest tests/slum03/test_delivery.py -q` でREDを確認。
 ```python
 def test_import_success_is_not_visual_success():
     r = summarize_delivery(build_layout(), {}, {"apply": {"status": "pass", "evidence": ["apply-report.json"], "details": {}}})
@@ -319,7 +327,7 @@ def test_import_success_is_not_visual_success():
     assert r["checks"]["visual"]["status"] == "pending"
 ```
   出力Reportは `status` と入力各項目を正規化した `checks` を持ち、一つでもfailならfail、failがなく未確認があればpending、全必須項目と資源/ビルド検査がpassの場合だけpassとする。
-- [ ] Step 2: summarizerを実装し同テストGREEN。宣言に上記6視点のcamera bookmarkと構造assertionを登録。カメラの世界座標は所有ルートの設置高さを反映する。
+- [x] Step 2: summarizerを実装し同テストGREEN。宣言に上記6視点のcamera bookmarkと構造assertionを登録。カメラの世界座標は所有ルートの設置高さを反映する。
 - [ ] Step 3: controllerが現接続先を再確認する。`resoloop doctor --url "$URL" --json`、`resoloop status --url "$URL" --json`、`resoloop hierarchy --under Root --depth 2 --include-components --url "$URL" --json`。別の空ワールドか確認し、既定床上面と最低可視面からroot-yを固定して統合宣言を生成する。既存slum02や所有権不明のrootがあれば停止する。
 - [ ] Step 4: 次を順に実行し、strict validationとdiffの対象/理由をレビューする。REPORTは毎回未使用名。
 ```bash
