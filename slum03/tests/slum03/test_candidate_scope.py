@@ -108,10 +108,15 @@ def test_identical_shared_provider_relocation_in_raw_draft_preserves_baseline(tm
         manifest['children'].remove(provider)
         provider['slot']['key'] = 'provider_shared'
         manifest['children'][-1 if manifest is b else -2]['children'].append(provider)
+    d['children'][-1]['children'].append({'slot': {'key': 'sector-b-provider_shared', 'name': 'shared'},
+                                          'components': [], 'children': []})
     base.write_text(json.dumps(b)); draft.write_text(json.dumps(d))
     output = tmp_path / 'candidate.json'
-    compose_candidate(base, draft, read_layout(LAYOUT), output)
+    report = compose_candidate(base, draft, read_layout(LAYOUT), output)
     assert json.loads(output.read_text())['children'][-1]['children'][0] == b['children'][-1]['children'][0]
+    assert report['raw_ignored_empty_provider_nodes'][0]['slot'] == 'sector-b-provider_shared'
+    assert report['raw_material_relocations'][0]['from_parent'] == 'sector-b-blender_providers'
+    assert report['raw_material_relocations'][0]['raw_parent'] == 'sector-a-blender_providers'
 
 
 def test_new_selected_collider_provenance_is_draft(tmp_path):
@@ -148,3 +153,156 @@ def test_raw_draft_new_unrelated_node_rejected(tmp_path):
     draft.write_text(json.dumps(d))
     with pytest.raises(ValueError, match='unrelated'):
         compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
+
+
+def test_annex_collider_is_not_selected_by_ruin_west_prefix(tmp_path):
+    base, draft, b, d = fixture(tmp_path)
+    box = {'slot': {'key': 'collider-ruin-west-annex', 'name': 'annex Collider'},
+           'components': [{'key': 'collider-ruin-west-annex-box', 'type': 'FrooxEngine.BoxCollider',
+                           'fields': {'Size': [4, 4, 4]}}], 'children': []}
+    b['children'].append(copy.deepcopy(box))
+    d['children'].append(copy.deepcopy(box))
+    d['children'][-1]['components'][0]['fields']['Size'] = [6, 6, 6]
+    base.write_text(json.dumps(b)); draft.write_text(json.dumps(d))
+    assert any(i.object_key == 'collider-ruin-west-annex' for i in
+               check_candidate_scope(b, d, read_layout(LAYOUT), tmp_path))
+    with pytest.raises(ValueError, match='collider-ruin-west-annex'):
+        compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
+
+
+def test_reachable_new_material_provider_is_added_with_old_shared_provider_untouched(tmp_path):
+    base, draft, b, d = fixture(tmp_path)
+    for manifest in (b, d):
+        manifest['children'].append({'slot': {'key': 'sector-market-blender_providers',
+                                               'name': 'Blender_Providers'}, 'components': [], 'children': []})
+    d['children'][0]['components'][1]['fields']['Materials'].append('$component:new_paint')
+    d['children'][-1]['children'].append({
+        'slot': {'key': 'provider_new_paint', 'name': 'new_paint'},
+        'components': [{'key': 'new_paint', 'type': 'FrooxEngine.PBS_Metallic',
+                        'fields': {'AlbedoColor': [0.2, 0.4, 0.8, 1]}}], 'children': []})
+    base.write_text(json.dumps(b)); draft.write_text(json.dumps(d))
+    result = compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
+    saved = json.loads((tmp_path / 'candidate.json').read_text())
+    assert saved['children'][-1]['children'][0] == d['children'][-1]['children'][0]
+    assert saved['children'][2] == b['children'][2]
+    assert result['object_sources']['provider_new_paint'] == 'draft'
+
+
+def test_unreachable_new_provider_cycle_is_rejected(tmp_path):
+    base, draft, b, d = fixture(tmp_path)
+    for manifest in (b, d):
+        manifest['children'].append({'slot': {'key': 'sector-market-blender_providers',
+                                               'name': 'Blender_Providers'}, 'components': [], 'children': []})
+    for key, other in [('a', 'b'), ('b', 'a')]:
+        d['children'][-1]['children'].append({
+            'slot': {'key': 'provider_' + key, 'name': key},
+            'components': [{'key': key, 'type': 'FrooxEngine.PBS_Metallic',
+                            'fields': {'AlbedoTexture': '$component:' + other}}], 'children': []})
+    assert {i.object_key for i in check_candidate_scope(b, d, read_layout(LAYOUT), tmp_path)
+            if i.code == 'SCOPE_NEW_NODE'} == {'provider_a', 'provider_b'}
+    draft.write_text(json.dumps(d))
+    with pytest.raises(ValueError):
+        compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
+
+
+def test_nonmaterial_provider_relocation_is_not_r8(tmp_path):
+    base, draft, b, d = fixture(tmp_path)
+    for manifest in (b, d):
+        manifest['children'].extend([
+            {'slot': {'key': f'sector-{sector}-blender_providers', 'name': 'Blender_Providers'},
+             'components': [], 'children': []} for sector in ('old', 'new')])
+    provider = {'slot': {'key': 'provider_shared', 'name': 'shared'},
+                'components': [{'key': 'shared', 'type': 'FrooxEngine.NoiseTexture', 'fields': {}}],
+                'children': []}
+    b['children'][2]['components'] = []
+    d['children'][2]['components'] = []
+    b['children'][-2]['children'].append(copy.deepcopy(provider))
+    d['children'][-1]['children'].append(copy.deepcopy(provider))
+    base.write_text(json.dumps(b)); draft.write_text(json.dumps(d))
+    with pytest.raises(ValueError, match='provider_shared'):
+        compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
+
+
+def test_referenced_empty_provider_stub_is_not_r8(tmp_path):
+    base, draft, b, d = fixture(tmp_path)
+    for manifest in (b, d):
+        manifest['children'].extend([
+            {'slot': {'key': f'sector-{sector}-blender_providers', 'name': 'Blender_Providers'},
+             'components': [], 'children': []} for sector in ('old', 'new')])
+    provider = {'slot': {'key': 'provider_shared', 'name': 'shared'},
+                'components': [{'key': 'shared', 'type': 'FrooxEngine.PBS_Metallic', 'fields': {}}],
+                'children': []}
+    b['children'][2]['components'] = []
+    d['children'][2]['components'] = []
+    b['children'][-2]['children'].append(copy.deepcopy(provider))
+    d['children'][-1]['children'].append(copy.deepcopy(provider))
+    stub = {'slot': {'key': 'sector-old-provider_shared', 'name': 'shared'},
+            'components': [], 'children': []}
+    d['children'][-2]['children'].append(stub)
+    d['cameras'] = {'bad': {'target': '$slot:sector-old-provider_shared'}}
+    base.write_text(json.dumps(b)); draft.write_text(json.dumps(d))
+    with pytest.raises(ValueError, match='stub|referenced|sector-old-provider_shared'):
+        compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
+
+
+def test_protected_draft_source_other_run_rejected_even_with_identical_bytes(tmp_path):
+    base, draft, b, d = fixture(tmp_path)
+    current = tmp_path / 'current-raw-draft.json'
+    for run in ('old', 'current', 'other'):
+        folder = tmp_path / 'bundles' / run / 'ground'
+        folder.mkdir(parents=True)
+        (folder / 'untouched.mesh.json').write_bytes(b'untouched')
+    (tmp_path / 'bundles/current/ground/new.mesh.json').write_bytes(b'new')
+    d['assets']['chosen']['source'] = 'bundles/current/ground/new.mesh.json'
+    b['assets']['untouched']['source'] = 'bundles/old/ground/untouched.mesh.json'
+    d['assets']['untouched']['source'] = 'bundles/other/ground/untouched.mesh.json'
+    base.write_text(json.dumps(b)); current.write_text(json.dumps(d))
+    with pytest.raises(ValueError, match='source|run'):
+        compose_candidate(base, current, read_layout(LAYOUT), tmp_path / 'candidate.json')
+
+
+def test_protected_draft_source_wrong_file_same_bytes_rejected(tmp_path):
+    base, draft, b, d = fixture(tmp_path)
+    current = tmp_path / 'current-raw-draft.json'
+    for run, filename in (('old', 'untouched.mesh.json'), ('current', 'alternate.mesh.json')):
+        folder = tmp_path / 'bundles' / run / 'ground'
+        folder.mkdir(parents=True)
+        (folder / filename).write_bytes(b'untouched')
+    (tmp_path / 'bundles/current/ground/new.mesh.json').write_bytes(b'new')
+    d['assets']['chosen']['source'] = 'bundles/current/ground/new.mesh.json'
+    b['assets']['untouched']['source'] = 'bundles/old/ground/untouched.mesh.json'
+    d['assets']['untouched']['source'] = 'bundles/current/ground/alternate.mesh.json'
+    base.write_text(json.dumps(b)); current.write_text(json.dumps(d))
+    with pytest.raises(ValueError, match='source'):
+        compose_candidate(base, current, read_layout(LAYOUT), tmp_path / 'candidate.json')
+
+
+def test_selected_material_reaches_new_texture_provider_and_asset(tmp_path):
+    base, draft, b, d = fixture(tmp_path)
+    for doc in (b, d):
+        doc['children'].append({'slot': {'key': 'sector-market-blender_providers',
+                                         'name': 'Blender_Providers'}, 'components': [], 'children': []})
+    (tmp_path / 'paint.png').write_bytes(b'png')
+    d['assets']['paint_map'] = {'kind': 'texture', 'source': 'paint.png'}
+    d['children'][0]['components'][1]['fields']['Materials'].append('$component:new_paint')
+    d['children'][-1]['children'].extend([
+        {'slot': {'key': 'provider_new_paint', 'name': 'new_paint'}, 'components': [
+            {'key': 'new_paint', 'type': 'FrooxEngine.PBS_Metallic',
+             'fields': {'AlbedoTexture': '$component:new_tex'}}], 'children': []},
+        {'slot': {'key': 'provider_new_tex', 'name': 'new_tex'}, 'components': [
+            {'key': 'new_tex', 'type': 'FrooxEngine.StaticTexture2D',
+             'fields': {'URL': '$asset:paint_map'}}], 'children': []}])
+    base.write_text(json.dumps(b)); draft.write_text(json.dumps(d))
+    result = compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
+    saved = json.loads((tmp_path / 'candidate.json').read_text())
+    assert saved['assets']['paint_map'] == {'kind': 'texture', 'source': 'paint.png'}
+    assert {n['slot']['key'] for n in saved['children'][-1]['children']} == {'provider_new_paint', 'provider_new_tex'}
+    assert result['asset_sources']['paint_map']['origin'] == 'draft'
+
+
+def test_new_node_with_selected_name_cannot_bypass_scope(tmp_path):
+    base, draft, b, d = fixture(tmp_path)
+    d['children'].append({'slot': {'key': 'unrelated', 'name': 'ruin-west'},
+                          'components': [], 'children': []})
+    issues = check_candidate_scope(b, d, read_layout(LAYOUT), tmp_path)
+    assert any(i.code == 'SCOPE_NEW_NODE' and i.object_key == 'unrelated' for i in issues)

@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 from .types import Layout, Manifest, Issue, Report
-from .pipeline import _validate_final
+from .pipeline import _validate_final, _refs
 
 
 def nodes(manifest: Manifest):
@@ -46,9 +46,42 @@ def _asset_refs(node: dict) -> set[str]:
 def _selected(node: dict, layout: Layout) -> bool:
     name = node['slot'].get('name')
     key = node['slot']['key']
-    return name in layout.density.selected_keys or any(
-        key == 'collider-' + chosen or key.startswith('collider-' + chosen + '-')
-        for chosen in layout.density.selected_keys)
+    if name in layout.density.selected_keys:
+        return True
+    if not key.startswith('collider-'):
+        return False
+    suffix = key.removeprefix('collider-')
+    owner = next((p.key for p in sorted(layout.placements, key=lambda p: len(p.key), reverse=True)
+                  if suffix == p.key or suffix.startswith(p.key + '-')), None)
+    return owner in layout.density.selected_keys
+
+
+_MATERIAL_TYPES = frozenset({'FrooxEngine.PBS_Metallic', 'FrooxEngine.PBS_VertexColorMetallic'})
+
+
+def _component_refs(value: object) -> set[str]:
+    return {match[2] for match in _refs(value) if match[1] == 'component'}
+
+
+def _reachable_components(items: dict, components: dict, layout: Layout) -> set[str]:
+    """Follow references only from selected render/mesh components, then their providers."""
+    seeds = set()
+    for node, _ in items.values():
+        if _selected(node, layout):
+            for c in node.get('components', []):
+                if c['type'] in ('FrooxEngine.MeshRenderer', 'FrooxEngine.StaticMesh'):
+                    seeds.update(_component_refs(c))
+    reached = set(seeds)
+    pending = list(seeds)
+    while pending:
+        key = pending.pop()
+        component = components.get(key)
+        if component is None:
+            continue
+        for ref in _component_refs(component[0]) - reached:
+            reached.add(ref)
+            pending.append(ref)
+    return reached
 
 
 def _index(manifest: Manifest):
@@ -123,30 +156,11 @@ def check_candidate_scope(baseline: Manifest, candidate: Manifest, layout: Layou
                 issues.append(Issue('SCOPE_ASSET_BYTES', key, 'protected asset bytes changed'))
         except (ValueError, KeyError, OSError) as exc:
             issues.append(Issue('SCOPE_ASSET_BYTES', key, str(exc)))
-    # Newly declared providers must be reachable from a selected renderer/mesh,
-    # including dependencies of other new providers (not just be under a provider folder).
-    referenced = set()
-    def component_refs(value):
-        if isinstance(value, str) and value.startswith('$component:'):
-            referenced.add(value[11:])
-        elif isinstance(value, dict):
-            for v in value.values(): component_refs(v)
-        elif isinstance(value, list):
-            for v in value: component_refs(v)
-    for key, (node, _) in cnodes.items():
-        if key not in bnodes or _selected(node, layout):
-            component_refs({k: v for k, v in node.items() if k != 'children'})
-    reachable = set(referenced)
-    pending = list(referenced)
-    while pending:
-        component = ccomps.get(pending.pop())
-        if component and component[1] not in bnodes:
-            referenced.clear()
-            component_refs(component[0])
-            for ref in referenced - reachable:
-                pending.append(ref)
-            reachable.update(referenced)
-    selected_new = {key for key, (n, _) in cnodes.items() if key not in bnodes and _selected(n, layout)}
+    reachable = _reachable_components(cnodes, ccomps, layout)
+    selected_new = {key for key, (n, parent) in cnodes.items()
+                    if key not in bnodes and key.startswith('collider-') and parent in bnodes and
+                    _selected(n, layout) and any(c['type'] == 'FrooxEngine.BoxCollider'
+                                                   for c in n.get('components', []))}
     for key, (node, parent) in cnodes.items():
         if key in bnodes or key in selected_new:
             continue
@@ -180,23 +194,15 @@ def compose_candidate(baseline_path: Path, draft_path: Path, layout: Layout, out
         if key is None or key not in dnodes or dnodes[key][0]['slot'].get('name') != name or bnodes[key][1] != dnodes[key][1]:
             raise ValueError(f'selected placement identity missing or renamed: {name}')
         selected_keys.add(key)
-    selected_refs = set()
-    for key in selected_keys:
-        for component in dnodes[key][0].get('components', []):
-            def refs(value):
-                if isinstance(value, str) and value.startswith('$component:'):
-                    selected_refs.add(value[11:])
-                elif isinstance(value, dict):
-                    for item in value.values(): refs(item)
-                elif isinstance(value, list):
-                    for item in value: refs(item)
-            refs(component)
+    selected_refs = _reachable_components(dnodes, dcomps, layout)
     relocated = set()
     for key, (node, parent) in bnodes.items():
         if key in dnodes and parent != dnodes[key][1] and key.startswith('provider_') and (
             parent and dnodes[key][1] and 'blender_providers' in parent and
             'blender_providers' in dnodes[key][1] and node == dnodes[key][0] and
-            any(c['key'] in selected_refs for c in node.get('components', []))):
+            len(node.get('components', [])) == 1 and
+            node['components'][0]['type'] in _MATERIAL_TYPES and
+            node['components'][0]['key'] in selected_refs):
             relocated.add(key)
     for key, (node, parent) in bnodes.items():
         if _selected(node, layout):
@@ -211,20 +217,35 @@ def compose_candidate(baseline_path: Path, draft_path: Path, layout: Layout, out
         new_children = [c['slot']['key'] for c in fresh[0].get('children', [])
                         if c['slot']['key'] in bnodes and c['slot']['key'] not in relocated]
         if set(old_children) != set(new_children) or len(old_children) != len(new_children):
-            raise ValueError(f'unselected children changed in raw regeneration: {key}')
+            raise ValueError(f'unselected children changed in raw regeneration: {key}, {old_children} -> {new_children}')
     empty_provider_stubs = []
+    relocation_evidence = []
+    for key in sorted(relocated):
+        node, parent = bnodes[key]
+        relocation_evidence.append({'provider_slot': key, 'component': node['components'][0]['key'],
+                                    'type': node['components'][0]['type'],
+                                    'from_parent': parent, 'raw_parent': dnodes[key][1],
+                                    'reason': 'identical selected-referenced material reused earlier in raw export'})
     for key, (node, parent) in dnodes.items():
         if key in bnodes or _selected(node, layout):
             continue
+        if (key.startswith('provider_') and parent in bnodes and 'blender_providers' in parent and
+                node.get('components') and all(c['key'] in selected_refs for c in node['components'])):
+            continue  # Fresh provider needed by a selected Renderer/Mesh dependency.
         comp_key = node['slot'].get('name')
-        if (parent in bnodes and 'blender_providers' in parent and
-                key == parent.removesuffix('-blender_providers') + '-provider_' + str(comp_key) and
-                comp_key in selected_refs and comp_key in bcomps and comp_key in dcomps and
-                bcomps[comp_key][0] == dcomps[comp_key][0] and
-                not node.get('components') and not node.get('children')):
-            empty_provider_stubs.append(key)
+        matched = next((entry for entry in relocation_evidence
+                        if entry['component'] == comp_key and entry['from_parent'] == parent), None)
+        if (matched is not None and key == parent.removesuffix('-blender_providers') + '-provider_' + comp_key and
+                not node.get('components') and not node.get('children') and
+                not any(match[1] in ('slot', 'slot-member') and match[2] == key
+                        for match in _refs(draft))):
+            empty_provider_stubs.append({'slot': key, 'material_component': comp_key,
+                                         'relocated_provider': matched['provider_slot'],
+                                         'from_parent': matched['from_parent'],
+                                         'raw_parent': matched['raw_parent'],
+                                         'reason': 'unreferenced empty slot left by verified material relocation'})
         else:
-            raise ValueError(f'unrelated raw draft node: {key}')
+            raise ValueError(f'unrelated or referenced raw draft stub/node: {key}')
     for key in selected_keys:
         if key not in dnodes or bnodes[key][1] != dnodes[key][1] or dnodes[key][0]['slot'].get('name') != bnodes[key][0]['slot'].get('name'):
             raise ValueError(f'selected key removed/moved: {key}')
@@ -237,12 +258,27 @@ def compose_candidate(baseline_path: Path, draft_path: Path, layout: Layout, out
     selected_assets = set().union(*(_asset_refs(bnodes[k][0]) for k in selected_keys)) if selected_keys else set()
     protected_assets = set(baseline['assets']) - selected_assets
     protected_assets.update(*( _asset_refs(n) for k, (n, _) in bnodes.items() if k not in selected_keys and k != 'root'))
+    run = draft_path.stem.split('-raw-draft', 1)[0] if '-raw-draft' in draft_path.stem else None
+    if run is not None:
+        for key, entry in draft['assets'].items():
+            source = entry.get('source', '')
+            if not isinstance(source, str) or not source.startswith(f'bundles/{run}/'):
+                raise ValueError(f'raw draft source belongs to another run: {key}: {source}')
     for key in protected_assets:
         old = baseline['assets'].get(key)
         fresh = draft['assets'].get(key)
-        if old is None or fresh is None or {k: v for k, v in old.items() if k != 'source'} != {k: v for k, v in fresh.items() if k != 'source'} or _file(baseline_path.parent, old['source'])[1] != _file(draft_path.parent, fresh['source'])[1]:
+        if (old is None or fresh is None or
+                {k: v for k, v in old.items() if k != 'source'} !=
+                {k: v for k, v in fresh.items() if k != 'source'} or
+                (run is not None and old['source'].startswith('bundles/') and
+                 old['source'].split('/')[2:] != fresh['source'].split('/')[2:])):
+            raise ValueError(f'unselected regenerated asset source/declaration changed: {key}')
+        if _file(baseline_path.parent, old['source'])[1] != _file(draft_path.parent, fresh['source'])[1]:
             raise ValueError(f'unselected regenerated asset changed: {key}')
     allowed_new_assets = set().union(*(_asset_refs(dnodes[k][0]) for k in selected_keys)) if selected_keys else set()
+    for comp_key in selected_refs:
+        if comp_key in dcomps and dcomps[comp_key][1] not in bnodes:
+            allowed_new_assets.update(_asset_refs(dnodes[dcomps[comp_key][1]][0]))
     if set(draft['assets']) - set(baseline['assets']) - allowed_new_assets:
         raise ValueError('unrelated raw draft asset added')
     result = copy.deepcopy(baseline)
@@ -254,25 +290,17 @@ def compose_candidate(baseline_path: Path, draft_path: Path, layout: Layout, out
         original['components'] = copy.deepcopy(fresh.get('components', []))
         if key in dnodes and [c['slot']['key'] for c in original.get('children', [])] != [c['slot']['key'] for c in fresh.get('children', [])]:
             raise ValueError(f'selected children changed unexpectedly: {key}')
-    selected_draft_assets = set().union(*(_asset_refs(dnodes[k][0]) for k in selected_keys)) if selected_keys else set()
+    selected_draft_assets = allowed_new_assets
     for key in selected_draft_assets:
         if key in protected_assets and (key not in baseline['assets'] or _file(baseline_path.parent, baseline['assets'][key]['source'])[1] != _file(draft_path.parent, draft['assets'][key]['source'])[1]):
             raise ValueError(f'shared asset changed: {key}')
         if key not in protected_assets:
             result['assets'][key] = copy.deepcopy(draft['assets'][key])
-    # Extra new material providers are allowed only when selected renderers reference them.
-    referenced = set()
-    for key in selected_keys:
-        def visit(v):
-            if isinstance(v, str) and v.startswith('$component:'): referenced.add(v[11:])
-            elif isinstance(v, dict):
-                for item in v.values(): visit(item)
-            elif isinstance(v, list):
-                for item in v: visit(item)
-        visit(dnodes[key][0])
-    for component_key in referenced:
+    # Copy the dependency closure rooted in selected Renderer/Mesh only.
+    for component_key in sorted(selected_refs):
         if component_key in bcomps:
-            if component_key in dcomps and dcomps[component_key][0] != bcomps[component_key][0] and bcomps[component_key][1] not in selected_keys:
+            if (component_key in dcomps and dcomps[component_key][0] != bcomps[component_key][0]
+                    and bcomps[component_key][1] not in selected_keys):
                 raise ValueError(f'shared provider edited: {component_key}')
             continue
         if component_key not in dcomps:
@@ -294,7 +322,8 @@ def compose_candidate(baseline_path: Path, draft_path: Path, layout: Layout, out
         raise ValueError(f'candidate scope: {issues[:5]}')
     output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return {'protected_changes': 0, 'selected_nodes': sorted(selected_keys),
-            'raw_ignored_empty_provider_nodes': sorted(empty_provider_stubs),
+            'raw_ignored_empty_provider_nodes': empty_provider_stubs,
+            'raw_material_relocations': relocation_evidence,
             'asset_sources': {key: {'source': value['source'], 'sha256': _file(output.parent, value['source'])[1],
                                      'origin': 'baseline' if key in protected_assets else 'draft'}
                               for key, value in result['assets'].items()},
