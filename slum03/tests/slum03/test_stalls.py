@@ -110,3 +110,38 @@ def test_task5_preview_renders_without_deprecation_warning(tmp_path):
                             check=True, capture_output=True, text=True)
     assert image.stat().st_size > 1000
     assert 'DeprecationWarning' not in result.stdout + result.stderr
+
+
+def test_representative_market_dispatch_changes_only_selected_west():
+    # Dispatch regression: east remains byte-for-byte identical to its legacy assembly.
+    import hashlib
+    from pathlib import Path
+    from modeling.slum03.layout import read_layout
+    from modeling.slum03.stalls import build_assemblies, _stall
+    from modeling.slum03.detail_evidence import detail_groups
+    layout = read_layout(Path('content/slum03/density-representative-layout.json'))
+    stalls = {a.name: a for a in build_assemblies(layout, 'market')}
+    assert set(stalls) == {'market-west', 'market-east'}
+    east = next(p for p in layout.placements if p.key == 'market-east')
+    assert stalls['market-east'] == _stall(east)
+    assert hashlib.sha256(repr(stalls['market-east']).encode()).hexdigest() == (
+        '051562ec30cbd953ebbd52365d21bce77326bea96a4960373e31bba51aab8127')
+    assert len([g for g in detail_groups(stalls['market-west'])
+                if g['category'] == 'merchandise']) >= 12
+
+
+def test_mixed_sector_stall_generator_retains_kind_filter():
+    from dataclasses import replace
+    from pathlib import Path
+    from modeling.slum03.layout import read_layout
+    from modeling.slum03.stalls import build_assemblies
+    layout = read_layout(Path('content/slum03/density-full-layout.json'))
+    for sector in ('market', 'shacks', 'nightlife'):
+        expected = {p.key for p in layout.placements if p.sector == sector and p.kind == 'stall'}
+        actual = build_assemblies(layout, sector)
+        assert {a.name for a in actual} == expected
+        assert all(a.meta.get('detail_groups') for a in actual
+                   if a.name.startswith('density-'))
+    reversed_layout = replace(layout, placements=tuple(reversed(layout.placements)))
+    assert {a.name: a for a in build_assemblies(layout, 'market')} == {
+        a.name: a for a in build_assemblies(reversed_layout, 'market')}

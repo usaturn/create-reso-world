@@ -58,4 +58,7 @@ def _stall(p):
 
 
 def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
-    return [_stall(p) for p in layout.placements if p.sector == sector and p.kind == 'stall']
+    from .market_detail import detailed_stall
+    return [(detailed_stall(p, layout.seed) if p.params.get('detail_profile') == 'v2'
+             else _stall(p)) for p in layout.placements
+            if p.sector == sector and p.kind == 'stall']
