@@ -127,8 +127,37 @@ def test_blender_probe_evaluates_three_representatives_and_small_open_stall(tmp_
                and x['faces'] > 0 for x in summary['objects'].values())
     assert summary['rejected'] == ['empty', 'collapsed']
     assert all(x.get('reopened') and x.get('attribute_values_equal') and x.get('corner_normals_equal')
+               and x.get('physical_parts', 0) >= x['groups'] and x.get('all_parts_annotated')
                for x in summary['objects'].values())
     assert summary.get('rejected_attributes') == ['uv0_changed', 'uv0_missing',
         'extra_uv_changed', 'extra_uv_missing', 'colors_changed', 'colors_missing',
         'normals_flipped', 'uv0_zeroed', 'extra_uv_zeroed', 'colors_zeroed',
         'corner_normals_flipped']
+
+
+@pytest.mark.parametrize('remaining', [0, -1])
+def test_v2_build_rejects_untagged_physical_part_before_saving(tmp_path, remaining):
+    import json
+    import subprocess
+    script = tmp_path / 'untagged_part.py'
+    blend = tmp_path / 'market.blend'
+    script.write_text(
+        'import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n'
+        'from modeling.slum03 import stalls, build\n'
+        'from modeling.slum03.layout import read_layout\n'
+        'original = stalls.build_assemblies\n'
+        'def omit_group(layout, sector):\n'
+        '    assemblies = original(layout, sector)\n'
+        '    for assembly in assemblies:\n'
+        '        if assembly.name == "market-west":\n'
+        f'            assembly.meta["detail_groups"] = assembly.meta["detail_groups"][:{remaining}]\n'
+        '    return assemblies\n'
+        'stalls.build_assemblies = omit_group\n'
+        f'build.write_scene("market", Path({str(blend)!r}), '
+        'read_layout(Path("content/slum03/density-representative-layout.json")))\n')
+    result = subprocess.run(['resoloop', 'blender', 'run', str(script), '--json'],
+                            capture_output=True, text=True, timeout=120)
+    assert result.returncode != 0, result.stdout + result.stderr
+    report = json.loads((tmp_path / 'market-report.json').read_text())
+    assert any(e['code'] == 'DETAIL_INVALID' for e in report['errors'])
+    assert not blend.exists()

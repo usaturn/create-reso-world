@@ -97,7 +97,9 @@ def run(output):
         directory.mkdir()
         report = write_scene(sector, directory / f'{sector}.blend', layout)
         entry = next(e for e in report['objects'] if e.get('placement_key') == key)
-        assert entry['detail_groups'] and not report['errors'], (key, report['errors'])
+        assert entry['detail_groups'] and entry['evaluated_parts'] and not report['errors'], (key, report['errors'])
+        covered = {index for group in entry['detail_groups'] for index in group['part_indices']}
+        assert covered == set(range(len(entry['evaluated_parts']))), key
         obj = bpy.data.objects[entry['mesh']]
         uv = obj.data.uv_layers.new(name='ExtraUV')
         for loop in obj.data.loops:
@@ -132,6 +134,8 @@ def run(output):
                 'normals': bool(mesh.polygons and
                                 all(p.normal.length > .99 for p in mesh.polygons)),
                 'groups': len(entry['detail_groups']),
+                'physical_parts': len(entry['evaluated_parts']),
+                'all_parts_annotated': True,
                 'source': str(directory / f'{sector}.blend')}
         finally:
             evaluated.to_mesh_clear()

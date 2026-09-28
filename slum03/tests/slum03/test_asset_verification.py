@@ -1,5 +1,6 @@
 """Breaks caught: missing/invalid sector evidence, evaluated intrusions, changed exported attributes."""
 import json
+import pytest
 
 from modeling.slum03.layout import build_layout
 from modeling.slum03.verify_assets import verify_assets, compare_geometry_exports, semantic_bounds
@@ -210,3 +211,93 @@ def test_real_v2_side_posts_leave_protected_branch_open_despite_one_mesh_envelop
     reports['market']['evaluated_bounds'][p.key] = obj['evaluated_bounds']
     issues = verify_assets(layout, reports)
     assert not any(i.code == 'CLEARANCE_INTRUSION' and i.object_key == p.key for i in issues), issues
+
+
+def test_ungrouped_center_blocker_cannot_hide_behind_open_stall_semantic_tags():
+    from dataclasses import replace
+    from modeling.slum03.density_metrics import layout_digest
+    from modeling.slum03.evaluated_detail import observe_detail
+    from modeling.slum03.geometry import Assembly, box, merge_assembly
+    from modeling.slum03.types import Placement, DensityConfig, RectXZ
+    base = build_layout()
+    p = Placement('open-demo', 'market', 'stall', (20., 0., -30.), (4., 4., 4.),
+                  0., 'district', {'detail_profile': 'v2', 'variant': 'tools'})
+    layout = replace(base, placements=base.placements + (p,), density=DensityConfig(
+        'representative', (), (), (RectXZ(19.5, 20.5, -31., -29.),), ()))
+    a = Assembly('stall', p.key, p.sector, p.origin,
+                 [box('left-post', (-1.5, 1., 0.), (.2, 2., .2), 'steel_dark'),
+                  box('right-post', (1.5, 1., 0.), (.2, 2., .2), 'steel_dark'),
+                  box('hidden-center-post', (0., 1., 0.), (.2, 2., .2), 'steel_dark'),
+                  box('roof', (0., 3.5, 0.), (3.4, .2, 2.), 'steel_dark')],
+                 {'placement_key': p.key, 'variant': 'tools', 'detail_groups': [
+                     {'id': 'posts', 'category': 'architecture', 'part_indices': [0, 1]},
+                     {'id': 'roof', 'category': 'architecture', 'part_indices': [3]}]})
+    merged = merge_assembly(a)
+    obj = observe_detail(a, {'vertices': [tuple(v[i]+p.origin[i] for i in range(3))
+                                          for v in merged.vertices], 'faces': merged.faces})
+    obj['detail_profile'] = 'v2'
+    reports = minimal_reports(layout)
+    for report in reports.values():
+        report['layout_sha256'] = layout_digest(layout)
+    reports['market']['objects'][-1] = obj
+    reports['market']['evaluated_bounds'][p.key] = obj['evaluated_bounds']
+    issues = verify_assets(layout, reports)
+    assert any(i.object_key == p.key and i.code in ('DETAIL_INVALID', 'CLEARANCE_INTRUSION')
+               for i in issues), issues
+
+
+@pytest.mark.parametrize('parent_v2', [False, True])
+def test_unprofiled_attachment_child_outside_valid_contact_is_rejected_publicly(parent_v2):
+    from dataclasses import replace
+    from modeling.slum03.density_metrics import layout_digest
+    from modeling.slum03.evaluated_detail import observe_detail, validate_evaluated_density
+    from modeling.slum03.geometry import Assembly, box, merge_assembly
+    from modeling.slum03.types import Placement
+    base = build_layout()
+    params = {'detail_profile': 'v2', 'variant': 'tools'} if parent_v2 else {}
+    parent = Placement('mounted-parent', 'market', 'stall', (22., 0., -30.),
+                       (4., 3., 4.), 0., 'district', params)
+    child = Placement('mounted-utility', 'market', 'utility', (23., 0., -30.),
+                      (2., 3., 2.), 0., 'district', {'attachment': {
+                          'parent_key': parent.key, 'reason': 'bracket',
+                          'contact_min': [22.9, .3, -30.1],
+                          'contact_max': [23.1, .7, -29.9]}})
+    layout = replace(base, placements=base.placements + (parent, child))
+
+    def issues(size, *, drop_child=False):
+        reports = minimal_reports(layout)
+        for report in reports.values():
+            report['layout_sha256'] = layout_digest(layout)
+        parent_mesh = box('bracket', (1., .5, 0.), size, 'steel_dark')
+        child_mesh = box('bracket', (0., .5, 0.), size, 'steel_dark')
+        for p, part in ((parent, parent_mesh), (child, child_mesh)):
+            lo = [min(v[i] + p.origin[i] for v in part.vertices) for i in range(3)]
+            hi = [max(v[i] + p.origin[i] for v in part.vertices) for i in range(3)]
+            obj = {'key': p.key, 'placement_key': p.key, 'kind': p.kind,
+                   'mesh': p.key, 'vertices': 8, 'faces': 6}
+            if p == parent and parent_v2:
+                assembly = Assembly(p.kind, p.key, p.sector, p.origin, [part],
+                                    {'placement_key': p.key, 'variant': 'tools',
+                                     'detail_groups': [{'id': 'bracket', 'category': 'architecture',
+                                                        'part_indices': [0]}]})
+                merged = merge_assembly(assembly)
+                obj = observe_detail(assembly, {
+                    'vertices': [tuple(v[i]+p.origin[i] for i in range(3))
+                                 for v in merged.vertices], 'faces': merged.faces})
+                obj['detail_profile'] = 'v2'
+            report = reports[p.sector]
+            report['objects'] = [obj if entry['key'] == p.key else entry
+                                 for entry in report['objects']]
+            report['evaluated_bounds'][p.key] = {'minimum': lo, 'maximum': hi}
+            if drop_child and p == child:
+                report['evaluated_bounds'].pop(p.key)
+        return validate_evaluated_density(layout, reports), verify_assets(layout, reports)
+
+    for check in issues((.2, .4, .2)):
+        assert not any(i.code == 'ATTACHMENT_INTRUSION' and i.object_key == child.key
+                       for i in check)
+    for check in issues((.5, 2., .5)):
+        assert any(i.code == 'ATTACHMENT_INTRUSION' and i.object_key == child.key
+                   for i in check), check
+    assert any(i.code == 'GEOMETRY_MISSING' and i.object_key == child.key
+               for i in issues((.2, .4, .2), drop_child=True)[0])

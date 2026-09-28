@@ -160,3 +160,46 @@ def test_contact_box_allows_only_actual_overlap_within_its_bounds():
     assert not any(i.code == 'ATTACHMENT_INTRUSION' for i in issues((.2, .4, .2)))
     assert any(i.code == 'ATTACHMENT_INTRUSION' and i.object_key == child.key
                for i in issues((.5, 2., .5)))
+
+
+def test_evaluated_part_evidence_includes_every_physical_part_even_without_semantic_group():
+    a, geometry = specimen()
+    # A center blocker is real export geometry but is deliberately not tagged.
+    a.parts.append(box('center-blocker', (2., 1., 0.), (.3, 2., .3), 'steel_dark'))
+    extra = a.parts[-1]
+    first = len(geometry['vertices'])
+    geometry['vertices'].extend(tuple(v[i]+a.origin[i] for i in range(3)) for v in extra.vertices)
+    geometry['faces'] += tuple(tuple(index+first for index in face) for face in extra.faces)
+    obj = observe_detail(a, geometry)
+    assert len(obj['evaluated_parts']) == 3
+    assert obj['evaluated_parts'][2]['bounds'] == {
+        'minimum': [4.85, 0., 3.85], 'maximum': [5.15, 2., 4.15]}
+
+
+@pytest.mark.parametrize('fault', ['missing', 'dropped', 'shifted'])
+def test_layout_v2_rejects_incomplete_or_inconsistent_physical_part_evidence(fault):
+    layout = build_layout()
+    p = next(p for p in layout.placements if p.key == 'market-west')
+    layout = replace(layout, placements=tuple(replace(q, params={**q.params,
+        'detail_profile': 'v2', 'variant': 'tools'}) if q.key == p.key else q
+        for q in layout.placements))
+    a, geometry = specimen()
+    obj = observe_detail(a, geometry)
+    obj.update({'key': p.key, 'placement_key': p.key, 'detail_profile': 'v2'})
+    from copy import deepcopy
+    if fault != 'missing':
+        obj.setdefault('evaluated_parts', [
+            {'part_index': i, 'bounds': deepcopy(group['part_bounds'][0]),
+             'face_count': 6, 'vertex_count': 8}
+            for i, group in enumerate(obj['detail_groups'])])
+    if fault == 'missing':
+        obj.pop('evaluated_parts', None)
+    elif fault == 'dropped':
+        obj['evaluated_parts'].pop()
+    else:
+        obj['evaluated_parts'][0]['bounds']['minimum'][0] -= .3
+    reports = {'market': {'layout_sha256': layout_digest(layout), 'objects': [obj],
+                          'evaluated_bounds': {'demo': obj['evaluated_bounds']}}}
+    issues = validate_evaluated_density(layout, reports)
+    assert any(i.object_key == p.key and i.code in ('DETAIL_INVALID', 'GEOMETRY_MISSING')
+               for i in issues), issues

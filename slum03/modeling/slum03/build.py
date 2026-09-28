@@ -18,7 +18,7 @@ from modeling.slum03.materials import make_blender_materials
 from modeling.slum03.types import Issue, Layout, Report
 from modeling.slum03.vcolor import vertex_colors, vertex_colors_v2
 from modeling.slum03.detail_evidence import detail_groups
-from modeling.slum03.evaluated_detail import observe_detail
+from modeling.slum03.evaluated_detail import observe_detail, v2_object_issues
 from modeling.slum03.density_metrics import layout_digest
 
 
@@ -124,6 +124,11 @@ def write_scene(sector: str, output: Path, layout: Layout | None = None) -> Repo
                  'kind': assembly.kind, 'mesh': obj.name if obj.type == 'MESH' else None}
         if obj.type == 'EMPTY':
             entry['name'] = obj.name
+        expected = next((p for p in layout.placements
+                         if p.sector == sector and p.key == assembly.meta.get('placement_key', assembly.name)), None)
+        if expected and expected.params.get('detail_profile') == 'v2' and not assembly.meta.get('detail_groups'):
+            errors.append(asdict(Issue('DETAIL_INVALID', expected.key,
+                                       'v2 assembly has no source-backed detail groups')))
         if assembly.meta.get('detail_groups'):
             entry['placement_key'] = assembly.meta.get('placement_key', assembly.name)
             entry['detail_profile'] = 'v2'
@@ -181,7 +186,16 @@ def write_scene(sector: str, output: Path, layout: Layout | None = None) -> Repo
                                 'faces': [tuple(poly.vertices) for poly in mesh.polygons]}
                     measured = observe_detail(assemblies_by_name[obj.name], geometry)
                     entry.update({'detail_groups': measured['detail_groups'],
+                                  'evaluated_parts': measured['evaluated_parts'],
                                   'evaluated_bounds': measured['evaluated_bounds']})
+                    placement = next((p for p in layout.placements
+                                      if p.key == entry['placement_key'] and p.sector == sector), None)
+                    if placement is None or placement.params.get('detail_profile') != 'v2':
+                        errors.append(asdict(Issue('DETAIL_INVALID', obj.name,
+                                                   'v2 source has no matching Layout placement')))
+                    else:
+                        errors.extend(asdict(issue) for issue in
+                                      v2_object_issues(placement, report, entry))
                 except (ValueError, KeyError, TypeError) as exc:
                     errors.append(asdict(Issue('DETAIL_INVALID', obj.name, str(exc))))
             uv0 = next((layer for layer in mesh.uv_layers if layer.active_render), None)
