@@ -1,6 +1,24 @@
-# slum03 apply log — pre-live handoff (UTC 2026-09-28)
+# slum03 apply log — controller live verification (UTC 2026-09-28)
 
-**No apply, test, capture, walk, audit, or save/reload performed by Task12 implementer.** This is a handoff, not an apply record. `content/slum03/slum03.json` is a portable *offline* candidate; `artifacts/slum03/delivery-report.json` is pending. Never paste a previously observed session URL/ID from local discovery into version control.
+## Current result — 05:42 UTC
+
+User approved the rediscovered separate empty world. Controller reconfirmed default ground at Y=0, preserved Root settings/default floor/sky/light, and applied only the `Slum03_Slum` ownership tree at Y=4.5. See `live-verification.json` for the redacted results and exact ignored local evidence paths.
+
+- Strict runtime validation: pass, zero issues.
+- Reviewed diff: 150 new assets, 339 owned Slots, 400 owned Components; no updates/renames/deletes or warnings.
+- Initial apply: exit 0; 150 imports, 339 Slots and 400 Components created.
+- Same manifest/state reapply: exit 0; **zero writes, imports, deletes and renames**. Manifest SHA-256 unchanged.
+- Structure: one test group / 23 assertions passed. Spinner rotation and all four Panner offsets changed between observations; fixed `AUGMENT` text/transform remained unchanged.
+- Default Ground/Skybox/Light snapshots unchanged. Root transform and configuration remained unchanged except that the engine-resolved shader reference appeared on its default TextUnlitMaterial. No declarative operation targeted Root settings. Capture left no temporary Slots.
+- Strict audit: **failed**. All 55 external references match four explicitly inspected shader/font/text-material roles; no unused allowances. The sole remaining warning is `ITEM_GRABBABLE_MISSING`. Installed CLI strict mode has no static-world exception. The city was not made Grabbable merely to bypass the check. This needs an explicit static-world acceptance decision, not a false strict pass.
+- Capture: **CAPTURE_EXPORT_TIMEOUT**. Link triggers a Windows screenshot but this client then waits for a locally accessible export folder; no screenshot folder is mounted into the container. Supply an accessible folder using `--screenshots-dir` or perform manual visual QA. No six-view or walk success is claimed.
+- Manual visual/walk/save-reload/resource-performance checks remain pending. The final review also retains the lower forest silhouette/far-edge sky openings as an unresolved appearance issue.
+
+`delivery-report.json` therefore has overall **fail** for the failed strict audit, with separate pass/pending checks. This does not mean the live apply failed. Do not silently change it to pass.
+
+## Historical pre-live implementer handoff
+
+The following was recorded before controller live work. **The Task12 implementer itself performed no live mutation.** Statements about pending apply below describe that earlier stage, not the current result. Never commit a session URL/ID or raw state.
 
 ## Evidence and prerequisite
 

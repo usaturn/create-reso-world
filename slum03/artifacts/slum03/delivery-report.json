@@ -1,40 +1,128 @@
 {
-  "status": "pending",
+  "status": "fail",
   "checks": {
     "apply": {
-      "status": "pending",
-      "evidence": [],
-      "details": {}
+      "status": "pass",
+      "evidence": [
+        "artifacts/slum03/live-verification.json"
+      ],
+      "details": {
+        "status": "pass",
+        "counts": {
+          "slotsCreated": 339,
+          "slotsUpdated": 0,
+          "componentsAdded": 400,
+          "componentsUpdated": 0,
+          "slotsDeleted": 0,
+          "componentsDeleted": 0,
+          "assetsImported": 150
+        },
+        "local_evidence": ".resoloop/slum03/apply-task12-20260928T052806-433656.json"
+      }
     },
     "reapply": {
-      "status": "pending",
-      "evidence": [],
-      "details": {}
+      "status": "pass",
+      "evidence": [
+        "artifacts/slum03/live-verification.json"
+      ],
+      "details": {
+        "status": "pass",
+        "counts": {
+          "slotsCreated": 0,
+          "slotsUpdated": 0,
+          "componentsAdded": 0,
+          "componentsUpdated": 0,
+          "slotsDeleted": 0,
+          "componentsDeleted": 0,
+          "assetsImported": 0
+        },
+        "unchanged_slots": 339,
+        "unchanged_components": 400,
+        "unchanged_assets": 150,
+        "same_manifest": true,
+        "local_evidence": ".resoloop/slum03/reapply-task12-20260928T052855-433992.json"
+      }
     },
     "structure": {
-      "status": "pending",
-      "evidence": [],
-      "details": {}
+      "status": "pass",
+      "evidence": [
+        "artifacts/slum03/live-verification.json"
+      ],
+      "details": {
+        "status": "pass",
+        "test_groups_passed": 1,
+        "assertions_declared": 23,
+        "local_evidence": ".resoloop/slum03/test-task12-20260928T052855-433992.json",
+        "motion": {
+          "status": "pass",
+          "spinner_rotation_changed": true,
+          "four_panner_offsets_changed": true,
+          "fixed_product_label_unchanged": true,
+          "copy": "AUGMENT"
+        }
+      }
     },
     "visual": {
       "status": "pending",
-      "evidence": [],
-      "details": {}
+      "evidence": [
+        "artifacts/slum03/live-verification.json"
+      ],
+      "details": {
+        "capture": {
+          "status": "fail",
+          "error": "CAPTURE_EXPORT_TIMEOUT",
+          "local_evidence": ".resoloop/slum03/capture-task12-20260928T053117-435162-plaza-north.json",
+          "limitation": "Installed client waits for a local screenshot export. Windows screenshot directory is not mounted in this container; no image bytes can be downloaded through the supported Link interface."
+        },
+        "content_assessment": "not observed in Resonite",
+        "review_issue": "Final review I1: lower forest silhouette still reveals narrow sky/far-ground-edge openings. Owned ground is present; this residual appearance issue is not marked fixed."
+      }
     },
     "walk": {
       "status": "pending",
       "evidence": [],
-      "details": {}
+      "details": {
+        "route": "plaza -> market -> east sidewalk -> Yarol -> checkpoint -> bridge"
+      }
     },
     "portability": {
-      "status": "pending",
-      "evidence": [],
-      "details": {}
+      "status": "fail",
+      "evidence": [
+        "artifacts/slum03/live-verification.json"
+      ],
+      "details": {
+        "strict_audit": {
+          "status": "fail",
+          "error": "ITEM_NOT_PORTABLE",
+          "remaining_issues": [
+            {
+              "code": "ITEM_GRABBABLE_MISSING",
+              "severity": "warning",
+              "message": "The audited root does not contain a Grabbable Component."
+            }
+          ],
+          "allowed_reference_count": 55,
+          "reviewed_exact_roles": [
+            "[FrooxEngine]FrooxEngine.FresnelMaterial:_shader",
+            "[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic:_regular",
+            "[FrooxEngine]FrooxEngine.TextRenderer:Font",
+            "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]"
+          ],
+          "unmatched_roles": [],
+          "local_evidence": ".resoloop/slum03/audit-reviewed-task12-20260928T053117-435162.json",
+          "limitation": "Pinned CLI strict item audit requires Grabbable even for a static world. No Grabbable was added solely to suppress this warning; static-world exception requires an acceptance decision. Not a strict pass."
+        },
+        "save_reload": {
+          "status": "pending"
+        },
+        "note": "Strict audit actually failed; a static-world policy exception is not silently assumed."
+      }
     },
     "resources": {
       "status": "pending",
       "evidence": [
-        "artifacts/slum03/finalfix-m-20260928T0511/asset-summary.json"
+        "artifacts/slum03/finalfix-m-20260928T0511/asset-summary.json",
+        "artifacts/slum03/live-verification.json"
       ],
       "details": {
         "exportTotals": {
@@ -53,7 +141,9 @@
           "measuredOverdraw": null
         },
         "advisoryWarnings": 158,
-        "runtimePerformanceMeasured": false
+        "runtimePerformanceMeasured": false,
+        "live_imported_meshes": 150,
+        "runtime_performance_measured": false
       }
     },
     "build": {
@@ -83,25 +173,11 @@
     }
   },
   "layout_seed": 260927,
-  "phase": "pre-live",
   "manifest": "content/slum03/slum03.json",
   "buildEvidence": [
     "artifacts/slum03/finalfix-m-20260928T0511/asset-summary.json",
     "artifacts/slum03/finalfix-m-20260928T0511/previews-bright/preview-report.json"
   ],
-  "note": "Independent Blender assets verified offline; previews are not Resonite visual/walk proof. No live apply, reapply, structural test, capture, walk, save/reload or runtime performance proof.",
-  "timing": {
-    "started_at_utc": "2026-09-28T04:12:13+00:00",
-    "recorded_at_utc": "2026-09-28T04:21:25.576527+00:00",
-    "elapsed_seconds": 552,
-    "task_times_seconds": {
-      "requirements_and_source": 85,
-      "tdd_and_manifest": 175,
-      "report_and_reflection_attempt": 95,
-      "verification_review_commit_preparation": 112
-    },
-    "task_times_note": "Approximate overlapping phase attribution; not summed into elapsed. Final reporting/commit follows this snapshot."
-  },
   "offlineProvenance": {
     "sourceRuns": [
       "finalfix-m-20260928T0511",
@@ -125,7 +201,27 @@
     },
     "buildReports": "artifacts/slum03/finalfix-m-20260928T0511",
     "rootY": 4.5,
-    "runtimeReflectionOfManifest": false,
-    "liveApplied": false
+    "runtimeReflectionOfManifest": true,
+    "liveApplied": true
+  },
+  "timing": {
+    "started_at_utc": "2026-09-28T04:12:13+00:00",
+    "recorded_at_utc": "2026-09-28T04:21:25.576527+00:00",
+    "elapsed_seconds": 552,
+    "task_times_seconds": {
+      "requirements_and_source": 85,
+      "tdd_and_manifest": 175,
+      "report_and_reflection_attempt": 95,
+      "verification_review_commit_preparation": 112
+    },
+    "task_times_note": "Approximate overlapping phase attribution; not summed into elapsed. Final reporting/commit follows this snapshot."
+  },
+  "phase": "live-applied-acceptance-incomplete",
+  "note": "Implementation and owned live apply completed; zero-write reapply and structural/motion checks passed. Overall delivery is not accepted: strict static-world audit failed on missing Grabbable, manual visual/walk/save-reload and resource assessment remain pending, and forest far-edge appearance remains open. Capture command failed due unavailable export path; it is not evidence of visual success or visual content failure.",
+  "controllerTiming": {
+    "started_at_utc": "2026-09-28T03:32:07+00:00",
+    "recorded_at_utc": "2026-09-28T05:41:55.635018+00:00",
+    "elapsed_seconds": 7789,
+    "note": "Wall-clock session elapsed, not sum of delegated task durations. Detailed task-attributed durations are in timing.md."
   }
 }

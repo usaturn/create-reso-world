@@ -24,3 +24,23 @@
 - Task 12 implementer, 2026-09-28 04:12:13–04:21:30 UTC (~9m17s wall-clock incl. report/commit): requirements/template/schema/source and existing evidence ~85s; TDD RED/GREEN for delivery gates, panner Slot separation and camera/manifest ~175s; offline generation/validation and CLI handoff/report ~95s; full suite/layout/diff plus self-review/commit ~112s. Synchronous offline commands only; one attempted read-only Reflection query failed discovery (no live mutation). Controller-only live checks pending. Total is wall-clock elapsed, not the sum of task-attributed times (overlap/rounding).
 
 - Final review fix wave (offline), 2026-09-28 04:40:53–05:17 UTC (~36m before commit): findings/spec/skills/root-cause review ~3m; targeted RED/GREEN and implementation ~11m; repeated independent 15-sector export pairs, custom seed integration and eleven-view renders/visual inspection ~12m; full suite/layout/offline validate, staging and reporting ~10m. Estimates overlap; wall time is not their sum. No live writes, controller-owned plan/ledger unchanged.
+
+## Controller continuation and live verification — 2026-09-28
+
+Session started 03:32:07 UTC; evidence snapshot at 05:41:55 UTC (~129m48s elapsed). This is wall-clock elapsed, not the sum of attributed phase durations; delegated reports have their own start/end breakdowns. No background job remains. All child exits below are 0.
+
+| Phase / run | Harness duration (seconds) |
+| --- | ---: |
+| 7ca6099e_sp-review | 503.2 |
+| ef836120_sp-implementer | 843.0 |
+| 50cc6bac_sp-review | 185.9 |
+| 2d481091_sp-implementer | 582.1 |
+| 8b858853_sp-review | 280.9 |
+| c89ece42_sp-review | 425.8 |
+| b81e9fff_sp-implementer | 2257.1 |
+| 89879be9_sp-review | 300.5 |
+| ccafb265_sp-debug | 238.8 |
+
+Live controller phase: current target reconfirmed/strict validated 05:18; reviewed initial diff 05:27; apply 05:28; zero-write reapply/structure/motion checks 05:28–05:30; exact-role audit and capture attempt 05:31–05:32; read-only diagnostic delegation and additional motion/default-content checks through 05:39. Reporting/metadata/verification follow the snapshot; user manual QA and save/reload are not counted as completed work.
+
+Post-live report test repair: 05:46:46–05:49:30 UTC (~164s); focused behavioral RED/GREEN and full243tests71.53s. Scoped evidence/report re-review 8c490821: 136.7s, exit0, all findings addressed. Final controller verification and evidence commit follow; human acceptance gates remain pending.

@@ -17,8 +17,8 @@
 - [x] Tasks 1–10: コード実装・タスクレビュー済み。早期live blockoutとTask9現Reflectionは当時未接続のため別途保留。
 - [x] Task 11: fix round1までレビュー済み（e09bd9f）。全220テスト・資源検査成功。評価後UVとAR文字遮蔽を修正。
 - [x] Task 12: delivery実装・タスクレビュー（0ecac8e、全229テスト、offline validation issues=[]）。
-- [ ] Task 12 live: 現Reflection、実床高、diff/apply/reapply、構造・表示・歩行・保存再読込。
-- [ ] 全体検証・最終branch review・納品記録。
+- [ ] Task 12 live acceptance: Reflection・実床高・diff/apply/reapply・構造/駆動は確認済み。表示/歩行/保存再読込とstatic-world strict監査の扱いは未完了。
+- [x] 全体自動検証・最終branch reviewと限定再レビュー・納品記録。残存I1（森林奥の地際）と実機受入ゲートは未解決として記録。
 
 ## Global Constraints
 
@@ -328,8 +328,8 @@ def test_import_success_is_not_visual_success():
 ```
   出力Reportは `status` と入力各項目を正規化した `checks` を持ち、一つでもfailならfail、failがなく未確認があればpending、全必須項目と資源/ビルド検査がpassの場合だけpassとする。
 - [x] Step 2: summarizerを実装し同テストGREEN。宣言に上記6視点のcamera bookmarkと構造assertionを登録。カメラの世界座標は所有ルートの設置高さを反映する。
-- [ ] Step 3: controllerが現接続先を再確認する。`resoloop doctor --url "$URL" --json`、`resoloop status --url "$URL" --json`、`resoloop hierarchy --under Root --depth 2 --include-components --url "$URL" --json`。別の空ワールドか確認し、既定床上面と最低可視面からroot-yを固定して統合宣言を生成する。既存slum02や所有権不明のrootがあれば停止する。
-- [ ] Step 4: 次を順に実行し、strict validationとdiffの対象/理由をレビューする。REPORTは毎回未使用名。
+- [x] Step 3: controllerが現接続先を再確認する。`resoloop doctor --url "$URL" --json`、`resoloop status --url "$URL" --json`、`resoloop hierarchy --under Root --depth 2 --include-components --url "$URL" --json`。別の空ワールドか確認し、既定床上面と最低可視面からroot-yを固定して統合宣言を生成する。既存slum02や所有権不明のrootがあれば停止する。
+- [x] Step 4: 次を順に実行し、strict validationとdiffの対象/理由をレビューする。REPORTは毎回未使用名。
 ```bash
 STATE=.resoloop/slum03/state/slum03.json
 MANIFEST=content/slum03/slum03.json
@@ -339,12 +339,12 @@ resoloop diff "$MANIFEST" --state "$STATE" --brief --report ".resoloop/slum03/di
 resoloop apply "$MANIFEST" --state "$STATE" --report ".resoloop/slum03/apply-$RUN.json" --url "$URL" --json
 ```
   apply失敗はcheckpointを保存し、観測と再diffまで止める。Rootの設定変更、adopt、prune、削除を付け足さない。
-- [ ] Step 5: 生成rootと参照をinspect。ARの駆動先を確認し、時間差のある2回の `resoloop inspect '$slot:<driven-key>' --state "$STATE" --url "$URL" --json` で値の変化と固定文字を確認。driven-keyはmanifestに実在するkeyを使う。
-- [ ] Step 6: 同じmanifest/stateを変更せず、別report名でapplyを再実行。書き込み/再importがゼロであることを全文reportで確認する。RF-4の回転が止まる・巻き戻る場合は宣言の管理フィールドを修正し、再検証。
+- [x] Step 5: 生成rootと参照をinspect。ARの駆動先を確認し、時間差のある2回の `resoloop inspect '$slot:<driven-key>' --state "$STATE" --url "$URL" --json` で値の変化と固定文字を確認。driven-keyはmanifestに実在するkeyを使う。
+- [x] Step 6: 同じmanifest/stateを変更せず、別report名でapplyを再実行。書き込み/再importがゼロであることを全文reportで確認する。RF-4の回転が止まる・巻き戻る場合は宣言の管理フィールドを修正し、再検証。
 - [ ] Step 7: `resoloop test "$MANIFEST" --state "$STATE" --url "$URL" --json`、`resoloop item audit '$slot:root' --state "$STATE" --strict --url "$URL" --json`。外部参照候補を見て必要な正確な型/メンバーだけ許可し、未使用の許可や広い_shader許可で回避しない。
 - [ ] Step 8: `resoloop capture "$MANIFEST" --camera plaza-north --output "artifacts/slum03/live-plaza-north-$RUN.jpg" --width 768 --height 512 --url "$URL"` 等で実機確認。ホスト保存先へ到達できなければエラーを記録し、ユーザーの実機目視/歩行確認を依頼。中央→市場→東歩道→Yarol前→検問→橋を確認する。実機QA未実施ならpendingのまま納品報告する。
 - [ ] Step 9: ユーザーの許可・協力のもと保存/再読込後の資源保持を確認する。実施できなければportabilityをpending。セッションFPSを個別モデルの性能証明にせず、構造的資源量と実測できた事実だけを記録する。
-- [ ] Step 10: `uv run pytest -q`、`bash ../scripts/check-layout.sh`、`git diff --check`。最終レビューとtiming/delivery/apply-logを更新し、source/spec/plan/resultsの対応を確認。秘密情報やstateはstageしない。`git commit -m "feat: deliver verified slum03 world and validation reports"` は実際に確認できた範囲に合わせて文言を選ぶ。
+- [x] Step 10: `uv run pytest -q`、`bash ../scripts/check-layout.sh`、`git diff --check`。最終レビューとtiming/delivery/apply-logを更新し、source/spec/plan/resultsの対応を確認。秘密情報やstateはstageしない。`git commit -m "feat: deliver verified slum03 world and validation reports"` は実際に確認できた範囲に合わせて文言を選ぶ。
 
 ## 依存関係・停止点・レビュー
 
@@ -368,3 +368,12 @@ resoloop apply "$MANIFEST" --state "$STATE" --report ".resoloop/slum03/apply-$RU
 - Spec 1〜6 → Tasks 1,3〜8。Spec 7 → Tasks 1,2,9〜11。Spec 8 → Tasks 9,10,12。Spec 9〜10 → 全テストとTasks 11,12。Spec 11 → 本計画の承認ゲート。
 - RF-1 → Tasks 3,11。RF-2 → Tasks 2,3。RF-3 → Task 10。RF-4 → Tasks 8,9,12。RF-5 → Tasks 6,9,12。
 - すべての生成器、共通型、Reportキー、root-yと描画座標の責務は上記の定義を使う。参照される関数を未定義のまま残さない。
+
+## Controller 最終自動検証結果（2026-09-28）
+
+- commit82170d3の実装: 243テスト成功。全15区画は保存Layoutを共有し、実レポート指定CLIで再生成可能。
+- ライブ反映済み: Slum03_Slum、rootY4.5、150mesh、339Slots/400Components。再applyは書込/importゼロ。構造23assertion、Spinner/Panner駆動、固定文字を確認。
+- 最終レビューI1残存: 所有地盤は追加済みだが森林の低いシルエット間に遠端/空色の隙間が残る。対応済みとはしない。
+- strict auditは4種の実測済み型/メンバー許可後もGrabbable欠如でfail。静的worldへの例外を勝手に承認せず、不要なGrabbableも追加しない。
+- captureはWindowsの保存先へ到達できずtimeout。目視・歩行・保存再読込・実測性能は未確認。delivery全体をpassにしない。
+- worktree/生成証跡/SDD ledgerは未解決ゲートのため保持。push/merge/PRは行わない。

@@ -1,0 +1,104 @@
+{
+  "recorded_at_utc": "2026-09-28T05:41:55.635018+00:00",
+  "manifest_sha256": "2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec",
+  "runtime_version": "2026.9.18.82",
+  "resonite_link_version": "0.13.1.0",
+  "root_name": "Slum03_Slum",
+  "root_position": [
+    0,
+    4.5,
+    0
+  ],
+  "strict_validation": {
+    "status": "pass",
+    "issue_count": 0,
+    "local_evidence": ".resoloop/slum03/strict-task12-20260928T051859-426949.json"
+  },
+  "initial_apply": {
+    "status": "pass",
+    "counts": {
+      "slotsCreated": 339,
+      "slotsUpdated": 0,
+      "componentsAdded": 400,
+      "componentsUpdated": 0,
+      "slotsDeleted": 0,
+      "componentsDeleted": 0,
+      "assetsImported": 150
+    },
+    "local_evidence": ".resoloop/slum03/apply-task12-20260928T052806-433656.json"
+  },
+  "reapply": {
+    "status": "pass",
+    "counts": {
+      "slotsCreated": 0,
+      "slotsUpdated": 0,
+      "componentsAdded": 0,
+      "componentsUpdated": 0,
+      "slotsDeleted": 0,
+      "componentsDeleted": 0,
+      "assetsImported": 0
+    },
+    "unchanged_slots": 339,
+    "unchanged_components": 400,
+    "unchanged_assets": 150,
+    "same_manifest": true,
+    "local_evidence": ".resoloop/slum03/reapply-task12-20260928T052855-433992.json"
+  },
+  "structure": {
+    "status": "pass",
+    "test_groups_passed": 1,
+    "assertions_declared": 23,
+    "local_evidence": ".resoloop/slum03/test-task12-20260928T052855-433992.json"
+  },
+  "motion": {
+    "status": "pass",
+    "spinner_rotation_changed": true,
+    "four_panner_offsets_changed": true,
+    "fixed_product_label_unchanged": true,
+    "copy": "AUGMENT"
+  },
+  "preservation": {
+    "ground_skybox_light_snapshots_unchanged": true,
+    "root_transform_unchanged": true,
+    "capture_temp_slots_remaining": 0,
+    "root_observation_note": "Root default TextUnlitMaterial._shader gained its resolved engine shader reference; other Root snapshot fields were unchanged. No declarative operation targeted Root settings."
+  },
+  "strict_audit": {
+    "status": "fail",
+    "error": "ITEM_NOT_PORTABLE",
+    "remaining_issues": [
+      {
+        "code": "ITEM_GRABBABLE_MISSING",
+        "severity": "warning",
+        "message": "The audited root does not contain a Grabbable Component."
+      }
+    ],
+    "allowed_reference_count": 55,
+    "reviewed_exact_roles": [
+      "[FrooxEngine]FrooxEngine.FresnelMaterial:_shader",
+      "[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic:_regular",
+      "[FrooxEngine]FrooxEngine.TextRenderer:Font",
+      "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]"
+    ],
+    "unmatched_roles": [],
+    "local_evidence": ".resoloop/slum03/audit-reviewed-task12-20260928T053117-435162.json",
+    "limitation": "Pinned CLI strict item audit requires Grabbable even for a static world. No Grabbable was added solely to suppress this warning; static-world exception requires an acceptance decision. Not a strict pass."
+  },
+  "capture": {
+    "status": "fail",
+    "error": "CAPTURE_EXPORT_TIMEOUT",
+    "local_evidence": ".resoloop/slum03/capture-task12-20260928T053117-435162-plaza-north.json",
+    "limitation": "Installed client waits for a local screenshot export. Windows screenshot directory is not mounted in this container; no image bytes can be downloaded through the supported Link interface."
+  },
+  "manual_visual": {
+    "status": "pending"
+  },
+  "walk": {
+    "status": "pending"
+  },
+  "save_reload": {
+    "status": "pending"
+  },
+  "remaining_visual_issue": "Final review I1: lower forest silhouette still reveals narrow sky/far-ground-edge openings. Owned ground is present; this residual appearance issue is not marked fixed.",
+  "local_evidence_note": ".resoloop reports contain session-specific state and remain ignored. This tracked summary omits URLs, raw session IDs and component IDs; saved/reloaded portability is unverified."
+}
