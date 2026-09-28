@@ -16,7 +16,10 @@ from modeling.slum03.geometry import Assembly, merge_assembly
 from modeling.slum03.layout import read_layout
 from modeling.slum03.materials import make_blender_materials
 from modeling.slum03.types import Issue, Layout, Report
-from modeling.slum03.vcolor import vertex_colors
+from modeling.slum03.vcolor import vertex_colors, vertex_colors_v2
+from modeling.slum03.detail_evidence import detail_groups
+from modeling.slum03.evaluated_detail import observe_detail
+from modeling.slum03.density_metrics import layout_digest
 
 
 def add_assembly(bpy, bmesh, assembly: Assembly, materials: dict, source, export,
@@ -42,8 +45,17 @@ def add_assembly(bpy, bmesh, assembly: Assembly, materials: dict, source, export
         merged = merge_assembly(assembly)
         obj, issues = blender_io.create_object(bpy, bmesh, merged, assembly.origin, materials,
                                                 uv_exempt=assembly.meta.get('uv_exempt', False))
-        blender_io.write_colors(obj, vertex_colors(merged, assembly.origin, seed,
-                                                   assembly.meta.get('sprays', ())))
+        if assembly.meta.get('detail_groups'):
+            groups = detail_groups(assembly)
+            joints = [tuple((lo+hi)/2 + assembly.origin[i] for i, (lo, hi) in
+                            enumerate(zip(g['bounds']['minimum'], g['bounds']['maximum'])))
+                      for g in groups if g['category'] == 'utility']
+            colors = vertex_colors_v2(merged, assembly.origin, seed,
+                                       assembly.meta['placement_key'], joints,
+                                       assembly.meta.get('sprays', ()))
+        else:
+            colors = vertex_colors(merged, assembly.origin, seed, assembly.meta.get('sprays', ()))
+        blender_io.write_colors(obj, colors)
     obj['slum03_kind'] = assembly.kind
     obj['slum03_sector'] = assembly.sector
     obj.name = f'{name}_Source'
@@ -93,14 +105,18 @@ def write_scene(sector: str, output: Path, layout: Layout | None = None) -> Repo
     errors: list[dict] = []
     objects = []
     sources_by_name = {}
+    assemblies_by_name = {}
     exports_by_name = {}
     report: Report = {'sector': sector, 'export_collection': export.name, 'objects': [],
                       'evaluated_bounds': {}, 'materials': [], 'triangles': 0, 'vertices': 0,
                       'submeshes': 0, 'uv_issues': [], 'errors': []}
+    if layout.density is not None:
+        report['layout_sha256'] = layout_digest(layout)
     for assembly in assemblies:
         obj, issues = add_assembly(bpy, bmesh, assembly, materials, source, export,
                                    sources_by_name, exports_by_name, layout.seed)
         objects.append(obj)
+        assemblies_by_name[obj.name] = assembly
         mapped = [_issue_dict(issue) for issue in issues]
         uv_issues.extend(mapped)
         errors.extend(mapped)
@@ -108,6 +124,10 @@ def write_scene(sector: str, output: Path, layout: Layout | None = None) -> Repo
                  'kind': assembly.kind, 'mesh': obj.name if obj.type == 'MESH' else None}
         if obj.type == 'EMPTY':
             entry['name'] = obj.name
+        if assembly.meta.get('detail_groups'):
+            entry['placement_key'] = assembly.meta.get('placement_key', assembly.name)
+            entry['detail_profile'] = 'v2'
+            entry['variant'] = assembly.meta.get('variant')
         report['objects'].append(entry)
     hook = sectors.BLENDER_HOOKS.get(sector)
     if hook:
@@ -146,12 +166,24 @@ def write_scene(sector: str, output: Path, layout: Layout | None = None) -> Repo
             continue
         try:
             points = [evaluated.matrix_world @ v.co for v in mesh.vertices]
-            if not points:
+            if not points or not mesh.polygons:
                 errors.append(asdict(Issue('MESH', obj.name, 'empty evaluated mesh')))
                 continue
             report['evaluated_bounds'][obj.name] = {
                 'minimum': [min(p[i] for p in points) for i in (0, 2, 1)],
                 'maximum': [max(p[i] for p in points) for i in (0, 2, 1)]}
+            entry = next((e for e in report['objects'] if e.get('mesh') == obj.name), None)
+            if entry is not None and layout.density is not None:
+                entry['vertices'], entry['faces'] = len(mesh.vertices), len(mesh.polygons)
+            if obj.name in assemblies_by_name and assemblies_by_name[obj.name].meta.get('detail_groups'):
+                try:
+                    geometry = {'vertices': [(p[0], p[2], p[1]) for p in points],
+                                'faces': [tuple(poly.vertices) for poly in mesh.polygons]}
+                    measured = observe_detail(assemblies_by_name[obj.name], geometry)
+                    entry.update({'detail_groups': measured['detail_groups'],
+                                  'evaluated_bounds': measured['evaluated_bounds']})
+                except (ValueError, KeyError, TypeError) as exc:
+                    errors.append(asdict(Issue('DETAIL_INVALID', obj.name, str(exc))))
             uv0 = next((layer for layer in mesh.uv_layers if layer.active_render), None)
             if uv0 is None:
                 errors.append(asdict(Issue('UV_MISSING', obj.name, 'evaluated UV0 absent')))

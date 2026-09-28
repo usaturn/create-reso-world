@@ -125,3 +125,23 @@ def vertex_colors(merged: MergedMesh, origin: Sequence[float], seed: int,
                 rgb = [c + (c * t - c) * k for c, t in zip(rgb, sp.color)]
         out.append((*(round(_clamp(c, 0.05, 1.3), 6) for c in rgb), 1.0))
     return out  # type: ignore[return-value]
+
+
+def vertex_colors_v2(merged: MergedMesh, origin: Sequence[float], seed: int,
+                     placement_key: str, joints: Sequence[Vec3],
+                     sprays: Sequence[Spray] = ()) -> list[tuple[float, float, float, float]]:
+    """Owner-seeded weathering concentrated at measured service joins and drip paths."""
+    from .density_model import stable_seed
+    local_seed = stable_seed(seed, placement_key, 'vcolor') & 0x7fffffff
+    colors = vertex_colors(merged, origin, local_seed, sprays)
+    if not joints:
+        return colors
+    result = []
+    for v, color in zip(merged.vertices, colors):
+        p = tuple(v[i]+origin[i] for i in range(3))
+        # Streak beneath each joint, slight XZ spread. Only darkens nearby surface.
+        stain = max((_clamp(1-math.hypot(p[0]-j[0], p[2]-j[2])/.85) *
+                     _clamp(1-(j[1]-p[1])/3.5) for j in joints if p[1] <= j[1]), default=0.)
+        result.append((*(round(_clamp(c*(1-.19*stain), .05, 1.3), 6)
+                         for c in color[:3]), color[3]))
+    return result

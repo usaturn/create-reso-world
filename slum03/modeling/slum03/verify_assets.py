@@ -85,6 +85,9 @@ def verify_assets(layout: Layout, reports: Mapping[str, Report]) -> list[Issue]:
         issues.extend(validate_clearance(layout, individual))
     except (KeyError, ValueError, TypeError) as exc:
         issues.append(Issue('REPORT_INVALID', 'evaluated_bounds', str(exc)))
+    if any(p.params.get('detail_profile') == 'v2' for p in layout.placements):
+        from .evaluated_detail import validate_evaluated_density
+        issues.extend(validate_evaluated_density(layout, reports))
     return issues
 
 

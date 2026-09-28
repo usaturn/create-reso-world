@@ -69,7 +69,10 @@ def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
     # Explicit enclosed exteriors; no background or walk-through stall enclosures.
     for name in ('ruin-west', 'ruin-west-annex', 'ruin-north', 'ruin-east',
                  'shack-row', 'shack-west', 'nightlife-east', 'nightlife-velvet', 'yarol'):
-        item = p[name]; x, y, z = item.origin; sx, sy, sz = item.size
+        item = p[name]
+        if item.params.get('detail_profile') == 'v2':
+            continue  # v2 shells use measured individual structural parts below.
+        x, y, z = item.origin; sx, sy, sz = item.size
         # Approximate non-enterable volume; Yarol east doorway remains unblocked
         # outside the shell. Runtime walking/mesh fit remains pending.
         boxes.append(box(name, x-sx/2, x+sx/2, y, y+sy*.8, z-sz/2, z+sz/2, item.yaw_deg))
@@ -98,4 +101,31 @@ def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
                 if (center[axis]-size[axis]/2 < bounds['minimum'][axis]-.01 or
                         center[axis]+size[axis]/2 > bounds['maximum'][axis]+.01):
                     raise ValueError(f'{key} lies outside evaluated {sector}/{mesh} bounds')
+    # Never enclose a walk-through v2 market canopy in one placement AABB.
+    # Each collider belongs to a source-indexed part whose exported bounds were
+    # checked in observe_detail; no visual stock or ungrounded background boxes.
+    from modeling.slum03.density_metrics import layout_digest
+    for item in layout.placements:
+        if item.params.get('detail_profile') != 'v2' or item.kind not in ('ruin', 'shack', 'stall'):
+            continue
+        report = reports.get(item.sector)
+        if not report or report.get('layout_sha256') != layout_digest(layout):
+            raise ValueError(f'missing evaluated report for {item.key}')
+        matches = [obj for obj in report.get('objects', [])
+                   if obj.get('placement_key') == item.key and obj.get('mesh') in report.get('evaluated_bounds', {})]
+        if len(matches) != 1 or not matches[0].get('detail_groups'):
+            raise ValueError(f'missing evaluated geometry for {item.key}')
+        for group in matches[0]['detail_groups']:
+            if group['category'] not in ('architecture', 'shelf'):
+                continue
+            if len(group.get('part_bounds', [])) != len(group['part_indices']):
+                raise ValueError(f'missing evaluated part bounds for {item.key}')
+            for index, raw in zip(group['part_indices'], group['part_bounds']):
+                lo, hi = raw['minimum'], raw['maximum']
+                if lo[1] >= 2.1:  # canopy/roof and overhead fittings stay walk-through
+                    continue
+                if len(lo) != 3 or len(hi) != 3 or any(hi[i]-lo[i] <= 1e-5 for i in range(3)):
+                    raise ValueError(f'invalid evaluated part collider for {item.key}')
+                boxes.append(box(f'{item.key}-{group["id"]}-part-{index}',
+                                 lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]))
     return boxes

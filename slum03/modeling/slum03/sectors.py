@@ -39,7 +39,27 @@ def sector_assemblies(layout: Layout, sector: str) -> list[Assembly]:
         raise KeyError(sector)
     if sector not in REGISTRY:
         raise NotImplementedError(f'sector {sector} has no generator yet')
-    result = REGISTRY[sector](layout, sector)
+    if layout.density is not None and sector in ('ruins-west', 'ruins-north', 'ruins-east',
+                                                  'shacks', 'market', 'nightlife'):
+        # New layouts can mix uses inside a physical sector; generators filter by
+        # kind themselves. Preserve legacy dispatch byte-for-byte.
+        from . import ruins, shacks, stalls
+        builders = {'ruin': ruins.build_assemblies, 'shack': shacks.build_assemblies,
+                    'stall': stalls.build_assemblies, 'nightlife': nightlife.build_assemblies}
+        targets = [p for p in layout.placements if p.sector == sector]
+        if any(p.kind == 'nightlife' and p.params.get('detail_profile') == 'v2'
+               for p in targets):
+            raise NotImplementedError('nightlife v2 is not implemented (Task 8)')
+        unsupported = {p.kind for p in targets} - builders.keys()
+        if unsupported:
+            raise NotImplementedError(f'{sector}: unsupported density kinds {sorted(unsupported)}')
+        built = {a.name: a for kind, builder in builders.items()
+                 for a in builder(layout, sector) if kind == a.kind}
+        if len(built) != len(targets) or set(built) != {p.key for p in targets}:
+            raise ValueError(f'{sector}: density assembly missing or duplicated')
+        result = [built[p.key] for p in targets]
+    else:
+        result = REGISTRY[sector](layout, sector)
     if not result or not any(a.parts for a in result) or any(
             a.sector != sector or (not a.parts and not a.meta.get('anchor')) for a in result):
         raise ValueError(f'sector {sector} returned no valid meshes')

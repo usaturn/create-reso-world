@@ -100,3 +100,55 @@ def test_road_end_colliders_match_visible_barriers_but_not_checkpoint_passage():
         assert [center[i]-size[i]/2 for i in range(3)] == observed['minimum']
         assert [center[i]+size[i]/2 for i in range(3)] == observed['maximum']
     assert not any(n['slot']['key'] == 'collider-checkpoint' for n in boxes)
+
+
+def test_v2_open_stall_only_collides_with_real_low_parts_and_preserves_legacy_boxes():
+    from modeling.slum03.evaluated_detail import observe_detail
+    from modeling.slum03.geometry import merge_assembly
+    from modeling.slum03.density_metrics import layout_digest
+    from modeling.slum03.market_detail import detailed_stall
+    from modeling.slum03.types import Placement
+    base = build_layout()
+    p = Placement('open-demo', 'market', 'stall', (12., 0., -40.), (3., 3., 4.), 0., 'district',
+                  {'variant': 'tools', 'detail_profile': 'v2'})
+    layout = replace(base, placements=base.placements + (p,))
+    a = detailed_stall(p, layout.seed)
+    m = merge_assembly(a)
+    evidence = observe_detail(a, {'vertices': [tuple(v[i]+p.origin[i] for i in range(3)) for v in m.vertices],
+                                  'faces': m.faces})
+    reports = {'market': {'layout_sha256': layout_digest(layout), 'objects': [evidence],
+                          'evaluated_bounds': {p.key: evidence['evaluated_bounds']}}}
+    original = collider_slots(base, {})
+    assert len(original) == 34
+    boxes = collider_slots(layout, reports)
+    assert boxes[:len(original)] == original  # floor/bridge/checkpoint/old 34 unchanged
+    additions = boxes[len(original):]
+    assert additions and not any(n['slot']['key'] == 'collider-open-demo' for n in additions)
+    # Customer front at +Z: free centre aisle up to shoulder height.
+    for n in additions:
+        c = n['slot']['position']; size = n['components'][0]['fields']['Size']
+        assert not (c[0]-size[0]/2 < 12 < c[0]+size[0]/2 and
+                    c[2]-size[2]/2 < -39 < c[2]+size[2]/2 and
+                    c[1]-size[1]/2 < 1.5 < c[1]+size[1]/2)
+    assert any('shelf' in n['slot']['key'] for n in additions)
+    with pytest.raises(ValueError, match='evaluated|report'):
+        collider_slots(layout, {})
+
+
+def test_density_branch_intrusion_is_rejected_from_real_evaluated_parts():
+    from modeling.slum03.evaluated_detail import validate_evaluated_density
+    from modeling.slum03.density_metrics import layout_digest
+    from modeling.slum03.types import DensityConfig, RectXZ
+    base = build_layout()
+    from modeling.slum03.types import Placement
+    p = Placement('blocking', 'market', 'stall', (0., 0., 0.), (3., 3., 4.), 0., 'district',
+                  {'variant': 'tools', 'detail_profile': 'v2'})
+    layout = replace(base, placements=base.placements + (p,), density=DensityConfig(
+        'representative', (), (), (RectXZ(-2, 2, -2, 2),), ()))
+    obj = {'mesh': 'blocking', 'placement_key': 'blocking', 'detail_profile': 'v2',
+           'variant': 'tools', 'vertices': 8, 'faces': 6,
+           'detail_groups': [{'id': 'leg', 'category': 'architecture', 'part_indices': [0],
+                              'part_bounds': [{'minimum': [-.1, 0, -.1], 'maximum': [.1, 2, .1]}]}]}
+    reports = {'market': {'layout_sha256': layout_digest(layout), 'objects': [obj],
+                          'evaluated_bounds': {'blocking': {'minimum': [-.1, 0, -.1], 'maximum': [.1, 2, .1]}}}}
+    assert any(i.code == 'CLEARANCE_INTRUSION' for i in validate_evaluated_density(layout, reports))

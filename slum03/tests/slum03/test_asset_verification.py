@@ -163,3 +163,19 @@ def test_offline_driver_passes_explicit_persisted_layout_to_blender(tmp_path, mo
     snapshot = tmp_path / 'artifacts/slum03/unique/layout.json'
     assert '--arg=' + str(snapshot) in str(exc.value)
     assert read_layout(snapshot).seed == 7
+
+
+def test_v2_report_cannot_promote_legacy_evidence_or_wrong_layout():
+    from dataclasses import replace
+    from modeling.slum03.density_metrics import layout_digest
+    layout = build_layout()
+    p = next(p for p in layout.placements if p.key == 'market-west')
+    layout = replace(layout, placements=tuple(replace(x, params={**x.params,
+        'detail_profile': 'v2', 'variant': 'electronics'}) if x.key == p.key else x
+        for x in layout.placements))
+    reports = minimal_reports(layout)
+    for r in reports.values():
+        r['layout_sha256'] = layout_digest(layout)
+    assert any(i.code == 'DETAIL_MISSING' for i in verify_assets(layout, reports))
+    reports['market']['layout_sha256'] = '0' * 64
+    assert any(i.code == 'LAYOUT_MISMATCH' for i in verify_assets(layout, reports))

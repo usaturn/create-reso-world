@@ -99,3 +99,31 @@ def test_custom_persisted_layout_drives_mesh_hook_and_native_collider(tmp_path):
     baseline_forest = json.loads(Path('artifacts/slum03/task11-fix2-20260928T0356/forest-report.json').read_text())['evaluated_bounds']
     assert forest['forest-tree-0-0'] != baseline_forest['forest-tree-0-0']
     assert forest['forest-patch-0-0'] != baseline_forest['forest-patch-0-0']
+
+
+def test_v2_vertex_wear_is_stable_per_owner_and_tracks_joints():
+    from modeling.slum03.geometry import Assembly, box, merge_assembly
+    from modeling.slum03.vcolor import vertex_colors_v2
+    a = Assembly('ruin', 'wear-test', 'ruins-west', (0, 0, 0),
+                 [box('wall', (0, 1, 0), (2, 2, .2), 'concrete_stained')])
+    m = merge_assembly(a)
+    joints = ((-1., 0., 0.),)
+    first = vertex_colors_v2(m, a.origin, 260927, 'wear-test', joints)
+    assert first == vertex_colors_v2(m, a.origin, 260927, 'wear-test', joints)
+    assert first != vertex_colors_v2(m, a.origin, 260927, 'other-owner', joints)
+    assert first != vertex_colors_v2(m, a.origin, 260927, 'wear-test', ())
+
+
+def test_blender_probe_evaluates_three_representatives_and_small_open_stall(tmp_path):
+    import subprocess, json
+    target = tmp_path / 'density-probe'
+    result = subprocess.run(['resoloop', '--command-timeout', '300', 'blender', 'run',
+                             'tests/slum03/blender_density_probe.py', '--arg=--output',
+                             f'--arg={target}', '--json'], capture_output=True, text=True, timeout=320)
+    assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-3000:]
+    summary = json.loads((target / 'probe.json').read_text())
+    assert set(summary['objects']) == {'ruin-west', 'shack-row', 'market-west', 'small-stall'}
+    assert all(x['uv0'] and x['extra_uv'] and x['colors'] and x['normals']
+               and x['faces'] > 0 for x in summary['objects'].values())
+    assert summary['rejected'] == ['empty', 'collapsed']
+    assert all(x.get('reopened') for x in summary['objects'].values())
