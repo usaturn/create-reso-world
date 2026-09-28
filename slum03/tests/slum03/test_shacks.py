@@ -117,3 +117,27 @@ def test_last_corrugation_station_matches_final_fold_height():
         edge = max(v[0] for v in roof.vertices)
         top = max(v[1] for v in roof.vertices if abs(v[0]-edge)<1e-6 and abs(v[2]-z)<1e-6)
         assert abs(top - (_eave_height(h,d,z) + (.11 if n % 2 else 0))) < 1e-6
+
+
+def test_v2_roofs_touch_their_corner_posts_at_both_eaves():
+    # Shortening any post or flattening the pitch leaves the roof unsupported.
+    from modeling.slum03.architecture_detail import detailed_shack
+    from modeling.slum03.types import Placement
+    for variant in ('corrugated', 'plywood', 'tarp', 'pallet'):
+        p = Placement('roof-test', 'shacks', 'shack', (0.,0.,0.), (4.,4.,4.),
+                      0., 'district', {'detail_profile':'v2', 'variant':variant})
+        a = detailed_shack(p, 260927)
+        posts = [part for part in a.parts if part.name == 'support-post']
+        assert len(posts) == 4
+        roof_names = {'folded-sheet', 'staggered-board-roof',
+                      'tensioned-canopy', 'spaced-pallet-roof'}
+        roof = [part for part in a.parts if part.name in roof_names]
+        for post in posts:
+            center_x = sum(v[0] for v in post.vertices)/len(post.vertices)
+            center_z = sum(v[2] for v in post.vertices)/len(post.vertices)
+            post_top = max(v[1] for v in post.vertices)
+            # At the adjacent eave the underside must reach the post head.
+            edge = [v for part in roof for v in part.vertices
+                    if abs(v[0]-center_x)<.22 and abs(v[2]-center_z)<.23]
+            assert edge, (variant, center_x, center_z)
+            assert min(v[1] for v in edge)-.14 <= post_top <= max(v[1] for v in edge)+.14, variant

@@ -103,3 +103,43 @@ def test_upper_floors_of_taller_shell_keep_real_apertures():
                        and min(facade.vertices[i][0] for i in f) < x < max(facade.vertices[i][0] for i in f)
                        and min(facade.vertices[i][1] for i in f) < y < max(facade.vertices[i][1] for i in f)
                        for f in facade.faces), (x, y)
+
+
+def test_v2_patch_sheets_have_real_backing_and_slab_has_edge_beam():
+    from modeling.slum03.architecture_detail import detailed_ruin
+    from modeling.slum03.types import Placement
+    def build(variant):
+        return detailed_ruin(Placement('repair-test', 'ruins-west', 'ruin', (0.,0.,0.),
+                                      (8.,12.,8.), 0., 'district',
+                                      {'detail_profile':'v2','variant':variant}), 260927)
+    bay = build('slab_bay')
+    slab = next(p for p in bay.parts if p.name == 'projecting-slab')
+    beam = next(p for p in bay.parts if p.name == 'under-slab-beam')
+    bottom = min(v[1] for v in slab.vertices)
+    assert max(v[1] for v in beam.vertices) >= bottom-.02
+    patch = build('patched_facade')
+    sheets = [p for p in patch.parts if p.name == 'bolted-patch']
+    assert len(sheets) == 2
+    anchors = [p for p in patch.parts if p.name == 'patch-fastener']
+    assert len(anchors) >= 2
+    for sheet in sheets:
+        assert any(all(min(v[i] for v in anchor.vertices) <= max(v[i] for v in sheet.vertices)
+                           and min(v[i] for v in sheet.vertices) <= max(v[i] for v in anchor.vertices)
+                           for i in range(3)) for anchor in anchors)
+
+
+def test_v2_service_extension_contacts_parent_pier_without_overhanging_lot():
+    from modeling.slum03.architecture_detail import detailed_ruin
+    from modeling.slum03.types import Placement
+    p = Placement('extension-test', 'ruins-west', 'ruin', (0.,0.,0.),
+                  (8.,12.,8.), 0., 'district',
+                  {'detail_profile':'v2','variant':'service_core'})
+    a = detailed_ruin(p, 260927)
+    core = next(part for part in a.parts if part.name == 'external-service-core')
+    lo, hi = bounds([core])
+    assert lo[1] == 0
+    rear = [part for part in a.parts if part.name == 'structural-pier'
+            and min(v[2] for v in part.vertices) < -3]
+    assert any(all(min(v[i] for v in post.vertices) < hi[i]
+                       and max(v[i] for v in post.vertices) > lo[i]
+                       for i in range(3)) for post in rear)

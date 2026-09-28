@@ -71,4 +71,7 @@ def _shell(p):
 
 
 def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
-    return [_shell(p) for p in layout.placements if p.sector == sector and p.kind == 'ruin']
+    from .architecture_detail import detailed_ruin
+    return [(detailed_ruin(p, layout.seed) if p.params.get('detail_profile') == 'v2'
+             else _shell(p)) for p in layout.placements
+            if p.sector == sector and p.kind == 'ruin']

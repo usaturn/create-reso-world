@@ -98,4 +98,7 @@ def _shack(p):
 
 
 def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
-    return [_shack(p) for p in layout.placements if p.sector == sector and p.kind == 'shack']
+    from .architecture_detail import detailed_shack
+    return [(detailed_shack(p, layout.seed) if p.params.get('detail_profile') == 'v2'
+             else _shack(p)) for p in layout.placements
+            if p.sector == sector and p.kind == 'shack']
