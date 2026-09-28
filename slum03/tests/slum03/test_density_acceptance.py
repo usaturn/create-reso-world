@@ -56,3 +56,37 @@ def test_density_summary_keeps_legacy_and_strict_forest_failures_independent():
     assert pending['density']['status'] == 'pending' and pending['status'] == 'pending'
     full_layout = replace(layout, density=replace(layout.density, stage='full'))
     assert summarize_density_delivery(full_layout, {}, {'manifest_sha256': HASH}, record())['density']['status'] == 'fail'
+
+
+def test_portability_requires_current_manifest_saved_and_reloaded_for_both_stages():
+    representative = read_layout(Path('content/slum03/density-representative-layout.json'))
+    full = replace(representative, density=replace(representative.density, stage='full'))
+    for layout in (representative, full):
+        checks = {key: {'status': 'pass', 'evidence': [f'{key}.json']} for key in
+                  ('apply', 'reapply', 'structure', 'visual', 'walk', 'portability', 'resources')}
+        checks['forest'] = {'status': 'pass', 'evidence': ['forest.json']}
+        checks['manifest_sha256'] = HASH
+        confirmed = record(stage=layout.density.stage)
+        for port in ({}, {'save_reload_status': 'pass', 'saved_manifest_sha256': 'b'*64, 'reloaded_manifest_sha256': HASH},
+                     {'save_reload_status': 'pass', 'saved_manifest_sha256': HASH, 'reloaded_manifest_sha256': 'b'*64},
+                     {'save_reload_status': 'timeout', 'saved_manifest_sha256': HASH, 'reloaded_manifest_sha256': HASH}):
+            checks['portability']['details'] = port
+            summary = summarize_density_delivery(layout, {}, checks, confirmed)
+            assert summary['density']['status'] == 'pass'
+            assert summary['checks']['portability']['status'] == 'pending'
+            assert summary['status'] != 'pass'
+        checks['portability']['details'] = {'save_reload_status': 'pass',
+            'saved_manifest_sha256': HASH, 'reloaded_manifest_sha256': HASH}
+        summary = summarize_density_delivery(layout, {}, checks, confirmed)
+        assert summary['checks']['portability']['status'] == 'pass'
+        # All seven legacy checks and forest pass; build still remains independent/pending.
+        assert summary['status'] == 'pending'
+
+
+def test_full_confirmation_does_not_fill_pending_walk_resources():
+    layout = read_layout(Path('content/slum03/density-representative-layout.json'))
+    full = replace(layout, density=replace(layout.density, stage='full'))
+    result = summarize_density_delivery(full, {}, {'manifest_sha256': HASH}, record(stage='full'))
+    assert result['density']['status'] == 'pass'
+    assert result['checks']['walk']['status'] == result['checks']['resources']['status'] == 'pending'
+    assert result['status'] == 'pending'

@@ -9,15 +9,24 @@ from pathlib import Path
 from .native.common import slot_key_by_name
 from .types import Layout, Manifest, Vec3
 
-# Eye positions in local Resonite coordinates, looking inward to real selected
-# placements; near eyes are 3m from nominal facade, street eyes are wider.
-# The position of each camera is derived from the saved Layout, not the old run.
+# Root-local camera targets are derived from the evaluated part bounds in the
+# saved representative build, not from the size of an enclosing sector box.
+# The additional near pairs view different physical surfaces from identical
+# baseline/candidate poses; the street cameras show the whole facade/context.
 _DENSITY_VIEWS = (
-    ('density-ruin-near', 'ruin-west', (12, 1.6, 3), (0, 5, 0)),
-    ('density-shack-near', 'shack-row', (0, 1.6, 9), (0, 2.3, 0)),
-    ('density-market-inward', 'market-west', (0, 1.6, 5), (0, 1.5, 0)),
-    ('density-west-street', 'ruin-west', (18, 1.6, 3), (0, 8, 0)),
-    ('density-east-lane', 'market-west', (12, 1.6, 16), (0, 1.5, 0)),
+    # Patch by southwest pier; the old near camera saw through an empty bay.
+    ('density-ruin-near', 'ruin-west', (-5, 1.6, -11), (-7.2, .6, -8)),
+    # Entrance view looks diagonally through the doorway at the washing station.
+    ('density-shack-near', 'shack-row', (1, 1.6, 8.5), (-6.5, .65, -5)),
+    ('density-shack-washing-near', 'shack-row', (-4.5, 1.6, -3.2), (-6.5, .6, -5)),
+    ('density-shack-context', 'shack-row', (13, 1.6, 9), (0, 2, 0)),
+    # Two independent but individually synchronized near pairs distinguish a
+    # former side shelf from a new rear shelf; neither image is substituted.
+    ('density-market-inward', 'market-west', (7, 1.6, 2), (.5, 1.3, -3)),
+    ('density-market-shelf-front', 'market-west', (1.5, 1.6, -.7), (.5, 1.3, -5)),
+    ('density-market-old-stock-near', 'market-west', (5.5, 1.6, 0), (2.3, 1.4, 0)),
+    ('density-west-street', 'ruin-west', (20, 1.6, -27), (0, 13, 0)),
+    ('density-east-lane', 'market-west', (8.5, 1.6, 14), (1, 1.4, 0)),
 )
 
 

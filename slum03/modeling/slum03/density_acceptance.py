@@ -44,7 +44,8 @@ def validate_acceptance(record: Report, manifest_sha256: str, stage: str) -> lis
 def summarize_density_delivery(layout: Layout, build_reports: Mapping[str, Report],
                                live_results: Mapping[str, object], acceptance: Report) -> Report:
     """Never replace legacy seven checks, strict audit or forest by density status."""
-    legacy = summarize_delivery(layout, build_reports, live_results)
+    legacy = summarize_delivery(layout, build_reports, live_results,
+                                manifest_sha256=live_results.get('manifest_sha256'))
     stage = layout.density.stage if layout.density else ''
     issues = validate_acceptance(acceptance, live_results.get('manifest_sha256'), stage)
     claimed = acceptance.get('status') if isinstance(acceptance, Mapping) else None

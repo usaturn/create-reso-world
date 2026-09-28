@@ -121,6 +121,13 @@ def comparison_poses(cameras, root_position):
             for key, c in cameras.items()}
 
 
+def preview_quality(shared: bool) -> dict:
+    """Keep the old quick preview unchanged; density images need legible parts."""
+    return {'resolution': (960, 640) if shared else (640, 400),
+            'samples': 64 if shared else 8, 'denoise': bool(shared),
+            'exposure': .8, 'fill_watts': 550 if shared else 0}
+
+
 def preview(output_dir: Path, *, sector: str | None = None, layout: Layout | None = None,
             cameras: dict | None = None, source_dir: Path | None = None) -> dict:
     import bpy
@@ -155,9 +162,12 @@ def preview(output_dir: Path, *, sector: str | None = None, layout: Layout | Non
     light = bpy.data.objects.new('Preview sun', light_data)
     scene.collection.objects.link(light)
     light.rotation_euler = (.4, -.35, -.5)
-    scene.render.engine = 'CYCLES'; scene.cycles.samples = 24 if cameras else 8
+    quality = preview_quality(bool(cameras))
+    scene.render.engine = 'CYCLES'; scene.cycles.samples = quality['samples']
+    if cameras:
+        bpy.context.view_layer.cycles.use_denoising = quality['denoise']
     scene.view_settings.exposure = .8
-    scene.render.resolution_x = 640; scene.render.resolution_y = 400
+    scene.render.resolution_x, scene.render.resolution_y = quality['resolution']
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = 'PNG'
     eyes = {v.key: v.eye for v in layout.viewpoints}
@@ -184,10 +194,10 @@ def preview(output_dir: Path, *, sector: str | None = None, layout: Layout | Non
         camera.location = resonite_to_blender(eye)
         direction = Vector(resonite_to_blender(target)) - camera.location
         camera.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
-        scene.view_settings.exposure = 1.6 if shared or view in ('west-detail', 'south-detail') else .8
+        scene.view_settings.exposure = quality['exposure'] if shared else (1.6 if view in ('west-detail', 'south-detail') else .8)
         if shared:
             fill = bpy.data.lights.new(f'Diagnostic camera fill {view}', 'AREA')
-            fill.energy = 1200; fill.shape = 'DISK'; fill.size = 5
+            fill.energy = quality['fill_watts']; fill.shape = 'DISK'; fill.size = 5
             fill_obj = bpy.data.objects.new(f'Diagnostic camera fill {view}', fill)
             scene.collection.objects.link(fill_obj)
             fill_obj.location = camera.location
@@ -206,7 +216,7 @@ def preview(output_dir: Path, *, sector: str | None = None, layout: Layout | Non
     bpy.ops.wm.save_as_mainfile(filepath=str(scene_file.resolve()))
     result = {'status': 'offline-preview', 'scene': str(scene_file), 'source': str(base), 'sector': sector,
               'visibility': visibility, 'cameras': evidence, 'labels': 0 if sector else len(layout.labels),
-              'layout_seed': layout.seed}
+              'layout_seed': layout.seed, 'render': quality if shared else None}
     (output_dir / 'preview-report.json').write_text(json.dumps(result, indent=2, ensure_ascii=False) + '\n')
     if not sector and not all(visibility['pass'].values()):
         raise RuntimeError(f'combined real-mesh sightlines failed: {visibility}')

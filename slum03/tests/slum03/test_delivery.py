@@ -114,16 +114,16 @@ def test_canonical_manifest_is_portable_and_contains_live_qa():
     assert manifest['slot']['position'] == [0, 4.5, 0]
     assert len(manifest['cameras']) == 6 and manifest['tests']
     assert all(not Path(a['source']).is_absolute() and
-               (path.parent / a['source']).is_file() and
-               'finalfix-m-20260928T0511' in a['source']
+               (path.parent / a['source']).is_file()
                for a in manifest['assets'].values())
 
 
 def test_baseline_fixture_retains_original_mesh_count():
     baseline = json.loads(Path('content/slum03/density-baseline.json').read_text())
     assert len([a for a in baseline['assets'].values() if a['kind'] == 'mesh']) == 150
-    assert hashlib.sha256(Path('content/slum03/density-baseline.json').read_bytes()).hexdigest() == hashlib.sha256(
-        Path('content/slum03/slum03.json').read_bytes()).hexdigest()
+    assert all('finalfix-m-20260928T0511' in asset['source'] for asset in baseline['assets'].values())
+    assert hashlib.sha256(Path('content/slum03/density-baseline.json').read_bytes()).hexdigest() == (
+        '2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec')
 
 
 def test_plural_live_warnings_with_valid_evidence_remain_pending():

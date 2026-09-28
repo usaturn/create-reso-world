@@ -37,9 +37,17 @@ def _status(value: Any) -> dict[str, Any]:
 
 
 def summarize_delivery(layout: Layout, build_reports: Mapping[str, Report],
-                       live_results: Mapping[str, Any]) -> Report:
+                       live_results: Mapping[str, Any], *, manifest_sha256: str | None = None) -> Report:
     """An offline build and import cannot substitute for seven independent live checks."""
     checks = {key: _status(live_results.get(key)) for key in LIVE_CHECKS}
+    if manifest_sha256 is not None and checks['portability']['status'] == 'pass':
+        details = checks['portability']['details']
+        if (details.get('save_reload_status') != 'pass' or
+                details.get('saved_manifest_sha256') != manifest_sha256 or
+                details.get('reloaded_manifest_sha256') != manifest_sha256):
+            checks['portability']['status'] = 'pending'
+            checks['portability']['details']['warning'] = 'save/reload not confirmed for current manifest'
+
     missing = [sector for sector in SECTORS if sector not in build_reports]
     errors = {sector: report.get('errors') for sector, report in build_reports.items()
               if isinstance(report, Mapping) and report.get('errors')}
