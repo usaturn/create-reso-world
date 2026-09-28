@@ -132,3 +132,43 @@ def test_both_shelves_have_real_contact_with_each_upright_and_brace(w, d):
             assert all(abs(sum(v[i] for v in end)/6 -
                            sum(v[i] for v in upright.vertices[:8])/8) < .02
                        for i in (0, 2))
+
+
+def _segment_gap(a0, a1, b0, b1):
+    """Shortest Euclidean distance between finite 3D axis segments."""
+    u = tuple(a1[i]-a0[i] for i in range(3))
+    v = tuple(b1[i]-b0[i] for i in range(3))
+    w = tuple(a0[i]-b0[i] for i in range(3))
+    dot = lambda p, q: sum(p[i]*q[i] for i in range(3))
+    clamp = lambda value: max(0., min(1., value))
+    aa, bb, cc = dot(u, u), dot(u, v), dot(v, v)
+    dd, ee = dot(u, w), dot(v, w)
+    denom = aa*cc-bb*bb
+    s = clamp((bb*ee-cc*dd)/denom) if denom > 1e-12 else 0.
+    t = clamp((bb*s+ee)/cc)
+    s = clamp((bb*t-dd)/aa)
+    return sum((w[i]+s*u[i]-t*v[i])**2 for i in range(3))**.5
+
+
+@pytest.mark.parametrize('seed', [260927, 260928])
+def test_electronics_antenna_tubes_clear_real_upper_shelf_braces(seed):
+    # A collision reintroduced by moving braces inside the boards must fail
+    # even when stock is deterministically jittered in either direction.
+    from modeling.slum03.market_detail import detailed_stall
+    stall = detailed_stall(sample('electronics', 2.5, 3.), seed)
+    antennas = [part for part in stall.parts if part.name == 'antenna']
+    braces = [part for part in stall.parts if part.name == 'shelf-brace']
+    assert len(antennas) == 4 and len(braces) == 4
+    for antenna in antennas:
+        for brace in braces:
+            # Both are 6-sided two-ring tubes. Use face vertices for center
+            # lines AND physical radii, not group bounds or mere names.
+            arings = (antenna.vertices[:6], antenna.vertices[6:12])
+            brings = (brace.vertices[:6], brace.vertices[6:12])
+            def center(ring):
+                return tuple(sum(vertex[i] for vertex in ring)/len(ring) for i in range(3))
+            a0, a1 = (center(r) for r in arings)
+            b0, b1 = (center(r) for r in brings)
+            ar = math.dist(arings[0][0], a0)
+            br = math.dist(brings[0][0], b0)
+            assert _segment_gap(a0, a1, b0, b1) > ar+br+.003

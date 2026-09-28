@@ -25,7 +25,7 @@ def _electronic(motif: int) -> list[MeshData]:
                 box('monitor-neck', (0, .09, -.01), (.04, .12, .04), 'steel_bare')]
     return [box('radio-base', (0, .09, 0), (.25, .18, .23), 'steel_dark'),
             box('radio-dial', (-.065, .13, .122), (.07, .07, .02), 'glass_dark'),
-            tube('antenna', [(.085, .18, -.07), (.13, .45, -.09)], .013, 6, 'steel_bare')]
+            tube('antenna', [(-.085, .18, -.07), (-.055, .45, -.09)], .013, 6, 'steel_bare')]
 
 
 def _tool(motif: int) -> list[MeshData]:
