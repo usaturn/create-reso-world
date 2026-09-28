@@ -96,3 +96,39 @@ def test_unknown_market_variant_rejected():
     from modeling.slum03.market_detail import detailed_stall
     with pytest.raises(ValueError, match='variant'):
         detailed_stall(sample('generic'), 260927)
+
+
+@pytest.mark.parametrize('w,d', [(2.5, 3.), (4., 5.)])
+def test_both_shelves_have_real_contact_with_each_upright_and_brace(w, d):
+    # Moving a support even 15 mm clear of the shelf must fail: inspect actual
+    # tube cross-sections and brace vertices against each slab's face bounds.
+    from modeling.slum03.market_detail import detailed_stall
+    stall = detailed_stall(sample('electronics', w, d), 260927)
+    shelves = [part for part in stall.parts if part.name == 'shelf']
+    uprights = [part for part in stall.parts if part.name == 'shelf-upright']
+    braces = [part for part in stall.parts if part.name == 'shelf-brace']
+    assert len(shelves) == len(uprights) == 2 and len(braces) == 4
+    for shelf in shelves:
+        lo, hi = bounds([shelf])
+        def in_slab(v):
+            return all(lo[i]+1e-5 < v[i] < hi[i]-1e-5 for i in (0, 1, 2))
+        for upright in uprights:
+            # Ring at the base describes the same XZ cross-section at shelf
+            # elevation. The tube also traverses the entire slab in Y.
+            ring = upright.vertices[:8]
+            assert min(v[1] for v in upright.vertices) < lo[1] < hi[1] < max(
+                v[1] for v in upright.vertices)
+            assert any(lo[0]+1e-5 < v[0] < hi[0]-1e-5 and
+                       lo[2]+1e-5 < v[2] < hi[2]-1e-5 for v in ring)
+            # The diagonal touches the slab and returns to this upright.
+            center_x = sum(v[0] for v in ring)/len(ring)
+            matches = [brace for brace in braces if
+                       abs(sum(v[0] for v in brace.vertices[:6])/6-center_x) < .015 and
+                       abs(sum(v[1] for v in brace.vertices[:6])/6-(hi[1]-.06)) < .015]
+            assert len(matches) == 1
+            brace = matches[0]
+            assert any(in_slab(v) for v in brace.vertices[:6])
+            end = brace.vertices[-6:]
+            assert all(abs(sum(v[i] for v in end)/6 -
+                           sum(v[i] for v in upright.vertices[:8])/8) < .02
+                       for i in (0, 2))

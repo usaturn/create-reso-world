@@ -59,3 +59,31 @@ def test_merchandise_can_be_translated_to_support_without_extra_export_slots():
     assert len([g for g in stall.meta['detail_groups'] if g['category'] == 'merchandise']) == len(stock)
     assert all(any(part.vertices for part in item.parts) for item in stock)
     assert stall.kind == 'stall'  # no additional assembly/Slot for each chip or commodity
+
+
+def test_pump_elbow_rings_remain_continuous_without_crossing_opposite_edges():
+    # A perpendicular-axis heuristic flips the first ring 180 degrees at the
+    # vertical-to-horizontal bend. Check the actual mesh, not its part name.
+    from modeling.slum03.merchandise import stock_items
+    items = stock_items(sample('reclaimed_equipment'), 260927)
+    pumps = [part for item in items for part in item.parts if part.name == 'pump-elbow']
+    assert len(pumps) == 4
+    for part in pumps:
+        assert len(part.vertices) == 3*8
+        rings = [part.vertices[k*8:(k+1)*8] for k in range(3)]
+        centers = [tuple(sum(vertex[axis] for vertex in ring)/8 for axis in range(3))
+                   for ring in rings]
+        for k in (0, 1):
+            for j in range(8):
+                first, second = rings[k][j], rings[k+1][j]
+                a = tuple(first[i]-centers[k][i] for i in range(3))
+                b = tuple(second[i]-centers[k+1][i] for i in range(3))
+                radius = sum(v*v for v in a)**.5
+                # Adjacent radial sections must track the same side of the tube.
+                assert sum(a[i]*b[i] for i in range(3)) > radius**2*.5
+                opposite_a, opposite_b = rings[k][(j+4)%8], rings[k+1][(j+4)%8]
+                mid = tuple((first[i]+second[i])/2 for i in range(3))
+                other_mid = tuple((opposite_a[i]+opposite_b[i])/2 for i in range(3))
+                assert sum((mid[i]-other_mid[i])**2 for i in range(3))**.5 > radius
+                # One polygon connects each pair of consecutive section edges.
+                assert any({k*8+j, (k+1)*8+j} <= set(face) for face in part.faces)

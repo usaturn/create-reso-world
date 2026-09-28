@@ -77,7 +77,7 @@ def _reclaimed(motif: int) -> list[MeshData]:
     return [box('pump-foot', (0, .025, 0), (.25, .05, .22), 'steel_dark'),
             box('pump-case', (0, .125, -.02), (.18, .18, .17), 'paint_yellow_faded'),
             tube('pump-elbow', [(0, .16, .04), (0, .26, .04), (.09, .26, .04)],
-                 .024, 8, 'steel_bare')]
+                 .024, 8, 'steel_bare', ref=(0., 0., 1.))]
 
 
 _BUILDERS = {'electronics': _electronic, 'tools': _tool,

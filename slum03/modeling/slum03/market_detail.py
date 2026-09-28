@@ -67,7 +67,9 @@ def detailed_stall(p: Placement, seed: int) -> Assembly:
     shelf_z = -d/2+.82
     shelf_depth = .8
     rear_z = -d/2+.48
-    for x in (x0, x1):
+    shelf_half = (w-.6)/2
+    support_x = shelf_half-.025  # Upright and brace tubes penetrate the shelf edge.
+    for x in (-support_x, support_x):
         add('architecture', f'shelf-upright-{x:.2f}',
             tube('shelf-upright', [(x, .04, rear_z), (x, 2.45, rear_z)],
                  .045, 8, 'steel_dark'))
@@ -76,7 +78,7 @@ def detailed_stall(p: Placement, seed: int) -> Assembly:
             box('shelf', (0, top-.05, shelf_z), (w-.6, .1, shelf_depth), 'pallet_wood'),
             box('shelf-lip', (0, top-.025, shelf_z+shelf_depth/2-.025),
                 (w-.6, .05, .05), 'steel_dark'))
-        for x in (x0, x1):
+        for x in (-support_x, support_x):
             add('architecture', f'shelf-brace-{row}-{x:.2f}',
                 tube('shelf-brace', [(x, top-.06, shelf_z+.31),
                                      (x, top-.43, rear_z)], .034, 6, 'rust_dark'),
