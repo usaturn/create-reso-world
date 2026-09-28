@@ -221,20 +221,20 @@ def test_hook_uv_issue_alone_blocks_export(tmp_path):
 def test_hook_report_bounds_and_counts_include_evaluated_modifier(tmp_path):
     import json
     import subprocess
-    script = tmp_path / 'solidify_hook.py'
+    script = tmp_path / 'displace_hook.py'
     script.write_text(
         'import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n'
         'import bpy, bmesh\nfrom modeling.slum03 import sectors, build, blender_io, geometry as g\n'
         'def hooked(bpy, layout, materials, source, export):\n'
-        '    sheet = g.mesh("sheet", [(0,0,0),(0,0,1),(1,0,0)], [(0,1,2)], "rust")\n'
+        '    sheet = g.mesh("sheet", [(0,0,0),(0,0,1),(1,0,0),(1,0,1)], [(0,1,2),(2,1,3)], "rust")\n'
         '    merged = g.merge_assembly(g.Assembly("sheet", "thick-hook", "ground", (0,0,0), [sheet]))\n'
         '    obj, issues = blender_io.create_object(bpy, bmesh, merged, (0,0,0), materials)\n'
         '    assert not issues\n'
-        '    mod = obj.modifiers.new("Thickness", "SOLIDIFY")\n'
-        '    mod.thickness = 1\n    mod.offset = 1\n'
+        '    mod = obj.modifiers.new("Raised", "DISPLACE")\n'
+        '    mod.direction = "Z"\n    mod.strength = 1\n    mod.mid_level = 0\n'
         '    export.objects.link(obj)\n    return [obj], {}\n'
         'sectors.BLENDER_HOOKS["ground"] = hooked\n'
-        f'build.write_scene("ground", Path({str(tmp_path / "solid.blend")!r}))\n')
+        f'build.write_scene("ground", Path({str(tmp_path / "displaced.blend")!r}))\n')
     subprocess.run(['resoloop', 'blender', 'run', str(script), '--json'],
                    check=True, capture_output=True, text=True)
     report = json.loads((tmp_path / 'ground-report.json').read_text())

@@ -89,10 +89,16 @@ def _text_mesh(bpy, font, text, name, size, offset, material, source, export, wa
     mesh.materials.append(material)
     uv = mesh.uv_layers.get('UV0') or mesh.uv_layers.new(name='UV0')
     uv.active_render = True
+    from .uv import metric_face_uvs
     for polygon in mesh.polygons:
-        for li in polygon.loop_indices:
-            co = mesh.vertices[mesh.loops[li].vertex_index].co
-            uv.data[li].uv = (co.x * .25, co.y * .25)
+        loops = list(polygon.loop_indices)
+        points = [mesh.vertices[mesh.loops[li].vertex_index].co for li in loops]
+        # Front/back retain their planar lettering projection. Extruded glyph
+        # edges need face-local coordinates; XY alone collapses their UV area.
+        coords = (metric_face_uvs(points, polygon.normal, .25) if abs(polygon.normal.z) < .5
+                  else [(co.x * .25, co.y * .25) for co in points])
+        for li, uv_coord in zip(loops, coords):
+            uv.data[li].uv = uv_coord
     copy = bpy.data.objects.new(name, mesh)
     copy.matrix_world = author.matrix_world.copy()
     copy['graffiti_text'] = text

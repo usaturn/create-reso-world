@@ -13,6 +13,9 @@ def corrupt(*args, **kwargs):
     if mode == 'uv':
         for layer in tuple(copy.data.uv_layers):
             copy.data.uv_layers.remove(layer)
+    elif mode in ('uv-flat', 'uv-nan'):
+        for loop in copy.data.uv_layers.active.data:
+            loop.uv = (0., 0.) if mode == 'uv-flat' else (float('nan'), 0.)
     elif mode == 'material':
         copy.data.materials.clear()
     else:

@@ -16,7 +16,7 @@ def ad_placements() -> tuple[Placement, ...]:
 def ad_labels() -> tuple[LabelSpec, ...]:
     return (
         LabelSpec('product-copy', 'AUGMENT', 'market-product-holo',
-                  (0, -1, 1.35), 0., .9, (.3, 1., 1., 1.)),
+                  (0, 1, 1.35), 0., .9, (.3, 1., 1., 1.)),
         LabelSpec('info-copy', 'NIGHT SHIFT', 'nightlife-info-ad',
                   (0, 1, -0.9), 180., 1., (1., .3, .8, 1.)),
         LabelSpec('ribbon-copy', 'LIVE', 'east-lane-ribbon',

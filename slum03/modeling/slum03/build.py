@@ -152,8 +152,34 @@ def write_scene(sector: str, output: Path) -> Report:
             report['evaluated_bounds'][obj.name] = {
                 'minimum': [min(p[i] for p in points) for i in (0, 2, 1)],
                 'maximum': [max(p[i] for p in points) for i in (0, 2, 1)]}
-            if not mesh.uv_layers or not any(layer.active_render for layer in mesh.uv_layers):
+            uv0 = next((layer for layer in mesh.uv_layers if layer.active_render), None)
+            if uv0 is None:
                 errors.append(asdict(Issue('UV_MISSING', obj.name, 'evaluated UV0 absent')))
+            else:
+                invalid_uv = False
+                for poly in mesh.polygons:
+                    loops = list(poly.loop_indices)
+                    coords = [uv0.data[i].uv for i in loops]
+                    if any(not math.isfinite(value) for uv in coords for value in uv):
+                        errors.append(asdict(Issue('UV_NONFINITE', obj.name,
+                                                   f'evaluated UV0 face {poly.index} has nonfinite coordinates')))
+                        invalid_uv = True
+                        break
+                    for k in range(1, len(loops) - 1):
+                        a, b, c = (mesh.vertices[mesh.loops[loops[j]].vertex_index].co
+                                   for j in (0, k, k + 1))
+                        xyz_area = (b - a).cross(c - a).length
+                        if xyz_area <= 2e-9:
+                            continue  # Geometrically collapsed triangles have no UV area to audit.
+                        u, v, w = (coords[j] for j in (0, k, k + 1))
+                        area = (v.x-u.x)*(w.y-u.y)-(v.y-u.y)*(w.x-u.x)
+                        if not math.isfinite(area) or abs(area) <= max(1e-14, xyz_area * 1e-4):
+                            errors.append(asdict(Issue('UV_DEGENERATE', obj.name,
+                                                       f'evaluated UV0 face {poly.index} has zero UV area')))
+                            invalid_uv = True
+                            break
+                    if invalid_uv:
+                        break
             if not mesh.materials or any(p.material_index >= len(mesh.materials) or
                                          mesh.materials[p.material_index] is None for p in mesh.polygons):
                 errors.append(asdict(Issue('MATERIAL_MISSING', obj.name, 'evaluated material missing')))

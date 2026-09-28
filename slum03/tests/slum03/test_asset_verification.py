@@ -125,3 +125,11 @@ def test_native_resource_attribution_uses_owned_placement_sector():
     assert counts['ground']['colliders'] == 1
     assert counts['yarol']['lights'] == 1
     assert counts['plaza']['lights'] == 0
+
+
+def test_evaluated_uv_coordinate_error_blocks_asset_verification():
+    reports = minimal_reports(build_layout())
+    reports['ground']['errors'] = [{'code': 'UV_DEGENERATE', 'object_key': 'ground',
+                                    'message': 'evaluated UV0 collapsed'}]
+    assert any(i.code == 'BUILD_ERROR' and i.object_key == 'ground'
+               for i in verify_assets(build_layout(), reports))

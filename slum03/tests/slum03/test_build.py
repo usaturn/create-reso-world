@@ -34,7 +34,9 @@ def test_fixed_label_faces_approved_positive_z_and_follows_anchor():
     assert run.returncode == 0, run.stdout + run.stderr
 
 
-@pytest.mark.parametrize('defect,code', [('uv','UV_MISSING'), ('material','MATERIAL_MISSING')])
+@pytest.mark.parametrize('defect,code', [
+    ('uv', 'UV_MISSING'), ('uv-flat', 'UV_DEGENERATE'),
+    ('uv-nan', 'UV_NONFINITE'), ('material', 'MATERIAL_MISSING')])
 def test_build_rejects_broken_evaluated_uv_or_material(defect, code, tmp_path):
     output = tmp_path / 'ground.blend'
     result = subprocess.run(['resoloop', '--command-timeout', '90', 'blender', 'run',
@@ -45,3 +47,12 @@ def test_build_rejects_broken_evaluated_uv_or_material(defect, code, tmp_path):
     report = json.loads((tmp_path / 'ground-report.json').read_text())
     assert any(e['code'] == code for e in report['errors'])
     assert not output.exists()
+
+
+def test_fixed_product_copy_is_unoccluded_at_designated_ar_eye():
+    scene = Path('artifacts/slum03/task11-c-20260927T2158/previews/combined-preview.blend')
+    assert scene.is_file()
+    result = subprocess.run(['resoloop', '--command-timeout', '90', 'blender', 'run',
+                             'tests/slum03/blender_copy_visibility_probe.py', '--blend', str(scene),
+                             '--json'], capture_output=True, text=True, timeout=105)
+    assert result.returncode == 0, result.stdout + result.stderr

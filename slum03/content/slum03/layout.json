@@ -95,7 +95,7 @@
       "key": "product-copy",
       "offset": [
         0,
-        -1,
+        1,
         1.35
       ],
       "parent_name": "market-product-holo",
