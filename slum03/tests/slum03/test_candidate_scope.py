@@ -14,10 +14,13 @@ LAYOUT = Path('content/slum03/density-representative-layout.json')
 
 def fixture(tmp_path):
     base = tmp_path / 'baseline.json'
-    draft = tmp_path / 'draft.json'
+    draft = tmp_path / 'fixture-raw-draft.json'
+    export = tmp_path / 'bundles' / 'fixture' / 'ground'
+    export.mkdir(parents=True)
     for name, payload in [('old.mesh.json', b'old'), ('new.mesh.json', b'new'),
                           ('untouched.mesh.json', b'untouched')]:
         (tmp_path / name).write_bytes(payload)
+        (export / name).write_bytes(payload)
     def obj(name, asset, material='shared'):
         return {'slot': {'key': 'object_' + name, 'name': name}, 'components': [
             {'key': 'mesh_' + name, 'type': 'FrooxEngine.StaticMesh', 'fields': {'URL': '$asset:' + asset}},
@@ -33,7 +36,8 @@ def fixture(tmp_path):
                              {'slot': {'key': 'providers', 'name': 'Providers'}, 'components': [
                                  {'key': 'shared', 'type': 'FrooxEngine.PBS_Metallic', 'fields': {'Color': [1, 0, 0]}}],
                               'children': []}, obj('shack-row', 'chosen'), obj('market-west', 'chosen')]}
-    b, d = manifest('old.mesh.json'), manifest('new.mesh.json')
+    b, d = manifest('old.mesh.json'), manifest('bundles/fixture/ground/new.mesh.json')
+    d['assets']['untouched']['source'] = 'bundles/fixture/ground/untouched.mesh.json'
     base.write_text(json.dumps(b)); draft.write_text(json.dumps(d))
     return base, draft, b, d
 
@@ -45,7 +49,7 @@ def test_protected_asset_sources_and_bytes_unchanged(tmp_path):
     candidate = json.loads(output.read_text())
     assert candidate['assets']['untouched']['source'] == 'untouched.mesh.json'
     assert (output.parent / candidate['assets']['untouched']['source']).read_bytes() == b'untouched'
-    assert candidate['assets']['chosen']['source'] == 'new.mesh.json'
+    assert candidate['assets']['chosen']['source'] == 'bundles/fixture/ground/new.mesh.json'
     assert not check_candidate_scope(b, candidate, read_layout(LAYOUT), tmp_path)
     assert candidate['children'][1] == b['children'][1]  # entire unselected subtree
     assert candidate['children'][2] == b['children'][2]  # shared provider unchanged
@@ -282,8 +286,10 @@ def test_selected_material_reaches_new_texture_provider_and_asset(tmp_path):
     for doc in (b, d):
         doc['children'].append({'slot': {'key': 'sector-market-blender_providers',
                                          'name': 'Blender_Providers'}, 'components': [], 'children': []})
-    (tmp_path / 'paint.png').write_bytes(b'png')
-    d['assets']['paint_map'] = {'kind': 'texture', 'source': 'paint.png'}
+    paint = tmp_path / 'bundles/fixture/market/paint.png'
+    paint.parent.mkdir(parents=True)
+    paint.write_bytes(b'png')
+    d['assets']['paint_map'] = {'kind': 'texture', 'source': 'bundles/fixture/market/paint.png'}
     d['children'][0]['components'][1]['fields']['Materials'].append('$component:new_paint')
     d['children'][-1]['children'].extend([
         {'slot': {'key': 'provider_new_paint', 'name': 'new_paint'}, 'components': [
@@ -295,7 +301,7 @@ def test_selected_material_reaches_new_texture_provider_and_asset(tmp_path):
     base.write_text(json.dumps(b)); draft.write_text(json.dumps(d))
     result = compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
     saved = json.loads((tmp_path / 'candidate.json').read_text())
-    assert saved['assets']['paint_map'] == {'kind': 'texture', 'source': 'paint.png'}
+    assert saved['assets']['paint_map'] == {'kind': 'texture', 'source': 'bundles/fixture/market/paint.png'}
     assert {n['slot']['key'] for n in saved['children'][-1]['children']} == {'provider_new_paint', 'provider_new_tex'}
     assert result['asset_sources']['paint_map']['origin'] == 'draft'
 
@@ -306,3 +312,49 @@ def test_new_node_with_selected_name_cannot_bypass_scope(tmp_path):
                           'components': [], 'children': []})
     issues = check_candidate_scope(b, d, read_layout(LAYOUT), tmp_path)
     assert any(i.code == 'SCOPE_NEW_NODE' and i.object_key == 'unrelated' for i in issues)
+
+
+def test_forged_selected_name_cannot_root_new_provider_reachability(tmp_path):
+    base, draft, baseline, candidate = fixture(tmp_path)
+    for manifest in (baseline, candidate):
+        manifest['children'].append({'slot': {'key': 'sector-market-blender_providers',
+                                               'name': 'Blender_Providers'}, 'components': [], 'children': []})
+    candidate['children'][-1]['children'].append({
+        'slot': {'key': 'provider_extra', 'name': 'ruin-west'},
+        'components': [
+            {'key': 'forged_mesh', 'type': 'FrooxEngine.StaticMesh',
+             'fields': {'URL': '$asset:chosen'}},
+            {'key': 'forged_render', 'type': 'FrooxEngine.MeshRenderer',
+             'fields': {'Mesh': '$component:forged_mesh', 'Materials': ['$component:forged_mat']}},
+            {'key': 'forged_mat', 'type': 'FrooxEngine.PBS_Metallic', 'fields': {}}],
+        'children': []})
+    issues = check_candidate_scope(baseline, candidate, read_layout(LAYOUT), tmp_path)
+    assert any(i.code == 'SCOPE_NEW_NODE' and i.object_key == 'provider_extra' for i in issues)
+    base.write_text(json.dumps(baseline)); draft.write_text(json.dumps(candidate))
+    with pytest.raises(ValueError, match='provider_extra'):
+        compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
+
+
+def test_unidentified_draft_name_cannot_disable_source_run_checks(tmp_path):
+    base, draft, baseline, candidate = fixture(tmp_path)
+    unidentifiable = tmp_path / 'draft.json'
+    unidentifiable.write_text(json.dumps(candidate))
+    with pytest.raises(ValueError, match='run|draft'):
+        compose_candidate(base, unidentifiable, read_layout(LAYOUT), tmp_path / 'candidate.json')
+    assert not (tmp_path / 'candidate.json').exists()
+
+
+def test_run_name_containing_raw_draft_and_revision_is_accepted(tmp_path):
+    base, _, baseline, candidate = fixture(tmp_path)
+    run = 'density-raw-draft-check'
+    folder = tmp_path / 'bundles' / run / 'ground'
+    folder.mkdir(parents=True)
+    for key, filename, payload in (('chosen', 'new.mesh.json', b'new'),
+                                   ('untouched', 'untouched.mesh.json', b'untouched')):
+        (folder / filename).write_bytes(payload)
+        candidate['assets'][key]['source'] = f'bundles/{run}/ground/{filename}'
+    draft = tmp_path / f'{run}-raw-draft-fix2.json'
+    draft.write_text(json.dumps(candidate))
+    result = compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
+    assert result['protected_changes'] == 0
+    assert json.loads((tmp_path / 'candidate.json').read_text())['assets']['untouched']['source'] == 'untouched.mesh.json'

@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 from .candidate_scope import (compose_candidate, check_candidate_scope, _file, _index,
-                              _reachable_components, _MATERIAL_TYPES)
+                              _reachable_components, _selected_roots, _MATERIAL_TYPES)
 from .density_metrics import density_report, layout_digest
 from .layout import read_layout
 from .pipeline import _reports, _count, merge_bundles, _refs
@@ -61,7 +61,8 @@ def prune_unmoved_reuse_stubs(raw: dict, baseline: dict, layout) -> tuple[dict, 
     result = copy.deepcopy(raw)
     old_nodes, old_comps = _index(baseline)
     new_nodes, new_comps = _index(result)
-    selected_refs = _reachable_components(new_nodes, new_comps, layout)
+    selected_roots = _selected_roots(old_nodes, new_nodes, layout)
+    selected_refs = _reachable_components(new_nodes, new_comps, selected_roots)
     evidence = []
     for key, (node, parent) in list(new_nodes.items()):
         if key in old_nodes or not parent or 'blender_providers' not in parent:

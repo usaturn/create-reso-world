@@ -46,14 +46,49 @@ def _asset_refs(node: dict) -> set[str]:
 def _selected(node: dict, layout: Layout) -> bool:
     name = node['slot'].get('name')
     key = node['slot']['key']
-    if name in layout.density.selected_keys:
-        return True
     if not key.startswith('collider-'):
-        return False
+        return name in layout.density.selected_keys
     suffix = key.removeprefix('collider-')
     owner = next((p.key for p in sorted(layout.placements, key=lambda p: len(p.key), reverse=True)
                   if suffix == p.key or suffix.startswith(p.key + '-')), None)
     return owner in layout.density.selected_keys
+
+
+def _selected_roots(baseline_nodes: dict, candidate_nodes: dict, layout: Layout) -> set[str]:
+    """Only baseline-confirmed placement Slots may start dependency traversal."""
+    roots = set()
+    for name in layout.density.selected_keys:
+        matches = [(key, parent) for key, (node, parent) in baseline_nodes.items()
+                   if node['slot'].get('name') == name]
+        if len(matches) != 1:
+            raise ValueError(f'selected baseline placement ambiguous or missing: {name}')
+        key, parent = matches[0]
+        candidate = candidate_nodes.get(key)
+        if candidate is None or candidate[1] != parent or candidate[0]['slot'].get('name') != name:
+            raise ValueError(f'selected placement identity missing or renamed: {name}')
+        roots.add(key)
+    return roots
+
+
+def _draft_run(draft_path: Path, draft: Manifest) -> str:
+    """Establish a unique run from every source AND the full draft filename."""
+    runs = set()
+    for entry in draft.get('assets', {}).values():
+        source = entry.get('source')
+        parts = source.split('/') if isinstance(source, str) else []
+        if len(parts) != 4 or parts[0] != 'bundles' or not all(parts[1:]):
+            raise ValueError(f'unrecognized raw draft source/run: {source}')
+        runs.add(parts[1])
+    if len(runs) != 1:
+        raise ValueError('raw draft needs one identifiable export run')
+    run = runs.pop()
+    prefix = f'{run}-raw-draft'
+    stem = draft_path.stem
+    revision = stem[len(prefix):] if stem.startswith(prefix) else None
+    if revision is None or (revision and (not revision.startswith('-') or
+            not revision[1:].replace('-', '').isalnum())):
+        raise ValueError(f'raw draft filename cannot identify export run: {draft_path.name}')
+    return run
 
 
 _MATERIAL_TYPES = frozenset({'FrooxEngine.PBS_Metallic', 'FrooxEngine.PBS_VertexColorMetallic'})
@@ -63,14 +98,14 @@ def _component_refs(value: object) -> set[str]:
     return {match[2] for match in _refs(value) if match[1] == 'component'}
 
 
-def _reachable_components(items: dict, components: dict, layout: Layout) -> set[str]:
+def _reachable_components(items: dict, components: dict, selected_roots: set[str]) -> set[str]:
     """Follow references only from selected render/mesh components, then their providers."""
     seeds = set()
-    for node, _ in items.values():
-        if _selected(node, layout):
-            for c in node.get('components', []):
-                if c['type'] in ('FrooxEngine.MeshRenderer', 'FrooxEngine.StaticMesh'):
-                    seeds.update(_component_refs(c))
+    for key in selected_roots:
+        node = items[key][0]
+        for c in node.get('components', []):
+            if c['type'] in ('FrooxEngine.MeshRenderer', 'FrooxEngine.StaticMesh'):
+                seeds.update(_component_refs(c))
     reached = set(seeds)
     pending = list(seeds)
     while pending:
@@ -156,7 +191,12 @@ def check_candidate_scope(baseline: Manifest, candidate: Manifest, layout: Layou
                 issues.append(Issue('SCOPE_ASSET_BYTES', key, 'protected asset bytes changed'))
         except (ValueError, KeyError, OSError) as exc:
             issues.append(Issue('SCOPE_ASSET_BYTES', key, str(exc)))
-    reachable = _reachable_components(cnodes, ccomps, layout)
+    try:
+        roots = _selected_roots(bnodes, cnodes, layout)
+    except ValueError as exc:
+        issues.append(Issue('SCOPE_IDENTITY', 'layout', str(exc)))
+        roots = set()
+    reachable = _reachable_components(cnodes, ccomps, roots)
     selected_new = {key for key, (n, parent) in cnodes.items()
                     if key not in bnodes and key.startswith('collider-') and parent in bnodes and
                     _selected(n, layout) and any(c['type'] == 'FrooxEngine.BoxCollider'
@@ -187,14 +227,9 @@ def compose_candidate(baseline_path: Path, draft_path: Path, layout: Layout, out
     dnodes, dcomps = _index(draft)
     if baseline['slot'] != draft['slot'] or baseline['ownership'] != draft['ownership']:
         raise ValueError('root changed in raw regeneration')
-    by_name = {n['slot'].get('name'): key for key, (n, _) in bnodes.items()}
-    selected_keys = set()
-    for name in layout.density.selected_keys:
-        key = by_name.get(name)
-        if key is None or key not in dnodes or dnodes[key][0]['slot'].get('name') != name or bnodes[key][1] != dnodes[key][1]:
-            raise ValueError(f'selected placement identity missing or renamed: {name}')
-        selected_keys.add(key)
-    selected_refs = _reachable_components(dnodes, dcomps, layout)
+    selected_roots = _selected_roots(bnodes, dnodes, layout)
+    selected_keys = set(selected_roots)
+    selected_refs = _reachable_components(dnodes, dcomps, selected_roots)
     relocated = set()
     for key, (node, parent) in bnodes.items():
         if key in dnodes and parent != dnodes[key][1] and key.startswith('provider_') and (
@@ -227,7 +262,7 @@ def compose_candidate(baseline_path: Path, draft_path: Path, layout: Layout, out
                                     'from_parent': parent, 'raw_parent': dnodes[key][1],
                                     'reason': 'identical selected-referenced material reused earlier in raw export'})
     for key, (node, parent) in dnodes.items():
-        if key in bnodes or _selected(node, layout):
+        if key in bnodes or (key.startswith('collider-') and _selected(node, layout)):
             continue
         if (key.startswith('provider_') and parent in bnodes and 'blender_providers' in parent and
                 node.get('components') and all(c['key'] in selected_refs for c in node['components'])):
@@ -258,19 +293,14 @@ def compose_candidate(baseline_path: Path, draft_path: Path, layout: Layout, out
     selected_assets = set().union(*(_asset_refs(bnodes[k][0]) for k in selected_keys)) if selected_keys else set()
     protected_assets = set(baseline['assets']) - selected_assets
     protected_assets.update(*( _asset_refs(n) for k, (n, _) in bnodes.items() if k not in selected_keys and k != 'root'))
-    run = draft_path.stem.split('-raw-draft', 1)[0] if '-raw-draft' in draft_path.stem else None
-    if run is not None:
-        for key, entry in draft['assets'].items():
-            source = entry.get('source', '')
-            if not isinstance(source, str) or not source.startswith(f'bundles/{run}/'):
-                raise ValueError(f'raw draft source belongs to another run: {key}: {source}')
+    run = _draft_run(draft_path, draft)
     for key in protected_assets:
         old = baseline['assets'].get(key)
         fresh = draft['assets'].get(key)
         if (old is None or fresh is None or
                 {k: v for k, v in old.items() if k != 'source'} !=
                 {k: v for k, v in fresh.items() if k != 'source'} or
-                (run is not None and old['source'].startswith('bundles/') and
+                (old['source'].startswith('bundles/') and
                  old['source'].split('/')[2:] != fresh['source'].split('/')[2:])):
             raise ValueError(f'unselected regenerated asset source/declaration changed: {key}')
         if _file(baseline_path.parent, old['source'])[1] != _file(draft_path.parent, fresh['source'])[1]:
