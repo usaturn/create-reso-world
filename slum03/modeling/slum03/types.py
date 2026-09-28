@@ -58,6 +58,35 @@ class LabelSpec:
 
 
 @dataclass(frozen=True)
+class DensityZone:
+    key: str
+    bounds: RectXZ
+
+
+@dataclass(frozen=True)
+class DensityOpening:
+    bounds: RectXZ
+    reason: str
+
+
+@dataclass(frozen=True)
+class DensityRoute:
+    key: str
+    purpose: str
+    corridor: RectXZ
+    openings: tuple[DensityOpening, ...]
+
+
+@dataclass(frozen=True)
+class DensityConfig:
+    stage: str
+    zones: tuple[DensityZone, ...]
+    routes: tuple[DensityRoute, ...]
+    branch_clearances: tuple[RectXZ, ...]
+    selected_keys: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Layout:
     seed: int
     district: RectXZ
@@ -67,6 +96,7 @@ class Layout:
     placements: tuple[Placement, ...]
     viewpoints: tuple[Viewpoint, ...]
     labels: tuple[LabelSpec, ...]
+    density: DensityConfig | None = None
 
     def select(self, kind: str) -> tuple[Placement, ...]:
         return tuple(p for p in self.placements if p.kind == kind)

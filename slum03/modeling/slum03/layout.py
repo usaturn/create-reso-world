@@ -10,7 +10,9 @@ from .layout_ads import ad_labels, ad_placements
 from .layout_district import district_labels, district_placements
 from .layout_environment import environment_placements
 from .spatial import placement_bounds, validate_clearance
-from .types import Issue, LabelSpec, Layout, Placement, RectXZ, Viewpoint
+from .types import (DensityConfig, DensityOpening, DensityRoute, DensityZone,
+                    Issue, LabelSpec, Layout, Placement, RectXZ, Viewpoint)
+from .density_model import validate_density_config
 
 
 VIEWPOINTS = (
@@ -159,6 +161,7 @@ def validate_layout(layout: Layout) -> list[Issue]:
                 not _finite((l.yaw_deg, l.height)) or
                 l.height <= 0):
             issues.append(Issue('LABEL', l.key, 'invalid or orphaned label'))
+    issues.extend(validate_density_config(layout))
     issues.extend(validate_clearance(layout, {key: placement_bounds(p)
                   for key, p in valid_placements.items()}))
     return issues
@@ -180,6 +183,19 @@ def read_layout(path: Path) -> Layout:
 
     data = json.loads(path.read_text(encoding='utf-8'), parse_constant=reject_constant)
     try:
+        density_data = data.get('density')
+        if density_data is not None and not isinstance(density_data.get('selected_keys'), list):
+            raise ValueError('density selected_keys must be a JSON array')
+        density = None if density_data is None else DensityConfig(
+            stage=density_data['stage'],
+            zones=tuple(DensityZone(z['key'], RectXZ(**z['bounds']))
+                        for z in density_data['zones']),
+            routes=tuple(DensityRoute(r['key'], r['purpose'], RectXZ(**r['corridor']),
+                                      tuple(DensityOpening(RectXZ(**o['bounds']), o['reason'])
+                                            for o in r['openings']))
+                         for r in density_data['routes']),
+            branch_clearances=tuple(RectXZ(**r) for r in density_data['branch_clearances']),
+            selected_keys=tuple(density_data['selected_keys']))
         rect = lambda r: RectXZ(**r)
         layout = Layout(
             seed=data['seed'], district=rect(data['district']),
@@ -193,8 +209,9 @@ def read_layout(path: Path) -> Layout:
                              for v in data['viewpoints']),
             labels=tuple(LabelSpec(l['key'], l['text'], l['parent_name'],
                                    tuple(l['offset']), l['yaw_deg'], l['height'],
-                                   tuple(l['color'])) for l in data['labels']))
-    except (KeyError, TypeError) as e:
+                                   tuple(l['color'])) for l in data['labels']),
+            density=density)
+    except (KeyError, TypeError, AttributeError) as e:
         raise ValueError('invalid layout JSON structure') from e
     issues = validate_layout(layout)
     if issues:
