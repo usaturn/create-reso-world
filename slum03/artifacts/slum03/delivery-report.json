@@ -1,0 +1,105 @@
+{
+  "status": "pending",
+  "checks": {
+    "apply": {
+      "status": "pending",
+      "evidence": [],
+      "details": {}
+    },
+    "reapply": {
+      "status": "pending",
+      "evidence": [],
+      "details": {}
+    },
+    "structure": {
+      "status": "pending",
+      "evidence": [],
+      "details": {}
+    },
+    "visual": {
+      "status": "pending",
+      "evidence": [],
+      "details": {}
+    },
+    "walk": {
+      "status": "pending",
+      "evidence": [],
+      "details": {}
+    },
+    "portability": {
+      "status": "pending",
+      "evidence": [],
+      "details": {}
+    },
+    "resources": {
+      "status": "pending",
+      "evidence": [
+        "artifacts/slum03/task11-fix2-20260928T0356/asset-summary.json"
+      ],
+      "details": {
+        "exportTotals": {
+          "triangles": 85980,
+          "vertices": 203220,
+          "materials": 94,
+          "drawSections": 560,
+          "meshes": 141,
+          "textures": 0,
+          "lights": 6,
+          "colliders": 34,
+          "advisoryWarnings": 149
+        },
+        "transparentLayers": {
+          "FresnelMaterialProviders": 6,
+          "measuredOverdraw": null
+        },
+        "advisoryWarnings": 149,
+        "runtimePerformanceMeasured": false
+      }
+    },
+    "build": {
+      "status": "pass",
+      "evidence": [
+        "artifacts/slum03/task11-fix2-20260928T0356/ground-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/plaza-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/ruins-west-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/ruins-north-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/ruins-east-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/market-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/shacks-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/nightlife-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/yarol-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/overhead-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/ads-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/road-river-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/forest-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/backdrop-north-report.json",
+        "artifacts/slum03/task11-fix2-20260928T0356/backdrop-west-south-report.json"
+      ],
+      "details": {
+        "missing": [],
+        "errors": {},
+        "warnings": {}
+      }
+    }
+  },
+  "layout_seed": 260927,
+  "phase": "pre-live",
+  "manifest": "content/slum03/slum03.json",
+  "buildEvidence": [
+    "artifacts/slum03/task11-fix2-20260928T0356/asset-summary.json",
+    "artifacts/slum03/task11-fix2-20260928T0356/previews/preview-report.json"
+  ],
+  "note": "Independent Blender assets verified offline; previews are not Resonite visual/walk proof. No live apply, reapply, structural test, capture, walk, save/reload or runtime performance proof.",
+  "timing": {
+    "started_at_utc": "2026-09-28T04:12:13+00:00",
+    "recorded_at_utc": "2026-09-28T04:21:25.576527+00:00",
+    "elapsed_seconds": 552,
+    "task_times_seconds": {
+      "requirements_and_source": 85,
+      "tdd_and_manifest": 175,
+      "report_and_reflection_attempt": 95,
+      "verification_review_commit_preparation": 112
+    },
+    "task_times_note": "Approximate overlapping phase attribution; not summed into elapsed. Final reporting/commit follows this snapshot."
+  }
+}

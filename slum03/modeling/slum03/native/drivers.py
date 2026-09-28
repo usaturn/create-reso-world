@@ -59,8 +59,11 @@ def scan_materials(manifest: dict, driven: dict, motion: dict) -> None:
             # cycles/s, not degrees/s or a whole-panel rotation. One tile of
             # TextureScale traversed each 1/rate seconds (verify in live QA).
             speed[axis] = motion['rate'] / MATERIALS[name].texture_scale[axis]
-            add_component(textures, {'key': f'panner-{clone["key"]}-{side.lower()}',
+            key = f'panner-{clone["key"]}-{side.lower()}'
+            holder = node(f'driver-{key}', key)
+            add_component(holder, {'key': key,
                                      'type': 'FrooxEngine.Panner2D',
                                      'identityFields': ['_target'],
                                      'fields': {'_target': f'$member:{clone["key"]}.{side}TextureOffset',
                                                 '_speed': speed, '_repeat': [1., 1.]}})
+            add_child(textures, holder)
