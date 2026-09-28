@@ -73,7 +73,7 @@ def _evidence(layout: Layout, reports: Mapping[str, Report], basis: str):
                                 'evaluated report missing or mismatching semantic Layout digest'))
             continue  # Never promote old geometry to the current Layout.
         for obj in report.get('objects', []):
-            key, mesh = obj.get('placement_key'), obj.get('mesh')
+            key, mesh = obj.get('placement_key') or obj.get('key'), obj.get('mesh')
             if key not in placements or not mesh:
                 continue
             raw = report.get('evaluated_bounds', {}).get(mesh)
@@ -86,7 +86,9 @@ def _evidence(layout: Layout, reports: Mapping[str, Report], basis: str):
                 if (len(b.minimum) != 3 or len(b.maximum) != 3 or
                         any(not isinstance(v, (int, float)) or not math.isfinite(v)
                             for v in (*b.minimum, *b.maximum)) or
-                        any(a >= c for a, c in zip(b.minimum, b.maximum))):
+                        b.minimum[0] >= b.maximum[0] or b.minimum[2] >= b.maximum[2] or
+                        b.minimum[1] > b.maximum[1] or
+                        (placements[key].kind in MAJOR and b.minimum[1] == b.maximum[1])):
                     raise ValueError('invalid bounds')
                 result[key].append(b)
             except (KeyError, TypeError, ValueError):

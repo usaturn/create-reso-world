@@ -1,0 +1,63 @@
+{
+  "sector": "nightlife",
+  "export_collection": "Slum03nightlifeExport",
+  "objects": [
+    {
+      "key": "nightlife-east",
+      "kind": "nightlife",
+      "mesh": "nightlife-east",
+      "vertices": 336,
+      "faces": 248
+    },
+    {
+      "key": "nightlife-velvet",
+      "kind": "nightlife",
+      "mesh": "nightlife-velvet",
+      "vertices": 336,
+      "faces": 248
+    }
+  ],
+  "evaluated_bounds": {
+    "nightlife-east": {
+      "minimum": [
+        31.049999237060547,
+        0.0,
+        -30.850000381469727
+      ],
+      "maximum": [
+        36.95000076293945,
+        11.0,
+        -15.074999809265137
+      ]
+    },
+    "nightlife-velvet": {
+      "minimum": [
+        37.04999923706055,
+        0.0,
+        -30.850000381469727
+      ],
+      "maximum": [
+        42.95000076293945,
+        11.0,
+        -15.074999809265137
+      ]
+    }
+  },
+  "materials": [
+    "Slum03_concrete_dark",
+    "Slum03_concrete_raw",
+    "Slum03_concrete_stained",
+    "Slum03_corrugated",
+    "Slum03_corrugated_rust",
+    "Slum03_neon_magenta",
+    "Slum03_neon_pink",
+    "Slum03_rust_dark",
+    "Slum03_steel_dark"
+  ],
+  "triangles": 1024,
+  "vertices": 672,
+  "submeshes": 16,
+  "uv_issues": [],
+  "errors": [],
+  "layout_sha256": "906d303ddf856f75951ab5fcc22b1fce3ec0b5d3df20560aa8d0213a5a92cc35"
+}

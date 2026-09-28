@@ -1,0 +1,683 @@
+{
+  "sector": "plaza",
+  "export_collection": "Slum03plazaExport",
+  "objects": [
+    {
+      "key": "factory-floor",
+      "kind": "floor",
+      "mesh": "factory-floor",
+      "vertices": 1208,
+      "faces": 305
+    },
+    {
+      "key": "north-wall",
+      "kind": "north-wall",
+      "mesh": "north-wall",
+      "vertices": 160,
+      "faces": 116
+    },
+    {
+      "key": "plaza-rubble-east-12-1",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-east-12-1",
+      "vertices": 38,
+      "faces": 60
+    },
+    {
+      "key": "plaza-rubble-east-12-2",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-east-12-2",
+      "vertices": 267,
+      "faces": 426
+    },
+    {
+      "key": "plaza-rubble-east-12-3",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-east-12-3",
+      "vertices": 153,
+      "faces": 246
+    },
+    {
+      "key": "plaza-rubble-east-12-6",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-east-12-6",
+      "vertices": 38,
+      "faces": 60
+    },
+    {
+      "key": "plaza-rubble-east-12-7",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-east-12-7",
+      "vertices": 615,
+      "faces": 986
+    },
+    {
+      "key": "plaza-rubble-north-10-8",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-north-10-8",
+      "vertices": 78,
+      "faces": 124
+    },
+    {
+      "key": "plaza-rubble-north-10-9",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-north-10-9",
+      "vertices": 269,
+      "faces": 430
+    },
+    {
+      "key": "plaza-rubble-north-2-9",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-north-2-9",
+      "vertices": 115,
+      "faces": 186
+    },
+    {
+      "key": "plaza-rubble-north-3-9",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-north-3-9",
+      "vertices": 115,
+      "faces": 186
+    },
+    {
+      "key": "plaza-rubble-north-8-9",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-north-8-9",
+      "vertices": 37,
+      "faces": 62
+    },
+    {
+      "key": "plaza-rubble-south-10-0",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-south-10-0",
+      "vertices": 537,
+      "faces": 862
+    },
+    {
+      "key": "plaza-rubble-south-2-0",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-south-2-0",
+      "vertices": 339,
+      "faces": 554
+    },
+    {
+      "key": "plaza-rubble-south-4-0",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-south-4-0",
+      "vertices": 37,
+      "faces": 62
+    },
+    {
+      "key": "plaza-rubble-south-8-0",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-south-8-0",
+      "vertices": 76,
+      "faces": 120
+    },
+    {
+      "key": "plaza-rubble-west-0-2",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-west-0-2",
+      "vertices": 572,
+      "faces": 920
+    },
+    {
+      "key": "plaza-rubble-west-0-3",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-west-0-3",
+      "vertices": 152,
+      "faces": 248
+    },
+    {
+      "key": "plaza-rubble-west-0-6",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-west-0-6",
+      "vertices": 156,
+      "faces": 248
+    },
+    {
+      "key": "plaza-rubble-west-0-7",
+      "kind": "rubble",
+      "mesh": "plaza-rubble-west-0-7",
+      "vertices": 78,
+      "faces": 124
+    },
+    {
+      "key": "north-wall-graffiti-black",
+      "kind": "graffiti",
+      "mesh": "north-wall-graffiti-black",
+      "vertices": 10560,
+      "faces": 7108
+    },
+    {
+      "key": "north-wall-graffiti-red",
+      "kind": "graffiti",
+      "mesh": "north-wall-graffiti-red",
+      "vertices": 10560,
+      "faces": 7932
+    },
+    {
+      "key": "north-wall-graffiti-drips",
+      "kind": "graffiti",
+      "mesh": "north-wall-graffiti-drips",
+      "vertices": 80,
+      "faces": 60
+    }
+  ],
+  "evaluated_bounds": {
+    "factory-floor": {
+      "minimum": [
+        -20.0,
+        -0.20000000298023224,
+        -15.0
+      ],
+      "maximum": [
+        20.0,
+        0.0,
+        15.0
+      ]
+    },
+    "north-wall": {
+      "minimum": [
+        -18.0,
+        0.0,
+        14.055000305175781
+      ],
+      "maximum": [
+        18.0,
+        9.649999618530273,
+        14.899999618530273
+      ]
+    },
+    "plaza-rubble-east-12-1": {
+      "minimum": [
+        16.845165252685547,
+        0.0,
+        -10.206525802612305
+      ],
+      "maximum": [
+        18.829673767089844,
+        1.2064836025238037,
+        -8.014820098876953
+      ]
+    },
+    "plaza-rubble-east-12-2": {
+      "minimum": [
+        16.996360778808594,
+        0.0,
+        -9.243297576904297
+      ],
+      "maximum": [
+        18.980104446411133,
+        1.2042416334152222,
+        -6.71045446395874
+      ]
+    },
+    "plaza-rubble-east-12-3": {
+      "minimum": [
+        16.700544357299805,
+        0.0,
+        -5.824158668518066
+      ],
+      "maximum": [
+        19.399627685546875,
+        1.5070472955703735,
+        -2.611921548843384
+      ]
+    },
+    "plaza-rubble-east-12-6": {
+      "minimum": [
+        17.24197006225586,
+        0.0,
+        4.069835186004639
+      ],
+      "maximum": [
+        18.22071075439453,
+        0.5060809254646301,
+        5.02390718460083
+      ]
+    },
+    "plaza-rubble-east-12-7": {
+      "minimum": [
+        16.485742568969727,
+        0.0,
+        5.777870178222656
+      ],
+      "maximum": [
+        19.25214958190918,
+        1.9935979843139648,
+        9.698301315307617
+      ]
+    },
+    "plaza-rubble-north-10-8": {
+      "minimum": [
+        10.080519676208496,
+        0.011505382135510445,
+        11.504729270935059
+      ],
+      "maximum": [
+        10.967046737670898,
+        0.6500540971755981,
+        12.52885913848877
+      ]
+    },
+    "plaza-rubble-north-10-9": {
+      "minimum": [
+        10.19987678527832,
+        0.0,
+        11.53587818145752
+      ],
+      "maximum": [
+        12.372772216796875,
+        1.1347630023956299,
+        13.672016143798828
+      ]
+    },
+    "plaza-rubble-north-2-9": {
+      "minimum": [
+        -11.765216827392578,
+        0.0,
+        11.775583267211914
+      ],
+      "maximum": [
+        -10.946799278259277,
+        0.783050537109375,
+        13.094868659973145
+      ]
+    },
+    "plaza-rubble-north-3-9": {
+      "minimum": [
+        -11.587662696838379,
+        0.0,
+        11.829439163208008
+      ],
+      "maximum": [
+        -9.706819534301758,
+        1.5022584199905396,
+        13.616758346557617
+      ]
+    },
+    "plaza-rubble-north-8-9": {
+      "minimum": [
+        3.616945743560791,
+        0.0,
+        11.582444190979004
+      ],
+      "maximum": [
+        4.6305060386657715,
+        0.7945200800895691,
+        12.603116035461426
+      ]
+    },
+    "plaza-rubble-south-10-0": {
+      "minimum": [
+        9.282242774963379,
+        0.0,
+        -14.647235870361328
+      ],
+      "maximum": [
+        13.05108642578125,
+        1.878355622291565,
+        -11.418060302734375
+      ]
+    },
+    "plaza-rubble-south-2-0": {
+      "minimum": [
+        -12.760013580322266,
+        0.0,
+        -14.48017406463623
+      ],
+      "maximum": [
+        -10.5001859664917,
+        1.3571776151657104,
+        -11.843998908996582
+      ]
+    },
+    "plaza-rubble-south-4-0": {
+      "minimum": [
+        -6.183138847351074,
+        0.0,
+        -13.530695915222168
+      ],
+      "maximum": [
+        -5.208605766296387,
+        0.7994451522827148,
+        -12.628191947937012
+      ]
+    },
+    "plaza-rubble-south-8-0": {
+      "minimum": [
+        3.821798324584961,
+        0.0,
+        -14.102673530578613
+      ],
+      "maximum": [
+        6.611783981323242,
+        1.2373713254928589,
+        -11.480583190917969
+      ]
+    },
+    "plaza-rubble-west-0-2": {
+      "minimum": [
+        -19.64849853515625,
+        0.0,
+        -9.423763275146484
+      ],
+      "maximum": [
+        -16.432567596435547,
+        1.928483486175537,
+        -6.5442304611206055
+      ]
+    },
+    "plaza-rubble-west-0-3": {
+      "minimum": [
+        -18.843135833740234,
+        0.0,
+        -6.187506675720215
+      ],
+      "maximum": [
+        -16.947725296020508,
+        1.3529070615768433,
+        -3.373976469039917
+      ]
+    },
+    "plaza-rubble-west-0-6": {
+      "minimum": [
+        -19.291879653930664,
+        0.02115829847753048,
+        2.316164016723633
+      ],
+      "maximum": [
+        -17.24905014038086,
+        1.60529625415802,
+        6.291651725769043
+      ]
+    },
+    "plaza-rubble-west-0-7": {
+      "minimum": [
+        -18.865602493286133,
+        0.020099999383091927,
+        7.205833435058594
+      ],
+      "maximum": [
+        -16.967248916625977,
+        1.1356500387191772,
+        8.511162757873535
+      ]
+    },
+    "north-wall-graffiti-black": {
+      "minimum": [
+        -5.824333190917969,
+        3.4361326694488525,
+        14.079999923706055
+      ],
+      "maximum": [
+        5.783878326416016,
+        5.170940399169922,
+        14.082000732421875
+      ]
+    },
+    "north-wall-graffiti-red": {
+      "minimum": [
+        -5.614673137664795,
+        3.667454957962036,
+        14.052000045776367
+      ],
+      "maximum": [
+        5.5896382331848145,
+        4.811543941497803,
+        14.054000854492188
+      ]
+    },
+    "north-wall-graffiti-drips": {
+      "minimum": [
+        -6.049673080444336,
+        3.191251754760742,
+        14.019000053405762
+      ],
+      "maximum": [
+        6.0246381759643555,
+        4.959043979644775,
+        14.026999473571777
+      ]
+    }
+  },
+  "materials": [
+    "Slum03_asphalt_wet",
+    "Slum03_concrete_dark",
+    "Slum03_concrete_raw",
+    "Slum03_concrete_stained",
+    "Slum03_electronics",
+    "Slum03_factory_floor",
+    "Slum03_rust",
+    "Slum03_rust_dark",
+    "Slum03_spray_black",
+    "Slum03_spray_red",
+    "Slum03_steel_bare",
+    "Slum03_steel_dark"
+  ],
+  "triangles": 27202,
+  "vertices": 26240,
+  "submeshes": 99,
+  "uv_issues": [],
+  "errors": [],
+  "layout_sha256": "906d303ddf856f75951ab5fcc22b1fce3ec0b5d3df20560aa8d0213a5a92cc35",
+  "rubble_evaluated_bounds": {
+    "plaza-rubble-east-12-1": {
+      "minimum": [
+        16.845165252685547,
+        0.0,
+        -10.206525802612305
+      ],
+      "maximum": [
+        18.829673767089844,
+        1.2064836025238037,
+        -8.014820098876953
+      ]
+    },
+    "plaza-rubble-east-12-2": {
+      "minimum": [
+        16.996360778808594,
+        0.0,
+        -9.243297576904297
+      ],
+      "maximum": [
+        18.980104446411133,
+        1.2042416334152222,
+        -6.71045446395874
+      ]
+    },
+    "plaza-rubble-east-12-3": {
+      "minimum": [
+        16.700544357299805,
+        0.0,
+        -5.824158668518066
+      ],
+      "maximum": [
+        19.399627685546875,
+        1.5070472955703735,
+        -2.611921548843384
+      ]
+    },
+    "plaza-rubble-east-12-6": {
+      "minimum": [
+        17.24197006225586,
+        0.0,
+        4.069835186004639
+      ],
+      "maximum": [
+        18.22071075439453,
+        0.5060809254646301,
+        5.02390718460083
+      ]
+    },
+    "plaza-rubble-east-12-7": {
+      "minimum": [
+        16.485742568969727,
+        0.0,
+        5.777870178222656
+      ],
+      "maximum": [
+        19.25214958190918,
+        1.9935979843139648,
+        9.698301315307617
+      ]
+    },
+    "plaza-rubble-north-10-8": {
+      "minimum": [
+        10.080519676208496,
+        0.011505382135510445,
+        11.504729270935059
+      ],
+      "maximum": [
+        10.967046737670898,
+        0.6500540971755981,
+        12.52885913848877
+      ]
+    },
+    "plaza-rubble-north-10-9": {
+      "minimum": [
+        10.19987678527832,
+        0.0,
+        11.53587818145752
+      ],
+      "maximum": [
+        12.372772216796875,
+        1.1347630023956299,
+        13.672016143798828
+      ]
+    },
+    "plaza-rubble-north-2-9": {
+      "minimum": [
+        -11.765216827392578,
+        0.0,
+        11.775583267211914
+      ],
+      "maximum": [
+        -10.946799278259277,
+        0.783050537109375,
+        13.094868659973145
+      ]
+    },
+    "plaza-rubble-north-3-9": {
+      "minimum": [
+        -11.587662696838379,
+        0.0,
+        11.829439163208008
+      ],
+      "maximum": [
+        -9.706819534301758,
+        1.5022584199905396,
+        13.616758346557617
+      ]
+    },
+    "plaza-rubble-north-8-9": {
+      "minimum": [
+        3.616945743560791,
+        0.0,
+        11.582444190979004
+      ],
+      "maximum": [
+        4.6305060386657715,
+        0.7945200800895691,
+        12.603116035461426
+      ]
+    },
+    "plaza-rubble-south-10-0": {
+      "minimum": [
+        9.282242774963379,
+        0.0,
+        -14.647235870361328
+      ],
+      "maximum": [
+        13.05108642578125,
+        1.878355622291565,
+        -11.418060302734375
+      ]
+    },
+    "plaza-rubble-south-2-0": {
+      "minimum": [
+        -12.760013580322266,
+        0.0,
+        -14.48017406463623
+      ],
+      "maximum": [
+        -10.5001859664917,
+        1.3571776151657104,
+        -11.843998908996582
+      ]
+    },
+    "plaza-rubble-south-4-0": {
+      "minimum": [
+        -6.183138847351074,
+        0.0,
+        -13.530695915222168
+      ],
+      "maximum": [
+        -5.208605766296387,
+        0.7994451522827148,
+        -12.628191947937012
+      ]
+    },
+    "plaza-rubble-south-8-0": {
+      "minimum": [
+        3.821798324584961,
+        0.0,
+        -14.102673530578613
+      ],
+      "maximum": [
+        6.611783981323242,
+        1.2373713254928589,
+        -11.480583190917969
+      ]
+    },
+    "plaza-rubble-west-0-2": {
+      "minimum": [
+        -19.64849853515625,
+        0.0,
+        -9.423763275146484
+      ],
+      "maximum": [
+        -16.432567596435547,
+        1.928483486175537,
+        -6.5442304611206055
+      ]
+    },
+    "plaza-rubble-west-0-3": {
+      "minimum": [
+        -18.843135833740234,
+        0.0,
+        -6.187506675720215
+      ],
+      "maximum": [
+        -16.947725296020508,
+        1.3529070615768433,
+        -3.373976469039917
+      ]
+    },
+    "plaza-rubble-west-0-6": {
+      "minimum": [
+        -19.291879653930664,
+        0.02115829847753048,
+        2.316164016723633
+      ],
+      "maximum": [
+        -17.24905014038086,
+        1.60529625415802,
+        6.291651725769043
+      ]
+    },
+    "plaza-rubble-west-0-7": {
+      "minimum": [
+        -18.865602493286133,
+        0.020099999383091927,
+        7.205833435058594
+      ],
+      "maximum": [
+        -16.967248916625977,
+        1.1356500387191772,
+        8.511162757873535
+      ]
+    }
+  }
+}
