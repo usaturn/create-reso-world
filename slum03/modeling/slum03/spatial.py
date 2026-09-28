@@ -23,6 +23,12 @@ def _intersects(b: Bounds3, r: RectXZ) -> bool:
             b.minimum[2] < r.z_max and b.maximum[2] > r.z_min)
 
 
+def branch_intrusion(b: Bounds3, layout: Layout) -> bool:
+    """Additional authored walkways/entrances, independent of fixed main paths."""
+    return (layout.density is not None and b.minimum[1] < 3 and b.maximum[1] > 0
+            and any(_intersects(b, r) for r in layout.density.branch_clearances))
+
+
 def validate_clearance(layout: Layout, bounds: Mapping[str, Bounds3]) -> list[Issue]:
     """Check *evaluated* bounds, not just scatter centres; floor tops are walkable."""
     placements = {p.key: p for p in layout.placements}
@@ -49,6 +55,7 @@ def validate_clearance(layout: Layout, bounds: Mapping[str, Bounds3]) -> list[Is
             continue
         if b.minimum[1] >= 3 or b.maximum[1] <= 0:
             continue
-        if _intersects(b, layout.clear) or any(_intersects(b, r) for r in layout.routes):
-            issues.append(Issue('CLEARANCE_INTRUSION', key, 'evaluated geometry occupies central air or main 3m route'))
+        if (_intersects(b, layout.clear) or any(_intersects(b, r) for r in layout.routes)
+                or branch_intrusion(b, layout)):
+            issues.append(Issue('CLEARANCE_INTRUSION', key, 'evaluated geometry occupies central air or protected 3m route'))
     return issues
