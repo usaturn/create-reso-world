@@ -17,7 +17,7 @@ def legacy_layout():
 
 @pytest.fixture
 def legacy_manifest():
-    return json.loads(Path('content/slum03/slum03.json').read_text(encoding='utf-8'))
+    return json.loads(Path('content/slum03/density-baseline.json').read_text(encoding='utf-8'))
 
 
 @pytest.fixture

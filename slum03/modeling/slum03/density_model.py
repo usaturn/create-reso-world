@@ -25,6 +25,16 @@ def _valid_rect(rect) -> bool:
             and rect.x_min < rect.x_max and rect.z_min < rect.z_max)
 
 
+def _valid_bounds_inputs(placement) -> bool:
+    # Guard inputs before computing bounds; this API is callable without validate_layout.
+    return (isinstance(placement.origin, (list, tuple)) and len(placement.origin) == 3
+            and isinstance(placement.size, (list, tuple)) and len(placement.size) == 3
+            and all(_finite_number(v) for v in (*placement.origin, *placement.size))
+            and all(v > 0 for v in placement.size)
+            and _finite_number(placement.yaw_deg)
+            and _finite_number(placement.params.get('local_y_min', 0)))
+
+
 def _valid_contact(point) -> bool:
     return (isinstance(point, (list, tuple)) and len(point) == 3
             and all(_finite_number(v) for v in point))
@@ -84,6 +94,9 @@ def validate_density_config(layout: Layout) -> list[Issue]:
                 or not _valid_contact(lo) or not _valid_contact(hi)
                 or any(x > y for x, y in zip(lo, hi))):
             issues.append(Issue('ATTACHMENT', p.key, 'invalid contact or reason'))
+            continue
+        if not _valid_bounds_inputs(p) or not _valid_bounds_inputs(by_key[parent]):
+            issues.append(Issue('ATTACHMENT', p.key, 'invalid child or parent placement'))
             continue
         child_bounds, parent_bounds = placement_bounds(p), placement_bounds(by_key[parent])
         if any(not (b.minimum[i] - 1e-6 <= lo[i] <= hi[i] <= b.maximum[i] + 1e-6)

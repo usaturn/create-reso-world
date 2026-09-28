@@ -88,10 +88,10 @@ def test_stable_seed_uses_utf8_sha256_and_is_process_independent():
     assert REPRESENTATIVE_KEYS == ('ruin-west', 'shack-row', 'market-west')
 
 
-def test_baseline_matches_original_canonical_and_preserves_original_slot_keys(legacy_manifest):
-    original = Path('content/slum03/slum03.json').read_bytes()
+def test_saved_baseline_has_original_fixed_hash_and_slot_keys(legacy_manifest):
     baseline = Path('content/slum03/density-baseline.json').read_bytes()
-    assert hashlib.sha256(baseline).digest() == hashlib.sha256(original).digest()
+    assert hashlib.sha256(baseline).hexdigest() == (
+        '2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec')
     def walk(node):
         yield node['slot']
         for child in node.get('children', []):
@@ -102,3 +102,15 @@ def test_baseline_matches_original_canonical_and_preserves_original_slot_keys(le
         'shack-row': 'object_shack-row_06a9a4ed',
         'market-west': 'object_market-west_c7b851dd',
     }
+
+
+def test_legacy_manifest_is_saved_baseline_even_when_canonical_changes(tmp_path, monkeypatch, request):
+    source = Path('content/slum03/density-baseline.json').read_bytes()
+    directory = tmp_path / 'content' / 'slum03'
+    directory.mkdir(parents=True)
+    (directory / 'density-baseline.json').write_bytes(source)
+    (directory / 'slum03.json').write_text('{"ownership": {"key": "new-version"}}')
+    monkeypatch.chdir(tmp_path)
+    legacy = request.getfixturevalue('legacy_manifest')
+    assert legacy['ownership']['key'] == 'slum03'
+    assert legacy['slot']['name'] == 'Slum03_Slum'

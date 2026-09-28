@@ -198,3 +198,25 @@ def test_read_layout_rejects_wrong_fixed_vector_lengths(tmp_path, section, field
     path.write_text(json.dumps(data), encoding='utf-8')
     with pytest.raises(ValueError, match='invalid layout JSON'):
         read_layout(path)
+
+
+@pytest.mark.parametrize('bad_side', ['child', 'parent'])
+def test_invalid_attachment_placement_returns_issues_instead_of_raising(bad_side):
+    layout = build_layout()
+    parent = next(p for p in layout.placements if p.key == 'market-west')
+    child = replace(parent, key='market-west-attachment', kind='prop',
+                    origin=(-9, 1, -34), size=(1, 1, 1),
+                    params={'attachment': {'parent_key': 'market-west',
+                                           'contact_min': [-9, 1, -34],
+                                           'contact_max': [-9, 1.5, -34],
+                                           'reason': 'fastened'}})
+    if bad_side == 'child':
+        child = replace(child, yaw_deg='invalid')
+    else:
+        parent = replace(parent, yaw_deg='invalid')
+    altered = replace(layout, placements=tuple(parent if p.key == parent.key else p
+                                               for p in layout.placements) + (child,))
+    issues = validate_layout(altered)
+    assert any(i.code == 'PLACEMENT' and i.object_key == (child.key if bad_side == 'child' else parent.key)
+               for i in issues)
+    assert any(i.code == 'ATTACHMENT' and i.object_key == child.key for i in issues)
