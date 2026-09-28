@@ -21,6 +21,11 @@ def box(key: str, x0: float, x1: float, y0: float, y1: float,
 
 
 def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
+    unsupported = [item for item in layout.placements if item.params.get('detail_profile') == 'v2'
+                   and item.kind not in ('ruin', 'shack', 'stall')]
+    if unsupported:
+        raise NotImplementedError(f'unsupported v2 collider kinds: '
+                                  f'{[(item.key, item.kind) for item in unsupported]}')
     p = {item.key: item for item in layout.placements}
     floor = p['factory-floor']; ground = p['district-ground']
     fx0, fx1 = floor.origin[0]-floor.size[0]/2, floor.origin[0]+floor.size[0]/2
@@ -105,6 +110,7 @@ def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
     # Each collider belongs to a source-indexed part whose exported bounds were
     # checked in observe_detail; no visual stock or ungrounded background boxes.
     from modeling.slum03.density_metrics import layout_digest
+    from modeling.slum03.evaluated_detail import v2_object_issues
     for item in layout.placements:
         if item.params.get('detail_profile') != 'v2' or item.kind not in ('ruin', 'shack', 'stall'):
             continue
@@ -115,6 +121,10 @@ def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
                    if obj.get('placement_key') == item.key and obj.get('mesh') in report.get('evaluated_bounds', {})]
         if len(matches) != 1 or not matches[0].get('detail_groups'):
             raise ValueError(f'missing evaluated geometry for {item.key}')
+        errors = v2_object_issues(item, report, matches[0])
+        if errors:
+            raise ValueError(f'invalid evaluated report for {item.key}: {errors}')
+        candidates = []
         for group in matches[0]['detail_groups']:
             if group['category'] not in ('architecture', 'shelf'):
                 continue
@@ -126,6 +136,18 @@ def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
                     continue
                 if len(lo) != 3 or len(hi) != 3 or any(hi[i]-lo[i] <= 1e-5 for i in range(3)):
                     raise ValueError(f'invalid evaluated part collider for {item.key}')
-                boxes.append(box(f'{item.key}-{group["id"]}-part-{index}',
-                                 lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]))
+                candidates.append((f'{item.key}-{group["id"]}-part-{index}', lo, hi))
+        # An existing managed Slot/Component keeps its original keys on reapply.
+        # Rebind that identity to one real structural part rather than keeping
+        # its former enclosing volume (which would block the actual opening).
+        legacy = {'ruin-west', 'ruin-west-annex', 'ruin-north', 'ruin-east',
+                  'shack-row', 'shack-west'}
+        anchor = next((i for i, (_, lo, hi) in enumerate(candidates)
+                       if hi[1]-lo[1] >= 1 and lo[1] < 2.1), 0)
+        if item.key in legacy and not candidates:
+            raise ValueError(f'no evaluated structure for existing {item.key} collider')
+        for i, (key, lo, hi) in enumerate(candidates):
+            if item.key in legacy and i == anchor:
+                key = item.key
+            boxes.append(box(key, lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]))
     return boxes

@@ -126,4 +126,9 @@ def test_blender_probe_evaluates_three_representatives_and_small_open_stall(tmp_
     assert all(x['uv0'] and x['extra_uv'] and x['colors'] and x['normals']
                and x['faces'] > 0 for x in summary['objects'].values())
     assert summary['rejected'] == ['empty', 'collapsed']
-    assert all(x.get('reopened') for x in summary['objects'].values())
+    assert all(x.get('reopened') and x.get('attribute_values_equal') and x.get('corner_normals_equal')
+               for x in summary['objects'].values())
+    assert summary.get('rejected_attributes') == ['uv0_changed', 'uv0_missing',
+        'extra_uv_changed', 'extra_uv_missing', 'colors_changed', 'colors_missing',
+        'normals_flipped', 'uv0_zeroed', 'extra_uv_zeroed', 'colors_zeroed',
+        'corner_normals_flipped']

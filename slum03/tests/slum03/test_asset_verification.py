@@ -179,3 +179,34 @@ def test_v2_report_cannot_promote_legacy_evidence_or_wrong_layout():
     assert any(i.code == 'DETAIL_MISSING' for i in verify_assets(layout, reports))
     reports['market']['layout_sha256'] = '0' * 64
     assert any(i.code == 'LAYOUT_MISMATCH' for i in verify_assets(layout, reports))
+
+
+def test_real_v2_side_posts_leave_protected_branch_open_despite_one_mesh_envelope():
+    from dataclasses import replace
+    from modeling.slum03.density_metrics import layout_digest
+    from modeling.slum03.evaluated_detail import observe_detail
+    from modeling.slum03.geometry import Assembly, box, merge_assembly
+    from modeling.slum03.types import Placement, DensityConfig, RectXZ
+    base = build_layout()
+    p = Placement('open-demo', 'market', 'stall', (20., 0., -30.), (4., 4., 4.),
+                  0., 'district', {'detail_profile': 'v2', 'variant': 'tools'})
+    layout = replace(base, placements=base.placements + (p,), density=DensityConfig(
+        'representative', (), (), (RectXZ(19.5, 20.5, -31., -29.),), ()))
+    a = Assembly('stall', p.key, p.sector, p.origin,
+                 [box('left-post', (-1.5, 1., 0.), (.2, 2., .2), 'steel_dark'),
+                  box('right-post', (1.5, 1., 0.), (.2, 2., .2), 'steel_dark'),
+                  box('roof', (0., 3.5, 0.), (3.4, .2, 2.), 'steel_dark')],
+                 {'placement_key': p.key, 'variant': 'tools', 'detail_groups': [
+                     {'id': 'posts', 'category': 'architecture', 'part_indices': [0, 1]},
+                     {'id': 'roof', 'category': 'architecture', 'part_indices': [2]}]})
+    merged = merge_assembly(a)
+    obj = observe_detail(a, {'vertices': [tuple(v[i]+p.origin[i] for i in range(3))
+                                          for v in merged.vertices], 'faces': merged.faces})
+    obj['detail_profile'] = 'v2'
+    reports = minimal_reports(layout)
+    for report in reports.values():
+        report['layout_sha256'] = layout_digest(layout)
+    reports['market']['objects'][-1] = obj
+    reports['market']['evaluated_bounds'][p.key] = obj['evaluated_bounds']
+    issues = verify_assets(layout, reports)
+    assert not any(i.code == 'CLEARANCE_INTRUSION' and i.object_key == p.key for i in issues), issues

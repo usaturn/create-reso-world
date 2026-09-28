@@ -116,6 +116,7 @@ def test_v2_open_stall_only_collides_with_real_low_parts_and_preserves_legacy_bo
     m = merge_assembly(a)
     evidence = observe_detail(a, {'vertices': [tuple(v[i]+p.origin[i] for i in range(3)) for v in m.vertices],
                                   'faces': m.faces})
+    evidence['detail_profile'] = 'v2'
     reports = {'market': {'layout_sha256': layout_digest(layout), 'objects': [evidence],
                           'evaluated_bounds': {p.key: evidence['evaluated_bounds']}}}
     original = collider_slots(base, {})
@@ -145,10 +146,56 @@ def test_density_branch_intrusion_is_rejected_from_real_evaluated_parts():
                   {'variant': 'tools', 'detail_profile': 'v2'})
     layout = replace(base, placements=base.placements + (p,), density=DensityConfig(
         'representative', (), (), (RectXZ(-2, 2, -2, 2),), ()))
-    obj = {'mesh': 'blocking', 'placement_key': 'blocking', 'detail_profile': 'v2',
-           'variant': 'tools', 'vertices': 8, 'faces': 6,
-           'detail_groups': [{'id': 'leg', 'category': 'architecture', 'part_indices': [0],
-                              'part_bounds': [{'minimum': [-.1, 0, -.1], 'maximum': [.1, 2, .1]}]}]}
+    from modeling.slum03.evaluated_detail import observe_detail
+    from modeling.slum03.geometry import Assembly, box, merge_assembly
+    assembly = Assembly('stall', p.key, p.sector, p.origin,
+                        [box('leg', (0., 1., 0.), (.2, 2., .2), 'steel_dark')],
+                        {'placement_key': p.key, 'variant': 'tools', 'detail_groups': [
+                            {'id': 'leg', 'category': 'architecture', 'part_indices': [0]}]})
+    merged = merge_assembly(assembly)
+    obj = observe_detail(assembly, {'vertices': merged.vertices, 'faces': merged.faces})
+    obj['detail_profile'] = 'v2'
     reports = {'market': {'layout_sha256': layout_digest(layout), 'objects': [obj],
-                          'evaluated_bounds': {'blocking': {'minimum': [-.1, 0, -.1], 'maximum': [.1, 2, .1]}}}}
+                          'evaluated_bounds': {'blocking': obj['evaluated_bounds']}}}
     assert any(i.code == 'CLEARANCE_INTRUSION' for i in validate_evaluated_density(layout, reports))
+
+
+@pytest.mark.parametrize('key,variant', [('ruin-west', 'slab_bay'),
+                                          ('shack-row', 'corrugated')])
+def test_existing_owned_v2_collider_keeps_slot_and_component_keys_without_enclosing_box(key, variant):
+    from modeling.slum03.evaluated_detail import observe_detail
+    from modeling.slum03.density_metrics import layout_digest
+    from modeling.slum03.geometry import merge_assembly
+    from modeling.slum03 import architecture_detail
+    base = build_layout()
+    old = {b['slot']['key']: b for b in collider_slots(base, {})}
+    placement = next(p for p in base.placements if p.key == key)
+    placement = replace(placement, params={**placement.params,
+                                          'detail_profile': 'v2', 'variant': variant})
+    layout = replace(base, placements=tuple(placement if p.key == key else p
+                                           for p in base.placements))
+    assembly = (architecture_detail.detailed_ruin(placement, layout.seed)
+                if key == 'ruin-west' else architecture_detail.detailed_shack(placement, layout.seed))
+    m = merge_assembly(assembly)
+    obj = observe_detail(assembly, {'vertices': [tuple(v[i]+placement.origin[i] for i in range(3))
+                                                for v in m.vertices], 'faces': m.faces})
+    obj['detail_profile'] = 'v2'
+    report = {placement.sector: {'layout_sha256': layout_digest(layout), 'objects': [obj],
+                                 'evaluated_bounds': {obj['mesh']: obj['evaluated_bounds']}}}
+    boxes = collider_slots(layout, report)
+    keys = [b['slot']['key'] for b in boxes]
+    assert keys.count('collider-' + key) == 1
+    kept = next(b for b in boxes if b['slot']['key'] == 'collider-' + key)
+    assert kept['components'][0]['key'] == 'collider-' + key + '-box'
+    assert kept['components'][0]['fields']['Size'] != old['collider-' + key]['components'][0]['fields']['Size']
+    assert {k for k in old if k != 'collider-' + key} <= set(keys)
+    assert len(keys) == len(set(keys))
+
+
+def test_unimplemented_existing_v2_kind_cannot_silently_lose_owned_collider():
+    base = build_layout()
+    changed = replace(base, placements=tuple(
+        replace(p, params={**p.params, 'detail_profile': 'v2', 'variant': 'nightlife-1'})
+        if p.key == 'nightlife-east' else p for p in base.placements))
+    with pytest.raises((ValueError, NotImplementedError), match='nightlife|unsupported'):
+        collider_slots(changed, {})

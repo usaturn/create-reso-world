@@ -77,10 +77,22 @@ def verify_assets(layout: Layout, reports: Mapping[str, Report]) -> list[Issue]:
         # Clearance requires individual realized meshes. A union of disjoint city
         # buildings would fill the empty gaps and fabricate a route collision.
         individual = {}
+        seen_meshes = set()
+        from .evaluated_detail import v2_object_issues
+        from .density_metrics import layout_digest
+        placements = {p.key: p for p in layout.placements}
         for report in reports.values():
+            entries = {obj.get('mesh'): obj for obj in report.get('objects', []) if obj.get('mesh')}
             for key, raw in report.get('evaluated_bounds', {}).items():
-                if key in individual:
+                if key in seen_meshes:
                     issues.append(Issue('BOUNDS_DUPLICATE', key, 'mesh name repeated across sectors'))
+                seen_meshes.add(key)
+                obj = entries.get(key, {})
+                p = placements.get(obj.get('placement_key'))
+                if (p and p.params.get('detail_profile') == 'v2' and
+                        report.get('layout_sha256') == layout_digest(layout) and
+                        not v2_object_issues(p, report, obj)):
+                    continue  # Actual evaluated parts, not the enclosing mesh, test passage below.
                 individual[key] = Bounds3(tuple(raw['minimum']), tuple(raw['maximum']))
         issues.extend(validate_clearance(layout, individual))
     except (KeyError, ValueError, TypeError) as exc:

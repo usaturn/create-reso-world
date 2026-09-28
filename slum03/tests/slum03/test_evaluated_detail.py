@@ -87,3 +87,76 @@ def test_missing_v2_sector_report_is_not_treated_as_evaluated():
         for p in layout.placements))
     assert any(i.code == 'LAYOUT_MISMATCH' and i.object_key == 'market'
                for i in validate_evaluated_density(altered, {}))
+
+
+def test_face_with_same_indices_but_self_crossing_order_is_rejected():
+    a, geometry = specimen()
+    face = list(geometry['faces'][0])
+    assert len(face) == 4
+    geometry['faces'] = ((face[0], face[2], face[1], face[3]), *geometry['faces'][1:])
+    with pytest.raises(ValueError, match='face'):
+        observe_detail(a, geometry)
+
+
+@pytest.mark.parametrize('fault', ['mesh', 'profile', 'counts', 'group'])
+def test_layout_required_v2_evidence_cannot_be_bypassed_by_report_tags(fault):
+    base = build_layout()
+    target = next(p for p in base.placements if p.key == 'market-west')
+    layout = replace(base, placements=tuple(replace(p, params={**p.params,
+        'detail_profile': 'v2', 'variant': 'electronics'}) if p == target else p
+        for p in base.placements))
+    a, geometry = specimen()
+    obj = observe_detail(a, geometry)
+    obj.update({'key': 'market-west', 'placement_key': 'market-west', 'variant': 'electronics',
+                'detail_profile': 'v2'})
+    bounds = {'demo': obj['evaluated_bounds']}
+    if fault == 'mesh':
+        obj['mesh'] = None
+    elif fault == 'profile':
+        obj.pop('detail_profile')
+    elif fault == 'counts':
+        obj['vertices'] = 0
+    else:
+        obj['detail_groups'] = [{}]
+    reports = {'market': {'layout_sha256': layout_digest(layout), 'objects': [obj],
+                          'evaluated_bounds': bounds}}
+    issues = validate_evaluated_density(layout, reports)
+    assert any(i.object_key == 'market-west' and i.code in ('GEOMETRY_MISSING', 'DETAIL_MISSING',
+                                                             'DETAIL_INVALID') for i in issues), issues
+
+
+def test_contact_box_allows_only_actual_overlap_within_its_bounds():
+    from modeling.slum03.types import Placement
+    base = build_layout()
+    parent = Placement('attached-parent', 'market', 'stall', (22., 0., -30.), (4., 3., 4.),
+                       0., 'district', {'detail_profile': 'v2', 'variant': 'tools'})
+    child = Placement('attached-child', 'market', 'stall', (23., 0., -30.), (2., 3., 2.),
+                      0., 'district', {'detail_profile': 'v2', 'variant': 'tools',
+                                     'attachment': {'parent_key': parent.key, 'reason': 'bracket',
+                                                    'contact_min': [22.9, .3, -.1 - 30],
+                                                    'contact_max': [23.1, .7, .1 - 30]}})
+    layout = replace(base, placements=base.placements + (parent, child))
+
+    def report_for(p, stock):
+        # One physical rectangular component, with unchanged face/vertex provenance.
+        a = Assembly('stall', p.key, 'market', p.origin,
+                     [box('brace', (1. if p == parent else 0., .5, 0.), stock, 'steel_dark')],
+                     {'placement_key': p.key, 'variant': 'tools', 'detail_groups': [
+                         {'id': 'brace', 'category': 'architecture', 'part_indices': [0]}]})
+        merged = merge_assembly(a)
+        obj = observe_detail(a, {'vertices': [tuple(v[i]+p.origin[i] for i in range(3))
+                                                for v in merged.vertices], 'faces': merged.faces})
+        obj['detail_profile'] = 'v2'
+        return obj
+
+    def issues(stock):
+        parent_obj, child_obj = report_for(parent, stock), report_for(child, stock)
+        reports = {'market': {'layout_sha256': layout_digest(layout),
+                             'objects': [parent_obj, child_obj],
+                             'evaluated_bounds': {p['mesh']: p['evaluated_bounds']
+                                                  for p in (parent_obj, child_obj)}}}
+        return validate_evaluated_density(layout, reports)
+
+    assert not any(i.code == 'ATTACHMENT_INTRUSION' for i in issues((.2, .4, .2)))
+    assert any(i.code == 'ATTACHMENT_INTRUSION' and i.object_key == child.key
+               for i in issues((.5, 2., .5)))
