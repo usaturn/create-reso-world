@@ -35,7 +35,7 @@ def test_import_success_is_not_visual_success():
 
 def test_portability_warning_is_not_pass():
     checks = {key: _passed() for key in ('apply', 'reapply', 'structure', 'visual', 'walk', 'resources')}
-    checks['portability'] = {'status': 'pass', 'evidence': [], 'details': {'warning': 'reload not tested'}}
+    checks['portability'] = {'status': 'pass', 'evidence': ['evidence/reload.json'], 'details': {'warning': 'reload not tested'}}
     r = summarize_delivery(build_layout(), _reports(), checks)
     assert r['status'] == 'pending'
     assert r['checks']['portability']['status'] == 'pending'
@@ -112,7 +112,31 @@ def test_canonical_manifest_is_portable_and_contains_live_qa():
     assert manifest['ownership'] == {'key': 'slum03'}
     assert manifest['slot']['position'] == [0, 4.5, 0]
     assert len(manifest['cameras']) == 6 and manifest['tests']
+    assert len([a for a in manifest['assets'].values() if a['kind'] == 'mesh']) == 150
     assert all(not Path(a['source']).is_absolute() and
                (path.parent / a['source']).is_file() and
-               'task11-fix2-20260928T0356' in a['source']
+               'finalfix-m-20260928T0511' in a['source']
                for a in manifest['assets'].values())
+
+
+def test_plural_live_warnings_with_valid_evidence_remain_pending():
+    checks = {key: _passed() for key in ('apply', 'reapply', 'structure', 'visual', 'walk', 'portability', 'resources')}
+    checks['visual'] = {'status': 'pass', 'evidence': ['evidence/image.png'],
+                        'details': {'warnings': ['unverified material']}}
+    assert summarize_delivery(build_layout(), _reports(), checks)['checks']['visual']['status'] == 'pending'
+
+
+def test_delivery_resources_and_build_evidence_match_canonical_bundle():
+    report = json.loads(Path('artifacts/slum03/delivery-report.json').read_text())
+    run = 'finalfix-m-20260928T0511'
+    summary = json.loads((Path('artifacts/slum03') / run / 'asset-summary.json').read_text())
+    assert report['buildEvidence'][0] == f'artifacts/slum03/{run}/asset-summary.json'
+    assert report['buildEvidence'][1] == f'artifacts/slum03/{run}/previews-bright/preview-report.json'
+    assert Path(report['buildEvidence'][1]).is_file()
+    assert report['checks']['resources']['details']['exportTotals'] == summary['exportTotals']
+    assert report['checks']['build']['status'] == 'pass'
+    assert len(report['checks']['build']['evidence']) == len(SECTORS)
+    assert all(f'/{run}/' in path and Path(path).is_file()
+               for path in report['checks']['build']['evidence'])
+    assert report['checks']['apply']['status'] == 'pending'
+    assert report['status'] == 'pending'

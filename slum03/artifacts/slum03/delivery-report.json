@@ -34,46 +34,46 @@
     "resources": {
       "status": "pending",
       "evidence": [
-        "artifacts/slum03/task11-fix2-20260928T0356/asset-summary.json"
+        "artifacts/slum03/finalfix-m-20260928T0511/asset-summary.json"
       ],
       "details": {
         "exportTotals": {
-          "triangles": 85980,
-          "vertices": 203220,
-          "materials": 94,
-          "drawSections": 560,
-          "meshes": 141,
+          "triangles": 86940,
+          "vertices": 206004,
+          "materials": 98,
+          "drawSections": 570,
+          "meshes": 150,
           "textures": 0,
           "lights": 6,
           "colliders": 34,
-          "advisoryWarnings": 149
+          "advisoryWarnings": 158
         },
         "transparentLayers": {
           "FresnelMaterialProviders": 6,
           "measuredOverdraw": null
         },
-        "advisoryWarnings": 149,
+        "advisoryWarnings": 158,
         "runtimePerformanceMeasured": false
       }
     },
     "build": {
       "status": "pass",
       "evidence": [
-        "artifacts/slum03/task11-fix2-20260928T0356/ground-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/plaza-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/ruins-west-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/ruins-north-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/ruins-east-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/market-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/shacks-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/nightlife-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/yarol-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/overhead-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/ads-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/road-river-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/forest-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/backdrop-north-report.json",
-        "artifacts/slum03/task11-fix2-20260928T0356/backdrop-west-south-report.json"
+        "artifacts/slum03/finalfix-m-20260928T0511/ground-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/plaza-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/ruins-west-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/ruins-north-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/ruins-east-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/market-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/shacks-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/nightlife-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/yarol-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/overhead-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/ads-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/road-river-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/forest-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/backdrop-north-report.json",
+        "artifacts/slum03/finalfix-m-20260928T0511/backdrop-west-south-report.json"
       ],
       "details": {
         "missing": [],
@@ -86,8 +86,8 @@
   "phase": "pre-live",
   "manifest": "content/slum03/slum03.json",
   "buildEvidence": [
-    "artifacts/slum03/task11-fix2-20260928T0356/asset-summary.json",
-    "artifacts/slum03/task11-fix2-20260928T0356/previews/preview-report.json"
+    "artifacts/slum03/finalfix-m-20260928T0511/asset-summary.json",
+    "artifacts/slum03/finalfix-m-20260928T0511/previews-bright/preview-report.json"
   ],
   "note": "Independent Blender assets verified offline; previews are not Resonite visual/walk proof. No live apply, reapply, structural test, capture, walk, save/reload or runtime performance proof.",
   "timing": {
@@ -101,5 +101,31 @@
       "verification_review_commit_preparation": 112
     },
     "task_times_note": "Approximate overlapping phase attribution; not summed into elapsed. Final reporting/commit follows this snapshot."
+  },
+  "offlineProvenance": {
+    "sourceRuns": [
+      "finalfix-m-20260928T0511",
+      "finalfix-n-20260928T0512"
+    ],
+    "canonicalManifest": "content/slum03/slum03.json",
+    "layout": "artifacts/slum03/finalfix-m-20260928T0511/layout.json",
+    "comparison": {
+      "status": "pass",
+      "separatelyBuiltAndExported": true,
+      "meshCount": 150,
+      "numericRounding": false,
+      "fields": [
+        "position",
+        "normal",
+        "tangent",
+        "uvs",
+        "color",
+        "submeshes"
+      ]
+    },
+    "buildReports": "artifacts/slum03/finalfix-m-20260928T0511",
+    "rootY": 4.5,
+    "runtimeReflectionOfManifest": false,
+    "liveApplied": false
   }
 }

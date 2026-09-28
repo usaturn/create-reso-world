@@ -50,9 +50,9 @@ def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
     rng = random.Random(layout.seed + 714)
     trees = []
     # Rows break alignment and allow sightlines between discrete close trunks.
-    for row, x in enumerate((114., 127., 140.)):
+    for row, x in enumerate((site.origin[0]-46, site.origin[0]-33, site.origin[0]-20)):
         for col in range(8):
-            z = -73 + col*17 + (row % 2)*7 + rng.uniform(-3, 3)
+            z = site.origin[2]-63 + col*17 + (row % 2)*7 + rng.uniform(-3, 3)
             tx = x + rng.uniform(-2, 2)
             height = rng.uniform(17, 30)
             spread = rng.uniform(4.5, 7.2)
@@ -86,6 +86,7 @@ def add_canopy(bpy, layout: Layout, materials: dict, source_collection,
     from .vcolor import vertex_colors
     import bmesh
     rng = random.Random(layout.seed + 715)
+    site = next(p for p in layout.placements if p.key == 'forest')
     variants = []
     errors = []
     for j in range(3):
@@ -134,8 +135,9 @@ def add_canopy(bpy, layout: Layout, materials: dict, source_collection,
     exports = []
     # Independent patches instead of one world-spanning mesh. The foreground
     # crowns remain separate trees; distance replaces detail, not density.
-    for row, x in enumerate((151, 174, 196)):
-        for col, z in enumerate((-59, -25, 10, 43)):
+    for row, x in enumerate((site.origin[0]-9, site.origin[0]+14, site.origin[0]+36)):
+        for col, z in enumerate((site.origin[2]-49, site.origin[2]-15,
+                                 site.origin[2]+20, site.origin[2]+53)):
             cloud = bpy.data.meshes.new(f'Slum03_CanopyPoints_{row}_{col}')
             points = [(rng.uniform(-8, 8), rng.uniform(-15, 15), rng.uniform(16, 27))
                       for _ in range(11)]

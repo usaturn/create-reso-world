@@ -1,6 +1,7 @@
 """Repeatable full slum03 offline build/export/merge; no Resonite connection or live writes.
 
-Run from slum03/: uv run python scripts/build_offline.py --run task11-UNIQUE
+Run from slum03/: uv run python scripts/build_offline.py --run UNIQUE
+Custom layout: --layout path/to/validated-layout.json (same file for all Blender sectors and native).
 Re-run with a different --run for independent geometry comparison. Each command
 runs synchronously with a deadline. Never overwrite existing builds or bundles.
 """
@@ -19,6 +20,9 @@ from modeling.slum03.verify_assets import verify_assets
 from modeling.slum03.postprocess import choose_root_y
 from modeling.slum03.pipeline import build_unified_manifest, write_unified_manifest
 
+# The independent backgrounds are built before the driven AR sector.
+BUILD_ORDER = tuple(s for s in SECTORS if s != 'ads') + ('ads',)
+
 
 def command(*args, timeout=240):
     result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
@@ -30,6 +34,7 @@ def command(*args, timeout=240):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--run', required=True)
+    p.add_argument('--layout', type=Path, default=Path('content/slum03/layout.json'))
     args = p.parse_args()
     if not args.run or '/' in args.run or args.run in ('.', '..'):
         raise ValueError('run must be a unique single directory name')
@@ -49,12 +54,14 @@ def main():
             shutil.copy2(path, backup / path.name)
     artifact.mkdir(parents=True)
     bundles.mkdir(parents=True)
-    layout = read_layout(Path('content/slum03/layout.json'))
+    layout_path = artifact / 'layout.json'
+    shutil.copy2(args.layout, layout_path)
+    layout = read_layout(layout_path)
     reports = {}
-    for sector in SECTORS:
+    for sector in BUILD_ORDER:
         output = artifact / f'{sector}.blend'
         command('resoloop', '--command-timeout', '180', 'blender', 'run', 'modeling/slum03/build.py',
-                '--arg=--sector', f'--arg={sector}', '--arg=--output', f'--arg={output}', '--json', timeout=200)
+                '--arg=--sector', f'--arg={sector}', '--arg=--layout', f'--arg={layout_path.resolve()}', '--arg=--output', f'--arg={output}', '--json', timeout=200)
         report = json.loads((artifact / f'{sector}-report.json').read_text(encoding='utf-8'))
         reports[sector] = report
         if report['errors'] or not output.is_file():
@@ -62,7 +69,7 @@ def main():
     issues = verify_assets(layout, reports)
     if issues:
         raise ValueError(f'build verification failed: {[vars(i) for i in issues]}')
-    for sector in SECTORS:
+    for sector in BUILD_ORDER:
         report = reports[sector]
         destination = bundles / sector
         command('resoloop', '--command-timeout', '240', 'blender', 'export',
@@ -77,7 +84,7 @@ def main():
     write_unified_manifest(manifest, output)
     provenance = {'status': 'OFFLINE CANDIDATE', 'currentReflectionValidated': False,
                   'liveApplied': False, 'bundles': str(bundles), 'rootPosition': [0, y, 0],
-                  'layout': 'content/slum03/layout.json'}
+                  'layout': str(layout_path), 'layoutSource': str(args.layout), 'reports': str(artifact)}
     output.with_name(output.stem + '-provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
     print(json.dumps({'artifacts': str(artifact), 'bundles': str(bundles),
                       'manifest': str(output), 'rootY': y,

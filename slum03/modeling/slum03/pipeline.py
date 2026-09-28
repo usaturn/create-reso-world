@@ -1,9 +1,10 @@
 """Merge offline ResoLoop exports below one slum03-owned root; never touch live state.
 
 CLI: uv run python -m modeling.slum03.pipeline --bundles content/slum03/bundles/REV
-     --layout content/slum03/layout.json --root-y Y --output content/slum03/slum03.json
-Bundle reports: <bundles>/<sector>/report.json (export), or
-<bundles>/<sector>/<sector>-report.json (Blender build); the latter is preferred.
+     --layout content/slum03/layout.json --reports artifacts/slum03/REV
+     --root-y Y --delivery-checks --output content/slum03/slum03.json
+Blender build reports: --reports artifacts/slum03/REV/<sector>-report.json.
+Exporter <bundles>/<sector>/report.json is NOT an evaluated mesh report.
 CLI writes <output.stem>-provenance.json beside output: OFFLINE CANDIDATE only.
 Current Reflection, runtime type validation and live QA are *not* performed here.
 """
@@ -23,6 +24,8 @@ from .layout import read_layout
 from .postprocess import postprocess
 from .sectors import SECTORS
 from .types import Layout, Manifest, Report, Vec3
+from .verify_assets import verify_assets
+from .delivery import declare_delivery_checks
 
 _REF = re.compile(r'^\$(asset|component|slot|member|slot-member):([^.$\s]+)(?:\.([^.$\s]+))?$')
 
@@ -285,17 +288,30 @@ def write_unified_manifest(manifest: Manifest, output: Path) -> None:
     output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
 
-def _reports(directory: Path) -> dict[str, Report]:
+def _reports(directory: Path, layout: Layout, bundles: Path) -> dict[str, Report]:
     result = {}
     for sector in SECTORS:
-        paths = (directory / sector / f'{sector}-report.json', directory / sector / 'report.json')
-        path = next((p for p in paths if p.is_file()), None)
-        if path is None:
-            raise ValueError(f'missing sector report: {sector}; expected {paths[0]} or {paths[1]}')
+        path = directory / f'{sector}-report.json'
+        if not path.is_file():
+            raise ValueError(f'missing Blender build report: {path}')
         report = json.loads(path.read_text(encoding='utf-8'))
-        if report.get('errors') or report.get('sector', sector) != sector:
-            raise ValueError(f'invalid sector report: {path}')
+        if (report.get('sector') != sector or not isinstance(report.get('errors'), list)
+                or report['errors']):
+            raise ValueError(f'invalid Blender build report: {path}')
+        export_report_path = bundles / sector / 'report.json'
+        if not export_report_path.is_file():
+            raise ValueError(f'missing exporter inventory for {sector}: {export_report_path}')
+        exported = json.loads(export_report_path.read_text(encoding='utf-8'))
+        build_names = {entry['mesh'] for entry in report.get('objects', []) if entry.get('mesh')}
+        exported_meshes = exported.get('meshes')
+        if (not isinstance(exported_meshes, list) or
+                build_names != {entry.get('name') for entry in exported_meshes if isinstance(entry, dict)} or
+                report.get('triangles') != exported.get('triangles')):
+            raise ValueError(f'Blender build/export inventory mismatch: {sector}')
         result[sector] = report
+    issues = verify_assets(layout, result)
+    if issues:
+        raise ValueError(f'invalid Blender build reports: {issues}')
     return result
 
 
@@ -303,15 +319,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bundles', type=Path, required=True)
     parser.add_argument('--layout', type=Path, required=True)
+    parser.add_argument('--reports', type=Path, required=True)
+    parser.add_argument('--delivery-checks', action='store_true', help='include owned live QA cameras and assertions')
     parser.add_argument('--root-y', type=float, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    manifest = build_unified_manifest(args.bundles, read_layout(args.layout),
-                                      _reports(args.bundles), (0, args.root_y, 0))
+    layout = read_layout(args.layout)
+    manifest = build_unified_manifest(args.bundles, layout,
+                                      _reports(args.reports, layout, args.bundles), (0, args.root_y, 0))
+    if args.delivery_checks:
+        declare_delivery_checks(manifest, layout)
     write_unified_manifest(manifest, args.output)
     report = {'status': 'OFFLINE CANDIDATE', 'currentReflectionValidated': False,
               'liveApplied': False, 'typeProvenance': 'modeling/slum03/native/* (ported slum02 templates)',
               'bundles': str(args.bundles), 'layout': str(args.layout),
+              'reports': str(args.reports),
               'rootPosition': [0, args.root_y, 0]}
     args.output.with_name(args.output.stem + '-provenance.json').write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

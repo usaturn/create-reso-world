@@ -133,3 +133,33 @@ def test_evaluated_uv_coordinate_error_blocks_asset_verification():
                                     'message': 'evaluated UV0 collapsed'}]
     assert any(i.code == 'BUILD_ERROR' and i.object_key == 'ground'
                for i in verify_assets(build_layout(), reports))
+
+
+def test_offline_build_orders_ar_last_after_background():
+    from scripts.build_offline import BUILD_ORDER
+    from modeling.slum03.sectors import SECTORS
+    assert set(BUILD_ORDER) == set(SECTORS)
+    assert len(BUILD_ORDER) == len(SECTORS)
+    assert BUILD_ORDER[-1] == 'ads'
+    assert BUILD_ORDER.index('forest') < BUILD_ORDER.index('ads')
+
+
+def test_offline_driver_passes_explicit_persisted_layout_to_blender(tmp_path, monkeypatch):
+    import sys
+    import pytest
+    from pathlib import Path
+    from modeling.slum03.layout import build_layout, read_layout, write_layout
+    from scripts import build_offline
+    path = tmp_path / 'custom.json'
+    write_layout(build_layout(7), path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, 'argv', ['build_offline.py', '--run', 'unique', '--layout', str(path)])
+    def stop_at_blender(*args, **kwargs):
+        raise RuntimeError('Blender command: ' + ' '.join(args))
+    monkeypatch.setattr(build_offline, 'command', stop_at_blender)
+    with pytest.raises(RuntimeError, match='Blender command:') as exc:
+        build_offline.main()
+    assert '--arg=--layout' in str(exc.value)
+    snapshot = tmp_path / 'artifacts/slum03/unique/layout.json'
+    assert '--arg=' + str(snapshot) in str(exc.value)
+    assert read_layout(snapshot).seed == 7

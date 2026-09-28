@@ -13,9 +13,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from modeling.slum03 import blender_io, sectors
 from modeling.slum03.geometry import Assembly, merge_assembly
-from modeling.slum03.layout import build_layout
+from modeling.slum03.layout import read_layout
 from modeling.slum03.materials import make_blender_materials
-from modeling.slum03.types import Issue, Report
+from modeling.slum03.types import Issue, Layout, Report
 from modeling.slum03.vcolor import vertex_colors
 
 
@@ -71,12 +71,12 @@ def _issue_dict(issue: Issue | dict) -> dict:
     raise ValueError(f'invalid hook issue: {issue!r}')
 
 
-def write_scene(sector: str, output: Path) -> Report:
+def write_scene(sector: str, output: Path, layout: Layout | None = None) -> Report:
     if sector not in sectors.SECTORS:
         raise KeyError(sector)
     if output.suffix != '.blend':
         raise ValueError('output must be .blend')
-    layout = build_layout()
+    layout = layout if layout is not None else read_layout(PROJECT_ROOT / 'content/slum03/layout.json')
     assemblies = sectors.sector_assemblies(layout, sector)  # fail before any scene mutation
     import bpy
     import bmesh
@@ -203,9 +203,10 @@ def write_scene(sector: str, output: Path) -> Report:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sector', required=True)
+    parser.add_argument('--layout', type=Path, default=PROJECT_ROOT / 'content/slum03/layout.json')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
-    print(json.dumps(write_scene(args.sector, args.output)))
+    print(json.dumps(write_scene(args.sector, args.output, read_layout(args.layout))))
 
 
 if __name__ == '__main__':

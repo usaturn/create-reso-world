@@ -13,7 +13,8 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-from modeling.slum03.layout import build_layout
+from modeling.slum03.layout import read_layout
+from modeling.slum03.types import Layout
 from modeling.slum03.sectors import SECTORS
 from modeling.slum03.blender_io import resonite_to_blender
 
@@ -22,6 +23,8 @@ VIEWS = {
     'east-lane': (155, 12, 0), 'bridge-checkpoint': (78, 7, 90),
     'west-city': (-135, 20, 0), 'south-market': (0, 18, -140),
     'ar-hero': (-9, 4, -46),
+    'north-graffiti': (0, 4, 14.5), 'north-activity': (0, 1.5, 0),
+    'west-detail': (-86, 12, 0), 'south-detail': (0, 12, -86),
 }
 
 
@@ -110,9 +113,10 @@ def _raycast_report(bpy, layout):
     return {'hits': hits, 'pass': passed, 'meshCount': len(objects)}
 
 
-def preview(output_dir: Path, *, sector: str | None = None) -> dict:
+def preview(output_dir: Path, *, sector: str | None = None, layout: Layout | None = None) -> dict:
     import bpy
     from mathutils import Vector
+    layout = layout if layout is not None else read_layout(PROJECT_ROOT / 'content/slum03/layout.json')
     if sector and sector not in SECTORS:
         raise KeyError(sector)
     # Isolated sector previews cannot claim directional visibility.
@@ -130,23 +134,27 @@ def preview(output_dir: Path, *, sector: str | None = None) -> dict:
         visibility = {'status': 'not-tested', 'reason': 'isolated sector'}
     else:
         _load_scene(bpy, base)
-        visibility = _raycast_report(bpy, build_layout())
-        _labels(bpy, build_layout())
+        visibility = _raycast_report(bpy, layout)
+        _labels(bpy, layout)
     output_dir.mkdir(parents=True, exist_ok=True)
     scene = bpy.context.scene
     world = bpy.data.worlds.new('Slum03 preview ambient')
     scene.world = world
     world.node_tree.nodes['Background'].inputs['Color'].default_value = (.085, .11, .17, 1)
-    world.node_tree.nodes['Background'].inputs['Strength'].default_value = .8
-    light_data = bpy.data.lights.new('Preview sun', 'SUN'); light_data.energy = 1.4
+    world.node_tree.nodes['Background'].inputs['Strength'].default_value = 1.2
+    light_data = bpy.data.lights.new('Preview sun', 'SUN'); light_data.energy = 2.2
     light = bpy.data.objects.new('Preview sun', light_data)
     scene.collection.objects.link(light)
     light.rotation_euler = (.4, -.35, -.5)
     scene.render.engine = 'CYCLES'; scene.cycles.samples = 8
+    scene.view_settings.exposure = .8
     scene.render.resolution_x = 640; scene.render.resolution_y = 400
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = 'PNG'
-    eyes = {v.key: v.eye for v in build_layout().viewpoints}
+    eyes = {v.key: v.eye for v in layout.viewpoints}
+    eyes.update({'north-graffiti': eyes['plaza-north'],
+                 'north-activity': eyes['plaza-north'],
+                 'west-detail': eyes['west-city'], 'south-detail': eyes['south-market']})
     views = (sector,) if sector else tuple(VIEWS)
     evidence = {}
     for view in views:
@@ -161,9 +169,10 @@ def preview(output_dir: Path, *, sector: str | None = None) -> dict:
         camera.location = resonite_to_blender(eye)
         direction = Vector(resonite_to_blender(target)) - camera.location
         camera.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
+        scene.view_settings.exposure = 1.6 if view in ('west-detail', 'south-detail') else .8
         scene.render.filepath = str((output_dir / f'{view}.png').resolve())
         bpy.ops.render.render(write_still=True)
-        evidence[view] = {'eye': eye, 'target': target, 'image': str(Path(scene.render.filepath).relative_to(PROJECT_ROOT) if
+        evidence[view] = {'eye': eye, 'target': target, 'exposure': scene.view_settings.exposure, 'image': str(Path(scene.render.filepath).relative_to(PROJECT_ROOT) if
                                             Path(scene.render.filepath).is_relative_to(PROJECT_ROOT) else
                                             Path(scene.render.filepath)),
                           'bytes': Path(scene.render.filepath).stat().st_size}
@@ -171,7 +180,8 @@ def preview(output_dir: Path, *, sector: str | None = None) -> dict:
     bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.wm.save_as_mainfile(filepath=str(scene_file.resolve()))
     result = {'status': 'offline-preview', 'scene': str(scene_file), 'source': str(base), 'sector': sector,
-              'visibility': visibility, 'cameras': evidence, 'labels': 0 if sector else len(build_layout().labels)}
+              'visibility': visibility, 'cameras': evidence, 'labels': 0 if sector else len(layout.labels),
+              'layout_seed': layout.seed}
     (output_dir / 'preview-report.json').write_text(json.dumps(result, indent=2, ensure_ascii=False) + '\n')
     if not sector and not all(visibility['pass'].values()):
         raise RuntimeError(f'combined real-mesh sightlines failed: {visibility}')
@@ -182,8 +192,9 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--output', required=True, type=Path)
     p.add_argument('--sector', default=None)
+    p.add_argument('--layout', type=Path, default=PROJECT_ROOT / 'content/slum03/layout.json')
     args = p.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
-    print(json.dumps(preview(args.output, sector=args.sector)))
+    print(json.dumps(preview(args.output, sector=args.sector, layout=read_layout(args.layout))))
 
 
 if __name__ == '__main__':

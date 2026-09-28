@@ -35,8 +35,12 @@ def test_ground_build_reports_resonite_bounds_and_stable_export_name(tmp_path):
                f'--arg={tmp_path / "ground.blend"}', '--json']
     subprocess.run(command, check=True, capture_output=True, text=True)
     report = json.loads((tmp_path / 'ground-report.json').read_text())
-    assert report['objects'] == [{'key': 'district-ground', 'kind': 'foundation',
-                                  'mesh': 'district-foundation'}]
+    assert report['objects'][0] == {'key': 'district-ground', 'kind': 'foundation',
+                                    'mesh': 'district-foundation'}
+    assert len(report['objects']) == 10
+    assert {entry['mesh'] for entry in report['objects'][1:]} == {
+        a.name for a in sectors.sector_assemblies(build_layout(), 'ground')
+        if a.kind == 'scenic-support'}
     assert report['evaluated_bounds']['district-foundation']['minimum'] == pytest.approx([-60, -.3, -60])
     assert report['evaluated_bounds']['district-foundation']['maximum'] == pytest.approx([60, 0, 60])
     # Reopen the actual artifact rather than trusting only the pre-save report.
@@ -146,11 +150,12 @@ def test_hook_issue_objects_and_metrics_are_not_overwritten(tmp_path):
                             capture_output=True, text=True)
     assert result.returncode != 0, result.stdout
     report = json.loads((tmp_path / 'ground-report.json').read_text())
-    assert report['objects'] == [
-        {'key': 'district-ground', 'kind': 'foundation', 'mesh': 'district-foundation'},
-        {'key': 'hook-extra', 'kind': 'hook', 'mesh': 'hook-extra'}]
-    # Five foundation boxes (four strips plus subbase) and the hook cube.
-    assert report['triangles'] == 72 and report['vertices'] == 48 and report['submeshes'] == 2
+    assert report['objects'][0] == {
+        'key': 'district-ground', 'kind': 'foundation', 'mesh': 'district-foundation'}
+    assert len(report['objects']) == 11
+    assert report['objects'][-1] == {'key': 'hook-extra', 'kind': 'hook', 'mesh': 'hook-extra'}
+    # Foundation, nine scenic objects, plus exactly one hook cube (12 triangles).
+    assert report['triangles'] == 1032 and report['vertices'] == 568 and report['submeshes'] == 12
     assert report['evaluated_bounds']['hook-extra']['minimum'] == pytest.approx([3.5, -.5, -.5])
     assert report['uv_issues'] == [{'code':'UV', 'object_key':'hook-extra', 'message':'bad uv'}]
     assert report['errors'] == [{'code':'UV', 'object_key':'hook-extra', 'message':'bad uv'},

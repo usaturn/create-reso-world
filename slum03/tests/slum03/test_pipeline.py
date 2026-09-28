@@ -172,20 +172,17 @@ def test_same_manifest_is_deterministic(tmp_path, monkeypatch):
     assert json.dumps(pipeline.merge_bundles(directory)) == json.dumps(pipeline.merge_bundles(directory))
 
 
-def test_cli_reads_adjacent_sector_reports(tmp_path):
+def test_cli_rejects_synthetic_exporter_like_reports(tmp_path):
     from modeling.slum03.layout import write_layout
     directory, layout = _full_setup(tmp_path)
     path = tmp_path / 'layout.json'
     write_layout(layout, path)
     output = tmp_path / 'slum03.json'
     result = subprocess.run([sys.executable, '-m', 'modeling.slum03.pipeline', '--bundles', str(directory),
-                             '--layout', str(path), '--root-y', '5', '--output', str(output)],
+                             '--layout', str(path), '--reports', str(directory), '--root-y', '5', '--output', str(output)],
                             capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-    assert json.loads(output.read_text())['slot']['position'] == [0, 5.0, 0]
-    provenance = json.loads((tmp_path / 'slum03-provenance.json').read_text())
-    assert provenance['status'] == 'OFFLINE CANDIDATE'
-    assert provenance['currentReflectionValidated'] is False
+    assert result.returncode != 0
+    assert not output.exists()
 
 
 def test_native_postprocess_runs_once_on_merged_manifest(tmp_path, monkeypatch):
@@ -277,3 +274,71 @@ def test_colliding_canonical_ads_material_still_converts_and_pans(tmp_path):
     assert comps[clone]['type'] == 'FrooxEngine.FresnelMaterial'
     for side in ('near', 'far'):
         assert comps['panner-' + clone + '-' + side]['type'] == 'FrooxEngine.Panner2D'
+
+
+def test_actual_bundle_cli_requires_matching_blender_reports(tmp_path):
+    # Removing --reports must not silently consume exporter report.json.
+    bundles = Path('content/slum03/bundles/finalfix-m-20260928T0511')
+    reports = Path('artifacts/slum03/finalfix-m-20260928T0511')
+    output = tmp_path / 'actual.json'
+    base = [sys.executable, '-m', 'modeling.slum03.pipeline', '--bundles', str(bundles),
+            '--layout', 'content/slum03/layout.json', '--root-y', '4.5', '--output', str(output)]
+    missing = subprocess.run(base, capture_output=True, text=True)
+    assert missing.returncode != 0 and not output.exists()
+    result = subprocess.run(base + ['--reports', str(reports)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    manifest = json.loads(output.read_text())
+    assert manifest['slot']['position'] == [0, 4.5, 0]
+    assert all((output.parent / a['source']).is_file() for a in manifest['assets'].values())
+    provenance = json.loads((tmp_path / 'actual-provenance.json').read_text())
+    assert provenance['reports'] == str(reports)
+
+
+def test_actual_bundle_cli_rejects_exporter_report_as_evaluated_report(tmp_path):
+    bundles = Path('content/slum03/bundles/finalfix-m-20260928T0511')
+    reports = Path('artifacts/slum03/finalfix-m-20260928T0511')
+    fake = tmp_path / 'reports'
+    fake.mkdir()
+    for sector in pipeline.SECTORS:
+        source = bundles / sector / 'report.json' if sector == 'ground' else reports / f'{sector}-report.json'
+        (fake / f'{sector}-report.json').write_bytes(source.read_bytes())
+    output = tmp_path / 'bad.json'
+    result = subprocess.run([sys.executable, '-m', 'modeling.slum03.pipeline',
+                             '--bundles', str(bundles), '--layout', 'content/slum03/layout.json',
+                             '--reports', str(fake), '--root-y', '4.5', '--output', str(output)],
+                            capture_output=True, text=True)
+    assert result.returncode != 0 and not output.exists()
+    assert 'report' in result.stderr.lower() or 'bounds' in result.stderr.lower()
+
+
+def test_actual_bundle_cli_can_regenerate_delivery_manifest(tmp_path):
+    output = tmp_path / 'delivery.json'
+    result = subprocess.run([sys.executable, '-m', 'modeling.slum03.pipeline',
+                             '--bundles', 'content/slum03/bundles/finalfix-m-20260928T0511',
+                             '--layout', 'content/slum03/layout.json',
+                             '--reports', 'artifacts/slum03/finalfix-m-20260928T0511',
+                             '--root-y', '4.5', '--delivery-checks', '--output', str(output)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    result_manifest = json.loads(output.read_text())
+    assert len(result_manifest['cameras']) == 6
+    assert result_manifest['tests'][0]['assertions']
+    assert result_manifest['slot']['position'] == [0, 4.5, 0]
+
+
+def test_cli_rejects_valid_reports_from_another_geometry_revision(tmp_path):
+    bundles = Path('content/slum03/bundles/finalfix-m-20260928T0511')
+    current = Path('artifacts/slum03/finalfix-m-20260928T0511')
+    earlier = Path('artifacts/slum03/task11-fix2-20260928T0356')
+    reports = tmp_path / 'reports'
+    reports.mkdir()
+    for sector in pipeline.SECTORS:
+        (reports / f'{sector}-report.json').write_bytes(
+            ((earlier if sector == 'ground' else current) / f'{sector}-report.json').read_bytes())
+    output = tmp_path / 'mixed.json'
+    result = subprocess.run([sys.executable, '-m', 'modeling.slum03.pipeline',
+                             '--bundles', str(bundles), '--reports', str(reports),
+                             '--layout', 'content/slum03/layout.json', '--root-y', '4.5',
+                             '--output', str(output)], capture_output=True, text=True)
+    assert result.returncode != 0 and not output.exists()
+    assert 'ground' in result.stderr

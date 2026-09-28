@@ -1,0 +1,59 @@
+{
+  "sector": "market",
+  "export_collection": "Slum03marketExport",
+  "objects": [
+    {
+      "key": "market-west",
+      "kind": "stall",
+      "mesh": "market-west"
+    },
+    {
+      "key": "market-east",
+      "kind": "stall",
+      "mesh": "market-east"
+    }
+  ],
+  "evaluated_bounds": {
+    "market-west": {
+      "minimum": [
+        -11.765000343322754,
+        0.0,
+        -39.76499938964844
+      ],
+      "maximum": [
+        -6.234999656677246,
+        2.8299999237060547,
+        -28.235000610351562
+      ]
+    },
+    "market-east": {
+      "minimum": [
+        6.234999656677246,
+        0.0,
+        -39.76499938964844
+      ],
+      "maximum": [
+        11.765000343322754,
+        2.8299999237060547,
+        -28.235000610351562
+      ]
+    }
+  },
+  "materials": [
+    "Slum03_electronics",
+    "Slum03_glass_dark",
+    "Slum03_pallet_wood",
+    "Slum03_plastic_crate",
+    "Slum03_rust",
+    "Slum03_rust_dark",
+    "Slum03_steel_bare",
+    "Slum03_steel_dark",
+    "Slum03_tarp_blue",
+    "Slum03_tarp_orange"
+  ],
+  "triangles": 1224,
+  "vertices": 752,
+  "submeshes": 18,
+  "uv_issues": [],
+  "errors": []
+}

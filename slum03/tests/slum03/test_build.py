@@ -56,3 +56,46 @@ def test_fixed_product_copy_is_unoccluded_at_designated_ar_eye():
                              'tests/slum03/blender_copy_visibility_probe.py', '--blend', str(scene),
                              '--json'], capture_output=True, text=True, timeout=105)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_custom_persisted_layout_drives_mesh_hook_and_native_collider(tmp_path):
+    import json, subprocess
+    from dataclasses import replace
+    from modeling.slum03.layout import build_layout, write_layout, validate_layout
+    from modeling.slum03.native.colliders import collider_slots
+    layout = build_layout(7)
+    changed = replace(layout, placements=tuple(
+        replace(p, origin=(p.origin[0] + (1 if p.key == 'forest' else -1), p.origin[1], p.origin[2]))
+        if p.key in ('ruin-west', 'forest') else p for p in layout.placements))
+    assert not validate_layout(changed)
+    path = tmp_path / 'custom-layout.json'
+    write_layout(changed, path)
+    for sector in ('ruins-west', 'forest'):
+        output = tmp_path / f'{sector}.blend'
+        result = subprocess.run(['resoloop', '--command-timeout', '180', 'blender', 'run',
+                                 'modeling/slum03/build.py', '--arg=--layout', f'--arg={path}',
+                                 '--arg=--sector', f'--arg={sector}', '--arg=--output', f'--arg={output}',
+                                 '--json'], capture_output=True, text=True, timeout=200)
+        assert result.returncode == 0, result.stdout + result.stderr
+    ruin = json.loads((tmp_path / 'ruins-west-report.json').read_text())['evaluated_bounds']['ruin-west']
+    baseline = json.loads(Path('artifacts/slum03/task11-fix2-20260928T0356/ruins-west-report.json').read_text())['evaluated_bounds']['ruin-west']
+    assert abs(ruin['minimum'][0] - baseline['minimum'][0] + 1) < .001
+    boxes = collider_slots(changed, {})
+    west = next(n for n in boxes if n['slot']['key'] == 'collider-ruin-west')
+    assert west['slot']['position'][0] == -39
+    assert ruin['minimum'][0] <= west['slot']['position'][0] <= ruin['maximum'][0]
+    baseline_path = tmp_path / 'seed7-layout.json'
+    write_layout(layout, baseline_path)
+    baseline_output = tmp_path / 'baseline' / 'forest.blend'
+    result = subprocess.run(['resoloop', '--command-timeout', '180', 'blender', 'run',
+                             'modeling/slum03/build.py', '--arg=--layout', f'--arg={baseline_path}',
+                             '--arg=--sector', '--arg=forest', '--arg=--output', f'--arg={baseline_output}',
+                             '--json'], capture_output=True, text=True, timeout=200)
+    assert result.returncode == 0, result.stdout + result.stderr
+    forest = json.loads((tmp_path / 'forest-report.json').read_text())['evaluated_bounds']
+    seed7_forest = json.loads((baseline_output.parent / 'forest-report.json').read_text())['evaluated_bounds']
+    for key in ('forest-tree-0-0', 'forest-patch-0-0'):
+        assert abs(forest[key]['minimum'][0] - seed7_forest[key]['minimum'][0] - 1) < .001
+    baseline_forest = json.loads(Path('artifacts/slum03/task11-fix2-20260928T0356/forest-report.json').read_text())['evaluated_bounds']
+    assert forest['forest-tree-0-0'] != baseline_forest['forest-tree-0-0']
+    assert forest['forest-patch-0-0'] != baseline_forest['forest-patch-0-0']
