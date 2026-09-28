@@ -113,7 +113,16 @@ def _raycast_report(bpy, layout):
     return {'hits': hits, 'pass': passed, 'meshCount': len(objects)}
 
 
-def preview(output_dir: Path, *, sector: str | None = None, layout: Layout | None = None) -> dict:
+def comparison_poses(cameras, root_position):
+    """Recover Blender local coordinates from shared world-space camera definitions."""
+    return {key: {'eye': tuple(c['position'][i] - root_position[i] for i in range(3)),
+                  'target': tuple(c['target'][i] - root_position[i] for i in range(3)),
+                  'fieldOfView': c['fieldOfView']}
+            for key, c in cameras.items()}
+
+
+def preview(output_dir: Path, *, sector: str | None = None, layout: Layout | None = None,
+            cameras: dict | None = None, source_dir: Path | None = None) -> dict:
     import bpy
     from mathutils import Vector
     layout = layout if layout is not None else read_layout(PROJECT_ROOT / 'content/slum03/layout.json')
@@ -123,7 +132,7 @@ def preview(output_dir: Path, *, sector: str | None = None, layout: Layout | Non
     if bpy.data.filepath:
         raise RuntimeError('preview requires a fresh scene')
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    base = output_dir.parent
+    base = source_dir if source_dir is not None else output_dir.parent
     if sector:
         path = base / f'{sector}.blend'
         if not path.is_file():
@@ -146,7 +155,7 @@ def preview(output_dir: Path, *, sector: str | None = None, layout: Layout | Non
     light = bpy.data.objects.new('Preview sun', light_data)
     scene.collection.objects.link(light)
     light.rotation_euler = (.4, -.35, -.5)
-    scene.render.engine = 'CYCLES'; scene.cycles.samples = 8
+    scene.render.engine = 'CYCLES'; scene.cycles.samples = 24 if cameras else 8
     scene.view_settings.exposure = .8
     scene.render.resolution_x = 640; scene.render.resolution_y = 400
     scene.render.resolution_percentage = 100
@@ -155,24 +164,40 @@ def preview(output_dir: Path, *, sector: str | None = None, layout: Layout | Non
     eyes.update({'north-graffiti': eyes['plaza-north'],
                  'north-activity': eyes['plaza-north'],
                  'west-detail': eyes['west-city'], 'south-detail': eyes['south-market']})
-    views = (sector,) if sector else tuple(VIEWS)
+    if sector and cameras:
+        raise ValueError('comparison cameras require combined scene')
+    root = (0, 4.5, 0)
+    shared = comparison_poses(cameras, root) if cameras else {}
+    views = (sector,) if sector else tuple(shared or VIEWS)
     evidence = {}
     for view in views:
         camera = bpy.data.objects.new(f'Preview camera {view}', bpy.data.cameras.new(f'Preview camera {view}'))
         scene.collection.objects.link(camera); scene.camera = camera
         camera.data.type = 'PERSP'; camera.data.lens = 25; camera.data.clip_end = 2000
+        if shared:
+            camera.data.angle = math.radians(shared[view]['fieldOfView'])
         if sector:
             # Unit previews use a generic high-angle view and are clearly marked isolated.
             eye, target = (0, 45, -65), (0, 0, 0)
         else:
-            eye, target = eyes[view], VIEWS[view]
+            eye, target = (shared[view]['eye'], shared[view]['target']) if shared else (eyes[view], VIEWS[view])
         camera.location = resonite_to_blender(eye)
         direction = Vector(resonite_to_blender(target)) - camera.location
         camera.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
-        scene.view_settings.exposure = 1.6 if view in ('west-detail', 'south-detail') else .8
+        scene.view_settings.exposure = 1.6 if shared or view in ('west-detail', 'south-detail') else .8
+        if shared:
+            fill = bpy.data.lights.new(f'Diagnostic camera fill {view}', 'AREA')
+            fill.energy = 1200; fill.shape = 'DISK'; fill.size = 5
+            fill_obj = bpy.data.objects.new(f'Diagnostic camera fill {view}', fill)
+            scene.collection.objects.link(fill_obj)
+            fill_obj.location = camera.location
+            fill_obj.rotation_euler = camera.rotation_euler
         scene.render.filepath = str((output_dir / f'{view}.png').resolve())
         bpy.ops.render.render(write_still=True)
-        evidence[view] = {'eye': eye, 'target': target, 'exposure': scene.view_settings.exposure, 'image': str(Path(scene.render.filepath).relative_to(PROJECT_ROOT) if
+        if shared:
+            bpy.data.objects.remove(fill_obj, do_unlink=True)
+            bpy.data.lights.remove(fill, do_unlink=True)
+        evidence[view] = {'eye': eye, 'target': target, 'exposure': scene.view_settings.exposure, 'fieldOfView': shared[view]['fieldOfView'] if shared else None, 'image': str(Path(scene.render.filepath).relative_to(PROJECT_ROOT) if
                                             Path(scene.render.filepath).is_relative_to(PROJECT_ROOT) else
                                             Path(scene.render.filepath)),
                           'bytes': Path(scene.render.filepath).stat().st_size}
@@ -193,8 +218,12 @@ def main():
     p.add_argument('--output', required=True, type=Path)
     p.add_argument('--sector', default=None)
     p.add_argument('--layout', type=Path, default=PROJECT_ROOT / 'content/slum03/layout.json')
+    p.add_argument('--cameras', type=Path, default=None)
+    p.add_argument('--source-dir', type=Path, default=None)
     args = p.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
-    print(json.dumps(preview(args.output, sector=args.sector, layout=read_layout(args.layout))))
+    print(json.dumps(preview(args.output, sector=args.sector, layout=read_layout(args.layout),
+                             cameras=json.loads(args.cameras.read_text()) if args.cameras else None,
+                             source_dir=args.source_dir)))
 
 
 if __name__ == '__main__':

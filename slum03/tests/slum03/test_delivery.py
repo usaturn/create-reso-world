@@ -113,11 +113,17 @@ def test_canonical_manifest_is_portable_and_contains_live_qa():
     assert manifest['ownership'] == {'key': 'slum03'}
     assert manifest['slot']['position'] == [0, 4.5, 0]
     assert len(manifest['cameras']) == 6 and manifest['tests']
-    assert len([a for a in manifest['assets'].values() if a['kind'] == 'mesh']) == 150
     assert all(not Path(a['source']).is_absolute() and
                (path.parent / a['source']).is_file() and
                'finalfix-m-20260928T0511' in a['source']
                for a in manifest['assets'].values())
+
+
+def test_baseline_fixture_retains_original_mesh_count():
+    baseline = json.loads(Path('content/slum03/density-baseline.json').read_text())
+    assert len([a for a in baseline['assets'].values() if a['kind'] == 'mesh']) == 150
+    assert hashlib.sha256(Path('content/slum03/density-baseline.json').read_bytes()).hexdigest() == hashlib.sha256(
+        Path('content/slum03/slum03.json').read_bytes()).hexdigest()
 
 
 def test_plural_live_warnings_with_valid_evidence_remain_pending():
@@ -174,3 +180,19 @@ def test_delivery_resources_and_build_evidence_match_canonical_bundle():
     assert report['checks']['walk']['status'] == 'pending'
     assert report['checks']['resources']['status'] == 'pending'
     assert report['status'] == 'fail'
+
+
+def test_review_candidate_counts_and_hash_come_from_its_own_evidence():
+    run = 'density-rep-a-20260928Ttask6-01'
+    qa = Path('artifacts/slum03') / run / 'representative-review-fix3'
+    candidate = Path('content/slum03') / f'{run}-review-candidate-fix3.json'
+    manifest = json.loads(candidate.read_text())
+    scope = json.loads((qa / 'scope-report.json').read_text())
+    provenance = json.loads(candidate.with_name(candidate.stem + '-provenance.json').read_text())
+    acceptance = json.loads((qa / 'acceptance.json').read_text())
+    digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+    assert scope['candidate_sha256'] == provenance['candidate_sha256'] == acceptance['manifest_sha256'] == digest
+    assert scope['protected_changes'] == scope['geometry_changes'] == scope['asset_changes'] == 0
+    assert len(manifest['assets']) == len(json.loads(Path(f'content/slum03/{run}-candidate-fix3.json').read_text())['assets'])
+    assert len(manifest['cameras']) == len(json.loads(Path(f'content/slum03/{run}-candidate-fix3.json').read_text())['cameras']) + 5
+    assert acceptance['status'] == 'pending'
