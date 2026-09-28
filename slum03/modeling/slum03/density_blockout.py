@@ -133,7 +133,8 @@ def run(layout_path: Path, output: Path):
         raise ValueError(f'blockout fails Gate A spatial audit: {report["issues"][:10]}')
     output.mkdir(parents=True, exist_ok=False)
     report['references']['layout'] = {'path': str(layout_path),
-        'sha256': hashlib.sha256(layout_path.read_bytes()).hexdigest()}
+        'sha256': hashlib.sha256(layout_path.read_bytes()).hexdigest(),
+        'hash_basis': 'saved-file-bytes'}
     report['references']['build'] = None
     report['references']['export'] = None
     report['evidence_scope'] = ('Diagnostic axis-aligned Blender box blockout; not detailed meshes, '

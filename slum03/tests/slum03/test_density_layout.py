@@ -122,3 +122,32 @@ def test_attachment_allows_only_declared_contact_overlap():
     altered = replace(full, placements=tuple(deeper if p.key == a.key else p for p in full.placements))
     assert any(i.code == 'DENSITY_OVERLAP' and i.object_key == child.key and b.key in i.message
                for i in validate_density(altered, {}, 'blockout'))
+
+
+def test_both_market_edge_storefronts_are_southeast_and_link_to_east_alley():
+    full = full_layout()
+    shops = [p for p in full.placements if p.key.startswith('density-market-nightlife-')]
+    assert len(shops) == 2
+    assert all(7 <= p.origin[0] <= 16 and -60 < p.origin[2] <= -42 for p in shops)
+    east = next(p for p in full.placements if p.key == 'density-east-nightlife-01')
+    assert any(0 < east.origin[0] - p.origin[0] <= 10 and
+               abs(east.origin[2] - p.origin[2]) <= 5 for p in shops)
+
+
+def test_canonical_variants_drive_representative_and_full_without_touching_other_legacy_metadata():
+    base = read_layout(BASE)
+    canon = {'ruin-west': 'slab_bay', 'shack-row': 'corrugated', 'market-west': 'electronics'}
+    for stage in ('representative', 'blockout', 'full'):
+        layout = build_density_layout(base, stage)
+        originals = {p.key: p for p in base.placements}
+        actual = {p.key: p for p in layout.placements}
+        assert {key: actual[key].params['variant'] for key in canon} == canon
+        assert all(actual[p.key] == p for p in base.placements if p.key not in canon)
+        additions = [p for p in layout.placements if p.key.startswith('density-')]
+        expected = {'ruin': {'slab_bay', 'broken_corner', 'service_core', 'stepped_shell',
+                             'exposed_frame', 'patched_facade'},
+                    'shack': {'corrugated', 'plywood', 'tarp', 'pallet'},
+                    'stall': {'electronics', 'tools', 'prosthetics', 'reclaimed_equipment'}}
+        for kind, names in expected.items():
+            assert {p.params['variant'] for p in additions if p.kind == kind} == (
+                set() if stage == 'representative' else names)

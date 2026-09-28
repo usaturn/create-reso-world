@@ -41,6 +41,15 @@ ADDITIONS = {
 SIZES = {'ruin': (8., 12., 8.), 'shack': (4., 4., 4.),
          'stall': (3., 3., 4.), 'nightlife': (8., 8., 8.)}
 IGNORE_SOLIDS = {'ground', 'floor', 'rubble', 'overhead', 'product-holo', 'info-ad', 'ribbon-ad'}
+# Both southeast market shops lead directly towards the east alley, not the western market.
+SOUTHEAST_SHOP_SITES = ((7., -55.), (16., -55.))
+RUIN_VARIANTS = ('slab_bay', 'broken_corner', 'service_core', 'stepped_shell',
+                 'exposed_frame', 'patched_facade')
+SHACK_VARIANTS = ('corrugated', 'plywood', 'tarp', 'pallet')
+STALL_VARIANTS = ('electronics', 'tools', 'prosthetics', 'reclaimed_equipment')
+VARIANTS = {'ruin': RUIN_VARIANTS, 'shack': SHACK_VARIANTS, 'stall': STALL_VARIANTS}
+REP_VARIANTS = dict(zip(REPRESENTATIVE_KEYS,
+                        (RUIN_VARIANTS[0], SHACK_VARIANTS[0], STALL_VARIANTS[0])))
 
 
 def _intersects(a: RectXZ, b: RectXZ, margin=0.) -> bool:
@@ -54,8 +63,7 @@ def _footprint(p: Placement) -> RectXZ:
 
 
 def _candidates(zone: DensityZone, kind: str):
-    # 1 m lattice makes every generated coordinate stable across processes.
-    # Market stalls use denser 5 m lanes; all other units have staggered rows.
+    # Stable 2 m candidate lattice; southwest shops use explicit sites instead.
     sx, _, sz = SIZES[kind]
     stride = 2
     xs = list(range(int(zone.bounds.x_min + sx/2 + 1),
@@ -72,9 +80,10 @@ def build_density_layout(baseline: Layout, stage: str, seed: int = 260927) -> La
         raise ValueError('expected unchanged baseline and matching seed')
     selected = REPRESENTATIVE_KEYS if stage == 'representative' else ()
     config = DensityConfig(stage, ZONES, ROUTES, BRANCHES, selected)
-    old = tuple(replace(p, params={**p.params, 'detail_profile': 'v2',
-                                  'variant': 'representative', 'cluster': 'anchor'})
-                if p.key in selected else p for p in baseline.placements)
+    old = tuple(replace(p, params={**p.params, 'variant': REP_VARIANTS[p.key],
+                                  'cluster': 'anchor',
+                                  **({'detail_profile': 'v2'} if stage != 'blockout' else {})})
+                if p.key in REP_VARIANTS else p for p in baseline.placements)
     if stage == 'representative':
         return replace(baseline, placements=old, density=config)
     placed = list(old)
@@ -84,9 +93,9 @@ def build_density_layout(baseline: Layout, stage: str, seed: int = 260927) -> La
     for kind, quotas in ADDITIONS.items():
         for zone_name, count in quotas.items():
             zone = next(z for z in ZONES if z.key == zone_name)
-            options = _candidates(zone, kind)
-            # Spread candidates rather than fill one edge: order by distance to
-            # already occupied sites (fixed, deterministic, no RNG consumption).
+            options = (SOUTHEAST_SHOP_SITES if kind == 'nightlife' and zone_name == 'market'
+                       else _candidates(zone, kind))
+            # Stable row order; never drop quota when a site cannot be occupied.
             for number in range(count):
                 candidates = []
                 for x, z in options:
@@ -99,14 +108,13 @@ def build_density_layout(baseline: Layout, stage: str, seed: int = 260927) -> La
                     if not (zone.bounds.x_min <= rect.x_min < rect.x_max <= zone.bounds.x_max and
                             zone.bounds.z_min <= rect.z_min < rect.z_max <= zone.bounds.z_max):
                         continue
-                    distance = min((x-(r.x_min+r.x_max)/2)**2 + (z-(r.z_min+r.z_max)/2)**2
-                                   for r in solids)
-                    candidates.append((distance, -abs(x), -abs(z), x, z, rect))
+                    candidates.append((x, z, rect))
                 if not candidates:
                     raise ValueError(f'cannot fit {kind} #{number+1}/{count} in {zone_name}; quota unchanged')
-                _, _, _, x, z, rect = min(candidates, key=lambda c: (c[4], c[3]))
+                x, z, rect = min(candidates, key=lambda c: (c[1], c[0]))
                 key = f'density-{zone_name}-{kind}-{number+1:02d}'
-                variant = f'{kind}-{number % (6 if kind == "ruin" else 4) + 1}'
+                variant = (VARIANTS[kind][number % len(VARIANTS[kind])] if kind in VARIANTS
+                           else f'{kind}-{number % 4 + 1}')
                 height = (6 if zone_name == 'east' else 12) if kind == 'ruin' else SIZES[kind][1]
                 p = Placement(key, {'northwest': 'ruins-west', 'southwest': 'shacks',
                                     'market': 'market', 'east': 'nightlife'}[zone_name],

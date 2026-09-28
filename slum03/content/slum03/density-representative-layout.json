@@ -395,7 +395,7 @@
       "params": {
         "cluster": "anchor",
         "detail_profile": "v2",
-        "variant": "representative"
+        "variant": "slab_bay"
       },
       "sector": "ruins-west",
       "size": [
@@ -471,7 +471,7 @@
       "params": {
         "cluster": "anchor",
         "detail_profile": "v2",
-        "variant": "representative"
+        "variant": "corrugated"
       },
       "sector": "shacks",
       "size": [
@@ -514,7 +514,7 @@
         "detail_profile": "v2",
         "shelf_depth": 0.8,
         "shelf_height": 1.25,
-        "variant": "representative"
+        "variant": "electronics"
       },
       "sector": "market",
       "size": [

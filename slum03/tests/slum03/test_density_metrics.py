@@ -75,7 +75,8 @@ def test_evaluated_mesh_intersection_is_caught_individually():
     a, b = [p for p in full.placements if p.key.startswith('density-') and p.kind == 'ruin'][:2]
     ba = placement_bounds(a)
     raw = {'minimum': list(ba.minimum), 'maximum': list(ba.maximum)}
-    reports = {'ruins': {'objects': [{'mesh': 'mesh-a', 'placement_key': a.key, 'vertices': 8, 'faces': 6},
+    reports = {'ruins': {'layout_sha256': density_report(full, {}, 'blockout')['layout_sha256'],
+                         'objects': [{'mesh': 'mesh-a', 'placement_key': a.key, 'vertices': 8, 'faces': 6},
                                      {'mesh': 'mesh-b', 'placement_key': b.key, 'vertices': 8, 'faces': 6}],
                           'evaluated_bounds': {'mesh-a': raw, 'mesh-b': raw}}}
     assert any(i.code == 'DENSITY_OVERLAP' for i in validate_density(full, reports, 'evaluated'))
@@ -87,3 +88,71 @@ def test_forged_approved_reason_cannot_suppress_unapproved_gap():
     altered = replace(layout, density=replace(layout.density, routes=(
         replace(layout.density.routes[0], openings=(fake,)),)))
     assert 'FRONTAGE_GAP' in {i.code for i in validate_density(altered, {}, 'blockout')}
+
+
+def test_frontage_longitudinal_width_not_lateral_overlap():
+    lane = frontage_fixture(20.01)
+    # Wall only 0.1m across the street but 5m along it qualifies.
+    long_wall = Placement('wall', 'test', 'utility', (5, 0, 32), (.1, 3, 5), 0, 'district')
+    # Conversely 2m across the street and 0.1m along it cannot break the gap.
+    short_wall = replace(long_wall, size=(2, 3, .1))
+    assert 'FRONTAGE_GAP' not in {i.code for i in validate_density(
+        replace(lane, placements=lane.placements + (long_wall,)), {}, 'blockout')}
+    assert 'FRONTAGE_GAP' in {i.code for i in validate_density(
+        replace(lane, placements=lane.placements + (short_wall,)), {}, 'blockout')}
+
+
+def test_evaluated_reports_without_matching_layout_digest_are_never_accepted():
+    full = build_density_layout(build_layout(), 'full')
+    p = next(p for p in full.placements if p.key.startswith('density-') and p.kind == 'ruin')
+    original = density_report(full, {}, 'blockout')['layout_sha256']
+    raw = {'minimum': [p.origin[0]-4, 0, p.origin[2]-4],
+           'maximum': [p.origin[0]+4, 10, p.origin[2]+4]}
+    for digest in (None, '0'*64, original):
+        report = {'objects': [{'mesh': 'real', 'placement_key': p.key, 'vertices': 8, 'faces': 6}],
+                  'evaluated_bounds': {'real': raw}}
+        if digest is not None:
+            report['layout_sha256'] = digest
+        result = density_report(full, {'ruins': report}, 'evaluated')
+        if digest == original:
+            assert result['occupied_union_m2'] > 0
+            assert not any(i['code'] == 'LAYOUT_MISMATCH' for i in result['issues'])
+        else:
+            assert result['occupied_union_m2'] == 0
+            assert any(i['code'] == 'LAYOUT_MISMATCH' for i in result['issues'])
+
+
+def test_representative_evaluated_shape_and_utility_are_not_exempt_from_collisions():
+    from modeling.slum03.spatial import placement_bounds
+    rep = build_density_layout(build_layout(), 'representative')
+    west = next(p for p in rep.placements if p.key == 'ruin-west')
+    annex = next(p for p in rep.placements if p.key == 'ruin-west-annex')
+    market = next(p for p in rep.placements if p.key == 'market-west')
+    utility = Placement('extra-utility', 'market', 'utility', market.origin, (2, 2, 2), 0,
+                        'district')
+    rep = replace(rep, placements=rep.placements + (utility,))
+    bounds = placement_bounds(annex)
+    def raw(b):
+        return {'minimum': list(b.minimum), 'maximum': list(b.maximum)}
+    report = {'layout_sha256': density_report(rep, {}, 'blockout')['layout_sha256'],
+              'objects': [{'mesh': key, 'placement_key': key, 'vertices': 8, 'faces': 6}
+                          for key in ('ruin-west', 'ruin-west-annex', 'market-west', 'extra-utility')],
+              'evaluated_bounds': {'ruin-west': raw(bounds), 'ruin-west-annex': raw(bounds),
+                                   'market-west': raw(placement_bounds(market)),
+                                   'extra-utility': raw(placement_bounds(utility))}}
+    problems = validate_density(rep, {'ruins': report}, 'evaluated')
+    assert any(i.code == 'DENSITY_OVERLAP' and 'ruin-west-annex' in i.message for i in problems)
+    assert any(i.code == 'DENSITY_OVERLAP' and 'extra-utility' in i.message for i in problems)
+
+
+def test_layout_digest_is_semantic_and_distinct_from_pretty_saved_json(tmp_path):
+    import hashlib
+    from modeling.slum03.layout import write_layout, read_layout
+    layout = build_density_layout(build_layout(), 'full')
+    path = tmp_path / 'full.json'
+    write_layout(layout, path)
+    first = density_report(layout, {}, 'blockout')
+    second = density_report(read_layout(path), {}, 'blockout')
+    assert first['layout_sha256'] == second['layout_sha256']
+    assert first['layout_sha256_basis'] == 'canonical-layout-json-utf8'
+    assert hashlib.sha256(path.read_bytes()).hexdigest() != first['layout_sha256']

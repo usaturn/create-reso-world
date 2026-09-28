@@ -388,7 +388,10 @@
         0,
         12
       ],
-      "params": {},
+      "params": {
+        "cluster": "anchor",
+        "variant": "slab_bay"
+      },
       "sector": "ruins-west",
       "size": [
         17,
@@ -460,7 +463,10 @@
         0,
         -28
       ],
-      "params": {},
+      "params": {
+        "cluster": "anchor",
+        "variant": "corrugated"
+      },
       "sector": "shacks",
       "size": [
         15,
@@ -498,8 +504,10 @@
       ],
       "params": {
         "awning_height": 2.7,
+        "cluster": "anchor",
         "shelf_depth": 0.8,
-        "shelf_height": 1.25
+        "shelf_height": 1.25,
+        "variant": "electronics"
       },
       "sector": "market",
       "size": [
@@ -984,7 +992,7 @@
       "key": "density-market-nightlife-01",
       "kind": "nightlife",
       "origin": [
-        -15.0,
+        7.0,
         0.0,
         -55.0
       ],
@@ -1006,7 +1014,7 @@
       "key": "density-market-nightlife-02",
       "kind": "nightlife",
       "origin": [
-        7.0,
+        16.0,
         0.0,
         -55.0
       ],
@@ -1123,7 +1131,7 @@
       "params": {
         "cluster": "northwest-row-0",
         "density_zone": "northwest",
-        "variant": "ruin-1"
+        "variant": "slab_bay"
       },
       "sector": "ruins-west",
       "size": [
@@ -1145,7 +1153,7 @@
       "params": {
         "cluster": "northwest-row-1",
         "density_zone": "northwest",
-        "variant": "ruin-2"
+        "variant": "broken_corner"
       },
       "sector": "ruins-west",
       "size": [
@@ -1167,7 +1175,7 @@
       "params": {
         "cluster": "northwest-row-2",
         "density_zone": "northwest",
-        "variant": "ruin-3"
+        "variant": "service_core"
       },
       "sector": "ruins-west",
       "size": [
@@ -1189,7 +1197,7 @@
       "params": {
         "cluster": "northwest-row-3",
         "density_zone": "northwest",
-        "variant": "ruin-4"
+        "variant": "stepped_shell"
       },
       "sector": "ruins-west",
       "size": [
@@ -1211,7 +1219,7 @@
       "params": {
         "cluster": "northwest-row-4",
         "density_zone": "northwest",
-        "variant": "ruin-5"
+        "variant": "exposed_frame"
       },
       "sector": "ruins-west",
       "size": [
@@ -1233,7 +1241,7 @@
       "params": {
         "cluster": "southwest-row--6",
         "density_zone": "southwest",
-        "variant": "ruin-1"
+        "variant": "slab_bay"
       },
       "sector": "shacks",
       "size": [
@@ -1255,7 +1263,7 @@
       "params": {
         "cluster": "southwest-row--6",
         "density_zone": "southwest",
-        "variant": "ruin-2"
+        "variant": "broken_corner"
       },
       "sector": "shacks",
       "size": [
@@ -1277,7 +1285,7 @@
       "params": {
         "cluster": "southwest-row--6",
         "density_zone": "southwest",
-        "variant": "ruin-3"
+        "variant": "service_core"
       },
       "sector": "shacks",
       "size": [
@@ -1299,7 +1307,7 @@
       "params": {
         "cluster": "southwest-row--5",
         "density_zone": "southwest",
-        "variant": "ruin-4"
+        "variant": "stepped_shell"
       },
       "sector": "shacks",
       "size": [
@@ -1321,7 +1329,7 @@
       "params": {
         "cluster": "southwest-row--5",
         "density_zone": "southwest",
-        "variant": "ruin-5"
+        "variant": "exposed_frame"
       },
       "sector": "shacks",
       "size": [
@@ -1343,7 +1351,7 @@
       "params": {
         "cluster": "southwest-row--5",
         "density_zone": "southwest",
-        "variant": "ruin-6"
+        "variant": "patched_facade"
       },
       "sector": "shacks",
       "size": [
@@ -1365,7 +1373,7 @@
       "params": {
         "cluster": "southwest-row--2",
         "density_zone": "southwest",
-        "variant": "ruin-1"
+        "variant": "slab_bay"
       },
       "sector": "shacks",
       "size": [
@@ -1387,7 +1395,7 @@
       "params": {
         "cluster": "southwest-row--2",
         "density_zone": "southwest",
-        "variant": "ruin-2"
+        "variant": "broken_corner"
       },
       "sector": "shacks",
       "size": [
@@ -1409,7 +1417,7 @@
       "params": {
         "cluster": "southwest-row--2",
         "density_zone": "southwest",
-        "variant": "ruin-3"
+        "variant": "service_core"
       },
       "sector": "shacks",
       "size": [
@@ -1431,7 +1439,7 @@
       "params": {
         "cluster": "east-row--5",
         "density_zone": "east",
-        "variant": "ruin-1"
+        "variant": "slab_bay"
       },
       "sector": "nightlife",
       "size": [
@@ -1453,7 +1461,7 @@
       "params": {
         "cluster": "east-row--5",
         "density_zone": "east",
-        "variant": "ruin-2"
+        "variant": "broken_corner"
       },
       "sector": "nightlife",
       "size": [
@@ -1475,7 +1483,7 @@
       "params": {
         "cluster": "east-row--4",
         "density_zone": "east",
-        "variant": "ruin-3"
+        "variant": "service_core"
       },
       "sector": "nightlife",
       "size": [
@@ -1497,7 +1505,7 @@
       "params": {
         "cluster": "east-row--4",
         "density_zone": "east",
-        "variant": "ruin-4"
+        "variant": "stepped_shell"
       },
       "sector": "nightlife",
       "size": [
@@ -1519,7 +1527,7 @@
       "params": {
         "cluster": "east-row--3",
         "density_zone": "east",
-        "variant": "ruin-5"
+        "variant": "exposed_frame"
       },
       "sector": "nightlife",
       "size": [
@@ -1541,7 +1549,7 @@
       "params": {
         "cluster": "east-row--3",
         "density_zone": "east",
-        "variant": "ruin-6"
+        "variant": "patched_facade"
       },
       "sector": "nightlife",
       "size": [
@@ -1563,7 +1571,7 @@
       "params": {
         "cluster": "east-row--2",
         "density_zone": "east",
-        "variant": "ruin-1"
+        "variant": "slab_bay"
       },
       "sector": "nightlife",
       "size": [
@@ -1585,7 +1593,7 @@
       "params": {
         "cluster": "east-row--2",
         "density_zone": "east",
-        "variant": "ruin-2"
+        "variant": "broken_corner"
       },
       "sector": "nightlife",
       "size": [
@@ -1607,7 +1615,7 @@
       "params": {
         "cluster": "east-row--1",
         "density_zone": "east",
-        "variant": "ruin-3"
+        "variant": "service_core"
       },
       "sector": "nightlife",
       "size": [
@@ -1629,7 +1637,7 @@
       "params": {
         "cluster": "east-row-0",
         "density_zone": "east",
-        "variant": "ruin-4"
+        "variant": "stepped_shell"
       },
       "sector": "nightlife",
       "size": [
@@ -1651,7 +1659,7 @@
       "params": {
         "cluster": "east-row-0",
         "density_zone": "east",
-        "variant": "ruin-5"
+        "variant": "exposed_frame"
       },
       "sector": "nightlife",
       "size": [
@@ -1673,7 +1681,7 @@
       "params": {
         "cluster": "east-row-0",
         "density_zone": "east",
-        "variant": "ruin-6"
+        "variant": "patched_facade"
       },
       "sector": "nightlife",
       "size": [
@@ -1695,7 +1703,7 @@
       "params": {
         "cluster": "east-row-1",
         "density_zone": "east",
-        "variant": "ruin-1"
+        "variant": "slab_bay"
       },
       "sector": "nightlife",
       "size": [
@@ -1717,7 +1725,7 @@
       "params": {
         "cluster": "east-row-2",
         "density_zone": "east",
-        "variant": "ruin-2"
+        "variant": "broken_corner"
       },
       "sector": "nightlife",
       "size": [
@@ -1739,7 +1747,7 @@
       "params": {
         "cluster": "northwest-row-0",
         "density_zone": "northwest",
-        "variant": "shack-1"
+        "variant": "corrugated"
       },
       "sector": "ruins-west",
       "size": [
@@ -1761,7 +1769,7 @@
       "params": {
         "cluster": "northwest-row-1",
         "density_zone": "northwest",
-        "variant": "shack-2"
+        "variant": "plywood"
       },
       "sector": "ruins-west",
       "size": [
@@ -1783,7 +1791,7 @@
       "params": {
         "cluster": "northwest-row-1",
         "density_zone": "northwest",
-        "variant": "shack-3"
+        "variant": "tarp"
       },
       "sector": "ruins-west",
       "size": [
@@ -1805,7 +1813,7 @@
       "params": {
         "cluster": "northwest-row-2",
         "density_zone": "northwest",
-        "variant": "shack-4"
+        "variant": "pallet"
       },
       "sector": "ruins-west",
       "size": [
@@ -1827,7 +1835,7 @@
       "params": {
         "cluster": "northwest-row-2",
         "density_zone": "northwest",
-        "variant": "shack-1"
+        "variant": "corrugated"
       },
       "sector": "ruins-west",
       "size": [
@@ -1849,7 +1857,7 @@
       "params": {
         "cluster": "northwest-row-4",
         "density_zone": "northwest",
-        "variant": "shack-2"
+        "variant": "plywood"
       },
       "sector": "ruins-west",
       "size": [
@@ -1871,7 +1879,7 @@
       "params": {
         "cluster": "northwest-row-4",
         "density_zone": "northwest",
-        "variant": "shack-3"
+        "variant": "tarp"
       },
       "sector": "ruins-west",
       "size": [
@@ -1893,7 +1901,7 @@
       "params": {
         "cluster": "northwest-row-5",
         "density_zone": "northwest",
-        "variant": "shack-4"
+        "variant": "pallet"
       },
       "sector": "ruins-west",
       "size": [
@@ -1915,7 +1923,7 @@
       "params": {
         "cluster": "southwest-row--4",
         "density_zone": "southwest",
-        "variant": "shack-1"
+        "variant": "corrugated"
       },
       "sector": "shacks",
       "size": [
@@ -1937,7 +1945,7 @@
       "params": {
         "cluster": "southwest-row--4",
         "density_zone": "southwest",
-        "variant": "shack-2"
+        "variant": "plywood"
       },
       "sector": "shacks",
       "size": [
@@ -1959,7 +1967,7 @@
       "params": {
         "cluster": "southwest-row--4",
         "density_zone": "southwest",
-        "variant": "shack-3"
+        "variant": "tarp"
       },
       "sector": "shacks",
       "size": [
@@ -1981,7 +1989,7 @@
       "params": {
         "cluster": "southwest-row--4",
         "density_zone": "southwest",
-        "variant": "shack-4"
+        "variant": "pallet"
       },
       "sector": "shacks",
       "size": [
@@ -2003,7 +2011,7 @@
       "params": {
         "cluster": "southwest-row--4",
         "density_zone": "southwest",
-        "variant": "shack-1"
+        "variant": "corrugated"
       },
       "sector": "shacks",
       "size": [
@@ -2025,7 +2033,7 @@
       "params": {
         "cluster": "southwest-row--4",
         "density_zone": "southwest",
-        "variant": "shack-2"
+        "variant": "plywood"
       },
       "sector": "shacks",
       "size": [
@@ -2047,7 +2055,7 @@
       "params": {
         "cluster": "southwest-row--3",
         "density_zone": "southwest",
-        "variant": "shack-3"
+        "variant": "tarp"
       },
       "sector": "shacks",
       "size": [
@@ -2069,7 +2077,7 @@
       "params": {
         "cluster": "southwest-row--2",
         "density_zone": "southwest",
-        "variant": "shack-4"
+        "variant": "pallet"
       },
       "sector": "shacks",
       "size": [
@@ -2091,7 +2099,7 @@
       "params": {
         "cluster": "southwest-row--1",
         "density_zone": "southwest",
-        "variant": "shack-1"
+        "variant": "corrugated"
       },
       "sector": "shacks",
       "size": [
@@ -2113,7 +2121,7 @@
       "params": {
         "cluster": "east-row--4",
         "density_zone": "east",
-        "variant": "shack-1"
+        "variant": "corrugated"
       },
       "sector": "nightlife",
       "size": [
@@ -2135,7 +2143,7 @@
       "params": {
         "cluster": "east-row--4",
         "density_zone": "east",
-        "variant": "shack-2"
+        "variant": "plywood"
       },
       "sector": "nightlife",
       "size": [
@@ -2157,7 +2165,7 @@
       "params": {
         "cluster": "east-row--1",
         "density_zone": "east",
-        "variant": "shack-3"
+        "variant": "tarp"
       },
       "sector": "nightlife",
       "size": [
@@ -2179,7 +2187,7 @@
       "params": {
         "cluster": "east-row--1",
         "density_zone": "east",
-        "variant": "shack-4"
+        "variant": "pallet"
       },
       "sector": "nightlife",
       "size": [
@@ -2201,7 +2209,7 @@
       "params": {
         "cluster": "east-row--1",
         "density_zone": "east",
-        "variant": "shack-1"
+        "variant": "corrugated"
       },
       "sector": "nightlife",
       "size": [
@@ -2223,7 +2231,7 @@
       "params": {
         "cluster": "east-row-1",
         "density_zone": "east",
-        "variant": "shack-2"
+        "variant": "plywood"
       },
       "sector": "nightlife",
       "size": [
@@ -2245,7 +2253,7 @@
       "params": {
         "cluster": "east-row-1",
         "density_zone": "east",
-        "variant": "shack-3"
+        "variant": "tarp"
       },
       "sector": "nightlife",
       "size": [
@@ -2267,7 +2275,7 @@
       "params": {
         "cluster": "east-row-2",
         "density_zone": "east",
-        "variant": "shack-4"
+        "variant": "pallet"
       },
       "sector": "nightlife",
       "size": [
@@ -2289,7 +2297,7 @@
       "params": {
         "cluster": "east-row-2",
         "density_zone": "east",
-        "variant": "shack-1"
+        "variant": "corrugated"
       },
       "sector": "nightlife",
       "size": [
@@ -2311,7 +2319,7 @@
       "params": {
         "cluster": "southwest-row--6",
         "density_zone": "southwest",
-        "variant": "stall-1"
+        "variant": "electronics"
       },
       "sector": "shacks",
       "size": [
@@ -2333,7 +2341,7 @@
       "params": {
         "cluster": "southwest-row--6",
         "density_zone": "southwest",
-        "variant": "stall-2"
+        "variant": "tools"
       },
       "sector": "shacks",
       "size": [
@@ -2355,7 +2363,7 @@
       "params": {
         "cluster": "southwest-row--5",
         "density_zone": "southwest",
-        "variant": "stall-3"
+        "variant": "prosthetics"
       },
       "sector": "shacks",
       "size": [
@@ -2377,7 +2385,7 @@
       "params": {
         "cluster": "southwest-row--4",
         "density_zone": "southwest",
-        "variant": "stall-4"
+        "variant": "reclaimed_equipment"
       },
       "sector": "shacks",
       "size": [
@@ -2392,14 +2400,14 @@
       "key": "density-market-stall-01",
       "kind": "stall",
       "origin": [
-        -9.0,
+        -17.0,
         0.0,
         -57.0
       ],
       "params": {
         "cluster": "market-row--6",
         "density_zone": "market",
-        "variant": "stall-1"
+        "variant": "electronics"
       },
       "sector": "market",
       "size": [
@@ -2414,14 +2422,14 @@
       "key": "density-market-stall-02",
       "kind": "stall",
       "origin": [
-        -5.0,
+        -13.0,
         0.0,
         -57.0
       ],
       "params": {
         "cluster": "market-row--6",
         "density_zone": "market",
-        "variant": "stall-2"
+        "variant": "tools"
       },
       "sector": "market",
       "size": [
@@ -2436,14 +2444,14 @@
       "key": "density-market-stall-03",
       "kind": "stall",
       "origin": [
-        13.0,
+        -9.0,
         0.0,
         -57.0
       ],
       "params": {
         "cluster": "market-row--6",
         "density_zone": "market",
-        "variant": "stall-3"
+        "variant": "prosthetics"
       },
       "sector": "market",
       "size": [
@@ -2458,14 +2466,14 @@
       "key": "density-market-stall-04",
       "kind": "stall",
       "origin": [
-        17.0,
+        -5.0,
         0.0,
         -57.0
       ],
       "params": {
         "cluster": "market-row--6",
         "density_zone": "market",
-        "variant": "stall-4"
+        "variant": "reclaimed_equipment"
       },
       "sector": "market",
       "size": [
@@ -2480,14 +2488,14 @@
       "key": "density-market-stall-05",
       "kind": "stall",
       "origin": [
-        -9.0,
+        -17.0,
         0.0,
         -51.0
       ],
       "params": {
         "cluster": "market-row--6",
         "density_zone": "market",
-        "variant": "stall-1"
+        "variant": "electronics"
       },
       "sector": "market",
       "size": [
@@ -2502,14 +2510,14 @@
       "key": "density-market-stall-06",
       "kind": "stall",
       "origin": [
-        -5.0,
+        -13.0,
         0.0,
         -51.0
       ],
       "params": {
         "cluster": "market-row--6",
         "density_zone": "market",
-        "variant": "stall-2"
+        "variant": "tools"
       },
       "sector": "market",
       "size": [
@@ -2524,14 +2532,14 @@
       "key": "density-market-stall-07",
       "kind": "stall",
       "origin": [
-        13.0,
+        -9.0,
         0.0,
         -51.0
       ],
       "params": {
         "cluster": "market-row--6",
         "density_zone": "market",
-        "variant": "stall-3"
+        "variant": "prosthetics"
       },
       "sector": "market",
       "size": [
@@ -2546,14 +2554,14 @@
       "key": "density-market-stall-08",
       "kind": "stall",
       "origin": [
-        17.0,
+        -5.0,
         0.0,
         -51.0
       ],
       "params": {
         "cluster": "market-row--6",
         "density_zone": "market",
-        "variant": "stall-4"
+        "variant": "reclaimed_equipment"
       },
       "sector": "market",
       "size": [
@@ -2568,14 +2576,14 @@
       "key": "density-market-stall-09",
       "kind": "stall",
       "origin": [
-        -17.0,
+        5.0,
         0.0,
         -47.0
       ],
       "params": {
         "cluster": "market-row--5",
         "density_zone": "market",
-        "variant": "stall-1"
+        "variant": "electronics"
       },
       "sector": "market",
       "size": [
@@ -2590,14 +2598,14 @@
       "key": "density-market-stall-10",
       "kind": "stall",
       "origin": [
-        -13.0,
+        9.0,
         0.0,
         -47.0
       ],
       "params": {
         "cluster": "market-row--5",
         "density_zone": "market",
-        "variant": "stall-2"
+        "variant": "tools"
       },
       "sector": "market",
       "size": [
@@ -2612,14 +2620,14 @@
       "key": "density-market-stall-11",
       "kind": "stall",
       "origin": [
-        5.0,
+        13.0,
         0.0,
         -47.0
       ],
       "params": {
         "cluster": "market-row--5",
         "density_zone": "market",
-        "variant": "stall-3"
+        "variant": "prosthetics"
       },
       "sector": "market",
       "size": [
@@ -2634,14 +2642,14 @@
       "key": "density-market-stall-12",
       "kind": "stall",
       "origin": [
-        9.0,
+        17.0,
         0.0,
         -47.0
       ],
       "params": {
         "cluster": "market-row--5",
         "density_zone": "market",
-        "variant": "stall-4"
+        "variant": "reclaimed_equipment"
       },
       "sector": "market",
       "size": [
@@ -2656,14 +2664,14 @@
       "key": "density-market-stall-13",
       "kind": "stall",
       "origin": [
-        -9.0,
+        -17.0,
         0.0,
         -45.0
       ],
       "params": {
         "cluster": "market-row--5",
         "density_zone": "market",
-        "variant": "stall-1"
+        "variant": "electronics"
       },
       "sector": "market",
       "size": [
@@ -2678,14 +2686,14 @@
       "key": "density-market-stall-14",
       "kind": "stall",
       "origin": [
-        -5.0,
+        -13.0,
         0.0,
         -45.0
       ],
       "params": {
         "cluster": "market-row--5",
         "density_zone": "market",
-        "variant": "stall-2"
+        "variant": "tools"
       },
       "sector": "market",
       "size": [
@@ -2700,14 +2708,14 @@
       "key": "density-market-stall-15",
       "kind": "stall",
       "origin": [
-        13.0,
+        -9.0,
         0.0,
         -45.0
       ],
       "params": {
         "cluster": "market-row--5",
         "density_zone": "market",
-        "variant": "stall-3"
+        "variant": "prosthetics"
       },
       "sector": "market",
       "size": [
@@ -2722,14 +2730,14 @@
       "key": "density-market-stall-16",
       "kind": "stall",
       "origin": [
-        17.0,
+        -5.0,
         0.0,
         -45.0
       ],
       "params": {
         "cluster": "market-row--5",
         "density_zone": "market",
-        "variant": "stall-4"
+        "variant": "reclaimed_equipment"
       },
       "sector": "market",
       "size": [
@@ -2744,14 +2752,14 @@
       "key": "density-market-stall-17",
       "kind": "stall",
       "origin": [
-        -17.0,
+        15.0,
         0.0,
         -41.0
       ],
       "params": {
         "cluster": "market-row--5",
         "density_zone": "market",
-        "variant": "stall-1"
+        "variant": "electronics"
       },
       "sector": "market",
       "size": [
@@ -2766,14 +2774,14 @@
       "key": "density-market-stall-18",
       "kind": "stall",
       "origin": [
-        15.0,
+        -17.0,
         0.0,
         -39.0
       ],
       "params": {
         "cluster": "market-row--4",
         "density_zone": "market",
-        "variant": "stall-2"
+        "variant": "tools"
       },
       "sector": "market",
       "size": [
@@ -2795,7 +2803,7 @@
       "params": {
         "cluster": "east-row--6",
         "density_zone": "east",
-        "variant": "stall-1"
+        "variant": "electronics"
       },
       "sector": "nightlife",
       "size": [
@@ -2817,7 +2825,7 @@
       "params": {
         "cluster": "east-row--6",
         "density_zone": "east",
-        "variant": "stall-2"
+        "variant": "tools"
       },
       "sector": "nightlife",
       "size": [
@@ -2839,7 +2847,7 @@
       "params": {
         "cluster": "east-row--5",
         "density_zone": "east",
-        "variant": "stall-3"
+        "variant": "prosthetics"
       },
       "sector": "nightlife",
       "size": [
@@ -2861,7 +2869,7 @@
       "params": {
         "cluster": "east-row--2",
         "density_zone": "east",
-        "variant": "stall-4"
+        "variant": "reclaimed_equipment"
       },
       "sector": "nightlife",
       "size": [

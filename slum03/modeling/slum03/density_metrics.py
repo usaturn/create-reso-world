@@ -48,6 +48,15 @@ def _hash(data) -> str:
                                      allow_nan=False, separators=(',', ':')).encode()).hexdigest()
 
 
+def layout_digest(layout: Layout) -> str:
+    """Semantic digest of canonical UTF-8 JSON; not the saved file byte hash.
+
+    Task 5 build reports must emit this digest of the *input Layout*; the
+    reference file's SHA-256 is recorded separately on the diagnostic report.
+    """
+    return _hash(asdict(layout))
+
+
 def _evidence(layout: Layout, reports: Mapping[str, Report], basis: str):
     """Return *individual* bounds; no disjoint buildings combined into one AABB."""
     if basis == 'blockout':
@@ -57,7 +66,12 @@ def _evidence(layout: Layout, reports: Mapping[str, Report], basis: str):
     result = defaultdict(list)
     issues = []
     placements = {p.key: p for p in layout.placements}
+    digest = layout_digest(layout)
     for sector, report in reports.items():
+        if report.get('layout_sha256') != digest:
+            issues.append(Issue('LAYOUT_MISMATCH', sector,
+                                'evaluated report missing or mismatching semantic Layout digest'))
+            continue  # Never promote old geometry to the current Layout.
         for obj in report.get('objects', []):
             key, mesh = obj.get('placement_key'), obj.get('mesh')
             if key not in placements or not mesh:
@@ -103,10 +117,10 @@ def _interval_gaps(route, layout, evidence):
             for side in (-1, 1):
                 band = ((mid-10, mid) if side < 0 else (mid, mid+10))
                 lateral = (r.x_min, r.x_max) if vertical else (r.z_min, r.z_max)
-                if min(lateral[1], band[1]) - max(lateral[0], band[0]) < 1:
+                if min(lateral[1], band[1]) <= max(lateral[0], band[0]):
                     continue
                 lo, hi = ((r.z_min, r.z_max) if vertical else (r.x_min, r.x_max))
-                if min(hi, stop) > max(lo, start):
+                if min(hi, stop) - max(lo, start) >= 1:
                     intervals.append((max(start, lo), min(stop, hi)))
     # Only explicit, bounded, corridor-crossing, approved openings count.
     from .density_layout import ROUTES as AUTHORED_ROUTES
@@ -155,7 +169,8 @@ def density_report(layout: Layout, reports: Mapping[str, Report], geometry_basis
                    for p in layout.placements if isinstance(p.params.get('attachment'), dict)]
     issues = _issues(layout, evidence, geometry_issues, paths, geometry_basis)
     return {'stage': density.stage if density else None, 'geometry_basis': geometry_basis,
-            'layout_sha256': _hash(asdict(layout)),
+            'layout_sha256': layout_digest(layout),
+            'layout_sha256_basis': 'canonical-layout-json-utf8',
             'counts': dict(Counter(p.kind for p in uses)), 'by_zone': by_zone,
             'variants': {kind: sorted({p.params['variant'] for p in uses
                                       if p.kind == kind and 'variant' in p.params}) for kind in MAJOR},
@@ -187,7 +202,6 @@ def _issues(layout, evidence, geometry_issues, paths, basis):
     density = layout.density
     if density is None:
         return issues + [Issue('DENSITY_CONFIG', 'density', 'density configuration missing')]
-    by_key = {p.key: p for p in layout.placements}
     uses = [p for p in layout.placements if p.domain == 'district' and p.kind in MAJOR]
     if density.stage in ('full', 'blockout'):
         counts = Counter(p.kind for p in uses)
@@ -212,13 +226,17 @@ def _issues(layout, evidence, geometry_issues, paths, basis):
         for gap in gaps:
             if gap['length'] > 20 + 1e-8:
                 issues.append(Issue('FRONTAGE_GAP', key, f"{gap['length']:.3f} m empty frontage"))
-    # Check each mesh/envelope separately; never merge disjoint geometry before
-    # testing penetration. Legacy-only intersections are unchanged by this task.
-    solids = [p for p in layout.placements if p.domain == 'district' and p.kind in MAJOR | {'north-wall'}]
+    # Individual physical mesh/envelopes, including v2 replacements and mounted
+    # utility: exclude walkable surfaces and nonphysical advertising projections.
+    solids = [p for p in layout.placements if p.domain == 'district' and
+              p.kind not in {'ground', 'floor', 'product-holo', 'info-ad', 'ribbon-ad'}]
     for i, a in enumerate(solids):
         for b in solids[i+1:]:
-            if not (a.key.startswith('density-') or b.key.startswith('density-')):
-                continue
+            if not (a.key.startswith('density-') or b.key.startswith('density-') or
+                    a.kind == 'utility' or b.kind == 'utility' or
+                    a.params.get('detail_profile') == 'v2' or
+                    b.params.get('detail_profile') == 'v2'):
+                continue  # Neither side was added or remodeled.
             for ba in evidence.get(a.key, []):
                 for bb in evidence.get(b.key, []):
                     overlap = Bounds3(tuple(max(x, y) for x, y in zip(ba.minimum, bb.minimum)),
