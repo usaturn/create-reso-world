@@ -80,6 +80,95 @@ def _variant(index):
             tube('rebar', [(.15, .05, -.1), (.43, .68, -.38), (.68, 1.36, -.45)], .055, 7, 'rust')]
 
 
+def _debris(index):
+    """Small mixed pile: fractured concrete lumps, a brick pair, pipe stub and rebar."""
+    def lump(name, cx, cz, sx, sz, top, material):
+        base = [(cx-sx/2, 0, cz-sz/2), (cx+sx/2, 0, cz-sz/2),
+                (cx+sx/2, 0, cz+sz/2), (cx-sx/2, 0, cz+sz/2)]
+        crown = [(cx-sx*.36, top*.8, cz-sz*.3), (cx+sx*.4, top, cz-sz*.28),
+                 (cx+sx*.3, top*.7, cz+sz*.36), (cx-sx*.42, top*.9, cz+sz*.33)]
+        return polygon_mesh(name, base+crown, [(3,2,1,0), (4,5,6,7), (0,1,5,4), (1,2,6,5),
+                                                (2,3,7,6), (3,0,4,7)], material)
+    return [lump('debris-lump', -.3, .05, .62, .5, .42, 'concrete_stained'),
+            lump('debris-lump', .32, -.22, .44, .4, .3, 'concrete_raw'),
+            lump('debris-lump', .12, .38, .36, .3, .24, 'concrete_dark'),
+            box('brick', (-.05, .06, -.42), (.24, .12, .12), 'rust_dark'),
+            box('brick', (.2, .06, -.5), (.24, .12, .12), 'rust_dark'),
+            tube('pipe-stub', [(-.62, .08, -.2), (-.3, .1, -.52)], .06, 8, 'steel_dark'),
+            tube('bent-rebar', [(.05, .05, .12), (.3, .4, .22), (.55, .55, .05)], .035, 6, 'rust')]
+
+
+VARIANT_KINDS = {0: 'concrete', 1: 'steel', 2: 'machine', 3: 'debris'}
+
+
+def variant_parts(index):
+    """Source geometry of one instanced variant, at the instance origin."""
+    if index not in VARIANT_KINDS:
+        raise ValueError(f'unknown rubble variant {index}')
+    return _debris(index) if index == 3 else _variant(index)
+
+
+# Legacy tiers are retained byte-for-byte for existing and representative builds.
+LEGACY_TIERS = ((36, (1.8, 1.3, 1.8), (.54, .70)),
+                (24, (2.5, 1.9, 2.5), (.96, 1.10)),
+                (12, MAX_EXTENT, (1.32, 1.45)))
+# Task 8 full district: more small debris, fewer large pieces; a cyclic mix per
+# tier keeps concrete, steel, machinery and small debris all readable.
+FULL_TIERS = ((64, (1.8, 1.3, 1.8), (.54, .70)),
+              (34, (2.5, 1.9, 2.5), (.96, 1.10)),
+              (16, MAX_EXTENT, (1.32, 1.45)))
+FULL_MIX = ((3, 0, 3, 1, 3, 2, 0, 3), (0, 2, 1, 3, 0, 1), (0, 1, 2, 0))
+
+
+def _full_stage(layout: Layout) -> bool:
+    return layout.density is not None and layout.density.stage == 'full'
+
+
+def scatter_plan(layout: Layout) -> dict[str, list[dict]]:
+    """Deterministic heaps of instances (point, envelope, scale, variant, yaw)."""
+    full = _full_stage(layout)
+    rng = random.Random(layout.seed)
+    samples = []
+    for tier, (count, extent, scale_range) in enumerate(FULL_TIERS if full else LEGACY_TIERS):
+        for k, p in enumerate(scatter_samples(layout, seed=layout.seed+tier, count=count,
+                                              max_extent=extent)):
+            variant = FULL_MIX[tier][k % len(FULL_MIX[tier])] if full else len(samples) % 3
+            samples.append((p, extent, rng.uniform(*scale_range), variant, tier))
+    heaps: dict[str, list[dict]] = {}
+    for p, extent, scale, variant, tier in samples:
+        if p[0] + extent[0]/2 <= layout.clear.x_min:
+            side = 'west'
+        elif p[0] - extent[0]/2 >= layout.clear.x_max:
+            side = 'east'
+        elif p[2] - extent[2]/2 >= layout.clear.z_max:
+            side = 'north'
+        else:
+            side = 'south'
+        # Three-metre cells plus at most 3.2m shape envelopes: independent heaps.
+        ix = math.floor((p[0] - layout.plaza.x_min) / 3)
+        iz = math.floor((p[2] - layout.plaza.z_min) / 3)
+        heaps.setdefault(f'{side}-{ix}-{iz}', []).append(
+            {'point': p, 'extent': extent, 'scale': scale, 'variant': variant, 'tier': tier})
+    heaps = dict(sorted(heaps.items()))
+    for name, items in heaps.items():
+        for i, item in enumerate(items):
+            item['yaw'] = math.radians(random.Random(f'{layout.seed}-{name}-{i}').uniform(-165, 165))
+    return heaps
+
+
+def realize_instance(item: dict):
+    """Pure-Python equivalent of the exported Realize Instances result (root-local)."""
+    c, s = math.cos(item['yaw']), math.sin(item['yaw'])
+    x0, y0, z0 = item['point']
+    k = item['scale']
+    result = []
+    for part in variant_parts(item['variant']):
+        # Blender rotates about its Z (= Resonite Y) with Blender Y = Resonite Z.
+        result.append(polygon_mesh(part.name, [(x0 + k*(x*c - z*s), y0 + k*y, z0 + k*(x*s + z*c))
+                                               for x, y, z in part.vertices], part.faces, part.material))
+    return result
+
+
 def _node_group(bpy, name, variants, seed):
     group = bpy.data.node_groups.new(name, 'GeometryNodeTree')
     group.interface.new_socket(name='Geometry', in_out='INPUT', socket_type='NodeSocketGeometry')
@@ -123,43 +212,17 @@ def add_scatter(bpy, layout: Layout, materials: dict, source_collection, export_
     # Each tier is sampled against its entire *maximum* rotated/raised envelope.
     # Large fragments cannot fit the narrow north band in front of the wall; the
     # sampler rejects that area for them rather than clipping the geometry later.
-    tiers = ((36, (1.8, 1.3, 1.8), (.54, .70)),
-             (24, (2.5, 1.9, 2.5), (.96, 1.10)),
-             (12, MAX_EXTENT, (1.32, 1.45)))
-    rng = random.Random(layout.seed)
-    samples = []
-    for tier, (count, extent, scale_range) in enumerate(tiers):
-        for p in scatter_samples(layout, seed=layout.seed+tier, count=count, max_extent=extent):
-            variant = len(samples) % 3
-            samples.append((p, extent, rng.uniform(*scale_range), variant))
-    buckets = {'west': [], 'east': [], 'north': [], 'south': []}
-    for p, extent, scale, variant in samples:
-        if p[0] + extent[0]/2 <= layout.clear.x_min:
-            bucket = 'west'
-        elif p[0] - extent[0]/2 >= layout.clear.x_max:
-            bucket = 'east'
-        elif p[2] - extent[2]/2 >= layout.clear.z_max:
-            bucket = 'north'
-        else:
-            bucket = 'south'
-        buckets[bucket].append((p, scale, variant))
-    # Three-metre cells plus at most 3.2m shape envelopes: independent heaps.
-    heaps = {}
-    for side, points in buckets.items():
-        for p, scale, variant in points:
-            ix = math.floor((p[0] - layout.plaza.x_min) / 3)
-            iz = math.floor((p[2] - layout.plaza.z_min) / 3)
-            heaps.setdefault(f'{side}-{ix}-{iz}', []).append((p, scale, variant))
-    heaps = dict(sorted(heaps.items()))
+    heaps = scatter_plan(layout)
+    variant_count = 4 if _full_stage(layout) else 3
     variant_objects = []
     errors = []
-    for i in range(3):
+    for i in range(variant_count):
         # Triangulate non-planar fractured quads and twisted rebar sides before UV projection.
         parts = [polygon_mesh(part.name, part.vertices,
                               [tuple(face) if len(face) == 3 else
                                (face[0], face[j], face[j+1])
                                for face in part.faces for j in range(1, len(face)-1)],
-                              part.material) for part in _variant(i)]
+                              part.material) for part in variant_parts(i)]
         merged = merge_assembly(Assembly('rubble-variant', f'rubble-variant-{i}', 'plaza',
                                          (0,0,0), parts))
         obj, issues = blender_io.create_object(bpy, bmesh, merged, (0,0,0), materials)
@@ -174,8 +237,9 @@ def add_scatter(bpy, layout: Layout, materials: dict, source_collection, export_
     for name, points in heaps.items():
         cloud = bpy.data.meshes.new(f'Slum03_RubblePoints_{name}')
         # Each local cloud retains the fixed scatter points and yaw, editable in Blender.
-        origin = points[0][0]
-        cloud.from_pydata([(p[0]-origin[0], p[2]-origin[2], 0) for p, _, _ in points], [], [])
+        origin = points[0]['point']
+        cloud.from_pydata([(item['point'][0]-origin[0], item['point'][2]-origin[2], 0)
+                           for item in points], [], [])
         cloud.update()
         cloud.attributes.new('rubble_scale', 'FLOAT_VECTOR', 'POINT')
         cloud.attributes.new('rubble_variant', 'INT', 'POINT')
@@ -184,11 +248,10 @@ def add_scatter(bpy, layout: Layout, materials: dict, source_collection, export_
         scale_attr = cloud.attributes['rubble_scale']
         variant_attr = cloud.attributes['rubble_variant']
         yaw = cloud.attributes['rubble_yaw']
-        for i, (_, scale, variant) in enumerate(points):
-            scale_attr.data[i].vector = (scale, scale, scale)
-            variant_attr.data[i].value = variant
-        for i, item in enumerate(yaw.data):
-            item.value = math.radians(random.Random(f'{layout.seed}-{name}-{i}').uniform(-165, 165))
+        for i, item in enumerate(points):
+            scale_attr.data[i].vector = (item['scale'],) * 3
+            variant_attr.data[i].value = item['variant']
+            yaw.data[i].value = item['yaw']
         author = bpy.data.objects.new(f'plaza-rubble-{name}_Source', cloud)
         author.location = (origin[0], origin[2], 0)
         author['slum03_kind'] = 'rubble'

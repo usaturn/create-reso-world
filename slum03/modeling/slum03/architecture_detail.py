@@ -125,7 +125,18 @@ def detailed_ruin(p: Placement, seed: int) -> Assembly:
                 (.8, .64, .72), 'pallet_wood'),
             box('tool-on-crate', (-w/2+1.2+shift, .67, -d/2+1.05),
                 (.47, .06, .14), 'steel_bare'))
+    _join_district_kit(kit, p, seed)
     return kit.finish()
+
+
+def _join_district_kit(kit: _Kit, p: Placement, seed: int) -> None:
+    """Task 8: remodelled district uses carry the shared per-use equipment."""
+    from .utilities import district_kit, household_parts, utility_parts
+    if not district_kit(p):
+        return  # Gate B anchors keep their approved geometry byte-for-byte.
+    kit.add('utility', 'district-utility', *utility_parts(p, seed))
+    if p.kind == 'shack':
+        kit.add('lived_in', 'household', *household_parts(p, seed))
 
 
 def _folded_sheet(w: float, h: float, d: float) -> MeshData:
@@ -222,4 +233,5 @@ def detailed_shack(p: Placement, seed: int) -> Assembly:
             box('basin-rim', (x,.88,z+.34), (.79,.12,.07), 'steel_dark'),
             box('basin-rim', (x-.35,.88,z), (.07,.12,.61), 'steel_dark'),
             box('basin-rim', (x+.35,.88,z), (.07,.12,.61), 'steel_dark'))
+    _join_district_kit(kit, p, seed)
     return kit.finish()

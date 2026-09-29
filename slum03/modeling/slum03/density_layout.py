@@ -50,6 +50,39 @@ STALL_VARIANTS = ('electronics', 'tools', 'prosthetics', 'reclaimed_equipment')
 VARIANTS = {'ruin': RUIN_VARIANTS, 'shack': SHACK_VARIANTS, 'stall': STALL_VARIANTS}
 REP_VARIANTS = dict(zip(REPRESENTATIVE_KEYS,
                         (RUIN_VARIANTS[0], SHACK_VARIANTS[0], STALL_VARIANTS[0])))
+# Task 8 (full stage only): every other existing major use except Yarol is
+# remodelled in place. Pose, sector and original parameters never change.
+FULL_EXISTING = {
+    'ruin-west-annex': ('northwest', 'service_core'),
+    'ruin-north': ('northwest', 'stepped_shell'),
+    'ruin-east': ('east', 'patched_facade'),
+    'shack-west': ('southwest', 'tarp'),
+    'market-east': ('market', 'tools'),
+    'nightlife-east': ('east', 'nightlife-2'),
+    'nightlife-velvet': ('east', 'nightlife-3'),
+}
+ANCHOR_ZONES = {'ruin-west': 'northwest', 'shack-row': 'southwest', 'market-west': 'market'}
+# Concrete, independently supported overhead routes (full stage only). Each is
+# a straight run between two ground-anchored poles in open space beside the
+# buildings it serves; none crosses a protected 3 m route or the central air,
+# so their complete envelope (poles included) stays off every walkway.
+# key, zone, start (x, z), end (x, z), support height, route description
+OVERHEAD_ROUTES = (
+    ('northwest-01', 'northwest', (-44., 37.), (-44., 47.), 6.4, 'annex yard to north shacks'),
+    ('northwest-02', 'northwest', (-52., 22.), (-40., 22.), 7.2, 'ruin-west / annex service gap'),
+    ('northwest-03', 'northwest', (-33., 28.), (-21., 28.), 6.8, 'north shacks to ruin-north'),
+    ('southwest-01', 'southwest', (-52., -50.), (-40., -50.), 6.2, 'south ruin rows'),
+    ('southwest-02', 'southwest', (-38., -40.), (-26., -40.), 5.8, 'shack terrace feed'),
+    ('southwest-03', 'southwest', (-44., -20.5), (-44., -12.), 6.0, 'west ruin court'),
+    ('market-01', 'market', (-18., -54.), (-6., -54.), 5.6, 'south stall aisle'),
+    ('market-02', 'market', (-18., -48.), (-6., -48.), 5.4, 'middle stall aisle'),
+    ('market-03', 'market', (3., -43.), (12.5, -43.), 5.6, 'east stall court'),
+    ('east-01', 'east', (31., -34.), (43., -34.), 6.0, 'lane back yards'),
+    ('east-02', 'east', (48., -30.), (48., -18.), 6.6, 'alley-side ruins'),
+    ('east-03', 'east', (26., 28.), (38., 28.), 6.4, 'ruin-east north yard'),
+)
+PERIPHERY_KEYS = ('plaza-rubble-west', 'plaza-rubble-east')
+SURFACE_KEYS = ('district-ground',)
 
 
 def _intersects(a: RectXZ, b: RectXZ, margin=0.) -> bool:
@@ -86,6 +119,8 @@ def build_density_layout(baseline: Layout, stage: str, seed: int = 260927) -> La
                 if p.key in REP_VARIANTS else p for p in baseline.placements)
     if stage == 'representative':
         return replace(baseline, placements=old, density=config)
+    if stage == 'full':
+        old = tuple(_remodel_existing(p) for p in old)
     placed = list(old)
     solids = [_footprint(p) for p in old if p.domain == 'district' and p.kind not in IGNORE_SOLIDS]
     blocked = (*baseline.routes, baseline.clear, *BRANCHES,
@@ -128,7 +163,49 @@ def build_density_layout(baseline: Layout, stage: str, seed: int = 260927) -> La
     actual = Counter(p.kind for p in placed if p.kind in TARGET_COUNTS and p.domain == 'district')
     if actual != TARGET_COUNTS:
         raise ValueError(f'cannot meet exact density quota: {actual}')
+    if stage == 'full':
+        placed.extend(_overhead_routes(solids, (*blocked, baseline.plaza)))
+        selected = tuple(p.key for p in placed if p.domain == 'district' and (
+            (p.kind in TARGET_COUNTS and p.kind != 'yarol') or p.kind == 'overhead' or
+            p.key in PERIPHERY_KEYS or p.key in SURFACE_KEYS))
+        config = replace(config, selected_keys=selected)
     return replace(baseline, placements=tuple(placed), density=config)
+
+
+def _remodel_existing(p: Placement) -> Placement:
+    if p.key in ANCHOR_ZONES:  # Gate B kit retained; the zone is recorded only.
+        return replace(p, params={**p.params, 'density_zone': ANCHOR_ZONES[p.key]})
+    if p.key not in FULL_EXISTING:
+        return p
+    zone, variant = FULL_EXISTING[p.key]
+    return replace(p, params={**p.params, 'variant': variant, 'density_zone': zone,
+                              'cluster': f'{zone}-row-{int(p.origin[2])//10}',
+                              'detail_profile': 'v2'})
+
+
+def _overhead_routes(solids, blocked) -> list[Placement]:
+    """Fail closed if any authored route envelope touches a solid or protected air."""
+    result = []
+    for name, zone, (x0, z0), (x1, z1), height, route in OVERHEAD_ROUTES:
+        along_x = z0 == z1
+        if along_x == (x0 == x1) or height <= 3.5:
+            raise ValueError(f'overhead route {name} must be one straight axis run above 3.5 m')
+        length = abs(x1-x0) if along_x else abs(z1-z0)
+        mx, mz = (x0+x1)/2, (z0+z1)/2
+        p = Placement(f'density-overhead-{name}', 'overhead', 'overhead', (mx, height, mz),
+                      (length+.9, height+.45, .9), 0. if along_x else 90., 'district',
+                      {'local_y_min': -height, 'density_zone': zone,
+                       'cluster': f'{zone}-row-{int(mz)//10}', 'route': route,
+                       'supports': [[x0, height, z0], [x1, height, z1]]})
+        rect = _footprint(p)
+        zone_bounds = next(z for z in ZONES if z.key == zone).bounds
+        if (any(_intersects(rect, other, .15) for other in (*solids, *blocked)) or
+                not (zone_bounds.x_min <= rect.x_min < rect.x_max <= zone_bounds.x_max and
+                     zone_bounds.z_min <= rect.z_min < rect.z_max <= zone_bounds.z_max)):
+            raise ValueError(f'overhead route {name} intersects a solid, protected air or leaves {zone}')
+        result.append(p)
+        solids.append(rect)
+    return result
 
 
 def main():

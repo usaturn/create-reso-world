@@ -47,9 +47,6 @@ def sector_assemblies(layout: Layout, sector: str) -> list[Assembly]:
         builders = {'ruin': ruins.build_assemblies, 'shack': shacks.build_assemblies,
                     'stall': stalls.build_assemblies, 'nightlife': nightlife.build_assemblies}
         targets = [p for p in layout.placements if p.sector == sector]
-        if any(p.kind == 'nightlife' and p.params.get('detail_profile') == 'v2'
-               for p in targets):
-            raise NotImplementedError('nightlife v2 is not implemented (Task 8)')
         unsupported = {p.kind for p in targets} - builders.keys()
         if unsupported:
             raise NotImplementedError(f'{sector}: unsupported density kinds {sorted(unsupported)}')

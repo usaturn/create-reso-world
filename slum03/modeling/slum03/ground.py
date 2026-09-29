@@ -1,7 +1,61 @@
 """District foundation and owned, collider-free directional scenic support."""
+import math
 import random
 from .geometry import Assembly, box, mesh
 from .types import Layout
+
+
+def _full_stage(layout: Layout) -> bool:
+    return layout.density is not None and layout.density.stage == 'full'
+
+
+# kind: (local centre along the street face, size, material, reason)
+_STAIN_RULES = {
+    'stall': ('oil-stain', 'concrete_dark'),      # grease under the counter front
+    'nightlife': ('wet-stain', 'asphalt_wet'),    # washed-down entrance apron
+    'shack': ('wet-stain', 'asphalt_wet'),        # overflow from the rain bucket
+}
+
+
+def _stains(layout: Layout, ox: float, oz: float):
+    """Axis-aligned patches at working frontages of remodelled uses (foundation-local)."""
+    result = []
+    for p in layout.placements:
+        if p.params.get('detail_profile') != 'v2' or p.kind not in _STAIN_RULES:
+            continue
+        w, _, d = p.size
+        if p.kind == 'stall':
+            local, size = (0., d/2-.7), (min(w*.6, 2.4), 1.2)
+        elif p.kind == 'nightlife':
+            local, size = (0., d/2+.5), (min(w*.4, 2.4), 1.2)
+        else:
+            local, size = (w/2-.4, d/2+.3), (1.0, .9)
+        angle = math.radians(p.yaw_deg)
+        cx = p.origin[0] + local[0]*math.cos(angle) + local[1]*math.sin(angle) - ox
+        cz = p.origin[2] - local[0]*math.sin(angle) + local[1]*math.cos(angle) - oz
+        sx, sz = (size[1], size[0]) if round(p.yaw_deg) % 180 == 90 else size
+        name, material = _STAIN_RULES[p.kind]
+        result.append((round(cx-sx/2, 6), round(cx+sx/2, 6), round(cz-sz/2, 6),
+                       round(cz+sz/2, 6), name, material))
+    return result
+
+
+def _surface_cells(x0, x1, z0, z1, y, stains):
+    """Split one strip top into non-overlapping upward cells, one part per material."""
+    inside = [r for r in stains if r[0] < x1 and r[1] > x0 and r[2] < z1 and r[3] > z0]
+    xs = sorted({x0, x1, *(min(max(v, x0), x1) for r in inside for v in r[:2])})
+    zs = sorted({z0, z1, *(min(max(v, z0), z1) for r in inside for v in r[2:4])})
+    buckets: dict[tuple[str, str], tuple[dict, list]] = {}
+    for i in range(len(xs)-1):
+        for j in range(len(zs)-1):
+            cx, cz = (xs[i]+xs[i+1])/2, (zs[j]+zs[j+1])/2
+            hit = next((r for r in inside if r[0] < cx < r[1] and r[2] < cz < r[3]), None)
+            name, material = (hit[4], hit[5]) if hit else ('foundation-top', 'concrete_raw')
+            index, faces = buckets.setdefault((name, material), ({}, []))
+            corners = ((xs[i], zs[j+1]), (xs[i+1], zs[j+1]), (xs[i+1], zs[j]), (xs[i], zs[j]))
+            faces.append(tuple(index.setdefault(c, len(index)) for c in corners))
+    return [mesh(name, [(vx, y, vz) for vx, vz in index], faces, material)
+            for (name, material), (index, faces) in buckets.items()]
 
 
 def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
@@ -19,6 +73,7 @@ def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
     bottom = ground.params.get('local_y_min', 0)
     top = bottom + sy
     parts = []
+    stains = _stains(layout, x, z) if _full_stage(layout) else None
     # Four disjoint visible strips leave the factory slab as the sole top face
     # over the entire 40×30 footprint. Edges meet only at their boundaries.
     for name, x0, x1, z0, z1 in (
@@ -27,8 +82,16 @@ def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
         ('south-foundation', fx0, fx1, south, fz0),
         ('north-foundation', fx0, fx1, fz1, north),
     ):
-        parts.append(box(name, ((x0+x1)/2, (bottom+top)/2, (z0+z1)/2),
-                         (x1-x0, sy, z1-z0), 'concrete_raw'))
+        strip = box(name, ((x0+x1)/2, (bottom+top)/2, (z0+z1)/2),
+                    (x1-x0, sy, z1-z0), 'concrete_raw')
+        if stains is None:
+            parts.append(strip)
+            continue
+        # Task 8: replace the top face with exactly coplanar cells; oil/wet
+        # patches are surface material only, never raised decals or steps.
+        parts.append(mesh(name, strip.vertices,
+                          [face for k, face in enumerate(strip.faces) if k != 4], 'concrete_raw'))
+        parts.extend(_surface_cells(x0, x1, z0, z1, top, stains))
     # Provide a structural seat below, not a second coplanar visible surface.
     floor_bottom = floor.origin[1] + floor.params.get('local_y_min', 0) - y
     if floor_bottom > bottom:

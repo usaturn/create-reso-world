@@ -111,3 +111,148 @@ def test_nightlife_shell_has_a_supported_roof_not_open_sky():
         for x in (-2.2, 0, 2.2):
             for z in (-5, 0, 5):
                 assert _front_ray_hits(facade.parts, (x,11.25,z), (0,-1,0), .9), (facade.name,x,z)
+
+
+# --- Task 8: v2 storefronts across the east lane and southeast market edge ---
+
+from collections import Counter
+from pathlib import Path
+
+import pytest
+
+from modeling.slum03.layout import read_layout
+
+FULL = Path('content/slum03/density-full-layout.json')
+
+
+def _full_fronts():
+    layout = read_layout(FULL)
+    fronts = [a for sector in ('nightlife', 'market') for a in sector_assemblies(layout, sector)
+              if a.kind == 'nightlife']
+    return layout, fronts
+
+
+def _group_parts(a, identifier):
+    group = next(g for g in a.meta['detail_groups'] if g['id'] == identifier)
+    return [a.parts[i] for i in group['part_indices']]
+
+
+def test_all_eight_v2_storefronts_generate_with_real_groups():
+    from modeling.slum03.detail_evidence import detail_groups
+    layout, fronts = _full_fronts()
+    placements = {p.key: p for p in layout.placements}
+    assert len(fronts) == 8 and len({a.name for a in fronts}) == 8
+    for a in fronts:
+        p = placements[a.name]
+        assert p.params['detail_profile'] == 'v2'
+        assert a.meta['placement_key'] == p.key and a.meta['variant'] == p.params['variant']
+        categories = Counter(g['category'] for g in detail_groups(a))
+        assert categories['architecture'] >= 3
+        assert categories['utility'] >= 1 and categories['lived_in'] >= 1
+        ids = {g['id'] for g in a.meta['detail_groups']}
+        assert {'entrance', 'canopy', 'signage', 'frontage-lighting'} <= ids, a.name
+
+
+def test_storefront_variants_change_entrance_canopy_lighting_and_equipment_not_colour():
+    from modeling.slum03.nightlife import NIGHTLIFE_VARIANTS, detailed_nightlife
+    from modeling.slum03.types import Placement
+    signatures = {}
+    for variant in NIGHTLIFE_VARIANTS:
+        p = Placement('probe-front', 'nightlife', 'nightlife', (0., 0., 0.), (8., 8., 8.), 0.,
+                      'district', {'detail_profile': 'v2', 'variant': variant,
+                                   'density_zone': 'east', 'cluster': 'east-row-0'})
+        a = detailed_nightlife(p, 260927)
+        shape = []
+        for identifier in ('entrance', 'canopy', 'frontage-lighting', 'wall-equipment'):
+            parts = _group_parts(a, identifier)
+            shape.append(tuple(sorted((part.name, len(part.faces),
+                                       tuple(round(v, 3) for v in bounds([part])[1]))
+                                      for part in parts)))
+        signatures[variant] = tuple(shape)
+    assert len(NIGHTLIFE_VARIANTS) == 4
+    for index in range(4):  # every component system differs across all four variants
+        assert len({sig[index] for sig in signatures.values()}) == 4, index
+
+
+def test_v2_storefront_parts_fit_site_and_stay_off_protected_air():
+    from modeling.slum03.materials import MATERIALS
+    layout, fronts = _full_fronts()
+    placements = {p.key: p for p in layout.placements}
+    for a in fronts:
+        site = placement_bounds(placements[a.name])
+        for part in a.parts:
+            lo, hi = bounds([part])
+            real = Bounds3(tuple(lo[i]+a.origin[i] for i in range(3)),
+                           tuple(hi[i]+a.origin[i] for i in range(3)))
+            assert all(site.minimum[i]-1e-6 <= real.minimum[i] <= real.maximum[i]
+                       <= site.maximum[i]+1e-6 for i in range(3)), (a.name, part.name)
+            assert not validate_clearance(layout, {a.name: real}), (a.name, part.name)
+            assert part.material in MATERIALS
+
+
+def test_v2_storefront_is_closed_exterior_with_supported_canopy():
+    from modeling.slum03.nightlife import NIGHTLIFE_VARIANTS, detailed_nightlife
+    from modeling.slum03.types import Placement
+    for variant in NIGHTLIFE_VARIANTS:
+        for size in ((8., 8., 8.), (6., 11., 16.)):
+            p = Placement('probe-front', 'nightlife', 'nightlife', (0., 0., 0.), size, 0.,
+                          'district', {'detail_profile': 'v2', 'variant': variant})
+            a = detailed_nightlife(p, 260927)
+            w, h, d = size
+            # No walk-in gap through the entrance at any height (closed exterior).
+            for height in (.5, 1.4, 2.5):
+                for x in (-1.2, 0, 1.2):
+                    assert _front_ray_hits(a.parts, (x, height, d/2), (0, 0, -1), 1.6), (variant, size, x, height)
+            # The canopy touches the facade structure it hangs from.
+            canopy = _group_parts(a, 'canopy')
+            structure = [part for g in a.meta['detail_groups'] if g['category'] == 'architecture'
+                         for part in (a.parts[i] for i in g['part_indices'])]
+            assert all(any(_overlap(c, s) for s in structure + canopy if s is not c)
+                       for c in canopy), variant
+            assert max(v[1] for part in canopy for v in part.vertices) <= 3.15
+
+
+def test_existing_storefront_signs_stay_readable_in_front_of_v2_fascia():
+    layout, fronts = _full_fronts()
+    for key in ('nightlife-east', 'nightlife-velvet'):
+        a = next(f for f in fronts if f.name == key)
+        label = next(l for l in layout.labels if l.parent_name == key)
+        x, y, z = label.offset
+        for part in a.parts:
+            lo, hi = bounds([part])
+            if lo[0] <= x <= hi[0] and lo[1]-.35 <= y <= hi[1]+.35 and part.name not in ('neon-tube',):
+                assert hi[2] < z, (key, part.name)
+
+
+def test_unknown_storefront_variant_fails_closed():
+    from modeling.slum03.nightlife import detailed_nightlife
+    from modeling.slum03.types import Placement
+    p = Placement('probe-front', 'nightlife', 'nightlife', (0., 0., 0.), (8., 8., 8.), 0.,
+                  'district', {'detail_profile': 'v2', 'variant': 'explicit-club'})
+    with pytest.raises(ValueError, match='variant'):
+        detailed_nightlife(p, 260927)
+
+
+def test_existing_v2_storefront_keeps_owned_collider_key_on_real_part():
+    from dataclasses import replace
+    from modeling.slum03.density_metrics import layout_digest
+    from modeling.slum03.evaluated_detail import observe_detail
+    from modeling.slum03.geometry import merge_assembly
+    from modeling.slum03.native.colliders import collider_slots
+    from modeling.slum03.nightlife import detailed_nightlife
+    base = build_layout()
+    old = {b['slot']['key']: b for b in collider_slots(base, {})}
+    p = next(p for p in base.placements if p.key == 'nightlife-east')
+    p = replace(p, params={**p.params, 'detail_profile': 'v2', 'variant': 'nightlife-2'})
+    layout = replace(base, placements=tuple(p if q.key == p.key else q for q in base.placements))
+    a = detailed_nightlife(p, layout.seed)
+    m = merge_assembly(a)
+    obj = observe_detail(a, {'vertices': [tuple(v[i]+p.origin[i] for i in range(3)) for v in m.vertices],
+                             'faces': m.faces})
+    obj['detail_profile'] = 'v2'
+    boxes = collider_slots(layout, {p.sector: {'layout_sha256': layout_digest(layout), 'objects': [obj],
+                                               'evaluated_bounds': {obj['mesh']: obj['evaluated_bounds']}}})
+    keys = [b['slot']['key'] for b in boxes]
+    assert keys.count('collider-nightlife-east') == 1 and len(keys) == len(set(keys))
+    kept = next(b for b in boxes if b['slot']['key'] == 'collider-nightlife-east')
+    assert kept['components'][0]['fields']['Size'] != old['collider-nightlife-east']['components'][0]['fields']['Size']

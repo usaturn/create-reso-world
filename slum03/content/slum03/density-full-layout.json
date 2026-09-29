@@ -104,7 +104,120 @@
         "purpose": "alley"
       }
     ],
-    "selected_keys": [],
+    "selected_keys": [
+      "district-ground",
+      "plaza-rubble-west",
+      "plaza-rubble-east",
+      "ruin-west",
+      "ruin-west-annex",
+      "ruin-north",
+      "ruin-east",
+      "shack-row",
+      "shack-west",
+      "market-west",
+      "market-east",
+      "nightlife-east",
+      "nightlife-velvet",
+      "overhead-west",
+      "density-market-nightlife-01",
+      "density-market-nightlife-02",
+      "density-east-nightlife-01",
+      "density-east-nightlife-02",
+      "density-east-nightlife-03",
+      "density-east-nightlife-04",
+      "density-northwest-ruin-01",
+      "density-northwest-ruin-02",
+      "density-northwest-ruin-03",
+      "density-northwest-ruin-04",
+      "density-northwest-ruin-05",
+      "density-southwest-ruin-01",
+      "density-southwest-ruin-02",
+      "density-southwest-ruin-03",
+      "density-southwest-ruin-04",
+      "density-southwest-ruin-05",
+      "density-southwest-ruin-06",
+      "density-southwest-ruin-07",
+      "density-southwest-ruin-08",
+      "density-southwest-ruin-09",
+      "density-east-ruin-01",
+      "density-east-ruin-02",
+      "density-east-ruin-03",
+      "density-east-ruin-04",
+      "density-east-ruin-05",
+      "density-east-ruin-06",
+      "density-east-ruin-07",
+      "density-east-ruin-08",
+      "density-east-ruin-09",
+      "density-east-ruin-10",
+      "density-east-ruin-11",
+      "density-east-ruin-12",
+      "density-east-ruin-13",
+      "density-east-ruin-14",
+      "density-northwest-shack-01",
+      "density-northwest-shack-02",
+      "density-northwest-shack-03",
+      "density-northwest-shack-04",
+      "density-northwest-shack-05",
+      "density-northwest-shack-06",
+      "density-northwest-shack-07",
+      "density-northwest-shack-08",
+      "density-southwest-shack-01",
+      "density-southwest-shack-02",
+      "density-southwest-shack-03",
+      "density-southwest-shack-04",
+      "density-southwest-shack-05",
+      "density-southwest-shack-06",
+      "density-southwest-shack-07",
+      "density-southwest-shack-08",
+      "density-southwest-shack-09",
+      "density-east-shack-01",
+      "density-east-shack-02",
+      "density-east-shack-03",
+      "density-east-shack-04",
+      "density-east-shack-05",
+      "density-east-shack-06",
+      "density-east-shack-07",
+      "density-east-shack-08",
+      "density-east-shack-09",
+      "density-southwest-stall-01",
+      "density-southwest-stall-02",
+      "density-southwest-stall-03",
+      "density-southwest-stall-04",
+      "density-market-stall-01",
+      "density-market-stall-02",
+      "density-market-stall-03",
+      "density-market-stall-04",
+      "density-market-stall-05",
+      "density-market-stall-06",
+      "density-market-stall-07",
+      "density-market-stall-08",
+      "density-market-stall-09",
+      "density-market-stall-10",
+      "density-market-stall-11",
+      "density-market-stall-12",
+      "density-market-stall-13",
+      "density-market-stall-14",
+      "density-market-stall-15",
+      "density-market-stall-16",
+      "density-market-stall-17",
+      "density-market-stall-18",
+      "density-east-stall-01",
+      "density-east-stall-02",
+      "density-east-stall-03",
+      "density-east-stall-04",
+      "density-overhead-northwest-01",
+      "density-overhead-northwest-02",
+      "density-overhead-northwest-03",
+      "density-overhead-southwest-01",
+      "density-overhead-southwest-02",
+      "density-overhead-southwest-03",
+      "density-overhead-market-01",
+      "density-overhead-market-02",
+      "density-overhead-market-03",
+      "density-overhead-east-01",
+      "density-overhead-east-02",
+      "density-overhead-east-03"
+    ],
     "stage": "full",
     "zones": [
       {
@@ -390,6 +503,7 @@
       ],
       "params": {
         "cluster": "anchor",
+        "density_zone": "northwest",
         "detail_profile": "v2",
         "variant": "slab_bay"
       },
@@ -410,7 +524,12 @@
         0,
         29
       ],
-      "params": {},
+      "params": {
+        "cluster": "northwest-row-2",
+        "density_zone": "northwest",
+        "detail_profile": "v2",
+        "variant": "service_core"
+      },
       "sector": "ruins-west",
       "size": [
         10,
@@ -428,7 +547,12 @@
         0,
         39
       ],
-      "params": {},
+      "params": {
+        "cluster": "northwest-row-3",
+        "density_zone": "northwest",
+        "detail_profile": "v2",
+        "variant": "stepped_shell"
+      },
       "sector": "ruins-north",
       "size": [
         16,
@@ -446,7 +570,12 @@
         0,
         20
       ],
-      "params": {},
+      "params": {
+        "cluster": "east-row-2",
+        "density_zone": "east",
+        "detail_profile": "v2",
+        "variant": "patched_facade"
+      },
       "sector": "ruins-east",
       "size": [
         13,
@@ -466,6 +595,7 @@
       ],
       "params": {
         "cluster": "anchor",
+        "density_zone": "southwest",
         "detail_profile": "v2",
         "variant": "corrugated"
       },
@@ -486,7 +616,12 @@
         0,
         -28
       ],
-      "params": {},
+      "params": {
+        "cluster": "southwest-row--3",
+        "density_zone": "southwest",
+        "detail_profile": "v2",
+        "variant": "tarp"
+      },
       "sector": "shacks",
       "size": [
         8,
@@ -507,6 +642,7 @@
       "params": {
         "awning_height": 2.7,
         "cluster": "anchor",
+        "density_zone": "market",
         "detail_profile": "v2",
         "shelf_depth": 0.8,
         "shelf_height": 1.25,
@@ -531,8 +667,12 @@
       ],
       "params": {
         "awning_height": 2.7,
+        "cluster": "market-row--4",
+        "density_zone": "market",
+        "detail_profile": "v2",
         "shelf_depth": 0.8,
-        "shelf_height": 1.25
+        "shelf_height": 1.25,
+        "variant": "tools"
       },
       "sector": "market",
       "size": [
@@ -552,9 +692,13 @@
         -23
       ],
       "params": {
+        "cluster": "east-row--3",
+        "density_zone": "east",
+        "detail_profile": "v2",
         "shutter_width": 3.4,
         "sign_height": 3.5,
-        "storefront_name": "LANTERN"
+        "storefront_name": "LANTERN",
+        "variant": "nightlife-2"
       },
       "sector": "nightlife",
       "size": [
@@ -574,9 +718,13 @@
         -23
       ],
       "params": {
+        "cluster": "east-row--3",
+        "density_zone": "east",
+        "detail_profile": "v2",
         "shutter_width": 3.4,
         "sign_height": 3.5,
-        "storefront_name": "VELVET"
+        "storefront_name": "VELVET",
+        "variant": "nightlife-3"
       },
       "sector": "nightlife",
       "size": [
@@ -2967,6 +3115,426 @@
         4.0
       ],
       "yaw_deg": 270.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-northwest-01",
+      "kind": "overhead",
+      "origin": [
+        -44.0,
+        6.4,
+        42.0
+      ],
+      "params": {
+        "cluster": "northwest-row-4",
+        "density_zone": "northwest",
+        "local_y_min": -6.4,
+        "route": "annex yard to north shacks",
+        "supports": [
+          [
+            -44.0,
+            6.4,
+            37.0
+          ],
+          [
+            -44.0,
+            6.4,
+            47.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        10.9,
+        6.8500000000000005,
+        0.9
+      ],
+      "yaw_deg": 90.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-northwest-02",
+      "kind": "overhead",
+      "origin": [
+        -46.0,
+        7.2,
+        22.0
+      ],
+      "params": {
+        "cluster": "northwest-row-2",
+        "density_zone": "northwest",
+        "local_y_min": -7.2,
+        "route": "ruin-west / annex service gap",
+        "supports": [
+          [
+            -52.0,
+            7.2,
+            22.0
+          ],
+          [
+            -40.0,
+            7.2,
+            22.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        12.9,
+        7.65,
+        0.9
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-northwest-03",
+      "kind": "overhead",
+      "origin": [
+        -27.0,
+        6.8,
+        28.0
+      ],
+      "params": {
+        "cluster": "northwest-row-2",
+        "density_zone": "northwest",
+        "local_y_min": -6.8,
+        "route": "north shacks to ruin-north",
+        "supports": [
+          [
+            -33.0,
+            6.8,
+            28.0
+          ],
+          [
+            -21.0,
+            6.8,
+            28.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        12.9,
+        7.25,
+        0.9
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-southwest-01",
+      "kind": "overhead",
+      "origin": [
+        -46.0,
+        6.2,
+        -50.0
+      ],
+      "params": {
+        "cluster": "southwest-row--5",
+        "density_zone": "southwest",
+        "local_y_min": -6.2,
+        "route": "south ruin rows",
+        "supports": [
+          [
+            -52.0,
+            6.2,
+            -50.0
+          ],
+          [
+            -40.0,
+            6.2,
+            -50.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        12.9,
+        6.65,
+        0.9
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-southwest-02",
+      "kind": "overhead",
+      "origin": [
+        -32.0,
+        5.8,
+        -40.0
+      ],
+      "params": {
+        "cluster": "southwest-row--4",
+        "density_zone": "southwest",
+        "local_y_min": -5.8,
+        "route": "shack terrace feed",
+        "supports": [
+          [
+            -38.0,
+            5.8,
+            -40.0
+          ],
+          [
+            -26.0,
+            5.8,
+            -40.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        12.9,
+        6.25,
+        0.9
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-southwest-03",
+      "kind": "overhead",
+      "origin": [
+        -44.0,
+        6.0,
+        -16.25
+      ],
+      "params": {
+        "cluster": "southwest-row--2",
+        "density_zone": "southwest",
+        "local_y_min": -6.0,
+        "route": "west ruin court",
+        "supports": [
+          [
+            -44.0,
+            6.0,
+            -20.5
+          ],
+          [
+            -44.0,
+            6.0,
+            -12.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        9.4,
+        6.45,
+        0.9
+      ],
+      "yaw_deg": 90.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-market-01",
+      "kind": "overhead",
+      "origin": [
+        -12.0,
+        5.6,
+        -54.0
+      ],
+      "params": {
+        "cluster": "market-row--6",
+        "density_zone": "market",
+        "local_y_min": -5.6,
+        "route": "south stall aisle",
+        "supports": [
+          [
+            -18.0,
+            5.6,
+            -54.0
+          ],
+          [
+            -6.0,
+            5.6,
+            -54.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        12.9,
+        6.05,
+        0.9
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-market-02",
+      "kind": "overhead",
+      "origin": [
+        -12.0,
+        5.4,
+        -48.0
+      ],
+      "params": {
+        "cluster": "market-row--5",
+        "density_zone": "market",
+        "local_y_min": -5.4,
+        "route": "middle stall aisle",
+        "supports": [
+          [
+            -18.0,
+            5.4,
+            -48.0
+          ],
+          [
+            -6.0,
+            5.4,
+            -48.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        12.9,
+        5.8500000000000005,
+        0.9
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-market-03",
+      "kind": "overhead",
+      "origin": [
+        7.75,
+        5.6,
+        -43.0
+      ],
+      "params": {
+        "cluster": "market-row--5",
+        "density_zone": "market",
+        "local_y_min": -5.6,
+        "route": "east stall court",
+        "supports": [
+          [
+            3.0,
+            5.6,
+            -43.0
+          ],
+          [
+            12.5,
+            5.6,
+            -43.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        10.4,
+        6.05,
+        0.9
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-east-01",
+      "kind": "overhead",
+      "origin": [
+        37.0,
+        6.0,
+        -34.0
+      ],
+      "params": {
+        "cluster": "east-row--4",
+        "density_zone": "east",
+        "local_y_min": -6.0,
+        "route": "lane back yards",
+        "supports": [
+          [
+            31.0,
+            6.0,
+            -34.0
+          ],
+          [
+            43.0,
+            6.0,
+            -34.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        12.9,
+        6.45,
+        0.9
+      ],
+      "yaw_deg": 0.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-east-02",
+      "kind": "overhead",
+      "origin": [
+        48.0,
+        6.6,
+        -24.0
+      ],
+      "params": {
+        "cluster": "east-row--3",
+        "density_zone": "east",
+        "local_y_min": -6.6,
+        "route": "alley-side ruins",
+        "supports": [
+          [
+            48.0,
+            6.6,
+            -30.0
+          ],
+          [
+            48.0,
+            6.6,
+            -18.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        12.9,
+        7.05,
+        0.9
+      ],
+      "yaw_deg": 90.0
+    },
+    {
+      "domain": "district",
+      "key": "density-overhead-east-03",
+      "kind": "overhead",
+      "origin": [
+        32.0,
+        6.4,
+        28.0
+      ],
+      "params": {
+        "cluster": "east-row-2",
+        "density_zone": "east",
+        "local_y_min": -6.4,
+        "route": "ruin-east north yard",
+        "supports": [
+          [
+            26.0,
+            6.4,
+            28.0
+          ],
+          [
+            38.0,
+            6.4,
+            28.0
+          ]
+        ]
+      },
+      "sector": "overhead",
+      "size": [
+        12.9,
+        6.8500000000000005,
+        0.9
+      ],
+      "yaw_deg": 0.0
     }
   ],
   "plaza": {

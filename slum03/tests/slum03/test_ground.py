@@ -87,3 +87,54 @@ def test_scenic_pads_are_dark_distinct_from_default_floor():
     assert supports['scenic-support-forest'].parts[0].material == 'mud'
     assert supports['scenic-support-west'].parts[0].material == 'backdrop_ground'
     assert supports['scenic-support-south'].parts[0].material == 'backdrop_ground'
+
+
+def _full():
+    from pathlib import Path
+    from modeling.slum03.layout import read_layout
+    return read_layout(Path('content/slum03/density-full-layout.json'))
+
+
+def test_full_ground_stains_are_coplanar_surface_cells_only():
+    import hashlib
+    from pathlib import Path
+    from modeling.slum03.layout import read_layout
+    from modeling.slum03.geometry import face_normal
+    legacy = next(a for a in sector_assemblies(build_layout(), 'ground') if a.name == 'district-foundation')
+    layout = _full()
+    ground = next(a for a in sector_assemblies(layout, 'ground') if a.name == 'district-foundation')
+    assert bounds(ground.parts) == bounds(legacy.parts) == ((-60, -.3, -60), (60, 0, 60))
+    stains = [p for p in ground.parts if p.name in ('oil-stain', 'wet-stain')]
+    assert {p.material for p in stains} == {'concrete_dark', 'asphalt_wet'}
+    assert all(abs(v[1]) < 1e-9 for p in stains for v in p.vertices)  # no raised decal
+    # Every top face is a single-sided, non-overlapping cell covering the strips once.
+    area = 0.
+    cells = []
+    for part in ground.parts:
+        for face in part.faces:
+            pts = [part.vertices[i] for i in face]
+            if all(abs(p[1]) < 1e-9 for p in pts):
+                assert face_normal(pts)[1] > .99
+                x0, x1 = min(p[0] for p in pts), max(p[0] for p in pts)
+                z0, z1 = min(p[2] for p in pts), max(p[2] for p in pts)
+                cells.append((x0, x1, z0, z1))
+                area += (x1-x0)*(z1-z0)
+    floor = next(p for p in layout.placements if p.key == 'factory-floor')
+    assert abs(area - (120*120 - floor.size[0]*floor.size[2])) < 1e-3
+    stain_area = sum((max(v[0] for v in [p.vertices[i] for i in f]) - min(v[0] for v in [p.vertices[i] for i in f])) *
+                     (max(v[2] for v in [p.vertices[i] for i in f]) - min(v[2] for v in [p.vertices[i] for i in f]))
+                     for p in stains for f in p.faces)
+    assert 60 < stain_area < 400
+    # Stains are placed at working frontages, never on the factory slab.
+    fx0, fx1 = -floor.size[0]/2, floor.size[0]/2
+    fz0, fz1 = -floor.size[2]/2, floor.size[2]/2
+    for p in stains:
+        for v in p.vertices:
+            assert not (fx0 < v[0] < fx1 and fz0 < v[2] < fz1)
+    # Legacy/representative ground keeps its exact pre-Task8 mesh.
+    rep = read_layout(Path('content/slum03/density-representative-layout.json'))
+    rep_ground = next(a for a in sector_assemblies(rep, 'ground') if a.name == 'district-foundation')
+    for kept in (legacy, rep_ground):
+        assert hashlib.sha256(repr(kept).encode()).hexdigest() == (
+            'fca0a828780b4b6253f782be1d32c012ae3de7e505e37cb4c067f88aeabfe492')
+    assert not [p for p in legacy.parts if p.name in ('oil-stain', 'wet-stain')]

@@ -23,7 +23,20 @@ def test_legacy_single_kind_meshes_remain_identical():
     assert sector_assemblies(layout, 'ruins-west') == build_assemblies(layout, 'ruins-west')
 
 
-def test_full_nightlife_is_not_silently_dropped():
+def test_full_layout_dispatches_every_use_sector_including_v2_nightlife():
+    # Task 8: the fail-closed nightlife guard is replaced by real v2 storefronts;
+    # every sector returns exactly its own placements, once, in Layout order.
     full = read_layout(Path('content/slum03/density-full-layout.json'))
-    with pytest.raises((NotImplementedError, ValueError), match='nightlife|variant'):
-        sector_assemblies(full, 'nightlife')
+    for sector in ('ruins-west', 'ruins-north', 'ruins-east', 'shacks', 'market', 'nightlife'):
+        targets = [p for p in full.placements if p.sector == sector]
+        result = sector_assemblies(full, sector)
+        assert [(a.name, a.kind) for a in result] == [(p.key, p.kind) for p in targets]
+        assert all(a.meta['detail_groups'] for a in result)
+
+
+def test_unsupported_mixed_kind_still_fails_closed():
+    full = read_layout(Path('content/slum03/density-full-layout.json'))
+    p = next(p for p in full.placements if p.sector == 'nightlife' and p.kind == 'shack')
+    bogus = replace(full, placements=(replace(p, kind='kiosk'),))
+    with pytest.raises(NotImplementedError, match='unsupported'):
+        sector_assemblies(bogus, 'nightlife')

@@ -22,7 +22,7 @@ def box(key: str, x0: float, x1: float, y0: float, y1: float,
 
 def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
     unsupported = [item for item in layout.placements if item.params.get('detail_profile') == 'v2'
-                   and item.kind not in ('ruin', 'shack', 'stall')]
+                   and item.kind not in ('ruin', 'shack', 'stall', 'nightlife')]
     if unsupported:
         raise NotImplementedError(f'unsupported v2 collider kinds: '
                                   f'{[(item.key, item.kind) for item in unsupported]}')
@@ -112,7 +112,7 @@ def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
     from modeling.slum03.density_metrics import layout_digest
     from modeling.slum03.evaluated_detail import v2_object_issues
     for item in layout.placements:
-        if item.params.get('detail_profile') != 'v2' or item.kind not in ('ruin', 'shack', 'stall'):
+        if item.params.get('detail_profile') != 'v2' or item.kind not in ('ruin', 'shack', 'stall', 'nightlife'):
             continue
         report = reports.get(item.sector)
         if not report or report.get('layout_sha256') != layout_digest(layout):
@@ -141,7 +141,7 @@ def collider_slots(layout: Layout, reports: dict[str, Report]) -> list[dict]:
         # Rebind that identity to one real structural part rather than keeping
         # its former enclosing volume (which would block the actual opening).
         legacy = {'ruin-west', 'ruin-west-annex', 'ruin-north', 'ruin-east',
-                  'shack-row', 'shack-west'}
+                  'shack-row', 'shack-west', 'nightlife-east', 'nightlife-velvet'}
         anchor = next((i for i, (_, lo, hi) in enumerate(candidates)
                        if hi[1]-lo[1] >= 1 and lo[1] < 2.1), 0)
         if item.key in legacy and not candidates:

@@ -47,8 +47,12 @@ def test_blockout_and_full_share_poses_and_roundtrip(tmp_path):
     base = read_layout(BASE)
     block = build_density_layout(base, 'blockout')
     full = build_density_layout(base, 'full')
+    full_poses = {p.key: (p.origin, p.size, p.yaw_deg) for p in full.placements}
     assert {p.key: (p.origin, p.size, p.yaw_deg) for p in block.placements} == {
-        p.key: (p.origin, p.size, p.yaw_deg) for p in full.placements}
+        key: full_poses[key] for key in {p.key for p in block.placements}}
+    # Task 8 only adds concrete overhead support routes to the full Layout.
+    assert {p.kind for p in full.placements
+            if p.key not in {q.key for q in block.placements}} == {'overhead'}
     for stage, layout in [('blockout', block), ('full', full),
                           ('representative', build_density_layout(base, 'representative'))]:
         path = tmp_path / (stage + '.json')
@@ -142,7 +146,22 @@ def test_canonical_variants_drive_representative_and_full_without_touching_other
         originals = {p.key: p for p in base.placements}
         actual = {p.key: p for p in layout.placements}
         assert {key: actual[key].params['variant'] for key in canon} == canon
-        assert all(actual[p.key] == p for p in base.placements if p.key not in canon)
+        if stage != 'full':
+            assert all(actual[p.key] == p for p in base.placements if p.key not in canon)
+        else:
+            # Task 8 remodels every other existing major use (not Yarol) in place:
+            # pose/sector/kind and original parameters are retained, v2 is added.
+            for p in base.placements:
+                if p.key in canon:
+                    continue
+                q = actual[p.key]
+                assert (q.origin, q.size, q.yaw_deg, q.sector, q.kind, q.domain) == (
+                    p.origin, p.size, p.yaw_deg, p.sector, p.kind, p.domain)
+                assert {k: q.params[k] for k in p.params} == p.params
+                if p.kind in ('ruin', 'shack', 'stall', 'nightlife'):
+                    assert q.params['detail_profile'] == 'v2' and q.params['density_zone']
+                else:
+                    assert q == p
         additions = [p for p in layout.placements if p.key.startswith('density-')]
         expected = {'ruin': {'slab_bay', 'broken_corner', 'service_core', 'stepped_shell',
                              'exposed_frame', 'patched_facade'},
@@ -151,3 +170,5 @@ def test_canonical_variants_drive_representative_and_full_without_touching_other
         for kind, names in expected.items():
             assert {p.params['variant'] for p in additions if p.kind == kind} == (
                 set() if stage == 'representative' else names)
+        if stage == 'full':
+            assert {p.kind for p in additions} - set(expected) == {'nightlife', 'overhead'}

@@ -87,6 +87,9 @@ def detailed_stall(p: Placement, seed: int) -> Assembly:
         box('storage-floor', (0, .085, shelf_z), (w-.7, .17, .66), 'pallet_wood'),
         box('storage-bin', (0, .36, shelf_z), (min(.72, w-.8), .38, .51), 'plastic_crate'),
         box('storage-handle', (0, .46, shelf_z+.27), (.23, .045, .05), 'steel_bare'))
+    from .utilities import district_kit, utility_parts
+    if district_kit(p):  # Task 8: Gate B anchor keeps its approved kit unchanged.
+        add('utility', 'district-utility', *utility_parts(p, seed))
     for item in stock_items(p, seed):
         # Item vertices are authored at item-local zero. Translate to the stall
         # shelf origin BEFORE applying yaw to the complete assembled stall.

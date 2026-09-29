@@ -84,8 +84,10 @@ def run(output):
     small = next(p for p in full.placements if p.kind == 'stall' and p.key.startswith('density-')
                  and p.sector == 'market')
     # This is an explicit full-derived PARTIAL fixture, not an all-97 build.
-    partial = replace(full, placements=tuple(p for p in full.placements
-                                              if not p.key.startswith("density-")) + (small,))
+    kept = tuple(p for p in full.placements if not p.key.startswith("density-")) + (small,)
+    # The partial fixture may only select placements it actually retains.
+    partial = replace(full, placements=kept, density=replace(full.density, selected_keys=tuple(
+        key for key in full.density.selected_keys if key in {p.key for p in kept})))
     write_layout(partial, output / 'small-partial-layout.json')
     found = {}
     for key, sector, layout in (('ruin-west', 'ruins-west', rep),
