@@ -1,34 +1,65 @@
 {
-  "recorded_at_utc": "2026-09-28T05:41:55.635018+00:00",
-  "manifest_sha256": "2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec",
-  "runtime_version": "2026.9.18.82",
-  "resonite_link_version": "0.13.1.0",
+  "recorded_at_utc": "2026-09-29T10:05:00Z",
+  "gate": "D2",
+  "gate_utc": "2026-09-29T09:42Z",
+  "evidence_source": "Controller-redacted Gate D2 evidence, committed verbatim as tests/slum03/fixtures/density-gate-d2-evidence-redacted.json. Raw live reports stay in ignored .resoloop/.",
+  "manifest": "content/slum03/slum03.json",
+  "manifest_sha256": "4f759b666356dde9684964340e22afde03bdb4125b45c1f5749b1fd1af6166bd",
+  "candidate": {
+    "path": "content/slum03/density-full-c-20260929T092822Z-23504-review-candidate.json",
+    "sha256": "4f759b666356dde9684964340e22afde03bdb4125b45c1f5749b1fd1af6166bd",
+    "run": "density-full-c-20260929T092822Z-23504"
+  },
+  "base_manifest": {
+    "path": "content/slum03/density-baseline.json",
+    "sha256": "2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec"
+  },
   "root_name": "Slum03_Slum",
   "root_position": [
     0,
     4.5,
     0
   ],
+  "state_sha256": {
+    "before": "786a9a59c8a23b1de8e95f5347ae0e37e2d45720e7940a854ef8962d501e21f4",
+    "after_apply": "ed6667f225fff8bd270e6f5600e20bf02753af39fb07c55acc72691ca93348e1",
+    "after_reapply_and_save": "ca97dd76275b8168ce0409c9eb725845efd265cdd52ebb106f0e2f378f3c95b7"
+  },
   "strict_validation": {
     "status": "pass",
-    "issue_count": 0,
-    "local_evidence": ".resoloop/slum03/strict-task12-20260928T051859-426949.json"
+    "exit": 0,
+    "issue_count": 0
   },
-  "initial_apply": {
+  "diff_before": {
+    "exit": 0,
+    "creates": 92,
+    "updates": 50,
+    "renames": 0,
+    "deletes": 0,
+    "noOps": 3549,
+    "outside_Slum03_Slum": 0,
+    "targets": "Slum03_Ground/district-foundation, Slum03_Plaza/factory-floor, Slum03_Plaza/plaza-rubble-* (incl. 16 new plaza-rubble-floor-*), new material concrete_patch; 4 renderer recreates for Materials list shrink"
+  },
+  "apply": {
     "status": "pass",
+    "exit": 0,
     "counts": {
-      "slotsCreated": 339,
+      "slotsCreated": 17,
       "slotsUpdated": 0,
-      "componentsAdded": 400,
-      "componentsUpdated": 0,
       "slotsDeleted": 0,
-      "componentsDeleted": 0,
-      "assetsImported": 150
+      "componentsAdded": 37,
+      "componentsUpdated": 48,
+      "componentsDeleted": 4,
+      "assetsImported": 42,
+      "assetsUnchanged": 228,
+      "slotsUnchanged": 1603,
+      "componentsUnchanged": 1716
     },
-    "local_evidence": ".resoloop/slum03/apply-task12-20260928T052806-433656.json"
+    "basis": "Incremental apply over the Gate D version held by the saved world; counts are the delta, not an initial import."
   },
   "reapply": {
     "status": "pass",
+    "exit": 0,
     "counts": {
       "slotsCreated": 0,
       "slotsUpdated": 0,
@@ -38,42 +69,61 @@
       "componentsDeleted": 0,
       "assetsImported": 0
     },
-    "unchanged_slots": 339,
-    "unchanged_components": 400,
-    "unchanged_assets": 150,
-    "same_manifest": true,
-    "local_evidence": ".resoloop/slum03/reapply-task12-20260928T052855-433992.json"
+    "unchanged_slots": 1620,
+    "unchanged_components": 1801,
+    "unchanged_assets": 270,
+    "same_manifest": true
+  },
+  "diff_after": {
+    "exit": 0,
+    "creates": 0,
+    "updates": 0,
+    "renames": 0,
+    "deletes": 0,
+    "noOps": 3691,
+    "state_unchanged_by_diff": true
   },
   "structure": {
     "status": "pass",
-    "test_groups_passed": 1,
-    "assertions_declared": 23,
-    "local_evidence": ".resoloop/slum03/test-task12-20260928T052855-433992.json"
+    "exit": 0,
+    "total": 2,
+    "passed_count": 2,
+    "structural_only": true,
+    "verification": "partial"
   },
   "motion": {
-    "status": "pass",
-    "spinner_rotation_changed": true,
-    "four_panner_offsets_changed": true,
-    "fixed_product_label_unchanged": true,
-    "copy": "AUGMENT"
+    "status": "pending",
+    "note": "Not re-observed at Gate D2; the Task 12 motion pass is history."
   },
   "preservation": {
-    "ground_skybox_light_snapshots_unchanged": true,
-    "root_transform_unchanged": true,
-    "capture_temp_slots_remaining": 0,
-    "root_observation_note": "Root default TextUnlitMaterial._shader gained its resolved engine shader reference; other Root snapshot fields were unchanged. No declarative operation targeted Root settings."
+    "compared_against": "post-reload hierarchy of the saved world before this apply (density-reload04), depth 2, IDs stripped",
+    "equal": [
+      "Root components",
+      "Clipboard Importer",
+      "Controllers",
+      "Ground",
+      "Light",
+      "Roles",
+      "Skybox",
+      "SpawnArea",
+      "Undo Manager",
+      "__TEMP"
+    ],
+    "differs_runtime_only": {
+      "Assets": "VR device visual assets and shader cache (user connection state)",
+      "User avatar": "excluded"
+    }
   },
   "strict_audit": {
     "status": "fail",
+    "exit": 6,
     "error": "ITEM_NOT_PORTABLE",
     "remaining_issues": [
       {
-        "code": "ITEM_GRABBABLE_MISSING",
-        "severity": "warning",
-        "message": "The audited root does not contain a Grabbable Component."
+        "code": "ITEM_GRABBABLE_MISSING"
       }
     ],
-    "allowed_reference_count": 55,
+    "allowed_reference_count": 61,
     "reviewed_exact_roles": [
       "[FrooxEngine]FrooxEngine.FresnelMaterial:_shader",
       "[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic:_regular",
@@ -81,24 +131,174 @@
       "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]"
     ],
     "unmatched_roles": [],
-    "local_evidence": ".resoloop/slum03/audit-reviewed-task12-20260928T053117-435162.json",
-    "limitation": "Pinned CLI strict item audit requires Grabbable even for a static world. No Grabbable was added solely to suppress this warning; static-world exception requires an acceptance decision. Not a strict pass."
+    "issue_counts": {
+      "ITEM_EXTERNAL_ROLE_ALLOWED|[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic:_regular": 41,
+      "ITEM_EXTERNAL_ROLE_ALLOWED|[FrooxEngine]FrooxEngine.TextRenderer:Font": 7,
+      "ITEM_EXTERNAL_ROLE_ALLOWED|[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]": 7,
+      "ITEM_EXTERNAL_ROLE_ALLOWED|[FrooxEngine]FrooxEngine.FresnelMaterial:_shader": 6,
+      "ITEM_GRABBABLE_MISSING|None": 1
+    },
+    "slots": 1620,
+    "components": 1801,
+    "limitation": "Static world has no Grabbable; none was added to suppress the warning. Not a strict pass."
   },
   "capture": {
-    "status": "fail",
-    "error": "CAPTURE_EXPORT_TIMEOUT",
-    "local_evidence": ".resoloop/slum03/capture-task12-20260928T053117-435162-plaza-north.json",
-    "limitation": "Installed client waits for a local screenshot export. Windows screenshot directory is not mounted in this container; no image bytes can be downloaded through the supported Link interface."
+    "status": "not_run",
+    "reason": "not run (screenshot dir not mounted)"
   },
   "manual_visual": {
-    "status": "pending"
+    "status": "pass",
+    "source": "user message 2026-09-29: 「上書き保存した。ＯＫである。」"
   },
   "walk": {
-    "status": "pending"
+    "status": "pass",
+    "source": "user replied 「ＯＫである。」 to the Gate D2 request covering visual and walk (walk not stated separately); walk was also OK at the Gate D version"
+  },
+  "save": {
+    "status": "done",
+    "source": "user overwrote the saved world (same message)"
+  },
+  "post_save_readonly": {
+    "utc": "2026-09-29T09:54Z",
+    "diff": {
+      "creates": 0,
+      "updates": 0,
+      "deletes": 0,
+      "noOps": 3691
+    },
+    "state_unchanged": true
+  },
+  "reload": {
+    "status": "pending",
+    "source": "not reported after Gate D2"
   },
   "save_reload": {
-    "status": "pending"
+    "status": "pending",
+    "note": "Saved (overwrite) and read-only diff after save showed no change, but no reload was reported for this version, so save/reload retention is pending."
   },
-  "remaining_visual_issue": "Final review I1: lower forest silhouette still reveals narrow sky/far-ground-edge openings. Owned ground is present; this residual appearance issue is not marked fixed.",
-  "local_evidence_note": ".resoloop reports contain session-specific state and remain ignored. This tracked summary omits URLs, raw session IDs and component IDs; saved/reloaded portability is unverified."
+  "remaining_visual_issue": "Final review I1 (forest far-edge openings) is a separate item; not re-assessed at Gate D2.",
+  "local_evidence_note": ".resoloop reports contain session-specific state and remain ignored. This tracked summary omits URLs, session IDs and component IDs.",
+  "history": {
+    "gate_d": {
+      "status": "superseded",
+      "manifest_sha256": "a1cb4f39b3f53afa1eeb2156b493daaa23ee254e3eedd8ea75261f8f2204afc7",
+      "candidate": "content/slum03/density-full-c-20260929T054230Z-541218-review-candidate-fix1.json",
+      "visual": "rejected",
+      "visual_basis": "rejected (pre-revision)",
+      "save_reload_retention": {
+        "status": "pass",
+        "basis": "pass (read-only, 2026-09-29T07:37Z)"
+      },
+      "note": "Gate D (2026-09-29 06:16-06:45 UTC) applied this previous full candidate; the user rejected the flat road and factory floor. Its save/reload retention result belongs to that version only."
+    },
+    "task12_original": {
+      "status": "superseded",
+      "manifest_sha256": "2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec",
+      "note": "Pre-density Task 12 live verification, kept verbatim.",
+      "record": {
+        "recorded_at_utc": "2026-09-28T05:41:55.635018+00:00",
+        "manifest_sha256": "2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec",
+        "runtime_version": "2026.9.18.82",
+        "resonite_link_version": "0.13.1.0",
+        "root_name": "Slum03_Slum",
+        "root_position": [
+          0,
+          4.5,
+          0
+        ],
+        "strict_validation": {
+          "status": "pass",
+          "issue_count": 0,
+          "local_evidence": ".resoloop/slum03/strict-task12-20260928T051859-426949.json"
+        },
+        "initial_apply": {
+          "status": "pass",
+          "counts": {
+            "slotsCreated": 339,
+            "slotsUpdated": 0,
+            "componentsAdded": 400,
+            "componentsUpdated": 0,
+            "slotsDeleted": 0,
+            "componentsDeleted": 0,
+            "assetsImported": 150
+          },
+          "local_evidence": ".resoloop/slum03/apply-task12-20260928T052806-433656.json"
+        },
+        "reapply": {
+          "status": "pass",
+          "counts": {
+            "slotsCreated": 0,
+            "slotsUpdated": 0,
+            "componentsAdded": 0,
+            "componentsUpdated": 0,
+            "slotsDeleted": 0,
+            "componentsDeleted": 0,
+            "assetsImported": 0
+          },
+          "unchanged_slots": 339,
+          "unchanged_components": 400,
+          "unchanged_assets": 150,
+          "same_manifest": true,
+          "local_evidence": ".resoloop/slum03/reapply-task12-20260928T052855-433992.json"
+        },
+        "structure": {
+          "status": "pass",
+          "test_groups_passed": 1,
+          "assertions_declared": 23,
+          "local_evidence": ".resoloop/slum03/test-task12-20260928T052855-433992.json"
+        },
+        "motion": {
+          "status": "pass",
+          "spinner_rotation_changed": true,
+          "four_panner_offsets_changed": true,
+          "fixed_product_label_unchanged": true,
+          "copy": "AUGMENT"
+        },
+        "preservation": {
+          "ground_skybox_light_snapshots_unchanged": true,
+          "root_transform_unchanged": true,
+          "capture_temp_slots_remaining": 0,
+          "root_observation_note": "Root default TextUnlitMaterial._shader gained its resolved engine shader reference; other Root snapshot fields were unchanged. No declarative operation targeted Root settings."
+        },
+        "strict_audit": {
+          "status": "fail",
+          "error": "ITEM_NOT_PORTABLE",
+          "remaining_issues": [
+            {
+              "code": "ITEM_GRABBABLE_MISSING",
+              "severity": "warning",
+              "message": "The audited root does not contain a Grabbable Component."
+            }
+          ],
+          "allowed_reference_count": 55,
+          "reviewed_exact_roles": [
+            "[FrooxEngine]FrooxEngine.FresnelMaterial:_shader",
+            "[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic:_regular",
+            "[FrooxEngine]FrooxEngine.TextRenderer:Font",
+            "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]"
+          ],
+          "unmatched_roles": [],
+          "local_evidence": ".resoloop/slum03/audit-reviewed-task12-20260928T053117-435162.json",
+          "limitation": "Pinned CLI strict item audit requires Grabbable even for a static world. No Grabbable was added solely to suppress this warning; static-world exception requires an acceptance decision. Not a strict pass."
+        },
+        "capture": {
+          "status": "fail",
+          "error": "CAPTURE_EXPORT_TIMEOUT",
+          "local_evidence": ".resoloop/slum03/capture-task12-20260928T053117-435162-plaza-north.json",
+          "limitation": "Installed client waits for a local screenshot export. Windows screenshot directory is not mounted in this container; no image bytes can be downloaded through the supported Link interface."
+        },
+        "manual_visual": {
+          "status": "pending"
+        },
+        "walk": {
+          "status": "pending"
+        },
+        "save_reload": {
+          "status": "pending"
+        },
+        "remaining_visual_issue": "Final review I1: lower forest silhouette still reveals narrow sky/far-ground-edge openings. Owned ground is present; this residual appearance issue is not marked fixed.",
+        "local_evidence_note": ".resoloop reports contain session-specific state and remain ignored. This tracked summary omits URLs, raw session IDs and component IDs; saved/reloaded portability is unverified."
+      }
+    }
+  }
 }

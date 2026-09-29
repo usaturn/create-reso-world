@@ -6,7 +6,7 @@ from pathlib import Path
 
 from modeling.slum03.layout import build_layout
 from modeling.slum03.sectors import SECTORS
-from modeling.slum03.delivery import summarize_delivery, declare_delivery_checks
+from modeling.slum03.delivery import TARGETS, summarize_delivery, declare_delivery_checks
 from modeling.slum03.native.common import walk
 from modeling.slum03.pipeline import build_unified_manifest
 
@@ -112,7 +112,8 @@ def test_canonical_manifest_is_portable_and_contains_live_qa():
     manifest = json.loads(path.read_text(encoding='utf-8'))
     assert manifest['ownership'] == {'key': 'slum03'}
     assert manifest['slot']['position'] == [0, 4.5, 0]
-    assert len(manifest['cameras']) == 6 and manifest['tests']
+    # Density review cameras are added on top of the six delivery bookmarks.
+    assert set(TARGETS) <= set(manifest['cameras']) and manifest['tests']
     assert all(not Path(a['source']).is_absolute() and
                (path.parent / a['source']).is_file()
                for a in manifest['assets'].values())
@@ -133,8 +134,12 @@ def test_plural_live_warnings_with_valid_evidence_remain_pending():
     assert summarize_delivery(build_layout(), _reports(), checks)['checks']['visual']['status'] == 'pending'
 
 
-def test_delivery_resources_and_build_evidence_match_canonical_bundle():
-    report = json.loads(Path('artifacts/slum03/delivery-report.json').read_text())
+def test_superseded_task12_delivery_evidence_is_kept_as_history():
+    # The Task 12 records now describe a superseded manifest; they survive verbatim as history.
+    current = json.loads(Path('artifacts/slum03/delivery-report.json').read_text())
+    history = current['history']['task12_original']
+    assert history['status'] == 'superseded'
+    report = history['record']
     run = 'finalfix-m-20260928T0511'
     summary = json.loads((Path('artifacts/slum03') / run / 'asset-summary.json').read_text())
     assert report['buildEvidence'][0] == f'artifacts/slum03/{run}/asset-summary.json'
@@ -148,8 +153,13 @@ def test_delivery_resources_and_build_evidence_match_canonical_bundle():
     # This is a live-applied report now: pass needs independent manifest and
     # command evidence, not merely an optimistic status string in this report.
     verification_path = Path('artifacts/slum03/live-verification.json')
-    live = json.loads(verification_path.read_text(encoding='utf-8'))
-    manifest_path = Path(report['manifest'])
+    live_history = json.loads(verification_path.read_text(encoding='utf-8'))['history']['task12_original']
+    assert live_history['status'] == 'superseded'
+    live = live_history['record']
+    # Frozen byte-identical copy of the superseded canonical manifest.
+    manifest_path = Path('content/slum03/density-baseline.json')
+    assert report['manifest'] == 'content/slum03/slum03.json'
+    assert history['manifest_sha256'] == live_history['manifest_sha256'] == live['manifest_sha256']
     manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
     assert live['manifest_sha256'] == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     assert live['root_name'] == 'Slum03_Slum'

@@ -44,3 +44,7 @@ Session started 03:32:07 UTC; evidence snapshot at 05:41:55 UTC (~129m48s elapse
 Live controller phase: current target reconfirmed/strict validated 05:18; reviewed initial diff 05:27; apply 05:28; zero-write reapply/structure/motion checks 05:28–05:30; exact-role audit and capture attempt 05:31–05:32; read-only diagnostic delegation and additional motion/default-content checks through 05:39. Reporting/metadata/verification follow the snapshot; user manual QA and save/reload are not counted as completed work.
 
 Post-live report test repair: 05:46:46–05:49:30 UTC (~164s); focused behavioral RED/GREEN and full243tests71.53s. Scoped evidence/report re-review 8c490821: 136.7s, exit0, all findings addressed. Final controller verification and evidence commit follow; human acceptance gates remain pending.
+
+## Density upgrade — Gate D2 record (Task 10), 2026-09-29
+
+- Task 10 implementer, 2026-09-29 09:55:48–10:10 UTC (~15m estimated incl. report/commit): brief/Gate D2 evidence/existing records and Task 7 interfaces ~3m; RED (evidence fixture, new live-evidence tests, legacy delivery test moved to history) ~3m; canonical copy/hash check and record generation through `summarize_density_delivery` ~4m; focused/full suite, layout/diff checks, leak scan, report/commit ~5m. Offline and synchronous only; no live commands. Live phases (Gate D2 apply 09:42 UTC, post-save read-only check 09:54 UTC) are controller work and are not counted here.

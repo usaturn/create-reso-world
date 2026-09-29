@@ -1,6 +1,32 @@
-# slum03 apply log — controller live verification (UTC 2026-09-28)
+# slum03 apply log — controller live verification (UTC 2026-09-28 / 2026-09-29)
 
-## Current result — 05:42 UTC
+## Current result — Gate D2, 2026-09-29 09:42 UTC (full density, manifest `4f759b666356dde9684964340e22afde03bdb4125b45c1f5749b1fd1af6166bd`)
+
+The controller applied the revised full-density candidate `content/slum03/density-full-c-20260929T092822Z-23504-review-candidate.json` (Task 13 reviewed) to the saved world that held the previous Gate D version. Task 10 copied the same bytes to `content/slum03/slum03.json`; its base is `content/slum03/density-baseline.json` (`2a048a15…`, the superseded canonical). Redacted facts are in `live-verification.json`; the controller's redacted evidence is committed as `tests/slum03/fixtures/density-gate-d2-evidence-redacted.json`. Raw live reports stay in ignored `.resoloop/`.
+
+- Strict runtime validation: exit 0, zero issues.
+- Reviewed diff: 92 creates / 50 updates / 0 renames / 0 deletes, 3549 no-ops, nothing outside `Slum03_Slum`. Targets: `Slum03_Ground/district-foundation`, `Slum03_Plaza/factory-floor`, `Slum03_Plaza/plaza-rubble-*` (including 16 new `plaza-rubble-floor-*`), new material `concrete_patch`; four renderers recreated because their Materials list shrinks.
+- Apply: exit 0 (incremental over the Gate D version). Slots created 17; Components added 37 / updated 48 / deleted 4 (recreates); 42 imports; unchanged 228 assets, 1603 Slots, 1716 Components.
+- Same manifest/state reapply: exit 0; **zero writes and imports** (1620 Slots, 1801 Components, 270 assets unchanged). Diff afterwards: 0 changes, 3691 no-ops; diff did not change state.
+- Structure: `resoloop test` 2/2 passed (structural only, verification partial). Motion was not re-observed at Gate D2.
+- Out-of-scope preservation: compared with the saved world's post-reload hierarchy before this apply (depth 2, IDs stripped). Root components, Clipboard Importer, Controllers, Ground, Light, Roles, Skybox, SpawnArea, Undo Manager and `__TEMP` are equal; `Assets` differs only by VR-device visual assets and shader cache; the avatar was excluded.
+- Strict audit: **failed** (exit 6, `ITEM_NOT_PORTABLE`). All 61 external references matched the four reviewed exact roles (PBS_VertexColorMetallic:_regular 41, TextRenderer:Font 7, TextRenderer:Materials[0] 7, FresnelMaterial:_shader 6); no unmatched roles. The remaining failure is `ITEM_GRABBABLE_MISSING`. No Grabbable was added to bypass it.
+- Capture: not run (screenshot directory not mounted).
+- Human checks (recorded independently):
+  - Visual: **pass** — user message 2026-09-29: 「上書き保存した。ＯＫである。」
+  - Walk: **pass** — the user replied 「ＯＫである。」 to the Gate D2 request covering visual and walk; walk was not stated separately (it was also OK at the Gate D version).
+  - Save: **done** — the user overwrote the saved world. Read-only diff after save (09:54 UTC): 0 changes, 3691 no-ops, state unchanged.
+  - Reload: **pending** — not reported after Gate D2. Save/reload retention of this version is therefore pending.
+
+`delivery-report.json` is overall **fail** (strict audit). Density acceptance stays **pending** because resources/runtime performance are not measured; save/reload retention and the forest far-edge item (final review I1) also remain open. Do not change these to pass without new evidence.
+
+## History: Gate D, 2026-09-29 06:16–06:45 UTC (rejected version, manifest `a1cb4f39b3f53afa1eeb2156b493daaa23ee254e3eedd8ea75261f8f2204afc7`)
+
+The previous full candidate `content/slum03/density-full-c-20260929T054230Z-541218-review-candidate-fix1.json` first stopped at `APPLY_REFERENCE_NOT_RETAINED` (a shrinking Materials list); after the ResoLoop fork fix it applied and converged (zero-write reapply, 2/2 tests, strict audit left only `ITEM_GRABBABLE_MISSING`). The user **rejected** the visual (flat road and factory floor; asked for small debris like slum02). That version's save/reload retention later passed (read-only, 2026-09-29 07:37 UTC); this applies only to that version, not to the current manifest.
+
+## History: Task 12 original result — 2026-09-28 05:42 UTC (superseded manifest `2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec`)
+
+This section describes the pre-density canonical manifest, now frozen as `content/slum03/density-baseline.json`. It is kept as history and is not the result for the current manifest.
 
 User approved the rediscovered separate empty world. Controller reconfirmed default ground at Y=0, preserved Root settings/default floor/sky/light, and applied only the `Slum03_Slum` ownership tree at Y=4.5. See `live-verification.json` for the redacted results and exact ignored local evidence paths.
 
