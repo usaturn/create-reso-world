@@ -185,7 +185,8 @@ def test_full_selection_names_only_uses_overhead_periphery_and_surface(full):
     assert set(full.density.selected_keys) == (
         majors | overhead | {'district-foundation', 'plaza-rubble-west', 'plaza-rubble-east',
                              'plaza-rubble-north', 'plaza-rubble-south',
-                             'plaza-rubble-floor'})  # Task 12: central floor debris family
+                             'plaza-rubble-floor',  # Task 12: central floor debris family
+                             'factory-floor'})  # Task 12: the weathered factory floor mesh
     assert len(full.density.selected_keys) == len(set(full.density.selected_keys))
 
 

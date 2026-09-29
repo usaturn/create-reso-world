@@ -18,6 +18,9 @@ FLOOR_DEBRIS_PREFIX = 'plaza-rubble-floor'
 FLOOR_DEBRIS_MAX = .10
 SCATTER_PREFIXES = ('plaza-rubble-west', 'plaza-rubble-east',
                     'plaza-rubble-north', 'plaza-rubble-south', FLOOR_DEBRIS_PREFIX)
+# Revision 1 (Task 12): remodelled surfaces whose placement key is also their
+# baseline Slot name. The weathered factory floor stays one mesh and one Slot.
+REVISED_SURFACE_KEYS = ('factory-floor',)
 # Placement key -> baseline Slot name for the Slot-only surface keys above; the
 # placement's native colliders ('collider-district-ground-*') follow that Slot.
 SURFACE_PLACEMENT_SLOTS = {'district-ground': 'district-foundation'}

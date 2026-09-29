@@ -9,8 +9,8 @@ from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
-from .density_model import (REPRESENTATIVE_KEYS, SCATTER_PREFIXES, SURFACE_SLOT_KEYS,
-                            TARGET_COUNTS)
+from .density_model import (REPRESENTATIVE_KEYS, REVISED_SURFACE_KEYS, SCATTER_PREFIXES,
+                            SURFACE_SLOT_KEYS, TARGET_COUNTS)
 from .layout import read_layout, write_layout
 from .spatial import placement_bounds
 from .types import DensityConfig, DensityOpening, DensityRoute, DensityZone, Layout, Placement, RectXZ
@@ -87,7 +87,8 @@ OVERHEAD_ROUTES = (
 # full-stage key belongs to exactly one class (pinned by test_density_layout.py):
 #   1. baseline Slot: equals exactly one baseline Slot name (ruin-west, ...,
 #      overhead-west, and SURFACE_SLOT_KEYS: the 'district-ground' placement's Slot
-#      is named 'district-foundation'). Constants live in density_model.
+#      is named 'district-foundation'; REVISED_SURFACE_KEYS: the weathered
+#      'factory-floor', revision 1). Constants live in density_model.
 #   2. new key: starts with NEW_KEY_PREFIXES ('density-': added uses and overhead
 #      routes). No baseline Slot exists; Task 9 must treat them as additions.
 #   3. scatter prefix: SCATTER_PREFIXES lists all four sides and the central floor
@@ -179,7 +180,7 @@ def build_density_layout(baseline: Layout, stage: str, seed: int = 260927) -> La
         placed.extend(_overhead_routes(solids, (*blocked, baseline.plaza)))
         selected = tuple(p.key for p in placed if p.domain == 'district' and (
             (p.kind in TARGET_COUNTS and p.kind != 'yarol') or p.kind == 'overhead'))
-        selected += SURFACE_SLOT_KEYS + SCATTER_PREFIXES
+        selected += SURFACE_SLOT_KEYS + REVISED_SURFACE_KEYS + SCATTER_PREFIXES
         config = replace(config, selected_keys=selected)
     return replace(baseline, placements=tuple(placed), density=config)
 

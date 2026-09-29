@@ -198,10 +198,12 @@ def test_full_selected_keys_resolve_to_exactly_one_class(legacy_manifest):
     result = {key: _resolve_selected_key(key, names) for key in keys}
     assert all(len(classes) == 1 for classes in result.values()), {k: c for k, c in result.items() if len(c) != 1}
     counts = Counter(c[0] for c in result.values())
-    # 11 existing Slots (10 uses + overhead-west) + foundation, 86 added uses + 12 routes,
-    # 4 perimeter sides + the central floor debris family (Task 12, revision 1).
-    assert counts == {'baseline': 12, 'new': 86 + 12, 'scatter': 5}
-    assert {k for k, c in result.items() if c == ['baseline']} >= {'district-foundation', 'overhead-west'}
+    # 11 existing Slots (10 uses + overhead-west) + foundation + the weathered factory
+    # floor, 86 added uses + 12 routes, 4 perimeter sides + the central floor debris
+    # family (Task 12, revision 1).
+    assert counts == {'baseline': 13, 'new': 86 + 12, 'scatter': 5}
+    assert {k for k, c in result.items() if c == ['baseline']} >= {
+        'district-foundation', 'overhead-west', 'factory-floor'}
     # Scatter keys cover all four sides and every baseline rubble pile has an owner key.
     assert set(SCATTER_PREFIXES) == {f'plaza-rubble-{side}' for side in
                                      ('west', 'east', 'north', 'south', 'floor')}
