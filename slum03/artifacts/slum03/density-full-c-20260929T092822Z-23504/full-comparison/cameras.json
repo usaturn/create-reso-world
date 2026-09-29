@@ -1,0 +1,137 @@
+{
+  "full-top": {
+    "position": [
+      0,
+      179.5,
+      0
+    ],
+    "target": [
+      0,
+      4.5,
+      0
+    ],
+    "fieldOfView": 60,
+    "width": 960,
+    "height": 640
+  },
+  "full-center-northwest": {
+    "position": [
+      -10,
+      6.1,
+      0
+    ],
+    "target": [
+      -55,
+      8.5,
+      9
+    ],
+    "fieldOfView": 60,
+    "width": 960,
+    "height": 640
+  },
+  "full-southwest-lane": {
+    "position": [
+      -55.5,
+      6.1,
+      -6
+    ],
+    "target": [
+      -46,
+      7.0,
+      -34
+    ],
+    "fieldOfView": 60,
+    "width": 960,
+    "height": 640
+  },
+  "full-market-entrance": {
+    "position": [
+      0,
+      6.1,
+      -14
+    ],
+    "target": [
+      0,
+      6.5,
+      -40
+    ],
+    "fieldOfView": 60,
+    "width": 960,
+    "height": 640
+  },
+  "full-market-interior": {
+    "position": [
+      0,
+      6.1,
+      -33
+    ],
+    "target": [
+      -4,
+      5.9,
+      -48
+    ],
+    "fieldOfView": 60,
+    "width": 960,
+    "height": 640
+  },
+  "full-east-alley": {
+    "position": [
+      46.8,
+      6.1,
+      -38
+    ],
+    "target": [
+      45.5,
+      7.5,
+      -4
+    ],
+    "fieldOfView": 60,
+    "width": 960,
+    "height": 640
+  },
+  "full-yarol-front": {
+    "position": [
+      64.5,
+      6.1,
+      36
+    ],
+    "target": [
+      54,
+      7.5,
+      47
+    ],
+    "fieldOfView": 60,
+    "width": 960,
+    "height": 640
+  },
+  "full-factory-floor": {
+    "position": [
+      -12,
+      6.1,
+      -8
+    ],
+    "target": [
+      6,
+      5.2,
+      6
+    ],
+    "fieldOfView": 60,
+    "width": 960,
+    "height": 640
+  },
+  "full-main-street-west": {
+    "position": [
+      -52,
+      6.1,
+      1.0
+    ],
+    "target": [
+      -25,
+      5.6,
+      -1.0
+    ],
+    "fieldOfView": 60,
+    "width": 960,
+    "height": 640
+  }
+}

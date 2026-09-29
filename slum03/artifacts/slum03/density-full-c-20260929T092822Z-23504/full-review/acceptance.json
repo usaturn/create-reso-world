@@ -1,0 +1,24 @@
+{
+  "stage": "full",
+  "scope": "full",
+  "manifest_sha256": "4f759b666356dde9684964340e22afde03bdb4125b45c1f5749b1fd1af6166bd",
+  "status": "pending",
+  "evidence": {
+    "visual": {
+      "status": "pending",
+      "paths": [],
+      "subject_visible": null,
+      "exposure_usable": null
+    },
+    "walk": {
+      "status": "pending",
+      "paths": []
+    },
+    "resources": {
+      "status": "pending",
+      "paths": []
+    }
+  },
+  "confirmed_by": null,
+  "confirmed_at": null
+}
