@@ -77,7 +77,7 @@
         "artifacts/slum03/live-verification.json"
       ],
       "details": {
-        "source": "user replied 「ＯＫである。」 to the Gate D2 request covering visual and walk (walk not stated separately); walk was also OK at the Gate D version"
+        "source": "user confirmed explicitly on 2026-09-29, when asked whether the revised (Gate D2) version was walked: 「歩いて問題なかった」"
       }
     },
     "portability": {
@@ -190,7 +190,7 @@
           "paths": [
             "artifacts/slum03/live-verification.json"
           ],
-          "details": "user replied 「ＯＫである。」 to the Gate D2 request covering visual and walk (walk not stated separately); walk was also OK at the Gate D version"
+          "details": "user confirmed explicitly on 2026-09-29, when asked whether the revised (Gate D2) version was walked: 「歩いて問題なかった」"
         },
         "resources": {
           "status": "pending",

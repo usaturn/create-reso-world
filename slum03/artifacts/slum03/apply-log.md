@@ -14,11 +14,40 @@ The controller applied the revised full-density candidate `content/slum03/densit
 - Capture: not run (screenshot directory not mounted).
 - Human checks (recorded independently):
   - Visual: **pass** — user message 2026-09-29: 「上書き保存した。ＯＫである。」
-  - Walk: **pass** — the user replied 「ＯＫである。」 to the Gate D2 request covering visual and walk; walk was not stated separately (it was also OK at the Gate D version).
+  - Walk: **pass** — the user confirmed explicitly on 2026-09-29, when asked whether the revised (Gate D2) version was walked: 「歩いて問題なかった」.
   - Save: **done** — the user overwrote the saved world. Read-only diff after save (09:54 UTC): 0 changes, 3691 no-ops, state unchanged.
   - Reload: **pending** — not reported after Gate D2. Save/reload retention of this version is therefore pending.
 
 `delivery-report.json` is overall **fail** (strict audit). Density acceptance stays **pending** because resources/runtime performance are not measured; save/reload retention and the forest far-edge item (final review I1) also remain open. Do not change these to pass without new evidence.
+
+### Regenerating the delivered density version (full stage)
+
+`content/slum03/slum03.json` is the Gate D2 review candidate of the full density build. Reproduce it from `slum03/` (all commands synchronous; use a unique `RUN` name per attempt):
+
+```bash
+RUN=density-full-c-$(date -u +%Y%m%dT%H%M%SZ)-$$
+uv run python scripts/build_density.py --stage full \
+  --base-manifest content/slum03/density-baseline.json \
+  --layout content/slum03/density-full-layout.json --run "$RUN" --root-y 4.5
+# Build a second independent run with the same command and another unique name, then compare:
+RUN_D=density-full-d-$(date -u +%Y%m%dT%H%M%SZ)-$$
+uv run python scripts/build_density.py --stage full \
+  --base-manifest content/slum03/density-baseline.json \
+  --layout content/slum03/density-full-layout.json --run "$RUN_D" --root-y 4.5
+uv run python scripts/summarize_offline.py --first "$RUN" --second "$RUN_D" \
+  --layout artifacts/slum03/"$RUN"/layout.json     # expect gate_c: offline-adoptable-human-pending
+uv run python -m modeling.slum03.verify_assets --reports artifacts/slum03/"$RUN" \
+  --layout artifacts/slum03/"$RUN"/layout.json     # expect {"status": "pass", "issues": []}
+```
+
+`build_density.py` also writes the review candidate `content/slum03/"$RUN"-review-candidate.json` (the full candidate plus QA cameras and a structural test) and its provenance. The delivered manifest is that review candidate copied byte for byte:
+
+```bash
+cp content/slum03/"$RUN"-review-candidate.json content/slum03/slum03.json
+sha256sum content/slum03/"$RUN"-review-candidate.json content/slum03/slum03.json   # must match
+```
+
+The adopted run was `density-full-c-20260929T092822Z-23504` (review candidate SHA-256 `4f759b666356dde9684964340e22afde03bdb4125b45c1f5749b1fd1af6166bd`). A regenerated run only reproduces the same geometry, not the same run-name-bearing files; live acceptance (Gate D2) must be redone for a new manifest.
 
 ## History: Gate D, 2026-09-29 06:16–06:45 UTC (rejected version, manifest `a1cb4f39b3f53afa1eeb2156b493daaa23ee254e3eedd8ea75261f8f2204afc7`)
 
@@ -49,7 +78,7 @@ The following was recorded before controller live work. **The Task12 implementer
 ## Evidence and prerequisite
 
 - The controller's earlier read-only observation is local `.resoloop/slum03/discovery/task12-20260928T040849-361157-{doctor,status,hierarchy}.json`: one separate slum03 session; default/avatar only, no slum02 or slum03; default floor top Y=0, lowest visible river Y=-4; requested owned root Y=4.5. These are time-specific observations; confirm again before applying. The first offset-member query timed out during discovery at ~04:16 UTC; controller subsequently recovered **read-only** connectivity and confirmed `FrooxEngine.FresnelMaterial` float2 `NearTextureOffset` / `FarTextureOffset` in `.resoloop/slum03/discovery/task12-20260928T043954-382348-offsets.json`. That observation is time/session-specific; controller must repeat strict runtime validation and target review after selecting the current session. No apply occurred.
-- Canonical candidate comes **only** from `finalfix-m-20260928T0511` portable bundles and its 15 actual Blender build reports from the saved snapshot `artifacts/slum03/finalfix-m-20260928T0511/layout.json`. Independent `finalfix-n-20260928T0512` bundle comparison is exact for all 150 mesh JSON payloads. Older C/D/fix1/fix2/e/f/g/h are not delivery sources. Rebuild with `uv run python scripts/build_offline.py --run UNIQUE`, then `uv run python scripts/summarize_offline.py --first UNIQUE --second SECOND_UNIQUE`, and regenerate canonical declaration with `uv run python -m modeling.slum03.pipeline --bundles content/slum03/bundles/UNIQUE --layout artifacts/slum03/UNIQUE/layout.json --reports artifacts/slum03/UNIQUE --root-y 4.5 --delivery-checks --output content/slum03/slum03.json` (only after reviewed canonical replacement; use another output for trials). Never use exporter `report.json` as evaluated bounds. Slot owner `slum03`, key `root`, name `Slum03_Slum`; no Root settings, adopt, prune or delete. Four Panner2D instances each now live on a dedicated owned child Slot with a stable key and a reference to a cloned Fresnel provider; runtime-driven spin Rotation stays unmanaged. Static labels remain on undriven parents. Installed ResoLoop source `ComponentIdentityDiagnostics.cs` ignores `$member:` reference selectors for `identityFields`, even when strings differ; separate Slots remove the same-Slot ambiguity without changing targets. No prior apply/checkpoint exists to migrate.
+- Canonical candidate comes **only** from `finalfix-m-20260928T0511` portable bundles and its 15 actual Blender build reports from the saved snapshot `artifacts/slum03/finalfix-m-20260928T0511/layout.json`. Independent `finalfix-n-20260928T0512` bundle comparison is exact for all 150 mesh JSON payloads. Older C/D/fix1/fix2/e/f/g/h are not delivery sources. **Pre-density procedure (superseded; see "Regenerating the delivered density version" above for the delivered manifest).** Rebuild with `uv run python scripts/build_offline.py --run UNIQUE`, then `uv run python scripts/summarize_offline.py --first UNIQUE --second SECOND_UNIQUE`, and regenerate canonical declaration with `uv run python -m modeling.slum03.pipeline --bundles content/slum03/bundles/UNIQUE --layout artifacts/slum03/UNIQUE/layout.json --reports artifacts/slum03/UNIQUE --root-y 4.5 --delivery-checks --output content/slum03/slum03.json` (only after reviewed canonical replacement; use another output for trials). Never use exporter `report.json` as evaluated bounds. Slot owner `slum03`, key `root`, name `Slum03_Slum`; no Root settings, adopt, prune or delete. Four Panner2D instances each now live on a dedicated owned child Slot with a stable key and a reference to a cloned Fresnel provider; runtime-driven spin Rotation stays unmanaged. Static labels remain on undriven parents. Installed ResoLoop source `ComponentIdentityDiagnostics.cs` ignores `$member:` reference selectors for `identityFields`, even when strings differ; separate Slots remove the same-Slot ambiguity without changing targets. No prior apply/checkpoint exists to migrate.
 - `resoloop validate content/slum03/slum03.json --json`: offline `valid:true`, `strict:false`, `issues:[]` (339 Slots, 399 Components, 907 refs). **Not current strict runtime validation.** Candidate's six Root-space camera bookmarks and owned structural tests are declarations, not executed checks.
 
 ## Controller-only live sequence (do not skip gates)

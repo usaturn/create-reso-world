@@ -1,6 +1,9 @@
 """Merge offline ResoLoop exports below one slum03-owned root; never touch live state.
 
-CLI: uv run python -m modeling.slum03.pipeline --bundles content/slum03/bundles/REV
+CLI (pre-density baseline path only; the delivered density version is built by
+scripts/build_density.py, see artifacts/slum03/apply-log.md "Regenerating the delivered
+density version"):
+     uv run python -m modeling.slum03.pipeline --bundles content/slum03/bundles/REV
      --layout content/slum03/layout.json --reports artifacts/slum03/REV
      --root-y Y --delivery-checks --output content/slum03/slum03.json
 Blender build reports: --reports artifacts/slum03/REV/<sector>-report.json.
