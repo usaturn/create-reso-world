@@ -1,5 +1,5 @@
 {
-  "recorded_at_utc": "2026-09-29T10:05:00Z",
+  "recorded_at_utc": "2026-09-29T10:02:14Z",
   "gate": "D2",
   "gate_utc": "2026-09-29T09:42Z",
   "evidence_source": "Controller-redacted Gate D2 evidence, committed verbatim as tests/slum03/fixtures/density-gate-d2-evidence-redacted.json. Raw live reports stay in ignored .resoloop/.",
