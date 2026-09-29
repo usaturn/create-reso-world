@@ -223,3 +223,90 @@ def test_floor_debris_variants_are_small_and_varied():
     assert {'concrete_raw', 'rust'} <= materials and len(materials) >= 5
     # Perimeter variants stay medium or larger except the legacy mixed pile.
     assert all(SIZE_CLASS[i] != 'small' for i in (0, 1, 2))
+
+
+# --- Task 12 fix round 1: debris spread over the whole central floor ---------
+
+def floor_coverage(layout, pieces, cell=4., min_free=6., offsets=(0., 2.)):
+    """Per 4 m square of the central floor: free (unprotected) area and pieces inside.
+
+    ``pieces`` are realized loose pieces as (centre_x, centre_z, long_side). Only
+    pieces with a long side of at least 0.1 m count. Protected strips (main-route
+    effective widths + 0.3 m, entrances, branches) and pits are excluded from the
+    free area, since nothing may lie there.
+    """
+    from modeling.slum03.gn_scatter import FLOOR_ROUTE_MARGIN, floor_keepouts
+    from modeling.slum03.plaza import floor_features
+    clear = layout.clear
+    keep = floor_keepouts(layout)
+    pits = floor_features(layout)['pits']
+    step = .25
+
+    def free(x, z):
+        return (not any(k.x_min - FLOOR_ROUTE_MARGIN < x < k.x_max + FLOOR_ROUTE_MARGIN and
+                        k.z_min - FLOOR_ROUTE_MARGIN < z < k.z_max + FLOOR_ROUTE_MARGIN for k in keep)
+                and not any(x0 < x < x1 and z0 < z < z1 for x0, x1, z0, z1 in pits))
+    cells = []
+    for off in offsets:
+        x0 = clear.x_min + off
+        while x0 + cell <= clear.x_max + 1e-9:
+            z0 = clear.z_min + off
+            while z0 + cell <= clear.z_max + 1e-9:
+                n = int(cell / step)
+                area = sum(free(x0 + (i + .5)*step, z0 + (j + .5)*step)
+                           for i in range(n) for j in range(n)) * step * step
+                count = sum(x0 <= x < x0 + cell and z0 <= z < z0 + cell and long_side >= .1
+                            for x, z, long_side in pieces)
+                cells.append({'x': x0, 'z': z0, 'free': area, 'pieces': count})
+                z0 += cell
+            x0 += cell
+    return [c for c in cells if c['free'] >= min_free]
+
+
+def _floor_pieces(layout):
+    from modeling.slum03.gn_scatter import realize_instance, scatter_plan
+    pieces = []
+    for name, items in scatter_plan(layout).items():
+        if not name.startswith('floor-'):
+            continue
+        for item in items:
+            for part in realize_instance(item):
+                xs = [v[0] for v in part.vertices]; zs = [v[2] for v in part.vertices]
+                pieces.append(((min(xs) + max(xs)) / 2, (min(zs) + max(zs)) / 2,
+                               max(max(xs) - min(xs), max(zs) - min(zs))))
+    return pieces
+
+
+def test_floor_debris_is_spread_over_every_open_four_metre_square():
+    layout = _full()
+    cells = floor_coverage(layout, _floor_pieces(layout))
+    assert len(cells) >= 40  # both grid offsets over the 32x22 m floor
+    thin = [c for c in cells if c['pieces'] < 4]
+    assert thin == [], thin
+    # Evenness: no square is left nearly bare next to a dense pile.
+    counts = sorted(c['pieces'] for c in cells)
+    assert counts[len(counts) // 10] >= 6
+
+
+def test_floor_debris_has_slum02_sized_bricks_planks_chunks_and_sheets():
+    from collections import Counter
+    from modeling.slum03.gn_scatter import VARIANT_KINDS, scatter_plan
+    layout = _full()
+    items = [i for n, v in scatter_plan(layout).items() if n.startswith('floor-') for i in v]
+    kinds = Counter(VARIANT_KINDS[i['variant']] for i in items)
+    assert all(kinds[k] >= 20 for k in ('bricks', 'plank', 'block', 'sheet')), kinds
+    pieces = _floor_pieces(layout)
+    sized = [p for p in pieces if .1 <= p[2] <= .7]
+    assert len(sized) >= 400 and sum(p[2] >= .2 for p in pieces) >= 200
+    assert max(p[2] for p in pieces) <= .7
+
+
+def test_floor_debris_pile_centres_give_up_instead_of_looping(monkeypatch):
+    """Review Minor 3: a floor with no free spot raises instead of spinning forever."""
+    import pytest
+    from modeling.slum03 import gn_scatter
+    from modeling.slum03.types import RectXZ
+    layout = _full()
+    monkeypatch.setattr(gn_scatter, 'floor_keepouts', lambda _layout: [RectXZ(-99, 99, -99, 99)])
+    with pytest.raises(ValueError, match='pile centres cannot fit'):
+        gn_scatter.floor_debris_samples(layout)

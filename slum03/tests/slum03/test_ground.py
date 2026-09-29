@@ -276,6 +276,20 @@ def test_full_small_street_debris_stays_off_entrance_aprons_and_shop_fronts():
                                and p.kind in ('stall', 'nightlife', 'shack')))
               if p.kind in ('stall', 'nightlife')]
     assert len(fronts) >= 8  # every remodelled stall and nightlife frontage
+    # Stall aprons (fix round 1): the customer strip from the counter front (local
+    # z = d/2) out to d/2 + 1.0 across the stall width, computed here independently.
+    import math
+    for p in layout.placements:
+        if p.params.get('detail_profile') != 'v2' or p.kind != 'stall':
+            continue
+        w, _, d = p.size
+        a = math.radians(p.yaw_deg)
+        corners = [(p.origin[0] + lx*math.cos(a) + lz*math.sin(a),
+                    p.origin[2] - lx*math.sin(a) + lz*math.cos(a))
+                   for lx in (-w/2, w/2) for lz in (d/2, d/2 + 1.0)]
+        fronts.append((min(c[0] for c in corners), max(c[0] for c in corners),
+                       min(c[1] for c in corners), max(c[1] for c in corners)))
+    assert len(fronts) >= 8 + 28
     kinds = _by_kind(ground)
     small = kinds['litter'] + kinds['curbchunk']
     assert len(kinds['litter']) >= 30

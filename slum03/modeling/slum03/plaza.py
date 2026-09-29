@@ -16,7 +16,12 @@ SPECIAL_CELLS = {(3, 3): 'asphalt_wet', (13, 4): 'asphalt_wet', (17, 11): 'aspha
                  (7, 12): 'asphalt_wet', (4, 3): 'concrete_dark', (14, 4): 'concrete_dark',
                  (10, 9): 'concrete_dark', (7, 11): 'concrete_dark'}
 # Flush decal planes (metres above the slab), distinct so overlaps never z-fight.
-Y_DAMP, Y_OIL, Y_CRACK, Y_PAD, Y_RUST, Y_GROUT, Y_BOLT = .0015, .0025, .003, .0035, .004, .0045, .005
+Y_TONE, Y_HALO, Y_DAMP, Y_OIL, Y_CRACK, Y_PAD, Y_RUST, Y_GROUT, Y_BOLT = (
+    .0008, .0012, .0015, .0025, .003, .0035, .004, .0045, .005)
+TONE_REACH = 1.25 * 1.12  # outline radius bound: (1 + max lobe) * max jitter
+# Fix round 1: broad tone patches read at eye height (slum02 colour unevenness).
+TONE_MATERIALS = ('concrete_stained', 'concrete_dark', 'mud', 'asphalt_wet', 'concrete_patch',
+                  'concrete_dark', 'concrete_stained', 'mud')
 
 
 def _full_stage(layout: Layout) -> bool:
@@ -123,13 +128,29 @@ def _pit(k, rect, ni, nj, rng, ox, oz) -> list[MeshData]:
     cx, cz = (ix0+ix1)/2 + rng.uniform(-.2, .2), (iz0+iz1)/2 + rng.uniform(-.2, .2)
     radius = min(ix1-ix0, iz1-iz0) * .32
     water = _flat(f'pit-{k}-water', _octagon(rng, cx, cz, radius, .2), -d + .004, 'asphalt_wet')
-    return [slope, bottom, water]
+    # Muddy wash-out ring on the slab around the rim (flush, outside the dish), with a
+    # ragged outer edge so the square cut reads as worn rather than drawn.
+    n = 4
+    inner_ring = ([(x0 + (x1-x0)*t/n, z0) for t in range(n)] + [(x1, z0 + (z1-z0)*t/n) for t in range(n)] +
+                  [(x1 - (x1-x0)*t/n, z1) for t in range(n)] + [(x0, z1 - (z1-z0)*t/n) for t in range(n)])
+    cx0, cz0 = (x0 + x1) / 2, (z0 + z1) / 2
+    outer_ring = []
+    for px, pz in inner_ring:
+        dx, dz = px - cx0, pz - cz0
+        nx = (1 if dx > 1e-9 else -1 if dx < -1e-9 else 0) if abs(abs(dx) - (x1-x0)/2) < 1e-9 else 0
+        nz = (1 if dz > 1e-9 else -1 if dz < -1e-9 else 0) if abs(abs(dz) - (z1-z0)/2) < 1e-9 else 0
+        w = rng.uniform(.12, .45)  # stays inside the 0.5 m pit-to-route margin
+        outer_ring.append((px + nx*w, pz + nz*w))
+    halo = [_flat(f'pit-{k}-halo', [inner_ring[q], inner_ring[(q+1) % len(inner_ring)],
+                                    outer_ring[(q+1) % len(inner_ring)], outer_ring[q]], Y_HALO, 'mud')
+            for q in range(len(inner_ring))]
+    return [slope, bottom, water, *halo]
 
 
 def _base(k, rect, rng, ox, oz) -> list[MeshData]:
     """Trace of a removed machine: newer grout pad, cut outline, sheared bolts, rust and oil."""
     x0, x1, z0, z1 = rect[0] - ox, rect[1] - ox, rect[2] - oz, rect[3] - oz
-    parts = [_flat(f'base-{k}-pad', [(x0, z0), (x1, z0), (x1, z1), (x0, z1)], Y_PAD, 'concrete_raw')]
+    parts = [_flat(f'base-{k}-pad', [(x0, z0), (x1, z0), (x1, z1), (x0, z1)], Y_PAD, 'concrete_patch')]
     w = .06
     for s, (a0, a1, b0, b1) in enumerate(((x0, x1, z0, z0+w), (x0, x1, z1-w, z1),
                                           (x0, x0+w, z0+w, z1-w), (x1-w, x1, z0+w, z1-w))):
@@ -146,39 +167,99 @@ def _base(k, rect, rng, ox, oz) -> list[MeshData]:
                            Y_RUST, 'rust'))
         parts.append(_flat(f'base-{k}-bolt-{j}', _octagon(rng, bx, bz, .028, .05), Y_BOLT, 'rust_dark'))
     ox_, oz_ = rng.uniform(x0 + .4, x1 - .4), rng.uniform(z0 + .3, z1 - .3)
-    parts.append(_flat(f'base-{k}-oil', _octagon(rng, ox_, oz_, rng.uniform(.35, .6), .35),
+    parts.append(_flat(f'base-{k}-oil', _octagon(rng, ox_, oz_, rng.uniform(.45, .8), .35),
                        Y_OIL, 'asphalt_wet'))
     return parts
 
 
+def _walk(rng, start, heading, steps, bounds, turn=.6, reach=(.3, .85)):
+    lo_x, hi_x, lo_z, hi_z = bounds
+    pts = [start]
+    for _ in range(steps):
+        heading += rng.uniform(-turn, turn)
+        step = rng.uniform(*reach)
+        nxt = (pts[-1][0] + math.cos(heading)*step, pts[-1][1] + math.sin(heading)*step)
+        if not (lo_x < nxt[0] < hi_x and lo_z < nxt[1] < hi_z):
+            break
+        pts.append(nxt)
+    return pts
+
+
 def _cracks(layout, features, ox, oz) -> list[MeshData]:
+    """Branching slab cracks (slum02): long main runs with forked side cracks."""
     from .surface_detail import _crack
     rng = _rng(layout, 'cracks')
     plaza = layout.plaza
     avoid = [(r, .15) for r in features['pits']] + [(r, .1) for r in features['bases']]
-    lo_x, hi_x, lo_z, hi_z = plaza.x_min + .5, plaza.x_max - .5, plaza.z_min + .5, 13.6
-    parts = []
-    for _ in range(400):
-        if len(parts) >= 28:
-            break
-        x, z = rng.uniform(lo_x, hi_x), rng.uniform(lo_z, hi_z)
-        heading = rng.uniform(0, math.tau)
-        pts = [(x, z)]
-        for _ in range(rng.randint(6, 13)):
-            heading += rng.uniform(-.6, .6)
-            step = rng.uniform(.3, .85)
-            nxt = (pts[-1][0] + math.cos(heading)*step, pts[-1][1] + math.sin(heading)*step)
-            if not (lo_x < nxt[0] < hi_x and lo_z < nxt[1] < hi_z):
-                break
-            pts.append(nxt)
-        if len(pts) < 4 or any(_hit((p[0] - .05, p[0] + .05, p[1] - .05, p[1] + .05), r, pad)
-                               for p in pts for r, pad in avoid):
-            continue
-        y = Y_CRACK - .0004 + .0001 * (len(parts) % 5)
-        crack = _crack(f'crack-{len(parts):02d}', [(px - ox, pz - oz) for px, pz in pts], y,
-                       rng.uniform(.025, .06), 'concrete_dark')
+    bounds = (plaza.x_min + .5, plaza.x_max - .5, plaza.z_min + .5, 13.6)
+
+    def blocked(pts):
+        return any(_hit((p[0] - .05, p[0] + .05, p[1] - .05, p[1] + .05), r, pad)
+                   for p in pts for r, pad in avoid)
+
+    def strip(name, pts, width, level):
+        y = Y_CRACK - .0004 + .0001 * level
+        crack = _crack(name, [(px - ox, pz - oz) for px, pz in pts], y, width, 'concrete_dark')
         # Align with the inlaid cells' up-facing winding.
-        parts.append(_up(crack.name, crack.vertices, crack.faces, crack.material))
+        return _up(crack.name, crack.vertices, crack.faces, crack.material)
+    parts = []
+    mains = 0
+    for _ in range(600):
+        if mains >= 30:
+            break
+        heading = rng.uniform(0, math.tau)
+        pts = _walk(rng, (rng.uniform(*bounds[:2]), rng.uniform(*bounds[2:])), heading,
+                    rng.randint(8, 16), bounds)
+        if len(pts) < 5 or blocked(pts):
+            continue
+        width = rng.uniform(.05, .09)
+        parts.append(strip(f'crack-{mains:02d}', pts, width, mains % 5))
+        for b in range(rng.randint(1, 3)):
+            k = rng.randrange(1, len(pts) - 1)
+            ax, az = pts[k-1]; bx, bz = pts[k+1]
+            fork = math.atan2(bz - az, bx - ax) + rng.choice((-1, 1)) * rng.uniform(.5, 1.2)
+            branch = _walk(rng, pts[k], fork, rng.randint(3, 7), bounds, .5, (.25, .6))
+            if len(branch) >= 3 and not blocked(branch):
+                parts.append(strip(f'crack-{mains:02d}-b{b}', branch, width * rng.uniform(.5, .7),
+                                   (mains + b + 1) % 5))
+        mains += 1
+    return parts
+
+
+def _tones(layout, features, ox, oz) -> list[MeshData]:
+    """Broad, non-overlapping dirt/damp/oil/patch blotches: the slab's colour unevenness."""
+    rng = _rng(layout, 'tones')
+    plaza = layout.plaza
+    avoid = [(r, .3) for r in features['pits']] + [(r, .2) for r in features['bases']]
+    placed, parts = [], []
+    for _ in range(3000):
+        if len(parts) >= 34:
+            break
+        r = rng.uniform(1.0, 3.2)
+        reach = r * TONE_REACH
+        x = rng.uniform(plaza.x_min + reach + .3, plaza.x_max - reach - .3)
+        z = rng.uniform(plaza.z_min + reach + .3, 13.4 - reach)
+        box_ = (x - reach, x + reach, z - reach, z + reach)
+        # Same-level patches must never overlap (z-fighting), so space by the full reach.
+        if (any(_hit(box_, rect, pad) for rect, pad in avoid) or
+                any(math.dist((x, z), (px, pz)) < (r + pr) * TONE_REACH + .1 for px, pz, pr in placed)):
+            continue
+        placed.append((x, z, r))
+        phase = rng.uniform(0, math.tau)
+        stretch = rng.uniform(.55, 1.0)
+        # Ragged, lobed outline (two low-frequency lobes plus jitter), convex-safe fan.
+        lobe, lobe_phase = rng.uniform(.1, .25), rng.uniform(0, math.tau)
+        outline = []
+        for k in range(16):
+            a = math.tau * k / 16
+            rr = r * (1 + lobe * math.sin(2*a + lobe_phase)) * rng.uniform(.85, 1.12)
+            outline.append((x - ox + math.cos(phase + a) * rr,
+                            z - oz + math.sin(phase + a) * rr * stretch))
+        # Star-shaped about its centre: a triangle fan stays valid for a lobed outline.
+        verts = [(x - ox, Y_TONE, z - oz)] + [(vx, Y_TONE, vz) for vx, vz in outline]
+        fan = [(0, k + 1, (k + 1) % 16 + 1) for k in range(16)]
+        parts.append(_up(f'stain-{len(parts):02d}', verts, fan,
+                         TONE_MATERIALS[len(parts) % len(TONE_MATERIALS)]))
     return parts
 
 
@@ -235,6 +316,7 @@ def _weathered_floor(layout: Layout, floor, wall) -> list[MeshData]:
     rng = _rng(layout, 'base-shape')
     for k, rect in enumerate(features['bases']):
         parts.extend(_base(k, rect, rng, ox, oz))
+    parts.extend(_tones(layout, features, ox, oz))
     parts.extend(_cracks(layout, features, ox, oz))
     parts.extend(_damp(layout, wall, ox, oz))
     return parts

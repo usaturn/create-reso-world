@@ -23,9 +23,27 @@ def _stains(layout: Layout, ox: float, oz: float):
     return [rect for _kind, rect in _stain_rects(layout, ox, oz)]
 
 
+STALL_APRON = 1.0  # customer standing strip in front of a stall counter
+
+
+def _local_rect(p, local, size, ox: float, oz: float):
+    """Axis-aligned foundation-local rectangle of a placement-local centre/size."""
+    angle = math.radians(p.yaw_deg)
+    cx = p.origin[0] + local[0]*math.cos(angle) + local[1]*math.sin(angle) - ox
+    cz = p.origin[2] - local[0]*math.sin(angle) + local[1]*math.cos(angle) - oz
+    sx, sz = (size[1], size[0]) if round(p.yaw_deg) % 180 == 90 else size
+    return (round(cx-sx/2, 6), round(cx+sx/2, 6), round(cz-sz/2, 6), round(cz+sz/2, 6))
+
+
 def _frontages(layout: Layout, ox: float, oz: float):
     """Stall fronts and nightlife entrance aprons, where no loose street debris may lie."""
-    return [rect[:4] for kind, rect in _stain_rects(layout, ox, oz) if kind in ('stall', 'nightlife')]
+    rects = [rect[:4] for kind, rect in _stain_rects(layout, ox, oz) if kind in ('stall', 'nightlife')]
+    for p in layout.placements:
+        if p.params.get('detail_profile') == 'v2' and p.kind == 'stall':
+            w, _, d = p.size
+            # Local +Z is the counter front: the apron runs from d/2 to d/2 + STALL_APRON.
+            rects.append(_local_rect(p, (0., d/2 + STALL_APRON/2), (w, STALL_APRON), ox, oz))
+    return rects
 
 
 def _stain_rects(layout: Layout, ox: float, oz: float):
@@ -40,13 +58,8 @@ def _stain_rects(layout: Layout, ox: float, oz: float):
             local, size = (0., d/2+.5), (min(w*.4, 2.4), 1.2)
         else:
             local, size = (w/2-.4, d/2+.3), (1.0, .9)
-        angle = math.radians(p.yaw_deg)
-        cx = p.origin[0] + local[0]*math.cos(angle) + local[1]*math.sin(angle) - ox
-        cz = p.origin[2] - local[0]*math.sin(angle) + local[1]*math.cos(angle) - oz
-        sx, sz = (size[1], size[0]) if round(p.yaw_deg) % 180 == 90 else size
         name, material = _STAIN_RULES[p.kind]
-        result.append((p.kind, (round(cx-sx/2, 6), round(cx+sx/2, 6), round(cz-sz/2, 6),
-                                round(cz+sz/2, 6), name, material)))
+        result.append((p.kind, (*_local_rect(p, local, size, ox, oz), name, material)))
     return result
 
 

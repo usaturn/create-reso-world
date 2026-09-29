@@ -28,9 +28,16 @@ def pieces(obj):
                 parent[a] = b
     groups = {}
     for v in mesh.vertices:
-        groups.setdefault(find(v.index), []).append((obj.matrix_world @ v.co).z)
-    return [{'object': obj.name, 'top': max(zs), 'bottom': min(zs), 'height': max(zs) - min(zs)}
-            for zs in groups.values()]
+        groups.setdefault(find(v.index), []).append(obj.matrix_world @ v.co)
+    result = []
+    for pts in groups.values():
+        xs, ys, zs = [p.x for p in pts], [p.y for p in pts], [p.z for p in pts]
+        # Blender X/Y/Z = Resonite X/Z/Y.
+        result.append({'object': obj.name, 'top': max(zs), 'bottom': min(zs),
+                       'height': max(zs) - min(zs),
+                       'x': (min(xs) + max(xs)) / 2, 'z': (min(ys) + max(ys)) / 2,
+                       'long': max(max(xs) - min(xs), max(ys) - min(ys))})
+    return result
 
 
 floor_exports = [o for o in export.objects if o.name.startswith(PREFIX)]

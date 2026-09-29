@@ -231,6 +231,11 @@ def test_full_plaza_build_realizes_only_walkable_debris_on_the_central_floor(tmp
     assert max(p['height'] for p in pieces) <= FLOOR_DEBRIS_MAX
     assert all(p['top'] <= FLOOR_DEBRIS_MAX + 1e-6 for p in pieces)
     assert data['floor_sources_have_nodes'] and data['floor_exports_static']
+    # Fix round 1: the realized debris covers every open 4 m square of the floor.
+    from tests.slum03.test_scatter import floor_coverage
+    cells = floor_coverage(layout, [(p['x'], p['z'], p['long']) for p in pieces])
+    assert len(cells) >= 40 and min(c['pieces'] for c in cells) >= 4
+    assert max(p['long'] for p in pieces) <= .7
     # The flat slab collider still fits inside the (decal-raised) evaluated floor.
     from dataclasses import replace
     plain = replace(layout, placements=tuple(
@@ -238,3 +243,52 @@ def test_full_plaza_build_realizes_only_walkable_debris_on_the_central_floor(tmp
         for p in layout.placements))
     keys = {n['slot']['key'] for n in collider_slots(plain, {'plaza': report})}
     assert 'collider-factory-floor' in keys and not any('rubble' in k for k in keys)
+
+
+def test_full_factory_floor_character_reads_at_eye_height():
+    """Fix round 1: branching wider cracks and broad, high-contrast tone patches (flush)."""
+    import math
+    from modeling.slum03.materials import MATERIALS
+    layout = _full()
+    floor = _floor(layout)
+    mains = [p for p in floor.parts if _kind(p) == 'crack' and '-b' not in p.name]
+    branches = [p for p in floor.parts if _kind(p) == 'crack' and '-b' in p.name]
+    assert len(mains) >= 25 and len(branches) >= 25
+    widths = []
+    for part in mains:
+        k = len(part.vertices) // 4 * 2
+        a, b = part.vertices[k], part.vertices[k + 1]
+        widths.append(math.dist((a[0], a[2]), (b[0], b[2])))
+    assert min(widths) >= .04 and sum(widths) / len(widths) >= .055
+    stains = [p for p in floor.parts if _kind(p) == 'stain']
+    assert len(stains) >= 24
+
+    def area(part):
+        total = 0.
+        for face in part.faces:
+            pts = [(part.vertices[i][0], part.vertices[i][2]) for i in face]
+            total += abs(sum(a[0]*b[1] - b[0]*a[1] for a, b in zip(pts, pts[1:] + pts[:1]))) / 2
+        return total
+    assert sum(area(p) for p in stains) >= 150 and min(area(p) for p in stains) >= 1.
+    # Contrast against the slab colour: darker, wetter and lighter patches all occur.
+    slab = sum(MATERIALS['factory_floor'].base_color[:3]) / 3
+    tones = {p.material for p in stains}
+    assert len(tones) >= 4
+    lum = [sum(MATERIALS[m].base_color[:3]) / 3 for m in tones]
+    assert min(lum) < slab * .5 and max(lum) > slab * 1.2
+    assert all(max(v[1] for v in p.vertices) < .002 for p in stains)  # flush, no step
+    # Same-level tone patches never overlap (z-fighting) and stay on the slab.
+    discs = [(p.vertices[0], max(math.dist((p.vertices[0][0], p.vertices[0][2]), (v[0], v[2]))
+                                 for v in p.vertices)) for p in stains]
+    for i, (a, ra) in enumerate(discs):
+        for b, rb in discs[i + 1:]:
+            assert math.dist((a[0], a[2]), (b[0], b[2])) > ra + rb
+    plaza = layout.plaza
+    ox, oz = (plaza.x_min + plaza.x_max) / 2, (plaza.z_min + plaza.z_max) / 2
+    for p in stains:
+        assert all(plaza.x_min - ox <= v[0] <= plaza.x_max - ox and
+                   plaza.z_min - oz <= v[2] <= plaza.z_max - oz for v in p.vertices)
+    halos = [p for p in floor.parts if p.name.endswith('-halo')]
+    assert len(halos) >= 20
+    damp_levels = {round(v[1], 5) for p in floor.parts if _kind(p) == 'damp' for v in p.vertices}
+    assert {round(v[1], 5) for p in halos for v in p.vertices}.isdisjoint(damp_levels)

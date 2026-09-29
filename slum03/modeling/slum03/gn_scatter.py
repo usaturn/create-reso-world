@@ -165,14 +165,56 @@ def _floor_litter():
             _chip('chip', .22, .22, .09, .08, .035, 'concrete_raw')]
 
 
+def _yawed(part, yaw, dx, dz):
+    c, s = math.cos(yaw), math.sin(yaw)
+    return polygon_mesh(part.name, [(x*c - z*s + dx, y, x*s + z*c + dz) for x, y, z in part.vertices],
+                        part.faces, part.material)
+
+
+def _floor_bricks():
+    """slum02-style loose bricks lying flat: one whole, one broken half, a crumb."""
+    return [_yawed(box('brick', (0, .03, 0), (.23, .068, .11), 'rust_dark'), .3, -.08, .04),
+            _yawed(box('brick-half', (0, .03, 0), (.12, .066, .11), 'concrete_stained'), -.5, .15, -.12),
+            _chip('crumb', .02, -.2, .07, .06, .03, 'rust_dark')]
+
+
+def _floor_plank():
+    """A dropped pallet plank and a plywood strip, flat on the slab."""
+    return [_yawed(box('plank', (0, .007, 0), (.56, .022, .1), 'pallet_wood'), .2, 0, -.03),
+            _yawed(box('plywood-strip', (0, .003, 0), (.22, .014, .07), 'plywood'), 1.9, -.05, .16),
+            _chip('grit', .2, .14, .06, .05, .022, 'concrete_raw')]
+
+
+def _floor_block():
+    """A fist-to-forearm sized concrete chunk with its broken-off bits."""
+    return [_chip('concrete-chunk', -.03, .0, .32, .26, .082, 'concrete_raw', .03),
+            _chip('chip', .22, .14, .1, .08, .04, 'concrete_stained'),
+            _chip('chip', -.2, -.18, .08, .07, .03, 'concrete_dark')]
+
+
+def _floor_sheet():
+    """A torn, slightly buckled sheet scrap with a rebar offcut beside it."""
+    xs, zs = (-.24, -.12, 0., .12, .24), (-.16, .16)
+    lift = (.004, .014, .006, .018, .005)
+    verts = [(x, lift[i] + (.003 if z > 0 else 0.), z) for i, x in enumerate(xs) for z in zs]
+    faces = [(2*i, 2*i+1, 2*i+3, 2*i+2) for i in range(len(xs) - 1)]
+    top = polygon_mesh('sheet-scrap', verts, faces, 'corrugated_rust')
+    under = polygon_mesh('sheet-scrap', [(x, y - .003, z) for x, y, z in verts],
+                         [tuple(reversed(f)) for f in faces], 'corrugated_rust')
+    return [_yawed(top, .35, .02, .02), _yawed(under, .35, .02, .02),
+            tube('rebar-offcut', [(-.2, .012, -.24), (.2, .013, -.2)], .011, 6, 'rust', (0., 1., 0.))]
+
+
 VARIANT_KINDS = {0: 'concrete', 1: 'steel', 2: 'machine', 3: 'debris',
-                 4: 'chips', 5: 'shards', 6: 'scrap', 7: 'litter'}
+                 4: 'chips', 5: 'shards', 6: 'scrap', 7: 'litter',
+                 8: 'bricks', 9: 'plank', 10: 'block', 11: 'sheet'}
 # Size class of each variant at its largest instance scale; only 'small' (walkable,
 # <= FLOOR_DEBRIS_MAX, collider-free) may be placed on the central floor.
 SIZE_CLASS = {0: 'large', 1: 'large', 2: 'large', 3: 'medium',
-              4: 'small', 5: 'small', 6: 'small', 7: 'small'}
-FLOOR_VARIANTS = (4, 5, 6, 7)
-_FLOOR_BUILDERS = {4: _floor_chips, 5: _floor_shards, 6: _floor_scrap, 7: _floor_litter}
+              **{index: 'small' for index in range(4, 12)}}
+FLOOR_VARIANTS = tuple(range(4, 12))
+_FLOOR_BUILDERS = {4: _floor_chips, 5: _floor_shards, 6: _floor_scrap, 7: _floor_litter,
+                   8: _floor_bricks, 9: _floor_plank, 10: _floor_block, 11: _floor_sheet}
 
 
 def variant_parts(index):
@@ -201,13 +243,24 @@ def _full_stage(layout: Layout) -> bool:
 
 
 # --- Task 12 (revision 1): walkable small debris on the central floor ---------
-FLOOR_COUNT = 200
 FLOOR_SCALE = (.8, 1.15)
 FLOOR_EXTENT: Vec3 = (.9, FLOOR_DEBRIS_MAX, .9)   # every floor variant at FLOOR_SCALE[1]
 FLOOR_ROUTE_MARGIN = .3   # beyond each main route/entrance effective width
-FLOOR_SPACING = .5
+FLOOR_SPACING = .45
 FLOOR_CELL = (8., 5.5)    # heap cells never straddle the routes crossing at the origin
-FLOOR_MIX = (4, 4, 4, 5, 5, 5, 6, 6, 7, 7)
+# Fix round 1: a sparse, even layer over the whole floor (slum02: something lies
+# everywhere) plus a few piles. Single slum02-sized pieces dominate the even layer.
+FLOOR_GRID_STEP = 1.25
+FLOOR_GRID_KEEP = .85
+FLOOR_GRID_MIX = (8, 8, 9, 9, 10, 10, 11, 11, 4, 5, 6, 7)
+FLOOR_PILE_CENTRES = 16
+FLOOR_PILE_COUNT = 70
+FLOOR_PILE_MIX = (4, 4, 5, 5, 6, 7, 8, 10, 10)
+
+
+def _variant_radius(index: int) -> float:
+    """Largest horizontal distance of a variant's geometry from its origin (yaw-invariant)."""
+    return max(math.hypot(x, z) for part in variant_parts(index) for x, _, z in part.vertices)
 
 
 def floor_keepouts(layout: Layout) -> list[RectXZ]:
@@ -222,54 +275,69 @@ def floor_keepouts(layout: Layout) -> list[RectXZ]:
 
 
 def floor_debris_samples(layout: Layout) -> list[dict]:
-    """Seeded carpet of small debris over the central floor, clustered with bare patches."""
+    """Seeded sparse carpet over the whole central floor plus a few piles.
+
+    Each instance is tested with its own realized (rotation-invariant) radius at
+    its drawn scale, so the protected strips stay free without a wide empty band.
+    """
     from .plaza import floor_features
     rng = random.Random(stable_seed(layout.seed, FLOOR_DEBRIS_PREFIX, 'samples'))
     clear = layout.clear
-    half = FLOOR_EXTENT[0] / 2
-    blocked = [RectXZ(r.x_min - FLOOR_ROUTE_MARGIN - half, r.x_max + FLOOR_ROUTE_MARGIN + half,
-                      r.z_min - FLOOR_ROUTE_MARGIN - half, r.z_max + FLOOR_ROUTE_MARGIN + half)
-               for r in floor_keepouts(layout)]
-    blocked += [RectXZ(x0 - .1 - half, x1 + .1 + half, z0 - .1 - half, z1 + .1 + half)
-                for x0, x1, z0, z1 in floor_features(layout)['pits']]
+    radius = {index: _variant_radius(index) for index in FLOOR_VARIANTS}
+    keep = floor_keepouts(layout)
+    pits = floor_features(layout)['pits']
+    result: list[dict] = []
 
-    def free(x, z):
-        return (clear.x_min + half + .05 <= x <= clear.x_max - half - .05 and
-                clear.z_min + half + .05 <= z <= clear.z_max - half - .05 and
-                not any(r.x_min < x < r.x_max and r.z_min < z < r.z_max for r in blocked))
+    def free(x, z, r, spacing=True):
+        return (clear.x_min + r + .05 <= x <= clear.x_max - r - .05 and
+                clear.z_min + r + .05 <= z <= clear.z_max - r - .05 and
+                not any(k.x_min - FLOOR_ROUTE_MARGIN - r < x < k.x_max + FLOOR_ROUTE_MARGIN + r and
+                        k.z_min - FLOOR_ROUTE_MARGIN - r < z < k.z_max + FLOOR_ROUTE_MARGIN + r
+                        for k in keep) and
+                not any(x0 - .1 - r < x < x1 + .1 + r and z0 - .1 - r < z < z1 + .1 + r
+                        for x0, x1, z0, z1 in pits) and
+                not (spacing and any(math.dist((x, z), (o['point'][0], o['point'][2])) <
+                                     max(FLOOR_SPACING, .8 * (r + o['radius'])) for o in result)))
+
+    def add(x, z, variant, scale):
+        result.append({'point': (round(x, 6), 0., round(z, 6)), 'extent': FLOOR_EXTENT,
+                       'scale': scale, 'variant': variant, 'tier': 3,
+                       'radius': radius[variant] * scale})
+    # 1. Even layer: jittered grid over the whole floor, a few gaps left at random.
+    nx = int((clear.x_max - clear.x_min) / FLOOR_GRID_STEP)
+    nz = int((clear.z_max - clear.z_min) / FLOOR_GRID_STEP)
+    for a in range(nx + 1):
+        for b in range(nz + 1):
+            x = clear.x_min + (a + .5) * FLOOR_GRID_STEP + rng.uniform(-.45, .45)
+            z = clear.z_min + (b + .5) * FLOOR_GRID_STEP + rng.uniform(-.45, .45)
+            variant, scale = rng.choice(FLOOR_GRID_MIX), rng.uniform(*FLOOR_SCALE)
+            if rng.random() < FLOOR_GRID_KEEP and free(x, z, radius[variant] * scale):
+                add(x, z, variant, scale)
+    # 2. Piles: four per quadrant between the crossing routes.
     centres = []
-    while len(centres) < 16:  # four piles per quadrant between the crossing routes
+    attempts = 0
+    while len(centres) < FLOOR_PILE_CENTRES:
+        attempts += 1
+        if attempts > FLOOR_PILE_CENTRES * 500:
+            raise ValueError('floor debris pile centres cannot fit the central floor')
         west, south = len(centres) % 2, len(centres) // 2 % 2
         x = rng.uniform(clear.x_min, 0) if west else rng.uniform(0, clear.x_max)
         z = rng.uniform(clear.z_min, 0) if south else rng.uniform(0, clear.z_max)
-        if free(x, z):
-            centres.append((x, z, rng.uniform(.7, 1.5)))
-    result: list[dict] = []
-    attempts = 0
-    while len(result) < FLOOR_COUNT:
+        if free(x, z, .35, spacing=False):
+            centres.append((x, z, rng.uniform(.5, 1.0)))
+    placed = attempts = 0
+    while placed < FLOOR_PILE_COUNT:
         attempts += 1
-        if attempts > FLOOR_COUNT * 400:
-            raise ValueError('floor debris cannot fit the central floor')
-        mode = rng.random()
-        if mode < .6:  # piles around knocked-off concrete, with bare floor between them
-            cx, cz, spread = rng.choice(centres)
-            x, z = rng.gauss(cx, spread), rng.gauss(cz, spread)
-        elif mode < .8:  # spill inward from the perimeter heaps
-            side = rng.randrange(4)
-            t = rng.random()
-            depth = abs(rng.gauss(0, 1.2)) + half + .05
-            x, z = ((clear.x_min + depth, clear.z_min + t*(clear.z_max-clear.z_min)) if side == 0 else
-                    (clear.x_max - depth, clear.z_min + t*(clear.z_max-clear.z_min)) if side == 1 else
-                    (clear.x_min + t*(clear.x_max-clear.x_min), clear.z_min + depth) if side == 2 else
-                    (clear.x_min + t*(clear.x_max-clear.x_min), clear.z_max - depth))
-        else:  # sparse strays
-            x, z = rng.uniform(clear.x_min, clear.x_max), rng.uniform(clear.z_min, clear.z_max)
-        if not free(x, z) or any(math.dist((x, z), (o['point'][0], o['point'][2])) < FLOOR_SPACING
-                                 for o in result):
-            continue
-        result.append({'point': (round(x, 6), 0., round(z, 6)), 'extent': FLOOR_EXTENT,
-                       'scale': rng.uniform(*FLOOR_SCALE), 'variant': rng.choice(FLOOR_MIX),
-                       'tier': 3})
+        if attempts > FLOOR_PILE_COUNT * 400:
+            raise ValueError('floor debris piles cannot fit the central floor')
+        cx, cz, spread = rng.choice(centres)
+        x, z = rng.gauss(cx, spread), rng.gauss(cz, spread)
+        variant, scale = rng.choice(FLOOR_PILE_MIX), rng.uniform(*FLOOR_SCALE)
+        if free(x, z, radius[variant] * scale):
+            add(x, z, variant, scale)
+            placed += 1
+    for item in result:
+        del item['radius']
     return result
 
 
