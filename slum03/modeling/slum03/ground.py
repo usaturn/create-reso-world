@@ -1,7 +1,8 @@
 """District foundation and owned, collider-free directional scenic support."""
 import math
 import random
-from .geometry import Assembly, box, mesh
+from . import surface_detail
+from .geometry import Assembly, MeshData, box, mesh
 from .types import Layout
 
 
@@ -40,22 +41,11 @@ def _stains(layout: Layout, ox: float, oz: float):
     return result
 
 
-def _surface_cells(x0, x1, z0, z1, y, stains):
-    """Split one strip top into non-overlapping upward cells, one part per material."""
-    inside = [r for r in stains if r[0] < x1 and r[1] > x0 and r[2] < z1 and r[3] > z0]
-    xs = sorted({x0, x1, *(min(max(v, x0), x1) for r in inside for v in r[:2])})
-    zs = sorted({z0, z1, *(min(max(v, z0), z1) for r in inside for v in r[2:4])})
-    buckets: dict[tuple[str, str], tuple[dict, list]] = {}
-    for i in range(len(xs)-1):
-        for j in range(len(zs)-1):
-            cx, cz = (xs[i]+xs[i+1])/2, (zs[j]+zs[j+1])/2
-            hit = next((r for r in inside if r[0] < cx < r[1] and r[2] < cz < r[3]), None)
-            name, material = (hit[4], hit[5]) if hit else ('foundation-top', 'concrete_raw')
-            index, faces = buckets.setdefault((name, material), ({}, []))
-            corners = ((xs[i], zs[j+1]), (xs[i+1], zs[j+1]), (xs[i+1], zs[j]), (xs[i], zs[j]))
-            faces.append(tuple(index.setdefault(c, len(index)) for c in corners))
-    return [mesh(name, [(vx, y, vz) for vx, vz in index], faces, material)
-            for (name, material), (index, faces) in buckets.items()]
+def _lift(part: MeshData, top: float) -> MeshData:
+    """Street detail is authored relative to the walking plane (Y=0)."""
+    if top == 0:
+        return part
+    return mesh(part.name, [(v[0], v[1] + top, v[2]) for v in part.vertices], part.faces, part.material)
 
 
 def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
@@ -74,6 +64,12 @@ def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
     top = bottom + sy
     parts = []
     stains = _stains(layout, x, z) if _full_stage(layout) else None
+    if stains is not None:
+        # Task 11: asphalt on the main streets plus weathered street detail.
+        # Task 8 stains keep priority over the asphalt they may overlap.
+        site = surface_detail.Site(layout, x, z, (left, right, south, north), (fx0, fx1, fz0, fz1))
+        features = [((r[0], r[1], r[2], r[3]), r[4], r[5]) for r in stains]
+        features += [(road, 'asphalt-road', 'asphalt') for road in site.roads]
     # Four disjoint visible strips leave the factory slab as the sole top face
     # over the entire 40×30 footprint. Edges meet only at their boundaries.
     for name, x0, x1, z0, z1 in (
@@ -88,10 +84,12 @@ def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
             parts.append(strip)
             continue
         # Task 8: replace the top face with exactly coplanar cells; oil/wet
-        # patches are surface material only, never raised decals or steps.
+        # patches and asphalt are surface material only, never raised steps.
         parts.append(mesh(name, strip.vertices,
                           [face for k, face in enumerate(strip.faces) if k != 4], 'concrete_raw'))
-        parts.extend(_surface_cells(x0, x1, z0, z1, top, stains))
+        parts.extend(surface_detail.surface_partition(x0, x1, z0, z1, top, features))
+    if stains is not None:
+        parts.extend(_lift(p, top) for p in surface_detail.street_detail(layout, site))
     # Provide a structural seat below, not a second coplanar visible surface.
     floor_bottom = floor.origin[1] + floor.params.get('local_y_min', 0) - y
     if floor_bottom > bottom:

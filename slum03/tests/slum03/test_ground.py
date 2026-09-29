@@ -103,7 +103,11 @@ def test_full_ground_stains_are_coplanar_surface_cells_only():
     legacy = next(a for a in sector_assemblies(build_layout(), 'ground') if a.name == 'district-foundation')
     layout = _full()
     ground = next(a for a in sector_assemblies(layout, 'ground') if a.name == 'district-foundation')
-    assert bounds(ground.parts) == bounds(legacy.parts) == ((-60, -.3, -60), (60, 0, 60))
+    # Task 11 street detail may stand above the plane (curbs <= 0.15 m); the
+    # slab footprint and underside stay those of the legacy foundation.
+    (lo, hi), (legacy_lo, legacy_hi) = bounds(ground.parts), bounds(legacy.parts)
+    assert (lo, hi[0], hi[2]) == (legacy_lo, legacy_hi[0], legacy_hi[2])
+    assert legacy_hi[1] == 0 and 0 < hi[1] <= .15
     stains = [p for p in ground.parts if p.name in ('oil-stain', 'wet-stain')]
     assert {p.material for p in stains} == {'concrete_dark', 'asphalt_wet'}
     assert all(abs(v[1]) < 1e-9 for p in stains for v in p.vertices)  # no raised decal
@@ -138,3 +142,122 @@ def test_full_ground_stains_are_coplanar_surface_cells_only():
         assert hashlib.sha256(repr(kept).encode()).hexdigest() == (
             'fca0a828780b4b6253f782be1d32c012ae3de7e505e37cb4c067f88aeabfe492')
     assert not [p for p in legacy.parts if p.name in ('oil-stain', 'wet-stain')]
+
+
+# --- Task 11: weathered street surface (full stage only) -------------------
+
+import re
+
+_DETAIL = re.compile(r'^(crack|patch|roadplate|curb|curbchunk|grate|manhole|puddle|'
+                     r'oildrip|wallgrime|litter)-')
+_FLAT_KINDS = ('crack', 'patch', 'roadplate', 'grate', 'manhole', 'puddle', 'oildrip', 'wallgrime')
+
+
+def _full_ground():
+    layout = _full()
+    ground = next(a for a in sector_assemblies(layout, 'ground') if a.name == 'district-foundation')
+    return layout, ground
+
+
+def _world_box(assembly, part):
+    ox, oy, oz = assembly.origin
+    xs = [v[0] + ox for v in part.vertices]
+    ys = [v[1] + oy for v in part.vertices]
+    zs = [v[2] + oz for v in part.vertices]
+    return min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)
+
+
+def _by_kind(assembly):
+    kinds: dict[str, list] = {}
+    for part in assembly.parts:
+        match = _DETAIL.match(part.name)
+        if match:
+            kinds.setdefault(match[1], []).append(part)
+    return kinds
+
+
+def _protected(layout):
+    """Main routes' effective widths and authored branch clearances, from the Layout."""
+    rects = [r.bounds for r in layout.routes]
+    for route in layout.density.routes:
+        rects.append(route.corridor.bounds)
+        rects.extend(o.bounds.bounds for o in route.openings)
+    rects.extend(r.bounds for r in layout.density.branch_clearances)
+    return rects
+
+
+def _hits(box, rect, pad=0.):
+    x0, x1, _, _, z0, z1 = box
+    return x0 < rect[1] + pad and x1 > rect[0] - pad and z0 < rect[3] + pad and z1 > rect[2] - pad
+
+
+def test_full_street_surface_has_every_weathered_detail_kind():
+    layout, ground = _full_ground()
+    kinds = _by_kind(ground)
+    minimum = {'crack': 40, 'patch': 8, 'roadplate': 3, 'curb': 40, 'curbchunk': 3, 'grate': 4,
+               'manhole': 4, 'puddle': 8, 'oildrip': 10, 'wallgrime': 12, 'litter': 30}
+    assert {k: len(kinds.get(k, ())) >= n for k, n in minimum.items()} == {k: True for k in minimum}
+    # Asphalt road surface sits exactly in the ground plane on the three main streets only.
+    from modeling.slum03.geometry import face_normal
+    def surface_at(x, z):
+        for part in ground.parts:
+            for face in part.faces:
+                pts = [part.vertices[i] for i in face]
+                if (all(abs(p[1]) < 1e-9 for p in pts) and face_normal(pts)[1] > .99 and
+                        min(p[0] for p in pts) <= x <= max(p[0] for p in pts) and
+                        min(p[2] for p in pts) <= z <= max(p[2] for p in pts)):
+                    return part.material
+    assert surface_at(-40.3, 0.2) == surface_at(40.3, -0.2) == surface_at(0.2, -40.3) == 'asphalt'
+    assert surface_at(-40.3, 20.3) == 'concrete_raw'
+    # Branch lanes (枝道) carry detail too, not only the main streets.
+    for route in layout.density.routes:
+        c = route.corridor
+        inside = [p for k in ('crack', 'patch', 'puddle', 'oildrip') for p in kinds[k]
+                  if _hits(_world_box(ground, p), c.bounds)]
+        assert inside, route.key
+    # Detail stays on streets/lanes and their building edges, never on the factory slab.
+    floor = next(p for p in layout.placements if p.key == 'factory-floor')
+    fx, fz = floor.size[0]/2, floor.size[2]/2
+    streets = [r.bounds for r in layout.routes] + [r.corridor.bounds for r in layout.density.routes]
+    for parts in kinds.values():
+        for part in parts:
+            box = _world_box(ground, part)
+            assert not _hits(box, (-fx, fx, -fz, fz)), part.name
+            assert -60 <= box[0] and box[1] <= 60 and -60 <= box[4] and box[5] <= 60, part.name
+            assert any(_hits(box, r, 4.5) for r in streets), part.name
+
+
+def test_full_street_detail_keeps_main_routes_walkable_by_geometry():
+    layout, ground = _full_ground()
+    kinds = _by_kind(ground)
+    protected = _protected(layout)
+    for kind in _FLAT_KINDS:
+        for part in kinds[kind]:
+            box = _world_box(ground, part)
+            assert box[3] < 0.01 and box[2] > -0.3, (part.name, box[3])  # step below 0.01 m
+    for part in ground.parts:
+        box = _world_box(ground, part)
+        if box[3] < 0.01:
+            continue
+        # Anything standing 0.01 m or more is outside every effective width and clearance.
+        assert _DETAIL.match(part.name), part.name
+        assert not any(_hits(box, r) for r in protected), part.name
+    for part in kinds['litter']:
+        assert _world_box(ground, part)[3] <= 0.10, part.name
+    # Detail is mesh-only: no new objects (hence no new collider owners) in the ground sector.
+    legacy = {a.name for a in sector_assemblies(build_layout(), 'ground')}
+    assert {a.name for a in sector_assemblies(layout, 'ground')} == legacy
+
+
+def test_full_street_detail_is_seeded_and_bounded():
+    import hashlib
+    from dataclasses import replace
+    layout, ground = _full_ground()
+    again = next(a for a in sector_assemblies(_full(), 'ground') if a.name == 'district-foundation')
+    assert repr(again) == repr(ground)
+    other = next(a for a in sector_assemblies(replace(layout, seed=layout.seed + 1), 'ground')
+                 if a.name == 'district-foundation')
+    assert hashlib.sha256(repr(other).encode()).digest() != hashlib.sha256(repr(ground).encode()).digest()
+    triangles = sum(len(f) - 2 for p in ground.parts for f in p.faces)
+    assert triangles < 20000
+    assert len({p.material for p in ground.parts}) <= 14
