@@ -255,6 +255,31 @@ def _count(value: Any) -> int:
                 else sum(_count(v) for v in value) if isinstance(value, list) else 0)
 
 
+# ResoLoop ApplyDocumentCompiler: limits.expandedNodes is an integer in
+# [1, 250000] and the document must not exceed 10 MiB.
+MAX_EXPANDED_NODES = 250_000
+MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
+
+
+def with_own_limits(manifest: Manifest) -> Manifest:
+    """Copy with ``limits`` sized from this document, never inherited from another."""
+    result = {k: copy.deepcopy(v) for k, v in manifest.items() if k != 'limits'}
+    limit = math.ceil(_count(result) * 1.2)
+    if limit > MAX_EXPANDED_NODES:
+        raise ValueError(f'expandedNodes {limit} exceeds ResoLoop limit {MAX_EXPANDED_NODES}')
+    result['limits'] = {'expandedNodes': limit}
+    return result
+
+
+def sized_manifest_text(manifest: Manifest) -> str:
+    """Serialized manifest with its own limits; fails above ResoLoop's size limits."""
+    text = json.dumps(with_own_limits(manifest), ensure_ascii=False, indent=2) + '\n'
+    size = len(text.encode('utf-8'))
+    if size > MAX_DOCUMENT_BYTES:
+        raise ValueError(f'document is {size} bytes; ResoLoop limit is {MAX_DOCUMENT_BYTES} bytes')
+    return text
+
+
 def build_unified_manifest(bundle_dir: Path, layout: Layout,
                            reports: Mapping[str, Report], root_position: Vec3) -> Manifest:
     """Resolve asset paths, then invoke Task 9 native postprocess exactly once."""

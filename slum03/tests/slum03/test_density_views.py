@@ -51,8 +51,8 @@ def test_review_candidate_preserves_all_content_and_assets():
     layout = read_layout(Path('content/slum03/density-representative-layout.json'))
     source = json.loads(Path('content/slum03/density-rep-a-20260928Ttask6-01-candidate-fix3.json').read_text())
     reviewed = review_manifest(source, layout)
-    assert {key: value for key, value in reviewed.items() if key not in ('cameras', 'tests')} == {
-        key: value for key, value in source.items() if key not in ('cameras', 'tests')}
+    assert {key: value for key, value in reviewed.items() if key not in ('cameras', 'tests', 'limits')} == {
+        key: value for key, value in source.items() if key not in ('cameras', 'tests', 'limits')}
     assert reviewed['assets'] == source['assets']
     assert len(reviewed['cameras']) == len(source['cameras']) + 9
 
@@ -78,6 +78,13 @@ def test_written_review_attests_original_and_final_hash_without_changing_resourc
     assert evidence['protected_changes'] == evidence['asset_changes'] == 0
     assert json.loads((tmp_path / 'qa' / 'acceptance.json').read_text())['status'] == 'pending'
     assert evidence['candidate_sha256'] == json.loads((tmp_path / 'qa' / 'acceptance.json').read_text())['manifest_sha256']
+    # The inherited limit (11576) is below this QA revision's own node count.
+    import math
+    from modeling.slum03.pipeline import _count
+    written = json.loads(out.read_text())
+    content = {k: v for k, v in written.items() if k != 'limits'}
+    assert written['limits'] == {'expandedNodes': math.ceil(_count(content) * 1.2)}
+    assert written['limits']['expandedNodes'] >= _count(content)
 
 
 def test_near_cameras_target_authored_surfaces_and_market_shelves_from_common_pose():

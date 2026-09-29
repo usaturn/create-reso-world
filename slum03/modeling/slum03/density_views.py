@@ -71,14 +71,16 @@ def review_manifest(source: Manifest, layout: Layout) -> Manifest:
     if {k: v for k, v in result.items() if k not in ('cameras', 'tests')} != {
             k: v for k, v in source.items() if k not in ('cameras', 'tests')}:
         raise ValueError('review revision changed content')
-    return result
+    # Cameras and tests add JSON nodes, so the limit is re-sized after them.
+    from .pipeline import with_own_limits
+    return with_own_limits(result)
 
 
 def write_review(source: Path, layout_path: Path, output: Path, evidence_dir: Path) -> dict:
     """Persist a separate QA revision with independent source/final byte attestation."""
     from .candidate_scope import check_candidate_scope
     from .layout import read_layout
-    from .pipeline import _validate_final
+    from .pipeline import _validate_final, sized_manifest_text
     source, output, evidence_dir = Path(source), Path(output), Path(evidence_dir)
     if source.parent.resolve() != output.parent.resolve():
         raise ValueError('review manifest must remain beside source asset paths')
@@ -95,7 +97,7 @@ def write_review(source: Path, layout_path: Path, output: Path, evidence_dir: Pa
     reviewed = review_manifest(original, layout)
     _validate_final(reviewed)
     # review_manifest already checked every non-QA declaration for equality.
-    content = json.dumps(reviewed, ensure_ascii=False, indent=2) + '\n'
+    content = sized_manifest_text(reviewed)
     digest = hashlib.sha256(content.encode('utf-8')).hexdigest()
     source_digest = hashlib.sha256(source.read_bytes()).hexdigest()
     evidence_dir.mkdir(parents=True)

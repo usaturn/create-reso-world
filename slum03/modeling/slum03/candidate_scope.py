@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 from .types import Layout, Manifest, Issue, Report
-from .pipeline import _validate_final, _refs
+from .pipeline import _validate_final, _refs, sized_manifest_text
 from .density_model import SCATTER_PREFIXES, SURFACE_PLACEMENT_SLOTS
 from .density_layout import NEW_KEY_PREFIXES
 
@@ -494,7 +494,8 @@ def compose_candidate(baseline_path: Path, draft_path: Path, layout: Layout, out
     issues = check_candidate_scope(baseline, result, layout, baseline_path.parent)
     if issues:
         raise ValueError(f'candidate scope: {issues[:5]}')
-    output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    # The baseline deep copy carries the baseline's limits; size them from this candidate.
+    output.write_text(sized_manifest_text(result), encoding='utf-8')
     return {'protected_changes': 0, 'selected_nodes': sorted(selected_keys),
             'new_selected_nodes': sorted(new_roots),
             'absent_baseline_slots': absent,

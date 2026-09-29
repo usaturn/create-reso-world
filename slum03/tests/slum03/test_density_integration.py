@@ -536,3 +536,53 @@ def test_representative_stage_does_not_keep_missing_baseline_stubs(tmp_path):
     base.write_text(json.dumps(b)); draft.write_text(json.dumps(d))
     with pytest.raises(ValueError, match='missing|changed'):
         compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
+
+
+# Gate D fix1: ResoLoop rejects a document whose JSON node count exceeds
+# ``limits.expandedNodes``. Candidates are deep copies of the baseline, so the
+# baseline limit leaked into a candidate five times its size.
+C_CANDIDATE = Path('content/slum03/density-full-c-20260929T054230Z-541218-candidate.json')
+
+
+def _own_limit(manifest):
+    import math
+    from modeling.slum03.pipeline import _count
+    return math.ceil(_count({k: v for k, v in manifest.items() if k != 'limits'}) * 1.2)
+
+
+def _assert_own_limits(manifest):
+    from modeling.slum03.pipeline import _count
+    assert set(manifest['limits']) == {'expandedNodes'}
+    assert manifest['limits']['expandedNodes'] == _own_limit(manifest)
+    assert manifest['limits']['expandedNodes'] >= _count(
+        {k: v for k, v in manifest.items() if k != 'limits'})
+
+
+def test_full_candidate_limits_are_sized_from_the_written_content(tmp_path, full):
+    layout = subset_layout(full)
+    base, raw, baseline, draft = full_fixture(tmp_path, full)
+    baseline['limits'] = {'expandedNodes': 5}  # stale baseline value must not leak
+    base.write_text(json.dumps(baseline))
+    output = tmp_path / 'candidate.json'
+    compose_candidate(base, raw, layout, output)
+    _assert_own_limits(json.loads(output.read_text()))
+
+
+def test_full_review_candidate_limits_count_added_cameras_and_tests(full):
+    from modeling.slum03.density_views import review_manifest
+    source = json.loads(C_CANDIDATE.read_text())
+    reviewed = review_manifest(source, full)
+    _assert_own_limits(reviewed)
+    assert reviewed['limits']['expandedNodes'] > _own_limit(source)  # QA additions counted
+    assert {k: v for k, v in reviewed.items() if k not in ('cameras', 'tests', 'limits')} == {
+        k: v for k, v in source.items() if k not in ('cameras', 'tests', 'limits')}
+
+
+def test_manifest_text_fails_above_resoloop_node_or_byte_limits():
+    from modeling.slum03.pipeline import sized_manifest_text
+    text = sized_manifest_text({'schemaVersion': '1', 'limits': {'expandedNodes': 1}, 'x': [0, 1]})
+    assert json.loads(text)['limits'] == {'expandedNodes': 6}  # ceil(5 * 1.2)
+    with pytest.raises(ValueError, match='expandedNodes'):
+        sized_manifest_text({'x': [0] * 210_000})
+    with pytest.raises(ValueError, match='bytes'):
+        sized_manifest_text({'x': 'a' * (10 * 1024 * 1024)})
