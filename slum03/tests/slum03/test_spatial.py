@@ -96,3 +96,14 @@ def test_walkable_floor_may_carry_flush_decals_below_one_centimetre():
     assert validate_clearance(a, {floor.key: decal}) == []
     step = Bounds3((-20, -.2, -15), (20, WALKABLE_DECAL_MAX + .005, 15))
     assert any(i.code == 'CLEARANCE_INTRUSION' for i in validate_clearance(a, {floor.key: step}))
+
+
+def test_district_foundation_slot_is_the_walkable_district_ground():
+    """The Slot/mesh 'district-foundation' is the 'district-ground' placement (T13-GROUND)."""
+    a = build_layout()
+    flat = Bounds3((-60, -.3, -60), (60, .005, 60))  # flush decals only
+    assert validate_clearance(a, {'district-foundation': flat}) == []
+    # A raised aggregate is not blindly exempt: curbs need part-level evidence.
+    curbed = Bounds3((-60, -.3, -60), (60, .134, 60))
+    assert any(i.code == 'CLEARANCE_INTRUSION'
+               for i in validate_clearance(a, {'district-foundation': curbed}))

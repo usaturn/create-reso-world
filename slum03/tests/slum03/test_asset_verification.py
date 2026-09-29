@@ -301,3 +301,56 @@ def test_unprofiled_attachment_child_outside_valid_contact_is_rejected_publicly(
                    for i in check), check
     assert any(i.code == 'GEOMETRY_MISSING' and i.object_key == child.key
                for i in issues((.2, .4, .2), drop_child=True)[0])
+
+
+def _curbed_foundation_reports(parts_extra=()):
+    """Full Layout reports whose ground mesh is the real curbed district-foundation."""
+    from dataclasses import replace
+    from pathlib import Path
+    from modeling.slum03 import ground
+    from modeling.slum03.layout import read_layout
+    layout = read_layout(Path('content/slum03/density-full-layout.json'))
+    reports = minimal_reports(layout)
+    foundation = next(a for a in ground.build_assemblies(layout, 'ground')
+                      if a.name == 'district-foundation')
+    parts = list(foundation.parts) + list(parts_extra)
+    lo = [min(v[i] for p in parts for v in p.vertices) + foundation.origin[i] for i in range(3)]
+    hi = [max(v[i] for p in parts for v in p.vertices) + foundation.origin[i] for i in range(3)]
+    report = reports['ground']
+    report['objects'] = [o for o in report['objects'] if o['key'] != 'district-ground']
+    report['objects'].insert(0, {'key': 'district-ground', 'kind': 'foundation',
+                                 'mesh': 'district-foundation'})
+    del report['evaluated_bounds']['district-ground']
+    report['evaluated_bounds']['district-foundation'] = {'minimum': lo, 'maximum': hi}
+    return layout, reports, replace(foundation, parts=parts)
+
+
+def _foundation_issues(layout, reports):
+    return [i for i in verify_assets(layout, reports)
+            if i.object_key == 'district-foundation']
+
+
+def test_curbed_district_foundation_is_walkable_ground_not_a_route_intrusion():
+    layout, reports, _ = _curbed_foundation_reports()
+    top = reports['ground']['evaluated_bounds']['district-foundation']['maximum'][1]
+    assert .1 < top < .15  # Task 11 curbs raise the evaluated envelope
+    assert _foundation_issues(layout, reports) == []
+
+
+def test_curb_across_a_main_route_is_still_a_clearance_intrusion(monkeypatch):
+    from modeling.slum03 import ground
+    from modeling.slum03.geometry import box
+    # A 0.15 m curb laid across the west main street (route z -1.5..1.5 at x=-40).
+    stray = box('curb-stray', (-40, .06, 0), (.18, .15, 5), 'concrete_raw')
+    layout, reports, patched = _curbed_foundation_reports([stray])
+    original = ground.build_assemblies
+    monkeypatch.setattr(ground, 'build_assemblies', lambda lay, sector: [
+        patched if a.name == 'district-foundation' else a for a in original(lay, sector)])
+    assert any(i.code == 'CLEARANCE_INTRUSION' for i in _foundation_issues(layout, reports))
+
+
+def test_curbed_foundation_without_matching_source_parts_fails_closed():
+    layout, reports, _ = _curbed_foundation_reports()
+    reports['ground']['evaluated_bounds']['district-foundation']['maximum'][1] = .5
+    codes = {i.code for i in _foundation_issues(layout, reports)}
+    assert 'SURFACE_EVIDENCE' in codes and 'CLEARANCE_INTRUSION' in codes

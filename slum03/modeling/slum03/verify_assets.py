@@ -33,6 +33,42 @@ def semantic_bounds(reports: Mapping[str, Report]) -> dict[str, Bounds3]:
     return result
 
 
+def _surface_parts(layout: Layout, mesh: str, evaluated: Bounds3):
+    """Part bounds of a raised walkable surface mesh (the curbed district foundation).
+
+    The foundation is one mesh spanning every street, so its AABB always covers
+    the main routes. Flush decals (top <= WALKABLE_DECAL_MAX) are walkable; raised
+    street detail (curbs, fragments, litter) must clear the routes part by part.
+    The source parts are regenerated from the Layout and must reproduce the
+    evaluated envelope exactly (1e-4 m), otherwise the check fails closed.
+    Returns None for ordinary meshes and flush surfaces, an Issue on mismatch.
+    """
+    from .density_model import SURFACE_PLACEMENT_SLOTS
+    from .spatial import WALKABLE_DECAL_MAX
+    key = next((k for k, slot in SURFACE_PLACEMENT_SLOTS.items() if slot == mesh), None)
+    if key is None or evaluated.maximum[1] <= WALKABLE_DECAL_MAX:
+        return None
+    placement = next((p for p in layout.placements if p.key == key), None)
+    mismatch = Issue('SURFACE_EVIDENCE', mesh, 'evaluated surface does not match its source parts')
+    if placement is None or placement.sector != 'ground' or placement.yaw_deg != 0:
+        return mismatch
+    from .ground import build_assemblies
+    found = [a for a in build_assemblies(layout, placement.sector) if a.name == mesh]
+    if len(found) != 1 or not found[0].parts:
+        return mismatch
+    origin = found[0].origin
+    parts = [Bounds3(tuple(min(v[i] for v in part.vertices) + origin[i] for i in range(3)),
+                     tuple(max(v[i] for v in part.vertices) + origin[i] for i in range(3)))
+             for part in found[0].parts]
+    lo = [min(b.minimum[i] for b in parts) for i in range(3)]
+    hi = [max(b.maximum[i] for b in parts) for i in range(3)]
+    if any(abs(lo[i] - evaluated.minimum[i]) > 1e-4 or abs(hi[i] - evaluated.maximum[i]) > 1e-4
+           for i in range(3)):
+        return mismatch
+    # Flush parts (planar cells and decals may have zero thickness) are walkable.
+    return [b for b in parts if b.maximum[1] > WALKABLE_DECAL_MAX]
+
+
 def verify_assets(layout: Layout, reports: Mapping[str, Report]) -> list[Issue]:
     issues: list[Issue] = []
     for sector in SECTORS:
@@ -93,7 +129,17 @@ def verify_assets(layout: Layout, reports: Mapping[str, Report]) -> list[Issue]:
                         report.get('layout_sha256') == layout_digest(layout) and
                         not v2_object_issues(p, report, obj)):
                     continue  # Actual evaluated parts, not the enclosing mesh, test passage below.
-                individual[key] = Bounds3(tuple(raw['minimum']), tuple(raw['maximum']))
+                b = Bounds3(tuple(raw['minimum']), tuple(raw['maximum']))
+                parts = _surface_parts(layout, key, b)
+                if parts is None:
+                    individual[key] = b
+                elif isinstance(parts, Issue):
+                    issues.append(parts)
+                    individual[key] = b  # Fail closed on the whole envelope.
+                else:
+                    for part in parts:  # One mesh, many parts: test each separately.
+                        issues.extend(i for i in validate_clearance(layout, {key: part})
+                                      if i not in issues)
         issues.extend(validate_clearance(layout, individual))
     except (KeyError, ValueError, TypeError) as exc:
         issues.append(Issue('REPORT_INVALID', 'evaluated_bounds', str(exc)))

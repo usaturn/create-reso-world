@@ -42,8 +42,17 @@ def _walkable_floor_debris(layout: Layout, key: str, b: Bounds3) -> bool:
 
 
 def validate_clearance(layout: Layout, bounds: Mapping[str, Bounds3]) -> list[Issue]:
-    """Check *evaluated* bounds, not just scatter centres; floor tops are walkable."""
+    """Check *evaluated* bounds, not just scatter centres; floor tops are walkable.
+
+    Keys are placement keys or evaluated mesh names; a surface Slot name
+    ('district-foundation') resolves to its walkable placement ('district-ground').
+    Only its flush envelope is exempt: raised street detail (curbs) must be
+    checked part by part (see ``verify_assets``), never as one exempt AABB.
+    """
+    from .density_model import SURFACE_PLACEMENT_SLOTS
     placements = {p.key: p for p in layout.placements}
+    placements.update({slot: placements[key] for key, slot in SURFACE_PLACEMENT_SLOTS.items()
+                       if key in placements and slot not in placements})
     issues = []
     for key, b in bounds.items():
         p = placements.get(key)
