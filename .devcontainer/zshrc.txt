@@ -59,7 +59,7 @@ alias gitm="git fetch -p && git checkout origin/main"
 alias gitc="git branch -a| fzf | xargs git checkout"
 alias gitd="git branch | fzf | xargs git branch -D"
 alias gits="git stash list | fzf | awk -F '{|}' '{print $2}' | git stash apply"
-alias ccd="claude --dangerously-skip-permissions"
+alias ccd="claude --dangerously-skip-permissions --model opus"
 alias cur="agent --yolo"
 alias dev="devin --permission-mode dangerous"
 
@@ -132,7 +132,7 @@ function claude-alibaba ccda () {
     ENABLE_CLAUDEAI_MCP_SERVERS=false \
     CLAUDE_CODE_EFFORT_LEVEL=max \
     CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
-    claude --model sonnet "${opts[@]}" "$@"
+    claude --model fable "${opts[@]}" "$@"
 }
 
 function claude-deepinfra ccdd () {
