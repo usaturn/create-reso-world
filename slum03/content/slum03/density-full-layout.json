@@ -105,9 +105,6 @@
       }
     ],
     "selected_keys": [
-      "district-ground",
-      "plaza-rubble-west",
-      "plaza-rubble-east",
       "ruin-west",
       "ruin-west-annex",
       "ruin-north",
@@ -216,7 +213,12 @@
       "density-overhead-market-03",
       "density-overhead-east-01",
       "density-overhead-east-02",
-      "density-overhead-east-03"
+      "density-overhead-east-03",
+      "district-foundation",
+      "plaza-rubble-west",
+      "plaza-rubble-east",
+      "plaza-rubble-north",
+      "plaza-rubble-south"
     ],
     "stage": "full",
     "zones": [

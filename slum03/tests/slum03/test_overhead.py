@@ -124,3 +124,29 @@ def test_unsupported_endpoint_and_low_sag_are_rejected():
                         if part.name == 'power-cable' else part for part in target.parts], target.meta)
     _, issues = route_evidence(layout, [sagging if a is target else a for a in assemblies])
     assert any(target.name in issue for issue in issues)
+
+
+@pytest.mark.parametrize('supports', [
+    [[-6., 5.6, 0.], [6., 5.6, 0.]],            # central plaza air
+    [[-55.5, 5.6, 10.], [-55.5, 5.6, 22.]],     # northwest lane
+])
+def test_route_evidence_rejects_a_route_moved_into_protected_air(supports):
+    from modeling.slum03.overhead import build_assemblies, route_evidence
+    layout = _full()[0]
+    p = next(p for p in layout.placements if p.key == 'density-overhead-market-01')
+    mid = tuple((supports[0][i] + supports[1][i]) / 2 for i in range(3))
+    moved = replace(p, origin=mid, yaw_deg=90. if supports[0][0] == supports[1][0] else 0.,
+                    params={**p.params, 'supports': supports})
+    fake = replace(layout, placements=tuple(moved if q.key == p.key else q for q in layout.placements))
+    routes, issues = route_evidence(fake, build_assemblies(fake, 'overhead'))
+    assert any(p.key in issue and 'protected 3 m air' in issue for issue in issues), issues
+    assert len(routes) < len(_full()[1])
+
+
+def test_generator_rejects_a_route_that_enters_protected_air(monkeypatch):
+    from modeling.slum03 import density_layout
+    base = read_layout(Path('artifacts/slum03/finalfix-m-20260928T0511/layout.json'))
+    bad = ('northwest-99', 'northwest', (-56., 10.), (-56., 22.), 6.0, 'inside the residential lane')
+    monkeypatch.setattr(density_layout, 'OVERHEAD_ROUTES', (*density_layout.OVERHEAD_ROUTES, bad))
+    with pytest.raises(ValueError, match='northwest-99 intersects'):
+        density_layout.build_density_layout(base, 'full')

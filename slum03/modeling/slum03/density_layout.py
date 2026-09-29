@@ -9,7 +9,8 @@ from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
-from .density_model import REPRESENTATIVE_KEYS, TARGET_COUNTS
+from .density_model import (REPRESENTATIVE_KEYS, SCATTER_PREFIXES, SURFACE_SLOT_KEYS,
+                            TARGET_COUNTS)
 from .layout import read_layout, write_layout
 from .spatial import placement_bounds
 from .types import DensityConfig, DensityOpening, DensityRoute, DensityZone, Layout, Placement, RectXZ
@@ -81,8 +82,18 @@ OVERHEAD_ROUTES = (
     ('east-02', 'east', (48., -30.), (48., -18.), 6.6, 'alley-side ruins'),
     ('east-03', 'east', (26., 28.), (38., 28.), 6.4, 'ruin-east north yard'),
 )
-PERIPHERY_KEYS = ('plaza-rubble-west', 'plaza-rubble-east')
-SURFACE_KEYS = ('district-ground',)
+# --- Full-stage selected_keys vocabulary (for candidate_scope in Task 9) ---
+# candidate_scope resolves each selected key against baseline Slot NAMES. Every
+# full-stage key belongs to exactly one class (pinned by test_density_layout.py):
+#   1. baseline Slot: equals exactly one baseline Slot name (ruin-west, ...,
+#      overhead-west, and SURFACE_SLOT_KEYS: the 'district-ground' placement's Slot
+#      is named 'district-foundation'). Constants live in density_model.
+#   2. new key: starts with NEW_KEY_PREFIXES ('density-': added uses and overhead
+#      routes). No baseline Slot exists; Task 9 must treat them as additions.
+#   3. scatter prefix: SCATTER_PREFIXES lists all four sides. Rubble piles are Slots
+#      named '<prefix>-<i>-<j>' that a full scatter may add, remove or rename;
+#      Task 9 must allow those changes for every Slot under these prefixes.
+NEW_KEY_PREFIXES = ('density-',)
 
 
 def _intersects(a: RectXZ, b: RectXZ, margin=0.) -> bool:
@@ -166,8 +177,8 @@ def build_density_layout(baseline: Layout, stage: str, seed: int = 260927) -> La
     if stage == 'full':
         placed.extend(_overhead_routes(solids, (*blocked, baseline.plaza)))
         selected = tuple(p.key for p in placed if p.domain == 'district' and (
-            (p.kind in TARGET_COUNTS and p.kind != 'yarol') or p.kind == 'overhead' or
-            p.key in PERIPHERY_KEYS or p.key in SURFACE_KEYS))
+            (p.kind in TARGET_COUNTS and p.kind != 'yarol') or p.kind == 'overhead'))
+        selected += SURFACE_SLOT_KEYS + SCATTER_PREFIXES
         config = replace(config, selected_keys=selected)
     return replace(baseline, placements=tuple(placed), density=config)
 

@@ -7,6 +7,12 @@ from .types import Issue, Layout, RectXZ
 
 TARGET_COUNTS = {'ruin': 32, 'shack': 28, 'stall': 28, 'nightlife': 8, 'yarol': 1}
 REPRESENTATIVE_KEYS = ('ruin-west', 'shack-row', 'market-west')
+# Slot-only selected keys: valid without a same-named placement (full stage).
+# 'district-foundation' is the baseline Slot name of the 'district-ground' placement;
+# SCATTER_PREFIXES name perimeter rubble pile families ('<prefix>-<i>-<j>' Slots).
+SURFACE_SLOT_KEYS = ('district-foundation',)
+SCATTER_PREFIXES = ('plaza-rubble-west', 'plaza-rubble-east',
+                    'plaza-rubble-north', 'plaza-rubble-south')
 
 
 def stable_seed(seed: int, key: str, channel: str) -> int:
@@ -65,7 +71,8 @@ def validate_density_config(layout: Layout) -> list[Issue]:
             if not _valid_rect(rect):
                 issues.append(Issue('DENSITY_CLEARANCE', 'density', 'invalid branch clearance'))
         keys = {p.key for p in layout.placements}
-        if (any(type(k) is not str or k not in keys for k in density.selected_keys)
+        if (any(type(k) is not str or (k not in keys and k not in SURFACE_SLOT_KEYS + SCATTER_PREFIXES)
+                    for k in density.selected_keys)
                 or len(density.selected_keys) != len(set(density.selected_keys))):
             issues.append(Issue('DENSITY_SELECTION', 'density', 'invalid selected placement keys'))
 

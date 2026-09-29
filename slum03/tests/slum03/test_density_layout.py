@@ -172,3 +172,50 @@ def test_canonical_variants_drive_representative_and_full_without_touching_other
                 set() if stage == 'representative' else names)
         if stage == 'full':
             assert {p.kind for p in additions} - set(expected) == {'nightlife', 'overhead'}
+
+
+def _resolve_selected_key(key, baseline_names):
+    """Classes a key can belong to; candidate_scope resolves only class 'baseline'."""
+    from modeling.slum03.density_layout import NEW_KEY_PREFIXES
+    from modeling.slum03.density_model import SCATTER_PREFIXES
+    classes = []
+    if baseline_names.count(key) == 1:
+        classes.append('baseline')
+    if any(key.startswith(prefix) for prefix in NEW_KEY_PREFIXES) and key not in baseline_names:
+        classes.append('new')
+    if key in SCATTER_PREFIXES:
+        classes.append('scatter')
+    return classes
+
+
+def test_full_selected_keys_resolve_to_exactly_one_class(legacy_manifest):
+    import json
+    from modeling.slum03.candidate_scope import nodes
+    from modeling.slum03.density_model import SCATTER_PREFIXES, TARGET_COUNTS
+    names = [node['slot'].get('name') for node, _ in nodes(legacy_manifest).values()]
+    saved = read_layout(Path('content/slum03/density-full-layout.json'))
+    keys = saved.density.selected_keys
+    result = {key: _resolve_selected_key(key, names) for key in keys}
+    assert all(len(classes) == 1 for classes in result.values()), {k: c for k, c in result.items() if len(c) != 1}
+    counts = Counter(c[0] for c in result.values())
+    # 11 existing Slots (10 uses + overhead-west) + foundation, 86 added uses + 12 routes, 4 sides.
+    assert counts == {'baseline': 12, 'new': 86 + 12, 'scatter': 4}
+    assert {k for k, c in result.items() if c == ['baseline']} >= {'district-foundation', 'overhead-west'}
+    # Scatter keys cover all four sides and every baseline rubble pile has an owner key.
+    assert set(SCATTER_PREFIXES) == {f'plaza-rubble-{side}' for side in ('west', 'east', 'north', 'south')}
+    assert set(SCATTER_PREFIXES) <= set(keys)
+    piles = [n for n in names if n and n.startswith('plaza-rubble-')]
+    assert piles and all(any(n.startswith(prefix + '-') for prefix in SCATTER_PREFIXES) for n in piles)
+    # Placement keys of the pre-fix selection that have no baseline Slot are gone.
+    assert 'district-ground' not in keys
+    # Nothing selected may be Yarol, and no key repeats.
+    assert 'yarol' not in keys and len(keys) == len(set(keys))
+    assert json.loads(json.dumps(list(keys))) == list(keys)
+
+
+def test_selected_key_classifier_rejects_the_old_unresolvable_key(legacy_manifest):
+    from modeling.slum03.candidate_scope import nodes
+    names = [node['slot'].get('name') for node, _ in nodes(legacy_manifest).values()]
+    assert _resolve_selected_key('district-ground', names) == []      # old key: no Slot
+    assert _resolve_selected_key('plaza-rubble-north-3-9', names) == ['baseline']
+    assert _resolve_selected_key('plaza-rubble-nowhere', names) == []

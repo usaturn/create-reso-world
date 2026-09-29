@@ -62,6 +62,18 @@ def test_legacy_scatter_plan_is_unchanged_for_existing_candidates():
     instances = [item for items in heaps.values() for item in items]
     assert len(instances) == 72
     assert {item['variant'] for item in instances} == {0, 1, 2}
+    # Golden hashes: the legacy samples were verified byte-identical against
+    # e270d44 (before Task 8), so a change here means the legacy scatter moved.
+    import hashlib
+    for seed, samples_hash, plan_hash in (
+            (260927, '96c517010df62c6c7cbd5e5d63471715973bbadbf42173f0d5328f9161f4fc89',
+             'e7085b32eb81f2867d396fed13ad707c9776962cc5cc5aa04cb7b2bb148cba57'),
+            (8195, 'b52ceee16b51aaf3d87d63f43d13bf34a7f577acba04d8dfe5bb9e57e803623a',
+             '67db37028ae2d402c4a34f82410b39c0398248f02f0aad514c7cb69ce8f19c23')):
+        layout = build_layout(seed)
+        samples = scatter_samples(layout, seed=seed, count=72, max_extent=(1.8, 1.3, 1.8))
+        assert hashlib.sha256(repr(samples).encode()).hexdigest() == samples_hash
+        assert hashlib.sha256(repr(scatter_plan(layout)).encode()).hexdigest() == plan_hash
     # Legacy variant sequence: round-robin in sampling order.
     for seed_layout in (build_layout(),):
         again = scatter_plan(seed_layout)

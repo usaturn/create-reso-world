@@ -183,7 +183,8 @@ def test_full_selection_names_only_uses_overhead_periphery_and_surface(full):
               if p.domain == 'district' and p.kind in TARGET_COUNTS and p.kind != 'yarol'}
     overhead = {p.key for p in full.placements if p.kind == 'overhead'}
     assert set(full.density.selected_keys) == (
-        majors | overhead | {'plaza-rubble-west', 'plaza-rubble-east', 'district-ground'})
+        majors | overhead | {'district-foundation', 'plaza-rubble-west', 'plaza-rubble-east',
+                             'plaza-rubble-north', 'plaza-rubble-south'})
     assert len(full.density.selected_keys) == len(set(full.density.selected_keys))
 
 
@@ -198,3 +199,41 @@ def test_blockout_poses_and_routes_did_not_move(full):
     assert full.density.routes == block.density.routes
     assert full.density.branch_clearances == block.density.branch_clearances
     assert build_layout().routes == full.routes
+
+
+def test_utility_parts_touch_the_kit_or_ground(full, uses):
+    """Fixed offsets in _ruin/_shack/_stall/_nightlife may not leave floating equipment."""
+    from modeling.slum03.utilities import district_kit, utility_parts
+
+    def overlap(a, b):
+        lo_a, hi_a = bounds([a]); lo_b, hi_b = bounds([b])
+        return all(lo_a[i] <= hi_b[i] + .005 and lo_b[i] <= hi_a[i] + .005 for i in range(3))
+
+    checked = 0
+    for p in full.placements:
+        if not district_kit(p) or p.kind == 'nightlife':  # storefront equipment: test_nightlife.py
+            continue
+        a = uses[p.key]
+        indices = {i for g in a.meta['detail_groups'] if g['id'] == 'district-utility'
+                   for i in g['part_indices']}
+        assert len(indices) == len(utility_parts(p, full.seed)), p.key
+        util = [a.parts[i] for i in sorted(indices)]
+        kit = [part for i, part in enumerate(a.parts) if i not in indices]
+        assert kit, p.key
+        # Connected groups of equipment must reach the kit or the ground.
+        seen: set[int] = set()
+        for start in range(len(util)):
+            if start in seen:
+                continue
+            group, stack = [], [start]
+            seen.add(start)
+            while stack:
+                i = stack.pop(); group.append(i)
+                for j in range(len(util)):
+                    if j not in seen and overlap(util[i], util[j]):
+                        seen.add(j); stack.append(j)
+            grounded = any(bounds([util[i]])[0][1] <= .03 for i in group)
+            mounted = any(overlap(util[i], k) for i in group for k in kit)
+            assert grounded or mounted, (p.key, p.kind, [util[i].name for i in group])
+        checked += 1
+    assert checked == 93 - 8
