@@ -156,3 +156,31 @@ def test_layout_digest_is_semantic_and_distinct_from_pretty_saved_json(tmp_path)
     assert first['layout_sha256'] == second['layout_sha256']
     assert first['layout_sha256_basis'] == 'canonical-layout-json-utf8'
     assert hashlib.sha256(path.read_bytes()).hexdigest() != first['layout_sha256']
+
+
+def _ground_report(layout, top_override=None):
+    from modeling.slum03 import ground
+    from modeling.slum03.density_metrics import layout_digest
+    foundation = next(a for a in ground.build_assemblies(layout, 'ground')
+                      if a.name == 'district-foundation')
+    lo = [min(v[i] for p in foundation.parts for v in p.vertices) for i in range(3)]
+    hi = [max(v[i] for p in foundation.parts for v in p.vertices) for i in range(3)]
+    if top_override is not None:
+        hi[1] = top_override
+    return {'layout_sha256': layout_digest(layout),
+            'objects': [{'key': 'district-ground', 'kind': 'foundation',
+                         'mesh': 'district-foundation', 'vertices': 8, 'faces': 6}],
+            'evaluated_bounds': {'district-foundation': {'minimum': lo, 'maximum': hi}}}
+
+
+def test_evaluated_curbed_foundation_is_checked_by_parts_not_as_one_route_blocker():
+    """Task 11 curbs raise the ground envelope to ~0.134 m (T13-GROUND)."""
+    from pathlib import Path
+    from modeling.slum03.layout import read_layout
+    full = read_layout(Path('content/slum03/density-full-layout.json'))
+    ground = {i['code'] for i in density_report(full, {'ground': _ground_report(full)}, 'evaluated')['issues']
+              if i['object_key'] in ('district-ground', 'district-foundation')}
+    assert ground == set()
+    forged = {i['code'] for i in density_report(full, {'ground': _ground_report(full, .5)}, 'evaluated')['issues']
+              if i['object_key'] in ('district-ground', 'district-foundation')}
+    assert {'SURFACE_EVIDENCE', 'CLEARANCE_INTRUSION'} <= forged

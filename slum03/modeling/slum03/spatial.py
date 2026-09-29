@@ -41,13 +41,49 @@ def _walkable_floor_debris(layout: Layout, key: str, b: Bounds3) -> bool:
             and b.minimum[1] >= -.02 and b.maximum[1] <= FLOOR_DEBRIS_MAX)
 
 
+def walkable_surface_parts(layout: Layout, mesh: str, evaluated: Bounds3):
+    """Part bounds of a raised walkable surface mesh (the curbed district foundation).
+
+    The foundation is one mesh spanning every street, so its AABB always covers
+    the main routes. Flush decals (top <= WALKABLE_DECAL_MAX) are walkable; raised
+    street detail (curbs, fragments, litter) must clear the routes part by part.
+    The source parts are regenerated from the Layout and must reproduce the
+    evaluated envelope exactly (1e-4 m), otherwise the check fails closed.
+    Returns None for ordinary meshes and flush surfaces, an Issue on mismatch,
+    otherwise the raised parts' bounds (to test individually with validate_clearance).
+    """
+    from .density_model import SURFACE_PLACEMENT_SLOTS
+    key = next((k for k, slot in SURFACE_PLACEMENT_SLOTS.items() if slot == mesh), None)
+    if key is None or evaluated.maximum[1] <= WALKABLE_DECAL_MAX:
+        return None
+    placement = next((p for p in layout.placements if p.key == key), None)
+    mismatch = Issue('SURFACE_EVIDENCE', mesh, 'evaluated surface does not match its source parts')
+    if placement is None or placement.sector != 'ground' or placement.yaw_deg != 0:
+        return mismatch
+    from .ground import build_assemblies
+    found = [a for a in build_assemblies(layout, placement.sector) if a.name == mesh]
+    if len(found) != 1 or not found[0].parts:
+        return mismatch
+    origin = found[0].origin
+    parts = [Bounds3(tuple(min(v[i] for v in part.vertices) + origin[i] for i in range(3)),
+                     tuple(max(v[i] for v in part.vertices) + origin[i] for i in range(3)))
+             for part in found[0].parts]
+    lo = [min(b.minimum[i] for b in parts) for i in range(3)]
+    hi = [max(b.maximum[i] for b in parts) for i in range(3)]
+    if any(abs(lo[i] - evaluated.minimum[i]) > 1e-4 or abs(hi[i] - evaluated.maximum[i]) > 1e-4
+           for i in range(3)):
+        return mismatch
+    # Flush parts (planar cells and decals may have zero thickness) are walkable.
+    return [b for b in parts if b.maximum[1] > WALKABLE_DECAL_MAX]
+
+
 def validate_clearance(layout: Layout, bounds: Mapping[str, Bounds3]) -> list[Issue]:
     """Check *evaluated* bounds, not just scatter centres; floor tops are walkable.
 
     Keys are placement keys or evaluated mesh names; a surface Slot name
     ('district-foundation') resolves to its walkable placement ('district-ground').
     Only its flush envelope is exempt: raised street detail (curbs) must be
-    checked part by part (see ``verify_assets``), never as one exempt AABB.
+    checked part by part (``walkable_surface_parts``), never as one exempt AABB.
     """
     from .density_model import SURFACE_PLACEMENT_SLOTS
     placements = {p.key: p for p in layout.placements}

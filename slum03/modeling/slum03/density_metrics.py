@@ -8,7 +8,7 @@ import math
 from typing import Mapping, Sequence
 
 from .density_model import TARGET_COUNTS, validate_density_config
-from .spatial import placement_bounds, validate_clearance
+from .spatial import placement_bounds, validate_clearance, walkable_surface_parts
 from .types import Bounds3, Issue, Layout, RectXZ, Report
 
 MAJOR = frozenset(TARGET_COUNTS)
@@ -90,7 +90,14 @@ def _evidence(layout: Layout, reports: Mapping[str, Report], basis: str):
                         b.minimum[1] > b.maximum[1] or
                         (placements[key].kind in MAJOR and b.minimum[1] == b.maximum[1])):
                     raise ValueError('invalid bounds')
-                result[key].append(b)
+                # The curbed foundation spans every street: test its raised parts.
+                parts = walkable_surface_parts(layout, mesh, b)
+                if isinstance(parts, Issue):
+                    issues.append(parts)
+                if isinstance(parts, list):
+                    result[key].extend(parts)
+                else:
+                    result[key].append(b)
             except (KeyError, TypeError, ValueError):
                 issues.append(Issue('GEOMETRY_MISSING', key, 'invalid evaluated bounds'))
     for p in layout.placements:
