@@ -37,6 +37,7 @@ CURB_SINK = .02
 CURB_SKIP = .15
 FLAT_TOP = .01
 LITTER_MAX = .10
+FRONTAGE_PAD = .3     # loose litter/fragments keep this far from shop fronts and aprons
 SINK = .002           # flat detail undersides sit below the walking plane
 # Decal heights are distinct so overlapping pieces never share a plane.
 Y_GRIME, Y_OIL, Y_CRACK, Y_PATCH, Y_PUDDLE, Y_GRATE, Y_MANHOLE, Y_PLATE = (
@@ -84,10 +85,13 @@ def _top(part: MeshData) -> float:
 class Site:
     """Street geometry derived from the Layout, in foundation-local coordinates."""
 
-    def __init__(self, layout: Layout, ox: float, oz: float, district: Rect, floor: Rect):
+    def __init__(self, layout: Layout, ox: float, oz: float, district: Rect, floor: Rect,
+                 frontages: list[Rect] = ()):
         def local(r) -> Rect:
             return (r.x_min - ox, r.x_max - ox, r.z_min - oz, r.z_max - oz)
         self.district, self.floor = district, floor
+        # Stall fronts and nightlife entrance aprons (foundation-local), kept free of loose debris.
+        self.frontages: list[Rect] = sorted(frontages)
         density = layout.density
         self.protected: list[Rect] = [local(r) for r in layout.routes]
         for route in density.routes:
@@ -156,6 +160,11 @@ class Site:
                 and not any(_overlap(r, p) for p in self.protected)
                 and not _overlap(r, self.floor, .3)
                 and not any(_overlap(r, b, blocker_pad) for b in self.blockers))
+
+    def loose_clear(self, r: Rect) -> bool:
+        """Loose small debris (litter, curb fragments): standing_clear and off every frontage."""
+        return (self.standing_clear(r) and
+                not any(_overlap(r, f, FRONTAGE_PAD) for f in self.frontages))
 
     def near_street(self, r: Rect, reach: float = 3.5) -> bool:
         return any(_overlap(r, s, reach) for s in self.streets)
@@ -312,7 +321,7 @@ def _curbs(site: Site, rng: random.Random):
                         piece = _transform(piece, f'curbchunk-{len(chunks):03d}',
                                            math.radians(rng.uniform(-12, 12)), rng.uniform(0, math.tau),
                                            (fx, 0., fz))
-                        if site.standing_clear(_xz_box(piece)) and _top(piece) <= .12:
+                        if site.loose_clear(_xz_box(piece)) and _top(piece) <= .12:
                             chunks.append(piece)
                     continue
                 sunk = rng.random() < .12
@@ -572,7 +581,7 @@ def _grime_and_litter(site: Site, rng: random.Random):
             tilt = 0. if flat else math.radians(rng.uniform(-6, 6))
             piece = box('scrap', (0, h/2 - .004, 0), (w, h, d), rng.choice(LITTER_MATERIALS))
             piece = _transform(piece, f'litter-{len(litter):02d}', tilt, rng.uniform(0, math.tau), (x, 0., z))
-            if (_top(piece) <= LITTER_MAX and site.standing_clear(_xz_box(piece)) and
+            if (_top(piece) <= LITTER_MAX and site.loose_clear(_xz_box(piece)) and
                     site.near_street(_xz_box(piece))):
                 litter.append(piece)
     return grime, litter

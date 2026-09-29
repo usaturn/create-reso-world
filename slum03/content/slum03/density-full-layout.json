@@ -218,7 +218,8 @@
       "plaza-rubble-west",
       "plaza-rubble-east",
       "plaza-rubble-north",
-      "plaza-rubble-south"
+      "plaza-rubble-south",
+      "plaza-rubble-floor"
     ],
     "stage": "full",
     "zones": [

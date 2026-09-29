@@ -261,3 +261,24 @@ def test_full_street_detail_is_seeded_and_bounded():
     triangles = sum(len(f) - 2 for p in ground.parts for f in p.faces)
     assert triangles < 20000
     assert len({p.material for p in ground.parts}) <= 14
+
+
+def test_full_small_street_debris_stays_off_entrance_aprons_and_shop_fronts():
+    """Litter and curb fragments never lie on a nightlife apron or a stall front (Task 11 review)."""
+    from modeling.slum03.ground import _stains
+    from modeling.slum03.surface_detail import FRONTAGE_PAD
+    layout, ground = _full_ground()
+    ox, _, oz = ground.origin
+    fronts = [(r[0] + ox, r[1] + ox, r[2] + oz, r[3] + oz)
+              for r, p in zip(_stains(layout, ox, oz),
+                              (p for p in layout.placements
+                               if p.params.get('detail_profile') == 'v2'
+                               and p.kind in ('stall', 'nightlife', 'shack')))
+              if p.kind in ('stall', 'nightlife')]
+    assert len(fronts) >= 8  # every remodelled stall and nightlife frontage
+    kinds = _by_kind(ground)
+    small = kinds['litter'] + kinds['curbchunk']
+    assert len(kinds['litter']) >= 30
+    offenders = [part.name for part in small
+                 if any(_hits(_world_box(ground, part), f, FRONTAGE_PAD) for f in fronts)]
+    assert offenders == []

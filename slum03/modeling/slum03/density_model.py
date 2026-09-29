@@ -9,10 +9,15 @@ TARGET_COUNTS = {'ruin': 32, 'shack': 28, 'stall': 28, 'nightlife': 8, 'yarol': 
 REPRESENTATIVE_KEYS = ('ruin-west', 'shack-row', 'market-west')
 # Slot-only selected keys: valid without a same-named placement (full stage).
 # 'district-foundation' is the baseline Slot name of the 'district-ground' placement;
-# SCATTER_PREFIXES name perimeter rubble pile families ('<prefix>-<i>-<j>' Slots).
+# SCATTER_PREFIXES name rubble pile families ('<prefix>-<i>-<j>' Slots): the four
+# perimeter sides plus, in the full stage, the central floor's walkable debris.
 SURFACE_SLOT_KEYS = ('district-foundation',)
+# Revision 1 (Task 12): the central 32x22 m floor may carry small, collider-free
+# debris no taller than FLOOR_DEBRIS_MAX; never on a main route or entrance.
+FLOOR_DEBRIS_PREFIX = 'plaza-rubble-floor'
+FLOOR_DEBRIS_MAX = .10
 SCATTER_PREFIXES = ('plaza-rubble-west', 'plaza-rubble-east',
-                    'plaza-rubble-north', 'plaza-rubble-south')
+                    'plaza-rubble-north', 'plaza-rubble-south', FLOOR_DEBRIS_PREFIX)
 # Placement key -> baseline Slot name for the Slot-only surface keys above; the
 # placement's native colliders ('collider-district-ground-*') follow that Slot.
 SURFACE_PLACEMENT_SLOTS = {'district-ground': 'district-foundation'}

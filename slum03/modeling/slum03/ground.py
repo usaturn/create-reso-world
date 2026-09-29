@@ -20,6 +20,15 @@ _STAIN_RULES = {
 
 def _stains(layout: Layout, ox: float, oz: float):
     """Axis-aligned patches at working frontages of remodelled uses (foundation-local)."""
+    return [rect for _kind, rect in _stain_rects(layout, ox, oz)]
+
+
+def _frontages(layout: Layout, ox: float, oz: float):
+    """Stall fronts and nightlife entrance aprons, where no loose street debris may lie."""
+    return [rect[:4] for kind, rect in _stain_rects(layout, ox, oz) if kind in ('stall', 'nightlife')]
+
+
+def _stain_rects(layout: Layout, ox: float, oz: float):
     result = []
     for p in layout.placements:
         if p.params.get('detail_profile') != 'v2' or p.kind not in _STAIN_RULES:
@@ -36,8 +45,8 @@ def _stains(layout: Layout, ox: float, oz: float):
         cz = p.origin[2] - local[0]*math.sin(angle) + local[1]*math.cos(angle) - oz
         sx, sz = (size[1], size[0]) if round(p.yaw_deg) % 180 == 90 else size
         name, material = _STAIN_RULES[p.kind]
-        result.append((round(cx-sx/2, 6), round(cx+sx/2, 6), round(cz-sz/2, 6),
-                       round(cz+sz/2, 6), name, material))
+        result.append((p.kind, (round(cx-sx/2, 6), round(cx+sx/2, 6), round(cz-sz/2, 6),
+                                round(cz+sz/2, 6), name, material)))
     return result
 
 
@@ -67,7 +76,8 @@ def build_assemblies(layout: Layout, sector: str) -> list[Assembly]:
     if stains is not None:
         # Task 11: asphalt on the main streets plus weathered street detail.
         # Task 8 stains keep priority over the asphalt they may overlap.
-        site = surface_detail.Site(layout, x, z, (left, right, south, north), (fx0, fx1, fz0, fz1))
+        site = surface_detail.Site(layout, x, z, (left, right, south, north), (fx0, fx1, fz0, fz1),
+                                   _frontages(layout, x, z))
         features = [((r[0], r[1], r[2], r[3]), r[4], r[5]) for r in stains]
         features += [(road, 'asphalt-road', 'asphalt') for road in site.roads]
     # Four disjoint visible strips leave the factory slab as the sole top face

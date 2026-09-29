@@ -4,6 +4,10 @@ from typing import Mapping
 
 from .types import Bounds3, Issue, Layout, Placement, RectXZ
 
+# A walkable slab may carry flush decals (cracks, stains, base traces) this far
+# above its plane: well below any step a foot or collider can notice.
+WALKABLE_DECAL_MAX = .01
+
 
 def placement_bounds(p: Placement) -> Bounds3:
     """Rotation is about the foot at origin; local_y_min shifts the vertical base."""
@@ -29,6 +33,14 @@ def branch_intrusion(b: Bounds3, layout: Layout) -> bool:
             and any(_intersects(b, r) for r in layout.density.branch_clearances))
 
 
+def _walkable_floor_debris(layout: Layout, key: str, b: Bounds3) -> bool:
+    """Full-stage central floor debris: small, collider-free and at most FLOOR_DEBRIS_MAX tall."""
+    from .density_model import FLOOR_DEBRIS_MAX, FLOOR_DEBRIS_PREFIX
+    return (layout.density is not None and layout.density.stage == 'full'
+            and isinstance(key, str) and key.startswith(FLOOR_DEBRIS_PREFIX + '-')
+            and b.minimum[1] >= -.02 and b.maximum[1] <= FLOOR_DEBRIS_MAX)
+
+
 def validate_clearance(layout: Layout, bounds: Mapping[str, Bounds3]) -> list[Issue]:
     """Check *evaluated* bounds, not just scatter centres; floor tops are walkable."""
     placements = {p.key: p for p in layout.placements}
@@ -50,12 +62,14 @@ def validate_clearance(layout: Layout, bounds: Mapping[str, Bounds3]) -> list[Is
             if all(allowed.minimum[i]-1e-6 <= b.minimum[i] <= b.maximum[i] <= allowed.maximum[i]+1e-6
                    for i in range(3)):
                 continue
-        if p and ((p.params.get('walkable') and b.maximum[1] <= 0) or
+        if p and ((p.params.get('walkable') and b.maximum[1] <= WALKABLE_DECAL_MAX) or
                   (p.domain == 'water' and b.maximum[1] <= 0)):
             continue
         if b.minimum[1] >= 3 or b.maximum[1] <= 0:
             continue
-        if (_intersects(b, layout.clear) or any(_intersects(b, r) for r in layout.routes)
+        # Revision 1: walkable small debris may lie on the central floor only.
+        on_clear = _intersects(b, layout.clear) and not _walkable_floor_debris(layout, key, b)
+        if (on_clear or any(_intersects(b, r) for r in layout.routes)
                 or branch_intrusion(b, layout)):
             issues.append(Issue('CLEARANCE_INTRUSION', key, 'evaluated geometry occupies central air or protected 3m route'))
     return issues

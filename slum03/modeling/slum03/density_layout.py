@@ -90,7 +90,8 @@ OVERHEAD_ROUTES = (
 #      is named 'district-foundation'). Constants live in density_model.
 #   2. new key: starts with NEW_KEY_PREFIXES ('density-': added uses and overhead
 #      routes). No baseline Slot exists; Task 9 must treat them as additions.
-#   3. scatter prefix: SCATTER_PREFIXES lists all four sides. Rubble piles are Slots
+#   3. scatter prefix: SCATTER_PREFIXES lists all four sides and the central floor
+#      debris family (Task 12, full stage only). Rubble piles are Slots
 #      named '<prefix>-<i>-<j>' that a full scatter may add, remove or rename;
 #      Task 9 must allow those changes for every Slot under these prefixes.
 NEW_KEY_PREFIXES = ('density-',)

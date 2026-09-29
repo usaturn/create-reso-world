@@ -81,3 +81,160 @@ def test_generated_plaza_reopens_with_editable_scatter_and_static_uv_color_expor
     assert not validate_clearance(build_layout(), evaluated)  # includes upper 3m and all entrances
     for key, bounds in report['rubble_evaluated_bounds'].items():
         assert report['evaluated_bounds'][key] == bounds
+
+
+# --- Task 12: weathered factory floor (full stage only) ---------------------
+
+def _full():
+    from pathlib import Path
+    from modeling.slum03.layout import read_layout
+    return read_layout(Path('content/slum03/density-full-layout.json'))
+
+
+def _floor(layout):
+    return next(a for a in sector_assemblies(layout, 'plaza') if a.meta['placement_key'] == 'factory-floor')
+
+
+def _kind(part):
+    return part.name.split('-')[0]
+
+
+def test_legacy_and_staged_plaza_geometry_is_unchanged():
+    import hashlib
+    from pathlib import Path
+    from modeling.slum03.layout import read_layout
+    for layout in (build_layout(), read_layout(Path('content/slum03/density-representative-layout.json')),
+                   read_layout(Path('content/slum03/density-blockout-layout.json'))):
+        assemblies = sector_assemblies(layout, 'plaza')
+        assert hashlib.sha256(repr(assemblies).encode()).hexdigest() == (
+            'f68e3f32bded06bd7a261749c4764b98c7ae56fdd636f9772ca8835b59a56cca')
+
+
+def test_full_factory_floor_has_cracks_pits_machine_bases_and_damp_margins():
+    from collections import Counter
+    from modeling.slum03.plaza import PIT_DEPTH_MAX
+    layout = _full()
+    floor = _floor(layout)
+    kinds = Counter(_kind(p) for p in floor.parts)
+    assert kinds['crack'] >= 20
+    assert len({p.name.split('-')[1] for p in floor.parts if _kind(p) == 'pit'}) >= 5
+    assert len({p.name.split('-')[1] for p in floor.parts if _kind(p) == 'base'}) >= 4
+    assert sum(p.name.startswith('base-') and '-bolt-' in p.name for p in floor.parts) >= 16
+    assert kinds['damp'] >= 12
+    materials = {p.material for p in floor.parts}
+    assert {'factory_floor', 'concrete_dark', 'mud', 'asphalt_wet', 'rust_dark'} <= materials
+    # Pits are shallow dishes: the flat walking collider and footing are unaffected.
+    assert 0 < PIT_DEPTH_MAX <= .05
+    for part in floor.parts:
+        if _kind(part) == 'pit':
+            assert min(v[1] for v in part.vertices) >= -PIT_DEPTH_MAX - 1e-9, part.name
+
+
+def test_full_factory_floor_stays_a_flush_walkable_surface():
+    from modeling.slum03.geometry import bounds as part_bounds
+    from modeling.slum03.spatial import WALKABLE_DECAL_MAX, validate_clearance
+    from modeling.slum03.types import Bounds3
+    layout = _full()
+    floor = _floor(layout)
+    lo, hi = part_bounds(floor.parts)
+    assert (lo[0], lo[1], lo[2], hi[0], hi[2]) == (-20, -.2, -15, 20, 15)
+    assert 0 < hi[1] <= WALKABLE_DECAL_MAX  # decals only; no step anywhere on the slab
+    assert validate_clearance(layout, {'factory-floor': Bounds3(lo, hi)}) == []
+    # Pits and base traces stay off the main-route effective widths (entrances included).
+    for part in floor.parts:
+        if _kind(part) not in ('pit', 'base'):
+            continue
+        xs = [v[0] for v in part.vertices]; zs = [v[2] for v in part.vertices]
+        for r in layout.routes:
+            assert not (min(xs) < r.x_max and max(xs) > r.x_min and
+                        min(zs) < r.z_max and max(zs) > r.z_min), part.name
+    # Seeded: the same Layout repeats, another seed moves the weathering.
+    from dataclasses import replace
+    assert repr(_floor(_full())) == repr(floor)
+    assert repr(_floor(replace(layout, seed=layout.seed + 1))) != repr(floor)
+
+
+def test_full_colliders_leave_central_floor_and_air_to_the_flat_slab():
+    from dataclasses import replace
+    from modeling.slum03.native.colliders import collider_slots
+    layout = _full()
+    # v2 shells need their measured sector reports; as plain boxes they stay outside
+    # the clear area anyway. Every other collider source is the real full Layout.
+    plain = replace(layout, placements=tuple(
+        replace(p, params={k: v for k, v in p.params.items() if k != 'detail_profile'})
+        for p in layout.placements))
+    boxes = collider_slots(plain, {})
+    assert 'collider-factory-floor' in {n['slot']['key'] for n in boxes}
+    for n in boxes:
+        if n['slot']['key'] == 'collider-factory-floor':
+            continue
+        p = n['slot']['position']; size = n['components'][0]['fields']['Size']
+        x0, x1 = p[0]-size[0]/2, p[0]+size[0]/2
+        z0, z1 = p[2]-size[2]/2, p[2]+size[2]/2
+        y0, y1 = p[1]-size[1]/2, p[1]+size[1]/2
+        if (x0 < layout.clear.x_max and x1 > layout.clear.x_min and
+                z0 < layout.clear.z_max and z1 > layout.clear.z_min and y1 > 0 and y0 < 3):
+            raise AssertionError(n['slot']['key'])
+        assert 'rubble' not in n['slot']['key']
+
+
+def test_full_plaza_build_realizes_only_walkable_debris_on_the_central_floor(tmp_path):
+    """Evaluated (post Geometry Nodes realization) geometry, not plan metadata."""
+    import json
+    import subprocess
+    from modeling.slum03.density_model import FLOOR_DEBRIS_MAX, FLOOR_DEBRIS_PREFIX
+    from modeling.slum03.native.colliders import collider_slots
+    from modeling.slum03.spatial import WALKABLE_DECAL_MAX, validate_clearance
+    from modeling.slum03.types import Bounds3
+    blend = tmp_path / 'plaza.blend'
+    subprocess.run(['resoloop', 'blender', 'run', 'modeling/slum03/build.py',
+                    '--arg=--sector', '--arg=plaza', '--arg=--layout',
+                    '--arg=content/slum03/density-full-layout.json',
+                    '--arg=--output', f'--arg={blend}', '--json'],
+                   check=True, capture_output=True, text=True)
+    probe = tmp_path / 'probe.json'
+    subprocess.run(['resoloop', 'blender', 'run', 'tests/slum03/blender_floor_debris_probe.py',
+                    '--blend', str(blend), f'--arg={probe}', '--json'],
+                   check=True, capture_output=True, text=True)
+    data = json.loads(probe.read_text())
+    report = json.loads((tmp_path / 'plaza-report.json').read_text())
+    assert report['errors'] == report['uv_issues'] == []
+    layout = _full()
+    clear = layout.clear
+    bounds = report['evaluated_bounds']
+    floor_heaps = [k for k in bounds if k.startswith(FLOOR_DEBRIS_PREFIX + '-')]
+    assert 8 <= len(floor_heaps) <= 16
+    for key, b in bounds.items():
+        lo, hi = b['minimum'], b['maximum']
+        over_clear = (lo[0] < clear.x_max and hi[0] > clear.x_min and
+                      lo[2] < clear.z_max and hi[2] > clear.z_min and hi[1] > 0 and lo[1] < 3)
+        if key == 'factory-floor':
+            assert hi[1] <= WALKABLE_DECAL_MAX
+        elif key in floor_heaps:
+            assert hi[1] <= FLOOR_DEBRIS_MAX and lo[1] >= -.01, (key, lo, hi)
+        else:
+            assert not over_clear, key  # medium+ rubble and walls stay off the floor and its air
+    evaluated = {k: Bounds3(tuple(b['minimum']), tuple(b['maximum'])) for k, b in bounds.items()}
+    assert validate_clearance(layout, evaluated) == []
+    # The Blender-realized heaps are exactly the planned variants (index order, scale, yaw).
+    from modeling.slum03.gn_scatter import realize_instance, scatter_plan
+    for name, items in scatter_plan(layout).items():
+        verts = [v for item in items for part in realize_instance(item) for v in part.vertices]
+        planned = [[min(v[i] for v in verts) for i in range(3)], [max(v[i] for v in verts) for i in range(3)]]
+        real = bounds[f'plaza-rubble-{name}']
+        for axis in range(3):
+            assert abs(real['minimum'][axis] - planned[0][axis]) < 1e-4, (name, axis)
+            assert abs(real['maximum'][axis] - planned[1][axis]) < 1e-4, (name, axis)
+    # Every loose piece of the realized debris, measured on the exported mesh.
+    pieces = data['floor_pieces']
+    assert len(pieces) >= 450
+    assert max(p['height'] for p in pieces) <= FLOOR_DEBRIS_MAX
+    assert all(p['top'] <= FLOOR_DEBRIS_MAX + 1e-6 for p in pieces)
+    assert data['floor_sources_have_nodes'] and data['floor_exports_static']
+    # The flat slab collider still fits inside the (decal-raised) evaluated floor.
+    from dataclasses import replace
+    plain = replace(layout, placements=tuple(
+        replace(p, params={k: v for k, v in p.params.items() if k != 'detail_profile'})
+        for p in layout.placements))
+    keys = {n['slot']['key'] for n in collider_slots(plain, {'plaza': report})}
+    assert 'collider-factory-floor' in keys and not any('rubble' in k for k in keys)

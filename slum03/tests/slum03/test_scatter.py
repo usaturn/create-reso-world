@@ -80,11 +80,17 @@ def test_legacy_scatter_plan_is_unchanged_for_existing_candidates():
         assert again == heaps
 
 
+def _is_floor(name):
+    from modeling.slum03.density_model import FLOOR_DEBRIS_PREFIX
+    return name.startswith(FLOOR_DEBRIS_PREFIX + '-') or name.startswith('floor-')
+
+
 def test_full_scatter_mixes_chunks_machines_steel_and_small_debris():
     from collections import Counter
     from modeling.slum03.gn_scatter import VARIANT_KINDS, scatter_plan, variant_parts
     heaps = scatter_plan(_full())
-    instances = [item for items in heaps.values() for item in items]
+    # Perimeter heaps (every family except the central floor debris).
+    instances = [item for name, items in heaps.items() if not _is_floor(name) for item in items]
     legacy = sum(len(v) for v in scatter_plan(build_layout()).values())
     assert len(instances) > legacy
     kinds = Counter(VARIANT_KINDS[item['variant']] for item in instances)
@@ -98,28 +104,122 @@ def test_full_scatter_mixes_chunks_machines_steel_and_small_debris():
     assert len(variant_parts(3)) >= 5  # a pile of small pieces, not one box
 
 
-def test_realized_full_scatter_never_enters_clear_floor_or_any_branch():
-    from modeling.slum03.gn_scatter import realize_instance, scatter_plan
+def test_full_perimeter_scatter_is_unchanged_by_the_floor_debris():
+    import hashlib
+    from modeling.slum03.gn_scatter import scatter_plan
+    heaps = scatter_plan(_full())
+    perimeter = {name: items for name, items in heaps.items() if not _is_floor(name)}
+    # Task 8 full plan hash, before Task 12 added the central floor debris.
+    assert hashlib.sha256(repr(perimeter).encode()).hexdigest() == (
+        '9d7f744649dd02a176cbde43dd7877dc1a4fd854fb624f164727da1e2baf1583')
+
+
+def _walk_keepouts(layout):
+    """Main-route effective widths (they include every plaza entrance) and authored branches."""
+    rects = [r for r in layout.routes]
+    for route in layout.density.routes:
+        rects.append(route.corridor)
+        rects.extend(o.bounds for o in route.openings)
+    rects.extend(layout.density.branch_clearances)
+    return rects
+
+
+def _touches(lo, hi, r, pad=0.):
+    return (lo[0] < r.x_max + pad and hi[0] > r.x_min - pad and
+            lo[2] < r.z_max + pad and hi[2] > r.z_min - pad)
+
+
+def _realized(item):
+    from modeling.slum03.gn_scatter import realize_instance
+    parts = realize_instance(item)
+    boxes = []
+    for part in parts:
+        lo = tuple(min(v[i] for v in part.vertices) for i in range(3))
+        hi = tuple(max(v[i] for v in part.vertices) for i in range(3))
+        boxes.append((part.name, lo, hi))
+    return boxes
+
+
+def test_realized_full_scatter_keeps_central_floor_and_air_to_walkable_debris_only():
+    """Revision 1: only small (<=0.10 m), collider-free debris on the central floor."""
+    from modeling.slum03.density_model import FLOOR_DEBRIS_MAX, FLOOR_DEBRIS_PREFIX
+    from modeling.slum03.gn_scatter import SIZE_CLASS, scatter_plan
     layout = _full()
     heaps = scatter_plan(layout)
     assert heaps
+    clear = layout.clear
+    floor_items = floor_pieces = 0
     for name, items in heaps.items():
+        floor = name.startswith('floor-')
         points = []
         for item in items:
-            parts = realize_instance(item)
-            verts = [v for part in parts for v in part.vertices]
-            lo = tuple(min(v[i] for v in verts) for i in range(3))
-            hi = tuple(max(v[i] for v in verts) for i in range(3))
             x, _, z = item['point']
             ex, ey, ez = item['extent']
-            # The realized, scaled and rotated shape stays in the sampled envelope.
-            assert x-ex/2-1e-6 <= lo[0] and hi[0] <= x+ex/2+1e-6
-            assert z-ez/2-1e-6 <= lo[2] and hi[2] <= z+ez/2+1e-6
-            assert -1e-6 <= lo[1] and hi[1] <= ey+1e-6
-            assert not validate_clearance(layout, {'rubble': Bounds3(lo, hi)})
-            assert layout.plaza.x_min <= lo[0] and hi[0] <= layout.plaza.x_max
-            assert layout.plaza.z_min <= lo[2] and hi[2] <= layout.plaza.z_max
-            points.extend(verts)
-        heap = Bounds3(tuple(min(v[i] for v in points) for i in range(3)),
-                       tuple(max(v[i] for v in points) for i in range(3)))
-        assert not validate_clearance(layout, {name: heap}), name
+            if floor:
+                floor_items += 1
+                assert SIZE_CLASS[item['variant']] == 'small', (name, item['variant'])
+            for part, lo, hi in _realized(item):
+                # The realized, scaled and rotated shape stays in the sampled envelope.
+                assert x-ex/2-1e-6 <= lo[0] and hi[0] <= x+ex/2+1e-6
+                assert z-ez/2-1e-6 <= lo[2] and hi[2] <= z+ez/2+1e-6
+                assert -.01 <= lo[1] and hi[1] <= ey+1e-6
+                assert layout.plaza.x_min <= lo[0] and hi[0] <= layout.plaza.x_max
+                assert layout.plaza.z_min <= lo[2] and hi[2] <= layout.plaza.z_max
+                if floor:
+                    floor_pieces += 1
+                    assert hi[1] <= FLOOR_DEBRIS_MAX, (name, part, hi[1])
+                    assert clear.x_min <= lo[0] and hi[0] <= clear.x_max
+                    assert clear.z_min <= lo[2] and hi[2] <= clear.z_max
+                    # No debris at all on a main-route effective width or entrance.
+                    assert not any(_touches(lo, hi, r) for r in _walk_keepouts(layout)), (name, part)
+                else:
+                    # Medium and larger rubble never enters the central floor or its 3 m air.
+                    assert not _touches(lo, hi, clear), (name, part)
+                    assert not validate_clearance(layout, {'rubble': Bounds3(lo, hi)})
+                points.append((lo, hi))
+        heap = Bounds3(tuple(min(p[0][i] for p in points) for i in range(3)),
+                       tuple(max(p[1][i] for p in points) for i in range(3)))
+        key = f'plaza-rubble-{name}'
+        assert not validate_clearance(layout, {key: heap}), name
+        if floor:
+            assert key.startswith(FLOOR_DEBRIS_PREFIX + '-')
+            assert not any(_touches(heap.minimum, heap.maximum, r) for r in _walk_keepouts(layout))
+    # A scattered carpet of small pieces, not a token handful (slum02 plaza floor).
+    assert floor_items >= 120 and floor_pieces >= 450
+    floor_heaps = [n for n in heaps if n.startswith('floor-')]
+    assert 8 <= len(floor_heaps) <= 16
+    # All four quadrants between the crossing main routes carry debris.
+    quads = {(item['point'][0] > 0, item['point'][2] > 0)
+             for n in floor_heaps for item in heaps[n]}
+    assert len(quads) == 4
+
+
+def test_floor_debris_is_seeded_and_absent_before_full_stage():
+    from dataclasses import replace
+    from modeling.slum03.gn_scatter import scatter_plan
+    layout = _full()
+    first = {n: v for n, v in scatter_plan(layout).items() if n.startswith('floor-')}
+    assert first == {n: v for n, v in scatter_plan(_full()).items() if n.startswith('floor-')}
+    other = {n: v for n, v in scatter_plan(replace(layout, seed=layout.seed + 1)).items()
+             if n.startswith('floor-')}
+    assert other and other != first
+    for staged in (build_layout(),):
+        assert not [n for n in scatter_plan(staged) if n.startswith('floor-')]
+
+
+def test_floor_debris_variants_are_small_and_varied():
+    from modeling.slum03.density_model import FLOOR_DEBRIS_MAX
+    from modeling.slum03.gn_scatter import (FLOOR_SCALE, FLOOR_VARIANTS, SIZE_CLASS,
+                                            VARIANT_KINDS, variant_parts)
+    assert len(FLOOR_VARIANTS) >= 3
+    materials = set()
+    for index in FLOOR_VARIANTS:
+        parts = variant_parts(index)
+        assert SIZE_CLASS[index] == 'small' and len(parts) >= 3, VARIANT_KINDS[index]
+        top = max(v[1] for p in parts for v in p.vertices)
+        assert top * FLOOR_SCALE[1] <= FLOOR_DEBRIS_MAX
+        assert min(v[1] for p in parts for v in p.vertices) >= -.01
+        materials |= {p.material for p in parts}
+    assert {'concrete_raw', 'rust'} <= materials and len(materials) >= 5
+    # Perimeter variants stay medium or larger except the legacy mixed pile.
+    assert all(SIZE_CLASS[i] != 'small' for i in (0, 1, 2))
