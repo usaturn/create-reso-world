@@ -7,6 +7,7 @@ import json
 import math
 from typing import Mapping, Sequence
 
+from .density_layout import YAROL_ENTRY
 from .density_model import TARGET_COUNTS, validate_density_config
 from .spatial import placement_bounds, validate_clearance, walkable_surface_parts
 from .types import Bounds3, Issue, Layout, RectXZ, Report
@@ -256,7 +257,7 @@ def _issues(layout, evidence, geometry_issues, paths, basis):
     for key, bs in evidence.items():
         for b in bs:
             issues.extend(validate_clearance(layout, {key: b}))
-    entry = RectXZ(57, 60, 43, 51)
+    entry = YAROL_ENTRY
     for p in layout.placements:
         if not p.key.startswith('density-') or p.domain != 'district':
             continue

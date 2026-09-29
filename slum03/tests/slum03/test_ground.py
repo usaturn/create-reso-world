@@ -296,3 +296,15 @@ def test_full_small_street_debris_stays_off_entrance_aprons_and_shop_fronts():
     offenders = [part.name for part in small
                  if any(_hits(_world_box(ground, part), f, FRONTAGE_PAD) for f in fronts)]
     assert offenders == []
+
+
+def test_local_rect_rejects_yaw_that_is_not_a_multiple_of_90():
+    import pytest
+    from modeling.slum03.ground import _local_rect
+    from modeling.slum03.types import Placement
+    def at(yaw):
+        return Placement('p', 'market', 'stall', (0., 0., 0.), (2., 2., 2.), yaw, 'district')
+    _local_rect(at(90.), (1., 0.), (2., 1.), 0., 0.)
+    _local_rect(at(-180.), (1., 0.), (2., 1.), 0., 0.)
+    with pytest.raises(ValueError, match='multiple of 90'):
+        _local_rect(at(45.), (1., 0.), (2., 1.), 0., 0.)

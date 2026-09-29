@@ -191,14 +191,14 @@ def finalize(stage: str, baseline: Path, source: Path, run: str, root_y: float,
                                                'sha256': sha(artifact / f'{sector}-report.json')} for sector in reports},
                             'export': {sector: {'path': str(bundles / sector / 'report.json'),
                                                 'sha256': sha(bundles / sector / 'report.json')} for sector in reports}}
-    density_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+    density_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
     scope_path.write_text(json.dumps({'protected_changes': 0, 'protected_updates': 0, 'protected_deletes': 0, 'protected_asset_changes': 0, 'issues': [],
         'selected_nodes': scope['selected_nodes'],
         'raw_ignored_empty_provider_nodes': scope['raw_ignored_empty_provider_nodes'],
         'raw_material_relocations': scope['raw_material_relocations'],
         'raw_removed_unmoved_empty_provider_nodes': removed_stubs,
         **full_evidence,
-        'asset_matches_new_export': comparison}, ensure_ascii=False, indent=2) + '\n')
+        'asset_matches_new_export': comparison}, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
     provenance = {'status': 'OFFLINE PROTECTED CANDIDATE', 'liveApplied': False,
                   'currentReflectionValidated': False, 'baseline': {'path': str(baseline), 'sha256': sha(baseline)},
                   'draft': {'path': str(draft), 'sha256': sha(draft)},
@@ -209,7 +209,7 @@ def finalize(stage: str, baseline: Path, source: Path, run: str, root_y: float,
                   **({'candidate_inventory': full_evidence['candidate_inventory'],
                       'absent_baseline_slots': full_evidence['absent_baseline_slots']} if full_evidence else {})}
     provenance_path.write_text(
-        json.dumps(provenance, ensure_ascii=False, indent=2) + '\n')
+        json.dumps(provenance, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
     return {'run': run, 'candidate': str(candidate), 'draft': str(draft), 'scope': str(scope_path),
             'assets': len(comparison), 'protected_changes': 0}
 

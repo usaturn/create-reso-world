@@ -28,6 +28,8 @@ STALL_APRON = 1.0  # customer standing strip in front of a stall counter
 
 def _local_rect(p, local, size, ox: float, oz: float):
     """Axis-aligned foundation-local rectangle of a placement-local centre/size."""
+    if abs(p.yaw_deg - 90 * round(p.yaw_deg / 90)) > 1e-6:
+        raise ValueError(f'_local_rect requires yaw to be a multiple of 90 degrees, got {p.yaw_deg}')
     angle = math.radians(p.yaw_deg)
     cx = p.origin[0] + local[0]*math.cos(angle) + local[1]*math.sin(angle) - ox
     cz = p.origin[2] - local[0]*math.sin(angle) + local[1]*math.cos(angle) - oz

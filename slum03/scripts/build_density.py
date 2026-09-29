@@ -12,7 +12,7 @@ from modeling.slum03.density_views import write_review
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--stage', choices=('representative', 'full', 'blockout'), required=True)
+    parser.add_argument('--stage', choices=('representative', 'full'), required=True)
     parser.add_argument('--base-manifest', type=Path, required=True)
     parser.add_argument('--layout', type=Path, required=True)
     parser.add_argument('--run', required=True)
