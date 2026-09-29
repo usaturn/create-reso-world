@@ -13,6 +13,9 @@ REPRESENTATIVE_KEYS = ('ruin-west', 'shack-row', 'market-west')
 SURFACE_SLOT_KEYS = ('district-foundation',)
 SCATTER_PREFIXES = ('plaza-rubble-west', 'plaza-rubble-east',
                     'plaza-rubble-north', 'plaza-rubble-south')
+# Placement key -> baseline Slot name for the Slot-only surface keys above; the
+# placement's native colliders ('collider-district-ground-*') follow that Slot.
+SURFACE_PLACEMENT_SLOTS = {'district-ground': 'district-foundation'}
 
 
 def stable_seed(seed: int, key: str, channel: str) -> int:

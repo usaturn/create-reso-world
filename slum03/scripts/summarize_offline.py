@@ -31,10 +31,58 @@ def native_sector_counts(manifest, layout):
             prefix = 'local-light-' if kind == 'lights' else 'collider-'
             owner = key.removeprefix(prefix)
             placement = next((p for p in placements if owner == p.key or owner.startswith(p.key + '-')), None)
+            if placement is None and kind == 'lights' and owner.startswith('cluster-'):
+                placement = _cluster_member(layout, owner)
             if placement is None:
                 raise ValueError(f'unattributed native {kind}: {key}')
             counts[placement.sector][kind] += 1
     return counts
+
+
+def _cluster_member(layout, owner):
+    """Full-stage cluster light 'cluster-<kind>-<cluster>' -> first member placement."""
+    members = sorted((p for p in layout.placements
+                      if owner == f"cluster-{p.kind}-{p.params.get('cluster')}"), key=lambda p: p.key)
+    return members[0] if members else None
+
+
+def full_gate(layout, runs, first_bundles):
+    """Full stage only: per-zone resources, export/candidate provenance and Gate C status."""
+    from modeling.slum03.density_metrics import zone_resources
+    from modeling.slum03.density_candidate import (gate_c_status, inventory_issues,
+                                                   regeneration_issues)
+    from modeling.slum03.verify_assets import export_count_issues
+    density_issues, structural = [], []
+    evidence = {}
+    for run in runs:
+        artifact = Path('artifacts/slum03') / run
+        bundles = Path('content/slum03/bundles') / run
+        candidate = Path('content/slum03') / f'{run}-candidate.json'
+        reports = {sector: json.loads((artifact / f'{sector}-report.json').read_text()) for sector in SECTORS}
+        density = json.loads((artifact / 'density-report.json').read_text())
+        scope = json.loads((artifact / 'scope-report.json').read_text())
+        manifest = json.loads(candidate.read_text())
+        density_issues += [{**i, 'run': run} for i in density['issues']]
+        if density.get('stage') != 'full' or density.get('layout_sha256') != layout_digest(layout):
+            density_issues.append({'code': 'DENSITY_STAGE', 'object_key': run, 'message': 'not a full report of this Layout'})
+        structural += [{'code': i.code, 'object_key': i.object_key, 'message': i.message, 'run': run}
+                       for i in (export_count_issues(reports, bundles) +
+                                 inventory_issues(scope.get('candidate_inventory', {}), candidate) +
+                                 regeneration_issues(manifest, layout, run))]
+        structural += [{**i, 'run': run} for i in scope['issues']]
+        if scope.get('protected_changes') != 0:
+            structural.append({'code': 'SCOPE', 'object_key': run, 'message': 'protected changes recorded'})
+        evidence[run] = {'candidate': str(candidate), 'candidate_sha256': hashlib.sha256(candidate.read_bytes()).hexdigest(),
+                         'absent_baseline_slots': scope.get('absent_baseline_slots'),
+                         'density_counts': density.get('counts')}
+    manifest = json.loads((Path('content/slum03') / f'{runs[0]}-candidate.json').read_text())
+    exports = {sector: json.loads((first_bundles / sector / 'report.json').read_text()) for sector in SECTORS}
+    zones = zone_resources(layout, manifest, exports)
+    if any(zones['unattributed'][f] for f in ('meshes', 'lights', 'colliders', 'drivers')):
+        structural.append({'code': 'RESOURCE_UNATTRIBUTED', 'object_key': 'zones',
+                           'message': json.dumps(zones['unattributed'])})
+    return {'zones': zones, 'runs': evidence,
+            'gate_c': gate_c_status(density_issues=density_issues, structural_issues=structural)}
 
 
 def main():
@@ -83,9 +131,12 @@ def main():
               'transparentLayers': {'FresnelMaterialProviders': components['FrooxEngine.FresnelMaterial'],
                                     'measuredOverdraw': None},
               'currentReflectionValidated': False, 'liveApplied': False}
+    if layout.density is not None and layout.density.stage == 'full':
+        output.update(full_gate(layout, (args.first, args.second), first))
     destination = Path('artifacts/slum03') / args.first / 'asset-summary.json'
     destination.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n')
-    print(json.dumps({'summary': str(destination), 'totals': totals}))
+    print(json.dumps({'summary': str(destination), 'totals': totals,
+                      **({'gate_c': output['gate_c']['status']} if 'gate_c' in output else {})}))
 
 
 if __name__ == '__main__':

@@ -1,0 +1,248 @@
+{
+  "status": "offline-preview",
+  "scene": "artifacts/slum03/density-full-c-20260929T054230Z-541218/full-comparison/candidate/combined-preview.blend",
+  "source": "artifacts/slum03/density-full-c-20260929T054230Z-541218",
+  "sector": null,
+  "visibility": {
+    "hits": {
+      "north_arcologies": [
+        "arcology-gate",
+        "arcology-terraces",
+        "arcology-towers"
+      ],
+      "east_forest": [
+        "forest-patch-0-0",
+        "forest-patch-0-1",
+        "forest-patch-0-2",
+        "forest-patch-0-3",
+        "forest-patch-1-0",
+        "forest-patch-1-1",
+        "forest-patch-1-2",
+        "forest-patch-1-3",
+        "forest-patch-2-0",
+        "forest-patch-2-1",
+        "forest-patch-2-2",
+        "forest-tree-0-0",
+        "forest-tree-0-1",
+        "forest-tree-0-2",
+        "forest-tree-0-3",
+        "forest-tree-0-4",
+        "forest-tree-0-5",
+        "forest-tree-0-6",
+        "forest-tree-0-7",
+        "forest-tree-1-0",
+        "forest-tree-1-1",
+        "forest-tree-1-2",
+        "forest-tree-1-3",
+        "forest-tree-1-4",
+        "forest-tree-1-5",
+        "forest-tree-1-6",
+        "forest-tree-1-7",
+        "forest-tree-2-0",
+        "forest-tree-2-1",
+        "forest-tree-2-2",
+        "forest-tree-2-3",
+        "forest-tree-2-4",
+        "forest-tree-2-5",
+        "forest-tree-2-6",
+        "forest-tree-2-7"
+      ],
+      "east_lane": [
+        "forest-patch-0-0",
+        "forest-patch-0-1",
+        "forest-patch-0-2",
+        "forest-patch-0-3",
+        "forest-patch-1-0",
+        "forest-patch-1-1",
+        "forest-patch-1-2",
+        "forest-patch-1-3",
+        "forest-patch-2-0",
+        "forest-patch-2-1",
+        "forest-patch-2-2",
+        "forest-patch-2-3",
+        "forest-tree-0-0",
+        "forest-tree-0-1",
+        "forest-tree-0-2",
+        "forest-tree-0-3",
+        "forest-tree-0-4",
+        "forest-tree-0-5",
+        "forest-tree-0-6",
+        "forest-tree-0-7",
+        "forest-tree-1-0",
+        "forest-tree-1-1",
+        "forest-tree-1-2",
+        "forest-tree-1-3",
+        "forest-tree-1-4",
+        "forest-tree-1-5",
+        "forest-tree-1-6",
+        "forest-tree-1-7",
+        "forest-tree-2-0",
+        "forest-tree-2-1",
+        "forest-tree-2-2",
+        "forest-tree-2-3",
+        "forest-tree-2-4",
+        "forest-tree-2-5",
+        "forest-tree-2-6",
+        "forest-tree-2-7"
+      ],
+      "west_city": [
+        "west-city-0-2",
+        "west-city-0-4",
+        "west-city-0-5",
+        "west-city-1-0",
+        "west-city-1-1",
+        "west-city-1-2",
+        "west-city-1-3",
+        "west-city-1-4",
+        "west-city-1-5",
+        "west-city-1-6",
+        "west-city-1-7",
+        "west-city-1-8"
+      ],
+      "south_city": [
+        "south-city-0-4",
+        "south-city-0-5",
+        "south-city-1-0",
+        "south-city-1-1",
+        "south-city-1-2",
+        "south-city-1-3",
+        "south-city-1-4",
+        "south-city-1-5",
+        "south-city-1-6"
+      ]
+    },
+    "pass": {
+      "north_arcologies": true,
+      "east_forest": true,
+      "west_city": true,
+      "south_city": true
+    },
+    "meshCount": 254
+  },
+  "cameras": {
+    "full-top": {
+      "eye": [
+        0,
+        175.0,
+        0
+      ],
+      "target": [
+        0,
+        0.0,
+        0
+      ],
+      "exposure": 0.800000011920929,
+      "fieldOfView": 60,
+      "image": "artifacts/slum03/density-full-c-20260929T054230Z-541218/full-comparison/candidate/full-top.png",
+      "bytes": 910271
+    },
+    "full-center-northwest": {
+      "eye": [
+        -10,
+        1.5999999999999996,
+        0
+      ],
+      "target": [
+        -55,
+        4.0,
+        9
+      ],
+      "exposure": 0.800000011920929,
+      "fieldOfView": 60,
+      "image": "artifacts/slum03/density-full-c-20260929T054230Z-541218/full-comparison/candidate/full-center-northwest.png",
+      "bytes": 1039996
+    },
+    "full-southwest-lane": {
+      "eye": [
+        -55.5,
+        1.5999999999999996,
+        -6
+      ],
+      "target": [
+        -46,
+        2.5,
+        -34
+      ],
+      "exposure": 0.800000011920929,
+      "fieldOfView": 60,
+      "image": "artifacts/slum03/density-full-c-20260929T054230Z-541218/full-comparison/candidate/full-southwest-lane.png",
+      "bytes": 1035912
+    },
+    "full-market-entrance": {
+      "eye": [
+        0,
+        1.5999999999999996,
+        -14
+      ],
+      "target": [
+        0,
+        2.0,
+        -40
+      ],
+      "exposure": 0.800000011920929,
+      "fieldOfView": 60,
+      "image": "artifacts/slum03/density-full-c-20260929T054230Z-541218/full-comparison/candidate/full-market-entrance.png",
+      "bytes": 1072162
+    },
+    "full-market-interior": {
+      "eye": [
+        0,
+        1.5999999999999996,
+        -33
+      ],
+      "target": [
+        -4,
+        1.4000000000000004,
+        -48
+      ],
+      "exposure": 0.800000011920929,
+      "fieldOfView": 60,
+      "image": "artifacts/slum03/density-full-c-20260929T054230Z-541218/full-comparison/candidate/full-market-interior.png",
+      "bytes": 1145259
+    },
+    "full-east-alley": {
+      "eye": [
+        46.8,
+        1.5999999999999996,
+        -38
+      ],
+      "target": [
+        45.5,
+        3.0,
+        -4
+      ],
+      "exposure": 0.800000011920929,
+      "fieldOfView": 60,
+      "image": "artifacts/slum03/density-full-c-20260929T054230Z-541218/full-comparison/candidate/full-east-alley.png",
+      "bytes": 1117785
+    },
+    "full-yarol-front": {
+      "eye": [
+        64.5,
+        1.5999999999999996,
+        36
+      ],
+      "target": [
+        54,
+        3.0,
+        47
+      ],
+      "exposure": 0.800000011920929,
+      "fieldOfView": 60,
+      "image": "artifacts/slum03/density-full-c-20260929T054230Z-541218/full-comparison/candidate/full-yarol-front.png",
+      "bytes": 1192447
+    }
+  },
+  "labels": 7,
+  "layout_seed": 260927,
+  "render": {
+    "resolution": [
+      960,
+      640
+    ],
+    "samples": 64,
+    "denoise": true,
+    "exposure": 0.8,
+    "fill_watts": 550
+  }
+}

@@ -261,3 +261,95 @@ def _issues(layout, evidence, geometry_issues, paths, basis):
 
 def validate_density(layout: Layout, reports: Mapping[str, Report], geometry_basis: str) -> list[Issue]:
     return [Issue(**i) for i in density_report(layout, reports, geometry_basis)['issues']]
+
+
+# Resource attribution for per-zone reporting. District zones come from the saved
+# Layout; everything else is kept visible instead of silently folded into a zone.
+RESOURCE_BUCKETS = ('central-and-other', 'shared-ground', 'road-river', 'background', 'unattributed')
+_BACKGROUND_PREFIXES = ('scenic-support-', 'forest-backstop', 'north-highrise-')
+_TRANSPARENT = frozenset(('FrooxEngine.FresnelMaterial',))
+_DRIVERS = frozenset(('FrooxEngine.Panner2D', 'FrooxEngine.Spinner'))
+
+
+def _zone_at(layout: Layout, x: float, z: float) -> str | None:
+    return next((zone.key for zone in layout.density.zones
+                 if zone.bounds.x_min <= x < zone.bounds.x_max and
+                 zone.bounds.z_min <= z < zone.bounds.z_max), None)
+
+
+def resource_zone(layout: Layout, name: str) -> str:
+    """Zone of an exported object / native owner name (longest placement prefix)."""
+    from .density_model import SCATTER_PREFIXES, SURFACE_PLACEMENT_SLOTS
+    alias = {slot: key for key, slot in SURFACE_PLACEMENT_SLOTS.items()}
+    name = alias.get(name, name)
+    placement = next((p for p in sorted(layout.placements, key=lambda p: len(p.key), reverse=True)
+                      if name == p.key or name.startswith(p.key + '-')), None)
+    if placement is None:
+        if name.startswith(tuple(prefix + '-' for prefix in SCATTER_PREFIXES)):
+            return 'central-and-other'
+        return 'background' if name.startswith(_BACKGROUND_PREFIXES) else 'unattributed'
+    if placement.key in SURFACE_PLACEMENT_SLOTS:
+        return 'shared-ground'
+    if placement.domain in ('road', 'water'):
+        return 'road-river'
+    if placement.domain != 'district':
+        return 'background'
+    declared = placement.params.get('density_zone')
+    if declared in {zone.key for zone in layout.density.zones}:
+        return declared
+    return _zone_at(layout, placement.origin[0], placement.origin[2]) or 'central-and-other'
+
+
+def zone_resources(layout: Layout, manifest: Mapping, exports: Mapping[str, Report]) -> dict:
+    """Triangles/vertices/meshes/materials/draw sections/transparent sections/lights/
+    shadows/colliders/drivers per district zone, from export inventories and the candidate.
+
+    Transparent draw sections count renderer material slots with a transparent
+    material; actual overdraw is not measured offline.
+    """
+    import re
+    from .candidate_scope import nodes
+    zones = [zone.key for zone in layout.density.zones] + list(RESOURCE_BUCKETS)
+    fields = ('triangles', 'vertices', 'meshes', 'draw_sections', 'transparent_draw_sections',
+              'lights', 'shadow_lights', 'colliders', 'drivers')
+    rows = {zone: {**{f: 0 for f in fields}, 'materials': set()} for zone in zones}
+    items = nodes(manifest)
+    components = {c['key']: c for node, _ in items.values() for c in node.get('components', [])}
+    by_name = {node['slot'].get('name'): node for node, _ in items.values()}
+    for export in exports.values():
+        for mesh in export.get('meshes', []):
+            row = rows[resource_zone(layout, mesh['name'])]
+            row['triangles'] += mesh['triangles']
+            row['vertices'] += mesh['vertices']
+            row['draw_sections'] += mesh['submeshes']
+            row['meshes'] += 1
+            node = by_name.get(mesh['name'], {})
+            for component in node.get('components', []):
+                if component['type'] != 'FrooxEngine.MeshRenderer':
+                    continue
+                for ref in component['fields'].get('Materials', []):
+                    key = ref.removeprefix('$component:')
+                    row['materials'].add(key)
+                    if components.get(key, {}).get('type') in _TRANSPARENT:
+                        row['transparent_draw_sections'] += 1
+    for key, (node, _) in items.items():
+        for component in node.get('components', []):
+            kind = component['type']
+            if kind == 'FrooxEngine.Light':
+                x, _, z = node['slot'].get('position', (0, 0, 0))
+                district = layout.district
+                zone = _zone_at(layout, x, z) or (
+                    'central-and-other' if district.x_min <= x <= district.x_max and
+                    district.z_min <= z <= district.z_max else 'background')
+                rows[zone]['lights'] += 1
+                rows[zone]['shadow_lights'] += component['fields'].get('ShadowType', 'None') != 'None'
+            elif kind == 'FrooxEngine.BoxCollider':
+                rows[resource_zone(layout, key.removeprefix('collider-'))]['colliders'] += 1
+            elif kind in _DRIVERS:
+                match = re.search(r'object_([a-z0-9-]+?)_[0-9a-f]+(?:-|$)', key)
+                owner = match[1] if match else node['slot'].get('name', key)
+                rows[resource_zone(layout, owner)]['drivers'] += 1
+    for row in rows.values():
+        row['materials'] = len(row['materials'])
+        row['transparent_overdraw_measured'] = None
+    return rows

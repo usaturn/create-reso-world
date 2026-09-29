@@ -1,0 +1,331 @@
+{
+  "stage": "full",
+  "geometry_basis": "evaluated",
+  "layout_sha256": "6ddc3c342bcb883e4d04962dbb1a2b0689142c68dd353b050e652dc9d06c9c48",
+  "layout_sha256_basis": "canonical-layout-json-utf8",
+  "counts": {
+    "ruin": 32,
+    "shack": 28,
+    "stall": 28,
+    "nightlife": 8,
+    "yarol": 1
+  },
+  "by_zone": {
+    "northwest": {
+      "counts": {
+        "ruin": 8,
+        "shack": 8
+      },
+      "occupied_union_m2": 1050.358888366468
+    },
+    "southwest": {
+      "counts": {
+        "shack": 11,
+        "ruin": 9,
+        "stall": 4
+      },
+      "occupied_union_m2": 930.0712607705009
+    },
+    "market": {
+      "counts": {
+        "stall": 20,
+        "nightlife": 2
+      },
+      "occupied_union_m2": 430.8990692159159
+    },
+    "east": {
+      "counts": {
+        "ruin": 15,
+        "nightlife": 6,
+        "shack": 9,
+        "stall": 4
+      },
+      "occupied_union_m2": 1584.4811042259944
+    }
+  },
+  "variants": {
+    "nightlife": [
+      "nightlife-1",
+      "nightlife-2",
+      "nightlife-3",
+      "nightlife-4"
+    ],
+    "shack": [
+      "corrugated",
+      "pallet",
+      "plywood",
+      "tarp"
+    ],
+    "stall": [
+      "electronics",
+      "prosthetics",
+      "reclaimed_equipment",
+      "tools"
+    ],
+    "yarol": [],
+    "ruin": [
+      "broken_corner",
+      "exposed_frame",
+      "patched_facade",
+      "service_core",
+      "slab_bay",
+      "stepped_shell"
+    ]
+  },
+  "occupied_union_m2": 4194.927123805685,
+  "frontage_gaps": {
+    "northwest-lane": [
+      {
+        "start": 2,
+        "end": 3.239999771118164,
+        "length": 1.239999771118164
+      },
+      {
+        "start": 20.825000762939453,
+        "end": 23.239999771118164,
+        "length": 2.414999008178711
+      },
+      {
+        "start": 34.91999816894531,
+        "end": 37.2400016784668,
+        "length": 2.3200035095214844
+      },
+      {
+        "start": 44.91999816894531,
+        "end": 47.02000045776367,
+        "length": 2.1000022888183594
+      },
+      {
+        "start": 52.96412658691406,
+        "end": 58,
+        "length": 5.0358734130859375
+      }
+    ],
+    "southwest-lane": [
+      {
+        "start": -51.08000183105469,
+        "end": -48.7599983215332,
+        "length": 2.3200035095214844
+      },
+      {
+        "start": -41.2400016784668,
+        "end": -38.96412658691406,
+        "length": 2.2758750915527344
+      },
+      {
+        "start": -35.02000045776367,
+        "end": -32.224998474121094,
+        "length": 2.795001983642578
+      },
+      {
+        "start": -23.520000457763672,
+        "end": -22.920000076293945,
+        "length": 0.6000003814697266
+      },
+      {
+        "start": -15.239999771118164,
+        "end": -12.949999809265137,
+        "length": 2.2899999618530273
+      },
+      {
+        "start": -7.019999980926514,
+        "end": -2,
+        "length": 5.019999980926514
+      }
+    ],
+    "market-spine": [
+      {
+        "start": -60,
+        "end": -58.880001068115234,
+        "length": 1.1199989318847656
+      },
+      {
+        "start": -49.18000030517578,
+        "end": -48.81999969482422,
+        "length": 0.3600006103515625
+      },
+      {
+        "start": -43.18000030517578,
+        "end": -39.81999969482422,
+        "length": 3.3600006103515625
+      },
+      {
+        "start": -28.119998931884766,
+        "end": -20,
+        "length": 8.119998931884766
+      }
+    ],
+    "east-alley": [
+      {
+        "start": -49.68000030517578,
+        "end": -48.7599983215332,
+        "length": 0.9200019836425781
+      },
+      {
+        "start": -41.08000183105469,
+        "end": -38.96412658691406,
+        "length": 2.115875244140625
+      },
+      {
+        "start": -31.239999771118164,
+        "end": -30.850000381469727,
+        "length": 0.3899993896484375
+      },
+      {
+        "start": -5.019999980926514,
+        "end": -2,
+        "length": 3.0199999809265137
+      },
+      {
+        "start": 2,
+        "end": 3.0799999237060547,
+        "length": 1.0799999237060547
+      },
+      {
+        "start": 10.760000228881836,
+        "end": 13.020000457763672,
+        "length": 2.260000228881836
+      },
+      {
+        "start": 30.760000228881836,
+        "end": 35,
+        "length": 4.239999771118164
+      }
+    ]
+  },
+  "attachments": [],
+  "issues": [],
+  "references": {
+    "layout": {
+      "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/layout.json",
+      "sha256": "2eb5047dcbb25138dcb768bfb5a1655b2b0d3b84a7f7f9d69c8c327d583ad064",
+      "hash_basis": "saved-file-bytes",
+      "semantic_sha256": "6ddc3c342bcb883e4d04962dbb1a2b0689142c68dd353b050e652dc9d06c9c48"
+    },
+    "build": {
+      "ground": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/ground-report.json",
+        "sha256": "c207fa3a3a309c7c4f7909add0751f164de41236b1cf23a90cc1662703571133"
+      },
+      "plaza": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/plaza-report.json",
+        "sha256": "7e3622f73ca5dfd4938ba106937baccc236c63f3b02f62d734424de45e25e941"
+      },
+      "ruins-west": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/ruins-west-report.json",
+        "sha256": "4a8d371fc0175896c6ae5640c24fc5f434424509ff2101ca2e51f6d2b5335982"
+      },
+      "ruins-north": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/ruins-north-report.json",
+        "sha256": "1779dbabfec2a8e6b34e55c5a69ee725c4cd62e55f26e38a543ec8a6553dafe7"
+      },
+      "ruins-east": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/ruins-east-report.json",
+        "sha256": "d7990455159d6586d5bb738243f770ef960f79cf1cc0ffeeb03945ab5688e061"
+      },
+      "market": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/market-report.json",
+        "sha256": "83db26326a381cc0a1f041abf251bb6ca5da31f2fe95f055280e451e36576b88"
+      },
+      "shacks": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/shacks-report.json",
+        "sha256": "613e893bea1192c28884f2d1939b8707bb1008ab73e078ec30ba55be025b4237"
+      },
+      "nightlife": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/nightlife-report.json",
+        "sha256": "48df2e3d029aa9ea280377354e74b555378443697a37445bfb620b676c1f5e3e"
+      },
+      "yarol": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/yarol-report.json",
+        "sha256": "c336cf5b600fe466867ffed13d24244c9ea1f4a1773f617e116bf4563c8d8b97"
+      },
+      "overhead": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/overhead-report.json",
+        "sha256": "988d0e4dcb4533a34154e716961ced9c1fb5b73d702510c9d78c422e2f298a92"
+      },
+      "ads": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/ads-report.json",
+        "sha256": "76342c4bdba340f760435a708043594dd06c8fd95a03395485e94baca976eed4"
+      },
+      "road-river": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/road-river-report.json",
+        "sha256": "ae6cb63838450928564ce731fc35c9af829b3e3d3706e4724fcf015a55f8e73d"
+      },
+      "forest": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/forest-report.json",
+        "sha256": "7835a412c2872fc363d99337ec2c0310dc928f432fc653d7c2d4b83c2390ff92"
+      },
+      "backdrop-north": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/backdrop-north-report.json",
+        "sha256": "61a4b4739b56d351bad45f85020468edbdd57b9d927570dd6cc662bbb982c4a0"
+      },
+      "backdrop-west-south": {
+        "path": "artifacts/slum03/density-full-c-20260929T054230Z-541218/backdrop-west-south-report.json",
+        "sha256": "c9cbf8f46c96343d5f442c9341e17084c866e3ddb9cabb7de2b15782343a97c9"
+      }
+    },
+    "export": {
+      "ground": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/ground/report.json",
+        "sha256": "c1d5460866deb89f87685acbef9e159b794be6669255a479799d74a2f86cde06"
+      },
+      "plaza": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/plaza/report.json",
+        "sha256": "3a0124301972623167ea8cc367996e558b0b8835b6511a5e34806aaecc6ff1dd"
+      },
+      "ruins-west": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/ruins-west/report.json",
+        "sha256": "37c27041c43635853c470944b24cf93e53a3f73da4d671261746685eb50181d4"
+      },
+      "ruins-north": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/ruins-north/report.json",
+        "sha256": "5eb9f6375047c8ddcee10898186915e956044a480f3fecb7432eb54413cf278f"
+      },
+      "ruins-east": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/ruins-east/report.json",
+        "sha256": "9ef4c14a24b15bf6f9915e5b244afa52d6e33137bfe593dcaa06d052385e8085"
+      },
+      "market": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/market/report.json",
+        "sha256": "1377aa018bcc213b734e6a234784153070081ea898da57d95df3f9f66fc4d328"
+      },
+      "shacks": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/shacks/report.json",
+        "sha256": "cb2d51a76f35803b1f4e3d8308babf3c89d0abb70d799558c5bd741404f880b0"
+      },
+      "nightlife": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/nightlife/report.json",
+        "sha256": "5a34cd6872f5ea2e1366f337905e683ab48f30e9580a10366c4db3ce36f14229"
+      },
+      "yarol": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/yarol/report.json",
+        "sha256": "cd9ba489e279dc0616289dd2d83964bfe62984e1e1939da9f314a91eb0fab88d"
+      },
+      "overhead": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/overhead/report.json",
+        "sha256": "cd2e2e5476b6499b004bf5baa5e41ad35573218555a7c158aef34e45aa5810ec"
+      },
+      "ads": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/ads/report.json",
+        "sha256": "6680b53bbec08dbe7791fefd9eb03695388178e49ccea854a581428a0df4b8ac"
+      },
+      "road-river": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/road-river/report.json",
+        "sha256": "18c6cbac6c976a69daa7c7c016950f3e8b54831982d24a4b5d03a1a63fb2f13b"
+      },
+      "forest": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/forest/report.json",
+        "sha256": "28fe30c422fd95f01ff8f587025a2e8e2ba7e734e3c0f5bb9eb5bd08c48cfacc"
+      },
+      "backdrop-north": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/backdrop-north/report.json",
+        "sha256": "4fc4039f32f63c95fc7266c7aeb1e13d622aa09ade00b7762b9e18b7c564fe96"
+      },
+      "backdrop-west-south": {
+        "path": "content/slum03/bundles/density-full-c-20260929T054230Z-541218/backdrop-west-south/report.json",
+        "sha256": "fcf3b3d5fb286f714f499ea9f80646febe05e87c3e2c585ab78ebcd3d4990d36"
+      }
+    }
+  },
+  "occupancy_note": "Per-mesh conservative evaluated rectangles; union does not prove walkable openings."
+}

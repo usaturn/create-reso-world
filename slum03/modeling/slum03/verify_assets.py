@@ -130,6 +130,31 @@ def compare_geometry_exports(first: Path, second: Path) -> list[Issue]:
     return issues
 
 
+def export_count_issues(reports: Mapping[str, Report], bundles: Path) -> list[Issue]:
+    """Exported meshes must match the evaluated build, not merely the other export.
+
+    Two independent exports that lost the same mesh still compare equal, so the
+    expected set comes from each build report's evaluated objects.
+    """
+    issues = []
+    for sector, report in reports.items():
+        expected = {o['mesh'] for o in report.get('objects', []) if o.get('mesh')}
+        directory = Path(bundles) / sector
+        files = {p.name for p in directory.glob('*.mesh.json')}
+        try:
+            exported = json.loads((directory / 'report.json').read_text(encoding='utf-8')).get('meshes', [])
+        except (OSError, ValueError) as exc:
+            issues.append(Issue('EXPORT_MESH_COUNT', sector, f'no export inventory: {exc}'))
+            continue
+        names = {m.get('name') for m in exported}
+        declared = {m.get('file') for m in exported}
+        if names != expected or declared != files or len(exported) != len(expected):
+            issues.append(Issue('EXPORT_MESH_COUNT', sector,
+                                f'build {len(expected)} meshes, export inventory {len(exported)}, files {len(files)}; '
+                                f'missing {sorted(expected - names)[:5]}, extra {sorted(names - expected)[:5]}'))
+    return issues
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--reports', type=Path, required=True)
