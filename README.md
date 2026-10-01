@@ -58,8 +58,9 @@ bash scripts/new-world.sh --apply <name>    # 既存のプロジェクトに、�
 
 ## ResoLoop の版
 
-導入する ResoLoop の版は `.devcontainer/resoloop.lock` で決める。既定は fork モードで、Blender 5 の UV の修正を含む
-fork（usaturn/resoloop）をビルドして導入する。上流（orange3134/resoloop）がリリースしたら nuget モードに戻す。
+導入する ResoLoop の版は `.devcontainer/resoloop.lock` で決める。現在は nuget モードで、上流（orange3134/resoloop）の
+公開版を導入する。上流に未取り込みの修正が必要なときは、fork（usaturn/resoloop）をビルドして導入する fork モードに切り替え、
+上流がその修正をリリースしたら nuget モードに戻す。
 fork の checkout は `external/resoloop`（git の追跡対象外）に置く。版の変え方、fork の修正と上流への PR の流れは
 `docs/resoloop-fork-workflow.md` にある。
 
