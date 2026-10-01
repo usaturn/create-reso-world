@@ -21,14 +21,14 @@ test_setup_places_independent_gpt6_tiers() {
     local home="${TEST_ROOT}/setup" launcher tier model thinking config row
     local -a expected_tiers=(
         "piga:cheap:gpt-6-luna:xhigh"
-        "piga:balanced:gpt-6-sol:xhigh"
+        "piga:balanced:gpt-6.1-sol:xhigh"
         "piga:max:gpt-6-astra:max"
         "pigs:cheap:gpt-6-luna:xhigh"
-        "pigs:balanced:gpt-6-sol:xhigh"
-        "pigs:max:gpt-6-sol:max"
+        "pigs:balanced:gpt-6.1-sol:xhigh"
+        "pigs:max:gpt-6.1-sol:max"
         "pigl:cheap:gpt-6-luna:xhigh"
-        "pigl:balanced:gpt-6-sol:xhigh"
-        "pigl:max:gpt-6-sol:xhigh"
+        "pigl:balanced:gpt-6.1-sol:xhigh"
+        "pigl:max:gpt-6.1-sol:xhigh"
     )
     mkdir -p "$home"
     setup_for_home "$home"
@@ -59,7 +59,7 @@ test_launchers_select_models_and_forward_arguments() {
     for launcher in piga pigs pigl; do
         case "$launcher" in
             piga) model=gpt-6-astra ;;
-            pigs) model=gpt-6-sol ;;
+            pigs) model=gpt-6.1-sol ;;
             pigl) model=gpt-6-luna ;;
         esac
         [ -x "${REPO_ROOT}/.devcontainer/${launcher}" ] || fail "${launcher} must be executable"
@@ -85,7 +85,7 @@ test_launchers_accept_tilde_agent_dir() {
     for launcher in piga pigs pigl; do
         case "$launcher" in
             piga) model=gpt-6-astra ;;
-            pigs) model=gpt-6-sol ;;
+            pigs) model=gpt-6.1-sol ;;
             pigl) model=gpt-6-luna ;;
         esac
         expected="$(printf '%s\n' --provider openai-codex --model "$model" --thinking xhigh --resume)"
@@ -145,7 +145,7 @@ test_live_openai_codex_models() {
     dpkg --compare-versions "$version" ge 0.87.1 \
         || fail "Pi 0.87.1 or newer is required (installed: ${version})"
 
-    for model in gpt-6-astra gpt-6-sol gpt-6-luna; do
+    for model in gpt-6-astra gpt-6.1-sol gpt-6-luna; do
         output="$(pi --list-models "$model")" || fail "pi --list-models ${model} failed"
         printf '%s\n' "$output" | awk -v model="$model" \
             '$1 == "openai-codex" && $2 == model { found = 1 } END { exit !found }' \

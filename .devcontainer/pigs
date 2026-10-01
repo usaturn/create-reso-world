@@ -28,6 +28,6 @@ pi_openai_codex_require_oauth || exit 1
 
 pi_superagents_exec pigs \
     --provider openai-codex \
-    --model gpt-6-sol \
+    --model gpt-6.1-sol \
     --thinking xhigh \
     "$@" || exit 1
