@@ -62,7 +62,7 @@
 
 ## ResoLoop の版管理
 
-- 導入する ResoLoop の版は `.devcontainer/resoloop.lock` を正とする。既定は fork モードで、Blender 5 の UV 修正を含むビルドを使う
+- 導入する ResoLoop の版は `.devcontainer/resoloop.lock` を正とする。現在は nuget モードで、上流の公開版（0.1.0-preview.15）を使う。上流に未取り込みの修正が必要なときは fork モードに切り替える
 - 版を変えるときはロックファイルを明示的に更新してコミットする。`dotnet tool update` などで手元の導入だけを変えない
 - fork の取得・ビルド・導入は `scripts/resoloop-fork.sh` で行い、手順は `docs/resoloop-fork-workflow.md` に従う
 
