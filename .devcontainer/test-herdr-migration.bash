@@ -52,7 +52,7 @@ run_zshrc() {
 }
 run_zshrc_tty() {
     local test_home="$1"
-    # 意図的に HOME から起動し、herdrstart が /workspaces へ cd するかを検証できるようにする
+    # 意図的に HOME から起動し、herdrstart がワークスペースへ cd するかを検証できるようにする
     local zsh_command='cd "$HOME" && /usr/bin/zsh -f -c '\''source "$ZSHRC_TEMPLATE"'\'' 2>"$HERDR_TEST_STDERR"'
     shift
     env -u TMUX -u HERDR_ENV -u HERDR_SOCKET_PATH \
@@ -194,12 +194,17 @@ test_config_and_syntax() {
 # （precmd フックは production から削除済み）。
 test_launch_and_guards() {
     local test_home="${TEST_ROOT}/home"
+    # 実機の /workspaces に依存しないよう、テスト用のワークスペースルートを用意する
+    local workspace_root="${TEST_ROOT}/workspaces"
+    local workspace_dir="${workspace_root}/reso-world"
+    mkdir -p "$workspace_dir"
     make_stub_home "$test_home"
 
-    # 起動元 cwd が HOME でも herdr プロセスは /workspaces/<repo> で起動すること
-    run_zshrc_tty "$test_home"
+    # 起動元 cwd が HOME でも herdr プロセスは HERDR_WORKSPACE_ROOT 配下の
+    # ワークスペースで起動すること
+    run_zshrc_tty "$test_home" HERDR_WORKSPACE_ROOT="$workspace_root"
     [ "$(wc -l < "$test_home/herdr.log")" -eq 1 ] || fail 'TTY herdr call count'
-    assert_contains "$test_home/herdr.log" '^called TZ=Asia/Tokyo PWD=/workspaces/'
+    assert_contains "$test_home/herdr.log" "^called TZ=Asia/Tokyo PWD=${workspace_dir}"
     assert_contains "$test_home/herdr.log.upd" '^updater --daemon$'
     [ "$(wc -l < "$test_home/herdr.log.upd")" -eq 1 ] || fail 'TTY herdrstart updater call count'
 
