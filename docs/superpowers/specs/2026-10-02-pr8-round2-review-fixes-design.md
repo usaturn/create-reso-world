@@ -92,7 +92,7 @@
 検証対象の文書・source/test は `git show <commit>:<path>` から取得した。main checkout の未コミット source/test は読んでいない。
 
 - `mktemp -d "${TMPDIR:-/tmp}/review-fix-planning.XXXXXX"` で `/tmp/review-fix-planning.qdCVAC` を作成し、その下に PR の `CURRENT` を checkout した detached worktree を作った。HEAD の完全一致を確認した。
-- worktree 内の `replay/` に BASE の `git archive` を展開した。現行 PLAN の新規作成・変更指示のうち source/test に該当する **66操作**を順に適用した。すべての変更アンカーが一意に一致した。文書変更10操作は今回の関連テストに不要なので適用していない。
+- worktree 内の `replay/` に BASE の `git archive` を展開した。現行 PLAN の新規作成・変更指示のうち source/test に該当する **66操作**を順に適用した。すべての変更アンカーが一意に一致した。文書変更12操作（Part A の Task A2・A3 にある 2 操作と、Task B8 の 10 操作）は今回の関連テストに不要なので適用していない。
 - .NET SDK `10.0.401` で関連テストを実行した。この SDK の値は `dotnet --version` 等を pin の対象外の cwd で測ったホスト側の値の可能性があり、replay コピーの内側で実行したかの記録は残っていない。コピーは `b3a84ae` の `global.json`（`10.0.201`・`latestPatch`）を含むため、その内側で実行した dotnet には 10.0.2xx 系が解決される。実装時の Task ゲート（pin の内側で実行する手順）が本番の検証になる。ビルドは成功し、出力に警告・エラーの報告はなかった。全396件や実機を検証したとは扱わない。
 
 | 実行 | 結果 | 確認したこと |
