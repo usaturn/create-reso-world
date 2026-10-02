@@ -18,6 +18,7 @@
 - 最後まで適用した状態で、上流 CI と同じ restore・build・test を実行し、`RLoop.Tests` 394 件と `RLoop.IntegrationTests` 19 件がすべて成功し、警告は 0 件だった。
 - ミューテーション確認: 実装の要点 33 か所をそれぞれ壊すと、対応するテストが失敗した（壊した箇所の一覧は review-fixes の Spec の 5 章）。
 - A の `src/` を上流 `b3a84ae` に戻すと A で追加したテストが失敗し、B の `src/` を A の状態に戻すと B で追加したテストのうち今の挙動を固定するもの以外が失敗することを、全件の実行で確かめた（Task A4 Step 1、Task B8 Step 2）。
+- PR #8 のレビュー（`reviews/#8-docs-list-shrink-recreate-split/`）の反映で、B3 の作成ブロックと B4 の `VerifyReplacementsAsync` に小さい変更を足し、テストを 2 件追加した（2026-10-02）。この分は試作の再生を通っていないため、実装時は各 Task の Step の Expected（最終 `RLoop.Tests` 396 件）で確かめる。
 
 「置き換え前」のコードと「直後に追加」「直前に追加」の目印は、その時点のファイルの中で 1 か所だけ一致することを確かめてある。行番号は書かない。エディタで文字列を検索して置き換えること。Markdown の「置き換え前」「直後に追加」「直前に追加」は、コードブロック末尾の改行を除いて目印を検索する。追加する内容が空行から始まらないものは、改行を入れずに目印と同じ行へ続けて書く。空行から始まるものは、目印を含む段落の後に空行を挟んで新しい段落として書く。空行で終わる「直前に追加」は、目印の前に段落の区切りを置く。C# のブロックは行単位で当てる。
 
@@ -417,7 +418,7 @@ Component の移動元を削除した後と、prune で Component を削除し�
 
 ```csharp
                     if (runtime.RelocationSource is not null)
-                        (runtime.RelocationSourceSlotKey, runtime.RelocationSourceSlotId) = (stateComponent.SlotKey, sourceSlot!.Id);
+                        (runtime.RelocationSourceSlotKey, runtime.RelocationSourceSlotId) = (stateComponent!.SlotKey, sourceSlot!.Id);
 ```
 
 **変更:** `src/RLoop.Core/WorldService.cs` の次の部分を置き換える。
@@ -1808,11 +1809,11 @@ Expected: 7 件とも PASS、全件も PASS（`RLoop.Tests` 347 件）。
 
 **Interfaces:**
 - Consumes: Task A2 の `SaveSlotIndexesAsync`、Task B2 の `ComponentRuntime` のプロパティ
-- Produces: `ComponentRuntime.ReplacementCreated`（この apply が置き換え先を作った）、`ComponentRuntime.AwaitsVerification`（置き換え元が残っている間は true。その間、置き換え先は全件の検証が通るまで参照先にしない）、`private async Task VerifyReplacementsAsync(PreparedApply prepared, IReadOnlyList<ComponentRuntime> recreates, Dictionary<string, ComponentRuntime> byKey, IReadOnlyDictionary<string, NodeRuntime> slotsByKey, IReadOnlyDictionary<string, string> assetUrls, CancellationToken cancellationToken)`（この時点では書き込みだけ。検証待ちの置き換え先を参照しないフィールドだけを書き、すべて書いた後に置き換え先を `byKey` に加える。Task B4 で読み直しと取り消しを加え、引数に `ApplyCounts counts` が増える）、`private static bool ReferencesComponentKeys(JsonElement value, IReadOnlySet<string> keys, string? self)`。作成時は検証待ちの置き換え先への参照だけを除いて書き、作成前・作成後の checkpoint には作成時に書いた参照の selector だけを保存する。`StateBeforeRecreate` は置き換え先を作る直前（アセットの段階の後）に控える。
+- Produces: `ComponentRuntime.ReplacementCreated`（この apply が置き換え先を作った）、`ComponentRuntime.AwaitsVerification`（置き換え元が残っている間は true。その間、置き換え先は全件の検証が通るまで参照先にしない）、`private async Task VerifyReplacementsAsync(PreparedApply prepared, IReadOnlyList<ComponentRuntime> recreates, Dictionary<string, ComponentRuntime> byKey, IReadOnlyDictionary<string, NodeRuntime> slotsByKey, IReadOnlyDictionary<string, string> assetUrls, CancellationToken cancellationToken)`（この時点では書き込みだけ。検証待ちの置き換え先を参照しないフィールドだけを書き、すべて書いた後に置き換え先を `byKey` に加える。Task B4 で読み直しと取り消しを加え、引数に `ApplyCounts counts` が増える）、`private static bool ReferencesComponentKeys(JsonElement value, IReadOnlySet<string> keys, string? self)`。作成時は検証待ちの置き換え先（作る Component 自身を含む）への参照だけを除いて書き、作成前・作成後の checkpoint には作成時に書いた参照の selector だけを保存する。`StateBeforeRecreate` は置き換え先を作る直前（アセットの段階の後）に控える。
 
 - [ ] **Step 1: テストを書く**
 
-作り直しと参照の張り替え、アセットの移行、Review Focus の 1・2・4・5、互いを参照する 2 つの作り直しが 1 回の apply で収束することを確かめる。
+作り直しと参照の張り替え、アセットの移行、Review Focus の 1・2・4・5、互いを参照する 2 つの作り直しが 1 回の apply で収束すること、自分の key を参照する作り直しでも参照以外の `initialFields` が作成時に渡ることを確かめる。
 
 **変更:** `tests/RLoop.Tests/ApplyWorkflowTests.ListShrink.cs` の次の部分の直前に追加する。
 
@@ -1976,6 +1977,27 @@ Expected: 7 件とも PASS、全件も PASS（`RLoop.Tests` 347 件）。
         Assert.Equal(StateId(state, "r1"), renderers[StateId(state, "r2")].Members["Target"].TargetId);
     }
 
+    // A recreate that references its own key defers that reference like any other pending replacement, so the rest of
+    // its initialFields still go to AddComponentAsync. Without that, a self-reference leaves every create field
+    // unresolved and the replacement is created with none of them.
+    [Fact]
+    public async Task ARecreateReferencingItselfKeepsItsOtherInitialFields()
+    {
+        static string World(params string[] materials) => RubbleWorld("self-recreate", materials).Replace(
+            """{"key":"renderer","type":"Test.Renderer","fields":{"Materials""",
+            """{"key":"renderer","type":"Test.Renderer","initialFields":{"Enabled":true},"fields":{"Target":"$ref:renderer","Materials""",
+            StringComparison.Ordinal);
+        var (client, service, state, shrunk) = await ApplyRubbleAsync("self-recreate", World("m1", "m2", "m3", "m4"),
+            World("m1", "m2", "m3"));
+        var original = RubbleRenderers(client).Single().Id;
+        client.LoseResponseOnWrite = 1; // the replacement's create lands, and its response is lost
+        await Assert.ThrowsAsync<IOException>(() => service.ApplyAsync(shrunk, new ApplyOptions(state)));
+        client.LoseResponseOnWrite = null;
+
+        var created = RubbleRenderers(client).Single(renderer => renderer.Id != original);
+        Assert.True(created.Members["Enabled"].Value!.GetValue<bool>());
+    }
+
 ```
 
 - [ ] **Step 2: 失敗することを確かめる**
@@ -1983,10 +2005,10 @@ Expected: 7 件とも PASS、全件も PASS（`RLoop.Tests` 347 件）。
 ```bash
 set -euo pipefail
 cd /workspaces/reso-world/external/resoloop/.worktrees/list-shrink-recreate-split
-dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release --filter "FullyQualifiedName~ShrinkingAListRecreates|FullyQualifiedName~ARecreateKeepsAnAssetUrl|FullyQualifiedName~ARecreatedComponentWithIdentityFields|FullyQualifiedName~AMemberReferenceToARecreated|FullyQualifiedName~APruneAndARecreateOnOneSlot|FullyQualifiedName~ARecreateSetsInitialFieldsAgain|FullyQualifiedName~RecreatedComponentsThatReferenceEachOther" || true
+dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release --filter "FullyQualifiedName~ShrinkingAListRecreates|FullyQualifiedName~ARecreateKeepsAnAssetUrl|FullyQualifiedName~ARecreatedComponentWithIdentityFields|FullyQualifiedName~AMemberReferenceToARecreated|FullyQualifiedName~APruneAndARecreateOnOneSlot|FullyQualifiedName~ARecreateSetsInitialFieldsAgain|FullyQualifiedName~RecreatedComponentsThatReferenceEachOther|FullyQualifiedName~ARecreateReferencingItself" || true
 ```
 
-Expected: 8 件とも FAIL。主な失敗は、置き換え元が削除されず Slot に同じ型の Component が残る、`legacyState: True` で例外が出ない、互いを参照する 2 つが収束しない、など。
+Expected: 9 件とも FAIL。主な失敗は、置き換え元が削除されず Slot に同じ型の Component が残る、`legacyState: True` で例外が出ない、互いを参照する 2 つが収束しない、自己参照のある作り直しが始まらない、など。
 
 - [ ] **Step 3: 実装する**
 
@@ -2028,8 +2050,10 @@ Expected: 8 件とも FAIL。主な失敗は、置き換え元が削除されず
 
 ```csharp
                     var createFields = MergeCreateFields(component.Spec);
-                    // Leave out only the references to replacements that are not verified yet; the fields phase writes them.
-                    var withoutPending = createFields.Where(field => !ReferencesComponentKeys(field.Value, awaitingKeys, component.Spec.Key))
+                    // Leave out only the references to replacements that are not verified yet; the fields phase writes
+                    // them. A recreate awaiting verification is itself pending, so self-references are deferred too.
+                    var withoutPending = createFields.Where(field => !ReferencesComponentKeys(field.Value, awaitingKeys,
+                            component.AwaitsVerification ? null : component.Spec.Key))
                         .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                     if (withoutPending.Count < createFields.Count && CanResolveAll(withoutPending, byKey, slotsByKey)) createFields = withoutPending;
                     if (CanResolveAll(createFields, byKey, slotsByKey))
@@ -2265,13 +2289,13 @@ Expected: 8 件とも FAIL。主な失敗は、置き換え元が削除されず
 ```bash
 set -euo pipefail
 cd /workspaces/reso-world/external/resoloop/.worktrees/list-shrink-recreate-split
-dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release --filter "FullyQualifiedName~ShrinkingAListRecreates|FullyQualifiedName~ARecreateKeepsAnAssetUrl|FullyQualifiedName~ARecreatedComponentWithIdentityFields|FullyQualifiedName~AMemberReferenceToARecreated|FullyQualifiedName~APruneAndARecreateOnOneSlot|FullyQualifiedName~ARecreateSetsInitialFieldsAgain|FullyQualifiedName~RecreatedComponentsThatReferenceEachOther"
+dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release --filter "FullyQualifiedName~ShrinkingAListRecreates|FullyQualifiedName~ARecreateKeepsAnAssetUrl|FullyQualifiedName~ARecreatedComponentWithIdentityFields|FullyQualifiedName~AMemberReferenceToARecreated|FullyQualifiedName~APruneAndARecreateOnOneSlot|FullyQualifiedName~ARecreateSetsInitialFieldsAgain|FullyQualifiedName~RecreatedComponentsThatReferenceEachOther|FullyQualifiedName~ARecreateReferencingItself"
 dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release
 git add -A src tests
 git commit -m "Recreate a Component with a shrinking list within one apply" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: 8 件とも PASS、全件も PASS（`RLoop.Tests` 355 件）。
+Expected: 9 件とも PASS、全件も PASS（`RLoop.Tests` 356 件）。
 
 ### Task B4: 検証の失敗と取り消し
 
@@ -2281,7 +2305,7 @@ Expected: 8 件とも PASS、全件も PASS（`RLoop.Tests` 355 件）。
 
 **Interfaces:**
 - Consumes: Task B3 の `VerifyReplacementsAsync`
-- Produces: `VerifyReplacementsAsync` の引数に `ApplyCounts counts` を追加。宣言より長いリストが残れば、失敗した key と、この apply で作った置き換え先を取り消して `APPLY_LIST_SHRINK_NOT_CONVERGED`（7）を投げる。全件が通ったときだけ置き換え先を `byKey` に加える。context は `failures`（key・メンバー・宣言と実機の要素数）、`undone`、`inProgress`（再開して検証を通ったので残した key）。
+- Produces: `VerifyReplacementsAsync` の引数に `ApplyCounts counts` を追加。宣言より長いリストが残れば、失敗した key と、この apply で作った置き換え先を取り消して `APPLY_LIST_SHRINK_NOT_CONVERGED`（7）を投げる。全件が通ったときだけ置き換え先を `byKey` に加える。context は `failures`（key・メンバー・宣言と実機の要素数）、`undone`、`inProgress`（再開して検証を通ったので残した key）。投げる前に、置き換え元がすでに無い key（`SupersededId is not null && Superseded is null`）は、段階 5 と同じく `SaveSlotIndexesAsync` → `supersededId` を消す → checkpoint で記録を片付ける（削除はしない。検証も取り消しの対象にもならない key の `supersededId` を残すと、再読込のあとの apply が `session-changed` で止まる）。`inProgress` には入れない。
 
 - [ ] **Step 1: テストを書く**
 
@@ -2575,6 +2599,17 @@ Expected: 6 件のうち 5 件が FAIL。`error.Code` が `APPLY_REFERENCE_NOT_R
         foreach (var node in undone.Select(component => component.Node).Distinct())
             await SaveSlotIndexesAsync(prepared, node.StableKey, node.Id!, cancellationToken);
         Checkpoint(prepared);
+        // A resumed recreate whose replaced Component is already gone is verified by nothing and undone by nothing.
+        // Settle its record the way the removal stage does, or the stranded supersededId stops the next apply after a
+        // reload with session-changed.
+        foreach (var component in recreates.Where(component => component.Superseded is null && component.SupersededId is not null))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await SaveSlotIndexesAsync(prepared, component.Node.StableKey, component.Node.Id!, cancellationToken);
+            component.SupersededId = null;
+            prepared.State.Components[component.StableKey] = prepared.State.Components[component.StableKey] with { SupersededId = null };
+            Checkpoint(prepared);
+        }
         var inProgress = recreates.Where(component => component.AwaitsVerification && !undone.Contains(component))
             .Select(component => component.StableKey).ToArray();
         throw new RLoopException("APPLY_LIST_SHRINK_NOT_CONVERGED",
@@ -2610,7 +2645,7 @@ git add -A src tests
 git commit -m "Undo replacements whose list does not converge" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: 6 件とも PASS、全件も PASS（`RLoop.Tests` 361 件）。
+Expected: 6 件とも PASS、全件も PASS（`RLoop.Tests` 362 件）。
 
 ### Task B5: 中断した作り直しの再開と停止
 
@@ -2624,7 +2659,7 @@ Expected: 6 件とも PASS、全件も PASS（`RLoop.Tests` 361 件）。
 
 - [ ] **Step 1: テストを書く**
 
-Review Focus の 3 を含む。作り直しの途中で宣言をさらに短くした場合、再開した置き換え先と取り消す置き換え先の参照、フィールドを書かずに作った置き換え先の再開、取り消しの途中の中断、管理外の同じ型の Component、同じ Slot から移動する同じ型の Component、同じ apply で作る参照元の作成応答の喪失も確かめる。
+Review Focus の 3 を含む。作り直しの途中で宣言をさらに短くした場合、再開した置き換え先と取り消す置き換え先の参照、フィールドを書かずに作った置き換え先の再開、取り消しの途中の中断、管理外の同じ型の Component、同じ Slot から移動する同じ型の Component、同じ apply で作る参照元の作成応答の喪失、置き換え元がすでに無い再開の key がほかの key の検証失敗で止まる前に記録を片付けることも確かめる。
 
 **変更:** `tests/RLoop.Tests/ApplyWorkflowTests.ListShrink.cs` の次の部分の直前に追加する。
 
@@ -2952,6 +2987,46 @@ Review Focus の 3 を含む。作り直しの途中で宣言をさらに短く�
             new Dictionary<string, string[]> { ["renderer"] = ["m1", "m2", "m3"] });
     }
 
+    // A resumed recreate whose replaced Component is already gone is verified by nothing and undone by nothing, but its
+    // record is still settled (the supersededId cleared) before a NOT_CONVERGED stop, so a reload does not stop it with
+    // session-changed.
+    [Fact]
+    public async Task ANotConvergedApplyStillSettlesARecreateWhoseSourceIsGone()
+    {
+        var name = "settle-stranded";
+        var first = ReloadDocument(name, TwoRendererWorld(name, ["m1", "m2", "m3", "m4"], ["m1", "m2", "m3", "m4"]));
+        var shrinkFirst = ReloadDocument(name + "-first", TwoRendererWorld(name, ["m1", "m2", "m3"], ["m1", "m2", "m3", "m4"]));
+        var shrinkBoth = ReloadDocument(name + "-both", TwoRendererWorld(name, ["m1", "m2", "m3"], ["m1", "m2", "m3"]));
+        var client = new FakeResoniteClient(first);
+        var service = new WorldService(client);
+        var state = Path.Combine(_root, name + ".state.json");
+        await service.ApplyAsync(first, new ApplyOptions(state));
+        var r1 = StateId(state, "r1");
+        client.LoseResponseOnWrite = 3; // r1's replaced Component is removed, and its response is lost
+        await Assert.ThrowsAsync<IOException>(() => service.ApplyAsync(shrinkFirst, new ApplyOptions(state)));
+        client.LoseResponseOnWrite = null;
+        var r1Replacement = StateId(state, "r1");
+        Assert.NotEqual(r1, r1Replacement);
+        client.RefillListsTo = 4; // r2's replacement cannot shrink to 3
+
+        var error = await Assert.ThrowsAsync<RLoopException>(() => service.ApplyAsync(shrinkBoth, new ApplyOptions(state)));
+
+        Assert.Equal("APPLY_LIST_SHRINK_NOT_CONVERGED", error.Code);
+        Assert.Equal(["r2"], Assert.IsAssignableFrom<IEnumerable<string>>(error.Context["undone"]));
+        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<string>>(error.Context["inProgress"]));
+        // r1's replaced Component was already gone, so its supersededId is settled before the stop.
+        var checkpoint = JsonNode.Parse(File.ReadAllText(state))!;
+        Assert.Equal(r1Replacement, checkpoint["components"]!["r1"]!["id"]!.GetValue<string>());
+        Assert.Null(checkpoint["components"]!["r1"]!["supersededId"]);
+        Assert.Null(checkpoint["components"]!["r2"]!["supersededId"]);
+
+        client.RefillListsTo = null;
+        client.ReloadWorld("settle-stranded-2");
+        await service.ApplyAsync(shrinkFirst, new ApplyOptions(state)); // no session-changed stop for r1
+        await AssertListShrinkConvergedAsync(client, service, shrinkFirst, state, "r1",
+            new Dictionary<string, string[]> { ["r1"] = ["m1", "m2", "m3"], ["r2"] = ["m1", "m2", "m3", "m4"] });
+    }
+
 ```
 
 - [ ] **Step 2: 失敗することを確かめる**
@@ -2959,10 +3034,10 @@ Review Focus の 3 を含む。作り直しの途中で宣言をさらに短く�
 ```bash
 set -euo pipefail
 cd /workspaces/reso-world/external/resoloop/.worktrees/list-shrink-recreate-split
-dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release --filter "FullyQualifiedName~ARecreateInterruptedBeforeTheKeyLeavesItsSlot|FullyQualifiedName~APlanDuringAnInterruptedRecreate|FullyQualifiedName~AResumedReplacementThatPassesStays|FullyQualifiedName~AShorterDeclarationStopsWhileSomethingReferences|FullyQualifiedName~AShorterDeclarationAfterTheReplacedComponentIsGone|FullyQualifiedName~AResumedReplacementNeverPointsAtAnUndone|FullyQualifiedName~AResumedReplacementIsReadBack|FullyQualifiedName~AnUndoInterruptedAtEitherRemoval|FullyQualifiedName~AnUnmanagedSameTypeComponentStopsAResume|FullyQualifiedName~AMovingSameTypeComponentIsNotTaken|FullyQualifiedName~ALostCreateOfAComponentPointingAtAReplacement" || true
+dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release --filter "FullyQualifiedName~ARecreateInterruptedBeforeTheKeyLeavesItsSlot|FullyQualifiedName~APlanDuringAnInterruptedRecreate|FullyQualifiedName~AResumedReplacementThatPassesStays|FullyQualifiedName~AShorterDeclarationStopsWhileSomethingReferences|FullyQualifiedName~AShorterDeclarationAfterTheReplacedComponentIsGone|FullyQualifiedName~AResumedReplacementNeverPointsAtAnUndone|FullyQualifiedName~AResumedReplacementIsReadBack|FullyQualifiedName~AnUndoInterruptedAtEitherRemoval|FullyQualifiedName~AnUnmanagedSameTypeComponentStopsAResume|FullyQualifiedName~AMovingSameTypeComponentIsNotTaken|FullyQualifiedName~ALostCreateOfAComponentPointingAtAReplacement|FullyQualifiedName~ANotConvergedApplyStillSettles" || true
 ```
 
-Expected: 16 件のうち 15 件が FAIL（`APPLY_RECREATE_INTERRUPTED` が出ない、再開の理由が出ない、再開せずに作り直しを始め直して同じ型の Component が残る、など）。`AShorterDeclarationAfterTheReplacedComponentIsGoneRecreatesAgain` は、再開の扱いが無いこの時点でも置き換え先から新しく作り直すので PASS。
+Expected: 17 件のうち 16 件が FAIL（`APPLY_RECREATE_INTERRUPTED` が出ない、再開の理由が出ない、再開せずに作り直しを始め直して同じ型の Component が残る、置き換え元が無い key の `supersededId` が残る、など）。`AShorterDeclarationAfterTheReplacedComponentIsGoneRecreatesAgain` は、再開の扱いが無いこの時点でも置き換え先から新しく作り直すので PASS。
 
 - [ ] **Step 3: 実装する**
 
@@ -3039,7 +3114,7 @@ Expected: 16 件のうち 15 件が FAIL（`APPLY_RECREATE_INTERRUPTED` が出�
 ```csharp
                     // An interrupted recreate never matches by type or position on its old Slot; ValidateInterruptedRecreates
                     // stops it with key-not-declared.
-                    runtime.RelocationSource = sourceSlot is null || !string.IsNullOrEmpty(stateComponent.SupersededId) ? null :
+                    runtime.RelocationSource = sourceSlot is null || !string.IsNullOrEmpty(stateComponent!.SupersededId) ? null :
                         MatchComponent(sourceSlot.Components, spec.Type, ordinal, stateComponent, prepared.SameSession,
                             topologyTargets);
 ```
@@ -3238,13 +3313,13 @@ Expected: 16 件のうち 15 件が FAIL（`APPLY_RECREATE_INTERRUPTED` が出�
 ```bash
 set -euo pipefail
 cd /workspaces/reso-world/external/resoloop/.worktrees/list-shrink-recreate-split
-dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release --filter "FullyQualifiedName~ARecreateInterruptedBeforeTheKeyLeavesItsSlot|FullyQualifiedName~APlanDuringAnInterruptedRecreate|FullyQualifiedName~AResumedReplacementThatPassesStays|FullyQualifiedName~AShorterDeclarationStopsWhileSomethingReferences|FullyQualifiedName~AShorterDeclarationAfterTheReplacedComponentIsGone|FullyQualifiedName~AResumedReplacementNeverPointsAtAnUndone|FullyQualifiedName~AResumedReplacementIsReadBack|FullyQualifiedName~AnUndoInterruptedAtEitherRemoval|FullyQualifiedName~AnUnmanagedSameTypeComponentStopsAResume|FullyQualifiedName~AMovingSameTypeComponentIsNotTaken|FullyQualifiedName~ALostCreateOfAComponentPointingAtAReplacement"
+dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release --filter "FullyQualifiedName~ARecreateInterruptedBeforeTheKeyLeavesItsSlot|FullyQualifiedName~APlanDuringAnInterruptedRecreate|FullyQualifiedName~AResumedReplacementThatPassesStays|FullyQualifiedName~AShorterDeclarationStopsWhileSomethingReferences|FullyQualifiedName~AShorterDeclarationAfterTheReplacedComponentIsGone|FullyQualifiedName~AResumedReplacementNeverPointsAtAnUndone|FullyQualifiedName~AResumedReplacementIsReadBack|FullyQualifiedName~AnUndoInterruptedAtEitherRemoval|FullyQualifiedName~AnUnmanagedSameTypeComponentStopsAResume|FullyQualifiedName~AMovingSameTypeComponentIsNotTaken|FullyQualifiedName~ALostCreateOfAComponentPointingAtAReplacement|FullyQualifiedName~ANotConvergedApplyStillSettles"
 dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release
 git add -A src tests
 git commit -m "Resume an interrupted recreate by ID in the same session, and stop otherwise" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: 16 件とも PASS、全件も PASS（`RLoop.Tests` 377 件）。
+Expected: 17 件とも PASS、全件も PASS（`RLoop.Tests` 379 件）。
 
 ### Task B6: 置き換え元への参照の検査
 
@@ -3495,7 +3570,7 @@ git add -A src tests
 git commit -m "Stop a recreate when something unmanaged references the replaced Component" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: 8 件とも PASS、全件も PASS（`RLoop.Tests` 385 件）。
+Expected: 8 件とも PASS、全件も PASS（`RLoop.Tests` 387 件）。
 
 ### Task B7: 書き込みの位置ごとの網羅テスト
 
@@ -3669,7 +3744,7 @@ git add tests/RLoop.Tests/ApplyWorkflowTests.ListShrink.cs
 git commit -m "test: interrupt a list-shrink recreate at every write" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: 9 件とも PASS、全件も PASS（`RLoop.Tests` 394 件）。9 件の実行時間は合計で 20 秒前後。
+Expected: 9 件とも PASS、全件も PASS（`RLoop.Tests` 396 件）。9 件の実行時間は合計で 20 秒前後。
 
 ### Task B8: 文書、修正前との比較、コミットの整理、fork の PR B
 
@@ -3834,7 +3909,7 @@ git -C "$R" worktree remove --force "$C"
 test "$rc" -ne 0
 ```
 
-Expected: 394 件中 FAIL 50 件、PASS 344 件。FAIL は B で追加したテストだけ。B で追加した 57 件のうち PASS するのは次の 7 件だけ（今の挙動を固定するテストと、上流の既存の停止を確かめるテスト）: `AListThatDoesNotShrinkIsUpdatedInPlace`（grow・reorder）、`TheFakeClientCannotShrinkAListLikeResoniteLink`、`AShorterListInsideASyncObjectIsNotRecreated`、`AComponentMovedWithAShorterListIsRelocatedNotRecreated`、`TheFirstAdoptingApplyDoesNotRecreate`、`ARecreateKeepsAnAssetUrlThatAWorldSaveMigrated(legacyState: True)`。 作り直しのテストの多くは、PR B の Root cause と同じ `APPLY_REFERENCE_NOT_RETAINED` で失敗する（偽クライアントがリストを縮められないことの確認を兼ねる）。これ以外の組み合わせになったら先に進まずに報告する。Task C1 でテストを足した・削った場合は、この件数と PASS する一覧を更新してから確かめる。
+Expected: 396 件中 FAIL 52 件、PASS 344 件。FAIL は B で追加したテストだけ。B で追加した 59 件のうち PASS するのは次の 7 件だけ（今の挙動を固定するテストと、上流の既存の停止を確かめるテスト）: `AListThatDoesNotShrinkIsUpdatedInPlace`（grow・reorder）、`TheFakeClientCannotShrinkAListLikeResoniteLink`、`AShorterListInsideASyncObjectIsNotRecreated`、`AComponentMovedWithAShorterListIsRelocatedNotRecreated`、`TheFirstAdoptingApplyDoesNotRecreate`、`ARecreateKeepsAnAssetUrlThatAWorldSaveMigrated(legacyState: True)`。 作り直しのテストの多くは、PR B の Root cause と同じ `APPLY_REFERENCE_NOT_RETAINED` で失敗する（偽クライアントがリストを縮められないことの確認を兼ねる）。これ以外の組み合わせになったら先に進まずに報告する。Task C1 でテストを足した・削った場合は、この件数と PASS する一覧を更新してから確かめる。
 
 - [ ] **Step 3: 上流 CI に相当する確認を行う（Linux）**
 
@@ -3856,7 +3931,7 @@ unzip -p "$S/artifacts/ResoLoop.$VERSION.nupkg" '*resonite-debug/SKILL.md' | gre
 rm -rf -- "$S"
 ```
 
-Expected: `RLoop.Tests` 394 件、`RLoop.IntegrationTests` 19 件がすべて PASS、警告 0 件。pack・導入・スモークテストが成功し、最後の `grep -c` が 1 以上。
+Expected: `RLoop.Tests` 396 件、`RLoop.IntegrationTests` 19 件がすべて PASS、警告 0 件。pack・導入・スモークテストが成功し、最後の `grep -c` が 1 以上。
 
 - [ ] **Step 4: コミットを 2 件にまとめる**
 
@@ -3977,14 +4052,14 @@ ResoniteLink 0.13.1 には list の要素を削除する操作がありません
 
 ## Verification / 確認
 
-- Linux Dev Container, .NET SDK 10.0.201: `dotnet restore ResoLoop.slnx && dotnet build ResoLoop.slnx --configuration Release --no-restore && dotnet test ResoLoop.slnx --configuration Release --no-build --no-restore`: RLoop.Tests 394 and RLoop.IntegrationTests 19 passed, 0 warnings. Pack and the smoke test of the installed tool passed. Windows is left to the CI of the upstream PR; the CI of this fork has not run.
+- Linux Dev Container, .NET SDK 10.0.201: `dotnet restore ResoLoop.slnx && dotnet build ResoLoop.slnx --configuration Release --no-restore && dotnet test ResoLoop.slnx --configuration Release --no-build --no-restore`: RLoop.Tests 396 and RLoop.IntegrationTests 19 passed, 0 warnings. Pack and the smoke test of the installed tool passed. Windows is left to the CI of the upstream PR; the CI of this fork has not run.
 - `tests/RLoop.Tests/ApplyWorkflowTests.ListShrink.cs` stops the shrinking apply at every write, before the write lands and after it lands with its response lost, in two scenarios, and cancels it at every progress notification in one. Each time the next apply in the same session converges (or stops before any write on `replacement-unverified` until the recovery in its suggestions), and a world reload during a recreate stops plan and apply before any write without changing the state. Convergence means that every renderer and Source is bound to exactly one key, the declared lists, managed references on the replacement, saved indexes that match the Slot, and no writes on the next apply or after a world reload. A moved Component's source that an interrupted move leaves behind is an existing issue and not checked.
-- With `src/` reverted to the index fix, 50 of the 57 new test cases fail, and every other test passes. The other 7 pin behavior this PR keeps: a list that grows or is reordered, the fake client that cannot shrink a list, a shorter list inside a sync object, a moved Component with a shorter list, the first adopting apply, and the asset migration stop with a legacy state.
+- With `src/` reverted to the index fix, 52 of the 59 new test cases fail, and every other test passes. The other 7 pin behavior this PR keeps: a list that grows or is reordered, the fake client that cannot shrink a list, a shorter list inside a sync object, a moved Component with a shorter list, the first adopting apply, and the asset migration stop with a legacy state.
 - Real Resonite: (to be filled in after the check on a `ResoLoop_Test*` Slot)
 
-- Linux の Dev Container（.NET SDK 10.0.201）で上記のコマンドを実行し、RLoop.Tests 394 件と RLoop.IntegrationTests 19 件が成功し、警告は 0 件でした。pack と、導入したツールでのスモークテストも成功しました。Windows での確認は上流 PR の CI に任せます。この fork の CI は動かしていません。
+- Linux の Dev Container（.NET SDK 10.0.201）で上記のコマンドを実行し、RLoop.Tests 396 件と RLoop.IntegrationTests 19 件が成功し、警告は 0 件でした。pack と、導入したツールでのスモークテストも成功しました。Windows での確認は上流 PR の CI に任せます。この fork の CI は動かしていません。
 - `tests/RLoop.Tests/ApplyWorkflowTests.ListShrink.cs` は、2 つのシナリオで作り直しの apply を書き込みの位置ごとに止め（反映前の失敗と、反映後の応答の喪失）、1 つのシナリオで進捗の通知ごとにキャンセルします。そのたびに、同じセッションの次の apply が収束する（または `replacement-unverified` で書き込みの前に止まり、suggestions の復旧手順の後に収束する）こと、作り直しの途中で再読込すると plan と apply が書き込みの前に止まり、state が変わらないことを確かめます。収束とは、renderer と Source がそれぞれちょうど 1 つの key に結び付き、list が宣言どおりで、管理 Component の参照が新しい Component を指し、保存した index が Slot と一致し、次の apply と再読込後の apply の書き込みが 0 件になることです。移動の中断で移動元が残る既存の問題は確かめていません。
-- `src/` を index の修正の状態に戻すと、追加した 57 件のうち 50 件が失敗し、それ以外のテストはすべて成功します。残りの 7 件は、この PR が保つ挙動（長くなる list と並べ替えた list、list を縮められない偽クライアント、sync object の中の短い list、短い list を持つ Component の移動、adopt の初回の apply、古い state でのアセット移行の停止）を固定するテストです。
+- `src/` を index の修正の状態に戻すと、追加した 59 件のうち 52 件が失敗し、それ以外のテストはすべて成功します。残りの 7 件は、この PR が保つ挙動（長くなる list と並べ替えた list、list を縮められない偽クライアント、sync object の中の短い list、短い list を持つ Component の移動、adopt の初回の apply、古い state でのアセット移行の停止）を固定するテストです。
 - 実機での確認:（`ResoLoop_Test*` の Slot で確認した後に記入）
 
 ## Known limitations / 既知の制限

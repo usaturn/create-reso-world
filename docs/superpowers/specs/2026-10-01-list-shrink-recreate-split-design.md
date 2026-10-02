@@ -1,6 +1,6 @@
 # リスト縮小時の Component の作り直し（分割案）と Slot の index の保存し直し
 
-- **状態**: 設計確定（2026-10-01）。第 1〜4 節はユーザが節ごとに承認した。第 5・6 節は、ユーザの指示（「途中で止めずに、推奨案で進めてください」）により推奨案で確定した。同日、Spec と計画のレビュー（`docs_draft/2026-10-01-list-shrink-recreate-split-review.md`、R-01〜R-65）を反映した。反映の判断と、ユーザが決める事項をレビューの推奨で決めたもの（D-27〜D-32）は、`docs/superpowers/specs/2026-10-01-list-shrink-recreate-split-review-fixes-design.md` と 12 章にある。
+- **状態**: 設計確定（2026-10-01）。第 1〜4 節はユーザが節ごとに承認した。第 5・6 節は、ユーザの指示（「途中で止めずに、推奨案で進めてください」）により推奨案で確定した。同日、Spec と計画のレビュー（`docs_draft/2026-10-01-list-shrink-recreate-split-review.md`、R-01〜R-65）を反映した。反映の判断と、ユーザが決める事項をレビューの推奨で決めたもの（D-27〜D-33）は、`docs/superpowers/specs/2026-10-01-list-shrink-recreate-split-review-fixes-design.md` と 12 章にある。
 - **引き継ぎ元**: usaturn/resoloop#6（この Spec ができるまでの正本）。上流での相談は orange3134/resoloop#5。「第 n 節」は brainstorming で提示した設計の節を指す。第 1・2 節の本文は usaturn/resoloop#6 の §5.1・§5.2 にある。
 - **実装計画**: `docs/superpowers/plans/2026-10-01-list-shrink-recreate-split.md`。計画のコードは、上流 `b3a84ae` の使い捨てのコピーで試作して検証した（試作で見つかった設計の補正は D-26）。実装は、この Spec と計画を含む create-reso-world の PR #8 がマージされてから、マージされた版を参照して始める。
 - **対象**: fork の usaturn/resoloop（作業ルートは create-reso-world の `external/resoloop`）。分岐元は fork の main `b3a84ae`（上流の `v0.1.0-preview.15` と同じ）。
@@ -78,7 +78,7 @@ fork PR #5 は上流の最新と衝突し、レビュー修正も打ち切って
 ### 4.1 範囲内
 
 - **A**
-  - Component を削除した後に、その Slot の key の `componentIndex` を保存し直す（`SaveSlotIndexes`）。
+  - Component を削除した後に、その Slot の key の `componentIndex` を保存し直す（`SaveSlotIndexesAsync`）。
   - 削除計画が文書から外した key（Component と Slot）に照合した結果を、state に保存する。
 - **B（分割の範囲）**
   - 同じセッションの中での作り直しと、作り直しの途中からの再開。
@@ -114,11 +114,11 @@ fork PR #5 は上流の最新と衝突し、レビュー修正も打ち切って
 
 ## 6. 設計 A: index の保存し直しと、文書から外した key の照合結果の保存
 
-### 6.1 `SaveSlotIndexes`
+### 6.1 `SaveSlotIndexesAsync`
 
 - **入力**: `PreparedApply`、Slot の stable key、Slot の ID。
 - **処理**: `GetSlotAsync(slotId, 0, false)` で Slot を読み直し、Component の ID の並びを得る。state の Component のうち `slotKey` がその Slot のものについて、保存している `id` が並びの中にあれば、その位置を `componentIndex` に保存する。見つからない key は変えない。あわせて、その Slot に宣言した key の実行時の `ComponentIndex` も実機の位置に合わせる。フィールドの段階が、実行時の値で state を書き直すためである（移動先が先に処理される向きの移動で、フィールドの段階が古い index を書き戻していた。R-01）。
-- **保存**: メモリ上の state だけを変える。呼び出し側が直後の checkpoint で保存する。削除で state から key を外す変更は、Slot を読み直す前に checkpoint する（上流と同じく、削除とそれを state に反映する checkpoint の間に await を挟まない。R-08）。`SaveSlotIndexes` の結果はその後の checkpoint で保存する。
+- **保存**: メモリ上の state だけを変える。呼び出し側が直後の checkpoint で保存する。削除で state から key を外す変更は、Slot を読み直す前に checkpoint する（上流と同じく、削除とそれを state に反映する checkpoint の間に await を挟まない。R-08）。`SaveSlotIndexesAsync` の結果はその後の checkpoint で保存する。
 - **呼び出し場所**:
   - A: Component の移動元を削除した後（移動元の Slot）、prune で Component を削除した後（その Component の Slot）
   - B: 置き換え元を削除した後、置き換え先を取り消した後（7.5）
@@ -137,9 +137,9 @@ fork PR #5 は上流の最新と衝突し、レビュー修正も打ち切って
 
 ### 6.3 I1 が成り立つ理由
 
-- **宣言中の key**: apply のたびに、plan の時点の位置を保存し直す（上流の挙動）。そのうえで、削除のたびに `SaveSlotIndexes` が保存し直す。フィールドの段階は、`SaveSlotIndexes` が合わせた実行時の値で保存するので、削除の後に処理される key も実機の位置になる。
-- **文書から外した key**: 6.2 で照合結果を保存し、削除のたびに `SaveSlotIndexes` が保存し直す。
-- **この apply で作った key**: plan の時点の位置（作成時点で正しい）を保存し、その後の削除のたびに `SaveSlotIndexes` が保存し直す。
+- **宣言中の key**: apply のたびに、plan の時点の位置を保存し直す（上流の挙動）。そのうえで、削除のたびに `SaveSlotIndexesAsync` が保存し直す。フィールドの段階は、`SaveSlotIndexesAsync` が合わせた実行時の値で保存するので、削除の後に処理される key も実機の位置になる。
+- **文書から外した key**: 6.2 で照合結果を保存し、削除のたびに `SaveSlotIndexesAsync` が保存し直す。
+- **この apply で作った key**: plan の時点の位置（作成時点で正しい）を保存し、その後の削除のたびに `SaveSlotIndexesAsync` が保存し直す。
 - **途中の作り直しがある Slot**: I1 の対象外。完了時（7.3 の段階 5）に保存し直す。
 
 ## 7. 設計 B: 作り直し
@@ -168,7 +168,7 @@ fork PR #5 は上流の最新と衝突し、レビュー修正も打ち切って
    - 作成の直前に、その key の state の記録を控える（7.5 の取り消しで戻す記録。アセットの段階で再インポートにより消した根拠は、この時点ですでに消えている。R-03）。
    - 作成前の checkpoint で、`id: ""`、`supersededId: 置き換え元の ID`、`assetFields: {}` を保存する（第 1 節の手順 2）。
    - `AddComponentAsync` で作成し、`id: 新しい ID` を保存する（手順 3）。`supersededId` は残す。
-   - 置き換え元が残っている間、置き換え先は全件の検証が通るまで参照先にしない（I4）。この段階で後から作るほかの Component（ほかの置き換え先を含む）は、検証待ちの置き換え先を参照するフィールドだけを除いて作り、参照以外のフィールド（`initialFields` を含む）は作成時に書く（R-11）。除いた参照はフィールドの段階で書く。
+   - 置き換え元が残っている間、置き換え先は全件の検証が通るまで参照先にしない（I4）。この段階で後から作るほかの Component（ほかの置き換え先を含む）は、検証待ちの置き換え先（作る Component 自身を含む）を参照するフィールドだけを除いて作り、参照以外のフィールド（`initialFields` を含む）は作成時に書く（R-11）。除いた参照はフィールドの段階で書く。
    - この apply で作る Component の、フィールドを書く前の checkpoint（作成前・作成後）には、作成時に書いた参照の selector だけを保存する。書いていない参照を照合の条件にすると、作成応答を失った後の再実行が作成済みの Component を候補から外し、もう 1 つ作るため（R-12）。
 3. **★作り直しの検証**: 作り直す key ごとに、文書の順で次を行う（手順 4）。
    - 作成時に書けなかったフィールド（`initialFields` と `fields`）のうち、検証待ちの置き換え先（自分自身を含む）を参照しないものを、`ForgetComponentAssetEvidence` → checkpoint → `SetComponentMembersAsync` の順に書く。検証待ちの置き換え先を参照するフィールドは、フィールドの段階で書く（R-02）。
@@ -176,12 +176,12 @@ fork PR #5 は上流の最新と衝突し、レビュー修正も打ち切って
    - 置き換え先を読み直し、宣言したリストのうち、宣言より要素数が多いものがあれば失敗とする。
    - すべての key を確かめた後、失敗があれば 7.5 の取り消しを行って止める。失敗が無ければ、置き換え先を参照先に加え、書いた値を作成時の値として扱い、フィールドの段階で書き直さない。
    - 置き換え元がすでに無い key（前の apply で削除が済み、その後の checkpoint だけが失われたもの）は、検証しない。段階 5 で記録を片付けるだけにする。
-4. **フィールドの段階**: 従来どおり。管理 Component の宣言済みの参照は、ここで置き換え先の ID に張り替わる（手順 5）。移動元を削除した後には `SaveSlotIndexes` を呼ぶ（A）。
+4. **フィールドの段階**: 従来どおり。管理 Component の宣言済みの参照は、ここで置き換え先の ID に張り替わる（手順 5）。移動元を削除した後には `SaveSlotIndexesAsync` を呼ぶ（A）。
 5. **★置き換え元の削除**: 作り直す key ごとに、次を行い、1 回の checkpoint で保存する（手順 6）。
    - 置き換え元が残っていれば `RemoveComponentAsync` で削除する。
-   - その Slot に `SaveSlotIndexes` を呼ぶ。
+   - その Slot に `SaveSlotIndexesAsync` を呼ぶ。
    - `supersededId` を消す。
-6. **Slot の移動、prune、参照の再確認**: 従来どおり。prune で Component を削除した後には `SaveSlotIndexes` を呼ぶ（A）。
+6. **Slot の移動、prune、参照の再確認**: 従来どおり。prune で Component を削除した後には `SaveSlotIndexesAsync` を呼ぶ（A）。
 
 作り直しは件数として、Component の作成 1 件と削除 1 件に数える（`ComponentsAdded`・`ComponentsDeleted`）。検証の段階の書き込みは件数に含めない。進捗の表示には、置き換え元の削除を加える（移動元の削除と同じく、段階名 `fields` の進捗として出す。置き換え先の作成は、通常の作成として表示される）。
 
@@ -209,7 +209,8 @@ state に `supersededId` がある key は、次のように扱う。位置に�
 - **取り消しの手順**: 対象の key ごとに次を行い、最後に 1 回 checkpoint してから `APPLY_LIST_SHRINK_NOT_CONVERGED` で止める。
   1. 置き換え先が残っていれば削除する。
   2. state の記録を戻す。この apply で作り直しを始めた key は、置き換え先を作る直前の記録（7.3 の段階 2 で控えたもの。アセットの段階で再インポートにより消した根拠は戻さない）に戻す。再開した key は、`id` を `supersededId` の値に戻し、`supersededId` を消し、`assetFields` を空（根拠なし）にする。
-  3. その Slot に `SaveSlotIndexes` を呼ぶ（同じ apply で置き換え先の後ろに作った Component の index も直る）。
+  3. その Slot に `SaveSlotIndexesAsync` を呼ぶ（同じ apply で置き換え先の後ろに作った Component の index も直る）。
+- **投げる前の片付け**: `APPLY_LIST_SHRINK_NOT_CONVERGED` を投げる前に、置き換え元がすでに無い key は段階 5 と同じく `SaveSlotIndexesAsync` を呼んで `supersededId` を消し、checkpoint する（削除はしない）。検証も取り消しの対象にもならない key なので、このまま止まると `supersededId` が残り、再読込のあとの apply が `session-changed` で止まる（PR #8 のレビュー）。`inProgress` には入れない。
 - **取り消しの途中で失敗した場合**: その時点のエラーで止まる。state には `supersededId` が残るので、次の同じセッションの apply で再開する。再開した置き換え先は、検証を通れば残り（前の apply から再開した置き換え先の規則）、検証に失敗した key と、その apply で作り直した置き換え先は改めて取り消す。
 
 ### 7.6 変更前の検査
@@ -364,7 +365,7 @@ state に `supersededId` がある key は、次のように扱う。位置に�
 
 ### 10.1 A
 
-1. fork の main から `fix/slot-index-after-removal` の worktree を作り、8.4 の最初のテストを書いて失敗を確かめる。再現しなければユーザに報告し、A をやめて I1 は B の中だけで扱う（D-15）。そのときは、作ったブランチと worktree を消さずに残して報告し、B の計画（分岐元、A の補助関数、`SaveSlotIndexes`）の作り直しをユーザと決める。
+1. fork の main から `fix/slot-index-after-removal` の worktree を作り、8.4 の最初のテストを書いて失敗を確かめる。再現しなければユーザに報告し、A をやめて I1 は B の中だけで扱う（D-15）。そのときは、作ったブランチと worktree を消さずに残して報告し、B の計画（分岐元、A の補助関数、`SaveSlotIndexesAsync`）の作り直しをユーザと決める。
 2. fork に A の Issue を出す（英日併記。再現手順と 3.3 の結果、環境と確認方法（偽クライアントで確かめ、実機では未確認であること）を載せる）。Issue の番号は作業報告に記録する。
 3. 6 章を実装する。fork の main 向けに PR を出す。本文の番号は、コマンドで取得して置き換える（引用付き heredoc の中で手で置き換えない）。
 
@@ -393,7 +394,7 @@ state に `supersededId` がある key は、次のように扱う。位置に�
 - **コミット**: A は 2 件（index の保存し直し／文書から外した key の照合結果の保存）、B は 2 件（実装とテスト／文書）。件名は英文の命令形にする。`Refs orange3134/resoloop#5` は、上流に出す前の最後のまとめ直し（計画の C1）で B の 2 件に付け、fork での作業中は付けない（push や rebase のたびに上流 #5 のタイムラインに参照が増えるため。R-55）。表記は完全な形の `orange3134/resoloop#5` のまま。Claude Code が書くコミットの末尾には `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` を付ける。
 - **レビュー修正**: fork でのレビュー修正は同じブランチに積む（対象のコミットを指定した `fixup!` にする）。`*-review-fixes` のような別のブランチや PR は作らない。A を変えたら、B を A の上へ載せ直してから（`git rebase --onto`）まとめ直す（R-07）。上流に出す前に、上の構成へまとめ直し、上流の main に追従する。上流に出す前の A・B の force push は `--force-with-lease` で行い、ほかのブランチは force push しない。
 - **上流に出した後**: 原則としてコミットを足して直し、履歴を書き換えない。push の前に必ず fetch し、メンテナーのコミットがあれば取り込む。A が変わらずにマージされた場合は B を rebase しない（上流はマージコミットでマージするので、PR B の差分は B の変更だけになる）。A が変わって B と食い違った場合や、メンテナーの依頼がある場合に限り、ユーザの確認を取って、B を `--force-with-lease` で新しい A（または upstream/main）の上へ載せ直し、PR B にコメントする。A のブランチは、メンテナーの依頼が無い限り force push しない。メンテナーのコミットは消さない。載せ直した後は、修正前との比較と全件のテストをやり直す。B のまとめ直し（`reset --soft`）は、提出後は行わない。
-- **本文**: fork の Issue・PR の本文は、上流にそのまま流用できるよう、最初から英日併記で書く。Issue は Summary / Reproduction / Environment and verification / Proposed fix、PR は Summary / Root cause / Verification / Known limitations（既知の制限。4.2 と 11 章に対応）の構成にする。PR の Summary に互換性と既存の規則（`--yes`）との関係を入れ、Verification に検証した OS と SDK、実機で確かめたかどうかを書く。B の PR には「A を先にマージ」と書く（R-31、R-56）。本文の件数は直前の実行結果に合わせ、レビュー修正の後は `gh pr edit --body-file` で更新する。
+- **本文**: fork の Issue・PR の本文は、上流にそのまま流用できるよう、最初から英日併記で書く。Issue は Summary / Reproduction / Environment and verification / Proposed fix、PR は Summary / Root cause / Verification / Known limitations（既知の制限。4.2 と 11 章に対応）の構成にする。PR の Summary に互換性と既存の規則（`--yes`）との関係を入れ、Verification に検証した OS と SDK、実機で確かめたかどうかを書く。B の PR には「A を先にマージ」と書く（R-31、R-56）。本文の件数は直前の実行結果に合わせ、レビュー修正の後は `gh pr edit --body-file` で更新する（このリポジトリの PR でも同じ）。
 - **fork の PR はマージしない**（D-8）。上流でマージされた後に close する。
 
 ### 10.5 上流への提出（D-11）
@@ -419,11 +420,11 @@ state に `supersededId` がある key は、次のように扱う。位置に�
 
 ### 11.2 再読込後の再開に対応するときに変える箇所
 
-- 作り直しの途中の checkpoint でも `SaveSlotIndexes` を呼ぶ（6.1 で、どこからでも呼べる形にしてある）。
+- 作り直しの途中の checkpoint でも `SaveSlotIndexesAsync` を呼ぶ（6.1 で、どこからでも呼べる形にしてある）。
 - 置き換え元と置き換え先を、ID なしで見分けるための記録を state に残す（例: 置き換え先に書いたリストの要素数と参照先、置き換え元の位置）。
 - I3 の判定に、その記録を使う。
 - 削除の予定を、削除の前に state に記録する。11.1 の 2・3 つ目と、Component の移動が中断すると移動元が残る問題（4.2。移動先の作成前の checkpoint の後、作成が反映される前の失敗でも起きる）も、この記録でまとめて扱える見込み。
-- 再読込後の再開に対応すれば、`session-changed` の復旧での state の手編集（11.4）は不要になる。レビューで出た「置き換え先を削除し、index を置き換え元の位置に保つ」案は、参照の張り替えの後に置き換え先を削除すると張り替え済みの参照元が重複するので、そのままでは採らない。採るなら、参照の張り替えの状態で手順を分け、`SaveSlotIndexes` を置き換え元の位置で保存する形にする（D-20 の変更）。
+- 再読込後の再開に対応すれば、`session-changed` の復旧での state の手編集（11.4）は不要になる。レビューで出た「置き換え先を削除し、index を置き換え元の位置に保つ」案は、参照の張り替えの後に置き換え先を削除すると張り替え済みの参照元が重複するので、そのままでは採らない。採るなら、参照の張り替えの状態で手順を分け、`SaveSlotIndexesAsync` を置き換え元の位置で保存する形にする（D-20 の変更）。
 
 ### 11.3 そのときに必要な網羅テスト
 
@@ -465,7 +466,7 @@ state に `supersededId` がある key は、次のように扱う。位置に�
 | D-17 | resolved | 設計の第 3〜6 節 | この Spec で確定 |
 | D-18 | fix | この Spec と実装計画は、create-reso-world のブランチ `docs/list-shrink-recreate-split` の PR 1 本にまとめる | ユーザの決定 |
 | D-19 | resolved | create-reso-world PR #6（ロックを nuget 0.1.0-preview.15 に） | マージ済み（`eef3620`） |
-| D-20 | fix | 第 3 節前半: state、apply の段階、再開の条件に「同じ Slot に宣言」を追加、検証の失敗時の取り消しの範囲、`SaveSlotIndexes` の方式 | ユーザ承認（2026-10-01） |
+| D-20 | fix | 第 3 節前半: state、apply の段階、再開の条件に「同じ Slot に宣言」を追加、検証の失敗時の取り消しの範囲、`SaveSlotIndexesAsync` の方式 | ユーザ承認（2026-10-01） |
 | D-21 | fix | A の範囲に、文書から外した key（Component と Slot）の照合結果の保存を含める | ユーザ承認（2026-10-01） |
 | D-22 | fix | 第 3 節後半: 3 つのコード、`APPLY_RECREATE_INTERRUPTED` への統合と `reason`、plan の表示、アセット移行との統合 | ユーザ承認（2026-10-01） |
 | D-23 | fix | 第 4 節: テスト（書き込みの位置ごとの網羅テストを含む） | ユーザ承認（2026-10-01） |
