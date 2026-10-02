@@ -18,7 +18,8 @@
 - 最後まで適用した状態で、上流 CI と同じ restore・build・test を実行し、`RLoop.Tests` 394 件と `RLoop.IntegrationTests` 19 件がすべて成功し、警告は 0 件だった。
 - ミューテーション確認: 実装の要点 33 か所をそれぞれ壊すと、対応するテストが失敗した（壊した箇所の一覧は review-fixes の Spec の 5 章）。
 - A の `src/` を上流 `b3a84ae` に戻すと A で追加したテストが失敗し、B の `src/` を A の状態に戻すと B で追加したテストのうち今の挙動を固定するもの以外が失敗することを、全件の実行で確かめた（Task A4 Step 1、Task B8 Step 2）。
-- PR #8 のレビュー（`reviews/#8-docs-list-shrink-recreate-split/`）の反映で、B3 の作成ブロックと B4 の `VerifyReplacementsAsync` に小さい変更を足し、テストを 2 件追加した（2026-10-02）。この分は試作の再生を通っていないため、実装時は各 Task の Step の Expected（最終 `RLoop.Tests` 396 件）で確かめる。
+- PR #8 の最初のレビュー反映で、B3 の作成ブロックと B4 の `VerifyReplacementsAsync` に小さい変更を足し、テストを 2 件追加した（2026-10-02）。この分は上記の全件再生・ミューテーション33箇所の対象外である。
+- 同日の第2回レビュー反映で、その2テストの引数順と書き込みカウンタを修復し、B5 の `session-changed` の案内を補正し、両候補が参照される中断を固定するテストを B7 に1件追加した。上流 `b3a84ae` の新しい一時コピーへ修正後の source/test 66操作を適用し、追加済みの2件と B7 の10ケースを filter 実行して12ケースすべてが成功した（.NET SDK 10.0.401）。自己参照の除外だけを壊すと、修復したテストが Enabled の欠落で失敗することも確認した。これは関連ケースだけの確認で、全件再生・33箇所の再確認・実機検証ではない。実装時は各 Task の Step の Expected（最終 `RLoop.Tests` 397 件）で確かめる。
 
 「置き換え前」のコードと「直後に追加」「直前に追加」の目印は、その時点のファイルの中で 1 か所だけ一致することを確かめてある。行番号は書かない。エディタで文字列を検索して置き換えること。Markdown の「置き換え前」「直後に追加」「直前に追加」は、コードブロック末尾の改行を除いて目印を検索する。追加する内容が空行から始まらないものは、改行を入れずに目印と同じ行へ続けて書く。空行から始まるものは、目印を含む段落の後に空行を挟んで新しい段落として書く。空行で終わる「直前に追加」は、目印の前に段落の区切りを置く。C# のブロックは行単位で当てる。
 
@@ -1987,8 +1988,8 @@ Expected: 7 件とも PASS、全件も PASS（`RLoop.Tests` 347 件）。
             """{"key":"renderer","type":"Test.Renderer","fields":{"Materials""",
             """{"key":"renderer","type":"Test.Renderer","initialFields":{"Enabled":true},"fields":{"Target":"$ref:renderer","Materials""",
             StringComparison.Ordinal);
-        var (client, service, state, shrunk) = await ApplyRubbleAsync("self-recreate", World("m1", "m2", "m3", "m4"),
-            World("m1", "m2", "m3"));
+        var (client, service, state, shrunk) = await ApplyRubbleAsync("self-recreate", World("m1", "m2", "m3"),
+            World("m1", "m2", "m3", "m4"));
         var original = RubbleRenderers(client).Single().Id;
         client.LoseResponseOnWrite = 1; // the replacement's create lands, and its response is lost
         await Assert.ThrowsAsync<IOException>(() => service.ApplyAsync(shrunk, new ApplyOptions(state)));
@@ -3002,6 +3003,7 @@ Review Focus の 3 を含む。作り直しの途中で宣言をさらに短く�
         var state = Path.Combine(_root, name + ".state.json");
         await service.ApplyAsync(first, new ApplyOptions(state));
         var r1 = StateId(state, "r1");
+        client.ResetWriteCounts();
         client.LoseResponseOnWrite = 3; // r1's replaced Component is removed, and its response is lost
         await Assert.ThrowsAsync<IOException>(() => service.ApplyAsync(shrinkFirst, new ApplyOptions(state)));
         client.LoseResponseOnWrite = null;
@@ -3231,13 +3233,16 @@ Expected: 17 件のうち 16 件が FAIL（`APPLY_RECREATE_INTERRUPTED` が出�
         // After a reload, nothing tells the recreate's Components apart from those of another same-type key on the Slot.
         var sameTypeKeys = prepared.State.Components.Any(pair => pair.Key != key && pair.Value.SlotKey == saved.SlotKey &&
             TypeNamesEquivalent(pair.Value.Type, saved.Type));
+        var multipleReferencedCandidates = candidates.Count(component => ReferencesTo(prepared, component).Length > 0) > 1;
         var (message, suggestions) = reason switch
         {
             "session-changed" => (
                 $"A list-shrink recreate of '{key}' was interrupted and the world session changed, so the replaced Component and its replacement can no longer be told apart by ID. No mutations were performed.",
                 sameTypeKeys
                     ? new[] { "Another key on this Slot has the same type, so the candidates include its Components and apply cannot tell the recreate's Components apart. Keep the state file as it is, check in Resonite what each candidate references and what references it, and do not repair this by guessing IDs." }
-                    : new[] { "Keep the candidate that the Components in its referencedBy point at, or either one if none is referenced, and remove the other with 'resoloop component remove ID --yes'. Use only the IDs in candidates; supersededId and savedId are IDs from the earlier session.",
+                    : multipleReferencedCandidates
+                        ? new[] { "More than one candidate is referenced, so removing either can break a managed reference. Keep the state file as it is and do not remove a candidate or clear supersededId yet. Inspect the Components in each candidate's referencedBy, check their intended targets in Resonite, and re-point those references as needed. Then re-run apply to inspect the candidates again; do not choose a Component by its list length or by an ID from the earlier session." }
+                        : new[] { "Keep the candidate that the Components in its referencedBy point at, or either one if none is referenced, and remove the other with 'resoloop component remove ID --yes'. Use only the IDs in candidates; supersededId and savedId are IDs from the earlier session.",
                               $"Then back up the state file, set components.{key}.id to its supersededId if the ID is empty, delete supersededId, and re-run apply." }),
             "key-not-declared" => (
                 $"A list-shrink recreate of '{key}' was interrupted, and the document no longer declares the key on its Slot. No mutations were performed.",
@@ -3582,7 +3587,9 @@ Expected: 8 件とも PASS、全件も PASS（`RLoop.Tests` 387 件）。
 
 - [ ] **Step 1: 網羅テストを書く**
 
-シナリオは 2 つ。`one-recreate`（S1）は Component を 1 つ作り直し、それを管理 Component が参照し、同じ apply で作る参照元（watcher）もそれを参照する。`shared-slot`（S2）は同じ Slot で 2 つを作り直し、その Slot から別の Component を移動し、文書から外した同じ型の key を残し、同じ apply で後から作る material を参照する。書き込みの位置 k を 1 から最後まで、反映前の失敗と、反映後の応答の喪失で止め、同じセッションでの再開と、再読込の後の停止を確かめる。`replacement-unverified` で止まった場合は、書き込み 0 件で止まったことと、suggestions の基準で選んだ候補が 1 つで中断した apply が作ったものであることを確かめてから、それだけを削除する。再読込の後は、plan も止まり、2 回の apply が止まり、state が変わらないことを確かめ、S1 では suggestions の手順（`referencedBy` で参照されている候補を残す）で収束させ、S2 では自動では区別できないことを示す suggestion を確かめる。S1 では、進捗の通知ごとのキャンセルも確かめる。収束の判定は、作り直す型（Test.Renderer）と参照元（Test.Source）の各 Component が state の key にちょうど 1 つずつ結び付いていること、参照、state の index に限る。移動の中断で移動元（Test.Indexed の mover）が残る問題は上流の既存の課題（範囲外）で、判定の対象外。
+既存のシナリオは 2 つ。`one-recreate`（S1）は Component を 1 つ作り直し、それを管理 Component が参照し、同じ apply で作る参照元（watcher）もそれを参照する。`shared-slot`（S2）は同じ Slot で 2 つを作り直し、その Slot から別の Component を移動し、文書から外した同じ型の key を残し、同じ apply で後から作る material を参照する。書き込みの位置 k を 1 から最後まで、反映前の失敗と、反映後の応答の喪失で止め、同じセッションでの再開と、再読込の後の停止を確かめる。`replacement-unverified` で止まった場合は、書き込み 0 件で止まったことと、suggestions の基準で選んだ候補が 1 つで中断した apply が作ったものであることを確かめてから、それだけを削除する。再読込の後は、plan も止まり、2 回の apply が止まり、state が変わらないことを確かめ、S1 では suggestions の手順（`referencedBy` で参照されている候補を残す）で収束させ、S2 では自動では区別できないことを示す suggestion を確かめる。S1 では、進捗の通知ごとのキャンセルも確かめる。収束の判定は、作り直す型（Test.Renderer）と参照元（Test.Source）の各 Component が state の key にちょうど 1 つずつ結び付いていること、参照、state の index に限る。移動の中断で移動元（Test.Indexed の mover）が残る問題は上流の既存の課題（範囲外）で、判定の対象外。
+
+加えて、既存の管理参照が2件ある状態で一方だけが置き換え先へ張り替わってから中断し、再読込した場合を1件固定する。両候補に参照が残るため、state を変えず、候補の削除や supersededId の除去を早まらず、参照元の確認・張り替え・再検査を案内することを確かめる。
 
 **変更:** `tests/RLoop.Tests/ApplyWorkflowTests.ListShrink.cs` の次の部分の直前に追加する。
 
@@ -3729,6 +3736,38 @@ Expected: 8 件とも PASS、全件も PASS（`RLoop.Tests` 387 件）。
         }
     }
 
+    // A lost field response can leave managed references split between the old and new Components. After a reload,
+    // neither referenced candidate can be deleted safely until those references have been checked and re-pointed.
+    [Fact]
+    public async Task AWorldReloadWithBothRecreateCandidatesReferencedDoesNotSuggestDeletingEither()
+    {
+        var name = "split-references";
+        var (client, service, state, shrunk) = await ApplyRubbleAsync(name,
+            RubbleWorld(name, ["m1", "m2", "m3"], "rubble", watcher: true),
+            RubbleWorld(name, ["m1", "m2", "m3", "m4"], "rubble", watcher: true));
+        client.LoseResponseOnWrite = 2; // create lands, then source's re-point lands and its response is lost
+        await Assert.ThrowsAsync<IOException>(() => service.ApplyAsync(shrunk, new ApplyOptions(state)));
+        client.LoseResponseOnWrite = null;
+        Assert.Equal(2, RubbleRenderers(client).Count());
+        client.ReloadWorld("split-references-reloaded");
+        client.ResetWriteCounts();
+        var before = File.ReadAllText(state);
+
+        var error = await Assert.ThrowsAsync<RLoopException>(() => service.ApplyAsync(shrunk, new ApplyOptions(state)));
+
+        Assert.Equal("APPLY_RECREATE_INTERRUPTED", error.Code);
+        Assert.Equal("session-changed", error.Context["reason"]);
+        Assert.Equal(0, client.Writes);
+        Assert.Equal(before, File.ReadAllText(state));
+        var candidates = System.Text.Json.JsonSerializer.SerializeToNode(error.Context["candidates"])!.AsArray();
+        Assert.Equal(2, candidates.Count);
+        Assert.All(candidates, candidate => Assert.Single(candidate!["referencedBy"]!.AsArray()));
+        Assert.DoesNotContain(error.Suggestions, suggestion => suggestion.Contains("remove the other", StringComparison.Ordinal));
+        Assert.DoesNotContain(error.Suggestions, suggestion => suggestion.Contains("delete supersededId", StringComparison.Ordinal));
+        Assert.Contains(error.Suggestions, suggestion => suggestion.Contains("re-point", StringComparison.Ordinal));
+    }
+
+
 ```
 
 - [ ] **Step 2: 成功することを確かめてコミットする**
@@ -3738,13 +3777,13 @@ Expected: 8 件とも PASS、全件も PASS（`RLoop.Tests` 387 件）。
 ```bash
 set -euo pipefail
 cd /workspaces/reso-world/external/resoloop/.worktrees/list-shrink-recreate-split
-dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release --filter "FullyQualifiedName~ARecreateInterruptedAtAnyWriteConverges|FullyQualifiedName~AWorldReloadDuringARecreateStops|FullyQualifiedName~ARecreateCancelledAtAnyProgress"
+dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release --filter "FullyQualifiedName~ARecreateInterruptedAtAnyWriteConverges|FullyQualifiedName~AWorldReloadDuringARecreateStops|FullyQualifiedName~AWorldReloadWithBothRecreateCandidatesReferenced|FullyQualifiedName~ARecreateCancelledAtAnyProgress"
 dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --configuration Release
 git add tests/RLoop.Tests/ApplyWorkflowTests.ListShrink.cs
 git commit -m "test: interrupt a list-shrink recreate at every write" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: 9 件とも PASS、全件も PASS（`RLoop.Tests` 396 件）。9 件の実行時間は合計で 20 秒前後。
+Expected: 10 件とも PASS、全件も PASS（`RLoop.Tests` 397 件）。実行時間の目安は既存の 9 件で合計 20 秒前後。
 
 ### Task B8: 文書、修正前との比較、コミットの整理、fork の PR B
 
@@ -3909,7 +3948,7 @@ git -C "$R" worktree remove --force "$C"
 test "$rc" -ne 0
 ```
 
-Expected: 396 件中 FAIL 52 件、PASS 344 件。FAIL は B で追加したテストだけ。B で追加した 59 件のうち PASS するのは次の 7 件だけ（今の挙動を固定するテストと、上流の既存の停止を確かめるテスト）: `AListThatDoesNotShrinkIsUpdatedInPlace`（grow・reorder）、`TheFakeClientCannotShrinkAListLikeResoniteLink`、`AShorterListInsideASyncObjectIsNotRecreated`、`AComponentMovedWithAShorterListIsRelocatedNotRecreated`、`TheFirstAdoptingApplyDoesNotRecreate`、`ARecreateKeepsAnAssetUrlThatAWorldSaveMigrated(legacyState: True)`。 作り直しのテストの多くは、PR B の Root cause と同じ `APPLY_REFERENCE_NOT_RETAINED` で失敗する（偽クライアントがリストを縮められないことの確認を兼ねる）。これ以外の組み合わせになったら先に進まずに報告する。Task C1 でテストを足した・削った場合は、この件数と PASS する一覧を更新してから確かめる。
+Expected: 397 件中 FAIL 53 件、PASS 344 件。FAIL は B で追加したテストだけ。B で追加した 60 件のうち PASS するのは次の 7 件だけ（今の挙動を固定するテストと、上流の既存の停止を確かめるテスト）: `AListThatDoesNotShrinkIsUpdatedInPlace`（grow・reorder）、`TheFakeClientCannotShrinkAListLikeResoniteLink`、`AShorterListInsideASyncObjectIsNotRecreated`、`AComponentMovedWithAShorterListIsRelocatedNotRecreated`、`TheFirstAdoptingApplyDoesNotRecreate`、`ARecreateKeepsAnAssetUrlThatAWorldSaveMigrated(legacyState: True)`。 作り直しのテストの多くは、PR B の Root cause と同じ `APPLY_REFERENCE_NOT_RETAINED` で失敗する（偽クライアントがリストを縮められないことの確認を兼ねる）。これ以外の組み合わせになったら先に進まずに報告する。Task C1 でテストを足した・削った場合は、この件数と PASS する一覧を更新してから確かめる。
 
 - [ ] **Step 3: 上流 CI に相当する確認を行う（Linux）**
 
@@ -3931,7 +3970,7 @@ unzip -p "$S/artifacts/ResoLoop.$VERSION.nupkg" '*resonite-debug/SKILL.md' | gre
 rm -rf -- "$S"
 ```
 
-Expected: `RLoop.Tests` 396 件、`RLoop.IntegrationTests` 19 件がすべて PASS、警告 0 件。pack・導入・スモークテストが成功し、最後の `grep -c` が 1 以上。
+Expected: `RLoop.Tests` 397 件、`RLoop.IntegrationTests` 19 件がすべて PASS、警告 0 件。pack・導入・スモークテストが成功し、最後の `grep -c` が 1 以上。
 
 - [ ] **Step 4: コミットを 2 件にまとめる**
 
@@ -4052,14 +4091,14 @@ ResoniteLink 0.13.1 には list の要素を削除する操作がありません
 
 ## Verification / 確認
 
-- Linux Dev Container, .NET SDK 10.0.201: `dotnet restore ResoLoop.slnx && dotnet build ResoLoop.slnx --configuration Release --no-restore && dotnet test ResoLoop.slnx --configuration Release --no-build --no-restore`: RLoop.Tests 396 and RLoop.IntegrationTests 19 passed, 0 warnings. Pack and the smoke test of the installed tool passed. Windows is left to the CI of the upstream PR; the CI of this fork has not run.
+- Linux Dev Container, .NET SDK 10.0.201: `dotnet restore ResoLoop.slnx && dotnet build ResoLoop.slnx --configuration Release --no-restore && dotnet test ResoLoop.slnx --configuration Release --no-build --no-restore`: RLoop.Tests 397 and RLoop.IntegrationTests 19 passed, 0 warnings. Pack and the smoke test of the installed tool passed. Windows is left to the CI of the upstream PR; the CI of this fork has not run.
 - `tests/RLoop.Tests/ApplyWorkflowTests.ListShrink.cs` stops the shrinking apply at every write, before the write lands and after it lands with its response lost, in two scenarios, and cancels it at every progress notification in one. Each time the next apply in the same session converges (or stops before any write on `replacement-unverified` until the recovery in its suggestions), and a world reload during a recreate stops plan and apply before any write without changing the state. Convergence means that every renderer and Source is bound to exactly one key, the declared lists, managed references on the replacement, saved indexes that match the Slot, and no writes on the next apply or after a world reload. A moved Component's source that an interrupted move leaves behind is an existing issue and not checked.
-- With `src/` reverted to the index fix, 52 of the 59 new test cases fail, and every other test passes. The other 7 pin behavior this PR keeps: a list that grows or is reordered, the fake client that cannot shrink a list, a shorter list inside a sync object, a moved Component with a shorter list, the first adopting apply, and the asset migration stop with a legacy state.
+- With `src/` reverted to the index fix, 53 of the 60 new test cases fail, and every other test passes. The other 7 pin behavior this PR keeps: a list that grows or is reordered, the fake client that cannot shrink a list, a shorter list inside a sync object, a moved Component with a shorter list, the first adopting apply, and the asset migration stop with a legacy state.
 - Real Resonite: (to be filled in after the check on a `ResoLoop_Test*` Slot)
 
-- Linux の Dev Container（.NET SDK 10.0.201）で上記のコマンドを実行し、RLoop.Tests 396 件と RLoop.IntegrationTests 19 件が成功し、警告は 0 件でした。pack と、導入したツールでのスモークテストも成功しました。Windows での確認は上流 PR の CI に任せます。この fork の CI は動かしていません。
+- Linux の Dev Container（.NET SDK 10.0.201）で上記のコマンドを実行し、RLoop.Tests 397 件と RLoop.IntegrationTests 19 件が成功し、警告は 0 件でした。pack と、導入したツールでのスモークテストも成功しました。Windows での確認は上流 PR の CI に任せます。この fork の CI は動かしていません。
 - `tests/RLoop.Tests/ApplyWorkflowTests.ListShrink.cs` は、2 つのシナリオで作り直しの apply を書き込みの位置ごとに止め（反映前の失敗と、反映後の応答の喪失）、1 つのシナリオで進捗の通知ごとにキャンセルします。そのたびに、同じセッションの次の apply が収束する（または `replacement-unverified` で書き込みの前に止まり、suggestions の復旧手順の後に収束する）こと、作り直しの途中で再読込すると plan と apply が書き込みの前に止まり、state が変わらないことを確かめます。収束とは、renderer と Source がそれぞれちょうど 1 つの key に結び付き、list が宣言どおりで、管理 Component の参照が新しい Component を指し、保存した index が Slot と一致し、次の apply と再読込後の apply の書き込みが 0 件になることです。移動の中断で移動元が残る既存の問題は確かめていません。
-- `src/` を index の修正の状態に戻すと、追加した 59 件のうち 52 件が失敗し、それ以外のテストはすべて成功します。残りの 7 件は、この PR が保つ挙動（長くなる list と並べ替えた list、list を縮められない偽クライアント、sync object の中の短い list、短い list を持つ Component の移動、adopt の初回の apply、古い state でのアセット移行の停止）を固定するテストです。
+- `src/` を index の修正の状態に戻すと、追加した 60 件のうち 53 件が失敗し、それ以外のテストはすべて成功します。残りの 7 件は、この PR が保つ挙動（長くなる list と並べ替えた list、list を縮められない偽クライアント、sync object の中の短い list、短い list を持つ Component の移動、adopt の初回の apply、古い state でのアセット移行の停止）を固定するテストです。
 - 実機での確認:（`ResoLoop_Test*` の Slot で確認した後に記入）
 
 ## Known limitations / 既知の制限
@@ -4136,7 +4175,7 @@ git -C "$B" rebase --onto fix/slot-index-after-removal "$OLD_A" fix/list-shrink-
 **Files:** なし（`ResoLoop_Test*` の Slot だけを使う）
 
 - [ ] **Step 1:** ユーザに、実機での確認の実施と、使うワールドを確認する。保存と再読込を伴うので、使い捨ての新しいワールドを勧める。ユーザのワールドを使う場合は、ほかの未保存の変更も一緒に保存されることを伝えて了承を得る。ユーザのワールドの既存の内容には apply しない。
-- [ ] **Step 2:** B の worktree で CLI をビルドし、global の resoloop やロックを変えずに、ビルドした DLL を直接実行する（以降の `dotnet "$RESOLOOP_DLL"` は、シェルを開くたびに変数を設定し直してから使う）。告知されているワールドを `discover` で表示し、SessionName・SessionId・Url をユーザに見せて、使うワールドを選んでもらう。以降のコマンドには接続先を付ける。第一候補は `--url auto --session <SessionId>`（1 件だけ一致しなければ止まる）。UDP の告知がコンテナに届かない場合は、ユーザから `ws://<host>:<port>` を聞いて `RESONITE_LINK_URL` に入れ、接続先のワールドをユーザに画面で確かめてもらう。
+- [ ] **Step 2:** B の worktree で CLI をビルドし、global の resoloop やロックを変えずに、ビルドした DLL を直接実行する（以降の `dotnet "$RESOLOOP_DLL"` は、シェルを開くたびに変数を設定し直してから使う）。告知されているワールドを `discover` で表示し、SessionName・SessionId・Url をユーザに見せて、使うワールドを選んでもらう。以降のコマンドには接続先を付ける。第一候補は `--url auto --session <SessionId>`（1 件だけ一致しなければ止まる）。UDP の告知がコンテナに届かない場合は、ユーザから `ws://<host>:<port>` を聞いて接続先のワールドを画面で確かめてもらう。この経路では、以降のすべての `--url auto --session <SessionId>` を同じ確認済みの `--url ws://<host>:<port>` に置き換える。環境変数だけに頼って接続先を省略しない。
 
 ```bash
 set -euo pipefail
@@ -4150,7 +4189,7 @@ dotnet "$RESOLOOP_DLL" discover --json
 
 `--version` は NuGet 版と同じ値を返すので、ビルドしたコミットは `git rev-parse HEAD` で記録する。接続先を決めたら `dotnet "$RESOLOOP_DLL" status --url auto --session <SessionId> --json` で ResoniteVersion と ResoniteLinkVersion を記録する。
 
-- [ ] **Step 3:** 上流の `AGENTS.md` に従い、型とメンバー名を推測しない。次の確認用の文書の型とメンバー名を、`dotnet "$RESOLOOP_DLL" type search` / `type describe` / `type specialize` で確かめ、違えば直す。文書は scratchpad に置く（create-reso-world のプロジェクトには置かない）。Materials が 4 つの MeshRenderer と、それを参照する管理 Component を作る。値のリストを持つ Component（例: `ValueMultiplexer<float>` の `Values`）と、syncObject を要素とするリストを持つ Component（例: `ValueGradientDriver<float>` の `Points`）も 1 つずつ足す（どちらも型とメンバー名は推測なので、`type describe` で確かめてから使う。`SkinnedMeshRenderer.BlendShapeWeights` のように runtime が長さを決めるリストは使わない）。
+- [ ] **Step 3:** 上流の `AGENTS.md` に従い、型とメンバー名を推測しない。次の確認用の文書の型とメンバー名を、`dotnet "$RESOLOOP_DLL" type search` / `type describe` / `type specialize` で確かめ、違えば直す。これらの型確認のコマンドにも、Step 2 で選んだ `--url auto --session <SessionId>`（明示 URL の経路なら同じ確認済み URL）を付ける。文書は scratchpad に置く（create-reso-world のプロジェクトには置かない）。Materials が 4 つの MeshRenderer と、それを参照する管理 Component を作る。値のリストを持つ Component（例: `ValueMultiplexer<float>` の `Values`）と、syncObject を要素とするリストを持つ Component（例: `ValueGradientDriver<float>` の `Points`）も 1 つずつ足す（どちらも型とメンバー名は推測なので、`type describe` で確かめてから使う。`SkinnedMeshRenderer.BlendShapeWeights` のように runtime が長さを決めるリストは使わない）。
 
 ```json
 {"schemaVersion":"1","ownership":{"key":"resoloop-test-list-shrink"},
@@ -4173,17 +4212,17 @@ dotnet "$RESOLOOP_DLL" discover --json
 set -euo pipefail
 RESOLOOP_DLL=/workspaces/reso-world/external/resoloop/.worktrees/list-shrink-recreate-split/src/RLoop.Cli/bin/Release/net10.0/resoloop.dll
 DOC=/tmp/claude-1000/<scratchpad>/list-shrink-4.json
-dotnet "$RESOLOOP_DLL" validate "$DOC" --strict --json
+dotnet "$RESOLOOP_DLL" validate "$DOC" --strict --url auto --session <SessionId> --json
 dotnet "$RESOLOOP_DLL" diff "$DOC" --url auto --session <SessionId> --json
 dotnet "$RESOLOOP_DLL" apply "$DOC" --url auto --session <SessionId> --json --profile
 ```
 
-`<scratchpad>` は実行するセッションの scratchpad のパスに、`<SessionId>` は Step 2 で選んだ値に置き換える。state は、文書のあるディレクトリの `.resoloop/state/` に作られる。
+`<scratchpad>` は実行するセッションの scratchpad のパスに、`<SessionId>` は Step 2 で選んだ値に置き換える。明示 URL の経路では、validate・diff・apply のすべてに同じ `--url ws://<host>:<port>` を渡す。state は、文書のあるディレクトリの `.resoloop/state/` に作られる。Step 4 の diff・apply・inspect にも、同じ接続先を明示する。
 
 - [ ] **Step 4:** `Materials` を `["$ref:m1","$ref:m2","$ref:m3"]` にした文書（`list-shrink-3.json`。値のリストと syncObject のリストも 1 つずつ短くする）で `diff` を実行し、`renderer` などが `recreate` になることを確かめる。続けて `apply` を実行して収束すること（`renderer` の Materials が 3 つ、`holder` の `Reference` が新しい Component を指す）を `inspect` で確かめ、もう一度 `apply` して書き込みが 0 件になることを確かめる。書き込み 0 件は、`apply --json --profile` の `data.profile.mutations` が 0、または `created` が false で `slotsCreated`・`slotsUpdated`・`slotsDeleted`・`componentsAdded`・`componentsUpdated`・`componentsDeleted`・`assetsImported` がすべて 0 であることで判定する。apply の前に `diff --json` で変更が無いことも見る。値のリストか syncObject のリストがその場で縮んだ場合（`recreate` にならず収束した場合）は、止まってユーザに報告する（検出の範囲を種類で絞るかを判断してもらう。Spec 10.3）。
-- [ ] **Step 5:** ユーザにワールドの保存と再読込を依頼する。再読込の後に `discover` で接続先を決め直し（セッションやポートが変わることがある）、`apply` を実行して、書き込みが 0 件になることを確かめる。
-- [ ] **Step 6:** 確認用の root Slot（`ResoLoop_Test_ListShrink`）の ID を `inspect` で確かめてから、`dotnet "$RESOLOOP_DLL" slot delete ID --yes` で削除する。ユーザにワールドの保存をもう一度依頼し、保存データからテストの Slot を消す。結果（実行したコマンド、ビルドしたコミット、Resonite と ResoniteLink の版、判定に使った件数）を PR B の Verification の「Real Resonite」に記入する。
-- [ ] **失敗したとき:** Step 3〜5 のどこで止まっても、エラーの JSON、`inspect --json`、state のコピーを残してから、Step 6 と同じ手順で `ResoLoop_Test_ListShrink` の ID だけを削除する。
+- [ ] **Step 5:** ユーザにワールドの保存と再読込を依頼する。再読込の後に `discover` で接続先を決め直し（セッションやポートが変わることがある）、ユーザに接続先を再確認する。以降の `<SessionId>` または明示 URL は、この新しく選んだ値に置き換える。`apply --url auto --session <SessionId>` を実行して、書き込みが 0 件になることを確かめる。明示 URL の経路では同じ新しい URL を渡す。
+- [ ] **Step 6:** 確認用の root Slot（`ResoLoop_Test_ListShrink`）の ID を `dotnet "$RESOLOOP_DLL" inspect ID --url auto --session <SessionId> --json` で確かめてから、同じ宛先に `dotnet "$RESOLOOP_DLL" slot delete ID --yes --url auto --session <SessionId>` で削除する。再読込後は Step 5 で再確認した接続先を使う。明示 URL の経路では inspect と slot delete の両方に同じ新しい URL を渡す。ユーザにワールドの保存をもう一度依頼し、保存データからテストの Slot を消す。結果（実行したコマンド、ビルドしたコミット、Resonite と ResoniteLink の版、判定に使った件数）を PR B の Verification の「Real Resonite」に記入する。
+- [ ] **失敗したとき:** Step 3〜5 のどこで止まっても、エラーの JSON、`inspect ID --url auto --session <SessionId> --json`、state のコピーを残してから、Step 6 と同じ宛先確認・削除手順で `ResoLoop_Test_ListShrink` の ID だけを削除する。明示 URL の経路でも inspect と削除に同じ確認済み URL を渡す。接続先を再確認できない場合は削除せず止まる。
 
 ### Task C3: 上流への提出（D-11、文面をユーザに確認）
 
