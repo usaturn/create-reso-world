@@ -213,9 +213,9 @@ test_tier_tables() {
         "pigou:opencode-go/union-alpha:opencode-go/union-alpha:opencode-go/union-alpha:max:max:max"
         "piccg:commandcode/meta/muse-spark-1.3-contributor:commandcode/meta/muse-spark-1.3-contributor:commandcode/deepseek/deepseek-v4.1-flash:max:max:max"
         "piccd:commandcode/meta/muse-spark-1.3-contributor:commandcode/deepseek/deepseek-v4.1-flash:commandcode/deepseek/deepseek-v4.1-flash:max:max:max"
-        "piga:openai-codex/gpt-6-luna:openai-codex/gpt-6-sol:openai-codex/gpt-6-astra:xhigh:xhigh:max"
-        "pigs:openai-codex/gpt-6-luna:openai-codex/gpt-6-sol:openai-codex/gpt-6-sol:xhigh:xhigh:max"
-        "pigl:openai-codex/gpt-6-luna:openai-codex/gpt-6-sol:openai-codex/gpt-6-sol:xhigh:xhigh:xhigh"
+        "piga:openai-codex/gpt-6-luna:openai-codex/gpt-6.1-sol:openai-codex/gpt-6-astra:xhigh:xhigh:max"
+        "pigs:openai-codex/gpt-6-luna:openai-codex/gpt-6.1-sol:openai-codex/gpt-6.1-sol:xhigh:xhigh:max"
+        "pigl:openai-codex/gpt-6-luna:openai-codex/gpt-6.1-sol:openai-codex/gpt-6.1-sol:xhigh:xhigh:xhigh"
         "pixg:openai-codex/gpt-6-luna:xai/grok-4.7:xai/grok-4.7:xhigh:high:xhigh"
     )
     local row

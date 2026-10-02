@@ -36,6 +36,12 @@ jobs:
 
   gitleaks:
     runs-on: ubuntu-latest
+    # pull_request では gitleaks-action が PR のコミット一覧を GET /pulls/<n>/commits で
+    # 取るため pull-requests: read が要る。ジョブ権限は workflow 権限を上書きするので
+    # contents: read も併記する
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v7
         with:

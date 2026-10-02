@@ -307,7 +307,7 @@ provider が `opencode-go` のモデルへ `x-opencode-session` と
 | launcher | Provider / Model |
 |---|---|
 | `piga` | `openai-codex/gpt-6-astra` |
-| `pigs` | `openai-codex/gpt-6-sol` |
+| `pigs` | `openai-codex/gpt-6.1-sol` |
 | `pigl` | `openai-codex/gpt-6-luna` |
 
 3 つとも ChatGPT Pro サブスクリプションの Codex OAuth 認証を使う。
@@ -318,21 +318,21 @@ OAuth 情報は `~/.pi/agent/auth.json` に保存される。`~/.pi` は Dev Con
 `postCreateCommand` から自動ログインしない。未認証のままランチャーを起動した
 場合は、このログイン手順を表示して終了する。
 
-GPT-6 Sol / Luna のため Pi 0.87.1 以上が必要。利用前に `pi --version` を確認し、
+GPT-6.1 Sol / GPT-6 Luna のため Pi 0.87.1 以上が必要。利用前に `pi --version` を確認し、
 ログイン後に各モデルが `openai-codex` 行にあることを確認する。
 
 ```bash
 pi --version
 pi --list-models gpt-6-astra
-pi --list-models gpt-6-sol
+pi --list-models gpt-6.1-sol
 pi --list-models gpt-6-luna
 ```
 
 モデル行が無い場合は Pi を更新する。`pi --list-models` は利用可能なモデルを
 表示するため、未認証時には Pi がモデル定義を持っていても `openai-codex` 行は
 表示されない。3 ランチャーは `--thinking xhigh` で起動する。子 Pi の
-`cheap` / `balanced` / `max` tier はランチャーごとに GPT-6 Luna / Sol / Astra
-を割り当てる（下表を参照）。ログイン済みの環境では、次のテストでも Pi の版と
+`cheap` / `balanced` / `max` tier はランチャーごとに GPT-6 Luna / GPT-6.1 Sol /
+GPT-6 Astra を割り当てる（下表を参照）。ログイン済みの環境では、次のテストでも Pi の版と
 3 モデルを検証できる。
 
 ```bash
@@ -496,9 +496,9 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
 | `pigou` | `opencode-go/union-alpha` | `opencode-go/union-alpha` | `opencode-go/union-alpha` |
 | `piccg` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` |
 | `piccd` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` | `commandcode/deepseek/deepseek-v4.1-flash` |
-| `piga` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6-sol` | `openai-codex/gpt-6-astra` |
-| `pigs` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6-sol` | `openai-codex/gpt-6-sol` |
-| `pigl` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6-sol` | `openai-codex/gpt-6-sol` |
+| `piga` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6-astra` |
+| `pigs` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
+| `pigl` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
 | `pixg` | `openai-codex/gpt-6-luna` | `xai/grok-4.7` | `xai/grok-4.7` |
 
 `piga` / `pigs` の子 Pi は `cheap` / `balanced` が `xhigh`、`max` が `max`、
