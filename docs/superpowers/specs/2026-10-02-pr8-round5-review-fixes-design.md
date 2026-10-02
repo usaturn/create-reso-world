@@ -137,9 +137,9 @@
 
 ## 7. 実装のチェックリスト
 
-- [ ] `.worktrees/list-shrink-spec`（`docs/list-shrink-recreate-split`）で REC-2 の 95 行目を F1 どおりに直す
-- [ ] `git diff --check` と `bash scripts/check-layout.sh` を通す
-- [ ] 本書の 8 節に実施記録を書き、F1 の修正と本書を `docs/list-shrink-recreate-split` にコミットする
+- [x] `.worktrees/list-shrink-spec`（`docs/list-shrink-recreate-split`）で REC-2 の 95 行目を F1 どおりに直す
+- [x] `git diff --check` と `bash scripts/check-layout.sh` を通す
+- [x] 本書の 8 節に実施記録を書き、F1 の修正と本書を `docs/list-shrink-recreate-split` にコミットする
 - [ ] `git fetch origin` で先端を確認してから `git push origin HEAD` で既存 PR #8 へ反映する
 - [ ] push 後、PR #8 にレビュー状況・作業判断・作業結果のコメントを作成または更新する
 
