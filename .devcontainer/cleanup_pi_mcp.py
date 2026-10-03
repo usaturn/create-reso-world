@@ -26,7 +26,9 @@ MANIFESTS = (
 
 def agent_directory():
     path = Path(os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".pi/agent").expanduser()
-    if not path.is_absolute() or ".." in path.parts or path in (Path("/"), Path.home()):
+    # POSIX preserves // lexically even when the OS aliases it to /; do not resolve symlinks.
+    if (not path.is_absolute() or path.anchor == "//" or ".." in path.parts
+            or path in (Path("/"), Path.home())):
         raise ValueError(f"Unsafe agent directory: {path}")
     return path
 

@@ -316,6 +316,31 @@ class PiMcpCleanupTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("unsafe", result.stderr.lower())
 
+    # Break caught: POSIX // is accepted although the OS treats it as forbidden /.
+    def test_double_slash_root_is_refused_by_path_guard(self):
+        # Exercise the real guard alone: a pre-fix RED must never clean the live root.
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "import runpy, sys; runpy.run_path(sys.argv[1])['agent_directory']()", str(CLEANUP)],
+            cwd=self.project, env={**self.env, "PI_CODING_AGENT_DIR": "//"},
+            text=True, capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("unsafe", result.stderr.lower())
+
+    # Break caught: an extra leading slash bypasses HOME rejection and deletes home-level state.
+    def test_double_slash_home_is_refused_without_mutating_state(self):
+        states = {directory / filename: b"preserve root/home MCP state\r\n"
+                  for directory in (self.base, self.home) for filename in MCP_FILES}
+        for path, data in states.items():
+            path.write_bytes(data)
+        result = self.run_cleanup(PI_CODING_AGENT_DIR="/" + str(self.home))
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("unsafe", result.stderr.lower())
+        for path, data in states.items():
+            self.assertTrue(path.is_file(), str(path))
+            self.assertEqual(path.read_bytes(), data, str(path))
+
     # Break caught: resolving a linked agent directory or linked ancestor before checking safety.
     def test_symlinked_agent_directory_or_parent_is_refused(self):
         (self.agent / "mcp-cache.json").write_text("must survive linked directory")
