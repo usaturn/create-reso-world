@@ -139,6 +139,7 @@ def test_allowed_tools_match_the_verification_and_spec_location() -> None:
         "Bash(bash .devcontainer/run-tests.bash*)",
         "Bash(bash scripts/check-layout.sh*)",
         "Bash(bash tests/scripts/*)",
+        "Bash(bash scripts/superpowers-review-copy.sh*)",
         "Write(docs/superpowers/specs/**)",
         "Edit(docs/superpowers/specs/**)",
     ):
@@ -194,3 +195,28 @@ def test_landing_eval_uses_the_change_specific_gate() -> None:
         for item in landing["expectations"]
     )
     assert "scripts/ci/" not in json.dumps(landing, ensure_ascii=False)
+
+
+def test_other_repositories_need_an_explicit_code_root() -> None:
+    step2 = read(AGENTS_SKILL).split("2. **現行 HEAD を特定する**", 1)[1].split("3. **", 1)[0]
+    assert "`CODE_ROOT`" in step2
+    assert "推測せず停止する" in step2
+    assert "pr-review" in step2
+
+
+def test_spec_is_committed_and_copied_before_approval() -> None:
+    content = read(AGENTS_SKILL)
+    section = content.split("## Spec のコミットと確認用コピー", 1)[1].split("\n## ", 1)[0]
+    for phrase in (
+        "`DOC_ROOT`",
+        "`PARENT_ROOT`",
+        "bash scripts/superpowers-review-copy.sh",
+        "--replace-from",
+        "文書用ブランチ",
+        "文書専用 PR",
+        "公開未実施",
+    ):
+        assert phrase in section, phrase
+    step7 = content.split("7. **承認を得て停止する**", 1)[1].split("\n## ", 1)[0]
+    assert "## Spec のコミットと確認用コピー" not in step7
+    assert "確認用コピー" in step7

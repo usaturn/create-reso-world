@@ -1,7 +1,7 @@
 ---
 name: review-fix-planning
 description: レビュー結果が格納されたディレクトリ（例 `reviews/ブランチ名/`、`docs/reviews/main/`、`reviews/#<PR番号>-<ブランチ>/` を指す `#番号`）を渡されて、修正計画・対応方針・指摘の取捨選択を求められたときに使う。「レビュー結果を確認して修正計画をたてて」「妥当な指摘だけ拾って直したい」「指摘のどれに対応するか決めたい」「複数モデルのレビューをまとめて」などの依頼が該当する。承認済みの review-fix 作業を実装する／対象ブランチへ反映させる依頼も該当する
-allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *), Bash(rm *), Bash(test *), Bash(uv run *), Bash(bash .devcontainer/run-tests.bash*), Bash(bash scripts/check-layout.sh*), Bash(bash tests/scripts/*), Write(docs/superpowers/specs/**), Edit(docs/superpowers/specs/**)
+allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *), Bash(rm *), Bash(test *), Bash(uv run *), Bash(bash .devcontainer/run-tests.bash*), Bash(bash scripts/check-layout.sh*), Bash(bash tests/scripts/*), Bash(bash scripts/superpowers-review-copy.sh*), Write(docs/superpowers/specs/**), Edit(docs/superpowers/specs/**)
 ---
 
 # レビュー指摘の選別と修正計画
@@ -29,7 +29,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
 それ以外は、各項目をランタイムの plan / todo 機能のタスクにしてから開始する（Claude Code では TodoWrite、Codex では `update_plan`）。
 
 1. **範囲を固定する** — 解決したレビューディレクトリ配下の全ファイルを読む。各ファイル冒頭の「対象 HEAD」を記録する。複数世代が混在するのが普通である。レビュー成果物は gitignore 対象で未コミットのことがある（本リポジトリの `reviews/` がそうである）が、指定ディレクトリ内であれば Git の追跡状態にかかわらず正規の入力である。
-2. **現行 HEAD を特定する** — レビュー対象のブランチ／PR の現在の先端を `git` / `gh` で確認する。対象 PR のリポジトリもここで確定する: `PR_REPO` にその `owner/name` を設定し、`MAIN_ROOT` を `pr-review` と同じ規則（ルート `AGENTS.md` の「リポジトリ境界」の表）で解決する — `usaturn/create-reso-world` ならこのリポジトリの toplevel `$TOPLEVEL`（`git rev-parse --show-toplevel`）、`usaturn/resoloop` または `orange3134/resoloop` なら fork の checkout `$TOPLEVEL/external/resoloop`（`origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` であること。満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は推測せず停止する。`upsert_pr_comment.py` などのスキル helper はこのリポジトリにだけ存在するため、`$MAIN_ROOT` ではなく `$TOPLEVEL` から解決する。
+2. **現行 HEAD を特定する** — レビュー対象のブランチ／PR の現在の先端を `git` / `gh` で確認する。対象 PR のリポジトリもここで確定する: `PR_REPO` にその `owner/name` を設定し、`MAIN_ROOT` を `pr-review` と同じ規則（ルート `AGENTS.md` の「リポジトリ境界」の表）で解決する — `usaturn/create-reso-world` ならこのリポジトリの toplevel `$TOPLEVEL`（`git rev-parse --show-toplevel`）、`usaturn/resoloop` または `orange3134/resoloop` なら fork の checkout `$TOPLEVEL/external/resoloop`（`origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` であること。満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は、ユーザの依頼または確認済みの引き継ぎで明示された checkout（`CODE_ROOT`）を、`pr-review` と同じ照合（その checkout 自身のルートで、remote のうち 1 つだけが `PR_REPO` と一致する）で確かめて `MAIN_ROOT` にする。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。レビューディレクトリは `CODE_ROOT` 配下の `reviews/` をフルパスで受け取る。`upsert_pr_comment.py` などのスキル helper はこのリポジトリにだけ存在するため、`$MAIN_ROOT` ではなく `$TOPLEVEL` から解決する。
 3. **各指摘を現行 HEAD の「コミット済み」内容で検証する** — `git show <HEAD>:<path>` で読む。指摘された path の `REVIEWED_HEAD` にある committed source/test blob は検証根拠として許可する。挙動の指摘は、path と reviewed HEAD を別引数にした隔離 worktree で再現する:
 
    ```bash
@@ -55,7 +55,22 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
 4. **下記「分類の仕様」に従って全指摘を 4 区分に振り分ける。**
 5. **`superpowers:brainstorming` を呼ぶ** — 選別結果を持って経路（spike / bounded / architectural）を判定させ、その経路の作法で設計を詰める。
 6. **Spec を書く** — 経路に関わらず必ず書く（下記「Spec は経路に関わらず必須」）。
-7. **承認を得て停止する** — Spec を提示し、ユーザが明示的に「進めて」と言うまで実装に入らない。実装せず止まる場合の **作業終了前の PR 投稿** は任意であり、commit / push まで完了したターンのみ必須である。実装が終わったら **実装後** に従う。
+7. **承認を得て停止する** — 下記「Spec のコミットと確認用コピー」に従って Spec をコミットし、確認用コピーを作ってから提示する。ユーザが明示的に「進めて」と言うまで実装に入らない。実装せず止まる場合の **作業終了前の PR 投稿** は任意であり、commit / push まで完了したターンのみ必須である。実装が終わったら **実装後** に従う。
+
+## Spec のコミットと確認用コピー
+
+Spec の正本は `$TOPLEVEL`（create-reso-world。ルート `AGENTS.md` の `DOC_ROOT`）にだけ置く。`MAIN_ROOT` が別のリポジトリでも、そちらへ置かない。
+
+1. **コミットする** — 提示の前に、Spec を `draft` のままコミットする。コミット先は、`PR_REPO` が `usaturn/create-reso-world` ならレビュー対象ブランチ（実装を載せるブランチ）、それ以外なら create-reso-world の文書用ブランチ（テーマごとに 1 本。例 `docs/usaturn-resoloop-pr9-list-shrink`）である。そのブランチの checkout を `DOC_ROOT` とする。既存の文書用ブランチがあれば再利用し、レビュー回ごとに作らない。`DOC_ROOT` を特定できない場合は推測せず停止する。
+2. **確認用コピーを作る** — `PARENT_ROOT`（ユーザが読む create-reso-world の親 checkout）を確かめてから、次を `$TOPLEVEL` で実行する。名前は `<repo>-pr<N>-<topic>-spec.md` の形にする。再提示で既存のコピーを差し替えるときは、前回提示した文書コミットを `--replace-from` に渡す。スクリプトが拒否したら、worktree のパスだけを代わりに示さず、失敗を報告して止まる。
+
+   ```bash
+   bash scripts/superpowers-review-copy.sh --doc-root "$DOC_ROOT" --parent-root "$PARENT_ROOT" \
+     --path docs/superpowers/specs/<file> --name <repo>-pr<N>-<topic>-spec.md
+   ```
+
+3. **提示する** — コピー先（`tmp/superpowers-review/...`）、文書コミットの SHA、正本のパスを示して承認を求める。承認はその SHA の版に結び付ける。
+4. **公開する** — `PR_REPO` が create-reso-world なら、Spec は実装と同じ PR に載る。それ以外では、**実装後** の push の後で、同じテーマの文書専用 PR があれば文書用ブランチを push してそこへ反映する。文書専用 PR はコード修正の第二の PR ではない。文書専用 PR が無ければ push も PR の作成もせず、文書のコミット SHA を報告し、「公開未実施」と書いて作成の指示を求める。
 
 ## 実装後
 
@@ -116,7 +131,7 @@ resoloop の上流への PR も同じ規則が fork の経路で成立する: `P
 
 ### 作業結果
 - このターン: 計画のみ | push 済み | 途中停止
-- Spec: `<path>`（コミットしていなければローカルにしか無い）または未作成
+- Spec: `<path>` @ `<文書コミット SHA>`（create-reso-world。PR に載っていればその URL。push していなければローカルにしか無い（公開未実施））または未作成
 - commit / push: `<sha>` またはしていない
 - 次: 承認待ち | 完了 | 停止理由
 ```
@@ -165,7 +180,7 @@ EOF
 
 `superpowers:brainstorming` は bounded / spike 経路では Spec 不要と書いているが、**このスキルではユーザ指示が優先し、3 経路すべてで Spec を書く。**
 
-- 配置: `$TOPLEVEL/docs/superpowers/specs/`（ルート `AGENTS.md` の規定）。常にこのリポジトリ側に置き、`MAIN_ROOT` が `external/resoloop` のときも fork の中へ置かない
+- 配置: `$TOPLEVEL/docs/superpowers/specs/`（ルート `AGENTS.md` の規定）。常にこのリポジトリ側に置き、`MAIN_ROOT` が `external/resoloop` や他のリポジトリの checkout のときも、そちらへ置かない
 - 命名: `YYYY-MM-DD-<topic>-review-fixes-design.md`
 - 必須の中身:
   - 全指摘の一覧と 4 区分の振り分け（1 件も落とさない）
