@@ -28,7 +28,7 @@ done
 | --- | --- | --- |
 | Claude Code | TBD | TBD |
 | Devin | サブエージェント（`run_subagent`）に停止手段が無い。`kill_shell` は `exec` シェルのみが対象 | 起動条件を満たせず常時省略 |
-| pi | 単発サブエージェントは `async: false` の同期起動のみ（`.pi/APPEND_SYSTEM.md`）。バックグラウンド起動と停止ができない | 起動条件を満たせず常時省略 |
+| pi | サブエージェントは pi-superagents の Superpowers role API による同期実行のみで、async は指定しない（`.pi/APPEND_SYSTEM.md`）。バックグラウンド起動と停止ができない | 起動条件を満たせず常時省略 |
 | Cursor | TBD | TBD |
 
 ## 注記

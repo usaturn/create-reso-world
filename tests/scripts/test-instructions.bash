@@ -69,9 +69,12 @@ lacks .pi/APPEND_SYSTEM.md 'subagent-launch-verification'
 lacks .pi/APPEND_SYSTEM.md '# resoloop 注意'
 lacks .pi/APPEND_SYSTEM.md '@.agents/skills/'
 lacks .pi/APPEND_SYSTEM.md '親 checkout'
-for s in '/skill:agent-handoff' 'async: false' 'herdr-agent-task' 'pi-model-name' 'simplify-in-subagent' 'MODEL_NAME'; do
+for s in '/skill:agent-handoff' 'herdr-agent-task' 'pi-model-name' 'simplify-in-subagent' 'MODEL_NAME'; do
   has .pi/APPEND_SYSTEM.md "$s"
 done
+# サブエージェントは Superpowers role API の同期実行で起動し、旧 API の async 引数は使わない
+has .pi/APPEND_SYSTEM.md 'action、capabilities、async は指定しない'
+lacks .pi/APPEND_SYSTEM.md 'async: false'
 # ペルソナ節（## Response Persona 以降）は利用者が書く部分で、エージェントは 1 バイトも変えない。
 # 利用者が意図して変えたときは、失敗の表示にある新しいハッシュで expected_persona を更新する
 expected_persona=906d9d2570a9662427a95609efcc29454a5f46f1591352f8b264b996895e2995
