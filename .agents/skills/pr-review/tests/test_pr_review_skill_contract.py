@@ -446,7 +446,15 @@ def test_pr_review_resolver_uses_an_explicit_code_root(
 
 @pytest.mark.parametrize(
     "case",
-    ["relative", "git-directory", "nested-directory", "missing", "no-matching-remote", "two-matching-remotes"],
+    [
+        "relative",
+        "git-directory",
+        "nested-directory",
+        "linked-worktree",
+        "missing",
+        "no-matching-remote",
+        "two-matching-remotes",
+    ],
 )
 def test_pr_review_resolver_rejects_an_unverified_code_root(tmp_path: Path, case: str) -> None:
     resolver = make_resolver(tmp_path)
@@ -457,17 +465,24 @@ def test_pr_review_resolver_rejects_an_unverified_code_root(tmp_path: Path, case
         remotes["mirror"] = "git@github.com:other/repository.git"
     checkout = build_checkout(tmp_path / "elsewhere" / "repository", remotes)
     (checkout / "src").mkdir()
+    worktree = tmp_path / "elsewhere" / "repository-wt"
+    if case == "linked-worktree":
+        # The helper only creates review worktrees from the main checkout.
+        _git(checkout, "worktree", "add", "--detach", str(worktree))
     code_root = {
         "relative": "elsewhere/repository",
         "git-directory": str(checkout / ".git"),
         # Inside the right checkout but not its root: the review must not start there.
         "nested-directory": str(checkout / "src"),
+        "linked-worktree": str(worktree),
         "missing": str(tmp_path / "absent"),
     }.get(case, str(checkout))
     with pytest.raises(ResolverStopped) as stopped:
         resolver.resolve(OTHER_URL, skill_path=AGENTS_SKILL, code_root=code_root)
     assert stopped.value.returncode == 66
     assert "CODE_ROOT" in stopped.value.stderr
+    if case == "linked-worktree":
+        assert "linked worktree" in stopped.value.stderr
 
 
 def test_pr_review_resolver_rejects_a_code_root_that_contradicts_a_known_route(tmp_path: Path) -> None:
