@@ -51,7 +51,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 - レビュー中に生成した検証ログ・スクリーンショット・一時スクリプト等の証跡を `$WT` に残さない。あとで見返す必要がある内容はレビュー本文の「根拠」に転記し、`$DESTINATION` だけで完結させる
 - 最終応答で `$WT` 配下のパスを参照しない（`cleanup` 成功後は `$WT` が存在しないため）。`cleanup` の失敗または停止確認不能による省略時は、残った `$WT` とセッションの完全パスを報告する
 - 独立したレビューを行うため、`reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文は、候補の洗い出し・重点観点の収集・重複確認・自分の指摘の検証を含むいかなる目的でも読まない。レビュー完了後も読まない。メインリポジトリ側と `$WT` 側（PR に同梱された `reviews/`）のどちらも対象とする
-- `MAIN_ROOT` は PR URL の GitHub `owner/repository` を、ルート `AGENTS.md` の「リポジトリ境界」の表に照らして確定する。このリポジトリ（toplevel の `origin` と一致）なら toplevel、`usaturn/resoloop` または `orange3134/resoloop` なら `<toplevel>/external/resoloop`（自前の checkout で、`origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` であること。満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は推測せず停止する
+- `MAIN_ROOT` は PR URL の GitHub `owner/repository` を、ルート `AGENTS.md` の「リポジトリ境界」の表に照らして確定する。このリポジトリ（toplevel の `origin` と一致）なら toplevel、`usaturn/resoloop` または `orange3134/resoloop` なら `<toplevel>/external/resoloop`（自前の checkout で、`origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` であること。満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は、ユーザの依頼または確認済みの引き継ぎで明示された checkout（`CODE_ROOT`）が、その checkout 自身のルートで、remote のうち 1 つだけが PR のリポジトリと一致する場合だけ、その checkout を使う。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。checkout の探索・clone はしない
 - 自モデルの既存レビューはライブの `$DESTINATION` ではなく、`create` が返した `$PREVIOUS_REVIEW`（セッション内 snapshot）だけを読む。`$PREVIOUS_REVIEW` が空なら既存レビューなしとして扱う
 - Codex ではモデル名を自分で推測・短縮・一般化せず、`create` が Codex session metadata から確定した `model_name` を使用する。Codex 実行時は `create --model-name` を渡さない
 - Codex 以外では、実行中のエージェントランタイムが提示する正確なモデル識別子を `MODEL_NAME` として記録し、`create --model-name "$MODEL_NAME"` に一度だけ渡す。モデル系列の説明、設定ファイル、既存レビューのファイル名から推測・短縮・一般化しない（`/`・空白を含む形式もそのまま渡してよい。ヘルパーがファイル名用に `/`・空白類を `-` へ置換する）
@@ -79,7 +79,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 - 実行可能な指摘がない場合は、その旨を明確に伝える
 - レビューは日本語で返す
 - レビュー結果は常に `create` が返した `$DESTINATION` に作成する。`$DESTINATION` はヘルパーが `reviews/#<PR番号>-<変換後ブランチ名>/<model>.md` へ配置する。ブランチ名とモデル識別子に含まれる `/`・空白類およびディレクトリ名に使えない記号はヘルパーが使える記号へ変換する（例: PR 160・ブランチ `feature/issue-148-fail-fast` は `#160-feature-issue-148-fail-fast` 配下、モデル `opencode/deepseek-v4-flash-free` は `opencode-deepseek-v4-flash-free.md`、モデル `Cursor Grok 4.6` は `Cursor-Grok-4.6.md`）。`create` が返す `model_name` もこの変換後の値であり、エージェントが手で組み立てない
-- 保存先の `reviews/` は `MAIN_ROOT` の直下にある。resoloop の PR では `external/resoloop/reviews/` になり、fork の `.gitignore` はこれを無視しない。fork で commit するときは `git add` に明示したパスだけを渡し、`reviews/` を含めない
+- 保存先の `reviews/` は `MAIN_ROOT` の直下にある。resoloop の PR では `external/resoloop/reviews/` になり、fork の `.gitignore` はこれを無視しない。fork で commit するときは `git add` に明示したパスだけを渡し、`reviews/` を含めない。その他のリポジトリでは `$CODE_ROOT/reviews/` になり、その checkout の `.gitignore` が無視するとは限らないため、同じく `git add` に明示したパスだけを渡す。レビュー成果物は Spec・Plan ではないため、create-reso-world の `docs/superpowers/` へ集約しない
 - 同じ PR を同じモデルで再レビューする場合は、同一ファイルの内容全体を上書きし、別名ファイルを作らない。別モデルの結果は同じ PR ディレクトリ内の別ファイルへ保存する
 - PR 上で既に指摘済みの問題は重複報告しない（触れる場合は「既出」と明記する）
 - 件数表は active findings のみから計算する。重大度判定は active findings、確認不足判定は coverage と pending も参照する。Resolved findings は件数・重大度判定に含めない
@@ -102,7 +102,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
    - gh が未認証・API エラーの場合はエラー内容をそのまま報告し、`gh auth login` を案内する。
 2. **worktree への展開**:
    - ユーザの作業ブランチ・working tree に触れないため、`gh pr checkout` は使わない。
-   - `MAIN_ROOT` は、手順 1 で取得した `$PR_JSON` の `url` から GitHub `owner/repository` を抽出し、ルート `AGENTS.md` の「リポジトリ境界」の表に照らして確定する。現在の toplevel の `origin` と一致すれば toplevel、`usaturn/resoloop` または `orange3134/resoloop` なら `$TOPLEVEL/external/resoloop`（自前の checkout であることと `origin`・`upstream` を検証し、満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は推測せず停止する。PR の head を取得する remote `PR_REMOTE` も同時に決める。上流 `orange3134/resoloop` の PR は `upstream`、それ以外は `origin` から取得する。
+   - `MAIN_ROOT` は、手順 1 で取得した `$PR_JSON` の `url` から GitHub `owner/repository` を抽出し、ルート `AGENTS.md` の「リポジトリ境界」の表に照らして確定する。現在の toplevel の `origin` と一致すれば toplevel、`usaturn/resoloop` または `orange3134/resoloop` なら `$TOPLEVEL/external/resoloop`（自前の checkout であることと `origin`・`upstream` を検証し、満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は推測せず停止する。その他のリポジトリは、ユーザの依頼または確認済みの引き継ぎで checkout が明示されている場合だけ、その絶対パスを `CODE_ROOT` に入れてから次を実行する。推測で埋めない。明示されていなければ空のままにする。PR の head を取得する remote `PR_REMOTE` も同時に決める。上流 `orange3134/resoloop` の PR は `upstream`、それ以外は `origin` から取得する。
 
      ```bash
      PR_URL=$(printf '%s' "$PR_JSON" | jq -r .url)
@@ -113,6 +113,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
          -e 's#^git@github[.]com:([^/]+/[^/#?]+)([.]git)?$#\1#p' | \
          sed 's/[.]git$//'
      }
+     CODE_ROOT="${CODE_ROOT:-}"
      pr_repository="$(printf '%s\n' "$PR_URL" | github_repository)"
      origin_repository="$(printf '%s\n' \
        "$(git -C "$TOPLEVEL" remote get-url origin)" | github_repository)"
@@ -130,9 +131,32 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
        fi
        MAIN_ROOT="$FORK_ROOT"
        if [[ "$pr_repository" == "orange3134/resoloop" ]]; then PR_REMOTE=upstream; else PR_REMOTE=origin; fi
+     elif [[ -n "$CODE_ROOT" ]]; then
+       # その他のリポジトリは、明示された checkout だけを使う。探索・clone はしない
+       if [[ "$CODE_ROOT" != /* ]] || ! code_toplevel=$(git -C "$CODE_ROOT" rev-parse --show-toplevel 2>/dev/null) ||
+         [[ "$(realpath -e -- "$code_toplevel")" != "$(realpath -e -- "$CODE_ROOT")" ]]; then
+         printf 'CODE_ROOT is not the root of a git checkout: %s\n' "$CODE_ROOT" >&2
+         exit 66
+       fi
+       matches=()
+       for remote in $(git -C "$CODE_ROOT" remote); do
+         if [[ "$(git -C "$CODE_ROOT" remote get-url "$remote" | github_repository)" == "$pr_repository" ]]; then
+           matches+=("$remote")
+         fi
+       done
+       if [[ ${#matches[@]} -ne 1 ]]; then
+         printf 'CODE_ROOT %s has %d remotes for %s; exactly one is required\n' "$CODE_ROOT" "${#matches[@]}" "$pr_repository" >&2
+         exit 66
+       fi
+       MAIN_ROOT=$(realpath -e -- "$CODE_ROOT")
+       PR_REMOTE="${matches[0]}"
      else
-       printf 'unsupported PR repository: %s\n' "$pr_repository" >&2
+       printf 'unsupported PR repository: %s (name its checkout as CODE_ROOT)\n' "$pr_repository" >&2
        exit 64
+     fi
+     if [[ -n "$CODE_ROOT" && "$(realpath -m -- "$CODE_ROOT")" != "$(realpath -m -- "$MAIN_ROOT")" ]]; then
+       printf 'CODE_ROOT %s does not match %s for %s\n' "$CODE_ROOT" "$MAIN_ROOT" "$pr_repository" >&2
+       exit 66
      fi
      ```
 
@@ -409,7 +433,7 @@ Merge recommendation の判定基準:
 - 「コメントしないこと」に該当する指摘が紛れていないか
 - メインリポジトリ側と `$WT` 側の `reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文を、自分でもサブエージェント経由でも開いたり検索対象に含めたりしていないか
 - Merge recommendation が判定基準と整合しているか。重大度判定は active findings、確認不足判定は coverage と pending も参照する
-- `MAIN_ROOT` は PR URL の `owner/repository` を「リポジトリ境界」の表に照らして確定したか（このリポジトリ=toplevel、resoloop=検証済みの `external/resoloop`、その他は停止）。PR の head を `$PR_REMOTE` から取得したか。`merge-base HEAD "$PR_REF"` の成功を確認したか
+- `MAIN_ROOT` は PR URL の `owner/repository` を「リポジトリ境界」の表に照らして確定したか（このリポジトリ=toplevel、resoloop=検証済みの `external/resoloop`、その他は明示された `CODE_ROOT` を照合し、明示が無い・不一致なら停止）。PR の head を `$PR_REMOTE` から取得したか。`merge-base HEAD "$PR_REF"` の成功を確認したか
 - `create` が返した `model_name`、`draft`、`destination`、`previous_review` を変更・再構築せず使用したか
 - 正確な `$MODEL_NAME` を `--model-name "$MODEL_NAME"` で渡し、filename から推測していないか（Codex はヘルパーが確定する）
 - `save` を `--state "$STATE_FILE"` だけで実行し、caller-selected path を渡していないか

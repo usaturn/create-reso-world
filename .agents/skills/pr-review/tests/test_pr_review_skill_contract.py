@@ -136,12 +136,13 @@ def build_parent_with_fork(tmp_path: Path, *, fork: str = "ok") -> Path:
 class ResolverFixture:
     toplevel: Path
 
-    def resolve(self, pr_url: str, *, skill_path: Path) -> tuple[Path, str]:
+    def resolve(self, pr_url: str, *, skill_path: Path, code_root: str | None = None) -> tuple[Path, str]:
         script = extract_resolver_script(read(skill_path))
         pr_json = json.dumps({"url": pr_url})
         # Emit MAIN_ROOT and PR_REMOTE after the skill block for the test harness.
         harness = f"""set -euo pipefail
 PR_JSON={json.dumps(pr_json)}
+CODE_ROOT={json.dumps(code_root or "")}
 {script}
 printf '%s\\n' "$MAIN_ROOT" "$PR_REMOTE"
 """
@@ -207,6 +208,8 @@ def assert_review_contract(content: str) -> None:
     assert 'git -C "$FORK_ROOT" remote get-url upstream' in content
     assert "scripts/resoloop-fork.sh clone" in content
     assert "unsupported PR repository" in content
+    assert 'elif [[ -n "$CODE_ROOT" ]]; then' in content
+    assert "exit 66" in content
     assert "リポジトリ境界" in content
     assert 'fetch "$PR_REMOTE" "+pull/<PR_NUMBER>/head:$PR_REF"' in content
     assert "external/resoloop/reviews/" in content
@@ -405,6 +408,90 @@ def test_pr_review_resolver_stops_without_a_verified_fork_checkout(tmp_path: Pat
         resolver.resolve("https://github.com/orange3134/resoloop/pull/4", skill_path=AGENTS_SKILL)
     assert stopped.value.returncode == 65
     assert "scripts/resoloop-fork.sh clone" in stopped.value.stderr
+
+
+OTHER_URL = "https://github.com/other/repository/pull/3"
+
+
+def build_checkout(path: Path, remotes: dict[str, str]) -> Path:
+    """A checkout of its own outside the parent, with the given remotes."""
+    path.mkdir(parents=True)
+    _git(path, "init")
+    _git(path, "commit", "--allow-empty", "-m", "init")
+    for name, url in remotes.items():
+        _git(path, "remote", "add", name, url)
+    return path.resolve()
+
+
+@pytest.mark.parametrize(
+    ("remotes", "expected_remote"),
+    [
+        ({"origin": "https://github.com/other/repository.git"}, "origin"),
+        # A fork checkout: the PR's pull/<N>/head lives in the base repository.
+        (
+            {"origin": "https://github.com/someone/repository.git", "upstream": "git@github.com:other/repository.git"},
+            "upstream",
+        ),
+    ],
+)
+def test_pr_review_resolver_uses_an_explicit_code_root(
+    tmp_path: Path, remotes: dict[str, str], expected_remote: str
+) -> None:
+    resolver = make_resolver(tmp_path)
+    checkout = build_checkout(tmp_path / "elsewhere" / "repository", remotes)
+    main_root, pr_remote = resolver.resolve(OTHER_URL, skill_path=AGENTS_SKILL, code_root=str(checkout))
+    assert main_root == checkout
+    assert pr_remote == expected_remote
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["relative", "git-directory", "nested-directory", "missing", "no-matching-remote", "two-matching-remotes"],
+)
+def test_pr_review_resolver_rejects_an_unverified_code_root(tmp_path: Path, case: str) -> None:
+    resolver = make_resolver(tmp_path)
+    remotes = {"origin": "https://github.com/other/repository.git"}
+    if case == "no-matching-remote":
+        remotes = {"origin": "https://github.com/someone/repository.git"}
+    if case == "two-matching-remotes":
+        remotes["mirror"] = "git@github.com:other/repository.git"
+    checkout = build_checkout(tmp_path / "elsewhere" / "repository", remotes)
+    (checkout / "src").mkdir()
+    code_root = {
+        "relative": "elsewhere/repository",
+        "git-directory": str(checkout / ".git"),
+        # Inside the right checkout but not its root: the review must not start there.
+        "nested-directory": str(checkout / "src"),
+        "missing": str(tmp_path / "absent"),
+    }.get(case, str(checkout))
+    with pytest.raises(ResolverStopped) as stopped:
+        resolver.resolve(OTHER_URL, skill_path=AGENTS_SKILL, code_root=code_root)
+    assert stopped.value.returncode == 66
+    assert "CODE_ROOT" in stopped.value.stderr
+
+
+def test_pr_review_resolver_rejects_a_code_root_that_contradicts_a_known_route(tmp_path: Path) -> None:
+    resolver = make_resolver(tmp_path)
+    checkout = build_checkout(tmp_path / "elsewhere" / "repository", {"origin": PARENT_ORIGIN})
+    with pytest.raises(ResolverStopped) as stopped:
+        resolver.resolve(
+            "https://github.com/usaturn/create-reso-world/pull/1", skill_path=AGENTS_SKILL, code_root=str(checkout)
+        )
+    assert stopped.value.returncode == 66
+    main_root, pr_remote = resolver.resolve(
+        "https://github.com/usaturn/create-reso-world/pull/1",
+        skill_path=AGENTS_SKILL,
+        code_root=str(resolver.toplevel),
+    )
+    assert (main_root, pr_remote) == (resolver.toplevel, "origin")
+
+
+def test_other_repositories_keep_reviews_out_of_the_document_store() -> None:
+    content = read(AGENTS_SKILL)
+    assert 'CODE_ROOT="${CODE_ROOT:-}"' in content
+    assert "推測で埋めない" in content
+    assert "`$CODE_ROOT/reviews/`" in content
+    assert "Spec・Plan ではない" in content
 
 
 @pytest.mark.parametrize("forbidden", ["$TOPLEVEL/devenv", "submodule status -- devenv"])
