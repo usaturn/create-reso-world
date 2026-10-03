@@ -223,6 +223,48 @@ class PiMcpCleanupTests(unittest.TestCase):
         self.assert_success(self.run_cleanup())
         self.assert_packages_clean()
 
+    # Break caught: requiring a manifest when pi will only remove settings registrations.
+    def test_registered_packages_without_npm_prefix_are_removed(self):
+        for removed in (["npm:" + name for name in REMOVED], [
+            "npm:pi-mcp-adapter@2.1.0",
+            {"source": "npm:@upstash/context7-pi@1.1.0", "extensions": []},
+        ]):
+            with self.subTest(removed=removed):
+                self.seed_packages(entries=KEPT + removed, manifests=False, installed=False)
+                expected = json.loads((self.agent / "settings.json").read_text())
+                expected["packages"] = KEPT
+                for name in MCP_FILES:
+                    (self.agent / name).write_text("old pi-only state")
+                for name in (*BUILTIN_MCP_FILES, "auth.json", "models.json"):
+                    (self.agent / name).write_bytes(b"keep unrelated bytes\r\n")
+                self.assertFalse((self.agent / "npm").exists())
+                self.assert_success(self.run_cleanup())
+                self.assertEqual(json.loads((self.agent / "settings.json").read_text()), expected)
+                self.assertFalse((self.agent / "npm").exists())
+                for name in MCP_FILES:
+                    self.assertFalse(os.path.lexists(self.agent / name), name)
+                for name in (*BUILTIN_MCP_FILES, "auth.json", "models.json"):
+                    self.assertEqual((self.agent / name).read_bytes(), b"keep unrelated bytes\r\n")
+                before = self.storage_snapshot()
+                self.assert_success(self.run_cleanup(FAKE_PI_REMOVE="fail"))
+                self.assertEqual(self.storage_snapshot(), before)
+                self.assertFalse((self.agent / "npm").exists())
+
+    # Break caught: treating an existing empty prefix like an absent prefix before npm runs.
+    def test_existing_npm_prefix_without_manifest_stops_before_removal(self):
+        self.seed_packages(manifests=False, installed=False)
+        (self.agent / "npm").mkdir()
+        (self.agent / "mcp-cache.json").write_text("keep on failed preflight")
+        before = self.storage_snapshot()
+        calls = self.base / "pi-calls"
+        result = self.run_cleanup(FAKE_PI_CALL_LOG=str(calls))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("package.json", result.stderr)
+        self.assertIn("restore", result.stderr.lower())
+        self.assertFalse(calls.exists())
+        self.assertEqual(self.storage_snapshot(), before)
+        self.assertTrue((self.agent / "npm").is_dir())
+
     # Break caught: npm removal without a root manifest can prune retained extensions.
     # Previously accepted lock/installed-only fixtures now intentionally fail before mutation.
     def test_lock_only_and_installed_only_without_manifest_stop_before_removal(self):

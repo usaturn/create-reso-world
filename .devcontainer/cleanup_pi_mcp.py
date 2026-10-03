@@ -121,6 +121,9 @@ def inspect(agent):
 
 def require_retained_npm_declarations(agent):
     """Refuse unsafe prefixes before npm uninstall can prune unrelated extensions."""
+    # pi skips npm uninstall when the prefix is absent and only removes settings entries.
+    if not os.path.lexists(agent / "npm"):
+        return
     manifest_path = agent / "npm/package.json"
     if not manifest_path.exists():
         raise ValueError(f"Missing {manifest_path}; restore the npm manifest before retrying cleanup")
