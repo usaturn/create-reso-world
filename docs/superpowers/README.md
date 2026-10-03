@@ -1,0 +1,45 @@
+# Superpowers の Spec・Plan
+
+この下には、Superpowers のスキル（brainstorming、writing-plans など）で作った設計（`specs/`）と実装計画（`plans/`）を置く。運用の設計は `specs/2026-10-03-superpowers-document-lifecycle-design.md` にある。
+
+## 保存先
+
+- 対象のリポジトリにかかわらず、Spec・Plan はこのリポジトリ（`usaturn/create-reso-world`）の `docs/superpowers/` にコミットする。ResoLoop や無関係なリポジトリの作業でも、そちらには置かない
+- Spec は `specs/YYYY-MM-DD-<topic>-design.md`、Plan は `plans/YYYY-MM-DD-<topic>.md` とする。Issue・PR に関する文書の `<topic>` には、リポジトリを表す語と番号を含める（例: `usaturn-resoloop-pr9-list-shrink-review-fixes`）
+- 同じテーマのレビュー修正は、新しいファイルを作らずに既存の文書を更新する。過去の版は Git の履歴で追う
+
+## 状態
+
+文書の冒頭に、文書管理リポジトリ、対象リポジトリと Issue・PR、検証したコードの HEAD、状態、関連する文書を書く。
+
+| 状態 | 意味 |
+| --- | --- |
+| draft | 明示承認をまだ得ていない |
+| approved | 指定された版の内容について明示承認を得た |
+| completed | 作業が完了した。結果と検証の根拠を併記する |
+| superseded | 後継の文書に置き換えた |
+| cancelled | 取りやめた。理由を残す |
+
+コミットしただけでは `approved` にしない。承認は、確認したコミットの SHA に結び付けて記録する。完了・置換・取りやめの後も、文書は削除しない。
+
+## 確認用コピー
+
+ユーザに確認を依頼する前に、コミット済みの版を親 checkout の `tmp/superpowers-review/` にコピーする。
+
+```bash
+bash scripts/superpowers-review-copy.sh --doc-root "$DOC_ROOT" --parent-root "$PARENT_ROOT" \
+  --path docs/superpowers/specs/2026-10-03-example-design.md --name usaturn-resoloop-pr9-list-shrink-spec.md
+```
+
+- コピーは閲覧のためのもので、正本ではない。引き継ぎや復元には、コミット済みの正本を使う
+- 確認中のコピーを新しい版に差し替えるときは、確認済みの版を `--replace-from <commit>` で示す。ユーザが編集したコピーは差し替えず、差分を正本へ反映してからコピーし直す
+
+## 公開
+
+- このリポジトリ自身の変更に伴う文書は、その作業の PR に含める
+- 他のリポジトリの変更に伴う文書は、このリポジトリの文書用ブランチから、テーマごとに 1 つの文書専用 PR で公開する。コード側の PR とは相互に参照する
+- push・PR 作成・マージは、ユーザまたは使っているワークフローの明示指示があるときだけ行う。ローカルのコミットだけのときは「公開未実施」と報告する
+
+## 履歴と現行仕様
+
+Spec・Plan は判断と実装の経緯の記録である。完了した Plan の手順を、今の環境でそのまま再実行してよいという意味ではない。利用者が参照する現在の手順は、各リポジトリの README などの通常のドキュメントに書く。
