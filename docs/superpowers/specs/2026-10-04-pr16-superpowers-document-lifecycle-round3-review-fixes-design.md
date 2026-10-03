@@ -1,4 +1,4 @@
-# PR #16 第3回レビュー指摘の修正方針
+# PR #16 レビュー指摘の修正方針（第3回・第4回）
 
 - 日付: 2026-10-04（JST）
 - 状態: completed（2026-10-04 のユーザの「進めて。」で R11〜R13 を明示承認。実装・必須検証・独立レビュー完了。後続の明示指示に従い既存 PR #16 へ反映。公開コミットと push の結果は同 PR の review-fix-planning コメントに記録）
@@ -236,3 +236,109 @@ skip は既存の `test_targeted_skill_semantics` のみ（SKILL_UNDER_TEST 未�
 - origin の fetch と PR API 再確認で、ローカル・remote・PR の先端は `333f4fb9bb704fb8934b9f6889453e5812a5dc29`、PR #16 は OPEN、ブランチは指定先のままであることを確認した。並行更新はなかった。
 
 承認後の調整役の着手は01:25 JST。入力・worktree・brief準備約4分、実装委譲約19分、Taskレビュー・証拠確認約12分、再検証・最終統合レビュー・結果記録約11分。公開直前まで約46分で、commit・push・status comment の結果と最終所要時間は同 PR に記録する。経過区間の概算であり、モデル生成時間の計測ではない。
+
+## 9. 第4回の選別・修正方針（2026-10-04 JST）
+
+- 状態: completed（下記の包括実行指示に基づき R16 の PR説明を更新し、API 照合を完了。特定の文書コミットに結び付いた個別承認を得たとは記録しない。文書公開と最終コメントの結果は同 PR に記録）
+- brainstorming 経路: bounded
+- 検証 HEAD: `530cfabeea036fea819f6a00a4b21bbc38837c3c`
+- 対象 PR・ブランチ・レビュー入力ディレクトリは上記と同じ。
+- ユーザの追加指示: 「対応が必要な指摘があったら、推奨案でプッシュまでしておいてください。対応が必要な指摘がなければ、最終ステータスコメントを投稿してマージをしてください。マージをした場合は、関連するIssueを更新しておいてください。」
+
+この指示に従い、今回は再度の承認待ちで停止せず、必要な対応だけを推奨案で実行する。コード修正は不要だが、PR 説明の事実誤認 R16 は対応する。そのため「対応が必要な指摘がなければ」の条件は成立せず、このターンではマージしない。Issue 更新はマージ後の条件付き指示なので実施しない。
+
+### 9.1 目的と入力
+
+全レビューの現行指摘、解消記録、未検証候補を現行 HEAD のコミット済み内容で確かめ、必要な修正だけを既存 PR #16 に反映する。多数のレビューで繰り返される設計論点を、票数だけで実装対象に戻さない。
+
+| 入力ファイル | 冒頭の対象 HEAD | 含まれる指摘・解消記録・候補 |
+| --- | --- | --- |
+| `openai-codex-gpt-6.1-sol.md` | `530cfabeea03` | M-1、M-2、解消 M-3 |
+| `SWE-2-Max.md` | `530cfabeea03` | L-1 |
+| `deepseek-deepseek-v4.1-flash.md` | `530cfabeea03` | L-1、I-1、I-3、I-4、解消 L-2〜L-4・I-2、allowed-tools・PARENT_ROOT 候補 |
+| `claude-opus-5-5.md` | `530cfabeea03` | L-2、I-1、解消 L-1・M-1、allowed-tools 候補 |
+| `opencode-go-muse-spark-1.3-contributor.md` | `333f4fb9bb70` | 指摘・未検証候補なし |
+
+指定ディレクトリの全5ファイルを全文読んだ。Muse のレビューだけ旧世代であることを区別する。別のレビュー入力、他 worktree の未コミット差分、退避元 `docs_draft/` は選別根拠に使わない。
+
+### 9.2 検証方法と結果
+
+PR API・origin のブランチ先端・同 SHA の隔離 worktree を照合した。source/test は `git show 530cfabeea036fea819f6a00a4b21bbc38837c3c:<path>` から取得した committed blob で読んだ。文書照合は読み取り専用の調査役にも委譲し、同じ committed snapshot だけを渡した。最終分類、テスト、挙動再現は調整役が担当した。PR 説明 R16 は Git blob ではないため、現行 PR API の本文を保存して比較した。
+
+隔離 worktree とフィクスチャ・ログ・スクラッチは、一意な `/tmp/review-fix-planning.QyxbuS/` 配下に閉じ込めた。再現に使ったスクリプト・resolver の実装は変更していない。検証後は `git worktree remove --force` の成功を確認してから親の一時ルートを削除した。Spec 作成まで検証 worktree を残していない。
+
+| 検証 | 結果 |
+| --- | --- |
+| pr-review・review-fix-planning・agent-handoff・planning-parallel-issues の契約テスト4ファイル | 96 passed in 4.36s、終了0。zsh ケースの skip なし |
+| `bash tests/scripts/test-superpowers-review-copy.bash` | PASS、終了0 |
+| `bash .devcontainer/run-tests.bash` | 26件すべてPASS、終了0 |
+| `bash scripts/check-layout.sh` | PASS、終了0。slum03 の同期検査も成功 |
+| `bash tests/scripts/test-docs.bash` | PASS、終了0 |
+| 別 DOC_ROOT の新規・更新コピー | created / replaced、blob と一致、親の正本・Git status は未変更 |
+| コピー公開直前で A を止め、B を同名公開して A を再開 | B・A とも終了0、B は A で上書きされる |
+| 旧版照合後・公開直前にユーザ注記を追記 | 終了0、注記が消える |
+| 外部 cwd の CODE_ROOT 未指定・明示・一致remote2件 | すべて終了0、外部 TOPLEVEL を返し helper は不存在 |
+| 正しい親 cwd と明示 CODE_ROOT（対照） | remote1件は成功、2件は終了66 |
+| remote0件の明示 CODE_ROOT | 終了66、exact-one-remote の案内 |
+| TOPLEVEL に origin がない／GitHub URL として解釈不能 | 有効な CODE_ROOT があっても終了1 |
+
+26検査と配置検査の再実行は、PR 説明が挙げる失敗が現行 HEAD に残っているかを確認する R16 の検証である。全スキル pytest、無関係なワールド pytest、ResoLoop fork 全テストは今回の反映条件として実行しない。既存 CI は同 HEAD の devcontainer-tests・layout・skill-tests・gitleaks がすべて SUCCESS だった。
+
+### 9.3 全指摘の4区分
+
+**重複統合17項目: 解消済み6 / 対応する1 / 判断保留0 / 対応しない10。** R1〜R13 を維持し、新規の4論点を R14〜R17 とする。Claude L-2 の remote-less 部分は R3、本体は R4 に分け、共有候補は R8 に統合した。行番号は検証 HEAD のもの。
+
+| ID | 出典 | 内容 | 区分 | 根拠・理由 |
+| --- | --- | --- | --- | --- |
+| R1 | Claude 解消 L-1、DeepSeek 解消 L-2 | linked CODE_ROOT が helper で後から拒否される | 解消済み | `pr-review/SKILL.md:151–155` が fetch 前に終了66で拒否。`ab28ff5` の修正と現行契約テストで確認。 |
+| R2 | Codex 解消 M-3 | 別 DOC_ROOT の作成・コミット先が一致しない | 解消済み | `review-fix-planning/SKILL.md:57,62–64,183` は DOC_ROOT に統一。新規・更新の最小再検証でも blob 一致、親未変更。 |
+| R3 | DeepSeek L-1、Claude L-2 の一部 | remote-less checkout を扱う条件 | 対応しない | `AGENTS.md:70` の exact-one-remote 方針に従い終了66。明示指示の必要条件を十分条件へ変えること、対応範囲を広げることは既決の設計論点。 |
+| R4 | Claude L-2 本体 | 任意 CODE_ROOT の経路が2スキルに限られる | 対応しない | `AGENTS.md:70` は他の作業を停止すると明記。planning・handoff の広い想定との整理は範囲変更の設計判断で、今回拡張しない。 |
+| R5 | Codex M-1 | 同名コピー同時実行・実行中編集の上書き | 対応しない | `scripts/superpowers-review-copy.sh:94–116` の2競合を再現。ただし既存 Spec §7 の保護対象外を維持し、ロック・公開方式・補足文書・追加テストを持ち込まない。未修正なので解消済みではない。 |
+| R6 | Codex M-2 | 外部 cwd を TOPLEVEL・helper 元とする | 対応しない | 外部 cwd の3ケースは再現するが、`pr-review/SKILL.md:105` と本 Spec §7 の create-reso-world 親 cwd 前提を維持。親 cwd の対照は正常。 |
+| R7 | DeepSeek I-1 | 過去 Plan の手順が後続修正を反映しない | 対応しない | Plan `:777–779` は旧記述だが、`docs/superpowers/README.md:43–45` と運用 Spec §7 は歴史記録として扱い、再実行を禁止。同期・追加ガードは行わない。 |
+| R8 | DeepSeek・Claude allowed-tools 候補 | 相対許可パターンと外部 DOC_ROOT | 対応しない | `review-fix-planning/SKILL.md:4,62–74` の記載は確認。Claude Code の許可照合で誤動作する実証がない互換性懸念で、数行修正で潜在バグを除くとも確定しない。 |
+| R9 | DeepSeek 解消 L-3 | linked TOPLEVEL の拒否が fetch 後になる | 解消済み | `pr-review/SKILL.md:124–132` の早期拒否を現行契約テストで確認。`333f4fb` の修正が機能する。 |
+| R10 | Claude I-1 | 歴史的 Spec・Plan の承認・完了状態 | 対応しない | README の状態定義と包括指示の扱いは既存 R10 の運用判断。本 Spec §7 に従い、過去文書の状態・チェック欄を遡及補完しない。 |
+| R11 | Claude 解消 M-1 | zsh で PR_REMOTE が空になる | 解消済み | `pr-review/SKILL.md:157–171` はスカラー選択へ変更済み。`530cfab` の bash/zsh 既定・nounset ケースを現行契約テストで再確認。 |
+| R12 | DeepSeek 解消 L-4 | linked cwd の ResoLoop 経路が不要な clone を案内 | 解消済み | `pr-review/SKILL.md:124–144` は fork 検査の前に linked TOPLEVEL を拒否。`530cfab` の両 owner の終了66・clone案内なしを契約テストで再確認。 |
+| R13 | DeepSeek 解消 I-2 | ssh:// remote を解釈しない | 解消済み | `pr-review/SKILL.md:110–117` と copier `:21–27` は ssh:// 対応済み。`530cfab` の resolver と独立した両コピー root のテストで成功を確認。 |
+| R14 | SWE L-1 | 親 TOPLEVEL の origin 判定が CODE_ROOT 経路より先に失敗 | 対応しない | origin なし・解釈不能は終了1を再現。ただし正しい origin を持つ create-reso-world 親 checkout という文書化された前提外で、安全側に停止する。対応可能な親の条件や診断整備を広げる指摘は今回採用しない。 |
+| R15 | DeepSeek I-3 | 同じテーマの既存更新方針と過去の回別 Spec が一致しない | 対応しない | `AGENTS.md:50`・README `:9` は既存更新を要求する。過去3ファイルを整理するか方針自体を変えるかは設計判断。今回の記録は既存の本ファイルを更新し、回別ファイルを増やさない。 |
+| R16 | DeepSeek I-4 | PR 説明が解消済みの検証失敗を現状として記載 | 対応する (b) | 現行 PR 本文は26件中24件成功・slum03未同期と記載するが、`9f9212a`・`333f4fb` で解消済み。現行 HEAD の26件成功・配置成功を再実行で確認した事実誤認。 |
+| R17 | DeepSeek PARENT_ROOT 候補 | 親 checkout の選定手順が明文化されていない | 対応しない | `AGENTS.md:48`・`review-fix-planning/SKILL.md:65` は定義・確認を要求し、copier `:47–58` は誤った親を拒否。誤選定による誤動作の実証がなく、数行修正で潜在バグを除くものでもない手順補足。 |
+
+Test suggestions は独立した不具合として数えず、対応しない・解消済みの項目へのテスト補強は追加しない。Codex の歴史的文書全文の確認不足はレビュー coverage の限界として記録されており、新たな具体的不具合候補ではない。今回も取り込み22文書の全文監査や過去の外部実装の再検証へ範囲を広げない。
+
+### 9.4 R16 の推奨案・検証・反映
+
+**推奨案:** 現行 PR 説明の「検証」節だけを更新する。新たなコード・テスト変更、過去 Plan の同期、過去 Spec の状態改訂は行わない。分類・検証記録は同テーマの既存 Spec である本ファイルに追記し、既存ブランチに commit・push する。
+
+PR 説明には検証日・検証 HEAD と今回の26検査・配置・コピー・96契約テストの結果を書く。初回の2失敗は「`821e82d` の履歴で、現行 HEAD では解消済み」と明確に区別する。全スキル306件の結果は第3回 Spec §8 の既存記録であり、今回の再実行ではないと明記する。検証節以外の説明、他エージェントのコメントは編集しない。
+
+**検証方法:** PR 本文の事前 snapshot と現在値が一致することを更新直前に確認し、`gh pr edit --repo usaturn/create-reso-world --body-file ...` で更新。API で再取得して更新本文が一致し、検証節の前後が不変で、PR が OPEN・HEAD 不変であることを検査する。Spec は文書検査と `git diff --check` で確認する。コードを変えないため TDD の回帰テスト追加は不要。
+
+**反映:** origin を fetch して並行更新がないことを確認後、既存 `docs/superpowers-document-lifecycle` に本 Spec だけを commit・push する。push 成功と remote・PR HEAD の一致を確認し、自モデルの marker を持つ既存 status comment を helper で更新する。新しい PR・review-fixes ブランチは作らない。対応項目が1件あるため、マージ・関連 Issue 更新は実施しない。
+
+### 9.5 今回の実施記録
+
+- PR 説明の更新・API 照合: 03:17 JST に成功。検証節だけが変更され、前後の本文は不変、PR は OPEN、コード HEAD は `530cfab` のままであることを確認。
+- 文書検査: PASS。最初の diff check は今回追記した末尾空行1行で終了2になったため、空行を除き再検査する。実装の不具合や新たなレビュー指摘ではない。
+- commit・push・最終 status comment: 公開後の SHA・結果・総所要時間を同 PR の自モデルのコメントに記録する。文書へ自コミットの SHA を埋め込むための追加コミットは作らない。
+
+### 所要時間とチェックリスト
+
+- 調整役の着手: 2026-10-04 03:02 JST。
+- 入力・PR・規約確認: 約3分。
+- committed 文書照合の委譲・統合: 約3分（調査役報告の概算は約5分）。
+- 挙動再現・限定テスト・26検査・配置・teardown: 約5分。
+- 分類・bounded 方針・Spec・PR説明の準備: 約4分。
+- 公開までの総時間と最終結果: PR status comment に記録する。経過区間の概算であり、モデル生成時間の計測ではない。
+
+- [x] 全5入力と各対象 HEAD を確認
+- [x] 現行 HEAD の committed blob で検証
+- [x] 検証 worktree と一時領域を撤去
+- [x] 全17論点を4区分へ分類
+- [x] bounded 方針を整理し、既存 Spec に保存
+- [x] R16 の PR説明更新と API 照合
+- 公開結果（commit・push・status comment）は、反映後の PR コメントを正本とする。
