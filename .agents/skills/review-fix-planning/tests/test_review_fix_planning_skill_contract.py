@@ -182,9 +182,14 @@ def test_number_argument_searches_the_fork_reviews_too() -> None:
 
 def test_spec_goes_to_docs_superpowers_specs_of_this_repository() -> None:
     content = read(AGENTS_SKILL)
-    assert "$TOPLEVEL/docs/superpowers/specs/" in content
+    # DOC_ROOT may be a separate checkout of the document branch; the spec is
+    # written where it is committed, not in the parent checkout (TOPLEVEL).
+    assert "$DOC_ROOT/docs/superpowers/specs/" in content
+    assert "$TOPLEVEL/docs/superpowers/specs/" not in content
     assert "$MAIN_ROOT/docs" not in content
     assert "docs_draft" not in content
+    step6 = content.split("6. **Spec を書く**", 1)[1].split("7. **", 1)[0]
+    assert "`DOC_ROOT`" in step6
 
 
 def test_landing_eval_uses_the_change_specific_gate() -> None:

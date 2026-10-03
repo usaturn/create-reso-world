@@ -54,14 +54,14 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
    `worktree remove` が失敗したら親を `rm -rf` しない（git の worktree 登録が欠けたパスを指す）。停止し、`$WT` と `$REPRO_ROOT` の完全パスを報告する。残りは `.devcontainer/cleanup-workspace.bash` に委ねる。`worktree remove` 無しで `rm -rf` だけを組み立てない。
 4. **下記「分類の仕様」に従って全指摘を 4 区分に振り分ける。**
 5. **`superpowers:brainstorming` を呼ぶ** — 選別結果を持って経路（spike / bounded / architectural）を判定させ、その経路の作法で設計を詰める。
-6. **Spec を書く** — 経路に関わらず必ず書く（下記「Spec は経路に関わらず必須」）。
+6. **Spec を書く** — 経路に関わらず必ず書く（下記「Spec は経路に関わらず必須」）。書く前に、下記「Spec のコミットと確認用コピー」の 1. で `DOC_ROOT` を確定し、`$DOC_ROOT/docs/superpowers/specs/` に書く。
 7. **承認を得て停止する** — 下記「Spec のコミットと確認用コピー」に従って Spec をコミットし、確認用コピーを作ってから提示する。ユーザが明示的に「進めて」と言うまで実装に入らない。実装せず止まる場合の **作業終了前の PR 投稿** は任意であり、commit / push まで完了したターンのみ必須である。実装が終わったら **実装後** に従う。
 
 ## Spec のコミットと確認用コピー
 
-Spec の正本は `$TOPLEVEL`（create-reso-world。ルート `AGENTS.md` の `DOC_ROOT`）にだけ置く。`MAIN_ROOT` が別のリポジトリでも、そちらへ置かない。
+Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の定義）にだけ置く。`MAIN_ROOT` が別のリポジトリでも、そちらへ置かない。`DOC_ROOT` は `$TOPLEVEL` と同じとは限らない。`$TOPLEVEL` は、スキル helper と `scripts/superpowers-review-copy.sh` の配置元としてだけ使う。
 
-1. **コミットする** — 提示の前に、Spec を `draft` のままコミットする。コミット先は、`PR_REPO` が `usaturn/create-reso-world` ならレビュー対象ブランチ（実装を載せるブランチ）、それ以外なら create-reso-world の文書用ブランチ（テーマごとに 1 本。例 `docs/usaturn-resoloop-pr9-list-shrink`）である。そのブランチの checkout を `DOC_ROOT` とする。既存の文書用ブランチがあれば再利用し、レビュー回ごとに作らない。`DOC_ROOT` を特定できない場合は推測せず停止する。
+1. **`DOC_ROOT` を確定してコミットする** — Spec を書く前に、コミット先のブランチの checkout を `DOC_ROOT` として確定する。コミット先は、`PR_REPO` が `usaturn/create-reso-world` ならレビュー対象ブランチ（実装を載せるブランチ）、それ以外なら create-reso-world の文書用ブランチ（テーマごとに 1 本。例 `docs/usaturn-resoloop-pr9-list-shrink`）である。既存の文書用ブランチがあれば再利用し、レビュー回ごとに作らない。`DOC_ROOT` を特定できない場合は推測せず停止する。Spec の作成・更新は `$DOC_ROOT` で行い、提示の前に `draft` のまま `$DOC_ROOT` でコミットする。
 2. **確認用コピーを作る** — `PARENT_ROOT`（ユーザが読む create-reso-world の親 checkout）を確かめてから、次を `$TOPLEVEL` で実行する。名前は `<repo>-pr<N>-<topic>-spec.md` の形にする。再提示で既存のコピーを差し替えるときは、前回提示した文書コミットを `--replace-from` に渡す。スクリプトが拒否したら、worktree のパスだけを代わりに示さず、失敗を報告して止まる。
 
    ```bash
@@ -180,7 +180,7 @@ EOF
 
 `superpowers:brainstorming` は bounded / spike 経路では Spec 不要と書いているが、**このスキルではユーザ指示が優先し、3 経路すべてで Spec を書く。**
 
-- 配置: `$TOPLEVEL/docs/superpowers/specs/`（ルート `AGENTS.md` の規定）。常にこのリポジトリ側に置き、`MAIN_ROOT` が `external/resoloop` や他のリポジトリの checkout のときも、そちらへ置かない
+- 配置: `$DOC_ROOT/docs/superpowers/specs/`（create-reso-world の checkout。ルート `AGENTS.md` の規定）。常にこのリポジトリ側に置き、`MAIN_ROOT` が `external/resoloop` や他のリポジトリの checkout のときも、そちらへ置かない
 - 命名: `YYYY-MM-DD-<topic>-review-fixes-design.md`
 - 必須の中身:
   - 全指摘の一覧と 4 区分の振り分け（1 件も落とさない）
