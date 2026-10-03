@@ -11,7 +11,7 @@ Announce this skill. Read repository instructions, existing Issues, code, and av
 
 ## Target repository
 
-Boards, Issues and claim refs live in `usaturn/create-reso-world`, this repository's `origin`. Before the first write, confirm that `git remote get-url origin` names it, and use it wherever the references write `{owner}/{repo}`. Work on ResoLoop itself belongs to the fork (`usaturn/resoloop`, checked out at `external/resoloop`) under the repository boundary table in the root `AGENTS.md`; build a board there only when the user names that repository. Stop instead of guessing for any other repository.
+Boards, Issues and claim refs live in `usaturn/create-reso-world`, this repository's `origin`. Before the first write, confirm that `git remote get-url origin` names it, and use it wherever the references write `{owner}/{repo}`. Work on ResoLoop itself belongs to the fork (`usaturn/resoloop`, checked out at `external/resoloop`) under the repository boundary table in the root `AGENTS.md`; build a board there only when the user names that repository. Do not build a board in any other repository. A child may still name another repository as its implementation target: record its exact identifier (`owner/repo` on GitHub), and the checkout only when the user or a verified handoff names it (`CODE_ROOT`). Its Spec and Plan are still committed in `usaturn/create-reso-world`, as the root `AGENTS.md` requires for every repository. Stop instead of guessing when the target or its checkout is unclear.
 
 ## Choose the requested operation
 

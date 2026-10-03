@@ -39,3 +39,15 @@ def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
 
 def test_validation_record_lists_only_checks_that_exist_here() -> None:
     assert "scripts/ci/" not in read(VALIDATION)
+
+
+def test_children_may_target_other_repositories_but_documents_stay_here() -> None:
+    target = read(SKILL).split("## Target repository", 1)[1].split("\n## ", 1)[0]
+    assert "exact identifier" in target
+    assert "`CODE_ROOT`" in target
+    assert "Stop instead of guessing for any other repository." not in target
+    workflow = read(SKILL_DIR / "references/session-workflow.md")
+    artifacts = workflow.split("## Required artifact set", 1)[1].split("\n## ", 1)[0]
+    assert "`usaturn/create-reso-world`" in artifacts
+    assert "scripts/superpowers-review-copy.sh" in artifacts
+    assert "viewing aid" in artifacts
