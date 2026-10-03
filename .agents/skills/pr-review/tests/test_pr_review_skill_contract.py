@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -137,18 +138,28 @@ def build_parent_with_fork(tmp_path: Path, *, fork: str = "ok") -> Path:
 class ResolverFixture:
     toplevel: Path
 
-    def resolve(self, pr_url: str, *, skill_path: Path, code_root: str | None = None) -> tuple[Path, str]:
+    def resolve(
+        self,
+        pr_url: str,
+        *,
+        skill_path: Path,
+        code_root: str | None = None,
+        shell: str = "bash",
+        nounset: bool = True,
+    ) -> tuple[Path, str]:
         script = extract_resolver_script(read(skill_path))
         pr_json = json.dumps({"url": pr_url})
         # Emit MAIN_ROOT and PR_REMOTE after the skill block for the test harness.
-        harness = f"""set -euo pipefail
+        shell_options = "set -euo pipefail" if nounset else "set -eo pipefail"
+        harness = f"""{shell_options}
 PR_JSON={json.dumps(pr_json)}
 CODE_ROOT={json.dumps(code_root or "")}
 {script}
 printf '%s\\n' "$MAIN_ROOT" "$PR_REMOTE"
 """
+        shell_args = [shell, "-f"] if shell == "zsh" else [shell]
         completed = subprocess.run(
-            ["bash", "-c", harness],
+            [*shell_args, "-c", harness],
             cwd=self.toplevel,
             text=True,
             capture_output=True,
@@ -156,7 +167,11 @@ printf '%s\\n' "$MAIN_ROOT" "$PR_REMOTE"
         )
         if completed.returncode != 0:
             raise ResolverStopped(completed.returncode, completed.stderr, completed.stdout)
-        main_root, pr_remote = completed.stdout.strip().splitlines()[-2:]
+        # Preserve the blank remote line: stripping stdout hid zsh's empty result.
+        lines = completed.stdout.splitlines()
+        assert len(lines) == 2, completed.stdout
+        assert completed.stderr == "", completed.stderr
+        main_root, pr_remote = lines
         return Path(main_root).resolve(), pr_remote
 
 
@@ -389,11 +404,17 @@ def test_pr_review_resolver_selects_only_registered_repositories(
     assert pr_remote == expected_remote
 
 
-def test_pr_review_resolver_rejects_a_linked_toplevel_before_fetch(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("repository", "expected_remote"),
+    [("usaturn/create-reso-world", "origin"), ("usaturn/resoloop", "origin"), ("orange3134/resoloop", "upstream")],
+)
+def test_pr_review_resolver_rejects_a_linked_toplevel_before_fetch(
+    tmp_path: Path, repository: str, expected_remote: str
+) -> None:
     resolver = make_resolver(tmp_path)
     worktree = tmp_path / "parent-wt"
     _git(resolver.toplevel, "worktree", "add", "--detach", str(worktree))
-    pr_url = "https://github.com/usaturn/create-reso-world/pull/16"
+    pr_url = f"https://github.com/{repository}/pull/16"
     try:
         linked_resolver = ResolverFixture(toplevel=worktree)
         with pytest.raises(ResolverStopped) as stopped:
@@ -403,11 +424,15 @@ def test_pr_review_resolver_rejects_a_linked_toplevel_before_fetch(tmp_path: Pat
         assert "main checkout" in stopped.value.stderr
         assert "create-reso-world" in stopped.value.stderr
         assert str(worktree) in stopped.value.stderr
+        assert "scripts/resoloop-fork.sh clone" not in stopped.value.stderr
         # The resolver stops before returning a root to the following fetch.
         assert stopped.value.stdout == ""
         main_root, pr_remote = resolver.resolve(pr_url, skill_path=AGENTS_SKILL)
-        assert main_root == resolver.toplevel
-        assert pr_remote == "origin"
+        expected_root = (
+            resolver.toplevel if repository == "usaturn/create-reso-world" else resolver.toplevel / "external/resoloop"
+        )
+        assert main_root == expected_root
+        assert pr_remote == expected_remote
     finally:
         _git(resolver.toplevel, "worktree", "remove", "--force", str(worktree))
 
@@ -423,15 +448,25 @@ def test_pr_review_resolver_stops_for_unknown_repository(skill_path: Path, resol
     assert "unsupported PR repository: other/repository" in stopped.value.stderr
 
 
-@pytest.mark.parametrize("fork", ["missing", "plain", "wrong-origin", "wrong-upstream"])
-def test_pr_review_resolver_stops_without_a_verified_fork_checkout(tmp_path: Path, fork: str) -> None:
+@pytest.mark.parametrize(
+    ("owner", "fork"),
+    [
+        ("orange3134", "missing"),
+        ("usaturn", "missing"),
+        ("orange3134", "plain"),
+        ("orange3134", "wrong-origin"),
+        ("orange3134", "wrong-upstream"),
+    ],
+)
+def test_pr_review_resolver_stops_without_a_verified_fork_checkout(tmp_path: Path, owner: str, fork: str) -> None:
     # A plain directory under the parent must not resolve to the parent's
     # own checkout, and a checkout with other remotes is not the fork.
     resolver = make_resolver(tmp_path, fork=fork)
     with pytest.raises(ResolverStopped) as stopped:
-        resolver.resolve("https://github.com/orange3134/resoloop/pull/4", skill_path=AGENTS_SKILL)
+        resolver.resolve(f"https://github.com/{owner}/resoloop/pull/4", skill_path=AGENTS_SKILL)
     assert stopped.value.returncode == 65
     assert "scripts/resoloop-fork.sh clone" in stopped.value.stderr
+    assert stopped.value.stdout == ""
 
 
 OTHER_URL = "https://github.com/other/repository/pull/3"
@@ -447,6 +482,14 @@ def build_checkout(path: Path, remotes: dict[str, str]) -> Path:
     return path.resolve()
 
 
+@pytest.fixture(params=["bash", "zsh-default", "zsh-nounset"])
+def resolver_shell(request: pytest.FixtureRequest) -> tuple[str, bool]:
+    shell = "zsh" if request.param.startswith("zsh") else "bash"
+    if shell == "zsh" and shutil.which(shell) is None:
+        pytest.skip(f"{shell} is not installed; skipping only its resolver cases")
+    return shell, request.param != "zsh-default"
+
+
 @pytest.mark.parametrize(
     ("remotes", "expected_remote"),
     [
@@ -459,13 +502,39 @@ def build_checkout(path: Path, remotes: dict[str, str]) -> Path:
     ],
 )
 def test_pr_review_resolver_uses_an_explicit_code_root(
-    tmp_path: Path, remotes: dict[str, str], expected_remote: str
+    tmp_path: Path, remotes: dict[str, str], expected_remote: str, resolver_shell: tuple[str, bool]
 ) -> None:
     resolver = make_resolver(tmp_path)
     checkout = build_checkout(tmp_path / "elsewhere" / "repository", remotes)
-    main_root, pr_remote = resolver.resolve(OTHER_URL, skill_path=AGENTS_SKILL, code_root=str(checkout))
+    shell, nounset = resolver_shell
+    main_root, pr_remote = resolver.resolve(
+        OTHER_URL, skill_path=AGENTS_SKILL, code_root=str(checkout), shell=shell, nounset=nounset
+    )
     assert main_root == checkout
     assert pr_remote == expected_remote
+
+
+@pytest.mark.parametrize(
+    ("remotes", "count"),
+    [
+        ({"origin": "https://github.com/someone/repository.git"}, 0),
+        (
+            {"origin": "https://github.com/other/repository.git", "mirror": "git@github.com:other/repository.git"},
+            2,
+        ),
+    ],
+)
+def test_pr_review_resolver_requires_exactly_one_matching_remote(
+    tmp_path: Path, remotes: dict[str, str], count: int, resolver_shell: tuple[str, bool]
+) -> None:
+    resolver = make_resolver(tmp_path)
+    checkout = build_checkout(tmp_path / "elsewhere" / "repository", remotes)
+    shell, nounset = resolver_shell
+    with pytest.raises(ResolverStopped) as stopped:
+        resolver.resolve(OTHER_URL, skill_path=AGENTS_SKILL, code_root=str(checkout), shell=shell, nounset=nounset)
+    assert stopped.value.returncode == 66
+    assert f"has {count} remotes for other/repository; exactly one is required" in stopped.value.stderr
+    assert stopped.value.stdout == ""
 
 
 @pytest.mark.parametrize(
@@ -476,17 +545,11 @@ def test_pr_review_resolver_uses_an_explicit_code_root(
         "nested-directory",
         "linked-worktree",
         "missing",
-        "no-matching-remote",
-        "two-matching-remotes",
     ],
 )
 def test_pr_review_resolver_rejects_an_unverified_code_root(tmp_path: Path, case: str) -> None:
     resolver = make_resolver(tmp_path)
     remotes = {"origin": "https://github.com/other/repository.git"}
-    if case == "no-matching-remote":
-        remotes = {"origin": "https://github.com/someone/repository.git"}
-    if case == "two-matching-remotes":
-        remotes["mirror"] = "git@github.com:other/repository.git"
     checkout = build_checkout(tmp_path / "elsewhere" / "repository", remotes)
     (checkout / "src").mkdir()
     worktree = tmp_path / "elsewhere" / "repository-wt"
@@ -523,6 +586,64 @@ def test_pr_review_resolver_rejects_a_code_root_that_contradicts_a_known_route(t
         code_root=str(resolver.toplevel),
     )
     assert (main_root, pr_remote) == (resolver.toplevel, "origin")
+
+
+@pytest.mark.parametrize(
+    "origin_url",
+    [
+        "git@github.com:usaturn/create-reso-world.git",
+        "ssh://git@github.com/usaturn/create-reso-world.git",
+        "ssh://git@github.com/usaturn/create-reso-world",
+    ],
+)
+def test_pr_review_resolver_accepts_github_remote_formats_for_toplevel(tmp_path: Path, origin_url: str) -> None:
+    resolver = make_resolver(tmp_path)
+    _git(resolver.toplevel, "remote", "set-url", "origin", origin_url)
+    main_root, pr_remote = resolver.resolve(
+        "https://github.com/usaturn/create-reso-world/pull/16", skill_path=AGENTS_SKILL
+    )
+    assert (main_root, pr_remote) == (resolver.toplevel, "origin")
+
+
+@pytest.mark.parametrize(("owner", "expected_remote"), [("usaturn", "origin"), ("orange3134", "upstream")])
+def test_pr_review_resolver_accepts_ssh_urls_for_fork_remotes(
+    tmp_path: Path, owner: str, expected_remote: str
+) -> None:
+    resolver = make_resolver(tmp_path)
+    checkout = resolver.toplevel / "external/resoloop"
+    _git(checkout, "remote", "set-url", "origin", "ssh://git@github.com/usaturn/resoloop.git")
+    _git(checkout, "remote", "set-url", "upstream", "ssh://git@github.com/orange3134/resoloop")
+    main_root, pr_remote = resolver.resolve(f"https://github.com/{owner}/resoloop/pull/16", skill_path=AGENTS_SKILL)
+    assert (main_root, pr_remote) == (checkout, expected_remote)
+
+
+@pytest.mark.parametrize(
+    "remote_url", ["ssh://git@github.com/other/repository.git", "ssh://git@github.com/other/repository"]
+)
+def test_pr_review_resolver_accepts_ssh_urls_for_code_root(tmp_path: Path, remote_url: str) -> None:
+    resolver = make_resolver(tmp_path)
+    checkout = build_checkout(tmp_path / "elsewhere/repository", {"origin": remote_url})
+    main_root, pr_remote = resolver.resolve(OTHER_URL, skill_path=AGENTS_SKILL, code_root=str(checkout))
+    assert (main_root, pr_remote) == (checkout, "origin")
+
+
+@pytest.mark.parametrize(
+    "remote_url",
+    [
+        "https://example.com/other/repository.git",
+        "git@example.com:other/repository.git",
+        "ssh://git@example.com/other/repository.git",
+        "ssh://git@github.com/someone/repository.git",
+    ],
+)
+def test_pr_review_resolver_rejects_mismatched_remote_urls(tmp_path: Path, remote_url: str) -> None:
+    resolver = make_resolver(tmp_path)
+    checkout = build_checkout(tmp_path / "elsewhere/repository", {"origin": remote_url})
+    with pytest.raises(ResolverStopped) as stopped:
+        resolver.resolve(OTHER_URL, skill_path=AGENTS_SKILL, code_root=str(checkout))
+    assert stopped.value.returncode == 66
+    assert "has 0 remotes for other/repository; exactly one is required" in stopped.value.stderr
+    assert stopped.value.stdout == ""
 
 
 def test_other_repositories_keep_reviews_out_of_the_document_store() -> None:

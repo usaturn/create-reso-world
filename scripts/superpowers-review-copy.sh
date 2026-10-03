@@ -21,7 +21,8 @@ die() { printf 'superpowers-review-copy: %s\n' "$1" >&2; exit 1; }
 github_repository() {
   sed -nE \
     -e 's#^https://github[.]com/([^/]+/[^/#?]+)(/.*)?$#\1#p' \
-    -e 's#^git@github[.]com:([^/]+/[^/#?]+)([.]git)?$#\1#p' | sed 's/[.]git$//'
+    -e 's#^git@github[.]com:([^/]+/[^/#?]+)([.]git)?$#\1#p' \
+    -e 's#^ssh://git@github[.]com/([^/]+/[^/#?]+)([.]git)?$#\1#p' | sed 's/[.]git$//'
 }
 
 doc_root='' parent_root='' rel='' name='' rev=HEAD replace_from=''

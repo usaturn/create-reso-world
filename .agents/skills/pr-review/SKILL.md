@@ -102,7 +102,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
    - gh が未認証・API エラーの場合はエラー内容をそのまま報告し、`gh auth login` を案内する。
 2. **worktree への展開**:
    - ユーザの作業ブランチ・working tree に触れないため、`gh pr checkout` は使わない。
-   - `MAIN_ROOT` は、手順 1 で取得した `$PR_JSON` の `url` から GitHub `owner/repository` を抽出し、ルート `AGENTS.md` の「リポジトリ境界」の表に照らして確定する。現在の toplevel の `origin` と一致すれば toplevel、`usaturn/resoloop` または `orange3134/resoloop` なら `$TOPLEVEL/external/resoloop`（自前の checkout であることと `origin`・`upstream` を検証し、満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は推測せず停止する。その他のリポジトリは、ユーザの依頼または確認済みの引き継ぎで checkout が明示されている場合だけ、その絶対パスを `CODE_ROOT` に入れてから次を実行する。推測で埋めない。pr-review の `CODE_ROOT` は対象リポジトリの main checkout とする。同リポジトリの `TOPLEVEL` 経路でも、create-reso-world の main checkout を cwd にする。helper は linked worktree から review worktree を作らないため、どちらの経路も linked worktree は次のブロックで fetch 前に止める。明示されていなければ空のままにする。PR の head を取得する remote `PR_REMOTE` も同時に決める。上流 `orange3134/resoloop` の PR は `upstream`、それ以外は `origin` から取得する。
+   - `MAIN_ROOT` は、手順 1 で取得した `$PR_JSON` の `url` から GitHub `owner/repository` を抽出し、ルート `AGENTS.md` の「リポジトリ境界」の表に照らして確定する。現在の toplevel の `origin` と一致すれば toplevel、`usaturn/resoloop` または `orange3134/resoloop` なら `$TOPLEVEL/external/resoloop`（自前の checkout であることと `origin`・`upstream` を検証し、満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は推測せず停止する。その他のリポジトリは、ユーザの依頼または確認済みの引き継ぎで checkout が明示されている場合だけ、その絶対パスを `CODE_ROOT` に入れてから次を実行する。推測で埋めない。pr-review の `CODE_ROOT` は対象リポジトリの main checkout とする。同リポジトリの `TOPLEVEL` 経路と ResoLoop の fork 経路では、create-reso-world の main checkout を cwd にする。helper は linked worktree から review worktree を作らないため、linked worktree は次のブロックで fetch 前に止める。既知経路の linked `TOPLEVEL` は fork 検査より前に止める。明示されていなければ空のままにする。PR の head を取得する remote `PR_REMOTE` も同時に決める。上流 `orange3134/resoloop` の PR は `upstream`、それ以外は `origin` から取得する。
 
      ```bash
      PR_URL=$(printf '%s' "$PR_JSON" | jq -r .url)
@@ -110,7 +110,8 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
      github_repository() {
        sed -nE \
          -e 's#^https://github[.]com/([^/]+/[^/#?]+)(/.*)?$#\1#p' \
-         -e 's#^git@github[.]com:([^/]+/[^/#?]+)([.]git)?$#\1#p' | \
+         -e 's#^git@github[.]com:([^/]+/[^/#?]+)([.]git)?$#\1#p' \
+         -e 's#^ssh://git@github[.]com/([^/]+/[^/#?]+)([.]git)?$#\1#p' | \
          sed 's/[.]git$//'
      }
      CODE_ROOT="${CODE_ROOT:-}"
@@ -119,13 +120,16 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
        "$(git -C "$TOPLEVEL" remote get-url origin)" | github_repository)"
      test -n "$pr_repository"
      test -n "$origin_repository"
-     if [[ "$pr_repository" == "$origin_repository" ]]; then
-       # TOPLEVEL 経路も helper の main checkout 要件を fetch 前に確かめる
+     if [[ "$pr_repository" == "$origin_repository" ||
+       "$pr_repository" == "usaturn/resoloop" || "$pr_repository" == "orange3134/resoloop" ]]; then
+       # 既知経路の TOPLEVEL は、fork 検査・fetch 前に main checkout 要件を確かめる
        if [[ "$(realpath -e -- "$(git -C "$TOPLEVEL" rev-parse --path-format=absolute --git-dir)")" != \
          "$(realpath -e -- "$(git -C "$TOPLEVEL" rev-parse --path-format=absolute --git-common-dir)")" ]]; then
          printf 'TOPLEVEL is a linked worktree; run pr-review from the create-reso-world main checkout: %s\n' "$TOPLEVEL" >&2
          exit 66
        fi
+     fi
+     if [[ "$pr_repository" == "$origin_repository" ]]; then
        MAIN_ROOT="$TOPLEVEL"
        PR_REMOTE=origin
      elif [[ "$pr_repository" == "usaturn/resoloop" || "$pr_repository" == "orange3134/resoloop" ]]; then
@@ -150,18 +154,20 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
          printf 'CODE_ROOT is a linked worktree; name the main checkout of %s: %s\n' "$pr_repository" "$CODE_ROOT" >&2
          exit 66
        fi
-       matches=()
+       match_count=0
+       matched_remote=''
        for remote in $(git -C "$CODE_ROOT" remote); do
          if [[ "$(git -C "$CODE_ROOT" remote get-url "$remote" | github_repository)" == "$pr_repository" ]]; then
-           matches+=("$remote")
+           match_count=$((match_count + 1))
+           matched_remote="$remote"
          fi
        done
-       if [[ ${#matches[@]} -ne 1 ]]; then
-         printf 'CODE_ROOT %s has %d remotes for %s; exactly one is required\n' "$CODE_ROOT" "${#matches[@]}" "$pr_repository" >&2
+       if [[ "$match_count" -ne 1 ]]; then
+         printf 'CODE_ROOT %s has %d remotes for %s; exactly one is required\n' "$CODE_ROOT" "$match_count" "$pr_repository" >&2
          exit 66
        fi
        MAIN_ROOT=$(realpath -e -- "$CODE_ROOT")
-       PR_REMOTE="${matches[0]}"
+       PR_REMOTE="$matched_remote"
      else
        printf 'unsupported PR repository: %s (name its checkout as CODE_ROOT)\n' "$pr_repository" >&2
        exit 64
