@@ -1,0 +1,256 @@
+{
+  "seed": 260927,
+  "sectors": {
+    "ruins-west": {
+      "triangles": 2904,
+      "uv_issues": 0,
+      "errors": 0,
+      "reopened_uv0_colors": true,
+      "objects": [
+        {
+          "key": "ruin-west",
+          "mesh": "ruin-west",
+          "evaluated_bounds": {
+            "minimum": [
+              -46.27000045776367,
+              0.0,
+              3.0500001907348633
+            ],
+            "maximum": [
+              -29.729999542236328,
+              23.87347412109375,
+              20.957500457763672
+            ]
+          },
+          "canonical_bounds": {
+            "minimum": [
+              -46.5,
+              0.0,
+              3.0
+            ],
+            "maximum": [
+              -29.5,
+              24.0,
+              21.0
+            ]
+          },
+          "route_clear": true,
+          "within_placement": true
+        },
+        {
+          "key": "ruin-west-annex",
+          "mesh": "ruin-west-annex",
+          "evaluated_bounds": {
+            "minimum": [
+              -53.77000045776367,
+              0.0,
+              23.049999237060547
+            ],
+            "maximum": [
+              -44.22999954223633,
+              13.873473167419434,
+              34.95750045776367
+            ]
+          },
+          "canonical_bounds": {
+            "minimum": [
+              -54.0,
+              0.0,
+              23.0
+            ],
+            "maximum": [
+              -44.0,
+              14.0,
+              35.0
+            ]
+          },
+          "route_clear": true,
+          "within_placement": true
+        }
+      ]
+    },
+    "ruins-north": {
+      "triangles": 1916,
+      "uv_issues": 0,
+      "errors": 0,
+      "reopened_uv0_colors": true,
+      "objects": [
+        {
+          "key": "ruin-north",
+          "mesh": "ruin-north",
+          "evaluated_bounds": {
+            "minimum": [
+              -33.77000045776367,
+              0.0,
+              30.049999237060547
+            ],
+            "maximum": [
+              -18.229999542236328,
+              28.87347412109375,
+              47.95750045776367
+            ]
+          },
+          "canonical_bounds": {
+            "minimum": [
+              -34.0,
+              0.0,
+              30.0
+            ],
+            "maximum": [
+              -18.0,
+              29.0,
+              48.0
+            ]
+          },
+          "route_clear": true,
+          "within_placement": true
+        }
+      ]
+    },
+    "ruins-east": {
+      "triangles": 1060,
+      "uv_issues": 0,
+      "errors": 0,
+      "reopened_uv0_colors": true,
+      "objects": [
+        {
+          "key": "ruin-east",
+          "mesh": "ruin-east",
+          "evaluated_bounds": {
+            "minimum": [
+              25.729999542236328,
+              0.0,
+              13.050000190734863
+            ],
+            "maximum": [
+              38.27000045776367,
+              16.87347412109375,
+              26.957500457763672
+            ]
+          },
+          "canonical_bounds": {
+            "minimum": [
+              25.5,
+              0.0,
+              13.0
+            ],
+            "maximum": [
+              38.5,
+              17.0,
+              27.0
+            ]
+          },
+          "route_clear": true,
+          "within_placement": true
+        }
+      ]
+    },
+    "shacks": {
+      "triangles": 1272,
+      "uv_issues": 0,
+      "errors": 0,
+      "reopened_uv0_colors": true,
+      "objects": [
+        {
+          "key": "shack-row",
+          "mesh": "shack-row",
+          "evaluated_bounds": {
+            "minimum": [
+              -43.275001525878906,
+              0.0,
+              -33.75
+            ],
+            "maximum": [
+              -28.725000381469727,
+              5.532291889190674,
+              -22.25
+            ]
+          },
+          "canonical_bounds": {
+            "minimum": [
+              -43.5,
+              0.0,
+              -34.0
+            ],
+            "maximum": [
+              -28.5,
+              6.0,
+              -22.0
+            ]
+          },
+          "route_clear": true,
+          "within_placement": true
+        },
+        {
+          "key": "shack-west",
+          "mesh": "shack-west",
+          "evaluated_bounds": {
+            "minimum": [
+              -52.775001525878906,
+              0.0,
+              -32.25
+            ],
+            "maximum": [
+              -45.224998474121094,
+              4.523055553436279,
+              -23.75
+            ]
+          },
+          "canonical_bounds": {
+            "minimum": [
+              -53.0,
+              0.0,
+              -32.5
+            ],
+            "maximum": [
+              -45.0,
+              5.0,
+              -23.5
+            ]
+          },
+          "route_clear": true,
+          "within_placement": true
+        }
+      ]
+    },
+    "overhead": {
+      "triangles": 336,
+      "uv_issues": 0,
+      "errors": 0,
+      "reopened_uv0_colors": true,
+      "objects": [
+        {
+          "key": "overhead-west",
+          "mesh": "overhead-west",
+          "evaluated_bounds": {
+            "minimum": [
+              -37.54999923706055,
+              0.0,
+              -10.300000190734863
+            ],
+            "maximum": [
+              -26.450000762939453,
+              12.220000267028809,
+              -9.699999809265137
+            ]
+          },
+          "canonical_bounds": {
+            "minimum": [
+              -38.0,
+              0,
+              -11.0
+            ],
+            "maximum": [
+              -26.0,
+              13,
+              -9.0
+            ]
+          },
+          "route_clear": true,
+          "within_placement": true
+        }
+      ]
+    }
+  },
+  "all_seven_geometry_valid": true
+}

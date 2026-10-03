@@ -1,0 +1,44 @@
+{
+  "runs": {
+    "density-rep-a-20260928Ttask6-01": {
+      "rawDraft": "content/slum03/density-rep-a-20260928Ttask6-01-raw-draft-fix2.json",
+      "sourceBundle": "content/slum03/bundles/density-rep-a-20260928Ttask6-01",
+      "candidate": "content/slum03/density-rep-a-20260928Ttask6-01-candidate-fix3.json",
+      "candidateSha256": "4a74b037d5b3aaf6b1c134db1f0d72144b74a03e2e7844cc18695052c447a810",
+      "sameAsFix2": true,
+      "exportAssetsCompared": 150,
+      "protectedIssues": 0,
+      "r8MaterialRelocations": 3,
+      "r8EmptyStubs": 3,
+      "selectedNodes": [
+        "collider-ruin-west",
+        "collider-shack-row",
+        "object_market-west_c7b851dd",
+        "object_ruin-west_268d72a5",
+        "object_shack-row_06a9a4ed"
+      ]
+    },
+    "density-rep-b-20260928Ttask6-01": {
+      "rawDraft": "content/slum03/density-rep-b-20260928Ttask6-01-raw-draft-fix2.json",
+      "sourceBundle": "content/slum03/bundles/density-rep-b-20260928Ttask6-01",
+      "candidate": "content/slum03/density-rep-b-20260928Ttask6-01-candidate-fix3.json",
+      "candidateSha256": "0ca91d7253b7c843aa20f3f83f864234458534679cb9829c29d23c0cc49d78b4",
+      "sameAsFix2": true,
+      "exportAssetsCompared": 150,
+      "protectedIssues": 0,
+      "r8MaterialRelocations": 3,
+      "r8EmptyStubs": 3,
+      "selectedNodes": [
+        "collider-ruin-west",
+        "collider-shack-row",
+        "object_market-west_c7b851dd",
+        "object_ruin-west_268d72a5",
+        "object_shack-row_06a9a4ed"
+      ]
+    }
+  },
+  "geometryComparison": {
+    "issues": [],
+    "rounding": false
+  }
+}

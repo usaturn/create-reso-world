@@ -1,0 +1,150 @@
+{
+ "generated_by": "controller (redacted: no IDs, URLs, session names of other users, or raw state)",
+ "gate": "D2",
+ "utc": "2026-09-29T09:42Z",
+ "candidate": {
+  "path": "content/slum03/density-full-c-20260929T092822Z-23504-review-candidate.json",
+  "sha256": "4f759b666356dde9684964340e22afde03bdb4125b45c1f5749b1fd1af6166bd",
+  "run": "density-full-c-20260929T092822Z-23504"
+ },
+ "state_sha256": {
+  "before": "786a9a59c8a23b1de8e95f5347ae0e37e2d45720e7940a854ef8962d501e21f4",
+  "after_apply": "ed6667f225fff8bd270e6f5600e20bf02753af39fb07c55acc72691ca93348e1",
+  "after_reapply_and_save": "ca97dd76275b8168ce0409c9eb725845efd265cdd52ebb106f0e2f378f3c95b7"
+ },
+ "validate_strict": {
+  "exit": 0,
+  "issues": 0
+ },
+ "diff_before": {
+  "exit": 0,
+  "creates": 92,
+  "updates": 50,
+  "renames": 0,
+  "deletes": 0,
+  "noOps": 3549,
+  "outside_Slum03_Slum": 0,
+  "targets": "Slum03_Ground/district-foundation, Slum03_Plaza/factory-floor, Slum03_Plaza/plaza-rubble-* (incl. 16 new plaza-rubble-floor-*), new material concrete_patch; 4 renderer recreates for Materials list shrink"
+ },
+ "apply": {
+  "exit": 0,
+  "counts": {
+   "slotsCreated": 17,
+   "slotsUpdated": 0,
+   "slotsDeleted": 0,
+   "componentsAdded": 37,
+   "componentsUpdated": 48,
+   "componentsDeleted": 4,
+   "assetsImported": 42,
+   "assetsUnchanged": 228,
+   "slotsUnchanged": 1603,
+   "componentsUnchanged": 1716
+  }
+ },
+ "reapply": {
+  "exit": 0,
+  "counts": {
+   "slotsCreated": 0,
+   "slotsUpdated": 0,
+   "slotsDeleted": 0,
+   "componentsAdded": 0,
+   "componentsUpdated": 0,
+   "componentsDeleted": 0,
+   "assetsImported": 0,
+   "assetsUnchanged": 270,
+   "slotsUnchanged": 1620,
+   "componentsUnchanged": 1801
+  }
+ },
+ "diff_after": {
+  "exit": 0,
+  "creates": 0,
+  "updates": 0,
+  "renames": 0,
+  "deletes": 0,
+  "noOps": 3691,
+  "state_unchanged_by_diff": true
+ },
+ "test": {
+  "exit": 0,
+  "passed": true,
+  "structuralOnly": true,
+  "verification": "partial",
+  "total": 2,
+  "passedCount": 2
+ },
+ "out_of_scope": {
+  "compared_against": "post-reload hierarchy of the saved world before this apply (density-reload04), depth 2, IDs stripped",
+  "equal": [
+   "Root components",
+   "Clipboard Importer",
+   "Controllers",
+   "Ground",
+   "Light",
+   "Roles",
+   "Skybox",
+   "SpawnArea",
+   "Undo Manager",
+   "__TEMP"
+  ],
+  "differs_runtime_only": {
+   "Assets": "VR device visual assets and shader cache (user connection state)",
+   "User avatar": "excluded"
+  }
+ },
+ "strict_item_audit": {
+  "exit": 6,
+  "code": "ITEM_NOT_PORTABLE",
+  "slots": 1620,
+  "components": 1801,
+  "externalReferences": 61,
+  "unmatchedExternalRoles": [],
+  "allowed_roles": [
+   "[FrooxEngine]FrooxEngine.FresnelMaterial:_shader",
+   "[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic:_regular",
+   "[FrooxEngine]FrooxEngine.TextRenderer:Font",
+   "[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]"
+  ],
+  "issue_counts": {
+   "ITEM_EXTERNAL_ROLE_ALLOWED|[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic:_regular": 41,
+   "ITEM_EXTERNAL_ROLE_ALLOWED|[FrooxEngine]FrooxEngine.TextRenderer:Font": 7,
+   "ITEM_EXTERNAL_ROLE_ALLOWED|[FrooxEngine]FrooxEngine.TextRenderer:Materials[0]": 7,
+   "ITEM_EXTERNAL_ROLE_ALLOWED|[FrooxEngine]FrooxEngine.FresnelMaterial:_shader": 6,
+   "ITEM_GRABBABLE_MISSING|None": 1
+  },
+  "remaining_failure": "ITEM_GRABBABLE_MISSING"
+ },
+ "capture": "not run (screenshot dir not mounted)",
+ "post_save_readonly": {
+  "utc": "2026-09-29T09:54Z",
+  "diff": {
+   "creates": 0,
+   "updates": 0,
+   "deletes": 0,
+   "noOps": 3691
+  },
+  "state_unchanged": true
+ },
+ "human": {
+  "visual": {
+   "result": "pass",
+   "source": "user message 2026-09-29: 「上書き保存した。ＯＫである。」"
+  },
+  "walk": {
+   "result": "pass",
+   "source": "user confirmed explicitly on 2026-09-29, when asked whether the revised (Gate D2) version was walked: 「歩いて問題なかった」"
+  },
+  "save": {
+   "result": "done",
+   "source": "user overwrote the saved world (same message)"
+  },
+  "reload": {
+   "result": "pending",
+   "source": "not reported after Gate D2"
+  }
+ },
+ "earlier_gate_d": {
+  "visual": "rejected (pre-revision)",
+  "save_reload_retention_prev_version": "pass (read-only, 2026-09-29T07:37Z)"
+ }
+}

@@ -1,0 +1,2372 @@
+{
+  "status": "OFFLINE PROTECTED CANDIDATE",
+  "liveApplied": false,
+  "currentReflectionValidated": false,
+  "baseline": {
+    "path": "content/slum03/density-baseline.json",
+    "sha256": "2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec"
+  },
+  "draft": {
+    "path": "content/slum03/density-rep-a-20260928Ttask6-01-raw-draft-fix2.json",
+    "sha256": "61baac5594ba33995b2915319c6d4ebae57e7d6e7c41acd35b23eeca2ab0e9b6"
+  },
+  "candidate": {
+    "path": "content/slum03/density-rep-a-20260928Ttask6-01-candidate-fix2.json",
+    "sha256": "4a74b037d5b3aaf6b1c134db1f0d72144b74a03e2e7844cc18695052c447a810"
+  },
+  "layout": {
+    "path": "artifacts/slum03/density-rep-a-20260928Ttask6-01/layout.json",
+    "sha256": "3636281718b0e2a9435b4f4c5ebd6c9fd622fa271467cf0a20019cbd82ff82a8",
+    "hash_basis": "saved-file-bytes",
+    "semantic_sha256": "906d303ddf856f75951ab5fcc22b1fce3ec0b5d3df20560aa8d0213a5a92cc35"
+  },
+  "rootPosition": [
+    0,
+    4.5,
+    0
+  ],
+  "object_sources": {
+    "root": "baseline",
+    "sector-ground": "baseline",
+    "object_district-foundation_631dcd63": "baseline",
+    "object_forest-backstop_6a0205ac": "baseline",
+    "object_scenic-support-arcology-gate_cd642f56": "baseline",
+    "object_scenic-support-arcology-terraces_52fc895c": "baseline",
+    "object_scenic-support-arcology-towers_4cc7245d": "baseline",
+    "object_scenic-support-forest_f08a5406": "baseline",
+    "object_scenic-support-north-towers-east_86fab619": "baseline",
+    "object_scenic-support-north-towers-west_37ae9c8c": "baseline",
+    "object_scenic-support-south_53a02d12": "baseline",
+    "object_scenic-support-west_209fed39": "baseline",
+    "blender_providers": "baseline",
+    "provider_mat_material_Slum03_concrete_raw_c29c65ea": "baseline",
+    "provider_mat_material_Slum03_leaf_olive_cf02591b": "baseline",
+    "provider_mat_material_Slum03_leaf_deep_7a1b8e84": "baseline",
+    "provider_mat_material_Slum03_backdrop_ground_2e37a988": "baseline",
+    "provider_mat_material_Slum03_mud_266f9c6d": "baseline",
+    "sector-plaza": "baseline",
+    "object_factory-floor_5c0b8cde": "baseline",
+    "object_north-wall_2acad389": "baseline",
+    "object_north-wall-graffiti-black_f585d32d": "baseline",
+    "object_north-wall-graffiti-drips_7469ab4e": "baseline",
+    "object_north-wall-graffiti-red_a63e506a": "baseline",
+    "object_plaza-rubble-east-12-1_6bf22487": "baseline",
+    "object_plaza-rubble-east-12-2_be5a1e4e": "baseline",
+    "object_plaza-rubble-east-12-3_d4d21010": "baseline",
+    "object_plaza-rubble-east-12-6_31a75557": "baseline",
+    "object_plaza-rubble-east-12-7_678f5446": "baseline",
+    "object_plaza-rubble-north-10-8_8cb75a23": "baseline",
+    "object_plaza-rubble-north-10-9_35285951": "baseline",
+    "object_plaza-rubble-north-2-9_755901d3": "baseline",
+    "object_plaza-rubble-north-3-9_12fc3d14": "baseline",
+    "object_plaza-rubble-north-8-9_af763f22": "baseline",
+    "object_plaza-rubble-south-10-0_df1ed1d9": "baseline",
+    "object_plaza-rubble-south-2-0_13e6ec56": "baseline",
+    "object_plaza-rubble-south-4-0_2eba58e9": "baseline",
+    "object_plaza-rubble-south-8-0_62bcf7cd": "baseline",
+    "object_plaza-rubble-west-0-2_34d7c197": "baseline",
+    "object_plaza-rubble-west-0-3_ae785aa1": "baseline",
+    "object_plaza-rubble-west-0-6_7eb3edf5": "baseline",
+    "object_plaza-rubble-west-0-7_3a0f2bf8": "baseline",
+    "plaza-blender_providers": "baseline",
+    "provider_mat_material_Slum03_factory_floor_ec9c3c46": "baseline",
+    "provider_mat_material_Slum03_asphalt_wet_54734632": "baseline",
+    "provider_mat_material_Slum03_concrete_dark_0d967575": "baseline",
+    "provider_mat_material_Slum03_concrete_stained_7ea03653": "baseline",
+    "provider_mat_material_Slum03_rust_dark_d655f091": "baseline",
+    "provider_mat_material_Slum03_rust_78d6db80": "baseline",
+    "plaza-provider_mat_material_Slum03_concrete_raw_c29c65ea": "baseline",
+    "provider_mat_material_Slum03_spray_black_075f3992": "baseline",
+    "provider_mat_material_Slum03_spray_red_ba2f4886": "baseline",
+    "provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "provider_mat_material_Slum03_electronics_e98df197": "baseline",
+    "provider_mat_material_Slum03_steel_bare_e2140164": "baseline",
+    "sector-ruins-west": "baseline",
+    "object_ruin-west_268d72a5": "draft",
+    "object_ruin-west-annex_147cf51e": "baseline",
+    "ruins-west-blender_providers": "baseline",
+    "ruins-west-provider_mat_material_Slum03_concrete_stained_7ea03653": "baseline",
+    "ruins-west-provider_mat_material_Slum03_concrete_dark_0d967575": "baseline",
+    "ruins-west-provider_mat_material_Slum03_concrete_raw_c29c65ea": "baseline",
+    "ruins-west-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "ruins-west-provider_mat_material_Slum03_rust_dark_d655f091": "baseline",
+    "sector-ruins-north": "baseline",
+    "object_ruin-north_e05b3b1b": "baseline",
+    "ruins-north-blender_providers": "baseline",
+    "ruins-north-provider_mat_material_Slum03_concrete_stained_7ea03653": "baseline",
+    "ruins-north-provider_mat_material_Slum03_concrete_dark_0d967575": "baseline",
+    "ruins-north-provider_mat_material_Slum03_concrete_raw_c29c65ea": "baseline",
+    "ruins-north-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "ruins-north-provider_mat_material_Slum03_rust_dark_d655f091": "baseline",
+    "sector-ruins-east": "baseline",
+    "object_ruin-east_776539c1": "baseline",
+    "ruins-east-blender_providers": "baseline",
+    "ruins-east-provider_mat_material_Slum03_concrete_stained_7ea03653": "baseline",
+    "ruins-east-provider_mat_material_Slum03_concrete_dark_0d967575": "baseline",
+    "ruins-east-provider_mat_material_Slum03_concrete_raw_c29c65ea": "baseline",
+    "ruins-east-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "ruins-east-provider_mat_material_Slum03_rust_dark_d655f091": "baseline",
+    "sector-market": "baseline",
+    "object_market-east_27b9316b": "baseline",
+    "object_market-west_c7b851dd": "draft",
+    "label-market-sign": "baseline",
+    "market-blender_providers": "baseline",
+    "market-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "market-provider_mat_material_Slum03_steel_bare_e2140164": "baseline",
+    "provider_mat_material_Slum03_tarp_orange_c7badb99": "baseline",
+    "provider_mat_material_Slum03_pallet_wood_676b9932": "baseline",
+    "market-provider_mat_material_Slum03_rust_dark_d655f091": "baseline",
+    "market-provider_mat_material_Slum03_electronics_e98df197": "baseline",
+    "market-provider_mat_material_Slum03_rust_78d6db80": "baseline",
+    "provider_mat_material_Slum03_glass_dark_ee0b95be": "baseline",
+    "provider_mat_material_Slum03_plastic_crate_b2c64238": "baseline",
+    "provider_mat_material_Slum03_tarp_blue_749fcd8b": "baseline",
+    "sector-shacks": "baseline",
+    "object_shack-row_06a9a4ed": "draft",
+    "object_shack-west_2b6f6267": "baseline",
+    "shacks-blender_providers": "baseline",
+    "shacks-provider_mat_material_Slum03_pallet_wood_676b9932": "baseline",
+    "shacks-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "provider_mat_material_Slum03_plywood_927efda7": "baseline",
+    "provider_mat_material_Slum03_corrugated_a9048375": "baseline",
+    "provider_mat_material_Slum03_corrugated_rust_4f7b82d7": "baseline",
+    "shacks-provider_mat_material_Slum03_rust_dark_d655f091": "baseline",
+    "shacks-provider_mat_material_Slum03_rust_78d6db80": "baseline",
+    "sector-nightlife": "baseline",
+    "object_nightlife-east_486d461e": "baseline",
+    "label-nightlife-lantern-sign": "baseline",
+    "object_nightlife-velvet_0b60e5cf": "baseline",
+    "label-nightlife-velvet-sign": "baseline",
+    "nightlife-blender_providers": "baseline",
+    "nightlife-provider_mat_material_Slum03_concrete_dark_0d967575": "baseline",
+    "nightlife-provider_mat_material_Slum03_concrete_stained_7ea03653": "baseline",
+    "nightlife-provider_mat_material_Slum03_concrete_raw_c29c65ea": "baseline",
+    "nightlife-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "nightlife-provider_mat_material_Slum03_rust_dark_d655f091": "baseline",
+    "nightlife-provider_mat_material_Slum03_corrugated_rust_4f7b82d7": "baseline",
+    "nightlife-provider_mat_material_Slum03_corrugated_a9048375": "baseline",
+    "provider_mat_material_Slum03_neon_magenta_97e6c620": "baseline",
+    "provider_mat_material_Slum03_neon_pink_89e0cd58": "baseline",
+    "sector-yarol": "baseline",
+    "object_yarol_cc5496a6": "baseline",
+    "label-yarol-sign": "baseline",
+    "yarol-blender_providers": "baseline",
+    "yarol-provider_mat_material_Slum03_concrete_dark_0d967575": "baseline",
+    "yarol-provider_mat_material_Slum03_concrete_stained_7ea03653": "baseline",
+    "yarol-provider_mat_material_Slum03_concrete_raw_c29c65ea": "baseline",
+    "yarol-provider_mat_material_Slum03_pallet_wood_676b9932": "baseline",
+    "yarol-provider_mat_material_Slum03_steel_bare_e2140164": "baseline",
+    "provider_mat_material_Slum03_window_lit_37b47b42": "baseline",
+    "yarol-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "provider_mat_material_Slum03_neon_orange_06178052": "baseline",
+    "sector-overhead": "baseline",
+    "object_overhead-west_3f9a0888": "baseline",
+    "overhead-blender_providers": "baseline",
+    "overhead-provider_mat_material_Slum03_concrete_raw_c29c65ea": "baseline",
+    "overhead-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "overhead-provider_mat_material_Slum03_rust_dark_d655f091": "baseline",
+    "provider_mat_material_Slum03_rubber_163a6db1": "baseline",
+    "overhead-provider_mat_material_Slum03_steel_bare_e2140164": "baseline",
+    "sector-ads": "baseline",
+    "object_east-lane-ribbon_34ccda8b": "baseline",
+    "object_east-lane-ribbon-driven_0d2c232f": "baseline",
+    "object_east-lane-ribbon-projector_c0711825": "baseline",
+    "label-ribbon-copy": "baseline",
+    "object_market-product-holo_89c5da76": "baseline",
+    "object_market-product-holo-driven_99eaadfa": "baseline",
+    "object_market-product-holo-projector_3f10d0b5": "baseline",
+    "label-product-copy": "baseline",
+    "object_nightlife-info-ad_3b1b1945": "baseline",
+    "object_nightlife-info-ad-driven_46320ac6": "baseline",
+    "object_nightlife-info-ad-projector_7961be46": "baseline",
+    "label-info-copy": "baseline",
+    "ads-blender_providers": "baseline",
+    "provider_mat_material_Slum03_holo_orange_e2ee8a3c": "baseline",
+    "ads-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "ads-provider_mat_material_Slum03_steel_bare_e2140164": "baseline",
+    "provider_mat_material_Slum03_holo_lime_7a6d9b5b": "baseline",
+    "provider_mat_material_Slum03_holo_cyan_a06e351f": "baseline",
+    "provider_mat_material_Slum03_neon_cyan_7c4e0aae": "baseline",
+    "provider_mat_material_Slum03_holo_magenta_9bd12c9f": "baseline",
+    "sector-road-river": "baseline",
+    "object_bridge_17f29b07": "baseline",
+    "object_checkpoint_47320987": "baseline",
+    "object_east-sidewalk_8065e458": "baseline",
+    "object_north-turnback_dad9d520": "baseline",
+    "object_river_5f5a8ed8": "baseline",
+    "object_river-north-east_266cef3f": "baseline",
+    "object_river-north-west_8f860c81": "baseline",
+    "object_river-south-east_2386c5dc": "baseline",
+    "object_river-south-west_b0ad7762": "baseline",
+    "object_roadway_b9eef96a": "baseline",
+    "object_south-road-end_929f4e16": "baseline",
+    "object_west-sidewalk_0c161e03": "baseline",
+    "road-river-blender_providers": "baseline",
+    "road-river-provider_mat_material_Slum03_concrete_stained_7ea03653": "baseline",
+    "provider_mat_material_Slum03_asphalt_48dc6813": "baseline",
+    "road-river-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "road-river-provider_mat_material_Slum03_concrete_dark_0d967575": "baseline",
+    "provider_mat_material_Slum03_paint_yellow_faded_687908b5": "baseline",
+    "road-river-provider_mat_material_Slum03_corrugated_rust_4f7b82d7": "baseline",
+    "road-river-provider_mat_material_Slum03_asphalt_wet_54734632": "baseline",
+    "sector-forest": "baseline",
+    "object_forest-patch-0-0_a9445e6f": "baseline",
+    "object_forest-patch-0-1_2e461e23": "baseline",
+    "object_forest-patch-0-2_cae933f9": "baseline",
+    "object_forest-patch-0-3_437cf490": "baseline",
+    "object_forest-patch-1-0_07b7e49e": "baseline",
+    "object_forest-patch-1-1_7e70db66": "baseline",
+    "object_forest-patch-1-2_4660e063": "baseline",
+    "object_forest-patch-1-3_4f04e924": "baseline",
+    "object_forest-patch-2-0_81f7139b": "baseline",
+    "object_forest-patch-2-1_c7fbfaa1": "baseline",
+    "object_forest-patch-2-2_3bfd6177": "baseline",
+    "object_forest-patch-2-3_2d9e2053": "baseline",
+    "object_forest-tree-0-0_1c7f6063": "baseline",
+    "object_forest-tree-0-1_04966345": "baseline",
+    "object_forest-tree-0-2_37a7d54a": "baseline",
+    "object_forest-tree-0-3_2e798aeb": "baseline",
+    "object_forest-tree-0-4_9c561c97": "baseline",
+    "object_forest-tree-0-5_7ae35970": "baseline",
+    "object_forest-tree-0-6_d1efb6a2": "baseline",
+    "object_forest-tree-0-7_2bd2f476": "baseline",
+    "object_forest-tree-1-0_6ef288de": "baseline",
+    "object_forest-tree-1-1_26c51f66": "baseline",
+    "object_forest-tree-1-2_e0e6a770": "baseline",
+    "object_forest-tree-1-3_ae51ee96": "baseline",
+    "object_forest-tree-1-4_1b7067e0": "baseline",
+    "object_forest-tree-1-5_45204205": "baseline",
+    "object_forest-tree-1-6_7aa12389": "baseline",
+    "object_forest-tree-1-7_b777dc4f": "baseline",
+    "object_forest-tree-2-0_12fc1260": "baseline",
+    "object_forest-tree-2-1_0ba09646": "baseline",
+    "object_forest-tree-2-2_63b631c7": "baseline",
+    "object_forest-tree-2-3_1d192f37": "baseline",
+    "object_forest-tree-2-4_3c542a2a": "baseline",
+    "object_forest-tree-2-5_bb6bb516": "baseline",
+    "object_forest-tree-2-6_e604947d": "baseline",
+    "object_forest-tree-2-7_e90d908b": "baseline",
+    "forest-blender_providers": "baseline",
+    "provider_mat_material_Slum03_leaf_moss_7752819c": "baseline",
+    "forest-provider_mat_material_Slum03_leaf_olive_cf02591b": "baseline",
+    "forest-provider_mat_material_Slum03_leaf_deep_7a1b8e84": "baseline",
+    "provider_mat_material_Slum03_bark_67e172fe": "baseline",
+    "sector-backdrop-north": "baseline",
+    "object_arcology-gate_5d6f863b": "baseline",
+    "object_arcology-terraces_c2f9affa": "baseline",
+    "object_arcology-towers_6aa33a64": "baseline",
+    "object_north-highrise-0_acef4067": "baseline",
+    "object_north-highrise-1_b90656c8": "baseline",
+    "object_north-highrise-10_c1d38361": "baseline",
+    "object_north-highrise-11_65c9f31d": "baseline",
+    "object_north-highrise-2_9a55f37d": "baseline",
+    "object_north-highrise-3_35ec665e": "baseline",
+    "object_north-highrise-4_178e6f1a": "baseline",
+    "object_north-highrise-5_717e9cb1": "baseline",
+    "object_north-highrise-6_abdbddb1": "baseline",
+    "object_north-highrise-7_774c6bca": "baseline",
+    "object_north-highrise-8_08f14859": "baseline",
+    "object_north-highrise-9_a5cc2094": "baseline",
+    "backdrop-north-blender_providers": "baseline",
+    "provider_mat_material_Slum03_backdrop_mass_d1946ac8": "baseline",
+    "backdrop-north-provider_mat_material_Slum03_concrete_dark_0d967575": "baseline",
+    "backdrop-north-provider_mat_material_Slum03_concrete_stained_7ea03653": "baseline",
+    "backdrop-north-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "sector-backdrop-west-south": "baseline",
+    "object_south-city-0-0_f88c33fe": "baseline",
+    "object_south-city-0-1_f6c8c2ff": "baseline",
+    "object_south-city-0-2_0b8b6deb": "baseline",
+    "object_south-city-0-3_f380da32": "baseline",
+    "object_south-city-0-4_4f86d156": "baseline",
+    "object_south-city-0-5_579516a6": "baseline",
+    "object_south-city-0-6_e4303829": "baseline",
+    "object_south-city-0-7_3fbbd8c6": "baseline",
+    "object_south-city-0-8_829e4847": "baseline",
+    "object_south-city-1-0_58dddd37": "baseline",
+    "object_south-city-1-1_131fe2f7": "baseline",
+    "object_south-city-1-2_60222077": "baseline",
+    "object_south-city-1-3_ef41243a": "baseline",
+    "object_south-city-1-4_3e81ac96": "baseline",
+    "object_south-city-1-5_e9c677b8": "baseline",
+    "object_south-city-1-6_83f7bc43": "baseline",
+    "object_south-city-1-7_c13ebbab": "baseline",
+    "object_south-city-1-8_21e1611a": "baseline",
+    "object_west-city-0-0_5f252e7d": "baseline",
+    "object_west-city-0-1_89d6fba7": "baseline",
+    "object_west-city-0-2_823c21f8": "baseline",
+    "object_west-city-0-3_af02538a": "baseline",
+    "object_west-city-0-4_3b87aeb9": "baseline",
+    "object_west-city-0-5_38a3782c": "baseline",
+    "object_west-city-0-6_88039e84": "baseline",
+    "object_west-city-0-7_b87a5e7a": "baseline",
+    "object_west-city-0-8_996364b1": "baseline",
+    "object_west-city-1-0_7b8bc721": "baseline",
+    "object_west-city-1-1_5bd5ada6": "baseline",
+    "object_west-city-1-2_b68c354f": "baseline",
+    "object_west-city-1-3_a230e5fb": "baseline",
+    "object_west-city-1-4_e17eebca": "baseline",
+    "object_west-city-1-5_7466b8df": "baseline",
+    "object_west-city-1-6_82a2ce88": "baseline",
+    "object_west-city-1-7_7514e8ff": "baseline",
+    "object_west-city-1-8_bbbfcefb": "baseline",
+    "backdrop-west-south-blender_providers": "baseline",
+    "backdrop-west-south-provider_mat_material_Slum03_backdrop_mass_d1946ac8": "baseline",
+    "backdrop-west-south-provider_mat_material_Slum03_concrete_stained_7ea03653": "baseline",
+    "backdrop-west-south-provider_mat_material_Slum03_concrete_dark_0d967575": "baseline",
+    "backdrop-west-south-provider_mat_material_Slum03_paint_yellow_faded_687908b5": "baseline",
+    "backdrop-west-south-provider_mat_material_Slum03_steel_dark_498bd928": "baseline",
+    "native-textures": "baseline",
+    "driver-panner-scan-object_nightlife-info-ad-driven_46320ac6-mat_material_Slum03_holo_cyan_a06e351f-near": "baseline",
+    "driver-panner-scan-object_nightlife-info-ad-driven_46320ac6-mat_material_Slum03_holo_cyan_a06e351f-far": "baseline",
+    "driver-panner-scan-object_east-lane-ribbon-driven_0d2c232f-mat_material_Slum03_holo_orange_e2ee8a3c-near": "baseline",
+    "driver-panner-scan-object_east-lane-ribbon-driven_0d2c232f-mat_material_Slum03_holo_orange_e2ee8a3c-far": "baseline",
+    "native-colliders": "baseline",
+    "collider-district-ground-west": "baseline",
+    "collider-district-ground-east": "baseline",
+    "collider-district-ground-south": "baseline",
+    "collider-district-ground-north": "baseline",
+    "collider-factory-floor": "baseline",
+    "collider-west-sidewalk-south": "baseline",
+    "collider-west-sidewalk-north": "baseline",
+    "collider-roadway-south": "baseline",
+    "collider-roadway-north": "baseline",
+    "collider-east-sidewalk-south": "baseline",
+    "collider-east-sidewalk-north": "baseline",
+    "collider-bridge-deck": "baseline",
+    "collider-bridge-rail-west": "baseline",
+    "collider-bridge-rail-east": "baseline",
+    "collider-bridge-pier-west-south": "baseline",
+    "collider-bridge-pier-west-north": "baseline",
+    "collider-bridge-pier-east-south": "baseline",
+    "collider-bridge-pier-east-north": "baseline",
+    "collider-checkpoint-pier-west": "baseline",
+    "collider-checkpoint-pier-east": "baseline",
+    "collider-checkpoint-canopy": "baseline",
+    "collider-checkpoint-crossbeam": "baseline",
+    "collider-south-road-end": "baseline",
+    "collider-north-turnback": "baseline",
+    "collider-north-wall": "baseline",
+    "collider-ruin-west": "draft",
+    "collider-ruin-west-annex": "baseline",
+    "collider-ruin-north": "baseline",
+    "collider-ruin-east": "baseline",
+    "collider-shack-row": "draft",
+    "collider-shack-west": "baseline",
+    "collider-nightlife-east": "baseline",
+    "collider-nightlife-velvet": "baseline",
+    "collider-yarol": "baseline",
+    "collider-ruin-west-pier--7.95--8.45-part-2": "draft",
+    "collider-ruin-west-pier--7.95-8.45-part-3": "draft",
+    "collider-ruin-west-pier-7.95--8.45-part-4": "draft",
+    "collider-ruin-west-pier-7.95-8.45-part-5": "draft",
+    "collider-shack-row-raised-floor-part-0": "draft",
+    "collider-shack-row-corner-post--7.13-5.62-part-2": "draft",
+    "collider-shack-row-corner-post-7.13--5.62-part-3": "draft",
+    "collider-shack-row-corner-post-7.13-5.62-part-4": "draft",
+    "collider-shack-row-wall-envelope-part-5": "draft",
+    "collider-shack-row-wall-envelope-part-6": "draft",
+    "collider-shack-row-wall-envelope-part-7": "draft",
+    "collider-shack-row-wall-envelope-part-8": "draft",
+    "collider-shack-row-wall-envelope-part-9": "draft",
+    "collider-shack-row-wall-envelope-part-11": "draft",
+    "collider-shack-row-wall-envelope-part-12": "draft",
+    "collider-market-west-post--2.76--5.76-part-0": "draft",
+    "collider-market-west-post--2.76-5.76-part-1": "draft",
+    "collider-market-west-post-2.76--5.76-part-3": "draft",
+    "collider-market-west-post-2.76-5.76-part-4": "draft",
+    "collider-market-west-shelf-upright--2.68-part-17": "draft",
+    "collider-market-west-shelf-upright-2.68-part-18": "draft",
+    "collider-market-west-display-0-part-19": "draft",
+    "collider-market-west-display-0-part-20": "draft",
+    "collider-market-west-shelf-brace-0--2.68-part-21": "draft",
+    "collider-market-west-shelf-brace-0--2.68-part-22": "draft",
+    "collider-market-west-shelf-brace-0-2.68-part-23": "draft",
+    "collider-market-west-shelf-brace-0-2.68-part-24": "draft",
+    "collider-market-west-display-1-part-25": "draft",
+    "collider-market-west-display-1-part-26": "draft",
+    "collider-market-west-shelf-brace-1--2.68-part-27": "draft",
+    "collider-market-west-shelf-brace-1--2.68-part-28": "draft",
+    "collider-market-west-shelf-brace-1-2.68-part-29": "draft",
+    "collider-market-west-shelf-brace-1-2.68-part-30": "draft",
+    "native-lights": "baseline",
+    "local-light-market-west": "baseline",
+    "local-light-market-east": "baseline",
+    "local-light-yarol": "baseline",
+    "local-light-nightlife-east": "baseline",
+    "local-light-nightlife-velvet": "baseline",
+    "local-light-market-product-holo": "baseline",
+    "native-scan-materials": "baseline",
+    "provider-scan-object_nightlife-info-ad-driven_46320ac6-mat_material_Slum03_holo_cyan_a06e351f": "baseline",
+    "provider-scan-object_east-lane-ribbon-driven_0d2c232f-mat_material_Slum03_holo_orange_e2ee8a3c": "baseline"
+  },
+  "asset_sources": {
+    "mesh_district-foundation_631dcd63": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ground/mesh_district-foundation_631dcd63.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_district-foundation_631dcd63.mesh.json",
+      "sha256": "c5143b28a08fc4b5df883494233303be9ccca02d9ad0bf64a000c58916b7605c",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_district-foundation_631dcd63.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/mesh_district-foundation_631dcd63.mesh.json",
+        "sha256": "c5143b28a08fc4b5df883494233303be9ccca02d9ad0bf64a000c58916b7605c",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/report.json"
+      }
+    },
+    "mesh_forest-backstop_6a0205ac": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ground/mesh_forest-backstop_6a0205ac.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_forest-backstop_6a0205ac.mesh.json",
+      "sha256": "229529dba8bbc7db60487e99d311bc06848982b9a28e9006bf26caa9e359f614",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_forest-backstop_6a0205ac.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/mesh_forest-backstop_6a0205ac.mesh.json",
+        "sha256": "229529dba8bbc7db60487e99d311bc06848982b9a28e9006bf26caa9e359f614",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/report.json"
+      }
+    },
+    "mesh_scenic-support-arcology-gate_cd642f56": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ground/mesh_scenic-support-arcology-gate_cd642f56.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-arcology-gate_cd642f56.mesh.json",
+      "sha256": "6c452599ffb7e19497c9fadae3835547344f3e85af5424a0fb769b8937404a2d",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-arcology-gate_cd642f56.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-arcology-gate_cd642f56.mesh.json",
+        "sha256": "6c452599ffb7e19497c9fadae3835547344f3e85af5424a0fb769b8937404a2d",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/report.json"
+      }
+    },
+    "mesh_scenic-support-arcology-terraces_52fc895c": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ground/mesh_scenic-support-arcology-terraces_52fc895c.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-arcology-terraces_52fc895c.mesh.json",
+      "sha256": "6e80e27b75b71dbe467124c21f0e2894c0af1e721f5311d0ae7484166db15073",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-arcology-terraces_52fc895c.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-arcology-terraces_52fc895c.mesh.json",
+        "sha256": "6e80e27b75b71dbe467124c21f0e2894c0af1e721f5311d0ae7484166db15073",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/report.json"
+      }
+    },
+    "mesh_scenic-support-arcology-towers_4cc7245d": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ground/mesh_scenic-support-arcology-towers_4cc7245d.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-arcology-towers_4cc7245d.mesh.json",
+      "sha256": "eaee5626c0169e7a59864e41530732f3cf403a8a12b8496d63e2c9e2e0826d79",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-arcology-towers_4cc7245d.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-arcology-towers_4cc7245d.mesh.json",
+        "sha256": "eaee5626c0169e7a59864e41530732f3cf403a8a12b8496d63e2c9e2e0826d79",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/report.json"
+      }
+    },
+    "mesh_scenic-support-forest_f08a5406": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ground/mesh_scenic-support-forest_f08a5406.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-forest_f08a5406.mesh.json",
+      "sha256": "cc15faf2a629d5f6e7ace2ed7a3817884312e1809cb6e7eb248a3e07b0c4b542",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-forest_f08a5406.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-forest_f08a5406.mesh.json",
+        "sha256": "cc15faf2a629d5f6e7ace2ed7a3817884312e1809cb6e7eb248a3e07b0c4b542",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/report.json"
+      }
+    },
+    "mesh_scenic-support-north-towers-east_86fab619": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ground/mesh_scenic-support-north-towers-east_86fab619.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-north-towers-east_86fab619.mesh.json",
+      "sha256": "4ce23d2eaae10095997486d1feccab3c31d66b6feb1c4b4f70d529f5e2197b15",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-north-towers-east_86fab619.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-north-towers-east_86fab619.mesh.json",
+        "sha256": "4ce23d2eaae10095997486d1feccab3c31d66b6feb1c4b4f70d529f5e2197b15",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/report.json"
+      }
+    },
+    "mesh_scenic-support-north-towers-west_37ae9c8c": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ground/mesh_scenic-support-north-towers-west_37ae9c8c.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-north-towers-west_37ae9c8c.mesh.json",
+      "sha256": "b627c4232d0180ac976dda5e1d45307c57be84d3e70c25fc451d173c477f990b",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-north-towers-west_37ae9c8c.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-north-towers-west_37ae9c8c.mesh.json",
+        "sha256": "b627c4232d0180ac976dda5e1d45307c57be84d3e70c25fc451d173c477f990b",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/report.json"
+      }
+    },
+    "mesh_scenic-support-south_53a02d12": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ground/mesh_scenic-support-south_53a02d12.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-south_53a02d12.mesh.json",
+      "sha256": "8d3aae659351af564298dff358be53d8d69ce849596cbe564b5d67ec9e978d8c",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-south_53a02d12.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-south_53a02d12.mesh.json",
+        "sha256": "8d3aae659351af564298dff358be53d8d69ce849596cbe564b5d67ec9e978d8c",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/report.json"
+      }
+    },
+    "mesh_scenic-support-west_209fed39": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ground/mesh_scenic-support-west_209fed39.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-west_209fed39.mesh.json",
+      "sha256": "cbbfa6b042640acac1276b1cb7de4a361dba9631b544ed810ec5fda06f45e2f4",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-west_209fed39.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/mesh_scenic-support-west_209fed39.mesh.json",
+        "sha256": "cbbfa6b042640acac1276b1cb7de4a361dba9631b544ed810ec5fda06f45e2f4",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ground/report.json"
+      }
+    },
+    "mesh_factory-floor_5c0b8cde": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_factory-floor_5c0b8cde.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_factory-floor_5c0b8cde.mesh.json",
+      "sha256": "efbd86092b2d804be4c3f7b773345968b7e1a289f106c28d665b1dcbef49ce0d",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_factory-floor_5c0b8cde.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_factory-floor_5c0b8cde.mesh.json",
+        "sha256": "efbd86092b2d804be4c3f7b773345968b7e1a289f106c28d665b1dcbef49ce0d",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_north-wall_2acad389": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_north-wall_2acad389.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall_2acad389.mesh.json",
+      "sha256": "4b31ba94ae0ca4dee173df653c14cbcce90e6db61506cfa6e152f7269f788c82",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall_2acad389.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall_2acad389.mesh.json",
+        "sha256": "4b31ba94ae0ca4dee173df653c14cbcce90e6db61506cfa6e152f7269f788c82",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_north-wall-graffiti-black_f585d32d": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_north-wall-graffiti-black_f585d32d.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall-graffiti-black_f585d32d.mesh.json",
+      "sha256": "5fb5a0c5cc6c39ffa195ff74ff819f6d81d1623368631c95581e136ca13d8e58",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall-graffiti-black_f585d32d.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall-graffiti-black_f585d32d.mesh.json",
+        "sha256": "5fb5a0c5cc6c39ffa195ff74ff819f6d81d1623368631c95581e136ca13d8e58",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_north-wall-graffiti-drips_7469ab4e": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_north-wall-graffiti-drips_7469ab4e.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall-graffiti-drips_7469ab4e.mesh.json",
+      "sha256": "7bb7c132f5c2c32e7c413f662baf23cde3b277e7d68580fbe8658af1c1ae4d99",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall-graffiti-drips_7469ab4e.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall-graffiti-drips_7469ab4e.mesh.json",
+        "sha256": "7bb7c132f5c2c32e7c413f662baf23cde3b277e7d68580fbe8658af1c1ae4d99",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_north-wall-graffiti-red_a63e506a": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_north-wall-graffiti-red_a63e506a.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall-graffiti-red_a63e506a.mesh.json",
+      "sha256": "35336df79ebf277e92d4bd91633da5bc5dec0d42e9c0d2755407ee6b5378622d",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall-graffiti-red_a63e506a.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_north-wall-graffiti-red_a63e506a.mesh.json",
+        "sha256": "35336df79ebf277e92d4bd91633da5bc5dec0d42e9c0d2755407ee6b5378622d",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-east-12-1_6bf22487": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-east-12-1_6bf22487.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-1_6bf22487.mesh.json",
+      "sha256": "d06d4fc9d2d288d5ed57c7ca5b8b5f718b96ba7eaa69b17e4ccc0e261bb31af4",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-1_6bf22487.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-1_6bf22487.mesh.json",
+        "sha256": "d06d4fc9d2d288d5ed57c7ca5b8b5f718b96ba7eaa69b17e4ccc0e261bb31af4",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-east-12-2_be5a1e4e": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-east-12-2_be5a1e4e.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-2_be5a1e4e.mesh.json",
+      "sha256": "91ffa624742371152ddee7d48ebfd026b55d48d370983815ddafc07ad2729394",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-2_be5a1e4e.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-2_be5a1e4e.mesh.json",
+        "sha256": "91ffa624742371152ddee7d48ebfd026b55d48d370983815ddafc07ad2729394",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-east-12-3_d4d21010": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-east-12-3_d4d21010.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-3_d4d21010.mesh.json",
+      "sha256": "fbbd1d9e16ccc609b4aa05204ac7580c1c62fac9511663442fb9e3455bc8a160",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-3_d4d21010.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-3_d4d21010.mesh.json",
+        "sha256": "fbbd1d9e16ccc609b4aa05204ac7580c1c62fac9511663442fb9e3455bc8a160",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-east-12-6_31a75557": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-east-12-6_31a75557.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-6_31a75557.mesh.json",
+      "sha256": "d49a4bfb726657e28a451961b361298b60b5a70ff05707ae64f2e3f87487c5e0",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-6_31a75557.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-6_31a75557.mesh.json",
+        "sha256": "d49a4bfb726657e28a451961b361298b60b5a70ff05707ae64f2e3f87487c5e0",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-east-12-7_678f5446": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-east-12-7_678f5446.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-7_678f5446.mesh.json",
+      "sha256": "efe776eacbfccd77655abb5f5155848ce233719aee8cc26cbfa1fb79e790b1a0",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-7_678f5446.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-east-12-7_678f5446.mesh.json",
+        "sha256": "efe776eacbfccd77655abb5f5155848ce233719aee8cc26cbfa1fb79e790b1a0",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-north-10-8_8cb75a23": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-north-10-8_8cb75a23.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-10-8_8cb75a23.mesh.json",
+      "sha256": "2c93a990748a18fec22b29f7c22b83ab70e3c852d59d45fd19db01346111fcad",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-10-8_8cb75a23.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-10-8_8cb75a23.mesh.json",
+        "sha256": "2c93a990748a18fec22b29f7c22b83ab70e3c852d59d45fd19db01346111fcad",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-north-10-9_35285951": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-north-10-9_35285951.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-10-9_35285951.mesh.json",
+      "sha256": "e11a806264232ee8365807e5310752797859c3274491d11be78280fd625358e8",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-10-9_35285951.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-10-9_35285951.mesh.json",
+        "sha256": "e11a806264232ee8365807e5310752797859c3274491d11be78280fd625358e8",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-north-2-9_755901d3": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-north-2-9_755901d3.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-2-9_755901d3.mesh.json",
+      "sha256": "0247747457331bed139ff85b180cf1fa635e5fc1e160a58ca278083b31defef3",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-2-9_755901d3.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-2-9_755901d3.mesh.json",
+        "sha256": "0247747457331bed139ff85b180cf1fa635e5fc1e160a58ca278083b31defef3",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-north-3-9_12fc3d14": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-north-3-9_12fc3d14.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-3-9_12fc3d14.mesh.json",
+      "sha256": "a0e5f2da9be9538af6d6eb8717c0bbcbde3656c0fb95fd59f948603f1e6cc60e",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-3-9_12fc3d14.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-3-9_12fc3d14.mesh.json",
+        "sha256": "a0e5f2da9be9538af6d6eb8717c0bbcbde3656c0fb95fd59f948603f1e6cc60e",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-north-8-9_af763f22": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-north-8-9_af763f22.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-8-9_af763f22.mesh.json",
+      "sha256": "4522f0e467c600caf10db9f2e6984cb202852d4eae549ef01410badc4af2c6fa",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-8-9_af763f22.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-north-8-9_af763f22.mesh.json",
+        "sha256": "4522f0e467c600caf10db9f2e6984cb202852d4eae549ef01410badc4af2c6fa",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-south-10-0_df1ed1d9": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-south-10-0_df1ed1d9.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-10-0_df1ed1d9.mesh.json",
+      "sha256": "b5451858fea6305525f68ad60b08d034fbc46c364b90b131113ff018b1aaee09",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-10-0_df1ed1d9.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-10-0_df1ed1d9.mesh.json",
+        "sha256": "b5451858fea6305525f68ad60b08d034fbc46c364b90b131113ff018b1aaee09",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-south-2-0_13e6ec56": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-south-2-0_13e6ec56.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-2-0_13e6ec56.mesh.json",
+      "sha256": "4d63bae41205ffa0f9a1c156b2371e8297ead98718ef2d7c1edeb5f5eb81e4bc",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-2-0_13e6ec56.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-2-0_13e6ec56.mesh.json",
+        "sha256": "4d63bae41205ffa0f9a1c156b2371e8297ead98718ef2d7c1edeb5f5eb81e4bc",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-south-4-0_2eba58e9": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-south-4-0_2eba58e9.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-4-0_2eba58e9.mesh.json",
+      "sha256": "a691125ef725516f6a1939d6f792a8451efb1800a43756c120a2392f56affa95",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-4-0_2eba58e9.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-4-0_2eba58e9.mesh.json",
+        "sha256": "a691125ef725516f6a1939d6f792a8451efb1800a43756c120a2392f56affa95",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-south-8-0_62bcf7cd": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-south-8-0_62bcf7cd.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-8-0_62bcf7cd.mesh.json",
+      "sha256": "7366dd6478d1ec38cec7c9251c67397bdfdf9a5c5710996ab442593a3ee2dc58",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-8-0_62bcf7cd.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-south-8-0_62bcf7cd.mesh.json",
+        "sha256": "7366dd6478d1ec38cec7c9251c67397bdfdf9a5c5710996ab442593a3ee2dc58",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-west-0-2_34d7c197": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-west-0-2_34d7c197.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-2_34d7c197.mesh.json",
+      "sha256": "c8adbd1028b93d9e546d7ced00344a810081265251637dafc6199f8777ec01dc",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-2_34d7c197.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-2_34d7c197.mesh.json",
+        "sha256": "c8adbd1028b93d9e546d7ced00344a810081265251637dafc6199f8777ec01dc",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-west-0-3_ae785aa1": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-west-0-3_ae785aa1.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-3_ae785aa1.mesh.json",
+      "sha256": "b107621d551464614c17a7963501808db87bb5666fa91350a144db610e2ffd7c",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-3_ae785aa1.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-3_ae785aa1.mesh.json",
+        "sha256": "b107621d551464614c17a7963501808db87bb5666fa91350a144db610e2ffd7c",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-west-0-6_7eb3edf5": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-west-0-6_7eb3edf5.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-6_7eb3edf5.mesh.json",
+      "sha256": "27f363db94f2a47087b975d76218f2fdc99ea99edf32c0271f72d1e433418450",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-6_7eb3edf5.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-6_7eb3edf5.mesh.json",
+        "sha256": "27f363db94f2a47087b975d76218f2fdc99ea99edf32c0271f72d1e433418450",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_plaza-rubble-west-0-7_3a0f2bf8": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/plaza/mesh_plaza-rubble-west-0-7_3a0f2bf8.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-7_3a0f2bf8.mesh.json",
+      "sha256": "ec9626cd58fdf0db098fb4366de5b0989b01ed9069fb71e62597c1ac5a57e17b",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-7_3a0f2bf8.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/mesh_plaza-rubble-west-0-7_3a0f2bf8.mesh.json",
+        "sha256": "ec9626cd58fdf0db098fb4366de5b0989b01ed9069fb71e62597c1ac5a57e17b",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/plaza/report.json"
+      }
+    },
+    "mesh_ruin-west_268d72a5": {
+      "candidate_source": "bundles/density-rep-a-20260928Ttask6-01/ruins-west/mesh_ruin-west_268d72a5.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ruins-west/mesh_ruin-west_268d72a5.mesh.json",
+      "sha256": "e307a87a1869348864cf96615c0b8d020b5b23ba0ae476dd5104475482b75d4a",
+      "origin": "draft",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ruins-west/mesh_ruin-west_268d72a5.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-west/mesh_ruin-west_268d72a5.mesh.json",
+        "sha256": "e307a87a1869348864cf96615c0b8d020b5b23ba0ae476dd5104475482b75d4a",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-west/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-west/report.json"
+      }
+    },
+    "mesh_ruin-west-annex_147cf51e": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ruins-west/mesh_ruin-west-annex_147cf51e.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ruins-west/mesh_ruin-west-annex_147cf51e.mesh.json",
+      "sha256": "a6eb8a7e0bf94c062e182e0eaf10689a90fc16b9b14e2a94561a05f9c49ab42a",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ruins-west/mesh_ruin-west-annex_147cf51e.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-west/mesh_ruin-west-annex_147cf51e.mesh.json",
+        "sha256": "a6eb8a7e0bf94c062e182e0eaf10689a90fc16b9b14e2a94561a05f9c49ab42a",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-west/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-west/report.json"
+      }
+    },
+    "mesh_ruin-north_e05b3b1b": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ruins-north/mesh_ruin-north_e05b3b1b.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ruins-north/mesh_ruin-north_e05b3b1b.mesh.json",
+      "sha256": "da23e18b73c80c887d701d92c0562a6087aa0f4b46835df865b70554bbaf5af2",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ruins-north/mesh_ruin-north_e05b3b1b.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-north/mesh_ruin-north_e05b3b1b.mesh.json",
+        "sha256": "da23e18b73c80c887d701d92c0562a6087aa0f4b46835df865b70554bbaf5af2",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-north/report.json"
+      }
+    },
+    "mesh_ruin-east_776539c1": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ruins-east/mesh_ruin-east_776539c1.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ruins-east/mesh_ruin-east_776539c1.mesh.json",
+      "sha256": "516a494bb2c203c756679e9af27f602c0d619569f6294daba723e8f36f0bf9c8",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ruins-east/mesh_ruin-east_776539c1.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-east/mesh_ruin-east_776539c1.mesh.json",
+        "sha256": "516a494bb2c203c756679e9af27f602c0d619569f6294daba723e8f36f0bf9c8",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-east/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ruins-east/report.json"
+      }
+    },
+    "mesh_market-east_27b9316b": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/market/mesh_market-east_27b9316b.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/market/mesh_market-east_27b9316b.mesh.json",
+      "sha256": "49ea79636889e0c95e6c9120f84c6887cc8bb43743b84245091945f49ec871fd",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/market/mesh_market-east_27b9316b.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/market/mesh_market-east_27b9316b.mesh.json",
+        "sha256": "49ea79636889e0c95e6c9120f84c6887cc8bb43743b84245091945f49ec871fd",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/market/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/market/report.json"
+      }
+    },
+    "mesh_market-west_c7b851dd": {
+      "candidate_source": "bundles/density-rep-a-20260928Ttask6-01/market/mesh_market-west_c7b851dd.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/market/mesh_market-west_c7b851dd.mesh.json",
+      "sha256": "2be6f88270b21de0e7c22e1f93f08d5771382946873d58b188b39821dc53c7bc",
+      "origin": "draft",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/market/mesh_market-west_c7b851dd.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/market/mesh_market-west_c7b851dd.mesh.json",
+        "sha256": "2be6f88270b21de0e7c22e1f93f08d5771382946873d58b188b39821dc53c7bc",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/market/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/market/report.json"
+      }
+    },
+    "mesh_shack-row_06a9a4ed": {
+      "candidate_source": "bundles/density-rep-a-20260928Ttask6-01/shacks/mesh_shack-row_06a9a4ed.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/shacks/mesh_shack-row_06a9a4ed.mesh.json",
+      "sha256": "cf2d891df48aed0f1e7b6da55710b0e658276088434127a14da6a099b04b9e4b",
+      "origin": "draft",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/shacks/mesh_shack-row_06a9a4ed.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/shacks/mesh_shack-row_06a9a4ed.mesh.json",
+        "sha256": "cf2d891df48aed0f1e7b6da55710b0e658276088434127a14da6a099b04b9e4b",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/shacks/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/shacks/report.json"
+      }
+    },
+    "mesh_shack-west_2b6f6267": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/shacks/mesh_shack-west_2b6f6267.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/shacks/mesh_shack-west_2b6f6267.mesh.json",
+      "sha256": "69bb8b39feaff154ff86845f988e9e9b2090dc17cf3a0eed6e9e5fcc41ecfe27",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/shacks/mesh_shack-west_2b6f6267.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/shacks/mesh_shack-west_2b6f6267.mesh.json",
+        "sha256": "69bb8b39feaff154ff86845f988e9e9b2090dc17cf3a0eed6e9e5fcc41ecfe27",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/shacks/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/shacks/report.json"
+      }
+    },
+    "mesh_nightlife-east_486d461e": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/nightlife/mesh_nightlife-east_486d461e.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/nightlife/mesh_nightlife-east_486d461e.mesh.json",
+      "sha256": "5dc16bf3501332ea90890d12587378da5ff61b4eafaa8ae10085c99890dcf38b",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/nightlife/mesh_nightlife-east_486d461e.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/nightlife/mesh_nightlife-east_486d461e.mesh.json",
+        "sha256": "5dc16bf3501332ea90890d12587378da5ff61b4eafaa8ae10085c99890dcf38b",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/nightlife/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/nightlife/report.json"
+      }
+    },
+    "mesh_nightlife-velvet_0b60e5cf": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/nightlife/mesh_nightlife-velvet_0b60e5cf.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/nightlife/mesh_nightlife-velvet_0b60e5cf.mesh.json",
+      "sha256": "51dc2567cb10171b989b469dbd8379f14f7950485eb2a978c36562ca469a1461",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/nightlife/mesh_nightlife-velvet_0b60e5cf.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/nightlife/mesh_nightlife-velvet_0b60e5cf.mesh.json",
+        "sha256": "51dc2567cb10171b989b469dbd8379f14f7950485eb2a978c36562ca469a1461",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/nightlife/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/nightlife/report.json"
+      }
+    },
+    "mesh_yarol_cc5496a6": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/yarol/mesh_yarol_cc5496a6.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/yarol/mesh_yarol_cc5496a6.mesh.json",
+      "sha256": "df997dac43eeeb054352e14ed66070ff349fcfe6282c2768dad7b27d2c269a95",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/yarol/mesh_yarol_cc5496a6.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/yarol/mesh_yarol_cc5496a6.mesh.json",
+        "sha256": "df997dac43eeeb054352e14ed66070ff349fcfe6282c2768dad7b27d2c269a95",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/yarol/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/yarol/report.json"
+      }
+    },
+    "mesh_overhead-west_3f9a0888": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/overhead/mesh_overhead-west_3f9a0888.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/overhead/mesh_overhead-west_3f9a0888.mesh.json",
+      "sha256": "5a64a14b9417a3085a1bf9373dccf8eaee4322c4106d85e62183151887b7799b",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/overhead/mesh_overhead-west_3f9a0888.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/overhead/mesh_overhead-west_3f9a0888.mesh.json",
+        "sha256": "5a64a14b9417a3085a1bf9373dccf8eaee4322c4106d85e62183151887b7799b",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/overhead/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/overhead/report.json"
+      }
+    },
+    "mesh_east-lane-ribbon-driven_0d2c232f": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ads/mesh_east-lane-ribbon-driven_0d2c232f.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_east-lane-ribbon-driven_0d2c232f.mesh.json",
+      "sha256": "0aeaede1f95de26b7301331079e704a2fbfd3a14b65cb5d208f32d1b6f6be607",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_east-lane-ribbon-driven_0d2c232f.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/mesh_east-lane-ribbon-driven_0d2c232f.mesh.json",
+        "sha256": "0aeaede1f95de26b7301331079e704a2fbfd3a14b65cb5d208f32d1b6f6be607",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/report.json"
+      }
+    },
+    "mesh_east-lane-ribbon-projector_c0711825": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ads/mesh_east-lane-ribbon-projector_c0711825.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_east-lane-ribbon-projector_c0711825.mesh.json",
+      "sha256": "b6310721d529373eb1ce64b626f932a2a6e9cfc831f625e1237e4557bbeee130",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_east-lane-ribbon-projector_c0711825.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/mesh_east-lane-ribbon-projector_c0711825.mesh.json",
+        "sha256": "b6310721d529373eb1ce64b626f932a2a6e9cfc831f625e1237e4557bbeee130",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/report.json"
+      }
+    },
+    "mesh_market-product-holo-driven_99eaadfa": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ads/mesh_market-product-holo-driven_99eaadfa.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_market-product-holo-driven_99eaadfa.mesh.json",
+      "sha256": "6af51c217fb366e42c99e900a5a25cc2fb4c7373575d8dc25a0166ab655ef715",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_market-product-holo-driven_99eaadfa.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/mesh_market-product-holo-driven_99eaadfa.mesh.json",
+        "sha256": "6af51c217fb366e42c99e900a5a25cc2fb4c7373575d8dc25a0166ab655ef715",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/report.json"
+      }
+    },
+    "mesh_market-product-holo-projector_3f10d0b5": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ads/mesh_market-product-holo-projector_3f10d0b5.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_market-product-holo-projector_3f10d0b5.mesh.json",
+      "sha256": "de61019345c350859a570c1b12ca5b060f27e2d77d31ab9e4834d5fb33125bac",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_market-product-holo-projector_3f10d0b5.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/mesh_market-product-holo-projector_3f10d0b5.mesh.json",
+        "sha256": "de61019345c350859a570c1b12ca5b060f27e2d77d31ab9e4834d5fb33125bac",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/report.json"
+      }
+    },
+    "mesh_nightlife-info-ad-driven_46320ac6": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ads/mesh_nightlife-info-ad-driven_46320ac6.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_nightlife-info-ad-driven_46320ac6.mesh.json",
+      "sha256": "9b585277764cebc8635a13380016359b03cc64f02f58bea84cf35fa9de168466",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_nightlife-info-ad-driven_46320ac6.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/mesh_nightlife-info-ad-driven_46320ac6.mesh.json",
+        "sha256": "9b585277764cebc8635a13380016359b03cc64f02f58bea84cf35fa9de168466",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/report.json"
+      }
+    },
+    "mesh_nightlife-info-ad-projector_7961be46": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/ads/mesh_nightlife-info-ad-projector_7961be46.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_nightlife-info-ad-projector_7961be46.mesh.json",
+      "sha256": "7564bce976538fb61d7c1c919cbf19e433a1a117f7516d0ba2a2907434853ff2",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/ads/mesh_nightlife-info-ad-projector_7961be46.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/mesh_nightlife-info-ad-projector_7961be46.mesh.json",
+        "sha256": "7564bce976538fb61d7c1c919cbf19e433a1a117f7516d0ba2a2907434853ff2",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/ads/report.json"
+      }
+    },
+    "mesh_bridge_17f29b07": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_bridge_17f29b07.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_bridge_17f29b07.mesh.json",
+      "sha256": "1ac74862476d66683abd25c1ed6c8d40cd2df6c4d6fedb995faae3fb697406d9",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_bridge_17f29b07.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_bridge_17f29b07.mesh.json",
+        "sha256": "1ac74862476d66683abd25c1ed6c8d40cd2df6c4d6fedb995faae3fb697406d9",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_checkpoint_47320987": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_checkpoint_47320987.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_checkpoint_47320987.mesh.json",
+      "sha256": "f3db9f581a0abbd863b49c9f5f1cd6e25cd4c82bbfa8cb65fc149bf285604af9",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_checkpoint_47320987.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_checkpoint_47320987.mesh.json",
+        "sha256": "f3db9f581a0abbd863b49c9f5f1cd6e25cd4c82bbfa8cb65fc149bf285604af9",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_east-sidewalk_8065e458": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_east-sidewalk_8065e458.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_east-sidewalk_8065e458.mesh.json",
+      "sha256": "f1e775c4bbedd81e2927b734d2db48b21bcdfe98b02bc40da70651a71fd12775",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_east-sidewalk_8065e458.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_east-sidewalk_8065e458.mesh.json",
+        "sha256": "f1e775c4bbedd81e2927b734d2db48b21bcdfe98b02bc40da70651a71fd12775",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_north-turnback_dad9d520": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_north-turnback_dad9d520.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_north-turnback_dad9d520.mesh.json",
+      "sha256": "c0ae5ad5cd41bd68599987ecc6f759527bb547579dcb7c93e0eecbce52eb6938",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_north-turnback_dad9d520.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_north-turnback_dad9d520.mesh.json",
+        "sha256": "c0ae5ad5cd41bd68599987ecc6f759527bb547579dcb7c93e0eecbce52eb6938",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_river_5f5a8ed8": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_river_5f5a8ed8.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river_5f5a8ed8.mesh.json",
+      "sha256": "81db420655fabccb98c739ef950cb7b6848faa350cdeb8c556ff93b389bc2fcd",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river_5f5a8ed8.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river_5f5a8ed8.mesh.json",
+        "sha256": "81db420655fabccb98c739ef950cb7b6848faa350cdeb8c556ff93b389bc2fcd",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_river-north-east_266cef3f": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_river-north-east_266cef3f.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-north-east_266cef3f.mesh.json",
+      "sha256": "a87b678bd94fe9db3de575d6cced2a5601c132c9fc66c7b6e28a0187e1a887dc",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-north-east_266cef3f.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-north-east_266cef3f.mesh.json",
+        "sha256": "a87b678bd94fe9db3de575d6cced2a5601c132c9fc66c7b6e28a0187e1a887dc",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_river-north-west_8f860c81": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_river-north-west_8f860c81.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-north-west_8f860c81.mesh.json",
+      "sha256": "c9437e29da59da5f8b20f0b2df6d2925cfb9008a9a78a2c02c3d1407e61066df",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-north-west_8f860c81.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-north-west_8f860c81.mesh.json",
+        "sha256": "c9437e29da59da5f8b20f0b2df6d2925cfb9008a9a78a2c02c3d1407e61066df",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_river-south-east_2386c5dc": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_river-south-east_2386c5dc.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-south-east_2386c5dc.mesh.json",
+      "sha256": "0184d369f5411d519de5548a312c4b44b75c98dcf90388baec55e8ca038d54e4",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-south-east_2386c5dc.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-south-east_2386c5dc.mesh.json",
+        "sha256": "0184d369f5411d519de5548a312c4b44b75c98dcf90388baec55e8ca038d54e4",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_river-south-west_b0ad7762": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_river-south-west_b0ad7762.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-south-west_b0ad7762.mesh.json",
+      "sha256": "1a3279af8c07cd0f47ae51fd1c1a3199b544be4d1d6d9205eeb4a02dc12e4682",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-south-west_b0ad7762.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_river-south-west_b0ad7762.mesh.json",
+        "sha256": "1a3279af8c07cd0f47ae51fd1c1a3199b544be4d1d6d9205eeb4a02dc12e4682",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_roadway_b9eef96a": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_roadway_b9eef96a.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_roadway_b9eef96a.mesh.json",
+      "sha256": "a631adf8b7f7396ce8a435655e106c2d0842b89abbc812e0e50e5a11024d45e5",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_roadway_b9eef96a.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_roadway_b9eef96a.mesh.json",
+        "sha256": "a631adf8b7f7396ce8a435655e106c2d0842b89abbc812e0e50e5a11024d45e5",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_south-road-end_929f4e16": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_south-road-end_929f4e16.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_south-road-end_929f4e16.mesh.json",
+      "sha256": "5c919391269a2290dcfb2613d023677907d9d1c24b3e39471b34221eaf612d93",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_south-road-end_929f4e16.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_south-road-end_929f4e16.mesh.json",
+        "sha256": "5c919391269a2290dcfb2613d023677907d9d1c24b3e39471b34221eaf612d93",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_west-sidewalk_0c161e03": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/road-river/mesh_west-sidewalk_0c161e03.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_west-sidewalk_0c161e03.mesh.json",
+      "sha256": "201a6e5e6ea5e9afde1221aa241ec70138dbb9fca4966629c6d46e69f568e726",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_west-sidewalk_0c161e03.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/mesh_west-sidewalk_0c161e03.mesh.json",
+        "sha256": "201a6e5e6ea5e9afde1221aa241ec70138dbb9fca4966629c6d46e69f568e726",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/road-river/report.json"
+      }
+    },
+    "mesh_forest-patch-0-0_a9445e6f": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-0-0_a9445e6f.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-0_a9445e6f.mesh.json",
+      "sha256": "de37d78549ce4f9b6cc3698655e8329b225be88995887f7c685c5cf93f1ce368",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-0_a9445e6f.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-0_a9445e6f.mesh.json",
+        "sha256": "de37d78549ce4f9b6cc3698655e8329b225be88995887f7c685c5cf93f1ce368",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-0-1_2e461e23": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-0-1_2e461e23.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-1_2e461e23.mesh.json",
+      "sha256": "bac2385de612eb6db00fce236abce2652b1e0462a7e1e305663c3ac9bcdf0c42",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-1_2e461e23.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-1_2e461e23.mesh.json",
+        "sha256": "bac2385de612eb6db00fce236abce2652b1e0462a7e1e305663c3ac9bcdf0c42",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-0-2_cae933f9": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-0-2_cae933f9.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-2_cae933f9.mesh.json",
+      "sha256": "859da53e0046c8b6321a4a039ad5407de5c893186627947d54dc8fb03e7baa47",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-2_cae933f9.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-2_cae933f9.mesh.json",
+        "sha256": "859da53e0046c8b6321a4a039ad5407de5c893186627947d54dc8fb03e7baa47",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-0-3_437cf490": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-0-3_437cf490.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-3_437cf490.mesh.json",
+      "sha256": "307c0752926f5eb80ad635817edd2a26b1effe4a4c83a2bac5ce1c785f1a5ee4",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-3_437cf490.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-0-3_437cf490.mesh.json",
+        "sha256": "307c0752926f5eb80ad635817edd2a26b1effe4a4c83a2bac5ce1c785f1a5ee4",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-1-0_07b7e49e": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-1-0_07b7e49e.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-0_07b7e49e.mesh.json",
+      "sha256": "865b05355e5177d488dbb5c6f3dddea70c8ff577a48f1f9450eb2978d65e81fa",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-0_07b7e49e.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-0_07b7e49e.mesh.json",
+        "sha256": "865b05355e5177d488dbb5c6f3dddea70c8ff577a48f1f9450eb2978d65e81fa",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-1-1_7e70db66": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-1-1_7e70db66.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-1_7e70db66.mesh.json",
+      "sha256": "7188018771171a9c84e9aa611d32df332591053b809420f232ccaaae2b6872b1",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-1_7e70db66.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-1_7e70db66.mesh.json",
+        "sha256": "7188018771171a9c84e9aa611d32df332591053b809420f232ccaaae2b6872b1",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-1-2_4660e063": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-1-2_4660e063.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-2_4660e063.mesh.json",
+      "sha256": "81f30788c14f56a9fe157b21fdcbff68804789242815dd7c207e627f6b6f6f34",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-2_4660e063.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-2_4660e063.mesh.json",
+        "sha256": "81f30788c14f56a9fe157b21fdcbff68804789242815dd7c207e627f6b6f6f34",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-1-3_4f04e924": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-1-3_4f04e924.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-3_4f04e924.mesh.json",
+      "sha256": "d8f344a6effabd0e44ac630cadb96f9891596b9590729f4a1dfcb0080aba40c4",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-3_4f04e924.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-1-3_4f04e924.mesh.json",
+        "sha256": "d8f344a6effabd0e44ac630cadb96f9891596b9590729f4a1dfcb0080aba40c4",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-2-0_81f7139b": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-2-0_81f7139b.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-0_81f7139b.mesh.json",
+      "sha256": "e5294d7fd74ebbe8a9b9375137b56cc7c9d7fc5498f2245aecd5bbd5862ffc17",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-0_81f7139b.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-0_81f7139b.mesh.json",
+        "sha256": "e5294d7fd74ebbe8a9b9375137b56cc7c9d7fc5498f2245aecd5bbd5862ffc17",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-2-1_c7fbfaa1": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-2-1_c7fbfaa1.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-1_c7fbfaa1.mesh.json",
+      "sha256": "a64f4088742d541d449b91dc5a955dd87c827e5b0783046529febff85cb4cbf5",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-1_c7fbfaa1.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-1_c7fbfaa1.mesh.json",
+        "sha256": "a64f4088742d541d449b91dc5a955dd87c827e5b0783046529febff85cb4cbf5",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-2-2_3bfd6177": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-2-2_3bfd6177.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-2_3bfd6177.mesh.json",
+      "sha256": "98f2d0386ef2efedd4013c19410bd85b7e16316d75763acc834e519d0eb40763",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-2_3bfd6177.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-2_3bfd6177.mesh.json",
+        "sha256": "98f2d0386ef2efedd4013c19410bd85b7e16316d75763acc834e519d0eb40763",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-patch-2-3_2d9e2053": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-patch-2-3_2d9e2053.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-3_2d9e2053.mesh.json",
+      "sha256": "7c277ea705b9a2a3dfe791741b0d6887a983a2fc00b9505137fdd2b55e4616e1",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-3_2d9e2053.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-patch-2-3_2d9e2053.mesh.json",
+        "sha256": "7c277ea705b9a2a3dfe791741b0d6887a983a2fc00b9505137fdd2b55e4616e1",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-0-0_1c7f6063": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-0-0_1c7f6063.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-0_1c7f6063.mesh.json",
+      "sha256": "e690cdbe1447c9c5212f98bbfa78fd42c94a5295cfdcfc1aaa0d8610e1ee2f2a",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-0_1c7f6063.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-0_1c7f6063.mesh.json",
+        "sha256": "e690cdbe1447c9c5212f98bbfa78fd42c94a5295cfdcfc1aaa0d8610e1ee2f2a",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-0-1_04966345": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-0-1_04966345.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-1_04966345.mesh.json",
+      "sha256": "3cba225e1ede8edb55c43a623cd00d9392228a2bac38fcc5b5fd41aed3dcf8b9",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-1_04966345.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-1_04966345.mesh.json",
+        "sha256": "3cba225e1ede8edb55c43a623cd00d9392228a2bac38fcc5b5fd41aed3dcf8b9",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-0-2_37a7d54a": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-0-2_37a7d54a.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-2_37a7d54a.mesh.json",
+      "sha256": "456b1b3080a0e67d54963f7daee0517666d6aedbb7304ca5ed99997bd5c4b48f",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-2_37a7d54a.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-2_37a7d54a.mesh.json",
+        "sha256": "456b1b3080a0e67d54963f7daee0517666d6aedbb7304ca5ed99997bd5c4b48f",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-0-3_2e798aeb": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-0-3_2e798aeb.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-3_2e798aeb.mesh.json",
+      "sha256": "cb829b105082942103a50535295655a01f15268ec0221da6c833c8f17db43cf6",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-3_2e798aeb.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-3_2e798aeb.mesh.json",
+        "sha256": "cb829b105082942103a50535295655a01f15268ec0221da6c833c8f17db43cf6",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-0-4_9c561c97": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-0-4_9c561c97.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-4_9c561c97.mesh.json",
+      "sha256": "1a311c86bcbcd56dd365bc327a1656dbd2c3d59a89c4395d0dc05c7b8110f075",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-4_9c561c97.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-4_9c561c97.mesh.json",
+        "sha256": "1a311c86bcbcd56dd365bc327a1656dbd2c3d59a89c4395d0dc05c7b8110f075",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-0-5_7ae35970": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-0-5_7ae35970.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-5_7ae35970.mesh.json",
+      "sha256": "59cfe30c4bf0d09f5aba495915891bc51640822da084ce124090597ff1676372",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-5_7ae35970.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-5_7ae35970.mesh.json",
+        "sha256": "59cfe30c4bf0d09f5aba495915891bc51640822da084ce124090597ff1676372",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-0-6_d1efb6a2": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-0-6_d1efb6a2.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-6_d1efb6a2.mesh.json",
+      "sha256": "905522a71c4c482ac74b443b56d2cda7411ae64777f58f28c7c9e7389e5824b7",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-6_d1efb6a2.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-6_d1efb6a2.mesh.json",
+        "sha256": "905522a71c4c482ac74b443b56d2cda7411ae64777f58f28c7c9e7389e5824b7",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-0-7_2bd2f476": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-0-7_2bd2f476.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-7_2bd2f476.mesh.json",
+      "sha256": "f88e476eff5671f3b91739ccbbb4abcb10f38a25f443a9ac17b0844ef02dfe27",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-7_2bd2f476.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-0-7_2bd2f476.mesh.json",
+        "sha256": "f88e476eff5671f3b91739ccbbb4abcb10f38a25f443a9ac17b0844ef02dfe27",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-1-0_6ef288de": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-1-0_6ef288de.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-0_6ef288de.mesh.json",
+      "sha256": "c3f283cc511391fa21fccb86882f6a57bb9364bedf66251a8d99eb14b939a096",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-0_6ef288de.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-0_6ef288de.mesh.json",
+        "sha256": "c3f283cc511391fa21fccb86882f6a57bb9364bedf66251a8d99eb14b939a096",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-1-1_26c51f66": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-1-1_26c51f66.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-1_26c51f66.mesh.json",
+      "sha256": "9e06c672b56a6e362809fbec69e9112b9f43b3a88f4fa3e91863c2b3eedd649a",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-1_26c51f66.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-1_26c51f66.mesh.json",
+        "sha256": "9e06c672b56a6e362809fbec69e9112b9f43b3a88f4fa3e91863c2b3eedd649a",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-1-2_e0e6a770": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-1-2_e0e6a770.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-2_e0e6a770.mesh.json",
+      "sha256": "d5091afa7618d763afa5593a5fbf4ed7842e704c7a30cfc4435b8869ea27b9d8",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-2_e0e6a770.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-2_e0e6a770.mesh.json",
+        "sha256": "d5091afa7618d763afa5593a5fbf4ed7842e704c7a30cfc4435b8869ea27b9d8",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-1-3_ae51ee96": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-1-3_ae51ee96.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-3_ae51ee96.mesh.json",
+      "sha256": "c307e89fe181907c2018c973631f0951d41ff219b19082dba6ec6b964b020ad1",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-3_ae51ee96.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-3_ae51ee96.mesh.json",
+        "sha256": "c307e89fe181907c2018c973631f0951d41ff219b19082dba6ec6b964b020ad1",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-1-4_1b7067e0": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-1-4_1b7067e0.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-4_1b7067e0.mesh.json",
+      "sha256": "aa8df69ad2a8160944933a225de9559deb79387882ddf1243c6a6ea894b26731",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-4_1b7067e0.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-4_1b7067e0.mesh.json",
+        "sha256": "aa8df69ad2a8160944933a225de9559deb79387882ddf1243c6a6ea894b26731",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-1-5_45204205": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-1-5_45204205.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-5_45204205.mesh.json",
+      "sha256": "054e35e9739fe244561c9c37a27404f24565c987d43d0140078796e8323d3314",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-5_45204205.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-5_45204205.mesh.json",
+        "sha256": "054e35e9739fe244561c9c37a27404f24565c987d43d0140078796e8323d3314",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-1-6_7aa12389": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-1-6_7aa12389.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-6_7aa12389.mesh.json",
+      "sha256": "ddbedb4a00b73d718098c3f5dd1d1506d7e58d589793bf2a5248185a6758553d",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-6_7aa12389.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-6_7aa12389.mesh.json",
+        "sha256": "ddbedb4a00b73d718098c3f5dd1d1506d7e58d589793bf2a5248185a6758553d",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-1-7_b777dc4f": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-1-7_b777dc4f.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-7_b777dc4f.mesh.json",
+      "sha256": "08f86257d07688b426e101321e0cd82d8f3ec3bf13d9d16ce6aab04ce73d2130",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-7_b777dc4f.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-1-7_b777dc4f.mesh.json",
+        "sha256": "08f86257d07688b426e101321e0cd82d8f3ec3bf13d9d16ce6aab04ce73d2130",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-2-0_12fc1260": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-2-0_12fc1260.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-0_12fc1260.mesh.json",
+      "sha256": "3dd12f05f7a3a1ec16101143056bc79286e00861e3b805bf47f483b85e014717",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-0_12fc1260.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-0_12fc1260.mesh.json",
+        "sha256": "3dd12f05f7a3a1ec16101143056bc79286e00861e3b805bf47f483b85e014717",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-2-1_0ba09646": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-2-1_0ba09646.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-1_0ba09646.mesh.json",
+      "sha256": "2f5b5ec957b7bf328802a4a093b25286b8ae851c966f7da17cc9270bf7f4c931",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-1_0ba09646.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-1_0ba09646.mesh.json",
+        "sha256": "2f5b5ec957b7bf328802a4a093b25286b8ae851c966f7da17cc9270bf7f4c931",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-2-2_63b631c7": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-2-2_63b631c7.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-2_63b631c7.mesh.json",
+      "sha256": "d2b54a71008f817a7d106c4d72e849501ba51dc03bf7bce57f05e312daa8d313",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-2_63b631c7.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-2_63b631c7.mesh.json",
+        "sha256": "d2b54a71008f817a7d106c4d72e849501ba51dc03bf7bce57f05e312daa8d313",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-2-3_1d192f37": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-2-3_1d192f37.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-3_1d192f37.mesh.json",
+      "sha256": "97d7235d4385284af407146f7dfe9a9bc60af607c982c101c3da192d5a7cec99",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-3_1d192f37.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-3_1d192f37.mesh.json",
+        "sha256": "97d7235d4385284af407146f7dfe9a9bc60af607c982c101c3da192d5a7cec99",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-2-4_3c542a2a": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-2-4_3c542a2a.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-4_3c542a2a.mesh.json",
+      "sha256": "aa87e274b6d9589003b0eabfa48d37d35d47457dfb28deb4533676b1f41c1a06",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-4_3c542a2a.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-4_3c542a2a.mesh.json",
+        "sha256": "aa87e274b6d9589003b0eabfa48d37d35d47457dfb28deb4533676b1f41c1a06",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-2-5_bb6bb516": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-2-5_bb6bb516.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-5_bb6bb516.mesh.json",
+      "sha256": "b54b8ccdf49d108acdfa35537ee4b23ac1658cbdbe9010972e94ed49946f4150",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-5_bb6bb516.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-5_bb6bb516.mesh.json",
+        "sha256": "b54b8ccdf49d108acdfa35537ee4b23ac1658cbdbe9010972e94ed49946f4150",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-2-6_e604947d": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-2-6_e604947d.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-6_e604947d.mesh.json",
+      "sha256": "5768a5e34789946308882f2d6a02e6da37a4cd19206c0779a1eb5efd86b35432",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-6_e604947d.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-6_e604947d.mesh.json",
+        "sha256": "5768a5e34789946308882f2d6a02e6da37a4cd19206c0779a1eb5efd86b35432",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_forest-tree-2-7_e90d908b": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/forest/mesh_forest-tree-2-7_e90d908b.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-7_e90d908b.mesh.json",
+      "sha256": "d7b7236c2f3c1a1f8d65882dd5f8f448c25735781b16110a3b07559af28606d7",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-7_e90d908b.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/mesh_forest-tree-2-7_e90d908b.mesh.json",
+        "sha256": "d7b7236c2f3c1a1f8d65882dd5f8f448c25735781b16110a3b07559af28606d7",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/forest/report.json"
+      }
+    },
+    "mesh_arcology-gate_5d6f863b": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_arcology-gate_5d6f863b.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_arcology-gate_5d6f863b.mesh.json",
+      "sha256": "bc7153a6a40f915ee43d94ba415213a22a2f3a08828b87c715a784c1ea6a3578",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_arcology-gate_5d6f863b.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_arcology-gate_5d6f863b.mesh.json",
+        "sha256": "bc7153a6a40f915ee43d94ba415213a22a2f3a08828b87c715a784c1ea6a3578",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_arcology-terraces_c2f9affa": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_arcology-terraces_c2f9affa.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_arcology-terraces_c2f9affa.mesh.json",
+      "sha256": "3e6c15610d75cb9a0d3616004c84281736cd65e301a36379d7149b5566991013",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_arcology-terraces_c2f9affa.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_arcology-terraces_c2f9affa.mesh.json",
+        "sha256": "3e6c15610d75cb9a0d3616004c84281736cd65e301a36379d7149b5566991013",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_arcology-towers_6aa33a64": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_arcology-towers_6aa33a64.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_arcology-towers_6aa33a64.mesh.json",
+      "sha256": "039317ef3a9fd9a53737e10beb034ee3990282ae822687bab68c3876701f8eb0",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_arcology-towers_6aa33a64.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_arcology-towers_6aa33a64.mesh.json",
+        "sha256": "039317ef3a9fd9a53737e10beb034ee3990282ae822687bab68c3876701f8eb0",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-0_acef4067": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-0_acef4067.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-0_acef4067.mesh.json",
+      "sha256": "c5731cc909c26966fd7c6b97517b216414f69698615585fd8e4100858449292f",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-0_acef4067.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-0_acef4067.mesh.json",
+        "sha256": "c5731cc909c26966fd7c6b97517b216414f69698615585fd8e4100858449292f",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-1_b90656c8": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-1_b90656c8.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-1_b90656c8.mesh.json",
+      "sha256": "ede41e6e76b9f9b6db71466a38e05b719b692f7099f7f93ef555047cbfc66902",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-1_b90656c8.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-1_b90656c8.mesh.json",
+        "sha256": "ede41e6e76b9f9b6db71466a38e05b719b692f7099f7f93ef555047cbfc66902",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-10_c1d38361": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-10_c1d38361.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-10_c1d38361.mesh.json",
+      "sha256": "654203c743e6bd224fa888151c545669babfaf1f758f57999c6cd8131b674c4c",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-10_c1d38361.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-10_c1d38361.mesh.json",
+        "sha256": "654203c743e6bd224fa888151c545669babfaf1f758f57999c6cd8131b674c4c",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-11_65c9f31d": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-11_65c9f31d.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-11_65c9f31d.mesh.json",
+      "sha256": "3591bd2bcfa98575d5548b92e4f86a73de07007bc5afa64280a7cf2aceb00434",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-11_65c9f31d.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-11_65c9f31d.mesh.json",
+        "sha256": "3591bd2bcfa98575d5548b92e4f86a73de07007bc5afa64280a7cf2aceb00434",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-2_9a55f37d": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-2_9a55f37d.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-2_9a55f37d.mesh.json",
+      "sha256": "dfcaee14bc264a2f6e16c9c2fc6f6a8a146da768a6e9d7becbfbbce62e9fc3b0",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-2_9a55f37d.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-2_9a55f37d.mesh.json",
+        "sha256": "dfcaee14bc264a2f6e16c9c2fc6f6a8a146da768a6e9d7becbfbbce62e9fc3b0",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-3_35ec665e": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-3_35ec665e.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-3_35ec665e.mesh.json",
+      "sha256": "e61517f737802f716dd67db136c0c773c9bba538e733a298ea8b6e9aac028cd7",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-3_35ec665e.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-3_35ec665e.mesh.json",
+        "sha256": "e61517f737802f716dd67db136c0c773c9bba538e733a298ea8b6e9aac028cd7",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-4_178e6f1a": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-4_178e6f1a.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-4_178e6f1a.mesh.json",
+      "sha256": "4efdeeb52bf3cc3953478b378907fc11cc3d39ce58892964d345527f5b06bff7",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-4_178e6f1a.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-4_178e6f1a.mesh.json",
+        "sha256": "4efdeeb52bf3cc3953478b378907fc11cc3d39ce58892964d345527f5b06bff7",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-5_717e9cb1": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-5_717e9cb1.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-5_717e9cb1.mesh.json",
+      "sha256": "882ea0dc0147bc4f38e6ab7ef4262cd04d81317568655c7ec5980607385c58e0",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-5_717e9cb1.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-5_717e9cb1.mesh.json",
+        "sha256": "882ea0dc0147bc4f38e6ab7ef4262cd04d81317568655c7ec5980607385c58e0",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-6_abdbddb1": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-6_abdbddb1.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-6_abdbddb1.mesh.json",
+      "sha256": "0e302be7fbbaee2e8f13f16ce6de64bd56bdc81e6cebf042bbd781128e58d2dc",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-6_abdbddb1.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-6_abdbddb1.mesh.json",
+        "sha256": "0e302be7fbbaee2e8f13f16ce6de64bd56bdc81e6cebf042bbd781128e58d2dc",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-7_774c6bca": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-7_774c6bca.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-7_774c6bca.mesh.json",
+      "sha256": "d3b22c78b87c932e373fd47dc03cf5d8b46e9ec5d1cc9381a52f3aed168f9686",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-7_774c6bca.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-7_774c6bca.mesh.json",
+        "sha256": "d3b22c78b87c932e373fd47dc03cf5d8b46e9ec5d1cc9381a52f3aed168f9686",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-8_08f14859": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-8_08f14859.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-8_08f14859.mesh.json",
+      "sha256": "dd3e40ac7c084e15e8208b4d5476573aac23e512ba0464c00a9b25f70047d1d1",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-8_08f14859.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-8_08f14859.mesh.json",
+        "sha256": "dd3e40ac7c084e15e8208b4d5476573aac23e512ba0464c00a9b25f70047d1d1",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_north-highrise-9_a5cc2094": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-north/mesh_north-highrise-9_a5cc2094.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-9_a5cc2094.mesh.json",
+      "sha256": "2ca5fe58ab37fa0a76087ac3f4bc75392c9768852d2c7991a5f6f28b81507094",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-9_a5cc2094.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/mesh_north-highrise-9_a5cc2094.mesh.json",
+        "sha256": "2ca5fe58ab37fa0a76087ac3f4bc75392c9768852d2c7991a5f6f28b81507094",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-north/report.json"
+      }
+    },
+    "mesh_south-city-0-0_f88c33fe": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-0-0_f88c33fe.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-0_f88c33fe.mesh.json",
+      "sha256": "94d65ac2f07f6ad6912e64ccab4cad28020eac6f4f1ce46270b286d24ced7b14",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-0_f88c33fe.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-0_f88c33fe.mesh.json",
+        "sha256": "94d65ac2f07f6ad6912e64ccab4cad28020eac6f4f1ce46270b286d24ced7b14",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-0-1_f6c8c2ff": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-0-1_f6c8c2ff.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-1_f6c8c2ff.mesh.json",
+      "sha256": "dd7fb874a26dc0aaf737376786cf0296d1206a8a8ee073df9f335ba0b05fdf3d",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-1_f6c8c2ff.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-1_f6c8c2ff.mesh.json",
+        "sha256": "dd7fb874a26dc0aaf737376786cf0296d1206a8a8ee073df9f335ba0b05fdf3d",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-0-2_0b8b6deb": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-0-2_0b8b6deb.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-2_0b8b6deb.mesh.json",
+      "sha256": "a187db7b004bf365fef996f60cbdd8681ccc80b22ab89b63864ae02ed758156a",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-2_0b8b6deb.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-2_0b8b6deb.mesh.json",
+        "sha256": "a187db7b004bf365fef996f60cbdd8681ccc80b22ab89b63864ae02ed758156a",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-0-3_f380da32": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-0-3_f380da32.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-3_f380da32.mesh.json",
+      "sha256": "15d200a305c30acac726ebd872ba5e78236673448cffc591bb3d09dd665deee3",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-3_f380da32.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-3_f380da32.mesh.json",
+        "sha256": "15d200a305c30acac726ebd872ba5e78236673448cffc591bb3d09dd665deee3",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-0-4_4f86d156": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-0-4_4f86d156.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-4_4f86d156.mesh.json",
+      "sha256": "5127c4d0470464643200e8177665f681aa0b26876bedc2f1d9f4246e8f70ca45",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-4_4f86d156.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-4_4f86d156.mesh.json",
+        "sha256": "5127c4d0470464643200e8177665f681aa0b26876bedc2f1d9f4246e8f70ca45",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-0-5_579516a6": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-0-5_579516a6.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-5_579516a6.mesh.json",
+      "sha256": "e67a2459649d1f27c42cd3493c4f854772e0094e78705eea18c6096e123e9a60",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-5_579516a6.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-5_579516a6.mesh.json",
+        "sha256": "e67a2459649d1f27c42cd3493c4f854772e0094e78705eea18c6096e123e9a60",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-0-6_e4303829": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-0-6_e4303829.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-6_e4303829.mesh.json",
+      "sha256": "7f8636166c991423b5f6f39cbbd917e782fb703aa1b6294ee050cdf60f7a8181",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-6_e4303829.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-6_e4303829.mesh.json",
+        "sha256": "7f8636166c991423b5f6f39cbbd917e782fb703aa1b6294ee050cdf60f7a8181",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-0-7_3fbbd8c6": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-0-7_3fbbd8c6.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-7_3fbbd8c6.mesh.json",
+      "sha256": "795a0e376e7c1a7cf1294f907f96117d28451b99575e3008bf9812ef0854cc42",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-7_3fbbd8c6.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-7_3fbbd8c6.mesh.json",
+        "sha256": "795a0e376e7c1a7cf1294f907f96117d28451b99575e3008bf9812ef0854cc42",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-0-8_829e4847": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-0-8_829e4847.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-8_829e4847.mesh.json",
+      "sha256": "848dbbbbfd48760445369632d087c8de57c0aeba6ab0f85026aa0a5204f372f2",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-8_829e4847.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-0-8_829e4847.mesh.json",
+        "sha256": "848dbbbbfd48760445369632d087c8de57c0aeba6ab0f85026aa0a5204f372f2",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-1-0_58dddd37": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-1-0_58dddd37.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-0_58dddd37.mesh.json",
+      "sha256": "6a21597bb5926f90a5179183015022590b0f45c11f34f7d91ea669806e58667f",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-0_58dddd37.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-0_58dddd37.mesh.json",
+        "sha256": "6a21597bb5926f90a5179183015022590b0f45c11f34f7d91ea669806e58667f",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-1-1_131fe2f7": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-1-1_131fe2f7.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-1_131fe2f7.mesh.json",
+      "sha256": "d33ff0e3908c9cfd52d5a1dbb448806a3243db8ae3ed7fe9719d3cfaeacafda4",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-1_131fe2f7.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-1_131fe2f7.mesh.json",
+        "sha256": "d33ff0e3908c9cfd52d5a1dbb448806a3243db8ae3ed7fe9719d3cfaeacafda4",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-1-2_60222077": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-1-2_60222077.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-2_60222077.mesh.json",
+      "sha256": "10cb42dcdb4a9aca521adf785079ff3209e6fdfcfb39c4c4b248e5ab3a7702f3",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-2_60222077.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-2_60222077.mesh.json",
+        "sha256": "10cb42dcdb4a9aca521adf785079ff3209e6fdfcfb39c4c4b248e5ab3a7702f3",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-1-3_ef41243a": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-1-3_ef41243a.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-3_ef41243a.mesh.json",
+      "sha256": "6fd2dfe9503c6dff3ae05b68e19d5c01502bb5b372823afce336226a654b63c5",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-3_ef41243a.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-3_ef41243a.mesh.json",
+        "sha256": "6fd2dfe9503c6dff3ae05b68e19d5c01502bb5b372823afce336226a654b63c5",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-1-4_3e81ac96": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-1-4_3e81ac96.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-4_3e81ac96.mesh.json",
+      "sha256": "37e7116a691df85487c20714b534c0a2176c684c24de618691fff16cbf019003",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-4_3e81ac96.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-4_3e81ac96.mesh.json",
+        "sha256": "37e7116a691df85487c20714b534c0a2176c684c24de618691fff16cbf019003",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-1-5_e9c677b8": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-1-5_e9c677b8.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-5_e9c677b8.mesh.json",
+      "sha256": "6675fb6bd5eafbc39ecee0b1cb67063cdc1e5dad63645f022b03bd00dc02b5e7",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-5_e9c677b8.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-5_e9c677b8.mesh.json",
+        "sha256": "6675fb6bd5eafbc39ecee0b1cb67063cdc1e5dad63645f022b03bd00dc02b5e7",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-1-6_83f7bc43": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-1-6_83f7bc43.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-6_83f7bc43.mesh.json",
+      "sha256": "22c8c3393cb981c51797129cd3165df3337ccceed0a718bf5505576319f2ee77",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-6_83f7bc43.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-6_83f7bc43.mesh.json",
+        "sha256": "22c8c3393cb981c51797129cd3165df3337ccceed0a718bf5505576319f2ee77",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-1-7_c13ebbab": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-1-7_c13ebbab.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-7_c13ebbab.mesh.json",
+      "sha256": "6318351cc2e477b90778207d88a1873afb1c037b12bd9e2972a1c20172f35da1",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-7_c13ebbab.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-7_c13ebbab.mesh.json",
+        "sha256": "6318351cc2e477b90778207d88a1873afb1c037b12bd9e2972a1c20172f35da1",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_south-city-1-8_21e1611a": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_south-city-1-8_21e1611a.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-8_21e1611a.mesh.json",
+      "sha256": "1432d50f771d43340681482a56287288e66c114285cfad05ad134cf26745c273",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-8_21e1611a.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_south-city-1-8_21e1611a.mesh.json",
+        "sha256": "1432d50f771d43340681482a56287288e66c114285cfad05ad134cf26745c273",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-0-0_5f252e7d": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-0-0_5f252e7d.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-0_5f252e7d.mesh.json",
+      "sha256": "c6a11430005271bccc8dc81e6c24d8264f9f119b2d8fdb7ce8346a631c2f4e7c",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-0_5f252e7d.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-0_5f252e7d.mesh.json",
+        "sha256": "c6a11430005271bccc8dc81e6c24d8264f9f119b2d8fdb7ce8346a631c2f4e7c",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-0-1_89d6fba7": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-0-1_89d6fba7.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-1_89d6fba7.mesh.json",
+      "sha256": "fac38fdb3d8e49e597525e19d3e94eeaa345623673e20a10cfe4639f65228825",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-1_89d6fba7.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-1_89d6fba7.mesh.json",
+        "sha256": "fac38fdb3d8e49e597525e19d3e94eeaa345623673e20a10cfe4639f65228825",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-0-2_823c21f8": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-0-2_823c21f8.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-2_823c21f8.mesh.json",
+      "sha256": "3a044f0a4f040ccbeea3f11d21608e8e11fe1dc5fdd737e31a1e6d301da2a843",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-2_823c21f8.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-2_823c21f8.mesh.json",
+        "sha256": "3a044f0a4f040ccbeea3f11d21608e8e11fe1dc5fdd737e31a1e6d301da2a843",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-0-3_af02538a": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-0-3_af02538a.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-3_af02538a.mesh.json",
+      "sha256": "64dba5934431e1123fd1c7ad3a4d39d5c118fa114cb5c10bc1b0f379482032d3",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-3_af02538a.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-3_af02538a.mesh.json",
+        "sha256": "64dba5934431e1123fd1c7ad3a4d39d5c118fa114cb5c10bc1b0f379482032d3",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-0-4_3b87aeb9": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-0-4_3b87aeb9.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-4_3b87aeb9.mesh.json",
+      "sha256": "5fb8e125f96416102fe557531b6079e86631caaff06e5ed13e2f12255d384464",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-4_3b87aeb9.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-4_3b87aeb9.mesh.json",
+        "sha256": "5fb8e125f96416102fe557531b6079e86631caaff06e5ed13e2f12255d384464",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-0-5_38a3782c": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-0-5_38a3782c.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-5_38a3782c.mesh.json",
+      "sha256": "f5e4a736422c90d488d33416f69a928bfc0a7e74e39d9107228b2e2f64dd5cf9",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-5_38a3782c.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-5_38a3782c.mesh.json",
+        "sha256": "f5e4a736422c90d488d33416f69a928bfc0a7e74e39d9107228b2e2f64dd5cf9",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-0-6_88039e84": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-0-6_88039e84.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-6_88039e84.mesh.json",
+      "sha256": "e7a055e21882882f01a10f91336f978a36dbaa7839693d08cef85ec0dc0a4ae4",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-6_88039e84.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-6_88039e84.mesh.json",
+        "sha256": "e7a055e21882882f01a10f91336f978a36dbaa7839693d08cef85ec0dc0a4ae4",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-0-7_b87a5e7a": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-0-7_b87a5e7a.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-7_b87a5e7a.mesh.json",
+      "sha256": "7e3e359a2f5110a503c5ee6569223a5d79922038c01588623438649f2314356a",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-7_b87a5e7a.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-7_b87a5e7a.mesh.json",
+        "sha256": "7e3e359a2f5110a503c5ee6569223a5d79922038c01588623438649f2314356a",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-0-8_996364b1": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-0-8_996364b1.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-8_996364b1.mesh.json",
+      "sha256": "54096c6a9caf0a885cc6380f981132465c5073ff8e8da83c5a430eb0f807e33c",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-8_996364b1.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-0-8_996364b1.mesh.json",
+        "sha256": "54096c6a9caf0a885cc6380f981132465c5073ff8e8da83c5a430eb0f807e33c",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-1-0_7b8bc721": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-1-0_7b8bc721.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-0_7b8bc721.mesh.json",
+      "sha256": "14abecca2f52155e113adfd89ad1fcdc14c8e5cbb7dfcd24e3cc83787f6cfb4b",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-0_7b8bc721.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-0_7b8bc721.mesh.json",
+        "sha256": "14abecca2f52155e113adfd89ad1fcdc14c8e5cbb7dfcd24e3cc83787f6cfb4b",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-1-1_5bd5ada6": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-1-1_5bd5ada6.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-1_5bd5ada6.mesh.json",
+      "sha256": "cda5d11ddb0ad8dcdd6c7159f6ceb48598700cdc47beda25dbc46fa63e7461d3",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-1_5bd5ada6.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-1_5bd5ada6.mesh.json",
+        "sha256": "cda5d11ddb0ad8dcdd6c7159f6ceb48598700cdc47beda25dbc46fa63e7461d3",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-1-2_b68c354f": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-1-2_b68c354f.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-2_b68c354f.mesh.json",
+      "sha256": "b83900757dd3cef5bff8f41418ad4f79fb37f5f599808424630972562484917a",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-2_b68c354f.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-2_b68c354f.mesh.json",
+        "sha256": "b83900757dd3cef5bff8f41418ad4f79fb37f5f599808424630972562484917a",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-1-3_a230e5fb": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-1-3_a230e5fb.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-3_a230e5fb.mesh.json",
+      "sha256": "81a81a64177972158b4adc80d2c9e5e23fc94a003efa28c7bd752d6a17bdb23f",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-3_a230e5fb.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-3_a230e5fb.mesh.json",
+        "sha256": "81a81a64177972158b4adc80d2c9e5e23fc94a003efa28c7bd752d6a17bdb23f",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-1-4_e17eebca": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-1-4_e17eebca.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-4_e17eebca.mesh.json",
+      "sha256": "28197444f2a70e55416dc0e9c803902e104cd5c968a9d37160691c9d7736e2e0",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-4_e17eebca.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-4_e17eebca.mesh.json",
+        "sha256": "28197444f2a70e55416dc0e9c803902e104cd5c968a9d37160691c9d7736e2e0",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-1-5_7466b8df": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-1-5_7466b8df.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-5_7466b8df.mesh.json",
+      "sha256": "7f0cdf3c59784b83cdc973099ec123968a5002afef45e7691c5f597082b37c42",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-5_7466b8df.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-5_7466b8df.mesh.json",
+        "sha256": "7f0cdf3c59784b83cdc973099ec123968a5002afef45e7691c5f597082b37c42",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-1-6_82a2ce88": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-1-6_82a2ce88.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-6_82a2ce88.mesh.json",
+      "sha256": "3cf6dfe5914e8325552ec1b882af4c50a4b2a7336c5aa3562fd6a6d775b9da09",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-6_82a2ce88.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-6_82a2ce88.mesh.json",
+        "sha256": "3cf6dfe5914e8325552ec1b882af4c50a4b2a7336c5aa3562fd6a6d775b9da09",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-1-7_7514e8ff": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-1-7_7514e8ff.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-7_7514e8ff.mesh.json",
+      "sha256": "bf451ba3f484b70f3ddf2d867c44fa233ae537ca0a82c9498df63901ed180e15",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-7_7514e8ff.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-7_7514e8ff.mesh.json",
+        "sha256": "bf451ba3f484b70f3ddf2d867c44fa233ae537ca0a82c9498df63901ed180e15",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    },
+    "mesh_west-city-1-8_bbbfcefb": {
+      "candidate_source": "bundles/finalfix-m-20260928T0511/backdrop-west-south/mesh_west-city-1-8_bbbfcefb.mesh.json",
+      "draft_source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-8_bbbfcefb.mesh.json",
+      "sha256": "898e32887c60ef4bb9eadcb3e1a40a53bf3821c5782efef9d1493932eb577762",
+      "origin": "baseline",
+      "export": {
+        "source": "bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-8_bbbfcefb.mesh.json",
+        "file": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/mesh_west-city-1-8_bbbfcefb.mesh.json",
+        "sha256": "898e32887c60ef4bb9eadcb3e1a40a53bf3821c5782efef9d1493932eb577762",
+        "export_declaration": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/model.apply.json",
+        "export_inventory": "/workspaces/create-reso-world/.worktrees/slum03/slum03/content/slum03/bundles/density-rep-a-20260928Ttask6-01/backdrop-west-south/report.json"
+      }
+    }
+  },
+  "raw_removed_unmoved_empty_provider_nodes": [
+    {
+      "slot": "ruins-west-provider_mat_material_Slum03_steel_bare_e2140164",
+      "unchanged_provider": "provider_mat_material_Slum03_steel_bare_e2140164",
+      "material_component": "mat_material_Slum03_steel_bare_e2140164",
+      "parent": "ruins-west-blender_providers",
+      "unchanged_provider_parent": "plaza-blender_providers",
+      "reason": "exporter emitted an unreferenced empty reuse slot; identical material did not relocate"
+    },
+    {
+      "slot": "shacks-provider_mat_material_Slum03_steel_bare_e2140164",
+      "unchanged_provider": "provider_mat_material_Slum03_steel_bare_e2140164",
+      "material_component": "mat_material_Slum03_steel_bare_e2140164",
+      "parent": "shacks-blender_providers",
+      "unchanged_provider_parent": "plaza-blender_providers",
+      "reason": "exporter emitted an unreferenced empty reuse slot; identical material did not relocate"
+    }
+  ]
+}

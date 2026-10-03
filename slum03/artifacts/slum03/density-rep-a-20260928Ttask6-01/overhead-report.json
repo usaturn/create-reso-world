@@ -1,0 +1,40 @@
+{
+  "sector": "overhead",
+  "export_collection": "Slum03overheadExport",
+  "objects": [
+    {
+      "key": "overhead-west",
+      "kind": "overhead",
+      "mesh": "overhead-west",
+      "vertices": 190,
+      "faces": 162
+    }
+  ],
+  "evaluated_bounds": {
+    "overhead-west": {
+      "minimum": [
+        -37.54999923706055,
+        0.0,
+        -10.300000190734863
+      ],
+      "maximum": [
+        -26.450000762939453,
+        12.220000267028809,
+        -9.699999809265137
+      ]
+    }
+  },
+  "materials": [
+    "Slum03_concrete_raw",
+    "Slum03_rubber",
+    "Slum03_rust_dark",
+    "Slum03_steel_bare",
+    "Slum03_steel_dark"
+  ],
+  "triangles": 336,
+  "vertices": 190,
+  "submeshes": 5,
+  "uv_issues": [],
+  "errors": [],
+  "layout_sha256": "906d303ddf856f75951ab5fcc22b1fce3ec0b5d3df20560aa8d0213a5a92cc35"
+}

@@ -1,0 +1,82 @@
+{
+  "density-ruin-near": {
+    "position": [
+      -26,
+      6.1,
+      15
+    ],
+    "target": [
+      -38,
+      9.5,
+      12
+    ],
+    "fieldOfView": 60,
+    "width": 768,
+    "height": 512,
+    "representative": true
+  },
+  "density-shack-near": {
+    "position": [
+      -36,
+      6.1,
+      -19
+    ],
+    "target": [
+      -36,
+      6.8,
+      -28
+    ],
+    "fieldOfView": 60,
+    "width": 768,
+    "height": 512,
+    "representative": true
+  },
+  "density-market-inward": {
+    "position": [
+      -9,
+      6.1,
+      -29
+    ],
+    "target": [
+      -9,
+      6.0,
+      -34
+    ],
+    "fieldOfView": 60,
+    "width": 768,
+    "height": 512,
+    "representative": true
+  },
+  "density-west-street": {
+    "position": [
+      -20,
+      6.1,
+      15
+    ],
+    "target": [
+      -38,
+      12.5,
+      12
+    ],
+    "fieldOfView": 60,
+    "width": 768,
+    "height": 512,
+    "representative": true
+  },
+  "density-east-lane": {
+    "position": [
+      3,
+      6.1,
+      -18
+    ],
+    "target": [
+      -9,
+      6.0,
+      -34
+    ],
+    "fieldOfView": 60,
+    "width": 768,
+    "height": 512,
+    "representative": true
+  }
+}

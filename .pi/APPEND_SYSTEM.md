@@ -11,14 +11,15 @@
 
 ## サブエージェントの起動
 
-- 起動前に `subagent` ツールへ `{ action: "list", capabilities: true }` を投げ、`executable` かつ `launchable` なエージェントを確認する
-- 単発起動は同期実行とし、`async: false` を必ず指定する（例: `{ agent: "worker", task: "...", async: false }`）
-- `async` の省略は禁止。省略時はバックグラウンド起動扱いとなる
-- `async: true` のワークフロー一括起動は、この環境では使用しない。pi がスタンドアロン版で `@earendil-works/pi-server` 系が無く、child session を作成できず失敗する（2026-09-06 確認）
-- 複数タスクは同期呼び出しで直列に回す。worktree を共有する場合は同時書き込みを避け、一度に書く子は1件にする
-- `reviewer` に bash は無い。テスト実行の裏取りは bash 持ち（implementer / worker / delegate）にやらせるか、調整役が引き受ける。レビュー子には差分照合だけを頼む
-- 予約 ref・Issue 更新・PR は調整役の一元管理とし、子には触らせない
-- サブエージェントが /simplify を使いたいときは simplify-in-subagent スキルを使う
+- 現環境では pi-superagents の Superpowers role API を使う。
+- 使用できるロールと引数は、現在の subagent ツール定義を正とする。
+- action、capabilities、async は指定しない。このAPIは同期実行専用で、子の終了まで待つ。
+- 実装は sp-implementer、レビューは sp-review、調査は sp-recon / sp-research、デバッグは sp-debug を使う。
+- Superpowersワークフロー内で、選択したスキルの委譲手順に従う。
+- 複数タスクは同期呼び出しで直列に実行する。同じworktreeへ同時に書き込む子は1件まで。
+- レビュー子は読み取り専用。テスト実行は実装担当か調整役が行う。
+- 予約ref・Issue更新・PRは調整役が一元管理する。
+- サブエージェントでの /simplify 相当には simplify-in-subagent スキルを使う。
 
 ## モデル名の抽出
 

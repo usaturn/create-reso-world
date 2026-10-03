@@ -1,0 +1,252 @@
+{
+  "status": "OFFLINE CANDIDATE",
+  "sourceRuns": [
+    "density-rep-a-20260928Ttask6-01",
+    "density-rep-b-20260928Ttask6-01"
+  ],
+  "layout": {
+    "path": "artifacts/slum03/density-rep-a-20260928Ttask6-01/layout.json",
+    "sha256": "3636281718b0e2a9435b4f4c5ebd6c9fd622fa271467cf0a20019cbd82ff82a8",
+    "semantic_sha256": "906d303ddf856f75951ab5fcc22b1fce3ec0b5d3df20560aa8d0213a5a92cc35"
+  },
+  "comparison": {
+    "status": "pass",
+    "separatelyBuiltAndExported": true,
+    "meshCount": 150,
+    "numericRounding": false,
+    "fields": [
+      "position",
+      "normal",
+      "tangent",
+      "uvs",
+      "color",
+      "submeshes"
+    ]
+  },
+  "sectors": {
+    "ground": {
+      "triangles": 1020,
+      "vertices": 2904,
+      "materials": 5,
+      "drawSections": 11,
+      "meshes": 10,
+      "textures": 0,
+      "advisoryWarnings": 10,
+      "geometrySha256": "a6d82dc7e1e0d729222562eb5fd72fca2e79b647ab53aec0d07f4145e11f6f5a",
+      "lights": 0,
+      "colliders": 4,
+      "transparentDrawSections": null
+    },
+    "plaza": {
+      "triangles": 27202,
+      "vertices": 61510,
+      "materials": 12,
+      "drawSections": 99,
+      "meshes": 23,
+      "textures": 0,
+      "advisoryWarnings": 23,
+      "geometrySha256": "60596e5b49674479cc552b994e44485faa1be7067a1007bbc34b87d7b60eb9be",
+      "lights": 0,
+      "colliders": 2,
+      "transparentDrawSections": null
+    },
+    "ruins-west": {
+      "triangles": 2384,
+      "vertices": 4866,
+      "materials": 8,
+      "drawSections": 12,
+      "meshes": 2,
+      "textures": 0,
+      "advisoryWarnings": 2,
+      "geometrySha256": "1d59a5f96ecc9d9cd9df3142d1d1110d613ce7303199623c48724ef2bfd37421",
+      "lights": 0,
+      "colliders": 6,
+      "transparentDrawSections": null
+    },
+    "ruins-north": {
+      "triangles": 1916,
+      "vertices": 3920,
+      "materials": 5,
+      "drawSections": 5,
+      "meshes": 1,
+      "textures": 0,
+      "advisoryWarnings": 1,
+      "geometrySha256": "ccf97cf501bea3aac26118d0a7444f87bc8a3867a65b0d061e341a76249f95e2",
+      "lights": 0,
+      "colliders": 1,
+      "transparentDrawSections": null
+    },
+    "ruins-east": {
+      "triangles": 1060,
+      "vertices": 2203,
+      "materials": 5,
+      "drawSections": 5,
+      "meshes": 1,
+      "textures": 0,
+      "advisoryWarnings": 1,
+      "geometrySha256": "c40b1d13ee0f1ee2c1ecc128ec90914cced506ccaa1615f68cc2228f2ea915f0",
+      "lights": 0,
+      "colliders": 1,
+      "transparentDrawSections": null
+    },
+    "market": {
+      "triangles": 1908,
+      "vertices": 4418,
+      "materials": 11,
+      "drawSections": 18,
+      "meshes": 2,
+      "textures": 0,
+      "advisoryWarnings": 4,
+      "geometrySha256": "ec51bc5a7990e4bc9499b3353890da290800519f965f01811087abdb567ff8f1",
+      "lights": 2,
+      "colliders": 18,
+      "transparentDrawSections": null
+    },
+    "shacks": {
+      "triangles": 1320,
+      "vertices": 3191,
+      "materials": 8,
+      "drawSections": 14,
+      "meshes": 2,
+      "textures": 0,
+      "advisoryWarnings": 2,
+      "geometrySha256": "df16d50a231a532b574252919f443b4fad634d958923c99116307518236dbc5b",
+      "lights": 0,
+      "colliders": 13,
+      "transparentDrawSections": null
+    },
+    "nightlife": {
+      "triangles": 1024,
+      "vertices": 2108,
+      "materials": 9,
+      "drawSections": 16,
+      "meshes": 2,
+      "textures": 0,
+      "advisoryWarnings": 3,
+      "geometrySha256": "e86d18480b5646be8642bc64599d40615c132354f7ecd38b58ba1b234ac77f5d",
+      "lights": 2,
+      "colliders": 2,
+      "transparentDrawSections": null
+    },
+    "yarol": {
+      "triangles": 512,
+      "vertices": 1040,
+      "materials": 8,
+      "drawSections": 8,
+      "meshes": 1,
+      "textures": 0,
+      "advisoryWarnings": 1,
+      "geometrySha256": "af9124bd8dc29098664b3b2225ae18c0c51fdbdd53d56a7cc56403683dc6a92f",
+      "lights": 1,
+      "colliders": 1,
+      "transparentDrawSections": null
+    },
+    "overhead": {
+      "triangles": 336,
+      "vertices": 892,
+      "materials": 5,
+      "drawSections": 5,
+      "meshes": 1,
+      "textures": 0,
+      "advisoryWarnings": 1,
+      "geometrySha256": "8738cd64573ba8f4d8db1a39cd5f015f616c3d8aabfd6babe0fb283e2876b2a0",
+      "lights": 0,
+      "colliders": 0,
+      "transparentDrawSections": null
+    },
+    "ads": {
+      "triangles": 4452,
+      "vertices": 13356,
+      "materials": 7,
+      "drawSections": 18,
+      "meshes": 6,
+      "textures": 0,
+      "advisoryWarnings": 7,
+      "geometrySha256": "504e26f549330cbf199b7370d6584bd58b119f7e437d9471f3fd9dc30b4a7406",
+      "lights": 1,
+      "colliders": 0,
+      "transparentDrawSections": null
+    },
+    "road-river": {
+      "triangles": 686,
+      "vertices": 1372,
+      "materials": 7,
+      "drawSections": 25,
+      "meshes": 12,
+      "textures": 0,
+      "advisoryWarnings": 13,
+      "geometrySha256": "5de9e115fe0f5ba104065de681a625e6f1610e472b18f0041f75dbe8d4f022ae",
+      "lights": 0,
+      "colliders": 19,
+      "transparentDrawSections": null
+    },
+    "forest": {
+      "triangles": 39360,
+      "vertices": 96696,
+      "materials": 4,
+      "drawSections": 132,
+      "meshes": 36,
+      "textures": 0,
+      "advisoryWarnings": 37,
+      "geometrySha256": "d59dc0c596624898a51fdc529b3fc43be5dcfd1edf0e59e517f66d6962251dc2",
+      "lights": 0,
+      "colliders": 0,
+      "transparentDrawSections": null
+    },
+    "backdrop-north": {
+      "triangles": 1452,
+      "vertices": 2904,
+      "materials": 4,
+      "drawSections": 48,
+      "meshes": 15,
+      "textures": 0,
+      "advisoryWarnings": 16,
+      "geometrySha256": "81f18c075c88c65d5f5e60b93faf97b5a300c2ee492a35620c4ca8cc84652c1f",
+      "lights": 0,
+      "colliders": 0,
+      "transparentDrawSections": null
+    },
+    "backdrop-west-south": {
+      "triangles": 2520,
+      "vertices": 5040,
+      "materials": 5,
+      "drawSections": 156,
+      "meshes": 36,
+      "textures": 0,
+      "advisoryWarnings": 37,
+      "geometrySha256": "9d113982e34b9155e952a50420634c3abb7dabfbf539ab015f8fd9607b8ecc05",
+      "lights": 0,
+      "colliders": 0,
+      "transparentDrawSections": null
+    }
+  },
+  "exportTotals": {
+    "triangles": 87152,
+    "vertices": 206420,
+    "materials": 103,
+    "drawSections": 572,
+    "meshes": 150,
+    "textures": 0,
+    "lights": 6,
+    "colliders": 67,
+    "advisoryWarnings": 158
+  },
+  "nativeComponentCounts": {
+    "FrooxEngine.BoxCollider": 67,
+    "FrooxEngine.FresnelMaterial": 6,
+    "FrooxEngine.Light": 6,
+    "FrooxEngine.MeshRenderer": 150,
+    "FrooxEngine.NoiseTexture": 6,
+    "FrooxEngine.PBS_VertexColorMetallic": 35,
+    "FrooxEngine.Panner2D": 4,
+    "FrooxEngine.Spinner": 1,
+    "FrooxEngine.StaticMesh": 150,
+    "FrooxEngine.TextRenderer": 7
+  },
+  "transparentLayers": {
+    "FresnelMaterialProviders": 6,
+    "measuredOverdraw": null
+  },
+  "currentReflectionValidated": false,
+  "liveApplied": false
+}

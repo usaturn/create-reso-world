@@ -1,0 +1,40 @@
+{
+  "sector": "ruins-east",
+  "export_collection": "Slum03ruins-eastExport",
+  "objects": [
+    {
+      "key": "ruin-east",
+      "kind": "ruin",
+      "mesh": "ruin-east",
+      "vertices": 566,
+      "faces": 518
+    }
+  ],
+  "evaluated_bounds": {
+    "ruin-east": {
+      "minimum": [
+        25.729999542236328,
+        0.0,
+        13.050000190734863
+      ],
+      "maximum": [
+        38.27000045776367,
+        16.87347412109375,
+        26.957500457763672
+      ]
+    }
+  },
+  "materials": [
+    "Slum03_concrete_dark",
+    "Slum03_concrete_raw",
+    "Slum03_concrete_stained",
+    "Slum03_rust_dark",
+    "Slum03_steel_dark"
+  ],
+  "triangles": 1060,
+  "vertices": 566,
+  "submeshes": 5,
+  "uv_issues": [],
+  "errors": [],
+  "layout_sha256": "906d303ddf856f75951ab5fcc22b1fce3ec0b5d3df20560aa8d0213a5a92cc35"
+}

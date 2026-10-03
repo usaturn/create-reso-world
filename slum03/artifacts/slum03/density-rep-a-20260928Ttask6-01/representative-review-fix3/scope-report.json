@@ -1,0 +1,24 @@
+{
+  "source": "content/slum03/density-rep-a-20260928Ttask6-01-candidate-fix3.json",
+  "source_sha256": "4a74b037d5b3aaf6b1c134db1f0d72144b74a03e2e7844cc18695052c447a810",
+  "candidate": "content/slum03/density-rep-a-20260928Ttask6-01-review-candidate-fix3.json",
+  "candidate_sha256": "e64a98f2eda2bbed61bcb8302a0960d63ea55acd771f5c64e588420270c64ba8",
+  "layout": "artifacts/slum03/density-rep-a-20260928Ttask6-01/layout.json",
+  "layout_sha256": "3636281718b0e2a9435b4f4c5ebd6c9fd622fa271467cf0a20019cbd82ff82a8",
+  "protected_changes": 0,
+  "asset_changes": 0,
+  "slot_changes": 0,
+  "component_changes": 0,
+  "geometry_changes": 0,
+  "issues": [],
+  "qa_added_cameras": [
+    "density-east-lane",
+    "density-market-inward",
+    "density-ruin-near",
+    "density-shack-near",
+    "density-west-street"
+  ],
+  "qa_added_tests": [
+    "selected density placements exist (structural only)"
+  ]
+}
