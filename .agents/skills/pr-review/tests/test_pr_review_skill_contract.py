@@ -20,10 +20,11 @@ BUDGET_REFERENCE = REPO_ROOT / ".agents/skills/pr-review/references/time-budget.
 class ResolverStopped(Exception):
     """Raised when the skill resolver exits non-zero (fail-closed)."""
 
-    def __init__(self, returncode: int, stderr: str) -> None:
+    def __init__(self, returncode: int, stderr: str, stdout: str = "") -> None:
         super().__init__(returncode, stderr)
         self.returncode = returncode
         self.stderr = stderr
+        self.stdout = stdout
 
 
 class _RootPath:
@@ -154,7 +155,7 @@ printf '%s\\n' "$MAIN_ROOT" "$PR_REMOTE"
             check=False,
         )
         if completed.returncode != 0:
-            raise ResolverStopped(completed.returncode, completed.stderr)
+            raise ResolverStopped(completed.returncode, completed.stderr, completed.stdout)
         main_root, pr_remote = completed.stdout.strip().splitlines()[-2:]
         return Path(main_root).resolve(), pr_remote
 
@@ -386,6 +387,29 @@ def test_pr_review_resolver_selects_only_registered_repositories(
     main_root, pr_remote = resolver_fixture.resolve(pr_url, skill_path=skill_path)
     assert main_root == expected_root
     assert pr_remote == expected_remote
+
+
+def test_pr_review_resolver_rejects_a_linked_toplevel_before_fetch(tmp_path: Path) -> None:
+    resolver = make_resolver(tmp_path)
+    worktree = tmp_path / "parent-wt"
+    _git(resolver.toplevel, "worktree", "add", "--detach", str(worktree))
+    pr_url = "https://github.com/usaturn/create-reso-world/pull/16"
+    try:
+        linked_resolver = ResolverFixture(toplevel=worktree)
+        with pytest.raises(ResolverStopped) as stopped:
+            linked_resolver.resolve(pr_url, skill_path=AGENTS_SKILL)
+        assert stopped.value.returncode == 66
+        assert "linked worktree" in stopped.value.stderr
+        assert "main checkout" in stopped.value.stderr
+        assert "create-reso-world" in stopped.value.stderr
+        assert str(worktree) in stopped.value.stderr
+        # The resolver stops before returning a root to the following fetch.
+        assert stopped.value.stdout == ""
+        main_root, pr_remote = resolver.resolve(pr_url, skill_path=AGENTS_SKILL)
+        assert main_root == resolver.toplevel
+        assert pr_remote == "origin"
+    finally:
+        _git(resolver.toplevel, "worktree", "remove", "--force", str(worktree))
 
 
 @pytest.mark.parametrize("skill_path", [AGENTS_SKILL])
