@@ -59,4 +59,4 @@ DeepSeek のレビューは指摘 0 件で、本文で「SIGPIPE の窓を塞い
 
 ## 範囲外
 
-- `.devcontainer/test-*.bash` と `tests/scripts/*.bash` にある、ほかの「生成側コマンド → `grep -q` / `rg -q`」のパイプ。Claude のレビューが確認し、書き込みが 1 回で終わるか一致行が最終出力であるため対象外と判断しており、指摘になっていない。
+- `.devcontainer/test-*.bash` と `tests/scripts/*.bash` にある、ほかの「生成側コマンド → `grep -q` / `rg -q`」のパイプ。Claude のレビューが確認したのは `test-readme.bash:21`、`test-resonite-feature.bash:7`、`test-check-layout.bash` の `PASS: check-layout` 検査だけで、書き込みが 1 回で終わるか一致行が最終出力であるため対象外と判断した。`test-herdr-status.bash` と `test-pi-openai-codex.bash` にある `printf '%s\n' "$out" | rg -q` / `grep -q` の形は、この選別では確認しておらず、第2回のレビューで同じ競合が再現した。対応は `docs/superpowers/specs/2026-10-03-devcontainer-tests-ci-round2-review-fixes-design.md` に記録した。
