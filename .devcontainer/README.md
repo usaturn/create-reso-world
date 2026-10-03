@@ -167,8 +167,9 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 ドキュメント取得は共有の `find-docs` スキル経由の CLI を標準とする。
 `pi-mcp-adapter` と `@upstash/context7-pi` は pi の拡張として導入しない。
 postCreate は拡張の導入前に既存の登録・pi 管理 npm マニフェストと、pi agent directory 内の
-`mcp.json`、`mcp-auth.json`、`mcp-cache.json`、`mcp-project-approvals.json`、
-`mcp-onboarding.json`、`mcp-npx-cache.json` を整理する。
+`mcp-cache.json`、`mcp-project-approvals.json`、`mcp-onboarding.json`、
+`mcp-npx-cache.json` を整理する。
+組み込み MCP も使う `mcp.json` と `mcp-auth.json` は、内容とリンクをそのまま保持する。
 共有の MCP 設定・API キー・`find-docs`・`~/.npm` のキャッシュと、pi 組み込み機能は変更しない。
 
 既存環境では pi と uv を導入済みの状態で、リポジトリのルートから次を実行する。
@@ -178,8 +179,11 @@ uv run --no-project .devcontainer/cleanup_pi_mcp.py
 ```
 
 対象は `PI_CODING_AGENT_DIR`（未指定なら `~/.pi/agent`）。指定する場合は安全な絶対パスか
-`~/...` を使う。MCP ファイルの symlink はリンクだけを削除し、設定・パッケージ保存先が
+`~/...` を使う。削除対象4ファイルの symlink はリンクだけを削除し、設定・パッケージ保存先が
 symlink や hard link の場合、読み取り・削除エラー時は停止する。
+対象拡張の撤去が必要でも `npm/package.json` がない場合、または保持する npm 拡張の登録が
+そのマニフェストに宣言されていない場合は、npm による巻き添え削除を防ぐため変更せず停止する。
+対象のマニフェストを復旧してから再実行する。
 実行中の pi は古い拡張や接続を保持し、状態ファイルを再作成する場合があるため、先に終了する。
 整理後に起動し直す（セッションを継続する場合も `/reload` だけで不十分なら再起動する）。
 

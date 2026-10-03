@@ -14,9 +14,9 @@ import subprocess
 import sys
 
 PACKAGES = ("pi-mcp-adapter", "@upstash/context7-pi")
+# mcp.json and mcp-auth.json are also native MCP storage; never migrate or unlink them.
 MCP_FILES = (
-    "mcp.json", "mcp-auth.json", "mcp-cache.json", "mcp-project-approvals.json",
-    "mcp-onboarding.json", "mcp-npx-cache.json",
+    "mcp-cache.json", "mcp-project-approvals.json", "mcp-onboarding.json", "mcp-npx-cache.json",
 )
 MANIFESTS = (
     "package.json", "package-lock.json", "npm-shrinkwrap.json",
@@ -119,10 +119,35 @@ def inspect(agent):
     return result
 
 
+def require_retained_npm_declarations(agent):
+    """Refuse unsafe prefixes before npm uninstall can prune unrelated extensions."""
+    manifest_path = agent / "npm/package.json"
+    if not manifest_path.exists():
+        raise ValueError(f"Missing {manifest_path}; restore the npm manifest before retrying cleanup")
+    manifest = read_object(manifest_path)
+    dependencies = set()
+    for section in ("dependencies", "devDependencies", "optionalDependencies"):
+        entries = manifest.get(section, {})
+        if not isinstance(entries, dict) or any(not isinstance(value, str) for value in entries.values()):
+            raise ValueError(f"Invalid {section} in {manifest_path}; restore the npm manifest before retrying cleanup")
+        dependencies.update(entries)
+    settings_path = agent / "settings.json"
+    for source in package_sources(read_object(settings_path), settings_path):
+        if not source.startswith("npm:") or any(matches(source, name) for name in PACKAGES):
+            continue
+        if not any(matches(source, name) for name in dependencies):
+            raise ValueError(
+                f"Retained package {source} is not declared in {manifest_path}; "
+                "restore the npm manifest before retrying cleanup"
+            )
+
+
 def cleanup():
     agent = agent_directory()
     safe_storage(agent)
     before = inspect(agent)
+    if any(leftovers for _, leftovers in before.values()):
+        require_retained_npm_declarations(agent)
     # Validate all state entries before removing packages; no recursive deletion or glob.
     for filename in MCP_FILES:
         path = agent / filename
@@ -150,9 +175,11 @@ def cleanup():
             raise ValueError(f"{source} remains after removal: {', '.join(remaining)}")
         if removal.returncode:
             # pi uninstalls manifest-only packages, then returns 1 because no settings entry
-            # matched. Accept that diagnostic only, never an arbitrary removal/read error.
-            diagnostic = re.sub(r"\x1b\[[0-9;]*m", "", removal.stderr).strip()
-            if declared or removal.returncode != 1 or diagnostic != f"No matching package found for {source}":
+            # matched. npm warnings may accompany the exact diagnostic line; arbitrary
+            # removal/read errors without that line must still fail.
+            diagnostics = re.sub(r"\x1b\[[0-9;]*m", "", removal.stderr).splitlines()
+            if (declared or removal.returncode != 1
+                    or f"No matching package found for {source}" not in diagnostics):
                 raise ValueError(f"{source} removal failed (exit {removal.returncode})")
 
     # Verify both package identities again before unlinking pi-only state (also dangling links).

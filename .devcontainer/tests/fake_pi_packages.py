@@ -13,6 +13,9 @@ packages = settings.get("packages", [])
 args = sys.argv[1:]
 command = args.pop(0)
 args = [arg for arg in args if arg not in ("--approve", "--no-approve")]
+if os.environ.get("FAKE_PI_CALL_LOG"):
+    with Path(os.environ["FAKE_PI_CALL_LOG"]).open("a") as log:
+        log.write(json.dumps([command, *args]) + "\n")
 
 
 def source(entry):
@@ -51,8 +54,7 @@ elif command == "install":
     if os.environ.get("FAKE_PI_REQUIRE_CLEAN") == "1":
         if any(identity(source(entry)) in ("pi-mcp-adapter", "@upstash/context7-pi") for entry in packages) or any(
             (agent / filename).exists() for filename in (
-                "mcp.json", "mcp-auth.json", "mcp-cache.json", "mcp-project-approvals.json",
-                "mcp-onboarding.json", "mcp-npx-cache.json",
+                "mcp-cache.json", "mcp-project-approvals.json", "mcp-onboarding.json", "mcp-npx-cache.json",
             )
         ):
             print("Error: unrelated extension installation ran before pi-only cleanup", file=sys.stderr)
@@ -96,8 +98,16 @@ elif command == "remove":
         print(f"No matching package found for {spec}", file=sys.stderr)
         sys.exit(1)
     if not declared:
-        print(f"No matching package found for {spec}", file=sys.stderr)
-        sys.exit(1)
+        if mode == "noisy-undeclared":
+            print("npm notice update available\nnpm warn harmless warning", file=sys.stderr)
+            print(f"\x1b[31mNo matching package found for {spec}\x1b[0m", file=sys.stderr)
+        elif mode == "wrong-source":
+            print("No matching package found for npm:not-the-target", file=sys.stderr)
+        elif mode == "partial-diagnostic":
+            print(f"Error: No matching package found for {spec} (other failure)", file=sys.stderr)
+        else:
+            print(f"No matching package found for {spec}", file=sys.stderr)
+        sys.exit(2 if mode == "nonzero-undeclared" else 1)
 else:
     print(f"Unexpected pi command: {command}", file=sys.stderr)
     sys.exit(64)
