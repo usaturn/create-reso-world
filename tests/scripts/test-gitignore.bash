@@ -28,6 +28,7 @@ for p in \
   slum02/artifacts/slum02/market.blend1 MyResoniteProject/modeling/tokyo_nova/layout.py.orig \
   external/resoloop/README.md private/trpg/TNX.txt reviews/x.md .worktrees/x/README.md \
   .claude/worktrees/x/README.md .superpowers/sdd/x.log \
+  tmp/superpowers-review/x-spec.md \
   .claude/settings.local.json .devin/mcp_config.local.json .env .env.local .secrets/x \
   slum02/flux/build/x slum02/flux/x.brson node_modules/x \
   slum02/.claude/settings.local.json akichi/.devin/mcp_config.local.json \
