@@ -11,7 +11,7 @@ readonly DSH_COMMANDCODE_PROVIDER_VERSION="0.10.6"
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
 # （workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=25
+readonly STEP_TOTAL=26
 STEP_NUMBER=0
 
 step() {
@@ -236,6 +236,12 @@ if ! npm install -g --ignore-scripts @earendil-works/pi-coding-agent; then
     fail "pi installation failed."
 fi
 
+step "Cleaning up pi-only MCP additions"
+# ~/.pi は bind mount。既存の拡張登録・npm マニフェスト・pi 専用 MCP state も移行する。
+if ! uv run --no-project .devcontainer/cleanup_pi_mcp.py; then
+    fail "pi-only MCP cleanup failed."
+fi
+
 step "Replacing npm:pi-subagents with @teelicht/pi-superagents"
 # --approve は project trust の確認を自動承認する（.agents/skills があると対話プロンプトで止まる）
 # npm:pi-subagents は @teelicht/pi-superagents の subagent tool と競合する。
@@ -310,11 +316,9 @@ step "Installing the pi extensions"
 for extension in \
     npm:pi-distill \
     npm:@jc4649/notify \
-    npm:@upstash/context7-pi \
     npm:pi-safe-search \
     npm:pi-diet-ripgrep \
     git:github.com/obra/superpowers \
-    npm:pi-mcp-adapter \
     npm:pi-lens \
     npm:pi-simplify \
     npm:@howaboua/pi-skill-skill-creator; do
