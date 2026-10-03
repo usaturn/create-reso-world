@@ -25,7 +25,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Ba
 
 1. **区切りを決めて、それを明記する。** 編集の途中で書いた handoff は、handoff が無いより悪い。作業単位を完了させるか元に戻すかを選び、どちらにしたかを `session.stop_reason` に書く。適用途中の編集を作業ツリーに残すなら、冒頭の節で必ず宣言する。書かなければ受け手は「作業ツリー＝ `git.head`」と仮定して踏む。
 
-2. **理屈の置き場所を決める。** 長い論証は Spec / Plan 側（本リポジトリでは `docs/superpowers/` の `specs/` と `plans/`）に置き、handoff は 1 行の裁定だけを持って `sources.spec` で指す。両方に書くと必ず食い違う。Spec が無いときは `sources.spec` を `null`（JSON）/ `none`（Markdown）にし、理由を書く。存在しないパスを捏造しない。
+2. **理屈の置き場所を決める。** 長い論証は Spec / Plan 側（本リポジトリでは `docs/superpowers/` の `specs/` と `plans/`）に置き、handoff は 1 行の裁定だけを持って `sources.spec` で指す。両方に書くと必ず食い違う。Spec が無いときは `sources.spec` を `null`（JSON）/ `none`（Markdown）にし、理由を書く。存在しないパスを捏造しない。Spec・Plan の正本は、対象のリポジトリにかかわらず create-reso-world にある（ルート `AGENTS.md` の「Spec・Plan の保存と公開」）。正本をコミットした checkout（`DOC_ROOT`）と文書のコミット SHA を `sources.doc_root`・`sources.document_commit` に、push 済みかどうかを `sources.document_published` に書く。ローカルのコミットだけなら「公開未実施」と書く。`tmp/superpowers-review/` の確認用コピーは `sources.review_copy` に閲覧補助として書くだけで、復元元にしない。
 
 3. **対の 2 ファイルを手書きする。** `tmp/docs_draft/claude_handoffs/<timestamp>-<session>.handoff.md` と同名の `.handoff.json` をスキーマに従って手書きする。
 
@@ -36,6 +36,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Ba
    - `verification` — 実行するコマンドと、それに必要な隔離。`isolation` を落とすと、設定まわりのバグを再現しようとした受け手がユーザの実環境に対して再現してしまう。
    - `landing` — 反映先のブランチ、既存 PR、やってはいけないこと（新規 PR、`*-review-fixes` のような別ブランチ、ここでは適用しないゲート）、リポジトリが要求する commit trailer。
    - `git.worktree` / `git.branch` / `git.head` / `git.status` — 実際に作業がある場所と、そのチェックアウトの branch / HEAD / status。親チェックアウトが detached だったり別のブランチにあったりして作業場所と違うときは、両方を書く。Claude Code では `.claude/worktrees/` 配下で作業し、親チェックアウトは detached のことが多い。片方しか書かないと、受け手はこちらのコマンドを親チェックアウトで走らせて別のツリーを編集する。
+     ユーザが読む親 checkout（`PARENT_ROOT`）は `git.parent_checkout` に書く。コードが create-reso-world 以外のリポジトリにあるときは、コード側の checkout（`CODE_ROOT`）を `git.code` に、リポジトリ・branch・HEAD・PR と一緒に書き、文書側の `git.*` と混ぜない。
 
 5. **手書きで落としがちな項目を埋める。**特に Claude Code では次が定番の穴になる。他のランタイムでも、todo 機能を使わなかったセッション、シェル経由で書いたファイル、委譲した作業の根拠は同じ扱いにする。
 
@@ -60,7 +61,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Ba
 
 4. **動く前に状態を報告する。** セッションとエージェント、検出したスキル、現在のフェーズ／ゲート、完了・未完了のタスク、決定済みの裁定、対象外の範囲、検証の証跡、反映先。
 
-5. **handoff の状態からのみ続ける。** `out_of_scope` は拘束力を持つ。小さく勝てそうに見えても `skip` の判断を開け直さない。誤っていると考えるなら、そう述べて止まる。handoff が自分の記憶と食い違うときは handoff を採る。`verification.commands` を指定された隔離のもとで走らせ、自分の習慣ではなく `landing` の指定どおりに作業を完了させる。
+5. **handoff の状態からのみ続ける。** `out_of_scope` は拘束力を持つ。小さく勝てそうに見えても `skip` の判断を開け直さない。誤っていると考えるなら、そう述べて止まる。handoff が自分の記憶と食い違うときは handoff を採る。`verification.commands` を指定された隔離のもとで走らせ、自分の習慣ではなく `landing` の指定どおりに作業を完了させる。Spec・Plan は `sources.document_commit` の正本から読む。確認用コピー（`sources.review_copy`）しか無い、または文書のコミットが公開されていない環境では、続きに入る前に正本を取得できるかを確かめる。
 
 ## アーティファクトの作成
 

@@ -102,6 +102,14 @@ optional and worth including when it is true.
   - `spec` (required): path to the design/spec that holds the reasoning, or `null` /
     `none` when there is no spec — then say why, the same way `landing.pr` does.
   - `plan`, `ledger`, `sdd_workspace`, `session_jsonl`, `plan_files`: when they exist.
+  - `doc_root`: the create-reso-world checkout where the spec and plan are committed
+    (`DOC_ROOT`). Specs and plans for every repository live there.
+  - `document_commit`: the full SHA of the commit that holds the spec and plan, and
+    `document_published`: the remote ref it was pushed to, or `null` when it is a local
+    commit only (say "公開未実施" in Markdown).
+  - `review_copy`: the copy under the parent checkout's `tmp/superpowers-review/` that a
+    person reads. It is a viewing aid, never a restore source; restore from
+    `document_commit`.
   - Files written through a shell heredoc rather than an editor tool are easy to forget. List them explicitly.
 - `git`:
   - `worktree` (required): the checkout the work actually lives in. When the parent
@@ -110,6 +118,11 @@ optional and worth including when it is true.
   - `branch`, `head`, `status` (required): record them in the same terms as the
     Required fields table.
   - `merge_base`: add when a branch point matters.
+  - `parent_checkout`: the parent checkout a person reads (`PARENT_ROOT`) with its branch,
+    HEAD and status, when it differs from `worktree`.
+  - `code`: when the code lives in a repository other than create-reso-world, its
+    `repository`, `worktree` (`CODE_ROOT`), `branch`, `head`, `status` and `pr`. Keep them
+    apart from the document checkout above.
 
 ## Markdown sections
 

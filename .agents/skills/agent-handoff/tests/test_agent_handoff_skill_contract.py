@@ -223,3 +223,20 @@ def test_validation_names_every_runtime_resolution() -> None:
 def test_agents_skill_documents_the_pi_fallback() -> None:
     """pi's global skill-creator ships no quick_validate.py; .agents readers need the alternative."""
     assert "skill-efficiency-check.py" in read(AGENTS_SKILL)
+
+
+def test_documents_and_code_are_restored_from_separate_sources() -> None:
+    content = read(AGENTS_SKILL)
+    for phrase in ("`PARENT_ROOT`", "`DOC_ROOT`", "`CODE_ROOT`", "`sources.review_copy`", "閲覧補助", "公開未実施"):
+        assert phrase in content, phrase
+    schema = read(SCHEMA)
+    for field in (
+        "`doc_root`",
+        "`document_commit`",
+        "`document_published`",
+        "`review_copy`",
+        "`parent_checkout`",
+        "`code`",
+    ):
+        assert field in schema, field
+    assert "never a restore source" in schema
