@@ -142,9 +142,10 @@ test_title_truncation_japanese() {
 test_title_truncation_under_c_locale() {
     # 素の C ロケールで呼ばれてもバイト数で切らない（ensure_utf8_locale の回帰）
     local long="あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやらりるれ"
-    local line value
-    line="$(LC_ALL=C HERDR_AGENT_TASK_DRY_RUN=1 HERDR_PANE_ID="w1:pA" \
-        "$CLI" set "$long" | rg -m1 $'\ttoken\ttask\t')"
+    local out line value
+    # rg -m1 は一致した時点でパイプを閉じるので、CLI を直接つなぐと後続の出力が SIGPIPE で落ちる
+    out="$(LC_ALL=C HERDR_AGENT_TASK_DRY_RUN=1 HERDR_PANE_ID="w1:pA" "$CLI" set "$long")"
+    line="$(printf '%s\n' "$out" | rg -m1 $'\ttoken\ttask\t')"
     value="${line##*$'\t'}"
     LC_ALL=C.UTF-8 bash -c '[ "${#1}" = "36" ]' _ "$value" \
         || fail "C locale でも 36 文字で truncate する必要がある: $value"
