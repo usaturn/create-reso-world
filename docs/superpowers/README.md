@@ -28,7 +28,7 @@
 
 ```bash
 bash scripts/superpowers-review-copy.sh --doc-root "$DOC_ROOT" --parent-root "$PARENT_ROOT" \
-  --path docs/superpowers/specs/2026-10-03-example-design.md --name usaturn-resoloop-pr9-list-shrink-spec.md
+  --path docs/superpowers/specs/2026-10-03-example-design.md --name resoloop-pr9-list-shrink-spec.md
 ```
 
 - コピーは閲覧のためのもので、正本ではない。引き継ぎや復元には、コミット済みの正本を使う

@@ -48,7 +48,7 @@ for s in '### Spec・Plan の保存と公開' 'PARENT_ROOT' 'DOC_ROOT' 'CODE_ROO
 done
 boundary="$(sed -n '/^## リポジトリ境界$/,/^## ResoLoop の版管理$/p' AGENTS.md)"
 other_row="$(grep -F '| それ以外 |' <<<"$boundary")" || fail 'AGENTS.md boundary table lacks the other-repository row'
-for s in '`CODE_ROOT`' 'remote' '推測せず停止する' '`pr-review`' '`review-fix-planning`'; do
+for s in '`CODE_ROOT`' 'remote' '推測せず停止する' '`pr-review`' '`review-fix-planning`' 'ローカル専用'; do
   [[ "$other_row" == *"$s"* ]] || fail "the other-repository row lacks: $s"
 done
 # AGENTS.md が参照するファイルが実在する（ResoLoop の版管理の 3 件はフェーズ 3 で作成、持ち越し N-5）

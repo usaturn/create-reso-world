@@ -220,3 +220,9 @@ def test_spec_is_committed_and_copied_before_approval() -> None:
     step7 = content.split("7. **承認を得て停止する**", 1)[1].split("\n## ", 1)[0]
     assert "## Spec のコミットと確認用コピー" not in step7
     assert "確認用コピー" in step7
+
+
+def test_fork_pr_push_target_is_confirmed_for_other_repositories() -> None:
+    landing = read(AGENTS_SKILL).split("## 実装後", 1)[1].split("\n## ", 1)[0]
+    assert "head リポジトリ" in landing
+    assert "headRepository" in landing

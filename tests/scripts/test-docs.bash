@@ -62,6 +62,7 @@ lacks "$spec" '`.agents/skills/*/SKILL.md` ごとに'
 has "$spec" 'git fetch . feat/slum02-slum:main'
 has "$spec" 'フェーズ 4 の D-10'
 has "$spec" '別の環境の postCreate が、ロックのコミットを origin から取得できるようにするため'
+has docs/superpowers/README.md '--name resoloop-pr9-list-shrink-spec.md'
 has docs/resoloop-fork-workflow.md 'テストと特殊な運用向け'
 lacks docs/resoloop-fork-workflow.md '主にテスト用'
 phase01=docs/superpowers/plans/2026-09-26-redesign-phase0-1-safety-and-hygiene.md

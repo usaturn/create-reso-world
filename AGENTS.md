@@ -67,7 +67,7 @@
 | --- | --- | --- |
 | usaturn/create-reso-world（このリポジトリの origin） | `git rev-parse --show-toplevel` | `origin` の URL が一致すること |
 | usaturn/resoloop または orange3134/resoloop | `<toplevel>/external/resoloop` | `origin` が usaturn/resoloop、`upstream` が orange3134/resoloop であること。checkout が無ければ `scripts/resoloop-fork.sh clone` を案内して停止する |
-| それ以外 | ユーザの依頼または確認済みの引き継ぎで明示された checkout の絶対パス（`CODE_ROOT`） | その checkout 自身のルートであり、remote のうち 1 つだけが対象の owner/repo と一致すること。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。この経路を持つのは `pr-review` と `review-fix-planning` だけで、他の作業は推測せず停止する。checkout の探索・clone はしない |
+| それ以外 | ユーザの依頼または確認済みの引き継ぎで明示された checkout の絶対パス（`CODE_ROOT`） | その checkout 自身のルートであり、remote のうち 1 つだけが対象の owner/repo と一致すること。remote の無いローカル専用の checkout は、その checkout を対象とする明示指示がある場合だけ扱う。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。この経路を持つのは `pr-review` と `review-fix-planning` だけで、他の作業は推測せず停止する。checkout の探索・clone はしない |
 
 ## ResoLoop の版管理
 
