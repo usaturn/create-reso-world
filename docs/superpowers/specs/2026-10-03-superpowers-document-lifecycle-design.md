@@ -1,14 +1,14 @@
 # Superpowers Spec・Plan の長期保存と公開運用
 
 - 日付: 2026-10-03
-- 状態: draft（本 Spec のレビュー待ち。規約・スキルの変更は未実施）
+- 状態: approved（2026-10-03 のユーザ指示「続けて実装してください。推奨案で進めて、途中で止めずにPRまで実施してください。」による。推奨案は、§2・§8 を現状に合わせる改訂と、文書ブランチの main への rebase。改訂後の本版の内容確認は PR のレビューで行う）
 - brainstorming 経路: architectural
 - 文書管理リポジトリ: `usaturn/create-reso-world`
 - 設計・実装対象リポジトリ: `usaturn/create-reso-world`（規約とスキルの変更）
-- 対象 Issue・PR: なし（運用設計段階で未作成）
+- 対象 Issue・PR: なし（運用設計段階で未作成。実装の PR は本 Spec と Plan を含めて作成する）
 - 適用対象: すべてのリポジトリに関する Spec・Plan。ResoLoop に限定せず、親リポジトリと無関係なリポジトリの作業も含む。
-- 調査時の create-reso-world HEAD: `294ff10`
-- 関連 Plan: なし。本 Spec の明示承認後に作成する。
+- 調査時の create-reso-world HEAD: `294ff10`（§2 の初回調査）。§8 の再照合は `9b0d47d`
+- 関連 Plan: `docs/superpowers/plans/2026-10-03-superpowers-document-lifecycle.md`
 
 ## 1. 意図と確定した条件
 
@@ -27,7 +27,13 @@
 
 ## 2. 現状と問題
 
-2026-10-03 の親 checkout の調査結果は、Spec 26 件・Plan 12 件、合計 38 件。追跡済みは Spec 4 件・Plan 9 件、未追跡は Spec 22 件・Plan 3 件である。専用 worktree は HEAD の追跡済み文書から開始しており、未追跡 25 件は親 checkout に残っている。
+2026-10-03 の親 checkout（`294ff10`）の調査結果は、Spec 26 件・Plan 12 件、合計 38 件。追跡済みは Spec 4 件・Plan 9 件、未追跡は Spec 22 件・Plan 3 件だった。
+
+同日の再照合（main `9b0d47d`）では状況が次のように変わっている。
+
+- PR #4・#8 のマージにより、main で追跡している `docs/superpowers/` は 26 件（Spec 14 件・Plan 12 件）になった。初回調査で未追跡だった `pr8-round2`〜`pr8-round4` の 3 件も、この中に含まれる。
+- マージ後の片付けで、親 checkout の未追跡文書 29 件は、ユーザの指示により `docs_draft/untracked-main-20261003/` へ元の相対パスのまま退避された。親 checkout の `docs/superpowers/` に未追跡の文書は残っていない。
+- 退避先の 29 件は、初回調査の未追跡 25 件と、その後に作られた PR11 の Spec 4 件である。
 
 - `AGENTS.md` は Spec・Plan の保存先を規定し、`.gitignore` は `docs/superpowers/` を除外していない。
 - `.agents/skills/review-fix-planning/SKILL.md` は ResoLoop の Spec も create-reso-world 側に保存する。一方、実装後の commit・push はコード対象のリポジトリに対する手順であり、文書側のコミット手順が明確でない。
@@ -157,15 +163,23 @@ Spec・Plan は判断と実装過程の記録であり、完了後も保存す�
 
 ## 8. 既存文書の取り込み
 
-調査時点の既存 38 件は、削除・統合・リネーム・本文の一括修正をせず保持する。親 checkout の未追跡 25 件は、下記の対象一覧を固定して create-reso-world の文書 PR に取り込む。既に追跡済みの 13 件を重複追加しない。
+初回調査時点の既存 38 件は、削除・統合・リネーム・本文の一括修正をせずに保持する。追跡済みの文書を重複して追加しない。
 
-取り込み前に、親 checkout と文書作業ブランチの同名ファイルの有無・内容を照合する。コピーとコミットの前後で内容を確認し、元ファイルを削除しない。同名の異なる内容や作業中の変更が見つかった場合は、勝手に上書きせず停止して確認する。一覧外の新しい文書を一括ステージしてはならない。取り込む内容について、機密情報と参照切れも確認する。問題を見つけた場合は報告し、承認済みの保存方針を理由に無条件で公開しない。
+### 8.1 取り込み元と取り込み先
+
+初回調査で未追跡だった文書は、第2節のとおり `PARENT_ROOT/docs_draft/untracked-main-20261003/` へ元の相対パスのまま退避されている。取り込みでは、退避先の `docs/superpowers/` 以下のファイルを、`DOC_ROOT` の同じ相対パスへバイト列を変えずにコピーする。
+
+- 取り込み元のファイルは削除・移動・編集しない。親 checkout の `docs/superpowers/` へ戻すこともしない。
+- 取り込み先に同名のファイルがすでにある場合や、取り込み先の作業ツリーに未コミットの変更がある場合は、上書きせずに停止して確認する。
+- 下記の対象一覧以外のファイルをステージしない。`git add docs/superpowers` のような一括ステージをせず、パスを 1 件ずつ指定する。
+- コピーの前後で、取り込み元と取り込み先の SHA-256 が一致することを確かめる。
+- 取り込む内容に、機密情報と参照切れがないかを確認する。参照切れを見つけた場合は、その一覧と対応の判断を PR に残す。問題を見つけた場合は報告し、承認済みの保存方針を理由に無条件で公開しない。
 
 既存文書に `draft` 等のヘッダーを遡って追加することは、取り込みの条件にしない。過去文書の存在は、実装済みや承認済みを意味しない。状態の補足は、後からその文書を更新する場合に確認できた事実だけを記録する。
 
-### 未追跡 25 件の取り込み対象
+### 8.2 取り込み対象 22 件
 
-以下は親 checkout のリポジトリルート基準のパス。新しい文書 worktree にまだ存在しないことは、取り込み前の状態として意図したものである。
+以下のパスは、取り込み元では退避先 `docs_draft/untracked-main-20261003/` 基準、取り込み先では `DOC_ROOT` 基準である。
 
 ```text
 docs/superpowers/plans/2026-09-30-list-shrink-recreate-round6-review-fixes.md
@@ -186,14 +200,20 @@ docs/superpowers/specs/2026-09-30-list-shrink-recreate-round7-review-fixes-desig
 docs/superpowers/specs/2026-09-30-list-shrink-recreate-round8-review-fixes-design.md
 docs/superpowers/specs/2026-09-30-list-shrink-recreate-round9-review-fixes-design.md
 docs/superpowers/specs/2026-10-02-pi-gpt-6.1-sol-review-fixes-design.md
-docs/superpowers/specs/2026-10-02-pr8-round2-review-fixes-design.md
-docs/superpowers/specs/2026-10-02-pr8-round3-review-fixes-design.md
-docs/superpowers/specs/2026-10-02-pr8-round4-review-fixes-design.md
 docs/superpowers/specs/2026-10-02-pr8-round7-review-fixes-design.md
 docs/superpowers/specs/2026-10-02-pr9-list-shrink-review-fixes-design.md
 docs/superpowers/specs/2026-10-02-pr9-list-shrink-round2-review-fixes-design.md
 docs/superpowers/specs/2026-10-03-pr9-list-shrink-round3-review-fixes-design.md
 ```
+
+### 8.3 退避先にあるが取り込まない 7 件
+
+| ファイル（`docs/superpowers/specs/` 配下） | 理由 |
+| --- | --- |
+| `2026-10-02-pr8-round2-review-fixes-design.md` | main で追跡済み。main 側が新しい版で、退避先の版を取り込むと記述が古い版に戻る |
+| `2026-10-02-pr8-round3-review-fixes-design.md` | main で追跡済みで、退避先と同一内容 |
+| `2026-10-02-pr8-round4-review-fixes-design.md` | main で追跡済みで、退避先と同一内容 |
+| `2026-10-03-pr11-pi-mcp-cleanup-review-fixes-design.md` ほか round2〜round4 の 3 件 | 初回調査の後に作られた文書で、取り込みの対象一覧に入っていない。取り込むかどうかは別途の指示で決める |
 
 ## 9. 実装対象と対象外
 
@@ -205,8 +225,9 @@ docs/superpowers/specs/2026-10-03-pr9-list-shrink-round3-review-fixes-design.md
 - `.agents/skills/review-fix-planning/`: 任意対象の識別、Spec 更新、文書側コミット・公開経路、レビュー前の確認用コピーを、コード反映手順と分離する。
 - `.agents/skills/agent-handoff/`: 親 checkout、文書とコードの復元元、閲覧補助コピーを区別する記録・検証を整合させる。handoff 自体の保存先は今回変更しない。
 - `.agents/skills/planning-parallel-issues/`: 任意対象の識別、固定した文書管理リポジトリと確認用コピー、既存のアーティファクト公開・復元手順の参照を整合させる。Issue・claim の管理先は今回変更しない。
+- `scripts/superpowers-review-copy.sh`: 第3.3節の確認用コピーを、`DOC_ROOT` のコミット済み blob から作成して検証する補助スクリプト。ignore 対象でないコピー先、symlink、確認用ディレクトリ外への解決、既存の異なる内容、未コミットの正本を検出して停止する。コミット・push・PR 作成はしない。各スキルと `AGENTS.md` は、確認用コピーをこのスクリプトで作る。
 - 上記規約の既存テストと、任意対象 checkout の照合、親 `tmp/superpowers-review/` の ignore・コピー一致・レビュー順序を検証する回帰テスト。
-- 第8節の既存未追跡文書の取り込み。
+- 第8.2節の 22 件の取り込み。
 
 対象外:
 
@@ -232,11 +253,11 @@ docs/superpowers/specs/2026-10-03-pr9-list-shrink-round3-review-fixes-design.md
 2. ResoLoop fork と upstream、親とは無関係なリポジトリの案件: すべての Spec・Plan の保存・コミット先が create-reso-world となり、コードの反映先と混同しない。親の外にある checkout、remote の不一致、複数候補、明示されたローカル専用 checkout も扱う。
 3. 文書の承認・更新・完了: コミットだけで承認済みにせず、承認された版を復元でき、過去版を再実行しない。
 4. ローカルのみの保存、公開済みの保存、コミット失敗: 公開状態と復元可能性を区別し、失敗を完了扱いしない。
-5. 既存文書取り込み: 対象一覧の件数・内容を照合し、既存ファイル、親 checkout、既存リンクを変更しない。参照切れを検出した場合は一覧と対応判断を残す。
+5. 既存文書取り込み: 対象一覧の件数・内容を照合し、既存ファイル、親 checkout、退避先、既存リンクを変更しない。参照切れを検出した場合は一覧と対応判断を残す。
 6. Spec と Plan の初回・再レビュー: 依頼前に親 checkout の `tmp/superpowers-review/` 直下に、内容と文書種別が分かる短いファイル名の確認用コピーが存在し、gitignore 対象で、提示した文書コミットの blob と一致する。関連する Issue・PR の番号があればファイル名に含め、番号がなければ発明しない。親の `tmp/` 直下、文書 worktree 内、コード checkout 内のコピーは代用しない。SHA 等の追加階層を作らない。コピー失敗、別 owner の同番号案件の衝突、確認中の版の差し替え、異なる既存内容、symlink、未コミット内容の混入を検出し、確認用コピーをステージしない。
 
 完了条件は、規約と関連スキルの記述が一致し、既存文書の取り込みが確認され、上記検証が通り、全リポジトリの文書の保存・公開先と、親 `tmp/superpowers-review/` のレビュー経路を明示できることである。push・PR 作成が許可されていない場合はローカルコミットまでを報告し、公開作業は未実施と明記する。
 
 ## 11. 次のゲート
 
-本 Spec を create-reso-world の専用ブランチへコミットし、その版を親 checkout の gitignore 対象 `tmp/superpowers-review/` へコピーして内容一致を検証した後、コピー先を案内して書かれた内容への明示承認を待つ。承認後は `writing-plans` で実装 Plan を作成する。Plan もコミット・親 `tmp/superpowers-review/` へのコピー・検証後にレビューを依頼し、Plan の承認と実行方法の選択を経てから規約・スキルの変更へ進む。
+本 Spec は、2026-10-03 のユーザ指示（冒頭の「状態」を参照）により承認済みとして扱い、Plan の作成、実装、PR の作成まで続けて行う。同じ指示により、Plan のレビュー待ちと実行方法の選択では止まらない。実行方法は、このセッション内で実装する Native とする。Spec・Plan は、ユーザの確認用に第3.3節の手順で `tmp/superpowers-review/` へコピーする。PR を作成したら、その PR のレビューで本 Spec・Plan・実装の確認を受ける。マージは、ユーザの別途の指示を待つ。
