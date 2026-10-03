@@ -68,7 +68,8 @@ test_launchers_select_models_and_forward_arguments() {
         args="$(printf '%s\n' "$output" | awk 'seen { print } $0 == "pi" { seen = 1 }')"
         expected="$(printf '%s\n' --provider openai-codex --model "$model" --thinking xhigh --resume)"
         assert_eq "$args" "$expected" "${launcher} Pi arguments"
-        printf '%s\n' "$output" | grep -Fxq "${home}/.pi/agent/extensions/subagent.d/${launcher}" \
+        # grep -q は一致した時点で終了するので、printf でパイプすると残りの行を書く側が SIGPIPE で落ちる
+        grep -Fxq "${home}/.pi/agent/extensions/subagent.d/${launcher}" <<<"$output" \
             || fail "${launcher} must use its own tier config"
     done
 }
@@ -112,7 +113,7 @@ test_missing_oauth_guides_login_without_requesting_api_key() {
         status=$?
         set -e
         assert_eq "$status" "1" "${launcher} must stop without OAuth"
-        printf '%s\n' "$output" | grep -Fq '/login openai-codex' \
+        grep -Fq '/login openai-codex' <<<"$output" \
             || fail "${launcher} must explain direct Codex OAuth login"
         case "$output" in
             *'ChatGPT Plus/Pro (Codex)'*) fail "${launcher} must not name a nonexistent login choice" ;;
