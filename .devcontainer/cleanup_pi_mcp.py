@@ -54,7 +54,7 @@ def read_object(path):
             raise ValueError(f"Unsafe non-regular storage file: {path}")
         if info.st_nlink != 1:
             raise ValueError(f"Refusing hard-linked package/settings storage: {path}")
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         return {}
     except (OSError, ValueError) as error:

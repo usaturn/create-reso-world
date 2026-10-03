@@ -8,7 +8,7 @@ import sys
 
 agent = Path(os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".pi/agent").expanduser()
 settings_path = agent / "settings.json"
-settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
+settings = json.loads(settings_path.read_text(encoding="utf-8-sig")) if settings_path.exists() else {}
 packages = settings.get("packages", [])
 args = sys.argv[1:]
 command = args.pop(0)

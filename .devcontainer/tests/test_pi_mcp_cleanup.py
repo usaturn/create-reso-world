@@ -164,6 +164,50 @@ class PiMcpCleanupTests(unittest.TestCase):
         self.assert_success(self.run_cleanup())
         self.assertFalse(self.agent.exists())
 
+    # Break caught: rejecting or rewriting BOM-prefixed settings when no packages need removal.
+    def test_bom_settings_without_retired_packages_keep_original_bytes(self):
+        self.seed_packages(entries=KEPT, manifests=False, installed=False)
+        settings_path = self.agent / "settings.json"
+        settings_bytes = b"\xef\xbb\xbf" + settings_path.read_bytes()
+        settings_path.write_bytes(settings_bytes)
+        for name in MCP_FILES:
+            (self.agent / name).write_text("old pi-only state")
+        for name in BUILTIN_MCP_FILES:
+            (self.agent / name).write_bytes(b"keep native MCP bytes\r\n")
+        self.assert_success(self.run_cleanup(FAKE_PI_REMOVE="fail"))
+        self.assertEqual(settings_path.read_bytes(), settings_bytes)
+        for name in MCP_FILES:
+            self.assertFalse(os.path.lexists(self.agent / name), name)
+        for name in BUILTIN_MCP_FILES:
+            self.assertEqual((self.agent / name).read_bytes(), b"keep native MCP bytes\r\n")
+        before = self.storage_snapshot()
+        self.assert_success(self.run_cleanup(FAKE_PI_REMOVE="fail"))
+        self.assertEqual(self.storage_snapshot(), before)
+
+    # Break caught: BOM-prefixed settings preventing removal of retired package registrations.
+    def test_bom_settings_with_retired_packages_are_cleaned(self):
+        self.seed_packages(entries=KEPT + ["npm:pi-mcp-adapter@2.1.0", {
+            "source": "npm:@upstash/context7-pi@1.1.0", "extensions": [],
+        }])
+        settings_path = self.agent / "settings.json"
+        expected = json.loads(settings_path.read_text())
+        expected["packages"] = KEPT
+        settings_path.write_bytes(b"\xef\xbb\xbf" + settings_path.read_bytes())
+        for name in MCP_FILES:
+            (self.agent / name).write_text("old pi-only state")
+        for name in BUILTIN_MCP_FILES:
+            (self.agent / name).write_bytes(b"keep native MCP bytes\r\n")
+        self.assert_success(self.run_cleanup())
+        self.assert_packages_clean()
+        self.assertEqual(json.loads(settings_path.read_text(encoding="utf-8-sig")), expected)
+        for name in MCP_FILES:
+            self.assertFalse(os.path.lexists(self.agent / name), name)
+        for name in BUILTIN_MCP_FILES:
+            self.assertEqual((self.agent / name).read_bytes(), b"keep native MCP bytes\r\n")
+        before = self.storage_snapshot()
+        self.assert_success(self.run_cleanup(FAKE_PI_REMOVE="fail"))
+        self.assertEqual(self.storage_snapshot(), before)
+
     # Break caught: unlinking native MCP config/auth, even when retired packages never existed.
     def test_builtin_mcp_files_survive_initial_cleanup_and_rerun(self):
         for retired in (False, True):
