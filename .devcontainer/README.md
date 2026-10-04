@@ -23,7 +23,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 <!-- tool-table:start -->
 | ツール | 導入方法 | mount | initialize.bash の mkdir | zshrc の関数 | update() の項目 |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`（alias）、`ccdd`、`ccddg`、`ccdu` | `claude update` |
+| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`、`ccdo`、`ccds`（alias）、`ccdd`、`ccddg`、`ccdu` | `claude update` |
 | Codex | `npm install -g @openai/codex@latest` | `~/.codex` | `~/.codex` | `cod` | `npm install -g @openai/codex@latest` |
 | pi | `npm install -g` で本体、`pi install` で拡張。ランチャー 9 本を `~/.local/bin` に置く | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.local/share/cursor-agent` | `cur`（alias） | `agent update` |
@@ -165,6 +165,41 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 
 プラグインの有効化は `.claude/settings.json` の `extraKnownMarketplaces` と
 `enabledPlugins` で行う。設定の反映には Claude Code の再起動が必要である。
+
+### Claude Code の起動と更新
+
+`ccd` はモデルを指定せず、Claude Code 側の設定に従って起動する。
+`ccdo` は `--model opus`、`ccds` は `--model sonnet` を付ける。
+3 つとも `--dangerously-skip-permissions` を付けて起動し、追加の引数はそのまま渡す。
+
+第三者プロバイダのランチャーは次の対応で起動する。比較基準と採否は
+[Claude Code 移植の Spec](../docs/superpowers/specs/2026-10-04-issue-21-claude-code-design.md)
+に記録している。実プロバイダへの接続検証は別途行う。
+
+| 通常名 / 短い起動名 | 接続先 | 既定モデル（opus） | fable の割り当て | 認証に使う変数 |
+| --- | --- | --- | --- | --- |
+| `claude-deepinfra` / `ccdd` | DeepInfra | `deepseek-ai/DeepSeek-V4.1-Flash` | `zai-org/GLM-5.3` | `DEEPINFRA_TOKEN` |
+| `claude-deepinfra-glm` / `ccddg` | DeepInfra | `zai-org/GLM-5.3-Flash` | `deepseek-ai/DeepSeek-V4.1-Flash` | `DEEPINFRA_TOKEN` |
+| `claude-opencode-union` / `ccdu` | OpenCode Go | `union-alpha`（`--model union-alpha` で起動） | `union-alpha` | 下記の OpenCode キー |
+
+DeepInfra の sonnet は `deepseek-ai/DeepSeek-V4-Flash-0731`、haiku は
+`openai/gpt-oss-20b`。OpenCode のモデル割り当てとサブエージェントは `union-alpha` を使う。
+OpenCode のキーは `OPENCODE_GO_CLAUDE_API_KEY`、`OPENCODE_API_KEY`、
+`OPENCODE_GO_API_KEY` の順に、最初の空でない値を使う。キーがなければ起動を止める。
+
+短い起動名だけが `--dangerously-skip-permissions` を付ける。
+通常名は権限確認を省略せず起動する。追加の `--model` などは既定引数の後へ渡す。
+共通の `cc_launcher_unsets` で親シェルの認証・プロバイダ切替・モデル固定の値を
+子 CLI から取り除き、選んだ接続先の値だけを設定する。親シェルの値は変更しない。
+
+既存コンテナでは、rebuild によって `.devcontainer/zshrc.txt` の更新を反映できる。
+rebuild 前に反映する場合は、同ファイルの Claude alias・`cc_launcher_unsets`・
+3 つのプロバイダ関数を既存の `~/.zshrc` の対応箇所に反映し、新しい zsh を開く。
+Claude CLI 自体の更新は `claude update` を使う。`feature-dev` と `ccdu` は引き続き利用できる。
+
+onboarding の書き換えスクリプトは導入・自動実行しない。`~/.claude.json` はファイルの
+bind mount なので、移植元の一時ファイルから rename する方式はそのまま使えない。
+初回設定は通常の Claude Code の手順で行い、個人の `.claude/settings.local.json` は移植しない。
 
 ## pi 専用 MCP 追加設定の整理
 
