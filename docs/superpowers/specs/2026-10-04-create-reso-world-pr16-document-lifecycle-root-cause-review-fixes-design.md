@@ -1,19 +1,22 @@
 # PR #16 文書ライフサイクルの根本修正設計・対応計画
 
 - 日付: 2026-10-04 JST
-- 状態: completed（提示内容の承認と実行許可に基づく実装・レビュー・受入検証が完了。証跡は10節。PRのマージ状態とは別）
+- 状態: draft（今回の追加修正案は11節。1–10節の根本修正は completed の履歴であり、その承認・完了証跡を保持する）
 - 内容承認・実行許可の指示: 本書提示後のユーザ指示「進めてください。プランを作成したら、そのまま実装を開始してください」。今回はhandoffを指定した「作業を続行して」により再開
 - 承認内容の文書コミット: `79330776e52a4b077c8a596b035ab8f48a242123`（提示・承認された内容を変更せず保存した初版。後続の状態記録とは別）
 - 詳細Plan: `docs/superpowers/plans/2026-10-04-pr16-document-lifecycle-root-cause.md`。作成直後の実行は明示指示済み。未提示のPlan本文をユーザがレビュー承認したとは記録しない
-- brainstorming 経路: architectural
+- brainstorming 経路: bounded（11節の追加修正）。1–10節の既存再設計は architectural
 - 文書管理・変更対象: `usaturn/create-reso-world`
 - 対象 PR: https://github.com/usaturn/create-reso-world/pull/16
 - 反映先: 既存 `docs/superpowers-document-lifecycle`。main・別の修正用PRへ実装を反映しない
-- 検証 HEAD: `b441c3b79b91f2945e60f9b948fd52dd77fcb02f`
+- 根本修正設計時の検証 HEAD: `b441c3b79b91f2945e60f9b948fd52dd77fcb02f`
+- 今回の検証 HEAD: `e2dd691e2f84033810979402c06cf3e005718a7c`（2026-10-04 UTC）
 - base: `9699e94a56798a5d148d464825b57e426c155695`
-- 入力: `reviews/#16-docs-superpowers-document-lifecycle/` の全5ファイル
+- 根本修正時の入力: `reviews/#16-docs-superpowers-document-lifecycle/` の全5ファイル
+- 今回の入力: 同ディレクトリの全6ファイル（11.1節）
+- 今回の内容承認・実行許可: 未取得。過去の根本修正に対する指示を、今回の追加修正の許可として流用しない
 - 調査報告: `docs_draft/2026-10-04-create-reso-world-pr16-root-cause-investigation.md`（ローカル専用）
-- 本書の保存状態: 正本と実装修正は既存PR #16へ公開済み。検証した公開版は `0f6ff4619e32dbf27b6204e2a7e010498c319b8c`。この完了記録を含む最終復元版と公開確認はPRコメント・handoffに記録する
+- 本書の保存状態: 11節と冒頭の今回情報はローカルのみ・未コミット・未公開。1–10節の正本と根本修正の実装は既存PR #16へ公開済み。過去に検証した公開版は `0f6ff4619e32dbf27b6204e2a7e010498c319b8c`。この完了記録を含む最終復元版と公開確認はPRコメント・handoffに記録する
 - 関連する既存設計: `docs/superpowers/specs/2026-10-03-superpowers-document-lifecycle-design.md`
 
 ## 1. 意図と成功条件
@@ -265,75 +268,131 @@ git diff --check
 
 自然言語の規約/evalは全ランタイムの遵守を、固定順序の競合テストはすべての並行実行を保証しない。過去文書の個別内容承認は捏造しない。公開の実際と復元版SHAは後続の結果記録・PRコメント・handoffに分けて記録する。
 
-## 11. 必要な修正と関連経路の確認（2026-10-04）
 
-ユーザの「再レビュー時に不具合が発覚して修正コミットが積みあがらないように修正をお願いします」を今回の実行指示として記録する。前節までの承認内容・実施結果は当時の記録として保持する。今回の対象は調査で実証した次の2件と、同じ差分で行う説明の補正である。
+## 11. 現行 HEAD のレビュー再選別と追加修正案（2026-10-04 UTC）
 
-1. **取り込み文書の検査を履歴から独立させる。** `58c9ea8` の22文書から一度だけ求めたSHA-256を追跡fixtureに保存し、検査時はその値と現在のバイト列を比較する。既存の対象一覧との一致も検査する。現在のファイルから期待値を生成しない。22文書そのものは変更しない。devcontainer-testsだけの全履歴取得と、その取得を要求するテストは削除する。gitleaksの全履歴取得は保持する。
-2. **認証情報を含むURLを診断に出さない。** origin不一致、実効push先の不一致、および同じURL検証処理の入力エラーで、入力URLやその構成要素を出力しない。期待するリポジトリ、対象root、候補数などで原因を説明する。URLの受入範囲、終了コード64/65/66、検証の読み取り専用という性質は維持する。
-3. READMEの現行設計への参照を本Specにそろえる。review-fix-planningのpush前確認は対象リポジトリすべてに適用すると明記する。新しい機能・許可経路は追加しない。
+この節が今回の選別結果と承認対象である。1–10節は以前の設計・実施記録として保持する。以前の8件の「対応する」や実行許可を、今回の未承認の追加修正に適用しない。
 
-受入条件は、Squash相当の単一コミットしか持たないbareからの通常cloneとdepth 1 clone、Git情報のない配布物で文書検査が通ること、1文書の改変が対象パス付きで検出されること、ダミー認証情報を含むorigin・push URL・不正なrepo/head-repo入力で秘密値がstdout/stderrに出ないこと。既存の有効なURLと拒否・終了コード・Git状態の不変性も検査する。
+目的は、PR #16 のレビュー資料にある指摘をコミット済みの現行 HEAD で検証し、実在する誤動作と記述の誤りだけを修正候補にすることである。コード対象・文書管理はともに `usaturn/create-reso-world`、反映先は既存 PR の `docs/superpowers-document-lifecycle`。origin の URL は `https://github.com/usaturn/create-reso-world.git` と確認した。今回の経路は **bounded**。既存の context CLI と履歴検査を局所的に変更し、README と既存スキルの説明を揃えるため、新しいシステムや API は設計しない。明示指定された review-fix-planning に従い、bounded でも Spec を残す。
 
-実装は既存PRのworktreeで担当者が行い、必須検証後に今回の差分と関連経路を一度だけ別担当が読み取り専用で確認する。必要な修正を検証してから1コミットで既存PRへ反映する。過去の全指摘を再判定する反復やround別の文書追加は行わない。将来の不具合が一切ないとは保証しない。
+### 11.1 入力と対象 HEAD
 
-今回の実装・ローカル検証・最終確認は完了した。context/lifecycle 56件、CIと同じ環境ランナー27本（Superpowers unittest 79件）、スキル399件と既存1skip、実配置と4プロジェクト同期が成功。元blobとのhash一致と22文書の不変性を確認済み。別担当の最終確認にCritical/Important/Minorなし。これは公開前の記録であり、本コミットのpush・API HEAD照合・CIの実際はPRコメントで記録する。
+PR URL を #16 として解決し、`reviews/` と `external/resoloop/reviews/` の直下で唯一一致した `reviews/#16-docs-superpowers-document-lifecycle/` に範囲を固定した。同ディレクトリの全ファイルを読んだ。
 
-## 12. 現行レビューの再検証と実効取得先の修正（2026-10-04）
-
-- 調査HEAD: `1dcee9512058765ff81a7c1605706fab99f362b4`。入力は指定レビューの全6ファイル。openai-codex、SWE、DeepSeek、Claudeは同HEAD、Museは`333f4fb9bb70`、gpt-6.1-solは`e2dd691e2f84`に対するレビュー。
-- 実行許可: ユーザの「修正が必要な指摘があったら、推奨案でプッシュまでしておいてください」「PR の全体を十分に見直す」「問題を見つけた場合は origin/main との差分の範囲だけではなく、他の部分も修正範囲にする」。この追記内容の個別承認とは区別する。
-- 経路: bounded。既存§5.1の取得先identity照合を実装へ適用する修正であり、新しいAPI・許可範囲・アーキテクチャは導入しない。正本は本書と既存Planを更新し、round別文書を増やさない。
-- 独立調査: runtime、現行規約・消費側、取り込み履歴と長いテスト本文を3担当に分担。過去レビューの全文未読箇所も補完した。テストはcontrollerが隔離worktreeで実行した。
-
-### 12.1 全指摘の分類
-
-レビューごとの指摘出現を単位とし、重複も省かず**解消済み21 / 対応する2 / 判断保留0 / 対応しない8**とする。O=openai-codex、S=SWE、D=DeepSeek、C=Claude、G=gpt-6.1-sol。Museには指摘なし。Uは未検証候補、N/Hは今回の独立調査で見つけた論点。
-
-| ID | 分類 | 現行HEADの根拠・方針 |
+| レビュー資料 | 冒頭の対象 HEAD | 残っている指摘・候補 |
 | --- | --- | --- |
-| O-M3 | 解消済み | review-fix-planningの書込・commit・コピー元はDOC_ROOTに統一。別DOC_ROOTの受入テスト成功 |
-| O-M1 | 解消済み | copy helperはos.linkで新規公開のみ。既存コピーと注記の競合ガード成功 |
-| O-M2 | 解消済み | 親origin/main checkoutを共通contextで検査し、外部cwd暗黙採用を拒否。実行テスト成功 |
-| S-L1 | 解消済み | 親origin欠落は理由付き66、裸の終了1でない。contextテスト成功 |
-| D-L2 | 解消済み | review-workspaceのlinked CODE_ROOTはfetch前に拒否。context/consumerテスト成功 |
-| D-L3 | 解消済み | linked親を共通contextでfetch前に拒否。consumerテスト成功 |
-| D-L4 | 解消済み | linked親の拒否はfork検索より前、誤ったclone案内を出さない。両ownerテスト成功 |
-| D-I2 | 解消済み | HTTPS/SCP/ssh://は共通正規化処理で受入。URLテスト成功 |
-| D-L1 | 解消済み | AGENTSのremoteなしPR連携非対応と実装の0件拒否が一致 |
-| D-I1 | 解消済み | 旧Plan冒頭はcompletedの履歴と明記し、再実行する現行手順と区別 |
-| D-I3 | 解消済み | AGENTS/README/skillに既存正本の選択・更新手順とroundN抑止がある |
-| D-I4 | 解消済み | PR説明の79 unittest・399 skill/1skip・8 CI成功は公開HEADの結果と一致 |
-| D-L5 | 解消済み | 認証情報入りorigin/push/repo入力を診断へ出さない回帰テスト成功 |
-| D-I5 | 解消済み | docs/superpowers/README.md:3は現行root-cause Specを参照 |
-| D-I6 | 解消済み | push前のhead/API/context照合は全対象に適用と明記。古い手順例はN2で別途修正 |
-| C-L1 | 解消済み | review-workspaceのlinked CODE_ROOT早期拒否は維持 |
-| C-M1 | 解消済み | remote選定は共通Pythonへ移りbash/zshの0始まり配列に依存しない |
-| C-L2 | 解消済み | 外部PRの承認済み修正だけを維持。一般外部実装はblockedと4規約で一致 |
-| C-I1 | 解消済み | 内容承認・実行許可・完了・公開を別記録。過去承認を捏造していない |
-| C-I2 | 解消済み | 22件のhashは追跡fixtureから比較。元PR履歴なしの通常/浅いclone・配布物テスト成功 |
-| G-M1 | 解消済み | C-I2と同じ履歴依存はfixture化済み。古いHEADに対する指摘 |
-| D-I7 | 対応しない | READMEの現行参照先は正しい。将来の保険となる新規assertであり、既存ガードの削除もない |
-| D-U-jq | 対応しない | Claude Codeの許可確認は未実証。許可プロンプトだけを推測で機能不具合としない |
-| C-U-write | 対応しない | 別DOC_ROOTの相対Write/Edit許可照合は未実証、既存R8の安全側の判断を保持 |
-| N1 | 対応する(a) | known-routeの修正worktree固有insteadOfが実効取得先を変えても成功。自repoのoriginとResoLoop両ownerのorigin/upstream、5ケースを再現 |
-| N2 | 対応する(b) | review-fix-planningのfetch/pushの手順例はorigin固定で返されたremoteと矛盾。実装後手順・自repo/fork例をPR_REMOTE/HEAD_REMOTEへそろえる |
-| H1 | 対応しない | imported round6 Planの未チェックと後のSpec完了記録は別時点の履歴。本文不変を維持 |
-| H2 | 対応しない | imported PR9 round2の未実施表示とround3の解消記録は別時点の履歴。現在の再実行許可ではない |
-| H3 | 対応しない | imported PR9 round3のSpec/Plan状態差は当時の記録。現在仕様と区別されている |
-| H4 | 対応しない | imported文書は現行enum以前の履歴、状態を自動解釈する新しい仕組みはない |
-| H5 | 対応しない | imported文書の絶対path/削除済みscratchは当時の再現証跡。現行の復元元や実行手順として使わない |
+| `gpt-6.1-sol.md` | `e2dd691e2f84` | M-1 |
+| `deepseek-deepseek-v4.1-flash.md` | `e2dd691e2f84` | L-5、I-5、I-6、解消記録8件、未検証候補1件 |
+| `claude-opus-5-5.md` | `e2dd691e2f84` | I-2、解消記録4件、未検証候補1件 |
+| `openai-codex-gpt-6.1-sol.md` | `530cfabeea03` | M-1、M-2、解消記録M-3 |
+| `SWE-2-Max.md` | `530cfabeea03` | L-1 |
+| `opencode-go-muse-spark-1.3-contributor.md` | `333f4fb9bb70` | 指摘・候補なし |
 
-Test suggestionsは対応するfindingの検証方法であり、独立した追加不具合として数えない。全文読解不足は今回補完し、不具合件数には含めない。
+旧 HEAD は資料の世代を示すだけで、採否はすべて `e2dd691e2f84033810979402c06cf3e005718a7c` のコミット済み内容で判断した。未コミットの source/test、別 worktree の差分、指定外のレビュー成果物は検証根拠にしていない。Test suggestions と coverage の限界は独立した finding として重複計上しない。
 
-### 12.2 推奨修正と検証
+### 11.2 全指摘の分類
 
-N1の不変条件は「Git repositoryが同じでも、実際に操作するCODE_ROOTの実効取得先が既知repoと一致する」。`inspect_checkout(code_root)`は実効URLを取得済みだが、known-routeのreview-fix分岐はcommon_dirだけ比較し、その値を使っていなかった。親/fork mainの前提検査は維持したうえで、実際のcode checkoutにも自repoのorigin、forkのorigin/upstream両方を照合する。worktree固有設定の不一致は66・正常stdoutなし、clone案内やURL/認証情報の非表示を維持する。
+重複をまとめた **20論点: 解消済み15 / 対応する4 / 判断保留0 / 対応しない1**。レビュー内の個別指摘・候補は **23件: 解消済み16 / 対応する5 / 判断保留0 / 対応しない2**。V1 は2件、V8 は2件、V20 は2件をまとめている。それ以外は各1件であり、すべていずれか一つに分類した。
 
-回帰は実Gitのextensions.worktreeConfigとconfig --worktreeのinsteadOfで固定する。自repo・fork/upstreamの選択remoteと非選択remote、他repo/非GitHub/認証情報入りへの書き換え拒否、同一repoのHTTPS/SSH書き換え成功、通常のlinked worktree成功を確認する。異常時のHEAD/ref/index/status/設定の不変性を検査し、外部repoの既存remote選定・pushInsteadOf・copy経路も退行させない。remote.origin.urlの単純追記は最初のfetch URLを変えず、今回の再現条件とは扱わない。
+出典の Codex は `gpt-6.1-sol.md`、pi-Codex は `openai-codex-gpt-6.1-sol.md`、DeepSeek と Claude は上表の各ファイルを指す。以下の行番号は今回の現行 HEAD を基準とする。
 
-N2は承認済みの取得先とpush先を分離する方針を例まで反映する。fetchは照合済みPR_REMOTEを使い、対象PR先端はgh APIでも再確認する。push例はAPI/contextで確定したHEAD_REMOTEを使う。既存のskillテストへ手順全体の固定origin不存在と両変数の使用を検査するRED/GREENを追加する。
+| ID | レビュー出典 | 論点 | 区分・現行 HEAD の根拠 |
+| --- | --- | --- | --- |
+| V1 | Codex M-1 / Claude I-2 | 取り込み文書の検査が PR 内のコミット履歴に依存 | **対応する(a)**。同じ tree を Squash した full clone で `58c9ea8` が存在せず、lifecycle:220–225 の既存テストが終了1。元 HEAD では終了0 |
+| V2 | DeepSeek L-5 | remote URL の認証情報が診断へ出る | **対応する(a)**。context:143–146,157–176。親 origin、文書 origin、実効 push URL にダミー認証情報を入れ、3経路すべてで終了66の stderr にその文字列が含まれた |
+| V3 | DeepSeek I-5 | README が現行設計として旧 Spec を案内 | **対応する(b)**。README:3 の案内先は旧 lifecycle Spec:4,15 で `superseded`・履歴と明記され、現行設計は本書へ移行済み。リンク先が存在しないという指摘ではない |
+| V4 | DeepSeek I-6 | push 前の確認を「その他のリポジトリ」だけと読める条件 | **対応する(b)**。review-fix-planning:85–86 は常に `CODE_ROOT=MAIN_ROOT` を設定するのに、:131 はその等値をその他repoの条件として記載。:64 はすべての push 前で head 再照合を要求している |
+| V5 | pi-Codex M-1 | 同時コピー・実行中編集の上書き | **解消済み**。shell は新 Python helper を呼び、既存 entry を置換しない。今回の同名異内容競合・公開前注記の2テストが成功 |
+| V6 | pi-Codex M-2 | 外部 cwd を親・helper 元として採用 | **解消済み**。context:197–198 で親 origin を照合。外部 cwd を暗黙の親にした CLI は理由付き66で拒否し、正しい親の明示は context テストで成功 |
+| V7 | pi-Codex 解消M-3 | 別 DOC_ROOT で Spec の作成先とコミット先が不一致 | **解消済み**。review-fix-planning:57,103–105,109 は作成・commit・コピー元を DOC_ROOT に統一。別文書 checkout/linked worktree の branch 照合と copy 専用経路の既存テストが成功 |
+| V8 | DeepSeek 解消L-2 / Claude 解消L-1 | pr-review が linked CODE_ROOT を通したあと helper が拒否 | **解消済み**。context:244–245 が review-workspace の linked code を事前拒否。操作別制約と resolver の linked-code 拒否テストが成功 |
+| V9 | DeepSeek 解消L-3 | linked TOPLEVEL の拒否が fetch より後 | **解消済み**。context:197→120 の親検査を fetch 前の resolver が呼ぶ。該当 resolver テストが成功 |
+| V10 | DeepSeek 解消L-4 | linked 親の ResoLoop 経路で誤った clone 案内 | **解消済み**。親の main-checkout 検査が fork 探索(:226以降)より前。両 ResoLoop owner の resolver テストが成功 |
+| V11 | DeepSeek 解消I-2 | ssh:// remote の非対応 | **解消済み**。context:51–70 が HTTPS/SCP/SSH を共通正規化。context の URL と resolver の SSH ケースが成功 |
+| V12 | DeepSeek 解消L-1 | remote なし PR 連携を許す文書と拒否実装の不一致 | **解消済み**。AGENTS:71 は remote なしを非対応と明記。context:149–154 の0件拒否と lifecycle の規約テストが成功 |
+| V13 | Claude 解消L-2 | 外部 CODE_ROOT の2スキル限定と外部実装の広い想定 | **解消済み**。AGENTS:71、旧 Spec 冒頭、planning/handoff の非対応経路・blocked 規定が一致。lifecycle の境界・handoff テストが成功 |
+| V14 | DeepSeek 解消I-1 | 古い Plan が現在の実行手順として読める | **解消済み**。旧 Plan 冒頭は completed・履歴・現行手順への参照を明記。lifecycle の該当テストが成功 |
+| V15 | Claude 解消I-1 | 内容承認・実行許可・完了状態の混同 | **解消済み**。README:16–26、旧文書冒頭、本書の既存承認版の記録が区別。lifecycle の履歴メタデータ・状態テストが成功 |
+| V16 | DeepSeek 解消I-3 | 既存文書更新方針と roundN の増殖 | **解消済み**。AGENTS:50–52、README:9–10、review-fix-planning:92–99 が正本選択と既存更新を要求。lifecycle の該当テストが成功。本追記も正本を再利用 |
+| V17 | DeepSeek 解消I-4 | PR 説明の検証結果が古い | **解消済み**。現行 API 本文に unittest72件・スキル399 passed/1 skip と現行8 CIチェックを記載し、旧失敗数・未同期表記はない。現行 HEAD の8チェックは API で全成功を確認。ローカル399件を今回再実行したとは扱わない |
+| V18 | SWE L-1 | 親 origin 不備で CODE_ROOT 検査前に裸の終了1 | **解消済み**。現行 CLI の origin なし親は、利用者への案内付き66で拒否することを再現。未対応の親を受け付けるようには変更しない |
+| V19 | Claude 解消M-1 | zsh で remote 選択結果が空になる | **解消済み**。現行 resolver は共通 CLI の JSON を読む。bash/zsh・nounset の explicit-code-root/remote件数ケースを含む41 resolver テストが成功 |
+| V20 | DeepSeek / Claude 未検証候補 | 別 DOC_ROOT の allowed-tools 相対許可と jq の許可 | **対応しない**。frontmatter の相対パターンと jq 記載不足は確認できるが、Claude Code 上の誤動作は未実証。許可確認が増える可能性だけでは(a)–(d)を満たさず、推測で許可範囲を広げない |
 
-最終受入はfocused context/skill検査、既存bashランナー、全skill、実配置・4プロジェクト同期、変更後の取り込みhash不変、origin/main統合treeの検査、読み取り専用の最終確認。全結果を確認して1コミットで既存PRへpushし、公開HEADとCIを確認してPRに結果を記録する。修正が必要なため今回の条件付きマージは実行しない。
+V1 はレビューの Severity や「要設計判断」表記に関係なく、利用可能な Squash 経路で現実のテスト失敗を確認したので(a)とした。V3/V4 は単なる記載補強ではなく、現在の設計・代入内容についての記述の誤りなので(b)とした。V20 の jq に関する疑いも同じ未検証候補に含め、取り落とさない。
 
-N1/N2は実装・ローカル受入・独立した最終確認を完了した。context/skillのfocused123件、全pytest483件と既存1skip、bash27本、skill402件と既存1skip、実配置と4同期、取り込み22文書hashが成功。`origin/main=c40a3bd`との統合worktreeもbash27本・pytest483件/1skip/168subtests・配置と4同期が成功し、重要な未解決指摘はない。実測と限界はPlan Task5に記録した。この追記は公開前の結果であり、コミットSHA・push/API/CIの実際はPRコメントへ残す。
+### 11.3 対応方針と検証
+
+#### V1: 履歴を取得せずに取り込み22文書を検査する
+
+`tests/scripts/test_superpowers_lifecycle.py` の `IMPORT_COMMIT` と実行時の `git show` 依存を除き、22文書の path と期待 SHA-256 を固定データとして保持する。既存の `IMPORTED` リストは path→SHA-256 の定数に置き換え、期待値は `58c9ea8` のコミット済み blob から一度だけ算出する。現在のファイルを毎回正解として計算し直さない。22件の本文・パスは変更しない。
+
+この参照だけを理由に追加された `.github/workflows/ci.yml` の `fetch-depth: 0` と `tests/scripts/test-ci.bash` の全履歴必須アサートも除く。通常の checkout の深さで検査できることを条件とし、ハッシュ検査を skip する対応は採らない。
+
+検証:
+- 元 HEAD と同じ tree を base `9699e94a56798a5d148d464825b57e426c155695` の子1コミットへまとめ、元 PR refs を含まない一時 bare repo から新規 full clone を作る。基準コミットが存在しないことと tree の一致を先に確認し、修正後の取り込み検査が成功することを確認する
+- depth 1 の clone でも同じ検査が成功することを確認する
+- 隔離 fixture で1文書を変更すると、その path を示してハッシュ検査が失敗することを確認する。期待値の変更や検査の無効化で通さない
+- lifecycle unittest と `bash tests/scripts/test-ci.bash` を通す
+
+#### V2: remote の診断に生 URL を載せない
+
+`scripts/superpowers_context.py` の `_require_origin` と `select_push_remote` で、生の remote URL と `push_urls` の一覧を診断に含めない。remote 名、候補数、期待する owner/repo、解釈不能・不一致という理由で案内する。必要なら正規化済み owner/repo のみを表示する。認証情報入り URL の対応形式を増やす変更は行わず、現在と同じ終了66を維持する。
+
+検証:
+- 親 origin・文書 origin・実効 push URL の3経路にダミーの username/password を含む URL を設定し、診断に認証情報も URL 全体も含まれず、stdout が空・終了66であることを確認する
+- 正常な HTTPS/SCP/SSH remote、候補0/1/2件、複数 push URL と pushInsteadOf の既存テストを通す
+- 失敗時に ref/index/作業内容が変更されないことを既存 fixture で確認する
+
+#### V3: 現行設計を案内する
+
+`docs/superpowers/README.md:3` の設計リンクを本 Spec の正本へ向ける。旧 Spec に触れる場合は履歴と明記し、現在の実行手順は AGENTS/README にあるという役割分担を保つ。過去の文書本文を同期・再実装しない。
+
+検証:
+- README の設計リンクが本書に向き、そのファイルが存在することを lifecycle の該当検査で確認する
+- 旧 Spec の superseded 表記と現行手順への参照が保持されることを確認する
+
+#### V4: push 前の照合を全経路で同じように説明する
+
+`.agents/skills/review-fix-planning/SKILL.md` の実装後手順5から、`MAIN_ROOT == CODE_ROOT` を「その他のリポジトリ」の判定として使う説明を除く。共通 context 節と同じく、対象repoによらず API で head repository/branch を確認し、両方を CLI に渡し、返された `HEAD_REMOTE` に push する、と明記する。既存の head/base 分離をそのまま使い、fork の許可範囲や repo 境界は変更しない。
+
+検証:
+- スキルの既存検査を更新して、条件付きの説明がなく、全経路で head 照合する指示があることを確認する
+- `test_base_and_head_remote_are_independent_and_head_branch_must_match`、fetch URL と push URL を別に照合する既存 context テストを通す
+- create-reso-world 自身と ResoLoop fork/upstream の既存経路を退行させないことを関連 resolver テストで確認する
+
+### 11.4 今回の検証結果
+
+隔離 worktree の HEAD と指定 SHA の一致を確認してから、以下を現行コミットで実行した。すべての一時ファイル・ログ・テスト用 clone は `mktemp` で作った一意な `REPRO_ROOT` 配下に閉じ込めた。
+
+| 検証 | 今回の結果 |
+| --- | --- |
+| 取り込み検査を元 HEAD で1件実行 | 終了0 |
+| 同じ tree・Squash 後 full clone・基準コミット不在で同じ検査 | 期待した不具合を再現: 終了1、内部 `git show` の CalledProcessError |
+| ダミー認証情報の親 origin・文書 origin・実効 push URL | 各終了66、各 stderr にダミー文字列あり |
+| 親 origin なし / 暗黙の外部 cwd | 各案内付き66。旧障害は再現しない |
+| context 全件・LifecycleInstructionTests・コピー競合2件 | 48 tests、OK、31.216秒 |
+| pr-review の resolver テスト限定 | 41 passed / 41 deselected、7.66秒。skipなし |
+| 現行 HEAD の GitHub check-runs | 8件すべて completed / success |
+| PR HEAD 再確認 | `e2dd691e2f84033810979402c06cf3e005718a7c` |
+
+再現用 runner は worktree path と reviewed HEAD を別引数で受け、指定 SHA を照合した。対象 source/test の実装には変更していない。挙動再現全体は14.531秒。新しい対応案の成功は、今回まだ検証していない。
+
+検証終了後に Git の worktree 登録を外し、その成功を確認してから本セッションの親一時ディレクトリを削除した。検証用 worktree、clone、ログ、実行中の検証プロセスは残っていない。
+
+### 11.5 承認後の検証・反映
+
+4件の対応を同じ既存 PR ブランチへ載せる。個別の回帰検証後に、環境変更として `bash .devcontainer/run-tests.bash` と `bash scripts/check-layout.sh`、スキル変更として `uv run pytest tests/skills .agents/skills` を通す。今回と無関係なワールド pytest や ResoLoop 全テストは反映条件にしない。
+
+成功後は remote の先端を再確認し、必要な統合と再検証を済ませ、既存 PR #16 の head branch に commit / push する。push 成功後に workflow helper でレビュー状況・分類・結果の日本語コメントを投稿する。追加 PR や別の review-fixes ブランチは作らない。マージは今回の依頼に含まれない。
+
+現時点では Spec の提示までで停止し、追加修正コード・テストは編集しない。明示的な「進めて」を受け取るまで実装しない。今回の承認を、以前の completed Plan をそのまま再実行する指示とは扱わない。
+
+### 11.6 作業時間
+
+- 担当: Codex、本セッションのみ。サブエージェントへの委譲なし
+- 着手: 2026-10-04 09:46:49 UTC
+- 入力解決・6レビュー読解・PR/HEAD確定・コミット内容の照合・再現開始: 09:46:49–09:50:49（4分00秒）
+- 限定テストの完了確認・分類整理・teardown・経路判定: 09:50:49–09:52:37（1分48秒）
+- Spec 追記・初回自己確認: 09:52:37–09:56:05（3分28秒）
+- 初回自己確認時の合計: 9分16秒。区間は記録済みの観測時刻に基づき、読解・生成時間を含む。コマンドの実測は11.4節に記載
