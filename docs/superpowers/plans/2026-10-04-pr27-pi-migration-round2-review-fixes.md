@@ -2,9 +2,9 @@
 
 - 文書管理／対象リポジトリ: `usaturn/create-reso-world`
 - 対象Issue／PR: #19／#27
-- 検証コードHEAD: `26d8b1ca757179b9b9c3b406728f1fa1e700d664`
+- 検証コードHEAD: `4ae2cb5af8cab7370b2933593ab1a3e3b8b8b19c`（Task 2）。Task 1は`26d8b1ca757179b9b9c3b406728f1fa1e700d664`
 - 状態: completed（実装・独立レビュー・検証を完了。具体的な実行許可はSpecに記録し、コミットだけでapprovedにはしない）
-- 今回更新するPlan: `docs/superpowers/plans/2026-10-04-pr27-pi-migration-round2-review-fixes.md`。従来版はGitの`26d8b1c`から参照する。
+- 今回更新するPlan: `docs/superpowers/plans/2026-10-04-pr27-pi-migration-round2-review-fixes.md`。従来版はGitの`26d8b1c`・`4ae2cb5`から参照する。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. Steps use checkbox syntax. User already authorized recommended fixes and push; no second approval stop. Only controller commits and publishes, as one cohesive commit after review and verification.
 
@@ -52,6 +52,25 @@
 - [x] Step 4: Wire existing provider setup inputs and safe saves to helper; preserve current provider behavior, source validation, zsh error propagation, post-validation, and mode/no-auth-backup. Make model backups unique without removing the cp failure guard. Apply exact tilde expansion to two related setup scripts.
 - [x] Step 5: Run new tests GREEN and all existing cleanup/setup tests synchronously. Include one real pi no-prefix numeric refusal/surrogate success and real npm lock controls. Confirm model output using installed credential-blind loader/Node JSON parse, with no API connection. Run applicable bash syntax, diff checks and targeted environment scripts; leave a detailed report with commands, results, RED evidence, coverage, concerns and task timings.
 - [x] Step 6: Self-review full change and provide report. Do not commit; controller will create review packages including untracked files, obtain Task/spec-quality and final branch review, run full `.devcontainer/run-tests.bash` and layout, verify pristine main exceptions, then commit/push once.
+
+### Task 2: Refuse linked destinations and invalid inputs before any change (R4-1〜R4-4)
+
+**Files:**
+- Modify `.devcontainer/pi_json.py` (add `require_plain_file`; `write_object` checks it first).
+- Modify `.devcontainer/cleanup_pi_mcp.py` (`read_object` reuses `require_plain_file`; keep `safe_storage`).
+- Modify `.devcontainer/setup_pi.zsh`, `.devcontainer/setup_pi_opencode_go.zsh`, `.devcontainer/setup_pi_commandcode_goat.zsh` (preflight every file the script may write before backup/chmod/write).
+- Modify `.devcontainer/tests/test_pi_mcp_cleanup.py`, `.devcontainer/README.md` (setup and builtin MCP sections), root `README.md`, and the Issue #19 Spec/Plan headers and comparison table.
+
+**Interfaces:**
+- `require_plain_file(path: Path) -> None`: `lstat` only; absent is allowed; symlink (including dangling), non-regular file and `st_nlink != 1` raise `ValueError` containing the path.
+- Setup preflight: `python3 - <models source> <files...>` imports the helper from the model source's directory, loads the model source, checks each file the script may write with `require_plain_file` and loads it when present, prints `ERROR: <reason>` once and exits 1 under `set -e`. It runs before backup, chmod and any write; main blocks keep their checks with the duplicated prefix removed.
+
+- [x] Step 1: Add `test_r4_shared_writer_refuses_linked_or_special_destinations`, `test_r4_provider_setups_refuse_linked_destinations_before_changes` and the control `test_r4_provider_setups_accept_symlinked_agent_directory`, with an lstat-based snapshot of the agent directory and shared targets.
+- [x] Step 2: Run them before implementation. RED: the writer staged a temp file for all 5 kinds, and all 15 setup cases exited 0. The control already passed (existing behavior to keep).
+- [x] Step 3: Implement the helper, the writer check, the cleanup reuse and the 3 setup preflights. Update the README setup section, including the wording of the same-directory temp-file replacement.
+- [x] Step 4: Run the new tests, existing link/hard-link/FIFO cleanup tests, the whole migration/setup suite, related bash checks, the full environment suite, layout and skill tests synchronously.
+- [x] Step 5: From the independent whole-PR review, strengthen the unsafe-number and invalid-source setup tests to compare the whole agent directory and count the path once, require no backup for broken models JSON, and assert `Invalid JSON constant` in the constant test (RED: 32 setup failures; constant test verified by a mutant that disables `reject_constant`). Extend the preflight to the inputs (R4-2), restore the guard (R4-3), and fix the documents (R4-4).
+- [x] Step 6: Re-run the related tests and the full environment suite, layout and skill tests. Commit once, have an independent agent re-review the whole PR at that commit, fix and re-verify until no finding remains, then push `HEAD:refs/heads/feat/issue-19-pi-migration` normally.
 
 ## Controller integration and publication
 

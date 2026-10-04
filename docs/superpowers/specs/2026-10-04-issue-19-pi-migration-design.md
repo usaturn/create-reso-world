@@ -1,5 +1,13 @@
 # Issue #19: pi 拡張構成の移行仕様
 
+- 文書管理／対象リポジトリ: `usaturn/create-reso-world`
+- 対象Issue／PR: #19／#27
+- 検証したコードHEAD: base `c40a3bdc86c2b7349ec3b7859d5b06af5d81e6e5`、初回実装 `6f0cd9ee9d04da2f177c0ab97551945583b78d49`
+- 状態: completed（初回実装と PR 作成を完了。以降のレビュー修正は `docs/superpowers/specs/2026-10-04-pr27-pi-migration-round2-review-fixes-design.md` を参照）
+- 実行許可: Issue #19 の作業時のユーザ指示「推奨案で進めて、途中で止めずに PR まで作成して」
+- 内容承認: 個別のコミット済み版の内容承認は確認できない
+- 関連Plan: `docs/superpowers/plans/2026-10-04-issue-19-pi-migration.md`
+
 ## 目的と進め方
 
 pi-distill と旧 MCP 拡張を撤去し、組み込み MCP と移植元の拡張構成を使う。ユーザの「推奨案で進めて、途中で止めずに PR まで作成して」という指示により、設計・計画の通常の確認待ちを省略して実装する。以下はエージェントの判断であり、人による個別の設計承認ではない。
@@ -40,6 +48,9 @@ pi-distill と旧 MCP 拡張を撤去し、組み込み MCP と移植元の拡�
 | `.devcontainer/test-install-beforehand.bash` | 適応 | cleanup の実行順と廃止 helper が呼ばれないことを検査。 |
 | `tests/scripts/test-agent-config.bash`、`test-instructions.bash` | 既存維持・適応 | agent-config は既存検査を維持し、instructions に廃止指示の除去を追加。共有 pi 設定・ワールド cwd の検査は cleanup suite に集約する。 |
 | `.devcontainer/README.md` | 適応 | MCP / 拡張の移行・バックアップ・既存 provider の保持を説明し、pi-distill の現役利用手順を削除。 |
+| `.devcontainer/pi_json.py` | 新規（PR #27 のレビュー修正） | cleanup と3つの provider setup が共有する JSON の読込み（有限数値の検査）・保存（一時ファイルの置き換え、mode 保持）・バックアップ・リンク拒否。移植元には無い。 |
+| `.devcontainer/setup_pi_opencode_go.zsh`、`.devcontainer/setup_pi_commandcode_goat.zsh` | 適応（PR #27 のレビュー修正） | #20 の担当ファイルだが、ユーザ指示による差分外の関連修正として、入力の事前検査、`pi_json` による保存・バックアップ、`~` 展開を `setup_pi.zsh` と揃えた。provider の選択とランチャーは変更しない。 |
+| `README.md`（ルート） | 適応（PR #27 のレビュー修正） | ResoLoop の導入の説明を `.devcontainer/resoloop.lock` の nuget / fork モードに合わせた。 |
 
 ## 移行処理の仕様
 

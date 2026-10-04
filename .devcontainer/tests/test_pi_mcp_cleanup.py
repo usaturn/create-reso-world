@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import re
 import runpy
 from unittest.mock import patch
 import subprocess
@@ -131,6 +132,20 @@ class PiMcpCleanupTests(unittest.TestCase):
     def full_storage_snapshot(self):
         return {path.relative_to(self.agent): (stat.S_IMODE(path.stat().st_mode), path.read_bytes())
                 for path in self.agent.rglob("*") if path.is_file()}
+
+    def link_snapshot(self, *roots):
+        """Record entries without following links, so replaced links and changed targets both show."""
+        snapshot = {}
+        for root in roots:
+            for path in root.rglob("*"):
+                info = path.lstat()
+                if stat.S_ISLNK(info.st_mode):
+                    snapshot[path] = ("symlink", os.readlink(path))
+                elif stat.S_ISREG(info.st_mode):
+                    snapshot[path] = (stat.S_IMODE(info.st_mode), info.st_nlink, path.read_bytes())
+                else:
+                    snapshot[path] = (stat.S_IFMT(info.st_mode),)
+        return snapshot
 
     def fresh_agent(self, name):
         self.agent = self.home / name
@@ -342,13 +357,12 @@ class PiMcpCleanupTests(unittest.TestCase):
                     path = self.agent / "models.json"
                     path.write_text('{"providers":{"personal":{"models":[]}},"nested":[{"n":'+token+'}]}\n')
                     path.chmod(0o640)
-                    original = path.read_bytes()
+                    before = self.link_snapshot(self.agent)
                     result = self.run_provider_setup(provider)
                     self.assert_setup_failed(result)
-                    self.assertIn(str(path), result.stderr)
-                    self.assertEqual(path.read_bytes(), original)
-                    self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
-                    self.assertEqual(list(self.agent.glob(".*json*")), [])
+                    self.assertEqual(result.stderr.count(str(path)), 1, result.stderr)
+                    # No backup, credential update or staged file may precede the refusal.
+                    self.assertEqual(self.link_snapshot(self.agent), before)
 
     # R3-3 break: a permissive old auth mode is inherited by staged new plaintext credentials.
     def test_r3_opencode_auth_replacement_is_private_before_publish(self):
@@ -411,13 +425,13 @@ class PiMcpCleanupTests(unittest.TestCase):
                                       json.dumps(source_data).replace('"RAW_TOKEN"', token))
                     path = self.agent / "models.json"
                     self.save(path, {"providers": {"personal": {"models": []}}})
-                    original = path.read_bytes()
+                    before = self.link_snapshot(self.agent)
                     env = {**self.env, "DEEPINFRA_TOKEN": "offline-fixture", "OPENCODE_API_KEY": "offline-fixture"}
                     result = subprocess.run(["zsh", str(source_dir / script)], cwd=self.project,
                                             env=env, text=True, capture_output=True)
                     self.assert_setup_failed(result)
                     self.assertIn(str(source), result.stderr)
-                    self.assertEqual(path.read_bytes(), original)
+                    self.assertEqual(self.link_snapshot(self.agent), before)
 
     # R3-3 break: replacement errors overwrite live files or leave staged JSON on disk.
     def test_r3_provider_replace_failure_preserves_models_and_cleans_temp(self):
@@ -575,6 +589,82 @@ class PiMcpCleanupTests(unittest.TestCase):
                     else:
                         self.assertEqual(auth.read_bytes(), auth_original)
                     self.assertFalse((cwd / "~").exists())
+
+    # R4-1 break: the shared writer replaces a link or special file instead of refusing it.
+    def test_r4_shared_writer_refuses_linked_or_special_destinations(self):
+        write_object = runpy.run_path(str(ROOT / ".devcontainer/pi_json.py"))["write_object"]
+        shared = self.base / "shared-writer"
+        shared.mkdir()
+        target = shared / "models.json"
+        target.write_bytes(b'{"shared":true}\r\n')
+        target.chmod(0o644)
+        for kind in ("symlink", "dangling", "hardlink", "fifo", "directory"):
+            with self.subTest(kind=kind):
+                path = self.agent / f"{kind}.json"
+                if kind == "symlink":
+                    path.symlink_to(target)
+                elif kind == "dangling":
+                    path.symlink_to(shared / "absent.json")
+                elif kind == "hardlink":
+                    os.link(target, path)
+                elif kind == "fifo":
+                    os.mkfifo(path)
+                else:
+                    path.mkdir()
+                before = self.link_snapshot(self.agent, shared)
+                with patch("tempfile.mkstemp", side_effect=AssertionError("staged before refusing")):
+                    with self.assertRaisesRegex(ValueError, re.escape(str(path))):
+                        write_object(path, {"new": True})
+                self.assertEqual(self.link_snapshot(self.agent, shared), before)
+
+    # R4-1 break: a provider setup detaches a linked models/auth file, writes or chmods its
+    # shared target, or changes another file before refusing the linked destination.
+    def test_r4_provider_setups_refuse_linked_destinations_before_changes(self):
+        managed = {"deepinfra": ("models.json",), "opencode-go": ("auth.json", "models.json"),
+                   "commandcode": ("models.json",)}
+        seeds = {"models.json": {"providers": {"personal": {"models": []}}},
+                 "auth.json": {"personal": {"type": "api_key", "key": "fixture"}}}
+        for provider, names in managed.items():
+            for name in names:
+                for kind in ("symlink", "dangling", "hardlink"):
+                    with self.subTest(provider=provider, name=name, kind=kind):
+                        self.fresh_agent(f"linked-{provider}-{name}-{kind}")
+                        shared = self.base / f"shared-{provider}-{name}-{kind}"
+                        shared.mkdir()
+                        for seed, data in seeds.items():
+                            self.save(self.agent / seed, data)
+                            (self.agent / seed).chmod(0o640)
+                        path = self.agent / name
+                        path.unlink()
+                        target = shared / name
+                        if kind != "dangling":
+                            self.save(target, seeds[name])
+                            target.chmod(0o644)
+                        if kind == "hardlink":
+                            os.link(target, path)
+                        else:
+                            path.symlink_to(target)
+                        before = self.link_snapshot(self.agent, shared)
+                        result = self.run_provider_setup(provider)
+                        self.assert_setup_failed(result)
+                        self.assertIn(str(path), result.stderr)
+                        self.assertIn("hard-linked" if kind == "hardlink" else "symlink", result.stderr.lower())
+                        self.assertEqual(self.link_snapshot(self.agent, shared), before)
+
+    # R4-1 control: only the managed files are checked; a linked agent directory still works.
+    def test_r4_provider_setups_accept_symlinked_agent_directory(self):
+        for provider in ("deepinfra", "opencode-go", "commandcode"):
+            with self.subTest(provider=provider):
+                real = self.base / f"real-agent-{provider}"
+                link = self.home / f"linked-agent-{provider}"
+                self.save(real / "models.json", {"providers": {"personal": {"models": []}}})
+                link.symlink_to(real, target_is_directory=True)
+                self.env["PI_CODING_AGENT_DIR"] = str(link)
+                self.assert_success(self.run_provider_setup(provider))
+                self.assertTrue(link.is_symlink())
+                data = json.loads((real / "models.json").read_text())
+                self.assertIn(provider, data["providers"])
+                self.assertEqual(data["providers"]["personal"], {"models": []})
 
     # Break caught: -builtin:mcp surviving migration or unrelated extension entries being lost.
     def test_builtin_disable_filter_preserves_other_settings_and_mode(self):
@@ -741,6 +831,7 @@ class PiMcpCleanupTests(unittest.TestCase):
                     result = self.run_cleanup(FAKE_PI_CALL_LOG=str(calls))
                     self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertIn(str(path), result.stderr)
+                    self.assertIn("invalid json constant", result.stderr.lower())
                     self.assertFalse(calls.exists(), "pi ran before strict JSON preflight")
                     self.assertEqual(self.storage_snapshot(), before)
                     self.assertFalse((self.agent / "migration-backups").exists())
@@ -955,6 +1046,7 @@ class PiMcpCleanupTests(unittest.TestCase):
         self.assertNotIn("JSON validation: OK", result.stdout)
         self.assertNotIn("Setup complete", result.stdout)
         self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(list(self.agent.glob("models.json.bak.*")), [])
 
     # Break caught: a failed backup being ignored and the user's original model bytes overwritten.
     def test_setup_backup_failure_preserves_original_models(self):

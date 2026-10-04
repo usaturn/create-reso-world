@@ -35,8 +35,23 @@ def load_object(path: Path) -> dict:
     return data
 
 
+def require_plain_file(path: Path) -> None:
+    """Refuse linked or special storage: replacing it would detach or rewrite shared state."""
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(info.st_mode):
+        raise ValueError(f"Refusing symlinked storage: {path}")
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError(f"Unsafe non-regular storage file: {path}")
+    if info.st_nlink != 1:
+        raise ValueError(f"Refusing hard-linked storage: {path}")
+
+
 def write_object(path: Path, data: dict) -> None:
     """Serialize completely before staging a same-directory, mode-preserving replacement."""
+    require_plain_file(path)
     serialized = json.dumps(data, ensure_ascii=True, indent=2, allow_nan=False) + "\n"
     mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o600
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)

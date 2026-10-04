@@ -109,6 +109,32 @@ log "Pi config dir : ${PI_DIR}"
 log "Model source  : ${MODELS_SOURCE}"
 log "Launchers     : ${LAUNCHER_NAMES[*]}"
 
+#
+# Validate every input before any credential or model change. Replacing a
+# symlink or hard link would silently detach the shared file, chmod would
+# follow a symlink to its target, and a model error found later would leave
+# auth.json already updated.
+#
+python3 - "${MODELS_SOURCE}" "${AUTH_JSON}" "${MODELS_JSON}" <<'PY'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+sys.path.insert(0, str(source.resolve().parent))
+from pi_json import load_object, require_plain_file
+
+try:
+    load_object(source)
+    for name in sys.argv[2:]:
+        path = Path(name)
+        require_plain_file(path)
+        if path.exists():
+            load_object(path)
+except ValueError as exc:
+    print(f"ERROR: {exc}", file=sys.stderr)
+    sys.exit(1)
+PY
+
 
 #
 # ----------------------------------------------------------------------
@@ -175,10 +201,7 @@ if path.exists():
     try:
         data = load_object(path)
     except ValueError as exc:
-        print(
-            f"ERROR: Invalid JSON in {path}: {exc}",
-            file=sys.stderr,
-        )
+        print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
 
     if not isinstance(data, dict):
@@ -268,7 +291,7 @@ from pi_json import backup_file, load_object, write_object
 try:
     definition = load_object(source).get("providers", {}).get(provider)
 except ValueError as exc:
-    print(f"ERROR: Invalid JSON in {source}: {exc}", file=sys.stderr)
+    print(f"ERROR: {exc}", file=sys.stderr)
     sys.exit(1)
 
 if definition is None:
@@ -282,7 +305,7 @@ if path.exists():
     try:
         data = load_object(path)
     except ValueError as exc:
-        print(f"ERROR: Invalid JSON in {path}: {exc}", file=sys.stderr)
+        print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
 
     if not isinstance(data, dict):

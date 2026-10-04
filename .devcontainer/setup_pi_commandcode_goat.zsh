@@ -133,6 +133,30 @@ log "Pi config dir : ${PI_DIR}"
 log "Model source  : ${MODELS_SOURCE}"
 log "Launchers     : ${BIN_DIR}/{piccg,piccd}"
 
+#
+# 入力とリンクをバックアップや変更の前に検査する。symlink・hard link を
+# 置き換えると共有先が更新されなくなる。
+#
+python3 - "${MODELS_SOURCE}" "${MODELS_JSON}" <<'PY'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+sys.path.insert(0, str(source.resolve().parent))
+from pi_json import load_object, require_plain_file
+
+try:
+    load_object(source)
+    for name in sys.argv[2:]:
+        path = Path(name)
+        require_plain_file(path)
+        if path.exists():
+            load_object(path)
+except ValueError as exc:
+    print(f"ERROR: {exc}", file=sys.stderr)
+    sys.exit(1)
+PY
+
 
 #
 # ----------------------------------------------------------------------
@@ -181,7 +205,7 @@ from pi_json import backup_file, load_object, write_object
 try:
     definition = load_object(source).get("providers", {}).get(provider)
 except ValueError as exc:
-    print(f"ERROR: Invalid JSON in {source}: {exc}", file=sys.stderr)
+    print(f"ERROR: {exc}", file=sys.stderr)
     sys.exit(1)
 
 if definition is None:
@@ -195,7 +219,7 @@ if path.exists():
     try:
         data = load_object(path)
     except ValueError as exc:
-        print(f"ERROR: Invalid JSON in {path}: {exc}", file=sys.stderr)
+        print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
 
     if not isinstance(data, dict):
@@ -338,7 +362,7 @@ except FileNotFoundError:
     print(f"ERROR: {path} was not created.", file=sys.stderr)
     sys.exit(1)
 except ValueError as exc:
-    print(f"ERROR: Invalid JSON in {path}: {exc}", file=sys.stderr)
+    print(f"ERROR: {exc}", file=sys.stderr)
     sys.exit(1)
 
 definition = data.get("providers", {}).get(provider)

@@ -23,8 +23,8 @@
 1. ホスト側に秘密情報の置き場を用意する（任意）。手順は `.devcontainer/README.md` の「秘密情報」にある。
 2. VS Code の Dev Containers: Reopen in Container で開く。`initializeCommand` がホスト側に mount のソースを作り、
    `postCreateCommand`（`.devcontainer/install_beforehand.bash`）が各エージェントの CLI、uv、Blender、ResoLoop などを導入する。
-   ResoLoop は `.devcontainer/resoloop.lock` が指定する版を導入する。nuget モードでは公開版を取得し、
-   fork モードでは fork を取得・ビルドする。後者はネットワークと数分の時間を要する。
+   ResoLoop は `.devcontainer/resoloop.lock` が指定する版をネットワークから導入する。nuget モードでは公開版を取得し、
+   fork モードでは fork を取得してビルドするため、数分の時間を要する。
 3. 導入を確かめる。
 
    ```bash

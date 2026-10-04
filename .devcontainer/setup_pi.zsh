@@ -42,6 +42,28 @@ mkdir -p "${PI_DIR}"
 
 echo "Pi config dir: ${PI_DIR}"
 
+# 入力とリンクをバックアップや変更の前に検査する。symlink・hard link を置き換えると
+# 共有先が更新されなくなる。不正な JSON をバックアップの後で検出すると、不要なバックアップが残る。
+python3 - "${MODELS_SOURCE}" "${MODELS_JSON}" <<'PY'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+sys.path.insert(0, str(source.resolve().parent))
+from pi_json import load_object, require_plain_file
+
+try:
+    load_object(source)
+    for name in sys.argv[2:]:
+        path = Path(name)
+        require_plain_file(path)
+        if path.exists():
+            load_object(path)
+except ValueError as e:
+    print(f"ERROR: {e}", file=sys.stderr)
+    sys.exit(1)
+PY
+
 #
 # 3. Backup
 #
@@ -74,7 +96,7 @@ from pi_json import load_object, write_object
 try:
     source_providers = load_object(source).get("providers", {})
 except ValueError as e:
-    print(f"ERROR: Invalid JSON in {source}: {e}", file=sys.stderr)
+    print(f"ERROR: {e}", file=sys.stderr)
     sys.exit(1)
 
 definitions = {}
@@ -92,7 +114,7 @@ if path.exists():
     try:
         data = load_object(path)
     except ValueError as e:
-        print(f"ERROR: Invalid JSON in {path}: {e}", file=sys.stderr)
+        print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
 else:
     data = {}

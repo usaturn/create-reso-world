@@ -16,7 +16,7 @@ import tempfile
 
 # runpy callers need the sibling helper too, regardless of their working directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pi_json import load_object, write_object
+from pi_json import load_object, require_plain_file, write_object
 
 PACKAGES = (
     "pi-mcp-adapter", "@upstash/context7-pi", "pi-distill",
@@ -63,11 +63,7 @@ def safe_storage(path):
 def read_object(path):
     safe_storage(path)
     try:
-        info = path.lstat()
-        if not stat.S_ISREG(info.st_mode):
-            raise ValueError(f"Unsafe non-regular storage file: {path}")
-        if info.st_nlink != 1:
-            raise ValueError(f"Refusing hard-linked package/settings storage: {path}")
+        require_plain_file(path)
         data = load_object(path)
     except FileNotFoundError:
         return {}

@@ -1,5 +1,14 @@
 # Issue #19 pi 拡張構成の移行 Implementation Plan
 
+- 文書管理／対象リポジトリ: `usaturn/create-reso-world`
+- 対象Issue／PR: #19／#27
+- 検証したコードHEAD: base `c40a3bdc86c2b7349ec3b7859d5b06af5d81e6e5`、初回実装 `6f0cd9ee9d04da2f177c0ab97551945583b78d49`
+- 状態: completed（初回実装と PR 作成を完了。以降のレビュー修正は `docs/superpowers/specs/2026-10-04-pr27-pi-migration-round2-review-fixes-design.md` を参照）
+- 実行許可: Issue #19 の作業時のユーザ指示「推奨案で進めて、途中で止めずに PR まで作成して」
+- 内容承認: 個別のコミット済み版の内容承認は確認できない
+- 関連Spec: `docs/superpowers/specs/2026-10-04-issue-19-pi-migration-design.md`
+- 手順のチェックボックスは作成時のまま残している。実施の記録は PR #27 と Issue #19 のコメントにある。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 廃止した pi 拡張を復活させず、組み込み MCP と移植元の拡張構成へ移行して PR を作る。

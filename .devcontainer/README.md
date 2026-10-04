@@ -470,7 +470,10 @@ Grok 4.7 の thinking level は `low` / `medium` / `high` / `xhigh` で、
 `.pi/settings.json` の `+builtin:mcp` で pi の組み込み MCP を有効にする。
 `.pi/mcp.json` は Google Developer Knowledge の HTTP サーバだけを設定しており、
 Context7 は含めない。利用者は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を設定し、pi の
-project trust を許可してから使う。各ワールドの `.pi -> ../.pi` から同じ設定を読む。
+project trust を許可してから使う。キーが無い場合、pi は起動後にこのサーバのエラーを1回通知するが、
+他の機能は使える。プロジェクトの定義は同名の利用者設定より優先されるため、利用者設定では無効化できない。
+`/mcp` で無効化すると追跡対象の `.pi/mcp.json` が書き換わるため、その変更はコミットしない。
+各ワールドの `.pi -> ../.pi` から同じ設定を読む。
 グローバルの MCP 設定・認証も保持する。
 
 pi-distill の出力圧縮と tool-display の調整は廃止した。既存の利用者が保存した
@@ -501,8 +504,13 @@ unset PI_DISTILL_TIMEOUT_SECONDS PI_DISTILL_MODEL PI_DISTILL_ERROR_RETRY_COUNT P
 
 いずれも冪等で、`providers` のうち対象プロバイダのエントリだけを置き換える。
 3 つの setup は `PI_CODING_AGENT_DIR` の `~` と `~/` だけを HOME に展開する。
-入力 JSON は上記と同じ数値検査を行い、保存内容を最後まで Unicode エスケープ付きで生成してから
-同じディレクトリの固有一時ファイルを置き換える。保存失敗時は元ファイルを残し、一時ファイルを掃除する。
+入力 JSON（`pi-models.json` と、setup が書くファイル）は、バックアップや変更の前に上記と同じ数値検査を行う。
+保存内容は最後まで Unicode エスケープ付きで生成してから
+同じディレクトリの固有一時ファイルで元ファイルを置き換える。保存失敗時は元ファイルを残し、一時ファイルを掃除する。
+置き換えると symlink や hard link の共有先が更新されなくなるため、setup が書く `models.json` と
+`auth.json`（`setup_pi_opencode_go.zsh` のみ）が symlink、hard link、通常ファイル以外のいずれかなら、
+バックアップや変更の前に停止する。リンクを通常ファイルに置き換えてから再実行する。
+検査するのはこの 2 ファイル自身で、agent directory がリンクでもファイルの置き換えでリンクは外れないため停止しない。
 models.json は既存 mode を保持し、新規作成は 0600。モデルのバックアップは時刻に固有 suffix を
 加えて同一秒の世代も上書きしない。auth.json は 0600 とし、平文認証を複製しないためバックアップを作らない。
 `setup_pi_opencode_go.zsh` は `.devcontainer/pigo`・`.devcontainer/pigod`・
