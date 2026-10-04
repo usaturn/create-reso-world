@@ -71,12 +71,14 @@ clear_git_env() {
 
 # True when both paths are the same kind of file with the same content: two
 # symlinks with the same target, or two regular files with the same bytes and
-# permission bits.
+# permission bits. The status is returned explicitly: in bash 5.2 a bare
+# `return` in a function called from a trap returns the status from before
+# the trap, not the last command's.
 same_file() {
   local a="$1" b="$2"
   if [ -L "$a" ] || [ -L "$b" ]; then
     [ -L "$a" ] && [ -L "$b" ] && [ "$(readlink -- "$a")" = "$(readlink -- "$b")" ]
-    return
+    return $?
   fi
   [ -f "$a" ] && [ -f "$b" ] && cmp -s -- "$a" "$b" &&
     [ "$(stat -c '%a' -- "$a")" = "$(stat -c '%a' -- "$b")" ]
@@ -343,10 +345,9 @@ main() {
   done
 
   # From here on the originals live only in the backup until restore_all.
-  # A signal only sets a flag: some bash versions run a trap before the
-  # foreground git has finished, and restoring then would race with git
-  # writing the same paths. The merge (which the signal does not stop when it
-  # reaches only this script) and the restore always run to the end.
+  # A signal only sets a flag, so no work happens inside the trap: the merge
+  # (which a signal sent only to this script does not stop) and the restore
+  # always run to the end in the main flow before the script exits.
   trap 'interrupted=1' HUP INT TERM
   local removed=1 merged=0 restored=1
   for rel in "${files[@]}"; do
