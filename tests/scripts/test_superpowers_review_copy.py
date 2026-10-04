@@ -22,6 +22,7 @@ MODULE = ROOT / "scripts/superpowers_review_copy.py"
 ORIGIN = "https://github.com/usaturn/create-reso-world.git"
 SPEC = "docs/superpowers/specs/2026-10-03-sample-design.md"
 SPEC2 = "docs/superpowers/specs/2026-10-04-sample-design.md"
+PLAN = "docs/superpowers/plans/2026-10-04-sample-plan.md"
 REVIEW_DIR = "tmp/superpowers-review"
 
 # A driver runs the real module with a patched os.link so a test can stop it
@@ -106,12 +107,12 @@ class ReviewCopyTests(unittest.TestCase):
             args += ["--commit", commit]
         return args
 
-    def run_copy(self, *args):
+    def run_copy(self, *args, cwd=None):
         if not MODULE.exists():
             return subprocess.CompletedProcess(list(args), 255, "", f"{MODULE.name} is missing\n")
         try:
             return subprocess.run([sys.executable, str(MODULE), *(str(a) for a in args)],
-                                  env=self.env, text=True, capture_output=True, timeout=120)
+                                  cwd=cwd, env=self.env, text=True, capture_output=True, timeout=120)
         except subprocess.TimeoutExpired:
             return subprocess.CompletedProcess(list(args), -99, "", "timed out after 120s\n")
 
@@ -245,6 +246,7 @@ class ReviewCopyTests(unittest.TestCase):
         stdout, stderr = child.communicate(timeout=60)
         self.assertNotEqual(child.returncode, 0, stdout)
         self.assertIn("is a symlink", stderr)
+        self.assertIn("-r2-spec.md", stderr)
         self.assertEqual(outside.read_text(encoding="utf-8"), "victim\n")
         self.assert_review_state("sample-doc-spec.md")
 
@@ -310,6 +312,46 @@ class ReviewCopyTests(unittest.TestCase):
         self.assertEqual(self.dest.read_text(encoding="utf-8"), "# sample v1\n")
         self.assert_review_state("sample-doc-r2-spec.md", "sample-doc-spec.md")
 
+    def test_committed_plan_copies_with_exact_bytes_full_sha_and_kind_flow(self):
+        plan = self.doc / PLAN
+        plan.parent.mkdir(parents=True)
+        plan.write_text("# sample plan v1\n", encoding="utf-8")
+        self.git(self.doc, "add", PLAN)
+        self.git(self.doc, "commit", "-m", "plan")
+        v1 = self.head(self.doc)
+        dest = self.review / "sample-doc-plan.md"
+        plan_args = self.copy_args(name="sample-doc-plan.md", path=PLAN, commit=v1)
+
+        result = self.run_copy(*plan_args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[0],
+                         "created: tmp/superpowers-review/sample-doc-plan.md", result.stdout)
+        self.assertIn(f"source: {PLAN} at {v1}", result.stdout)
+        self.assertIn(f"sha256: {hashlib.sha256(b'# sample plan v1\n').hexdigest()}", result.stdout)
+        self.assertEqual(dest.read_text(encoding="utf-8"), "# sample plan v1\n")
+        self.assert_review_state("sample-doc-plan.md")
+
+        result = self.run_copy(*plan_args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("unchanged: tmp/superpowers-review/sample-doc-plan.md", result.stdout)
+        self.assert_review_state("sample-doc-plan.md")
+
+        plan.write_text("# sample plan v2\n", encoding="utf-8")
+        self.git(self.doc, "add", PLAN)
+        self.git(self.doc, "commit", "-m", "plan v2")
+        v2 = self.head(self.doc)
+        result = self.run_copy(*self.copy_args(name="sample-doc-plan.md", path=PLAN))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("already exists with other content", result.stderr)
+        self.assertIn("-r2-plan.md", result.stderr)
+        self.assertEqual(dest.read_text(encoding="utf-8"), "# sample plan v1\n")
+        result = self.run_copy(*self.copy_args(name="sample-doc-r2-plan.md", path=PLAN, commit=v2))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.review / "sample-doc-r2-plan.md").read_text(encoding="utf-8"),
+                         "# sample plan v2\n")
+        self.assertEqual(dest.read_text(encoding="utf-8"), "# sample plan v1\n")
+        self.assert_review_state("sample-doc-plan.md", "sample-doc-r2-plan.md")
+
     def test_wrong_kind_suffix_or_uncommitted_path_is_rejected(self):
         self.rejected("is not committed",
                       *self.copy_args(path="docs/superpowers/specs/missing.md"))
@@ -318,6 +360,8 @@ class ReviewCopyTests(unittest.TestCase):
         self.rejected("--path must be docs/superpowers/specs/*.md",
                       *self.copy_args(path="docs/superpowers/other/sample-design.md", name="x-spec.md"))
         self.rejected("but --path is a spec", *self.copy_args(name="sample-doc-plan.md"))
+        self.rejected("but --path is a plan",
+                      *self.copy_args(name="sample-doc-spec.md", path=PLAN))
         self.rejected("must be a short lowercase file name", *self.copy_args(name="Spec.md"))
         self.rejected("must be a short lowercase file name", *self.copy_args(name="../escape-spec.md"))
         self.rejected("must be a short lowercase file name", *self.copy_args(name=".hidden-spec.md"))
@@ -363,6 +407,31 @@ class ReviewCopyTests(unittest.TestCase):
                               "--replace-from", self.v1, code=2)
                 self.assertEqual(sorted(os.listdir(self.review)), state)
         self.assertEqual(self.dest.read_text(encoding="utf-8"), "annotated\n")
+
+    def test_empty_required_roots_are_rejected_before_context_fallback(self):
+        # A valid main checkout as cwd makes the old cwd fallback succeed and
+        # publish; the guard must refuse the empty explicit root instead.
+        for subtest in ("--parent-root", "--doc-root"):
+            with self.subTest(flag=subtest):
+                kwargs = {"--parent-root": str(self.parent), "--doc-root": str(self.doc)}
+                kwargs[subtest] = ""
+                args = ["--doc-root", kwargs["--doc-root"], "--parent-root", kwargs["--parent-root"],
+                        "--path", SPEC, "--name", "sample-doc-spec.md"]
+                result = self.run_copy(*args, cwd=self.parent)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("usage", result.stderr)
+                self.assertIn(f"{subtest} must be a nonempty explicit absolute path", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertFalse((self.parent / REVIEW_DIR).exists(),
+                                 "an empty root still published through the cwd fallback")
+        for left in ("--parent-root", "--doc-root"):
+            for right in ("--parent-root", "--doc-root"):
+                if left == right:
+                    continue
+                args = [left, "", right, str(self.doc), "--path", SPEC, "--name", "sample-doc-spec.md"]
+                result = self.run_copy(*args, cwd=self.parent)
+                self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse((self.parent / REVIEW_DIR).exists())
 
     def test_usage_errors_exit_2(self):
         result = self.run_copy()

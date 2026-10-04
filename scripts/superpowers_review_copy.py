@@ -130,13 +130,15 @@ def ensure_review_directory(parent_root: Path, dest_rel: str) -> Path:
     return review
 
 
-def read_existing(dest: Path, dest_rel: str) -> bytes:
+def read_existing(dest: Path, dest_rel: str, name: str) -> bytes:
     """Safely read an existing destination without following symlinks or blocking."""
     try:
         fd = os.open(dest, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     except OSError as exc:
         if exc.errno in (errno.ELOOP, errno.EMLINK):
-            raise CopyError(f"{dest_rel} is a symlink") from exc
+            raise CopyError(
+                f"{dest_rel} is a symlink; it was never followed or replaced. Publish the new "
+                f"version under a versioned name such as {suggest_versioned(name)}") from exc
         raise CopyError(f"cannot read the existing {dest_rel}: {exc}") from exc
     try:
         info = os.fstat(fd)
@@ -171,7 +173,7 @@ def publish(staged: Path, dest: Path, dest_rel: str, content: bytes, name: str) 
     except OSError as exc:
         if exc.errno != errno.EEXIST:
             raise CopyError(f"publishing {dest_rel} failed: {exc}") from exc
-        existing = read_existing(dest, dest_rel)
+        existing = read_existing(dest, dest_rel, name)
         if existing != content:
             raise CopyError(
                 f"{dest_rel} already exists with other content; it was never replaced. "
@@ -215,7 +217,7 @@ def run(args: argparse.Namespace) -> int:
                 handle.flush()
                 os.fchmod(handle.fileno(), 0o644)
             status = publish(staged, dest, dest_rel, content, args.name)
-            if status == "created" and read_existing(dest, dest_rel) != content:
+            if status == "created" and read_existing(dest, dest_rel, args.name) != content:
                 # Never delete or rewrite the entry: it may belong to another actor.
                 raise CopyError(
                     f"{dest_rel} does not match {args.path} at {commit} after copying; "
@@ -254,6 +256,10 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
             "--replace-from was removed: reviewed copies are never replaced. Publish the new "
             "version under a versioned name (for example TOPIC-r2-spec.md); old copies and "
             "annotations stay untouched")
+    for option in ("doc-root", "parent-root"):
+        if not getattr(args, option.replace("-", "_")):
+            # required=True accepts ""; the common resolver would fall back to cwd.
+            parser.error(f"--{option} must be a nonempty explicit absolute path")
     return args
 
 
