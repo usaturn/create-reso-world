@@ -16,8 +16,19 @@
 #   10 lock exists and a live process holds it
 #   11 lock exists and no holder was found (stale; clear may remove it)
 #   12 lock exists and the holder could not be determined
+#
+# JSON output (--json): exactly one object on stdout with the keys
+#   path, exists, removed, size, mtime, holder, stale
+# `removed` is false for check and reports whether clear deleted the lock.
+# Usage errors and removal failures are written to stderr and emit no JSON.
+#
+# Environment:
+#   PROC_ROOT  location of the process filesystem (default /proc; a test
+#              injection point, normally left unset)
 
 set -u
+
+readonly PROC_ROOT="${PROC_ROOT:-/proc}"
 
 readonly EXIT_OK=0
 readonly EXIT_FAIL=1
@@ -33,10 +44,17 @@ usage: stale_git_lock.sh check [--json] [--repo <path>]
 EOF
 }
 
+# A lock is "present" when the path exists, including a dangling symlink.
+lock_exists() {
+  [ -e "$1" ] || [ -L "$1" ]
+}
+
 # Resolve the lock path through git itself so linked worktrees report
 # .git/worktrees/<name>/index.lock instead of the main .git/index.lock.
+# Only the parent directory is normalized: the lock itself may be a symlink,
+# and resolving it would make clear delete the link's target instead.
 resolve_lock_path() {
-  local repo="$1" raw resolved
+  local repo="$1" raw parent
   if ! raw="$(git -C "$repo" rev-parse --git-path index.lock 2>/dev/null)"; then
     return 1
   fi
@@ -44,17 +62,34 @@ resolve_lock_path() {
     /*) ;;
     *) raw="$repo/$raw" ;;
   esac
-  if resolved="$(readlink -f -- "$raw" 2>/dev/null)" && [ -n "$resolved" ]; then
-    raw="$resolved"
+  if parent="$(readlink -f -- "$(dirname -- "$raw")" 2>/dev/null)" && [ -n "$parent" ]; then
+    raw="$parent/$(basename -- "$raw")"
   fi
   printf '%s\n' "$raw"
 }
 
+# Escape a string for embedding in a JSON string literal. Control characters
+# are emitted as \u00XX so a newline or quote in a path cannot break the JSON.
 json_escape() {
-  local text="$1"
-  text="${text//\\/\\\\}"
-  text="${text//\"/\\\"}"
-  printf '%s' "$text"
+  local text="$1" escaped="" char code i
+  for (( i=0; i<${#text}; i++ )); do
+    char="${text:i:1}"
+    case "$char" in
+      '"') escaped+='\"' ;;
+      '\') escaped+='\\' ;;
+      $'\n') escaped+='\n' ;;
+      $'\r') escaped+='\r' ;;
+      $'\t') escaped+='\t' ;;
+      *)
+        if printf -v code '%d' "'$char" 2>/dev/null && [ "$code" -lt 32 ]; then
+          printf -v escaped '%s\\u%04x' "$escaped" "$code"
+        else
+          escaped+="$char"
+        fi
+        ;;
+    esac
+  done
+  printf '%s' "$escaped"
 }
 
 # Holder detection with lsof. lsof exits 1 when nothing matches; any other
@@ -70,7 +105,9 @@ holder_state_lsof() {
       # lsof columns: COMMAND PID USER FD ... (the header is skipped too)
       set -- $line
       [ "${1:-}" = "COMMAND" ] && [ "${2:-}" = "PID" ] && continue
-      [ "${2:-}" = "$$" ] && continue
+      case "${2:-}" in
+        "$$"|"$BASHPID") continue ;;
+      esac
       printf 'present\n'
       return 0
     done <<< "$output"
@@ -84,23 +121,49 @@ holder_state_lsof() {
   return 0
 }
 
-# Linux fallback: a holder is any process with an fd whose readlink target is
-# the lock path (a deleted-but-open lock reports " (deleted)").
+# Does this PID look like a git process? Used only when its fd directory
+# cannot be listed, so that a hidden git holder becomes "unknown" instead of
+# silently counting as "no holder".
+process_looks_like_git() {
+  local pid="$1" comm="" cmdline=""
+  comm="$(cat "$pid/comm" 2>/dev/null)" || comm=""
+  cmdline="$(tr '\0' ' ' <"$pid/cmdline" 2>/dev/null)" || cmdline=""
+  case "$comm" in
+    git|git-*) return 0 ;;
+  esac
+  case "$cmdline" in
+    "git"|"git "*|*"/git"|*"/git "*) return 0 ;;
+  esac
+  return 1
+}
+
+# Linux fallback: a holder is any process with an fd whose device:inode
+# matches the lock (inode comparison also catches hardlinks and bind mounts).
+# An fd directory that cannot be listed hides its holders; for a git process
+# that is "unknown", never "absent".
 holder_state_proc() {
-  local path="$1" pid fd target seen=0
-  for pid in /proc/[0-9]*; do
-    [ -d "$pid/fd" ] || continue
+  local path="$1" pid fd fd_id ref_id seen=0 has_fd=0
+  ref_id="$(stat -Lc '%d:%i' -- "$path" 2>/dev/null)" || ref_id="$(stat -c '%d:%i' -- "$path" 2>/dev/null)" || ref_id=""
+  for pid in "$PROC_ROOT"/[0-9]*; do
+    [ -d "$pid" ] || continue
     seen=1
+    has_fd=0
     for fd in "$pid"/fd/*; do
-      target="$(readlink -- "$fd" 2>/dev/null)" || continue
-      case "$target" in
-        "$path"|"$path (deleted)")
-          [ "${pid##*/}" = "$$" ] && continue
-          printf 'present\n'
-          return 0
-          ;;
-      esac
+      [ -e "$fd" ] || [ -L "$fd" ] || continue
+      has_fd=1
+      fd_id="$(stat -Lc '%d:%i' -- "$fd" 2>/dev/null)" || continue
+      if [ -n "$ref_id" ] && [ "$fd_id" = "$ref_id" ]; then
+        case "${pid##*/}" in
+          "$$"|"$BASHPID") continue ;;
+        esac
+        printf 'present\n'
+        return 0
+      fi
     done
+    if [ "$has_fd" -eq 0 ] && process_looks_like_git "$pid"; then
+      printf 'unknown\n'
+      return 0
+    fi
   done
   if [ "$seen" -eq 1 ]; then
     printf 'absent\n'
@@ -111,18 +174,35 @@ holder_state_proc() {
 }
 
 # Prints present | absent | unknown. A missing lsof must not turn into
-# "absent": fall back to /proc, and only report unknown when neither works.
+# "absent": fall back to /proc. When both sources are usable their answers
+# are combined as a union (present > unknown > absent), and only when neither
+# source works is the answer unknown.
 holder_state() {
-  local path="$1"
+  local path="$1" state="" combined=""
   if command -v lsof >/dev/null 2>&1; then
-    holder_state_lsof "$path"
-    return 0
+    state="$(holder_state_lsof "$path")"
+    if [ "$state" = present ]; then
+      printf 'present\n'
+      return 0
+    fi
+    combined="$state"
   fi
-  if [ -d /proc ] && [ -r /proc/self/fd ] && [ -d /proc/self/fd ]; then
-    holder_state_proc "$path"
-    return 0
+  if [ -d "$PROC_ROOT" ] && [ -r "$PROC_ROOT" ]; then
+    state="$(holder_state_proc "$path")"
+    if [ "$state" = present ]; then
+      printf 'present\n'
+      return 0
+    fi
+    if [ "$state" = unknown ] || [ "$combined" = unknown ]; then
+      combined="unknown"
+    elif [ -z "$combined" ]; then
+      combined="$state"
+    fi
   fi
-  printf 'unknown\n'
+  if [ -z "$combined" ]; then
+    combined="unknown"
+  fi
+  printf '%s\n' "$combined"
   return 0
 }
 
@@ -178,10 +258,10 @@ main() {
     exit "$EXIT_USAGE"
   fi
 
-  # Size is not a stale criterion; a 0-byte lock is only the typical case.
-  # The decision comes from the holder state.
+  # Size and mtime are informational. The stale decision comes from the
+  # holder state: absent is stale, present and unknown are not removable.
   local exists=0 size="null" mtime="null" holder="absent" stale="false" code=$EXIT_OK
-  if [ -e "$lock_path" ]; then
+  if lock_exists "$lock_path"; then
     exists=1
     holder="$(holder_state "$lock_path")"
     size="$(stat -c '%s' -- "$lock_path" 2>/dev/null)" || size="null"
@@ -204,7 +284,7 @@ main() {
   local removed=0
   if [ "$mode" = clear ] && [ "$code" = "$EXIT_STALE" ]; then
     rm -f -- "$lock_path"
-    if [ -e "$lock_path" ]; then
+    if lock_exists "$lock_path"; then
       printf 'failed to remove: %s\n' "$lock_path" >&2
       exit "$EXIT_FAIL"
     fi
