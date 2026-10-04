@@ -87,32 +87,6 @@
         }
       ]
     },
-    "deepinfra-distill": {
-      "name": "DeepInfra Distill",
-      "baseUrl": "https://api.deepinfra.com/v1/openai",
-      "apiKey": "$DEEPINFRA_TOKEN",
-      "api": "openai-completions",
-      "authHeader": true,
-      "models": [
-        {
-          "id": "openai/gpt-oss-20b",
-          "name": "GPT OSS 20B Distill",
-          "reasoning": false,
-          "input": ["text"],
-          "contextWindow": 131072,
-          "maxTokens": 4096,
-          "samplingParams": {
-            "reasoning_effort": "none"
-          },
-          "cost": {
-            "input": 0.03,
-            "output": 0.14,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
-        }
-      ]
-    },
     "opencode-go": {
       "models": [
         {

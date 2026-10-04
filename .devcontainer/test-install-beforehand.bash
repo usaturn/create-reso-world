@@ -49,11 +49,13 @@ codex_step="$(first_line '^step "Installing Codex"$')"
 [ "$(first_line '^if ! npm install -g @openai/codex@latest; then$')" -gt "$codex_step" ] || fail 'npm install of Codex is not in its step'
 first_line 'command -v codex' >/dev/null
 
-# 3. uv は pi の設定より前に導入し、setup_pi_tool_display.py は uv run で実行する（仕様 7.2）
+# 3. uv は pi の設定より前に導入し、旧拡張 cleanup は全拡張の導入前に実行する
 uv_step="$(first_line '^step "Installing uv"$')"
 [ "$uv_step" -lt "$(first_line '^step "Installing pi"$')" ] || fail 'uv must be installed before pi'
 [ "$uv_step" -lt "$(first_line 'uv run ')" ] || fail 'uv must be installed before the first uv run'
-first_line '^if ! uv run --no-project \.devcontainer/setup_pi_tool_display\.py; then$' >/dev/null
+cleanup="$(first_line '^if ! uv run --no-project \.devcontainer/cleanup_pi_mcp\.py; then$')"
+[ "$cleanup" -lt "$(first_line '^install_pi_extensions$')" ] || fail 'cleanup must run before extension installation'
+if grep -q 'setup_pi_tool_display\|npm:pi-distill' "$installer"; then fail 'retired distillation setup is still installed'; fi
 [ "$(commands 'python3')" -eq 0 ] || fail 'install_beforehand.bash must not run python3 directly'
 
 # 4. 重複していた apt update と ~/.local/bin の PATH の export は 1 回だけ（仕様 7.2）

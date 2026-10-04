@@ -1,8 +1,5 @@
 #!/usr/bin/env zsh
-PROVIDERS=("deepinfra" "deepinfra-distill")
-MODEL="openai/gpt-oss-20b"
-DISTILL_PROVIDER="deepinfra-distill"
-BASE_URL="https://api.deepinfra.com/v1/openai"
+PROVIDERS=("deepinfra")
 
 # PI_CODING_AGENT_DIR が設定されている場合も考慮
 PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
@@ -51,10 +48,10 @@ if [[ -f "${MODELS_JSON}" ]]; then
 fi
 
 #
-# 4. Add/update DeepInfra providers
+# 4. Add/update the DeepInfra provider
 #
 # 定義は .devcontainer/pi-models.json から読み取る。
-# deepinfra と deepinfra-distill 以外のプロバイダはそのまま保持する。
+# deepinfra 以外のプロバイダはそのまま保持する。
 #
 python3 - "${MODELS_JSON}" "${MODELS_SOURCE}" "${PROVIDERS[@]}" <<'PY'
 import json
@@ -116,10 +113,7 @@ echo "models.json JSON validation: OK"
 echo
 echo "=== Setup complete ==="
 echo "Providers: ${PROVIDERS[*]}"
-echo "Distill model: ${DISTILL_PROVIDER}/${MODEL}"
 echo "Config   : ${MODELS_JSON}"
 echo
 echo "Verify with:"
-echo "  pi --list-models gpt-oss-20b"
-echo
-echo "Distillation uses ${DISTILL_PROVIDER}/${MODEL}; Main model is unchanged."
+echo "  pi --list-models deepinfra"

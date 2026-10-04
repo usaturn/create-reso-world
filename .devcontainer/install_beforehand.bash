@@ -145,7 +145,7 @@ if ! command -v codex >/dev/null 2>&1; then
 fi
 
 step "Installing uv"
-# pi の設定ステップ（setup_pi_tool_display.py）が uv run を使うため、pi より前に導入する。
+# pi の旧拡張 cleanup が uv run を使うため、pi より前に導入する。
 # uv は ~/.local/bin に入り、この PATH は Claude Code の導入直後に通してある
 if ! (
     set -o pipefail
@@ -230,8 +230,8 @@ if ! npm install -g --ignore-scripts @earendil-works/pi-coding-agent; then
     fail "pi installation failed."
 fi
 
-step "Cleaning up pi-only MCP additions"
-# ~/.pi は bind mount。既存の拡張登録・npm マニフェスト・pi 専用 MCP state も移行する。
+step "Cleaning up retired pi extensions and MCP additions"
+# ~/.pi は bind mount。廃止拡張の登録・npm マニフェスト・-builtin:mcp と旧 MCP state を移行する。
 if ! uv run --no-project .devcontainer/cleanup_pi_mcp.py; then
     fail "pi-only MCP cleanup failed."
 fi
@@ -308,7 +308,6 @@ install_pi_extensions
 
 step "Installing the pi extensions"
 for extension in \
-    npm:pi-distill \
     npm:@jc4649/notify \
     npm:pi-safe-search \
     npm:pi-diet-ripgrep \
@@ -320,10 +319,6 @@ for extension in \
         fail "Failed to install the pi extension ${extension}."
     fi
 done
-if ! uv run --no-project .devcontainer/setup_pi_tool_display.py; then
-    fail "Failed to disable the pi tool-display Bash override."
-fi
-
 step "Placing ~/.pi/agent/models.json"
 # models.json は bind mount した ~/.pi 側を正とし、無い場合のみ雛形を配置する。
 # 毎回上書きすると、ホスト側で加えたモデル定義の変更がリビルドで失われる。
@@ -461,4 +456,3 @@ fi
 if ! herdr --version; then
     fail "Herdr version verification failed."
 fi
-

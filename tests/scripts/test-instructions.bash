@@ -58,6 +58,7 @@ lacks .pi/APPEND_SYSTEM.md 'subagent-launch-verification'
 lacks .pi/APPEND_SYSTEM.md '# resoloop 注意'
 lacks .pi/APPEND_SYSTEM.md '@.agents/skills/'
 lacks .pi/APPEND_SYSTEM.md '親 checkout'
+lacks .pi/APPEND_SYSTEM.md 'PI_DISTILL_MODEL'
 for s in '/skill:agent-handoff' 'herdr-agent-task' 'pi-model-name' 'simplify-in-subagent' 'MODEL_NAME'; do
   has .pi/APPEND_SYSTEM.md "$s"
 done

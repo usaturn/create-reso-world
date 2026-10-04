@@ -166,15 +166,25 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 プラグインの有効化は `.claude/settings.json` の `extraKnownMarketplaces` と
 `enabledPlugins` で行う。設定の反映には Claude Code の再起動が必要である。
 
-## pi 専用 MCP 追加設定の整理
+## pi の旧拡張・MCP 設定の移行
 
 ドキュメント取得は共有の `find-docs` スキル経由の CLI を標準とする。
-`pi-mcp-adapter` と `@upstash/context7-pi` は pi の拡張として導入しない。
+`pi-mcp-adapter`、`@upstash/context7-pi`、`pi-distill`、単独登録の
+`pi-extensions-tool-display` と `pi-extensions-i18n` は導入しない。
 postCreate は拡張の導入前に既存の登録・pi 管理 npm マニフェストと、pi agent directory 内の
 `mcp-cache.json`、`mcp-project-approvals.json`、`mcp-onboarding.json`、
 `mcp-npx-cache.json` を整理する。
 組み込み MCP も使う `mcp.json` と `mcp-auth.json` は、内容とリンクをそのまま保持する。
-共有の MCP 設定・API キー・`find-docs`・`~/.npm` のキャッシュと、pi 組み込み機能は変更しない。
+settings の `extensions` から `-builtin:mcp` だけを除き、他の拡張・独自モデル・認証は保持する。
+共有の MCP 設定・API キー・`find-docs`・`~/.npm` のキャッシュは変更しない。
+
+変更前には `agent/migration-backups/pi-retired-*` に settings と存在する npm マニフェストの
+元バイト列を保存し、保存先を表示する。各バックアップは固有名のディレクトリ（0700）に置く。
+バックアップに失敗した場合は撤去しない。途中で pi remove が失敗した場合は、理由を出して
+停止しバックアップを残す。復旧する場合は pi を終了し、表示されたディレクトリ内のファイルを
+元の agent directory の同じ相対パスへ戻してから npm の状態を確認し、必要な拡張を再導入する。
+バックアップは npm インストール実体を含まないため、node_modules の復旧には再導入が必要。
+整理済みの再実行や空の初回環境ではバックアップ・settings を新設しない。
 
 既存環境では pi と uv を導入済みの状態で、リポジトリのルートから次を実行する。
 
@@ -218,9 +228,6 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
   `.devcontainer/pi-superagents-exec.zsh` → `~/.local/bin/pi-superagents-exec.zsh`。
   `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 2 種を配置する
   （詳細は後述の「pi-superagents のランチャー別 model tier」を参照）
-- `.devcontainer/setup_pi_tool_display.py` は
-  `~/.pi/agent/extensions/pi-tool-display/config.json` の Bash override だけを
-  `false` にする。既存設定の他の項目は保持する
 
 `~/.local/bin` への PATH は `zshrc.txt` が通すため、別途の設定は不要である。
 
@@ -414,65 +421,23 @@ Grok 4.7 の thinking level は `low` / `medium` / `high` / `xhigh` で、
 `opencode-go/deepseek-v4.1-flash` の `max`、`max` が `xai/grok-4.7` の
 `xhigh` を使う。未認証時に別モデルへ自動フォールバックはしない。
 
-### pi-distill の分離（Main / Distillation）
+### 組み込み MCP と廃止した拡張
 
-リポジトリ既定では Main は起動時に選んだモデルを使い、Distillation だけを
-`deepinfra-distill/openai/gpt-oss-20b` へ送る。`zshrc.txt` で
-`PI_DISTILL_MODEL` と `PI_DISTILL_ERROR_RETRY_COUNT=0` を設定しており、認証エラーや
-provider エラーなどの非タイムアウト失敗は再試行しない。タイムアウト再試行
-（`PI_DISTILL_TIMEOUT_RETRY_COUNT`）は変更していない。
+`.pi/settings.json` の `+builtin:mcp` で pi の組み込み MCP を有効にする。
+`.pi/mcp.json` は Google Developer Knowledge の HTTP サーバだけを設定しており、
+Context7 は含めない。利用者は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を設定し、pi の
+project trust を許可してから使う。各ワールドの `.pi -> ../.pi` から同じ設定を読む。
+グローバルの MCP 設定・認証も保持する。
 
-Distillation 専用の `deepinfra-distill` provider は通常利用の `deepinfra` から分離しており、
-`reasoning: false` と `reasoning_effort: "none"` で Distillation に不要な reasoning token を
-最小化する。実測上は `reasoning_content` が残るため、reasoning の完全停止は保証しない。
-
-このため `pigo`（Main は OpenCode Go）を使う場合も、Distillation を成功させる
-には `DEEPINFRA_TOKEN` が必要である。未設定でも Main は利用でき、Distillation
-の失敗は pi-distill の fail-open により元のツール出力を保持する。
-
-`~/.pi/agent/extensions/pi-distill/config.json` に `model` または
-`errorRetryCount` がある場合、その値が環境変数より優先される。`model` が空文字の
-場合は Main モデルを使い、DeepInfra へは送らない。`/config:distill` の UI は
-スラッシュを 1 つしか受け付けないため、`deepinfra-distill/openai/gpt-oss-20b`
-を UI から入力すると検証エラーになる。その値を設定するときは config.json を
-直接編集する。`/config:distill` で保存した利用者設定は意図的な上書きとして尊重し、
-セットアップから作成・上書き・削除しない。
-
-#### Bash tool のセッション環境変数
-
-`pi-distill` と同時に読み込まれる `pi-extensions-tool-display` の Bash override
-では、Pi 標準 Bash tool にセッション情報が渡らず、LLM が呼ぶ Bash tool 内の
-`PI_PROVIDER`、`PI_MODEL`、`PI_SESSION_ID`、`PI_REASONING_LEVEL` が空になる。
-`install_beforehand.bash` は `pi-distill` のインストール後に
-`.devcontainer/setup_pi_tool_display.py` を実行し、`registerToolOverrides.bash` だけを
-`false` にする。これにより Pi 標準 Bash tool が実行を担当し、`pi-distill` の
-tool result 圧縮は続く。Bash 専用の tool-display 表示は使えなくなる。
-
-既存環境へ反映するときは、リポジトリのルートで次を実行し、Pi で `/reload` する。
-
-```bash
-uv run --no-project .devcontainer/setup_pi_tool_display.py
-```
-
-スクリプトは `PI_CODING_AGENT_DIR` を指定している場合、その agent directory 内の
-設定を変更する。既存 JSON が壊れている場合は上書きせずエラーにする。
-確認時は `!` コマンドではなく、LLM に Bash tool で次を実行させる。
-
-```bash
-printf 'provider=<%s> model=<%s> session=<%s> reasoning=<%s>\n' \
-  "$PI_PROVIDER" "$PI_MODEL" "$PI_SESSION_ID" "$PI_REASONING_LEVEL"
-```
-
-`/model` でモデルを切り替えて再実行すると provider / model が更新され、同じ
-session ID が維持される。長い Bash 出力の後に `/distill:stats` で圧縮実績を確認する。
-
-既存環境では `zsh .devcontainer/setup_pi.zsh` を一度実行し、`deepinfra` と
-`deepinfra-distill` を `~/.pi/agent/models.json` へ同期する
-（`install_beforehand.bash` は既存ファイルを上書きしないため）。
+pi-distill の出力圧縮と tool-display の調整は廃止した。既存の利用者が保存した
+extension config は変更しない。新しいシェルで環境変数の変更を反映し、pi を再起動する。
+新規モデル雛形と `setup_pi.zsh` は deepinfra-distill を登録しない。
+既存 `models.json` に同名 provider があっても、独自モデルを保護するため削除しない。
+リポジトリからは参照しないため、不要な場合は利用者がモデル定義を確認してから除去できる。
 
 ### setup スクリプトを使う場面
 
-`.devcontainer/setup_pi.zsh`（deepinfra / deepinfra-distill）、`.devcontainer/setup_pi_opencode_go.zsh`
+`.devcontainer/setup_pi.zsh`（deepinfra）、`.devcontainer/setup_pi_opencode_go.zsh`
 （opencode-go）、`.devcontainer/setup_pi_commandcode_goat.zsh`（commandcode）は、
 リビルドのたびに実行するものではない。次の場面で使う。
 

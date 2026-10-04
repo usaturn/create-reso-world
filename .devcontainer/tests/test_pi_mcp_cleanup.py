@@ -291,6 +291,60 @@ class PiMcpCleanupTests(unittest.TestCase):
             "git:github.com/obra/superpowers", "npm:pi-lens", "npm:pi-simplify",
             "npm:@howaboua/pi-skill-skill-creator",
         ])
+        self.assert_success(self.run_provisioning(FAKE_PI_REQUIRE_CLEAN="1"))
+        self.assertEqual(json.loads((self.agent / "settings.json").read_text()), settings)
+        result = subprocess.run(["pi", "update", "--extensions"], cwd=self.project,
+                                env=self.env, text=True, capture_output=True)
+        self.assert_success(result)
+        for name in REMOVED:
+            self.assertFalse((self.agent / "npm/node_modules" / name).exists(), name)
+
+    # Break caught: retiring existing installations but reinstalling distill on a clean postCreate.
+    def test_fresh_provisioning_and_rerun_install_only_retained_extensions(self):
+        for _ in range(2):
+            self.assert_success(self.run_provisioning(FAKE_PI_REQUIRE_CLEAN="1"))
+            settings = json.loads((self.agent / "settings.json").read_text())
+            self.assertEqual(settings["packages"], [
+                "npm:@teelicht/pi-superagents", "npm:@jc4649/notify", "npm:pi-safe-search",
+                "npm:pi-diet-ripgrep", "git:github.com/obra/superpowers", "npm:pi-lens",
+                "npm:pi-simplify", "npm:@howaboua/pi-skill-skill-creator",
+            ])
+        self.assertFalse((self.agent / "migration-backups").exists())
+
+    # Break caught: missing project builtin MCP settings or a broken shared .pi link in world cwd.
+    def test_project_builtin_mcp_settings_are_shared_with_worlds(self):
+        for cwd in (ROOT, *(ROOT / name for name in ("MyResoniteProject", "akichi", "slum02", "slum03"))):
+            with self.subTest(cwd=cwd):
+                path = cwd / ".pi/settings.json"
+                self.assertTrue(path.is_file(), str(path))
+                settings = json.loads(path.read_text())
+                self.assertEqual(settings, {"extensions": ["+builtin:mcp"]})
+                mcp = json.loads((cwd / ".pi/mcp.json").read_text())
+                self.assertEqual(mcp, {"mcpServers": {"google-dev-knowledge": {
+                    "type": "http", "url": "https://developerknowledge.googleapis.com/mcp",
+                    "headers": {"X-Goog-Api-Key": "${GOOGLE_DEV_KNOWLEDGE_API_KEY}"},
+                }}})
+
+    # Break caught: setup reintroducing the retired provider or deleting a user's custom models.
+    def test_deepinfra_setup_does_not_reintroduce_distill_and_preserves_custom_models(self):
+        for existing in (False, True):
+            with self.subTest(existing=existing):
+                path = self.agent / "models.json"
+                custom = {"models": [{"id": "personal-model"}]}
+                if existing:
+                    self.save(path, {"providers": {"deepinfra-distill": custom, "personal": custom}})
+                result = subprocess.run(["zsh", str(ROOT / ".devcontainer/setup_pi.zsh")],
+                                        env={**self.env, "DEEPINFRA_TOKEN": "offline-fixture"},
+                                        text=True, capture_output=True)
+                self.assert_success(result)
+                models = json.loads(path.read_text())["providers"]
+                self.assertIn("deepinfra", models)
+                self.assertNotIn("deepinfra-distill", json.loads((ROOT / ".devcontainer/pi-models.json").read_text())["providers"])
+                if existing:
+                    self.assertEqual(models["deepinfra-distill"], custom)
+                    self.assertEqual(models["personal"], custom)
+                else:
+                    self.assertNotIn("deepinfra-distill", models)
 
     # Break caught: attempting removal/creating settings on a fresh installation.
     def test_fresh_environment_stays_empty(self):
