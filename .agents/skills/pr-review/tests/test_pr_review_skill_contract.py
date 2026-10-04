@@ -71,18 +71,10 @@ def read(path: Path) -> str:
 
 def extract_resolver_script(skill_text: str) -> str:
     """Extract the MAIN_ROOT resolver bash block from a skill document."""
-    pattern = re.compile(
-        r"```bash\n("
-        r"[ \t]*PR_URL=\$\(printf '%s' \"\$PR_JSON\" \| jq -r \.url\)\n"
-        r"[ \t]*TOPLEVEL=\$\(git rev-parse --show-toplevel\)\n"
-        r"[ \t]*github_repository\(\) \{.*?"
-        r"[ \t]*fi\n"
-        r")[ \t]*```",
-        re.DOTALL,
-    )
-    match = pattern.search(skill_text)
-    assert match is not None, "resolver bash block not found in skill"
-    block = match.group(1)
+    blocks = re.findall(r"```bash\n(.*?)```", skill_text, re.DOTALL)
+    block = next((block for block in blocks if "--operation review-workspace" in block
+                 ), None)
+    assert block is not None, "resolver bash block not found in skill"
     # Nested list markdown indents the fence body; strip a common indent.
     lines = block.splitlines()
     indents = [len(line) - len(line.lstrip(" ")) for line in lines if line.strip()]
@@ -95,6 +87,7 @@ def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProce
         ["git", "-c", "user.email=test@example.com", "-c", "user.name=test", *args],
         cwd=cwd,
         check=check,
+        env=dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null"),
         text=True,
         capture_output=True,
     )
@@ -120,6 +113,11 @@ def build_parent_with_fork(tmp_path: Path, *, fork: str = "ok") -> Path:
     _git(parent, "add", ".gitignore")
     _git(parent, "commit", "-m", "init parent")
     _git(parent, "remote", "add", "origin", PARENT_ORIGIN)
+    helper = REPO_ROOT / "scripts/superpowers_context.py"
+    (parent / "scripts").mkdir()
+    shutil.copy2(helper, parent / "scripts/superpowers_context.py")
+    _git(parent, "add", "scripts/superpowers_context.py")
+    _git(parent, "commit", "-m", "install context helper")
     checkout = parent / "external" / "resoloop"
     if fork == "missing":
         return parent.resolve()
@@ -146,6 +144,8 @@ class ResolverFixture:
         code_root: str | None = None,
         shell: str = "bash",
         nounset: bool = True,
+        parent_root: str | None = None,
+        cwd: Path | None = None,
     ) -> tuple[Path, str]:
         script = extract_resolver_script(read(skill_path))
         pr_json = json.dumps({"url": pr_url})
@@ -154,13 +154,15 @@ class ResolverFixture:
         harness = f"""{shell_options}
 PR_JSON={json.dumps(pr_json)}
 CODE_ROOT={json.dumps(code_root or "")}
+PARENT_ROOT={json.dumps(parent_root or "")}
 {script}
 printf '%s\\n' "$MAIN_ROOT" "$PR_REMOTE"
 """
         shell_args = [shell, "-f"] if shell == "zsh" else [shell]
         completed = subprocess.run(
             [*shell_args, "-c", harness],
-            cwd=self.toplevel,
+            cwd=cwd or self.toplevel,
+            env=dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null"),
             text=True,
             capture_output=True,
             check=False,
@@ -214,18 +216,6 @@ def assert_review_contract(content: str) -> None:
     assert content.count("headRefOid") >= 3
     assert "他モデルのレビュー本文" in content
     assert "PR_URL=$(printf '%s' \"$PR_JSON\" | jq -r .url)" in content
-    assert "github_repository()" in content
-    assert 'MAIN_ROOT="$TOPLEVEL"' in content
-    assert 'FORK_ROOT="$TOPLEVEL/external/resoloop"' in content
-    assert 'MAIN_ROOT="$FORK_ROOT"' in content
-    assert "usaturn/resoloop" in content
-    assert "orange3134/resoloop" in content
-    assert 'git -C "$TOPLEVEL" remote get-url origin' in content
-    assert 'git -C "$FORK_ROOT" remote get-url upstream' in content
-    assert "scripts/resoloop-fork.sh clone" in content
-    assert "unsupported PR repository" in content
-    assert 'elif [[ -n "$CODE_ROOT" ]]; then' in content
-    assert "exit 66" in content
     assert "リポジトリ境界" in content
     assert 'fetch "$PR_REMOTE" "+pull/<PR_NUMBER>/head:$PR_REF"' in content
     assert "external/resoloop/reviews/" in content
@@ -313,6 +303,7 @@ def test_skill_interpolation_is_limited_to_the_target_line() -> None:
 ALLOWED_TOOLS = (
     "Read, Grep, Glob, Bash(gh *), Bash(git *), Bash(date *), "
     "Bash(uv run --no-project python *pr_review_workspace.py *), "
+    "Bash(uv run --no-project python *superpowers_context.py *), "
     "Edit(/tmp/pr-review-*/review-backup/**), Write(/tmp/pr-review-*/review-backup/**), Agent"
 )
 
@@ -444,7 +435,7 @@ def test_pr_review_resolver_stops_for_unknown_repository(skill_path: Path, resol
             "https://github.com/other/repository/pull/3",
             skill_path=skill_path,
         )
-    assert stopped.value.returncode == 64
+    assert stopped.value.returncode == 66
     assert "unsupported PR repository: other/repository" in stopped.value.stderr
 
 
@@ -464,7 +455,7 @@ def test_pr_review_resolver_stops_without_a_verified_fork_checkout(tmp_path: Pat
     resolver = make_resolver(tmp_path, fork=fork)
     with pytest.raises(ResolverStopped) as stopped:
         resolver.resolve(f"https://github.com/{owner}/resoloop/pull/4", skill_path=AGENTS_SKILL)
-    assert stopped.value.returncode == 65
+    assert stopped.value.returncode == 66
     assert "scripts/resoloop-fork.sh clone" in stopped.value.stderr
     assert stopped.value.stdout == ""
 
@@ -762,3 +753,66 @@ def test_timing_separates_observation_from_runtime_measurement() -> None:
         "2700 秒以下",
     ):
         assert required in content
+
+
+@pytest.mark.parametrize("case", ["implicit", "explicit", "duplicate", "subdirectory"])
+def test_external_cwd_does_not_bypass_parent_or_code_preflight(
+    tmp_path: Path, case: str, resolver_shell: tuple[str, bool]
+) -> None:
+    resolver = make_resolver(tmp_path)
+    checkout = build_checkout(tmp_path / "other", {"origin": "https://github.com/other/repository.git"})
+    if case == "duplicate":
+        _git(checkout, "remote", "add", "mirror", "git@github.com:other/repository.git")
+    sub = checkout / "src"
+    sub.mkdir()
+    code = str(sub if case == "subdirectory" else checkout) if case != "implicit" else None
+    before = (_git(checkout, "rev-parse", "HEAD").stdout, _git(checkout, "status", "--porcelain").stdout,
+              _git(checkout, "remote", "-v").stdout)
+    shell, nounset = resolver_shell
+    with pytest.raises(ResolverStopped) as stopped:
+        resolver.resolve(OTHER_URL, skill_path=AGENTS_SKILL, code_root=code, cwd=checkout,
+                         shell=shell, nounset=nounset)
+    assert stopped.value.returncode == 66
+    assert "PARENT_ROOT" in stopped.value.stderr
+    assert stopped.value.stdout == ""
+    assert before == (_git(checkout, "rev-parse", "HEAD").stdout, _git(checkout, "status", "--porcelain").stdout,
+                      _git(checkout, "remote", "-v").stdout)
+
+
+@pytest.mark.parametrize("origin", [None, "not-a-url", "https://example.com/usaturn/create-reso-world.git"])
+def test_invalid_parent_origin_fails_with_diagnostic_before_using_external_code(
+    tmp_path: Path, origin: str | None, resolver_shell: tuple[str, bool]
+) -> None:
+    resolver = make_resolver(tmp_path)
+    if origin is None:
+        _git(resolver.toplevel, "remote", "remove", "origin")
+    else:
+        _git(resolver.toplevel, "remote", "set-url", "origin", origin)
+    checkout = build_checkout(tmp_path / "other", {"origin": "https://github.com/other/repository.git"})
+    shell, nounset = resolver_shell
+    with pytest.raises(ResolverStopped) as stopped:
+        resolver.resolve(OTHER_URL, skill_path=AGENTS_SKILL, code_root=str(checkout), shell=shell, nounset=nounset)
+    assert stopped.value.returncode == 66
+    assert "PARENT_ROOT origin" in stopped.value.stderr
+    assert stopped.value.stdout == ""
+
+
+def test_explicit_parent_keeps_tool_helper_separate_from_external_cwd(tmp_path: Path) -> None:
+    resolver = make_resolver(tmp_path)
+    checkout = build_checkout(tmp_path / "other", {"base": "https://github.com/other/repository.git"})
+    root, remote = resolver.resolve(OTHER_URL, skill_path=AGENTS_SKILL, code_root=str(checkout),
+                                    cwd=checkout, parent_root=str(resolver.toplevel))
+    assert (root, remote) == (checkout, "base")
+
+
+def test_missing_context_helper_stops_with_parent_checkout_guidance(tmp_path: Path) -> None:
+    resolver = make_resolver(tmp_path)
+    helper = resolver.toplevel / "scripts/superpowers_context.py"
+    if helper.exists():
+        helper.unlink()
+    with pytest.raises(ResolverStopped) as stopped:
+        resolver.resolve("https://github.com/usaturn/create-reso-world/pull/16", skill_path=AGENTS_SKILL)
+    assert stopped.value.returncode == 66
+    assert "superpowers_context.py" in stopped.value.stderr
+    assert "PARENT_ROOT" in stopped.value.stderr
+    assert stopped.value.stdout == ""

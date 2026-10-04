@@ -12,18 +12,10 @@
 # 拒否したときはコピー先を変えずに 1、引数の誤りは 2 で終了する。コミット、ステージ、push はしない
 set -euo pipefail
 
-DOC_REPOSITORY=usaturn/create-reso-world
 REVIEW_DIR=tmp/superpowers-review
 
 usage() { sed -n '4,10p' "$0" | sed 's/^# \{0,1\}/usage: /' >&2; exit 2; }
 die() { printf 'superpowers-review-copy: %s\n' "$1" >&2; exit 1; }
-
-github_repository() {
-  sed -nE \
-    -e 's#^https://github[.]com/([^/]+/[^/#?]+)(/.*)?$#\1#p' \
-    -e 's#^git@github[.]com:([^/]+/[^/#?]+)([.]git)?$#\1#p' \
-    -e 's#^ssh://git@github[.]com/([^/]+/[^/#?]+)([.]git)?$#\1#p' | sed 's/[.]git$//'
-}
 
 doc_root='' parent_root='' rel='' name='' rev=HEAD replace_from=''
 while [ $# -gt 0 ]; do
@@ -41,21 +33,17 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$doc_root" ] && [ -n "$parent_root" ] && [ -n "$rel" ] && [ -n "$name" ] || usage
 
-# checkout_root LABEL DIR: DIR が create-reso-world の checkout のルートであることを確かめ、実パスを出力する
-checkout_root() {
-  local label="$1" dir="$2" top
-  [[ "$dir" == /* ]] || die "$label must be an absolute path: $dir"
-  top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || die "$label is not a git checkout: $dir"
-  [ "$(realpath -e -- "$top")" = "$(realpath -e -- "$dir")" ] || die "$label is not the root of its checkout: $dir"
-  [ "$(git -C "$dir" remote get-url origin 2>/dev/null | github_repository)" = "$DOC_REPOSITORY" ] \
-    || die "$label origin is not $DOC_REPOSITORY: $dir"
-  realpath -e -- "$dir"
-}
-doc_root="$(checkout_root --doc-root "$doc_root")"
-parent_root="$(checkout_root --parent-root "$parent_root")"
-[ "$(realpath -e -- "$(git -C "$parent_root" rev-parse --absolute-git-dir)")" = \
-  "$(realpath -e -- "$(git -C "$parent_root" rev-parse --path-format=absolute --git-common-dir)")" ] \
-  || die "--parent-root must be the main checkout, not a linked worktree: $parent_root"
+# The entrypoint's adjacent shared module owns all read-only root/remote checks.
+context_helper="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/superpowers_context.py"
+[ -f "$context_helper" ] || die "missing context helper: $context_helper; use the create-reso-world scripts checkout"
+if ! context_json=$(uv run --no-project python "$context_helper" --operation review-copy \
+  --parent-root "$parent_root" --doc-root "$doc_root" --repo usaturn/create-reso-world 2>&1); then
+  # Preserve this entrypoint's rejection exit 1 and familiar flag diagnostics.
+  printf '%s\n' "$context_json" | sed 's/PARENT_ROOT/--parent-root/g; s/DOC_ROOT/--doc-root/g' >&2
+  exit 1
+fi
+doc_root=$(printf '%s' "$context_json" | jq -r .doc_root)
+parent_root=$(printf '%s' "$context_json" | jq -r .parent_root)
 
 case "${rel%/*}" in
   docs/superpowers/specs) kind=spec ;;

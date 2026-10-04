@@ -1,7 +1,7 @@
 ---
 name: pr-review
 description: GitHub の指定した PR をレビューする。PRのメタデータ、説明、差分（diff）を gh CLI で取得し、使い捨て git worktree 上で検証した指摘を Severity・位置・根拠付きで reviews/#PR-branch/model.md に作成または更新する。PR番号・URLを指定したコードレビュー依頼で使用する
-allowed-tools: Read, Grep, Glob, Bash(gh *), Bash(git *), Bash(date *), Bash(uv run --no-project python *pr_review_workspace.py *), Edit(/tmp/pr-review-*/review-backup/**), Write(/tmp/pr-review-*/review-backup/**), Agent
+allowed-tools: Read, Grep, Glob, Bash(gh *), Bash(git *), Bash(date *), Bash(uv run --no-project python *pr_review_workspace.py *), Bash(uv run --no-project python *superpowers_context.py *), Edit(/tmp/pr-review-*/review-backup/**), Write(/tmp/pr-review-*/review-backup/**), Agent
 argument-hint: "<PR番号またはURL>"
 ---
 
@@ -51,7 +51,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 - レビュー中に生成した検証ログ・スクリーンショット・一時スクリプト等の証跡を `$WT` に残さない。あとで見返す必要がある内容はレビュー本文の「根拠」に転記し、`$DESTINATION` だけで完結させる
 - 最終応答で `$WT` 配下のパスを参照しない（`cleanup` 成功後は `$WT` が存在しないため）。`cleanup` の失敗または停止確認不能による省略時は、残った `$WT` とセッションの完全パスを報告する
 - 独立したレビューを行うため、`reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文は、候補の洗い出し・重点観点の収集・重複確認・自分の指摘の検証を含むいかなる目的でも読まない。レビュー完了後も読まない。メインリポジトリ側と `$WT` 側（PR に同梱された `reviews/`）のどちらも対象とする
-- `MAIN_ROOT` は PR URL の GitHub `owner/repository` を、ルート `AGENTS.md` の「リポジトリ境界」の表に照らして確定する。このリポジトリ（toplevel の `origin` と一致）なら toplevel、`usaturn/resoloop` または `orange3134/resoloop` なら `<toplevel>/external/resoloop`（自前の checkout で、`origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` であること。満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は、ユーザの依頼または確認済みの引き継ぎで明示された checkout（`CODE_ROOT`）が、その checkout 自身のルートで、remote のうち 1 つだけが PR のリポジトリと一致する場合だけ、その checkout を使う。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。checkout の探索・clone はしない
+- `MAIN_ROOT`・`TOPLEVEL` は共通 context helper が照合した `code_root`・`tool_root` の別名である。`PARENT_ROOT` は create-reso-world の main checkout、その他の repo は明示された絶対パスの `CODE_ROOT` と一致 remote 1 件が必要。既知の ResoLoop 経路は `external/resoloop` の `origin=usaturn/resoloop`・`upstream=orange3134/resoloop` を照合する。不備は `scripts/resoloop-fork.sh clone` を案内して停止する。checkout の探索・clone はしない。
 - 自モデルの既存レビューはライブの `$DESTINATION` ではなく、`create` が返した `$PREVIOUS_REVIEW`（セッション内 snapshot）だけを読む。`$PREVIOUS_REVIEW` が空なら既存レビューなしとして扱う
 - Codex ではモデル名を自分で推測・短縮・一般化せず、`create` が Codex session metadata から確定した `model_name` を使用する。Codex 実行時は `create --model-name` を渡さない
 - Codex 以外では、実行中のエージェントランタイムが提示する正確なモデル識別子を `MODEL_NAME` として記録し、`create --model-name "$MODEL_NAME"` に一度だけ渡す。モデル系列の説明、設定ファイル、既存レビューのファイル名から推測・短縮・一般化しない（`/`・空白を含む形式もそのまま渡してよい。ヘルパーがファイル名用に `/`・空白類を `-` へ置換する）
@@ -102,83 +102,33 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
    - gh が未認証・API エラーの場合はエラー内容をそのまま報告し、`gh auth login` を案内する。
 2. **worktree への展開**:
    - ユーザの作業ブランチ・working tree に触れないため、`gh pr checkout` は使わない。
-   - `MAIN_ROOT` は、手順 1 で取得した `$PR_JSON` の `url` から GitHub `owner/repository` を抽出し、ルート `AGENTS.md` の「リポジトリ境界」の表に照らして確定する。現在の toplevel の `origin` と一致すれば toplevel、`usaturn/resoloop` または `orange3134/resoloop` なら `$TOPLEVEL/external/resoloop`（自前の checkout であることと `origin`・`upstream` を検証し、満たさなければ `scripts/resoloop-fork.sh clone` を案内して停止する）、それ以外は推測せず停止する。その他のリポジトリは、ユーザの依頼または確認済みの引き継ぎで checkout が明示されている場合だけ、その絶対パスを `CODE_ROOT` に入れてから次を実行する。推測で埋めない。pr-review の `CODE_ROOT` は対象リポジトリの main checkout とする。同リポジトリの `TOPLEVEL` 経路と ResoLoop の fork 経路では、create-reso-world の main checkout を cwd にする。helper は linked worktree から review worktree を作らないため、linked worktree は次のブロックで fetch 前に止める。既知経路の linked `TOPLEVEL` は fork 検査より前に止める。明示されていなければ空のままにする。PR の head を取得する remote `PR_REMOTE` も同時に決める。上流 `orange3134/resoloop` の PR は `upstream`、それ以外は `origin` から取得する。
+   - ルート `AGENTS.md` の「リポジトリ境界」に従い、次の共通 helper で fetch・worktree 作成より前に root と remote を照合する。`PARENT_ROOT` は明示された create-reso-world の main checkout を使う。省略できるのはその main checkout 内の cwd だけで、linked・外部 cwd では明示が必要。その他の repo の `CODE_ROOT` はユーザの依頼または確認済みの引き継ぎの絶対パスを使い、推測で埋めない。明示されていなければ空のままにする。`CODE_ROOT` は全経路で main checkout を要求し、既知経路と矛盾する指定も拒否する。helper の配置元を `CODE_ROOT` から導出しない。
 
      ```bash
      PR_URL=$(printf '%s' "$PR_JSON" | jq -r .url)
-     TOPLEVEL=$(git rev-parse --show-toplevel)
-     github_repository() {
-       sed -nE \
-         -e 's#^https://github[.]com/([^/]+/[^/#?]+)(/.*)?$#\1#p' \
-         -e 's#^git@github[.]com:([^/]+/[^/#?]+)([.]git)?$#\1#p' \
-         -e 's#^ssh://git@github[.]com/([^/]+/[^/#?]+)([.]git)?$#\1#p' | \
-         sed 's/[.]git$//'
-     }
      CODE_ROOT="${CODE_ROOT:-}"
-     pr_repository="$(printf '%s\n' "$PR_URL" | github_repository)"
-     origin_repository="$(printf '%s\n' \
-       "$(git -C "$TOPLEVEL" remote get-url origin)" | github_repository)"
-     test -n "$pr_repository"
-     test -n "$origin_repository"
-     if [[ "$pr_repository" == "$origin_repository" ||
-       "$pr_repository" == "usaturn/resoloop" || "$pr_repository" == "orange3134/resoloop" ]]; then
-       # 既知経路の TOPLEVEL は、fork 検査・fetch 前に main checkout 要件を確かめる
-       if [[ "$(realpath -e -- "$(git -C "$TOPLEVEL" rev-parse --path-format=absolute --git-dir)")" != \
-         "$(realpath -e -- "$(git -C "$TOPLEVEL" rev-parse --path-format=absolute --git-common-dir)")" ]]; then
-         printf 'TOPLEVEL is a linked worktree; run pr-review from the create-reso-world main checkout: %s\n' "$TOPLEVEL" >&2
+     CONTEXT_PARENT="${PARENT_ROOT:-}"
+     if [[ -z "$CONTEXT_PARENT" ]]; then
+       CONTEXT_PARENT=$(git rev-parse --show-toplevel 2>/dev/null) || {
+         printf 'Set PARENT_ROOT to the create-reso-world main checkout; cwd is not a checkout\n' >&2
          exit 66
-       fi
+       }
      fi
-     if [[ "$pr_repository" == "$origin_repository" ]]; then
-       MAIN_ROOT="$TOPLEVEL"
-       PR_REMOTE=origin
-     elif [[ "$pr_repository" == "usaturn/resoloop" || "$pr_repository" == "orange3134/resoloop" ]]; then
-       FORK_ROOT="$TOPLEVEL/external/resoloop"
-       if [[ "$(git -C "$FORK_ROOT" remote get-url origin 2>/dev/null | github_repository)" != "usaturn/resoloop" ]] ||
-         [[ "$(git -C "$FORK_ROOT" remote get-url upstream 2>/dev/null | github_repository)" != "orange3134/resoloop" ]]; then
-         printf '%s is not the resoloop fork checkout; run scripts/resoloop-fork.sh clone first\n' "$FORK_ROOT" >&2
-         exit 65
-       fi
-       MAIN_ROOT="$FORK_ROOT"
-       if [[ "$pr_repository" == "orange3134/resoloop" ]]; then PR_REMOTE=upstream; else PR_REMOTE=origin; fi
-     elif [[ -n "$CODE_ROOT" ]]; then
-       # その他のリポジトリは、明示された checkout だけを使う。探索・clone はしない
-       if [[ "$CODE_ROOT" != /* ]] || ! code_toplevel=$(git -C "$CODE_ROOT" rev-parse --show-toplevel 2>/dev/null) ||
-         [[ "$(realpath -e -- "$code_toplevel")" != "$(realpath -e -- "$CODE_ROOT")" ]]; then
-         printf 'CODE_ROOT is not the root of a git checkout: %s\n' "$CODE_ROOT" >&2
-         exit 66
-       fi
-       # helper は main checkout からだけ review worktree を作る。fetch の前に止める
-       if [[ "$(realpath -e -- "$(git -C "$CODE_ROOT" rev-parse --path-format=absolute --git-dir)")" != \
-         "$(realpath -e -- "$(git -C "$CODE_ROOT" rev-parse --path-format=absolute --git-common-dir)")" ]]; then
-         printf 'CODE_ROOT is a linked worktree; name the main checkout of %s: %s\n' "$pr_repository" "$CODE_ROOT" >&2
-         exit 66
-       fi
-       match_count=0
-       matched_remote=''
-       for remote in $(git -C "$CODE_ROOT" remote); do
-         if [[ "$(git -C "$CODE_ROOT" remote get-url "$remote" | github_repository)" == "$pr_repository" ]]; then
-           match_count=$((match_count + 1))
-           matched_remote="$remote"
-         fi
-       done
-       if [[ "$match_count" -ne 1 ]]; then
-         printf 'CODE_ROOT %s has %d remotes for %s; exactly one is required\n' "$CODE_ROOT" "$match_count" "$pr_repository" >&2
-         exit 66
-       fi
-       MAIN_ROOT=$(realpath -e -- "$CODE_ROOT")
-       PR_REMOTE="$matched_remote"
-     else
-       printf 'unsupported PR repository: %s (name its checkout as CODE_ROOT)\n' "$pr_repository" >&2
-       exit 64
-     fi
-     if [[ -n "$CODE_ROOT" && "$(realpath -m -- "$CODE_ROOT")" != "$(realpath -m -- "$MAIN_ROOT")" ]]; then
-       printf 'CODE_ROOT %s does not match %s for %s\n' "$CODE_ROOT" "$MAIN_ROOT" "$pr_repository" >&2
+     CONTEXT_HELPER="$CONTEXT_PARENT/scripts/superpowers_context.py"
+     if [[ ! -f "$CONTEXT_HELPER" ]]; then
+       printf 'Missing context helper %s; set PARENT_ROOT to the create-reso-world main checkout containing scripts/superpowers_context.py\n' "$CONTEXT_HELPER" >&2
        exit 66
      fi
+     CONTEXT_JSON=$(uv run --no-project python "$CONTEXT_HELPER" --operation review-workspace \
+       --parent-root "$CONTEXT_PARENT" --code-root "$CODE_ROOT" --repo "$PR_URL") || exit 66
+     PARENT_ROOT=$(printf '%s' "$CONTEXT_JSON" | jq -r .parent_root)
+     TOPLEVEL=$(printf '%s' "$CONTEXT_JSON" | jq -r .tool_root)
+     MAIN_ROOT=$(printf '%s' "$CONTEXT_JSON" | jq -r .code_root)
+     CODE_ROOT="$MAIN_ROOT"
+     PR_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r .base_remote)
      ```
 
-   - `HELPER="$TOPLEVEL/.agents/skills/pr-review/scripts/pr_review_workspace.py"` を記録する。スキルはこのリポジトリにのみ存在するため、`MAIN_ROOT` が `external/resoloop` を指す場合でも `$TOPLEVEL` から解決する。以降、メインリポジトリに対する Git コマンドには必ず `git -C "$MAIN_ROOT"` を使い、カレントディレクトリへ暗黙に作用させない。
+   - `HELPER="$TOPLEVEL/.agents/skills/pr-review/scripts/pr_review_workspace.py"` を記録し、通常ファイルとして存在しなければ配置元 `PARENT_ROOT` と欠けた helper パスを報告して fetch 前に停止する。スキルはこのリポジトリにのみ存在するため、`MAIN_ROOT` が `external/resoloop` を指す場合でも `$TOPLEVEL` から解決する。以降、メインリポジトリに対する Git コマンドには必ず `git -C "$MAIN_ROOT"` を使い、カレントディレクトリへ暗黙に作用させない。
    - PR head は PR 番号ごとの専用 ref `PR_REF=refs/pr-review/<PR_NUMBER>` に固定する。`git -C "$MAIN_ROOT" fetch "$PR_REMOTE" "+pull/<PR_NUMBER>/head:$PR_REF"` の後、`PR_HEAD=$(git -C "$MAIN_ROOT" rev-parse "$PR_REF")` で検証対象 SHA を確定する。共有の擬似参照 `FETCH_HEAD` は使わない。
    - fetch 後に `git -C "$MAIN_ROOT" merge-base HEAD "$PR_REF"` が成功することを確認する。失敗した場合は `MAIN_ROOT` の選定が誤っている（無関係なリポジトリに PR のオブジェクトを取り込んだ状態）ため、保存を行わず停止して報告する。
    - dedicated ref fetch 後、次で GitHub の head と `PR_HEAD` の一致を確認する（HEAD consistency check 1/3）。不一致、空値、`gh` failure の場合は履歴を追記せず保存しない。
@@ -451,7 +401,7 @@ Merge recommendation の判定基準:
 - 「コメントしないこと」に該当する指摘が紛れていないか
 - メインリポジトリ側と `$WT` 側の `reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文を、自分でもサブエージェント経由でも開いたり検索対象に含めたりしていないか
 - Merge recommendation が判定基準と整合しているか。重大度判定は active findings、確認不足判定は coverage と pending も参照する
-- `MAIN_ROOT` は PR URL の `owner/repository` を「リポジトリ境界」の表に照らして確定したか（このリポジトリ=toplevel、resoloop=検証済みの `external/resoloop`、その他は明示された `CODE_ROOT` を照合し、明示が無い・不一致なら停止）。PR の head を `$PR_REMOTE` から取得したか。`merge-base HEAD "$PR_REF"` の成功を確認したか
+- `MAIN_ROOT` は PR URL の `owner/repository` を「リポジトリ境界」の表に照らして確定したか（このリポジトリ=検証済みの親 main checkout、resoloop=検証済みの `external/resoloop`、その他は明示された `CODE_ROOT` を照合し、明示が無い・不一致なら停止）。PR の head を `$PR_REMOTE` から取得したか。`merge-base HEAD "$PR_REF"` の成功を確認したか
 - `create` が返した `model_name`、`draft`、`destination`、`previous_review` を変更・再構築せず使用したか
 - 正確な `$MODEL_NAME` を `--model-name "$MODEL_NAME"` で渡し、filename から推測していないか（Codex はヘルパーが確定する）
 - `save` を `--state "$STATE_FILE"` だけで実行し、caller-selected path を渡していないか
