@@ -289,7 +289,9 @@ def test_files_under_a_directory_or_a_symlink_named_like_an_added_path_are_left_
 
 def test_interrupted_run_restores_files_and_reports_head(behind: Path, tmp_path: Path) -> None:
     # A slow smudge filter keeps the fast-forward busy; TERM reaches only the
-    # script, which runs its trap once git has finished.
+    # script. Whenever bash runs the trap (some versions run it before the
+    # foreground git has finished), the script lets git finish, restores
+    # every file afterwards and only then exits.
     started = tmp_path / "smudge-started"
     git(behind, "config", "filter.slow.smudge", f': >"{started}"; sleep 3; cat')
     push_upstream(behind, {".gitattributes": "*.slow filter=slow\n", "big.slow": "data\n"})

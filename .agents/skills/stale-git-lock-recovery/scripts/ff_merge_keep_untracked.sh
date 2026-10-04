@@ -25,7 +25,9 @@
 # so they can be moved away first.
 #
 # When the fast-forward fails or the run is interrupted (HUP, INT, TERM),
-# every file goes back to its original place. Once files are copied into the
+# every file goes back to its original place. An interruption does not cut
+# the run short: a fast-forward already running finishes, one not yet started
+# is skipped, and every file is restored before the script exits. Once files are copied into the
 # backup directory it is never deleted: its path is printed on stderr before
 # anything is removed, together with a NUL-separated list of the backed-up
 # paths in <backup>/paths.
@@ -49,6 +51,7 @@ files=()
 backup=""
 ref=""
 target=""
+interrupted=0
 
 usage() {
   cat >&2 <<'EOF'
@@ -141,18 +144,6 @@ replaced_submodules() {
         ":160000 "*) printf '%s\0' "$path" ;;
       esac
     done
-}
-
-# Report where an interrupted run left HEAD, after putting the files back.
-on_signal() {
-  trap - HUP INT TERM
-  restore_all
-  if [ "$(git rev-parse HEAD 2>/dev/null)" = "$target" ]; then
-    printf 'interrupted after the fast-forward to %s; HEAD moved; the originals are kept in %s\n' "$ref" "$backup/files" >&2
-  else
-    printf 'interrupted before the fast-forward; HEAD is unchanged; the originals are kept in %s\n' "$backup/files" >&2
-  fi
-  exit "$EXIT_FAIL"
 }
 
 main() {
@@ -352,7 +343,11 @@ main() {
   done
 
   # From here on the originals live only in the backup until restore_all.
-  trap on_signal HUP INT TERM
+  # A signal only sets a flag: some bash versions run a trap before the
+  # foreground git has finished, and restoring then would race with git
+  # writing the same paths. The merge (which the signal does not stop when it
+  # reaches only this script) and the restore always run to the end.
+  trap 'interrupted=1' HUP INT TERM
   local removed=1 merged=0 restored=1
   for rel in "${files[@]}"; do
     if ! rm -f -- "$rel"; then
@@ -360,12 +355,21 @@ main() {
       break
     fi
   done
-  if [ "$removed" -eq 1 ] && git merge --ff-only "$target"; then
+  if [ "$removed" -eq 1 ] && [ "$interrupted" -eq 0 ] && git merge --ff-only "$target"; then
     merged=1
   fi
   restore_all || restored=0
   trap - HUP INT TERM
 
+  if [ "$interrupted" -eq 1 ]; then
+    if [ "$(git rev-parse HEAD 2>/dev/null)" = "$target" ]; then
+      printf 'interrupted after the fast-forward to %s; HEAD moved; the originals are kept in %s\n' "$ref" "$backup/files" >&2
+    else
+      printf 'interrupted before the fast-forward; HEAD is unchanged; the originals are kept in %s\n' "$backup/files" >&2
+    fi
+    [ "$restored" -eq 1 ] || printf 'some files could not be restored; see above\n' >&2
+    exit "$EXIT_FAIL"
+  fi
   if [ "$restored" -eq 0 ]; then
     if [ "$merged" -eq 1 ]; then
       printf 'fast-forwarded to %s, but some files could not be restored; the originals are in %s\n' "$ref" "$backup/files" >&2

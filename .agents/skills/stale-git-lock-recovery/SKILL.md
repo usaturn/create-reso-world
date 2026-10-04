@@ -115,7 +115,7 @@ bash .agents/skills/stale-git-lock-recovery/scripts/ff_merge_keep_untracked.sh -
 4. 全件を一時ディレクトリへ `cp -a` で退避し（symlink は symlink のまま、パーミッションとタイムスタンプも保つ）、退避したコピーが元と一致することを確かめる。退避先は削除前に stderr へ表示する
 5. 全件を削除してから、`git merge --ff-only` を 1 回だけ実行する
 6. merge の成否にかかわらず全件を元のパスへ戻し、元と一致することを確かめる。merge が失敗した場合は HEAD を変えずに exit 1
-7. HUP / INT / TERM で中断されたときも全件を戻し、HEAD が進んだかどうかを stderr に出して exit 1 で終わる
+7. HUP / INT / TERM で中断されたときも、実行中の ff は最後まで待ち（まだ始めていなければ行わない）、全件を戻してから、HEAD が進んだかどうかを stderr に出して exit 1 で終わる
 
 復元後、`<ref>` と同一だったファイルは追跡ファイルとして clean になり、差分のある下書きは ` M` として残る。これは想定どおりであり、内容は失われていない。退避先はスクリプトが消さない。結果を確認してから消す。
 
