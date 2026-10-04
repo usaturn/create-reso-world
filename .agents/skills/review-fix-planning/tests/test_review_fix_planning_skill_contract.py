@@ -222,7 +222,8 @@ def test_spec_is_committed_and_copied_before_approval() -> None:
         "`DOC_ROOT`",
         "`PARENT_ROOT`",
         "bash scripts/superpowers-review-copy.sh",
-        "--replace-from",
+        "決して差し替えない",
+        "-r2-",
         "文書用ブランチ",
         "文書専用 PR",
         "公開未実施",
@@ -231,6 +232,14 @@ def test_spec_is_committed_and_copied_before_approval() -> None:
     step7 = content.split("7. **承認を得て停止する**", 1)[1].split("\n## ", 1)[0]
     assert "## Spec のコミットと確認用コピー" not in step7
     assert "確認用コピー" in step7
+
+
+def test_spec_reuses_the_current_canonical_document() -> None:
+    """Canonical selection precedes writing: repo/PR/theme/path, not basename."""
+    content = read(AGENTS_SKILL)
+    section = content.split("## Spec の正本を選んでから更新する", 1)[1].split("\n## ", 1)[0]
+    for phrase in ("正本", "roundN", "停止してユーザに確認する", "アーキテクチャ再設計", "コミット済み"):
+        assert phrase in section, phrase
 
 
 def test_fork_pr_push_target_is_confirmed_for_other_repositories() -> None:

@@ -89,12 +89,21 @@ PR_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r .base_remote)
 HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 ```
 
+## Spec の正本を選んでから更新する
+
+新しい Spec を書く前に、対象リポジトリ、Issue/PR 番号、テーマ、正本のパス（`docs/superpowers/specs/`・`plans/` 配下の実際のファイル）で現行の Spec/Plan を探す。ファイル名の basename や日付だけでは照合しない。
+
+- 現行の正本が 1 件なら、それを更新する。過去の版は Git の履歴に残る。同じテーマの通常のレビュー修正では、回ごとの新規文書（roundN）を既定で作らない
+- 候補が複数あって、文書の後継指定か明示パスで 1 件に確定できないときは、更新せず停止してユーザに確認する
+- 本当に新しい Spec を作るのは、独立した承認を受けたアーキテクチャ再設計など、明示的な理由があるときだけである。その理由は新しい文書の冒頭に記録する
+- 提示する Spec/Plan は、`draft` のままコミット済みであること（「Spec のコミットと確認用コピー」の手順 1）
+
 ## Spec のコミットと確認用コピー
 
 Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の定義）にだけ置く。`MAIN_ROOT` が別のリポジトリでも、そちらへ置かない。`DOC_ROOT` は `$TOPLEVEL` と同じとは限らない。`$TOPLEVEL` は、スキル helper と `scripts/superpowers-review-copy.sh` の配置元としてだけ使う。
 
 1. **`DOC_ROOT` を確定してコミットする** — Spec を書く前に、コミット先のブランチの checkout を `DOC_ROOT` として確定する。コミット先は、`PR_REPO` が `usaturn/create-reso-world` ならレビュー対象ブランチ（実装を載せるブランチ）、それ以外なら create-reso-world の文書用ブランチ（テーマごとに 1 本。例 `docs/usaturn-resoloop-pr9-list-shrink`）である。既存の文書用ブランチがあれば再利用し、レビュー回ごとに作らない。`DOC_ROOT` を特定できない場合は推測せず停止する。Spec の作成・更新は `$DOC_ROOT` で行い、提示の前に `draft` のまま `$DOC_ROOT` でコミットする。
-2. **確認用コピーを作る** — `PARENT_ROOT`（ユーザが読む create-reso-world の親 checkout）を確かめてから、次を `$TOPLEVEL` で実行する。名前は `<repo>-pr<N>-<topic>-spec.md` の形にする。再提示で既存のコピーを差し替えるときは、前回提示した文書コミットを `--replace-from` に渡す。スクリプトが拒否したら、worktree のパスだけを代わりに示さず、失敗を報告して止まる。
+2. **確認用コピーを作る** — `PARENT_ROOT`（ユーザが読む create-reso-world の親 checkout）を確かめてから、次を `$TOPLEVEL` で実行する。名前は `<repo>-pr<N>-<topic>-spec.md` の形にする。既存のコピーは決して差し替えない。同じ名前での再コピーは、内容が同一なら `unchanged`、異なれば別名を案内して拒否される。正本が変わったら `...-r2-spec.md` のような別名で新しいコピーを公開する。旧コピーとユーザの注記は残る。スクリプトが拒否したら、worktree のパスだけを代わりに示さず、失敗を報告して止まる。
 
    ```bash
    bash scripts/superpowers-review-copy.sh --doc-root "$DOC_ROOT" --parent-root "$PARENT_ROOT" \

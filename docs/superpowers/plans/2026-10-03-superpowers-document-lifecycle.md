@@ -2,8 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **履歴と現行規約（2026-10-04 追記）:** 本 Plan は 2026-10-03 時点の実装手順の記録であり、対応する実装は usaturn/create-reso-world#16（`docs/superpowers-document-lifecycle`）のコミット履歴で完了している。以下のチェックボックスとコード例は当時の作業記録であり、現在実行すべき手順ではない。確認用コピーの `--replace-from` 差し替え方式は、後継の `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` で非置換公開へ改訂済みであり、現在の手順は root `AGENTS.md` と `docs/superpowers/README.md` に従う。本 Plan 本文への個別のユーザ内容承認の記録は存在しない（実行指示は Spec 承認の指示に基づく）。
+
 - 日付: 2026-10-03
-- 状態: approved（Spec と同じ 2026-10-03 のユーザ指示により、レビュー待ちで止まらずに実行する。実行方法は Native）
+- 状態: completed（歴史的記録。実装は usaturn/create-reso-world#16（`docs/superpowers-document-lifecycle`）のコミット履歴で完了。2026-10-03 のユーザ指示は Spec の内容承認と実行指示であり、本 Plan 本文の個別内容承認の記録は存在しない）
 - 文書管理リポジトリ: `usaturn/create-reso-world`
 - 設計・実装対象リポジトリ: `usaturn/create-reso-world`
 - 対象 Issue・PR: なし（Task 9 で PR を作成する）

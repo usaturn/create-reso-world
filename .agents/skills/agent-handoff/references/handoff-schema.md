@@ -104,9 +104,24 @@ optional and worth including when it is true.
   - `plan`, `ledger`, `sdd_workspace`, `session_jsonl`, `plan_files`: when they exist.
   - `doc_root`: the create-reso-world checkout where the spec and plan are committed
     (`DOC_ROOT`). Specs and plans for every repository live there.
-  - `document_commit`: the full SHA of the commit that holds the spec and plan, and
-    `document_published`: the remote ref it was pushed to, or `null` when it is a local
-    commit only (say "公開未実施" in Markdown).
+  - `document_commit`: the full SHA of the current/restore commit that holds the
+    spec and plan, and `document_published`: the remote ref it was pushed to, or
+    `null` when it is a local commit only (say "公開未実施" in Markdown).
+  - `approved_commit`: when a user approved a specific committed content version, its
+    full SHA. `null` means no recorded content approval — do not infer it from the
+    status field or from a review copy. It differs from `document_commit` when later
+    metadata-only edits (status lines, record additions, typo fixes) moved the
+    current/restore version; those do not require renewed approval. A substantive
+    design/Plan change requires renewed approval unless the recorded execution
+    authority explicitly covers it.
+  - `execution_authority`: the explicit instruction or rule that authorizes executing
+    the work, in one line. `null` when nothing authorizes execution: then the next
+    step is blocked, not ready — name the missing authorization or rule as a blocker
+    instead of an implicit plan. General external implementation and remote-less PR
+    integration have no authorized route.
+  - `completion_evidence`: the verified commands/results backing the reported status;
+    `null` before implementation exists. A recovery artifact never claims the review
+    copy is canonical.
   - `review_copy`: the copy under the parent checkout's `tmp/superpowers-review/` that a
     person reads. It is a viewing aid, never a restore source; restore from
     `document_commit`.

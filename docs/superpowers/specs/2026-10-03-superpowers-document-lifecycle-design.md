@@ -10,6 +10,8 @@
 - 調査時の create-reso-world HEAD: `294ff10`（§2 の初回調査）。§8 の再照合は `9b0d47d`
 - 関連 Plan: `docs/superpowers/plans/2026-10-03-superpowers-document-lifecycle.md`
 
+> **履歴と現行規約（2026-10-04 追記）:** 本書は PR #16 実装時の運用設計の記録である。この後に承認された `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` で、確認用コピーは既存 entry を差し替えない非置換公開へ改訂され、外部リポジトリの扱いは明示・検証済み `CODE_ROOT` の review と planning に限定された（一般的な外部コード実装と remote なしの PR 連携は非対応）。現在の操作手順は root `AGENTS.md` と `docs/superpowers/README.md`、コピーの実装は `scripts/superpowers-review-copy.sh` を正とする。本書の本文は履歴として保持する（この注記の追記を除く）。
+
 ## 1. 意図と確定した条件
 
 設計判断と実装手順を、別セッションや別エージェントが復元できる形で長期保存する。同時に、レビュー回ごとのファイル増殖、承認済み版と未承認版の混同、文書の未追跡状態での放置を避ける。

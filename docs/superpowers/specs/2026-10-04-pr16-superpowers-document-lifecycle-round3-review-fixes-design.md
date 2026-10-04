@@ -11,6 +11,8 @@
 - 関連する運用設計: `docs/superpowers/specs/2026-10-03-superpowers-document-lifecycle-design.md`
 - 前回の分類・実施結果: `docs/superpowers/specs/2026-10-03-pr16-superpowers-document-lifecycle-round2-review-fixes-design.md`
 
+> **履歴記録（2026-10-04 追記）:** 本書は当時のレビュー修正方針の記録である。確認用コピーの方式は、後継の `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` で非置換公開へ改訂済みであり、現在の手順は root `AGENTS.md` と `docs/superpowers/README.md` に従う。本書本文は履歴として保持する（この注記の追記を除く）。
+
 ## 1. 目的・適用手順
 
 指定ディレクトリにあるレビューを現行 PR HEAD のコミット済み内容で検証し、再現した誤動作だけを修正対象にする。前回までに対象外と決めた設計論点は広げない。

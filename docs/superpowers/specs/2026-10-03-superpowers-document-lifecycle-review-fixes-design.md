@@ -12,6 +12,8 @@
 - 経路（brainstorming の判定）: bounded。既存の 2 スキル（pr-review の resolver、review-fix-planning の Spec 配置規則）と、その契約テストの中で閉じる修正で、他のスキルや規約とのインターフェースは変わらない
 - 関連 Spec: `docs/superpowers/specs/2026-10-03-superpowers-document-lifecycle-design.md`
 
+> **履歴記録（2026-10-04 追記）:** 本書は当時のレビュー修正方針の記録である。確認用コピーの方式は、後継の `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` で非置換公開へ改訂済みであり、現在の手順は root `AGENTS.md` と `docs/superpowers/README.md` に従う。本書本文は履歴として保持する（この注記の追記を除く）。
+
 ## 現行 HEAD での再現
 
 3 件のレビューはいずれも現行 HEAD と同じ `821e82d` を対象にしている。現行 HEAD の隔離 worktree から pr-review の resolver ブロックを契約テストと同じ正規表現で抽出し、一時リポジトリで実行した。
