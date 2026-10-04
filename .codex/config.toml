@@ -1,6 +1,7 @@
 # Codex のプロジェクト設定。Codex がこのリポジトリを信頼済み（trusted）として扱うときだけ読まれる。
 # プロジェクトのディレクトリを cwd にして起動しても、.git のあるルートまで遡ってこのファイルが読まれる。
-[mcp_servers.context7]
+# 同名の MCP 設定は項目ごとにマージされる。ユーザー側の context7（HTTP）と接続方式を混ぜないため別名にする。
+[mcp_servers.context7_stdio]
 command = "npx"
 args = ["-y", "@upstash/context7-mcp"]
 env_vars = ["CONTEXT7_API_KEY"]
