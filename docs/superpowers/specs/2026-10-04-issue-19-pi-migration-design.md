@@ -38,7 +38,7 @@ pi-distill と旧 MCP 拡張を撤去し、組み込み MCP と移植元の拡�
 | `.pi-lens.json` | 既存維持 | tmp / .venv / artifacts / .resoloop / external / private の ignore を保持。 |
 | `.pi/APPEND_SYSTEM.md` | 適応 | 正式なモデル名の根拠についての PI_DISTILL_MODEL 記述だけを削除。persona と role API は保持。 |
 | `.devcontainer/test-install-beforehand.bash` | 適応 | cleanup の実行順と廃止 helper が呼ばれないことを検査。 |
-| `tests/scripts/test-agent-config.bash`、`test-instructions.bash` | 適応 | 共有 pi 設定・ワールド cwd からの解決と廃止指示の除去を検査。 |
+| `tests/scripts/test-agent-config.bash`、`test-instructions.bash` | 既存維持・適応 | agent-config は既存検査を維持し、instructions に廃止指示の除去を追加。共有 pi 設定・ワールド cwd の検査は cleanup suite に集約する。 |
 | `.devcontainer/README.md` | 適応 | MCP / 拡張の移行・バックアップ・既存 provider の保持を説明し、pi-distill の現役利用手順を削除。 |
 
 ## 移行処理の仕様
