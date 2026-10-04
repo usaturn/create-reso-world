@@ -48,14 +48,6 @@ write_xai_auth() {
         > "${home}/.pi/agent/auth.json"
 }
 
-write_pixg_auth() {
-    local home="$1"
-    mkdir -p "${home}/.pi/agent"
-    printf '%s\n' \
-        '{"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
-        > "${home}/.pi/agent/auth.json"
-}
-
 # ヘルパを source して pi_superagents_exec を dry-run で呼ぶ。
 run_helper() {
     local home="$1" launcher="$2"; shift 2
@@ -232,9 +224,9 @@ test_tier_tables() {
         "piccg:commandcode/meta/muse-spark-1.3-contributor:commandcode/meta/muse-spark-1.3-contributor:commandcode/deepseek/deepseek-v4.1-flash:max:max:max"
         "piccd:commandcode/meta/muse-spark-1.3-contributor:commandcode/deepseek/deepseek-v4.1-flash:commandcode/deepseek/deepseek-v4.1-flash:max:max:max"
         "piga:openai-codex/gpt-6-luna:openai-codex/gpt-6.1-sol:openai-codex/gpt-6-astra:xhigh:xhigh:max"
-        "pigs:openai-codex/gpt-6-luna:openai-codex/gpt-6.1-sol:openai-codex/gpt-6.1-sol:xhigh:xhigh:max"
+        "pigs:opencode-go/deepseek-v4.1-flash:openai-codex/gpt-6.1-sol:openai-codex/gpt-6.1-sol:max:xhigh:max"
         "pigl:openai-codex/gpt-6-luna:openai-codex/gpt-6.1-sol:openai-codex/gpt-6.1-sol:xhigh:xhigh:xhigh"
-        "pixg:openai-codex/gpt-6-luna:xai/grok-4.7:xai/grok-4.7:xhigh:high:xhigh"
+        "pixg:opencode-go/deepseek-v4.1-flash:opencode-go/deepseek-v4.1-flash:xai/grok-4.7:max:max:xhigh"
     )
     local row
     for row in "${rows[@]}"; do
@@ -328,6 +320,52 @@ run_launcher() {
         zsh "${REPO_ROOT}/.devcontainer/${launcher}" "$@"
 }
 
+test_opencode_key_reaches_child_process() {
+    # pigs の cheap と pixg の cheap / balanced は opencode-go を使う。旧名の
+    # OPENCODE_GO_API_KEY から OPENCODE_API_KEY への互換が、ランチャーから
+    # exec された子プロセスまで届くことを確かめる。
+    local shim_dir="${TEST_ROOT}/opencode-key-bin"
+    local launcher home row primary legacy expected output
+    local -a key_env cases=(
+        '<unset>:dummy-legacy:dummy-legacy'
+        ':dummy-legacy:dummy-legacy'
+        'dummy-primary:dummy-legacy:dummy-primary'
+        '<unset>:<unset>:<unset>'
+    )
+    mkdir -p "$shim_dir"
+    # 実ランチャーから exec された bwrap の子で、export された値を観測する。
+    # 実際の mount namespace や Pi の API 呼び出しはこのテストには不要。
+    cat > "${shim_dir}/bwrap" <<'BWRAP_ENV_EOF'
+#!/bin/bash
+bash -c 'printf "%s\n" "${OPENCODE_API_KEY-<unset>}"'
+BWRAP_ENV_EOF
+    chmod +x "${shim_dir}/bwrap"
+
+    for launcher in pigs pixg; do
+        home="${TEST_ROOT}/${launcher}-opencode-key"
+        mkdir -p "${home}/.pi/agent/extensions/subagent.d/${launcher}"
+        cp "${CONFIG_DIR}/${launcher}.json" "${home}/.pi/agent/extensions/subagent.d/${launcher}/config.json"
+        printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
+            > "${home}/.pi/agent/auth.json"
+        for row in "${cases[@]}"; do
+            IFS=: read -r primary legacy expected <<< "$row"
+            key_env=(env -u OPENCODE_API_KEY -u OPENCODE_GO_API_KEY)
+            if [ "$primary" != '<unset>' ]; then
+                key_env+=("OPENCODE_API_KEY=$primary")
+            fi
+            if [ "$legacy" != '<unset>' ]; then
+                key_env+=("OPENCODE_GO_API_KEY=$legacy")
+            fi
+            output="$("${key_env[@]}" HOME="$home" \
+                PI_CODING_AGENT_DIR="${home}/.pi/agent" PATH="${shim_dir}:${PATH}" \
+                PI_SUPERAGENTS_LAUNCHER_DRY_RUN=0 \
+                "${ZSH_BIN}" "${REPO_ROOT}/.devcontainer/${launcher}")"
+            assert_eq "$output" "$expected" \
+                "${launcher} child key with primary='${primary}' legacy='${legacy}'"
+        done
+    done
+}
+
 # dry-run 出力から pi へ渡る引数だけを取り出す（"--" の次の "pi" より後ろ）。
 pi_args_of() {
     printf '%s\n' "$1" | awk 'seen { print } $0 == "pi" { seen = 1 }'
@@ -348,7 +386,7 @@ test_launchers_wrap_pi_with_their_own_config() {
     for launcher in pigo pigod pigou piccg piccd pixg; do
         home="$(make_home "$launcher" with-config)"
         if [ "$launcher" = pixg ]; then
-            write_pixg_auth "$home"
+            write_xai_auth "$home"
         fi
         out="$(run_launcher "$home" "$launcher")"
         assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "${launcher} argv[0]"
@@ -389,7 +427,7 @@ test_launchers_preserve_parent_model_selection() {
     assert_contains "$args" "deepseek/deepseek-v4.1-flash" "piccd model"
 
     home="$(make_home pixg with-config)"
-    write_pixg_auth "$home"
+    write_xai_auth "$home"
     args="$(pi_args_of "$(run_launcher "$home" pixg)")"
     assert_contains "$args" "xai" "pixg provider"
     assert_contains "$args" "grok-4.7" "pixg model"
@@ -461,19 +499,16 @@ test_pixg_oauth_guidance() {
     assert_eq "$status" "1" "pixg must exit 1 for non-oauth xai credentials"
     assert_contains "$out" "/login xai" "non-oauth credential must still guide to /login"
 
-    # xAI OAuth だけでは cheap tier の Luna に接続できないので、起動前に案内する。
+    # xAI OAuth があれば起動する。cheap / balanced tier の子 Pi が使う
+    # opencode-go の資格情報は auth.json の api_key または OPENCODE_API_KEY で
+    # 解決し、ランチャーは起動前に確認しない（pigo / pigod と同じ）。
+    # Codex OAuth は使わないので、無くても止まらない。
     write_xai_auth "$home"
-    set +e
     out="$(run_launcher "$home" pixg 2>&1)"
-    status=$?
-    set -e
-    assert_eq "$status" "1" "pixg must stop without Codex OAuth for Luna"
-    assert_contains "$out" "/login openai-codex" "must explain Codex OAuth login"
-
-    # 両プロバイダの OAuth があれば Grok 親を起動する。
-    write_pixg_auth "$home"
-    out="$(run_launcher "$home" pixg)"
-    assert_contains "$out" "grok-4.7" "valid xAI and Codex OAuth must reach argv"
+    assert_contains "$out" "grok-4.7" "valid xAI OAuth must reach argv"
+    case "$out" in
+        *'/login openai-codex'*) fail "pixg must not require Codex OAuth" ;;
+    esac
 
     # PI_CODING_AGENT_DIR の ~ 展開も共有ヘルパと同じ受理形にする。
     out="$(env HOME="$home" PI_CODING_AGENT_DIR='~/.pi/agent' \
@@ -1250,6 +1285,7 @@ test_launcher_files_are_executable
 test_launchers_wrap_pi_with_their_own_config
 test_launchers_preserve_parent_model_selection
 test_launchers_select_regular_and_forward_user_arguments
+test_opencode_key_reaches_child_process
 test_pixg_oauth_guidance
 test_commandcode_key_check_runs_before_launch
 test_launcher_missing_config_fails_closed

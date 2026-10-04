@@ -23,7 +23,6 @@ test_setup_places_independent_gpt6_tiers() {
         "piga:cheap:gpt-6-luna:xhigh"
         "piga:balanced:gpt-6.1-sol:xhigh"
         "piga:max:gpt-6-astra:max"
-        "pigs:cheap:gpt-6-luna:xhigh"
         "pigs:balanced:gpt-6.1-sol:xhigh"
         "pigs:max:gpt-6.1-sol:max"
         "pigl:cheap:gpt-6-luna:xhigh"

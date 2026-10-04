@@ -25,8 +25,13 @@ fi
 source "${PI_SUPERAGENTS_HELPER}"
 
 pi_xai_require_oauth || exit 1
-# cheap tier の子 Pi は Codex の Luna を使うため、親の起動前に両方を確認する。
-pi_openai_codex_require_oauth || exit 1
+
+#
+# Compatibility with the environment variable used by an older setup.
+#
+if [[ -z "${OPENCODE_API_KEY:-}" && -n "${OPENCODE_GO_API_KEY:-}" ]]; then
+    export OPENCODE_API_KEY="${OPENCODE_GO_API_KEY}"
+fi
 
 #
 # xai は pi の built-in provider で、grok-4.7 も組み込みのモデルカタログに
@@ -35,6 +40,10 @@ pi_openai_codex_require_oauth || exit 1
 #
 # grok-4.7 の thinking level は low / medium / high / xhigh で、他ランチャーの
 # max ではなく実際の最大値である xhigh を明示する。
+#
+# cheap / balanced tier の子 Pi は opencode-go/deepseek-v4.1-flash を使う。
+# opencode-go の資格情報は auth.json の api_key または OPENCODE_API_KEY で
+# 解決されるため、pigo / pigod と同じく起動前の認証チェックは行わない。
 #
 pi_superagents_exec pixg \
     --provider xai \
