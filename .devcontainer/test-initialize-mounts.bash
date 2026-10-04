@@ -15,7 +15,7 @@ source "$root/.devcontainer/mounts.bash"
 if ! out="$(mounts_compare "$config" "$init")"; then fail "mounts and initialize.bash differ:
 $out"; fi
 
-# 2. mounts は仕様 7.1 の表の 14 個（既存 13 ＋秘密情報）から、撤去した dsh の ~/.dsh を除いた 13 個
+# 2. mounts は仕様 7.1 の表の 14 個（既存 13 ＋秘密情報）から、撤去した dsh と Grok Build の ~/.dsh・~/.grok を除いた 12 個
 expected='.claude
 .claude.json
 .codex
@@ -25,7 +25,6 @@ expected='.claude
 .config/gh
 .config/glab-cli
 .cursor
-.grok
 .local/share/cursor-agent
 .local/share/devin
 .pi'
@@ -75,7 +74,7 @@ cp "$config" "$tmp/extra.json"
 sed -i 's|^\(\t\t"source=${localEnv:HOME}/.pi,target=/home/vscode/.pi,type=bind,consistency=cached",\)$|\1\n\t\t"source=${localEnv:HOME}/.extra,target=/home/vscode/.extra,type=bind,consistency=cached",|' "$tmp/extra.json"
 if out="$(mounts_compare "$tmp/extra.json" "$init")"; then fail 'accepted a mount that initialize.bash does not create'; fi
 grep -qxF 'mounts: ~/.extra is mounted by devcontainer.json but not created by initialize.bash' <<<"$out" || fail "unexpected report: $out"
-sed 's|^  "${HOME}/.grok" \\$|  "${HOME}/.grok" \\\n  "${HOME}/.unmounted" \\|' "$init" > "$tmp/extra-init.bash"
+sed 's|^  "${HOME}/.pi" \\$|  "${HOME}/.pi" \\\n  "${HOME}/.unmounted" \\|' "$init" > "$tmp/extra-init.bash"
 if out="$(mounts_compare "$config" "$tmp/extra-init.bash")"; then fail 'accepted a path that is not mounted'; fi
 grep -qxF 'mounts: ~/.unmounted is created by initialize.bash but not mounted by devcontainer.json' <<<"$out" || fail "unexpected report: $out"
 sed 's|target=/home/vscode/.pi,|target=/root/.pi,|' "$config" > "$tmp/target.json"

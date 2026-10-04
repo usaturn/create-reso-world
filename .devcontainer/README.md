@@ -29,16 +29,16 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.local/share/cursor-agent` | `cur`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`（alias） | `devin update`、`devin plugins update superpowers` |
 | gh | Dev Container Feature（github-cli） | `~/.config/gh` | `~/.config/gh` | — | — |
-| grok / gcloud / glab / bun | 未導入（参照だけ残す） | `~/.grok`、`~/.config/gcloud`、`~/.config/glab-cli` | `~/.grok`、`~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | `grok update` |
+| gcloud / glab / bun | 未導入（参照だけ残す） | `~/.config/gcloud`、`~/.config/glab-cli` | `~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | — |
 | 秘密情報 | — | `~/.config/create-reso-world` | `~/.config/create-reso-world`（mode 700） | env ファイルがあれば読み込む | — |
 <!-- tool-table:end -->
 
 未導入のツールを呼ぶ関数（`cod`、`genv`、`buni`）は、コマンドが無ければ理由を表示して 127 を返す。
 `update()` は無いツールの項目を飛ばし、飛ばした項目を表示する。
 
-dsh は、リポジトリでは導入も mount もしない。ホストの `~/.dsh` は Dev Container から
-見えなくなるだけで、削除しない。不要になったら利用者がホスト側で消す。リビルドする前の
-コンテナには、導入済みの `dsh` が残る。
+dsh と Grok Build（`grok`）は、リポジトリでは導入も mount もしない。ホストの `~/.dsh`・`~/.grok` は
+Dev Container から見えなくなるだけで、削除しない。不要になったら利用者がホスト側で消す。
+リビルドする前のコンテナには、導入済みの `dsh` が残る。
 
 ## 秘密情報
 

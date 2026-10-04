@@ -17,7 +17,7 @@ column() { awk -F' [|] ' -v n="$1" '{ sub(/^[|] /, ""); sub(/ [|]$/, ""); print 
 ticks() { grep -o '`[^`]*`' | tr -d '`' || true; }
 
 # 1. 仕様 7.1 の行がそろっている
-for tool in 'Claude Code' Codex pi Cursor Devin gh 'grok / gcloud / glab / bun' 秘密情報; do
+for tool in 'Claude Code' Codex pi Cursor Devin gh 'gcloud / glab / bun' 秘密情報; do
   column 1 | grep -qxF "$tool" || fail "tool table lacks the row for $tool"
 done
 
@@ -56,6 +56,7 @@ if git grep -n 'symlink' -- .devcontainer/docs/herdr-session-cwd-restore.md; the
 
 # 6. 除外したエージェントの導入・mount・起動を .devcontainer に戻さない（ホストに残るパスを案内する README の注記は対象外）
 excluded='@deepseek-ai/dsh|DeepSeek Harness|DSH_|dsh-settings|dsh-cordis|dsh (plugin|web|--)|HOME\}?/\.dsh|vscode/\.dsh|pnpmVersion": "[0-9]|3080'
+excluded+='|x\.ai/cli|HOME\}?/\.grok|vscode/\.grok|grok update|-a grok'
 if git grep -n -E "$excluded" -- .devcontainer "$self"; then fail '.devcontainer still sets up an excluded agent'; fi
 
 printf 'PASS: README tool table matches the Dev Container files\n'

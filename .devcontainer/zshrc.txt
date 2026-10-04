@@ -20,7 +20,7 @@ setopt no_beep
 # プロンプトが表示されるたびにプロンプト文字列を評価、置換する
 setopt prompt_subst
 
-# 未導入のツール（grok・gcloud・glab・bun など）を呼ぶ関数は、先にコマンドの有無を確かめる。
+# 未導入のツール（gcloud・glab・bun など）を呼ぶ関数は、先にコマンドの有無を確かめる。
 # 無ければ理由を表示して 127 を返す（仕様 7.1）
 function require_command(){
     command -v "$1" >/dev/null 2>&1 && return 0
@@ -433,7 +433,6 @@ function update_if_present(){
 function update(){
     update_if_present claude claude update
     update_if_present npm npm install -g @openai/codex@latest
-    update_if_present grok grok update
     update_if_present pi pi update
     update_if_present pi pi update --extensions
     update_if_present agent agent update

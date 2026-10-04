@@ -37,9 +37,11 @@ if grep -F 'command not found' "$tmp/err"; then fail 'zshrc.txt ran a missing co
 
 # 2. update() は無いツールを飛ばして 0 を返し、飛ばした項目を表示する
 run_zsh 'update' || fail "update failed without any tool: $(cat "$tmp/err")"
-for tool in claude npm grok pi agent devin; do
+for tool in claude npm pi agent devin; do
   grep -qF "update: $tool not found; skipped" "$tmp/err" || fail "update did not report the missing $tool"
 done
+# 撤去した Grok Build（grok）は update() の対象にしない
+if grep -qF 'update: grok' "$tmp/err"; then fail 'update() still updates grok'; fi
 if grep -F 'command not found' "$tmp/err"; then fail 'update ran a missing command'; fi
 
 # 3. update() はあるツールだけを更新する

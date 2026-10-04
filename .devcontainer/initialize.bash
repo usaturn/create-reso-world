@@ -9,7 +9,6 @@ set -e
 mkdir -p \
   "${HOME}/.codex" \
   "${HOME}/.claude" \
-  "${HOME}/.grok" \
   "${HOME}/.pi" \
   "${HOME}/.local/share/devin" \
   "${HOME}/.config/devin" \

@@ -65,7 +65,6 @@ for dir in \
     "${HOME}/.config/create-reso-world" \
     "${HOME}/.codex" \
     "${HOME}/.claude" \
-    "${HOME}/.grok" \
     "${HOME}/.pi" \
     "${HOME}/.cursor"; do
     if ! ensure_user_writable_dir "$dir"; then
