@@ -44,7 +44,7 @@ def _identifier(owner: str, repository: str) -> str:
         or not re.fullmatch(r"[A-Za-z0-9_.-]+", repository)
         or repository in (".", "..")
     ):
-        raise ContextError(f"invalid GitHub repository identifier: {owner}/{repository}")
+        raise ContextError("invalid GitHub repository identifier; use valid owner/repo names")
     return f"{owner}/{repository}".lower()
 
 
@@ -57,16 +57,16 @@ def normalize_github_url(value: str, *, allow_pr: bool = False) -> str:
         try:
             url = urlsplit(value)
         except ValueError as exc:
-            raise ContextError(f"invalid GitHub repository URL: {value}") from exc
+            raise ContextError("invalid GitHub repository URL; check its syntax") from exc
         if (url.scheme, url.netloc) not in (("https", "github.com"), ("ssh", "git@github.com")) or url.query or url.fragment:
-            raise ContextError(f"unsupported GitHub repository URL/host: {value}")
+            raise ContextError("unsupported GitHub repository URL/host; use GitHub HTTPS or SSH without credentials, query or fragment")
         path = url.path.removeprefix("/")
     parts = path.rstrip("/").split("/")
     if len(parts) == 4 and allow_pr and value.startswith("https://github.com/"):
         if parts[2] != "pull" or not re.fullmatch(r"[1-9][0-9]*", parts[3]):
-            raise ContextError(f"invalid GitHub PR repository URL: {value}")
+            raise ContextError("invalid GitHub PR repository URL; use https://github.com/owner/repo/pull/number")
     elif len(parts) != 2:
-        raise ContextError(f"invalid GitHub repository URL: {value}")
+        raise ContextError("invalid GitHub repository URL; use a GitHub owner/repo URL")
     return _identifier(parts[0], parts[1].removesuffix(".git"))
 
 
@@ -76,11 +76,11 @@ def parse_repository(value: str) -> str:
     if value.startswith("https://"):
         # --repo URLs denote PRs, not arbitrary GitHub pages or transport URLs.
         if not re.fullmatch(r"https://github\.com/[^/]+/[^/]+/pull/[1-9][0-9]*/?", value):
-            raise ContextError(f"invalid GitHub PR repository URL: {value}")
+            raise ContextError("invalid GitHub PR repository URL; use https://github.com/owner/repo/pull/number")
         return normalize_github_url(value, allow_pr=True)
     parts = value.split("/")
     if len(parts) != 2:
-        raise ContextError(f"repository must be owner/repo or a GitHub PR URL: {value}")
+        raise ContextError("repository must be owner/repo or a GitHub PR URL")
     return _identifier(*parts)
 
 
@@ -142,8 +142,8 @@ def _remote_repository(checkout: Checkout, name: str) -> str | None:
 
 def _require_origin(checkout: Checkout, label: str) -> None:
     if _remote_repository(checkout, "origin") != DOCUMENT_REPOSITORY:
-        url = checkout.remotes.get("origin", "missing origin")
-        raise ContextError(f"{label} origin is not {DOCUMENT_REPOSITORY}: {checkout.root} ({url}); use a verified create-reso-world checkout")
+        reason = "missing origin" if "origin" not in checkout.remotes else "unsupported URL or different repository"
+        raise ContextError(f"{label} origin is not {DOCUMENT_REPOSITORY}: {checkout.root} ({reason}); use a verified create-reso-world checkout")
 
 
 def select_remote(checkout: Checkout, repository: str, *, label: str = "CODE_ROOT") -> str:
@@ -157,11 +157,9 @@ def select_remote(checkout: Checkout, repository: str, *, label: str = "CODE_ROO
 def select_push_remote(checkout: Checkout, repository: str) -> str:
     """Require one remote name whose *every* effective push URL targets head."""
     matches = []
-    push_urls = {}
     for name in checkout.remotes:
         # Git applies pushurl, fetch-URL fallback and pushInsteadOf expansion.
         urls = _git(checkout.root, "remote", "get-url", "--push", "--all", name).splitlines()
-        push_urls[name] = urls
         repositories = []
         for url in urls:
             try:
@@ -173,7 +171,7 @@ def select_push_remote(checkout: Checkout, repository: str) -> str:
     if len(matches) != 1:
         raise ContextError(
             f"CODE_ROOT head remote {checkout.root} has {len(matches)} remotes whose effective push URLs "
-            f"all target {repository}; exactly one is required; effective push URLs: {push_urls!r}"
+            f"all target {repository}; exactly one is required; check each remote's push configuration"
         )
     return matches[0]
 

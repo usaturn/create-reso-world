@@ -89,6 +89,60 @@ class ContextTests(unittest.TestCase):
         self.assertNotIn("Traceback", result.stderr)
         self.assertEqual(result.stdout, "")
 
+    def assert_private_rejection(self, result, diagnostic):
+        self.assertEqual(result.returncode, 66, result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertIn(diagnostic, result.stderr)
+        for secret in ("demo-user", "do-not-log-credential", "do%2Dnot%2Dlog%2Dcredential"):
+            self.assertNotIn(secret, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_parent_origin_rejection_does_not_disclose_url_credentials(self):
+        for url in (
+            f"https://demo-user:do-not-log-credential@github.com/{SELF}.git",
+            f"ssh://demo-user:do-not-log-credential@github.com/{SELF}.git",
+            f"https://github.com/{SELF}.git?token=do-not-log-credential",
+        ):
+            with self.subTest(url=url):
+                self.git(self.parent, "remote", "set-url", "origin", url)
+                self.assert_private_rejection(self.run_context(), "PARENT_ROOT origin")
+
+    def test_document_origin_rejection_does_not_disclose_url_credentials(self):
+        url = f"https://demo-user:do%2Dnot%2Dlog%2Dcredential@github.com/{SELF}.git"
+        self.git(self.external, "remote", "set-url", "origin", url)
+        self.assert_private_rejection(
+            self.run_context(operation="review-copy", doc_root=self.external), "DOC_ROOT origin")
+
+    def test_push_url_rejection_does_not_disclose_credentials_in_any_destination(self):
+        self.git(self.external, "remote", "add", "head", "https://github.com/contributor/repository.git")
+        self.git(self.external, "remote", "set-url", "--push", "head", "git@github.com:contributor/repository.git")
+        for url in (
+            "https://demo-user:do-not-log-credential@github.com/contributor/repository.git",
+            "https://github.com/contributor/repository.git?token=do-not-log-credential",
+        ):
+            with self.subTest(url=url):
+                self.git(self.external, "remote", "set-url", "--push", "--add", "head", url)
+                self.assert_private_rejection(self.run_context(
+                    operation="review-fix", repo="other/repository", code_root=self.external,
+                    head_repo="contributor/repository", head_branch="main"), "effective push URLs")
+                self.git(self.external, "config", "--fixed-value", "--unset-all", "remote.head.pushurl", url)
+
+    def test_repository_input_errors_do_not_echo_credentials_or_url_parts(self):
+        for name in ("repo", "head_repo"):
+            for value in (
+                "https://demo-user:do-not-log-credential@github.com/contributor/repository/pull/1",
+                "ssh://demo-user:do-not-log-credential@github.com/contributor/repository.git",
+                "demo-user:do-not-log-credential/repository",
+                "https://github.com/contributor/repository/pull/1?token=do-not-log-credential",
+                "https://github.com/demo-user:do-not-log-credential/repository/pull/1",
+                "https://github.com/[do-not-log-credential]/repository/pull/1",
+            ):
+                with self.subTest(argument=name, value=value):
+                    kwargs = {name: value}
+                    if name == "head_repo":
+                        kwargs.update(operation="review-fix", head_branch="main")
+                    self.assert_private_rejection(self.run_context(**kwargs), "repository")
+
     def test_missing_required_inputs_exit_64_without_git_mutation(self):
         cases = [
             ("--operation", {"operation": None}),

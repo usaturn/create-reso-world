@@ -124,3 +124,38 @@ The environment may legitimately report the layout check's existing unavailable-
 - 最終記録の反映: このメタデータ更新をコミットし、別名の確認用コピーを作成して同じPRへpushする。最終SHAのAPI/復元/CI確認、結果コメント、handoffはその公開結果を記録する。マージ未実施
 - このCodex実行では手順8のpi固有変数の代わりに、現在のsession turn_contextに記録された厳密な識別子 `gpt-6.1-sol` を使い、同じモデルのマーカーだけを正規helperで更新する
 - 既存R1–R17の分類は調査時点の7/8/0/2を保持し、R8/R17を新たに修正済みとは扱わない。自然言語規約の遵守・全並行実行の普遍的な保証は行わない
+
+## Task 4: 調査で実証した2件を関連経路も含めて修正する
+
+- 状態: 実装・ローカル検証・最終確認完了（公開前の記録）。Task 1–3の完了記録は保持する。公開の実際は本コミットを指すPRコメントへ記録する。
+- 実行指示: 「再レビュー時に不具合が発覚して修正コミットが積みあがらないように修正をお願いします」。今回作成する追記本文への個別内容承認とは区別する。
+- 開始HEAD: `e2dd691e2f84033810979402c06cf3e005718a7c`。
+- Spec: 同名のroot-cause Spec §11。
+- Goal: 文書検査がPR固有履歴なしでも動き、URLの拒否診断が認証情報を出さないこと。
+- Architecture / Stack: 追跡JSONの固定SHA-256、既存Python標準ライブラリの比較と診断を使用する。新しい依存関係は追加しない。
+- Global Constraints: 既存PR/worktreeで実施し、22取り込み文書、終了コード、URLの受入範囲、読み取り専用性、gitleaksの履歴取得を保持する。main・無関係な作業・外部リポジトリ・PRマージは対象外。
+- 実行方式: executing-plansによる担当者の直接実装と、別担当による最終確認1回。Task 1–3の実行方式は当時の履歴として保持する。
+- Review Focus: 固定期待値の出所、履歴なしで実行できること、改変の検出、同じURL検証の診断経路、既存消費側とCIの退行。
+
+**Files:** `scripts/superpowers_context.py`、context/lifecycle unittest、文書hash fixture、`.github/workflows/ci.yml`、`tests/scripts/test-ci.bash`、README、review-fix-planning Skill、本Spec/Plan。
+
+- [x] **RED:** 通常/浅い単一コミットcloneとGit情報のない配布物で現行の文書検査が失敗するテストを追加する。認証情報入りorigin・push URLと不正なrepo/head-repo入力が診断に流出するテストを追加し、失敗理由を確認する。
+- [x] **Implement:** `58c9ea8` のblobから22件の固定hashを一度生成し、対象一覧との一致と現在のバイト列を検査する。URLを含まないエラーに変更し、CIの不要な履歴依存と2箇所の説明を補正する。
+- [x] **GREEN:** focused unittest、1文書の改変検出、既存のURL・終了コード・Git状態の検査を確認する。
+- [x] **Required gates:** `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills`、`git diff --check`。追加テストが既存CI経路で実行されることも確認する。
+- [x] **Final review:** 今回の変更と影響する既存経路を一度、読み取り専用の別担当で確認する。重要な指摘があれば再現テストと修正を1回の対応で行い、必要な検証を再実行する。再レビューの連鎖は行わない。
+- [ ] **Publish:** 全検証後に1コミットへまとめる。PRのhead repo/branch・実効push先を再確認し、既存PRへpushしてAPIでHEADを確認する。正規helperで同じ担当の結果コメントを更新する。マージしない。
+
+**Commit:** `fix: make lifecycle checks portable and keep credentials out of diagnostics`
+
+所要時間とRED/GREEN・必須検証・最終確認結果は、完了時にこの節へ記録する。最終コミットSHAと公開/CIの結果はPRコメントに記録し、それだけのための追記コミットは作らない。
+
+### Task 4 実施結果（公開前）
+
+- RED: 追加7テストで22の想定どおりの失敗を確認（4.006秒）。修正前のcontext/lifecycle 49件は成功（17.407秒）。
+- GREEN: context/lifecycle 56件成功（20.606秒）。Git情報なし、単一コミットmain-only bareからの通常/depth 1 clone、1文書の改変検出、認証情報入り診断、既存終了コードとGit状態を検査した。
+- 必須検証: 環境ランナー27本成功（追加分を含むSuperpowers unittest 79件を実行）、スキル399 passed / 1既存skip（42.55秒）、実配置・全4プロジェクトのResoLoop同期成功、diff検査成功。
+- 固定hashは元の `58c9ea8` の22 blobと一致し、22文書の現在のバイト列も同じ。今回の開始HEADからも文書変更なし。
+- 別担当の最終確認: stagedの10ファイルと影響する呼び出し元を確認。Critical/Important/Minorなし、判断対象外への保留なし。追加の修正・再レビューは実施していない。
+- 所要時間: 着手11:07:13 UTCからローカル受入11:23 UTCまで約16分。方針・資料照合と計画追記約8分、再現テスト/修正約3分、必須検証約2分、最終確認/公開前確認約3分（一部は並行）。コミット・push・GitHub CI監視の時間と結果はPRコメントで追記する。
+- Publishチェックは公開前の事実として未完了のまま保存する。公開後は本コミットを参照するPRコメントが結果の記録となり、チェック更新だけのコミットは作らない。今回の追記本文への個別内容承認やマージ許可は推定しない。

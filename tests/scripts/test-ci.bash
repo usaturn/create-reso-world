@@ -27,10 +27,6 @@ def uses(job):
 
 
 assert "bash .devcontainer/run-tests.bash" in runs("devcontainer-tests"), runs("devcontainer-tests")
-test_checkout = next(s for s in jobs["devcontainer-tests"]["steps"]
-                     if s.get("uses", "").startswith("actions/checkout@"))
-assert test_checkout.get("with", {}).get("fetch-depth", 1) == 0, (
-    "devcontainer-tests needs full history for the 58c9ea8 imported-document hash baseline", test_checkout)
 assert any(all(p in r for p in ("zsh", "ripgrep", "bubblewrap")) for r in runs("devcontainer-tests")), "zsh, ripgrep and bubblewrap are needed by the tests"
 assert any(u.startswith("astral-sh/setup-uv@") for u in uses("devcontainer-tests"))
 assert runs("layout") == ["bash scripts/check-layout.sh"], runs("layout")

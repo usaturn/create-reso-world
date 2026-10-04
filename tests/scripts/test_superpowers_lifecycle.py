@@ -6,7 +6,8 @@ notices).  The end-to-end class runs the real context resolver and the real
 non-replacing copy publication against temporary Git fixtures, then verifies
 approval/current/authority/publication metadata and a blocked external route.
 
-Imported historical documents are guarded byte-for-byte against commit 58c9ea8.
+Imported historical documents are guarded by fixed SHA-256 values captured
+from commit 58c9ea8; running the check does not require that Git history.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -39,7 +41,7 @@ SELF = "usaturn/create-reso-world"
 SPEC_V1_TEXT = "# sample design\n\n- 状態: draft\n"
 ORIGIN = f"https://github.com/{SELF}.git"
 
-IMPORT_COMMIT = "58c9ea8"
+IMPORT_HASHES = ROOT / "tests/scripts/fixtures/superpowers-imported-documents.sha256.json"
 IMPORTED = [
     "docs/superpowers/plans/2026-09-30-list-shrink-recreate-round6-review-fixes.md",
     "docs/superpowers/plans/2026-10-02-pr9-list-shrink-round2-review-fixes.md",
@@ -218,11 +220,11 @@ class LifecycleInstructionTests(unittest.TestCase):
         self.assertIn("--replace-from", read(LIFECYCLE_PLAN))
 
     def test_imported_documents_are_unchanged_since_import(self):
+        expected = json.loads(read(IMPORT_HASHES))
+        self.assertEqual(set(expected), set(IMPORTED), "import baseline must cover exactly the historical document inventory")
         for rel in IMPORTED:
-            committed = subprocess.run(["git", "-C", str(ROOT), "show", f"{IMPORT_COMMIT}:{rel}"],
-                                       capture_output=True, check=True).stdout
-            self.assertEqual(hashlib.sha256(committed).hexdigest(),
-                             hashlib.sha256((ROOT / rel).read_bytes()).hexdigest(), rel)
+            with self.subTest(document=rel):
+                self.assertEqual(expected[rel], hashlib.sha256((ROOT / rel).read_bytes()).hexdigest(), rel)
 
     def test_the_unittest_suite_is_wired_into_the_existing_ci_runner(self):
         listing = subprocess.run(["bash", str(ROOT / ".devcontainer/run-tests.bash"), "--list"],
@@ -230,6 +232,72 @@ class LifecycleInstructionTests(unittest.TestCase):
         self.assertIn("tests/scripts/test-superpowers-python.bash", listing)
         wrapper = read(ROOT / "tests/scripts/test-superpowers-python.bash")
         self.assertIn("test_superpowers_*.py", wrapper)
+
+
+class ImportedDocumentPortabilityTests(unittest.TestCase):
+    """Exercise the actual integrity check without the PR's Git objects."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null")
+
+    def export(self):
+        target = self.root / "export"
+        files = [Path(__file__).relative_to(ROOT),
+                 Path("tests/scripts/fixtures/superpowers-imported-documents.sha256.json"),
+                 *map(Path, IMPORTED)]
+        for rel in files:
+            destination = target / rel
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / rel, destination)
+        return target
+
+    def git(self, root, *args):
+        return subprocess.run(
+            ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", *args],
+            cwd=root, env=self.env, text=True, capture_output=True, check=True).stdout.strip()
+
+    def integrity_check(self, root):
+        return subprocess.run(
+            [sys.executable, str(root / "tests/scripts/test_superpowers_lifecycle.py"),
+             "LifecycleInstructionTests.test_imported_documents_are_unchanged_since_import"],
+            cwd=root, env=self.env, text=True, capture_output=True)
+
+    def test_export_without_git_metadata_passes(self):
+        root = self.export()
+        self.assertFalse((root / ".git").exists())
+        result = self.integrity_check(root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_full_and_shallow_clones_of_single_commit_main_pass(self):
+        source = self.export()
+        self.git(source, "init", "-b", "main")
+        self.git(source, "add", ".")
+        self.git(source, "commit", "-m", "squashed document snapshot")
+        bare = self.root / "main-only.git"
+        self.git(self.root, "clone", "--bare", str(source), str(bare))
+        self.assertEqual(self.git(bare, "for-each-ref", "--format=%(refname)"), "refs/heads/main")
+        self.assertEqual(self.git(bare, "rev-list", "--count", "--all"), "1")
+        for shallow in (False, True):
+            with self.subTest(shallow=shallow):
+                clone = self.root / ("shallow" if shallow else "full")
+                options = ["--depth", "1"] if shallow else []
+                self.git(self.root, "clone", *options, bare.as_uri(), str(clone))
+                self.assertEqual(self.git(clone, "rev-parse", "--is-shallow-repository"), str(shallow).lower())
+                result = self.integrity_check(clone)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_modified_document_is_rejected_and_identified_without_git(self):
+        root = self.export()
+        rel = IMPORTED[0]
+        with (root / rel).open("ab") as stream:
+            stream.write(b"\nchanged after import\n")
+        result = self.integrity_check(root)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(rel, result.stderr)
+        self.assertIn("AssertionError", result.stderr)
 
 
 class EndToEndLifecycleTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 # Superpowers の Spec・Plan
 
-この下には、Superpowers のスキル（brainstorming、writing-plans など）で作った設計（`specs/`）と実装計画（`plans/`）を置く。運用の設計は `specs/2026-10-03-superpowers-document-lifecycle-design.md` にある。
+この下には、Superpowers のスキル（brainstorming、writing-plans など）で作った設計（`specs/`）と実装計画（`plans/`）を置く。運用の現行設計は `specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` にある。
 
 ## 保存先
 
