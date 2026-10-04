@@ -48,7 +48,7 @@
 - 作業先は 3 つを区別する。`PARENT_ROOT` はユーザが確認用ファイルを読む create-reso-world の親 checkout、`DOC_ROOT` は正本をコミットする create-reso-world の checkout または worktree、`CODE_ROOT` はユーザの依頼または確認済みの引き継ぎで明示された、コード対象の checkout の絶対パスである。コード対象の cwd の `git rev-parse --show-toplevel` を、`DOC_ROOT` や `PARENT_ROOT` とみなさない
 - 文書を create-reso-world に集めることは、他のリポジトリのコード変更・clone・push・PR 作成の許可ではない。対象 checkout の `AGENTS.md` 等も守る
 - 正式な Spec・Plan は、承認前でも `draft` のまま `DOC_ROOT` の作業ブランチにコミットする。状態は `draft`・`approved`・`completed`・`superseded`・`cancelled` で書き、コミットしただけで `approved` にしない。完了した文書も削除しない
-- 同じテーマのレビュー修正は既存の文書を更新し、過去の版は Git の履歴に残す。更新前には対象リポジトリ・Issue/PR・テーマ・正本のパスで現行の Spec/Plan を探し、複数の候補があって確定できないときは進めずに確認する。回ごとの新規文書（roundN）は既定で作らない。承認は内容のコミット SHA に結び付け、承認後の状態・記録追記だけの変更は再承認を求めない。実質的な設計・計画の変更は再承認を必要とする
+- 同じテーマのレビュー修正は既存の文書を更新し、過去の版は Git の履歴に残す。更新前には対象リポジトリ・Issue/PR・テーマ・正本のパスで現行の Spec/Plan を探し、複数の候補があって確定できないときは進めずに確認する。回ごとの新規文書（roundN）は既定で作らない。承認は内容のコミット SHA に結び付け、承認後の状態・記録追記だけの変更は再承認を求めない。実質的な設計・計画の変更は再承認を必要とする（記録した実行許可がその変更を明示的に含む場合を除く）。例外で進める場合は許可された変更内容を記録し、一般的な継続指示だけで変更の承認を推測しない
 - ユーザに Spec・Plan の確認を依頼する前に、コミット済みの版を `scripts/superpowers-review-copy.sh` で `PARENT_ROOT` の `tmp/superpowers-review/` へコピーし、コピー先・文書のコミット SHA・正本のパスを示す。ファイル名は内容が分かる短い名前に `-spec.md` か `-plan.md` を付け、関連する Issue・PR があれば `<repo>-pr<N>-` のように番号を含める。番号を発明しない。コピーは既存の entry を決して差し替えない。正本が変わったら `...-r2-spec.md` のような別名で新しいコピーを公開し、旧コピーとユーザの注記は残す
 - 公開: create-reso-world 自身の変更に伴う文書は、その作業の PR に含める。他のリポジトリの変更に伴う文書は、create-reso-world の文書用ブランチから、テーマごとに 1 つの文書専用 PR で公開する。コミット・push・PR 作成・マージは別の段階であり、ユーザまたは使っているワークフローの明示指示があるときだけ行う。ローカルのコミットだけのときは、報告と handoff に「公開未実施」と書く
 
@@ -68,7 +68,7 @@
 | --- | --- | --- |
 | usaturn/create-reso-world（このリポジトリの origin） | `git rev-parse --show-toplevel` | `origin` の URL が一致すること |
 | usaturn/resoloop または orange3134/resoloop | `<toplevel>/external/resoloop` | `origin` が usaturn/resoloop、`upstream` が orange3134/resoloop であること。checkout が無ければ `scripts/resoloop-fork.sh clone` を案内して停止する |
-| それ以外 | ユーザの依頼または確認済みの引き継ぎで明示された checkout の絶対パス（`CODE_ROOT`） | その checkout 自身のルートであり、remote のうち 1 つだけが対象の owner/repo と一致すること。この経路を持つのは `pr-review`（レビュー）と `review-fix-planning`（修正計画）だけで、一般的な外部コード実装は非対応であり、実行経路が承認されていない外部実装の handoff は blocked（not ready）として記録する。remote が無いローカル専用の checkout との PR 連携は非対応のため扱えない（明示指示があっても resolver は remote 0 件で停止する）。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。checkout の探索・clone はしない |
+| それ以外 | ユーザの依頼または確認済みの引き継ぎで明示された checkout の絶対パス（`CODE_ROOT`） | その checkout 自身のルートであり、remote のうち 1 つだけが対象の owner/repo と一致すること。この経路を持つのは `pr-review`（レビュー）と `review-fix-planning`（修正計画と、その PR の承認済み実装修正）で、既存の承認済み PR 修正経路は維持する。一般的な外部コード実装は非対応であり、実行経路が未定義の外部実装の handoff は blocked（not ready）として記録する。remote が無いローカル専用の checkout との PR 連携は非対応のため扱えない（明示指示があっても resolver は remote 0 件で停止する）。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。checkout の探索・clone はしない |
 
 ## ResoLoop の版管理
 

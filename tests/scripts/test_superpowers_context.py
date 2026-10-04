@@ -59,7 +59,9 @@ class ContextTests(unittest.TestCase):
         )) for p in (self.parent, self.external, self.fork)}
 
     def run_context(self, operation="review-workspace", cwd=None, **kwargs):
-        args = [sys.executable, str(HELPER), "--operation", operation]
+        args = [sys.executable, str(HELPER)]
+        if operation is not None:
+            args.extend(["--operation", operation])
         kwargs.setdefault("repo", SELF)
         for name, value in kwargs.items():
             if value is not None:
@@ -80,12 +82,50 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(value["tool_root"], str(self.parent))
         return value
 
-    def bad(self, needle, **kwargs):
+    def bad(self, needle, *, code=66, **kwargs):
         result = self.run_context(**kwargs)
-        self.assertEqual(result.returncode, 66, result.stderr)
+        self.assertEqual(result.returncode, code, result.stderr)
         self.assertIn(needle, result.stderr)
         self.assertNotIn("Traceback", result.stderr)
         self.assertEqual(result.stdout, "")
+
+    def test_missing_required_inputs_exit_64_without_git_mutation(self):
+        cases = [
+            ("--operation", {"operation": None}),
+            ("PARENT_ROOT", {"cwd": self.root}),
+            ("CODE_ROOT", {"repo": "other/repository", "parent_root": self.parent}),
+            ("DOC_ROOT", {"operation": "review-copy"}),
+            ("DOC_ROOT", {"operation": "review-fix", "doc_branch": "docs/topic"}),
+            ("head", {"operation": "review-fix", "head_repo": SELF}),
+            ("head", {"operation": "review-fix", "head_branch": "main"}),
+            ("head", {"operation": "review-copy", "doc_root": self.parent, "head_repo": SELF}),
+            ("head", {"operation": "review-copy", "doc_root": self.parent, "head_branch": "main"}),
+        ]
+        for diagnostic, kwargs in cases:
+            with self.subTest(kwargs=kwargs):
+                self.bad(diagnostic, code=64, **kwargs)
+
+    def test_known_fork_prerequisite_defects_exit_65_without_git_mutation(self):
+        self.git(self.fork, "remote", "remove", "upstream")
+        for repo in ("usaturn/resoloop", "orange3134/resoloop"):
+            self.bad("scripts/resoloop-fork.sh clone", code=65, repo=repo)
+        # A missing checkout is a known-route prerequisite defect as well.
+        absent = self.checkout("parent-without-fork", {"origin": ORIGIN})
+        before = self.git(absent, "status", "--porcelain"), self.git(absent, "show-ref")
+        self.bad("scripts/resoloop-fork.sh clone", code=65, repo="usaturn/resoloop", parent_root=absent)
+        self.assertEqual((self.git(absent, "status", "--porcelain"), self.git(absent, "show-ref")), before)
+
+    def test_supplied_invalid_roots_and_candidate_mismatches_still_exit_66(self):
+        self.bad("CODE_ROOT", code=66, repo="other/repository", code_root=self.root / "missing")
+        self.bad("DOC_ROOT origin", code=66, operation="review-copy", doc_root=self.external)
+        self.bad("omit code/head", code=66, operation="review-copy", doc_root=self.parent,
+                 head_repo=SELF, head_branch="main")
+        self.bad("main checkout", code=66, parent_root=self.linked(self.parent, "invalid-parent"))
+        self.git(self.external, "remote", "remove", "origin")
+        self.bad("has 0 remotes", code=66, repo="other/repository", code_root=self.external)
+
+    def test_malformed_operation_syntax_keeps_argparse_exit_2(self):
+        self.bad("invalid choice", code=2, operation="unknown-operation")
 
     def test_external_cwd_cannot_become_implicit_parent(self):
         for code in (None, self.external, self.external / "subdir"):
@@ -93,7 +133,7 @@ class ContextTests(unittest.TestCase):
                 self.bad("PARENT_ROOT", cwd=self.external, repo="other/repository", code_root=code)
 
     def test_explicit_parent_supports_external_cwd_but_code_stays_explicit(self):
-        self.bad("CODE_ROOT", cwd=self.external, parent_root=self.parent, repo="other/repository")
+        self.bad("CODE_ROOT", code=64, cwd=self.external, parent_root=self.parent, repo="other/repository")
         value = self.good(cwd=self.external, parent_root=self.parent, code_root=self.external, repo="other/repository")
         self.assertEqual((value["code_root"], value["base_remote"]), (str(self.external), "origin"))
 
@@ -156,7 +196,7 @@ class ContextTests(unittest.TestCase):
     def test_fork_requires_both_expected_remotes(self):
         self.git(self.fork, "remote", "set-url", "upstream", ORIGIN)
         for repository in ("usaturn/resoloop", "orange3134/resoloop"):
-            self.bad("scripts/resoloop-fork.sh clone", repo=repository)
+            self.bad("scripts/resoloop-fork.sh clone", code=65, repo=repository)
 
     def test_workspace_rejects_linked_code_but_fix_accepts_verified_worktrees(self):
         for checkout, repo, name in ((self.parent, SELF, "self-wt"), (self.fork, "orange3134/resoloop", "fork-wt"),
@@ -187,7 +227,7 @@ class ContextTests(unittest.TestCase):
             self.bad("DOC_ROOT branch", operation="review-fix", doc_root=doc, doc_branch="wrong")
         self.bad("DOC_ROOT", doc_root=linked / "external")
         self.bad("DOC_ROOT origin", doc_root=self.external)
-        self.bad("DOC_ROOT", operation="review-fix", doc_branch="docs/topic")
+        self.bad("DOC_ROOT", code=64, operation="review-fix", doc_branch="docs/topic")
 
     def test_copy_only_validates_document_and_parent_not_code_cwd(self):
         linked = self.linked(self.parent, "docs-wt", "docs/topic")
@@ -195,7 +235,7 @@ class ContextTests(unittest.TestCase):
         for key in ("code_root", "code_branch", "code_head", "base_remote", "head_remote"):
             self.assertIsNone(value[key])
         self.bad("PARENT_ROOT", operation="review-copy", cwd=self.external, doc_root=linked)
-        self.bad("DOC_ROOT", operation="review-copy")
+        self.bad("DOC_ROOT", code=64, operation="review-copy")
 
     def test_base_and_head_remote_are_independent_and_head_branch_must_match(self):
         self.git(self.external, "remote", "rename", "origin", "base")
@@ -210,8 +250,8 @@ class ContextTests(unittest.TestCase):
         self.git(self.external, "remote", "add", "mirror", "git@github.com:contributor/repository.git")
         self.bad("head remote", operation="review-fix", repo="other/repository", code_root=self.external,
                  head_repo="contributor/repository", head_branch="main")
-        self.bad("head", operation="review-fix", head_branch="main")
-        self.bad("head", operation="review-fix", head_repo=SELF)
+        self.bad("head", code=64, operation="review-fix", head_branch="main")
+        self.bad("head", code=64, operation="review-fix", head_repo=SELF)
 
     def test_head_remote_accepts_fetch_base_and_effective_push_head_split(self):
         # Using fetch identity for head selection rejects this legitimate split.

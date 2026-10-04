@@ -23,6 +23,20 @@ OPERATIONS = ("review-workspace", "review-fix", "review-copy")
 class ContextError(ValueError):
     """An expected preflight rejection with an actionable message."""
 
+    exit_code = 66
+
+
+class InputError(ContextError):
+    """A required context input is absent or incomplete."""
+
+    exit_code = 64
+
+
+class ForkPrerequisiteError(ContextError):
+    """The known ResoLoop fork is absent or incorrectly configured."""
+
+    exit_code = 65
+
 
 def _identifier(owner: str, repository: str) -> str:
     if (
@@ -179,7 +193,7 @@ def resolve_context(
         try:
             parent_root = _git(current, "rev-parse", "--show-toplevel")
         except ContextError as exc:
-            raise ContextError("PARENT_ROOT is required; name the create-reso-world main checkout explicitly") from exc
+            raise InputError("PARENT_ROOT is required; name the create-reso-world main checkout explicitly") from exc
     parent = inspect_checkout(parent_root, label="PARENT_ROOT", require_main=True)
     _require_origin(parent, "PARENT_ROOT")
 
@@ -190,7 +204,7 @@ def resolve_context(
         if doc_branch and document.branch != doc_branch:
             raise ContextError(f"DOC_ROOT branch is {document.branch!r}, not requested {doc_branch!r}: {document.root}")
     elif doc_branch or operation == "review-copy":
-        raise ContextError("DOC_ROOT is required; name the create-reso-world document branch checkout explicitly")
+        raise InputError("DOC_ROOT is required; name the create-reso-world document branch checkout explicitly")
 
     context: dict[str, str | None] = dict.fromkeys((
         "parent_root", "tool_root", "doc_root", "code_root", "repository", "base_remote",
@@ -199,6 +213,8 @@ def resolve_context(
     context.update(parent_root=str(parent.root), tool_root=str(parent.root), repository=repository)
     if document:
         context.update(doc_root=str(document.root), document_branch=document.branch, document_head=document.head)
+    if (head_repo or head_branch) and not (head_repo and head_branch):
+        raise InputError("head validation requires review-fix with both --head-repo and --head-branch")
     if operation == "review-copy":
         if code_root or head_repo or head_branch:
             raise ContextError("review-copy validates parent/doc roots only; omit code/head arguments")
@@ -216,7 +232,7 @@ def resolve_context(
             ):
                 raise ContextError("origin/upstream do not identify the expected ResoLoop fork")
         except ContextError as exc:
-            raise ContextError(f"ResoLoop fork validation failed: {exc}; run scripts/resoloop-fork.sh clone first") from exc
+            raise ForkPrerequisiteError(f"ResoLoop fork validation failed: {exc}; run scripts/resoloop-fork.sh clone first") from exc
         base_remote = "origin" if repository == FORK_REPOSITORY else "upstream"
 
     if code_root:
@@ -224,7 +240,7 @@ def resolve_context(
     elif expected:
         code = expected
     else:
-        raise ContextError(f"unsupported PR repository: {repository}; explicitly name its checkout as CODE_ROOT")
+        raise InputError(f"unsupported PR repository: {repository}; explicitly name its checkout as CODE_ROOT")
     if operation == "review-workspace" and code.linked:
         raise ContextError(f"CODE_ROOT is a linked worktree; name the main checkout of {repository}: {code.root}")
     if expected:
@@ -240,7 +256,7 @@ def resolve_context(
     context.update(code_root=str(code.root), base_remote=base_remote, code_branch=code.branch, code_head=code.head)
 
     if head_repo or head_branch:
-        if operation != "review-fix" or not head_repo or not head_branch:
+        if operation != "review-fix":
             raise ContextError("head validation requires review-fix with both --head-repo and --head-branch")
         context["head_remote"] = select_push_remote(code, parse_repository(head_repo))
         if code.branch != head_branch:
@@ -250,14 +266,19 @@ def resolve_context(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--operation", choices=OPERATIONS, required=True)
+    parser.add_argument("--operation", choices=OPERATIONS)
     for option in ("parent-root", "doc-root", "code-root", "doc-branch", "head-repo", "head-branch"):
         parser.add_argument(f"--{option}")
     parser.add_argument("--repo", default=DOCUMENT_REPOSITORY)
     args = parser.parse_args(argv)
     try:
+        if args.operation is None:
+            raise InputError("--operation is required; choose review-workspace, review-fix, or review-copy")
         context = resolve_context(**vars(args))
-    except (ContextError, OSError) as exc:
+    except ContextError as exc:
+        print(f"superpowers-context: {exc}", file=sys.stderr)
+        return exc.exit_code
+    except OSError as exc:
         print(f"superpowers-context: {exc}", file=sys.stderr)
         return 66
     print(json.dumps(context, sort_keys=True))

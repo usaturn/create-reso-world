@@ -108,12 +108,32 @@ class LifecycleInstructionTests(unittest.TestCase):
         self.assertIn("review-copy", readme)
         self.assertIn("コード側の cwd", readme)
 
-    def test_agents_boundary_limits_external_routes_to_review_and_planning(self):
+    def test_agents_boundary_preserves_approved_external_pr_repairs(self):
         row = boundary_row(read(AGENTS))
         self.assertTrue(row, "AGENTS.md boundary table lost the other-repository row")
         for needle in ("`CODE_ROOT`", "remote", "推測せず停止する", "`pr-review`", "`review-fix-planning`",
-                       "ローカル専用", "外部コード実装は非対応", "blocked", "PR 連携は非対応"):
+                       "承認済み", "実装修正", "ローカル専用", "外部コード実装は非対応", "blocked", "PR 連携は非対応"):
             self.assertIn(needle, row, f"the other-repository row lacks: {needle}")
+
+    def test_authority_exception_names_the_substantive_change_in_current_instructions(self):
+        for path in (AGENTS, DOC_README, HANDOFF):
+            with self.subTest(path=path.name):
+                self.assertIn("記録した実行許可がその変更を明示的に含む場合を除く", read(path))
+                self.assertIn("変更内容", read(path))
+        self.assertIn("name the specific change", read(SCHEMA))
+
+    def test_current_workflows_preserve_approved_external_pr_repairs(self):
+        for path in (DOC_README, REVIEW_FIX, SCHEMA, WORKFLOW, LIFECYCLE_SPEC,
+                     ROOT / ".agents/skills/planning-parallel-issues/SKILL.md"):
+            with self.subTest(path=str(path.relative_to(ROOT))):
+                self.assertIn("approved PR review-fix implementation", read(path))
+
+    def test_reading_side_checks_versions_authority_and_closed_plans(self):
+        reader = section(read(HANDOFF), "## handoff を読む")
+        for token in ("sources.approved_commit", "sources.execution_authority", "schema v2", "不明",
+                      "completed", "superseded", "cancelled", "通常の実装を再開しない",
+                      "承認済み版", "現行・復元版", "内容変更"):
+            self.assertIn(token, reader)
 
     def test_operational_spec_carries_a_current_rule_pointer(self):
         spec = read(LIFECYCLE_SPEC)
@@ -269,7 +289,7 @@ class EndToEndLifecycleTests(unittest.TestCase):
         return self.git(self.doc, "rev-parse", "HEAD")
 
     def write_handoff(self, *, document_commit, approved_commit, execution_authority,
-                      completion_evidence, blocked=False):
+                      completion_evidence, blocked=False, reason=None, missing_facts=False):
         base = self.parent / "tmp/docs_draft/claude_handoffs"
         base.mkdir(parents=True, exist_ok=True)
         stem = "e2e-blocked" if blocked else "e2e-supported"
@@ -293,24 +313,102 @@ class EndToEndLifecycleTests(unittest.TestCase):
                 "review_copy": "tmp/superpowers-review/e2e-sample-spec.md",
             },
         }
+        if missing_facts:
+            del payload["sources"]["approved_commit"]
+            del payload["sources"]["execution_authority"]
         json_path = base / f"{stem}.handoff.json"
         json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         md_path = base / f"{stem}.handoff.md"
-        if blocked:
-            md = ("## Status\n\nimplementation: **blocked / not ready** — 一般的な外部コード実装は非対応 "
-                  "（root `AGENTS.md` のリポジトリ境界）。欠けているのは検証済みの実行経路と承認された実行許可である。\n"
-                  f"document_commit: `{document_commit}` / approved_commit: null（内容承認の記録は存在しない）\n"
-                  "review copy は閲覧補助であり、正本ではない。\n")
-        else:
-            md = ("## Sources\n\n"
-                  f"document_commit: `{document_commit}` / approved_commit: `{approved_commit}`\n"
-                  f"execution_authority: {execution_authority}\n"
-                  f"completion_evidence: {completion_evidence}\n"
-                  "公開未実施（ローカルのコミットのみ）\n")
+        state = "blocked / not ready" if blocked else "ready"
+        approval = f"`{approved_commit}`" if approved_commit else "null（内容承認の記録は存在しない）"
+        if missing_facts:
+            approval, execution_authority = "unknown（フィールド欠落のため不明）", "unknown"
+        reason = reason or ("一般的な外部コード実装は非対応。欠けているのは検証済みの実行経路と実行許可である。"
+                            if blocked else "fixture: supported route with explicit execution authority")
+        md = (f"## Status\n\nimplementation: **{state}** — {reason}\n"
+              f"document_commit: `{document_commit}` / approved_commit: {approval}\n"
+              f"execution_authority: {execution_authority}\n"
+              f"completion_evidence: {completion_evidence}\n"
+              "公開未実施（ローカルのコミットのみ）\n"
+              "review copy は閲覧補助であり、正本ではない。\n")
         md_path.write_text(md, encoding="utf-8")
         return json_path, md_path
 
     # ------------------------------------------------------------------ the run
+    def test_committed_version_and_resume_gate_eval_cases(self):
+        """Documentation/eval acceptance, not an approval parser or an LLM run.
+
+        Literal expected outcomes are tied to normative schema rows. Real Git
+        blobs establish the case inputs; they do not prove agent compliance.
+        """
+        spec = "# sample design\n\n- 状態: approved\n\nDesign: non-replacing copy.\n"
+        plan = "# sample plan\n\n- 状態: draft\n\nExecute approved repair.\n"
+        approved = self.commit_doc(spec, plan)
+        metadata = self.commit_doc(spec + "\nRecord: local validation passed.\n", plan)
+        changed = self.commit_doc(spec.replace("non-replacing copy", "changed copy policy"), plan)
+        versions = {"same-version": approved, "metadata-only": metadata, "substantive": changed}
+        for status in ("completed", "superseded", "cancelled"):
+            versions[status] = self.commit_doc(spec, plan.replace("draft", status))
+            self.assertIn(f"- 状態: {status}", self.git(self.doc, "show", f"{versions[status]}:{self.plan_rel}"))
+        self.assertNotEqual(approved, metadata)
+        self.assertNotEqual(approved, changed)
+        self.assertEqual(self.git(self.doc, "show", f"{metadata}:{self.spec_rel}"),
+                         (spec + "\nRecord: local validation passed.\n").strip())
+        self.assertEqual(self.git(self.doc, "show", f"{changed}:{self.spec_rel}"),
+                         spec.replace("non-replacing copy", "changed copy policy").strip())
+
+        self.assertIn("## Continuation gates", read(SCHEMA), "schema lacks continuation gate rules")
+        schema = section(read(SCHEMA), "## Continuation gates")
+        rows = {cells[0].strip(): [cell.strip() for cell in cells[1:]]
+                for line in schema.splitlines() if line.startswith("| ")
+                for cells in [line.strip("|").split("|")]}
+        # state, current version, approval version, authority, and rule evidence
+        cases = [
+            ("same-version", "ready", approved, approved, "execute approved repair", ("same committed version",)),
+            ("metadata-only", "ready", metadata, approved, "execute approved repair", ("retain approved_commit", "no renewed approval")),
+            ("substantive-unapproved", "blocked / not ready", changed, approved, "execute approved repair", ("renewed approval", "does not name the change")),
+            ("substantive-authorized", "ready", changed, approved, "change copy policy to changed copy policy", ("name the specific change", "do not invent content approval")),
+            ("missing-authority", "blocked / not ready", approved, approved, None, ("missing execution authority",)),
+            ("unsupported-route", "blocked / not ready", approved, approved, "implement external Issue", ("general external implementation", "remote-less")),
+            ("legacy-v2-missing-facts", "blocked / not ready", approved, None, None, ("unknown", "never inferred")),
+        ]
+        cases.extend(("closed-plan", "blocked / not ready", versions[status], approved,
+                      "execute approved repair", (status, "ordinary implementation must not resume"))
+                     for status in ("completed", "superseded", "cancelled"))
+        for name, want, current, approval, authority, evidence in cases:
+            with self.subTest(case=name, current=current):
+                condition, outcome = rows[name]
+                self.assertEqual(outcome.split(";", 1)[0], want)
+                for phrase in evidence:
+                    self.assertIn(phrase, condition + ";" + outcome)
+                self.assertEqual(len(current), 40)
+                self.assertEqual(self.git(self.doc, "rev-parse", f"{current}^{{commit}}"), current)
+                json_path, md_path = self.write_handoff(
+                    document_commit=current, approved_commit=approval, execution_authority=authority,
+                    completion_evidence=None, blocked=want == "blocked / not ready", reason=condition,
+                    missing_facts=name == "legacy-v2-missing-facts")
+                sources = json.loads(json_path.read_text())["sources"]
+                self.assertEqual(sources["document_commit"], current)
+                if name == "legacy-v2-missing-facts":
+                    self.assertNotIn("approved_commit", sources)
+                    self.assertNotIn("execution_authority", sources)
+                else:
+                    self.assertEqual(sources["approved_commit"], approval)
+                    self.assertEqual(sources["execution_authority"], authority)
+                md = md_path.read_text(encoding="utf-8")
+                self.assertIn(f"implementation: **{want}**", md)
+                self.assertIn("approved_commit: unknown" if name == "legacy-v2-missing-facts" else
+                              (f"approved_commit: `{approval}`" if approval else "approved_commit: null"), md)
+                # These eval facts are independent of historical approved status
+                # and never reinterpret a substantive change as content approval.
+                if current != approved:
+                    self.assertEqual(approval, approved)
+        # Route support comes from the real resolver; authority remains a human gate.
+        result = self.context(parent_root=self.parent, doc_root=self.doc, code_root=self.external,
+                              repo="other/repository", head_repo="other/repository", head_branch="main")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["head_remote"], "origin")
+
     def test_supported_route_reaches_simulated_publication_with_versioned_copies(self):
         # 1. Context resolution for the own repository and an explicit external CODE_ROOT.
         own = self.context(parent_root=str(self.parent), doc_root=str(self.doc), code_root=str(self.parent),

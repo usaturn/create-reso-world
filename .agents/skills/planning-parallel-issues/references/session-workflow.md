@@ -24,6 +24,15 @@ The user explicitly requires written artifacts for every child. This takes prece
 | Required skill missing | Search installed skills; report exact missing dependency if unavailable, preserve partial work; never label a substitute as having run that skill |
 | Undefined implementation route (general external implementation, or remote-less PR integration) | Record the blocker and missing authorization in the handoff (`sources.execution_authority`: null); the child is blocked / not ready for implementation, not executable |
 
+The existing approved PR review-fix implementation route remains supported through
+review-fix-planning with explicit validated CODE_ROOT. General external/Issue
+implementation does not inherit that permission. Before resuming implementation,
+check the committed approved/current Spec and Plan and the specific execution
+authority using agent-handoff's Continuation gates. Metadata-only record additions
+retain approved_commit while document_commit advances; substantive changes require
+renewed approval unless the recorded authority names that change. Missing v2 facts
+are unknown; completed/superseded/cancelled Plans do not resume ordinary implementation.
+
 An existing artifact's hash establishes byte identity, not design validity. Before writing new artifacts, search the current Spec/Plan by target repository, Issue/PR, theme and canonical path (`docs/superpowers/specs/`, `plans/`), not by basename or date alone. Reuse and update the current canonical document for ordinary review fixes; do not generate roundN files by default. If more than one plausible canonical document exists and successor links or explicit paths cannot settle it, stop and ask. Creating a genuinely new Spec requires a recorded explicit reason, such as an independently approved architectural redesign. The committed-draft invariant stays: submitted Spec/Plan draft content must be committed before a review copy is presented. Read its decisions and check current interfaces before accepting it. If inheriting another agent's artifacts, apply `agent-handoff` on the reading side too.
 
 ## Required artifact set

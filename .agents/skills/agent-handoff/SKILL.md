@@ -26,7 +26,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Ba
 1. **区切りを決めて、それを明記する。** 編集の途中で書いた handoff は、handoff が無いより悪い。作業単位を完了させるか元に戻すかを選び、どちらにしたかを `session.stop_reason` に書く。適用途中の編集を作業ツリーに残すなら、冒頭の節で必ず宣言する。書かなければ受け手は「作業ツリー＝ `git.head`」と仮定して踏む。
 
 2. **理屈の置き場所を決める。** 長い論証は Spec / Plan 側（本リポジトリでは `docs/superpowers/` の `specs/` と `plans/`）に置き、handoff は 1 行の裁定だけを持って `sources.spec` で指す。両方に書くと必ず食い違う。Spec が無いときは `sources.spec` を `null`（JSON）/ `none`（Markdown）にし、理由を書く。存在しないパスを捏造しない。Spec・Plan の正本は、対象のリポジトリにかかわらず create-reso-world にある（ルート `AGENTS.md` の「Spec・Plan の保存と公開」）。正本をコミットした checkout（`DOC_ROOT`）と文書のコミット SHA を `sources.doc_root`・`sources.document_commit` に、push 済みかどうかを `sources.document_published` に書く。ローカルのコミットだけなら「公開未実施」と書く。`tmp/superpowers-review/` の確認用コピーは `sources.review_copy` に閲覧補助として書くだけで、復元元にしない。
-承認と実行と完了を別の事実として書く。ユーザが特定のコミット済み版の内容を承認したなら、その SHA を `sources.approved_commit` に書く。`sources.document_commit` は現行・復元版であり、承認後の metadata-only な記録追記で異なることがある（それは再承認を要求しない。実質的な設計・計画の変更は再承認を必要とする）。実行を許可する明示的な指示や規則は `sources.execution_authority` に 1 行で書く。無ければ `null` にして、欠けている承認・規則を blocker として書く。実装済みなら根拠を `sources.completion_evidence` に書く。状態の表記だけから承認や実行許可を推測しない。
+承認と実行と完了を別の事実として書く。ユーザが特定のコミット済み版の内容を承認したなら、その SHA を `sources.approved_commit` に書く。`sources.document_commit` は現行・復元版であり、承認後の metadata-only な記録追記で異なることがある（それは再承認を要求しない。実質的な設計・計画の変更は再承認を必要とする。記録した実行許可がその変更を明示的に含む場合を除く）。実行を許可する明示的な指示や規則は `sources.execution_authority` に 1 行で書く。例外で進める場合は許可された変更内容を記録し、一般的な継続指示だけで変更の承認を推測しない。無ければ `null` にして、欠けている承認・規則を blocker として書く。実装済みなら根拠を `sources.completion_evidence` に書く。状態の表記だけから承認や実行許可を推測しない。
 
 3. **対の 2 ファイルを手書きする。** `tmp/docs_draft/claude_handoffs/<timestamp>-<session>.handoff.md` と同名の `.handoff.json` をスキーマに従って手書きする。
 
@@ -63,6 +63,8 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Ba
 4. **動く前に状態を報告する。** セッションとエージェント、検出したスキル、現在のフェーズ／ゲート、完了・未完了のタスク、決定済みの裁定、対象外の範囲、検証の証跡、反映先。
 
 5. **handoff の状態からのみ続ける。** `out_of_scope` は拘束力を持つ。小さく勝てそうに見えても `skip` の判断を開け直さない。誤っていると考えるなら、そう述べて止まる。handoff が自分の記憶と食い違うときは handoff を採る。`verification.commands` を指定された隔離のもとで走らせ、自分の習慣ではなく `landing` の指定どおりに作業を完了させる。Spec・Plan は `sources.document_commit` の正本から読む。確認用コピー（`sources.review_copy`）しか無い、または文書のコミットが公開されていない環境では、続きに入る前に正本を取得できるかを確かめる。
+
+   **実装を再開する前のゲート:** Spec・Plan それぞれの承認済み版（`sources.approved_commit`）と現行・復元版（`sources.document_commit`）のコミット済み正本を読み、内容変更の有無、`sources.execution_authority` の具体的な継続指示、対象外、コード HEAD と反映先を確認する。SHA が異なるだけで再承認を要求せず、記録追記だけなら承認 SHA を保持する。実質変更は再承認が必要で、例外は記録した実行許可が変更内容を明示的に含む場合に限る。schema v2 でも承認・実行許可のフィールドが欠ける場合は「不明」とし、状態や確認用コピーから推測しない。欠けている事実・規則を blocker として記録してから確認する。Plan が completed / superseded / cancelled なら通常の実装を再開しない。各条件の判断表は `references/handoff-schema.md` の Continuation gates にある。
 
 ## アーティファクトの作成
 
