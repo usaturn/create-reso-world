@@ -2,16 +2,12 @@
 
 set -u
 
-# DeepSeek Harness
-readonly DSH_VERSION="0.1.5-rc.1"
-readonly DSH_COMMANDCODE_PROVIDER_VERSION="0.10.6"
-
 # postCreate の出力は、途中でコンテナが止まると残らない。どのステップまで進んだかを
 # 後から追えるよう、各ステップの開始を必ず1行で出し、失敗は ERROR 行を残して
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
 # （workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=26
+readonly STEP_TOTAL=25
 STEP_NUMBER=0
 
 step() {
@@ -71,7 +67,6 @@ for dir in \
     "${HOME}/.claude" \
     "${HOME}/.grok" \
     "${HOME}/.pi" \
-    "${HOME}/.dsh" \
     "${HOME}/.cursor"; do
     if ! ensure_user_writable_dir "$dir"; then
         fail "Failed to prepare writable directory: ${dir}"
@@ -383,79 +378,6 @@ step "Writing the pi-superagents launcher configs"
 if ! zsh .devcontainer/setup_pi_superagents.zsh --if-absent; then
     fail "Failed to set up pi-superagents launcher configs."
 fi
-
-step "Installing DeepSeek Harness"
-# DeepSeek Harness（dsh）は pi と並行して使う。dsh の plugin 管理は PATH 上の
-# pnpm を直接 spawn するため、devcontainer.json の Node feature で pnpm を明示導入
-# している（pnpmVersion "none" は導入省略）。
-install_deepseek_harness() {
-    echo "Installing DeepSeek Harness ${DSH_VERSION}..."
-    if ! npm install -g "@deepseek-ai/dsh@${DSH_VERSION}"; then
-        echo "DeepSeek Harness installation failed." >&2
-        exit 1
-    fi
-    if ! command -v dsh >/dev/null 2>&1; then
-        echo "DeepSeek Harness installation completed without placing dsh on PATH." >&2
-        exit 1
-    fi
-    # 想定と違う版が入ると Developer Preview の仕様差を踏むため fail-loud にする。
-    if ! dsh_version="$(dsh --version)"; then
-        echo "dsh --version failed." >&2
-        exit 1
-    fi
-    if [ "${dsh_version//[[:space:]]/}" != "${DSH_VERSION}" ]; then
-        echo "Unexpected dsh version: ${dsh_version} (expected ${DSH_VERSION})." >&2
-        exit 1
-    fi
-    # ~/.dsh は devcontainer.json で bind mount している。ホスト側に存在しない場合は
-    # Docker が root 所有で作成するため、以降の dsh が書き込めるよう所有権を直す。
-    ensure_user_writable_dir "${HOME}/.dsh" || {
-        echo "Failed to prepare writable directory: ${HOME}/.dsh." >&2
-        exit 1
-    }
-    # settings.yaml は bind mount 側を正とし、無い場合のみ雛形を配置する。
-    # 毎回上書きすると、Web UI や利用者が更新した設定がリビルドで失われる。
-    if [ ! -f "${HOME}/.dsh/settings.yaml" ]; then
-        if ! cp .devcontainer/dsh-settings.yaml "${HOME}/.dsh/settings.yaml"; then
-            echo "Failed to place dsh settings.yaml." >&2
-            exit 1
-        fi
-    fi
-    # cordis.patch.yml も settings.yaml と同じく無い場合のみ配置する。plugin の
-    # 無効化を settings.yaml に書いても効かないため、この patch 層に置く（理由は
-    # dsh-cordis.patch.yml のコメントを参照）。
-    if [ ! -f "${HOME}/.dsh/cordis.patch.yml" ]; then
-        if ! cp .devcontainer/dsh-cordis.patch.yml "${HOME}/.dsh/cordis.patch.yml"; then
-            echo "Failed to place dsh cordis.patch.yml." >&2
-            exit 1
-        fi
-    fi
-    # Command Code plugin は web profile にだけ導入する。plugin add は導入済みなら
-    # lockfile 一致で成功する（冪等）ため、rebuild のたびに実行して欠落を検出する。
-    if ! dsh plugin --profile web add "@mars-sea/dsh-commandcode-provider@${DSH_COMMANDCODE_PROVIDER_VERSION}"; then
-        echo "Failed to add the Command Code provider to the dsh web profile." >&2
-        exit 1
-    fi
-    # 既に別内容の cordis.patch.yml を持つ環境では無効化が入らない。効いていない
-    # 設定を silent に通すと「設定したつもり」を再生産するため、解決後の構成を見て
-    # fail-loud にする。
-    if ! dsh_config="$(dsh --profile web --dump-config)"; then
-        echo "dsh --profile web --dump-config failed." >&2
-        exit 1
-    fi
-    # 当該 entry のブロック内だけを見る。次の top-level entry（行頭の "- "）で
-    # 抜けるので、隣の plugin の enabled で通ってしまうことがない。
-    if ! printf '%s\n' "${dsh_config}" | awk '
-        /^- id: plugin-package-inventory-deepseek$/ { inside = 1; next }
-        inside && /^- / { inside = 0 }
-        inside && /^[[:space:]]+enabled: false$/ { found = 1 }
-        END { exit found ? 0 : 1 }
-    '; then
-        echo "dsh still enables plugin-package-inventory-deepseek; check ${HOME}/.dsh/cordis.patch.yml." >&2
-        exit 1
-    fi
-}
-install_deepseek_harness
 
 step "Installing the shared skills (herdr / find-skills)"
 if ! npx -y skills add herdrdev/herdr --skill herdr -g -y -a claude-code -a pi; then

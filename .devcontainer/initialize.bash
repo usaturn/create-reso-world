@@ -11,7 +11,6 @@ mkdir -p \
   "${HOME}/.claude" \
   "${HOME}/.grok" \
   "${HOME}/.pi" \
-  "${HOME}/.dsh" \
   "${HOME}/.local/share/devin" \
   "${HOME}/.config/devin" \
   "${HOME}/.local/share/cursor-agent" \

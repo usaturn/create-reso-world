@@ -15,7 +15,7 @@ source "$root/.devcontainer/mounts.bash"
 if ! out="$(mounts_compare "$config" "$init")"; then fail "mounts and initialize.bash differ:
 $out"; fi
 
-# 2. mounts は仕様 7.1 の表の 14 個（既存 13 ＋秘密情報）
+# 2. mounts は仕様 7.1 の表の 14 個（既存 13 ＋秘密情報）から、撤去した dsh の ~/.dsh を除いた 13 個
 expected='.claude
 .claude.json
 .codex
@@ -25,7 +25,6 @@ expected='.claude
 .config/gh
 .config/glab-cli
 .cursor
-.dsh
 .grok
 .local/share/cursor-agent
 .local/share/devin
@@ -79,9 +78,9 @@ grep -qxF 'mounts: ~/.extra is mounted by devcontainer.json but not created by i
 sed 's|^  "${HOME}/.grok" \\$|  "${HOME}/.grok" \\\n  "${HOME}/.unmounted" \\|' "$init" > "$tmp/extra-init.bash"
 if out="$(mounts_compare "$config" "$tmp/extra-init.bash")"; then fail 'accepted a path that is not mounted'; fi
 grep -qxF 'mounts: ~/.unmounted is created by initialize.bash but not mounted by devcontainer.json' <<<"$out" || fail "unexpected report: $out"
-sed 's|target=/home/vscode/.dsh,|target=/root/.dsh,|' "$config" > "$tmp/target.json"
+sed 's|target=/home/vscode/.pi,|target=/root/.pi,|' "$config" > "$tmp/target.json"
 if out="$(mounts_compare "$tmp/target.json" "$init")"; then fail 'accepted a mount with an unexpected target'; fi
-grep -qxF 'mounts: ~/.dsh is mounted at /root/.dsh, expected /home/vscode/.dsh' <<<"$out" || fail "unexpected report: $out"
+grep -qxF 'mounts: ~/.pi is mounted at /root/.pi, expected /home/vscode/.pi' <<<"$out" || fail "unexpected report: $out"
 # // でコメントアウトした mount と、パス以外も書いた行（chmod など）は数えない
 sed 's|^\t\t"source=${localEnv:HOME}/.codex,|\t\t// "source=${localEnv:HOME}/.codex,|' "$config" > "$tmp/commented.json"
 if out="$(mounts_compare "$tmp/commented.json" "$init")"; then fail 'counted a commented-out mount'; fi
