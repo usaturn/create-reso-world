@@ -11,7 +11,7 @@ Announce this skill. Read repository instructions, existing Issues, code, and av
 
 ## Target repository
 
-Boards, Issues and claim refs live in `usaturn/create-reso-world`, this repository's `origin`. Before the first write, confirm that `git remote get-url origin` names it, and use it wherever the references write `{owner}/{repo}`. Work on ResoLoop itself belongs to the fork (`usaturn/resoloop`, checked out at `external/resoloop`) under the repository boundary table in the root `AGENTS.md`; build a board there only when the user names that repository. Stop instead of guessing for any other repository.
+Boards, Issues and claim refs live in `usaturn/create-reso-world`, this repository's `origin`. Before the first write, confirm that `git remote get-url origin` names it, and use it wherever the references write `{owner}/{repo}`. Work on ResoLoop itself belongs to the fork (`usaturn/resoloop`, checked out at `external/resoloop`) under the repository boundary table in the root `AGENTS.md`; build a board there only when the user names that repository. Do not build a board in any other repository. A child may still name another repository as its implementation target: record its exact identifier (`owner/repo` on GitHub), and the checkout only when the user or a verified handoff names it (`CODE_ROOT`). Its Spec and Plan are still committed in `usaturn/create-reso-world`, as the root `AGENTS.md` requires for every repository. Stop instead of guessing when the target or its checkout is unclear.
 
 ## Choose the requested operation
 
@@ -30,7 +30,7 @@ Reuse existing Issues and valid artifacts. Board creation alone does not claim e
 - **Ownership:** create a unique empty claim commit and atomically create one fixed remote ref. Save its SHA before ref creation. Recheck ownership before writes; release with an expected-SHA lease. Comments and assignees are visibility, not locks.
 - **Planning:** REQUIRED SUB-SKILLS: `superpowers:brainstorming`, then `superpowers:writing-plans`, then `agent-handoff`. The user's requested artifacts require the written-spec path even for bounded children. Use recommended choices and continue through all three. Record agent decisions, not invented human approval. User authorization overrides routine approval/“which execution mode?” pauses.
 - **Recovery:** publish exact artifact contents with hashes and restore them into a fresh directory before announcing readiness. A local path or commit that was never published is insufficient.
-- **Boundary:** an implementation child stays open with `planning: ready`, `implementation: not-started`. Code, implementation tests, merge, and deployment need their own authorized execution task. No eligible child means report blockers and finish without holding claims.
+- **Boundary:** an implementation child stays open with `planning: ready`, `implementation: not-started`. Code, implementation tests, merge, and deployment need their own authorized execution task. An undefined execution route — general external implementation or remote-less PR integration — is a blocker recorded in the handoff with its execution authority absent; planning completion alone does not make it ready. The existing approved PR review-fix implementation route through review-fix-planning remains supported with explicit validated CODE_ROOT; general external/Issue implementation does not inherit it. No eligible child means report blockers and finish without holding claims.
 
 ## Common mistakes
 
