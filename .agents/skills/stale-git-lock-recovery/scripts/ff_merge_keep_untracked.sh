@@ -14,6 +14,11 @@
 # again. A file that differs from <rev> afterwards shows up as modified; one
 # that matched <rev> is clean.
 #
+# git would also remove untracked or ignored content that cannot be put back
+# in place: files under a directory where <rev> adds a file, or a file or
+# symlink where <rev> needs a directory. The script refuses to run then and
+# lists those paths, so they can be moved away first.
+#
 # When the fast-forward fails or the run is interrupted (HUP, INT, TERM),
 # every file goes back to its original place. The backup directory is never
 # deleted: its path is printed on stderr before anything is removed, together
@@ -21,10 +26,10 @@
 #
 # Exit codes:
 #   0  fast-forwarded (or already up to date) and every file was restored
-#   1  the run did not complete: no fast-forward was possible, the
-#      fast-forward failed, a file could not be restored, or the run was
-#      interrupted. stderr says whether HEAD moved; the backup directory still
-#      holds the originals
+#   1  the run did not complete: no fast-forward was possible, some paths
+#      must be moved away first, the fast-forward failed, a file could not be
+#      restored, or the run was interrupted. stderr says which, and whether
+#      HEAD moved; the backup directory still holds the originals
 #   2  usage error, not a git work tree, or unknown <rev>
 
 set -u
@@ -160,31 +165,72 @@ main() {
     exit "$EXIT_FAIL"
   fi
 
+  if ! backup="$(mktemp -d "${TMPDIR:-/tmp}/ff-merge-keep-untracked.XXXXXX")"; then
+    printf 'cannot create a backup directory; nothing was changed\n' >&2
+    exit "$EXIT_FAIL"
+  fi
+
   # Untracked files, ignored ones included, exactly on the paths that the
   # target commit adds. git ls-files lists only real files and symlinks and
   # never looks through a symlinked directory, so nothing outside the work
   # tree is picked up; a pathspec also matches the files under a directory of
   # that name, hence the exact intersection with comm. Other kinds of conflict
-  # make the fast-forward fail below, and then every file is put back.
-  local rel
-  while IFS= read -r -d '' rel; do
-    files+=("$rel")
-  done < <(comm -z -12 <(added_paths | LC_ALL=C sort -z) \
-    <(added_paths | xargs -0 -r git --literal-pathspecs ls-files --others -z -- | LC_ALL=C sort -z))
+  # make the fast-forward fail below, and then every file is put back. If the
+  # list cannot be built, stop: a plain merge would overwrite ignored files.
+  if ! (
+    set -o pipefail
+    added_paths | LC_ALL=C sort -z >"$backup/added" &&
+      xargs -0 -r git --literal-pathspecs ls-files --others -z -- <"$backup/added" |
+      LC_ALL=C sort -z >"$backup/untracked" &&
+      LC_ALL=C comm -z -12 "$backup/added" "$backup/untracked" >"$backup/paths"
+  ); then
+    printf 'cannot list the untracked files on the paths that %s adds; nothing was changed\n' "$ref" >&2
+    rm -rf -- "$backup"
+    exit "$EXIT_FAIL"
+  fi
+
+  # git also removes ignored content without asking where <rev> puts a file
+  # over a directory, or a directory over a file or symlink, and such content
+  # could not be put back in its place afterwards. Refuse instead: a directory
+  # holding untracked or ignored files on a path that <rev> adds, or an
+  # untracked or ignored file or symlink on a leading directory of such a path.
+  local added dir
+  local -a blocked=()
+  while IFS= read -r -d '' added; do
+    if [ -d "$added" ] && [ ! -L "$added" ] &&
+      [ -n "$(git --literal-pathspecs ls-files --others -- "$added/")" ]; then
+      blocked+=("$added/")
+    fi
+    dir="$added"
+    while [ "${dir%/*}" != "$dir" ]; do
+      dir="${dir%/*}"
+      if [ -L "$dir" ] || { [ -e "$dir" ] && [ ! -d "$dir" ]; }; then
+        if [ -z "$(git --literal-pathspecs ls-files --cached -- "$dir")" ]; then
+          blocked+=("$dir")
+        fi
+        break
+      fi
+    done
+  done <"$backup/added"
+  if [ "${#blocked[@]}" -gt 0 ]; then
+    printf '%s puts a file or a directory where these untracked or ignored paths are; move them out of the work tree and run again; nothing was changed:\n' "$ref" >&2
+    printf '  %s\n' "${blocked[@]}" | LC_ALL=C sort -u >&2
+    rm -rf -- "$backup"
+    exit "$EXIT_FAIL"
+  fi
+
+  mapfile -d '' -t files <"$backup/paths"
+  rm -f -- "$backup/added" "$backup/untracked"
 
   if [ "${#files[@]}" -eq 0 ]; then
+    rm -rf -- "$backup"
     git merge --ff-only "$target" || exit "$EXIT_FAIL"
     exit "$EXIT_OK"
   fi
-
-  if ! backup="$(mktemp -d "${TMPDIR:-/tmp}/ff-merge-keep-untracked.XXXXXX")"; then
-    printf 'cannot create a backup directory; nothing was changed\n' >&2
-    exit "$EXIT_FAIL"
-  fi
   printf 'backup directory: %s\n' "$backup" >&2
-  printf '%s\0' "${files[@]}" >"$backup/paths"
 
   # Copy and check everything before the first file is removed.
+  local rel
   for rel in "${files[@]}"; do
     if { [ -L "$rel" ] || [ -f "$rel" ]; } &&
       mkdir -p -- "$backup/files/$(dirname -- "$rel")" &&

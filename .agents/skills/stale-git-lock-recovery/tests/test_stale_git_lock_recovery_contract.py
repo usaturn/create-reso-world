@@ -881,3 +881,75 @@ def test_clear_keeps_a_lock_replaced_during_the_check(git_repo: Path, tmp_path: 
     assert json.loads(clear.stdout)["removed"] is False
     assert "changed while it was being checked" in clear.stderr
     assert lock.read_bytes() == b"new"
+
+
+def test_paused_commit_in_a_core_worktree_repository_is_not_stale(tmp_path: Path) -> None:
+    # The git dir lives in "meta" and core.worktree points at "files"; git runs
+    # from "files", where `git -C` alone cannot find the repository.
+    meta = make_git_repo(tmp_path / "meta")
+    files = tmp_path / "files"
+    files.mkdir()
+    (files / "README.md").write_text("hello\n", encoding="utf-8")
+    git(meta, "config", "core.worktree", str(files))
+    (meta / "README.md").unlink()
+    assert git(meta, "status", "--porcelain") == ""
+    ready = tmp_path / "paused"
+    release = tmp_path / "release"
+    hook = meta / ".git" / "hooks" / "pre-commit"
+    hook.write_text(f'#!/bin/sh\n: >"{ready}"; while [ ! -e "{release}" ]; do sleep 0.05; done\n', encoding="utf-8")
+    hook.chmod(0o755)
+    (files / "README.md").write_text("changed\n", encoding="utf-8")
+    lock = meta / ".git" / "index.lock"
+
+    commit = subprocess.Popen(
+        ["git", "commit", "-a", "-qm", "second"],
+        cwd=meta,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        wait_for(ready.exists, "the pre-commit hook", commit)
+        assert lock.exists()
+        check = run_script("check", "--json", "--repo", str(meta))
+        assert check.returncode == 12, (check.stdout, check.stderr)
+        clear = run_script("clear", "--repo", str(meta))
+        assert clear.returncode == 12, (clear.stdout, clear.stderr)
+        assert lock.exists()
+    finally:
+        release.touch()
+        stdout, stderr = commit.communicate(timeout=30)
+    assert commit.returncode == 0, (stdout, stderr)
+    assert git(meta, "show", "HEAD:README.md") == "changed\n"
+
+
+def test_git_child_of_a_linked_worktree_does_not_block_the_main_lock(git_repo: Path, tmp_path: Path) -> None:
+    # git exports GIT_DIR=<common>/worktrees/<name> to processes it starts in a
+    # linked worktree (aliases, hooks); they use that worktree's index only.
+    linked = tmp_path / "linked"
+    git(git_repo, "worktree", "add", "-q", "-b", "linked", str(linked))
+    linked_git_dir = git_repo / ".git" / "worktrees" / "linked"
+    resolve_lock_path(git_repo).write_bytes(b"")
+    resolve_lock_path(linked).write_bytes(b"")
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=linked, environ={"GIT_DIR": str(linked_git_dir)})
+
+    assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 11
+    assert check_with_proc(linked, tmp_path, proc_root).returncode == 12
+
+
+def test_submodule_git_dir_is_refused(tmp_path: Path) -> None:
+    library = make_git_repo(tmp_path / "library")
+    superproject = make_git_repo(tmp_path / "super")
+    subprocess.run(
+        ["git", "-C", str(superproject), "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(library), "lib"],
+        check=True,
+        capture_output=True,
+    )
+    module_git_dir = superproject / ".git" / "modules" / "lib"
+    assert module_git_dir.is_dir()
+    result = run_script("check", "--repo", str(module_git_dir))
+    assert result.returncode == 2, (result.stdout, result.stderr)
+    assert "pass the work tree" in result.stderr
+    # The submodule's own work tree is accepted.
+    assert run_script("check", "--repo", str(superproject / "lib")).returncode == 0

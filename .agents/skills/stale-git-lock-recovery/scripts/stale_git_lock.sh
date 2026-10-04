@@ -220,42 +220,54 @@ holder_state_proc() {
   return 0
 }
 
-# Does a git process name the repository from elsewhere? It may do so with
-# GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR or GIT_INDEX_FILE in its environment,
-# or with --git-dir / --work-tree on its command line. A relative value cannot
-# be resolved reliably (git may have changed directory since it started), and
-# an environment or command line that cannot be read hides the values, so both
-# count as naming the repository.
+# Does a git process name this work tree from elsewhere? It may do so with
+# GIT_DIR / --git-dir (the git dir of the lock), GIT_WORK_TREE / --work-tree
+# (the top of the work tree), GIT_INDEX_FILE (an index in the lock's
+# directory) or GIT_COMMON_DIR (when the lock's git dir is the common one) in
+# its environment or on its command line. The comparison is by identity
+# (-ef), so a linked worktree that shares the common git dir does not count
+# for the main work tree. A relative value cannot be resolved reliably (git
+# may have changed directory since it started), and an environment or command
+# line that cannot be read hides the values, so both count as naming it.
+# Arguments: pid, lock directory, git dir, top of the work tree.
 git_process_refers_to() {
-  local pid="$1" entry value root option=""
-  local -a values=()
-  shift
+  local pid="$1" lock_dir="$2" git_dir="$3" top="$4" entry option=""
+  local -a names=() values=()
   { : <"$pid/environ" && : <"$pid/cmdline"; } 2>/dev/null || return 0
   while IFS= read -r -d '' entry; do
     case "$entry" in
-      GIT_DIR=*|GIT_WORK_TREE=*|GIT_COMMON_DIR=*|GIT_INDEX_FILE=*) values+=("${entry#*=}") ;;
+      GIT_DIR=*|GIT_WORK_TREE=*|GIT_COMMON_DIR=*|GIT_INDEX_FILE=*)
+        names+=("${entry%%=*}")
+        values+=("${entry#*=}")
+        ;;
     esac
   done <"$pid/environ"
   while IFS= read -r -d '' entry; do
     if [ -n "$option" ]; then
+      names+=("$option")
       values+=("$entry")
       option=""
       continue
     fi
     case "$entry" in
-      --git-dir=*|--work-tree=*) values+=("${entry#*=}") ;;
-      --git-dir|--work-tree) option="$entry" ;;
+      --git-dir=*) names+=(GIT_DIR); values+=("${entry#*=}") ;;
+      --work-tree=*) names+=(GIT_WORK_TREE); values+=("${entry#*=}") ;;
+      --git-dir) option=GIT_DIR ;;
+      --work-tree) option=GIT_WORK_TREE ;;
     esac
   done <"$pid/cmdline"
-  for value in "${values[@]}"; do
+  local i value
+  for i in "${!values[@]}"; do
+    value="${values[$i]}"
     case "$value" in
       /*) ;;
       *) return 0 ;;
     esac
-    value="$(readlink -m -- "$value" 2>/dev/null)" || return 0
-    for root in "$@"; do
-      path_is_under "$value" "$root" && return 0
-    done
+    case "${names[$i]}" in
+      GIT_DIR|GIT_COMMON_DIR) [ "$value" -ef "$git_dir" ] && return 0 ;;
+      GIT_WORK_TREE) [ "$value" -ef "$top" ] && return 0 ;;
+      GIT_INDEX_FILE) [ "$(dirname -- "$value")" -ef "$lock_dir" ] && return 0 ;;
+    esac
   done
   return 1
 }
@@ -264,15 +276,15 @@ git_process_refers_to() {
 # with the lock's fd already closed (`git commit -a` writes the new index into
 # the lock, closes it, runs the hooks, then renames it). An fd scan sees no
 # holder then, so any live git process working on the same work tree is a
-# possible holder. git runs from the top of its work tree, so the lock that git
-# would use from the process's cwd tells which work tree it works on; this also
-# keeps git processes in nested worktrees or submodules apart. A process that
-# names the repository from elsewhere (git_process_refers_to), or whose cwd
-# cannot be read, cannot be ruled out either. Arguments: the lock directory,
-# then the roots of the repository.
+# possible holder. git runs from the top of its work tree: a process whose cwd
+# is the top counts, and so does one whose cwd leads git to this lock (git
+# itself resolves index.lock from that cwd). Git processes in nested worktrees
+# or submodules use their own index and do not count. A process under the top
+# whose cwd git cannot resolve, one that names the work tree from elsewhere
+# (git_process_refers_to), or one whose cwd cannot be read cannot be ruled out
+# either. Arguments: lock directory, git dir, top of the work tree.
 git_activity_state() {
-  local lock_dir="$1" pid cwd their_lock result=absent
-  shift
+  local lock_dir="$1" git_dir="$2" top="$3" pid cwd their_lock related result=absent
   for pid in "$PROC_ROOT"/[0-9]*; do
     [ -d "$pid" ] || continue
     is_self "$pid" && continue
@@ -282,8 +294,15 @@ git_activity_state() {
       result=unknown
       continue
     fi
-    if { their_lock="$(resolve_lock_path "$cwd")" && [ "$(dirname -- "$their_lock")" -ef "$lock_dir" ]; } ||
-      git_process_refers_to "$pid" "$@"; then
+    related=0
+    if [ "$cwd" -ef "$top" ]; then
+      related=1
+    elif their_lock="$(resolve_lock_path "$cwd")"; then
+      [ "$(dirname -- "$their_lock")" -ef "$lock_dir" ] && related=1
+    elif path_is_under "$cwd" "$top"; then
+      related=1
+    fi
+    if [ "$related" -eq 1 ] || git_process_refers_to "$pid" "$lock_dir" "$git_dir" "$top"; then
       report_process "$pid" "git process working on this work tree; it may hold the lock with its fd closed"
       result=unknown
     fi
@@ -295,8 +314,8 @@ git_activity_state() {
 # Prints present | absent | unknown. A missing lsof must not turn into
 # "absent": fall back to /proc. When both sources are usable their answers
 # are combined as a union (present > unknown > absent). "absent" also needs
-# the /proc check for live git processes on the work tree (the roots given
-# after the path), so without /proc the answer is never "absent".
+# the /proc check for live git processes on the work tree (the git dir and the
+# top given after the path), so without /proc the answer is never "absent".
 holder_state() {
   local path="$1" state="" combined=""
   shift
@@ -378,25 +397,17 @@ main() {
   clear_git_env
 
   # The work tree is required: git runs from its top while it holds the lock,
-  # and inside .git (for example .git/worktrees/<name>) there is no top to
-  # look for, so a running git there could be missed.
-  local lock_path top
-  if ! top="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" || [ -z "$top" ] ||
+  # and from inside a git dir (for example .git/worktrees/<name> or
+  # .git/modules/<name>) the top is not what the caller means, so a running
+  # git could be missed.
+  local lock_path top git_dir
+  if [ "$(git -C "$repo" rev-parse --is-inside-git-dir 2>/dev/null)" != false ] ||
+    ! top="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" || [ -z "$top" ] ||
+    ! git_dir="$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null)" ||
     ! lock_path="$(resolve_lock_path "$repo")"; then
     printf 'not inside a git work tree: %s (pass the work tree, not a path inside .git)\n' "$repo" >&2
     exit "$EXIT_USAGE"
   fi
-
-  # Directories that a git process naming this repository may point at: the
-  # top of the work tree, the git dir and the common git dir.
-  local roots=() dir
-  for dir in "$top" "$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null)" \
-    "$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; do
-    [ -n "$dir" ] || continue
-    if dir="$(readlink -f -- "$dir" 2>/dev/null)" && [ -n "$dir" ]; then
-      roots+=("$dir")
-    fi
-  done
 
   if [ "$mode" = clear ]; then
     # One clear at a time per lock directory. Otherwise a concurrent clear
@@ -420,7 +431,7 @@ main() {
     mtime="$(stat -c '%Y' -- "$lock_path" 2>/dev/null)" || mtime="null"
     [ -n "$size" ] || size="null"
     [ -n "$mtime" ] || mtime="null"
-    holder="$(holder_state "$lock_path" "${roots[@]}")"
+    holder="$(holder_state "$lock_path" "$git_dir" "$top")"
     case "$holder" in
       present) code=$EXIT_HOLDER ;;
       absent)

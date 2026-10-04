@@ -8,6 +8,7 @@ succeeds or fails, and the target repository is selected by ``--repo`` only.
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess
 import time
@@ -312,3 +313,130 @@ def test_interrupted_run_restores_files_and_reports_head(behind: Path, tmp_path:
     assert "interrupted after the fast-forward" in stderr
     assert git(behind, "rev-parse", "HEAD").strip() == git(behind, "rev-parse", "origin/main").strip()
     assert_local_files_kept(behind)
+
+
+def test_failure_to_list_candidates_changes_nothing(behind: Path, tmp_path: Path) -> None:
+    # Without the candidate list a plain merge would overwrite ignored files,
+    # so a failing step (here: no `comm`) must stop the run before any change.
+    push_upstream(behind, {"secret.env": "upstream\n"})
+    with (behind / ".git" / "info" / "exclude").open("a", encoding="utf-8") as exclude:
+        exclude.write("*.env\n")
+    (behind / "secret.env").write_text("local secret\n", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for tool in ("bash", "cat", "cmp", "cp", "dirname", "git", "mkdir", "mktemp", "readlink", "rm", "sort", "stat", "xargs"):
+        target = shutil.which(tool)
+        assert target, f"{tool} is required for this test"
+        (bin_dir / tool).symlink_to(target)
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main", env={**os.environ, "PATH": str(bin_dir)})
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "nothing was changed" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (behind / "secret.env").read_text(encoding="utf-8") == "local secret\n"
+
+
+@pytest.mark.parametrize(
+    ("added", "local_kind"),
+    [
+        ("build", "ignored directory with files"),
+        ("cache/x", "ignored file"),
+        ("lnk/f", "ignored symlink"),
+    ],
+)
+def test_ignored_content_that_could_not_be_put_back_stops_the_run(
+    behind: Path, tmp_path: Path, added: str, local_kind: str
+) -> None:
+    # git removes ignored content without asking when origin/main needs its
+    # place for a file or a directory, and it could not be restored there.
+    push_upstream(behind, {added: "upstream\n"})
+    name = added.split("/")[0]
+    with (behind / ".git" / "info" / "exclude").open("a", encoding="utf-8") as exclude:
+        exclude.write(f"{name}\n")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if local_kind == "ignored directory with files":
+        (behind / name).mkdir()
+        (behind / name / "out.bin").write_text("precious\n", encoding="utf-8")
+        kept = behind / name / "out.bin"
+    elif local_kind == "ignored file":
+        (behind / name).write_text("precious\n", encoding="utf-8")
+        kept = behind / name
+    else:
+        (outside / "f").write_text("precious\n", encoding="utf-8")
+        (behind / name).symlink_to(outside)
+        kept = outside / "f"
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "nothing was changed" in result.stderr
+    assert f"  {name}" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert kept.read_text(encoding="utf-8") == "precious\n"
+    if local_kind == "ignored symlink":
+        assert (behind / name).is_symlink()
+
+
+def test_tracked_paths_that_change_between_file_and_directory_still_fast_forward(behind: Path) -> None:
+    upstream = behind.parent / "upstream"
+    # HEAD: "swap/a" (directory) and "flip" (file); origin/main turns them around.
+    for tree in (behind, upstream):
+        git(tree, "pull", "-q", "--ff-only")
+    (behind / "swap").mkdir()
+    (behind / "swap" / "a").write_text("a\n", encoding="utf-8")
+    (behind / "flip").write_text("flip\n", encoding="utf-8")
+    git(behind, "add", "-A")
+    git(behind, "commit", "-qm", "dir and file")
+    git(behind, "push", "-q", "origin", "HEAD:main")
+    git(upstream, "pull", "-q", "--ff-only")
+    git(upstream, "rm", "-q", "-r", "swap", "flip")
+    (upstream / "swap").write_text("now a file\n", encoding="utf-8")
+    (upstream / "flip").mkdir()
+    (upstream / "flip" / "inner").write_text("now a dir\n", encoding="utf-8")
+    git(upstream, "add", "-A")
+    git(upstream, "commit", "-qm", "swap")
+    git(upstream, "push", "-q", "origin", "HEAD:main")
+    git(behind, "fetch", "-q", "origin")
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert (behind / "swap").read_text(encoding="utf-8") == "now a file\n"
+    assert (behind / "flip" / "inner").read_text(encoding="utf-8") == "now a dir\n"
+
+
+def available_locale(*names: str) -> str | None:
+    listed = subprocess.run(["locale", "-a"], capture_output=True, text=True).stdout.split()
+    normalized = {name.lower().replace("-", "") for name in listed}
+    for name in names:
+        if name.lower().replace("-", "") in normalized:
+            return name
+    return None
+
+
+def test_candidates_do_not_depend_on_the_callers_locale(behind: Path, tmp_path: Path) -> None:
+    # "B" sorts before "a" in C but after it in en_US; every step that
+    # compares sorted lists must use the same collation. GNU sort and comm
+    # honor the locale (CI runs them); where they are installed under other
+    # names, as in the devcontainer, put them first on PATH.
+    locale_name = available_locale("en_US.UTF-8", "en_US.utf8")
+    if locale_name is None:
+        pytest.skip("en_US.UTF-8 locale is not installed")
+    push_upstream(behind, {"B.env": "upstream\n", "a.env": "upstream\n"})
+    with (behind / ".git" / "info" / "exclude").open("a", encoding="utf-8") as exclude:
+        exclude.write("*.env\n")
+    # Only "a.env" exists locally, so the two sorted lists differ.
+    (behind / "a.env").write_text("local a\n", encoding="utf-8")
+    gnu_bin = tmp_path / "gnu-bin"
+    gnu_bin.mkdir()
+    for tool in ("comm", "sort"):
+        gnu = shutil.which(f"gnu{tool}")
+        if gnu:
+            (gnu_bin / tool).symlink_to(gnu)
+    env = {**os.environ, "LC_ALL": locale_name, "PATH": f"{gnu_bin}:{os.environ['PATH']}"}
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main", env=env)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert (behind / "a.env").read_text(encoding="utf-8") == "local a\n"
+    assert (behind / "B.env").read_text(encoding="utf-8") == "upstream\n"
