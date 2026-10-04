@@ -66,7 +66,7 @@ test_launchers_select_models_and_forward_arguments() {
         output="$(env HOME="$home" PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
             zsh "${REPO_ROOT}/.devcontainer/${launcher}" --resume)"
         args="$(printf '%s\n' "$output" | awk 'seen { print } $0 == "pi" { seen = 1 }')"
-        expected="$(printf '%s\n' --provider openai-codex --model "$model" --thinking xhigh --resume)"
+        expected="$(printf '%s\n' --tui-mode regular --provider openai-codex --model "$model" --thinking xhigh --resume)"
         assert_eq "$args" "$expected" "${launcher} Pi arguments"
         # grep -q は一致した時点で終了するので、printf でパイプすると残りの行を書く側が SIGPIPE で落ちる
         grep -Fxq "${home}/.pi/agent/extensions/subagent.d/${launcher}" <<<"$output" \
@@ -89,7 +89,7 @@ test_launchers_accept_tilde_agent_dir() {
             pigs) model=gpt-6.1-sol ;;
             pigl) model=gpt-6-luna ;;
         esac
-        expected="$(printf '%s\n' --provider openai-codex --model "$model" --thinking xhigh --resume)"
+        expected="$(printf '%s\n' --tui-mode regular --provider openai-codex --model "$model" --thinking xhigh --resume)"
         for agent_dir in "${home}/.pi/agent" '~/.pi/agent' '~'; do
             output="$(env HOME="$home" PI_CODING_AGENT_DIR="$agent_dir" \
                 PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
@@ -122,19 +122,36 @@ test_missing_oauth_guides_login_without_requesting_api_key() {
     done
 }
 
-test_install_places_all_three_launchers() {
-    local home="${TEST_ROOT}/install" launcher
-    mkdir -p "$home"
+test_install_places_all_launchers_with_regular_mode() {
+    local home="${TEST_ROOT}/install" launcher output
+    local -a args
+    mkdir -p "${home}/.pi/agent"
+    printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
+        > "${home}/.pi/agent/auth.json"
+    cp "${REPO_ROOT}/.devcontainer/pi-models.json" "${home}/.pi/agent/models.json"
+    # ランチャーの配置と、ヘルパを置く pi-superagents の手順だけを切り出す。
+    # 終わりは「この 2 つ以外の次の step」にし、後続の手順の並びに依存しない。
     {
         printf '%s\n' 'step() { :; }' 'fail() { printf "%s\n" "$1" >&2; exit 1; }'
-        awk '/^step "Placing the launchers / { copy = 1 } /^step "Writing the pi-superagents / { copy = 0 } copy' \
-            "${REPO_ROOT}/.devcontainer/install_beforehand.bash"
+        awk '/^step "Placing the launchers / { copy = 1 }
+            /^step "/ && !/^step "(Placing the launchers |Writing the pi-superagents )/ { copy = 0 }
+            copy' "${REPO_ROOT}/.devcontainer/install_beforehand.bash"
     } | env HOME="$home" bash -e
+    cmp -s "${REPO_ROOT}/.devcontainer/pi-superagents-exec.zsh" "${home}/.local/bin/pi-superagents-exec.zsh" \
+        || fail "install must place the current helper"
 
-    for launcher in piga pigs pigl; do
+    for launcher in pigo pigod pigou piccg piccd piga pigs pigl pixg; do
         [ -x "${home}/.local/bin/${launcher}" ] || fail "install did not place executable ${launcher}"
         cmp -s "${REPO_ROOT}/.devcontainer/${launcher}" "${home}/.local/bin/${launcher}" \
             || fail "installed ${launcher} differs from the source"
+        output="$(env HOME="$home" PI_CODING_AGENT_DIR="${home}/.pi/agent" \
+            COMMANDCODE_API_KEY=dummy-for-dry-run OPENCODE_API_KEY=dummy-for-dry-run \
+            PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
+            zsh "${home}/.local/bin/${launcher}" --resume)"
+        mapfile -t args < <(awk 'seen { print } $0 == "pi" { seen = 1 }' <<<"$output")
+        assert_eq "${args[0]:-}" --tui-mode "installed ${launcher} tui option"
+        assert_eq "${args[1]:-}" regular "installed ${launcher} tui mode"
+        assert_eq "${args[${#args[@]}-1]}" --resume "installed ${launcher} user argument"
     done
 }
 
@@ -158,6 +175,6 @@ test_setup_places_independent_gpt6_tiers
 test_launchers_select_models_and_forward_arguments
 test_launchers_accept_tilde_agent_dir
 test_missing_oauth_guides_login_without_requesting_api_key
-test_install_places_all_three_launchers
+test_install_places_all_launchers_with_regular_mode
 test_live_openai_codex_models
 printf 'OK test-pi-openai-codex\n'

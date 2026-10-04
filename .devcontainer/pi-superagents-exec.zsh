@@ -135,7 +135,9 @@ pi_superagents_exec() {
         --die-with-parent
         --bind "${launcher_dir}" "${shared_dir}"
         --
-        pi "$@"
+        # Pi 1.0.0 の fullscreen 既定を避け、Herdr の通常のスクロール履歴を残す。
+        # 利用者の引数は後ろに並ぶので、--tui-mode fullscreen を渡せばそちらが勝つ。
+        pi --tui-mode regular "$@"
     )
 
     if [[ "${PI_SUPERAGENTS_LAUNCHER_DRY_RUN:-}" == "1" ]]; then

@@ -86,6 +86,9 @@ test_dry_run_emits_bwrap_command() {
     assert_contains "$out" "pi" "pi command"
     assert_contains "$out" "--provider" "passthrough of pi args"
     assert_contains "$out" "muse-spark-1.3-contributor" "passthrough of pi args"
+    assert_eq "$(pi_args_of "$out")" \
+        "$(printf '%s\n' --tui-mode regular --provider opencode-go --model muse-spark-1.3-contributor)" \
+        "helper must select regular before forwarding pi args"
 }
 
 test_bind_target_ignores_pi_coding_agent_dir() {
@@ -182,6 +185,21 @@ test_dry_run_zero_execs_bwrap() {
     assert_contains "$log" "bwrap invoked with" "=0 must exec bwrap"
     assert_contains "$log" "--dev-bind" "=0 must pass the bind args to bwrap"
     assert_contains "$log" "--provider" "=0 must pass user args to bwrap"
+}
+
+test_actual_and_dry_run_argv_match() {
+    # dry-run の表示と実際の exec が同じ argv 配列を使うことを、空白を含む引数で確かめる。
+    local home out expected
+    local -a command_args
+    home="$(make_home argv-match with-config)"
+    make_bwrap_shim
+    rm -f "$FAKE_BWRAP_LOG"
+    out="$(run_helper "$home" argv-match --session 'session with spaces.jsonl' -- 'message with spaces')"
+    mapfile -t command_args <<< "$out"
+    expected="$(printf 'bwrap invoked with %s args\n' "$((${#command_args[@]} - 1))"; \
+        printf '%s\n' "${command_args[@]:1}")"
+    run_helper_dry_run "$home" argv-match 0 --session 'session with spaces.jsonl' -- 'message with spaces'
+    assert_eq "$(<"$FAKE_BWRAP_LOG")" "$expected" "actual and dry-run must use identical argv"
 }
 
 CONFIG_DIR="${REPO_ROOT}/.devcontainer/pi-superagents"
@@ -378,11 +396,37 @@ test_launchers_preserve_parent_model_selection() {
     assert_contains "$args" "xhigh" "pixg thinking"
 }
 
-test_launchers_forward_user_arguments() {
-    local home args
-    home="$(make_home pigo with-config)"
-    args="$(pi_args_of "$(run_launcher "$home" pigo --resume)")"
-    assert_contains "$args" "--resume" "user argument must reach pi"
+test_launchers_select_regular_and_forward_user_arguments() {
+    # 全ランチャーで、pi の引数が --tui-mode regular、ランチャーの指定、
+    # 利用者の引数の順に、空白を含む引数も崩さずに並ぶ。
+    local home launcher provider model thinking models args expected row
+    local -a rows=(
+        'pigo:opencode-go:muse-spark-1.3-contributor:max'
+        'pigod:opencode-go:deepseek-v4.1-flash:max'
+        'pigou:opencode-go:union-alpha:max'
+        'piccg:commandcode:meta/muse-spark-1.3:max:meta/muse-spark-1.3,meta/muse-spark-1.3-contributor'
+        'piccd:commandcode:deepseek/deepseek-v4.1-flash:max:deepseek/deepseek-v4.1-flash'
+        'piga:openai-codex:gpt-6-astra:xhigh'
+        'pigs:openai-codex:gpt-6.1-sol:xhigh'
+        'pigl:openai-codex:gpt-6-luna:xhigh'
+        'pixg:xai:grok-4.7:xhigh'
+    )
+    for row in "${rows[@]}"; do
+        IFS=: read -r launcher provider model thinking models <<< "$row"
+        home="$(make_home "$launcher" with-config)"
+        mkdir -p "${home}/.pi/agent"
+        printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
+            > "${home}/.pi/agent/auth.json"
+        args="$(pi_args_of "$(run_launcher "$home" "$launcher" --resume --session 'session with spaces.jsonl' -- 'message with spaces')")"
+        expected="$(
+            printf '%s\n' --tui-mode regular --provider "$provider" --model "$model"
+            if [ -n "$models" ]; then
+                printf '%s\n' --models "$models"
+            fi
+            printf '%s\n' --thinking "$thinking" --resume --session 'session with spaces.jsonl' -- 'message with spaces'
+        )"
+        assert_eq "$args" "$expected" "${launcher} regular mode and pi arguments"
+    done
 }
 
 test_pixg_oauth_guidance() {
@@ -598,7 +642,8 @@ test_setup_places_all_launcher_configs() {
             || fail "${launcher} config differs from the repository source"
     done
     [ -d "${home}/.pi/agent/extensions/subagent" ] || fail "setup did not create the shared dir"
-    [ -f "${home}/.local/bin/pi-superagents-exec.zsh" ] || fail "setup did not place the helper"
+    cmp -s "$HELPER" "${home}/.local/bin/pi-superagents-exec.zsh" \
+        || fail "setup must place the current helper"
 }
 
 test_setup_backs_up_modified_config() {
@@ -687,8 +732,12 @@ test_setup_if_absent_preserves_user_edits() {
     run_setup "$home" >/dev/null
     config="${home}/.pi/agent/extensions/subagent.d/piccd/config.json"
     printf '{"superagents":{"modelTiers":{"cheap":{"model":"x/y","thinking":"max"}}}}\n' > "$config"
+    # 既存環境の更新では --if-absent の再実行でヘルパ（--tui-mode など）を最新にする。
+    printf '# stale helper\n' > "${home}/.local/bin/pi-superagents-exec.zsh"
     run_setup "$home" --if-absent >/dev/null
     grep -q '"x/y"' "$config" || fail "--if-absent must not overwrite an existing config"
+    cmp -s "$HELPER" "${home}/.local/bin/pi-superagents-exec.zsh" \
+        || fail "--if-absent must refresh the helper while preserving configs"
 }
 
 test_setup_output_mentions_each_launcher() {
@@ -1191,6 +1240,7 @@ test_missing_config_fails_closed
 test_missing_bwrap_fails_closed
 test_dry_run_one_prints_argv_without_exec
 test_dry_run_zero_execs_bwrap
+test_actual_and_dry_run_argv_match
 test_tier_tables
 test_commandcode_models_are_defined_in_pi_models
 test_opencode_go_tiers_use_opencode_go
@@ -1199,7 +1249,7 @@ test_configs_are_minimal_partial_configs
 test_launcher_files_are_executable
 test_launchers_wrap_pi_with_their_own_config
 test_launchers_preserve_parent_model_selection
-test_launchers_forward_user_arguments
+test_launchers_select_regular_and_forward_user_arguments
 test_pixg_oauth_guidance
 test_commandcode_key_check_runs_before_launch
 test_launcher_missing_config_fails_closed
