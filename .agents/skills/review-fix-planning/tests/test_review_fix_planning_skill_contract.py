@@ -242,6 +242,29 @@ def test_spec_reuses_the_current_canonical_document() -> None:
         assert phrase in section, phrase
 
 
+def test_landing_fetch_instruction_uses_verified_base_remote_and_rechecks_pr_head() -> None:
+    """Text convention only: catch a fixed-origin recipe, not claim agent behavior."""
+    landing = read(AGENTS_SKILL).split("## 実装後", 1)[1].split("\n## ", 1)[0]
+    step4 = landing.split("\n4. ", 1)[1].split("\n5. ", 1)[0]
+    assert 'git -C "$MAIN_ROOT" fetch "$PR_REMOTE"' in step4
+    assert 'gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid' in step4
+    assert "共通 context" in step4
+    assert not re.search(r"\bfetch\s+origin\b", landing)
+
+
+@pytest.mark.parametrize("example", ["例:", "resoloop の上流への PR"])
+def test_landing_push_examples_use_verified_head_remote(example) -> None:
+    """Text convention: examples must not bypass the stated API/context preflight."""
+    landing = read(AGENTS_SKILL).split("## 実装後", 1)[1].split("\n## ", 1)[0]
+    paragraph = next(line for line in landing.splitlines() if line.startswith(example))
+    assert 'git -C "$MAIN_ROOT" push "$HEAD_REMOTE" HEAD' in paragraph
+    assert not re.search(r"\bpush\s+origin\b", landing)
+    step5 = landing.split("\n5. ", 1)[1].split("\n6. ", 1)[0]
+    assert 'gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRepository,headRepositoryOwner,headRefName' in step5
+    for prerequisite in ("HEAD_REPO", "HEAD_BRANCH", "共通 context", "HEAD_REMOTE"):
+        assert prerequisite in step5
+
+
 def test_fork_pr_push_target_is_confirmed_for_other_repositories() -> None:
     landing = read(AGENTS_SKILL).split("## 実装後", 1)[1].split("\n## ", 1)[0]
     assert "head リポジトリ" in landing

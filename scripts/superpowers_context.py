@@ -249,6 +249,17 @@ def resolve_context(
                 f"CODE_ROOT {code.root} must belong to the same Git repository as {expected.root}; "
                 "a matching origin URL is not sufficient"
             )
+        # Shared repository membership does not guarantee worktree-effective URLs.
+        if repository == DOCUMENT_REPOSITORY:
+            _require_origin(code, "CODE_ROOT")
+        elif (
+            _remote_repository(code, "origin") != FORK_REPOSITORY
+            or _remote_repository(code, "upstream") != UPSTREAM_REPOSITORY
+        ):
+            raise ContextError(
+                f"CODE_ROOT origin/upstream do not identify the expected ResoLoop fork: {code.root}; "
+                "check the repair worktree's effective remote configuration"
+            )
     else:
         base_remote = select_remote(code, repository)
     context.update(code_root=str(code.root), base_remote=base_remote, code_branch=code.branch, code_head=code.head)

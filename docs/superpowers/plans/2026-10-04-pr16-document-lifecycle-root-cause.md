@@ -159,3 +159,37 @@ The environment may legitimately report the layout check's existing unavailable-
 - 別担当の最終確認: stagedの10ファイルと影響する呼び出し元を確認。Critical/Important/Minorなし、判断対象外への保留なし。追加の修正・再レビューは実施していない。
 - 所要時間: 着手11:07:13 UTCからローカル受入11:23 UTCまで約16分。方針・資料照合と計画追記約8分、再現テスト/修正約3分、必須検証約2分、最終確認/公開前確認約3分（一部は並行）。コミット・push・GitHub CI監視の時間と結果はPRコメントで追記する。
 - Publishチェックは公開前の事実として未完了のまま保存する。公開後は本コミットを参照するPRコメントが結果の記録となり、チェック更新だけのコミットは作らない。今回の追記本文への個別内容承認やマージ許可は推定しない。
+
+## Task 5: 修正worktreeの実効取得先とremote手順例を一致させる
+
+- 状態: 実装・ローカル検証・origin/main統合検査・独立した最終確認完了（公開前の記録）。Task 1–4は過去の完了記録として保持する。
+- 実行許可: ユーザの「修正が必要な指摘があったら、推奨案でプッシュまでしておいてください」。今回の追記内容の個別承認は記録しない。
+- 開始HEAD: `1dcee9512058765ff81a7c1605706fab99f362b4`。Spec: 既存root-cause Spec §12（bounded）。
+- Goal: 既知repoの修正worktreeが同じgit-common-dirでも、worktree固有設定で実効取得先が不一致なら操作前に拒否する。取得/push例を返されたremote名に統一する。
+- Architecture / Stack: 既存Checkout.remotesとURL正規化処理を使う。Python標準ライブラリ、Git、既存unittest/pytest。API・依存・許可経路を追加しない。
+- Global Constraints: 隔離worktree内だけで実装。親・他worktreeの未コミット内容を読まない。22取り込み文書は変更しない。終了64/65/66、秘密値非表示、検証の読み取り専用性、operation別linked可否、base/head分離を維持。controllerが既存PRへの1コミット/pushを担当し、修正が必要なため今回はマージしない。
+- Review Focus: 実効取得先の検査対象が操作checkoutであること、forkの非選択remoteにも既存identity要件が適用されること、同一repoのtransport書き換え成功、拒否診断の秘密値非表示、skill本文と全例のremote一致。
+
+**Files:** `scripts/superpowers_context.py`、`tests/scripts/test_superpowers_context.py`、`.agents/skills/review-fix-planning/SKILL.md`、同skillの`tests/test_review_fix_planning_skill_contract.py`。controllerは本Spec/Planだけを記録更新する。
+
+- [x] **RED:** real Git fixtureでextensions.worktreeConfigを有効にし、linked checkoutのconfig --worktreeへinsteadOfを設定する。自repo origin、fork/upstream両ownerのorigin/upstream（5経路）がmain側正常・CODE_ROOT側不一致でも現在は終了0であることを失敗として固定する。非GitHub/認証情報も拒否66・stdout空・秘密非表示とする。skillテストは実装後節でorigin固定のfetch/pushが残ることで失敗させる。
+- [x] **Implement:** known-routeのroot/common-dir検査を維持し、実際のCODE_ROOTに自repo originまたはfork origin/upstreamの照合を適用する。CODE_ROOTの不一致は66で停止し、親/fork mainの前提不備65と混同しない。既存のURL正規化を共有し、URLや入力の秘密値を診断へ出さない。
+- [x] **Consumer:** 実装後手順のfetchはPR_REMOTEへ、PR先端はgh APIで確認、両push例はHEAD_REMOTEへ統一する。APIでhead repo/branchを確認してcontextを再実行する既存の前提を維持する。
+- [x] **GREEN:** focused contextとskill検査、同一repo HTTPS/SSH transport書き換えと通常linked成功、外部repo/pushInsteadOfの既存ケース、拒否前後Git状態不変を検査する。
+- [x] **Required gates:** `bash .devcontainer/run-tests.bash`、`uv run pytest tests/skills .agents/skills`、`bash scripts/check-layout.sh`、構文/diffと22文書hash。controllerがorigin/mainとの統合treeでも関連検査を実行する。
+- [x] **Final review:** 全体読解の3担当結果と今回の変更を一度まとめ、読み取り専用担当がspec適合・品質と関連経路を確認。必要な修正はコミット前に完了する。
+- [ ] **Publish:** 全結果を既存Spec/Planに記録し、既存PRのhead repo/branch・実効push先・remote先端を再確認する。隔離worktreeのdetached commitから既存head branchへの明示refspecで通常pushし、他worktreeのbranchを移動しない。公開HEAD/API/CIと正規helperの結果コメントを確認する。新規PR・force-push・マージはしない。
+
+**Commit:** `fix: validate repair worktree remotes before fetch`
+
+RED/GREEN、必須検証、最終確認と所要時間は公開前に本節へ追記する。コミットSHA・push/CIはPRコメントで記録し、公開記録だけの追加コミットは作らない。
+
+### Task 5 実施結果（公開前）
+
+- RED: 実効取得先の拒否30ケースが期待どおり`0 != 66`で失敗（14.33秒）、固定originの手順例3ケースが失敗（0.10秒）。同一repo transportの既存成功挙動は維持。
+- GREEN: contextとskillのfocused検査123 passed / 108 subtests passed（59.75秒）。拒否66・stdout空・秘密値非表示、fork両remote、同一repo15transport、dirty worktreeを含むHEAD/ref/index/config/status不変を実Gitで確認。
+- 必須検証: bash27本（97秒）、skill402 passed / 既存1skip（34.03秒）、全pytest483 passed / 既存1skip（81.54秒）、実配置と4プロジェクトResoLoop同期、構文/diff、22文書hashが成功。
+- controllerの独立統合検査: `origin/main=c40a3bdc86c2b7349ec3b7859d5b06af5d81e6e5`と一時candidateのmerge-treeに競合なし。統合worktreeでbash27本（121秒）、全pytest483 passed / 1skip / 168 subtests（80.29秒）、実配置・4同期（2秒）が成功。main専用の変更を保持することも確認した。
+- 読み取り専用の最終確認: Task5 spec適合・品質Approved、Critical/Important/Minorなし。全体差分とのcontext/copy/外部経路の整合も確認。取り込み本文と旧Plan全行は先行する独立担当の全文読解を参照し、未実施の過去外部実装検証とは区別する。
+- 所要時間: controller着手13:04 UTC。入力・基準検証13:04–13:08、3独立調査と5経路再現13:08–13:40、既存正本/brief13:40–13:45、実装担当13:45:39–14:00:21（14分42秒）、統合/最終確認14:00–14:16。各境界は観測時刻による概算、実装担当と統合検査のコマンド時間は実測。push/CIを含む全体時間はPRコメントで記録する。
+- 公開・マージの状態はまだ変更していない。Publishチェックの更新だけの追加コミットは作らず、本コミットの公開結果をPRコメントに残す。

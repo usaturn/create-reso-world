@@ -17,6 +17,13 @@ ROOT = Path(__file__).resolve().parents[2]
 HELPER = ROOT / "scripts/superpowers_context.py"
 SELF = "usaturn/create-reso-world"
 ORIGIN = f"https://github.com/{SELF}.git"
+KNOWN_ROUTE_REMOTES = (
+    (SELF, "parent", "origin", "origin"),
+    ("usaturn/resoloop", "fork", "origin", "origin"),
+    ("usaturn/resoloop", "fork", "upstream", "origin"),
+    ("orange3134/resoloop", "fork", "upstream", "upstream"),
+    ("orange3134/resoloop", "fork", "origin", "upstream"),
+)
 
 
 class ContextTests(unittest.TestCase):
@@ -24,6 +31,7 @@ class ContextTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        self.linked_checkouts = []
         self.env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null")
         self.parent = self.checkout("parent", {"origin": ORIGIN})
         self.external = self.checkout("external code", {"origin": "https://github.com/other/repository.git"})
@@ -50,13 +58,21 @@ class ContextTests(unittest.TestCase):
     def linked(self, checkout, name, branch="repair"):
         path = self.root / name
         self.git(checkout, "worktree", "add", "-b", branch, str(path))
+        self.linked_checkouts.append(path)
         return path
 
     def snapshot(self):
-        return {str(p): tuple(self.git(p, *args) for args in (
-            ("rev-parse", "HEAD"), ("status", "--porcelain=v1", "--untracked-files=all"),
-            ("remote", "-v"), ("show-ref",), ("worktree", "list", "--porcelain"),
-        )) for p in (self.parent, self.external, self.fork)}
+        states = {}
+        for p in (self.parent, self.external, self.fork, *self.linked_checkouts):
+            state = tuple(self.git(p, *args) for args in (
+                ("rev-parse", "HEAD"), ("status", "--porcelain=v1", "--untracked-files=all"),
+                ("remote", "-v"), ("show-ref",), ("worktree", "list", "--porcelain"),
+            ))
+            # Include exact index/config bytes, including worktree-specific rewrites.
+            files = [Path(self.git(p, "rev-parse", "--path-format=absolute", "--git-path", name))
+                     for name in ("index", "config", "config.worktree")]
+            states[str(p)] = state + tuple(f.read_bytes() if f.exists() else None for f in files)
+        return states
 
     def run_context(self, operation="review-workspace", cwd=None, **kwargs):
         args = [sys.executable, str(HELPER)]
@@ -262,6 +278,59 @@ class ContextTests(unittest.TestCase):
                 self.assertEqual(value["code_root"], str(linked))
                 self.assertEqual(value["code_branch"], "repair")
                 self.assertEqual(value["code_head"], self.git(linked, "rev-parse", "HEAD"))
+
+    def test_fix_rejects_known_worktree_effective_fetch_rewrites_without_disclosing_urls(self):
+        # Common-dir membership alone misses CODE_ROOT's effective fetch identity,
+        # including the fork remote not selected for this PR's base repository.
+        for i, (repo, checkout_name, remote, _) in enumerate(KNOWN_ROUTE_REMOTES):
+            checkout = getattr(self, checkout_name)
+            linked = self.linked(checkout, f"rewrite-wt-{i}", f"repair-{i}")
+            self.git(checkout, "config", "extensions.worktreeConfig", "true")
+            original = self.git(checkout, "remote", "get-url", remote)
+            (linked / "local-edit.txt").write_text("keep untracked changes\n", encoding="utf-8")
+            (linked / "staged.txt").write_text("keep staged changes\n", encoding="utf-8")
+            self.git(linked, "add", "staged.txt")
+            for url in (
+                "https://github.com/wrong/repository.git",
+                "https://example.com/wrong/repository.git",
+                "https://demo-user:do-not-log-credential@github.com/wrong/repository.git",
+                "ssh://demo-user:do-not-log-credential@github.com/wrong/repository.git",
+                "https://demo-user:do%2Dnot%2Dlog%2Dcredential@github.com/wrong/repository.git",
+                "https://github.com/wrong/repository.git?token=do-not-log-credential",
+            ):
+                with self.subTest(repo=repo, remote=remote, url=url):
+                    key = f"url.{url}.insteadOf"
+                    self.git(linked, "config", "--worktree", key, original)
+                    try:
+                        self.assertEqual(self.git(checkout, "remote", "get-url", remote), original)
+                        self.assertEqual(self.git(linked, "remote", "get-url", remote), url)
+                        result = self.run_context(operation="review-fix", repo=repo, code_root=linked)
+                        self.assert_private_rejection(result, "CODE_ROOT")
+                        self.assertNotIn(url, result.stderr)
+                        self.assertNotIn("scripts/resoloop-fork.sh clone", result.stderr)
+                    finally:
+                        self.git(linked, "config", "--worktree", "--unset-all", key)
+
+    def test_fix_accepts_known_worktree_same_repository_transport_rewrites(self):
+        for i, (repo, checkout_name, remote, base_remote) in enumerate(KNOWN_ROUTE_REMOTES):
+            checkout = getattr(self, checkout_name)
+            linked = self.linked(checkout, f"transport-wt-{i}", f"repair-{i}")
+            self.git(checkout, "config", "extensions.worktreeConfig", "true")
+            original = self.git(checkout, "remote", "get-url", remote)
+            target = SELF if checkout_name == "parent" else (
+                "usaturn/resoloop" if remote == "origin" else "orange3134/resoloop")
+            for url in (f"https://github.com/{target}.git", f"git@github.com:{target}.git",
+                        f"ssh://git@github.com/{target}.git"):
+                with self.subTest(repo=repo, remote=remote, url=url):
+                    key = f"url.{url}.insteadOf"
+                    self.git(linked, "config", "--worktree", key, original)
+                    try:
+                        self.assertEqual(self.git(checkout, "remote", "get-url", remote), original)
+                        self.assertEqual(self.git(linked, "remote", "get-url", remote), url)
+                        value = self.good(operation="review-fix", repo=repo, code_root=linked)
+                        self.assertEqual((value["base_remote"], value["code_root"]), (base_remote, str(linked)))
+                    finally:
+                        self.git(linked, "config", "--worktree", "--unset-all", key)
 
     def test_fix_rejects_same_url_clone_and_its_linked_worktree_for_known_routes(self):
         for repo, remotes, name in ((SELF, {"origin": ORIGIN}, "self-clone"),

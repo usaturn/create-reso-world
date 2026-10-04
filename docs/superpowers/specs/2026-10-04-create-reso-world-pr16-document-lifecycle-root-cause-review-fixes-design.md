@@ -278,3 +278,62 @@ git diff --check
 実装は既存PRのworktreeで担当者が行い、必須検証後に今回の差分と関連経路を一度だけ別担当が読み取り専用で確認する。必要な修正を検証してから1コミットで既存PRへ反映する。過去の全指摘を再判定する反復やround別の文書追加は行わない。将来の不具合が一切ないとは保証しない。
 
 今回の実装・ローカル検証・最終確認は完了した。context/lifecycle 56件、CIと同じ環境ランナー27本（Superpowers unittest 79件）、スキル399件と既存1skip、実配置と4プロジェクト同期が成功。元blobとのhash一致と22文書の不変性を確認済み。別担当の最終確認にCritical/Important/Minorなし。これは公開前の記録であり、本コミットのpush・API HEAD照合・CIの実際はPRコメントで記録する。
+
+## 12. 現行レビューの再検証と実効取得先の修正（2026-10-04）
+
+- 調査HEAD: `1dcee9512058765ff81a7c1605706fab99f362b4`。入力は指定レビューの全6ファイル。openai-codex、SWE、DeepSeek、Claudeは同HEAD、Museは`333f4fb9bb70`、gpt-6.1-solは`e2dd691e2f84`に対するレビュー。
+- 実行許可: ユーザの「修正が必要な指摘があったら、推奨案でプッシュまでしておいてください」「PR の全体を十分に見直す」「問題を見つけた場合は origin/main との差分の範囲だけではなく、他の部分も修正範囲にする」。この追記内容の個別承認とは区別する。
+- 経路: bounded。既存§5.1の取得先identity照合を実装へ適用する修正であり、新しいAPI・許可範囲・アーキテクチャは導入しない。正本は本書と既存Planを更新し、round別文書を増やさない。
+- 独立調査: runtime、現行規約・消費側、取り込み履歴と長いテスト本文を3担当に分担。過去レビューの全文未読箇所も補完した。テストはcontrollerが隔離worktreeで実行した。
+
+### 12.1 全指摘の分類
+
+レビューごとの指摘出現を単位とし、重複も省かず**解消済み21 / 対応する2 / 判断保留0 / 対応しない8**とする。O=openai-codex、S=SWE、D=DeepSeek、C=Claude、G=gpt-6.1-sol。Museには指摘なし。Uは未検証候補、N/Hは今回の独立調査で見つけた論点。
+
+| ID | 分類 | 現行HEADの根拠・方針 |
+| --- | --- | --- |
+| O-M3 | 解消済み | review-fix-planningの書込・commit・コピー元はDOC_ROOTに統一。別DOC_ROOTの受入テスト成功 |
+| O-M1 | 解消済み | copy helperはos.linkで新規公開のみ。既存コピーと注記の競合ガード成功 |
+| O-M2 | 解消済み | 親origin/main checkoutを共通contextで検査し、外部cwd暗黙採用を拒否。実行テスト成功 |
+| S-L1 | 解消済み | 親origin欠落は理由付き66、裸の終了1でない。contextテスト成功 |
+| D-L2 | 解消済み | review-workspaceのlinked CODE_ROOTはfetch前に拒否。context/consumerテスト成功 |
+| D-L3 | 解消済み | linked親を共通contextでfetch前に拒否。consumerテスト成功 |
+| D-L4 | 解消済み | linked親の拒否はfork検索より前、誤ったclone案内を出さない。両ownerテスト成功 |
+| D-I2 | 解消済み | HTTPS/SCP/ssh://は共通正規化処理で受入。URLテスト成功 |
+| D-L1 | 解消済み | AGENTSのremoteなしPR連携非対応と実装の0件拒否が一致 |
+| D-I1 | 解消済み | 旧Plan冒頭はcompletedの履歴と明記し、再実行する現行手順と区別 |
+| D-I3 | 解消済み | AGENTS/README/skillに既存正本の選択・更新手順とroundN抑止がある |
+| D-I4 | 解消済み | PR説明の79 unittest・399 skill/1skip・8 CI成功は公開HEADの結果と一致 |
+| D-L5 | 解消済み | 認証情報入りorigin/push/repo入力を診断へ出さない回帰テスト成功 |
+| D-I5 | 解消済み | docs/superpowers/README.md:3は現行root-cause Specを参照 |
+| D-I6 | 解消済み | push前のhead/API/context照合は全対象に適用と明記。古い手順例はN2で別途修正 |
+| C-L1 | 解消済み | review-workspaceのlinked CODE_ROOT早期拒否は維持 |
+| C-M1 | 解消済み | remote選定は共通Pythonへ移りbash/zshの0始まり配列に依存しない |
+| C-L2 | 解消済み | 外部PRの承認済み修正だけを維持。一般外部実装はblockedと4規約で一致 |
+| C-I1 | 解消済み | 内容承認・実行許可・完了・公開を別記録。過去承認を捏造していない |
+| C-I2 | 解消済み | 22件のhashは追跡fixtureから比較。元PR履歴なしの通常/浅いclone・配布物テスト成功 |
+| G-M1 | 解消済み | C-I2と同じ履歴依存はfixture化済み。古いHEADに対する指摘 |
+| D-I7 | 対応しない | READMEの現行参照先は正しい。将来の保険となる新規assertであり、既存ガードの削除もない |
+| D-U-jq | 対応しない | Claude Codeの許可確認は未実証。許可プロンプトだけを推測で機能不具合としない |
+| C-U-write | 対応しない | 別DOC_ROOTの相対Write/Edit許可照合は未実証、既存R8の安全側の判断を保持 |
+| N1 | 対応する(a) | known-routeの修正worktree固有insteadOfが実効取得先を変えても成功。自repoのoriginとResoLoop両ownerのorigin/upstream、5ケースを再現 |
+| N2 | 対応する(b) | review-fix-planningのfetch/pushの手順例はorigin固定で返されたremoteと矛盾。実装後手順・自repo/fork例をPR_REMOTE/HEAD_REMOTEへそろえる |
+| H1 | 対応しない | imported round6 Planの未チェックと後のSpec完了記録は別時点の履歴。本文不変を維持 |
+| H2 | 対応しない | imported PR9 round2の未実施表示とround3の解消記録は別時点の履歴。現在の再実行許可ではない |
+| H3 | 対応しない | imported PR9 round3のSpec/Plan状態差は当時の記録。現在仕様と区別されている |
+| H4 | 対応しない | imported文書は現行enum以前の履歴、状態を自動解釈する新しい仕組みはない |
+| H5 | 対応しない | imported文書の絶対path/削除済みscratchは当時の再現証跡。現行の復元元や実行手順として使わない |
+
+Test suggestionsは対応するfindingの検証方法であり、独立した追加不具合として数えない。全文読解不足は今回補完し、不具合件数には含めない。
+
+### 12.2 推奨修正と検証
+
+N1の不変条件は「Git repositoryが同じでも、実際に操作するCODE_ROOTの実効取得先が既知repoと一致する」。`inspect_checkout(code_root)`は実効URLを取得済みだが、known-routeのreview-fix分岐はcommon_dirだけ比較し、その値を使っていなかった。親/fork mainの前提検査は維持したうえで、実際のcode checkoutにも自repoのorigin、forkのorigin/upstream両方を照合する。worktree固有設定の不一致は66・正常stdoutなし、clone案内やURL/認証情報の非表示を維持する。
+
+回帰は実Gitのextensions.worktreeConfigとconfig --worktreeのinsteadOfで固定する。自repo・fork/upstreamの選択remoteと非選択remote、他repo/非GitHub/認証情報入りへの書き換え拒否、同一repoのHTTPS/SSH書き換え成功、通常のlinked worktree成功を確認する。異常時のHEAD/ref/index/status/設定の不変性を検査し、外部repoの既存remote選定・pushInsteadOf・copy経路も退行させない。remote.origin.urlの単純追記は最初のfetch URLを変えず、今回の再現条件とは扱わない。
+
+N2は承認済みの取得先とpush先を分離する方針を例まで反映する。fetchは照合済みPR_REMOTEを使い、対象PR先端はgh APIでも再確認する。push例はAPI/contextで確定したHEAD_REMOTEを使う。既存のskillテストへ手順全体の固定origin不存在と両変数の使用を検査するRED/GREENを追加する。
+
+最終受入はfocused context/skill検査、既存bashランナー、全skill、実配置・4プロジェクト同期、変更後の取り込みhash不変、origin/main統合treeの検査、読み取り専用の最終確認。全結果を確認して1コミットで既存PRへpushし、公開HEADとCIを確認してPRに結果を記録する。修正が必要なため今回の条件付きマージは実行しない。
+
+N1/N2は実装・ローカル受入・独立した最終確認を完了した。context/skillのfocused123件、全pytest483件と既存1skip、bash27本、skill402件と既存1skip、実配置と4同期、取り込み22文書hashが成功。`origin/main=c40a3bd`との統合worktreeもbash27本・pytest483件/1skip/168subtests・配置と4同期が成功し、重要な未解決指摘はない。実測と限界はPlan Task5に記録した。この追記は公開前の結果であり、コミットSHA・push/API/CIの実際はPRコメントへ残す。
