@@ -159,8 +159,8 @@ test_live_openai_codex_models() {
 
     local version model output
     version="$(pi --version)" || fail "pi --version failed"
-    dpkg --compare-versions "$version" ge 0.87.1 \
-        || fail "Pi 0.87.1 or newer is required (installed: ${version})"
+    dpkg --compare-versions "$version" ge 0.99.1 \
+        || fail "Pi 0.99.1 or newer is required (installed: ${version})"
 
     for model in gpt-6-astra gpt-6.1-sol gpt-6-luna; do
         output="$(pi --list-models "$model")" || fail "pi --list-models ${model} failed"

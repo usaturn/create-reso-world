@@ -1262,6 +1262,8 @@ test_readme_documents_the_mechanism() {
         || fail "README must explain the bwrap bind"
     grep -q 'setup_pi_superagents.zsh' "$DEVCONTAINER_README" \
         || fail "README must document how to update tiers"
+    grep -qF -- '--tui-mode regular' "$DEVCONTAINER_README" \
+        || fail "README must explain why launchers start pi in regular TUI mode"
     for launcher in pigo pigod pigou piccg piccd piga pigs pigl pixg; do
         grep -q "$launcher" "$DEVCONTAINER_README" \
             || fail "README must list ${launcher}"
