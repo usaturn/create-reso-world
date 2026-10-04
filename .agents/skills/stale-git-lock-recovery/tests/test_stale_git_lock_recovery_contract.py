@@ -8,8 +8,10 @@ of SKILL.md, the Claude Code symlink, and the observable behavior of
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -31,11 +33,15 @@ JSON_KEYS = {"path", "exists", "removed", "size", "mtime", "holder", "stale"}
 # Commands the helper script itself needs when `lsof` is absent. The list is
 # deliberately explicit so the PATH-limited tests can build a PATH without
 # `lsof` while keeping the rest of the toolchain available.
-CORE_TOOLS = ("bash", "cat", "dirname", "basename", "git", "readlink", "rm", "stat", "tr")
+CORE_TOOLS = ("bash", "cat", "dirname", "basename", "flock", "git", "readlink", "rm", "stat", "tr")
 
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def bash_blocks() -> list[str]:
+    return re.findall(r"```bash\n(.*?)```", read(SKILL), re.DOTALL)
 
 
 def frontmatter() -> dict[str, object]:
@@ -181,9 +187,12 @@ def test_skill_documents_the_safety_contract() -> None:
         "git clean",
         "git reset --hard",
         "git checkout -f",
-        "sha256",
-        "sha256sum -c",
         "--ff-only",
+        "ff_merge_keep_untracked.sh",
+        "cp -a",
+        "fd を閉じたまま",
+        "GIT_DIR",
+        "flock",
         "rev-parse --path-format=absolute --git-path index.lock",
         "--path-format=absolute",
         "PID namespace",
@@ -208,6 +217,22 @@ def test_destructive_shortcuts_are_only_mentioned_as_prohibitions() -> None:
             assert any(word in line for word in ("使わない", "禁止", "しない")), (
                 f"{command} must be documented as a prohibition, got: {line}"
             )
+
+
+def test_skill_never_removes_the_lock_by_hand() -> None:
+    content = read(SKILL)
+    assert "削除は `clear` だけで行う" in content
+    for block in bash_blocks():
+        assert "rm " not in block, f"SKILL.md must not show a manual rm:\n{block}"
+
+
+def test_bash_snippets_do_not_clobber_zsh_special_variables() -> None:
+    # zsh ties `path` to PATH and makes `status` read-only, so a snippet pasted
+    # into zsh (the devcontainer shell and Claude Code's Bash tool) must not
+    # assign them.
+    special = re.compile(r"(?:^|[\s;(])(?:path|status)=|\bread\b[^\n]*\s(?:path|status)\b")
+    for block in bash_blocks():
+        assert not special.search(block), f"zsh special variable in snippet:\n{block}"
 
 
 def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
@@ -456,3 +481,338 @@ def test_clear_refuses_force_and_unknown_options(git_repo: Path) -> None:
     assert result.returncode == 2
     assert result.stdout == ""
     assert result.stderr.strip()
+
+
+# --------------------------------------------------------------------------
+# git holds index.lock with its fd closed while hooks or the editor run
+# --------------------------------------------------------------------------
+
+
+def wait_for(predicate, what: str, process: subprocess.Popen[str] | None = None) -> None:
+    deadline = time.monotonic() + 20
+    while not predicate():
+        if process is not None and process.poll() is not None:
+            raise AssertionError(f"process exited before {what}: {process.communicate()}")
+        if time.monotonic() > deadline:
+            raise AssertionError(f"timed out waiting for {what}")
+        time.sleep(0.05)
+
+
+@pytest.mark.parametrize("pause_in", ["pre-commit hook", "commit message editor"])
+def test_git_commit_holding_the_lock_without_an_fd_is_not_stale(
+    git_repo: Path, tmp_path: Path, pause_in: str
+) -> None:
+    ready = tmp_path / "paused"
+    release = tmp_path / "release"
+    pause = f': >"{ready}"; while [ ! -e "{release}" ]; do sleep 0.05; done'
+    env = {**os.environ}
+    if pause_in == "pre-commit hook":
+        hook = git_repo / ".git" / "hooks" / "pre-commit"
+        hook.write_text(f"#!/bin/sh\n{pause}\n", encoding="utf-8")
+        hook.chmod(0o755)
+        args = ["git", "commit", "-a", "-qm", "second"]
+    else:
+        editor = tmp_path / "editor.sh"
+        editor.write_text(f'#!/bin/sh\n{pause}\necho second >"$1"\n', encoding="utf-8")
+        editor.chmod(0o755)
+        env["GIT_EDITOR"] = str(editor)
+        args = ["git", "commit", "-a", "-q"]
+    (git_repo / "README.md").write_text("changed\n", encoding="utf-8")
+    lock = resolve_lock_path(git_repo)
+
+    commit = subprocess.Popen(
+        args, cwd=git_repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    try:
+        wait_for(ready.exists, f"the {pause_in}", commit)
+        assert lock.exists(), "git must hold index.lock while the commit is paused"
+
+        check = run_script("check", "--json", "--repo", str(git_repo))
+        assert check.returncode == 12, (check.stdout, check.stderr)
+        payload = json.loads(check.stdout)
+        assert payload["holder"] == "unknown"
+        assert payload["stale"] is False
+        assert f"pid {commit.pid} (git)" in check.stderr
+
+        clear = run_script("clear", "--json", "--repo", str(git_repo))
+        assert clear.returncode == 12, (clear.stdout, clear.stderr)
+        assert json.loads(clear.stdout)["removed"] is False
+        assert lock.exists(), "clear must not delete a lock held by a paused git commit"
+    finally:
+        release.touch()
+        stdout, stderr = commit.communicate(timeout=30)
+
+    assert commit.returncode == 0, (stdout, stderr)
+    assert not lock.exists()
+    assert git(git_repo, "show", "HEAD:README.md") == "changed\n"
+    assert git(git_repo, "ls-tree", "--name-only", "HEAD").split() == ["README.md"]
+
+
+def fake_process(
+    proc_root: Path,
+    pid: int,
+    comm: str,
+    *,
+    cwd: Path | None = None,
+    environ: dict[str, str] | None = None,
+    fds: tuple[Path, ...] = (Path("/dev/null"),),
+) -> None:
+    """Add one PID to a fake PROC_ROOT. ``cwd=None`` leaves the cwd unreadable."""
+    pid_dir = proc_root / str(pid)
+    (pid_dir / "fd").mkdir(parents=True)
+    (pid_dir / "comm").write_text(f"{comm}\n", encoding="utf-8")
+    (pid_dir / "cmdline").write_bytes(f"{comm}\0status\0".encode())
+    (pid_dir / "environ").write_bytes(
+        b"".join(f"{key}={value}\0".encode() for key, value in (environ or {}).items())
+    )
+    if cwd is not None:
+        (pid_dir / "cwd").symlink_to(cwd)
+    for number, target in enumerate(fds):
+        (pid_dir / "fd" / str(number)).symlink_to(target)
+
+
+def check_with_proc(repo: Path, tmp_path: Path, proc_root: Path) -> subprocess.CompletedProcess[str]:
+    env = limited_path_env(tmp_path, PROC_ROOT=str(proc_root))
+    return run_script("check", "--json", "--repo", str(repo), env=env)
+
+
+@pytest.mark.parametrize(
+    "where",
+    ["work tree top", "subdirectory", "git dir"],
+)
+def test_git_process_inside_the_repository_makes_the_holder_unknown(
+    git_repo: Path, tmp_path: Path, where: str
+) -> None:
+    resolve_lock_path(git_repo).write_bytes(b"")
+    (git_repo / "sub").mkdir()
+    cwd = {"work tree top": git_repo, "subdirectory": git_repo / "sub", "git dir": git_repo / ".git"}[where]
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=cwd)
+
+    check = check_with_proc(git_repo, tmp_path, proc_root)
+    assert check.returncode == 12, (check.stdout, check.stderr)
+    assert json.loads(check.stdout)["holder"] == "unknown"
+    assert "pid 4242 (git)" in check.stderr
+
+
+@pytest.mark.parametrize("variable", ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"])
+def test_git_process_pointing_at_the_repository_through_its_environment_is_unknown(
+    git_repo: Path, tmp_path: Path, variable: str
+) -> None:
+    lock = resolve_lock_path(git_repo)
+    lock.write_bytes(b"")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    value = {
+        "GIT_DIR": str(git_repo / ".git"),
+        "GIT_WORK_TREE": str(git_repo),
+        "GIT_COMMON_DIR": str(git_repo / ".git"),
+        # relative values are resolved against the process's cwd
+        "GIT_INDEX_FILE": os.path.relpath(lock, elsewhere),
+    }[variable]
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=elsewhere, environ={variable: value})
+
+    check = check_with_proc(git_repo, tmp_path, proc_root)
+    assert check.returncode == 12, (check.stdout, check.stderr)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [("--git-dir=../repo/.git", "status"), ("--work-tree", "../repo", "commit", "-a")],
+)
+def test_git_process_pointing_at_the_repository_through_its_options_is_unknown(
+    git_repo: Path, tmp_path: Path, arguments: tuple[str, ...]
+) -> None:
+    resolve_lock_path(git_repo).write_bytes(b"")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=elsewhere)
+    (proc_root / "4242" / "cmdline").write_bytes(
+        b"".join(f"{word}\0".encode() for word in ("git", *arguments))
+    )
+
+    check = check_with_proc(git_repo, tmp_path, proc_root)
+    assert check.returncode == 12, (check.stdout, check.stderr)
+
+
+def test_git_process_with_an_unreadable_cwd_is_unknown(git_repo: Path, tmp_path: Path) -> None:
+    resolve_lock_path(git_repo).write_bytes(b"")
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=None)
+
+    check = check_with_proc(git_repo, tmp_path, proc_root)
+    assert check.returncode == 12, (check.stdout, check.stderr)
+
+
+def test_unrelated_processes_do_not_block_a_stale_lock(git_repo: Path, tmp_path: Path) -> None:
+    resolve_lock_path(git_repo).write_bytes(b"")
+    other = make_git_repo(tmp_path / "other")
+    proc_root = tmp_path / "proc"
+    # a git process in another repository, with that repository's relative GIT_DIR
+    fake_process(proc_root, 4242, "git", cwd=other, environ={"GIT_DIR": ".git"})
+    # a non-git process working inside this repository
+    fake_process(proc_root, 4243, "vim", cwd=git_repo)
+    # a process whose command line merely mentions a path ending in /git
+    fake_process(proc_root, 4244, "bash", cwd=git_repo)
+    (proc_root / "4244" / "cmdline").write_bytes(b"bash\0/opt/git\0")
+
+    check = check_with_proc(git_repo, tmp_path, proc_root)
+    assert check.returncode == 11, (check.stdout, check.stderr)
+    assert json.loads(check.stdout)["stale"] is True
+
+
+def test_git_process_in_the_main_worktree_does_not_block_a_linked_worktree_lock(
+    git_repo: Path, tmp_path: Path
+) -> None:
+    linked = tmp_path / "linked"
+    git(git_repo, "worktree", "add", "-q", "-b", "linked-branch", str(linked))
+    resolve_lock_path(linked).write_bytes(b"")
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=git_repo)
+
+    assert check_with_proc(linked, tmp_path, proc_root).returncode == 11
+    fake_process(proc_root, 4243, "git", cwd=linked)
+    assert check_with_proc(linked, tmp_path, proc_root).returncode == 12
+
+
+def test_holder_found_after_an_unknown_process_is_still_present(git_repo: Path, tmp_path: Path) -> None:
+    lock = resolve_lock_path(git_repo)
+    lock.write_bytes(b"")
+    with unlistable_process(tmp_path, "git") as proc_root:
+        # PID 4242 (unlistable git) is scanned before PID 5000, which has the lock open.
+        fake_process(proc_root, 5000, "python", cwd=tmp_path, fds=(lock,))
+        check = check_with_proc(git_repo, tmp_path, proc_root)
+        assert check.returncode == 10, (check.stdout, check.stderr)
+        assert json.loads(check.stdout)["holder"] == "present"
+
+
+def fake_lsof_env(tmp_path: Path, body: str, **overrides: str) -> dict[str, str]:
+    env = limited_path_env(tmp_path, **overrides)
+    lsof = Path(env["PATH"]) / "lsof"
+    lsof.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+    lsof.chmod(0o755)
+    return env
+
+
+def test_union_keeps_unknown_when_lsof_finds_nothing(git_repo: Path, tmp_path: Path) -> None:
+    resolve_lock_path(git_repo).write_bytes(b"")
+    with unlistable_process(tmp_path, "git") as proc_root:
+        env = fake_lsof_env(tmp_path, "exit 1", PROC_ROOT=str(proc_root))
+        check = run_script("check", "--json", "--repo", str(git_repo), env=env)
+        assert check.returncode == 12, (check.stdout, check.stderr)
+
+
+def test_lsof_holder_wins_over_an_unusable_proc(git_repo: Path, tmp_path: Path) -> None:
+    resolve_lock_path(git_repo).write_bytes(b"")
+    body = 'echo "COMMAND PID USER FD"; echo "git 31337 me 3w"; exit 0'
+    env = fake_lsof_env(tmp_path, body, PROC_ROOT=str(tmp_path / "no-proc"))
+    check = run_script("check", "--json", "--repo", str(git_repo), env=env)
+    assert check.returncode == 10, (check.stdout, check.stderr)
+    assert "pid 31337 (git)" in check.stderr
+
+
+def test_without_proc_lsof_alone_cannot_prove_a_lock_stale(git_repo: Path, tmp_path: Path) -> None:
+    lock = resolve_lock_path(git_repo)
+    lock.write_bytes(b"")
+    env = fake_lsof_env(tmp_path, "exit 1", PROC_ROOT=str(tmp_path / "no-proc"))
+    check = run_script("check", "--json", "--repo", str(git_repo), env=env)
+    assert check.returncode == 12, (check.stdout, check.stderr)
+    clear = run_script("clear", "--json", "--repo", str(git_repo), env=env)
+    assert clear.returncode == 12, (clear.stdout, clear.stderr)
+    assert lock.exists()
+
+
+# --------------------------------------------------------------------------
+# Target selection and clear serialization
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("variables", [("GIT_DIR",), ("GIT_DIR", "GIT_WORK_TREE"), ("GIT_COMMON_DIR",)])
+def test_inherited_git_environment_does_not_redirect_the_target(
+    tmp_path: Path, variables: tuple[str, ...]
+) -> None:
+    target = make_git_repo(tmp_path / "target")
+    other = make_git_repo(tmp_path / "other")
+    target_lock = resolve_lock_path(target)
+    other_lock = resolve_lock_path(other)
+    target_lock.write_bytes(b"")
+    other_lock.write_bytes(b"")
+    values = {"GIT_DIR": str(other / ".git"), "GIT_WORK_TREE": str(other), "GIT_COMMON_DIR": str(other / ".git")}
+    env = {**os.environ, **{name: values[name] for name in variables}}
+
+    check = run_script("check", "--json", "--repo", str(target), env=env)
+    assert check.returncode == 11, (check.stdout, check.stderr)
+    assert json.loads(check.stdout)["path"] == str(target_lock)
+
+    clear = run_script("clear", "--json", "--repo", str(target), env=env)
+    assert clear.returncode == 0, (clear.stdout, clear.stderr)
+    assert not target_lock.exists()
+    assert other_lock.exists(), "a lock of another repository must not be removed"
+
+
+def test_stale_suggestion_is_a_runnable_command_for_paths_with_spaces(tmp_path: Path) -> None:
+    repo = make_git_repo(tmp_path / "scratch repo x")
+    lock = resolve_lock_path(repo)
+    lock.write_bytes(b"")
+
+    check = run_script("check", "--repo", str(repo))
+    assert check.returncode == 11, check.stderr
+    prefix = "remove it with: "
+    suggestion = next(line for line in check.stdout.splitlines() if line.startswith(prefix))
+
+    result = subprocess.run(["bash", "-c", suggestion[len(prefix):]], capture_output=True, text=True)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert not lock.exists()
+
+
+def test_concurrent_clear_waits_for_the_lock_directory(git_repo: Path) -> None:
+    lock = resolve_lock_path(git_repo)
+    lock.write_bytes(b"")
+    directory = os.open(lock.parent, os.O_RDONLY)
+    try:
+        fcntl.flock(directory, fcntl.LOCK_EX)
+        clear = subprocess.Popen(
+            ["bash", str(SCRIPT), "clear", "--repo", str(git_repo)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        time.sleep(1)
+        assert clear.poll() is None, "clear must wait while another clear holds the directory"
+        assert lock.exists()
+        fcntl.flock(directory, fcntl.LOCK_UN)
+        stdout, stderr = clear.communicate(timeout=30)
+    finally:
+        os.close(directory)
+    assert clear.returncode == 0, (stdout, stderr)
+    assert not lock.exists()
+
+
+def test_clear_without_flock_removes_nothing(git_repo: Path, tmp_path: Path) -> None:
+    lock = resolve_lock_path(git_repo)
+    lock.write_bytes(b"")
+    env = limited_path_env(tmp_path)
+    (Path(env["PATH"]) / "flock").unlink()
+
+    assert run_script("check", "--repo", str(git_repo), env=env).returncode == 11
+    clear = run_script("clear", "--json", "--repo", str(git_repo), env=env)
+    assert clear.returncode == 1, (clear.stdout, clear.stderr)
+    assert clear.stdout == ""
+    assert "flock" in clear.stderr
+    assert lock.exists()
+
+
+def test_clear_keeps_a_lock_replaced_during_the_check(git_repo: Path, tmp_path: Path) -> None:
+    lock = resolve_lock_path(git_repo)
+    lock.write_bytes(b"")
+    # The fake lsof runs in the middle of the holder check and stands in for a
+    # new git process that re-created the lock after the old one vanished.
+    env = fake_lsof_env(tmp_path, 'rm -f "$2"; printf new >"$2"; exit 1')
+
+    clear = run_script("clear", "--json", "--repo", str(git_repo), env=env)
+    assert clear.returncode == 12, (clear.stdout, clear.stderr)
+    assert json.loads(clear.stdout)["removed"] is False
+    assert "changed while it was being checked" in clear.stderr
+    assert lock.read_bytes() == b"new"

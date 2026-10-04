@@ -11,9 +11,10 @@ description: "Use when git の操作が fatal: Unable to create '.../index.lock'
 
 **中核原則: live holder がいないと確認できるまでロックを外さない。除去したら、ロックを取得できなかった元の操作を再実行する。force しない。**
 
+- ロックの保持者は、ロックの fd を開いているプロセスだけではない。git は `git commit -a` などで、新しい index を `index.lock` に書いて fd を閉じたまま、pre-commit hook やコミットメッセージのエディタを実行する。この間に消すと、git は空の index からコミットを作り、追跡ファイルをすべて削除するコミットが現在の branch に入る。fd が見つからないことだけを stale の根拠にしない。
 - `git status` はロックがあっても exit 0 で成功する。status が通ることを「ロックは無い」の根拠にしない。
 - サイズと mtime は判定基準にしない。判定は保持者の不在で行い、0 バイトかどうかや mtime は参考情報にすぎない。
-- `.git/pr-review-save.lock` は `pr-review` が `flock` で保持する常設のロックである。stale な `index.lock` ではない。
+- `.git/pr-review-save.lock` は、`pr-review` が操作のたびに `flock` を掛けるために常に置いてあるファイルである。stale な `index.lock` ではない。削除すると、次の操作が別のファイルに flock を掛けることになり、排他が効かなくなる。
 - 他ユーザーのプロセス、PID namespace の外（ホスト側・別コンテナ）の保持者は検出できない。bind mount でロックを共有している場合は、検出結果だけで削除せず、人間の確認を必須とする。
 
 ## When to Use
@@ -25,26 +26,27 @@ description: "Use when git の操作が fatal: Unable to create '.../index.lock'
 ## When NOT to Use
 
 - live holder が見つかった: そのプロセスの完了を待つ。待てない場合は状況を報告して停止する
-- holder の有無を判定できない（`lsof` も `/proc` も使えない、他ユーザー・PID namespace 外・bind mount 共有の可能性がある）: 削除せず、人間の確認を必須とする
-- `/tmp/pr-review-*` の review worktree のロック: そのレビューセッションが進行中かもしれない。該当セッションと調整するまで触らない
-- `.git/pr-review-save.lock`: 常設の flock であり、削除しない
+- holder の有無を判定できない（`/proc` が使えない、他ユーザー・PID namespace 外・bind mount 共有の可能性がある）: 削除せず、人間の確認を必須とする
+- `pr-review` の review worktree（`/tmp/pr-review-*`）のロック: そのレビューセッションが進行中かもしれない。該当セッションと調整するまで触らない。ロックの実体は `/tmp` ではなくメインリポジトリの `.git/worktrees/<name>/index.lock` にあり、`.git/worktrees/<name>/gitdir` の中身が `/tmp/pr-review-*` を指していれば review worktree のロックである
+- `.git/pr-review-save.lock`: `pr-review` が flock に使う常設のファイルであり、削除しない
 
 ## Quick reference
 
 | 症状 | 対応 |
 | --- | --- |
-| `Unable to create ... index.lock: File exists` | 下記「検出」で保持者を確認する。いなければ「除去」に進む |
-| `Another git process seems to be running` | 保持者がいれば待つ。いなければ stale として除去してよい |
+| `Unable to create ... index.lock: File exists` | 下記「検出」の `check` で保持者を確認する。exit 11 のときだけ「除去」に進む |
+| `Another git process seems to be running` | 保持者がいれば待つ。fd を開いているプロセスも、そのリポジトリで動作中の git プロセスもいないときだけ stale として扱う |
+| `check` が exit 12 で git プロセスを表示した | fd を閉じたままロックを持っている可能性がある。そのプロセスが終わるのを待ってから `check` をやり直す |
 | `git status` だけ成功する | status の成功をロック不在の根拠にしない。`git rev-parse --path-format=absolute --git-path index.lock` で存在を確かめる |
 | linked worktree のロック | `git -C <worktree> rev-parse --path-format=absolute --git-path index.lock` で解決する。`.git/index.lock` を決め打ちしない |
 | fd を列挙できない git プロセスがいる | 保持者の可能性を否定できない。判定不能として削除しない |
-| `index.lock` が symlink | link 自体を消す。参照先は消さない |
-| ff マージが未追跡ファイルと衝突する | `cp -p` と `sha256sum` で退避してから merge し、復元して `sha256sum -c` で検証する |
-| `.git/pr-review-save.lock` | 削除対象ではない。常設 flock である |
+| `index.lock` が symlink | `clear` は link 自体を消す。参照先は消さない |
+| ff マージが未追跡ファイルと衝突する | 同梱の `ff_merge_keep_untracked.sh` で、未追跡ファイルを退避・復元しながら ff マージする |
+| `.git/pr-review-save.lock` | 削除対象ではない。`pr-review` の flock 用の常設ファイルである |
 
 ## 検出（ロックの特定と保持者の確認）
 
-第一手段は同梱スクリプトである。`check` は exit code で状態を返す。
+同梱スクリプトの `check` で判定する。exit code で状態を返す。
 
 ```bash
 bash .agents/skills/stale-git-lock-recovery/scripts/stale_git_lock.sh check --repo <repo>
@@ -53,74 +55,69 @@ bash .agents/skills/stale-git-lock-recovery/scripts/stale_git_lock.sh check --re
 
 `--json` を付けると stdout に機械可読な 1 オブジェクト（キーは `path` / `exists` / `removed` / `size` / `mtime` / `holder` / `stale`）だけを出す。`removed` は clear が実際に削除したかを示す。usage エラーや削除失敗は stderr のみに出て JSON は出力しない。
 
-手動で確かめる場合は次の順で行う。パスは `--path-format=absolute` で絶対化し、呼び出し元 cwd の別 checkout を触らないようにする。
+スクリプトは次の順で判定する。
+
+- ロックのパスは `git rev-parse --git-path index.lock` で解決する。linked worktree では `.git/worktrees/<name>/index.lock` になる。呼び出し元から引き継いだ `GIT_DIR` / `GIT_WORK_TREE` などは無視し、`--repo` だけで対象のリポジトリを決める
+- ロックの fd を開いているプロセスを `lsof` と `/proc/*/fd`（inode の比較）で探す。1 つでも見つかれば live holder（exit 10）
+- fd を列挙できない git プロセスがいれば判定不能（exit 12）とし、保持者不在とみなさない
+- fd を開いている保持者がいなくても、そのリポジトリで動作中の git プロセスがいれば判定不能（exit 12）とする。cwd がワークツリーの top・git dir・共通の git dir の配下にあるか、環境変数 `GIT_DIR` / `GIT_WORK_TREE` / `GIT_COMMON_DIR` / `GIT_INDEX_FILE` やオプション `--git-dir` / `--work-tree` がそこを指している git プロセスが対象である。fd を閉じたままロックを持っている可能性を否定できないためである。cwd・環境変数・コマンドラインを読めない git プロセスも除外できないため、同じく判定不能とする
+- `/proc` が使えない環境では、git プロセスを確認できないため判定不能（exit 12）とする
+- 保持者または判定不能の原因になったプロセスは、PID とコマンド名を stderr に出す
+
+exit 12 で git プロセスが表示されたら、そのプロセスが何をしているかを確かめ、終わるのを待ってから `check` をやり直す。別のターミナルで開いたままのコミットメッセージのエディタや、時間のかかる hook が典型である。
 
 ```bash
-repo=<repo>
-lock="$(git -C "$repo" rev-parse --path-format=absolute --git-path index.lock)"
-stat -- "$lock"                    # 存在と mtime を見る（サイズと mtime は参考情報）
-lsof -- "$lock"                    # 何か出力されれば保持者あり
-for fd in /proc/[0-9]*/fd/*; do readlink "$fd" 2>/dev/null; done | grep -F -- "$lock"
+ps -o pid,etime,args -p <pid>   # 何をしているプロセスか、いつから動いているか
+readlink /proc/<pid>/cwd        # どのディレクトリで動いているか
 ```
 
-- 保持者が 1 つでも見つかれば、それは live holder である。削除しない
-- `lsof` が無い場合は `/proc` の走査を使う。両方使えないときは「保持者なし」ではなく「判定不能」として削除しない
-- fd を列挙できない PID が git 系プロセスなら「判定不能」とし、保持者不在とみなさない
-- 他ユーザーのプロセス、PID namespace の外（ホスト側・別コンテナ）の保持者は検出できない。bind mount で共有している構成では、検出できたことだけを根拠にせず、人間の確認を必須とする
-- スクリプトは自身のプロセスの fd を保持者と誤認しないよう除外する
+他ユーザーのプロセス、PID namespace の外（ホスト側・別コンテナ）の保持者は検出できない。bind mount で共有している構成では、exit 11 だったことだけを根拠にせず、人間の確認を必須とする。
 
 ## 除去
 
-保持者の不在を確認できたときだけ、次を実行する。
+`check` が exit 11（stale）を返したときだけ、次を実行する。
 
 ```bash
 bash .agents/skills/stale-git-lock-recovery/scripts/stale_git_lock.sh clear --repo <repo>
 ```
 
-`clear` は exit 11（stale）のときだけ削除し、削除後の不在を確認する。exit 10 / 12 では何も削除しない。`index.lock` が symlink の場合は link 自体を消し、参照先は消さない。手動で行う場合も保持者不在の確認後だけにする。
+`clear` は保持者の判定をやり直し、exit 11 のときだけ削除して、削除後の不在を確認する。exit 10 / 12 では何も削除しない。`index.lock` が symlink の場合は link 自体を消し、参照先は消さない。
 
-```bash
-repo=<repo>
-rm -f -- "$(git -C "$repo" rev-parse --path-format=absolute --git-path index.lock)"
-```
+- 同じロックに対する `clear` の同時実行は `flock` で 1 つずつ順に処理する。`flock` が使えない環境では削除しない
+- 判定に使ったロックのファイルが判定中に差し替わっていたら（新しい git プロセスが作ったかもしれない）、削除せず exit 12 を返す
+
+削除は `clear` だけで行う。`rm` で手動削除しない。手動の削除には、fd を閉じたまま動作中の git プロセスの確認も、同時実行の直列化も無い。スクリプトを実行できない環境では削除せず、人間に確認する。
 
 除去したら、ロックを取得できなかった元の操作を再実行する（例: `git switch main`、`git merge --ff-only origin/main`、`git add`、`git commit`）。「復旧した」と報告するのは、この再実行が成功してからにする。
 
 ## ロック解除後の復旧（ff マージが未追跡ファイルと衝突する場合）
 
-`git merge --ff-only origin/main` が `untracked working tree files would be overwritten` で失敗することがある。これはロックとは別の問題であり、次の無損失手順で解決する。`git clean` や `git reset --hard`、`git checkout -f` は使わない（未保存の作業を消すため）。
-
-まず衝突候補を列挙する。未追跡ファイルのうち、マージ先に同じ path が存在するものだけが衝突する。パスは NUL 区切りで読み、非 ASCII や改行を含む path も取りこぼさない。
+再実行した `git merge --ff-only <ref>` が `untracked working tree files would be overwritten` で失敗することがある。これはロックとは別の問題であり、同梱の `ff_merge_keep_untracked.sh` で内容を失わずに解決する。`git clean` や `git reset --hard`、`git checkout -f` は使わない（未保存の作業を消すため）。
 
 ```bash
-repo=<repo>
-git -C "$repo" ls-files --others --exclude-standard -z | while IFS= read -r -d '' path; do
-  git -C "$repo" cat-file -e "origin/main:$path" 2>/dev/null && printf '%s\n' "$path"
-done
+bash .agents/skills/stale-git-lock-recovery/scripts/ff_merge_keep_untracked.sh --repo <repo> --ref origin/main
 ```
 
-候補ごとに退避 → マージ → 復元 → 検証を行う。`cp -p` でパーミッションを保ち、`sha256sum` の控えでバイト一致を確認する。
+スクリプトは次の順で処理する。どのディレクトリから実行してもよく、対象のリポジトリは `--repo` だけで決まる。
 
-```bash
-path=<衝突ファイル>                     # リポジトリ root からの相対パス
-backup="$(mktemp -d)" && mkdir -p "$backup/$(dirname "$path")"
-cp -p "$path" "$backup/$path"
-sha256sum "$path" > "$backup/$path.sha256"
-rm -- "$path"
-git merge --ff-only origin/main
-cp -p "$backup/$path" "$path"
-sha256sum -c "$backup/$path.sha256"
-```
+1. `<ref>` が ff で取り込めることを確かめる。取り込み済みなら何もせず exit 0、ff で取り込めなければ何も変えずに exit 1
+2. 未追跡ファイルのうち、`<ref>` に同じパスのファイルがあるもの（衝突するもの）をすべて列挙する
+3. 全件を一時ディレクトリへ `cp -a` で退避し（symlink は symlink のまま、パーミッションとタイムスタンプも保つ）、退避したコピーが元と一致することを確かめる。退避先は削除前に stderr へ表示する
+4. 全件を削除してから、`git merge --ff-only` を 1 回だけ実行する
+5. merge の成否にかかわらず全件を元のパスへ戻し、元と一致することを確かめる。merge が失敗した場合は HEAD を変えずに exit 1
 
-復元後、`origin/main` と同一だったファイルは追跡化されて clean になり、差分のある下書きは ` M` として残る。これは想定どおりであり、内容は失われていない。退避先は検証が終わるまで消さない。
+復元後、`<ref>` と同一だったファイルは追跡ファイルとして clean になり、差分のある下書きは ` M` として残る。これは想定どおりであり、内容は失われていない。退避先はスクリプトが消さない。結果を確認してから消す。
+
+`repo-cleanup-after-merge` の手順 7 の中では使わない。手順 7 は `git status --short` が空でなければ停止してユーザーへ報告する規則であり、未追跡ファイルがある状態では ff マージに進まない。
 
 ## Red Flags: 手を止めて検出に戻る
 
-- 保持者を確認せずに `rm` しようとしている
+- 保持者を確認せずに `rm` しようとしている。`clear` を使わず手動で削除しようとしている
+- ロックの fd を開いているプロセスがいないことだけを根拠に stale と断定している
 - 0 バイトだったことだけを根拠に stale と断定している
 - `git clean` / `git reset --hard` / `git checkout -f` で回避しようとしている。使わない（未保存の作業を消す）
 - open PR の review worktree（`/tmp/pr-review-*`）のロックに触ろうとしている
-- fd を列挙できない PID を「保持者なし」と解釈している
+- fd を列挙できない PID や、exit 12 で表示された git プロセスを「保持者なし」と解釈している
 - 他ユーザーや PID namespace の外の保持者まで確認したつもりになっている
 - 除去しただけで元の git 操作を再実行せず、「復旧した」と報告しようとしている
 - `git status` が成功したので影響なしと判断している
@@ -131,13 +128,13 @@ sha256sum -c "$backup/$path.sha256"
 ## ガードレール
 
 - live holder のいるロックを削除しない。判定できない場合も削除しない
-- `--force` 相当の操作をしない（`clear` にも `--force` は無い）
+- 削除は `clear` だけで行う。`--force` 相当の操作をしない（`clear` にも `--force` は無い）
 - `git clean` / `git reset --hard` / `git checkout -f` を使わない
 - open PR の review worktree と `.git/pr-review-save.lock` を対象にしない
 - 他ユーザー・PID namespace 外・bind mount 共有の保持者は検出できない前提で、人間の確認を必須とする
-- untracked 衝突の退避では、内容の照合（`sha256sum -c`）が終わるまで退避先を消さない
+- 未追跡ファイルとの衝突は `ff_merge_keep_untracked.sh` で解決し、結果を確認するまで退避先を消さない
 
 ## 関連スキル
 
-- `repo-cleanup-after-merge` — 手順 7 の `git switch main` / `git merge --ff-only origin/main` は stale な `index.lock` で失敗しうる。失敗した場合は本スキルで復旧してから手順 7 に戻る
+- `repo-cleanup-after-merge` — 手順 7 の `git switch main` / `git merge --ff-only origin/main` は stale な `index.lock` で失敗しうる。失敗した場合は本スキルの「検出」「除去」で復旧してから手順 7 に戻る
 - `pr-review` — `/tmp/pr-review-*` worktree と `.git/pr-review-save.lock` を作る側。進行中セッションのロックは本スキルの対象外である

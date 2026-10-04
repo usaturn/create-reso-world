@@ -9,18 +9,28 @@
 # it. `clear` removes index.lock only when `check` proves that no live holder
 # exists. There is deliberately no --force.
 #
+# A holder is either a process with an open fd on the lock, or a live git
+# process working in the repository: git keeps index.lock while it runs the
+# hooks or the commit message editor with the lock's fd already closed (for
+# example `git commit -a`), so an fd scan alone cannot prove the lock stale.
+# The repository is chosen by --repo only; GIT_DIR, GIT_WORK_TREE and the
+# other repository-local variables inherited from the caller are ignored.
+# Concurrent `clear` runs on the same lock are serialized with flock.
+#
 # Exit codes:
 #   0  no lock file (for clear: the lock was absent or was removed)
-#   1  unexpected failure while removing the lock
+#   1  unexpected failure (removing the lock, or serializing clear)
 #   2  usage error or not a git repository
 #   10 lock exists and a live process holds it
 #   11 lock exists and no holder was found (stale; clear may remove it)
-#   12 lock exists and the holder could not be determined
+#   12 lock exists and the holder could not be determined, including a live
+#      git process in the repository that may hold it with its fd closed
 #
 # JSON output (--json): exactly one object on stdout with the keys
 #   path, exists, removed, size, mtime, holder, stale
 # `removed` is false for check and reports whether clear deleted the lock.
 # Usage errors and removal failures are written to stderr and emit no JSON.
+# The processes behind a present or unknown holder are listed on stderr.
 #
 # Environment:
 #   PROC_ROOT  location of the process filesystem (default /proc; a test
@@ -44,9 +54,48 @@ usage: stale_git_lock.sh check [--json] [--repo <path>]
 EOF
 }
 
+# Drop GIT_DIR, GIT_WORK_TREE and the other repository-local variables that a
+# caller (for example a git hook) may export. Otherwise they override
+# `git -C "$repo"` and the script would inspect another repository's lock.
+clear_git_env() {
+  local var
+  for var in $(git rev-parse --local-env-vars); do
+    unset "$var"
+  done
+}
+
 # A lock is "present" when the path exists, including a dangling symlink.
 lock_exists() {
   [ -e "$1" ] || [ -L "$1" ]
+}
+
+# Identity of the lock file itself (not a symlink's target). A removed and
+# re-created lock gets a new change time even when the inode number is reused.
+lock_identity() {
+  stat -c '%d:%i:%z' -- "$1" 2>/dev/null
+}
+
+# Is $1 equal to the directory $2 or inside it? The quoted part of the pattern
+# is matched literally, so glob characters in the directory name are safe.
+path_is_under() {
+  case "$1/" in
+    "$2/"*) return 0 ;;
+  esac
+  return 1
+}
+
+# Print a process that makes the lock not removable, for the caller to act on.
+report_process() {
+  local pid="$1" reason="$2" comm="?"
+  { IFS= read -r comm <"$pid/comm"; } 2>/dev/null
+  printf 'pid %s (%s): %s\n' "${pid##*/}" "$comm" "$reason" >&2
+}
+
+is_self() {
+  case "${1##*/}" in
+    "$$"|"$BASHPID") return 0 ;;
+  esac
+  return 1
 }
 
 # Resolve the lock path through git itself so linked worktrees report
@@ -108,6 +157,7 @@ holder_state_lsof() {
       case "${2:-}" in
         "$$"|"$BASHPID") continue ;;
       esac
+      printf 'pid %s (%s): has the lock open\n' "${2:-?}" "${1:-?}" >&2
       printf 'present\n'
       return 0
     done <<< "$output"
@@ -121,18 +171,17 @@ holder_state_lsof() {
   return 0
 }
 
-# Does this PID look like a git process? Used only when its fd directory
-# cannot be listed, so that a hidden git holder becomes "unknown" instead of
-# silently counting as "no holder".
-process_looks_like_git() {
-  local pid="$1" comm="" cmdline=""
-  comm="$(cat "$pid/comm" 2>/dev/null)" || comm=""
-  cmdline="$(tr '\0' ' ' <"$pid/cmdline" 2>/dev/null)" || cmdline=""
+# Is this PID a git process? Decided by the executable name (comm) or by the
+# program name in argv[0], never by other words in the command line.
+is_git_process() {
+  local pid="$1" comm="" argv0=""
+  { IFS= read -r comm <"$pid/comm"; } 2>/dev/null
   case "$comm" in
     git|git-*) return 0 ;;
   esac
-  case "$cmdline" in
-    "git"|"git "*|*"/git"|*"/git "*) return 0 ;;
+  { IFS= read -r -d '' argv0 <"$pid/cmdline"; } 2>/dev/null
+  case "${argv0##*/}" in
+    git|git-*) return 0 ;;
   esac
   return 1
 }
@@ -140,45 +189,119 @@ process_looks_like_git() {
 # Linux fallback: a holder is any process with an fd whose device:inode
 # matches the lock (inode comparison also catches hardlinks and bind mounts).
 # An fd directory that cannot be listed hides its holders; for a git process
-# that is "unknown", never "absent".
+# that is "unknown", never "absent". Every PID is scanned, so a holder found
+# after an unknown one still makes the answer "present".
 holder_state_proc() {
-  local path="$1" pid fd fd_id ref_id seen=0 has_fd=0
+  local path="$1" pid fd fd_id ref_id seen=0 has_fd result=absent
   ref_id="$(stat -Lc '%d:%i' -- "$path" 2>/dev/null)" || ref_id="$(stat -c '%d:%i' -- "$path" 2>/dev/null)" || ref_id=""
   for pid in "$PROC_ROOT"/[0-9]*; do
     [ -d "$pid" ] || continue
     seen=1
+    is_self "$pid" && continue
     has_fd=0
     for fd in "$pid"/fd/*; do
       [ -e "$fd" ] || [ -L "$fd" ] || continue
       has_fd=1
       fd_id="$(stat -Lc '%d:%i' -- "$fd" 2>/dev/null)" || continue
       if [ -n "$ref_id" ] && [ "$fd_id" = "$ref_id" ]; then
-        case "${pid##*/}" in
-          "$$"|"$BASHPID") continue ;;
-        esac
+        report_process "$pid" "has the lock open"
         printf 'present\n'
         return 0
       fi
     done
-    if [ "$has_fd" -eq 0 ] && process_looks_like_git "$pid"; then
-      printf 'unknown\n'
-      return 0
+    if [ "$has_fd" -eq 0 ] && is_git_process "$pid"; then
+      report_process "$pid" "git process whose open files cannot be listed"
+      result=unknown
     fi
   done
-  if [ "$seen" -eq 1 ]; then
-    printf 'absent\n'
-  else
-    printf 'unknown\n'
-  fi
+  [ "$seen" -eq 1 ] || result=unknown
+  printf '%s\n' "$result"
+  return 0
+}
+
+# Does a git process point into the repository from elsewhere? It may name
+# the repository with GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR or GIT_INDEX_FILE
+# in its environment, or with --git-dir / --work-tree on its command line.
+# Relative values are resolved against the process's cwd. An environment or
+# command line that cannot be read counts as pointing into the repository,
+# because it cannot be ruled out.
+git_process_refers_to() {
+  local pid="$1" cwd="$2" entry value root option=""
+  local -a values=()
+  shift 2
+  { : <"$pid/environ" && : <"$pid/cmdline"; } 2>/dev/null || return 0
+  while IFS= read -r -d '' entry; do
+    case "$entry" in
+      GIT_DIR=*|GIT_WORK_TREE=*|GIT_COMMON_DIR=*|GIT_INDEX_FILE=*) values+=("${entry#*=}") ;;
+    esac
+  done <"$pid/environ"
+  while IFS= read -r -d '' entry; do
+    if [ -n "$option" ]; then
+      values+=("$entry")
+      option=""
+      continue
+    fi
+    case "$entry" in
+      --git-dir=*|--work-tree=*) values+=("${entry#*=}") ;;
+      --git-dir|--work-tree) option="$entry" ;;
+    esac
+  done <"$pid/cmdline"
+  for value in "${values[@]}"; do
+    [ -n "$value" ] || continue
+    case "$value" in
+      /*) ;;
+      *) value="$cwd/$value" ;;
+    esac
+    value="$(readlink -m -- "$value" 2>/dev/null)" || return 0
+    for root in "$@"; do
+      path_is_under "$value" "$root" && return 0
+    done
+  done
+  return 1
+}
+
+# git keeps index.lock while it runs the hooks or the commit message editor
+# with the lock's fd already closed (`git commit -a` writes the new index into
+# the lock, closes it, runs the hooks, then renames it). An fd scan sees no
+# holder then, so any live git process working in this repository is a
+# possible holder: its cwd is inside one of the roots (git moves to the top of
+# the work tree before it runs), or its environment or command line points
+# into them. A git process whose cwd cannot be read cannot be ruled out either.
+git_activity_state() {
+  local pid cwd root related result=absent
+  for pid in "$PROC_ROOT"/[0-9]*; do
+    [ -d "$pid" ] || continue
+    is_self "$pid" && continue
+    is_git_process "$pid" || continue
+    if ! cwd="$(readlink -- "$pid/cwd" 2>/dev/null)" || [ -z "$cwd" ]; then
+      report_process "$pid" "git process whose working directory cannot be read"
+      result=unknown
+      continue
+    fi
+    related=0
+    for root in "$@"; do
+      if path_is_under "$cwd" "$root"; then
+        related=1
+        break
+      fi
+    done
+    if [ "$related" -eq 1 ] || git_process_refers_to "$pid" "$cwd" "$@"; then
+      report_process "$pid" "git process running in this repository; it may hold the lock with its fd closed"
+      result=unknown
+    fi
+  done
+  printf '%s\n' "$result"
   return 0
 }
 
 # Prints present | absent | unknown. A missing lsof must not turn into
 # "absent": fall back to /proc. When both sources are usable their answers
-# are combined as a union (present > unknown > absent), and only when neither
-# source works is the answer unknown.
+# are combined as a union (present > unknown > absent). "absent" also needs
+# the /proc check for live git processes in the repository (the roots given
+# after the path), so without /proc the answer is never "absent".
 holder_state() {
   local path="$1" state="" combined=""
+  shift
   if command -v lsof >/dev/null 2>&1; then
     state="$(holder_state_lsof "$path")"
     if [ "$state" = present ]; then
@@ -187,20 +310,22 @@ holder_state() {
     fi
     combined="$state"
   fi
-  if [ -d "$PROC_ROOT" ] && [ -r "$PROC_ROOT" ]; then
-    state="$(holder_state_proc "$path")"
-    if [ "$state" = present ]; then
-      printf 'present\n'
-      return 0
-    fi
-    if [ "$state" = unknown ] || [ "$combined" = unknown ]; then
-      combined="unknown"
-    elif [ -z "$combined" ]; then
-      combined="$state"
-    fi
+  if ! [ -d "$PROC_ROOT" ] || ! [ -r "$PROC_ROOT" ]; then
+    printf 'unknown\n'
+    return 0
   fi
-  if [ -z "$combined" ]; then
+  state="$(holder_state_proc "$path")"
+  if [ "$state" = present ]; then
+    printf 'present\n'
+    return 0
+  fi
+  if [ "$state" = unknown ] || [ "$combined" = unknown ]; then
     combined="unknown"
+  else
+    combined="$state"
+  fi
+  if [ "$combined" = absent ]; then
+    combined="$(git_activity_state "$@")"
   fi
   printf '%s\n' "$combined"
   return 0
@@ -252,18 +377,45 @@ main() {
   fi
   [ -n "$repo" ] || repo="$PWD"
 
-  local lock_path
-  if ! lock_path="$(resolve_lock_path "$repo")"; then
+  clear_git_env
+
+  local lock_path git_dir
+  if ! lock_path="$(resolve_lock_path "$repo")" ||
+    ! git_dir="$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null)"; then
     printf 'not a git repository: %s\n' "$repo" >&2
     exit "$EXIT_USAGE"
   fi
 
+  # Where a git process working on this repository runs: the top of the work
+  # tree (absent in a bare repository), the git dir, and the common git dir.
+  local roots=() dir
+  for dir in "$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" "$git_dir" \
+    "$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; do
+    [ -n "$dir" ] || continue
+    if dir="$(readlink -f -- "$dir" 2>/dev/null)" && [ -n "$dir" ]; then
+      roots+=("$dir")
+    fi
+  done
+
+  if [ "$mode" = clear ]; then
+    # One clear at a time per lock directory. Otherwise a concurrent clear
+    # could remove a lock that a new git process created after this run had
+    # judged the previous one stale. The directory itself is locked, so no
+    # extra file is left behind.
+    if ! command -v flock >/dev/null 2>&1 || ! exec 9<"$(dirname -- "$lock_path")" ||
+      ! flock -x -w 30 9; then
+      printf 'cannot serialize clear with flock on %s; nothing was removed\n' "$(dirname -- "$lock_path")" >&2
+      exit "$EXIT_FAIL"
+    fi
+  fi
+
   # Size and mtime are informational. The stale decision comes from the
   # holder state: absent is stale, present and unknown are not removable.
-  local exists=0 size="null" mtime="null" holder="absent" stale="false" code=$EXIT_OK
+  local exists=0 size="null" mtime="null" holder="absent" stale="false" code=$EXIT_OK identity=""
   if lock_exists "$lock_path"; then
     exists=1
-    holder="$(holder_state "$lock_path")"
+    identity="$(lock_identity "$lock_path")"
+    holder="$(holder_state "$lock_path" "${roots[@]}")"
     size="$(stat -c '%s' -- "$lock_path" 2>/dev/null)" || size="null"
     mtime="$(stat -c '%Y' -- "$lock_path" 2>/dev/null)" || mtime="null"
     [ -n "$size" ] || size="null"
@@ -279,6 +431,16 @@ main() {
         code=$EXIT_UNKNOWN
         ;;
     esac
+  fi
+
+  # The lock must still be the file that was judged stale; a replacement may
+  # belong to a live git process.
+  if [ "$code" = "$EXIT_STALE" ] && [ "$mode" = clear ] &&
+    { [ -z "$identity" ] || [ "$(lock_identity "$lock_path")" != "$identity" ]; }; then
+    printf 'the lock changed while it was being checked: %s\n' "$lock_path" >&2
+    holder="unknown"
+    stale="false"
+    code=$EXIT_UNKNOWN
   fi
 
   local removed=0
@@ -313,7 +475,7 @@ main() {
       fi
     elif [ "$code" = "$EXIT_STALE" ]; then
       printf 'stale index.lock (no live holder): %s\n' "$lock_path"
-      printf 'remove it with: bash %s clear --repo %s\n' "$0" "$repo"
+      printf 'remove it with: bash %q clear --repo %q\n' "$0" "$repo"
     elif [ "$code" = "$EXIT_HOLDER" ]; then
       printf 'index.lock is held by a live process: %s\n' "$lock_path"
     else
