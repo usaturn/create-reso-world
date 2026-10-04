@@ -6,9 +6,7 @@
 		"source=${localEnv:HOME}/.codex,target=/home/vscode/.codex,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind,consistency=cached",
-		"source=${localEnv:HOME}/.grok,target=/home/vscode/.grok,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.pi,target=/home/vscode/.pi,type=bind,consistency=cached",
-		"source=${localEnv:HOME}/.dsh,target=/home/vscode/.dsh,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.local/share/devin,target=/home/vscode/.local/share/devin,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.config/devin,target=/home/vscode/.config/devin,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.local/share/cursor-agent,target=/home/vscode/.local/share/cursor-agent,type=bind,consistency=cached",
@@ -57,9 +55,8 @@
 		// 常駐インストールする必要はなく、既定 (false) の corepack 経由に戻す。
 		"installYarnUsingApt": false,
 		"version": "24",
-		// dsh plugin は PATH 上の pnpm を直接 spawn する。pnpmVersion "none" は
-		// 導入省略のため、plugin 0.10.6 との組み合わせを隔離検証した 12.4.1 を明示する。
-		"pnpmVersion": "12.4.1",
+		// pnpm を使うツールは無いため導入しない（省略すると latest が入る）。
+		"pnpmVersion": "none",
 		"nvmVersion": "latest"
 		}
 	},
@@ -69,8 +66,7 @@
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-	// 3080 は dsh web の既定ポート。
-	"forwardPorts": [8000, 3080],
+	"forwardPorts": [8000],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "uname -a",

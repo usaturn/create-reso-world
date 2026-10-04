@@ -504,7 +504,7 @@ test_installer_wiring() {
     assert_absent "$installer" 'tmux'
 }
 
-# ccda / ccdd / ccddg / ccdu の env -u 共有リストが、親シェルで export された
+# ccdd / ccddg / ccdu の env -u 共有リストが、親シェルで export された
 # 主要な認証材料・プロバイダ切替・モデルピン留系の値を子 claude へ漏らさない
 # ことを検査する。対象範囲の正本は下の expected_unsets。
 # 共有配列ブロックから抽出した unset_vars は下の expected_unsets と集合比較する。
@@ -523,8 +523,10 @@ test_cc_launcher_env_unsets() {
     chmod +x "$test_home/bin/claude"
 
     assert_contains "$ZSHRC_TEMPLATE" 'typeset -a cc_launcher_unsets'
-    [ "$(rg -c -- 'env "\$\{cc_launcher_unsets\[@\]\}"' "$ZSHRC_TEMPLATE")" -ge 4 ] \
-        || fail 'cc_launcher_unsets must be shared by all 4 launcher functions'
+    [ "$(rg -c -- 'env "\$\{cc_launcher_unsets\[@\]\}"' "$ZSHRC_TEMPLATE")" -ge 3 ] \
+        || fail 'cc_launcher_unsets must be shared by all 3 launcher functions'
+    # 撤去した ccda（claude-alibaba）を戻さない
+    assert_absent "$ZSHRC_TEMPLATE" 'claude-alibaba|ccda|MAAS_ANTHROPIC_TOKEN|maas\.aliyuncs'
 
     local -a expected_unsets=(
         ANTHROPIC_API_KEY
@@ -569,7 +571,6 @@ test_cc_launcher_env_unsets() {
         CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR
         COMMANDCODE_API_KEY
         DEEPINFRA_TOKEN
-        MAAS_ANTHROPIC_TOKEN
         OPENCODE_API_KEY
         OPENCODE_GO_API_KEY
         OPENCODE_GO_CLAUDE_API_KEY
@@ -593,7 +594,6 @@ test_cc_launcher_env_unsets() {
         || fail 'cc_launcher_unsets extraction must ignore unrelated env -u entries'
 
     local -a env_args=(
-        MAAS_ANTHROPIC_TOKEN=fake-maas
         DEEPINFRA_TOKEN=fake-di
         # ccdu のキー解決チェーンをテスト値で固定する。空値は :- で未設定扱いとなり、
         # 親シェルの export が残っていても OPENCODE_API_KEY=fake-open へ必ず倒れる
@@ -604,7 +604,7 @@ test_cc_launcher_env_unsets() {
     local v
     for v in "${unset_vars[@]}"; do
         case "$v" in
-            DEEPINFRA_TOKEN | MAAS_ANTHROPIC_TOKEN | OPENCODE_API_KEY | \
+            DEEPINFRA_TOKEN | OPENCODE_API_KEY | \
                 OPENCODE_GO_API_KEY | OPENCODE_GO_CLAUDE_API_KEY)
                 continue
                 ;;
@@ -613,7 +613,7 @@ test_cc_launcher_env_unsets() {
     done
 
     local fn log
-    for fn in ccda ccdd ccddg ccdu; do
+    for fn in ccdd ccddg ccdu; do
         log="${dump_dir}/${fn}.log"
         : > "$log"
         run_zshrc_code "$test_home" \
@@ -626,18 +626,16 @@ test_cc_launcher_env_unsets() {
     # 入力元の資格情報は ANTHROPIC_* へ値を渡したあと、子 claude へ残さない。
     local source_key
     for source_key in \
-        MAAS_ANTHROPIC_TOKEN \
         DEEPINFRA_TOKEN \
         OPENCODE_GO_CLAUDE_API_KEY \
         OPENCODE_API_KEY \
         OPENCODE_GO_API_KEY; do
-        for fn in ccda ccdd ccddg ccdu; do
+        for fn in ccdd ccddg ccdu; do
             assert_absent "${dump_dir}/${fn}.log" "^${source_key}="
         done
     done
 
     # 各関数が実際に起動し、自身の割り当て値で子プロセスを呼んだことの裏付け
-    assert_contains "${dump_dir}/ccda.log" '^ANTHROPIC_AUTH_TOKEN=fake-maas$'
     assert_contains "${dump_dir}/ccdd.log" '^ANTHROPIC_AUTH_TOKEN=fake-di$'
     assert_contains "${dump_dir}/ccddg.log" '^ANTHROPIC_AUTH_TOKEN=fake-di$'
     assert_contains "${dump_dir}/ccdu.log" '^ANTHROPIC_API_KEY=fake-open$'

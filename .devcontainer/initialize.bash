@@ -9,9 +9,7 @@ set -e
 mkdir -p \
   "${HOME}/.codex" \
   "${HOME}/.claude" \
-  "${HOME}/.grok" \
   "${HOME}/.pi" \
-  "${HOME}/.dsh" \
   "${HOME}/.local/share/devin" \
   "${HOME}/.config/devin" \
   "${HOME}/.local/share/cursor-agent" \

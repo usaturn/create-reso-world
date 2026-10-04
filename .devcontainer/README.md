@@ -23,19 +23,22 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 <!-- tool-table:start -->
 | ツール | 導入方法 | mount | initialize.bash の mkdir | zshrc の関数 | update() の項目 |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`（alias）、`ccda`、`ccdd`、`ccddg`、`ccdu` | `claude update` |
+| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`（alias）、`ccdd`、`ccddg`、`ccdu` | `claude update` |
 | Codex | `npm install -g @openai/codex@latest` | `~/.codex` | `~/.codex` | `cod` | `npm install -g @openai/codex@latest` |
 | pi | `npm install -g` で本体、`pi install` で拡張。ランチャー 9 本を `~/.local/bin` に置く | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.local/share/cursor-agent` | `cur`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`（alias） | `devin update`、`devin plugins update superpowers` |
-| dsh | `npm install -g @deepseek-ai/dsh@0.1.5-rc.1`（版を固定） | `~/.dsh` | `~/.dsh` | — | —（版を固定しているので更新しない） |
 | gh | Dev Container Feature（github-cli） | `~/.config/gh` | `~/.config/gh` | — | — |
-| grok / gcloud / glab / bun | 未導入（参照だけ残す） | `~/.grok`、`~/.config/gcloud`、`~/.config/glab-cli` | `~/.grok`、`~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | `grok update` |
+| gcloud / glab / bun | 未導入（参照だけ残す） | `~/.config/gcloud`、`~/.config/glab-cli` | `~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | — |
 | 秘密情報 | — | `~/.config/create-reso-world` | `~/.config/create-reso-world`（mode 700） | env ファイルがあれば読み込む | — |
 <!-- tool-table:end -->
 
 未導入のツールを呼ぶ関数（`cod`、`genv`、`buni`）は、コマンドが無ければ理由を表示して 127 を返す。
 `update()` は無いツールの項目を飛ばし、飛ばした項目を表示する。
+
+dsh と Grok Build（`grok`）は、リポジトリでは導入も mount もしない。Claude Code を Alibaba Cloud 経由で使う `ccda`（`claude-alibaba`）も置かない。ホストの `~/.dsh`・`~/.grok` は
+Dev Container から見えなくなるだけで、削除しない。不要になったら利用者がホスト側で消す。
+リビルドする前のコンテナには、導入済みの `dsh` が残る。
 
 ## 秘密情報
 
@@ -50,8 +53,11 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 ```
 
 書式は `KEY=VALUE` の 1 行 1 変数である（zsh が読むので、空白や記号を含む値は引用符で囲む）。
-対象は `DEEPINFRA_TOKEN`、`COMMANDCODE_API_KEY`、`OPENCODE_API_KEY`、`MAAS_ANTHROPIC_TOKEN`、`CONTEXT7_API_KEY` などで、
+対象は `DEEPINFRA_TOKEN`、`COMMANDCODE_API_KEY`、`OPENCODE_API_KEY`、`CONTEXT7_API_KEY` などで、
 書き換えたら新しいシェルを開く。
+
+撤去した `ccda` が使っていた `MAAS_ANTHROPIC_TOKEN` は、もう使わない。`env` に残っていれば削除する。
+プロバイダ切替ランチャー（`ccdd` など）はこの変数を子プロセスから外さないため、残すと子プロセスにも渡る。
 
 ## テストの実行
 
@@ -100,12 +106,10 @@ CLI が動作しない場合は `postCreateCommand` を失敗とし、成功扱�
 
 ## エージェントの読み込みの制約
 
-プロジェクト（`slum02/` など）を cwd にしてエージェントを起動したとき、次の 2 つはスキルの一部が見えない。
+プロジェクト（`slum02/` など）を cwd にしてエージェントを起動したとき、次のエージェントはスキルの一部が見えない。
 
 - Cursor は workspace 配下の `.agents/skills` しか読まないため、ルートの共有スキルが見えない。
   プロジェクトの resonite-* スキルは見える
-- dsh は git のルートの `.agents/skills` しか読まないため、プロジェクトの resonite-* スキルが見えない。
-  ルートの共有スキルは見える
 
 Codex はルートとプロジェクトの `AGENTS.md` を直接読むため、`~/.codex/config.toml` で
 `CLAUDE.md` を指示ファイルとして読ませる設定（`project_doc_fallback_filenames`）は不要である。
@@ -599,91 +603,3 @@ pi-superagents 1.14.3 / Pi loader 0.85.1 / Superpowers 6.4.1 について、
 bash .devcontainer/test-pi-superagents.bash
 bash .devcontainer/test-pi-openai-codex.bash
 ```
-
-## DeepSeek Harness（dsh）
-
-`install_beforehand.bash` は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-（`dsh`）を `@deepseek-ai/dsh@0.1.5-rc.1` に固定して導入し、直後の `dsh --version` が
-指定版を返さなければ postCreate を失敗させる。既存の `pigo` / `pigod` /
-`pigou` / `piccg` / `piccd` と `~/.pi` の設定には影響しない。
-
-`dsh` の plugin 管理は PATH 上の `pnpm` を直接 spawn する。`pnpmVersion: "none"` は
-pnpm を導入しない指定のため、Node feature で plugin 0.10.6 との組み合わせを
-隔離検証した `12.4.1` を明示導入している。
-
-`~/.dsh` は `devcontainer.json` で bind mount している。設定、plugin、credentials は
-ホスト側に残るため、リビルド後も `dsh web` の設定と Command Code plugin を
-そのまま使える。Web UI は `forwardPorts` の `3080`（dsh web の既定ポート）で
-ホストから開ける。
-
-### 初期設定
-
-設定ファイルは 2 つある。それぞれ存在しないときだけ `.devcontainer/` の雛形を
-コピーする。既に設定がある環境では上書きしないため、リポジトリ側の雛形を更新しても
-リビルドでは反映されない。反映する場合はバックアップしてから手動でコピーする。
-
-- `~/.dsh/settings.yaml` ← `.devcontainer/dsh-settings.yaml`。provider の設定
-- `~/.dsh/cordis.patch.yml` ← `.devcontainer/dsh-cordis.patch.yml`。plugin の
-  有効・無効。home レベルの patch 層は全 profile に効く
-
-```bash
-cp ~/.dsh/settings.yaml ~/.dsh/settings.yaml.bak
-cp .devcontainer/dsh-settings.yaml ~/.dsh/settings.yaml
-cp ~/.dsh/cordis.patch.yml ~/.dsh/cordis.patch.yml.bak
-cp .devcontainer/dsh-cordis.patch.yml ~/.dsh/cordis.patch.yml
-```
-
-設定は 2 つの provider を有効にする。
-
-- `deepseek-official/deepseek-v4.1-flash`。`llm-deepseek` を OpenCode Go の
-  OpenAI-compatible endpoint `https://opencode.ai/zen/go/v1` へ向けて使う
-- `commandcode/deepseek/deepseek-v4.1-flash`。Command Code plugin
-  `@mars-sea/dsh-commandcode-provider@0.10.6` を web profile に導入して使う
-
-reasoning effort `max` をリポジトリ設定で固定するのは OpenCode Go 経路だけである。
-`agent-default-model` の既定の選択（`deepseek-official/deepseek-v4.1-flash`）と
-`llm-deepseek` に `reasoningEffort: max` を書いている。Command Code plugin には
-effort の設定項目が無く、リクエストに渡された値だけを使うため、Command Code の
-モデルを選んだセッションの effort は UI 側の選択で決まる。
-
-Command Code plugin の Web Search は `webSearch: false` で無効化する。
-
-DeepSeek 独自の `dsh_plugin_packages` は `plugin-package-inventory-deepseek` を
-無効化して送らないようにしている。この plugin は settings の section を登録せず、
-`settings.yaml` に書いても無視されるため、無効化は `~/.dsh/cordis.patch.yml` の
-patch 層で行う。`install_beforehand.bash` は `dsh --profile web --dump-config` で
-実際に `enabled: false` になっていることを確認し、なっていなければ postCreate を
-失敗させる。
-
-### API トークン
-
-API key はリポジトリにも `~/.dsh/settings.yaml` にも保存しない。設定は
-環境変数名（`OPENCODE_API_KEY` / `COMMANDCODE_API_KEY`）だけを参照する。
-`dsh web` を使うシェルで export しておく（`pigo` / `piccd` と同じ値を使う）。
-「秘密情報」の節の `~/.config/create-reso-world/env` に書けば、シェルの起動時に export される。
-
-Dev Container を使わないローカル環境では、`pnpm` を用意したうえで次の順に
-手動で導入する。既に `~/.dsh/` 側にファイルがある場合はコピーしない。
-
-```bash
-npm install -g @deepseek-ai/dsh@0.1.5-rc.1
-mkdir -p ~/.dsh
-[ -f ~/.dsh/settings.yaml ] || cp .devcontainer/dsh-settings.yaml ~/.dsh/settings.yaml
-[ -f ~/.dsh/cordis.patch.yml ] || cp .devcontainer/dsh-cordis.patch.yml ~/.dsh/cordis.patch.yml
-dsh plugin --profile web add @mars-sea/dsh-commandcode-provider@0.10.6
-```
-
-### 検証
-
-Dev Containers: Rebuild Container の後に次を実行する。
-
-```bash
-dsh --version                     # 0.1.5-rc.1 と表示される
-dsh --profile web --dump-config   # llm-deepseek と llm-commandcode が見える
-dsh --profile web --dump-config | grep -A4 'plugin-package-inventory-deepseek'
-                                  # config の enabled: false が見える
-dsh web --no-open                 # Web UI が port 3080 で待ち受ける
-```
-
-`dsh web --no-open` は終了しないため、確認後は Ctrl-C で止める。API key を
-含むログを残さないこと。

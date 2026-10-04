@@ -37,7 +37,9 @@ for section in 秘密情報 エージェントの読み込みの制約; do
 done
 
 # 3. N-3: エージェントごとに初回に要る操作と制約
-for s in 'trust' 'cursor-agent' '.devin/config.json' 'sp-*.md' 'Cursor と dsh'; do has README.md "$s"; done
+for s in 'trust' 'cursor-agent' '.devin/config.json' 'sp-*.md' 'Cursor: スキルの一部が見えない'; do has README.md "$s"; done
+# 撤去した dsh を対象エージェントに戻さない
+for f in AGENTS.md README.md; do lacks "$f" 'dsh'; done
 
 # 4. 統合手順: マージ前の片付け（P-1）、一覧の件数（N-4）、sp-implementer.md の比較先と同じシェル（N-12）、
 #    main の再 ff（M-5）、/private/ の行を消す時期（P-2）、Rebuild 後の確認（N-17・N-18・N-25・N-27）
