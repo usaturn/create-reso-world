@@ -440,3 +440,72 @@ def test_candidates_do_not_depend_on_the_callers_locale(behind: Path, tmp_path: 
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert (behind / "a.env").read_text(encoding="utf-8") == "local a\n"
     assert (behind / "B.env").read_text(encoding="utf-8") == "upstream\n"
+
+
+def test_untracked_nested_repository_that_files_are_added_into_stops_the_run(behind: Path) -> None:
+    # origin/main ignores vendor/ but force-adds vendor/lib/x.c. Locally
+    # vendor/lib is an untracked repository of its own, which git ls-files
+    # does not look into, and git would overwrite x.c inside it.
+    upstream = behind.parent / "upstream"
+    (upstream / ".gitignore").write_text("vendor/\n", encoding="utf-8")
+    push_upstream(behind, {"vendor/lib/x.c": "upstream\n"})
+    nested = behind / "vendor" / "lib"
+    nested.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(nested)], check=True)
+    (nested / "x.c").write_text("local work\n", encoding="utf-8")
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "  vendor/lib/" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (nested / "x.c").read_text(encoding="utf-8") == "local work\n"
+
+
+def test_added_submodule_over_an_existing_clone_still_fast_forwards(behind: Path, tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    subprocess.run(["git", "init", "-q", str(library)], check=True)
+    configure(library)
+    (library / "lib.txt").write_text("lib\n", encoding="utf-8")
+    git(library, "add", "lib.txt")
+    git(library, "commit", "-qm", "lib")
+    upstream = behind.parent / "upstream"
+    subprocess.run(
+        ["git", "-C", str(upstream), "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(library), "sub"],
+        check=True,
+        capture_output=True,
+    )
+    git(upstream, "commit", "-qm", "add submodule")
+    git(upstream, "push", "-q", "origin", "HEAD:main")
+    git(behind, "fetch", "-q", "origin")
+    subprocess.run(["git", "clone", "-q", str(library), str(behind / "sub")], check=True, capture_output=True)
+    (behind / "sub" / "untracked.txt").write_text("local\n", encoding="utf-8")
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert (behind / "sub" / "untracked.txt").read_text(encoding="utf-8") == "local\n"
+
+
+def test_tracked_symlink_replaced_by_a_directory_still_fast_forwards(behind: Path) -> None:
+    upstream = behind.parent / "upstream"
+    for tree in (behind, upstream):
+        git(tree, "pull", "-q", "--ff-only")
+    (behind / "d" / "a").mkdir(parents=True)
+    (behind / "d" / "a" / "b").write_text("b\n", encoding="utf-8")
+    (behind / "l").symlink_to("d")
+    git(behind, "add", "-A")
+    git(behind, "commit", "-qm", "symlink to a directory")
+    git(behind, "push", "-q", "origin", "HEAD:main")
+    git(upstream, "pull", "-q", "--ff-only")
+    git(upstream, "rm", "-q", "l")
+    (upstream / "l" / "a" / "b").mkdir(parents=True)
+    (upstream / "l" / "a" / "b" / "c").write_text("c\n", encoding="utf-8")
+    git(upstream, "add", "-A")
+    git(upstream, "commit", "-qm", "directory instead of the symlink")
+    git(upstream, "push", "-q", "origin", "HEAD:main")
+    git(behind, "fetch", "-q", "origin")
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert (behind / "l" / "a" / "b" / "c").read_text(encoding="utf-8") == "c\n"
+    assert not (behind / "l").is_symlink()

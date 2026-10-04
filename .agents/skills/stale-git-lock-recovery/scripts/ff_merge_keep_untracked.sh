@@ -15,14 +15,16 @@
 # that matched <rev> is clean.
 #
 # git would also remove untracked or ignored content that cannot be put back
-# in place: files under a directory where <rev> adds a file, or a file or
-# symlink where <rev> needs a directory. The script refuses to run then and
-# lists those paths, so they can be moved away first.
+# in place: files under a directory where <rev> adds a file, a file or symlink
+# where <rev> needs a directory, or an untracked nested repository that <rev>
+# adds files into. The script refuses to run then and lists those paths, so
+# they can be moved away first.
 #
 # When the fast-forward fails or the run is interrupted (HUP, INT, TERM),
-# every file goes back to its original place. The backup directory is never
-# deleted: its path is printed on stderr before anything is removed, together
-# with a NUL-separated list of the backed-up paths in <backup>/paths.
+# every file goes back to its original place. Once files are copied into the
+# backup directory it is never deleted: its path is printed on stderr before
+# anything is removed, together with a NUL-separated list of the backed-up
+# paths in <backup>/paths.
 #
 # Exit codes:
 #   0  fast-forwarded (or already up to date) and every file was restored
@@ -190,23 +192,36 @@ main() {
   fi
 
   # git also removes ignored content without asking where <rev> puts a file
-  # over a directory, or a directory over a file or symlink, and such content
-  # could not be put back in its place afterwards. Refuse instead: a directory
-  # holding untracked or ignored files on a path that <rev> adds, or an
-  # untracked or ignored file or symlink on a leading directory of such a path.
-  local added dir
+  # over a directory, a directory over a file or symlink, or files into an
+  # untracked nested repository, and such content could not be put back in
+  # its place afterwards. Refuse instead: a directory holding untracked or
+  # ignored files on a path that <rev> adds as a file (a submodule that <rev>
+  # adds leaves its directory alone), and, walking each added path from the
+  # top down to the first component that is not a plain directory, an
+  # untracked or ignored file or symlink, or an untracked nested repository.
+  local added dir rest
   local -a blocked=()
   while IFS= read -r -d '' added; do
     if [ -d "$added" ] && [ ! -L "$added" ] &&
-      [ -n "$(git --literal-pathspecs ls-files --others -- "$added/")" ]; then
+      [ -n "$(git --literal-pathspecs ls-files --others -- "$added/")" ] &&
+      [ "$(git --literal-pathspecs ls-tree "$target" -- "$added" | cut -d ' ' -f 1)" != 160000 ]; then
       blocked+=("$added/")
     fi
-    dir="$added"
-    while [ "${dir%/*}" != "$dir" ]; do
-      dir="${dir%/*}"
+    dir=""
+    rest="$added"
+    while [ "${rest#*/}" != "$rest" ]; do
+      dir="${dir:+$dir/}${rest%%/*}"
+      rest="${rest#*/}"
       if [ -L "$dir" ] || { [ -e "$dir" ] && [ ! -d "$dir" ]; }; then
         if [ -z "$(git --literal-pathspecs ls-files --cached -- "$dir")" ]; then
           blocked+=("$dir")
+        fi
+        break
+      fi
+      [ -d "$dir" ] || break
+      if [ -e "$dir/.git" ] || [ -L "$dir/.git" ]; then
+        if [ -z "$(git --literal-pathspecs ls-files --cached -- "$dir")" ]; then
+          blocked+=("$dir/")
         fi
         break
       fi

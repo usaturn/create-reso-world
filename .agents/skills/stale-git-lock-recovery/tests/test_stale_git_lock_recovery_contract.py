@@ -953,3 +953,40 @@ def test_submodule_git_dir_is_refused(tmp_path: Path) -> None:
     assert "pass the work tree" in result.stderr
     # The submodule's own work tree is accepted.
     assert run_script("check", "--repo", str(superproject / "lib")).returncode == 0
+
+
+@pytest.mark.parametrize("how", ["GIT_WORK_TREE", "--work-tree"])
+def test_paused_commit_with_an_external_work_tree_is_not_stale(tmp_path: Path, how: str) -> None:
+    # git finds the git dir from the cwd it starts in, then moves to the work
+    # tree given by GIT_WORK_TREE / --work-tree, outside the repository.
+    repo = make_git_repo(tmp_path / "repo")
+    work_tree = tmp_path / "external"
+    work_tree.mkdir()
+    (work_tree / "README.md").write_text("changed\n", encoding="utf-8")
+    ready = tmp_path / "paused"
+    release = tmp_path / "release"
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text(f'#!/bin/sh\n: >"{ready}"; while [ ! -e "{release}" ]; do sleep 0.05; done\n', encoding="utf-8")
+    hook.chmod(0o755)
+    lock = repo / ".git" / "index.lock"
+    env = {**os.environ}
+    args = ["git", "commit", "-a", "-qm", "second"]
+    if how == "GIT_WORK_TREE":
+        env["GIT_WORK_TREE"] = str(work_tree)
+    else:
+        args[1:1] = [f"--work-tree={work_tree}"]
+
+    commit = subprocess.Popen(args, cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        wait_for(ready.exists, "the pre-commit hook", commit)
+        assert lock.exists()
+        check = run_script("check", "--json", "--repo", str(repo))
+        assert check.returncode == 12, (check.stdout, check.stderr)
+        clear = run_script("clear", "--repo", str(repo))
+        assert clear.returncode == 12, (clear.stdout, clear.stderr)
+        assert lock.exists()
+    finally:
+        release.touch()
+        stdout, stderr = commit.communicate(timeout=30)
+    assert commit.returncode == 0, (stdout, stderr)
+    assert git(repo, "show", "HEAD:README.md") == "changed\n"

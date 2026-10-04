@@ -30,7 +30,8 @@
 # JSON output (--json): exactly one object on stdout with the keys
 #   path, exists, removed, size, mtime, holder, stale
 # `removed` is false for check and reports whether clear deleted the lock.
-# Usage errors and removal failures are written to stderr and emit no JSON.
+# Usage errors and failures to remove the lock or to serialize clear with
+# flock are written to stderr and emit no JSON.
 # The processes behind a present or unknown holder are listed on stderr.
 #
 # Environment:
@@ -227,8 +228,10 @@ holder_state_proc() {
 # its environment or on its command line. The comparison is by identity
 # (-ef), so a linked worktree that shares the common git dir does not count
 # for the main work tree. A relative value cannot be resolved reliably (git
-# may have changed directory since it started), and an environment or command
-# line that cannot be read hides the values, so both count as naming it.
+# may have changed directory since it started); a work tree given without a
+# git dir means git found its git dir from the cwd it started in, which is no
+# longer known; and an environment or command line that cannot be read hides
+# the values. All three count as naming it.
 # Arguments: pid, lock directory, git dir, top of the work tree.
 git_process_refers_to() {
   local pid="$1" lock_dir="$2" git_dir="$3" top="$4" entry option=""
@@ -256,7 +259,16 @@ git_process_refers_to() {
       --work-tree) option=GIT_WORK_TREE ;;
     esac
   done <"$pid/cmdline"
-  local i value
+  local i value has_git_dir=0 has_work_tree=0
+  for i in "${!names[@]}"; do
+    case "${names[$i]}" in
+      GIT_DIR) has_git_dir=1 ;;
+      GIT_WORK_TREE) has_work_tree=1 ;;
+    esac
+  done
+  if [ "$has_work_tree" -eq 1 ] && [ "$has_git_dir" -eq 0 ]; then
+    return 0
+  fi
   for i in "${!values[@]}"; do
     value="${values[$i]}"
     case "$value" in
