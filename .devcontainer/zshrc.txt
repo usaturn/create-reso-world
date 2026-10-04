@@ -63,7 +63,7 @@ alias ccd="claude --dangerously-skip-permissions --model opus"
 alias cur="agent --yolo"
 alias dev="devin --permission-mode dangerous"
 
-# プロバイダ切替ランチャー（ccda / ccdd / ccddg / ccdu）共通の env -u リスト。
+# プロバイダ切替ランチャー（ccdd / ccddg / ccdu）共通の env -u リスト。
 # 親シェルで export された主要な認証材料・プロバイダ切替・モデルピン留系の値が
 # 第三者プロバイダの子プロセスへ漏れるのを防ぐ。対象範囲の正本は
 # test-herdr-migration.bash の expected_unsets。関数側で代入する変数は
@@ -71,7 +71,6 @@ alias dev="devin --permission-mode dangerous"
 typeset -a cc_launcher_unsets=(
     -u ANTHROPIC_AUTH_TOKEN
     -u ANTHROPIC_API_KEY
-    -u MAAS_ANTHROPIC_TOKEN
     -u DEEPINFRA_TOKEN
     -u COMMANDCODE_API_KEY
     -u OPENCODE_GO_CLAUDE_API_KEY
@@ -116,24 +115,6 @@ typeset -a cc_launcher_unsets=(
     -u CLAUDE_CODE_BG_CLASSIFIER_MODEL
     -u ANTHROPIC_BETAS
 )
-
-function claude-alibaba ccda () {
-  local flash=deepseek-v4-flash-0731
-  local -a opts
-  [[ $funcstack[1] == ccda ]] && opts=(--dangerously-skip-permissions)
-
-  env "${cc_launcher_unsets[@]}" \
-    ANTHROPIC_BASE_URL="https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic" \
-    ANTHROPIC_AUTH_TOKEN="${MAAS_ANTHROPIC_TOKEN:?MAAS_ANTHROPIC_TOKEN is not set}" \
-    ANTHROPIC_DEFAULT_FABLE_MODEL=qwen3.8-max \
-    ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-v4-pro-0813 \
-    ANTHROPIC_DEFAULT_SONNET_MODEL=${flash} \
-    ANTHROPIC_DEFAULT_HAIKU_MODEL=qwen3.8-flash \
-    ENABLE_CLAUDEAI_MCP_SERVERS=false \
-    CLAUDE_CODE_EFFORT_LEVEL=max \
-    CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
-    claude --model fable "${opts[@]}" "$@"
-}
 
 function claude-deepinfra ccdd () {
   local fable=deepseek-ai/DeepSeek-V4.1-Flash

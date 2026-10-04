@@ -57,6 +57,9 @@ if git grep -n 'symlink' -- .devcontainer/docs/herdr-session-cwd-restore.md; the
 # 6. 除外したエージェントの導入・mount・起動を .devcontainer に戻さない（ホストに残るパスを案内する README の注記は対象外）
 excluded='@deepseek-ai/dsh|DeepSeek Harness|DSH_|dsh-settings|dsh-cordis|dsh (plugin|web|--)|HOME\}?/\.dsh|vscode/\.dsh|pnpmVersion": "[0-9]|3080'
 excluded+='|x\.ai/cli|HOME\}?/\.grok|vscode/\.grok|grok update|-a grok'
+excluded+='|function claude-alibaba|ccda \(\)|-u MAAS_ANTHROPIC_TOKEN|maas\.aliyuncs'
 if git grep -n -E "$excluded" -- .devcontainer "$self"; then fail '.devcontainer still sets up an excluded agent'; fi
+# 撤去した ccda の MAAS_ANTHROPIC_TOKEN を env から消すよう案内する（残すとプロバイダ切替ランチャーの子プロセスに渡る）
+grep -qF '`MAAS_ANTHROPIC_TOKEN` は、もう使わない' "$readme" || fail 'README must tell users to remove MAAS_ANTHROPIC_TOKEN from env'
 
 printf 'PASS: README tool table matches the Dev Container files\n'
