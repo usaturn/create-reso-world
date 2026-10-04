@@ -176,6 +176,9 @@ postCreate は拡張の導入前に既存の登録・pi 管理 npm マニフェ�
 `mcp-npx-cache.json` を整理する。
 組み込み MCP も使う `mcp.json` と `mcp-auth.json` は、内容とリンクをそのまま保持する。
 settings の `extensions` から `-builtin:mcp` だけを除き、他の拡張・独自モデル・認証は保持する。
+旧拡張の残留がなくても、利用者が設定した `-builtin:mcp` は、成功する cleanup の実行ごと
+（postCreate を含む）に除去する。ホストから共有する agent directory の設定変更なので、
+同じ directory を使うホスト側や他の環境の pi にも反映される。
 共有の MCP 設定・API キー・`find-docs`・`~/.npm` のキャッシュは変更しない。
 
 変更前には `agent/migration-backups/pi-retired-*` に settings と存在する npm マニフェストの
@@ -430,7 +433,14 @@ project trust を許可してから使う。各ワールドの `.pi -> ../.pi` �
 グローバルの MCP 設定・認証も保持する。
 
 pi-distill の出力圧縮と tool-display の調整は廃止した。既存の利用者が保存した
-extension config は変更しない。新しいシェルで環境変数の変更を反映し、pi を再起動する。
+extension config は変更しない。環境変数の既定値の削除は Dev Container の rebuild 後に反映される。
+rebuild 前の既存コンテナでは、`~/.zshrc` に残る `PI_DISTILL_*` と `PI_EXTENSIONS_LOCALE` の
+export 行を削除する。利用中のシェルでは次を実行してから pi を再起動する。
+
+```bash
+unset PI_DISTILL_TIMEOUT_SECONDS PI_DISTILL_MODEL PI_DISTILL_ERROR_RETRY_COUNT PI_EXTENSIONS_LOCALE
+```
+
 新規モデル雛形と `setup_pi.zsh` は deepinfra-distill を登録しない。
 既存 `models.json` に同名 provider があっても、独自モデルを保護するため削除しない。
 リポジトリからは参照しないため、不要な場合は利用者がモデル定義を確認してから除去できる。
@@ -471,8 +481,6 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
   `setup_pi_opencode_go.zsh` でキーを更新するときだけ必要になる
 - `DEEPINFRA_TOKEN` は `models.json` の `apiKey` が `$DEEPINFRA_TOKEN` を
   参照するため、deepinfra を使うシェルで export しておく必要がある。
-  `pigo` / `pigod` / `pigou`（Main は OpenCode Go）を使う場合も、Distillation は
-  DeepInfra へ送るため成功には `DEEPINFRA_TOKEN` が必要である
 - `COMMANDCODE_API_KEY` は `DEEPINFRA_TOKEN` と同じ方式である。`models.json`
   の `apiKey` が `$COMMANDCODE_API_KEY` を参照するため、`piccg` と `piccd` を
   使うシェルで export しておく必要がある。未設定のまま実行すると

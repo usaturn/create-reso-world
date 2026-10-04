@@ -108,7 +108,7 @@ def backup_storage(agent):
 
 
 def enable_builtin_mcp(agent):
-    """Remove only the adapter's disable entry from the latest settings."""
+    """Remove -builtin:mcp entries from the latest settings."""
     path = agent / "settings.json"
     settings = read_object(path)
     entries = extension_entries(settings, path)
