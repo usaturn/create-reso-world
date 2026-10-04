@@ -637,6 +637,30 @@ def test_git_process_pointing_at_the_repository_through_its_options_is_unknown(
     assert check.returncode == 12, (check.stdout, check.stderr)
 
 
+@pytest.mark.parametrize(
+    "where",
+    [("environ", "GIT_DIR=../x/.git"), ("cmdline", "--work-tree=sub"), ("cmdline", "--git-dir")],
+)
+def test_git_process_with_a_relative_repository_reference_cannot_be_ruled_out(
+    git_repo: Path, tmp_path: Path, where: tuple[str, str]
+) -> None:
+    # git may have changed directory since it started, so a relative value
+    # cannot be resolved against the current cwd.
+    resolve_lock_path(git_repo).write_bytes(b"")
+    other = make_git_repo(tmp_path / "other")
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=other)
+    kind, value = where
+    if kind == "environ":
+        (proc_root / "4242" / "environ").write_bytes(f"{value}\0".encode())
+    else:
+        words = ["git", value] + (["../repo/.git"] if value == "--git-dir" else []) + ["status"]
+        (proc_root / "4242" / "cmdline").write_bytes(b"".join(f"{w}\0".encode() for w in words))
+
+    check = check_with_proc(git_repo, tmp_path, proc_root)
+    assert check.returncode == 12, (check.stdout, check.stderr)
+
+
 def test_git_process_with_an_unreadable_cwd_is_unknown(git_repo: Path, tmp_path: Path) -> None:
     resolve_lock_path(git_repo).write_bytes(b"")
     proc_root = tmp_path / "proc"
@@ -650,8 +674,8 @@ def test_unrelated_processes_do_not_block_a_stale_lock(git_repo: Path, tmp_path:
     resolve_lock_path(git_repo).write_bytes(b"")
     other = make_git_repo(tmp_path / "other")
     proc_root = tmp_path / "proc"
-    # a git process in another repository, with that repository's relative GIT_DIR
-    fake_process(proc_root, 4242, "git", cwd=other, environ={"GIT_DIR": ".git"})
+    # a git process in another repository that names it with an absolute GIT_DIR
+    fake_process(proc_root, 4242, "git", cwd=other, environ={"GIT_DIR": str(other / ".git")})
     # a non-git process working inside this repository
     fake_process(proc_root, 4243, "vim", cwd=git_repo)
     # a process whose command line merely mentions a path ending in /git
@@ -661,6 +685,41 @@ def test_unrelated_processes_do_not_block_a_stale_lock(git_repo: Path, tmp_path:
     check = check_with_proc(git_repo, tmp_path, proc_root)
     assert check.returncode == 11, (check.stdout, check.stderr)
     assert json.loads(check.stdout)["stale"] is True
+
+
+def test_git_process_in_a_nested_worktree_or_repository_does_not_block_the_outer_lock(
+    git_repo: Path, tmp_path: Path
+) -> None:
+    # Worktrees under the main work tree (as in .worktrees/<name>) and nested
+    # repositories work on their own index; only git on the same work tree counts.
+    nested_worktree = git_repo / ".worktrees" / "feature"
+    git(git_repo, "worktree", "add", "-q", "-b", "feature", str(nested_worktree))
+    nested_repo = make_git_repo(git_repo / "vendor" / "lib")
+    resolve_lock_path(git_repo).write_bytes(b"")
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=nested_worktree)
+    fake_process(proc_root, 4243, "git", cwd=nested_repo)
+
+    assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 11
+    fake_process(proc_root, 4244, "git", cwd=git_repo / "vendor")
+    assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 12
+
+
+@pytest.mark.parametrize("inside", [".git", ".git/hooks", ".git/worktrees/linked"])
+def test_repo_inside_the_git_dir_is_refused(git_repo: Path, tmp_path: Path, inside: str) -> None:
+    # Inside .git there is no work tree top, so a git process holding the lock
+    # with its fd closed could be missed; the script must refuse instead.
+    git(git_repo, "worktree", "add", "-q", "-b", "linked", str(tmp_path / "linked"))
+    lock = resolve_lock_path(git_repo)
+    lock.write_bytes(b"")
+    resolve_lock_path(tmp_path / "linked").write_bytes(b"")
+    for mode in ("check", "clear"):
+        result = run_script(mode, "--json", "--repo", str(git_repo / inside))
+        assert result.returncode == 2, (mode, result.stdout, result.stderr)
+        assert result.stdout == ""
+        assert "pass the work tree" in result.stderr
+    assert lock.exists()
+    assert resolve_lock_path(tmp_path / "linked").exists()
 
 
 def test_git_process_in_the_main_worktree_does_not_block_a_linked_worktree_lock(
@@ -767,9 +826,14 @@ def test_stale_suggestion_is_a_runnable_command_for_paths_with_spaces(tmp_path: 
     assert not lock.exists()
 
 
-def test_concurrent_clear_waits_for_the_lock_directory(git_repo: Path) -> None:
+def test_concurrent_clear_waits_for_the_lock_directory(git_repo: Path, tmp_path: Path) -> None:
     lock = resolve_lock_path(git_repo)
     lock.write_bytes(b"")
+    # A fake lsof and an empty-of-git PROC_ROOT make an unserialized clear
+    # finish in well under a second, so waiting can only come from flock.
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "python", cwd=tmp_path)
+    env = fake_lsof_env(tmp_path, "exit 1", PROC_ROOT=str(proc_root))
     directory = os.open(lock.parent, os.O_RDONLY)
     try:
         fcntl.flock(directory, fcntl.LOCK_EX)
@@ -778,8 +842,9 @@ def test_concurrent_clear_waits_for_the_lock_directory(git_repo: Path) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
         )
-        time.sleep(1)
+        time.sleep(2)
         assert clear.poll() is None, "clear must wait while another clear holds the directory"
         assert lock.exists()
         fcntl.flock(directory, fcntl.LOCK_UN)

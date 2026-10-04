@@ -8,7 +8,9 @@ succeeds or fails, and the target repository is selected by ``--repo`` only.
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -24,6 +26,15 @@ def git(repo: Path, *args: str) -> str:
         check=True,
     )
     return result.stdout
+
+
+@pytest.fixture(autouse=True)
+def backups_in_tmp_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Keep the script's backup directories inside the test's tmp_path."""
+    backups = tmp_path / "backups"
+    backups.mkdir()
+    monkeypatch.setenv("TMPDIR", str(backups))
+    return backups
 
 
 def run_script(
@@ -225,3 +236,79 @@ def test_outside_a_work_tree_is_a_usage_error(tmp_path: Path) -> None:
     result = run_script("--repo", str(plain), "--ref", "HEAD")
     assert result.returncode == 2
     assert "not a git work tree" in result.stderr
+
+
+def push_upstream(behind: Path, files: dict[str, str]) -> None:
+    upstream = behind.parent / "upstream"
+    for name, content in files.items():
+        (upstream / name).parent.mkdir(parents=True, exist_ok=True)
+        (upstream / name).write_text(content, encoding="utf-8")
+    git(upstream, "add", "-f", "-A")
+    git(upstream, "commit", "-qm", "more upstream")
+    git(upstream, "push", "-q", "origin", "HEAD:main")
+    git(behind, "fetch", "-q", "origin")
+
+
+def test_ignored_file_on_an_added_path_is_kept(behind: Path) -> None:
+    # git merge overwrites ignored files without asking; the script must not.
+    push_upstream(behind, {"secret.env": "upstream\n"})
+    with (behind / ".git" / "info" / "exclude").open("a", encoding="utf-8") as exclude:
+        exclude.write("*.env\n")
+    add_conflicting_untracked_files(behind)
+    (behind / "secret.env").write_text("local secret\n", encoding="utf-8")
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert (behind / "secret.env").read_text(encoding="utf-8") == "local secret\n"
+    assert_local_files_kept(behind)
+
+
+def test_files_under_a_directory_or_a_symlink_named_like_an_added_path_are_left_alone(
+    behind: Path, tmp_path: Path
+) -> None:
+    # origin/main adds the file "plain" and "linked/inner.md". Locally "plain"
+    # is a directory and "linked" a symlink to a directory outside the work
+    # tree; neither may be backed up, removed or written through.
+    push_upstream(behind, {"plain": "upstream\n", "linked/inner.md": "upstream\n"})
+    (behind / "plain").mkdir()
+    (behind / "plain" / "draft.md").write_text("draft\n", encoding="utf-8")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "inner.md").write_text("precious\n", encoding="utf-8")
+    (behind / "linked").symlink_to(outside)
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (behind / "plain" / "draft.md").read_text(encoding="utf-8") == "draft\n"
+    assert (behind / "linked").is_symlink()
+    assert (outside / "inner.md").read_text(encoding="utf-8") == "precious\n"
+
+
+def test_interrupted_run_restores_files_and_reports_head(behind: Path, tmp_path: Path) -> None:
+    # A slow smudge filter keeps the fast-forward busy; TERM reaches only the
+    # script, which runs its trap once git has finished.
+    started = tmp_path / "smudge-started"
+    git(behind, "config", "filter.slow.smudge", f': >"{started}"; sleep 3; cat')
+    push_upstream(behind, {".gitattributes": "*.slow filter=slow\n", "big.slow": "data\n"})
+    add_conflicting_untracked_files(behind)
+
+    script = subprocess.Popen(
+        ["bash", str(SCRIPT), "--repo", str(behind), "--ref", "origin/main"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    deadline = time.monotonic() + 30
+    while not started.exists():
+        assert script.poll() is None, script.communicate()
+        assert time.monotonic() < deadline, "the smudge filter never ran"
+        time.sleep(0.05)
+    script.send_signal(signal.SIGTERM)
+    stdout, stderr = script.communicate(timeout=60)
+
+    assert script.returncode == 1, (stdout, stderr)
+    assert "interrupted after the fast-forward" in stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == git(behind, "rev-parse", "origin/main").strip()
+    assert_local_files_kept(behind)

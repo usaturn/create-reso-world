@@ -56,11 +56,12 @@
 
 `scripts/stale_git_lock.sh` の判定に、fd を閉じたままロックを持つ git プロセスの確認を加える。
 
-- fd の走査（lsof・`/proc/*/fd`）で保持者が見つからなかったときに、`/proc` を走査して、対象リポジトリで動作中の git プロセスを探す
+- fd の走査（lsof・`/proc/*/fd`）で保持者が見つからなかったときに、`/proc` を走査して、同じワークツリーで動作中の git プロセスを探す
   - git プロセスの判定は `comm` か argv[0] のプログラム名が `git` / `git-*` であること。コマンドライン中の他の語では判定しない
-  - cwd がワークツリーの top・git dir・共通 git dir のいずれかの配下にある（git は hook を実行する前にワークツリーの top へ移動する）
-  - または、環境変数 `GIT_DIR` / `GIT_WORK_TREE` / `GIT_COMMON_DIR` / `GIT_INDEX_FILE`、オプション `--git-dir` / `--work-tree` が（相対値はそのプロセスの cwd 基準で）そこを指す
+  - git はワークツリーの top で動くので、そのプロセスの cwd から `git rev-parse --git-path index.lock` で解決したロックのディレクトリが、対象のロックのディレクトリと同じ（`-ef`）なら該当とする。入れ子の worktree やサブモジュールの git は別の index を使うので該当しない
+  - または、環境変数 `GIT_DIR` / `GIT_WORK_TREE` / `GIT_COMMON_DIR` / `GIT_INDEX_FILE`、オプション `--git-dir` / `--work-tree` の絶対パスが、ワークツリーの top・git dir・共通 git dir の配下を指す。相対パスの値は、起動後に cwd が変わっていて解決できないため該当とみなす
   - cwd・環境変数・コマンドラインを読めない git プロセスは除外できないため、該当とみなす
+- `--repo` はワークツリーの中のパスに限る。`.git` やその中（`.git/worktrees/<name>` など）では、ワークツリーの top が分からず git プロセスを見落とすため、exit 2 で何もしない
 - 該当があれば `unknown`（exit 12）とし、PID・コマンド名・理由を stderr に出す。JSON のキーと exit code の意味は変えない
 - `/proc` が使えない環境では git プロセスを確認できないため、lsof が absent でも `unknown` にする
 - `/proc` の fd 走査は最後まで続け、present を unknown より優先する（P-1）
@@ -80,7 +81,7 @@
 - 判定の前後でロックファイル自体の識別子（`stat -c '%d:%i:%z'`。inode 番号が再利用されても変更時刻のナノ秒で区別できる）を比べ、差し替わっていたら削除せず exit 12
 - SKILL.md から手動の `rm` 手順を削除し、削除は `clear` だけで行うと明記する。手動の削除には H-1 の確認も直列化も無いためである
 
-検証: テストからロックのディレクトリへ flock を掛けた間は `clear` が待ち、解放後に削除すること。`flock` が無い PATH では削除しないこと。判定中にロックを差し替える偽の `lsof` で、`clear` が exit 12 で差し替え後のロックを残すこと。
+検証: テストからロックのディレクトリへ flock を掛けた間は `clear` が待ち、解放後に削除すること（偽の `PROC_ROOT` と `lsof` で判定を即座に終わらせ、flock を無効にすると失敗することを確認済み）。`--repo` に `.git` の中のパスを渡すと `check` / `clear` が exit 2 でロックを残すこと。`flock` が無い PATH では削除しないこと。判定中にロックを差し替える偽の `lsof` で、`clear` が exit 12 で差し替え後のロックを残すこと。
 
 ### 4. 提案コマンドのクォート（SWE I-1）
 
@@ -93,14 +94,32 @@
 SKILL.md のスニペットを、テスト可能な同梱スクリプト `scripts/ff_merge_keep_untracked.sh --ref <rev> [--repo <path>]` に置き換える。
 
 1. `<rev>` が ff で取り込めることを先に確かめる。取り込めなければ何も変えない
-2. 未追跡ファイル（ignore 対象を除く。git merge の判定と同じ）のうち、`<rev>` に同じパスの blob があるものを全件列挙する
+2. `<rev>` が追加するパスにある未追跡ファイルを、ignore 対象も含めて全件列挙する（再レビューの R-2 で変更）
 3. 全件を `mktemp -d` の退避先へ `cp -a` でコピーし、種類（symlink / 通常ファイル）・内容（`cmp`）・パーミッションが一致することを確かめてから削除する。退避先とパスの一覧（NUL 区切り）を先に stderr とファイルへ残す
 4. `git merge --ff-only` を 1 回だけ実行する
-5. 成否にかかわらず全件を元のパスへ戻して一致を確かめる。merge が失敗した場合は exit 1 で HEAD は変わらない。HUP / INT / TERM でも復元する。退避先は消さない
+5. 成否にかかわらず全件を元のパスへ戻して一致を確かめる。merge が失敗した場合は exit 1 で HEAD は変わらない。HUP / INT / TERM でも復元し、HEAD が進んだかどうかを stderr に出す。退避先は消さない
 
 cwd に依存せず、`path` などの zsh の特殊変数を貼り付け用スニペットで使わない。SKILL.md は「`repo-cleanup-after-merge` の手順 7 の中では使わない（手順 7 は未追跡ファイルがあれば停止して報告する）」と明記し、手順 7 の停止規則と矛盾しないようにする。
 
-検証: 通常ファイル 2 件（一方は upstream と同一）・サブディレクトリの空白入りファイル・symlink の衝突で、リポジトリ外の cwd とサブディレクトリの `--repo` から実行して、ff 後に全件が元の内容・種類・パーミッションで戻ること。merge 失敗時・ff でない場合・退避先を作れない場合に何も失わず HEAD が変わらないこと。継承した `GIT_DIR` を無視すること。usage エラーで何も変えないこと。SKILL.md の bash スニペットが `path=` / `status=` を使わず、`rm` を含まないことを契約テストで固定する。
+検証: 通常ファイル 2 件（一方は upstream と同一）・サブディレクトリの空白入りファイル・symlink の衝突で、リポジトリ外の cwd とサブディレクトリの `--repo` から実行して、ff 後に全件が元の内容・種類・パーミッションで戻ること。merge 失敗時・ff でない場合・退避先を作れない場合に何も失わず HEAD が変わらないこと。ignore 対象のファイルを残すこと。同名のディレクトリや symlink のディレクトリの先には触れないこと。merge 中の SIGTERM で全件を戻し、HEAD が進んだことを報告すること。継承した `GIT_DIR` を無視すること。usage エラーで何も変えないこと。SKILL.md の bash スニペットが `path=` / `status=` を使わず、`rm` を含まないことを契約テストで固定する。
+
+## 再レビュー（6e1fc4c）で見つかった指摘と対応
+
+上記 1〜5 を実装した 6e1fc4c に対し、PR 全体の独立した再レビューと、H-1 の挙動・環境変数・TOCTOU の個別検証を行った。見つかった指摘はすべて同じ PR で対応した。
+
+| ID | 指摘 | 対応 |
+| --- | --- | --- |
+| R-1（High） | `--repo` に `.git`・`.git/worktrees/<name>`・`.git/hooks` を渡すと `--show-toplevel` が失敗し、ワークツリーの top が判定対象から抜ける。待機中の `git commit -a` のロックを stale と判定し、`clear` が削除した | ワークツリーの top を必須にし、取れなければ exit 2 で何もしない。SKILL.md に `<repo>` はワークツリーのパスと明記し、linked worktree のパスの調べ方を書いた |
+| R-2（Medium） | ignore 対象の未追跡ファイルは退避されず、ff マージで黙って上書きされて消える | 候補を「`<ref>` が追加するパスにある未追跡ファイル（ignore 対象を含む）」に変えた。`git diff --diff-filter=A` と `git ls-files --others`（除外なし）の完全一致の積集合で求め、symlink のディレクトリの先はたどらない |
+| R-3（Low） | SIGTERM で中断すると ff は済んでいるのに exit 1 で何も出力しない | 中断時に全件を戻し、HEAD が進んだかどうかと退避先を stderr に出す。ヘッダと SKILL.md の exit 1 の定義に中断を含めた |
+| R-4（Low） | ワークツリーの外の cwd から相対パスの `--git-dir` / `--work-tree` で起動した git を見逃す | 相対パスの値は除外できないものとして判定不能にした |
+| R-5（Low） | 並行 `clear` のテストが、遅い `/proc` 走査のせいで flock が無くても通る | 偽の `PROC_ROOT` と偽の `lsof` で即座に終わる条件にした。flock を無効にするとテストが失敗することを確かめた |
+| R-6（Low） | ff スクリプトが未追跡ファイル 1 件ごとに `git cat-file` を起動する | R-2 の積集合の計算に置き換えた（git の起動は件数によらず定数回） |
+| R-7（Info） | テストが `/tmp/ff-merge-keep-untracked.*` を残す | テストの `TMPDIR` を `tmp_path` に向けた。残っていた退避先は自分のテスト実行のものと確認して削除した |
+| R-8（Info） | SKILL.md の「JSON を出さない」場合に flock の失敗が無い | 追記した |
+| R-9（個別検証） | `.worktrees/<name>` のように main のワークツリーの中に置いた linked worktree で git が動くと、main のロックが常に判定不能になる | cwd の配下判定をやめ、cwd から git が使うロックを解決して比べる方式にした（上記 1） |
+| R-10（個別検証） | `clear` が exit 12 で終わる JSON で、`exists` が true なのに `size` / `mtime` が null になることがある | 判定に数秒かかる間にロックが消えると起きる。size と mtime を判定の前に取得するようにした |
+| R-11（個別検証） | git 以外の実装（JGit、libgit2）は fd を閉じたままロックを持つことがあり、検出できない | 既知の限界として SKILL.md に書き、その可能性がある場合は人間の確認を必須とした |
 
 ## 同じ原因の関連箇所（PR 差分外の確認）
 
@@ -119,5 +138,5 @@ cwd に依存せず、`path` などの zsh の特殊変数を貼り付け用ス�
 
 ## 既知の限界
 
-- 他ユーザーのプロセス、PID namespace の外、bind mount で共有する保持者は検出できない。人間の確認を必須とする（SKILL.md に記載）
+- 他ユーザーのプロセス、PID namespace の外、bind mount で共有する保持者と、git 以外の実装（JGit、libgit2）が fd を閉じたまま持つロックは検出できない。人間の確認を必須とする（SKILL.md に記載）
 - `/proc` の fd 走査は fd ごとに `stat` を起動するため、プロセス数に比例して時間がかかる（既存の実装のまま。判定の正しさには影響しない）

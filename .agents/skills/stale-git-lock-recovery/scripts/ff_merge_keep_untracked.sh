@@ -6,21 +6,25 @@
 #   bash ff_merge_keep_untracked.sh --ref <rev> [--repo <path>]
 #
 # `git merge --ff-only <rev>` refuses to run while an untracked file sits on a
-# path where <rev> has a file. This script copies every such file to a backup
-# directory (cp -a keeps symlinks, modes and timestamps), checks each copy,
-# removes the originals, runs the fast-forward once, and then copies every
-# file back over the merged version and checks it again. A file that differs
-# from <rev> afterwards shows up as modified; one that matched <rev> is clean.
+# path that <rev> adds, and it silently overwrites an ignored file on such a
+# path. This script copies every untracked file on a path that <rev> adds,
+# ignored or not, to a backup directory (cp -a keeps symlinks, modes and
+# timestamps), checks each copy, removes the originals, runs the fast-forward
+# once, and then copies every file back over the merged version and checks it
+# again. A file that differs from <rev> afterwards shows up as modified; one
+# that matched <rev> is clean.
 #
-# When the fast-forward fails, every file goes back to its original place and
-# HEAD is left unchanged. The backup directory is never deleted: its path is
-# printed on stderr before anything is removed, together with a NUL-separated
-# list of the backed-up paths in <backup>/paths.
+# When the fast-forward fails or the run is interrupted (HUP, INT, TERM),
+# every file goes back to its original place. The backup directory is never
+# deleted: its path is printed on stderr before anything is removed, together
+# with a NUL-separated list of the backed-up paths in <backup>/paths.
 #
 # Exit codes:
 #   0  fast-forwarded (or already up to date) and every file was restored
-#   1  no fast-forward happened, or a file could not be restored (stderr says
-#      which; the backup directory still holds the originals)
+#   1  the run did not complete: no fast-forward was possible, the
+#      fast-forward failed, a file could not be restored, or the run was
+#      interrupted. stderr says whether HEAD moved; the backup directory still
+#      holds the originals
 #   2  usage error, not a git work tree, or unknown <rev>
 
 set -u
@@ -31,6 +35,8 @@ readonly EXIT_USAGE=2
 
 files=()
 backup=""
+ref=""
+target=""
 
 usage() {
   cat >&2 <<'EOF'
@@ -77,8 +83,25 @@ restore_all() {
   return "$failed"
 }
 
+# Paths that the target commit adds to HEAD, NUL-separated.
+added_paths() {
+  git diff --no-renames --name-only -z --diff-filter=A HEAD "$target"
+}
+
+# Report where an interrupted run left HEAD, after putting the files back.
+on_signal() {
+  trap - HUP INT TERM
+  restore_all
+  if [ "$(git rev-parse HEAD 2>/dev/null)" = "$target" ]; then
+    printf 'interrupted after the fast-forward to %s; HEAD moved; the originals are kept in %s\n' "$ref" "$backup/files" >&2
+  else
+    printf 'interrupted before the fast-forward; HEAD is unchanged; the originals are kept in %s\n' "$backup/files" >&2
+  fi
+  exit "$EXIT_FAIL"
+}
+
 main() {
-  local repo="" ref=""
+  local repo=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --repo|--ref)
@@ -116,7 +139,7 @@ main() {
 
   clear_git_env
 
-  local top target
+  local top
   if ! top="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" || [ -z "$top" ]; then
     printf 'not a git work tree: %s\n' "$repo" >&2
     exit "$EXIT_USAGE"
@@ -137,15 +160,17 @@ main() {
     exit "$EXIT_FAIL"
   fi
 
-  # Untracked files (ignored ones excluded, as git merge does) that sit on a
-  # path where the target commit has a file. Other kinds of conflict make the
-  # fast-forward fail below, and then every file is put back.
+  # Untracked files, ignored ones included, exactly on the paths that the
+  # target commit adds. git ls-files lists only real files and symlinks and
+  # never looks through a symlinked directory, so nothing outside the work
+  # tree is picked up; a pathspec also matches the files under a directory of
+  # that name, hence the exact intersection with comm. Other kinds of conflict
+  # make the fast-forward fail below, and then every file is put back.
   local rel
   while IFS= read -r -d '' rel; do
-    if [ "$(git cat-file -t "$target:$rel" 2>/dev/null)" = blob ]; then
-      files+=("$rel")
-    fi
-  done < <(git ls-files --others --exclude-standard -z)
+    files+=("$rel")
+  done < <(comm -z -12 <(added_paths | LC_ALL=C sort -z) \
+    <(added_paths | xargs -0 -r git --literal-pathspecs ls-files --others -z -- | LC_ALL=C sort -z))
 
   if [ "${#files[@]}" -eq 0 ]; then
     git merge --ff-only "$target" || exit "$EXIT_FAIL"
@@ -171,7 +196,7 @@ main() {
   done
 
   # From here on the originals live only in the backup until restore_all.
-  trap 'restore_all; exit "$EXIT_FAIL"' HUP INT TERM
+  trap on_signal HUP INT TERM
   local removed=1 merged=0 restored=1
   for rel in "${files[@]}"; do
     if ! rm -f -- "$rel"; then
