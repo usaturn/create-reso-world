@@ -189,6 +189,23 @@ class LifecycleInstructionTests(unittest.TestCase):
         self.assertIn("completed", status, f"the historical plan status must say completed: {status}")
         self.assertIn("内容承認の記録は存在しない", status)
 
+    def test_historical_headers_distinguish_execution_from_content_approval(self):
+        for path in (LIFECYCLE_SPEC, ROUND1, LIFECYCLE_PLAN):
+            with self.subTest(document=str(path.relative_to(ROOT))):
+                opening = read(path).split("\n## ", 1)[0]
+                status = next(line for line in opening.splitlines() if line.startswith("- 状態:"))
+                self.assertNotIn("approved", status)
+                self.assertTrue(any(value in status for value in ("completed", "superseded")), status)
+                self.assertIn("- 実行許可:", opening)
+                self.assertIn("- 内容承認:", opening)
+                self.assertIn("個別のコミット済み版の内容承認は確認できない", opening)
+                self.assertNotIn("Spec の内容承認と実行指示", opening)
+                self.assertNotIn("実行指示は Spec 承認の指示に基づく", opening)
+        self.assertIn("続けて実装してください。推奨案で進めて、途中で止めずにPRまで実施してください。",
+                      read(LIFECYCLE_SPEC).split("\n## ", 1)[0])
+        self.assertIn("対応が必要な指摘があったら、推奨案でプッシュまでしておいてください。",
+                      read(ROUND1).split("\n## ", 1)[0])
+
     def test_round_specs_carry_a_current_rule_pointer(self):
         for path in (ROUND1, ROUND2, ROUND3):
             with self.subTest(path=path.name):

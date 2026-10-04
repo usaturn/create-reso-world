@@ -1,7 +1,9 @@
 # Superpowers Spec・Plan の長期保存と公開運用
 
 - 日付: 2026-10-03
-- 状態: approved（2026-10-03 のユーザ指示「続けて実装してください。推奨案で進めて、途中で止めずにPRまで実施してください。」による。推奨案は、§2・§8 を現状に合わせる改訂と、文書ブランチの main への rebase。改訂後の本版の内容確認は PR のレビューで行う）
+- 状態: superseded（履歴記録。現行の運用設計は後継の root-cause Spec に移行）
+- 実行許可: 2026-10-03 のユーザ指示「続けて実装してください。推奨案で進めて、途中で止めずにPRまで実施してください。」による包括的な実行指示。推奨案は、§2・§8 を現状に合わせる改訂と、文書ブランチの main への rebase。
+- 内容承認: 個別のコミット済み版の内容承認は確認できない。上記の実行指示を内容承認の根拠とはしない。承認 SHA・個別内容承認日は不明。
 - brainstorming 経路: architectural
 - 文書管理リポジトリ: `usaturn/create-reso-world`
 - 設計・実装対象リポジトリ: `usaturn/create-reso-world`（規約とスキルの変更）
@@ -10,7 +12,7 @@
 - 調査時の create-reso-world HEAD: `294ff10`（§2 の初回調査）。§8 の再照合は `9b0d47d`
 - 関連 Plan: `docs/superpowers/plans/2026-10-03-superpowers-document-lifecycle.md`
 
-> **履歴と現行規約（2026-10-04 追記）:** 本書は PR #16 実装時の運用設計の記録である。この後に承認された `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` で、確認用コピーは既存 entry を差し替えない非置換公開へ改訂された。外部リポジトリでは明示・検証済み `CODE_ROOT` の PR review と planning、およびその PR の承認済み実装修正（approved PR review-fix implementation）の既存経路を維持する。一般的な外部コード実装・Issue 実装と remote なしの PR 連携は非対応。現在の操作手順は root `AGENTS.md` と `docs/superpowers/README.md`、コピーの実装は `scripts/superpowers-review-copy.sh` を正とする。本書の本文は履歴として保持する（この注記の追記を除く）。
+> **履歴と現行規約（2026-10-04 追記）:** 本書は PR #16 実装時の運用設計の記録である。この後に承認された `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` で、確認用コピーは既存 entry を差し替えない非置換公開へ改訂された。外部リポジトリでは明示・検証済み `CODE_ROOT` の PR review と planning、およびその PR の承認済み実装修正（approved PR review-fix implementation）の既存経路を維持する。一般的な外部コード実装・Issue 実装と remote なしの PR 連携は非対応。現在の操作手順は root `AGENTS.md` と `docs/superpowers/README.md`、コピーの実装は `scripts/superpowers-review-copy.sh` を正とする。本書の本文は履歴として保持する（冒頭の状態・承認/実行許可メタデータと本注記の訂正を除く）。
 
 ## 1. 意図と確定した条件
 

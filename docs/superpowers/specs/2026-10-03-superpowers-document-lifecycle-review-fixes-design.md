@@ -1,7 +1,9 @@
 # PR #16 レビュー指摘の修正方針（Superpowers 文書保存運用）
 
 - 日付: 2026-10-03
-- 状態: approved（2026-10-03 のユーザ指示「対応が必要な指摘があったら、推奨案でプッシュまでしておいてください。」による。推奨案は本 Spec の「修正方針」の 2 件。本版の内容確認は PR のレビューで行う）
+- 状態: superseded（履歴記録。現行のレビュー修正設計は後継の root-cause Spec に移行）
+- 実行許可: 2026-10-03 のユーザ指示「対応が必要な指摘があったら、推奨案でプッシュまでしておいてください。」による包括的な実行指示。推奨案は本 Spec の「修正方針」の 2 件。
+- 内容承認: 個別のコミット済み版の内容承認は確認できない。上記の実行指示を内容承認の根拠とはしない。承認 SHA・個別内容承認日は不明。
 - 文書管理リポジトリ: `usaturn/create-reso-world`
 - 対象 PR: usaturn/create-reso-world #16（`docs/superpowers-document-lifecycle`）
 - 現行 HEAD: `821e82de7652984196ce187bc467f0c8ce97a194`
@@ -12,7 +14,7 @@
 - 経路（brainstorming の判定）: bounded。既存の 2 スキル（pr-review の resolver、review-fix-planning の Spec 配置規則）と、その契約テストの中で閉じる修正で、他のスキルや規約とのインターフェースは変わらない
 - 関連 Spec: `docs/superpowers/specs/2026-10-03-superpowers-document-lifecycle-design.md`
 
-> **履歴記録（2026-10-04 追記）:** 本書は当時のレビュー修正方針の記録である。確認用コピーの方式は、後継の `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` で非置換公開へ改訂済みであり、現在の手順は root `AGENTS.md` と `docs/superpowers/README.md` に従う。本書本文は履歴として保持する（この注記の追記を除く）。
+> **履歴記録（2026-10-04 追記）:** 本書は当時のレビュー修正方針の記録である。確認用コピーの方式は、後継の `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` で非置換公開へ改訂済みであり、現在の手順は root `AGENTS.md` と `docs/superpowers/README.md` に従う。本書本文は履歴として保持する（冒頭の状態・承認/実行許可メタデータと本注記の訂正を除く）。
 
 ## 現行 HEAD での再現
 

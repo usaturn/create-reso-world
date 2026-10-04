@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # imported-document hash tests read the historical baseline commit 58c9ea8.
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v10.2.0
       - name: Install the shells and tools the tests use
         run: |

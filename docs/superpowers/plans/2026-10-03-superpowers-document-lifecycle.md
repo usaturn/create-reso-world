@@ -2,10 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **履歴と現行規約（2026-10-04 追記）:** 本 Plan は 2026-10-03 時点の実装手順の記録であり、対応する実装は usaturn/create-reso-world#16（`docs/superpowers-document-lifecycle`）のコミット履歴で完了している。以下のチェックボックスとコード例は当時の作業記録であり、現在実行すべき手順ではない。確認用コピーの `--replace-from` 差し替え方式は、後継の `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` で非置換公開へ改訂済みであり、現在の手順は root `AGENTS.md` と `docs/superpowers/README.md` に従う。本 Plan 本文への個別のユーザ内容承認の記録は存在しない（実行指示は Spec 承認の指示に基づく）。
+> **履歴と現行規約（2026-10-04 追記）:** 本 Plan は 2026-10-03 時点の実装手順の記録であり、対応する実装は usaturn/create-reso-world#16（`docs/superpowers-document-lifecycle`）のコミット履歴で完了している。以下のチェックボックスとコード例は当時の作業記録であり、現在実行すべき手順ではない。確認用コピーの `--replace-from` 差し替え方式は、後継の `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md` で非置換公開へ改訂済みであり、現在の手順は root `AGENTS.md` と `docs/superpowers/README.md` に従う。関連 Spec と本 Plan の個別内容承認は確認できず、包括的な実行指示と区別する。本 Plan 本文への個別のユーザ内容承認の記録は存在しない。
 
 - 日付: 2026-10-03
-- 状態: completed（歴史的記録。実装は usaturn/create-reso-world#16（`docs/superpowers-document-lifecycle`）のコミット履歴で完了。2026-10-03 のユーザ指示は Spec の内容承認と実行指示であり、本 Plan 本文の個別内容承認の記録は存在しない）
+- 状態: completed（歴史的記録。実装は usaturn/create-reso-world#16（`docs/superpowers-document-lifecycle`）のコミット履歴で完了。本 Plan 本文の個別内容承認の記録は存在しない）
+- 実行許可: 関連 Spec に記録した 2026-10-03 のユーザ指示「続けて実装してください。推奨案で進めて、途中で止めずにPRまで実施してください。」による包括的な実行指示。
+- 内容承認: 関連 Spec と本 Plan の個別のコミット済み版の内容承認は確認できない。承認 SHA・個別内容承認日は不明。
 - 文書管理リポジトリ: `usaturn/create-reso-world`
 - 設計・実装対象リポジトリ: `usaturn/create-reso-world`
 - 対象 Issue・PR: なし（Task 9 で PR を作成する）
