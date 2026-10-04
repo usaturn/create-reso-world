@@ -170,8 +170,10 @@ def require_main_checkout(repo_value: str) -> Path:
 
 
 def snapshot(repo: Path) -> dict[str, Any]:
+    # Keep main-checkout inspection read-only during concurrent reviews.
     status = git(
         repo,
+        "--no-optional-locks",
         "status",
         "--porcelain=v1",
         "--untracked-files=normal",
