@@ -261,11 +261,13 @@ main() {
   #   file or symlink on the way, or anything on the added path itself;
   # - a submodule that <rev> turns into a file or symlink, if its checkout
   #   holds anything (git removes the checkout as a whole).
-  local added dir rest entry module
+  local added dir rest entry module others
   local -a blocked=()
   while IFS= read -r -d '' added; do
     [ -d "$added" ] && [ ! -L "$added" ] || continue
-    if [ -n "$(git --literal-pathspecs ls-files --others -- "$added/")" ]; then
+    # A listing that fails counts as finding something.
+    if ! others="$(git --literal-pathspecs ls-files --others -- "$added/")" || [ -n "$others" ] ||
+      ! git --literal-pathspecs ls-files -s -z -- "$added/" >"$backup/entries"; then
       blocked+=("$added/")
       continue
     fi
@@ -280,7 +282,7 @@ main() {
           fi
           ;;
       esac
-    done < <(git --literal-pathspecs ls-files -s -z -- "$added/")
+    done <"$backup/entries"
   done <"$backup/added-files"
   while IFS= read -r -d '' added; do
     if [ -L "$added" ] || { [ -e "$added" ] && [ ! -d "$added" ]; }; then
@@ -328,7 +330,7 @@ main() {
 
   mapfile -d '' -t files <"$backup/paths"
   rm -f -- "$backup/added" "$backup/untracked" "$backup/submodules" "$backup/added-files" \
-    "$backup/replaced-submodules"
+    "$backup/replaced-submodules" "$backup/entries"
 
   if [ "${#files[@]}" -eq 0 ]; then
     rm -rf -- "$backup"

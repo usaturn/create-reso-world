@@ -785,3 +785,29 @@ def test_empty_submodule_inside_a_directory_replaced_by_a_file_fast_forwards(
     result = run_script("--repo", str(behind), "--ref", "origin/main")
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert (behind / "a").read_text(encoding="utf-8") == "now a file\n"
+
+
+def test_failing_directory_listing_stops_the_run(behind: Path, tmp_path: Path) -> None:
+    # origin/main adds the file "place"; locally "place" is a directory. A
+    # fake git fails to list it, which must count as finding something.
+    push_upstream(behind, {"place": "upstream\n"})
+    (behind / "place").mkdir()
+    real_git = shutil.which("git")
+    assert real_git
+    bin_dir = tmp_path / "fake-git"
+    bin_dir.mkdir()
+    (bin_dir / "git").write_text(
+        "#!/bin/bash\n"
+        'for arg; do [ "$arg" = "place/" ] && [[ " $* " == *" ls-files "* ]] && exit 1; done\n'
+        f'exec "{real_git}" "$@"\n',
+        encoding="utf-8",
+    )
+    (bin_dir / "git").chmod(0o755)
+    head = git(behind, "rev-parse", "HEAD").strip()
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main", env=env)
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "  place/" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (behind / "place").is_dir()
