@@ -92,6 +92,20 @@ def limited_path_env(tmp_path: Path, **overrides: str) -> dict[str, str]:
     return env
 
 
+def quiet_env(tmp_path: Path, **overrides: str) -> dict[str, str]:
+    """No lsof, and a PROC_ROOT whose only process is not git.
+
+    Tests that expect a stale lock (exit 11) use it, so that git processes
+    running elsewhere on the machine (for example with a GIT_WORK_TREE but no
+    git dir, which cannot be ruled out) cannot turn the answer into unknown.
+    Holder detection itself is covered by the tests that run real processes.
+    """
+    proc_root = tmp_path / "quiet-proc"
+    if not proc_root.exists():
+        fake_process(proc_root, 4242, "bash", cwd=tmp_path)
+    return limited_path_env(tmp_path, PROC_ROOT=str(proc_root), **overrides)
+
+
 def make_git_repo(repo: Path) -> Path:
     repo.mkdir(parents=True)
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True, capture_output=True)
@@ -265,11 +279,12 @@ def test_json_object_has_a_fixed_key_set(git_repo: Path) -> None:
         assert set(payload) == JSON_KEYS
 
 
-def test_stale_lock_is_detected_then_cleared(git_repo: Path) -> None:
+def test_stale_lock_is_detected_then_cleared(git_repo: Path, tmp_path: Path) -> None:
+    env = quiet_env(tmp_path)
     lock = resolve_lock_path(git_repo)
     lock.write_bytes(b"")
 
-    check = run_script("check", "--json", "--repo", str(git_repo))
+    check = run_script("check", "--json", "--repo", str(git_repo), env=env)
     assert check.returncode == 11, check.stderr
     payload = json.loads(check.stdout)
     assert payload["path"] == str(lock)
@@ -278,7 +293,7 @@ def test_stale_lock_is_detected_then_cleared(git_repo: Path) -> None:
     assert payload["holder"] == "absent"
     assert payload["stale"] is True
 
-    clear = run_script("clear", "--json", "--repo", str(git_repo))
+    clear = run_script("clear", "--json", "--repo", str(git_repo), env=env)
     assert clear.returncode == 0, clear.stderr
     assert not lock.exists()
     cleared = json.loads(clear.stdout)
@@ -286,21 +301,35 @@ def test_stale_lock_is_detected_then_cleared(git_repo: Path) -> None:
     assert cleared["removed"] is True
     assert cleared["exists"] is False
 
-    assert run_script("check", "--repo", str(git_repo)).returncode == 0
+    assert run_script("check", "--repo", str(git_repo), env=env).returncode == 0
 
 
-def test_nonzero_byte_lock_is_still_stale_when_unheld(git_repo: Path) -> None:
+def test_unheld_lock_is_stale_on_the_real_proc(git_repo: Path) -> None:
+    # The other stale-lock tests use quiet_env; this one keeps the real /proc
+    # and lsof. Git processes elsewhere on the machine that cannot be ruled
+    # out make the answer "unknown" by design, so that case is skipped.
+    lock = resolve_lock_path(git_repo)
+    lock.write_bytes(b"")
+    check = run_script("check", "--json", "--repo", str(git_repo))
+    if check.returncode == 12 and "pid " in check.stderr:
+        pytest.skip(f"other git processes on this machine: {check.stderr.strip()}")
+    assert check.returncode == 11, (check.stdout, check.stderr)
+    assert json.loads(check.stdout)["stale"] is True
+
+
+def test_nonzero_byte_lock_is_still_stale_when_unheld(git_repo: Path, tmp_path: Path) -> None:
+    env = quiet_env(tmp_path)
     lock = resolve_lock_path(git_repo)
     lock.write_bytes(b"junk" * 100)
 
-    check = run_script("check", "--json", "--repo", str(git_repo))
+    check = run_script("check", "--json", "--repo", str(git_repo), env=env)
     assert check.returncode == 11, check.stderr
     payload = json.loads(check.stdout)
     assert payload["size"] == 400
     assert payload["holder"] == "absent"
     assert payload["stale"] is True
 
-    clear = run_script("clear", "--json", "--repo", str(git_repo))
+    clear = run_script("clear", "--json", "--repo", str(git_repo), env=env)
     assert clear.returncode == 0, clear.stderr
     assert not lock.exists()
 
@@ -322,13 +351,13 @@ def test_non_git_repo_is_a_usage_error(tmp_path: Path) -> None:
     assert result.stderr.strip()
 
 
-def test_rm_failure_reports_error_without_json(git_repo: Path) -> None:
+def test_rm_failure_reports_error_without_json(git_repo: Path, tmp_path: Path) -> None:
     lock = resolve_lock_path(git_repo)
     lock.write_bytes(b"")
     git_dir = lock.parent
     git_dir.chmod(0o500)
     try:
-        result = run_script("clear", "--json", "--repo", str(git_repo))
+        result = run_script("clear", "--json", "--repo", str(git_repo), env=quiet_env(tmp_path))
         assert result.returncode == 1, (result.stdout, result.stderr)
         assert result.stdout == ""
         assert "failed to remove" in result.stderr
@@ -417,34 +446,36 @@ def test_unknown_holder_blocks_clear(git_repo: Path, tmp_path: Path) -> None:
     assert lock.exists(), "clear must not delete when the holder cannot be determined"
 
 
-def test_clear_removes_only_the_symlink_lock_not_its_target(git_repo: Path) -> None:
+def test_clear_removes_only_the_symlink_lock_not_its_target(git_repo: Path, tmp_path: Path) -> None:
+    env = quiet_env(tmp_path)
     lock = resolve_lock_path(git_repo)
     target = git_repo / "precious.bin"
     target.write_bytes(b"do not delete")
     lock.symlink_to(target)
 
-    check = run_script("check", "--json", "--repo", str(git_repo))
+    check = run_script("check", "--json", "--repo", str(git_repo), env=env)
     assert check.returncode == 11, check.stderr
     assert json.loads(check.stdout)["exists"] is True
 
-    clear = run_script("clear", "--json", "--repo", str(git_repo))
+    clear = run_script("clear", "--json", "--repo", str(git_repo), env=env)
     assert clear.returncode == 0, clear.stderr
     assert json.loads(clear.stdout)["removed"] is True
     assert not lock.is_symlink()
     assert target.read_bytes() == b"do not delete"
 
 
-def test_dangling_symlink_lock_is_detected_and_cleared(git_repo: Path) -> None:
+def test_dangling_symlink_lock_is_detected_and_cleared(git_repo: Path, tmp_path: Path) -> None:
+    env = quiet_env(tmp_path)
     lock = resolve_lock_path(git_repo)
     lock.symlink_to(git_repo / "missing-target")
 
-    check = run_script("check", "--json", "--repo", str(git_repo))
+    check = run_script("check", "--json", "--repo", str(git_repo), env=env)
     assert check.returncode == 11, check.stderr
     payload = json.loads(check.stdout)
     assert payload["exists"] is True
     assert payload["stale"] is True
 
-    clear = run_script("clear", "--json", "--repo", str(git_repo))
+    clear = run_script("clear", "--json", "--repo", str(git_repo), env=env)
     assert clear.returncode == 0, clear.stderr
     assert json.loads(clear.stdout)["removed"] is True
     assert not lock.is_symlink()
@@ -458,7 +489,7 @@ def test_linked_worktree_lock_is_detected_at_its_own_path(git_repo: Path, tmp_pa
     assert "worktrees" in str(lock), "fixture must exercise the linked worktree path"
     lock.write_bytes(b"")
 
-    check = run_script("check", "--json", "--repo", str(linked))
+    check = run_script("check", "--json", "--repo", str(linked), env=quiet_env(tmp_path))
     assert check.returncode == 11, check.stderr
     payload = json.loads(check.stdout)
     assert payload["path"] == str(lock)
@@ -595,7 +626,9 @@ def test_git_process_inside_the_repository_makes_the_holder_unknown(
     assert "pid 4242 (git)" in check.stderr
 
 
-@pytest.mark.parametrize("variable", ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"])
+@pytest.mark.parametrize(
+    "variable", ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_INDEX_FILE (absolute)"]
+)
 def test_git_process_pointing_at_the_repository_through_its_environment_is_unknown(
     git_repo: Path, tmp_path: Path, variable: str
 ) -> None:
@@ -607,11 +640,12 @@ def test_git_process_pointing_at_the_repository_through_its_environment_is_unkno
         "GIT_DIR": str(git_repo / ".git"),
         "GIT_WORK_TREE": str(git_repo),
         "GIT_COMMON_DIR": str(git_repo / ".git"),
-        # relative values are resolved against the process's cwd
-        "GIT_INDEX_FILE": os.path.relpath(lock, elsewhere),
+        # a relative GIT_INDEX_FILE is resolved against the process's cwd
+        "GIT_INDEX_FILE": os.path.relpath(lock.parent / "index", elsewhere),
+        "GIT_INDEX_FILE (absolute)": str(lock.parent / "index"),
     }[variable]
     proc_root = tmp_path / "proc"
-    fake_process(proc_root, 4242, "git", cwd=elsewhere, environ={variable: value})
+    fake_process(proc_root, 4242, "git", cwd=elsewhere, environ={variable.split()[0]: value})
 
     check = check_with_proc(git_repo, tmp_path, proc_root)
     assert check.returncode == 12, (check.stdout, check.stderr)
@@ -799,7 +833,7 @@ def test_inherited_git_environment_does_not_redirect_the_target(
     target_lock.write_bytes(b"")
     other_lock.write_bytes(b"")
     values = {"GIT_DIR": str(other / ".git"), "GIT_WORK_TREE": str(other), "GIT_COMMON_DIR": str(other / ".git")}
-    env = {**os.environ, **{name: values[name] for name in variables}}
+    env = quiet_env(tmp_path, **{name: values[name] for name in variables})
 
     check = run_script("check", "--json", "--repo", str(target), env=env)
     assert check.returncode == 11, (check.stdout, check.stderr)
@@ -815,13 +849,14 @@ def test_stale_suggestion_is_a_runnable_command_for_paths_with_spaces(tmp_path: 
     repo = make_git_repo(tmp_path / "scratch repo x")
     lock = resolve_lock_path(repo)
     lock.write_bytes(b"")
+    env = quiet_env(tmp_path)
 
-    check = run_script("check", "--repo", str(repo))
+    check = run_script("check", "--repo", str(repo), env=env)
     assert check.returncode == 11, check.stderr
     prefix = "remove it with: "
     suggestion = next(line for line in check.stdout.splitlines() if line.startswith(prefix))
 
-    result = subprocess.run(["bash", "-c", suggestion[len(prefix):]], capture_output=True, text=True)
+    result = subprocess.run(["bash", "-c", suggestion[len(prefix):]], capture_output=True, text=True, env=env)
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert not lock.exists()
 
@@ -858,7 +893,7 @@ def test_concurrent_clear_waits_for_the_lock_directory(git_repo: Path, tmp_path:
 def test_clear_without_flock_removes_nothing(git_repo: Path, tmp_path: Path) -> None:
     lock = resolve_lock_path(git_repo)
     lock.write_bytes(b"")
-    env = limited_path_env(tmp_path)
+    env = quiet_env(tmp_path)
     (Path(env["PATH"]) / "flock").unlink()
 
     assert run_script("check", "--repo", str(git_repo), env=env).returncode == 11
@@ -874,7 +909,7 @@ def test_clear_keeps_a_lock_replaced_during_the_check(git_repo: Path, tmp_path: 
     lock.write_bytes(b"")
     # The fake lsof runs in the middle of the holder check and stands in for a
     # new git process that re-created the lock after the old one vanished.
-    env = fake_lsof_env(tmp_path, 'rm -f "$2"; printf new >"$2"; exit 1')
+    env = fake_lsof_env(tmp_path, 'rm -f "$2"; printf new >"$2"; exit 1', PROC_ROOT=quiet_env(tmp_path)["PROC_ROOT"])
 
     clear = run_script("clear", "--json", "--repo", str(git_repo), env=env)
     assert clear.returncode == 12, (clear.stdout, clear.stderr)
@@ -1106,3 +1141,19 @@ def test_work_tree_of_a_process_with_an_absolute_git_dir_is_not_used(git_repo: P
 
     assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 11
     assert check_with_proc(linked, tmp_path, proc_root).returncode == 12
+
+
+def test_hook_child_in_another_repository_does_not_block(git_repo: Path, tmp_path: Path) -> None:
+    # git passes GIT_INDEX_FILE=.git/index (relative) to hooks; a git started
+    # by a hook in another repository uses that repository's index, relative
+    # to the top it runs in.
+    resolve_lock_path(git_repo).write_bytes(b"")
+    other = make_git_repo(tmp_path / "other")
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=other, environ={"GIT_INDEX_FILE": ".git/index"})
+    assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 11
+
+    # The same hook child in this repository names this lock's directory.
+    fake_process(proc_root, 4243, "git", cwd=tmp_path / "quiet", environ={"GIT_INDEX_FILE": "../repo/.git/index"})
+    (tmp_path / "quiet").mkdir()
+    assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 12

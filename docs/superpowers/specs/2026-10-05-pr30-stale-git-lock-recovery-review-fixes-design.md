@@ -142,6 +142,11 @@ cwd に依存せず、`path` などの zsh の特殊変数を貼り付け用ス�
 | R-31（6 回目の再レビュー F-2、Medium） | `diff.ignoreSubmodules=all` だと `git diff` が追加される submodule を出力せず、R-25 の拒否が働かずに ignore 対象のファイルが消える | 追加パスの取得を plumbing の `git diff-tree` に替え、設定の影響を受けないようにした。設定を入れた場合のテストを追加した |
 | R-32（6 回目の再レビュー F-3、Low） | 別の worktree の `git difftool` の helper（絶対パスの `GIT_DIR` と `GIT_WORK_TREE=.`）が、どのリポジトリの判定も不能にする | git が使う index は git dir と `GIT_INDEX_FILE` で決まるため、git dir が分かっているときはワークツリーの指定を判定に使わないようにした |
 | R-33（6 回目の再レビュー F-4、Info） | ff スクリプトのヘッダに、submodule を追加するパスでの拒否が書かれていない | ヘッダに追記した |
+| R-34（自己検証） | 7 回目の再レビューと並行して一括テストを実行したところ、実際の `/proc` で exit 11 を期待するテストが 4 件、exit 12 で失敗した。同時に動いていた別の git プロセス（git dir を指定せずワークツリーだけを指定したものなど）を、仕様どおり除外できないと判定したためである | exit 11 を期待するテストは、git プロセスのいない偽の `PROC_ROOT` で実行するようにした。実際の `/proc` で stale と判定できることの確認は 1 件だけ残し、マシン上の別の git プロセスで判定不能になったときは skip する |
+| R-35（7 回目の再レビュー F-1、Medium、発生はまれ） | HEAD の `.gitmodules` で `ignore = all` とした submodule を `<rev>` が追加すると、`git diff-tree` でも出力されず、R-25 の拒否が働かない | 両方の `git diff-tree` に `--ignore-submodules=none` を付けた。`.gitmodules` の設定を使うテストを追加し、修正前の版で失敗することを確かめた |
+| R-36（7 回目の再レビュー F-2、Low） | git は hook に相対パスの `GIT_INDEX_FILE=.git/index` を渡すため、どこかのリポジトリで hook が git を起動している間、無関係なリポジトリも判定不能になる | 相対パスの `GIT_INDEX_FILE` は、git が動いている cwd（プロセスの現在の cwd）を基準に解決して比べるようにした。相対パスの `GIT_DIR` / `GIT_COMMON_DIR` は従来どおり除外できないものとする |
+| R-37（7 回目の再レビュー F-3、Low〜Medium） | `<rev>` が submodule を普通のディレクトリに置き換えると、git は submodule の checkout を残したまま中へ書き込み、superproject で ignore 対象のファイルを確認なしに上書きする | 追加パスの親に index 上の submodule があり、その中の追加パスにファイルが既にあれば、何も変えずに exit 1 で表示するようにした |
+| R-38（7 回目の再レビュー F-4、Low） | `GIT_INDEX_FILE` の比較の分岐を無効にしてもテストが通る | 絶対パスと相対パス（cwd 基準）の両方で、ロックのディレクトリの index を指すケースを確かめるテストにした。分岐を無効にすると失敗することを確かめた |
 
 ## 同じ原因の関連箇所（PR 差分外の確認）
 

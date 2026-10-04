@@ -538,12 +538,12 @@ def test_ignored_file_where_a_tracked_directory_was_stops_the_run(behind: Path) 
     assert (behind / "a").read_text(encoding="utf-8") == "precious\n"
 
 
-@pytest.mark.parametrize("ignore_submodules", [False, True])
+@pytest.mark.parametrize("ignore_setting", [None, "diff.ignoreSubmodules"])
 def test_untracked_file_where_a_submodule_is_added_stops_the_run(
-    behind: Path, tmp_path: Path, ignore_submodules: bool
+    behind: Path, tmp_path: Path, ignore_setting: str | None
 ) -> None:
-    # diff.ignoreSubmodules=all hides added submodules from `git diff`; the
-    # script must still see them.
+    # diff.ignoreSubmodules=all and submodule.<name>.ignore=all hide added
+    # submodules from a plain diff; the script must still see them.
     library = tmp_path / "library"
     subprocess.run(["git", "init", "-q", str(library)], check=True)
     configure(library)
@@ -560,8 +560,8 @@ def test_untracked_file_where_a_submodule_is_added_stops_the_run(
     git(upstream, "push", "-q", "origin", "HEAD:main")
     git(behind, "fetch", "-q", "origin")
     (behind / "sub").write_text("local\n", encoding="utf-8")
-    if ignore_submodules:
-        git(behind, "config", "diff.ignoreSubmodules", "all")
+    if ignore_setting:
+        git(behind, "config", ignore_setting, "all")
     head = git(behind, "rev-parse", "HEAD").strip()
 
     result = run_script("--repo", str(behind), "--ref", "origin/main")
@@ -582,3 +582,72 @@ def test_unborn_branch_is_refused_with_a_clear_message(tmp_path: Path, behind: P
     assert result.returncode == 1, (result.stdout, result.stderr)
     assert "HEAD has no commit yet" in result.stderr
     assert (fresh / "same.md").read_text(encoding="utf-8") == "mine\n"
+
+
+def test_submodule_hidden_by_its_ignore_setting_is_still_seen(behind: Path, tmp_path: Path) -> None:
+    # HEAD already maps "sub" in .gitmodules with ignore = all; origin/main
+    # then adds the gitlink. Without --ignore-submodules=none even git
+    # diff-tree leaves it out, and git would remove the ignored file "sub".
+    upstream = behind.parent / "upstream"
+    for tree in (behind, upstream):
+        git(tree, "pull", "-q", "--ff-only")
+    (behind / ".gitmodules").write_text(
+        '[submodule "sub"]\n\tpath = sub\n\turl = ../library\n\tignore = all\n', encoding="utf-8"
+    )
+    (behind / ".gitignore").write_text("sub\n", encoding="utf-8")
+    git(behind, "add", ".gitmodules", ".gitignore")
+    git(behind, "commit", "-qm", "map sub")
+    git(behind, "push", "-q", "origin", "HEAD:main")
+    git(upstream, "pull", "-q", "--ff-only")
+    gitlink = git(upstream, "rev-parse", "HEAD").strip()
+    git(upstream, "update-index", "--add", "--cacheinfo", f"160000,{gitlink},sub")
+    git(upstream, "commit", "-qm", "add the gitlink")
+    git(upstream, "push", "-q", "origin", "HEAD:main")
+    git(behind, "fetch", "-q", "origin")
+    (behind / "sub").write_text("precious\n", encoding="utf-8")
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "\n  sub\n" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (behind / "sub").read_text(encoding="utf-8") == "precious\n"
+
+
+def test_ignored_file_in_a_submodule_turned_into_a_directory_stops_the_run(
+    behind: Path, tmp_path: Path
+) -> None:
+    # origin/main replaces the submodule vendor/lib with plain files. git
+    # leaves the submodule checkout in place and writes into it, so an
+    # ignored local file on an added path would be overwritten.
+    library = tmp_path / "library"
+    subprocess.run(["git", "init", "-q", str(library)], check=True)
+    configure(library)
+    (library / "code.txt").write_text("lib\n", encoding="utf-8")
+    git(library, "add", "code.txt")
+    git(library, "commit", "-qm", "lib")
+    upstream = behind.parent / "upstream"
+    for tree in (behind, upstream):
+        git(tree, "pull", "-q", "--ff-only")
+    (behind / ".gitignore").write_text("*.log\n", encoding="utf-8")
+    git(behind, "add", ".gitignore")
+    subprocess.run(
+        ["git", "-C", str(behind), "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(library), "vendor/lib"],
+        check=True,
+        capture_output=True,
+    )
+    git(behind, "commit", "-qm", "submodule")
+    git(behind, "push", "-q", "origin", "HEAD:main")
+    git(upstream, "pull", "-q", "--ff-only")
+    git(upstream, "rm", "-q", "--cached", "vendor/lib")
+    git(upstream, "rm", "-q", ".gitmodules")
+    (upstream / "vendor" / "lib").mkdir(parents=True, exist_ok=True)
+    push_upstream(behind, {"vendor/lib/code.txt": "upstream\n", "vendor/lib/run.log": "upstream\n"})
+    (behind / "vendor" / "lib" / "run.log").write_text("precious local log\n", encoding="utf-8")
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "  vendor/lib/run.log" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (behind / "vendor" / "lib" / "run.log").read_text(encoding="utf-8") == "precious local log\n"

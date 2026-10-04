@@ -16,9 +16,10 @@
 #
 # git would also remove untracked or ignored content that cannot be put back
 # in place: files under a directory where <rev> adds a file, a file or symlink
-# where <rev> adds a submodule or needs a directory, or an untracked nested
-# repository that <rev> adds files into. The script refuses to run then and
-# lists those paths, so they can be moved away first.
+# where <rev> adds a submodule or needs a directory, an untracked nested
+# repository that <rev> adds files into, or a file inside a submodule's
+# checkout that <rev> adds as part of a plain directory. The script refuses
+# to run then and lists those paths, so they can be moved away first.
 #
 # When the fast-forward fails or the run is interrupted (HUP, INT, TERM),
 # every file goes back to its original place. Once files are copied into the
@@ -97,15 +98,16 @@ in_index() {
 }
 
 # Paths that the target commit adds to HEAD, NUL-separated. diff-tree is
-# plumbing: settings such as diff.ignoreSubmodules cannot hide entries.
+# plumbing, so diff.* settings do not apply, and --ignore-submodules=none
+# keeps submodule.<name>.ignore from hiding an added submodule.
 added_paths() {
-  git diff-tree -r -z --no-renames --name-only --diff-filter=A HEAD "$target"
+  git diff-tree -r -z --no-renames --ignore-submodules=none --name-only --diff-filter=A HEAD "$target"
 }
 
 # The added paths that are submodules (gitlinks, mode 160000), NUL-separated.
 added_submodules() {
   local meta path
-  git diff-tree -r -z --no-renames --raw --diff-filter=A HEAD "$target" |
+  git diff-tree -r -z --no-renames --ignore-submodules=none --raw --diff-filter=A HEAD "$target" |
     while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
       case "$meta" in
         ":000000 160000 "*) printf '%s\0' "$path" ;;
@@ -223,8 +225,9 @@ main() {
   #   ignored files (a submodule that <rev> adds leaves its directory alone);
   # - on a path that <rev> adds as a submodule: anything but a directory;
   # - walking each added path from the top down to the first component that
-  #   is not a plain directory: a file or symlink that is not in the index, or
-  #   a nested repository that is not a submodule in the index.
+  #   is not a plain directory: a file or symlink that is not in the index, a
+  #   nested repository that is not a submodule in the index, or, inside a
+  #   submodule's checkout, a file already on the added path.
   local added dir rest
   local -a blocked=()
   while IFS= read -r -d '' added; do
@@ -250,7 +253,13 @@ main() {
       fi
       [ -d "$dir" ] || break
       if [ -e "$dir/.git" ] || [ -L "$dir/.git" ]; then
-        in_index "$dir" || blocked+=("$dir/")
+        # A submodule's checkout stays in place when <rev> turns it into a
+        # plain directory, and git writes the added file into it.
+        if ! in_index "$dir"; then
+          blocked+=("$dir/")
+        elif [ -e "$added" ] || [ -L "$added" ]; then
+          blocked+=("$added")
+        fi
         break
       fi
     done

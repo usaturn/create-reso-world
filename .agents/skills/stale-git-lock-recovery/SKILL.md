@@ -63,7 +63,7 @@ bash .agents/skills/stale-git-lock-recovery/scripts/stale_git_lock.sh check --re
 - ロックの fd を開いているプロセスを `lsof` と `/proc/*/fd`（inode の比較）で探す。1 つでも見つかれば live holder（exit 10）
 - fd を列挙できない git プロセスがいれば判定不能（exit 12）とし、保持者不在とみなさない。git プロセスかどうかは、実行ファイル名・argv[0]・実行ファイルそのもので判定する（別名の symlink から起動した git も含む）。終了して回収待ちの zombie は何も保持していないので除く
 - fd を開いている保持者がいなくても、同じワークツリーで動作中の git プロセスがいれば判定不能（exit 12）とする。fd を閉じたままロックを持っている可能性を否定できないためである。git はワークツリーの top で動くので、cwd がワークツリーの top と同じプロセスと、cwd から git が解決する `index.lock` が対象と同じプロセスを該当とする（`core.worktree` で git dir と離れたワークツリーも含む）。入れ子の worktree（`.worktrees/<name>` など）やサブモジュールで動く git は、別の index を使うので対象外になる
-- ワークツリーの外の cwd から、環境変数 `GIT_DIR` / `GIT_COMMON_DIR` / `GIT_INDEX_FILE` やオプション `--git-dir` でこのワークツリーの git dir や index を指している git プロセスも判定不能とする。git が使う index は git dir と `GIT_INDEX_FILE` で決まるので、指す先は対象の git dir・ロックのディレクトリと同一かで比べる。git dir を共有する linked worktree の git は含まない。git dir が絶対パスで分かっていれば、`GIT_WORK_TREE` / `--work-tree` の指定は判定に使わない。`.git` ファイル（linked worktree やサブモジュール）を指す値は、その中の git dir に解決して比べる。値が相対パスのとき（起動後に cwd が変わっていて解決できない）、ワークツリーだけを指定して git dir を指定していないとき（git dir は起動時の cwd から決まっていて、後から分からない）、cwd・環境変数・コマンドラインを読めないときも、除外できないので判定不能とする（走査中に終了したプロセスは何も保持していないので除く）
+- ワークツリーの外の cwd から、環境変数 `GIT_DIR` / `GIT_COMMON_DIR` / `GIT_INDEX_FILE` やオプション `--git-dir` でこのワークツリーの git dir や index を指している git プロセスも判定不能とする。git が使う index は git dir と `GIT_INDEX_FILE` で決まるので、指す先は対象の git dir・ロックのディレクトリと同一かで比べる。git dir を共有する linked worktree の git は含まない。git dir が絶対パスで分かっていれば、`GIT_WORK_TREE` / `--work-tree` の指定は判定に使わない。`.git` ファイル（linked worktree やサブモジュール）を指す値は、その中の git dir に解決して比べる。`GIT_DIR` などの値が相対パスのとき（git は起動時の cwd を基準にするので、cwd が変わった後では解決できない。ただし hook に渡る相対パスの `GIT_INDEX_FILE` は、git が動いている cwd を基準に解決して比べる）、ワークツリーだけを指定して git dir を指定していないとき（git dir は起動時の cwd から決まっていて、後から分からない）、cwd・環境変数・コマンドラインを読めないときも、除外できないので判定不能とする（走査中に終了したプロセスは何も保持していないので除く）
 - `/proc` が使えない環境では、git プロセスを確認できないため判定不能（exit 12）とする
 - 保持者または判定不能の原因になったプロセスは、PID とコマンド名を stderr に出す
 
@@ -110,6 +110,7 @@ bash .agents/skills/stale-git-lock-recovery/scripts/ff_merge_keep_untracked.sh -
    - `<ref>` が submodule を追加するパスに、ディレクトリ以外（ファイルや symlink）がある
    - `<ref>` がディレクトリを置くパスに、index に無いファイルや symlink がある（追跡ディレクトリの位置に置かれた ignore 対象のファイルを含む）
    - `<ref>` がファイルを追加する先が、index に submodule として無い入れ子のリポジトリ（`.git` を持つディレクトリ）の中にある
+   - `<ref>` が submodule を普通のディレクトリに置き換え、その中に追加するファイルと同じパスのファイルが submodule の checkout にある
 4. 全件を一時ディレクトリへ `cp -a` で退避し（symlink は symlink のまま、パーミッションとタイムスタンプも保つ）、退避したコピーが元と一致することを確かめる。退避先は削除前に stderr へ表示する
 5. 全件を削除してから、`git merge --ff-only` を 1 回だけ実行する
 6. merge の成否にかかわらず全件を元のパスへ戻し、元と一致することを確かめる。merge が失敗した場合は HEAD を変えずに exit 1

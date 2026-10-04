@@ -248,12 +248,15 @@ holder_state_proc() {
 # not count for the main work tree. Without a git dir, git found its git dir
 # from the cwd it started in, which is no longer known, so a process that
 # only names a work tree (GIT_WORK_TREE / --work-tree) cannot be ruled out.
-# Neither can a relative git dir, common dir or index (git may have changed
-# directory since it started), nor values that cannot be read. A process
-# that has exited meanwhile holds nothing and does not count.
-# Arguments: pid, lock directory, git dir, top of the work tree.
+# Neither can a relative git dir or common dir (git resolves those against
+# the cwd it started in, which may have changed since), nor values that
+# cannot be read. A relative GIT_INDEX_FILE, which git passes to every hook
+# (".git/index"), is used from the cwd git works in, so it is resolved
+# against the current cwd. A process that has exited meanwhile holds
+# nothing and does not count.
+# Arguments: pid, its cwd, lock directory, git dir.
 git_process_refers_to() {
-  local pid="$1" lock_dir="$2" git_dir="$3" top="$4" entry option=""
+  local pid="$1" cwd="$2" lock_dir="$3" git_dir="$4" entry option=""
   local -a names=() values=()
   if ! { : <"$pid/environ" && : <"$pid/cmdline"; } 2>/dev/null; then
     [ -d "$pid" ] || return 1
@@ -296,7 +299,10 @@ git_process_refers_to() {
     [ "${names[$i]}" = GIT_WORK_TREE ] && continue
     case "$value" in
       /*) ;;
-      *) return 0 ;;
+      *)
+        [ "${names[$i]}" = GIT_INDEX_FILE ] || return 0
+        value="$cwd/$value"
+        ;;
     esac
     case "${names[$i]}" in
       GIT_DIR)
@@ -346,7 +352,7 @@ git_activity_state() {
     elif path_is_under "$cwd" "$top"; then
       related=1
     fi
-    if [ "$related" -eq 1 ] || git_process_refers_to "$pid" "$lock_dir" "$git_dir" "$top"; then
+    if [ "$related" -eq 1 ] || git_process_refers_to "$pid" "$cwd" "$lock_dir" "$git_dir"; then
       report_process "$pid" "git process working on this work tree; it may hold the lock with its fd closed"
       result=unknown
     fi
