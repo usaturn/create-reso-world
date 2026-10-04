@@ -90,9 +90,26 @@ restore_all() {
   return "$failed"
 }
 
+# Is this exact path an entry of the index? (git ls-files -- <path> would
+# also match the files under a directory of that name.)
+in_index() {
+  git rev-parse -q --verify ":0:$1" >/dev/null 2>&1
+}
+
 # Paths that the target commit adds to HEAD, NUL-separated.
 added_paths() {
   git diff --no-renames --name-only -z --diff-filter=A HEAD "$target"
+}
+
+# The added paths that are submodules (gitlinks, mode 160000), NUL-separated.
+added_submodules() {
+  local meta path
+  git diff --no-renames --raw -z --diff-filter=A HEAD "$target" |
+    while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
+      case "$meta" in
+        ":000000 160000 "*) printf '%s\0' "$path" ;;
+      esac
+    done
 }
 
 # Report where an interrupted run left HEAD, after putting the files back.
@@ -158,6 +175,10 @@ main() {
     exit "$EXIT_USAGE"
   fi
 
+  if ! git rev-parse -q --verify 'HEAD^{commit}' >/dev/null; then
+    printf 'HEAD has no commit yet; this script only fast-forwards an existing branch; nothing was changed\n' >&2
+    exit "$EXIT_FAIL"
+  fi
   if git merge-base --is-ancestor "$target" HEAD 2>/dev/null; then
     printf 'already up to date with %s\n' "$ref"
     exit "$EXIT_OK"
@@ -184,7 +205,9 @@ main() {
     added_paths | LC_ALL=C sort -z >"$backup/added" &&
       xargs -0 -r git --literal-pathspecs ls-files --others -z -- <"$backup/added" |
       LC_ALL=C sort -z >"$backup/untracked" &&
-      LC_ALL=C comm -z -12 "$backup/added" "$backup/untracked" >"$backup/paths"
+      LC_ALL=C comm -z -12 "$backup/added" "$backup/untracked" >"$backup/paths" &&
+      added_submodules | LC_ALL=C sort -z >"$backup/submodules" &&
+      LC_ALL=C comm -z -23 "$backup/added" "$backup/submodules" >"$backup/added-files"
   ); then
     printf 'cannot list the untracked files on the paths that %s adds; nothing was changed\n' "$ref" >&2
     rm -rf -- "$backup"
@@ -194,35 +217,39 @@ main() {
   # git also removes ignored content without asking where <rev> puts a file
   # over a directory, a directory over a file or symlink, or files into an
   # untracked nested repository, and such content could not be put back in
-  # its place afterwards. Refuse instead: a directory holding untracked or
-  # ignored files on a path that <rev> adds as a file (a submodule that <rev>
-  # adds leaves its directory alone), and, walking each added path from the
-  # top down to the first component that is not a plain directory, an
-  # untracked or ignored file or symlink, or an untracked nested repository.
+  # its place afterwards. Refuse instead:
+  # - on a path that <rev> adds as a file: a directory holding untracked or
+  #   ignored files (a submodule that <rev> adds leaves its directory alone);
+  # - on a path that <rev> adds as a submodule: anything but a directory;
+  # - walking each added path from the top down to the first component that
+  #   is not a plain directory: a file or symlink that is not in the index, or
+  #   a nested repository that is not a submodule in the index.
   local added dir rest
   local -a blocked=()
   while IFS= read -r -d '' added; do
     if [ -d "$added" ] && [ ! -L "$added" ] &&
-      [ -n "$(git --literal-pathspecs ls-files --others -- "$added/")" ] &&
-      [ "$(git --literal-pathspecs ls-tree "$target" -- "$added" | cut -d ' ' -f 1)" != 160000 ]; then
+      [ -n "$(git --literal-pathspecs ls-files --others -- "$added/")" ]; then
       blocked+=("$added/")
     fi
+  done <"$backup/added-files"
+  while IFS= read -r -d '' added; do
+    if [ -L "$added" ] || { [ -e "$added" ] && [ ! -d "$added" ]; }; then
+      blocked+=("$added")
+    fi
+  done <"$backup/submodules"
+  while IFS= read -r -d '' added; do
     dir=""
     rest="$added"
     while [ "${rest#*/}" != "$rest" ]; do
       dir="${dir:+$dir/}${rest%%/*}"
       rest="${rest#*/}"
       if [ -L "$dir" ] || { [ -e "$dir" ] && [ ! -d "$dir" ]; }; then
-        if [ -z "$(git --literal-pathspecs ls-files --cached -- "$dir")" ]; then
-          blocked+=("$dir")
-        fi
+        in_index "$dir" || blocked+=("$dir")
         break
       fi
       [ -d "$dir" ] || break
       if [ -e "$dir/.git" ] || [ -L "$dir/.git" ]; then
-        if [ -z "$(git --literal-pathspecs ls-files --cached -- "$dir")" ]; then
-          blocked+=("$dir/")
-        fi
+        in_index "$dir" || blocked+=("$dir/")
         break
       fi
     done
@@ -235,7 +262,7 @@ main() {
   fi
 
   mapfile -d '' -t files <"$backup/paths"
-  rm -f -- "$backup/added" "$backup/untracked"
+  rm -f -- "$backup/added" "$backup/untracked" "$backup/submodules" "$backup/added-files"
 
   if [ "${#files[@]}" -eq 0 ]; then
     rm -rf -- "$backup"

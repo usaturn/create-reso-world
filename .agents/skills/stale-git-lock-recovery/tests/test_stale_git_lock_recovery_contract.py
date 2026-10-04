@@ -990,3 +990,78 @@ def test_paused_commit_with_an_external_work_tree_is_not_stale(tmp_path: Path, h
         stdout, stderr = commit.communicate(timeout=30)
     assert commit.returncode == 0, (stdout, stderr)
     assert git(repo, "show", "HEAD:README.md") == "changed\n"
+
+
+def test_git_started_through_a_symlink_with_another_name_is_detected(git_repo: Path, tmp_path: Path) -> None:
+    # comm and argv[0] say "xg"; only the executable shows that it is git.
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git_bin = shutil.which("git")
+    assert git_bin
+    (bin_dir / "xg").symlink_to(git_bin)
+    ready = tmp_path / "paused"
+    release = tmp_path / "release"
+    editor = tmp_path / "editor.sh"
+    editor.write_text(
+        f'#!/bin/sh\n: >"{ready}"; while [ ! -e "{release}" ]; do sleep 0.05; done\necho second >"$1"\n',
+        encoding="utf-8",
+    )
+    editor.chmod(0o755)
+    (git_repo / "README.md").write_text("changed\n", encoding="utf-8")
+    lock = resolve_lock_path(git_repo)
+
+    commit = subprocess.Popen(
+        [str(bin_dir / "xg"), "commit", "-a", "-q"],
+        cwd=git_repo,
+        env={**os.environ, "GIT_EDITOR": str(editor)},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        wait_for(ready.exists, "the commit message editor", commit)
+        assert lock.exists()
+        check = run_script("check", "--json", "--repo", str(git_repo))
+        assert check.returncode == 12, (check.stdout, check.stderr)
+        assert run_script("clear", "--repo", str(git_repo)).returncode == 12
+        assert lock.exists()
+    finally:
+        release.touch()
+        stdout, stderr = commit.communicate(timeout=30)
+    assert commit.returncode == 0, (stdout, stderr)
+
+
+def test_git_dir_given_as_a_dot_git_file_is_resolved(git_repo: Path, tmp_path: Path) -> None:
+    # A linked worktree's .git is a file naming .git/worktrees/<name>.
+    linked = tmp_path / "linked"
+    git(git_repo, "worktree", "add", "-q", "-b", "linked", str(linked))
+    external = tmp_path / "external"
+    external.mkdir()
+    resolve_lock_path(git_repo).write_bytes(b"")
+    resolve_lock_path(linked).write_bytes(b"")
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=external)
+    (proc_root / "4242" / "cmdline").write_bytes(
+        b"".join(
+            f"{word}\0".encode()
+            for word in ("git", f"--git-dir={linked / '.git'}", f"--work-tree={external}", "commit", "-a")
+        )
+    )
+
+    assert check_with_proc(linked, tmp_path, proc_root).returncode == 12
+    assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 11
+
+
+def test_zombie_git_process_does_not_block(git_repo: Path, tmp_path: Path) -> None:
+    # A zombie has an empty fd directory and no readable cwd, but holds nothing.
+    resolve_lock_path(git_repo).write_bytes(b"")
+    proc_root = tmp_path / "proc"
+    pid_dir = proc_root / "4242"
+    (pid_dir / "fd").mkdir(parents=True)
+    (pid_dir / "comm").write_text("git\n", encoding="utf-8")
+    (pid_dir / "cmdline").write_bytes(b"")
+    (pid_dir / "stat").write_text("4242 (git) Z 1 4242 4242 0 -1 4194316 0 0 0 0\n", encoding="utf-8")
+
+    assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 11
+    (pid_dir / "stat").write_text("4242 (git) S 1 4242 4242 0 -1 4194316 0 0 0 0\n", encoding="utf-8")
+    assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 12

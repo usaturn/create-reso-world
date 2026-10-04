@@ -61,9 +61,9 @@ bash .agents/skills/stale-git-lock-recovery/scripts/stale_git_lock.sh check --re
 
 - ロックのパスは `git rev-parse --git-path index.lock` で解決する。linked worktree では `.git/worktrees/<name>/index.lock` になる。呼び出し元から引き継いだ `GIT_DIR` / `GIT_WORK_TREE` などは無視し、`--repo` だけで対象のリポジトリを決める
 - ロックの fd を開いているプロセスを `lsof` と `/proc/*/fd`（inode の比較）で探す。1 つでも見つかれば live holder（exit 10）
-- fd を列挙できない git プロセスがいれば判定不能（exit 12）とし、保持者不在とみなさない
+- fd を列挙できない git プロセスがいれば判定不能（exit 12）とし、保持者不在とみなさない。git プロセスかどうかは、実行ファイル名・argv[0]・実行ファイルそのもので判定する（別名の symlink から起動した git も含む）。終了して回収待ちの zombie は何も保持していないので除く
 - fd を開いている保持者がいなくても、同じワークツリーで動作中の git プロセスがいれば判定不能（exit 12）とする。fd を閉じたままロックを持っている可能性を否定できないためである。git はワークツリーの top で動くので、cwd がワークツリーの top と同じプロセスと、cwd から git が解決する `index.lock` が対象と同じプロセスを該当とする（`core.worktree` で git dir と離れたワークツリーも含む）。入れ子の worktree（`.worktrees/<name>` など）やサブモジュールで動く git は、別の index を使うので対象外になる
-- ワークツリーの外の cwd から、環境変数 `GIT_DIR` / `GIT_WORK_TREE` / `GIT_COMMON_DIR` / `GIT_INDEX_FILE` やオプション `--git-dir` / `--work-tree` でこのワークツリーを指している git プロセスも判定不能とする。指す先は、対象の git dir・ワークツリーの top・ロックのディレクトリと同一かで比べるので、git dir を共有する linked worktree の git は含まない。値が相対パスのとき（起動後に cwd が変わっていて解決できない）、ワークツリーだけを指定して git dir を指定していないとき（git dir は起動時の cwd から決まっていて、後から分からない）、cwd・環境変数・コマンドラインを読めないときも、除外できないので判定不能とする
+- ワークツリーの外の cwd から、環境変数 `GIT_DIR` / `GIT_WORK_TREE` / `GIT_COMMON_DIR` / `GIT_INDEX_FILE` やオプション `--git-dir` / `--work-tree` でこのワークツリーを指している git プロセスも判定不能とする。指す先は、対象の git dir・ワークツリーの top・ロックのディレクトリと同一かで比べるので、git dir を共有する linked worktree の git は含まない。`.git` ファイル（linked worktree やサブモジュール）を指す値は、その中の git dir に解決して比べる。値が相対パスのとき（起動後に cwd が変わっていて解決できない）、ワークツリーだけを指定して git dir を指定していないとき（git dir は起動時の cwd から決まっていて、後から分からない）、cwd・環境変数・コマンドラインを読めないときも、除外できないので判定不能とする
 - `/proc` が使えない環境では、git プロセスを確認できないため判定不能（exit 12）とする
 - 保持者または判定不能の原因になったプロセスは、PID とコマンド名を stderr に出す
 
@@ -103,12 +103,13 @@ bash .agents/skills/stale-git-lock-recovery/scripts/ff_merge_keep_untracked.sh -
 
 スクリプトは次の順で処理する。どのディレクトリから実行してもよく、対象のリポジトリは `--repo` だけで決まる。
 
-1. `<ref>` が ff で取り込めることを確かめる。取り込み済みなら何もせず exit 0、ff で取り込めなければ何も変えずに exit 1
+1. `<ref>` が ff で取り込めることを確かめる。取り込み済みなら何もせず exit 0、ff で取り込めなければ何も変えずに exit 1。HEAD にまだコミットが無い branch は対象外で、何も変えずに exit 1
 2. `<ref>` が追加するパスと同じパスにある未追跡ファイルをすべて列挙する。ignore 対象のファイルも含める（git merge は ignore 対象のファイルを確認なしに上書きするため）。symlink のディレクトリの先はたどらない。列挙に失敗したら、何も変えずに exit 1
 3. 次の場合は、何も変えずに exit 1 で該当パスを表示する。git はこれらも確認なしに消したり上書きしたりし、ff の後には元の場所へ戻せないためである。表示されたパスをワークツリーの外へ移してから再実行する
-   - `<ref>` がファイルを置くパスに、未追跡・ignore 対象のファイルを含むディレクトリがある（`<ref>` が submodule を追加するパスは除く）
-   - `<ref>` がディレクトリを置くパスに、未追跡・ignore 対象のファイルや symlink がある
-   - `<ref>` がファイルを追加する先が、未追跡の入れ子のリポジトリ（`.git` を持つディレクトリ）の中にある
+   - `<ref>` がファイルを置くパスに、未追跡・ignore 対象のファイルを含むディレクトリがある
+   - `<ref>` が submodule を追加するパスに、ディレクトリ以外（ファイルや symlink）がある
+   - `<ref>` がディレクトリを置くパスに、index に無いファイルや symlink がある（追跡ディレクトリの位置に置かれた ignore 対象のファイルを含む）
+   - `<ref>` がファイルを追加する先が、index に submodule として無い入れ子のリポジトリ（`.git` を持つディレクトリ）の中にある
 4. 全件を一時ディレクトリへ `cp -a` で退避し（symlink は symlink のまま、パーミッションとタイムスタンプも保つ）、退避したコピーが元と一致することを確かめる。退避先は削除前に stderr へ表示する
 5. 全件を削除してから、`git merge --ff-only` を 1 回だけ実行する
 6. merge の成否にかかわらず全件を元のパスへ戻し、元と一致することを確かめる。merge が失敗した場合は HEAD を変えずに exit 1

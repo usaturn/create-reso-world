@@ -509,3 +509,69 @@ def test_tracked_symlink_replaced_by_a_directory_still_fast_forwards(behind: Pat
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert (behind / "l" / "a" / "b" / "c").read_text(encoding="utf-8") == "c\n"
     assert not (behind / "l").is_symlink()
+
+
+def test_ignored_file_where_a_tracked_directory_was_stops_the_run(behind: Path) -> None:
+    # HEAD tracks a/x and ignores "a"; origin/main adds a/b. Locally the
+    # directory "a" was replaced by an ignored file, which git would remove
+    # although the index still has a/x (git ls-files -- a matches a/x).
+    upstream = behind.parent / "upstream"
+    for tree in (behind, upstream):
+        git(tree, "pull", "-q", "--ff-only")
+    (behind / "a").mkdir()
+    (behind / "a" / "x").write_text("x\n", encoding="utf-8")
+    (behind / ".gitignore").write_text("a\n", encoding="utf-8")
+    git(behind, "add", "-f", "a/x", ".gitignore")
+    git(behind, "commit", "-qm", "tracked a/x")
+    git(behind, "push", "-q", "origin", "HEAD:main")
+    git(upstream, "pull", "-q", "--ff-only")
+    push_upstream(behind, {"a/b": "upstream\n"})
+    (behind / "a" / "x").unlink()
+    (behind / "a").rmdir()
+    (behind / "a").write_text("precious\n", encoding="utf-8")
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "\n  a\n" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (behind / "a").read_text(encoding="utf-8") == "precious\n"
+
+
+def test_untracked_file_where_a_submodule_is_added_stops_the_run(behind: Path, tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    subprocess.run(["git", "init", "-q", str(library)], check=True)
+    configure(library)
+    (library / "lib.txt").write_text("lib\n", encoding="utf-8")
+    git(library, "add", "lib.txt")
+    git(library, "commit", "-qm", "lib")
+    upstream = behind.parent / "upstream"
+    subprocess.run(
+        ["git", "-C", str(upstream), "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(library), "sub"],
+        check=True,
+        capture_output=True,
+    )
+    git(upstream, "commit", "-qm", "add submodule")
+    git(upstream, "push", "-q", "origin", "HEAD:main")
+    git(behind, "fetch", "-q", "origin")
+    (behind / "sub").write_text("local\n", encoding="utf-8")
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "nothing was changed" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (behind / "sub").read_text(encoding="utf-8") == "local\n"
+
+
+def test_unborn_branch_is_refused_with_a_clear_message(tmp_path: Path, behind: Path) -> None:
+    fresh = tmp_path / "fresh"
+    subprocess.run(["git", "init", "-q", str(fresh)], check=True)
+    git(fresh, "remote", "add", "origin", str(behind.parent / "remote.git"))
+    git(fresh, "fetch", "-q", "origin")
+    (fresh / "same.md").write_text("mine\n", encoding="utf-8")
+
+    result = run_script("--repo", str(fresh), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "HEAD has no commit yet" in result.stderr
+    assert (fresh / "same.md").read_text(encoding="utf-8") == "mine\n"

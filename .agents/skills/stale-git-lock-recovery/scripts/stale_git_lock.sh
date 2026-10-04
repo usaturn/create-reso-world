@@ -30,8 +30,9 @@
 # JSON output (--json): exactly one object on stdout with the keys
 #   path, exists, removed, size, mtime, holder, stale
 # `removed` is false for check and reports whether clear deleted the lock.
-# Usage errors and failures to remove the lock or to serialize clear with
-# flock are written to stderr and emit no JSON.
+# Usage errors and a --repo outside a work tree (exit 2), and failures to
+# remove the lock or to serialize clear with flock (exit 1), are written to
+# stderr and emit no JSON.
 # The processes behind a present or unknown holder are listed on stderr.
 #
 # Environment:
@@ -41,6 +42,8 @@
 set -u
 
 readonly PROC_ROOT="${PROC_ROOT:-/proc}"
+GIT_BIN="$(readlink -f -- "$(command -v git)" 2>/dev/null)" || GIT_BIN=""
+readonly GIT_BIN
 
 readonly EXIT_OK=0
 readonly EXIT_FAIL=1
@@ -91,6 +94,18 @@ report_process() {
   local pid="$1" reason="$2" comm="?"
   { IFS= read -r comm <"$pid/comm"; } 2>/dev/null
   printf 'pid %s (%s): %s\n' "${pid##*/}" "$comm" "$reason" >&2
+}
+
+# A zombie has exited and holds nothing; its fd directory is empty and its
+# cwd unreadable, so it must not be taken for a hidden holder.
+is_zombie() {
+  local stat_line="" state
+  { IFS= read -r stat_line <"$1/stat"; } 2>/dev/null
+  state="${stat_line##*) }"
+  case "${state%% *}" in
+    Z|X) return 0 ;;
+  esac
+  return 1
 }
 
 is_self() {
@@ -173,8 +188,10 @@ holder_state_lsof() {
   return 0
 }
 
-# Is this PID a git process? Decided by the executable name (comm) or by the
-# program name in argv[0], never by other words in the command line.
+# Is this PID a git process? Decided by the executable name (comm), by the
+# program name in argv[0], or by the executable itself being this system's git
+# (which catches git started through a symlink with another name), never by
+# other words in the command line.
 is_git_process() {
   local pid="$1" comm="" argv0=""
   { IFS= read -r comm <"$pid/comm"; } 2>/dev/null
@@ -185,7 +202,7 @@ is_git_process() {
   case "${argv0##*/}" in
     git|git-*) return 0 ;;
   esac
-  return 1
+  [ -n "$GIT_BIN" ] && [ "$pid/exe" -ef "$GIT_BIN" ]
 }
 
 # Linux fallback: a holder is any process with an fd whose device:inode
@@ -200,6 +217,7 @@ holder_state_proc() {
     [ -d "$pid" ] || continue
     seen=1
     is_self "$pid" && continue
+    is_zombie "$pid" && continue
     has_fd=0
     for fd in "$pid"/fd/*; do
       [ -e "$fd" ] || [ -L "$fd" ] || continue
@@ -276,7 +294,14 @@ git_process_refers_to() {
       *) return 0 ;;
     esac
     case "${names[$i]}" in
-      GIT_DIR|GIT_COMMON_DIR) [ "$value" -ef "$git_dir" ] && return 0 ;;
+      GIT_DIR)
+        # A .git file (linked worktree, submodule) names its git dir inside.
+        if [ ! -d "$value" ] && [ -e "$value" ]; then
+          value="$(git rev-parse --resolve-git-dir "$value" 2>/dev/null)" || return 0
+        fi
+        [ "$value" -ef "$git_dir" ] && return 0
+        ;;
+      GIT_COMMON_DIR) [ "$value" -ef "$git_dir" ] && return 0 ;;
       GIT_WORK_TREE) [ "$value" -ef "$top" ] && return 0 ;;
       GIT_INDEX_FILE) [ "$(dirname -- "$value")" -ef "$lock_dir" ] && return 0 ;;
     esac
@@ -301,6 +326,7 @@ git_activity_state() {
     [ -d "$pid" ] || continue
     is_self "$pid" && continue
     is_git_process "$pid" || continue
+    is_zombie "$pid" && continue
     if ! cwd="$(readlink -- "$pid/cwd" 2>/dev/null)" || [ -z "$cwd" ]; then
       report_process "$pid" "git process whose working directory cannot be read"
       result=unknown
