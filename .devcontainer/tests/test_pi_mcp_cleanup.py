@@ -14,8 +14,9 @@ MCP_FILES = (
     "mcp-cache.json", "mcp-project-approvals.json", "mcp-onboarding.json", "mcp-npx-cache.json",
 )
 BUILTIN_MCP_FILES = ("mcp.json", "mcp-auth.json")
-REMOVED = ("pi-mcp-adapter", "@upstash/context7-pi")
-KEPT = ["npm:pi-distill", {"source": "npm:other@1.0", "extensions": []}]
+REMOVED = ("pi-mcp-adapter", "@upstash/context7-pi", "pi-distill",
+           "pi-extensions-tool-display", "pi-extensions-i18n")
+KEPT = ["npm:keep-extension", {"source": "npm:other@1.0", "extensions": []}]
 
 
 class PiMcpCleanupTests(unittest.TestCase):
@@ -48,18 +49,21 @@ class PiMcpCleanupTests(unittest.TestCase):
         })
         if manifests:
             self.save(self.agent / "npm/package.json", {"dependencies": {
-                "pi-distill": "^1.0", "other": "1.0", "pi-mcp-adapter": "^2.1",
+                "keep-extension": "^1.0", "other": "1.0", "pi-mcp-adapter": "^2.1",
                 "@upstash/context7-pi": "^1.1",
+                "pi-distill": "^1.0", "pi-extensions-tool-display": "^1.0",
+                "pi-extensions-i18n": "^1.0",
             }})
             self.save(self.agent / "npm/package-lock.json", {"lockfileVersion": 3, "packages": {
-                "": {"dependencies": {name: "*" for name in (*REMOVED, "pi-distill", "other")}},
+                "": {"dependencies": {name: "*" for name in (*REMOVED, "keep-extension", "other")}},
                 "node_modules/pi-mcp-adapter": {"version": "2.1.0"},
                 "node_modules/@upstash/context7-pi": {"version": "1.1.0"},
-                "node_modules/pi-distill": {"version": "1.0.0"},
+                "node_modules/keep-extension": {"version": "1.0.0"},
+                **{"node_modules/" + name: {"version": "1.0.0"} for name in REMOVED[2:]},
                 "node_modules/other": {"version": "1.0.0"},
             }})
         if installed:
-            for name in (*REMOVED, "pi-distill"):
+            for name in (*REMOVED, "keep-extension"):
                 self.save(self.agent / "npm/node_modules" / name / "package.json", {"name": name})
 
     def run_cleanup(self, **overrides):
@@ -70,7 +74,7 @@ class PiMcpCleanupTests(unittest.TestCase):
         installer = (ROOT / ".devcontainer/install_beforehand.bash").read_text()
         pi_step = installer.index('step "Installing pi"')
         start = installer.index('\nstep ', pi_step + 1)
-        end = installer.index('if ! uv run --no-project .devcontainer/setup_pi_tool_display.py;')
+        end = installer.index('step "Placing ~/.pi/agent/models.json"')
         # Execute the actual pi provisioning section, not a copy of the extension list.
         fragment = 'set -u\nstep() { :; }\nfail() { echo "ERROR: $*" >&2; exit 1; }\n'
         fragment += installer[start:end]
@@ -93,6 +97,136 @@ class PiMcpCleanupTests(unittest.TestCase):
     def storage_snapshot(self):
         return {path.relative_to(self.agent): path.read_bytes()
                 for path in self.agent.rglob("*") if path.is_file()}
+
+    # Break caught: -builtin:mcp surviving migration or unrelated extension entries being lost.
+    def test_builtin_disable_filter_preserves_other_settings_and_mode(self):
+        settings = {"packages": KEPT, "extensions": ["./custom", "-builtin:mcp", "+builtin:mcp",
+                                                     "-builtin:mcp", "-builtin:other"],
+                    "custom": {"keep": True}}
+        self.save(self.agent / "settings.json", settings)
+        path = self.agent / "settings.json"
+        path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+        path.chmod(0o640)
+        original = path.read_bytes()
+        self.assert_success(self.run_cleanup())
+        settings["extensions"] = ["./custom", "+builtin:mcp", "-builtin:other"]
+        self.assertEqual(json.loads(path.read_text()), settings)
+        self.assertEqual(path.stat().st_mode & 0o777, 0o640)
+        backups = list((self.agent / "migration-backups").glob("pi-retired-*"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual((backups[0] / "settings.json").read_bytes(), original)
+        snapshot = self.storage_snapshot()
+        self.assert_success(self.run_cleanup(FAKE_PI_REMOVE="fail"))
+        self.assertEqual(self.storage_snapshot(), snapshot)
+
+    # Break caught: malformed extensions being discovered only after destructive package removal.
+    def test_invalid_extensions_stop_before_removal(self):
+        for extensions in (None, {}, "-builtin:mcp"):
+            with self.subTest(extensions=extensions):
+                self.seed_packages()
+                path = self.agent / "settings.json"
+                settings = json.loads(path.read_text())
+                settings["extensions"] = extensions
+                self.save(path, settings)
+                before = self.storage_snapshot()
+                calls = self.base / "calls"
+                result = self.run_cleanup(FAKE_PI_CALL_LOG=str(calls))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("extensions", result.stderr)
+                self.assertFalse(calls.exists())
+                self.assertEqual(before, self.storage_snapshot())
+
+    # Break caught: overwriting snapshots or backing up settings after pi already rewrites them.
+    def test_backups_preserve_all_original_manifests_and_are_unique(self):
+        self.seed_packages()
+        for relative in ("npm/npm-shrinkwrap.json", "npm/node_modules/.package-lock.json"):
+            self.save(self.agent / relative, {"dependencies": {name: "1.0" for name in REMOVED}})
+        paths = ("settings.json", "npm/package.json", "npm/package-lock.json",
+                 "npm/npm-shrinkwrap.json", "npm/node_modules/.package-lock.json")
+        original = {name: (self.agent / name).read_bytes() for name in paths}
+        self.assert_success(self.run_cleanup())
+        backups = list((self.agent / "migration-backups").glob("pi-retired-*"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].stat().st_mode & 0o777, 0o700)
+        for name, data in original.items():
+            self.assertEqual((backups[0] / name).read_bytes(), data)
+        self.seed_packages()
+        self.assert_success(self.run_cleanup())
+        self.assertEqual(len(list((self.agent / "migration-backups").glob("pi-retired-*"))), 2)
+        for name, data in original.items():
+            self.assertEqual((backups[0] / name).read_bytes(), data)
+
+    # Break caught: failing package removal losing recoverable input or editing MCP filters anyway.
+    def test_failed_removal_keeps_backup_and_builtin_disable(self):
+        self.seed_packages()
+        path = self.agent / "settings.json"
+        settings = json.loads(path.read_text())
+        settings["extensions"] = ["-builtin:mcp", "./custom"]
+        self.save(path, settings)
+        original = path.read_bytes()
+        result = self.run_cleanup(FAKE_PI_REMOVE="fail-after-clean")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("-builtin:mcp", json.loads(path.read_text())["extensions"])
+        backups = list((self.agent / "migration-backups").glob("pi-retired-*"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual((backups[0] / "settings.json").read_bytes(), original)
+        self.assertIn(str(backups[0]), result.stdout)
+
+    # Break caught: linked backup destinations permitting copies outside the agent directory.
+    def test_unsafe_backup_storage_stops_before_mutation(self):
+        self.seed_packages()
+        target = self.base / "shared-backups"
+        target.mkdir()
+        (self.agent / "migration-backups").symlink_to(target, target_is_directory=True)
+        before = self.storage_snapshot()
+        calls = self.base / "calls"
+        result = self.run_cleanup(FAKE_PI_CALL_LOG=str(calls))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("symlink", result.stderr.lower())
+        self.assertFalse(calls.exists())
+        self.assertEqual(list(target.iterdir()), [])
+        self.assertEqual(before, self.storage_snapshot())
+
+    # Break caught: settings-only/pinned/helper-only residues escaping the generic remover.
+    def test_each_retired_package_is_removed_in_all_declaration_forms(self):
+        for name in REMOVED:
+            for entry in ("npm:" + name, "npm:" + name + "@1.0", {"source": "npm:" + name + "@1.0", "extensions": []}):
+                with self.subTest(name=name, entry=entry):
+                    self.seed_packages(entries=KEPT + [entry], manifests=False, installed=False)
+                    self.assert_success(self.run_cleanup())
+                    self.assertEqual(json.loads((self.agent / "settings.json").read_text())["packages"], KEPT)
+
+    # Break caught: leaving declarations that reinstall retired extensions on the next update.
+    def test_extension_update_does_not_resurrect_retired_packages(self):
+        self.seed_packages()
+        self.assert_success(self.run_cleanup())
+        result = subprocess.run(["pi", "update", "--extensions"], env=self.env,
+                                cwd=self.project, text=True, capture_output=True)
+        self.assert_success(result)
+        self.assert_packages_clean()
+        self.assertTrue((self.agent / "npm/node_modules/keep-extension/package.json").is_file())
+
+    # Break caught: npm pruning only registered distill but leaving its transitive helper packages.
+    @unittest.skipUnless(shutil.which("npm"), "real npm is required for dependency regression")
+    def test_real_npm_distill_transitive_helpers_are_removed(self):
+        self.use_real_npm()
+        dependencies = {"keep-extension": "1.0.0", "pi-distill": "1.0.0"}
+        helpers = {"pi-extensions-tool-display": "1.0.0", "pi-extensions-i18n": "1.0.0"}
+        self.save(self.agent / "settings.json", {"packages": ["npm:keep-extension"]})
+        self.save(self.agent / "npm/package.json", {"dependencies": dependencies})
+        packages = {"": {"dependencies": dependencies}}
+        for name in (*dependencies, *helpers):
+            data = {"name": name, "version": "1.0.0"}
+            if name == "pi-distill":
+                data["dependencies"] = helpers
+            self.save(self.agent / "npm/node_modules" / name / "package.json", data)
+            packages["node_modules/" + name] = {key: value for key, value in data.items() if key != "name"}
+        self.save(self.agent / "npm/package-lock.json", {"lockfileVersion": 3, "packages": packages})
+        self.save(self.agent / "npm/node_modules/.package-lock.json", {"lockfileVersion": 3, "packages": packages})
+        self.assert_success(self.run_cleanup())
+        for name in ("pi-distill", *helpers):
+            self.assertFalse((self.agent / "npm/node_modules" / name).exists())
+        self.assertTrue((self.agent / "npm/node_modules/keep-extension/package.json").is_file())
 
     # Real npm must remain real: its uninstall prunes the entire prefix, unlike the pi double.
     def use_real_npm(self):
@@ -122,11 +256,11 @@ class PiMcpCleanupTests(unittest.TestCase):
         self.agent = self.home / fixture
         self.agent.mkdir()
         self.env["PI_CODING_AGENT_DIR"] = str(self.agent)
-        self.save(self.agent / "settings.json", {"packages": ["npm:pi-distill"]})
-        for name in ("pi-mcp-adapter", "pi-distill"):
+        self.save(self.agent / "settings.json", {"packages": ["npm:keep-extension"]})
+        for name in ("pi-mcp-adapter", "keep-extension"):
             self.save(self.agent / "npm/node_modules" / name / "package.json",
                       {"name": name, "version": "1.0.0"})
-        (self.agent / "npm/node_modules/pi-distill/extension.js").write_bytes(b"keep extension bytes\r\n")
+        (self.agent / "npm/node_modules/keep-extension/extension.js").write_bytes(b"keep extension bytes\r\n")
         (self.agent / "mcp-cache.json").write_text("old state")
         if dependencies is not None:
             self.save(self.agent / "npm/package.json", {"dependencies": dependencies})
@@ -152,7 +286,7 @@ class PiMcpCleanupTests(unittest.TestCase):
         settings = json.loads((self.agent / "settings.json").read_text())
         sources = [entry if isinstance(entry, str) else entry["source"] for entry in settings["packages"]]
         self.assertEqual(sources, [
-            "npm:pi-distill", "npm:other@1.0", "npm:@teelicht/pi-superagents",
+            "npm:keep-extension", "npm:other@1.0", "npm:@teelicht/pi-superagents",
             "npm:@jc4649/notify", "npm:pi-safe-search", "npm:pi-diet-ripgrep",
             "git:github.com/obra/superpowers", "npm:pi-lens", "npm:pi-simplify",
             "npm:@howaboua/pi-skill-skill-creator",
@@ -257,7 +391,7 @@ class PiMcpCleanupTests(unittest.TestCase):
         self.assert_packages_clean()
         before["packages"] = KEPT
         self.assertEqual(json.loads((self.agent / "settings.json").read_text()), before)
-        self.assertTrue((self.agent / "npm/node_modules/pi-distill").is_dir())
+        self.assertTrue((self.agent / "npm/node_modules/keep-extension").is_dir())
         for name in ("auth.json", "models.json", "extensions/other/config.json", "mcp-unrelated.json"):
             self.assertEqual((self.agent / name).read_bytes(), b"keep these bytes\r\n")
 
@@ -340,13 +474,13 @@ class PiMcpCleanupTests(unittest.TestCase):
         calls = self.base / "pi-calls"
         result = self.run_cleanup(FAKE_PI_CALL_LOG=str(calls))
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("pi-distill", result.stderr)
+        self.assertIn("keep-extension", result.stderr)
         self.assertFalse(calls.exists())
         self.assertEqual(self.storage_snapshot(), before)
 
     # Break caught: malformed dependency sections silently permitting destructive npm pruning.
     def test_invalid_dependency_declarations_stop_before_any_removal(self):
-        for value in ([], None, "invalid", {"pi-distill": []}):
+        for value in ([], None, "invalid", {"keep-extension": []}):
             with self.subTest(value=value):
                 self.seed_packages()
                 self.save(self.agent / "npm/package.json", {"dependencies": value})
@@ -360,16 +494,16 @@ class PiMcpCleanupTests(unittest.TestCase):
 
     # Break caught: rejecting pinned/object/scoped retained packages or non-default dep sections.
     def test_retained_packages_in_all_dependency_sections_allow_removal(self):
-        kept = ["npm:pi-distill@1.0", {"source": "npm:@keep/tool@1.0"}, "git:github.com/example/keep"]
+        kept = ["npm:keep-extension@1.0", {"source": "npm:@keep/tool@1.0"}, "git:github.com/example/keep"]
         for section in ("dependencies", "devDependencies", "optionalDependencies"):
             with self.subTest(section=section):
                 self.seed_packages(entries=kept + ["npm:" + name for name in REMOVED])
                 self.save(self.agent / "npm/package.json", {
-                    section: {"pi-distill": "1.0", "@keep/tool": "1.0"},
+                    section: {"keep-extension": "1.0", "@keep/tool": "1.0"},
                 })
                 self.assert_success(self.run_cleanup())
                 self.assertEqual(json.loads((self.agent / "settings.json").read_text())["packages"], kept)
-                self.assertTrue((self.agent / "npm/node_modules/pi-distill").is_dir())
+                self.assertTrue((self.agent / "npm/node_modules/keep-extension").is_dir())
                 for name in REMOVED:
                     self.assertFalse((self.agent / "npm/node_modules" / name).exists())
 
@@ -398,19 +532,19 @@ class PiMcpCleanupTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("npm"), "real npm is required for prefix pruning regression")
     def test_real_npm_consistent_manifest_removes_only_target(self):
         self.use_real_npm()
-        self.seed_real_npm("consistent", {"pi-distill": "1.0.0"})
-        kept_dir = self.agent / "npm/node_modules/pi-distill"
+        self.seed_real_npm("consistent", {"keep-extension": "1.0.0"})
+        kept_dir = self.agent / "npm/node_modules/keep-extension"
         before = {path.name: path.read_bytes() for path in kept_dir.iterdir()}
         self.assert_success(self.run_cleanup())
         self.assertFalse((self.agent / "npm/node_modules/pi-mcp-adapter").exists())
-        self.assertEqual(json.loads((self.agent / "settings.json").read_text())["packages"], ["npm:pi-distill"])
+        self.assertEqual(json.loads((self.agent / "settings.json").read_text())["packages"], ["npm:keep-extension"])
         self.assertEqual({path.name: path.read_bytes() for path in kept_dir.iterdir()}, before)
 
     # Break caught: real npm stderr output turning completed manifest-only removal into failure.
     @unittest.skipUnless(shutil.which("npm"), "real npm is required for stderr regression")
     def test_real_npm_stderr_noise_does_not_turn_success_into_failure(self):
         self.use_real_npm()
-        self.seed_real_npm("noisy", {"pi-distill": "1.0.0", "pi-mcp-adapter": "1.0.0"})
+        self.seed_real_npm("noisy", {"keep-extension": "1.0.0", "pi-mcp-adapter": "1.0.0"})
         (self.base / "npmrc").write_text("always-auth=true\n")
         self.env["npm_config_loglevel"] = "verbose"  # Also emits stderr on npm versions accepting always-auth.
         result = self.run_cleanup()
@@ -418,7 +552,7 @@ class PiMcpCleanupTests(unittest.TestCase):
         self.assertIn("npm ", result.stderr)
         self.assertIn("No matching package found for npm:pi-mcp-adapter", result.stderr)
         self.assertFalse((self.agent / "npm/node_modules/pi-mcp-adapter").exists())
-        self.assertTrue((self.agent / "npm/node_modules/pi-distill/extension.js").is_file())
+        self.assertTrue((self.agent / "npm/node_modules/keep-extension/extension.js").is_file())
 
     # Break caught: matching only exact strings instead of npm identity in declarations.
     def test_pinned_and_object_declarations_are_removed(self):

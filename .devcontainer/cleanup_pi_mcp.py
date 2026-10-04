@@ -9,11 +9,16 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 
-PACKAGES = ("pi-mcp-adapter", "@upstash/context7-pi")
+PACKAGES = (
+    "pi-mcp-adapter", "@upstash/context7-pi", "pi-distill",
+    "pi-extensions-tool-display", "pi-extensions-i18n",
+)
 # mcp.json and mcp-auth.json are also native MCP storage; never migrate or unlink them.
 MCP_FILES = (
     "mcp-cache.json", "mcp-project-approvals.json", "mcp-onboarding.json", "mcp-npx-cache.json",
@@ -77,6 +82,53 @@ def package_sources(settings, path):
     return sources
 
 
+def extension_entries(settings, path):
+    entries = settings.get("extensions", [])
+    if not isinstance(entries, list):
+        raise ValueError(f"Invalid extensions declaration in {path}")
+    return entries
+
+
+def backup_storage(agent):
+    """Save original metadata before delegating any mutations to pi/npm."""
+    root = agent / "migration-backups"
+    safe_storage(root)
+    root.mkdir(mode=0o700, exist_ok=True)
+    backup = Path(tempfile.mkdtemp(prefix="pi-retired-", dir=root))
+    for relative in ("settings.json", *("npm/" + name for name in MANIFESTS)):
+        source = agent / relative
+        read_object(source)  # Recheck safety before copying; preserve bytes, including BOM.
+        if not source.exists():
+            continue
+        target = backup / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    print(f"Migration backup: {backup}", flush=True)
+    return backup
+
+
+def enable_builtin_mcp(agent):
+    """Remove only the adapter's disable entry from the latest settings."""
+    path = agent / "settings.json"
+    settings = read_object(path)
+    entries = extension_entries(settings, path)
+    if "-builtin:mcp" not in entries:
+        return
+    settings["extensions"] = [entry for entry in entries if entry != "-builtin:mcp"]
+    mode = stat.S_IMODE(path.stat().st_mode)
+    descriptor, temporary = tempfile.mkstemp(prefix=".settings-migration-", dir=agent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(settings, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        os.chmod(temporary, mode)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    print(f"Removed -builtin:mcp from {path}")
+
+
 def matches(source, name):
     return source == "npm:" + name or source.startswith("npm:" + name + "@")
 
@@ -98,7 +150,9 @@ def inspect(agent):
     for relative in ("settings.json.lock", "npm", "npm/node_modules", "npm/node_modules/@upstash"):
         safe_storage(agent / relative)
     settings_path = agent / "settings.json"
-    sources = package_sources(read_object(settings_path), settings_path)
+    settings = read_object(settings_path)
+    sources = package_sources(settings, settings_path)
+    extension_entries(settings, settings_path)
     manifests = [(agent / "npm" / relative, read_object(agent / "npm" / relative)) for relative in MANIFESTS]
     result = {}
     for name in PACKAGES:
@@ -161,6 +215,11 @@ def cleanup():
         if not (stat.S_ISREG(mode) or stat.S_ISLNK(mode)):
             raise ValueError(f"Unsafe MCP state file: {path}")
 
+    settings_path = agent / "settings.json"
+    disabled = "-builtin:mcp" in extension_entries(read_object(settings_path), settings_path)
+    if disabled or any(leftovers for _, leftovers in before.values()):
+        backup_storage(agent)
+
     env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent)}
     for name, (declared, leftovers) in before.items():
         if not leftovers:
@@ -185,10 +244,11 @@ def cleanup():
                     or f"No matching package found for {source}" not in diagnostics):
                 raise ValueError(f"{source} removal failed (exit {removal.returncode})")
 
-    # Verify both package identities again before unlinking pi-only state (also dangling links).
+    # Verify all package identities before editing settings or unlinking pi-only state.
     for name, (_, leftovers) in inspect(agent).items():
         if leftovers:
             raise ValueError(f"npm:{name} remains after cleanup: {', '.join(leftovers)}")
+    enable_builtin_mcp(agent)
     for filename in MCP_FILES:
         path = agent / filename
         try:
