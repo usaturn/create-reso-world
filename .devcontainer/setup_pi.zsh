@@ -1,8 +1,12 @@
 #!/usr/bin/env zsh
+set -e
 PROVIDERS=("deepinfra")
 
 # PI_CODING_AGENT_DIR が設定されている場合も考慮
 PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+if [[ "$PI_DIR" == '~' || "$PI_DIR" == '~/'* ]]; then
+  PI_DIR="${HOME}${PI_DIR#\~}"
+fi
 MODELS_JSON="${PI_DIR}/models.json"
 
 # モデル定義の正は .devcontainer/pi-models.json とする。

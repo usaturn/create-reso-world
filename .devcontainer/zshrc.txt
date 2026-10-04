@@ -59,7 +59,9 @@ alias gitm="git fetch -p && git checkout origin/main"
 alias gitc="git branch -a| fzf | xargs git checkout"
 alias gitd="git branch | fzf | xargs git branch -D"
 alias gits="git stash list | fzf | awk -F '{|}' '{print $2}' | git stash apply"
-alias ccd="claude --dangerously-skip-permissions --model opus"
+alias ccd="claude --dangerously-skip-permissions"
+alias ccdo="claude --dangerously-skip-permissions --model opus"
+alias ccds="claude --dangerously-skip-permissions --model sonnet"
 alias cur="agent --yolo"
 alias dev="devin --permission-mode dangerous"
 
@@ -117,8 +119,8 @@ typeset -a cc_launcher_unsets=(
 )
 
 function claude-deepinfra ccdd () {
-  local fable=deepseek-ai/DeepSeek-V4.1-Flash
-  local opus=zai-org/GLM-5.3-Flash
+  local fable=zai-org/GLM-5.3
+  local opus=deepseek-ai/DeepSeek-V4.1-Flash
   local sonnet=deepseek-ai/DeepSeek-V4-Flash-0731
   local haiku=openai/gpt-oss-20b
   local -a opts
@@ -134,7 +136,7 @@ function claude-deepinfra ccdd () {
     ENABLE_CLAUDEAI_MCP_SERVERS=false \
     CLAUDE_CODE_EFFORT_LEVEL=max \
     CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
-    claude --model fable "${opts[@]}" "$@"
+    claude --model opus "${opts[@]}" "$@"
 }
 
 function claude-deepinfra-glm ccddg () {

@@ -196,6 +196,74 @@ class PiMcpCleanupTests(unittest.TestCase):
                     self.assert_success(self.run_cleanup())
                     self.assertEqual(json.loads((self.agent / "settings.json").read_text())["packages"], KEPT)
 
+    # Break caught: untrimmed npm payloads escaping removal and reappearing on offline update.
+    def test_whitespace_retired_sources_are_removed_without_resurrection(self):
+        whitespace = (
+            "\ufeff\u0009\u000a\u000b\u000c\u000d \u00a0\u1680\u2000\u2001\u2002\u2003"
+            "\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+        )
+        # Similar names and whitespace that JS does not trim are not retired identities.
+        kept = KEPT + ["npm:pi-distill-extra", {"source": "npm:@upstash/context7-pi-extra@1.0"},
+                       "npm:\u0085pi-distill\u0085", "npm:\u001cpi-distill\u001c"]
+        for form in ("string", "pinned", "object"):
+            for leading, trailing in ((whitespace, ""), ("", whitespace), (whitespace, whitespace)):
+                with self.subTest(form=form, leading=bool(leading), trailing=bool(trailing)):
+                    entries = []
+                    for name in REMOVED:
+                        source = "npm:" + leading + name + ("@1.0.0" if form != "string" else "") + trailing
+                        entries.append({"source": source, "extensions": []} if form == "object" else source)
+                    # No manifest or installed package may hide missed settings-only declarations.
+                    self.seed_packages(entries=kept + entries, manifests=False, installed=False)
+                    self.assert_success(self.run_cleanup())
+                    self.assertEqual(json.loads((self.agent / "settings.json").read_text())["packages"], kept)
+                    result = subprocess.run(["pi", "update", "--extensions"], env=self.env,
+                                            cwd=self.project, text=True, capture_output=True)
+                    self.assert_success(result)
+                    for name in REMOVED:
+                        self.assertFalse((self.agent / "npm/node_modules" / name).exists(), name)
+                    # The update double creates an npm prefix; reset it for the next settings-only case.
+                    shutil.rmtree(self.agent / "npm")
+        # Retained manifest safety checks must normalize whitespace too, not reject valid retained npm names.
+        kept = KEPT + [{"source": "npm: \ufeff@keep/tool@1.0.0\ufeff "}]
+        self.seed_packages(entries=kept + ["npm: \ufeffpi-distill@1.0.0\ufeff "], installed=False)
+        manifest = self.agent / "npm/package.json"
+        data = json.loads(manifest.read_text())
+        data["dependencies"]["@keep/tool"] = "1.0.0"
+        self.save(manifest, data)
+        self.assert_success(self.run_cleanup())
+        self.assertEqual(json.loads((self.agent / "settings.json").read_text())["packages"], kept)
+
+    # Break caught: Python-only JSON constants being accepted before package/settings/cache mutation.
+    def test_nonstandard_json_constants_stop_before_mutation(self):
+        paths = ("settings.json", "npm/package.json", "npm/package-lock.json",
+                 "npm/npm-shrinkwrap.json", "npm/node_modules/.package-lock.json")
+        for index, relative in enumerate(paths):
+            for constant in ("NaN", "Infinity", "-Infinity"):
+                with self.subTest(relative=relative, constant=constant):
+                    self.agent = self.home / f"constant-{index}-{constant}"
+                    self.agent.mkdir()
+                    self.env["PI_CODING_AGENT_DIR"] = str(self.agent)
+                    self.seed_packages()
+                    for name in paths[3:]:
+                        self.save(self.agent / name, {"dependencies": {"pi-distill": "1.0.0"}})
+                    settings = json.loads((self.agent / "settings.json").read_text())
+                    settings["extensions"] = ["-builtin:mcp", "./custom"]
+                    self.save(self.agent / "settings.json", settings)
+                    for name in (*MCP_FILES, *BUILTIN_MCP_FILES, "auth.json", "models.json"):
+                        (self.agent / name).write_bytes(b"preserve original state\r\n")
+                    path = self.agent / relative
+                    data = json.loads(path.read_text())
+                    data["custom"] = "CONSTANT"
+                    path.write_text(json.dumps(data).replace('"CONSTANT"', constant) + "\n")
+                    before = self.storage_snapshot()
+                    calls = self.base / f"calls-{index}-{constant}"
+                    result = self.run_cleanup(FAKE_PI_CALL_LOG=str(calls))
+                    self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertIn(str(path), result.stderr)
+                    self.assertFalse(calls.exists(), "pi ran before strict JSON preflight")
+                    self.assertEqual(self.storage_snapshot(), before)
+                    self.assertFalse((self.agent / "migration-backups").exists())
+
     # Break caught: leaving declarations that reinstall retired extensions on the next update.
     def test_extension_update_does_not_resurrect_retired_packages(self):
         self.seed_packages()
@@ -268,6 +336,53 @@ class PiMcpCleanupTests(unittest.TestCase):
                 "": {"dependencies": dependencies},
                 **{"node_modules/" + name: {"version": "1.0.0"} for name in dependencies},
             }})
+
+    # Break caught: inherited npm omit policies pruning declared retained dev/optional extensions.
+    @unittest.skipUnless(shutil.which("npm"), "real npm is required for omit regression")
+    def test_real_npm_omit_preserves_retained_dependency_types(self):
+        self.use_real_npm()
+        self.env.pop("NODE_ENV", None)
+        cases = (("production", {"NODE_ENV": "production"}),
+                 ("env-omit", {"npm_config_omit": "dev\n\noptional"}),
+                 ("prefix-omit", {}))
+        for fixture, overrides in cases:
+            with self.subTest(fixture=fixture):
+                self.seed_real_npm(fixture, {"pi-mcp-adapter": "1.0.0"})
+                self.save(self.agent / "settings.json", {"packages": KEPT, "custom": "keep"})
+                sections = {"dependencies": {"pi-mcp-adapter": "1.0.0"},
+                            "devDependencies": {"keep-extension": "1.0.0"},
+                            "optionalDependencies": {"other": "1.0.0"}}
+                self.save(self.agent / "npm/package.json", sections)
+                self.save(self.agent / "npm/node_modules/other/package.json", {"name": "other", "version": "1.0.0"})
+                (self.agent / "npm/node_modules/other/extension.js").write_bytes(b"optional extension bytes\r\n")
+                packages = {"": sections, "node_modules/pi-mcp-adapter": {"version": "1.0.0"},
+                            "node_modules/keep-extension": {"version": "1.0.0", "dev": True},
+                            "node_modules/other": {"version": "1.0.0", "optional": True}}
+                for relative in ("npm/package-lock.json", "npm/node_modules/.package-lock.json"):
+                    self.save(self.agent / relative, {"lockfileVersion": 3, "packages": packages})
+                npmrc = self.agent / "npm/.npmrc"
+                if fixture == "prefix-omit":
+                    npmrc.write_bytes(b"omit[]=dev\nomit[]=optional\n")
+                settings_before = (self.agent / "settings.json").read_bytes()
+                retained = {path.relative_to(self.agent): path.read_bytes()
+                            for name in ("keep-extension", "other")
+                            for path in (self.agent / "npm/node_modules" / name).rglob("*") if path.is_file()}
+                self.assert_success(self.run_cleanup(**overrides))
+                for relative, original in retained.items():
+                    path = self.agent / relative
+                    self.assertTrue(path.is_file(), str(relative))
+                    self.assertEqual(path.read_bytes(), original, str(relative))
+                manifest = json.loads((self.agent / "npm/package.json").read_text())
+                for section in ("devDependencies", "optionalDependencies"):
+                    self.assertEqual(manifest[section], sections[section])
+                self.assertNotIn("pi-mcp-adapter", manifest.get("dependencies", {}))
+                for relative in ("npm/package-lock.json", "npm/node_modules/.package-lock.json"):
+                    self.assertNotIn("pi-mcp-adapter", (self.agent / relative).read_text())
+                self.assertFalse((self.agent / "npm/node_modules/pi-mcp-adapter").exists())
+                self.assertEqual((self.agent / "settings.json").read_bytes(), settings_before)
+                if fixture == "prefix-omit":
+                    self.assertEqual(npmrc.read_bytes(), b"omit[]=dev\nomit[]=optional\n")
+                self.assertFalse((self.agent / "mcp-cache.json").exists())
 
     # Break caught: cleanup invoked too late, omitted, or either removed package reinstalled.
     def test_provisioning_cleans_before_installing_only_retained_extensions(self):
@@ -345,6 +460,123 @@ class PiMcpCleanupTests(unittest.TestCase):
                     self.assertEqual(models["personal"], custom)
                 else:
                     self.assertNotIn("deepinfra-distill", models)
+
+    # Break caught: setup reporting success after the model synchronization rejects broken JSON.
+    def test_setup_invalid_models_json_fails_without_success_banner(self):
+        path = self.agent / "models.json"
+        path.write_bytes(b"{broken models\r\n")
+        original = path.read_bytes()
+        result = subprocess.run(["zsh", str(ROOT / ".devcontainer/setup_pi.zsh")], cwd=self.project,
+                                env={**self.env, "DEEPINFRA_TOKEN": "offline-fixture"},
+                                text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Invalid JSON", result.stderr)
+        self.assertNotIn("JSON validation: OK", result.stdout)
+        self.assertNotIn("Setup complete", result.stdout)
+        self.assertEqual(path.read_bytes(), original)
+
+    # Break caught: a failed backup being ignored and the user's original model bytes overwritten.
+    def test_setup_backup_failure_preserves_original_models(self):
+        path = self.agent / "models.json"
+        self.save(path, {"providers": {"deepinfra": {"models": []}, "personal": {"models": []}}})
+        original = path.read_bytes()
+        cp = self.bin / "cp"
+        cp.write_text('#!/bin/sh\nprintf "backup fixture failure\\n" >&2\nexit 73\n')
+        cp.chmod(0o755)
+        result = subprocess.run(["zsh", str(ROOT / ".devcontainer/setup_pi.zsh")], cwd=self.project,
+                                env={**self.env, "DEEPINFRA_TOKEN": "offline-fixture"},
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 73, result.stdout + result.stderr)
+        self.assertNotIn("JSON validation: OK", result.stdout)
+        self.assertNotIn("Setup complete", result.stdout)
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(list(self.agent.glob("models.json.bak.*")), [])
+
+    # Break caught: failed parent directory creation falling through to setup's success banners.
+    def test_setup_blocked_parent_mkdir_fails_without_success_banner(self):
+        parent = self.base / "blocked-parent"
+        parent.write_bytes(b"not a directory\r\n")
+        target = parent / "agent"
+        result = subprocess.run(["zsh", str(ROOT / ".devcontainer/setup_pi.zsh")], cwd=self.project,
+                                env={**self.env, "DEEPINFRA_TOKEN": "offline-fixture",
+                                     "PI_CODING_AGENT_DIR": str(target)}, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("JSON validation: OK", result.stdout)
+        self.assertNotIn("Setup complete", result.stdout)
+        self.assertEqual(parent.read_bytes(), b"not a directory\r\n")
+        self.assertFalse(target.exists())
+
+    # Break caught: real Python model write errors being ignored by the surrounding zsh script.
+    def test_setup_python_write_failure_fails_without_success_banner(self):
+        if os.geteuid() == 0:
+            self.skipTest("root bypasses directory permission bits")
+        self.agent.chmod(0o500)
+        try:
+            result = subprocess.run(["zsh", str(ROOT / ".devcontainer/setup_pi.zsh")], cwd=self.project,
+                                    env={**self.env, "DEEPINFRA_TOKEN": "offline-fixture"},
+                                    text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("PermissionError", result.stderr)
+            self.assertNotIn("JSON validation: OK", result.stdout)
+            self.assertNotIn("Setup complete", result.stdout)
+            self.assertFalse((self.agent / "models.json").exists())
+        finally:
+            self.agent.chmod(0o700)
+
+    # Break caught: validator failure printing a successful JSON validation and setup result anyway.
+    def test_setup_python_validation_failure_fails_without_success_banner(self):
+        python = self.bin / "python3"
+        python.write_text('#!/bin/sh\nif [ "$1" = "-m" ]; then exit 74; fi\n'
+                          + f'exec "{sys.executable}" "$@"\n')
+        python.chmod(0o755)
+        result = subprocess.run(["zsh", str(ROOT / ".devcontainer/setup_pi.zsh")], cwd=self.project,
+                                env={**self.env, "DEEPINFRA_TOKEN": "offline-fixture"},
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 74, result.stdout + result.stderr)
+        self.assertIn("deepinfra", json.loads((self.agent / "models.json").read_text())["providers"])
+        self.assertNotIn("JSON validation: OK", result.stdout)
+        self.assertNotIn("Setup complete", result.stdout)
+
+    # Break caught: literal ~/cwd output instead of HOME expansion, or expansion of ~other/eval input.
+    def test_setup_agent_paths_expand_only_leading_home_tilde(self):
+        cases = ("~", "~/", "~/.pi-custom/agent", "~/space path/agent", "absolute", None, "", "~other/agent")
+        for index, override in enumerate(cases):
+            with self.subTest(override=override):
+                home = self.base / f"path-home-{index}"
+                cwd = self.project / f"path-cwd-{index}"
+                home.mkdir()
+                cwd.mkdir()
+                if override == "absolute":
+                    override = str(self.base / "absolute agent")
+                    target = Path(override)
+                elif override in ("~", "~/"):
+                    target = home
+                elif override is None or override == "":
+                    target = home / ".pi/agent"
+                elif override == "~other/agent":
+                    target = cwd / "~other/agent"
+                else:
+                    target = home / override[2:]
+                path = target / "models.json"
+                custom = {"models": [{"id": "personal-model"}]}
+                self.save(path, {"providers": {"personal": custom}, "customSetting": "keep"})
+                original = path.read_bytes()
+                env = {**self.env, "HOME": str(home), "DEEPINFRA_TOKEN": "offline-fixture"}
+                if override is None:
+                    env.pop("PI_CODING_AGENT_DIR", None)
+                else:
+                    env["PI_CODING_AGENT_DIR"] = override
+                result = subprocess.run(["zsh", str(ROOT / ".devcontainer/setup_pi.zsh")], cwd=cwd,
+                                        env=env, text=True, capture_output=True)
+                self.assert_success(result)
+                data = json.loads(path.read_text())
+                self.assertIn("deepinfra", data["providers"])
+                self.assertEqual(data["providers"]["personal"], custom)
+                self.assertEqual(data["customSetting"], "keep")
+                backups = list(target.glob("models.json.bak.*"))
+                self.assertEqual(len(backups), 1)
+                self.assertEqual(backups[0].read_bytes(), original)
+                self.assertFalse((cwd / "~").exists())
 
     # Break caught: attempting removal/creating settings on a fresh installation.
     def test_fresh_environment_stays_empty(self):

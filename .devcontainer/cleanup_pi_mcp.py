@@ -28,6 +28,12 @@ MANIFESTS = (
     "node_modules/.package-lock.json",
 )
 
+# JavaScript String.trim() whitespace; Python's default strip differs (notably U+FEFF).
+JS_TRIM_WHITESPACE = (
+    "\u0009\u000a\u000b\u000c\u000d \u00a0\u1680\u2000\u2001\u2002\u2003"
+    "\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
+
 
 def agent_directory():
     path = Path(os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".pi/agent").expanduser()
@@ -52,6 +58,9 @@ def safe_storage(path):
 
 
 def read_object(path):
+    def reject_constant(value):
+        raise ValueError(f"Invalid JSON constant: {value}")
+
     safe_storage(path)
     try:
         info = path.lstat()
@@ -59,7 +68,7 @@ def read_object(path):
             raise ValueError(f"Unsafe non-regular storage file: {path}")
         if info.st_nlink != 1:
             raise ValueError(f"Refusing hard-linked package/settings storage: {path}")
-        data = json.loads(path.read_text(encoding="utf-8-sig"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"), parse_constant=reject_constant)
     except FileNotFoundError:
         return {}
     except (OSError, ValueError) as error:
@@ -119,7 +128,7 @@ def enable_builtin_mcp(agent):
     descriptor, temporary = tempfile.mkstemp(prefix=".settings-migration-", dir=agent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(settings, handle, ensure_ascii=False, indent=2)
+            json.dump(settings, handle, ensure_ascii=False, indent=2, allow_nan=False)
             handle.write("\n")
         os.chmod(temporary, mode)
         os.replace(temporary, path)
@@ -130,7 +139,10 @@ def enable_builtin_mcp(agent):
 
 
 def matches(source, name):
-    return source == "npm:" + name or source.startswith("npm:" + name + "@")
+    if not source.startswith("npm:"):
+        return False
+    payload = source[4:].strip(JS_TRIM_WHITESPACE)
+    return payload == name or payload.startswith(name + "@")
 
 
 def manifest_contains(data, name):
@@ -220,7 +232,9 @@ def cleanup():
     if disabled or any(leftovers for _, leftovers in before.values()):
         backup_storage(agent)
 
-    env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent)}
+    # npm splits environment array values on TWO newlines; include overrides inherited omit.
+    env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent),
+           "npm_config_include": "dev\n\noptional\n\npeer"}
     for name, (declared, leftovers) in before.items():
         if not leftovers:
             continue

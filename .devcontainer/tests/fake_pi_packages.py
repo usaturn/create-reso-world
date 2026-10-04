@@ -28,7 +28,12 @@ def identity(spec):
     # pi removes by npm name, including pinned and object-form declarations.
     if not spec.startswith("npm:"):
         return spec
-    return spec[4:].split("@", 1)[0] if not spec[4:].startswith("@") else "@" + spec[5:].split("@", 1)[0]
+    # JavaScript String.trim() whitespace, before scoped/pinned name splitting.
+    payload = spec[4:].strip(
+        "\u0009\u000a\u000b\u000c\u000d \u00a0\u1680\u2000\u2001\u2002\u2003"
+        "\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+    )
+    return payload.split("@", 1)[0] if not payload.startswith("@") else "@" + payload[1:].split("@", 1)[0]
 
 
 def save(path, value):
