@@ -45,7 +45,7 @@
 | ccds | --dangerously-skip-permissions --model sonnet | 同上 | 同上 | 同上 | 同上 |
 | claude-deepinfra / ccdd | --model opus（ccdd のみ権限確認を省略） | zai-org/GLM-5.3 | deepseek-ai/DeepSeek-V4.1-Flash | deepseek-ai/DeepSeek-V4-Flash-0731 | openai/gpt-oss-20b |
 | claude-deepinfra-glm / ccddg | --model opus（ccddg のみ権限確認を省略） | deepseek-ai/DeepSeek-V4.1-Flash | zai-org/GLM-5.3-Flash | deepseek-ai/DeepSeek-V4-Flash-0731 | openai/gpt-oss-20b |
-| claude-opencode-union / ccdu | --model opus（ccdu のみ権限確認を省略） | union-alpha | union-alpha | union-alpha | union-alpha |
+| claude-opencode-union / ccdu | --model union-alpha（ccdu のみ権限確認を省略） | union-alpha | union-alpha | union-alpha | union-alpha |
 
 プロバイダ関数は既存の `env "${cc_launcher_unsets[@]}"` で子プロセスだけの設定を作り、末尾の `"$@"` を保つ。親シェルの値は変更しない。CLI 引数に空文字・空白・改行・glob・`--model` があっても順序と値を保ち、ユーザーのモデル指定を既定引数の後へ渡す。戻り値は Claude CLI の終了コード。
 

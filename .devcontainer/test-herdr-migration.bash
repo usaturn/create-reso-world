@@ -613,7 +613,7 @@ test_cc_launcher_env_unsets() {
     done
 
     local fn log
-    for fn in ccdd ccddg ccdu; do
+    for fn in ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union; do
         log="${dump_dir}/${fn}.log"
         : > "$log"
         run_zshrc_code "$test_home" \
@@ -630,7 +630,7 @@ test_cc_launcher_env_unsets() {
         OPENCODE_GO_CLAUDE_API_KEY \
         OPENCODE_API_KEY \
         OPENCODE_GO_API_KEY; do
-        for fn in ccdd ccddg ccdu; do
+        for fn in ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union; do
             assert_absent "${dump_dir}/${fn}.log" "^${source_key}="
         done
     done
@@ -643,10 +643,166 @@ test_cc_launcher_env_unsets() {
     assert_contains "${dump_dir}/ccdu.log" '^CLAUDE_CODE_MAX_CONTEXT_TOKENS=262144$'
 }
 
+# 誤ったモデル・権限フラグや "$@" の分割を、子 CLI に実際に渡る値で検出する。
+# 実プロバイダには接続せず、指定した環境変数だけを記録する。
+make_claude_probe() {
+    local test_home="$1"
+    make_stub_home "$test_home"
+    cat > "$test_home/bin/claude" <<'PY'
+#!/usr/bin/python3
+import json
+import os
+import sys
+
+keys = [
+    "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "ENABLE_CLAUDEAI_MCP_SERVERS", "CLAUDE_CODE_EFFORT_LEVEL",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS", "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+    "CLAUDE_CODE_SUBAGENT_MODEL",
+]
+with open(os.environ["HERDR_TEST_CLAUDE_DUMP"], "w", encoding="utf-8") as handle:
+    json.dump({"argv": sys.argv[1:], "env": {k: os.environ.get(k) for k in keys}}, handle)
+sys.exit(int(os.environ.get("HERDR_TEST_CLAUDE_RC", "0")))
+PY
+    chmod +x "$test_home/bin/claude"
+}
+
+test_cc_launcher_arguments_and_models() {
+    local test_home="${TEST_ROOT}/home-cc-arguments"
+    make_claude_probe "$test_home"
+    local fn log
+    local probe_code='"" "two words" "line
+break" "*.blend" --model sonnet'
+    for fn in ccd ccdo ccds; do
+        log="${test_home}/${fn}.json"
+        # source の後に解析し直すことで、起動するシェルと同じ alias 展開を行う。
+        run_zshrc_code "$test_home" \
+            'source "$ZSHRC_TEMPLATE"; eval "$HERDR_TEST_CLAUDE_COMMAND"' \
+            HERDR_TEST_CLAUDE_COMMAND="${fn} ${probe_code}" \
+            HERDR_TEST_CLAUDE_DUMP="$log"
+        python3 - "$log" "$fn" <<'PY'
+import json
+import sys
+
+log, name = sys.argv[1:]
+prefix = {
+    "ccd": ["--dangerously-skip-permissions"],
+    "ccdo": ["--dangerously-skip-permissions", "--model", "opus"],
+    "ccds": ["--dangerously-skip-permissions", "--model", "sonnet"],
+}[name]
+want = prefix + ["", "two words", "line\nbreak", "*.blend", "--model", "sonnet"]
+with open(log, encoding="utf-8") as handle:
+    got = json.load(handle)["argv"]
+assert got == want, (name, got, want)
+PY
+    done
+
+    for fn in ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union; do
+        log="${test_home}/${fn}.json"
+        run_zshrc_code "$test_home" \
+            "source \"\$ZSHRC_TEMPLATE\"; ${fn} ${probe_code}" \
+            HERDR_TEST_CLAUDE_DUMP="$log" \
+            DEEPINFRA_TOKEN=fake-di OPENCODE_GO_CLAUDE_API_KEY=fake-union
+        python3 - "$log" "$fn" <<'PY'
+import json
+import sys
+
+log, name = sys.argv[1:]
+with open(log, encoding="utf-8") as handle:
+    data = json.load(handle)
+di = name in ("ccdd", "claude-deepinfra")
+glm = name in ("ccddg", "claude-deepinfra-glm")
+union = name in ("ccdu", "claude-opencode-union")
+prefix = ["--model", "union-alpha" if union else "opus"]
+if name in ("ccdd", "ccddg", "ccdu"):
+    prefix += ["--dangerously-skip-permissions"]
+assert data["argv"] == prefix + ["", "two words", "line\nbreak", "*.blend", "--model", "sonnet"], (name, data["argv"])
+models = (
+    ["zai-org/GLM-5.3", "deepseek-ai/DeepSeek-V4.1-Flash", "deepseek-ai/DeepSeek-V4-Flash-0731", "openai/gpt-oss-20b"] if di else
+    ["deepseek-ai/DeepSeek-V4.1-Flash", "zai-org/GLM-5.3-Flash", "deepseek-ai/DeepSeek-V4-Flash-0731", "openai/gpt-oss-20b"] if glm else
+    ["union-alpha"] * 4
+)
+env = data["env"]
+for alias, model in zip(("FABLE", "OPUS", "SONNET", "HAIKU"), models):
+    assert env[f"ANTHROPIC_DEFAULT_{alias}_MODEL"] == model, (name, alias, env)
+assert env["ANTHROPIC_BASE_URL"] == ("https://opencode.ai/zen/go" if union else "https://api.deepinfra.com/anthropic")
+assert env["ANTHROPIC_AUTH_TOKEN"] == (None if union else "fake-di")
+assert env["ANTHROPIC_API_KEY"] == ("fake-union" if union else None)
+assert env["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"
+assert env["CLAUDE_CODE_EFFORT_LEVEL"] == "max"
+assert env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == ("131072" if union else "65536")
+assert env["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == ("262144" if union else None)
+assert env["CLAUDE_CODE_SUBAGENT_MODEL"] == ("union-alpha" if union else None)
+PY
+    done
+}
+
+test_cc_launcher_auth_and_exit_status() {
+    local test_home="${TEST_ROOT}/home-cc-auth"
+    make_claude_probe "$test_home"
+    local fn log rc mode
+    local -a keys
+    for fn in ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union; do
+        log="${test_home}/${fn}.json"
+        for mode in unset empty; do
+            rm -f "$log"
+            keys=(DEEPINFRA_TOKEN= OPENCODE_GO_CLAUDE_API_KEY= OPENCODE_API_KEY= OPENCODE_GO_API_KEY=)
+            local unset_code=''
+            if [ "$mode" = unset ]; then
+                unset_code='unset DEEPINFRA_TOKEN OPENCODE_GO_CLAUDE_API_KEY OPENCODE_API_KEY OPENCODE_GO_API_KEY; '
+            fi
+            rc=0
+            run_zshrc_code "$test_home" \
+                "source \"\$ZSHRC_TEMPLATE\"; ${unset_code}${fn} probe" \
+                "${keys[@]}" HERDR_TEST_CLAUDE_DUMP="$log" \
+                2>"${test_home}/missing-key.log" || rc=$?
+            [ "$rc" -ne 0 ] || fail "${fn}: ${mode} credentials must fail"
+            [ ! -e "$log" ] || fail "${fn}: missing credentials must not call claude"
+            assert_contains "${test_home}/missing-key.log" 'is not set'
+        done
+
+        rc=0
+        run_zshrc_code "$test_home" \
+            "source \"\$ZSHRC_TEMPLATE\"; ${fn} probe; result=\$?; [[ \$ANTHROPIC_MODEL == parent-model ]] || exit 99; [[ \$DEEPINFRA_TOKEN == fake-di ]] || exit 98; [[ \$OPENCODE_GO_CLAUDE_API_KEY == fake-union ]] || exit 97; exit \$result" \
+            HERDR_TEST_CLAUDE_DUMP="$log" HERDR_TEST_CLAUDE_RC=23 \
+            DEEPINFRA_TOKEN=fake-di OPENCODE_GO_CLAUDE_API_KEY=fake-union \
+            ANTHROPIC_MODEL=parent-model || rc=$?
+        [ "$rc" -eq 23 ] || fail "${fn}: CLI exit status and parent env (got ${rc})"
+    done
+
+    local tier
+    for fn in ccdu claude-opencode-union; do
+        for tier in dedicated generic go; do
+            log="${test_home}/${fn}-${tier}.json"
+            case "$tier" in
+                dedicated) keys=(OPENCODE_GO_CLAUDE_API_KEY=fake-dedicated OPENCODE_API_KEY=fake-generic OPENCODE_GO_API_KEY=fake-go) ;;
+                generic) keys=(OPENCODE_GO_CLAUDE_API_KEY= OPENCODE_API_KEY=fake-generic OPENCODE_GO_API_KEY=fake-go) ;;
+                go) keys=(OPENCODE_GO_CLAUDE_API_KEY= OPENCODE_API_KEY= OPENCODE_GO_API_KEY=fake-go) ;;
+            esac
+            run_zshrc_code "$test_home" \
+                "source \"\$ZSHRC_TEMPLATE\"; ${fn} probe" \
+                HERDR_TEST_CLAUDE_DUMP="$log" "${keys[@]}"
+            python3 - "$log" "$tier" <<'PY'
+import json
+import sys
+
+log, tier = sys.argv[1:]
+with open(log, encoding="utf-8") as handle:
+    got = json.load(handle)["env"]["ANTHROPIC_API_KEY"]
+assert got == {"dedicated": "fake-dedicated", "generic": "fake-generic", "go": "fake-go"}[tier]
+PY
+        done
+    done
+}
+
 test_config_and_syntax
 test_installer_wiring
 test_launch_and_guards
 test_session_cwd_repair
 test_session_cwd_repair_multi_workspace
 test_cc_launcher_env_unsets
+test_cc_launcher_arguments_and_models
+test_cc_launcher_auth_and_exit_status
 printf 'PASS: herdr Dev Container migration\n'
