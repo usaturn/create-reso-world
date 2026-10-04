@@ -728,3 +728,51 @@ def test_submodule_turned_into_a_file_fast_forwards_when_its_checkout_is_empty(
     result = run_script("--repo", str(behind), "--ref", "origin/main")
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert (behind / "sub").read_text(encoding="utf-8") == "now a file\n"
+
+
+def submodule_under_a_directory_replaced_by_a_file(behind: Path, tmp_path: Path) -> None:
+    """HEAD has the submodule a/sub; origin/main removes it and adds the file "a"."""
+    library = tmp_path / "library"
+    subprocess.run(["git", "init", "-q", str(library)], check=True)
+    configure(library)
+    (library / "t").write_text("t\n", encoding="utf-8")
+    git(library, "add", "t")
+    git(library, "commit", "-qm", "lib")
+    upstream = behind.parent / "upstream"
+    for tree in (behind, upstream):
+        git(tree, "pull", "-q", "--ff-only")
+    subprocess.run(
+        ["git", "-C", str(behind), "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(library), "a/sub"],
+        check=True,
+        capture_output=True,
+    )
+    git(behind, "commit", "-qm", "submodule under a")
+    git(behind, "push", "-q", "origin", "HEAD:main")
+    git(upstream, "pull", "-q", "--ff-only")
+    git(upstream, "rm", "-q", "--cached", "a/sub")
+    git(upstream, "rm", "-q", ".gitmodules")
+    shutil.rmtree(upstream / "a")
+    push_upstream(behind, {"a": "now a file\n"})
+
+
+def test_submodule_inside_a_directory_replaced_by_a_file_stops_the_run(behind: Path, tmp_path: Path) -> None:
+    submodule_under_a_directory_replaced_by_a_file(behind, tmp_path)
+    (behind / "a" / "sub" / "untracked.txt").write_text("precious\n", encoding="utf-8")
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "  a/sub/" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (behind / "a" / "sub" / "untracked.txt").read_text(encoding="utf-8") == "precious\n"
+
+
+def test_empty_submodule_inside_a_directory_replaced_by_a_file_fast_forwards(
+    behind: Path, tmp_path: Path
+) -> None:
+    submodule_under_a_directory_replaced_by_a_file(behind, tmp_path)
+    git(behind, "submodule", "deinit", "-q", "-f", "a/sub")
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert (behind / "a").read_text(encoding="utf-8") == "now a file\n"

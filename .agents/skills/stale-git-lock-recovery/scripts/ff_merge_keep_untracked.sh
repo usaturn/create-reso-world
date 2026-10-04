@@ -19,8 +19,9 @@
 # where <rev> adds a submodule or needs a directory, an untracked nested
 # repository that <rev> adds files into, a file inside a submodule's checkout
 # that <rev> turns into a plain directory, or the checkout of a submodule
-# that <rev> turns into a file. The script refuses to run then and lists
-# those paths, so they can be moved away first.
+# that <rev> turns into a file or removes together with a directory it puts
+# a file in place of. The script refuses to run then and lists those paths,
+# so they can be moved away first.
 #
 # When the fast-forward fails or the run is interrupted (HUP, INT, TERM),
 # every file goes back to its original place. Once files are copied into the
@@ -236,7 +237,8 @@ main() {
   # untracked nested repository, and such content could not be put back in
   # its place afterwards. Refuse instead:
   # - on a path that <rev> adds as a file: a directory holding untracked or
-  #   ignored files (a submodule that <rev> adds leaves its directory alone);
+  #   ignored files, or a submodule whose checkout holds anything (a
+  #   submodule that <rev> adds leaves its directory alone);
   # - on a path that <rev> adds as a submodule: anything but a directory;
   # - walking each added path from the top down to the first component that
   #   is not a plain directory: a file or symlink that is not in the index, a
@@ -245,13 +247,26 @@ main() {
   #   file or symlink on the way or on the added path itself;
   # - a submodule that <rev> turns into a file or symlink, if its checkout
   #   holds anything (git removes the checkout as a whole).
-  local added dir rest
+  local added dir rest entry module
   local -a blocked=()
   while IFS= read -r -d '' added; do
-    if [ -d "$added" ] && [ ! -L "$added" ] &&
-      [ -n "$(git --literal-pathspecs ls-files --others -- "$added/")" ]; then
+    [ -d "$added" ] && [ ! -L "$added" ] || continue
+    if [ -n "$(git --literal-pathspecs ls-files --others -- "$added/")" ]; then
       blocked+=("$added/")
+      continue
     fi
+    # git ls-files does not look into submodules; git removes their
+    # checkouts together with the directory.
+    while IFS= read -r -d '' entry; do
+      case "$entry" in
+        "160000 "*)
+          module="${entry#*$'\t'}"
+          if [ -d "$module" ] && [ -n "$(find "$module" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+            blocked+=("$module/")
+          fi
+          ;;
+      esac
+    done < <(git --literal-pathspecs ls-files -s -z -- "$added/")
   done <"$backup/added-files"
   while IFS= read -r -d '' added; do
     if [ -L "$added" ] || { [ -e "$added" ] && [ ! -d "$added" ]; }; then
