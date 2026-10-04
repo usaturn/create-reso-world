@@ -16,9 +16,9 @@
 #
 # git would also remove untracked or ignored content that cannot be put back
 # in place: files under a directory where <rev> adds a file, a file or symlink
-# where <rev> needs a directory, or an untracked nested repository that <rev>
-# adds files into. The script refuses to run then and lists those paths, so
-# they can be moved away first.
+# where <rev> adds a submodule or needs a directory, or an untracked nested
+# repository that <rev> adds files into. The script refuses to run then and
+# lists those paths, so they can be moved away first.
 #
 # When the fast-forward fails or the run is interrupted (HUP, INT, TERM),
 # every file goes back to its original place. Once files are copied into the
@@ -96,15 +96,16 @@ in_index() {
   git rev-parse -q --verify ":0:$1" >/dev/null 2>&1
 }
 
-# Paths that the target commit adds to HEAD, NUL-separated.
+# Paths that the target commit adds to HEAD, NUL-separated. diff-tree is
+# plumbing: settings such as diff.ignoreSubmodules cannot hide entries.
 added_paths() {
-  git diff --no-renames --name-only -z --diff-filter=A HEAD "$target"
+  git diff-tree -r -z --no-renames --name-only --diff-filter=A HEAD "$target"
 }
 
 # The added paths that are submodules (gitlinks, mode 160000), NUL-separated.
 added_submodules() {
   local meta path
-  git diff --no-renames --raw -z --diff-filter=A HEAD "$target" |
+  git diff-tree -r -z --no-renames --raw --diff-filter=A HEAD "$target" |
     while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
       case "$meta" in
         ":000000 160000 "*) printf '%s\0' "$path" ;;

@@ -1065,3 +1065,44 @@ def test_zombie_git_process_does_not_block(git_repo: Path, tmp_path: Path) -> No
     assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 11
     (pid_dir / "stat").write_text("4242 (git) S 1 4242 4242 0 -1 4194316 0 0 0 0\n", encoding="utf-8")
     assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 12
+
+
+def test_git_process_that_exits_during_the_scan_does_not_block(git_repo: Path, tmp_path: Path) -> None:
+    # A fake readlink stands in for the process exiting between being seen as
+    # git and its cwd being read: it removes the PID and fails.
+    resolve_lock_path(git_repo).write_bytes(b"")
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git", cwd=tmp_path)
+    env = limited_path_env(tmp_path, PROC_ROOT=str(proc_root))
+    real_readlink = Path(env["PATH"]) / "readlink"
+    target = os.readlink(real_readlink)
+    real_readlink.unlink()
+    real_readlink.write_text(
+        "#!/bin/bash\n"
+        'case "${@: -1}" in\n'
+        f'  "{proc_root}/4242/cwd") rm -rf "{proc_root}/4242"; exit 1 ;;\n'
+        "esac\n"
+        f'exec "{target}" "$@"\n',
+        encoding="utf-8",
+    )
+    real_readlink.chmod(0o755)
+
+    check = run_script("check", "--json", "--repo", str(git_repo), env=env)
+    assert check.returncode == 11, (check.stdout, check.stderr)
+    assert not (proc_root / "4242").exists()
+
+
+def test_work_tree_of_a_process_with_an_absolute_git_dir_is_not_used(git_repo: Path, tmp_path: Path) -> None:
+    # git difftool helpers in a linked worktree get an absolute GIT_DIR and
+    # GIT_WORK_TREE=. ; their index follows from GIT_DIR alone.
+    linked = tmp_path / "linked"
+    git(git_repo, "worktree", "add", "-q", "-b", "linked", str(linked))
+    linked_git_dir = git_repo / ".git" / "worktrees" / "linked"
+    resolve_lock_path(git_repo).write_bytes(b"")
+    resolve_lock_path(linked).write_bytes(b"")
+    proc_root = tmp_path / "proc"
+    fake_process(proc_root, 4242, "git-difftool--helper", cwd=linked,
+                 environ={"GIT_DIR": str(linked_git_dir), "GIT_WORK_TREE": "."})
+
+    assert check_with_proc(git_repo, tmp_path, proc_root).returncode == 11
+    assert check_with_proc(linked, tmp_path, proc_root).returncode == 12

@@ -538,7 +538,12 @@ def test_ignored_file_where_a_tracked_directory_was_stops_the_run(behind: Path) 
     assert (behind / "a").read_text(encoding="utf-8") == "precious\n"
 
 
-def test_untracked_file_where_a_submodule_is_added_stops_the_run(behind: Path, tmp_path: Path) -> None:
+@pytest.mark.parametrize("ignore_submodules", [False, True])
+def test_untracked_file_where_a_submodule_is_added_stops_the_run(
+    behind: Path, tmp_path: Path, ignore_submodules: bool
+) -> None:
+    # diff.ignoreSubmodules=all hides added submodules from `git diff`; the
+    # script must still see them.
     library = tmp_path / "library"
     subprocess.run(["git", "init", "-q", str(library)], check=True)
     configure(library)
@@ -555,6 +560,8 @@ def test_untracked_file_where_a_submodule_is_added_stops_the_run(behind: Path, t
     git(upstream, "push", "-q", "origin", "HEAD:main")
     git(behind, "fetch", "-q", "origin")
     (behind / "sub").write_text("local\n", encoding="utf-8")
+    if ignore_submodules:
+        git(behind, "config", "diff.ignoreSubmodules", "all")
     head = git(behind, "rev-parse", "HEAD").strip()
 
     result = run_script("--repo", str(behind), "--ref", "origin/main")

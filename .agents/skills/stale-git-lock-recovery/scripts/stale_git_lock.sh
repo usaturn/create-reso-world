@@ -239,22 +239,26 @@ holder_state_proc() {
   return 0
 }
 
-# Does a git process name this work tree from elsewhere? It may do so with
-# GIT_DIR / --git-dir (the git dir of the lock), GIT_WORK_TREE / --work-tree
-# (the top of the work tree), GIT_INDEX_FILE (an index in the lock's
-# directory) or GIT_COMMON_DIR (when the lock's git dir is the common one) in
-# its environment or on its command line. The comparison is by identity
-# (-ef), so a linked worktree that shares the common git dir does not count
-# for the main work tree. A relative value cannot be resolved reliably (git
-# may have changed directory since it started); a work tree given without a
-# git dir means git found its git dir from the cwd it started in, which is no
-# longer known; and an environment or command line that cannot be read hides
-# the values. All three count as naming it.
+# Does a git process name this work tree from elsewhere? The index that git
+# uses (and locks) follows from its git dir and GIT_INDEX_FILE, so the
+# process counts when GIT_DIR / --git-dir is the git dir of the lock (a .git
+# file is resolved to the git dir it names), GIT_COMMON_DIR is that git dir,
+# or GIT_INDEX_FILE is an index in the lock's directory. The comparison is by
+# identity (-ef), so a linked worktree that shares the common git dir does
+# not count for the main work tree. Without a git dir, git found its git dir
+# from the cwd it started in, which is no longer known, so a process that
+# only names a work tree (GIT_WORK_TREE / --work-tree) cannot be ruled out.
+# Neither can a relative git dir, common dir or index (git may have changed
+# directory since it started), nor values that cannot be read. A process
+# that has exited meanwhile holds nothing and does not count.
 # Arguments: pid, lock directory, git dir, top of the work tree.
 git_process_refers_to() {
   local pid="$1" lock_dir="$2" git_dir="$3" top="$4" entry option=""
   local -a names=() values=()
-  { : <"$pid/environ" && : <"$pid/cmdline"; } 2>/dev/null || return 0
+  if ! { : <"$pid/environ" && : <"$pid/cmdline"; } 2>/dev/null; then
+    [ -d "$pid" ] || return 1
+    return 0
+  fi
   while IFS= read -r -d '' entry; do
     case "$entry" in
       GIT_DIR=*|GIT_WORK_TREE=*|GIT_COMMON_DIR=*|GIT_INDEX_FILE=*)
@@ -262,7 +266,7 @@ git_process_refers_to() {
         values+=("${entry#*=}")
         ;;
     esac
-  done <"$pid/environ"
+  done 2>/dev/null <"$pid/environ"
   while IFS= read -r -d '' entry; do
     if [ -n "$option" ]; then
       names+=("$option")
@@ -276,7 +280,7 @@ git_process_refers_to() {
       --git-dir) option=GIT_DIR ;;
       --work-tree) option=GIT_WORK_TREE ;;
     esac
-  done <"$pid/cmdline"
+  done 2>/dev/null <"$pid/cmdline"
   local i value has_git_dir=0 has_work_tree=0
   for i in "${!names[@]}"; do
     case "${names[$i]}" in
@@ -289,6 +293,7 @@ git_process_refers_to() {
   fi
   for i in "${!values[@]}"; do
     value="${values[$i]}"
+    [ "${names[$i]}" = GIT_WORK_TREE ] && continue
     case "$value" in
       /*) ;;
       *) return 0 ;;
@@ -302,7 +307,6 @@ git_process_refers_to() {
         [ "$value" -ef "$git_dir" ] && return 0
         ;;
       GIT_COMMON_DIR) [ "$value" -ef "$git_dir" ] && return 0 ;;
-      GIT_WORK_TREE) [ "$value" -ef "$top" ] && return 0 ;;
       GIT_INDEX_FILE) [ "$(dirname -- "$value")" -ef "$lock_dir" ] && return 0 ;;
     esac
   done
@@ -328,6 +332,8 @@ git_activity_state() {
     is_git_process "$pid" || continue
     is_zombie "$pid" && continue
     if ! cwd="$(readlink -- "$pid/cwd" 2>/dev/null)" || [ -z "$cwd" ]; then
+      # A process that has exited meanwhile holds nothing.
+      [ -d "$pid" ] || continue
       report_process "$pid" "git process whose working directory cannot be read"
       result=unknown
       continue

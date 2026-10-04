@@ -59,7 +59,7 @@
 - fd の走査（lsof・`/proc/*/fd`）で保持者が見つからなかったときに、`/proc` を走査して、同じワークツリーで動作中の git プロセスを探す
   - git プロセスの判定は `comm` か argv[0] のプログラム名が `git` / `git-*` であること。コマンドライン中の他の語では判定しない
   - git はワークツリーの top で動くので、cwd がワークツリーの top と同一（`-ef`）のプロセスと、cwd から `git rev-parse --git-path index.lock` で解決したロックのディレクトリが対象のロックのディレクトリと同一のプロセスを該当とする。cwd がワークツリーの配下なのに git が解決できない場合も該当とする。入れ子の worktree やサブモジュールの git は別の index を使うので該当しない
-  - または、環境変数・オプションの絶対パスが、`GIT_DIR` / `--git-dir` / `GIT_COMMON_DIR` は対象の git dir と、`GIT_WORK_TREE` / `--work-tree` はワークツリーの top と、`GIT_INDEX_FILE` はそのディレクトリがロックのディレクトリと同一（`-ef`）のとき該当とする。相対パスの値は、起動後に cwd が変わっていて解決できないため該当とみなす。ワークツリーだけを指定して git dir を指定していないプロセスも、git dir が起動時の cwd から決まっていて後から分からないため該当とみなす（R-18）
+  - または、環境変数・オプションの絶対パスが、`GIT_DIR` / `--git-dir` / `GIT_COMMON_DIR` は対象の git dir と、`GIT_INDEX_FILE` はそのディレクトリがロックのディレクトリと同一（`-ef`）のとき該当とする。git が使う index は git dir と `GIT_INDEX_FILE` で決まるので、`GIT_WORK_TREE` / `--work-tree` は git dir が無いときだけ意味を持つ（R-18、R-32）。相対パスの値は、起動後に cwd が変わっていて解決できないため該当とみなす。ワークツリーだけを指定して git dir を指定していないプロセスも、git dir が起動時の cwd から決まっていて後から分からないため該当とみなす（R-18）
   - cwd・環境変数・コマンドラインを読めない git プロセスは除外できないため、該当とみなす
 - `--repo` はワークツリーの中のパスに限る。`git rev-parse --is-inside-git-dir` が true になるパス（`.git`、`.git/worktrees/<name>`、サブモジュールの `.git/modules/<name>` など）では、対象のワークツリーの top が分からず git プロセスを見落とすため、exit 2 で何もしない
 - 該当があれば `unknown`（exit 12）とし、PID・コマンド名・理由を stderr に出す。JSON のキーと exit code の意味は変えない
@@ -138,6 +138,10 @@ cwd に依存せず、`path` などの zsh の特殊変数を貼り付け用ス�
 | R-27（5 回目の再レビュー F-5、Low） | `--git-dir` / `GIT_DIR` に `.git` ファイル（linked worktree、サブモジュール）を渡した git を見逃す | ディレクトリでない値は `git rev-parse --resolve-git-dir` で解決してから比べ、解決できなければ除外できないものとした |
 | R-28（5 回目の再レビュー F-6、Low） | zombie の git が 1 つでもあると、どのリポジトリの `check` も exit 12 になる | `/proc/<pid>/stat` の状態が Z / X のプロセスを、fd の走査と git プロセスの走査の両方で除外した |
 | R-29（5 回目の再レビュー F-7、Info） | ヘッダの「JSON を出さない」場合に、ワークツリーの外（exit 2）が無い | コメントを直した |
+| R-30（6 回目の再レビュー F-1、Low〜Medium） | git と判定した後、cwd や environ を読む前にそのプロセスが終了すると、無関係なリポジトリでも exit 12 になる。短命な git が多い開発環境ではテストも時々失敗した | 読み取りに失敗したらプロセスの生存を確かめ、終了していれば除外するようにした。偽の `readlink` で走査中の終了を再現するテストを追加した |
+| R-31（6 回目の再レビュー F-2、Medium） | `diff.ignoreSubmodules=all` だと `git diff` が追加される submodule を出力せず、R-25 の拒否が働かずに ignore 対象のファイルが消える | 追加パスの取得を plumbing の `git diff-tree` に替え、設定の影響を受けないようにした。設定を入れた場合のテストを追加した |
+| R-32（6 回目の再レビュー F-3、Low） | 別の worktree の `git difftool` の helper（絶対パスの `GIT_DIR` と `GIT_WORK_TREE=.`）が、どのリポジトリの判定も不能にする | git が使う index は git dir と `GIT_INDEX_FILE` で決まるため、git dir が分かっているときはワークツリーの指定を判定に使わないようにした |
+| R-33（6 回目の再レビュー F-4、Info） | ff スクリプトのヘッダに、submodule を追加するパスでの拒否が書かれていない | ヘッダに追記した |
 
 ## 同じ原因の関連箇所（PR 差分外の確認）
 
