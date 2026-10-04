@@ -17,9 +17,10 @@
 # git would also remove untracked or ignored content that cannot be put back
 # in place: files under a directory where <rev> adds a file, a file or symlink
 # where <rev> adds a submodule or needs a directory, an untracked nested
-# repository that <rev> adds files into, or a file inside a submodule's
-# checkout that <rev> adds as part of a plain directory. The script refuses
-# to run then and lists those paths, so they can be moved away first.
+# repository that <rev> adds files into, a file inside a submodule's checkout
+# that <rev> turns into a plain directory, or the checkout of a submodule
+# that <rev> turns into a file. The script refuses to run then and lists
+# those paths, so they can be moved away first.
 #
 # When the fast-forward fails or the run is interrupted (HUP, INT, TERM),
 # every file goes back to its original place. Once files are copied into the
@@ -111,6 +112,18 @@ added_submodules() {
     while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
       case "$meta" in
         ":000000 160000 "*) printf '%s\0' "$path" ;;
+      esac
+    done
+}
+
+# Submodules that the target commit turns into a file or symlink (type
+# change from mode 160000), NUL-separated. git removes the whole checkout.
+replaced_submodules() {
+  local meta path
+  git diff-tree -r -z --no-renames --ignore-submodules=none --raw --diff-filter=T HEAD "$target" |
+    while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
+      case "$meta" in
+        ":160000 "*) printf '%s\0' "$path" ;;
       esac
     done
 }
@@ -210,6 +223,7 @@ main() {
       LC_ALL=C sort -z >"$backup/untracked" &&
       LC_ALL=C comm -z -12 "$backup/added" "$backup/untracked" >"$backup/paths" &&
       added_submodules | LC_ALL=C sort -z >"$backup/submodules" &&
+      replaced_submodules >"$backup/replaced-submodules" &&
       LC_ALL=C comm -z -23 "$backup/added" "$backup/submodules" >"$backup/added-files"
   ); then
     printf 'cannot list the untracked files on the paths that %s adds; nothing was changed\n' "$ref" >&2
@@ -227,7 +241,10 @@ main() {
   # - walking each added path from the top down to the first component that
   #   is not a plain directory: a file or symlink that is not in the index, a
   #   nested repository that is not a submodule in the index, or, inside a
-  #   submodule's checkout, a file already on the added path.
+  #   submodule's checkout (which git leaves in place and writes into), any
+  #   file or symlink on the way or on the added path itself;
+  # - a submodule that <rev> turns into a file or symlink, if its checkout
+  #   holds anything (git removes the checkout as a whole).
   local added dir rest
   local -a blocked=()
   while IFS= read -r -d '' added; do
@@ -241,29 +258,39 @@ main() {
       blocked+=("$added")
     fi
   done <"$backup/submodules"
+  local in_submodule
   while IFS= read -r -d '' added; do
     dir=""
     rest="$added"
+    in_submodule=0
     while [ "${rest#*/}" != "$rest" ]; do
       dir="${dir:+$dir/}${rest%%/*}"
       rest="${rest#*/}"
       if [ -L "$dir" ] || { [ -e "$dir" ] && [ ! -d "$dir" ]; }; then
-        in_index "$dir" || blocked+=("$dir")
-        break
-      fi
-      [ -d "$dir" ] || break
-      if [ -e "$dir/.git" ] || [ -L "$dir/.git" ]; then
-        # A submodule's checkout stays in place when <rev> turns it into a
-        # plain directory, and git writes the added file into it.
-        if ! in_index "$dir"; then
-          blocked+=("$dir/")
-        elif [ -e "$added" ] || [ -L "$added" ]; then
-          blocked+=("$added")
+        if [ "$in_submodule" -eq 1 ] || ! in_index "$dir"; then
+          blocked+=("$dir")
         fi
         break
       fi
+      [ -d "$dir" ] || break
+      if [ "$in_submodule" -eq 0 ] && { [ -e "$dir/.git" ] || [ -L "$dir/.git" ]; }; then
+        if ! in_index "$dir"; then
+          blocked+=("$dir/")
+          break
+        fi
+        in_submodule=1
+      fi
     done
+    if [ "$in_submodule" -eq 1 ] && { [ -e "$added" ] || [ -L "$added" ]; }; then
+      blocked+=("$added")
+    fi
   done <"$backup/added"
+  while IFS= read -r -d '' added; do
+    if [ -d "$added" ] && [ ! -L "$added" ] &&
+      [ -n "$(find "$added" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+      blocked+=("$added/")
+    fi
+  done <"$backup/replaced-submodules"
   if [ "${#blocked[@]}" -gt 0 ]; then
     printf '%s puts a file or a directory where these untracked or ignored paths are; move them out of the work tree and run again; nothing was changed:\n' "$ref" >&2
     printf '  %s\n' "${blocked[@]}" | LC_ALL=C sort -u >&2
@@ -272,7 +299,8 @@ main() {
   fi
 
   mapfile -d '' -t files <"$backup/paths"
-  rm -f -- "$backup/added" "$backup/untracked" "$backup/submodules" "$backup/added-files"
+  rm -f -- "$backup/added" "$backup/untracked" "$backup/submodules" "$backup/added-files" \
+    "$backup/replaced-submodules"
 
   if [ "${#files[@]}" -eq 0 ]; then
     rm -rf -- "$backup"

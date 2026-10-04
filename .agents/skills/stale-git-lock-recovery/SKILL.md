@@ -110,7 +110,8 @@ bash .agents/skills/stale-git-lock-recovery/scripts/ff_merge_keep_untracked.sh -
    - `<ref>` が submodule を追加するパスに、ディレクトリ以外（ファイルや symlink）がある
    - `<ref>` がディレクトリを置くパスに、index に無いファイルや symlink がある（追跡ディレクトリの位置に置かれた ignore 対象のファイルを含む）
    - `<ref>` がファイルを追加する先が、index に submodule として無い入れ子のリポジトリ（`.git` を持つディレクトリ）の中にある
-   - `<ref>` が submodule を普通のディレクトリに置き換え、その中に追加するファイルと同じパスのファイルが submodule の checkout にある
+   - `<ref>` が submodule を普通のディレクトリに置き換え、追加するパスやその途中に、submodule の checkout 内のファイルや symlink がある（git は checkout を残したまま中へ書き込む）
+   - `<ref>` が submodule をファイルや symlink に置き換え、その checkout に中身がある（git は checkout をまるごと消す）
 4. 全件を一時ディレクトリへ `cp -a` で退避し（symlink は symlink のまま、パーミッションとタイムスタンプも保つ）、退避したコピーが元と一致することを確かめる。退避先は削除前に stderr へ表示する
 5. 全件を削除してから、`git merge --ff-only` を 1 回だけ実行する
 6. merge の成否にかかわらず全件を元のパスへ戻し、元と一致することを確かめる。merge が失敗した場合は HEAD を変えずに exit 1

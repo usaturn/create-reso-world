@@ -651,3 +651,80 @@ def test_ignored_file_in_a_submodule_turned_into_a_directory_stops_the_run(
     assert "  vendor/lib/run.log" in result.stderr
     assert git(behind, "rev-parse", "HEAD").strip() == head
     assert (behind / "vendor" / "lib" / "run.log").read_text(encoding="utf-8") == "precious local log\n"
+
+
+def submodule_on_both_sides(behind: Path, tmp_path: Path) -> Path:
+    """Commit a submodule "sub" with a tracked file "t" and check it out in both clones."""
+    library = tmp_path / "library"
+    subprocess.run(["git", "init", "-q", str(library)], check=True)
+    configure(library)
+    (library / "t").write_text("t\n", encoding="utf-8")
+    git(library, "add", "t")
+    git(library, "commit", "-qm", "lib")
+    upstream = behind.parent / "upstream"
+    for tree in (behind, upstream):
+        git(tree, "pull", "-q", "--ff-only")
+    (behind / ".gitignore").write_text("*.log\n", encoding="utf-8")
+    git(behind, "add", ".gitignore")
+    subprocess.run(
+        ["git", "-C", str(behind), "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(library), "sub"],
+        check=True,
+        capture_output=True,
+    )
+    git(behind, "commit", "-qm", "submodule")
+    git(behind, "push", "-q", "origin", "HEAD:main")
+    git(upstream, "pull", "-q", "--ff-only")
+    git(upstream, "rm", "-q", "--cached", "sub")
+    git(upstream, "rm", "-q", ".gitmodules")
+    return upstream
+
+
+def test_ignored_file_on_the_way_inside_a_submodule_turned_into_a_directory_stops_the_run(
+    behind: Path, tmp_path: Path
+) -> None:
+    # origin/main drops the submodule and adds sub/x.log/y; locally the
+    # checkout has an ignored file sub/x.log, which git would remove.
+    upstream = submodule_on_both_sides(behind, tmp_path)
+    (upstream / "sub").mkdir(exist_ok=True)
+    push_upstream(behind, {"sub/x.log/y": "upstream\n"})
+    (behind / "sub" / "x.log").write_text("precious\n", encoding="utf-8")
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "  sub/x.log" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (behind / "sub" / "x.log").read_text(encoding="utf-8") == "precious\n"
+
+
+def test_submodule_turned_into_a_file_stops_the_run_while_its_checkout_has_content(
+    behind: Path, tmp_path: Path
+) -> None:
+    # git removes the whole checkout when a submodule becomes a file.
+    upstream = submodule_on_both_sides(behind, tmp_path)
+    if (upstream / "sub").is_dir():
+        (upstream / "sub").rmdir()
+    push_upstream(behind, {"sub": "now a file\n"})
+    (behind / "sub" / "notes.txt").write_text("precious\n", encoding="utf-8")
+    head = git(behind, "rev-parse", "HEAD").strip()
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "  sub/" in result.stderr
+    assert git(behind, "rev-parse", "HEAD").strip() == head
+    assert (behind / "sub" / "notes.txt").read_text(encoding="utf-8") == "precious\n"
+
+
+def test_submodule_turned_into_a_file_fast_forwards_when_its_checkout_is_empty(
+    behind: Path, tmp_path: Path
+) -> None:
+    upstream = submodule_on_both_sides(behind, tmp_path)
+    if (upstream / "sub").is_dir():
+        (upstream / "sub").rmdir()
+    push_upstream(behind, {"sub": "now a file\n"})
+    git(behind, "submodule", "deinit", "-q", "-f", "sub")
+    assert not any((behind / "sub").iterdir())
+
+    result = run_script("--repo", str(behind), "--ref", "origin/main")
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert (behind / "sub").read_text(encoding="utf-8") == "now a file\n"
