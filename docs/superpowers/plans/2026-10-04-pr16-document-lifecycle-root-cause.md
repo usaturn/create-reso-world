@@ -4,14 +4,14 @@
 
 ## Execution record
 
-- Status: draft (implementation explicitly authorized; this is not a claim that the user reviewed this Plan's content).
+- Status: completed (implementation, review and acceptance passed; individual approval of this Plan's content is not recorded, and PR merge is separate).
 - Spec: `docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md`.
 - Spec content approval: the user's instruction 「進めてください。プランを作成したら、そのまま実装を開始してください」 after presentation of that Spec.
 - Execution authority: the same instruction explicitly requests execution immediately after creation of this Plan; do not introduce another approval wait. Record content approval separately from execution authority.
 - Target: `usaturn/create-reso-world` PR #16, `docs/superpowers-document-lifecycle`.
 - Starting HEAD: `b441c3b79b91f2945e60f9b948fd52dd77fcb02f` (matched remote PR HEAD before starting).
 - PARENT_ROOT: `/workspaces/reso-world`; DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/superpowers-document-lifecycle`.
-- Publication: pending at this record snapshot. The existing review-fix-planning workflow authorizes committing/pushing tested work to that existing PR and updating its status comment. Merge is not authorized.
+- Publication: verified at `0f6ff4619e32dbf27b6204e2a7e010498c319b8c` on the existing PR branch. This completion-record snapshot will be published to the same branch; its final restore SHA and verification belong in the PR comment/handoff. Merge is not authorized.
 - Baseline: 96 targeted skill cases pass, including zsh; the existing copy bash test passes, despite the demonstrated races.
 
 **Goal:** Replace duplicated branch-specific checks with shared, read-only context validation; publish immutable, non-replacing review copies; make permissions, approvals, history and document reuse consistent across the end-to-end workflow.
@@ -110,7 +110,7 @@ git diff --check
 
 The environment may legitimately report the layout check's existing unavailable-ResoLoop skip. Record that explicitly; it is not new context/copy coverage. No unrelated world builds or fork-wide tests are required. Any new test must appear in the existing CI runner's `--list` or existing pytest scope and be demonstrated executing there.
 
-## 実施結果（2026-10-04 UTC、運用受入前）
+## 実施結果（2026-10-04 UTC、運用受入完了）
 
 - Spec承認内容の保存版: `79330776e52a4b077c8a596b035ab8f48a242123`。Plan本文の個別内容承認は記録されていない。作成直後の実行と今回の続行は明示指示済み
 - 検証コードHEAD: `1987715653fba088bafa0033b48b8304166f42c7`。Task 1/2は引き継ぎ時のレビュー済み実装を保持し、Task 3と全体レビューの必要な修正だけを続行
@@ -119,5 +119,8 @@ The environment may legitimately report the layout check's existing unavailable-
 - CIのdevcontainer-tests checkoutは履歴取得を設定し、22取り込み文書の `58c9ea8` 基準blob照合を維持。浅いローカルfixtureで欠落/履歴取得後の成功を確認
 - 過去の2 Specはsupersededの履歴、旧Planはcompletedの履歴として、実行指示と不明な個別内容承認を分離。本文・43個の旧チェック項目は保持
 - 実行方法: subagent-driven-development。前セッションのpi担当はこのランタイムから再開できないため、既存brief/reportを読んだ代替担当が必要な修正を実施
-- この記録時点の残作業: 親checkoutへの確認用コピー、既存PRへpush、API HEADとGitHub CIの確認、公開文書の復元、結果コメント、最終handoff。公開未実施、マージ未実施
+- 運用受入: `0f6ff4619e32dbf27b6204e2a7e010498c319b8c` のSpec/Planを親checkoutへ非置換コピーし、コミット内のバイト列とSHA-256が一致。push成功、PR API HEAD一致、GitHub contents APIから空の一時領域への復元と完全一致を確認。一時復元領域は除去済み
+- GitHub CI: [push実行](https://github.com/usaturn/create-reso-world/actions/runs/37190611006)・[PR実行](https://github.com/usaturn/create-reso-world/actions/runs/37190613778)の各4チェックが成功。監視終了は2026-10-04 08:59:40 UTC、終了0
+- 最終記録の反映: このメタデータ更新をコミットし、別名の確認用コピーを作成して同じPRへpushする。最終SHAのAPI/復元/CI確認、結果コメント、handoffはその公開結果を記録する。マージ未実施
+- このCodex実行では手順8のpi固有変数の代わりに、現在のsession turn_contextに記録された厳密な識別子 `gpt-6.1-sol` を使い、同じモデルのマーカーだけを正規helperで更新する
 - 既存R1–R17の分類は調査時点の7/8/0/2を保持し、R8/R17を新たに修正済みとは扱わない。自然言語規約の遵守・全並行実行の普遍的な保証は行わない
