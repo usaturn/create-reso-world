@@ -213,6 +213,63 @@ class ContextTests(unittest.TestCase):
         self.bad("head", operation="review-fix", head_branch="main")
         self.bad("head", operation="review-fix", head_repo=SELF)
 
+    def test_head_remote_accepts_fetch_base_and_effective_push_head_split(self):
+        # Using fetch identity for head selection rejects this legitimate split.
+        self.git(self.external, "remote", "set-url", "--push", "origin",
+                 "ssh://git@github.com/contributor/repository.git")
+        value = self.good(operation="review-fix", repo="other/repository", code_root=self.external,
+                          head_repo="contributor/repository", head_branch="main")
+        self.assertEqual((value["base_remote"], value["head_remote"]), ("origin", "origin"))
+
+    def test_head_remote_rejects_wrong_single_pushurl_despite_matching_fetch_url(self):
+        self.git(self.external, "remote", "add", "head", "https://github.com/contributor/repository.git")
+        self.git(self.external, "remote", "set-url", "--push", "head", "https://github.com/wrong/repository.git")
+        self.bad("effective push URLs", operation="review-fix", repo="other/repository", code_root=self.external,
+                 head_repo="contributor/repository", head_branch="main")
+
+    def test_head_remote_rejects_matching_first_pushurl_with_wrong_later_destination(self):
+        # Checking only the first effective push URL misses an additional push.
+        self.git(self.external, "remote", "add", "head", "https://github.com/contributor/repository.git")
+        self.git(self.external, "remote", "set-url", "--push", "head", "git@github.com:contributor/repository.git")
+        for wrong in ("https://github.com/wrong/repository.git", "https://example.com/contributor/repository.git"):
+            with self.subTest(wrong=wrong):
+                self.git(self.external, "remote", "set-url", "--push", "--add", "head", wrong)
+                self.bad("effective push URLs", operation="review-fix", repo="other/repository", code_root=self.external,
+                         head_repo="contributor/repository", head_branch="main")
+                self.git(self.external, "config", "--fixed-value", "--unset-all", "remote.head.pushurl", wrong)
+
+    def test_head_remote_requires_one_effective_push_candidate_name(self):
+        # Distinct fetch URLs must not hide two equally valid push remote names.
+        self.git(self.external, "remote", "set-url", "--push", "origin", "https://github.com/contributor/repository.git")
+        self.git(self.external, "remote", "add", "mirror", "https://github.com/elsewhere/repository.git")
+        self.git(self.external, "remote", "set-url", "--push", "mirror", "git@github.com:contributor/repository.git")
+        self.bad("has 2 remotes", operation="review-fix", repo="other/repository", code_root=self.external,
+                 head_repo="contributor/repository", head_branch="main")
+
+    def test_head_remote_preserves_no_pushurl_fallback(self):
+        value = self.good(operation="review-fix", repo="other/repository", code_root=self.external,
+                          head_repo="other/repository", head_branch="main")
+        self.assertEqual((value["base_remote"], value["head_remote"]), ("origin", "origin"))
+
+    def test_head_remote_accepts_multiple_push_urls_only_when_all_target_head(self):
+        self.git(self.external, "remote", "set-url", "--push", "origin", "https://github.com/contributor/repository.git")
+        self.git(self.external, "remote", "set-url", "--push", "--add", "origin", "ssh://git@github.com/contributor/repository")
+        value = self.good(operation="review-fix", repo="other/repository", code_root=self.external,
+                          head_repo="contributor/repository", head_branch="main")
+        self.assertEqual((value["base_remote"], value["head_remote"]), ("origin", "origin"))
+
+    def test_head_remote_rejects_mixed_fetch_url_fallback_destinations(self):
+        # With no pushurl, Git can use more than the first configured fetch URL.
+        self.git(self.external, "remote", "set-url", "--add", "origin", "https://github.com/wrong/repository.git")
+        self.bad("effective push URLs", operation="review-fix", repo="other/repository", code_root=self.external,
+                 head_repo="other/repository", head_branch="main")
+
+    def test_head_remote_uses_effective_push_instead_of_rewrite(self):
+        self.git(self.external, "config", "url.ssh://git@github.com/contributor/.pushInsteadOf", "https://github.com/other/")
+        value = self.good(operation="review-fix", repo="other/repository", code_root=self.external,
+                          head_repo="contributor/repository", head_branch="main")
+        self.assertEqual((value["base_remote"], value["head_remote"]), ("origin", "origin"))
+
     def test_github_remote_formats_and_pr_url_normalize(self):
         for url in (ORIGIN, f"https://github.com/{SELF}/", f"https://github.com/{SELF}.git/",
                     f"git@github.com:{SELF}.git", f"ssh://git@github.com/{SELF}", f"ssh://git@github.com/{SELF}.git/"):

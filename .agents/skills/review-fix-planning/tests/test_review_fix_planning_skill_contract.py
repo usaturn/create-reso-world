@@ -403,3 +403,28 @@ def test_fix_initial_planning_does_not_confuse_pr_branch_metadata_with_head_vali
     result = run_fix_context(git_context, context_shell, HEAD_BRANCH="pr/topic", HEAD_REPO="")
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["head_remote"] is None
+
+
+@pytest.mark.parametrize("case", ["split", "wrong-single", "mixed", "duplicate", "fallback"])
+def test_fix_context_validates_effective_push_destinations(git_context, context_shell, case):
+    # A fetch-matching remote with an unsafe pushurl must stop before mutation.
+    _, code, _, git, _ = git_context
+    if case == "split":
+        git(code, "remote", "set-url", "--push", "base", "https://github.com/contributor/repository.git")
+        git(code, "remote", "set-url", "--push", "origin", "https://github.com/wrong/repository.git")
+    elif case == "wrong-single":
+        git(code, "remote", "set-url", "--push", "origin", "https://github.com/wrong/repository.git")
+    elif case == "mixed":
+        git(code, "remote", "set-url", "--push", "origin", "git@github.com:contributor/repository.git")
+        git(code, "remote", "set-url", "--push", "--add", "origin", "ssh://git@example.com/contributor/repository.git")
+    elif case == "duplicate":
+        git(code, "remote", "set-url", "--push", "base", "https://github.com/contributor/repository.git")
+    result = run_fix_context(git_context, context_shell, cwd=code, HEAD_REPO="contributor/repository", HEAD_BRANCH="main")
+    if case in ("split", "fallback"):
+        assert result.returncode == 0, result.stderr
+        value = json.loads(result.stdout)
+        assert value["base_remote"] == "base"
+        assert value["head_remote"] == ("base" if case == "split" else "origin")
+    else:
+        assert result.returncode == 66, result.stdout
+        assert "effective push URLs" in result.stderr

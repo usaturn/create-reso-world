@@ -140,6 +140,30 @@ def select_remote(checkout: Checkout, repository: str, *, label: str = "CODE_ROO
     return matches[0]
 
 
+def select_push_remote(checkout: Checkout, repository: str) -> str:
+    """Require one remote name whose *every* effective push URL targets head."""
+    matches = []
+    push_urls = {}
+    for name in checkout.remotes:
+        # Git applies pushurl, fetch-URL fallback and pushInsteadOf expansion.
+        urls = _git(checkout.root, "remote", "get-url", "--push", "--all", name).splitlines()
+        push_urls[name] = urls
+        repositories = []
+        for url in urls:
+            try:
+                repositories.append(normalize_github_url(url))
+            except ContextError:
+                repositories.append(None)
+        if repositories and all(target == repository for target in repositories):
+            matches.append(name)
+    if len(matches) != 1:
+        raise ContextError(
+            f"CODE_ROOT head remote {checkout.root} has {len(matches)} remotes whose effective push URLs "
+            f"all target {repository}; exactly one is required; effective push URLs: {push_urls!r}"
+        )
+    return matches[0]
+
+
 def resolve_context(
     operation: str, *, parent_root: str | Path | None = None, doc_root: str | Path | None = None,
     code_root: str | Path | None = None, repo: str = DOCUMENT_REPOSITORY,
@@ -218,7 +242,7 @@ def resolve_context(
     if head_repo or head_branch:
         if operation != "review-fix" or not head_repo or not head_branch:
             raise ContextError("head validation requires review-fix with both --head-repo and --head-branch")
-        context["head_remote"] = select_remote(code, parse_repository(head_repo), label="CODE_ROOT head remote")
+        context["head_remote"] = select_push_remote(code, parse_repository(head_repo))
         if code.branch != head_branch:
             raise ContextError(f"CODE_ROOT branch is {code.branch!r}, not requested head branch {head_branch!r}: {code.root}")
     return context
