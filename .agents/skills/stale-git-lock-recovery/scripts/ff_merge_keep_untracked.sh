@@ -17,8 +17,9 @@
 # git would also remove untracked or ignored content that cannot be put back
 # in place: files under a directory where <rev> adds a file, a file or symlink
 # where <rev> adds a submodule or needs a directory, an untracked nested
-# repository that <rev> adds files into, a file inside a submodule's checkout
-# that <rev> turns into a plain directory, or the checkout of a submodule
+# repository that <rev> adds files into, anything inside a submodule's
+# checkout on a path that <rev> adds after turning the submodule into a plain
+# directory, or the checkout of a submodule
 # that <rev> turns into a file or removes together with a directory it puts
 # a file in place of. The script refuses to run then and lists those paths,
 # so they can be moved away first.
@@ -33,8 +34,9 @@
 #   0  fast-forwarded (or already up to date) and every file was restored
 #   1  the run did not complete: no fast-forward was possible, some paths
 #      must be moved away first, the fast-forward failed, a file could not be
-#      restored, or the run was interrupted. stderr says which, and whether
-#      HEAD moved; the backup directory still holds the originals
+#      restored, or the run was interrupted. stderr says which. Once files
+#      were backed up, stderr also says whether HEAD moved, and the backup
+#      directory still holds the originals
 #   2  usage error, not a git work tree, or unknown <rev>
 
 set -u
@@ -97,6 +99,18 @@ restore_all() {
 # also match the files under a directory of that name.)
 in_index() {
   git rev-parse -q --verify ":0:$1" >/dev/null 2>&1
+}
+
+# Does this directory hold anything? Uses a glob, not find, so that a name
+# starting with "-" cannot be taken for an option; a directory that cannot
+# be listed counts as holding something.
+has_entries() {
+  [ -r "$1" ] && [ -x "$1" ] || return 0
+  (
+    shopt -s nullglob dotglob
+    set -- "$1"/*
+    [ "$#" -gt 0 ]
+  )
 }
 
 # Paths that the target commit adds to HEAD, NUL-separated. diff-tree is
@@ -243,8 +257,8 @@ main() {
   # - walking each added path from the top down to the first component that
   #   is not a plain directory: a file or symlink that is not in the index, a
   #   nested repository that is not a submodule in the index, or, inside a
-  #   submodule's checkout (which git leaves in place and writes into), any
-  #   file or symlink on the way or on the added path itself;
+  #   submodule's checkout (which git leaves in place and writes into), a
+  #   file or symlink on the way, or anything on the added path itself;
   # - a submodule that <rev> turns into a file or symlink, if its checkout
   #   holds anything (git removes the checkout as a whole).
   local added dir rest entry module
@@ -261,7 +275,7 @@ main() {
       case "$entry" in
         "160000 "*)
           module="${entry#*$'\t'}"
-          if [ -d "$module" ] && [ -n "$(find "$module" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+          if [ -d "$module" ] && has_entries "$module"; then
             blocked+=("$module/")
           fi
           ;;
@@ -301,8 +315,7 @@ main() {
     fi
   done <"$backup/added"
   while IFS= read -r -d '' added; do
-    if [ -d "$added" ] && [ ! -L "$added" ] &&
-      [ -n "$(find "$added" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+    if [ -d "$added" ] && [ ! -L "$added" ] && has_entries "$added"; then
       blocked+=("$added/")
     fi
   done <"$backup/replaced-submodules"

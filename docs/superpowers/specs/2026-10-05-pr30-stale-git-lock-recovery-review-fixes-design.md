@@ -150,6 +150,8 @@ cwd に依存せず、`path` などの zsh の特殊変数を貼り付け用ス�
 | R-39（8 回目の再レビュー F-1、Low） | R-37 は追加パスそのものしか見ておらず、submodule の checkout 内で途中の構成要素にある ignore 対象のファイル（`sub/x.log` に対する `sub/x.log/y` の追加）を git が消す | submodule の checkout に入った後も構成要素をたどり、途中や追加パスにあるファイル・symlink を拒否するようにした |
 | R-40（8 回目の再レビュー F-2、Low〜Medium） | `<rev>` が submodule をファイルに置き換える型変更（T）では、git が checkout をまるごと消し、中の未追跡ファイルも失われる | `git diff-tree --raw` から旧 mode が 160000 の型変更を取り出し、その checkout に中身があれば、何も変えずに exit 1 で表示するようにした。checkout が空なら（未初期化の submodule）従来どおり ff する |
 | R-41（9 回目の再レビュー F-1、Low〜Medium） | submodule `a/sub` を含むディレクトリ `a` を `<rev>` がファイルにすると（削除＋追加なので R-40 に掛からず、`git ls-files --others` も submodule の中を見ない）、git が checkout ごと消す | ファイルを置くパスのディレクトリについて、index 上の submodule（`git ls-files -s` の mode 160000）を調べ、checkout に中身があれば何も変えずに exit 1 で表示するようにした。未初期化なら従来どおり ff する |
+| R-42（10 回目の再レビュー F-1、Low〜Medium） | パスの先頭が `-` だと、checkout の中身を調べる `find` がそれを式として扱って失敗し、エラーを「空」とみなして R-40 / R-41 の拒否をすり抜ける | `find` をやめ、bash の glob（`nullglob` と `dotglob`）でディレクトリの中身を調べるようにした。読めないディレクトリは中身ありとして拒否する。先頭が `-` の submodule で確かめるテストを追加した（`git submodule add` はそのようなパスを扱えないため、テストでは gitlink を index に直接登録する） |
+| R-43（10 回目の再レビュー I-1・I-2、Info） | 文書が R-37 / R-39 の拒否範囲（追加パスにあるディレクトリも拒否する）と、exit 1 で退避先が残る条件を正確に書いていない | SKILL.md・ヘッダ・コード内のコメントを動作に合わせた |
 
 ## 同じ原因の関連箇所（PR 差分外の確認）
 

@@ -653,8 +653,19 @@ def test_ignored_file_in_a_submodule_turned_into_a_directory_stops_the_run(
     assert (behind / "vendor" / "lib" / "run.log").read_text(encoding="utf-8") == "precious local log\n"
 
 
-def submodule_on_both_sides(behind: Path, tmp_path: Path) -> Path:
-    """Commit a submodule "sub" with a tracked file "t" and check it out in both clones."""
+def add_gitlink(work: Path, library: Path, path: str) -> None:
+    """Check out ``library`` at ``path`` and record it as a gitlink.
+
+    git submodule add cannot take a path starting with "-", so the gitlink
+    is written to the index directly; the script only looks at the index.
+    """
+    subprocess.run(["git", "clone", "-q", str(library), str(work / path)], check=True, capture_output=True)
+    sha = git(library, "rev-parse", "HEAD").strip()
+    git(work, "update-index", "--add", "--cacheinfo", f"160000,{sha},{path}")
+
+
+def submodule_on_both_sides(behind: Path, tmp_path: Path, name: str = "sub") -> Path:
+    """Commit a submodule ``name`` with a tracked file "t" and check it out in both clones."""
     library = tmp_path / "library"
     subprocess.run(["git", "init", "-q", str(library)], check=True)
     configure(library)
@@ -666,16 +677,11 @@ def submodule_on_both_sides(behind: Path, tmp_path: Path) -> Path:
         git(tree, "pull", "-q", "--ff-only")
     (behind / ".gitignore").write_text("*.log\n", encoding="utf-8")
     git(behind, "add", ".gitignore")
-    subprocess.run(
-        ["git", "-C", str(behind), "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(library), "sub"],
-        check=True,
-        capture_output=True,
-    )
+    add_gitlink(behind, library, name)
     git(behind, "commit", "-qm", "submodule")
     git(behind, "push", "-q", "origin", "HEAD:main")
     git(upstream, "pull", "-q", "--ff-only")
-    git(upstream, "rm", "-q", "--cached", "sub")
-    git(upstream, "rm", "-q", ".gitmodules")
+    git(upstream, "rm", "-q", "--cached", "--", name)
     return upstream
 
 
@@ -697,22 +703,24 @@ def test_ignored_file_on_the_way_inside_a_submodule_turned_into_a_directory_stop
     assert (behind / "sub" / "x.log").read_text(encoding="utf-8") == "precious\n"
 
 
+@pytest.mark.parametrize("name", ["sub", "-sub"])
 def test_submodule_turned_into_a_file_stops_the_run_while_its_checkout_has_content(
-    behind: Path, tmp_path: Path
+    behind: Path, tmp_path: Path, name: str
 ) -> None:
-    # git removes the whole checkout when a submodule becomes a file.
-    upstream = submodule_on_both_sides(behind, tmp_path)
-    if (upstream / "sub").is_dir():
-        (upstream / "sub").rmdir()
-    push_upstream(behind, {"sub": "now a file\n"})
-    (behind / "sub" / "notes.txt").write_text("precious\n", encoding="utf-8")
+    # git removes the whole checkout when a submodule becomes a file. A name
+    # starting with "-" must not be taken for an option on the way.
+    upstream = submodule_on_both_sides(behind, tmp_path, name)
+    if (upstream / name).is_dir():
+        (upstream / name).rmdir()
+    push_upstream(behind, {name: "now a file\n"})
+    (behind / name / "notes.txt").write_text("precious\n", encoding="utf-8")
     head = git(behind, "rev-parse", "HEAD").strip()
 
     result = run_script("--repo", str(behind), "--ref", "origin/main")
     assert result.returncode == 1, (result.stdout, result.stderr)
-    assert "  sub/" in result.stderr
+    assert f"  {name}/" in result.stderr
     assert git(behind, "rev-parse", "HEAD").strip() == head
-    assert (behind / "sub" / "notes.txt").read_text(encoding="utf-8") == "precious\n"
+    assert (behind / name / "notes.txt").read_text(encoding="utf-8") == "precious\n"
 
 
 def test_submodule_turned_into_a_file_fast_forwards_when_its_checkout_is_empty(
@@ -722,16 +730,17 @@ def test_submodule_turned_into_a_file_fast_forwards_when_its_checkout_is_empty(
     if (upstream / "sub").is_dir():
         (upstream / "sub").rmdir()
     push_upstream(behind, {"sub": "now a file\n"})
-    git(behind, "submodule", "deinit", "-q", "-f", "sub")
-    assert not any((behind / "sub").iterdir())
+    # An uninitialized submodule leaves an empty directory.
+    shutil.rmtree(behind / "sub")
+    (behind / "sub").mkdir()
 
     result = run_script("--repo", str(behind), "--ref", "origin/main")
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert (behind / "sub").read_text(encoding="utf-8") == "now a file\n"
 
 
-def submodule_under_a_directory_replaced_by_a_file(behind: Path, tmp_path: Path) -> None:
-    """HEAD has the submodule a/sub; origin/main removes it and adds the file "a"."""
+def submodule_under_a_directory_replaced_by_a_file(behind: Path, tmp_path: Path, parent: str = "a") -> None:
+    """HEAD has the submodule <parent>/sub; origin/main removes it and adds the file <parent>."""
     library = tmp_path / "library"
     subprocess.run(["git", "init", "-q", str(library)], check=True)
     configure(library)
@@ -741,37 +750,37 @@ def submodule_under_a_directory_replaced_by_a_file(behind: Path, tmp_path: Path)
     upstream = behind.parent / "upstream"
     for tree in (behind, upstream):
         git(tree, "pull", "-q", "--ff-only")
-    subprocess.run(
-        ["git", "-C", str(behind), "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(library), "a/sub"],
-        check=True,
-        capture_output=True,
-    )
-    git(behind, "commit", "-qm", "submodule under a")
+    add_gitlink(behind, library, f"{parent}/sub")
+    git(behind, "commit", "-qm", "submodule under a directory")
     git(behind, "push", "-q", "origin", "HEAD:main")
     git(upstream, "pull", "-q", "--ff-only")
-    git(upstream, "rm", "-q", "--cached", "a/sub")
-    git(upstream, "rm", "-q", ".gitmodules")
-    shutil.rmtree(upstream / "a")
-    push_upstream(behind, {"a": "now a file\n"})
+    git(upstream, "rm", "-q", "--cached", "--", f"{parent}/sub")
+    shutil.rmtree(upstream / parent)
+    push_upstream(behind, {parent: "now a file\n"})
 
 
-def test_submodule_inside_a_directory_replaced_by_a_file_stops_the_run(behind: Path, tmp_path: Path) -> None:
-    submodule_under_a_directory_replaced_by_a_file(behind, tmp_path)
-    (behind / "a" / "sub" / "untracked.txt").write_text("precious\n", encoding="utf-8")
+@pytest.mark.parametrize("parent", ["a", "-a"])
+def test_submodule_inside_a_directory_replaced_by_a_file_stops_the_run(
+    behind: Path, tmp_path: Path, parent: str
+) -> None:
+    submodule_under_a_directory_replaced_by_a_file(behind, tmp_path, parent)
+    (behind / parent / "sub" / "untracked.txt").write_text("precious\n", encoding="utf-8")
     head = git(behind, "rev-parse", "HEAD").strip()
 
     result = run_script("--repo", str(behind), "--ref", "origin/main")
     assert result.returncode == 1, (result.stdout, result.stderr)
-    assert "  a/sub/" in result.stderr
+    assert f"  {parent}/sub/" in result.stderr
     assert git(behind, "rev-parse", "HEAD").strip() == head
-    assert (behind / "a" / "sub" / "untracked.txt").read_text(encoding="utf-8") == "precious\n"
+    assert (behind / parent / "sub" / "untracked.txt").read_text(encoding="utf-8") == "precious\n"
 
 
 def test_empty_submodule_inside_a_directory_replaced_by_a_file_fast_forwards(
     behind: Path, tmp_path: Path
 ) -> None:
     submodule_under_a_directory_replaced_by_a_file(behind, tmp_path)
-    git(behind, "submodule", "deinit", "-q", "-f", "a/sub")
+    # An uninitialized submodule leaves an empty directory.
+    shutil.rmtree(behind / "a" / "sub")
+    (behind / "a" / "sub").mkdir()
 
     result = run_script("--repo", str(behind), "--ref", "origin/main")
     assert result.returncode == 0, (result.stdout, result.stderr)
