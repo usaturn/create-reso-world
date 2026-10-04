@@ -26,6 +26,20 @@ source "${PI_SUPERAGENTS_HELPER}"
 
 pi_openai_codex_require_oauth || exit 1
 
+#
+# Compatibility with the environment variable used by an older setup.
+#
+if [[ -z "${OPENCODE_API_KEY:-}" && -n "${OPENCODE_GO_API_KEY:-}" ]]; then
+    export OPENCODE_API_KEY="${OPENCODE_GO_API_KEY}"
+fi
+
+#
+# cheap tier の子 Pi は opencode-go/deepseek-v4.1-flash を使う。
+# opencode-go の資格情報は auth.json の api_key または OPENCODE_API_KEY で
+# 解決されるため、pigo / pigod / pixg と同じく起動前の認証チェックは
+# 行わない。親 Pi と balanced / max tier は openai-codex のままなので、
+# 上の Codex OAuth チェックは維持する。
+#
 pi_superagents_exec pigs \
     --provider openai-codex \
     --model gpt-6.1-sol \

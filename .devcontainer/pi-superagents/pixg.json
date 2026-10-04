@@ -1,8 +1,8 @@
 {
   "superagents": {
     "modelTiers": {
-      "cheap": { "model": "openai-codex/gpt-6-luna", "thinking": "xhigh" },
-      "balanced": { "model": "xai/grok-4.7", "thinking": "high" },
+      "cheap": { "model": "opencode-go/deepseek-v4.1-flash", "thinking": "max" },
+      "balanced": { "model": "opencode-go/deepseek-v4.1-flash", "thinking": "max" },
       "max": { "model": "xai/grok-4.7", "thinking": "xhigh" }
     }
   }

@@ -340,15 +340,22 @@ provider が `opencode-go` のモデルへ `x-opencode-session` と
 | `pigs` | `openai-codex/gpt-6.1-sol` |
 | `pigl` | `openai-codex/gpt-6-luna` |
 
-3 つとも ChatGPT Pro サブスクリプションの Codex OAuth 認証を使う。
+3 つとも親 Pi は ChatGPT Pro サブスクリプションの Codex OAuth 認証を使う。
 `OPENAI_API_KEY` は不要で、OpenAI API のキー課金用 provider には接続しない。
 初回だけ素の `pi` を起動して `/login openai-codex` を実行し、ログインする。
 OAuth 情報は `~/.pi/agent/auth.json` に保存される。`~/.pi` は Dev Container に bind mount
 されているため、リビルド後もログイン状態を保持する。認証は対話操作が必要で、
 `postCreateCommand` から自動ログインしない。未認証のままランチャーを起動した
 場合は、このログイン手順を表示して終了する。
+`pigs` の `cheap` tier の子 Pi は OpenCode Go の `deepseek-v4.1-flash` を
+使う。子 Pi が使う OpenCode Go の資格情報は `setup_pi_opencode_go.zsh` が
+`auth.json` に書いた api_key または `OPENCODE_API_KEY` で解決され、`pigo`・`pigod` と
+同じく起動前の確認は行わない。旧名の `OPENCODE_GO_API_KEY` だけが設定されている場合は、
+ランチャーが `OPENCODE_API_KEY` に引き継いでから起動する。`auth.json` に資格情報が無い環境では
+`cheap` tier の子 Pi が provider 認証エラーになるため、必要なら `OPENCODE_API_KEY` を
+設定して `zsh .devcontainer/setup_pi_opencode_go.zsh` を実行する。
 
-GPT-6.1 Sol / GPT-6 Luna のため Pi 0.87.1 以上が必要。利用前に `pi --version` を確認し、
+GPT-6.1 Sol のため Pi 0.99.1 以上が必要（GPT-6 Astra / Luna もこの版に含まれる）。利用前に `pi --version` を確認し、
 ログイン後に各モデルが `openai-codex` 行にあることを確認する。
 
 ```bash
@@ -362,7 +369,8 @@ pi --list-models gpt-6-luna
 表示するため、未認証時には Pi がモデル定義を持っていても `openai-codex` 行は
 表示されない。3 ランチャーは `--thinking xhigh` で起動する。子 Pi の
 `cheap` / `balanced` / `max` tier はランチャーごとに GPT-6 Luna / GPT-6.1 Sol /
-GPT-6 Astra を割り当てる（下表を参照）。ログイン済みの環境では、次のテストでも Pi の版と
+GPT-6 Astra を割り当てる（`pigs` の `cheap` だけは OpenCode Go の
+`deepseek-v4.1-flash`。後述の tier の表を参照）。ログイン済みの環境では、次のテストでも Pi の版と
 3 モデルを検証できる。
 
 ```bash
@@ -375,35 +383,36 @@ PI_CODEX_LIVE_CHECK=1 bash .devcontainer/test-pi-openai-codex.bash
 |---|---|
 | `pixg` | `xai/grok-4.7` |
 
-`pixg` の親 Pi と `balanced` / `max` tier は SuperGrok または X Premium
-サブスクリプションの xAI OAuth 認証を使い、`cheap` tier の子 Pi は
-OpenAI Codex OAuth 認証で GPT-6 Luna を使う。`XAI_API_KEY` は不要で、
-xAI API のキー課金には接続しない。
+`pixg` の親 Pi と `max` tier は SuperGrok または X Premium
+サブスクリプションの xAI OAuth 認証を使い、`cheap` / `balanced` tier の
+子 Pi は OpenCode Go の `deepseek-v4.1-flash` を使う。`XAI_API_KEY` は
+不要で、xAI API のキー課金には接続しない。OpenAI Codex の認証も使わない。
 初回だけ素の `pi` を起動して `/login xai` を実行し、
-`Sign in with SuperGrok or X Premium` からログインした後、
-`/login openai-codex` も実行する。両プロバイダの OAuth 情報は
+`Sign in with SuperGrok or X Premium` からログインする。OAuth 情報は
 `~/.pi/agent/auth.json` に保存される。`~/.pi` は Dev Container に bind mount
 されているため、リビルド後もログイン状態を保持する。認証は対話操作が必要で、
-`postCreateCommand` から自動ログインしない。いずれかが未認証なら、
-`pixg` は xAI、OpenAI Codex の順に認証を確認し、最初に見つかった
-未認証プロバイダのログイン手順だけを表示して起動前に終了する。
+`postCreateCommand` から自動ログインしない。xAI が未認証なら、
+`pixg` はログイン手順を表示して起動前に終了する。
+子 Pi が使う OpenCode Go の資格情報は `setup_pi_opencode_go.zsh` が
+`auth.json` に書いた api_key または `OPENCODE_API_KEY` で解決され、`pigo`・`pigod` と
+同じく起動前の確認は行わない。旧名の `OPENCODE_GO_API_KEY` の扱いは `pigs` と同じである。
 
-Grok 4.7 と GPT-6 Luna は Pi の組み込みカタログにあるため、`pi-models.json`
-への定義追加は不要である。両方ログインした後、それぞれのモデルを確認する。
+Grok 4.7 と DeepSeek V4.1 Flash は Pi の組み込みカタログにあるため、
+`pi-models.json` への定義追加は不要である。ログイン後にそれぞれのモデルを
+確認する。
 
 ```bash
 pi --list-models xai
-pi --list-models gpt-6-luna
+pi --list-models deepseek-v4.1-flash
 ```
 
 モデル行が無い場合は Pi を更新する。`pi --list-models` は利用可能なモデルを
 表示するため、未認証時には Pi がモデル定義を持っていても該当する
 プロバイダの行は表示されない。`pixg` は `--thinking xhigh` で起動する。
 Grok 4.7 の thinking level は `low` / `medium` / `high` / `xhigh` で、
-`xhigh` が実際の最大値である。子 Pi は `cheap` が
-`openai-codex/gpt-6-luna` の `xhigh`、`balanced` が `xai/grok-4.7` の
-`high`、`max` が `xai/grok-4.7` の `xhigh` を使う。未認証時に別モデルへ
-自動フォールバックはしない。
+`xhigh` が実際の最大値である。子 Pi は `cheap` / `balanced` が
+`opencode-go/deepseek-v4.1-flash` の `max`、`max` が `xai/grok-4.7` の
+`xhigh` を使う。未認証時に別モデルへ自動フォールバックはしない。
 
 ### pi-distill の分離（Main / Distillation）
 
@@ -505,6 +514,38 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
   ランチャがエラーメッセージを出して終了する。キーは
   `https://commandcode.ai/settings/keys` で作成する
 
+### pi の TUI モードと Herdr のスクロール履歴
+
+Pi 1.0.0 から、対話 TUI の既定モードは `fullscreen` になった。このモードは
+代替画面を使って会話履歴を Pi 内で管理するため、Herdr の通常のスクロール履歴に
+過去の出力が残らず、コピーモードでさかのぼれない。
+
+このリポジトリが管理する `pigo`・`pigod`・`pigou`・`piccg`・`piccd`・`piga`・
+`pigs`・`pigl`・`pixg` は、共通ヘルパ `pi-superagents-exec.zsh` から
+`pi --tui-mode regular` を起動する。regular は通常画面と端末のスクロール履歴を
+使うため、画面高を超えた出力も Herdr のコピーモードで読める。
+利用者／プロジェクトの `settings.json` は書き換えず、起動引数で指定する。
+provider・model・thinking・認証確認・ランチャー別設定の分離は従来どおりで、
+`--resume`・`--session`・メッセージなどの追加引数もそのまま転送する。
+この指定はランチャーの既定値なので、追加引数に `--tui-mode fullscreen` を指定した
+場合はその指定が優先される。素の `pi` の既定モードには影響しない。
+
+Dev Container の初期化／リビルドでは `install_beforehand.bash` が全ランチャーを
+配置し、`setup_pi_superagents.zsh --if-absent` が共通ヘルパを更新する。
+`--if-absent` は既存のランチャー別 tier 設定を保持するが、共通ヘルパは毎回
+更新する。リビルドしない既存環境では、リポジトリのルートで次を実行してから
+ランチャーを起動し直す。
+
+```bash
+zsh .devcontainer/setup_pi_superagents.zsh --if-absent
+```
+
+`pigs`・`pixg` の tier の変更（後述）を既存環境に反映するには、`--if-absent` を付けずに
+`zsh .devcontainer/setup_pi_superagents.zsh` を実行する（変更のある設定はバックアップされる）。
+`pigs`・`pixg` の認証の確認の変更はランチャー自体にあり、リビルドで `~/.local/bin` に
+置き直される。リビルドしない場合は `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
+（`pixg` も同様）で置き直す。
+
 ### pi-superagents のランチャー別 model tier
 
 `@teelicht/pi-superagents` は Superpowers の Plan を Pi 自身の子プロセスで実行する拡張で、子 Pi のモデルを `cheap` / `balanced` / `max` の 3 tier で選ぶ。tier の定義は拡張が `~/.pi/agent/extensions/subagent/config.json` から読むが、このパスは拡張のソースに直接書かれており、環境変数による切り替えができない。
@@ -527,13 +568,15 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
 | `piccg` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` |
 | `piccd` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` | `commandcode/deepseek/deepseek-v4.1-flash` |
 | `piga` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6-astra` |
-| `pigs` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
+| `pigs` | `opencode-go/deepseek-v4.1-flash` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
 | `pigl` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
-| `pixg` | `openai-codex/gpt-6-luna` | `xai/grok-4.7` | `xai/grok-4.7` |
+| `pixg` | `opencode-go/deepseek-v4.1-flash` | `opencode-go/deepseek-v4.1-flash` | `xai/grok-4.7` |
 
-`piga` / `pigs` の子 Pi は `cheap` / `balanced` が `xhigh`、`max` が `max`、
-`pigl` の子 Pi は全 tier が `xhigh`。`pixg` の子 Pi は Luna の `cheap` と
-Grok の `max` が `xhigh`、Grok の `balanced` が `high`。
+`pigo`・`pigod`・`pigou`・`piccg`・`piccd` の子 Pi は全 tier が `max`。
+`piga` の子 Pi は `cheap` / `balanced` が `xhigh`、`max` が `max`。
+`pigs` の子 Pi は `cheap` が `max`、`balanced` が `xhigh`、`max` が `max`。
+`pigl` の子 Pi は全 tier が `xhigh`。`pixg` の子 Pi は DeepSeek の
+`cheap` / `balanced` が `max`、Grok の `max` が `xhigh`。
 tier を変更するときは、リポジトリの `.devcontainer/pi-superagents/<launcher>.json` を編集してから次を実行する。`install_beforehand.bash` は既存の設定を保持するため、rebuild だけでは反映されない。
 
 ```bash
