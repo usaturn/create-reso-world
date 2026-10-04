@@ -41,7 +41,9 @@
 
 初回や設定の変更後に、次の点に注意する。
 
-- Codex: プロジェクトを信頼（trust）すると、`.codex/config.toml` の MCP の設定（context7）が読まれる。初回の起動時に承認する。
+- Codex: プロジェクトを信頼（trust）すると、`.codex/config.toml` の MCP サーバー（`context7_stdio`）が読まれる。初回の起動時に承認する。
+  ユーザー設定の `context7` が HTTP 接続でも、stdio 接続の設定と混ざらないよう別名にしている。
+  ユーザー側にも `context7` がある場合は、両方が独立したサーバーとして読み込まれる。ユーザー設定は変更しない。
 - cursor-agent: `.cursor/mcp.json` の MCP サーバーは、初回に承認を求められる。
 - Devin: `.claude/skills` の symlink 経由で同じスキルが見えても、一覧には 1 回だけ表示される（`.devin/config.json` は置かない）。
 - Cursor と dsh: スキルの一部が見えない。詳細は `.devcontainer/README.md` の「エージェントの読み込みの制約」。

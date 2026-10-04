@@ -10,10 +10,23 @@ import json
 import tomllib
 
 codex = tomllib.load(open(".codex/config.toml", "rb"))
-c7 = codex["mcp_servers"]["context7"]
+# ユーザー設定の context7（HTTP）と、プロジェクト設定（stdio）を同名でマージさせない。
+assert "context7" not in codex["mcp_servers"], "project MCP must not reuse the user-level context7 name"
+c7 = codex["mcp_servers"]["context7_stdio"]
 assert c7["command"] == "npx", c7
 assert c7["args"] == ["-y", "@upstash/context7-mcp"], c7
 assert c7.get("env_vars") == ["CONTEXT7_API_KEY"], c7
+
+user_http = {"url": "https://mcp.context7.com/mcp", "bearer_token_env_var": "CONTEXT7_API_KEY"}
+merged_servers = {"context7": dict(user_http)}
+# 今回の設定はサーバー直下に項目が並ぶため、項目ごとのマージで Codex の挙動を再現する。
+for name, server in codex["mcp_servers"].items():
+    merged_servers.setdefault(name, {}).update(server)
+assert merged_servers["context7"] == user_http, merged_servers
+assert merged_servers["context7_stdio"] == c7, merged_servers
+for server in merged_servers.values():
+    if "command" in server:
+        assert "url" not in server and "bearer_token_env_var" not in server, server
 
 cursor = json.load(open(".cursor/mcp.json", encoding="utf-8"))
 cc7 = cursor["mcpServers"]["context7"]
