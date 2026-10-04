@@ -1,40 +1,70 @@
-# PR #27 pi 移行の追加修正 Implementation Plan
+# PR #27 pi Migration JSON Safety Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan. Steps use checkbox syntax for tracking.
+- 文書管理／対象リポジトリ: `usaturn/create-reso-world`
+- 対象Issue／PR: #19／#27
+- 検証コードHEAD: `26d8b1ca757179b9b9c3b406728f1fa1e700d664`
+- 状態: completed（実装・独立レビュー・検証を完了。具体的な実行許可はSpecに記録し、コミットだけでapprovedにはしない）
+- 今回更新するPlan: `docs/superpowers/plans/2026-10-04-pr27-pi-migration-round2-review-fixes.md`。従来版はGitの`26d8b1c`から参照する。
 
-**Goal:** 再現済みの5件を回帰テストで固定し、利用者設定と保持対象を失わずに移行する。
-**Architecture:** 既存 cleanup の metadata 読込み・npm source 判定・子環境を最小修正し、既存 zsh setup に失敗伝播と限定したパス展開を加える。
-**Tech Stack:** Python unittest、zsh、実 npm のオフライン fixture。
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. Steps use checkbox syntax. User already authorized recommended fixes and push; no second approval stop. Only controller commits and publishes, as one cohesive commit after review and verification.
+
+**Goal:** Prevent partial pi migration and loss/corruption of unrelated settings/models on numeric, Unicode, lockfile and repeated-setup edge cases.
+**Architecture:** Extend preflight and share a small strict JSON utility between cleanup and existing provider setup writers. Preserve existing pi/npm removal and provider-selection policies. Keep model-save staging and backups safe without introducing a new subsystem.
+**Tech Stack:** Python stdlib, zsh, unittest, real offline npm/pi, uv.
 **Spec:** `docs/superpowers/specs/2026-10-04-pr27-pi-migration-round2-review-fixes-design.md`
 
 ## Global Constraints
 
-- 対象は `.devcontainer/cleanup_pi_mcp.py`、`.devcontainer/setup_pi.zsh`、`.devcontainer/tests/fake_pi_packages.py`、`.devcontainer/tests/test_pi_mcp_cleanup.py` と今回の文書のみ。
-- 既存安全策、バックアップ、mode、独自設定・認証・MCP保持を維持する。
-- 実認証・ネット接続・利用者の実 agent directory は使用しない。uv で Python を実行する。`.devcontainer/` の既存 bootstrap の python3 は許可された例外として維持する。
-- scratch・TMPDIR・ログは controller 指定の一時 root 配下に置く。source/test は隔離 worktree 内のみ変更する。
-- サブエージェントは commit/push/Issue更新/他エージェント起動を行わない。controller がレビュー・検証後に1コミットで既存 PR の head に反映する。
+- No pr-review, real credentials, actual user configuration, registry or external API mutation.
+- Preserve cleanup path/link/hardlink safety, unrelated settings/providers/auth/native MCP, original-byte backups, file modes and clean rerun bytes.
+- Unsupported numeric tokens must stop cleanup before backup, pi calls or state unlink. Valid escaped surrogates must round-trip, not be rejected.
+- Exact `~` and `~/` only are HOME-expanded; no eval or other-user expansion.
+- No arbitrary npm lockfile edits. Detect target-containing shadowed package-lock with shrinkwrap and explain reconciliation before mutation.
+- Keep DeepInfra cp failure propagation and auth mode 0600/no auth backup. Existing model-save failure and validation guards remain effective.
+- Only controller manages refs, commits, pushes and PR/Issue updates. Do not merge after fixes. No force push or second PR.
+- All scratch/logs belong to the plan's isolated workspace/temporary parent; all subprocesses are synchronous and awaited.
 
 ## Review Focus
 
-- JS trim が受理する U+FEFF と scoped/pinned source を漏らさず、類似名を削除しない。
-- 不正 JSON が4マニフェストのどこにあっても pi 呼出し・バックアップ・状態変更の前に停止する。
-- npm の env と prefix `.npmrc` の omit による dev/optional の巻き添え削除を実 npm で防ぐ。
-- backup の cp 失敗が成功表示や既存モデル上書きへ進まない。
-- `~/space path/agent` は HOME 配下へ書込み、cwd に文字列 `~` を作らない。
+- Integer tokens beyond Number's finite range (not merely float exponents): test cleanup and setup rejection before mutation.
+- Valid escaped surrogates in object keys, arrays and values: test parsed value equivalence and actual pi model loader.
+- Two root lockfiles where npm ignores package-lock: real npm success controls and refusal before any pi call.
+- Same-time setup and failed writes: test original backup generations/modes and live-file preservation.
+- Related provider auth/models at tilde/space paths: test expected HOME, original unrelated providers and auth, absence of cwd literal tilde.
 
-### Task 1: 入力処理と失敗伝播の回帰修正
+### Task 1: Repair the shared migration and setup JSON safety boundaries
 
-**Files:** Global Constraints の4実装/テストファイルを変更する。新しい helper、テストファイル、依存関係は不要。
-**Interfaces:** `matches(source, name)`、`read_object(path)`、`cleanup()` の呼出し方法を維持する。setup は引数を増やさず `PI_CODING_AGENT_DIR` と HOME を使用する。
+**Files:**
+- Create `.devcontainer/pi_json.py` (strict object decode + fully serialized atomic save utilities).
+- Modify `.devcontainer/cleanup_pi_mcp.py`, `.devcontainer/setup_pi.zsh`, `.devcontainer/setup_pi_opencode_go.zsh`, `.devcontainer/setup_pi_commandcode_goat.zsh`.
+- Modify `.devcontainer/tests/test_pi_mcp_cleanup.py` and relevant existing setup tests if necessary. Add focused test file/wrapper only if needed; ensure run-tests includes it.
+- Modify `.devcontainer/README.md` only to explain actionable numeric/dual-lock stop and safe setup saving/backups.
 
-- [ ] **Step 1:** 既存 fixture を使い R2-1〜R2-5 の失敗テストを追加する。名前と観測する挙動は以下のとおり。既存テストを削除・弱化しない。
-  - `test_whitespace_retired_sources_are_removed_without_resurrection`: 5対象、string/object/pinned、JS trim whitespace（U+FEFF を含む）、settings-only、KEPTと類似名保持。cleanup→offline update後も撤去済み。
-  - `test_nonstandard_json_constants_stop_before_mutation`: NaN/Infinity/-Infinity を settings と4マニフェストに置き、非ゼロ・pi呼出しなし・全元バイト列不変・cache保持。
-  - `test_real_npm_omit_preserves_retained_dependency_types`: 実 npm fixture に declared dev/optional 保持対象と撤去対象を置き、NODE_ENV=production、npm_config_omit、prefix .npmrc の各ケースで保持ファイルのバイト列・宣言を確認し撤去対象だけ消す。ネット接続しない。
-  - setup失敗テスト: 破損 models JSON、fake cp、blocked parent mkdir、Python書込み/検証の失敗を再現し、非ゼロと成功表示なしを確認する。cp失敗では元モデルのバイト列不変。
-  - setupパステスト: exact `~`、`~/`、空白入りtilde path、絶対パス、デフォルト、`~other` 非展開を隔離cwd/HOMEで確認する。独自provider保持も確認する。
-- [ ] **Step 2:** 新テストを修正前に実行し、各項目が期待するバグによって失敗することを確認する。fake identity の正常化は境界仕様に合わせるテストfixture変更として先行可能。
-- [ ] **Step 3:** 最小修正を行う。npm payload の trim は実 pi の JS trim に合わせる。非標準定数は共有読込処理で拒否し、書込みでは `allow_nan=False`。pi 子環境の `npm_config_include` は `dev\n\noptional\n\npeer` とし、改行2つが npm の array 区切りである説明を添える。setup は `set -e` と exact `~` / `~/` の HOME 展開だけを追加し eval は使わない。
-- [ ] **Step 4:** 新テストと `bash .devcontainer/test-pi-mcp-cleanup.bash` を同期実行し、全件成功を確認する。`git diff --check` と既存 safety/保持テストを確認する。実行・結果・red/green・所要時間を指定 report に記録する。
-- [ ] **Step 5:** commit せず controller へ報告する。controller が修正後の独立点検、全体bash・layout・スキルテストを行い、既知失敗を照合する。その後に1コミットで既存 PR へ push する。
+**Interfaces:**
+- `load_object(path: Path) -> dict`: UTF-8-sig strict JSON object, rejects nonstandard constants and numbers outside finite JS Number range while retaining accepted integers as int; errors include path.
+- `write_object(path: Path, data: dict) -> None`: serialize with ensure_ascii=True/allow_nan=False and newline before opening output; unique same-directory temp, preserve existing mode (new 0600), flush/replace, unlink temp on failure.
+- Cleanup retains its existing `read_object` safety/missing-file behavior, delegating decode to utility. Existing module direct-guard test uses runpy; ensure helper import works without relying on caller cwd.
+- Shell inline setup snippets locate helper from the repository model source's parent, independent of project cwd. Do not require installation of a new dependency.
+
+- [x] Step 1: Add named failing end-to-end regression tests for each R3-1 through R3-6; use raw numeric tokens, fake pi call logging, full storage snapshots and frozen-date backup fixtures. Add positive controls for finite bounds/zero/Unicode/single-lock/noop. Test invalid source and write/backup failure without weakening original guards.
+- [x] Step 2: Run only new regressions before any implementation; record expected assertion failures per repair group. Existing baseline was 58 passing. Run with `PYTHONDONTWRITEBYTECODE=1` and scratch `TMPDIR` inside isolated parent.
+- [x] Step 3: Implement strict parser and lossless serializer. Wire cleanup decode and ASCII-escaped existing settings writer, leaving its preflight checks intact. Add shadowed-lock preflight before backup/removal. Avoid automatic lock pruning.
+- [x] Step 4: Wire existing provider setup inputs and safe saves to helper; preserve current provider behavior, source validation, zsh error propagation, post-validation, and mode/no-auth-backup. Make model backups unique without removing the cp failure guard. Apply exact tilde expansion to two related setup scripts.
+- [x] Step 5: Run new tests GREEN and all existing cleanup/setup tests synchronously. Include one real pi no-prefix numeric refusal/surrogate success and real npm lock controls. Confirm model output using installed credential-blind loader/Node JSON parse, with no API connection. Run applicable bash syntax, diff checks and targeted environment scripts; leave a detailed report with commands, results, RED evidence, coverage, concerns and task timings.
+- [x] Step 6: Self-review full change and provide report. Do not commit; controller will create review packages including untracked files, obtain Task/spec-quality and final branch review, run full `.devcontainer/run-tests.bash` and layout, verify pristine main exceptions, then commit/push once.
+
+## Controller integration and publication
+
+- Use new detached implementation worktree at pinned PR HEAD; merge latest origin/main with `--no-commit --no-ff` before Task 1 so the final single commit also preserves main ancestry.
+- Read and package all owned diffs including new files. Run independent Task review with spec and quality verdicts; then final whole-branch review against fixed merge-base. Fix findings before final commit.
+- Full environment suite and direct layout, plus changed-path active LSP. Compare any known layout failure to pristine origin/main, keeping worlds/ResoLoop unchanged.
+- Fetch, verify existing remote PR HEAD has not advanced, commit merged main plus repairs once, push `HEAD:refs/heads/feat/issue-19-pi-migration` normally.
+- Upsert own existing status comment with precise model marker and all classifications/decisions/results. Record missing actual-auth/registry/rebuild checks. Since fixes were needed, keep PR and related Issues open.
+
+## Self-review
+
+All six repair groups map to Task 1 and share JSON/storage boundaries; batching avoids conflicting implementers on the same fixture. Existing guards are preserved, shadowed-lock tests distinguish intentional preflight refusal from successful single-lock migration, and no new source of truth or external dependency is introduced. Spec, signatures and tests agree. Public commit and main integration are controller-only.
+
+## 完了記録
+
+Task仕様・品質レビューの指摘（backup重複／mode）は公開前に修正し、限定再レビューとPR全体最終レビューに未解決指摘なし。controllerの最終検証は移行・setup76テスト、環境27/27スクリプト、layout、スキル408成功・1skip（最新main統合後）、実PR差分検査が成功。main `4e6f1d0`の取り込みで以前のslum03同期失敗も解消済み。公開前にさらに進んだmain `fc5c7ea`も競合なく取り込み、レビュー済みのruntime不変と全体再検証を確認した。詳細・未検証境界はSpec、公開SHAと所要時間はPRコメントに記録する。既存PRへ追加1コミットで通常pushし、今回はマージしない。

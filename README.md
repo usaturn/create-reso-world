@@ -71,7 +71,7 @@ fork の checkout は `external/resoloop`（git の追跡対象外）に置く�
 
 - 変更は作業ブランチで行い、`main` へは PR で入れる。並行作業には `.worktrees/` 配下の worktree を使う（git の追跡対象外）。
 - PR を出す前に、下の「テスト」をすべて通す。CI（`.github/workflows/ci.yml`）も push と PR のたびに同じ検査を行う。
-- 設計と実装計画は `docs/superpowers/` に置く。ローカルの下書きは `docs_draft/`（git の追跡対象外）に置く。
+- 設計と実装計画は、対象のリポジトリにかかわらず `docs/superpowers/` に置く。運用は `docs/superpowers/README.md` にある。ローカルの下書きは `docs_draft/`（git の追跡対象外）に置く。
 
 ## テスト
 

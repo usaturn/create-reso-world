@@ -46,8 +46,12 @@ echo "Pi config dir: ${PI_DIR}"
 # 3. Backup
 #
 if [[ -f "${MODELS_JSON}" ]]; then
-  BACKUP="${MODELS_JSON}.bak.$(date +%Y%m%d-%H%M%S)"
-  cp "${MODELS_JSON}" "${BACKUP}"
+  BACKUP="$(mktemp "${MODELS_JSON}.bak.$(date +%Y%m%d-%H%M%S).XXXXXX")"
+  cp -p "${MODELS_JSON}" "${BACKUP}" || {
+    code=$?
+    rm -f -- "${BACKUP}"
+    exit "$code"
+  }
   echo "Backup: ${BACKUP}"
 fi
 
@@ -58,17 +62,18 @@ fi
 # deepinfra 以外のプロバイダはそのまま保持する。
 #
 python3 - "${MODELS_JSON}" "${MODELS_SOURCE}" "${PROVIDERS[@]}" <<'PY'
-import json
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
 source = Path(sys.argv[2])
 requested = sys.argv[3:]
+sys.path.insert(0, str(source.resolve().parent))
+from pi_json import load_object, write_object
 
 try:
-    source_providers = json.loads(source.read_text()).get("providers", {})
-except json.JSONDecodeError as e:
+    source_providers = load_object(source).get("providers", {})
+except ValueError as e:
     print(f"ERROR: Invalid JSON in {source}: {e}", file=sys.stderr)
     sys.exit(1)
 
@@ -85,8 +90,8 @@ for provider in requested:
 
 if path.exists():
     try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as e:
+        data = load_object(path)
+    except ValueError as e:
         print(f"ERROR: Invalid JSON in {path}: {e}", file=sys.stderr)
         sys.exit(1)
 else:
@@ -97,9 +102,7 @@ providers = data.setdefault("providers", {})
 for provider, definition in definitions.items():
     providers[provider] = definition
 
-path.write_text(
-    json.dumps(data, ensure_ascii=False, indent=2) + "\n"
-)
+write_object(path, data)
 
 print(f"Updated: {path}")
 PY

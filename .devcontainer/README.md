@@ -237,6 +237,12 @@ symlink や hard link の場合、読み取り・削除エラー時は停止す�
 対象拡張の撤去が必要で `npm/` が存在するのに `npm/package.json` がない場合、または保持する npm 拡張の
 登録がそのマニフェストに宣言されていない場合は、npm による巻き添え削除を防ぐため変更せず停止する。
 対象のマニフェストを復旧してから再実行する。
+settings と対象の全 npm マニフェストは、NaN・Infinity や JavaScript Number の有限範囲を
+超える数値（巨大整数を含む）があれば、バックアップ・撤去・キャッシュ削除の前に停止する。
+エラーに示されたファイルの数値を確認して修正し、再実行する。有効な Unicode エスケープは保持する。
+`npm/npm-shrinkwrap.json` と `npm/package-lock.json` が両方あり、npm が無視する後者に
+撤去対象が残る場合も変更せず停止する。表示された両 lockfile を利用者側で整合させてから再実行する。
+cleanup は lockfile を自動削除しない。
 実行中の pi は古い拡張や接続を保持し、状態ファイルを再作成する場合があるため、先に終了する。
 整理後に起動し直す（セッションを継続する場合も `/reload` だけで不十分なら再起動する）。
 
@@ -494,6 +500,11 @@ unset PI_DISTILL_TIMEOUT_SECONDS PI_DISTILL_MODEL PI_DISTILL_ERROR_RETRY_COUNT P
   （`install_beforehand.bash` は既存ファイルを上書きしないため）
 
 いずれも冪等で、`providers` のうち対象プロバイダのエントリだけを置き換える。
+3 つの setup は `PI_CODING_AGENT_DIR` の `~` と `~/` だけを HOME に展開する。
+入力 JSON は上記と同じ数値検査を行い、保存内容を最後まで Unicode エスケープ付きで生成してから
+同じディレクトリの固有一時ファイルを置き換える。保存失敗時は元ファイルを残し、一時ファイルを掃除する。
+models.json は既存 mode を保持し、新規作成は 0600。モデルのバックアップは時刻に固有 suffix を
+加えて同一秒の世代も上書きしない。auth.json は 0600 とし、平文認証を複製しないためバックアップを作らない。
 `setup_pi_opencode_go.zsh` は `.devcontainer/pigo`・`.devcontainer/pigod`・
 `.devcontainer/pigou` を、`setup_pi_commandcode_goat.zsh` は
 `.devcontainer/piccg` と `.devcontainer/piccd` をそのまま配置するため、

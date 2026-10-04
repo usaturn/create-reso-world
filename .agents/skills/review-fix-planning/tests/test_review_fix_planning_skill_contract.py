@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shlex
+import shutil
+import subprocess
+
+import pytest
 from pathlib import Path
 
 import yaml
@@ -139,6 +145,7 @@ def test_allowed_tools_match_the_verification_and_spec_location() -> None:
         "Bash(bash .devcontainer/run-tests.bash*)",
         "Bash(bash scripts/check-layout.sh*)",
         "Bash(bash tests/scripts/*)",
+        "Bash(bash scripts/superpowers-review-copy.sh*)",
         "Write(docs/superpowers/specs/**)",
         "Edit(docs/superpowers/specs/**)",
     ):
@@ -181,9 +188,14 @@ def test_number_argument_searches_the_fork_reviews_too() -> None:
 
 def test_spec_goes_to_docs_superpowers_specs_of_this_repository() -> None:
     content = read(AGENTS_SKILL)
-    assert "$TOPLEVEL/docs/superpowers/specs/" in content
+    # DOC_ROOT may be a separate checkout of the document branch; the spec is
+    # written where it is committed, not in the parent checkout (TOPLEVEL).
+    assert "$DOC_ROOT/docs/superpowers/specs/" in content
+    assert "$TOPLEVEL/docs/superpowers/specs/" not in content
     assert "$MAIN_ROOT/docs" not in content
     assert "docs_draft" not in content
+    step6 = content.split("6. **Spec を書く**", 1)[1].split("7. **", 1)[0]
+    assert "`DOC_ROOT`" in step6
 
 
 def test_landing_eval_uses_the_change_specific_gate() -> None:
@@ -194,3 +206,257 @@ def test_landing_eval_uses_the_change_specific_gate() -> None:
         for item in landing["expectations"]
     )
     assert "scripts/ci/" not in json.dumps(landing, ensure_ascii=False)
+
+
+def test_other_repositories_need_an_explicit_code_root() -> None:
+    step2 = read(AGENTS_SKILL).split("2. **現行 HEAD を特定する**", 1)[1].split("3. **", 1)[0]
+    assert "`CODE_ROOT`" in step2
+    assert "推測せず停止する" in step2
+    assert "pr-review" in step2
+
+
+def test_spec_is_committed_and_copied_before_approval() -> None:
+    content = read(AGENTS_SKILL)
+    section = content.split("## Spec のコミットと確認用コピー", 1)[1].split("\n## ", 1)[0]
+    for phrase in (
+        "`DOC_ROOT`",
+        "`PARENT_ROOT`",
+        "bash scripts/superpowers-review-copy.sh",
+        "決して差し替えない",
+        "-r2-",
+        "文書用ブランチ",
+        "文書専用 PR",
+        "公開未実施",
+    ):
+        assert phrase in section, phrase
+    step7 = content.split("7. **承認を得て停止する**", 1)[1].split("\n## ", 1)[0]
+    assert "## Spec のコミットと確認用コピー" not in step7
+    assert "確認用コピー" in step7
+
+
+def test_spec_reuses_the_current_canonical_document() -> None:
+    """Canonical selection precedes writing: repo/PR/theme/path, not basename."""
+    content = read(AGENTS_SKILL)
+    section = content.split("## Spec の正本を選んでから更新する", 1)[1].split("\n## ", 1)[0]
+    for phrase in ("正本", "roundN", "停止してユーザに確認する", "アーキテクチャ再設計", "コミット済み"):
+        assert phrase in section, phrase
+
+
+def test_landing_fetch_instruction_uses_verified_base_remote_and_rechecks_pr_head() -> None:
+    """Text convention only: catch a fixed-origin recipe, not claim agent behavior."""
+    landing = read(AGENTS_SKILL).split("## 実装後", 1)[1].split("\n## ", 1)[0]
+    step4 = landing.split("\n4. ", 1)[1].split("\n5. ", 1)[0]
+    assert 'git -C "$MAIN_ROOT" fetch "$PR_REMOTE"' in step4
+    assert 'gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid' in step4
+    assert "共通 context" in step4
+    assert not re.search(r"\bfetch\s+origin\b", landing)
+
+
+@pytest.mark.parametrize("example", ["例:", "resoloop の上流への PR"])
+def test_landing_push_examples_use_verified_head_remote(example) -> None:
+    """Text convention: examples must not bypass the stated API/context preflight."""
+    landing = read(AGENTS_SKILL).split("## 実装後", 1)[1].split("\n## ", 1)[0]
+    paragraph = next(line for line in landing.splitlines() if line.startswith(example))
+    assert 'git -C "$MAIN_ROOT" push "$HEAD_REMOTE" HEAD' in paragraph
+    assert not re.search(r"\bpush\s+origin\b", landing)
+    step5 = landing.split("\n5. ", 1)[1].split("\n6. ", 1)[0]
+    assert 'gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRepository,headRepositoryOwner,headRefName' in step5
+    for prerequisite in ("HEAD_REPO", "HEAD_BRANCH", "共通 context", "HEAD_REMOTE"):
+        assert prerequisite in step5
+
+
+def test_fork_pr_push_target_is_confirmed_for_other_repositories() -> None:
+    landing = read(AGENTS_SKILL).split("## 実装後", 1)[1].split("\n## ", 1)[0]
+    assert "head リポジトリ" in landing
+    assert "headRepository" in landing
+
+
+@pytest.fixture(params=["bash", "zsh", "zsh-nounset"])
+def context_shell(request):
+    shell = "zsh" if request.param.startswith("zsh") else "bash"
+    if shutil.which(shell) is None:
+        pytest.skip(f"{shell} is not installed; skipping only its context cases")
+    return shell, request.param != "zsh"
+
+
+@pytest.fixture
+def git_context(tmp_path):
+    env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null")
+    def git(path, *args):
+        return subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", *args],
+                              cwd=path, env=env, check=True, text=True, capture_output=True).stdout.strip()
+    def repo(name, remotes):
+        path = tmp_path / name
+        path.mkdir(parents=True)
+        git(path, "init", "-b", "main")
+        git(path, "commit", "--allow-empty", "-m", "initial")
+        for remote, url in remotes.items():
+            git(path, "remote", "add", remote, url)
+        return path
+    parent = repo("parent", {"origin": "https://github.com/usaturn/create-reso-world.git"})
+    helper = REPO_ROOT / "scripts/superpowers_context.py"
+    (parent / "scripts").mkdir()
+    shutil.copy2(helper, parent / "scripts/superpowers_context.py")
+    code = repo("code", {"base": "git@github.com:other/repository.git",
+                         "origin": "ssh://git@github.com/contributor/repository.git"})
+    doc = tmp_path / "docs"
+    git(parent, "worktree", "add", "-b", "docs/topic", str(doc))
+    return parent, code, doc, git, env
+
+
+def run_fix_context(git_context, context_shell, *, cwd=None, **variables):
+    parent, code, doc, git, env = git_context
+    # The real instruction block is the resolver; no test-side URL/root logic.
+    blocks = re.findall(r"```bash\n(.*?)```", read(AGENTS_SKILL), re.DOTALL)
+    script = next((block for block in blocks if "--operation review-fix" in block), None)
+    assert script is not None, "review-fix has no executable context preflight"
+    values = {"PARENT_ROOT": str(parent), "CODE_ROOT": str(code), "DOC_ROOT": str(doc),
+              "DOC_BRANCH": "docs/topic", "PR_REPO": "other/repository", "HEAD_REPO": "",
+              "HEAD_BRANCH": ""}
+    values.update(variables)
+    before = {str(p): [git(p, *args) for args in (("rev-parse", "HEAD"), ("status", "--porcelain"),
+                                                ("remote", "-v"), ("show-ref",))] for p in (parent, code, doc)}
+    marker = parent.parent / "later-mutation-reached"
+    harness = ("set -euo pipefail\n" if context_shell[1] else "set -eo pipefail\n")
+    harness += "\n".join(f"{key}={shlex.quote(value)}" for key, value in values.items()) + "\n"
+    harness += script + f"\ntouch {shlex.quote(str(marker))}\nprintf '%s\\n' \"$CONTEXT_JSON\"\n"
+    shell = context_shell[0]
+    result = subprocess.run([shell, *(["-f"] if shell == "zsh" else []), "-c", harness],
+                            cwd=cwd or parent, env=env, text=True, capture_output=True)
+    assert before == {str(p): [git(p, *args) for args in (("rev-parse", "HEAD"), ("status", "--porcelain"),
+                                                        ("remote", "-v"), ("show-ref",))] for p in (parent, code, doc)}
+    if result.returncode:
+        assert not marker.exists(), "preflight did not stop a later mutation"
+        assert result.returncode == 66, result.stderr
+        assert result.stdout == ""
+        assert result.stderr
+    else:
+        assert marker.exists()
+        assert result.stderr == ""
+    return result
+
+
+def test_fix_context_uses_real_parent_helper_from_external_cwd(git_context, context_shell):
+    parent, code, doc, *_ = git_context
+    result = run_fix_context(git_context, context_shell, cwd=code, HEAD_REPO="contributor/repository", HEAD_BRANCH="main")
+    assert result.returncode == 0, result.stderr
+    value = json.loads(result.stdout)
+    assert (value["tool_root"], value["doc_root"], value["code_root"]) == (str(parent), str(doc), str(code))
+    assert (value["base_remote"], value["head_remote"]) == ("base", "origin")
+
+
+@pytest.mark.parametrize("case", ["parent-omitted", "missing-origin", "unsupported-origin", "code-subdir", "duplicate-base",
+                                  "doc-branch", "head-missing", "head-ambiguous", "head-branch", "helper-missing"])
+def test_fix_context_stops_before_later_mutation(git_context, context_shell, case):
+    parent, code, doc, git, _ = git_context
+    values = {}
+    cwd = parent
+    if case == "parent-omitted":
+        values["PARENT_ROOT"] = ""
+        cwd = code
+    elif case == "missing-origin":
+        git(parent, "remote", "remove", "origin")
+    elif case == "unsupported-origin":
+        git(parent, "remote", "set-url", "origin", "not-a-url")
+    elif case == "code-subdir":
+        (code / "src").mkdir()
+        values["CODE_ROOT"] = str(code / "src")
+    elif case == "duplicate-base":
+        git(code, "remote", "add", "mirror", "https://github.com/other/repository.git")
+    elif case == "doc-branch":
+        values["DOC_BRANCH"] = "wrong"
+    elif case.startswith("head-"):
+        values.update(HEAD_REPO="contributor/repository", HEAD_BRANCH="main")
+        if case == "head-missing":
+            values["HEAD_REPO"] = "missing/repository"
+        elif case == "head-ambiguous":
+            git(code, "remote", "add", "mirror", "https://github.com/contributor/repository.git")
+        else:
+            values["HEAD_BRANCH"] = "wrong"
+    else:
+        helper = parent / "scripts/superpowers_context.py"
+        if helper.exists():
+            helper.unlink()
+    result = run_fix_context(git_context, context_shell, cwd=cwd, **values)
+    assert result.returncode == 66, result.stdout
+
+
+@pytest.mark.parametrize("case", ["valid", "same-url-clone", "conflict"])
+def test_fix_context_verifies_known_repository_worktree_membership(git_context, context_shell, case):
+    parent, code, doc, git, _ = git_context
+    if case == "same-url-clone":
+        git(code, "remote", "set-url", "base", "https://github.com/usaturn/create-reso-world.git")
+        git(code, "remote", "set-url", "origin", "https://github.com/usaturn/create-reso-world.git")
+    root = doc if case == "valid" else code
+    result = run_fix_context(git_context, context_shell, PR_REPO="usaturn/create-reso-world", CODE_ROOT=str(root))
+    assert result.returncode == (0 if case == "valid" else 66), result.stderr
+    if case == "valid":
+        assert json.loads(result.stdout)["code_root"] == str(doc)
+
+
+@pytest.mark.parametrize("case", ["missing-origin", "missing-context-helper", "wrong-doc-branch"])
+def test_status_snippet_revalidates_before_comment_mutation(git_context, context_shell, case):
+    parent, code, doc, git, env = git_context
+    comment_helper = parent / ".agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"
+    comment_helper.parent.mkdir(parents=True)
+    shutil.copy2(AGENTS_HELPER, comment_helper)
+    # GitHub is the external boundary. An accidental call fails, never networks.
+    bin_dir = parent.parent / "bin"
+    bin_dir.mkdir()
+    gh = bin_dir / "gh"
+    gh.write_text("#!/bin/bash\nprintf 'unexpected external operation' >&2\nexit 1\n", encoding="utf-8")
+    gh.chmod(0o755)
+    env["PATH"] = str(bin_dir) + os.pathsep + env["PATH"]
+    needle = "PARENT_ROOT origin"
+    if case == "missing-origin":
+        git(parent, "remote", "remove", "origin")
+    elif case == "missing-context-helper":
+        (parent / "scripts/superpowers_context.py").unlink()
+        needle = "superpowers_context.py"
+    else:
+        needle = "DOC_ROOT branch"
+    values = {"PARENT_ROOT": str(parent), "TOPLEVEL": str(parent), "CODE_ROOT": str(code), "DOC_ROOT": str(doc),
+              "DOC_BRANCH": "wrong" if case == "wrong-doc-branch" else "docs/topic", "PR_REPO": "other/repository",
+              "PR_NUMBER": "3", "HEAD_BRANCH": "main", "HEAD_REPO": "contributor/repository", "HEAD_SHA": "1234",
+              "MODEL_NAME": "Test-model"}
+    script = next(block for block in re.findall(r"```bash\n(.*?)```", read(AGENTS_SKILL), re.DOTALL)
+                  if '--pr "$PR_NUMBER"' in block)
+    harness = ("set -euo pipefail\n" if context_shell[1] else "set -eo pipefail\n")
+    harness += "\n".join(f"{key}={shlex.quote(value)}" for key, value in values.items()) + "\n" + script
+    shell = context_shell[0]
+    result = subprocess.run([shell, *(["-f"] if shell == "zsh" else []), "-c", harness],
+                            cwd=code, env=env, text=True, capture_output=True)
+    assert result.returncode == 66, result.stderr
+    assert needle in result.stderr
+    assert result.stdout == ""
+
+
+def test_fix_initial_planning_does_not_confuse_pr_branch_metadata_with_head_validation(git_context, context_shell):
+    result = run_fix_context(git_context, context_shell, HEAD_BRANCH="pr/topic", HEAD_REPO="")
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["head_remote"] is None
+
+
+@pytest.mark.parametrize("case", ["split", "wrong-single", "mixed", "duplicate", "fallback"])
+def test_fix_context_validates_effective_push_destinations(git_context, context_shell, case):
+    # A fetch-matching remote with an unsafe pushurl must stop before mutation.
+    _, code, _, git, _ = git_context
+    if case == "split":
+        git(code, "remote", "set-url", "--push", "base", "https://github.com/contributor/repository.git")
+        git(code, "remote", "set-url", "--push", "origin", "https://github.com/wrong/repository.git")
+    elif case == "wrong-single":
+        git(code, "remote", "set-url", "--push", "origin", "https://github.com/wrong/repository.git")
+    elif case == "mixed":
+        git(code, "remote", "set-url", "--push", "origin", "git@github.com:contributor/repository.git")
+        git(code, "remote", "set-url", "--push", "--add", "origin", "ssh://git@example.com/contributor/repository.git")
+    elif case == "duplicate":
+        git(code, "remote", "set-url", "--push", "base", "https://github.com/contributor/repository.git")
+    result = run_fix_context(git_context, context_shell, cwd=code, HEAD_REPO="contributor/repository", HEAD_BRANCH="main")
+    if case in ("split", "fallback"):
+        assert result.returncode == 0, result.stderr
+        value = json.loads(result.stdout)
+        assert value["base_remote"] == "base"
+        assert value["head_remote"] == ("base" if case == "split" else "origin")
+    else:
+        assert result.returncode == 66, result.stdout
+        assert "effective push URLs" in result.stderr

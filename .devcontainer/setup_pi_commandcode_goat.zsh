@@ -50,7 +50,11 @@ readonly PICCG_MODELS_CSV="meta/muse-spark-1.3,meta/muse-spark-1.3-contributor"
 readonly PICCD_DEFAULT_MODEL="deepseek/deepseek-v4.1-flash"
 readonly PICCD_MODELS_CSV="deepseek/deepseek-v4.1-flash"
 
-readonly PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+if [[ "$PI_DIR" == '~' || "$PI_DIR" == '~/'* ]]; then
+    PI_DIR="${HOME}${PI_DIR#\~}"
+fi
+readonly PI_DIR
 readonly MODELS_JSON="${PI_DIR}/models.json"
 
 #
@@ -165,20 +169,18 @@ fi
 #
 
 python3 - "${MODELS_JSON}" "${MODELS_SOURCE}" "${PROVIDER}" <<'PY'
-import json
-import os
-import shutil
 import sys
-from datetime import datetime
 from pathlib import Path
 
 path = Path(sys.argv[1])
 source = Path(sys.argv[2])
 provider = sys.argv[3]
+sys.path.insert(0, str(source.resolve().parent))
+from pi_json import backup_file, load_object, write_object
 
 try:
-    definition = json.loads(source.read_text()).get("providers", {}).get(provider)
-except json.JSONDecodeError as exc:
+    definition = load_object(source).get("providers", {}).get(provider)
+except ValueError as exc:
     print(f"ERROR: Invalid JSON in {source}: {exc}", file=sys.stderr)
     sys.exit(1)
 
@@ -191,8 +193,8 @@ if definition is None:
 
 if path.exists():
     try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
+        data = load_object(path)
+    except ValueError as exc:
         print(f"ERROR: Invalid JSON in {path}: {exc}", file=sys.stderr)
         sys.exit(1)
 
@@ -215,16 +217,12 @@ if providers.get(provider) == definition:
     sys.exit(0)
 
 if path.exists():
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup = path.with_name(path.name + f".bak.{timestamp}")
-    shutil.copy2(path, backup)
+    backup = backup_file(path)
     print(f"backup:{backup}")
 
 providers[provider] = definition
 
-tmp = path.with_name(path.name + ".tmp")
-tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
-os.replace(tmp, path)
+write_object(path, data)
 
 print("updated")
 PY
@@ -324,21 +322,22 @@ else
     log "No API key: skipping 'pi --list-models' validation."
     log "Verifying ${MODELS_JSON} instead..."
 
-    python3 - "${MODELS_JSON}" "${PROVIDER}" "${MODELS[@]}" <<'PY'
-import json
+    python3 - "${MODELS_JSON}" "${MODELS_SOURCE}" "${PROVIDER}" "${MODELS[@]}" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-provider = sys.argv[2]
-models = sys.argv[3:]
+provider = sys.argv[3]
+models = sys.argv[4:]
+sys.path.insert(0, str(Path(sys.argv[2]).resolve().parent))
+from pi_json import load_object
 
 try:
-    data = json.loads(path.read_text())
+    data = load_object(path)
 except FileNotFoundError:
     print(f"ERROR: {path} was not created.", file=sys.stderr)
     sys.exit(1)
-except json.JSONDecodeError as exc:
+except ValueError as exc:
     print(f"ERROR: Invalid JSON in {path}: {exc}", file=sys.stderr)
     sys.exit(1)
 

@@ -5,7 +5,6 @@ Run with: uv run --no-project .devcontainer/cleanup_pi_mcp.py
 Only PI_CODING_AGENT_DIR (default ~/.pi/agent) is migrated; project/shared
 configuration and ~/.npm caches are not cleanup targets.
 """
-import json
 import os
 from pathlib import Path
 import re
@@ -14,6 +13,10 @@ import stat
 import subprocess
 import sys
 import tempfile
+
+# runpy callers need the sibling helper too, regardless of their working directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pi_json import load_object, write_object
 
 PACKAGES = (
     "pi-mcp-adapter", "@upstash/context7-pi", "pi-distill",
@@ -58,9 +61,6 @@ def safe_storage(path):
 
 
 def read_object(path):
-    def reject_constant(value):
-        raise ValueError(f"Invalid JSON constant: {value}")
-
     safe_storage(path)
     try:
         info = path.lstat()
@@ -68,13 +68,11 @@ def read_object(path):
             raise ValueError(f"Unsafe non-regular storage file: {path}")
         if info.st_nlink != 1:
             raise ValueError(f"Refusing hard-linked package/settings storage: {path}")
-        data = json.loads(path.read_text(encoding="utf-8-sig"), parse_constant=reject_constant)
+        data = load_object(path)
     except FileNotFoundError:
         return {}
     except (OSError, ValueError) as error:
         raise ValueError(f"Cannot read {path}: {error}") from error
-    if not isinstance(data, dict):
-        raise ValueError(f"Expected JSON object in {path}")
     return data
 
 
@@ -124,17 +122,7 @@ def enable_builtin_mcp(agent):
     if "-builtin:mcp" not in entries:
         return
     settings["extensions"] = [entry for entry in entries if entry != "-builtin:mcp"]
-    mode = stat.S_IMODE(path.stat().st_mode)
-    descriptor, temporary = tempfile.mkstemp(prefix=".settings-migration-", dir=agent)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(settings, handle, ensure_ascii=False, indent=2, allow_nan=False)
-            handle.write("\n")
-        os.chmod(temporary, mode)
-        os.replace(temporary, path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    write_object(path, settings)
     print(f"Removed -builtin:mcp from {path}")
 
 
@@ -185,6 +173,19 @@ def inspect(agent):
     return result
 
 
+def require_consistent_root_locks(agent):
+    """npm ignores package-lock when shrinkwrap exists; never mutate around stale targets."""
+    shrinkwrap = agent / "npm/npm-shrinkwrap.json"
+    lock = agent / "npm/package-lock.json"
+    if shrinkwrap.exists() and lock.exists():
+        data = read_object(lock)
+        if any(manifest_contains(data, name) for name in PACKAGES):
+            raise ValueError(
+                f"{lock} contains retired packages but is shadowed by {shrinkwrap}; "
+                "reconcile these root lockfiles before retrying cleanup"
+            )
+
+
 def require_retained_npm_declarations(agent):
     """Refuse unsafe prefixes before npm uninstall can prune unrelated extensions."""
     # pi skips npm uninstall when the prefix is absent and only removes settings entries.
@@ -215,6 +216,7 @@ def cleanup():
     agent = agent_directory()
     safe_storage(agent)
     before = inspect(agent)
+    require_consistent_root_locks(agent)
     if any(leftovers for _, leftovers in before.values()):
         require_retained_npm_declarations(agent)
     # Validate all state entries before removing packages; no recursive deletion or glob.

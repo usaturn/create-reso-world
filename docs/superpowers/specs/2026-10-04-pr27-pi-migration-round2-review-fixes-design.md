@@ -1,61 +1,96 @@
-# PR #27 pi 移行の追加点検・修正方針
+# PR #27 pi 移行の追加点検・JSON保存修正方針
 
-## 目的と範囲
+- 文書管理／対象リポジトリ: `usaturn/create-reso-world`
+- 対象Issue／PR: #19／#27
+- 検証したコードHEAD: `26d8b1ca757179b9b9c3b406728f1fa1e700d664`
+- 状態: completed（内容の別途承認ではなく、下記の明示的な推奨修正・push許可に基づいて実装・検証を完了した。コミットだけでapprovedとするものではない）
+- 関連Plan: `docs/superpowers/plans/2026-10-04-pr27-pi-migration-round2-review-fixes.md`
+- 今回更新するSpec: `docs/superpowers/specs/2026-10-04-pr27-pi-migration-round2-review-fixes-design.md`。PR本文と既存コメントが追加点検の後継文書として明示するこのファイルを更新する。以前のR2-1〜R2-5と検証記録はGitの`26d8b1c`版に保持する。
+- 運用変更: 調査途中でmainに文書ライフサイクル規約が入ったため、新しいround3文書は作らず既存Spec・Planを更新する。今回のユーザーの許可は、レビュー全件、PR全体と差分外の関連箇所の修正、検証、既存PRへのpushを具体的に含む。追加承認待ちや文書だけの中間コミットは挟まず、検証後の1コミットに含める。
 
-`usaturn/create-reso-world` PR #27（`feat/issue-19-pi-migration`）の現行 HEAD `6449b0fbf55b5872eab9269d7aa492967346dd97` を対象とする。base は `c40a3bdc86c2b7349ec3b7859d5b06af5d81e6e5`。ユーザはレビュー全件と PR 全体・差分外の関連箇所の調査、妥当な不具合の推奨案による修正と push を明示している。確認待ちを再挿入せず、修正があった場合は push までとし、今回はマージしない。`pr-review` は使用しない。
+## 依頼・経路・承認
 
-経路は bounded。既存の cleanup と setup の入力処理・失敗伝播を修正し、移行の目的や API は変えない。検証専用 worktree は固定 HEAD で作成・再現後に撤去し、実装には新しい隔離 worktree を使用する。メイン checkout の未追跡文書は触らない。
+対象は `usaturn/create-reso-world` PR #27、`feat/issue-19-pi-migration`、調査HEAD `26d8b1ca757179b9b9c3b406728f1fa1e700d664`。経路は bounded（既存のcleanup・provider setupの修正）。ユーザーは推奨案による修正・pushまでを明示的に依頼しているため、追加の承認待ちは挟まない。差分外の関連処理の点検・修正も依頼に含まれる。修正が必要なため今回はマージせず、既存PRへ追加1コミットで反映する。`pr-review`は使用しない。
 
-## 入力レビューの全件分類
+目的は再レビューで修正が積み重ならないよう、入力の読込みからpi/npm委譲、モデル保存、再実行までを調べ、認証・独自モデル・無関係な設定を壊さず移行を完了できるようにすること。
 
-入力は `reviews/#27-feat-issue-19-pi-migration/` の4ファイル。最新の対象 HEAD はすべて `6449b0fbf55b`。Claude、DeepSeek、GPT の履歴上の旧 HEAD は `6f0cd9ee9d04`。
+## 入力レビューの全分類
 
-| 指摘 | 分類 | 現行 HEAD の根拠 |
+全4ファイルの最新対象HEADは `26d8b1ca7571`。過去履歴は各ファイルに保持されている。
+
+| 入力・ID | 分類 | 根拠／方針 |
 | --- | --- | --- |
-| Claude L-1 | 解消済み | README:179–181 と cleanup:111 は、利用者の disable entry も毎回除去する仕様・共有設定への影響を正確に説明する。 |
-| Claude I-1 | 解消済み | README:435–442 は rebuild 前の旧 export 削除と4変数の unset を区別して案内する。 |
-| GPT I-1 | 解消済み | API トークン節から廃止した Distillation 用要件は削除済み。 |
-| DeepSeek I-1 | 対応しない | pi-model-name の旧変数は主モデルの根拠にしない否定例で、Issue #19 が保持を明記している。機能不具合はない。 |
-| SWE-2-Max | 指摘なし | 未検証候補は下記に整理する。 |
+| SWE-2-Max L-1 | 対応する (a) | `1e999`が読込みを通り、backup／撤去後の保存で失敗する。実piではnullへの変質も再現。R3-1。 |
+| DeepSeek L-1 | 対応する (a) | 有効なJSONエスケープの単独サロゲートがUTF-8保存で失敗する。キー・値・nested・実piでも再現。R3-2。 |
+| DeepSeek I-1 | 対応しない | pi-model-nameの旧変数は主モデル判定に使わない否定例。Issue #19が保持を明記し、機能不具合はない。 |
+| Claude resolved L-1 | 解消済み | 現HEADのdocstringとREADMEが、利用者のdisableも毎回除去する実仕様・共有影響を明記している。 |
+| Claude resolved I-1 | 解消済み | 現HEAD READMEはrebuildと既存コンテナのexport削除・unsetを区別する。 |
+| GPT resolved I-1 | 解消済み | 廃止したDistillation用トークン要件をREADMEから除去済み。 |
 
-分類: 解消済み3 / 対応する0 / 判断保留0 / 対応しない1。以下の追加調査による5件は別枠で対応する。
+集計: 解消済み3／対応する2／判断保留0／対応しない1。Claude・GPTのactive指摘は0。未検証候補である実認証MCP、registry update、rebuildは未検証と明記し、成功扱いしない。rebuildはIssue #22の担当。
 
-## 追加調査の対応項目
+## 調査と追加の再現
 
-2担当の読み取り専用点検と、別担当の隔離再現を実施した。controller も再現スクリプトを再実行し、終了コード0で全5件の根拠と既存49テストの成功を確認した。実 pi 1.0.2、npm 11.19.0、zsh 5.9 を使用し、実認証・ネット接続・利用者の実 agent directory は使用していない。
+新規の隔離worktreeを固定SHAから作り、debug担当が本体・全テスト・fake・caller・関連setup・導入済みpi 1.0.2/npm 11.19.0の公式同梱文書と実装を確認した。別の読み取り専用担当がPR全20ファイル、削除helper、関連する差分外処理を再点検した。元58テストは全成功。debug担当は隔離cleanup 108ケース、setup 7ケース、全2048サロゲートの文字列／キーround-tripを検査した。controllerもoverflow、surrogate、実npm二重lock、setup3種のtilde保存先、固定dateのbackup上書きを独立再実行した。いずれも実ユーザー設定・実認証・registryを使用していない。
 
-| ID | 分類 | 再現・原因 | 修正と検証 |
-| --- | --- | --- | --- |
-| R2-1 | 対応する (a) | settings-only の `npm: pi-distill ` 等を実 pi は受理するが cleanup は見逃し、登録が残る。unpinned 登録は update、exact pin は通常の resolve で再導入対象になる。 | `npm:` の payload を JavaScript trim 相当で正規化して名前・version 境界を判定する。fake pi の identity も同じ入力範囲を受理する。5対象・文字列/object/pinned/scoped・U+FEFF・類似名保持・update の回帰を追加する。 |
-| R2-2 | 対応する (a) | Python json.loads は `NaN`・`Infinity`・`-Infinity` を受理し、実 pi が読めない settings/manifests でも cleanup が成功して状態を変更する。 | 全 metadata の読み込みで非標準定数を拒否し、保存でも非有限値を書かない。settings と4マニフェストで、非ゼロ終了・pi 呼出しなし・変更前バイト列保持を検査する。 |
-| R2-3 | 対応する (a) | `NODE_ENV=production`、omit 設定、prefix `.npmrc` により実 npm uninstall が宣言済み dev/optional の保持対象まで削除する。cleanup は成功を返す。 | pi 子プロセスだけに `npm_config_include="dev\n\noptional\n\npeer"` を設定して omit より include を優先させる。npm は環境変数配列を改行2つで分割する。単改行・カンマ・空 omit は再現試験で不適切と確認済み。実 npm のオフライン fixture で保持対象の実体・元バイト列、対象の撤去、設定保持を検査する。 |
-| R2-4 | 対応する (a) | setup は mkdir、cp、Python 同期、検証の失敗後も成功表示・終了0になる。backup 失敗でも既存モデルを上書きする。 | standalone zsh に `set -e` を追加し、失敗を伝播する。破損JSON、backup失敗、mkdir失敗、書込み/検証失敗に対する非ゼロ終了と成功表示なしを固定する。backup失敗では元モデルを保持する。 |
-| R2-5 | 対応する (a) | `PI_CODING_AGENT_DIR='~/.pi-custom/agent'` が cwd の文字列 `~` 配下に書き込まれ、実 pi の読み込み先とずれる。 | exact `~` / `~/` だけを HOME に明示展開し、eval は使わない。デフォルト・絶対パス・tilde・空白入りパス・非展開の `~other` と独自provider保持を確認する。 |
+調査worktreeとその一時親は調査終了後に削除し、新しい実装worktreeを作る。他のworktreeの未コミット内容は根拠に使用しない。
 
-## 採用しない追加候補・未検証項目
+### R3-1: 数値の有限範囲を変更前に検査 (a)
 
-- 同時実行時の設定ロック: README:205 が cleanup 前の pi 終了を要求する。指定の運用条件では再現せず、今回新たなロック実装は行わない。停止要件は維持する。
-- 保持拡張が撤去 helper に依存する場合: 実体の強制削除より、残留を理由付きで停止する既存仕様を維持する。
-- バックアップの追加失敗テスト、実ローダーの恒久テスト化だけの提案: 対応する不具合の再現と直接関係しない追加提案は採用しない。
-- 実 API キーでの Google MCP 呼出しと Dev Container rebuild は未検証。後者は #22 の担当。unpinned update の再導入確認は実 pi の dispatch とオフライン npm 境界 double であり、registry 接続の end-to-end 成功とは扱わない。
-- slum03 の resoloop スキル未同期は #19 が記録する既存失敗。関連スキル・版・ワールドは変更しない。
+`parse_constant`はNaN/Infinity等だけを捕捉し、指数overflowや指数なしの巨大整数を捕捉しない。実pi/npmのJSON.parse→JSON.stringifyで無関係な値がnullに変わる。settingsと全4マニフェストを読む共通経路で、浮動小数表記だけでなく整数表記もpi/npmが扱える有限Number範囲か検査する。受理した整数はPython intのまま返し、通常の精度を不必要に落とさない。非標準定数の拒否を維持する。対象pathと数値範囲のエラーを表示し、backup・pi呼出し・cache unlinkより前に停止する。
 
-## 検証と公開
+検証: ±1e999、±10^309の整数、nested、全metadata配置、disable-only／settings-only／cache-only、実piのnull変質経路。元バイト列、mode、cache、backup数、pi呼出しなしを検査する。最大有限値、0e999、subnormal、quoted数値、通常整数・Unicodeは受理する。2^53のsafe integer制限やDecimal/raw token editorは追加しない。
 
-不具合の修正対象は `.devcontainer/cleanup_pi_mcp.py`、`.devcontainer/setup_pi.zsh`、`.devcontainer/tests/fake_pi_packages.py`、`.devcontainer/tests/test_pi_mcp_cleanup.py` と今回の文書のみ。既存安全策、バックアップ、mode、独自設定・認証・MCP保持を維持する。
+### R3-2: 有効なサロゲートをエスケープして保持 (a)
 
-各回帰を修正前に失敗させ、最小修正後に成功させる。全 cleanup suite、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills` と差分検査を行う。既知の layout 失敗は原因を照合して明記する。独立した修正後点検の後、変更を1コミットにまとめて既存 PR の head に push し、最終ステータスコメントを更新する。
+cleanupは`ensure_ascii=True`でJSON保存し、厳格UTF-8に不正なコード単位を渡さない。UTF-8、indent、末尾改行、allow_nan=False、mode、最新settingsの読込み、一時ファイル置換と失敗時掃除を維持する。有効なJSONエスケープを入力で禁止しない。
 
-## 最終検証と main の並行更新
+検証: high/low単独サロゲート、nested文字列・キー・配列、Japanese/emoji/paired/literal backslash、BOM、disable-onlyと撤去あり、再実行の不変、元backupとmode、実pi。raw不正UTF-8は引き続き変更前に拒否。
 
-回帰9件を追加し、修正前に5グループすべてが期待する原因で失敗することを確認した。修正後の全 cleanup 58件、差分検査、zsh構文検査は成功した。controller の全体 bash は24/25本成功、スキルは267件成功・1件スキップ。失敗は既知の slum03 未同期だけで、固定した pristine main `c40a3bd` の直接 layout と個別 layout テストでも同じ失敗を再現した。Task の独立点検は仕様適合・品質とも承認、追加不具合なし。
+### R3-3: 関連provider setupのモデル保存を保護 (a)
 
-最終点検中に #26 が main にマージされ、main が `128bd2dc79aab64706c9efa5f9af660c55ca915f` へ進んだ。動く origin/main を二者比較した最初の資料には、PR にない Claude の後退が混じった。固定した元 merge-base に対する実 PR 差分では後退がないことを確認し、誤検出として取り下げた。
+DeepInfra setupの直接write_textはUnicodeEncodeErrorでmodels.jsonを0バイトにし、overflowをInfinityとして保存して偽の成功を出す。OpenCode Go／CommandCodeの関連writerにも同じparse・serializeパターンがある。共通の小さいJSON helperを`.devcontainer/`に置き、3setupの入力JSONを同じ有限数値・非標準定数の規則で読み、文字列・キーを保持可能なJSONを最後までserializeしてから固有一時ファイルへ保存し置換する。既存modeを保持し、新規ファイルは0600とする。失敗時に元モデルと他providerを保持し、一時ファイルを残さない。OpenCode auth writerも同じJSON規則を使用し、0600と認証backupを作らない仕様を維持する。providerの選択・上書き仕様、ランチャーとtier・catalog処理は変更しない。
 
-ただし最新 main と PR の README に実際の競合があったため、最新 main を `--no-commit` で統合した。README の Claude 起動節を main から丸ごと保持し、pi 移行の見出しと本文を本 PR から保持する解決だけを加えた。Claude の指示・テスト・#21文書は `128bd2d` と同一で、zsh の差分も旧 pi 用 export4行・コメント2行の削除だけである。最新 main を取り込む変更は、5修正と同じ1コミットにまとめる。
+検証: 各setupのsurrogate値／キー保存、±overflow／巨大整数／NaN拒否、元モデル保持・成功バナーなし、source側の不正JSON、保存失敗とmode、実piのcredential-blind ModelConfig読込み。実値でないAPIキーだけを使用。
 
-統合後も全体 bash 24/25、スキル267件成功・1件スキップ、差分検査が成功した。唯一の失敗は同じ slum03 未同期。競合解決と先行指摘の限定再点検は承認され、新規の統合不具合はなかった。
+### R3-4: shadowed root lockの事前停止 (a)
 
-active LSP 検査では、既存 real-npm fixture の型推論に2件の指摘があり、元 HEAD の同一行にあることを照合した。変更箇所の実行回帰はなく、LSP 全ファイル clean とは報告しない。
+実npmはshrinkwrapが存在するとpackage-lockを無視し、両者に撤去対象がある場合、settings・実体・active lockだけが変わってpostconditionで止まる。shrinkwrapがありshadowed package-lockに撤去対象が残る組合せを変更前に検出して、両pathと利用者がlockを整合させてから再実行する診断で停止する。任意lockの自動削除・prune・rollbackは行わない。shadowed lockに対象がない場合と単一lockは通常どおり移行する。
 
-所要時間と主要作業の内訳、公開結果は PR コメントに記録する。再現調査担当は20分14秒、controller の独立再実行は33秒、実装担当は15分42秒だった。
+検証: 実npmの双lockでpi呼出し・backup・全バイト変更なし。settings宣言あり／manifest-only。単一shrinkwrapと単一package-lock成功。既存backup全metadataテストはshadowed lockを対象なしにしてbackupの元バイト保存という元の回帰観点を維持する。fakeが両lockを掃除する挙動を成功根拠にしない。
+
+### R3-5: モデルbackup世代を上書きしない (a)
+
+DeepInfraは秒単位のcp先が衝突すると元backupを上書きすることを固定dateで再現。関連2setupも同形式を持つ。DeepInfraのcp失敗伝播の既存回帰を維持し、衝突時は固有suffix／連番で世代を保存する。他setupも固有名を使用する。認証backupは作らない。
+
+検証: 同一時刻の再実行でも元世代が不変、複数backupは各実行前バイトと対応、cp失敗時は元モデル不変・成功なし。backup名をtimestampのみと仮定しない。
+
+### R3-6: provider setupの保存先を揃える (a)
+
+OpenCode GoとCommandCodeは`PI_CODING_AGENT_DIR='~/custom agent'`を展開せず、cwdの文字列`~`へ書くことをcontrollerが再現。DeepInfraと同じexact `~`／`~/`のみのHOME展開を行う。eval・他ユーザーのtilde展開は使わない。
+
+検証: `~`、`~/`、空白を含む`~/...`、absolute、未設定／空、`~other`の3setup。期待するmodels/auth配置、他provider保持、cwdの不要な`~`不在。superagentsのHOME固定仕様は変更しない。
+
+## 保持する判断・検証境界
+
+- cleanup前にpiを終了する既存運用を維持し、新しい同時実行lockは作らない。
+- 利用者の-builtin:mcp除去、既存provider保持、pi-model-name否定例は既存仕様を維持。
+- auth/native MCP/共有設定・スキル・ワールド・ResoLoop版は変更しない。
+- 関連setup2種の差分外修正は今回のユーザー指示を根拠とする。保護されるproviderと呼出し順を変更しない。
+- 関連suite、全environment suite、layoutを実行する。slum03スキル未同期はpristine mainでも再現確認し、それ以外の失敗を放置しない。
+- 最新origin/mainが進んでいるため統合も確認し、最新mainの既存修正・文書を後退させない。
+- 実装担当はRED→GREENを同期実行し、別担当によるTask仕様・品質レビューとPR全体最終レビューを受ける。公開前にremote HEADが調査時と同じであることを再確認する。
+
+## 完了結果と検証
+
+R3-1〜R3-6を実装した。小さい共通`pi_json.py`で有限範囲のobject読込み、ASCIIエスケープによる安全保存、固有モデルbackupを扱う。cleanupの既存安全策と事前検査順、setupのprovider選択・認証保護・失敗伝播は保持した。関連2setupの保存先も揃えた。
+
+Taskの独立レビューで、backup処理の重複とDeepInfra予約ファイルによるbackup mode変化を見つけ、公開前に共通helper抽出・cp -p・回帰で修正した。限定再レビューは全指摘解消、最終PR全23ファイルのレビューはCritical/Important/Minorいずれも0だった。新しいPyrightのテスト変数束縛指摘も、実挙動を変えず明確化して再検査した。
+
+controllerの最終検証: 全環境27/27スクリプト成功、移行・setup76テスト成功、layout成功（4ワールドの同期を含む）、スキル408成功・1skip（最新main統合後）、実PR差分検査成功。実pi 1.0.2の隔離no-prefix移行、数値の事前停止、サロゲート保持、3setup出力のNode JSON.parseとcredential-blind ModelConfig読込みも成功した。shadowed lock検査は実npmのオフライン制御で固定した。
+
+今回取り込んだmain `4e6f1d0`にはslum03同期修正が含まれ、以前のlayout失敗は再現しなかった。その後PR #29・#31でmainが`fc5c7ea5e5bab567ecdc8d8683040203a48c87e3`へ進んだため、公開前に競合なく取り込み直した。レビュー済みの`.devcontainer/`・`.pi/`内容は不変で、最新main統合後も環境27/27、layout、スキルの全検証が成功した。mainから取り込んだ文書・スキル・ワールドの内容は独自変更していない。
+
+active LSPの残るprimary2件は元HEADのreal-npm fixtureと同一の型推論指摘。共通parserの補助2warningは、JSON decoderの数値token callbackと外側のValueError捕捉を認識しないルールによるもの。変更した実装に新しいprimary errorはない。全ファイルLSP cleanとは報告しない。
+
+未検証は実認証MCP/provider、live registry更新、Dev Container rebuild（#22担当）。成功と扱わない。所要時間・公開SHA・remote確認はPRの最終ステータスコメントに記録する。修正があったためpushまでとし、PRとIssueはopenのままにする。

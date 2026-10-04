@@ -3,9 +3,12 @@ import json
 import os
 from pathlib import Path
 import shutil
+import runpy
+from unittest.mock import patch
 import subprocess
 import sys
 import tempfile
+import stat
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -98,6 +101,481 @@ class PiMcpCleanupTests(unittest.TestCase):
         return {path.relative_to(self.agent): path.read_bytes()
                 for path in self.agent.rglob("*") if path.is_file()}
 
+    # R3-3 break: serialization/replace errors touch live output or leave staged files.
+    def test_r3_shared_writer_serializes_before_temp_and_cleans_failed_replace(self):
+        helper = ROOT / ".devcontainer/pi_json.py"
+        self.assertTrue(helper.exists(), "shared safe JSON helper is missing")
+        write_object = runpy.run_path(str(helper))["write_object"]
+        path = self.agent / "models.json"
+        path.write_bytes(b'{"original":true}\r\n')
+        path.chmod(0o640)
+        before = self.full_storage_snapshot()
+        for data in ({"bad": float("nan")}, {"bad": object()}):
+            with self.subTest(data=data):
+                with patch("tempfile.mkstemp", side_effect=AssertionError("temp opened before serialization")):
+                    with self.assertRaises((ValueError, TypeError)):
+                        write_object(path, data)
+                self.assertEqual(self.full_storage_snapshot(), before)
+        with patch("os.replace", side_effect=PermissionError("fixture replace denied")):
+            with self.assertRaises(PermissionError):
+                write_object(path, {"new": "\ud800"})
+        self.assertEqual(self.full_storage_snapshot(), before)
+        write_object(path, {"new": "\ud800", "unicode": "日本語😀"})
+        self.assertEqual(json.loads(path.read_text()), {"new": "\ud800", "unicode": "日本語😀"})
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
+        self.assertTrue(path.read_bytes().endswith(b"\n"))
+        path.unlink()
+        write_object(path, {})
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+
+    def full_storage_snapshot(self):
+        return {path.relative_to(self.agent): (stat.S_IMODE(path.stat().st_mode), path.read_bytes())
+                for path in self.agent.rglob("*") if path.is_file()}
+
+    def fresh_agent(self, name):
+        self.agent = self.home / name
+        self.agent.mkdir(parents=True)
+        self.env["PI_CODING_AGENT_DIR"] = str(self.agent)
+
+    def run_provider_setup(self, provider, **overrides):
+        scripts = {"deepinfra": "setup_pi.zsh", "opencode-go": "setup_pi_opencode_go.zsh",
+                   "commandcode": "setup_pi_commandcode_goat.zsh"}
+        # No registry/model catalog/API requests: only the external pi boundary is replaced.
+        pi = self.bin / "pi"
+        pi.unlink(missing_ok=True)
+        pi.write_text('#!/bin/sh\n'
+                      'if [ "$1" = update ]; then exit 0; fi\n'
+                      'if [ "$1" = --list-models ]; then\n'
+                      'printf "opencode-go %s 128k\\n" "$2"; exit 0; fi\nexit 64\n')
+        pi.chmod(0o755)
+        env = {**self.env, "DEEPINFRA_TOKEN": "offline-fixture", "OPENCODE_API_KEY": "offline-fixture"}
+        env.pop("COMMANDCODE_API_KEY", None)
+        return subprocess.run(["zsh", str(ROOT / ".devcontainer" / scripts[provider])],
+                              cwd=self.project, env={**env, **overrides}, text=True, capture_output=True)
+
+    def assert_setup_failed(self, result):
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("setup complete", result.stdout.lower())
+        self.assertNotIn("JSON validation: OK", result.stdout)
+
+    # R3-1 break: raw overflow exponent OR integer passes preflight and changes unrelated state.
+    def test_r3_numeric_overflow_refused_in_every_metadata_before_mutation(self):
+        paths = ("settings.json", "npm/package.json", "npm/package-lock.json",
+                 "npm/npm-shrinkwrap.json", "npm/node_modules/.package-lock.json")
+        tokens = ("1e999", "-1e999", "1" + "0" * 309, "-" + "1" + "0" * 309)
+        for index, relative in enumerate(paths):
+            for token_index, token in enumerate(tokens):
+                with self.subTest(relative=relative, token=token[:16]):
+                    self.fresh_agent(f"numeric-{index}-{token_index}")
+                    self.seed_packages()
+                    for name in paths[3:]:
+                        self.save(self.agent / name, {"custom": "keep"})
+                    for name in (*MCP_FILES, *BUILTIN_MCP_FILES, "auth.json", "models.json"):
+                        (self.agent / name).write_bytes(b"unrelated original bytes\r\n")
+                    path = self.agent / relative
+                    data = json.loads(path.read_text())
+                    data["nested"] = [{"number": "RAW_TOKEN"}]
+                    path.write_text(json.dumps(data).replace('"RAW_TOKEN"', token) + "\n")
+                    path.chmod(0o640)
+                    before = self.full_storage_snapshot()
+                    calls = self.base / f"numeric-calls-{index}-{token_index}"
+                    result = self.run_cleanup(FAKE_PI_CALL_LOG=str(calls))
+                    self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertIn(str(path), result.stderr)
+                    self.assertIn("finite", result.stderr.lower())
+                    self.assertFalse(calls.exists(), "pi ran before numeric preflight")
+                    self.assertEqual(self.full_storage_snapshot(), before)
+                    self.assertFalse((self.agent / "migration-backups").exists())
+
+    # R3-1 break: less common cleanup branches skip strict decoding before cache unlink/backup.
+    def test_r3_numeric_refusal_without_npm_prefix(self):
+        for branch in ("disable-only", "settings-only", "cache-only"):
+            with self.subTest(branch=branch):
+                self.fresh_agent(branch)
+                path = self.agent / "settings.json"
+                fields = {'disable-only': '"extensions":["-builtin:mcp"],',
+                          'settings-only': '"packages":["npm:pi-distill"],', 'cache-only': ''}
+                path.write_text('{'+fields[branch]+'"custom":1e999}\n')
+                path.chmod(0o640)
+                (self.agent / "mcp-cache.json").write_bytes(b"keep cache")
+                before = self.full_storage_snapshot()
+                calls = self.base / f"calls-{branch}"
+                result = self.run_cleanup(FAKE_PI_CALL_LOG=str(calls))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("finite", result.stderr.lower())
+                self.assertFalse(calls.exists())
+                self.assertEqual(self.full_storage_snapshot(), before)
+
+    # Positive numeric controls: no safe-integer restriction, overflow-looking zero stays valid.
+    def test_r3_finite_numbers_and_quoted_overflow_remain_accepted(self):
+        path = self.agent / "settings.json"
+        path.write_text('{"extensions":["-builtin:mcp"],"numbers":'
+                        '[1.7976931348623157e308,-1.7976931348623157e308,0e999,5e-324,'
+                        '9007199254740993,42,"1e999"],"unicode":"日本語😀"}\n')
+        expected = json.loads(path.read_text())
+        expected["extensions"] = []
+        path.chmod(0o640)
+        self.assert_success(self.run_cleanup())
+        self.assertEqual(json.loads(path.read_text()), expected)
+        self.assertIsInstance(json.loads(path.read_text())["numbers"][4], int)
+        snapshot = self.full_storage_snapshot()
+        self.assert_success(self.run_cleanup(FAKE_PI_REMOVE="fail"))
+        self.assertEqual(self.full_storage_snapshot(), snapshot)
+
+    # R3-2 break: valid escaped lone surrogates in keys/values fail during UTF-8 settings save.
+    def test_r3_surrogate_settings_roundtrip_backup_mode_and_noop(self):
+        for packages in ([], ["npm:pi-distill"]):
+            with self.subTest(packages=packages):
+                self.fresh_agent(f"surrogates-{len(packages)}")
+                path = self.agent / "settings.json"
+                data = {"packages": packages, "extensions": ["-builtin:mcp", "./custom"],
+                        "custom": {"\ud800": ["\udfff", {"\udc00": "\udbff"}],
+                                   "normal": ["日本語", "😀", "\\ud800"]}}
+                path.write_bytes(b"\xef\xbb\xbf" + (json.dumps(data) + "\n").encode())
+                path.chmod(0o640)
+                original = path.read_bytes()
+                self.assert_success(self.run_cleanup())
+                data["packages"] = []
+                data["extensions"] = ["./custom"]
+                self.assertEqual(json.loads(path.read_text()), data)
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
+                backups = list((self.agent / "migration-backups").glob("pi-retired-*"))
+                self.assertEqual(len(backups), 1)
+                self.assertEqual((backups[0] / "settings.json").read_bytes(), original)
+                before = self.full_storage_snapshot()
+                self.assert_success(self.run_cleanup(FAKE_PI_REMOVE="fail"))
+                self.assertEqual(self.full_storage_snapshot(), before)
+                self.assertEqual(list(self.agent.glob(".settings*")), [])
+
+    # R3-2 control: raw invalid UTF-8 is not the valid JSON-escape case and must stop early.
+    def test_r3_invalid_utf8_refused_before_changes(self):
+        path = self.agent / "settings.json"
+        path.write_bytes(b'{"extensions":["-builtin:mcp"],"custom":"\xed\xa0\x80"}')
+        (self.agent / "mcp-cache.json").write_bytes(b"keep cache")
+        before = self.full_storage_snapshot()
+        calls = self.base / "calls"
+        result = self.run_cleanup(FAKE_PI_CALL_LOG=str(calls))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(str(path), result.stderr)
+        self.assertFalse(calls.exists())
+        self.assertEqual(self.full_storage_snapshot(), before)
+
+    # R3-4 break: npm ignores target-containing package-lock when shrinkwrap is present.
+    @unittest.skipUnless(shutil.which("npm"), "real npm required for root lock regression")
+    def test_r3_real_npm_shadowed_lock_stops_before_backup_or_removal(self):
+        self.use_real_npm()
+        # Log entry while preserving the real npm uninstall boundary.
+        pi = self.bin / "pi"
+        pi.write_text(pi.read_text().replace('#!/bin/sh\n',
+                      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PI_LOCK_CALLS"\n'))
+        for declared in (False, True):
+            with self.subTest(declared=declared):
+                self.seed_real_npm(f"dual-lock-{declared}", {"keep-extension": "1.0.0", "pi-mcp-adapter": "1.0.0"})
+                if declared:
+                    self.save(self.agent / "settings.json", {"packages": ["npm:keep-extension", "npm:pi-mcp-adapter"]})
+                lock = self.agent / "npm/package-lock.json"
+                shrinkwrap = self.agent / "npm/npm-shrinkwrap.json"
+                shrinkwrap.write_bytes(lock.read_bytes())
+                lock.chmod(0o640)
+                before = self.full_storage_snapshot()
+                calls = self.base / f"lock-calls-{declared}"
+                result = self.run_cleanup(PI_LOCK_CALLS=str(calls))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(str(lock), result.stderr)
+                self.assertIn(str(shrinkwrap), result.stderr)
+                self.assertIn("reconcile", result.stderr.lower())
+                self.assertFalse(calls.exists(), "pi ran before shadowed lock preflight")
+                self.assertEqual(self.full_storage_snapshot(), before)
+
+    # R3-4 controls: single active lock and harmless shadowed lock are not refused.
+    @unittest.skipUnless(shutil.which("npm"), "real npm required for root lock regression")
+    def test_r3_real_npm_single_and_clean_shadowed_locks_succeed(self):
+        self.use_real_npm()
+        for kind in ("package-lock", "shrinkwrap", "clean-shadowed"):
+            with self.subTest(kind=kind):
+                original = None
+                self.seed_real_npm(kind, {"keep-extension": "1.0.0", "pi-mcp-adapter": "1.0.0"})
+                lock = self.agent / "npm/package-lock.json"
+                if kind != "package-lock":
+                    lock.rename(self.agent / "npm/npm-shrinkwrap.json")
+                if kind == "clean-shadowed":
+                    lock.write_bytes(b'{"lockfileVersion":3,"packages":{}}\r\n')
+                    lock.chmod(0o640)
+                    original = lock.read_bytes()
+                kept = (self.agent / "npm/node_modules/keep-extension/extension.js").read_bytes()
+                self.assert_success(self.run_cleanup())
+                self.assertFalse((self.agent / "npm/node_modules/pi-mcp-adapter").exists())
+                self.assertEqual((self.agent / "npm/node_modules/keep-extension/extension.js").read_bytes(), kept)
+                if kind == "clean-shadowed":
+                    self.assertIsNotNone(original)
+                    self.assertEqual(lock.read_bytes(), original)
+                    self.assertEqual(stat.S_IMODE(lock.stat().st_mode), 0o640)
+
+    # R3-3 break: each setup corrupts valid escaped Unicode or fails to preserve existing mode.
+    def test_r3_provider_models_surrogate_roundtrip_and_modes(self):
+        for provider in ("deepinfra", "opencode-go", "commandcode"):
+            with self.subTest(provider=provider):
+                self.fresh_agent(f"provider-unicode-{provider}")
+                path = self.agent / "models.json"
+                custom = {"providers": {"personal": {"models": []}},
+                          "custom": {"\ud800": ["\udfff", "日本語😀", "\\ud800"]}}
+                self.save(path, custom)
+                path.chmod(0o640)
+                self.assert_success(self.run_provider_setup(provider))
+                data = json.loads(path.read_text())
+                self.assertEqual(data["custom"], custom["custom"])
+                self.assertEqual(data["providers"]["personal"], custom["providers"]["personal"])
+                self.assertIn(provider, data["providers"])
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
+                self.assertFalse((self.agent / "models.json.tmp").exists())
+                path.unlink()
+                self.assert_success(self.run_provider_setup(provider))
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+
+    # R3-3 break: exponent/integer overflow and nonstandard constants are emitted as invalid JSON.
+    def test_r3_provider_models_reject_unsafe_numbers_preserving_original(self):
+        for provider in ("deepinfra", "opencode-go", "commandcode"):
+            for index, token in enumerate(("1e999", "-1e999", "1" + "0" * 309,
+                                           "-" + "1" + "0" * 309, "NaN", "Infinity", "-Infinity")):
+                with self.subTest(provider=provider, token=token[:16]):
+                    self.fresh_agent(f"provider-number-{provider}-{index}")
+                    path = self.agent / "models.json"
+                    path.write_text('{"providers":{"personal":{"models":[]}},"nested":[{"n":'+token+'}]}\n')
+                    path.chmod(0o640)
+                    original = path.read_bytes()
+                    result = self.run_provider_setup(provider)
+                    self.assert_setup_failed(result)
+                    self.assertIn(str(path), result.stderr)
+                    self.assertEqual(path.read_bytes(), original)
+                    self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
+                    self.assertEqual(list(self.agent.glob(".*json*")), [])
+
+    # R3-3 break: a permissive old auth mode is inherited by staged new plaintext credentials.
+    def test_r3_opencode_auth_replacement_is_private_before_publish(self):
+        injection = self.base / "auth-mode"
+        injection.mkdir()
+        (injection / "sitecustomize.py").write_text(
+            'import os, stat\n_real_replace = os.replace\n'
+            'def replace(src, dst):\n'
+            '    if str(dst).endswith("auth.json"):\n'
+            '        assert stat.S_IMODE(os.stat(src).st_mode) == 0o600, "auth staging not private"\n'
+            '    return _real_replace(src, dst)\nos.replace = replace\n')
+        path = self.agent / "auth.json"
+        self.save(path, {"personal": {"type": "api_key", "key": "fixture"}})
+        path.chmod(0o644)
+        self.assert_success(self.run_provider_setup("opencode-go", PYTHONPATH=str(injection)))
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+        self.assertEqual(json.loads(path.read_text())["personal"], {"type": "api_key", "key": "fixture"})
+        self.assertEqual(list(self.agent.glob("auth.json.bak.*")), [])
+        self.assertEqual(list(self.agent.glob(".auth.json.*")), [])
+
+    # R3-3 break: OpenCode auth serialization loses escaped Unicode, accepts bad numbers, or backs up credentials.
+    def test_r3_opencode_auth_strict_and_unicode_no_backup(self):
+        path = self.agent / "auth.json"
+        original = {"personal": {"type": "api_key", "key": "fixture-only", "\ud800": ["\udfff"]}}
+        self.save(path, original)
+        path.chmod(0o640)
+        self.assert_success(self.run_provider_setup("opencode-go"))
+        self.assertEqual(json.loads(path.read_text())["personal"], original["personal"])
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+        self.assertEqual(list(self.agent.glob("auth.json.bak.*")), [])
+        before = self.full_storage_snapshot()
+        self.assert_success(self.run_provider_setup("opencode-go"))
+        self.assertEqual(self.full_storage_snapshot(), before)
+        for token in ("1e999", "1" + "0" * 309, "NaN"):
+            with self.subTest(token=token[:16]):
+                path.write_text('{"other":'+token+'}\n')
+                before = self.full_storage_snapshot()
+                result = self.run_provider_setup("opencode-go")
+                self.assert_setup_failed(result)
+                self.assertIn(str(path), result.stderr)
+                self.assertEqual(self.full_storage_snapshot(), before)
+
+    # R3-3 break: invalid source JSON reaches save, overwrites models, or reports success.
+    def test_r3_provider_invalid_source_preserves_models(self):
+        for provider, script in (("deepinfra", "setup_pi.zsh"), ("opencode-go", "setup_pi_opencode_go.zsh"),
+                                 ("commandcode", "setup_pi_commandcode_goat.zsh")):
+            for index, token in enumerate(("1e999", "1" + "0" * 309, "NaN", "{broken", "[]")):
+                with self.subTest(provider=provider, token=token[:16]):
+                    self.fresh_agent(f"source-{provider}-{index}")
+                    source_dir = self.base / f"source-{provider}-{index}"
+                    source_dir.mkdir()
+                    for name in (script, "pi_json.py", "pigo", "pigod", "pigou", "piccg", "piccd"):
+                        source = ROOT / ".devcontainer" / name
+                        if source.exists():
+                            shutil.copy2(source, source_dir / name)
+                    source = source_dir / "pi-models.json"
+                    source_data = json.loads((ROOT / ".devcontainer/pi-models.json").read_text())
+                    source_data["nested"] = "RAW_TOKEN"
+                    source.write_text(token if token in ("{broken", "[]") else
+                                      json.dumps(source_data).replace('"RAW_TOKEN"', token))
+                    path = self.agent / "models.json"
+                    self.save(path, {"providers": {"personal": {"models": []}}})
+                    original = path.read_bytes()
+                    env = {**self.env, "DEEPINFRA_TOKEN": "offline-fixture", "OPENCODE_API_KEY": "offline-fixture"}
+                    result = subprocess.run(["zsh", str(source_dir / script)], cwd=self.project,
+                                            env=env, text=True, capture_output=True)
+                    self.assert_setup_failed(result)
+                    self.assertIn(str(source), result.stderr)
+                    self.assertEqual(path.read_bytes(), original)
+
+    # R3-3 break: replacement errors overwrite live files or leave staged JSON on disk.
+    def test_r3_provider_replace_failure_preserves_models_and_cleans_temp(self):
+        injection = self.base / "write-failure"
+        injection.mkdir()
+        (injection / "sitecustomize.py").write_text(
+            'import os\n_real_replace = os.replace\n'
+            'def replace(src, dst):\n'
+            '    if str(dst).endswith("models.json"):\n'
+            '        raise PermissionError("fixture replace denied")\n'
+            '    return _real_replace(src, dst)\nos.replace = replace\n')
+        for provider in ("deepinfra", "opencode-go", "commandcode"):
+            with self.subTest(provider=provider):
+                self.fresh_agent(f"replace-failure-{provider}")
+                path = self.agent / "models.json"
+                self.save(path, {"providers": {"personal": {"models": []}}})
+                path.chmod(0o640)
+                original = path.read_bytes()
+                result = self.run_provider_setup(provider, PYTHONPATH=str(injection))
+                self.assert_setup_failed(result)
+                self.assertIn("fixture replace denied", result.stderr)
+                self.assertEqual(path.read_bytes(), original)
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
+                self.assertEqual(list(self.agent.glob(".*json*")), [])
+                self.assertFalse((self.agent / "models.json.tmp").exists())
+
+    # R3-5 break: shared backup reservation overwrites a generation or loses source bytes/mode.
+    def test_r3_shared_backup_unique_original_bytes_and_modes(self):
+        from datetime import datetime
+
+        class FrozenClock:
+            @classmethod
+            def now(cls):
+                return datetime(2026, 10, 4, 12, 34, 56)
+
+        with patch("datetime.datetime", FrozenClock):
+            namespace = runpy.run_path(str(ROOT / ".devcontainer/pi_json.py"))
+        self.assertIn("backup_file", namespace, "shared backup helper is missing")
+        backup_file = namespace["backup_file"]
+        path = self.agent / "models.json"
+        originals = (
+            (b'\xef\xbb\xbf{"generation":1}\r\n', 0o640),
+            (b'{"generation":2,"custom":"\\ud800"}\n', 0o600),
+        )
+        backups = []
+        for original, mode in originals:
+            path.write_bytes(original)
+            path.chmod(mode)
+            backup = backup_file(path)
+            self.assertIsInstance(backup, Path)
+            self.assertEqual(backup.parent, path.parent)
+            self.assertTrue(backup.name.startswith("models.json.bak.20261004-123456."))
+            self.assertNotIn(backup, backups)
+            backups.append(backup)
+            self.assertEqual(path.read_bytes(), original)
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), mode)
+            self.assertEqual(list(self.agent.glob(".models.json.*")), [])
+        self.assertCountEqual(list(self.agent.glob("models.json.bak.*")), backups)
+        self.assertEqual([(backup.read_bytes(), stat.S_IMODE(backup.stat().st_mode))
+                          for backup in backups], list(originals))
+
+    # R3-5 break: a copy error leaves the reserved or partially copied backup behind.
+    def test_r3_shared_backup_copy_failure_cleans_reservation(self):
+        namespace = runpy.run_path(str(ROOT / ".devcontainer/pi_json.py"))
+        self.assertIn("backup_file", namespace, "shared backup helper is missing")
+        backup_file = namespace["backup_file"]
+        path = self.agent / "models.json"
+        path.write_bytes(b'{"original":true}\r\n')
+        path.chmod(0o640)
+        previous = backup_file(path)
+        before = self.full_storage_snapshot()
+
+        # Keep copy2's metadata path real; only the failing file-copy boundary is injected.
+        def fail_copy(source, destination, **kwargs):
+            Path(destination).write_bytes(b"partial copy")
+            raise PermissionError("fixture backup copy denied")
+
+        with patch("shutil.copyfile", side_effect=fail_copy):
+            with self.assertRaisesRegex(PermissionError, "fixture backup copy denied"):
+                backup_file(path)
+        self.assertEqual(self.full_storage_snapshot(), before)
+        self.assertEqual(list(self.agent.glob("models.json.bak.*")), [previous])
+        self.assertEqual(list(self.agent.glob(".models.json.*")), [])
+
+    # R3-5 break: repeated setups in a frozen second overwrite the previous backup generation.
+    def test_r3_provider_backup_generations_never_overwrite(self):
+        clock = self.base / "clock"
+        clock.mkdir()
+        (clock / "sitecustomize.py").write_text(
+            'import datetime\nclass Frozen(datetime.datetime):\n'
+            '    @classmethod\n    def now(cls, tz=None):\n'
+            '        return cls(2026, 10, 4, 12, 34, 56)\ndatetime.datetime = Frozen\n')
+        date = self.bin / "date"
+        date.write_text('#!/bin/sh\nprintf "20261004-123456\\n"\n')
+        date.chmod(0o755)
+        for provider in ("deepinfra", "opencode-go", "commandcode"):
+            with self.subTest(provider=provider):
+                self.fresh_agent(f"backup-generations-{provider}")
+                path = self.agent / "models.json"
+                originals = []
+                for generation, mode in ((1, 0o640), (2, 0o600)):
+                    self.save(path, {"providers": {"personal": {"models": []}}, "generation": generation})
+                    path.chmod(mode)
+                    originals.append((path.read_bytes(), mode))
+                    self.assert_success(self.run_provider_setup(provider, PYTHONPATH=str(clock)))
+                    backups = list(self.agent.glob("models.json.bak.*"))
+                    self.assertEqual(len(backups), generation)
+                    self.assertCountEqual([(item.read_bytes(), stat.S_IMODE(item.stat().st_mode))
+                                           for item in backups], originals)
+                if provider != "deepinfra":
+                    before = self.full_storage_snapshot()
+                    self.assert_success(self.run_provider_setup(provider, PYTHONPATH=str(clock)))
+                    self.assertEqual(self.full_storage_snapshot(), before)
+
+    # R3-6 break: related scripts write under cwd/~ instead of exact HOME tilde expansion.
+    def test_r3_related_provider_exact_home_tilde_paths(self):
+        for provider in ("opencode-go", "commandcode"):
+            for index, override in enumerate(("~", "~/", "~/space path/agent", "absolute", None, "", "~other/agent")):
+                with self.subTest(provider=provider, override=override):
+                    home = self.base / f"path-{provider}-{index}"
+                    cwd = self.base / f"cwd-{provider}-{index}"
+                    home.mkdir()
+                    cwd.mkdir()
+                    if override == "absolute":
+                        override = str(self.base / f"absolute {provider}")
+                        target = Path(override)
+                    elif override in ("~", "~/"):
+                        target = home
+                    elif override is None or override == "":
+                        target = home / ".pi/agent"
+                    elif override == "~other/agent":
+                        target = cwd / "~other/agent"
+                    else:
+                        target = home / override[2:]
+                    path = target / "models.json"
+                    self.save(path, {"providers": {"personal": {"models": []}}, "custom": "keep"})
+                    auth = target / "auth.json"
+                    self.save(auth, {"personal": {"type": "api_key", "key": "fixture"}})
+                    auth_original = auth.read_bytes()
+                    self.project = cwd
+                    self.env["HOME"] = str(home)
+                    self.env.pop("PI_CODING_AGENT_DIR", None)
+                    options = {} if override is None else {"PI_CODING_AGENT_DIR": override}
+                    self.assert_success(self.run_provider_setup(provider, **options))
+                    data = json.loads(path.read_text())
+                    self.assertIn(provider, data["providers"])
+                    self.assertEqual(data["providers"]["personal"], {"models": []})
+                    self.assertEqual(data["custom"], "keep")
+                    if provider == "opencode-go":
+                        data = json.loads(auth.read_text())
+                        self.assertEqual(data["personal"], {"type": "api_key", "key": "fixture"})
+                        self.assertEqual(data["opencode-go"]["key"], "offline-fixture")
+                        self.assertEqual(stat.S_IMODE(auth.stat().st_mode), 0o600)
+                        self.assertEqual(list(target.glob("auth.json.bak.*")), [])
+                    else:
+                        self.assertEqual(auth.read_bytes(), auth_original)
+                    self.assertFalse((cwd / "~").exists())
+
     # Break caught: -builtin:mcp surviving migration or unrelated extension entries being lost.
     def test_builtin_disable_filter_preserves_other_settings_and_mode(self):
         settings = {"packages": KEPT, "extensions": ["./custom", "-builtin:mcp", "+builtin:mcp",
@@ -141,6 +619,8 @@ class PiMcpCleanupTests(unittest.TestCase):
         self.seed_packages()
         for relative in ("npm/npm-shrinkwrap.json", "npm/node_modules/.package-lock.json"):
             self.save(self.agent / relative, {"dependencies": {name: "1.0" for name in REMOVED}})
+        # npm ignores this lock under shrinkwrap; it must not contain retired packages.
+        self.save(self.agent / "npm/package-lock.json", {"custom": "preserve shadowed lock bytes"})
         paths = ("settings.json", "npm/package.json", "npm/package-lock.json",
                  "npm/npm-shrinkwrap.json", "npm/node_modules/.package-lock.json")
         original = {name: (self.agent / name).read_bytes() for name in paths}
@@ -151,6 +631,7 @@ class PiMcpCleanupTests(unittest.TestCase):
         for name, data in original.items():
             self.assertEqual((backups[0] / name).read_bytes(), data)
         self.seed_packages()
+        self.save(self.agent / "npm/package-lock.json", {"custom": "preserve shadowed lock bytes"})
         self.assert_success(self.run_cleanup())
         self.assertEqual(len(list((self.agent / "migration-backups").glob("pi-retired-*"))), 2)
         for name, data in original.items():

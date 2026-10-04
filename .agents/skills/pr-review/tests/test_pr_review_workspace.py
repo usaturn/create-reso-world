@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import importlib.util
 import json
 import os
@@ -409,6 +410,71 @@ def make_repo(path: Path, *, tracked_reviews: bool = True) -> str:
         git(path, "add", "reviews/#4-fix-herdr-session-cwd/gpt-5.md")
     git(path, "commit", "-m", "fixture")
     return git(path, "rev-parse", "HEAD")
+
+
+def test_snapshot_does_not_refresh_index(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GIT_OPTIONAL_LOCKS", "1")
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    readme = repo / "README.md"
+    stat = readme.stat()
+    os.utime(readme, ns=(stat.st_atime_ns, stat.st_mtime_ns + 2_000_000_000))
+    index = repo / ".git" / "index"
+    before = index.read_bytes(), index.stat().st_mtime_ns
+
+    assert workspace.snapshot(repo) == {"branch": "main", "head": commit, "status": ""}
+
+    assert (index.read_bytes(), index.stat().st_mtime_ns) == before
+    assert not (repo / ".git" / "index.lock").exists()
+
+
+def test_snapshot_preserves_existing_index_lock(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    lock = repo / ".git" / "index.lock"
+    lock.write_bytes(b"another process owns this lock\n")
+    before = lock.read_bytes(), lock.stat().st_mtime_ns, lock.stat().st_ino
+
+    assert workspace.snapshot(repo) == {"branch": "main", "head": commit, "status": ""}
+
+    assert (lock.read_bytes(), lock.stat().st_mtime_ns, lock.stat().st_ino) == before
+
+
+@pytest.mark.parametrize(
+    ("change", "expected_status"),
+    [
+        ("staged", b"M  README.md\0"),
+        ("unstaged", b" M README.md\0"),
+        ("both", b"MM README.md\0"),
+        ("untracked", b"?? notes.txt\0?? scratch/\0"),
+    ],
+)
+def test_snapshot_reports_changes_excluding_reviews(
+    tmp_path: Path,
+    change: str,
+    expected_status: bytes,
+) -> None:
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    readme = repo / "README.md"
+    if change in {"staged", "both"}:
+        readme.write_text("staged change\n", encoding="utf-8")
+        git(repo, "add", "README.md")
+    if change in {"unstaged", "both"}:
+        readme.write_text("unstaged change\n", encoding="utf-8")
+    if change == "untracked":
+        (repo / "notes.txt").write_text("notes\n", encoding="utf-8")
+        (repo / "scratch").mkdir()
+        (repo / "scratch" / "notes.txt").write_text("nested notes\n", encoding="utf-8")
+    reviews = repo / "reviews" / "#4-fix-herdr-session-cwd"
+    (reviews / "gpt-5.md").write_text("changed review\n", encoding="utf-8")
+    (reviews / "new-model.md").write_text("new review\n", encoding="utf-8")
+
+    result = workspace.snapshot(repo)
+
+    assert result["branch"] == "main"
+    assert result["head"] == commit
+    assert base64.b64decode(result["status"]) == expected_status
 
 
 def test_create_requires_explicit_model_outside_codex(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

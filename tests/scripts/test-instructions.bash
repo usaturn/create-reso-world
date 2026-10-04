@@ -41,9 +41,20 @@ for s in 'オブジェクトごとに、1つのメッシュにする' '長大な
   'monitoring-long-tasks' '.agents/monitoring-runtimes.md' 'find-docs' '3 回まで'; do
   has AGENTS.md "$s"
 done
+# Spec・Plan の保存と公開（仕様 2026-10-03-superpowers-document-lifecycle 3・6・9 節）
+for s in '### Spec・Plan の保存と公開' 'PARENT_ROOT' 'DOC_ROOT' 'CODE_ROOT' 'tmp/superpowers-review/' \
+  'scripts/superpowers-review-copy.sh' 'docs/superpowers/README.md' '文書専用 PR' '公開未実施'; do
+  has AGENTS.md "$s"
+done
+boundary="$(sed -n '/^## リポジトリ境界$/,/^## ResoLoop の版管理$/p' AGENTS.md)"
+other_row="$(grep -F '| それ以外 |' <<<"$boundary")" || fail 'AGENTS.md boundary table lacks the other-repository row'
+for s in '`CODE_ROOT`' 'remote' '推測せず停止する' '`pr-review`' '`review-fix-planning`' 'ローカル専用'; do
+  [[ "$other_row" == *"$s"* ]] || fail "the other-repository row lacks: $s"
+done
 # AGENTS.md が参照するファイルが実在する（ResoLoop の版管理の 3 件はフェーズ 3 で作成、持ち越し N-5）
 for f in .devcontainer/resoloop.lock scripts/resoloop-fork.sh docs/resoloop-fork-workflow.md \
-  scripts/new-world.sh scripts/check-layout.sh .agents/monitoring-runtimes.md; do
+  scripts/new-world.sh scripts/check-layout.sh .agents/monitoring-runtimes.md \
+  scripts/superpowers-review-copy.sh docs/superpowers/README.md; do
   [ -e "$f" ] || fail "AGENTS.md refers to missing $f"
 done
 # 旧リポジトリ由来の記述とツール固有の記述を持ち込まない

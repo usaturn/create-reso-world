@@ -26,7 +26,7 @@ for f in AGENTS.md CLAUDE.md .agents/skills .devcontainer/README.md .devcontaine
   .devcontainer/verify-resonite-tooling.bash .devcontainer/resoloop.lock .devcontainer/run-tests.bash \
   scripts/new-world.sh scripts/resoloop-fork.sh scripts/check-layout.sh templates/world-project \
   docs/resoloop-fork-workflow.md docs/integration.md .github/workflows/ci.yml .codex/config.toml .cursor/mcp.json \
-  .agents/sp-implementer.md; do
+  docs/superpowers/README.md .agents/sp-implementer.md; do
   has README.md "$f"
   [ -e "$f" ] || fail "README.md refers to missing $f"
 done
@@ -64,6 +64,7 @@ lacks "$spec" '`.agents/skills/*/SKILL.md` ごとに'
 has "$spec" 'git fetch . feat/slum02-slum:main'
 has "$spec" 'フェーズ 4 の D-10'
 has "$spec" '別の環境の postCreate が、ロックのコミットを origin から取得できるようにするため'
+has docs/superpowers/README.md '--name resoloop-pr9-list-shrink-spec.md'
 has docs/resoloop-fork-workflow.md 'テストと特殊な運用向け'
 lacks docs/resoloop-fork-workflow.md '主にテスト用'
 phase01=docs/superpowers/plans/2026-09-26-redesign-phase0-1-safety-and-hygiene.md

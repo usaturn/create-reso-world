@@ -102,6 +102,32 @@ optional and worth including when it is true.
   - `spec` (required): path to the design/spec that holds the reasoning, or `null` /
     `none` when there is no spec — then say why, the same way `landing.pr` does.
   - `plan`, `ledger`, `sdd_workspace`, `session_jsonl`, `plan_files`: when they exist.
+  - `doc_root`: the create-reso-world checkout where the spec and plan are committed
+    (`DOC_ROOT`). Specs and plans for every repository live there.
+  - `document_commit`: the full SHA of the current/restore commit that holds the
+    spec and plan, and `document_published`: the remote ref it was pushed to, or
+    `null` when it is a local commit only (say "公開未実施" in Markdown).
+  - `approved_commit`: when a user approved a specific committed content version, its
+    full SHA. `null` means no recorded content approval — do not infer it from the
+    status field or from a review copy. It differs from `document_commit` when later
+    metadata-only edits (status lines, record additions, typo fixes) moved the
+    current/restore version; those do not require renewed approval. A substantive
+    design/Plan change requires renewed approval unless the recorded execution
+    authority explicitly covers it: name the specific change, rather than treating
+    a generic continuation instruction as authorization for changed content.
+  - `execution_authority`: the explicit instruction or rule that authorizes executing
+    the work, in one line. `null` when nothing authorizes execution: then the next
+    step is blocked, not ready — name the missing authorization or rule as a blocker
+    instead of an implicit plan. General external implementation and remote-less PR
+    integration have no authorized route. The existing approved PR review-fix
+    implementation route remains supported with an explicit validated CODE_ROOT;
+    document storage or planning completion alone never grants execution authority.
+  - `completion_evidence`: the verified commands/results backing the reported status;
+    `null` before implementation exists. A recovery artifact never claims the review
+    copy is canonical.
+  - `review_copy`: the copy under the parent checkout's `tmp/superpowers-review/` that a
+    person reads. It is a viewing aid, never a restore source; restore from
+    `document_commit`.
   - Files written through a shell heredoc rather than an editor tool are easy to forget. List them explicitly.
 - `git`:
   - `worktree` (required): the checkout the work actually lives in. When the parent
@@ -110,6 +136,40 @@ optional and worth including when it is true.
   - `branch`, `head`, `status` (required): record them in the same terms as the
     Required fields table.
   - `merge_base`: add when a branch point matters.
+  - `parent_checkout`: the parent checkout a person reads (`PARENT_ROOT`) with its branch,
+    HEAD and status, when it differs from `worktree`.
+  - `code`: when the code lives in a repository other than create-reso-world, its
+    `repository`, `worktree` (`CODE_ROOT`), `branch`, `head`, `status` and `pr`. Keep them
+    apart from the document checkout above.
+
+## Continuation gates
+
+Before ordinary implementation, read the committed canonical Spec and Plan at the
+approved content version and current/restore version. Inspect the substantive diff,
+continuation instruction, out_of_scope, code HEAD and landing target. Apply the
+closed-Plan, route and authority blockers before treating a version case as ready.
+An unknown approval is not invented: if explicit execution authority permits the
+work without recorded content approval, record that distinction and its scope.
+
+This is a documentation/eval decision table for readers, not a production approval
+parser or state engine. Ready means the listed execution prerequisites are met;
+completion and publication still need their own evidence.
+
+| Eval case | Conditions | Disposition |
+|---|---|---|
+| same-version | Supported route, execution authority present, same committed version approved/current, open Plan | ready; execute within the recorded scope |
+| metadata-only | Supported route, execution authority present, changed current SHA only adds metadata, open Plan | ready; retain approved_commit and update document_commit, no renewed approval |
+| substantive-unapproved | Substantive content changed; prior execution authority does not name the change | blocked / not ready; obtain renewed approval or specific execution authority before that change |
+| substantive-authorized | Supported route, open Plan, recorded execution authority must name the specific change | ready; execute the named change, retain approved_commit and do not invent content approval |
+| missing-authority | Even an approved same-version document has missing execution authority | blocked / not ready; name the missing instruction or rule |
+| unsupported-route | General external implementation (including Issue implementation) or remote-less PR integration; general external implementation has no defined route | blocked / not ready; name the missing route, do not infer permission from planning or a handoff |
+| closed-plan | Plan is completed / superseded / cancelled | blocked / not ready; ordinary implementation must not resume from this Plan |
+| legacy-v2-missing-facts | schema v2 omits approval/authority facts: unknown, never inferred from status or review copies | blocked / not ready; recover the missing facts before resuming |
+
+The supported external exception is approved PR review-fix implementation through
+the existing review-fix-planning workflow, not general external or Issue work.
+SHA inequality by itself is not evidence of a substantive change. Missing optional
+v2 fields mean unknown, not approved or authorized.
 
 ## Markdown sections
 
