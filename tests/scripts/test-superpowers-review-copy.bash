@@ -1,6 +1,7 @@
 #!/bin/bash
 # scripts/superpowers-review-copy.sh が確認用コピーを作り、危険な状態では何も書き換えずに止まることを一時リポジトリで検査する。
-# 仕様: docs/superpowers/specs/2026-10-03-superpowers-document-lifecycle-design.md 3.3・10 節
+# 非置換コピー: 既存のコピーは決して差し替えない。新しい版は ...-r2-spec.md のような別名で公開し、--replace-from は拒否する。
+# 仕様: docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md 5.2 節
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # ユーザの git 設定から隔離する（test-check-layout.bash と同じ）
@@ -32,13 +33,21 @@ new_repo() {
 run() {
   local expected="$1" needle="$2" code=0
   shift 2
-  bash "$copier" "$@" > "$out" 2>&1 || code=$?
+  timeout 300 bash "$copier" "$@" > "$out" 2>&1 || code=$?
   [ "$code" -eq "$expected" ] || { cat "$out" >&2; fail "expected exit $expected, got $code: $*"; }
   grep -qF -- "$needle" "$out" || { cat "$out" >&2; fail "expected output '$needle': $*"; }
 }
 
 same_as() {   # same_as FILE REPO REV: FILE が REV の正本と同じバイト列である
   git -C "$2" show "$3:$spec" | cmp -s - "$1" || fail "$1 differs from $spec at $3"
+}
+
+# no_residue: 確認用ディレクトリに一時ファイル（ドット始まり）が残っていない
+no_residue() {
+  for entry in "$parent/tmp/superpowers-review"/.*; do
+    [ -e "$entry" ] || continue
+    case "${entry##*/}" in .|..) ;; *) fail "temporary residue: $entry" ;; esac
+  done
 }
 
 parent="$tmp/parent"
@@ -55,6 +64,7 @@ grep -qxF "source: $spec at $v1" "$out" || fail 'source line'
 grep -qxF "sha256: $(sha256sum "$copy" | cut -d' ' -f1)" "$out" || fail 'sha256 line'
 same_as "$copy" "$doc" "$v1"
 [ -z "$(git -C "$parent" status --porcelain)" ] || fail 'the copy must stay ignored and unstaged'
+no_residue
 
 # 2. 同じ版をもう一度コピーしても書き換えない
 run 0 'unchanged: tmp/superpowers-review/sample-doc-spec.md' "${args[@]}" --name sample-doc-spec.md
@@ -67,22 +77,30 @@ run 1 'commit it first' "${args[@]}" --name sample-doc-spec.md
 git -C "$doc" reset -q --hard
 same_as "$copy" "$doc" "$v1"
 
-# 4. 新しい版は、確認済みの版を --replace-from で示した場合だけ差し替える
+# 4. 新しい版は同名では差し替えず、別名の新コピーへ公開する。--replace-from は拒否して何も変えない
 printf '# sample v2\n' > "$doc/$spec"
 git -C "$doc" commit -q -am v2
 v2="$(git -C "$doc" rev-parse HEAD)"
 run 1 'already exists with other content' "${args[@]}" --name sample-doc-spec.md
 same_as "$copy" "$doc" "$v1"
-run 0 'replaced: tmp/superpowers-review/sample-doc-spec.md' "${args[@]}" --name sample-doc-spec.md --replace-from "$v1"
-same_as "$copy" "$doc" "$v2"
+no_residue
+run 2 'replace-from' "${args[@]}" --name sample-doc-spec.md --replace-from "$v1"
+same_as "$copy" "$doc" "$v1"
+no_residue
+run 0 'created: tmp/superpowers-review/sample-doc-r2-spec.md' "${args[@]}" --name sample-doc-r2-spec.md
+same_as "$parent/tmp/superpowers-review/sample-doc-r2-spec.md" "$doc" "$v2"
+same_as "$copy" "$doc" "$v1"
 
-# 5. ユーザが編集したコピーは差し替えない
-printf 'user note\n' >> "$copy"
-edited="$(cat "$copy")"
+# 5. ユーザが編集した同名コピーも差し替えない。別名なら旧コピーに触れずに公開できる
+printf 'user note\n' >> "$parent/tmp/superpowers-review/sample-doc-r2-spec.md"
+edited="$(cat "$parent/tmp/superpowers-review/sample-doc-r2-spec.md")"
 printf '# sample v3\n' > "$doc/$spec"
 git -C "$doc" commit -q -am v3
-run 1 'not replaced' "${args[@]}" --name sample-doc-spec.md --replace-from "$v2"
-[ "$(cat "$copy")" = "$edited" ] || fail 'an edited copy was overwritten'
+run 1 'already exists with other content' "${args[@]}" --name sample-doc-r2-spec.md
+[ "$(cat "$parent/tmp/superpowers-review/sample-doc-r2-spec.md")" = "$edited" ] || fail 'an edited copy was overwritten'
+no_residue
+run 0 'created: tmp/superpowers-review/sample-doc-r3-spec.md' "${args[@]}" --name sample-doc-r3-spec.md
+[ "$(cat "$parent/tmp/superpowers-review/sample-doc-r2-spec.md")" = "$edited" ] || fail 'a new versioned copy overwrote the old one'
 
 # 6. ファイル名と正本のパスの検査
 run 1 'must be a short lowercase file name' "${args[@]}" --name spec.md
@@ -97,6 +115,7 @@ mkdir -p "$tmp/outside"
 ln -s "$tmp/outside/target.md" "$parent/tmp/superpowers-review/link-doc-spec.md"
 run 1 'is a symlink' "${args[@]}" --name link-doc-spec.md
 [ ! -e "$tmp/outside/target.md" ] || fail 'wrote through a symlinked copy'
+no_residue
 
 # 8. tmp/superpowers-review/ が外を指す symlink なら書かない
 linked="$tmp/linked"
@@ -170,4 +189,15 @@ done
 [ -z "$(git -C "$url_doc" status --porcelain)" ] || fail 'URL checks changed the document working tree or index'
 [ -z "$(git -C "$url_parent" status --porcelain)" ] || fail 'URL checks changed the parent working tree or index'
 
-printf 'PASS: superpowers-review-copy copies committed documents and refuses unsafe targets\n'
+# 13. コピー先が FIFO のときは読み込まずに止まり、一時ファイルを残さない
+mkfifo "$parent/tmp/superpowers-review/fifo-doc-spec.md"
+run 1 'is not a regular file' "${args[@]}" --name fifo-doc-spec.md
+[ -p "$parent/tmp/superpowers-review/fifo-doc-spec.md" ] || fail 'the FIFO destination was replaced'
+no_residue
+
+# 14. 公開の失敗後も、他の actor が作った既存コピーはそのまま残る
+run 1 'already exists with other content' "${args[@]}" --name sample-doc-spec.md
+same_as "$copy" "$doc" "$v1"
+no_residue
+
+printf 'PASS: superpowers-review-copy publishes non-replacing copies and refuses unsafe targets\n'
