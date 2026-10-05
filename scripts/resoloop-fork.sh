@@ -144,7 +144,11 @@ resolved_commit="" resolved_name=""
 resolve_ref() {  # origin と upstream を fetch し、$ref を resolved_commit と resolved_name に解決する（origin のブランチを優先）
   run 'git fetch origin' git -C "$dir" fetch --quiet --prune origin
   run 'git fetch upstream' git -C "$dir" fetch --quiet upstream
-  if resolved_commit="$(git -C "$dir" rev-parse --verify -q "refs/remotes/origin/$ref^{commit}")"; then
+  # origin のブランチは名前が完全に一致するときだけ使う。origin/HEAD（symbolic ref）や ~・^ を付けた式は git の解決に任せる
+  # （HEAD が origin の既定のブランチに化けないように）
+  if git -C "$dir" show-ref --verify -q "refs/remotes/origin/$ref" \
+    && ! git -C "$dir" symbolic-ref -q "refs/remotes/origin/$ref" >/dev/null 2>&1 \
+    && resolved_commit="$(git -C "$dir" rev-parse --verify -q "refs/remotes/origin/$ref^{commit}")"; then
     resolved_name="origin/$ref"
   elif resolved_commit="$(git -C "$dir" rev-parse --verify -q "$ref^{commit}")"; then
     resolved_name="$ref"

@@ -154,6 +154,15 @@ upstream_main="$(git -C "$co" rev-parse refs/remotes/upstream/main)"
 expect_exit 0 "checked out: $co at $upstream_main (upstream/main, detached)" checkout upstream/main
 expect_exit 0 "checked out: $co at $fix_commit ($fix_commit, detached)" checkout "$fix_commit"
 expect_exit 1 'cannot resolve no-such-branch' checkout no-such-branch
+# origin/HEAD（origin の既定のブランチを指す symbolic ref）は origin のブランチとして扱わない。push していないコミットを
+# 持つローカルのブランチで checkout HEAD を実行しても、今のコミットのまま detached になる
+git -C "$co" rev-parse -q --verify refs/remotes/origin/HEAD >/dev/null || fail 'case 8 needs origin/HEAD in the clone'
+git -C "$co" switch -q -c local-only
+printf 'local only\n' >> "$co/file.txt" && git -C "$co" commit -q -am 'local only'
+local_commit="$(git -C "$co" rev-parse HEAD)"
+expect_exit 0 "checked out: $co at $local_commit (HEAD, detached)" checkout HEAD
+[ "$(git -C "$co" rev-parse HEAD)" = "$local_commit" ] || fail 'checkout HEAD moved away from the current commit'
+git -C "$co" branch -D -q local-only
 
 # 9. 追跡ファイルに未コミットの変更があれば 1 で、HEAD を動かさない。未追跡ファイルは妨げない
 git -C "$co" checkout -q main
