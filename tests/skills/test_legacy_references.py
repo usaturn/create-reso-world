@@ -25,10 +25,12 @@ LEGACY = re.compile(
     r"maatlog|(^|[^a-z0-9_-])public/|submodule.{0,20}public|-C public|scripts/ci/verify|verify\.sh|verify-devenv",
     re.IGNORECASE,
 )
-# The design records describe the migration itself, and these tests spell the
-# words out to assert that they are gone.
+# The design records and the porting table of Issue #17 (which lists every
+# file of the migration source) describe the migration itself, and these tests
+# spell the words out to assert that they are gone.
 EXCLUDED = (
     "docs/superpowers",
+    "docs/maatlog-poc-porting.md",
     ".devcontainer/test-cleanup-workspace.bash",
     ".devcontainer/test-readme.bash",
     "tests/scripts/test-instructions.bash",
