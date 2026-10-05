@@ -25,6 +25,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 
 - frontmatter の `allowed-tools` は Edit と Write を `/tmp/pr-review-*/review-backup/**` に限っている。`create` には必ず `--temp-root /tmp` を渡し、ヘルパーの一時ディレクトリをこの範囲に置く
 - `MODEL_NAME` は Claude Code ランタイムが提示する正確なモデル識別子を使う
+- helper を呼ぶ Bash には `timeout: 600000` を指定する（規約の「helper の呼び出し」）
 
 ### Codex
 
@@ -38,6 +39,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 ### pi
 
 - `MODEL_NAME` は pi-model-name スキルの手順で決める。セッション履歴（`~/.pi/agent/sessions` 配下）の `model_change` は根拠にしない
+- bash ツールの `timeout` は秒単位である。helper を呼ぶときは指定しないか 600 以上にする（規約の「helper の呼び出し」）
 
 ## 規約
 
@@ -45,8 +47,9 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 - レビュー出力は助言として扱われる
 - プロダクトコード・テストを編集しない
 - レビュー中に重い一括検証を再実行しない。対象は `bash .devcontainer/run-tests.bash`、リポジトリ全体やワールドのプロジェクト全体の `uv run pytest`、`scripts/resoloop-fork.sh test`（fork の `dotnet test` 全体）などである。実装時と CI で確認済みであり、レビューで再実行すると時間がかかり冗長だからである。関連する pytest（ファイルやテスト名で絞ったもの）、個別のテストスクリプト、REPL、最小再現スクリプトなど、指摘の検証に必要な範囲の実行はしてよい。helper の `verify`（destination フィンガープリント確認）はテストの実行ではない。この規定は、`AGENTS.md` や他のスキルが求める完了前の検証より優先する（レビューでは一括検証を再実行しない）
+- helper の呼び出し: `pr_review_workspace.py` の各サブコマンドは、fetch・`gh` など所要時間の読めない別の処理と同じツール呼び出しにまとめない（結果の JSON を読む `jq` は同じ呼び出しでよい）。ツール呼び出しにタイムアウトを指定できるランタイムでは、指定しないか 600 秒以上を指定する（上限が 600 秒未満のランタイムではその上限）。`create` は同時のレビューやストレージの書き込み待ちで数分かかることがあり、短いタイムアウトで打ち切ると worktree が残ってレビューを続けられなくなる。時間予算はフェーズの境界で確かめ、helper を打ち切って守らない
 - レビュー中は `git clean`、`git checkout -f`、`git reset --hard` を実行しない。既存 worktree を再利用・初期化しない
-- 自セッションの worktree の削除は helper の `cleanup` だけが行う。`git worktree remove`、`rm -rf` などの削除コマンドを自分で組み立てない。`cleanup` が拒否した場合も手で代行しない
+- 自セッションの worktree の削除は helper の `cleanup` だけが行う。`create` が結果を返さずに中断した試行の残存物は、helper の `abandon` だけが片付ける（手順 2）。`git worktree remove`、`rm -rf` などの削除コマンドを自分で組み立てない。`cleanup`・`abandon` が拒否した場合も手で代行しない
 - `cleanup` は保存成功（`$DESTINATION` の内容が `$DRAFT` と一致）を検証できたときだけ削除する。検証できない場合は何も削除せず停止し、`$WT` と `$DRAFT` の完全パスを報告してユーザの判断に委ねる
 - レビュー中に生成した検証ログ・スクリーンショット・一時スクリプト等の証跡を `$WT` に残さない。あとで見返す必要がある内容はレビュー本文の「根拠」に転記し、`$DESTINATION` だけで完結させる
 - 最終応答で `$WT` 配下のパスを参照しない（`cleanup` 成功後は `$WT` が存在しないため）。`cleanup` の失敗または停止確認不能による省略時は、残った `$WT` とセッションの完全パスを報告する
@@ -138,20 +141,43 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
      test "$CURRENT_PR_HEAD" = "$PR_HEAD"
      ```
 
-   - `create` を一度だけ実行する。ヘルパーは `/tmp/pr-review-<PR_NUMBER>-<ランダム値>/worktree` に新しい detached worktree を作り（`--temp-root /tmp` で固定する。Claude Code の `allowed-tools` と一致させるため、どのランタイムでも同じにする）、保存先 `$DESTINATION` の create 時フィンガープリント（存在有無、通常ファイル・directory・symlink・その他の種別、通常ファイルの内容 SHA-256 または symlink target text の SHA-256）を `session.json` に保存する。既存パスは再利用しない。destination が通常ファイルの場合はセッション backup へ snapshot し、そのパスを `previous_review` として返す。destination が directory・symlink・特殊 entry の場合は fail-closed で停止する。
+   - `create` は試行 ID ごとに一度だけ実行する。ヘルパーは `/tmp/pr-review-<PR_NUMBER>-<ランダム値>/worktree` に新しい detached worktree を作り（`--temp-root /tmp` で固定する。Claude Code の `allowed-tools` と一致させるため、どのランタイムでも同じにする）、保存先 `$DESTINATION` の create 時フィンガープリント（存在有無、通常ファイル・directory・symlink・その他の種別、通常ファイルの内容 SHA-256 または symlink target text の SHA-256）を `session.json` に保存する。既存パスは再利用しない。destination が通常ファイルの場合はセッション backup へ snapshot し、そのパスを `previous_review` として返す。destination が directory・symlink・特殊 entry の場合は fail-closed で停止する。
+   - `create` の前に試行 ID を決め、開始時刻と同じく進捗記録に残す。`create` が何も返さずに終わっても、この ID で自分の試行を指せる。helper は同じ PR に同じ ID の試行があれば worktree を作る前に拒否する。
+
+     ```bash
+     ATTEMPT_ID=$(date -u +%Y%m%dT%H%M%S%NZ)
+     ```
+
    - Codex では次を実行する。helper が `CODEX_THREAD_ID` から model を解決する。
 
      ```bash
-     SESSION_JSON=$(uv run --no-project python "$HELPER" create --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --commit "$PR_HEAD" --head-branch "$HEAD_BRANCH" --temp-root /tmp)
+     SESSION_JSON=$(uv run --no-project python "$HELPER" create --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --commit "$PR_HEAD" --head-branch "$HEAD_BRANCH" --temp-root /tmp --attempt-id "$ATTEMPT_ID")
      ```
 
    - Codex 以外では、ランタイムから取得済みの正確な `MODEL_NAME` を使って次を実行する。
 
      ```bash
-     SESSION_JSON=$(uv run --no-project python "$HELPER" create --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --commit "$PR_HEAD" --head-branch "$HEAD_BRANCH" --model-name "$MODEL_NAME" --temp-root /tmp)
+     SESSION_JSON=$(uv run --no-project python "$HELPER" create --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --commit "$PR_HEAD" --head-branch "$HEAD_BRANCH" --model-name "$MODEL_NAME" --temp-root /tmp --attempt-id "$ATTEMPT_ID")
      ```
 
    - `CODEX_THREAD_ID` が存在するのに異なる `--model-name` を渡した場合、または非 Codex で `--model-name` を省略した場合、helper は worktree 作成前に停止する。
+   - `create` は進捗を工程ごとに stderr とセッション内の journal へ記録する。`create` の呼び出しが、結果の JSON も helper のエラー（`error:` で始まる出力）も返さずに終わった場合（ツールのタイムアウト、ランタイムによる中断など）は、`create` をそのまま再実行せず、次の順に扱う。
+     1. 次の `inspect` を実行する。`status` が `running` なら `--wait 540` を付けてやり直し、終わるのを待つ。それでも `running` なら、`abandon` も再試行もせず停止して報告する。
+
+        ```bash
+        uv run --no-project python "$HELPER" inspect --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --attempt-id "$ATTEMPT_ID" --temp-root /tmp
+        ```
+
+     2. `status` が `absent` 以外なら、次の `abandon` で試行の残存物を片付ける。`abandon` は、試行が終わっていて、保存前の draft など helper が作った以外のファイルが無く、worktree がこのリポジトリの自セッションのものであるときだけ消す。拒否されたら削除を手で代行せず停止し、`inspect` の出力（工程・状態・残存パス）と拒否の理由を報告する。
+
+        ```bash
+        uv run --no-project python "$HELPER" abandon --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --attempt-id "$ATTEMPT_ID" --temp-root /tmp
+        ```
+
+     3. `abandon` が成功した、または `inspect` が `absent` を返した場合、調査期限まで 10 分以上残っていれば、新しい `ATTEMPT_ID` を決めて `create` を 1 回だけやり直してよい。残っていなければ停止して報告する。
+     4. やり直した `create` も結果を返さなければ、同じく 1・2 を行い、再試行せずに停止して報告する。
+
+     `inspect` の出力から `create` の結果（`worktree`・`state_file` など）を組み立てて続行しない。`create` が helper のエラーで終わった場合は従来どおり停止して報告し、残存パスの報告に `inspect` を使ってよいが `abandon` はしない。
    - Codex rollout は追記中の末尾にある未完了 JSON レコードだけを無視する。改行済みの壊れた JSON レコード、正常な `turn_context.payload.model` の欠落は fail-closed で拒否する。モデル識別子に含まれる `/`・空白類はヘルパーが `-` に置換してファイル名に使う（例: `Cursor Grok 4.6` → `Cursor-Grok-4.6`）。`..` など置換後も安全なファイル名にならない識別子は fail-closed で拒否する。
    - `SESSION_JSON` の JSON から以下を一度だけ取得する。値を推測・再構築しない。ヘルパーが失敗した場合は、手動で代替 Git コマンドを実行せず停止してエラーを報告する。
 
@@ -235,7 +261,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
    - `cleanup` が失敗した場合は削除を手で代行せず停止し、`$WT`・セッションディレクトリ・`$DESTINATION` の完全パスと失敗理由を報告してユーザの判断に委ねる。
    - `cleanup` は他の worktree、`$MAIN_ROOT` の working tree、`reviews/` 配下の他ファイルを変更しない。
    - 停止確認不能なら cleanup を省略する。停止確認不能のときだけ cleanup を省略する限定条件であり、helper が失敗した場合の既存停止規則は保持する。省略時は残った委譲 ID・停止状態・WT とセッションの完全パスを報告し、このターンを終了する。
-   - 最終応答では save/cleanup の結果、`$DESTINATION` の完全パス、削除したセッションディレクトリのパス（省略時は省略理由と残した完全パス）、開始からの経過と全体実時間を報告する。保存済みレビューを後から直接書き換えない。`cleanup` 成功後は `$WT` 配下のパスは既に存在しないため案内に含めない。
+   - 最終応答では save/cleanup の結果、`$DESTINATION` の完全パス、削除したセッションディレクトリのパス（省略時は省略理由と残した完全パス）、開始からの経過と全体実時間を報告する。保存済みレビューを後から直接書き換えない。`cleanup` 成功後は `$WT` 配下のパスは既に存在しないため案内に含めない。`create` をやり直した、または `abandon` を実行した場合は、試行 ID ごとの `inspect`・`abandon` の結果も報告する。
 
 ## 検証プロトコル
 
@@ -402,6 +428,8 @@ Merge recommendation の判定基準:
 - メインリポジトリ側と `$WT` 側の `reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文を、自分でもサブエージェント経由でも開いたり検索対象に含めたりしていないか
 - Merge recommendation が判定基準と整合しているか。重大度判定は active findings、確認不足判定は coverage と pending も参照する
 - `MAIN_ROOT` は PR URL の `owner/repository` を「リポジトリ境界」の表に照らして確定したか（このリポジトリ=検証済みの親 main checkout、resoloop=検証済みの `external/resoloop`、その他は明示された `CODE_ROOT` を照合し、明示が無い・不一致なら停止）。PR の head を `$PR_REMOTE` から取得したか。`merge-base HEAD "$PR_REF"` の成功を確認したか
+- helper の呼び出しを他の処理とまとめたり、600 秒未満のタイムアウトで打ち切ったりしていないか
+- `create` に `--attempt-id "$ATTEMPT_ID"` を渡し、結果を返さなかった試行を `inspect`・`abandon` で扱ったか（拒否されたら手で消さずに停止したか）
 - `create` が返した `model_name`、`draft`、`destination`、`previous_review` を変更・再構築せず使用したか
 - 正確な `$MODEL_NAME` を `--model-name "$MODEL_NAME"` で渡し、filename から推測していないか（Codex はヘルパーが確定する）
 - `save` を `--state "$STATE_FILE"` だけで実行し、caller-selected path を渡していないか
