@@ -198,17 +198,17 @@
 
 ### 確認項目と記録
 
-「rebuild 前」は、移植前の `main` から作られたコンテナで 2026-10-05 に読み取り専用のコマンドで確かめた値である。認証情報の値は記録しない。
+「rebuild 前」は、移植前の `main` から作られたコンテナで 2026-10-05 に読み取り専用のコマンドで確かめた値である。認証情報の値は記録しない。確認方法のコマンドも値を表示しない（R-4 は変数名だけを出す）。
 
 | 番号 | 確認項目 | 確認方法 | 期待する結果 | rebuild 前（2026-10-05） | rebuild 後 |
 | --- | --- | --- | --- | --- | --- |
 | R-1 | postCreate が全手順を完了する | Dev Containers のログ（postCreateCommand の出力） | `[install_beforehand] [25/25] Installing Herdr` まで進み、エラーで止まっていない | （記録なし） | 未記録 |
 | R-2 | mount が 12 件で、dsh と Grok Build の mount が無い | `findmnt -rn -o TARGET \| grep -c '^/home/vscode'`、`findmnt -rn -o TARGET \| grep -E '/\.(dsh\|grok)$'` | 12 件、`.dsh`・`.grok` は無い | 14 件。`~/.dsh`・`~/.grok` がある | 未記録 |
 | R-3 | dsh・Grok Build・pnpm が無く、転送するポートは 8000 だけ | `command -v dsh grok pnpm`、VS Code の「ポート」 | どのコマンドも無い。3080 は転送しない | `dsh` と `pnpm` がある。`grok` は無い | 未記録 |
-| R-4 | 廃止した環境変数が新しいシェルに無い | `zsh -ic 'env' \| grep -E '^(PI_DISTILL_\|PI_EXTENSIONS_LOCALE=\|MAAS_ANTHROPIC_TOKEN=)'` | 何も出ない（`MAAS_ANTHROPIC_TOKEN` は `env` から消した場合） | `PI_DISTILL_*` の 3 つ、`PI_EXTENSIONS_LOCALE`、`MAAS_ANTHROPIC_TOKEN` がある | 未記録 |
+| R-4 | 廃止した環境変数が新しいシェルに無い | `zsh -ic 'env' 2>/dev/null \| grep -oE '^(PI_DISTILL_[A-Z_]+\|PI_EXTENSIONS_LOCALE\|MAAS_ANTHROPIC_TOKEN)='` | 何も出ない（`MAAS_ANTHROPIC_TOKEN` は `env` から消した場合）。残っていれば変数名だけが出て、値は出ない | `PI_DISTILL_*` の 3 つ、`PI_EXTENSIONS_LOCALE`、`MAAS_ANTHROPIC_TOKEN` がある | 未記録 |
 | R-5 | 撤去した拡張が残らず、設定とモデルが残る | `pi list`、`jq '.dependencies' ~/.pi/agent/npm/package.json`、`jq '.extensions' ~/.pi/agent/settings.json`、`jq '.providers \| keys' ~/.pi/agent/models.json` | `pi-mcp-adapter`・`@upstash/context7-pi`・`pi-distill`・`pi-extensions-tool-display`・`pi-extensions-i18n` が無い。`extensions` に `-builtin:mcp` が無い。provider は rebuild 前と同じ | `@upstash/context7-pi` が登録され、npm マニフェストにもある。`extensions` は空。provider は `commandcode`・`deepinfra`・`deepinfra-distill`・`opencode-go` | 未記録 |
 | R-6 | バックアップは変更が必要なときだけ作られる | `ls -d ~/.pi/agent/migration-backups/pi-retired-*`、続けて `uv run --no-project .devcontainer/cleanup_pi_mcp.py` を再実行して同じ一覧を見る | rebuild で 1 つ作られ（rebuild 前に `@upstash/context7-pi` があるため）、再実行では増えない | `migration-backups` は無い | 未記録 |
-| R-7 | 全ランチャーが `--tui-mode regular` で起動し、追加の指定が後ろに残る | `for l in pigo pigod pigou piccg piccd piga pigs pigl pixg; do PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 $l --tui-mode fullscreen; done` | 9 本とも pi の引数の先頭に `--tui-mode`・`regular` があり、後ろに `--tui-mode`・`fullscreen` が残る | `pigo`・`pigs`・`pixg` の argv に `--tui-mode` が無い | 未記録 |
+| R-7 | 全ランチャーが `--tui-mode regular` で起動し、追加の指定が後ろに残る | `for l in pigo pigod pigou piccg piccd piga pigs pigl pixg; do PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 $l --tui-mode fullscreen; done`。dry-run でも、argv を出す前に各ランチャーの前提を確かめる: `piga`・`pigs`・`pigl` は Codex OAuth、`pixg` は xAI OAuth（どちらも `~/.pi/agent/auth.json`）、`piccg`・`piccd` は `COMMANDCODE_API_KEY` と `models.json` の commandcode の定義（`piccd` は DeepSeek のモデルも）、`pigou` は `models.json` の `union-alpha` の定義。9 本に共通の `bwrap`・共通ヘルパ・ランチャー別の設定は rebuild で配置される | 前提がそろったランチャーは、pi の引数の先頭に `--tui-mode`・`regular` があり、後ろに `--tui-mode`・`fullscreen` が残る。前提が無いランチャーは案内を出して終了するので、「前提が未設定のため未確認」と記録する | `pigo`・`pigs`・`pixg` の 3 本で確かめ、argv に `--tui-mode` が無い | 未記録 |
 | R-8 | `pigs`・`pixg` の tier がリポジトリの値になる | `zsh .devcontainer/setup_pi_superagents.zsh` の後に `jq -cS .superagents.modelTiers ~/.pi/agent/extensions/subagent.d/pigs/config.json` と `.devcontainer/pi-superagents/pigs.json` を比べる（`pixg` も同じ） | 一致する。変更があった設定はバックアップされる | すでに一致している（ホストと共有する `~/.pi` を別の環境で更新済みと考えられる） | 未記録 |
 | R-9 | Claude Code のランチャーがそろい、`ccda` が無い | `zsh -ic 'alias ccd ccdo ccds; whence -w ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union ccda claude-alibaba'` | 3 つの alias と 6 つの関数がある。`ccda`・`claude-alibaba` は無い | alias は `ccd` だけ。`ccda`・`claude-alibaba` がある | 未記録 |
 | R-10 | Claude Code のプラグインが宣言と一致する | `claude plugin list` | `example-skills`・`feature-dev`・`ripgrep`・`superpowers`・`web-quality-skills` がある | 5 つともある | 未記録 |

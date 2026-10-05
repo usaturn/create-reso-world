@@ -307,6 +307,7 @@ Expected: `FileNotFoundError` で終わり、`exit=1`
 | なし | `README.md` の ResoLoop の版の説明 | 適応（PR #27 のレビュー修正） | ResoLoop の導入の説明を `.devcontainer/resoloop.lock` の nuget / fork モードに合わせた | #19 |
 | なし | `README.md` の「構成」「エージェントで作業する」「対象外」 | 適応 | この比較表への参照と、pi の project trust の注意を足した | #22 |
 | なし | `docs/maatlog-poc-porting.md`（この文書） | 適応 | #17 の比較表と rebuild での確認の記録 | #22 |
+| なし | `tests/skills/test_legacy_references.py` の `EXCLUDED` | 適応 | この文書は移植元の全ファイルを載せる移行の記録なので、追跡ファイルに移植元の名前を禁じるガードの例外にした。設計記録（`docs/superpowers`）と同じ扱い | #22 |
 
 ### 対象外: スキル・レビュー系ツール・pi の Context7
 
@@ -372,17 +373,17 @@ Expected: `FileNotFoundError` で終わり、`exit=1`
 
 ### 確認項目と記録
 
-「rebuild 前」は、移植前の `main` から作られたコンテナで 2026-10-05 に読み取り専用のコマンドで確かめた値である。認証情報の値は記録しない。
+「rebuild 前」は、移植前の `main` から作られたコンテナで 2026-10-05 に読み取り専用のコマンドで確かめた値である。認証情報の値は記録しない。確認方法のコマンドも値を表示しない（R-4 は変数名だけを出す）。
 
 | 番号 | 確認項目 | 確認方法 | 期待する結果 | rebuild 前（2026-10-05） | rebuild 後 |
 | --- | --- | --- | --- | --- | --- |
 | R-1 | postCreate が全手順を完了する | Dev Containers のログ（postCreateCommand の出力） | `[install_beforehand] [25/25] Installing Herdr` まで進み、エラーで止まっていない | （記録なし） | 未記録 |
 | R-2 | mount が 12 件で、dsh と Grok Build の mount が無い | `findmnt -rn -o TARGET \| grep -c '^/home/vscode'`、`findmnt -rn -o TARGET \| grep -E '/\.(dsh\|grok)$'` | 12 件、`.dsh`・`.grok` は無い | 14 件。`~/.dsh`・`~/.grok` がある | 未記録 |
 | R-3 | dsh・Grok Build・pnpm が無く、転送するポートは 8000 だけ | `command -v dsh grok pnpm`、VS Code の「ポート」 | どのコマンドも無い。3080 は転送しない | `dsh` と `pnpm` がある。`grok` は無い | 未記録 |
-| R-4 | 廃止した環境変数が新しいシェルに無い | `zsh -ic 'env' \| grep -E '^(PI_DISTILL_\|PI_EXTENSIONS_LOCALE=\|MAAS_ANTHROPIC_TOKEN=)'` | 何も出ない（`MAAS_ANTHROPIC_TOKEN` は `env` から消した場合） | `PI_DISTILL_*` の 3 つ、`PI_EXTENSIONS_LOCALE`、`MAAS_ANTHROPIC_TOKEN` がある | 未記録 |
+| R-4 | 廃止した環境変数が新しいシェルに無い | `zsh -ic 'env' 2>/dev/null \| grep -oE '^(PI_DISTILL_[A-Z_]+\|PI_EXTENSIONS_LOCALE\|MAAS_ANTHROPIC_TOKEN)='` | 何も出ない（`MAAS_ANTHROPIC_TOKEN` は `env` から消した場合）。残っていれば変数名だけが出て、値は出ない | `PI_DISTILL_*` の 3 つ、`PI_EXTENSIONS_LOCALE`、`MAAS_ANTHROPIC_TOKEN` がある | 未記録 |
 | R-5 | 撤去した拡張が残らず、設定とモデルが残る | `pi list`、`jq '.dependencies' ~/.pi/agent/npm/package.json`、`jq '.extensions' ~/.pi/agent/settings.json`、`jq '.providers \| keys' ~/.pi/agent/models.json` | `pi-mcp-adapter`・`@upstash/context7-pi`・`pi-distill`・`pi-extensions-tool-display`・`pi-extensions-i18n` が無い。`extensions` に `-builtin:mcp` が無い。provider は rebuild 前と同じ | `@upstash/context7-pi` が登録され、npm マニフェストにもある。`extensions` は空。provider は `commandcode`・`deepinfra`・`deepinfra-distill`・`opencode-go` | 未記録 |
 | R-6 | バックアップは変更が必要なときだけ作られる | `ls -d ~/.pi/agent/migration-backups/pi-retired-*`、続けて `uv run --no-project .devcontainer/cleanup_pi_mcp.py` を再実行して同じ一覧を見る | rebuild で 1 つ作られ（rebuild 前に `@upstash/context7-pi` があるため）、再実行では増えない | `migration-backups` は無い | 未記録 |
-| R-7 | 全ランチャーが `--tui-mode regular` で起動し、追加の指定が後ろに残る | `for l in pigo pigod pigou piccg piccd piga pigs pigl pixg; do PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 $l --tui-mode fullscreen; done` | 9 本とも pi の引数の先頭に `--tui-mode`・`regular` があり、後ろに `--tui-mode`・`fullscreen` が残る | `pigo`・`pigs`・`pixg` の argv に `--tui-mode` が無い | 未記録 |
+| R-7 | 全ランチャーが `--tui-mode regular` で起動し、追加の指定が後ろに残る | `for l in pigo pigod pigou piccg piccd piga pigs pigl pixg; do PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 $l --tui-mode fullscreen; done`。dry-run でも、argv を出す前に各ランチャーの前提を確かめる: `piga`・`pigs`・`pigl` は Codex OAuth、`pixg` は xAI OAuth（どちらも `~/.pi/agent/auth.json`）、`piccg`・`piccd` は `COMMANDCODE_API_KEY` と `models.json` の commandcode の定義（`piccd` は DeepSeek のモデルも）、`pigou` は `models.json` の `union-alpha` の定義。9 本に共通の `bwrap`・共通ヘルパ・ランチャー別の設定は rebuild で配置される | 前提がそろったランチャーは、pi の引数の先頭に `--tui-mode`・`regular` があり、後ろに `--tui-mode`・`fullscreen` が残る。前提が無いランチャーは案内を出して終了するので、「前提が未設定のため未確認」と記録する | `pigo`・`pigs`・`pixg` の 3 本で確かめ、argv に `--tui-mode` が無い | 未記録 |
 | R-8 | `pigs`・`pixg` の tier がリポジトリの値になる | `zsh .devcontainer/setup_pi_superagents.zsh` の後に `jq -cS .superagents.modelTiers ~/.pi/agent/extensions/subagent.d/pigs/config.json` と `.devcontainer/pi-superagents/pigs.json` を比べる（`pixg` も同じ） | 一致する。変更があった設定はバックアップされる | すでに一致している（ホストと共有する `~/.pi` を別の環境で更新済みと考えられる） | 未記録 |
 | R-9 | Claude Code のランチャーがそろい、`ccda` が無い | `zsh -ic 'alias ccd ccdo ccds; whence -w ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union ccda claude-alibaba'` | 3 つの alias と 6 つの関数がある。`ccda`・`claude-alibaba` は無い | alias は `ccd` だけ。`ccda`・`claude-alibaba` がある | 未記録 |
 | R-10 | Claude Code のプラグインが宣言と一致する | `claude plugin list` | `example-skills`・`feature-dev`・`ripgrep`・`superpowers`・`web-quality-skills` がある | 5 つともある | 未記録 |
@@ -405,7 +406,7 @@ Run: `uv run --no-project "$S/check_porting_table.py" "$S/src-tree.txt" docs/maa
 Expected:
 
 ```text
-source paths: 456  rows: 91  path tokens: 109  missing: 0
+source paths: 456  rows: 92  path tokens: 109  missing: 0
 exit=0
 ```
 
@@ -460,7 +461,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 2: `.devcontainer/README.md` の整合
 
 **Files:**
-- Modify: `.devcontainer/README.md`（「秘密情報」の変数の例、「秘密情報」の次に「既存環境の更新」を新設、「API トークン」の本文）
+- Modify: `.devcontainer/README.md`（「秘密情報」の変数の例、「秘密情報」の次に「既存環境の更新」を新設、「API トークン」の本文、PR #33 のレビュー修正で「Superpowers スキルの探索パス」配下の同名の `#####` の見出しを「pi-superagents の版の更新」に改名）
 - Test: `$S/check_readme_integration.bash`（一時）、`.devcontainer/test-readme.bash`、`tests/scripts/test-docs.bash`
 
 **Interfaces:**
@@ -525,10 +526,10 @@ Expected: `FAIL: no ## 既存環境の更新`、`exit=1`
 
 ~~~~diff
 diff --git a/.devcontainer/README.md b/.devcontainer/README.md
-index 18ed593..280a356 100644
+index 18ed593..b2efb73 100644
 --- a/.devcontainer/README.md
 +++ b/.devcontainer/README.md
-@@ -53,12 +53,45 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
+@@ -53,12 +53,46 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
  ```
  
  書式は `KEY=VALUE` の 1 行 1 変数である（zsh が読むので、空白や記号を含む値は引用符で囲む）。
@@ -569,14 +570,15 @@ index 18ed593..280a356 100644
 +
 +- pi の旧拡張の撤去: 「pi の旧拡張・MCP 設定の移行」の `uv run --no-project .devcontainer/cleanup_pi_mcp.py`
 +- 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除
-+- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の `install -m 0755` と
-+  `zsh .devcontainer/setup_pi_superagents.zsh --if-absent`
++- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜17 の `install -m 0755` で 9 本を置き直す。
++  同じ節の 8 の `models.json` のコピーは既存の定義を上書きするので行わない。共通ヘルパは、4 で実行する
++  `zsh .devcontainer/setup_pi_superagents.zsh` が更新する
 +- Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映
 +
  ## テストの実行
  
  リポジトリのルートで次を実行する。CI（`.github/workflows/ci.yml`）も同じコマンドを実行する。
-@@ -526,21 +559,33 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同
+@@ -526,21 +560,33 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同
  
  ### API トークン
  
@@ -594,8 +596,8 @@ index 18ed593..280a356 100644
 -  `setup_pi_opencode_go.zsh` でキーを更新するときだけ必要になる
 +  `setup_pi_opencode_go.zsh` でキーを更新するときと、`auth.json` に資格情報が無い環境で
 +  pi の OpenCode Go を使うときに必要になる
-+- `OPENCODE_GO_API_KEY` は旧名である。`pigs`・`pixg` は、`OPENCODE_API_KEY` が空のときだけ
-+  この値を `OPENCODE_API_KEY` に引き継いでから起動する
++- `OPENCODE_GO_API_KEY` は旧名である。OpenCode Go を使う `pigo`・`pigod`・`pigou`・`pigs`・`pixg` は、
++  `OPENCODE_API_KEY` が空のときだけこの値を `OPENCODE_API_KEY` に引き継いでから起動する
 +- `ccdu`（Claude Code で OpenCode Go を使う）は `auth.json` を読まない。
 +  `OPENCODE_GO_CLAUDE_API_KEY`、`OPENCODE_API_KEY`、`OPENCODE_GO_API_KEY` の順に
 +  最初の空でない値を使い、どれも無ければ起動を止める
@@ -617,6 +619,15 @@ index 18ed593..280a356 100644
  
  ### pi の TUI モードと Herdr のスクロール履歴
  
+@@ -620,7 +666,7 @@ pi-superagents v1.14.3 以降は、git で導入したパッケージの `packag
+ [upstream の修正 #72](https://github.com/teelicht/pi-superagents/pull/72) は
+ [v1.14.3](https://github.com/teelicht/pi-superagents/releases/tag/v1.14.3) に含まれる。
+ 
+-##### 既存環境の更新
++##### pi-superagents の版の更新
+ 
+ 古い環境では、回避設定を整理する前に pi-superagents を v1.14.3 以降へ更新する。
+ `pi --version` は Pi 本体の版なので、拡張の版は別に確認する。
 ~~~~
 
 - [ ] **Step 4: 書いた内容を実装と照合する**
@@ -855,11 +866,22 @@ Expected: `OPEN` で、`headRefOid` がローカルの `git rev-parse HEAD` と�
 
 ## 実行時の変更（2026-10-05）
 
-Task 4 の Step 1 で、全体の pytest の `tests/skills/test_legacy_references.py::test_tracked_files_do_not_refer_to_the_migration_source` が失敗した（比較表の 17 行とルートの `README.md` の 3 行）。このガードは、設計記録（`docs/superpowers`）などを除く追跡ファイルに移植元の名前・`public/`・`verify-devenv` などを禁じる。計画の検証では `run-tests.bash` と README のテストだけを試作で実行し、pytest を実行していなかったため見落とした。
+Task 4 の Step 1 で、全体の pytest の `tests/skills/test_legacy_references.py::test_tracked_files_do_not_refer_to_the_migration_source` が失敗した（比較表の 17 か所とルートの `README.md` の 3 か所）。このガードは、設計記録（`docs/superpowers`）などを除く追跡ファイルに移植元の名前・`public/`・`verify-devenv` などを禁じる。計画の検証では `run-tests.bash` と README のテストだけを試作で実行し、pytest を実行していなかったため見落とした。
 
 Spec の D-15 として次のように直した（コミット `9ebeb29`）。上の Task 3 のパッチと、Task 2・3 の一時の検査スクリプトに埋め込んだ README の期待値は、この変更の前の版である。
 
 - `tests/skills/test_legacy_references.py` の `EXCLUDED` に `docs/maatlog-poc-porting.md` を足した（移行の記録なので、設計記録と同じ扱い）
 - ルートの `README.md` の「構成」を「統合手順、pi と Claude Code の設定の移植の記録」に、「対象外」の参照を「`docs/` にある移植の比較表（Issue #22）の「rebuild での確認」」に直し、移植元の名前を書かない
 - 一時の検査スクリプトの期待値を新しい文に合わせ、ルートの `README.md` に移植元の名前が無いことの検査を足した。節名の参照の検査には「移植の比較表」を比較表への目印として足した
-- ガードは修正の前に失敗し（21 行）、修正の後に通る。ルートの `README.md` に移植元の名前を足すと、引き続き失敗することを確かめた
+- ガードは修正の前に失敗し（20 か所）、修正の後に通る。ルートの `README.md` に移植元の名前を足すと、引き続き失敗することを確かめた
+
+## PR #33 のレビュー修正（2026-10-05）
+
+PR #33 のレビューの指摘を `docs/superpowers/specs/2026-10-05-pr33-issue-22-integration-review-fixes-design.md` で選別し、比較表、`.devcontainer/README.md`、Issue #22 の Spec を直した（F-1〜F-6）。この Plan は次のように扱う。
+
+- Task 1 の Step 4 の埋め込み文書は、最終版の `docs/maatlog-poc-porting.md` と同じ内容にした。全文の埋め込みなので機械的に揃えられ、値を表示する R-4 の旧い確認方法を Plan に残さない。Task 1 の時点の版（D-15 の行が無い 91 行。R-4 の確認方法は値を表示し、R-7 は前提を書いていない）はコミット `0132c84` にある。Step 5 の期待値は最終版の `rows: 92` にした
+- Task 2 の Step 3 のパッチは、`01affb7` から最終版の `.devcontainer/README.md` への差分にした。Task 2 の受け入れ検査はこのパッチで通る。Task 2 の時点のパッチ（「rebuild しない場合」が `--if-absent` 付きのコマンドを「エージェント向けツールの導入」にあるとし、`OPENCODE_GO_API_KEY` を引き継ぐランチャーを `pigs`・`pixg` だけとしていた）はコミット `4e932e8` の差分である
+- 次は計画の時点の記述のまま残す。最終の状態は次のとおり
+  - Architecture と Global Constraints: 変更したファイルには D-15 のテストの例外の 1 行（`tests/skills/test_legacy_references.py`）が加わった
+  - Task 3 のパッチと、Task 2・3 の一時の検査スクリプトのうちルートの `README.md` の期待値: 上の「実行時の変更」のとおり D-15 の前の版である。Task 3 の Step 5 の参照の数（22）は最終版でも同じ
+  - Task 4 の Step 3 の変更の範囲: 最終版では `.devcontainer/README.md`・`README.md`・`docs/maatlog-poc-porting.md`・`tests/skills/test_legacy_references.py`、Issue #22 の Spec、この Plan、レビュー修正の Spec の 7 ファイル

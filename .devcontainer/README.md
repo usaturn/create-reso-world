@@ -88,8 +88,9 @@ rebuild しない場合は、3 の代わりに次を行う。dsh は rebuild す
 
 - pi の旧拡張の撤去: 「pi の旧拡張・MCP 設定の移行」の `uv run --no-project .devcontainer/cleanup_pi_mcp.py`
 - 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除
-- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の `install -m 0755` と
-  `zsh .devcontainer/setup_pi_superagents.zsh --if-absent`
+- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜17 の `install -m 0755` で 9 本を置き直す。
+  同じ節の 8 の `models.json` のコピーは既存の定義を上書きするので行わない。共通ヘルパは、4 で実行する
+  `zsh .devcontainer/setup_pi_superagents.zsh` が更新する
 - Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映
 
 ## テストの実行
@@ -567,8 +568,8 @@ export される。書かない場合は、必要なときに手動で export �
   （`pi auth check --provider opencode-go` が `ready` を返す）。
   `setup_pi_opencode_go.zsh` でキーを更新するときと、`auth.json` に資格情報が無い環境で
   pi の OpenCode Go を使うときに必要になる
-- `OPENCODE_GO_API_KEY` は旧名である。`pigs`・`pixg` は、`OPENCODE_API_KEY` が空のときだけ
-  この値を `OPENCODE_API_KEY` に引き継いでから起動する
+- `OPENCODE_GO_API_KEY` は旧名である。OpenCode Go を使う `pigo`・`pigod`・`pigou`・`pigs`・`pixg` は、
+  `OPENCODE_API_KEY` が空のときだけこの値を `OPENCODE_API_KEY` に引き継いでから起動する
 - `ccdu`（Claude Code で OpenCode Go を使う）は `auth.json` を読まない。
   `OPENCODE_GO_CLAUDE_API_KEY`、`OPENCODE_API_KEY`、`OPENCODE_GO_API_KEY` の順に
   最初の空でない値を使い、どれも無ければ起動を止める
@@ -665,7 +666,7 @@ pi-superagents v1.14.3 以降は、git で導入したパッケージの `packag
 [upstream の修正 #72](https://github.com/teelicht/pi-superagents/pull/72) は
 [v1.14.3](https://github.com/teelicht/pi-superagents/releases/tag/v1.14.3) に含まれる。
 
-##### 既存環境の更新
+##### pi-superagents の版の更新
 
 古い環境では、回避設定を整理する前に pi-superagents を v1.14.3 以降へ更新する。
 `pi --version` は Pi 本体の版なので、拡張の版は別に確認する。
