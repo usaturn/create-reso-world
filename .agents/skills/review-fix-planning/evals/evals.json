@@ -145,6 +145,44 @@
         "A Spec is committed as draft and a review copy is created before asking for approval.",
         "Nothing is implemented, pushed or merged before an explicit go-ahead."
       ]
+    },
+    {
+      "id": 12,
+      "name": "same-condition-second-violation-switches-to-design-review",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）usaturn/create-reso-world の PR #901（open、draft ではない）とレビュー結果 reviews/#901-fix-sync/ を確認し、修正要否を確定して。同じテーマの Spec には前の回の記録があり、「同期の途中で止まっても state の index は Slot の並びと一致する」という条件を、コミット abc1234 で直している。今回のレビューには、同じ条件を別の経路（削除の後）で破る致命的な指摘が 1 件あり、現行 HEAD で再現する。",
+      "expected_output": "Conclusion 1 with a design review: the finding is 対応する and recognized as the second violation of the same condition; the run neither stops nor applies another point patch; it writes the condition design into the Spec, rebuilds the path table from the mechanism, compares fix designs, verifies every path, runs one self-review and the pre-publication checks, then pushes.",
+      "files": [],
+      "expectations": [
+        "The finding is classified as 対応する and identified as the second violation of the same condition, citing the earlier Spec record or commit abc1234.",
+        "The run does not stop with conclusion 3 and does not ask the user to choose; it switches to the design review inside conclusion 1.",
+        "The Spec gets the condition design, a table rebuilt from the mechanism (all writers, callers and stop points, with prior behavior and assertions) and the compared fix designs with the chosen one.",
+        "Verification covers every enumerated path, the self-review runs once, and the push happens only after the pre-publication checks."
+      ]
+    },
+    {
+      "id": 13,
+      "name": "regression-from-earlier-fix-switches-to-design-review",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）usaturn/create-reso-world の PR #902（open、draft ではない）とレビュー結果 reviews/#902-fix-cache/ を確認し、レビュー指摘に対応して。致命的な指摘が 1 件あり、現行 HEAD で再現する。原因は、前の回のレビュー修正のコミット def5678 が足した分岐で、そのコミットの前の版では再現しない。",
+      "expected_output": "The cause is traced to the earlier review-fix commit and treated as a regression from a fix; the run switches to the design review inside conclusion 1 instead of patching the new branch, without stopping or asking the user, and records the trigger and its evidence in the Spec.",
+      "files": [],
+      "expectations": [
+        "The cause is traced to commit def5678 (git log -L, git blame or reproduction before and after it) and identified as a regression from an earlier fix.",
+        "The agent switches to the design review instead of patching the branch, without stopping with conclusion 3 or asking the user.",
+        "The Spec records the trigger, its evidence, the condition design and why the earlier fix fell short."
+      ]
+    },
+    {
+      "id": 14,
+      "name": "failure-path-fix-checks-whole-state-and-control",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）usaturn/create-reso-world の PR #903（open、draft ではない）のレビュー指摘に対応している。致命的な指摘は「不正な models.json で止まるとき、models.json は変わらないが、先にバックアップが作られ auth.json が書き換わる」で、現行 HEAD で再現した。修正後のテストは、終了コードが非ゼロであることと models.json のバイト列だけを比べている。負例の入力には、不正な数値と壊れた lock の 2 つの異常が入っている。この後どう検証するか。",
+      "expected_output": "The failure-path verification: compare the whole managed state before and after (backup, auth, links, temp files) with expectations taken from the pre-run state, confirm all inputs are validated before any state changes, split the negative case so each has one anomaly, and run a control with the central guard removed in an isolated mktemp worktree where every negative case for that guard fails; record the results in the Spec.",
+      "files": [],
+      "expectations": [
+        "The test compares the whole managed state before and after (backup, auth, links, temp files), with expectations taken from the pre-run state rather than fixed values.",
+        "It checks that every input is validated before any state changes.",
+        "Each negative case carries exactly one anomaly and asserts the expected rejection reason.",
+        "A control with only the central guard removed runs in an isolated mktemp worktree, not the dedicated worktree, every negative case for that guard fails, and the results go into the Spec."
+      ]
     }
   ]
 }
