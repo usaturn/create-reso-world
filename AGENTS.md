@@ -13,6 +13,7 @@
 - 複雑なモデルを作る時や、計画や設計が必要な変更は、方針を決めてから実装する
 - Python を使う時は uv 必須であり python3 コマンドを使わないこと。リポジトリ内の Python ツールも `uv` で実行する
 - 例外として、Dev Container のブートストラップ（`.devcontainer/` 配下）と zsh ヘルパーは uv の導入前にも動く必要があるため、python3 を使ってよい
+- ローカルは常に origin/main(origin/HEAD) に保つこと(ローカルの main は作らない)
 
 ## resoloop 注意
 
