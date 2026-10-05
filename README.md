@@ -13,7 +13,7 @@
 ├── .devcontainer/             Dev Container の設定、導入スクリプト、テスト（詳細は .devcontainer/README.md）
 ├── scripts/                   new-world.sh（プロジェクトの作成）、resoloop-fork.sh（fork の運用）、check-layout.sh（レイアウト検査）
 ├── templates/world-project/   プロジェクトの雛形
-├── docs/                      設計と計画（docs/superpowers/）、fork の運用、統合手順、maatlog-poc からの移植の記録
+├── docs/                      設計と計画（docs/superpowers/）、fork の運用、統合手順、pi と Claude Code の設定の移植の記録
 ├── tests/                     スクリプトのテスト（tests/scripts/）とスキルのテスト（tests/skills/）
 └── MyResoniteProject/ akichi/ slum02/   ワールドのプロジェクト（resoloop のプロジェクト）
 ```
@@ -88,5 +88,5 @@ uv run pytest tests/skills .agents/skills  # スキルのテスト
 ## 対象外
 
 リポジトリの公開と LICENSE の選定、Git LFS、flux-sdk の導入、Rebuild を伴う確認の自動化は対象外である。
-Rebuild 後の確認は、ユーザが `docs/integration.md` の手順で行う。maatlog-poc からの pi と Claude Code の設定の移植（Issue #17）で
-確かめる項目と記録は、`docs/maatlog-poc-porting.md` の「rebuild での確認」にある。
+Rebuild 後の確認は、ユーザが `docs/integration.md` の手順で行う。pi と Claude Code の設定の移植（Issue #17）で確かめる項目と
+記録は、`docs/` にある移植の比較表（Issue #22）の「rebuild での確認」にある。
