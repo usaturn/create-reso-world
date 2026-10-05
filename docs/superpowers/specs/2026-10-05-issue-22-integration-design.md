@@ -1,11 +1,11 @@
 # Issue #22 移植の比較表・README の整合・rebuild での確認 設計
 
 - 文書管理／対象リポジトリ: `usaturn/create-reso-world`
-- 対象: Issue #22（親 #17。ボードのキー `issue17-maatlog-pi-claude-port`、子のキー `c5-integration`）。PR は未作成
+- 対象: Issue #22（親 #17。ボードのキー `issue17-maatlog-pi-claude-port`、子のキー `c5-integration`）。PR は Plan の Task 4 で作る
 - 基準: 移植先は `main` の `01affb7`（#19〜#21 の PR #25・#26・#27 と PR #30 のマージ後。Issue 本文の基準 `9699e94` から進んでいる）。移植元は usaturn/maatlog-poc の `1f2aadb`（Issue の指定）。移植元の `main` は 2026-10-05 02:55 UTC 時点で `e1f042e` に進んでいるが、差分は 5.1 節のとおり取り込まない
 - 経路: brainstorming の written-spec 経路。変更は文書だけの bounded な作業だが、#17 の運用ルールが全ての子に Spec と Plan を求めているため、書面の Spec を作る
 - 状態: draft
-- 実行許可: 利用者の 2026-10-05 の指示「途中で止めずに推奨案で Spec、Plan を作成し PR まで実施せよ」。この Spec の判断（5 章の D-1〜D-13）は、その指示に基づきエージェント（Claude Code、claude-opus-5-5）が推奨値で決めたもので、Spec 自体の明示承認は得ていない
+- 実行許可: 利用者の 2026-10-05 の指示「途中で止めずに推奨案で Spec、Plan を作成し PR まで実施せよ」。この Spec の判断（5 章の D-1〜D-14）は、その指示に基づきエージェント（Claude Code、claude-opus-5-5）が推奨値で決めたもので、Spec 自体の明示承認は得ていない
 - 関連 Plan: `docs/superpowers/plans/2026-10-05-issue-22-integration.md`
 - 作成: 2026-10-05
 
@@ -92,7 +92,7 @@
 
 1. 冒頭: 対象（#17 と子 #18〜#22）、移植元と移植先の基準、移植元の最新 `main` との差分の扱い
 2. 判断の区分（D-3）と読み方（パスの書き方、1 ファイルを複数の行に分ける場合、子の表記の示し方）
-3. 比較表。列は Issue の指定どおり「移植元のパス」「移植先のパス」「判断」「理由」「担当 Issue」。領域ごとの小見出しで分ける: pi 本体・拡張・MCP／pi のランチャー・モデル・サブエージェント／Claude Code／Dev Container とシェルの共有ファイル／除外した Grok Build・`ccda`・dsh／移植先にだけあるファイル／対象外（スキル・レビュー系ツール・pi の Context7）／対象外（MaatLog 固有と他のエージェント）
+3. 比較表。列は Issue の指定どおり「移植元のパス」「移植先のパス」「判断」「理由」「担当 Issue」。領域ごとの小見出しで分ける: pi 本体・拡張・MCP／pi のランチャー・モデル・サブエージェント／Claude Code／Grok Build・`ccda`・dsh／Dev Container・シェル・文書の共有ファイル／対象外（スキル・レビュー系ツール・pi の Context7）／対象外（MaatLog 固有と他のエージェント）
 4. 網羅の確認: 方法と結果（4.4 節）
 5. 指示文・MCP の読み込み: ルートとワールドを cwd にした場合に、各エージェントが何を読むかと、確かめた方法（4.5 節）
 6. rebuild での確認: 手順、確認項目と記録、実認証のスモークテスト（4.6 節）
@@ -102,7 +102,7 @@
 - 子の表の行は、判断と理由を変えずに集める。移植元のパスが無い #19 の行は、移植元のファイル（`scripts/setup_pi.zsh` など）を補う。補うのはパスの列だけで、判断は変えない
 - 移植元のパスの列は、リポジトリのルートからの完全なパスで書く（`pigo.json`・`pigod.json` のような省略をしない）。スキルとレビュー系ツールはディレクトリ単位の `**` で書き、行の中にファイル数とディレクトリ名を書く（D-2）
 - 1 つのファイルを節ごとに別の子が担当した場合（`install_beforehand.bash`・`zshrc.txt`・`.devcontainer/README.md`）は、節ごとに行を分ける。どの子も扱わなかった節は #22 の行にする
-- 移植先にだけあるファイル（`pigou`、`cleanup_pi_mcp.py`、`pi_json.py`、テストなど）は、移植元のパスを「なし」とする行にまとめる
+- 移植先にだけあるファイル（`pigou`、`cleanup_pi_mcp.py`、`pi_json.py`、テストなど）は、移植元のパスを「なし」とし、関係する領域の小見出しに置く（子の表と同じ並びで読める）
 - 担当 Issue の列は、判断を記録した Issue を書く。#17 本文で範囲外と決めた項目は「#17」とする
 
 ### 4.2 #22 が判断する行
@@ -122,6 +122,10 @@
 | `.devcontainer/test-herdr-agent-task.bash`・`test-herdr-status.bash` | 既存維持 | 移植先が新しい（here-string で SIGPIPE を避ける） |
 | `.devcontainer/install_beforehand.bash` のうち `public` の checkout、Gitleaks・Playwright の導入 | 対象外 | MaatLog の公開アプリケーションと検証の手順 |
 | `.devcontainer/install_beforehand.bash` のうち Codex・Cursor・Devin・uv・Starship・Herdr・共有スキルの導入と `pi-subagents` の置き換え | 既存維持 | 移植先の手順で足りる。`pi-subagents` の置き換えの手順は移植元と同等（差分はコメントの Issue 番号だけ） |
+| なし（移植先の `install_beforehand.bash` の ResoLoop の導入と Resonite のツールの確認、`zshrc.txt` の `require_command`・`update_if_present`・秘密情報の `env` の読み込み・.NET のツールの PATH） | 既存維持 | 移植先にだけある手順と補助 |
+| `.devcontainer/README.md` のうち「Codex で `CLAUDE.md` を指示ファイルとして読む」「Herdr サイドバーの設定移行」「エージェント向けツールの導入」 | 既存維持 | 移植先は同じ内容を移植先の構成（Codex は `AGENTS.md` を直接読む、9 本のランチャー、5 つのプラグイン）で書いてある |
+| `.devcontainer/README.md` のうち「public/ checkout の検査と復旧」「npm への一本化と既存環境の移行」 | 対象外 | MaatLog の `public/` submodule と yarn からの移行の手順 |
+| `.devcontainer/README.md` のうち「PR レビューの一括起動（herdr-pr-review）」 | 対象外 | レビュー系ツール。担当は #17 |
 | `.devcontainer/zshrc.txt` のうち Cursor / Devin の alias（`cur`・`curo`・`dev`・`devo`・`devs` のモデル固定） | 対象外 | #17 の実行ボードで「Cursor / Devin のエイリアスは誰も変えない」と決めた |
 | `.devcontainer/zshrc.txt` のうち `maatlog_periodic_cleanup`、`update()` | 既存維持 | 移植先は `workspace_periodic_cleanup` に汎用化し、`update()` は無いツールを飛ばす `update_if_present` を使う。`grok update` の撤去は #18 |
 | `.github/workflows/ci.yml` | 対象外 | MaatLog の CI と検証入口（`scripts/ci/verify-devenv.sh`）。移植先は自分の CI を持つ |
@@ -139,7 +143,7 @@
 
 - 「秘密情報」の変数の例に `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足し、詳細は「API トークン」節を参照させる
 - 「API トークン」節を、変数ごとに「使うもの」と「無いときの挙動」を書く形に書き直す。対象は `OPENCODE_API_KEY`（pi の OpenCode Go のランチャーは `auth.json` を優先して読むので通常は不要、`pigs`・`pixg` の `cheap` などの子 Pi も同じ、`ccdu` は環境変数が必須で優先順位を持つ、`setup_pi_opencode_go.zsh` の実行に必要）、`OPENCODE_GO_API_KEY`（旧名。`pigs`・`pixg` が `OPENCODE_API_KEY` に引き継ぎ、`ccdu` の 3 番目の候補）、`OPENCODE_GO_CLAUDE_API_KEY`（`ccdu` の最初の候補）、`DEEPINFRA_TOKEN`（pi の deepinfra と `ccdd`・`ccddg`）、`COMMANDCODE_API_KEY`（`piccg`・`piccd`）、`GOOGLE_DEV_KNOWLEDGE_API_KEY`（pi と Claude Code の Google Developer Knowledge の MCP）、`CONTEXT7_API_KEY`（`.codex/config.toml` の `env_vars` で Codex の `context7_stdio` に渡す。未設定なら `cod` が起動時に入力を求める）。値の例は書かない
-- 新設の「既存環境の更新」節を「秘密情報」の次に置く。順序は、(1) 作業ツリーを最新の `main` に追従させる、(2) ホストの `env` を見直す（`MAAS_ANTHROPIC_TOKEN` を消す、必要なら `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す）、(3) rebuild する（postCreate が自動で行うこと）、(4) rebuild では変わらないものを反映する（`pigs`・`pixg` の tier、pi と Claude Code の project trust、`models.json` に残る `deepinfra-distill` の任意の整理）、(5) 確認項目は `docs/maatlog-poc-porting.md`。rebuild しない場合の手順は、既存の各節へのリンクで並べる。各節の詳細は書き写さない（D-8）
+- 新設の「既存環境の更新」節を「秘密情報」の次に置く。順序は、(1) 作業ツリーを最新の `origin/main` に追従させる、(2) ホストの `env` を見直す（`MAAS_ANTHROPIC_TOKEN` を消す、必要なら `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す）、(3) rebuild する（postCreate が自動で行うこと）、(4) rebuild では変わらないものを反映する（`pigs`・`pixg` の tier、pi の project trust、`models.json` に残る `deepinfra-distill` の任意の整理）、(5) 確認項目は、ルートの `README.md` の「対象外」が案内する移植の記録にある（D-14）。rebuild しない場合の手順は、既存の各節への参照で並べる。各節の詳細は書き写さない（D-8）
 
 ルート `README.md`:
 
@@ -147,14 +151,14 @@
 - 「エージェントで作業する」に pi の項目を足す。project trust を承認すると `.pi/settings.json`（組み込み MCP）と `.pi/mcp.json`（Google Developer Knowledge）が読まれ、ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと詳細は `.devcontainer/README.md`
 - 「対象外」の rebuild 後の確認の参照先に `docs/maatlog-poc-porting.md` の「rebuild での確認」を足す
 
-`.devcontainer/test-readme.bash` などの既存のテストが README の表や節を検査しているので、表の列と既存の節の見出しは変えない。
+`.devcontainer/test-readme.bash` などの既存のテストが README の表や節を検査しているので、表の列と既存の節の見出しは変えない。`test-readme.bash` は `.devcontainer/` 配下に移植元の名前（maatlog）、3 桁の Issue 番号、ワークスペースの絶対パス、除外したツールの導入の記述が入ることを禁じている。`.devcontainer/README.md` に書く文はこれらを含めない。ルートの `README.md` は `tests/scripts/test-docs.bash` が `##` の見出しの並びを固定しているので、見出しを足さない
 
 ### 4.4 網羅の確認
 
 Plan の一時スクリプト（scratchpad に置き、リポジトリには入れない）で、次を確かめる。
 
 1. 移植元 `1f2aadb` のツリーを GitHub の API で取得し、blob と gitlink のパスを列挙する（456 件）
-2. `docs/maatlog-poc-porting.md` の比較表の「移植元のパス」の列から、バッククォートで囲んだパスを取り出す。`**` を含むものはディレクトリの配下全体、それ以外は完全一致として扱う
+2. `docs/maatlog-poc-porting.md` の「比較表」の節の表から「移植元のパス」の列を取り出し（`\|` はセルの区切りとしない）、バッククォートで囲んだ語のうち、先頭の要素が移植元のツリーの最上位の名前（`.devcontainer`・`scripts`・`README.md` など）に一致するものをパスとして扱う。`/**` で終わるものはディレクトリの配下全体、それ以外は完全一致とする
 3. 移植元の全パスが、いずれかの行に当たることを確かめる
 4. 表のパス（`**` 以外）が、すべて移植元のツリーに存在することを確かめる（書き間違いの検出）
 5. 判断の列が 5 つの区分のどれかで、担当 Issue の列が #17〜#22 のどれかであることを確かめる
@@ -175,7 +179,7 @@ Plan の一時スクリプト（scratchpad に置き、リポジトリには入�
 
 `docs/maatlog-poc-porting.md` の「rebuild での確認」に、次を書く。
 
-- 手順: 作業ツリーを最新の `main` に追従させてから Rebuild Container を実行する。この PR は文書だけを変えるので、rebuild の結果は `main`（`01affb7` 以降）と同じになる。postCreate のログで `[install_beforehand] [25/25]` まで進み、エラーで止まっていないことを確かめる
+- 手順: 作業ツリーを最新の `origin/main` に追従させてから Rebuild Container を実行する。この PR は文書だけを変えるので、rebuild の結果は `origin/main`（`01affb7` 以降）と同じになる。postCreate のログで `[install_beforehand] [25/25]` まで進み、エラーで止まっていないことを確かめる
 - 確認項目と記録の表。列は「番号」「確認項目」「確認方法」「期待する結果」「rebuild 前（2026-10-05）」「rebuild 後」。rebuild 前の列には 3.5 節の値を書き、rebuild 後の列は「未記録」とする。項目は Issue #22 と各子の引き継ぎから作る
 
 | 番号 | 確認項目 | 出典 |
@@ -217,6 +221,7 @@ PR の本文には Issue の指定どおり `Closes #22` を書く。#22 の完�
 | D-11 | テストを追加・変更しない。網羅は一時スクリプトで確かめて結果を記録する | 比較表の網羅を検査するテストを足す | #22 の編集範囲にテストが無い。検査には移植元のツリー（別リポジトリ）が要り、固定した基準の記録なので繰り返し検査する価値が低い |
 | D-12 | 移植と無関係な README の記述（CI の無効化、`slum03/` の記載漏れ）は変えない | 直す | #22 の範囲は移植に伴う整合。Actions の無効化は一時的な設定の可能性がある |
 | D-13 | 予約は PR の作成と作業報告まで保持し、計画の成果物（Spec・Plan・引き継ぎ書）を #22 に公開して復元を確かめてから実装に進む | 計画の公開を省く | #17 の運用ルールと、#20 の 1 セッションでの前例に従う |
+| D-14 | `.devcontainer/README.md` には比較表の文書名を書かず、ルートの `README.md` の「対象外」から案内する | `test-readme.bash` の禁止語の例外を足す | `.devcontainer/` に移植元の名前を残さないという既存の規則（2026-09-26 の再設計）を保つ。テストは #22 の編集範囲外 |
 
 ## 6. インターフェース
 
@@ -242,7 +247,7 @@ worktree のルートで実行する。実認証とホストの設定は使わ�
 - `bash scripts/check-layout.sh`、`bash .devcontainer/run-tests.bash`、`uv run pytest -q tests/skills .agents/skills`（基準: PASS、27/27、516 passed / 1 skipped）
 - 4.4 節の網羅の確認スクリプト
 - 4.5 節の静的な確認
-- README のリンク先（相対パスと節の見出し）が存在すること
+- README の「節名」の参照が、参照先のファイルの見出しとして存在すること（Plan の一時スクリプト）
 - `git diff --stat origin/main` で、変更が 2 章の 3 ファイルと Spec・Plan だけであること
 
 ## 9. 比較表の行
@@ -251,7 +256,7 @@ worktree のルートで実行する。実認証とホストの設定は使わ�
 
 | 移植元のパス | 移植先のパス | 判断 | 理由 |
 | --- | --- | --- | --- |
-| `.devcontainer/README.md` のうちどの子も扱わなかった節 | `.devcontainer/README.md` の「秘密情報」「API トークン」と新設の「既存環境の更新」 | 適応 | #18〜#21 の変更に合わせて変数の説明と既存環境の手順をまとめる。移植元のレビュー系ツールの節は対象外 |
+| `.devcontainer/README.md` の pi の「API トークン」 | `.devcontainer/README.md` の「秘密情報」「API トークン」と新設の「既存環境の更新」 | 適応 | #18〜#21 の変更に合わせて変数の説明と既存環境の手順をまとめる |
 | なし | `README.md` の「構成」「エージェントで作業する」「対象外」 | 適応 | 比較表への参照と pi の trust の注意を足す |
 | なし | `docs/maatlog-poc-porting.md`（新規） | 適応 | #17 の比較表と rebuild の確認の記録 |
 
