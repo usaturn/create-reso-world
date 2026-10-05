@@ -49,7 +49,7 @@
 - Devin: `.claude/skills` の symlink 経由で同じスキルが見えても、一覧には 1 回だけ表示される（`.devin/config.json` は置かない）。
 - Cursor: スキルの一部が見えない。詳細は `.devcontainer/README.md` の「エージェントの読み込みの制約」。
 - pi: プロジェクトを信頼（trust）すると、`.pi/settings.json`（組み込み MCP の有効化）と `.pi/mcp.json`（Google Developer Knowledge の
-  MCP サーバー）が読まれる。ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
+  MCP サーバー）、プロジェクトのスキル（`.agents/skills`）が読まれる。ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
   「組み込み MCP と廃止した拡張」にある。
 - pi-superagents: 組み込みと同じ定義（`sp-*.md`）は追跡しない。独自に変えた `.agents/sp-implementer.md` だけを追跡する。
 

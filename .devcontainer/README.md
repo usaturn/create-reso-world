@@ -80,14 +80,16 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
    - ランチャー別の tier: `--if-absent` を付けずに `zsh .devcontainer/setup_pi_superagents.zsh` を実行する。
      変更のある設定はバックアップされる（「pi-superagents のランチャー別 model tier」）
    - pi の project trust: まだ承認していなければ、リポジトリのルートで素の `pi` を起動して承認する。
-     承認の後に `.pi/settings.json` と `.pi/mcp.json` が読まれる（「組み込み MCP と廃止した拡張」）
+     承認の後に `.pi/settings.json`・`.pi/mcp.json` とプロジェクトのスキル（`.agents/skills`）が読まれる
+     （「組み込み MCP と廃止した拡張」）
    - `~/.pi/agent/models.json` に残る `deepinfra-distill` は自動では消さない。不要なら定義を確かめてから削除する
 5. 確かめる項目と、rebuild 前の状態の記録は、ルートの `README.md` の「対象外」が案内する移植の記録にある。
 
 rebuild しない場合は、3 の代わりに次を行う。dsh は rebuild するまでコンテナに残る。
 
 - pi の旧拡張の撤去: 「pi の旧拡張・MCP 設定の移行」の `uv run --no-project .devcontainer/cleanup_pi_mcp.py`
-- 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除
+- 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除。
+  2 で `env` から消した `MAAS_ANTHROPIC_TOKEN` も、使用中のシェルでは `unset MAAS_ANTHROPIC_TOKEN` で外す
 - pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜17 の `install -m 0755` で 9 本を置き直す。
   同じ節の 8 の `models.json` のコピーは既存の定義を上書きするので行わない。共通ヘルパは、4 で実行する
   `zsh .devcontainer/setup_pi_superagents.zsh` が更新する
@@ -587,7 +589,8 @@ export される。書かない場合は、必要なときに手動で export �
   pi は `.pi/mcp.json`、Claude Code は `.mcp.json` のヘッダーでこの変数を参照する。
   無い場合の pi の挙動は「組み込み MCP と廃止した拡張」にある
 - `CONTEXT7_API_KEY` は `.codex/config.toml` の `env_vars` で Codex の Context7 の MCP サーバー
-  （`context7_stdio`）に渡す。未設定のまま `cod` を起動すると、入力を求める
+  （`context7_stdio`）に渡す。未設定のまま `cod` を起動すると、入力を求める。
+  共有の `find-docs` スキルが使う Context7 の CLI もこの変数を使う。無くても動くが、レート制限が低くなる
 
 ### pi の TUI モードと Herdr のスクロール履歴
 

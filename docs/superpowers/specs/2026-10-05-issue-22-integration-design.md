@@ -3,11 +3,11 @@
 - 文書管理／対象リポジトリ: `usaturn/create-reso-world`
 - 対象: Issue #22（親 #17。ボードのキー `issue17-maatlog-pi-claude-port`、子のキー `c5-integration`）。PR は Plan の Task 4 で作る
 - 基準: 移植先は `main` の `01affb7`（#19〜#21 の PR #25・#26・#27 と PR #30 のマージ後。Issue 本文の基準 `9699e94` から進んでいる）。移植元は usaturn/maatlog-poc の `1f2aadb`（Issue の指定）。移植元の `main` は 2026-10-05 02:55 UTC 時点で `e1f042e` に進んでいるが、差分は 5.1 節のとおり取り込まない
-- 経路: brainstorming の written-spec 経路。変更は文書だけの bounded な作業だが、#17 の運用ルールが全ての子に Spec と Plan を求めているため、書面の Spec を作る
+- 経路: brainstorming の written-spec 経路。変更は文書とテストの例外の 1 行（D-15）だけの bounded な作業だが、#17 の運用ルールが全ての子に Spec と Plan を求めているため、書面の Spec を作る
 - 状態: draft
 - 実行許可: 利用者の 2026-10-05 の指示「途中で止めずに推奨案で Spec、Plan を作成し PR まで実施せよ」。この Spec の判断（5 章の D-1〜D-15）は、その指示に基づきエージェント（Claude Code、claude-opus-5-5）が推奨値で決めたもので、Spec 自体の明示承認は得ていない
 - 関連 Plan: `docs/superpowers/plans/2026-10-05-issue-22-integration.md`
-- レビュー修正: `docs/superpowers/specs/2026-10-05-pr33-issue-22-integration-review-fixes-design.md`（PR #33 の F-1〜F-6）
+- レビュー修正: `docs/superpowers/specs/2026-10-05-pr33-issue-22-integration-review-fixes-design.md`（PR #33。この Spec を変えた修正もそこに記録した）
 - 作成: 2026-10-05
 
 ## 1. 目的
@@ -16,7 +16,7 @@
 
 ## 2. 範囲
 
-変更するファイル（いずれも #22 の「編集してよいファイル」）:
+変更するファイル（`tests/skills/test_legacy_references.py` を除き、#22 の「編集してよいファイル」。テストの変更は D-15）:
 
 - `docs/maatlog-poc-porting.md`（新規）: 比較表、網羅の確認、指示文・MCP の読み込み、rebuild での確認と記録
 - `.devcontainer/README.md`: 「秘密情報」の変数の例、「API トークン」節、新設する「既存環境の更新」節。PR #33 のレビュー修正で、「Superpowers スキルの探索パス」配下の同名の `#####` の見出しを改名した（6 章）
@@ -125,7 +125,7 @@
 | `.devcontainer/install_beforehand.bash` のうち `public` の checkout、Gitleaks・Playwright の導入 | 対象外 | MaatLog の公開アプリケーションと検証の手順 |
 | `.devcontainer/install_beforehand.bash` のうち Codex・Cursor・Devin・uv・Starship・Herdr・共有スキルの導入と `pi-subagents` の置き換え | 既存維持 | 移植先の手順で足りる。`pi-subagents` の置き換えの手順は移植元と同等（差分はコメントの Issue 番号だけ） |
 | なし（移植先の `install_beforehand.bash` の ResoLoop の導入と Resonite のツールの確認、`zshrc.txt` の `require_command`・`update_if_present`・秘密情報の `env` の読み込み・.NET のツールの PATH） | 既存維持 | 移植先にだけある手順と補助 |
-| `.devcontainer/README.md` のうち「Codex で `CLAUDE.md` を指示ファイルとして読む」「Herdr サイドバーの設定移行」「エージェント向けツールの導入」 | 既存維持 | 移植先は同じ内容を移植先の構成（Codex は `AGENTS.md` を直接読む、9 本のランチャー、5 つのプラグイン）で書いてある |
+| `.devcontainer/README.md` のうち「Codex で CLAUDE.md を指示ファイルとして読む」「Herdr サイドバーの設定移行」「エージェント向けツールの導入」 | 既存維持 | 移植先は同じ内容を移植先の構成（Codex は `AGENTS.md` を直接読む、9 本のランチャー、5 つのプラグイン）で書いてある |
 | `.devcontainer/README.md` のうち「pi のモデル定義とランチャー」「モデル定義の正」 | 既存維持 | 差分は setup スクリプトのパス（移植先は `.devcontainer/` に置く）と、移植先にだけある `pigou` の説明だけ（PR #33 のレビュー修正で足した行） |
 | `.devcontainer/README.md` のうち「public/ checkout の検査と復旧」「npm への一本化（#147）と既存環境の移行」 | 対象外 | MaatLog の `public/` submodule と yarn からの移行の手順 |
 | `.devcontainer/README.md` のうち「PR レビューの一括起動（herdr-pr-review）」 | 対象外 | レビュー系ツール。担当は #17 |
@@ -145,13 +145,13 @@
 `.devcontainer/README.md`:
 
 - 「秘密情報」の変数の例に `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足し、詳細は「API トークン」節を参照させる
-- 「API トークン」節を、変数ごとに「使うもの」と「無いときの挙動」を書く形に書き直す。対象は `OPENCODE_API_KEY`（pi の OpenCode Go のランチャーは `auth.json` を優先して読むので通常は不要、`pigs`・`pixg` の `cheap` などの子 Pi も同じ、`ccdu` は環境変数が必須で優先順位を持つ、`setup_pi_opencode_go.zsh` の実行に必要）、`OPENCODE_GO_API_KEY`（旧名。OpenCode Go を使う `pigo`・`pigod`・`pigou`・`pigs`・`pixg` が `OPENCODE_API_KEY` に引き継ぎ、`ccdu` の 3 番目の候補）、`OPENCODE_GO_CLAUDE_API_KEY`（`ccdu` の最初の候補）、`DEEPINFRA_TOKEN`（pi の deepinfra と `ccdd`・`ccddg`）、`COMMANDCODE_API_KEY`（`piccg`・`piccd`）、`GOOGLE_DEV_KNOWLEDGE_API_KEY`（pi と Claude Code の Google Developer Knowledge の MCP）、`CONTEXT7_API_KEY`（`.codex/config.toml` の `env_vars` で Codex の `context7_stdio` に渡す。未設定なら `cod` が起動時に入力を求める）。値の例は書かない
+- 「API トークン」節を、変数ごとに「使うもの」と「無いときの挙動」を書く形に書き直す。対象は `OPENCODE_API_KEY`（pi の OpenCode Go のランチャーは `auth.json` を優先して読むので通常は不要、`pigs`・`pixg` の `cheap` などの子 Pi も同じ、`ccdu` は環境変数が必須で優先順位を持つ、`setup_pi_opencode_go.zsh` の実行に必要）、`OPENCODE_GO_API_KEY`（旧名。OpenCode Go を使う `pigo`・`pigod`・`pigou`・`pigs`・`pixg` が `OPENCODE_API_KEY` に引き継ぎ、`ccdu` の 3 番目の候補）、`OPENCODE_GO_CLAUDE_API_KEY`（`ccdu` の最初の候補）、`DEEPINFRA_TOKEN`（pi の deepinfra と `ccdd`・`ccddg`）、`COMMANDCODE_API_KEY`（`piccg`・`piccd`）、`GOOGLE_DEV_KNOWLEDGE_API_KEY`（pi と Claude Code の Google Developer Knowledge の MCP）、`CONTEXT7_API_KEY`（`.codex/config.toml` の `env_vars` で Codex の `context7_stdio` に渡す。未設定なら `cod` が起動時に入力を求める。共有の `find-docs` スキルの Context7 の CLI も使い、無ければレート制限が低くなる）。値の例は書かない
 - 新設の「既存環境の更新」節を「秘密情報」の次に置く。順序は、(1) 作業ツリーを最新の `origin/main` に追従させる、(2) ホストの `env` を見直す（`MAAS_ANTHROPIC_TOKEN` を消す、必要なら `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す）、(3) rebuild する（postCreate が自動で行うこと）、(4) rebuild では変わらないものを反映する（`pigs`・`pixg` の tier、pi の project trust、`models.json` に残る `deepinfra-distill` の任意の整理）、(5) 確認項目は、ルートの `README.md` の「対象外」が案内する移植の記録にある（D-14）。rebuild しない場合の手順は、既存の各節への参照で並べる。各節の詳細は書き写さない（D-8）
 
 ルート `README.md`:
 
 - 「構成」の `docs/` の説明に「pi と Claude Code の設定の移植の記録」を足す。ルートの `README.md` には移植元の名前を書かない（D-15）
-- 「エージェントで作業する」に pi の項目を足す。project trust を承認すると `.pi/settings.json`（組み込み MCP）と `.pi/mcp.json`（Google Developer Knowledge）が読まれ、ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと詳細は `.devcontainer/README.md`
+- 「エージェントで作業する」に pi の項目を足す。project trust を承認すると `.pi/settings.json`（組み込み MCP）と `.pi/mcp.json`（Google Developer Knowledge）、プロジェクトのスキル（`.agents/skills`）が読まれ、ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと詳細は `.devcontainer/README.md`
 - 「対象外」の rebuild 後の確認の参照先に「`docs/` にある移植の比較表（Issue #22）の「rebuild での確認」」を足す（文書名に移植元の名前が入るので、名前では参照しない。D-15）
 
 `.devcontainer/test-readme.bash` などの既存のテストが README の表や節を検査しているので、表の列と既存の節の見出しは変えない。`test-readme.bash` は `.devcontainer/` 配下に移植元の名前（maatlog）、3 桁の Issue 番号、ワークスペースの絶対パス、除外したツールの導入の記述が入ることを禁じている。`.devcontainer/README.md` に書く文はこれらを含めない。ルートの `README.md` は `tests/scripts/test-docs.bash` が `##` の見出しの並びを固定しているので、見出しを足さない
@@ -173,7 +173,7 @@ Plan の一時スクリプト（scratchpad に置き、リポジトリには入�
 ルートと 4 つのワールド（`MyResoniteProject`・`akichi`・`slum02`・`slum03`）を cwd にした場合について、次をまとめる。
 
 - Claude Code: `CLAUDE.md`（`@AGENTS.md`）を cwd から祖先まで読む。`.claude/skills` は cwd から git のルートまで、`.mcp.json` は git のルートで解決する。ワールドの `.claude/settings.json` はルートへの symlink
-- pi: `AGENTS.md` を cwd から祖先まで、`.agents/skills` を cwd から git のルートまで読む。`.pi/settings.json`・`.pi/mcp.json`・`.pi/APPEND_SYSTEM.md` は cwd 直下だけを読むので、ワールドは `.pi -> ../.pi` で同じ設定を読む。project trust が必要
+- pi: `AGENTS.md` を cwd から祖先まで、`.agents/skills` を cwd から git のルートまで読む。`.pi/settings.json`・`.pi/mcp.json`・`.pi/APPEND_SYSTEM.md` は cwd 直下だけを読むので、ワールドは `.pi -> ../.pi` で同じ設定を読む。`.agents/skills` と `.pi` の設定は project trust が必要で、`AGENTS.md` は trust に関係なく読む
 - Codex: `AGENTS.md` を git のルートから cwd まで読み、`.codex/config.toml` は trust のあるときだけ読む
 
 確かめる方法は、既存のテスト（`scripts/check-layout.sh` の symlink の検査、`tests/scripts/test-instructions.bash`、`tests/scripts/test-agent-config.bash`、`.devcontainer/tests/test_pi_mcp_cleanup.py` のワールドの cwd の検査）と、Plan の静的な確認（各ワールドの `.pi`・`.claude/settings.json`・`.claude/skills` の解決先と `CLAUDE.md` の内容）。実際の CLI で読み込みを確かめるのは、trust の承認が必要なので rebuild 後の確認項目にする。
@@ -182,7 +182,7 @@ Plan の一時スクリプト（scratchpad に置き、リポジトリには入�
 
 `docs/maatlog-poc-porting.md` の「rebuild での確認」に、次を書く。
 
-- 手順: 作業ツリーを最新の `origin/main` に追従させてから Rebuild Container を実行する。この PR は文書だけを変えるので、rebuild の結果は `origin/main`（`01affb7` 以降）と同じになる。postCreate のログで `[install_beforehand] [25/25]` まで進み、エラーで止まっていないことを確かめる
+- 手順: 作業ツリーを最新の `origin/main` に追従させてから Rebuild Container を実行する。この PR は文書とテストの例外の 1 行だけを変え、導入スクリプトと設定ファイルを変えないので、rebuild の結果は `origin/main`（`01affb7` 以降）と同じになる。postCreate のログで `[install_beforehand] [25/25]` まで進み、エラーで止まっていないことを確かめる
 - 確認項目と記録の表。列は「番号」「確認項目」「確認方法」「期待する結果」「rebuild 前（2026-10-05）」「rebuild 後」。rebuild 前の列には 3.5 節の値を書き、rebuild 後の列は「未記録」とする。項目は Issue #22 と各子の引き継ぎから作る
 
 | 番号 | 確認項目 | 出典 |
@@ -201,7 +201,7 @@ Plan の一時スクリプト（scratchpad に置き、リポジトリには入�
 | R-12 | `bash scripts/check-layout.sh`・`bash .devcontainer/run-tests.bash`・`uv run pytest tests/skills .agents/skills` が通る | #22 |
 
 - 実認証のスモークテスト（別枠）: provider の実接続（`pigo` などの 9 ランチャー、`ccdd`・`ccdd --model fable`・`ccddg`・`ccdu`）、サブエージェントの子 Pi、pi と Claude Code の Google Developer Knowledge の MCP。いずれも未検証と明記する
-- 確認方法のコマンドは認証情報の値を表示しない（R-4 は `grep -oE` で変数名だけを出す）。R-7 の dry-run は argv を出す前に各ランチャーの認証などの前提を確かめるので、前提が未設定のランチャーは未確認として記録する（PR #33 のレビュー修正の F-1・F-2）
+- 確認方法のコマンドは認証情報の値を表示しない（R-4 は `grep -oE` で変数名だけを出す）。R-7 の dry-run は argv を出す前に各ランチャーの認証などの前提を確かめるので、前提が未設定のランチャーは未確認として記録する（PR #33 のレビュー修正の F-1・F-2）。コマンドは表のセルに書かず、表の下のコードブロックに、読み取り専用のものと利用者の設定を変えるものを分けて置く。セルの `\|` を写すと、シェルが別のコマンドとして実行するため（同じく F-14）
 - 記録の方法: 利用者が rebuild し、trust を承認したあと、エージェントか利用者が確認方法のコマンドを実行して「rebuild 後」の列に書き、この PR（マージ前）か後続のコミットで残す
 
 ### 4.7 PR と Issue の閉じ方
@@ -221,7 +221,7 @@ PR の本文には Issue の指定どおり `Closes #22` を書く。#22 の完�
 | D-7 | rebuild の確認項目と記録は `docs/maatlog-poc-porting.md` に置き、`docs/integration.md` は変えない | `docs/integration.md` に足す | `docs/integration.md` は 2026-09 の再設計の統合手順で、仕様の節番号に結び付いている。移植の基準・判断・確認を 1 つの文書にまとめると追いやすい |
 | D-8 | 既存環境の更新手順は `.devcontainer/README.md` の新しい節に順序だけをまとめ、詳細は既存の節へのリンクにする | 詳細を書き写す／比較表の文書に置く | 利用者が読むのは README。書き写すと同じ説明が 2 か所になり、片方だけが古くなる |
 | D-9 | rebuild 前の基準値を、現行コンテナで読み取り専用のコマンドだけを使って記録する | 記録しない／`install_beforehand.bash` を実行して確かめる | rebuild の前後を比べられる。導入スクリプトは bind mount された利用者の設定を変えるので実行しない |
-| D-10 | PR は `Closes #22` とし、rebuild の記録をマージの条件として PR の本文に書く | `Refs #22` にして後で閉じる | Issue の指定に従う。PR は文書だけを変えるので、利用者はマージ前に `main` で rebuild でき、記録を同じ PR に足してからマージできる |
+| D-10 | PR は `Closes #22` とし、rebuild の記録をマージの条件として PR の本文に書く | `Refs #22` にして後で閉じる | Issue の指定に従う。PR は文書とテストの例外の 1 行だけを変え、導入スクリプトと設定ファイルを変えないので、利用者はマージ前に `main` で rebuild でき、記録を同じ PR に足してからマージできる |
 | D-11 | テストを追加しない。既存のテストの変更は D-15 の例外の 1 行だけにする。網羅は一時スクリプトで確かめて結果を記録する | 比較表の網羅を検査するテストを足す | #22 の編集範囲にテストが無い。検査には移植元のツリー（別リポジトリ）が要り、固定した基準の記録なので繰り返し検査する価値が低い |
 | D-12 | 移植と無関係な README の記述（CI の無効化、`slum03/` の記載漏れ）は変えない | 直す | #22 の範囲は移植に伴う整合。Actions の無効化は一時的な設定の可能性がある |
 | D-13 | 予約は PR の作成と作業報告まで保持し、計画の成果物（Spec・Plan・引き継ぎ書）を #22 に公開して復元を確かめてから実装に進む | 計画の公開を省く | #17 の運用ルールと、#20 の 1 セッションでの前例に従う |
