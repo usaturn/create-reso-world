@@ -53,11 +53,44 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 ```
 
 書式は `KEY=VALUE` の 1 行 1 変数である（zsh が読むので、空白や記号を含む値は引用符で囲む）。
-対象は `DEEPINFRA_TOKEN`、`COMMANDCODE_API_KEY`、`OPENCODE_API_KEY`、`CONTEXT7_API_KEY` などで、
-書き換えたら新しいシェルを開く。
+対象は `DEEPINFRA_TOKEN`、`COMMANDCODE_API_KEY`、`OPENCODE_API_KEY`、`CONTEXT7_API_KEY`、
+`GOOGLE_DEV_KNOWLEDGE_API_KEY` などで、書き換えたら新しいシェルを開く。
+変数ごとの用途と、無いときの挙動は「API トークン」の節にある。
 
 撤去した `ccda` が使っていた `MAAS_ANTHROPIC_TOKEN` は、もう使わない。`env` に残っていれば削除する。
 プロバイダ切替ランチャー（`ccdd` など）はこの変数を子プロセスから外さないため、残すと子プロセスにも渡る。
+
+## 既存環境の更新
+
+2026-10 に pi と Claude Code の設定を取り込み、pi のランチャー・拡張・MCP、Claude Code のランチャー、
+除外したツール（dsh・Grok Build・`ccda`）の扱いが変わった。既存の環境には次の順に反映する。
+
+1. ホストの作業ツリーを最新の `origin/main` に追従させる。rebuild は作業ツリーの `.devcontainer/` を使う。
+2. ホストの `~/.config/create-reso-world/env` を見直す。`MAAS_ANTHROPIC_TOKEN` を削除し、
+   Google Developer Knowledge の MCP を使う場合は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す（「API トークン」）。
+3. Dev Containers: Rebuild Container を実行する。postCreate が次を行う。
+   - pi の旧拡張の撤去と、settings の `-builtin:mcp` の除去。変更が必要なときだけバックアップを作る
+     （「pi の旧拡張・MCP 設定の移行」）
+   - 9 本の pi ランチャーと共通ヘルパの配置。ヘルパは pi を `--tui-mode regular` で起動する
+     （「pi の TUI モードと Herdr のスクロール履歴」）
+   - Claude Code の alias（`ccd`・`ccdo`・`ccds`）とプロバイダ関数を含むシェル設定の配置
+     （「Claude Code の起動と更新」）
+   - dsh と Grok Build を導入せず、mount もしない。`PI_DISTILL_*` と `PI_EXTENSIONS_LOCALE` を export しない
+4. rebuild では変わらないものを反映する。
+   - ランチャー別の tier: `--if-absent` を付けずに `zsh .devcontainer/setup_pi_superagents.zsh` を実行する。
+     変更のある設定はバックアップされる（「pi-superagents のランチャー別 model tier」）
+   - pi の project trust: まだ承認していなければ、リポジトリのルートで素の `pi` を起動して承認する。
+     承認の後に `.pi/settings.json` と `.pi/mcp.json` が読まれる（「組み込み MCP と廃止した拡張」）
+   - `~/.pi/agent/models.json` に残る `deepinfra-distill` は自動では消さない。不要なら定義を確かめてから削除する
+5. 確かめる項目と、rebuild 前の状態の記録は、ルートの `README.md` の「対象外」が案内する移植の記録にある。
+
+rebuild しない場合は、3 の代わりに次を行う。dsh は rebuild するまでコンテナに残る。
+
+- pi の旧拡張の撤去: 「pi の旧拡張・MCP 設定の移行」の `uv run --no-project .devcontainer/cleanup_pi_mcp.py`
+- 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除
+- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の `install -m 0755` と
+  `zsh .devcontainer/setup_pi_superagents.zsh --if-absent`
+- Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映
 
 ## テストの実行
 
@@ -526,21 +559,33 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
 
 ### API トークン
 
-`OPENCODE_API_KEY`、`DEEPINFRA_TOKEN`、`COMMANDCODE_API_KEY` は、「秘密情報」の節の
-`~/.config/create-reso-world/env` に書けばシェルの起動時に export される。書かない場合は、
-必要なときに手動で export する。
+次の変数は、「秘密情報」の節の `~/.config/create-reso-world/env` に書けばシェルの起動時に
+export される。書かない場合は、必要なときに手動で export する。
 
-- `OPENCODE_API_KEY` は `pigo`・`pigod`・`pigou` の実行には不要である。bind mount した
-  `auth.json` に資格情報が残るため、pi はそこから読む
+- `OPENCODE_API_KEY` は `pigo`・`pigod`・`pigou` と、`pigs`・`pixg` の OpenCode Go の tier の
+  子 Pi の実行には不要である。bind mount した `auth.json` に資格情報が残るため、pi はそこから読む
   （`pi auth check --provider opencode-go` が `ready` を返す）。
-  `setup_pi_opencode_go.zsh` でキーを更新するときだけ必要になる
+  `setup_pi_opencode_go.zsh` でキーを更新するときと、`auth.json` に資格情報が無い環境で
+  pi の OpenCode Go を使うときに必要になる
+- `OPENCODE_GO_API_KEY` は旧名である。`pigs`・`pixg` は、`OPENCODE_API_KEY` が空のときだけ
+  この値を `OPENCODE_API_KEY` に引き継いでから起動する
+- `ccdu`（Claude Code で OpenCode Go を使う）は `auth.json` を読まない。
+  `OPENCODE_GO_CLAUDE_API_KEY`、`OPENCODE_API_KEY`、`OPENCODE_GO_API_KEY` の順に
+  最初の空でない値を使い、どれも無ければ起動を止める
 - `DEEPINFRA_TOKEN` は `models.json` の `apiKey` が `$DEEPINFRA_TOKEN` を
-  参照するため、deepinfra を使うシェルで export しておく必要がある。
+  参照するため、pi で deepinfra を使うシェルで export しておく必要がある。
+  Claude Code の `ccdd`・`ccddg`（通常名は `claude-deepinfra`・`claude-deepinfra-glm`）も
+  この変数を使い、無ければ起動を止める
 - `COMMANDCODE_API_KEY` は `DEEPINFRA_TOKEN` と同じ方式である。`models.json`
   の `apiKey` が `$COMMANDCODE_API_KEY` を参照するため、`piccg` と `piccd` を
   使うシェルで export しておく必要がある。未設定のまま実行すると
   ランチャがエラーメッセージを出して終了する。キーは
   `https://commandcode.ai/settings/keys` で作成する
+- `GOOGLE_DEV_KNOWLEDGE_API_KEY` は Google Developer Knowledge の MCP サーバーが使う。
+  pi は `.pi/mcp.json`、Claude Code は `.mcp.json` のヘッダーでこの変数を参照する。
+  無い場合の pi の挙動は「組み込み MCP と廃止した拡張」にある
+- `CONTEXT7_API_KEY` は `.codex/config.toml` の `env_vars` で Codex の Context7 の MCP サーバー
+  （`context7_stdio`）に渡す。未設定のまま `cod` を起動すると、入力を求める
 
 ### pi の TUI モードと Herdr のスクロール履歴
 
