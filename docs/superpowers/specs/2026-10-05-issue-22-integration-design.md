@@ -157,7 +157,7 @@
 - 「エージェントで作業する」に pi の項目を足す。project trust を承認すると `.pi/settings.json`（組み込み MCP）と `.pi/mcp.json`（Google Developer Knowledge）、`.pi/APPEND_SYSTEM.md`（pi 固有の指示）、プロジェクトのスキル（`.agents/skills`）が読まれ、ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと詳細は `.devcontainer/README.md`
 - 「対象外」の rebuild 後の確認の参照先に「`docs/` にある移植の比較表（Issue #22）の「rebuild での確認」」を足す（文書名に移植元の名前が入るので、名前では参照しない。D-15）
 
-`.devcontainer/test-readme.bash` などの既存のテストが README の表や節を検査しているので、表の列と既存の節の見出しは変えない。`test-readme.bash` は `.devcontainer/` 配下に移植元の名前（maatlog）、3 桁の Issue 番号、ワークスペースの絶対パス、除外したツールの導入の記述が入ることを禁じている。`.devcontainer/README.md` に書く文はこれらを含めない。ルートの `README.md` は `tests/scripts/test-docs.bash` が `##` の見出しの並びを固定しているので、見出しを足さない
+`.devcontainer/test-readme.bash` などの既存のテストが README の表や節を検査しているので、表の列と既存の節の見出しは変えない（6 章の例外を除く）。`test-readme.bash` は `.devcontainer/` 配下に移植元の名前（maatlog）、3 桁の Issue 番号、ワークスペースの絶対パス、除外したツールの導入の記述が入ることを禁じている。`.devcontainer/README.md` に書く文はこれらを含めない。ルートの `README.md` は `tests/scripts/test-docs.bash` が `##` の見出しの並びを固定しているので、見出しを足さない
 
 ### 4.4 網羅の確認
 
