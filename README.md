@@ -13,7 +13,7 @@
 ├── .devcontainer/             Dev Container の設定、導入スクリプト、テスト（詳細は .devcontainer/README.md）
 ├── scripts/                   new-world.sh（プロジェクトの作成）、resoloop-fork.sh（fork の運用）、check-layout.sh（レイアウト検査）
 ├── templates/world-project/   プロジェクトの雛形
-├── docs/                      設計と計画（docs/superpowers/）、fork の運用、統合手順
+├── docs/                      設計と計画（docs/superpowers/）、fork の運用、統合手順、maatlog-poc からの移植の記録
 ├── tests/                     スクリプトのテスト（tests/scripts/）とスキルのテスト（tests/skills/）
 └── MyResoniteProject/ akichi/ slum02/   ワールドのプロジェクト（resoloop のプロジェクト）
 ```
@@ -48,6 +48,9 @@
 - cursor-agent: `.cursor/mcp.json` の MCP サーバーは、初回に承認を求められる。
 - Devin: `.claude/skills` の symlink 経由で同じスキルが見えても、一覧には 1 回だけ表示される（`.devin/config.json` は置かない）。
 - Cursor: スキルの一部が見えない。詳細は `.devcontainer/README.md` の「エージェントの読み込みの制約」。
+- pi: プロジェクトを信頼（trust）すると、`.pi/settings.json`（組み込み MCP の有効化）と `.pi/mcp.json`（Google Developer Knowledge の
+  MCP サーバー）が読まれる。ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
+  「組み込み MCP と廃止した拡張」にある。
 - pi-superagents: 組み込みと同じ定義（`sp-*.md`）は追跡しない。独自に変えた `.agents/sp-implementer.md` だけを追跡する。
 
 ## プロジェクトを作る
@@ -85,4 +88,5 @@ uv run pytest tests/skills .agents/skills  # スキルのテスト
 ## 対象外
 
 リポジトリの公開と LICENSE の選定、Git LFS、flux-sdk の導入、Rebuild を伴う確認の自動化は対象外である。
-Rebuild 後の確認は、ユーザが `docs/integration.md` の手順で行う。
+Rebuild 後の確認は、ユーザが `docs/integration.md` の手順で行う。maatlog-poc からの pi と Claude Code の設定の移植（Issue #17）で
+確かめる項目と記録は、`docs/maatlog-poc-porting.md` の「rebuild での確認」にある。
