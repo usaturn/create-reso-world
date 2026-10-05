@@ -1664,3 +1664,26 @@ Expected: 各プロジェクトの結果が出て `exit=0`
 
 Run: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills -q`、各プロジェクト（MyResoniteProject・akichi・slum02・slum03）で `uv run pytest -q`
 Expected: すべて通る。check-layout は 4 プロジェクトについて `warn:` を表示して `PASS: check-layout`
+
+---
+
+## 実施記録（2026-10-06）
+
+Task 1〜8 をこの Plan のとおりに実施した。Plan と違う点は次の 2 つだけ（どちらも Plan の見直しで見つけた、記述の誤りの修正）。
+
+- 新しく書いたテストの `rm` に `${VAR:?}` の空値ガードを付けた（`CLAUDE.md` の規則。Plan のコードは `"$tmp"` のままだった）
+- `report-resoloop-skills.bash` の git が失敗したときの表示を「git の checkout でない」と断定しない文言（`git cannot list the projects in <root>`）にした
+
+Task 8 の結果（コンテナ内）:
+
+| 確認 | 結果 |
+| --- | --- |
+| `bash .devcontainer/install_resoloop.bash` | `resoloop 0.1.0-preview.17 is installed (was 0.1.0-preview.15).`、`resoloop --version` は `0.1.0-preview.17` |
+| `RESOLOOP_CHECKOUT=<scratchpad>/resoloop bash scripts/resoloop-fork.sh install main` | fork の `main`（`99c59be`）を clone・ビルドし、`0.1.0-preview.17.fork.20261003.g99c59be` を導入。`status` は `fork build`・`matches the installed fork build`。2 回目の `install main` はビルドせずに照合だけ |
+| 公開版への戻し | `bash .devcontainer/install_resoloop.bash` で `0.1.0-preview.17`（`was 0.1.0-preview.17.fork.20261003.g99c59be`）。`status` は `NuGet release` |
+| `bash .devcontainer/report-resoloop-skills.bash` | 4 プロジェクトとも `SKILL_SYNC_REQUIRED` を表示し、終了コード 0 |
+| `bash scripts/check-layout.sh` | 4 プロジェクトについて `warn:` を表示し、`PASS: check-layout` |
+| `bash .devcontainer/run-tests.bash` | 28 本すべて PASS |
+| `uv run pytest tests/skills .agents/skills` | 516 passed、1 skipped |
+| 各プロジェクトの `uv run pytest` | MyResoniteProject 52、akichi 66、slum02 215、slum03 538 passed |
+| 完了条件の `git grep`（除外範囲の外） | 0 件 |
