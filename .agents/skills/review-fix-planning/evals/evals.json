@@ -30,14 +30,15 @@
     },
     {
       "id": 3,
-      "name": "spec-written-on-bounded-path",
-      "prompt": "レビュー結果ディレクトリを渡された。残っている指摘はどれも既存モジュール内の局所修正で済む。修正計画をたてて。",
-      "expected_output": "A bounded classification from brainstorming that still produces a Spec file, followed by a stop for approval.",
+      "name": "spec-written-and-completed-by-default",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）レビュー結果ディレクトリを渡された。残っている指摘のうち 1 件は致命的で、既存モジュール内の局所修正で済む。修正計画をたてて。",
+      "expected_output": "A completion run by default: the request does not say to stop at the plan, so the skill decides the recommended fix itself, writes and commits a Spec, fixes, verifies, runs one self-review and pushes to the existing PR, without stopping for approval.",
       "files": [],
       "expectations": [
-        "superpowers:brainstorming is invoked and the path is stated.",
-        "A Spec file is written even though the path is bounded.",
-        "The result stops and waits for an explicit go-ahead instead of implementing."
+        "The request is treated as the default completion flow because it does not explicitly ask to stop at the plan.",
+        "A Spec file is written and committed even though the change is local.",
+        "superpowers:brainstorming is not invoked and the run does not stop to wait for approval.",
+        "The fatal finding gets the guarantee and affected-path table before the fix."
       ]
     },
     {
@@ -49,8 +50,8 @@
       "expectations": [
         "Items that only affect third-party themes or downstream users are placed in Skip.",
         "Questions of intended behaviour are placed in Skip, not raised as Hold questions.",
-        "Documentation items are included only when the user named them or they are factually wrong at current HEAD.",
-        "Each Fix cites one of conditions (a)-(d); Fix eligibility is not limited by an aggregate severity-count quota."
+        "Documentation items are included only when the user named them or following them as written produces a wrong result at current HEAD.",
+        "Each Fix is fatal and cites one of conditions (a)-(c), or was named by the user (d); severity labels and vote counts do not decide eligibility."
       ]
     },
     {
@@ -91,6 +92,58 @@
         "A single `#300-` prefix match becomes the review directory; on multiple matches the run stops and lists the candidate names.",
         "`#300` does not match directories with a different number (e.g. `#3000-*`); a match requires the `#300-` prefix.",
         "Review files under the resolved directory are read and each target HEAD is recorded."
+      ]
+    },
+    {
+      "id": 8,
+      "name": "no-fatal-findings-merge",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）PR https://github.com/usaturn/create-reso-world/pull/40（open、draft ではない）とレビュー結果 reviews/#40-docs-example/ を確認し、修正要否を確定して。指摘は Info と Low だけで、どれも現行 HEAD で事実として正しいが、直さなくても秘密情報の露出・データの消失・誤った操作・手順どおりで誤った結果のどれも起きない。2 モデルは Approve、1 モデルは Request changes。",
+      "expected_output": "Outcome 2: every finding lands in Skip with a one-line reason, the change-specific verification passes, the final status comment is posted before merging, the PR is merged with gh pr merge --merge --match-head-commit, related Issues are updated, and no fix commit is added.",
+      "files": [],
+      "expectations": [
+        "All findings, the full text of the changed files and the related code and tests are read before deciding.",
+        "Every finding is classified as Skip because none is fatal; the Request changes verdict does not force a fix.",
+        "The final status comment is posted before the merge.",
+        "The merge uses gh pr merge with --merge and --match-head-commit of the verified head.",
+        "Related Issues from closingIssuesReferences and the PR body are updated after the merge."
+      ]
+    },
+    {
+      "id": 9,
+      "name": "unverified-is-not-no-fix",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）PR https://github.com/usaturn/create-reso-world/pull/41 とレビュー結果 reviews/#41-feat-setup/ を確認し、レビュー指摘に対応して。指摘の 1 件（Medium）は「setup スクリプトが失敗時に API キーを含む設定ファイルの内容を標準出力に出す」というもので、まだ再現していない。再現にはダミーのキーと一時 HOME が要り、手間がかかる。他の指摘は Info だけ。",
+      "expected_output": "The agent reproduces the secret-exposure finding itself (delegating to a subagent if available) instead of ending with 'needs more checking' or treating it as no-fix. If it reproduces, outcome 1: guarantee and affected-path table, fix including same-cause paths outside the diff, verification, exactly one self-review, push and status comment.",
+      "files": [],
+      "expectations": [
+        "The unverified finding is reproduced by the agent; the run does not end with a request for more checking.",
+        "The finding is not classified as no-fix while unverified.",
+        "When it reproduces, a guarantee and affected-path table is written and same-cause paths outside the PR diff are fixed in the same PR.",
+        "Exactly one post-fix self-review is run; fatal findings from it are fixed and verified without a second review.",
+        "The Info findings are classified as Skip."
+      ]
+    },
+    {
+      "id": 10,
+      "name": "out-of-scope-repository-stops-before-merge",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）上流 orange3134/resoloop の PR #12（head は usaturn/resoloop の fix/foo、open、draft ではない）と external/resoloop/reviews/#12-fix-foo/ を確認し、修正要否を確定して。全指摘を確認した結果、致命的な指摘は無かった。",
+      "expected_output": "No merge: the repository is outside the merge scope (only usaturn/create-reso-world and usaturn/resoloop), so the run ends as outcome 3 with the concrete reason and the completed work listed.",
+      "files": [],
+      "expectations": [
+        "The PR is not merged.",
+        "The result is reported as outcome 3 with the merge-scope reason.",
+        "The report states which checks, commits and posts were completed."
+      ]
+    },
+    {
+      "id": 11,
+      "name": "plan-only-request-stops-for-approval",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）reviews/#42-fix-bar/ のレビュー結果を読んで。修正計画だけ見せて、承認するまで実装しないで。",
+      "expected_output": "The plan-only flow: brainstorming decides the path, a Spec is written and committed as draft, a review copy is published with superpowers-review-copy.sh, and the run stops for approval without implementing, pushing or merging.",
+      "files": [],
+      "expectations": [
+        "superpowers:brainstorming is invoked and the path is stated.",
+        "A Spec is committed as draft and a review copy is created before asking for approval.",
+        "Nothing is implemented, pushed or merged before an explicit go-ahead."
       ]
     }
   ]
