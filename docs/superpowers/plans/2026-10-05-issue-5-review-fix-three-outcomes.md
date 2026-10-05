@@ -42,7 +42,7 @@
 **Interfaces:**
 - Produces: 節「依頼の種類と結論」（Task 2・3 が参照）、手順 5 の「修正方針を決める」、手順 7 の「完遂では停止せず、下記「三択の結論」へ進む」
 
-- [ ] **Step 1: `description` を置き換える**
+- [x] **Step 1: `description` を置き換える**
 
 3 行目を次にする。
 
@@ -50,7 +50,7 @@
 description: PR とレビュー結果のディレクトリ（例 `reviews/ブランチ名/`、`docs/reviews/main/`、`reviews/#<PR番号>-<ブランチ>/` を指す `#番号`）を渡されて、修正要否の確定・指摘への対応・修正計画・指摘の取捨選択を求められたときに使う。「PR とレビュー結果を確認して修正要否を確定して」「レビュー指摘に対応して」「レビュー結果を確認して修正計画をたてて」「妥当な指摘だけ拾って直したい」「指摘のどれに対応するか決めたい」「複数モデルのレビューをまとめて」などの依頼が該当する。承認済みの review-fix 作業を実装する／対象ブランチへ反映させる依頼も該当する
 ```
 
-- [ ] **Step 2: 見出しと冒頭を置き換え、「依頼の種類と結論」を足す**
+- [x] **Step 2: 見出しと冒頭を置き換え、「依頼の種類と結論」を足す**
 
 `# レビュー指摘の選別と修正計画` から中核原則の行までを次にする。
 
@@ -82,7 +82,7 @@ description: PR とレビュー結果のディレクトリ（例 `reviews/ブラ
 **未確認は結論ではない。** 確認不足・未読・未検証は途中の状態である。自分で確かめて解消する。「追加確認が必要」を結論にして終えない。確認作業をユーザへ返さない。未確認の指摘を「修正不要」として扱わない。三択の完了条件を満たしたときだけ完了を報告する。
 ```
 
-- [ ] **Step 3: 「第1引数の解決」の末尾に PR の指定を足す**
+- [x] **Step 3: 「第1引数の解決」の末尾に PR の指定を足す**
 
 `` `#<番号>` 以外の第1引数は従来どおりレビューディレクトリのパスとして扱う。`` の後に次の段落を足す。
 
@@ -90,7 +90,7 @@ description: PR とレビュー結果のディレクトリ（例 `reviews/ブラ
 PR の URL（`https://github.com/<owner>/<repo>/pull/<N>`）か番号が別に渡されたら、`<owner>/<repo>` を `PR_REPO`、`<N>` を `PR_NUMBER` にする。レビューディレクトリ名の `#<番号>` が `PR_NUMBER` と食い違うときは、推測せず停止する。
 ```
 
-- [ ] **Step 4: 手順の前書きと手順 2〜7 を直す**
+- [x] **Step 4: 手順の前書きと手順 2〜7 を直す**
 
 - 前書きの「（Claude Code では TodoWrite、Codex では `update_plan`）。」の後に「完遂では「三択の結論」の各段もタスクにする。」を足す
 - 手順 2 の末尾に次を足す
@@ -126,7 +126,7 @@ PR の状態・draft かどうか・base・head・本文・関連 Issue は `gh 
 - 手順 6 の末尾に「完遂でも書く。コミットの時期は「Spec のコミットと確認用コピー」の完遂の項に従う。」を足す
 - 手順 7 の見出しを `7. **承認を得て停止する**（計画のみ）—` にし、末尾に「完遂では停止せず、下記「三択の結論」へ進む。」を足す
 
-- [ ] **Step 5: 既存のテストを走らせる**
+- [x] **Step 5: 既存のテストを走らせる**
 
 Run: `uv run pytest .agents/skills/review-fix-planning tests/skills -q`
 Expected: すべて成功（失敗したら Global Constraints の固定値の規則に従う）
@@ -140,7 +140,7 @@ Expected: すべて成功（失敗したら Global Constraints の固定値の�
 - Consumes: Task 1 の「依頼の種類と結論」、既存の共通 context の変数（`PARENT_ROOT`・`MAIN_ROOT`・`PR_REMOTE`・`HEAD_REMOTE`）
 - Produces: `FIX_WT`・`REPO_MAIN`・`HEAD_SHA`、節「三択の結論」（結論 1〜3 と「修正後の自己レビュー」）
 
-- [ ] **Step 1: 3 節を足す**
+- [x] **Step 1: 3 節を足す**
 
 ```markdown
 ## 専用の worktree
@@ -241,7 +241,7 @@ Expected: すべて成功（失敗したら Global Constraints の固定値の�
 レビュー担当には、守る条件・影響経路・実行した検証・未確認の事項を渡し、指摘に再現手順か根拠（ファイルと行）を付けさせる。指摘は「分類の仕様」で判定する。指摘 0 件を、未確認の事項が解消した証拠として扱わない。自己レビュー後の修正は再レビューしない。そのことを Spec と状況コメントに書く。
 ```
 
-- [ ] **Step 2: bash ブロックが bash と zsh の両方で動くことを確かめる**
+- [x] **Step 2: bash ブロックが bash と zsh の両方で動くことを確かめる**
 
 Run: `FIX_WT` の組み立て（`printf | tr`）を bash と zsh で実行し、`usaturn-create-reso-world-pr40-review-fix` で終わることを確かめる
 
@@ -251,7 +251,7 @@ for sh in bash zsh; do "$sh" -c 'PR_REPO=usaturn/create-reso-world PR_NUMBER=40 
 
 Expected: 2 行とも `/x/.worktrees/usaturn-create-reso-world-pr40-review-fix`
 
-- [ ] **Step 3: 既存のテストを走らせる**
+- [x] **Step 3: 既存のテストを走らせる**
 
 Run: `uv run pytest .agents/skills/review-fix-planning tests/skills -q`
 Expected: すべて成功
@@ -264,13 +264,13 @@ Expected: すべて成功
 **Interfaces:**
 - Consumes: Task 1・2 の節名（「依頼の種類と結論」「専用の worktree」「守る条件と影響経路」「三択の結論」「修正後の自己レビュー」）
 
-- [ ] **Step 1: 「Spec のコミットと確認用コピー」の末尾に完遂の項を足す**
+- [x] **Step 1: 「Spec のコミットと確認用コピー」の末尾に完遂の項を足す**
 
 ```markdown
 **完遂では** 手順 2・3（確認用コピーと提示）を省き、承認を待たない。Spec は 1 回だけコミットする。結論 1 では自己レビュー後の修正と検証が終わってから push の前に、結論 2 ではマージの前に、結論・検証の結果・自己レビューの結果を書いて状態を `completed` にする。push・マージ・Issue 更新の結果は Spec に追記せず、状況コメントと完了報告に書く（記録だけのコミットを PR に足さないため）。結論 3 で止まったら、書き始めた Spec を `draft` のままコミットし、停止理由を書く。PR が create-reso-world のものなら、手順 1 の `DOC_ROOT` は専用の worktree である。手順 4 の公開の規則は変わらない。
 ```
 
-- [ ] **Step 2: 「実装後」の 2 段落目を置き換える**
+- [x] **Step 2: 「実装後」の 2 段落目を置き換える**
 
 「この節は、ユーザが Spec を明示承認し、対応する項目を実装し終えたあとだけ実行する。計画は手順 7 で止まる。」を次にする（同じ段落の残りの文は残す）。
 
@@ -278,7 +278,7 @@ Expected: すべて成功
 この節は、計画のみの流れでユーザが Spec を明示承認し、対応する項目を実装し終えたあとに実行する。計画は手順 7 で止まる。完遂では「三択の結論」の結論 1・2 がこの節の手順を参照する。
 ```
 
-- [ ] **Step 3: 「作業終了前の PR 投稿」を直す**
+- [x] **Step 3: 「作業終了前の PR 投稿」を直す**
 
 - 「**commit / push まで完了したターンのみ必須である。**」を「**commit / push まで完了したターンと、完遂の結論 2（マージの前）では必須である。**」にする
 - テンプレートの `- 分類: 解消済み N / 対応する N / 判断保留 N / 対応しない N` を `- 分類: 解消済み N / 対応する N / 対応しない N` にする
@@ -303,7 +303,7 @@ Expected: すべて成功
 - 次: 承認待ち | マージ | 完了 | 停止理由
 ```
 
-- [ ] **Step 4: 「分類の仕様」を置き換える**
+- [x] **Step 4: 「分類の仕様」を置き換える**
 
 見出しの次の行から「リポジトリの方針ファイル」の段落の前までを次にする（「リポジトリの方針ファイル」の段落は残す）。
 
@@ -336,7 +336,7 @@ Expected: すべて成功
 - 将来の保険、性能の過剰近似、Info 級の記載漏れ
 ```
 
-- [ ] **Step 5: 「Spec は経路に関わらず必須」を直す**
+- [x] **Step 5: 「Spec は経路に関わらず必須」を直す**
 
 - 1 段落目の「**このスキルではユーザ指示が優先し、3 経路すべてで Spec を書く。**」の後に「完遂でも書く。」を足す
 - 必須の中身を次にする
@@ -349,12 +349,12 @@ Expected: すべて成功
   - 計画のみでは brainstorming が判定した経路名。完遂では結論（三択のどれか）、実行許可（依頼の文言の要旨）、実行した検証と結果、自己レビューの観点と結果
 ```
 
-- [ ] **Step 6: 「スコープ」を直す**
+- [x] **Step 6: 「スコープ」を直す**
 
 - 「レビューに挙がっていない問題を新たに探しに行かない」を「同じ条件に頼る経路は、PR の差分外も確認して直す（「守る条件と影響経路」）。原因の異なる新しい問題を探しには行かない。確認中に見つけた PR の致命的な欠陥は手順 3 のとおり扱う」にする
 - 「実装は承認後。計画フェーズでプロダクトコードを編集しない」を「計画のみの流れでは、実装は承認後。計画フェーズでプロダクトコードを編集しない」にする
 
-- [ ] **Step 7: 「合理化とその実態」を直す**
+- [x] **Step 7: 「合理化とその実態」を直す**
 
 - 「「4 モデルが指摘しているので当然対応する」」の行の実態を「票数ではなく、致命的かどうかと現行 HEAD での確認が根拠」にする
 - 「「brainstorming は自分で設計できるので省く」」の行を「| 「計画のみで、brainstorming は自分で設計できるので省く」 | 計画のみでは、経路判定と承認ゲートを持つ brainstorming を呼ぶ |」にする
@@ -373,7 +373,7 @@ Expected: すべて成功
 | 「pr-review で再レビューする」 | 完遂の自己レビューはこのスキルの中で行う。pr-review は使わない |
 ```
 
-- [ ] **Step 8: 「Red flags」を直す**
+- [x] **Step 8: 「Red flags」を直す**
 
 - 「ユーザの「進めて」を受け取らないまま実装を始めようとしている」を「計画のみの流れで、ユーザの「進めて」を受け取らないまま実装を始めようとしている」にする
 - 「Fix / 対応する に置いた finding ごとに、(a)〜(d) のどれを満たすかと根拠を示せない」を「対応する に置いた finding ごとに、致命的である理由と (a)〜(d) のどれを満たすかを示せない」にする
@@ -392,12 +392,12 @@ Expected: すべて成功
 - 専用の worktree を使わず、メイン checkout や他の作業中の worktree で修正しようとしている
 ```
 
-- [ ] **Step 9: 既存のテストを走らせ、判断保留の残りを探す**
+- [x] **Step 9: 既存のテストを走らせ、判断保留の残りを探す**
 
 Run: `uv run pytest .agents/skills/review-fix-planning tests/skills -q && rg -n "判断保留|4 区分" .agents/skills/review-fix-planning/SKILL.md`
 Expected: テストはすべて成功し、`rg` は何も出さない（終了コード 1）
 
-- [ ] **Step 10: Task 1〜3 をコミットする**
+- [x] **Step 10: Task 1〜3 をコミットする**
 
 ```bash
 git add .agents/skills/review-fix-planning/SKILL.md
@@ -411,14 +411,14 @@ git commit -m "feat(review-fix-planning): 修正要否を三択で確定して�
 - Modify: `.agents/skills/review-fix-planning/evals/evals.json`（eval 3・4 の更新、eval 8〜11 の追加）
 - Modify: `.agents/skills/review-fix-planning/evals/trigger_queries.json`（q13・q14 の追加）
 
-- [ ] **Step 1: openai.yaml の 2 行を置き換える**
+- [x] **Step 1: openai.yaml の 2 行を置き換える**
 
 ```yaml
   short_description: "PR のレビュー指摘を現行 HEAD で検証し、修正要否を三択で確定して完了まで進める"
   default_prompt: "$review-fix-planning を使い、指定した PR とレビュー結果を確認して修正要否を確定し、修正が必要なら修正して push し、不要ならマージと関連 Issue の更新まで完了してください。"
 ```
 
-- [ ] **Step 2: eval 3 を置き換える**
+- [x] **Step 2: eval 3 を置き換える**
 
 ```json
     {
@@ -436,12 +436,12 @@ git commit -m "feat(review-fix-planning): 修正要否を三択で確定して�
     },
 ```
 
-- [ ] **Step 3: eval 4 の 2 つの expectation を置き換える**
+- [x] **Step 3: eval 4 の 2 つの expectation を置き換える**
 
 - `"Documentation items are included only when the user named them or they are factually wrong at current HEAD."` → `"Documentation items are included only when the user named them or following them as written produces a wrong result at current HEAD."`
 - `"Each Fix cites one of conditions (a)-(d); Fix eligibility is not limited by an aggregate severity-count quota."` → `"Each Fix is fatal and cites one of conditions (a)-(c), or was named by the user (d); severity labels and vote counts do not decide eligibility."`
 
-- [ ] **Step 4: eval 8〜11 を末尾に足す**
+- [x] **Step 4: eval 8〜11 を末尾に足す**
 
 ```json
     {
@@ -498,7 +498,7 @@ git commit -m "feat(review-fix-planning): 修正要否を三択で確定して�
     }
 ```
 
-- [ ] **Step 5: trigger_queries に q13・q14 を足す**
+- [x] **Step 5: trigger_queries に q13・q14 を足す**
 
 ```json
     {
@@ -517,12 +517,12 @@ git commit -m "feat(review-fix-planning): 修正要否を三択で確定して�
     }
 ```
 
-- [ ] **Step 6: JSON と YAML の構文を確かめ、テストを走らせる**
+- [x] **Step 6: JSON と YAML の構文を確かめ、テストを走らせる**
 
 Run: `jq empty .agents/skills/review-fix-planning/evals/evals.json .agents/skills/review-fix-planning/evals/trigger_queries.json && uv run python -c 'import yaml,sys; yaml.safe_load(open(".agents/skills/review-fix-planning/agents/openai.yaml"))' && uv run pytest .agents/skills/review-fix-planning tests/skills -q`
 Expected: エラーが出ず、テストはすべて成功
 
-- [ ] **Step 7: コミットする**
+- [x] **Step 7: コミットする**
 
 ```bash
 git add .agents/skills/review-fix-planning/agents/openai.yaml .agents/skills/review-fix-planning/evals/evals.json .agents/skills/review-fix-planning/evals/trigger_queries.json
@@ -534,19 +534,19 @@ git commit -m "feat(review-fix-planning): eval と起動例を三択の完遂に
 **Files:**
 - 変更なし（失敗・期待との差があったときだけ、該当する SKILL.md の節を直す）
 
-- [ ] **Step 1: リポジトリの検査を通す**
+- [x] **Step 1: リポジトリの検査を通す**
 
 Run: `uv run pytest tests/skills .agents/skills -q && bash .devcontainer/run-tests.bash && bash scripts/check-layout.sh`
 Expected: すべて成功（終了コード 0）
 
-- [ ] **Step 2: 旧版の SKILL.md を scratchpad に取り出す**
+- [x] **Step 2: 旧版の SKILL.md を scratchpad に取り出す**
 
 ```bash
 SCRATCH=/tmp/claude-1000/-workspaces-reso-world/26430472-358e-4c86-b8b1-dc4085ee920a/scratchpad
 mkdir -p "$SCRATCH/skill-old" && git show a6e2c41:.agents/skills/review-fix-planning/SKILL.md > "$SCRATCH/skill-old/SKILL.md"
 ```
 
-- [ ] **Step 3: 8 体のサブエージェントに同時に答えさせる**
+- [x] **Step 3: 8 体のサブエージェントに同時に答えさせる**
 
 各サブエージェント（general-purpose）への依頼文は次のとおり。`<SKILL_PATH>` は旧版（`$SCRATCH/skill-old/SKILL.md`）か新版（worktree の `.agents/skills/review-fix-planning/SKILL.md`）、`<SCENARIO>` は下の S1〜S4。
 
@@ -564,7 +564,7 @@ mkdir -p "$SCRATCH/skill-old" && git show a6e2c41:.agents/skills/review-fix-plan
 - S3: 上流 orange3134/resoloop の PR #12（head は usaturn/resoloop の fix/foo、open、draft ではない）と external/resoloop/reviews/#12-fix-foo/ を渡され、「修正要否を確定して」と依頼された。全指摘を確認した結果、致命的な指摘は無かった。
 - S4: reviews/#42-fix-bar/ を渡され、「修正計画だけ見せて。承認するまで実装しないで」と依頼された。
 
-- [ ] **Step 4: 8 件の回答をすべて読み、Spec 6.2 の期待と比べる**
+- [x] **Step 4: 8 件の回答をすべて読み、Spec 6.2 の期待と比べる**
 
 | 場面 | 新版で期待する行動 |
 | --- | --- |
@@ -575,7 +575,7 @@ mkdir -p "$SCRATCH/skill-old" && git show a6e2c41:.agents/skills/review-fix-plan
 
 新版で期待と違う行動があれば、その言い訳を「合理化とその実態」と「Red flags」に足し、その場面だけ新版で 1 回やり直す（やり直しは 1 回まで）。旧版の結果は比較の基準として Spec の「実装の記録」に要約するだけで、スキルを変える根拠にしない。
 
-- [ ] **Step 5: 直した場合はテストを走らせてコミットする**
+- [x] **Step 5: 直した場合はテストを走らせてコミットする**
 
 Run: `uv run pytest .agents/skills/review-fix-planning tests/skills -q`
 Expected: すべて成功
@@ -590,7 +590,7 @@ git commit -m "fix(review-fix-planning): 場面の検証で見つかった言い
 **Files:**
 - 変更なし（致命的な指摘があったときだけ直す）
 
-- [ ] **Step 1: 新しい文脈のサブエージェント 1 体に、ブランチ全体を確認させる**
+- [x] **Step 1: 新しい文脈のサブエージェント 1 体に、ブランチ全体を確認させる**
 
 依頼文:
 
@@ -604,11 +604,11 @@ git commit -m "fix(review-fix-planning): 場面の検証で見つかった言い
 指摘ごとに、ファイルと行、根拠、従った場合に起きることを書く。致命的でない表記・表現の指摘は書かない。コマンドは読み取りと一時ディレクトリでの試行だけにし、リポジトリと GitHub は変更しない。
 ```
 
-- [ ] **Step 2: 指摘を Spec の基準（D-6）で判定し、致命的なものだけ直す**
+- [x] **Step 2: 指摘を Spec の基準（D-6）で判定し、致命的なものだけ直す**
 
 致命的な指摘を直したら、Task 5 の Step 1 の検査をやり直す。2 回目のレビューはしない。
 
-- [ ] **Step 3: 直した場合はコミットする**
+- [x] **Step 3: 直した場合はコミットする**
 
 ```bash
 git add .agents/skills/review-fix-planning/SKILL.md
@@ -621,11 +621,11 @@ git commit -m "fix(review-fix-planning): ブランチ全体のレビューの致
 - Modify: `docs/superpowers/specs/2026-10-05-issue-5-review-fix-three-outcomes-design.md`（末尾に「実装の記録」を足す）
 - Modify: この Plan（チェックボックスを更新する）
 
-- [ ] **Step 1: Spec の末尾に「実装の記録」を足す**
+- [x] **Step 1: Spec の末尾に「実装の記録」を足す**
 
 次の項目を書く: 実装のコミット、Task 5 の検査結果（件数と終了コード）、場面の検証の結果（旧版・新版の要約と、直した言い訳）、Task 6 のレビューの結果と判定、所要時間と Task 別の内訳、PR（ブランチ名。番号は PR 作成後に Plan ではなく PR の本文に書く）、未実施（マージ、Issue #5 のチェック項目の更新はマージ後）。
 
-- [ ] **Step 2: Plan のチェックボックスを更新し、コミットする**
+- [x] **Step 2: Plan のチェックボックスを更新し、コミットする**
 
 ```bash
 git add docs/superpowers/specs/2026-10-05-issue-5-review-fix-three-outcomes-design.md docs/superpowers/plans/2026-10-05-issue-5-review-fix-three-outcomes.md
