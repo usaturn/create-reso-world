@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
+import fcntl
 import importlib.util
 import json
 import os
+import shutil
+import signal
 import subprocess
 import sys
+import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +25,10 @@ workspace = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(workspace)
 
 THREAD_ID = "019fd23a-4723-7e02-83d9-58f32849f5ab"
+
+
+def attempt_id() -> str:
+    return uuid.uuid4().hex
 
 
 def write_rollout(codex_home: Path, models: list[str], thread_id: str = THREAD_ID) -> Path:
@@ -491,6 +501,7 @@ def test_create_requires_explicit_model_outside_codex(tmp_path: Path, monkeypatc
                 head_branch="fix/model-name",
                 model_name=None,
                 temp_root=str(temp_root),
+                attempt_id=attempt_id(),
             )
         )
 
@@ -511,6 +522,7 @@ def test_create_pins_slash_model_name_as_hyphenated_filename(tmp_path: Path, mon
             head_branch="fix/model-name",
             model_name="opencode/deepseek-v4-flash-free",
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -535,6 +547,7 @@ def test_create_destination_uses_hash_pr_number_and_sanitized_branch(
             head_branch="feature/issue-148-fail-fast",
             model_name="grok-4.6",
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -572,6 +585,7 @@ def test_create_destination_replaces_unsafe_directory_characters(
             head_branch=head_branch,
             model_name="grok-4.6",
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -592,6 +606,7 @@ def test_create_pins_explicit_model_outside_codex(tmp_path: Path, monkeypatch: p
             head_branch="fix/model-name",
             model_name="opus-5",
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -618,6 +633,7 @@ def test_save_uses_pinned_explicit_model_without_codex_metadata(
             head_branch="fix/model-name",
             model_name="opus-5",
             temp_root=str(tmp_path / "save-sessions"),
+            attempt_id=attempt_id(),
         )
     )
     Path(result["draft"]).write_text("review\n", encoding="utf-8")
@@ -655,6 +671,7 @@ def test_create_pins_model_and_artifact_paths(tmp_path: Path, monkeypatch: pytes
             head_branch="fix/herdr-session-cwd",
             model_name=None,
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -692,6 +709,7 @@ def test_create_pins_existing_review_snapshot(tmp_path: Path, monkeypatch: pytes
             head_branch="fix/herdr-session-cwd",
             model_name=None,
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -767,6 +785,8 @@ def test_create_parser_accepts_explicit_model_name() -> None:
             "fix/model-name",
             "--model-name",
             "opus-5",
+            "--attempt-id",
+            "20261005T121530123456789Z",
         ]
     )
 
@@ -793,6 +813,7 @@ def create_session(
             head_branch="fix/herdr-session-cwd",
             model_name=None,
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
     return {"result": result, "codex_home": codex_home, "repo": repo}
@@ -898,6 +919,7 @@ def test_first_session_wins_same_destination(
             head_branch="fix/herdr-session-cwd",
             model_name=None,
             temp_root=str(Path(first["state_file"]).parents[1]),
+            attempt_id=attempt_id(),
         )
     )
     Path(first["draft"]).write_text("first review\n", encoding="utf-8")
@@ -1165,3 +1187,630 @@ def test_cleanup_waits_for_repository_review_lock(
     assert process.returncode == 0, stderr
     assert json.loads(stdout)["session_dir"] == str(session_dir)
     assert not session_dir.exists()
+
+
+def explicit_create_args(
+    repo: Path,
+    commit: str,
+    temp_root: Path,
+    attempt: str,
+    *,
+    model_name: str = "opus-5",
+) -> argparse.Namespace:
+    return argparse.Namespace(
+        repo=str(repo),
+        pr_number=4,
+        commit=commit,
+        head_branch="fix/herdr-session-cwd",
+        model_name=model_name,
+        temp_root=str(temp_root),
+        attempt_id=attempt,
+    )
+
+
+def journal_records(session_dir: Path) -> list[dict[str, Any]]:
+    lines = (session_dir / "create-journal.jsonl").read_text(encoding="utf-8").splitlines()
+    return [json.loads(line) for line in lines]
+
+
+def test_create_parser_requires_attempt_id() -> None:
+    with pytest.raises(SystemExit):
+        workspace.parser().parse_args(
+            [
+                "create",
+                "--repo",
+                "/repo",
+                "--pr-number",
+                "5",
+                "--commit",
+                "deadbeef",
+                "--head-branch",
+                "fix/model-name",
+                "--model-name",
+                "opus-5",
+            ]
+        )
+
+
+@pytest.mark.parametrize("bad", ["", "-leading-dash", "../escape", "has space", "x" * 65])
+def test_create_rejects_unsafe_attempt_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bad: str) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+
+    with pytest.raises(workspace.WorkspaceError, match="attempt id"):
+        workspace.create(explicit_create_args(repo, commit, temp_root, bad))
+
+    assert not temp_root.exists()
+
+
+def test_create_rejects_reused_attempt_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+    worktrees = git(repo, "worktree", "list")
+
+    with pytest.raises(workspace.WorkspaceError, match="already used"):
+        workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+
+    assert len(list(temp_root.iterdir())) == 1
+    assert git(repo, "worktree", "list") == worktrees
+
+
+def test_create_records_its_phases_in_the_journal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    attempt = attempt_id()
+
+    result = workspace.create(explicit_create_args(repo, commit, tmp_path / "sessions", attempt))
+
+    session_dir = Path(result["state_file"]).parent
+    records = journal_records(session_dir)
+    assert [record["phase"] for record in records] == [
+        "started",
+        "worktree-add",
+        "worktree-verify",
+        "lock-wait",
+        "state-write",
+        "completed",
+    ]
+    assert all(record["at"].endswith("Z") for record in records)
+    header = records[0]
+    assert header["attempt_id"] == attempt
+    assert header["pid"] == os.getpid()
+    assert header["pr_number"] == 4
+    assert header["commit"] == commit
+    assert header["main_root"] == str(repo.resolve())
+    assert header["session_dir"] == str(session_dir)
+    assert header["worktree"] == result["worktree"]
+    assert records[-1]["state_file"] == result["state_file"]
+
+
+def test_create_does_not_fsync_session_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # fsync here held the shared review lock for minutes behind concurrent checkouts (Issue #39).
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+
+    def refuse_fsync(fd: int) -> None:
+        raise AssertionError("create must not fsync while holding the shared review lock")
+
+    monkeypatch.setattr(workspace.os, "fsync", refuse_fsync)
+
+    result = workspace.create(
+        explicit_create_args(repo, commit, tmp_path / "sessions", attempt_id(), model_name="gpt-5")
+    )
+
+    assert result["previous_review"] is not None
+    assert Path(result["state_file"]).is_file()
+
+
+def test_create_outlives_a_reader_that_closed_its_stderr(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A tool that stops reading after its timeout must not turn the attempt
+    # into a helper error, which the skill stops on without abandoning it.
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+
+    class ClosedPipe:
+        def write(self, _text: str) -> int:
+            raise BrokenPipeError(32, "Broken pipe")
+
+        def flush(self) -> None:
+            raise BrokenPipeError(32, "Broken pipe")
+
+    monkeypatch.setattr(workspace.sys, "stderr", ClosedPipe())
+
+    result = workspace.create(explicit_create_args(repo, commit, tmp_path / "sessions", attempt_id()))
+
+    assert journal_records(Path(result["state_file"]).parent)[-1]["phase"] == "completed"
+
+
+def attempt_args(repo: Path, temp_root: Path, attempt: str, *, wait: int = 0) -> argparse.Namespace:
+    return argparse.Namespace(repo=str(repo), pr_number=4, attempt_id=attempt, temp_root=str(temp_root), wait=wait)
+
+
+def stalling_git_env(tmp_path: Path) -> dict[str, str]:
+    """Run git normally, but keep `git worktree add` alive after it finishes."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    real_git = shutil.which("git")
+    assert real_git is not None
+    wrapper = bin_dir / "git"
+    pid_file = tmp_path / "stalled-git.pid"
+    wrapper.write_text(
+        f'#!/bin/sh\n"{real_git}" "$@" || exit $?\n'
+        f'case " $* " in *" worktree add "*) echo $$ > "{pid_file}"; exec sleep 60 ;; esac\n',
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+    env = os.environ.copy()
+    env.pop("CODEX_THREAD_ID", None)
+    env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+    return env
+
+
+def start_create(env: dict[str, str], repo: Path, commit: str, temp_root: Path, attempt: str) -> subprocess.Popen[str]:
+    return subprocess.Popen(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "create",
+            "--repo",
+            str(repo),
+            "--pr-number",
+            "4",
+            "--commit",
+            commit,
+            "--head-branch",
+            "fix/herdr-session-cwd",
+            "--model-name",
+            "opus-5",
+            "--temp-root",
+            str(temp_root),
+            "--attempt-id",
+            attempt,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        start_new_session=True,
+    )
+
+
+def kill_group(pid: int, signum: int) -> None:
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(pid, signum)
+
+
+def kill_stalled_git(tmp_path: Path) -> None:
+    pid_file = tmp_path / "stalled-git.pid"
+    if pid_file.is_file():
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)
+
+
+def wait_for_phase(repo: Path, temp_root: Path, attempt: str, phase: str) -> dict[str, Any]:
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+        if report.get("last_phase") == phase:
+            return report
+        time.sleep(0.05)
+    raise AssertionError(f"create never reached {phase}")
+
+
+def test_inspect_reports_a_completed_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    result = workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+
+    assert report["status"] == "completed"
+    assert report["session_dir"] == str(Path(result["state_file"]).parent)
+    assert report["state_file"] == result["state_file"]
+    assert report["worktree"] == result["worktree"]
+    assert report["worktree_exists"] is True
+    assert report["worktree_registered"] is True
+    assert report["worktree_lock"] is None
+    assert report["last_phase"] == "completed"
+    assert {"create-journal.jsonl", "session.json", "worktree/", "review-backup/"} <= set(report["entries"])
+
+
+def test_killed_create_reports_its_last_phase_and_leftovers(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    process = start_create(stalling_git_env(tmp_path), repo, commit, temp_root, attempt)
+    try:
+        running = wait_for_phase(repo, temp_root, attempt, "worktree-add")
+        kill_group(process.pid, signal.SIGKILL)
+        _, stderr = process.communicate(timeout=10)
+        # `git worktree add` runs in its own session, so the group kill spares it.
+        checkout_alive = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+    finally:
+        kill_group(process.pid, signal.SIGKILL)
+        kill_stalled_git(tmp_path)
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt, wait=10))
+
+    assert running["status"] == "running"
+    assert process.returncode == -signal.SIGKILL
+    assert checkout_alive["status"] == "running"
+    assert report["status"] == "vanished"
+    assert report["last_phase"] == "worktree-add"
+    assert report["state_file"] is None
+    assert report["worktree_exists"] is True
+    assert report["worktree_registered"] is True
+    assert f"session_dir={report['session_dir']}" in stderr
+    assert "worktree-add" in stderr
+
+
+def test_terminated_create_records_the_signal(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    process = start_create(stalling_git_env(tmp_path), repo, commit, temp_root, attempt)
+    try:
+        wait_for_phase(repo, temp_root, attempt, "worktree-add")
+    finally:
+        kill_group(process.pid, signal.SIGTERM)
+        _, stderr = process.communicate(timeout=10)
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt, wait=10))
+
+    assert process.returncode == 128 + signal.SIGTERM
+    # The skill reads an `error:` line as a helper error and would not abandon.
+    assert not [line for line in stderr.splitlines() if line.startswith("error:")]
+    assert report["status"] == "interrupted"
+    assert report["signal"] == "SIGTERM"
+    assert report["last_phase"] == "interrupted"
+
+
+def test_inspect_reports_an_unknown_attempt_as_absent(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    legacy = temp_root / "pr-review-4-legacy"
+    legacy.mkdir(parents=True)
+    (legacy / ".session.json.kqdd8rsc").write_text("{}\n", encoding="utf-8")
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt_id()))
+
+    assert report == {"attempt_id": report["attempt_id"], "status": "absent", "session_dir": None}
+    assert (legacy / ".session.json.kqdd8rsc").is_file()
+
+
+def test_inspect_ignores_a_cut_off_journal_line(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    result = workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+    with (Path(result["state_file"]).parent / "create-journal.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write('{"phase": "fail')
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+
+    assert report["status"] == "completed"
+    assert report["last_phase"] == "completed"
+
+
+def test_inspect_refuses_an_attempt_id_shared_by_two_sessions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    result = workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+    duplicate = temp_root / "pr-review-4-duplicate"
+    duplicate.mkdir()
+    shutil.copy(Path(result["state_file"]).parent / "create-journal.jsonl", duplicate / "create-journal.jsonl")
+
+    with pytest.raises(workspace.WorkspaceError, match="share attempt id"):
+        workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+
+
+def completed_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    result = workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+    return {
+        "repo": repo,
+        "commit": commit,
+        "temp_root": temp_root,
+        "attempt": attempt,
+        "result": result,
+        "session_dir": Path(result["state_file"]).parent,
+    }
+
+
+def test_abandon_clears_an_attempt_killed_while_waiting_for_the_lock(tmp_path: Path) -> None:
+    # The Issue #39 state: the worktree exists and session.json was never published.
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    env = os.environ.copy()
+    env.pop("CODEX_THREAD_ID", None)
+    with workspace.review_save_lock(repo):
+        process = start_create(env, repo, commit, temp_root, attempt)
+        try:
+            waiting = wait_for_phase(repo, temp_root, attempt, "lock-wait")
+        finally:
+            kill_group(process.pid, signal.SIGKILL)
+            process.communicate(timeout=10)
+    session_dir = Path(waiting["session_dir"])
+    (session_dir / ".session.json.kqdd8rsc").write_text("{}\n", encoding="utf-8")
+    before = workspace.snapshot(repo)
+
+    left = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt, wait=10))
+    removed = workspace.abandon_attempt(attempt_args(repo, temp_root, attempt))
+
+    assert left["status"] == "vanished"
+    assert left["last_phase"] == "lock-wait"
+    assert left["state_file"] is None
+    assert ".session.json.kqdd8rsc" in left["entries"]
+    assert removed["worktree_removed"] is True
+    assert removed["status"] == "vanished"
+    assert not session_dir.exists()
+    assert left["worktree"] not in git(repo, "worktree", "list")
+    assert workspace.snapshot(repo) == before
+    assert workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))["status"] == "absent"
+    with pytest.raises(workspace.WorkspaceError, match="nothing to abandon"):
+        workspace.abandon_attempt(attempt_args(repo, temp_root, attempt))
+
+
+def test_abandon_waits_for_a_checkout_that_outlives_create(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    process = start_create(stalling_git_env(tmp_path), repo, commit, temp_root, attempt)
+    try:
+        wait_for_phase(repo, temp_root, attempt, "worktree-add")
+        process.kill()  # only create itself; its git child keeps running
+        process.communicate(timeout=10)
+
+        orphaned = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+        with pytest.raises(workspace.WorkspaceError, match="still running"):
+            workspace.abandon_attempt(attempt_args(repo, temp_root, attempt))
+        assert Path(orphaned["worktree"]).is_dir()
+    finally:
+        kill_group(process.pid, signal.SIGKILL)
+        kill_stalled_git(tmp_path)
+
+    assert orphaned["status"] == "running"
+    assert workspace.inspect_attempt(attempt_args(repo, temp_root, attempt, wait=10))["status"] == "vanished"
+    assert workspace.abandon_attempt(attempt_args(repo, temp_root, attempt))["worktree_removed"] is True
+
+
+def test_abandon_removes_a_worktree_left_initializing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    repo = attempt["repo"]
+    worktree = attempt["result"]["worktree"]
+    git(repo, "worktree", "lock", "--reason", "initializing", worktree)
+    assert (
+        workspace.inspect_attempt(attempt_args(repo, attempt["temp_root"], attempt["attempt"]))["worktree_lock"]
+        == "initializing"
+    )
+
+    removed = workspace.abandon_attempt(attempt_args(repo, attempt["temp_root"], attempt["attempt"]))
+
+    assert removed["worktree_removed"] is True
+    assert removed["status"] == "completed"
+    assert not Path(worktree).exists()
+    assert worktree not in git(repo, "worktree", "list")
+    assert not attempt["session_dir"].exists()
+
+
+def test_abandon_keeps_a_worktree_locked_for_another_reason(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    repo = attempt["repo"]
+    worktree = attempt["result"]["worktree"]
+    git(repo, "worktree", "lock", "--reason", "kept by the user", worktree)
+
+    with pytest.raises(workspace.WorkspaceError, match="locked"):
+        workspace.abandon_attempt(attempt_args(repo, attempt["temp_root"], attempt["attempt"]))
+
+    assert Path(worktree).is_dir()
+    assert attempt["session_dir"].is_dir()
+
+
+def test_abandon_refuses_while_the_attempt_is_running(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    args = attempt_args(attempt["repo"], attempt["temp_root"], attempt["attempt"])
+    with (attempt["session_dir"] / "create-journal.jsonl").open("rb") as stream:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+        assert workspace.inspect_attempt(args)["status"] == "running"
+        with pytest.raises(workspace.WorkspaceError, match="still running"):
+            workspace.abandon_attempt(args)
+
+    assert Path(attempt["result"]["worktree"]).is_dir()
+    assert attempt["session_dir"].is_dir()
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        ("review-backup/opus-5.md", "review backup"),
+        ("review-backup/nested/", "review backup"),
+        ("notes.txt", "unexpected entry"),
+    ],
+)
+def test_abandon_keeps_a_session_with_files_it_did_not_create(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, extra: str, message: str
+) -> None:
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    path = attempt["session_dir"] / extra.rstrip("/")
+    if extra.endswith("/"):
+        path.mkdir()
+    else:
+        path.write_text("unsaved review\n", encoding="utf-8")
+
+    with pytest.raises(workspace.WorkspaceError, match=message):
+        workspace.abandon_attempt(attempt_args(attempt["repo"], attempt["temp_root"], attempt["attempt"]))
+
+    assert path.exists()
+    assert attempt["result"]["worktree"] in git(attempt["repo"], "worktree", "list")
+
+
+def test_abandon_refuses_another_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    other = tmp_path / "other"
+    make_repo(other)
+
+    with pytest.raises(workspace.WorkspaceError, match="does not match"):
+        workspace.abandon_attempt(attempt_args(other, attempt["temp_root"], attempt["attempt"]))
+
+    assert attempt["session_dir"].is_dir()
+    assert attempt["result"]["worktree"] in git(attempt["repo"], "worktree", "list")
+
+
+def test_abandon_touches_only_its_own_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mine = completed_attempt(tmp_path, monkeypatch)
+    repo = mine["repo"]
+    theirs = workspace.create(explicit_create_args(repo, mine["commit"], mine["temp_root"], attempt_id()))
+    other_review = repo / "reviews/#4-fix-herdr-session-cwd/gemini-3.6-flash.md"
+    other_review.write_text("gemini review\n", encoding="utf-8")
+    (repo / "notes.txt").write_text("user notes\n", encoding="utf-8")
+    before = workspace.snapshot(repo)
+
+    workspace.abandon_attempt(attempt_args(repo, mine["temp_root"], mine["attempt"]))
+
+    assert not mine["session_dir"].exists()
+    assert Path(theirs["worktree"]).is_dir()
+    assert theirs["worktree"] in git(repo, "worktree", "list")
+    assert Path(theirs["state_file"]).is_file()
+    assert other_review.read_text(encoding="utf-8") == "gemini review\n"
+    assert workspace.snapshot(repo) == before
+
+
+def test_abandon_waits_for_the_repository_review_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    command = [
+        sys.executable,
+        str(SCRIPT),
+        "abandon",
+        "--repo",
+        str(attempt["repo"]),
+        "--pr-number",
+        "4",
+        "--attempt-id",
+        attempt["attempt"],
+        "--temp-root",
+        str(attempt["temp_root"]),
+    ]
+
+    with workspace.review_save_lock(attempt["repo"]):
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        with pytest.raises(subprocess.TimeoutExpired):
+            process.wait(timeout=1)
+        assert attempt["session_dir"].is_dir()
+
+    stdout, stderr = process.communicate(timeout=10)
+    assert process.returncode == 0, stderr
+    assert json.loads(stdout)["session_dir"] == str(attempt["session_dir"])
+    assert not attempt["session_dir"].exists()
+
+
+def admin_dir_of(worktree: Path) -> Path:
+    return Path((worktree / ".git").read_text(encoding="utf-8").strip().removeprefix("gitdir: "))
+
+
+@pytest.mark.parametrize("cut", ["gitdir", "HEAD", "record"])
+def test_abandon_clears_records_left_by_an_interrupted_worktree_add(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cut: str
+) -> None:
+    # A SIGTERM that reaches `git worktree add` starts git's own cleanup; a
+    # SIGKILL right after cuts it short and leaves records git cannot remove.
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    repo = attempt["repo"]
+    worktree = Path(attempt["result"]["worktree"])
+    admin = admin_dir_of(worktree)
+    other = tmp_path / "unrelated-worktree"
+    git(repo, "worktree", "add", "--detach", str(other), "HEAD")
+    (admin / "locked").write_text("initializing\n", encoding="utf-8")
+    if cut == "record":
+        shutil.rmtree(admin)
+    elif cut == "gitdir":
+        for name in ("gitdir", "HEAD", "commondir"):
+            (admin / name).unlink()
+    else:
+        (admin / "HEAD").unlink()
+
+    removed = workspace.abandon_attempt(attempt_args(repo, attempt["temp_root"], attempt["attempt"]))
+
+    assert removed["worktree_removed"] is True
+    assert not attempt["session_dir"].exists()
+    assert not admin.exists()
+    assert str(worktree) not in git(repo, "worktree", "list")
+    assert other.is_dir()
+    assert str(other) in git(repo, "worktree", "list")
+
+
+def test_abandon_refuses_records_of_another_worktree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mine = completed_attempt(tmp_path, monkeypatch)
+    repo = mine["repo"]
+    theirs = workspace.create(explicit_create_args(repo, mine["commit"], mine["temp_root"], attempt_id()))
+    their_admin = admin_dir_of(Path(theirs["worktree"]))
+    worktree = Path(mine["result"]["worktree"])
+    git(repo, "worktree", "remove", "--force", str(worktree))
+    worktree.mkdir()
+    (worktree / ".git").write_text(f"gitdir: {their_admin}\n", encoding="utf-8")
+    (worktree / "README.md").write_text("fixture\n", encoding="utf-8")
+
+    with pytest.raises(workspace.WorkspaceError, match="another worktree"):
+        workspace.abandon_attempt(attempt_args(repo, mine["temp_root"], mine["attempt"]))
+
+    assert their_admin.is_dir()
+    assert theirs["worktree"] in git(repo, "worktree", "list")
+    assert (worktree / "README.md").is_file()
+
+
+def test_a_repeated_signal_does_not_cut_the_end_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # `uv run` forwards SIGTERM to the helper that already got it from the
+    # process group, so the second copy lands while create records the first.
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    snapshot = workspace.snapshot
+    record_end = workspace.CreateJournal.record_end
+
+    def terminated_snapshot(path: Path) -> dict[str, Any]:
+        os.kill(os.getpid(), signal.SIGTERM)
+        return snapshot(path)
+
+    def record_end_after_another_signal(self: Any, phase: str, **fields: object) -> None:
+        os.kill(os.getpid(), signal.SIGTERM)
+        record_end(self, phase, **fields)
+
+    monkeypatch.setattr(workspace, "snapshot", terminated_snapshot)
+    monkeypatch.setattr(workspace.CreateJournal, "record_end", record_end_after_another_signal)
+
+    with pytest.raises(workspace.CreateInterrupted):
+        workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+    assert report["status"] == "interrupted"
+    assert report["signal"] == "SIGTERM"

@@ -11,19 +11,31 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import uuid
 from collections.abc import Generator, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 
 class WorkspaceError(RuntimeError):
     """Report a safety invariant violation without changing repository state."""
+
+
+class CreateInterrupted(BaseException):
+    """Stop create on a termination signal so its journal records how it ended."""
+
+    def __init__(self, signum: int) -> None:
+        super().__init__(f"create interrupted by {signal.Signals(signum).name}")
+        self.signum = signum
 
 
 MODEL_FILENAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -33,6 +45,12 @@ UNSAFE_DIRECTORY_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 MODEL_SOURCE_CODEX = "codex-rollout"
 MODEL_SOURCE_EXPLICIT = "explicit"
 MODEL_SOURCES = {MODEL_SOURCE_CODEX, MODEL_SOURCE_EXPLICIT}
+
+ATTEMPT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+JOURNAL_NAME = "create-journal.jsonl"
+TERMINAL_PHASES = ("completed", "failed", "interrupted")
+# Tool timeouts and closing terminals send these before any SIGKILL.
+INTERRUPT_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
 
 
 def _json_object(value: object) -> dict[str, object] | None:
@@ -138,11 +156,19 @@ def review_artifact_paths(
     return backup_dir / filename, f"reviews/{directory}/{filename}"
 
 
-def git(repo: Path, *args: str, binary: bool = False) -> str | bytes:
+def git(
+    repo: Path,
+    *args: str,
+    binary: bool = False,
+    pass_fds: tuple[int, ...] = (),
+    new_session: bool = False,
+) -> str | bytes:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         check=False,
         capture_output=True,
+        pass_fds=pass_fds,
+        start_new_session=new_session,
     )
     if result.returncode:
         message = result.stderr.decode("utf-8", errors="replace").strip()
@@ -243,11 +269,11 @@ def snapshot_existing_review(
         with os.fdopen(source_fd, "rb") as source, os.fdopen(handle, "wb") as output:
             if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
                 raise WorkspaceError("existing review destination must be a regular file")
+            # Session files need no fsync: os.replace publishes all or nothing,
+            # and after an OS crash the review session cannot continue anyway.
             for block in iter(lambda: source.read(1024 * 1024), b""):
                 digest.update(block)
                 output.write(block)
-            output.flush()
-            os.fsync(output.fileno())
         after = destination_fingerprint(destination)
         if after != before or digest.hexdigest() != before.get("sha256"):
             raise WorkspaceError("existing review changed while snapshotting")
@@ -289,28 +315,187 @@ def review_save_lock(repo: Path) -> Generator[None]:
 
 
 def write_json(path: Path, value: dict[str, Any]) -> None:
+    # No fsync: the state lives only as long as the review session, and an
+    # fsync under the shared review lock waited minutes on concurrent
+    # checkouts (Issue #39). os.replace still publishes all or nothing.
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
             json.dump(value, stream, ensure_ascii=False, sort_keys=True)
             stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
         os.replace(temporary, path)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)
         raise
 
 
+def validate_attempt_id(value: str) -> str:
+    if ATTEMPT_ID.fullmatch(value) is None:
+        raise WorkspaceError("attempt id must be 1-64 letters, digits, '.', '_' or '-', starting with a letter or digit")
+    return value
+
+
+def utc_timestamp() -> str:
+    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+class CreateJournal:
+    """Append create's phases and hold the creator lock until create ends."""
+
+    def __init__(self, session_dir: Path, attempt_id: str) -> None:
+        self.attempt_id = attempt_id
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
+        self.stream = os.fdopen(os.open(session_dir / JOURNAL_NAME, flags, 0o600), "a", encoding="utf-8")
+        # The kernel drops this lock when every holder exits, so inspect and
+        # abandon can tell a finished attempt without trusting a PID.
+        fcntl.flock(self.stream.fileno(), fcntl.LOCK_EX)
+
+    def fileno(self) -> int:
+        return self.stream.fileno()
+
+    def record(self, phase: str, **fields: object) -> None:
+        at = utc_timestamp()
+        self.stream.write(json.dumps({"phase": phase, "at": at, **fields}, ensure_ascii=False, sort_keys=True) + "\n")
+        self.stream.flush()
+        detail = f" session_dir={fields['session_dir']}" if "session_dir" in fields else ""
+        # The journal is the record. A reader that stopped reading (a closed
+        # pipe after a tool timeout) must not turn create into a helper error.
+        with suppress(OSError):
+            print(f"pr-review create {self.attempt_id}: {at} {phase}{detail}", file=sys.stderr, flush=True)
+
+    def record_end(self, phase: str, **fields: object) -> None:
+        # Never mask the error that ended create; a missing end reads as vanished.
+        try:
+            self.record(phase, **fields)
+        except (OSError, ValueError):
+            pass
+
+    def close(self) -> None:
+        self.stream.close()
+
+
+@contextmanager
+def interruption_signals() -> Generator[None]:
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    interrupted = False
+
+    def interrupt(signum: int, _frame: object) -> None:
+        nonlocal interrupted
+        # `uv run` forwards the signal the process group already delivered;
+        # a second copy must not cut short the journal's end record.
+        if interrupted:
+            return
+        interrupted = True
+        raise CreateInterrupted(signum)
+
+    previous = {signum: signal.signal(signum, interrupt) for signum in INTERRUPT_SIGNALS}
+    try:
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+def journal_attempt(path: Path) -> str | None:
+    """Return the attempt id in a journal's start record, or None if unreadable."""
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        with path.open(encoding="utf-8") as stream:
+            first = stream.readline()
+        header = json.loads(first) if first.endswith("\n") else None
+    except (OSError, ValueError):
+        return None
+    if not isinstance(header, dict) or header.get("phase") != "started":
+        return None
+    value = header.get("attempt_id")
+    return value if isinstance(value, str) else None
+
+
+def read_journal(path: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            if not line.endswith("\n"):
+                break  # cut off by a kill while appending
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise WorkspaceError(f"create journal is unreadable: {path}") from error
+            if not isinstance(record, dict) or not isinstance(record.get("phase"), str):
+                raise WorkspaceError(f"create journal is unreadable: {path}")
+            records.append(cast(dict[str, Any], record))
+    if not records or records[0]["phase"] != "started":
+        raise WorkspaceError(f"create journal has no start record: {path}")
+    return records
+
+
+def attempt_sessions(temp_root: Path, pr_number: int, attempt_id: str) -> list[Path]:
+    return [
+        session_dir
+        for session_dir in sorted(temp_root.glob(f"pr-review-{pr_number}-*"))
+        if not session_dir.is_symlink()
+        and session_dir.is_dir()
+        and journal_attempt(session_dir / JOURNAL_NAME) == attempt_id
+    ]
+
+
 def create(args: argparse.Namespace) -> dict[str, str | None]:
-    model_name, model_source = resolve_runtime_model_name(args.model_name)
+    attempt_id = validate_attempt_id(args.attempt_id)
+    model = resolve_runtime_model_name(args.model_name)
     review_directory_name(args.pr_number, args.head_branch)
     repo = require_main_checkout(args.repo)
     commit = str(git(repo, "rev-parse", "--verify", f"{args.commit}^{{commit}}"))
     temp_root = Path(args.temp_root).resolve() if args.temp_root else Path(tempfile.gettempdir()).resolve()
     temp_root.mkdir(parents=True, exist_ok=True)
+    if attempt_sessions(temp_root, args.pr_number, attempt_id):
+        raise WorkspaceError(f"attempt id {attempt_id} is already used for PR {args.pr_number}; generate a new one")
     session_dir = Path(tempfile.mkdtemp(prefix=f"pr-review-{args.pr_number}-", dir=temp_root))
+    journal = CreateJournal(session_dir, attempt_id)
+    try:
+        journal.record(
+            "started",
+            attempt_id=attempt_id,
+            pid=os.getpid(),
+            pr_number=args.pr_number,
+            commit=commit,
+            head_branch=args.head_branch,
+            model_name=model[0],
+            main_root=str(repo),
+            session_dir=str(session_dir),
+            worktree=str(session_dir / "worktree"),
+        )
+        with interruption_signals():
+            try:
+                result = create_session(args, repo, commit, model, session_dir, journal)
+            except CreateInterrupted as error:
+                journal.record_end("interrupted", signal=signal.Signals(error.signum).name)
+                raise
+            except KeyboardInterrupt:
+                journal.record_end("interrupted", signal="SIGINT")
+                raise
+            except BaseException as error:
+                journal.record_end("failed", error=str(error) or type(error).__name__)
+                raise
+            journal.record("completed", state_file=result["state_file"])
+            return result
+    finally:
+        journal.close()
+
+
+def create_session(
+    args: argparse.Namespace,
+    repo: Path,
+    commit: str,
+    model: tuple[str, str],
+    session_dir: Path,
+    journal: CreateJournal,
+) -> dict[str, str | None]:
+    model_name, model_source = model
     worktree = session_dir / "worktree"
     backup_dir = session_dir / "review-backup"
     backup_dir.mkdir()
@@ -324,8 +509,25 @@ def create(args: argparse.Namespace) -> dict[str, str | None]:
     require_destination_parent(destination_path)
 
     before = snapshot(repo)
-    git(repo, "worktree", "add", "--detach", str(worktree), commit)
+    journal.record("worktree-add")
+    # A checkout that outlives this process keeps the creator lock held. Its
+    # own session keeps a signal sent to this process group away from git:
+    # SIGTERM there starts git's own cleanup, which a SIGKILL right after can
+    # cut short and leave records git cannot remove. On our signal,
+    # subprocess.run stops git with SIGKILL, leaving a worktree that
+    # `git worktree remove` still accepts.
+    git(
+        repo,
+        "worktree",
+        "add",
+        "--detach",
+        str(worktree),
+        commit,
+        pass_fds=(journal.fileno(),),
+        new_session=True,
+    )
 
+    journal.record("worktree-verify")
     actual_top = Path(str(git(worktree, "rev-parse", "--show-toplevel"))).resolve(strict=True)
     if actual_top != worktree.resolve(strict=True):
         raise WorkspaceError("created worktree root does not match the requested unique path")
@@ -339,7 +541,9 @@ def create(args: argparse.Namespace) -> dict[str, str | None]:
         raise WorkspaceError("creating the review worktree changed the main working tree")
 
     state_file = session_dir / "session.json"
+    journal.record("lock-wait")
     with review_save_lock(repo):
+        journal.record("state-write")
         fingerprint, previous = snapshot_existing_review(destination_path, backup_dir)
         state: dict[str, Any] = {
             "version": 6,
@@ -542,11 +746,262 @@ def cleanup(args: argparse.Namespace) -> dict[str, str]:
     }
 
 
+SESSION_FILES = {JOURNAL_NAME, "session.json"}
+SESSION_DIRECTORIES = {"review-backup", "worktree"}
+
+
+def locate_attempt(repo: Path, temp_root_value: str | None, pr_number: int, attempt_id: str) -> Path | None:
+    temp_root = Path(temp_root_value).resolve() if temp_root_value else Path(tempfile.gettempdir()).resolve()
+    if not temp_root.is_dir():
+        return None
+    matches = attempt_sessions(temp_root, pr_number, attempt_id)
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise WorkspaceError(f"{len(matches)} sessions share attempt id {attempt_id}; keep them for the user")
+    session_dir = matches[0]
+    header = read_journal(session_dir / JOURNAL_NAME)[0]
+    if (
+        header.get("main_root") != str(repo)
+        or header.get("session_dir") != str(session_dir)
+        or header.get("pr_number") != pr_number
+    ):
+        raise WorkspaceError("create journal does not match this repository, PR and session directory")
+    return session_dir
+
+
+def creator_running(journal: Path) -> bool:
+    with journal.open("rb") as stream:
+        try:
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    return False
+
+
+def worktree_registration(repo: Path, worktree: Path) -> dict[str, str] | None:
+    listing = git(repo, "worktree", "list", "--porcelain", "-z", binary=True)
+    assert isinstance(listing, bytes)
+    target = os.path.realpath(worktree)
+    entry: dict[str, str] = {}
+    for field in listing.decode("utf-8", errors="surrogateescape").split("\0"):
+        if field:
+            key, _, value = field.partition(" ")
+            entry[key] = value
+            continue
+        if "worktree" in entry and os.path.realpath(entry["worktree"]) == target:
+            return entry
+        entry = {}
+    return None
+
+
+def entry_name(path: Path, prefix: str = "") -> str:
+    return prefix + path.name + ("/" if path.is_dir() and not path.is_symlink() else "")
+
+
+def session_entries(session_dir: Path) -> list[str]:
+    entries: list[str] = []
+    for child in sorted(session_dir.iterdir()):
+        entries.append(entry_name(child))
+        if child.name == "review-backup" and child.is_dir() and not child.is_symlink():
+            entries.extend(entry_name(grandchild, "review-backup/") for grandchild in sorted(child.iterdir()))
+    return entries
+
+
+def attempt_report(repo: Path, session_dir: Path, attempt_id: str, *, running: bool) -> dict[str, Any]:
+    records = read_journal(session_dir / JOURNAL_NAME)
+    last = records[-1]
+    ended = last if last["phase"] in TERMINAL_PHASES else {}
+    worktree = session_dir / "worktree"
+    registration = worktree_registration(repo, worktree)
+    state_file = session_dir / "session.json"
+    return {
+        "attempt_id": attempt_id,
+        "status": "running" if running else (last["phase"] if ended else "vanished"),
+        "session_dir": str(session_dir),
+        "pid": records[0].get("pid"),
+        "phases": [{"phase": record["phase"], "at": record.get("at")} for record in records],
+        "last_phase": last["phase"],
+        "last_phase_at": last.get("at"),
+        "error": ended.get("error"),
+        "signal": ended.get("signal"),
+        "state_file": str(state_file) if state_file.is_file() and not state_file.is_symlink() else None,
+        "worktree": str(worktree),
+        "worktree_exists": worktree.exists() or worktree.is_symlink(),
+        "worktree_registered": registration is not None,
+        "worktree_lock": None if registration is None else registration.get("locked"),
+        "entries": session_entries(session_dir),
+    }
+
+
+def inspect_attempt(args: argparse.Namespace) -> dict[str, Any]:
+    attempt_id = validate_attempt_id(args.attempt_id)
+    repo = require_main_checkout(args.repo)
+    deadline = time.monotonic() + args.wait
+    while True:
+        session_dir = locate_attempt(repo, args.temp_root, args.pr_number, attempt_id)
+        if session_dir is None:
+            return {"attempt_id": attempt_id, "status": "absent", "session_dir": None}
+        # Probe before reading so a just-finished attempt shows its end record.
+        running = creator_running(session_dir / JOURNAL_NAME)
+        report = attempt_report(repo, session_dir, attempt_id, running=running)
+        remaining = deadline - time.monotonic()
+        if not running or remaining <= 0:
+            return report
+        time.sleep(min(1.0, remaining))
+
+
+@contextmanager
+def finished_creator(journal: Path) -> Generator[None]:
+    """Hold the creator lock, refusing while create or its checkout still runs."""
+    with journal.open("rb") as stream:
+        try:
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise WorkspaceError(
+                "create attempt is still running; wait with inspect --wait before abandoning it"
+            ) from error
+        yield
+
+
+def require_abandonable_entries(session_dir: Path) -> None:
+    """Keep the session when it holds anything create itself did not write."""
+    for child in session_dir.iterdir():
+        name = child.name
+        if child.is_symlink():
+            raise WorkspaceError(f"session holds an unexpected entry; keep it for the user: {child}")
+        if name in SESSION_DIRECTORIES and child.is_dir():
+            continue
+        if (name in SESSION_FILES or name.startswith(".session.json.")) and child.is_file():
+            continue
+        raise WorkspaceError(f"session holds an unexpected entry; keep it for the user: {child}")
+    backup_dir = session_dir / "review-backup"
+    if not backup_dir.is_dir():
+        return
+    for child in backup_dir.iterdir():
+        snapshot_file = child.name == "previous-review.md" or child.name.startswith(".previous-review.md.")
+        if child.is_symlink() or not child.is_file() or not snapshot_file:
+            raise WorkspaceError(
+                f"review backup holds a file other than the helper's snapshot; keep the session: {child}"
+            )
+
+
+def read_link(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="surrogateescape").strip()
+
+
+def attempt_admin_dirs(repo: Path, worktree: Path) -> list[Path]:
+    """Find this repository's worktree records that belong to the session worktree."""
+    admin_root = git_path(repo, "--git-common-dir") / "worktrees"
+    own_gitfile = os.path.realpath(worktree / ".git")
+    found: set[Path] = set()
+    gitfile = worktree / ".git"
+    if gitfile.is_symlink() or (gitfile.exists() and not gitfile.is_file()):
+        raise WorkspaceError(f"session worktree .git is not a file; keep the session: {worktree}")
+    if gitfile.is_file():
+        content = read_link(gitfile)
+        if not content.startswith("gitdir: "):
+            raise WorkspaceError(f"session worktree .git is not a gitdir link; keep the session: {worktree}")
+        linked = Path(os.path.realpath(worktree / content.removeprefix("gitdir: ")))
+        if linked.parent != admin_root:
+            raise WorkspaceError(f"session worktree links outside this repository's worktree records: {linked}")
+        if os.path.lexists(admin_root / linked.name):
+            found.add(admin_root / linked.name)
+    if admin_root.is_dir():
+        for admin in admin_root.iterdir():
+            backlink = admin / "gitdir"
+            if backlink.is_file() and os.path.realpath(read_link(backlink)) == own_gitfile:
+                found.add(admin)
+    for admin in found:
+        if admin.is_symlink() or not admin.is_dir():
+            raise WorkspaceError(f"worktree record is not a directory; keep the session: {admin}")
+        backlink = admin / "gitdir"
+        if os.path.lexists(backlink) and os.path.realpath(read_link(backlink)) != own_gitfile:
+            raise WorkspaceError(f"worktree record belongs to another worktree; keep the session: {admin}")
+        lock = admin / "locked"
+        if os.path.lexists(lock) and read_link(lock) != "initializing":
+            raise WorkspaceError(f"worktree record is locked by the user; keep the session: {admin}")
+    return sorted(found)
+
+
+def is_session_worktree(worktree: Path, repo: Path) -> bool:
+    try:
+        require_session_worktree(worktree.resolve(strict=True), repo)
+    except (WorkspaceError, OSError):
+        return False
+    return True
+
+
+def remove_attempt_worktree(repo: Path, worktree: Path) -> bool:
+    if worktree.is_symlink():
+        raise WorkspaceError(f"session worktree path is a symlink; keep the session: {worktree}")
+    registration = worktree_registration(repo, worktree)
+    lock = None if registration is None else registration.get("locked")
+    if lock not in (None, "initializing"):
+        raise WorkspaceError(f"worktree is locked ({lock}); keep the session for the user: {worktree}")
+    if registration is not None and worktree.is_dir() and is_session_worktree(worktree, repo):
+        # `git worktree add` marks its worktree "initializing" until checkout ends.
+        force = ("--force", "--force") if lock == "initializing" else ("--force",)
+        git(repo, "worktree", "remove", *force, str(worktree))
+        removed = True
+    else:
+        # git's own `worktree add` cleanup was cut short and left records git
+        # no longer accepts; remove only the ones that point at this worktree.
+        admins = attempt_admin_dirs(repo, worktree)
+        if registration is not None and not admins:
+            raise WorkspaceError(f"cannot find the worktree record git lists; keep the session: {worktree}")
+        removed = bool(admins) or worktree.exists()
+        for admin in admins:
+            shutil.rmtree(admin)
+        if worktree.exists():
+            shutil.rmtree(worktree)
+    if worktree.exists() or worktree_registration(repo, worktree) is not None:
+        raise WorkspaceError(f"the review worktree is still present: {worktree}")
+    return removed
+
+
+def abandon_attempt(args: argparse.Namespace) -> dict[str, Any]:
+    attempt_id = validate_attempt_id(args.attempt_id)
+    repo = require_main_checkout(args.repo)
+    with review_save_lock(repo):
+        session_dir = locate_attempt(repo, args.temp_root, args.pr_number, attempt_id)
+        if session_dir is None:
+            raise WorkspaceError(f"no create attempt {attempt_id} for PR {args.pr_number}; nothing to abandon")
+        with finished_creator(session_dir / JOURNAL_NAME):
+            status = attempt_report(repo, session_dir, attempt_id, running=False)["status"]
+            require_abandonable_entries(session_dir)
+            worktree = session_dir / "worktree"
+            removed = remove_attempt_worktree(repo, worktree)
+            shutil.rmtree(session_dir)
+    return {
+        "attempt_id": attempt_id,
+        "session_dir": str(session_dir),
+        "status": status,
+        "worktree": str(worktree),
+        "worktree_removed": removed,
+    }
+
+
 def positive_integer(value: str) -> int:
     number = int(value)
     if number < 1:
         raise argparse.ArgumentTypeError("must be a positive integer")
     return number
+
+
+def non_negative_integer(value: str) -> int:
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be zero or a positive integer")
+    return number
+
+
+def add_attempt_arguments(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--repo", required=True)
+    command.add_argument("--pr-number", required=True, type=positive_integer)
+    command.add_argument("--attempt-id", required=True)
+    command.add_argument("--temp-root")
 
 
 def parser() -> argparse.ArgumentParser:
@@ -560,6 +1015,7 @@ def parser() -> argparse.ArgumentParser:
     create_parser.add_argument("--head-branch", required=True)
     create_parser.add_argument("--model-name")
     create_parser.add_argument("--temp-root")
+    create_parser.add_argument("--attempt-id", required=True)
     create_parser.set_defaults(handler=create)
 
     verify_parser = commands.add_parser("verify", help="verify that the main checkout is unchanged")
@@ -573,6 +1029,17 @@ def parser() -> argparse.ArgumentParser:
     cleanup_parser = commands.add_parser("cleanup", help="remove the session worktree once the review is saved")
     cleanup_parser.add_argument("--state", required=True)
     cleanup_parser.set_defaults(handler=cleanup)
+
+    inspect_parser = commands.add_parser("inspect", help="report how a create attempt ended and what it left")
+    add_attempt_arguments(inspect_parser)
+    inspect_parser.add_argument("--wait", type=non_negative_integer, default=0)
+    inspect_parser.set_defaults(handler=inspect_attempt)
+
+    abandon_parser = commands.add_parser(
+        "abandon", help="remove what an interrupted create attempt left when it holds no unsaved review"
+    )
+    add_attempt_arguments(abandon_parser)
+    abandon_parser.set_defaults(handler=abandon_attempt)
     return root
 
 
@@ -580,6 +1047,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         result = args.handler(args)
+    except CreateInterrupted as error:
+        # Not "error:": the skill stops on that prefix as a helper error, while
+        # an interrupted create is one that inspect and abandon can clear.
+        print(f"interrupted: {error}", file=sys.stderr)
+        return 128 + error.signum
+    except KeyboardInterrupt:
+        print(f"interrupted: {args.command} interrupted by SIGINT", file=sys.stderr)
+        return 128 + signal.SIGINT
     except (WorkspaceError, OSError, ValueError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
