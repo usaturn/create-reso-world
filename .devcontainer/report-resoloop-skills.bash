@@ -14,7 +14,7 @@ if ! command -v resoloop >/dev/null 2>&1; then
     exit 0
 fi
 if ! cd -- "$root" || ! git rev-parse --git-dir >/dev/null 2>&1; then
-    say "cannot list the projects ($root is not a git checkout); skipped the check."
+    say "git cannot list the projects in $root; skipped the check."
     exit 0
 fi
 projects=()

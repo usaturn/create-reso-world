@@ -11,7 +11,7 @@ export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.excludesFile GIT_CONFIG_VALUE_0=
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 script="$repo_root/scripts/resoloop-fork.sh"
 tmp="$(cd "$(mktemp -d)" && pwd -P)"
-trap 'rm -rf -- "$tmp"' EXIT
+trap 'rm -rf -- "${tmp:?}"' EXIT
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 
 # 上流（upstream.git）と fork（origin.git）。checkout には global.json と、<Version> を持つ csproj がある。
@@ -163,7 +163,7 @@ expect_exit 1 'has uncommitted changes to tracked files' checkout fix/x
 git -C "$co" checkout -q -- file.txt
 printf 'notes\n' > "$co/untracked.txt"
 expect_exit 0 "checked out: $co at $fix_commit (origin/fix/x, detached)" checkout fix/x
-rm "$co/untracked.txt"
+rm -- "${co:?}/untracked.txt"
 
 # 10. status は checkout と remote を表示する
 expect_exit 0 "checkout: $co at $fix_commit (detached, clean)" status

@@ -5,7 +5,7 @@
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(cd "$(mktemp -d)" && pwd -P)"
-trap 'rm -rf -- "$tmp"' EXIT
+trap 'rm -rf -- "${tmp:?}"' EXIT
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com

@@ -410,7 +410,7 @@ expect_fail_with "$tmp/dc-conflict" '.devcontainer/initialize.bash has unresolve
 remove_object() {  # $1=リポジトリ、$2=パス。index にある blob のオブジェクトファイルを消す
   local oid
   oid="$(git -C "$1" rev-parse ":$2")"
-  rm -f "$1/.git/objects/${oid:0:2}/${oid:2}"
+  rm -f -- "${1:?}/.git/objects/${oid:0:2}/${oid:2}"
 }
 devcontainer_repo "$tmp/dc-corrupt" && remove_object "$tmp/dc-corrupt" .devcontainer/initialize.bash
 expect_fail_with "$tmp/dc-corrupt" 'cannot read .devcontainer/initialize.bash from the index'

@@ -4,7 +4,7 @@
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d)"
-trap 'rm -rf -- "$tmp"' EXIT
+trap 'rm -rf -- "${tmp:?}"' EXIT
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 
 # モックの dotnet: tool update の呼び出しを DOTNET_CALLS に記録する。update は MOCK_STATE に MOCK_LATEST の版を書き、
@@ -36,7 +36,7 @@ installer="$root/.devcontainer/install_resoloop.bash"
 
 installed_as() {  # $1=導入済みとして扱う版（空なら未導入）。shim もその版を返す
   : > "$DOTNET_CALLS"
-  rm -f "$HOME/.dotnet/tools/resoloop"
+  rm -f -- "${HOME:?}/.dotnet/tools/resoloop"
   if [ -z "$1" ]; then
     : > "$MOCK_STATE"
     return
@@ -99,7 +99,7 @@ expect_fail 'cannot list global .NET tools' DOTNET_LIST_FAIL=1
 expect_fail '.NET 10 SDK is not installed' 'DOTNET_SDKS=8.0.100 [/usr/share/dotnet/sdk]'
 expect_fail 'cannot list .NET SDKs' DOTNET_SDK_FAIL=1
 installed_as 9.0.0
-rm -f "$HOME/.dotnet/tools/resoloop"
+rm -f -- "${HOME:?}/.dotnet/tools/resoloop"
 expect_fail 'installed CLI cannot run on this container' DOTNET_UPDATE_FAIL=1
 
 printf 'PASS: ResoLoop install brings in the latest NuGet release\n'
