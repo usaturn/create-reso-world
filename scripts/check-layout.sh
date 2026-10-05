@@ -1,7 +1,7 @@
 #!/bin/bash
 # リポジトリのレイアウト検査。仕様: docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md 9.1 節
 # 使い方: scripts/check-layout.sh [--root DIR]
-# 追跡の有無と mode、symlink の行き先、ファイルの中身は git の index（ステージ 0）から読む（検査 1・4・5・6・8・9）。これらの結果は
+# 追跡の有無と mode、symlink の行き先、ファイルの中身は git の index（ステージ 0）から読む（検査 1・4・5・6・8）。これらの結果は
 # 作業ツリーの未ステージの変更で変わらず、core.symlinks=false の checkout（symlink が通常ファイルになる）でも同じになる。
 # 例外として次の 3 つは作業ツリーを読む: 検査 2（追跡中の symlink が解決できるか）、検査 3（ignore 規則は作業ツリーの
 # .gitignore と .git/info/exclude から git が読む）、検査 7（resoloop が作業ツリーのプロジェクトを読む）。
@@ -263,17 +263,25 @@ check_project() {
   check_skill_links "$p/"
 }
 
-# 7. resoloop が使える環境では resoloop skills sync --check が各プロジェクトで成功する。失敗したら resoloop の出力を字下げして示す（resoloop は作業ツリーを読む）
+# 7. resoloop が使える環境では、各プロジェクトで resoloop skills sync --check を実行する（resoloop は作業ツリーを読む）。
+# 導入済みの resoloop が新しい同梱スキルを持つだけ（SKILL_SYNC_REQUIRED）なら warn を表示して通過する。ResoLoop は常に最新を
+# 入れるので、上流のリリースのたびに起きるため（仕様: docs/superpowers/specs/2026-10-06-issue-41-resoloop-latest-without-lock-design.md D-13）。
+# 手で編集した同梱スキル（SKILL_SYNC_CONFLICT）などそれ以外の失敗は FAIL にする。どちらも resoloop の出力を字下げして示す
 check_resoloop_skills() {
-  local p out
+  local p out status
   if ! command -v resoloop >/dev/null 2>&1; then
     printf 'skip: resoloop not found (skills sync check)\n'
     return
   fi
   for p in ${projects[@]+"${projects[@]}"}; do
+    status=0
     # ./ を付けて、- で始まるプロジェクト名をオプションとして読ませない
-    if out="$(resoloop skills sync "./$p" --check 2>&1)"; then
+    out="$(resoloop skills sync "./$p" --check 2>&1)" || status=$?
+    if [ "$status" -eq 0 ]; then
       ok "resoloop skills sync --check ($p)"
+    elif [ "$status" -eq 6 ] && [[ "$out" == SKILL_SYNC_REQUIRED* ]]; then
+      printf 'warn: resoloop skills sync --check (%s): the installed resoloop bundles newer skills; review them, then run resoloop skills sync --update\n' "$p"
+      printf '%s\n' "$out" | sed 's/^/    /'
     else
       fail "resoloop skills sync --check failed for $p"
       [ -z "$out" ] || printf '%s\n' "$out" | sed 's/^/    /' >&2
@@ -281,7 +289,7 @@ check_resoloop_skills() {
   done
 }
 
-# .devcontainer/ の NAME... を index から DEST に書き出す（検査 8・9 が使う）。無いものと読めないものは
+# .devcontainer/ の NAME... を index から DEST に書き出す（検査 8 が使う）。無いものと読めないものは
 # 1 件ずつ FAIL にし、1 つでもあれば 1 を返す
 extract_devcontainer_files() {
   local dest="$1" name entry bad=0
@@ -303,35 +311,7 @@ extract_devcontainer_files() {
   return "$bad"
 }
 
-# 8. ResoLoop のロック（仕様 6.1・9.1）。.devcontainer/devcontainer.json を追跡しているリポジトリだけが対象。
-# ロック・読み込み関数・devcontainer.json を index から取り出し、読み込み関数（.devcontainer/resoloop-lock.bash）で検証する
-check_resoloop_lock() {
-  local out line d="$tmp_dir/lock"
-  if ! index_entry .devcontainer/devcontainer.json >/dev/null; then
-    printf 'skip: .devcontainer/devcontainer.json is not tracked (resoloop lock check)\n'
-    return
-  fi
-  extract_devcontainer_files "$d" resoloop.lock resoloop-lock.bash devcontainer.json || return 0
-  if out="$(validate_lock "$d" 2>&1)"; then
-    ok "resoloop lock ($out)"
-  else
-    while IFS= read -r line; do fail "$line"; done <<<"$out"
-  fi
-}
-
-# 検証はサブシェルで行い、読み込み関数が設定する変数を check-layout に持ち込まない
-validate_lock() (
-  # shellcheck source=/dev/null
-  source "$1/resoloop-lock.bash"
-  resoloop_lock_load "$1/resoloop.lock" || exit 1
-  if ! resoloop_lock_sdk_declared "$1/devcontainer.json" "$RESOLOOP_FORK_SDK"; then
-    printf 'resoloop.lock: RESOLOOP_FORK_SDK %s is not in additionalVersions of .devcontainer/devcontainer.json\n' "$RESOLOOP_FORK_SDK"
-    exit 1
-  fi
-  printf 'mode %s, expects %s' "$RESOLOOP_MODE" "$RESOLOOP_EXPECTED_VERSION"
-)
-
-# 9. devcontainer.json の mounts のソースと initialize.bash が作るパスが一致する（仕様 7.2・9.1）。
+# 8. devcontainer.json の mounts のソースと initialize.bash が作るパスが一致する（仕様 7.2・9.1）。
 # .devcontainer/devcontainer.json を追跡しているリポジトリだけが対象。3 つのファイルを index から取り出し、
 # .devcontainer/mounts.bash の mounts_compare で突き合わせる
 check_mounts() {
@@ -363,7 +343,6 @@ check_skill_hygiene
 collect_projects
 for p in ${projects[@]+"${projects[@]}"}; do check_project "$p"; done
 check_resoloop_skills
-check_resoloop_lock
 check_mounts
 
 if [ "$failures" -gt 0 ]; then

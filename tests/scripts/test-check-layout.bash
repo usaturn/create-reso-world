@@ -197,7 +197,8 @@ project_repo() {
   commit_paths "$r" .claude .pi .agents "$n"
 }
 
-# モックの resoloop: MOCK_RESOLOOP_FAIL と同名のプロジェクトだけ skills sync --check に失敗する。
+# モックの resoloop: MOCK_RESOLOOP_FAIL と同名のプロジェクトは同梱スキルの更新（SKILL_SYNC_REQUIRED）、
+# MOCK_RESOLOOP_CONFLICT と同名のプロジェクトは手で編集した同梱スキル（SKILL_SYNC_CONFLICT）で skills sync --check に失敗する。
 # 実物と同じく、- で始まるプロジェクト引数はオプションと解釈して拒む
 mkdir -p "$tmp/mockbin"
 cat > "$tmp/mockbin/resoloop" <<'EOF'
@@ -205,6 +206,7 @@ cat > "$tmp/mockbin/resoloop" <<'EOF'
 [ "$1 $2 $4" = 'skills sync --check' ] || exit 64
 case "$3" in -*) echo "unknown option $3" >&2; exit 64 ;; esac
 case "$3" in "${MOCK_RESOLOOP_FAIL:-__none__}"|*/"${MOCK_RESOLOOP_FAIL:-__none__}") echo 'SKILL_SYNC_REQUIRED' >&2; exit 6 ;; esac
+case "$3" in "${MOCK_RESOLOOP_CONFLICT:-__none__}"|*/"${MOCK_RESOLOOP_CONFLICT:-__none__}") echo 'SKILL_SYNC_CONFLICT' >&2; exit 6 ;; esac
 exit 0
 EOF
 chmod +x "$tmp/mockbin/resoloop"
@@ -226,9 +228,15 @@ PATH="$no_resoloop" bash "$checker" --root "$tmp/proj-ok" > "$tmp/proj-skip.out"
 grep -qF 'skip: resoloop not found (skills sync check)' "$tmp/proj-skip.out"
 grep -qF 'PASS: check-layout' "$tmp/proj-skip.out"
 
-# 23. resoloop 同梱スキルの同期ずれは失敗する
-PATH="$mock_path" MOCK_RESOLOOP_FAIL=demo expect_fail_with "$tmp/proj-ok" 'resoloop skills sync --check failed for demo'
-grep -qxF '    SKILL_SYNC_REQUIRED' "$tmp/out.txt" || { cat "$tmp/out.txt" >&2; printf 'FAIL: resoloop output was not relayed\n' >&2; exit 1; }
+# 23. 新しい版による同梱スキルの更新（SKILL_SYNC_REQUIRED）は warn を表示して通過し、手で編集した同梱スキル
+#     （SKILL_SYNC_CONFLICT）は失敗する。どちらも resoloop の出力を字下げして示す
+PATH="$mock_path" MOCK_RESOLOOP_FAIL=demo bash "$checker" --root "$tmp/proj-ok" > "$tmp/proj-drift.out" 2>&1 \
+  || { cat "$tmp/proj-drift.out" >&2; printf 'FAIL: an outdated bundled skill failed check-layout\n' >&2; exit 1; }
+grep -qF 'warn: resoloop skills sync --check (demo)' "$tmp/proj-drift.out" || { cat "$tmp/proj-drift.out" >&2; printf 'FAIL: no warn line\n' >&2; exit 1; }
+grep -qxF '    SKILL_SYNC_REQUIRED' "$tmp/proj-drift.out" || { cat "$tmp/proj-drift.out" >&2; printf 'FAIL: resoloop output was not relayed\n' >&2; exit 1; }
+grep -qF 'PASS: check-layout' "$tmp/proj-drift.out"
+PATH="$mock_path" MOCK_RESOLOOP_CONFLICT=demo expect_fail_with "$tmp/proj-ok" 'resoloop skills sync --check failed for demo'
+grep -qxF '    SKILL_SYNC_CONFLICT' "$tmp/out.txt" || { cat "$tmp/out.txt" >&2; printf 'FAIL: resoloop output was not relayed\n' >&2; exit 1; }
 
 # 24〜30. 標準レイアウトからの逸脱は失敗する（以降は mock の resoloop で実行する）
 export PATH="$mock_path"
@@ -345,14 +353,14 @@ git clone -q -c core.symlinks=false "$tmp/proj-ok" "$tmp/nosymlinks"
 [ -f "$tmp/nosymlinks/demo/.pi" ] && [ ! -L "$tmp/nosymlinks/demo/.pi" ] || { printf 'FAIL: core.symlinks=false did not take effect\n' >&2; exit 1; }
 bash "$checker" --root "$tmp/nosymlinks" | grep -qF 'PASS: check-layout'
 
-# .devcontainer に devcontainer.json・ロック・読み込み関数・mount の関数集・initialize.bash を持つ一時リポジトリを作る。
-# ロックの SDK は 10.0.201。mounts は ~/.claude と ~/.claude.json の 2 つ
-lock_repo() {
+# .devcontainer に devcontainer.json・mount の関数集・initialize.bash を持つ一時リポジトリを作る。
+# mounts は ~/.claude と ~/.claude.json の 2 つ
+devcontainer_repo() {
   local r="$1"
   new_repo "$r"
   mkdir -p "$r/.devcontainer"
-  cp "$root/.devcontainer/resoloop-lock.bash" "$root/.devcontainer/mounts.bash" "$r/.devcontainer/"
-  cat > "$r/.devcontainer/devcontainer.json" <<'EOF'
+  cp "$root/.devcontainer/mounts.bash" "$r/.devcontainer/"
+  cat > "$r/.devcontainer/devcontainer.json" <<'JSON'
 {
 	"mounts": [
 		"source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
@@ -365,112 +373,64 @@ lock_repo() {
 		}
 	}
 }
-EOF
+JSON
   printf '#!/bin/bash\nmkdir -p \\\n  "${HOME}/.claude"\ntouch \\\n  "${HOME}/.claude.json"\n' > "$r/.devcontainer/initialize.bash"
-  cat > "$r/.devcontainer/resoloop.lock" <<'EOF'
-RESOLOOP_MODE=fork
-RESOLOOP_NUGET_VERSION=1.2.3-preview.4
-RESOLOOP_FORK_ORIGIN=https://example.com/fork/resoloop.git
-RESOLOOP_FORK_UPSTREAM=https://example.com/upstream/resoloop.git
-RESOLOOP_FORK_REF=fix/x
-RESOLOOP_FORK_COMMIT=0123456789abcdef0123456789abcdef01234567
-RESOLOOP_FORK_PACKAGE_VERSION=1.2.3-preview.4.pr1.test
-RESOLOOP_FORK_PR=https://example.com/upstream/resoloop/pull/1
-RESOLOOP_FORK_SDK=10.0.201
-EOF
   commit_paths "$r" .devcontainer
 }
 
-# 43. 正しいロックは ok を表示して通過する。devcontainer.json を追跡していないリポジトリでは skip を表示する
-lock_repo "$tmp/lock-ok"
-bash "$checker" --root "$tmp/lock-ok" > "$tmp/lock-ok.out"
-grep -qF 'ok: resoloop lock (mode fork, expects 1.2.3-preview.4.pr1.test)' "$tmp/lock-ok.out"
-grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/lock-ok.out"
-grep -qF 'PASS: check-layout' "$tmp/lock-ok.out"
-bash "$checker" --root "$tmp/clean" > "$tmp/lock-skip.out"
-grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (resoloop lock check)' "$tmp/lock-skip.out"
-grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (mount check)' "$tmp/lock-skip.out"
+# 43. .devcontainer を持つリポジトリは mount を検査して通過する。devcontainer.json を追跡していないリポジトリでは skip を表示する
+devcontainer_repo "$tmp/dc-ok"
+bash "$checker" --root "$tmp/dc-ok" > "$tmp/dc-ok.out"
+grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/dc-ok.out"
+grep -qF 'PASS: check-layout' "$tmp/dc-ok.out"
+bash "$checker" --root "$tmp/clean" > "$tmp/dc-skip.out"
+grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (mount check)' "$tmp/dc-skip.out"
 
-# 44. devcontainer.json があるのにロックか読み込み関数が無ければ失敗する
-lock_repo "$tmp/lock-missing" && git -C "$tmp/lock-missing" rm -q .devcontainer/resoloop.lock && git -C "$tmp/lock-missing" commit -q -m rm
-expect_fail_with "$tmp/lock-missing" 'missing tracked file .devcontainer/resoloop.lock'
-lock_repo "$tmp/lock-nolib" && git -C "$tmp/lock-nolib" rm -q .devcontainer/resoloop-lock.bash && git -C "$tmp/lock-nolib" commit -q -m rm
-expect_fail_with "$tmp/lock-nolib" 'missing tracked file .devcontainer/resoloop-lock.bash'
-
-# 45. 必須キーの欠落は失敗する
-lock_repo "$tmp/lock-key" && sed -i '/^RESOLOOP_FORK_SDK=/d' "$tmp/lock-key/.devcontainer/resoloop.lock" && commit_paths "$tmp/lock-key" .devcontainer
-expect_fail_with "$tmp/lock-key" 'resoloop.lock: missing key RESOLOOP_FORK_SDK'
-
-# 46. RESOLOOP_FORK_SDK が additionalVersions に無ければ失敗する
-lock_repo "$tmp/lock-sdk" && sed -i 's/"additionalVersions": "10.0.201"/"additionalVersions": "10.0.100"/' "$tmp/lock-sdk/.devcontainer/devcontainer.json" \
-  && commit_paths "$tmp/lock-sdk" .devcontainer
-expect_fail_with "$tmp/lock-sdk" 'RESOLOOP_FORK_SDK 10.0.201 is not in additionalVersions of .devcontainer/devcontainer.json'
-
-# 47. ロックも index の内容で判定する（作業ツリーのロック・読み込み関数・devcontainer.json が壊れていても通過する）
-lock_repo "$tmp/lock-worktree"
-printf 'broken\n' > "$tmp/lock-worktree/.devcontainer/resoloop.lock"
-printf 'resoloop_lock_load() { return 1; }\n' > "$tmp/lock-worktree/.devcontainer/resoloop-lock.bash"
-sed -i 's/"additionalVersions": "10.0.201"/"additionalVersions": "10.0.100"/' "$tmp/lock-worktree/.devcontainer/devcontainer.json"
-bash "$checker" --root "$tmp/lock-worktree" > "$tmp/lock-worktree.out"
-grep -qF 'ok: resoloop lock (' "$tmp/lock-worktree.out"
-
-# 48. このリポジトリのロックと mounts も検査される
+# 44. このリポジトリの mounts も検査される
 bash "$checker" > "$tmp/self.out"
-grep -qF 'ok: resoloop lock (' "$tmp/self.out"
 grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/self.out"
 
-# 49. nuget モードの期待版は RESOLOOP_NUGET_VERSION。devcontainer.json が作業ツリーにあっても追跡していなければ skip
-lock_repo "$tmp/lock-nuget" && sed -i 's/^RESOLOOP_MODE=fork$/RESOLOOP_MODE=nuget/' "$tmp/lock-nuget/.devcontainer/resoloop.lock" \
-  && commit_paths "$tmp/lock-nuget" .devcontainer
-bash "$checker" --root "$tmp/lock-nuget" > "$tmp/lock-nuget.out"
-grep -qF 'ok: resoloop lock (mode nuget, expects 1.2.3-preview.4)' "$tmp/lock-nuget.out"
-lock_repo "$tmp/lock-untracked" && git -C "$tmp/lock-untracked" rm -q --cached .devcontainer/devcontainer.json \
-  && git -C "$tmp/lock-untracked" commit -q -m untrack
-[ -f "$tmp/lock-untracked/.devcontainer/devcontainer.json" ] || { printf 'FAIL: case 49 lost the untracked file\n' >&2; exit 1; }
-bash "$checker" --root "$tmp/lock-untracked" > "$tmp/lock-untracked.out"
-grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (resoloop lock check)' "$tmp/lock-untracked.out"
-grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (mount check)' "$tmp/lock-untracked.out"
+# 45. devcontainer.json が作業ツリーにあっても追跡していなければ skip
+devcontainer_repo "$tmp/dc-untracked" && git -C "$tmp/dc-untracked" rm -q --cached .devcontainer/devcontainer.json \
+  && git -C "$tmp/dc-untracked" commit -q -m untrack
+[ -f "$tmp/dc-untracked/.devcontainer/devcontainer.json" ] || { printf 'FAIL: case 45 lost the untracked file\n' >&2; exit 1; }
+bash "$checker" --root "$tmp/dc-untracked" > "$tmp/dc-untracked.out"
+grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (mount check)' "$tmp/dc-untracked.out"
 
-# 50. 足りない追跡ファイルはまとめて報告する
-lock_repo "$tmp/lock-missing2" && git -C "$tmp/lock-missing2" rm -q .devcontainer/resoloop.lock .devcontainer/resoloop-lock.bash \
-  && git -C "$tmp/lock-missing2" commit -q -m rm
-expect_fail_with "$tmp/lock-missing2" 'missing tracked file .devcontainer/resoloop.lock'
-grep -qF 'missing tracked file .devcontainer/resoloop-lock.bash' "$tmp/out.txt" || { cat "$tmp/out.txt" >&2; printf 'FAIL: only the first missing file was reported\n' >&2; exit 1; }
+# 46. 衝突の解決中（ステージ 0 に無い）の .devcontainer のファイルは、終了コード 1 で解決を促す（128 で止まらない）
+devcontainer_repo "$tmp/dc-conflict"
+git -C "$tmp/dc-conflict" checkout -q -b other
+printf '# other\n' >> "$tmp/dc-conflict/.devcontainer/initialize.bash" && commit_paths "$tmp/dc-conflict" .devcontainer
+git -C "$tmp/dc-conflict" checkout -q -
+printf '# mine\n' >> "$tmp/dc-conflict/.devcontainer/initialize.bash" && commit_paths "$tmp/dc-conflict" .devcontainer
+if git -C "$tmp/dc-conflict" merge -q other >/dev/null 2>&1; then printf 'FAIL: case 46 merged without a conflict\n' >&2; exit 1; fi
+expect_fail_with "$tmp/dc-conflict" '.devcontainer/initialize.bash has unresolved merge conflicts'
 
-# 51. 衝突の解決中（ステージ 0 に無い）のロックは、終了コード 1 で解決を促す（128 で止まらない）
-lock_repo "$tmp/lock-conflict"
-git -C "$tmp/lock-conflict" checkout -q -b other
-sed -i 's|^RESOLOOP_FORK_REF=.*|RESOLOOP_FORK_REF=fix/other|' "$tmp/lock-conflict/.devcontainer/resoloop.lock" && commit_paths "$tmp/lock-conflict" .devcontainer
-git -C "$tmp/lock-conflict" checkout -q -
-sed -i 's|^RESOLOOP_FORK_REF=.*|RESOLOOP_FORK_REF=fix/mine|' "$tmp/lock-conflict/.devcontainer/resoloop.lock" && commit_paths "$tmp/lock-conflict" .devcontainer
-if git -C "$tmp/lock-conflict" merge -q other >/dev/null 2>&1; then printf 'FAIL: case 51 merged without a conflict\n' >&2; exit 1; fi
-expect_fail_with "$tmp/lock-conflict" '.devcontainer/resoloop.lock has unresolved merge conflicts'
-
-# 52. index から読めない blob（壊れたオブジェクト）は、終了コード 1 の FAIL として報告する
+# 47. index から読めない blob（壊れたオブジェクト）は、終了コード 1 の FAIL として報告する
 remove_object() {  # $1=リポジトリ、$2=パス。index にある blob のオブジェクトファイルを消す
   local oid
   oid="$(git -C "$1" rev-parse ":$2")"
   rm -f "$1/.git/objects/${oid:0:2}/${oid:2}"
 }
-lock_repo "$tmp/lock-corrupt" && remove_object "$tmp/lock-corrupt" .devcontainer/resoloop.lock
-expect_fail_with "$tmp/lock-corrupt" 'cannot read .devcontainer/resoloop.lock from the index'
+devcontainer_repo "$tmp/dc-corrupt" && remove_object "$tmp/dc-corrupt" .devcontainer/initialize.bash
+expect_fail_with "$tmp/dc-corrupt" 'cannot read .devcontainer/initialize.bash from the index'
 skill_repo "$tmp/link-corrupt"
 ln -s ../../.agents/skills/foo "$tmp/link-corrupt/.claude/skills/foo"
 commit_paths "$tmp/link-corrupt" .agents .claude
 remove_object "$tmp/link-corrupt" .claude/skills/foo
 expect_fail_with "$tmp/link-corrupt" 'cannot read the target of .claude/skills/foo from the index'
 
-# 53. mounts のソースと initialize.bash が作るパスが違えば失敗し、食い違いを示す
-lock_repo "$tmp/mount-diff" && sed -i 's|^  "${HOME}/.claude"$|  "${HOME}/.claude" \\\n  "${HOME}/.codex"|' "$tmp/mount-diff/.devcontainer/initialize.bash" \
+# 48. mounts のソースと initialize.bash が作るパスが違えば失敗し、食い違いを示す
+devcontainer_repo "$tmp/mount-diff" && sed -i 's|^  "${HOME}/.claude"$|  "${HOME}/.claude" \\\n  "${HOME}/.codex"|' "$tmp/mount-diff/.devcontainer/initialize.bash" \
   && commit_paths "$tmp/mount-diff" .devcontainer
 expect_fail_with "$tmp/mount-diff" 'mounts: ~/.codex is created by initialize.bash but not mounted by devcontainer.json'
-lock_repo "$tmp/mount-missing" && git -C "$tmp/mount-missing" rm -q .devcontainer/initialize.bash .devcontainer/mounts.bash \
+devcontainer_repo "$tmp/mount-missing" && git -C "$tmp/mount-missing" rm -q .devcontainer/initialize.bash .devcontainer/mounts.bash \
   && git -C "$tmp/mount-missing" commit -q -m rm
 expect_fail_with "$tmp/mount-missing" 'missing tracked file .devcontainer/mounts.bash'
 grep -qF 'missing tracked file .devcontainer/initialize.bash' "$tmp/out.txt" || { cat "$tmp/out.txt" >&2; printf 'FAIL: missing initialize.bash was not reported\n' >&2; exit 1; }
 
-# 54. mounts も index の内容で判定する（作業ツリーの initialize.bash だけが違っても通過する）
-lock_repo "$tmp/mount-worktree"
+# 49. mounts も index の内容で判定する（作業ツリーの initialize.bash だけが違っても通過する）
+devcontainer_repo "$tmp/mount-worktree"
 printf '#!/bin/bash\n' > "$tmp/mount-worktree/.devcontainer/initialize.bash"
 bash "$checker" --root "$tmp/mount-worktree" > "$tmp/mount-worktree.out"
 grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/mount-worktree.out"
