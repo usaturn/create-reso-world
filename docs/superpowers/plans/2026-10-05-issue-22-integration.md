@@ -417,8 +417,8 @@ jq '.providers | keys' ~/.pi/agent/models.json
 ls -d ~/.pi/agent/migration-backups/pi-retired-*
 # R-7
 for l in pigo pigod pigou piccg piccd piga pigs pigl pixg; do PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 $l --tui-mode fullscreen; done
-# R-9
-zsh -ic 'alias ccd ccdo ccds; whence -w ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union ccda claude-alibaba'
+# R-9（標準入力を閉じる。端末から実行しても、`~/.zshrc` の末尾が herdr を起動しない）
+zsh -ic 'alias ccd ccdo ccds; whence -w ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union ccda claude-alibaba' </dev/null
 # R-10
 claude plugin list
 # R-12
@@ -491,7 +491,7 @@ jq -r '.dependencies | keys[]' ~/.pi/agent/npm/package.json | grep -E 'pi-mcp-ad
 jq -c '.extensions' ~/.pi/agent/settings.json
 jq -r '.providers | keys | join(",")' ~/.pi/agent/models.json
 for l in pigo pigs pixg; do printf '%s tui=%s\n' "$l" "$(PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 "$l" --tui-mode fullscreen | grep -c -- '--tui-mode')"; done
-zsh -ic 'alias ccd ccdo ccds; whence -w ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union ccda claude-alibaba' 2>&1
+zsh -ic 'alias ccd ccdo ccds; whence -w ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union ccda claude-alibaba' </dev/null 2>&1
 claude plugin list | grep -oE '❯ [^ ]+' | sort -u
 ```
 
@@ -939,3 +939,4 @@ PR #33 のレビューの指摘と、修正後の PR 全体の再レビューの
   - Task 3 の Step 4 の節名の参照の検査スクリプト: 上の「実行時の変更」で「移植の比較表」の目印を足す前の版である。この版を最終版に当てると、ルートの `README.md` の 92 行の「rebuild での確認」を `docs/integration.md` の見出しとして探して失敗する。目印を足した版では、最終版でも参照は 22 件で、すべて参照先の見出しに当たる
   - Task 4 の Step 3 の変更の範囲: `origin/main` は作業中に進んだので、`git diff --stat origin/main...HEAD` で比べる。最終版の変更は `.devcontainer/README.md`・`README.md`・`docs/maatlog-poc-porting.md`・`tests/skills/test_legacy_references.py`、Issue #22 の Spec、この Plan、レビュー修正の Spec の 7 ファイルである
   - Task 4 の Step 4 の PR の本文の項目（3 ファイルの変更、D-1〜D-14）: 実際の本文は、テストの例外を含む 4 ファイルと D-1〜D-15 で書いた
+- Task 1 の Step 8 の R-9 のコマンドには `</dev/null` を足した。herdr のペインの外の端末で `zsh -ic` を実行すると、`~/.zshrc` の末尾の `herdrstart` が herdr を前面で起動するためである（標準入力が端末でなければ起動しない）。出力は変わらない

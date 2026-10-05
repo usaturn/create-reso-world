@@ -2,7 +2,7 @@
 
 - 文書管理／対象リポジトリ: `usaturn/create-reso-world`
 - 対象: Issue #22（親 #17。ボードのキー `issue17-maatlog-pi-claude-port`、子のキー `c5-integration`）。PR は Plan の Task 4 で作る
-- 基準: 移植先は `main` の `01affb7`（#19〜#21 の PR #25・#26・#27 と PR #30 のマージ後。Issue 本文の基準 `9699e94` から進んでいる）。移植元は usaturn/maatlog-poc の `1f2aadb`（Issue の指定）。移植元の `main` は 2026-10-05 02:55 UTC 時点で `e1f042e` に進んでいるが、差分は 5.1 節のとおり取り込まない
+- 基準: 移植先は `main` の `01affb7`（#19〜#21 の PR #25・#26・#27 と PR #30 のマージ後。Issue 本文の基準 `9699e94` から進んでいる）。移植元は usaturn/maatlog-poc の `1f2aadb`（Issue の指定）。移植元の `main` は 2026-10-05 02:55 UTC 時点で `e1f042e` に進んでいるが、差分は 5 章の D-1 のとおり取り込まない
 - 経路: brainstorming の written-spec 経路。変更は文書とテストの例外の 1 行（D-15）だけの bounded な作業だが、#17 の運用ルールが全ての子に Spec と Plan を求めているため、書面の Spec を作る
 - 状態: draft
 - 実行許可: 利用者の 2026-10-05 の指示「途中で止めずに推奨案で Spec、Plan を作成し PR まで実施せよ」。この Spec の判断（5 章の D-1〜D-15）は、その指示に基づきエージェント（Claude Code、claude-opus-5-5）が推奨値で決めたもので、Spec 自体の明示承認は得ていない

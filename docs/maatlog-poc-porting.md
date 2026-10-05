@@ -242,8 +242,8 @@ jq '.providers | keys' ~/.pi/agent/models.json
 ls -d ~/.pi/agent/migration-backups/pi-retired-*
 # R-7
 for l in pigo pigod pigou piccg piccd piga pigs pigl pixg; do PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 $l --tui-mode fullscreen; done
-# R-9
-zsh -ic 'alias ccd ccdo ccds; whence -w ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union ccda claude-alibaba'
+# R-9（標準入力を閉じる。端末から実行しても、`~/.zshrc` の末尾が herdr を起動しない）
+zsh -ic 'alias ccd ccdo ccds; whence -w ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union ccda claude-alibaba' </dev/null
 # R-10
 claude plugin list
 # R-12
