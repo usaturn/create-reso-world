@@ -3,13 +3,13 @@
 - 対象 PR: https://github.com/usaturn/create-reso-world/pull/40
 - リポジトリ: `usaturn/create-reso-world`
 - 対象ブランチ: `fix/issue-39-pr-review-create-interruption`
-- 指摘を検証した HEAD: `a882bfdc3989edb182162c10cb9427014e32af92`
-- 入力: `reviews/#40-fix-issue-39-pr-review-create-interruption/` 配下の全 4 ファイル
-- 作成日: 2026-10-05
-- 結論: **1（修正が必要）**。致命的な指摘 1 件（O-M1。G-M1 と同じ指摘）を、同じ条件に頼る経路（D-I1 の `failed` を含む）とあわせて直し、自己レビューで見つかった同じ条件の経路（stderr の読み手が閉じた中断）も直して、既存 PR へ push する
-- 状態: completed（2026-10-05。修正・検証・自己レビューまで完了。push・状況コメントの結果は PR のコメントに書く）
+- 指摘を検証した HEAD: 1 回目は `a882bfdc3989edb182162c10cb9427014e32af92`、2 回目は `33a8f029e99ab0ea03480920a3d4ff26fe033ab5`（8 章）
+- 入力: `reviews/#40-fix-issue-39-pr-review-create-interruption/` 配下の全ファイル（1 回目 4 件、2 回目 5 件）
+- 作成日: 2026-10-05（2 回目の選別の追記も 2026-10-05 UTC）
+- 結論: 1 回目は **1（修正が必要）**。致命的な指摘 1 件（O-M1。G-M1 と同じ指摘）を、同じ条件に頼る経路（D-I1 の `failed` を含む）とあわせて直し、自己レビューで見つかった同じ条件の経路（stderr の読み手が閉じた中断）も直して、既存 PR へ push した。2 回目は **2（修正が不要）**。致命的な指摘は無く、検証を通してマージする（8 章）
+- 状態: completed（1 回目は修正・検証・自己レビューまで、2 回目は選別・検証まで完了。push・マージ・状況コメントの結果は PR のコメントに書く）
 - 経路: bounded。helper の中断時の出力 1 行の接頭辞と、スキル・設計 Spec の分類の文を揃える変更で、新しいサブコマンドや状態を足さない
-- 実行許可: 2026-10-05 の利用者の依頼。PR とレビュー結果を確認して修正要否を三択で確定し、修正が必要なら推奨案を基本に修正・検証・PR 全体の再レビュー（自己レビューは 1 回まで。複数のサブエージェントに別々の観点で同時に担当させてよい）を経て push する。致命的な指摘だけを直し、同じ原因の箇所は PR の差分外も直す。`pr-review` は使わず、専用の worktree で作業する
+- 実行許可: 1 回目は 2026-10-05 の利用者の依頼。PR とレビュー結果を確認して修正要否を三択で確定し、修正が必要なら推奨案を基本に修正・検証・PR 全体の再レビュー（自己レビューは 1 回まで。複数のサブエージェントに別々の観点で同時に担当させてよい）を経て push する。致命的な指摘だけを直し、同じ原因の箇所は PR の差分外も直す。`pr-review` は使わず、専用の worktree で作業する。2 回目は利用者の `/review-fix-planning #40`（既定の完遂。修正要否を三択で確定し、修正が不要なら検証のうえ状況コメントを投稿してマージし、関連 Issue を更新する）
 - 作業場所: 既存の worktree `.worktrees/issue-39-create-interruption`（PR の head ブランチを checkout 済み、未コミットの変更なし、HEAD が PR の head と一致）を専用の worktree として使った
 - 関連: 設計 `docs/superpowers/specs/2026-10-05-issue-39-pr-review-create-interruption-design.md`
 
@@ -138,3 +138,73 @@
 | 修正（`b59af75`）、テストの赤→緑の確認、検証一式 2 回、委譲の結果の反映 | 14:50〜15:03 | 約 13 分 |
 | 自己レビュー（3 体を同時に） | 15:03〜15:19 | 約 16 分 |
 | 自己レビュー後の修正と検証、この文書の記入 | 15:19〜15:28 | 約 9 分 |
+
+## 8. 2 回目の選別（`33a8f02`）
+
+1 回目の修正を push した後の PR の head `33a8f029e99a` に対するレビューを選別した。専用の worktree は 1 回目と同じ `.worktrees/issue-39-create-interruption`（未コミットの変更なし、HEAD が PR の head と一致。このセッションが作ったものではないので片付けの対象にしない）。
+
+### 8.1 レビュー入力
+
+| ファイル | 対象 HEAD | 指摘 | 判定 |
+| --- | --- | --- | --- |
+| `SWE-2-Max.md` | `33a8f029e99a` | Low 1・Info 2（すべて 1 回目からの継続） | Approve |
+| `claude-opus-5-5.md` | `33a8f029e99a` | Info 1（継続）。M-1 は解消済みと記録 | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | `33a8f029e99a` | Low 2（L-1 は継続、L-2 は 1 回目の未検証候補 D-U1 を検証済みにしたもの）。I-1 は解消済みと記録 | Approve |
+| `gpt-6.1-sol.md` | `a882bfdc3989` | Medium 1（1 回目の G-M1。ファイルは更新されていない） | Approve |
+| `openai-codex-gpt-6.1-sol.md` | `33a8f029e99a` | なし | Approve |
+
+対象 HEAD はどちらも PR の head（`33a8f02`）の祖先か同じである。選別時の base（`origin/main`）は `e6edcf8` で、PR の分岐点 `a6e2c41` より先に進んでいる（PR #38 のマージ）。
+
+### 8.2 分類結果
+
+| 区分 | 件数 |
+| --- | --- |
+| 解消済み | 3（G-M1、O-M1、D-I1） |
+| 対応する | 0 |
+| 対応しない | 6（S-L1、S-I1、S-I2、O-I1、D-L1、D-L2） |
+
+ID は 1 回目と同じ指摘には同じ ID を使う。DeepSeek の L-2 は D-L2 とする。
+
+### 8.3 全指摘一覧
+
+| ID | 指摘 | 区分 | 根拠 |
+| --- | --- | --- | --- |
+| G-M1（GPT Medium、`a882bfd`） | シグナルで中断した `create` が `error:` 行を出し、復旧手順に入れない | 解消済み | `b59af75` で修正。`33a8f02` の `main()`（`pr_review_workspace.py` L1050-1057）は `interrupted:` で始まる行を出し、`test_terminated_create_records_the_signal` の `error:` 行が無いことの assertion が成功する（8.4 節） |
+| O-M1（Opus Medium） | G-M1 と同じ | 解消済み | G-M1 と同じ。レビュー自身も解消と記録している |
+| D-I1（DeepSeek Info） | 手順 2 の `abandon` の条件が `failed` で食い違う | 解消済み | `33a8f02` の `SKILL.md` L171 が「`absent`・`failed` 以外なら `abandon`」とし、`time-budget.md` の S27 も同じ。レビュー自身も解消と記録している |
+| S-L1（SWE Low、継続） | 契約テストが `create` の `--attempt-id` 必須化を固定していない | 対応しない | 1 回目と同じ。`33a8f02` の `SKILL.md` の `create` の 2 行（L154・L160）は `--attempt-id "$ATTEMPT_ID"` を渡しており、指摘は将来の編集で抜けた場合への備えである。抜けても argparse が worktree を作る前に終了コード 2 で止まり、誤った結果にならない。文言を固定値で検査するテストは足さない方針（`AGENTS.md`） |
+| S-I1（SWE Info、継続） | 試行 ID の照合がリポジトリを見ず、別リポジトリの同じ PR 番号・同じ試行 ID で操作できない | 対応しない | 照合のコード（`attempt_sessions`・`locate_attempt`）は `a882bfd` から変わっておらず（`git diff a882bfd 33a8f02`）、1 回目の再現（3 つのサブコマンドとも拒否し、何も消さない）がそのまま当てはまる。PR の説明に記載済み |
+| S-I2（SWE Info、継続） | `started` の記録までの間、実行中の `create` が `inspect` で `absent` に見える | 対応しない | D-L1 と同じ |
+| O-I1（Opus Info、継続） | `initializing` ロックの判定が git の翻訳に依存する | 対応しない | 判定（L923・L941）は `a882bfd` から変わらない。翻訳のあるロケールでは拒否するだけで何も消さず、この Dev Container の git には ja のカタログが無い。PR の説明に回避方法（`LC_ALL=C`）を記載済み |
+| D-L1（DeepSeek Low、継続） | `create` の起動直後に `inspect` が `absent` を返し、スキルどおりの再試行で先の試行が残る。スキルの手順は先の試行を再確認しない | 対応しない | `33a8f02` で再現した（8.4 節）。残った試行は自分のセッションディレクトリと worktree にしか書かず、他のセッションの `save`・`cleanup` と後のレビューの結果を変えない。その state を誤って使っても `verify`・`save`・`cleanup` は拒否し、draft があれば `abandon` も拒否する。影響はディスクの使用量と worktree の一覧の 1 件だけで、最初の試行 ID で `inspect`・`abandon` すれば片付く（PR の説明に記載済み）。到達するには、journal の作成前（起動から約 0.1 秒）にツール呼び出しが終わり、かつ helper がシグナルを受けずに生き残る（ランタイムが外側のプロセスだけを SIGKILL するか切り離す）必要がある。600 秒以上のタイムアウトの規約を守る Claude Code・pi では実質到達しない |
+| D-L2（DeepSeek Low。1 回目の D-U1） | `test_abandon_waits_for_a_checkout_that_outlives_create` の待ち合わせが `worktree-add` の記録だけに頼り、高負荷で落ちる | 対応しない | `33a8f02` で再現した（8.4 節。追加の負荷なしで 1/25、CPU 数ぶんの `yes` を足して 2/10）。原因はテストの待ち合わせ方で（helper は `worktree-add` を git の起動前に記録する）、その瞬間に止まった試行は `vanished` になり `abandon` で片付くので、helper とスキルの挙動は正しい。誤った結果を出すのは検証の 1 テストだけで、再実行で通る。今回の `uv run pytest tests/skills .agents/skills` は 2 回とも成功した。CI は停止中（`AGENTS.md`）。PR の説明の検証結果と食い違うので、「残したもの」に条件と回避方法（再実行）を書き足した |
+
+### 8.4 検証
+
+- 確認の範囲: レビュー 5 件、PR の本文、変更 7 ファイルの全文を確認した。helper・`SKILL.md`・`time-budget.md`・設計 Spec・この Spec は自分で読み、テストの差分全体と Plan の全文はサブエージェント 1 体に委譲して、PR が持ち込んだ致命的な欠陥が無いかを調べさせた。`a882bfd..33a8f02` の変更は helper の 2 か所（中断の行の接頭辞、進捗行の書き込みの `OSError` の無視）とテスト 2 件で、継続した指摘のコードとテストは変わっていない
+- 委譲した確認の結果（テストの差分と Plan）: 致命的な欠陥なし。テストはすべて `tmp_path` の中のリポジトリ・一時ルートを使い、`/tmp/pr-review-*`・利用者のリポジトリ・git config に触れない。`pkill` などの広い kill は無く、`kill_stalled_git` が PID の再利用で無関係なプロセスを止める余地は実質無い。D-L2 の競合が起きると `sleep 60` が最大 60 秒残ることがある。Plan は `draft` のまま修正前のコードと手順を含むが、従っても起きるのは安全側の結果（停止するか、helper が作ったものだけを消す）で、全 Step が完了済み
+- D-L1 の再現（サブエージェントに委譲。`33a8f02` の隔離 worktree と使い捨てのリポジトリ）: `rev-parse --verify` を 3 秒止める git のスタブで試行 A1 を起動し、その間の `inspect` は `absent`。新しい試行 A2 は完了し、A1 も `session.json` と worktree を残して完了した。A2 の `save`・`cleanup` は成功し、保存先は A2 の draft。A1 を残したまま試行 A3 の `create`・`save`・`cleanup` も成功した（`previous_review` は A2 のレビュー）。A1 の `inspect` は `completed`、`abandon` は成功し、保存先と使い捨てのリポジトリは変わらなかった。A1 の state を使った `verify`・`save`・`cleanup` はどれも終了コード 2 で拒否し、review-backup に draft を置いた試行の `abandon` も拒否した。window の中で uv かプロセスグループに SIGTERM が届くと helper はすぐ終わり、何も残らない
+- D-L2 の再現（自分で。`33a8f02` の隔離 worktree）: 対象のテストだけを繰り返し実行し、追加の負荷なしで 5 回中 1 回・20 回中 0 回（load average 約 11）、`nproc`（8）本の `yes` を足して 10 回中 2 回、`DID NOT RAISE WorkspaceError` で失敗した
+- 変更の種類に応じた検証:
+
+| 対象 | `uv run pytest tests/skills .agents/skills -q` | `bash .devcontainer/run-tests.bash` | `bash scripts/check-layout.sh` |
+| --- | --- | --- | --- |
+| PR の head `33a8f02`（専用の worktree。15:57〜16:03） | 548 passed・1 skipped（exit 0） | 27 本 PASS（exit 0） | PASS（exit 0） |
+| head に base `e6edcf8` を merge した一時ツリー（隔離 worktree。push しない。16:05〜16:11） | 548 passed・1 skipped（exit 0） | 26 本 PASS、`test-check-layout.bash` が FAIL | FAIL（4 件） |
+
+- merge 後のツリーの失敗の切り分け: 4 件はすべて各プロジェクトの `resoloop skills sync --check` の失敗（`SKILL_SYNC_REQUIRED`）で、`test-check-layout.bash` の失敗も同じ 4 件である。共有の resoloop が 16:06:29 に別の作業で 0.1.0-preview.17 へ更新されており（このセッションは触っていない。`.devcontainer/resoloop.lock` は preview.15 のまま）、head の検証は更新前、merge 後の検証は更新後だった。更新後は base `e6edcf8` 単体・head 単体の一時ツリーでも、専用の worktree でも同じ 4 件で失敗し、base と merge 後の `test-check-layout.bash` の失敗は一致した。resoloop を PATH から外して skills sync の検査だけを skip すると、merge 後のツリーで `check-layout.sh` と `test-check-layout.bash` はどちらも PASS した。PR #40 はプロジェクトのスキルにも resoloop にも触れないので、merge による失敗ではない
+- CI: このリポジトリの GitHub Actions は停止中（`AGENTS.md`）で、確認の対象外
+
+### 8.5 結論
+
+**2（修正が不要）**。致命的な指摘は無く、全指摘・変更ファイルの全文・関連する処理とテストを確認し、検証を通した。この文書の更新を PR の head に載せてから、検証した head だけを `--match-head-commit` でマージし、Issue #39 を更新する。修正をしていないので、修正後の自己レビューは行っていない。
+
+### 8.6 所要時間（UTC）
+
+| 区間 | 時刻 | 所要 |
+| --- | --- | --- |
+| レビュー 5 件・PR・helper・`SKILL.md`・`time-budget.md`・前回の Spec の確認、委譲 2 体の起動（開始時刻は記録していない） | 〜15:57 | — |
+| head の検証（専用の worktree）、設計 Spec の確認、委譲の結果の受け取り | 15:57〜16:04 | 約 7 分 |
+| merge 後のツリーの検証と失敗の切り分け | 16:04〜16:16 | 約 12 分 |
+| D-L2 の再現と失敗率の計測 | 16:16〜16:20 | 約 4 分 |
+| この文書の記入 | 16:20〜16:25 | 約 5 分 |
