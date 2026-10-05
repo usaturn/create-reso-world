@@ -364,6 +364,24 @@ class PiMcpCleanupTests(unittest.TestCase):
                     # No backup, credential update or staged file may precede the refusal.
                     self.assertEqual(self.link_snapshot(self.agent), before)
 
+    # R4-2 break: a non-object providers member passes the preflight, so a backup or a
+    # credential update happens before the setup crashes with a traceback.
+    def test_r4_provider_setups_refuse_non_object_providers_before_changes(self):
+        for provider in ("deepinfra", "opencode-go", "commandcode"):
+            for index, value in enumerate(("[]", '"x"', "1", "null")):
+                with self.subTest(provider=provider, providers=value):
+                    self.fresh_agent(f"providers-shape-{provider}-{index}")
+                    path = self.agent / "models.json"
+                    path.write_text('{"providers":' + value + ',"custom":"keep"}\n')
+                    path.chmod(0o640)
+                    before = self.link_snapshot(self.agent)
+                    result = self.run_provider_setup(provider)
+                    self.assert_setup_failed(result)
+                    self.assertEqual(result.stderr.count(str(path)), 1, result.stderr)
+                    self.assertIn("'providers' must be an object", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual(self.link_snapshot(self.agent), before)
+
     # R3-3 break: a permissive old auth mode is inherited by staged new plaintext credentials.
     def test_r3_opencode_auth_replacement_is_private_before_publish(self):
         injection = self.base / "auth-mode"
@@ -409,7 +427,8 @@ class PiMcpCleanupTests(unittest.TestCase):
     def test_r3_provider_invalid_source_preserves_models(self):
         for provider, script in (("deepinfra", "setup_pi.zsh"), ("opencode-go", "setup_pi_opencode_go.zsh"),
                                  ("commandcode", "setup_pi_commandcode_goat.zsh")):
-            for index, token in enumerate(("1e999", "1" + "0" * 309, "NaN", "{broken", "[]")):
+            for index, token in enumerate(("1e999", "1" + "0" * 309, "NaN", "{broken", "[]",
+                                           '{"providers": []}')):
                 with self.subTest(provider=provider, token=token[:16]):
                     self.fresh_agent(f"source-{provider}-{index}")
                     source_dir = self.base / f"source-{provider}-{index}"
@@ -421,7 +440,7 @@ class PiMcpCleanupTests(unittest.TestCase):
                     source = source_dir / "pi-models.json"
                     source_data = json.loads((ROOT / ".devcontainer/pi-models.json").read_text())
                     source_data["nested"] = "RAW_TOKEN"
-                    source.write_text(token if token in ("{broken", "[]") else
+                    source.write_text(token if token.startswith(("{", "[")) else
                                       json.dumps(source_data).replace('"RAW_TOKEN"', token))
                     path = self.agent / "models.json"
                     self.save(path, {"providers": {"personal": {"models": []}}})
@@ -648,7 +667,8 @@ class PiMcpCleanupTests(unittest.TestCase):
                         result = self.run_provider_setup(provider)
                         self.assert_setup_failed(result)
                         self.assertIn(str(path), result.stderr)
-                        self.assertIn("hard-linked" if kind == "hardlink" else "symlink", result.stderr.lower())
+                        self.assertIn("Refusing hard-linked storage" if kind == "hardlink"
+                                      else "Refusing symlinked storage", result.stderr)
                         self.assertEqual(self.link_snapshot(self.agent, shared), before)
 
     # R4-1 control: only the managed files are checked; a linked agent directory still works.

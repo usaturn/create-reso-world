@@ -35,6 +35,14 @@ def load_object(path: Path) -> dict:
     return data
 
 
+def load_models(path: Path) -> dict:
+    """Read a pi models file whose providers member, when present, setup can merge into."""
+    data = load_object(path)
+    if not isinstance(data.get("providers", {}), dict):
+        raise ValueError(f"Invalid models in {path}: 'providers' must be an object")
+    return data
+
+
 def require_plain_file(path: Path) -> None:
     """Refuse linked or special storage: replacing it would detach or rewrite shared state."""
     try:

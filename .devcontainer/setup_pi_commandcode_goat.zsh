@@ -141,17 +141,16 @@ python3 - "${MODELS_SOURCE}" "${MODELS_JSON}" <<'PY'
 import sys
 from pathlib import Path
 
-source = Path(sys.argv[1])
+source, models, *others = map(Path, sys.argv[1:])
 sys.path.insert(0, str(source.resolve().parent))
-from pi_json import load_object, require_plain_file
+from pi_json import load_models, load_object, require_plain_file
 
 try:
-    load_object(source)
-    for name in sys.argv[2:]:
-        path = Path(name)
+    load_models(source)
+    for path in (models, *others):
         require_plain_file(path)
         if path.exists():
-            load_object(path)
+            (load_models if path == models else load_object)(path)
 except ValueError as exc:
     print(f"ERROR: {exc}", file=sys.stderr)
     sys.exit(1)
@@ -200,10 +199,10 @@ path = Path(sys.argv[1])
 source = Path(sys.argv[2])
 provider = sys.argv[3]
 sys.path.insert(0, str(source.resolve().parent))
-from pi_json import backup_file, load_object, write_object
+from pi_json import backup_file, load_models, write_object
 
 try:
-    definition = load_object(source).get("providers", {}).get(provider)
+    definition = load_models(source).get("providers", {}).get(provider)
 except ValueError as exc:
     print(f"ERROR: {exc}", file=sys.stderr)
     sys.exit(1)
@@ -217,7 +216,7 @@ if definition is None:
 
 if path.exists():
     try:
-        data = load_object(path)
+        data = load_models(path)
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)

@@ -101,7 +101,7 @@ Issue #19とPlanのGlobal Constraintsが維持を求める「設定・パッケ�
 ### 検証（R4-1）
 
 - `test_r4_shared_writer_refuses_linked_or_special_destinations`: symlink・dangling symlink・hard link・FIFO・ディレクトリで`write_object`が一時ファイルを作らずパス付きの`ValueError`を出し、agent directoryと共有先のエントリ（リンクの向き、mode、リンク数、バイト列）が不変。
-- `test_r4_provider_setups_refuse_linked_destinations_before_changes`: 3setup × 書く各ファイル × symlink・dangling・hard linkの15ケースで、成功表示なしの非ゼロ終了、エラーにパスとリンク種別、agent directoryと共有先の全エントリ不変（バックアップ・一時ファイルなし、OpenCode Goのもう一方のファイルも不変、共有先のmode不変）。
+- `test_r4_provider_setups_refuse_linked_destinations_before_changes`: 3setup × 書く各ファイル × symlink・dangling・hard linkの12ケース（書くファイルはDeepInfra 1・OpenCode Go 2・CommandCode 1）で、成功表示なしの非ゼロ終了、エラーにパスと拒否理由の正確な文言（`Refusing symlinked storage`／`Refusing hard-linked storage`）、agent directoryと共有先の全エントリ不変（バックアップ・一時ファイルなし、OpenCode Goのもう一方のファイルも不変、共有先のmode不変）。
 - `test_r4_provider_setups_accept_symlinked_agent_directory`: agent directory自体がsymlinkなら3setupとも成功し、実体側の`models.json`を更新して他providerを保持し、リンクを保つ（過剰な拒否の防止）。
 - 既存のcleanupのリンク・hard link・FIFO拒否テストと、setupの保存・バックアップ・mode・tildeの全テストが引き続き成功すること。
 
@@ -109,11 +109,12 @@ Issue #19とPlanのGlobal Constraintsが維持を求める「設定・パッケ�
 
 `setup_pi.zsh`はシェルで`models.json`をバックアップしてからPythonで入力を検査し、`setup_pi_opencode_go.zsh`は`auth.json`を更新してから`models.json`を検査する。どちらもmainからの順序だが、R3で数値範囲などの拒否条件が増え、失敗時に不要なバックアップや更新済みの認証が残る。
 
-- R4-1の事前検査ブロックで、`pi-models.json`と、setupが書く各ファイル（存在する場合）を`pi_json.load_object`で読み、バックアップ・chmod・変更より前に止める。表示は`ERROR: <load_objectのメッセージ>`とし、パスは1回だけ出す。
+- R4-1の事前検査ブロックで、`pi-models.json`と、setupが書く各ファイル（存在する場合）を読み、バックアップ・chmod・変更より前に止める。モデル定義（`pi-models.json`と`models.json`）は`pi_json.load_models`で読み、`providers`があればobjectであることも確かめる（setupはこのobjectへproviderを書き込むため）。`auth.json`は`load_object`で読む。表示は`ERROR: <メッセージ>`とし、パスは1回だけ出す。
+- 各setupの本体ブロックも、モデル定義の読込みを`load_models`にそろえる。
 - 各setupの本体ブロックの検査は防御として残し、エラー表示の重複した接頭辞だけを外す。
 - 変えないもの: DeepInfraが実行のたびにバックアップを作る挙動、`cp -p`の失敗伝播、`pi-models.json`にproviderが無い場合の扱い（リポジトリ側の定義の誤り）、provider選択・認証0600・認証のバックアップを作らない仕様。
 
-検証: `test_r3_provider_models_reject_unsafe_numbers_preserving_original`（3setup × 7種の数値・定数）と`test_r3_provider_invalid_source_preserves_models`（3setup × 5種の不正な`pi-models.json`）は、agent directory全体のエントリ（バックアップ・`auth.json`・一時ファイルの有無を含む）が不変であることを検査し、前者はエラー中のパスが1回であることも検査する。`test_setup_invalid_models_json_fails_without_success_banner`はバックアップが無いことを検査する。実装前はDeepInfraのバックアップ作成、OpenCode Goの認証更新、3setupのパスの二重表示で32件が失敗した。
+検証: `test_r3_provider_models_reject_unsafe_numbers_preserving_original`（3setup × 7種の数値・定数）と`test_r3_provider_invalid_source_preserves_models`（3setup × 5種の不正な`pi-models.json`）は、agent directory全体のエントリ（バックアップ・`auth.json`・一時ファイルの有無を含む）が不変であることを検査し、前者はエラー中のパスが1回であることも検査する。`test_setup_invalid_models_json_fails_without_success_banner`はバックアップが無いことを検査する。実装前はDeepInfraのバックアップ作成、OpenCode Goの認証更新、3setupのパスの二重表示で32件が失敗した。最終再レビューの指摘を受けて、`providers`がobjectでない`models.json`（`[]`・文字列・数値・null）と`pi-models.json`の検査を`test_r4_provider_setups_refuse_non_object_providers_before_changes`と前者のテストに足した。実装前はDeepInfra・OpenCode Goの8件と、3setupの`pi-models.json`の3件が失敗した（CommandCodeの`models.json`は既存の検査で止まっていた）。
 
 ## R4-3: shadowed lock検査に隠れた回帰ガードを戻す (c)
 
@@ -124,6 +125,19 @@ Issue #19とPlanのGlobal Constraintsが維持を求める「設定・パッケ�
 - ルート`README.md`: ResoLoopはどちらのモードもネットワークから導入し、forkモードはビルドに数分かかると直す。
 - `docs/superpowers/specs/2026-10-04-issue-19-pi-migration-design.md`の比較表（#22の集約用）に、`pi_json.py`、関連setup 2種、ルート`README.md`の行を足す。Issue #19のSpec・Planの冒頭に、`docs/superpowers/README.md`が求める文書管理・対象・検証HEAD・状態と、実行許可・内容承認の区別を書く。Planのチェックボックスは作成時のまま残し、その旨を書く。
 - `.devcontainer/README.md`: setupの入力検査とリンク拒否の説明（R4-1・R4-2）、同じディレクトリの一時ファイル「で」元ファイルを置き換えるという記述の修正、`GOOGLE_DEV_KNOWLEDGE_API_KEY`未設定時の通知と無効化の注意を書く。
+
+## 最終再レビュー（`4833623`）の指摘
+
+R4-1〜R4-4をコミットした`4833623`のPR全体を、別の読み取り専用の担当が再レビューした。High・Mediumは無く、変異11種（writerの検査、setupの事前検査、`auth.json`の検査、JSON読込み、`reject_constant`、symlink分岐、nlink検査、事前検査のexit 0化、cleanupの`require_plain_file`、`set -e`）はすべて既存・新規のテストで検出された。指摘は次のとおりで、すべて解消した。
+
+| 指摘 | 分類 | 対応 |
+| --- | --- | --- |
+| Low: `providers`がobjectでない`models.json`は事前検査を通り、DeepInfraはバックアップを、OpenCode Goは`auth.json`の更新を先に行ってからtracebackで終わる | 対応する (a) | R4-2の目的から漏れていた経路（順序はmainから）。`pi_json.load_models`を足し、事前検査と本体ブロックでモデル定義の`providers`の形を確かめる。 |
+| Info: Spec・Planの「15ケース」は12ケース | 対応する (b) | 書くファイルは4つ×リンク3種で12。記述を直した。 |
+| Info: symlinkケースの`"symlink" in stderr`は、fixtureのディレクトリ名でも成り立つ | 対応する (c) | 拒否理由の正確な文言をassertする。symlink分岐を消す変異で、symlinkの4件も失敗するようになった（以前はdanglingの4件だけ）。 |
+| Info: 書き込みが不要な実行でも、リンクされた`models.json`で止まることがREADMEから読み取りにくい | 対応する（記述） | 設計どおり（書く可能性のある全ファイルを事前に検査）。READMEに「書き込みが不要な実行でも」と書いた。 |
+| 未検証候補: キー未設定時の通知が「エラー」か「サインインが必要」か | 解消済み（実測） | 隔離HOMEの実pi 1.0.2で`pi mcp list`を実行し、ネットワーク接続前に`Failed to resolve MCP server "google-dev-knowledge" header "X-Goog-Api-Key" from environment variable`で`failed`になることを確認した。READMEの記述を具体化した。 |
+| 未検証候補: `st_nlink`が1以外を返すファイルシステムでの誤った拒否 | 対応しない | cleanupがmainから同じ前提で、bind mount先はWSL2のext4。 |
 
 ## R3の調査と修正（調査HEAD `26d8b1c`、維持）
 
@@ -184,9 +198,9 @@ OpenCode GoとCommandCodeは`PI_CODING_AGENT_DIR='~/custom agent'`を展開せ�
 
 R4-1〜R4-4を実装した。`pi_json.require_plain_file`がリンク・特殊ファイルの拒否を一元化し、`write_object`とcleanupの`read_object`が使う。3つのsetupは、書くファイルのリンク検査と全入力のJSON検査をバックアップ・chmod・変更の前にまとめて行う。cleanupの事前検査順、setupの保存方式・provider選択・認証保護・失敗伝播は変えていない。
 
-- RED→GREEN: R4-1は実装前に、writerの5種すべてで一時ファイルが作られ、setupの15ケースすべてが成功終了した。実装後は全件成功。R4-2は実装前に32件が失敗し、実装後は成功。R4-3は`reject_constant`を無効にした変異版で、旧テストが6件を見逃し、補強後は15件すべてを検出した。リンクされたagent directoryの対照テストは実装前後とも成功（既存挙動の維持）。
-- 最終版での検証: 移行・setupテスト79件（従来76件＋新規3件）成功、全environment 27/27、layout成功、スキル408成功・1skip、`git diff --check`成功。関連の個別検査（README・導入順・指示文・docs・agent-config・file-modes）も成功。
-- 実pi 1.0.2・実npm registryでのend-to-end（調査HEAD `4ae2cb5`。隔離したHOME・agent directory・npm設定で、install scriptは実行しない）: `pi install`で5種と保持拡張を入れた旧状態から、cleanup、`pi update --extensions`（通常実行、npm installを強制する経路、保持拡張の版更新）の順に実行し、5種の登録・マニフェスト・`node_modules`は復活せず、保持拡張は残った。マニフェストを残した陰性対照では復活を検出できた。cleanupの再実行ではagent directory全体のバイト列とバックアップ数が変わらない。provisioning片の初回環境・既存環境・再実行でも同じ結果だった。R4でcleanupの撤去処理は変えておらず（`read_object`の検査を共有関数へ移しただけ）、移行テスト79件でも確認している。
+- RED→GREEN: R4-1は実装前に、writerの5種すべてで一時ファイルが作られ、setupの12ケースすべてが成功終了した。実装後は全件成功。R4-2は実装前に32件と、`providers`の形の11件が失敗し、実装後は成功。R4-3は`reject_constant`を無効にした変異版で、旧テストが6件を見逃し、補強後は15件すべてを検出した。リンクされたagent directoryの対照テストは実装前後とも成功（既存挙動の維持）。
+- 最終版での検証: 移行・setupテスト80件（従来76件＋新規4件）成功、全environment 27/27、layout成功、スキル408成功・1skip、`git diff --check`成功。関連の個別検査（README・導入順・指示文・docs・agent-config・file-modes）も成功。
+- 実pi 1.0.2・実npm registryでのend-to-end（調査HEAD `4ae2cb5`。隔離したHOME・agent directory・npm設定で、install scriptは実行しない）: `pi install`で5種と保持拡張を入れた旧状態から、cleanup、`pi update --extensions`（通常実行、npm installを強制する経路、保持拡張の版更新）の順に実行し、5種の登録・マニフェスト・`node_modules`は復活せず、保持拡張は残った。マニフェストを残した陰性対照では復活を検出できた。cleanupの再実行ではagent directory全体のバイト列とバックアップ数が変わらない。provisioning片の初回環境・既存環境・再実行でも同じ結果だった。R4でcleanupの撤去処理は変えておらず（`read_object`の検査を共有関数へ移しただけ）、移行テスト80件でも確認している。
 - 調査担当（リンク挙動の比較・pi本体の書き方）、独立レビュー担当（PR全体）、e2e担当の3つのサブエージェントは、いずれも専用の一時worktreeを使い、終了時に撤去した。ホストの実際の`~/.pi`は使っていない（独立レビュー担当が最初に`pi --version`を実HOMEで1回実行したため、`settings.json.lock`が残っていないことを確認した）。
 
 未検証は実認証のMCP/provider接続とDev Container rebuild（#22の担当）。成功と扱わない。PR全体の最終再レビューの結果、公開SHA、所要時間はPRの最終ステータスコメントに記録する。修正があったためpushまでとし、PRとIssueはopenのままにする。

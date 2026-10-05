@@ -66,11 +66,12 @@
 - Setup preflight: `python3 - <models source> <files...>` imports the helper from the model source's directory, loads the model source, checks each file the script may write with `require_plain_file` and loads it when present, prints `ERROR: <reason>` once and exits 1 under `set -e`. It runs before backup, chmod and any write; main blocks keep their checks with the duplicated prefix removed.
 
 - [x] Step 1: Add `test_r4_shared_writer_refuses_linked_or_special_destinations`, `test_r4_provider_setups_refuse_linked_destinations_before_changes` and the control `test_r4_provider_setups_accept_symlinked_agent_directory`, with an lstat-based snapshot of the agent directory and shared targets.
-- [x] Step 2: Run them before implementation. RED: the writer staged a temp file for all 5 kinds, and all 15 setup cases exited 0. The control already passed (existing behavior to keep).
+- [x] Step 2: Run them before implementation. RED: the writer staged a temp file for all 5 kinds, and all 12 setup cases exited 0. The control already passed (existing behavior to keep).
 - [x] Step 3: Implement the helper, the writer check, the cleanup reuse and the 3 setup preflights. Update the README setup section, including the wording of the same-directory temp-file replacement.
 - [x] Step 4: Run the new tests, existing link/hard-link/FIFO cleanup tests, the whole migration/setup suite, related bash checks, the full environment suite, layout and skill tests synchronously.
 - [x] Step 5: From the independent whole-PR review, strengthen the unsafe-number and invalid-source setup tests to compare the whole agent directory and count the path once, require no backup for broken models JSON, and assert `Invalid JSON constant` in the constant test (RED: 32 setup failures; constant test verified by a mutant that disables `reject_constant`). Extend the preflight to the inputs (R4-2), restore the guard (R4-3), and fix the documents (R4-4).
-- [x] Step 6: Re-run the related tests and the full environment suite, layout and skill tests. Commit once, have an independent agent re-review the whole PR at that commit, fix and re-verify until no finding remains, then push `HEAD:refs/heads/feat/issue-19-pi-migration` normally.
+- [x] Step 6: Re-run the related tests and the full environment suite, layout and skill tests. Commit, have an independent agent re-review the whole PR at that commit, fix and re-verify until no finding remains, then push `HEAD:refs/heads/feat/issue-19-pi-migration` normally.
+- [x] Step 7: Resolve the final re-review findings at `4833623`: add `pi_json.load_models` and check the `providers` shape in the preflight and model blocks (RED: 11 cases), assert the exact refusal messages, correct the case count to 12, and clarify the README. Re-verify and re-review the delta.
 
 ## Controller integration and publication
 
