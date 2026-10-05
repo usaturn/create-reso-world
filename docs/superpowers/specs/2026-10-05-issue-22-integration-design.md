@@ -3,7 +3,7 @@
 - 文書管理／対象リポジトリ: `usaturn/create-reso-world`
 - 対象: Issue #22（親 #17。ボードのキー `issue17-maatlog-pi-claude-port`、子のキー `c5-integration`）。PR は Plan の Task 4 で作る
 - 基準: 移植先は `main` の `01affb7`（#19〜#21 の PR #25・#26・#27 と PR #30 のマージ後。Issue 本文の基準 `9699e94` から進んでいる）。移植元は usaturn/maatlog-poc の `1f2aadb`（Issue の指定）。移植元の `main` は 2026-10-05 02:55 UTC 時点で `e1f042e` に進んでいるが、差分は 5 章の D-1 のとおり取り込まない
-- 経路: brainstorming の written-spec 経路。変更は文書とテストの例外の 1 行（D-15）だけの bounded な作業だが、#17 の運用ルールが全ての子に Spec と Plan を求めているため、書面の Spec を作る
+- 経路: brainstorming の written-spec 経路。変更は文書とテストの例外（D-15。`EXCLUDED` の 1 行とそのコメント）だけの bounded な作業だが、#17 の運用ルールが全ての子に Spec と Plan を求めているため、書面の Spec を作る
 - 状態: draft
 - 実行許可: 利用者の 2026-10-05 の指示「途中で止めずに推奨案で Spec、Plan を作成し PR まで実施せよ」。この Spec の判断（5 章の D-1〜D-15）は、その指示に基づきエージェント（Claude Code、claude-opus-5-5）が推奨値で決めたもので、Spec 自体の明示承認は得ていない
 - 関連 Plan: `docs/superpowers/plans/2026-10-05-issue-22-integration.md`
@@ -32,7 +32,7 @@
 
 ### 範囲外
 
-- テストの追加と、上の例外の 1 行以外のテストの変更（`tests/**`・`.devcontainer/test-*.bash`）。#22 の編集範囲に無い。比較表の網羅は Plan の一時スクリプトで確かめ、結果を比較表に記録する（D-11）
+- テストの追加と、上の例外の 1 行（とそのコメント）以外のテストの変更（`tests/**`・`.devcontainer/test-*.bash`）。#22 の編集範囲に無い。比較表の網羅は Plan の一時スクリプトで確かめ、結果を比較表に記録する（D-11）
 - `.agents/skills/**`・`.claude/skills/**`・`.agents/monitoring-runtimes.md`、レビュー系ツール、ワールドのプロジェクト、ResoLoop の lock と導入・検証処理、`docs/superpowers/` の既存の文書、認証情報と個人設定
 - 移植と関係しない README の記述の誤り。README の「変更の流れ」と `.devcontainer/README.md` の「テストの実行」は CI が push と PR のたびに走ると書いているが、2026-10-05 から GitHub Actions はリポジトリ全体で無効になっている（利用者の指示による一時的な設定の可能性がある）。README の「構成」とテストの例はワールドに `slum03/` を挙げていない。どちらも #17 の移植と無関係なので変えない（D-12）
 - Dev Container の rebuild の実行と、実認証を伴う pi / Claude Code / サブエージェント / MCP のスモークテスト。rebuild は利用者が行い、この子は手順・確認項目・基準値を用意する
@@ -185,7 +185,7 @@ Plan の一時スクリプト（scratchpad に置き、リポジトリには入�
 
 `docs/maatlog-poc-porting.md` の「rebuild での確認」に、次を書く。
 
-- 手順: 作業ツリーを最新の `origin/main` に追従させてから Rebuild Container を実行する。この PR は文書とテストの例外の 1 行だけを変え、導入スクリプトと設定ファイルを変えないので、rebuild の結果は `origin/main`（`01affb7` 以降）と同じになる。postCreate のログで `[install_beforehand] [25/25]` まで進み、エラーで止まっていないことを確かめる
+- 手順: 作業ツリーを最新の `origin/main` に追従させてから Rebuild Container を実行する。この PR は文書とテストの例外（`EXCLUDED` の 1 行とそのコメント）だけを変え、導入スクリプトと設定ファイルを変えないので、rebuild の結果は `origin/main`（`01affb7` 以降）と同じになる。postCreate のログで `[install_beforehand] [25/25]` まで進み、エラーで止まっていないことを確かめる
 - 確認項目と記録の表。列は「番号」「確認項目」「確認方法」「期待する結果」「rebuild 前（2026-10-05）」「rebuild 後」。rebuild 前の列には 3.5 節の値を書き、rebuild 後の列は「未記録」とする。項目は Issue #22 と各子の引き継ぎから作る
 
 | 番号 | 確認項目 | 出典 |
@@ -224,8 +224,8 @@ PR の本文には Issue の指定どおり `Closes #22` を書く。#22 の完�
 | D-7 | rebuild の確認項目と記録は `docs/maatlog-poc-porting.md` に置き、`docs/integration.md` は変えない | `docs/integration.md` に足す | `docs/integration.md` は 2026-09 の再設計の統合手順で、仕様の節番号に結び付いている。移植の基準・判断・確認を 1 つの文書にまとめると追いやすい |
 | D-8 | 既存環境の更新手順は `.devcontainer/README.md` の新しい節に順序だけをまとめ、詳細は既存の節へのリンクにする | 詳細を書き写す／比較表の文書に置く | 利用者が読むのは README。書き写すと同じ説明が 2 か所になり、片方だけが古くなる |
 | D-9 | rebuild 前の基準値を、現行コンテナで読み取り専用のコマンドだけを使って記録する | 記録しない／`install_beforehand.bash` を実行して確かめる | rebuild の前後を比べられる。導入スクリプトは bind mount された利用者の設定を変えるので実行しない |
-| D-10 | PR は `Closes #22` とし、rebuild の記録をマージの条件として PR の本文に書く | `Refs #22` にして後で閉じる | Issue の指定に従う。PR は文書とテストの例外の 1 行だけを変え、導入スクリプトと設定ファイルを変えないので、利用者はマージ前に `main` で rebuild でき、記録を同じ PR に足してからマージできる |
-| D-11 | テストを追加しない。既存のテストの変更は D-15 の例外の 1 行だけにする。網羅は一時スクリプトで確かめて結果を記録する | 比較表の網羅を検査するテストを足す | #22 の編集範囲にテストが無い。検査には移植元のツリー（別リポジトリ）が要り、固定した基準の記録なので繰り返し検査する価値が低い |
+| D-10 | PR は `Closes #22` とし、rebuild の記録をマージの条件として PR の本文に書く | `Refs #22` にして後で閉じる | Issue の指定に従う。PR は文書とテストの例外（`EXCLUDED` の 1 行とそのコメント）だけを変え、導入スクリプトと設定ファイルを変えないので、利用者はマージ前に `main` で rebuild でき、記録を同じ PR に足してからマージできる |
+| D-11 | テストを追加しない。既存のテストの変更は D-15 の例外の 1 行とそのコメントだけにする。網羅は一時スクリプトで確かめて結果を記録する | 比較表の網羅を検査するテストを足す | #22 の編集範囲にテストが無い。検査には移植元のツリー（別リポジトリ）が要り、固定した基準の記録なので繰り返し検査する価値が低い |
 | D-12 | 移植と無関係な README の記述（CI の無効化、`slum03/` の記載漏れ）は変えない | 直す | #22 の範囲は移植に伴う整合。Actions の無効化は一時的な設定の可能性がある |
 | D-13 | 予約は PR の作成と作業報告まで保持し、計画の成果物（Spec・Plan・引き継ぎ書）を #22 に公開して復元を確かめてから実装に進む | 計画の公開を省く | #17 の運用ルールと、#20 の 1 セッションでの前例に従う |
 | D-14 | `.devcontainer/README.md` には比較表の文書名を書かず、ルートの `README.md` の「対象外」から案内する | `test-readme.bash` の禁止語の例外を足す | `.devcontainer/` に移植元の名前を残さないという既存の規則（2026-09-26 の再設計）を保つ。テストは #22 の編集範囲外 |
@@ -257,7 +257,7 @@ worktree のルートで実行する。実認証とホストの設定は使わ�
 - 4.5 節の静的な確認
 - README の「節名」の参照が、参照先のファイルの見出しとして存在すること（Plan の一時スクリプト）
 - `uv run pytest -q tests/skills/test_legacy_references.py`（比較表を例外にした後も、README などへの移植元の名前の混入を検出すること）
-- `git diff --stat origin/main...HEAD` で、変更が 2 章の 4 ファイル（文書 3 つとテストの例外の 1 行）と、この Spec・Plan・PR #33 のレビュー修正の Spec だけであること（`origin/main` は作業中に進むので、分岐点からの差分で比べる）
+- `git diff --stat origin/main...HEAD` で、変更が 2 章の 4 ファイル（文書 3 つとテストの例外）と、この Spec・Plan・PR #33 のレビュー修正の Spec だけであること（`origin/main` は作業中に進むので、分岐点からの差分で比べる）
 
 ## 9. 比較表の行
 

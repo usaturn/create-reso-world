@@ -371,7 +371,7 @@ Expected: `FileNotFoundError` で終わり、`exit=1`
 
 ### 手順
 
-1. ホストの作業ツリー（`/workspaces/reso-world`）を最新の `origin/main` に追従させる。rebuild は作業ツリーの `.devcontainer/` を使う。#22 の PR は文書とテストの例外の 1 行だけを変え、導入スクリプトと設定ファイルを変えないので、`origin/main`（`01affb7` 以降）で rebuild すれば、移植の結果を確かめられる
+1. ホストの作業ツリー（`/workspaces/reso-world`）を最新の `origin/main` に追従させる。rebuild は作業ツリーの `.devcontainer/` を使う。#22 の PR は文書とテストの例外（`EXCLUDED` の 1 行とそのコメント）だけを変え、導入スクリプトと設定ファイルを変えないので、`origin/main`（`01affb7` 以降）で rebuild すれば、移植の結果を確かめられる
 2. `.devcontainer/README.md` の「既存環境の更新」に従って、ホストの `~/.config/create-reso-world/env` を見直す
 3. VS Code で Dev Containers: Rebuild Container を実行する
 4. 下の表の各項目を「確認のコマンド」で確かめ、「rebuild 後」の列に結果を書く。R-6 の `cleanup_pi_mcp.py` の再実行、R-8、R-11 は利用者の設定を変える操作や対話の承認を含むので、利用者が行うか、利用者の了承を得てから行う
@@ -397,7 +397,7 @@ Expected: `FileNotFoundError` で終わり、`exit=1`
 
 ### 確認のコマンド
 
-表のセルにはコマンドを書かない。表のセルでは `|` を `\|` と書く必要があり、Markdown のソースから写すとシェルが別のコマンドとして実行する（R-4 では環境変数の値がすべて表示される）。コマンドは次のブロックから写し、リポジトリのルートで実行する。
+表のセルにはコマンドを書かない。表のセルでは `|` を `\|` と書く必要があり、Markdown のソースから写すとシェルが別のコマンドとして実行する（R-4 では環境変数の値がすべて表示される）。コマンドは次のブロックから写し、リポジトリのルートで実行する。R-4・R-9 は `zsh -i` で `~/.zshrc` を読むので、新しい端末を開いたときと同じく、24 時間に 1 回の作業領域の掃除（`cleanup-workspace.bash`）がバックグラウンドで動くことがある（利用者の設定は変えない）。
 
 読み取り専用のコマンド（利用者の設定を変えない）:
 
@@ -939,7 +939,7 @@ PR #33 のレビューの指摘と、修正後の PR 全体の再レビューの
 - Task 1 の Step 4 の埋め込み文書は、最終版の `docs/maatlog-poc-porting.md` と同じ内容にした。全文の埋め込みなので機械的に揃えられ、値を表示する R-4 の旧い確認方法を Plan に残さない。Step 5 の期待値は最終版の値（`rows: 96`、`path tokens: 114`）にした。Task 1 の時点の版（91 行）はコミット `0132c84` にあり、そこからの変更は上の D-15 の行と、レビュー修正の Spec に記録した修正である
 - Task 2 の Step 3 のパッチは、`01affb7` から最終版の `.devcontainer/README.md` への差分にした。Task 2 の受け入れ検査はこのパッチで通る。Task 2 の時点のパッチはコミット `4e932e8` の差分で、そこからの変更はレビュー修正の Spec に記録した修正である
 - 次は計画の時点の記述のまま残す。最終の状態は次のとおり
-  - Architecture と Global Constraints: 変更したファイルには D-15 のテストの例外の 1 行（`tests/skills/test_legacy_references.py`）が加わった
+  - Architecture と Global Constraints: 変更したファイルには D-15 のテストの例外（`tests/skills/test_legacy_references.py` の `EXCLUDED` の 1 行とそのコメント）が加わった
   - Task 3 のパッチと、Task 2・3 の一時の検査スクリプトのうちルートの `README.md` の期待値: 上の「実行時の変更」の D-15 と、レビュー修正（ルートの `README.md` の pi の項目に、trust の後に読まれるものとして `.pi/APPEND_SYSTEM.md` とプロジェクトのスキルを足した）の前の版である。実際に使った検査スクリプトの期待値（pi の項目の書き出しなど）は、最終版でも通る
   - Task 3 の Step 4 の節名の参照の検査スクリプト: 上の「実行時の変更」で「移植の比較表」の目印を足す前の版である。この版を最終版に当てると、ルートの `README.md` の 92 行の「rebuild での確認」を `docs/integration.md` の見出しとして探して失敗する。目印を足した版では、最終版でも参照は 22 件で、すべて参照先の見出しに当たる
   - Task 4 の Step 3 の変更の範囲: `origin/main` は作業中に進んだので、`git diff --stat origin/main...HEAD` で比べる。最終版の変更は `.devcontainer/README.md`・`README.md`・`docs/maatlog-poc-porting.md`・`tests/skills/test_legacy_references.py`、Issue #22 の Spec、この Plan、レビュー修正の Spec の 7 ファイルである
