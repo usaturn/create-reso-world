@@ -121,14 +121,16 @@
 | `.devcontainer/herdr-agent-task.bash`・`herdr-git-status.bash`・`herdr-status-updater.bash`・`herdr.toml` | 既存維持 | 移植元と同一 |
 | `.devcontainer/herdr-pr-review.bash`・`herdr-pr-review-launch.bash`・`herdr-pr-review.toml` | 対象外 | レビュー系ツール。担当は #17 |
 | `.devcontainer/starship.toml` | 既存維持 | 移植先はワールドごとの `.venv` を cwd から上へ探す。移植元はリポジトリのルートの `.venv` だけを見る |
-| `.devcontainer/test-herdr-agent-task.bash`・`test-herdr-status.bash` | 既存維持 | 移植先が新しい（here-string で SIGPIPE を避ける）。移植元の `test-herdr-agent-task.bash` のコメントの言い換え（「契約」を「仕様」にしたもの）は取り込まない。テストは #22 の編集範囲外 |
+| `.devcontainer/test-herdr-agent-task.bash`・`test-herdr-status.bash` | 既存維持 | 移植先が新しい（here-string で SIGPIPE を避ける）。コメントの言い換えは、移植元だけのコメントの言い換えの行で扱う |
+| `.devcontainer/zshrc.txt`・`.devcontainer/test-herdr-migration.bash`・`.devcontainer/test-pi-superagents.bash`・`.devcontainer/test-herdr-agent-task.bash` のコメントの言い換え（「正本」を「基準」「元ファイル」に、「契約」を「仕様」にしたもの） | 除外 | 移植元は `AGENTS.md` の日本語表現の規則に合わせてコメントを言い換えた。これらのファイルは #22 の編集範囲外で、言い換えは動作に関わらないので取り込まない。移植先の `AGENTS.md` にも同じ規則があるので、言い換えはこれらのファイルを変える別の作業で行う（PR #33 のレビュー修正で足した行） |
 | `.devcontainer/install_beforehand.bash` のうち `public` の checkout、Gitleaks・Playwright の導入 | 対象外 | MaatLog の公開アプリケーションと検証の手順 |
 | `.devcontainer/install_beforehand.bash` のうち Codex・Cursor・Devin・uv・Starship・Herdr・共有スキルの導入と `pi-subagents` の置き換え | 既存維持 | 移植先の手順で足りる。`pi-subagents` の置き換えの手順は移植元と同等（差分はコメントの Issue 番号だけ） |
 | `.devcontainer/install_beforehand.bash` のうち `~` 配下の書き込み可能なディレクトリの用意、apt の設定、基本パッケージとロケール、Herdr の補助スクリプトの配置、作業領域の掃除、`~/.zshrc` への連結 | 既存維持 | 移植先の手順で足りる。違いは、ディレクトリの一覧（`.grok`・`.dsh` は #18 で撤去し、移植先は秘密情報の置き場 `~/.config/create-reso-world` を持つ）、移植先だけが導入する `blender`、基本パッケージの前の重複した `apt update`（移植先は直前の手順の 1 回だけ）、移植元だけが置くレビュー系ツールの herdr-pr-review（移植先は `cleanup-workspace.bash` を symlink ではなくコピーで置く）と、コメントの Issue 番号（PR #33 のレビュー修正で足した行） |
 | なし（移植先の `install_beforehand.bash` の ResoLoop の導入と Resonite のツールの確認、`zshrc.txt` の `require_command`・`update_if_present`・秘密情報の `env` の読み込み・.NET のツールの PATH） | 既存維持 | 移植先にだけある手順と補助 |
+| `.devcontainer/zshrc.txt` のほかの行で扱わない設定（シェルの基本設定、PATH、git の alias、`genv`・`cod`・`buni`、`EDITOR`・`LANG`、Herdr の起動の関数、Starship の初期化） | 既存維持 | 移植元と同じ。違いは、関数の `require_command` の呼び出し（移植先にだけある補助）と、bun の補完のパス（移植先は `$BUN_INSTALL` を使う）だけ（PR #33 のレビュー修正で足した行） |
 | `.devcontainer/README.md` のうち「Codex で CLAUDE.md を指示ファイルとして読む」「Herdr サイドバーの設定移行」「エージェント向けツールの導入」 | 既存維持 | 移植先は同じ内容を移植先の構成（Codex は `AGENTS.md` を直接読む、9 本のランチャー、5 つのプラグイン）で書いてある |
 | `.devcontainer/README.md` のうち「pi のモデル定義とランチャー」「モデル定義の正」 | 既存維持 | 差分は setup スクリプトのパス（移植先は `.devcontainer/` に置く）と、移植先にだけある `pigou` の説明だけ（PR #33 のレビュー修正で足した行） |
-| `.devcontainer/README.md` のうち「public/ checkout の検査と復旧」「npm への一本化（#147）と既存環境の移行」 | 対象外 | MaatLog の `public/` submodule と yarn からの移行の手順 |
+| `.devcontainer/README.md` のうち冒頭の説明と「public/ checkout の検査と復旧」「npm への一本化（#147）と既存環境の移行」 | 対象外 | MaatLog の親子リポジトリと `public/` submodule（Playwright の導入を含む）、yarn からの移行の手順 |
 | `.devcontainer/README.md` のうち「PR レビューの一括起動（herdr-pr-review）」 | 対象外 | レビュー系ツール。担当は #17 |
 | `.devcontainer/zshrc.txt` のうち Cursor / Devin の alias（`cur`・`curo`・`dev`・`devo`・`devs` のモデル固定） | 対象外 | #17 の実行ボードで「Cursor / Devin のエイリアスは誰も変えない」と決めた |
 | `.devcontainer/zshrc.txt` のうち `maatlog_periodic_cleanup`、`update()` | 既存維持 | 移植先は `workspace_periodic_cleanup` に汎用化し、`update()` は無いツールを飛ばす `update_if_present` を使う。`grok update` の撤去は #18 |
@@ -146,7 +148,7 @@
 `.devcontainer/README.md`:
 
 - 「秘密情報」の変数の例に `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足し、詳細は「API トークン」節を参照させる
-- 「API トークン」節を、変数ごとに「使うもの」と「無いときの挙動」を書く形に書き直す。対象は `OPENCODE_API_KEY`（pi の OpenCode Go のランチャーは `auth.json` を優先して読むので通常は不要、`pigs`・`pixg` の `cheap` などの子 Pi も同じ、`ccdu` は環境変数が必須で優先順位を持つ、`setup_pi_opencode_go.zsh` の実行に必要）、`OPENCODE_GO_API_KEY`（旧名。OpenCode Go を使う `pigo`・`pigod`・`pigou`・`pigs`・`pixg` が `OPENCODE_API_KEY` に引き継ぎ、`ccdu` の 3 番目の候補）、`OPENCODE_GO_CLAUDE_API_KEY`（`ccdu` の最初の候補）、`DEEPINFRA_TOKEN`（pi の deepinfra と `ccdd`・`ccddg`）、`COMMANDCODE_API_KEY`（`piccg`・`piccd`）、`GOOGLE_DEV_KNOWLEDGE_API_KEY`（pi と Claude Code の Google Developer Knowledge の MCP）、`CONTEXT7_API_KEY`（`.codex/config.toml` の `env_vars` で Codex の `context7_stdio` に渡す。未設定なら `cod` が起動時に入力を求める。共有の `find-docs` スキルの Context7 の CLI も使い、無ければレート制限が低くなる）。値の例は書かない
+- 「API トークン」節を、変数ごとに「使うもの」と「無いときの挙動」を書く形に書き直す。対象は `OPENCODE_API_KEY`（pi の OpenCode Go のランチャーは `auth.json` を優先して読むので通常は不要、`pigs`・`pixg` の `cheap` などの子 Pi も同じ、`ccdu` は環境変数が必須で優先順位を持つ、`setup_pi_opencode_go.zsh` の実行に必要）、`OPENCODE_GO_API_KEY`（旧名。OpenCode Go を使う `pigo`・`pigod`・`pigou`・`pigs`・`pixg` が `OPENCODE_API_KEY` に引き継ぎ、`ccdu` の 3 番目の候補）、`OPENCODE_GO_CLAUDE_API_KEY`（`ccdu` の最初の候補）、`DEEPINFRA_TOKEN`（pi の deepinfra と `ccdd`・`ccddg`）、`COMMANDCODE_API_KEY`（`piccg`・`piccd`）、`GOOGLE_DEV_KNOWLEDGE_API_KEY`（pi と Claude Code の Google Developer Knowledge の MCP）、`CONTEXT7_API_KEY`（`.codex/config.toml` の `env_vars` で Codex の `context7_stdio` に渡す。未設定なら `cod` が起動時に入力を求める。共有の `find-docs` スキルの Context7 の CLI と、Claude Code・Cursor の Context7 の MCP サーバーも、受け取った環境にあれば使い、無ければレート制限が低くなる）。値の例は書かない
 - 新設の「既存環境の更新」節を「秘密情報」の次に置く。順序は、(1) 作業ツリーを最新の `origin/main` に追従させる、(2) ホストの `env` を見直す（`MAAS_ANTHROPIC_TOKEN` を消す、必要なら `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す）、(3) rebuild する（postCreate が自動で行うこと）、(4) rebuild では変わらないものを反映する（`pigs`・`pixg` の tier、pi の project trust、`models.json` に残る `deepinfra-distill` の任意の整理）、(5) 確認項目は、ルートの `README.md` の「対象外」が案内する移植の記録にある（D-14）。rebuild しない場合の手順は、既存の各節への参照で並べる。各節の詳細は書き写さない（D-8）
 
 ルート `README.md`:
@@ -198,7 +200,7 @@ Plan の一時スクリプト（scratchpad に置き、リポジトリには入�
 | R-8 | `zsh .devcontainer/setup_pi_superagents.zsh` で `pigs`・`pixg` の tier が #20 の値になる（変更があればバックアップされる） | #20 |
 | R-9 | `ccd`・`ccdo`・`ccds` の alias と 6 つのプロバイダ関数がある。短い名前だけが権限確認を省略することは、R-12 の `.devcontainer/test-herdr-migration.bash` が fake CLI の argv で検査する | #21 |
 | R-10 | `claude plugin list` に 5 プラグインがある | #21 |
-| R-11 | pi の trust を承認すると、ルートと各ワールドで `.pi/settings.json`・`.pi/mcp.json` が読まれる | #19・#22 |
+| R-11 | pi の trust を承認すると、ルートとワールド（代表として `slum02/`。4 つのワールドは同じ `.pi -> ../.pi` を持ち、`check-layout.sh` が検査する）で `.pi/settings.json`・`.pi/mcp.json` が読まれる | #19・#22 |
 | R-12 | `bash scripts/check-layout.sh`・`bash .devcontainer/run-tests.bash`・`uv run pytest tests/skills .agents/skills` が通る | #22 |
 
 - 実認証のスモークテスト（別枠）: provider の実接続（`pigo` などの 9 ランチャー、`ccdd`・`ccdd --model fable`・`ccddg`・`ccdu`）、サブエージェントの子 Pi、pi と Claude Code の Google Developer Knowledge の MCP。いずれも未検証と明記する

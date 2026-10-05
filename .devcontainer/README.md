@@ -591,7 +591,8 @@ export される。書かない場合は、必要なときに手動で export �
   無い場合の pi の挙動は「組み込み MCP と廃止した拡張」にある
 - `CONTEXT7_API_KEY` は `.codex/config.toml` の `env_vars` で Codex の Context7 の MCP サーバー
   （`context7_stdio`）に渡す。未設定のまま `cod` を起動すると、入力を求める。
-  共有の `find-docs` スキルが使う Context7 の CLI もこの変数を使う。無くても動くが、レート制限が低くなる
+  共有の `find-docs` スキルが使う Context7 の CLI と、Claude Code（`.mcp.json`）・Cursor（`.cursor/mcp.json`）の
+  Context7 の MCP サーバー（`@upstash/context7-mcp`）も、受け取った環境にこの変数があれば使う。無くても動くが、レート制限が低くなる
 
 ### pi の TUI モードと Herdr のスクロール履歴
 

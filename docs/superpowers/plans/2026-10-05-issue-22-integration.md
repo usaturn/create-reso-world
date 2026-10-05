@@ -295,16 +295,18 @@ Expected: `FileNotFoundError` で終わり、`exit=1`
 | `.devcontainer/zshrc.txt` の Cursor と Devin の alias（`cur`・`curo`・`dev`・`devo`・`devs` のモデルの固定） | 同じファイルの `cur`・`dev` | 対象外 | #17 の実行ボードで、Cursor と Devin の alias はどの子も変えないと決めた | #17 |
 | `.devcontainer/zshrc.txt` の `maatlog_periodic_cleanup` と `update()` | 同じファイルの `workspace_periodic_cleanup` と `update()` | 既存維持 | 移植先は定期の掃除を汎用化し、`update()` は無いツールを飛ばす `update_if_present` を使う。`grok update` の撤去は #18 | #22 |
 | なし | `.devcontainer/zshrc.txt` の `require_command`・`update_if_present`、秘密情報の `env` の読み込み、.NET のツールの PATH | 既存維持 | 移植先にだけある補助 | #22 |
+| `.devcontainer/zshrc.txt` のほかの行で扱わない設定（シェルの基本設定、PATH、git の alias、`genv`・`cod`・`buni`、`EDITOR`・`LANG`、Herdr の起動の関数、Starship の初期化） | 同じファイルの同じ箇所 | 既存維持 | 移植元と同じ。違いは、関数の `require_command` の呼び出し（移植先にだけある補助）と、bun の補完のパス（移植先は `$BUN_INSTALL` を使う）だけ | #22 |
 | `.devcontainer/cleanup-workspace.bash` | 同じ | 既存維持 | 移植先は汎用化した版（`WORKSPACE_CLEANUP_*`）。移植元の版は対象外のレビュー系ツールの reaper CLI に依存する | #22 |
 | `.devcontainer/herdr-agent-task.bash`・`.devcontainer/herdr-git-status.bash`・`.devcontainer/herdr-status-updater.bash`・`.devcontainer/herdr.toml` | 同じ | 既存維持 | 移植元と同一 | #22 |
-| `.devcontainer/test-herdr-agent-task.bash`・`.devcontainer/test-herdr-status.bash` | 同じ | 既存維持 | 移植先が新しい（here-string で SIGPIPE を避ける）。移植元の `test-herdr-agent-task.bash` のコメントの言い換え（「契約」を「仕様」にしたもの）は取り込まない。テストは #22 の編集範囲外 | #22 |
+| `.devcontainer/test-herdr-agent-task.bash`・`.devcontainer/test-herdr-status.bash` | 同じ | 既存維持 | 移植先が新しい（here-string で SIGPIPE を避ける）。コメントの言い換えは、移植元だけのコメントの言い換えの行で扱う | #22 |
+| `.devcontainer/zshrc.txt`・`.devcontainer/test-herdr-migration.bash`・`.devcontainer/test-pi-superagents.bash`・`.devcontainer/test-herdr-agent-task.bash` のコメントの言い換え（「正本」を「基準」「元ファイル」に、「契約」を「仕様」にしたもの） | 同じファイル（コメントは変えない） | 除外 | 移植元は `AGENTS.md` の日本語表現の規則に合わせてコメントを言い換えた。これらのファイルは #22 の編集範囲外で、言い換えは動作に関わらないので取り込まない。移植先の `AGENTS.md` にも同じ規則があるので、言い換えはこれらのファイルを変える別の作業で行う | #22 |
 | `.devcontainer/starship.toml` | 同じ | 既存維持 | 移植先は cwd から上へ最寄りの `.venv` を探し、ワールドごとの `.venv` に対応する。移植元はリポジトリのルートの `.venv` だけを見る | #22 |
 | `.cursor/rules/shell-env-hygiene.mdc` | 同じ | 既存維持 | 移植元と同一 | #22 |
 | `.gitignore` | 同じ | 既存維持 | 移植先の追跡の方針（2026-09-26 の再設計の 4.4 節）を保つ。`docs_draft/`・`/.worktrees/`・`/.claude/worktrees/` は移植先にもある。MaatLog と Node.js 向けの除外は持ち込まない | #22 |
 | `.devcontainer/README.md` の pi の「API トークン」 | 同じファイルの「秘密情報」「API トークン」と新設の「既存環境の更新」 | 適応 | #18〜#21 の変更に合わせて、変数の説明と既存環境の手順をまとめた | #22 |
 | `.devcontainer/README.md` の「Codex で CLAUDE.md を指示ファイルとして読む」「Herdr サイドバーの設定移行」「エージェント向けツールの導入」 | 同じファイルの「エージェントの読み込みの制約」「Herdr サイドバーの設定移行」「エージェント向けツールの導入」 | 既存維持 | 移植先の Codex は `AGENTS.md` を直接読むので、fallback の設定は不要と説明している。Herdr と導入の節は移植先の構成（9 本のランチャー、5 つのプラグイン）で書いてある | #22 |
 | `.devcontainer/README.md` の「pi のモデル定義とランチャー」「モデル定義の正」 | 同じファイルの同じ節 | 既存維持 | 差分は setup スクリプトのパス（移植先は `.devcontainer/` に置く）と、移植先にだけある `pigou` の説明だけ | #22 |
-| `.devcontainer/README.md` の「public/ checkout の検査と復旧」「npm への一本化（#147）と既存環境の移行」 | なし | 対象外 | MaatLog の `public/` submodule と、yarn からの移行の手順 | #22 |
+| `.devcontainer/README.md` の冒頭の説明と「public/ checkout の検査と復旧」「npm への一本化（#147）と既存環境の移行」 | なし | 対象外 | MaatLog の親子リポジトリと `public/` submodule（Playwright の導入を含む）、yarn からの移行の手順 | #22 |
 | `.devcontainer/README.md` の「PR レビューの一括起動（herdr-pr-review）」 | なし | 対象外 | レビュー系ツール | #17 |
 | `README.md` | `README.md` | 対象外 | 移植元の README は MaatLog の開発ワークスペースの説明で、エージェントの設定を含まない。移植先の README の更新は下の行と #18 の行 | #22 |
 | なし | `README.md` の ResoLoop の版の説明 | 適応（PR #27 のレビュー修正） | ResoLoop の導入の説明を `.devcontainer/resoloop.lock` の nuget / fork モードに合わせた | #19 |
@@ -384,13 +386,13 @@ Expected: `FileNotFoundError` で終わり、`exit=1`
 | R-2 | mount が 12 件で、dsh と Grok Build の mount が無い | `/home/vscode` 配下の mount の数と、`.dsh`・`.grok` の mount（R-2 のコマンド） | 12 件、`.dsh`・`.grok` は無い | 14 件。`~/.dsh`・`~/.grok` がある | 未記録 |
 | R-3 | dsh・Grok Build が無く、pnpm を npm で導入せず、転送するポートは 8000 だけ | `dsh`・`grok` のコマンド、npm の大域パッケージの `pnpm`、`pnpm` のコマンドの実体（R-3 のコマンド）と、VS Code の「ポート」 | `dsh`・`grok` は無い。npm の大域パッケージに `pnpm` が無い（`(empty)`）。Node の feature が `corepack enable` で置く `pnpm` の shim は残ってよい（`readlink -f` が `corepack/dist/pnpm.js` を指す）。3080 は転送しない | `dsh` がある。`grok` は無い。`pnpm` は npm の大域パッケージ（`pnpm@12.4.1`） | 未記録 |
 | R-4 | 廃止した環境変数が新しいシェルに無い | 新しいシェルの環境変数の名前（R-4 のコマンド。値は表示しない） | 何も出ない（`MAAS_ANTHROPIC_TOKEN` は `env` から消した場合）。残っていれば変数名だけが出て、値は出ない | `PI_DISTILL_*` の 3 つ、`PI_EXTENSIONS_LOCALE`、`MAAS_ANTHROPIC_TOKEN` がある | 未記録 |
-| R-5 | 撤去した拡張が残らず、設定とモデルが残る | `pi list`、pi 管理の npm マニフェストの依存、settings の `extensions`、`models.json` の provider（R-5 のコマンド） | `pi-mcp-adapter`・`@upstash/context7-pi`・`pi-distill`・`pi-extensions-tool-display`・`pi-extensions-i18n` が無い。`extensions` に `-builtin:mcp` が無い。provider は rebuild 前と同じ | `@upstash/context7-pi` が登録され、npm マニフェストにもある。`extensions` は空。provider は `commandcode`・`deepinfra`・`deepinfra-distill`・`opencode-go` | 未記録 |
+| R-5 | 撤去した拡張が残らず、設定とモデルが残る | `pi list --no-approve`（プロジェクトの trust を問わない）、pi 管理の npm マニフェストの依存、settings の `extensions`、`models.json` の provider（R-5 のコマンド） | `pi-mcp-adapter`・`@upstash/context7-pi`・`pi-distill`・`pi-extensions-tool-display`・`pi-extensions-i18n` が無い。`extensions` に `-builtin:mcp` が無い。provider は rebuild 前と同じ | `@upstash/context7-pi` が登録され、npm マニフェストにもある。`extensions` は空。provider は `commandcode`・`deepinfra`・`deepinfra-distill`・`opencode-go` | 未記録 |
 | R-6 | バックアップは変更が必要なときだけ作られる | バックアップの一覧を見て、cleanup を再実行してから同じ一覧を見る（R-6 のコマンド） | rebuild で 1 つ作られ（rebuild 前に `@upstash/context7-pi` があるため）、再実行では増えない | `migration-backups` は無い | 未記録 |
 | R-7 | 全ランチャーが `--tui-mode regular` で起動し、追加の指定が後ろに残る | 9 本のランチャーの dry-run（R-7 のコマンド）。dry-run でも、argv を出す前に各ランチャーの前提を確かめる: `piga`・`pigs`・`pigl` は Codex OAuth、`pixg` は xAI OAuth（どちらも `~/.pi/agent/auth.json`）、`piccg`・`piccd` は `COMMANDCODE_API_KEY` と `models.json` の commandcode の定義（`piccd` は DeepSeek のモデルも）、`pigou` は `models.json` の `union-alpha` の定義。9 本に共通の `bwrap`・共通ヘルパ・ランチャー別の設定は rebuild で配置される | 前提がそろったランチャーは、pi の引数の先頭に `--tui-mode`・`regular` があり、後ろに `--tui-mode`・`fullscreen` が残る。前提が無いランチャーは案内を出して終了するので、「前提が未設定のため未確認」と記録する | `pigo`・`pigs`・`pixg` の 3 本で確かめ、ヘルパが付ける `--tui-mode regular` が無い（`--tui-mode` は利用者が渡した 1 つだけ） | 未記録 |
 | R-8 | `pigs`・`pixg` の tier がリポジトリの値になる | setup を `--if-absent` なしで実行してから、`pigs`・`pixg` のランチャー別の設定の tier をリポジトリの値と比べる（R-8 のコマンド） | 一致する（差分が出ない）。変更があった設定はバックアップされる | すでに一致している（ホストと共有する `~/.pi` を別の環境で更新済みと考えられる） | 未記録 |
 | R-9 | Claude Code のランチャーがそろい、`ccda` が無い | Claude Code の alias と関数（R-9 のコマンド） | 3 つの alias と 6 つの関数がある。`ccda`・`claude-alibaba` は無い | alias は `ccd` だけ。`ccda`・`claude-alibaba` がある | 未記録 |
 | R-10 | Claude Code のプラグインが宣言と一致する | `claude plugin list`（R-10 のコマンド） | `example-skills`・`feature-dev`・`ripgrep`・`superpowers`・`web-quality-skills` がある | 5 つともある | 未記録 |
-| R-11 | pi がルートとワールドでプロジェクトの設定を読む | ルートと `slum02/` で素の `pi` を起動し、project trust を承認してから `/mcp` を開く | `google-dev-knowledge` が表示される（キーが無ければ接続のエラーを 1 回通知する） | 未確認 | 未記録 |
+| R-11 | pi がルートとワールドでプロジェクトの設定を読む | ルートと、ワールドの代表として `slum02/` で素の `pi` を起動し、project trust を承認してから `/mcp` を開く（4 つのワールドは同じ `.pi -> ../.pi` を持ち、R-12 の `check-layout.sh` が検査する） | `google-dev-knowledge` が表示される（キーが無ければ接続のエラーを 1 回通知する） | 未確認 | 未記録 |
 | R-12 | テスト一式が通る | リポジトリのルートでテスト一式を実行する（R-12 のコマンド） | すべて成功する | PASS、27/27、516 passed・1 skipped（`01affb7` の worktree） | 未記録 |
 
 ### 確認のコマンド
@@ -409,8 +411,8 @@ npm ls -g --depth=0 pnpm
 readlink -f "$(command -v pnpm)"
 # R-4（変数名だけを出し、値は出さない）
 zsh -ic 'env' 2>/dev/null | grep -oE '^(PI_DISTILL_[A-Z_]+|PI_EXTENSIONS_LOCALE|MAAS_ANTHROPIC_TOKEN)='
-# R-5
-pi list
+# R-5（`--no-approve` は、プロジェクトの trust を決めていないときの確認を出さない）
+pi list --no-approve
 jq '.dependencies' ~/.pi/agent/npm/package.json
 jq '.extensions' ~/.pi/agent/settings.json
 jq '.providers | keys' ~/.pi/agent/models.json
@@ -455,7 +457,7 @@ Run: `uv run --no-project "$S/check_porting_table.py" "$S/src-tree.txt" docs/maa
 Expected:
 
 ```text
-source paths: 456  rows: 94  path tokens: 109  missing: 0
+source paths: 456  rows: 96  path tokens: 114  missing: 0
 exit=0
 ```
 
@@ -575,7 +577,7 @@ Expected: `FAIL: no ## 既存環境の更新`、`exit=1`
 
 ~~~~diff
 diff --git a/.devcontainer/README.md b/.devcontainer/README.md
-index 18ed593..10602a5 100644
+index 18ed593..304d9c4 100644
 --- a/.devcontainer/README.md
 +++ b/.devcontainer/README.md
 @@ -53,12 +53,50 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
@@ -631,7 +633,7 @@ index 18ed593..10602a5 100644
  ## テストの実行
  
  リポジトリのルートで次を実行する。CI（`.github/workflows/ci.yml`）も同じコマンドを実行する。
-@@ -526,21 +564,34 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同
+@@ -526,21 +564,35 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同
  
  ### API トークン
  
@@ -669,11 +671,12 @@ index 18ed593..10602a5 100644
 +  無い場合の pi の挙動は「組み込み MCP と廃止した拡張」にある
 +- `CONTEXT7_API_KEY` は `.codex/config.toml` の `env_vars` で Codex の Context7 の MCP サーバー
 +  （`context7_stdio`）に渡す。未設定のまま `cod` を起動すると、入力を求める。
-+  共有の `find-docs` スキルが使う Context7 の CLI もこの変数を使う。無くても動くが、レート制限が低くなる
++  共有の `find-docs` スキルが使う Context7 の CLI と、Claude Code（`.mcp.json`）・Cursor（`.cursor/mcp.json`）の
++  Context7 の MCP サーバー（`@upstash/context7-mcp`）も、受け取った環境にこの変数があれば使う。無くても動くが、レート制限が低くなる
  
  ### pi の TUI モードと Herdr のスクロール履歴
  
-@@ -620,7 +671,7 @@ pi-superagents v1.14.3 以降は、git で導入したパッケージの `packag
+@@ -620,7 +672,7 @@ pi-superagents v1.14.3 以降は、git で導入したパッケージの `packag
  [upstream の修正 #72](https://github.com/teelicht/pi-superagents/pull/72) は
  [v1.14.3](https://github.com/teelicht/pi-superagents/releases/tag/v1.14.3) に含まれる。
  
@@ -933,13 +936,13 @@ Spec の D-15 として次のように直した（コミット `9ebeb29`）。�
 
 PR #33 のレビューの指摘と、修正後の PR 全体の再レビューの指摘を `docs/superpowers/specs/2026-10-05-pr33-issue-22-integration-review-fixes-design.md` で選別し、比較表、`.devcontainer/README.md`、ルートの `README.md`、Issue #22 の Spec を直した。個々の修正はその Spec の F-1 以降にある。この Plan は次のように扱う。
 
-- Task 1 の Step 4 の埋め込み文書は、最終版の `docs/maatlog-poc-porting.md` と同じ内容にした。全文の埋め込みなので機械的に揃えられ、値を表示する R-4 の旧い確認方法を Plan に残さない。Step 5 の期待値は最終版の値（`rows: 94`、`path tokens: 109`）にした。Task 1 の時点の版（91 行）はコミット `0132c84` にあり、そこからの変更は上の D-15 の行と、レビュー修正の Spec に記録した修正である
+- Task 1 の Step 4 の埋め込み文書は、最終版の `docs/maatlog-poc-porting.md` と同じ内容にした。全文の埋め込みなので機械的に揃えられ、値を表示する R-4 の旧い確認方法を Plan に残さない。Step 5 の期待値は最終版の値（`rows: 96`、`path tokens: 114`）にした。Task 1 の時点の版（91 行）はコミット `0132c84` にあり、そこからの変更は上の D-15 の行と、レビュー修正の Spec に記録した修正である
 - Task 2 の Step 3 のパッチは、`01affb7` から最終版の `.devcontainer/README.md` への差分にした。Task 2 の受け入れ検査はこのパッチで通る。Task 2 の時点のパッチはコミット `4e932e8` の差分で、そこからの変更はレビュー修正の Spec に記録した修正である
 - 次は計画の時点の記述のまま残す。最終の状態は次のとおり
   - Architecture と Global Constraints: 変更したファイルには D-15 のテストの例外の 1 行（`tests/skills/test_legacy_references.py`）が加わった
-  - Task 3 のパッチと、Task 2・3 の一時の検査スクリプトのうちルートの `README.md` の期待値: 上の「実行時の変更」の D-15 と、レビュー修正（ルートの `README.md` の pi の項目に、trust の後に読まれるプロジェクトのスキルを足した）の前の版である。実際に使った検査スクリプトの期待値（pi の項目の書き出しなど）は、最終版でも通る
+  - Task 3 のパッチと、Task 2・3 の一時の検査スクリプトのうちルートの `README.md` の期待値: 上の「実行時の変更」の D-15 と、レビュー修正（ルートの `README.md` の pi の項目に、trust の後に読まれるものとして `.pi/APPEND_SYSTEM.md` とプロジェクトのスキルを足した）の前の版である。実際に使った検査スクリプトの期待値（pi の項目の書き出しなど）は、最終版でも通る
   - Task 3 の Step 4 の節名の参照の検査スクリプト: 上の「実行時の変更」で「移植の比較表」の目印を足す前の版である。この版を最終版に当てると、ルートの `README.md` の 92 行の「rebuild での確認」を `docs/integration.md` の見出しとして探して失敗する。目印を足した版では、最終版でも参照は 22 件で、すべて参照先の見出しに当たる
   - Task 4 の Step 3 の変更の範囲: `origin/main` は作業中に進んだので、`git diff --stat origin/main...HEAD` で比べる。最終版の変更は `.devcontainer/README.md`・`README.md`・`docs/maatlog-poc-porting.md`・`tests/skills/test_legacy_references.py`、Issue #22 の Spec、この Plan、レビュー修正の Spec の 7 ファイルである
   - Task 4 の Step 4 の PR の本文の項目（3 ファイルの変更、D-1〜D-14）: 実際の本文は、テストの例外を含む 4 ファイルと D-1〜D-15 で書いた
-  - Task 1 の Step 8 のコマンド: rebuild 前の値を取るために計画時に使ったもので、比較表の「確認のコマンド」とは R-3（`command -v pnpm` で判定する。最終版は npm の大域パッケージの有無で判定する）、R-5・R-10（出力を絞る）、R-7（3 本だけ）が違う。rebuild 後の確認には比較表の「確認のコマンド」を使う
-- Task 1 の Step 8 の R-9 のコマンドには `</dev/null` を足した。herdr のペインの外の端末で `zsh -ic` を実行すると、`~/.zshrc` の末尾の `herdrstart` が herdr を前面で起動するためである（標準入力が端末でなければ起動しない）。出力は変わらない
+  - Task 1 の Step 8 のコマンド: rebuild 前の値を取るために計画時に使ったもので、比較表の「確認のコマンド」とは、判定の方法（R-3 は `command -v pnpm` で判定する。最終版は npm の大域パッケージの有無で判定する）、出力の形（R-4・R-5・R-9・R-10）、対象（R-6 の一覧が無く、R-7 は 3 本だけ）、R-5 の `pi list` の `--no-approve` と R-9 の `</dev/null` の有無が違う。rebuild 後の確認には比較表の「確認のコマンド」を使う
+- Task 1 の Step 8 の R-9 のコマンドには、後から `</dev/null` を足した。herdr のペインの外の端末で `zsh -ic` を実行すると、`~/.zshrc` の末尾の `herdrstart` が herdr を前面で起動するためである（標準入力が端末でなければ起動しない）。出力は変わらない
