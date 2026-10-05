@@ -11,19 +11,31 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import uuid
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 
 class WorkspaceError(RuntimeError):
     """Report a safety invariant violation without changing repository state."""
+
+
+class CreateInterrupted(BaseException):
+    """Stop create on a termination signal so its journal records how it ended."""
+
+    def __init__(self, signum: int) -> None:
+        super().__init__(f"create interrupted by {signal.Signals(signum).name}")
+        self.signum = signum
 
 
 MODEL_FILENAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -33,6 +45,12 @@ UNSAFE_DIRECTORY_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 MODEL_SOURCE_CODEX = "codex-rollout"
 MODEL_SOURCE_EXPLICIT = "explicit"
 MODEL_SOURCES = {MODEL_SOURCE_CODEX, MODEL_SOURCE_EXPLICIT}
+
+ATTEMPT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+JOURNAL_NAME = "create-journal.jsonl"
+TERMINAL_PHASES = ("completed", "failed", "interrupted")
+# Tool timeouts and closing terminals send these before any SIGKILL.
+INTERRUPT_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
 
 
 def _json_object(value: object) -> dict[str, object] | None:
@@ -138,11 +156,12 @@ def review_artifact_paths(
     return backup_dir / filename, f"reviews/{directory}/{filename}"
 
 
-def git(repo: Path, *args: str, binary: bool = False) -> str | bytes:
+def git(repo: Path, *args: str, binary: bool = False, pass_fds: tuple[int, ...] = ()) -> str | bytes:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         check=False,
         capture_output=True,
+        pass_fds=pass_fds,
     )
     if result.returncode:
         message = result.stderr.decode("utf-8", errors="replace").strip()
@@ -243,11 +262,11 @@ def snapshot_existing_review(
         with os.fdopen(source_fd, "rb") as source, os.fdopen(handle, "wb") as output:
             if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
                 raise WorkspaceError("existing review destination must be a regular file")
+            # Session files need no fsync: os.replace publishes all or nothing,
+            # and after an OS crash the review session cannot continue anyway.
             for block in iter(lambda: source.read(1024 * 1024), b""):
                 digest.update(block)
                 output.write(block)
-            output.flush()
-            os.fsync(output.fileno())
         after = destination_fingerprint(destination)
         if after != before or digest.hexdigest() != before.get("sha256"):
             raise WorkspaceError("existing review changed while snapshotting")
@@ -289,28 +308,176 @@ def review_save_lock(repo: Path) -> Generator[None]:
 
 
 def write_json(path: Path, value: dict[str, Any]) -> None:
+    # No fsync: the state lives only as long as the review session, and an
+    # fsync under the shared review lock waited minutes on concurrent
+    # checkouts (Issue #39). os.replace still publishes all or nothing.
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
             json.dump(value, stream, ensure_ascii=False, sort_keys=True)
             stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
         os.replace(temporary, path)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)
         raise
 
 
+def validate_attempt_id(value: str) -> str:
+    if ATTEMPT_ID.fullmatch(value) is None:
+        raise WorkspaceError("attempt id must be 1-64 letters, digits, '.', '_' or '-', starting with a letter or digit")
+    return value
+
+
+def utc_timestamp() -> str:
+    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+class CreateJournal:
+    """Append create's phases and hold the creator lock until create ends."""
+
+    def __init__(self, session_dir: Path, attempt_id: str) -> None:
+        self.attempt_id = attempt_id
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
+        self.stream = os.fdopen(os.open(session_dir / JOURNAL_NAME, flags, 0o600), "a", encoding="utf-8")
+        # The kernel drops this lock when every holder exits, so inspect and
+        # abandon can tell a finished attempt without trusting a PID.
+        fcntl.flock(self.stream.fileno(), fcntl.LOCK_EX)
+
+    def fileno(self) -> int:
+        return self.stream.fileno()
+
+    def record(self, phase: str, **fields: object) -> None:
+        at = utc_timestamp()
+        self.stream.write(json.dumps({"phase": phase, "at": at, **fields}, ensure_ascii=False, sort_keys=True) + "\n")
+        self.stream.flush()
+        detail = f" session_dir={fields['session_dir']}" if "session_dir" in fields else ""
+        print(f"pr-review create {self.attempt_id}: {at} {phase}{detail}", file=sys.stderr, flush=True)
+
+    def record_end(self, phase: str, **fields: object) -> None:
+        # Never mask the error that ended create; a missing end reads as vanished.
+        try:
+            self.record(phase, **fields)
+        except (OSError, ValueError):
+            pass
+
+    def close(self) -> None:
+        self.stream.close()
+
+
+@contextmanager
+def interruption_signals() -> Generator[None]:
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def interrupt(signum: int, _frame: object) -> None:
+        raise CreateInterrupted(signum)
+
+    previous = {signum: signal.signal(signum, interrupt) for signum in INTERRUPT_SIGNALS}
+    try:
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+def journal_attempt(path: Path) -> str | None:
+    """Return the attempt id in a journal's start record, or None if unreadable."""
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        with path.open(encoding="utf-8") as stream:
+            first = stream.readline()
+        header = json.loads(first) if first.endswith("\n") else None
+    except (OSError, ValueError):
+        return None
+    if not isinstance(header, dict) or header.get("phase") != "started":
+        return None
+    value = header.get("attempt_id")
+    return value if isinstance(value, str) else None
+
+
+def read_journal(path: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            if not line.endswith("\n"):
+                break  # cut off by a kill while appending
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise WorkspaceError(f"create journal is unreadable: {path}") from error
+            if not isinstance(record, dict) or not isinstance(record.get("phase"), str):
+                raise WorkspaceError(f"create journal is unreadable: {path}")
+            records.append(cast(dict[str, Any], record))
+    if not records or records[0]["phase"] != "started":
+        raise WorkspaceError(f"create journal has no start record: {path}")
+    return records
+
+
+def attempt_sessions(temp_root: Path, pr_number: int, attempt_id: str) -> list[Path]:
+    return [
+        session_dir
+        for session_dir in sorted(temp_root.glob(f"pr-review-{pr_number}-*"))
+        if not session_dir.is_symlink()
+        and session_dir.is_dir()
+        and journal_attempt(session_dir / JOURNAL_NAME) == attempt_id
+    ]
+
+
 def create(args: argparse.Namespace) -> dict[str, str | None]:
-    model_name, model_source = resolve_runtime_model_name(args.model_name)
+    attempt_id = validate_attempt_id(args.attempt_id)
+    model = resolve_runtime_model_name(args.model_name)
     review_directory_name(args.pr_number, args.head_branch)
     repo = require_main_checkout(args.repo)
     commit = str(git(repo, "rev-parse", "--verify", f"{args.commit}^{{commit}}"))
     temp_root = Path(args.temp_root).resolve() if args.temp_root else Path(tempfile.gettempdir()).resolve()
     temp_root.mkdir(parents=True, exist_ok=True)
+    if attempt_sessions(temp_root, args.pr_number, attempt_id):
+        raise WorkspaceError(f"attempt id {attempt_id} is already used for PR {args.pr_number}; generate a new one")
     session_dir = Path(tempfile.mkdtemp(prefix=f"pr-review-{args.pr_number}-", dir=temp_root))
+    journal = CreateJournal(session_dir, attempt_id)
+    try:
+        journal.record(
+            "started",
+            attempt_id=attempt_id,
+            pid=os.getpid(),
+            pr_number=args.pr_number,
+            commit=commit,
+            head_branch=args.head_branch,
+            model_name=model[0],
+            main_root=str(repo),
+            session_dir=str(session_dir),
+            worktree=str(session_dir / "worktree"),
+        )
+        with interruption_signals():
+            try:
+                result = create_session(args, repo, commit, model, session_dir, journal)
+            except CreateInterrupted as error:
+                journal.record_end("interrupted", signal=signal.Signals(error.signum).name)
+                raise
+            except KeyboardInterrupt:
+                journal.record_end("interrupted", signal="SIGINT")
+                raise
+            except BaseException as error:
+                journal.record_end("failed", error=str(error) or type(error).__name__)
+                raise
+            journal.record("completed", state_file=result["state_file"])
+            return result
+    finally:
+        journal.close()
+
+
+def create_session(
+    args: argparse.Namespace,
+    repo: Path,
+    commit: str,
+    model: tuple[str, str],
+    session_dir: Path,
+    journal: CreateJournal,
+) -> dict[str, str | None]:
+    model_name, model_source = model
     worktree = session_dir / "worktree"
     backup_dir = session_dir / "review-backup"
     backup_dir.mkdir()
@@ -324,8 +491,11 @@ def create(args: argparse.Namespace) -> dict[str, str | None]:
     require_destination_parent(destination_path)
 
     before = snapshot(repo)
-    git(repo, "worktree", "add", "--detach", str(worktree), commit)
+    journal.record("worktree-add")
+    # A checkout that outlives this process keeps the creator lock held.
+    git(repo, "worktree", "add", "--detach", str(worktree), commit, pass_fds=(journal.fileno(),))
 
+    journal.record("worktree-verify")
     actual_top = Path(str(git(worktree, "rev-parse", "--show-toplevel"))).resolve(strict=True)
     if actual_top != worktree.resolve(strict=True):
         raise WorkspaceError("created worktree root does not match the requested unique path")
@@ -339,7 +509,9 @@ def create(args: argparse.Namespace) -> dict[str, str | None]:
         raise WorkspaceError("creating the review worktree changed the main working tree")
 
     state_file = session_dir / "session.json"
+    journal.record("lock-wait")
     with review_save_lock(repo):
+        journal.record("state-write")
         fingerprint, previous = snapshot_existing_review(destination_path, backup_dir)
         state: dict[str, Any] = {
             "version": 6,
@@ -560,6 +732,7 @@ def parser() -> argparse.ArgumentParser:
     create_parser.add_argument("--head-branch", required=True)
     create_parser.add_argument("--model-name")
     create_parser.add_argument("--temp-root")
+    create_parser.add_argument("--attempt-id", required=True)
     create_parser.set_defaults(handler=create)
 
     verify_parser = commands.add_parser("verify", help="verify that the main checkout is unchanged")
@@ -580,6 +753,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         result = args.handler(args)
+    except CreateInterrupted as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 128 + error.signum
+    except KeyboardInterrupt:
+        print("error: interrupted by SIGINT", file=sys.stderr)
+        return 128 + signal.SIGINT
     except (WorkspaceError, OSError, ValueError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

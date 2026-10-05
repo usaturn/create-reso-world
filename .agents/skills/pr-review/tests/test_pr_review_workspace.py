@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
+import fcntl
 import importlib.util
 import json
 import os
+import shutil
+import signal
 import subprocess
 import sys
+import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +25,10 @@ workspace = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(workspace)
 
 THREAD_ID = "019fd23a-4723-7e02-83d9-58f32849f5ab"
+
+
+def attempt_id() -> str:
+    return uuid.uuid4().hex
 
 
 def write_rollout(codex_home: Path, models: list[str], thread_id: str = THREAD_ID) -> Path:
@@ -491,6 +501,7 @@ def test_create_requires_explicit_model_outside_codex(tmp_path: Path, monkeypatc
                 head_branch="fix/model-name",
                 model_name=None,
                 temp_root=str(temp_root),
+                attempt_id=attempt_id(),
             )
         )
 
@@ -511,6 +522,7 @@ def test_create_pins_slash_model_name_as_hyphenated_filename(tmp_path: Path, mon
             head_branch="fix/model-name",
             model_name="opencode/deepseek-v4-flash-free",
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -535,6 +547,7 @@ def test_create_destination_uses_hash_pr_number_and_sanitized_branch(
             head_branch="feature/issue-148-fail-fast",
             model_name="grok-4.6",
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -572,6 +585,7 @@ def test_create_destination_replaces_unsafe_directory_characters(
             head_branch=head_branch,
             model_name="grok-4.6",
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -592,6 +606,7 @@ def test_create_pins_explicit_model_outside_codex(tmp_path: Path, monkeypatch: p
             head_branch="fix/model-name",
             model_name="opus-5",
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -618,6 +633,7 @@ def test_save_uses_pinned_explicit_model_without_codex_metadata(
             head_branch="fix/model-name",
             model_name="opus-5",
             temp_root=str(tmp_path / "save-sessions"),
+            attempt_id=attempt_id(),
         )
     )
     Path(result["draft"]).write_text("review\n", encoding="utf-8")
@@ -655,6 +671,7 @@ def test_create_pins_model_and_artifact_paths(tmp_path: Path, monkeypatch: pytes
             head_branch="fix/herdr-session-cwd",
             model_name=None,
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -692,6 +709,7 @@ def test_create_pins_existing_review_snapshot(tmp_path: Path, monkeypatch: pytes
             head_branch="fix/herdr-session-cwd",
             model_name=None,
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
 
@@ -767,6 +785,8 @@ def test_create_parser_accepts_explicit_model_name() -> None:
             "fix/model-name",
             "--model-name",
             "opus-5",
+            "--attempt-id",
+            "20261005T121530123456789Z",
         ]
     )
 
@@ -793,6 +813,7 @@ def create_session(
             head_branch="fix/herdr-session-cwd",
             model_name=None,
             temp_root=str(tmp_path / "sessions"),
+            attempt_id=attempt_id(),
         )
     )
     return {"result": result, "codex_home": codex_home, "repo": repo}
@@ -898,6 +919,7 @@ def test_first_session_wins_same_destination(
             head_branch="fix/herdr-session-cwd",
             model_name=None,
             temp_root=str(Path(first["state_file"]).parents[1]),
+            attempt_id=attempt_id(),
         )
     )
     Path(first["draft"]).write_text("first review\n", encoding="utf-8")
@@ -1165,3 +1187,124 @@ def test_cleanup_waits_for_repository_review_lock(
     assert process.returncode == 0, stderr
     assert json.loads(stdout)["session_dir"] == str(session_dir)
     assert not session_dir.exists()
+
+
+def explicit_create_args(
+    repo: Path,
+    commit: str,
+    temp_root: Path,
+    attempt: str,
+    *,
+    model_name: str = "opus-5",
+) -> argparse.Namespace:
+    return argparse.Namespace(
+        repo=str(repo),
+        pr_number=4,
+        commit=commit,
+        head_branch="fix/herdr-session-cwd",
+        model_name=model_name,
+        temp_root=str(temp_root),
+        attempt_id=attempt,
+    )
+
+
+def journal_records(session_dir: Path) -> list[dict[str, Any]]:
+    lines = (session_dir / "create-journal.jsonl").read_text(encoding="utf-8").splitlines()
+    return [json.loads(line) for line in lines]
+
+
+def test_create_parser_requires_attempt_id() -> None:
+    with pytest.raises(SystemExit):
+        workspace.parser().parse_args(
+            [
+                "create",
+                "--repo",
+                "/repo",
+                "--pr-number",
+                "5",
+                "--commit",
+                "deadbeef",
+                "--head-branch",
+                "fix/model-name",
+                "--model-name",
+                "opus-5",
+            ]
+        )
+
+
+@pytest.mark.parametrize("bad", ["", "-leading-dash", "../escape", "has space", "x" * 65])
+def test_create_rejects_unsafe_attempt_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bad: str) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+
+    with pytest.raises(workspace.WorkspaceError, match="attempt id"):
+        workspace.create(explicit_create_args(repo, commit, temp_root, bad))
+
+    assert not temp_root.exists()
+
+
+def test_create_rejects_reused_attempt_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+    worktrees = git(repo, "worktree", "list")
+
+    with pytest.raises(workspace.WorkspaceError, match="already used"):
+        workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+
+    assert len(list(temp_root.iterdir())) == 1
+    assert git(repo, "worktree", "list") == worktrees
+
+
+def test_create_records_its_phases_in_the_journal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    attempt = attempt_id()
+
+    result = workspace.create(explicit_create_args(repo, commit, tmp_path / "sessions", attempt))
+
+    session_dir = Path(result["state_file"]).parent
+    records = journal_records(session_dir)
+    assert [record["phase"] for record in records] == [
+        "started",
+        "worktree-add",
+        "worktree-verify",
+        "lock-wait",
+        "state-write",
+        "completed",
+    ]
+    assert all(record["at"].endswith("Z") for record in records)
+    header = records[0]
+    assert header["attempt_id"] == attempt
+    assert header["pid"] == os.getpid()
+    assert header["pr_number"] == 4
+    assert header["commit"] == commit
+    assert header["main_root"] == str(repo.resolve())
+    assert header["session_dir"] == str(session_dir)
+    assert header["worktree"] == result["worktree"]
+    assert records[-1]["state_file"] == result["state_file"]
+
+
+def test_create_does_not_fsync_session_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # fsync here held the shared review lock for minutes behind concurrent checkouts (Issue #39).
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+
+    def refuse_fsync(fd: int) -> None:
+        raise AssertionError("create must not fsync while holding the shared review lock")
+
+    monkeypatch.setattr(workspace.os, "fsync", refuse_fsync)
+
+    result = workspace.create(
+        explicit_create_args(repo, commit, tmp_path / "sessions", attempt_id(), model_name="gpt-5")
+    )
+
+    assert result["previous_review"] is not None
+    assert Path(result["state_file"]).is_file()
