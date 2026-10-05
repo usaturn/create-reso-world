@@ -87,7 +87,7 @@
     },
     {
       "id": "q13",
-      "query": "PR https://github.com/usaturn/create-reso-world/pull/40 とレビュー結果 reviews/#40-docs-example/ を確認し、修正要否を確定して。",
+      "query": "PR https://github.com/example-org/example-repo/pull/40 とレビュー結果 reviews/#40-docs-example/ を確認し、修正要否を確定して。",
       "should_trigger": true,
       "expected_terms": ["review", "findings", "fix", "merge"],
       "notes": "Completion request: PR URL plus review directory"

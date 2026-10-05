@@ -51,7 +51,7 @@ PR の URL（`https://github.com/<owner>/<repo>/pull/<N>`）か番号が別に�
 それ以外は、各項目をランタイムの plan / todo 機能のタスクにしてから開始する（Claude Code では TodoWrite、Codex では `update_plan`）。完遂では「三択の結論」の各段もタスクにする。
 
 1. **範囲を固定する** — 解決したレビューディレクトリ配下の全ファイルを読む。各ファイル冒頭の「対象 HEAD」を記録する。複数世代が混在するのが普通である。レビュー成果物は gitignore 対象で未コミットのことがある（本リポジトリの `reviews/` がそうである）が、指定ディレクトリ内であれば Git の追跡状態にかかわらず正規の入力である。
-2. **現行 HEAD を特定する** — レビュー対象のブランチ／PR の現在の先端を `git` / `gh` で確認し、対象 PR の `owner/name` を `PR_REPO` に設定する。ルート `AGENTS.md` の「リポジトリ境界」に従い、下記「共通 context の確認」を後続の Git 操作より前に実行する。`pr-review` と同じ共通 helper だが、修正用の明示 worktree は同じ Git repository（git-common-dir）に属する場合に使える。その他の repo は、ユーザの依頼または確認済みの引き継ぎで明示された絶対パスの `CODE_ROOT` と一致 remote 1 件が必要で、推測せず停止する。レビューディレクトリは `CODE_ROOT` 配下の `reviews/` をフルパスで受け取る。ResoLoop の不備は `scripts/resoloop-fork.sh clone` を案内して停止する。helper は `$MAIN_ROOT` ではなく照合済みの `$TOPLEVEL`（tool_root）から解決する。PR の状態・draft かどうか・base・head・本文・関連 Issue は `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,body,closingIssuesReferences` で読む。完遂では、続けて下記「専用の worktree」を用意する。
+2. **現行 HEAD を特定する** — レビュー対象のブランチ／PR の現在の先端を `git` / `gh` で確認し、対象 PR の `owner/name` を `PR_REPO` に設定する。ルート `AGENTS.md` の「リポジトリ境界」に従い、下記「共通 context の確認」を後続の Git 操作より前に実行する。`pr-review` と同じ共通 helper だが、修正用の明示 worktree は同じ Git repository（git-common-dir）に属する場合に使える。その他の repo は、ユーザの依頼または確認済みの引き継ぎで明示された絶対パスの `CODE_ROOT` と一致 remote 1 件が必要で、推測せず停止する。レビューディレクトリは `CODE_ROOT` 配下の `reviews/` をフルパスで受け取る。ResoLoop の不備は `scripts/resoloop-fork.sh clone` を案内して停止する。helper は `$MAIN_ROOT` ではなく照合済みの `$TOPLEVEL`（tool_root）から解決する。PR の状態・draft かどうか・base・head・本文・関連 Issue は `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,body,closingIssuesReferences` で読む。レビューと PR の対応も確かめる。`git -C "$MAIN_ROOT" fetch "$PR_REMOTE" "pull/$PR_NUMBER/head"` の後、各レビューファイルの対象 HEAD がすべて `git -C "$MAIN_ROOT" merge-base --is-ancestor <対象 HEAD> FETCH_HEAD` を満たすこと。PR の URL が無く、対象のリポジトリが 1 つに決まらないとき（`external/resoloop/reviews/` は usaturn/resoloop と orange3134/resoloop の両方の PR を含み、番号が重なる）は、候補ごとに共通 context とこの確認を行い、満たすものが 1 件だけのときにそれを `PR_REPO` にする。満たさない、または 1 件に決まらないときは推測せず停止する（完遂では結論 3）。完遂では、続けて下記「専用の worktree」を用意する。
 3. **各指摘を現行 HEAD の「コミット済み」内容で検証する** — `git show <HEAD>:<path>` で読む。指摘された path の `REVIEWED_HEAD` にある committed source/test blob は検証根拠として許可する。挙動の指摘は、path と reviewed HEAD を別引数にした隔離 worktree で再現する:
 
    ```bash
@@ -124,7 +124,10 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
    REPO_MAIN="$MAIN_ROOT"
    FIX_WT="$PARENT_ROOT/.worktrees/$(printf '%s' "$PR_REPO" | tr / -)-pr${PR_NUMBER}-review-fix"
    git -C "$REPO_MAIN" fetch "$PR_REMOTE" "pull/$PR_NUMBER/head"
-   test "$(git -C "$REPO_MAIN" rev-parse FETCH_HEAD)" = "$HEAD_SHA"
+   test "$(git -C "$REPO_MAIN" rev-parse FETCH_HEAD)" = "$HEAD_SHA" || {
+     printf 'PR head differs from gh pr view headRefOid; re-read the PR before creating the worktree\n' >&2
+     exit 66
+   }
    git -C "$REPO_MAIN" worktree list --porcelain
    ```
 
@@ -174,7 +177,12 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 3. base と競合して merge できないときは、競合の解消を修正として扱い、結論 1 に切り替える
 4. ルート `AGENTS.md` の「GitHub Actions」の規定で CI を確認する対象のリポジトリなら、`gh pr checks "$PR_NUMBER" --repo "$PR_REPO"` ですべての check の成功を確かめる。実行中なら `monitoring-long-tasks` スキルに従って待つ。PR の変更が原因の失敗は致命的な指摘として結論 1 に切り替え、基盤の障害なら結論 3 にする
 5. 下記「マージしてよい範囲」を確かめる。範囲外なら、ここで結論 3 にする
-6. Spec に結果を書いて `completed` にし、コミットする。PR が create-reso-world のものなら Spec は PR の head に載るので、**実装後** の手順 4–5 で push し、`HEAD_SHA` を push 後の head に更新する
+6. Spec に結果を書いて `completed` にし、コミットする。PR が create-reso-world のものなら Spec は PR の head に載るので、次の順で push する。確認していないコミットをマージに含めないため、**実装後** の手順 5 の「reject されたら rebase または merge」はここでは使わない
+   - commit の前に、`gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` が検証した `HEAD_SHA` と一致することを確かめる
+   - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
+   - **実装後** の手順 5 の head の確認と共通 context の再実行の後、`git -C "$MAIN_ROOT" push "$HEAD_REMOTE" HEAD` で push する（fast-forward だけ。`--force` を付けない）
+   - push 後、`HEAD_SHA` を `git -C "$MAIN_ROOT" rev-parse HEAD` に更新する
+   - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head が更新された。Spec のコミットはローカルのブランチに残る）
 7. 最終の状況コメントを投稿する（「作業終了前の PR 投稿」）
 8. 検証した head だけをマージする
 
@@ -195,7 +203,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 - 権限: マージしてよい範囲外、push・マージの権限が無い、`gh` の認証が無い
 - PR の状態: draft、close 済み、マージ済み
-- 環境: 共通 context の確認が止まった（exit 64〜66）、head ブランチが PR に無いコミットや未コミットの変更を抱えている、必要なツールが無い
+- 環境: 共通 context の確認が止まった（exit 64〜66）、レビューと PR の対応を確かめられない（手順 2）、検証中に PR の head が更新された（結論 2 の手順 6）、head ブランチが PR に無いコミットや未コミットの変更を抱えている、必要なツールが無い
 - 外部障害: GitHub の API・ネットワークの障害、CI 基盤の障害
 
 未読・未検証、判断に迷う、修正が大きい、テストが失敗する（直す）、再現できない（根拠を付けて「解消済み」か「対応しない」にする）は、結論 3 の理由にならない。

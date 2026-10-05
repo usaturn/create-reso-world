@@ -31,7 +31,7 @@
     {
       "id": 3,
       "name": "spec-written-and-completed-by-default",
-      "prompt": "レビュー結果ディレクトリを渡された。残っている指摘のうち 1 件は致命的で、既存モジュール内の局所修正で済む。修正計画をたてて。",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）レビュー結果ディレクトリを渡された。残っている指摘のうち 1 件は致命的で、既存モジュール内の局所修正で済む。修正計画をたてて。",
       "expected_output": "A completion run by default: the request does not say to stop at the plan, so the skill decides the recommended fix itself, writes and commits a Spec, fixes, verifies, runs one self-review and pushes to the existing PR, without stopping for approval.",
       "files": [],
       "expectations": [
@@ -97,7 +97,7 @@
     {
       "id": 8,
       "name": "no-fatal-findings-merge",
-      "prompt": "PR https://github.com/usaturn/create-reso-world/pull/40（open、draft ではない）とレビュー結果 reviews/#40-docs-example/ を確認し、修正要否を確定して。指摘は Info と Low だけで、どれも現行 HEAD で事実として正しいが、直さなくても秘密情報の露出・データの消失・誤った操作・手順どおりで誤った結果のどれも起きない。2 モデルは Approve、1 モデルは Request changes。",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）PR https://github.com/usaturn/create-reso-world/pull/40（open、draft ではない）とレビュー結果 reviews/#40-docs-example/ を確認し、修正要否を確定して。指摘は Info と Low だけで、どれも現行 HEAD で事実として正しいが、直さなくても秘密情報の露出・データの消失・誤った操作・手順どおりで誤った結果のどれも起きない。2 モデルは Approve、1 モデルは Request changes。",
       "expected_output": "Outcome 2: every finding lands in Skip with a one-line reason, the change-specific verification passes, the final status comment is posted before merging, the PR is merged with gh pr merge --merge --match-head-commit, related Issues are updated, and no fix commit is added.",
       "files": [],
       "expectations": [
@@ -111,7 +111,7 @@
     {
       "id": 9,
       "name": "unverified-is-not-no-fix",
-      "prompt": "PR https://github.com/usaturn/create-reso-world/pull/41 とレビュー結果 reviews/#41-feat-setup/ を確認し、レビュー指摘に対応して。指摘の 1 件（Medium）は「setup スクリプトが失敗時に API キーを含む設定ファイルの内容を標準出力に出す」というもので、まだ再現していない。再現にはダミーのキーと一時 HOME が要り、手間がかかる。他の指摘は Info だけ。",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）PR https://github.com/usaturn/create-reso-world/pull/41 とレビュー結果 reviews/#41-feat-setup/ を確認し、レビュー指摘に対応して。指摘の 1 件（Medium）は「setup スクリプトが失敗時に API キーを含む設定ファイルの内容を標準出力に出す」というもので、まだ再現していない。再現にはダミーのキーと一時 HOME が要り、手間がかかる。他の指摘は Info だけ。",
       "expected_output": "The agent reproduces the secret-exposure finding itself (delegating to a subagent if available) instead of ending with 'needs more checking' or treating it as no-fix. If it reproduces, outcome 1: guarantee and affected-path table, fix including same-cause paths outside the diff, verification, exactly one self-review, push and status comment.",
       "files": [],
       "expectations": [
@@ -125,7 +125,7 @@
     {
       "id": 10,
       "name": "out-of-scope-repository-stops-before-merge",
-      "prompt": "上流 orange3134/resoloop の PR #12（head は usaturn/resoloop の fix/foo、open、draft ではない）と external/resoloop/reviews/#12-fix-foo/ を確認し、修正要否を確定して。全指摘を確認した結果、致命的な指摘は無かった。",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）上流 orange3134/resoloop の PR #12（head は usaturn/resoloop の fix/foo、open、draft ではない）と external/resoloop/reviews/#12-fix-foo/ を確認し、修正要否を確定して。全指摘を確認した結果、致命的な指摘は無かった。",
       "expected_output": "No merge: the repository is outside the merge scope (only usaturn/create-reso-world and usaturn/resoloop), so the run ends as outcome 3 with the concrete reason and the completed work listed.",
       "files": [],
       "expectations": [
@@ -137,7 +137,7 @@
     {
       "id": 11,
       "name": "plan-only-request-stops-for-approval",
-      "prompt": "reviews/#42-fix-bar/ のレビュー結果を読んで。修正計画だけ見せて、承認するまで実装しないで。",
+      "prompt": "（思考実験として、取る行動を順に書く。コマンドの実行、ファイルの変更、GitHub への操作はしない）reviews/#42-fix-bar/ のレビュー結果を読んで。修正計画だけ見せて、承認するまで実装しないで。",
       "expected_output": "The plan-only flow: brainstorming decides the path, a Spec is written and committed as draft, a review copy is published with superpowers-review-copy.sh, and the run stops for approval without implementing, pushing or merging.",
       "files": [],
       "expectations": [
