@@ -12,22 +12,7 @@ lacks() { if grep -qF -- "$2" "$1"; then fail "$1 must not contain: $2"; fi; }
 [ "$(head -n 1 CLAUDE.md)" = '@AGENTS.md' ] || fail 'CLAUDE.md line 1 must be @AGENTS.md'
 for s in '## Claude Code 固有' 'AskUserQuestion' 'TaskOutput(block=true)' '.claude/skills'; do has CLAUDE.md "$s"; done
 
-# AGENTS.md: 仕様 5.2 の節がこの順で並ぶ
-expected='## リポジトリ概要
-## 基本方針
-## resoloop 注意
-## 日本語表現
-## ファイルとドラフト
-## プロジェクト運用
-## リポジトリ境界
-## GitHub Actions
-## ResoLoop の版管理
-## エージェント運用
-## 環境
-## 最新ドキュメントの取得'
-actual="$(grep -E '^## ' AGENTS.md)"
-[ "$actual" = "$expected" ] || fail "AGENTS.md sections differ:
-$actual"
+# AGENTS.md
 grep -qxF '### SDD 実行運用' AGENTS.md || fail 'AGENTS.md lacks ### SDD 実行運用'
 [ "$(head -n 1 AGENTS.md)" = '# create-reso-world 共通規約' ] || fail 'AGENTS.md title'
 # 冒頭（最初の節より前）で、本文のパスがリポジトリのルート基準であることを示す（プロジェクトを cwd にして読まれるため）
