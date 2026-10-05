@@ -51,7 +51,7 @@ PR の URL（`https://github.com/<owner>/<repo>/pull/<N>`）か番号が別に�
 それ以外は、各項目をランタイムの plan / todo 機能のタスクにしてから開始する（Claude Code では TodoWrite、Codex では `update_plan`）。完遂では「三択の結論」の各段もタスクにする。
 
 1. **範囲を固定する** — 解決したレビューディレクトリ配下の全ファイルを読む。各ファイル冒頭の「対象 HEAD」を記録する。複数世代が混在するのが普通である。レビュー成果物は gitignore 対象で未コミットのことがある（本リポジトリの `reviews/` がそうである）が、指定ディレクトリ内であれば Git の追跡状態にかかわらず正規の入力である。
-2. **現行 HEAD を特定する** — レビュー対象のブランチ／PR の現在の先端を `git` / `gh` で確認し、対象 PR の `owner/name` を `PR_REPO` に設定する。ルート `AGENTS.md` の「リポジトリ境界」に従い、下記「共通 context の確認」を後続の Git 操作より前に実行する。`pr-review` と同じ共通 helper だが、修正用の明示 worktree は同じ Git repository（git-common-dir）に属する場合に使える。その他の repo は、ユーザの依頼または確認済みの引き継ぎで明示された絶対パスの `CODE_ROOT` と一致 remote 1 件が必要で、推測せず停止する。レビューディレクトリは `CODE_ROOT` 配下の `reviews/` をフルパスで受け取る。ResoLoop の不備は `scripts/resoloop-fork.sh clone` を案内して停止する。helper は `$MAIN_ROOT` ではなく照合済みの `$TOPLEVEL`（tool_root）から解決する。PR の状態・draft かどうか・base・head・本文・関連 Issue は `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,body,closingIssuesReferences` で読む。レビューと PR の対応も確かめる。`git -C "$MAIN_ROOT" fetch "$PR_REMOTE" "pull/$PR_NUMBER/head"` の後、各レビューファイルの対象 HEAD がすべて `git -C "$MAIN_ROOT" merge-base --is-ancestor <対象 HEAD> FETCH_HEAD` を満たすこと。PR の URL が無く、対象のリポジトリが 1 つに決まらないとき（`external/resoloop/reviews/` は usaturn/resoloop と orange3134/resoloop の両方の PR を含み、番号が重なる）は、候補ごとに共通 context とこの確認を行い、満たすものが 1 件だけのときにそれを `PR_REPO` にする。満たさない、または 1 件に決まらないときは推測せず停止する（完遂では結論 3）。完遂では、続けて下記「専用の worktree」を用意する。
+2. **現行 HEAD を特定する** — レビュー対象のブランチ／PR の現在の先端を `git` / `gh` で確認し、対象 PR の `owner/name` を `PR_REPO` に設定する。ルート `AGENTS.md` の「リポジトリ境界」に従い、下記「共通 context の確認」を後続の Git 操作より前に実行する。`pr-review` と同じ共通 helper だが、修正用の明示 worktree は同じ Git repository（git-common-dir）に属する場合に使える。その他の repo は、ユーザの依頼または確認済みの引き継ぎで明示された絶対パスの `CODE_ROOT` と一致 remote 1 件が必要で、推測せず停止する。レビューディレクトリは `CODE_ROOT` 配下の `reviews/` をフルパスで受け取る。ResoLoop の不備は `scripts/resoloop-fork.sh clone` を案内して停止する。helper は `$MAIN_ROOT` ではなく照合済みの `$TOPLEVEL`（tool_root）から解決する。PR の状態・draft かどうか・base・head・本文・関連 Issue は `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,body,closingIssuesReferences` で読む。レビューと PR の対応も確かめる。PR の URL（または `owner/repo` と番号）が渡されていないときに `PR_REPO` を決めてよいのは、ルートの `reviews/` のレビュー（usaturn/create-reso-world）だけである。`external/resoloop/reviews/` は usaturn/resoloop と orange3134/resoloop の両方の PR を含み、番号もブランチ名も重なり得るので、PR の URL が無ければ推測せず停止して URL を求める（完遂では結論 3）。祖先の確認やディレクトリ名との一致で候補を 1 件に絞って `PR_REPO` を決めない（rebase の後は、レビューした PR ではなく、レビューしたコミットを履歴に含む別の PR だけが条件を満たし得る）。`PR_REPO` を決めた後、`git -C "$MAIN_ROOT" fetch "$PR_REMOTE" "pull/$PR_NUMBER/head"` を行い、各レビューファイルの対象 HEAD がすべて `git -C "$MAIN_ROOT" merge-base --is-ancestor <対象 HEAD> FETCH_HEAD` を満たすことを確かめる。満たさなければ推測せず停止する（完遂では結論 3）。完遂では、続けて下記「専用の worktree」を用意する。
 3. **各指摘を現行 HEAD の「コミット済み」内容で検証する** — `git show <HEAD>:<path>` で読む。指摘された path の `REVIEWED_HEAD` にある committed source/test blob は検証根拠として許可する。挙動の指摘は、path と reviewed HEAD を別引数にした隔離 worktree で再現する:
 
    ```bash
@@ -137,7 +137,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
    - 別の worktree で checkout されている: その worktree の `git status --porcelain` が空で、HEAD が `$HEAD_SHA` なら、それを `FIX_WT` として使う（片付けの対象にしない）
    - それ以外（ローカルブランチが PR に無いコミットを持つ、未コミットの変更がある、`FIX_WT` のパスが既にある）は、触らずに結論 3 にする
 4. `CODE_ROOT="$FIX_WT"` とし、`HEAD_REPO`（`headRepositoryOwner` と `headRepository` の owner/name）と `HEAD_BRANCH` を設定して共通 context を再実行する。返る `MAIN_ROOT` は `FIX_WT` であり、以後の commit・push はそこで行う。
-5. **片付け:** 結論 1 の push 後、結論 2 のマージ後、結論 3 の停止時（未コミットの変更が無いとき）に、このセッションが作った worktree を `git -C "$REPO_MAIN" worktree remove "$FIX_WT"` で外す（`--force` を付けない。失敗したら残して報告する）。このセッションが作ったローカルブランチは、先端が push またはマージした head の SHA と同じことを確かめてから `git -C "$REPO_MAIN" branch -D "$HEAD_BRANCH"` で消す。
+5. **片付け:** 結論 1 の push 後、結論 2 のマージ後、結論 3 の停止時（未コミットの変更が無いとき）に、このセッションが作った worktree を `git -C "$REPO_MAIN" worktree remove "$FIX_WT"` で外す（`--force` を付けない。失敗したら残して報告する）。このセッションが手順 3 の `-b` で作ったローカルブランチは、先端が push またはマージした head の SHA か、作成時の head の SHA（結論 3 でコミットを残さなかったとき）と同じことを確かめてから `git -C "$REPO_MAIN" branch -D "$HEAD_BRANCH"` で消す。残すと、PR の head が rebase された後の完遂が手順 3（PR に無いコミット）で止まる。
 
 ## 守る条件と影響経路
 
@@ -182,7 +182,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
    - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
    - **実装後** の手順 5 の head の確認と共通 context の再実行の後、`git -C "$MAIN_ROOT" push "$HEAD_REMOTE" HEAD` で push する（fast-forward だけ。`--force` を付けない）
    - push 後、`HEAD_SHA` を `git -C "$MAIN_ROOT" rev-parse HEAD` に更新する
-   - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head が更新された。Spec のコミットはローカルのブランチに残る）
+   - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head が更新された）。Spec のコミットは下記「結論 3」のとおり取り消し、head ブランチに残さない
 7. 最終の状況コメントを投稿する（「作業終了前の PR 投稿」）
 8. 検証した head だけをマージする
 
@@ -199,14 +199,20 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 ### 結論 3: 停止する
 
-次の場合だけ。未完了であること、具体的な停止理由、済んだ作業（コミット・push・投稿の有無）を報告する。書き始めた Spec があれば `draft` のままコミットし、停止理由を書く。
+次の場合だけ。未完了であること、具体的な停止理由、済んだ作業（コミット・push・投稿の有無）を報告する。
 
 - 権限: マージしてよい範囲外、push・マージの権限が無い、`gh` の認証が無い
 - PR の状態: draft、close 済み、マージ済み
-- 環境: 共通 context の確認が止まった（exit 64〜66）、レビューと PR の対応を確かめられない（手順 2）、検証中に PR の head が更新された（結論 2 の手順 6）、head ブランチが PR に無いコミットや未コミットの変更を抱えている、必要なツールが無い
+- 環境: 共通 context の確認が止まった（exit 64〜66）、レビューと PR の対応を確かめられない（手順 2。`external/resoloop/reviews/` で PR の URL が無いときを含む）、検証中に PR の head が更新された（結論 2 の手順 6）、head ブランチが PR に無いコミットや未コミットの変更を抱えている、必要なツールが無い
 - 外部障害: GitHub の API・ネットワークの障害、CI 基盤の障害
 
 未読・未検証、判断に迷う、修正が大きい、テストが失敗する（直す）、再現できない（根拠を付けて「解消済み」か「対応しない」にする）は、結論 3 の理由にならない。
+
+**書き始めた Spec の扱い:** 結論 3 では、Spec だけのコミットを PR の head ブランチに残さない。残すと、次の完遂が「専用の worktree」の手順 3（PR に無いコミット）で止まり続ける。再利用した他の worktree では、持ち主の push で draft の Spec が PR に入る。
+
+- PR が create-reso-world 以外（`DOC_ROOT` は文書用ブランチ）: Spec を `draft` のまま文書用ブランチにコミットし、停止理由を書く
+- create-reso-world の PR で、head ブランチに push していない修正がある（コミット済み・未コミットを問わない）: 修正も Spec も捨てずに残す。報告に、ブランチ名（未コミットの変更があれば worktree のパスも）と、`git -C "$MAIN_ROOT" status --short`・`git -C "$MAIN_ROOT" log --oneline "$HEAD_SHA"..HEAD` の結果を書き、それを push するか捨てるまで次の完遂は「専用の worktree」の手順 3 で止まることを書く
+- create-reso-world の PR で、修正が無い: Spec をコミットしない。結論 2 の手順 6 でコミットした後なら、`git -C "$MAIN_ROOT" reset --keep "$HEAD_SHA"` で取り消す（親が `HEAD_SHA` で、Spec だけのコミットであることは手順 6 で確かめてある）。コミットしていなければ、Spec の変更を取り消す（新規のファイルは消し、既存のファイルは `git -C "$MAIN_ROOT" restore --staged --worktree -- <Spec>` で戻す）。分類の結果と停止理由は報告に書く。head ブランチは HEAD が `HEAD_SHA` で未コミットの変更が無い状態に戻り、「専用の worktree」の片付けの対象になる
 
 ### 修正後の自己レビュー
 
@@ -242,7 +248,7 @@ Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の�
 3. **提示する** — コピー先（`tmp/superpowers-review/...`）、文書コミットの SHA、正本のパスを示して承認を求める。承認はその SHA の版に結び付ける。
 4. **公開する** — `PR_REPO` が create-reso-world なら、Spec は実装と同じ PR に載る。それ以外では、**実装後** の push の後で、同じテーマの文書専用 PR があれば文書用ブランチを push してそこへ反映する。文書専用 PR はコード修正の第二の PR ではない。文書専用 PR が無ければ push も PR の作成もせず、文書のコミット SHA を報告し、「公開未実施」と書いて作成の指示を求める。
 
-**完遂では** 手順 2・3（確認用コピーと提示）を省き、承認を待たない。Spec は 1 回だけコミットする。結論 1 では自己レビュー後の修正と検証が終わってから push の前に、結論 2 ではマージの前に、結論・検証の結果・自己レビューの結果を書いて状態を `completed` にする。push・マージ・Issue 更新の結果は Spec に追記せず、状況コメントと完了報告に書く（記録だけのコミットを PR に足さないため）。結論 3 で止まったら、書き始めた Spec を `draft` のままコミットし、停止理由を書く。PR が create-reso-world のものなら、手順 1 の `DOC_ROOT` は専用の worktree である。手順 4 の公開の規則は変わらない。
+**完遂では** 手順 2・3（確認用コピーと提示）を省き、承認を待たない。Spec は 1 回だけコミットする。結論 1 では自己レビュー後の修正と検証が終わってから push の前に、結論 2 ではマージの前に、結論・検証の結果・自己レビューの結果を書いて状態を `completed` にする。push・マージ・Issue 更新の結果は Spec に追記せず、状況コメントと完了報告に書く（記録だけのコミットを PR に足さないため）。結論 3 で止まったときは、「三択の結論」の結論 3 の「書き始めた Spec の扱い」に従う（create-reso-world の PR で修正が無ければ、Spec を head ブランチにコミットしない）。PR が create-reso-world のものなら、手順 1 の `DOC_ROOT` は専用の worktree である。手順 4 の公開の規則は変わらない。
 
 ## 実装後
 
@@ -461,3 +467,5 @@ EOF
 - 完遂で `pr-review` スキルや `superpowers:brainstorming` を呼ぼうとしている
 - 「対応する」項目に、守る条件と影響経路の表が無い
 - 専用の worktree を使わず、メイン checkout や他の作業中の worktree で修正しようとしている
+- `external/resoloop/reviews/` のレビューで PR の URL が無いのに、祖先の確認やディレクトリ名で `PR_REPO` を決めようとしている
+- 結論 3 で、修正が無いのに Spec だけのコミットを PR の head ブランチに残そうとしている
