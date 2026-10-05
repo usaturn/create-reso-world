@@ -820,6 +820,85 @@ def inspect_attempt(args: argparse.Namespace) -> dict[str, Any]:
         time.sleep(min(1.0, remaining))
 
 
+@contextmanager
+def finished_creator(journal: Path) -> Generator[None]:
+    """Hold the creator lock, refusing while create or its checkout still runs."""
+    with journal.open("rb") as stream:
+        try:
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise WorkspaceError(
+                "create attempt is still running; wait with inspect --wait before abandoning it"
+            ) from error
+        yield
+
+
+def require_abandonable_entries(session_dir: Path) -> None:
+    """Keep the session when it holds anything create itself did not write."""
+    for child in session_dir.iterdir():
+        name = child.name
+        if child.is_symlink():
+            raise WorkspaceError(f"session holds an unexpected entry; keep it for the user: {child}")
+        if name in SESSION_DIRECTORIES and child.is_dir():
+            continue
+        if (name in SESSION_FILES or name.startswith(".session.json.")) and child.is_file():
+            continue
+        raise WorkspaceError(f"session holds an unexpected entry; keep it for the user: {child}")
+    backup_dir = session_dir / "review-backup"
+    if not backup_dir.is_dir():
+        return
+    for child in backup_dir.iterdir():
+        snapshot_file = child.name == "previous-review.md" or child.name.startswith(".previous-review.md.")
+        if child.is_symlink() or not child.is_file() or not snapshot_file:
+            raise WorkspaceError(
+                f"review backup holds a file other than the helper's snapshot; keep the session: {child}"
+            )
+
+
+def remove_attempt_worktree(repo: Path, worktree: Path) -> bool:
+    registration = worktree_registration(repo, worktree)
+    if worktree.is_symlink():
+        raise WorkspaceError(f"session worktree path is a symlink; keep the session: {worktree}")
+    if not worktree.exists():
+        if registration is not None:
+            raise WorkspaceError(f"worktree is registered but its directory is missing; keep the session: {worktree}")
+        return False
+    if registration is None:
+        if any(worktree.iterdir()):
+            raise WorkspaceError(f"session worktree directory is not a registered worktree; keep the session: {worktree}")
+        return False
+    require_session_worktree(worktree.resolve(strict=True), repo)
+    # `git worktree add` marks its worktree "initializing" until checkout ends;
+    # any other lock reason belongs to the user and git keeps refusing it.
+    force = ("--force", "--force") if registration.get("locked") == "initializing" else ("--force",)
+    git(repo, "worktree", "remove", *force, str(worktree))
+    if worktree.exists() or worktree_registration(repo, worktree) is not None:
+        raise WorkspaceError(f"git did not remove the review worktree: {worktree}")
+    return True
+
+
+def abandon_attempt(args: argparse.Namespace) -> dict[str, Any]:
+    attempt_id = validate_attempt_id(args.attempt_id)
+    repo = require_main_checkout(args.repo)
+    with review_save_lock(repo):
+        session_dir = locate_attempt(repo, args.temp_root, args.pr_number, attempt_id)
+        if session_dir is None:
+            raise WorkspaceError(f"no create attempt {attempt_id} for PR {args.pr_number}; nothing to abandon")
+        with finished_creator(session_dir / JOURNAL_NAME):
+            status = attempt_report(repo, session_dir, attempt_id, running=False)["status"]
+            require_abandonable_entries(session_dir)
+            worktree = session_dir / "worktree"
+            removed = remove_attempt_worktree(repo, worktree)
+            shutil.rmtree(session_dir)
+    return {
+        "attempt_id": attempt_id,
+        "session_dir": str(session_dir),
+        "status": status,
+        "worktree": str(worktree),
+        "worktree_removed": removed,
+    }
+
+
 def positive_integer(value: str) -> int:
     number = int(value)
     if number < 1:
@@ -871,6 +950,12 @@ def parser() -> argparse.ArgumentParser:
     add_attempt_arguments(inspect_parser)
     inspect_parser.add_argument("--wait", type=non_negative_integer, default=0)
     inspect_parser.set_defaults(handler=inspect_attempt)
+
+    abandon_parser = commands.add_parser(
+        "abandon", help="remove what an interrupted create attempt left when it holds no unsaved review"
+    )
+    add_attempt_arguments(abandon_parser)
+    abandon_parser.set_defaults(handler=abandon_attempt)
     return root
 
 
