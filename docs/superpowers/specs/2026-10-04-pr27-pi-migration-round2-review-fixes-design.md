@@ -114,7 +114,7 @@ Issue #19とPlanのGlobal Constraintsが維持を求める「設定・パッケ�
 - 各setupの本体ブロックの検査は防御として残し、エラー表示の重複した接頭辞だけを外す。
 - 変えないもの: DeepInfraが実行のたびにバックアップを作る挙動、`cp -p`の失敗伝播、`pi-models.json`にproviderが無い場合の扱い（リポジトリ側の定義の誤り）、provider選択・認証0600・認証のバックアップを作らない仕様。
 
-検証: `test_r3_provider_models_reject_unsafe_numbers_preserving_original`（3setup × 7種の数値・定数）と`test_r3_provider_invalid_source_preserves_models`（3setup × 5種の不正な`pi-models.json`）は、agent directory全体のエントリ（バックアップ・`auth.json`・一時ファイルの有無を含む）が不変であることを検査し、前者はエラー中のパスが1回であることも検査する。`test_setup_invalid_models_json_fails_without_success_banner`はバックアップが無いことを検査する。実装前はDeepInfraのバックアップ作成、OpenCode Goの認証更新、3setupのパスの二重表示で32件が失敗した。最終再レビューの指摘を受けて、`providers`がobjectでない`models.json`（`[]`・文字列・数値・null）と`pi-models.json`の検査を`test_r4_provider_setups_refuse_non_object_providers_before_changes`と前者のテストに足した。実装前はDeepInfra・OpenCode Goの8件と、3setupの`pi-models.json`の3件が失敗した（CommandCodeの`models.json`は既存の検査で止まっていた）。
+検証: `test_r3_provider_models_reject_unsafe_numbers_preserving_original`（3setup × 7種の数値・定数）と`test_r3_provider_invalid_source_preserves_models`（3setup × 6種の不正な`pi-models.json`。`providers`がobjectでない1種を含む）は、agent directory全体のエントリ（バックアップ・`auth.json`・一時ファイルの有無を含む）が不変であることを検査し、前者はエラー中のパスが1回であることも検査する。`test_setup_invalid_models_json_fails_without_success_banner`はバックアップが無いことを検査する。実装前はDeepInfraのバックアップ作成、OpenCode Goの認証更新、3setupのパスの二重表示で32件が失敗した。最終再レビューの指摘を受けて、`providers`がobjectでない`models.json`（`[]`・文字列・数値・null）と`pi-models.json`の検査を、`test_r4_provider_setups_refuse_non_object_providers_before_changes`（新規）と`test_r3_provider_invalid_source_preserves_models`に足した。実装前はDeepInfra・OpenCode Goの8件と、3setupの`pi-models.json`の3件が失敗した（CommandCodeの`models.json`は既存の検査で止まっていた）。
 
 ## R4-3: shadowed lock検査に隠れた回帰ガードを戻す (c)
 
@@ -128,7 +128,7 @@ Issue #19とPlanのGlobal Constraintsが維持を求める「設定・パッケ�
 
 ## 最終再レビュー（`4833623`）の指摘
 
-R4-1〜R4-4をコミットした`4833623`のPR全体を、別の読み取り専用の担当が再レビューした。High・Mediumは無く、変異11種（writerの検査、setupの事前検査、`auth.json`の検査、JSON読込み、`reject_constant`、symlink分岐、nlink検査、事前検査のexit 0化、cleanupの`require_plain_file`、`set -e`）はすべて既存・新規のテストで検出された。指摘は次のとおりで、すべて解消した。
+R4-1〜R4-4をコミットした`4833623`のPR全体を、別の読み取り専用の担当が再レビューした。High・Mediumは無く、変異11種（writerの検査、setupの事前検査、`auth.json`の検査、書くファイルのJSON読込み、`pi-models.json`の読込み、`reject_constant`、symlink分岐、nlink検査、事前検査のexit 0化、cleanupの`require_plain_file`、`set -e`）はすべて既存・新規のテストで検出された。指摘は次のとおりで、すべて解消した。
 
 | 指摘 | 分類 | 対応 |
 | --- | --- | --- |
@@ -201,7 +201,8 @@ R4-1〜R4-4を実装した。`pi_json.require_plain_file`がリンク・特殊�
 - RED→GREEN: R4-1は実装前に、writerの5種すべてで一時ファイルが作られ、setupの12ケースすべてが成功終了した。実装後は全件成功。R4-2は実装前に32件と、`providers`の形の11件が失敗し、実装後は成功。R4-3は`reject_constant`を無効にした変異版で、旧テストが6件を見逃し、補強後は15件すべてを検出した。リンクされたagent directoryの対照テストは実装前後とも成功（既存挙動の維持）。
 - 最終版での検証: 移行・setupテスト80件（従来76件＋新規4件）成功、全environment 27/27、layout成功、スキル408成功・1skip、`git diff --check`成功。関連の個別検査（README・導入順・指示文・docs・agent-config・file-modes）も成功。
 - 実pi 1.0.2・実npm registryでのend-to-end（調査HEAD `4ae2cb5`。隔離したHOME・agent directory・npm設定で、install scriptは実行しない）: `pi install`で5種と保持拡張を入れた旧状態から、cleanup、`pi update --extensions`（通常実行、npm installを強制する経路、保持拡張の版更新）の順に実行し、5種の登録・マニフェスト・`node_modules`は復活せず、保持拡張は残った。マニフェストを残した陰性対照では復活を検出できた。cleanupの再実行ではagent directory全体のバイト列とバックアップ数が変わらない。provisioning片の初回環境・既存環境・再実行でも同じ結果だった。R4でcleanupの撤去処理は変えておらず（`read_object`の検査を共有関数へ移しただけ）、移行テスト80件でも確認している。
-- 調査担当（リンク挙動の比較・pi本体の書き方）、独立レビュー担当（PR全体）、e2e担当の3つのサブエージェントは、いずれも専用の一時worktreeを使い、終了時に撤去した。ホストの実際の`~/.pi`は使っていない（独立レビュー担当が最初に`pi --version`を実HOMEで1回実行したため、`settings.json.lock`が残っていないことを確認した）。
+- PR全体の再レビュー: `4833623`の最終再レビュー（Low 1・Info 3、変異11種を全検出）の指摘を`e579d00`で解消し、その差分を別の担当が再レビューした。前回の4件の解消を再現で確認し、コード・テストの新しい指摘は無かった。残った文書のInfo 3件（R4-2の件数と参照先、変異の列挙、Planの完了記録）とREADMEの表現（`providers`が「あれば」）は次のコミットで直した。`e579d00`での全environment 27/27、layout、スキル408成功・1skip、PR全体の`git diff --check`も成功した。
+- 調査担当（リンク挙動の比較・pi本体の書き方）、独立レビュー担当（PR全体、`4ae2cb5`）、e2e担当、最終再レビュー担当（`4833623`）、差分の再レビュー担当（`e579d00`）の5つのサブエージェントは、いずれも専用の一時worktreeを使い、終了時に撤去した。ホストの実際の`~/.pi`は使っていない（独立レビュー担当が最初に`pi --version`を実HOMEで1回実行したため、`settings.json.lock`が残っていないことを確認した）。
 
 未検証は実認証のMCP/provider接続とDev Container rebuild（#22の担当）。成功と扱わない。PR全体の最終再レビューの結果、公開SHA、所要時間はPRの最終ステータスコメントに記録する。修正があったためpushまでとし、PRとIssueはopenのままにする。
 

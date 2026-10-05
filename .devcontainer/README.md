@@ -505,7 +505,7 @@ unset PI_DISTILL_TIMEOUT_SECONDS PI_DISTILL_MODEL PI_DISTILL_ERROR_RETRY_COUNT P
 いずれも冪等で、`providers` のうち対象プロバイダのエントリだけを置き換える。
 3 つの setup は `PI_CODING_AGENT_DIR` の `~` と `~/` だけを HOME に展開する。
 入力 JSON（`pi-models.json` と、setup が書くファイル）は、バックアップや変更の前に上記と同じ数値検査を行い、
-モデル定義の `providers` が object であることも確かめる。
+モデル定義に `providers` があれば object であることも確かめる。
 保存内容は最後まで Unicode エスケープ付きで生成してから
 同じディレクトリの固有一時ファイルで元ファイルを置き換える。保存失敗時は元ファイルを残し、一時ファイルを掃除する。
 置き換えると symlink や hard link の共有先が更新されなくなるため、setup が書く `models.json` と

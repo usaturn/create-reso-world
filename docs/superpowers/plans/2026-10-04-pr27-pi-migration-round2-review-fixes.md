@@ -87,4 +87,10 @@ All six repair groups map to Task 1 and share JSON/storage boundaries; batching 
 
 ## 完了記録
 
+### Task 1（R3）
+
 Task仕様・品質レビューの指摘（backup重複／mode）は公開前に修正し、限定再レビューとPR全体最終レビューに未解決指摘なし。controllerの最終検証は移行・setup76テスト、環境27/27スクリプト、layout、スキル408成功・1skip（最新main統合後）、実PR差分検査が成功。main `4e6f1d0`の取り込みで以前のslum03同期失敗も解消済み。公開前にさらに進んだmain `fc5c7ea`も競合なく取り込み、レビュー済みのruntime不変と全体再検証を確認した。詳細・未検証境界はSpec、公開SHAと所要時間はPRコメントに記録する。既存PRへ追加1コミットで通常pushし、今回はマージしない。
+
+### Task 2（R4）
+
+R4-1〜R4-4と最終再レビューの指摘を、既存PRへの追加コミット（`4833623`・`e579d00`と、文書の訂正）で反映した。移行・setupテストは80件。検証、2回の再レビューの結果、未検証の境界はSpecの「完了結果と検証」、公開SHAと所要時間はPRの最終ステータスコメントに記録する。今回もマージしない。
