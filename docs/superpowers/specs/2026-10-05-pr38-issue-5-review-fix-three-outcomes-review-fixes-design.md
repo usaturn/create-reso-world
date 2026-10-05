@@ -3,14 +3,15 @@
 - 対象 PR: https://github.com/usaturn/create-reso-world/pull/38
 - リポジトリ: `usaturn/create-reso-world`
 - 対象ブランチ: `feat/issue-5-review-fix-three-outcomes`
-- 指摘を検証した HEAD: `9685ca60b09bfcd9186dea0e28eee76625d7549e`
-- 入力: `reviews/#38-feat-issue-5-review-fix-three-outcomes/` 配下の全 4 ファイル
+- 指摘を検証した HEAD: 1 回目 `9685ca60b09bfcd9186dea0e28eee76625d7549e`、2 回目 `e344d2c12e810f5fce5019a4b670fa8c545a1d70`
+- 入力: `reviews/#38-feat-issue-5-review-fix-three-outcomes/` 配下の全ファイル（1 回目 4 ファイル、2 回目 5 ファイル）
 - 作成日: 2026-10-05
-- 結論: **1（修正が必要）**。致命的な指摘 2 件（C-H1、O-M2 と同じ原因の D-L2）を直し、既存 PR へ push する
-- 状態: completed（2026-10-05。修正・検証・自己レビューまで完了。push・状況コメントの結果は PR のコメントに書く）
-- 実行許可: 2026-10-05 の利用者の依頼。PR とレビュー結果を確認して修正要否を三択で確定し、修正が必要なら推奨案で修正・検証・PR 全体の再レビュー（自己レビューは 1 回まで。複数のサブエージェントに別々の観点で同時に担当させてよい）を経て push する。致命的な指摘だけを直し、同じ原因の箇所は PR の差分外も直す。`pr-review` は使わず、専用の worktree で作業する
-- 作業場所: 既存の worktree `.worktrees/issue-5-review-fix`（PR の head ブランチを checkout 済み、未コミットの変更なし、HEAD が PR の head と一致）を専用の worktree として使った
+- 結論: 1 回目は **1（修正が必要）**。致命的な指摘 2 件（C-H1、O-M2 と同じ原因の D-L2）を直し、既存 PR へ push した。2 回目は **2（修正が不要）**。`e344d2c` に対するレビューに致命的な指摘は無く、修正せずにマージする（9 章）
+- 状態: completed（2026-10-05。2 回目の選別・検証まで完了。push・状況コメント・マージ・Issue 更新の結果は PR のコメントに書く）
+- 実行許可: 2026-10-05 の利用者の依頼（1 回目・2 回目とも同じ文面）。PR とレビュー結果を確認して修正要否を三択で確定し、修正が必要なら推奨案で修正・検証・PR 全体の再レビュー（自己レビューは 1 回まで。複数のサブエージェントに別々の観点で同時に担当させてよい）を経て push する。修正が不要なら確認・検証を完了し、最終の状況コメントを投稿してマージし、関連 Issue を更新する。致命的な指摘だけを直し、同じ原因の箇所は PR の差分外も直す。`pr-review` は使わず、専用の worktree で作業する
+- 作業場所: 既存の worktree `.worktrees/issue-5-review-fix`（PR の head ブランチを checkout 済み、未コミットの変更なし、HEAD が PR の head と一致）を専用の worktree として使った（1 回目・2 回目とも）
 - 関連: 設計 `docs/superpowers/specs/2026-10-05-issue-5-review-fix-three-outcomes-design.md`
+- 構成: 1〜8 章は 1 回目（`9685ca6`）の記録、9 章は 2 回目（`e344d2c`）の記録
 
 ## 1. レビュー入力
 
@@ -159,3 +160,88 @@
 ## 8. PR の説明との関係
 
 PR の説明は、ブランチ全体のレビューで直した点として「レビューの対象 HEAD が PR の head の履歴に含まれることを確かめる」と書いている。この修正で、リポジトリの決め方を「URL が無ければ停止」に変えたので、PR の説明の該当箇所を直す。対応しない指摘のうち実在する制約（O-L1 の rebase 前のレビューでの停止、S-L1 の check 0 件）は、PR の説明の既知の制限に書き足す。
+
+## 9. 2 回目の選別（`e344d2c`）
+
+### 9.1 レビュー入力
+
+| ファイル | 対象 HEAD | 指摘 | 判定 |
+| --- | --- | --- | --- |
+| `claude-opus-5-5.md` | `e344d2c12e81` | 0 件（前回の O-M1・O-M2・O-L1 を Resolved に移した） | Approve |
+| `openai-codex-gpt-6.1-sol.md` | `e344d2c12e81` | 0 件（前回の C-H1 を Resolved に移した） | Approve |
+| `SWE-2-Max.md` | `e344d2c12e81` | Medium 1・Low 3・Info 3（すべて前回 `9685ca6` で検出したものの継続） | Approve |
+| `commandcode-deepseek-deepseek-v4.1-flash.md` | `e344d2c12e81` | Low 3・Info 1・未検証候補 2（新規。ID は CD-） | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | `9685ca60b09b` | Low 2（1 回目で選別済み） | Approve |
+
+対象 HEAD はすべて、選別時点の PR の head（`e344d2c`）と同じか、その祖先である（`pull/38/head` を fetch し、`merge-base --is-ancestor` で確かめた）。base（`origin/main`）は `a6e2c41` のままで、PR の分岐点から進んでいない。
+
+### 9.2 分類結果
+
+| 区分 | 件数 |
+| --- | --- |
+| 解消済み | 3（C-H1、O-M2、D-L2） |
+| 対応する | 0 |
+| 対応しない | 16 |
+
+判定の基準は 1 回目と同じ（2 章）。
+
+| ID | 指摘 | 区分 | 根拠 |
+| --- | --- | --- | --- |
+| C-H1（Codex High） | 祖先の確認でリポジトリを選び、別の PR を操作し得る | 解消済み | `0f83ce5` で、`external/resoloop/reviews/` では URL が無ければ停止し、祖先の確認で `PR_REPO` を決めない形にした（SKILL.md:54）。Codex が `e344d2c` で解消を確認した |
+| O-M2（Opus Medium）・D-L2（DeepSeek Low） | 結論 3 の draft の Spec のコミットで、次の完遂が止まり続ける | 解消済み | SKILL.md:140・:211-219。一時リポジトリで、取り消しの 4 通り（`git add` 済みの新規、追跡されていない新規、追跡済みの変更、Spec だけのコミットの `reset --keep`）が clean に戻り、次の完遂が手順 3 の新規作成の分岐から入れることを確かめた。負例 5 通り（他者のコミットが下にある・上にある、他者の stage、他者の追跡されていないファイル、HEAD の移動）では何も消えない |
+| O-M1（Opus Medium） | 要約・相談だけの依頼でも完遂に入る | 対応しない | 挙動は変わっていない。設計 D-1 で利用者が決めた仕様である（Opus も `e344d2c` で設計判断として Resolved に移した） |
+| O-L1（Opus Low） | rebase 前の HEAD のレビューが残ると手順 2 で止まる | 対応しない | 安全側の停止。PR の説明の既知の制限に記載済み |
+| S-M1（SWE Medium） | `allowed-tools` が Write/Edit を Spec の場所に限る | 対応しない | 公式文書（https://code.claude.com/docs/en/skills）は "It does not restrict which tools are available" としており、範囲外の Edit/Write は通常の権限確認に戻るだけで、止まらず誤った結果にもならない。この行は PR で変わっていない（導入は `414ff2c`） |
+| S-L1（SWE Low） | `gh pr checks` が check 0 件で exit 1 | 対応しない | gh 2.101.0 で、create-reso-world の #38・#40 と usaturn/resoloop の 6 件が `no checks reported`（exit 1）を返した。この分岐に入るのは usaturn/resoloop の結論 2 だけで、結果は停止か check 0 件のままのマージのどちらか（後者は従来の運用と同じ。usaturn/resoloop の #1・#9 も check 0 件でマージされている）。既知の制限に記載済み |
+| S-L2（SWE Low） | eval 8〜10 が実在する PR 番号を使う | 対応しない | #40 は実在する（open）。#41 と orange3134/resoloop #12 は存在しない。eval 8〜10 は前置きで実行・変更・GitHub への操作を禁じており、指定のレビューディレクトリ（`reviews/#40-docs-example/` など）も存在しない。`evals.json` を読むのはスキルの仕様を確かめるテスト（`test_review_fix_planning_skill_contract.py` の eval 5 の静的な照合）だけで、自動で実行する仕組みは無い |
+| S-L3（SWE Low） | 専用の worktree の再利用がメイン checkout を拾い得る | 対応しない | 再現するが、commit・push は PR の head ブランチへの正しい操作で、片付けの対象にもならない（誤って実行しても git が拒否する）。到達条件は、`AGENTS.md` の「ローカルは常に origin/main」に反する状態である |
+| S-I1（SWE Info） | 結論 1 の「手順 2 をやり直す」が紛らわしい | 対応しない | 表記の問題。誤読してトップレベルの手順 2 に戻ると、専用の worktree の手順 3 で修正の入ったブランチが「それ以外」に当たり、結論 3 で止まる（安全側。1 回目の根拠「HEAD の再特定をやり直すだけ」をこう改める）。検証を飛ばして push するには、:255 と :270 の両方を無視する必要がある |
+| S-I2（SWE Info） | completed の Spec を push した後にマージが失敗する | 対応しない | 記録の書き方。Spec にはマージの結果を書かない設計（:255）で、何も消えない |
+| S-I3（SWE Info） | 設計 Spec の状態が approved のまま | 対応しない | 記録の書き方。状態行を参照する処理・テストは無い |
+| D-L1（DeepSeek Low） | head ブランチ名が `main` のときローカル main が動く | 対応しない | 1 回目と同じ。3 リポジトリに head 名が `main` の PR は無い（create-reso-world 26 件、usaturn/resoloop 6 件、orange3134/resoloop 3 件）。片付けで消すのは手順 3 の `-b` で作ったブランチだけで、既存のローカル main は消えない。fast-forward しても旧先端は祖先として残り、push は head 側の remote へ行く |
+| CD-L1（DeepSeek Low） | 結論 1 の push 後の状況コメントの「現行 HEAD」が push 前の値になる。実装後だけの流れでは未定義 | 対応しない | 影響はコメントの記載だけ。push 後に古い `HEAD_SHA` を使う操作は無い（片付けの削除条件は「push した head の SHA」で `$HEAD_SHA` を参照しない。結論 3 の取り消しは条件が成り立たず何も消さない。結論 1 はマージしない）。push 後の SHA はテンプレートの「commit / push」の行に入る。実装後だけの流れで未定義になるのは、PR の前からの挙動（`a6e2c41` のテンプレートも同じ） |
+| CD-L2（DeepSeek Low） | create-reso-world 以外の PR の結論 2 で、Spec が文書専用 PR へ公開されない | 対応しない | Spec は create-reso-world の文書用ブランチにローカルのコミットとして残り、消える経路は無い（片付けは `external/resoloop` 側だけを触る）。push しないことは `AGENTS.md` の既定（明示の指示があるときだけ push し、ローカルだけなら「公開未実施」と書く）と一致し、状況コメントのテンプレートでも「公開未実施」と書く。公開が遅れるだけである |
+| CD-L3（DeepSeek Low） | 照合が共有の `FETCH_HEAD` に頼る | 対応しない | `FETCH_HEAD` は worktree ごとだが、メイン checkout で別の fetch が同時に入れば書き換わる。:127 は `HEAD_SHA` との等値判定なので止まる。:54 の祖先照合は誤って成立し得るが、`PR_REPO`・`PR_NUMBER` はその前に確定しており、後の worktree の作成・push・マージは `gh pr view` の `HEAD_SHA` に固定される。対象の PR は変わらず、最悪でも正しい PR に対して古いレビューを入力に進むだけで、各指摘は現行 HEAD で確かめ直す |
+| CD-I1（DeepSeek Info） | eval 4 の `expected_output` が致命的の基準に合っていない | 対応しない | eval の文面の不揃い。`expectations` は更新済みで、eval を自動で実行する仕組みも無い |
+| CD-U1（DeepSeek 未検証候補） | `gh pr edit --body-file` が並行した本文の編集を上書きする | 対応しない | PR の本文を書き換える経路はこの手順だけで、並行して本文を編集する運用は無い。手動の編集と重なっても、旧版は GitHub の編集履歴（`userContentEdits`）に残る |
+| CD-U2（DeepSeek 未検証候補） | CI の確認が Spec の push より前にある | 対応しない | Spec を PR の head に push するのは create-reso-world の PR だけで、CI の確認は不要（Actions も停止中）。CI を確認する usaturn/resoloop では Spec を create-reso-world 側に置くので、確認後に head は変わらない |
+
+PR 全体の点検（自己確認）でも、致命的な欠陥は見つからなかった。push・マージ・`reset --keep`・`restore`・`worktree remove`・`branch -D`・Issue の close・PR の本文の書き換えを 1 つずつ追い、誤った対象への操作やデータの消失にならないことを確かめた。致命的でない点として次を記録する（対応しない）。
+
+- 結論 2 の手順 9 は、参照しているだけの Issue のリポジトリを限っていない。usaturn/resoloop の PR が上流の Issue を参照していれば、上流の Issue にコメントする（例: usaturn/resoloop#9 の "Refs orange3134/resoloop#5"）。実行許可の「関連 Issue の更新」の範囲内で、内容も事実どおりである
+- 専用の worktree の手順 3 の fast-forward は、`HEAD_REPO` を照合する手順 4 より前に行う。手順 4 で止まっても、同名のローカルブランチは進んだまま残る（旧先端は祖先として残る）
+- Red flags の「メイン checkout … で修正しようとしている」（:473）と、手順 3 の再利用（:137）の文面が食い違う。どちらに従っても、再利用か停止になる
+
+### 9.3 検証
+
+専用の worktree（`e344d2c`）で、スキルの変更に対する検証を通した。
+
+| コマンド | 結果 |
+| --- | --- |
+| `uv run pytest tests/skills .agents/skills -q` | 516 passed・1 skipped（exit 0） |
+| `bash .devcontainer/run-tests.bash` | 27 本 PASS（exit 0） |
+| `bash scripts/check-layout.sh` | PASS（exit 0） |
+
+検証後の `git status --porcelain` は空だった。base は進んでいないので、統合ツリーでの検証（結論 2 の手順 2）は要らない。create-reso-world は private で GitHub Actions を止めているので、CI の確認（手順 4）は対象外である。PR は usaturn/create-reso-world の open で draft でない PR で、マージしてよい範囲にある。
+
+指摘の検証は、新しい文脈のサブエージェント 3 体に独立に任せた。
+
+- git の挙動（CD-L3・D-L1・S-L3・O-M2 の解消）: git 2.55.0 の一時リポジトリで実験した
+- GitHub・eval・権限（S-L2・S-L1・S-M1・CD-U1・CD-U2）: `gh` の読み取り、公式文書、GraphQL で確かめた
+- 文面の流れ（CD-L1・CD-L2・CD-I1・S-I1〜I3）と、PR 全体の書き込み・削除の操作の点検
+
+3 体とも、リポジトリと GitHub への書き込みはしていない。自己レビューは結論 1 の段なので行っていない。
+
+### 9.4 結論と PR の説明
+
+結論 2（修正が不要）。「対応しない」とした指摘の実在する制約は、PR の説明の保証と食い違わない（PR の説明は、状況コメントの HEAD の表記、文書専用 PR への公開、`FETCH_HEAD` の扱いについて何も保証していない）。O-L1・S-L1 は 1 回目に既知の制限へ書き足してある。PR の説明は変えない。
+
+この記録のコミットだけを PR の head に fast-forward で push し、push 後の head を `--match-head-commit` に渡してマージする。
+
+### 9.5 所要時間（UTC）
+
+| 区間 | 時刻 | 所要 |
+| --- | --- | --- |
+| レビュー 5 件・PR の情報・共通 context・専用の worktree の確認 | 14:33〜14:37 | 約 4 分 |
+| 指摘の検証の委譲（3 体を並行）、変更ファイルの全文・関連テストの確認、検証一式 | 14:37〜14:47 | 約 10 分 |
+| 判定と記録 | 14:47〜14:52 | 約 5 分 |
