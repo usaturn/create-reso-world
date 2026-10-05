@@ -4,9 +4,9 @@
 - 対象: Issue #5「レビュー修正が回帰と適用漏れを繰り返し、PR のコミットが積み上がる問題を根本から直す」の「対応方針 A」の第 1 段階
 - 基準: `main` の `a6e2c41`（PR #35 のマージ後）。`review-fix-planning`・`AGENTS.md`・`docs/superpowers/README.md` は会話開始時の `7139054` から変わっていない
 - 経路: brainstorming の architectural 経路。スキルの既定の挙動（Spec を書いて承認待ちで止まる）を変え、push・マージ・Issue の更新まで行う形にするため
-- 状態: draft
-- 実行許可: 設計（下記 3 章の内容）は 2026-10-05 に利用者が会話で承認した。サブエージェントでのスキル検証（6 章）も同じ承認に含む。この Spec 自体の承認は未取得
-- 関連 Plan: `docs/superpowers/plans/2026-10-05-issue-5-review-fix-three-outcomes.md`（この Spec の承認後に作る）
+- 状態: approved（`12778b7` の版を 2026-10-05 に利用者が承認）
+- 実行許可: 設計（下記 3 章の内容）は 2026-10-05 に利用者が会話で承認した。サブエージェントでのスキル検証（6 章）も同じ承認に含む。Spec の承認と同時に「途中で止めずに推奨案でPRをしてください」と指示されたので、Plan の作成・実装・検証・PR の作成まで、推奨案で止まらずに進める。マージは指示に含まない
+- 関連 Plan: `docs/superpowers/plans/2026-10-05-issue-5-review-fix-three-outcomes.md`
 - 作成: 2026-10-05
 
 ## 1. 目的
