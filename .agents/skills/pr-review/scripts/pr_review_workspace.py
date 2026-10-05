@@ -156,12 +156,19 @@ def review_artifact_paths(
     return backup_dir / filename, f"reviews/{directory}/{filename}"
 
 
-def git(repo: Path, *args: str, binary: bool = False, pass_fds: tuple[int, ...] = ()) -> str | bytes:
+def git(
+    repo: Path,
+    *args: str,
+    binary: bool = False,
+    pass_fds: tuple[int, ...] = (),
+    new_session: bool = False,
+) -> str | bytes:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         check=False,
         capture_output=True,
         pass_fds=pass_fds,
+        start_new_session=new_session,
     )
     if result.returncode:
         message = result.stderr.decode("utf-8", errors="replace").strip()
@@ -371,7 +378,15 @@ def interruption_signals() -> Generator[None]:
         yield
         return
 
+    interrupted = False
+
     def interrupt(signum: int, _frame: object) -> None:
+        nonlocal interrupted
+        # `uv run` forwards the signal the process group already delivered;
+        # a second copy must not cut short the journal's end record.
+        if interrupted:
+            return
+        interrupted = True
         raise CreateInterrupted(signum)
 
     previous = {signum: signal.signal(signum, interrupt) for signum in INTERRUPT_SIGNALS}
@@ -492,8 +507,22 @@ def create_session(
 
     before = snapshot(repo)
     journal.record("worktree-add")
-    # A checkout that outlives this process keeps the creator lock held.
-    git(repo, "worktree", "add", "--detach", str(worktree), commit, pass_fds=(journal.fileno(),))
+    # A checkout that outlives this process keeps the creator lock held. Its
+    # own session keeps a signal sent to this process group away from git:
+    # SIGTERM there starts git's own cleanup, which a SIGKILL right after can
+    # cut short and leave records git cannot remove. On our signal,
+    # subprocess.run stops git with SIGKILL, leaving a worktree that
+    # `git worktree remove` still accepts.
+    git(
+        repo,
+        "worktree",
+        "add",
+        "--detach",
+        str(worktree),
+        commit,
+        pass_fds=(journal.fileno(),),
+        new_session=True,
+    )
 
     journal.record("worktree-verify")
     actual_top = Path(str(git(worktree, "rev-parse", "--show-toplevel"))).resolve(strict=True)
@@ -855,26 +884,78 @@ def require_abandonable_entries(session_dir: Path) -> None:
             )
 
 
+def read_link(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="surrogateescape").strip()
+
+
+def attempt_admin_dirs(repo: Path, worktree: Path) -> list[Path]:
+    """Find this repository's worktree records that belong to the session worktree."""
+    admin_root = git_path(repo, "--git-common-dir") / "worktrees"
+    own_gitfile = os.path.realpath(worktree / ".git")
+    found: set[Path] = set()
+    gitfile = worktree / ".git"
+    if gitfile.is_symlink() or (gitfile.exists() and not gitfile.is_file()):
+        raise WorkspaceError(f"session worktree .git is not a file; keep the session: {worktree}")
+    if gitfile.is_file():
+        content = read_link(gitfile)
+        if not content.startswith("gitdir: "):
+            raise WorkspaceError(f"session worktree .git is not a gitdir link; keep the session: {worktree}")
+        linked = Path(os.path.realpath(worktree / content.removeprefix("gitdir: ")))
+        if linked.parent != admin_root:
+            raise WorkspaceError(f"session worktree links outside this repository's worktree records: {linked}")
+        if os.path.lexists(admin_root / linked.name):
+            found.add(admin_root / linked.name)
+    if admin_root.is_dir():
+        for admin in admin_root.iterdir():
+            backlink = admin / "gitdir"
+            if backlink.is_file() and os.path.realpath(read_link(backlink)) == own_gitfile:
+                found.add(admin)
+    for admin in found:
+        if admin.is_symlink() or not admin.is_dir():
+            raise WorkspaceError(f"worktree record is not a directory; keep the session: {admin}")
+        backlink = admin / "gitdir"
+        if os.path.lexists(backlink) and os.path.realpath(read_link(backlink)) != own_gitfile:
+            raise WorkspaceError(f"worktree record belongs to another worktree; keep the session: {admin}")
+        lock = admin / "locked"
+        if os.path.lexists(lock) and read_link(lock) != "initializing":
+            raise WorkspaceError(f"worktree record is locked by the user; keep the session: {admin}")
+    return sorted(found)
+
+
+def is_session_worktree(worktree: Path, repo: Path) -> bool:
+    try:
+        require_session_worktree(worktree.resolve(strict=True), repo)
+    except (WorkspaceError, OSError):
+        return False
+    return True
+
+
 def remove_attempt_worktree(repo: Path, worktree: Path) -> bool:
-    registration = worktree_registration(repo, worktree)
     if worktree.is_symlink():
         raise WorkspaceError(f"session worktree path is a symlink; keep the session: {worktree}")
-    if not worktree.exists():
-        if registration is not None:
-            raise WorkspaceError(f"worktree is registered but its directory is missing; keep the session: {worktree}")
-        return False
-    if registration is None:
-        if any(worktree.iterdir()):
-            raise WorkspaceError(f"session worktree directory is not a registered worktree; keep the session: {worktree}")
-        return False
-    require_session_worktree(worktree.resolve(strict=True), repo)
-    # `git worktree add` marks its worktree "initializing" until checkout ends;
-    # any other lock reason belongs to the user and git keeps refusing it.
-    force = ("--force", "--force") if registration.get("locked") == "initializing" else ("--force",)
-    git(repo, "worktree", "remove", *force, str(worktree))
+    registration = worktree_registration(repo, worktree)
+    lock = None if registration is None else registration.get("locked")
+    if lock not in (None, "initializing"):
+        raise WorkspaceError(f"worktree is locked ({lock}); keep the session for the user: {worktree}")
+    if registration is not None and worktree.is_dir() and is_session_worktree(worktree, repo):
+        # `git worktree add` marks its worktree "initializing" until checkout ends.
+        force = ("--force", "--force") if lock == "initializing" else ("--force",)
+        git(repo, "worktree", "remove", *force, str(worktree))
+        removed = True
+    else:
+        # git's own `worktree add` cleanup was cut short and left records git
+        # no longer accepts; remove only the ones that point at this worktree.
+        admins = attempt_admin_dirs(repo, worktree)
+        if registration is not None and not admins:
+            raise WorkspaceError(f"cannot find the worktree record git lists; keep the session: {worktree}")
+        removed = bool(admins) or worktree.exists()
+        for admin in admins:
+            shutil.rmtree(admin)
+        if worktree.exists():
+            shutil.rmtree(worktree)
     if worktree.exists() or worktree_registration(repo, worktree) is not None:
-        raise WorkspaceError(f"git did not remove the review worktree: {worktree}")
-    return True
+        raise WorkspaceError(f"the review worktree is still present: {worktree}")
+    return removed
 
 
 def abandon_attempt(args: argparse.Namespace) -> dict[str, Any]:

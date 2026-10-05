@@ -1321,8 +1321,10 @@ def stalling_git_env(tmp_path: Path) -> dict[str, str]:
     real_git = shutil.which("git")
     assert real_git is not None
     wrapper = bin_dir / "git"
+    pid_file = tmp_path / "stalled-git.pid"
     wrapper.write_text(
-        f'#!/bin/sh\n"{real_git}" "$@" || exit $?\ncase " $* " in *" worktree add "*) exec sleep 60 ;; esac\n',
+        f'#!/bin/sh\n"{real_git}" "$@" || exit $?\n'
+        f'case " $* " in *" worktree add "*) echo $$ > "{pid_file}"; exec sleep 60 ;; esac\n',
         encoding="utf-8",
     )
     wrapper.chmod(0o755)
@@ -1366,6 +1368,13 @@ def kill_group(pid: int, signum: int) -> None:
         os.killpg(pid, signum)
 
 
+def kill_stalled_git(tmp_path: Path) -> None:
+    pid_file = tmp_path / "stalled-git.pid"
+    if pid_file.is_file():
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)
+
+
 def wait_for_phase(repo: Path, temp_root: Path, attempt: str, phase: str) -> dict[str, Any]:
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
@@ -1405,14 +1414,19 @@ def test_killed_create_reports_its_last_phase_and_leftovers(tmp_path: Path) -> N
     process = start_create(stalling_git_env(tmp_path), repo, commit, temp_root, attempt)
     try:
         running = wait_for_phase(repo, temp_root, attempt, "worktree-add")
-    finally:
         kill_group(process.pid, signal.SIGKILL)
         _, stderr = process.communicate(timeout=10)
+        # `git worktree add` runs in its own session, so the group kill spares it.
+        checkout_alive = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+    finally:
+        kill_group(process.pid, signal.SIGKILL)
+        kill_stalled_git(tmp_path)
 
     report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt, wait=10))
 
     assert running["status"] == "running"
     assert process.returncode == -signal.SIGKILL
+    assert checkout_alive["status"] == "running"
     assert report["status"] == "vanished"
     assert report["last_phase"] == "worktree-add"
     assert report["state_file"] is None
@@ -1559,6 +1573,7 @@ def test_abandon_waits_for_a_checkout_that_outlives_create(tmp_path: Path) -> No
         assert Path(orphaned["worktree"]).is_dir()
     finally:
         kill_group(process.pid, signal.SIGKILL)
+        kill_stalled_git(tmp_path)
 
     assert orphaned["status"] == "running"
     assert workspace.inspect_attempt(attempt_args(repo, temp_root, attempt, wait=10))["status"] == "vanished"
@@ -1692,3 +1707,87 @@ def test_abandon_waits_for_the_repository_review_lock(tmp_path: Path, monkeypatc
     assert process.returncode == 0, stderr
     assert json.loads(stdout)["session_dir"] == str(attempt["session_dir"])
     assert not attempt["session_dir"].exists()
+
+
+def admin_dir_of(worktree: Path) -> Path:
+    return Path((worktree / ".git").read_text(encoding="utf-8").strip().removeprefix("gitdir: "))
+
+
+@pytest.mark.parametrize("cut", ["gitdir", "HEAD", "record"])
+def test_abandon_clears_records_left_by_an_interrupted_worktree_add(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cut: str
+) -> None:
+    # A SIGTERM that reaches `git worktree add` starts git's own cleanup; a
+    # SIGKILL right after cuts it short and leaves records git cannot remove.
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    repo = attempt["repo"]
+    worktree = Path(attempt["result"]["worktree"])
+    admin = admin_dir_of(worktree)
+    other = tmp_path / "unrelated-worktree"
+    git(repo, "worktree", "add", "--detach", str(other), "HEAD")
+    (admin / "locked").write_text("initializing\n", encoding="utf-8")
+    if cut == "record":
+        shutil.rmtree(admin)
+    elif cut == "gitdir":
+        for name in ("gitdir", "HEAD", "commondir"):
+            (admin / name).unlink()
+    else:
+        (admin / "HEAD").unlink()
+
+    removed = workspace.abandon_attempt(attempt_args(repo, attempt["temp_root"], attempt["attempt"]))
+
+    assert removed["worktree_removed"] is True
+    assert not attempt["session_dir"].exists()
+    assert not admin.exists()
+    assert str(worktree) not in git(repo, "worktree", "list")
+    assert other.is_dir()
+    assert str(other) in git(repo, "worktree", "list")
+
+
+def test_abandon_refuses_records_of_another_worktree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mine = completed_attempt(tmp_path, monkeypatch)
+    repo = mine["repo"]
+    theirs = workspace.create(explicit_create_args(repo, mine["commit"], mine["temp_root"], attempt_id()))
+    their_admin = admin_dir_of(Path(theirs["worktree"]))
+    worktree = Path(mine["result"]["worktree"])
+    git(repo, "worktree", "remove", "--force", str(worktree))
+    worktree.mkdir()
+    (worktree / ".git").write_text(f"gitdir: {their_admin}\n", encoding="utf-8")
+    (worktree / "README.md").write_text("fixture\n", encoding="utf-8")
+
+    with pytest.raises(workspace.WorkspaceError, match="another worktree"):
+        workspace.abandon_attempt(attempt_args(repo, mine["temp_root"], mine["attempt"]))
+
+    assert their_admin.is_dir()
+    assert theirs["worktree"] in git(repo, "worktree", "list")
+    assert (worktree / "README.md").is_file()
+
+
+def test_a_repeated_signal_does_not_cut_the_end_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # `uv run` forwards SIGTERM to the helper that already got it from the
+    # process group, so the second copy lands while create records the first.
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    snapshot = workspace.snapshot
+    record_end = workspace.CreateJournal.record_end
+
+    def terminated_snapshot(path: Path) -> dict[str, Any]:
+        os.kill(os.getpid(), signal.SIGTERM)
+        return snapshot(path)
+
+    def record_end_after_another_signal(self: Any, phase: str, **fields: object) -> None:
+        os.kill(os.getpid(), signal.SIGTERM)
+        record_end(self, phase, **fields)
+
+    monkeypatch.setattr(workspace, "snapshot", terminated_snapshot)
+    monkeypatch.setattr(workspace.CreateJournal, "record_end", record_end_after_another_signal)
+
+    with pytest.raises(workspace.CreateInterrupted):
+        workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+    assert report["status"] == "interrupted"
+    assert report["signal"] == "SIGTERM"
