@@ -132,6 +132,7 @@
 | なし | `README.md` の ResoLoop の版の説明 | 適応（PR #27 のレビュー修正） | ResoLoop の導入の説明を `.devcontainer/resoloop.lock` の nuget / fork モードに合わせた | #19 |
 | なし | `README.md` の「構成」「エージェントで作業する」「対象外」 | 適応 | この比較表への参照と、pi の project trust の注意を足した | #22 |
 | なし | `docs/maatlog-poc-porting.md`（この文書） | 適応 | #17 の比較表と rebuild での確認の記録 | #22 |
+| なし | `tests/skills/test_legacy_references.py` の `EXCLUDED` | 適応 | この文書は移植元の全ファイルを載せる移行の記録なので、追跡ファイルに移植元の名前を禁じるガードの例外にした。設計記録（`docs/superpowers`）と同じ扱い | #22 |
 
 ### 対象外: スキル・レビュー系ツール・pi の Context7
 

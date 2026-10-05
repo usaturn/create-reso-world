@@ -852,3 +852,14 @@ Expected: `OPEN` で、`headRefOid` がローカルの `git rev-parse HEAD` と�
 - #22 に作業報告（planning / implementation の状態、PR、コミット、検証の結果、所要時間と内訳、未検証の項目、rebuild の記録の依頼）を書く
 - 予約 `refs/heads/agent-claims/issue-22` を、保存した SHA の lease 付きで削除し、ref が無いことを確かめる
 - 親 #17 の実行ボードは調整役が更新する。この Plan の実行者は #22 にだけ書く
+
+## 実行時の変更（2026-10-05）
+
+Task 4 の Step 1 で、全体の pytest の `tests/skills/test_legacy_references.py::test_tracked_files_do_not_refer_to_the_migration_source` が失敗した（比較表の 17 行とルートの `README.md` の 3 行）。このガードは、設計記録（`docs/superpowers`）などを除く追跡ファイルに移植元の名前・`public/`・`verify-devenv` などを禁じる。計画の検証では `run-tests.bash` と README のテストだけを試作で実行し、pytest を実行していなかったため見落とした。
+
+Spec の D-15 として次のように直した（コミット `9ebeb29`）。上の Task 3 のパッチと、Task 2・3 の一時の検査スクリプトに埋め込んだ README の期待値は、この変更の前の版である。
+
+- `tests/skills/test_legacy_references.py` の `EXCLUDED` に `docs/maatlog-poc-porting.md` を足した（移行の記録なので、設計記録と同じ扱い）
+- ルートの `README.md` の「構成」を「統合手順、pi と Claude Code の設定の移植の記録」に、「対象外」の参照を「`docs/` にある移植の比較表（Issue #22）の「rebuild での確認」」に直し、移植元の名前を書かない
+- 一時の検査スクリプトの期待値を新しい文に合わせ、ルートの `README.md` に移植元の名前が無いことの検査を足した。節名の参照の検査には「移植の比較表」を比較表への目印として足した
+- ガードは修正の前に失敗し（21 行）、修正の後に通る。ルートの `README.md` に移植元の名前を足すと、引き続き失敗することを確かめた
