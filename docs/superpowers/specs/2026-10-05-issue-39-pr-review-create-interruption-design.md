@@ -98,6 +98,7 @@ Issue の時系列では、セッションディレクトリの作成が 12:09:4
 
 - `create` はセッションディレクトリを作った直後に `create-journal.jsonl` を作り、そのファイルの排他 flock を `create` の終了まで持ち続ける。この flock を「creator のロック」と呼ぶ
 - `git worktree add` の子プロセスにはこのファイルの fd を引き継ぐ（`pass_fds`）。親の Python が先に強制終了されても、checkout を続けている子が生きている間はロックが残り、`inspect` は実行中と判断する
+- `git worktree add` は別のセッション（`start_new_session`）で動かす。プロセスグループ宛てのシグナルは `create` だけが受け、git には届かない。SIGTERM が git に届くと git は自分の後始末（管理ディレクトリと worktree の削除）を始め、直後の SIGKILL でそれが途中で止まると、`git worktree remove` でも消せない記録が残る（9 章の実環境での再現）。`create` が中断するときは `subprocess.run` が git を SIGKILL で止めるので、git が消せる「`initializing` のロック付きの worktree」が残る。グループ宛ての SIGKILL では git が生き残って checkout を最後まで続けるが、その間は creator のロックが残るので `inspect` は `running` を返す（実装中の裁定。9 章）
 - 生存の判定は PID ではなくロックで行う。カーネルはプロセスの終了時にロックを解放するので、PID の再利用や子プロセスの取り違えが起きない
 - journal は 1 行 1 レコードの JSON で、各レコードに UTC の時刻（ミリ秒）を持つ。最初のレコード（`started`）に試行 ID、PID、PR 番号、commit、ブランチ、モデル名、main checkout、セッションディレクトリ、worktree のパスを書く。以降は工程の開始ごとに 1 行足す
 
@@ -119,6 +120,7 @@ Issue の時系列では、セッションディレクトリの作成が 12:09:4
 ### D-4 中断の記録
 
 - `create` の実行中に SIGTERM・SIGHUP・SIGINT を受けたら、journal に `interrupted` とシグナル名を書き、終了コード 128＋シグナル番号で終わる。`subprocess.run` は例外で抜けるときに子の git を止める
+- 中断は最初のシグナルだけで起こし、2 回目以降の SIGTERM・SIGHUP は無視する。`uv run` はプロセスグループで受けたシグナルを helper にも転送するので helper には 2 回届き、2 回目が終端の記録の書き込みを途中で止めていた（実装中の裁定。9 章）
 - helper のエラー（`WorkspaceError` など）で終わったら、journal に `failed` とメッセージを書く。終了コードは従来どおり 2
 - SIGKILL やクラッシュでは終端のレコードが残らない。`inspect` はロックが外れているのに終端が無い状態を `vanished`（終了コードは不明）と報告する
 - 中断時に worktree を自動で消す巻き戻しはしない。ツールのタイムアウトは SIGTERM の後に SIGKILL を送ることが多く、巻き戻しが途中で止まると、より分かりにくい状態が残る。調査できる状態を残し、片付けは `abandon` に任せる
@@ -165,11 +167,17 @@ uv run --no-project python "$HELPER" abandon --repo "$MAIN_ROOT" --pr-number "$P
 4. セッションディレクトリ直下が `create-journal.jsonl`・`review-backup`・`worktree`・`session.json`・`.session.json.*`（`session.json` の書き込み途中の一時ファイル）だけで、シンボリックリンクを含まない
 5. `review-backup` 直下が `previous-review.md`・`.previous-review.md.*`（helper が作る既存レビューの snapshot）だけである。draft など、それ以外のファイルがあれば保存されていないレビューの内容とみなして残す
 6. worktree の扱い:
-   - ディレクトリがあり登録されている: `cleanup` と同じ検査（このリポジトリの linked worktree で、パスが一致する）を通ったら `git worktree remove --force` で消す。ロックの理由が `initializing`（`git worktree add` が途中で止まった印）のときだけ `--force` を 2 回付ける。それ以外の理由のロックは利用者が付けたものとみなし、git の拒否をそのまま返す
-   - ディレクトリが無く、登録も無い: worktree を作る前に止まった。消す worktree は無い
-   - ディレクトリがあり登録が無い: 中が空なら消してよい。空でなければ拒否する
-   - 登録があるのにディレクトリが無い: 拒否する（`git worktree prune` は他のセッションにも作用するため使わない）
+   - 登録の理由付きのロックが `initializing`（`git worktree add` が途中で止まった印）以外なら、利用者が付けたものとみなして拒否する
+   - 登録されていて、`cleanup` と同じ検査（このリポジトリの linked worktree で、パスが一致する）を通るなら、`git worktree remove --force` で消す。ロックが `initializing` のときだけ `--force` を 2 回付ける
+   - それ以外（登録が無い、または登録はあるが git が worktree と認めない）は、git の後始末が途中で止まった状態である。git では消せないので、次をすべて満たす管理ディレクトリ（`<Git 共通ディレクトリ>/worktrees/<名前>`）だけを直接消し、worktree のディレクトリも消す
+     - 自分の worktree の `.git` ファイルが指す先、または `gitdir` が自分の worktree の `.git` を指すものである。`.git` ファイルがこのリポジトリの `worktrees/` 直下以外を指していれば拒否する
+     - `worktrees/` 直下の実ディレクトリで、`gitdir` は無いか自分の worktree を指す（他の worktree を指していれば拒否する）
+     - `locked` は無いか、内容が `initializing` である
+   - 登録があるのに、それを指す管理ディレクトリが見つからなければ、何も消さずに拒否する。`git worktree prune` は他のセッションにも作用するため使わない
 7. worktree を消した後、登録とディレクトリが無いことを確かめてから、セッションディレクトリを消す
+
+- 管理ディレクトリを直接消すのは、git の後始末が途中で止まり、`git worktree remove` も `git worktree repair` の後の削除も受け付けない状態（`gitdir`・`HEAD`・`commondir` が欠けた記録）があるためである（9 章の実環境での再現）。worktree のパスはセッションごとに一意で、そのパスを指す記録は自分の `git worktree add` しか作らない
+- 残る危険: 自分の管理ディレクトリが git の後始末で完全に消え、同じ名前を別のセッションの `git worktree add` が使い始め、その git が `gitdir` を書く前の数ミリ秒に `abandon` が走ると、その作成途中の記録を消す。相手の `create` は git のエラーで止まるだけで、レビューの内容や他の worktree は失われない。起きる条件が重なる確率は極めて低いので、この危険を受け入れる（実装中の裁定。9 章）
 
 - `abandon` は `reviews/`・main checkout の working tree・他のセッションに触れない。`git worktree remove` に渡すのは、セッションディレクトリから導いた自分の worktree のパスだけである
 - `session.json` がある（`create` は完了したが結果を受け取れなかった）場合も片付けられる。draft が無ければ、失うのは既存レビューの snapshot（保存先の写し）だけである
@@ -206,6 +214,8 @@ uv run --no-project python "$HELPER" abandon --repo "$MAIN_ROOT" --pr-number "$P
 - `create` を 2 段に分け、先に軽い準備コマンドでセッションのパスを返す案: 呼び出しが増え、準備コマンド自体の中断も扱う必要がある。試行 ID なら呼び出しは増えない
 - 中断したセッションを `inspect` の出力から引き継いで続行する案: `create` の結果を再構築しない規則に反し、確認すべき分岐が増える。片付けて作り直す手順に揃える
 - ロック外へ fsync を移す案: 他のセッションは止まらなくなるが、自分の `create` は同じだけ待つ
+- 登録の無い空でない worktree は拒否して利用者に任せる案（当初の D-6）: 実環境での再現では、SIGTERM が git に届いた中断のほとんどがこの状態になり、利用者が `.git/worktrees/` を手で消すことになる。Issue が避けたい手動の復旧そのものなので採らない
+- 中断した worktree を `git worktree repair` で登録し直してから `git worktree remove` で消す案: 実環境での再現で試したが、`HEAD`・`commondir` も欠けているため git が worktree と認めず、削除できなかった
 
 ## 5. 受け入れ条件との対応
 
@@ -242,13 +252,58 @@ helper の挙動をテストで確かめる。文書の文言を固定値で比�
 - `create`: 試行 ID の必須・形式・重複の拒否。成功時の journal（工程の順と最初のレコードの内容）
 - 中断（別プロセスで実行）: `git worktree add` の直後で止まる git のラッパーを PATH に置き、`create` を実行する
   - 実行中に `inspect` が `running` と工程 `worktree-add` を返す
-  - SIGKILL でプロセスグループを止めると `vanished`、SIGTERM では終了コード 143 と `interrupted`（`SIGTERM`）
+  - SIGKILL でプロセスグループを止めても、別のセッションの git は生き残り `running` のまま。git が終わると `vanished`。SIGTERM では終了コード 143 と `interrupted`（`SIGTERM`）
+  - 2 回目のシグナルが終端の記録を止めない
   - 共有ロックをテスト側で持って `lock-wait` で止め、SIGKILL した後に `abandon` で片付けられる（Issue の状態の再現。`.session.json.*` の一時ファイルも含める）
 - `abandon` の保護: 実行中・draft あり・未知のファイルあり・別リポジトリ・`initializing` 以外のロックでは何も消さない。`initializing` のロックは消せる。他の試行のセッション、`reviews/` の他のファイル、main checkout の状態は変わらない
+- git の後始末が途中で止まった記録（`gitdir`・`HEAD`・`commondir` が無い、`HEAD` だけが無い、管理ディレクトリごと無い）を `abandon` が片付け、無関係な worktree は残る。自分の `.git` が他の worktree の記録を指していれば拒否する
 - `inspect`: 該当なしで `absent`、同じ試行 ID が 2 件で拒否
 - fsync: `create` は fsync を呼ばない（共有ロック内で長く待たない）
 - 既存のテストは、`create` の呼び出しに試行 ID を足すだけで挙動の期待を変えない
 
 ## 9. 実装の記録
 
-（実装の完了後に追記する）
+2026-10-05 に、Plan を executing-plans でこのセッションのまま実行した（サブエージェントは起動していない）。状態は `draft` のままで、この Spec と Plan の明示承認は得ていない。
+
+### 9.1 コミット
+
+| コミット | 内容 |
+| --- | --- |
+| `9860670` | この Spec |
+| `aed0004` | Plan |
+| `66db80e` | Task 1: `create` の試行 ID・journal・中断の記録、セッション内ファイルの fsync の削除 |
+| `cf9ab76` | Task 2: `inspect` |
+| `dbe5a03` | Task 3: `abandon` |
+| `b4c762c` | Task 4: `SKILL.md`・`references/time-budget.md` |
+| `9166cbb` | 実環境での再現で見つかった 2 点の修正（9.3 節の裁定 1〜3） |
+
+### 9.2 検証
+
+- `uv run pytest .agents/skills/pr-review -q`: 206 件成功（変更前は 175 件）
+- `uv run pytest -q`（リポジトリ全体）: 628 件成功、1 件 skip
+- `bash .devcontainer/run-tests.bash`: 27 本すべて成功
+- `bash scripts/check-layout.sh`: 成功
+- 実環境での確認（3.2 節と同じ使い捨ての clone。利用者の checkout と既存の worktree には触れていない）
+
+| 確認 | 結果 |
+| --- | --- |
+| 単独の `create`（ページキャッシュが温まった状態） | 全体 5.8 秒。`worktree-add` 5.36 秒、`lock-wait` から `completed` まで 2 ms。stderr に工程が 1 行ずつ出る |
+| 4 件同時の `create` | 全体 約 68.6 秒。`worktree-add` 68.0〜68.2 秒、`lock-wait` から `completed` まで各 1〜2 ms |
+| 比較: 変更前の helper の 4 件同時（直前の書き出しが残る状態） | 全体 467〜556 秒。`worktree-add` 387.7 秒、ロック内の fsync が 78.8・64.6・22.7・0.02 秒で直列に待った |
+| `timeout -s TERM 2` で中断（プロセスグループへの SIGTERM） | 終了コード 124。journal は `interrupted`（`SIGTERM`）。worktree は `initializing` のロック付きで登録が残り、`abandon` が `git worktree remove -f -f` で片付けた |
+| Python と git の両方に SIGTERM（ツリー単位の kill の再現） | 管理ディレクトリに `locked`・`logs`・`refs` だけが残って一覧から消え、worktree に 21 項目が残った。`abandon` が管理ディレクトリとセッションを片付けた |
+
+- `git worktree add` の所要時間はストレージの状態で 5〜388 秒と大きく変わる。ロック内で待つ時間は fsync をやめて数 ms になったが、`create` 全体が 60 秒や 120 秒を超えることはあるので、D-1 のタイムアウトの規約が要る
+
+### 9.3 実装中の裁定
+
+利用者の指示（途中で止めずに推奨案で進める）に基づき、次をエージェントが決めた。
+
+1. `git worktree add` を別のセッションで動かす（D-3）。実環境で `timeout -s TERM` による中断を再現したところ、SIGTERM が git にも届き、git の後始末が直後の SIGKILL で途中で止まって、`git worktree list` に出ず `git worktree remove` でも消せない記録が残った。誤りだった場合の影響: グループ宛ての SIGKILL では git が生き残って checkout を続ける（`inspect` は `running`、終われば `abandon` できる）
+2. `abandon` は、git の後始末が途中で止まった記録を、自分の worktree を指すものに限って直接消す（D-6。当初の「登録が無い空でない worktree は拒否」を変えた）。`git worktree repair` で登録し直す方法は、`HEAD`・`commondir` も欠けていて削除できなかった。誤りだった場合の影響: 6 章 D-6 の「残る危険」のとおり、名前を再利用した他のセッションの作成途中の記録を消し、その `create` がエラーで止まる可能性がある
+3. 中断は最初のシグナルだけで起こす（D-4）。`uv run` が SIGTERM を転送して helper に 2 回届き、2 回目が終端の記録を止めて `vanished` と報告されていた。誤りだった場合の影響: 2 回目のシグナルで止めたい場合は SIGKILL が要る
+
+### 9.4 残したもの
+
+- 軽微な点（見送り）: git の `worktree.useRelativePaths` を有効にしていると、9.3 節 2 の直接削除の経路で管理ディレクトリの `gitdir`（相対パス）を正しく照合できず、`abandon` が拒否する。何も消さない側に倒れるので、修正は見送った
+- Issue の `/tmp/pr-review-38-wq1dp0rt` は、この変更より前に作られ journal が無いので、`inspect`・`abandon` の対象にならない。片付けは利用者の判断に任せる。`/tmp/pr-review-38-gpmnkkz5`（Issue の起票後に作られた別のセッション）にも触れていない

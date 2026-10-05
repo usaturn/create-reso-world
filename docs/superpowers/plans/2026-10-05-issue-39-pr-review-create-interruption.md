@@ -13,6 +13,7 @@
 - 状態: draft（利用者の 2026-10-05 の指示「途中で止めずに推奨案で Spec、Plan を作成し PR まで実施せよ」による実行許可。Plan 自体の明示承認は得ていない）
 - 作業場所: worktree `/workspaces/reso-world/.worktrees/issue-39-create-interruption`、ブランチ `fix/issue-39-pr-review-create-interruption`（`origin/main` の `a6e2c41` から作成）
 - 実行方式: 利用者の指示どおり止まらずに進めるため、このセッションで executing-plans により実装する（サブエージェントは起動しない）
+- 実行結果: 2026-10-05 に Task 1〜5 を実行した。実環境での再現で見つかった 2 点を追加で直し、実装中の裁定 3 件とあわせて Spec の 9 章に記録した
 
 ## Global Constraints
 
@@ -46,7 +47,7 @@
 **Interfaces:**
 - Produces: `validate_attempt_id(value: str) -> str`、`JOURNAL_NAME = "create-journal.jsonl"`、`TERMINAL_PHASES`、`CreateInterrupted(BaseException)`（属性 `signum: int`）、`CreateJournal`（`record(phase, **fields)`・`fileno()`・`close()`）、`journal_attempt(path: Path) -> str | None`、`read_journal(path: Path) -> list[dict[str, Any]]`、`attempt_sessions(temp_root: Path, pr_number: int, attempt_id: str) -> list[Path]`、`git(repo, *args, binary=False, pass_fds=())`、`create(args)` は `args.attempt_id` を必須とする
 
-- [ ] **Step 1: 既存テストの `create` 呼び出しに試行 ID を足す**
+- [x] **Step 1: 既存テストの `create` 呼び出しに試行 ID を足す**
 
 `test_pr_review_workspace.py` の import に `contextlib`・`fcntl`・`shutil`・`signal`・`time`・`uuid` を足し、`THREAD_ID` の下に次を置く。
 
@@ -57,7 +58,7 @@ def attempt_id() -> str:
 
 `workspace.create(argparse.Namespace(...))` を呼ぶ全 10 箇所（`test_create_requires_explicit_model_outside_codex`、`test_create_pins_slash_model_name_as_hyphenated_filename`、`test_create_destination_uses_hash_pr_number_and_sanitized_branch`、`test_create_destination_replaces_unsafe_directory_characters`、`test_create_pins_explicit_model_outside_codex`、`test_save_uses_pinned_explicit_model_without_codex_metadata`、`test_create_pins_model_and_artifact_paths`、`test_create_pins_existing_review_snapshot`、`create_session`、`test_first_session_wins_same_destination`）の Namespace に `attempt_id=attempt_id(),` を足す。`test_create_parser_accepts_explicit_model_name` の引数リストに `"--attempt-id", "20261005T121530123456789Z",` を足す。
 
-- [ ] **Step 2: 新しいテストを書く**
+- [x] **Step 2: 新しいテストを書く**
 
 ファイル末尾に次を足す。
 
@@ -181,12 +182,12 @@ def test_create_does_not_fsync_session_files(tmp_path: Path, monkeypatch: pytest
     assert Path(result["state_file"]).is_file()
 ```
 
-- [ ] **Step 3: テストが失敗することを確かめる**
+- [x] **Step 3: テストが失敗することを確かめる**
 
 Run: `uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py -q -k "attempt_id or journal or fsync or parser"`
 Expected: FAIL（`--attempt-id` が未定義、journal が無い、fsync が呼ばれる）
 
-- [ ] **Step 4: helper を実装する**
+- [x] **Step 4: helper を実装する**
 
 import に `signal`・`threading`・`time` と `from datetime import UTC, datetime` を足す。`MODEL_SOURCES` の下に定数を置く。
 
@@ -495,12 +496,12 @@ def main(argv: list[str] | None = None) -> int:
 
 `parser` の `create_parser` に `create_parser.add_argument("--attempt-id", required=True)` を足す。
 
-- [ ] **Step 5: テストが通ることを確かめる**
+- [x] **Step 5: テストが通ることを確かめる**
 
 Run: `uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py -q`
 Expected: PASS（既存のテストを含めて全件）
 
-- [ ] **Step 6: コミット**
+- [x] **Step 6: コミット**
 
 ```bash
 git add .agents/skills/pr-review/scripts/pr_review_workspace.py .agents/skills/pr-review/tests/test_pr_review_workspace.py
@@ -517,7 +518,7 @@ git commit -m "feat(pr-review): create に試行 ID と進捗の記録を加え�
 - Consumes: Task 1 の `JOURNAL_NAME`・`TERMINAL_PHASES`・`validate_attempt_id`・`read_journal`・`attempt_sessions`
 - Produces: `inspect_attempt(args) -> dict[str, Any]`（args は `repo`・`pr_number`・`attempt_id`・`temp_root`・`wait`）、`locate_attempt(repo: Path, temp_root_value: str | None, pr_number: int, attempt_id: str) -> Path | None`、`creator_running(journal: Path) -> bool`、`attempt_report(repo: Path, session_dir: Path, attempt_id: str, *, running: bool) -> dict[str, Any]`、`worktree_registration(repo: Path, worktree: Path) -> dict[str, str] | None`
 
-- [ ] **Step 1: テストを書く**
+- [x] **Step 1: テストを書く**
 
 ```python
 def attempt_args(repo: Path, temp_root: Path, attempt: str, *, wait: int = 0) -> argparse.Namespace:
@@ -699,12 +700,12 @@ def test_inspect_refuses_an_attempt_id_shared_by_two_sessions(
         workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
 ```
 
-- [ ] **Step 2: テストが失敗することを確かめる**
+- [x] **Step 2: テストが失敗することを確かめる**
 
 Run: `uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py -q -k "inspect or killed or terminated"`
 Expected: FAIL（`inspect_attempt` が未定義）
 
-- [ ] **Step 3: 実装する**
+- [x] **Step 3: 実装する**
 
 `cleanup` の下に置く。
 
@@ -841,12 +842,12 @@ def add_attempt_arguments(command: argparse.ArgumentParser) -> None:
     inspect_parser.set_defaults(handler=inspect_attempt)
 ```
 
-- [ ] **Step 4: テストが通ることを確かめる**
+- [x] **Step 4: テストが通ることを確かめる**
 
 Run: `uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py -q`
 Expected: PASS
 
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
 
 ```bash
 git add .agents/skills/pr-review/scripts/pr_review_workspace.py .agents/skills/pr-review/tests/test_pr_review_workspace.py
@@ -863,7 +864,7 @@ git commit -m "feat(pr-review): 中断した create の試行を調べる inspec
 - Consumes: Task 2 の `locate_attempt`・`attempt_report`・`worktree_registration`・`SESSION_FILES`・`SESSION_DIRECTORIES`・`add_attempt_arguments`、既存の `review_save_lock`・`require_session_worktree`
 - Produces: `abandon_attempt(args) -> dict[str, Any]`（返却キーは `attempt_id`・`session_dir`・`worktree`・`worktree_removed`・`status`）
 
-- [ ] **Step 1: テストを書く**
+- [x] **Step 1: テストを書く**
 
 ```python
 def completed_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
@@ -1070,12 +1071,12 @@ def test_abandon_waits_for_the_repository_review_lock(tmp_path: Path, monkeypatc
     assert not attempt["session_dir"].exists()
 ```
 
-- [ ] **Step 2: テストが失敗することを確かめる**
+- [x] **Step 2: テストが失敗することを確かめる**
 
 Run: `uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py -q -k abandon`
 Expected: FAIL（`abandon_attempt` が未定義）
 
-- [ ] **Step 3: 実装する**
+- [x] **Step 3: 実装する**
 
 `inspect_attempt` の下に置く。
 
@@ -1169,12 +1170,12 @@ def abandon_attempt(args: argparse.Namespace) -> dict[str, Any]:
     abandon_parser.set_defaults(handler=abandon_attempt)
 ```
 
-- [ ] **Step 4: テストが通ることを確かめる**
+- [x] **Step 4: テストが通ることを確かめる**
 
 Run: `uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py -q`
 Expected: PASS
 
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
 
 ```bash
 git add .agents/skills/pr-review/scripts/pr_review_workspace.py .agents/skills/pr-review/tests/test_pr_review_workspace.py
@@ -1190,7 +1191,7 @@ git commit -m "feat(pr-review): 中断した create の試行を片付ける aba
 **Interfaces:**
 - Consumes: Task 1〜3 の CLI（`create --attempt-id`、`inspect --wait`、`abandon`）
 
-- [ ] **Step 1: `SKILL.md` の「ランタイム別の注意」を変える**
+- [x] **Step 1: `SKILL.md` の「ランタイム別の注意」を変える**
 
 `### Claude Code` の箇条の末尾に次を足す。
 
@@ -1204,7 +1205,7 @@ git commit -m "feat(pr-review): 中断した create の試行を片付ける aba
 - bash ツールの `timeout` は秒単位である。helper を呼ぶときは指定しないか 600 以上にする（規約の「helper の呼び出し」）
 ```
 
-- [ ] **Step 2: `SKILL.md` の「規約」を変える**
+- [x] **Step 2: `SKILL.md` の「規約」を変える**
 
 「自セッションの worktree の削除は helper の `cleanup` だけが行う。」で始まる箇条を次にする。
 
@@ -1218,7 +1219,7 @@ git commit -m "feat(pr-review): 中断した create の試行を片付ける aba
 - helper の呼び出し: `pr_review_workspace.py` の各サブコマンドは、fetch・`gh` など所要時間の読めない別の処理と同じツール呼び出しにまとめない（結果の JSON を読む `jq` は同じ呼び出しでよい）。ツール呼び出しにタイムアウトを指定できるランタイムでは、指定しないか 600 秒以上を指定する（上限が 600 秒未満のランタイムではその上限）。`create` は同時のレビューやストレージの書き込み待ちで数分かかることがあり、短いタイムアウトで打ち切ると worktree が残ってレビューを続けられなくなる。時間予算はフェーズの境界で確かめ、helper を打ち切って守らない
 ```
 
-- [ ] **Step 3: `SKILL.md` の手順 2 を変える**
+- [x] **Step 3: `SKILL.md` の手順 2 を変える**
 
 「`create` を一度だけ実行する。」を「`create` は試行 ID ごとに一度だけ実行する。」に変える。その箇条の後（「Codex では次を実行する。」の前）に次を足す。
 
@@ -1254,7 +1255,7 @@ git commit -m "feat(pr-review): 中断した create の試行を片付ける aba
      `inspect` の出力から `create` の結果（`worktree`・`state_file` など）を組み立てて続行しない。`create` が helper のエラーで終わった場合は従来どおり停止して報告し、残存パスの報告に `inspect` を使ってよいが `abandon` はしない。
 ````
 
-- [ ] **Step 4: `SKILL.md` の手順 9 と出力前セルフチェックを変える**
+- [x] **Step 4: `SKILL.md` の手順 9 と出力前セルフチェックを変える**
 
 手順 9 の「最終応答では save/cleanup の結果、」で始まる箇条の末尾に次の文を足す。
 
@@ -1269,7 +1270,7 @@ git commit -m "feat(pr-review): 中断した create の試行を片付ける aba
 - `create` に `--attempt-id "$ATTEMPT_ID"` を渡し、結果を返さなかった試行を `inspect`・`abandon` で扱ったか（拒否されたら手で消さずに停止したか）
 ```
 
-- [ ] **Step 5: `references/time-budget.md` を変える**
+- [x] **Step 5: `references/time-budget.md` を変える**
 
 「## 時間予算」の「開始からの目安は次のとおり。」の表の後の段落（「phase 境界、」で始まる箇条）の前に次を足す。
 
@@ -1286,12 +1287,12 @@ git commit -m "feat(pr-review): 中断した create の試行を片付ける aba
 | S26 | やり直した `create` も結果を返さない | `inspect` と `abandon` の後、再試行せず停止して報告 |
 ```
 
-- [ ] **Step 6: スキルのテストを実行する**
+- [x] **Step 6: スキルのテストを実行する**
 
 Run: `uv run pytest .agents/skills/pr-review tests/skills -q`
 Expected: PASS。契約テストが失敗したら、変更の意図（Global Constraints の 2 行の `create` と cleanup の文）に照らして文書側を直す。文言を固定値で比べる新しい検査は足さない
 
-- [ ] **Step 7: コミット**
+- [x] **Step 7: コミット**
 
 ```bash
 git add .agents/skills/pr-review/SKILL.md .agents/skills/pr-review/references/time-budget.md
@@ -1304,12 +1305,12 @@ git commit -m "docs(pr-review): helper を短いタイムアウトで打ち切�
 - Modify: `docs/superpowers/specs/2026-10-05-issue-39-pr-review-create-interruption-design.md`（9 章）
 - Modify: この Plan（チェックボックス）
 
-- [ ] **Step 1: リポジトリ全体のテストと配置検査**
+- [x] **Step 1: リポジトリ全体のテストと配置検査**
 
 Run: `uv run pytest -q` と `bash scripts/check-layout.sh` と `bash .devcontainer/run-tests.bash`
 Expected: すべて PASS
 
-- [ ] **Step 2: 実環境に近い条件での確認**
+- [x] **Step 2: 実環境に近い条件での確認**
 
 scratchpad に `git clone --shared` で作った使い捨ての clone に対して、新しい helper で次を確かめる（利用者の checkout と既存の worktree には触れない）。
 
@@ -1319,7 +1320,7 @@ scratchpad に `git clone --shared` で作った使い捨ての clone に対し�
 
 結果は Spec の 9 章に記録する。確認の後、scratchpad の clone は `rm -rf -- "${S:?}/measure"` の形で消す。
 
-- [ ] **Step 3: Spec に実装の記録を書いてコミット**
+- [x] **Step 3: Spec に実装の記録を書いてコミット**
 
 9 章に、各 Task のコミット、テストの件数、Step 2 の計測値、範囲外として残したもの（Issue の `/tmp/pr-review-38-wq1dp0rt` は journal が無く `abandon` の対象外）を書く。状態は `draft` のまま（明示承認は得ていない）。
 
@@ -1328,7 +1329,7 @@ git add docs/superpowers/specs/2026-10-05-issue-39-pr-review-create-interruption
 git commit -m "docs(spec): Issue #39 の実装の記録を残す"
 ```
 
-- [ ] **Step 4: push と PR**
+- [x] **Step 4: push と PR**
 
 ```bash
 git push -u origin fix/issue-39-pr-review-create-interruption
