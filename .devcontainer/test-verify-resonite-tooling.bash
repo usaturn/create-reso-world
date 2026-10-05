@@ -35,9 +35,10 @@ if out="$(MOCK_RESOLOOP_VERSION='' bash "$verify" 2>&1)"; then fail 'passed alth
 grep -qF 'resoloop --version printed nothing' <<<"$out" || fail "unexpected message: $out"
 if BLENDER_FAIL=1 bash "$verify" 2>/dev/null; then fail 'passed although Blender cannot run'; fi
 
-# 3. postCreate が導入と確認を呼び、宣言した手順の数が実際の手順の数と同じ
+# 3. postCreate が導入・確認・同梱スキルの表示を呼び、宣言した手順の数が実際の手順の数と同じ
 installer="$root/.devcontainer/install_beforehand.bash"
-for s in 'bash .devcontainer/install_resoloop.bash' 'bash .devcontainer/verify-resonite-tooling.bash'; do
+for s in 'bash .devcontainer/install_resoloop.bash' 'bash .devcontainer/verify-resonite-tooling.bash' \
+  'bash .devcontainer/report-resoloop-skills.bash'; do
   grep -qF -- "$s" "$installer" || fail "install_beforehand.bash does not run: $s"
 done
 declared_steps="$(sed -n 's/^readonly STEP_TOTAL=//p' "$installer")"
