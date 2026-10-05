@@ -1308,3 +1308,182 @@ def test_create_does_not_fsync_session_files(tmp_path: Path, monkeypatch: pytest
 
     assert result["previous_review"] is not None
     assert Path(result["state_file"]).is_file()
+
+
+def attempt_args(repo: Path, temp_root: Path, attempt: str, *, wait: int = 0) -> argparse.Namespace:
+    return argparse.Namespace(repo=str(repo), pr_number=4, attempt_id=attempt, temp_root=str(temp_root), wait=wait)
+
+
+def stalling_git_env(tmp_path: Path) -> dict[str, str]:
+    """Run git normally, but keep `git worktree add` alive after it finishes."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    real_git = shutil.which("git")
+    assert real_git is not None
+    wrapper = bin_dir / "git"
+    wrapper.write_text(
+        f'#!/bin/sh\n"{real_git}" "$@" || exit $?\ncase " $* " in *" worktree add "*) exec sleep 60 ;; esac\n',
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+    env = os.environ.copy()
+    env.pop("CODEX_THREAD_ID", None)
+    env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+    return env
+
+
+def start_create(env: dict[str, str], repo: Path, commit: str, temp_root: Path, attempt: str) -> subprocess.Popen[str]:
+    return subprocess.Popen(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "create",
+            "--repo",
+            str(repo),
+            "--pr-number",
+            "4",
+            "--commit",
+            commit,
+            "--head-branch",
+            "fix/herdr-session-cwd",
+            "--model-name",
+            "opus-5",
+            "--temp-root",
+            str(temp_root),
+            "--attempt-id",
+            attempt,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        start_new_session=True,
+    )
+
+
+def kill_group(pid: int, signum: int) -> None:
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(pid, signum)
+
+
+def wait_for_phase(repo: Path, temp_root: Path, attempt: str, phase: str) -> dict[str, Any]:
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+        if report.get("last_phase") == phase:
+            return report
+        time.sleep(0.05)
+    raise AssertionError(f"create never reached {phase}")
+
+
+def test_inspect_reports_a_completed_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    result = workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+
+    assert report["status"] == "completed"
+    assert report["session_dir"] == str(Path(result["state_file"]).parent)
+    assert report["state_file"] == result["state_file"]
+    assert report["worktree"] == result["worktree"]
+    assert report["worktree_exists"] is True
+    assert report["worktree_registered"] is True
+    assert report["worktree_lock"] is None
+    assert report["last_phase"] == "completed"
+    assert {"create-journal.jsonl", "session.json", "worktree/", "review-backup/"} <= set(report["entries"])
+
+
+def test_killed_create_reports_its_last_phase_and_leftovers(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    process = start_create(stalling_git_env(tmp_path), repo, commit, temp_root, attempt)
+    try:
+        running = wait_for_phase(repo, temp_root, attempt, "worktree-add")
+    finally:
+        kill_group(process.pid, signal.SIGKILL)
+        _, stderr = process.communicate(timeout=10)
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt, wait=10))
+
+    assert running["status"] == "running"
+    assert process.returncode == -signal.SIGKILL
+    assert report["status"] == "vanished"
+    assert report["last_phase"] == "worktree-add"
+    assert report["state_file"] is None
+    assert report["worktree_exists"] is True
+    assert report["worktree_registered"] is True
+    assert f"session_dir={report['session_dir']}" in stderr
+    assert "worktree-add" in stderr
+
+
+def test_terminated_create_records_the_signal(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    process = start_create(stalling_git_env(tmp_path), repo, commit, temp_root, attempt)
+    try:
+        wait_for_phase(repo, temp_root, attempt, "worktree-add")
+    finally:
+        kill_group(process.pid, signal.SIGTERM)
+        process.communicate(timeout=10)
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt, wait=10))
+
+    assert process.returncode == 128 + signal.SIGTERM
+    assert report["status"] == "interrupted"
+    assert report["signal"] == "SIGTERM"
+    assert report["last_phase"] == "interrupted"
+
+
+def test_inspect_reports_an_unknown_attempt_as_absent(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    legacy = temp_root / "pr-review-4-legacy"
+    legacy.mkdir(parents=True)
+    (legacy / ".session.json.kqdd8rsc").write_text("{}\n", encoding="utf-8")
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt_id()))
+
+    assert report == {"attempt_id": report["attempt_id"], "status": "absent", "session_dir": None}
+    assert (legacy / ".session.json.kqdd8rsc").is_file()
+
+
+def test_inspect_ignores_a_cut_off_journal_line(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    result = workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+    with (Path(result["state_file"]).parent / "create-journal.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write('{"phase": "fail')
+
+    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
+
+    assert report["status"] == "completed"
+    assert report["last_phase"] == "completed"
+
+
+def test_inspect_refuses_an_attempt_id_shared_by_two_sessions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    temp_root = tmp_path / "sessions"
+    attempt = attempt_id()
+    result = workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
+    duplicate = temp_root / "pr-review-4-duplicate"
+    duplicate.mkdir()
+    shutil.copy(Path(result["state_file"]).parent / "create-journal.jsonl", duplicate / "create-journal.jsonl")
+
+    with pytest.raises(workspace.WorkspaceError, match="share attempt id"):
+        workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))

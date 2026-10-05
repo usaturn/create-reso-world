@@ -714,11 +714,131 @@ def cleanup(args: argparse.Namespace) -> dict[str, str]:
     }
 
 
+SESSION_FILES = {JOURNAL_NAME, "session.json"}
+SESSION_DIRECTORIES = {"review-backup", "worktree"}
+
+
+def locate_attempt(repo: Path, temp_root_value: str | None, pr_number: int, attempt_id: str) -> Path | None:
+    temp_root = Path(temp_root_value).resolve() if temp_root_value else Path(tempfile.gettempdir()).resolve()
+    if not temp_root.is_dir():
+        return None
+    matches = attempt_sessions(temp_root, pr_number, attempt_id)
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise WorkspaceError(f"{len(matches)} sessions share attempt id {attempt_id}; keep them for the user")
+    session_dir = matches[0]
+    header = read_journal(session_dir / JOURNAL_NAME)[0]
+    if (
+        header.get("main_root") != str(repo)
+        or header.get("session_dir") != str(session_dir)
+        or header.get("pr_number") != pr_number
+    ):
+        raise WorkspaceError("create journal does not match this repository, PR and session directory")
+    return session_dir
+
+
+def creator_running(journal: Path) -> bool:
+    with journal.open("rb") as stream:
+        try:
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    return False
+
+
+def worktree_registration(repo: Path, worktree: Path) -> dict[str, str] | None:
+    listing = git(repo, "worktree", "list", "--porcelain", "-z", binary=True)
+    assert isinstance(listing, bytes)
+    target = os.path.realpath(worktree)
+    entry: dict[str, str] = {}
+    for field in listing.decode("utf-8", errors="surrogateescape").split("\0"):
+        if field:
+            key, _, value = field.partition(" ")
+            entry[key] = value
+            continue
+        if "worktree" in entry and os.path.realpath(entry["worktree"]) == target:
+            return entry
+        entry = {}
+    return None
+
+
+def entry_name(path: Path, prefix: str = "") -> str:
+    return prefix + path.name + ("/" if path.is_dir() and not path.is_symlink() else "")
+
+
+def session_entries(session_dir: Path) -> list[str]:
+    entries: list[str] = []
+    for child in sorted(session_dir.iterdir()):
+        entries.append(entry_name(child))
+        if child.name == "review-backup" and child.is_dir() and not child.is_symlink():
+            entries.extend(entry_name(grandchild, "review-backup/") for grandchild in sorted(child.iterdir()))
+    return entries
+
+
+def attempt_report(repo: Path, session_dir: Path, attempt_id: str, *, running: bool) -> dict[str, Any]:
+    records = read_journal(session_dir / JOURNAL_NAME)
+    last = records[-1]
+    ended = last if last["phase"] in TERMINAL_PHASES else {}
+    worktree = session_dir / "worktree"
+    registration = worktree_registration(repo, worktree)
+    state_file = session_dir / "session.json"
+    return {
+        "attempt_id": attempt_id,
+        "status": "running" if running else (last["phase"] if ended else "vanished"),
+        "session_dir": str(session_dir),
+        "pid": records[0].get("pid"),
+        "phases": [{"phase": record["phase"], "at": record.get("at")} for record in records],
+        "last_phase": last["phase"],
+        "last_phase_at": last.get("at"),
+        "error": ended.get("error"),
+        "signal": ended.get("signal"),
+        "state_file": str(state_file) if state_file.is_file() and not state_file.is_symlink() else None,
+        "worktree": str(worktree),
+        "worktree_exists": worktree.exists() or worktree.is_symlink(),
+        "worktree_registered": registration is not None,
+        "worktree_lock": None if registration is None else registration.get("locked"),
+        "entries": session_entries(session_dir),
+    }
+
+
+def inspect_attempt(args: argparse.Namespace) -> dict[str, Any]:
+    attempt_id = validate_attempt_id(args.attempt_id)
+    repo = require_main_checkout(args.repo)
+    deadline = time.monotonic() + args.wait
+    while True:
+        session_dir = locate_attempt(repo, args.temp_root, args.pr_number, attempt_id)
+        if session_dir is None:
+            return {"attempt_id": attempt_id, "status": "absent", "session_dir": None}
+        # Probe before reading so a just-finished attempt shows its end record.
+        running = creator_running(session_dir / JOURNAL_NAME)
+        report = attempt_report(repo, session_dir, attempt_id, running=running)
+        remaining = deadline - time.monotonic()
+        if not running or remaining <= 0:
+            return report
+        time.sleep(min(1.0, remaining))
+
+
 def positive_integer(value: str) -> int:
     number = int(value)
     if number < 1:
         raise argparse.ArgumentTypeError("must be a positive integer")
     return number
+
+
+def non_negative_integer(value: str) -> int:
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be zero or a positive integer")
+    return number
+
+
+def add_attempt_arguments(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--repo", required=True)
+    command.add_argument("--pr-number", required=True, type=positive_integer)
+    command.add_argument("--attempt-id", required=True)
+    command.add_argument("--temp-root")
 
 
 def parser() -> argparse.ArgumentParser:
@@ -746,6 +866,11 @@ def parser() -> argparse.ArgumentParser:
     cleanup_parser = commands.add_parser("cleanup", help="remove the session worktree once the review is saved")
     cleanup_parser.add_argument("--state", required=True)
     cleanup_parser.set_defaults(handler=cleanup)
+
+    inspect_parser = commands.add_parser("inspect", help="report how a create attempt ended and what it left")
+    add_attempt_arguments(inspect_parser)
+    inspect_parser.add_argument("--wait", type=non_negative_integer, default=0)
+    inspect_parser.set_defaults(handler=inspect_attempt)
     return root
 
 
