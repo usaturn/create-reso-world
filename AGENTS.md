@@ -76,6 +76,10 @@
 | usaturn/resoloop または orange3134/resoloop | `<toplevel>/external/resoloop` | `origin` が usaturn/resoloop、`upstream` が orange3134/resoloop であること。checkout が無ければ `scripts/resoloop-fork.sh clone` を案内して停止する |
 | それ以外 | ユーザの依頼または確認済みの引き継ぎで明示された checkout の絶対パス（`CODE_ROOT`） | その checkout 自身のルートであり、remote のうち 1 つだけが対象の owner/repo と一致すること。この経路を持つのは `pr-review`（レビュー）と `review-fix-planning`（修正計画と、その PR の承認済み実装修正）で、既存の承認済み PR 修正経路は維持する。一般的な外部コード実装は非対応であり、実行経路が未定義の外部実装の handoff は blocked（not ready）として記録する。remote が無いローカル専用の checkout との PR 連携は非対応のため扱えない（明示指示があっても resolver は remote 0 件で停止する）。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。checkout の探索・clone はしない |
 
+## GitHub Actions
+
+- 料金の問題でプライベートの usaturn/create-reso-world の CI は使わず停止しているため、CI の確認は不要。パブリックの CI は停止していない為、確認すること
+
 ## ResoLoop の版管理
 
 - 導入する ResoLoop の版は `.devcontainer/resoloop.lock` を正とする。現在は nuget モードで、上流の公開版（0.1.0-preview.15）を使う。上流に未取り込みの修正が必要なときは fork モードに切り替える
