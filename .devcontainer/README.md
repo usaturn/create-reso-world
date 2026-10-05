@@ -115,11 +115,11 @@ CI の gitleaks ジョブは `.gitleaks.toml`（既定の規則に、resoloop �
 
 ## Resonite ワールド開発ツール
 
-Dev Container の作成時に .NET 10 SDK と Blender を導入し、ResoLoop を
-`.devcontainer/resoloop.lock` が指定する版で導入する。nuget モードでは
-NuGet の公開版を `dotnet tool` で導入する。fork モードでは
-`scripts/resoloop-fork.sh install` が fork を `external/resoloop` に取得してビルドするため、
-ネットワークと数分の時間を要する。版の変え方と fork の運用は `docs/resoloop-fork-workflow.md` を参照する。
+Dev Container の作成時に .NET 10 SDK と Blender を導入し、ResoLoop は NuGet の最新の公開版を
+`.devcontainer/install_resoloop.bash`（`dotnet tool update --global ResoLoop --prerelease --allow-downgrade`）で導入する。
+続けて、各プロジェクトの `resoloop skills sync --check` の結果を `.devcontainer/report-resoloop-skills.bash` で表示する
+（差分があっても postCreate は失敗しない）。rebuild せずに最新へ上げるときも `bash .devcontainer/install_resoloop.bash` を実行する。
+fork のビルドを一時的に使う方法は `docs/resoloop-fork-workflow.md` を参照する。
 Blender は画面を開かずに実行する。Resonite 本体と ResoniteLink は
 Windows ホスト側で準備する。接続確認の `resoloop doctor`、
 Blender の GUI、ホスト側のネットワーク設定はこのセットアップの対象外とする。

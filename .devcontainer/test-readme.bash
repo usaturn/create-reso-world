@@ -41,7 +41,7 @@ done < <(column 6 | ticks)
 # 4. 仕様 7.2 の記述: ResoniteLink への到達、秘密情報の置き場、Cursor の制約、flux-sdk、テストの実行
 for s in 'networkingMode=mirrored' 'resoloop discover' 'RESONITE_LINK_URL' '~/.config/create-reso-world/env' \
   '## エージェントの読み込みの制約' 'Cursor は' 'flux-sdk' 'bash .devcontainer/run-tests.bash' \
-  'bash scripts/check-layout.sh' 'uv run pytest tests/skills .agents/skills' '.devcontainer/resoloop.lock'; do
+  'bash scripts/check-layout.sh' 'uv run pytest tests/skills .agents/skills'; do
   grep -qF -- "$s" "$readme" || fail "README lacks: $s"
 done
 if grep -nE '^project_doc_fallback_filenames' "$readme"; then fail 'README still tells Codex users to add project_doc_fallback_filenames'; fi

@@ -76,7 +76,7 @@ def test_fork_route_syncs_first_and_skips_worktree_step() -> None:
     # The fork's origin/main lags upstream/main until sync has run, so an
     # upstream PR must be judged against upstream/main, sync must run before
     # the merge check, and step 7 (git switch main) must not move the fork's
-    # detached checkout off its lock commit.
+    # detached checkout off the commit it was left at.
     content = read(SKILL)
     fork_section = content.split("### fork の経路", 1)[1].split("## ワークフロー", 1)[0]
     assert "手順 10 の `sync` を先に実行し" in fork_section

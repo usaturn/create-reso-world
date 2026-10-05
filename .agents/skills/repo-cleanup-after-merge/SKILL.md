@@ -29,11 +29,11 @@ git の操作はほぼ全て取り消せる。取り消せないのは次の 2 �
 
 ### fork の経路（`external/resoloop`）だけの手順
 
-fork の checkout は `scripts/resoloop-fork.sh checkout` が固定した lock commit へ detached HEAD で置かれており、`build` はこれを動かさない。この前提から、fork の経路は次の順で進める。
+fork の checkout は、`scripts/resoloop-fork.sh checkout <ref>` や `install <ref>` が取り出したコミットで detached HEAD になっていることが多く、利用者が作業ブランチにいることもある。`build` はこれを動かさない。この前提から、fork の経路は次の順で進める。
 
 1. ユーザー確認を得てから（Claude Code では AskUserQuestion）、手順 10 の `sync` を先に実行し、fork の `main` を上流へ追従させる。手順 2 の `fetch --prune` の前でよい
 2. マージ済みかの判定（手順 3）は、上流 `orange3134/resoloop` 発の PR は `upstream/main` を、fork 内（`usaturn/resoloop` 発）の PR は `origin/main` を基準にする。`sync` を先に済ませていないと、上流でマージ済みの PR がこの fork の `origin/main` ではまだ未取り込みに見える
-3. 手順 7（`git switch main` / `merge --ff-only`）は実行しない。`external/resoloop` は detached のまま残す。誤って動かしていた場合は `bash scripts/resoloop-fork.sh checkout` で lock commit へ復元する
+3. 手順 7（`git switch main` / `merge --ff-only`）は実行しない。`external/resoloop` の HEAD は、detached でもブランチでもそのまま残す。誤って動かしていた場合は、`git -C external/resoloop reflog` で元の位置を確かめて戻す
 
 `bash scripts/resoloop-fork.sh sync` と `git -C external/resoloop ...` は、エージェントがどの作業ディレクトリから開始していても、リポジトリのルート（`cd "$(git rev-parse --show-toplevel)"`）で実行する。
 

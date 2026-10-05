@@ -92,15 +92,15 @@
 5. 不要になった未追跡物を削除する（どれも追跡している正本が別の場所にある。仕様 4.2 と 5.1）。`akichi/.agents/skills/` の Blender 系 10 スキルと `references/`・`tests/`（ルートの `.agents/skills/` に移ったため）、`akichi/.claude/skills/` と `MyResoniteProject/.claude/skills/` の Blender 系 symlink、ルート `.claude/skills/` の `resonite-*` の未追跡 symlink（resonite-* はプロジェクト側で読む）、`MyResoniteProject/.agents/sp-*.md` のうち `sp-implementer.md` 以外の 8 件（pi-superagents の組み込み定義と同一のため）。
 6. `MyResoniteProject/` で `uv sync` を実行し、`uv run pytest` が通ることを確認する（プロジェクト専用の環境になった）。
 7. `bash scripts/check-layout.sh` がすべて `ok` で `PASS: check-layout` になることを確認する。
-8. （任意）Rebuild の前に `tmp/resoloop-blender5-uv-20260925` を `external/resoloop` へ移すと、postCreate の clone を省ける。手順は `docs/resoloop-fork-workflow.md` の「`tmp/` にある旧 checkout の整理」にある。
-9. Dev Containers: Rebuild Container を実行する。postCreate は `.devcontainer/resoloop.lock` の fork をビルドして導入する（ネットワークと数分を要する）。確かめることは下の「Rebuild 後に確かめること」にある。`tmp/` の残りの旧 checkout は `docs/resoloop-fork-workflow.md` の「`tmp/` にある旧 checkout の整理」の手順で整理する。
+8. （任意）`tmp/resoloop-blender5-uv-20260925` を `external/resoloop` へ移すと、fork のビルドを使うときの clone を省ける。手順は `docs/resoloop-fork-workflow.md` の「`tmp/` にある旧 checkout の整理」にある。
+9. Dev Containers: Rebuild Container を実行する。postCreate は NuGet の最新の公開版の ResoLoop を導入する（ネットワークを要する）。確かめることは下の「Rebuild 後に確かめること」にある。`tmp/` の残りの旧 checkout は `docs/resoloop-fork-workflow.md` の「`tmp/` にある旧 checkout の整理」の手順で整理する。
 
 ## Rebuild 後に確かめること（仕様 9.3）
 
 Dev Containers: Rebuild Container を実行した後、コンテナの中で次を確かめる。
 
 1. `bash .devcontainer/verify-resonite-tooling.bash` が 0 で終わる。`dotnet --list-sdks` に `10.0.201` がある。
-2. postCreate の fork のビルドと導入が通っている: `bash scripts/resoloop-fork.sh status` で導入済みの版と checkout がロックと一致し、`resoloop --version` がロックの `RESOLOOP_FORK_PACKAGE_VERSION` を返す。fork へ push する `bash scripts/resoloop-fork.sh sync` を初めて使うときは、GitHub への push の認証が通ることを確かめる。
+2. postCreate の ResoLoop の導入が通っている: `resoloop --version` が NuGet の最新の公開版を返し、`bash scripts/resoloop-fork.sh status` の `installed version` が `NuGet release` である。postCreate の出力に、各プロジェクトの `resoloop skills sync --check` の結果がある。fork へ push する `bash scripts/resoloop-fork.sh sync` を初めて使うときは、GitHub への push の認証が通ることを確かめる。
 3. VS Code のターミナルと、エージェントが起動するプロセスの PATH に `/home/vscode/.local/bin`・`/home/vscode/bin`・`/home/vscode/.dotnet/tools` がある（`remoteEnv.PATH`）。
 4. ホストに `~/.config/create-reso-world` が mode 700 で作られ、コンテナに mount されている。`env` を置いた場合は、新しいシェルでその変数が export されている。
 5. `bash scripts/check-layout.sh`、`bash .devcontainer/run-tests.bash`、各プロジェクトの `uv run pytest` が通る。

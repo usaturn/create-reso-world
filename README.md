@@ -23,8 +23,7 @@
 1. ホスト側に秘密情報の置き場を用意する（任意）。手順は `.devcontainer/README.md` の「秘密情報」にある。
 2. VS Code の Dev Containers: Reopen in Container で開く。`initializeCommand` がホスト側に mount のソースを作り、
    `postCreateCommand`（`.devcontainer/install_beforehand.bash`）が各エージェントの CLI、uv、Blender、ResoLoop などを導入する。
-   ResoLoop は `.devcontainer/resoloop.lock` が指定する版をネットワークから導入する。nuget モードでは公開版を取得し、
-   fork モードでは fork を取得してビルドするため、数分の時間を要する。
+   ResoLoop は NuGet の最新の公開版をネットワークから導入し、続けて各プロジェクトの同梱スキルの状態を表示する。
 3. 導入を確かめる。
 
    ```bash
@@ -64,11 +63,21 @@ bash scripts/new-world.sh --apply <name>    # 既存のプロジェクトに、�
 
 ## ResoLoop の版
 
-導入する ResoLoop の版は `.devcontainer/resoloop.lock` で決める。現在は nuget モードで、上流（orange3134/resoloop）の
-公開版を導入する。上流に未取り込みの修正が必要なときは、fork（usaturn/resoloop）をビルドして導入する fork モードに切り替え、
-上流がその修正をリリースしたら nuget モードに戻す。
-fork の checkout は `external/resoloop`（git の追跡対象外）に置く。版の変え方、fork の修正と上流への PR の流れは
-`docs/resoloop-fork-workflow.md` にある。
+ResoLoop は常に NuGet の最新の公開版（上流 orange3134/resoloop のリリース。今はプレリリースだけ）を使い、版を固定しない。
+Dev Container を作るとき（postCreate）に最新を導入する。rebuild せずに最新へ上げるときは、次の 1 行を実行する
+（中で `dotnet tool update --global ResoLoop --prerelease --allow-downgrade` を実行し、`resoloop --version` を照合する）。
+
+```bash
+bash .devcontainer/install_resoloop.bash
+```
+
+最新に追従するので、rebuild や上のコマンドのたびに resoloop の挙動が変わり得る。使っている版は `resoloop --version` で確かめる。
+版が上がると、各プロジェクトの同梱スキル（`resonite-*`）にも更新が出る。postCreate と `scripts/check-layout.sh` は更新の有無を
+表示するだけなので、`resoloop skills sync --check` で差分を見てから `--update` する（`AGENTS.md` の「プロジェクト運用」）。
+
+上流に未取り込みの修正を一時的に使うときは、`bash scripts/resoloop-fork.sh install <fork のブランチ>` で fork（usaturn/resoloop）の
+ビルドを導入する。次の rebuild か、上の 1 行で最新の公開版に戻る。fork の checkout は `external/resoloop`（git の追跡対象外）に置く。
+fork の使い方と上流への PR の流れは `docs/resoloop-fork-workflow.md` にある。
 
 ## 変更の流れ
 

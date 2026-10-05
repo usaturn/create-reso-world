@@ -23,7 +23,7 @@ intro="$(sed -n '1,/^## /p' AGENTS.md)"
 # メイン作業ツリーの未コミット変更（統合時に破棄される）を取り込んでいる
 for s in 'オブジェクトごとに、1つのメッシュにする' '長大なタスクであった場合は分割して実装する' 'agent-handoff' \
   '`docs_draft/` に Markdown で作成する' 'python3 を使ってよい' 'scripts/new-world.sh' \
-  '.devcontainer/resoloop.lock' 'usaturn/create-reso-world' 'external/resoloop' \
+  'usaturn/create-reso-world' 'external/resoloop' \
   'monitoring-long-tasks' '.agents/monitoring-runtimes.md' 'find-docs' '3 回まで'; do
   has AGENTS.md "$s"
 done
@@ -37,8 +37,8 @@ other_row="$(grep -F '| それ以外 |' <<<"$boundary")" || fail 'AGENTS.md boun
 for s in '`CODE_ROOT`' 'remote' '推測せず停止する' '`pr-review`' '`review-fix-planning`' 'ローカル専用'; do
   [[ "$other_row" == *"$s"* ]] || fail "the other-repository row lacks: $s"
 done
-# AGENTS.md が参照するファイルが実在する（ResoLoop の版管理の 3 件はフェーズ 3 で作成、持ち越し N-5）
-for f in .devcontainer/resoloop.lock scripts/resoloop-fork.sh docs/resoloop-fork-workflow.md \
+# AGENTS.md が参照するファイルが実在する（ResoLoop の版管理の 2 件はフェーズ 3 で作成、持ち越し N-5）
+for f in scripts/resoloop-fork.sh docs/resoloop-fork-workflow.md \
   scripts/new-world.sh scripts/check-layout.sh .agents/monitoring-runtimes.md \
   scripts/superpowers-review-copy.sh docs/superpowers/README.md; do
   [ -e "$f" ] || fail "AGENTS.md refers to missing $f"

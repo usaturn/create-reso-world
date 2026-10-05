@@ -83,9 +83,9 @@
 
 ## ResoLoop の版管理
 
-- 導入する ResoLoop の版は `.devcontainer/resoloop.lock` を正とする。現在は nuget モードで、上流の公開版（0.1.0-preview.15）を使う。上流に未取り込みの修正が必要なときは fork モードに切り替える
-- 版を変えるときはロックファイルを明示的に更新してコミットする。`dotnet tool update` などで手元の導入だけを変えない
-- fork の取得・ビルド・導入は `scripts/resoloop-fork.sh` で行い、手順は `docs/resoloop-fork-workflow.md` に従う
+- ResoLoop は常に NuGet の最新の公開版を使い、版を固定しない。postCreate が `.devcontainer/install_resoloop.bash` で最新を導入する。rebuild せずに最新へ上げるときも同じスクリプトを実行する。使っている版は `resoloop --version` で確かめる
+- 上流に未取り込みの修正を一時的に使うときは、`scripts/resoloop-fork.sh install <fork のブランチかコミット>` で fork のビルドを導入する。次の rebuild か `bash .devcontainer/install_resoloop.bash` で最新の公開版に戻る。fork の取得・ビルド・導入の手順は `docs/resoloop-fork-workflow.md` に従う
+- 版が上がると同梱スキル（`resonite-*`）にも更新が出る。postCreate と `scripts/check-layout.sh` は更新の有無を表示するだけなので、「プロジェクト運用」のとおり差分を確認してから `--update` する
 
 ## エージェント運用
 
