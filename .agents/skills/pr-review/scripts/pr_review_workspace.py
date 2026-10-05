@@ -20,7 +20,7 @@ import threading
 import time
 import uuid
 from collections.abc import Generator, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
@@ -359,7 +359,10 @@ class CreateJournal:
         self.stream.write(json.dumps({"phase": phase, "at": at, **fields}, ensure_ascii=False, sort_keys=True) + "\n")
         self.stream.flush()
         detail = f" session_dir={fields['session_dir']}" if "session_dir" in fields else ""
-        print(f"pr-review create {self.attempt_id}: {at} {phase}{detail}", file=sys.stderr, flush=True)
+        # The journal is the record. A reader that stopped reading (a closed
+        # pipe after a tool timeout) must not turn create into a helper error.
+        with suppress(OSError):
+            print(f"pr-review create {self.attempt_id}: {at} {phase}{detail}", file=sys.stderr, flush=True)
 
     def record_end(self, phase: str, **fields: object) -> None:
         # Never mask the error that ended create; a missing end reads as vanished.

@@ -7,7 +7,7 @@
 - 状態: draft
 - 実行許可: 利用者の 2026-10-05 の指示「途中で止めずに推奨案で Spec、Plan を作成し PR まで実施せよ」。この Spec の判断（4 章の D-1〜D-10）は、その指示に基づきエージェント（Claude Code、claude-opus-5-5）が推奨案で決めたもので、Spec 自体の明示承認は得ていない。マージは指示に含まない
 - 関連 Plan: `docs/superpowers/plans/2026-10-05-issue-39-pr-review-create-interruption.md`
-- PR #40 のレビュー修正: `docs/superpowers/specs/2026-10-05-pr40-issue-39-pr-review-create-interruption-review-fixes-design.md`。シグナルによる中断の stderr を `error:` ではなく `interrupted:` で始め、`inspect` の `failed` を helper のエラーとして扱う形にした（D-4・D-7 を更新）。Plan と 9 章は変更前の記録として残す
+- PR #40 のレビュー修正: `docs/superpowers/specs/2026-10-05-pr40-issue-39-pr-review-create-interruption-review-fixes-design.md`。シグナルによる中断の stderr を `error:` ではなく `interrupted:` で始め、`inspect` の `failed` を helper のエラーとして扱い、stderr の読み手が閉じても `create` を続ける形にした（D-3・D-4・D-7 を更新）。Plan と 9 章は変更前の記録として残す
 - 作成: 2026-10-05
 
 ## 1. 目的
@@ -114,7 +114,7 @@ Issue の時系列では、セッションディレクトリの作成が 12:09:4
 | `failed` | helper のエラーで終わった。`error` にメッセージ（終端） |
 | `interrupted` | シグナルで中断した。`signal` にシグナル名（終端） |
 
-- 同じ内容を 1 行ずつ stderr にも出す（例: `pr-review create 20261005T121530123456789Z: 2026-10-05T12:15:52.004Z worktree-add`）。最初の行にはセッションディレクトリを含める。ツールのタイムアウトで打ち切られても、ランタイムが途中の出力を返せば、どこまで進んだかが分かる
+- 同じ内容を 1 行ずつ stderr にも出す（例: `pr-review create 20261005T121530123456789Z: 2026-10-05T12:15:52.004Z worktree-add`）。最初の行にはセッションディレクトリを含める。ツールのタイムアウトで打ち切られても、ランタイムが途中の出力を返せば、どこまで進んだかが分かる。stderr への書き込みが失敗しても（読み手がパイプを閉じた場合など）`create` は続け、記録は journal を正とする（PR #40 のレビュー修正）
 - journal の書き込みは fsync しない。OS が落ちた場合はセッションごと使えなくなるので、書き出しの保証は要らない
 - journal とロックは `cleanup`・`abandon` がセッションディレクトリごと消す。`save`・`verify`・`load_state` は journal を読まない
 

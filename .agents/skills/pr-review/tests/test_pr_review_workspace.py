@@ -1310,6 +1310,27 @@ def test_create_does_not_fsync_session_files(tmp_path: Path, monkeypatch: pytest
     assert Path(result["state_file"]).is_file()
 
 
+def test_create_outlives_a_reader_that_closed_its_stderr(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A tool that stops reading after its timeout must not turn the attempt
+    # into a helper error, which the skill stops on without abandoning it.
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+
+    class ClosedPipe:
+        def write(self, _text: str) -> int:
+            raise BrokenPipeError(32, "Broken pipe")
+
+        def flush(self) -> None:
+            raise BrokenPipeError(32, "Broken pipe")
+
+    monkeypatch.setattr(workspace.sys, "stderr", ClosedPipe())
+
+    result = workspace.create(explicit_create_args(repo, commit, tmp_path / "sessions", attempt_id()))
+
+    assert journal_records(Path(result["state_file"]).parent)[-1]["phase"] == "completed"
+
+
 def attempt_args(repo: Path, temp_root: Path, attempt: str, *, wait: int = 0) -> argparse.Namespace:
     return argparse.Namespace(repo=str(repo), pr_number=4, attempt_id=attempt, temp_root=str(temp_root), wait=wait)
 
