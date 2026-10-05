@@ -179,10 +179,10 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 5. 下記「マージしてよい範囲」を確かめる。範囲外なら、ここで結論 3 にする
 6. Spec に結果を書いて `completed` にし、コミットする。PR が create-reso-world のものなら Spec は PR の head に載るので、次の順で push する。確認していないコミットをマージに含めないため、**実装後** の手順 5 の「reject されたら rebase または merge」はここでは使わない
    - commit の前に、`gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` が検証した `HEAD_SHA` と一致することを確かめる
-   - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
+   - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD` を Spec のコミットとして記録し、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
    - **実装後** の手順 5 の head の確認と共通 context の再実行の後、`git -C "$MAIN_ROOT" push "$HEAD_REMOTE" HEAD` で push する（fast-forward だけ。`--force` を付けない）
    - push 後、`HEAD_SHA` を `git -C "$MAIN_ROOT" rev-parse HEAD` に更新する
-   - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head が更新された）。Spec のコミットは下記「結論 3」のとおり取り消し、head ブランチに残さない
+   - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head か作業ツリーが変わった）。Spec のコミットは下記「結論 3」の「書き始めた Spec の扱い」に従う（取り消してよい条件を満たさなければ、取り消さずに残して報告する）
 7. 最終の状況コメントを投稿する（「作業終了前の PR 投稿」）
 8. 検証した head だけをマージする
 
@@ -208,11 +208,15 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 未読・未検証、判断に迷う、修正が大きい、テストが失敗する（直す）、再現できない（根拠を付けて「解消済み」か「対応しない」にする）は、結論 3 の理由にならない。
 
-**書き始めた Spec の扱い:** 結論 3 では、Spec だけのコミットを PR の head ブランチに残さない。残すと、次の完遂が「専用の worktree」の手順 3（PR に無いコミット）で止まり続ける。再利用した他の worktree では、持ち主の push で draft の Spec が PR に入る。
+**書き始めた Spec の扱い:** 結論 3 では、Spec だけのコミットや Spec の変更を PR の head ブランチに残さない。残すと、次の完遂が「専用の worktree」の手順 3（PR に無いコミット、未コミットの変更）で止まり続ける。再利用した他の worktree では、持ち主の commit・push で draft の Spec が PR に入る。ただし、自分の Spec の変更だと取り消す直前に確かめられないものは取り消さない（worktree の持ち主や別のセッションの作業かもしれない）。報告に使う `git` の結果は、「専用の worktree」の片付けより前に集める。
 
 - PR が create-reso-world 以外（`DOC_ROOT` は文書用ブランチ）: Spec を `draft` のまま文書用ブランチにコミットし、停止理由を書く
-- create-reso-world の PR で、head ブランチに push していない修正がある（コミット済み・未コミットを問わない）: 修正も Spec も捨てずに残す。報告に、ブランチ名（未コミットの変更があれば worktree のパスも）と、`git -C "$MAIN_ROOT" status --short`・`git -C "$MAIN_ROOT" log --oneline "$HEAD_SHA"..HEAD` の結果を書き、それを push するか捨てるまで次の完遂は「専用の worktree」の手順 3 で止まることを書く
-- create-reso-world の PR で、修正が無い: Spec をコミットしない。結論 2 の手順 6 でコミットした後なら、`git -C "$MAIN_ROOT" reset --keep "$HEAD_SHA"` で取り消す（親が `HEAD_SHA` で、Spec だけのコミットであることは手順 6 で確かめてある）。コミットしていなければ、Spec の変更を取り消す（新規のファイルは消し、既存のファイルは `git -C "$MAIN_ROOT" restore --staged --worktree -- <Spec>` で戻す）。分類の結果と停止理由は報告に書く。head ブランチは HEAD が `HEAD_SHA` で未コミットの変更が無い状態に戻り、「専用の worktree」の片付けの対象になる
+- create-reso-world の PR で、変更が Spec だけではない（head ブランチに Spec だけではないコミットがあるか、Spec 以外の未コミットの変更がある。このセッションの修正か他の作業かを問わない）、または下の取り消してよい条件を満たさない: 何も取り消さずに残す。報告に、ブランチ名（未コミットの変更があれば worktree のパスも）と、`git -C "$MAIN_ROOT" status --short`・`git -C "$MAIN_ROOT" log --oneline "$HEAD_SHA"..HEAD` の結果を書き、それを push するか捨てるまで次の完遂は「専用の worktree」の手順 3 で止まることを書く
+- create-reso-world の PR で、変更が Spec だけ: 分類の結果と停止理由を報告に書き、次の条件を満たすときだけ取り消す
+  - 結論 2 の手順 6 で Spec を push した後（マージなどで止まった）: 取り消すものは無い。先端は push した head で、片付けの対象になる
+  - 結論 2 の手順 6 で Spec をコミットし、push していない: 手順 6 の commit 後の確認が通っていて、取り消す直前にも `git -C "$MAIN_ROOT" rev-parse HEAD` が記録した Spec のコミット、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA`、`git -C "$MAIN_ROOT" status --porcelain` が空のときだけ、`git -C "$MAIN_ROOT" reset --keep "$HEAD_SHA"` で取り消す
+  - コミットしていない: `git -C "$MAIN_ROOT" rev-parse HEAD` が `HEAD_SHA` で、`git -C "$MAIN_ROOT" status --porcelain` に Spec のファイルしか出ないときだけ取り消す。追跡済みか `git add` 済みなら `git -C "$MAIN_ROOT" restore --staged --worktree -- <Spec>` で戻し、追跡されていない新規のファイルは消す
+  - 取り消した後、`git -C "$MAIN_ROOT" rev-parse HEAD` が `HEAD_SHA` で `git -C "$MAIN_ROOT" status --porcelain` が空であることを確かめる。そうなれば head ブランチは「専用の worktree」の片付けの対象になる。そうならなければ、上の「残す」と同じく報告する
 
 ### 修正後の自己レビュー
 
