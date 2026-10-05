@@ -80,7 +80,8 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
    - ランチャー別の tier: `--if-absent` を付けずに `zsh .devcontainer/setup_pi_superagents.zsh` を実行する。
      変更のある設定はバックアップされる（「pi-superagents のランチャー別 model tier」）
    - pi の project trust: まだ承認していなければ、リポジトリのルートで素の `pi` を起動して承認する。
-     承認の後に `.pi/settings.json`・`.pi/mcp.json` とプロジェクトのスキル（`.agents/skills`）が読まれる
+     承認の後に `.pi/settings.json`・`.pi/mcp.json`・`.pi/APPEND_SYSTEM.md`（pi 固有の指示）と
+     プロジェクトのスキル（`.agents/skills`）が読まれる
      （「組み込み MCP と廃止した拡張」）
    - `~/.pi/agent/models.json` に残る `deepinfra-distill` は自動では消さない。不要なら定義を確かめてから削除する
 5. 確かめる項目と、rebuild 前の状態の記録は、ルートの `README.md` の「対象外」が案内する移植の記録にある。

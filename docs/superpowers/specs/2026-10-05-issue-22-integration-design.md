@@ -121,9 +121,10 @@
 | `.devcontainer/herdr-agent-task.bash`・`herdr-git-status.bash`・`herdr-status-updater.bash`・`herdr.toml` | 既存維持 | 移植元と同一 |
 | `.devcontainer/herdr-pr-review.bash`・`herdr-pr-review-launch.bash`・`herdr-pr-review.toml` | 対象外 | レビュー系ツール。担当は #17 |
 | `.devcontainer/starship.toml` | 既存維持 | 移植先はワールドごとの `.venv` を cwd から上へ探す。移植元はリポジトリのルートの `.venv` だけを見る |
-| `.devcontainer/test-herdr-agent-task.bash`・`test-herdr-status.bash` | 既存維持 | 移植先が新しい（here-string で SIGPIPE を避ける） |
+| `.devcontainer/test-herdr-agent-task.bash`・`test-herdr-status.bash` | 既存維持 | 移植先が新しい（here-string で SIGPIPE を避ける）。移植元の `test-herdr-agent-task.bash` のコメントの言い換え（「契約」を「仕様」にしたもの）は取り込まない。テストは #22 の編集範囲外 |
 | `.devcontainer/install_beforehand.bash` のうち `public` の checkout、Gitleaks・Playwright の導入 | 対象外 | MaatLog の公開アプリケーションと検証の手順 |
 | `.devcontainer/install_beforehand.bash` のうち Codex・Cursor・Devin・uv・Starship・Herdr・共有スキルの導入と `pi-subagents` の置き換え | 既存維持 | 移植先の手順で足りる。`pi-subagents` の置き換えの手順は移植元と同等（差分はコメントの Issue 番号だけ） |
+| `.devcontainer/install_beforehand.bash` のうち `~` 配下の書き込み可能なディレクトリの用意、apt の設定、基本パッケージとロケール、Herdr の補助スクリプトの配置、作業領域の掃除、`~/.zshrc` への連結 | 既存維持 | 移植先の手順で足りる。違いは、ディレクトリの一覧（`.grok`・`.dsh` は #18 で撤去し、移植先は秘密情報の置き場 `~/.config/create-reso-world` を持つ）、移植先だけが導入する `blender`、基本パッケージの前の重複した `apt update`（移植先は直前の手順の 1 回だけ）、移植元だけが置くレビュー系ツールの herdr-pr-review（移植先は `cleanup-workspace.bash` を symlink ではなくコピーで置く）と、コメントの Issue 番号（PR #33 のレビュー修正で足した行） |
 | なし（移植先の `install_beforehand.bash` の ResoLoop の導入と Resonite のツールの確認、`zshrc.txt` の `require_command`・`update_if_present`・秘密情報の `env` の読み込み・.NET のツールの PATH） | 既存維持 | 移植先にだけある手順と補助 |
 | `.devcontainer/README.md` のうち「Codex で CLAUDE.md を指示ファイルとして読む」「Herdr サイドバーの設定移行」「エージェント向けツールの導入」 | 既存維持 | 移植先は同じ内容を移植先の構成（Codex は `AGENTS.md` を直接読む、9 本のランチャー、5 つのプラグイン）で書いてある |
 | `.devcontainer/README.md` のうち「pi のモデル定義とランチャー」「モデル定義の正」 | 既存維持 | 差分は setup スクリプトのパス（移植先は `.devcontainer/` に置く）と、移植先にだけある `pigou` の説明だけ（PR #33 のレビュー修正で足した行） |
@@ -151,7 +152,7 @@
 ルート `README.md`:
 
 - 「構成」の `docs/` の説明に「pi と Claude Code の設定の移植の記録」を足す。ルートの `README.md` には移植元の名前を書かない（D-15）
-- 「エージェントで作業する」に pi の項目を足す。project trust を承認すると `.pi/settings.json`（組み込み MCP）と `.pi/mcp.json`（Google Developer Knowledge）、プロジェクトのスキル（`.agents/skills`）が読まれ、ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと詳細は `.devcontainer/README.md`
+- 「エージェントで作業する」に pi の項目を足す。project trust を承認すると `.pi/settings.json`（組み込み MCP）と `.pi/mcp.json`（Google Developer Knowledge）、`.pi/APPEND_SYSTEM.md`（pi 固有の指示）、プロジェクトのスキル（`.agents/skills`）が読まれ、ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと詳細は `.devcontainer/README.md`
 - 「対象外」の rebuild 後の確認の参照先に「`docs/` にある移植の比較表（Issue #22）の「rebuild での確認」」を足す（文書名に移植元の名前が入るので、名前では参照しない。D-15）
 
 `.devcontainer/test-readme.bash` などの既存のテストが README の表や節を検査しているので、表の列と既存の節の見出しは変えない。`test-readme.bash` は `.devcontainer/` 配下に移植元の名前（maatlog）、3 桁の Issue 番号、ワークスペースの絶対パス、除外したツールの導入の記述が入ることを禁じている。`.devcontainer/README.md` に書く文はこれらを含めない。ルートの `README.md` は `tests/scripts/test-docs.bash` が `##` の見出しの並びを固定しているので、見出しを足さない

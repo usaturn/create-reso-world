@@ -289,6 +289,7 @@ Expected: `FileNotFoundError` で終わり、`exit=1`
 | 移植元のパス | 移植先のパス | 判断 | 理由 | 担当 Issue |
 | --- | --- | --- | --- | --- |
 | `.devcontainer/install_beforehand.bash` の Codex・Cursor・Devin・uv・Starship・Herdr・共有スキル（herdr / find-skills）の導入と、`pi-subagents` から `@teelicht/pi-superagents` への置き換え | 同じファイルの同じ手順 | 既存維持 | 移植先の手順で足りる。`pi-subagents` の置き換えは移植元と同等（差分はコメントの Issue 番号だけ） | #22 |
+| `.devcontainer/install_beforehand.bash` の `~` 配下の書き込み可能なディレクトリの用意、apt の設定、基本パッケージとロケール、Herdr の補助スクリプトの配置、作業領域の掃除、`~/.zshrc` への連結 | 同じファイルの同じ手順 | 既存維持 | 移植先の手順で足りる。違いは、ディレクトリの一覧（`.grok`・`.dsh` は #18 で撤去し、移植先は秘密情報の置き場 `~/.config/create-reso-world` を持つ）、移植先だけが導入する `blender`、基本パッケージの前の重複した `apt update`（移植先は直前の手順の 1 回だけ）、移植元だけが置くレビュー系ツールの herdr-pr-review（移植先は `cleanup-workspace.bash` を symlink ではなくコピーで置く）と、コメントの Issue 番号 | #22 |
 | `.devcontainer/install_beforehand.bash` の `public` の checkout、Gitleaks と Playwright の導入 | なし | 対象外 | MaatLog の公開アプリケーションと検証のための手順 | #22 |
 | なし | `.devcontainer/install_beforehand.bash` の ResoLoop の導入と Resonite のツールの確認 | 既存維持 | 移植先にだけある手順 | #22 |
 | `.devcontainer/zshrc.txt` の Cursor と Devin の alias（`cur`・`curo`・`dev`・`devo`・`devs` のモデルの固定） | 同じファイルの `cur`・`dev` | 対象外 | #17 の実行ボードで、Cursor と Devin の alias はどの子も変えないと決めた | #17 |
@@ -296,7 +297,7 @@ Expected: `FileNotFoundError` で終わり、`exit=1`
 | なし | `.devcontainer/zshrc.txt` の `require_command`・`update_if_present`、秘密情報の `env` の読み込み、.NET のツールの PATH | 既存維持 | 移植先にだけある補助 | #22 |
 | `.devcontainer/cleanup-workspace.bash` | 同じ | 既存維持 | 移植先は汎用化した版（`WORKSPACE_CLEANUP_*`）。移植元の版は対象外のレビュー系ツールの reaper CLI に依存する | #22 |
 | `.devcontainer/herdr-agent-task.bash`・`.devcontainer/herdr-git-status.bash`・`.devcontainer/herdr-status-updater.bash`・`.devcontainer/herdr.toml` | 同じ | 既存維持 | 移植元と同一 | #22 |
-| `.devcontainer/test-herdr-agent-task.bash`・`.devcontainer/test-herdr-status.bash` | 同じ | 既存維持 | 移植先が新しい（here-string で SIGPIPE を避ける） | #22 |
+| `.devcontainer/test-herdr-agent-task.bash`・`.devcontainer/test-herdr-status.bash` | 同じ | 既存維持 | 移植先が新しい（here-string で SIGPIPE を避ける）。移植元の `test-herdr-agent-task.bash` のコメントの言い換え（「契約」を「仕様」にしたもの）は取り込まない。テストは #22 の編集範囲外 | #22 |
 | `.devcontainer/starship.toml` | 同じ | 既存維持 | 移植先は cwd から上へ最寄りの `.venv` を探し、ワールドごとの `.venv` に対応する。移植元はリポジトリのルートの `.venv` だけを見る | #22 |
 | `.cursor/rules/shell-env-hygiene.mdc` | 同じ | 既存維持 | 移植元と同一 | #22 |
 | `.gitignore` | 同じ | 既存維持 | 移植先の追跡の方針（2026-09-26 の再設計の 4.4 節）を保つ。`docs_draft/`・`/.worktrees/`・`/.claude/worktrees/` は移植先にもある。MaatLog と Node.js 向けの除外は持ち込まない | #22 |
@@ -454,7 +455,7 @@ Run: `uv run --no-project "$S/check_porting_table.py" "$S/src-tree.txt" docs/maa
 Expected:
 
 ```text
-source paths: 456  rows: 93  path tokens: 108  missing: 0
+source paths: 456  rows: 94  path tokens: 109  missing: 0
 exit=0
 ```
 
@@ -574,10 +575,10 @@ Expected: `FAIL: no ## 既存環境の更新`、`exit=1`
 
 ~~~~diff
 diff --git a/.devcontainer/README.md b/.devcontainer/README.md
-index 18ed593..de4fffd 100644
+index 18ed593..10602a5 100644
 --- a/.devcontainer/README.md
 +++ b/.devcontainer/README.md
-@@ -53,12 +53,49 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
+@@ -53,12 +53,50 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
  ```
  
  書式は `KEY=VALUE` の 1 行 1 変数である（zsh が読むので、空白や記号を含む値は引用符で囲む）。
@@ -610,7 +611,8 @@ index 18ed593..de4fffd 100644
 +   - ランチャー別の tier: `--if-absent` を付けずに `zsh .devcontainer/setup_pi_superagents.zsh` を実行する。
 +     変更のある設定はバックアップされる（「pi-superagents のランチャー別 model tier」）
 +   - pi の project trust: まだ承認していなければ、リポジトリのルートで素の `pi` を起動して承認する。
-+     承認の後に `.pi/settings.json`・`.pi/mcp.json` とプロジェクトのスキル（`.agents/skills`）が読まれる
++     承認の後に `.pi/settings.json`・`.pi/mcp.json`・`.pi/APPEND_SYSTEM.md`（pi 固有の指示）と
++     プロジェクトのスキル（`.agents/skills`）が読まれる
 +     （「組み込み MCP と廃止した拡張」）
 +   - `~/.pi/agent/models.json` に残る `deepinfra-distill` は自動では消さない。不要なら定義を確かめてから削除する
 +5. 確かめる項目と、rebuild 前の状態の記録は、ルートの `README.md` の「対象外」が案内する移植の記録にある。
@@ -629,7 +631,7 @@ index 18ed593..de4fffd 100644
  ## テストの実行
  
  リポジトリのルートで次を実行する。CI（`.github/workflows/ci.yml`）も同じコマンドを実行する。
-@@ -526,21 +563,34 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同
+@@ -526,21 +564,34 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同
  
  ### API トークン
  
@@ -671,7 +673,7 @@ index 18ed593..de4fffd 100644
  
  ### pi の TUI モードと Herdr のスクロール履歴
  
-@@ -620,7 +670,7 @@ pi-superagents v1.14.3 以降は、git で導入したパッケージの `packag
+@@ -620,7 +671,7 @@ pi-superagents v1.14.3 以降は、git で導入したパッケージの `packag
  [upstream の修正 #72](https://github.com/teelicht/pi-superagents/pull/72) は
  [v1.14.3](https://github.com/teelicht/pi-superagents/releases/tag/v1.14.3) に含まれる。
  
@@ -931,7 +933,7 @@ Spec の D-15 として次のように直した（コミット `9ebeb29`）。�
 
 PR #33 のレビューの指摘と、修正後の PR 全体の再レビューの指摘を `docs/superpowers/specs/2026-10-05-pr33-issue-22-integration-review-fixes-design.md` で選別し、比較表、`.devcontainer/README.md`、ルートの `README.md`、Issue #22 の Spec を直した。個々の修正はその Spec の F-1 以降にある。この Plan は次のように扱う。
 
-- Task 1 の Step 4 の埋め込み文書は、最終版の `docs/maatlog-poc-porting.md` と同じ内容にした。全文の埋め込みなので機械的に揃えられ、値を表示する R-4 の旧い確認方法を Plan に残さない。Step 5 の期待値は最終版の値（`rows: 93`、`path tokens: 108`）にした。Task 1 の時点の版（91 行）はコミット `0132c84` にあり、そこからの変更は上の D-15 の行と、レビュー修正の Spec に記録した修正である
+- Task 1 の Step 4 の埋め込み文書は、最終版の `docs/maatlog-poc-porting.md` と同じ内容にした。全文の埋め込みなので機械的に揃えられ、値を表示する R-4 の旧い確認方法を Plan に残さない。Step 5 の期待値は最終版の値（`rows: 94`、`path tokens: 109`）にした。Task 1 の時点の版（91 行）はコミット `0132c84` にあり、そこからの変更は上の D-15 の行と、レビュー修正の Spec に記録した修正である
 - Task 2 の Step 3 のパッチは、`01affb7` から最終版の `.devcontainer/README.md` への差分にした。Task 2 の受け入れ検査はこのパッチで通る。Task 2 の時点のパッチはコミット `4e932e8` の差分で、そこからの変更はレビュー修正の Spec に記録した修正である
 - 次は計画の時点の記述のまま残す。最終の状態は次のとおり
   - Architecture と Global Constraints: 変更したファイルには D-15 のテストの例外の 1 行（`tests/skills/test_legacy_references.py`）が加わった
@@ -939,4 +941,5 @@ PR #33 のレビューの指摘と、修正後の PR 全体の再レビューの
   - Task 3 の Step 4 の節名の参照の検査スクリプト: 上の「実行時の変更」で「移植の比較表」の目印を足す前の版である。この版を最終版に当てると、ルートの `README.md` の 92 行の「rebuild での確認」を `docs/integration.md` の見出しとして探して失敗する。目印を足した版では、最終版でも参照は 22 件で、すべて参照先の見出しに当たる
   - Task 4 の Step 3 の変更の範囲: `origin/main` は作業中に進んだので、`git diff --stat origin/main...HEAD` で比べる。最終版の変更は `.devcontainer/README.md`・`README.md`・`docs/maatlog-poc-porting.md`・`tests/skills/test_legacy_references.py`、Issue #22 の Spec、この Plan、レビュー修正の Spec の 7 ファイルである
   - Task 4 の Step 4 の PR の本文の項目（3 ファイルの変更、D-1〜D-14）: 実際の本文は、テストの例外を含む 4 ファイルと D-1〜D-15 で書いた
+  - Task 1 の Step 8 のコマンド: rebuild 前の値を取るために計画時に使ったもので、比較表の「確認のコマンド」とは R-3（`command -v pnpm` で判定する。最終版は npm の大域パッケージの有無で判定する）、R-5・R-10（出力を絞る）、R-7（3 本だけ）が違う。rebuild 後の確認には比較表の「確認のコマンド」を使う
 - Task 1 の Step 8 の R-9 のコマンドには `</dev/null` を足した。herdr のペインの外の端末で `zsh -ic` を実行すると、`~/.zshrc` の末尾の `herdrstart` が herdr を前面で起動するためである（標準入力が端末でなければ起動しない）。出力は変わらない
