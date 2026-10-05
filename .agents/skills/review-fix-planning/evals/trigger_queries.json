@@ -84,6 +84,20 @@
       "should_trigger": true,
       "expected_terms": ["review", "plan"],
       "notes": "Numbered argument selecting a reviews/#<PR>-<branch>/ directory"
+    },
+    {
+      "id": "q13",
+      "query": "PR https://github.com/usaturn/create-reso-world/pull/40 とレビュー結果 reviews/#40-docs-example/ を確認し、修正要否を確定して。",
+      "should_trigger": true,
+      "expected_terms": ["review", "findings", "fix", "merge"],
+      "notes": "Completion request: PR URL plus review directory"
+    },
+    {
+      "id": "q14",
+      "query": "reviews/#41-feat-setup/ のレビュー指摘に対応して。",
+      "should_trigger": true,
+      "expected_terms": ["review", "findings", "fix"],
+      "notes": "Respond-to-findings wording"
     }
   ]
 }
