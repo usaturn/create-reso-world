@@ -1,37 +1,36 @@
 #!/bin/bash
-# .devcontainer/resoloop.lock が指定する版の ResoLoop を導入する。
-# 仕様: docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md 6.2 節
-# 環境変数 RESOLOOP_LOCK_FILE でロックファイルを差し替えられる（テスト用。fork モードでは scripts/resoloop-fork.sh にも引き継がれる）
+# NuGet の最新の公開版の ResoLoop を導入する。postCreate と、rebuild せずに最新へ上げるときに実行する。
+# 仕様: docs/superpowers/specs/2026-10-06-issue-41-resoloop-latest-without-lock-design.md D-1〜D-3
+# 公開版は今はプレリリースだけなので --prerelease を付ける。fork のビルド（公開版より大きい版になり得る）からも
+# 戻せるよう --allow-downgrade を付ける。update は未導入なら導入する。
+# NuGet に届かないなどで更新できなくても、導入済みの版があれば警告してその版のまま続ける。
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-lock="${RESOLOOP_LOCK_FILE:-$root/.devcontainer/resoloop.lock}"
 fail() { printf 'ResoLoop setup: %s\n' "$1" >&2; exit 1; }
-# shellcheck source=resoloop-lock.bash
-source "$root/.devcontainer/resoloop-lock.bash"
-resoloop_lock_load "$lock" || fail "cannot read $lock."
-expected="$RESOLOOP_EXPECTED_VERSION"
+# shellcheck source=resoloop-tool.bash
+source "$root/.devcontainer/resoloop-tool.bash"
 
 command -v dotnet >/dev/null 2>&1 || fail 'dotnet is not available.'
 sdks="$(dotnet --list-sdks </dev/null)" || fail 'cannot list .NET SDKs.'
 grep -qE '^10\.' <<<"$sdks" || fail '.NET 10 SDK is not installed.'
-installed="$(resoloop_installed_version)" || fail 'cannot list global .NET tools.'
+before="$(resoloop_installed_version)" || fail 'cannot list global .NET tools.'
 
-if [ "$installed" = "$expected" ]; then
-    printf 'ResoLoop setup: %s is already installed.\n' "$expected"
-elif [ "$RESOLOOP_MODE" = fork ]; then
-    bash "$root/scripts/resoloop-fork.sh" install </dev/null \
-        || fail 'building and installing the fork failed (check with bash scripts/resoloop-fork.sh status).'
-elif [ -n "$installed" ]; then
-    dotnet tool update --global ResoLoop --version "$expected" --allow-downgrade </dev/null \
-        || fail "updating the global tool from $installed to $expected failed."
-else
-    dotnet tool install --global ResoLoop --version "$expected" </dev/null \
-        || fail "installing the global tool $expected failed."
+if ! dotnet tool update --global ResoLoop --prerelease --allow-downgrade </dev/null; then
+    [ -n "$before" ] || fail 'installing the latest ResoLoop release from NuGet failed.'
+    printf 'ResoLoop setup: WARN: updating to the latest release failed (is NuGet reachable?); keeping %s.\n' "$before" >&2
 fi
 
+installed="$(resoloop_installed_version)" || fail 'cannot list global .NET tools.'
+[ -n "$installed" ] || fail 'ResoLoop is missing from dotnet tool list --global after the update.'
 # PATH 上の別の resoloop で誤って通らないよう、グローバルツールの配置先を直接呼ぶ
 out="$("$HOME/.dotnet/tools/resoloop" --version </dev/null)" || fail 'installed CLI cannot run on this container.'
 actual="$(resoloop_version_of "$out")" || fail 'resoloop --version printed nothing.'
-[ "$actual" = "$expected" ] || fail "resoloop --version reports $actual, but $lock expects $expected."
-printf 'ResoLoop setup: resoloop %s matches the lock.\n' "$actual"
+[ "$actual" = "$installed" ] || fail "resoloop --version reports $actual, but dotnet tool list --global reports $installed."
+if [ -z "$before" ]; then
+    printf 'ResoLoop setup: installed resoloop %s.\n' "$actual"
+elif [ "$before" = "$actual" ]; then
+    printf 'ResoLoop setup: resoloop %s is installed (unchanged).\n' "$actual"
+else
+    printf 'ResoLoop setup: resoloop %s is installed (was %s).\n' "$actual" "$before"
+fi

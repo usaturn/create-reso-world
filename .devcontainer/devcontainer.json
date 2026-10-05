@@ -46,7 +46,7 @@
 		"ghcr.io/devcontainers/features/github-cli:1": {},
 		"ghcr.io/devcontainers/features/dotnet:2": {
 			"version": "10.0",
-			// resoloop fork の global.json が要求する SDK。.devcontainer/resoloop.lock の RESOLOOP_FORK_SDK と揃える
+			// fork のビルド（scripts/resoloop-fork.sh）に要る、上流 resoloop の global.json の SDK。rollForward: latestPatch は feature band をまたがないので、上流が変えたら合わせる
 			"additionalVersions": "10.0.201"
 		},
 		"ghcr.io/devcontainers/features/node:2": {

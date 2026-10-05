@@ -5,9 +5,9 @@ set -u
 # postCreate の出力は、途中でコンテナが止まると残らない。どのステップまで進んだかを
 # 後から追えるよう、各ステップの開始を必ず1行で出し、失敗は ERROR 行を残して
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
-# （workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
+# （同梱スキルの状態の表示と workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=25
+readonly STEP_TOTAL=26
 STEP_NUMBER=0
 
 step() {
@@ -85,7 +85,7 @@ if ! sudo apt install -y vim tig ripgrep fzf bubblewrap libglib2.0-0t64 blender;
     fail "apt install of the base packages failed."
 fi
 
-step "Installing the ResoLoop version pinned in .devcontainer/resoloop.lock"
+step "Installing the latest ResoLoop release from NuGet"
 export PATH="${HOME}/.dotnet/tools:${PATH}"
 if ! bash .devcontainer/install_resoloop.bash; then
     fail "ResoLoop installation or update failed."
@@ -94,6 +94,12 @@ fi
 step "Verifying the Resonite development toolchain"
 if ! bash .devcontainer/verify-resonite-tooling.bash; then
     fail "Resonite development toolchain verification failed."
+fi
+
+step "Reporting the bundled ResoLoop skills of each project"
+# 同梱スキルの同期は手動で行う（AGENTS.md の「プロジェクト運用」）。結果を表示するだけで、差分があっても続ける
+if ! bash .devcontainer/report-resoloop-skills.bash; then
+    warn "Reporting the bundled ResoLoop skills failed; continuing."
 fi
 
 step "Generating the Japanese locale"

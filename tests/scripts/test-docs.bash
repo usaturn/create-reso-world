@@ -23,7 +23,7 @@ $(grep -E '^## ' README.md)"
 
 # 2. README.md が案内するファイルは実在する
 for f in AGENTS.md CLAUDE.md .agents/skills .devcontainer/README.md .devcontainer/install_beforehand.bash \
-  .devcontainer/verify-resonite-tooling.bash .devcontainer/resoloop.lock .devcontainer/run-tests.bash \
+  .devcontainer/verify-resonite-tooling.bash .devcontainer/run-tests.bash \
   scripts/new-world.sh scripts/resoloop-fork.sh scripts/check-layout.sh templates/world-project \
   docs/resoloop-fork-workflow.md docs/integration.md .github/workflows/ci.yml .codex/config.toml .cursor/mcp.json \
   docs/superpowers/README.md .agents/sp-implementer.md; do
