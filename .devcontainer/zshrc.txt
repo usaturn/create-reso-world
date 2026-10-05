@@ -225,12 +225,6 @@ fi
 
 export EDITOR=code
 export LANG=ja_JP.utf8
-# pi-distill / pi-extensions-i18n は ja 未対応で既定が zh-CN のため、中国語表示を避けて英語化する。
-# auto でも LANG=ja なら en-US 扱いだが、明示指定の方が確実。
-export PI_EXTENSIONS_LOCALE=en-US
-export PI_DISTILL_TIMEOUT_SECONDS=30
-export PI_DISTILL_MODEL=deepinfra-distill/openai/gpt-oss-20b
-export PI_DISTILL_ERROR_RETRY_COUNT=0
 
 # 起動時に使うワークスペースディレクトリを選択して標準出力へ出す。
 # 1 件ならそのまま、0 件はルートを返す。複数件は fzf で選択する。

@@ -28,7 +28,11 @@ readonly PROVIDER="opencode-go"
 readonly MODEL="muse-spark-1.3-contributor"
 readonly THINKING="max"
 
-readonly PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+if [[ "$PI_DIR" == '~' || "$PI_DIR" == '~/'* ]]; then
+    PI_DIR="${HOME}${PI_DIR#\~}"
+fi
+readonly PI_DIR
 readonly AUTH_JSON="${PI_DIR}/auth.json"
 readonly MODELS_JSON="${PI_DIR}/models.json"
 
@@ -105,6 +109,31 @@ log "Pi config dir : ${PI_DIR}"
 log "Model source  : ${MODELS_SOURCE}"
 log "Launchers     : ${LAUNCHER_NAMES[*]}"
 
+#
+# Validate every input before any credential or model change. Replacing a
+# symlink or hard link would silently detach the shared file, chmod would
+# follow a symlink to its target, and a model error found later would leave
+# auth.json already updated.
+#
+python3 - "${MODELS_SOURCE}" "${MODELS_JSON}" "${AUTH_JSON}" <<'PY'
+import sys
+from pathlib import Path
+
+source, models, *others = map(Path, sys.argv[1:])
+sys.path.insert(0, str(source.resolve().parent))
+from pi_json import load_models, load_object, require_plain_file
+
+try:
+    load_models(source)
+    for path in (models, *others):
+        require_plain_file(path)
+        if path.exists():
+            (load_models if path == models else load_object)(path)
+except ValueError as exc:
+    print(f"ERROR: {exc}", file=sys.stderr)
+    sys.exit(1)
+PY
+
 
 #
 # ----------------------------------------------------------------------
@@ -157,24 +186,21 @@ fi
 # ----------------------------------------------------------------------
 #
 
-python3 - "${AUTH_JSON}" "${API_KEY}" <<'PY'
-import json
+python3 - "${AUTH_JSON}" "${API_KEY}" "${MODELS_SOURCE}" <<'PY'
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 path = Path(sys.argv[1])
 new_key = sys.argv[2]
+sys.path.insert(0, str(Path(sys.argv[3]).resolve().parent))
+from pi_json import load_object, write_object
 
 if path.exists():
     try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
-        print(
-            f"ERROR: Invalid JSON in {path}: {exc}",
-            file=sys.stderr,
-        )
+        data = load_object(path)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
 
     if not isinstance(data, dict):
@@ -200,32 +226,12 @@ if new_key:
         data["opencode-go"] = desired
 
         path.parent.mkdir(parents=True, exist_ok=True)
-
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=".auth.json.",
-            dir=path.parent,
-            text=True,
-        )
-
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(
-                    data,
-                    f,
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                f.write("\n")
-                f.flush()
-                os.fsync(f.fileno())
-
-            os.chmod(tmp_name, 0o600)
-            os.replace(tmp_name, path)
+        # The shared writer preserves mode: tighten old auth before staging new credentials.
+        if path.exists():
             os.chmod(path, 0o600)
 
-        finally:
-            if os.path.exists(tmp_name):
-                os.unlink(tmp_name)
+        write_object(path, data)
+        os.chmod(path, 0o600)
 
         print("OpenCode Go credential: configured")
 
@@ -272,21 +278,19 @@ chmod 600 "${AUTH_JSON}"
 #
 
 python3 - "${MODELS_JSON}" "${MODELS_SOURCE}" "${PROVIDER}" <<'PY'
-import json
-import os
-import shutil
 import sys
-from datetime import datetime
 from pathlib import Path
 
 path = Path(sys.argv[1])
 source = Path(sys.argv[2])
 provider = sys.argv[3]
+sys.path.insert(0, str(source.resolve().parent))
+from pi_json import backup_file, load_models, write_object
 
 try:
-    definition = json.loads(source.read_text()).get("providers", {}).get(provider)
-except json.JSONDecodeError as exc:
-    print(f"ERROR: Invalid JSON in {source}: {exc}", file=sys.stderr)
+    definition = load_models(source).get("providers", {}).get(provider)
+except ValueError as exc:
+    print(f"ERROR: {exc}", file=sys.stderr)
     sys.exit(1)
 
 if definition is None:
@@ -298,9 +302,9 @@ if definition is None:
 
 if path.exists():
     try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
-        print(f"ERROR: Invalid JSON in {path}: {exc}", file=sys.stderr)
+        data = load_models(path)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
 
     if not isinstance(data, dict):
@@ -316,16 +320,12 @@ if providers.get(provider) == definition:
     sys.exit(0)
 
 if path.exists():
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup = path.with_name(path.name + f".bak.{timestamp}")
-    shutil.copy2(path, backup)
+    backup = backup_file(path)
     print(f"backup:{backup}")
 
 providers[provider] = definition
 
-tmp = path.with_name(path.name + ".tmp")
-tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
-os.replace(tmp, path)
+write_object(path, data)
 
 print("updated")
 PY

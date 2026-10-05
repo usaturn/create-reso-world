@@ -5,15 +5,23 @@ Run with: uv run --no-project .devcontainer/cleanup_pi_mcp.py
 Only PI_CODING_AGENT_DIR (default ~/.pi/agent) is migrated; project/shared
 configuration and ~/.npm caches are not cleanup targets.
 """
-import json
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 
-PACKAGES = ("pi-mcp-adapter", "@upstash/context7-pi")
+# runpy callers need the sibling helper too, regardless of their working directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pi_json import load_object, require_plain_file, write_object
+
+PACKAGES = (
+    "pi-mcp-adapter", "@upstash/context7-pi", "pi-distill",
+    "pi-extensions-tool-display", "pi-extensions-i18n",
+)
 # mcp.json and mcp-auth.json are also native MCP storage; never migrate or unlink them.
 MCP_FILES = (
     "mcp-cache.json", "mcp-project-approvals.json", "mcp-onboarding.json", "mcp-npx-cache.json",
@@ -21,6 +29,12 @@ MCP_FILES = (
 MANIFESTS = (
     "package.json", "package-lock.json", "npm-shrinkwrap.json",
     "node_modules/.package-lock.json",
+)
+
+# JavaScript String.trim() whitespace; Python's default strip differs (notably U+FEFF).
+JS_TRIM_WHITESPACE = (
+    "\u0009\u000a\u000b\u000c\u000d \u00a0\u1680\u2000\u2001\u2002\u2003"
+    "\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
 )
 
 
@@ -49,18 +63,12 @@ def safe_storage(path):
 def read_object(path):
     safe_storage(path)
     try:
-        info = path.lstat()
-        if not stat.S_ISREG(info.st_mode):
-            raise ValueError(f"Unsafe non-regular storage file: {path}")
-        if info.st_nlink != 1:
-            raise ValueError(f"Refusing hard-linked package/settings storage: {path}")
-        data = json.loads(path.read_text(encoding="utf-8-sig"))
+        require_plain_file(path)
+        data = load_object(path)
     except FileNotFoundError:
         return {}
     except (OSError, ValueError) as error:
         raise ValueError(f"Cannot read {path}: {error}") from error
-    if not isinstance(data, dict):
-        raise ValueError(f"Expected JSON object in {path}")
     return data
 
 
@@ -77,8 +85,48 @@ def package_sources(settings, path):
     return sources
 
 
+def extension_entries(settings, path):
+    entries = settings.get("extensions", [])
+    if not isinstance(entries, list):
+        raise ValueError(f"Invalid extensions declaration in {path}")
+    return entries
+
+
+def backup_storage(agent):
+    """Save original metadata before delegating any mutations to pi/npm."""
+    root = agent / "migration-backups"
+    safe_storage(root)
+    root.mkdir(mode=0o700, exist_ok=True)
+    backup = Path(tempfile.mkdtemp(prefix="pi-retired-", dir=root))
+    for relative in ("settings.json", *("npm/" + name for name in MANIFESTS)):
+        source = agent / relative
+        read_object(source)  # Recheck safety before copying; preserve bytes, including BOM.
+        if not source.exists():
+            continue
+        target = backup / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    print(f"Migration backup: {backup}", flush=True)
+    return backup
+
+
+def enable_builtin_mcp(agent):
+    """Remove -builtin:mcp entries from the latest settings."""
+    path = agent / "settings.json"
+    settings = read_object(path)
+    entries = extension_entries(settings, path)
+    if "-builtin:mcp" not in entries:
+        return
+    settings["extensions"] = [entry for entry in entries if entry != "-builtin:mcp"]
+    write_object(path, settings)
+    print(f"Removed -builtin:mcp from {path}")
+
+
 def matches(source, name):
-    return source == "npm:" + name or source.startswith("npm:" + name + "@")
+    if not source.startswith("npm:"):
+        return False
+    payload = source[4:].strip(JS_TRIM_WHITESPACE)
+    return payload == name or payload.startswith(name + "@")
 
 
 def manifest_contains(data, name):
@@ -98,7 +146,9 @@ def inspect(agent):
     for relative in ("settings.json.lock", "npm", "npm/node_modules", "npm/node_modules/@upstash"):
         safe_storage(agent / relative)
     settings_path = agent / "settings.json"
-    sources = package_sources(read_object(settings_path), settings_path)
+    settings = read_object(settings_path)
+    sources = package_sources(settings, settings_path)
+    extension_entries(settings, settings_path)
     manifests = [(agent / "npm" / relative, read_object(agent / "npm" / relative)) for relative in MANIFESTS]
     result = {}
     for name in PACKAGES:
@@ -117,6 +167,19 @@ def inspect(agent):
             leftovers.append(str(installed))
         result[name] = (declared, leftovers)
     return result
+
+
+def require_consistent_root_locks(agent):
+    """npm ignores package-lock when shrinkwrap exists; never mutate around stale targets."""
+    shrinkwrap = agent / "npm/npm-shrinkwrap.json"
+    lock = agent / "npm/package-lock.json"
+    if shrinkwrap.exists() and lock.exists():
+        data = read_object(lock)
+        if any(manifest_contains(data, name) for name in PACKAGES):
+            raise ValueError(
+                f"{lock} contains retired packages but is shadowed by {shrinkwrap}; "
+                "reconcile these root lockfiles before retrying cleanup"
+            )
 
 
 def require_retained_npm_declarations(agent):
@@ -149,6 +212,7 @@ def cleanup():
     agent = agent_directory()
     safe_storage(agent)
     before = inspect(agent)
+    require_consistent_root_locks(agent)
     if any(leftovers for _, leftovers in before.values()):
         require_retained_npm_declarations(agent)
     # Validate all state entries before removing packages; no recursive deletion or glob.
@@ -161,7 +225,14 @@ def cleanup():
         if not (stat.S_ISREG(mode) or stat.S_ISLNK(mode)):
             raise ValueError(f"Unsafe MCP state file: {path}")
 
-    env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent)}
+    settings_path = agent / "settings.json"
+    disabled = "-builtin:mcp" in extension_entries(read_object(settings_path), settings_path)
+    if disabled or any(leftovers for _, leftovers in before.values()):
+        backup_storage(agent)
+
+    # npm splits environment array values on TWO newlines; include overrides inherited omit.
+    env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent),
+           "npm_config_include": "dev\n\noptional\n\npeer"}
     for name, (declared, leftovers) in before.items():
         if not leftovers:
             continue
@@ -185,10 +256,11 @@ def cleanup():
                     or f"No matching package found for {source}" not in diagnostics):
                 raise ValueError(f"{source} removal failed (exit {removal.returncode})")
 
-    # Verify both package identities again before unlinking pi-only state (also dangling links).
+    # Verify all package identities before editing settings or unlinking pi-only state.
     for name, (_, leftovers) in inspect(agent).items():
         if leftovers:
             raise ValueError(f"npm:{name} remains after cleanup: {', '.join(leftovers)}")
+    enable_builtin_mcp(agent)
     for filename in MCP_FILES:
         path = agent / filename
         try:

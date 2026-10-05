@@ -13,6 +13,8 @@ packages = settings.get("packages", [])
 args = sys.argv[1:]
 command = args.pop(0)
 args = [arg for arg in args if arg not in ("--approve", "--no-approve")]
+retired = ("pi-mcp-adapter", "@upstash/context7-pi", "pi-distill",
+           "pi-extensions-tool-display", "pi-extensions-i18n")
 if os.environ.get("FAKE_PI_CALL_LOG"):
     with Path(os.environ["FAKE_PI_CALL_LOG"]).open("a") as log:
         log.write(json.dumps([command, *args]) + "\n")
@@ -26,7 +28,12 @@ def identity(spec):
     # pi removes by npm name, including pinned and object-form declarations.
     if not spec.startswith("npm:"):
         return spec
-    return spec[4:].split("@", 1)[0] if not spec[4:].startswith("@") else "@" + spec[5:].split("@", 1)[0]
+    # JavaScript String.trim() whitespace, before scoped/pinned name splitting.
+    payload = spec[4:].strip(
+        "\u0009\u000a\u000b\u000c\u000d \u00a0\u1680\u2000\u2001\u2002\u2003"
+        "\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+    )
+    return payload.split("@", 1)[0] if not payload.startswith("@") else "@" + payload[1:].split("@", 1)[0]
 
 
 def save(path, value):
@@ -39,7 +46,7 @@ def prune(value, name):
         return {
             key: prune(item, name)
             for key, item in value.items()
-            if key != name and key != "node_modules/" + name
+            if key != name and key != "node_modules/" + name and not key.endswith("/node_modules/" + name)
         }
     if isinstance(value, list):
         return [prune(item, name) for item in value]
@@ -52,7 +59,7 @@ elif command == "install":
     spec = args[0]
     name = identity(spec)
     if os.environ.get("FAKE_PI_REQUIRE_CLEAN") == "1":
-        if any(identity(source(entry)) in ("pi-mcp-adapter", "@upstash/context7-pi") for entry in packages) or any(
+        if any(identity(source(entry)) in retired for entry in packages) or any(
             (agent / filename).exists() for filename in (
                 "mcp-cache.json", "mcp-project-approvals.json", "mcp-onboarding.json", "mcp-npx-cache.json",
             )
@@ -69,6 +76,16 @@ elif command == "install":
         data.setdefault("dependencies", {})[name] = "*"
         save(manifest, data)
         (agent / "npm/node_modules" / name).mkdir(parents=True, exist_ok=True)
+elif command == "update" and args == ["--extensions"]:
+    # Rebuild from both settings and the npm root manifest, as real pi/npm updates do.
+    names = {identity(source(entry)) for entry in packages if source(entry).startswith("npm:")}
+    manifest = agent / "npm/package.json"
+    if manifest.exists():
+        data = json.loads(manifest.read_text())
+        for section in ("dependencies", "devDependencies", "optionalDependencies"):
+            names.update(data.get(section, {}))
+    for name in names:
+        save(agent / "npm/node_modules" / name / "package.json", {"name": name})
 elif command == "remove":
     spec = args[0]
     name = identity(spec)
