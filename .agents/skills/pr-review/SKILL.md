@@ -161,14 +161,14 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
      ```
 
    - `CODEX_THREAD_ID` が存在するのに異なる `--model-name` を渡した場合、または非 Codex で `--model-name` を省略した場合、helper は worktree 作成前に停止する。
-   - `create` は進捗を工程ごとに stderr とセッション内の journal へ記録する。`create` の呼び出しが、結果の JSON も helper のエラー（`error:` で始まる出力）も返さずに終わった場合（ツールのタイムアウト、ランタイムによる中断など）は、`create` をそのまま再実行せず、次の順に扱う。
+   - `create` は進捗を工程ごとに stderr とセッション内の journal へ記録する。`create` の呼び出しが、結果の JSON も helper のエラー（`error:` で始まる行）も返さずに終わった場合（ツールのタイムアウト、ランタイムやシグナルによる中断など。シグナルで中断した `create` は `error:` ではなく `interrupted:` で始まる行を出す）は、`create` をそのまま再実行せず、次の順に扱う。
      1. 次の `inspect` を実行する。`status` が `running` なら `--wait 540` を付けてやり直し、終わるのを待つ。それでも `running` なら、`abandon` も再試行もせず停止して報告する。
 
         ```bash
         uv run --no-project python "$HELPER" inspect --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --attempt-id "$ATTEMPT_ID" --temp-root /tmp
         ```
 
-     2. `status` が `absent` 以外なら、次の `abandon` で試行の残存物を片付ける。`abandon` は、試行が終わっていて、保存前の draft など helper が作った以外のファイルが無く、worktree がこのリポジトリの自セッションのものであるときだけ消す。拒否されたら削除を手で代行せず停止し、`inspect` の出力（工程・状態・残存パス）と拒否の理由を報告する。
+     2. `status` が `absent`・`failed` 以外なら、次の `abandon` で試行の残存物を片付ける。`abandon` は、試行が終わっていて、保存前の draft など helper が作った以外のファイルが無く、worktree がこのリポジトリの自セッションのものであるときだけ消す。拒否されたら削除を手で代行せず停止し、`inspect` の出力（工程・状態・残存パス）と拒否の理由を報告する。`failed` は helper のエラーで終わった試行なので、`abandon` も再試行もせず、下の helper のエラーと同じく扱う。
 
         ```bash
         uv run --no-project python "$HELPER" abandon --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --attempt-id "$ATTEMPT_ID" --temp-root /tmp
@@ -177,9 +177,9 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
      3. `abandon` が成功した、または `inspect` が `absent` を返した場合、調査期限まで 10 分以上残っていれば、新しい `ATTEMPT_ID` を決めて `create` を 1 回だけやり直してよい。残っていなければ停止して報告する。
      4. やり直した `create` も結果を返さなければ、同じく 1・2 を行い、再試行せずに停止して報告する。
 
-     `inspect` の出力から `create` の結果（`worktree`・`state_file` など）を組み立てて続行しない。`create` が helper のエラーで終わった場合は従来どおり停止して報告し、残存パスの報告に `inspect` を使ってよいが `abandon` はしない。
+     `inspect` の出力から `create` の結果（`worktree`・`state_file` など）を組み立てて続行しない。`create` が helper のエラー（`error:` で始まる行。journal があれば `inspect` の `status` は `failed`）で終わった場合は従来どおり停止して報告し、残存パスの報告に `inspect` を使ってよいが `abandon` はしない。
    - Codex rollout は追記中の末尾にある未完了 JSON レコードだけを無視する。改行済みの壊れた JSON レコード、正常な `turn_context.payload.model` の欠落は fail-closed で拒否する。モデル識別子に含まれる `/`・空白類はヘルパーが `-` に置換してファイル名に使う（例: `Cursor Grok 4.6` → `Cursor-Grok-4.6`）。`..` など置換後も安全なファイル名にならない識別子は fail-closed で拒否する。
-   - `SESSION_JSON` の JSON から以下を一度だけ取得する。値を推測・再構築しない。ヘルパーが失敗した場合は、手動で代替 Git コマンドを実行せず停止してエラーを報告する。
+   - `SESSION_JSON` の JSON から以下を一度だけ取得する。値を推測・再構築しない。ヘルパーが失敗した場合は、手動で代替 Git コマンドを実行せず停止してエラーを報告する（`create` が結果を返さずに中断した場合は上の `inspect`・`abandon` の手順に従う）。
 
      ```bash
      WT=$(printf '%s' "$SESSION_JSON" | jq -r .worktree)

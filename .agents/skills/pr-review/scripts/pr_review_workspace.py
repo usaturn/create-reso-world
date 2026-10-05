@@ -1045,10 +1045,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = args.handler(args)
     except CreateInterrupted as error:
-        print(f"error: {error}", file=sys.stderr)
+        # Not "error:": the skill stops on that prefix as a helper error, while
+        # an interrupted create is one that inspect and abandon can clear.
+        print(f"interrupted: {error}", file=sys.stderr)
         return 128 + error.signum
     except KeyboardInterrupt:
-        print("error: interrupted by SIGINT", file=sys.stderr)
+        print(f"interrupted: {args.command} interrupted by SIGINT", file=sys.stderr)
         return 128 + signal.SIGINT
     except (WorkspaceError, OSError, ValueError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)

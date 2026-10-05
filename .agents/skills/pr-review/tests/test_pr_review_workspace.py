@@ -1446,11 +1446,13 @@ def test_terminated_create_records_the_signal(tmp_path: Path) -> None:
         wait_for_phase(repo, temp_root, attempt, "worktree-add")
     finally:
         kill_group(process.pid, signal.SIGTERM)
-        process.communicate(timeout=10)
+        _, stderr = process.communicate(timeout=10)
 
     report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt, wait=10))
 
     assert process.returncode == 128 + signal.SIGTERM
+    # The skill reads an `error:` line as a helper error and would not abandon.
+    assert not [line for line in stderr.splitlines() if line.startswith("error:")]
     assert report["status"] == "interrupted"
     assert report["signal"] == "SIGTERM"
     assert report["last_phase"] == "interrupted"

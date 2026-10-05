@@ -158,7 +158,8 @@ Merge recommendation の判定順は次に固定する。
 | S20 | 一括検証（`bash .devcontainer/run-tests.bash` など）または実装担当が生存したまま無進捗 | PR レビュー例外を適用しない。通常の監視規約に従う |
 | S21 | 明示予算 20 分、途中でターンを跨ぐ | 開始 15 分で調査終了、20 分全体。起点をリセットしない |
 | S22 | JSONL の末尾未完、turn_duration 欠損、時刻逆転 | 解析限界を明示。推測で時刻や分類を補わない |
-| S23 | `create` のツール呼び出しがタイムアウトし、JSON もエラーも返らない | `create` をそのまま再実行しない。`inspect` と `abandon` の後、調査期限まで 10 分以上あれば新しい試行 ID で 1 回だけやり直す |
+| S23 | `create` のツール呼び出しがタイムアウトやシグナルで中断し、JSON も `error:` 行も返らない（`interrupted:` 行だけの場合を含む） | `create` をそのまま再実行しない。`inspect` と `abandon` の後、調査期限まで 10 分以上あれば新しい試行 ID で 1 回だけやり直す |
 | S24 | `inspect` が `running`、`--wait 540` の後も `running` | `abandon` も再試行もせず停止し、工程と残存パスを報告 |
 | S25 | `abandon` が拒否（draft あり、未知のファイル、利用者のロックなど） | 削除を手で代行せず停止し、`inspect` の出力と拒否の理由を報告 |
 | S26 | やり直した `create` も結果を返さない | `inspect` と `abandon` の後、再試行せず停止して報告 |
+| S27 | 結果を返さなかった `create` の `inspect` が `failed`（helper のエラーで終わった試行） | `abandon` も再試行もせず停止し、`inspect` の出力（`error` と残存パス）を報告 |

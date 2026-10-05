@@ -7,6 +7,7 @@
 - 状態: draft
 - 実行許可: 利用者の 2026-10-05 の指示「途中で止めずに推奨案で Spec、Plan を作成し PR まで実施せよ」。この Spec の判断（4 章の D-1〜D-10）は、その指示に基づきエージェント（Claude Code、claude-opus-5-5）が推奨案で決めたもので、Spec 自体の明示承認は得ていない。マージは指示に含まない
 - 関連 Plan: `docs/superpowers/plans/2026-10-05-issue-39-pr-review-create-interruption.md`
+- PR #40 のレビュー修正: `docs/superpowers/specs/2026-10-05-pr40-issue-39-pr-review-create-interruption-review-fixes-design.md`。シグナルによる中断の stderr を `error:` ではなく `interrupted:` で始め、`inspect` の `failed` を helper のエラーとして扱う形にした（D-4・D-7 を更新）。Plan と 9 章は変更前の記録として残す
 - 作成: 2026-10-05
 
 ## 1. 目的
@@ -120,6 +121,7 @@ Issue の時系列では、セッションディレクトリの作成が 12:09:4
 ### D-4 中断の記録
 
 - `create` の実行中に SIGTERM・SIGHUP・SIGINT を受けたら、journal に `interrupted` とシグナル名を書き、終了コード 128＋シグナル番号で終わる。`subprocess.run` は例外で抜けるときに子の git を止める
+- 中断時に stderr へ出す最後の行は `interrupted:` で始める（例: `interrupted: create interrupted by SIGTERM`）。`error:` で始まる行は helper のエラーとしてスキルが停止する（D-7）ので、中断には使わない（PR #40 のレビュー修正。`docs/superpowers/specs/2026-10-05-pr40-issue-39-pr-review-create-interruption-review-fixes-design.md`）
 - 中断は最初のシグナルだけで起こし、2 回目以降の SIGTERM・SIGHUP は無視する。`uv run` はプロセスグループで受けたシグナルを helper にも転送するので helper には 2 回届き、2 回目が終端の記録の書き込みを途中で止めていた（実装中の裁定。9 章）
 - helper のエラー（`WorkspaceError` など）で終わったら、journal に `failed` とメッセージを書く。終了コードは従来どおり 2
 - SIGKILL やクラッシュでは終端のレコードが残らない。`inspect` はロックが外れているのに終端が無い状態を `vanished`（終了コードは不明）と報告する
@@ -186,12 +188,12 @@ uv run --no-project python "$HELPER" abandon --repo "$MAIN_ROOT" --pr-number "$P
 ### D-7 スキルの手順
 
 - `create` は試行 ID ごとに一度だけ実行する
-- `create` の呼び出しが、helper の結果の JSON も helper のエラー（`error:` で始まる出力）も返さずに終わった場合（ツールのタイムアウト、ランタイムによる中断など）は、次の順に扱う
+- `create` の呼び出しが、helper の結果の JSON も helper のエラー（`error:` で始まる行）も返さずに終わった場合（ツールのタイムアウト、ランタイムやシグナルによる中断など。シグナルによる中断は `interrupted:` で始まる行を出す。D-4）は、次の順に扱う
   1. `inspect` を実行する。`running` なら `--wait 540` を付けて `inspect` をやり直し、終わるのを待つ。それでも `running` なら、`abandon` も再試行もせず停止して報告する
-  2. `absent` 以外なら `abandon` を実行する。拒否されたら、削除を手で代行せず停止し、`inspect` の出力（工程・状態・残存パス）と拒否の理由を報告する
+  2. `absent`・`failed` 以外なら `abandon` を実行する。拒否されたら、削除を手で代行せず停止し、`inspect` の出力（工程・状態・残存パス）と拒否の理由を報告する。`failed` は helper のエラーで終わった試行なので、下の helper のエラーと同じく扱う
   3. `abandon` が成功した、または `inspect` が `absent` だった場合、調査期限まで 10 分以上残っていれば、新しい試行 ID で `create` を 1 回だけやり直してよい。残っていなければ停止して報告する
   4. やり直しの `create` も結果を返さなければ、同じく `inspect`・`abandon` を行い、再試行せずに停止して報告する
-- `create` が helper のエラーで終わった場合は、従来どおり手動の代替コマンドを実行せずに停止して報告する。残存パスの報告に `inspect` を使ってよいが、`abandon` はしない
+- `create` が helper のエラー（`error:` で始まる行。journal があれば `inspect` の `status` は `failed`）で終わった場合は、従来どおり手動の代替コマンドを実行せずに停止して報告する。残存パスの報告に `inspect` を使ってよいが、`abandon` はしない
 - 削除の規則は「自セッションの worktree の削除は helper の `cleanup` だけが行う」を保ったまま、「`create` が結果を返さずに中断した試行の残存物は helper の `abandon` だけが片付ける」を足す。`git worktree remove`・`rm -rf` を自分で組み立てない規則と、helper が拒否したら手で代行しない規則は両方に適用する
 - 最終応答と停止時の報告には、扱った試行 ID と `inspect`・`abandon` の結果を含める
 
@@ -243,7 +245,7 @@ uv run --no-project python "$HELPER" abandon --repo "$MAIN_ROOT" --pr-number "$P
 - `SKILL.md` の「ランタイム別の注意」: Claude Code と pi のタイムアウトの指定
 - `SKILL.md` の手順 2: 試行 ID の生成と記録、2 つの `create` の行への `--attempt-id "$ATTEMPT_ID"`、`create` が結果を返さなかったときの手順（D-7）
 - `SKILL.md` の手順 9 と出力前セルフチェック: 試行 ID と `inspect`・`abandon` の結果の報告、短いタイムアウトを付けていないかの確認
-- `references/time-budget.md`: 準備が遅れても helper を打ち切らないこと、`create` の再試行は調査期限まで 10 分以上あるときだけであること、検証シナリオ S23〜S25
+- `references/time-budget.md`: 準備が遅れても helper を打ち切らないこと、`create` の再試行は調査期限まで 10 分以上あるときだけであること、検証シナリオ S23〜S27
 
 ## 8. テスト方針
 
@@ -252,7 +254,7 @@ helper の挙動をテストで確かめる。文書の文言を固定値で比�
 - `create`: 試行 ID の必須・形式・重複の拒否。成功時の journal（工程の順と最初のレコードの内容）
 - 中断（別プロセスで実行）: `git worktree add` の直後で止まる git のラッパーを PATH に置き、`create` を実行する
   - 実行中に `inspect` が `running` と工程 `worktree-add` を返す
-  - SIGKILL でプロセスグループを止めても、別のセッションの git は生き残り `running` のまま。git が終わると `vanished`。SIGTERM では終了コード 143 と `interrupted`（`SIGTERM`）
+  - SIGKILL でプロセスグループを止めても、別のセッションの git は生き残り `running` のまま。git が終わると `vanished`。SIGTERM では終了コード 143 と `interrupted`（`SIGTERM`）。stderr に `error:` で始まる行を出さない
   - 2 回目のシグナルが終端の記録を止めない
   - 共有ロックをテスト側で持って `lock-wait` で止め、SIGKILL した後に `abandon` で片付けられる（Issue の状態の再現。`.session.json.*` の一時ファイルも含める）
 - `abandon` の保護: 実行中・draft あり・未知のファイルあり・別リポジトリ・`initializing` 以外のロックでは何も消さない。`initializing` のロックは消せる。他の試行のセッション、`reviews/` の他のファイル、main checkout の状態は変わらない
