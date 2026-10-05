@@ -82,7 +82,7 @@
 - `PI_DISTILL_ERROR_RETRY_COUNT`・`PI_DISTILL_MODEL`・`PI_DISTILL_TIMEOUT_SECONDS`・`PI_EXTENSIONS_LOCALE`・`MAAS_ANTHROPIC_TOKEN` が export されている
 - `pi list` に `npm:@upstash/context7-pi` がある。`pi-mcp-adapter`・`pi-distill` は無い。settings の `extensions` は空配列
 - `~/.pi/agent/models.json` の provider は `commandcode`・`deepinfra`・`deepinfra-distill`・`opencode-go`
-- `pigo`・`pigs`・`pixg` の dry-run の argv に `--tui-mode` が無い（配置済みの共通ヘルパが #20 より前の版）
+- `pigo`・`pigs`・`pixg` の dry-run の argv に、ヘルパが付ける `--tui-mode regular` が無い（`--tui-mode` は利用者が渡した 1 つだけ。配置済みの共通ヘルパが #20 より前の版）
 - `pigs`・`pixg` のランチャー別 tier は、すでに #20 の値（`cheap` などが `opencode-go/deepseek-v4.1-flash`）。`~/.pi` はホストと共有しているため、別の環境で更新した結果と考えられる
 - `claude plugin list` に、`.claude/settings.json` の `enabledPlugins` の 5 つ（`example-skills`・`feature-dev`・`ripgrep`・`superpowers`・`web-quality-skills`）がある
 
@@ -126,7 +126,8 @@
 | `.devcontainer/install_beforehand.bash` のうち Codex・Cursor・Devin・uv・Starship・Herdr・共有スキルの導入と `pi-subagents` の置き換え | 既存維持 | 移植先の手順で足りる。`pi-subagents` の置き換えの手順は移植元と同等（差分はコメントの Issue 番号だけ） |
 | なし（移植先の `install_beforehand.bash` の ResoLoop の導入と Resonite のツールの確認、`zshrc.txt` の `require_command`・`update_if_present`・秘密情報の `env` の読み込み・.NET のツールの PATH） | 既存維持 | 移植先にだけある手順と補助 |
 | `.devcontainer/README.md` のうち「Codex で `CLAUDE.md` を指示ファイルとして読む」「Herdr サイドバーの設定移行」「エージェント向けツールの導入」 | 既存維持 | 移植先は同じ内容を移植先の構成（Codex は `AGENTS.md` を直接読む、9 本のランチャー、5 つのプラグイン）で書いてある |
-| `.devcontainer/README.md` のうち「public/ checkout の検査と復旧」「npm への一本化と既存環境の移行」 | 対象外 | MaatLog の `public/` submodule と yarn からの移行の手順 |
+| `.devcontainer/README.md` のうち「pi のモデル定義とランチャー」「モデル定義の正」 | 既存維持 | 差分は setup スクリプトのパス（移植先は `.devcontainer/` に置く）と、移植先にだけある `pigou` の説明だけ（PR #33 のレビュー修正で足した行） |
+| `.devcontainer/README.md` のうち「public/ checkout の検査と復旧」「npm への一本化（#147）と既存環境の移行」 | 対象外 | MaatLog の `public/` submodule と yarn からの移行の手順 |
 | `.devcontainer/README.md` のうち「PR レビューの一括起動（herdr-pr-review）」 | 対象外 | レビュー系ツール。担当は #17 |
 | `.devcontainer/zshrc.txt` のうち Cursor / Devin の alias（`cur`・`curo`・`dev`・`devo`・`devs` のモデル固定） | 対象外 | #17 の実行ボードで「Cursor / Devin のエイリアスは誰も変えない」と決めた |
 | `.devcontainer/zshrc.txt` のうち `maatlog_periodic_cleanup`、`update()` | 既存維持 | 移植先は `workspace_periodic_cleanup` に汎用化し、`update()` は無いツールを飛ばす `update_if_present` を使う。`grok update` の撤去は #18 |
@@ -188,13 +189,13 @@ Plan の一時スクリプト（scratchpad に置き、リポジトリには入�
 | --- | --- | --- |
 | R-1 | postCreate が 25 手順を完了する | #19（`STEP_TOTAL` 25） |
 | R-2 | `/home/vscode` 配下の mount が 12 件で、`~/.dsh`・`~/.grok` が無い | #18 |
-| R-3 | `dsh`・`grok` が PATH に無い。pnpm を導入しない（`pnpmVersion: "none"`）。転送するポートは 8000 だけ | #18 |
+| R-3 | `dsh`・`grok` が PATH に無い。pnpm を npm で導入しない（`pnpmVersion: "none"`。Node の feature が `corepack enable` で置く `pnpm` の shim は残る）。転送するポートは 8000 だけ | #18 |
 | R-4 | 新しいシェルに `PI_DISTILL_*`・`PI_EXTENSIONS_LOCALE`・`MAAS_ANTHROPIC_TOKEN`（`env` に書いていない場合）が無い | #18・#19 |
 | R-5 | `pi list` と pi 管理の npm マニフェストに、撤去対象の 5 拡張が無い。settings の `extensions` に `-builtin:mcp` が無く、他の拡張・独自モデル・認証が残る | #19 |
 | R-6 | `agent/migration-backups/pi-retired-*` は変更が必要なときだけ作られる（整理済みなら増えない） | #19 |
 | R-7 | 全 9 ランチャーの dry-run の argv に `--tui-mode regular` があり、追加引数の `--tui-mode fullscreen` が後ろに残る | #20 |
 | R-8 | `zsh .devcontainer/setup_pi_superagents.zsh` で `pigs`・`pixg` の tier が #20 の値になる（変更があればバックアップされる） | #20 |
-| R-9 | `ccd`・`ccdo`・`ccds` の alias と 6 つのプロバイダ関数があり、短い名前だけが権限確認を省略する | #21 |
+| R-9 | `ccd`・`ccdo`・`ccds` の alias と 6 つのプロバイダ関数がある。短い名前だけが権限確認を省略することは、R-12 の `.devcontainer/test-herdr-migration.bash` が fake CLI の argv で検査する | #21 |
 | R-10 | `claude plugin list` に 5 プラグインがある | #21 |
 | R-11 | pi の trust を承認すると、ルートと各ワールドで `.pi/settings.json`・`.pi/mcp.json` が読まれる | #19・#22 |
 | R-12 | `bash scripts/check-layout.sh`・`bash .devcontainer/run-tests.bash`・`uv run pytest tests/skills .agents/skills` が通る | #22 |
@@ -253,7 +254,7 @@ worktree のルートで実行する。実認証とホストの設定は使わ�
 - 4.5 節の静的な確認
 - README の「節名」の参照が、参照先のファイルの見出しとして存在すること（Plan の一時スクリプト）
 - `uv run pytest -q tests/skills/test_legacy_references.py`（比較表を例外にした後も、README などへの移植元の名前の混入を検出すること）
-- `git diff --stat origin/main` で、変更が 2 章の 4 ファイル（文書 3 つとテストの例外の 1 行）と Spec・Plan だけであること
+- `git diff --stat origin/main...HEAD` で、変更が 2 章の 4 ファイル（文書 3 つとテストの例外の 1 行）と、この Spec・Plan・PR #33 のレビュー修正の Spec だけであること（`origin/main` は作業中に進むので、分岐点からの差分で比べる）
 
 ## 9. 比較表の行
 

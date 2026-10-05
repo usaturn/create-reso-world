@@ -91,7 +91,8 @@ rebuild しない場合は、3 の代わりに次を行う。dsh は rebuild す
 - pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜17 の `install -m 0755` で 9 本を置き直す。
   同じ節の 8 の `models.json` のコピーは既存の定義を上書きするので行わない。共通ヘルパは、4 で実行する
   `zsh .devcontainer/setup_pi_superagents.zsh` が更新する
-- Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映
+- Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映。古い `~/.zshrc` に残る
+  `ccda`（`claude-alibaba`）の関数と、`update()` の Grok Build の行も削除する
 
 ## テストの実行
 
