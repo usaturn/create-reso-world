@@ -14,6 +14,7 @@
 - Python を使う時は uv 必須であり python3 コマンドを使わないこと。リポジトリ内の Python ツールも `uv` で実行する
 - 例外として、Dev Container のブートストラップ（`.devcontainer/` 配下）と zsh ヘルパーは uv の導入前にも動く必要があるため、python3 を使ってよい
 - ローカルは常に origin/main(origin/HEAD) に保つこと(ローカルの main は作らない)
+- スキル superpowers の TDD で進める場合、固定値を確認するテストは作成しないこと。テストコードは **必要ではない場合がある** ことを理解する。必要がない場合は意味のないテストを作成せずに、テストなしで進める
 
 ## resoloop 注意
 
