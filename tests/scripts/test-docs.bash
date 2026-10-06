@@ -1,6 +1,5 @@
 #!/bin/bash
-# ルートの README.md と統合手順（docs/integration.md）が仕様 4.1・5.1・9.3・10.1 と持ち越しの N-3・N-4・N-12・N-17・N-18・N-24・N-25・N-27・P-1〜P-3・P-7・M-5 のとおりで、
-# 書いてあるファイルや節が実在することを検査する
+# 現行文書のリポジトリ内参照と撤去ツールの禁止、過去の再設計記録の検査を行う。
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
@@ -8,41 +7,54 @@ fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 has() { grep -qF -- "$2" "$1" || fail "$1 lacks: $2"; }
 lacks() { if grep -qF -- "$2" "$1"; then fail "$1 must not contain: $2"; fi; }
 
-# 1. README.md: 仕様 4.1 の内容（目的、Dev Container の起動、プロジェクトの作成、ResoLoop の版、変更の流れ）とテストの節がある
-[ "$(head -n 1 README.md)" = '# create-reso-world' ] || fail 'README.md title'
-expected='## 構成
-## Dev Container を起動する
-## エージェントで作業する
-## プロジェクトを作る
-## ResoLoop の版
-## 変更の流れ
-## テスト
-## 対象外'
-[ "$(grep -E '^## ' README.md)" = "$expected" ] || fail "README.md sections differ:
-$(grep -E '^## ' README.md)"
+# 指示ファイルも同じ小さい参照検査を使う。文面・見出し・リンクの表示名は検査しない。
+check_refs() {
+  uv run --no-project python - "$@" <<'PY'
+from pathlib import Path
+import re
+import sys
 
-# 2. README.md が案内するファイルは実在する
-for f in AGENTS.md CLAUDE.md .agents/skills .devcontainer/README.md .devcontainer/install_beforehand.bash \
-  .devcontainer/verify-resonite-tooling.bash .devcontainer/run-tests.bash \
-  scripts/new-world.sh scripts/resoloop-fork.sh scripts/check-layout.sh templates/world-project \
-  docs/resoloop-fork-workflow.md docs/integration.md .github/workflows/ci.yml .codex/config.toml .cursor/mcp.json \
-  docs/superpowers/README.md .agents/sp-implementer.md; do
-  has README.md "$f"
-  [ -e "$f" ] || fail "README.md refers to missing $f"
-done
-# .devcontainer/README.md の節への案内は、その節が実在する
-for section in 秘密情報 エージェントの読み込みの制約; do
-  has README.md "「$section」"
-  grep -qxF "## $section" .devcontainer/README.md || fail ".devcontainer/README.md lacks ## $section"
-done
+for name in sys.argv[1:]:
+    doc = Path(name)
+    text = doc.read_text(encoding="utf-8")
+    if name == ".pi/APPEND_SYSTEM.md":
+        text = text.split("\n## Response Persona", 1)[0]  # 利用者所有部分は既存 SHA だけで保護
+    fenced = False
+    for number, line in enumerate(text.splitlines(), 1):
+        if re.match(r"\s*(```|~~~)", line):
+            fenced = not fenced
+        if fenced:
+            continue  # コードブロックはコマンド・サンプル
+        for match in re.finditer(r"`([^`]+)`|\[[^\]]*\]\(([^\s)]+)(?:\s+[^)]*)?\)", line):
+            ref = (match[1] or match[2]).split("#", 1)[0]
+            if ref.startswith("/skill:") or (match[1] and re.match(r"\s*スキル", line[match.end():])):
+                ref = ".agents/skills/" + ref.removeprefix("/skill:")
+            ref = ref.removeprefix("@")
+            if not ref or re.search(r"[\s*?\[\]<>{}$]", ref) or re.match(r"^(?:[\w+.-]+:|[/~]|-|\.\.\.)", ref):
+                continue  # 外部・ホーム・絶対パス、コマンド、glob、プレースホルダ
+            if match[1] and (re.match(r"\s*は置かない", line[match.end():]) or ("/" not in ref and "のように" in line)):
+                continue  # 存在しない設定の注記、ファイル名の例
+            if name == "docs/resoloop-fork-workflow.md" and ref == "global.json":
+                continue  # fork checkout 側のファイル（このリポジトリには置かない）
+            if not re.search(r"\.(?:md|sh|bash|zsh|py|json|toml|ya?ml|txt)$", ref) and not re.match(r"^\.(?:agents|claude)/skills(?:/|$)", ref):
+                continue
+            paths = [doc.parent / ref] if match[2] else [Path(ref), doc.parent / ref, Path(".devcontainer") / ref]
+            if not any(path.exists() for path in paths):
+                sys.exit(f"FAIL: {name}:{number} refers to missing {ref}")
+PY
+}
+if [ "${1:-}" = --refs ]; then
+  shift
+  check_refs "$@"
+  exit 0
+fi
+check_refs README.md docs/superpowers/README.md docs/resoloop-fork-workflow.md
 
-# 3. N-3: エージェントごとに初回に要る操作と制約
-for s in 'trust' 'cursor-agent' '.devin/config.json' 'sp-*.md' 'Cursor: スキルの一部が見えない'; do has README.md "$s"; done
 # 撤去した dsh を対象エージェントに戻さない
 for f in AGENTS.md README.md; do lacks "$f" 'dsh'; done
 
-# 4. 統合手順: マージ前の片付け（P-1）、一覧の件数（N-4）、sp-implementer.md の比較先と同じシェル（N-12）、
-#    main の再 ff（M-5）、/private/ の行を消す時期（P-2）、Rebuild 後の確認（N-17・N-18・N-25・N-27）
+# 再設計の統合記録: マージ前の片付け（P-1）、一覧の件数（N-4）、sp-implementer.md の比較先と同じシェル（N-12）、
+# main の再 ff（M-5）、/private/ の行を消す時期（P-2）、Rebuild 後の確認（N-17・N-18・N-25・N-27）
 doc=docs/integration.md
 before_merge="$(sed -n '/^## PR のマージ前にユーザが行うこと$/,/^## PR のマージ後にユーザが行うこと$/p' "$doc")"
 for s in 'git checkout -- .claude/settings.local.json' 'git checkout -- CLAUDE.md .pi/APPEND_SYSTEM.md' \
@@ -57,18 +69,15 @@ done
 lacks "$doc" '随時追記'
 lacks "$doc" 'Task 14'
 
-# 5. 仕様・運用文書・フェーズ 0・1 の計画書の表記（P-3・P-7・N-24）
+# 過去の仕様・フェーズ 0・1 の計画書の表記（P-3・P-7・N-24）は凍結した履歴として維持する
 spec=docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md
 lacks "$spec" '`**/tmp/`'
 lacks "$spec" '`.agents/skills/*/SKILL.md` ごとに'
 has "$spec" 'git fetch . feat/slum02-slum:main'
 has "$spec" 'フェーズ 4 の D-10'
 has "$spec" '別の環境の postCreate が、ロックのコミットを origin から取得できるようにするため'
-has docs/superpowers/README.md '--name resoloop-pr9-list-shrink-spec.md'
-has docs/resoloop-fork-workflow.md 'テストと特殊な運用向け'
-lacks docs/resoloop-fork-workflow.md '主にテスト用'
 phase01=docs/superpowers/plans/2026-09-26-redesign-phase0-1-safety-and-hygiene.md
 lacks "$phase01" '`**/` 前置に修正された'
 lacks "$phase01" '追跡解除後もローカルファイルとして残る'
 
-printf 'PASS: README and integration docs follow spec 4.1 and 10.1\n'
+printf 'PASS: current doc references, removed-tool guard and archived redesign assertions\n'
