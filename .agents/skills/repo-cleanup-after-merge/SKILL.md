@@ -197,8 +197,10 @@ Git は通常 ignore 対象のファイルを確認なしに上書きするた�
 
 手順 7 が成功したあとで実行する（fork の経路では手順 7 を省略する）。手順 7 で停止した場合は branch 削除に進まない。`usaturn/create-reso-world` の既存ローカル `main` は、マージ済みでも候補から必ず除外し、そのまま保持する。メイン作業ツリーが feature を checkout したままだと `git branch -d` は `used by worktree` / `checked out` で失敗する。
 
+以下は `usaturn/create-reso-world` 用である。削除は、手順 7 で更新した `MAIN_ROOT` を対象にする。fork の経路では、リポジトリのルートで `git -C external/resoloop branch -d <branch>` に読み替える。fork では手順 7 を省略し、削除のために HEAD を動かさない。`MAIN_ROOT` の設定も要求しない。
+
 ```bash
-git branch -d <branch>
+git -C "$MAIN_ROOT" branch -d <branch>
 ```
 
 `-D` は使わない。
@@ -244,8 +246,10 @@ bash scripts/resoloop-fork.sh sync
 
 ### 11. 最終状態を報告する
 
+以下は `usaturn/create-reso-world` 用である。status は更新対象の `MAIN_ROOT` で確認する。fork の経路では、リポジトリのルートで各 Git コマンドに `-C external/resoloop` を指定し、最初の行は `git -C external/resoloop status` に読み替える。fork では `MAIN_ROOT` の設定を要求しない。
+
 ```bash
-git status
+git -C "$MAIN_ROOT" status
 git worktree list
 git branch -a
 ```

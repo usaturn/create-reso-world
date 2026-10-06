@@ -1,7 +1,8 @@
-"""Execute cleanup step 7 against disposable Git repositories.
+"""Execute cleanup update, deletion and status against disposable Git repositories.
 
 These regressions catch attaching/creating/moving local main, targeting the
-caller's linked worktree, proceeding after a failed cleanliness/checkout gate,
+caller's linked worktree, deleting against its stale HEAD, proceeding after a
+failed cleanliness/checkout gate,
 and Git's default overwrite of ignored user files. Expected Git state comes
 from the fixtures, not from the skill's wording or eval lists.
 """
@@ -83,22 +84,26 @@ def local_refs(work: Path) -> str:
     return git(work, "for-each-ref", "--format=%(refname) %(objectname)", "refs/heads")
 
 
-def run_step7(
-    work: Path, *, cwd: Path | None = None, following_delete: bool = False
-) -> subprocess.CompletedProcess[str]:
+def step_bash(step: int) -> str:
     section = re.search(
-        r"^### 7\.[^\n]*\n(.*?)(?=^### \d+\.|\Z)",
+        rf"^### {step}\.[^\n]*\n(.*?)(?=^### \d+\.|\Z)",
         SKILL.read_text(encoding="utf-8"),
         re.M | re.S,
     )
-    assert section, "cleanup step 7 is missing"
+    assert section, f"cleanup step {step} is missing"
     blocks = re.findall(r"```bash\n(.*?)```", section.group(1), re.S)
-    assert len(blocks) == 1, "step 7 must have one runnable bash block"
-    commands = blocks[0]
+    assert len(blocks) == 1, f"step {step} must have one runnable bash block"
+    return blocks[0]
+
+
+def run_step7(
+    work: Path, *, cwd: Path | None = None, following_delete: bool = False
+) -> subprocess.CompletedProcess[str]:
+    commands = step_bash(7)
     if following_delete:
-        # Simulate proceeding to step 8 in the same shell. The real block must
-        # stop this command itself; the harness deliberately does not add -e.
-        commands += '\ngit -C "$MAIN_ROOT" branch -d merged-feature\n'
+        # Execute the actual step 8 in the same shell. Step 7 must stop it
+        # itself on failure; the harness deliberately does not add -e or -C.
+        commands += "\n" + step_bash(8).replace("<branch>", "merged-feature")
     return subprocess.run(
         ["bash", "--noprofile", "--norc", "-c", commands],
         cwd=cwd or work,
@@ -213,6 +218,94 @@ def test_invocation_from_linked_project_targets_main_root_not_callers_feature(ch
     assert git(linked, "rev-parse", "HEAD") == caller_head
     assert local_refs(checkout) == refs_before
     assert_detached_at(checkout, target)
+
+
+@pytest.mark.parametrize("upstream_state", ["unset", "pruned"])
+def test_branch_deletion_from_linked_project_uses_updated_main_head(
+    checkout: Path, upstream_state: str
+) -> None:
+    # Using the caller's stale HEAD rejects a branch already in origin/main
+    # when there is no usable upstream. Only the deletion candidate may go.
+    git(checkout, "branch", "main")
+    linked = checkout.parent / "linked feature"
+    git(checkout, "worktree", "add", "-qb", "active-feature", str(linked))
+    project = linked / "project"
+    project.mkdir()
+    caller_head = git(linked, "rev-parse", "HEAD")
+    caller_reflog = git(linked, "reflog", "show", "HEAD")
+    main_reflog = git(checkout, "reflog", "show", "main")
+    target = advance_remote(checkout)
+    git(checkout, "branch", "merged-feature", target)
+    if upstream_state == "pruned":
+        git(checkout, "push", "-qu", "origin", "merged-feature")
+        git(checkout.parent / "publisher", "push", "-q", "origin", "--delete", "merged-feature")
+        git(checkout, "fetch", "-q", "--prune")
+    assert git(checkout, "log", "--oneline", "origin/main..merged-feature") == ""
+    assert git(linked, "log", "--oneline", "HEAD..merged-feature") != ""
+    retained_refs = "\n".join(
+        line for line in local_refs(checkout).splitlines()
+        if not line.startswith("refs/heads/merged-feature ")
+    )
+
+    result = run_step7(checkout, cwd=project, following_delete=True)
+
+    assert result.returncode == 0, result.stderr
+    assert local_refs(checkout) == retained_refs, "only the candidate may be deleted"
+    assert git(checkout, "reflog", "show", "main") == main_reflog
+    assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
+    assert git(linked, "rev-parse", "HEAD") == caller_head
+    assert git(linked, "reflog", "show", "HEAD") == caller_reflog
+    assert_detached_at(checkout, target)
+
+
+def test_branch_deletion_refuses_a_branch_not_merged_into_origin_main(checkout: Path) -> None:
+    # Replacing -d with -D would discard this genuinely unmerged candidate.
+    git(checkout, "checkout", "-qb", "merged-feature")
+    (checkout / "feature-only.txt").write_text("unmerged work\n", encoding="utf-8")
+    git(checkout, "add", "feature-only.txt")
+    git(checkout, "commit", "-qm", "unmerged feature")
+    git(checkout, "checkout", "-q", "--detach", "origin/main")
+    target = advance_remote(checkout)
+    refs_before = local_refs(checkout)
+    assert git(checkout, "log", "--oneline", "origin/main..merged-feature") != ""
+
+    result = run_step7(checkout, following_delete=True)
+
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "not fully merged" in result.stderr
+    assert local_refs(checkout) == refs_before
+    assert_detached_at(checkout, target)
+
+
+def test_final_status_from_linked_project_reports_main_not_dirty_caller(checkout: Path) -> None:
+    # A cwd-based status reports the caller's edit instead of the updated tree.
+    linked = checkout.parent / "linked feature"
+    git(checkout, "worktree", "add", "-qb", "active-feature", str(linked))
+    project = linked / "project"
+    project.mkdir()
+    (linked / "base.txt").write_text("caller edit\n", encoding="utf-8")
+    caller_head = git(linked, "rev-parse", "HEAD")
+    caller_status = git(linked, "status")
+    target = advance_remote(checkout)
+    update = run_step7(checkout, cwd=project)
+    assert update.returncode == 0, (update.stdout, update.stderr)
+    assert_detached_at(checkout, target)
+
+    result = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", step_bash(11).splitlines()[0]],
+        cwd=project,
+        env={**os.environ, "MAIN_ROOT": str(checkout)},
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert result.stdout.strip() == git(checkout, "status")
+    assert result.stdout.strip() != caller_status
+    assert git(linked, "status") == caller_status
+    assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
+    assert git(linked, "rev-parse", "HEAD") == caller_head
 
 
 @pytest.mark.parametrize("dirty_kind", ["tracked", "untracked", "failed-status"])
