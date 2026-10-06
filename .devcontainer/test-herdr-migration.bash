@@ -682,16 +682,29 @@ break" "*.blend" --model sonnet'
             'source "$ZSHRC_TEMPLATE"; eval "$HERDR_TEST_CLAUDE_COMMAND"' \
             HERDR_TEST_CLAUDE_COMMAND="${fn} ${probe_code}" \
             HERDR_TEST_CLAUDE_DUMP="$log"
-        python3 - "$log" "$fn" <<'PY'
+        # alias は実行したシェルから取得せず、テンプレートを独立に解析する。
+        python3 - "$log" "$fn" "$ZSHRC_TEMPLATE" <<'PY'
 import json
+from pathlib import Path
+import re
+import shlex
 import sys
 
-log, name = sys.argv[1:]
-prefix = {
-    "ccd": ["--dangerously-skip-permissions"],
-    "ccdo": ["--dangerously-skip-permissions", "--model", "opus"],
-    "ccds": ["--dangerously-skip-permissions", "--model", "sonnet"],
-}[name]
+log, name, template = sys.argv[1:]
+definitions = [shlex.split(line, comments=True)
+               for line in Path(template).read_text(encoding="utf-8").splitlines()
+               if re.match(rf"^\s*alias\s+{re.escape(name)}=", line)]
+assert len(definitions) == 1, (name, definitions)
+_, definition = definitions[0]
+command = shlex.split(definition.split("=", 1)[1])
+assert command[0] == "claude", (name, command)
+prefix = command[1:]
+# モデル以外の既存の権限フラグ・引数構造は維持する。
+assert prefix[:1] == ["--dangerously-skip-permissions"], (name, prefix)
+if name == "ccd":
+    assert len(prefix) == 1, (name, prefix)
+else:
+    assert len(prefix) == 3 and prefix[1] == "--model", (name, prefix)
 want = prefix + ["", "two words", "line\nbreak", "*.blend", "--model", "sonnet"]
 with open(log, encoding="utf-8") as handle:
     got = json.load(handle)["argv"]

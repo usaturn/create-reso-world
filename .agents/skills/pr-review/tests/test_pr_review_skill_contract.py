@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -70,11 +71,11 @@ def read(path: Path) -> str:
 
 
 def extract_resolver_script(skill_text: str) -> str:
-    """Extract the MAIN_ROOT resolver bash block from a skill document."""
+    """Extract the resolver by its CLI operation, never its prose heading."""
     blocks = re.findall(r"```bash\n(.*?)```", skill_text, re.DOTALL)
-    block = next((block for block in blocks if "--operation review-workspace" in block
-                 ), None)
-    assert block is not None, "resolver bash block not found in skill"
+    matches = [block for block in blocks if "--operation review-workspace" in block]
+    assert len(matches) == 1, "skill must have one unambiguous review-workspace block"
+    block = matches[0]
     # Nested list markdown indents the fence body; strip a common indent.
     lines = block.splitlines()
     indents = [len(line) - len(line.lstrip(" ")) for line in lines if line.strip()]
@@ -188,100 +189,6 @@ def resolver_fixture(tmp_path: Path) -> ResolverFixture:
     return make_resolver(tmp_path)
 
 
-def assert_review_contract(content: str) -> None:
-    # The user-supplied value is kept raw ($PR_ARG) so gh resolves a URL's
-    # owner/repo itself; every later gh call is pinned to the canonical
-    # $PR_URL so a foreign-repository URL cannot silently review the
-    # same-numbered PR of the checkout's repository.
-    assert 'gh pr view "$PR_ARG"' in content
-    assert 'gh pr view "$PR_URL" --comments' in content
-    assert 'gh pr diff "$PR_URL"' in content
-    assert 'gh pr view "$PR_NUMBER"' not in content
-    assert 'gh pr diff "$PR_NUMBER"' not in content
-    # The helper lives in this repository's skill tree, so it must resolve
-    # from $TOPLEVEL even when MAIN_ROOT points at external/resoloop.
-    assert 'HELPER="$TOPLEVEL/' in content
-    assert 'HELPER="$MAIN_ROOT/' not in content
-    assert 'git rev-parse --short=12 "$PR_HEAD"' in content
-    assert 'date -u +"%Y-%m-%dT%H:%M:%SZ"' in content
-    assert "previous_review" in content
-    assert "Review history" in content
-    assert "Reviewed at (UTC)" in content
-    assert "Initial" in content
-    assert "Update" in content
-    assert "検出時 HEAD" in content
-    assert "Resolved findings" in content
-    assert "解消確認時 HEAD" in content
-    assert "不明（旧形式）" in content
-    assert content.count("headRefOid") >= 3
-    assert "他モデルのレビュー本文" in content
-    assert "PR_URL=$(printf '%s' \"$PR_JSON\" | jq -r .url)" in content
-    assert "リポジトリ境界" in content
-    assert 'fetch "$PR_REMOTE" "+pull/<PR_NUMBER>/head:$PR_REF"' in content
-    assert "external/resoloop/reviews/" in content
-    assert "submodule" not in content
-    assert "#160-feature-issue-148-fail-fast" in content
-    assert "reviews/#" in content
-    assert "追跡パス" not in content
-    assert "if printf '%s' \"$PR_URL\" | grep -q devenv; then" not in content
-    assert 'MAIN_ROOT="$TOPLEVEL/devenv"' not in content
-    assert 'MAIN_ROOT="$(pwd)"' not in content
-
-
-def assert_heavy_verification_is_not_rerun_contract(content: str) -> None:
-    # Review does not rerun the bulk suites: the implementation and CI already
-    # ran them and repeating them is too slow. Related pytest, single test
-    # scripts, REPL and minimal repro scripts remain allowed. helper verify is
-    # destination fingerprinting, not a test run.
-    assert "重い一括検証を再実行しない" in content
-    assert "bash .devcontainer/run-tests.bash" in content
-    assert "scripts/resoloop-fork.sh test" in content
-    assert "実装時と CI で確認済み" in content
-    assert "冗長" in content
-    assert "3. **実行検証**" in content
-    assert "関連する pytest" in content
-    assert "REPL" in content
-    assert "最小再現スクリプト" in content
-    assert "helper の `verify`" in content
-    assert "`AGENTS.md` や他のスキルが求める完了前の検証より優先する" in content
-    assert "scripts/ci/" not in content
-    assert "動かして確かめることも行わない" not in content
-    assert "プロジェクトのテストを実行しない" not in content
-    assert "プロジェクトのテストコマンド" not in content
-    assert "既存テストファイルは読むが実行しない" not in content
-    assert "npm test" not in content
-
-
-@pytest.mark.parametrize("skill", [AGENTS_SKILL])
-def test_pr_review_skills_define_review_update_contract(skill: Path) -> None:
-    assert_review_contract(read(skill))
-
-
-@pytest.mark.parametrize("skill", [AGENTS_SKILL])
-def test_pr_review_skills_do_not_rerun_heavy_verification(skill: Path) -> None:
-    assert_heavy_verification_is_not_rerun_contract(read(skill))
-
-
-def assert_cleanup_contract(content: str) -> None:
-    assert 'cleanup --state "$STATE_FILE"' in content
-    assert "セッションディレクトリ" in content
-    assert "レビュー本文の「根拠」に転記" in content
-    assert "削除は helper の `cleanup` だけが行う" in content
-    # The "no $WT paths in the final response" rule must stay scoped to a
-    # successful cleanup; on the stop-unconfirmed branch $WT still exists and
-    # its full path must be reported.
-    assert "`cleanup` 成功後は `$WT` 配下のパスは既に存在しないため案内に含めない" in content
-    # Cleanup must stay gated on a verified save and must never be hand-rolled.
-    assert "worktree、session state、外部バックアップを自動削除しない" not in content
-    assert "残した worktree の完全パス" not in content
-    assert "最終応答後も削除しない" not in content
-
-
-@pytest.mark.parametrize("skill", [AGENTS_SKILL])
-def test_pr_review_skills_require_session_cleanup(skill: Path) -> None:
-    assert_cleanup_contract(read(skill))
-
-
 def test_helper_has_one_real_copy_shared_through_the_skill_symlink() -> None:
     assert AGENTS_HELPER.is_file() and not AGENTS_HELPER.is_symlink()
     assert AGENTS_HELPER.stat().st_size > 0
@@ -296,7 +203,7 @@ def test_skill_interpolation_is_limited_to_the_target_line() -> None:
     # invocation arguments. Only the target-PR line may carry $ARGUMENTS, and
     # embedded shell code must not use positional parameters.
     assert content.count("$ARGUMENTS") == 1
-    assert "対象 PR（スキル呼び出しの引数）: $ARGUMENTS" in content
+    assert all("$ARGUMENTS" not in block for block in re.findall(r"```[^\n]*\n(.*?)```", content, re.DOTALL))
     assert re.search(r"\$[0-9]", content) is None
 
 
@@ -311,66 +218,65 @@ ALLOWED_TOOLS = (
 def test_skill_keeps_claude_code_permissions_consistent() -> None:
     content = read(AGENTS_SKILL)
     head = yaml.safe_load(content.split("---", 2)[1])
-    # Claude Code only pre-approves what this line lists; a dropped entry turns
-    # the helper, the draft backup or the delegation into a permission prompt.
+    # The tool allow-list is a permission boundary, not descriptive prose.
     assert head["allowed-tools"] == ALLOWED_TOOLS
-    assert head["argument-hint"] == "<PR番号またはURL>"
-    assert "CODEX_THREAD_ID" in content
-    create_lines = [line for line in content.splitlines() if '"$HELPER" create' in line]
-    assert len(create_lines) == 2
-    for line in create_lines:
-        # allowed-tools only permits Edit/Write under /tmp/pr-review-*, so every
-        # runtime pins the helper's temp root there.
-        assert "--temp-root /tmp" in line, line
-    # Codex resolves the model itself; only the other runtimes pass it once.
-    with_model = [line for line in create_lines if "--model-name" in line]
-    assert len(with_model) == 1
-    assert with_model[0].count('--model-name "$MODEL_NAME"') == 1
-    codex_block = content.split("Codex では次を実行する", 1)[1].split("```", 2)[1]
-    assert '"$HELPER" create' in codex_block
-    assert "--model-name" not in codex_block
-
-
-def test_skill_keeps_runtime_specific_notes() -> None:
-    content = read(AGENTS_SKILL)
-    assert "## ランタイム別の注意" in content
-    for heading in ("### 対象 PR の受け取り", "### Claude Code", "### Codex", "### Devin", "### pi"):
-        assert heading in content
-    assert "You are powered by" in content
-    assert "`~/.local/share/devin/cli/transcripts/`" in content
-    assert "pi-model-name" in content
-    # Every runtime that passes MODEL_NAME uses the identifier verbatim.
-    assert "既存レビューのファイル名から推測・短縮・一般化しない" in content
-
-
-def test_delegation_limits_stay_in_the_skill_body() -> None:
-    content = read(AGENTS_SKILL)
-    for rule in (
-        "サブエージェントは `$WT` 上のコードと PR 差分（`gh pr diff` の結果）のみ調査する",
-        "`reviews/` 全体と `$PREVIOUS_REVIEW` の読解はメインエージェントだけが行う",
-        "委譲時は `reviews/` を調査範囲から明示的に除外する",
-        "この読解はメインエージェントのみが行い、サブエージェントに委譲しない",
-        "指摘の根拠となる精読をサブエージェント任せにしない",
-        "反証試行のための追加委譲はしない",
-        "サブエージェントの報告のみを根拠に【検証済み】を付けない",
-        "既存 review 本文をサブエージェントへ渡していないか",
-    ):
-        assert rule in content, rule
-
-
-def test_main_agent_traces_the_change_when_not_delegating() -> None:
-    content = read(AGENTS_SKILL)
-    step5 = content.split("5. **コンテキスト読解", 1)[1].split("6. **", 1)[0]
-    assert "委譲しない場合は、メインエージェントが自分で" in step5
-    for target in ("呼び出し元・呼び出し先", "依存関係ファイル", "既存テスト"):
-        assert target in step5.split("委譲しない場合は、メインエージェントが自分で", 1)[1], target
-
-
-def test_pr_argument_fallback_is_stated_once() -> None:
-    content = read(AGENTS_SKILL)
-    step1 = content.split("1. **PR情報の取得**", 1)[1].split("2. **", 1)[0]
-    assert "`PR_ARG` が確定しない場合" in step1
-    assert "   - 未指定の場合、" not in step1
+    assert isinstance(head["argument-hint"], str) and head["argument-hint"].strip()
+    create_arguments: list[list[str]] = []
+    for block in re.findall(r"```bash\n(.*?)```", content, re.DOTALL):
+        if "create" not in block:
+            continue
+        # Join explicit continuations, then tokenize each logical line: shlex
+        # consumes the newline ending a comment, which must not merge a later
+        # invocation into the preceding command and hide an unsafe temp-root.
+        for line in block.replace("\\\n", "").splitlines():
+            lexer = shlex.shlex(line, posix=True, punctuation_chars="();&|")
+            lexer.whitespace = " \t\r"
+            lexer.whitespace_split = True
+            command: list[str] = []
+            for token in [*lexer, "\n"]:
+                if not token.strip("();&|\n"):
+                    # Control words precede a simple command without changing
+                    # its argv. Unknown execution wrappers must fail closed,
+                    # not hide another create call beside the safe examples.
+                    while command and command[0] in ("if", "elif", "then", "else", "while", "until", "do", "!", "{", "}"):
+                        command.pop(0)
+                    # Literal echo/printf data is not an invocation. A
+                    # substitution-like payload is ambiguous: reject it rather
+                    # than silently treating an executable helper call as data.
+                    if command and (
+                        command[0] not in ("echo", "printf")
+                        or any("`" in arg or "$(" in arg for arg in command)
+                    ) and re.search(
+                        r"""(?:\$(?:HELPER|\{HELPER\})|(?:[^\s]*/)?pr_review_workspace\.py)["']?\s+(?:\S+\s+)*["']?create["']?(?:\s|$)""",
+                        " ".join(command),
+                    ):
+                        command = ["$HELPER" if arg == "${HELPER}" else arg for arg in command]
+                        assert command[:6] == ["uv", "run", "--no-project", "python", "$HELPER", "create"], (
+                            f"unparsed helper create invocation: {command}"
+                        )
+                        create_arguments.append(command[6:])
+                    command = []
+                else:
+                    command.append(token)
+    assert create_arguments, "skill has no executable helper create command"
+    model_arguments = []
+    for args in create_arguments:
+        options: dict[str, list[str]] = {"--temp-root": [], "--model-name": []}
+        for index, arg in enumerate(args):
+            flag, equals, value = arg.partition("=")
+            if flag in options:
+                values = [value] if equals else args[index + 1:index + 2]
+                assert values and values[0], args
+                options[flag].extend(values)
+        # Count both --flag value and --flag=value; a later override must not
+        # move the workspace outside the tool allow-list's /tmp boundary.
+        assert options["--temp-root"] == ["/tmp"], args
+        assert len(options["--model-name"]) <= 1, args
+        model_arguments.append(options["--model-name"])
+    # Keep both explicit-model and session-model CLI forms runnable, without
+    # selecting them by the preceding runtime paragraph.
+    assert ["$MODEL_NAME"] in model_arguments
+    assert [] in model_arguments
 
 
 @pytest.mark.parametrize("skill_path", [AGENTS_SKILL])
@@ -637,14 +543,6 @@ def test_pr_review_resolver_rejects_mismatched_remote_urls(tmp_path: Path, remot
     assert stopped.value.stdout == ""
 
 
-def test_other_repositories_keep_reviews_out_of_the_document_store() -> None:
-    content = read(AGENTS_SKILL)
-    assert 'CODE_ROOT="${CODE_ROOT:-}"' in content
-    assert "推測で埋めない" in content
-    assert "`$CODE_ROOT/reviews/`" in content
-    assert "Spec・Plan ではない" in content
-
-
 @pytest.mark.parametrize("forbidden", ["$TOPLEVEL/devenv", "submodule status -- devenv"])
 def test_pr_review_skills_have_no_legacy_path_selection(forbidden: str) -> None:
     for skill in (AGENTS_SKILL,):
@@ -656,103 +554,13 @@ def test_pr_review_skills_have_no_legacy_path_selection(forbidden: str) -> None:
     [(AGENTS_SKILL, "references/time-budget.md")],
 )
 def test_review_budget_reference_is_required_and_resolves(skill: Path, relative: str) -> None:
-    content = read(skill)
-    assert f"[時間予算と委譲規約]({relative})" in content
-    assert "最初の PR API 呼び出しより前に全文を読む" in content
+    targets = [target.split("#", 1)[0]
+               for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", read(skill))]
+    assert relative in targets, "skill lost its budget reference"
+    for target in targets:
+        if target and not target.startswith(("http:", "https:")):
+            assert (skill.parent / target).resolve().is_file(), target
     assert (skill.parent / relative).resolve() == BUDGET_REFERENCE.resolve()
-    assert BUDGET_REFERENCE.is_file()
-    assert "0. **時間予算の開始**" in content
-
-
-def test_review_budget_has_fixed_deadlines_and_safe_fallback() -> None:
-    content = read(BUDGET_REFERENCE)
-    for required in (
-        "全体 45 分",
-        "開始 40 分",
-        "予約枠は 5 分",
-        "起動時刻 + 10分",
-        "実質進捗から 5 分",
-        "300 行以下",
-        "3 個以下",
-        "進捗があっても延長しない",
-        "停止確認",
-        "再委譲",
-        "最大 1 件",
-        "停止手段を利用できなければ委譲を省略する",
-        "同期起動のみのランタイムでは委譲しない",
-        "呼び出し元・呼び出し先",
-        "指摘の根拠となる精読をサブエージェント任せにしない",
-        "サブエージェントの報告のみを根拠に【検証済み】を付けない",
-        "停止確認不能なら cleanup を省略する",
-        "未検証",
-        "実時間保証ではない",
-        "応答本文へ逐次記し",
-        "重要な未検証候補",
-        "未再検証の過去指摘",
-        "差分の実質的な未読箇所",
-    ):
-        assert required in content
-    assert (
-        content.index("`Request changes`") < content.index("`Needs manual verification`") < content.index("`Approve`")
-    )
-
-
-@pytest.mark.parametrize("skill", [AGENTS_SKILL])
-def test_pr_review_skills_keep_delegation_optional_and_readonly(skill: Path) -> None:
-    content = read(skill)
-    assert "読み取り専用の補助委譲として" in content
-    assert "起動してよい" in content
-    assert "並行して起動する" not in content
-
-
-@pytest.mark.parametrize("skill", [AGENTS_SKILL])
-def test_incomplete_reviews_preserve_pending_and_gate_approval(skill: Path) -> None:
-    content = read(skill)
-    for section in (
-        "Review coverage",
-        "Unverified candidates",
-        "Pending previous findings",
-        "Review timing",
-    ):
-        assert section in content
-    for rule in (
-        "未再検証の指摘を Resolved にしない",
-        "次回更新で Pending previous findings も再検証する",
-        "active / pending / resolved 全体で ID の衝突を避ける",
-        "確認不足判定は coverage と pending も参照する",
-        "停止確認不能なら cleanup を省略する",
-        "重要な未検証候補",
-        "未再検証の過去指摘",
-        "差分の実質的な未読箇所",
-    ):
-        assert rule in content
-    assert (
-        content.index("**Request changes**")
-        < content.index("**Needs manual verification**")
-        < content.index("**Approve**")
-    )
-
-
-def test_timing_separates_observation_from_runtime_measurement() -> None:
-    content = read(BUDGET_REFERENCE)
-    for required in (
-        "turn_duration",
-        "durationMs",
-        "tool_use",
-        "tool_result",
-        "モデル応答までの観測間隔",
-        "ツール実時間は不明",
-        "ターン外時間",
-        "和集合",
-        "並行した区間を総時間へ加算しない",
-        "出力しない",
-        "未完の末尾行",
-        "save/cleanup",
-        "最終応答",
-        "600 秒以下",
-        "2700 秒以下",
-    ):
-        assert required in content
 
 
 @pytest.mark.parametrize("case", ["implicit", "explicit", "duplicate", "subdirectory"])

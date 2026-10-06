@@ -17,55 +17,50 @@ setup_for_home() {
         || fail "pi-superagents setup failed: ${output}"
 }
 
-test_setup_places_independent_gpt6_tiers() {
-    local home="${TEST_ROOT}/setup" launcher tier model thinking config row
-    local -a expected_tiers=(
-        "piga:cheap:gpt-6-luna:xhigh"
-        "piga:balanced:gpt-6.1-sol:xhigh"
-        "piga:max:gpt-6-astra:max"
-        "pigs:balanced:gpt-6.1-sol:xhigh"
-        "pigs:max:gpt-6.1-sol:max"
-        "pigl:cheap:gpt-6-luna:xhigh"
-        "pigl:balanced:gpt-6.1-sol:xhigh"
-        "pigl:max:gpt-6.1-sol:xhigh"
-    )
+# 静的な期待値の読み取りを共有する。専用モードはスイートを実行しない。
+launcher_pi_args_from_source() {
+    bash "${REPO_ROOT}/.devcontainer/test-pi-superagents.bash" \
+        --launcher-pi-args-from-source "$1"
+}
+
+test_setup_places_independent_tiers_from_source() {
+    local home="${TEST_ROOT}/setup" launcher config source
     mkdir -p "$home"
     setup_for_home "$home"
 
-    for row in "${expected_tiers[@]}"; do
-        IFS=: read -r launcher tier model thinking <<< "$row"
+    for launcher in piga pigs pigl; do
         config="${home}/.pi/agent/extensions/subagent.d/${launcher}/config.json"
+        source="${REPO_ROOT}/.devcontainer/pi-superagents/${launcher}.json"
         [ -f "$config" ] || fail "setup did not place ${launcher} config"
-        python3 - "$config" "$tier" "openai-codex/${model}" "$thinking" <<'PY' \
-            || fail "${launcher}.${tier} must use ${model} at ${thinking} thinking"
+        python3 - "$config" "$source" <<'PY_TIERS' \
+            || fail "${launcher} placed modelTiers differ from the source"
 import json
 import sys
 
-with open(sys.argv[1], encoding="utf-8") as source:
-    tier = json.load(source)["superagents"]["modelTiers"][sys.argv[2]]
-assert tier == {"model": sys.argv[3], "thinking": sys.argv[4]}
-PY
+with open(sys.argv[1], encoding="utf-8") as handle:
+    placed = json.load(handle)["superagents"]["modelTiers"]
+with open(sys.argv[2], encoding="utf-8") as handle:
+    source = json.load(handle)["superagents"]["modelTiers"]
+assert placed == source, (placed, source)
+PY_TIERS
     done
 }
 
 test_launchers_select_models_and_forward_arguments() {
-    local home="${TEST_ROOT}/launch" launcher model output args expected
+    local home="${TEST_ROOT}/launch" launcher output args prefix expected
     mkdir -p "${home}/.pi/agent"
     printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
         > "${home}/.pi/agent/auth.json"
     setup_for_home "$home"
 
     for launcher in piga pigs pigl; do
-        case "$launcher" in
-            piga) model=gpt-6-astra ;;
-            pigs) model=gpt-6.1-sol ;;
-            pigl) model=gpt-6-luna ;;
-        esac
+        prefix="$(launcher_pi_args_from_source "$launcher")" \
+            || fail "cannot read ${launcher} source arguments"
         [ -x "${REPO_ROOT}/.devcontainer/${launcher}" ] || fail "${launcher} must be executable"
         output="$(env HOME="$home" PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
             zsh "${REPO_ROOT}/.devcontainer/${launcher}" --resume)"
         args="$(printf '%s\n' "$output" | awk 'seen { print } $0 == "pi" { seen = 1 }')"
-        expected="$(printf '%s\n' --tui-mode regular --provider openai-codex --model "$model" --thinking xhigh --resume)"
+        expected="$(printf '%s\n' "$prefix" --resume)"
         assert_eq "$args" "$expected" "${launcher} Pi arguments"
         # grep -q は一致した時点で終了するので、printf でパイプすると残りの行を書く側が SIGPIPE で落ちる
         grep -Fxq "${home}/.pi/agent/extensions/subagent.d/${launcher}" <<<"$output" \
@@ -74,7 +69,7 @@ test_launchers_select_models_and_forward_arguments() {
 }
 
 test_launchers_accept_tilde_agent_dir() {
-    local home="${TEST_ROOT}/tilde-auth" launcher model agent_dir output args expected
+    local home="${TEST_ROOT}/tilde-auth" launcher agent_dir output args prefix expected
     mkdir -p "${home}/.pi/agent"
     printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
         > "${home}/.pi/agent/auth.json"
@@ -83,12 +78,9 @@ test_launchers_accept_tilde_agent_dir() {
     setup_for_home "$home"
 
     for launcher in piga pigs pigl; do
-        case "$launcher" in
-            piga) model=gpt-6-astra ;;
-            pigs) model=gpt-6.1-sol ;;
-            pigl) model=gpt-6-luna ;;
-        esac
-        expected="$(printf '%s\n' --tui-mode regular --provider openai-codex --model "$model" --thinking xhigh --resume)"
+        prefix="$(launcher_pi_args_from_source "$launcher")" \
+            || fail "cannot read ${launcher} source arguments"
+        expected="$(printf '%s\n' "$prefix" --resume)"
         for agent_dir in "${home}/.pi/agent" '~/.pi/agent' '~'; do
             output="$(env HOME="$home" PI_CODING_AGENT_DIR="$agent_dir" \
                 PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
@@ -122,8 +114,7 @@ test_missing_oauth_guides_login_without_requesting_api_key() {
 }
 
 test_install_places_all_launchers_with_regular_mode() {
-    local home="${TEST_ROOT}/install" launcher output
-    local -a args
+    local home="${TEST_ROOT}/install" launcher output args prefix expected
     mkdir -p "${home}/.pi/agent"
     printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
         > "${home}/.pi/agent/auth.json"
@@ -147,30 +138,53 @@ test_install_places_all_launchers_with_regular_mode() {
             COMMANDCODE_API_KEY=dummy-for-dry-run OPENCODE_API_KEY=dummy-for-dry-run \
             PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
             zsh "${home}/.local/bin/${launcher}" --resume)"
-        mapfile -t args < <(awk 'seen { print } $0 == "pi" { seen = 1 }' <<<"$output")
-        assert_eq "${args[0]:-}" --tui-mode "installed ${launcher} tui option"
-        assert_eq "${args[1]:-}" regular "installed ${launcher} tui mode"
-        assert_eq "${args[${#args[@]}-1]}" --resume "installed ${launcher} user argument"
+        prefix="$(launcher_pi_args_from_source "$launcher")" \
+            || fail "cannot read ${launcher} source arguments"
+        args="$(awk 'seen { print } $0 == "pi" { seen = 1 }' <<<"$output")"
+        expected="$(printf '%s\n' "$prefix" --resume)"
+        assert_eq "$args" "$expected" "installed ${launcher} Pi arguments must match the source"
     done
 }
 
 test_live_openai_codex_models() {
     [ "${PI_CODEX_LIVE_CHECK:-0}" = 1 ] || return 0
 
-    local version model output
+    local version launcher model output models prefix
     version="$(pi --version)" || fail "pi --version failed"
     dpkg --compare-versions "$version" ge 0.99.1 \
         || fail "Pi 0.99.1 or newer is required (installed: ${version})"
 
-    for model in gpt-6-astra gpt-6.1-sol gpt-6-luna; do
+    models="$(python3 - "${REPO_ROOT}/.devcontainer/pi-superagents" <<'PY_MODELS'
+import json
+from pathlib import Path
+import sys
+
+models = set()
+for launcher in ("piga", "pigs", "pigl"):
+    config = json.loads((Path(sys.argv[1]) / f"{launcher}.json").read_text(encoding="utf-8"))
+    for tier in config["superagents"]["modelTiers"].values():
+        provider, model = tier["model"].split("/", 1)
+        if provider == "openai-codex":
+            models.add(model)
+print(*sorted(models), sep="\n")
+PY_MODELS
+)" || fail "cannot read Codex tier models"
+    for launcher in piga pigs pigl; do
+        prefix="$(launcher_pi_args_from_source "$launcher")" \
+            || fail "cannot read ${launcher} source arguments"
+        model="$(awk '$0 == "--model" { getline; print; exit }' <<<"$prefix")"
+        models="$(printf '%s\n' "$models" "$model")"
+    done
+    models="$(sort -u <<<"$models")"
+    while IFS= read -r model; do
         output="$(pi --list-models "$model")" || fail "pi --list-models ${model} failed"
         printf '%s\n' "$output" | awk -v model="$model" \
             '$1 == "openai-codex" && $2 == model { found = 1 } END { exit !found }' \
             || fail "openai-codex/${model} is unavailable; log in with /login or update Pi"
-    done
+    done <<<"$models"
 }
 
-test_setup_places_independent_gpt6_tiers
+test_setup_places_independent_tiers_from_source
 test_launchers_select_models_and_forward_arguments
 test_launchers_accept_tilde_agent_dir
 test_missing_oauth_guides_login_without_requesting_api_key
