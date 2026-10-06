@@ -555,10 +555,10 @@ main() {
 
   if [ "$removed" -eq 1 ]; then
     if [ "$json" -eq 1 ]; then
-      printf 'removed %s; re-run the git command that failed to acquire the lock (git switch / git merge --ff-only / git add / git commit)\n' \
+      printf 'removed %s; re-run only the original git command that failed to acquire the lock; if called from repo-cleanup-after-merge step 7, restart that step from the MAIN_ROOT cleanliness check\n' \
         "$lock_path" >&2
     else
-      printf 're-run the git command that failed to acquire the lock (eg: git switch main; git merge --ff-only origin/main)\n'
+      printf 're-run only the original git command that failed to acquire the lock; if called from repo-cleanup-after-merge step 7, restart that step from the MAIN_ROOT cleanliness check\n'
     fi
   fi
 

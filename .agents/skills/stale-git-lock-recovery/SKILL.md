@@ -91,7 +91,7 @@ bash .agents/skills/stale-git-lock-recovery/scripts/stale_git_lock.sh clear --re
 
 削除は `clear` だけで行う。`rm` で手動削除しない。手動の削除には、fd を閉じたまま動作中の git プロセスの確認も、同時実行の直列化も無い。スクリプトを実行できない環境では削除せず、人間に確認する。
 
-除去したら、ロックを取得できなかった元の操作を再実行する（例: `git switch main`、`git merge --ff-only origin/main`、`git add`、`git commit`）。「復旧した」と報告するのは、この再実行が成功してからにする。
+除去したら、ロックを取得できなかった元の操作を再実行する（例: `git checkout --detach --no-overwrite-ignore origin/main`、`git merge --ff-only <ref>`、`git add`、`git commit`）。`repo-cleanup-after-merge` の手順 7 から来た場合は、その手順に戻り `MAIN_ROOT` の clean 確認から再実行する。「復旧した」と報告するのは、この再実行が成功してからにする。
 
 ## ロック解除後の復旧（ff マージが未追跡ファイルと衝突する場合）
 
@@ -119,7 +119,7 @@ bash .agents/skills/stale-git-lock-recovery/scripts/ff_merge_keep_untracked.sh -
 
 復元後、`<ref>` と同一だったファイルは追跡ファイルとして clean になり、差分のある下書きは ` M` として残る。これは想定どおりであり、内容は失われていない。退避先はスクリプトが消さない。結果を確認してから消す。
 
-`repo-cleanup-after-merge` の手順 7 の中では使わない。手順 7 は `git status --short` が空でなければ停止してユーザーへ報告する規則であり、未追跡ファイルがある状態では ff マージに進まない。
+`repo-cleanup-after-merge` の手順 7 の中では使わない。手順 7 は `MAIN_ROOT` の clean 確認後に `git checkout --detach --no-overwrite-ignore origin/main` を行い、ff マージは行わない。status の出力が空でない・status が失敗した・ignore 対象を含むファイルの衝突で checkout が失敗した場合は、停止してユーザーへ報告する。
 
 ## Red Flags: 手を止めて検出に戻る
 
@@ -147,5 +147,5 @@ bash .agents/skills/stale-git-lock-recovery/scripts/ff_merge_keep_untracked.sh -
 
 ## 関連スキル
 
-- `repo-cleanup-after-merge` — 手順 7 の `git switch main` / `git merge --ff-only origin/main` は stale な `index.lock` で失敗しうる。失敗した場合は本スキルの「検出」「除去」で復旧してから手順 7 に戻る
+- `repo-cleanup-after-merge` — 手順 7 の `git -C "$MAIN_ROOT" checkout --detach --no-overwrite-ignore origin/main` は stale な `index.lock` で失敗しうる。失敗した場合は本スキルの「検出」「除去」で復旧してから手順 7 に戻る
 - `pr-review` — `/tmp/pr-review-*` worktree と `.git/pr-review-save.lock` を作る側。進行中セッションのロックは本スキルの対象外である
