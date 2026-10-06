@@ -21,7 +21,9 @@ def test_command_script_exists() -> None:
 def test_states_match_the_command() -> None:
     # The enum column is an interface; table headings and explanations are not.
     documented = set(re.findall(r"^\| `([a-z]+)`", read(SKILL), re.M))
-    accepted = set(re.search(r"^\s+(working \| waiting[^)]*)\)", read(SCRIPT), re.M).group(1).replace(" ", "").split("|"))
+    states = re.search(r"^\s+(working \| waiting[^)]*)\)", read(SCRIPT), re.M)
+    assert states is not None, "command lacks the accepted state case"
+    accepted = set(states.group(1).replace(" ", "").split("|"))
     assert documented == accepted
 
 

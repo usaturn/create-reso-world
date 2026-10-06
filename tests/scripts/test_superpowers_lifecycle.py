@@ -78,7 +78,7 @@ class LifecycleInstructionTests(unittest.TestCase):
     def test_handoff_schema_separates_approval_current_authority_and_publication(self):
         schema = read(SCHEMA)
         sources = re.search(r"^- `sources`:\n(.*?)(?=^- `|^## |\Z)", schema, re.M | re.S)
-        self.assertIsNotNone(sources, "schema lacks the sources field definition")
+        assert sources is not None, "schema lacks the sources field definition"
         definitions = set(re.findall(r"`([a-z_]+)`:", sources.group(1)))
         for field in ("approved_commit", "execution_authority", "completion_evidence", "document_published"):
             self.assertIn(field, definitions, f"sources schema lacks `{field}`")

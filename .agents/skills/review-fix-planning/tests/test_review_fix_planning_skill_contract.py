@@ -15,7 +15,6 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[4]
 AGENTS_SKILL = REPO_ROOT / ".agents/skills/review-fix-planning/SKILL.md"
 AGENTS_HELPER = REPO_ROOT / ".agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"
-EVALS = REPO_ROOT / ".agents/skills/review-fix-planning/evals/evals.json"
 
 
 def read(path: Path) -> str:
@@ -69,21 +68,6 @@ def test_allowed_tools_match_the_verification_and_spec_location() -> None:
         assert entry in tools, entry
     assert "scripts/ci/" not in tools
     assert "docs_draft" not in tools
-
-
-def test_evals_have_valid_structure_and_existing_files() -> None:
-    payload = json.loads(read(EVALS))
-    assert payload["skill_name"] == AGENTS_SKILL.parent.name
-    assert payload["evals"]
-    for item in payload["evals"]:
-        assert isinstance(item["id"], int)
-        for key in ("name", "prompt", "expected_output"):
-            assert isinstance(item[key], str) and item[key].strip()
-        assert isinstance(item["expectations"], list) and item["expectations"]
-        assert all(isinstance(value, str) and value.strip() for value in item["expectations"])
-        assert isinstance(item["files"], list)
-        for name in item["files"]:
-            assert (AGENTS_SKILL.parent / name).is_file(), name
 
 
 @pytest.fixture(params=["bash", "zsh", "zsh-nounset"])

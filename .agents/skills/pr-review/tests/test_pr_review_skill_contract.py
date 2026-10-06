@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -220,16 +221,42 @@ def test_skill_keeps_claude_code_permissions_consistent() -> None:
     # The tool allow-list is a permission boundary, not descriptive prose.
     assert head["allowed-tools"] == ALLOWED_TOOLS
     assert isinstance(head["argument-hint"], str) and head["argument-hint"].strip()
-    create_blocks = [block for block in re.findall(r"```bash\n(.*?)```", content, re.DOTALL)
-                     if '"$HELPER" create' in block]
-    assert create_blocks, "skill has no executable helper create command"
-    for block in create_blocks:
-        assert "--temp-root /tmp" in block, block
-        assert block.count("--model-name") <= 1, block
+    create_arguments: list[list[str]] = []
+    for block in re.findall(r"```bash\n(.*?)```", content, re.DOTALL):
+        if "$HELPER" not in block or "create" not in block:
+            continue
+        # Tokenize commands, not whole fences: comments and a neighbouring safe
+        # invocation must not hide an out-of-scope temporary directory.
+        lexer = shlex.shlex(block.replace("\\\n", ""), posix=True, punctuation_chars="();&|\n")
+        lexer.whitespace = " \t\r"
+        lexer.whitespace_split = True
+        command: list[str] = []
+        for token in [*lexer, "\n"]:
+            if not token.strip("();&|\n"):
+                if command[:6] == ["uv", "run", "--no-project", "python", "$HELPER", "create"]:
+                    create_arguments.append(command[6:])
+                command = []
+            else:
+                command.append(token)
+    assert create_arguments, "skill has no executable helper create command"
+    model_arguments = []
+    for args in create_arguments:
+        options: dict[str, list[str]] = {"--temp-root": [], "--model-name": []}
+        for index, arg in enumerate(args):
+            flag, equals, value = arg.partition("=")
+            if flag in options:
+                values = [value] if equals else args[index + 1:index + 2]
+                assert values and values[0], args
+                options[flag].extend(values)
+        # Count both --flag value and --flag=value; a later override must not
+        # move the workspace outside the tool allow-list's /tmp boundary.
+        assert options["--temp-root"] == ["/tmp"], args
+        assert len(options["--model-name"]) <= 1, args
+        model_arguments.append(options["--model-name"])
     # Keep both explicit-model and session-model CLI forms runnable, without
     # selecting them by the preceding runtime paragraph.
-    assert any('--model-name "$MODEL_NAME"' in block for block in create_blocks)
-    assert any("--model-name" not in block for block in create_blocks)
+    assert ["$MODEL_NAME"] in model_arguments
+    assert [] in model_arguments
 
 
 @pytest.mark.parametrize("skill_path", [AGENTS_SKILL])
@@ -507,10 +534,11 @@ def test_pr_review_skills_have_no_legacy_path_selection(forbidden: str) -> None:
     [(AGENTS_SKILL, "references/time-budget.md")],
 )
 def test_review_budget_reference_is_required_and_resolves(skill: Path, relative: str) -> None:
-    targets = re.findall(r"\[[^\]]+\]\(([^)]+)\)", read(skill))
+    targets = [target.split("#", 1)[0]
+               for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", read(skill))]
     assert relative in targets, "skill lost its budget reference"
     for target in targets:
-        if not target.startswith(("http:", "https:", "#")):
+        if target and not target.startswith(("http:", "https:")):
             assert (skill.parent / target).resolve().is_file(), target
     assert (skill.parent / relative).resolve() == BUDGET_REFERENCE.resolve()
 

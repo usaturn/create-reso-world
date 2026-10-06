@@ -5,12 +5,12 @@ import os
 import re
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SKILL_DIR = REPO_ROOT / ".agents/skills/repo-cleanup-after-merge"
 SKILL = SKILL_DIR / "SKILL.md"
-EVALS = SKILL_DIR / "evals/evals.json"
 
 
 def read(path: Path) -> str:
@@ -46,14 +46,19 @@ def test_allowed_tools_cover_the_commands_the_steps_run() -> None:
 
 def test_related_skills_exist() -> None:
     # Enumerate references across the document rather than under a prose heading.
-    names = re.findall(r"^- `([a-z0-9-]+)` —", read(SKILL), re.M)
+    names = re.findall(r"^[ \t]*[-*+][ \t]+`([a-z0-9]+(?:-[a-z0-9]+)+)`", read(SKILL), re.M)
+    assert names, "skill has no related skill references"
     for name in names:
         assert (REPO_ROOT / ".agents/skills" / name / "SKILL.md").is_file(), name
 
 
-def test_evals_have_valid_structure_and_existing_files() -> None:
-    payload = json.loads(read(EVALS))
-    assert payload["skill_name"] == SKILL_DIR.name
+@pytest.mark.parametrize("skill_dir", [SKILL_DIR, REPO_ROOT / ".agents/skills/review-fix-planning"],
+                         ids=lambda path: path.name)
+def test_evals_have_valid_structure_and_existing_files(skill_dir: Path) -> None:
+    # These two datasets share this schema; fixture paths stay relative to each
+    # skill, not the file that happens to host the validation.
+    payload = json.loads(read(skill_dir / "evals/evals.json"))
+    assert payload["skill_name"] == skill_dir.name
     assert payload["evals"]
     for item in payload["evals"]:
         assert isinstance(item["id"], int)
@@ -63,4 +68,4 @@ def test_evals_have_valid_structure_and_existing_files() -> None:
         assert all(isinstance(value, str) and value.strip() for value in item["expectations"])
         assert isinstance(item["files"], list)
         for name in item["files"]:
-            assert (SKILL_DIR / name).is_file(), name
+            assert (skill_dir / name).is_file(), name
