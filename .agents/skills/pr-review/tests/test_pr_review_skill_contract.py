@@ -225,19 +225,21 @@ def test_skill_keeps_claude_code_permissions_consistent() -> None:
     for block in re.findall(r"```bash\n(.*?)```", content, re.DOTALL):
         if "$HELPER" not in block or "create" not in block:
             continue
-        # Tokenize commands, not whole fences: comments and a neighbouring safe
-        # invocation must not hide an out-of-scope temporary directory.
-        lexer = shlex.shlex(block.replace("\\\n", ""), posix=True, punctuation_chars="();&|\n")
-        lexer.whitespace = " \t\r"
-        lexer.whitespace_split = True
-        command: list[str] = []
-        for token in [*lexer, "\n"]:
-            if not token.strip("();&|\n"):
-                if command[:6] == ["uv", "run", "--no-project", "python", "$HELPER", "create"]:
-                    create_arguments.append(command[6:])
-                command = []
-            else:
-                command.append(token)
+        # Join explicit continuations, then tokenize each logical line: shlex
+        # consumes the newline ending a comment, which must not merge a later
+        # invocation into the preceding command and hide an unsafe temp-root.
+        for line in block.replace("\\\n", "").splitlines():
+            lexer = shlex.shlex(line, posix=True, punctuation_chars="();&|")
+            lexer.whitespace = " \t\r"
+            lexer.whitespace_split = True
+            command: list[str] = []
+            for token in [*lexer, "\n"]:
+                if not token.strip("();&|\n"):
+                    if command[:6] == ["uv", "run", "--no-project", "python", "$HELPER", "create"]:
+                        create_arguments.append(command[6:])
+                    command = []
+                else:
+                    command.append(token)
     assert create_arguments, "skill has no executable helper create command"
     model_arguments = []
     for args in create_arguments:
