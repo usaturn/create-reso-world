@@ -84,7 +84,11 @@ git log --oneline origin/main..<branch>
 
 fork の経路で上流 PR を判定する場合は基準が異なる。「fork の経路だけの手順」を見る。
 
-### 4. worktree ごとに clean を確認する
+### 4. 削除候補の worktree ごとに clean を確認する
+
+`usaturn/create-reso-world` のメイン作業ツリーと、ローカル `main` を checkout している他の worktree は削除対象から外す。手順 7 は detached checkout なので、他 worktree が `main` を保持していても進められる。`main` を解放するためにその worktree を削除・detach・更新しない。
+
+以下の dirty / ignore 対象ファイルに関する削除・退避のユーザー確認は、削除候補の worktree にだけ必要である。ただし、保持するメイン作業ツリーも手順 7 の `MAIN_ROOT` の clean 確認は省略せず、dirty または status 失敗なら checkout と後続の branch 削除を停止する。
 
 ```bash
 git -C <worktree の絶対パス> status --short
@@ -97,7 +101,7 @@ git -C <worktree の絶対パス> status --short --ignored
 
 #### 毎回ここで止まるなら、直すのは片付け側ではなく生成側である
 
-untracked ファイルは正本と照合する述語を持たないため、ゲート A の対象として必ず人間の判断を要求する。同じ種類のファイルで毎回止まるのは、**worktree 内に判定不能な生成物を残す手順が上流にある**ということである。ゲートを緩めて解決してはならない。
+削除候補の worktree にある untracked ファイルは正本と照合する述語を持たないため、ゲート A の対象として必ず人間の判断を要求する。同じ種類のファイルで毎回止まるのは、**worktree 内に判定不能な生成物を残す手順が上流にある**ということである。ゲートを緩めて解決してはならない。
 
 報告時は「どのスキル・どの手順の生成物か」を添えて指摘し、生成側を次の原則へ合わせるよう促す。
 
@@ -106,8 +110,6 @@ untracked ファイルは正本と照合する述語を持たないため、ゲ�
 `.gitignore` への追加で黙らせてはならない。gitignore 対象は、再生成できるキャッシュを除き、本スキルのガードレールで照合なしの削除を禁じており、`git status` からも消えるため、照合する術が無いまま残り続ける。
 
 ### 5. worktree を削除する
-
-`usaturn/create-reso-world` のメイン作業ツリーと、ローカル `main` を checkout している他の worktree は削除対象から外す。手順 7 は detached checkout なので、他 worktree が `main` を保持していても進められる。`main` を解放するためにその worktree を削除・detach・更新しない。
 
 手順 1 で対象外にした worktree（オープン PR の `headRefOid` と HEAD が一致するもの、`/tmp/pr-review-*` で親 `session.json` の `head_branch` がオープン PR と一致するもの）は削除しない。削除するのは、手順 4 で clean を確認し、ignore 対象が再生成できるキャッシュだけだった worktree に限る。
 
