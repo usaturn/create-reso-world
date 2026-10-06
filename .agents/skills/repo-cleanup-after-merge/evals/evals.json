@@ -64,14 +64,16 @@
     },
     {
       "id": 6,
-      "name": "fast-forward-local-main",
-      "prompt": "PR が全て Merge されたことを確認して branch と worktree を整理し、ローカルを更新して。メイン作業ツリーはマージ済みの feature branch を checkout しており、ローカル main は origin/main より古い。",
-      "expected_output": "メイン作業ツリーを main に切り替えて origin/main へ fast-forward し、その後マージ済みの feature branch を削除した結果。",
+      "name": "detach-main-worktree-and-retain-stale-main",
+      "prompt": "usaturn/create-reso-world の PR が全て Merge されたことを確認して branch と worktree を整理し、ローカルを更新して。メイン作業ツリーはマージ済みの feature branch を checkout しており、ローカル main は origin/main より古い。main に対応する PR はない。",
+      "expected_output": "メイン作業ツリーを origin/main の detached HEAD に更新し、既存 main は変更せず保持と報告する。その後 main を除外してマージ済み feature branch を削除した結果。",
       "files": [],
       "expectations": [
-        "The result runs git switch main and git merge --ff-only origin/main after git fetch --all --prune.",
-        "The result does not use git reset --hard or a non-fast-forward merge to update main.",
-        "The result deletes the merged feature branch with git branch -d only after switching away from it."
+        "The result identifies the absolute main-worktree path from git worktree list --porcelain and uses it as MAIN_ROOT, not merely the current directory.",
+        "After fetch, the result rechecks MAIN_ROOT cleanliness and runs git -C \"$MAIN_ROOT\" checkout --detach --no-overwrite-ignore origin/main.",
+        "The result verifies detached HEAD and HEAD equal to origin/main before deleting the merged feature branch with git branch -d.",
+        "The result leaves the existing stale local main ref unchanged, excludes it from deletion, and reports it as retained without requiring a matching MERGED PR.",
+        "The result does not create, switch to, reset, fast-forward, or delete local main."
       ]
     },
     {
@@ -114,13 +116,86 @@
     {
       "id": 10,
       "name": "sync-fork-after-upstream-merge",
-      "prompt": "orange3134/resoloop に出した PR がマージされた。external/resoloop の branch と worktree を整理して、fork の main も上流に追従させて。",
+      "prompt": "orange3134/resoloop に出した PR がマージされた。external/resoloop の branch と worktree を整理して、fork の main も上流に追従させて。 external/resoloop は install で取り出したコミットの detached HEAD になっている。",
       "expected_output": "external/resoloop を root に --repo orange3134/resoloop で PR の状態を確かめて整理し、scripts/resoloop-fork.sh sync はユーザー確認を得てから実行した結果。",
       "files": [],
       "expectations": [
         "The result runs git commands with git -C external/resoloop and gh commands with --repo orange3134/resoloop.",
         "The result checks that external/resoloop has origin usaturn/resoloop and upstream orange3134/resoloop before deleting anything.",
-        "The result asks for confirmation before running bash scripts/resoloop-fork.sh sync, because it pushes to the fork."
+        "The result asks for confirmation before running bash scripts/resoloop-fork.sh sync, because it pushes to the fork.",
+        "The result skips the create-reso-world step-7 detached update for external/resoloop and preserves its existing HEAD/ref."
+      ]
+    },
+    {
+      "id": 11,
+      "name": "detach-without-local-main-on-repeated-cleanup",
+      "prompt": "usaturn/create-reso-world のマージ後の整理をして。メイン作業ツリーは detached HEAD で、ローカル main は無い。整理を繰り返す間にリモートの main がさらに進む。",
+      "expected_output": "毎回 fetch 後の origin/main を detached HEAD で取り出し、ローカル main を一度も作らない結果。",
+      "files": [],
+      "expectations": [
+        "The result keeps the main worktree detached at the fetched origin/main on both initial and repeated cleanup.",
+        "The result never creates a local main branch or attaches HEAD to main.",
+        "The result uses --no-overwrite-ignore and verifies HEAD equals origin/main after each successful checkout."
+      ]
+    },
+    {
+      "id": 12,
+      "name": "retain-divergent-local-main",
+      "prompt": "usaturn/create-reso-world の PR は全て Merge 済みなので整理して。メイン作業ツリーは clean だが、使っていないローカル main に origin/main に無いコミットがある。",
+      "expected_output": "main の独自コミットや ref を動かさず、メイン作業ツリーだけを origin/main の detached HEAD に更新し、main は変更せず保持と報告した結果。",
+      "files": [],
+      "expectations": [
+        "The result updates the clean main worktree to detached origin/main without merging or resetting divergent main.",
+        "The result leaves the existing main ref and its commits unchanged, excludes main from branch deletion, and reports it as retained.",
+        "The result does not require a matching MERGED PR for retained main and does not treat main divergence as a reason to attach or force-update it."
+      ]
+    },
+    {
+      "id": 13,
+      "name": "retain-other-worktree-holding-main",
+      "prompt": "usaturn/create-reso-world のマージ後の整理をして。メイン作業ツリーは clean な detached HEAD で、別の worktree が古い main を checkout している。その別 worktree には編集中のファイルもある。",
+      "expected_output": "main を保持する別 worktree と main ref をそのまま残し、メイン作業ツリーだけを detached origin/main に更新した結果。",
+      "files": [],
+      "expectations": [
+        "The result excludes the worktree holding main from generic worktree removal and reports it as retained.",
+        "The result does not remove, detach, update, or otherwise touch that worktree to release main.",
+        "The result does not change the existing main ref and still performs the clean main-worktree detached checkout."
+      ]
+    },
+    {
+      "id": 14,
+      "name": "stop-on-dirty-or-failed-main-status",
+      "prompt": "usaturn/create-reso-world のマージ後の整理をして。linked worktree から呼び出しており、その作業ツリーは clean だがメイン作業ツリーには tracked の編集と untracked の下書きがある。メイン側の status に失敗した場合も安全に止めて。",
+      "expected_output": "MAIN_ROOT を使ってメイン側の status を再確認し、dirty または確認失敗なら checkout と後続の branch 削除をせずに報告した結果。",
+      "files": [],
+      "expectations": [
+        "The result runs the step-7 cleanliness check on MAIN_ROOT rather than the clean linked worktree.",
+        "A nonempty status or a failed status stops before checkout and subsequent branch deletion.",
+        "The result preserves local edits, untracked drafts, HEAD and local branch refs and reports the reason for stopping."
+      ]
+    },
+    {
+      "id": 15,
+      "name": "abort-ignored-file-checkout-collision",
+      "prompt": "usaturn/create-reso-world のマージ後の整理をして。メイン作業ツリーの git status --short は空だが、ignore 対象の下書きファイルと同じパスを origin/main が新しく追跡している。",
+      "expected_output": "--no-overwrite-ignore 付き checkout の失敗を報告し、下書きと HEAD、ローカル branch refs を保持して後続の branch 削除にも進まない結果。",
+      "files": [],
+      "expectations": [
+        "The result uses git checkout --detach --no-overwrite-ignore origin/main on MAIN_ROOT so the ignored draft is not overwritten.",
+        "The checkout failure stops subsequent branch deletion and preserves the draft, HEAD and local branch refs.",
+        "The result reports the collision and does not bypass it with force, clean, reset, attaching main, or the ff-merge recovery helper."
+      ]
+    },
+    {
+      "id": 16,
+      "name": "target-main-root-from-linked-project",
+      "prompt": "usaturn/create-reso-world のマージ後の整理をして。現在の cwd は linked worktree 内のプロジェクトで、その worktree の feature branch は作業中なので残す。メイン作業ツリーは別の絶対パスにあり clean で、origin/main より古い detached HEAD になっている。",
+      "expected_output": "worktree list からメイン作業ツリーの絶対パスを特定して MAIN_ROOT に設定し、そこだけを origin/main の detached HEAD に更新する。呼び出し元の feature と HEAD は変更しない結果。",
+      "files": [],
+      "expectations": [
+        "The result obtains MAIN_ROOT from the main-worktree entry of git worktree list --porcelain, not the linked project toplevel.",
+        "The result uses git -C \"$MAIN_ROOT\" for the step-7 status, checkout and HEAD verification.",
+        "The caller linked worktree keeps its original feature branch, HEAD and files unchanged while MAIN_ROOT becomes detached at origin/main."
       ]
     }
   ]

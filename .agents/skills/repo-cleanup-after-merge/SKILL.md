@@ -33,7 +33,7 @@ fork の checkout は、`scripts/resoloop-fork.sh checkout <ref>` や `install <
 
 1. ユーザー確認を得てから（Claude Code では AskUserQuestion）、手順 10 の `sync` を先に実行し、fork の `main` を上流へ追従させる。手順 2 の `fetch --prune` の前でよい
 2. マージ済みかの判定（手順 3）は、上流 `orange3134/resoloop` 発の PR は `upstream/main` を、fork 内（`usaturn/resoloop` 発）の PR は `origin/main` を基準にする。`sync` を先に済ませていないと、上流でマージ済みの PR がこの fork の `origin/main` ではまだ未取り込みに見える
-3. 手順 7（`git switch main` / `merge --ff-only`）は実行しない。`external/resoloop` の HEAD は、detached でもブランチでもそのまま残す。誤って動かしていた場合は、`git -C external/resoloop reflog` で元の位置を確かめて戻す
+3. 手順 7（メイン作業ツリーを `origin/main` の detached HEAD に更新する操作）は実行しない。`external/resoloop` の HEAD は、detached でもブランチでもそのまま残す。誤って動かしていた場合は、`git -C external/resoloop reflog` で元の位置を確かめて戻す
 
 `bash scripts/resoloop-fork.sh sync` と `git -C external/resoloop ...` は、エージェントがどの作業ディレクトリから開始していても、リポジトリのルート（`cd "$(git rev-parse --show-toplevel)"`）で実行する。
 
@@ -71,7 +71,9 @@ git fetch --all --prune
 
 ### 3. マージ済みか判定する
 
-branch ごとに次を実行する。
+`usaturn/create-reso-world` の既存ローカル `main` は保持対象であり、この判定から除外する。古い・分岐している場合もそのまま残し、対応する PR の `MERGED` 確認は要求しない。
+
+それ以外の branch ごとに次を実行する。
 
 ```bash
 git log --oneline origin/main..<branch>
@@ -104,6 +106,8 @@ untracked ファイルは正本と照合する述語を持たないため、ゲ�
 `.gitignore` への追加で黙らせてはならない。gitignore 対象は、再生成できるキャッシュを除き、本スキルのガードレールで照合なしの削除を禁じており、`git status` からも消えるため、照合する術が無いまま残り続ける。
 
 ### 5. worktree を削除する
+
+`usaturn/create-reso-world` のメイン作業ツリーと、ローカル `main` を checkout している他の worktree は削除対象から外す。手順 7 は detached checkout なので、他 worktree が `main` を保持していても進められる。`main` を解放するためにその worktree を削除・detach・更新しない。
 
 手順 1 で対象外にした worktree（オープン PR の `headRefOid` と HEAD が一致するもの、`/tmp/pr-review-*` で親 `session.json` の `head_branch` がオープン PR と一致するもの）は削除しない。削除するのは、手順 4 で clean を確認し、ignore 対象が再生成できるキャッシュだけだった worktree に限る。
 
@@ -150,22 +154,46 @@ cp <残骸ディレクトリ>/review-backup/<model>.md <正本ディレクトリ
 
 `reviews/` は `.gitignore` 対象であり、git は一切保護しない。
 
-### 7. 作業ツリーを origin/main へ更新する
+### 7. メイン作業ツリーを origin/main の detached HEAD へ更新する
 
 fork の経路ではこの手順を実行しない。「fork の経路だけの手順」を見る。
 
-メイン作業ツリーの `git status --short` が空であることを確認する。空でなければ checkout も branch 削除もせず、ユーザーへ報告する。
+`usaturn/create-reso-world` では、ルート `AGENTS.md` に従い、ローカル `main` の有無にかかわらず detached HEAD にする。既存の `main` は古い・分岐している場合も変更せず保持する。作成・切り替え・reset・fast-forward は行わない。
+
+入力 `MAIN_ROOT` は、手順 1 の `git worktree list --porcelain` の先頭の `worktree <絶対パス>`（メイン作業ツリー）から特定し、下のブロックを実行するシェルに事前に設定する。linked worktree やプロジェクトからの呼び出しでは、cwd や `git rev-parse --show-toplevel` の結果をメイン作業ツリーと取り違えない。パスを特定できなければ停止して報告する。
+
+ブロック内でメイン作業ツリーの clean を再確認する。出力が空でない、または status が失敗した場合は checkout も後続の branch 削除もせず、ユーザーへ報告する。
 
 ```bash
-git switch main
-git merge --ff-only origin/main
+set -e
+: "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定する}"
+if ! tree_state=$(git -C "$MAIN_ROOT" status --short --untracked-files=all); then
+    printf '%s\n' 'status の確認に失敗したため、checkout と branch 削除を停止する。' >&2
+    exit 1
+fi
+if [ -n "$tree_state" ]; then
+    printf '%s\n' "$tree_state"
+    printf '%s\n' '作業ツリーが clean でないため、checkout と branch 削除を停止する。' >&2
+    exit 1
+fi
+if ! git -C "$MAIN_ROOT" checkout --detach --no-overwrite-ignore origin/main; then
+    printf '%s\n' 'checkout に失敗したため、branch 削除を停止する。' >&2
+    exit 1
+fi
+head_name=$(git -C "$MAIN_ROOT" rev-parse --abbrev-ref HEAD)
+head_oid=$(git -C "$MAIN_ROOT" rev-parse HEAD)
+origin_oid=$(git -C "$MAIN_ROOT" rev-parse origin/main)
+if [ "$head_name" != HEAD ] || [ "$head_oid" != "$origin_oid" ]; then
+    printf '%s\n' 'detached HEAD と origin/main の一致を確認できないため停止する。' >&2
+    exit 1
+fi
 ```
 
-ローカル `main` が無ければ、`git switch main` が `origin/main` を追跡する branch として作る。`main` を別の worktree が checkout していて `git switch` が拒否した場合は、代わりに `git checkout --detach origin/main` で更新する。`--ff-only` が失敗した場合（ローカル `main` に `origin/main` に無いコミットがある）は、merge や reset をせずユーザーへ報告する。
+Git は通常 ignore 対象のファイルを確認なしに上書きするため、`--no-overwrite-ignore` を外さない。checkout が失敗したらエラーを報告して停止し、`--force`・clean・reset や `main` への切り替えで回避しない。成功後も既存ローカル `main` は保持対象として報告し、手順 8 で削除しない。
 
 ### 8. マージ済みローカル branch を削除する
 
-手順 7 のあとで実行する。メイン作業ツリーが feature を checkout したままだと `git branch -d` は `used by worktree` / `checked out` で失敗する。
+手順 7 が成功したあとで実行する（fork の経路では手順 7 を省略する）。手順 7 で停止した場合は branch 削除に進まない。`usaturn/create-reso-world` の既存ローカル `main` は、マージ済みでも候補から必ず除外し、そのまま保持する。メイン作業ツリーが feature を checkout したままだと `git branch -d` は `used by worktree` / `checked out` で失敗する。
 
 ```bash
 git branch -d <branch>
@@ -220,7 +248,7 @@ git worktree list
 git branch -a
 ```
 
-削除した対象、保留した対象、その理由を報告する。
+`usaturn/create-reso-world` では `MAIN_ROOT` の HEAD が detached で `origin/main` と一致することを報告する。既存ローカル `main` と、それを checkout している他 worktree は「変更せず保持」として報告する。削除した対象、保留した対象、その理由も報告する。
 
 ## Red Flags: 手を止めてワークフローに戻る
 
