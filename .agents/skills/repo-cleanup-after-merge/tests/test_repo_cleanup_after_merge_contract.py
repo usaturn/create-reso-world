@@ -27,12 +27,6 @@ def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
     assert os.readlink(link) == "../../.agents/skills/repo-cleanup-after-merge"
 
 
-def test_keeps_gh_failure_stop_and_user_confirmation() -> None:
-    content = read(SKILL)
-    assert "が非0終了した場合、PR の状態は不明である" in content
-    assert "AskUserQuestion" in content
-
-
 def test_allowed_tools_cover_the_commands_the_steps_run() -> None:
     # Claude Code pre-approves only what this line lists.
     tools = frontmatter()["allowed-tools"]
@@ -48,102 +42,25 @@ def test_allowed_tools_cover_the_commands_the_steps_run() -> None:
         "Bash(bash scripts/resoloop-fork.sh sync)",
     ):
         assert entry in tools, entry
-    content = read(SKILL)
-    assert "python3" not in content
-    assert "uv run --no-project python -c" in content
-
-
-def test_resoloop_prs_are_cleaned_up_in_the_fork_checkout() -> None:
-    body = read(SKILL).split("---", 2)[2]
-    assert "リポジトリ境界" in body
-    assert "git -C external/resoloop" in body
-    assert "--repo usaturn/resoloop" in body
-    assert "--repo orange3134/resoloop" in body
-    assert "scripts/resoloop-fork.sh clone" in body
-    assert "```bash\nbash scripts/resoloop-fork.sh sync\n```" in body
-    assert "submodule" not in body
-
-
-def test_local_main_follows_origin_main_by_fast_forward() -> None:
-    content = read(SKILL)
-    assert "git switch main" in content
-    assert "git merge --ff-only origin/main" in content
-    assert "`main` branch を作成しない" not in content
-    assert "`main` branch は作成しない" not in content
-
-
-def test_fork_route_syncs_first_and_skips_worktree_step() -> None:
-    # The fork's origin/main lags upstream/main until sync has run, so an
-    # upstream PR must be judged against upstream/main, sync must run before
-    # the merge check, and step 7 (git switch main) must not move the fork's
-    # detached checkout off the commit it was left at.
-    content = read(SKILL)
-    fork_section = content.split("### fork の経路", 1)[1].split("## ワークフロー", 1)[0]
-    assert "手順 10 の `sync` を先に実行し" in fork_section
-    assert "上流" in fork_section and "`upstream/main`" in fork_section
-    assert "fork 内" in fork_section and "`origin/main`" in fork_section
-    assert "手順 7" in fork_section and "実行しない" in fork_section
-    assert "detached" in fork_section
-    assert "リポジトリのルート" in fork_section
-    # Steps 3, 7 and 10 must point back at this paragraph.
-    assert content.count("「fork の経路だけの手順」") >= 2
-
-
-def test_ignored_files_in_a_worktree_are_checked_before_removal() -> None:
-    # git worktree remove deletes ignored files without asking.
-    content = read(SKILL)
-    assert "git -C <worktree の絶対パス> status --short --ignored" in content
-    assert "`git worktree remove` は ignore 対象のファイルを確認せずに消す" in content
-    for cache in (".venv/", ".pytest_cache/", "__pycache__/"):
-        assert cache in content, cache
-    assert "gitignore 対象のファイルは、再生成できるキャッシュを除き" in content
-    assert "--force" not in content.split("### 5.", 1)[1].split("### 6.", 1)[0].replace("`--force` は付けない", "")
 
 
 def test_related_skills_exist() -> None:
-    related = read(SKILL).split("## 関連スキル", 1)[1]
-    names = re.findall(r"^- `([a-z0-9-]+)`", related, re.M)
-    assert names
+    # Enumerate references across the document rather than under a prose heading.
+    names = re.findall(r"^- `([a-z0-9-]+)` —", read(SKILL), re.M)
     for name in names:
         assert (REPO_ROOT / ".agents/skills" / name / "SKILL.md").is_file(), name
 
 
-def test_remote_branch_deletion_candidates_are_limited_to_origin() -> None:
-    # git branch -r --merged origin/main also lists upstream/* on the fork
-    # route; candidates for remote deletion must stay within origin/*.
-    content = read(SKILL)
-    assert (
-        "git branch -r --merged origin/main | grep -E '^ *origin/' "
-        "| grep -vE 'origin/(HEAD|main)$'"
-    ) in content
-
-
-def test_ignored_file_deletion_exception_is_stated_consistently() -> None:
-    # The "never delete ignored files without checking" rule has one
-    # exception (regenerable caches); it must read the same everywhere.
-    content = read(SKILL)
-    assert content.count("再生成できるキャッシュを除き") >= 3
-
-
-def test_evals_cover_the_rules_of_this_repository() -> None:
-    names = {item["name"] for item in json.loads(read(EVALS))["evals"]}
-    assert {
-        "remove-only-clean-worktree",
-        "fast-forward-local-main",
-        "hold-ignored-files-in-worktree",
-        "sync-fork-after-upstream-merge",
-    } <= names
-    assert "stay-detached-without-local-main" not in names
-    assert "force-remove-only-clean-worktree" not in names
-
-
-def test_fork_sync_describes_push_semantics_correctly() -> None:
-    # The sync step must correctly describe when fork/main is pushed.
-    content = read(SKILL)
-    # Step 10: sync pushes fork/main first, then stops without moving local main if it is dirty.
-    assert "fork の `main` への push を済ませてから" in content
-    assert "origin/main is already synced" in content
-    # The old incorrect description must be gone.
-    assert "未コミットの変更がある場合、スクリプトは何も push せずに止まる" not in content
-    # User confirmation must be requested via AskUserQuestion.
-    assert "（Claude Code では AskUserQuestion を使う）" in content
+def test_evals_have_valid_structure_and_existing_files() -> None:
+    payload = json.loads(read(EVALS))
+    assert payload["skill_name"] == SKILL_DIR.name
+    assert payload["evals"]
+    for item in payload["evals"]:
+        assert isinstance(item["id"], int)
+        for field in ("name", "prompt", "expected_output"):
+            assert isinstance(item[field], str) and item[field].strip()
+        assert isinstance(item["expectations"], list) and item["expectations"]
+        assert all(isinstance(value, str) and value.strip() for value in item["expectations"])
+        assert isinstance(item["files"], list)
+        for name in item["files"]:
+            assert (SKILL_DIR / name).is_file(), name

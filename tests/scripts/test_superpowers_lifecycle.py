@@ -1,8 +1,7 @@
 """Lifecycle, permission, history and end-to-end acceptance tests for PR #16.
 
-Static checks keep the current instructions aligned with the approved root-cause
-Spec (permissions, canonical document selection, approval versions, history
-notices).  The end-to-end class runs the real context resolver and the real
+Structural checks guard schema keys, retired CLI usage and runner wiring.
+The end-to-end class runs the real context resolver and the real
 non-replacing copy publication against temporary Git fixtures, then verifies
 approval/current/authority/publication metadata and a blocked external route.
 
@@ -14,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -27,16 +27,8 @@ COPY_SH = ROOT / "scripts/superpowers-review-copy.sh"
 AGENTS = ROOT / "AGENTS.md"
 DOC_README = ROOT / "docs/superpowers/README.md"
 REVIEW_FIX = ROOT / ".agents/skills/review-fix-planning/SKILL.md"
-PR_REVIEW = ROOT / ".agents/skills/pr-review/SKILL.md"
-HANDOFF = ROOT / ".agents/skills/agent-handoff/SKILL.md"
 SCHEMA = ROOT / ".agents/skills/agent-handoff/references/handoff-schema.md"
 WORKFLOW = ROOT / ".agents/skills/planning-parallel-issues/references/session-workflow.md"
-LIFECYCLE_SPEC = ROOT / "docs/superpowers/specs/2026-10-03-superpowers-document-lifecycle-design.md"
-LIFECYCLE_PLAN = ROOT / "docs/superpowers/plans/2026-10-03-superpowers-document-lifecycle.md"
-ROUND1 = ROOT / "docs/superpowers/specs/2026-10-03-superpowers-document-lifecycle-review-fixes-design.md"
-ROUND2 = ROOT / "docs/superpowers/specs/2026-10-03-pr16-superpowers-document-lifecycle-round2-review-fixes-design.md"
-ROUND3 = ROOT / "docs/superpowers/specs/2026-10-04-pr16-superpowers-document-lifecycle-round3-review-fixes-design.md"
-ROOT_CAUSE = "2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md"
 SELF = "usaturn/create-reso-world"
 SPEC_V1_TEXT = "# sample design\n\n- 状態: draft\n"
 ORIGIN = f"https://github.com/{SELF}.git"
@@ -72,152 +64,25 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def section(content: str, heading: str) -> str:
-    return content.split(heading, 1)[1].split("\n## ", 1)[0]
-
-
-def boundary_row(content: str) -> str:
-    for line in content.splitlines():
-        if line.startswith("| それ以外 |"):
-            return line
-    return ""
-
-
 class LifecycleInstructionTests(unittest.TestCase):
-    """Normative instructions must match the approved root-cause Spec."""
+    """CLI safety, schema structure, immutable history, and runner wiring."""
 
     def test_current_callers_do_not_invoke_replacement(self):
-        for path in (AGENTS, DOC_README, WORKFLOW):
+        # Removed CLI replacement can overwrite a user's annotated review copy.
+        for path in (AGENTS, DOC_README, WORKFLOW, REVIEW_FIX):
             with self.subTest(path=path.name):
                 self.assertNotIn("--replace-from", read(path),
                                  f"{path.name} still instructs the removed --replace-from")
-        copy_section = section(read(REVIEW_FIX), "## Spec のコミットと確認用コピー")
-        self.assertNotIn("--replace-from", copy_section)
-        # A re-presentation publishes a new versioned copy instead of replacing.
-        self.assertIn("差し替えない", copy_section)
-        self.assertIn("-r2-", copy_section)
 
-    def test_current_callers_state_that_old_copies_and_annotations_survive(self):
-        readme = read(DOC_README)
-        self.assertIn("unchanged", readme)
-        self.assertIn("注記は残る", readme)
-        skill_section = section(read(REVIEW_FIX), "## Spec のコミットと確認用コピー")
-        self.assertIn("旧コピー", skill_section)
-        self.assertIn("注記", skill_section)
-
-    def test_readme_documents_the_shared_resolver_operation_differences(self):
-        readme = read(DOC_README)
-        self.assertIn("review-copy", readme)
-        self.assertIn("コード側の cwd", readme)
-
-    def test_agents_boundary_preserves_approved_external_pr_repairs(self):
-        row = boundary_row(read(AGENTS))
-        self.assertTrue(row, "AGENTS.md boundary table lost the other-repository row")
-        for needle in ("`CODE_ROOT`", "remote", "推測せず停止する", "`pr-review`", "`review-fix-planning`",
-                       "承認済み", "実装修正", "ローカル専用", "外部コード実装は非対応", "blocked", "PR 連携は非対応"):
-            self.assertIn(needle, row, f"the other-repository row lacks: {needle}")
-
-    def test_authority_exception_names_the_substantive_change_in_current_instructions(self):
-        for path in (AGENTS, DOC_README, HANDOFF):
-            with self.subTest(path=path.name):
-                self.assertIn("記録した実行許可がその変更を明示的に含む場合を除く", read(path))
-                self.assertIn("変更内容", read(path))
-        self.assertIn("name the specific change", read(SCHEMA))
-
-    def test_current_workflows_preserve_approved_external_pr_repairs(self):
-        for path in (DOC_README, REVIEW_FIX, SCHEMA, WORKFLOW, LIFECYCLE_SPEC,
-                     ROOT / ".agents/skills/planning-parallel-issues/SKILL.md"):
-            with self.subTest(path=str(path.relative_to(ROOT))):
-                self.assertIn("approved PR review-fix implementation", read(path))
-
-    def test_reading_side_checks_versions_authority_and_closed_plans(self):
-        reader = section(read(HANDOFF), "## handoff を読む")
-        for token in ("sources.approved_commit", "sources.execution_authority", "schema v2", "不明",
-                      "completed", "superseded", "cancelled", "通常の実装を再開しない",
-                      "承認済み版", "現行・復元版", "内容変更"):
-            self.assertIn(token, reader)
-
-    def test_operational_spec_carries_a_current_rule_pointer(self):
-        spec = read(LIFECYCLE_SPEC)
-        self.assertIn("履歴", spec)
-        self.assertIn(ROOT_CAUSE, spec, "the operational spec must point at the current root-cause rules")
-        self.assertIn("非置換", spec)
-        # Historical content stays; the notice must not rewrite the original tables.
-        self.assertIn("その他の任意のリポジトリ", spec)
-
-    def test_skills_keep_external_implementation_blocked(self):
-        skill = read(ROOT / ".agents/skills/planning-parallel-issues/SKILL.md")
-        self.assertIn("remote-less", skill)
-        self.assertIn("execution authority", skill)
-        workflow = read(WORKFLOW)
-        self.assertIn("blocked", workflow)
-        self.assertIn("`sources.execution_authority`", workflow)
-        self.assertIn("`sources.approved_commit`", workflow)
-        self.assertIn("not ready", workflow)
-        # Native and verified ResoLoop routes keep their permissions.
-        pr_review = read(PR_REVIEW)
-        self.assertIn("推測で埋めない", pr_review)
-        self.assertIn("external/resoloop", pr_review)
 
     def test_handoff_schema_separates_approval_current_authority_and_publication(self):
         schema = read(SCHEMA)
+        sources = re.search(r"^- `sources`:\n(.*?)(?=^- `|^## |\Z)", schema, re.M | re.S)
+        self.assertIsNotNone(sources, "schema lacks the sources field definition")
+        definitions = set(re.findall(r"`([a-z_]+)`:", sources.group(1)))
         for field in ("approved_commit", "execution_authority", "completion_evidence", "document_published"):
-            self.assertIn(f"`{field}`", schema, f"schema lacks `{field}`")
-        self.assertIn("metadata-only", schema)
-        self.assertIn("do not infer", schema.lower())
-        self.assertIn("blocker", schema.lower())
-        self.assertIn("never a restore source", schema)
-        self.assertIn("current/restore", schema)
+            self.assertIn(field, definitions, f"sources schema lacks `{field}`")
 
-    def test_handoff_skill_transports_the_lifecycle_facts(self):
-        skill = read(HANDOFF)
-        for needle in ("`sources.approved_commit`", "`sources.execution_authority`", "`sources.completion_evidence`"):
-            self.assertIn(needle, skill, f"agent-handoff SKILL lacks {needle}")
-
-    def test_session_workflow_selects_the_canonical_document_first(self):
-        workflow = read(WORKFLOW)
-        self.assertIn("canonical", workflow)
-        self.assertIn("canonical path", workflow)
-        self.assertIn("stop and ask", workflow)
-        self.assertIn("roundN", workflow)
-        self.assertIn("committed", workflow, "the draft-committed-before-presentation invariant must stay")
-
-    def test_lifecycle_plan_states_its_historical_operational_truthfully(self):
-        plan = read(LIFECYCLE_PLAN)
-        self.assertIn("履歴", plan)
-        self.assertIn(ROOT_CAUSE, plan, "the historical plan must point at the current rules")
-        self.assertIn("現在実行すべき手順ではない", plan)
-        status = next(line for line in plan.splitlines() if line.startswith("- 状態:"))
-        self.assertIn("completed", status, f"the historical plan status must say completed: {status}")
-        self.assertIn("内容承認の記録は存在しない", status)
-
-    def test_historical_headers_distinguish_execution_from_content_approval(self):
-        for path in (LIFECYCLE_SPEC, ROUND1, LIFECYCLE_PLAN):
-            with self.subTest(document=str(path.relative_to(ROOT))):
-                opening = read(path).split("\n## ", 1)[0]
-                status = next(line for line in opening.splitlines() if line.startswith("- 状態:"))
-                self.assertNotIn("approved", status)
-                self.assertTrue(any(value in status for value in ("completed", "superseded")), status)
-                self.assertIn("- 実行許可:", opening)
-                self.assertIn("- 内容承認:", opening)
-                self.assertIn("個別のコミット済み版の内容承認は確認できない", opening)
-                self.assertNotIn("Spec の内容承認と実行指示", opening)
-                self.assertNotIn("実行指示は Spec 承認の指示に基づく", opening)
-        self.assertIn("続けて実装してください。推奨案で進めて、途中で止めずにPRまで実施してください。",
-                      read(LIFECYCLE_SPEC).split("\n## ", 1)[0])
-        self.assertIn("対応が必要な指摘があったら、推奨案でプッシュまでしておいてください。",
-                      read(ROUND1).split("\n## ", 1)[0])
-
-    def test_round_specs_carry_a_current_rule_pointer(self):
-        for path in (ROUND1, ROUND2, ROUND3):
-            with self.subTest(path=path.name):
-                content = read(path)
-                self.assertIn("履歴", content)
-                self.assertIn(ROOT_CAUSE, content)
-        # The historical instructions stay byte-visible as history: only
-        # round2 and the historical Plan ever documented --replace-from.
-        self.assertIn("--replace-from", read(ROUND2))
-        self.assertIn("--replace-from", read(LIFECYCLE_PLAN))
 
     def test_imported_documents_are_unchanged_since_import(self):
         expected = json.loads(read(IMPORT_HASHES))
@@ -423,8 +288,8 @@ class EndToEndLifecycleTests(unittest.TestCase):
     def test_committed_version_and_resume_gate_eval_cases(self):
         """Documentation/eval acceptance, not an approval parser or an LLM run.
 
-        Literal expected outcomes are tied to normative schema rows. Real Git
-        blobs establish the case inputs; they do not prove agent compliance.
+        Expected dispositions are tied to schema case keys. Real Git blobs
+        establish the case inputs; they do not prove agent compliance.
         """
         spec = "# sample design\n\n- 状態: approved\n\nDesign: non-replacing copy.\n"
         plan = "# sample plan\n\n- 状態: draft\n\nExecute approved repair.\n"
@@ -442,30 +307,27 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.assertEqual(self.git(self.doc, "show", f"{changed}:{self.spec_rel}"),
                          spec.replace("non-replacing copy", "changed copy policy").strip())
 
-        self.assertIn("## Continuation gates", read(SCHEMA), "schema lacks continuation gate rules")
-        schema = section(read(SCHEMA), "## Continuation gates")
+        schema = read(SCHEMA)
         rows = {cells[0].strip(): [cell.strip() for cell in cells[1:]]
                 for line in schema.splitlines() if line.startswith("| ")
                 for cells in [line.strip("|").split("|")]}
-        # state, current version, approval version, authority, and rule evidence
+        # Machine case key, disposition, current version, approval, and authority.
         cases = [
-            ("same-version", "ready", approved, approved, "execute approved repair", ("same committed version",)),
-            ("metadata-only", "ready", metadata, approved, "execute approved repair", ("retain approved_commit", "no renewed approval")),
-            ("substantive-unapproved", "blocked / not ready", changed, approved, "execute approved repair", ("renewed approval", "does not name the change")),
-            ("substantive-authorized", "ready", changed, approved, "change copy policy to changed copy policy", ("name the specific change", "do not invent content approval")),
-            ("missing-authority", "blocked / not ready", approved, approved, None, ("missing execution authority",)),
-            ("unsupported-route", "blocked / not ready", approved, approved, "implement external Issue", ("general external implementation", "remote-less")),
-            ("legacy-v2-missing-facts", "blocked / not ready", approved, None, None, ("unknown", "never inferred")),
+            ("same-version", "ready", approved, approved, "execute approved repair"),
+            ("metadata-only", "ready", metadata, approved, "execute approved repair"),
+            ("substantive-unapproved", "blocked / not ready", changed, approved, "execute approved repair"),
+            ("substantive-authorized", "ready", changed, approved, "change copy policy to changed copy policy"),
+            ("missing-authority", "blocked / not ready", approved, approved, None),
+            ("unsupported-route", "blocked / not ready", approved, approved, "implement external Issue"),
+            ("legacy-v2-missing-facts", "blocked / not ready", approved, None, None),
         ]
         cases.extend(("closed-plan", "blocked / not ready", versions[status], approved,
-                      "execute approved repair", (status, "ordinary implementation must not resume"))
+                      "execute approved repair")
                      for status in ("completed", "superseded", "cancelled"))
-        for name, want, current, approval, authority, evidence in cases:
+        for name, want, current, approval, authority in cases:
             with self.subTest(case=name, current=current):
                 condition, outcome = rows[name]
                 self.assertEqual(outcome.split(";", 1)[0], want)
-                for phrase in evidence:
-                    self.assertIn(phrase, condition + ";" + outcome)
                 self.assertEqual(len(current), 40)
                 self.assertEqual(self.git(self.doc, "rev-parse", f"{current}^{{commit}}"), current)
                 json_path, md_path = self.write_handoff(

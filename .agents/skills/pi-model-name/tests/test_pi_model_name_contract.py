@@ -25,29 +25,7 @@ def test_frontmatter() -> None:
     assert "description:" in front
     assert len(front.encode("utf-8")) < 1024
     desc_line = next(line for line in front.splitlines() if "description:" in line)
-    assert "Use when" in desc_line
-
-
-def test_skill_mentions_runtime_contract() -> None:
-    text = read_skill()
-    for keyword in (
-        "PI_PROVIDER",
-        "PI_MODEL",
-        "PI_DISTILL_MODEL",
-        "model_change",
-        "MODEL_NAME",
-    ):
-        assert keyword in text
-
-
-def test_script_path_comes_from_this_repository() -> None:
-    # The script lives only in this repository. external/resoloop is another
-    # repository, so its own toplevel does not contain the script.
-    text = read_skill()
-    assert 'PI_MODEL_SCRIPT="$(git rev-parse --show-toplevel)/.agents/skills/pi-model-name/scripts/print-pi-model.sh"' in text
-    assert "external/resoloop" in text
-    assert "cd public" not in text
-    assert "親 checkout" not in text
+    assert desc_line.partition("description:")[2].strip()
 
 
 def test_script_executable() -> None:

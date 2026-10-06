@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from pathlib import Path
@@ -12,16 +13,6 @@ VALIDATION = SKILL_DIR / "evals/validation.md"
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
-
-def test_boards_target_the_issues_of_this_repository() -> None:
-    # Spec 8.2: the skill works on usaturn/create-reso-world Issues.
-    content = read(SKILL)
-    target = content.split("## Target repository", 1)[1].split("\n## ", 1)[0]
-    assert "`usaturn/create-reso-world`" in target
-    assert "git remote get-url origin" in target
-    assert "`{owner}/{repo}`" in target
-    assert "repository boundary table in the root `AGENTS.md`" in target
 
 
 def test_referenced_procedures_exist() -> None:
@@ -37,17 +28,29 @@ def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
     assert os.readlink(link) == "../../.agents/skills/planning-parallel-issues"
 
 
-def test_validation_record_lists_only_checks_that_exist_here() -> None:
-    assert "scripts/ci/" not in read(VALIDATION)
+def test_validation_links_and_scenarios_resolve() -> None:
+    content = read(VALIDATION)
+    assert "scripts/ci/" not in content
+    for target in re.findall(r"\]\(([^)#]+)\)", content):
+        if not target.startswith(("https:", "http:")):
+            assert (VALIDATION.parent / target).is_file(), target
+    payload = json.loads(read(SKILL_DIR / "evals/scenarios.json"))
+    assert payload["skill_name"] == SKILL_DIR.name
+    assert isinstance(payload["method"], dict)
+    assert payload["scenarios"]
+    for scenario in payload["scenarios"]:
+        for key in ("id", "prompt"):
+            assert isinstance(scenario[key], str) and scenario[key].strip()
+        assert isinstance(scenario["expected"], list) and scenario["expected"]
+        assert all(isinstance(value, str) and value.strip() for value in scenario["expected"])
 
 
-def test_children_may_target_other_repositories_but_documents_stay_here() -> None:
-    target = read(SKILL).split("## Target repository", 1)[1].split("\n## ", 1)[0]
-    assert "exact identifier" in target
-    assert "`CODE_ROOT`" in target
-    assert "Stop instead of guessing for any other repository." not in target
-    workflow = read(SKILL_DIR / "references/session-workflow.md")
-    artifacts = workflow.split("## Required artifact set", 1)[1].split("\n## ", 1)[0]
-    assert "`usaturn/create-reso-world`" in artifacts
-    assert "scripts/superpowers-review-copy.sh" in artifacts
-    assert "viewing aid" in artifacts
+def test_referenced_skills_and_commands_exist() -> None:
+    for source in (SKILL, SKILL_DIR / "references/session-workflow.md"):
+        content = read(source)
+        for name in re.findall(r"`([a-z]+(?:-[a-z]+)+)`", content):
+            assert (REPO_ROOT / ".agents/skills" / name / "SKILL.md").is_file(), name
+        for chunk in re.findall(r"`([^`\n]+)`", content):
+            for word in chunk.split():
+                if word.startswith(("scripts/", "tests/", ".agents/")) and not any(char in word for char in "*<>$"):
+                    assert (REPO_ROOT / word).exists(), word

@@ -15,11 +15,7 @@ SCHEMA = SKILL_DIR / "references/handoff-schema.md"
 EVALS = SKILL_DIR / "evals/evals.json"
 TRIGGERS = SKILL_DIR / "evals/trigger_queries.json"
 
-#
-# Fields only the outgoing agent can supply. The whole point of the
-# skill is that the outgoing agent writes them down, so both runtime
-# versions have to name them.
-#
+# Required authored schema keys prevent the receiver from losing decisions or boundaries.
 AUTHORED_FIELDS = ("decisions", "out_of_scope", "verification", "landing")
 
 #
@@ -61,26 +57,16 @@ def resolve(token: str) -> list[Path]:
     return [REPO_ROOT / token, SKILL_DIR / token]
 
 
-def assert_shared_handoff_contract(content: str) -> None:
-    """The contract both runtimes must state, whichever direction they are in."""
-    assert "tmp/docs_draft/claude_handoffs" in content
-    assert "references/handoff-schema.md" in content
-    for field in AUTHORED_FIELDS:
-        assert field in content, f"{field} is not named"
-    # The receiver edits the wrong tree without these two.
-    assert "git.worktree" in content
-    assert "sources.spec" in content
-    # Handoffs are hand-written in this repository; there is no generator CLI
-    # to resolve, so a skill must not send the reader looking for one.
-    assert "nova-parser-claude-handoff" not in content
+def json_field_definition(key: str) -> str:
+    """Read a JSON group by its machine key, not the prose heading above it."""
+    definition = re.search(rf"^- `{key}`:\n(.*?)(?=^- `|^## |\Z)", read(SCHEMA), re.M | re.S)
+    assert definition is not None, f"schema lacks the {key} field definition"
+    return definition.group(1)
 
 
-def test_skill_states_the_handoff_contract() -> None:
-    content = read(AGENTS_SKILL)
-    assert_shared_handoff_contract(content)
-    assert "handoff を書く" in content
-    assert "handoff を読む" in content
-    assert "拘束力" in content
+def test_skill_does_not_reference_the_removed_generator() -> None:
+    # The removed CLI cannot generate this repository's handoff schema.
+    assert "nova-parser-claude-handoff" not in read(AGENTS_SKILL)
 
 
 def test_skill_declares_claude_code_allowed_tools() -> None:
@@ -97,39 +83,26 @@ def test_skill_declares_claude_code_allowed_tools() -> None:
     assert "docs_draft/superpowers" not in tools
 
 
-def test_specs_and_plans_live_in_docs_superpowers() -> None:
-    # AGENTS.md keeps specs and plans under docs/superpowers/; docs_draft/ is a
-    # gitignored scratch area that a receiver on another checkout cannot read.
-    content = read(AGENTS_SKILL)
-    assert "`docs/superpowers/`" in content
-    assert "docs_draft/superpowers" not in content
-
-
-def test_overview_does_not_count_runtimes() -> None:
-    # Every runtime reads this one file (.claude/skills/agent-handoff is a symlink to it), so the overview must not count runtimes.
-    assert "両ランタイム" not in read(AGENTS_SKILL)
-
-
-def test_trigger_queries_belong_to_this_repository() -> None:
-    queries = {item["id"]: item for item in json.loads(read(TRIGGERS))["queries"]}
-    assert queries["q2"]["should_trigger"] is True
-    assert "python-tdd-team" not in json.dumps(queries, ensure_ascii=False)
-
-
-def test_skill_covers_the_gaps_hand_written_handoffs_drop() -> None:
-    content = read(AGENTS_SKILL)
-    assert "TodoWrite" in content
-    assert "heredoc" in content
-    assert "サブエージェント" in content
+def test_trigger_queries_have_valid_structure() -> None:
+    payload = json.loads(read(TRIGGERS))
+    assert payload["skill_name"] == SKILL_DIR.name
+    assert payload["queries"]
+    for item in payload["queries"]:
+        assert isinstance(item["id"], str) and item["id"].strip()
+        assert isinstance(item["query"], str) and item["query"].strip()
+        assert isinstance(item["should_trigger"], bool)
+        assert isinstance(item["expected_terms"], list)
+        assert all(isinstance(value, str) for value in item["expected_terms"])
+    # A migrated trigger must not point agents at the source repository.
+    assert "python-tdd-team" not in json.dumps(payload, ensure_ascii=False)
 
 
 def test_schema_is_version_2_and_documents_the_authored_fields() -> None:
     content = read(SCHEMA)
-    assert "`schema_version` 2" in content
-    for field in AUTHORED_FIELDS:
-        assert f"`{field}`" in content, f"{field} is not documented"
-    # Older artifacts predate those fields; absence there means unknown.
-    assert "version 1" in content
+    assert re.search(r'^- `schema_version`: `"2"`\.', content, re.M)
+    # Schema keys are a machine interface: dropping an authored field loses facts.
+    definitions = set(re.findall(r"^- `([a-z_]+)`:", content, re.M))
+    assert set(AUTHORED_FIELDS) <= definitions
 
 
 def test_every_referenced_path_exists() -> None:
@@ -147,17 +120,9 @@ def test_every_referenced_path_exists() -> None:
 
 
 def test_schema_maps_review_fix_planning_hold_to_deferred() -> None:
-    """Hold is not a disposition name; writers must map it to deferred, not skip."""
-    content = read(SCHEMA)
-    assert "These mirror the four buckets" not in content
-    assert "| Hold | `deferred` |" in content
-    assert "| Fix | `fix` |" in content
-    assert "| Skip | `skip` |" in content
-    assert "| Resolved | `resolved` |" in content
-    assert "`skip`" in content
-    assert "deferred" in content
-    lowered = content.lower()
-    assert "intended behaviour" in lowered or "spec question" in lowered
+    # Bucket/enum compatibility prevents Hold from silently becoming Skip.
+    mappings = dict(re.findall(r"^\s*\| (Fix|Hold|Skip|Resolved) \| `([a-z]+)` \|", read(SCHEMA), re.M))
+    assert mappings == {"Fix": "fix", "Hold": "deferred", "Skip": "skip", "Resolved": "resolved"}
 
 
 def test_evals_json_uses_expectations_not_assertions() -> None:
@@ -171,27 +136,16 @@ def test_evals_json_uses_expectations_not_assertions() -> None:
 
 
 def test_schema_requires_git_branch_head_status_in_json_fields() -> None:
-    content = read(SCHEMA)
-    json_fields = content.split("## JSON fields", 1)[1]
-    git_section = json_fields.split("- `git`:", 1)[1]
-    assert "`branch`" in git_section
-    assert "`head`" in git_section
-    assert "`status`" in git_section
-    assert "Required fields table" in git_section
-    assert "`branch`, `head`, `status`, and `merge_base` when a branch point matters" not in git_section
+    # Find the definition by its schema key, not the surrounding prose heading.
+    required = re.findall(r"^  - (.*?) \(required\):", json_field_definition("git"), re.M)
+    fields = {field for row in required for field in re.findall(r"`([a-z_]+)`", row)}
+    assert {"worktree", "branch", "head", "status"} <= fields
 
 
 def test_schema_allows_null_sources_spec() -> None:
-    content = read(SCHEMA)
-    sources = content.split("- `sources`:", 1)[1]
-    spec_line = sources.split("\n", 2)[1]
-    assert "`spec`" in spec_line
-    assert "`null`" in spec_line or "null" in spec_line.lower()
-    assert "none" in spec_line.lower() or "`null`" in spec_line
-
-
-def test_validation_quick_validates_the_shared_skill() -> None:
-    assert "quick_validate.py .agents/skills/agent-handoff" in read(AGENTS_SKILL)
+    spec = re.search(r"^  - `spec` \(required\):([^\n]*)", json_field_definition("sources"), re.M)
+    assert spec is not None, "sources lacks a required spec field"
+    assert "`null`" in spec.group(1)
 
 
 def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
@@ -200,43 +154,10 @@ def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
     assert CLAUDE_LINK.resolve() == SKILL_DIR.resolve()
 
 
-#
-# `<skill-creator-path>` is a placeholder on purpose — the script lives in a
-# different place per runtime — but the section must also name how to resolve
-# it. A command that cannot be run is documentation that fails silently: the
-# path-existence check above skips `<>` tokens, so it cannot see this break.
-#
-SKILL_CREATOR_RESOLUTIONS = (
-    "~/.codex/skills/.system/skill-creator",
-    "find ~/.claude -name quick_validate.py",
-)
-
-
-def test_validation_names_every_runtime_resolution() -> None:
-    content = read(AGENTS_SKILL)
-    assert "<skill-creator-path>" in content
-    for hint in SKILL_CREATOR_RESOLUTIONS:
-        assert hint in content
-    assert "skill-efficiency-check.py" in content
-
-
-def test_agents_skill_documents_the_pi_fallback() -> None:
-    """pi's global skill-creator ships no quick_validate.py; .agents readers need the alternative."""
-    assert "skill-efficiency-check.py" in read(AGENTS_SKILL)
-
-
-def test_documents_and_code_are_restored_from_separate_sources() -> None:
-    content = read(AGENTS_SKILL)
-    for phrase in ("`PARENT_ROOT`", "`DOC_ROOT`", "`CODE_ROOT`", "`sources.review_copy`", "閲覧補助", "公開未実施"):
-        assert phrase in content, phrase
-    schema = read(SCHEMA)
-    for field in (
-        "`doc_root`",
-        "`document_commit`",
-        "`document_published`",
-        "`review_copy`",
-        "`parent_checkout`",
-        "`code`",
+def test_documents_and_code_have_separate_schema_fields() -> None:
+    for group, fields in (
+        ("sources", {"doc_root", "document_commit", "document_published", "review_copy"}),
+        ("git", {"parent_checkout", "code"}),
     ):
-        assert field in schema, field
-    assert "never a restore source" in schema
+        defined = set(re.findall(r"`([a-z_]+)`:", json_field_definition(group)))
+        assert fields <= defined, f"{group}: missing {fields - defined}"

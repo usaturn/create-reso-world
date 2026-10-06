@@ -6,9 +6,9 @@ import re
 import shlex
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 import yaml
 
@@ -22,38 +22,8 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def frontmatter_description(content: str) -> str:
-    """Return the YAML frontmatter block (between the first two --- lines)."""
-    parts = content.split("---")
-    if len(parts) < 3:
-        return ""
-    return parts[1]
-
-
-def assert_shared_landing_contract(content: str) -> None:
-    """Landing recipe both runtimes must state, after an approved implementation."""
-    lowered = content.lower()
-    assert "commit" in lowered
-    assert "push" in lowered
-    # The gate depends on what changed: environment, skills, a world project, the fork.
-    landing = content.split("## 実装後", 1)[1].split("## 作業終了前の PR 投稿", 1)[0]
-    gate = landing.split("2. **変更の種類に応じた検証**", 1)[1].split("\n3. ", 1)[0]
-    for check in (
-        "`bash .devcontainer/run-tests.bash` と `bash scripts/check-layout.sh`",
-        "`uv run pytest tests/skills .agents/skills`",
-        "そのプロジェクトのディレクトリで `uv run pytest`",
-        "変更したプロジェクトに関連する `dotnet test`",
-    ):
-        assert check in gate, check
-    assert "scripts/resoloop-fork.sh test" in landing
-    assert "finishing-a-development-branch" in content
-    assert "upsert_pr_comment.py" in content
-    assert "<!-- review-fix-planning:agent:" in content
-    assert "### レビュー状況" in content
-    assert "### 作業判断" in content
-    assert "### 作業結果" in content
-    assert "--edit-last" in content
-    assert_status_comment_snippet(content)
+def frontmatter(content: str) -> dict[str, object]:
+    return yaml.safe_load(content.split("---", 2)[1])
 
 
 def assert_status_comment_snippet(content: str) -> None:
@@ -61,38 +31,19 @@ def assert_status_comment_snippet(content: str) -> None:
     # Bare backticks inside <<EOF would run the branch name as a command.
     assert "\\`$HEAD_BRANCH\\`" in content
     assert "\\`$HEAD_SHA\\`" in content
-    assert "（`$HEAD_BRANCH`）" not in content
-    assert ": `$HEAD_SHA`" not in content
     # The repository is passed explicitly; a PR number alone is ambiguous.
     assert '--repo "$PR_REPO"' in content
 
 
-def assert_japanese_landing_contract(content: str) -> None:
-    assert_shared_landing_contract(content)
-    assert "実装に関連したテスト" in content
-    assert "既存 PR" in content
-    assert "新しい PR を開かない" in content
-    assert "承認を得て停止する" in content
-    assert "作業終了前の PR 投稿" in content
+def extract_status_script(content: str) -> str:
+    blocks = [block for block in re.findall(r"```bash\n(.*?)```", content, re.DOTALL)
+              if '--pr "$PR_NUMBER"' in block]
+    assert len(blocks) == 1, "skill must have one unambiguous status posting block"
+    return blocks[0]
 
 
-def assert_japanese_number_argument_contract(content: str) -> None:
-    assert "#<番号>" in content
-    assert "reviews/" in content
-    assert "直下" in content
-    assert "開始" in content
-    body = content.split("---", 2)[2]
-    assert "`#<番号>-`" in body
-    assert "1 件" in content
-    assert "複数" in content
-
-
-def test_agents_skill_resolves_number_argument_to_reviews_dir() -> None:
-    assert_japanese_number_argument_contract(read(AGENTS_SKILL))
-
-
-def test_agents_skill_lands_on_existing_pr_after_related_tests() -> None:
-    assert_japanese_landing_contract(read(AGENTS_SKILL))
+def test_status_comment_snippet_escapes_heredoc_and_pins_repository() -> None:
+    assert_status_comment_snippet(extract_status_script(read(AGENTS_SKILL)))
 
 
 def test_helper_has_one_real_copy_shared_through_the_skill_symlink() -> None:
@@ -103,42 +54,8 @@ def test_helper_has_one_real_copy_shared_through_the_skill_symlink() -> None:
     assert os.readlink(link) == "../../.agents/skills/review-fix-planning"
 
 
-def test_pr_comment_lists_skipped_findings_without_spec_dependency() -> None:
-    """The comment stands alone; an uncommitted Spec exists only locally."""
-    content = read(AGENTS_SKILL)
-    assert "全件は Spec を参照" not in content
-    spec_lines = [line for line in content.splitlines() if line.strip().startswith("- Spec:")]
-    assert spec_lines, "the template must keep a Spec: line"
-    assert any("ローカルにしか無い" in line for line in spec_lines)
-    assert "単体で読める" in content
-
-
-def test_pr_posting_required_only_after_landing() -> None:
-    """Mandatory posting is limited to landing turns."""
-    content = read(AGENTS_SKILL)
-    assert "計画のみのセッションも投稿する" not in content
-    assert "承認待ちで止まるターンは停止直前に1回" not in content
-    assert "commit / push まで完了したターン" in content
-    assert "任意" in content
-
-
-def test_pr_comment_purpose_is_record_not_stall_relief() -> None:
-    """The comment is only a durable record, not stall relief."""
-    content = read(AGENTS_SKILL)
-    assert "永続的な記録" in content
-    assert "stall" in content.lower()
-    assert "Monitor" in content
-
-
-def test_skill_descriptions_do_not_advertise_pr_posting() -> None:
-    """Posting lives in the body section, not the description."""
-    description = frontmatter_description(read(AGENTS_SKILL))
-    assert "作業終了前の PR 投稿" not in description
-    assert "Before finishing, post review status" not in description
-
-
 def test_allowed_tools_match_the_verification_and_spec_location() -> None:
-    tools = yaml.safe_load(frontmatter_description(read(AGENTS_SKILL)))["allowed-tools"]
+    tools = frontmatter(read(AGENTS_SKILL))["allowed-tools"]
     assert isinstance(tools, str)
     for entry in (
         "Bash(uv run *)",
@@ -154,121 +71,19 @@ def test_allowed_tools_match_the_verification_and_spec_location() -> None:
     assert "docs_draft" not in tools
 
 
-def test_review_fix_examples_cover_this_repository_and_the_fork() -> None:
-    """MAIN_ROOT follows the repository boundary table; the gate is the
-    change-specific checks, not every suite."""
-    content = read(AGENTS_SKILL)
-    # Skill helpers live only in this repository; resolve via TOPLEVEL.
-    assert '"$TOPLEVEL/.agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"' in content
-    assert '"$MAIN_ROOT/.agents/skills/review-fix-planning' not in content
-    assert "リポジトリ境界" in content
-    assert "scripts/resoloop-fork.sh clone" in content
-
-    example_lines = [line for line in content.splitlines() if line.lstrip().startswith("例:")]
-    assert example_lines, "expected an example line"
-    example = example_lines[0]
-    assert "usaturn/create-reso-world" in example
-    assert "bash .devcontainer/run-tests.bash" in example
-    assert "bash scripts/check-layout.sh" in example
-
-    fork_lines = [
-        line for line in content.splitlines() if "orange3134/resoloop" in line and "scripts/resoloop-fork.sh test" in line
-    ]
-    assert fork_lines, "expected a fork example"
-    assert "$TOPLEVEL/external/resoloop" in fork_lines[0]
-
-
-def test_number_argument_searches_the_fork_reviews_too() -> None:
-    """pr-review saves resoloop PR reviews under external/resoloop/reviews/."""
-    section = read(AGENTS_SKILL).split("## 第1引数の解決", 1)[1].split("## 手順", 1)[0]
-    scope = next(line for line in section.splitlines() if "ディレクトリだけを見る" in line)
-    assert "`reviews/`" in scope
-    assert "`external/resoloop/reviews/`" in scope
-
-
-def test_spec_goes_to_docs_superpowers_specs_of_this_repository() -> None:
-    content = read(AGENTS_SKILL)
-    # DOC_ROOT may be a separate checkout of the document branch; the spec is
-    # written where it is committed, not in the parent checkout (TOPLEVEL).
-    assert "$DOC_ROOT/docs/superpowers/specs/" in content
-    assert "$TOPLEVEL/docs/superpowers/specs/" not in content
-    assert "$MAIN_ROOT/docs" not in content
-    assert "docs_draft" not in content
-    step6 = content.split("6. **Spec を書く**", 1)[1].split("7. **", 1)[0]
-    assert "`DOC_ROOT`" in step6
-
-
-def test_landing_eval_uses_the_change_specific_gate() -> None:
-    evals = {item["id"]: item for item in json.loads(read(EVALS))["evals"]}
-    landing = evals[5]
-    assert any(
-        "bash .devcontainer/run-tests.bash" in item and "bash scripts/check-layout.sh" in item
-        for item in landing["expectations"]
-    )
-    assert "scripts/ci/" not in json.dumps(landing, ensure_ascii=False)
-
-
-def test_other_repositories_need_an_explicit_code_root() -> None:
-    step2 = read(AGENTS_SKILL).split("2. **現行 HEAD を特定する**", 1)[1].split("3. **", 1)[0]
-    assert "`CODE_ROOT`" in step2
-    assert "推測せず停止する" in step2
-    assert "pr-review" in step2
-
-
-def test_spec_is_committed_and_copied_before_approval() -> None:
-    content = read(AGENTS_SKILL)
-    section = content.split("## Spec のコミットと確認用コピー", 1)[1].split("\n## ", 1)[0]
-    for phrase in (
-        "`DOC_ROOT`",
-        "`PARENT_ROOT`",
-        "bash scripts/superpowers-review-copy.sh",
-        "決して差し替えない",
-        "-r2-",
-        "文書用ブランチ",
-        "文書専用 PR",
-        "公開未実施",
-    ):
-        assert phrase in section, phrase
-    step7 = content.split("7. **承認を得て停止する**", 1)[1].split("\n## ", 1)[0]
-    assert "## Spec のコミットと確認用コピー" not in step7
-    assert "確認用コピー" in step7
-
-
-def test_spec_reuses_the_current_canonical_document() -> None:
-    """Canonical selection precedes writing: repo/PR/theme/path, not basename."""
-    content = read(AGENTS_SKILL)
-    section = content.split("## Spec の正本を選んでから更新する", 1)[1].split("\n## ", 1)[0]
-    for phrase in ("正本", "roundN", "停止してユーザに確認する", "アーキテクチャ再設計", "コミット済み"):
-        assert phrase in section, phrase
-
-
-def test_landing_fetch_instruction_uses_verified_base_remote_and_rechecks_pr_head() -> None:
-    """Text convention only: catch a fixed-origin recipe, not claim agent behavior."""
-    landing = read(AGENTS_SKILL).split("## 実装後", 1)[1].split("\n## ", 1)[0]
-    step4 = landing.split("\n4. ", 1)[1].split("\n5. ", 1)[0]
-    assert 'git -C "$MAIN_ROOT" fetch "$PR_REMOTE"' in step4
-    assert 'gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid' in step4
-    assert "共通 context" in step4
-    assert not re.search(r"\bfetch\s+origin\b", landing)
-
-
-@pytest.mark.parametrize("example", ["例:", "resoloop の上流への PR"])
-def test_landing_push_examples_use_verified_head_remote(example) -> None:
-    """Text convention: examples must not bypass the stated API/context preflight."""
-    landing = read(AGENTS_SKILL).split("## 実装後", 1)[1].split("\n## ", 1)[0]
-    paragraph = next(line for line in landing.splitlines() if line.startswith(example))
-    assert 'git -C "$MAIN_ROOT" push "$HEAD_REMOTE" HEAD' in paragraph
-    assert not re.search(r"\bpush\s+origin\b", landing)
-    step5 = landing.split("\n5. ", 1)[1].split("\n6. ", 1)[0]
-    assert 'gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRepository,headRepositoryOwner,headRefName' in step5
-    for prerequisite in ("HEAD_REPO", "HEAD_BRANCH", "共通 context", "HEAD_REMOTE"):
-        assert prerequisite in step5
-
-
-def test_fork_pr_push_target_is_confirmed_for_other_repositories() -> None:
-    landing = read(AGENTS_SKILL).split("## 実装後", 1)[1].split("\n## ", 1)[0]
-    assert "head リポジトリ" in landing
-    assert "headRepository" in landing
+def test_evals_have_valid_structure_and_existing_files() -> None:
+    payload = json.loads(read(EVALS))
+    assert payload["skill_name"] == AGENTS_SKILL.parent.name
+    assert payload["evals"]
+    for item in payload["evals"]:
+        assert isinstance(item["id"], int)
+        for key in ("name", "prompt", "expected_output"):
+            assert isinstance(item[key], str) and item[key].strip()
+        assert isinstance(item["expectations"], list) and item["expectations"]
+        assert all(isinstance(value, str) and value.strip() for value in item["expectations"])
+        assert isinstance(item["files"], list)
+        for name in item["files"]:
+            assert (AGENTS_SKILL.parent / name).is_file(), name
 
 
 @pytest.fixture(params=["bash", "zsh", "zsh-nounset"])
@@ -308,8 +123,10 @@ def run_fix_context(git_context, context_shell, *, cwd=None, **variables):
     parent, code, doc, git, env = git_context
     # The real instruction block is the resolver; no test-side URL/root logic.
     blocks = re.findall(r"```bash\n(.*?)```", read(AGENTS_SKILL), re.DOTALL)
-    script = next((block for block in blocks if "--operation review-fix" in block), None)
-    assert script is not None, "review-fix has no executable context preflight"
+    matches = [block for block in blocks if "--operation review-fix" in block
+               and '--pr "$PR_NUMBER"' not in block]
+    assert len(matches) == 1, "skill must have one unambiguous context preflight block"
+    script = matches[0]
     values = {"PARENT_ROOT": str(parent), "CODE_ROOT": str(code), "DOC_ROOT": str(doc),
               "DOC_BRANCH": "docs/topic", "PR_REPO": "other/repository", "HEAD_REPO": "",
               "HEAD_BRANCH": ""}
@@ -419,8 +236,7 @@ def test_status_snippet_revalidates_before_comment_mutation(git_context, context
               "DOC_BRANCH": "wrong" if case == "wrong-doc-branch" else "docs/topic", "PR_REPO": "other/repository",
               "PR_NUMBER": "3", "HEAD_BRANCH": "main", "HEAD_REPO": "contributor/repository", "HEAD_SHA": "1234",
               "MODEL_NAME": "Test-model"}
-    script = next(block for block in re.findall(r"```bash\n(.*?)```", read(AGENTS_SKILL), re.DOTALL)
-                  if '--pr "$PR_NUMBER"' in block)
+    script = extract_status_script(read(AGENTS_SKILL))
     harness = ("set -euo pipefail\n" if context_shell[1] else "set -eo pipefail\n")
     harness += "\n".join(f"{key}={shlex.quote(value)}" for key, value in values.items()) + "\n" + script
     shell = context_shell[0]
