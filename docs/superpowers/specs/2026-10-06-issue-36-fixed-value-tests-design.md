@@ -1,8 +1,8 @@
 # Issue #36: 固定値テストの見直し
 
 - 文書管理・対象リポジトリ: `usaturn/create-reso-world`
-- 対象 Issue: #36
-- 状態: draft
+- 対象 Issue: #36、PR: #46（マージ未実施）
+- 状態: completed
 - 基準 HEAD: `ee1421ae3efb274cb5e28c8f3a810fe24ac5a3a6`（#41・#43 のマージ後）
 - 関連 Plan: `docs/superpowers/plans/2026-10-06-issue-36-fixed-value-tests.md`
 - CODE_ROOT / DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-36-fixed-value-tests`
@@ -97,3 +97,44 @@ A3・A4 の参照検査は既存テストファイル内に小さく置く。汎
 - シェル runner: PASS 28 tests（約120秒）
 - layout: exit 0。導入済み ResoLoop の同梱スキルが新しいという既存警告はあり、同期更新は範囲外。
 - D の読み取り専用調査: harness の所要時間は約316秒（子の自己申告の概算とは区別）。
+
+## 8. 完了記録（2026-10-06）
+
+- 状態: 実装・検証・PR 作成完了。公開先: https://github.com/usaturn/create-reso-world/pull/46 （OPEN、main 向け、マージ未実施）。
+- 初版の内容 SHA: `0601efbb985d21adc535b1b59e5f05654ae2d496`。この版以降の推奨方針の実行許可はセッション冒頭の利用者指示。利用者が文書を読んだ内容承認は記録しておらず、approved を経たとは扱わない。
+- 検証したコード HEAD: `b084f43c753fff0bdc02f9962e534fab6ec65230`。以下の文書の状態・結果追記はコード変更ではない。
+- 最終 controller 検証: root pytest **555 passed, 1 skipped**（133秒）、指定 skills pytest **487 passed, 1 skipped**（90秒）、shell runner **28 PASS**（129秒）、layout **PASS**（2秒）、Python 14 ファイル構文確認、diff check 成功。ログ: `/workspaces/reso-world/tmp/issue-36/final-b084f43/`。
+- skip は既存の `SKILL_UNDER_TEST` 未指定による opt-in。機能実行テストの元の名前を AST で照合し、凍結 SHA manifest・ペルソナ保護・C の一覧を維持した。SKILL/README/ペルソナ/ワールド/過去文書は不変。
+- 各 Task のレビューと修正差分の再レビュー、全差分レビューを実施。最後の残存指摘は、以下の裁定でレビュー済みの Git オブジェクトへ完全復元し、バイト一致と引用 shell payload の拒否を確認した。
+- LSP の Optional Match 指摘2件は修正した。最終 active probe は診断0件だが push-only server のため clean を確定できない。compile・pytest を別の検証根拠とする。
+- 隔離変異: Task1 正常/拒否47件と修正18件、Task2 設定/argv/認証の正常/拒否、Task3 の見出し/手順/期待文の言い換えと安全/schema/参照変異、最終修正54件、最後の `bash -c` 2件の拒否を確認。テスト期待値を変異に合わせて更新していない。
+
+### A〜D の照合
+
+| 方針 | 実装・維持の証拠 |
+| --- | --- |
+| A1/A3/A4/A5/A6 | `bb52cbe`・`5e708c0`。現行文面の固定を削除、説明文で参照を除外しない小さい実在検査へ変更。過去の記録は維持 |
+| A2 | SHA と assertion は不変。隔離したペルソナ書換えは拒否 |
+| B1/B2/B3 | `c72c352`・`fa97be5`。source JSON と配置先、source launcher/alias と実行 argv を独立比較。静的 argv accessor は既存テスト内の一か所へ集約 |
+| C1/C2/C3 | ファイル/対象ブロック不変。mount/unset/ignore 許可リストは理由付きで維持 |
+| D 全14行 | `1cbb20b`・`52dcb7a`・`884cf58`・`87ef030`・`b084f43`。説明文固定を除き、機能実行・構造・参照・安全検査を維持。eval 構造の重複は一つのパラメータ化テストに集約 |
+| 今後の規則 | AGENTS.md の基本方針へ2項目追記。既存 TDD 規則も維持 |
+
+### エージェントによる裁定と残る制限
+
+1. 実行許可と内容の承認を分離し、初版を draft で保存した。誤っていれば内容の再検討が必要だが、承認の履歴は偽らない。
+2. モデルは role API の定義に従い設定された tier を使用し、上流スキルの model 直接指定はしない。誤っていれば起動条件の見直しが必要になる。
+3. 対象外の lock は #41 の ResoLoop lock であり、git index.lock のテストは D に含めた。誤っていれば対象範囲の再調整が必要になる。
+4. 整理のための固定値テストを追加せず、既存挙動テストと隔離変異を使った。誤っていれば不足する挙動検査を追加する必要がある。
+5. 明示パスや `/skill:` のような機械的な参照だけを検査し、型付けされていない裸のスキル名を説明ラベルから推測しない。見出し/ラベルの言い換えを許容する代わりに、裸の名前だけの typo は自動検出しない。
+6. 最終レビューで危険 guard のコメント対応が `bash -c 'git reset --hard'` / `bash -c 'rm .git/index.lock'` を見逃したため、stale-lock contract だけをレビュー済み `884cf58` のバイト列へ復元した。一般 Bash パーサを追加して修正ループを続けず、安全側を維持する。危険コマンドの文字列を含む禁止説明コメントも拒否する既存の制約は残す（非ブロッキングの Minor）。
+
+既存の `test_killed_create_reports_its_last_phase_and_leftovers` は途中で2回一過性に失敗した。`worktree-add` の journal 記録後、child が lock を継承する前に kill が起きる競合を、隔離コピーに0.5秒の遅延を挿入して同じ assertion で再現した。元のコピーと最終全検証は成功した。今回変更していない test/helper は修正せず、既知の範囲外の不安定な検査として残す。
+
+layout の ResoLoop 同梱スキル差分警告も既存のもの。同期更新・live OAuth/catalog・CI 確認は対象外（この private repository の CI は停止中）。
+
+### 所要時間
+
+着手は2026-10-06 10:11 JST。実装・PR 公開確認は13:44 JST頃まで、約3時間33分。主な実装担当の実時間（レビュー/controller 待ちを除く）は、Task1 と修正23分22秒、Task2 と修正26分45秒、Task3 と全修正・安全 guard 復元約91分。初期調査/Spec・Plan は約13分、controller 最終統合4コマンドは約6分。各子の詳細は作業 report に記録し、読み取り専用レビューの概算値は実測値と混同しない。
+
+予約解放・Issue の完了コメント・Herdr 更新の実施記録は PR/Issue コメントに残す。worktree は PR の追加修正用に維持する。
