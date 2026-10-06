@@ -3,11 +3,11 @@
 - 文書管理・対象リポジトリ: `usaturn/create-reso-world`
 - PR: https://github.com/usaturn/create-reso-world/pull/48
 - 関連 Issue: #47
-- 検証したコード HEAD: `d02ba2fbe7d3d73120462548b6e5ff161468ef75`（第2回）
+- 検証したコード HEAD: `d02ba2fbe7d3d73120462548b6e5ff161468ef75`（第2回）、`262817f4f3c7206ba72be347eb80190bbf7b1c49`（第3回）
 - ブランチ: `fix/issue-47-detached-cleanup`
 - 状態: completed
 - 実行許可: ユーザーが `review-fix-planning #48` を指定。計画のみの制限はなく、同スキルの完遂経路として修正・検証・既存 PR への push・結果投稿まで実施する。
-- 結論: 1（修正して push）。マージはこの結論では行わない。
+- 結論: 第2回は 1（修正して push）。第3回は 2（修正不要としてマージ）。
 - 文書の管理: 第1回（対象 HEAD `532392efa673`）と同じ本ファイルを更新する。第1回の版は Git 履歴に残る。
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-47-detached-cleanup`（既存 worktree を clean・PR HEAD 一致の条件で再利用。このセッションの片付け対象ではない）
@@ -76,13 +76,13 @@
 - [x] 追加テストが旧テキストで失敗することを確認（ガード外し対照と旧 HEAD 本文の両方を隔離コピーで実施）
 - [x] 関連 pytest・`bash .devcontainer/run-tests.bash`・`bash scripts/check-layout.sh`・`uv run pytest tests/skills .agents/skills`
 - [x] 自己レビュー 1 回（反証 / PR 全体 / 検証の検出力）と判定
-- [ ] Spec を completed にしてコミット・既存 PR へ push・状況コメント投稿
+- [x] Spec を completed にしてコミット・既存 PR へ push・状況コメント投稿
 
 ## 検証結果
 
 | 検証 | 結果 |
 |---|---|
-| `test_detached_update.py`（修正後） | 27 passed、exit 0（既存 23 + 新規 4） |
+| `tests/` ディレクトリ指定（修正後） | 27 passed、exit 0（test_detached_update.py 22 = 既存 18 + 新規 4、contract 5） |
 | 新規テストの RED 確認（旧 HEAD `d02ba2f` の SKILL.md 本文を隔離コピー） | 4 failed / 18 deselected — 未設定フォールバック・`-C` 漏れ・merge-base 再確認欠落・fork main 除外欠落の各負例が意図した理由で失敗 |
 | ガード外し対照（`${MAIN_ROOT:?}` を `$MAIN_ROOT` に sed した隔離コピー） | 未設定の負例が失敗（`git -C ""` が cwd にフォールバックし `not fully merged` を出す、または foreign repo を対象にする）。ガードの検出力を確認 |
 | `uv run pytest tests/skills .agents/skills -q` | 509 passed / 1 skipped（`SKILL_UNDER_TEST` 未指定の既存任意検査）、exit 0 |
@@ -114,3 +114,42 @@ fork 実 checkout・dotnet・LLM による eval 実行は未実施（環境に�
 - 設計の見直し・Spec 更新・実装（SKILL.md・テスト4件）: 中盤
 - 検証: cleanup pytest 27件 約4秒、ガード外し対照・旧HEAD RED 確認、`tests/skills .agents/skills` 約111秒、`run-tests.bash` 28 suites、`check-layout.sh` 約2秒
 - 自己レビュー 1 回（3観点を controller が実施）
+
+## 第3回: 入力と分類
+
+入力は `reviews/#48-fix-issue-47-detached-cleanup/` の全6ファイル（`claude-opus-5-5.md`、`deepseek-deepseek-v4.1-flash.md`、`gpt-6.1-sol.md`、`openai-codex-gpt-6.1-sol.md`、`SWE-2-High.md`、`SWE-2-Max.md`）。対象 HEAD は `532392efa673`・`d02ba2fbe7d3`・`262817f4f3c7` で、いずれも取得した PR head（`262817f4f3c7` = `gh pr view` の headRefOid）の祖先であることを確認した。検証は clean で HEAD が PR head と一致する専用 worktree（`CODE_ROOT` = `/workspaces/reso-world/.worktrees/issue-47-detached-cleanup`）上のコミット済み内容に対して行った。
+
+| ID | 入力ファイル / 元 ID | 指摘 | 分類と根拠 |
+|---|---|---|---|
+| T1 | `claude-opus-5-5.md` L-2 | 手順 8・11 のブロックに `MAIN_ROOT` 空値ガードが無く `git -C ""` が cwd にフォールバックする | 解消済み。現行 `SKILL.md:203`・`:252-254` の全コマンドが `git -C "${MAIN_ROOT:?...}"` に、`:200`・`:249` に呼び出しごとの設定を促す注意が追加済み。`test_steps_8_and_11_stop_when_main_root_is_unset` が未設定での非 0・`not fully merged` 非出力・refs 不変を実ブロックで検査している |
+| T2 | `SWE-2-High.md` M-1 | fork 経路の `git -C external/resoloop branch -d` が古い detached HEAD 基準でマージ済み branch を `not fully merged` で拒否する | 解消済み。`SKILL.md:211` が手順 3 と同じ基準（上流 PR は `upstream/main`、fork 内 PR は `origin/main`）への `merge-base --is-ancestor` 再確認と、確認済み branch 限定の `-D` 許可に変更済み。`:289` のガードレールも同条件。`test_step8_recheck_for_not_fully_merged_discriminates_merge_state` が stale detached fixture で弁別を検査している |
+| T3 | `SWE-2-High.md` L-3 | fork 経路で `external/resoloop` のローカル `main` が削除候補の除外対象になっていない | 解消済み。`SKILL.md:74`（手順 3）と `:198`（手順 8）に除外明記済み。`test_cleanup_keeps_the_forks_local_main_out_of_deletion_candidates` で固定 |
+| T4 | `SWE-2-High.md` I-1 | 手順 11 の `git worktree list` / `git branch -a` に `-C` が無い | 解消済み。`SKILL.md:253-254` に `-C "${MAIN_ROOT:?}"` 済み。`test_step11_reports_main_root_even_when_called_from_another_repo` が別 repo cwd からの対象固定を検査 |
+| T5 | `SWE-2-High.md` L-2 | 手順 7 の `set -e` / `exit 1` が永続シェルを終了させ、成功時に errexit が残る | 対応しない。第2回 S5（前回 R6）の裁定を維持。失敗時の停止は意図した安全性であり、データ損失・誤対象操作・誤結果は確認されていない。PR 本文の既知の制限に「独立した bash 呼び出しで実行する」注意を記載済み。提案は注意文を本文へ移す軽微な追記のみで致命的でない |
+| T6 | `deepseek-deepseek-v4.1-flash.md` I-2 | 手順 7 などの `origin/main` 短縮名が同名ローカル branch/tag に誤解決される | 対応しない。第2回 S6（前回 R8）の裁定を維持。base `269f3cc` の旧手順でも再現する既存制約であり本 PR が持ち込んだ問題ではない。PR 本文の既知の制限に条件と `refs/remotes/origin/main` による回避方法を記載済み |
+| T7 | `deepseek-deepseek-v4.1-flash.md` I-3 | Spec の検証結果表の件数が実行結果と一致しない（ファイル単体 22 に対し 27 と記録） | 対応しない。記録の不一致のみで、従って進めても誤った結果にならず致命的でない（再計測で確認可能）。なお本回の Spec 更新作業の一部として当該行のラベルを実測値（tests/ ディレクトリ指定で 27 = ファイル 22 + contract 5）に修正した |
+| T8 | `SWE-2-Max.md` I-1 | Spec の最終タスクが `状態: completed` に反して未チェックのまま | 対応しない。記録の不一致のみで致命的でない。当該作業は実施済みであり、本回の Spec 更新で `[x]` に整合させた |
+| T9 | `SWE-2-Max.md` I-2 | 手順 7 が detached HEAD の孤立コミットを検出・報告しない | 対応しない（仕様・設計の是非）。旧手順 `git switch main` でも同じ warning と孤立が起きる既存の挙動で、本 PR の回帰ではない。コミットは参照を失うが reflog に残り復元可能であり、detached なメイン作業ツリーへ直接コミットする使い方は本リポジトリの文書化された運用（branch で作業）の外にある。論点: checkout 前に `origin/main..HEAD` のガードを設けるかは設計判断であり、実在する制約として PR 本文の既知の制限に条件と回避方法を追記して再発を防ぐ |
+
+入力分類: **解消済み 4（T1–T4） / 対応する 0 / 対応しない 5（T5–T9）**。
+
+確認の範囲: 全指摘、変更 6 ファイルの全文（SKILL.md 298 行、evals.json 202 行、test_detached_update.py 525 行、stale-lock の SKILL.md・stale_git_lock.sh、本 Spec）、関連テスト（contract テスト）を読んだ。自己確認で新たな致命的な欠陥は見つからなかった（evals.json id 1 の `result判定` という表記揺れは PR 差分外の既存箇所のため対象外）。
+
+## 第3回: 結論と検証
+
+結論: **2（修正不要としてマージ）**。実行許可はユーザーの `review-fix-planning #48` 指定（計画のみの制限なしの完遂経路）。
+
+実行した検証（専用 worktree、HEAD `262817f4f3c7`）:
+
+| 検証 | 結果 |
+|---|---|
+| `uv run pytest .agents/skills/repo-cleanup-after-merge/tests .agents/skills/stale-git-lock-recovery/tests` | 133 passed、exit 0 |
+| `uv run pytest tests/skills .agents/skills -q` | 509 passed / 1 skipped（`SKILL_UNDER_TEST` 未指定の既存任意検査）、exit 0 |
+| `bash .devcontainer/run-tests.bash` | 28 suites passed、exit 0 |
+| `bash scripts/check-layout.sh` | PASS、exit 0。4 プロジェクトの `SKILL_SYNC_REQUIRED` 警告は既知の未実施 |
+| base の再取得 | `origin/main`（`269f3cc`）は HEAD の祖先であり、分岐点より先に進んでいないため merge 再検証は不要 |
+| CI | `usaturn/create-reso-world` はプライベートで CI 停止の既定のため確認対象外 |
+
+「対応しない」の実在する制約と PR 説明の整合: T9（detached HEAD の孤立コミット）のみ、PR の「失うものが無いと確かめてから消す」旨趣との隙間を埋めるため、既知の制限へ条件と回避方法を 1 行追記する（`gh pr edit --body-file`）。T5・T6 は既に記載済み。
+
+自己レビュー: 結論 2 でコード修正が無いため、修正後の自己レビューは対象外。全指摘の検証と変更ファイル全文の読解は実施済み。
