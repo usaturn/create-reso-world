@@ -32,9 +32,12 @@ for name in sys.argv[1:]:
             ref = ref.removeprefix("@")
             if not ref or re.search(r"[\s*?\[\]<>{}$]", ref) or re.match(r"^(?:[\w+.-]+:|[/~]|-|\.\.\.)", ref):
                 continue  # 外部・ホーム・絶対パス、コマンド、glob、プレースホルダ
-            if match[1] and (re.match(r"\s*は置かない", line[match.end():]) or ("/" not in ref and "のように" in line)):
-                continue  # 存在しない設定の注記、ファイル名の例
-            if name == "docs/resoloop-fork-workflow.md" and ref == "global.json":
+            # 実在を要求しない参照だけを文書・名前・backtick に限定する。周囲の文面では除外しない。
+            if match[1] and name == "README.md" and ref == ".devin/config.json":
+                continue  # Devin に設定ファイルを用意しない方針の注記で、配置先の案内ではない
+            if match[1] and name == "AGENTS.md" and ref == "page-types.md":
+                continue  # 文書名と関係を具体的に書く方針を示す架空のファイル名
+            if match[1] and name == "docs/resoloop-fork-workflow.md" and ref == "global.json":
                 continue  # fork checkout 側のファイル（このリポジトリには置かない）
             if not re.search(r"\.(?:md|sh|bash|zsh|py|json|toml|ya?ml|txt)$", ref) and not re.match(r"^\.(?:agents|claude)/skills(?:/|$)", ref):
                 continue
