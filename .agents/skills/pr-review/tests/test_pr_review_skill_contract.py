@@ -223,7 +223,7 @@ def test_skill_keeps_claude_code_permissions_consistent() -> None:
     assert isinstance(head["argument-hint"], str) and head["argument-hint"].strip()
     create_arguments: list[list[str]] = []
     for block in re.findall(r"```bash\n(.*?)```", content, re.DOTALL):
-        if "$HELPER" not in block or "create" not in block:
+        if "create" not in block:
             continue
         # Join explicit continuations, then tokenize each logical line: shlex
         # consumes the newline ending a comment, which must not merge a later
@@ -235,7 +235,25 @@ def test_skill_keeps_claude_code_permissions_consistent() -> None:
             command: list[str] = []
             for token in [*lexer, "\n"]:
                 if not token.strip("();&|\n"):
-                    if command[:6] == ["uv", "run", "--no-project", "python", "$HELPER", "create"]:
+                    # Control words precede a simple command without changing
+                    # its argv. Unknown execution wrappers must fail closed,
+                    # not hide another create call beside the safe examples.
+                    while command and command[0] in ("if", "elif", "then", "else", "while", "until", "do", "!", "{", "}"):
+                        command.pop(0)
+                    # Literal echo/printf data is not an invocation. A
+                    # substitution-like payload is ambiguous: reject it rather
+                    # than silently treating an executable helper call as data.
+                    if command and (
+                        command[0] not in ("echo", "printf")
+                        or any("`" in arg or "$(" in arg for arg in command)
+                    ) and re.search(
+                        r"""(?:\$(?:HELPER|\{HELPER\})|(?:[^\s]*/)?pr_review_workspace\.py)["']?\s+(?:\S+\s+)*["']?create["']?(?:\s|$)""",
+                        " ".join(command),
+                    ):
+                        command = ["$HELPER" if arg == "${HELPER}" else arg for arg in command]
+                        assert command[:6] == ["uv", "run", "--no-project", "python", "$HELPER", "create"], (
+                            f"unparsed helper create invocation: {command}"
+                        )
                         create_arguments.append(command[6:])
                     command = []
                 else:

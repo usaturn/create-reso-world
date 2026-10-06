@@ -46,19 +46,21 @@ def test_validation_links_and_scenarios_resolve() -> None:
         assert all(isinstance(value, str) and value.strip() for value in scenario["expected"])
 
 
-def test_referenced_skills_and_commands_exist() -> None:
-    names: set[str] = set()
+def test_explicit_path_and_skill_references_exist() -> None:
+    references: set[Path] = set()
     for source in (SKILL, SKILL_DIR / "references/session-workflow.md"):
         content = read(source)
-        # A declared dependency list identifies skills; arbitrary backticked
-        # prose such as read-only or fast-forward does not.
-        for dependencies in re.findall(r"REQUIRED SUB-SKILLS:([^\n.]+)", content):
-            names.update(name for name in re.findall(r"`([^`]+)`", dependencies)
-                         if not name.startswith("superpowers:"))
+        # Untyped bare names in prose are ambiguous. Only path syntax and the
+        # explicit skill invocation namespace identify resolvable local refs.
+        for name in re.findall(r"/skill:([a-z0-9][a-z0-9-]*(?::[a-z0-9-]+)?)", content):
+            if not name.startswith("superpowers:"):
+                skill = REPO_ROOT / ".agents/skills" / name / "SKILL.md"
+                assert skill.is_file(), name
+                references.add(skill)
         for chunk in re.findall(r"`([^`\n]+)`", content):
             for word in chunk.split():
                 if word.startswith(("scripts/", "tests/", ".agents/")) and not any(char in word for char in "*<>$"):
-                    assert (REPO_ROOT / word).exists(), word
-    assert names, "skill has no declared local skill dependencies"
-    for name in names:
-        assert (REPO_ROOT / ".agents/skills" / name / "SKILL.md").is_file(), name
+                    references.add(REPO_ROOT / word)
+    assert references, "skill has no explicit local path or skill references"
+    for reference in references:
+        assert reference.exists(), reference.relative_to(REPO_ROOT)

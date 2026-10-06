@@ -12,6 +12,7 @@ import fcntl
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -42,6 +43,15 @@ def read(path: Path) -> str:
 
 def bash_blocks() -> list[str]:
     return re.findall(r"```bash\n(.*?)```", read(SKILL), re.DOTALL)
+
+
+def bash_tokens() -> Iterator[list[str]]:
+    """Tokenize logical snippet lines without comments or quote contents as code."""
+    for block in bash_blocks():
+        for line in block.replace("\\\n", "").splitlines():
+            lexer = shlex.shlex(line, posix=True, punctuation_chars="();&|")
+            lexer.whitespace_split = True
+            yield list(lexer)
 
 
 def frontmatter() -> dict[str, object]:
@@ -190,14 +200,16 @@ def test_frontmatter_declares_name_and_trigger_conditions_only() -> None:
 def test_bash_snippets_do_not_run_destructive_git_commands() -> None:
     # These shortcuts can discard user work; prose may explain the prohibition
     # in any words, but executable instructions must never invoke them.
-    for block in bash_blocks():
-        for command in ("git clean", "git reset --hard", "git checkout -f"):
-            assert command not in block, f"destructive command in snippet: {command}"
+    for tokens in bash_tokens():
+        for command in (["git", "clean"], ["git", "reset", "--hard"], ["git", "checkout", "-f"]):
+            assert not any(tokens[index:index + len(command)] == command for index in range(len(tokens))), (
+                f"destructive command in snippet: {command}"
+            )
 
 
 def test_skill_never_removes_the_lock_by_hand() -> None:
-    for block in bash_blocks():
-        assert "rm " not in block, f"SKILL.md must not show a manual rm:\n{block}"
+    for tokens in bash_tokens():
+        assert "rm" not in tokens, f"SKILL.md must not show a manual rm: {tokens}"
 
 
 def test_bash_snippets_do_not_clobber_zsh_special_variables() -> None:
