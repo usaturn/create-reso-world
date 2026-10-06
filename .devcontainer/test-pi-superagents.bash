@@ -206,41 +206,6 @@ print(data["superagents"]["modelTiers"][sys.argv[2]]["model"])
 ' "${CONFIG_DIR}/$1.json" "$2"
 }
 
-tier_thinking() {
-    python3 -c '
-import json, sys
-data = json.load(open(sys.argv[1]))
-print(data["superagents"]["modelTiers"][sys.argv[2]]["thinking"])
-' "${CONFIG_DIR}/$1.json" "$2"
-}
-
-test_tier_tables() {
-    local launcher cheap balanced max cheap_thinking balanced_thinking max_thinking
-    # launcher:cheap model:balanced model:max model:cheap thinking:balanced thinking:max thinking
-    local -a rows=(
-        "pigo:opencode-go/muse-spark-1.3-contributor:opencode-go/muse-spark-1.3-contributor:opencode-go/deepseek-v4.1-flash:max:max:max"
-        "pigod:opencode-go/muse-spark-1.3-contributor:opencode-go/deepseek-v4.1-flash:opencode-go/deepseek-v4.1-flash:max:max:max"
-        "pigou:opencode-go/union-alpha:opencode-go/union-alpha:opencode-go/union-alpha:max:max:max"
-        "piccg:commandcode/meta/muse-spark-1.3-contributor:commandcode/meta/muse-spark-1.3-contributor:commandcode/deepseek/deepseek-v4.1-flash:max:max:max"
-        "piccd:commandcode/meta/muse-spark-1.3-contributor:commandcode/deepseek/deepseek-v4.1-flash:commandcode/deepseek/deepseek-v4.1-flash:max:max:max"
-        "piga:openai-codex/gpt-6-luna:openai-codex/gpt-6.1-sol:openai-codex/gpt-6-astra:xhigh:xhigh:max"
-        "pigs:opencode-go/deepseek-v4.1-flash:openai-codex/gpt-6.1-sol:openai-codex/gpt-6.1-sol:max:xhigh:max"
-        "pigl:openai-codex/gpt-6-luna:openai-codex/gpt-6.1-sol:openai-codex/gpt-6.1-sol:xhigh:xhigh:xhigh"
-        "pixg:opencode-go/deepseek-v4.1-flash:opencode-go/deepseek-v4.1-flash:xai/grok-4.7:max:max:xhigh"
-    )
-    local row
-    for row in "${rows[@]}"; do
-        IFS=: read -r launcher cheap balanced max cheap_thinking balanced_thinking max_thinking <<< "$row"
-        [ -f "${CONFIG_DIR}/${launcher}.json" ] || fail "${launcher}.json missing"
-        assert_eq "$(tier_model "$launcher" cheap)" "$cheap" "${launcher} cheap"
-        assert_eq "$(tier_model "$launcher" balanced)" "$balanced" "${launcher} balanced"
-        assert_eq "$(tier_model "$launcher" max)" "$max" "${launcher} max"
-        assert_eq "$(tier_thinking "$launcher" cheap)" "$cheap_thinking" "${launcher} cheap thinking"
-        assert_eq "$(tier_thinking "$launcher" balanced)" "$balanced_thinking" "${launcher} balanced thinking"
-        assert_eq "$(tier_thinking "$launcher" max)" "$max_thinking" "${launcher} max thinking"
-    done
-}
-
 test_commandcode_models_are_defined_in_pi_models() {
     # commandcode は Pi の built-in provider ではないので、models.json に
     # 定義が無いモデルを tier に置くと子 Pi が起動時に解決できない。
@@ -398,77 +363,71 @@ test_launchers_wrap_pi_with_their_own_config() {
     done
 }
 
+# 親モデルは tier と別の設定。唯一の静的な呼出しを読み、実行結果からは
+# 期待値を作らない。helper が追加する regular と、定数の引数順も比較する。
+launcher_pi_args_from_source() {
+    python3 - "${REPO_ROOT}/.devcontainer/$1" <<'PY_SOURCE'
+from pathlib import Path
+import re
+import shlex
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text(encoding="utf-8").replace("\\\n", "")
+calls = [shlex.split(line, comments=True) for line in source.splitlines()
+         if re.match(r"^\s*pi_superagents_exec(?:\s|$)", line)]
+assert len(calls) == 1, (path, "expected one pi_superagents_exec call", calls)
+call = calls[0]
+assert call[1] == path.name, (path, call)
+args = []
+for word in call[2:]:
+    if word in ("$@", "||", "&&", ";"):
+        break
+    args.append(word)
+assert len(args) % 2 == 0, (path, args)
+for flag in ("--provider", "--model", "--thinking"):
+    assert args[::2].count(flag) == 1, (path, flag, args)
+for flag, value in zip(args[::2], args[1::2]):
+    assert flag.startswith("--") and value, (path, flag, value)
+    assert not any(c in value for c in "$`\n"), (path, "nonconstant argument", value)
+print("--tui-mode", "regular", *args, sep="\n")
+PY_SOURCE
+}
+
 test_launchers_preserve_parent_model_selection() {
-    local home out args
-    home="$(make_home pigo with-config)"
-    args="$(pi_args_of "$(run_launcher "$home" pigo)")"
-    assert_contains "$args" "opencode-go" "pigo provider"
-    assert_contains "$args" "muse-spark-1.3-contributor" "pigo model"
-    assert_contains "$args" "max" "pigo thinking"
-
-    home="$(make_home pigod with-config)"
-    args="$(pi_args_of "$(run_launcher "$home" pigod)")"
-    assert_contains "$args" "opencode-go" "pigod provider"
-    assert_contains "$args" "deepseek-v4.1-flash" "pigod model"
-
-    home="$(make_home pigou with-config)"
-    args="$(pi_args_of "$(run_launcher "$home" pigou)")"
-    assert_contains "$args" "opencode-go" "pigou provider"
-    assert_contains "$args" "union-alpha" "pigou model"
-
-    home="$(make_home piccg with-config)"
-    args="$(pi_args_of "$(run_launcher "$home" piccg)")"
-    assert_contains "$args" "commandcode" "piccg provider"
-    assert_contains "$args" "meta/muse-spark-1.3" "piccg model"
-
-    home="$(make_home piccd with-config)"
-    args="$(pi_args_of "$(run_launcher "$home" piccd)")"
-    assert_contains "$args" "commandcode" "piccd provider"
-    assert_contains "$args" "deepseek/deepseek-v4.1-flash" "piccd model"
-
-    home="$(make_home pixg with-config)"
-    write_xai_auth "$home"
-    args="$(pi_args_of "$(run_launcher "$home" pixg)")"
-    assert_contains "$args" "xai" "pixg provider"
-    assert_contains "$args" "grok-4.7" "pixg model"
-    assert_contains "$args" "xhigh" "pixg thinking"
+    local home launcher args expected
+    for launcher in pigo pigod pigou piccg piccd pixg; do
+        home="$(make_home "$launcher" with-config)"
+        if [ "$launcher" = pixg ]; then
+            write_xai_auth "$home"
+        fi
+        expected="$(launcher_pi_args_from_source "$launcher")" \
+            || fail "cannot read ${launcher} source arguments"
+        args="$(pi_args_of "$(run_launcher "$home" "$launcher")")"
+        assert_eq "$args" "$expected" "${launcher} parent arguments must match its definition"
+    done
 }
 
 test_launchers_select_regular_and_forward_user_arguments() {
-    # 全ランチャーで、pi の引数が --tui-mode regular、ランチャーの指定、
-    # 利用者の引数の順に、空白を含む引数も崩さずに並ぶ。
-    local home launcher provider model thinking models args expected row
-    local -a rows=(
-        'pigo:opencode-go:muse-spark-1.3-contributor:max'
-        'pigod:opencode-go:deepseek-v4.1-flash:max'
-        'pigou:opencode-go:union-alpha:max'
-        'piccg:commandcode:meta/muse-spark-1.3:max:meta/muse-spark-1.3,meta/muse-spark-1.3-contributor'
-        'piccd:commandcode:deepseek/deepseek-v4.1-flash:max:deepseek/deepseek-v4.1-flash'
-        'piga:openai-codex:gpt-6-astra:xhigh'
-        'pigs:openai-codex:gpt-6.1-sol:xhigh'
-        'pigl:openai-codex:gpt-6-luna:xhigh'
-        'pixg:xai:grok-4.7:xhigh'
-    )
-    for row in "${rows[@]}"; do
-        IFS=: read -r launcher provider model thinking models <<< "$row"
+    # 全ランチャーで regular、静的な指定、利用者の引数の順を比較する。
+    # 空白を含む引数も崩さずに並び、tier と異なる親モデルも許容する。
+    local home launcher args prefix expected
+    for launcher in pigo pigod pigou piccg piccd piga pigs pigl pixg; do
         home="$(make_home "$launcher" with-config)"
         mkdir -p "${home}/.pi/agent"
         printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
             > "${home}/.pi/agent/auth.json"
+        prefix="$(launcher_pi_args_from_source "$launcher")" \
+            || fail "cannot read ${launcher} source arguments"
         args="$(pi_args_of "$(run_launcher "$home" "$launcher" --resume --session 'session with spaces.jsonl' -- 'message with spaces')")"
-        expected="$(
-            printf '%s\n' --tui-mode regular --provider "$provider" --model "$model"
-            if [ -n "$models" ]; then
-                printf '%s\n' --models "$models"
-            fi
-            printf '%s\n' --thinking "$thinking" --resume --session 'session with spaces.jsonl' -- 'message with spaces'
-        )"
+        expected="$(printf '%s\n' "$prefix" --resume --session 'session with spaces.jsonl' -- 'message with spaces')"
         assert_eq "$args" "$expected" "${launcher} regular mode and pi arguments"
     done
 }
 
 test_pixg_oauth_guidance() {
-    local home status out
+    local home status out expected
+    expected="$(launcher_pi_args_from_source pixg)" || fail "cannot read pixg source arguments"
     # 専用の home を使う。先行テストが ${TEST_ROOT}/pixg に置いた auth.json が
     # 残っていると未認証ケースを再現できない（pigou の tests と同じ構造）。
     home="${TEST_ROOT}/pixg-oauth-guidance"
@@ -505,7 +464,7 @@ test_pixg_oauth_guidance() {
     # Codex OAuth は使わないので、無くても止まらない。
     write_xai_auth "$home"
     out="$(run_launcher "$home" pixg 2>&1)"
-    assert_contains "$out" "grok-4.7" "valid xAI OAuth must reach argv"
+    assert_eq "$(pi_args_of "$out")" "$expected" "valid xAI OAuth must reach argv"
     case "$out" in
         *'/login openai-codex'*) fail "pixg must not require Codex OAuth" ;;
     esac
@@ -514,7 +473,7 @@ test_pixg_oauth_guidance() {
     out="$(env HOME="$home" PI_CODING_AGENT_DIR='~/.pi/agent' \
         PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
         zsh "${REPO_ROOT}/.devcontainer/pixg" 2>&1)"
-    assert_contains "$out" "grok-4.7" "tilde agent dir must resolve the OAuth credential"
+    assert_eq "$(pi_args_of "$out")" "$expected" "tilde agent dir must resolve the OAuth credential"
 }
 
 test_commandcode_key_check_runs_before_launch() {
@@ -1245,13 +1204,16 @@ test_install_fails_when_list_fails() {
 test_pixg_live_model() {
     [ "${PI_XAI_LIVE_CHECK:-0}" = 1 ] || return 0
 
-    # 実環境の pi に xai/grok-4.7 があることを確認する。未認証では xai 行が
-    # 出ないため、先に素の pi で /login xai から SuperGrok / X Premium の
-    # OAuth を済ませておくこと。
-    local output
-    output="$(pi --list-models xai)" || fail "pi --list-models xai failed"
-    printf '%s\n' "$output" | awk '$1 == "xai" && $2 == "grok-4.7" { found = 1 } END { exit !found }' \
-        || fail "xai/grok-4.7 is unavailable; run /login xai or update Pi"
+    # 実環境で定義元の親モデルを解決できることを確認する。未認証では xai 行が
+    # 出ないため、先に /login xai から OAuth を済ませておくこと。
+    local output prefix provider model
+    prefix="$(launcher_pi_args_from_source pixg)" || fail "cannot read pixg source arguments"
+    provider="$(awk '$0 == "--provider" { getline; print; exit }' <<<"$prefix")"
+    model="$(awk '$0 == "--model" { getline; print; exit }' <<<"$prefix")"
+    output="$(pi --list-models "$provider")" || fail "pi --list-models ${provider} failed"
+    printf '%s\n' "$output" | awk -v provider="$provider" -v model="$model" \
+        '$1 == provider && $2 == model { found = 1 } END { exit !found }' \
+        || fail "${provider}/${model} is unavailable; run /login ${provider} or update Pi"
 }
 
 test_readme_documents_the_mechanism() {
@@ -1278,7 +1240,6 @@ test_missing_bwrap_fails_closed
 test_dry_run_one_prints_argv_without_exec
 test_dry_run_zero_execs_bwrap
 test_actual_and_dry_run_argv_match
-test_tier_tables
 test_commandcode_models_are_defined_in_pi_models
 test_opencode_go_tiers_use_opencode_go
 test_no_deepinfra_and_no_secrets
