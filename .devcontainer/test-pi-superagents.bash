@@ -2,6 +2,49 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# 親モデルは tier と別の設定。唯一の静的な呼出しを読み、実行結果からは
+# 期待値を作らない。helper が追加する regular と、定数の引数順も比較する。
+launcher_pi_args_from_source() {
+    python3 - "${REPO_ROOT}/.devcontainer/$1" <<'PY_SOURCE'
+from pathlib import Path
+import re
+import shlex
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text(encoding="utf-8").replace("\\\n", "")
+calls = [shlex.split(line, comments=True) for line in source.splitlines()
+         if re.match(r"^\s*pi_superagents_exec(?:\s|$)", line)]
+assert len(calls) == 1, (path, "expected one pi_superagents_exec call", calls)
+call = calls[0]
+assert call[1] == path.name, (path, call)
+args = []
+for word in call[2:]:
+    if word in ("$@", "||", "&&", ";"):
+        break
+    args.append(word)
+assert len(args) % 2 == 0, (path, args)
+for flag in ("--provider", "--model", "--thinking"):
+    assert args[::2].count(flag) == 1, (path, flag, args)
+for flag, value in zip(args[::2], args[1::2]):
+    assert flag.startswith("--") and value, (path, flag, value)
+    assert not any(c in value for c in "$`\n"), (path, "nonconstant argument", value)
+print("--tui-mode", "regular", *args, sep="\n")
+PY_SOURCE
+}
+
+# Codex スイートもこの静的解析を使う。テスト用 HOME や一時ディレクトリを
+# 作らず、zsh やスイートの起動前に定義元の引数だけを返す。
+if [ "${1:-}" = --launcher-pi-args-from-source ]; then
+    if [ "$#" -ne 2 ]; then
+        printf 'Usage: %s --launcher-pi-args-from-source <launcher>\n' "$0" >&2
+        exit 2
+    fi
+    launcher_pi_args_from_source "$2"
+    exit 0
+fi
+
 HELPER="${REPO_ROOT}/.devcontainer/pi-superagents-exec.zsh"
 TEST_ROOT="$(mktemp -d)"
 ZSH_BIN="$(command -v zsh)"
@@ -361,37 +404,6 @@ test_launchers_wrap_pi_with_their_own_config() {
         assert_eq "$(printf '%s\n' "$out" | sed -n 8p)" \
             "${home}/.pi/agent/extensions/subagent" "${launcher} bind dst"
     done
-}
-
-# 親モデルは tier と別の設定。唯一の静的な呼出しを読み、実行結果からは
-# 期待値を作らない。helper が追加する regular と、定数の引数順も比較する。
-launcher_pi_args_from_source() {
-    python3 - "${REPO_ROOT}/.devcontainer/$1" <<'PY_SOURCE'
-from pathlib import Path
-import re
-import shlex
-import sys
-
-path = Path(sys.argv[1])
-source = path.read_text(encoding="utf-8").replace("\\\n", "")
-calls = [shlex.split(line, comments=True) for line in source.splitlines()
-         if re.match(r"^\s*pi_superagents_exec(?:\s|$)", line)]
-assert len(calls) == 1, (path, "expected one pi_superagents_exec call", calls)
-call = calls[0]
-assert call[1] == path.name, (path, call)
-args = []
-for word in call[2:]:
-    if word in ("$@", "||", "&&", ";"):
-        break
-    args.append(word)
-assert len(args) % 2 == 0, (path, args)
-for flag in ("--provider", "--model", "--thinking"):
-    assert args[::2].count(flag) == 1, (path, flag, args)
-for flag, value in zip(args[::2], args[1::2]):
-    assert flag.startswith("--") and value, (path, flag, value)
-    assert not any(c in value for c in "$`\n"), (path, "nonconstant argument", value)
-print("--tui-mode", "regular", *args, sep="\n")
-PY_SOURCE
 }
 
 test_launchers_preserve_parent_model_selection() {

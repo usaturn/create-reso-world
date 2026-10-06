@@ -17,35 +17,10 @@ setup_for_home() {
         || fail "pi-superagents setup failed: ${output}"
 }
 
-# 親モデルは tier と別の設定。唯一の静的な呼出しを読み、実行結果からは
-# 期待値を作らない。helper が追加する regular と、定数の引数順も比較する。
+# 静的な期待値の読み取りを共有する。専用モードはスイートを実行しない。
 launcher_pi_args_from_source() {
-    python3 - "${REPO_ROOT}/.devcontainer/$1" <<'PY_SOURCE'
-from pathlib import Path
-import re
-import shlex
-import sys
-
-path = Path(sys.argv[1])
-source = path.read_text(encoding="utf-8").replace("\\\n", "")
-calls = [shlex.split(line, comments=True) for line in source.splitlines()
-         if re.match(r"^\s*pi_superagents_exec(?:\s|$)", line)]
-assert len(calls) == 1, (path, "expected one pi_superagents_exec call", calls)
-call = calls[0]
-assert call[1] == path.name, (path, call)
-args = []
-for word in call[2:]:
-    if word in ("$@", "||", "&&", ";"):
-        break
-    args.append(word)
-assert len(args) % 2 == 0, (path, args)
-for flag in ("--provider", "--model", "--thinking"):
-    assert args[::2].count(flag) == 1, (path, flag, args)
-for flag, value in zip(args[::2], args[1::2]):
-    assert flag.startswith("--") and value, (path, flag, value)
-    assert not any(c in value for c in "$`\n"), (path, "nonconstant argument", value)
-print("--tui-mode", "regular", *args, sep="\n")
-PY_SOURCE
+    bash "${REPO_ROOT}/.devcontainer/test-pi-superagents.bash" \
+        --launcher-pi-args-from-source "$1"
 }
 
 test_setup_places_independent_tiers_from_source() {
