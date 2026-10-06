@@ -71,7 +71,7 @@ git fetch --all --prune
 
 ### 3. マージ済みか判定する
 
-`usaturn/create-reso-world` の既存ローカル `main` は保持対象であり、この判定から除外する。古い・分岐している場合もそのまま残し、対応する PR の `MERGED` 確認は要求しない。
+`usaturn/create-reso-world` の既存ローカル `main` は保持対象であり、この判定から除外する。古い・分岐している場合もそのまま残し、対応する PR の `MERGED` 確認は要求しない。fork の経路でも `external/resoloop` のローカル `main`（ベース branch）を同様に除外し、削除しない。
 
 それ以外の branch ごとに次を実行する。
 
@@ -195,20 +195,20 @@ Git は通常 ignore 対象のファイルを確認なしに上書きするた�
 
 ### 8. マージ済みローカル branch を削除する
 
-手順 7 が成功したあとで実行する（fork の経路では手順 7 を省略する）。手順 7 で停止した場合は branch 削除に進まない。`usaturn/create-reso-world` の既存ローカル `main` は、マージ済みでも候補から必ず除外し、そのまま保持する。メイン作業ツリーが feature を checkout したままだと `git branch -d` は `used by worktree` / `checked out` で失敗する。
+手順 7 が成功したあとで実行する（fork の経路では手順 7 を省略する）。手順 7 で停止した場合は branch 削除に進まない。`usaturn/create-reso-world` の既存ローカル `main` と、fork の経路では `external/resoloop` のローカル `main` は、マージ済みでも候補から必ず除外し、そのまま保持する。メイン作業ツリーが feature を checkout したままだと `git branch -d` は `used by worktree` / `checked out` で失敗する。
 
-以下は `usaturn/create-reso-world` 用である。削除は、手順 7 で更新した `MAIN_ROOT` を対象にする。fork の経路では、リポジトリのルートで `git -C external/resoloop branch -d <branch>` に読み替える。fork では手順 7 を省略し、削除のために HEAD を動かさない。`MAIN_ROOT` の設定も要求しない。
+以下は `usaturn/create-reso-world` 用である。削除は、手順 7 で更新した `MAIN_ROOT` を対象にする。ツール呼び出しごとにシェルや環境変数が引き継がれない実行環境があるため、手順 7 と別の呼び出しでこのブロックを実行するときも、その呼び出しで `MAIN_ROOT` を設定する。fork の経路では、リポジトリのルートで `git -C external/resoloop branch -d <branch>` に読み替える。fork では手順 7 を省略し、削除のために HEAD を動かさない。`MAIN_ROOT` の設定も要求しない。
 
 ```bash
-git -C "$MAIN_ROOT" branch -d <branch>
+git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定する}" branch -d <branch>
 ```
 
-`-D` は使わない。
+`-D` は使わない。例外は、後述の `merge-base` 再確認で取り込み済みと確かめた branch だけである。
 
 `-d` が拒否した場合、理由で分岐する。拒否を未マージと同一視しない。
 
 - `used by worktree` または `checked out`: 未マージではない。手順 7 が済んでいなければ手順 7 に戻る。他 worktree が掴んでいるならその worktree を残し、この branch は削除しない
-- `not fully merged`: 未マージである。手順 3 の判定が誤っている。削除しない
+- `not fully merged`: そのまま未マージと断定しない。`-d` の取り込み判定は upstream と実行先の HEAD を基準にするため、upstream の remote-tracking ref が削除・prune 済みのときや、実行先の HEAD がその branch の取り込み点より古いときは、マージ済みでも拒否される。fork の経路では削除のために HEAD を動かさないので、古い detached HEAD へのこの拒否は普通に起きる。手順 3 と同じ基準へ再確認する。create-reso-world では `git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定する}" merge-base --is-ancestor <branch> origin/main`、fork の経路では `git -C external/resoloop merge-base --is-ancestor <branch> <基準>`（上流 PR の基準は `upstream/main`、fork 内 PR は `origin/main`）を実行する。取り込み済みならその branch に限り `git -C <対象> branch -D <branch>` で削除してよい。明示的な取り込み確認を済ませた上での削除であり、マージ判定を握り潰すことには当たらない（`-D` も worktree に掴まれた branch は拒否する）。未取り込み、または再確認できない場合は削除せず、手順 3 の結果とともにユーザーへ報告する
 
 detached HEAD では次の warning が出るが、**削除が成功していれば正常**である。upstream にマージ済みであることは確認できており、拒否ではない。
 
@@ -246,12 +246,12 @@ bash scripts/resoloop-fork.sh sync
 
 ### 11. 最終状態を報告する
 
-以下は `usaturn/create-reso-world` 用である。status は更新対象の `MAIN_ROOT` で確認する。fork の経路では、リポジトリのルートで各 Git コマンドに `-C external/resoloop` を指定し、最初の行は `git -C external/resoloop status` に読み替える。fork では `MAIN_ROOT` の設定を要求しない。
+以下は `usaturn/create-reso-world` 用である。status は更新対象の `MAIN_ROOT` で確認する。手順 8 と同様、このブロックを実行する呼び出しでも `MAIN_ROOT` を設定する。fork の経路では、リポジトリのルートで各 Git コマンドに `-C external/resoloop` を指定し、最初の行は `git -C external/resoloop status` に読み替える。fork では `MAIN_ROOT` の設定を要求しない。
 
 ```bash
-git -C "$MAIN_ROOT" status
-git worktree list
-git branch -a
+git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定する}" status
+git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定する}" worktree list
+git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定する}" branch -a
 ```
 
 `usaturn/create-reso-world` では `MAIN_ROOT` の HEAD が detached で `origin/main` と一致することを報告する。既存ローカル `main` と、それを checkout している他 worktree は「変更せず保持」として報告する。削除した対象、保留した対象、その理由も報告する。
@@ -286,7 +286,7 @@ git branch -a
 
 ## ガードレール
 
-- `git branch -D` でマージ判定を握り潰さない。
+- `git branch -D` でマージ判定を握り潰さない。使ってよいのは、手順 8 の `merge-base` 再確認で取り込み済みと確かめた branch だけである。
 - `git worktree remove` に `--force` を付けない。
 - ユーザー確認なしに `git push`（`--delete` を含む）や `scripts/resoloop-fork.sh sync` を実行しない。
 - Open PR が残っている branch と worktree を削除しない。detached な pr-review worktree も含む。

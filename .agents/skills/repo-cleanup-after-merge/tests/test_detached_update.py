@@ -84,16 +84,31 @@ def local_refs(work: Path) -> str:
     return git(work, "for-each-ref", "--format=%(refname) %(objectname)", "refs/heads")
 
 
-def step_bash(step: int) -> str:
+def step_text(step: int) -> str:
     section = re.search(
         rf"^### {step}\.[^\n]*\n(.*?)(?=^### \d+\.|\Z)",
         SKILL.read_text(encoding="utf-8"),
         re.M | re.S,
     )
     assert section, f"cleanup step {step} is missing"
-    blocks = re.findall(r"```bash\n(.*?)```", section.group(1), re.S)
+    return section.group(1)
+
+
+def step_bash(step: int) -> str:
+    blocks = re.findall(r"```bash\n(.*?)```", step_text(step), re.S)
     assert len(blocks) == 1, f"step {step} must have one runnable bash block"
     return blocks[0]
+
+
+def run_bash(commands: str, *, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", commands],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
 
 
 def run_step7(
@@ -367,6 +382,131 @@ def test_ignored_file_collision_aborts_without_losing_data_or_branch_refs(checko
     assert result.returncode != 0, (result.stdout, result.stderr)
     assert local_refs(checkout) == refs_before
     assert_detached_at(checkout, head_before)
+
+
+def test_steps_8_and_11_stop_when_main_root_is_unset_instead_of_using_callers_repo(
+    checkout: Path,
+) -> None:
+    # Tool calls can run in a fresh shell where MAIN_ROOT is unset. `git -C ""`
+    # then silently targets the caller's repo: a stale linked HEAD makes -d
+    # reject a merged branch, and a foreign cwd can even delete its own refs.
+    # Every MAIN_ROOT command must fail fast instead of falling back.
+    linked = checkout.parent / "linked feature"
+    git(checkout, "worktree", "add", "-qb", "active-feature", str(linked))
+    project = linked / "project"
+    project.mkdir()
+    foreign = checkout.parent / "foreign repo"
+    foreign.mkdir()
+    git(foreign, "init", "-q", "-b", "trunk")
+    (foreign / "f.txt").write_text("foreign\n", encoding="utf-8")
+    git(foreign, "add", ".")
+    git(foreign, "commit", "-qm", "foreign commit")
+    git(foreign, "branch", "merged-feature")  # merged into foreign's HEAD: -d would delete it
+    target = advance_remote(checkout)
+    git(checkout, "branch", "merged-feature", target)  # merged into origin/main but not linked HEAD
+    env = {k: v for k, v in os.environ.items() if k != "MAIN_ROOT"}
+    refs_checkout = local_refs(checkout)
+    refs_foreign = local_refs(foreign)
+
+    for cwd in (project, foreign):
+        delete = run_bash(
+            step_bash(8).replace("<branch>", "merged-feature"), cwd=cwd, env=env
+        )
+        assert delete.returncode != 0
+        assert "MAIN_ROOT" in delete.stderr
+        assert "not fully merged" not in delete.stderr
+        for line in step_bash(11).splitlines():
+            report = run_bash(line, cwd=cwd, env=env)
+            assert report.returncode != 0, line
+            assert "MAIN_ROOT" in report.stderr
+            assert report.stdout == ""
+
+    assert local_refs(checkout) == refs_checkout
+    assert local_refs(foreign) == refs_foreign
+    assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
+
+
+def test_step11_reports_main_root_even_when_called_from_another_repo(
+    checkout: Path,
+) -> None:
+    foreign = checkout.parent / "foreign repo"
+    foreign.mkdir()
+    git(foreign, "init", "-q", "-b", "trunk")
+    (foreign / "f.txt").write_text("foreign\n", encoding="utf-8")
+    git(foreign, "add", ".")
+    git(foreign, "commit", "-qm", "foreign commit")
+
+    env = {**os.environ, "MAIN_ROOT": str(checkout)}
+    expected = [
+        git(checkout, "status"),
+        git(checkout, "worktree", "list"),
+        git(checkout, "branch", "-a"),
+    ]
+    for line, want in zip(step_bash(11).splitlines(), expected, strict=True):
+        result = run_bash(line, cwd=foreign, env=env)
+        assert result.returncode == 0, (line, result.stderr)
+        assert result.stdout.strip() == want
+
+
+def test_step8_recheck_for_not_fully_merged_discriminates_merge_state(
+    checkout: Path,
+) -> None:
+    # Fork-like target: HEAD is a detached commit that predates the merge and
+    # must not move, so -d refuses a branch that IS merged into the base. The
+    # `not fully merged` arm must re-check with merge-base before concluding,
+    # and only then may -D delete the verified branch.
+    recheck = re.search(
+        r"`(git -C external/resoloop merge-base --is-ancestor [^`]*)`",
+        step_text(8),
+    )
+    assert recheck, (
+        "step 8 must prescribe a merge-base re-check for `not fully merged`"
+    )
+    stale = git(checkout, "rev-parse", "HEAD")
+    target = advance_remote(checkout)
+    git(checkout, "checkout", "-q", "--detach", stale)
+    git(checkout, "branch", "--no-track", "merged-feature", target)
+    git(checkout, "checkout", "-qb", "unmerged-feature", stale)
+    (checkout / "unmerged.txt").write_text("local only\n", encoding="utf-8")
+    git(checkout, "add", "unmerged.txt")
+    git(checkout, "commit", "-qm", "unmerged work")
+    git(checkout, "checkout", "-q", "--detach", stale)
+
+    refused = subprocess.run(
+        ["git", "-C", str(checkout), "branch", "-d", "merged-feature"],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert refused.returncode != 0
+    assert "not fully merged" in refused.stderr
+
+    def recheck_for(branch: str) -> subprocess.CompletedProcess[str]:
+        command = (
+            recheck.group(1)
+            .replace("external/resoloop", f'"{checkout}"')
+            .replace("<branch>", branch)
+            .replace("<基準>", "origin/main")
+        )
+        return run_bash(command, cwd=checkout, env=dict(os.environ))
+
+    assert recheck_for("merged-feature").returncode == 0
+    assert recheck_for("unmerged-feature").returncode != 0
+    git(checkout, "branch", "-D", "merged-feature")
+    assert "refs/heads/merged-feature" not in local_refs(checkout)
+    assert "refs/heads/unmerged-feature" in local_refs(checkout)
+
+
+def test_cleanup_keeps_the_forks_local_main_out_of_deletion_candidates() -> None:
+    # The fork's local `main` is the base ref that resoloop-fork.sh sync
+    # maintains. A synced main has an empty `upstream/main..main` log, so it
+    # would appear as a merged candidate and step 8's -d would delete the
+    # user's base ref. Pin the exclusion's existence: a fixed wording check is
+    # allowed here because the guard protects a user-owned base ref.
+    for step in (3, 8):
+        assert re.search(r"external/resoloop[^\n]*`main`", step_text(step)), (
+            f"step {step} must exclude the fork's local main from deletion"
+        )
 
 
 def test_checkout_lock_failure_stops_before_subsequent_branch_deletion(checkout: Path) -> None:

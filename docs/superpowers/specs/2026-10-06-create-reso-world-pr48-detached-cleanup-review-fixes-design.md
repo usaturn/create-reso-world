@@ -3,141 +3,114 @@
 - 文書管理・対象リポジトリ: `usaturn/create-reso-world`
 - PR: https://github.com/usaturn/create-reso-world/pull/48
 - 関連 Issue: #47
-- 検証したコード HEAD: `532392efa673cc983377dc91224d8b4a70a61bad`
+- 検証したコード HEAD: `d02ba2fbe7d3d73120462548b6e5ff161468ef75`（第2回）
 - ブランチ: `fix/issue-47-detached-cleanup`
 - 状態: completed
 - 実行許可: ユーザーが `review-fix-planning #48` を指定。計画のみの制限はなく、同スキルの完遂経路として修正・検証・既存 PR への push・結果投稿まで実施する。
 - 結論: 1（修正して push）。マージはこの結論では行わない。
-- 文書の新規作成理由: committed な specs/plans を PR #48・Issue #47・detached 整理のテーマで照合し、該当文書が存在しないことを確認した。過去の unrelated な完了済み計画は更新しない。
+- 文書の管理: 第1回（対象 HEAD `532392efa673`）と同じ本ファイルを更新する。第1回の版は Git 履歴に残る。
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-47-detached-cleanup`（既存 worktree を clean・PR HEAD 一致の条件で再利用。このセッションの片付け対象ではない）
 
-## 入力と分類
+## 第1回の記録（要約）
 
-入力は `reviews/#48-fix-issue-47-detached-cleanup/` の全4ファイル。各対象 HEAD は `532392efa673` で、全件について取得した PR head の祖先であることを確認した。
+対象 HEAD `532392efa673` の4モデル入力を分類し、R1–R3（stale-lock 復旧案内が旧 main 操作を示唆）と R4（linked caller の古い HEAD で `-d` がマージ済み branch を拒否）を修正。R5–R9 は対応しないと判定した（R6: `set -e`/`exit` の永続シェル副作用は意図した安全停止。R8: `origin/main` 同名 ref 衝突は base でも再現する既存制約）。修正は `d02ba2fbe7d3` で PR へ反映済み。詳細はこのファイルの第1回版（Git 履歴）を参照。
+
+## 第2回: 入力と分類
+
+入力は `reviews/#48-fix-issue-47-detached-cleanup/` の全4ファイル（`SWE-2-High.md`、`claude-opus-5-5.md`、`deepseek-deepseek-v4.1-flash.md`、`gpt-6.1-sol.md`）。対象 HEAD は初回 `532392efa673`・更新 `d02ba2fbe7d3` で、いずれも取得した PR head（`d02ba2fbe7d3`）の祖先であることを確認した。
 
 | ID | 入力ファイル / 元 ID | 指摘 | 分類と根拠 |
 |---|---|---|---|
-| R1 | `deepseek-deepseek-v4.1-flash.md` L-1 | stale-lock の旧 main 操作例 | 対応する (a,b)。実スクリプトの clear 後の案内を一時 repo で実行すると、main 不在なら作成・attach、古い main があれば更新する。利用者の了承のない ref/HEAD 操作になる。 |
-| R2 | `claude-opus-5-5.md` L-1 | 同上 | 対応する (a,b)。R1 と同じ再現・修正に統合する。 |
-| R3 | `SWE-2-High.md` L-1 | 同上、JSON stderr 側の列挙も旧仕様 | 対応する (a,b)。`stale_git_lock.sh:556–562` の両出力経路が復旧後の案内。通常出力の誤操作を再現した。 |
-| R4 | `gpt-6.1-sol.md` M-1 | linked caller の HEAD で branch 削除を判定 | 対応する (a,b)。upstream 未設定と削除・prune 済みの2ケースで、手順3の log は空なのに実手順8が not fully merged で失敗。MAIN_ROOT を明示した -d は成功し、主要な整理処理が完了しない誤動作である。 |
-| R5 | `deepseek-deepseek-v4.1-flash.md` I-1 | 最終 git status の報告先が caller | 対応しない（単独）。MAIN_ROOT clean / caller dirty の差は再現したが、読取専用の報告で、更新先の安全確認は手順7で済む。ただし R4 の同一対象指定に依存する隣接経路として報告コマンドも MAIN_ROOT に揃える。 |
-| R6 | `SWE-2-High.md` L-2 | set -e / exit による永続シェル終了 | 対応しない。bash の errexit によるシェル終了は確認したが、データ損失・誤対象操作・主要処理の誤結果は確認されていない。失敗時の停止自体は意図した安全性であり、pi は呼び出しごとのシェル。ブロックの停止構造は変えない。 |
-| R7 | `deepseek-deepseek-v4.1-flash.md` Test suggestions 3（IDなし） | 衝突しない ignored directory の任意追加テスト | 対応しない。将来の保険で、現行の致命的な欠陥を示していない。今回のテスト追加には含めない。 |
-| R8 | 自己レビュー・反証担当 Important | 同名ローカル branch/tag の `origin/main` が remote ref を隠す | 対応しない（PR以前からの致命的な制約）。base `269f3cc` と head `532392e` の両手順7を隔離 repo で実行し、tag・branch の各入力で両版とも exit 0 なのに取得した remote main と違う古い commit に留まった。PR が持ち込んだ問題ではなく、別原因の既存問題なので直さない。PR説明の保証に条件と回避方法を明記する。 |
-| R9 | 自己レビュー・反証担当 Minor | fork HEAD 保持の表現と sync の main 更新 | 対応しない。承認済み sync が clean な main を早送りするのは既存の意図した挙動（`scripts/resoloop-fork.sh:134–136`）。今回変更した手順8は削除のために HEAD を動かさないとの限定で整合する。PR説明でも手順7・8の保持と sync を区別する。 |
+| S1 | `SWE-2-High.md` M-1 / `deepseek-deepseek-v4.1-flash.md` L-2 | fork 経路の `git -C external/resoloop branch -d` が古い detached HEAD を基準にし、マージ済み branch を `not fully merged` で拒否して「手順 3 の誤り」と誤診する | 対応する (a,b)。隔離リポジトリで再現: upstream 削除・prune 済み + HEAD が取り込み点より古い detached で `origin/main..merged-feature` が空なのに `-d` が exit 1。手順どおりに進めるとマージ済み branch が残り続け、誤った診断を報告する。前回 R4 で直したのと同じ守る条件の fork 経路であり、前回の表が「既に満たす」と誤判定した経路 |
+| S2 | `claude-opus-5-5.md` L-2 | 手順 8・11 のブロックに `MAIN_ROOT` 空値ガードが無く、`git -C ""` が黙って cwd を対象にする | 対応する (a,b)。`git -C ""` が cwd を指すこと、MAIN_ROOT 未設定で手順 8 相当コマンドが別リポジトリに対して実行されることを隔離リポジトリで再現。linked worktree を cwd にすると前回直したはずの誤判定（`not fully merged`）が再発し、cwd が別リポジトリなら誤った対象へ操作する。前回 R4 の表で漏れた隣の経路 |
+| S3 | `SWE-2-High.md` I-1 | 手順 11 の `git worktree list` / `git branch -a` に `-C` が無く呼び出し側 cwd のリポジトリを参照する | 対応する。S2 と同じ守る条件（最終報告は更新対象の root で取る）の隣の経路であり、同じブロックの修正に含める。単独では報告の取り違えに留まるが、S2 の修正で同じ行を直す |
+| S4 | `SWE-2-High.md` L-3 | fork の経路で `external/resoloop` のローカル `main` が削除候補の除外対象になっていない | 対応する (b)。sync 済みのローカル `main` は `upstream/main..main` が空でマージ済み候補に並び、detached HEAD 下の `git branch -d main` が実際に削除することを隔離リポジトリで再現。`main` を保持するという本 PR の意図と非対称で、利用者所有のベース branch を消す誤対象操作 |
+| S5 | `SWE-2-High.md` L-2 | 手順 7 の `set -e`/`exit 1` が永続シェルを終了させ、成功時に errexit が残る | 対応しない。前回 R6 の裁定を維持する（失敗時の停止は意図した安全性であり、データ損失・誤対象操作・誤結果は確認されていない）。PR 説明の既知の制限に独立 bash 呼び出しの注意を記載済み。提案は注意文を本文へ移す軽微な追記のみで、致命的でないため追加しない |
+| S6 | `deepseek-deepseek-v4.1-flash.md` I-2 | 手順 7 の `origin/main` 短縮名が同名ローカル branch/tag に誤解決される | 対応しない。前回 R8 と同じ既存制約。base `269f3cc` の旧手順でも同じ誤参照が再現し、PR が持ち込んだ問題ではない。PR 説明の既知の制限に条件と `refs/remotes/origin/main` による回避方法を記載済み |
 
-入力分類: **解消済み0 / 対応する4 / 対応しない3**。自己レビュー2件を加えた全件分類: **解消済み0 / 対応する4 / 対応しない5**。重複指摘は入力ごとに数え、IDなしの任意提案も含む。独立した修正原因は2つ。各 finding に付随する Test suggestions は元 finding の検証方針で判定し、二重に数えない。
+入力分類: **解消済み0 / 対応する4（S1・S2・S3・S4） / 対応しない2（S5・S6）**。
 
-R1–R3 の案内文そのものを固定するテストは作らない（AGENTS.md）。JSON schema と出力先の分離は既存の挙動を保つ。R4 は実 SKILL の実行結果で回帰を検出するテストを追加する。
+解消確認: 前回の L-1（stale-lock 旧案内）は現行 `stale_git_lock.sh:557-562` で両出力経路とも新案内（元の失敗操作のみ再実行、手順 7 からなら MAIN_ROOT clean 確認から再開）。旧 I-1（手順 11 status）は `SKILL.md` が `git -C "$MAIN_ROOT" status` 化済み。旧 M-1（手順 8 の `-C`）も `git -C "$MAIN_ROOT" branch -d` 化済み。
 
-## 再現・確認
+## 守る条件の設計（設計の見直し）
 
-検証用 worktree は `mktemp -d /tmp/review-fix-planning.XXXXXX` の配下に detached HEAD で作成し、SHA 一致を照合した。source/test は clean の専用 worktree または隔離 worktree の committed 内容だけを使った。
+きっかけ: **同じ守る条件の 2 回目**。前回 R4 で直した条件（branch 削除の判定は更新済みの対象 root の HEAD を基準にし、caller や他 repo を対象にしない）が、今回 2 経路で破れている。前回の表は fork 経路を「既に満たす」と誤判定し（fork では HEAD を動かさない前提のため `-d` の暗黙の HEAD 基準が最初から成り立たない）、`MAIN_ROOT` 未設定という経路を列挙していなかった。
 
-- R4: 古い active-feature の linked project を作り、origin/main に追加コミットを入れる。merged-feature は追加コミットを含む。upstream 未設定、remote feature 削除後の fetch --prune の2入力で、手順7成功後の実手順8が exit 1 / not fully merged。`git -C MAIN_ROOT branch -d` への対照だけで成功し、caller HEAD・既存 main は保持される。
-- R1–R3: main 不在／古い main の2入力で空の index.lock を置き、実 helper の clear を実行。出力された旧例 `git switch main; git merge --ff-only origin/main` の実行は exit 0 だが、HEAD が main に attach し、main ref が origin/main に進む。
-- R5: MAIN_ROOT は clean、caller は編集済みの構成で、cwd 基準 status だけが caller の変更を表示する。
-- R6: 独立 bash で `set -e; false; printf alive` は exit 1、後続出力なし。安全停止を解除する変更は行わない。
-- Git 2.55.0 の実行結果を根拠にした。Context7 `/git/htmldocs` の git-branch 文書でも -d が upstream または HEAD の取り込みを確認することを照合した。prune 済み upstream の結果は実行で確かめた。
-- 初期再現の隔離 worktree と親ディレクトリは、Spec 作成前に worktree remove を経て削除済み。
+守る条件を、再現した 1 経路ではなく仕組み全体で成り立つ性質として定義する:
 
-## 修正方針と影響経路
+> branch 削除と最終報告は、呼び出し側の cwd・シェルの環境変数・対象 checkout の HEAD 位置のどの組み合わせでも、手順 3 で検証した対象リポジトリと基準 ref に結び付く。`-d` の暗黙の upstream/HEAD 判定をマージ済みの最終根拠にせず、`MAIN_ROOT` を使うコマンドは未設定のまま cwd へフォールバックさせず停止する。
 
-### R1–R3: 元の失敗操作以外へ誘導しない
+前回までの修正が足りなかった理由:
 
-復旧成功時の案内を、ブランチ名を持つ別操作例ではなく「元の失敗操作だけを再実行する。cleanup 手順7から来た場合は MAIN_ROOT の clean 確認からやり直す」にする。通常出力は stdout、JSON の案内は stderr のままにする。ロック検出・削除・exit code・JSON schema は変更しない。
+- R4 の修正は `-C "$MAIN_ROOT"` を書き足しただけで、変数が空のときの `git -C ""` が cwd を指す挙動を止めていなかった。
+- fork 経路では HEAD を動かさないことが仕様であり、`-d` の HEAD 基準は構造的に古いままなので、`-d` の拒否をそのまま未マージと読む分岐そのものが誤りだった。
 
-| 守る条件 | 経路 | 判定 | 確かめる方法 |
-|---|---|---|---|
-| ロック復旧後も、了承されていない main の作成・更新や別操作への切替を案内しない | `stale_git_lock.sh` clear 成功 / text 出力 | 修正する | 実際に clear し、main 不在・古い main の refs/HEAD を保ったまま元の cleanup ブロックを再実行する |
-| 同上 | 同 helper / JSON stderr 案内 | 修正する | stdout が1 JSON objectのまま、案内は stderr、clear 後に元の操作を再実行できる |
-| 同上 | stale-lock SKILL の除去節・関連スキル節 | 既に満たす | 全文照合。MAIN_ROOT clean 確認から手順7へ戻す指示がある |
-| 同上 | clear で removed=0 / check / holder あり・不明 | 既に満たす | 既存 stale-lock tests。成功案内の出力分岐に入らない |
-| 同上 | ff_merge_keep_untracked.sh の独立した ff 復旧 | 対象外 | main 作成案内がなく、cleanup 手順7で使わないことを SKILL が明記 |
+仕組みからの影響経路（`MAIN_ROOT`・`git -C`・`-d` 判定・ベース branch 保護に関わる全箇所）:
 
-### R4: 更新・branch 削除・最終確認の対象を取り違えない
+| 経路 | 判定 | 確かめる方法 |
+|---|---|---|
+| 手順 7 ブロック（`:?` ガード + 全 `git -C "$MAIN_ROOT"`） | 既に満たす | 既存テスト 18 件。未設定時に `:171` のガードで停止 |
+| 手順 8 ブロック `git -C "$MAIN_ROOT" branch -d` | 修正する（`${MAIN_ROOT:?}` をインライン化） | 新テスト: MAIN_ROOT 未設定で linked project cwd から抽出ブロックを実行し、非0・`not fully merged` が出ない・refs 不変を確認 |
+| 手順 8 `not fully merged` 分岐の診断 | 修正する（`merge-base --is-ancestor` で手順 3 と同基準の再確認を指示し、取り込み済みならその branch に限り `-D` を許可） | 新テスト: stale detached HEAD + upstream 無しの fixture で `-d` 拒否を再現し、文書が指示する `merge-base` コマンドが merged=0 / unmerged=1 を弁別し、確認後の `-D` が削除することを確認 |
+| 手順 8 fork 読み替え `git -C external/resoloop branch -d` | 修正する（上記分岐の再確認がこの経路をカバーする） | 同上の fixture は fork 相当構成（detached・HEAD 非移動）で再現する |
+| 手順 11 `git -C "$MAIN_ROOT" status` | 修正する（`${MAIN_ROOT:?}` をインライン化） | 新テスト: 未設定で非0・ガードメッセージ・stdout 空 |
+| 手順 11 `git worktree list` / `git branch -a`（`-C` 無し） | 修正する（`git -C "${MAIN_ROOT:?}"` に揃える） | 新テスト: 無関係リポジトリを cwd にして実行し、出力が MAIN_ROOT の内容と一致することを確認 |
+| 手順 3・8 のローカル `main` 除外 | 修正する（fork の `external/resoloop` の `main` も除外） | 契約テスト: 除外規定の存在を固定（利用者所有のベース ref を守る固定値。理由をテストに記録）。併せて fixture で synced `main` が `-d` で消える事実を確認済み |
+| 手順 9 `git branch -r` / `git push origin --delete` / `git fetch --prune`（`-C` 無し） | 対象外 | 変更前の挙動と同一（base から不変）。同一 repo のどの worktree からでも refs/remotes は共通であり、別 repo cwd は手順 1 の `git status` 等も同じ前提を共有する既存の制約。本 PR の守る条件（MAIN_ROOT を使う経路の対象固定）の外 |
+| 手順 1・2・6 の非 `-C` コマンド | 対象外 | 同上（スキル全体の既存前提。本 PR 不変） |
+| 変更前の挙動: upstream 残存時の `-d` は warning 付きで削除成功 | 既に満たす（変更しない） | 既存テストの削除成功ケースで維持 |
 
-create-reso-world の手順8は `git -C "$MAIN_ROOT" branch -d <branch>` とする。既存の手順7を変更せず、-D への逃げ道を作らない。fork の手順7省略と HEAD 保持は変えず、fork で削除・報告するときの -C は対象 fork root にすることを同じ箇所で明示する。手順11の status も同一条件の経路として MAIN_ROOT を明示する。
+## 直し方の比較
 
-| 守る条件 | 経路 | 判定 | 確かめる方法 |
-|---|---|---|---|
-| create-reso-world の branch 削除は更新済み MAIN_ROOT の HEAD を基準にし、caller や他 repo を削除先にしない | SKILL 手順8 | 修正する | 実手順7・8のブロックを linked project cwd から実行。upstream 未設定／prune 済み2入力で branch 削除・caller HEAD/ref・既存 main を比較 |
-| 同上 | `run_step7` の following_delete 合成 | 修正する | 合成した独自 -C コマンドをやめ、実手順8を抽出して実行。旧実装で新規テストが失敗することを確認 |
-| 同上 | 手順7 dirty/status/checkout 失敗時の後続削除 | 既に満たす | 実手順8を接続した既存の失敗テストを再実行 |
-| 同上 | 手順3の origin/main マージ判定 | 既に満たす | refsは共通。R4の各ケースで origin/main..branch が空なのを比較 |
-| 同上 | 本当に未マージの branch | 既に満たす | 実手順8で -d が拒否し、candidate ref/HEAD が残る負例 |
-| 同上 | fork の branch 削除 | 既に満たす（全 Git 操作に git -C external/resoloop を指定する既存規定） | 手順8の経路分離の読解、可能なら別 repo の同名 branch を保持する挙動確認。fork の HEAD を動かさない |
-| 更新対象の status を最終報告する | 手順11 / R5の隣接経路 | 修正する | linked project から実 status コマンドを実行し、MAIN_ROOT と caller の異なる状態を識別する |
-| 上記の fork 版 | 手順11 fork経路 | 既に満たす | 冒頭の fork対象 root 指定と一致することを確認 |
-| 同じ Git repo の共通情報を読む | worktree list / branch -a / remote refs | 既に満たす | これらは worktree固有HEADの更新済み状態に依存しない |
-
-## 選択肢と再発判定
-
-- 採用: 対象 root を既存ブロックで明示し、復旧出力は元の手順に戻す。2つの原因を小さく直し、fork の HEAD 保持や安全停止を変更しない。
-- 不採用: 全 cleanup 手順を新 helper と共通 state に移す。今回の欠陥には不要で、削除の承認や gate A/B まで変更範囲が広がる。
-- 不採用: linked caller を非対応にして保証を狭める。PR と既存テストが対応する経路であり、対象 root の明示で解決できる。
-- 設計見直しのきっかけ: なし。PR履歴は `fd75e21` と `532392e` の初期実装・説明順変更だけで、以前のレビュー修正コミット／同テーマSpecは存在しない。
-- 失敗時の扱いを新設・変更する修正ではないため、ガードを外す全状態の変異検証は適用外。既存の dirty・ignored衝突・lock失敗時停止は実ブロックとの結合で再検証する。
+- **採用**: (i) 手順 8・11 の `$MAIN_ROOT` 使用コマンドをすべて `git -C "${MAIN_ROOT:?...}"` のインラインガードにする（各行が自己完結し、行単位で実行されても未設定なら止まる）。(ii) `not fully merged` 分岐は「未マージと断定しない → 手順 3 と同じ基準 ref へ `merge-base --is-ancestor` で再確認 → 取り込み済みならその branch に限り `branch -D` で削除、未取り込み・確認不能なら削除せず報告」にする。`-D` は checked-out branch を拒否するので worktree 保護は残り、マージ判定は `-d` の暗黙チェックから明示的な `merge-base` へ置き換わる。(iii) 手順 3・8 に fork のローカル `main` 除外を追記する。
+- **不採用**: 点の修正として fork 経路の断り書きだけ追加する方法。`MAIN_ROOT` 未設定のフォールバックと手順 11 の `-C` 漏れが残り、同じ条件の 3 回目の指摘になる。
+- **不採用**: fork 経路の削除を常に `merge-base && branch -D`（verify-then-delete）にする方法。`-D` が常用化してガードレールの見通しが悪くなり、`-d` の upstream 判定・既存の警告経路を捨てる。`-d` 先行 + 拒否時の明示的再確認のほうが変更が小さい。
+- **不採用**: fork での branch 削除を非対応にして報告だけにする保証の縮小。cleanup の目的を後退させ、merge-base 確認で安全性は保てるため不要。
+- **不採用**: 手順 8・11 ブロック先頭の独立した `:` ガード行。手順 7 と形式は揃うが、行単位で抜き出して実行したときにガードが外れる。インライン `${MAIN_ROOT:?}` は各行が自己完結する。
 
 ## 実装・検証タスク
 
-- [x] 全入力・各対象HEADとPRの対応、context、専用worktreeを確認
-- [x] 全指摘の再現・分類、同条件の経路と既存文書・PR履歴を確認
-- [x] R4の挙動テストを先に追加し、旧ブロックで不具合を検出
-- [x] R1–R4と同条件の報告経路を修正
-- [x] 関連pytest、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills`、diff check
-- [x] 自己レビュー1回（反証 / PR全体 / テストの検出力）、全指摘を判定
-- [x] 最後のコード修正後の検証・記録を照合し、completedに更新
-
-後続の公開工程はSpecを1回だけcommitして既存PRへ通常pushし、専用helperで状況コメントを投稿する。公開結果は本Specへ追記せずPRコメントと作業報告に残す。再利用worktreeは保持する。
+- [x] SKILL.md 手順 3・8・11 とガードレールを修正
+- [x] `test_detached_update.py` に MAIN_ROOT 未設定の拒否・手順 11 の対象 root 固定・merge-base 再確認の弁別・fork main 除外のテストを追加（計4件、`step_text` helper を抽出）
+- [x] 追加テストが旧テキストで失敗することを確認（ガード外し対照と旧 HEAD 本文の両方を隔離コピーで実施）
+- [x] 関連 pytest・`bash .devcontainer/run-tests.bash`・`bash scripts/check-layout.sh`・`uv run pytest tests/skills .agents/skills`
+- [x] 自己レビュー 1 回（反証 / PR 全体 / 検証の検出力）と判定
+- [ ] Spec を completed にしてコミット・既存 PR へ push・状況コメント投稿
 
 ## 検証結果
 
-実装担当が同期実行を完了し、controller は変更差分と各ログの終了コード・結果を確認した。自己レビュー後のコード変更はない。レビューに渡した差分 snapshot と公開前の差分が一致することを cmp で照合した。
-
 | 検証 | 結果 |
 |---|---|
-| 実手順7→8 / status の旧コード RED | 3 failed / 15 passed。linked branch削除の unset/pruned と caller status が意図した理由で失敗 |
-| 修正後の同一テスト | 18 passed、exit 0。controllerが自己レビュー後にも再実行し18 passed（3.23秒）を確認 |
-| controllerの公開前確認 | docs/instructionsのshell検査、helper bash -n、diff check成功。自己レビューsnapshotからコード差分不変 |
-| cleanup・stale-lock の関連 pytest | 129 passed、exit 0 |
+| `test_detached_update.py`（修正後） | 27 passed、exit 0（既存 23 + 新規 4） |
+| 新規テストの RED 確認（旧 HEAD `d02ba2f` の SKILL.md 本文を隔離コピー） | 4 failed / 18 deselected — 未設定フォールバック・`-C` 漏れ・merge-base 再確認欠落・fork main 除外欠落の各負例が意図した理由で失敗 |
+| ガード外し対照（`${MAIN_ROOT:?}` を `$MAIN_ROOT` に sed した隔離コピー） | 未設定の負例が失敗（`git -C ""` が cwd にフォールバックし `not fully merged` を出す、または foreign repo を対象にする）。ガードの検出力を確認 |
+| `uv run pytest tests/skills .agents/skills -q` | 509 passed / 1 skipped（`SKILL_UNDER_TEST` 未指定の既存任意検査）、exit 0 |
 | `bash .devcontainer/run-tests.bash` | 28 suites passed、exit 0 |
-| `bash scripts/check-layout.sh` | PASS、exit 0。4プロジェクトの同梱スキル同期警告は保持 |
-| `uv run pytest tests/skills .agents/skills -ra` | 505 passed / 1 skipped、exit 0 |
-| リポジトリ既定の `uv run pytest -ra` | 573 passed / 1 skipped、exit 0。各 world の独立pytestは実行していない |
-| stale clear→元の手順7再実行 | text/JSON × main不在/古いmainの4ケース成功。clear前後のHEAD/refs/reflogs保持、JSON stdout1object・案内stderrを確認 |
-| skill-efficiency checker | cleanupの変更前後ともissue/warningなし。既存suggestion2件は同じ |
-| helper `bash -n`・`git diff --check` | exit 0 |
-| R8 の旧版・現行版対照 | base/head × tag/branch の4ケースとも同じ誤参照を再現。PR以前からの制約と確定し、隔離worktreeはremove後に親ごと削除 |
+| `bash scripts/check-layout.sh` | PASS、exit 0。4 プロジェクトの `SKILL_SYNC_REQUIRED` 警告は前回同様の既知の未実施 |
+| 失敗時の状態比較（MAIN_ROOT 未設定の負例） | 実行前後で checkout/foreign 両 repo の `refs/heads` 一覧が同一、linked worktree の HEAD・branch 不変、stdout 空・stderr にガードメッセージ。`not fully merged` に到達しないことを確認。比較した状態: refs 一覧・HEAD・worktree 属性 |
 
-R1–R3 の案内文の意味はソースと実出力の読解による確認であり、4ケースの復旧検査が案内文の意味を自動判定したとは主張しない。
+機序の事前再現（`/tmp` の隔離リポジトリ、git 2.55.0）: stale detached HEAD + upstream prune で `-d` が `not fully merged`（exit 1）、同条件で `merge-base --is-ancestor` は 0、`-D` は削除成功・checked-out branch への `-D` は拒否、synced ローカル `main` は `-d` で削除される、`git -C ""` は cwd を指す。検証用ディレクトリは削除済み。
 
-skip は `tests/skills/test_skill_packages.py::SkillPackageTests::test_targeted_skill_semantics`（`SKILL_UNDER_TEST` 未指定の任意検査）。fork実checkout/dotnet、LLMによるeval実行は未実施。変更したPython/bashのactive LSP probeは2pathともinconclusiveであり、診断0件をcleanの根拠にしない。実行検証とsyntax checkを根拠にした。対象外の4プロジェクトの同梱スキルは更新していない。
-
-検証ログはセッションの一時領域 `/tmp/review-fix-planning.tzjdlu/` に保存して公開前に確認した。ログやscratchはGitに追加しない。
+fork 実 checkout・dotnet・LLM による eval 実行は未実施（環境になし・評価基盤の範囲外）。リポジトリ既定の全量 pytest（前回 573）は本回未実施。スキル系の pytest（`tests/skills .agents/skills`）に当該テストを含めて確認済み。
 
 ## 自己レビュー
 
-修正後の自己レビューは1回。ランタイムの同期委譲規定に従って3担当を直列に起動した。
+修正後の自己レビューは 1 回。本環境はサブエージェント委譲を用いない運用のため、controller が 3 観点を自分で実施した。
 
 | 観点 | 結果 | 判定 |
 |---|---|---|
-| 反証 | Important1（R8）・Minor1（R9） | R8はbase対照で既存問題と確定し、R9は既存syncの説明論点。両件を対応しないとし制限をPR説明へ記録 |
-| PR全体 | 指摘0。baseからの全差分・全変更ファイル・本Specを読了 | 未確認事項を解消したとは扱わない |
-| 検証の検出力 | 指摘0。3ケースのREDの理由と18件GREEN、復旧4ケースのassertionを照合 | 案内の意味は手動読解と区別して記録 |
+| 反証 | 守る条件の表を仕組みから再列挙。`MAIN_ROOT` の空・未設定・不存在パス、linked worktree cwd、別 repo cwd、fork stale detached HEAD、upstream prune の各入力で、停止または `merge-base` 再確認に到達し、誤対象への削除・誤報告に進まないことを確認。`-D` は再確認済み branch 限定で、checked-out branch は引き続き拒否される（隔離リポジトリで確認）。手順 9・1・2・6 の非 `-C` コマンドは base から不変の既存前提（repo 単位操作は同一 repo の worktree 間で共通）として対象外に維持 | 致命的な指摘なし。新たな経路の破れは検出されず |
+| PR 全体 | 本回の差分（SKILL.md 4 箇所・テスト 4 件追加・Spec）を全文確認。evals の期待記述は `git -C $MAIN_ROOT`・`branch -d` を根拠にしており意味上変わらず成立。他ファイルへの混入なし | 致命的な指摘なし |
+| 検証の検出力 | 新規 4 テストが旧 HEAD 本文で全件失敗、ガード除去コピーで未設定負例が失敗することを確認。抽出した実ブロック・実コマンド行を実行しており、文句の写しではなく挙動を見ている | 検出力を確認 |
 
-反証担当の初回dispatchはscope/template不足、次のdispatchはGit差分未提供で実差分レビュー未着手となった。controllerがfilled upstream templateと差分snapshotを提供してから実レビューを1回実施した。2回目の自己レビューは行っていない。自己レビュー後のコード修正はなし。R8は今回直した条件の再発ではなくPR以前の別原因の問題なので、設計見直しのきっかけには該当しない。
-
-各担当が判断外に置いた事項もcontrollerで確認した。独立ff復旧は手順7で使わず対象外、syncの挙動変更は既存仕様を維持、全手順のroot再設計は今回の同条件表を超えるため行わない、既存失敗gateの全状態mutationと任意ignored追加は変更要件外、world同期・fork/dotnet・LLM eval・LSPは上記の未実施/未確認として記録する。恒久シェルの論点はR6に含む。
+自己レビュー後のコード修正はない。致命的でない観察: 手順 8 の `git -C <対象> branch -D` の `<対象>` はプレースホルダで、直前の再確認と同じ対象指定を読者が引き継ぐ（対応しない）。自己レビュー後の修正を再レビューしていない。
 
 ## 所要時間
 
-- controllerセッション開始: 2026-10-06T08:48:42.694Z。公開前の最終検証完了は09:34:58Z（46分15秒）。最終成果提出までの所要時間は作業報告で示す。
-- 調査・全入力/HEAD/context・隔離再現: 開始〜08:57:29（約9分）。初期調査sp-reconを含む。
-- Spec設計・実装委譲準備: 08:57:29〜08:59:48（2分19秒）。
-- 実装担当: 08:59:48〜09:14:26、878秒。準備107秒、RED54秒、修正/GREEN4秒、関連pytest60秒、shell130秒、layout2秒、skills98秒、全pytest147秒、復旧確認10秒。残りは読解・報告。
-- レビューパケット整備・ログ照合: 09:14:26〜09:18:29（4分3秒）。context不足による未着手のdispatchを含む。
-- 自己レビュー: 反証09:18:29〜09:23:29（300秒）、全体09:23:50〜09:27:16（206秒）、検出力09:27:27〜09:30:23（176秒）。
-- 自己レビューの分類・base対照・記録/公開準備: 09:30:23以降。
+第2回はセッション継続（要約復元）のため厳密な計時はない。完了時刻 2026-10-06T10:41Z 時点の内訳（概算）:
+
+- 全入力読解・現行 HEAD 特定・隔離再現・分類: セッション前半（前スレッド要約に記録済み）
+- 設計の見直し・Spec 更新・実装（SKILL.md・テスト4件）: 中盤
+- 検証: cleanup pytest 27件 約4秒、ガード外し対照・旧HEAD RED 確認、`tests/skills .agents/skills` 約111秒、`run-tests.bash` 28 suites、`check-layout.sh` 約2秒
+- 自己レビュー 1 回（3観点を controller が実施）
