@@ -1,7 +1,7 @@
 # Issue #36: 固定値テストの見直し
 
 - 文書管理・対象リポジトリ: `usaturn/create-reso-world`
-- 対象 Issue: #36、PR: #46（マージ未実施）
+- 対象 Issue: #36、PR: #46（初回実装とレビュー選別の記録。公開後の結果は PR/Issue コメントを参照）
 - 状態: completed
 - 基準 HEAD: `ee1421ae3efb274cb5e28c8f3a810fe24ac5a3a6`（#41・#43 のマージ後）
 - 関連 Plan: `docs/superpowers/plans/2026-10-06-issue-36-fixed-value-tests.md`
@@ -138,3 +138,60 @@ layout の ResoLoop 同梱スキル差分警告も既存のもの。同期更新
 着手は2026-10-06 10:11 JST。実装・PR 公開確認は13:44 JST頃まで、約3時間33分。主な実装担当の実時間（レビュー/controller 待ちを除く）は、Task1 と修正23分22秒、Task2 と修正26分45秒、Task3 と全修正・安全 guard 復元約91分。初期調査/Spec・Plan は約13分、controller 最終統合4コマンドは約6分。各子の詳細は作業 report に記録し、読み取り専用レビューの概算値は実測値と混同しない。
 
 予約解放・Issue の完了コメント・Herdr 更新の実施記録は PR/Issue コメントに残す。worktree は PR の追加修正用に維持する。
+
+## 9. PR #46 レビュー指摘の選別（2026-10-06）
+
+### 対象と実行許可
+
+- 状態: completed。結論 **2: 修正不要としてマージする**。この節は初回実装のマージ禁止を変更したと推測したものではなく、別の今回の依頼による判断である。
+- 実行許可: 利用者が `review-fix-planning` を明示して `#46` を指定した。計画のみの指定がないため、同スキルの完遂経路による検証、Spec の記録、既存 PR への文書反映、最終コメント、検証した HEAD のマージ、関連 Issue 更新までを対象とする。
+- 検証対象 HEAD: `25deaa01110cf07d3069293ac670dc4af8eb616c`。取得した PR の head と専用 worktree の HEAD・clean 状態を照合した。既存 worktree を再利用したため、今回の片付け対象にはしない。
+- 入力ディレクトリ: `/workspaces/reso-world/reviews/#46-chore-issue-36-fixed-value-tests/`。全4ファイルを読了。deepseek、claude、SWE の対象は `25deaa01110c`、gpt は `25deaa01110cf`。すべて上記 HEAD の同一コミットに解決され、祖先照合も成功した。
+- 文書の選択: 対象リポジトリ・Issue #36・PR #46・固定値テストのテーマに一致する現行文書はこの Spec と対応 Plan の組だけだったため、この Spec を更新した。レビュー回別の文書は新設しない。
+- CODE_ROOT / DOC_ROOT、DOC_BRANCH、PARENT_ROOT は冒頭の既存パスと `chore/issue-36-fixed-value-tests`。共通 context helper で base/head とも `origin` と照合した。
+
+### 全指摘の分類
+
+**解消済み 0 / 対応する 0 / 対応しない 8**。レビューの重大度や承認数ではなく、現行 HEAD での致命的な問題の有無を基準とした。検査の弱さが再現したものを「解消済み」とはしない。
+
+| 入力・ID | 内容 | 分類 | 現行 HEAD での確認と理由 |
+| --- | --- | --- | --- |
+| `deepseek-deepseek-v4.1-flash.md` M-1 | piga/pigs/pigl/pixg の tier provider 制約がない | 対応しない | `test-pi-superagents.bash:279-315`、`test-pi-openai-codex.bash:26-44,149-182` と9個の source JSON を確認。pigs.balanced を cheap と同じ provider/model に変えた隔離入力は2本のテストで exit 0。現行 JSON は正常で、モデル/provider 更新の是非と将来の不正編集の検出範囲に関する論点であり、現行の秘密露出・誤対象操作・主要処理停止ではない。 |
+| 同 I-1 | pr-review の HELPER の解決先を実行検査していない | 対応しない | 現行 `pr-review/SKILL.md:134` は `$TOPLEVEL` で helper も実在する。隔離入力で `$MAIN_ROOT` に変えても同 contract 全体が成功した。既存 D 表の共有 helper 検査は実在・symlink の保証であり、任意の将来の文章変更を拒否する保証ではない。 |
+| `claude-opus-5-5.md` L-1 | 固定 remote・force remove・origin 限定の否定ガード削除 | 対応しない | 基準コミットの `review-fix-planning` contract:245-265、`repo-cleanup-after-merge` contract:92-117 の committed blob で削除を確認。現行 SKILL は検証済み remote、force なし、origin 限定のまま。既存 D 表で行・文章一致と操作手順の文章検査を削除する理由が明記され、理由なく削除した回帰ガードには当たらない。隔離入力の固定 remote、force、origin 絞り込み除去でも contract が成功する制約は事実として残す。 |
+| 同 L-2 | 外部スキル名への参照をローカルと誤認 | 対応しない | `test-docs.bash:30-42`。`superpowers:writing-plans`、`/skill:superpowers:brainstorming`、`resonite-build` の3入力は、それぞれ存在しないローカルスキルとして exit 1。現行の検査対象6文書にはこの形式の参照がなく、公式の現行呼出しも通る。外部スキル名の解決範囲を広げる設計変更はしない。 |
+| `SWE-2-High.md` I-1 | `--refs` の除外が argv 表記に依存 | 対応しない | `test-docs.bash:19,38-44`。`AGENTS.md` は成功、`./AGENTS.md` と絶対パスは架空例 `page-types.md` の拒否で exit 1。公式の2呼出元は固定のルート相対名であり正常。追加の表記のサポートは今回広げない。 |
+| 同 I-2 | バッククォート内の末尾句読点をパスに含める | 対応しない | planning contract:50-66。実在パスへ `:` だけを付けた隔離入力はそのパスの exists assertion で失敗。現行 SKILL/session-workflow に該当形式はなく、将来の文書編集時の偽陽性である。 |
+| 同 I-3 | herdr の状態 enum を文書全体の表から抽出 | 対応しない | herdr contract:20-27 とコマンドの case を比較。現行は一致。非状態の表の `unrelated` セルだけを追加すると集合の差で失敗した。将来の表追加時の偽陽性であり現行コマンドは壊れない。 |
+| `gpt-6.1-sol.md` L-1 | tier 値のオブジェクト・フィールド型を検査しない | 対応しない | `test-pi-superagents.bash:304-315` と配置比較を確認。piga.cheap だけを数値にした隔離入力は2本の通常テストで exit 0。現行9個の JSON は正常。削除した検査はモデル値の一覧を読む際に付随して型破損も拒否していたもので、構造検査の独立ガードを理由なく削除した事例ではない。将来の source 編集に対する保険は追加しない。 |
+
+deepseek の「Unverified candidates」3項目も確認したが、上の指摘8件とは別に扱う。
+
+- stale-lock の `bash_blocks()` は bash フェンスだけを読む。隔離入力を sh フェンスへ変更した guard テストは成功した。現行は bash フェンスで guard が有効なので、将来の保険として対応しない。
+- `check_refs` は参照数の下限を持たない。現行の6文書には実在検査対象があり、実在参照の正例は成功、参照切れの負例は exit 1。参照の削減自体を禁止しないため、対応しない。
+- live Codex 検査で tier が全件非 Codex なら集合が空になりうるとの候補は、現在の source に Codex tier があり、さらに後段が各ランチャーの親モデルを集合へ追加するため、現行入力で空問い合わせにはならない。実物への live 接続は不要として行わない。
+
+### 実装の保証範囲と選んだ方針
+
+対応する項目がないため、守る条件と影響経路の修正表・失敗時ガードの修正・再発による設計の見直しは該当しない。選別中に見つかった別の致命的な PR 欠陥もない。
+
+比較した案は、(1) 指摘された検査をすべて追加する、(2) 現行の致命的な問題だけ直し、実在する制約を明示する、の2つ。現行の設定・利用手順は正常で、前者は本 PR が整理する文章・設定への追加制約や将来の保険になるため、(2) を採用する。ソース・テストは変更せず、検証結果を記録し、PR の説明の既知の制限を具体化する。
+
+3章 B1・4章 D と8章の「維持」は、すべての tier の provider/型や、あらゆるスキル例の安全性を自動判定する意味には広げない。現在の実装が維持するのは、配置先との一致、部分 config の外側キー/tier 名、既存 OpenCode/CommandCode の provider/モデル検査、stale-lock の危険コマンド検査、skill package の委譲境界、resolver の実行・helper の実在などである。Codex/xai の provider 全一覧、tier 値の型、固定 remote・force remove・remote 候補の文面検査は対象外。本文の意味とこれらの経路の安全性は現行 SKILL とレビューで確認する。PR の説明にはこの範囲、正当な文書参照でも失敗する条件、回避方法を記載する。
+
+### 全文確認・検証結果
+
+- 変更23ファイルの全文、全差分3031行、関連 source tier JSON・ランチャー・setup/helper、関連 SKILL/schema・参照処理・呼出元・テストを確認した。独立調査は同期の読み取り専用 role 3件へ委譲し、実行検証は controller が行った。
+- 子では git 実行が利用できず、clean 状態と HEAD を controller が照合した専用 worktree の read を使った。最初の子が親 checkout を旧版根拠にした報告部分は採用せず、controller が `git show ee1421a:<path>` で取り出した committed blob と照合し直した。変更前の working tree は根拠にしない。
+- 指摘の隔離検証は18実行。provider/型の変異4実行、外部スキル参照3実行、参照の正負2実行、argv 表記3実行、句読点・非状態表2実行、HELPER・固定remote・force/origin・フェンス4実行で、それぞれ上記の結果を確認した。変異は1回ごとに元のバイト列へ復元し、再現 worktree の tracked/untracked 差分が空であることを確認した。
+- 専用 worktree で `uv run pytest tests/skills .agents/skills --basetemp <隔離ルート内>`: **487 passed, 1 skipped**、exit 0、117秒。skip は既存 `SKILL_UNDER_TEST` opt-in。
+- `bash .devcontainer/run-tests.bash`: **28 PASS**、exit 0、179秒。変更 lifecycle テストなどを含む環境側検証も成功。
+- `bash scripts/check-layout.sh`: **PASS**、exit 0、2秒。導入済み ResoLoop のスキル同期警告だけは既存のものとして維持し、同期変更は行わない。
+- base を取り直した結果、`origin/main` は `ee1421ae3efb274cb5e28c8f3a810fe24ac5a3a6` で検証 HEAD の祖先だった。新しい base の一時 merge 検証は不要。private repository の停止中 CI は規約により対象外。
+- 一時ファイル・ログ・pytest 出力は `/tmp/review-fix-planning.m1I6Vz/` に閉じ込め、再現 worktree を登録解除した後に親ディレクトリを削除した。Spec 作成前の teardown は成功し、消した場所は再利用しない。
+- 修正後の自己レビュー: **未実施（結論2、コード修正なし）**。今回の同期調査3件は修正後の自己レビューではない。実物への OAuth/catalog 接続は未実施だが、今回の選別・通常検証の根拠には使っていない。
+- 公開は、この Spec 1ファイルだけのコミットが検証済み HEAD の直後にあることを確認して fast-forward push する。マージには `--match-head-commit` を使う。push・マージ・Issue 更新の結果はここへ追記せず公開コメントで記録する。
+
+### 今回の所要時間
+
+controller が取得した時刻の区間: 初期照合・独立調査2件・分類が14:27:32〜14:36:06（8分34秒）、全差分の補完調査・関連処理確認が14:36:06〜14:42:34（6分28秒）、隔離再現・規定検証・結果確認が14:42:34〜14:49:58（7分24秒）、以降は teardown・Spec と PR の記録・公開処理。規定3コマンドの実行合計は298秒。子ごとの開始/終了の厳密計測は取得できず、子の推定時間を実測値としては扱わない。全体の公開完了時刻と総所要は最終報告・公開コメントに記録する。
