@@ -9,9 +9,8 @@ occluder bookkeeping used by the sightline test.
 import pytest
 
 from modeling.slum02 import geometry as g
-from modeling.slum02.layout import build_layout
+from modeling.slum02.layout import TOWER_FLOOR_H, build_layout
 from modeling.slum02.towers import (
-    BAY,
     FLOOR_H,
     SECTOR_BUILDERS,
     build_tower,
@@ -211,7 +210,7 @@ def test_outer_tower_facades_cover_occluder(data, towers):
         if spec["role"] != "outer":
             continue
         box = occ[f"occ-{a.name}"]
-        (ox0, oy0, oz0), (ox1, oy1, oz1) = box["min"], box["max"]
+        (ox0, _, oz0), (ox1, _, oz1) = box["min"], box["max"]
         ox, _oy, oz = a.origin
         facades = [p for p in a.parts if p.name.startswith("facade")]
         lo, hi = g.bounds(facades)
@@ -220,9 +219,11 @@ def test_outer_tower_facades_cover_occluder(data, towers):
         assert hi[1] >= spec["core_height"] - 0.1, a.name  # walls survive to the core
 
 
-def test_bay_and_floor_constants():
-    assert FLOOR_H == 3.2
-    assert BAY == 3.6
+def test_floor_height_matches_layout():
+    # towers は崩落後の壁の上端を height - collapse * FLOOR_H とし、layout の
+    # core_height（height - collapse * TOWER_FLOOR_H - 0.5）より 0.5 m 上にある前提で組む。
+    # 階高が食い違うと、崩落部と遮蔽ボックスの高さがずれる。
+    assert FLOOR_H == TOWER_FLOOR_H
 
 
 def test_deterministic_rebuild(data):

@@ -272,7 +272,61 @@
 
 ## slum02
 
+`<s2>` は `slum02/tests/slum02/` を表す。「型」は `AGENTS.md`「テストの採用基準」の作らない型の番号、「原則」は Issue #51「原則として削除・統合するもの」の番号。「代わりの保証」には、変異を入れた一時コピーで失敗することを確かめた検査だけを書く。シェルのテストは無く、suite は Blender を起動しない（純 Python の層だけを検査する）。
+
 | 場所 | 検出する不具合 | 判断 | 理由 | 代わりの保証 | 関連 |
+| --- | --- | --- | --- | --- | --- |
+| `slum02/tests/__init__.py`、`<s2>__init__.py` | — | 維持 | テストをパッケージとして import する（`test_shacks.py` が `tests.slum02.test_stalls` の helper を読む） | — | |
+| `<s2>test_ads.py::test_one_or_two_objects_per_ad` | spin 広告の分割漏れ | 削除 | 原則 4。名前の列の比較が件数も決める | `::test_names_sector_origin_and_determinism`（spin 広告を panel だけにすると失敗） | |
+| `<s2>test_ads.py` のほか（13 関数） | spin の回転中心のずれ、ホロ素材の付け違い、非決定性、閉じていない mesh、非平面の面、遮蔽ボックスの不足、壁への埋まり、ホロ面と枠の隙間、投影機・支柱の誤り、看板・入口への広告の重なり、予算超過 | 維持 | 生成処理の実行。看板・入口との重なりは R18 で直した不具合 | — | |
+| `<s2>test_build_pure.py::test_sector_order_fixed` | セクタの統合順の変更 | 理由付き固定値として維持 | `pipeline.merge_bundles` はこの順に統合し、衝突したキーを後のセクタ側で改名する。順序が変わると適用済みの state と安定キーが食い違う。理由を追記 | — | |
+| `<s2>test_build_pure.py` のほか（2 関数） | 未登録セクタの受理、resource report の集計の誤り | 維持 | 実行 | — | |
+| `<s2>test_geometry.py::test_tube_is_closed` | tube の穴あき | 削除 | 原則 4 | `::test_closed_primitives_have_positive_signed_volume[tube-catenary]`（tube の片側の蓋を消すと失敗） | |
+| `<s2>test_geometry.py` のほか（11 関数、収集 21 件） | 閉じていない・内向きの primitive、開口の検証漏れ、カテナリー・回転・正規化・merge の誤り | 維持 | 実行。外向きの巻きは 5373608（R11）で直した不具合 | — | |
+| `<s2>test_ground.py::test_puddles_and_manholes`（現 `test_every_puddle_is_placed`）のマンホールの件数 | マンホールの件数の変更 | 削除（水たまりの件数は残し、関数名から外した） | 型 3（`ground.MANHOLE_SITES` の件数の写し） | 不要 | |
+| `<s2>test_ground.py` のほか（8 関数） | 地面の範囲・上面の向きの誤り、試行の上限で水たまりが 14 個に届かない、遠景の予算・範囲・窓明かりの欠落、非決定性、内向きの巻き、ピットの塞ぎ | 維持 | 生成処理の実行 | — | |
+| `<s2>test_layout.py::test_deterministic` | 同じシードから違う layout ができる | 書き換え（キャッシュを通さない `_assemble()` と比較） | 原則 5。`build_layout()` はキャッシュした JSON を読み直すため、2 回呼ぶ比較は常に一致していた（`_backdrop` にグローバルな `random` を使わせても通った） | — | |
+| `<s2>test_layout.py::test_counts` の外周 16 棟・内側 6 棟と体積 > 0 | 塔の件数の変更 | 削除 | 件数は型 3（角 4・辺 12 と `INNER_TABLE` の写し）。体積 > 0 は原則 5（高さ・footprint は生成時に正） | 不要 | |
+| `<s2>test_layout.py::test_counts` のほか（屋台・クラブ・小屋・広告・Light の件数の範囲、影ありの Light ≤ 3） | 承認した範囲を外れる配置 | 理由付き固定値として維持 | 承認済みの設計仕様「街の構成」「予算の目安」と Plan の予算目安が定める範囲。理由を追記 | — | |
+| `<s2>test_layout.py::test_radial_alleys_have_no_straight_exit` | 放射路地の本数の変更 | 削除 | 型 3。関数名と違い、路地の折れは検査していない | 不要 | |
+| `<s2>test_layout.py::test_cable_attachments_exist` | ケーブルの件数の変更、存在しない取付先 | 削除 | 件数は型 3。取付先は原則 4（`validate_layout` の項目 7） | `::test_validate_clean`（取付先を `tower-99` にすると失敗） | |
+| `<s2>test_layout.py::test_ads_mix` | 広告の種類・動き・看板の件数の変更 | 削除 | 型 3（生成コードの件数の写し） | 不要 | |
+| `<s2>test_layout.py` のほか（8 関数） | 配置の検証の失敗、広場への侵入、東の壁の位置、範囲外、レイ判定の誤り、視線の抜け、layout.json の書き出し、遮蔽ボックスの出典の誤り、スポットの向き | 維持 | 生成処理と検証の実行。視線の検査は設計仕様の受入条件 | — | |
+| `<s2>test_materials.py::test_palette_size_and_kinds`（現 `test_palette_kinds`）の件数の範囲（30〜48） | パレットの件数の変更 | 削除 | 型 3。設計仕様の素材数は目安（超えるときは根拠を記録する）で、値も仕様の 30〜40 と違う | 不要 | |
+| `<s2>test_materials.py::test_palette_kinds` | postprocess が扱わない種類の素材の追加 | 理由付き固定値として維持 | `postprocess.convert_material` は holo 以外を頂点カラー素材に変換するので、新しい種類が黙って変換される。理由を追記 | — | |
+| `<s2>test_materials.py::test_scroll_holo_materials_are_distinct_from_static` | スクロール用ホロ素材の欠落・静止用との共有 | 削除 | `is not` は同じ spec オブジェクトの共有しか見ず、素材名が別なら manifest では別の素材になる（原則 6）。実在の確認は原則 4 | 実在は `test_layout.py::test_validate_clean`（`holo_cyan_scroll` を消すと失敗） | |
+| `<s2>test_materials.py` のほか（2 関数） | 存在しないノイズ・摩耗の参照、色の範囲外、発光しないネオン・ホロ、ノイズの範囲・サイズの誤り | 維持 | 参照先の実在と値の範囲 | — | |
+| `<s2>test_nightlife.py::test_club_count_and_parts` | クラブの欠落、部品・素材・anchor の欠落 | 削除 | 原則 4。部品ごとの検査が同じ欠落で失敗する | `::test_names_sector_origin_and_determinism`（クラブを 1 軒減らすと失敗）、`::test_bead_curtain_strands`（ビーズを消す・`cloth_red` を別の素材にすると失敗）、`::test_posters`・`::test_shutter_half_open_and_slats_run_into_the_box`・`::test_red_lamps_and_bulbs`（それぞれの部品を消すと失敗）、`::test_neon_is_mounted_on_the_wall`（ネオン枠を消す・ネオン素材を別の素材にすると失敗）、`::test_sign_anchor_matches_layout_and_sits_on_board`・`::test_light_anchor_in_front_of_entrance`（anchor を消すと失敗） | |
+| `<s2>test_nightlife.py` のほか（25 関数） | 高さ・予算の誤り、非決定性、閉じていない mesh、非平面の面、敷地のはみ出し、看板・照明の anchor のずれ、ビーズ・シャッター・ネオン・張り紙・ランプ・カーテン・室外機・雨樋の配置の誤り、広告との干渉、部品の貫通、露骨な表現の混入 | 維持 | 生成処理の実行。接触・干渉は Task 9 の教訓、広告との干渉は R18、表現の制限は Plan の Global Constraints | — | |
+| `<s2>test_occlusion_coverage.py` | 遮蔽ボックスを満たさない生成物、未登録のセクタ | 維持 | 設計仕様の build 後の AABB 集計。全セクタを `sector_assemblies` で呼ぶ | — | |
+| `<s2>test_overhead.py::test_cables_attach_to_real_mounts` | 端点が取付先の面に無い、meta の取付先の写し間違い | 削除 | 端点は原則 4（`validate_layout` の項目 7）。`meta["attach"]` を読む処理は無い（原則 6） | `test_layout.py::test_validate_clean`（端点を面から 1 m ずらすと失敗） | |
+| `<s2>test_overhead.py::test_sector_registration` | overhead の登録漏れ | 削除 | 原則 4 | `test_occlusion_coverage.py::test_every_occluder_is_backed_by_geometry`（`@register("overhead")` を外すと失敗） | |
+| `<s2>test_overhead.py` のほか（12 関数） | 端点・名前・種類の誤り、非決定性、閉じていない mesh、非平面の面、電線の本数・断面・たるみ、碍子の欠落、渡り廊下の手すり・屋根・遮蔽の不足、垂れ物の取付・高さ、ゴミの浮き・路上へのはみ出し、予算超過 | 維持 | 生成処理の実行 | — | |
+| `<s2>test_pipeline.py::test_merge_renames_conflicts_and_rewrites_sources` | asset の改名・source の付け替えの誤り、セクタの表示名の変更 | 削除 | asset は原則 4。表示名は型 3 | `::test_merge_references_follow_renames`（source の付け替えを止める・衝突した asset を改名しないと失敗） | |
+| `<s2>test_pipeline.py::test_build_unified_manifest_root_shape` のカメラ名 | カメラ名の変更 | 削除 | 型 3（`CAMERAS` の写し） | 不要 | |
+| `<s2>test_pipeline.py::test_build_unified_manifest_root_shape` の存在テストの対象 | 存在テストが manifest に無い Slot を指す | 書き換え（決まった対象の `in` → 全対象が manifest の Slot キーに実在する） | 型 3（`_manifest_tests` の写し）。セクタ Slot のキーの書式を変えても通った | — | |
+| `<s2>test_pipeline.py::test_build_unified_manifest_root_shape` の所有キー・所有ルート | 所有キー・所有ルートの変更 | 理由付き固定値として維持 | 既存の state と Resonite 上の Slum02_Slum の対応。理由を追記 | — | |
+| `<s2>test_pipeline.py` の `from pathlib import Path` | — | 削除 | 使わない import（ruff F401）。変更前から未使用 | 不要 | |
+| `<s2>test_pipeline.py` のほか（6 関数と root_shape の limits・後処理の Slot） | キーの衝突・再利用・刈り込み・参照の追従の誤り、bundle の欠落、limits の計算の誤り、後処理の未実行、非決定性 | 維持 | 合成 bundle での実行 | — | |
+| `<s2>test_plaza.py::test_spray_layout_values` | スプレー文字の配置値の変更 | 削除 | 型 3（`spray_layout()` の定数の写し） | 不要 | |
+| `<s2>test_plaza.py::test_floor_top_pits_and_cracks` の `FLOOR_TOP == 0.12` | 床の高さだけの変更 | 理由付き固定値として維持 | `postprocess.collider_slots` が柱の collider の基準高さ 0.185 を直接書いている。plaza・ground・postprocess・遮蔽の検査では、0.15 にしてもこの行だけが失敗した。理由を追記 | — | |
+| `<s2>test_plaza.py` の `import math` | — | 削除 | 使わない import（ruff F401）。変更前から未使用 | 不要 | |
+| `<s2>test_plaza.py` のほか（16 関数） | 構造物の欠落・はみ出し、東の壁の形・位置、スプレー文字の欠字（◎ を自前の形状で作る）、出入口の塞ぎ、内向きの巻き、予算・パレット外の素材・非決定性、ピットの塞ぎ、柱・クレーンレール・車・焚き火・機械台座の誤り、非平面の面 | 維持 | 生成処理の実行。◎ は Plan の Review Focus 4、車のリムは c70d392 で直した不具合 | — | |
+| `<s2>test_plaza_press_wear.py` | 黄色い塗装のオレンジ化、摩耗の不足、塗装面の分割不足、スプレーの素材フィルタの誤り | 維持 | 生成処理の実行。9136ec3 で直した不具合 | — | |
+| `<s2>test_plaza_scatter.py` | 瓦礫の沈み込み・浮き、立入禁止域への散布、散布数の過不足 | 維持 | 生成処理の実行。沈み込みは Plan の Review Focus 5 | — | |
+| `<s2>test_postprocess.py` | 素材名の解析の誤り、PBS_Metallic の残り、参照切れ、駆動の対象・値の誤り、Light・collider・看板の件数と値の誤り、冪等性、未知の素材の受理 | 維持 | 後処理の実行。`::test_lights_colliders_and_shadow_budget` はほかの検査と一部重なるが、余分な Light を検出するのはこの関数だけ | — | |
+| `<s2>test_scaffold.py::test_project_root_is_slum02` の `SEED == 260926` | シードの変更 | 理由付き固定値として維持 | コミット済みの bundle・report と適用済みのワールドはこのシードから生成した。理由を追記 | — | |
+| `<s2>test_scaffold.py` のほか | プロジェクトルートの解決の誤り、フォント・OFL ライセンスの欠落 | 維持 | パスの解決と、OFL フォントの同梱条件 | — | |
+| `<s2>test_shacks.py` | 継ぎはぎ・屋根の勾配・高さの誤り、非決定性、閉じていない mesh、非平面の面、柱の接地、パネルの浮き・沈み、重しの貫通・浮き、垂木・桁の接触、扉・窓・煙突・室外機・雨水ドラム・洗濯物の配置の誤り、隣の敷地への侵入、予算超過、bowtie の面、部品の貫通 | 維持 | 生成処理の実行。重しの接地は Task 9 の教訓、bowtie は 624059d で直した不具合 | — | |
+| `<s2>test_stalls.py::test_market_counts` | 屋台・ジャンクの山の欠落 | 削除 | 原則 4 | `::test_names_ids_and_origin`（屋台を 1 軒・山を 1 つ減らすと失敗） | |
+| `<s2>test_stalls.py::test_stalls_do_not_block_lane` | 柱・カウンターの路地への侵入 | 削除 | 原則 4。同じ部品を 0.2 m の余裕で見る、より弱い重複 | `::test_roof_eave_overhangs_lane_at_most_40cm_and_stall_stays_on_its_plot`（柱とカウンターを路地側へ 0.5 m ずらすと失敗） | |
+| `<s2>test_stalls.py` のほか（15 関数） | 品物・カウンター・屋根の高さ・予算の誤り、名前・原点の誤り、閉じていない mesh、非平面の面、路地へのはみ出し、屋根の種類の偏り、たるみ、柱・棚・電球・看板の誤り、カウンターの支え、ジャンクの山の侵入、非決定性、汚れの位置、torus の巻き、重しの貫通・浮き | 維持 | 生成処理の実行。屋根の重しは 86717f5 で直した不具合 | — | |
+| `<s2>test_towers.py::test_bay_and_floor_constants`（現 `test_floor_height_matches_layout`） | 階高が layout の `TOWER_FLOOR_H` と食い違う | 書き換え（`FLOOR_H == 3.2`・`BAY == 3.6` → `FLOOR_H == TOWER_FLOOR_H`） | 型 3（定数の写し）。ただし階高は layout の `core_height` の計算と対で、towers・layout・遮蔽・overhead の検査では towers 側だけを 3.0 にしてもこの行だけが失敗した。ベイ幅は写しなので外した | — | |
+| `<s2>test_towers.py` の未使用の `oy0`・`oy1` | — | 削除 | 使わない変数（ruff F841）。変更前から未使用 | 不要 | |
+| `<s2>test_towers.py` のほか（14 関数） | 塔の取りこぼし・重複、寸法・高さ・予算・素材数の誤り、必要な部品の欠落、窓の貫通、内向きの巻き・壁、付加物の埋まり、遮蔽の不足、非決定性、汚れ・崩落部の誤り | 維持 | 生成処理の実行。付加物の突き出しは 5d63b36 で直した不具合 | — | |
+| `<s2>test_vcolor.py` | ノイズの非決定性・範囲外、足元の汚れ・錆・スプレーの誤り、色の範囲外 | 維持 | 実行 | — | |
+
+前後: ファイル Python 21→21（テスト 19・`__init__.py` 2）、行 3,297→3,199、収集 215→202、所要は隔離コピーの変更前と交互に 3 回実行して 60.8〜65.2 秒→59.9〜62.7 秒（大半は `test_shacks.py::test_tyres_and_bricks_rest_on_the_roof_sheet` の約 27 秒）
 
 ## slum03
 

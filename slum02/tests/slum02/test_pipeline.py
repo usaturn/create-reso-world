@@ -6,7 +6,6 @@ hold in CI without the real ``content/slum02`` bundles.
 """
 import json
 import math
-from pathlib import Path
 
 import pytest
 
@@ -23,17 +22,6 @@ def _bundle(dir_, name):
         "children": [{"slot": {"key": "object_a", "name": "a"}, "components": [
             {"key": "mesh_a", "type": "FrooxEngine.StaticMesh", "fields": {"URL": "$asset:mesh_a"}}]}],
     }), encoding="utf-8")
-
-
-def test_merge_renames_conflicts_and_rewrites_sources(tmp_path, monkeypatch):
-    monkeypatch.setattr(pipeline, "SECTORS", ("ground", "plaza"))
-    _bundle(tmp_path / "ground-v1", "Ground")
-    _bundle(tmp_path / "plaza-v1", "Plaza")
-    m = pipeline.merge_bundles(tmp_path)
-    assert m["assets"]["mesh_a"]["source"] == "ground-v1/mesh_a.mesh.json"
-    assert m["assets"]["plaza-mesh_a"]["source"] == "plaza-v1/mesh_a.mesh.json"
-    names = [c["slot"]["name"] for c in m["children"]]
-    assert names == ["Slum02_Ground", "Slum02_Plaza"]
 
 
 # --------------------------------------------------------------------- ported merge invariants
@@ -232,16 +220,19 @@ def test_build_unified_manifest_root_shape(tmp_path, monkeypatch):
     _bundle(tmp_path / "plaza-v1", "Plaza")
     m = pipeline.build_unified_manifest(tmp_path)
     assert m["schemaVersion"] == "1"
+    # 固定値の理由: 所有キーと所有ルート（Root 直下の Slum02_Slum）は、既存の state
+    # （.resoloop/slum02/state/slum02.json）と Resonite 上の適用済みコンテンツを結び付ける。
+    # 変わると所有範囲を別物として扱い、prune の対象を誤る。
     assert m["ownership"]["key"] == "slum02"
     assert m["slot"] == {"key": "root", "name": "Slum02_Slum", "parent": "Root",
                          "position": [0, 0, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1]}
     # limits.expandedNodes = ceil(実測ノード数 × 1.2)（limits 自身は計測に含めない）
     measured = _count_json_nodes({k: v for k, v in m.items() if k != "limits"})
     assert m["limits"]["expandedNodes"] == math.ceil(measured * 1.2)
-    assert set(m["cameras"]) == {"overview", "plaza-east-wall", "market", "nightlife"}
-    targets = {t["assertions"][0]["target"] for t in m["tests"]}
-    assert "$slot:root" in targets and "$slot:textures" in targets
-    assert "$slot:sector-ground" in targets and "$slot:sector-plaza" in targets
+    # manifest の存在テストは、manifest 内に実在する Slot だけを指す
+    targets = {a["target"] for t in m["tests"] for a in t["assertions"]}
+    slot_refs = {f"$slot:{key}" for key in [m["slot"]["key"], *_slot_keys(m)]}
+    assert targets and targets <= slot_refs, targets - slot_refs
     # postprocess が走っていること（追加分のグループ Slot がルート直下に出る）
     child_keys = {c["slot"]["key"] for c in m["children"]}
     assert {"textures", "lights", "colliders", "signs"} <= child_keys

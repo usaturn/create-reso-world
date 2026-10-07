@@ -5,6 +5,8 @@ from modeling.slum02 import sectors
 
 
 def test_sector_order_fixed():
+    # 固定値の理由: pipeline.merge_bundles はこの順にセクタを統合し、衝突したキーは後のセクタ側を
+    # <sector>-<key> に改名する。順序が変わると適用済みの state と安定キーが一致せず、作り直しや prune の対象を誤る。
     assert sectors.SECTORS == ("ground", "plaza", "towers-a", "towers-b", "towers-c", "market",
                                "nightlife", "shacks", "ads", "overhead", "backdrop")
 
