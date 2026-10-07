@@ -227,7 +227,48 @@
 
 ## MyResoniteProject・akichi
 
+`<mp>` は `MyResoniteProject/tests/tokyo_nova/`、`<ak>` は `akichi/tests/akichi/` を表す。「型」は `AGENTS.md`「テストの採用基準」の作らない型の番号。「代わりの保証」には、変異を入れた一時コピーで失敗することを確かめた検査だけを書く。シェルのテストは無い。
+
 | 場所 | 検出する不具合 | 判断 | 理由 | 代わりの保証 | 関連 |
+| --- | --- | --- | --- | --- | --- |
+| `<mp>test_ground_topology.py` | 地面の切り欠き・支持の誤り、地下への開口の塞ぎ、着地面の深さの誤り | 維持 | 生成した manifest の形状と collider の検査 | — | |
+| `<mp>test_layout.py` の import の分岐と `assertIsNotNone`（`setUpClass`・`build_layout`） | （モジュールの未実装） | 削除 | TDD の RED 用の分岐。モジュールがあるので到達しない | 不要（モジュール・関数が無ければ import か属性参照で失敗する。`build_layout` の名前を変えると失敗することを確認） | |
+| `<mp>test_layout.py::test_blockout_manifest_has_owned_root_and_stable_geometry_keys` の所有キー | 所有キーの変更 | 理由付き固定値として維持 | 既存の state と Resonite 上の所有ルートの対応。理由を追記 | — | |
+| `<mp>test_layout.py` のほか（11 関数） | 広場への侵入、経路の本数・幅、キー・兄弟スロット名の重複、扉の開口、スロープの向き、展開ノード数の不足、看板の重複追加 | 維持 | 生成した layout・manifest の検査。`validate_layout` と同じ条件も含むが、`validate_layout` の規則の多くには検出の試験が無い | — | |
+| `<mp>test_pipeline.py` の `getattr`・`callable` の確認 | （関数の未実装） | 削除 | TDD の RED 用。到達しない | 不要（`prepare_probe_manifest` の名前を変えると AttributeError で失敗することを確認） | |
+| `<mp>test_pipeline.py::test_probe_manifest_is_scoped_with_resolvable_assets_and_japanese_capture` | プローブの所有キー・`ResoLoop_Test_*` の名前の誤り、asset の参照切れ | 理由付き固定値として維持 | 本体と別の所有範囲で試す安全条件（`AGENTS.md` の Resonite safety）。理由を追記 | — | |
+| `<mp>test_probe.py` の `japanese_sign_strategy` | report の説明文の変更 | 削除 | 型 3（`probe.py` の定数の写し） | 不要 | |
+| `<mp>test_probe.py` のほか | Blender で保存できない、テクスチャ・UV・法線・寸法の誤り | 維持 | Blender の実行（`resoloop blender run`） | — | |
+| `<mp>test_assets.py::test_phone_assembly_has_repairable_physical_parts`（旧 `test_phone_assembly_is_dimensional_and_has_repairable_physical_parts`）の全体寸法 | 電話の全体寸法の誤り | 削除（部品の検査は維持し、関数名から寸法を外した） | 重複 | `<mp>test_task2_fix_round1.py::Task2FixRound1Tests::test_phone_details_are_exposed_inside_exact_overall_dimensions`（電話の長さを 0.150→0.152m にすると失敗） | |
+| `<mp>test_assets.py` の `materials.ADAPTATION_NOTE` | 文書が参照する定数の削除 | 維持 | `docs/worlds/tokyo-nova/tokyo-nova-assets.rst` が参照先として挙げる定数の実在 | — | |
+| `<mp>test_assets.py::test_catalog_records_finished_asset_design_and_exact_phone_scale` の除外語 | 人型・決済・IANUS・監視などの資産の混入 | 維持 | 生成した資産カタログの内容の制限。受入条件かどうかの記録が無く、消さずに残した | — | |
+| `<mp>test_assets.py` のほか | 形状・資源 report・決定性・材質・合成の誤り | 維持 | 生成処理の実行 | — | |
+| `<mp>test_task1_fix_regressions.py::test_every_building_front_door_has_an_outward_route_approach` の専用通路 3 本の集合 | 通路データの変更 | 削除 | 型 3。扉への接近は同じ関数の前半が検査する | 同じ関数の `missing == []`（`alley_west_game_room_access` を消すと失敗。`building_access_key` だけを外す変更では、削除した集合の比較だけが失敗した） | |
+| `<mp>test_task1_fix_regressions.py::test_prop_catalog_omits_payment_live_stage_and_natural_roof_garden_near_misses` | レビューで除いた小物（決済・ライブ舞台・自然の屋上庭園）の再追加 | 維持 | 型 2 の形だが、内容の制限として残した。受入条件かどうかの記録が無い | — | |
+| `<mp>test_task1_fix_regressions.py` のほか（11 関数） | 所有ルートの位置、建物の重なり、経路の建物への侵入、扉への接近、地下の深さ・開口、スロープの接地、カメラの高さ、証跡の上書き | 維持 | 生成した layout・manifest を `validate_layout` と別の実装で検査する。証跡の上書きは安全条件 | — | |
+| `<mp>test_task2_fix_round1.py::test_north_phone_back_rests_on_the_repair_mat` | 電話が修理マットから浮く・沈む | 削除 | 重複 | `::test_phone_footprint_is_inside_mat_and_rests_on_its_top`（電話を 0.01m 浮かせると失敗） | |
+| `<mp>test_task2_fix_round1.py` のほか（12 関数） | 閉じていない mesh、電話の寸法・部品のはみ出し、見えない壁、collider と形状の食い違い、通路の塞ぎ、看板の向き、部品の重なり・接地、カタログと配置の食い違い | 維持 | 生成処理の実行。レビュー指摘の再発防止 | — | |
+| `<mp>test_task3_city.py` の `getattr` と `fail` | （関数の未実装） | 削除 | TDD の RED 用。到達しない | 不要（`build_city` の名前を変えると AttributeError で失敗することを確認） | |
+| `<mp>test_task3_city.py` のほか（4 関数） | 施設・内装・建物の欠落、広場への collider の侵入、扉の塞ぎ、支えの無い小物、階段の不連続、全体の空の変更、置き換えない blockout の無効化 | 維持 | 生成処理の実行 | — | |
+| `akichi/tests/__init__.py`、`<ak>__init__.py` | — | 維持 | テストをパッケージとして import する | — | |
+| `<ak>test_build_helpers.py::test_ads_sector_keeps_cables_8_to_12` の `NIGHTLIFE_TOWERS` との共通部分 | ads セクタへの夜の街の広告の混入 | 削除 | 恒真（広告名 `ad-NN` と塔の ID `tower-NN` は交わらない） | `::test_ads_split_covers_all_ads_exactly_once`（ads セクタに夜の街の広告を残すと失敗。削除した行はこの変異でも通った） | |
+| `<ak>test_build_helpers.py::test_vacant_sector_composition` の未使用の `vmin`・`vmax` | （なし。「空地の内側」とコメントにあるが検査していない） | 削除 | 使わない変数（ruff F841）。コメントを検査の内容に合わせた | 不要 | |
+| `<ak>test_build_helpers.py` のほか | 座標変換・batch の誤り、セクタの取りこぼし・重複、非決定性、パレット外の材質、三角形数の超過、report の集計の誤り | 維持 | 生成処理の実行。セクタの件数は生成コードの定数と対で変わるが、取りこぼし・重複を検出する | — | |
+| `<ak>test_buildings.py` | 塔の非決定性・寸法・接地の誤り、鉄筋・錆筋の有無、低層での例外 | 維持 | 生成処理の実行。低層の例外は c025abb で直した不具合 | — | |
+| `<ak>test_geometry.py` | 閉じていない box、円柱・屋根の形、不正な入力の受理、UV の誤り | 維持 | 生成処理の実行 | — | |
+| `<ak>test_layout.py::test_layout_counts` | 件数の変更 | 削除 | 型 3（`layout.py` の定数の写し） | 不要 | |
+| `<ak>test_layout.py::test_vacant_lot_is_clear` | 塔の空地への侵入 | 削除 | 重複（`validate_layout` の項目 3 と同じ条件で、回転を見ない分だけ弱い） | `::test_layout_validates_clean`（塔を空地に置くと失敗）。検出は `::test_validator_detects_intrusion` も確かめる | |
+| `<ak>test_layout.py` のほか（5 関数） | 非決定性、配置の検証の失敗、屋上広告の高さ、検証の見逃し、ID の重複 | 維持 | 生成処理の実行 | — | |
+| `<ak>test_materials.py` の `len(mats) == 27` | パレットの件数の変更 | 削除 | 型 3（c025abb でその時点の件数に固定した値） | 使う材質がパレットから消えた場合は `<ak>test_props.py::test_props_use_only_palette_materials`・`<ak>test_build_helpers.py::test_batch_materials_all_exist_in_palette`（`rust` を消すと失敗）。材質を足す変更では suite 全体が通る | |
+| `<ak>test_materials.py` のほか | export できない値・キー、ネオンの非発光、共有される dict | 維持 | 実行 | — | |
+| `<ak>test_pipeline.py::test_manifest_structure` | 所有キー・所有ルート・セクタのスロットの誤り | 理由付き固定値として維持 | 既存の state と適用済みコンテンツの対応。理由を追記 | — | |
+| `<ak>test_pipeline.py::test_signs_attached` | 看板の欠落・重複・文言の誤り | 書き換え（JSON の `in` の照合 → layout の看板との比較） | 1 枚の文言の写しと型名の有無だけを見ていた | — | |
+| `<ak>test_pipeline.py::test_cameras_and_tests_present` | カメラの数・代表の指定・テスト名の変更 | 削除 | 型 3（`CAMERAS` 定数と固定のテスト名の写し） | 不要 | |
+| `<ak>test_pipeline.py::test_manifest_component_type_counts` と `REAL_COMPONENT_COUNTS`・`REAL_ASSET_COUNT` | コミット済み manifest の件数の変更 | 削除 | 型 3。コミット済みの生成物を読むだけでパイプラインを実行しない（再利用・参照の書き換えを壊しても通った）。内容を変えるたびに期待値を対で直す | 合成 bundle の 4 テスト（再利用を止めると `::test_merge_reuses_shared_provider`、参照の書き換えを止めると `::test_merge_references_follow_renames` が失敗）。実 manifest の参照切れは `::test_manifest_references_resolve` | |
+| `<ak>test_pipeline.py` のほか（6 関数） | 非決定性、参照切れ、キーの衝突・再利用・刈り込み・参照の追従の誤り | 維持 | 実行と参照先の実在 | — | |
+| `<ak>test_props.py` | 非決定性、接地・寸法の誤り、屋上広告の脚の浮き、退化入力の受理、パレット外の材質 | 維持 | 生成処理の実行。屋上広告の脚は akichi の Task 5 で直した不具合 | — | |
+
+前後: ファイル Python 17→17（テスト 15・`__init__.py` 2）、行 MyResoniteProject 1,492→1,459・akichi 940→892、収集 MyResoniteProject 52→51・akichi 66→62、所要は隔離コピーの変更前と交互に 3 回実行して MyResoniteProject 4.5〜5.0 秒→4.5〜4.6 秒（大半は `test_probe.py` の Blender と `test_task3_city.py`）・akichi 1.4〜1.5 秒→1.3〜1.4 秒
 
 ## slum02
 

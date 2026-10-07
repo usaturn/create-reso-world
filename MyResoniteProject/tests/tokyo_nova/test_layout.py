@@ -8,23 +8,10 @@ import unittest
 class LayoutTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        try:
-            cls.layout_module = importlib.import_module("modeling.tokyo_nova.layout")
-        except ModuleNotFoundError as exc:
-            if exc.name == "modeling" or exc.name.startswith("modeling.tokyo_nova"):
-                cls.layout_module = None
-            else:
-                raise
-        try:
-            cls.pipeline_module = importlib.import_module("modeling.tokyo_nova.pipeline")
-        except ModuleNotFoundError as exc:
-            if exc.name == "modeling" or exc.name.startswith("modeling.tokyo_nova"):
-                cls.pipeline_module = None
-            else:
-                raise
+        cls.layout_module = importlib.import_module("modeling.tokyo_nova.layout")
+        cls.pipeline_module = importlib.import_module("modeling.tokyo_nova.pipeline")
 
     def build_layout(self) -> dict:
-        self.assertIsNotNone(self.layout_module, "layout.build_layout() is not implemented")
         return self.layout_module.build_layout()
 
     def test_layout_has_required_unobstructed_plaza_and_building_count(self) -> None:
@@ -76,6 +63,8 @@ class LayoutTests(unittest.TestCase):
 
     def test_blockout_manifest_has_owned_root_and_stable_geometry_keys(self) -> None:
         manifest = self.pipeline_module.build_blockout_manifest(self.build_layout())
+        # 固定値の理由: 所有キーは既存の state と Resonite 上の TokyoNova_WestSlum を結び付ける。
+        # 変わると適用済みの所有範囲を別物として扱い、作り直しや prune の対象を誤る。
         self.assertEqual(manifest["ownership"]["key"], "tokyo-nova-west-slum")
         self.assertEqual(manifest["slot"]["key"], "root")
         self.assertEqual(manifest["slot"]["position"], [0.0, 30.0, 120.0])
