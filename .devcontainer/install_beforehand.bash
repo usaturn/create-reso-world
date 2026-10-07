@@ -7,7 +7,7 @@ set -u
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
 # （同梱スキルの状態の表示と workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=26
+readonly STEP_TOTAL=27
 STEP_NUMBER=0
 
 step() {
@@ -148,6 +148,11 @@ if ! npm install -g @openai/codex@latest; then
 fi
 if ! command -v codex >/dev/null 2>&1; then
     fail "Codex installation completed without placing codex on PATH."
+fi
+
+step "Installing Meshy CLI (local verification only)"
+if ! bash .devcontainer/install_meshy.bash; then
+    fail "Meshy CLI installation or verification failed."
 fi
 
 step "Installing uv"
