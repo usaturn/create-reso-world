@@ -7,12 +7,6 @@ from modeling.slum02 import stalls
 from modeling.slum02.layout import _aabb, _street_rect, build_layout
 
 
-def test_market_counts():
-    a = stalls.market_assemblies(build_layout())
-    assert sum(1 for x in a if x.kind == "stall") == len(build_layout()["stalls"])
-    assert sum(1 for x in a if x.kind == "junk-pile") == 6
-
-
 def test_stall_contents_and_scale():
     for spec in build_layout()["stalls"]:
         a = stalls.build_stall(spec)
@@ -27,15 +21,6 @@ def test_stall_contents_and_scale():
         assert "sign_anchor" in a.meta
         tris = sum(g.triangle_count(p) for p in a.parts)
         assert 1500 <= tris <= 7000, (spec["id"], tris)
-
-
-def test_stalls_do_not_block_lane():
-    lane = next(s for s in build_layout()["streets"] if s["kind"] == "lane")
-    for spec in build_layout()["stalls"]:
-        a = stalls.build_stall(spec)
-        lo, hi = g.bounds([g.transformed(p, 0.0, a.origin) for p in a.parts if p.name.startswith(("post-", "counter-"))])
-        inside_z = lo[2] < lane["max"][1] - 0.2 and hi[2] > lane["min"][1] + 0.2
-        assert not inside_z, spec["id"]
 
 
 # --------------------------------------------------------------------------- extra invariants

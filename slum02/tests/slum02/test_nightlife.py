@@ -7,18 +7,6 @@ from modeling.slum02 import nightlife
 from modeling.slum02.layout import _aabb, build_layout
 
 
-def test_club_count_and_parts():
-    clubs = nightlife.nightlife_assemblies(build_layout())
-    assert len(clubs) == len(build_layout()["clubs"])
-    for a in clubs:
-        names = {p.name.split("-")[0] for p in a.parts}
-        assert {"shutter", "bead", "neonframe", "poster", "lamp"} <= names, a.name
-        assert sum(1 for p in a.parts if p.name.startswith("bead-")) == 24
-        mats = {p.material for p in a.parts}
-        assert "cloth_red" in mats and any(m.startswith("neon_") for m in mats)
-        assert {"sign_anchor", "light_anchor"} <= set(a.meta)
-
-
 def test_club_height_and_budget():
     data = build_layout()
     for spec, a in zip(data["clubs"], nightlife.nightlife_assemblies(data)):

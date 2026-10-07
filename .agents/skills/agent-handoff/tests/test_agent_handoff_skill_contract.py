@@ -1,16 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
-
-import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SKILL_DIR = REPO_ROOT / ".agents/skills/agent-handoff"
 AGENTS_SKILL = SKILL_DIR / "SKILL.md"
-CLAUDE_LINK = REPO_ROOT / ".claude/skills/agent-handoff"
 SCHEMA = SKILL_DIR / "references/handoff-schema.md"
 EVALS = SKILL_DIR / "evals/evals.json"
 TRIGGERS = SKILL_DIR / "evals/trigger_queries.json"
@@ -64,25 +60,6 @@ def json_field_definition(key: str) -> str:
     return definition.group(1)
 
 
-def test_skill_does_not_reference_the_removed_generator() -> None:
-    # The removed CLI cannot generate this repository's handoff schema.
-    assert "nova-parser-claude-handoff" not in read(AGENTS_SKILL)
-
-
-def test_skill_declares_claude_code_allowed_tools() -> None:
-    """Claude Code gates the skill's tool surface; Codex and pi ignore the key."""
-    tools = yaml.safe_load(read(AGENTS_SKILL).split("---", 2)[1])["allowed-tools"]
-    assert isinstance(tools, str)
-    for entry in (
-        "Write(tmp/docs_draft/claude_handoffs/**)",
-        "Edit(tmp/docs_draft/claude_handoffs/**)",
-        "Write(docs/superpowers/**)",
-        "Edit(docs/superpowers/**)",
-    ):
-        assert entry in tools, entry
-    assert "docs_draft/superpowers" not in tools
-
-
 def test_trigger_queries_have_valid_structure() -> None:
     payload = json.loads(read(TRIGGERS))
     assert payload["skill_name"] == SKILL_DIR.name
@@ -93,15 +70,11 @@ def test_trigger_queries_have_valid_structure() -> None:
         assert isinstance(item["should_trigger"], bool)
         assert isinstance(item["expected_terms"], list)
         assert all(isinstance(value, str) for value in item["expected_terms"])
-    # A migrated trigger must not point agents at the source repository.
-    assert "python-tdd-team" not in json.dumps(payload, ensure_ascii=False)
 
 
-def test_schema_is_version_2_and_documents_the_authored_fields() -> None:
-    content = read(SCHEMA)
-    assert re.search(r'^- `schema_version`: `"2"`\.', content, re.M)
+def test_schema_documents_the_authored_fields() -> None:
     # Schema keys are a machine interface: dropping an authored field loses facts.
-    definitions = set(re.findall(r"^- `([a-z_]+)`:", content, re.M))
+    definitions = set(re.findall(r"^- `([a-z_]+)`:", read(SCHEMA), re.M))
     assert set(AUTHORED_FIELDS) <= definitions
 
 
@@ -125,36 +98,33 @@ def test_schema_maps_review_fix_planning_hold_to_deferred() -> None:
     assert mappings == {"Fix": "fix", "Hold": "deferred", "Skip": "skip", "Resolved": "resolved"}
 
 
-def test_evals_json_uses_expectations_not_assertions() -> None:
+def test_evals_json_has_expectations() -> None:
     payload = json.loads(read(EVALS))
     evals = payload["evals"]
     assert evals, "evals.json has no evals"
     for item in evals:
         eval_id = item.get("id")
         assert "expectations" in item, f"eval {eval_id} is missing expectations"
-        assert "assertions" not in item, f"eval {eval_id} still uses assertions"
 
 
 def test_schema_requires_git_branch_head_status_in_json_fields() -> None:
-    # Find the definition by its schema key, not the surrounding prose heading.
+    # The parent checkout is often not where the work is; without these the
+    # receiver acts on the wrong checkout. Find them by schema key, not prose.
     required = re.findall(r"^  - (.*?) \(required\):", json_field_definition("git"), re.M)
     fields = {field for row in required for field in re.findall(r"`([a-z_]+)`", row)}
     assert {"worktree", "branch", "head", "status"} <= fields
 
 
 def test_schema_allows_null_sources_spec() -> None:
+    # Without an explicit null the receiver invents a spec path that does not exist.
     spec = re.search(r"^  - `spec` \(required\):([^\n]*)", json_field_definition("sources"), re.M)
     assert spec is not None, "sources lacks a required spec field"
     assert "`null`" in spec.group(1)
 
 
-def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
-    assert CLAUDE_LINK.is_symlink()
-    assert os.readlink(CLAUDE_LINK) == "../../.agents/skills/agent-handoff"
-    assert CLAUDE_LINK.resolve() == SKILL_DIR.resolve()
-
-
 def test_documents_and_code_have_separate_schema_fields() -> None:
+    # Documents and code may live in different checkouts; one shared field would
+    # send commits to the wrong one.
     for group, fields in (
         ("sources", {"doc_root", "document_commit", "document_published", "review_copy"}),
         ("git", {"parent_checkout", "code"}),

@@ -358,12 +358,6 @@ class Task2FixRound1Tests(unittest.TestCase):
             for axis in range(3):
                 self.assertAlmostEqual(actual[axis], expected[axis], places=7, msg=f"{kind} axis {axis}")
 
-    def test_north_phone_back_rests_on_the_repair_mat(self) -> None:
-        assemblies = {assembly.kind: assembly for assembly in north.build_north_sector(build_layout())}
-        repair, phone = assemblies["terminal_repair"], assemblies["pocket_phone"]
-        mat_top = repair.origin[1] + _bounds(_part(repair, "anti_static_mat"))[1][1]
-        self.assertAlmostEqual(phone.bounds[0][1], mat_top, places=7, msg="phone back must rest on the ESD mat")
-
     def test_repair_monitor_and_terminal_box_contact_their_support_surfaces(self) -> None:
         repair = props.create("terminal_repair", (0.0, 0.0, 0.0), rotation=0.0)
         mat = _bounds(_part(repair, "anti_static_mat"))

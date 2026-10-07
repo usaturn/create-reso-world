@@ -2,36 +2,13 @@ from __future__ import annotations
 
 import json
 import os
-import stat
 import subprocess
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SKILL = REPO_ROOT / ".agents/skills/pi-model-name/SKILL.md"
 SCRIPT = REPO_ROOT / ".agents/skills/pi-model-name/scripts/print-pi-model.sh"
-
-
-def read_skill() -> str:
-    return SKILL.read_text(encoding="utf-8")
-
-
-def test_frontmatter() -> None:
-    text = read_skill()
-    assert text.startswith("---\n")
-    front = text.split("---\n", 2)[1]
-    assert "name: pi-model-name" in front
-    assert "description:" in front
-    assert len(front.encode("utf-8")) < 1024
-    desc_line = next(line for line in front.splitlines() if "description:" in line)
-    assert desc_line.partition("description:")[2].strip()
-
-
-def test_script_executable() -> None:
-    assert SCRIPT.is_file()
-    mode = SCRIPT.stat().st_mode
-    assert bool(mode & stat.S_IXUSR)
 
 
 def run_script(args: list[str], env_extra: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -69,17 +46,6 @@ def test_model_only_flag() -> None:
     )
     assert proc.returncode == 0
     assert proc.stdout.strip() == "muse-spark-1.3-contributor"
-
-
-def test_json_provenance_runtime() -> None:
-    proc = run_script(
-        ["--json"],
-        {"PI_PROVIDER": "opencode-go", "PI_MODEL": "muse-spark-1.3-contributor"},
-    )
-    assert proc.returncode == 0
-    payload = json.loads(proc.stdout)
-    assert payload["provenance"] == "runtime"
-    assert payload["model"] == "muse-spark-1.3-contributor"
 
 
 def test_strict_fails_closed_without_runtime() -> None:
@@ -357,6 +323,8 @@ def test_json_without_session_path_reports_unchecked(tmp_path: Path) -> None:
     assert result.returncode == 0
     payload = json.loads(result.stdout)
     assert payload["ok"] is True
+    assert payload["provenance"] == "runtime"
+    assert payload["model"] == "model-a"
     assert payload["selected"] is None
     assert payload["observed"] is None
 

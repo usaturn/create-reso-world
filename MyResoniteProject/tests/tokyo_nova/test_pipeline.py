@@ -31,9 +31,9 @@ class PipelineTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            prepare = getattr(pipeline, "prepare_probe_manifest", None)
-            self.assertTrue(callable(prepare), "pipeline.prepare_probe_manifest is not implemented")
-            manifest = prepare(source, output)
+            manifest = pipeline.prepare_probe_manifest(source, output)
+            # 固定値の理由: プローブは本体（tokyo-nova-west-slum）と別の所有キーで、
+            # ResoLoop_Test_* のスロットに置く（AGENTS.md の Resonite safety）。後始末で本体を消さないため。
             self.assertEqual(manifest["ownership"]["key"], "tokyo-nova-probe")
             self.assertEqual(manifest["slot"]["name"], "ResoLoop_Test_TokyoNovaProbe")
             self.assertEqual(manifest["slot"]["position"], [0.0, 0.0, 80.0])

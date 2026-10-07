@@ -1,5 +1,4 @@
 """Delivery gates: losing evidence, build reports or a QA check cannot yield pass."""
-import copy
 import hashlib
 import json
 from pathlib import Path
@@ -108,6 +107,8 @@ def test_panners_have_separate_stable_slots_and_preserve_driven_references(tmp_p
 
 
 def test_canonical_manifest_is_portable_and_contains_live_qa():
+    # 固定値の理由: slum03.json は Issue #12 の採用 run を適用した宣言。所有キーと設置高さ Y=4.5 は
+    # 適用済みの state と所有ルートの対応で、密度改善の設計仕様 2 章が据え置きを定める。
     path = Path('content/slum03/slum03.json')
     manifest = json.loads(path.read_text(encoding='utf-8'))
     assert manifest['ownership'] == {'key': 'slum03'}
@@ -117,14 +118,6 @@ def test_canonical_manifest_is_portable_and_contains_live_qa():
     assert all(not Path(a['source']).is_absolute() and
                (path.parent / a['source']).is_file()
                for a in manifest['assets'].values())
-
-
-def test_baseline_fixture_retains_original_mesh_count():
-    baseline = json.loads(Path('content/slum03/density-baseline.json').read_text())
-    assert len([a for a in baseline['assets'].values() if a['kind'] == 'mesh']) == 150
-    assert all('finalfix-m-20260928T0511' in asset['source'] for asset in baseline['assets'].values())
-    assert hashlib.sha256(Path('content/slum03/density-baseline.json').read_bytes()).hexdigest() == (
-        '2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec')
 
 
 def test_plural_live_warnings_with_valid_evidence_remain_pending():
@@ -193,6 +186,8 @@ def test_superseded_task12_delivery_evidence_is_kept_as_history():
 
 
 def test_review_candidate_counts_and_hash_come_from_its_own_evidence():
+    # 固定値の理由: 代表区画のレビュー候補と、その範囲・来歴・受入の記録は凍結した証跡。
+    # 互いの SHA が一致し、受入が pending のまま残ることを確かめる。
     run = 'density-rep-a-20260928Ttask6-01'
     qa = Path('artifacts/slum03') / run / 'representative-review-fix3'
     candidate = Path('content/slum03') / f'{run}-review-candidate-fix3.json'

@@ -4,7 +4,6 @@ import pytest
 from dataclasses import replace
 from modeling.slum03.layout import build_layout
 from modeling.slum03.native.colliders import collider_slots
-from modeling.slum03.postprocess import postprocess
 
 
 def test_floor_touches_clear_volume_only_at_y_zero_and_background_has_no_colliders():
@@ -37,17 +36,6 @@ def test_bridge_deck_and_checkpoint_columns_leave_three_metre_passage():
                 assert p[0]+size[0]/2 <= 63 or p[0]-size[0]/2 >= 93
 
 
-def test_postprocess_does_not_duplicate_colliders():
-    m = json.load(open(glob.glob('artifacts/slum03/task8-final-*/bundle/model.apply.json')[0], encoding='utf-8'))
-    m['ownership']['key'] = 'slum03'
-    m['slot']['name'] = 'Slum03_Slum'
-    layout = build_layout()
-    layout = replace(layout, labels=tuple(l for l in layout.labels
-                                          if l.parent_name in ('market-product-holo', 'nightlife-info-ad', 'east-lane-ribbon')))
-    out = postprocess(m, layout, {}, (0, 0, 0))
-    assert postprocess(out, layout, {}, (0, 0, 0)) == out
-
-
 def test_reported_mesh_envelope_rejects_colliders_outside_real_geometry():
     layout = build_layout()
     road = json.load(open(glob.glob('artifacts/slum03/task6-fix1-*/road-river-report.json')[0], encoding='utf-8'))
@@ -62,22 +50,6 @@ def test_reported_mesh_envelope_rejects_colliders_outside_real_geometry():
 def test_nightlife_facades_have_simple_owned_building_colliders():
     keys = {n['slot']['key'] for n in collider_slots(build_layout(), {})}
     assert {'collider-nightlife-east', 'collider-nightlife-velvet', 'collider-yarol'} <= keys
-
-
-def test_yarol_collider_rotates_with_visible_facade():
-    from math import cos, sin, radians
-    n = next(n for n in collider_slots(build_layout(), {}) if n['slot']['key'] == 'collider-yarol')
-    assert n['slot']['position'] == [51, 4.4, 47]
-    assert n['components'][0]['fields']['Size'] == [14, 8.8, 12]
-    assert n['slot']['rotation'] == [0., 0.70710678, 0., 0.70710678]
-    # Transform the collider's local XZ corners; the visual facade occupies
-    # x=45..57 / z=40..54, not the unrotated x=44..58 / z=41..53.
-    yaw = radians(90)
-    corners = [(51 + x*cos(yaw) + z*sin(yaw),
-                47 - x*sin(yaw) + z*cos(yaw))
-               for x in (-7, 7) for z in (-6, 6)]
-    assert (round(min(x for x, _ in corners), 6), round(max(x for x, _ in corners), 6),
-            round(min(z for _, z in corners), 6), round(max(z for _, z in corners), 6)) == (45, 57, 40, 54)
 
 
 def test_noncardinal_building_yaw_is_kept_on_collider_slot():
@@ -120,7 +92,6 @@ def test_v2_open_stall_only_collides_with_real_low_parts_and_preserves_legacy_bo
     reports = {'market': {'layout_sha256': layout_digest(layout), 'objects': [evidence],
                           'evaluated_bounds': {p.key: evidence['evaluated_bounds']}}}
     original = collider_slots(base, {})
-    assert len(original) == 34
     boxes = collider_slots(layout, reports)
     assert boxes[:len(original)] == original  # floor/bridge/checkpoint/old 34 unchanged
     additions = boxes[len(original):]

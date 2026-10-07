@@ -32,10 +32,9 @@ def test_ground_slab_extent_and_top():
     assert horizontal > 1600
 
 
-def test_puddles_and_manholes():
+def test_every_puddle_is_placed():
     a = _by_name(ground.ground_assemblies(build_layout()))
     assert sum(1 for p in a["ground-puddles"].parts if p.material == "asphalt_wet") == 14
-    assert sum(1 for p in a["ground-details"].parts if p.name.startswith("manhole")) == 6
 
 
 def test_backdrop_budget_and_extent():

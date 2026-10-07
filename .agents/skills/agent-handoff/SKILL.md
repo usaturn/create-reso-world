@@ -79,7 +79,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(ls *), Bash(cat *), Bash(git *), Ba
 - pi: `@howaboua/pi-skill-skill-creator` には `quick_validate.py` が無い。代わりに `~/.pi/agent/npm/node_modules/@howaboua/pi-skill-skill-creator/skills/skill-creator/scripts/skill-efficiency-check.py` を同じ引数で実行する
 
 - `uv run python <skill-creator-path>/scripts/quick_validate.py .agents/skills/agent-handoff`
-- `uv run pytest .agents/skills/agent-handoff/tests -q` — このスキルが引き継ぎ仕様を述べていること、Claude Code が読む `.claude/skills/agent-handoff` がこのディレクトリへの symlink であること、およびスキルが参照するパスが実在することを検査する
+- `uv run pytest .agents/skills/agent-handoff/tests -q` — このスキルが引き継ぎ仕様を述べていること、およびスキルが参照するパスが実在することを検査する。Claude Code が読む `.claude/skills/agent-handoff` がこのディレクトリへの symlink であることは `bash scripts/check-layout.sh` が検査する
 
 ## 参照
 

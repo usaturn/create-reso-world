@@ -5,8 +5,6 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLI="${REPO_ROOT}/.devcontainer/herdr-agent-task.bash"
 HERDR_CONFIG="${REPO_ROOT}/.devcontainer/herdr.toml"
 TEST_ROOT="$(mktemp -d)"
-PI_APPEND="${REPO_ROOT}/.pi/APPEND_SYSTEM.md"
-DEVCONTAINER_README="${REPO_ROOT}/.devcontainer/README.md"
 trap 'rm -rf "${TEST_ROOT}"' EXIT
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
@@ -23,46 +21,6 @@ run_dry() {
 # 出力は変数に受けてから here-string（rg ... <<<"$out"）で rg に渡す。rg -q / -m1 は一致した
 # 時点で終了するので、CLI や printf をパイプでつなぐと、残りの行を書く側が SIGPIPE で落ちる。
 # here-string は rg の起動前に入力を書き終えるので、この競合が起きない
-
-AGENTS_SKILL="${REPO_ROOT}/.agents/skills/herdr-agent-task/SKILL.md"
-CLAUDE_SKILL="${REPO_ROOT}/.claude/skills/herdr-agent-task/SKILL.md"
-
-test_skill_files_exist_and_match() {
-    [ -f "$AGENTS_SKILL" ] || fail ".agents/skills/herdr-agent-task/SKILL.md missing"
-    [ -f "$CLAUDE_SKILL" ] || fail ".claude/skills/herdr-agent-task/SKILL.md missing"
-    diff -q "$AGENTS_SKILL" "$CLAUDE_SKILL" >/dev/null \
-        || fail "SKILL.md must be identical in .agents and .claude"
-}
-
-test_skill_documents_contract() {
-    assert_contains() { rg -q -- "$2" "$1" || fail "$1 missing $2"; }
-    assert_contains "$AGENTS_SKILL" '^name: herdr-agent-task$'
-    assert_contains "$AGENTS_SKILL" 'herdr-agent-task set'
-    assert_contains "$AGENTS_SKILL" 'herdr-agent-task clear'
-    assert_contains "$AGENTS_SKILL" '--state completed'
-    assert_contains "$AGENTS_SKILL" 'attention'
-    assert_contains "$AGENTS_SKILL" 'HERDR_ENV'
-    # 正規化と空タイトル禁止は CLI の契約なのでスキルにも書く
-    assert_contains "$AGENTS_SKILL" '改行・タブは空白へ潰される'
-    assert_contains "$AGENTS_SKILL" '空のタスク名は指定できない'
-}
-
-test_pi_append_system_wires_task_reporting() {
-    assert_contains() { rg -q -- "$2" "$1" || fail "$1 missing $2"; }
-    assert_contains "$PI_APPEND" 'herdr-agent-task set'
-    assert_contains "$PI_APPEND" 'HERDR_ENV'
-}
-
-test_readme_documents_migration() {
-    assert_contains() { rg -q -- "$2" "$1" || fail "$1 missing $2"; }
-    assert_contains "$DEVCONTAINER_README" 'herdr-agent-task'
-    assert_contains "$DEVCONTAINER_README" 'herdr config check'
-    assert_contains "$DEVCONTAINER_README" 'herdr server reload-config'
-}
-
-test_cli_is_executable() {
-    [ -x "$CLI" ] || fail "herdr-agent-task.bash missing or not executable"
-}
 
 test_set_emits_token_and_ttl() {
     out="$(run_dry set "Implement page transition")"
@@ -261,22 +219,6 @@ test_ttl_override() {
     rg -q $'w1:pA\tttl_ms\t600000' <<<"$out" || fail "ttl override ignored: $out"
 }
 
-test_herdr_toml_agents() {
-    assert_contains() { rg -q -- "$2" "$1" || fail "$1 missing $2"; }
-    assert_contains "$HERDR_CONFIG" 'status_indicators = "symbols"'
-    assert_contains "$HERDR_CONFIG" '\[ui\.sidebar\.agents\]'
-    assert_contains "$HERDR_CONFIG" 'row_gap = 0'
-    assert_contains "$HERDR_CONFIG" '\$task'
-    assert_contains "$HERDR_CONFIG" '"state_icon"'
-    assert_contains "$HERDR_CONFIG" '"agent"'
-    # Agents 行に存在しないビルトインを載せない
-    ! rg -q '"title"' "$HERDR_CONFIG" || fail "title is not a sidebar token"
-    # 既存 Spaces 定義を壊していない
-    assert_contains "$HERDR_CONFIG" '\[ui\.sidebar\.spaces\]'
-    assert_contains "$HERDR_CONFIG" '\$git_name'
-    assert_contains "$HERDR_CONFIG" '\$clock'
-}
-
 test_herdr_toml_passes_config_check() {
     command -v herdr >/dev/null 2>&1 || return 0
     local probe="${TEST_ROOT}/xdg"
@@ -286,7 +228,6 @@ test_herdr_toml_passes_config_check() {
     assert_eq "$out" "config: ok" "herdr.toml must pass config check"
 }
 
-test_cli_is_executable
 test_set_emits_token_and_ttl
 test_state_mapping
 test_state_default_is_working
@@ -310,10 +251,5 @@ test_missing_title_is_error
 test_unknown_subcommand_is_error
 test_missing_herdr_binary_is_noop
 test_ttl_override
-test_herdr_toml_agents
 test_herdr_toml_passes_config_check
-test_skill_files_exist_and_match
-test_skill_documents_contract
-test_pi_append_system_wires_task_reporting
-test_readme_documents_migration
-printf 'OK test-herdr-agent-task (task2)\n'
+printf 'OK test-herdr-agent-task\n'

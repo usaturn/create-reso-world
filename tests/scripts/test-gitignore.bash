@@ -20,6 +20,7 @@ expect_not_ignored() {
   fi
 }
 
+# 理由付きの固定値: 秘密情報・ローカル設定・私的なデータ・別リポジトリ・生成物を誤って追跡しないための範囲
 for p in \
   slum02/.venv/bin/python slum02/tmp/x akichi/.uv-cache/x slum02/__pycache__/x.pyc \
   docs_draft/x.md MyResoniteProject/docs_draft/x.rst \
@@ -38,6 +39,7 @@ for p in \
   expect_ignored "$p"
 done
 
+# 理由付きの固定値: ignore が広がって、ワールドのデータ・ロック・雛形が追跡から漏れないための範囲
 for p in \
   slum02/.resoloop/.gitignore .devcontainer/devcontainer-lock.json \
   slum02/assets/images/tex.png MyResoniteProject/lib/foo.py slum02/build/x.json docs/x.pdf \
@@ -47,6 +49,7 @@ for p in \
   expect_not_ignored "$p"
 done
 
+# 理由付きの固定値: pipeline.json はプロジェクト規約で追跡し続ける唯一の例外。ほかの ignore 対象を追跡すると私的データ・生成物が混ざる
 actual="$(git ls-files -i -c --exclude-standard)"
 expected='MyResoniteProject/.resoloop/tokyo-nova/pipeline.json'
 if [ "$actual" != "$expected" ]; then

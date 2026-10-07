@@ -192,16 +192,6 @@ def test_blockout_respects_registered_assembly_parent_in_both_collections(tmp_pa
     assert results['Slum03BlockoutExport'] == {'parent': 'test-parent', 'world_x': pytest.approx(14.5)}
 
 
-def test_tracked_ground_probe_matches_current_world_coordinate_build():
-    import json
-    from pathlib import Path
-    report = json.loads(Path('artifacts/slum03/probes/ground-report.json').read_text())
-    assert report['objects'] == [{'key': 'district-foundation', 'kind': 'foundation',
-                                  'mesh': 'district-foundation'}]
-    assert report['evaluated_bounds']['district-foundation']['minimum'] == pytest.approx([-60, -.3, -60])
-    assert report['evaluated_bounds']['district-foundation']['maximum'] == pytest.approx([60, 0, 60])
-
-
 def test_hook_uv_issue_alone_blocks_export(tmp_path):
     import json
     import subprocess

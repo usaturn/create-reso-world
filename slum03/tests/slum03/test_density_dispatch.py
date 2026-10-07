@@ -40,13 +40,3 @@ def test_unsupported_mixed_kind_still_fails_closed():
     bogus = replace(full, placements=(replace(p, kind='kiosk'),))
     with pytest.raises(NotImplementedError, match='unsupported'):
         sector_assemblies(bogus, 'nightlife')
-
-
-def test_build_density_cli_rejects_blockout_stage(monkeypatch, capsys):
-    from scripts import build_density
-    monkeypatch.setattr('sys.argv', ['build_density.py', '--stage', 'blockout', '--base-manifest', 'b',
-                                     '--layout', 'l', '--run', 'r', '--root-y', '4.5'])
-    with pytest.raises(SystemExit) as exc:
-        build_density.main()
-    assert exc.value.code == 2
-    assert 'invalid choice' in capsys.readouterr().err

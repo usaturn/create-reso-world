@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import unittest
-from collections.abc import Callable
-from typing import Any, cast
 
 from modeling.tokyo_nova import build, pipeline
 from modeling.tokyo_nova.layout import build_layout
@@ -11,10 +9,7 @@ from modeling.tokyo_nova.layout import build_layout
 
 class FullCityTests(unittest.TestCase):
     def build_city(self) -> dict:
-        city_builder = cast(Callable[[dict[str, Any]], dict[str, Any]] | None, getattr(build, "build_city", None))
-        if city_builder is None:
-            self.fail("build.build_city must emit the full city scene")
-        return city_builder(build_layout())
+        return build.build_city(build_layout())
 
     def test_emitted_city_has_facilities_interiors_distinct_buildings_props_and_access(self) -> None:
         city = self.build_city()

@@ -1,8 +1,7 @@
-"""Resource availability, migration boundaries, and runtime packaging for rst-writer."""
+"""Links, templates and eval fixtures that rst-writer points at must exist."""
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 
@@ -15,18 +14,6 @@ EVALS = SKILL_DIR / "evals/evals.json"
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
-
-def test_profiles_and_resource_directories_exist() -> None:
-    # This inventory protects the migration boundary, not profile wording.
-    for relative, expected in (
-        ("references/profiles", {"create-reso-world.md", "oss-python-extension.md"}),
-        ("assets", {"create-reso-world", "oss-python-extension"}),
-        ("evals/fixtures", {"negative", "oss-extension", "repo-env"}),
-    ):
-        present = {entry.name for entry in (SKILL_DIR / relative).iterdir() if entry.name != "__pycache__"}
-        assert present == expected
-    assert not (SKILL_DIR / "references/rst-style-guide.md").exists()
 
 
 def test_markdown_links_resolve() -> None:
@@ -57,9 +44,3 @@ def test_every_eval_uses_existing_fixture_files() -> None:
         assert isinstance(item["files"], list)
         for name in item["files"]:
             assert (SKILL_DIR / name).is_file(), f"{item['id']}: {name}"
-
-
-def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
-    link = REPO_ROOT / ".claude/skills/rst-writer"
-    assert link.is_symlink()
-    assert os.readlink(link) == "../../.agents/skills/rst-writer"

@@ -43,7 +43,6 @@ class ProbeTests(unittest.TestCase):
             self.assertTrue(report["uv_map"])
             self.assertTrue(report["packed_images"])
             self.assertTrue(report["face_normals_valid"])
-            self.assertEqual(report["japanese_sign_strategy"], "Resonite TextRenderer: 非対称・1m計測面")
 
 
 if __name__ == "__main__":

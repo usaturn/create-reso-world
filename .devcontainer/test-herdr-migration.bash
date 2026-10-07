@@ -3,7 +3,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ZSHRC_TEMPLATE="${REPO_ROOT}/.devcontainer/zshrc.txt"
-HERDR_CONFIG="${REPO_ROOT}/.devcontainer/herdr.toml"
 TEST_ROOT="$(mktemp -d)"
 trap 'rm -rf "${TEST_ROOT}"' EXIT
 
@@ -13,19 +12,6 @@ assert_contains() {
 }
 assert_absent() {
     ! rg -q -i -- "$2" "$1" || fail "$1 must not contain $2"
-}
-assert_before() {
-    local file="$1"
-    local earlier_pattern="$2"
-    local later_pattern="$3"
-    local earlier_line
-    local later_line
-    earlier_line="$(rg -n -m1 -- "$earlier_pattern" "$file" | cut -d: -f1)" \
-        || fail "$file does not contain $earlier_pattern"
-    later_line="$(rg -n -m1 -- "$later_pattern" "$file" | cut -d: -f1)" \
-        || fail "$file does not contain $later_pattern"
-    [ "$earlier_line" -lt "$later_line" ] \
-        || fail "$earlier_pattern must appear before $later_pattern in $file"
 }
 extract_cc_launcher_unsets() {
     sed -n '/^typeset -a cc_launcher_unsets=(/,/^)/p' "$1" \
@@ -160,33 +146,6 @@ run_session_repair() {
         HERDR_WORKSPACE_ROOT="$workspace_root" \
         HERDR_TEST_WORKSPACE="$workspace_dir" \
         "$@"
-}
-
-test_config_and_syntax() {
-    zsh -n "$ZSHRC_TEMPLATE"
-    assert_contains "$HERDR_CONFIG" '^prefix = "ctrl\+k"$'
-    assert_contains "$HERDR_CONFIG" '\$clock'
-    assert_contains "${REPO_ROOT}/.devcontainer/devcontainer.json" \
-        '"userEnvProbe": "loginShell"'
-    assert_contains "$ZSHRC_TEMPLATE" '^function herdrstart\(\)\{$'
-    assert_contains "$ZSHRC_TEMPLATE" 'herdr-status-updater'
-    assert_contains "$ZSHRC_TEMPLATE" '^function herdr_select_workspace\(\)\{$'
-    assert_contains "$ZSHRC_TEMPLATE" '^function herdr_repair_session_cwd\(\)\{$'
-    assert_contains "$ZSHRC_TEMPLATE" 'workspace_dir="\$\(herdr_select_workspace\)"'
-    assert_contains "$ZSHRC_TEMPLATE" 'cd -- "\$workspace_dir"'
-    assert_before "$ZSHRC_TEMPLATE" \
-        'herdr_repair_session_cwd "\$workspace_dir"' '^    herdr$'
-
-    # herdrstart が herdr セッション内で no-op になるガード
-    assert_contains "$ZSHRC_TEMPLATE" 'HERDR_ENV'
-
-    # tmux 撤去後の再混入防止。assert_absent は -i 付きのため TMUX も検出する
-    assert_absent "$ZSHRC_TEMPLATE" 'tmux'
-    local removed
-    for removed in tmux.conf tmux-git-status.bash tmux-url-copy.zsh; do
-        [ ! -e "${REPO_ROOT}/.devcontainer/${removed}" ] \
-            || fail "${removed} must not exist"
-    done
 }
 
 # ここで検証するのは herdrstart 経路のみ。
@@ -471,39 +430,6 @@ assert other["tabs"][0]["panes"]["0"]["cwd"] != workspace_dir
 PY
 }
 
-test_installer_wiring() {
-    local installer="${REPO_ROOT}/.devcontainer/install_beforehand.bash"
-    bash -n "$installer"
-
-    assert_before "$installer" 'https://astral\.sh/uv/install\.sh' 'https://herdr\.dev/install\.sh'
-    assert_before "$installer" 'Installing Starship' 'https://herdr\.dev/install\.sh'
-    assert_absent "$installer" 'bun\.com'
-    assert_absent "$installer" 'headroom'
-    assert_before "$installer" 'cat \.devcontainer/zshrc\.txt >>\$\{HOME\}/\.zshrc' \
-        'Installing Herdr'
-
-    assert_contains "$installer" 'if \[ ! -f "\$\{HOME\}/\.config/herdr/config\.toml" \]'
-    assert_contains "$installer" 'if ! mkdir -p "\$\{HOME\}/\.config/herdr"; then'
-    assert_contains "$installer" 'if ! cp \.devcontainer/herdr\.toml "\$\{HOME\}/\.config/herdr/config\.toml"; then'
-    assert_contains "$installer" 'command -v herdr'
-    assert_contains "$installer" 'herdr --version'
-
-    assert_contains "$installer" 'curl -fsSL https://claude\.ai/install\.sh \| bash'
-    assert_contains "$installer" 'command -v claude'
-    assert_contains "$installer" 'if ! claude plugin marketplace add dashed/claude-marketplace; then'
-    assert_contains "$installer" 'if ! claude plugin install "\$plugin"; then'
-    assert_before "$installer" 'curl -fsSL https://claude\.ai/install\.sh \| bash' \
-        'if ! claude plugin marketplace add dashed/claude-marketplace; then'
-
-    assert_contains "$installer" 'herdr-git-status\.bash'
-    assert_contains "$installer" 'herdr-status-updater\.bash'
-    assert_contains "$installer" 'herdr-agent-task\.bash'
-    assert_contains "$installer" 'cp \.devcontainer/herdr-agent-task\.bash "\$\{HOME\}/bin/herdr-agent-task"'
-
-    # tmux 撤去後の再混入防止: apt 行・cp・コメントを含め全体で検査
-    assert_absent "$installer" 'tmux'
-}
-
 # ccdd / ccddg / ccdu の env -u 共有リストが、親シェルで export された
 # 主要な認証材料・プロバイダ切替・モデルピン留系の値を子 claude へ漏らさない
 # ことを検査する。対象範囲の正本は下の expected_unsets。
@@ -521,12 +447,6 @@ test_cc_launcher_env_unsets() {
         'env | sort >> "$HERDR_TEST_CLAUDE_DUMP"' \
         > "$test_home/bin/claude"
     chmod +x "$test_home/bin/claude"
-
-    assert_contains "$ZSHRC_TEMPLATE" 'typeset -a cc_launcher_unsets'
-    [ "$(rg -c -- 'env "\$\{cc_launcher_unsets\[@\]\}"' "$ZSHRC_TEMPLATE")" -ge 3 ] \
-        || fail 'cc_launcher_unsets must be shared by all 3 launcher functions'
-    # 撤去した ccda（claude-alibaba）を戻さない
-    assert_absent "$ZSHRC_TEMPLATE" 'claude-alibaba|ccda|MAAS_ANTHROPIC_TOKEN|maas\.aliyuncs'
 
     local -a expected_unsets=(
         ANTHROPIC_API_KEY
@@ -581,18 +501,6 @@ test_cc_launcher_env_unsets() {
         <(printf '%s\n' "${unset_vars[@]}") \
         || fail 'cc_launcher_unsets must match expected_unsets exactly'
 
-    # 配列外の無関係な env -u は共有リストの集合比較へ混ぜない。
-    local unrelated_unset_fixture="${TEST_ROOT}/zshrc-unrelated-unset.txt"
-    cp "$ZSHRC_TEMPLATE" "$unrelated_unset_fixture"
-    printf '%s\n' 'alias unrelated-check="env -u UNRELATED_REPRO_VAR true"' \
-        >> "$unrelated_unset_fixture"
-    local -a fixture_unset_vars
-    mapfile -t fixture_unset_vars < \
-        <(extract_cc_launcher_unsets "$unrelated_unset_fixture")
-    diff <(printf '%s\n' "${expected_unsets[@]}" | sort -u) \
-        <(printf '%s\n' "${fixture_unset_vars[@]}") \
-        || fail 'cc_launcher_unsets extraction must ignore unrelated env -u entries'
-
     local -a env_args=(
         DEEPINFRA_TOKEN=fake-di
         # ccdu のキー解決チェーンをテスト値で固定する。空値は :- で未設定扱いとなり、
@@ -639,11 +547,9 @@ test_cc_launcher_env_unsets() {
     assert_contains "${dump_dir}/ccdd.log" '^ANTHROPIC_AUTH_TOKEN=fake-di$'
     assert_contains "${dump_dir}/ccddg.log" '^ANTHROPIC_AUTH_TOKEN=fake-di$'
     assert_contains "${dump_dir}/ccdu.log" '^ANTHROPIC_API_KEY=fake-open$'
-    assert_contains "${dump_dir}/ccdu.log" '^CLAUDE_CODE_SUBAGENT_MODEL=union-alpha$'
-    assert_contains "${dump_dir}/ccdu.log" '^CLAUDE_CODE_MAX_CONTEXT_TOKENS=262144$'
 }
 
-# 誤ったモデル・権限フラグや "$@" の分割を、子 CLI に実際に渡る値で検出する。
+# 誤った権限フラグや "$@" の分割、資格情報の渡し先を、子 CLI に実際に渡る値で検出する。
 # 実プロバイダには接続せず、指定した環境変数だけを記録する。
 make_claude_probe() {
     local test_home="$1"
@@ -656,11 +562,7 @@ import sys
 
 keys = [
     "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY",
-    "ANTHROPIC_DEFAULT_FABLE_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-    "ENABLE_CLAUDEAI_MCP_SERVERS", "CLAUDE_CODE_EFFORT_LEVEL",
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS", "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
-    "CLAUDE_CODE_SUBAGENT_MODEL",
+    "ENABLE_CLAUDEAI_MCP_SERVERS",
 ]
 with open(os.environ["HERDR_TEST_CLAUDE_DUMP"], "w", encoding="utf-8") as handle:
     json.dump({"argv": sys.argv[1:], "env": {k: os.environ.get(k) for k in keys}}, handle)
@@ -725,29 +627,20 @@ import sys
 log, name = sys.argv[1:]
 with open(log, encoding="utf-8") as handle:
     data = json.load(handle)
-di = name in ("ccdd", "claude-deepinfra")
-glm = name in ("ccddg", "claude-deepinfra-glm")
 union = name in ("ccdu", "claude-opencode-union")
-prefix = ["--model", "union-alpha" if union else "opus"]
-if name in ("ccdd", "ccddg", "ccdu"):
-    prefix += ["--dangerously-skip-permissions"]
-assert data["argv"] == prefix + ["", "two words", "line\nbreak", "*.blend", "--model", "sonnet"], (name, data["argv"])
-models = (
-    ["zai-org/GLM-5.3", "deepseek-ai/DeepSeek-V4.1-Flash", "deepseek-ai/DeepSeek-V4-Flash-0731", "openai/gpt-oss-20b"] if di else
-    ["deepseek-ai/DeepSeek-V4.1-Flash", "zai-org/GLM-5.3-Flash", "deepseek-ai/DeepSeek-V4-Flash-0731", "openai/gpt-oss-20b"] if glm else
-    ["union-alpha"] * 4
-)
+argv = data["argv"]
+# モデル名と調整値は運用で変わるため照合しない。--model とその値の後に、短い名前だけが権限確認を
+# 省くフラグを付け、利用者の引数を崩さずに渡すことを見る
+assert argv[0] == "--model" and argv[1], (name, argv)
+opts = ["--dangerously-skip-permissions"] if name in ("ccdd", "ccddg", "ccdu") else []
+assert argv[2:] == opts + ["", "two words", "line\nbreak", "*.blend", "--model", "sonnet"], (name, argv)
+# 資格情報の送り先と渡し方、claude.ai の MCP 接続を他社のモデルへ渡さないことは固定値で守る。
+# 送り先を変えると DEEPINFRA_TOKEN などを別のホストへ送り、MCP を有効にすると利用者の接続先のデータを渡す
 env = data["env"]
-for alias, model in zip(("FABLE", "OPUS", "SONNET", "HAIKU"), models):
-    assert env[f"ANTHROPIC_DEFAULT_{alias}_MODEL"] == model, (name, alias, env)
 assert env["ANTHROPIC_BASE_URL"] == ("https://opencode.ai/zen/go" if union else "https://api.deepinfra.com/anthropic")
 assert env["ANTHROPIC_AUTH_TOKEN"] == (None if union else "fake-di")
 assert env["ANTHROPIC_API_KEY"] == ("fake-union" if union else None)
 assert env["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"
-assert env["CLAUDE_CODE_EFFORT_LEVEL"] == "max"
-assert env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == ("131072" if union else "65536")
-assert env["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == ("262144" if union else None)
-assert env["CLAUDE_CODE_SUBAGENT_MODEL"] == ("union-alpha" if union else None)
 PY
     done
 }
@@ -810,8 +703,6 @@ PY
     done
 }
 
-test_config_and_syntax
-test_installer_wiring
 test_launch_and_guards
 test_session_cwd_repair
 test_session_cwd_repair_multi_workspace

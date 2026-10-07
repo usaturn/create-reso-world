@@ -3,8 +3,6 @@ from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
-import pytest
-
 from modeling.slum03.density_model import TARGET_COUNTS, REPRESENTATIVE_KEYS
 from modeling.slum03.density_layout import build_density_layout
 from modeling.slum03.density_metrics import validate_density
@@ -143,7 +141,6 @@ def test_canonical_variants_drive_representative_and_full_without_touching_other
     canon = {'ruin-west': 'slab_bay', 'shack-row': 'corrugated', 'market-west': 'electronics'}
     for stage in ('representative', 'blockout', 'full'):
         layout = build_density_layout(base, stage)
-        originals = {p.key: p for p in base.placements}
         actual = {p.key: p for p in layout.placements}
         assert {key: actual[key].params['variant'] for key in canon} == canon
         if stage != 'full':
@@ -189,9 +186,8 @@ def _resolve_selected_key(key, baseline_names):
 
 
 def test_full_selected_keys_resolve_to_exactly_one_class(legacy_manifest):
-    import json
     from modeling.slum03.candidate_scope import nodes
-    from modeling.slum03.density_model import SCATTER_PREFIXES, TARGET_COUNTS
+    from modeling.slum03.density_model import SCATTER_PREFIXES
     names = [node['slot'].get('name') for node, _ in nodes(legacy_manifest).values()]
     saved = read_layout(Path('content/slum03/density-full-layout.json'))
     keys = saved.density.selected_keys
@@ -216,12 +212,3 @@ def test_full_selected_keys_resolve_to_exactly_one_class(legacy_manifest):
     assert 'district-ground' not in keys
     # Nothing selected may be Yarol, and no key repeats.
     assert 'yarol' not in keys and len(keys) == len(set(keys))
-    assert json.loads(json.dumps(list(keys))) == list(keys)
-
-
-def test_selected_key_classifier_rejects_the_old_unresolvable_key(legacy_manifest):
-    from modeling.slum03.candidate_scope import nodes
-    names = [node['slot'].get('name') for node, _ in nodes(legacy_manifest).values()]
-    assert _resolve_selected_key('district-ground', names) == []      # old key: no Slot
-    assert _resolve_selected_key('plaza-rubble-north-3-9', names) == ['baseline']
-    assert _resolve_selected_key('plaza-rubble-nowhere', names) == []

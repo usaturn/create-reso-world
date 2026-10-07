@@ -5,26 +5,14 @@ by ``resoloop validate`` (offline), not by these tests.
 
 ``_merge_bundle_slots`` (rename / reuse / prune / reference rewrite) is covered
 by synthetic two-sector bundles under ``tmp_path`` so the invariants hold in CI
-without the real ``content/akichi`` bundles, plus one snapshot of the real
-manifest's component-type counts.
+without the real ``content/akichi`` bundles.
 """
 import json
-from collections import Counter
 from pathlib import Path
 
 import pytest
 from modeling.akichi import pipeline
-
-# 実 manifest（content/akichi/akichi-slum.json）の型別コンポーネント数。
-# delivery-report と最終レビューの独立集計と一致する値。
-REAL_COMPONENT_COUNTS = {
-    "FrooxEngine.StaticMesh": 440,
-    "FrooxEngine.MeshRenderer": 440,
-    "FrooxEngine.PBS_Metallic": 27,
-    "FrooxEngine.BoxCollider": 11,
-    "FrooxEngine.TextRenderer": 14,
-}
-REAL_ASSET_COUNT = 440
+from modeling.akichi.layout import build_layout
 
 # --- 実 bundle 依存のテスト ---------------------------------------------------
 
@@ -40,6 +28,8 @@ def _real_manifest_or_skip() -> dict:
 def test_manifest_structure(tmp_path):
     # 実 bundle がある場合はそれを使い、CI 的に最小構成でも検証できること
     manifest = pipeline.build_unified_manifest(Path("content/akichi"))
+    # 固定値の理由: 所有キーと所有ルート（Root 直下の Akichi_Slum）は、既存の state と
+    # Resonite 上の適用済みコンテンツを結び付ける。変わると所有範囲を別物として扱い、prune の対象を誤る。
     assert manifest["ownership"]["key"] == "akichi"
     assert manifest["slot"]["name"] == "Akichi_Slum"
     assert manifest["slot"]["parent"] == "Root"
@@ -49,32 +39,20 @@ def test_manifest_structure(tmp_path):
 
 
 def test_signs_attached():
+    """layout の看板が 1 枚ずつ、同じ文言の TextRenderer として manifest に入る。"""
     manifest = pipeline.build_unified_manifest(Path("content/akichi"))
-    text = json.dumps(manifest, ensure_ascii=False)
-    assert "TextRenderer" in text
-    assert "ジャンク屋 鉄屑堂" in text
-
-
-def test_cameras_and_tests_present():
-    manifest = pipeline.build_unified_manifest(Path("content/akichi"))
-    assert len(manifest["cameras"]) == 4
-    assert manifest["cameras"]["overview-north"]["representative"] is True
-    assert any(t["name"] == "root-exists" for t in manifest["tests"])
+    texts = [
+        component["fields"]["Text"]
+        for component in _all_components(manifest)
+        if component["type"] == "FrooxEngine.TextRenderer"
+    ]
+    assert sorted(texts) == sorted(sign["text"] for sign in build_layout()["signs"])
 
 
 def test_manifest_is_deterministic():
     a = json.dumps(pipeline.build_unified_manifest(Path("content/akichi")), sort_keys=True, ensure_ascii=False)
     b = json.dumps(pipeline.build_unified_manifest(Path("content/akichi")), sort_keys=True, ensure_ascii=False)
     assert a == b
-
-
-def test_manifest_component_type_counts():
-    """実 manifest の型別カウント。リネーム/再利用ロジックの回帰検知点。"""
-    manifest = _real_manifest_or_skip()
-    counts = Counter(component["type"] for component in _all_components(manifest))
-    assert dict(counts) == REAL_COMPONENT_COUNTS
-    assert len(manifest["assets"]) == REAL_ASSET_COUNT
-    assert sum(1 for kind, _ in _references(manifest) if kind == "asset") == REAL_ASSET_COUNT
 
 
 def test_manifest_references_resolve():

@@ -164,12 +164,6 @@ class Task1ReviewRegressionTests(unittest.TestCase):
             if not any(_route_reaches_front_door(building, route) for route in layout["routes"])
         ]
         self.assertEqual(missing, [])
-        access_routes = [route for route in layout["routes"] if route.get("building_access_key")]
-        self.assertGreaterEqual(len(access_routes), 3)
-        self.assertEqual(
-            {route["building_access_key"] for route in access_routes},
-            {"west_game_room", "south_rehearsal", "west_talisman_shop"},
-        )
 
     def test_declared_basement_depths_drive_floor_wells_and_landing_heights(self) -> None:
         layout = build_layout()

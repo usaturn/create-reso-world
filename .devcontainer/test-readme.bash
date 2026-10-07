@@ -1,6 +1,6 @@
 #!/bin/bash
 # .devcontainer/README.md の mount・initialize・zshrc・update の表を実装と比較する。
-# あわせて移行元の名残、撤去済みツール、無効な設定の案内を検査する。
+# あわせて .devcontainer にワークスペースの絶対パスを書いていないことを検査する。
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readme="$root/.devcontainer/README.md"
@@ -33,20 +33,11 @@ while IFS= read -r item; do
   grep -qF -- "$item" <<<"$update_body" || fail "update() lacks '$item' listed in the tool table"
 done < <(column 6 | ticks)
 
-# 無効な Codex 設定を案内しない。
-if grep -nE '^project_doc_fallback_filenames' "$readme"; then fail 'README still tells Codex users to add project_doc_fallback_filenames'; fi
-
-# .devcontainer 配下に移行元の名残を残さない（このテスト自身と、旧変数を無視することを確かめる cleanup のテストは除く）
+# .devcontainer にワークスペースの絶対パスを書かない。固定したパスを使うと、worktree や別名の checkout から
+# 実行しても親の checkout を操作するため、このパスは固定値で禁止する
 cd "$root"
-self=':!.devcontainer/test-readme.bash'
-if git grep -n -i maatlog -- .devcontainer "$self" ':!.devcontainer/test-cleanup-workspace.bash'; then fail '.devcontainer refers to maatlog'; fi
-if git grep -nE '#[0-9]{3}\b' -- .devcontainer "$self"; then fail '.devcontainer refers to issue numbers of the migration source'; fi
-if git grep -nF '/workspaces/reso-world' -- .devcontainer "$self"; then fail '.devcontainer hard-codes the workspace path'; fi
+if git grep -nF '/workspaces/reso-world' -- .devcontainer ':!.devcontainer/test-readme.bash'; then
+  fail '.devcontainer hard-codes the workspace path'
+fi
 
-# 除外したエージェントの導入・mount・起動を .devcontainer に戻さない（ホストに残るパスを案内する README の注記は対象外）
-excluded='@deepseek-ai/dsh|DeepSeek Harness|DSH_|dsh-settings|dsh-cordis|dsh (plugin|web|--)|HOME\}?/\.dsh|vscode/\.dsh|pnpmVersion": "[0-9]|3080'
-excluded+='|x\.ai/cli|HOME\}?/\.grok|vscode/\.grok|grok update|-a grok'
-excluded+='|function claude-alibaba|ccda \(\)|-u MAAS_ANTHROPIC_TOKEN|maas\.aliyuncs'
-if git grep -n -E "$excluded" -- .devcontainer "$self"; then fail '.devcontainer still sets up an excluded agent'; fi
-
-printf 'PASS: README implementation table, migration-source and retired/invalid configuration guards\n'
+printf 'PASS: README implementation table and no hard-coded workspace path\n'

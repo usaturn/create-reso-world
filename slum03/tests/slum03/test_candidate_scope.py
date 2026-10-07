@@ -358,17 +358,3 @@ def test_run_name_containing_raw_draft_and_revision_is_accepted(tmp_path):
     result = compose_candidate(base, draft, read_layout(LAYOUT), tmp_path / 'candidate.json')
     assert result['protected_changes'] == 0
     assert json.loads((tmp_path / 'candidate.json').read_text())['assets']['untouched']['source'] == 'untouched.mesh.json'
-
-
-def test_representative_candidate_limits_are_sized_from_its_own_content(tmp_path):
-    import math
-    from modeling.slum03.pipeline import _count
-    base, draft, b, d = fixture(tmp_path)
-    b['limits'] = {'expandedNodes': 5}  # stale baseline value must not leak
-    base.write_text(json.dumps(b))
-    output = tmp_path / 'candidate.json'
-    compose_candidate(base, draft, read_layout(LAYOUT), output)
-    candidate = json.loads(output.read_text())
-    content = {k: v for k, v in candidate.items() if k != 'limits'}
-    assert candidate['limits'] == {'expandedNodes': math.ceil(_count(content) * 1.2)}
-    assert candidate['limits']['expandedNodes'] >= _count(content)

@@ -7,13 +7,6 @@ from modeling.slum02 import ads
 from modeling.slum02.layout import build_layout
 
 
-def test_one_or_two_objects_per_ad():
-    data = build_layout()
-    built = ads.ads_assemblies(data)
-    spin = [a for a in data["ads"] if a["anim"] == "spin"]
-    assert len(built) == len(data["ads"]) + len(spin)
-
-
 def test_spin_panel_pivot_is_panel_centre():
     data = build_layout()
     for spec in [a for a in data["ads"] if a["anim"] == "spin"]:

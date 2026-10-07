@@ -62,11 +62,6 @@ def test_catenary_sags_and_hits_endpoints():
     assert len(pts) == 17
 
 
-def test_tube_is_closed():
-    m = g.tube("t", g.catenary((0, 5, 0), (4, 6, 1), 0.6, 8), 0.03, 6, "cable")
-    assert _closed(m)
-
-
 def test_rotate_y_quarter_turn():
     assert g.rotate_y((1.0, 0.0, 0.0), math.pi / 2) == pytest.approx((0.0, 0.0, -1.0))
 

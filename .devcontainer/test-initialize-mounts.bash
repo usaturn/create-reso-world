@@ -15,7 +15,9 @@ source "$root/.devcontainer/mounts.bash"
 if ! out="$(mounts_compare "$config" "$init")"; then fail "mounts and initialize.bash differ:
 $out"; fi
 
-# 2. mounts は仕様 7.1 の表の 14 個（既存 13 ＋秘密情報）から、撤去した dsh と Grok Build の ~/.dsh・~/.grok を除いた 12 個
+# 2. mounts は仕様 7.1 の表の 14 個（既存 13 ＋秘密情報）から、撤去した dsh と Grok Build の ~/.dsh・~/.grok を除いた 12 個。
+#    mount の増減はホストの永続領域と秘密情報の露出に関わるため、固定値で守る。1 の相互比較だけでは、
+#    devcontainer.json と initialize.bash を同時に誤って変えたときに検出できない（Issue #36 C1）
 expected='.claude
 .claude.json
 .codex
@@ -64,12 +66,7 @@ while IFS= read -r rel; do
   grep -qF "\"\${HOME}/$rel\"" <<<"$writable" || fail "install_beforehand.bash does not make ~/$rel writable"
 done <<<"$expected"
 
-# 5. コンテナ名と、ユーザ単位のツールの PATH（仕様 7.2）
-grep -qF '"name": "create-reso-world",' "$config" || fail 'devcontainer.json name must be create-reso-world'
-grep -qF '"PATH": "${containerEnv:PATH}:/home/vscode/.local/bin:/home/vscode/bin:/home/vscode/.dotnet/tools"' "$config" \
-  || fail 'remoteEnv.PATH must add ~/.local/bin, ~/bin and ~/.dotnet/tools'
-
-# 6. 食い違いの検出: 片方にしか無いパスと、target が違う mount を報告して 1 を返す
+# 5. 食い違いの検出: 片方にしか無いパスと、target が違う mount を報告して 1 を返す
 cp "$config" "$tmp/extra.json"
 sed -i 's|^\(\t\t"source=${localEnv:HOME}/.pi,target=/home/vscode/.pi,type=bind,consistency=cached",\)$|\1\n\t\t"source=${localEnv:HOME}/.extra,target=/home/vscode/.extra,type=bind,consistency=cached",|' "$tmp/extra.json"
 if out="$(mounts_compare "$tmp/extra.json" "$init")"; then fail 'accepted a mount that initialize.bash does not create'; fi

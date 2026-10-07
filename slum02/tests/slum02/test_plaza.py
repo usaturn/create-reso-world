@@ -1,5 +1,3 @@
-import math
-
 from modeling.slum02 import geometry as g
 from modeling.slum02 import plaza
 from modeling.slum02.layout import build_layout
@@ -96,18 +94,6 @@ def test_ring_glyph_parts_are_closed_and_outward():
         assert _closed_consistent(m) and _signed_volume(m) > 0, m.name
 
 
-def test_spray_layout_values():
-    lay = plaza.spray_layout()
-    assert lay["max_width"] == 17.0 and lay["plane_x"] == 9.195
-    first = lay["lines"][0]
-    assert (first["text"], first["baseline_y"], first["height"], first["center_z"]) == ("トーキョー", 5.9, 2.8, 0.0)
-    second = [l for l in lay["lines"][1:]]
-    assert all(l["baseline_y"] == 1.9 and l["height"] == 3.2 for l in second)
-    ring = next(l["ring"] for l in lay["lines"] if "ring" in l)
-    assert ring["center"] == [9.195, 3.5, 0.0]
-    assert (ring["outer_radius"], ring["band"], ring["inner_outer_radius"]) == (1.4, 0.28, 0.75)
-
-
 def test_budget_and_materials_and_determinism():
     from modeling.slum02.materials import MATERIALS
     from modeling.slum02.sectors import resource_report
@@ -120,6 +106,8 @@ def test_budget_and_materials_and_determinism():
 
 
 def test_floor_top_pits_and_cracks():
+    # 固定値の理由: postprocess.collider_slots は柱の collider の基準高さを 0.185
+    # （FLOOR_TOP + 根巻き・ベースプレート分）と直接書いている。床の高さだけを変えると collider が柱とずれる。
     assert plaza.FLOOR_TOP == 0.12
     floor = _named()["plaza-floor"]
     slab = next(p for p in floor.parts if p.name == "floor-slab")

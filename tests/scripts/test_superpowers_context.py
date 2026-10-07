@@ -221,7 +221,8 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(self.good(cwd=sub)["parent_root"], str(self.parent))
 
     def test_missing_unsupported_or_foreign_parent_origin_has_actionable_error(self):
-        for url in (None, "https://example.com/usaturn/create-reso-world.git", "not-a-url", "https://github.com/other/repository"):
+        for url in (None, "https://example.com/usaturn/create-reso-world.git", "git@example.com:usaturn/create-reso-world.git",
+                    "not-a-url", "https://github.com/other/repository"):
             with self.subTest(url=url):
                 if url is None:
                     self.git(self.parent, "remote", "remove", "origin")

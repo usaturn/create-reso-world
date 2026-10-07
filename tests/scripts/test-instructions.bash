@@ -1,26 +1,15 @@
 #!/bin/bash
-# ルートの指示ファイルの読み込み指定・参照実在・禁止事項・利用者所有部分を検査する。
+# ルートの指示ファイルの読み込み指定・参照実在・利用者所有部分を検査する。
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
-lacks() { if grep -qF -- "$2" "$1"; then fail "$1 must not contain: $2"; fi; }
 
 # CLAUDE.md の読み込み指定は実際のインターフェースなので維持する。
 [ "$(head -n 1 CLAUDE.md)" = '@AGENTS.md' ] || fail 'CLAUDE.md line 1 must be @AGENTS.md'
 bash tests/scripts/test-docs.bash --refs AGENTS.md CLAUDE.md .pi/APPEND_SYSTEM.md
 
-# 旧リポジトリ由来の記述とツール固有の記述を持ち込まない
-for s in 'reStructuredText' 'Gitleaks' 'contingency' 'verify.sh' 'verify-devenv' 'AskUserQuestion' 'TaskOutput' 'npx ctx7'; do
-  lacks AGENTS.md "$s"
-done
-
-# .pi/APPEND_SYSTEM.md: 撤去済みのスキル・読み込み方式・設定と旧 role API の引数を戻さない。
-lacks .pi/APPEND_SYSTEM.md 'subagent-launch-verification'
-lacks .pi/APPEND_SYSTEM.md '@.agents/skills/'
-lacks .pi/APPEND_SYSTEM.md 'PI_DISTILL_MODEL'
-lacks .pi/APPEND_SYSTEM.md 'async: false'
 # ペルソナ節（## Response Persona 以降）は利用者が書く部分で、エージェントは 1 バイトも変えない。
 # 利用者が意図して変えたときは、失敗の表示にある新しいハッシュで expected_persona を更新する
 expected_persona=906d9d2570a9662427a95609efcc29454a5f46f1591352f8b264b996895e2995
@@ -28,4 +17,4 @@ persona="$(sed -n '/^## Response Persona/,$p' .pi/APPEND_SYSTEM.md | sha256sum |
 [ "$persona" = "$expected_persona" ] \
   || fail "persona section changed (sha256 $persona); if the change is intended, update expected_persona in tests/scripts/test-instructions.bash"
 
-printf 'PASS: root instruction imports, references, forbidden names and persona SHA\n'
+printf 'PASS: root instruction imports, references and persona SHA\n'

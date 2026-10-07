@@ -4,7 +4,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GIT_CORE="${REPO_ROOT}/.devcontainer/herdr-git-status.bash"
 UPDATER="${REPO_ROOT}/.devcontainer/herdr-status-updater.bash"
-HERDR_CONFIG="${REPO_ROOT}/.devcontainer/herdr.toml"
 TEST_ROOT="$(mktemp -d)"
 trap 'rm -rf "${TEST_ROOT}"' EXIT
 
@@ -24,10 +23,6 @@ make_repo() {
     printf 'x\n' > "$dir/file.txt"
     git -C "$dir" add file.txt
     git -C "$dir" commit -q -m init
-}
-
-test_git_core_missing_script_is_defined() {
-    [ -x "$GIT_CORE" ] || fail "herdr-git-status.bash missing or not executable"
 }
 
 test_git_core_states() {
@@ -125,7 +120,6 @@ EOF
 }
 
 test_updater_dry_run() {
-    [ -x "$UPDATER" ] || fail "updater missing"
     local repo="${TEST_ROOT}/upd-repo"
     make_repo "$repo"
     local snap="${TEST_ROOT}/snapshot.json"
@@ -140,7 +134,6 @@ test_updater_dry_run() {
 }
 
 test_updater_dry_run_nongit() {
-    [ -x "$UPDATER" ] || fail "updater missing"
     local nongit="${TEST_ROOT}/upd-nongit"
     mkdir -p "$nongit"
     local snap="${TEST_ROOT}/snapshot-nongit.json"
@@ -155,7 +148,6 @@ test_updater_dry_run_nongit() {
 }
 
 test_updater_dry_run_staged() {
-    [ -x "$UPDATER" ] || fail "updater missing"
     local repo="${TEST_ROOT}/upd-staged"
     make_repo "$repo"
     printf 'staged\n' > "$repo/file.txt"
@@ -171,7 +163,6 @@ test_updater_dry_run_staged() {
 }
 
 test_updater_dry_run_dirty() {
-    [ -x "$UPDATER" ] || fail "updater missing"
     local repo="${TEST_ROOT}/upd-dirty"
     make_repo "$repo"
     printf 'dirty\n' > "$repo/file.txt"
@@ -186,7 +177,6 @@ test_updater_dry_run_dirty() {
 }
 
 test_shorten_branch_label() {
-    [ -x "$UPDATER" ] || fail "updater missing"
     local repo="${TEST_ROOT}/upd-long-branch"
     make_repo "$repo"
     local snap="${TEST_ROOT}/snapshot-long.json"
@@ -221,7 +211,6 @@ test_shorten_branch_label() {
 }
 
 test_updater_dry_run_cwd_fallback() {
-    [ -x "$UPDATER" ] || fail "updater missing"
     local repo="${TEST_ROOT}/upd-fallback"
     make_repo "$repo"
     local snap="${TEST_ROOT}/snapshot-fallback.json"
@@ -255,25 +244,6 @@ EOF
     rg -q $'w5\tclear_token\tgit_dirty' <<<"$out" || fail "fallback missing clear dirty"
 }
 
-test_herdr_toml() {
-    assert_contains() { rg -q -- "$2" "$1" || fail "$1 missing $2"; }
-    assert_contains "$HERDR_CONFIG" 'prefix = "ctrl\+k"'
-    assert_contains "$HERDR_CONFIG" '\[ui\.sidebar\.spaces\]'
-    assert_contains "$HERDR_CONFIG" '\$git_clean'
-    assert_contains "$HERDR_CONFIG" '\$git_staged'
-    assert_contains "$HERDR_CONFIG" '\$git_dirty'
-    assert_contains "$HERDR_CONFIG" '\$git_name'
-    assert_contains "$HERDR_CONFIG" '\$clock'
-    assert_contains "$HERDR_CONFIG" '#50FA7B'
-    assert_contains "$HERDR_CONFIG" '#E5A700'
-    assert_contains "$HERDR_CONFIG" '#FF5555'
-    assert_contains "$HERDR_CONFIG" '#8BE9FD'
-    # 組み込み git を載せない
-    ! rg -q '"branch"' "$HERDR_CONFIG" || fail "must not use built-in branch token"
-    ! rg -q '"git_status"' "$HERDR_CONFIG" || fail "must not use built-in git_status token"
-}
-
-test_git_core_missing_script_is_defined
 test_git_core_states
 test_git_core_ahead_indicator
 test_updater_dry_run
@@ -282,5 +252,4 @@ test_updater_dry_run_staged
 test_updater_dry_run_dirty
 test_shorten_branch_label
 test_updater_dry_run_cwd_fallback
-test_herdr_toml
-printf 'OK test-herdr-status (task1+2+3+4+shorten)\n'
+printf 'OK test-herdr-status\n'

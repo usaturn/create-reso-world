@@ -29,6 +29,8 @@ def intersects_walk(a, x, z, foot=0, head=2.2):
 
 
 def test_bridge_matches_road_and_bank_span():
+    # 固定値の理由: 橋の範囲（X 60〜96・Z 72〜118）は、承認済みの設計仕様
+    # （2026-09-27-slum03-cyberpunk-slum-design.md の 4.1 の表）が定める。
     bridge, = build_layout().select('bridge')
     assert bridge.size[0] == 36.0
     assert bridge.origin[2] - bridge.size[2] / 2 == 72.0

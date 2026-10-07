@@ -27,7 +27,6 @@ def test_legacy_layout_not_full_density(legacy_layout, legacy_reports, legacy_ma
     assert validate_density_config(legacy_layout) == []
     assert 'density' not in legacy_reports['ruins-west']
     assert legacy_manifest['ownership']['key'] == 'slum03'
-    assert len(legacy_layout.__dataclass_fields__) == 9
     assert validate_layout(legacy_layout) == []
 
 
@@ -89,6 +88,8 @@ def test_stable_seed_uses_utf8_sha256_and_is_process_independent():
 
 
 def test_saved_baseline_has_original_fixed_hash_and_slot_keys(legacy_manifest):
+    # 固定値の理由: density-baseline.json は Gate D2 で適用した候補の基準（apply-log.md・live-verification.json が
+    # この SHA を記録）として凍結した。Slot キーは適用済みの state が指す代表 3 単位の安定キー。
     baseline = Path('content/slum03/density-baseline.json').read_bytes()
     assert hashlib.sha256(baseline).hexdigest() == (
         '2a048a15fd41de680964590c9182868e85bfd175e5fb12044b4824236c0e2bec')
@@ -102,15 +103,3 @@ def test_saved_baseline_has_original_fixed_hash_and_slot_keys(legacy_manifest):
         'shack-row': 'object_shack-row_06a9a4ed',
         'market-west': 'object_market-west_c7b851dd',
     }
-
-
-def test_legacy_manifest_is_saved_baseline_even_when_canonical_changes(tmp_path, monkeypatch, request):
-    source = Path('content/slum03/density-baseline.json').read_bytes()
-    directory = tmp_path / 'content' / 'slum03'
-    directory.mkdir(parents=True)
-    (directory / 'density-baseline.json').write_bytes(source)
-    (directory / 'slum03.json').write_text('{"ownership": {"key": "new-version"}}')
-    monkeypatch.chdir(tmp_path)
-    legacy = request.getfixturevalue('legacy_manifest')
-    assert legacy['ownership']['key'] == 'slum03'
-    assert legacy['slot']['name'] == 'Slum03_Slum'

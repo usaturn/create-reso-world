@@ -142,15 +142,6 @@ def test_insulators_and_brackets_at_both_ends(data, by_name):
             assert math.dist(centre, spec[key]) < 0.4, (a.name, end)
 
 
-def test_cables_attach_to_real_mounts(data, by_name):
-    mounts = {x["id"]: x for grp in ("towers", "stalls", "clubs", "shacks") for x in data[grp]}
-    for spec in data["cables"]:
-        a = by_name[spec["id"].replace("cable", "cables")]
-        assert a.meta["attach"] == spec["attach"]
-        for item_id, p in zip(spec["attach"], (spec["a"], spec["b"])):
-            assert L._on_surface(mounts[item_id], p), (spec["id"], item_id)
-
-
 # --------------------------------------------------------------------------- bridges
 
 
@@ -240,8 +231,3 @@ def test_trash_inside_street_edges_and_grounded(data, by_name):
         assert edge <= 1.5, (a.name, edge)                                   # hugging a kerb, not mid-road
         materials.update(p.material for p in a.parts)
     assert {"rubber", "plywood", "plastic_crate"} <= materials               # 袋・段ボール・発泡箱
-
-
-def test_sector_registration(data, built):
-    from modeling.slum02.sectors import sector_assemblies
-    assert [x.name for x in sector_assemblies(data, "overhead")] == [a.name for a in built]

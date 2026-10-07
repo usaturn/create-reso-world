@@ -1,9 +1,9 @@
 """Contract tests for the stale-git-lock-recovery skill and its helper script.
 
 The skill removes a leftover git ``index.lock`` only after proving that no live
-process holds it. These tests guard frontmatter, executable snippet safety,
-the Claude Code symlink, and the observable behavior of
-``scripts/stale_git_lock.sh`` against temporary repositories.
+process holds it. These tests guard executable snippet safety and the
+observable behavior of ``scripts/stale_git_lock.sh`` against temporary
+repositories.
 """
 from __future__ import annotations
 
@@ -20,13 +20,11 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SKILL_DIR = REPO_ROOT / ".agents" / "skills" / "stale-git-lock-recovery"
 SKILL = SKILL_DIR / "SKILL.md"
 SCRIPT = SKILL_DIR / "scripts" / "stale_git_lock.sh"
-CLAUDE_LINK = REPO_ROOT / ".claude" / "skills" / "stale-git-lock-recovery"
 
 JSON_KEYS = {"path", "exists", "removed", "size", "mtime", "holder", "stale"}
 
@@ -42,14 +40,6 @@ def read(path: Path) -> str:
 
 def bash_blocks() -> list[str]:
     return re.findall(r"```bash\n(.*?)```", read(SKILL), re.DOTALL)
-
-
-def frontmatter() -> dict[str, object]:
-    text = read(SKILL)
-    assert text.startswith("---\n"), "SKILL.md must start with YAML frontmatter"
-    data = yaml.safe_load(text.split("---", 2)[1])
-    assert isinstance(data, dict)
-    return data
 
 
 def run_script(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -173,18 +163,8 @@ def unlistable_process(tmp_path: Path, comm: str) -> Iterator[Path]:
 
 
 # --------------------------------------------------------------------------
-# Frontmatter, executable snippet safety, and runtime wiring
+# Executable snippet safety
 # --------------------------------------------------------------------------
-
-
-def test_frontmatter_declares_name_and_trigger_conditions_only() -> None:
-    data = frontmatter()
-    assert set(data) == {"name", "description"}
-    assert data["name"] == "stale-git-lock-recovery"
-    description = data["description"]
-    assert isinstance(description, str)
-    assert description.strip()
-    assert len(description) <= 1024, f"description has {len(description)} characters"
 
 
 def test_bash_snippets_do_not_run_destructive_git_commands() -> None:
@@ -196,6 +176,8 @@ def test_bash_snippets_do_not_run_destructive_git_commands() -> None:
 
 
 def test_skill_never_removes_the_lock_by_hand() -> None:
+    # Only the helper may remove the lock, after it has ruled out a live holder;
+    # a manual rm in a snippet would skip that check.
     for block in bash_blocks():
         assert "rm " not in block, f"SKILL.md must not show a manual rm:\n{block}"
 
@@ -207,11 +189,6 @@ def test_bash_snippets_do_not_clobber_zsh_special_variables() -> None:
     special = re.compile(r"(?:^|[\s;(])(?:path|status)=|\bread\b[^\n]*\s(?:path|status)\b")
     for block in bash_blocks():
         assert not special.search(block), f"zsh special variable in snippet:\n{block}"
-
-
-def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
-    assert CLAUDE_LINK.is_symlink()
-    assert os.readlink(CLAUDE_LINK) == "../../.agents/skills/stale-git-lock-recovery"
 
 
 # --------------------------------------------------------------------------
