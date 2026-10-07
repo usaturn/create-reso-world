@@ -208,9 +208,11 @@ def test_unusable_key_never_starts_cli(world, key, verb):
     assert world.manifest()["stage"] == "planned"
 
 
-# Catch paid creates without confirmation or accidental raw API defaults.
+# Catch paid creates without confirmation, lost model selection or raw API defaults.
 def test_submit_requires_confirmation_and_explicit_preview_payload(world):
-    world.plan()
+    model = "synthetic-preview-model"
+    world.plan("asset", "--model", model)
+    assert world.manifest()["request"]["payload"]["ai_model"] == model
     world.run("submit", "--operation", "asset", ok=False)
     assert world.calls() == []
     world.submit()
@@ -233,7 +235,7 @@ def test_submit_requires_confirmation_and_explicit_preview_payload(world):
     assert payload == {
         "mode": "preview",
         "prompt": "a stone",
-        "ai_model": "latest",
+        "ai_model": model,
         "target_formats": ["glb"],
     }
     assert KEY not in json.dumps(args)
@@ -407,8 +409,9 @@ def test_completed_download_requires_safe_existing_glb(world, bad_path):
     assert world.manifest()["downloads"]["state"] != "completed"
 
 
-# Catch image replacement after plan and unexpected API generation knobs.
+# Catch image replacement, lost model selection and unexpected generation knobs.
 def test_image_hash_and_explicit_texture_options(world):
+    model = "synthetic-image-model"
     image = world.project / "input.png"
     image.write_bytes(b"first image")
     world.run(
@@ -421,7 +424,10 @@ def test_image_hash_and_explicit_texture_options(world):
         str(image),
         "--texture",
         "true",
+        "--model",
+        model,
     )
+    assert world.manifest()["request"]["payload"]["ai_model"] == model
     image.write_bytes(b"other image")
     world.submit(ok=False)
     assert world.calls() == []
@@ -430,7 +436,7 @@ def test_image_hash_and_explicit_texture_options(world):
     args = world.calls()[0]["args"]
     payload = json.loads(args[args.index("--data") + 1])
     assert payload == {
-        "ai_model": "latest",
+        "ai_model": model,
         "should_texture": True,
         "enable_pbr": True,
         "texture_resolution": "2k",
@@ -442,10 +448,21 @@ def test_image_hash_and_explicit_texture_options(world):
     assert args[args.index("--image-url") + 1] == str(image)
 
 
+# Catch refining unsuccessful previews or replacing the planned model at submit.
 def test_refine_checks_successful_preview_before_paid_create(world):
+    model = "synthetic-refine-model"
     world.run(
-        "plan", "--operation", "asset", "--kind", "refine", "--preview-task-id", TASK
+        "plan",
+        "--operation",
+        "asset",
+        "--kind",
+        "refine",
+        "--preview-task-id",
+        TASK,
+        "--model",
+        model,
     )
+    assert world.manifest()["request"]["payload"]["ai_model"] == model
     world.reply(
         result={
             "task": {"task_id": TASK, "status": "FAILED", "type": "text-to-3d-preview"}
@@ -469,7 +486,7 @@ def test_refine_checks_successful_preview_before_paid_create(world):
     assert json.loads(args[args.index("--data") + 1]) == {
         "mode": "refine",
         "preview_task_id": TASK,
-        "ai_model": "latest",
+        "ai_model": model,
         "enable_pbr": True,
         "texture_resolution": "2k",
         "remove_lighting": True,

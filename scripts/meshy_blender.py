@@ -259,6 +259,32 @@ def convert(args):
         if hasattr(s, "default_value")
     }
     bpy.data.materials.remove(temporary)
+    # glTF 2.0 Default Material uses the schema defaults, not Blender's or
+    # ResoLoop's unassigned-material fallback. Fill slots without changing face
+    # indices so mixed authored/default primitives keep their original binding.
+    # https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#default-material
+    default_material = None
+    for obj in meshes:
+        slots = obj.data.materials
+        if slots and all(slots):
+            continue
+        if default_material is None:
+            default_material = bpy.data.materials.new("Default glTF material")
+            if bpy.app.version < (5, 0, 0):
+                default_material.use_nodes = True
+            shader = default_material.node_tree.nodes.get("Principled BSDF")
+            shader.inputs["Base Color"].default_value = (1, 1, 1, 1)
+            shader.inputs["Metallic"].default_value = 1
+            shader.inputs["Roughness"].default_value = 1
+            shader.inputs["Alpha"].default_value = 1
+            shader.inputs["Emission Color"].default_value = (0, 0, 0, 1)
+            default_material.use_backface_culling = True
+        if not slots:
+            slots.append(default_material)
+        else:
+            for index, material in enumerate(slots):
+                if material is None:
+                    slots[index] = default_material
     materials = {m for obj in meshes for m in obj.data.materials if m}
     cache = {}
     for material in sorted(materials, key=lambda m: m.name):

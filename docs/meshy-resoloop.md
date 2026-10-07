@@ -288,6 +288,7 @@ probe は使わない。変更が残る場合は「収束確認済み」とせ�
 - [ ] 適用範囲が承認された parent 配下だけで、既存の所有外 object を変更しない。
 - [ ] Resonite で寸法・向き・原点、複数 mesh / 階層、albedo / normal / metallic / roughness / emission を対象素材に応じて目視確認。texture 欠落や culling の見た目を確認。
 - [ ] 同じ bundle・同じ state の再 apply 後、diff が無変更。重複 object がなく、適用・test の結果を保存。
+- [ ] ワールドを保存して Resonite を再起動・再読込した後も、モデル・階層と素材・texture が保持されていることを確認。寸法・向きと素材の表示を再確認し、同じ bundle・同じ state の diff が無変更であることと確認結果を記録。
 
 ## 検証済み範囲と未検証
 

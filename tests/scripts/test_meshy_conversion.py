@@ -53,6 +53,7 @@ def glbs(tmp_path_factory, tools):
         "one_sided",
         "mixed_culling",
         "implicit_material",
+        "mixed_default_material",
     ):
         path = directory / (case + ".glb")
         proc = run(
@@ -374,6 +375,169 @@ def test_culling_consent_reports_each_original_material(world, glbs, case, origi
         w["reason"] == "culling_preservation_unsupported" for w in report["warnings"]
     )
     assert all(w["message"] for w in report["warnings"])
+    assert world[2].read_bytes() == before
+
+
+# Catch letting culling consent also change glTF's implicit white/metallic/rough
+# appearance to the exporter's gray nonmetal fallback, or overwrite authored
+# faces when filling empty slots. Values come from glTF 2.0's Default Material
+# and material.pbrMetallicRoughness schemas, not Blender defaults.
+@pytest.mark.parametrize("case", ["implicit_material", "mixed_default_material"])
+def test_implicit_material_preserves_appearance_in_bundle_and_saved_blend(
+    world, glbs, tools, tmp_path, case
+):
+    replace_glb(world, glbs[case])
+    before = world[2].read_bytes()
+    proc = convert(world, "--allow-culling-change")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    conversion = json.loads(proc.stdout)
+    bundle = Path(conversion["bundle"])
+    document = json.loads((bundle / "model.apply.json").read_text())
+
+    def components(slot):
+        yield from slot.get("components", [])
+        for child in slot.get("children", []):
+            yield from components(child)
+
+    exported = list(components(document))
+    materials = {
+        "$component:" + c["key"]: c["fields"]
+        for c in exported
+        if c["type"] == "FrooxEngine.PBS_Metallic"
+    }
+    expected_materials = 1 if case == "implicit_material" else 2
+    assert len(materials) == expected_materials
+    defaults = {
+        ref: fields
+        for ref, fields in materials.items()
+        if "AlbedoTexture" not in fields
+    }
+    assert len(defaults) == 1
+    default_ref, fields = next(iter(defaults.items()))
+    assert fields["AlbedoColor"] == pytest.approx([1, 1, 1, 1])
+    assert fields["Metallic"] == pytest.approx(1)
+    assert fields["Smoothness"] == pytest.approx(0)
+    assert fields["EmissiveColor"] == pytest.approx([0, 0, 0, 1])
+    assert not any(
+        name in fields for name in ("NormalMap", "EmissiveMap", "MetallicMap")
+    )
+    report = json.loads(Path(conversion["report"]).read_text())
+    assert report["materials"] == expected_materials
+    assert {m["name"]: m["doubleSided"] for m in report["material_culling"]} == (
+        {"Default glTF material": False}
+        if case == "implicit_material"
+        else {"FixtureMaterial": True, "Default glTF material": False}
+    )
+    # Check bindings per real submesh, not just an unused default provider.
+    mesh_files = {
+        "$component:" + c["key"]: document["assets"][
+            c["fields"]["URL"].removeprefix("$asset:")
+        ]["source"]
+        for c in exported
+        if c["type"] == "FrooxEngine.StaticMesh"
+    }
+    renderers = [c for c in exported if c["type"] == "FrooxEngine.MeshRenderer"]
+    assert len(renderers) == 2
+    for renderer in renderers:
+        mesh = json.loads((bundle / mesh_files[renderer["fields"]["Mesh"]]).read_text())
+        bindings = renderer["fields"]["Materials"]
+        assert len(bindings) == len(mesh["submeshes"]) == expected_materials
+        assert all(ref in materials for ref in bindings)
+        triangles = {
+            ref: len(section["vertexIndices"]) // 3
+            for ref, section in zip(bindings, mesh["submeshes"], strict=True)
+        }
+        assert triangles[default_ref] == (12 if case == "implicit_material" else 6)
+        if case == "mixed_default_material":
+            authored_ref = next(ref for ref in bindings if ref != default_ref)
+            assert triangles[authored_ref] == 6
+            authored = materials[authored_ref]
+            assert authored["AlbedoColor"] == pytest.approx([1, 1, 1, 1])
+            assert authored["Metallic"] == authored["Smoothness"] == 1
+            assert "AlbedoTexture" in authored and "MetallicMap" in authored
+
+    probe = tmp_path / "material_probe.py"
+    probe.write_text("""import bpy, json, sys
+from collections import Counter
+from pathlib import Path
+saved = {}
+for obj in bpy.context.scene.objects:
+    if obj.type != 'MESH':
+        continue
+    slots = list(obj.data.materials)
+    shaders = {}
+    for material in slots:
+        if material is None:
+            continue
+        shader = material.node_tree.nodes.get('Principled BSDF')
+        shaders[material.name] = {
+            'color': list(shader.inputs['Base Color'].default_value),
+            'metallic': shader.inputs['Metallic'].default_value,
+            'roughness': shader.inputs['Roughness'].default_value,
+            'emission': list(shader.inputs['Emission Color'].default_value),
+            'alpha': shader.inputs['Alpha'].default_value,
+            'culling': material.use_backface_culling}
+    counts = Counter(slots[p.material_index].name if p.material_index < len(slots)
+                     and slots[p.material_index] else None for p in obj.data.polygons)
+    saved[obj.name] = {'slots': [m.name if m else None for m in slots],
+                       'faces': dict(counts), 'shaders': shaders,
+                       'bindings': [slots[p.material_index].name if p.material_index < len(slots)
+                                    and slots[p.material_index] else None for p in obj.data.polygons]}
+# Import the untouched GLB independently to check each face's original binding,
+# including which side of the authored slot the importer placed the None slot.
+bpy.ops.wm.read_factory_settings(use_empty=True)
+bpy.ops.import_scene.gltf(filepath=sys.argv[-2])
+original = {}
+for obj in bpy.context.scene.objects:
+    if obj.type != 'MESH':
+        continue
+    slots = list(obj.data.materials)
+    original[obj.name] = {'slots': [m.name if m else None for m in slots],
+        'bindings': [slots[p.material_index].name if p.material_index < len(slots)
+                     and slots[p.material_index] else None for p in obj.data.polygons]}
+Path(sys.argv[-1]).write_text(json.dumps({'saved': saved, 'original': original}))
+""")
+    inspection = tmp_path / "materials.json"
+    check = run(
+        [
+            tools,
+            "blender",
+            "run",
+            str(probe),
+            "--blend",
+            conversion["blend"],
+            "--arg=" + str(world[2]),
+            "--arg=" + str(inspection),
+            "--json",
+        ]
+    )
+    assert check.returncode == 0, check.stdout + check.stderr
+    inspected = json.loads(inspection.read_text())
+    saved = inspected["saved"]
+    assert set(saved) == {"LowerPart", "UpperPart"}
+    for name, obj in saved.items():
+        assert len(obj["slots"]) == expected_materials
+        assert None not in obj["slots"]
+        assert set(obj["faces"]) == set(obj["slots"])
+        assert sum(obj["faces"].values()) == 12
+        default_name = next(name for name in obj["slots"] if name != "FixtureMaterial")
+        original = inspected["original"][name]
+        if case == "implicit_material":
+            assert original["slots"] == []
+        else:
+            assert set(original["slots"]) == {None, "FixtureMaterial"}
+        assert obj["bindings"] == [
+            material if material is not None else default_name
+            for material in original["bindings"]
+        ]
+        shader = obj["shaders"][default_name]
+        assert shader["color"] == pytest.approx([1, 1, 1, 1])
+        assert shader["metallic"] == shader["roughness"] == shader["alpha"] == 1
+        assert shader["emission"][:3] == pytest.approx([0, 0, 0])
+        assert shader["culling"] is True
+        assert obj["faces"][default_name] == (12 if case == "implicit_material" else 6)
+        if case == "mixed_default_material":
+            assert obj["faces"]["FixtureMaterial"] == 6
     assert world[2].read_bytes() == before
 
 

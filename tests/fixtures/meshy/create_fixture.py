@@ -71,7 +71,14 @@ def create(output, case):
         obj.name = name
         obj.parent = parent
         obj.location = location
-        if case != "implicit_material":
+        if case == "mixed_default_material":
+            # Exercise empty slots before and after an authored material on
+            # the same mesh; glTF export omits material on those primitives.
+            for slot in (material, None) if name == "LowerPart" else (None, material):
+                obj.data.materials.append(slot)
+            for polygon in obj.data.polygons:
+                polygon.material_index = polygon.index % 2
+        elif case != "implicit_material":
             obj.data.materials.append(
                 second_material if name == "UpperPart" and second_material else material
             )
