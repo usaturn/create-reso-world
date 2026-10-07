@@ -96,21 +96,21 @@
 
 **Files:**
 - Create: `scripts/meshy_blender.py`, `scripts/meshy_conversion.py`, `tests/scripts/test_meshy_conversion.py`, `tests/fixtures/meshy/create_fixture.py`
-- Modify: `scripts/meshy.py`（convert を追加）
+- Modify: `scripts/meshy.py`（convert を追加）, `.devcontainer/install_beforehand.bash`（base apt の NumPy）, `.devcontainer/verify-resonite-tooling.bash`（headless NumPy probe）
 
 **Interfaces:**
 - Consumes: Task 1 の load / save / lock / operation_dir / safe_path と manifest `downloads.files`（`key`, `path`, `status`, `sha256`, `bytes`）。
-- Produces: `convert --operation NAME --height METERS [--yaw DEGREES] [--origin ground|center] --parent VERIFIED_SELECTOR [--name NAME]`。
-- Produces: `convert_operation(project: Path, name: str, *, height: float, yaw: float, origin: str, parent: str, model_name: str) -> dict`。converted の .blend、変換 report、bundle、operation の `conversion` を返す。
-- Blender script argv: `--input GLB --output BLEND --report REPORT --height METERS --yaw DEGREES --origin ground|center --name NAME`（resoloop の `--arg=VALUE` 経路）。
+- Produces: `convert --operation NAME --height METERS [--yaw DEGREES] [--origin ground|center] --parent VERIFIED_SELECTOR [--name NAME] [--allow-culling-change]`。
+- Produces: `convert_operation(project: Path, name: str, *, height: float, yaw: float, origin: str, parent: str, model_name: str, allow_culling_change: bool = False) -> dict`。converted の .blend、変換 report、bundle、operation の `conversion` を返す。
+- Blender script argv: `--input GLB --output BLEND --report REPORT --height METERS --yaw DEGREES --origin ground|center --name NAME [--allow-culling-change]`（resoloop の `--arg=VALUE` 経路）。
 
 **テスト:** 必要。小さいテクスチャ付きモデルを実際に Blender と exporter で処理する。API や Resonite には接続しない。
 
 - [ ] **Step 1: fixture generator を追加する。** Blender で opaque Principled の複数 mesh、sRGB albedo、packed MR を作って GLB を tmp に export する。別ケースでは非対応 transparency / transmission を持つ GLB を作る。
 - [ ] **Step 2: subprocess tests を追加し RED を確認する。** 実 GLB→blend→bundle の texture asset 実在、物体分離、指定 height・ground origin、MR 分離 Non-Color、統計値を検査。export に失敗する fake ResoLoop のケースでは正式 bundle と successful conversion がないことを検査する。manifest の GLB 名は固定せず download files から選ぶ。CLI / bpy がない環境だけ理由付き skip 可。
-- [ ] **Step 3: bpy 変換を実装する。** factory settings から glTF import。mesh と hierarchy を保持し、world bounds の height / yaw / ground-center 調整を行う。glTF importer の Separate Color / Separate RGB による B metallic / G roughness を単一 channel grayscale image へ分け、直接 image links へ直す。active UV、Flat / Repeat / Linear、sRGB / Non-Color を確認する。対応しない link / non-opaque / rig / animation は名前付きで停止。元 GLB は不変。画像を pack し編集可能な blend と三角形・素材・画像寸法 report を保存。
+- [ ] **Step 3: bpy 変換を実装する。** factory settings から glTF import。mesh と hierarchy を保持し、world 変換した実頂点の bounds で height / yaw / ground-center 調整を行う。rotated 非直方体の fixture を追加し、probe も実頂点で測る。GLB culling は既定で素材名付き拒否、`--allow-culling-change` がある場合だけ明示警告を report に残して続行。片面・両面の fixture と opt-in の検査を追加する。glTF importer の Separate Color / Separate RGB による B metallic / G roughness を単一 channel grayscale image へ分け、直接 image links へ直す。active UV、Flat / Repeat / Linear、sRGB / Non-Color を確認する。対応しない link / non-opaque / rig / animation は名前付きで停止。元 GLB は不変。画像を pack し編集可能な blend と三角形・素材・画像寸法 report を保存。
 - [ ] **Step 4: `convert_operation` を実装する。** completed downloads の実在 GLB を一意に選択する。hash / path・出力先を検査し lock を保持する。新しい temporary output で run と export を実行し、`.blend`・report・`model.apply.json` が揃って成功したときだけ converted を公開する。resoloop export は `--preserve-hierarchy --pack-pbr --parent SELECTOR`。失敗先を正式 manifest に成功として記録しない。既存変換の上書きは拒否する。apply はしない。
-- [ ] **Step 5: `uv run --no-project --with pytest pytest tests/scripts/test_meshy.py tests/scripts/test_meshy_conversion.py -q` を同期実行して GREEN を確認する。**
+- [ ] **Step 5: glTF に必要な `python3-numpy` を base apt list に追加し、既存 headless probe を `import bpy, numpy` へ拡張する。** `uv run --no-project --with pytest pytest tests/scripts/test_meshy.py tests/scripts/test_meshy_conversion.py -q` を同期実行して GREEN を確認する。現環境の sudo は no-new-privileges で拒否されているため、必要なら一時 uv NumPy wrapper の検証と標準 rebuild 未確認を区別する。既存 toolchain probe の挙動テストも実行する。
 - [ ] **Step 6: 自己確認して `feat: convert Meshy GLB assets for ResoLoop export` をコミットする。** Blender / ResoLoop の実測 version、fixture の結果、所要時間をレポートに記録する。
 
 ### Task 3: 共有スキル・手順と統合検証

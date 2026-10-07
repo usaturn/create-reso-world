@@ -40,6 +40,8 @@ Context7 では `/websites/meshy_ai_en` を照会した。CLI と API 文書に�
 
 ## 1. インストールと認証
 
+Blender の glTF import / export は OS の NumPy を必要とするため、base apt packages に `python3-numpy` を追加し、既存の headless probe でも import を確認する。現セッションでは sudo がコンテナの no-new-privileges 制限で拒否されたため、rebuild 後の標準環境の確認は未実施として残す。
+
 `.devcontainer/install_meshy.bash` が公式 npm パッケージの検証済み版 `0.4.0` を導入する。`install_beforehand.bash` から必須ステップとして呼び、ステップ数を更新する。認証なしの `--version` / `--help` だけで確認し、キーを渡さない。導入失敗は postCreate の既存 fail 処理へ伝える。更新は版変更、公式仕様の照合、モック回帰、認証不要の CLI smoke の順で行う。既存 zsh の update() や他サービスの秘密情報 mount は変更しない。
 
 API 処理は実行環境の `MESHY_API_KEY` だけを使う。空白・空・placeholder をキーなしとして拒否する。`.env`、rc、mount、containerEnv / remoteEnv、OAuth、キー引数・キーを含むプロンプトを追加しない。CLI 子プロセスでは継承された `MESHY_*` の認証・URL・ログ設定を取り除き、キー、公式 API URL、silent ログ、プロジェクト内の状態ディレクトリ、資格情報の代替利用を避ける隔離パスを設定する。更新通知は無効化する。
@@ -79,6 +81,8 @@ wait の timeout / interruption、download の失敗では ID と段階を保持
 `scripts/meshy_blender.py` は `resoloop blender run` 内だけで bpy を使い、manifest から選んだ GLB を読み込む。実寸 height、yaw、origin（ground / center）、名前を指定できる。独立した物体を無条件に join しない。静的 mesh の物体単位とマテリアルを維持する。
 
 GLTF の packed metallic / roughness（B / G）は分離した Non-Color grayscale 画像へ変換し、直接の Image Texture ノードへつなぎ直す。base color / emission は sRGB、normal / scalar は Non-Color。opaque Principled、active UV、Flat / Repeat / Linear の exporter 対応形式に合わせる。非対応のリンク・透明・transmission・coat・volume・displacement・rig / animation は対象名と理由を報告して停止する。`--pack-pbr` だけで任意 shader の変換が済むとは扱わない。
+
+Task 2 レビューで culling の非保持と bounds 計算の不足を確認した。実寸・接地は world 変換した実頂点から求める。現 exporter は GLB の片面 / 両面設定を出力しないため、既定では素材名付きで停止する。利用者が `--allow-culling-change` でこの差を明示了承した場合だけ変換を許し、各素材の元設定と非保持の警告を report に残す。他の非対応素材を許可するオプションではない。ユーザーの推奨案への委任の範囲で安全側の追加ゲートを設ける。
 
 GLB と元テクスチャは上書きしない。編集可能な .blend、分離テクスチャ、三角形数・mesh / material 数・画像寸法の report を保存する。変換先は新規ディレクトリで、失敗途中の成果物を正式な結果として公開しない。convert orchestration は `.blend` から `resoloop blender export --preserve-hierarchy --pack-pbr` を実行し、成功時だけ bundle を公開する。親 Slot はユーザーが確認した selector を引数で指定する。apply は自動実行しない。
 
