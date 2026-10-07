@@ -40,8 +40,6 @@ run_zsh 'update' || fail "update failed without any tool: $(cat "$tmp/err")"
 for tool in claude npm pi agent devin; do
   grep -qF "update: $tool not found; skipped" "$tmp/err" || fail "update did not report the missing $tool"
 done
-# 撤去した Grok Build（grok）は update() の対象にしない
-if grep -qF 'update: grok' "$tmp/err"; then fail 'update() still updates grok'; fi
 if grep -F 'command not found' "$tmp/err"; then fail 'update ran a missing command'; fi
 
 # 3. update() はあるツールだけを更新する
@@ -71,7 +69,8 @@ run_zsh 'genv' || code=$?
 [ "$code" -eq 127 ] && grep -qxF 'genv: fzf not found' "$tmp/err" || fail 'genv must also require fzf'
 rm "$tmp/bin/gcloud"
 
-# 5. bun の場所は $HOME 基準で、/home/vscode を書かない
+# 5. bun の場所は $HOME 基準で、/home/vscode を書かない。固定した HOME を書くと、一時 HOME で読み込むテストや
+#    別の利用者で実行したときに実際の /home/vscode を操作するため、このパスは固定値で禁止する
 run_zsh 'print -r -- "$BUN_INSTALL"' || fail 'BUN_INSTALL'
 [ "$(cat "$tmp/out")" = "$tmp/home/.bun" ] || fail "BUN_INSTALL is $(cat "$tmp/out")"
 if grep -nF '/home/vscode' "$zshrc"; then fail 'zshrc.txt must not hard-code /home/vscode'; fi

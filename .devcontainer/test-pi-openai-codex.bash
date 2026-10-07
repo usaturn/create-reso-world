@@ -23,51 +23,6 @@ launcher_pi_args_from_source() {
         --launcher-pi-args-from-source "$1"
 }
 
-test_setup_places_independent_tiers_from_source() {
-    local home="${TEST_ROOT}/setup" launcher config source
-    mkdir -p "$home"
-    setup_for_home "$home"
-
-    for launcher in piga pigs pigl; do
-        config="${home}/.pi/agent/extensions/subagent.d/${launcher}/config.json"
-        source="${REPO_ROOT}/.devcontainer/pi-superagents/${launcher}.json"
-        [ -f "$config" ] || fail "setup did not place ${launcher} config"
-        python3 - "$config" "$source" <<'PY_TIERS' \
-            || fail "${launcher} placed modelTiers differ from the source"
-import json
-import sys
-
-with open(sys.argv[1], encoding="utf-8") as handle:
-    placed = json.load(handle)["superagents"]["modelTiers"]
-with open(sys.argv[2], encoding="utf-8") as handle:
-    source = json.load(handle)["superagents"]["modelTiers"]
-assert placed == source, (placed, source)
-PY_TIERS
-    done
-}
-
-test_launchers_select_models_and_forward_arguments() {
-    local home="${TEST_ROOT}/launch" launcher output args prefix expected
-    mkdir -p "${home}/.pi/agent"
-    printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
-        > "${home}/.pi/agent/auth.json"
-    setup_for_home "$home"
-
-    for launcher in piga pigs pigl; do
-        prefix="$(launcher_pi_args_from_source "$launcher")" \
-            || fail "cannot read ${launcher} source arguments"
-        [ -x "${REPO_ROOT}/.devcontainer/${launcher}" ] || fail "${launcher} must be executable"
-        output="$(env HOME="$home" PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
-            zsh "${REPO_ROOT}/.devcontainer/${launcher}" --resume)"
-        args="$(printf '%s\n' "$output" | awk 'seen { print } $0 == "pi" { seen = 1 }')"
-        expected="$(printf '%s\n' "$prefix" --resume)"
-        assert_eq "$args" "$expected" "${launcher} Pi arguments"
-        # grep -q は一致した時点で終了するので、printf でパイプすると残りの行を書く側が SIGPIPE で落ちる
-        grep -Fxq "${home}/.pi/agent/extensions/subagent.d/${launcher}" <<<"$output" \
-            || fail "${launcher} must use its own tier config"
-    done
-}
-
 test_launchers_accept_tilde_agent_dir() {
     local home="${TEST_ROOT}/tilde-auth" launcher agent_dir output args prefix expected
     mkdir -p "${home}/.pi/agent"
@@ -92,7 +47,7 @@ test_launchers_accept_tilde_agent_dir() {
     done
 }
 
-test_missing_oauth_guides_login_without_requesting_api_key() {
+test_missing_oauth_guides_login() {
     local home="${TEST_ROOT}/no-oauth" launcher output status
     mkdir -p "$home"
     setup_for_home "$home"
@@ -106,15 +61,16 @@ test_missing_oauth_guides_login_without_requesting_api_key() {
         assert_eq "$status" "1" "${launcher} must stop without OAuth"
         grep -Fq '/login openai-codex' <<<"$output" \
             || fail "${launcher} must explain direct Codex OAuth login"
-        case "$output" in
-            *'ChatGPT Plus/Pro (Codex)'*) fail "${launcher} must not name a nonexistent login choice" ;;
-            *OPENAI_API_KEY*) fail "${launcher} must not request OPENAI_API_KEY" ;;
-        esac
     done
 }
 
 test_install_places_all_launchers_with_regular_mode() {
     local home="${TEST_ROOT}/install" launcher output args prefix expected
+    local -a launchers
+    # ランチャーは定義元の .devcontainer/pi-superagents/<launcher>.json から列挙し、一覧をテストへ写さない
+    mapfile -t launchers < <(find "${REPO_ROOT}/.devcontainer/pi-superagents" -maxdepth 1 -name '*.json' -printf '%f\n' \
+        | sed 's/\.json$//' | LC_ALL=C sort)
+    [ "${#launchers[@]}" -gt 0 ] || fail "no launcher definitions"
     mkdir -p "${home}/.pi/agent"
     printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
         > "${home}/.pi/agent/auth.json"
@@ -130,7 +86,7 @@ test_install_places_all_launchers_with_regular_mode() {
     cmp -s "${REPO_ROOT}/.devcontainer/pi-superagents-exec.zsh" "${home}/.local/bin/pi-superagents-exec.zsh" \
         || fail "install must place the current helper"
 
-    for launcher in pigo pigod pigou piccg piccd piga pigs pigl pixg; do
+    for launcher in "${launchers[@]}"; do
         [ -x "${home}/.local/bin/${launcher}" ] || fail "install did not place executable ${launcher}"
         cmp -s "${REPO_ROOT}/.devcontainer/${launcher}" "${home}/.local/bin/${launcher}" \
             || fail "installed ${launcher} differs from the source"
@@ -184,10 +140,8 @@ PY_MODELS
     done <<<"$models"
 }
 
-test_setup_places_independent_tiers_from_source
-test_launchers_select_models_and_forward_arguments
 test_launchers_accept_tilde_agent_dir
-test_missing_oauth_guides_login_without_requesting_api_key
+test_missing_oauth_guides_login
 test_install_places_all_launchers_with_regular_mode
 test_live_openai_codex_models
 printf 'OK test-pi-openai-codex\n'

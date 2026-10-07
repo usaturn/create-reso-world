@@ -148,7 +148,82 @@
 
 ## .devcontainer
 
+`<sa>` は `.devcontainer/test-pi-superagents.bash`、`<cx>` は `.devcontainer/test-pi-openai-codex.bash`、`<hm>` は `.devcontainer/test-herdr-migration.bash`、`<py>` は `.devcontainer/tests/test_pi_mcp_cleanup.py` を表す。「型」は `AGENTS.md`「テストの採用基準」の作らない型の番号。「代わりの保証」には、変異を入れた一時コピーで失敗することを確かめた検査だけを書く。check-layout は `scripts/check-layout.sh`（`tests/scripts/test-check-layout.bash` の 6 がこのリポジトリで実行する）。
+
 | 場所 | 検出する不具合 | 判断 | 理由 | 代わりの保証 | 関連 |
+| --- | --- | --- | --- | --- | --- |
+| `.devcontainer/run-tests.bash` | — | 維持 | runner。glob で列挙するので、消したファイルの呼出しは残らない | — | |
+| `.devcontainer/test-run-tests.bash` | runner の既定の対象・失敗の伝え方の誤り | 維持 | runner の実行 | — | |
+| `.devcontainer/test-pi-mcp-cleanup.bash` | `<py>` が run-tests.bash・CI で実行されない | 維持 | `<py>` を実行する唯一の経路 | — | |
+| `test-cleanup-workspace.bash` の 1（dry-run） | dry-run で消す・表示しない | 維持 | スクリプトの実行 | — | |
+| `test-cleanup-workspace.bash` の 2（既定値 `/tmp`・1 日・dry-run なし） | 削除の範囲の拡大 | 理由付き固定値として維持（移植元の変数を渡す部分は削除） | 安全な操作範囲。理由を追記 | — | |
+| `test-cleanup-workspace.bash` の `MAATLOG_CLEANUP_*`・yarn・`verify.sh`・Issue 番号 | 移植元の名残 | 削除 | 型 2。移植元の名前は重複 | `tests/skills/test_legacy_references.py`（スクリプトに `MAATLOG_CLEANUP_TMP_ROOT`・`verify.sh` を足すと失敗）。yarn・Issue 番号は不要 | #17 |
+| `test-herdr-agent-task.bash` の CLI の実行テスト（23 関数） | 状態・タスク名・TTL の誤り、不正な入力の受理、herdr 無しでの失敗 | 維持 | CLI の実行 | — | |
+| `test-herdr-agent-task.bash::test_herdr_toml_passes_config_check` | herdr が読めない設定 | 維持 | herdr の実行（未導入なら skip） | — | |
+| `test-herdr-agent-task.bash::test_herdr_toml_agents` | 設定値の変更、存在しない `title` トークン | 削除 | 型 3 | `title` は `::test_herdr_toml_passes_config_check`（`herdr config check` が exit 1） | |
+| `test-herdr-agent-task.bash::test_skill_files_exist_and_match` | symlink の誤り | 削除 | 型 5 | check-layout（実体のコピーに置き換えると失敗） | |
+| `test-herdr-agent-task.bash` の `SKILL.md`・`.pi/APPEND_SYSTEM.md`・README の文言（3 関数） | 文言の変更 | 削除 | 型 1 | 不要 | |
+| `test-herdr-agent-task.bash::test_cli_is_executable` | 実行権限の欠落 | 削除 | 重複 | 同じファイルの実行テスト（CLI を直接実行する） | |
+| `test-herdr-status.bash` の git 状態・updater の実行テスト | 状態・ブランチ名・トークンの消去の誤り | 維持 | 実行 | — | |
+| `test-herdr-status.bash::test_herdr_toml` | 色・キー・トークンの変更、組み込みトークンの使用 | 削除 | 型 3 | 不要 | |
+| `test-herdr-status.bash` の `[ -x ]`（7 箇所） | 実行権限の欠落 | 削除 | 重複 | 同じファイルの実行テスト（直接実行する） | |
+| `<hm>::test_config_and_syntax` | 設定値・関数名の変更、tmux の再混入、修復と起動の順序 | 削除 | 型 2・3・4。`zsh -n` は重複 | 起動先の cwd は `<hm>::test_launch_and_guards`（herdrstart の `cd` を消すと失敗）。`zsh -n` は `test-shell-tools.bash`。ほかは不要 | |
+| `<hm>::test_launch_and_guards` | TTY 以外・herdr の中での起動、起動先の誤り | 維持 | 実行 | — | |
+| `<hm>::test_session_cwd_repair`・`::test_session_cwd_repair_multi_workspace` | 起動中のセッションの書換え、一時ファイルの残留、誤った修復先 | 維持 | 実行 | — | |
+| `<hm>::test_installer_wiring` | postCreate の手順・URL・順序の変更、tmux・bun・headroom の再混入 | 削除 | 型 2・3・4 | 不要 | |
+| `<hm>::test_cc_launcher_env_unsets` の unset 一覧と汚染の実行 | 親シェルの認証情報・モデル指定の漏れ | 理由付き固定値として維持 | 認証の隔離。理由は記載済み | — | #36 |
+| `<hm>::test_cc_launcher_env_unsets` の配列の宣言・共有回数・`claude-alibaba` の禁止・抽出 helper の検査・ccdu のモデル値 | 共有リストの使い忘れ、撤去した関数の再追加 | 削除 | 共有回数は汚染の実行と重複。型 2・3・5 | 汚染の実行（ccdu が共有リストを使わないと失敗）。`-u MAAS_ANTHROPIC_TOKEN` の追加は unset 一覧の比較で失敗 | #17 |
+| `<hm>::test_cc_launcher_arguments_and_models` の `ccd`・`ccdo`・`ccds` | alias の引数の分割・転送の誤り | 維持 | alias の定義と実行の比較 | — | #36 |
+| `<hm>::test_cc_launcher_arguments_and_models` のプロバイダ関数 | 引数の分割、権限フラグ、資格情報の送り先と渡し方、claude.ai の MCP の有効化 | 書き換え（モデル名・調整値の照合を削除） | モデル名・調整値は型 3。送り先・渡し方・MCP の無効化は秘密情報の保護として固定値。理由を追記 | — | #36 |
+| `<hm>::test_cc_launcher_auth_and_exit_status` | 資格情報なしでの起動、終了コード・親の環境の変更、キーの優先順位 | 維持 | 実行 | — | |
+| `test-initialize-mounts.bash` の 1・3・3b・4・5 | mount と作成の食い違い、`~/.claude.json` の破壊、書き込み可能化の漏れ | 維持 | 実行と定義元の比較 | — | |
+| `test-initialize-mounts.bash` の 2（mount 一覧） | mount の増減 | 理由付き固定値として維持 | 永続領域・秘密情報の露出。理由を追記 | — | #36 |
+| `test-initialize-mounts.bash` のコンテナ名・PATH | 設定値の変更 | 削除 | 型 3 | 不要 | |
+| `test-install-beforehand.bash` の `bash -n` とプラグインの集合 | 構文の誤り、`enabledPlugins` との食い違い | 維持 | 構造、定義元との比較 | — | |
+| `test-install-beforehand.bash` のプラグイン名 2 件・Codex・uv の順序・旧拡張・python3・重複・Issue 番号 | 手順の変更 | 削除 | 型 2・3・4 | cleanup と拡張の導入の順序は `<py>::test_provisioning_cleans_before_installing_only_retained_extensions`（cleanup を後ろへ移すと失敗）。ほかは不要 | |
+| `test-install-resoloop.bash`・`test-report-resoloop-skills.bash`・`test-resoloop-tool.bash` | 版の取り違え、導入失敗の見逃し、別のパッケージとの一致、表示と終了コードの誤り | 維持 | スクリプトの実行 | — | #41 |
+| `<cx>::test_launchers_accept_tilde_agent_dir`・`::test_missing_oauth_guides_login` | OAuth の探索の誤り、未認証での起動 | 維持（旧い案内文と API キーの不在の 2 件は削除） | 実行。消した 2 件は型 2 | — | |
+| `<cx>::test_setup_places_independent_tiers_from_source` | tier の配置の誤り | 削除 | 重複 | `<sa>::test_setup_places_all_launcher_configs`（setup から piga を外すと失敗） | |
+| `<cx>::test_launchers_select_models_and_forward_arguments` | 引数・tier 設定の bind の誤り、実行権限 | 削除 | 重複。実行権限は型 3 | `<sa>::test_launchers_select_regular_and_forward_user_arguments`、`<sa>::test_launchers_wrap_pi_with_their_own_config`（piga に pigs の設定を使わせると失敗） | |
+| `<cx>::test_install_places_all_launchers_with_regular_mode` | postCreate の配置漏れ・権限・引数の誤り | 書き換え（ランチャーを定義元から列挙） | 一覧は型 3 | — | |
+| `<cx>::test_live_openai_codex_models` | 実環境で解決できないモデル | 維持 | `PI_CODEX_LIVE_CHECK=1` のときだけ動く。定義元から読む | — | |
+| `<sa>` の helper の実行テスト（bwrap・bind・dry-run・fail-closed の 7 関数） | bind の取り違え、設定・bwrap 無しでの起動、dry-run での実行 | 維持 | 実行 | — | |
+| `<sa>::test_helper_exists` | helper の欠落 | 削除 | 重複 | helper を source する各テスト | |
+| `<sa>::test_commandcode_models_are_defined_in_pi_models`・`::test_opencode_go_tiers_use_opencode_go`・`::test_configs_are_minimal_partial_configs` | 未定義のモデル、provider の誤り、部分 config の崩れ | 維持 | 定義元の比較・構造 | — | #36 |
+| `<sa>::test_configs_hold_no_secrets`（旧 `test_no_deepinfra_and_no_secrets`） | tier 設定の秘密情報 | 理由付き固定値として維持（DeepInfra の禁止は削除） | 秘密情報。DeepInfra は型 2。理由を追記 | — | |
+| `<sa>::test_launcher_files_are_executable` | ランチャーの git モード | 削除 | 型 3（ランチャー一覧）。tests/scripts と同じ判断 | postCreate で置いた後の権限は `<cx>::test_install_places_all_launchers_with_regular_mode`（`install -m 0644` にすると失敗） | |
+| `<sa>::test_launchers_wrap_pi_with_their_own_config` | 別のランチャーの tier 設定の bind | 書き換え（定義元から列挙し、piga・pigs・pigl も対象） | 一覧は型 3 | — | |
+| `<sa>::test_launchers_preserve_parent_model_selection` | 親モデル・引数の誤り | 削除 | 重複 | `<sa>::test_launchers_select_regular_and_forward_user_arguments`（pigo のモデル指定を変えると失敗） | |
+| `<sa>::test_launchers_select_regular_and_forward_user_arguments` | regular の指定・引数の転送の誤り | 書き換え（定義元から列挙） | 一覧は型 3 | — | |
+| `<sa>::test_opencode_key_reaches_child_process`・`::test_commandcode_key_check_runs_before_launch`・`::test_launcher_missing_config_fails_closed`・`::test_pigou_missing_provider_def_fails_with_guidance` | 資格情報の受け渡し、鍵・設定・provider 無しでの起動 | 維持 | 実行 | — | |
+| `<sa>::test_pixg_oauth_guidance` | OAuth 無しでの起動、`~` の展開 | 維持（文言の 3 件は削除） | 実行。`SuperGrok`・`XAI_API_KEY` の文言は型 1・2、Codex の案内の不在は直後の引数の比較と重複 | — | |
+| `<sa>::test_pigou_missing_model_def_fails_with_guidance`・`::test_pigou_models_json_uses_home_fallback` | 未定義のモデルでの起動、フォールバック先の誤り | 書き換え（モデル名を pigou の呼出しから読む） | モデル名は型 3 | — | |
+| `<sa>::test_run_launcher_ignores_external_pi_coding_agent_dir` | （テストの helper の誤り） | 削除 | 型 5 | 不要 | |
+| `<sa>::test_setup_places_all_launcher_configs`・`::test_setup_leaves_user_settings_untouched` | 配置漏れ、利用者の settings の変更 | 書き換え（ランチャーを定義元から列挙） | 一覧は型 3 | — | |
+| `<sa>` のほかの setup の実行テスト（バックアップ・世代・冪等・`--if-absent` の 4 関数） | 利用者の設定の上書き・消失 | 維持 | 実行 | — | |
+| `<sa>::test_setup_output_mentions_each_launcher` と setup 2 本の完了表示の検査 | 表示の文言 | 削除 | 型 1・3 | 不要 | |
+| `<sa>::test_install_script_drops_pi_subagents`・`::test_install_script_installs_pi_superagents` | 置換・導入の誤り | 削除 | 型 4。実行テストと重複 | `<sa>` の `install_pi_extensions` の実行テスト（導入先を `npm:pi-subagents` にする、lock を見なくすると失敗） | |
+| `<sa>::test_install_script_seeds_launcher_configs` | rebuild で利用者の tier 設定を置き換える | 理由付き固定値として維持 | 利用者所有部分。理由を追記 | — | |
+| `<sa>` の `install_pi_extensions` の実行テスト（10 関数） | 旧拡張の残留、導入失敗の見逃し | 維持 | 実行 | — | |
+| `<sa>::test_pixg_live_model` | 実環境で解決できないモデル | 維持 | `PI_XAI_LIVE_CHECK=1` のときだけ動く。定義元から読む | — | |
+| `<sa>::test_readme_documents_the_mechanism` | README の文言 | 削除 | 型 1・3 | 不要 | |
+| `test-readme.bash` の表と実装の比較 | 表と実装の食い違い | 維持 | 定義元と配置先の比較 | — | #36 |
+| `test-readme.bash` の `/workspaces/reso-world` の禁止 | worktree・別の checkout から親の checkout を操作する | 理由付き固定値として維持 | 誤対象の操作。理由を追記 | — | |
+| `test-readme.bash` の `maatlog`・Issue 番号・`project_doc_fallback_filenames`・撤去したエージェントの禁止 | 移植元の名残、撤去した設定の再導入 | 削除 | 型 2。`maatlog` は重複 | `maatlog` は `tests/skills/test_legacy_references.py`（`zshrc.txt` に足すと失敗）。`~/.dsh` の mount は `test-initialize-mounts.bash` の 2、`-u MAAS_ANTHROPIC_TOKEN` は `<hm>` の unset 一覧（どちらも足すと失敗）。ほかは不要 | #17, #36 |
+| `test-resonite-feature.bash` | .NET の Feature・PATH・Blender の設定の変更 | 削除 | 型 3・4 | 不要 | |
+| `test-shell-tools.bash` の実行テスト | 未導入ツールでの失敗、更新対象の誤り、秘密情報の読込み、`.venv` の探索 | 維持 | 実行 | — | |
+| `test-shell-tools.bash` の `/home/vscode` の禁止 | 実際の HOME を操作する | 理由付き固定値として維持 | 誤対象の操作。理由を追記 | — | |
+| `test-shell-tools.bash` の `update: grok` の不在 | 撤去したツールの更新 | 削除 | 型 2 | 不要 | #17 |
+| `test-verify-resonite-tooling.bash` の 1・2 と `STEP_TOTAL` | 版の未確認、失敗の見逃し、進捗の総数の誤り | 維持 | 実行と構造 | — | |
+| `test-verify-resonite-tooling.bash` の postCreate の呼出しと zshrc の PATH | 手順・PATH の変更 | 削除 | 型 4 | 不要 | |
+| `<py>` の cleanup_pi_mcp.py・pi_json.py・provider setup の実行テスト | 誤対象の削除、中断時の残留、link の追従、資格情報の権限、利用者の設定の消失 | 維持 | 実行（安全条件） | — | #19 |
+| `<py>::test_provisioning_cleans_before_installing_only_retained_extensions`・`::test_fresh_provisioning_and_rerun_install_only_retained_extensions` | cleanup の遅れ、撤去した拡張の再導入、利用者の宣言の消失、再実行での変化 | 書き換え（導入する拡張の一覧の照合を削除） | 一覧は型 3 | — | #19 |
+| `<py>::test_provisioning_stops_on_cleanup_failure` | cleanup の失敗後の導入 | 書き換え（拡張名の不在 → 宣言が変わらないこと） | 拡張名は型 3。その拡張を一覧から外すと空振りする | — | |
+| `<py>::test_project_builtin_mcp_settings_are_shared_with_worlds` | `.pi` の設定値の変更、ワールドの `.pi` の link 切れ | 削除 | 型 3（設定値・ワールド一覧） | link は check-layout（`slum03/.pi` の行き先を変えると失敗） | |
+| `<py>::test_deepinfra_setup_does_not_reintroduce_distill_and_preserves_custom_models` の `pi-models.json` の検査 | 撤去した provider の再追加 | 削除（setup の実行は維持） | 型 2 | 不要 | #19 |
+| `.devcontainer/tests/fake_pi_packages.py` | — | 維持 | `<py>` が使う | — | |
+
+前後: ファイル シェル 17→16・Python 2→2（うち helper 1）、行 シェル 3,593→3,069・Python 1,837→1,818、収集 unittest 80→79（run-tests はファイル単位で 17→16）、所要 `bash .devcontainer/run-tests.bash .devcontainer/test-*.bash` が変更前 2 回で 50〜59 秒（1 回はファイル別の秒数の合計）→変更後 3 回で 49〜55 秒（大半は `test-pi-mcp-cleanup.bash` の 28〜36 秒で、変更前後とも揺れる）
 
 ## MyResoniteProject・akichi
 
