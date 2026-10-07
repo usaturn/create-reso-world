@@ -1,7 +1,7 @@
 # Issue #51: 不要なテストの削除とテストの採用基準
 
 - 文書管理・対象リポジトリ: `usaturn/create-reso-world`
-- 対象 Issue: #51（#36・PR #46 の後続）、PR: 未作成
+- 対象 Issue: #51（#36・PR #46 の後続）、PR: #53
 - 状態: completed（実装・検証・PR 作成まで完了。内容の明示承認は未取得で、実行許可に基づく。マージは未実施）
 - 基準 HEAD: `a94f04eea41fce3fb344dd4a7f10a7a0692512c2`（PR #48 のマージ後）
 - 関連 Plan: `docs/superpowers/plans/2026-10-07-issue-51-test-cleanup.md`

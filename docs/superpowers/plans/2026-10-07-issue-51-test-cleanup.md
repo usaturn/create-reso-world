@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-07-issue-51-test-cleanup-design.md`
 
-- 文書管理・対象リポジトリ: `usaturn/create-reso-world`、Issue #51、PR 未作成
+- 文書管理・対象リポジトリ: `usaturn/create-reso-world`、Issue #51、PR #53
 - 状態: completed（実装・検証・PR 作成まで完了。内容の明示承認は未取得で、実行許可に基づく。マージは未実施）
 - 基準 HEAD: `a94f04eea41fce3fb344dd4a7f10a7a0692512c2`
 - 実行方法: subagent-driven-development。Task を直列に実行し、各 Task の後に読み取り専用のレビューを挟む
