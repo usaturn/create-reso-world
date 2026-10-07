@@ -17,6 +17,7 @@ from meshy_workflow import (
     operation_lock,
     safe_path,
     save_operation,
+    select_glb_entry,
     validate_project,
 )
 
@@ -27,20 +28,9 @@ def source_glb(project, directory, operation):
     downloads = operation["downloads"]
     if downloads.get("state") != "completed":
         raise WorkflowError("completed_downloads_required")
-    files = downloads.get("files")
-    if not isinstance(files, list):
+    entry = select_glb_entry(downloads.get("files"))
+    if entry is None:
         raise WorkflowError("unique_glb_required")
-    candidates = [
-        entry
-        for entry in files
-        if isinstance(entry, dict)
-        and isinstance(entry.get("path"), str)
-        and Path(entry["path"]).suffix.lower() == ".glb"
-        and entry.get("status") in {"written", "skipped"}
-    ]
-    if len(candidates) != 1:
-        raise WorkflowError("unique_glb_required")
-    entry = candidates[0]
     path = safe_path(project, Path(entry["path"]))
     if not path.is_relative_to(directory / "source"):
         raise WorkflowError("source_outside_operation")

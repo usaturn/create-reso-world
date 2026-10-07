@@ -165,8 +165,21 @@ meshy_op wait --operation vessel-refine --timeout 600
 meshy_op download --operation vessel-refine
 ```
 
+attach は GET で返された ID、task の type / resource が operation と一致することを保存前に確認する。
+text は `text-to-3d-preview`、refine は `text-to-3d-refine`、image は `image-to-3d` が必要。
+refine に plan の `preview_task_id` 自体を紐付けることも拒否する。これは人間による送信内容の照合を代替しない。
+
 partial / failed download は成功扱いにしない。同じ成功 task の `download` は再実行できる（source 内へ再取得する）。
-manifest の各 file の実 path、status、byte 数、SHA-256 を確認し、GLB が一意かつ `downloads.state == completed` の場合だけ変換する。
+未指定の download 待ち上限は従来どおり120秒。大きな資産や低速回線で `cli_timeout` になった場合は、同じ operation の取得だけを `--timeout`（非負の有限秒数）で延長する。新しい task を生成せず、submit は再送しない。
+
+```bash
+meshy_op download --operation vessel-refine --timeout 600
+```
+
+manifest の file の asset key を保持し、key 付き GLB では `model.glb` を一意に選ぶ。
+`model.pre_remeshed_glb` は backup であり、主 GLB の代わりには使わない。主 key の欠落・重複は download 完了や変換成功として扱わない。
+すべての GLB が key 無しの古い schema1 manifest に限り、従来どおり単一 GLB を使用する（複数なら拒否）。ファイル名や一覧の順序では選ばない。
+`downloads.state == completed` が必要で、選んだ主 GLB の実 path、symlink の有無、byte 数、SHA-256 を変換開始時と処理後に確認する。
 FAILED / CANCELED task を新 operation でやり直す場合も追加課金の承認が必要。
 convert 中断後に `converted/` だけが残った場合は消してやり直さず、report / manifest を照合して手動復旧を判断する。
 

@@ -58,6 +58,8 @@ def parser():
             command.add_argument("--confirm-paid", action="store_true")
         if verb == "wait":
             command.add_argument("--timeout", type=seconds, default=600)
+        if verb == "download":
+            command.add_argument("--timeout", type=seconds, default=None)
         if verb == "attach":
             command.add_argument("--task-id", required=True)
     conversion = commands.add_parser(

@@ -7,6 +7,7 @@ locks, subprocesses and state transitions all execute for real.
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -40,9 +41,13 @@ if mode == 'malformed':
     print(os.environ['MESHY_API_KEY'], file=sys.stderr)
     sys.exit(1)
 if 'download' in args:
+    if mode == 'slow_download':
+        time.sleep(0.5)
     source = pathlib.Path(args[args.index('--output-dir')+1])
     source.mkdir(exist_ok=True, parents=True)
-    (source / 'generated.glb').write_bytes(b'glTF-fixture')
+    files = json.loads(os.environ.get('FAKE_DOWNLOAD_FILES', '{"generated.glb":"glTF-fixture"}'))
+    for name, content in files.items():
+        (source / name).write_bytes(content.encode())
 reply = json.loads(pathlib.Path(os.environ['FAKE_REPLY']).read_text())
 print(json.dumps(reply))
 print(os.environ['MESHY_API_KEY'], file=sys.stderr)
@@ -341,7 +346,7 @@ def test_partial_download_preserves_files_and_retry_downloads_same_id(world):
     world.run("status", "--operation", "asset")
     source = world.manifest_path().parent / "source"
     entry = {
-        "key": "model_urls.glb",
+        "key": "model.glb",
         "path": str(source / "generated.glb"),
         "format": "glb",
         "status": "written",
@@ -615,6 +620,8 @@ def test_list_attach_balance_use_only_env_key_and_allowlisted_output(world):
                 "task_id": TASK,
                 "status": "SUCCEEDED",
                 "progress": 100,
+                "type": "text-to-3d-preview",
+                "resource": "text-to-3d",
                 "raw": KEY,
             }
         }
@@ -1023,3 +1030,281 @@ def test_node_guard_never_disguises_authorization_field_as_safe_metadata(
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "must-not-be-saved" not in proc.stdout
     assert json.loads(proc.stdout)["details"] == {}
+
+
+# Catch dropped official asset keys or filename/order-based primary selection.
+def test_download_preserves_primary_and_backup_keys_with_arbitrary_filenames(world):
+    world.plan()
+    world.submit()
+    world.reply(result={"task": {"task_id": TASK, "status": "SUCCEEDED"}})
+    world.run("status", "--operation", "asset")
+    source = world.manifest_path().parent / "source"
+    world.env["FAKE_DOWNLOAD_FILES"] = json.dumps(
+        {"looks-like-primary.glb": "backup", "unrelated-name.glb": "primary"}
+    )
+    world.reply(
+        result={
+            "downloads": {
+                "state": "completed",
+                "files": [
+                    {
+                        "key": "model.pre_remeshed_glb",
+                        "path": str(source / "looks-like-primary.glb"),
+                        "status": "written",
+                    },
+                    {
+                        "key": "model.glb",
+                        "path": str(source / "unrelated-name.glb"),
+                        "status": "written",
+                    },
+                ],
+            }
+        }
+    )
+    world.run("download", "--operation", "asset")
+    operation = world.manifest()
+    assert operation["stage"] == "downloaded"
+    files = operation["downloads"]["files"]
+    assert [entry.get("key") for entry in files] == [
+        "model.pre_remeshed_glb",
+        "model.glb",
+    ]
+    assert [Path(entry["path"]).read_bytes() for entry in files] == [
+        b"backup",
+        b"primary",
+    ]
+    assert [entry["bytes"] for entry in files] == [6, 7]
+    assert sum("create" in call["args"] for call in world.calls()) == 1
+
+
+# Catch a backup silently replacing a missing primary, duplicated primary keys,
+# or a legacy multi-GLB download falsely becoming conversion-ready.
+@pytest.mark.parametrize(
+    "keys",
+    [
+        ["model.glb", "model.glb"],
+        ["model.pre_remeshed_glb"],
+        [None, "model.pre_remeshed_glb"],
+        [None, None],
+    ],
+    ids=[
+        "duplicate-primary",
+        "missing-primary",
+        "mixed-missing-primary",
+        "legacy-ambiguous",
+    ],
+)
+def test_download_rejects_ambiguous_or_missing_primary(world, keys):
+    world.plan()
+    world.submit()
+    world.reply(result={"task": {"task_id": TASK, "status": "SUCCEEDED"}})
+    world.run("status", "--operation", "asset")
+    source = world.manifest_path().parent / "source"
+    files = []
+    contents = {}
+    for index, key in enumerate(keys):
+        name = f"arbitrary-{index}.glb"
+        contents[name] = "fixture"
+        entry = {"path": str(source / name), "status": "written"}
+        if key is not None:
+            entry["key"] = key
+        files.append(entry)
+    world.env["FAKE_DOWNLOAD_FILES"] = json.dumps(contents)
+    world.reply(result={"downloads": {"state": "completed", "files": files}})
+    proc = world.run("download", "--operation", "asset", ok=False)
+    assert json.loads(proc.stderr)["error"]["code"] == "download_incomplete"
+    assert world.manifest()["stage"] == "succeeded"
+    assert world.manifest()["downloads"]["state"] == "partial"
+    assert len(world.manifest()["downloads"]["files"]) == len(keys)
+
+
+ATTACH_KINDS = [
+    ("text", "text-to-3d-preview", "text-to-3d"),
+    ("refine", "text-to-3d-refine", "text-to-3d"),
+    ("image", "image-to-3d", "image-to-3d"),
+]
+PREVIEW = "distinct-preview-task"
+
+
+def plan_attach(world, kind):
+    extra = {
+        "text": ["--prompt", "stone"],
+        "refine": ["--preview-task-id", PREVIEW],
+        "image": ["--image", "input.png"],
+    }[kind]
+    if kind == "image":
+        (world.project / "input.png").write_bytes(b"local image")
+    world.run("plan", "--operation", "asset", "--kind", kind, *extra)
+
+
+def project_snapshot(project):
+    """Include all paths, bytes, modes, links, inode sharing and stray temps.
+
+    Do not follow symlinks or include atime/mtime (reads may update atime).
+    Inodes also detect an identical-byte replacement of a hardlinked file.
+    """
+    snapshot = {}
+    paths = [project]
+    for root, directories, files in os.walk(project, followlinks=False):
+        paths.extend(Path(root) / name for name in directories + files)
+    for path in paths:
+        info = path.lstat()
+        kind = stat.S_IFMT(info.st_mode)
+        content = (
+            os.readlink(path)
+            if stat.S_ISLNK(info.st_mode)
+            else path.read_bytes()
+            if stat.S_ISREG(info.st_mode)
+            else None
+        )
+        snapshot[str(path.relative_to(project))] = (
+            kind,
+            stat.S_IMODE(info.st_mode),
+            content,
+            info.st_nlink,
+            info.st_dev,
+            info.st_ino,
+        )
+    return snapshot
+
+
+# Catch rejecting a valid official task of any supported operation kind.
+@pytest.mark.parametrize("kind,task_type,resource", ATTACH_KINDS)
+def test_attach_accepts_matching_official_task(world, kind, task_type, resource):
+    plan_attach(world, kind)
+    world.reply(
+        result={
+            "task": {
+                "task_id": TASK,
+                "status": "SUCCEEDED",
+                "progress": 100,
+                "type": task_type,
+                "resource": resource,
+            }
+        }
+    )
+    world.run("attach", "--operation", "asset", "--task-id", TASK)
+    assert world.manifest()["task"]["task_id"] == TASK
+    assert world.manifest()["stage"] == "succeeded"
+    assert [call["args"][7:] for call in world.calls()] == [[resource, "get", TASK]]
+    assert sum("create" in call["args"] for call in world.calls()) == 0
+
+
+# Catch each independent attach guard missing BEFORE any project mutation.
+# Wrong-type refine uses a distinct ID; same-preview uses the CORRECT refine
+# type, so neither negative can pass merely because the other guard works.
+@pytest.mark.parametrize(
+    "kind,task_type,resource,anomaly",
+    [
+        (*case, anomaly)
+        for case in ATTACH_KINDS
+        for anomaly in ("wrong_type", "wrong_resource", "missing_type", "wrong_id")
+    ]
+    + [("refine", "text-to-3d-refine", "text-to-3d", "same_preview")],
+)
+def test_attach_rejection_preserves_entire_project(
+    world, kind, task_type, resource, anomaly
+):
+    plan_attach(world, kind)
+    # Prime normal CLI startup first; new config dirs must not mask equality.
+    world.reply(result={"balance": 10})
+    world.run("balance")
+    assert [call["args"][7:] for call in world.calls()] == [["balance"]]
+    operation = world.manifest_path().parent
+    for relative in (
+        "source/retained.glb",
+        "converted/retained.blend",
+        ".operation-retained.json",
+        ".conversion-retained/partial",
+    ):
+        target = operation / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"retained bytes")
+        target.chmod(0o640)
+    config = world.project / ".resoloop/meshy-cli"
+    (config / "cache").mkdir()
+    (config / "cache/retained").write_bytes(b"cached")
+    (config / "operations/retained.json").write_text('{"state":"unknown"}')
+    backup = operation / "operation.json.backup"
+    os.link(world.manifest_path(), backup)
+    (world.project / "retained-link").symlink_to(".resoloop/meshy-cli/cache/retained")
+    task_id = PREVIEW if anomaly == "same_preview" else TASK
+    task = {
+        "task_id": task_id,
+        "status": "SUCCEEDED",
+        "progress": 100,
+        "type": task_type,
+        "resource": resource,
+    }
+    if anomaly == "wrong_type":
+        task["type"] = "text-to-3d-refine" if kind == "text" else "text-to-3d-preview"
+    elif anomaly == "wrong_resource":
+        task["resource"] = "text-to-3d" if kind == "image" else "image-to-3d"
+    elif anomaly == "missing_type":
+        task.pop("type")
+    elif anomaly == "wrong_id":
+        task["task_id"] = "different-returned-task"
+    world.reply(result={"task": task})
+    before = project_snapshot(world.project)
+    proc = world.run("attach", "--operation", "asset", "--task-id", task_id, ok=False)
+    assert json.loads(proc.stderr)["error"]["code"] in {
+        "task_id_missing_or_mismatch",
+        "attached_task_kind_or_resource_mismatch",
+        "refine_task_must_differ_from_preview",
+    }
+    assert project_snapshot(world.project) == before
+    assert [call["args"][7:] for call in world.calls()[1:]] == [
+        [resource, "get", task_id]
+    ]
+    assert sum("create" in call["args"] for call in world.calls()) == 0
+
+
+# Catch a fixed download subprocess deadline blocking retries of the same task.
+def test_download_timeout_can_be_extended_without_another_create(world):
+    world.plan()
+    world.submit()
+    world.reply(result={"task": {"task_id": TASK, "status": "SUCCEEDED"}})
+    world.run("status", "--operation", "asset")
+    source = world.manifest_path().parent / "source"
+    world.reply(
+        result={
+            "downloads": {
+                "state": "completed",
+                "files": [
+                    {
+                        "key": "model.glb",
+                        "path": str(source / "generated.glb"),
+                        "status": "written",
+                    }
+                ],
+            }
+        }
+    )
+    world.env["FAKE_MODE"] = "slow_download"
+    zero = world.run("download", "--operation", "asset", "--timeout", "0", ok=False)
+    assert json.loads(zero.stderr)["error"]["code"] == "cli_timeout"
+    failed = world.run("download", "--operation", "asset", ok=False)
+    assert json.loads(failed.stderr)["error"]["code"] == "cli_timeout"
+    assert world.manifest()["task"]["task_id"] == TASK
+    assert world.manifest()["stage"] == "succeeded"
+    assert world.manifest()["downloads"]["state"] == "failed"
+    world.run("download", "--operation", "asset", "--timeout", "1.5")
+    assert world.manifest()["task"]["task_id"] == TASK
+    assert world.manifest()["stage"] == "downloaded"
+    calls = world.calls()
+    assert sum("create" in call["args"] for call in calls) == 1
+    assert [call["args"][7] for call in calls[-2:]] == ["download", "download"]
+    assert all(TASK in call["args"] for call in calls[-2:])
+    # Timeout belongs to the wrapper's process wait, not the official CLI args.
+    assert all("--timeout" not in call["args"] for call in calls[-2:])
+
+
+# Catch diverging from wait's nonnegative finite-seconds argument semantics.
+@pytest.mark.parametrize("timeout", ["-1", "nan", "inf", "-inf", "not-seconds"])
+def test_download_rejects_invalid_timeout_before_cli_or_project_write(world, timeout):
+    world.plan()
+    before = project_snapshot(world.project)
+    proc = world.run("download", "--operation", "asset", "--timeout", timeout, ok=False)
+    assert json.loads(proc.stderr)["error"]["code"] == "invalid_arguments"
+    assert project_snapshot(world.project) == before
+    assert world.calls() == []

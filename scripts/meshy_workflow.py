@@ -559,6 +559,29 @@ def query(project, name, operation, env, verb, task_id=None, timeout=600):
         env,
         max(CLI_TIMEOUT_SECONDS, timeout + 5) if verb == "wait" else None,
     )
+    if verb == "attach":
+        result = envelope["result"]
+        # Attach identity guard: reject before recording or saving any state.
+        if _task(result)["task_id"] != task_id:
+            raise WorkflowError("task_id_missing_or_mismatch")
+        view = result.get("task")
+        expected_type = {
+            "text": "text-to-3d-preview",
+            "refine": "text-to-3d-refine",
+            "image": "image-to-3d",
+        }[operation["kind"]]
+        # Attach kind/resource guard: known status/wait may still be partial.
+        if (
+            not isinstance(view, dict)
+            or view.get("type") != expected_type
+            or view.get("resource") != operation["resource"]
+        ):
+            raise WorkflowError("attached_task_kind_or_resource_mismatch")
+        # Attach preview identity guard: independent of the returned task type.
+        if operation["kind"] == "refine" and task_id == operation["request"][
+            "payload"
+        ].get("preview_task_id"):
+            raise WorkflowError("refine_task_must_differ_from_preview")
     _record_task(operation, envelope["result"], task_id)
     if not ok:
         operation["error"] = _error(envelope)
@@ -574,6 +597,35 @@ def query(project, name, operation, env, verb, task_id=None, timeout=600):
             operation.get("error", {}).get("code", "task_not_successful")
         )
     return operation
+
+
+def select_glb_entry(files):
+    """Select the official primary, or a single legacy unkeyed GLB.
+
+    A keyed backup must never replace a missing/failed primary. Include failed
+    entries when checking keys and primary uniqueness, then require usable status.
+    """
+    if not isinstance(files, list):
+        return None
+    glbs = [
+        entry
+        for entry in files
+        if isinstance(entry, dict)
+        and isinstance(entry.get("path"), str)
+        and Path(entry["path"]).suffix.lower() == ".glb"
+    ]
+    if any("key" in entry for entry in glbs):
+        candidates = [entry for entry in glbs if entry.get("key") == "model.glb"]
+    else:
+        candidates = [
+            entry for entry in glbs if entry.get("status") in {"written", "skipped"}
+        ]
+    if len(candidates) != 1 or candidates[0].get("status") not in {
+        "written",
+        "skipped",
+    }:
+        return None
+    return candidates[0]
 
 
 def _download_files(project, source, files):
@@ -596,6 +648,10 @@ def _download_files(project, source, files):
                 "format": path.suffix.lstrip(".").lower(),
                 "status": status,
             }
+            if "key" in entry:
+                if not isinstance(entry["key"], str):
+                    raise WorkflowError("invalid_download_entry")
+                item["key"] = entry["key"]
             if status != "failed":
                 content = path.read_bytes()
                 item.update(
@@ -607,7 +663,7 @@ def _download_files(project, source, files):
     return clean, invalid
 
 
-def download(project, name, operation, env):
+def download(project, name, operation, env, timeout=None):
     task_id = _task_id(operation["task"].get("task_id"))
     if not task_id or operation["task"].get("status") != "SUCCEEDED":
         raise WorkflowError("successful_existing_task_required")
@@ -631,6 +687,7 @@ def download(project, name, operation, env):
                 str(source),
             ],
             env,
+            timeout,
         )
         manifest = envelope["result"].get("downloads")
         if not isinstance(manifest, dict):
@@ -642,7 +699,7 @@ def download(project, name, operation, env):
             and manifest.get("state") == "completed"
             and bool(files)
             and all(f["status"] in {"written", "skipped"} for f in files)
-            and any(f["format"] == "glb" for f in files)
+            and select_glb_entry(files) is not None
         )
         operation["downloads"] = {
             "state": "completed" if complete else ("partial" if files else "failed"),
@@ -700,7 +757,9 @@ def execute(args):
         if args.command == "submit":
             return submit(project, args.operation, operation, env, args.confirm_paid)
         if args.command == "download":
-            return download(project, args.operation, operation, env)
+            return download(
+                project, args.operation, operation, env, getattr(args, "timeout", None)
+            )
         return query(
             project,
             args.operation,

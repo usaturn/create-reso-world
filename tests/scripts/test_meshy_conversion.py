@@ -98,7 +98,7 @@ def world(tmp_path, glbs):
             "state": "completed",
             "files": [
                 {
-                    "key": "model_urls.glb",
+                    "key": "model.glb",
                     "path": str(path),
                     "status": "written",
                     "bytes": path.stat().st_size,
@@ -763,4 +763,180 @@ raise SystemExit(meshy.main())
     assert "resoloop_export_failed" in proc.stderr
     time.sleep(0.6)
     assert not marker.exists(), "timed-out exporter descendant survived"
+    assert_unpublished(world)
+
+
+# Catch choosing the first GLB or trusting filenames instead of model.glb.
+# The backup has valid manifest metadata but is NOT a GLB, so importing it fails.
+def test_real_conversion_selects_official_primary_over_backup(world):
+    manifest = json.loads(world[3].read_text())
+    backup = world[1] / "source/model.glb"
+    backup.write_bytes(b"not a GLB backup")
+    manifest["downloads"]["files"].insert(
+        0,
+        {
+            "key": "model.pre_remeshed_glb",
+            "path": str(backup),
+            "status": "written",
+            "bytes": backup.stat().st_size,
+            "sha256": hashlib.sha256(backup.read_bytes()).hexdigest(),
+        },
+    )
+    world[3].write_text(json.dumps(manifest))
+    original = world[2].read_bytes()
+    proc = convert(world, "--allow-culling-change")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    conversion = json.loads(proc.stdout)
+    assert conversion["source_sha256"] == hashlib.sha256(original).hexdigest()
+    report = json.loads(Path(conversion["report"]).read_text())
+    assert report["mesh_count"] == 2
+    assert world[2].read_bytes() == original
+    assert backup.read_bytes() == b"not a GLB backup"
+
+
+# Catch rejecting schema1 manifests written before asset keys were preserved.
+def test_real_conversion_accepts_single_legacy_unkeyed_glb(world):
+    manifest = json.loads(world[3].read_text())
+    manifest["downloads"]["files"][0].pop("key")
+    world[3].write_text(json.dumps(manifest))
+    proc = convert(world, "--allow-culling-change")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert Path(json.loads(proc.stdout)["blend"]).is_file()
+
+
+# Catch fallback to keyed backups or unkeyed candidates when the primary is
+# absent/failed, and retain legacy ambiguity rejection.
+@pytest.mark.parametrize(
+    "keys,statuses",
+    [
+        (["model.pre_remeshed_glb"], ["written"]),
+        ([None, "model.pre_remeshed_glb"], ["written", "written"]),
+        (["model.glb", "model.pre_remeshed_glb"], ["failed", "written"]),
+        ([None, None], ["written", "written"]),
+    ],
+    ids=[
+        "missing-primary",
+        "mixed-missing-primary",
+        "failed-primary",
+        "legacy-ambiguous",
+    ],
+)
+def test_conversion_rejects_missing_primary_or_legacy_ambiguity(world, keys, statuses):
+    manifest = json.loads(world[3].read_text())
+    original = manifest["downloads"]["files"][0]
+    files = []
+    for key, status in zip(keys, statuses, strict=True):
+        entry = dict(original, status=status)
+        if key is None:
+            entry.pop("key")
+        else:
+            entry["key"] = key
+        files.append(entry)
+    manifest["downloads"]["files"] = files
+    world[3].write_text(json.dumps(manifest))
+    before = world[3].read_bytes()
+    proc = convert(world, env={"PATH": "/nonexistent"})
+    assert proc.returncode != 0
+    assert "unique_glb_required" in proc.stderr, proc.stdout + proc.stderr
+    assert world[3].read_bytes() == before
+    assert_unpublished(world)
+
+
+# Catch primary selection bypassing the existing input safety checks just
+# because a second keyed GLB is present. No Blender process may be needed.
+@pytest.mark.parametrize("bad", ["hash", "size", "missing", "symlink", "outside"])
+def test_selected_primary_still_requires_safe_unchanged_file(world, tmp_path, bad):
+    manifest = json.loads(world[3].read_text())
+    primary = manifest["downloads"]["files"][0]
+    backup = world[1] / "source/backup.glb"
+    shutil.copyfile(world[2], backup)
+    manifest["downloads"]["files"].insert(
+        0,
+        {
+            "key": "model.pre_remeshed_glb",
+            "path": str(backup),
+            "status": "written",
+            "bytes": backup.stat().st_size,
+            "sha256": hashlib.sha256(backup.read_bytes()).hexdigest(),
+        },
+    )
+    if bad == "hash":
+        primary["sha256"] = "0" * 64
+    elif bad == "size":
+        primary["bytes"] += 1
+    elif bad == "missing":
+        world[2].unlink()
+    elif bad == "symlink":
+        world[2].unlink()
+        world[2].symlink_to(backup)
+    else:
+        outside = world[0] / "outside.glb"
+        shutil.copyfile(world[2], outside)
+        primary["path"] = str(outside)
+    world[3].write_text(json.dumps(manifest))
+    before = world[3].read_bytes()
+    proc = convert(world, env={"PATH": "/nonexistent"})
+    assert proc.returncode != 0
+    expected = {
+        "hash": "source_glb_changed",
+        "size": "source_glb_changed",
+        "missing": "source_glb_missing",
+        "symlink": "symlink_forbidden",
+        "outside": "source_outside_operation",
+    }[bad]
+    assert expected in proc.stderr, proc.stdout + proc.stderr
+    assert world[3].read_bytes() == before
+    assert_unpublished(world)
+
+
+# Catch losing the post-processing hash/bytes/symlink check for the selected
+# primary. The fake delegates actual Blender/export work, mutating only after
+# export succeeds; none of that output may be published.
+@pytest.mark.parametrize("change", ["hash", "size", "symlink"])
+def test_selected_primary_is_rechecked_after_processing(world, tools, tmp_path, change):
+    manifest = json.loads(world[3].read_text())
+    backup = world[1] / "source/backup.glb"
+    shutil.copyfile(world[2], backup)
+    manifest["downloads"]["files"].insert(
+        0,
+        {
+            "key": "model.pre_remeshed_glb",
+            "path": str(backup),
+            "status": "written",
+            "bytes": backup.stat().st_size,
+            "sha256": hashlib.sha256(backup.read_bytes()).hexdigest(),
+        },
+    )
+    world[3].write_text(json.dumps(manifest))
+    before = world[3].read_bytes()
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake = bindir / "resoloop"
+    fake.write_text(f"""#!{sys.executable}
+import pathlib, subprocess, sys
+proc = subprocess.run([{tools!r}, *sys.argv[1:]], capture_output=True, text=True)
+if proc.returncode == 0 and sys.argv[1:3] == ['blender', 'export']:
+    primary = pathlib.Path({str(world[2])!r})
+    if {change!r} == 'symlink':
+        primary.unlink()
+        primary.symlink_to({str(backup)!r})
+    else:
+        content = primary.read_bytes()
+        primary.write_bytes(content + b'changed' if {change!r} == 'size'
+                            else bytes([content[0] ^ 1]) + content[1:])
+print(proc.stdout, end='')
+print(proc.stderr, end='', file=sys.stderr)
+sys.exit(proc.returncode)
+""")
+    fake.chmod(0o755)
+    proc = convert(
+        world,
+        "--allow-culling-change",
+        env={"PATH": str(bindir) + os.pathsep + os.environ["PATH"]},
+    )
+    assert proc.returncode != 0
+    assert (
+        "symlink_forbidden" if change == "symlink" else "source_glb_changed"
+    ) in proc.stderr
+    assert world[3].read_bytes() == before
     assert_unpublished(world)
