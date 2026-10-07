@@ -49,6 +49,7 @@ for p in \
   expect_not_ignored "$p"
 done
 
+# 理由付きの固定値: pipeline.json はプロジェクト規約で追跡し続ける唯一の例外。ほかの ignore 対象を追跡すると私的データ・生成物が混ざる
 actual="$(git ls-files -i -c --exclude-standard)"
 expected='MyResoniteProject/.resoloop/tokyo-nova/pipeline.json'
 if [ "$actual" != "$expected" ]; then

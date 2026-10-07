@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 from modeling.slum03 import pipeline
-from modeling.slum03.types import Layout, RectXZ
 
 
 def _bundle(directory, name, *, mesh=b'first', material=None):
@@ -48,11 +47,6 @@ def _nodes(m):
         for c in n.get('children', []):
             yield from walk(c)
     return list(walk(m))
-
-
-def _layout():
-    r = RectXZ(-1, 1, -1, 1)
-    return Layout(260927, r, r, r, (), (), (), ())
 
 
 def _setup(tmp_path, monkeypatch, *, second=b'second'):

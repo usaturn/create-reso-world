@@ -25,14 +25,11 @@ LEGACY = re.compile(
     re.IGNORECASE,
 )
 # The design records and the porting table of Issue #17 (which lists every
-# file of the migration source) describe the migration itself, and these tests
-# spell the words out to assert that they are gone.
+# file of the migration source) describe the migration itself, and this test
+# spells the words out to assert that they are gone.
 EXCLUDED = (
     "docs/superpowers",
     "docs/maatlog-poc-porting.md",
-    ".devcontainer/test-cleanup-workspace.bash",
-    ".devcontainer/test-readme.bash",
-    "tests/scripts/test-instructions.bash",
     "tests/skills/test_legacy_references.py",
 )
 

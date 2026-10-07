@@ -1,6 +1,6 @@
 #!/bin/bash
-# Run standard-library Superpowers helper acceptance tests through the CI runner.
+# Run the standard-library Python tests in tests/scripts (test_*.py; the Superpowers helpers) through the CI runner.
 set -euo pipefail
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
-exec uv run --no-project python -m unittest discover -s tests/scripts -p 'test_superpowers_*.py'
+exec uv run --no-project python -m unittest discover -s tests/scripts -p 'test_*.py'
