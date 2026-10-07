@@ -3,7 +3,9 @@
 - 文書管理・対象リポジトリ: `usaturn/create-reso-world`
 - Issue: https://github.com/usaturn/create-reso-world/issues/50
 - 基準 HEAD: `b1b0614`（origin/main）
-- 状態: draft
+- 状態: completed
+- 完了範囲: 実装・ローカル検証・PR 作成。実機受入は未確認。
+- PR: https://github.com/usaturn/create-reso-world/pull/54
 - Plan: `docs/superpowers/plans/2026-10-07-create-reso-world-issue-50-meshy.md`
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-50-meshy`
@@ -101,3 +103,38 @@ GLB と元テクスチャは上書きしない。編集可能な .blend、分離
 `.agents/skills/meshy-resoloop/SKILL.md` を追加し、root の `.claude/skills/meshy-resoloop` は既存方式の symlink にする。プロジェクトは祖先の共有スキルを利用できる既存方式と手動の明示パスで案内する。エージェント設定は変更しない。README / `.devcontainer/README.md` / `docs/meshy-resoloop.md` に実行例・費用確認・復旧・Windows handoff をまとめる。
 
 自動テストは実行挙動に限定する。fake npm / CLI で導入の成否、キーなし拒否、秘密の非出力、送信不明の再送禁止、画像差し替え、lock・path 制約、ID 保存、wait / download 再開を確認する。Blender はローカル GLB fixture を実際に変換・export し、packed PBR の変換結果と非対応素材での停止を確認する。文書やモデル名の固定値テストは作らない。スキルは構文、参照、既存 layout 検査と trigger / non-trigger のレビューで確かめる。
+
+## 実施結果（2026-10-07）
+
+- 実装・ローカル検証・PR 作成は完了。Issue の実 API / Windows / Resonite 受入は未確認であり、この completed は実機連携完了を意味しない。
+- PR: https://github.com/usaturn/create-reso-world/pull/54 （OPEN、main 向け、マージ未実施）。
+- 検証した実装 HEAD: `38db299eee65ab078f30d88354786299d69b77df`。初回 Spec / Plan: `4f8a362f37cdd007476a46333f4a64f413b78805`。設計補強: `3ada154`（journal 保護）、`93e3702`（NumPy / culling / bounds）。
+- 特定内容版のユーザー承認 SHA は記録していない。推奨案で確認待ちなく PR まで進める明示指示に基づき実行した。レビューに基づく journal 保護・NumPy 依存・culling の限定承認ゲート・実頂点の寸法・暗黙 glTF 素材の保持を推奨案として採用した。
+- 各 Task の独立レビューと全体レビューを実施。最終修正 `38db299` の scoped 再レビューは全指摘解消、新規指摘なし。
+
+### 検証の根拠
+
+| 検証 | 結果 |
+| --- | --- |
+| `bash .devcontainer/run-tests.bash` | 28 scripts PASS |
+| `RESOLOOP_BLENDER_EXECUTABLE=/tmp/meshy-blender-task2 uv run pytest tests/scripts tests/skills .agents/skills -q` | 687 passed / 144 subtests passed、exit 0 |
+| Ruff check / format（Python 7 ファイル）、Node / bash 構文、diff | PASS |
+| `bash scripts/check-layout.sh` | PASS、既存 4 project の SKILL_SYNC_REQUIRED 警告 |
+| 一時 npm prefix の公式 CLI 0.4.0、キーなし version / help | 成功。キーなし wrapper balance は env_key_required / exit 1、通信なし |
+| 実 Blender 5.0.1 / ResoLoop 0.1.0-preview.17 | 複数物体、MR pixel、実頂点の寸法、暗黙・混在素材、bundle の offline validate を確認 |
+| active LSP | Blender 専用 bpy / mathutils は外側 interpreter で未解決。実 Blender 試験で実行確認。補助の bool identity / helper exception 指摘は実際の厳密型検査・外側例外境界からレビュー済み |
+
+現環境は OS NumPy がなく sudo が no-new-privileges により拒否された。実 GLB 試験は uv の NumPy を一時 wrapper で読み込んだ。標準 rebuild、実認証・残高・有料 text/image 生成、Windows の texture 表示・無変更再適用・保存再起動後の保持は未確認。`docs/meshy-resoloop.md` の受入 checklist を実施するまで Issue を close しない。
+
+### 所要時間
+
+最初の記録は 16:49 UTC、PR 作成・結果整理まで約 3 時間 34 分。子担当の着手から成果提出まで（レビュー・controller の統合時間は含めない）:
+
+| 担当 | 初回 | レビュー修正 |
+| --- | --- | --- |
+| Task 1: CLI / API workflow | 31分33秒 | 21分00秒 |
+| Task 2: Blender / bundle | 31分47秒 | 15分06秒 |
+| Task 3: skill / docs | 9分57秒 | 5分29秒 |
+| 最終修正: 暗黙素材・テスト・受入 checklist | 12分03秒 | — |
+
+controller は調査・Spec / Plan（約14分）、各レビュー・裁定・統合、公式 CLI smoke、全体同期回帰2回（各約5分）、公開を担当した。並行した検証とレビューの時間は二重加算していない。
