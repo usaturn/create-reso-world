@@ -64,6 +64,8 @@ operation.json は schema、操作 UUID、kind / resource、要求条件、入�
 
 入力・出力・journal の symlink と project 外への逸脱を拒否する。NAME は単一の安全な path segment。manifest は一括置換し、操作ごとの非ブロッキング lock を持つ。API 実行中は lock を保持する。ローカル画像の内容が plan 時から変化したら submit を拒否する。
 
+Task 1 レビューで、公式 CLI が API エラー本文を journal の `error` に書く経路を確認した。ラッパー出力の除去だけでは不十分なため、`scripts/meshy_cli_guard.mjs` を Node の preload として起動し、検証済み 0.4.0 の journal JSON 書込み経路で error 本文を保存前に除去し、キー文字列・認証 field を書かせない。継承された Node debug / preload は破棄し、ラッパー自身が指定する guard のみを有効化する。これはユーザーが委任した推奨案の範囲で、秘密情報非保存の要件を満たすための補強である。CLI 更新時は実際の書込み経路を再確認する。
+
 ## 3. 生成条件と再送禁止
 
 `ai_model` は明示値（既定は `latest`）として記録する。text preview は形状だけ、refine はテクスチャ生成として別の有料操作にする。image は `should_texture` を明示し、テクスチャありの場合は `enable_pbr`、`texture_resolution`（推奨 `2k`）、`remove_lighting`、`image_enhancement`、`target_formats=[glb]` を明示する。ultra を自動有効化しない。任意 JSON passthrough、rig、animation、複数件生成は追加しない。

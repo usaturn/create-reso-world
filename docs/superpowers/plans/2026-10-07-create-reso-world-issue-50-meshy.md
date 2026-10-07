@@ -43,6 +43,7 @@
 - `.devcontainer/install_meshy.bash`: 公式 CLI の導入・認証なし確認。
 - `scripts/meshy.py`: argparse、plan / API / convert コマンドの窓口。
 - `scripts/meshy_workflow.py`: path・manifest・lock・状態遷移・CLI subprocess の標準ライブラリ実装。
+- `scripts/meshy_cli_guard.mjs`: 検証済み CLI の journal 書込み前に API エラー本文・認証情報を除去する Node preload。
 - `scripts/meshy_blender.py`: bpy による GLB、変換、統計、.blend 保存。
 - `scripts/meshy_conversion.py`: manifest の download から GLB を選び、ResoLoop の run / export を順に実行。
 - `tests/scripts/test_meshy.py`, `tests/scripts/test_meshy_conversion.py`: 実行挙動の回帰。
@@ -57,7 +58,7 @@
 **Files:**
 - Create: `.devcontainer/install_meshy.bash`, `.devcontainer/test-install-meshy.bash`
 - Modify: `.devcontainer/install_beforehand.bash`
-- Create: `scripts/meshy.py`, `scripts/meshy_workflow.py`, `tests/scripts/test_meshy.py`
+- Create: `scripts/meshy.py`, `scripts/meshy_workflow.py`, `scripts/meshy_cli_guard.mjs`, `tests/scripts/test_meshy.py`
 
 **Interfaces:**
 - Produces: `meshy.py --project PATH plan|submit|status|wait|download|list|attach|balance`。
@@ -86,7 +87,7 @@
   - text preview / refine と image の費用設定は Spec §3 に従い明示。image はローカル path を CLI に渡す。
   - API child env の MESHY_* は allowlist で構築。MESHY_API_KEY は env のみ、公式 base URL、silent、隔離 credentials path、更新通知無効。
   - POST 前に `submitting` を保存し、起動・出力処理失敗は `unknown` に保存。既存 ID ありは新規送信しない。unknown は list / attach だけで復旧。
-  - 生 envelope / stderr は保存せず、許可した task / downloads / error.code と数値 balance のみ公開。キー混入値は伏せる。
+  - 生 envelope / stderr は保存せず、許可した task / downloads / error.code と数値 balance のみ公開。キー混入値は伏せる。公式 CLI が journal にエラー本文を書かないよう Node preload guard を指定し、0.4.0 の `writeJsonFile` → `fs.writeFileSync` 経路を保存前に sanitise する。`NODE_DEBUG` / `NODE_DEBUG_NATIVE` も除外する。guard の実 Node 書込みテストで漏えいを検査する。
   - download は `--all --overwrite --output-dir SOURCE`、返却 paths の安全と実在を検査し、不完了では convert に進ませない。
 - [ ] **Step 6: `uv run --no-project --with pytest pytest tests/scripts/test_meshy.py -q` と installer tests、既存 installer test を同期実行し GREEN を確認する。**
 - [ ] **Step 7: 差分を自己確認しコミットする。** `feat: add env-only Meshy CLI workflow`。レポートに RED / GREEN、所要時間、未確認事項を記録する。
