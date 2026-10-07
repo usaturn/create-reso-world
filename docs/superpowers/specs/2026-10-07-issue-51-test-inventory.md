@@ -2,7 +2,7 @@
 
 - 文書管理・対象リポジトリ: `usaturn/create-reso-world`
 - 対象 Issue: #51（#36・PR #46 の後続）、PR: 未作成
-- 状態: draft
+- 状態: completed（実装・検証・PR 作成まで完了。内容の明示承認は未取得で、実行許可に基づく。マージは未実施）
 - 基準 HEAD: `a94f04eea41fce3fb344dd4a7f10a7a0692512c2`（PR #48 のマージ後）
 - 関連 Plan: `docs/superpowers/plans/2026-10-07-issue-51-test-cleanup.md`
 - CODE_ROOT / DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-51-test-cleanup`（branch `chore/issue-51-test-cleanup`）
@@ -19,6 +19,39 @@
 - 第 4 章 D 表の各スキル: symlink（agent-handoff・find-docs・herdr-agent-task・planning-parallel-issues・repo-cleanup-after-merge・rst-writer・simplify-in-subagent・stale-git-lock-recovery、pr-review・review-fix-planning の helper）、frontmatter・allowed-tools（agent-handoff・pi-model-name・repo-cleanup-after-merge・review-fix-planning・simplify-in-subagent・stale-git-lock-recovery）、agent-handoff の schema の版、monitoring-long-tasks の 3 件、find-docs のツール固有コマンドの禁止、herdr-agent-task のスクリプトの実在、pi-model-name の実行権限、rst-writer の profile・資源ディレクトリの実在
 
 ## 前後比較
+
+着手前は基準 HEAD `a94f04e`、完了後は `7d56e48`。どちらも同じ worktree で Spec 第 6 章のコマンドを実行し、すべて exit 0 だった。ファイル数・行数は追跡されている `test_*.py`・`test-*.bash` の静的集計（補助コード・probe・fixture を含まない）。
+
+| 領域 | ファイル（前→後） | 行（前→後） | 収集・実行の件数（前→後） |
+| --- | ---: | ---: | --- |
+| スキル（Python） | 19→17 | 6,529→6,123 | 510→474 |
+| tests/scripts（Python） | 3→3 | 1,367→1,011 | 68→61（subtest 154→144） |
+| tests/scripts（シェル） | 11→11 | 1,697→1,442 | 11→11 |
+| .devcontainer（シェル） | 17→16 | 3,593→3,069 | 17→16 |
+| .devcontainer（Python） | 1→1 | 1,707→1,688 | unittest 80→79 |
+| MyResoniteProject | 8→8 | 1,492→1,459 | 52→51 |
+| akichi | 7→7 | 940→892 | 66→62 |
+| slum02 | 19→19 | 3,297→3,199 | 215→202 |
+| slum03 | 53→53 | 8,245→8,101 | 538→520 |
+| 合計 | 138→135 | 28,867→26,984 | Python のテスト 1,529→1,449、シェル 28→27 |
+
+実行の経路と所要時間（秒。1 回ずつの計測で、完了後は別の読み取り専用レビューと並行したため 5〜10 秒の揺れを含む）:
+
+| コマンド | 前 | 後 | 変化の理由 |
+| --- | ---: | ---: | --- |
+| `uv run pytest`（ルート） | 161（578 収集） | 132（474 収集） | testpaths から `tests/scripts` を外し、同じ 68 件の二重実行をやめた（run-tests.bash の `test-superpowers-python.bash` で 1 回だけ実行） |
+| `bash .devcontainer/run-tests.bash` | 152（28 本） | 160（27 本） | 削った検査は軽いものが中心で、時間の大半は実行テスト（`test-superpowers-python.bash` 52→59、`test-pi-mcp-cleanup.bash` 33→39）。揺れの範囲 |
+| `bash scripts/check-layout.sh` | 1 | 1 | — |
+| MyResoniteProject / akichi | 10 / 2 | 6 / 2 | — |
+| slum02 / slum03 | 63 / 108 | 62 / 120 | slum03 は Blender を起動する検査が大半で、揺れの範囲（Task 7 の 3 回の計測で 127〜131 秒 → 127〜128 秒） |
+
+同じ suite の重複実行（ルート pytest と run-tests.bash の `tests/scripts` の Python）は、上の表では 1 回として数えた。
+
+既存の問題・未確認:
+
+- `.agents/skills/pr-review/tests/test_pr_review_workspace.py::test_killed_create_reports_its_last_phase_and_leftovers` が、Task 3 の全体実行で 1 回だけ失敗した（`'vanished' == 'running'`。kill のタイミングに依存する揺れ）。単独 5 回と全体の再実行、着手前・完了後の計測では成功した。この整理では変えていない
+- MyResoniteProject の `test_probe.py` と slum03 の一部は、suite の中で headless の Blender を起動する（既存の挙動。出力は一時ディレクトリだけ）。Resonite のライブ操作を伴う検証は無い
+- private の CI は停止中のため実行していない
 
 ## スキルのテスト
 
