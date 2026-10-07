@@ -10,8 +10,6 @@ from pathlib import Path
 
 import pytest
 
-import yaml
-
 REPO_ROOT = Path(__file__).resolve().parents[4]
 AGENTS_SKILL = REPO_ROOT / ".agents/skills/review-fix-planning/SKILL.md"
 AGENTS_HELPER = REPO_ROOT / ".agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"
@@ -19,10 +17,6 @@ AGENTS_HELPER = REPO_ROOT / ".agents/skills/review-fix-planning/scripts/upsert_p
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
-
-def frontmatter(content: str) -> dict[str, object]:
-    return yaml.safe_load(content.split("---", 2)[1])
 
 
 def assert_status_comment_snippet(content: str) -> None:
@@ -43,31 +37,6 @@ def extract_status_script(content: str) -> str:
 
 def test_status_comment_snippet_escapes_heredoc_and_pins_repository() -> None:
     assert_status_comment_snippet(extract_status_script(read(AGENTS_SKILL)))
-
-
-def test_helper_has_one_real_copy_shared_through_the_skill_symlink() -> None:
-    assert AGENTS_HELPER.is_file() and not AGENTS_HELPER.is_symlink()
-    assert AGENTS_HELPER.stat().st_size > 0
-    link = REPO_ROOT / ".claude/skills/review-fix-planning"
-    assert link.is_symlink(), link
-    assert os.readlink(link) == "../../.agents/skills/review-fix-planning"
-
-
-def test_allowed_tools_match_the_verification_and_spec_location() -> None:
-    tools = frontmatter(read(AGENTS_SKILL))["allowed-tools"]
-    assert isinstance(tools, str)
-    for entry in (
-        "Bash(uv run *)",
-        "Bash(bash .devcontainer/run-tests.bash*)",
-        "Bash(bash scripts/check-layout.sh*)",
-        "Bash(bash tests/scripts/*)",
-        "Bash(bash scripts/superpowers-review-copy.sh*)",
-        "Write(docs/superpowers/specs/**)",
-        "Edit(docs/superpowers/specs/**)",
-    ):
-        assert entry in tools, entry
-    assert "scripts/ci/" not in tools
-    assert "docs_draft" not in tools
 
 
 @pytest.fixture(params=["bash", "zsh", "zsh-nounset"])

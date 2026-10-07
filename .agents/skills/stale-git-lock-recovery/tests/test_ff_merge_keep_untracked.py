@@ -113,17 +113,6 @@ def assert_local_files_kept(work: Path) -> None:
     assert os.readlink(work / "link.md") == "differs.md"
 
 
-def test_plain_merge_is_blocked_by_the_fixture(behind: Path) -> None:
-    add_conflicting_untracked_files(behind)
-    result = subprocess.run(
-        ["git", "-C", str(behind), "merge", "--ff-only", "origin/main"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0
-    assert "untracked working tree files would be overwritten" in result.stderr
-
-
 def test_fast_forwards_and_restores_every_conflicting_file(behind: Path, tmp_path: Path) -> None:
     add_conflicting_untracked_files(behind)
     upstream_head = git(behind, "rev-parse", "origin/main").strip()

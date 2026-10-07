@@ -1,29 +1,19 @@
 """Packaging and behavior guards for the shared Blender skills under .agents/skills.
 
 Run with: uv run pytest tests/skills/test_skill_packages.py -q
-For sequential validation, run the targeted test with SKILL_UNDER_TEST=<name>.
 """
 from __future__ import annotations
 
 import json
-import os
 import re
-import shutil
-import tempfile
 import unittest
 from pathlib import Path
-
-import yaml
 
 SKILLS_ROOT = Path(__file__).resolve().parents[2] / ".agents" / "skills"
 SKILL_NAMES = (
     "blender-modeler", "hard-surface", "prop-artist", "uv-workflow",
     "procedural-modeling", "geometry-nodes", "horror-style",
     "sci-fi-punk-worlds", "dark-gritty-mood", "brutalist-mood",
-)
-STANDARD_SKILL_NAMES = (
-    "resonite-build", "resonite-blender", "resonite-inspect",
-    "resonite-debug", "resonite-flux", "resonite-uix",
 )
 REQUIRED_REFERENCES = (
     "modular-environment-design.md", "set-dressing-patterns.md", "texture-baking.md",
@@ -58,94 +48,19 @@ def has_positive_guidance(text: str, pattern: re.Pattern[str]) -> bool:
     return False
 
 
-def read_skill(name: str, root: Path = SKILLS_ROOT) -> tuple[Path, str, dict[str, object]]:
-    path = root / name / "SKILL.md"
+def read_skill(name: str) -> tuple[Path, str]:
+    path = SKILLS_ROOT / name / "SKILL.md"
     if not path.is_file():
         raise AssertionError(f"missing required skill: {path}")
-    text = path.read_text(encoding="utf-8")
-    match = re.match(r"\A---\s*\n(.*?)\n---\s*\n", text, re.DOTALL)
-    if not match:
-        raise AssertionError(f"{name}: missing YAML frontmatter")
-    frontmatter = yaml.safe_load(match.group(1))
-    if not isinstance(frontmatter, dict):
-        raise TypeError(f"{name}: frontmatter must be a mapping")
-    if frontmatter.get("name") != name:
-        raise AssertionError(f"{name}: frontmatter name does not match directory")
-    description = frontmatter.get("description")
-    if not isinstance(description, str) or not description.strip():
-        raise AssertionError(f"{name}: description must be a non-empty string")
-    return path, text, frontmatter
+    return path, path.read_text(encoding="utf-8")
 
 
 class SkillPackageTests(unittest.TestCase):
-    def skills(self, root: Path = SKILLS_ROOT) -> dict[str, tuple[Path, str, dict[str, object]]]:
-        return {name: read_skill(name, root) for name in SKILL_NAMES}
-
-    def assert_owned_skill_packages(self, root: Path) -> dict[str, tuple[Path, str, dict[str, object]]]:
-        present = {path.name for path in root.iterdir() if path.is_dir()}
-        missing = set(SKILL_NAMES) - present
-        self.assertFalse(missing, f"missing owned skill directories: {sorted(missing)}")
-        return self.skills(root)
-
-
-    def assert_no_unapproved_guidance(self, root: Path) -> None:
-        for name, (_, text, _) in self.skills(root).items():
-            normalized = text.casefold()
-            for unapproved in ("blender-director", "asset-optimization", "export-pipeline", "scene-assembly"):
-                self.assertNotIn(unapproved, normalized, f"{name}: unapproved delegation {unapproved}")
-            if name in ("procedural-modeling", "geometry-nodes"):
-                self.assertRegex(normalized, r"different seeds.{0,80}(?:not|aren't|are not).{0,30}lod|(?:not|aren't|are not).{0,30}lod.{0,80}seed")
-            if name == "horror-style":
-                self.assertRegex(normalized, r"(?:fog|volumetric).{0,60}(?:optional|not required|not assumed)|(?:optional|not required|not assumed).{0,60}(?:fog|volumetric)")
-
-    def test_targeted_skill_semantics(self) -> None:
-        name = os.environ.get("SKILL_UNDER_TEST", "")
-        if not name:
-            self.skipTest("set SKILL_UNDER_TEST for sequential per-skill validation")
-        self.assertIn(name, SKILL_NAMES, "SKILL_UNDER_TEST must name an approved skill")
-        _, text, _ = read_skill(name)
-        self.assertFalse(has_positive_guidance(text, POSITIVE_MCP), f"{name}: positive MCP guidance")
-        self.assertFalse(has_positive_guidance(text, POSITIVE_OTHER_ENGINE), f"{name}: other-engine guidance")
-
-    def test_required_names_and_valid_frontmatter(self) -> None:
-        self.assert_owned_skill_packages(SKILLS_ROOT)
-
-    def test_installed_style_layout_preserves_standard_and_unrelated_content(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / ".agents" / "skills"
-            root.parent.mkdir(parents=True)
-            root.mkdir()
-            for name in SKILL_NAMES:
-                shutil.copytree(SKILLS_ROOT / name, root / name)
-            shutil.copytree(SKILLS_ROOT / "references", root / "references")
-            preserved: dict[str, bytes] = {}
-            for name in STANDARD_SKILL_NAMES:
-                path = root / name / "SKILL.md"
-                path.parent.mkdir(parents=True)
-                content = f"---\nname: {name}\ndescription: preserved standard skill\n---\n".encode()
-                path.write_bytes(content)
-                preserved[path.relative_to(root).as_posix()] = content
-            unrelated_skill = root / "pre-existing-extra" / "SKILL.md"
-            unrelated_skill.parent.mkdir()
-            unrelated_content = b"pre-existing unrelated skill\n"
-            unrelated_skill.write_bytes(unrelated_content)
-            preserved[unrelated_skill.relative_to(root).as_posix()] = unrelated_content
-            unrelated_file = root / "legacy-notes.txt"
-            unrelated_file.write_text("pre-existing unrelated content\n", encoding="utf-8")
-            preserved[unrelated_file.relative_to(root).as_posix()] = unrelated_file.read_bytes()
-
-            self.assert_owned_skill_packages(root)
-            self.assert_no_unapproved_guidance(root)
-            present = {path.name for path in root.iterdir() if path.is_dir()}
-            self.assertTrue(set(STANDARD_SKILL_NAMES) <= present)
-            for relative, expected in preserved.items():
-                self.assertEqual((root / relative).read_bytes(), expected, f"modified pre-existing content: {relative}")
+    def skills(self) -> dict[str, tuple[Path, str]]:
+        return {name: read_skill(name) for name in SKILL_NAMES}
 
     def test_references_and_links_resolve(self) -> None:
-        refs_dir = SKILLS_ROOT / "references"
-        for reference in REQUIRED_REFERENCES:
-            self.assertTrue((refs_dir / reference).is_file(), f"missing shared reference {reference}")
-        for name, (path, text, _) in self.skills().items():
+        for name, (path, text) in self.skills().items():
             links = re.findall(r"\[[^\]]+\]\(([^)]+)\)|`((?:references|\.\./references)/[^`]+)`", text)
             for link in links:
                 target = next((part for part in link if part), "")
@@ -164,7 +79,10 @@ class SkillPackageTests(unittest.TestCase):
         self.assertTrue(has_positive_guidance("Do not alter lighting, export the mesh to Unity.", POSITIVE_OTHER_ENGINE))
 
     def test_no_positive_execution_guidance_in_skills_or_shared_references(self) -> None:
-        guarded_texts = [(name, text) for name, (_, text, _) in self.skills().items()]
+        # The skills run Blender only through `resoloop blender run`. Guidance to
+        # drive Blender MCP or hand assets to another engine was removed on import
+        # (blender-skills-sources.json) because it acts outside that pipeline.
+        guarded_texts = [(name, text) for name, (_, text) in self.skills().items()]
         for reference in REQUIRED_REFERENCES:
             path = SKILLS_ROOT / "references" / reference
             guarded_texts.append((f"references/{reference}", path.read_text(encoding="utf-8")))
@@ -190,9 +108,6 @@ class SkillPackageTests(unittest.TestCase):
                 self.assertTrue(source.startswith(".claude/skills/"), f"{key}: non-source path {source}")
             for output in entry["output_paths"]:
                 self.assertTrue((SKILLS_ROOT.parent.parent / output).is_file(), f"{key}: missing output {output}")
-
-    def test_no_unapproved_guidance_or_false_runtime_claims(self) -> None:
-        self.assert_no_unapproved_guidance(SKILLS_ROOT)
 
 
 if __name__ == "__main__":

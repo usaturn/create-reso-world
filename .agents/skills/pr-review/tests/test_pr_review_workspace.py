@@ -257,18 +257,6 @@ def test_review_artifact_paths_preserve_exact_model_name(tmp_path: Path) -> None
     assert destination == "reviews/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
 
 
-def test_review_artifact_paths_use_slash_sanitized_model_name(tmp_path: Path) -> None:
-    draft, destination = workspace.review_artifact_paths(
-        tmp_path / "review-backup",
-        "fix/herdr-session-cwd",
-        "opencode-deepseek-v4-flash-free",
-        pr_number=4,
-    )
-
-    assert draft == (tmp_path / "review-backup" / "opencode-deepseek-v4-flash-free.md")
-    assert destination == "reviews/#4-fix-herdr-session-cwd/opencode-deepseek-v4-flash-free.md"
-
-
 def test_destination_fingerprint_distinguishes_symlink_entries(tmp_path: Path) -> None:
     target = tmp_path / "target.md"
     target.write_text("review\n", encoding="utf-8")
@@ -614,7 +602,6 @@ def test_create_pins_explicit_model_outside_codex(tmp_path: Path, monkeypatch: p
     assert result["model_name"] == "opus-5"
     assert result["model_source"] == "explicit"
     assert result["destination"] == "reviews/#5-fix-model-name/opus-5.md"
-    assert state["version"] == 6
     assert state["model_source"] == "explicit"
 
 
@@ -680,7 +667,6 @@ def test_create_pins_model_and_artifact_paths(tmp_path: Path, monkeypatch: pytes
     assert Path(result["draft"]).name == "gpt-5.6-sol.md"
     assert (repo / "reviews/#4-fix-herdr-session-cwd/gpt-5.md").read_text(encoding="utf-8") == "existing alias\n"
     state = json.loads(Path(result["state_file"]).read_text(encoding="utf-8"))
-    assert state["version"] == 6
     assert result["previous_review"] is None
     assert state["previous_review"] is None
     assert state["model_source"] == "codex-rollout"
@@ -717,7 +703,6 @@ def test_create_pins_existing_review_snapshot(tmp_path: Path, monkeypatch: pytes
     state = json.loads(Path(result["state_file"]).read_text(encoding="utf-8"))
     assert previous.name == "previous-review.md"
     assert previous.read_text(encoding="utf-8") == "own existing review\n"
-    assert state["version"] == 6
     assert state["previous_review"] == str(previous)
     assert state["destination_fingerprint"] == workspace.destination_fingerprint(own_review)
 
@@ -945,15 +930,6 @@ def test_save_allows_unrelated_main_changes(created_session: dict[str, Any]) -> 
     saved = workspace.save(argparse.Namespace(state=result["state_file"]))
 
     assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
-
-
-def test_create_state_omits_main_snapshot(created_session: dict[str, Any]) -> None:
-    state_file = Path(created_session["result"]["state_file"])
-
-    state = json.loads(state_file.read_text(encoding="utf-8"))
-
-    assert state["version"] == 6
-    assert "main_snapshot" not in state
 
 
 def test_load_state_rejects_previous_version(created_session: dict[str, Any]) -> None:

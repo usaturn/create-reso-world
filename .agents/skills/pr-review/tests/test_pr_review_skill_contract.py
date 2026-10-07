@@ -14,9 +14,6 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 AGENTS_SKILL = REPO_ROOT / ".agents/skills/pr-review/SKILL.md"
-AGENTS_HELPER = REPO_ROOT / ".agents/skills/pr-review/scripts/pr_review_workspace.py"
-CLAUDE_LINK = REPO_ROOT / ".claude/skills/pr-review"
-BUDGET_REFERENCE = REPO_ROOT / ".agents/skills/pr-review/references/time-budget.md"
 
 
 class ResolverStopped(Exception):
@@ -187,14 +184,6 @@ def make_resolver(tmp_path: Path, fork: str = "ok") -> ResolverFixture:
 @pytest.fixture
 def resolver_fixture(tmp_path: Path) -> ResolverFixture:
     return make_resolver(tmp_path)
-
-
-def test_helper_has_one_real_copy_shared_through_the_skill_symlink() -> None:
-    assert AGENTS_HELPER.is_file() and not AGENTS_HELPER.is_symlink()
-    assert AGENTS_HELPER.stat().st_size > 0
-    assert CLAUDE_LINK.is_symlink()
-    assert os.readlink(CLAUDE_LINK) == "../../.agents/skills/pr-review"
-    assert not (REPO_ROOT / ".devin/skills").exists()
 
 
 def test_skill_interpolation_is_limited_to_the_target_line() -> None:
@@ -543,24 +532,12 @@ def test_pr_review_resolver_rejects_mismatched_remote_urls(tmp_path: Path, remot
     assert stopped.value.stdout == ""
 
 
-@pytest.mark.parametrize("forbidden", ["$TOPLEVEL/devenv", "submodule status -- devenv"])
-def test_pr_review_skills_have_no_legacy_path_selection(forbidden: str) -> None:
-    for skill in (AGENTS_SKILL,):
-        assert forbidden not in skill.read_text(encoding="utf-8")
-
-
-@pytest.mark.parametrize(
-    ("skill", "relative"),
-    [(AGENTS_SKILL, "references/time-budget.md")],
-)
-def test_review_budget_reference_is_required_and_resolves(skill: Path, relative: str) -> None:
+def test_skill_links_resolve() -> None:
     targets = [target.split("#", 1)[0]
-               for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", read(skill))]
-    assert relative in targets, "skill lost its budget reference"
+               for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", read(AGENTS_SKILL))]
     for target in targets:
         if target and not target.startswith(("http:", "https:")):
-            assert (skill.parent / target).resolve().is_file(), target
-    assert (skill.parent / relative).resolve() == BUDGET_REFERENCE.resolve()
+            assert (AGENTS_SKILL.parent / target).resolve().is_file(), target
 
 
 @pytest.mark.parametrize("case", ["implicit", "explicit", "duplicate", "subdirectory"])

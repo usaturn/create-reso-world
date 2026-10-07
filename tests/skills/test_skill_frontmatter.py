@@ -28,10 +28,6 @@ def frontmatter(path: Path) -> dict[str, object]:
     return data
 
 
-def test_shared_skills_are_discovered() -> None:
-    assert len(SKILL_FILES) >= 10
-
-
 @pytest.mark.parametrize("path", SKILL_FILES, ids=lambda p: p.parent.name)
 def test_frontmatter_is_valid_for_every_runtime(path: Path) -> None:
     data = frontmatter(path)

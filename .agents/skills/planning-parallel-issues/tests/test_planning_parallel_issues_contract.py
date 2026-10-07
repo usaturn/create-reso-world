@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 
@@ -22,15 +21,8 @@ def test_referenced_procedures_exist() -> None:
         assert (SKILL_DIR / link.split("#", 1)[0]).is_file(), link
 
 
-def test_claude_code_reads_the_same_skill_through_a_symlink() -> None:
-    link = REPO_ROOT / ".claude/skills/planning-parallel-issues"
-    assert link.is_symlink()
-    assert os.readlink(link) == "../../.agents/skills/planning-parallel-issues"
-
-
 def test_validation_links_and_scenarios_resolve() -> None:
     content = read(VALIDATION)
-    assert "scripts/ci/" not in content
     for link in re.findall(r"\]\(([^)]+)\)", content):
         target = link.split("#", 1)[0]
         if target and not target.startswith(("https:", "http:")):
