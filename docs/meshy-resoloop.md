@@ -46,10 +46,11 @@ Blender の glTF import / export は NumPy も必要。postCreate の base apt �
 課金前の local fixture 確認は、repository root で次を実行する（API キー・Resonite 接続不要。fixture 生成も実 Blender を使う）。
 
 ```bash
-env -u MESHY_API_KEY uv run --no-project --with pytest pytest tests/scripts/test_meshy_conversion.py -q
+env -u MESHY_API_KEY uv run --no-project --with pytest pytest tests/scripts/test_meshy_conversion.py -q -rs
 ```
 
-標準 Blender が NumPy を読めない場合はここで止め、rebuild / 依存導入を利用者が確認する。一時 wrapper の成功を標準環境の成功と読み替えない。
+課金前の条件は、必要な実 fixture の生成・変換・export 検証が標準環境で実際に実行され、すべて成功すること。pytest の終了コードが0でも必要な検証が `skipped` なら**事前確認は未完了**で、submit へ進まない。`-rs` の skip 理由も確認する。
+ResoLoop / Blender が見つからない、または標準 Blender が NumPy を読めない場合はここで止め、rebuild / 依存導入を利用者が確認する。一時 wrapper の成功を標準環境の成功と読み替えない。
 今回の実 fixture / exporter 検証は `/tmp/meshy-blender-task2` を使った。これはローカルの検証補助で配布物ではない。
 現在のランチャー配下では `no-new-privileges` により sudo が拒否されるため、権限昇格を再試行しない。**標準 rebuild は未検証**。
 
@@ -210,11 +211,16 @@ bundle は `model.apply.json`、`report.json`、mesh / texture asset を含む�
 編集用に converted の blend / images / conversion-report と operation.json、source の hash / task ID も渡す。Linux の絶対パスを Windows の取得先として使わず、bundle の相対 asset を使う。
 キー・credentials は渡さない。Meshy journal は元 project に保持し、Windows で生成を再送しない。
 
-Windows 10 / 11 に .NET 10 SDK、Resonite / ResoniteLink を用意する。以下は**利用者が手動実行する PowerShell 手順**で、この変更では実行していない。
-以下のブロックは同じ PowerShell セッションで実行する。latest へ更新し、PATH 上の別版でなく global tool を確認する。version を固定する install 例にはしない。
+Windows 10 / 11 に .NET 10 SDK、Resonite / ResoniteLink と **PowerShell 7.3 以上**を用意する。[新しい PowerShell の導入](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows)を推奨し、`pwsh.exe` を起動する。標準の Windows PowerShell 5.1（`powershell.exe`）はこの手順の対象外。
+native command の Legacy 引数渡しでは `path:["Root","GeneratedProps"]` の埋め込み二重引用符が失われる。7.3 以上で `$PSNativeCommandArgumentPassing = 'Standard'` を明示し、selector をそのまま渡す。根拠は [about_Parsing](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_parsing) と [about_Preference_Variables](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_preference_variables#psnativecommandargumentpassing)。
+以下は**利用者が手動実行する手順**で、Windows 上では未実行。最初の version guard と設定から順に、すべてのブロックを**同じ `pwsh.exe` セッション**で実行する。guard が停止したら後続を実行せず、新しい shell に切り替える。latest へ更新し、PATH 上の別版でなく global tool を確認する。version を固定する install 例にはしない。
 
 ```powershell
 $ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion -lt [version]'7.3') { throw 'Use PowerShell 7.3 or newer (pwsh.exe), not Windows PowerShell 5.1' }
+$PSNativeCommandArgumentPassing = 'Standard'
+$PSVersionTable.PSVersion
+$PSNativeCommandArgumentPassing
 dotnet --list-sdks
 dotnet tool update --global ResoLoop --prerelease --allow-downgrade
 if ($LASTEXITCODE -ne 0) { throw 'ResoLoop update failed' }
@@ -277,7 +283,7 @@ probe は使わない。変更が残る場合は「収束確認済み」とせ�
 
 ### 実機受入 checklist
 
-- [ ] Linux / Windows の CLI version、URL、parent、ownership key、唯一の state 保存先を記録。
+- [ ] Linux / Windows の CLI version、Windows の PowerShell version（7.3 以上）と `Standard` 設定、URL、parent、ownership key、唯一の state 保存先を記録。
 - [ ] mesh と texture の全 asset が Windows に実在。変換 report の culling 警告を素材ごとに確認し、許可範囲を記録。
 - [ ] 適用範囲が承認された parent 配下だけで、既存の所有外 object を変更しない。
 - [ ] Resonite で寸法・向き・原点、複数 mesh / 階層、albedo / normal / metallic / roughness / emission を対象素材に応じて目視確認。texture 欠落や culling の見た目を確認。
@@ -288,7 +294,7 @@ probe は使わない。変更が残る場合は「収束確認済み」とせ�
 実 wrapper / fixture の回帰、実 Blender 5.0.1 と ResoLoop 0.1.0-preview.17 exporter による offline bundle は検証済み（NumPy を読ませる一時 wrapper 使用）。
 これらの version は実測記録であって固定する要件ではない。以後の最新 ResoLoop で同じ結果を保証しない。
 
-**NOT verified（未検証）:** 標準コンテナ rebuild、実キーによる API 認証・残高、課金を伴う text / image generation、Windows での texture 付き表示・同じ state の無変更再適用 / 収束。
+**NOT verified（未検証）:** 標準コンテナ rebuild、実キーによる API 認証・残高、課金を伴う text / image generation、Windows PowerShell 7.3 以上での実行・native 引数受け渡し、Windows での texture 付き表示・同じ state の無変更再適用 / 収束。
 未承認の API / live 操作を smoke test の名目で行わない。PR は **`Refs #50`** とし、実機受入前に Issue を自動 close しない。
 
 参照: [Meshy Text to 3D](https://docs.meshy.ai/en/api/text-to-3d)、[Image to 3D](https://docs.meshy.ai/en/api/image-to-3d)、[ResoLoop](https://github.com/orange3134/resoloop)。
