@@ -1,5 +1,7 @@
 #!/bin/bash
-# CI の定義（.github/workflows/ci.yml）と gitleaks の設定（.gitleaks.toml）が仕様 9.2 節のとおりであることを検査する
+# 秘密情報の検出の設定（.github/workflows/ci.yml の gitleaks ジョブと .gitleaks.toml）を検査する。
+# 履歴の全体を既定の規則で走査し、除外は決めた識別子と偽のトークンだけに限る。どれが崩れても秘密情報の混入を見逃すか、
+# 除外の設定が読まれない
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
@@ -11,50 +13,12 @@ import tomllib
 import yaml
 
 ci = yaml.safe_load(open(".github/workflows/ci.yml", encoding="utf-8"))
-# PyYAML は on: を真偽値の True として読む
-triggers = ci.get("on", ci.get(True))
-assert set(triggers) == {"push", "pull_request"}, triggers
-jobs = ci["jobs"]
-assert set(jobs) == {"devcontainer-tests", "layout", "skill-tests", "gitleaks"}, sorted(jobs)
-
-
-def runs(job):
-    return [step["run"] for step in jobs[job]["steps"] if "run" in step]
-
-
-def uses(job):
-    return [step["uses"] for step in jobs[job]["steps"] if "uses" in step]
-
-
-assert "bash .devcontainer/run-tests.bash" in runs("devcontainer-tests"), runs("devcontainer-tests")
-assert any(all(p in r for p in ("zsh", "ripgrep", "bubblewrap")) for r in runs("devcontainer-tests")), "zsh, ripgrep and bubblewrap are needed by the tests"
-assert any(u.startswith("astral-sh/setup-uv@") for u in uses("devcontainer-tests"))
-assert runs("layout") == ["bash scripts/check-layout.sh"], runs("layout")
-assert not any("resoloop" in u for u in uses("layout")), "layout runs without resoloop"
-assert runs("skill-tests") == ["uv run pytest tests/skills .agents/skills"], runs("skill-tests")
-assert any(u.startswith("astral-sh/setup-uv@") for u in uses("skill-tests"))
-steps = jobs["gitleaks"]["steps"]
+steps = ci["jobs"]["gitleaks"]["steps"]
 checkout = next(s for s in steps if s.get("uses", "").startswith("actions/checkout@"))
+# 浅い clone では過去のコミットに入った秘密情報を走査しない
 assert checkout["with"]["fetch-depth"] == 0, checkout
 leaks = next(s for s in steps if s.get("uses", "").startswith("gitleaks/gitleaks-action@"))
 assert leaks["env"]["GITLEAKS_CONFIG"] == ".gitleaks.toml", leaks
-for job in jobs.values():
-    assert job["runs-on"] == "ubuntu-latest"
-    assert "blender" not in str(job).lower(), "CI does not build worlds with Blender"
-
-# CI が使う action の参照をピン留めする。astral-sh/setup-uv は v10 のような major タグを打っておらず
-# (git ls-remote --tags で確認済み。exact タグの v10.2.0 のみ存在)、存在しないタグを指すと job がそこで
-# 失敗する。actions/checkout・gitleaks/gitleaks-action は major タグがあるのでそのままでよい。
-# これらの参照は git ls-remote --tags で存在を確認したものであり、更新するときはこのテストも合わせて直す
-all_uses = [step["uses"] for job in jobs.values() for step in job["steps"] if "uses" in step]
-checkout_uses = [u for u in all_uses if u.startswith("actions/checkout@")]
-setup_uv_uses = [u for u in all_uses if u.startswith("astral-sh/setup-uv@")]
-gitleaks_uses = [u for u in all_uses if u.startswith("gitleaks/gitleaks-action@")]
-assert checkout_uses, "no actions/checkout step found"
-assert all(u == "actions/checkout@v7" for u in checkout_uses), checkout_uses
-assert setup_uv_uses, "no astral-sh/setup-uv step found"
-assert all(u == "astral-sh/setup-uv@v10.2.0" for u in setup_uv_uses), setup_uv_uses
-assert gitleaks_uses == ["gitleaks/gitleaks-action@v3"], gitleaks_uses
 
 # gitleaks-action@v3 は既定で 8.24.3 を入れるが、.gitleaks.toml の [[allowlists]] は
 # gitleaks 8.25 以降でないと読まれないため、GITLEAKS_VERSION で明示していることを確かめる
@@ -63,7 +27,9 @@ parsed = tuple(int(part) for part in version.split("."))[:2]
 assert parsed >= (8, 25), version
 
 config = tomllib.load(open(".gitleaks.toml", "rb"))
+# 既定の規則を外すと、ほとんどの秘密情報を検出しなくなる
 assert config["extend"]["useDefault"] is True, config
+# 除外は次の 2 つだけ。増やすと秘密情報を除外してしまうおそれがある
 allowlists = config["allowlists"]
 assert len(allowlists) == 2, allowlists
 identifiers = next(a for a in allowlists if a["regexTarget"] == "match")
@@ -84,4 +50,4 @@ for other in (fake_token[::-1], fake_token + "x", "x" + fake_token):
     assert not re.search(fixture_pattern, other), other
 PY
 
-printf 'PASS: CI workflow and gitleaks config follow spec 9.2\n'
+printf 'PASS: secret scanning covers the full history with the default rules and narrow allowlists\n'

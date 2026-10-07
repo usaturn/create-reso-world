@@ -99,7 +99,52 @@
 
 ## tests/scripts
 
+`<py>` は `tests/scripts/test_superpowers_lifecycle.py` を表す。「型」は `AGENTS.md`「テストの採用基準」の作らない型の番号。
+
 | 場所 | 検出する不具合 | 判断 | 理由 | 代わりの保証 | 関連 |
+| --- | --- | --- | --- | --- | --- |
+| `pyproject.toml` の testpaths（`tests` → `tests/skills`） | （同じ unittest の二重実行） | 統合 | `test_superpowers_*.py` を run-tests.bash とルート pytest の両方で実行していた。CI の skill-tests・README と同じ範囲にする | run-tests.bash の `test-superpowers-python.bash` | #51 |
+| `tests/scripts/test-superpowers-python.bash` | Python のテストが run-tests.bash・CI で実行されない | 維持 | CI の devcontainer-tests が `tests/scripts` の Python を実行する唯一の経路 | — | |
+| `<py>::test_current_callers_do_not_invoke_replacement` | 文書が `--replace-from` を案内する | 削除 | 型 1・2 | `test_superpowers_review_copy.py::test_replace_from_is_rejected_before_any_mutation`（変更前に拒否する） | #36 |
+| `<py>::test_handoff_schema_separates_approval_current_authority_and_publication` | 承認・実行許可・完了根拠のフィールドの欠落 | 理由付き固定値として維持（`document_published` は削除） | 承認の無い版・許可の無い作業の再開を防ぐ。理由を追記 | `document_published` は agent-handoff の `::test_documents_and_code_have_separate_schema_fields` | #36 |
+| `<py>::test_imported_documents_are_unchanged_since_import` | 取り込んだ過去文書の変更 | 理由付き固定値として維持 | 過去文書の SHA manifest | — | #36 |
+| `<py>::test_the_unittest_suite_is_wired_into_the_existing_ci_runner` | runner の配線漏れ | 削除 | 型 4。wrapper を消すとこの検査も実行されなくなり、検出できない | run-tests.bash が `tests/scripts/*.bash` を glob で列挙する | #36 |
+| `<py>::ImportedDocumentPortabilityTests`（3 関数） | SHA 照合が Git の履歴に依存する・変更を検出しない | 削除 | テスト自身（SHA 照合）しか検査しない。照合は作業ツリーのバイトだけを読む | SHA 照合は維持。Git の無いコピーで通ること、文書の変更で失敗することを今回確かめた | #36 |
+| `<py>::EndToEndLifecycleTests::test_committed_version_and_resume_gate_eval_cases` | 再開判定表の誤り | 書き換え（`::test_continuation_gates_keep_unapproved_or_unauthorized_resumes_blocked`） | handoff はテストが書いて読み戻すだけ、resolver の実行は重複。承認・許可の無い 5 ケースを ready にしない判定だけ理由付き固定値として残す | resolver は `test_superpowers_context.py::test_head_remote_preserves_no_pushurl_fallback` | #36 |
+| `<py>::EndToEndLifecycleTests::test_supported_route_reaches_simulated_publication_with_versioned_copies` | コピーの作成・非置換の誤り | 削除 | 実行部分は review-copy・context のテストと重複。承認記録・公開・復元はテストが書いた値を読み戻すだけ | `test-superpowers-review-copy.bash`、`test_superpowers_review_copy.py::test_new_versioned_name_leaves_the_old_copy_untouched`・`::test_committed_plan_copies_with_exact_bytes_full_sha_and_kind_flow`、`test_superpowers_context.py::test_document_main_and_linked_roots_verify_requested_branch` | |
+| `<py>::EndToEndLifecycleTests::test_unsupported_external_implementation_route_records_blocked_state` | （なし） | 削除 | テストが書いた handoff を読み戻すだけ | 不要 | |
+| `tests/scripts/test_superpowers_context.py` | 誤った checkout・remote の選択、認証情報の表示、Git の状態の変更 | 維持 | resolver の実行 | — | PR #16 |
+| `test_superpowers_context.py::test_missing_unsupported_or_foreign_parent_origin_has_actionable_error` | 別ホストの scp 形式の origin を受け入れる | 統合 | `test-superpowers-review-copy.bash` の 12 だけが持っていた失敗ケースを移した | — | |
+| `tests/scripts/test_superpowers_review_copy.py` | 既存コピーの差し替え、未コミットの正本、symlink・FIFO への書込み、競合 | 維持 | モジュールの実行 | — | PR #16 |
+| `tests/scripts/test-superpowers-review-copy.bash` の 2〜14 | 同上（ラッパー経由） | 削除 | 同じモジュールの同じケースを Python のテストが実行する | `test_superpowers_review_copy.py` の対応するテスト。remote の形式・checkout のルートは `test_superpowers_context.py` | |
+| `tests/scripts/test-superpowers-review-copy.bash` の 1 | ラッパーがモジュールを起動できない | 維持 | 利用者が実行するラッパーの唯一の実行 | — | |
+| `tests/scripts/test-agent-config.bash` の Codex の `context7` 名 | ユーザー設定の context7 と項目が混ざる | 理由付き固定値として維持 | 8a95021 で直した不具合の再発防止 | — | |
+| `test-agent-config.bash` の Codex の `env_vars` | 外部パッケージへ渡す秘密情報が増える | 理由付き固定値として維持 | 秘密情報の露出範囲。理由を追記 | — | |
+| `test-agent-config.bash` の Codex・Cursor の command・args とマージの再現 | 設定値の変更 | 削除 | 型 3。マージの再現はテスト自身の計算で、名前の検査以上のことを検出しない | 名前の検査 | |
+| `test-agent-config.bash` の `.pi-lens.json`（`$schema`・ignore） | `$schema` の再追加、ignore の変更 | 削除 | 型 2・3 | 不要 | #19 |
+| `test-agent-config.bash` の `sp-implementer.md`・`.devin/config.json` | model・一覧の変更、作らない設定ファイル | 削除 | 型 2・3 | `sp-implementer.md` の実在は check-layout（プロジェクトの symlink が行き先を要求する） | |
+| `tests/scripts/test-ci.bash` の trigger・job・コマンド・action の版・Blender | CI 定義の変更 | 削除 | 型 3。誤りは CI の実行で失敗として表に出る | 不要 | |
+| `test-ci.bash` の gitleaks のジョブと `.gitleaks.toml` | 秘密情報の見逃し、除外の拡大、allowlist が読まれない | 理由付き固定値として維持 | 秘密情報の検出の設定。正規表現は正負の例で実行する。理由を追記 | — | |
+| `tests/scripts/test-docs.bash` の参照検査 | 存在しないファイル・スキルの案内 | 維持 | 参照先の実在 | — | #36 |
+| `test-docs.bash` の `dsh` | 撤去した dsh の再記載 | 削除 | 型 2 | 不要（未導入のコマンドは実行時に失敗するだけ） | #17 |
+| `test-docs.bash` の `docs/integration.md` の文言 | 統合手順の文言の変更 | 削除 | 型 1。2026-10-06 にも更新した現行の文書 | 不要 | |
+| `test-docs.bash` の凍結した仕様・計画の 7 文字列 | レビューで直した箇所の書き戻し | 削除 | 型 1・2。修正の反映を一度確かめる検査で、文書の全体は守らない | 不要（凍結した文書は編集しない） | #36 |
+| `tests/scripts/test-file-modes.bash` の glob の対象 | 実行権限の欠落 | 維持 | `scripts/*.sh` などを直接起動する | — | |
+| `test-file-modes.bash` のランチャー 9 本 | ランチャーの権限・追跡の漏れ | 削除 | 型 3（ランチャー一覧） | `install_beforehand.bash` が `install -m 0755` で配置し、無ければそこで失敗する | |
+| `test-file-modes.bash` の `checked -gt 30` | 対象を 1 件も読まない | 書き換え（`-gt 0`） | 根拠のない件数固定。空の走査だけを検出する | — | |
+| `tests/scripts/test-gitignore.bash` | 秘密情報・私的データの追跡、ワールドのデータの追跡漏れ、許可外の追跡例外 | 理由付き固定値として維持 | ignore の範囲と追跡例外。理由を追記 | — | #36 |
+| `tests/scripts/test-instructions.bash` の `CLAUDE.md` 1 行目・参照検査 | 読み込み指定の誤り、存在しない参照 | 維持 | 実際の読み込み指定、参照先の実在 | — | #51 |
+| `test-instructions.bash` のペルソナ SHA | 利用者所有部分の変更 | 理由付き固定値として維持 | 利用者所有部分 | — | #36 |
+| `test-instructions.bash` の `verify.sh`・`verify-devenv` | 移植元のスクリプト名 | 削除 | 重複 | `tests/skills/test_legacy_references.py` | #17 |
+| `test-instructions.bash` の `AGENTS.md` の `reStructuredText`・`Gitleaks`・`contingency`・`AskUserQuestion`・`TaskOutput`・`npx ctx7` | 旧リポジトリ・ツール固有の文言 | 削除 | 型 1。誤対象の操作にならない | 不要 | #36 |
+| `test-instructions.bash` の `.pi/APPEND_SYSTEM.md` の撤去したスキル・`@.agents/skills/`・`PI_DISTILL_MODEL`・`async: false` | 撤去した記述の再出現 | 削除 | 型 2。旧引数は role API が受け付けないだけで、誤対象の操作にならない | スキル名は `test-docs.bash --refs` が実在を見る | #19 |
+| `tests/scripts/test-check-layout.bash` の 6 と 44 | このリポジトリの配置の誤り、mounts の検査の skip | 統合（44 を 6 にまとめた） | 同じリポジトリで check-layout を 2 回実行していた | — | |
+| `test-check-layout.bash` のほか | check-layout の判定・終了コードの誤り | 維持 | スクリプトの実行 | — | |
+| `tests/scripts/test-new-world.bash` | 作成・適用の誤り、食い違いでの変更、冪等性 | 維持 | スクリプトの実行 | — | |
+| `tests/scripts/test-resoloop-fork.bash` | 誤った remote・push、dirty な checkout の変更、版の誤り | 維持 | スクリプトの実行 | — | #41 |
+| `tests/scripts/lib/path.bash`、`tests/scripts/fixtures/superpowers-imported-documents.sha256.json` | — | 維持 | 残る検査が使う | — | |
+
+前後: ファイル Python 3→3・シェル 11→11、行 Python 1,367→1,011・シェル 1,697→1,430、収集 68（subtest 154）→61（144）、所要は隔離コピーで変更前後を交互に 2 回実行して run-tests の `tests/scripts/*.bash` 83〜84 秒→71〜77 秒・`uv run pytest tests/scripts` 46〜51 秒→42〜45 秒。ルート pytest からは同じ 68 件（約 45 秒）の二重実行を外した（収集 542→474）
 
 ## .devcontainer
 

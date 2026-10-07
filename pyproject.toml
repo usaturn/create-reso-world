@@ -12,7 +12,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", ".agents/skills"]
+testpaths = ["tests/skills", ".agents/skills"]
 addopts = "-p no:cacheprovider"
 
 [tool.uv]

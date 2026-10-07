@@ -74,8 +74,10 @@ expect_fail_with "$tmp/ignored" 'tracked but ignored'
 # 5. 不正な引数は 64
 assert_exit_code 64 bash "$checker" --bogus
 
-# 6. このリポジトリ自身が通過する
-bash "$checker" | grep -qF 'PASS: check-layout'
+# 6. このリポジトリ自身が通過し、mounts も検査される（skip されない）
+bash "$checker" > "$tmp/self.out"
+grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/self.out"
+grep -qF 'PASS: check-layout' "$tmp/self.out"
 
 # 7. --root が git リポジトリでないディレクトリなら 64
 mkdir -p "$tmp/notgit"
@@ -385,10 +387,6 @@ grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/dc-ok.out"
 grep -qF 'PASS: check-layout' "$tmp/dc-ok.out"
 bash "$checker" --root "$tmp/clean" > "$tmp/dc-skip.out"
 grep -qF 'skip: .devcontainer/devcontainer.json is not tracked (mount check)' "$tmp/dc-skip.out"
-
-# 44. このリポジトリの mounts も検査される
-bash "$checker" > "$tmp/self.out"
-grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/self.out"
 
 # 45. devcontainer.json が作業ツリーにあっても追跡していなければ skip
 devcontainer_repo "$tmp/dc-untracked" && git -C "$tmp/dc-untracked" rm -q --cached .devcontainer/devcontainer.json \
