@@ -1,10 +1,9 @@
 """Reject external targets, malformed references and unsafe paths before emission."""
 import json
-from pathlib import Path
 
 import pytest
 from modeling.slum03 import pipeline
-from tests.slum03.test_pipeline import _bundle, _setup, _layout
+from tests.slum03.test_pipeline import _setup
 
 
 def test_foreign_ownership_references_rejected(tmp_path, monkeypatch):

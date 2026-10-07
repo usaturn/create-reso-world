@@ -3,7 +3,6 @@ import json
 import subprocess
 import sys
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 
@@ -12,6 +11,8 @@ from modeling.slum03.types import RectXZ
 
 
 def test_layout_dimensions_and_repeatability():
+    # 固定値の理由: 街区 120 m 四方・工場跡地 40×30 m・中央 32×22 m は、承認済みの設計仕様
+    # （2026-09-27-slum03-cyberpunk-slum-design.md の D-03・D-04・9.1「寸法」）の受入条件。
     a = build_layout()
     assert a == build_layout(260927)
     assert a.district.size == (120.0, 120.0)
@@ -33,6 +34,8 @@ def test_other_seeds_preserve_public_corridors_and_dimensions():
 
 
 def test_plan_includes_canonical_sector_anchors_and_distinct_domains():
+    # 固定値の理由: 必須の用途・北壁の位置と寸法・旧東壁なし・アーコロジーの高さ・Yarol の向き・AR 3 系統・
+    # 方向別の視点は、承認済みの設計仕様（同上の 4 章・5.1・9.1）が定める。
     a = build_layout()
     by_key = {p.key: p for p in a.placements}
     assert len(by_key) == len(a.placements)
@@ -61,6 +64,7 @@ def test_plan_includes_canonical_sector_anchors_and_distinct_domains():
 
 
 def test_walkable_road_runs_beyond_district_and_river_is_outside_district():
+    # 固定値の理由: 歩道・車道・川の範囲は、承認済みの設計仕様（同上の D-07・4.1 の表・9.1「寸法」）が定める。
     a = build_layout()
     road = {p.key: p for p in a.placements}
     assert road['west-sidewalk'].origin[2] == 15.0

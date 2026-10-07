@@ -81,14 +81,6 @@ def test_forest_owned_far_edge_blocks_visible_ground_horizon():
     assert backstop.meta['nonwalkable'] is True
 
 
-def test_scenic_pads_are_dark_distinct_from_default_floor():
-    supports = {a.name: a for a in sector_assemblies(build_layout(), 'ground')
-                if a.kind == 'scenic-support'}
-    assert supports['scenic-support-forest'].parts[0].material == 'mud'
-    assert supports['scenic-support-west'].parts[0].material == 'backdrop_ground'
-    assert supports['scenic-support-south'].parts[0].material == 'backdrop_ground'
-
-
 def _full():
     from pathlib import Path
     from modeling.slum03.layout import read_layout
@@ -136,6 +128,8 @@ def test_full_ground_stains_are_coplanar_surface_cells_only():
         for v in p.vertices:
             assert not (fx0 < v[0] < fx1 and fz0 < v[2] < fz1)
     # Legacy/representative ground keeps its exact pre-Task8 mesh.
+    # 固定値の理由: 旧版と代表段階では地面のメッシュを変えない（旧版は適用済み。密度改善の設計仕様 7 章 Gate B
+    # 「その他の既存内容は保持」）。値が変わったら、保護する既存内容を生成器が変えたことになる。
     rep = read_layout(Path('content/slum03/density-representative-layout.json'))
     rep_ground = next(a for a in sector_assemblies(rep, 'ground') if a.name == 'district-foundation')
     for kept in (legacy, rep_ground):

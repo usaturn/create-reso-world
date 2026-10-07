@@ -1,7 +1,6 @@
 """Merge contract: changing source bytes, reference mapping, or output base must break these tests."""
 import json
 import math
-import os
 import subprocess
 import sys
 from pathlib import Path

@@ -148,7 +148,6 @@ def test_offline_build_orders_ar_last_after_background():
 def test_offline_driver_passes_explicit_persisted_layout_to_blender(tmp_path, monkeypatch):
     import sys
     import pytest
-    from pathlib import Path
     from modeling.slum03.layout import build_layout, read_layout, write_layout
     from scripts import build_offline
     path = tmp_path / 'custom.json'

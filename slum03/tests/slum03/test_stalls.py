@@ -114,6 +114,7 @@ def test_task5_preview_renders_without_deprecation_warning(tmp_path):
 
 def test_representative_market_dispatch_changes_only_selected_west():
     # Dispatch regression: east remains byte-for-byte identical to its legacy assembly.
+    # 固定値の理由: 選んでいない market-east は適用済みのメッシュのまま残す（密度改善の設計仕様 7 章 Gate B）。
     import hashlib
     from pathlib import Path
     from modeling.slum03.layout import read_layout

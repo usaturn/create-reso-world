@@ -29,11 +29,6 @@ def test_isolated_preview_saves_camera_scene_without_claiming_full_visibility(tm
     assert json.loads((out / 'preview-report.json').read_text())['visibility']['status'] == 'not-tested'
 
 
-def test_combined_preview_includes_near_north_and_bright_detail_views():
-    from modeling.slum03.preview import VIEWS
-    assert {'north-graffiti', 'north-activity', 'west-detail', 'south-detail'} <= set(VIEWS)
-
-
 def test_combined_preview_reads_persisted_custom_labels_and_builds_supplemental_views(tmp_path):
     import json
     from dataclasses import replace

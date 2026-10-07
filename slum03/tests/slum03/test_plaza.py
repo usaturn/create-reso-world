@@ -100,6 +100,8 @@ def _kind(part):
 
 
 def test_legacy_and_staged_plaza_geometry_is_unchanged():
+    # 固定値の理由: 旧版・代表・ブロックアウトの各段階では広場のメッシュを変えない（旧版は適用済み。密度改善の
+    # 設計仕様 7 章 Gate B「その他の既存内容は保持」）。床の作り込みは全域段階だけに加える。
     import hashlib
     from pathlib import Path
     from modeling.slum03.layout import read_layout

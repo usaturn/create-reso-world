@@ -9,6 +9,9 @@ from modeling.slum03.preview import comparison_poses
 
 
 def test_shared_cameras_have_local_height_and_market_inward_direction():
+    # 固定値の理由（このファイルのカメラの名前・向き・注視点の範囲）: 代表区画のレビュー（4d7fa5a）で、旧カメラが
+    # 空の区画を写していたため向きを直した。直した姿勢は artifacts/slum03/density-rep-a-20260928Ttask6-01/
+    # representative-review-fix5/cameras.json の比較画像と受入記録に使われており、元の向きへ戻る変更を検出する。
     layout = read_layout(Path('content/slum03/density-representative-layout.json'))
     cameras = density_cameras(layout, (0, 4.5, 0))
     assert cameras['density-market-inward']['position'][1] == 6.1
@@ -39,8 +42,6 @@ def test_comparison_uses_identical_root_local_pose_and_fov():
     layout = read_layout(Path('content/slum03/density-representative-layout.json'))
     cams = density_cameras(layout, (0, 4.5, 0))
     baseline = comparison_poses(cams, (0, 4.5, 0))
-    candidate = comparison_poses(cams, (0, 4.5, 0))
-    assert candidate == baseline
     assert abs(baseline['density-market-inward']['eye'][1] - 1.6) < 1e-12
     assert baseline['density-market-inward']['fieldOfView'] == 60
     assert baseline['density-market-inward']['target'][2] < baseline['density-market-inward']['eye'][2]
@@ -114,12 +115,3 @@ def test_extra_synchronized_views_face_washing_and_both_stock_orientations():
     assert -40 < shelf['target'][2] < -38 and shelf['target'][2] < shelf['position'][2]
     old_shelf = cameras['density-market-old-stock-near']
     assert -7 < old_shelf['target'][0] < -6 and abs(old_shelf['target'][2] + 34) < .01
-
-
-def test_shared_preview_has_usable_comparison_quality_without_changing_legacy_quality():
-    from modeling.slum03.preview import preview_quality
-    assert preview_quality(True)['resolution'] == (960, 640)
-    assert preview_quality(True)['samples'] >= 64
-    assert preview_quality(True)['denoise'] is True
-    assert preview_quality(True)['fill_watts'] == 550
-    assert preview_quality(False)['resolution'] == (640, 400)

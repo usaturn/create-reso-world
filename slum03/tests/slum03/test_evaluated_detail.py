@@ -2,13 +2,7 @@
 from dataclasses import replace
 import pytest
 from modeling.slum03.geometry import Assembly, box, merge_assembly
-import importlib
-
-def observe_detail(*args):
-    return importlib.import_module("modeling.slum03.evaluated_detail").observe_detail(*args)
-
-def validate_evaluated_density(*args):
-    return importlib.import_module("modeling.slum03.evaluated_detail").validate_evaluated_density(*args)
+from modeling.slum03.evaluated_detail import observe_detail, validate_evaluated_density
 from modeling.slum03.layout import build_layout
 from modeling.slum03.density_metrics import layout_digest
 

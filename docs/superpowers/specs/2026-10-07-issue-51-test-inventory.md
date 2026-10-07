@@ -330,4 +330,104 @@
 
 ## slum03
 
+`<s3>` は `slum03/tests/slum03/` を表す。「型」は `AGENTS.md`「テストの採用基準」の作らない型の番号、「原則」は Issue #51「原則として削除・統合するもの」の番号。「仕様」は `docs/superpowers/specs/2026-09-27-slum03-cyberpunk-slum-design.md`、「密度仕様」は `docs/superpowers/specs/2026-09-28-slum03-density-upgrade-design.md`。「代わりの保証」には、変異を入れた一時コピーで失敗することを確かめた検査だけを書く。シェルのテストは無い。suite は `resoloop blender run` で Blender を起動する検査を含み、`artifacts/`・`content/` の凍結した run・manifest を読むだけで書き換えない。
+
 | 場所 | 検出する不具合 | 判断 | 理由 | 代わりの保証 | 関連 |
+| --- | --- | --- | --- | --- | --- |
+| `<s3>conftest.py`、`<s3>helpers.py` | — | 維持 | 凍結した run と `density-baseline.json` を読む fixture、合成 report の helper。どちらも参照が残る | — | |
+| `<s3>fixtures/density-gate-d2-evidence-redacted.json` | — | 維持（保護対象） | Gate D2 の証跡。`apply-log.md`・`live-verification.json` が参照する | — | #12 |
+| `<s3>blender_*_probe.py`・`blender_corrupt_export.py`（pytest が呼ぶ 10 本） | — | 維持 | Blender 内で実行する probe。呼び出す検査が残る | — | |
+| `<s3>blender_combined_probe.py`、`<s3>blender_task7_probe.py` | — | 維持 | pytest からは呼ばない。`task11-c` の `combined-preview.blend` と `task7-*` の `reopened.json`・PNG の証跡を検査・再生成するスクリプト | — | |
+| `<s3>test_ads.py` | 平面の偽ホロ、主コピーの駆動、取付のない投影機、可動範囲の経路侵入、Blender での親子・変換・法線の誤り | 維持 | 生成処理と Blender の実行 | — | |
+| `<s3>test_architecture_detail.py::test_legacy_unselected_builds_unchanged_and_representative_selected` | 選んでいない既存の建物のメッシュの変化 | 理由付き固定値として維持 | 密度仕様 7 章 Gate B「その他の既存内容は保持」。理由を追記 | — | |
+| `<s3>test_architecture_detail.py` のほか（9 関数） | 変種の偽装、支えのない付属物、塗っただけの開口、向き・シードのずれ、扉の閉塞、法線の反転 | 維持 | 生成処理の実行 | — | |
+| `<s3>test_asset_verification.py` | build エラー・セクタの欠落・材質・UV・侵入の見逃し、比較の独立性、資源の帰属、build の順序、保存 layout の受け渡し、v2 の証拠の偽装 | 維持（未使用の import を削除） | 検証処理の実行。`BUILD_ORDER` は駆動する AR を背景の後に作る順序 | — | |
+| `<s3>test_backdrop.py::test_multiple_arcologies_are_north_of_river` | アーコロジーの数・位置・高さ・シルエットの変更 | 理由付き固定値として維持 | 仕様 4.5・9.1「景観」の受入条件。理由を追記 | — | |
+| `<s3>test_backdrop.py` のほか（4 関数） | 箱だけの巨大建築、低層の背景街区の欠落、見えない面の窓、門の冠部の支えの欠落 | 維持 | 生成処理の実行。冠部は 67598eb で直した不具合 | — | |
+| `<s3>test_blender_io.py::test_tracked_ground_probe_matches_current_world_coordinate_build` | （コミット済みの probe 出力の編集） | 削除 | 原則 5。`artifacts/slum03/probes/ground-report.json` を固定値と比べるだけで実装を通らず、現行の build が変わっても失敗しない | 不要（現行の地面の範囲は `::test_ground_build_reports_resonite_bounds_and_stable_export_name` と `test_ground.py` が生成して検査する） | |
+| `<s3>test_blender_io.py` のほか（16 関数） | 軸変換、未登録セクタの受理、UV・hook・親子・proxy 名の誤り、報告の上書き | 維持 | Blender の実行 | — | |
+| `<s3>test_build.py` | 編集用ソースと出力の混同、UV・材質の欠落、ラベルの向き、AR 文字の遮蔽、保存 layout の不使用、未タグの部品 | 維持 | Blender の実行。`::test_checked_in_layout_is_accepted_by_current_layout_validator` はコミット済みの `layout.json` と生成器の比較 | — | |
+| `<s3>test_candidate_scope.py::test_representative_candidate_limits_are_sized_from_its_own_content` | 候補の limits が基準の値のまま残る | 削除 | 原則 4。`compose_candidate` は段階によらず同じ行で limits を付け直す | `test_density_integration.py::test_full_candidate_limits_are_sized_from_the_written_content`（limits を付け直さない変異で失敗。削除した検査も同じ変異で失敗） | |
+| `<s3>test_candidate_scope.py` のほか（22 関数） | 保護対象の資源・Slot・共有 provider の変更、範囲外のノード、別 run の資源、参照される stub の削除 | 維持 | 適用範囲を守る安全条件の実行 | — | |
+| `<s3>test_colliders.py::test_postprocess_does_not_duplicate_colliders` | 再実行での collider の重複 | 削除 | 原則 4。同じ bundle で postprocess の冪等性を 3 か所で検査していた | `test_native_materials.py::test_exported_palette_providers_become_vertex_color_or_holo_without_losing_renderer_refs`・`test_drivers.py::test_scan_clones_only_driven_material_and_pans_texture_not_slot` の最終行（collider を重複して足す変異で両方失敗） | |
+| `<s3>test_colliders.py::test_yarol_collider_rotates_with_visible_facade` | Yarol の collider の回転漏れ | 削除 | 原則 4（建物の collider は同じ 1 行で向きを渡す）、型 3（Yarol の位置・寸法の写し） | `::test_noncardinal_building_yaw_is_kept_on_collider_slot`（向きを渡さない変異で失敗）。Yarol の collider の存在は `::test_nightlife_facades_have_simple_owned_building_colliders` | |
+| `<s3>test_colliders.py::test_v2_open_stall_only_collides_with_real_low_parts_and_preserves_legacy_boxes` の `len(original) == 34` | 旧 collider の件数の変更 | 削除 | 型 3。旧 collider の保持は同じ関数の `boxes[:len(original)] == original` が見る | 不要 | |
+| `<s3>test_colliders.py` のほか（10 関数） | 活動床への collider の侵入、橋・検問の通路の塞ぎ、評価後の形状からのはみ出し、v2 の所有キーの変更・消失 | 維持（未使用の import を削除） | collider 生成の実行 | — | |
+| `<s3>test_delivery.py::test_baseline_fixture_retains_original_mesh_count` | 凍結した基準の manifest の変更 | 削除 | 原則 4。同じファイルの SHA を `test_density_model.py` が固定している | `test_density_model.py::test_saved_baseline_has_original_fixed_hash_and_slot_keys`（メッシュ資源を 1 件消すと失敗） | #12 |
+| `<s3>test_delivery.py::test_canonical_manifest_is_portable_and_contains_live_qa` | 採用した宣言の所有キー・設置高さの変更、資源の参照切れ、QA の欠落 | 理由付き固定値として維持 | 採用 run を適用した宣言。設置高さ Y=4.5 は密度仕様 2 章。理由を追記 | — | #12 |
+| `<s3>test_delivery.py::test_superseded_task12_delivery_evidence_is_kept_as_history`、`::test_review_candidate_counts_and_hash_come_from_its_own_evidence` | 凍結した証跡と記録の食い違い、pending の格上げ | 理由付き固定値として維持 | 凍結した履歴。後者に理由を追記 | — | #12 |
+| `<s3>test_delivery.py` のほか（9 関数） | 証拠の無い pass、警告の見逃し、カメラの root 高さ、Panner の安定キー | 維持（未使用の import を削除） | 判定処理と統合の実行 | — | |
+| `<s3>test_density_acceptance.py` | 別の manifest・段階への受入の流用、暗い画像・未確認の pass、保存・再読込の未確認 | 維持 | 受入判定の実行 | — | #12 |
+| `<s3>test_density_blockout.py` | Gate A の視点の高さ・地区の変更 | 理由付き固定値として維持 | 密度仕様 7 章 Gate A の確認条件。理由を追記 | — | |
+| `<s3>test_density_candidate.py` | blockout・別段階の受理と出力の作成、別の layout の要約、旧キー・平面の誤判定、来歴の欠落、同じバイトの別資源、参照される stub の削除 | 維持 | CLI と処理の実行 | — | |
+| `<s3>test_density_dispatch.py::test_build_density_cli_rejects_blockout_stage` | CLI が blockout 段階を受け付ける | 削除 | 原則 4。同じ CLI を実行し、出力と state が残らないことまで見る検査がある | `test_density_candidate.py::test_blockout_stage_rejected_without_output`（argparse と `prepare` の両方の拒否を外す変異で失敗）。守らなくなる点: argparse の拒否だけを外す変更（`prepare` が同じ段階を拒否するので出力は作られない） | |
+| `<s3>test_density_dispatch.py` のほか（4 関数） | 種類の混在したセクタの取りこぼし・重複、旧メッシュの変化、未対応の種類の受理 | 維持 | 生成処理の実行 | — | |
+| `<s3>test_density_integration.py` | 全域候補の範囲・再生成・件数・hash の偽装、代表 report の流用、順序依存、比較の見逃し、limits の超過 | 維持 | 処理の実行 | — | |
+| `<s3>test_density_layout.py::test_selected_key_classifier_rejects_the_old_unresolvable_key` | （テスト内の helper の分類の誤り） | 削除 | 原則 5（テスト内の helper だけを検査）、原則 4（旧キーが選択に無いことは隣の関数が見る） | `::test_full_selected_keys_resolve_to_exactly_one_class`（`district-ground` を選択キーに戻すと失敗） | |
+| `<s3>test_density_layout.py::test_full_selected_keys_resolve_to_exactly_one_class` の JSON の往復 | （なし） | 削除 | 原則 5。文字列の JSON の往復は常に一致する | 不要 | |
+| `<s3>test_density_layout.py` のほか（12 関数） | 97 単位・4 地区の不足、既存の姿勢の変化、偏り・重なり・背景での水増し、通路・Yarol 入口の塞ぎ、取付による免除の悪用、変種の欠落、選択キーの分類 | 維持（未使用の import・変数を削除） | 生成処理と密度検査の実行。物量は密度仕様 4.1 の受入条件 | — | |
+| `<s3>test_density_live_evidence.py::test_unknown_reapply_counts_are_not_treated_as_zero` | （テスト内の helper の誤り） | 削除 | 原則 5。テスト内の `reapply_zero` だけを検査 | 不要 | |
+| `<s3>test_density_live_evidence.py::test_committed_reapply_pass_requires_known_zero_counts` | 件数が不明なままの再適用の pass | 削除 | 原則 4 | `::test_reapply_writes_and_imports_are_zero_from_recorded_counts`（記録した件数を null にすると失敗） | #12 |
+| `<s3>test_density_live_evidence.py::test_superseded_records_remain_only_as_history` の `'Gate D2'`・`'Task 10'` の照合 | 記録の文言の変更 | 削除（現行節が採用 manifest の SHA を記録することの検査は維持） | 型 1 | 不要 | #12 |
+| `<s3>test_density_live_evidence.py` のほか（7 関数） | 採用候補と記録・基準の食い違い、件数の不一致、Grabbable の失敗の隠蔽、人の確認の格上げ、生のライブ ID の混入 | 理由付き固定値として維持 | #12 の証跡を宣言と結び付け、推測で pass にしない。生の ID は秘密情報の保護 | — | #12 |
+| `<s3>test_density_metrics.py` | 和集合の二重計上、間口の抜け、偽の開口、空の形状、接触の無い取付、重なり、layout の digest の不一致、縁石の誤判定 | 維持（未使用の import・変数を削除） | 密度検査の実行 | — | |
+| `<s3>test_density_model.py::test_legacy_layout_not_full_density` の `len(legacy_layout.__dataclass_fields__) == 9` | Layout の項目数の変更 | 削除 | 型 3（件数固定）。既定値付きの項目を末尾に足すだけで失敗していた | 旧形式の互換は `::test_old_eight_positional_arguments_still_construct_layout`（density の前に必須の項目を挿む変異で失敗） | |
+| `<s3>test_density_model.py::test_saved_baseline_has_original_fixed_hash_and_slot_keys` | 凍結した基準 manifest・代表の Slot キーの変更 | 理由付き固定値として維持 | `apply-log.md`・`live-verification.json` が記録する基準。理由を追記 | — | #12 |
+| `<s3>test_density_model.py::test_legacy_manifest_is_saved_baseline_even_when_canonical_changes` | （conftest の fixture の読み先） | 削除 | 原則 5。テストの fixture だけを検査 | 不要 | |
+| `<s3>test_density_model.py` のほか（6 関数） | 旧 layout の密度扱い、型付きの往復、不正な密度の受理、シードの非決定性 | 維持 | 実行。`REPRESENTATIVE_KEYS` は Gate B で選んだ 3 単位で、`density_candidate.prepare` も同じ集合を要求する | — | |
+| `<s3>test_density_views.py::test_shared_preview_has_usable_comparison_quality_without_changing_legacy_quality` | 描画設定の変更 | 削除 | 型 3（`preview_quality` の設定値の写し） | 不要 | |
+| `<s3>test_density_views.py::test_comparison_uses_identical_root_local_pose_and_fov` の `candidate == baseline` | （なし） | 削除 | 原則 5。同じ入力で 2 回呼んだ結果を比べる恒真の検査 | 不要 | |
+| `<s3>test_density_views.py` のカメラの検査（`::test_shared_cameras_have_local_height_and_market_inward_direction`・`::test_near_cameras_target_authored_surfaces_and_market_shelves_from_common_pose`・`::test_extra_synchronized_views_face_washing_and_both_stock_orientations`） | 比較カメラの名前・向き・注視点が直す前に戻る | 理由付き固定値として維持 | 4d7fa5a のレビュー修正（旧カメラが空の区画を写していた）。直した姿勢は `representative-review-fix5` の比較画像と受入記録に使われている。理由を追記 | — | |
+| `<s3>test_density_views.py` のほか（4 関数） | QA の追加で既存のカメラ・テスト・内容が変わる、root ローカルの姿勢の誤り、review 候補の hash・limits の誤り | 維持 | 実行 | — | |
+| `<s3>test_detail_evidence.py` | 自己申告の detail、未使用の頂点による範囲の拡大、不正な group・取付・循環・未知の profile | 維持 | 実行 | — | |
+| `<s3>test_drivers.py` | 回転の再適用、走査の対象の誤り、駆動 Slot の欠落・重複、無関係なキーの変更による駆動の消失 | 維持 | postprocess の実行 | — | |
+| `<s3>test_evaluated_detail.py` の import の wrapper（`importlib`） | （モジュールの未実装） | 削除（直接 import に書き換え） | 原則 6。TDD の RED 用で、モジュールがあるので役割を失った | 不要（関数名を変えると import で収集エラーになることを確認） | |
+| `<s3>test_evaluated_detail.py` のほか（11 関数） | 実際の面からの計測、欠けた・潰れた・偽の形状、layout の digest の不一致、輪郭外の偽の部品、取付の接触 | 維持 | 実行 | — | |
+| `<s3>test_forest.py` | 森の幹・枝・樹冠の欠落、平板な背景、内向きの樹冠 | 維持 | 生成処理の実行 | — | |
+| `<s3>test_geometry.py` | 外向きでない箱・壁、材質と submesh の順序、カテナリー・回転の誤り | 維持 | 実行 | — | |
+| `<s3>test_graffiti.py::test_graffiti_is_exactly_the_north_wall_south_face_copy` | 文字列・北壁の位置・面の向きの変更、フォントの欠落 | 理由付き固定値として維持 | 仕様 D-05・4.3・9.1「工場壁」の受入条件。理由を追記 | — | |
+| `<s3>test_graffiti.py::test_missing_font_glyph_is_explicit_error` | 欠けた字形の黙認 | 維持 | 実行 | — | |
+| `<s3>test_ground.py::test_scenic_pads_are_dark_distinct_from_default_floor` | 素材名の変更 | 削除 | 型 3。`ground.py` の素材名の写しで、暗さも既定床との違いも検査していない | 不要 | |
+| `<s3>test_ground.py::test_full_ground_stains_are_coplanar_surface_cells_only` のハッシュ | 旧版・代表の地面のメッシュの変化 | 理由付き固定値として維持 | 密度仕様 7 章 Gate B。理由を追記 | — | |
+| `<s3>test_ground.py` のほか（11 関数） | 地面の範囲・下面の誤り、重なる歩行面、景観の下地の欠落・川の覆い、森の奥の地平線、汚れの浮き・はみ出し、路面の詳細の欠落・段差・非決定性・予算超過、店先へのごみ、90 度でない向きの受理 | 維持 | 生成処理の実行。路面の詳細は密度仕様の改訂 1 | — | |
+| `<s3>test_layout.py::test_layout_dimensions_and_repeatability`、`::test_plan_includes_canonical_sector_anchors_and_distinct_domains`、`::test_walkable_road_runs_beyond_district_and_river_is_outside_district` | 承認した寸法・用途・視点・道路と川の範囲の変更、旧東壁の再導入 | 理由付き固定値として維持 | 仕様 D-03・D-04・D-07・4 章・9.1 の受入条件。理由を追記 | — | |
+| `<s3>test_layout.py` のほか（11 関数） | 別シードでの公共通路の変化、往復・プロセス間の非決定性、不正な寸法・ベクトル長・取付の受理、必須の景観・視点・境界の欠落 | 維持（未使用の import を削除） | 実行 | — | |
+| `<s3>test_lighting.py` | 所有範囲外の光源、影付きの追加光源、既存 6 灯の変化 | 維持 | 実行 | — | |
+| `<s3>test_market_detail.py` | 商品の過大・数の水増し、前面の閉塞、内向きの天幕、姿勢・シードのずれ、棚と支柱・筋交いの非接触、アンテナと筋交いの干渉 | 維持 | 生成処理の実行 | — | |
+| `<s3>test_materials.py::test_palette_covers_concrete_metal_and_emission` | パレットの値・Blender の素材名の接頭辞の変更 | 削除 | 型 3（`materials.py` の定数の写し） | 接頭辞は `test_plaza.py::test_generated_plaza_reopens_with_editable_scatter_and_static_uv_color_exports`（`BLENDER_PREFIX` を変えると失敗）。守らなくなる点: `neon_cyan` の発光強度と 2 素材の family の値 | |
+| `<s3>test_materials.py::test_vertex_wear_is_deterministic_and_grimy_at_ground` | 非決定性、足元の汚れの不足 | 維持（未使用の import を削除） | 実行 | — | |
+| `<s3>test_merchandise.py` | 箱だけの商品、数の水増し、支えの無い・見えない商品、配管の継ぎ目のねじれ | 維持 | 生成処理の実行 | — | |
+| `<s3>test_native_materials.py` | 素材の変換漏れ・参照切れ、未知の素材の受理 | 維持 | postprocess の実行 | — | |
+| `<s3>test_nightlife.py` | 看板だけの店先、通り抜けられる隙間、支えの無い看板・天幕、変種の偽装、敷地のはみ出し、collider キーの変更 | 維持 | 生成処理の実行 | — | |
+| `<s3>test_overhead.py` | 浮いたケーブルの端、活動空間への侵入、分割による本数の水増し、たるみ・支えの欠落 | 維持 | 生成処理の実行 | — | |
+| `<s3>test_ownership.py` | 所有範囲外の参照・親、不正な参照・資源の出所、symlink の脱出、改名した所有ルート | 維持（未使用の import を削除） | 安全条件の実行 | — | |
+| `<s3>test_pipeline.py` | 資源・素材の改名と参照の付け替え・共有・再利用の誤り、書き出しの相対パス、セクタの欠落、合成 report の受理、別版の report の混入 | 維持（未使用の import を削除） | 統合の実行 | — | |
+| `<s3>test_plaza.py::test_legacy_and_staged_plaza_geometry_is_unchanged` | 旧版・代表・ブロックアウトの広場のメッシュの変化 | 理由付き固定値として維持 | 密度仕様 7 章 Gate B。理由を追記 | — | |
+| `<s3>test_plaza.py` のほか（7 関数） | 旧東壁の再導入、スプレー文字・瓦礫・床の詳細の誤り、中央床への大きな瓦礫・collider、段差 | 維持 | 生成処理と Blender の実行。旧東壁なしは仕様 9.1 | — | |
+| `<s3>test_preview.py` | 証跡の描画スクリプトの非推奨 API | 維持 | 395bc66 で直した不具合（Blender 5 の `world.use_nodes`）。現行の `build.py` で作った広場を描画する | — | |
+| `<s3>test_probe_manifest.py::test_probe_manifest_is_owned_and_keeps_assets_relative` | プローブの所有キー・`ResoLoop_Test_*` の名前の誤り、資源の参照切れ | 理由付き固定値として維持 | プロジェクトの `AGENTS.md`「Resonite safety」。理由を追記 | — | |
+| `<s3>test_probe_manifest.py` のほか（3 関数） | 外へ出る資源・親の受理 | 維持 | 安全条件の実行 | — | |
+| `<s3>test_road_river.py::test_bridge_matches_road_and_bank_span` | 橋の範囲の変更 | 理由付き固定値として維持 | 仕様 4.1 の表。理由を追記 | — | |
+| `<s3>test_road_river.py` のほか（10 関数） | 両岸に届かない橋、検問の開口の塞ぎ、欄干・護岸の欠落、支えの非接触、重複した路面、同一平面の面、Blender の再読込 | 維持 | 生成処理と Blender の実行 | — | |
+| `<s3>test_root_anchor.py` | 既存の床の編集、不正な入力の受理、所有ルート外の変更 | 維持 | 実行 | — | |
+| `<s3>test_ruins.py` | 塗っただけの窓、無傷のスラブ、建物の結合、経路への侵入、鉄筋のはみ出し | 維持 | 生成処理の実行 | — | |
+| `<s3>test_scaffold.py::test_project_scaffold_is_standalone` の雛形ファイルの存在 | ファイルの欠落 | 削除（slum02 の混入とシードの検査は残す） | 原則 4。`pyproject.toml`・`uv.lock`・`AGENTS.md`・`.resoloop.json` は `scripts/check-layout.sh` の検査 6、`content/main.json` は隣の関数が読む。`modeling` の `__init__.py` は無くても import できる | 不要（`modeling/__init__.py` を消しても書き換えた関数は通り、変更前の関数は失敗することを確認） | |
+| `<s3>test_scaffold.py::test_project_scaffold_is_standalone`（残り） | slum02 のコード・state の混入、既定シードの変更 | 理由付き固定値として維持 | 仕様 4.1・7.2・9.1「所有」。理由を追記 | — | |
+| `<s3>test_scaffold.py::test_project_guide_names_ownership_and_state` | `AGENTS.md` の文言の変更 | 削除 | 型 1 | 不要（所有キー・所有ルート・state のパスの設定は `::test_scaffold_manifest_and_flux_use_the_approved_world_identity` が見る） | |
+| `<s3>test_scaffold.py::test_scaffold_manifest_and_flux_use_the_approved_world_identity` | 所有キー・所有ルート・state のパスの変更、Grabbable の付与 | 理由付き固定値として維持 | 適用済みの state との対応と、街全体を Grabbable にしない判断。理由を追記 | — | #12 |
+| `<s3>test_scatter.py::test_legacy_scatter_plan_is_unchanged_for_existing_candidates`、`::test_full_perimeter_scatter_is_unchanged_by_the_floor_debris` | 旧版・全域の外周の瓦礫の移動 | 理由付き固定値として維持 | 既存の瓦礫を動かさない。理由は既存のコメント | — | |
+| `<s3>test_scatter.py` のほか（11 関数） | 鉄筋のはみ出し、入口・中央床への侵入、偏りの無い散布、床の瓦礫の高さ・種類・粗密、配置できない床での無限ループ | 維持 | 生成処理の実行（`floor_coverage` は `test_plaza.py` も使う） | — | |
+| `<s3>test_scene_preview.py::test_combined_preview_includes_near_north_and_bright_detail_views` | 補助の視点の欠落 | 削除 | 型 3（`preview.VIEWS` の写し）、原則 4 | `::test_combined_preview_reads_persisted_custom_labels_and_builds_supplemental_views`（`VIEWS` から `west-detail` を消すと失敗） | |
+| `<s3>test_scene_preview.py` のほか（3 関数） | 欠けたシーンの描画、単独プレビューでの可視性の主張、保存 layout の文字の位置 | 維持 | Blender の実行 | — | |
+| `<s3>test_shacks.py` | 支えの無い屋根、平らな波板、住戸の結合、入口・通路の塞ぎ | 維持 | 生成処理と Blender の実行 | — | |
+| `<s3>test_sightlines.py` | 北の巨大建築・東の森・西南の街の視線の遮り | 維持（未使用の import を削除） | 視線判定の実行。仕様 4.5・9.1 | — | |
+| `<s3>test_signs.py::test_labels_have_fixed_parent_local_pose_and_readable_copy` | 看板の位置・文言の変更 | 書き換え（Yarol の位置と `NIGHT SHIFT` の照合を外し、親・文字・回転の検査を残す） | 型 3（`layout_district.py`・`layout_ads.py` の値の写し）。offset から位置への変換は `::test_japanese_main_copy_stays_on_fixed_parent_with_exact_unicode` が見る | — | |
+| `<s3>test_signs.py` のほか（2 関数） | 親の解決の誤り、日本語の主コピーの位置・文字の誤り | 維持（未使用の import を削除） | 実行 | — | |
+| `<s3>test_spatial.py` | 回転後の範囲、評価後の侵入、床の免除の誤り、不正な範囲の受理、床の瓦礫の高さ | 維持（未使用の import を削除） | 実行 | — | |
+| `<s3>test_stalls.py::test_representative_market_dispatch_changes_only_selected_west` | 選んでいない market-east のメッシュの変化 | 理由付き固定値として維持 | 密度仕様 7 章 Gate B。理由を追記 | — | |
+| `<s3>test_stalls.py` のほか（6 関数） | 通路の幅、棚・支えの欠落、UV、証跡の描画スクリプトの非推奨 API、種類の振り分け | 維持 | 生成処理と Blender の実行。`::test_task5_preview_renders_without_deprecation_warning` は 60c4cd2 で直した不具合 | — | |
+| `<s3>test_utilities.py` | 用途の取りこぼし・重複、設備・生活痕の欠落、所有物の外・保護空域への設備、Yarol の変化、選択キー・姿勢の変化 | 維持（未使用の import を削除） | 生成処理の実行。物量は密度仕様 4.1 | — | |
+| `<s3>test_uv.py` | UV の面積、退化した面の受理 | 維持 | 実行 | — | |
+| `<s3>test_yarol.py` | 向き・敷地の誤り、入れる内装、支えの無いネオン、外装の隙間 | 維持 | 生成処理の実行。敷地と向きは仕様 4.4 | — | |
+
+前後: ファイル Python 67→67（テスト 53・probe 12・`conftest.py`・`helpers.py`。ほかに JSON の fixture 1）、行 テスト 8,245→8,107・Python 全体 9,004→8,866、収集 538→520、所要は着手前の実行と、隔離コピーで変更前・変更後を交互に 2 回ずつ実行して 127.3〜131.5 秒→127.1〜128.4 秒（削除したのは軽い検査だけで、差は誤差の範囲。大半は Blender を起動する検査）

@@ -4,6 +4,8 @@ from modeling.slum03.geometry import merge_assembly
 
 
 def test_multiple_arcologies_are_north_of_river():
+    # 固定値の理由: 川の北に 500〜900 m 級のアーコロジーを 3 種類のシルエットで最低 3 棟置くことは、承認済みの
+    # 設計仕様（2026-09-27-slum03-cyberpunk-slum-design.md の 4.5・9.1「景観」）の受入条件。
     towers = build_layout().select('arcology')
     assert len(towers) >= 3
     assert all(p.origin[2] - p.size[2] / 2 > 112.0 for p in towers)

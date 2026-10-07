@@ -14,7 +14,7 @@ import pytest
 from modeling.slum03.density_layout import build_density_layout
 from modeling.slum03.density_model import TARGET_COUNTS
 from modeling.slum03.detail_evidence import detail_groups
-from modeling.slum03.geometry import Assembly, box, bounds
+from modeling.slum03.geometry import Assembly, bounds
 from modeling.slum03.layout import build_layout, read_layout
 from modeling.slum03.materials import MATERIALS
 from modeling.slum03.sectors import sector_assemblies

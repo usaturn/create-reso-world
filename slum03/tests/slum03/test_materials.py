@@ -1,12 +1,4 @@
-import pytest
-from modeling.slum03 import geometry as g, materials, vcolor
-
-
-def test_palette_covers_concrete_metal_and_emission():
-    assert materials.MATERIALS['concrete_raw'].family == 'concrete'
-    assert materials.MATERIALS['rust'].family == 'rust'
-    assert materials.MATERIALS['neon_cyan'].emission_strength > 0
-    assert materials.BLENDER_PREFIX == 'Slum03_'
+from modeling.slum03 import geometry as g, vcolor
 
 
 def test_vertex_wear_is_deterministic_and_grimy_at_ground():

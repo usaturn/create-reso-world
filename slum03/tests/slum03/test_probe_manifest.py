@@ -5,6 +5,8 @@ from modeling.slum03 import probe_manifest
 
 
 def test_probe_manifest_is_owned_and_keeps_assets_relative(tmp_path):
+    # 固定値の理由: プローブは所有キー slum03 の所有ルートの下で、ResoLoop_Test_* の Slot に閉じ込めて試す
+    # （プロジェクトの AGENTS.md「Resonite safety」）。名前や所有キーが変わると、後始末で検証済みの対象を特定できない。
     source = tmp_path / 'bundle'
     source.mkdir()
     (source / 'mesh.mesh.json').write_text('{}')

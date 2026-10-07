@@ -152,6 +152,8 @@ def test_authored_layouts_fit_their_footprints_with_no_missing_variant():
 def test_legacy_unselected_builds_unchanged_and_representative_selected():
     from modeling.slum03.ruins import build_assemblies as ruins, _shell
     from modeling.slum03.shacks import build_assemblies as shacks, _shack
+    # 固定値の理由: 代表段階で選んでいない既存の建物は、適用済みのワールドと同じメッシュのまま残す（密度改善の
+    # 設計仕様 7 章 Gate B「その他の既存内容は保持」）。値が変わったら、保護する既存内容を生成器が変えたことになる。
     rep = read_layout(REP)
     for generator, legacy, sector, key, old_digest in (
         (ruins, _shell, 'ruins-west', 'ruin-west-annex', '29cc4c04a6401bdf331a29d82de556cc329475eceb82d65bbae77ec3b32d86f3'),

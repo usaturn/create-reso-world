@@ -4,7 +4,7 @@ from dataclasses import replace
 from modeling.slum03.density_metrics import union_area, density_report, validate_density
 from modeling.slum03.density_layout import build_density_layout
 from modeling.slum03.layout import build_layout
-from modeling.slum03.types import (Bounds3, DensityConfig, DensityOpening, DensityRoute,
+from modeling.slum03.types import (DensityConfig, DensityOpening, DensityRoute,
                                    DensityZone, Placement, RectXZ)
 
 
@@ -125,7 +125,6 @@ def test_evaluated_reports_without_matching_layout_digest_are_never_accepted():
 def test_representative_evaluated_shape_and_utility_are_not_exempt_from_collisions():
     from modeling.slum03.spatial import placement_bounds
     rep = build_density_layout(build_layout(), 'representative')
-    west = next(p for p in rep.placements if p.key == 'ruin-west')
     annex = next(p for p in rep.placements if p.key == 'ruin-west-annex')
     market = next(p for p in rep.placements if p.key == 'market-west')
     utility = Placement('extra-utility', 'market', 'utility', market.origin, (2, 2, 2), 0,
