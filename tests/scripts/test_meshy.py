@@ -6,6 +6,7 @@ locks, subprocesses and state transitions all execute for real.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -22,7 +23,7 @@ FAKE = r"""#!__PYTHON__
 import json, os, pathlib, signal, sys, time
 args = sys.argv[1:]
 with open(os.environ['FAKE_CALLS'], 'a') as f:
-    f.write(json.dumps({'args': args, 'env': {k:v for k,v in os.environ.items() if k.startswith('MESHY_')}}) + '\n')
+    f.write(json.dumps({'args': args, 'env': {k:v for k,v in os.environ.items() if k.startswith(('MESHY_', 'NODE_'))}}) + '\n')
 if 'create' in args:
     oid = args[args.index('--operation-id')+1]
     journal = pathlib.Path(os.environ['MESHY_CONFIG_DIR']) / 'operations'
@@ -756,3 +757,252 @@ def test_oversized_progress_does_not_lose_accepted_task(world):
     assert world.manifest()["task"]["progress"] is None
     world.submit()
     assert len(world.calls()) == 1
+
+
+# Regression: inherited Node tracing can disclose Authorization before Python redacts output.
+def test_child_replaces_node_preloads_and_removes_native_debug(world):
+    world.env.update(
+        NODE_OPTIONS="--require /untrusted/preload.js --trace-warnings",
+        NODE_DEBUG="http,https,net",
+        NODE_DEBUG_NATIVE="*",
+    )
+    world.reply(result={"balance": 10})
+    world.run("balance")
+    env = world.calls()[0]["env"]
+    assert "NODE_DEBUG" not in env
+    assert "NODE_DEBUG_NATIVE" not in env
+    assert "/untrusted/" not in env["NODE_OPTIONS"]
+    assert "--trace-warnings" not in env["NODE_OPTIONS"]
+    assert "--import" in env["NODE_OPTIONS"]
+    assert "meshy_cli_guard.mjs" in env["NODE_OPTIONS"]
+
+
+# This schema/version is deliberately frozen: accepting another writer version
+# without reviewing its publication path would silently bypass the security guard.
+@pytest.fixture
+def journal_record():
+    return {
+        "schema_version": 1,
+        "operation_id": "73c50310-a032-4786-8a3b-636a5d991193",
+        "state": "unknown",
+        "resource": "text-to-3d",
+        "endpoint": "text-to-3d",
+        "api_origin": "https://api.meshy.ai",
+        "credential_fingerprint": "a" * 64,
+        "payload_fingerprint": "b" * 64,
+        "started_at": "2026-10-07T17:00:00.000Z",
+        "updated_at": "2026-10-07T17:01:00.000Z",
+        "task_id": TASK,
+        "request_id": "request-1",
+        "http_status": 503,
+        "error": None,
+        "pid": 123,
+        "cli_version": "0.4.0",
+        "project": None,
+    }
+
+
+NODE_WRITER = r"""
+import { writeFileSync, readFileSync, renameSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+const root = join(process.env.MESHY_CONFIG_DIR, 'operations');
+mkdirSync(root, { recursive: true });
+const record = JSON.parse(process.env.TEST_RECORD);
+const target = join(root, record.operation_id + '.json');
+const tmp = join(root, '.' + record.operation_id + '.json.tmp-' + process.pid + '-0123abcd');
+const data = process.env.TEST_BAD_JSON || JSON.stringify(record, null, 2) + '\n';
+try {
+    writeFileSync(tmp, process.env.TEST_BUFFER ? Buffer.from(data) : data,
+                  { encoding: 'utf8', mode: 0o600 });
+    // Read BEFORE publish: a cleanup after rename cannot make this check pass.
+    const beforePublish = readFileSync(tmp, 'utf8');
+    renameSync(tmp, target);
+    console.log(beforePublish);
+} catch (err) {
+    console.log(JSON.stringify({ code: err.code || 'unexpected_error' }));
+    process.exitCode = 1;
+}
+"""
+
+
+def node_guard_write(tmp_path, record, **extra_env):
+    node = shutil.which("node")
+    assert node, "Node is required to exercise the actual CLI preload boundary"
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("MESHY_", "NODE_"))}
+    env.update(
+        MESHY_API_KEY=KEY,
+        MESHY_CONFIG_DIR=str(tmp_path / "config"),
+        TEST_RECORD=json.dumps(record),
+    )
+    env.update(extra_env)
+    return subprocess.run(
+        [
+            node,
+            "--import",
+            str(ROOT / "scripts/meshy_cli_guard.mjs"),
+            "--input-type=module",
+            "-e",
+            NODE_WRITER,
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+
+
+# Catch raw API error and auth bytes reaching even the unpublished temp file.
+@pytest.mark.parametrize("buffer", [False, True])
+def test_node_guard_sanitizes_journal_before_atomic_publication(
+    tmp_path, journal_record, buffer
+):
+    journal_record.update(
+        error=f"meshy api 503: Authorization: Bearer {KEY}",
+        Authorization="Bearer unrelated-credential",
+        credentials={"api_key": "unrelated-key"},
+        details={
+            "status": "FAILED",
+            "task_id": TASK,
+            "children": [
+                {
+                    "error": "raw-server-message",
+                    "AUTHORIZATION": "Bearer unrelated-token",
+                    "apiKey": "another-secret",
+                    "access_token": "another-token",
+                    "credentials": {"password": "another-password"},
+                    "note": f"echo {KEY}",
+                    KEY: "key-name-echo",
+                }
+            ],
+        },
+    )
+    proc = node_guard_write(
+        tmp_path, journal_record, **({"TEST_BUFFER": "1"} if buffer else {})
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert KEY not in proc.stdout + proc.stderr
+    assert "raw-server-message" not in proc.stdout
+    clean = json.loads(proc.stdout)
+    assert "error" not in clean and "Authorization" not in clean
+    assert "credentials" not in clean
+    assert clean["details"] == {
+        "status": "FAILED",
+        "task_id": TASK,
+        "children": [{"note": "echo <redacted>"}],
+    }
+    assert clean["operation_id"] == "73c50310-a032-4786-8a3b-636a5d991193"
+    assert clean["state"] == "unknown" and clean["task_id"] == TASK
+    assert clean["credential_fingerprint"] == "a" * 64
+    assert clean["payload_fingerprint"] == "b" * 64
+    root = tmp_path / "config/operations"
+    assert json.loads(next(root.glob("*.json")).read_text()) == clean
+    assert list(root.glob(".*.tmp-*")) == []
+
+
+# Unsafe input must fail BEFORE touching disk, preserving the last recovery record.
+@pytest.mark.parametrize(
+    "bad",
+    ["malformed", "version", "schema", "identity", "digest", "missing_id", "origin"],
+)
+def test_node_guard_refuses_unsafe_journal_without_publishing(
+    tmp_path, journal_record, bad
+):
+    root = tmp_path / "config/operations"
+    root.mkdir(parents=True)
+    existing = root / (journal_record["operation_id"] + ".json")
+    original = json.dumps(journal_record)
+    existing.write_text(original)
+    extra = {}
+    if bad == "malformed":
+        extra["TEST_BAD_JSON"] = '{"error":"' + KEY
+    elif bad == "version":
+        journal_record["cli_version"] = "unreviewed-version"
+    elif bad == "schema":
+        journal_record["schema_version"] = 2
+    elif bad == "identity":
+        journal_record["task_id"] = KEY
+    elif bad == "missing_id":
+        journal_record.pop("operation_id")
+    elif bad == "origin":
+        journal_record["api_origin"] = "https://api.meshy.ai/" + KEY
+    else:
+        journal_record["credential_fingerprint"] = KEY
+    proc = node_guard_write(tmp_path, journal_record, **extra)
+    assert proc.returncode != 0, "unsafe journal write was accepted"
+    assert KEY not in proc.stdout + proc.stderr
+    assert existing.read_text() == original
+    assert list(root.glob(".*.tmp-*")) == []
+
+
+NODE_FAKE = r"""#!__NODE__
+import { writeFileSync, readFileSync, renameSync } from 'node:fs';
+import { join } from 'node:path';
+const args = process.argv.slice(2);
+writeFileSync(process.env.FAKE_CALLS, JSON.stringify({args}) + '\n', {flag: 'a'});
+const record = JSON.parse(readFileSync(process.env.FAKE_JOURNAL_RECORD, 'utf8'));
+record.operation_id = args[args.indexOf('--operation-id') + 1];
+record.error = 'meshy api 503: Authorization: Bearer ' + process.env.MESHY_API_KEY;
+record.details = {nested: [{Authorization: 'Bearer another-credential'}]};
+const root = join(process.env.MESHY_CONFIG_DIR, 'operations');
+const target = join(root, record.operation_id + '.json');
+const tmp = join(root, '.' + record.operation_id + '.json.tmp-' + process.pid + '-0123abcd');
+writeFileSync(tmp, JSON.stringify(record), {encoding: 'utf8', mode: 0o600});
+renameSync(tmp, target);
+const reply = JSON.parse(readFileSync(process.env.FAKE_REPLY, 'utf8'));
+console.log(JSON.stringify(reply));
+console.error(record.error);
+process.exitCode = reply.ok ? 0 : 10;
+"""
+
+
+# Catch a syntactically wrong NODE_OPTIONS preload that fake Python CLIs cannot exercise.
+def test_real_node_cli_preload_keeps_accepted_id_without_persisting_key(
+    world, journal_record
+):
+    node = shutil.which("node")
+    assert node, "Node is required for the actual preload integration"
+    fake = Path(world.env["PATH"]) / "meshy"
+    fake.write_text(NODE_FAKE.replace("__NODE__", node))
+    record = world.project.parent / "journal-fixture.json"
+    record.write_text(json.dumps(journal_record))
+    world.env.update(
+        FAKE_JOURNAL_RECORD=str(record),
+        NODE_OPTIONS="--require /untrusted.js",
+        NODE_DEBUG="http,https",
+        NODE_DEBUG_NATIVE="*",
+    )
+    world.plan()
+    world.reply(
+        result={"submission": {"task_id": TASK, "state": "accepted"}},
+        ok=False,
+        error={"code": "local_io", "message": KEY},
+    )
+    world.submit(ok=False)
+    operation = world.manifest()
+    assert operation["task"]["task_id"] == TASK
+    assert operation["stage"] == "submitted"
+    journal = (
+        world.project
+        / ".resoloop/meshy-cli/operations"
+        / (operation["operation_id"] + ".json")
+    )
+    clean = journal.read_text()
+    assert KEY not in clean and "Authorization" not in clean and '"error"' not in clean
+    assert "another-credential" not in clean
+    saved = json.loads(clean)
+    assert saved["operation_id"] == operation["operation_id"]
+    assert saved["task_id"] == TASK and saved["state"] == "unknown"
+    world.submit()
+    assert len(world.calls()) == 1
+
+
+# Field classification must precede redaction, even when a key matches an auth field name.
+def test_node_guard_never_disguises_authorization_field_as_safe_metadata(
+    tmp_path, journal_record
+):
+    journal_record["details"] = {"Authorization": "Bearer must-not-be-saved"}
+    proc = node_guard_write(tmp_path, journal_record, MESHY_API_KEY="Authorization")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "must-not-be-saved" not in proc.stdout
+    assert json.loads(proc.stdout)["details"] == {}

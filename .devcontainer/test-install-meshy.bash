@@ -11,7 +11,10 @@ export MESHY_API_KEY='installer-secret-sentinel'
 cat > "$tmp/bin/npm" <<'FAKE'
 #!/bin/bash
 printf 'npm %s\n' "$*" >> "$CALLS"
-[ "$*" = 'install -g meshy-cli@0.4.0' ] || exit 91
+# Verify the global package-install shape, not a copied version setting.
+[ "$#" -eq 3 ] && [ "$1" = install ] && [ "$2" = -g ] || exit 91
+[[ "$3" == meshy-cli@?* ]] || exit 91
+[ -z "${MESHY_API_KEY+x}" ] || exit 92
 [ "${FAIL_NPM:-0}" = 0 ] || exit 1
 [ "${MISSING_CLI:-0}" = 0 ] || exit 0
 cat > "$FAKE_BIN/meshy" <<'CLI'

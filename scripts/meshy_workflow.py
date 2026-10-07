@@ -228,6 +228,8 @@ def child_env(project):
         raise WorkflowError("isolated_credentials_must_not_exist")
     blocked = {
         "NODE_OPTIONS",
+        "NODE_DEBUG",
+        "NODE_DEBUG_NATIVE",
         "DEBUG",
         "HTTP_PROXY",
         "HTTPS_PROXY",
@@ -240,6 +242,7 @@ def child_env(project):
         if not k.startswith("MESHY_") and k.upper() not in blocked
     }
     env.update(
+        NODE_OPTIONS=f"--import {json.dumps(str(Path(__file__).with_name('meshy_cli_guard.mjs')))}",
         MESHY_API_KEY=key,
         MESHY_CONFIG_DIR=str(config),
         MESHY_CREDENTIALS_PATH=str(credentials),
