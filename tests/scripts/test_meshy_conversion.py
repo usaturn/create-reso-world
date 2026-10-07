@@ -44,7 +44,16 @@ def tools():
 def glbs(tmp_path_factory, tools):
     directory = tmp_path_factory.mktemp("real-glbs")
     result = {}
-    for case in ("opaque", "transparency", "transmission", "animation"):
+    for case in (
+        "opaque",
+        "transparency",
+        "transmission",
+        "animation",
+        "tilted_tetrahedron",
+        "one_sided",
+        "mixed_culling",
+        "implicit_material",
+    ):
         path = directory / (case + ".glb")
         proc = run(
             [
@@ -144,7 +153,7 @@ def test_real_conversion_preserves_objects_textures_and_normalizes_bounds(
     world, tools, tmp_path, origin
 ):
     before = world[2].read_bytes()
-    proc = convert(world, "--origin", origin)
+    proc = convert(world, "--origin", origin, "--allow-culling-change")
     assert proc.returncode == 0, proc.stdout + proc.stderr
     result = json.loads(proc.stdout)
     assert world[2].read_bytes() == before
@@ -174,10 +183,9 @@ def test_real_conversion_preserves_objects_textures_and_normalizes_bounds(
     # Reopen, not just inspect the converter's own report: pack must survive saving.
     probe = tmp_path / "probe.py"
     probe.write_text("""import bpy, json, sys
-from mathutils import Vector
 from pathlib import Path
 objects = [o for o in bpy.context.scene.objects if o.type == 'MESH']
-points = [o.matrix_world @ Vector(p) for o in objects for p in o.bound_box]
+points = [o.matrix_world @ vertex.co for o in objects for vertex in o.data.vertices]
 sh = bpy.data.materials['FixtureMaterial'].node_tree.nodes.get('Principled BSDF')
 albedo = sh.inputs['Base Color'].links[0].from_node.image
 channels = {}
@@ -240,7 +248,137 @@ Path(sys.argv[-1]).write_text(json.dumps({'channels': channels,
     assert json.loads(world[3].read_text())["conversion"] == conversion
 
 
+# Catch fictitious transformed box corners: a tilted tetrahedron must not float
+# or be undersized. Independently measure real saved vertices, not report helpers.
+@pytest.mark.parametrize("origin", ["ground", "center"])
+def test_tilted_irregular_geometry_uses_actual_world_vertices(
+    world, glbs, tools, tmp_path, origin
+):
+    replace_glb(world, glbs["tilted_tetrahedron"])
+    proc = convert(world, "--yaw", "37", "--origin", origin, "--allow-culling-change")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    conversion = json.loads(proc.stdout)
+    probe = tmp_path / "vertex_probe.py"
+    probe.write_text("""import bpy, json, sys
+from pathlib import Path
+vertices = [list(obj.matrix_world @ v.co) for obj in bpy.context.scene.objects
+            if obj.type == 'MESH' for v in obj.data.vertices]
+Path(sys.argv[-1]).write_text(json.dumps(vertices))
+""")
+    inspection = tmp_path / "vertices.json"
+    check = run(
+        [
+            tools,
+            "blender",
+            "run",
+            str(probe),
+            "--blend",
+            conversion["blend"],
+            "--arg=" + str(inspection),
+            "--json",
+        ]
+    )
+    assert check.returncode == 0, check.stdout + check.stderr
+    vertices = json.loads(inspection.read_text())
+    minimum = [min(v[i] for v in vertices) for i in range(3)]
+    maximum = [max(v[i] for v in vertices) for i in range(3)]
+    assert maximum[2] - minimum[2] == pytest.approx(2, abs=1e-6)
+    assert minimum[2] == pytest.approx(0 if origin == "ground" else -1, abs=1e-6)
+    assert maximum[2] == pytest.approx(2 if origin == "ground" else 1, abs=1e-6)
+    assert [(a + b) / 2 for a, b in zip(minimum[:2], maximum[:2])] == pytest.approx(
+        [0, 0], abs=1e-6
+    )
+    report = json.loads(Path(conversion["report"]).read_text())
+    assert report["bounds"]["min"] == pytest.approx(minimum, abs=1e-6)
+    assert report["bounds"]["max"] == pytest.approx(maximum, abs=1e-6)
+    assert report["triangles"] == 4
+
+
+def replace_glb(world, fixture):
+    shutil.copyfile(fixture, world[2])
+    manifest = json.loads(world[3].read_text())
+    manifest["downloads"]["files"][0].update(
+        bytes=world[2].stat().st_size,
+        sha256=hashlib.sha256(world[2].read_bytes()).hexdigest(),
+    )
+    world[3].write_text(json.dumps(manifest))
+
+
+# Catch silently losing either culling mode (including glTF's omitted/false
+# default). Real GLBs, named errors and no published success are required.
+@pytest.mark.parametrize(
+    "case,label",
+    [
+        ("one_sided", "FixtureMaterial"),
+        ("opaque", "FixtureMaterial"),
+        ("implicit_material", "Default glTF material"),
+    ],
+)
+def test_culling_requires_explicit_consent(world, glbs, case, label):
+    replace_glb(world, glbs[case])
+    proc = convert(world)
+    assert proc.returncode != 0
+    assert f"blender_rejected:{label}:culling_preservation_unsupported" in proc.stderr
+    assert_unpublished(world)
+
+
+# Catch bypassing the CLI safety default by calling the public function directly.
+def test_conversion_function_defaults_to_culling_rejection(world):
+    bootstrap = f"""import sys
+from pathlib import Path
+sys.path.insert(0, {str(ROOT / "scripts")!r})
+from meshy_conversion import convert_operation
+from meshy_workflow import WorkflowError
+try:
+    convert_operation(Path(sys.argv[1]), 'asset', height=2, yaw=0, origin='ground',
+                      parent={PARENT!r}, model_name='OfflineFixture')
+except WorkflowError as error:
+    print(str(error), file=sys.stderr)
+    raise SystemExit(1)
+"""
+    proc = run([sys.executable, "-c", bootstrap, str(world[0])])
+    assert proc.returncode != 0
+    assert (
+        "blender_rejected:FixtureMaterial:culling_preservation_unsupported"
+        in proc.stderr
+    )
+    assert_unpublished(world)
+
+
+# Catch an acknowledgement that succeeds without exposing every original mode
+# and the specific unsupported preservation. No FrooxEngine enum is assumed.
+@pytest.mark.parametrize(
+    "case,originals",
+    [
+        ("one_sided", {"FixtureMaterial": False}),
+        ("opaque", {"FixtureMaterial": True}),
+        ("mixed_culling", {"FixtureMaterial": True, "OneSidedMaterial": False}),
+        ("implicit_material", {"Default glTF material": False}),
+    ],
+)
+def test_culling_consent_reports_each_original_material(world, glbs, case, originals):
+    replace_glb(world, glbs[case])
+    before = world[2].read_bytes()
+    proc = convert(world, "--allow-culling-change")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    conversion = json.loads(proc.stdout)
+    assert conversion["allow_culling_change"] is True
+    assert json.loads(world[3].read_text())["conversion"] == conversion
+    report = json.loads(Path(conversion["report"]).read_text())
+    assert report["allow_culling_change"] is True
+    assert {
+        m["name"]: m["doubleSided"] for m in report["material_culling"]
+    } == originals
+    assert {w["name"]: w["doubleSided"] for w in report["warnings"]} == originals
+    assert all(
+        w["reason"] == "culling_preservation_unsupported" for w in report["warnings"]
+    )
+    assert all(w["message"] for w in report["warnings"])
+    assert world[2].read_bytes() == before
+
+
 # Catch silent static adaptation of alpha, specialized shaders or animated assets.
+@pytest.mark.parametrize("allow_culling_change", [False, True])
 @pytest.mark.parametrize(
     "case,label",
     [
@@ -249,17 +387,20 @@ Path(sys.argv[-1]).write_text(json.dumps({'channels': channels,
         ("animation", "LowerPart"),
     ],
 )
-def test_unsupported_glb_fails_by_name_without_publication(world, glbs, case, label):
-    shutil.copyfile(glbs[case], world[2])
-    manifest = json.loads(world[3].read_text())
-    manifest["downloads"]["files"][0].update(
-        bytes=world[2].stat().st_size,
-        sha256=hashlib.sha256(world[2].read_bytes()).hexdigest(),
-    )
-    world[3].write_text(json.dumps(manifest))
-    proc = convert(world)
+def test_unsupported_glb_fails_by_name_without_publication(
+    world, glbs, case, label, allow_culling_change
+):
+    replace_glb(world, glbs[case])
+    proc = convert(world, *(["--allow-culling-change"] if allow_culling_change else []))
     assert proc.returncode != 0
     assert label in proc.stderr, proc.stdout + proc.stderr
+    if allow_culling_change:
+        reason = {
+            "transparency": "non_opaque_material",
+            "transmission": "unsupported_input_Transmission Weight",
+            "animation": "animation_unsupported",
+        }[case]
+        assert reason in proc.stderr
     assert_unpublished(world)
 
 
@@ -281,7 +422,11 @@ print('{{"ok":{str(mode == "incomplete").lower()}}}')
 sys.exit({0 if mode == "incomplete" else 1})
 """)
     fake.chmod(0o755)
-    proc = convert(world, env={"PATH": str(bindir) + os.pathsep + os.environ["PATH"]})
+    proc = convert(
+        world,
+        "--allow-culling-change",
+        env={"PATH": str(bindir) + os.pathsep + os.environ["PATH"]},
+    )
     assert proc.returncode != 0
     assert (
         "conversion_outputs_missing"
@@ -401,6 +546,7 @@ raise SystemExit(meshy.main())
         "2",
         "--parent",
         PARENT,
+        "--allow-culling-change",
     ]
     proc = run([sys.executable, "-c", bootstrap, *args])
     assert proc.returncode != 0

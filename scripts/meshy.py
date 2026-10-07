@@ -73,6 +73,11 @@ def parser():
         help="Previously verified selector; not checked online here.",
     )
     conversion.add_argument("--name")
+    conversion.add_argument(
+        "--allow-culling-change",
+        action="store_true",
+        help="Accept only unpreserved glTF doubleSided/backface culling; all other checks remain.",
+    )
     listing = commands.add_parser(
         "list", help="Read recent tasks for manual reconciliation; never create."
     )
@@ -102,6 +107,7 @@ def main(argv=None):
                 origin=args.origin,
                 parent=args.parent,
                 model_name=args.name if args.name is not None else args.operation,
+                allow_culling_change=args.allow_culling_change,
             )
         else:
             result = execute(args)

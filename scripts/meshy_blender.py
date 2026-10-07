@@ -28,7 +28,7 @@ def write_report(path, report):
     )
 
 
-def preflight(path):
+def preflight(path, *, allow_culling_change=False):
     """Reject lossy/static and external-file imports before Blender opens them."""
     with path.open("rb") as handle:
         header = handle.read(20)
@@ -62,6 +62,24 @@ def preflight(path):
             raise Rejected(name, "non_opaque_material")
         if "occlusionTexture" in material:
             raise Rejected(name, "occlusion_requires_explicit_adaptation")
+    material_culling = [
+        {
+            "name": material.get("name", path.name),
+            "doubleSided": material.get("doubleSided", False),
+        }
+        for material in document.get("materials", [])
+    ]
+    # A primitive without a material still has glTF's default one-sided
+    # material; absence of a materials array must not bypass consent.
+    if any(
+        "material" not in primitive
+        for mesh in document.get("meshes", [])
+        for primitive in mesh.get("primitives", [])
+    ):
+        material_culling.append({"name": "Default glTF material", "doubleSided": False})
+    if material_culling and not allow_culling_change:
+        raise Rejected(material_culling[0]["name"], "culling_preservation_unsupported")
+    return material_culling
 
 
 def socket_value(socket):
@@ -145,7 +163,9 @@ def split_channel(material, socket, index, cache):
 
 
 def adapt_material(material, defaults, cache):
-    if not material.use_nodes or not material.node_tree:
+    if (
+        bpy.app.version < (5, 0, 0) and not material.use_nodes
+    ) or not material.node_tree:
         raise Rejected(material.name, "principled_required")
     outputs = [
         n
@@ -198,7 +218,7 @@ def adapt_material(material, defaults, cache):
 
 def bounds(meshes):
     points = [
-        obj.matrix_world @ Vector(corner) for obj in meshes for corner in obj.bound_box
+        obj.matrix_world @ vertex.co for obj in meshes for vertex in obj.data.vertices
     ]
     minimum = [min(p[i] for p in points) for i in range(3)]
     maximum = [max(p[i] for p in points) for i in range(3)]
@@ -206,7 +226,9 @@ def bounds(meshes):
 
 
 def convert(args):
-    preflight(args.input)
+    material_culling = preflight(
+        args.input, allow_culling_change=args.allow_culling_change
+    )
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=str(args.input))
     objects = list(bpy.context.scene.objects)
@@ -228,7 +250,9 @@ def convert(args):
                 raise Rejected(obj.name, "active_uv_required")
             obj.data.uv_layers.active.active_render = True
     temporary = bpy.data.materials.new("MeshyDefaults")
-    temporary.use_nodes = True
+    # Blender 5 creates node materials by default; use_nodes is deprecated.
+    if bpy.app.version < (5, 0, 0):
+        temporary.use_nodes = True
     defaults = {
         s.name: socket_value(s)
         for s in temporary.node_tree.nodes.get("Principled BSDF").inputs
@@ -296,6 +320,21 @@ def convert(args):
             "mesh_count": len(meshes),
             "triangles": triangles,
             "materials": len(materials),
+            "allow_culling_change": args.allow_culling_change,
+            "material_culling": material_culling,
+            "warnings": [
+                {
+                    **material,
+                    "reason": "culling_preservation_unsupported",
+                    "message": (
+                        "ResoLoop export does not emit Culling; original glTF "
+                        "doubleSided cannot be preserved. Only this discrepancy "
+                        "was explicitly accepted. Runtime culling is unverified "
+                        "without Reflection."
+                    ),
+                }
+                for material in material_culling
+            ],
             "objects": [
                 {"name": obj.name, "parent": obj.parent.name if obj.parent else None}
                 for obj in objects
@@ -322,6 +361,7 @@ if __name__ == "__main__":
     parser.add_argument("--yaw", type=float, required=True)
     parser.add_argument("--origin", choices=("ground", "center"), required=True)
     parser.add_argument("--name", required=True)
+    parser.add_argument("--allow-culling-change", action="store_true")
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1 :])
     try:
         convert(args)

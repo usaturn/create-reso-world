@@ -148,6 +148,7 @@ def convert_operation(
     origin: str,
     parent: str,
     model_name: str,
+    allow_culling_change: bool = False,
 ) -> dict:
     if (
         not math.isfinite(height)
@@ -186,6 +187,8 @@ def convert_operation(
                 ("name", model_name),
             ):
                 argv += ["--arg=--" + flag, "--arg=" + str(value)]
+            if allow_culling_change:
+                argv.append("--arg=--allow-culling-change")
             try:
                 run_resoloop(project, argv, "conversion")
             except WorkflowError:
@@ -226,6 +229,7 @@ def convert_operation(
                 "origin": origin,
                 "parent": parent,
                 "name": model_name,
+                "allow_culling_change": allow_culling_change,
                 "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
             }
             safe_path(project, target)
