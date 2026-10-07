@@ -312,6 +312,8 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 
 ## 優先順位
 
+create-reso-world の PR では、テストの過不足を `AGENTS.md`「テストの採用基準」で判断し、基準に反する追加・変更も指摘する。
+
 1. 実行時バグ
 2. セキュリティ問題
 3. 破壊的な挙動変更
