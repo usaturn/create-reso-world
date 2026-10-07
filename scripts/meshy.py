@@ -5,7 +5,9 @@ import json
 import math
 import signal
 import sys
+from pathlib import Path
 
+from meshy_conversion import convert_operation
 from meshy_workflow import RESOURCES, WorkflowError, execute, redact
 
 
@@ -58,6 +60,19 @@ def parser():
             command.add_argument("--timeout", type=seconds, default=600)
         if verb == "attach":
             command.add_argument("--task-id", required=True)
+    conversion = commands.add_parser(
+        "convert", help="Convert a downloaded GLB offline; never apply or overwrite."
+    )
+    conversion.add_argument("--operation", required=True)
+    conversion.add_argument("--height", type=float, required=True)
+    conversion.add_argument("--yaw", type=float, default=0)
+    conversion.add_argument("--origin", choices=("ground", "center"), default="ground")
+    conversion.add_argument(
+        "--parent",
+        required=True,
+        help="Previously verified selector; not checked online here.",
+    )
+    conversion.add_argument("--name")
     listing = commands.add_parser(
         "list", help="Read recent tasks for manual reconciliation; never create."
     )
@@ -77,7 +92,19 @@ def _interrupt(signum, frame):
 def main(argv=None):
     signal.signal(signal.SIGTERM, _interrupt)
     try:
-        result = execute(parser().parse_args(argv))
+        args = parser().parse_args(argv)
+        if args.command == "convert":
+            result = convert_operation(
+                Path(args.project),
+                args.operation,
+                height=args.height,
+                yaw=args.yaw,
+                origin=args.origin,
+                parent=args.parent,
+                model_name=args.name if args.name is not None else args.operation,
+            )
+        else:
+            result = execute(args)
         print(json.dumps(redact(result), allow_nan=False))
         return 0
     except KeyboardInterrupt:
