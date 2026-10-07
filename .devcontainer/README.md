@@ -28,6 +28,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | pi | `npm install -g` で本体、`pi install` で拡張。ランチャー 9 本を `~/.local/bin` に置く | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.local/share/cursor-agent` | `cur`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`（alias） | `devin update`、`devin plugins update superpowers` |
+| Meshy CLI | `install_meshy.bash`（公式 npm `meshy-cli@0.4.0`、無認証 version / help） | — | — | — | — |
 | gh | Dev Container Feature（github-cli） | `~/.config/gh` | `~/.config/gh` | — | — |
 | gcloud / glab / bun | 未導入（参照だけ残す） | `~/.config/gcloud`、`~/.config/glab-cli` | `~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | — |
 | 秘密情報 | — | `~/.config/create-reso-world` | `~/.config/create-reso-world`（mode 700） | env ファイルがあれば読み込む | — |
@@ -42,7 +43,9 @@ Dev Container から見えなくなるだけで、削除しない。不要にな
 
 ## 秘密情報
 
-API トークンなどの秘密情報は、ホストの `~/.config/create-reso-world/env` に置き、リポジトリには置かない。
+Meshy の `MESHY_API_KEY` は例外で、env / credentials ファイルへ保存せず、利用者が zsh で非表示入力して環境変数だけで渡す。手順は [Meshy → ResoLoop](../docs/meshy-resoloop.md)。
+
+それ以外の API トークンなどの秘密情報は、ホストの `~/.config/create-reso-world/env` に置き、リポジトリには置かない。
 このディレクトリは Dev Container に bind mount され（`initialize.bash` がホスト側に mode 700 で作る）、
 `zshrc.txt` がシェルの起動時に `env` を読み込んで、書いた変数をすべて export する。ファイルが無ければ何もしない。
 
@@ -115,7 +118,7 @@ CI の gitleaks ジョブは `.gitleaks.toml`（既定の規則に、resoloop �
 
 ## Resonite ワールド開発ツール
 
-Dev Container の作成時に .NET 10 SDK と Blender を導入し、ResoLoop は NuGet の最新の公開版を
+Dev Container の作成時に .NET 10 SDK、Blender、glTF import / export 用の `python3-numpy` を導入し、ResoLoop は NuGet の最新の公開版を
 `.devcontainer/install_resoloop.bash`（`dotnet tool update --global ResoLoop --prerelease --allow-downgrade`）で導入する。
 続けて、各プロジェクトの `resoloop skills sync --check` の結果を `.devcontainer/report-resoloop-skills.bash` で表示する
 （差分があっても postCreate は失敗しない）。rebuild せずに最新へ上げるときも `bash .devcontainer/install_resoloop.bash` を実行する。
@@ -141,6 +144,23 @@ bash scripts/resoloop-fork.sh status
 
 ResoLoop の公式要件には Windows 10/11 が記載されている。Linux で
 CLI が動作しない場合は `postCreateCommand` を失敗とし、成功扱いにはしない。
+
+## Meshy CLI と生成物の受け渡し
+
+postCreate は `bash .devcontainer/install_meshy.bash` で公式 `meshy-cli@0.4.0` を導入し、キーを外した version / help のみを確認する。
+認証・残高・生成・download・Resonite への apply は自動実行しない。キーがなくてもセットアップを進められる。
+Meshy の更新は検証済み版と wrapper の互換確認を伴う変更として扱う。ResoLoop は従来どおり NuGet の最新公開版を使い、実測 version を記録する。
+
+[docs/meshy-resoloop.md](../docs/meshy-resoloop.md) に、zsh の非表示入力、課金承認、text preview / refine の別 operation、local image、復旧、convert の素材制限、Windows PowerShell での bundle / state handoff をまとめている。
+キーはチャット・引数・ファイルへ残さない。export 後に同じシェルから起動した子だけに継承され、起動済み Herdr / VS Code / エージェントには後から届かない。
+project の `content/generated/meshy/<operation>/` と `.resoloop/meshy-cli/operations/` を rebuild 後も残し、キーだけ再入力する。応答不明の submit は再送しない。
+
+toolchain probe は headless Blender の `import bpy, numpy` を確認する。実 fixture / exporter は一時 wrapper で確認済みだが、現在の sudo は no-new-privileges により拒否される。
+**標準 rebuild、実 API / 課金生成、Windows の texture 付き表示・無変更再適用は未検証**。一時 wrapper の成功を標準 rebuild の成功と扱わない。
+受入 checklist を完了するまでは PR を `Refs #50` とし、Issue を自動 close しない。
+
+新規・既存プロジェクトともルートの `.agents/skills/meshy-resoloop/SKILL.md` を共有する。
+祖先スキルが見えないエージェントにはこの repository-relative パスを明示する。本文のコピー、project 側への追加リンク、エージェント設定の変更は不要。
 
 ## エージェントの読み込みの制約
 
@@ -563,6 +583,8 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
 実行した時点で他方のモデル定義が `models.json` から消える。
 
 ### API トークン
+
+Meshy の `MESHY_API_KEY` はここには含めない。ファイルを作らない非表示入力の手順は「Meshy CLI と生成物の受け渡し」にある。
 
 次の変数は、「秘密情報」の節の `~/.config/create-reso-world/env` に書けばシェルの起動時に
 export される。書かない場合は、必要なときに手動で export する。
