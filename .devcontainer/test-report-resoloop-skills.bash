@@ -11,7 +11,8 @@ export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 
 # 一時リポジトリ: worlds/ の直下の ok・stale・edited・-dash と、従来位置の akichi。
-# プロジェクトでないもの: ネストした worlds/deep/sub と、.resoloop.json の無い worlds/loose。
+# プロジェクトでないもの: ネストした worlds/deep/sub、.resoloop.json の無い worlds/loose、
+# 作業領域の外（ルート直下の任意名）にある stray。
 # プロジェクトは Git で追跡しない（ignore 対象）。検出が index に依存しないことを確かめるため、
 # .gitignore に worlds/ と akichi/ を書いて commit だけに含める
 repo="$tmp/repo"
@@ -19,7 +20,7 @@ git init -q "$repo"
 mkdir -p "$repo/.devcontainer"
 cp "$root/.devcontainer/report-resoloop-skills.bash" "$repo/.devcontainer/"
 printf '/worlds/\n/akichi/\n' > "$repo/.gitignore"
-for p in worlds/ok worlds/stale worlds/edited worlds/-dash akichi worlds/deep/sub; do
+for p in worlds/ok worlds/stale worlds/edited worlds/-dash akichi worlds/deep/sub stray; do
   mkdir -p "$repo/$p" && printf '{}\n' > "$repo/$p/.resoloop.json"
 done
 mkdir -p "$repo/worlds/loose" && printf 'x\n' > "$repo/worlds/loose/notes.txt"

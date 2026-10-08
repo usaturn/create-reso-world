@@ -293,10 +293,12 @@ expect_fail_with "$tmp/p29" 'worlds/demo/.claude/skills: missing link resonite-b
 project_repo "$tmp/p30" && rm "$tmp/p30/worlds/demo/.agents/sp-implementer.md"
 expect_fail_with "$tmp/p30" 'worlds/demo: .agents/sp-implementer.md must be a symlink to ../../../.agents/sp-implementer.md'
 
-# 31. .resoloop.json の無いディレクトリはローカルプロジェクトとして扱わない（作業領域の直下でも同じ）
+# 31. .resoloop.json の無いディレクトリはローカルプロジェクトとして扱わない（作業領域の直下でも同じ）。
+#     作業領域の外（ルート直下の任意名）は .resoloop.json があっても検出しない
 project_repo "$tmp/p31"
 mkdir -p "$tmp/p31/notes" && printf '# notes\n' > "$tmp/p31/notes/AGENTS.md" && commit_paths "$tmp/p31" notes
 mkdir -p "$tmp/p31/worlds/scratch" && printf '{}\n' > "$tmp/p31/worlds/scratch/notes.json"
+mkdir -p "$tmp/p31/notwork" && printf '{}\n' > "$tmp/p31/notwork/.resoloop.json"
 bash "$checker" --root "$tmp/p31" | grep -qF 'PASS: check-layout'
 
 # 32. 作業領域の更に深い階層にある .resoloop.json は検出しない（プロジェクトは直下だけ）
@@ -390,6 +392,10 @@ project_repo "$tmp/p42a" && git -C "$tmp/p42a" add -f worlds/demo/.resoloop.json
 expect_fail_with "$tmp/p42a" 'tracked files under the world work areas'
 legacy_project_repo "$tmp/p42b" && git -C "$tmp/p42b" add -f akichi/.resoloop.json && git -C "$tmp/p42b" commit -q -m track
 expect_fail_with "$tmp/p42b" 'tracked files under the world work areas'
+
+# 42c. ルートの共有物（行き先）を消せば、プロジェクトの symlink は行き先文字列が正しくても dangling として失敗する
+project_repo "$tmp/p42c" && rm -rf "$tmp/p42c/.pi"
+expect_fail_with "$tmp/p42c" 'worlds/demo: .pi is a dangling symlink to ../../.pi'
 
 # .devcontainer に devcontainer.json・mount の関数集・initialize.bash を持つ一時リポジトリを作る。
 # mounts は ~/.claude と ~/.claude.json の 2 つ

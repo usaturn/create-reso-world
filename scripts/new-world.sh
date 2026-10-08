@@ -40,11 +40,6 @@ name_re='^[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?$'
 [ -n "$root" ] || root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 tmpl="$root/templates/world-project"
 [ -d "$tmpl" ] || die 3 "template directory not found: $tmpl"
-# worlds/ はローカル作業領域。実ディレクトリであること。symlink や通常ファイルでは、
-# プロジェクトからルートの共有物へ張る相対 symlink がリンク先基準で解決されて届かなくなる
-if [ -L "$root/worlds" ] || { [ -e "$root/worlds" ] && [ ! -d "$root/worlds" ]; }; then
-  die 3 "$root/worlds exists but is not a real directory (a symlink breaks the projects' relative links to the repository root)"
-fi
 primary="$root/worlds/$name"
 legacy="$root/$name"
 proj="$primary"
@@ -59,6 +54,11 @@ if [ -e "$primary" ] || [ -L "$primary" ] || [ -e "$legacy" ] || [ -L "$legacy" 
   fi
 else
   [ "$apply" -eq 0 ] || die 2 "$name does not exist; drop --apply to create it"
+fi
+# worlds/ 配下を対象にするときだけ worlds/ が実ディレクトリであることを要求する（従来位置への --apply には関係ない）。
+# symlink や通常ファイルでは、プロジェクトからルートの共有物へ張る相対 symlink がリンク先基準で解決されて届かなくなる
+if [ "$proj" = "$primary" ] && { [ -L "$root/worlds" ] || { [ -e "$root/worlds" ] && [ ! -d "$root/worlds" ]; }; }; then
+  die 3 "$root/worlds exists but is not a real directory (a symlink breaks the projects' relative links to the repository root)"
 fi
 # ルートを指す symlink の行き先はプロジェクトの深さで決まる。ルート直下は 1、worlds/<name> は 2。
 # プロジェクト内で閉じる .claude/skills/<name> -> ../../.agents/skills/<name> は深さに依存しない
@@ -230,3 +230,4 @@ if [ "$sync" -eq 1 ]; then
   fi
 fi
 printf 'DONE: %s\n' "$name"
+[ "$sync" -eq 1 ] || printf 'note: uv.lock is not generated yet; run (cd %s && uv sync) when uv is available\n' "${proj#"$root"/}"

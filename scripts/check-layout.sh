@@ -1,10 +1,11 @@
 #!/bin/bash
 # リポジトリのレイアウト検査。仕様: docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md 9.1 節
 # 使い方: scripts/check-layout.sh [--root DIR]
-# 追跡の有無と mode、symlink の行き先、ファイルの中身は git の index（ステージ 0）から読む（検査 1・4・5・6・8）。これらの結果は
+# 追跡の有無と mode、symlink の行き先、ファイルの中身は git の index（ステージ 0）から読む（検査 1・4・5・6・9）。これらの結果は
 # 作業ツリーの未ステージの変更で変わらず、core.symlinks=false の checkout（symlink が通常ファイルになる）でも同じになる。
-# 例外として次の 3 つは作業ツリーを読む: 検査 2（追跡中の symlink が解決できるか）、検査 3（ignore 規則は作業ツリーの
-# .gitignore と .git/info/exclude から git が読む）、検査 7（resoloop が作業ツリーのプロジェクトを読む）。
+# 例外として次は作業ツリーを読む: 検査 2（追跡中の symlink が解決できるか）、検査 3（ignore 規則は作業ツリーの
+# .gitignore と .git/info/exclude から git が読む）、検査 7（ローカルプロジェクトの雛形。追跡しないので index に無い）、
+# 検査 8（resoloop が作業ツリーのプロジェクトを読む）。
 set -euo pipefail
 
 usage() {
@@ -124,7 +125,7 @@ check_tracked_ignored() {
 }
 
 # 4. ルートの .claude/skills の各エントリが .agents/skills の同名ディレクトリへの symlink で、1:1 に対応する（仕様 4.2・8.1・9.1）
-# 引数: 接頭辞。ルートは ""、プロジェクトは "slum02/" のように末尾に / を付ける
+# 引数: 接頭辞。ルートは ""。ローカルプロジェクト側の同じ検査は check_local_skill_links（作業ツリーを読む）が行う
 # リンクが要るのは、追跡ファイルを 1 つ以上持つ .agents/skills 直下のディレクトリ。SKILL.md の有無は問わない
 # （ルートの references/ のように、SKILL.md を持たない共有ディレクトリにもリンクが要る）。
 # scripts/new-world.sh も、ファイルを 1 つ以上持つディレクトリという同じ定義でリンクを張る。
@@ -324,6 +325,8 @@ check_project() {
     f="${link%%|*}" target="${link#*|}"
     if [ ! -L "$p/$f" ] || [ "$(readlink "$p/$f")" != "$target" ]; then
       problems+=("$f must be a symlink to $target")
+    elif [ ! -e "$p/$f" ]; then
+      problems+=("$f is a dangling symlink to $target")
     fi
   done
   if [ ${#problems[@]} -gt 0 ]; then

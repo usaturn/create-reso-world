@@ -370,6 +370,13 @@ for link in '.claude/skills/resonite-build|../../.agents/skills/resonite-build' 
   [ -e "$p/$rel" ] || fail "dangling $rel"
 done
 
+# 35b. worlds/ が実ディレクトリでなくても、従来位置のプロジェクトへの --apply は worlds/ を触らないので通る
+new_root "$tmp/r35b"
+MOCK_LOG="$MOCK_LOG" "$tmp/mockbin/resoloop" init "$tmp/r35b/akichi"
+printf 'x\n' > "$tmp/r35b/worlds"
+expect_exit 0 'DONE: akichi' "$tmp/r35b" --apply --no-sync akichi
+[ -e "$tmp/r35b/akichi/.pi" ] || fail 'did not link .pi for the legacy project'
+
 # 36. worlds/<name> とルート直下 <name> の両方がある --apply は、対象が決められないので 2 で何も変更しない
 new_root "$tmp/r36"
 run "$tmp/r36" --no-sync demo >/dev/null

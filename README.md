@@ -20,8 +20,11 @@
 
 追跡解除した従来位置の `MyResoniteProject/`・`akichi/`・`slum02/`・`slum03/` もローカルの作業物としてそのまま残る
 （git の追跡対象外）。これらの checkout で追跡解除のコミットを取り込むときは、先にローカルの変更をコミットするか
-別の場所へ退避してから取り込むこと（追跡ファイルは checkout で消え得るため）。`git clean -fdx` は ignore 対象の
-ワールドも削除するので注意する。大きなワールドデータを共有したい場合は、別のリポジトリを作ってそちらで管理する。
+別の場所へ退避してから取り込むこと（追跡ファイルは checkout で消え得るため）。変更が無いクリーンな checkout で
+消えるのを避けたい場合は、取り込む前に同じ `git rm -r --cached <dir>` をローカルで済ませておくか、
+消えたあとに `git restore --source=<取り込み前> --worktree -- <dir>` で履歴から戻せる。
+`git clean -fdx` は ignore 対象のワールドも削除するので注意する。大きなワールドデータを共有したい場合は、
+別のリポジトリを作ってそちらで管理する。
 
 ## Dev Container を起動する
 
@@ -53,7 +56,7 @@
 - Devin: `.claude/skills` の symlink 経由で同じスキルが見えても、一覧には 1 回だけ表示される（`.devin/config.json` は置かない）。
 - Cursor: スキルの一部が見えない。詳細は `.devcontainer/README.md` の「エージェントの読み込みの制約」。
 - pi: プロジェクトを信頼（trust）すると、`.pi/settings.json`（組み込み MCP の有効化）と `.pi/mcp.json`（Google Developer Knowledge の
-  MCP サーバー）、`.pi/APPEND_SYSTEM.md`（pi 固有の指示）、プロジェクトのスキル（`.agents/skills`）が読まれる。ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
+  MCP サーバー）、`.pi/APPEND_SYSTEM.md`（pi 固有の指示）、プロジェクトのスキル（`.agents/skills`）が読まれる。ワールドはプロジェクト直下の `.pi` symlink（ルートへの相対パスはプロジェクトの深さに応じる）から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
   「組み込み MCP と廃止した拡張」にある。
 - pi-superagents: 組み込みと同じ定義（`sp-*.md`）は追跡しない。独自に変えた `.agents/sp-implementer.md` だけを追跡する。
 
@@ -70,6 +73,8 @@ bash scripts/new-world.sh --apply <name>    # 既存のプロジェクトに、�
 プロジェクトからルートへの相対 symlink が symlink 先基準で解決されて届かなくなるため）。
 
 既存のファイルは上書きせず、食い違いがあれば報告して止まる。プロジェクトのテストは、そのディレクトリで `uv run pytest` を実行する。
+uv が無い環境では `--no-sync` で雛形だけを適用できるが、その場合は `uv.lock` がまだ無いので、uv を導入して `uv sync` するまで
+`scripts/check-layout.sh` が `uv.lock` の欠落を報告する。
 
 ## ResoLoop の版
 
