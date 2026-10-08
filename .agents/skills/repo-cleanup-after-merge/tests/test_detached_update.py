@@ -3,13 +3,15 @@
 These regressions catch attaching/creating/moving local main, targeting the
 caller's linked worktree, deleting against its stale HEAD, proceeding after a
 failed cleanliness/checkout gate,
-and Git's default overwrite of ignored user files. Expected Git state comes
+Git's default overwrite of ignored user files, and clean tracked world deletions.
+Expected Git state comes
 from the fixtures, not from the skill's wording or eval lists.
 """
 from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -523,3 +525,187 @@ def test_checkout_lock_failure_stops_before_subsequent_branch_deletion(checkout:
     assert local_refs(checkout) == refs_before
     assert lock.read_bytes() == b"do not remove a lock\n"
     assert_detached_at(checkout, head_before)
+
+
+# These five roots are user-owned safety boundaries. Omitting any one from the
+# deletion guard can remove clean tracked world data during checkout.
+PROTECTED_WORLD_ROOTS = ["MyResoniteProject", "akichi", "slum02", "slum03", "worlds"]
+
+
+def snapshot_paths(*roots: Path) -> dict[str, tuple[object, ...]]:
+    """Read only fixture paths, never follow symlinks outside the scratch repo.
+
+    Include Git's index, refs, HEAD and raw reflogs as well as file bytes,
+    modes and inode/link identity. Access times are excluded because reading
+    the snapshot itself can update them.
+    """
+    state = {}
+    for number, root in enumerate(roots):
+        paths = [root, *sorted(root.rglob("*"))] if root.is_dir() else [root]
+        for path in paths:
+            info = path.lstat()
+            payload = (
+                os.readlink(path) if path.is_symlink()
+                else path.read_bytes() if path.is_file()
+                else None
+            )
+            relative = path.relative_to(root)
+            # status may replace a byte-identical index via index.lock. Cache
+            # inode/timestamps (and the containing directory's timestamps) are
+            # not Git state; retain the index bytes/mode in the comparison.
+            if relative in (Path(".git"), Path(".git/index")):
+                state[f"{number}/{relative}"] = (info.st_mode, payload)
+            else:
+                state[f"{number}/{relative}"] = (
+                    info.st_mode, info.st_dev, info.st_ino, info.st_nlink,
+                    info.st_size, info.st_mtime_ns, info.st_ctime_ns, payload,
+                )
+    return state
+
+
+def publish_world_changes(work: Path) -> str:
+    publisher = work.parent / "publisher"
+    git(publisher, "push", "-q", "origin", "main")
+    git(work, "fetch", "-q", "--all", "--prune")
+    return git(publisher, "rev-parse", "HEAD")
+
+
+def tracked_world_fixture(work: Path, region: str) -> tuple[str, Path]:
+    publisher = work.parent / "publisher"
+    world = publisher / region
+    world.mkdir()
+    source = f"{region}/source.py"
+    (publisher / source).write_bytes(b"#!/usr/bin/env python\nprint('world source')\n")
+    (publisher / source).chmod(0o755)
+    (world / "source-link").symlink_to("source.py")
+    git(publisher, "add", region)
+    git(publisher, "commit", "-qm", "tracked world source and link")
+    publish_world_changes(work)
+    git(work, "checkout", "-q", "--detach", "origin/main")
+    git(work, "branch", "main")
+    git(work, "branch", "merged-feature")
+
+    # Local cache/excludes and a hardlink peer outside the worktree must not be
+    # touched by a refusal. Every path remains under pytest's temporary root.
+    cache = work / region / ".uv-cache" / "cache.bin"
+    cache.parent.mkdir()
+    cache.write_bytes(b"ignored cached world data\x00\xff")
+    cache.chmod(0o640)
+    with (work / ".git" / "info" / "exclude").open("a", encoding="utf-8") as stream:
+        stream.write(f"\n/{region}/.uv-cache/\n")
+    files = work.parent / "files"
+    files.mkdir()
+    peer = files / "shared source.py"
+    os.link(work / source, peer)
+    assert git(work, "status", "--short", "--untracked-files=all") == ""
+    return source, peer
+
+
+@pytest.mark.parametrize("region", PROTECTED_WORLD_ROOTS)
+def test_tracked_world_deletion_stops_without_mutating_any_local_state(
+    checkout: Path, region: str
+) -> None:
+    # A clean index and --no-overwrite-ignore do not protect tracked deletions.
+    # Removing this guard would delete the source and advance HEAD/branch cleanup.
+    source, peer = tracked_world_fixture(checkout, region)
+    publisher = checkout.parent / "publisher"
+    git(publisher, "rm", source)
+    git(publisher, "commit", "-qm", "untrack one world source")
+    publish_world_changes(checkout)
+    assert git(checkout, "status", "--short", "--untracked-files=all") == ""
+    assert git(checkout, "diff", "--no-renames", "--name-only", "--diff-filter=D",
+               "HEAD", "origin/main") == source
+    before = snapshot_paths(checkout, peer)
+
+    result = run_step7(checkout, following_delete=True)
+
+    assert snapshot_paths(checkout, peer) == before
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert source in result.stdout, "the refused deletion must be listed to the user"
+    assert "README" in result.stderr, "the user needs the preservation procedure"
+
+
+def test_world_source_rename_outside_protected_roots_is_treated_as_deletion(checkout: Path) -> None:
+    # A rename does not exempt the original protected path from the deletion
+    # gate, even when an unrestricted diff identifies the move as R100.
+    source, peer = tracked_world_fixture(checkout, "worlds")
+    publisher = checkout.parent / "publisher"
+    git(publisher, "mv", source, "moved-source.py")
+    git(publisher, "commit", "-qm", "move world source outside protected roots")
+    publish_world_changes(checkout)
+    assert git(checkout, "status", "--short", "--untracked-files=all") == ""
+    assert git(checkout, "diff", "--name-status", "-M", "HEAD", "origin/main") == (
+        f"R100\t{source}\tmoved-source.py"
+    )
+    before = snapshot_paths(checkout, peer)
+
+    result = run_step7(checkout, following_delete=True)
+
+    assert snapshot_paths(checkout, peer) == before
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert source in result.stdout
+
+
+def test_deleted_path_diff_error_stops_before_checkout_or_branch_deletion(
+    checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Only diff fails: origin/main, status and every real checkout prerequisite
+    # are valid. Ignoring a failed deletion query must not advance the tree.
+    _, peer = tracked_world_fixture(checkout, "worlds")
+    advance_remote(checkout)
+    assert git(checkout, "status", "--short", "--untracked-files=all") == ""
+    real_git = shutil.which("git")
+    assert real_git
+    tools = checkout.parent / "tools"
+    tools.mkdir()
+    wrapper = tools / "git"
+    wrapper.write_text(
+        '#!/bin/bash\n'
+        'printf "%s\\0" "$@" >> "$GIT_CALL_LOG"\n'
+        'printf "\\n" >> "$GIT_CALL_LOG"\n'
+        'if [ "$1" = -C ] && [ "$3" = diff ]; then\n'
+        '    printf "%s\\n" "injected diff read failure" >&2\n'
+        '    exit 73\n'
+        'fi\n'
+        'exec "$REAL_GIT" "$@"\n',
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+    log = tools / "git-calls.log"
+    log.write_bytes(b"")
+    monkeypatch.setenv("PATH", f"{tools}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("REAL_GIT", real_git)
+    monkeypatch.setenv("GIT_CALL_LOG", str(log))
+    before = snapshot_paths(checkout, peer)
+    calls_before = log.read_bytes()
+
+    result = run_step7(checkout, following_delete=True)
+
+    assert snapshot_paths(checkout, peer) == before
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    calls = log.read_bytes()[len(calls_before):].splitlines()
+    assert [line.decode().split("\x00")[:-1] for line in calls] == [
+        ["-C", str(checkout), "status", "--short", "--untracked-files=all"],
+        ["-C", str(checkout), "diff", "--no-renames", "--name-only", "--diff-filter=D",
+         "HEAD", "origin/main", "--", *PROTECTED_WORLD_ROOTS],
+    ], "only the read-only status/diff queries may run; checkout must not be called"
+
+
+def test_protected_world_source_modification_still_allows_normal_update(checkout: Path) -> None:
+    # Filtering every world change (rather than deletions) would over-block.
+    source, peer = tracked_world_fixture(checkout, "worlds")
+    publisher = checkout.parent / "publisher"
+    (publisher / source).write_bytes(b"updated world source\n")
+    git(publisher, "add", source)
+    git(publisher, "commit", "-qm", "update world source without deletion")
+    target = publish_world_changes(checkout)
+    refs_before = local_refs(checkout)
+    peer_before = peer.read_bytes()
+
+    result = run_step7(checkout)
+
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert_detached_at(checkout, target)
+    assert local_refs(checkout) == refs_before
+    assert (checkout / source).read_bytes() == b"updated world source\n"
+    assert peer.read_bytes() == peer_before

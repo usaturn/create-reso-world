@@ -18,13 +18,70 @@
 └── worlds/<name>/             ワールドのプロジェクト（resoloop のプロジェクト。ローカル専用で git の追跡対象外）
 ```
 
-追跡解除した従来位置の `MyResoniteProject/`・`akichi/`・`slum02/`・`slum03/` もローカルの作業物としてそのまま残る
-（git の追跡対象外）。これらの checkout で追跡解除のコミットを取り込むときは、先にローカルの変更をコミットするか
-別の場所へ退避してから取り込むこと（追跡ファイルは checkout で消え得るため）。変更が無いクリーンな checkout で
-消えるのを避けたい場合は、取り込む前に同じ `git rm -r --cached <dir>` をローカルで済ませておくか、
-消えたあとに `git restore --source=<取り込み前> --worktree -- <dir>` で履歴から戻せる。
-`git clean -fdx` は ignore 対象のワールドも削除するので注意する。大きなワールドデータを共有したい場合は、
+追跡解除した従来位置の `MyResoniteProject/`・`akichi/`・`slum02/`・`slum03/` もローカルの作業物として使える
+（git の追跡対象外）。ただし、別 checkout への追跡解除コミットの取り込みには、次の保全手順が必要である。
+`git clean -fdx` は ignore 対象のワールドも削除するので使わない。大きなワールドデータを共有したい場合は、
 別のリポジトリを作ってそちらで管理する。
+
+## 追跡解除コミットを取り込む
+
+通常の checkout は、変更の無い追跡ファイルも削除する。変更をコミット・stash してから取り込んでも、
+ワールドの実ファイルは残らない。`git rm --cached` だけを先に行うと未追跡ファイルの削除ガードで停止し、
+`--no-overwrite-ignore` も追跡中のファイルの削除は防がない。`repo-cleanup-after-merge` は対象領域の
+追跡ファイルが削除される更新を停止するため、この初回移行を自動整理で迂回しない。
+
+1. `git fetch origin` 後、対象 checkout の `git status --short` を確認する。従来の4ディレクトリと `worlds/` の
+   **5領域**を保全対象とし、領域外の変更は別途保全する。領域内に staged 変更があれば、先にその版を
+   ローカルコミットへ保存する。未stageの変更は残したままでよい。
+   制作プロセス・エージェントを止め、移行と同時にファイルや Git refs を書き換えない。
+2. 以下を **対象 checkout のルートで、同じシェルで** 実行する。5領域のうち存在するディレクトリ全体
+   （未コミット変更・未追跡・ignored ファイル・symlink を含む）を checkout 外の一意なディレクトリへ移し、
+   `--no-overwrite-ignore` で更新してから戻す。取り込み先に5領域の追跡ファイルが残る場合は実行しない。
+   移動は同じファイルシステム内に限り、ファイルの内容・mode・hard link を保つ。履歴から戻せるよう旧 HEAD も保存する。
+
+   ```bash
+   set -e
+   root="$(git rev-parse --show-toplevel)"
+   target="$(git rev-parse 'origin/main^{commit}')"
+   dirs=(MyResoniteProject akichi slum02 slum03 worlds)
+   remaining="$(git ls-tree -r --name-only "$target" -- "${dirs[@]}")"
+   [ -z "$remaining" ] || { printf '%s\n' '取り込み先にワールドの追跡ファイルが残っているため停止する。' >&2; exit 1; }
+   git diff --cached --quiet -- "${dirs[@]}" || { printf '%s\n' 'ワールドの staged 版を先にローカルコミットへ保存する。' >&2; exit 1; }
+   for name in "${dirs[@]}"; do
+       [ ! -L "$root/$name" ] && { [ ! -e "$root/$name" ] || [ -d "$root/$name" ]; } || exit 1
+   done
+   backup="$(mktemp -d "$(dirname "$root")/local-worlds-backup.XXXXXX")"
+   printf '保全先: %s\n' "$backup"
+   device="$(stat -c %d "$backup")"
+   for name in "${dirs[@]}"; do
+       [ ! -d "$root/$name" ] || [ "$(stat -c %d "$root/$name")" = "$device" ] || exit 1
+   done
+   git rev-parse HEAD > "$backup/before-head"
+   for name in "${dirs[@]}"; do
+       [ ! -d "$root/$name" ] || mv -T -- "$root/$name" "$backup/$name"
+   done
+   checkout_status=0
+   git checkout --detach --no-overwrite-ignore "$target" || checkout_status=$?
+   for name in "${dirs[@]}"; do
+       if [ -d "$backup/$name" ]; then
+           [ ! -e "$root/$name" ] && [ ! -L "$root/$name" ] || exit 1
+           mv -T -- "$backup/$name" "$root/$name"
+       fi
+   done
+   [ "$checkout_status" -eq 0 ] || exit "$checkout_status"
+   [ "$(git rev-parse HEAD)" = "$target" ]
+   git status --short
+   ```
+
+3. ワールドの内容とリンクを確認する。保全先と旧 HEAD の記録は確認が終わるまで残す。
+   事前に保存した staged 版は旧 HEAD の履歴から別途取り出せる（管理外に移ったため index の staging は引き継がない）。
+   どの段階で失敗しても `--force`・reset・clean・保全先の削除で回避しない。既に移したディレクトリは保全先に残っている。
+   元の場所と保全先を確認し、戻す先が空いているものだけ `mv -T -- <保全先>/<name> <root>/<name>` で戻す。
+   取り込み後は通常の `repo-cleanup-after-merge` を使える。
+
+既に通常の checkout で消してしまった場合、取り込み前のコミットのファイルは
+`git restore --source=<取り込み前> --worktree -- <dir>` で戻せる。ただし、未コミット・未追跡・ignored ファイルは
+履歴では復元できない。先に現在残っているデータを別の場所へ保全し、既存ファイルを上書きしないこと。
 
 ## Dev Container を起動する
 
