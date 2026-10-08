@@ -51,20 +51,20 @@
 
 **テストの要否:** 要る。ignore 規則の適用と追跡解除の実効は実行して確かめる挙動である。
 
-- [ ] **Step 1: `test-gitignore.bash` を新方針に書き換える**
+- [x] **Step 1: `test-gitignore.bash` を新方針に書き換える**
   - ignored に加える: `worlds/demo/.resoloop.json`、`worlds/demo/modeling/x.py`、4 名の配下（例: `akichi/x.py`）
   - not ignored に残す: `scripts/new-world.sh`、`templates/world-project/CLAUDE.md`、`docs/worlds/tokyo-nova/tokyo-nova-assets.rst` など共通側。`slum02/.resoloop/.gitignore`・`slum02/assets/...` など 4 名の配下の項目は消す（全体が ignore になるため区別できない）
   - 汎用規則（`**/.resoloop/**`、`*.blend1`、`tmp/`、`docs_draft/`、秘密情報）は従来どおり ignored
   - 末尾の tracked-but-ignored 照合は「空であること」に変える（pipeline.json の例外は無くなる）
-- [ ] **Step 2: `.gitignore` を更新して追跡解除する**
+- [x] **Step 2: `.gitignore` を更新して追跡解除する**
   - 追加: `/MyResoniteProject/`・`/akichi/`・`/slum02/`・`/slum03/`・`/worlds/`（「ワールドはローカル作業物」の旨のコメント付き）
   - 削除: `MyResoniteProject/content/tokyo-nova/` の 2 行の個別除外
   - 実行: `git rm -r --cached --quiet MyResoniteProject akichi slum02 slum03`
   - 実ファイルの残存: `test -d MyResoniteProject && git status --porcelain | grep -c '^??' ` が 0 であること（ignore 済みなので `??` は出ない）
-- [ ] **Step 3: テスト実行**
+- [x] **Step 3: テスト実行**
   Run: `bash tests/scripts/test-gitignore.bash`、`bash scripts/check-layout.sh`
   Expected: PASS（check-layout はこの時点でも通る。プロジェクト検出が 0 件になるだけ）
-- [ ] **Step 4: コミット**
+- [x] **Step 4: コミット**
   `chore: untrack world projects and ignore local world areas (issue 57)`
 
 ### Task 2: `scripts/new-world.sh`
@@ -79,23 +79,23 @@
 
 **テストの要否:** 要る。作成・適用・拒否の分岐と symlink の行き先は実行して確かめる。
 
-- [ ] **Step 1: `test-new-world.bash` を新仕様に合わせる**
+- [x] **Step 1: `test-new-world.bash` を新仕様に合わせる**
   - プロジェクトの期待位置を `$r/worlds/demo` に変え、`.claude/settings.json` -> `../../../.claude/settings.json`、`.pi` -> `../../.pi`、`.agents/sp-implementer.md` -> `../../../.agents/sp-implementer.md`、`.claude/skills/<n>` -> `../../.agents/skills/<n>` を確かめる
   - 旧ケース 19（ignore 名の拒否）を次に替える: 名前 `worlds` は 2 で拒否。ルート直下に同名のファイル・ディレクトリがあるとき新規作成は 2
   - 追加: ルート直下の `akichi` 相当（雛形不足の resoloop プロジェクト）への `--apply` が深さ 1 の行き先で通る。`worlds/demo` とルート直下 `demo` の両方がある `--apply` は 2（曖昧さ）
-- [ ] **Step 2: テストが現仕様で失敗することを確認**
+- [x] **Step 2: テストが現仕様で失敗することを確認**
   Run: `bash tests/scripts/test-new-world.bash`
   Expected: FAIL（`worlds/` への作成や深さ 2 の行き先が未実装）
-- [ ] **Step 3: `new-world.sh` を実装する**
+- [x] **Step 3: `new-world.sh` を実装する**
   - `git check-ignore` による拒否を削除。予約名 `worlds` を 2 で拒否。`$root/worlds` が存在してディレクトリでなければ（dangling symlink も含む）3 で拒否
   - 作成先 `$root/worlds/<name>`。`--apply` は `worlds/<name>` を優先し、無ければルート直下 `<name>`。両方あれば 2。新規作成はどちらかの存在で 2
   - `resoloop init` の前に `mkdir -p "$root/worlds"`
   - `proj` の `$root` 相対の深さ n を求め、`.pi` は `'../'×n + .pi`、`.claude/settings.json` と `.agents/sp-*.md` は `'../'×(n+1)` + 対象名にする
   - ヘッダーの終了コード 2 の説明と usage を新仕様に合わせる
-- [ ] **Step 4: テスト実行**
+- [x] **Step 4: テスト実行**
   Run: `bash tests/scripts/test-new-world.bash`
   Expected: PASS
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
   `feat: create new worlds under untracked worlds/ (issue 57)`
 
 ### Task 3: `scripts/check-layout.sh`
@@ -110,25 +110,25 @@
 
 **テストの要否:** 要る。検出・検査・追跡混入の検出は実行して確かめる。
 
-- [ ] **Step 1: `test-check-layout.bash` を新仕様に合わせる**
+- [x] **Step 1: `test-check-layout.bash` を新仕様に合わせる**
   - `project_repo` は `worlds/<name>` にプロジェクトを作り、追跡は `.gitignore`（`/worlds/`）のある共通側だけにする。期待する symlink の行き先は深さ 2
   - 追加: ルート直下の `akichi`（4 名の 1 つ）もプロジェクトとして検出される。ルート直下の任意名 `demo` や `worlds/demo/sub` のような深い場所は対象外。プロジェクト 0 件でも PASS
   - 追加: 作業領域に追跡ファイルを置くと失敗する（`git add -f worlds/demo/x` → FAIL）
   - resoloop の呼び出しは `./worlds/demo` の形を確かめる
   - 従来の逸脱ケース（CLAUDE.md・AGENTS.md・`cache/`・行き先違い・1:1 対応）はそのまま作業ツリーで確かめる
-- [ ] **Step 2: テストが現仕様で失敗することを確認**
+- [x] **Step 2: テストが現仕様で失敗することを確認**
   Run: `bash tests/scripts/test-check-layout.bash`
   Expected: FAIL（`worlds/` の検出と作業ツリー検査が未実装）
-- [ ] **Step 3: `check-layout.sh` を実装する**
+- [x] **Step 3: `check-layout.sh` を実装する**
   - `collect_projects` を「`worlds/*/` と 4 名のうち `.resoloop.json` を持つディレクトリ」の作業ツリー走査に変え、LC_ALL=C でソートする。`.devcontainer/report-resoloop-skills.bash` と同じ定義であることをコメントで相互参照する
   - `check_project` を作業ツリー版に書き換える。必須ファイルは「symlink でない通常ファイル」、CLAUDE.md・AGENTS.md・`cache/` の中身、symlink の行き先（深さ n: `.pi` は `'../'×n`、`.claude/settings.json`・`.agents/sp-*` は `'../'×(n+1)`）。`.claude/skills` の 1:1 対応は `check_local_skill_links`（ファイルを 1 つ以上持つ `.agents/skills` の直下ディレクトリ、dotglob 込み）
   - `check_tracked_ignored` の許可リストを削除する
   - `check_work_areas_untracked` を追加する（`worlds/` と 4 名の下に追跡ファイルが無いこと）
   - ルートの `check_skill_links ""` と他の index 検査は変えない
-- [ ] **Step 4: テスト実行**
+- [x] **Step 4: テスト実行**
   Run: `bash tests/scripts/test-check-layout.bash`、`bash scripts/check-layout.sh`
   Expected: PASS
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
   `feat: check local world projects on the worktree (issue 57)`
 
 ### Task 4: `.devcontainer/report-resoloop-skills.bash`
@@ -142,16 +142,16 @@
 
 **テストの要否:** 要る。検出の対象と resoloop への渡し方を実行して確かめる。
 
-- [ ] **Step 1: `test-report-resoloop-skills.bash` を新仕様に合わせる**
+- [x] **Step 1: `test-report-resoloop-skills.bash` を新仕様に合わせる**
   - プロジェクトを `worlds/ok`・`worlds/stale`・`worlds/edited`・`worlds/-dash` とルート直下の `akichi` にする。`worlds/deep/sub`（深い）とルート直下の `loose`（作業領域外）は対象外
   - git への追加・コミットなしで検出されることを確かめる（追跡状態に依存しない）
   - resoloop の呼び出しは `./worlds/ok`・`./akichi` の形を確かめる
-- [ ] **Step 2: `report-resoloop-skills.bash` を実装する**
+- [x] **Step 2: `report-resoloop-skills.bash` を実装する**
   - `git ls-files` の検出を Task 3 と同じ作業ツリー走査に変え、git への依存を外す。`cd` の失敗は従来どおり skip メッセージにする
-- [ ] **Step 3: テスト実行**
+- [x] **Step 3: テスト実行**
   Run: `bash .devcontainer/test-report-resoloop-skills.bash`
   Expected: PASS
-- [ ] **Step 4: コミット**
+- [x] **Step 4: コミット**
   `feat: detect local world projects without git index (issue 57)`
 
 ### Task 5: 規約・文書
@@ -161,27 +161,27 @@
 
 **テストの要否:** なし。文書だけの変更で、守る実行時の挙動が無い。代わりの検証: `bash tests/scripts/test-instructions.bash`、`bash tests/scripts/test-docs.bash`（存在すれば）、`git diff` で対象箇所だけの変更であること。
 
-- [ ] **Step 1: `AGENTS.md` を更新する**
+- [x] **Step 1: `AGENTS.md` を更新する**
   - リポジトリ概要: プロジェクトを同じリポジトリで追跡する説明を、「ワールドはローカル作業物で追跡しない。作る場所は `worlds/` と既存の 4 名」に変える
   - プロジェクト運用: `new-world.sh` が `worlds/<name>` を作ること、`--apply` が 4 名の従来位置も対象にすること、ワールド作業に branch・commit・PR を要求しないこと、`git clean -fdx` で消えることを書く
-- [ ] **Step 2: `README.md` を更新する**
+- [x] **Step 2: `README.md` を更新する**
   - 構成ツリーと「プロジェクトを作る」を新仕様にし、専用リポジトリを選ぶ条件（履歴管理・再現性・共同開発が要るとき）と、プロジェクトの symlink はリポジトリの共有物を指すのでそのまま持ち出せない注意を書く。別 checkout へ追跡解除を取り込むときの保全確認（未コミット変更を先にコミット・退避・破棄するか、同じ `git rm -r --cached` を先に済ませる）も書く
-- [ ] **Step 3: `.devcontainer/README.md` を更新する**
+- [x] **Step 3: `.devcontainer/README.md` を更新する**
   - テスト実行のプロジェクト例と `report-resoloop-skills` の説明を新仕様に合わせる
-- [ ] **Step 4: 検証**
+- [x] **Step 4: 検証**
   Run: `bash tests/scripts/test-instructions.bash`、`bash tests/scripts/test-docs.bash`、`git diff --check`
   Expected: PASS
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
   `docs: describe local world projects (issue 57)`
 
 ### Task 6: 検証と PR
 
-- [ ] **Step 1: 全体検証**
+- [x] **Step 1: 全体検証**
   Run: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills`、`git diff --check origin/main...HEAD`
   Expected: すべて PASS
-- [ ] **Step 2: Spec・Plan の確認用コピー**
+- [x] **Step 2: Spec・Plan の確認用コピー**
   `scripts/superpowers-review-copy.sh` で PARENT_ROOT の `tmp/superpowers-review/` へ `issue-57-local-worlds-spec.md`・`issue-57-local-worlds-plan.md` としてコピーし、PARENT_ROOT の `docs_draft/superpowers/specs/`・`docs_draft/superpowers/plan/` にも置く
-- [ ] **Step 3: Spec・Plan の状態を更新してコミット**
+- [x] **Step 3: Spec・Plan の状態を更新してコミット**
   検証結果と PR 番号を記録する。`approved` にはしない
-- [ ] **Step 4: push と PR 作成**
+- [x] **Step 4: push と PR 作成**
   `git push -u origin feat/issue-57-local-worlds` の後、`gh pr create` で `Refs #57` の PR を作る。本文に Issue の完了条件との対応と、別 checkout での取り込み時の保全確認を書く
