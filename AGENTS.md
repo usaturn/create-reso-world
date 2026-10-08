@@ -5,7 +5,7 @@
 
 ## リポジトリ概要
 
-[resoloop](https://github.com/orange3134/resoloop) と Blender で Resonite 上に 3D モデルやワールドを作成する開発環境。Dev Container の定義と、ワールドのプロジェクト（`MyResoniteProject/`、`akichi/`、`slum02/`）を同じリポジトリで管理する。
+[resoloop](https://github.com/orange3134/resoloop) と Blender で Resonite 上に 3D モデルやワールドを作成する開発環境。Dev Container の定義と共通の規約・スキル・雛形を管理する。ワールドのプロジェクトはローカルの作業物で git の追跡対象外であり、`worlds/` の直下に作る（issue #57）。追跡解除した従来位置の `MyResoniteProject/`、`akichi/`、`slum02/`、`slum03/` もローカルの作業物として残る。
 
 ## 基本方針
 
@@ -77,8 +77,9 @@
 
 ## プロジェクト運用
 
-- ワールドの作業は、そのプロジェクトのディレクトリ（例: `slum02/`）を cwd にしてエージェントを起動する。プロジェクト固有の規約と安全ルールは、プロジェクト直下の `AGENTS.md` にある
-- 新しいプロジェクトは `scripts/new-world.sh <name>` で作る。既存プロジェクトの雛形の不足分は `scripts/new-world.sh --apply <name>` で補う
+- ワールドの作業は、そのプロジェクトのディレクトリ（例: `worlds/slum02/`）を cwd にしてエージェントを起動する。プロジェクト固有の規約と安全ルールは、プロジェクト直下の `AGENTS.md` にある
+- 新しいプロジェクトは `scripts/new-world.sh <name>` で作る（`worlds/<name>/` に作られ、git の追跡対象外）。既存プロジェクトの雛形の不足分は `scripts/new-world.sh --apply <name>` で補う（`worlds/<name>/` と従来位置の `MyResoniteProject/`・`akichi/`・`slum02/`・`slum03/` の両方に使える）
+- プロジェクトは git の追跡対象外なので、ワールド作業に branch・commit・PR は要求しない。`git clean -fdx` はローカルプロジェクトをまとめて削除するので使わない
 - 各プロジェクトのテストは、そのプロジェクトのディレクトリで `uv run pytest` を実行する
 - resoloop 同梱のスキル（`resonite-*`）が導入済みの resoloop と一致しているかは、プロジェクトのディレクトリで `resoloop skills sync --check` を実行して確かめる。更新は差分を確認してから `resoloop skills sync --update` で行う
 - リポジトリ全体の配置は `scripts/check-layout.sh` で検査する

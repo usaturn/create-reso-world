@@ -8,7 +8,7 @@ allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(git *), Bash(gh *), Bash(
 
 ## 概要
 
-PR がマージされた後に、ローカルの branch / worktree / 残骸を片付け、作業ツリーを `origin/main` に追従させる。
+PR がマージされた後に、ローカルの branch / worktree / 残骸を片付け、作業ツリーを `origin/main` に追従させる。ただし、`MyResoniteProject/`・`akichi/`・`slum02/`・`slum03/`・`worlds/` の追跡ファイルを削除する更新は自動実行せず、README の「追跡解除コミットを取り込む」の保全手順を利用者へ案内する。
 
 **中核原則: 整理とは「消すこと」ではなく「もう失うものが無いと確かめてから消すこと」である。**
 
@@ -166,6 +166,8 @@ fork の経路ではこの手順を実行しない。「fork の経路だけの�
 
 ブロック内でメイン作業ツリーの clean を再確認する。出力が空でない、または status が失敗した場合は checkout も後続の branch 削除もせず、ユーザーへ報告する。
 
+続いて、HEAD と `origin/main` の tree 間で保護領域の追跡ファイル削除を read-only で調べる。取得失敗または削除対象が 1 件でもあれば、checkout と後続の branch 削除を停止する。`--no-renames` は、rename と判定されて元のパスの削除を見落とさないために必要である。
+
 ```bash
 set -e
 : "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定する}"
@@ -176,6 +178,15 @@ fi
 if [ -n "$tree_state" ]; then
     printf '%s\n' "$tree_state"
     printf '%s\n' '作業ツリーが clean でないため、checkout と branch 削除を停止する。' >&2
+    exit 1
+fi
+if ! deleted_world_paths=$(git -C "$MAIN_ROOT" diff --no-renames --name-only --diff-filter=D HEAD origin/main -- MyResoniteProject akichi slum02 slum03 worlds); then
+    printf '%s\n' '保護領域の追跡ファイル削除を確認できないため、checkout と branch 削除を停止する。' >&2
+    exit 1
+fi
+if [ -n "$deleted_world_paths" ]; then
+    printf '%s\n' "$deleted_world_paths"
+    printf '%s\n' '保護領域の追跡ファイルが削除されるため、checkout と branch 削除を停止する。README の「追跡解除コミットを取り込む」の保全手順を利用者へ案内する。' >&2
     exit 1
 fi
 if ! git -C "$MAIN_ROOT" checkout --detach --no-overwrite-ignore origin/main; then
@@ -191,7 +202,7 @@ if [ "$head_name" != HEAD ] || [ "$head_oid" != "$origin_oid" ]; then
 fi
 ```
 
-Git は通常 ignore 対象のファイルを確認なしに上書きするため、`--no-overwrite-ignore` を外さない。checkout が失敗したらエラーを報告して停止し、`--force`・clean・reset や `main` への切り替えで回避しない。成功後も既存ローカル `main` は保持対象として報告し、手順 8 で削除しない。
+Git は通常 ignore 対象のファイルを確認なしに上書きするため、`--no-overwrite-ignore` を外さない。ただし、clean でも `--no-overwrite-ignore` でも追跡ファイルの削除は防げない。保護領域の削除検査を外したり、自動復元や `--force` で回避したりしない。checkout が失敗したらエラーを報告して停止し、`--force`・clean・reset や `main` への切り替えで回避しない。成功後も既存ローカル `main` は保持対象として報告し、手順 8 で削除しない。
 
 ### 8. マージ済みローカル branch を削除する
 

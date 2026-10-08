@@ -1,5 +1,5 @@
-# create-reso-world: ローカル専用物と生成物だけを除外する。
-# 追跡方針は docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md の 4.4 節を参照。
+# create-reso-world: ワールドのプロジェクトとローカル専用物・生成物を除外する。
+# 追跡方針は docs/superpowers/specs/2026-10-08-issue-57-local-worlds-design.md の 4.1 節を参照。
 
 ## Python / uv
 __pycache__/
@@ -29,6 +29,14 @@ __pycache__/
 **/flux/.protograph/
 *.brson
 
+## ワールドのプロジェクト（issue 57。ローカルの作業物として扱い、原則として追跡しない）
+## worlds/ が新規ワールドの作る場所。先の 4 つは追跡解除した従来位置で、手で worlds/ へ移してもよい
+/MyResoniteProject/
+/akichi/
+/slum02/
+/slum03/
+/worlds/
+
 ## ローカル専用ディレクトリ
 tmp/
 docs_draft/
@@ -39,10 +47,6 @@ docs_draft/
 /.claude/worktrees/
 /.superpowers/
 /.restructure-backup/
-
-## tokyo-nova の生成物（約 209 MB、削除の要否はユーザが判断する）
-/MyResoniteProject/content/tokyo-nova/city/export-static/
-/MyResoniteProject/content/tokyo-nova/city/export-refinement/
 
 ## 個人設定・秘密情報
 **/.claude/settings.local.json

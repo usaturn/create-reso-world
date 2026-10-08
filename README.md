@@ -1,8 +1,8 @@
 # create-reso-world
 
-[resoloop](https://github.com/orange3134/resoloop) と Blender で Resonite のワールドを作るための開発環境（Dev Container）と、
-ワールドのプロジェクトをまとめたリポジトリ。コーディングエージェント（Claude Code、Codex、pi、Cursor、Devin）で
-作業する前提で、共通の規約とスキルをリポジトリに置いている。
+[resoloop](https://github.com/orange3134/resoloop) と Blender で Resonite のワールドを作るための開発環境（Dev Container）。
+コーディングエージェント（Claude Code、Codex、pi、Cursor、Devin）で作業する前提で、共通の規約とスキルをリポジトリに置いている。
+ワールドのプロジェクトはローカルの作業物であり、このリポジトリでは追跡しない（issue #57）。
 
 ## 構成
 
@@ -15,8 +15,79 @@
 ├── templates/world-project/   プロジェクトの雛形
 ├── docs/                      設計と計画（docs/superpowers/）、fork の運用、統合手順、pi と Claude Code の設定の移植の記録
 ├── tests/                     スクリプトのテスト（tests/scripts/）とスキルのテスト（tests/skills/）
-└── MyResoniteProject/ akichi/ slum02/   ワールドのプロジェクト（resoloop のプロジェクト）
+└── worlds/<name>/             ワールドのプロジェクト（resoloop のプロジェクト。ローカル専用で git の追跡対象外）
 ```
+
+追跡解除した従来位置の `MyResoniteProject/`・`akichi/`・`slum02/`・`slum03/` もローカルの作業物として使える
+（git の追跡対象外）。ただし、別 checkout への追跡解除コミットの取り込みには、次の保全手順が必要である。
+`git clean -fdx` は ignore 対象のワールドも削除するので使わない。大きなワールドデータを共有したい場合は、
+別のリポジトリを作ってそちらで管理する。
+
+## 追跡解除コミットを取り込む
+
+通常の checkout は、変更の無い追跡ファイルも削除する。変更をコミット・stash してから取り込んでも、
+ワールドの実ファイルは残らない。`git rm --cached` だけを先に行うと未追跡ファイルの削除ガードで停止し、
+`--no-overwrite-ignore` も追跡中のファイルの削除は防がない。`repo-cleanup-after-merge` が対象領域の
+追跡ファイルの削除で停止するのは、この変更を取り込んだ後の版だけである。エージェントは作業ツリーにあるスキルを読むので、
+取り込む前の checkout では旧版が動き、clean な checkout の追跡ワールドを削除する。**初回移行を下の手順で終えるまで、
+`repo-cleanup-after-merge`・`gitm`（`git checkout origin/main`）・通常の checkout/merge でその checkout を更新しない。**
+
+1. `git fetch origin` 後、対象 checkout の `git status --short` を確認する。従来の4ディレクトリと `worlds/` の
+   **5領域**を保全対象とし、領域外の変更は別途保全する。領域内に staged 変更があれば、先にその版を
+   ローカルコミットへ保存する。未stageの変更は残したままでよい。
+   制作プロセス・エージェントを止め、移行と同時にファイルや Git refs を書き換えない。
+2. 以下を **対象 checkout のルートで、同じシェルで** 実行する。5領域のうち存在するディレクトリ全体
+   （未コミット変更・未追跡・ignored ファイル・symlink を含む）を、Git の共通ディレクトリ
+   （`git rev-parse --git-common-dir`。通常は main checkout の `.git`）の下に作る一意な `local-worlds-backup.*` へ移し、
+   `--no-overwrite-ignore` で更新してから戻す。ここは checkout も worktree の削除も触れず、Dev Container の
+   checkout の親（`/workspaces`）と違って書き込める。取り込み先に5領域の追跡ファイルが残る場合は実行しない。
+   移動は同じファイルシステム内に限り、ファイルの内容・mode・hard link を保つ。履歴から戻せるよう旧 HEAD も保存する。
+
+   ```bash
+   set -e
+   root="$(git rev-parse --show-toplevel)"
+   target="$(git rev-parse 'origin/main^{commit}')"
+   dirs=(MyResoniteProject akichi slum02 slum03 worlds)
+   remaining="$(git ls-tree -r --name-only "$target" -- "${dirs[@]}")"
+   [ -z "$remaining" ] || { printf '%s\n' '取り込み先にワールドの追跡ファイルが残っているため停止する。' >&2; exit 1; }
+   git diff --cached --quiet -- "${dirs[@]}" || { printf '%s\n' 'ワールドの staged 版を先にローカルコミットへ保存する。' >&2; exit 1; }
+   for name in "${dirs[@]}"; do
+       [ ! -L "$root/$name" ] && { [ ! -e "$root/$name" ] || [ -d "$root/$name" ]; } || exit 1
+   done
+   backup_parent="$(git rev-parse --path-format=absolute --git-common-dir)"
+   device="$(stat -c %d "$backup_parent")"
+   for name in "${dirs[@]}"; do
+       [ ! -d "$root/$name" ] || [ "$(stat -c %d "$root/$name")" = "$device" ] || exit 1
+   done
+   backup="$(mktemp -d "$backup_parent/local-worlds-backup.XXXXXX")"
+   printf '保全先: %s\n' "$backup"
+   git rev-parse HEAD > "$backup/before-head"
+   for name in "${dirs[@]}"; do
+       [ ! -d "$root/$name" ] || mv -T -- "$root/$name" "$backup/$name"
+   done
+   checkout_status=0
+   git checkout --detach --no-overwrite-ignore "$target" || checkout_status=$?
+   for name in "${dirs[@]}"; do
+       if [ -d "$backup/$name" ]; then
+           [ ! -e "$root/$name" ] && [ ! -L "$root/$name" ] || exit 1
+           mv -T -- "$backup/$name" "$root/$name"
+       fi
+   done
+   [ "$checkout_status" -eq 0 ] || exit "$checkout_status"
+   [ "$(git rev-parse HEAD)" = "$target" ]
+   git status --short
+   ```
+
+3. ワールドの内容とリンクを確認する。保全先と旧 HEAD の記録は確認が終わるまで残す。
+   事前に保存した staged 版は旧 HEAD の履歴から別途取り出せる（管理外に移ったため index の staging は引き継がない）。
+   どの段階で失敗しても `--force`・reset・clean・保全先の削除で回避しない。既に移したディレクトリは保全先
+   （Git の共通ディレクトリの `local-worlds-backup.*`）に残っている。
+   元の場所と保全先を確認し、戻す先が空いているものだけ `mv -T -- <保全先>/<name> <root>/<name>` で戻す。
+   取り込み後は通常の `repo-cleanup-after-merge` を使える。
+
+既に通常の checkout で消してしまった場合、取り込み前のコミットのファイルは
+`git restore --source=<取り込み前> --worktree -- <dir>` で戻せる。ただし、未コミット・未追跡・ignored ファイルは
+履歴では復元できない。先に現在残っているデータを別の場所へ保全し、既存ファイルを上書きしないこと。
 
 ## Dev Container を起動する
 
@@ -36,7 +107,7 @@
 
 ## エージェントで作業する
 
-エージェントは、作業するプロジェクト（例: `slum02/`）を cwd にして起動する。共通の規約はルートの `AGENTS.md`、
+エージェントは、作業するプロジェクト（例: `worlds/slum02/`）を cwd にして起動する。共通の規約はルートの `AGENTS.md`、
 プロジェクト固有の規約はプロジェクトの `AGENTS.md` にあり、どちらも読み込まれる。
 
 初回や設定の変更後に、次の点に注意する。
@@ -48,18 +119,25 @@
 - Devin: `.claude/skills` の symlink 経由で同じスキルが見えても、一覧には 1 回だけ表示される（`.devin/config.json` は置かない）。
 - Cursor: スキルの一部が見えない。詳細は `.devcontainer/README.md` の「エージェントの読み込みの制約」。
 - pi: プロジェクトを信頼（trust）すると、`.pi/settings.json`（組み込み MCP の有効化）と `.pi/mcp.json`（Google Developer Knowledge の
-  MCP サーバー）、`.pi/APPEND_SYSTEM.md`（pi 固有の指示）、プロジェクトのスキル（`.agents/skills`）が読まれる。ワールドは `.pi -> ../.pi` から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
+  MCP サーバー）、`.pi/APPEND_SYSTEM.md`（pi 固有の指示）、プロジェクトのスキル（`.agents/skills`）が読まれる。ワールドはプロジェクト直下の `.pi` symlink（ルートへの相対パスはプロジェクトの深さに応じる）から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
   「組み込み MCP と廃止した拡張」にある。
 - pi-superagents: 組み込みと同じ定義（`sp-*.md`）は追跡しない。独自に変えた `.agents/sp-implementer.md` だけを追跡する。
 
 ## プロジェクトを作る
 
 ```bash
-bash scripts/new-world.sh <name>            # resoloop init の後に雛形（CLAUDE.md、pyproject.toml、symlink など）を適用する
+bash scripts/new-world.sh <name>            # worlds/<name>/ に resoloop init し、雛形（CLAUDE.md、pyproject.toml、symlink など）を適用する
 bash scripts/new-world.sh --apply <name>    # 既存のプロジェクトに、雛形の足りない分だけを適用する
 ```
 
+プロジェクトは `worlds/` の直下に作られ、git の追跡対象外のローカルの作業物になる。`--apply` は
+`worlds/<name>/` と、追跡解除した従来位置（`MyResoniteProject/`・`akichi/`・`slum02/`・`slum03/`）の
+プロジェクトの両方に使える。`worlds/` は実ディレクトリである必要がある（symlink にはできない。
+プロジェクトからルートへの相対 symlink が symlink 先基準で解決されて届かなくなるため）。
+
 既存のファイルは上書きせず、食い違いがあれば報告して止まる。プロジェクトのテストは、そのディレクトリで `uv run pytest` を実行する。
+uv が無い環境では `--no-sync` で雛形だけを適用できるが、その場合は `uv.lock` がまだ無いので、uv を導入して `uv sync` するまで
+`scripts/check-layout.sh` が `uv.lock` の欠落を報告する。
 
 ## ResoLoop の版
 
@@ -105,9 +183,9 @@ postCreate は Meshy CLI の導入と無認証の version / help 確認だけを
 
 ```bash
 bash .devcontainer/run-tests.bash          # Dev Container とスクリプトのテスト
-bash scripts/check-layout.sh               # リポジトリのレイアウト
+bash scripts/check-layout.sh               # リポジトリのレイアウトとローカルプロジェクトの雛形
 uv run pytest tests/skills .agents/skills  # スキルのテスト
-(cd slum02 && uv run pytest)               # 各プロジェクトのテスト
+(cd worlds/<name> && uv run pytest)        # 各ローカルプロジェクトのテスト（追跡対象外なので CI では実行しない）
 ```
 
 ## 対象外
