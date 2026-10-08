@@ -20,7 +20,7 @@ if [ -z "$version" ]; then
 fi
 printf 'Toolchain verification: resoloop %s\n' "$version"
 if ! blender --background --factory-startup --python-exit-code 1 \
-    --python-expr 'import bpy; assert bpy.app.background' </dev/null; then
-    echo 'Toolchain verification: Blender cannot run headlessly.' >&2
+    --python-expr 'import bpy, numpy; assert bpy.app.background' </dev/null; then
+    echo 'Toolchain verification: Blender cannot run headlessly with bpy and NumPy.' >&2
     exit 1
 fi

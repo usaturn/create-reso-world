@@ -11,7 +11,7 @@
 ├── AGENTS.md                  共通規約の正本（CLAUDE.md は @AGENTS.md を読み込む）
 ├── .agents/skills/            共有スキルの正本（.claude/skills/ はここへの symlink）
 ├── .devcontainer/             Dev Container の設定、導入スクリプト、テスト（詳細は .devcontainer/README.md）
-├── scripts/                   new-world.sh（プロジェクトの作成）、resoloop-fork.sh（fork の運用）、check-layout.sh（レイアウト検査）
+├── scripts/                   new-world.sh（プロジェクトの作成）、resoloop-fork.sh（fork の運用）、meshy.py（生成・変換）、check-layout.sh（レイアウト検査）
 ├── templates/world-project/   プロジェクトの雛形
 ├── docs/                      設計と計画（docs/superpowers/）、fork の運用、統合手順、pi と Claude Code の設定の移植の記録
 ├── tests/                     スクリプトのテスト（tests/scripts/）とスキルのテスト（tests/skills/）
@@ -78,6 +78,22 @@ bash .devcontainer/install_resoloop.bash
 上流に未取り込みの修正を一時的に使うときは、`bash scripts/resoloop-fork.sh install <fork のブランチ>` で fork（usaturn/resoloop）の
 ビルドを導入する。次の rebuild か、上の 1 行で最新の公開版に戻る。fork の checkout は `external/resoloop`（git の追跡対象外）に置く。
 fork の使い方と上流への PR の流れは `docs/resoloop-fork-workflow.md` にある。
+
+## Meshy から小物を取り込む
+
+公式 `meshy-cli` と `scripts/meshy.py` で text / local image から生成し、Blender の編集用データと ResoLoop bundle を作る。
+有機的・曖昧な形や画像参考には Meshy、寸法・機械構造・厳密な低ポリ再現には Blender を使う。
+postCreate は Meshy CLI の導入と無認証の version / help 確認だけを行い、API・課金・ワールド適用は行わない。
+
+- 手順と全 CLI 例: [docs/meshy-resoloop.md](docs/meshy-resoloop.md)。キーは利用者が zsh で非表示入力し、環境変数だけで渡す。キー / env ファイルは作らない。
+- 共有スキル: [.agents/skills/meshy-resoloop/SKILL.md](.agents/skills/meshy-resoloop/SKILL.md)（root の `.claude/skills` からも同じ実体）。
+  新規・既存プロジェクトとも祖先のスキルを使う。見えないエージェントにはこの repository-relative パスを明示し、本文コピーや設定変更はしない。
+- 対象・件数・予算・条件を承認してから `plan` → `submit` → `wait` → `download` → `convert`。
+  text preview と refine は別 operation・計2件の課金操作。応答不明の送信は再送せず、journal と `list` / `attach` で復旧する。
+- convert は culling 保持不可を既定で拒否する。`--allow-culling-change` はその損失だけの明示許可で、他の非対応素材を許可しない。
+- Windows へ bundle 一式を渡し、確認済み URL / parent と共有 state 一つで `diff` → 承認 → `apply` → 再適用 / `test`。自動 live 操作はしない。
+
+実 API・課金生成、標準 rebuild、Windows の texture 表示・無変更収束は **未検証**。実機受入 checklist は上記手順にある。PR は `Refs #50`（自動 close なし）。
 
 ## 変更の流れ
 
