@@ -105,16 +105,15 @@ check_symlinks_resolve() {
   fi
 }
 
-# 3. 追跡中かつ ignore 対象は既知の例外だけ（ignore 規則は作業ツリーの .gitignore と .git/info/exclude から読まれる）
+# 3. 追跡中かつ ignore 対象は 0 件であること（ignore 規則は作業ツリーの .gitignore と .git/info/exclude から読まれる）。
+# ワールドの作業領域は全体が ignore 対象なので、git add -f で追跡したファイルもここで検出できる
 check_tracked_ignored() {
-  local allow='MyResoniteProject/.resoloop/tokyo-nova/pipeline.json'
   if ! git -c core.excludesFile=/dev/null ls-files -z -i -c --exclude-standard > "$tmp_list"; then
     fail "git ls-files -i failed"
     return
   fi
   local hits=() path
   while IFS= read -r -d '' path; do
-    [ "$path" = "$allow" ] && continue
     hits+=("$path")
   done < "$tmp_list"
   if [ ${#hits[@]} -gt 0 ]; then
@@ -124,7 +123,7 @@ check_tracked_ignored() {
   fi
 }
 
-# 4. <prefix>.claude/skills の各エントリが <prefix>.agents/skills の同名ディレクトリへの symlink で、1:1 に対応する（仕様 4.2・8.1・9.1）
+# 4. ルートの .claude/skills の各エントリが .agents/skills の同名ディレクトリへの symlink で、1:1 に対応する（仕様 4.2・8.1・9.1）
 # 引数: 接頭辞。ルートは ""、プロジェクトは "slum02/" のように末尾に / を付ける
 # リンクが要るのは、追跡ファイルを 1 つ以上持つ .agents/skills 直下のディレクトリ。SKILL.md の有無は問わない
 # （ルートの references/ のように、SKILL.md を持たない共有ディレクトリにもリンクが要る）。
@@ -208,49 +207,122 @@ check_skill_hygiene() {
   fi
 }
 
-# 6. 各プロジェクト（.resoloop.json を追跡している直下のディレクトリ）が仕様 4.2 の標準レイアウトを満たす
-projects=()
-collect_projects() {
-  local path
-  if ! git ls-files -z -- '*/.resoloop.json' > "$tmp_list"; then
-    fail "git ls-files failed for */.resoloop.json"
+# 6. ワールドの作業領域（worlds/ と追跡解除した従来位置の 4 名）の下に追跡ファイルが無いこと。
+# 追跡解除の回帰と、git add -f による再混入を防ぐ
+check_work_areas_untracked() {
+  if ! git ls-files -z -- worlds MyResoniteProject akichi slum02 slum03 > "$tmp_list"; then
+    fail "git ls-files failed for the world work areas"
     return
   fi
+  local hits=() path
   while IFS= read -r -d '' path; do
-    [[ "$path" =~ ^[^/]+/\.resoloop\.json$ ]] || continue
-    projects+=("${path%%/*}")
+    hits+=("$path")
   done < "$tmp_list"
+  if [ ${#hits[@]} -gt 0 ]; then
+    fail "tracked files under the world work areas: ${hits[*]:0:5}${hits[5]:+ ...}"
+  else
+    ok "no tracked files under the world work areas"
+  fi
+}
+
+# 7. ローカルプロジェクト（作業領域の直下にあり .resoloop.json を持つディレクトリ）が仕様 4.2 の
+# 標準レイアウトを満たす。追跡していないため index ではなく作業ツリーで検査する。
+# 作業領域は worlds/ の直下と、追跡解除した従来位置の 4 名。
+# .devcontainer/report-resoloop-skills.bash と同じ定義。external/・private/・worktree・深い階層は走査しない
+projects=()
+collect_projects() {
+  local d
+  projects=()
+  while IFS= read -r d; do
+    [ -f "$d/.resoloop.json" ] && projects+=("$d")
+  done < <( { for d in worlds/*/; do [ -d "$d" ] && printf '%s\n' "${d%/}"; done
+              printf '%s\n' MyResoniteProject akichi slum02 slum03; } | LC_ALL=C sort -u )
+  return 0  # 最後の候補がプロジェクトでなくても検出自体は成功
+}
+
+# リンクが要る .agents/skills 直下のディレクトリ: ファイルを 1 つ以上持つもの（SKILL.md の有無は問わない）。
+# scripts/new-world.sh の has_files と同じ定義
+has_files() { [ -d "$1" ] && [ -n "$(find "$1" -type f -print -quit 2>/dev/null)" ]; }
+
+# <prefix>.claude/skills の各エントリが <prefix>.agents/skills の同名ディレクトリへの symlink で 1:1 に
+# 対応することを作業ツリーで確かめる（ローカルプロジェクト向け。check_skill_links の作業ツリー版）
+check_local_skill_links() {
+  local prefix="$1"
+  local agents="${prefix}.agents/skills" claude="${prefix}.claude/skills"
+  local -A dirs=() links=()
+  local problems=() names=() d l n target
+  if [ -L "$claude" ]; then
+    problems+=("${claude} must be a directory, not a symlink")
+  elif [ -d "$claude" ]; then
+    local e
+    shopt -s dotglob nullglob
+    for e in "$claude"/*; do
+      n="$(basename "$e")"
+      links["$n"]=1
+      if [ ! -L "$e" ]; then
+        problems+=("${claude}/${n} is not a symlink")
+        continue
+      fi
+      target="$(readlink "$e")"
+      [ "$target" = "../../.agents/skills/$n" ] || problems+=("${claude}/${n} has unexpected target $target")
+      [ -d "$agents/$n" ] || problems+=("${claude}/${n} has no matching ${agents}/${n}")
+    done
+    shopt -u dotglob nullglob
+  fi
+  shopt -s dotglob nullglob
+  for d in "$agents"/*/; do
+    d="${d%/}"
+    has_files "$d" || continue
+    n="$(basename "$d")"
+    dirs["$n"]=1
+  done
+  shopt -u dotglob nullglob
+  if [ ${#dirs[@]} -gt 0 ]; then
+    mapfile -t names < <(printf '%s\n' "${!dirs[@]}" | LC_ALL=C sort)
+  fi
+  for n in ${names[@]+"${names[@]}"}; do
+    [ -n "${links[$n]+x}" ] || problems+=("${claude}: missing link ${n}")
+  done
+  if [ ${#problems[@]} -gt 0 ]; then
+    local q
+    for q in "${problems[@]}"; do fail "$q"; done
+  else
+    ok "${claude} links are 1:1 with ${agents}"
+  fi
 }
 
 check_project() {
-  local p="$1" problems=() f link target sp entry content
+  local p="$1" problems=() f link target sp content i
+  # ルートを指す symlink の行き先はプロジェクトの深さで決まる（new-world.sh と同じ規則）。
+  # ルート直下は深さ 1、worlds/<name> は深さ 2
+  local rel="${p#./}" depth=0 up_in="" up_sub=""
+  for ((i = 0; i < ${#rel}; i++)); do [ "${rel:i:1}" = / ] && depth=$((depth + 1)); done
+  depth=$((depth + 1))
+  for ((i = 0; i < depth; i++)); do up_in+='../'; done
+  for ((i = 0; i < depth + 1; i++)); do up_sub+='../'; done
   for f in AGENTS.md CLAUDE.md .resoloop.json .resoloop/.gitignore pyproject.toml uv.lock \
            .agents/skills/.resoloop-bundled.json flux/resoloop.flux.json; do
-    if ! entry="$(index_entry "$p/$f")"; then
-      problems+=("missing tracked file $f")
-    elif [ "${entry%% *}" != 100644 ] && [ "${entry%% *}" != 100755 ]; then
-      problems+=("$f must be a regular file (index mode ${entry%% *})")
+    if [ -L "$p/$f" ] || [ ! -f "$p/$f" ]; then
+      problems+=("missing regular file $f")
     fi
   done
   # 比較と検索は変数に取り込んでから行う（pipefail の下で grep -q が上流を SIGPIPE で落とすのを避ける）
-  content="$(git cat-file blob ":$p/CLAUDE.md" 2>/dev/null; printf x)"
+  content="$(cat "$p/CLAUDE.md" 2>/dev/null; printf x)"
   [ "$content" = $'@AGENTS.md\nx' ] || problems+=("CLAUDE.md must be exactly @AGENTS.md")
-  content="$(git cat-file blob ":$p/AGENTS.md" 2>/dev/null || true)"
+  content="$(cat "$p/AGENTS.md" 2>/dev/null || true)"
   grep -qxF '## このプロジェクト固有' <<<"$content" || problems+=("AGENTS.md lacks ## このプロジェクト固有")
-  content="$(git cat-file blob ":$p/.resoloop/.gitignore" 2>/dev/null || true)"
+  content="$(cat "$p/.resoloop/.gitignore" 2>/dev/null || true)"
   grep -qxF 'cache/' <<<"$content" || problems+=(".resoloop/.gitignore lacks cache/")
-  local links=(".claude/settings.json|../../.claude/settings.json" ".pi|../.pi")
-  if ! git ls-files -z -- '.agents/sp-*.md' > "$tmp_list"; then
-    fail "git ls-files failed for .agents/sp-*.md"
-    return
-  fi
-  while IFS= read -r -d '' sp; do
-    links+=(".agents/${sp##*/}|../../.agents/${sp##*/}")
-  done < "$tmp_list"
+  local links=(".claude/settings.json|${up_sub}.claude/settings.json" ".pi|${up_in}.pi")
+  shopt -s nullglob
+  for sp in .agents/sp-*.md; do
+    [ -f "$sp" ] || continue
+    links+=(".agents/${sp##*/}|${up_sub}.agents/${sp##*/}")
+  done
+  shopt -u nullglob
   for link in "${links[@]}"; do
     f="${link%%|*}" target="${link#*|}"
-    entry="$(index_entry "$p/$f" || true)"
-    if [ "${entry%% *}" != 120000 ] || [ "$(git cat-file blob "${entry#* }")" != "$target" ]; then
+    if [ ! -L "$p/$f" ] || [ "$(readlink "$p/$f")" != "$target" ]; then
       problems+=("$f must be a symlink to $target")
     fi
   done
@@ -260,10 +332,10 @@ check_project() {
   else
     ok "project $p layout"
   fi
-  check_skill_links "$p/"
+  check_local_skill_links "$p/"
 }
 
-# 7. resoloop が使える環境では、各プロジェクトで resoloop skills sync --check を実行する（resoloop は作業ツリーを読む）。
+# 8. resoloop が使える環境では、各ローカルプロジェクトで resoloop skills sync --check を実行する（resoloop は作業ツリーを読む）。
 # 導入済みの resoloop が新しい同梱スキルを持つだけ（SKILL_SYNC_REQUIRED）なら warn を表示して通過する。ResoLoop は常に最新を
 # 入れるので、上流のリリースのたびに起きるため（仕様: docs/superpowers/specs/2026-10-06-issue-41-resoloop-latest-without-lock-design.md D-13）。
 # 手で編集した同梱スキル（SKILL_SYNC_CONFLICT）などそれ以外の失敗は FAIL にする。どちらも resoloop の出力を字下げして示す
@@ -289,7 +361,7 @@ check_resoloop_skills() {
   done
 }
 
-# .devcontainer/ の NAME... を index から DEST に書き出す（検査 8 が使う）。無いものと読めないものは
+# .devcontainer/ の NAME... を index から DEST に書き出す（検査 9 が使う）。無いものと読めないものは
 # 1 件ずつ FAIL にし、1 つでもあれば 1 を返す
 extract_devcontainer_files() {
   local dest="$1" name entry bad=0
@@ -311,7 +383,7 @@ extract_devcontainer_files() {
   return "$bad"
 }
 
-# 8. devcontainer.json の mounts のソースと initialize.bash が作るパスが一致する（仕様 7.2・9.1）。
+# 9. devcontainer.json の mounts のソースと initialize.bash が作るパスが一致する（仕様 7.2・9.1）。
 # .devcontainer/devcontainer.json を追跡しているリポジトリだけが対象。3 つのファイルを index から取り出し、
 # .devcontainer/mounts.bash の mounts_compare で突き合わせる
 check_mounts() {
@@ -340,6 +412,7 @@ check_symlinks_resolve
 check_tracked_ignored
 check_skill_links ""
 check_skill_hygiene
+check_work_areas_untracked
 collect_projects
 for p in ${projects[@]+"${projects[@]}"}; do check_project "$p"; done
 check_resoloop_skills

@@ -174,11 +174,40 @@ printf 'README.md\n' > "$tmp/global-ignore"
 printf '[core]\n\texcludesFile = %s\n' "$tmp/global-ignore" > "$tmp/global-gitconfig"
 GIT_CONFIG_COUNT=0 GIT_CONFIG_GLOBAL="$tmp/global-gitconfig" bash "$checker" --root "$tmp/clean" | grep -qF 'PASS: check-layout'
 
-# 仕様 4.2 を満たすプロジェクトを 1 つ持つリポジトリを作る。$2 はプロジェクト名（既定: demo）
+# 仕様 4.2 を満たすローカルプロジェクトを 1 つ持つリポジトリを作る。$2 はプロジェクト名（既定: demo）。
+# 作る場所は ignore 対象の worlds/<name> で、プロジェクトのファイルは追跡しない（共有の設定だけを追跡する）。
+# worlds/<name> は深さ 2 なので、ルートを指す symlink は ../ を 3 つ使う
 project_repo() {
   local r="$1" n="${2:-demo}"
+  local p="$r/worlds/$n"
+  new_repo "$r"
+  printf '/worlds/\n' > "$r/.gitignore"
+  mkdir -p "$r/.claude" "$r/.pi" "$r/.agents" "$p/.agents/skills/resonite-build" "$p/.claude/skills" "$p/.resoloop" "$p/flux"
+  printf '{}\n' > "$r/.claude/settings.json"
+  printf 'pi\n' > "$r/.pi/APPEND_SYSTEM.md"
+  printf -- '---\nname: sp-implementer\n---\n' > "$r/.agents/sp-implementer.md"
+  printf '# guide\n\n## このプロジェクト固有\n\n- test\n' > "$p/AGENTS.md"
+  printf '@AGENTS.md\n' > "$p/CLAUDE.md"
+  printf '{}\n' > "$p/.resoloop.json"
+  printf 'state/\nflux-state/\ncache/\n' > "$p/.resoloop/.gitignore"
+  printf '[project]\nname = "%s"\n' "$n" > "$p/pyproject.toml"
+  printf 'version = 1\n' > "$p/uv.lock"
+  printf '{}\n' > "$p/.agents/skills/.resoloop-bundled.json"
+  printf -- '---\nname: resonite-build\ndescription: d\n---\n' > "$p/.agents/skills/resonite-build/SKILL.md"
+  printf '{}\n' > "$p/flux/resoloop.flux.json"
+  ln -s ../../.agents/skills/resonite-build "$p/.claude/skills/resonite-build"
+  ln -s ../../../.claude/settings.json "$p/.claude/settings.json"
+  ln -s ../../.pi "$p/.pi"
+  ln -s ../../../.agents/sp-implementer.md "$p/.agents/sp-implementer.md"
+  commit_paths "$r" .claude .pi .agents .gitignore
+}
+
+# 追跡解除した従来位置のプロジェクト（ルート直下・深さ 1）を持つリポジトリを作る
+legacy_project_repo() {
+  local r="$1" n="${2:-akichi}"
   local p="$r/$n"
   new_repo "$r"
+  printf '/%s/\n' "$n" > "$r/.gitignore"
   mkdir -p "$r/.claude" "$r/.pi" "$r/.agents" "$p/.agents/skills/resonite-build" "$p/.claude/skills" "$p/.resoloop" "$p/flux"
   printf '{}\n' > "$r/.claude/settings.json"
   printf 'pi\n' > "$r/.pi/APPEND_SYSTEM.md"
@@ -196,7 +225,7 @@ project_repo() {
   ln -s ../../.claude/settings.json "$p/.claude/settings.json"
   ln -s ../.pi "$p/.pi"
   ln -s ../../.agents/sp-implementer.md "$p/.agents/sp-implementer.md"
-  commit_paths "$r" .claude .pi .agents "$n"
+  commit_paths "$r" .claude .pi .agents .gitignore
 }
 
 # モックの resoloop: MOCK_RESOLOOP_FAIL と同名のプロジェクトは同梱スキルの更新（SKILL_SYNC_REQUIRED）、
@@ -214,11 +243,11 @@ EOF
 chmod +x "$tmp/mockbin/resoloop"
 mock_path="$tmp/mockbin:$PATH"
 
-# 21. 標準レイアウトのプロジェクトは通過し、resoloop があれば同期を確かめる
+# 21. 標準レイアウトのローカルプロジェクトは通過し、resoloop があれば同期を確かめる
 project_repo "$tmp/proj-ok"
 PATH="$mock_path" bash "$checker" --root "$tmp/proj-ok" > "$tmp/proj-ok.out"
-grep -qF 'ok: project demo layout' "$tmp/proj-ok.out"
-grep -qF 'ok: resoloop skills sync --check (demo)' "$tmp/proj-ok.out"
+grep -qF 'ok: project worlds/demo layout' "$tmp/proj-ok.out"
+grep -qF 'ok: resoloop skills sync --check (worlds/demo)' "$tmp/proj-ok.out"
 grep -qF 'PASS: check-layout' "$tmp/proj-ok.out"
 
 # 22. resoloop が無い環境（CI）では skip を表示して通過する
@@ -234,45 +263,47 @@ grep -qF 'PASS: check-layout' "$tmp/proj-skip.out"
 #     （SKILL_SYNC_CONFLICT）は失敗する。どちらも resoloop の出力を字下げして示す
 PATH="$mock_path" MOCK_RESOLOOP_FAIL=demo bash "$checker" --root "$tmp/proj-ok" > "$tmp/proj-drift.out" 2>&1 \
   || { cat "$tmp/proj-drift.out" >&2; printf 'FAIL: an outdated bundled skill failed check-layout\n' >&2; exit 1; }
-grep -qF 'warn: resoloop skills sync --check (demo)' "$tmp/proj-drift.out" || { cat "$tmp/proj-drift.out" >&2; printf 'FAIL: no warn line\n' >&2; exit 1; }
+grep -qF 'warn: resoloop skills sync --check (worlds/demo)' "$tmp/proj-drift.out" || { cat "$tmp/proj-drift.out" >&2; printf 'FAIL: no warn line\n' >&2; exit 1; }
 grep -qxF '    SKILL_SYNC_REQUIRED' "$tmp/proj-drift.out" || { cat "$tmp/proj-drift.out" >&2; printf 'FAIL: resoloop output was not relayed\n' >&2; exit 1; }
 grep -qF 'PASS: check-layout' "$tmp/proj-drift.out"
-PATH="$mock_path" MOCK_RESOLOOP_CONFLICT=demo expect_fail_with "$tmp/proj-ok" 'resoloop skills sync --check failed for demo'
+PATH="$mock_path" MOCK_RESOLOOP_CONFLICT=demo expect_fail_with "$tmp/proj-ok" 'resoloop skills sync --check failed for worlds/demo'
 grep -qxF '    SKILL_SYNC_CONFLICT' "$tmp/out.txt" || { cat "$tmp/out.txt" >&2; printf 'FAIL: resoloop output was not relayed\n' >&2; exit 1; }
 
-# 24〜30. 標準レイアウトからの逸脱は失敗する（以降は mock の resoloop で実行する）
+# 24〜30. 標準レイアウトからの逸脱は失敗する（以降は mock の resoloop で実行する）。
+# ローカルプロジェクトは追跡しないので、作業ツリーの変更がそのまま検査対象になる
 export PATH="$mock_path"
-project_repo "$tmp/p24" && git -C "$tmp/p24" rm -q demo/CLAUDE.md && git -C "$tmp/p24" commit -q -m rm
-expect_fail_with "$tmp/p24" 'demo: missing tracked file CLAUDE.md'
+project_repo "$tmp/p24" && rm "$tmp/p24/worlds/demo/CLAUDE.md"
+expect_fail_with "$tmp/p24" 'worlds/demo: missing regular file CLAUDE.md'
 
-project_repo "$tmp/p25" && printf 'other\n' > "$tmp/p25/demo/CLAUDE.md" && commit_paths "$tmp/p25" demo
-expect_fail_with "$tmp/p25" 'demo: CLAUDE.md must be exactly @AGENTS.md'
+project_repo "$tmp/p25" && printf 'other\n' > "$tmp/p25/worlds/demo/CLAUDE.md"
+expect_fail_with "$tmp/p25" 'worlds/demo: CLAUDE.md must be exactly @AGENTS.md'
 
-project_repo "$tmp/p26" && printf '# guide\n' > "$tmp/p26/demo/AGENTS.md" && commit_paths "$tmp/p26" demo
-expect_fail_with "$tmp/p26" 'demo: AGENTS.md lacks ## このプロジェクト固有'
+project_repo "$tmp/p26" && printf '# guide\n' > "$tmp/p26/worlds/demo/AGENTS.md"
+expect_fail_with "$tmp/p26" 'worlds/demo: AGENTS.md lacks ## このプロジェクト固有'
 
-project_repo "$tmp/p27" && printf 'state/\nflux-state/\n' > "$tmp/p27/demo/.resoloop/.gitignore" && commit_paths "$tmp/p27" demo
-expect_fail_with "$tmp/p27" 'demo: .resoloop/.gitignore lacks cache/'
+project_repo "$tmp/p27" && printf 'state/\nflux-state/\n' > "$tmp/p27/worlds/demo/.resoloop/.gitignore"
+expect_fail_with "$tmp/p27" 'worlds/demo: .resoloop/.gitignore lacks cache/'
 
-project_repo "$tmp/p28" && rm "$tmp/p28/demo/.pi" && ln -s ../.agents "$tmp/p28/demo/.pi" && commit_paths "$tmp/p28" demo
-expect_fail_with "$tmp/p28" 'demo: .pi must be a symlink to ../.pi'
+project_repo "$tmp/p28" && rm "$tmp/p28/worlds/demo/.pi" && ln -s ../../.agents "$tmp/p28/worlds/demo/.pi"
+expect_fail_with "$tmp/p28" 'worlds/demo: .pi must be a symlink to ../../.pi'
 
-project_repo "$tmp/p29" && git -C "$tmp/p29" rm -q demo/.claude/skills/resonite-build && git -C "$tmp/p29" commit -q -m rm
-expect_fail_with "$tmp/p29" 'demo/.claude/skills: missing link resonite-build'
+project_repo "$tmp/p29" && rm "$tmp/p29/worlds/demo/.claude/skills/resonite-build"
+expect_fail_with "$tmp/p29" 'worlds/demo/.claude/skills: missing link resonite-build'
 
-project_repo "$tmp/p30" && git -C "$tmp/p30" rm -q demo/.agents/sp-implementer.md && git -C "$tmp/p30" commit -q -m rm
-expect_fail_with "$tmp/p30" 'demo: .agents/sp-implementer.md must be a symlink to ../../.agents/sp-implementer.md'
+project_repo "$tmp/p30" && rm "$tmp/p30/worlds/demo/.agents/sp-implementer.md"
+expect_fail_with "$tmp/p30" 'worlds/demo: .agents/sp-implementer.md must be a symlink to ../../../.agents/sp-implementer.md'
 
-# 31. .resoloop.json の無いディレクトリはプロジェクトとして扱わない
+# 31. .resoloop.json の無いディレクトリはローカルプロジェクトとして扱わない（作業領域の直下でも同じ）
 project_repo "$tmp/p31"
 mkdir -p "$tmp/p31/notes" && printf '# notes\n' > "$tmp/p31/notes/AGENTS.md" && commit_paths "$tmp/p31" notes
+mkdir -p "$tmp/p31/worlds/scratch" && printf '{}\n' > "$tmp/p31/worlds/scratch/notes.json"
 bash "$checker" --root "$tmp/p31" | grep -qF 'PASS: check-layout'
 
-# 32. ネストした .resoloop.json が（ソート順で）最後に列挙されても検査を継続する
+# 32. 作業領域の更に深い階層にある .resoloop.json は検出しない（プロジェクトは直下だけ）
 project_repo "$tmp/p32"
-mkdir -p "$tmp/p32/zzz/sub" && printf '{}\n' > "$tmp/p32/zzz/sub/.resoloop.json" && commit_paths "$tmp/p32" zzz
+mkdir -p "$tmp/p32/worlds/zzz/sub" && printf '{}\n' > "$tmp/p32/worlds/zzz/sub/.resoloop.json"
 bash "$checker" --root "$tmp/p32" > "$tmp/p32.out"
-grep -qF 'ok: project demo layout' "$tmp/p32.out"
+grep -qF 'ok: project worlds/demo layout' "$tmp/p32.out"
 grep -qF 'PASS: check-layout' "$tmp/p32.out"
 
 # 33. .agents/skills 直下のファイルはリンクの対象外
@@ -306,54 +337,59 @@ expect_fail_with "$tmp/order" 'missing link alpha'
 [ "$(grep -o 'missing link [a-z]*' "$tmp/out.txt" | sed 's/^missing link //' | tr '\n' ' ')" = 'alpha beta delta foo kappa mid omega zeta ' ] \
   || { cat "$tmp/out.txt" >&2; printf 'FAIL: missing links are not sorted\n' >&2; exit 1; }
 
-# 37. プロジェクトの .claude/skills でも、余分・向き違い・実ディレクトリを検出する
+# 37. ローカルプロジェクトの .claude/skills でも、余分・向き違い・実ディレクトリを検出する
 project_repo "$tmp/p37a"
-mkdir -p "$tmp/p37a/elsewhere/extra" && printf 'x\n' > "$tmp/p37a/elsewhere/extra/SKILL.md"
-ln -s ../../../elsewhere/extra "$tmp/p37a/demo/.claude/skills/extra"
-commit_paths "$tmp/p37a" elsewhere demo
-expect_fail_with "$tmp/p37a" 'demo/.claude/skills/extra has no matching demo/.agents/skills/extra'
+mkdir -p "$tmp/p37a/worlds/demo/elsewhere/extra" && printf 'x\n' > "$tmp/p37a/worlds/demo/elsewhere/extra/SKILL.md"
+ln -s ../../elsewhere/extra "$tmp/p37a/worlds/demo/.claude/skills/extra"
+expect_fail_with "$tmp/p37a" 'worlds/demo/.claude/skills/extra has no matching worlds/demo/.agents/skills/extra'
 project_repo "$tmp/p37b"
-rm "$tmp/p37b/demo/.claude/skills/resonite-build" && ln -s ../../../.agents/skills/resonite-build "$tmp/p37b/demo/.claude/skills/resonite-build"
-commit_paths "$tmp/p37b" demo
-expect_fail_with "$tmp/p37b" 'demo/.claude/skills/resonite-build has unexpected target ../../../.agents/skills/resonite-build'
+rm "$tmp/p37b/worlds/demo/.claude/skills/resonite-build" && ln -s ../../../.agents/skills/resonite-build "$tmp/p37b/worlds/demo/.claude/skills/resonite-build"
+expect_fail_with "$tmp/p37b" 'worlds/demo/.claude/skills/resonite-build has unexpected target ../../../.agents/skills/resonite-build'
 project_repo "$tmp/p37c"
-rm "$tmp/p37c/demo/.claude/skills/resonite-build" && mkdir "$tmp/p37c/demo/.claude/skills/resonite-build"
-cp "$tmp/p37c/demo/.agents/skills/resonite-build/SKILL.md" "$tmp/p37c/demo/.claude/skills/resonite-build/SKILL.md"
-commit_paths "$tmp/p37c" demo
-expect_fail_with "$tmp/p37c" 'demo/.claude/skills/resonite-build is not a symlink'
+rm "$tmp/p37c/worlds/demo/.claude/skills/resonite-build" && mkdir "$tmp/p37c/worlds/demo/.claude/skills/resonite-build"
+cp "$tmp/p37c/worlds/demo/.agents/skills/resonite-build/SKILL.md" "$tmp/p37c/worlds/demo/.claude/skills/resonite-build/SKILL.md"
+expect_fail_with "$tmp/p37c" 'worlds/demo/.claude/skills/resonite-build is not a symlink'
 
 # 38. CLAUDE.md は @AGENTS.md の 1 行だけ（末尾の空行も認めない）
-project_repo "$tmp/p38" && printf '@AGENTS.md\n\n\n' > "$tmp/p38/demo/CLAUDE.md" && commit_paths "$tmp/p38" demo
-expect_fail_with "$tmp/p38" 'demo: CLAUDE.md must be exactly @AGENTS.md'
+project_repo "$tmp/p38" && printf '@AGENTS.md\n\n\n' > "$tmp/p38/worlds/demo/CLAUDE.md"
+expect_fail_with "$tmp/p38" 'worlds/demo: CLAUDE.md must be exactly @AGENTS.md'
 
-# 39. 必須ファイルと同名のディレクトリ（demo/uv.lock/x）は必須ファイルとして数えない
-project_repo "$tmp/p39" && git -C "$tmp/p39" rm -q demo/uv.lock
-mkdir -p "$tmp/p39/demo/uv.lock" && printf 'x\n' > "$tmp/p39/demo/uv.lock/x" && commit_paths "$tmp/p39" demo
-expect_fail_with "$tmp/p39" 'demo: missing tracked file uv.lock'
+# 39. 必須ファイルと同名のディレクトリ（worlds/demo/uv.lock/x）は必須ファイルとして数えない
+project_repo "$tmp/p39" && rm "$tmp/p39/worlds/demo/uv.lock"
+mkdir -p "$tmp/p39/worlds/demo/uv.lock" && printf 'x\n' > "$tmp/p39/worlds/demo/uv.lock/x"
+expect_fail_with "$tmp/p39" 'worlds/demo: missing regular file uv.lock'
 
 # 40. - で始まるプロジェクト名も検査でき、resoloop には ./ 付きで渡す
 project_repo "$tmp/p40" -dash
 bash "$checker" --root "$tmp/p40" > "$tmp/p40.out"
-grep -qF 'ok: project -dash layout' "$tmp/p40.out"
-grep -qF 'ok: resoloop skills sync --check (-dash)' "$tmp/p40.out"
+grep -qF 'ok: project worlds/-dash layout' "$tmp/p40.out"
+grep -qF 'ok: resoloop skills sync --check (worlds/-dash)' "$tmp/p40.out"
 
-# 41. 作業ツリーだけの変更は結果を変えない（index の内容で判定する）
-project_repo "$tmp/p41a" && printf 'other\n' > "$tmp/p41a/demo/CLAUDE.md" && commit_paths "$tmp/p41a" demo
-printf '@AGENTS.md\n' > "$tmp/p41a/demo/CLAUDE.md"
-expect_fail_with "$tmp/p41a" 'demo: CLAUDE.md must be exactly @AGENTS.md'
-skill_repo "$tmp/p41b"
-ln -s ../../.agents/skills/foo "$tmp/p41b/.claude/skills/foo"
-commit_paths "$tmp/p41b" .agents .claude
-rm "$tmp/p41b/.agents/skills/foo/SKILL.md"
-bash "$checker" --root "$tmp/p41b" > "$tmp/p41b.out" 2>&1 || true
-if grep -qF 'empty tracked file:' "$tmp/p41b.out"; then printf 'FAIL: a file deleted only from the worktree was reported as empty\n' >&2; exit 1; fi
-grep -qF 'ok: skill trees hold no retired or empty tracked files' "$tmp/p41b.out" || { cat "$tmp/p41b.out" >&2; printf 'FAIL: case 41b did not run the hygiene check to the end\n' >&2; exit 1; }
-grep -qF 'PASS: check-layout' "$tmp/p41b.out" || { cat "$tmp/p41b.out" >&2; printf 'FAIL: case 41b did not pass\n' >&2; exit 1; }
+# 41. 追跡解除した従来位置（ルート直下・深さ 1）のプロジェクトも検出し、深さに合う symlink を要求する
+legacy_project_repo "$tmp/p41a"
+bash "$checker" --root "$tmp/p41a" > "$tmp/p41a.out"
+grep -qF 'ok: project akichi layout' "$tmp/p41a.out"
+grep -qF 'ok: resoloop skills sync --check (akichi)' "$tmp/p41a.out"
+legacy_project_repo "$tmp/p41b" && rm "$tmp/p41b/akichi/.pi" && ln -s ../../.pi "$tmp/p41b/akichi/.pi"
+expect_fail_with "$tmp/p41b" 'akichi: .pi must be a symlink to ../.pi'
+skill_repo "$tmp/p41c"
+ln -s ../../.agents/skills/foo "$tmp/p41c/.claude/skills/foo"
+commit_paths "$tmp/p41c" .agents .claude
+rm "$tmp/p41c/.agents/skills/foo/SKILL.md"
+bash "$checker" --root "$tmp/p41c" > "$tmp/p41c.out" 2>&1 || true
+if grep -qF 'empty tracked file:' "$tmp/p41c.out"; then printf 'FAIL: a file deleted only from the worktree was reported as empty\n' >&2; exit 1; fi
+grep -qF 'ok: skill trees hold no retired or empty tracked files' "$tmp/p41c.out" || { cat "$tmp/p41c.out" >&2; printf 'FAIL: case 41c did not run the hygiene check to the end\n' >&2; exit 1; }
+grep -qF 'PASS: check-layout' "$tmp/p41c.out" || { cat "$tmp/p41c.out" >&2; printf 'FAIL: case 41c did not pass\n' >&2; exit 1; }
 
-# 42. core.symlinks=false の checkout（symlink が通常ファイルになる）でも通過する
-git clone -q -c core.symlinks=false "$tmp/proj-ok" "$tmp/nosymlinks"
-[ -f "$tmp/nosymlinks/demo/.pi" ] && [ ! -L "$tmp/nosymlinks/demo/.pi" ] || { printf 'FAIL: core.symlinks=false did not take effect\n' >&2; exit 1; }
-bash "$checker" --root "$tmp/nosymlinks" | grep -qF 'PASS: check-layout'
+# 42. ローカルプロジェクトは clone に含まれない（追跡しない）。clone はプロジェクト無しで通過する
+git clone -q "$tmp/proj-ok" "$tmp/cloned"
+[ ! -e "$tmp/cloned/worlds" ] || { printf 'FAIL: the clone contains the ignored worlds directory\n' >&2; exit 1; }
+bash "$checker" --root "$tmp/cloned" | grep -qF 'PASS: check-layout'
+# 作業領域の下に追跡ファイルがあれば失敗する（git add -f による再混入も含む）
+project_repo "$tmp/p42a" && git -C "$tmp/p42a" add -f worlds/demo/.resoloop.json && git -C "$tmp/p42a" commit -q -m track
+expect_fail_with "$tmp/p42a" 'tracked files under the world work areas'
+legacy_project_repo "$tmp/p42b" && git -C "$tmp/p42b" add -f akichi/.resoloop.json && git -C "$tmp/p42b" commit -q -m track
+expect_fail_with "$tmp/p42b" 'tracked files under the world work areas'
 
 # .devcontainer に devcontainer.json・mount の関数集・initialize.bash を持つ一時リポジトリを作る。
 # mounts は ~/.claude と ~/.claude.json の 2 つ
