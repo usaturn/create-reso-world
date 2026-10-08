@@ -108,7 +108,7 @@ rebuild しない場合は、3 の代わりに次を行う。dsh は rebuild す
 bash .devcontainer/run-tests.bash          # .devcontainer/test-*.bash と tests/scripts/*.bash（CI の devcontainer-tests）
 bash scripts/check-layout.sh               # リポジトリのレイアウト（CI の layout。resoloop が無ければ skills sync の検査を skip）
 uv run pytest tests/skills .agents/skills  # スキルのテスト（CI の skill-tests）
-(cd slum02 && uv run pytest)               # 各プロジェクトのテスト（MyResoniteProject・akichi・slum02 で同じ）
+(cd worlds/<name> && uv run pytest)        # 各ローカルプロジェクトのテスト（追跡対象外なので CI では実行しない）
 ```
 
 テストは一時ディレクトリの `HOME` と、モックの resoloop・dotnet・Blender を使うので、実環境を変えない。
@@ -164,7 +164,7 @@ toolchain probe は headless Blender の `import bpy, numpy` を確認する。�
 
 ## エージェントの読み込みの制約
 
-プロジェクト（`slum02/` など）を cwd にしてエージェントを起動したとき、次のエージェントはスキルの一部が見えない。
+プロジェクト（`worlds/<name>/` など）を cwd にしてエージェントを起動したとき、次のエージェントはスキルの一部が見えない。
 
 - Cursor は workspace 配下の `.agents/skills` しか読まないため、ルートの共有スキルが見えない。
   プロジェクトの resonite-* スキルは見える

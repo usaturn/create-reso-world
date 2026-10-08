@@ -1,8 +1,8 @@
 # create-reso-world
 
-[resoloop](https://github.com/orange3134/resoloop) と Blender で Resonite のワールドを作るための開発環境（Dev Container）と、
-ワールドのプロジェクトをまとめたリポジトリ。コーディングエージェント（Claude Code、Codex、pi、Cursor、Devin）で
-作業する前提で、共通の規約とスキルをリポジトリに置いている。
+[resoloop](https://github.com/orange3134/resoloop) と Blender で Resonite のワールドを作るための開発環境（Dev Container）。
+コーディングエージェント（Claude Code、Codex、pi、Cursor、Devin）で作業する前提で、共通の規約とスキルをリポジトリに置いている。
+ワールドのプロジェクトはローカルの作業物であり、このリポジトリでは追跡しない（issue #57）。
 
 ## 構成
 
@@ -15,8 +15,13 @@
 ├── templates/world-project/   プロジェクトの雛形
 ├── docs/                      設計と計画（docs/superpowers/）、fork の運用、統合手順、pi と Claude Code の設定の移植の記録
 ├── tests/                     スクリプトのテスト（tests/scripts/）とスキルのテスト（tests/skills/）
-└── MyResoniteProject/ akichi/ slum02/   ワールドのプロジェクト（resoloop のプロジェクト）
+└── worlds/<name>/             ワールドのプロジェクト（resoloop のプロジェクト。ローカル専用で git の追跡対象外）
 ```
+
+追跡解除した従来位置の `MyResoniteProject/`・`akichi/`・`slum02/`・`slum03/` もローカルの作業物としてそのまま残る
+（git の追跡対象外）。これらの checkout で追跡解除のコミットを取り込むときは、先にローカルの変更をコミットするか
+別の場所へ退避してから取り込むこと（追跡ファイルは checkout で消え得るため）。`git clean -fdx` は ignore 対象の
+ワールドも削除するので注意する。大きなワールドデータを共有したい場合は、別のリポジトリを作ってそちらで管理する。
 
 ## Dev Container を起動する
 
@@ -36,7 +41,7 @@
 
 ## エージェントで作業する
 
-エージェントは、作業するプロジェクト（例: `slum02/`）を cwd にして起動する。共通の規約はルートの `AGENTS.md`、
+エージェントは、作業するプロジェクト（例: `worlds/slum02/`）を cwd にして起動する。共通の規約はルートの `AGENTS.md`、
 プロジェクト固有の規約はプロジェクトの `AGENTS.md` にあり、どちらも読み込まれる。
 
 初回や設定の変更後に、次の点に注意する。
@@ -55,9 +60,14 @@
 ## プロジェクトを作る
 
 ```bash
-bash scripts/new-world.sh <name>            # resoloop init の後に雛形（CLAUDE.md、pyproject.toml、symlink など）を適用する
+bash scripts/new-world.sh <name>            # worlds/<name>/ に resoloop init し、雛形（CLAUDE.md、pyproject.toml、symlink など）を適用する
 bash scripts/new-world.sh --apply <name>    # 既存のプロジェクトに、雛形の足りない分だけを適用する
 ```
+
+プロジェクトは `worlds/` の直下に作られ、git の追跡対象外のローカルの作業物になる。`--apply` は
+`worlds/<name>/` と、追跡解除した従来位置（`MyResoniteProject/`・`akichi/`・`slum02/`・`slum03/`）の
+プロジェクトの両方に使える。`worlds/` は実ディレクトリである必要がある（symlink にはできない。
+プロジェクトからルートへの相対 symlink が symlink 先基準で解決されて届かなくなるため）。
 
 既存のファイルは上書きせず、食い違いがあれば報告して止まる。プロジェクトのテストは、そのディレクトリで `uv run pytest` を実行する。
 
@@ -105,9 +115,9 @@ postCreate は Meshy CLI の導入と無認証の version / help 確認だけを
 
 ```bash
 bash .devcontainer/run-tests.bash          # Dev Container とスクリプトのテスト
-bash scripts/check-layout.sh               # リポジトリのレイアウト
+bash scripts/check-layout.sh               # リポジトリのレイアウトとローカルプロジェクトの雛形
 uv run pytest tests/skills .agents/skills  # スキルのテスト
-(cd slum02 && uv run pytest)               # 各プロジェクトのテスト
+(cd worlds/<name> && uv run pytest)        # 各ローカルプロジェクトのテスト（追跡対象外なので CI では実行しない）
 ```
 
 ## 対象外

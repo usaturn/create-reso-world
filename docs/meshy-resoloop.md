@@ -11,12 +11,12 @@ Meshy は有機的・曖昧な形の小物や画像参考からの生成に向�
 祖先スキルが一覧に出ないエージェント（プロジェクト cwd の Cursor など）には、repository-relative の `.agents/skills/meshy-resoloop/SKILL.md` を明示して読ませる。
 スキル内の相対リンクは **SKILL.md の実体ディレクトリ基準**で解決する。プロジェクト内の `AGENTS.md` の所有範囲・安全規約も守る。
 
-以下の Linux 例は repository root で準備する。`slum02` は例なので、実際の対象に置き換える。
+以下の Linux 例は repository root で準備する。`worlds/demo` は例なので、実際の対象に置き換える。
 `--project` が書き込み先を決め、`.resoloop.json` が必要。project / operation 内の symlink と project 外の入出力は拒否される。
 
 ```bash
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-WORLD="$REPO_ROOT/slum02"
+WORLD="$REPO_ROOT/worlds/demo"
 meshy_op() { uv run --no-project "$REPO_ROOT/scripts/meshy.py" --project "$WORLD" "$@"; }
 meshy_op --help
 meshy_op plan --help
