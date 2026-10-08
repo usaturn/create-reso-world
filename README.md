@@ -27,16 +27,20 @@
 
 通常の checkout は、変更の無い追跡ファイルも削除する。変更をコミット・stash してから取り込んでも、
 ワールドの実ファイルは残らない。`git rm --cached` だけを先に行うと未追跡ファイルの削除ガードで停止し、
-`--no-overwrite-ignore` も追跡中のファイルの削除は防がない。`repo-cleanup-after-merge` は対象領域の
-追跡ファイルが削除される更新を停止するため、この初回移行を自動整理で迂回しない。
+`--no-overwrite-ignore` も追跡中のファイルの削除は防がない。`repo-cleanup-after-merge` が対象領域の
+追跡ファイルの削除で停止するのは、この変更を取り込んだ後の版だけである。エージェントは作業ツリーにあるスキルを読むので、
+取り込む前の checkout では旧版が動き、clean な checkout の追跡ワールドを削除する。**初回移行を下の手順で終えるまで、
+`repo-cleanup-after-merge`・`gitm`（`git checkout origin/main`）・通常の checkout/merge でその checkout を更新しない。**
 
 1. `git fetch origin` 後、対象 checkout の `git status --short` を確認する。従来の4ディレクトリと `worlds/` の
    **5領域**を保全対象とし、領域外の変更は別途保全する。領域内に staged 変更があれば、先にその版を
    ローカルコミットへ保存する。未stageの変更は残したままでよい。
    制作プロセス・エージェントを止め、移行と同時にファイルや Git refs を書き換えない。
 2. 以下を **対象 checkout のルートで、同じシェルで** 実行する。5領域のうち存在するディレクトリ全体
-   （未コミット変更・未追跡・ignored ファイル・symlink を含む）を checkout 外の一意なディレクトリへ移し、
-   `--no-overwrite-ignore` で更新してから戻す。取り込み先に5領域の追跡ファイルが残る場合は実行しない。
+   （未コミット変更・未追跡・ignored ファイル・symlink を含む）を、Git の共通ディレクトリ
+   （`git rev-parse --git-common-dir`。通常は main checkout の `.git`）の下に作る一意な `local-worlds-backup.*` へ移し、
+   `--no-overwrite-ignore` で更新してから戻す。ここは checkout も worktree の削除も触れず、Dev Container の
+   checkout の親（`/workspaces`）と違って書き込める。取り込み先に5領域の追跡ファイルが残る場合は実行しない。
    移動は同じファイルシステム内に限り、ファイルの内容・mode・hard link を保つ。履歴から戻せるよう旧 HEAD も保存する。
 
    ```bash
@@ -50,12 +54,13 @@
    for name in "${dirs[@]}"; do
        [ ! -L "$root/$name" ] && { [ ! -e "$root/$name" ] || [ -d "$root/$name" ]; } || exit 1
    done
-   backup="$(mktemp -d "$(dirname "$root")/local-worlds-backup.XXXXXX")"
-   printf '保全先: %s\n' "$backup"
-   device="$(stat -c %d "$backup")"
+   backup_parent="$(git rev-parse --path-format=absolute --git-common-dir)"
+   device="$(stat -c %d "$backup_parent")"
    for name in "${dirs[@]}"; do
        [ ! -d "$root/$name" ] || [ "$(stat -c %d "$root/$name")" = "$device" ] || exit 1
    done
+   backup="$(mktemp -d "$backup_parent/local-worlds-backup.XXXXXX")"
+   printf '保全先: %s\n' "$backup"
    git rev-parse HEAD > "$backup/before-head"
    for name in "${dirs[@]}"; do
        [ ! -d "$root/$name" ] || mv -T -- "$root/$name" "$backup/$name"
@@ -75,7 +80,8 @@
 
 3. ワールドの内容とリンクを確認する。保全先と旧 HEAD の記録は確認が終わるまで残す。
    事前に保存した staged 版は旧 HEAD の履歴から別途取り出せる（管理外に移ったため index の staging は引き継がない）。
-   どの段階で失敗しても `--force`・reset・clean・保全先の削除で回避しない。既に移したディレクトリは保全先に残っている。
+   どの段階で失敗しても `--force`・reset・clean・保全先の削除で回避しない。既に移したディレクトリは保全先
+   （Git の共通ディレクトリの `local-worlds-backup.*`）に残っている。
    元の場所と保全先を確認し、戻す先が空いているものだけ `mv -T -- <保全先>/<name> <root>/<name>` で戻す。
    取り込み後は通常の `repo-cleanup-after-merge` を使える。
 

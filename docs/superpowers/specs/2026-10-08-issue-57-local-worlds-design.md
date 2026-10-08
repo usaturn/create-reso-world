@@ -30,7 +30,7 @@
 | F-4 | `.devcontainer/report-resoloop-skills.bash` も同じ `git ls-files` 定義でプロジェクトを検出する。postCreate から呼ばれ、失敗しても常に 0 で終わる |
 | F-5 | ルート `.gitignore` には `MyResoniteProject/content/tokyo-nova/city/export-static/`・`export-refinement/` の個別除外があり、`MyResoniteProject/.resoloop/tokyo-nova/pipeline.json` は `**/.resoloop/**` の規則に対する追跡中の例外として check-layout と test-gitignore に固定値で載っている |
 | F-6 | プロジェクトの symlink は 2 系統ある。ルート共有物を指す `.claude/settings.json`・`.pi`・`.agents/sp-*.md`（プロジェクトの深さに依存する）と、プロジェクト内部を指す `.claude/skills/<name> -> ../../.agents/skills/<name>`（深さに依存しない） |
-| F-7 | `git rm --cached` は実行した checkout の実ファイルを残すが、別 checkout の更新では変更の無い追跡ファイルも削除される。事前の `git rm --cached` だけでは未追跡削除ガードで停止し、ignore を足して通す通常 checkout は別の ignored ファイルを上書きし得る。自動整理は削除を検出して停止し、初回移行は README「追跡解除コミットを取り込む」の checkout 外への保全・復帰で行う |
+| F-7 | `git rm --cached` は実行した checkout の実ファイルを残すが、別 checkout の更新では変更の無い追跡ファイルも削除される。事前の `git rm --cached` だけでは未追跡削除ガードで停止し、ignore を足して通す通常 checkout は別の ignored ファイルを上書きし得る。自動整理（この変更を取り込んだ後の版）は削除を検出して停止する。取り込む前の checkout にある旧版のスキルや `gitm` は停止しないので、初回移行はそれらより先に、README「追跡解除コミットを取り込む」の、Git の共通ディレクトリ配下への保全・復帰で行う |
 | F-8 | CI（`.github/workflows/ci.yml`）はパブリックで稼働しており、`check-layout.sh` と `.devcontainer/run-tests.bash` を新規 clone（ローカルプロジェクト無し）で実行する。検査はローカルプロジェクトの存在に依存できない |
 
 ## 3. 検討した案
@@ -84,7 +84,8 @@
 ## 5. 移行時の安全条件
 
 - 実装は worktree で行い、親 checkout（PARENT_ROOT）の未コミット変更には触れない。PARENT_ROOT 側には26件の同梱スキル更新差分と未追跡ファイルがあり、取り込みの前に保全を確認する必要がある（F-1・F-7）
-- 追跡解除コミットを別 checkout へ取り込む前に、その checkout の対象ディレクトリ全体を保全する（F-7）。staged 版を先にローカルコミットへ保存し、未stage変更・未追跡・ignored ファイルを含む5領域（従来4名と `worlds/`）の実ディレクトリを同一ファイルシステムの checkout 外へ移す。取り込み先に5領域配下の追跡ファイルが無いことを検査し、`--no-overwrite-ignore` で更新してからディレクトリを戻す。失敗時は保全先を削除せず、戻す先の不存在を確認して復帰する。具体的なコマンドは README「追跡解除コミットを取り込む」に定義する
+- 追跡解除コミットを別 checkout へ取り込む前に、その checkout の対象ディレクトリ全体を保全する（F-7）。staged 版を先にローカルコミットへ保存し、未stage変更・未追跡・ignored ファイルを含む5領域（従来4名と `worlds/`）の実ディレクトリを、Git の共通ディレクトリ（`git rev-parse --git-common-dir`）の下に作る一意なディレクトリへ移す。checkout も worktree の削除も触れない場所で、同一ファイルシステムであることは保全先を作る前に検査する。checkout の親は Dev Container では書き込めないため使わない（8章）。取り込み先に5領域配下の追跡ファイルが無いことを検査し、`--no-overwrite-ignore` で更新してからディレクトリを戻す。失敗時は保全先を削除せず、戻す先の不存在を確認して復帰する。具体的なコマンドは README「追跡解除コミットを取り込む」に定義する
+- マージ前の checkout にある旧版の `repo-cleanup-after-merge`（エージェントは作業ツリーのスキルを読む）・`gitm`・通常の checkout/merge は、追跡ワールドの削除を止めない。この PR では旧版を変えられないため、初回移行が終わるまでそれらで更新しないことを README と PR 本文に明記する（8.5）
 - `git rm --cached` は実ファイルを消さないが、管理外のファイルは Git で復元できず `git clean -fdx` 等で消えることを文書に明記する
 - Git 履歴からの容量削減は本 Issue の対象外である
 
@@ -225,3 +226,152 @@ PR説明には、自動移行しないこと、手移動で相対リンクの張
 - テスト採用: 追加8ケースは実bash/Gitの処理・安全境界を実行するもので、文面文字列を固定する追加テストは無い。READMEの検証は保存するテストを増やさず、記載ブロックそのものを隔離実行した。
 - 未確認の範囲: 実ワールドの移行、削除3312blobの個別全文・個別ワールドの動作、移動/復帰のI/O失敗注入、新規LLM文言microtest。自己レビューで指摘が無かったことを、これらの確認済みの根拠にはしない。失敗時のデータ保持は分岐と実コマンドの検査で確認し、実ワールド操作は利用者の保全確認を伴う別作業とする。
 - 所要時間: controller着手17:02 JST〜自己レビュー後の最終検証完了18:22 JST、約80分。調査/照合・再現約16分、実装担当約16分、README/Specと検証約14分、自己レビュー3観点約25分、SR-1の再現/設計見直し/再検証約9分。実装担当は実測15分37秒（RED/fixture3分39秒、実装/診断/GREEN3分26秒、関連/全体/静的検証/報告8分32秒）。公開操作の時間は完了報告に含める。
+
+## 8. PR #58 レビュー修正 2 回目（2026-10-08）
+
+- 状態: completed（修正・検証・自己レビューと全指摘の判定完了。結論 1）
+- 対象: `usaturn/create-reso-world` PR #58、`feat/issue-57-local-worlds`
+- 検証対象 HEAD: `5c8b4032f7301176cbf4631a8b2b219d7671fa12`
+- 実行許可: 利用者が `review-fix-planning` を `#58` で起動した。計画のみの指定は無く、同スキルの完遂（修正・検証・自己レビュー・既存 PR への commit/push・状況投稿）として扱う。
+- CODE_ROOT / DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-57-local-worlds`（clean で PR head と一致する既存 worktree を再利用）。PARENT_ROOT: `/workspaces/reso-world`。親のワールドと他 worktree の差分は読まず、編集しない。
+- 文書の選択: Issue #57・PR #58・テーマで照合した現行の Spec はこの 1 件だけなので、7 章と同じくこの Spec を更新する。
+
+### 8.1 入力と分類
+
+入力は `reviews/#58-feat-issue-57-local-worlds/` の全 6 ファイル。対象 HEAD は `7f4c1affca4b`（D・G）と `5c8b4032f730`（C・S・DS・GR）で、どちらも現行 PR head の祖先である。C・S は両方の HEAD を見た更新版。7 章の ID を引き継ぎ、新しいファイルを DS（`deepseek-deepseek-v4.1-flash.md`）、GR（`grok-4.7.md`）とする。未検証候補（U）も 1 件として数える。
+
+**入力 24 件の分類: 解消済み 3 / 対応する 1 / 対応しない 20。自己レビューの SR2-1〜3 を含む最終分類: 解消済み 3 / 対応する 2 / 対応しない 22（計 27 件）。**
+
+| ID | 分類 | 現行 HEAD の根拠と判断 |
+| --- | --- | --- |
+| C-M-1 | 解消済み | `5c8b403` で README の事前 `git rm --cached` を保全手順に置き換え、cleanup 手順 7 に削除ガードを入れた（`SKILL.md:183-191`、`test_detached_update.py` の 5 領域・rename・diff 失敗の負例）。 |
+| D-M-1 | 解消済み | 同じ削除ガードで、cleanup 手順 7 は 5 領域の追跡削除を checkout 前に止める。 |
+| GR-U-2 | 解消済み | 追跡側の実行コードで world 4 名を参照するものは無い（`git grep` の一致はテストの fixture だけ）。削除 blob を入力に要求するツールは無い。 |
+| C-M-2 | 対応する | README の保全先 `mktemp -d "$(dirname "$root")/..."` は、Dev Container の main checkout（`/workspaces/reso-world`）では親 `/workspaces` が root 所有で書けず（別デバイスでもある）、必ず `mktemp` で止まる。cleanup 手順 7 がこの手順だけを案内するので、main checkout を `origin/main` へ追従させる主要な処理が手順どおりでは完了しない（分類 (a)、再現済み）。 |
+| C-L-1 | 対応しない | 7 章と同じ。手移動で相対リンクは切れるが、`check-layout.sh` が FAIL、`--apply` が変更せずに停止し、PR の既知の制限に張り直しを記載済み。 |
+| C-L-2 | 対応しない | 7 章と同じ運用論点。`AGENTS.md`「プロジェクト運用」がワールド作業に branch・commit・PR を求めない。 |
+| C-L-3 | 対応しない | 対話 zsh に貼ると `set -e` と `exit` で端末が閉じる（再現済み）。拒否と途中失敗ではデータは元の場所か保全先に残り、保全先の場所は README 手順 3 に書く。表示が消えるだけで誤った結果にはならない。 |
+| C-I-1 | 対応しない | 7 章と同じ。F-8 の CI の記述は誤りだが設計の結論は変わらない。 |
+| S-L-1 | 対応しない | 境界は変わっていない。作業領域を D-5 の 5 経路に限る判断を 7 章と PR の既知の制限に記載済み（S は解消とした）。 |
+| S-I-1 | 対応しない | 7 章 D-L-1 と同じ案内文の不正確さ。 |
+| S-I-2 | 対応しない | 7 章と同じ。書き込む前に拒否する。 |
+| S-I-3 | 対応しない | C-I-1 と同じ。 |
+| S-I-4 | 対応しない | 型・デバイス・復帰先の拒否が理由を出さない。どれも安全側の停止で、データは元の場所か保全先に残る。 |
+| DS-M-1 | 対応しない | ff マージで追跡ワールドが消えるのは利用者が始めた merge 自体の挙動で、README と PR 本文が「通常の checkout/merge は追跡ワールドを削除する」と注意している。`stale-git-lock-recovery` は元の操作を再実行するだけで、cleanup 手順 7 から来た場合は手順 7（削除ガード）に戻る。`ff_merge_keep_untracked.sh` は取り込み先が追加するパスの未追跡ファイルを守る helper で、手順 7 では使わない。自動の更新経路は守られている。 |
+| DS-I-1 | 対応しない | `rst-writer` の例が `slum02/` のまま。従来位置も有効で、誤った結果にならない。 |
+| DS-I-2 | 対応しない | `docs/worlds/` の not-ignored の固定値が外れた。現状は ignore されず、混入しても `check_tracked_ignored` が FAIL にする。 |
+| GR-M-1 | 対応しない | ブロックをサブディレクトリから実行すると、pathspec が cwd 相対なので追跡残存・staged の検査が働かない（再現済み）。README は「対象 checkout のルートで」実行するよう求めている。外れた使い方でも、復帰の段が既存エントリを上書きせずに止まり、データは保全先に残る（GR-U-1 で確認）。PR の既知の制限に条件を書き足す。 |
+| GR-L-1 | 対応しない | S-I-4 と同じ。 |
+| GR-U-1 | 対応しない | サブディレクトリから、取り込み先がまだ違う版の `akichi` を追跡している状態で実行した。HEAD は取り込み先に進み、ルートには追跡版が置かれたが、復帰は exit 1 で止まり、利用者の本文と未追跡ファイルは保全先にバイト単位で残った。GR-M-1 と同じ扱い。 |
+| D-L-1 | 対応しない | 7 章と同じ。 |
+| D-L-2 | 対応しない | 7 章と同じ（C-L-1 と同じ論点）。 |
+| D-I-1 | 対応しない | 7 章と同じ状態記録の論点。 |
+| D-U-1 | 対応しない | 7 章と同じ。公式の導入はルートの `.agents/` にロールを作らない。 |
+| G-L-1 | 対応しない | 7 章と同じ。公式の `new-world.sh` は改行を含む名前を拒否する。 |
+| SR2-1（自己レビュー・反証） | 対応しない | リポジトリ外の FS に作った worktree や、`.git` が別 FS への symlink の構成では、旧ブロックで成功していた移行が、状態を変える前の拒否に変わる。安全側の停止で、実環境の main と `.worktrees/*` は共通ディレクトリと同じデバイスにある。8.2 の表に行を足した。 |
+| SR2-2（自己レビュー・反証） | 対応しない | 保全先に元の checkout の記録が無い。データは残り、修正前も `.worktrees/` の保全先は共有だった。 |
+| SR2-3（自己レビュー・PR 全体） | 対応する | マージ前の checkout では旧版の `repo-cleanup-after-merge` と `gitm` が追跡ワールドを削除する（再現済み）。D-M-1 と同じ結果で、PR 本文の保証が初回の取り込みで成り立たない（分類 (a)・(b)）。8.5 で設計を見直し、保証を狭めた。 |
+
+PR の変更 17 ファイルを全文または差分で読み、差分外では `stale-git-lock-recovery`（SKILL.md・`ff_merge_keep_untracked.sh`）、`.devcontainer/cleanup-workspace.bash` の削除対象、checkout・merge を行う経路（`git grep`）、`docs/integration.md` の ff マージ手順（PR #2 の完了した移行手順で、現行の経路ではない）を確認した。削除 3312 件は 7 章と同じく全パスが 4 ワールド配下であり、個々の blob の本文は読んでいない。
+
+### 8.2 設計の見直し（C-M-2、きっかけ 2「修正が生んだ回帰」）
+
+C-M-2 の原因は、7 章のレビュー修正コミット `5c8b403` が入れた README ブロックの保全先の行である。スキルのきっかけ 2 に当たるので、点の修正ではなく保全先の仕組みから見直した。
+
+**守る条件:** README の初回移行ブロックは、このリポジトリが前提にする構成（Dev Container の main checkout `/workspaces/reso-world`、`.worktrees/` 配下の linked worktree、通常の clone）で書かれたとおりに実行すると完了する。保全先は、(1) 実行者が書き込め、(2) 5 領域と同じファイルシステムにあり、(3) checkout・`git worktree remove`・prune・gc・`cleanup-workspace.bash` が触れず、(4) 端末の出力を失っても場所が分かる、の 4 つを満たす。満たせない構成では、どの状態も変える前に停止する。
+
+**以前の回で足りなかった理由:** `5c8b403` は「checkout 外」として `dirname "$root"` を選び、検証は親に書き込める `/tmp` 配下の一時 Git だけで行った。bind mount の main checkout と、root 所有の親という実際の配置を経路として列挙していなかった。また、保全先を作ってからデバイスを検査していたため、デバイス不一致の拒否でも空の保全先が残っていた。
+
+**比べた直し方:**
+
+| 案 | 判断 |
+| --- | --- |
+| 点の修正: 保全先の親を Git の共通ディレクトリ（`git rev-parse --path-format=absolute --git-common-dir`）にし、デバイス検査を保全先の作成より前に移す | **採用。** (1) checkout・fetch に書き込みが要る場所なので書ける、(2) main checkout と `.worktrees/` では作業ツリーと同じ bind mount にある（実環境はどちらもデバイス 2096）、(3) checkout は git dir の未知のディレクトリに触れず、worktree の削除・prune は `.git/worktrees/<name>` だけ、gc は未知のディレクトリを消さず、`cleanup-workspace.bash` は `/tmp` の `pr-review-*`・`review-fix-planning.*` だけを対象にする。(4) 場所を README 手順 2・3 に書く。共通ディレクトリが別のファイルシステムにある構成（`--separate-git-dir` など）は、何も作る前にデバイス検査で止まる。 |
+| worktree ごとの git dir（`--absolute-git-dir`） | 不採用。linked worktree では `.git/worktrees/<name>` になり、途中失敗で残した保全先が worktree の削除・prune で消える。 |
+| checkout のルート直下（作業ツリー内） | 不採用。`git status` に未追跡として出て cleanup 手順 7 の clean 確認を止め、`git clean -fdx` の対象にもなる。 |
+| 手順を追跡するスクリプトにまとめ、テストで固定する | 不採用。旧 HEAD の checkout にはスクリプトが無く、`origin/main` から取り出す手順が増えて、その手順自体が誤りの元になる。移行は checkout ごとに 1 回で、ブロックの隔離実行で確かめられる。 |
+| 保証を狭める（保全先を利用者に指定させる、Dev Container の main checkout を対象外にする） | 不採用。ワールドの実データが最も多い main checkout の移行こそが目的で、利用者に場所の判断を押し付けると誤りの元になる。 |
+
+**影響経路（保全先の仕組みから列挙）:**
+
+| 状態・停止位置／経路 | 変更前の挙動 | 判定 | 確かめる assertion・方法 |
+| --- | --- | --- | --- |
+| Dev Container の main checkout（親が root 所有・別デバイス） | `mktemp` が Permission denied で停止し、移行できない | 修正する | 親を `chmod 555` にした一時 Git で exit 0、HEAD が取り込み先、5 領域とhard link の相手の型・mode・inode・nlink・バイト列が実行前と一致、保全先が共通ディレクトリにあり `before-head` が旧 HEAD。実環境は読み取りだけで、共通ディレクトリ `/workspaces/reso-world/.git` が書き込め、デバイスが 4 ワールドと同じ 2096 であることを確認 |
+| `worlds/` だけがある checkout | 同上 | 修正する | 同じ条件で exit 0、データ一致、`git status --short` が空 |
+| `.worktrees/` 配下の linked worktree | 親 `.worktrees/` に保全先を作って成功 | 修正する（場所が変わる） | exit 0、データ一致、保全先が main の `.git` にあり `.git/worktrees/<name>` には無い。保全先に置いた印が `worktree remove --force`・`worktree prune`・`gc --prune=now` の後も残る |
+| リポジトリ外の FS（`/tmp` など）に作った worktree、`.git` が別 FS への symlink | 親が同じ FS なら成功していた | 対象外（安全側の停止に変わる。自己レビュー SR2-1） | 反証担当が `/tmp` の worktree と `/dev/shm` の `.git` で、修正後は exit 1 で状態不変、修正前は成功を確認。実環境の main と `.worktrees/*` はすべて共通ディレクトリと同じデバイス 2096 |
+| 共通ディレクトリが別デバイス | 保全先を作ってから検査し、空の保全先を残して停止 | 修正する（順序） | `stat` を差し替えて共通ディレクトリだけ別デバイスにした負例（他は正常）で exit 1、状態全体（5 領域・hard link の相手・HEAD・index・refs・共通ディレクトリの保全先一覧・親の一覧）が実行前と一致 |
+| 取り込み先に追跡が残る・staged 未保存・symlink 領域 | 保全先を作る前に拒否 | 既に満たす | 各 1 異常の負例で exit 1、状態全体が一致、保全先は作られない |
+| checkout が ignored の上書きを拒否 | 5 領域を戻して失敗コードで終了 | 既に満たす（保全先の場所だけ変わる） | exit 1、保全先の一覧以外の状態全体が一致、私有ファイルが残り、保全先には `before-head` だけが残る |
+| 復帰先が存在・I/O 失敗 | データを保全先に残して停止 | 既に満たす | 復帰の判定（`-e`・`-L`）は変えていない。GR-U-1 の再現で、復帰先が存在すると exit 1 で止まり、データが保全先に残ることを確認 |
+| 保全先を残した後の自動整理 | 親に残るので Git の操作は触れない | 既に満たす | 共通ディレクトリでも `worktree remove`・prune・gc が消さないこと（上の linked worktree の行）、cleanup 手順 7 の clean 確認は `.git` の中を見ない、`cleanup-workspace.bash` の対象は `/tmp` だけ（静的確認） |
+| 端末を失ったときの保全先の場所 | 実行時の表示だけ | 修正する（文書） | README 手順 2・3 に「Git の共通ディレクトリの `local-worlds-backup.*`」を書き、`git diff` で確認 |
+| この Spec の F-7・5 章、PR 本文 | 「checkout 外」「同一FSのcheckout外」と記載 | 修正する（文書） | `git diff` と PR 本文の確認。文面を固定するテストは追加しない |
+| ルート以外の cwd（GR-M-1・GR-U-1） | 検査が働かずに進み、復帰で停止 | 対象外（README がルートでの実行を求める。データは保全先に残る） | PR の既知の制限に条件を記載 |
+| 対話シェルの終了（C-L-3） | 端末が閉じる | 対象外（データは残り、場所は文書に書く） | — |
+| 利用者が始めた checkout・merge、ロック復旧の再実行（DS-M-1） | 追跡ワールドを削除する | 対象外（README と PR 本文が注意、自動経路は手順 7 のガード） | — |
+
+### 8.3 失敗時の検証
+
+- 比べた状態: 5 領域とその外の hard link の相手の型・mode・inode・nlink・サイズ・symlink の行き先・ファイルのバイト列、HEAD、`git ls-files -s`、`git for-each-ref`、共通ディレクトリの `local-worlds-backup.*` の一覧、checkout の親の一覧。期待値は実行前に取った。
+- 負例は異常を 1 つだけ入れた: 共通ディレクトリだけ別デバイス、staged 未保存、取り込み先に `akichi` の追跡が残る、`slum02` が symlink。どれも exit 1 で状態全体が一致し、保全先は作られなかった。
+- 対照: 修正後のブロックからデバイス検査のループだけを外した版を隔離ディレクトリで実行すると、別デバイスの負例は exit 0 で HEAD と 5 領域が動き、状態の比較で失敗した（負例 1 件中 1 件が失敗）。修正用の worktree ではガードを外していない。
+- 修正前のブロックは、親に書き込めない 2 ケース（main checkout 相当・`worlds/` だけ）で `mktemp: Permission denied` の exit 1 になった。
+
+### 8.4 実行した検証
+
+- README ブロックの隔離実行（`mktemp` の `/tmp/review-fix-planning.*` 配下。終了後に削除）: 修正後 8 ケースすべて期待どおり（成功 3、安全な拒否 5）。内訳は 8.2 の表の各行。
+- 実環境の読み取り確認: `/workspaces` は `root:root` 755 で書き込めない（デバイス 87、overlay）。`/workspaces/reso-world` とその `.git`・4 ワールドはデバイス 2096（ext4 の bind mount）で、`.git` は書き込める。
+
+### 8.5 自己レビューと設計の見直し（SR2-3、きっかけ 1「同じ守る条件の 2 回目」）
+
+自己レビューの PR 全体の観点で、SR2-3 が見つかった。#58 のマージ後、マージ前の checkout のルートで `repo-cleanup-after-merge` を使うと、エージェントは作業ツリーにある旧版（`f3bc010` の手順 7、削除ガード無し）を読む。その手順 7 は clean な checkout を `origin/main` へ checkout し、追跡ワールドを削除する。一時 Git で再現した結果は次のとおり。
+
+- 旧版の手順 7: exit 0。`akichi/a.txt` と symlink が消え、ignored の `.venv` だけが残った
+- 新版の手順 7: exit 1 で停止し、すべて残った
+- 同梱のエイリアス `gitm`（`git fetch -p && git checkout origin/main`。`.devcontainer/zshrc.txt:58`、利用者の `~/.zshrc` にもある）: clean な checkout では追跡ワールドを削除し、変更がある checkout では git が拒否した
+
+結果は 7 章で致命的とした D-M-1 と同じで、PR 本文と README が「cleanup は停止する」としている経路で起きる。分類は「対応する」（分類 (a)・(b)）。7 章の守る条件（保全確認なしに追跡ワールドを消さない）と同じ条件で、7 章の表が漏らした隣の経路なので、きっかけ 1 に当たる。
+
+**守る条件:** #58 より前の HEAD にある checkout を #58 以降へ動かすどの経路でも、README の保全手順を経ずに追跡ワールドを消さない。リポジトリが提供する経路（自動整理のスキル、同梱エイリアス、ロック復旧の再実行、文書の手順）も含む。この PR で挙動を変えられない経路では、利用者がその経路を使わずに済むよう、マージ前に読む PR 本文と、移行時に読む README で案内する。
+
+**7 章で足りなかった理由:** 7 章の表は cleanup 手順 7 を「修正する」とし、直した SKILL.md が実行されることを前提にしていた。しかし、#58 を初めて取り込むときに実行されるのは、マージ前の checkout の作業ツリーにある旧版である。`gitm` は「利用者の任意 Git 操作」にまとめており、リポジトリが配る経路として数えていなかった。
+
+**比べた直し方:**
+
+| 案 | 判断 |
+| --- | --- |
+| 新版の手順 7 のガードをさらに強める（点の修正） | 不採用。初回の取り込みで動くのは旧版なので効かない。 |
+| 追跡解除コミット自体で旧ツールの checkout を失敗させる（条件を 1 か所で保つ） | 不採用。git が checkout を拒否するのは、変更のある追跡ファイルか、未追跡・ignored ファイルとの衝突だけである。どの checkout にもある ignored パスへ追跡ファイルを置くような仕掛けは不確実で、配置も壊す。 |
+| 削除ガードだけを先行 PR に分けてマージし、各 checkout をその版へ更新してから #58 をマージする | 構造的には最も確実（ガードの版への更新ではワールドは消えない）。ただし第二の PR になるので、このスキルの範囲では行わない。利用者が選べる他の案として状況コメントに残す。 |
+| PR の保証を狭める（採用） | 「cleanup は停止する」を「この PR の版の cleanup は停止する」に直す。マージ後は各 checkout を最初に README の手順で移行し、それまで旧版の `repo-cleanup-after-merge`・`gitm`・通常の checkout/merge で更新しないことを、PR 本文の「取り込む側の注意」の先頭、既知の制限、README「追跡解除コミットを取り込む」の冒頭、この Spec の F-7・5 章に書く。 |
+
+**影響経路（checkout を追跡解除コミットの前から後へ動かす経路から列挙）:**
+
+| 経路 | 変更前の挙動 | 判定 | 確かめる assertion・方法 |
+| --- | --- | --- | --- |
+| 新版の cleanup 手順 7（この PR を取り込んだ後のスキル） | 5 領域の削除・rename・diff 失敗で停止 | 既に満たす | 一時 Git で新版の手順 7 が exit 1 で HEAD とワールドを保つ。7 章の `test_detached_update.py`（変更なし） |
+| 旧版の cleanup 手順 7（マージ前の checkout の作業ツリーにあるスキル） | clean な checkout の追跡ワールドを削除 | 修正する（保証を狭め、使わないことを案内） | 一時 Git で旧版が exit 0 で削除することを再現。README・PR 本文・Spec の記載は `git diff` と PR 本文で確認 |
+| `gitm` | clean なら削除、変更があれば git が拒否 | 修正する（名指しで案内） | 一時 Git で両方を再現。エイリアス自体は変えない（移行後はワールドが追跡されないので無害。マージ前のコンテナには旧版が残る） |
+| 通常の checkout・merge・pull、`stale-git-lock-recovery` の再実行と `ff_merge_keep_untracked.sh`（DS-M-1） | 追跡ワールドを削除 | 既に満たす（PR 本文の注意）。README の冒頭にも明記する | `git diff` |
+| README の保全手順 | 8.2 | 修正済み | 8.4 |
+| 利用者の親 checkout の現状（`/workspaces/reso-world`、`f3bc010`） | world 配下に 28 件の変更と 8 件の未追跡があるので、旧版の手順 7 は clean 確認で、`gitm` は git の拒否で止まる | 既に満たす（現状に依存する） | `git -C /workspaces/reso-world status --short` が空でないことを読み取りで確認。状態に頼らず、案内で防ぐ |
+| cleanup 手順 4・5 の linked worktree 削除 | ignored・未追跡を確かめてから削除する | 既に満たす | 7 章 |
+| `pr-review`・`review-fix-planning` が作る新しい worktree | 追跡内容しか持たない | 対象外 | — |
+| fork（`external/resoloop`） | 別リポジトリ | 対象外 | — |
+
+コードは変えず、文書で保証を狭めたので、「失敗時の検証」の対照は該当しない。この見直しは自己レビューの後に行ったため、再レビューしていない。
+
+### 8.6 自己レビュー・結果・所要時間
+
+結論は **1 修正して push**。push・投稿の結果はこの Spec に追記せず、PR の状況コメントと完了報告に書く。
+
+- 自己レビューは 1 回。3 観点を別々の読み取り専用サブエージェントに同時に任せた
+  - 反証: 致命的な指摘なし。SR2-1・SR2-2（どちらも対応しない）。zsh での実行、`mv` の失敗注入（移動の途中・復帰の途中）、保全先が残った状態での再実行、保全先に触れる処理が無いことも確認した
+  - PR 全体: SR2-3（致命的）。8.5 の設計の見直しで直した
+  - 検証の検出力: 担当が 19:35 JST 以降応答せず報告が無かった（停止はさせていない）。controller が同じ観点を 1 回だけ自分で見た。移動をコピーに変えて inode を壊した欠陥版で、成功系の比較が失敗することを確認した。デバイス不一致の負例が、デバイス検査の行（`stat` の差し替えは共通ディレクトリだけ）で止まることを `bash -x` で確認した。指摘なし
+- 自己レビュー後の修正（SR2-3 の README・Spec・PR 本文）は再レビューしていない。
+- 最終検証: `bash .devcontainer/run-tests.bash` **28 本成功**、`bash scripts/check-layout.sh` **PASS**（4 プロジェクトに同梱スキル更新の warn のみ）、`git diff --check` clean。README のブロックは 8.4 の 8 ケースと対照で確認した。`uv run pytest tests/skills .agents/skills` は、今回 Python とスキルを変えていないので実行していない。
+- テスト採用: 変更は README と Spec の文書だけなので、保存するテストは追加しない。README のブロックは記載どおりに抜き出して隔離実行した。
+- 未確認の範囲: 実環境の main checkout での実際の移行（利用者のワールドを動かすため実行していない）、submodule やワールド内の入れ子の Git がある構成、移行の途中の I/O 失敗の実障害。自己レビューの指摘が少ないことを、これらの確認済みの根拠にはしない。
+- 所要時間: 着手 19:13 JST 〜 公開前の記録 19:57 JST、約 44 分。入力・PR・差分の読み込み約 7 分、再現（C-M-2・GR-M-1・C-L-3 ほか）約 4 分、修正と隔離検証約 3 分、検証スイートと GR-U-1・Spec 約 8 分、自己レビュー（担当の実行約 6 分、待機を含む）・SR2-3 の再現と設計の見直し・文書修正・再検証約 15 分、検出力の自己確認と記録約 7 分。
