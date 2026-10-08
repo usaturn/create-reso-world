@@ -76,8 +76,8 @@
 - [x] 新スキル読込後の代表 dry-run: 秘密画像/精密可動物、許可未取得の有機形状、既存 asset adaptation。実 API/モデル生成/ワールド操作はしない。trigger/non-trigger も確認。
 - [x] 全ブランチの独立レビュー、controller の新規実行による最終 build/test/smoke/diff 確認。
 - [x] 実装結果・検証・時間を既存文書に追記し、状態 completed に更新する。内容承認と実行完了を混同しない。
-- [ ] `usaturn/resoloop` の feature PR と `usaturn/create-reso-world` の文書 PR を相互参照して作成。Issue #52 を cross-repository `Refs` で参照し、NuGet 未公開なので自動 close しない。public ResoLoop の CI を確認する。
-- [ ] 未確認事項と両 PR URL を報告。マージ・通常 project の skills sync・NuGet release は行わない。
+- [x] `usaturn/resoloop` の feature PR と `usaturn/create-reso-world` の文書 PR を相互参照して作成。Issue #52 を cross-repository `Refs` で参照し、NuGet 未公開なので自動 close しない。public ResoLoop の CI を確認する。
+- [x] 未確認事項と両 PR URL を報告。マージ・通常 project の skills sync・NuGet release は行わない。
 
 ## 実行結果
 
@@ -89,5 +89,7 @@
 - YAML/参照先/resource、skill-efficiency（新スキルは警告なし）、active C# LSP（0 diagnostics）、diff 検査を確認。新規 prose/list unit test は追加していない。
 - dry-run: 秘密画像の精密可動物は authored route、許可未取得の画像岩は Meshy proposal のみ、権利不明の rig/glass GLB は条件付き adaptation と fallback。trigger境界と text/image の件数/未許可状態を確認。
 - 本文/テンプレートに変換制約・送信許可・生成 mode の明記を補い、imageにtext用preview/refineを誤って足さないようモード別の指示に修正した。既存要件の具体化であり、制作/APIワークフローは追加していない。
-- 所要時間の担当別内訳は関連 Spec の「所要時間」節に保存。公開/CI 結果と全体所要時間は公開記録に追記する。
+- 所要時間は関連 Spec の「所要時間」節に保存。全体約1時間（12:17–13:16頃 JST）。
+- 公開済み: コード https://github.com/usaturn/resoloop/pull/10 / 文書 https://github.com/usaturn/create-reso-world/pull/55 。相互参照、マージなし。
+- public CI は Actions enabled / workflow active だが、該当 branch/HEAD の run/check は報告なし。CI 成功とは扱わない。private 文書 repository CI は運用上対象外。
 - 未実施: Meshy API/課金/画像送信、実 Blender/Resonite、実機capture/runtime、通常projectへの導入、merge、NuGet公開。公開版に含まれるまではIssueを自動closeしない。

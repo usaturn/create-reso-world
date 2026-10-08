@@ -93,7 +93,8 @@ Phase 0 入力/経路確認、1 blockout/base、2 silhouette/proportion/candidat
 - text は preview と提案した refine を別操作に計上し、両方提案した場合のみ計2件。image は提案した image 生成1件につき1件で、自動で preview/refine を追加しない。両方とも課金/送信未許可の dry-run を確認。
 - 新規 unit/prose/スキル名一覧テストなし。文書/登録値変更には既存挙動テストと実 CLI、構造検査を用いた。
 - 未実施: Meshy API/課金/画像送信、実 Blender 制作、Resonite capture/runtime、通常プロジェクトへの sync、merge、NuGet release。公開 NuGet への同梱は別途 release が必要なため Issue は自動 close しない。
-- 文書 PR と public CI の最終結果は公開記録節に追記する。
+- 公開済み: コード https://github.com/usaturn/resoloop/pull/10 / 文書 https://github.com/usaturn/create-reso-world/pull/55 。両方 OPEN、相互参照。マージなし。
+- public ResoLoop CI を GitHub で確認。Actions permission は enabled、CI workflow は active だが、該当 branch/HEAD の run と PR statusCheckRollup は空。実行中ではなく実行報告なしであり、CI 成功とはしない。private create-reso-world の CI は運用上対象外。
 
 ### 所要時間
 
@@ -105,3 +106,4 @@ Phase 0 入力/経路確認、1 blockout/base、2 silhouette/proportion/candidat
 | mode別件数の最終修正 | 03:59:11–04:06頃 UTC（約7分）。調査54秒、修正24秒、構造29秒、build/initializer22秒、smoke18秒、commit17秒、報告エラー復旧と再検証/報告を含む |
 | controller 最終 build/回帰/pack/install/efficiency + LSP | 86.8秒、2026-10-08 13:09:59 JST 完了 |
 | 調査・dry-run・レビュー子 | 同期実行で終了・成果を確認。読み取り専用ランタイムでは時計がないため個別実測なし。controller の全体経過時間に含む |
+| PR 公開・文書記録・最終状態確認 | 13:10–13:16頃 JST。着手 12:17から全体で約1時間 |
