@@ -1,1 +1,0 @@
-../../.agents/sp-implementer.md
