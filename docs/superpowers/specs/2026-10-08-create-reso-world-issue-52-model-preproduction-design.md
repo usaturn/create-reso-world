@@ -7,7 +7,7 @@
 - DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-52-preproduction-docs`
 - CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/issue-52-preproduction`
 - コード基点: `99c59be98df0f10b0a8e58781b7f4f67029016f5`（origin/main = upstream/main）
-- 状態: `draft`
+- 状態: `completed`（実装・検証完了。文書内容の個別承認は未取得）
 - 関連 Plan: `docs/superpowers/plans/2026-10-08-create-reso-world-issue-52-model-preproduction.md`
 - 実行許可: ユーザーの「Issue #52 に着手、途中で止めずに推奨案で進めて PR まで作成」に基づき、設計・計画の個別承認待ちを省略し、隔離 worktree で実装・検証・コード PR と文書 PR の公開まで行う。未作成だった文書の内容が個別承認されたとは記録しない。マージ、Meshy の課金、画像送信、既存ワールド変更は含まない。
 
@@ -80,3 +80,28 @@ Phase 0 入力/経路確認、1 blockout/base、2 silhouette/proportion/candidat
 - baseline `dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --filter FullyQualifiedName~ProjectInitializerTests --verbosity quiet`: 13 passed、0 failed、0 skipped。
 - 読み取り専用 recon: 現行バンドルは明示的 resource/Files 登録。新テンプレートは両方への追加が必要。現 Blender exporter は static mesh 経路であり、runtime 可動部を別担当に渡す。
 - baseline dry-run は実制作コマンドへの移行を示し、前工程の成果物・許可状態がまとまらなかった。新スキルでは操作開始せず Build Handoff で終了する。
+
+## 実装・検証結果（2026-10-08）
+
+- 実行した設計・計画の初版: `d04972cbe3c968343aad5e951c5b79243b859f4c`。個別の内容承認ではなく、冒頭に記録したユーザーの実行許可に基づく。
+- 最終コード HEAD: `a648d41252a57313c499618617452022b6bce529`。コード PR: https://github.com/usaturn/resoloop/pull/10
+- 実装: SKILL.md と `references/build-handoff.md`、Names/Files/csproj 登録、build と README/Blender 文書の導線。sync/lock/hash/conflict の実装と既存プロジェクトは変更なし。
+- controller の新規検証: build 0 warnings / 0 errors、solution 448 unit + 19 reported integration passes / 0 failures。live opt-in 無効の integration は早期 return で、実 Resonite/Blender 検証ではない。
+- 実 source + pack/install CLI: 両ファイルが source と一致、check は read-only、reference 欠損を update で復旧、利用者編集の conflict では欠損 reference の部分書込もせず保持、復元後 check clean。pack/install はローカル一時 feed のみで実施。
+- YAML/参照先/resource 構造、skill-efficiency（新スキルは警告なし）、C# active LSP（0 diagnostics）、`git diff --check` を確認。
+- 独立 task review → 3ケースの workflow dry-run → 変換制約/生成 mode/許可の明確化 → scoped re-review → whole-branch review → mode 別課金件数の修正 → scoped re-review が完了。最後の re-review は全指摘対応済み、新規 Critical/Important なし。
+- text は preview と提案した refine を別操作に計上し、両方提案した場合のみ計2件。image は提案した image 生成1件につき1件で、自動で preview/refine を追加しない。両方とも課金/送信未許可の dry-run を確認。
+- 新規 unit/prose/スキル名一覧テストなし。文書/登録値変更には既存挙動テストと実 CLI、構造検査を用いた。
+- 未実施: Meshy API/課金/画像送信、実 Blender 制作、Resonite capture/runtime、通常プロジェクトへの sync、merge、NuGet release。公開 NuGet への同梱は別途 release が必要なため Issue は自動 close しない。
+- 文書 PR と public CI の最終結果は公開記録節に追記する。
+
+### 所要時間
+
+| 担当・工程 | 記録 |
+| --- | --- |
+| controller 調査・設計・計画・隔離準備 | 12:17–12:26 JST（約9分） |
+| 初回実装（authoring/配布/検証/報告） | 9分24秒。調査53秒、実装2分34秒、構造/build/回帰1分57秒、smoke準備/実行1分10秒、自己レビュー/commit43秒、報告2分7秒 |
+| 変換制約/mode/許可の追記修正 | 最終確認まで6分31秒。調査52秒、修正29秒、構造39秒、build/回帰1分32秒、smoke18秒、自己レビュー17秒、報告/確認約2分24秒 |
+| mode別件数の最終修正 | 03:59:11–04:06頃 UTC（約7分）。調査54秒、修正24秒、構造29秒、build/initializer22秒、smoke18秒、commit17秒、報告エラー復旧と再検証/報告を含む |
+| controller 最終 build/回帰/pack/install/efficiency + LSP | 86.8秒、2026-10-08 13:09:59 JST 完了 |
+| 調査・dry-run・レビュー子 | 同期実行で終了・成果を確認。読み取り専用ランタイムでは時計がないため個別実測なし。controller の全体経過時間に含む |
