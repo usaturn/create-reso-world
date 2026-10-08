@@ -4,7 +4,7 @@
 - Issue: https://github.com/usaturn/create-reso-world/issues/50
 - 基準 HEAD: `b1b0614`（origin/main）
 - 状態: completed
-- 完了範囲: 初回実装・ローカル検証・PR 作成と、PR #54 のレビュー修正・検証・自己レビュー。実機受入は未確認。
+- 完了範囲: 初回実装・ローカル検証・PR 作成、PR #54 のレビュー修正・検証・自己レビュー、および2026-10-08の再選別・マージ前検証。実機受入は未確認。
 - PR: https://github.com/usaturn/create-reso-world/pull/54
 - Plan: `docs/superpowers/plans/2026-10-07-create-reso-world-issue-50-meshy.md`
 - PARENT_ROOT: `/workspaces/reso-world`
@@ -242,3 +242,70 @@ ID の先頭は D=deepseek、C=claude、G=grok、S=SWE。U は各レビューの
 controller の計測開始は22:14:10 UTC、最終回帰完了は23:24:55 UTC（70分45秒、初期のタスク表示・最初の情報取得は計測外）。主な区間は、調査・分類・Spec準備22:14:10〜22:43:59（29分49秒）、実装担当22:43:59〜22:53:17（9分18秒）、統合検証・ガード対照・自己レビュー3席・判定22:53:17〜23:22:40（29分23秒）、最終回帰・記録23:22:40〜23:24:55（2分15秒）。コミット・push・コメント・片付けはこれ以降の区間として完了報告に記録する。
 
 実装担当の実測内訳: source / 条件確認116秒、test編集・RED76秒、最小修正・focused GREEN99秒、安全条件の追加検査・手順6秒、全2ファイル回帰103秒、静的検査・diff確認・報告158秒。recon / review 担当のランタイムには時計がなく、各担当の独立した実測時間は取得できないため推定値は使用しない。
+
+## PR #54 の再選別とマージ前検証（2026-10-08）
+
+### 対象・実行許可・結論
+
+- 状態: completed。結論は **2 修正不要でマージ**。この節はマージ前に記録した検証結果であり、push・マージ・Issue更新の実績はPRコメントと完了報告に残す。
+- 対象: `usaturn/create-reso-world` PR #54、`feat/issue-50-meshy`。検証したコードHEADは `479c64ec0353f4aa3aee87c1509a2384271d195e`。
+- 実行許可: 今回の `review-fix-planning #54` の明示呼出しには計画のみの指定がなく、完遂経路の修正・push、または修正不要時のマージ・関連Issue更新を含む。初回の「PRまで」の許可とは別の指示である。課金API、実キー、Windows / Resoniteへの操作は行わない。
+- 入力: `reviews/#54-feat-issue-50-meshy/` の全6ファイル。claude-opus-5-5.md、xai-grok-4.7.mdは `22ff0e042079`、claude-haiku-5-5.md、deepseek-deepseek-v4.1-flash.md、SWE-2-High.md、grok-4.7.mdは `479c64ec0353`。Update履歴の旧HEADも含め、取得したPR headの祖先であることを確認した。
+- 全22項目（通常指摘15、候補6、deepseekの本文に解消確認が残る旧候補1）を **解消済み8 / 対応する0 / 対応しない14** に分類した。重複は入力ごとに数える。テスト提案は対応する元のIDの判断に含め、別件として二重計上しない。
+- 同じIssue・PR・テーマの文書はこのSpecと対応Planに一意に特定できたため、本Specだけを更新する。前回の判断は履歴として残し、完了済みPlanを再実行しない。
+
+### 全指摘と候補の判定
+
+H=claude-haiku、D=deepseek、O=claude-opus、X=xai-grok、S=SWE、G=grok。以下の根拠は検証したコミット済みHEADに対するもの。
+
+| ID | 入力の項目 | 分類 | 根拠・到達条件 |
+| --- | --- | --- | --- |
+| H-L1 | plan中断で空manifestが残る | 対応しない | `save_operation`をKeyboardInterruptにすると0byteが残り同名planを拒否することを再現。まだ生成前で既存plan/taskの消失はなく、新しい名前でoffline planを作れる。復旧性の改善であり致命的ではない。 |
+| H-L2 | convert後の再downloadでsourceとconversionのhashがずれる | 対応しない | 偽CLIで同じ成功taskから異なるバイト列を返すとdownloadsのhashだけ更新されることを再現。変換済みbundleの上書き・自動再変換はなく、convertは既存conversionを拒否する。同一taskの資産が変更される条件での来歴不整合であり、既存bundle破損は確認されない。再取得後に古い変換結果を新しいsourceの結果とみなさない制限をPRに記す。 |
+| H-U1 | COLOR_0 / 追加UV / 非三角形primitiveが黙って失われる | 解消済み | 実GLBにCOLOR_0を追加すると `blender_rejected:FixtureMaterial:color_output_required`、点primitiveは `resoloop_export_failed` で公開前に停止。TEXCOORD_1追加は成功し、2個のbundle meshの全頂点にUV2チャンネルを保持。線はimporterが面を作らずexporterのno-triangles拒否に至る。黙って欠落したbundleの成功は再現しない。COLOR_1以降の任意属性対応は保証しない。 |
+| D-I1 | list/balanceのoperationが無視される | 対応しない | 実wrapper + 偽CLIでoperation名がCLIへ渡らず当該operationの書込みもないことを確認。アカウント単位の照会という既存の設計で、絞込み機能・helpの是非にとどまる。 |
+| D-U1 | 空meshのboundsに到達する旧候補 | 解消済み | Update本文の解消確認と、現行 `meshy_blender.py` のactive UV検査→boundsの順、既存拒否回帰を照合。空primitiveは有効なactive UVを持たず、bounds計算前に拒否する。 |
+| O-M1 | 複数GLBを取得するとconvertが止まる | 解消済み | `479c64e` の共通 `select_glb_entry` が主key `model.glb`を一意選択し、downloadとconvertで共用。複数GLBの実変換、主key欠落・曖昧性・旧key無し・hash/pathの回帰がPASS。 |
+| O-L1 | refineにpreviewをattachできる | 解消済み | `479c64e` のID/type/resource/preview同一IDガードを確認。現行の全状態比較を含むattach負例と正しい3種の回帰がPASS。 |
+| O-L2 | wrapperのdownload待ちが120秒固定 | 解消済み | `479c64e` でparser→execute→download→_callに任意timeoutを渡す。遅い偽CLIの既定上限で失敗→指定延長で完了、同じtask ID・create回数不増の回帰がPASS。公式CLI内部の別上限はG-L1として区別する。 |
+| O-U1 | 実Meshy素材が非対応条件に当たる | 対応しない | 素材適応の拒否経路と実fixture試験を確認。Spec §4 / 運用手順はopaque・exporter対応素材だけを対象とし、任意の実Meshy出力の成功を保証しない。実生成物の受入は未実施として残す。対象を広げる設計変更はしない。 |
+| O-U2 | 8k変換が300秒を超える可能性 | 対応しない | 各ResoLoop呼出し300秒・親310秒の既定境界、timeout時のプロセス群停止・staging撤去をコードと回帰で確認。無制限の変換成功は保証しない。実8k全工程の性能受入は未実施であり、推定から不具合を断定しない。上限に達したら元データを保持して手動Blender適応を検討する。 |
+| O-U3 | image ai_modelのAPI受理 | 解消済み | Context7と現行公式Image to 3D本文で `ai_model: latest` を確認。本文はtexture_resolution=2k/4k/8kも列挙。Context7の古い1024/2048/4096断片を現行仕様として採用しない。実課金APIの成功とは区別する。 |
+| X-M1 | result:nullの失敗が一般エラー/unknownになる | 対応しない | 公式CLIをキー無しで起動するとexit3、ok:false/result:null/error.code:auth。これを偽CLIで返すとunknownになり、再submit後もcreateは計1回。Spec §3の保守的な再送禁止で、診断と同一planの再試行の設計論点。公式journalも同じUUIDのterminal recordを再送しない。 |
+| X-L1 | listは先頭10件だけ | 対応しない | 公式0.4.0のpage1/size10とwrapperの非pagination分岐を確認。recent照会であり全履歴の自動復旧は保証しない。journalとMeshy側の記録で手動照合し、確定しなければ生成せず止める。 |
+| S-L1 | plan中断で空manifestが残る | 対応しない | H-L1と同じ再現。生成前の新しいoperation名の回復性で、既存データ消失・再送はない。 |
+| S-L2 | 不存在operationに空directory/lockが残る | 対応しない | status ghostの実行でghost/.lockが残るがCLI呼出しは0、既存データ変更なし。既存仕様内のローカルな軽微な副作用。 |
+| S-L3 | 破損GLBが名前付き拒否にならない | 対応しない | 12byteに切断した実GLBのconvertは `resoloop_conversion_failed`。元manifestは不変、converted・stagingは残らない。成功成果の誤公開ではなく破損入力の診断不足。 |
+| S-L4 | 第三者CLIへ通常の親envを継承 | 対応しない | `child_env`で無関係なsentinel envの継承を確認。MESHY_* / debug / proxy等を除外し、信頼する固定版CLIへ通常環境を渡す明示的な設計。秘密の外部送信・保存は確認されず、全envのsandbox化は対象外。 |
+| S-L5 | 壊れたrefine payloadでattachがtraceback | 対応しない | 自動生成されない手動破損状態（payloadを文字列に置換）でAttributeErrorを再現。manifestは不変、GETのみでcreate無し、sentinel key出力無し。内部状態ファイルの破損時の診断不足で、正常なplan/復旧経路の停止や秘密露出ではない。 |
+| S-I1 | list/balanceのoperationが無視される | 対応しない | D-I1と同じ検証。重複した入力項目として数えるが、照会の設計を変えない。 |
+| S-U1 | image ai_modelの実API受理 | 解消済み | O-U3と同じ公式仕様で対応パラメータであることを確認。実課金の受入が済んだとは扱わない。 |
+| S-U2 | 実CLI writerがguardを通るか | 解消済み | 公式0.4.0のbeginOperation/updateOperationを本guardのpreload付きで実行。temp→renameが成功し、accepted IDを保持、error fieldとsentinel keyは保存前に除去。実キー・HTTP無し。 |
+| G-L1 | download --timeoutは1資産300秒を延ばせない | 対応しない | 公式0.4.0のDEFAULT_DOWNLOAD_LIMITS.timeoutMs=300000、cmd/downloadがlimitsを渡さないことを確認。実fetchToTempにHTTPを使わないfetch doubleを渡し、既定timerだけ30msに短縮した対照でnetwork拒否・未公開を確認。wrapperの総待ち指定とは別のCLI上限であり、bounded取得の制限をなくす設計変更はしない。PRに1資産300秒と回線変更/同じtaskの再取得を明記し、600秒でこの上限が延びるとは説明しない。 |
+
+### 方針・影響経路・新規テスト
+
+対応する項目は0件なので、修正用の「守る条件と影響経路」の表・再発による設計見直し・修正後の自己レビュー・ガード除去試験は対象外。前回の3修正条件は現行実装と回帰で満たす。H-L2/S-L5/G-L1の追加確認は、新しい致命的な欠陥の根拠とはならなかった。
+
+wrapperの診断・照会範囲・内部ファイル破損への回復性を改善する案と、既存の安全側停止を維持する案を比較し、後者を採用した。未知の結果をplannedへ戻す案や、全形式/全サイズの受入へ範囲を広げる案は採用しない。公開済みの処理は変更せず、実在する制限・回避経路だけPR説明に反映する。
+
+新規テストは不要。今回コミットするのはSpecの記録だけで、守る新しい実行挙動はない。AGENTS.mdのテスト採用基準に従い、文面照合テストを足さず、既存の実行回帰・構文・参照・差分確認で検証した。既存の2テストファイルは実subprocess・Node・Blender/export・ファイルの状態を検査しており、明確な基準違反は確認されなかった。
+
+### 検証・確認の範囲
+
+- 専用worktreeは既存の `/workspaces/reso-world/.worktrees/issue-50-meshy` を再利用。最初にcleanかつPR head一致を確認し、この状態のコミット済み内容を読んだ。他のworktreeの未コミットsource/testは根拠にしない。
+- 入力全6ファイル、PRの全20変更ファイル全文、workflowの全分岐、conversion/publication、導入・既存runnerと関連テストを確認。2席の読み取り専用reconを同期・直列委譲した。導入済みResoLoop exporterとBlender importerの頂点色・全UV・primitive経路も確認した。
+- 挙動の再現は別の `mktemp` 隔離worktree（同一HEADを照合）で実行。全スクラッチ・ログ・pytest一時出力はその親ディレクトリ内へ閉じ込めた。検証worker終了後、Spec更新前にworktree登録を外し、親も撤去済み。既存の専用worktreeとbranchは削除しない。
+- `env -u MESHY_API_KEY uv run pytest tests/scripts/test_meshy.py tests/scripts/test_meshy_conversion.py tests/skills .agents/skills -q --tb=short`（一時出力先を隔離親へ指定）: **667 passed、skip無し、225.40秒、exit0**。
+- `bash .devcontainer/run-tests.bash`: **28 scripts PASS、exit0**。外側ツール実測はlayout込み142.4秒。
+- `bash scripts/check-layout.sh`: **PASS、exit0**。既存4projectのSKILL_SYNC_REQUIRED警告のみ。今回は同期updateしない。
+- Ruff check / format（関連Python7ファイル）、Node guard構文、変更したbash5ファイル構文、`git diff --check`: **PASS**。
+- 公式CLI0.4.0を隔離npm prefixへ導入し、version・キー無しのローカルauth拒否、journal writer、download内部timer、list既定値を確認。実Meshy HTTPは使用していない。
+- baseを再fetchし、`origin/main=b1b0614b3f41faf3ece128c2704e31bdb5be315e` が検証したheadの祖先であることを確認。base側の追加変更はなく、一時統合mergeは不要。PRはOPEN/non-draft/MERGEABLE/CLEAN。このprivate repositoryのCIはAGENTS.mdにより確認不要。
+- 自己レビュー: **未実施（結論2で実装修正がないため対象外）**。調査結果や667件成功を、実機受入完了の証拠とはしない。
+
+標準rebuild、実API認証・残高・text/image課金生成・実Meshy素材、実8k全工程性能、Windows / Resoniteでのテクスチャ表示・同一state再適用・保存再起動後の保持は未実施。Issue #50のこれらの受入項目は残し、今回のマージだけでcloseしない。最終投稿後は検証済みheadを `--match-head-commit` で指定してマージする。
+
+### 所要時間
+
+controllerの開始は2026-10-08 09:54:28 JST、再現・回帰・静的検査・base照合・一時領域撤去の完了は10:18:06 JST（23分38秒）。内訳として計測できたものは、環境回帰/layout142.4秒、pytest225.9秒（両者は並行）、静的検査/base確認/teardown3.9秒、2席目recon413.1秒。1席目reconの報告内の推定29分は実測と一致せず採用しない。子ロールは時計を利用できず、細かな内訳の実測は取得不能。Spec編集・commit・push・最終投稿・マージ・Issue更新の時間はこれ以降として完了報告に記録する。
