@@ -12,7 +12,7 @@
 
 - 文書管理: `usaturn/create-reso-world`、Issue #56
 - 実装対象: `usaturn/resoloop`、基準 HEAD `8bcef8a14e4b36167058df3f5c4af95ee895f9cf`
-- 状態: draft
+- 状態: completed
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-56-meshy-docs`
 - CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/issue-56-meshy`
@@ -99,8 +99,8 @@
 - [x] **Step 1:** 読み取り専用 sp-review で最終ブランチレビュー。paid gate、retry、防漏洩、path保護、競合全件preflight、配布依存閉包、テスト基準を確認する。実装担当/controllerだけがテストを実行する。
 - [x] **Step 2:** 根拠のある指摘を修正し該当テストと全体検証を実行する。既存source/ユーザー作業物には触らない。
 - [x] **Step 3:** Spec/Plan に実行許可と内容SHA、実装HEAD、検証結果/残課題/所要時間を追記する。実施していない live/標準rebuild/Windows 実機は明記する。承認済みと推測しない。
-- [ ] **Step 4:** 文書と実装をそれぞれコミット・push する。`usaturn/resoloop` に Meshy の独立 PR、`usaturn/create-reso-world` に Spec/Plan の文書専用 PR を作り相互参照する。`Refs usaturn/create-reso-world#56`、自動closeなし。
-- [ ] **Step 5:** 公開 target の CI を確認する。create-reso-world private CI の確認は不要。forkマージ/上流PR/NuGet未公開を明記して、Herdr task を completed にする。
+- [x] **Step 4:** 文書と実装をそれぞれコミット・push する。`usaturn/resoloop` に Meshy の独立 PR、`usaturn/create-reso-world` に Spec/Plan の文書専用 PR を作り相互参照する。`Refs usaturn/create-reso-world#56`、自動closeなし。
+- [x] **Step 5:** 公開 target の CI を確認する。create-reso-world private CI の確認は不要。forkマージ/上流PR/NuGet未公開を明記して、Herdr task を completed にする。
 
 ## 実行記録
 
@@ -111,7 +111,7 @@
 - Task 2: `1f99aff`（doctor、Linux gate、9 files、任意依存手順、CI）。Spec PASS、重大な指摘なし。軽微な2件を最終修正にまとめた。
 - 最終修正: `4fd899dda9ed5b76252d2cd76f85871f522d7d4a`。不正UTF-8の後処理で診断エラーが上書きされる問題（doctor/conversion）と、NumPy欠落テストのホスト依存を修正。全体review＋scoped re-reviewで未解決指摘なし。
 - 実装ブランチ HEAD（検証記録を含む）: `29ab002a4e9a671448e661b66831f91934bd6a56`。
-- fork PR: https://github.com/usaturn/resoloop/pull/11 。自動closeなし。
+- fork PR: https://github.com/usaturn/resoloop/pull/11 、文書PR: https://github.com/usaturn/create-reso-world/pull/61 。相互参照済み、自動closeなし。
 
 ### 最終検証
 
@@ -127,7 +127,7 @@
 ### 検証範囲・公開の残り
 
 実変換はBlender5.0.1 / Python3.14.4 / 隔離NumPy2.5.3で成功。標準NumPy2.3.5のimportが作業中に確認できたが、controller/担当者は標準環境を変更しておらずbaselineとの差の原因は未確定。標準rebuild/全面変換、Windows/Resonite実機、paid/image/live/実APIの結果は未検証。Issue#50の実機受入を完了扱いにしない。
-forkマージ、上流統合/PR、公開NuGet収録は未実施。公開CIはfork PRの進行中runを最後に確認する。
+forkマージ、上流統合/PR、公開NuGet収録は未実施。公開CIは [run 37801297304](https://github.com/usaturn/resoloop/actions/runs/37801297304)、HEAD `29ab002a4e9a671448e661b66831f91934bd6a56` で **success**。Linux offline Python 47秒、Windows build/test/pack/install/init/sync smoke 3分44秒が成功。監視 `/tmp/issue56-controller-logs/public-ci.log` はexit0。Windows hosted runnerのinit/syncは実行済みだが、利用者のWindows/Resonite live受入とは区別する。private create-reso-world CIは規約どおり確認不要。
 
 ### 検証中の認証情報取扱い
 
@@ -139,4 +139,4 @@ forkマージ、上流統合/PR、公開NuGet収録は未実施。公開CIはfor
 - Task1担当: 12分45秒（調査/RED 2:25、移植/GREEN 2:12、回帰/自己レビュー5:34、commit/report2:34）。
 - Task2担当: 35分33秒（調査2分、RED2分、実装/GREEN5分、手順/CI5分、回帰2分、pack/install6分、最低Python/静的検証6分、review/commit4分、report約3分）。
 - 最終修正担当: 18分54秒（調査/test2:51、RED1:20、fix/GREEN0:35、回帰4:35、pack/install4:37、review/commit1:48、report3:08）。
-- controllerの調査/文書化/各読み取り専用レビュー/独立再検証/公開確認を含む総時間は完了時に追記する。
+- controllerの調査/文書化/各読み取り専用レビュー/独立再検証/公開確認を含む総時間: 約2時間23分（2026-10-08 22:12:53〜2026-10-09 00:36 JST）。担当者時間の合計だけではなく同期レビュー・実検証・文書公開を含む。

@@ -3,11 +3,12 @@
 - 文書管理: `usaturn/create-reso-world`
 - 対象 Issue: https://github.com/usaturn/create-reso-world/issues/56
 - 実装対象: `usaturn/resoloop`（上流 `orange3134/resoloop`）
-- 状態: draft
+- 状態: completed
 - 調査したコード HEAD: `8bcef8a14e4b36167058df3f5c4af95ee895f9cf`
 - 移植元 HEAD: `ce597301f797e011b9313792cb5a7a5ed4e0d104`
 - 実装 HEAD: `29ab002a4e9a671448e661b66831f91934bd6a56`（runtime の最終検証は `4fd899d`）
 - fork PR: https://github.com/usaturn/resoloop/pull/11
+- 文書 PR: https://github.com/usaturn/create-reso-world/pull/61
 - Plan: `../plans/2026-10-08-create-reso-world-issue-56-meshy-distribution.md`
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-56-meshy-docs`
@@ -113,4 +114,5 @@ create-reso-world の既存 Meshy コピーは Issue #50 の再現元として�
 - 非UTF-8出力時のdoctor/conversionのエラー保持、NumPy欠落テストのホスト依存を最終修正した。これらは既存診断/安全条件の修復であり、設計変更ではない。
 - 実変換は隔離NumPy環境の結果。標準環境/rebuild、Windows/Resonite実機、実API、paid/image/liveは未検証。forkマージ/上流PR/公開NuGetへの収録は未実施。Issue #56 は自動closeしない。
 - 初回テスト失敗ログへの非Meshy認証値の混入はPlanに取扱いと利用者への注意を記録。最小envへ修正済みだが過去のharness記録を削除できたとは扱わない。
-- 詳しい実行証拠・公開CI・所要時間は関連Planの実行記録とforkの `docs/MESHY-VALIDATION.md` に記録する。
+- 公開CI: [run 37801297304](https://github.com/usaturn/resoloop/actions/runs/37801297304)、HEAD `29ab002`、Linux offline Python 47秒、Windows build/test/pack/install/init/sync smoke 3分44秒、ともにsuccess。Windowsの実機live受入とは区別する。
+- 詳しい実行証拠・所要時間は関連Planの実行記録とforkの `docs/MESHY-VALIDATION.md` に記録する。
