@@ -1,12 +1,14 @@
 #!/bin/bash
 # ワールドのプロジェクトを作る、または既存プロジェクトに雛形の不足分を適用する。
-# 仕様: docs/superpowers/specs/2026-09-26-create-reso-world-redesign-design.md 4.2・4.3 節
+# 作る場所は Git 管理外の作業領域 worlds/<name>。--apply は worlds/ と、追跡解除した従来位置（ルート直下）の
+# 両方を対象にできる。仕様: docs/superpowers/specs/2026-10-08-issue-57-local-worlds-design.md 4.3 節
 # 使い方: scripts/new-world.sh [--apply] [--no-sync] [--root DIR] <name>
 # 終了コード:
 #   0 成功
 #   1 既存ファイルとの食い違いあり。雛形の変更は何もしない（新規作成では resoloop init が作ったディレクトリだけが残り、その旨を表示する）
-#   2 使い方の誤り（git に無視される名前を含む）。何も変更しない
-#   3 前提不足。uv（同期ありのとき）・resoloop・ルートの共有物（.claude/settings.json、.pi）の欠落は何かを作る前に検出する。
+#   2 使い方の誤り（予約名 worlds、両方の場所にある --apply を含む）。何も変更しない
+#   3 前提不足。uv（同期ありのとき）・resoloop・ルートの共有物（.claude/settings.json、.pi）の欠落と、
+#     worlds/ がディレクトリでないことは何かを作る前に検出する。
 #     resoloop init の失敗や init 後の生成物の不足では init が作ったものが残る。uv sync の失敗では雛形の適用は済んでおり、その旨を表示する
 set -euo pipefail
 
@@ -34,20 +36,38 @@ done
 [ "$name_given" -eq 1 ] || usage
 name_re='^[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?$'
 [[ "$name" =~ $name_re ]] || die 2 "invalid project name '$name' (use letters, digits, '-' and '_'; start and end with a letter or digit)"
+[ "$name" != worlds ] || die 2 "'worlds' is the work area for local projects; choose another name"
 [ -n "$root" ] || root="$(git -C "$script_dir" rev-parse --show-toplevel)"
-# ルートの .gitignore（や利用者の除外設定）で無視される名前のプロジェクトは、git からも check-layout からも見えない
-if git -C "$root" check-ignore -q -- "$name/.resoloop.json" 2>/dev/null; then
-  die 2 "'$name' is ignored by git in $root (root .gitignore or your excludes); choose another name"
-fi
 tmpl="$root/templates/world-project"
 [ -d "$tmpl" ] || die 3 "template directory not found: $tmpl"
-proj="$root/$name"
+# worlds/ はローカル作業領域。実ディレクトリであること。symlink や通常ファイルでは、
+# プロジェクトからルートの共有物へ張る相対 symlink がリンク先基準で解決されて届かなくなる
+if [ -L "$root/worlds" ] || { [ -e "$root/worlds" ] && [ ! -d "$root/worlds" ]; }; then
+  die 3 "$root/worlds exists but is not a real directory (a symlink breaks the projects' relative links to the repository root)"
+fi
+primary="$root/worlds/$name"
+legacy="$root/$name"
+proj="$primary"
 
-if [ -e "$proj" ] || [ -L "$proj" ]; then
+if [ -e "$primary" ] || [ -L "$primary" ] || [ -e "$legacy" ] || [ -L "$legacy" ]; then
   [ "$apply" -eq 1 ] || die 2 "$name already exists; use --apply to add the missing scaffold"
+  if [ -e "$primary" ] || [ -L "$primary" ]; then
+    { [ ! -e "$legacy" ] && [ ! -L "$legacy" ]; } \
+      || die 2 "$name exists both at $primary and $legacy; resolve the duplication first"
+  else
+    proj="$legacy"
+  fi
 else
   [ "$apply" -eq 0 ] || die 2 "$name does not exist; drop --apply to create it"
 fi
+# ルートを指す symlink の行き先はプロジェクトの深さで決まる。ルート直下は 1、worlds/<name> は 2。
+# プロジェクト内で閉じる .claude/skills/<name> -> ../../.agents/skills/<name> は深さに依存しない
+rel="${proj#"$root"/}"
+slashes="${rel//[^\/]/}"
+depth=$((${#slashes} + 1))
+up() { local i out=""; for ((i = 0; i < $1; i++)); do out+='../'; done; printf '%s' "$out"; }
+up_in="$(up "$depth")"        # プロジェクト直下のエントリ（.pi）の行き先に使う
+up_sub="$(up $((depth + 1)))" # 1 段下のエントリ（.claude/settings.json、.agents/sp-*.md）の行き先に使う
 # 何かを作る前に前提を確かめる
 if [ "$sync" -eq 1 ]; then
   command -v uv >/dev/null 2>&1 || die 3 "uv not found; install it or pass --no-sync"
@@ -58,6 +78,7 @@ if [ "$apply" -eq 0 ]; then
   for shared in .claude/settings.json .pi; do
     [ -e "$root/$shared" ] || die 3 "$shared is missing at the repository root ($root/$shared); the new project links to it"
   done
+  mkdir -p "$(dirname "$proj")"   # worlds/。従来位置への --apply では init を実行しないのでここには来ない
   resoloop init "$proj" --json >/dev/null || die 3 "resoloop init failed for $name"
   initialized=1
 fi
@@ -143,11 +164,11 @@ if parent_ok .resoloop/.gitignore; then
     want_file .resoloop/.gitignore "$tmpl/resoloop-gitignore" 0
   fi
 fi
-want_link .claude/settings.json ../../.claude/settings.json
-want_link .pi ../.pi
+want_link .claude/settings.json "${up_sub}.claude/settings.json"
+want_link .pi "${up_in}.pi"
 for sp in "$root"/.agents/sp-*.md; do
   [ -f "$sp" ] || continue
-  want_link ".agents/$(basename "$sp")" "../../.agents/$(basename "$sp")"
+  want_link ".agents/$(basename "$sp")" "${up_sub}.agents/$(basename "$sp")"
 done
 # 隠しエントリ（.old など）も含めて、リンクが要るディレクトリと、対応するディレクトリの無いリンクを探す
 shopt -s dotglob
