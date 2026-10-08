@@ -6,6 +6,8 @@
 - 状態: draft
 - 調査したコード HEAD: `8bcef8a14e4b36167058df3f5c4af95ee895f9cf`
 - 移植元 HEAD: `ce597301f797e011b9313792cb5a7a5ed4e0d104`
+- 実装 HEAD: `29ab002a4e9a671448e661b66831f91934bd6a56`（runtime の最終検証は `4fd899d`）
+- fork PR: https://github.com/usaturn/resoloop/pull/11
 - Plan: `../plans/2026-10-08-create-reso-world-issue-56-meshy-distribution.md`
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-56-meshy-docs`
@@ -102,3 +104,13 @@ Context7 `/websites/meshy_ai_en` で公式 API の env-only 認証を照合し�
 
 本作業は fork PR と文書 PR まで。fork main へのマージ、preproduction との上流統合、上流 PR、公開 NuGet 収録はそれぞれ未実施として記録する。fork PR の完了だけで Issue 全体の一般配布完了としない。Issue は自動 close せず `Refs` を使う。
 create-reso-world の既存 Meshy コピーは Issue #50 の再現元として変更しない。将来の整理は別作業。新生成モード、Windows native wrapper、依存の自動インストール、paid/live 検証は対象外。
+
+## 実行結果（2026-10-09）
+
+- 内容コミット `0bacce7b1a9d89c930917bf83d18abda9617e7fe` と Plan `3a7d425a8b378d3f18d3b21d4bbe94535d51df0d` に、冒頭のユーザーの一貫実行許可を適用した。内容の個別レビュー承認を得たとは記録しない。
+- self-contained 9ファイル、任意依存doctor、Linux gate、手動setup/update、制作導線を実装。既存syncの全競合preflightと非管理データの保持、既存paid/recovery/material/path条件を維持。
+- controller再検証: C#472成功、実pack/installの配置ENTRYでPython237成功、skip 0。実Blender fixture54件と、移設bundleの相対asset4件/validateも成功。全体レビュー・最終修正・scoped re-review完了、未解決指摘なし。
+- 非UTF-8出力時のdoctor/conversionのエラー保持、NumPy欠落テストのホスト依存を最終修正した。これらは既存診断/安全条件の修復であり、設計変更ではない。
+- 実変換は隔離NumPy環境の結果。標準環境/rebuild、Windows/Resonite実機、実API、paid/image/liveは未検証。forkマージ/上流PR/公開NuGetへの収録は未実施。Issue #56 は自動closeしない。
+- 初回テスト失敗ログへの非Meshy認証値の混入はPlanに取扱いと利用者への注意を記録。最小envへ修正済みだが過去のharness記録を削除できたとは扱わない。
+- 詳しい実行証拠・公開CI・所要時間は関連Planの実行記録とforkの `docs/MESHY-VALIDATION.md` に記録する。
