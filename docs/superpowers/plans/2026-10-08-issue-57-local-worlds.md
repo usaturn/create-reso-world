@@ -11,10 +11,12 @@
 **Spec:** `docs/superpowers/specs/2026-10-08-issue-57-local-worlds-design.md`
 
 - 文書管理・対象リポジトリ: `usaturn/create-reso-world`、Issue #57
-- 状態: draft（内容の明示承認は未取得。実行許可に基づき実施する）
+- 状態: completed（実行許可に基づき全 Task 実施・検証済み。内容の承認は PR #58 のレビューで受ける）
 - 基準 HEAD: `f3bc010847a6bde9ee9b4705e20d843337ce3c2f`
+- 関連 PR: https://github.com/usaturn/create-reso-world/pull/58
 - 実行方法: executing-plans（controller が直列に実行）
 - 実行許可: 利用者の「途中で止めずに推奨案で Spec、Plan を作成し PR まで実施せよ」。内容の承認とは区別する。マージは含まない
+- 検証: `bash .devcontainer/run-tests.bash` PASS（28 本）、`bash scripts/check-layout.sh` PASS、`uv run pytest tests/skills .agents/skills` PASS（475 件）、`git diff --check` clean
 
 ## Global Constraints
 

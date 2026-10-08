@@ -4,9 +4,11 @@
 - 対象: Issue #57「ワールド固有コード・生成物を原則Git管理外にし、制作環境の管理と分離する」
 - 基準: `main` の `f3bc010`（PR #54 のマージ後）
 - 経路: brainstorming の architectural 経路
-- 状態: draft（内容の明示承認はまだ無い）
+- 状態: completed（実行許可に基づき実装・検証済み。内容の承認は PR #58 のレビューで受ける）
 - 実行許可: 2026-10-08 に利用者が「#57 に対応せよ。途中で止めずに推奨案で Spec、Plan を作成し PR まで実施せよ」と指示した。この指示を、この Spec の推奨案で Plan の作成・実装・検証・push・PR の作成まで止まらずに進める許可として扱う。内容の確認は PR で受ける。マージは指示に含まない
 - 関連 Plan: `docs/superpowers/plans/2026-10-08-issue-57-local-worlds.md`
+- 関連 PR: https://github.com/usaturn/create-reso-world/pull/58
+- 検証: `bash .devcontainer/run-tests.bash` PASS（28 本）、`bash scripts/check-layout.sh` PASS、`uv run pytest tests/skills .agents/skills` PASS（475 件）、`git diff --check` clean
 - 作成: 2026-10-08
 
 ## 1. 目的と前提
