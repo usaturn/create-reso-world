@@ -1,5 +1,6 @@
 #!/bin/bash
-# 各プロジェクト（.resoloop.json を追跡している直下のディレクトリ。scripts/check-layout.sh の collect_projects と同じ定義）で
+# 各ローカルプロジェクト（作業領域の直下にあり .resoloop.json を持つディレクトリ。
+# 作業領域は worlds/ と追跡解除した従来位置の 4 名。scripts/check-layout.sh の collect_projects と同じ定義）で
 # resoloop skills sync --check を実行し、結果を表示する。
 # 仕様: docs/superpowers/specs/2026-10-06-issue-41-resoloop-latest-without-lock-design.md D-12
 # postCreate から呼ぶ。同梱スキルの同期は手動で行う（AGENTS.md の「プロジェクト運用」）ので、差分や失敗があっても常に 0 で終わる
@@ -13,14 +14,16 @@ if ! command -v resoloop >/dev/null 2>&1; then
     say 'resoloop not found; skipped the check.'
     exit 0
 fi
-if ! cd -- "$root" || ! git rev-parse --git-dir >/dev/null 2>&1; then
-    say "git cannot list the projects in $root; skipped the check."
+if ! cd -- "$root"; then
+    say "cannot enter $root; skipped the check."
     exit 0
 fi
+# プロジェクトは Git で追跡しないので、作業ツリーを走査して探す
 projects=()
-while IFS= read -r -d '' path; do
-    [[ "$path" =~ ^[^/]+/\.resoloop\.json$ ]] && projects+=("${path%%/*}")
-done < <(git ls-files -z -- '*/.resoloop.json')
+while IFS= read -r d; do
+    [ -f "$d/.resoloop.json" ] && projects+=("$d")
+done < <( { for d in worlds/*/; do [ -d "$d" ] && printf '%s\n' "${d%/}"; done
+            printf '%s\n' MyResoniteProject akichi slum02 slum03; } | LC_ALL=C sort -u )
 if [ ${#projects[@]} -eq 0 ]; then
     say 'no projects found.'
     exit 0
