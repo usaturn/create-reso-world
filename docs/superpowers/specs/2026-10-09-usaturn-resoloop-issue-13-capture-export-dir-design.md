@@ -3,7 +3,7 @@
 - 文書管理: `usaturn/create-reso-world`
 - 対象 Issue: https://github.com/usaturn/resoloop/issues/13（関連: #12）
 - 実装対象: `usaturn/resoloop`（上流 `orange3134/resoloop`）と `usaturn/create-reso-world` の `.devcontainer/`
-- 状態: draft
+- 状態: approved（2026-10-09 にユーザーが「進めてください」で承認。承認した版: `04a74fd`）
 - 調査したコード HEAD: resoloop `9cf7178f02a696cd91ae5fb092b9078e98f25beb`、create-reso-world `2b260b69fea36e0f2fc2616cf4d8bcf1a9e93b83`
 - Plan: 未作成
 - PARENT_ROOT: `/workspaces/reso-world`
