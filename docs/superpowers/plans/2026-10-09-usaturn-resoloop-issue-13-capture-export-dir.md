@@ -55,12 +55,12 @@
 - Produces: `internal static readonly string[] ScreenshotDirectoryResolver.ExportFolderSuggestions`（Task 2 が使う）
 - Produces: `public sealed record ScreenshotDirectoryCandidate(string Path, bool Exists)`（`namespace RLoop.Core`）
 
-- [ ] **Step 1: ベースラインを確かめる**
+- [x] **Step 1: ベースラインを確かめる**
 
 Run（CODE_ROOT で）: `dotnet test tests/RLoop.Tests --filter FullyQualifiedName~CaptureTests`
 Expected: PASS（全件成功）。失敗があれば作業を止めて報告する
 
-- [ ] **Step 2: 失敗するテストを書く**
+- [x] **Step 2: 失敗するテストを書く**
 
 `tests/RLoop.Tests/CaptureTests.cs` の `ScreenshotDirectoryFindsActiveLocalizedOneDrivePicturesFolder` の後に追加する。
 
@@ -81,12 +81,12 @@ Expected: PASS（全件成功）。失敗があれば作業を止めて報告す
     }
 ```
 
-- [ ] **Step 3: 失敗を確かめる**
+- [x] **Step 3: 失敗を確かめる**
 
 Run: `dotnet test tests/RLoop.Tests --filter FullyQualifiedName~ScreenshotDirectoryFailsFast`
 Expected: ビルドエラー（`ScreenshotDirectoryCandidate` が無い）
 
-- [ ] **Step 4: 実装する**
+- [x] **Step 4: 実装する**
 
 `src/RLoop.Core/ScreenshotDirectoryResolver.cs` の `ResolveDefault` を次に置き換える（OneDrive の候補を足す `if (OperatingSystem.IsWindows())` のブロックと、`active` を選ぶ式は今のまま）。
 
@@ -165,12 +165,12 @@ Expected: ビルドエラー（`ScreenshotDirectoryCandidate` が無い）
 public sealed record ScreenshotDirectoryCandidate(string Path, bool Exists);
 ```
 
-- [ ] **Step 5: テストが通ることを確かめる**
+- [x] **Step 5: テストが通ることを確かめる**
 
 Run: `dotnet test tests/RLoop.Tests --filter FullyQualifiedName~CaptureTests`
 Expected: PASS（新しいテストと既存の `ScreenshotDirectoryMatchesResoniteKnownFolderConvention`・`ScreenshotDirectoryFindsActiveLocalizedOneDrivePicturesFolder` を含む全件）
 
-- [ ] **Step 6: コミットする**
+- [x] **Step 6: コミットする**
 
 ```bash
 git add src/RLoop.Core/ScreenshotDirectoryResolver.cs tests/RLoop.Tests/CaptureTests.cs
@@ -199,7 +199,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Produces: `public ScreenshotExport(string directory, string directorySource = "default")`
 - Produces: `LiveCaptureService.CaptureAsync(..., CancellationToken cancellationToken = default, string screenshotDirectorySource = "default")`（既存の引数の後ろに足す。統合テストが `cancellationToken` を位置で渡しているため）
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [ ] **Step 1: 失敗するテストを書く**（ユーザー指示で省略。実施結果を参照）
 
 `tests/RLoop.Tests/CaptureTests.cs` の `TimesOutInsteadOfReturningOldImageAndHonorsCancellation` の後に追加する。
 
@@ -254,12 +254,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     }
 ```
 
-- [ ] **Step 2: 失敗を確かめる**
+- [ ] **Step 2: 失敗を確かめる**（ユーザー指示で省略）
 
 Run: `dotnet test tests/RLoop.Tests --filter "FullyQualifiedName~TimeoutReports|FullyQualifiedName~MissingParentReports"`
 Expected: ビルドエラー（`ScreenshotExport` に 2 引数のコンストラクタが無い）
 
-- [ ] **Step 3: `ScreenshotExport` を実装する**
+- [x] **Step 3: `ScreenshotExport` を実装する**
 
 フィールドとコンストラクタの先頭を次にする。
 
@@ -306,7 +306,7 @@ Expected: ビルドエラー（`ScreenshotExport` に 2 引数のコンストラ
             ["Check that the target world is focused and the renderer is running.", .. ScreenshotDirectoryResolver.ExportFolderSuggestions]);
 ```
 
-- [ ] **Step 4: 指定元を `LiveCaptureService` と `Program.cs` から渡す**
+- [x] **Step 4: 指定元を `LiveCaptureService` と `Program.cs` から渡す**
 
 `src/RLoop.Core/LiveCaptureService.cs` の `CaptureAsync` の引数の末尾と、`ScreenshotExport` の生成を次にする。
 
@@ -334,17 +334,17 @@ Expected: ビルドエラー（`ScreenshotExport` に 2 引数のコンストラ
 
 保存先の解決（207 行）が接続（`ConnectAsync`）より前にある順序は変えない。
 
-- [ ] **Step 5: テストが通ることを確かめる**
+- [x] **Step 5: テストが通ることを確かめる**
 
 Run: `dotnet test tests/RLoop.Tests --filter FullyQualifiedName~CaptureTests`
 Expected: PASS（全件）
 
-- [ ] **Step 6: 統合テストのプロジェクトがビルドできることを確かめる**
+- [x] **Step 6: 統合テストのプロジェクトがビルドできることを確かめる**
 
 Run: `dotnet build ResoLoop.slnx`
 Expected: 警告 0・エラー 0（統合テストの `CaptureAsync` の呼び出しが変更なしでビルドできる）
 
-- [ ] **Step 7: コミットする**
+- [x] **Step 7: コミットする**
 
 ```bash
 git add src/RLoop.Core/ScreenshotExport.cs src/RLoop.Core/LiveCaptureService.cs src/RLoop.Cli/Program.cs tests/RLoop.Tests/CaptureTests.cs
@@ -363,7 +363,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `README-DETAILS.md`（In-game screenshots の節）
 - Modify: `skills/codex/resonite-build/SKILL.md`（手順 9 の capture の文）
 
-- [ ] **Step 1: `README-DETAILS.md` に段落を足す**
+- [x] **Step 1: `README-DETAILS.md` に段落を足す**
 
 「OneDriveなどで保存先が異なる環境は、環境変数 `RESOLOOP_SCREENSHOTS_DIR` または…最小例です。」の段落の後に、空行をはさんで次の段落を追加する。
 
@@ -371,7 +371,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 Resoniteを別のPCやコンテナの外（例: WindowsのResoniteとLinuxのDev Container）で動かす場合、CLIはその写真フォルダを直接読めません。写真フォルダをCLIから読める場所にマウントし、`--screenshots-dir`・`RESOLOOP_SCREENSHOTS_DIR`・`screenshotsDirectory` のどれかでマウント先を指定してください。指定が無く、Pictures既知フォルダも取得できない環境（`~/Pictures` が無いLinuxなど）では、接続や撮影の前に `CAPTURE_EXPORT_DIR_UNREACHABLE`（exit 3）で停止し、調べた候補を `context` に返します。`CAPTURE_EXPORT_TIMEOUT` の `context` には、監視したフォルダ（`directory`）、その指定元（`directorySource`）、撮影前のフォルダの有無と画像の数が入ります。
 ```
 
-- [ ] **Step 2: `SKILL.md` の capture の文を差し替える**
+- [x] **Step 2: `SKILL.md` の capture の文を差し替える**
 
 `skills/codex/resonite-build/SKILL.md` の次の文を探す。
 
@@ -385,12 +385,12 @@ On CAPTURE_EXPORT_TIMEOUT check the active world, renderer and export folder; on
 On CAPTURE_EXPORT_DIR_UNREACHABLE do not retry: this CLI cannot read Resonite's photo folder (for example from a container), so ask the user to configure a readable folder or leave the visual check to the user. On CAPTURE_EXPORT_TIMEOUT check the active world, renderer, and the folder and its source in the error context; on CAPTURE_FORMAT_MISMATCH use .jpg or enable Keep Original Screenshot Format.
 ```
 
-- [ ] **Step 3: 差分を確かめる**
+- [x] **Step 3: 差分を確かめる**
 
 Run: `git diff --stat && git diff -- README-DETAILS.md skills/codex/resonite-build/SKILL.md`
 Expected: 2 ファイルだけが変わり、上の 2 か所以外に差分が無い
 
-- [ ] **Step 4: コミットする**
+- [x] **Step 4: コミットする**
 
 ```bash
 git add README-DETAILS.md skills/codex/resonite-build/SKILL.md
@@ -407,12 +407,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:** なし（検証だけ）
 
-- [ ] **Step 1: 全体のテストを実行する**
+- [x] **Step 1: 全体のテストを実行する**
 
 Run（CODE_ROOT で）: `dotnet build ResoLoop.slnx && dotnet test ResoLoop.slnx --no-build`
 Expected: すべて成功（実機の統合テストは環境変数が無いので実行されない）。件数を記録する
 
-- [ ] **Step 2: 修正版を導入する**
+- [x] **Step 2: 修正版を導入する**
 
 Run:
 
@@ -424,7 +424,7 @@ resoloop --version
 
 Expected: `installed: ResoLoop <版>.fork.<日付>.g<短い SHA>`、`resoloop --version` が同じ版を表示する。`external/resoloop` の checkout はこの SHA で detached になる（既定の運用どおり）
 
-- [ ] **Step 3: リンクの無い今のコンテナで、すぐに止まることを確かめる**
+- [x] **Step 3: リンクの無い今のコンテナで、すぐに止まることを確かめる**
 
 Run:
 
@@ -438,12 +438,12 @@ resoloop capture content/main.json --camera main --output "${out:?}/main.jpg" --
 
 Expected: 標準エラーに `"code":"CAPTURE_EXPORT_DIR_UNREACHABLE"`、`"picturesFolder":""`、`"candidates":[]`。`exit=3`、経過は 2 秒以内。`ws://localhost:1/` には何も待ち受けていないので、接続を試みていれば接続のエラーになる。この結果で、接続より前に止まったことが分かる
 
-- [ ] **Step 4: 作業ディレクトリに `Resonite` を作っていないことを確かめる**
+- [x] **Step 4: 作業ディレクトリに `Resonite` を作っていないことを確かめる**
 
 Run: `test ! -e /workspaces/reso-world/worlds/slum04/Resonite && echo 'no Resonite under cwd'`
 Expected: `no Resonite under cwd`
 
-- [ ] **Step 5: 保存先を明示したときは既定の解決を通らないことを確かめる（Review Focus 3）**
+- [ ] **Step 5: 保存先を明示したときは既定の解決を通らないことを確かめる（Review Focus 3）**（ユーザー指示で省略。最終レビューで確認済み）
 
 Step 3 で設定した `out` を使う（別のシェルで実行するときは、同じ値を設定し直す）。
 
@@ -456,7 +456,7 @@ RESOLOOP_SCREENSHOTS_DIR="${out:?}" resoloop capture content/main.json --camera 
 
 Expected: `CAPTURE_EXPORT_DIR_UNREACHABLE` ではなく、接続のエラー（終了コード 4）
 
-- [ ] **Step 6: 結果を記録する**
+- [x] **Step 6: 結果を記録する**
 
 Step 1〜5 の出力の要点（テストの件数、導入した版、エラーの JSON、終了コード、経過秒数）を作業報告に残す。導入した修正版は戻さない（次の rebuild で公開版に戻る）
 
@@ -474,7 +474,7 @@ Step 1〜5 の出力の要点（テストの件数、導入した版、エラー
 **Interfaces:**
 - Produces: `.devcontainer/resonite-screenshots.env`（`initialize.bash` が毎回書き直す。`devcontainer.json` の `runArgs` が読む）
 
-- [ ] **Step 1: テストを変える（失敗するテスト）**
+- [x] **Step 1: テストを変える（失敗するテスト）**
 
 DOC_ROOT の `.devcontainer/test-initialize-mounts.bash` を次のように変える。
 
@@ -553,12 +553,12 @@ while IFS= read -r rel; do
 done <<<"$expected"
 ```
 
-- [ ] **Step 2: 失敗を確かめる**
+- [x] **Step 2: 失敗を確かめる**
 
 Run（DOC_ROOT で）: `bash .devcontainer/test-initialize-mounts.bash`
 Expected: FAIL（`unexpected mounts`。写真フォルダの mount がまだ無い）
 
-- [ ] **Step 3: `initialize.bash` を実装する**
+- [x] **Step 3: `initialize.bash` を実装する**
 
 `set -e` の後、`mkdir -p` の前に追加する。
 
@@ -592,7 +592,7 @@ else
 fi
 ```
 
-- [ ] **Step 4: `devcontainer.json` を変える**
+- [x] **Step 4: `devcontainer.json` を変える**
 
 `mounts` の `// 秘密情報（API トークンなど）…` のコメント行の前に追加する。
 
@@ -609,7 +609,7 @@ fi
 		"${localWorkspaceFolder}/.devcontainer/resonite-screenshots.env"
 ```
 
-- [ ] **Step 5: `.gitignore` に足す**
+- [x] **Step 5: `.gitignore` に足す**
 
 `## 個人設定・秘密情報` の一覧の最後（`.secrets/` の後）に追加する。
 
@@ -618,7 +618,7 @@ fi
 /.devcontainer/resonite-screenshots.env
 ```
 
-- [ ] **Step 6: README のツール表に行を足す**
+- [x] **Step 6: README のツール表に行を足す**
 
 `.devcontainer/README.md` のツール表で、`| 秘密情報 |` の行の前に追加する。
 
@@ -626,7 +626,7 @@ fi
 | Resonite の写真フォルダ（任意） | WSL で Windows の Pictures/Resonite へのリンクを 1 回作る（「Resonite ワールド開発ツール」の節） | `~/.local/share/create-reso-world/resonite-screenshots`（読み取り専用） | `~/.local/share/create-reso-world/resonite-screenshots` | — | — |
 ```
 
-- [ ] **Step 7: README に手順の節を足す**
+- [x] **Step 7: README に手順の節を足す**
 
 「Resonite ワールド開発ツール」の節の最後（「ResoLoop の公式要件には…成功扱いにはしない。」の段落の後、`## Meshy CLI と生成物の受け渡し` の前）に追加する。
 
@@ -664,17 +664,17 @@ Resonite は写真を Windows の Pictures の `Resonite` フォルダに保存�
 確かめるか、リンクを消して空のディレクトリに戻す。リンクを作った・消した後は、どちらも rebuild が要る。
 ````
 
-- [ ] **Step 8: テストが通ることを確かめる**
+- [x] **Step 8: テストが通ることを確かめる**
 
 Run（DOC_ROOT で）: `bash .devcontainer/test-initialize-mounts.bash && bash .devcontainer/test-readme.bash && bash scripts/check-layout.sh`
 Expected: `PASS: mounts, initialize.bash and postCreate agree`、`PASS: README implementation table and no hard-coded workspace path`、`PASS: check-layout`
 
-- [ ] **Step 9: リポジトリの `.devcontainer` に env ファイルができていないことを確かめる**
+- [x] **Step 9: リポジトリの `.devcontainer` に env ファイルができていないことを確かめる**
 
 Run: `test ! -e .devcontainer/resonite-screenshots.env && git status --short`
 Expected: env ファイルが無く、`git status` に変更した 6 ファイルだけが出る
 
-- [ ] **Step 10: コミットする**
+- [x] **Step 10: コミットする**
 
 ```bash
 git add .devcontainer/test-initialize-mounts.bash .devcontainer/initialize.bash .devcontainer/devcontainer.json .devcontainer/README.md .gitignore
@@ -696,16 +696,16 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `docs/superpowers/specs/2026-10-09-usaturn-resoloop-issue-13-capture-export-dir-design.md`（冒頭の `Plan:` の行と実装 HEAD）
 - Create: `tmp/docs_draft/claude_handoffs/` の引き継ぎ（PARENT_ROOT、agent-handoff スキルの書式）
 
-- [ ] **Step 1: create-reso-world の全テストを実行する**
+- [x] **Step 1: create-reso-world の全テストを実行する**
 
 Run（DOC_ROOT で）: `bash .devcontainer/run-tests.bash && bash scripts/check-layout.sh`
 Expected: すべて PASS
 
-- [ ] **Step 2: ブランチ全体をレビューする**
+- [x] **Step 2: ブランチ全体をレビューする**
 
 resoloop（CODE_ROOT の `origin/main..HEAD`）と create-reso-world（DOC_ROOT の `origin/main..HEAD`）の差分を、新しいレビュー担当に確認させる。致命的な指摘だけを直し、直したらその Task のテストを再実行する
 
-- [ ] **Step 3: 文書に結果を記録してコミットする**
+- [x] **Step 3: 文書に結果を記録してコミットする**
 
 Plan のチェックボックスを更新し、末尾に「実施結果」の節を足す（各 Task の検証結果、Task 4 のエラーの JSON と終了コード、テストの件数、両ブランチの HEAD、所要時間と主要 Task 別の内訳、公開未実施）。Spec の `Plan:` の行をこの Plan のパスに、実装 HEAD を追記する。状態は、実機の撮影の確認（Step 4 の引き継ぎ）が終わるまで `completed` にしない
 
@@ -716,7 +716,7 @@ git commit -m "docs: record resoloop issue 13 implementation results
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 4: rebuild 後の実機確認の引き継ぎを書く**
+- [x] **Step 4: rebuild 後の実機確認の引き継ぎを書く**
 
 agent-handoff スキルで、次を受け取る側に渡す。ユーザーの作業（README の手順でリンクを作り、rebuild する）が先に要る。
 
@@ -729,3 +729,52 @@ agent-handoff スキルで、次を受け取る側に渡す。ユーザーの作
 - [ ] **Step 5: ユーザーに報告する**
 
 両ブランチの HEAD、検証結果、公開未実施であること、rebuild 前にユーザーがする作業（README の手順）を報告する
+
+## 実施結果
+
+実行方法は Native（このセッションで実装し、最後にブランチ全体をレビュー）。2026-10-09 07:39Z（Plan の承認）〜 08:10Z ごろ。公開未実施（push・PR はしていない）。
+
+### 実行中の変更（ユーザー指示）
+
+Task 1 の途中で、ユーザーが「AGENTS.md を読んでテストは書かなくても良い場合があることをよく考えてね」「設定をされていることを確認する必要はないですよ」と指示した。AGENTS.md のテストの採用基準に照らし、値や設定が入っていることを確かめるだけのテストと確認をやめた。
+
+- 残した: Task 1 の回帰テスト（実際に起きた不具合の再発防止）。確かめるのはエラーコードだけにした
+- やめた: Task 1 のテストの context の各値の確認、Task 2 の 3 本、Task 4 の Step 5、Task 5 の検査 3c と postCreate の「chown しない」の確認、README と引き継ぎの `echo "$RESOLOOP_SCREENSHOTS_DIR"` の確認
+- 既存のテストに合わせる変更（マウントの固定一覧、検査 4 の除外、`initialize.bash` をコピーして実行）は行った
+
+### 各 Task
+
+| Task | コミット | 結果 |
+| --- | --- | --- |
+| 1 | resoloop `901c3b8` | RED「No exception was thrown」（相対パスを返す今の挙動）→ GREEN。`CaptureTests` 23/23 |
+| 2 | resoloop `443c836` | テストなし（ユーザー指示）。`dotnet build ResoLoop.slnx` 警告 0・エラー 0（統合テストの呼び出しは変更なしでビルド可）、`CaptureTests` 23/23 |
+| 3 | resoloop `9e43c95` | 文書のみ。`git diff` で 2 か所だけの変更を確認 |
+| 4 | なし | `dotnet test ResoLoop.slnx` で RLoop.Tests 454/454、RLoop.IntegrationTests 19/19（実機のテストは無効）。`scripts/resoloop-fork.sh install 9e43c95` で `0.1.0-preview.17.fork.20261009.g9e43c95` を導入。slum04 で `resoloop capture content/main.json --camera main --url ws://localhost:1/ --json` が `CAPTURE_EXPORT_DIR_UNREACHABLE`（`picturesFolder: ""`、`candidates: []`）、exit 3、0 秒、作業ディレクトリに `Resonite` を作らない |
+| 5 | create-reso-world `fd2eb94` | テストの変更で RED（unexpected mounts）→ GREEN。`test-initialize-mounts`・`test-readme`・`check-layout` PASS。コピーした `initialize.bash` の一時的な実行で、リンクあり → 変数 1 行、リンク先なし → exit 1 とメッセージを確認 |
+| 6 | create-reso-world `d3050ed` ほか | 最終レビューの修正 1 件。`run-tests.bash` 29 本 PASS、`check-layout` PASS |
+
+### 最終レビュー（opus、読み取り専用）
+
+Critical 0、Important 0、Minor 4。マージしてよいとの判断。Review Focus 1〜5 はコードの読解と実行で確認済み（Focus 3 はレビュー担当が修正版で実行し、明示した保存先では既定の解決を通らず接続のエラー（exit 4）になることを確認）。
+
+- 修正した: Minor 1。`CDPATH` に `.` を含む値が export されていると、`initialize.bash` の `cd` がパスを出力して env ファイルの書き出しに失敗し、リンクの有無に関係なくコンテナの作成が止まる。影響から致命的と判断し、`cd` を使わない形にした（`d3050ed`）。修正前に `CDPATH=.:` で exit 1、修正後に exit 0 を一時的な実行で確認した（テストは追加していない）
+- 直さない: Minor 2（`install_beforehand.bash` の注釈に、読み取り専用のマウントが例外であることが書かれていない）、Minor 3（`--url auto` では discovery（最大 12 秒）の後に止まる。接続も一時 Slot の作成もしない）
+- 実機確認で見る: Minor 4（drvfs が EACCES を返すと、排他読み込みの `UnauthorizedAccessException` を捕まえずに capture が想定外の例外で失敗しうる。一時 Slot は消える）
+- 範囲外として受け入れた主な点: NuGet の公開版には修正が入っていないため、rebuild 後のリンク無しの状態では従来どおりタイムアウトまで待つ（README の「止まる」は修正版が公開されるまで当てはまらない）。リンクがあれば公開版でも環境変数で撮影できる
+
+### 所要時間（UTC）
+
+| 区分 | 時間 |
+| --- | --- |
+| Task 1（ベースライン、RED 2 回、実装、テストの絞り込み） | 07:40〜07:43（約 3 分） |
+| Task 2・3 | 07:43〜07:44（約 1 分） |
+| Task 4（全テスト 93 秒、fork 版の導入、再現確認） | 07:44〜07:46（約 2 分） |
+| Task 5 | 07:46〜07:48（約 2 分） |
+| 最終レビュー（レビュー担当 約 9 分） | 07:49〜07:58 |
+| 指摘の修正・全テスト・記録・引き継ぎ | 07:59〜08:10 |
+
+### 次の作業
+
+- ユーザー: `.devcontainer/README.md` の「Resonite の写真フォルダ（任意）」の手順でリンクを作り、rebuild する
+- rebuild 後: 引き継ぎ `tmp/docs_draft/claude_handoffs/20261009T081000Z-resoloop-issue13-live-capture.handoff.md` の手順で実機の撮影を確かめ、この節に追記して Spec と Plan を `completed` にする
+- 公開（resoloop の fork PR、create-reso-world の PR）は、ユーザーの指示を待つ
