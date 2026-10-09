@@ -45,15 +45,35 @@ def source_glb(project, directory, operation):
     return path
 
 
-def run_resoloop(project, args, phase):
+def _virtualenv_bin(entry):
+    # CPython treats an executable as a virtualenv one when pyvenv.cfg sits beside
+    # it or one level up.
+    return any(
+        os.path.isfile(os.path.join(entry, up, "pyvenv.cfg")) for up in ("", os.pardir)
+    )
+
+
+def resoloop_env():
     # No credentials are required or passed into Blender or the offline exporter.
     env = {k: v for k, v in os.environ.items() if not k.startswith("MESHY_")}
+    # Blender's Python runs as the first python3.X on PATH. A virtualenv one, as
+    # prepended by `uv run`, hides the system NumPy that glTF import/export needs.
+    if "PATH" in env:
+        env["PATH"] = os.pathsep.join(
+            entry
+            for entry in env["PATH"].split(os.pathsep)
+            if not entry or not _virtualenv_bin(entry)
+        )
+    return env
+
+
+def run_resoloop(project, args, phase):
     child = None
     try:
         child = subprocess.Popen(
             ["resoloop", "blender", *args, "--command-timeout", "300", "--json"],
             cwd=project,
-            env=env,
+            env=resoloop_env(),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
