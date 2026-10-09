@@ -63,6 +63,7 @@ for dir in \
     "${HOME}/.config/glab-cli" \
     "${HOME}/.config/gcloud" \
     "${HOME}/.config/create-reso-world" \
+    "${HOME}/.config/cursor" \
     "${HOME}/.codex" \
     "${HOME}/.claude" \
     "${HOME}/.pi" \
@@ -171,7 +172,7 @@ fi
 step "Installing the Cursor CLI"
 # ~/.local/share/cursor-agent は devcontainer.json で bind mount している。ホスト側に
 # 存在しない場合は Docker が root 所有で作成するため、所有権を直す（~/.pi と同じ対応）。
-# 認証情報と設定が入る ~/.cursor は既に bind mount 済み。
+# 設定と会話履歴は ~/.cursor、認証情報（auth.json）は ~/.config/cursor に入り、どちらも bind mount 済み。
 if ! ensure_user_writable_dir "${HOME}/.local/share/cursor-agent"; then
     fail "Failed to prepare writable directory: ${HOME}/.local/share/cursor-agent."
 fi

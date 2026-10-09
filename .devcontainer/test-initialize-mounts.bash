@@ -16,13 +16,15 @@ if ! out="$(mounts_compare "$config" "$init")"; then fail "mounts and initialize
 $out"; fi
 
 # 2. mounts は仕様 7.1 の表の 14 個（既存 13 ＋秘密情報）から、撤去した dsh と Grok Build の ~/.dsh・~/.grok を除いた 12 個に、
-#    任意の Resonite の写真フォルダ（読み取り専用、usaturn/resoloop#13）を足した 13 個。
+#    任意の Resonite の写真フォルダ（読み取り専用、usaturn/resoloop#13）と Cursor CLI の認証情報（~/.config/cursor、
+#    usaturn/maatlog-poc#585）を足した 14 個。
 #    mount の増減はホストの永続領域と秘密情報の露出に関わるため、固定値で守る。1 の相互比較だけでは、
 #    devcontainer.json と initialize.bash を同時に誤って変えたときに検出できない（Issue #36 C1）
 expected='.claude
 .claude.json
 .codex
 .config/create-reso-world
+.config/cursor
 .config/devin
 .config/gcloud
 .config/gh

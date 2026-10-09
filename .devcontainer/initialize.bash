@@ -23,6 +23,7 @@ mkdir -p \
   "${HOME}/.local/share/cursor-agent" \
   "${HOME}/.config/gh" \
   "${HOME}/.cursor" \
+  "${HOME}/.config/cursor" \
   "${HOME}/.config/glab-cli" \
   "${HOME}/.config/gcloud" \
   "${HOME}/.config/create-reso-world" \
