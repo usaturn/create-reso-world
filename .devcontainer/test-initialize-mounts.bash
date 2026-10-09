@@ -68,6 +68,16 @@ if out="$(HOME="$dirhome" bash "$run_init" 2>&1)"; then
 fi
 grep -qF '.claude.json is a directory' <<<"$out" || fail "initialize.bash did not report the directory conflict: $out"
 
+# 3c. RESOLOOP_HOST_PATH_MAP は WSL のときだけ env ファイルに書く。Windows の Resonite は /workspaces/... を開けず、
+#     コンテナのワークスペース（/workspaces/<フォルダ名>）を UNC パスへ対応付けないとテクスチャの取り込みが失敗する（usaturn/resoloop#12）
+env_file="$tmp/devcontainer/resonite-screenshots.env"
+root="$(cd "$tmp" && pwd -P)"
+HOME="$home" WSL_DISTRO_NAME=Gentoo bash "$run_init"
+expected_map="RESOLOOP_HOST_PATH_MAP=/workspaces/${root##*/}=\\\\wsl.localhost\\Gentoo${root//\//\\}"
+[ "$(cat "$env_file")" = "$expected_map" ] || fail "unexpected host path map: $(cat "$env_file") (expected $expected_map)"
+HOME="$home" WSL_DISTRO_NAME= bash "$run_init"
+[ ! -s "$env_file" ] || fail "host path map written outside WSL: $(cat "$env_file")"
+
 # 4. postCreate はディレクトリの mount をすべて書き込み可能にする。ファイルの ~/.claude.json と、読み取り専用の写真フォルダは除く
 writable="$(sed -n '/^step "Ensuring user-writable directories under ~"$/,/; do$/p' "$installer")"
 while IFS= read -r rel; do

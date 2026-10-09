@@ -173,6 +173,17 @@ Resonite は写真を Windows の Pictures の `Resonite` フォルダに保存�
 リンク先が無くなると、`initialize.bash` がリンク先を表示して止まる。`/mnt/c` が見えるか（WSL の automount）とフォルダがあるかを
 確かめるか、リンクを消して空のディレクトリに戻す。リンクを作った・消した後は、どちらも rebuild が要る。
 
+### Windows の Resonite へのテクスチャ取り込み（WSL）
+
+Windows の Resonite は、コンテナのパス（`/workspaces/...`）を開けない。そのままだと `resoloop apply` のテクスチャ取り込みが
+`ASSET_IMPORT_FAILED` か `REQUEST_TIMEOUT` で止まる（usaturn/resoloop#12）。WSL のときは、`initialize.bash` が
+`.devcontainer/resonite-screenshots.env` に `RESOLOOP_HOST_PATH_MAP`（`/workspaces/<フォルダ名>=\\wsl.localhost\<ディストリビューション名>\<リポジトリの WSL パス>`）を書き、
+`--env-file` でコンテナに渡す。設定は不要で、rebuild で反映される。
+
+- `hostPathMap` を読めるのは、usaturn/resoloop の PR #16 を含む ResoLoop だけ。上流にマージされるまでは、公開版では無視される。
+  それまでは `scripts/resoloop-fork.sh install origin/main` で fork のビルドを入れる
+- WSL 以外（`WSL_DISTRO_NAME` が空）と、Windows 側のドライブ上（`/mnt/...`）のリポジトリでは書かない
+
 ## Meshy CLI と生成物の受け渡し
 
 postCreate は `bash .devcontainer/install_meshy.bash` で公式 `meshy-cli@0.4.0` を導入し、キーを外した version / help のみを確認する。

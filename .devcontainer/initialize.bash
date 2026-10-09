@@ -40,11 +40,23 @@ touch \
 # 秘密情報（env）を置くディレクトリは本人だけが読めるようにする
 chmod 700 "${HOME}/.config/create-reso-world"
 
-# リンクがあるときだけ、写真フォルダの場所をコンテナの環境変数で渡す（devcontainer.json の runArgs の --env-file が読む）。
-# mount と同じくコンテナの作成時に決まるので、リンクを作った・消した後は rebuild が要る
+# コンテナの環境変数を、devcontainer.json の runArgs の --env-file が読むファイルに書く。mount と同じくコンテナの作成時に決まる
+# - 写真フォルダがリンクのときだけ、その場所を RESOLOOP_SCREENSHOTS_DIR で渡す。リンクを作った・消した後は rebuild が要る
+# - WSL のときだけ、RESOLOOP_HOST_PATH_MAP（コンテナのワークスペース=Windows の Resonite が読める UNC パス）を渡す。
+#   Windows の Resonite は /workspaces/... を開けないので、これが無いとテクスチャの取り込みが失敗する（usaturn/resoloop#12）
 env_file="$(dirname -- "${BASH_SOURCE[0]}")/resonite-screenshots.env"
+: > "$env_file"
 if [ -L "$screenshots" ]; then
-  printf 'RESOLOOP_SCREENSHOTS_DIR=/home/vscode/.local/share/create-reso-world/resonite-screenshots\n' > "$env_file"
-else
-  : > "$env_file"
+  printf 'RESOLOOP_SCREENSHOTS_DIR=/home/vscode/.local/share/create-reso-world/resonite-screenshots\n' >> "$env_file"
 fi
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+case "$repo_root" in
+  /mnt/*) ;; # Windows 側のドライブ上のリポジトリは UNC で読めないので渡さない
+  /*)
+    if [ -n "${WSL_DISTRO_NAME:-}" ]; then
+      # コンテナのワークスペースは /workspaces/<フォルダ名>
+      printf 'RESOLOOP_HOST_PATH_MAP=/workspaces/%s=\\\\wsl.localhost\\%s%s\n' \
+        "${repo_root##*/}" "$WSL_DISTRO_NAME" "${repo_root//\//\\}" >> "$env_file"
+    fi
+    ;;
+esac
