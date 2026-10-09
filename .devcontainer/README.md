@@ -31,6 +31,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | Meshy CLI | `install_meshy.bash`（公式 npm `meshy-cli@0.4.0`、無認証 version / help） | — | — | — | — |
 | gh | Dev Container Feature（github-cli） | `~/.config/gh` | `~/.config/gh` | — | — |
 | gcloud / glab / bun | 未導入（参照だけ残す） | `~/.config/gcloud`、`~/.config/glab-cli` | `~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | — |
+| Resonite の写真フォルダ（任意） | WSL で Windows の Pictures/Resonite へのリンクを 1 回作る（「Resonite ワールド開発ツール」の節） | `~/.local/share/create-reso-world/resonite-screenshots`（読み取り専用） | `~/.local/share/create-reso-world/resonite-screenshots` | — | — |
 | 秘密情報 | — | `~/.config/create-reso-world` | `~/.config/create-reso-world`（mode 700） | env ファイルがあれば読み込む | — |
 <!-- tool-table:end -->
 
@@ -144,6 +145,33 @@ bash scripts/resoloop-fork.sh status
 
 ResoLoop の公式要件には Windows 10/11 が記載されている。Linux で
 CLI が動作しない場合は `postCreateCommand` を失敗とし、成功扱いにはしない。
+
+### Resonite の写真フォルダ（任意）
+
+Resonite は写真を Windows の Pictures の `Resonite` フォルダに保存する。そのままではコンテナの `resoloop capture` が写真を読めず、
+`CAPTURE_EXPORT_DIR_UNREACHABLE` で止まる。WSL 側にリンクを 1 回作ると、コンテナの
+`~/.local/share/create-reso-world/resonite-screenshots` に読み取り専用でマウントされる。あわせて `initialize.bash` が
+`.devcontainer/resonite-screenshots.env` に `RESOLOOP_SCREENSHOTS_DIR` を書き、`runArgs` の `--env-file` でコンテナに渡す。
+
+1. Windows の PowerShell で Pictures の場所を調べる。OneDrive にリダイレクトされていれば、その場所が表示される
+
+   ```powershell
+   [Environment]::GetFolderPath('MyPictures')
+   ```
+
+2. その下に `Resonite` フォルダが無ければ、Resonite で写真を 1 枚撮る
+3. WSL のターミナル（コンテナの外）で、`initialize.bash` が作った空のディレクトリをリンクに置き換える。
+   `C:\Users\<名前>\Pictures` は `/mnt/c/Users/<名前>/Pictures` になる
+
+   ```bash
+   rmdir ~/.local/share/create-reso-world/resonite-screenshots
+   ln -s /mnt/c/Users/<名前>/Pictures/Resonite ~/.local/share/create-reso-world/resonite-screenshots
+   ```
+
+4. Dev Container を rebuild する
+
+リンク先が無くなると、`initialize.bash` がリンク先を表示して止まる。`/mnt/c` が見えるか（WSL の automount）とフォルダがあるかを
+確かめるか、リンクを消して空のディレクトリに戻す。リンクを作った・消した後は、どちらも rebuild が要る。
 
 ## Meshy CLI と生成物の受け渡し
 

@@ -15,7 +15,8 @@ source "$root/.devcontainer/mounts.bash"
 if ! out="$(mounts_compare "$config" "$init")"; then fail "mounts and initialize.bash differ:
 $out"; fi
 
-# 2. mounts は仕様 7.1 の表の 14 個（既存 13 ＋秘密情報）から、撤去した dsh と Grok Build の ~/.dsh・~/.grok を除いた 12 個。
+# 2. mounts は仕様 7.1 の表の 14 個（既存 13 ＋秘密情報）から、撤去した dsh と Grok Build の ~/.dsh・~/.grok を除いた 12 個に、
+#    任意の Resonite の写真フォルダ（読み取り専用、usaturn/resoloop#13）を足した 13 個。
 #    mount の増減はホストの永続領域と秘密情報の露出に関わるため、固定値で守る。1 の相互比較だけでは、
 #    devcontainer.json と initialize.bash を同時に誤って変えたときに検出できない（Issue #36 C1）
 expected='.claude
@@ -27,6 +28,7 @@ expected='.claude
 .config/gh
 .config/glab-cli
 .cursor
+.local/share/create-reso-world/resonite-screenshots
 .local/share/cursor-agent
 .local/share/devin
 .pi'
@@ -34,13 +36,18 @@ actual="$(mounts_from_devcontainer "$config" | cut -f1 | LC_ALL=C sort)"
 [ "$actual" = "$expected" ] || fail "unexpected mounts:
 $actual"
 
+# initialize.bash は自分の隣に resonite-screenshots.env を書くので、リポジトリの .devcontainer を書き換えないようにコピーを実行する
+mkdir -p "$tmp/devcontainer"
+cp "$init" "$tmp/devcontainer/initialize.bash"
+run_init="$tmp/devcontainer/initialize.bash"
+
 # 3. initialize.bash は一時 HOME にすべてのソースを作り、2 回目も成功する。~/.claude.json は通常ファイルで、
 #    既存の中身を消さない。秘密情報のディレクトリは本人だけが読める
 home="$tmp/home"
 mkdir -p "$home"
-HOME="$home" bash "$init"
+HOME="$home" bash "$run_init"
 printf '{"keep": true}\n' > "$home/.claude.json"
-HOME="$home" bash "$init"
+HOME="$home" bash "$run_init"
 while IFS= read -r rel; do
   if [ "$rel" = .claude.json ]; then
     [ -f "$home/$rel" ] || fail "initialize.bash did not create the file ~/$rel"
@@ -54,15 +61,15 @@ done <<<"$expected"
 # 3b. ~/.claude.json が (Docker が先に作った) ディレクトリだと initialize.bash はエラーで終了する
 dirhome="$tmp/dirhome"
 mkdir -p "$dirhome/.claude.json"
-if out="$(HOME="$dirhome" bash "$init" 2>&1)"; then
+if out="$(HOME="$dirhome" bash "$run_init" 2>&1)"; then
   fail "initialize.bash succeeded although ~/.claude.json is a directory: $out"
 fi
 grep -qF '.claude.json is a directory' <<<"$out" || fail "initialize.bash did not report the directory conflict: $out"
 
-# 4. postCreate はディレクトリの mount をすべて書き込み可能にする（ファイルの ~/.claude.json は除く）
+# 4. postCreate はディレクトリの mount をすべて書き込み可能にする。ファイルの ~/.claude.json と、読み取り専用の写真フォルダは除く
 writable="$(sed -n '/^step "Ensuring user-writable directories under ~"$/,/; do$/p' "$installer")"
 while IFS= read -r rel; do
-  [ "$rel" = .claude.json ] && continue
+  case "$rel" in .claude.json|.local/share/create-reso-world/resonite-screenshots) continue ;; esac
   grep -qF "\"\${HOME}/$rel\"" <<<"$writable" || fail "install_beforehand.bash does not make ~/$rel writable"
 done <<<"$expected"
 

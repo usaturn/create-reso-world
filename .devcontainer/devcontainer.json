@@ -14,6 +14,8 @@
 		"source=${localEnv:HOME}/.cursor,target=/home/vscode/.cursor,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.config/glab-cli,target=/home/vscode/.config/glab-cli,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.config/gcloud,target=/home/vscode/.config/gcloud,type=bind,consistency=cached",
+		// Resonite の写真フォルダ（任意）。WSL で Windows の Pictures/Resonite へのリンクにする。読み取り専用（usaturn/resoloop#13）
+		"source=${localEnv:HOME}/.local/share/create-reso-world/resonite-screenshots,target=/home/vscode/.local/share/create-reso-world/resonite-screenshots,type=bind,readonly",
 		// 秘密情報（API トークンなど）。zshrc.txt が env を存在時だけ読み込む
 		"source=${localEnv:HOME}/.config/create-reso-world,target=/home/vscode/.config/create-reso-world,type=bind,consistency=cached"
 	],
@@ -40,7 +42,10 @@
 		"seccomp=unconfined",
 		"--security-opt",
 		"apparmor=unconfined",
-		"--network=host"
+		"--network=host",
+		// initialize.bash が書く。写真フォルダがリンクのときだけ RESOLOOP_SCREENSHOTS_DIR を渡す
+		"--env-file",
+		"${localWorkspaceFolder}/.devcontainer/resonite-screenshots.env"
 	],
   "features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {},
