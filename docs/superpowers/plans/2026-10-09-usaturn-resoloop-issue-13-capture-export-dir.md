@@ -732,7 +732,7 @@ agent-handoff スキルで、次を受け取る側に渡す。ユーザーの作
 
 ## 実施結果
 
-実行方法は Native（このセッションで実装し、最後にブランチ全体をレビュー）。2026-10-09 07:39Z（Plan の承認）〜 08:10Z ごろ。公開未実施（push・PR はしていない）。
+実行方法は Native（このセッションで実装し、最後にブランチ全体をレビュー）。2026-10-09 07:39Z（Plan の承認）〜 08:10Z ごろ。公開: 2026-10-09 にユーザーの指示「2」で push し、fork PR https://github.com/usaturn/resoloop/pull/15 と create-reso-world の PR を作成した（マージはしていない）。
 
 ### 実行中の変更（ユーザー指示）
 
@@ -777,4 +777,4 @@ Critical 0、Important 0、Minor 4。マージしてよいとの判断。Review 
 
 - ユーザー: `.devcontainer/README.md` の「Resonite の写真フォルダ（任意）」の手順でリンクを作り、rebuild する
 - rebuild 後: 引き継ぎ `tmp/docs_draft/claude_handoffs/20261009T081000Z-resoloop-issue13-live-capture.handoff.md` の手順で実機の撮影を確かめ、この節に追記して Spec と Plan を `completed` にする
-- 公開（resoloop の fork PR、create-reso-world の PR）は、ユーザーの指示を待つ
+- マージは、ユーザーの指示を待つ
