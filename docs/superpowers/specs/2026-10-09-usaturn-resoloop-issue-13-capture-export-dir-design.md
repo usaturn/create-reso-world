@@ -8,6 +8,7 @@
 - Plan: `../plans/2026-10-09-usaturn-resoloop-issue-13-capture-export-dir.md`
 - 実装 HEAD: resoloop `9e43c95c5ed83455ef02c43d8dc5abd810b524fa`、create-reso-world `d3050ed`（実機の撮影の確認は未実施。Plan の実施結果を参照）
 - fork PR: https://github.com/usaturn/resoloop/pull/15（2026-10-09 にユーザーの指示「2」（push して PR を作る）で作成）
+- create-reso-world の PR: https://github.com/usaturn/create-reso-world/pull/62
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT: `/workspaces/reso-world/.worktrees/resoloop-13-screenshots`（ブランチ `feat/resoloop-13-screenshot-mount`）
 - CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/issue-13-capture-export-dir`（ブランチ `fix/issue-13-capture-export-dir`）

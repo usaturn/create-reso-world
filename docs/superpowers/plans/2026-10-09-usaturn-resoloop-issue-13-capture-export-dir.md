@@ -732,7 +732,7 @@ agent-handoff スキルで、次を受け取る側に渡す。ユーザーの作
 
 ## 実施結果
 
-実行方法は Native（このセッションで実装し、最後にブランチ全体をレビュー）。2026-10-09 07:39Z（Plan の承認）〜 08:10Z ごろ。公開: 2026-10-09 にユーザーの指示「2」で push し、fork PR https://github.com/usaturn/resoloop/pull/15 と create-reso-world の PR を作成した（マージはしていない）。
+実行方法は Native（このセッションで実装し、最後にブランチ全体をレビュー）。2026-10-09 07:39Z（Plan の承認）〜 08:10Z ごろ。公開: 2026-10-09 にユーザーの指示「2」で push し、fork PR https://github.com/usaturn/resoloop/pull/15 と create-reso-world の PR https://github.com/usaturn/create-reso-world/pull/62 を作成した（マージはしていない）。
 
 ### 実行中の変更（ユーザー指示）
 
