@@ -5,7 +5,7 @@
 - 実装対象: `usaturn/resoloop`（上流 `orange3134/resoloop`）と `usaturn/create-reso-world` の `.devcontainer/`
 - 状態: approved（2026-10-09 にユーザーが「進めてください」で承認。承認した版: `04a74fd`）
 - 調査したコード HEAD: resoloop `9cf7178f02a696cd91ae5fb092b9078e98f25beb`、create-reso-world `2b260b69fea36e0f2fc2616cf4d8bcf1a9e93b83`
-- Plan: 未作成
+- Plan: `../plans/2026-10-09-usaturn-resoloop-issue-13-capture-export-dir.md`（draft）
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT: `/workspaces/reso-world/.worktrees/resoloop-13-screenshots`（ブランチ `feat/resoloop-13-screenshot-mount`）
 - CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/issue-13-capture-export-dir`（ブランチ `fix/issue-13-capture-export-dir`）
