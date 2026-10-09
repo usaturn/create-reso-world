@@ -753,6 +753,8 @@ Task 1 の途中で、ユーザーが「AGENTS.md を読んでテストは書か
 | 5 | create-reso-world `fd2eb94` | テストの変更で RED（unexpected mounts）→ GREEN。`test-initialize-mounts`・`test-readme`・`check-layout` PASS。コピーした `initialize.bash` の一時的な実行で、リンクあり → 変数 1 行、リンク先なし → exit 1 とメッセージを確認 |
 | 6 | create-reso-world `d3050ed` ほか | 最終レビューの修正 1 件。`run-tests.bash` 29 本 PASS、`check-layout` PASS |
 
+fork PR の公開 CI [run 37904204687](https://github.com/usaturn/resoloop/actions/runs/37904204687) は、linux-offline-python（45 秒）と windows（3 分 50 秒）の両 job が成功した。create-reso-world の private CI は、規約により確認の対象外。
+
 ### 最終レビュー（opus、読み取り専用）
 
 Critical 0、Important 0、Minor 4。マージしてよいとの判断。Review Focus 1〜5 はコードの読解と実行で確認済み（Focus 3 はレビュー担当が修正版で実行し、明示した保存先では既定の解決を通らず接続のエラー（exit 4）になることを確認）。
