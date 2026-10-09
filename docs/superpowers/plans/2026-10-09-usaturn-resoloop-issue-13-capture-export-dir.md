@@ -4,7 +4,7 @@
 
 - 文書管理: `usaturn/create-reso-world`
 - 対象 Issue: https://github.com/usaturn/resoloop/issues/13
-- 状態: draft
+- 状態: approved（2026-10-09 にユーザーが「お勧めで進めてください」で承認。承認した版: `68c61d8`。実行方法: Native（このセッションで実装し、最後にブランチ全体をレビュー））
 - Spec: `../specs/2026-10-09-usaturn-resoloop-issue-13-capture-export-dir-design.md`（approved、承認した版 `04a74fd`）
 - 計画時の HEAD: resoloop `9cf7178f02a696cd91ae5fb092b9078e98f25beb`、create-reso-world `156a8e2`
 - PARENT_ROOT: `/workspaces/reso-world`
