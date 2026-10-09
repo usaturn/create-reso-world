@@ -22,6 +22,9 @@ ENTRY = ROOT / "scripts/meshy.py"
 FIXTURE = ROOT / "tests/fixtures/meshy/create_fixture.py"
 PARENT = 'path:["Root","VerifiedFixtureParent"]'
 
+sys.path.insert(0, str(ROOT / "scripts"))
+from meshy_conversion import resoloop_env
+
 
 def run(argv, *, env=None, cwd=None):
     return subprocess.run(
@@ -34,7 +37,7 @@ def tools():
     resoloop = shutil.which("resoloop")
     if not resoloop:
         pytest.skip("ResoLoop CLI unavailable; real offline exporter required")
-    found = run([resoloop, "blender", "find", "--json"])
+    found = run([resoloop, "blender", "find", "--json"], env=resoloop_env())
     if found.returncode:
         pytest.skip("ResoLoop cannot find Blender/bpy: " + found.stdout)
     return resoloop
@@ -67,7 +70,8 @@ def glbs(tmp_path_factory, tools):
                 "--arg=--case",
                 "--arg=" + case,
                 "--json",
-            ]
+            ],
+            env=resoloop_env(),
         )
         assert proc.returncode == 0, proc.stdout + proc.stderr
         assert path.read_bytes()[:4] == b"glTF"
@@ -218,7 +222,8 @@ Path(sys.argv[-1]).write_text(json.dumps({'channels': channels,
             "--arg=" + str(bundle),
             "--arg=" + str(inspection),
             "--json",
-        ]
+        ],
+        env=resoloop_env(),
     )
     assert check.returncode == 0, check.stdout + check.stderr
     saved = json.loads(inspection.read_text())
@@ -277,7 +282,8 @@ Path(sys.argv[-1]).write_text(json.dumps(vertices))
             conversion["blend"],
             "--arg=" + str(inspection),
             "--json",
-        ]
+        ],
+        env=resoloop_env(),
     )
     assert check.returncode == 0, check.stdout + check.stderr
     vertices = json.loads(inspection.read_text())
@@ -509,7 +515,8 @@ Path(sys.argv[-1]).write_text(json.dumps({'saved': saved, 'original': original})
             "--arg=" + str(world[2]),
             "--arg=" + str(inspection),
             "--json",
-        ]
+        ],
+        env=resoloop_env(),
     )
     assert check.returncode == 0, check.stdout + check.stderr
     inspected = json.loads(inspection.read_text())

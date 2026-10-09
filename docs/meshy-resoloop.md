@@ -42,6 +42,8 @@ bash .devcontainer/verify-resonite-tooling.bash
 ResoLoop は NuGet の**最新公開版**（prerelease を含む）へ更新し、版を固定しない。更新失敗時に既存版を残した警告は「最新への更新成功」と扱わない。
 実測 version を作業記録へ残し、更新後は help と `resoloop skills sync --check` を確認する。スキルの更新は差分を見てから行う。
 Blender の glTF import / export は NumPy も必要。postCreate の base apt に `python3-numpy` を追加し、toolchain probe は `import bpy, numpy` を確認する。
+システムの Python を使う Blender は、PATH で最初に見つかる `python3.X` を自身の Python として起動する。`uv run` が PATH の先頭に置く仮想環境の `bin` を拾うと、システムの NumPy が見えなくなる（Issue #60）。
+そのため wrapper は、ResoLoop / Blender を起動するときだけ、PATH から仮想環境の `bin`（そのディレクトリか親に `pyvenv.cfg` がある要素）を外す。`uv python install` が置く `~/.local/bin/python3.X` は仮想環境ではないため外れず、同じ理由で Blender を壊すので使わない。
 
 課金前の local fixture 確認は、repository root で次を実行する（API キー・Resonite 接続不要。fixture 生成も実 Blender を使う）。
 
@@ -50,8 +52,7 @@ env -u MESHY_API_KEY uv run --no-project --with pytest pytest tests/scripts/test
 ```
 
 課金前の条件は、必要な実 fixture の生成・変換・export 検証が標準環境で実際に実行され、すべて成功すること。pytest の終了コードが0でも必要な検証が `skipped` なら**事前確認は未完了**で、submit へ進まない。`-rs` の skip 理由も確認する。
-ResoLoop / Blender が見つからない、または標準 Blender が NumPy を読めない場合はここで止め、rebuild / 依存導入を利用者が確認する。一時 wrapper の成功を標準環境の成功と読み替えない。
-今回の実 fixture / exporter 検証は `/tmp/meshy-blender-task2` を使った。これはローカルの検証補助で配布物ではない。
+ResoLoop / Blender が見つからない、または標準 Blender が NumPy を読めない場合はここで止め、rebuild / 依存導入を利用者が確認する。NumPy を追加導入する前に、Blender が別の Python を拾っていないかを確かめる。一時 wrapper の成功を標準環境の成功と読み替えない。
 現在のランチャー配下では `no-new-privileges` により sudo が拒否されるため、権限昇格を再試行しない。**標準 rebuild は未検証**。
 
 ## キー: 利用者が zsh で非表示入力する
@@ -305,7 +306,7 @@ probe は使わない。変更が残る場合は「収束確認済み」とせ�
 
 ## 検証済み範囲と未検証
 
-実 wrapper / fixture の回帰、実 Blender 5.0.1 と ResoLoop 0.1.0-preview.17 exporter による offline bundle は検証済み（NumPy を読ませる一時 wrapper 使用）。
+実 wrapper / fixture の回帰、実 Blender 5.0.1 と ResoLoop 0.1.0-preview.17 exporter による offline bundle は検証済み。Issue #60 の修正後は、一時 wrapper も手動の PATH 補正も使わず、上記の `uv run` コマンドで確認した（既存コンテナ）。
 これらの version は実測記録であって固定する要件ではない。以後の最新 ResoLoop で同じ結果を保証しない。
 
 **NOT verified（未検証）:** 標準コンテナ rebuild、実キーによる API 認証・残高、課金を伴う text / image generation、Windows PowerShell 7.3 以上での実行・native 引数受け渡し、Windows での texture 付き表示・同じ state の無変更再適用 / 収束。
