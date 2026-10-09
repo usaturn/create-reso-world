@@ -43,7 +43,7 @@
 **Interfaces:**
 - Produces: `HostPathMap.Parse(string? value, string? source = null) : HostPathMap?`、`bool Covers(string path)`、`string Map(string path)`、`static bool AppliesTo(string kind)`、`string From`、`string To`、`string? Source`、`ToString() => "FROM=TO"`
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
 ```csharp
 using RLoop.Core;
@@ -78,12 +78,12 @@ public sealed class HostPathMapTests
 }
 ```
 
-- [ ] **Step 2: 失敗を確かめる**
+- [x] **Step 2: 失敗を確かめる**
 
 Run: `dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --filter FullyQualifiedName~HostPathMapTests`
 Expected: `HostPathMap` が無いためビルドが失敗する
 
-- [ ] **Step 3: 実装する**
+- [x] **Step 3: 実装する**
 
 ```csharp
 namespace RLoop.Core;
@@ -140,12 +140,12 @@ public sealed class HostPathMap
 }
 ```
 
-- [ ] **Step 4: 成功を確かめる**
+- [x] **Step 4: 成功を確かめる**
 
 Run: `dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --filter FullyQualifiedName~HostPathMapTests`
 Expected: PASS（2 件）
 
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
 
 ```bash
 git add src/RLoop.Core/HostPathMap.cs tests/RLoop.Tests/HostPathMapTests.cs
@@ -165,7 +165,7 @@ git commit -m "feat: add host path map for Resonite-side asset paths"
 - Consumes: Task 1 の `HostPathMap`
 - Produces: `RLoopConfig.HostPathMap : string?`、`WorldService(IResoniteClient client, string? generatedContentSource = null, HostPathMap? hostPathMap = null)`
 
-- [ ] **Step 1: 設定**
+- [x] **Step 1: 設定**
 
 `RLoopConfig` の末尾に `string? HostPathMap = null` を足す。`Resolve` に次を足し、`new RLoopConfig(...)` の末尾に `hostPathMap` を渡す。
 
@@ -173,7 +173,7 @@ git commit -m "feat: add host path map for Resonite-side asset paths"
 var hostPathMap = Pick("host-path-map", "RESOLOOP_HOST_PATH_MAP", x => x.HostPathMap, "hostPathMap");
 ```
 
-- [ ] **Step 2: WorldService**
+- [x] **Step 2: WorldService**
 
 コンストラクタに `HostPathMap? hostPathMap = null` を足す。`AssetRuntime` に `public string? HostSource { get; init; }` を足す。`BuildAssetPlans(PreparedApply prepared, HostPathMap? hostPathMap)` で次のように作る（呼び出しも直す）。
 
@@ -251,7 +251,7 @@ private string[] HostPathSuggestions() => hostPathMap is null
     ];
 ```
 
-- [ ] **Step 3: CLI**
+- [x] **Step 3: CLI**
 
 `cliConfig` に `["host-path-map"] = parsed.Option("host-path-map")` を足す。接続するコマンドの `var uri = await ResolveConnectionUrlAsync(...)`（`RunResonite` の直前）の前で解析し、`WorldService` に渡す。
 
@@ -263,12 +263,12 @@ var world = new WorldService(client, GeneratedContentMetadata.SourceForVersion(P
 
 help の Global options に `--host-path-map FROM=TO` の 1 行、Environment に `RESOLOOP_HOST_PATH_MAP` を足す。
 
-- [ ] **Step 4: 検証**
+- [x] **Step 4: 検証**
 
 Run: `dotnet build ResoLoop.slnx && dotnet test ResoLoop.slnx --no-build`
 Expected: 警告・エラーなしでビルドでき、既存テストを含めて全件成功する
 
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
 
 ```bash
 git add src/RLoop.Core/Configuration.cs src/RLoop.Core/WorldService.cs src/RLoop.Cli/Program.cs
@@ -284,10 +284,10 @@ git commit -m "feat: translate texture import paths and explain unreachable host
 
 **テストの要否:** 書かない（文書と SKILL.md の文面だけ）。代わりに `git diff` で、設定名・コード名が Task 1・2 と一致することを確かめる。
 
-- [ ] **Step 1:** README-DETAILS の設定の優先順位に `--host-path-map`・`RESOLOOP_HOST_PATH_MAP` を足し、Blender の節にコンテナ・別ホストの手順（`hostPathMap` の例、`ASSET_HOST_PATH_UNMAPPED`・`ASSET_HOST_PATH_UNREACHABLE`、タイムアウトの案内）を書く
-- [ ] **Step 2:** BLENDER.md・DECLARATIVE.md の「同じ絶対パス」の記述に `hostPathMap` を足す
-- [ ] **Step 3:** SKILL.md の別ホストの記述を `hostPathMap` に合わせ、2 つのコードを見たら同じ apply を繰り返さず利用者に設定を依頼すると書く
-- [ ] **Step 4:** `git diff` を確認してコミット
+- [x] **Step 1:** README-DETAILS の設定の優先順位に `--host-path-map`・`RESOLOOP_HOST_PATH_MAP` を足し、Blender の節にコンテナ・別ホストの手順（`hostPathMap` の例、`ASSET_HOST_PATH_UNMAPPED`・`ASSET_HOST_PATH_UNREACHABLE`、タイムアウトの案内）を書く
+- [x] **Step 2:** BLENDER.md・DECLARATIVE.md の「同じ絶対パス」の記述に `hostPathMap` を足す
+- [x] **Step 3:** SKILL.md の別ホストの記述を `hostPathMap` に合わせ、2 つのコードを見たら同じ apply を繰り返さず利用者に設定を依頼すると書く
+- [x] **Step 4:** `git diff` を確認してコミット
 
 ```bash
 git add README-DETAILS.md docs/BLENDER.md docs/DECLARATIVE.md skills/codex/resonite-blender/SKILL.md
@@ -300,15 +300,31 @@ git commit -m "docs: describe hostPathMap for container and remote Resonite host
 
 作業場所は `/workspaces/reso-world/tmp/resoloop-12-probe/`（WSL から `\\wsl.localhost\Gentoo\home\usaturn\repo\reso-world\tmp\resoloop-12-probe` で見える）。CLI は CODE_ROOT のビルド（`dotnet src/RLoop.Cli/bin/Debug/net10.0/resoloop.dll`）を使う。
 
-- [ ] **Step 1:** `probe.apply.json` を作る。Root 直下に `ResoLoop_Test_HostPathMap_<日時>` の Slot を 1 つ、`StaticTexture2D`（`URL` に `$asset:tex`）を 1 つ、asset `tex`（`kind: texture`、`source: probe-texture.png`）を宣言する。state は同じディレクトリ
-- [ ] **Step 2:** 設定なしの `plan` で `ASSET_HOST_PATH_UNMAPPED` が出る
-- [ ] **Step 3:** 設定なしの `apply`（既定 30 秒）で `REQUEST_TIMEOUT`、`context` に `asset`・`hostPath`、`slotsCreated` が 0
-- [ ] **Step 4:** 設定なしの `apply --timeout 90` で `ASSET_HOST_PATH_UNREACHABLE`（exit 3）
-- [ ] **Step 5:** `--host-path-map '/workspaces/reso-world=\\wsl.localhost\Gentoo\home\usaturn\repo\reso-world'` の `plan` で警告が出ず、`apply` が成功する。作った Slot を `inspect` して StaticTexture2D の URL を確かめる
-- [ ] **Step 6:** 作った Slot を、apply の結果の正確な ID で `slot delete ID --yes` する。`find --name ResoLoop_Test_HostPathMap` で残っていないことを確かめる
+- [x] **Step 1:** `probe.apply.json` を作る。Root 直下に `ResoLoop_Test_HostPathMap_<日時>` の Slot を 1 つ、`StaticTexture2D`（`URL` に `$asset:tex`）を 1 つ、asset `tex`（`kind: texture`、`source: probe-texture.png`）を宣言する。state は同じディレクトリ
+- [x] **Step 2:** 設定なしの `plan` で `ASSET_HOST_PATH_UNMAPPED` が出る
+- [x] **Step 3:** 設定なしの `apply`（既定 30 秒）で `REQUEST_TIMEOUT`、`context` に `asset`・`hostPath`、`slotsCreated` が 0
+- [x] **Step 4:** 設定なしの `apply --timeout 90` で `ASSET_HOST_PATH_UNREACHABLE`（exit 3）
+- [x] **Step 5:** `--host-path-map '/workspaces/reso-world=\\wsl.localhost\Gentoo\home\usaturn\repo\reso-world'` の `plan` で警告が出ず、`apply` が成功する。作った Slot を `inspect` して StaticTexture2D の URL を確かめる
+- [x] **Step 6:** 作った Slot を、apply の結果の正確な ID で `slot delete ID --yes` する。`find --name ResoLoop_Test_HostPathMap` で残っていないことを確かめる
 
 ### Task 5: 公開
 
-- [ ] **Step 1:** fork のブランチを push し、usaturn/resoloop へ PR を作る（本文に実機の結果、対象外、`Fixes #12`）
-- [ ] **Step 2:** PR の CI（パブリック）の結果を確かめる
-- [ ] **Step 3:** Spec・Plan に実装の HEAD・PR・実機の結果を記録し、create-reso-world の文書専用 PR を作る
+- [x] **Step 1:** fork のブランチを push し、usaturn/resoloop へ PR を作る（本文に実機の結果、対象外、`Fixes #12`）
+- [x] **Step 2:** PR の CI（パブリック）の結果を確かめる
+- [x] **Step 3:** Spec・Plan に実装の HEAD・PR・実機の結果を記録し、create-reso-world の文書専用 PR を作る
+
+## 実施結果（2026-10-09）
+
+- 実行方法: Native（このセッションで実装）。作業記録は CODE_ROOT の `.superpowers/sdd/2026-10-09-usaturn-resoloop-issue-12-host-path-map/progress.md`（git の追跡対象外）
+- コミット: `170b177`（Task 1）、`13dbed2`（Task 2）、`709d57d`（Task 3）。レビュー後の修正は無し
+- 判断（Ruling）: Task 4（実機）を Task 3（文書）より先に行った。実機の結果を文書の文面に反映するため
+- テスト: Task 1 は RED（`HostPathMap` が無くビルド失敗）→ GREEN（2 件）。Debug・Release とも build は警告 0 件、RLoop.Tests 456 件・RLoop.IntegrationTests 19 件（実機なし）がすべて成功
+- 実機（Resonite 2026.9.18.82 / ResoniteLink 0.13.1.0、ポート 40778）: Spec「テスト」の 1〜4 をすべて確認した
+  1. 設定なしの plan で `ASSET_HOST_PATH_UNMAPPED`（1 件、path `$assets`）
+  2. 設定なしの apply（30 秒）で `REQUEST_TIMEOUT`（exit 8）。`context` に `asset: tex`・`hostPath`・`slotsCreated: 0`、対処の先頭に `--timeout 90`
+  3. 設定なしの apply `--timeout 90` で `ASSET_HOST_PATH_UNREACHABLE`（exit 3）、`resoniteError` に Resonite の `DirectoryNotFoundException`
+  4. `--host-path-map` ありの plan で警告なし、apply 成功（Slot `Reso_A682`、StaticTexture2D の URL に `local://…png`）。設定を外した plan で asset は `no-op`
+  - 追加: `.resoloop.json` の `hostPathMap` を読み、`--verbose` の `configSources` に指定元が出る。不正な `RESOLOOP_HOST_PATH_MAP` で `INVALID_HOST_PATH_MAP`（`source: environment:RESOLOOP_HOST_PATH_MAP`）
+  - 作った Slot `Reso_A682`（`ResoLoop_Test_HostPathMap_20261009`）は ID 指定で削除し、`find` で残っていないことを確認した
+- ブランチ全体のレビュー: 新しいコンテキストのレビュアー（opus）が `4c70365..709d57d` を確認し、Critical・Important は 0 件、Review Focus の 1〜5 はすべて成り立つ。Minor 4 件（`FROM` を正規化しない、POSIX の `FROM` を書いた共有の `.resoloop.json` は Windows で `INVALID_HOST_PATH_MAP` になる、help の例が shell の引用符で囲まれていない、`FileNotFoundException` の照合が広い）は、致命的でないため対応しない（PR 本文に記載）
+- 公開: fork PR https://github.com/usaturn/resoloop/pull/16 を作成。head `709d57d` の CI（run 37923742478）は windows（build・test・pack・導入の smoke test）と linux-offline-python の両方が成功。文書は create-reso-world の文書専用 PR で公開する

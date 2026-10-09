@@ -6,6 +6,8 @@
 - 状態: approved（2026-10-09 にユーザーが「途中で止めずに推奨案で進めて PR して」と指示した。各段階の承認を待たずに推奨案で進める事前の許可であり、内容の確認は PR で受ける）
 - 調査したコード HEAD: resoloop `4c70365`（fork main）、create-reso-world `64e7a57`
 - Plan: `../plans/2026-10-09-usaturn-resoloop-issue-12-host-path-map.md`
+- 実装 HEAD: resoloop `709d57d`（実機の確認は完了。Plan の実施結果を参照）
+- fork PR: https://github.com/usaturn/resoloop/pull/16（2026-10-09 にユーザーの指示「PR して」で作成）
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT: `/workspaces/reso-world/.worktrees/resoloop-12-host-path-map-docs`（ブランチ `docs/resoloop-12-host-path-map`）
 - CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/issue-12-host-path-map`（ブランチ `fix/issue-12-host-path-map`）
