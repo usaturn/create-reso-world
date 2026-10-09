@@ -41,7 +41,7 @@ chmod 700 "${HOME}/.config/create-reso-world"
 
 # リンクがあるときだけ、写真フォルダの場所をコンテナの環境変数で渡す（devcontainer.json の runArgs の --env-file が読む）。
 # mount と同じくコンテナの作成時に決まるので、リンクを作った・消した後は rebuild が要る
-env_file="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resonite-screenshots.env"
+env_file="$(dirname -- "${BASH_SOURCE[0]}")/resonite-screenshots.env"
 if [ -L "$screenshots" ]; then
   printf 'RESOLOOP_SCREENSHOTS_DIR=/home/vscode/.local/share/create-reso-world/resonite-screenshots\n' > "$env_file"
 else
