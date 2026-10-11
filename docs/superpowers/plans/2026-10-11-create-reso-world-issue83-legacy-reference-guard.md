@@ -96,3 +96,13 @@ Expected: pytest 失敗なし、skip があれば理由を記録。Shell 全件�
 - 初回の uv 環境作成のみ cross-filesystem hardlink の警告があった。以降は `UV_LINK_MODE=copy` で実行し、テスト失敗として扱わない。
 - 実装子の所要: 11 分（境界検査 102 秒、全体 pytest 163 秒、Shell 199 秒）。調査子 7 分31秒、タスクレビュー約3分。controller 基準 pytest 212 秒、再検証約7分。
 - 公開未実施。成果は `fix/issue-83-legacy-reference-guard` と `.worktrees/issue-83-legacy-reference-guard` に保持し、push・PR・マージ・Issue close はしていない。
+
+## 最終レビューと裁定
+
+- 全体レビュー対象: `8f7594a..ff4aea3`。`Review scope: branch` の読み取り専用レビューで Ready to merge: Yes。Critical・Important・Minor の指摘なし。レビュー所要約2分。
+- レビューが評価対象外とした項目は以下のとおり確認し、別の成功主張には含めない。
+- G1: Ruling: 新しい操作指示分類器は追加しない — 文言分類では操作先の安全性を保証できず、Issue #83 の最小修正に不要 — 誤っていれば別途分類機能の設計が必要。
+- G2: Ruling: 未変更 resolver/context の全面監査と Issue #68 の再修正は行わない — 既存実行検査を維持して成功を確認し、別 Issue の範囲を混ぜない — 誤っていれば既存実装の問題を別途調査・修正する必要がある。
+- G3: Ruling: 他の Git プロセスによる stale-lock 検査の skip を成功とは扱わず、今回の停止条件にもしない — 安全のための既存 skip で対象は未変更、実装子の全件成功記録もある — 誤っていれば静かな環境で追加検証が必要。
+- G4: Ruling: ローカルワールドの動作検証は行わない — 隔離 worktree にワールドはなく、変更は文言ガードの撤去だけ — 誤っていればワールドの実環境検証が必要。
+- タスクの通常実装は完了。本 Plan の再実行や公開操作には使わない。
