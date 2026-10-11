@@ -67,3 +67,50 @@
 - タスクレビュー: 2 分 01 秒。ブランチ全体レビュー: 2 分 11 秒。
 - controller の実環境検証: 2 分 13 秒。最終回帰は 14:55:45 開始、15:01 頃終了（pytest 146.35 秒）。
 - controller 全体の計測開始: 14:00:36、PR 作成と結果記録: 15:03 頃（ユーザー確認待ちと同期委譲・検証の待ち時間を含む約 63 分）。
+
+## PR #84 レビュー指摘の選別（2026-10-11）
+
+### 対象・実行許可
+
+- 対象: `usaturn/create-reso-world` PR #84、`fix/issue-68-blender-system-python`。
+- 現行の検証対象 HEAD: `42f4c8b83e3369b535779dbf0822f50eec1a0738`。全レビューの対象 `42f4c8b83e33` はこのコミットと一致する。
+- 入力: 親 checkout の `reviews/#84-fix-issue-68-blender-system-python/` 配下の全4ファイル（`openai-codex-gpt-6.1-sol.md`、`deepseek-deepseek-v4.1-flash.md`、`claude-opus-5-5.md`、`SWE-2-High.md`）。OpenAI / Claude は指摘なし。
+- 状態: completed（全指摘の確認・分類・必要な検証を完了。公開操作の結果は PR コメントと作業報告に残す）。
+- 実行許可: ユーザーが `review-fix-planning` と `#84` を指定した完遂依頼。現行で致命的な指摘だけを修正し、修正不要なら最終コメント・検証した HEAD のマージ・関連 Issue の更新まで進める。以前の実装時の「マージしない」は、その時点の公開手順の記録として残す。
+- 既存の Issue #68 の Spec と関連 Plan をリポジトリ・Issue/PR・テーマ・参照パスで照合し、本 Spec に追記する。レビュー回ごとの新規文書は作らない。
+- 調査中は clean で現行 HEAD と一致する既存の専用 worktree を再利用した。他の作業ツリーの未コミット差分や、既存ローカルワールドは入力にしていない。
+
+### 全指摘の分類
+
+**解消済み 0 / 対応する 0 / 対応しない 3。** 同じ名前の ID を区別するためレビュアーの接頭辞を付ける。
+
+| ID | 指摘 | 分類 | 現行 HEAD での確認・判定根拠 |
+| --- | --- | --- | --- |
+| DS-L1 | 相対 `.venv/bin` が PATH に残り NumPy import に失敗する（別名 venv も関連論点） | 対応しない | wrapper:4–6 を実行し相対形の保持と実 Blender の exit 1 を再現した。ただし承認された方針1は `*/.venv/bin` の除去と既存 wrapper と同じ内容に限定される。実際の `uv run` は絶対 `.venv/bin` を先頭に置き、wrapper で NumPy import / exit 0 を確認した。相対形・別名 venv への拡張は対応範囲の是非であり、公式経路の障害ではない。 |
+| SWE-L1 | venv だけの PATH が空になり、改行を含む PATH が先頭行までに縮む | 対応しない | wrapper:4–8 を実行し `/sample/.venv/bin` → 空文字、`/a\n/b:/c:/usr/bin` → `/a` を再現した。システム bin を含む通常の Dev Container / uv 経路で、この縮退入力は使っていない。任意の PATH 全体の保持やフォールバック追加は設計拡張であり、確認した主要経路の障害ではない。なお空 PATH は必ずしも「検索先0個」を意味せず、全コマンドが必ず失敗するとは結論しない。 |
+| SWE-I1 | カスタム値を保持するときも古い絶対パスの手動更新を案内する | 対応しない | `new-world.sh:168–172,245` と実行テスト39で、カスタム・旧絶対値・空文字の保持と snapshot 不変を確認した。案内は余分だが、利用者設定の変更や誤った対象への操作を実行しない。README:148–151 も、移動後の古い値に限って手動更新を案内している。 |
+
+- Test suggestions は上記 DS-L1 / SWE-L1 と同じ提案として判定した。対応する致命的な欠陥がないため、保険のテストや軽微な文書修正は追加しない。
+- 「対応する」がないため、修正用の守る条件・影響経路の表、再発による設計の見直し、ガードを外した対照検証は該当しない。
+- PR の説明には、相対・別名 venv、改行・システム bin が無い PATH を保証しないことと、通常の `uv run` / システム bin を含む絶対パスを使う回避方法を明示する。
+
+### 確認範囲・選んだ方針
+
+- PR の全差分と変更8ファイルの全文、new-world の呼出元、JSON の型・保持分岐、親ディレクトリ・ファイル・symlink の検査、競合ゲート、chmod と一時 JSON の更新順、終了時の一時ファイル処理、path helper・テスト登録・関連雛形を確認した。
+- 独立した `sp-recon` に読み取り専用の全差分・全変更ファイル・関連経路の確認を委譲した。致命的な欠陥なしとの結果は、controller のコード確認と実行検証に照合した。子にはテスト・編集・Git/GitHub の更新をさせていない。
+- 現行と同一 SHA の隔離 worktree で committed wrapper を実行した。NumPy 未導入の Python 3.14.4 `.venv` では直接 Blender が exit 1、絶対 `.venv/bin` の wrapper が exit 0、相対 `.venv/bin` の wrapper が exit 1、通常の `uv run --no-project --no-sync` の wrapper が exit 0。成功時は `/usr/lib/python3/dist-packages/numpy/__init__.py` を読み込んだ。
+- 方針は、承認済みの限定した PATH 処理を保ってマージする。相対形対応・別名 venv の正規化・汎用 PATH パーサーへの変更は、今回の致命的な指摘だけを扱う依頼から外れるため採用しない。
+- テスト追加は不要（修正対象の挙動がない）。既存の実行テスト・構文・配置・差分検査で代える。既存の追加テストは実際のスクリプトと生成物・環境・引数・終了コードを調べており、文書や実装本文の文字列だけを照合するものはない。
+- 再現用 worktree と親の一意な一時ディレクトリは、再現と関連テストの終了後に `worktree remove` を先に行って削除した。
+
+### 検証・結論
+
+- 関連テスト: `bash tests/scripts/test-blender-system-python.bash` と `bash tests/scripts/test-new-world.bash` はともに exit 0（29秒）。後者の47ケースで設定保持・無変更・競合・権限・jq不在等を確認した。
+- 変更 Shell 5ファイルの `bash -n`、PR 差分の `git diff --check`: exit 0。
+- 必須検証: `bash .devcontainer/run-tests.bash` は29件すべて成功 / exit 0、`bash scripts/check-layout.sh` は成功 / exit 0（約143秒）。実行ログは一意な `review-fix-planning.XXXXXX` 配下に閉じ込め、終了後に削除した。
+- 記録追記時の `git diff --check` が末尾の余分な空行1行を検出したため、その空行を取り除いた。最終版の `bash tests/scripts/test-docs.bash` と `git diff --check` はともに exit 0。実装・テストへの修正はない。
+- base の取得結果は `edaab067f47bab2ae567462544a86fb272a79674` で、検証対象 HEAD の祖先。base が先に進んでいないため一時 merge の検証は不要。
+- private リポジトリの CI は `AGENTS.md` の規定により確認不要。Issue #83 の既存 pytest 失敗は今回変更していない。変更対象がスキルではないため pytest 全体の再実行を反映条件にしない。
+- 修正後の自己レビュー: 未実施（結論2、コード修正なし）。独立調査は、修正後の自己レビューとして数えていない。
+- 結論: 2 修正不要としてマージする。未確認の指摘はない。Dev Container rebuild、Resonite live 操作、meshy doctor 全体は今回未実施であり、過去の実装時の実行記録と区別する。
+- 所要時間: 15:23頃着手、15:34頃に分類と必須検証を完了（約11分）。主要 Task は入力・境界・独立調査・精読が約6分、再現と関連テストが約1分、分類・記録が約1分、必須検証が約2分23秒。公開・Issue更新に要した時間は完了報告に記す。
