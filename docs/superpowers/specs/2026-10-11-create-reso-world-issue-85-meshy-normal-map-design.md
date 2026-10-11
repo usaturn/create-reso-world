@@ -7,7 +7,7 @@
 - 状態: completed（実装・レビュー・offline 検証完了。内容の個別承認は未取得）
 - 関連 Plan: `docs/superpowers/plans/2026-10-11-create-reso-world-issue-85-meshy-normal-map.md`
 - 実行許可: ユーザーの「途中で止めずに推奨案で完了する」により、質問・Spec/Plan 承認待ちを省略し、下記の狭い修正を実行する。承認済みと推測しない。
-- 公開: 未実施。push・PR 作成・merge・Issue close は今回の実行許可に含めない。
+- 公開: https://github.com/usaturn/create-reso-world/pull/88 （base main、head fix/issue-85-meshy-normal-map）。追加指示「PRしてくださ。」により push・PR 作成を許可。merge・Issue close は未実施。
 - `PARENT_ROOT`: `/workspaces/reso-world`
 - `DOC_ROOT` / `CODE_ROOT`: `/workspaces/reso-world/.worktrees/issue-85-meshy-normal-map`
 
@@ -90,4 +90,11 @@ TDD の失敗理由は現在の named-UV 拒否であることを記録する。
 - Evidence: `tmp/issue-85-investigation/report.md`、`tmp/issue-85-task-1/implementation-report.md`、`tmp/issue-85-controller/controller-report.md`、同ディレクトリの review と実行 logs（作業 worktree 内のローカル資料）。
 - 所要: 調査24分47秒、実装19分18秒、Task review約5分、controller test commands13分05秒、Final review約10分、文書fix1分37秒、re-review約2分。セッション全体は約85分（計画・記録・統合確認を含む）。
 - Final review の対象外判断を確認: 空指定の追加制限は上記互換性判断を維持し、公開版/latest・rebuild・Windows/live・課金 API の保証は追加しない。任意の converter-level shared mismatch テスト追加提案は、現実装が正しく既存のadapter+E2E検査があるため今回追加しない。
-- 推奨の終了方法はローカル保持。親 checkout の origin/main detached HEAD は変更せず、push/PR/merge/Issue close は未実施（公開未実施）。
+- PR 作成前はローカル保持で完了し、親 checkout の origin/main detached HEAD は変更しなかった。その後、追加指示により下記の公開を実施。
+
+## 公開記録（2026-10-11）
+
+- ユーザーの追加指示「PRしてくださ。」に基づき、既存ブランチを origin に push し、PR #88 を main 向けに作成した。実装・設計内容は変更せず、公開状態の記録のみ更新する。内容の承認・merge・Issue close の許可とは解釈しない。
+- 公開前の再確認: `uv run --frozen pytest tests/scripts/test_meshy_conversion.py -q -rs` は83 passed / skip 0（143.48秒、exit 0）。ruff、diff-check、check-layout も exit 0。ログは worktree の `tmp/issue-85-publication/conversion.log`。
+- PR 本文に既存の全体テスト失敗1件と LSP／実測版／offline 範囲の制約を明記した。private repository の CI は運用上停止中のため追加のCI待ちは行わない。
+- 公開元は `origin/fix/issue-85-meshy-normal-map`。PR は OPEN、draft ではない。親 checkout・world・外部リポジトリを変更せず、worktree を保持する。
