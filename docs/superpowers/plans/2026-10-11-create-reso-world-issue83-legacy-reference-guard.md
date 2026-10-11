@@ -14,7 +14,7 @@
 - 基準コード HEAD: `8f7594a85636c26c719abe51eb932e8516abf398`
 - 状態: completed
 - 実行許可: Spec の「実行許可」に記載。推奨案での継続指示による実行であり、個別の文書承認ではない。
-- 公開状態: 公開未実施。push・PR 作成・マージ・Issue close はしない。
+- 公開許可: 完了後の追加指示「PRをしてください」により push・PR 作成を許可された。マージと Issue の直接 close は行わない。
 
 ## Global Constraints
 
@@ -22,7 +22,7 @@
 - `.devcontainer/test-initialize-mounts.bash` の由来コメント・mount 一覧・実行検査は変更しない。
 - resolver/context の実装・実行テスト、`AGENTS.md`、既存の履歴文書、ローカルワールドは変更しない。
 - 文書の文言・削除済みファイルの不在だけを照合する代替テスト、allowlist、文章分類器は追加しない。
-- Python の実行には `uv` を使う。公開操作は行わない。親 checkout は `origin/main` のまま維持する。
+- Python の実行には `uv` を使う。追加の明示指示により既存ブランチの push・PR 作成のみ許可する。マージと Issue の直接 close は行わない。親 checkout は `origin/main` のまま維持する。
 
 ## Review Focus
 
@@ -105,4 +105,12 @@ Expected: pytest 失敗なし、skip があれば理由を記録。Shell 全件�
 - G2: Ruling: 未変更 resolver/context の全面監査と Issue #68 の再修正は行わない — 既存実行検査を維持して成功を確認し、別 Issue の範囲を混ぜない — 誤っていれば既存実装の問題を別途調査・修正する必要がある。
 - G3: Ruling: 他の Git プロセスによる stale-lock 検査の skip を成功とは扱わず、今回の停止条件にもしない — 安全のための既存 skip で対象は未変更、実装子の全件成功記録もある — 誤っていれば静かな環境で追加検証が必要。
 - G4: Ruling: ローカルワールドの動作検証は行わない — 隔離 worktree にワールドはなく、変更は文言ガードの撤去だけ — 誤っていればワールドの実環境検証が必要。
-- タスクの通常実装は完了。本 Plan の再実行や公開操作には使わない。
+- タスクの通常実装は完了。通常実装を再実行しない。公開操作は以下の追加許可にのみ従う。
+
+## 追加の公開許可（2026-10-11）
+
+- ユーザーの「PRをしてください」により、`fix/issue-83-legacy-reference-guard` の push と `main` 向けの PR 作成を許可された。
+- 設計・実装修正・テスト採用の判断は変更しない。公開許可の記録追記であり、個別の文書内容承認を得たとは扱わない。
+- マージ・Issue の直接 close は未依頼のため行わない。PR 本文の `Closes #83` でマージ後の close を関連付ける。
+- 「完了記録」の公開未実施は、この追加指示前の時点の記録。公開結果・PR URL は GitHub と更新した handoff で確認する。
+- PR 作成前の再検証（2026-10-11 23:06–23:10 JST）: `uv run pytest -q -rs` は 474 passed、skip・失敗なし。配置・差分検査も成功。ログ: `tmp/issue83-verification/pr-20261011-230652-2190883.log`（`EXIT=0`）。
