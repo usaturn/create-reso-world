@@ -210,7 +210,7 @@ resoloop validate "$WORLD/content/generated/meshy/vessel-refine/converted/bundle
 bundle の `report.json` の warnings が空でも culling が保持できた意味ではない。変換 report も必ず読む。
 
 - 対象: static mesh / Empty の階層、active UV、opaque Principled。direct image の Base Color / Emission は sRGB、scalar map / tangent normal は Non-Color。
-- tangent Normal Map の名前付き UV は、その素材を使う全メッシュで UV がちょうど1つあり、active UV の名前が指定と一致する場合だけ空指定へ正規化する。UV 名は固定せず、実際の名前を比較する。別名・複数 UV・UV 不在・使用メッシュ不明・共有素材の一部の不一致は素材名付きで拒否する。
+- tangent Normal Map の名前付き UV は、その素材を使う全メッシュで UV がちょうど1つあり、active UV の名前が指定と一致する場合だけ空指定へ正規化する。UV 名は固定せず、実際の名前を比較する。`adapt_material` は別名・複数 UV・UV 不在・使用メッシュ不明・共有素材の一部の不一致を素材名付きの `tangent_normal_active_uv_required` で拒否する。ただし `convert` では素材の検査より先に各メッシュの active UV を確認するため、UV 不在（active UV なし）はメッシュ名付きの `active_uv_required` で停止する。
 - 既存の空の normal UV 指定は、複数 UV でも従来どおり扱う。TANGENT、定数 Strength、直接画像の Color 出力、Non-Color、unlinked Vector、Flat / Repeat / Linear の制限は維持する。名前付き UV の許可オプションはなく、`--allow-culling-change` でもこの検査は解除されない。
 - glTF packed MR の B=metallic / G=roughness を分離した画像へ変換し、`resoloop blender export --preserve-hierarchy --pack-pbr` で再出力する。
 - 非対応: alpha BLEND / MASK、transmission、rig / skin、shape key、animation、modifiers / constraints、非対応 shader や node 接続、外部 GLB resource URI、occlusion texture 等。名前付きで停止し、勝手な bake / texture 無視 / 静止画化で成功扱いにしない。
