@@ -64,7 +64,7 @@ pytest の一時 repo は親 Git を発見しない `/tmp` を使用する（rep
 **テスト要否:** 必要。実不具合の再現・UV 同値性の分岐・共有 node の変更順序・保存/export の入出力を実行して守る。
 文書のテストは不要で、diff 確認に代える。
 
-- [ ] **Step 1: 実 normal GLB fixture と失敗する回帰テストを書く。**
+- [x] **Step 1: 実 normal GLB fixture と失敗する回帰テストを書く。**
   `normal_map` case を生成側の choices と `glbs` に追加する。既存の2メッシュに同じ素材を使い、
   asymmetric Non-Color 2×2 normal image を直接 tangent Normal Map に接続し、Strength=0.65 にする。
   `test_real_conversion_preserves_normal_map` は replace_glb → convert を実行し、成功を期待する。
@@ -74,12 +74,12 @@ pytest の一時 repo は親 Git を発見しない `/tmp` を使用する（rep
   IsNormalMap=true、NormalScale≈0.65、画像の実在と pixels（PNG 誤差1/255）を確かめる。
   source bytes、2 mesh と階層・共有素材が保たれたことも既存 helper と probe で確認する。
 
-- [ ] **Step 2: focused test を実行して RED の理由を確認する。**
+- [x] **Step 2: focused test を実行して RED の理由を確認する。**
   Run: `uv run --frozen pytest tests/scripts/test_meshy_conversion.py -k normal_map -q -rs`。
   Expected: `blender_rejected:FixtureMaterial:tangent_normal_active_uv_required` による FAIL。
   tools skip、culling、CLI typo を RED として扱わない。既存 culling 同意のみ渡す。
 
-- [ ] **Step 3: 実 bpy の UV/graph safety ケースと最小実装を追加する。**
+- [x] **Step 3: 実 bpy の UV/graph safety ケースと最小実装を追加する。**
   `adapt_material` に keyword-only mesh_users を追加する。非空指定だけ、全 user の
   len(uv_layers)==1、active is not None、active.name == 元の uv_map を検査し、不明 users を拒否する。
   現行 normal graph と image_input 検査を維持し、その後に空へ正規化する。
@@ -90,12 +90,12 @@ pytest の一時 repo は親 Git を発見しない `/tmp` を使用する（rep
   object-space / linked Strength / linked Vector / sRGB normal の拒否も実ノードで確かめる。
   各新規挙動の実装前の失敗を記録し、既存拒否の safety test は既存挙動として記録する。
 
-- [ ] **Step 4: focused GREEN と全 conversion 回帰を実行する。**
+- [x] **Step 4: focused GREEN と全 conversion 回帰を実行する。**
   Run: `uv run --frozen pytest tests/scripts/test_meshy_conversion.py -q -rs`。
   Expected: 全件 passed、必要な Blender/ResoLoop 検証の skipped 0。
   3引数互換と全 user collection は実装 diff と呼び出し箇所を確認する。
 
-- [ ] **Step 5: runbook を更新し全体・静的検証を同期実行する。**
+- [x] **Step 5: runbook を更新し全体・静的検証を同期実行する。**
   `docs/meshy-resoloop.md` に単一 UV の normal GLB、normal provider・pixels・strength、
   convert/export/validate の検証と named UV の拒否範囲を記す。実測版と未検証範囲を明記する。
   Run: `uv run --frozen pytest -q -rs` と `uv run --frozen pytest tests/scripts -q -rs`。
@@ -104,7 +104,7 @@ pytest の一時 repo は親 Git を発見しない `/tmp` を使用する（rep
   `git diff --check`、`bash scripts/check-layout.sh`。結果と終了コードを記録する。
   changed Python の active LSP 診断は controller が補助実行する。bpy 不在など環境制約は分けて記録する。
 
-- [ ] **Step 6: self-review・commit・作業報告を提出する。**
+- [x] **Step 6: self-review・commit・作業報告を提出する。**
   `git diff` で共有素材の検査順序・画像の保持・既存 graph/culling 検査・対象外変更なしを確認する。
   対象ファイルのみ commit する。plan/spec の状態・チェックは controller 所有なので変更しない。
   report に RED/GREEN の command・該当 output・exit、full suite の既存失敗、
