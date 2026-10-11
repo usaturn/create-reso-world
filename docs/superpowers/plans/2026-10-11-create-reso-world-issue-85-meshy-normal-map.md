@@ -12,7 +12,7 @@
 
 - 文書管理・対象: `usaturn/create-reso-world` Issue #85
 - 検証した開始 HEAD: `8f7594a85636c26c719abe51eb932e8516abf398`
-- 状態: draft（内容の個別承認は未取得）
+- 状態: completed（全 Task と review 完了。全体 suite の既存失敗は残る。内容の個別承認は未取得）
 - 実行許可: 「途中で止めずに推奨案で完了する」に基づく下記修正の連続実行。承認済みと推測しない。
 - 公開: 未実施。push/PR/merge/Issue close はしない。
 
@@ -109,3 +109,11 @@ pytest の一時 repo は親 Git を発見しない `/tmp` を使用する（rep
   対象ファイルのみ commit する。plan/spec の状態・チェックは controller 所有なので変更しない。
   report に RED/GREEN の command・該当 output・exit、full suite の既存失敗、
   変更ファイル、elapsed と主要内訳を書く。
+
+## 実行結果
+
+Task 1 の全 Steps は実行・独立レビュー済み。実装 `cdcf6da`、Task 判定 Approved、Final review は Critical/Important なし。最終文書修正 `d5e3809` の scoped re-review は ADDRESSED、新規問題なし。
+controller の最終結果は scripts 282 passed + 144 subtests / skip 0、configured repository 482 passed / 既存失敗1 / skip 0。convert suite は83 passedで、実 normal GLB の export/validate を含む。
+ruff・diff-check・layout は成功。LSP は Blender専用／動的 import と既存推論の制約があり clean ではない。詳細な結果・ログ・時間内訳は関連 Spec の完了記録と worktree の `tmp/issue-85-controller/controller-report.md` にある。
+初回の CLI setup timeout は単独・全体再実行で再現せず、原因未確定として保持する。全体 green と主張しない。
+公開未実施。今の worktree・ローカル commits を保持し、実装を再実行しない。公開・merge・Issue close は別途明示指示が必要。

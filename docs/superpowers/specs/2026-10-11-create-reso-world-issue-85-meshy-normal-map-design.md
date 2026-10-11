@@ -4,7 +4,7 @@
 - Issue: https://github.com/usaturn/create-reso-world/issues/85
 - 参考: https://github.com/usaturn/resoloop/issues/17
 - 調査したコード HEAD: `8f7594a85636c26c719abe51eb932e8516abf398`
-- 状態: draft（内容の個別承認は未取得）
+- 状態: completed（実装・レビュー・offline 検証完了。内容の個別承認は未取得）
 - 関連 Plan: `docs/superpowers/plans/2026-10-11-create-reso-world-issue-85-meshy-normal-map.md`
 - 実行許可: ユーザーの「途中で止めずに推奨案で完了する」により、質問・Spec/Plan 承認待ちを省略し、下記の狭い修正を実行する。承認済みと推測しない。
 - 公開: 未実施。push・PR 作成・merge・Issue close は今回の実行許可に含めない。
@@ -78,3 +78,16 @@ skip は他 Git process の cwd を読めない環境条件。既存 conversion 
 TDD の失敗理由は現在の named-UV 拒否であることを記録する。
 複数 UV の空指定の既存挙動を変えず、名前付きの安全性だけを拡張する。
 詳細な test helper の構成は実装担当に任せ、関係ない構造変更はしない。
+
+## 完了記録（2026-10-11）
+
+- 実装 commit: `cdcf6da9a8f623c8abcf3bd65a4d7c8568a518a5`。最終文書修正: `d5e3809ab0198b879cab00f59666f5a2cb7bb7c4`。コードの実行対象は前者から不変。
+- Task review: Spec compliant / Task quality Approved。Final branch review: Ready to merge Yes、Critical/Important なし。文書の UV 不在時のエラー説明を1回修正し、scoped re-review で ADDRESSED・新規問題なし。
+- 実 conversion suite: 83 passed、必要な Blender/ResoLoop 検証 skip 0。法線 GLB の convert/export/validate、normal provider と pixels/Strength、UV/階層/素材共有、27 real-bpy safety ケースを実行。
+- controller の最終 scripts suite: 282 passed + 144 subtests、skip 0（257.79秒、exit 0）。初回の無変更 CLI setup に cli_timeout が1件あり、該当ケース単独と全 suite の再実行では再現しなかった。原因未確定としてログを残した。
+- controller の configured repository suite: 482 passed / 1 failed、skip 0（239.28秒、exit 1）。冒頭の既存 legacy-reference failure が残る。全体テスト成功とは扱わない。
+- ruff、diff-check、check-layout は exit 0。active LSP は host の bpy/mathutils 不在、runtime の動的 import、旧 fixture の tuple 推論等の9診断あり。既存 baseline 6診断と比較し、LSP clean とは報告しない。実 bpy 実行と lint の結果は区別する。
+- Evidence: `tmp/issue-85-investigation/report.md`、`tmp/issue-85-task-1/implementation-report.md`、`tmp/issue-85-controller/controller-report.md`、同ディレクトリの review と実行 logs（作業 worktree 内のローカル資料）。
+- 所要: 調査24分47秒、実装19分18秒、Task review約5分、controller test commands13分05秒、Final review約10分、文書fix1分37秒、re-review約2分。セッション全体は約85分（計画・記録・統合確認を含む）。
+- Final review の対象外判断を確認: 空指定の追加制限は上記互換性判断を維持し、公開版/latest・rebuild・Windows/live・課金 API の保証は追加しない。任意の converter-level shared mismatch テスト追加提案は、現実装が正しく既存のadapter+E2E検査があるため今回追加しない。
+- 推奨の終了方法はローカル保持。親 checkout の origin/main detached HEAD は変更せず、push/PR/merge/Issue close は未実施（公開未実施）。
