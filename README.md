@@ -135,7 +135,22 @@ bash scripts/new-world.sh --apply <name>    # 既存のプロジェクトに、�
 プロジェクトの両方に使える。`worlds/` は実ディレクトリである必要がある（symlink にはできない。
 プロジェクトからルートへの相対 symlink が symlink 先基準で解決されて届かなくなるため）。
 
-既存のファイルは上書きせず、食い違いがあれば報告して止まる。プロジェクトのテストは、そのディレクトリで `uv run pytest` を実行する。
+新規作成・`--apply` には `jq` が必要（Dev Container の基本パッケージで導入する）。
+プロジェクト直下の `.resoloop/blender-system-python` を実行可能な通常ファイルとして配置し、
+`worlds/<name>/.resoloop.json` の `blenderExecutable` が未設定または null なら、
+このラッパーの絶対パスを補う。ラッパーは PATH の
+`*/.venv/bin` を除き、`VIRTUAL_ENV` を解除して `/usr/bin/blender` を起動するため、`uv run` 経由でも
+Blender の Python がシステムの NumPy を使える。
+
+カスタムの `blenderExecutable`（空文字を含む）は保持する。現在のラッパー値が設定済みの場合も JSON を再保存しない。
+プロジェクト移動後の古い絶対パスは自動変更しないので、設定ファイルの `blenderExecutable` を
+移動先の `.resoloop/blender-system-python` の絶対パスへ手動更新し、`bash scripts/new-world.sh --apply <name>` で
+雛形の不足分を補う。
+
+既存のファイルは上書きせず、食い違いがあれば報告して止まる。不正な JSON、ラッパーの内容差や symlink などの
+競合があれば、雛形・JSON・実行権限は変更しない（新規作成で既に `resoloop init` が作ったものは残る）。
+同じ内容で実行権限だけ無いラッパーは、競合が無い場合だけ実行可能にする。
+プロジェクトのテストは、そのディレクトリで `uv run pytest` を実行する。
 uv が無い環境では `--no-sync` で雛形だけを適用できるが、その場合は `uv.lock` がまだ無いので、uv を導入して `uv sync` するまで
 `scripts/check-layout.sh` が `uv.lock` の欠落を報告する。
 

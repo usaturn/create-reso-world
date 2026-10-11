@@ -7,7 +7,7 @@
 #   0 成功
 #   1 既存ファイルとの食い違いあり。雛形の変更は何もしない（新規作成では resoloop init が作ったディレクトリだけが残り、その旨を表示する）
 #   2 使い方の誤り（予約名 worlds、両方の場所にある --apply を含む）。何も変更しない
-#   3 前提不足。uv（同期ありのとき）・resoloop・ルートの共有物（.claude/settings.json、.pi）の欠落と、
+#   3 前提不足。jq・uv（同期ありのとき）・resoloop・ルートの共有物（.claude/settings.json、.pi）の欠落と、
 #     worlds/ がディレクトリでないことは何かを作る前に検出する。
 #     resoloop init の失敗や init 後の生成物の不足では init が作ったものが残る。uv sync の失敗では雛形の適用は済んでおり、その旨を表示する
 set -euo pipefail
@@ -69,6 +69,7 @@ up() { local i out=""; for ((i = 0; i < $1; i++)); do out+='../'; done; printf '
 up_in="$(up "$depth")"        # プロジェクト直下のエントリ（.pi）の行き先に使う
 up_sub="$(up $((depth + 1)))" # 1 段下のエントリ（.claude/settings.json、.agents/sp-*.md）の行き先に使う
 # 何かを作る前に前提を確かめる
+command -v jq >/dev/null 2>&1 || die 3 "jq not found; install it before creating or applying a project"
 if [ "$sync" -eq 1 ]; then
   command -v uv >/dev/null 2>&1 || die 3 "uv not found; install it or pass --no-sync"
 fi
@@ -82,7 +83,7 @@ if [ "$apply" -eq 0 ]; then
   resoloop init "$proj" --json >/dev/null || die 3 "resoloop init failed for $name"
   initialized=1
 fi
-[ -f "$proj/.resoloop.json" ] || die 3 "$name is not a resoloop project (.resoloop.json is missing)"
+{ [ -e "$proj/.resoloop.json" ] || [ -L "$proj/.resoloop.json" ]; } || die 3 "$name is not a resoloop project (.resoloop.json is missing)"
 if [ ! -f "$proj/AGENTS.md" ]; then
   # 既存プロジェクトの中で resoloop init を実行すると content/main.json やスキルを作り直すので、init は勧めない
   [ "$apply" -eq 1 ] || die 3 "resoloop init did not create $name/AGENTS.md"
@@ -100,7 +101,7 @@ render() { sed -e "s/{{name}}/$name/g" "$1"; }
 has_files() { [ -d "$1" ] && [ -n "$(find "$1" -type f -print -quit 2>/dev/null)" ]; }
 
 # 1 周目: 作るもの・追記するものを集め、既存ファイルとの食い違いを集める。食い違いがあれば何も変更しない
-conflicts=() plan_file_rel=() plan_file_src=() plan_link_rel=() plan_link_target=() append_section=0 append_cache=0
+conflicts=() plan_file_rel=() plan_file_src=() plan_link_rel=() plan_link_target=() append_section=0 append_cache=0 update_blender_configuration=0 keep_blender_configuration=0
 declare -A reported_parent=()
 
 parent_ok() {  # $1=相対パス。途中のディレクトリが symlink や通常ファイルなら食い違いに加え（1 回だけ）、1 を返す
@@ -150,6 +151,29 @@ want_link() {  # $1=相対パス、$2=期待する行き先
   fi
 }
 
+want_blender_configuration() {  # JSON の検査と更新要否の記録だけ。書き込みは競合ゲートの後に行う
+  if [ -L "$proj/.resoloop.json" ] || [ ! -f "$proj/.resoloop.json" ]; then
+    conflicts+=(".resoloop.json is not a regular file")
+    return 0
+  fi
+  if ! jq -e -s '
+    length == 1 and (.[0] | if type == "object" then
+      (.blenderExecutable | type == "null" or type == "string")
+    else false end)
+  ' "$proj/.resoloop.json" >/dev/null 2>&1; then
+    conflicts+=(".resoloop.json must contain a single JSON object with a string or null blenderExecutable")
+    return 0
+  fi
+  if jq -e '.blenderExecutable == null' "$proj/.resoloop.json" >/dev/null; then
+    update_blender_configuration=1
+  elif ! jq -e --arg path "$proj/.resoloop/blender-system-python" \
+    '.blenderExecutable == $path' "$proj/.resoloop.json" >/dev/null; then
+    keep_blender_configuration=1
+  fi
+}
+
+want_blender_configuration
+want_file .resoloop/blender-system-python "$tmpl/blender-system-python" 1
 want_file CLAUDE.md "$tmpl/CLAUDE.md" 1
 want_file pyproject.toml "$tmpl/pyproject.toml" 0
 if [ -L "$proj/AGENTS.md" ]; then
@@ -202,6 +226,24 @@ for i in "${!plan_file_rel[@]}"; do
   render "$src" > "$proj/$rel"
   printf 'created: %s\n' "$rel"
 done
+if [ ! -x "$proj/.resoloop/blender-system-python" ]; then
+  chmod +x "$proj/.resoloop/blender-system-python"
+  printf 'made executable: .resoloop/blender-system-python\n'
+fi
+if [ "$update_blender_configuration" -eq 1 ]; then
+  json_tmp="$(mktemp "$proj/.resoloop.json.XXXXXX")" || die 3 "cannot create a temporary JSON file for $name"
+  trap '[ -z "$json_tmp" ] || rm -f -- "$json_tmp"' EXIT
+  if ! jq --arg path "$proj/.resoloop/blender-system-python" '.blenderExecutable = $path' \
+      "$proj/.resoloop.json" > "$json_tmp" \
+    || ! chmod --reference="$proj/.resoloop.json" "$json_tmp" \
+    || ! mv -- "$json_tmp" "$proj/.resoloop.json"; then
+    die 3 "cannot update $name/.resoloop.json; some scaffold changes may already have been applied"
+  fi
+  json_tmp=""
+  printf 'updated: .resoloop.json (blenderExecutable)\n'
+elif [ "$keep_blender_configuration" -eq 1 ]; then
+  printf 'kept: .resoloop.json (blenderExecutable already specified; update old absolute paths manually)\n'
+fi
 if [ "$append_section" -eq 1 ]; then
   # 改行で終わっていない AGENTS.md には、先に改行を足してから空行と固有節を追記する
   { [ -z "$(tail -c 1 "$proj/AGENTS.md")" ] || printf '\n'; printf '\n'; render "$tmpl/AGENTS.local.md"; } >> "$proj/AGENTS.md"
