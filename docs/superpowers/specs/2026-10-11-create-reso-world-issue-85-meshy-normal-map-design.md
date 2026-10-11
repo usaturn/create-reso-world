@@ -2,6 +2,9 @@
 
 - 文書管理・対象リポジトリ: `usaturn/create-reso-world`
 - Issue: https://github.com/usaturn/create-reso-world/issues/85
+- PR: https://github.com/usaturn/create-reso-world/pull/88
+- レビュー選別したコード HEAD: `42f1b997baa2fdd4401afd94dd9ee031a73d6fb5`
+- マージ組合せを検証した base: `fe328c71db79f48f031c4da3323543af4593d322`
 - 参考: https://github.com/usaturn/resoloop/issues/17
 - 調査したコード HEAD: `8f7594a85636c26c719abe51eb932e8516abf398`
 - 状態: completed（実装・レビュー・offline 検証完了。内容の個別承認は未取得）
@@ -98,3 +101,57 @@ TDD の失敗理由は現在の named-UV 拒否であることを記録する。
 - 公開前の再確認: `uv run --frozen pytest tests/scripts/test_meshy_conversion.py -q -rs` は83 passed / skip 0（143.48秒、exit 0）。ruff、diff-check、check-layout も exit 0。ログは worktree の `tmp/issue-85-publication/conversion.log`。
 - PR 本文に既存の全体テスト失敗1件と LSP／実測版／offline 範囲の制約を明記した。private repository の CI は運用上停止中のため追加のCI待ちは行わない。
 - 公開元は `origin/fix/issue-85-meshy-normal-map`。PR は OPEN、draft ではない。親 checkout・world・外部リポジトリを変更せず、worktree を保持する。
+
+## PR #88 のレビュー選別（2026-10-11）
+
+### 対象と実行許可
+
+- 状態: completed（全指摘の現行検証・分類とマージ前の必要な検証を完了）。結論は **2: 修正不要としてマージする**。マージ・Issue 更新の実行結果は PR の状況コメントと作業報告で扱う。
+- ユーザーの `review-fix-planning #88` 呼び出しは計画のみの指定を含まないため、同スキルの完遂経路を適用し、既存 PR への Spec の commit/push、最終コメント、検証した head のマージ、関連 Issue の更新を実行する。内容の個別承認とは別の実行許可として記録する。
+- 同じ対象リポジトリ・Issue #85・PR #88・normal UV 正規化を扱う現行 Spec は本ファイルの1件、関連 Plan は冒頭の1件と確認し、本ファイルを更新する。設計・実装・Plan は変更しない。
+- 入力は `reviews/#88-fix-issue-85-meshy-normal-map/` の全3ファイル。全ファイルの対象 HEAD は `42f1b997baa2` で、fetch した PR head `42f1b997baa2fdd4401afd94dd9ee031a73d6fb5` と一致する。
+- clean かつ PR head と一致する既存の専用 worktree `/workspaces/reso-world/.worktrees/issue-85-meshy-normal-map` を再利用した。他セッション所有なので片付け対象にしない。親 checkout、world、ResoLoop のコードや導入版は変更しない。
+
+### 全指摘の分類
+
+件数は **解消済み0 / 対応する0 / 対応しない3**。同じ論点でも入力レビューの ID ごとに数える。
+
+| 入力ファイル / ID | 指摘 | 分類 | 現行 HEAD の根拠と理由 |
+| --- | --- | --- | --- |
+| `deepseek-deepseek-v4.1-flash.md` / I-1 | E2E が元 GLB の normal UV の非空を明示的に断言していない | 対応しない | `tests/scripts/test_meshy_conversion.py:327-350` に original 側の UV 名の assertion はない。今回の E2E 保存物で original=`UVMap`、saved=`""` を実測し、現行は named UV 経路を通る。将来 importer が空を設定した場合のテスト耐久性の提案で、現行の変換の誤結果・停止ではない。 |
+| `SWE-2-High.md` / L-1 | 上記と同じ E2E 前提の未固定 | 対応しない | 同じ実測と該当行を根拠とする。実 bpy の27ケースは名前を直接設定して named UV の許可・拒否を検査しており、現行のロジックの回帰ガードは存在する。 |
+| `SWE-2-High.md` / I-1 | `safety()` の未知 case が既定構成を使う | 対応しない | `tests/fixtures/meshy/check_normal_uv.py:98-115,208` に未知 case の拒否はなく、隔離 worktree で `typo_not_defined` が単一 `PaintedUV` の構成として accepted になることを再現。現在使う `test_meshy_conversion.py:365-396` の27ケースはすべて正しい分岐に対応し成功する。テスト拡張時の typo 防止の提案で、実変換の入口には影響しない。 |
+
+`claude-opus-5-5.md` は指摘0件。各レビューの Test suggestions は上の ID の提案の再掲であり、別指摘として重複計上しない。確認中に新たな PR 起因の致命的な欠陥は見つからなかった。
+
+### 調査と判断
+
+- PR の変更7ファイルを全文確認: `scripts/meshy_blender.py`、`tests/fixtures/meshy/create_fixture.py`、`tests/fixtures/meshy/check_normal_uv.py`、`tests/scripts/test_meshy_conversion.py`、`docs/meshy-resoloop.md`、本 Spec、関連 Plan。
+- 関連処理は `scripts/meshy.py` の convert 呼び出し、`scripts/meshy_conversion.py` の全変換・拒否・保存経路、共通 `meshy-resoloop` スキルを確認。全メッシュ利用先の収集、共有ノード変更前の全 user / normal image 検査、既存空指定・3引数呼び出し・graph safety・culling 同意・拒否時の未公開を確認した。
+- 独立した読み取り専用調査を `sp-recon` に同期委譲し、現行の3指摘と関連経路を照合した（exit 0、205.74秒）。子の実行未確認事項（worktree clean/head、一部ファイルの全文、実 bpy）は調整役が補完し、子の報告だけで判定していない。
+- 推奨案は実装・テストを変更しないこと。対案の assertion 追加や未知 case の拒否は将来のテスト保険で、現行の致命的な欠陥の修正には当たらないため採用しない。PR の保証と食い違う実在の利用制約ではないため、PR 本文の保証は変更しない。
+- 対応する項目がないため、新しい影響経路表・設計の見直し・ガードを外した対照は対象外。コードやスキルの変更もなく、追加テストは不要（文書記録のみを検査するテストは書かない）。
+- 修正後の自己レビューは未実施。結論1の実装修正がないため同節の対象外であり、初期の独立調査と全変更確認を自己レビューと呼ばない。
+
+### 実行検証
+
+Blender `5.0.1`、導入済み ResoLoop `0.1.0-preview.17.fork.20261009.g84c7932`。API キーを使用せず、API・課金・live apply・Windows 操作は実行していない。
+
+| 対象 | コマンド / 確認 | 結果 |
+| --- | --- | --- |
+| PR head の専用 worktree | `env -u MESHY_API_KEY uv run --frozen pytest tests/scripts/test_meshy_conversion.py -q -rs --basetemp <隔離root>/pytest -p no:cacheprovider` | 83 passed、skip 0、158.75秒、exit 0。normal GLB の convert/export/validate と saved blend/bundle の画像・UV・強度・階層・共有素材、および実 bpy の27 safety ケースを含む。 |
+| PR head の専用 worktree | `bash .devcontainer/run-tests.bash` | 29本すべて PASS、exit 0。変換テストと並行した全体待機は208秒。 |
+| PR head の専用 worktree | `bash scripts/check-layout.sh` / `git diff --check origin/main...HEAD` | 両方 exit 0。 |
+| 変更 Python | `uvx ruff check scripts/meshy_blender.py tests/scripts/test_meshy_conversion.py tests/fixtures/meshy` | All checks passed、exit 0。 |
+| 隔離した現行 HEAD | E2E の `normal-inspection.json` を読む | original normal UV=`UVMap`、saved normal UV=`""`。 |
+| 隔離した現行 HEAD | `resoloop blender run tests/fixtures/meshy/check_normal_uv.py --arg=--case --arg=typo_not_defined --arg=--output --arg=<隔離root>/unknown-case.json --json` | exit 0、accepted=true、元の `PaintedUV` が空へ正規化。上表の非致命的な未知 case の挙動を再現。 |
+| head と最新 base の組合せ | HEAD を照合した一時 worktree に `fe328c71db79f48f031c4da3323543af4593d322` を `merge --no-commit --no-ff`、同じ変換 suite / environment runner / layout を実行 | 競合なし。変換83 passed、skip 0、132.92秒、exit 0。environment 29本 PASS、layout PASS、各 exit 0。並行検証全体176秒。merge は push しない。 |
+
+- 最新 base は PR の分岐点より進んでいたため、一時的なマージ組合せで同じ検証を通した。base の進行は #86 による legacy-reference guard の削除であり、上の過去記録の全体 pytest 失敗を今回再実測した失敗とは扱わない。今回は変換 suite と指定の環境検証を実行し、無関係な一括 pytest は再実行していない。
+- `usaturn/create-reso-world` は private、PR は OPEN / draft=false。ルート `AGENTS.md` により CI 確認は不要。マージ可能範囲内である。
+- scratch・ログ・pytest の保存物は一意の `/tmp/review-fix-planning.sU4MO8/` に閉じ込めた。検証完了後、登録した一時 worktree を `git worktree remove --force` で外してから親ディレクトリを削除し、消失を確認した。旧ディレクトリは再利用しない。
+- 本文に残る未検証範囲（公開版/latest、標準 rebuild、Meshy 実 API、Windows/live、LSP 制約）は今回も未検証のままであり、指摘0件や offline 成功をそれらの成功の根拠にはしない。
+
+### 所要時間
+
+調整役の開始は 2026-10-11 15:53:14 UTC、マージ前の検証・分類記録まで約15分。主要内訳は準備・入力確認約2分、独立コード調査3分26秒、head 検証3分28秒、base 組合せ検証2分56秒、全文補完・再現・分類・記録約3分。commit/push・投稿・マージ・Issue 更新の最終所要は作業報告に記載する。
