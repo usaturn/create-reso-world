@@ -12,7 +12,7 @@
 
 - 文書管理・対象リポジトリ: `usaturn/create-reso-world`、Issue #83
 - 基準コード HEAD: `8f7594a85636c26c719abe51eb932e8516abf398`
-- 状態: draft
+- 状態: completed
 - 実行許可: Spec の「実行許可」に記載。推奨案での継続指示による実行であり、個別の文書承認ではない。
 - 公開状態: 公開未実施。push・PR 作成・マージ・Issue close はしない。
 
@@ -56,22 +56,22 @@
 
 **テスト要否:** 新規テスト不要。削除済み参照の不在だけを確かめる検査の撤去であり、実装ロジックは変更しない。失敗の再現と、残す検査の実行・差分確認で代える。
 
-- [ ] **Step 1: 修正前の失敗を再現する**
+- [x] **Step 1: 修正前の失敗を再現する**
 
 Run: `uv run pytest -q tests/skills/test_legacy_references.py`
 Expected: mount の由来コメントを指した 1 failed / 8 passed。基準全体の結果は controller が記録済み。
 
-- [ ] **Step 2: 専用のテストファイルを削除する**
+- [x] **Step 2: 専用のテストファイルを削除する**
 
 `git rm tests/skills/test_legacy_references.py`。コメントを変更せず、pytest の除外設定や skip へ逃がさず、代替テストも追加しない。
 
-- [ ] **Step 3: 維持する境界検査と mount 検査を実行する**
+- [x] **Step 3: 維持する境界検査と mount 検査を実行する**
 
 Run: `uv run pytest -q tests/scripts/test_superpowers_context.py .agents/skills/pr-review/tests/test_pr_review_skill_contract.py .agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py`
 Run: `bash .devcontainer/test-initialize-mounts.bash`
 Expected: 全件成功。テストは実際の resolver/context を実行し、誤った作業先・remote を拒否する。
 
-- [ ] **Step 4: 全体と配置・差分を検証する**
+- [x] **Step 4: 全体と配置・差分を検証する**
 
 Run: `uv run pytest -q -rs`
 Run: `bash .devcontainer/run-tests.bash`
@@ -79,7 +79,20 @@ Run: `bash scripts/check-layout.sh`
 Run: `git diff --check; git diff --cached --check; git diff HEAD --stat`
 Expected: pytest 失敗なし、skip があれば理由を記録。Shell 全件成功、配置成功、差分は削除対象だけ。worktree にはローカルワールドがないことを記録。環境起因の警告は分離して記録する。
 
-- [ ] **Step 5: 自己レビューしてコミット・報告する**
+- [x] **Step 5: 自己レビューしてコミット・報告する**
 
 `git commit -m "test: remove migration-source wording guard"`
 詳細報告は指定 report ファイルに書く。変更、再現・検証のコマンドと結果、skip・警告、所要時間と Task 内訳を記録する。Spec・Plan の完了チェックと更新は controller が行う。
+
+## 完了記録
+
+- 実行対象の文書版: `510711b0485d71eeaae0665806d61f73b3601832`。個別の内容承認はなく、ユーザーの推奨案での継続指示に従って実行した。
+- 実装コミット: `33f99d9f43325e361958ccdc1d824c1fadbc33d0`（専用テストファイル 68 行の削除のみ）。
+- タスクレビュー: Spec compliant / Task quality Approved。Critical・Important・Minor の指摘なし。変更していない領域・親 checkout・検証結果の確認項目は controller が差分・状態・再実行で解消した。
+- 実装子: 既存失敗 1 failed / 8 passed を再現。撤去後 pytest 474 passed、境界検査 172 passed / 109 subtests passed、mount 検査・Shell 29 件・配置・差分検査成功。
+- controller 再検証（2026-10-11 22:45–22:52 JST）: `uv run pytest -q -rs` は 473 passed / 1 skipped、失敗なし。skip は stale-git-lock-recovery の安全検査が別の Git プロセスを検出したため（cwd が読めない PID）。`bash .devcontainer/run-tests.bash` は 29 件成功。配置と差分検査も成功。
+- controller ログ: `tmp/issue83-verification/controller-20261011-224526-1974982.log`（worktree 内、追跡対象外、`EXIT=0`）。
+- mount の由来コメント、境界検査・実装、過去の文書、親 checkout は変更していない。親 checkout は `8f7594a` の detached HEAD = `origin/main`。worktree にはローカルワールドがない。
+- 初回の uv 環境作成のみ cross-filesystem hardlink の警告があった。以降は `UV_LINK_MODE=copy` で実行し、テスト失敗として扱わない。
+- 実装子の所要: 11 分（境界検査 102 秒、全体 pytest 163 秒、Shell 199 秒）。調査子 7 分31秒、タスクレビュー約3分。controller 基準 pytest 212 秒、再検証約7分。
+- 公開未実施。成果は `fix/issue-83-legacy-reference-guard` と `.worktrees/issue-83-legacy-reference-guard` に保持し、push・PR・マージ・Issue close はしていない。
