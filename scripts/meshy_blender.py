@@ -162,7 +162,7 @@ def split_channel(material, socket, index, cache):
     material.node_tree.links.new(node.outputs["Color"], socket)
 
 
-def adapt_material(material, defaults, cache):
+def adapt_material(material, defaults, cache, *, mesh_users=()):
     if (
         bpy.app.version < (5, 0, 0) and not material.use_nodes
     ) or not material.node_tree:
@@ -205,13 +205,25 @@ def adapt_material(material, defaults, cache):
         if (
             node.type != "NORMAL_MAP"
             or node.space != "TANGENT"
-            or node.uv_map
             or node.inputs["Strength"].is_linked
             or not node.inputs["Color"].is_linked
             or node.inputs["Color"].links[0].from_socket.name != "Color"
         ):
             raise Rejected(material.name, "tangent_normal_active_uv_required")
+        # Check every user against the original shared name before mutating it.
+        # Empty bindings keep the legacy path, including multiple UV layers.
+        if node.uv_map and (
+            not mesh_users
+            or any(
+                len(mesh.uv_layers) != 1
+                or mesh.uv_layers.active is None
+                or mesh.uv_layers.active.name != node.uv_map
+                for mesh in mesh_users
+            )
+        ):
+            raise Rejected(material.name, "tangent_normal_active_uv_required")
         image_input(material, node.inputs["Color"].links[0], "Non-Color")
+        node.uv_map = ""
     split_channel(material, shader.inputs["Metallic"], 2, cache)
     split_channel(material, shader.inputs["Roughness"], 1, cache)
 
@@ -285,10 +297,18 @@ def convert(args):
             for index, material in enumerate(slots):
                 if material is None:
                     slots[index] = default_material
-    materials = {m for obj in meshes for m in obj.data.materials if m}
+    # Deduplicate Mesh datablocks by identity, not material.users counts.
+    material_mesh_users = {}
+    for obj in meshes:
+        for material in obj.data.materials:
+            if material:
+                material_mesh_users.setdefault(material, set()).add(obj.data)
+    materials = set(material_mesh_users)
     cache = {}
     for material in sorted(materials, key=lambda m: m.name):
-        adapt_material(material, defaults, cache)
+        adapt_material(
+            material, defaults, cache, mesh_users=tuple(material_mesh_users[material])
+        )
     # Rotate/scale roots only. Descendant meshes and pivots remain separate/editable.
     rotation = Matrix.Rotation(math.radians(args.yaw), 4, "Z")
     roots = [obj for obj in objects if not obj.parent]

@@ -32,6 +32,39 @@ def create(output, case):
     material.node_tree.links.new(mr_node.outputs["Color"], separate.inputs["Color"])
     material.node_tree.links.new(separate.outputs["Blue"], shader.inputs["Metallic"])
     material.node_tree.links.new(separate.outputs["Green"], shader.inputs["Roughness"])
+    if case == "normal_map":
+        normal = bpy.data.images.new("AsymmetricNormal", width=2, height=2, alpha=True)
+        normal.colorspace_settings.name = "Non-Color"
+        normal.pixels[:] = [
+            0.25,
+            0.5,
+            1,
+            1,
+            0.5,
+            0.75,
+            1,
+            1,
+            0.75,
+            0.25,
+            1,
+            1,
+            0.5,
+            0.5,
+            1,
+            1,
+        ]
+        normal.pack()
+        normal_image = material.node_tree.nodes.new("ShaderNodeTexImage")
+        normal_image.image = normal
+        normal_node = material.node_tree.nodes.new("ShaderNodeNormalMap")
+        normal_node.space = "TANGENT"
+        normal_node.inputs["Strength"].default_value = 0.65
+        material.node_tree.links.new(
+            normal_image.outputs["Color"], normal_node.inputs["Color"]
+        )
+        material.node_tree.links.new(
+            normal_node.outputs["Normal"], shader.inputs["Normal"]
+        )
     if case == "transparency":
         shader.inputs["Alpha"].default_value = 0.5
         material.surface_render_method = "DITHERED"
@@ -92,6 +125,21 @@ def create(output, case):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--case", default="opaque")
+    parser.add_argument(
+        "--case",
+        default="opaque",
+        choices=(
+            "opaque",
+            "normal_map",
+            "transparency",
+            "transmission",
+            "animation",
+            "tilted_tetrahedron",
+            "one_sided",
+            "mixed_culling",
+            "implicit_material",
+            "mixed_default_material",
+        ),
+    )
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1 :])
     create(args.output, args.case)

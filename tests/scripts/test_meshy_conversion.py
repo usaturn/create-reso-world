@@ -20,6 +20,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 ENTRY = ROOT / "scripts/meshy.py"
 FIXTURE = ROOT / "tests/fixtures/meshy/create_fixture.py"
+NORMAL_UV_PROBE = ROOT / "tests/fixtures/meshy/check_normal_uv.py"
 PARENT = 'path:["Root","VerifiedFixtureParent"]'
 
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -49,6 +50,7 @@ def glbs(tmp_path_factory, tools):
     result = {}
     for case in (
         "opaque",
+        "normal_map",
         "transparency",
         "transmission",
         "animation",
@@ -254,6 +256,175 @@ Path(sys.argv[-1]).write_text(json.dumps({'channels': channels,
     assert json.loads(world[3].read_text())["conversion"] == conversion
 
 
+# Catch named-UV rejection and normal loss in the saved blend or provider chain.
+# Source pixels and UVs are checked independently, not via converter reports.
+def test_real_conversion_preserves_normal_map(world, glbs, tools, tmp_path):
+    replace_glb(world, glbs["normal_map"])
+    before = world[2].read_bytes()
+    proc = convert(world, "--allow-culling-change")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    conversion = json.loads(proc.stdout)
+    assert json.loads(world[3].read_text())["conversion"] == conversion
+    bundle = Path(conversion["bundle"])
+    apply_path = bundle / "model.apply.json"
+    validated = run([tools, "validate", str(apply_path), "--json"], env=resoloop_env())
+    assert validated.returncode == 0, validated.stdout + validated.stderr
+    assert json.loads(validated.stdout)["ok"] is True
+    document = json.loads(apply_path.read_text())
+
+    def components(slot):
+        yield from slot.get("components", [])
+        for child in slot.get("children", []):
+            yield from components(child)
+
+    exported = list(components(document))
+    materials = [c for c in exported if c["type"] == "FrooxEngine.PBS_Metallic"]
+    assert len(materials) == 1
+    fields = materials[0]["fields"]
+    assert fields["NormalScale"] == pytest.approx(0.65)
+    provider = next(
+        c for c in exported if "$component:" + c["key"] == fields["NormalMap"]
+    )
+    assert provider["type"] == "FrooxEngine.StaticTexture2D"
+    assert provider["fields"]["IsNormalMap"] is True
+    asset = document["assets"][provider["fields"]["URL"].removeprefix("$asset:")]
+    normal_png = bundle / asset["source"]
+    assert normal_png.is_file()
+    renderers = [c for c in exported if c["type"] == "FrooxEngine.MeshRenderer"]
+    assert len(renderers) == 2
+    assert all(
+        c["fields"]["Materials"] == ["$component:" + materials[0]["key"]]
+        for c in renderers
+    )
+    assert document["slot"]["parent"] == PARENT
+    report = json.loads((bundle / "report.json").read_text())
+    assert report["preserveHierarchy"] is True
+    assert report["triangles"] == 24
+    assert {m["name"] for m in report["meshes"]} == {"LowerPart", "UpperPart"}
+    assert len(report["textures"]) == 3
+    assert all((bundle / a["source"]).is_file() for a in document["assets"].values())
+    inspection = tmp_path / "normal-inspection.json"
+    check = run(
+        [
+            tools,
+            "blender",
+            "run",
+            str(NORMAL_UV_PROBE),
+            "--blend",
+            conversion["blend"],
+            "--arg=--source",
+            "--arg=" + str(world[2]),
+            "--arg=--normal-image",
+            "--arg=" + str(normal_png),
+            "--arg=--output",
+            "--arg=" + str(inspection),
+            "--json",
+        ],
+        env=resoloop_env(),
+    )
+    assert check.returncode == 0, check.stdout + check.stderr
+    inspected = json.loads(inspection.read_text())
+    saved, original = inspected["saved"], inspected["original"]
+    assert saved["normal"]["uv_map"] == ""
+    assert saved["normal"]["space"] == "TANGENT"
+    assert saved["normal"]["strength"] == pytest.approx(0.65)
+    assert not saved["normal"]["strength_linked"]
+    assert not saved["normal"]["vector_linked"]
+    assert saved["normal"]["image_space"] == "Non-Color"
+    assert saved["normal"]["image_packed"]
+    assert saved["normal"]["image_size"] == [2, 2]
+    expected = [0.25, 0.5, 1, 1, 0.5, 0.75, 1, 1, 0.75, 0.25, 1, 1, 0.5, 0.5, 1, 1]
+    assert original["normal"]["pixels"] == pytest.approx(expected, abs=1 / 255)
+    assert saved["normal"]["pixels"] == pytest.approx(expected, abs=1 / 255)
+    assert inspected["exported_pixels"] == pytest.approx(expected, abs=1 / 255)
+    assert saved["shared_material"]
+    assert set(saved["meshes"]) == {"LowerPart", "UpperPart"}
+    for name, mesh in saved["meshes"].items():
+        assert mesh["parent"] == "FixtureHierarchy"
+        assert len(mesh["uvs"]) == 1
+        uv = mesh["uvs"][0]
+        assert mesh["active_uv"] == uv["name"]
+        assert uv["render"]
+        assert uv["coords"] == pytest.approx(
+            original["meshes"][name]["uvs"][0]["coords"]
+        )
+        # Actual bundle UV values must be drawn from the unchanged saved UVs.
+        exported_mesh = next(m for m in report["meshes"] if m["name"] == name)
+        assert exported_mesh["uvChannels"] == [uv["name"]]
+        vertices = json.loads((bundle / exported_mesh["file"]).read_text())["vertices"]
+        coords = set(zip(uv["coords"][::2], uv["coords"][1::2], strict=True))
+        assert all(len(v["uvs"]) == 1 for v in vertices)
+        assert all(
+            (v["uvs"][0]["uv"]["x"], v["uvs"][0]["uv"]["y"]) in coords for v in vertices
+        )
+    assert world[2].read_bytes() == before
+
+
+# Catch clearing a shared name before validating all users, hardcoded UV names,
+# tightening legacy empty bindings, or bypassing the existing normal graph gates.
+@pytest.mark.parametrize(
+    "case,accepted,reason",
+    [
+        ("arbitrary_named", True, None),
+        ("shared_match", True, None),
+        ("fake_user", True, None),
+        ("mismatch", False, "tangent_normal_active_uv_required"),
+        ("multiple_named", False, "tangent_normal_active_uv_required"),
+        ("unknown_named", False, "tangent_normal_active_uv_required"),
+        ("no_uv", False, "tangent_normal_active_uv_required"),
+        ("shared_mismatch_late", False, "tangent_normal_active_uv_required"),
+        ("shared_mismatch_early", False, "tangent_normal_active_uv_required"),
+        ("empty_single", True, None),
+        ("empty_multiple", True, None),
+        ("shared_empty_distinct", True, None),
+        ("legacy_empty", True, None),
+        ("legacy_empty_multiple", True, None),
+        ("legacy_named", False, "tangent_normal_active_uv_required"),
+        ("object_space", False, "tangent_normal_active_uv_required"),
+        ("linked_strength", False, "tangent_normal_active_uv_required"),
+        ("missing_color", False, "tangent_normal_active_uv_required"),
+        ("alpha_output", False, "tangent_normal_active_uv_required"),
+        ("indirect_image", False, "direct_image_required"),
+        ("linked_vector", False, "active_uv_flat_repeat_linear_required"),
+        ("non_flat", False, "active_uv_flat_repeat_linear_required"),
+        ("non_repeat", False, "active_uv_flat_repeat_linear_required"),
+        ("non_linear", False, "active_uv_flat_repeat_linear_required"),
+        ("srgb_normal", False, "image_color_space_mismatch"),
+        ("named_linked_vector", False, "active_uv_flat_repeat_linear_required"),
+        ("named_srgb_normal", False, "image_color_space_mismatch"),
+    ],
+)
+def test_normal_uv_safety_with_real_bpy(tools, tmp_path, case, accepted, reason):
+    inspection = tmp_path / "normal-safety.json"
+    proc = run(
+        [
+            tools,
+            "blender",
+            "run",
+            str(NORMAL_UV_PROBE),
+            "--arg=--case",
+            "--arg=" + case,
+            "--arg=--output",
+            "--arg=" + str(inspection),
+            "--json",
+        ],
+        env=resoloop_env(),
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    result = json.loads(inspection.read_text())
+    assert result["accepted"] is accepted, result
+    assert result["reason"] == reason
+    before, after = result["before"], result["after"]
+    if accepted:
+        assert after["uv_map"] == ""
+    else:
+        assert result["material"] == "SafetyMaterial"
+        assert after["uv_map"] == before["uv_map"]
+    assert {k: v for k, v in after.items() if k != "uv_map"} == {
+        k: v for k, v in before.items() if k != "uv_map"
+    }
+
+
 # Catch fictitious transformed box corners: a tilted tetrahedron must not float
 # or be undersized. Independently measure real saved vertices, not report helpers.
 @pytest.mark.parametrize("origin", ["ground", "center"])
@@ -318,6 +489,7 @@ def replace_glb(world, fixture):
     [
         ("one_sided", "FixtureMaterial"),
         ("opaque", "FixtureMaterial"),
+        ("normal_map", "FixtureMaterial"),
         ("implicit_material", "Default glTF material"),
     ],
 )

@@ -210,6 +210,8 @@ resoloop validate "$WORLD/content/generated/meshy/vessel-refine/converted/bundle
 bundle の `report.json` の warnings が空でも culling が保持できた意味ではない。変換 report も必ず読む。
 
 - 対象: static mesh / Empty の階層、active UV、opaque Principled。direct image の Base Color / Emission は sRGB、scalar map / tangent normal は Non-Color。
+- tangent Normal Map の名前付き UV は、その素材を使う全メッシュで UV がちょうど1つあり、active UV の名前が指定と一致する場合だけ空指定へ正規化する。UV 名は固定せず、実際の名前を比較する。`adapt_material` は別名・複数 UV・UV 不在・使用メッシュ不明・共有素材の一部の不一致を素材名付きの `tangent_normal_active_uv_required` で拒否する。ただし `convert` では素材の検査より先に各メッシュの active UV を確認するため、UV 不在（active UV なし）はメッシュ名付きの `active_uv_required` で停止する。
+- 既存の空の normal UV 指定は、複数 UV でも従来どおり扱う。TANGENT、定数 Strength、直接画像の Color 出力、Non-Color、unlinked Vector、Flat / Repeat / Linear の制限は維持する。名前付き UV の許可オプションはなく、`--allow-culling-change` でもこの検査は解除されない。
 - glTF packed MR の B=metallic / G=roughness を分離した画像へ変換し、`resoloop blender export --preserve-hierarchy --pack-pbr` で再出力する。
 - 非対応: alpha BLEND / MASK、transmission、rig / skin、shape key、animation、modifiers / constraints、非対応 shader や node 接続、外部 GLB resource URI、occlusion texture 等。名前付きで停止し、勝手な bake / texture 無視 / 静止画化で成功扱いにしない。
 - report で mesh 数、三角形数、bounds、素材・画像寸法 / 色空間を確認する。拒否時は元データを残して、別途承認した Blender 修正を行う。編集済み blend を再 export する場合も**新しい出力ディレクトリ**を使う。
@@ -307,7 +309,8 @@ probe は使わない。変更が残る場合は「収束確認済み」とせ�
 ## 検証済み範囲と未検証
 
 実 wrapper / fixture の回帰、実 Blender 5.0.1 と ResoLoop 0.1.0-preview.17 exporter による offline bundle は検証済み。Issue #60 の修正後は、一時 wrapper も手動の PATH 補正も使わず、上記の `uv run` コマンドで確認した（既存コンテナ）。
-これらの version は実測記録であって固定する要件ではない。以後の最新 ResoLoop で同じ結果を保証しない。
+Issue #85 は 2026-10-11 に Blender 5.0.1 / 導入済み ResoLoop `0.1.0-preview.17.fork.20261009.g84c7932` で検証した。単一 UV の法線マップ付き実 GLB（2メッシュ、共有素材、非対称2×2画像、Strength 0.65）の convert → export → offline `validate` が成功し、再読込した blend の空の normal UV・単一 active/render UV・packed Non-Color pixels・強度・UV 座標・メッシュ分離・階層・素材共有を確認した。bundle の実 `PBS_Metallic.NormalMap` → `StaticTexture2D` → asset を辿り、`IsNormalMap=true`、`NormalScale≈0.65`、画像の実在と pixels（PNG 誤差1/255以内）も確認した。
+任意の一致名、共有素材の全ユーザー一致、両順序の不一致、複数 UV、UV 不在、利用先不明、既存の空指定、normal graph / image の拒否条件は実 bpy で確認した。これらの version は実測記録であって固定する要件ではない。導入済み fork での結果を上流公開版や以後の最新 ResoLoop での検証と読み替えない。
 
 **NOT verified（未検証）:** 標準コンテナ rebuild、実キーによる API 認証・残高、課金を伴う text / image generation、Windows PowerShell 7.3 以上での実行・native 引数受け渡し、Windows での texture 付き表示・同じ state の無変更再適用 / 収束。
 未承認の API / live 操作を smoke test の名目で行わない。PR は **`Refs #50`** とし、実機受入前に Issue を自動 close しない。
