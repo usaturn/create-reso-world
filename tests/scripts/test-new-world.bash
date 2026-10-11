@@ -63,7 +63,16 @@ expect_exit() {  # $1=期待する終了コード、$2=出力に含まれるべ�
   grep -qF -- "$needle" "$tmp/out.txt" || { cat "$tmp/out.txt" >&2; fail "expected output '$needle': $*"; }
 }
 snapshot() {
-  (cd "$1" && find . -printf '%y %p %l\n' | sort && find . -type f -print0 | sort -z | xargs -0 -r sha256sum)
+  (cd "$1" && find . -printf '%y %m %p %l\n' | sort && find . -type f -print0 | sort -z | xargs -0 -r sha256sum)
+}
+
+# 固定するパス・値・mode は、利用者所有の指定を上書きしたり、競合検査前に
+# chmod / JSON 編集してしまう不具合を防ぐため。本文の文字列ではなく実際の生成物を検査する。
+expect_wrapper() {
+  local p="$1"
+  [ -x "$p/.resoloop/blender-system-python" ] || fail 'wrapper not executable'
+  jq -e --arg path "$p/.resoloop/blender-system-python" \
+    '.blenderExecutable == $path' "$p/.resoloop.json" >/dev/null || fail 'absolute wrapper path'
 }
 
 # 1. 不正な名前は 2
@@ -78,6 +87,7 @@ done
 new_root "$tmp/r2"
 expect_exit 0 'DONE: demo' "$tmp/r2" --no-sync demo
 p="$tmp/r2/worlds/demo"
+expect_wrapper "$p"
 [ "$(cat "$p/CLAUDE.md")" = '@AGENTS.md' ] || fail 'CLAUDE.md content'
 grep -qxF 'name = "demo"' "$p/pyproject.toml" || fail 'pyproject name'
 grep -qxF '## このプロジェクト固有' "$p/AGENTS.md" || fail 'AGENTS.md section'
@@ -362,6 +372,7 @@ new_root "$tmp/r35"
 MOCK_LOG="$MOCK_LOG" "$tmp/mockbin/resoloop" init "$tmp/r35/akichi"
 expect_exit 0 'DONE: akichi' "$tmp/r35" --apply --no-sync akichi
 p="$tmp/r35/akichi"
+expect_wrapper "$p"
 for link in '.claude/skills/resonite-build|../../.agents/skills/resonite-build' \
             '.claude/settings.json|../../.claude/settings.json' '.pi|../.pi' \
             '.agents/sp-implementer.md|../../.agents/sp-implementer.md'; do
@@ -384,5 +395,155 @@ MOCK_LOG="$MOCK_LOG" "$tmp/mockbin/resoloop" init "$tmp/r36/demo"
 before="$(snapshot "$tmp/r36/worlds/demo")"
 expect_exit 2 'exists both' "$tmp/r36" --apply --no-sync demo
 [ "$before" = "$(snapshot "$tmp/r36/worlds/demo")" ] || fail 'case 36 changed files'
+
+# 37. --apply も欠落・null の設定を補い、他の JSON 値と元の mode を保つ。
+new_root "$tmp/r37"
+for state in missing null; do
+  p="$tmp/r37/worlds/$state"
+  "$tmp/mockbin/resoloop" init "$p"
+  if [ "$state" = missing ]; then
+    printf '{"custom":{"nested":[1,true,"a b"]},"port":8765}\n' > "$p/.resoloop.json"
+  else
+    printf '{"blenderExecutable":null,"custom":{"nested":[1,true,"a b"]},"port":8765}\n' > "$p/.resoloop.json"
+  fi
+  chmod 0640 "$p/.resoloop.json"
+  expect_exit 0 'DONE:' "$tmp/r37" --apply --no-sync "$state"
+  expect_wrapper "$p"
+  jq -e '.custom == {"nested":[1,true,"a b"]} and .port == 8765' "$p/.resoloop.json" >/dev/null || fail 'other JSON keys changed'
+  [ "$(stat -c %a "$p/.resoloop.json")" = 640 ] || fail 'JSON mode changed'
+  before="$(snapshot "$p")"
+  expect_exit 0 'DONE:' "$tmp/r37" --apply --no-sync "$state"
+  [ "$before" = "$(snapshot "$p")" ] || fail "second apply changed $state"
+done
+
+# 38. 現在のラッパー値が設定済みなら、整形し直さずバイト列と mode も保持する。
+p="$tmp/r37/worlds/missing"
+printf '{ "blenderExecutable" : "%s", "custom" : 1 }\n\n' "$p/.resoloop/blender-system-python" > "$p/.resoloop.json"
+before="$(snapshot "$p")"
+expect_exit 0 'DONE:' "$tmp/r37" --apply --no-sync missing
+[ "$before" = "$(snapshot "$p")" ] || fail 'rewrote the current wrapper setting'
+
+# 39. カスタム値・古い絶対パス・空文字を利用者指定として保持し、案内する。
+for value in '/custom/blender' '/previous/world/.resoloop/blender-system-python' ''; do
+  jq -n --arg value "$value" '{blenderExecutable:$value, custom:42}' > "$p/.resoloop.json"
+  before="$(snapshot "$p")"
+  expect_exit 0 'kept: .resoloop.json (blenderExecutable' "$tmp/r37" --apply --no-sync missing
+  [ "$before" = "$(snapshot "$p")" ] || fail "overwrote user setting '$value'"
+done
+
+# 40. root ごと移動したプロジェクトでも、古い絶対値は推測で変更しない。
+new_root "$tmp/r40"
+run "$tmp/r40" --no-sync demo >/dev/null
+mv "$tmp/r40" "$tmp/r40-moved"
+p="$tmp/r40-moved/worlds/demo"
+before="$(snapshot "$p")"
+expect_exit 0 'kept: .resoloop.json (blenderExecutable' "$tmp/r40-moved" --apply --no-sync demo
+[ "$before" = "$(snapshot "$p")" ] || fail 'changed the old path after moving the root'
+
+# 41. JSON 構文・文書数・root・値型の競合は exit 1、追加や +x の予定も含め無変更。
+new_root "$tmp/r41"
+run "$tmp/r41" --no-sync demo >/dev/null
+p="$tmp/r41/worlds/demo"
+chmod 0640 "$p/.resoloop/blender-system-python"
+rm "$p/CLAUDE.md"
+for json in '{broken' '{} {}' '[]' 'null' '' '{"blenderExecutable":1}' '{"blenderExecutable":false}' '{"blenderExecutable":{}}' '{"blenderExecutable":[]}'; do
+  printf '%s\n' "$json" > "$p/.resoloop.json"
+  before="$(snapshot "$p")"
+  expect_exit 1 'CONFLICT: .resoloop.json' "$tmp/r41" --apply --no-sync demo
+  [ "$before" = "$(snapshot "$p")" ] || fail "invalid JSON changed files: $json"
+done
+
+# 42. JSON の symlink はリンク先へ書かず、壊れたリンクも同じく競合にする。
+new_root "$tmp/r42"
+run "$tmp/r42" --no-sync demo >/dev/null
+p="$tmp/r42/worlds/demo"
+printf '{"blenderExecutable":null}\n' > "$tmp/r42/shared.json"
+chmod 0640 "$p/.resoloop/blender-system-python"
+rm "$p/.resoloop.json"
+for target in '../../shared.json' '../../missing.json'; do
+  ln -s "$target" "$p/.resoloop.json"
+  # root 全体でプロジェクトと実リンク先を一度ずつ検査する。
+  before="$(snapshot "$tmp/r42")"
+  expect_exit 1 'CONFLICT: .resoloop.json' "$tmp/r42" --apply --no-sync demo
+  [ "$before" = "$(snapshot "$tmp/r42")" ] || fail 'JSON symlink changed project or target'
+  rm "$p/.resoloop.json"
+done
+mkdir "$p/.resoloop.json"
+before="$(snapshot "$p")"
+expect_exit 1 'CONFLICT: .resoloop.json' "$tmp/r42" --apply --no-sync demo
+[ "$before" = "$(snapshot "$p")" ] || fail 'JSON directory changed project'
+
+# 43. wrapper の symlink・内容差・非通常ファイル・親の symlink/通常ファイルを拒否する。
+for kind in link broken different directory parent-link parent-file; do
+  r="$tmp/r43-$kind"
+  new_root "$r"
+  run "$r" --no-sync demo >/dev/null
+  p="$r/worlds/demo"
+  printf '{"blenderExecutable":null}\n' > "$p/.resoloop.json"
+  case "$kind" in
+    link|broken)
+      mv "$p/.resoloop/blender-system-python" "$r/shared-wrapper"
+      chmod 0640 "$r/shared-wrapper"
+      target="$r/shared-wrapper"
+      [ "$kind" != broken ] || target="$r/missing-wrapper"
+      ln -s "$target" "$p/.resoloop/blender-system-python"
+      ;;
+    different) printf '# user wrapper\n' > "$p/.resoloop/blender-system-python" ;;
+    directory) rm "$p/.resoloop/blender-system-python"; mkdir "$p/.resoloop/blender-system-python" ;;
+    parent-link)
+      mv "$p/.resoloop" "$r/shared-resoloop"
+      chmod 0640 "$r/shared-resoloop/blender-system-python"
+      ln -s "$r/shared-resoloop" "$p/.resoloop"
+      ;;
+    parent-file) rm -r "$p/.resoloop"; printf 'not a directory\n' > "$p/.resoloop" ;;
+  esac
+  before="$(snapshot "$r")"
+  expect_exit 1 'CONFLICT: .resoloop' "$r" --apply --no-sync demo
+  [ "$before" = "$(snapshot "$r")" ] || fail "wrapper $kind changed project or target"
+done
+
+# 44. 同じ内容なら非実行 wrapper を +x にするが、別の競合があれば mode/JSON とも触らない。
+new_root "$tmp/r44"
+run "$tmp/r44" --no-sync demo >/dev/null
+p="$tmp/r44/worlds/demo"
+chmod 0644 "$p/.resoloop/blender-system-python"
+printf '{"blenderExecutable":null}\n' > "$p/.resoloop.json"
+printf 'other\n' > "$p/CLAUDE.md"
+before="$(snapshot "$p")"
+expect_exit 1 'CONFLICT: CLAUDE.md' "$tmp/r44" --apply --no-sync demo
+[ "$before" = "$(snapshot "$p")" ] || fail 'other conflict changed wrapper mode or JSON'
+printf '@AGENTS.md\n' > "$p/CLAUDE.md"
+expect_exit 0 'DONE:' "$tmp/r44" --apply --no-sync demo
+expect_wrapper "$p"
+[ "$(stat -c %a "$p/.resoloop/blender-system-python")" = 755 ] || fail 'wrapper mode not repaired'
+before="$(snapshot "$p")"
+expect_exit 0 'DONE:' "$tmp/r44" --apply --no-sync demo
+[ "$before" = "$(snapshot "$p")" ] || fail 'second apply after chmod changed files'
+
+# 45. jq 不在なら init より前に exit 3。既存プロジェクトも無変更である。
+new_root "$tmp/r45"
+run "$tmp/r45" --no-sync existing >/dev/null
+no_jq="$(path_without "$tmp/no-jq" jq)"
+if PATH="$no_jq" command -v jq >/dev/null 2>&1; then fail 'jq visible on PATH without jq'; fi
+before="$(snapshot "$tmp/r45")"
+: > "$MOCK_LOG"
+PATH="$no_jq" expect_exit 3 'jq not found' "$tmp/r45" --no-sync demo
+PATH="$no_jq" expect_exit 3 'jq not found' "$tmp/r45" --apply --no-sync existing
+[ "$before" = "$(snapshot "$tmp/r45")" ] || fail 'jq absence changed files'
+[ ! -s "$MOCK_LOG" ] || fail 'jq absence ran init'
+
+# 46. --no-sync なら uv 不在でも jq による設定を含めて成功する。
+new_root "$tmp/r46"
+PATH="$tmp/resoloop-only:$no_uv" expect_exit 0 'DONE: demo' "$tmp/r46" --no-sync demo
+expect_wrapper "$tmp/r46/worlds/demo"
+
+# 47. root の空白・引用符は --arg で JSON の絶対値へ安全に渡す。
+r="$tmp/root with \"double\" and 'single' quotes"
+new_root "$r"
+expect_exit 0 'DONE: demo' "$r" --no-sync demo
+expect_wrapper "$r/worlds/demo"
+before="$(snapshot "$r/worlds/demo")"
+expect_exit 0 'DONE: demo' "$r" --apply --no-sync demo
+[ "$before" = "$(snapshot "$r/worlds/demo")" ] || fail 'quoted path second apply changed files'
 
 printf 'PASS: new-world script behaves as specified\n'
