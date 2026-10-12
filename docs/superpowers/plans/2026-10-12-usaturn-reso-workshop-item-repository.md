@@ -2525,4 +2525,4 @@ Expected: `visibility` が `PRIVATE`、`defaultBranchRef.name` が `main`、`pus
 ### 公開の状態
 
 - reso-workshop: push 済み
-- この Spec・Plan（create-reso-world のブランチ `docs/reso-workshop`）: ローカルのコミットのみ、公開未実施（文書専用 PR は指示があれば作成する）
+- この Spec・Plan（create-reso-world のブランチ `docs/reso-workshop`）: 2026-10-12 に利用者の指示「main push で良い」で、PR を作らず create-reso-world の main へ直接 push
