@@ -7,7 +7,8 @@
 - 対象 Issue・PR: なし
 - 規約上の位置付け: `worlds/` の下のワールドのプロジェクトとして扱い、create-reso-world の `AGENTS.md` の「プロジェクト運用」と、プロジェクトの `AGENTS.md` に従う。PR は使わないので、「リポジトリ境界」の表にある外部リポジトリの経路（PR のレビューと修正）は使わない
 - 検証した基準: create-reso-world `4d518a963dfc2301d528c748e7387de04a7e1594`、ResoLoop `0.1.0-preview.17.fork`（`resoloop --help` と、`external/resoloop` の `84c7932` の文書）
-- 状態: approved（2026-10-12、`a1dc8707df5310790af82501da611fec6d0eaa46` の内容について、利用者が「問題ありません。承認します。」と承認）
+- 状態: completed（2026-10-12 19:16 JST。承認は `a1dc8707df5310790af82501da611fec6d0eaa46` の内容について、利用者が「問題ありません。承認します。」と承認。D-12 は下の改訂のとおり利用者の選択に基づく）
+- 結果: `usaturn/reso-workshop`（PRIVATE、main `311312d`）に push 済み。テスト 138 件合格。実機（New World、`ws://localhost:36055/`）で Smoke Box（使い捨て）と Mech Knight（利用者の追加依頼）を反映し、`test`・`item audit --strict`・反映後の diff 0 件を確認。詳細と検証の根拠は関連 Plan の「結果」
 - 改訂（2026-10-12、実行中）: D-12 と 7 章 4 の追記。Task 8 の実機確認で `item audit` がマテリアルのシェーダー参照で失敗し、Spec の変更が要るため利用者に確認した。利用者は選択肢「工房全体で常に許可」を選んだ。D-12 はその選択の実装の仕方（監査結果に出た役割だけを許可する）を書いたもの
 - 関連 Plan: `docs/superpowers/plans/2026-10-12-usaturn-reso-workshop-item-repository.md`
 - 実行の指示（2026-10-12）: 利用者が「プランを作ったらそのまま実行してください。サブエージェントモードで。」と指示した。Plan を作ったら、subagent-driven-development でそのまま実行する。GitHub へのリポジトリの作成と push の直前の確認（下の実行許可）は、この指示のあとも変わらない

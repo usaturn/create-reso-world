@@ -7,7 +7,7 @@
 - 文書管理: `usaturn/create-reso-world`（ブランチ `docs/reso-workshop`）
 - コード対象: 新しく作る `usaturn/reso-workshop`（非公開、未作成）。`CODE_ROOT=/workspaces/reso-world/worlds/reso-workshop`（Task 1 で作る。ブランチ `main`）
 - 検証した基準: create-reso-world `4d518a963dfc2301d528c748e7387de04a7e1594`、ResoLoop `0.1.0-preview.17.fork`（`external/resoloop` `84c7932`）、uv `0.12.24`
-- 状態: draft
+- 状態: completed（2026-10-12 19:16 JST。結果は末尾の「結果」）
 - 関連 Spec: `docs/superpowers/specs/2026-10-12-usaturn-reso-workshop-item-repository-design.md`（承認 `a1dc8707df5310790af82501da611fec6d0eaa46`、記録 `4b4d7e0`）
 - 実行許可: 2026-10-12 に利用者が「プランを作ったらそのまま実行してください。サブエージェントモードで。」と指示した。この Plan は subagent-driven-development でそのまま実行する。Plan の内容そのものへの個別の承認は受けていない。GitHub のリポジトリ作成と push（Task 9）は、Spec の決まりどおり実行の直前に利用者へ確認する
 - 着手: 2026-10-12 18:25 JST
@@ -2462,3 +2462,67 @@ Expected: `visibility` が `PRIVATE`、`defaultBranchRef.name` が `main`、`pus
 9. **コミット**: `tools/meshy/`、`pyproject.toml`、`uv.lock`、`items/mech-knight/`（`assets/`・`item.toml`・`deploys.toml`・`manifest.json`・`build.py`）。`build/`・`manifest.rendered.json` は入れない（`.gitignore` 済み）。push しない。
 
 **テストの要否:** 不要。`finish.py`・`uvatlas_uv.py` は asakusa01 で実証した処理の移植で Blender の中で動く。`build.py` は resoloop を呼ぶだけ。代わりに手順 3・7 の実行結果で確かめる。`uv run pytest -q -W error` が今までどおり全件合格することも確かめる（items/mech-knight にテストは無い）。
+
+---
+
+## 結果（2026-10-12）
+
+### コード（`usaturn/reso-workshop`、PRIVATE、https://github.com/usaturn/reso-workshop 、main `311312d`）
+
+| Task | コミット | レビュー |
+| --- | --- | --- |
+| 1 骨組み | `eb5e727` | 承認（Minor 2 件は見送り） |
+| 2 items.py | `f3ec875` | 承認 |
+| 3 ledger.py | `00618b5` | 承認 |
+| 4 gitstate.py | `de99153` | 承認 |
+| 5 new/list/check/saved | `c73f8ec` | 承認（仕様の ❌ 1 件は Minor と判断） |
+| 6 deploy | `8058ab0` | 承認 |
+| 7 README・clone の確認 | `c32bb40` | 承認 |
+| 最終レビュー（opus）の修正 | `0217555` | With fixes → I-1〜I-4・M-1・M-2・M-4〜M-6 を修正、再レビューで全件解消 |
+| 10 シェーダー参照の許可（D-12） | `b941c0a` | 承認 |
+| 11 Mech Knight | `8148518`・`b6c17d8`・`311312d`（反映の記録） | 承認 |
+
+- テスト: `uv run pytest -q -W error` で 138 件合格
+- clone したあとの手順（`new-world.sh --apply`）: 使い捨ての clone で、作業ツリーが空のまま pytest が通ることを確認（Task 7）
+
+### 実機（`ws://localhost:36055/`、セッション名 New World、利用者が discover の候補から選択）
+
+- Smoke Box（使い捨て）
+  - 1 回目: `item-audit` で失敗（`PBS_Metallic:_shader` → `StaticShader`）、failed として記録された。これを受けて Spec D-12 と Task 10 を追加
+  - 2 回目（`b941c0a`）: passed（シェーダーの参照を許可、差分は作成 0・更新 0・削除 0）。`saved` は未コミットを理由に拒否（終了コード 1）
+  - 利用者の了承を得て、state のルート `Reso_116A`（名前と位置を確かめた）だけを `resoloop slot delete --yes` で削除し、`SLOT_NOT_FOUND` で消えたことを確認。ローカルの item と state はコミットせず、セッションの scratchpad に退避
+- Mech Knight（利用者の追加依頼、Task 11）: 作成 20 件、`test`・`item audit --strict`（許可なしで合格）・反映後の diff 0 件。記録は passed、`dirty = false`、コミット `b6c17d8`。インベントリへの保存と `workshop saved` は利用者の操作待ち
+- 撮影はしていない（利用者の指示: 撮る前に声をかける。ワールドが背面だと真っ黒になる）
+
+### 実行中に判断したこと（SDD の台帳から）
+
+- 実装のコミットは reso-workshop の `main` へ直接（Spec D-10）。レビュー用の差分は reso-workshop の git から作成
+- Task 8・9 は利用者とのやり取りと外部への操作を含むので controller が実施。最終レビューは Task 8 の前に実施
+- テストが CLI のエラーメッセージの一部を照合するのは許可（文書の文言ではなくプログラムの出力）
+- Task 5 の「作成の途中で失敗すると作りかけのディレクトリが残る」は Minor（Spec が定める拒否の場合は満たしている）
+- Task 7 の clone の確認は、2 回目の `--apply` が何も作らなかったことと clone の pytest の合格で受け入れ
+- I-4: gadget は対象のまま、flux-sdk の有無を準備の段階で確かめて止める（この Dev Container には flux-sdk が無い）
+- I-3: `build/<名前>` は CLI が消してから `build.py` を呼ぶ
+- M-3（未コミットの passed を「保存待ち」と表示）は Spec 6 章のとおり残す。最終レビューの見送り Minor はそのまま
+- D-12 の実装: 監査結果に出た `_shader` の役割だけを許可して再監査（常に渡すとマテリアルの無いアイテムで strict 監査が失敗するため）
+- Task 11: 両面表示の損失は確認なしで受け入れ（利用者の指示）。区画は 2（区画 1 に Smoke Box が残っていたため）
+
+### 知見の記録
+
+- create-reso-world Issue #90 にコメント（issuecomment-6122214262）: 仕上げの道具の移植、include の asset のパス、`item audit` と `_shader`、flux-sdk が無いこと
+
+### 所要時間（18:25〜19:16 JST、約 51 分）
+
+| 区間 | 時間 |
+| --- | --- |
+| Plan の作成 | 18:25〜18:31 |
+| Task 1〜7（実装とレビュー） | 18:31〜約 18:45 |
+| 最終レビューと修正・再レビュー | 約 18:45〜19:00 |
+| Task 8 の実機確認と Task 10 | 19:00〜19:05 |
+| Task 11（Mech Knight の仕上げ 約 2.6 分を含む）と反映 | 19:05〜19:14 |
+| 公開（Task 9）と後片付け | 19:14〜19:16 |
+
+### 公開の状態
+
+- reso-workshop: push 済み
+- この Spec・Plan（create-reso-world のブランチ `docs/reso-workshop`）: ローカルのコミットのみ、公開未実施（文書専用 PR は指示があれば作成する）
