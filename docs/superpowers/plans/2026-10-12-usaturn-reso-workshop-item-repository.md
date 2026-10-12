@@ -2398,3 +2398,36 @@ Expected: `visibility` が `PRIVATE`、`defaultBranchRef.name` が `main`、`pus
 - Spec と Plan の状態を completed にし、結果（コミット、テストの件数、実機の結果、GitHub の URL）と所要時間を書く。`docs/reso-workshop` ブランチにコミットする（push はしない。公開未実施と報告する）
 - 確認用コピーを `scripts/superpowers-review-copy.sh` で別名（`...-r2-spec.md`、`...-plan.md` の新しい名前）で作る
 - Claude Code の記憶（`reso-workshop-item-repository-state.md`）を更新する
+
+---
+
+### Task 10: シェーダー参照の自動許可（Task 8 の途中で追加、Spec D-12）
+
+**経緯:** Task 8 の 1 回目の deploy で、`item audit --strict` が `ITEM_NOT_PORTABLE` で失敗した。原因は `PBS_Metallic` の `_shader` がエンジン既定の `StaticShader`（`Reso_4A5`、`persistent=false`、`resdb:///…unityshader`）を指していたこと。利用者が「工房全体で常に許可」を選び、Spec に D-12 を足した。実行時の最終レビューの修正（`0217555`）の後に行う。
+
+**テストの要否:** 要る。監査の失敗出力の解析と再監査の分岐は、偽の resoloop で実行して確かめる挙動。
+
+**Files:**
+- Modify: `tools/workshop/deploy.py`（item-audit の段階）、`README.md`（deploy の説明に 1 行）、`AGENTS.md`（「このプロジェクト固有」に 1 行）
+- Test: `tests/test_deploy.py`
+
+**Interfaces:**
+- Consumes: `deploy.call`・`deploy.live_args`・`deploy.StepFailed`・`deploy.error_summary`（`0217555` の時点の deploy.py）
+- Produces: `deploy.shader_roles(output: str) -> list[str] | None`（item audit の失敗出力の JSON から、許可してよいシェーダー参照の役割を重複なく出現順で返す。許可できない誤りが 1 つでもある、または読めないなら None）
+
+**要件:**
+1. item-audit の段階で、1 回目の `resoloop item audit '$slot:root' --strict`（今と同じ引数）が 0 で終われば今までどおり。
+2. 0 以外のときは、出力（stderr、空なら stdout）を `{"ok":false,"error":{"code":"ITEM_NOT_PORTABLE","context":{"report":{"issues":[…]}}}}` として読む。`severity` が `error` の issue がすべて、`code == "ITEM_EXTERNAL_REFERENCE"`、`member == "_shader"`、`targetType` が `FrooxEngine.Shader>` で終わる、`role` が文字列、を満たすときだけ、その役割の一覧を得る（1 件以上）。`severity` が `error` 以外の issue は判定に使わない。
+3. 役割が得られたら、`--allow-external-role <role>` を役割ごとに足して（`--strict` の後、`--state` の前）もう一度監査する。0 で終われば合格とし、`シェーダーの参照を許可しました: <role>, …` を表示する。
+4. 役割が得られない、または 2 回目も失敗したら、今までどおり `StepFailed("item-audit", …)`（記録は failed、`failed_step = "item-audit"`）。表示には失敗した方の出力を使う。
+5. README の deploy の説明と AGENTS.md の「このプロジェクト固有」に、「マテリアルのシェーダー参照（`_shader`）は工房全体で自動的に許可する。それ以外の外部参照は item audit で止まる」旨を 1 行ずつ書く。
+
+**テスト（tests/test_deploy.py に足す）:**
+- シェーダーの issue だけで 1 回目が終了コード 6 → 2 回目の item audit に `--allow-external-role [FrooxEngine]FrooxEngine.PBS_Metallic:_shader` が付き、0 で終わる → 記録は passed、出力に役割が出る
+- シェーダーの issue と別の外部参照の issue が混じる → 2 回目を呼ばず、記録は failed / `item-audit`
+- 1 回目の出力が JSON でない → 2 回目を呼ばず failed / `item-audit`
+- 2 回目も失敗 → failed / `item-audit`
+- 同じ役割の issue が 2 つ → `--allow-external-role` は 1 回だけ
+- `severity` が `warning` の別種の issue が混じっても、error がシェーダーだけなら許可して再監査する
+
+**検証:** `uv run pytest -q -W error` が全件合格。Task 8 の実機確認を続け、Smoke Box の deploy が passed になること。
