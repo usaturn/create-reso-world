@@ -2431,3 +2431,34 @@ Expected: `visibility` が `PRIVATE`、`defaultBranchRef.name` が `main`、`pus
 - `severity` が `warning` の別種の issue が混じっても、error がシェーダーだけなら許可して再監査する
 
 **検証:** `uv run pytest -q -W error` が全件合格。Task 8 の実機確認を続け、Smoke Box の deploy が passed になること。
+
+---
+
+### Task 11: Meshy の Mech Knight をアイテムにする（利用者の追加依頼、2026-10-12）
+
+利用者の依頼: 「準備できたら tmp/warsebraid/Meshy_AI_Dark_Fantasy_Mech_Kni_1012091015_image-to-3d-texture.glb をデプロイして。何も確認とらなくていいので、途中でとめずに resonite にデプロイしといて」「Meshy モデルについての参考になる Issue があったら参考にして」。この Task はアイテムを作って commit するまで。工房への deploy は controller が行う。
+
+**Repository:** `/workspaces/reso-world/worlds/reso-workshop`（branch `main`、HEAD b941c0a、作業ツリーは空）
+
+**元の GLB:** `/workspaces/reso-world/tmp/warsebraid/Meshy_AI_Dark_Fantasy_Mech_Kni_1012091015_image-to-3d-texture.glb`（86,804,860 bytes。Meshy の Web アプリの image-to-3d。メッシュ 1・2,014,090 三角形・頂点 1,070,556、素材 1: 不透明の PBR（baseColor・metallicRoughness・normal の JPEG 3 枚）、`doubleSided: true`、アニメ・スキン無し。glTF の bounds は X ±0.71、Y −0.947〜0.951、Z ±0.56）。元のファイルは動かさない・変えない。
+
+**参考（create-reso-world Issue #90 の知見、asakusa01 で実証済み）:** Web アプリの GLB は asakusa01 の `finish.py` に直接渡せば、素材の検査 → 法線マップの UV 名の補正 → 溶接 → 削減 → カスタム法線の消去 → open3d の UVAtlas（多様体の補正込み）→ 2048px・16 サンプルで焼き直し → `resoloop blender export` → `validate` まで通る。近くで見る大きな物は削減を緩める（4 万三角形）。Voxel Remesh は穴の多い形だけ（今回は使わない）。発光マップは最大値 32/255 未満なら捨てる（finish.py が処理）。両面表示（culling）は書き出しで失われる（asakusa01 と同じく受け入れる。利用者は確認不要と指示）。
+
+## 手順
+
+1. **原本の保管（Git の外、Spec D-6）**: `/workspaces/reso-world/worlds/reso-workshop-meshy/mech-knight/source.glb` にコピーし、同じ場所に `source.json`（元のパス、bytes、SHA-256、コピーした日時、`"origin": "Meshy web app image-to-3d"`、`"task_id": null`（不明））を書く。
+2. **仕上げの道具を移す**: `/workspaces/reso-world/worlds/asakusa01/assets/meshy/tools/finish.py` と `uvatlas_uv.py` を、reso-workshop の `tools/meshy/finish.py`・`tools/meshy/uvatlas_uv.py` へコピーし、asakusa01 固有の部分だけ直す。処理（溶接・削減・UV・焼き直し・素材の検査）は変えない。
+   - `PROJECT_ROOT` をこの配置に合わせる（`tools/meshy/finish.py` → `parents[2]`）。`meshy_blender` は reso-workshop の `.agents/skills/meshy-resoloop/scripts` から読む（同じ ResoLoop 同梱スキルがある）
+   - コレクション名・素材名などの `Asakusa01` を工房の名前に（例: コレクション `Workshop<Title>Export`、素材 `workshop_meshy_<name>`）。docstring の使い方を reso-workshop の実行方法に直し、出典（asakusa01、Issue #90）を 1 行書く
+   - `pyproject.toml` に `[dependency-groups]` の `meshy = ["open3d==0.20.0"]` を足し、`uv lock` する。`uv run --group meshy python -c "import open3d"` が通ることを確かめる
+3. **仕上げる**（reso-workshop を cwd に）:
+   `resoloop blender run tools/meshy/finish.py --arg=--input --arg=/workspaces/reso-world/worlds/reso-workshop-meshy/mech-knight/source.glb --arg=--name --arg=mech-knight --arg=--height --arg=2.0 --arg=--target --arg=40000 --arg=--texture-size --arg=2048 --arg=--output-dir --arg=items/mech-knight/assets --arg=--meta-extra --arg=<source.json の内容を {"meshy": {...}} にした一時 JSON>`
+   時間がかかる（数分〜数十分）。同期で待つ。終わったら `meta.json`（三角形数・寸法・UV の使用率・発光の有無）と textures を確かめて報告に書く。
+4. **アイテムを作る**: `uv run workshop new mech-knight --kind prop --display-name "Mech Knight"` のあと、`item.toml` の `shelf` を `2` にする（工房の区画 1 には使い捨ての Smoke Box が実機に残っているため）。
+5. **`items/mech-knight/build.py`**: `--out <dir>` を受け取り、`resoloop blender export items/mech-knight/assets/mech-knight.blend --output <dir> --parent Root …` を実行して `<dir>/model.apply.json` などを作る。CLI は `build/<名前>` を消してから呼ぶので、`<dir>` は存在しない前提でよい。cwd はリポジトリのルート。エクスポートのオプション（`--collection`、`--preserve-hierarchy`、`--pack-pbr` など）は `resoloop --help`・同梱スキル `resonite-blender`・asakusa01 の使い方（`worlds/asakusa01/modeling/asakusa01/` を grep）に合わせて決め、理由を報告に書く。失敗したら非 0 で終える。Python は標準ライブラリだけ（subprocess）。
+6. **`items/mech-knight/manifest.json`**: `"include": ["../../build/mech-knight/model.apply.json"]` で書き出しを取り込み、`components` に `FrooxEngine.Grabbable`（`Scalable: true`、key `grabbable`）と、仕上げた寸法に合う `FrooxEngine.BoxCollider`（`Size`、原点が底面なので `Offset` は高さの半分）を置く。`tests` は root と、書き出しのメッシュのスロット（stable key）が存在すること。`ownership` と `slot` の key・name・parent・position は書かない（CLI が決める）。include の規則: `children`・`components`・`tests` は連結、オブジェクトはマージ、ルートの文書の scalar が勝つ。
+7. **オフラインで確かめる**: `uv run workshop check mech-knight`、`uv run python items/mech-knight/build.py --out build/mech-knight`、`uv run python -c "from pathlib import Path; from workshop import items; i,_=items.load_item(Path('.'),'mech-knight'); print(items.render_manifest(Path('.'), i))"`、`resoloop validate items/mech-knight/manifest.rendered.json --json`。最後に `build/mech-knight` を消す（Git の対象外。deploy が作り直す）。
+8. **大きさ**: コミットするファイルはすべて 50 MiB 以下（`uv run workshop check` が検出する）。全体の容量も報告に書く。
+9. **コミット**: `tools/meshy/`、`pyproject.toml`、`uv.lock`、`items/mech-knight/`（`assets/`・`item.toml`・`deploys.toml`・`manifest.json`・`build.py`）。`build/`・`manifest.rendered.json` は入れない（`.gitignore` 済み）。push しない。
+
+**テストの要否:** 不要。`finish.py`・`uvatlas_uv.py` は asakusa01 で実証した処理の移植で Blender の中で動く。`build.py` は resoloop を呼ぶだけ。代わりに手順 3・7 の実行結果で確かめる。`uv run pytest -q -W error` が今までどおり全件合格することも確かめる（items/mech-knight にテストは無い）。
