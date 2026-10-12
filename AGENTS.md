@@ -97,6 +97,7 @@
 ## GitHub Actions
 
 - 料金の問題でプライベートの usaturn/create-reso-world の CI は使わず停止しているため、CI の確認は不要。パブリックの CI は停止していない為、確認すること
+- テストを作っても CI（GitHub Actions のワークフローなど）は作らない。テストはローカルで実行し、結果を報告する。新しいリポジトリを作ったら、その場で Actions を無効にする（`gh api -X PUT repos/<owner>/<repo>/actions/permissions -F enabled=false`）
 
 ## ResoLoop の版管理
 
