@@ -126,3 +126,14 @@ gh pr create --base main --head feat/issue-91-open3d-devcontainer --title "Dev C
 - [ ] **Step 3: #91 に状態を書く**
 
 `planning: ready`、`implementation: in-progress`（PR 作成済み、マージと rebuild の後の確認待ち）、PR の URL、manifest のコメント、次の作業（利用者のマージ → rebuild → import の確認を #91 に記録 → completed で close）を書く。予約は、まだ自分の SHA のときだけ解放する。
+
+## 実行の記録
+
+2026-10-16（JST）、実行許可（利用者の「#91 に着手せよ。途中で止めずに推奨案で PR まで作成して」）にもとづき、このセッション（`59d9e19f-e511-4dab-bbf0-39ebf7111446`）がインラインで実行した。文書の内容の承認は無いので、状態は draft のままにする。completed にするのは、利用者のマージと rebuild の後に `import open3d` を確かめてからとする。
+
+- planning: Spec `4df8720`・Plan `d636959` を push し、Spec・Plan・handoff の 2 ファイルと manifest を #91 に公開した（manifest は issuecomment-6199707948）。公開した写しだけを空のディレクトリへ取り出し、SHA-256・バイト数・JSON の解析・相互の参照の一致を確かめてから planning: ready にした（issuecomment-6199724189）
+- Task 1: `ac0d40e`。`bash -n` は成功、`apt-cache policy` の Candidate は `libegl1`・`libgl1` とも `1.7.0-3`、今のコンテナの `import open3d` は `0.20.0`、`bash .devcontainer/run-tests.bash` は `PASS: 29 test(s)`（2 回、各 271 秒）、`bash scripts/check-layout.sh` は `PASS: check-layout`（基準 HEAD `e7eb72a` でも同じ）。差分は 2 ファイルだけで、`STEP_TOTAL` と Meshy CLI の段・記述は変えていない
+- Plan からの逸脱: なし。テストを先に書く手順は、`AGENTS.md` のテストの採用基準と Task 1 の「テストの要否: 不要」により行っていない
+- 最終レビュー: 自己レビュー（利用者がサブエージェントを求めていないため、別の文脈のレビューは行っていない）。Critical・Important の指摘は無し。uv が選ぶ Python は環境で変わる（この作業では 3.14.4 と 3.12.15）が、open3d 0.20.0 には cp312・cp313・cp314 の配布物があるので影響しない
+- 所要時間: 着手（2026-10-16 03:38 JST）から PR の作成まで約 25 分。内訳は、調査と予約が約 5 分、Spec・Plan・handoff が約 6 分、#91 への公開と照合が約 4 分、Task 1 が約 11 分（うち `run-tests.bash` 2 回で約 9 分）、Task 2 が約 2 分
+- 残り: 利用者による PR のマージと rebuild → rebuild したコンテナで `uv run --no-project --with open3d==0.20.0 python -c "import open3d"` を実行して #91 に記録 → この Plan を completed にして #91 を completed で close
