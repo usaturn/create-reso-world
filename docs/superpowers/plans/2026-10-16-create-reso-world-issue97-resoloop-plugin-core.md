@@ -2415,3 +2415,46 @@ Expected: Global Constraints の「変えるのは」のファイルだけ
 - [ ] **Step 5: 記録**
 
 Spec・Plan に実施結果（HEAD、テストの数、CLI の確認、レビュー、PR の URL、所要時間）を追記し、状態はマージまで `draft` のままにする。#97 に handoff と manifest を公開し、予約を解放する。
+
+## 実施結果
+
+2026-10-16（JST）に Native（executing-plans）で実施した。台帳の記録をまとめる。
+
+| Task | コミット | 結果 |
+| --- | --- | --- |
+| 1 manifest v1 | `6c8b430` | RED（`RLoop.Core.Plugins` が無い）→ GREEN。Plugin のテスト 40 件 |
+| 2 registry | `a4c1e85` | RED（`PluginRegistry` が無い）→ GREEN。53 件 |
+| 3 導入と削除 | `27a97d5` | RED（`PluginInstaller` が無い）→ GREEN。79 件 |
+| 4 CLI | `6443d70` | ビルド 警告 0。CLI の確認は下記 |
+| 最終レビューの修正 | `a9a8427` | リンクの判定を `LinkTarget` だけにした |
+
+- 全体（`a9a8427`）: `dotnet build ResoLoop.slnx` 警告 0・エラー 0、`dotnet test ResoLoop.slnx --no-build` で RLoop.Tests 527 件（448＋新規 79）、RLoop.IntegrationTests 19 件がすべて PASS
+- fork の `main`（`84c7932`）との試しのマージ: 衝突なし。ビルド 警告 0、RLoop.Tests 535 件、IntegrationTests 19 件が PASS。一時 worktree は削除済み
+- 差分の範囲: Global Constraints の「変えるのは」のファイルだけ（15 ファイル、2088 行の追加）
+- CLI の確認（`resoloop init` で作った一時プロジェクト）: `list` 0 件（終了 0）、ディレクトリから `install`（4 ファイル）、`list` が ok、導入後にファイルを書き換えると `list` が `ok: false`・`PLUGIN_MODIFIED`・`changed: [scripts/hello.sh]`（終了 0）、`--yes` なしの `remove` が `CONFIRMATION_REQUIRED`（終了 6）、`remove --yes` で削除、`--ref` なしの Git の URL が `PLUGIN_GIT_REF_REQUIRED`（終了 2）、`--ref v1` でコミットを記録、2 回目の導入が `PLUGIN_ALREADY_INSTALLED`（終了 6）、プロジェクトの外で `PLUGIN_PROJECT_NOT_FOUND`（終了 3）、`plugin upgrade` が `UNKNOWN_COMMAND`（終了 2）、help に 3 行。導入したスクリプトの実行権限は保たれた
+- 最終レビュー: 新しいサブエージェントは立てず、実装したエージェントが別の回として行った（このセッションではサブエージェントの起動を利用者の明示の依頼に限るため）。作成者自身のレビューなので、独立したレビューより弱い
+- fork PR: https://github.com/usaturn/resoloop/pull/20
+
+### 判断（Ruling）
+
+- Task 4: `plugin list --json` は、ディレクトリの導入元で `commit`・`ref` が null のとき欄を出さない。CLI の出力は全コマンドで null を省く（`OutputWriter` の `WhenWritingNull`）ためで、#97 の `Program.cs` の節の外を変えないことを優先した。誤りだった場合の影響: 利用側が「欄が無い」を null として扱う必要がある
+- 最終レビュー: リンクを `LinkTarget` または `FileAttributes.ReparsePoint` で判定していたため、Windows の OneDrive のファイル（リンクでない reparse point）があると、導入が拒否され、照合が `PLUGIN_MODIFIED` になり、削除も失敗する。`LinkTarget`（symlink と junction）だけで判定するよう直した。Linux ではリンクでない reparse point を作れないので、失敗するテストは書けなかった。既存のリンクのテストは通る。誤りだった場合の影響: 珍しい種類の reparse point が中身として写される
+
+### 見送った軽微な指摘
+
+- `.resoloop/plugins/` の直下に通常のファイルを置くと `PLUGIN_RECORD_INVALID` になり、手で消すまで導入が止まる（提案文は `plugin remove` を示すが、`remove` はディレクトリ以外を拒否する）
+- 強制終了で残った `.staging-*` は無視されるが、片付けられない
+- SSH のホスト鍵やパスフレーズの確認は端末から読むため、`--command-timeout` まで待つことがある
+- `plugin list --json` が null の `commit`・`ref` を省く（上の判断）
+
+### 所要時間
+
+着手 2026-10-15T18:38Z（UTC）、fork PR の作成まで約 50 分。
+
+| 段階 | 時間 |
+| --- | --- |
+| 予約・調査・Spec | 約 9 分（18:38〜18:47） |
+| Plan（コードを含む） | 約 31 分（18:47〜19:18） |
+| Task 1〜4 の実装とテスト | 約 4 分（19:18〜19:22） |
+| 最終レビューと修正 | 約 4 分（19:22〜19:26） |
+| 全体の検証・fork の main との試しのマージ・PR | 約 3 分（19:26〜19:29） |

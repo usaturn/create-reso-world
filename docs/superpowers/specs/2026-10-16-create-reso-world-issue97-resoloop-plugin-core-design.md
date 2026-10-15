@@ -6,6 +6,8 @@
 - 状態: draft（人の承認は得ていない。利用者の指示「途中で止めずに推奨案で PR まで作成して」（2026-10-16 JST）により、判断はエージェントが推奨案で決め、実装と PR の作成まで進める。この指示は Spec の内容の承認ではない）
 - 調査したコード HEAD: resoloop 上流 `main` の `99c59be98df0f10b0a8e58781b7f4f67029016f5`（v0.1.0-preview.17）、create-reso-world `main` の `e7eb72a1602ac03e723bc50c9734773102947df1`
 - Plan: `../plans/2026-10-16-create-reso-world-issue97-resoloop-plugin-core.md`
+- 実装 HEAD: resoloop `a9a8427e33b14b700fdc2e558b6fbad46fd991b6`（ブランチ `feat/plugin-core`）。結果は Plan の「実施結果」
+- fork PR: https://github.com/usaturn/resoloop/pull/20（2026-10-16 JST に利用者の指示により作成。マージは未実施）
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-97-plugin-core-docs`（ブランチ `docs/issue-97-plugin-core`）
 - CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/issue-97-plugin-core`（ブランチ `feat/plugin-core`、`upstream/main` から作成）
@@ -225,7 +227,7 @@ public sealed record InstalledPlugin(string Name, string InstallDirectory, strin
 照合（`List()` が 1 件ずつ行う。最初に見つかった問題をそのプラグインの `Problem` にする）:
 
 1. `<name>` が名前の規則に合い、`install.json` を読めて `schemaVersion` が 1、`name` がディレクトリ名と一致する。違えば `PLUGIN_RECORD_INVALID`
-2. `package/` の全ファイル（隠しファイルを含む）を記録と比べる。内容の違い・欠け・余分・symlink を `PLUGIN_MODIFIED` にし、`details` に `changed`・`missing`・`unexpected` を入れる
+2. `package/` の全ファイル（隠しファイルを含む）を記録と比べる。内容の違い・欠け・余分・リンクを `PLUGIN_MODIFIED` にし、`details` に `changed`・`missing`・`unexpected`・`links` を入れる。リンクは symlink と junction（.NET の `LinkTarget` があるもの）で、辿らない。OneDrive のファイルのようにリンクでない reparse point は通常のファイルとして扱う
 3. manifest を読み直して検証する。`name`・`version` が記録と違えば `PLUGIN_RECORD_INVALID`
 4. 本体の版が範囲外なら `PLUGIN_INCOMPATIBLE_VERSION`（本体を上げた後に検出する）
 5. 予約された名前と衝突すれば `PLUGIN_NAME_CONFLICT`（本体が組み込みのコマンドを足した後に検出する）
