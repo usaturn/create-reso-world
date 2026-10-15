@@ -5,7 +5,7 @@
 
 ## リポジトリ概要
 
-[resoloop](https://github.com/orange3134/resoloop) と Blender で Resonite 上に 3D モデルやワールドを作成する開発環境。Dev Container の定義と共通の規約・スキル・雛形を管理する。ワールドのプロジェクトはローカルの作業物で git の追跡対象外であり、`worlds/` の直下に作る（issue #57）。追跡解除した従来位置の `MyResoniteProject/`、`akichi/`、`slum02/`、`slum03/` もローカルの作業物として残る。
+[resoloop](https://github.com/orange3134/resoloop) と Blender で Resonite 上に 3D モデルやワールドを作成する開発環境。Dev Container の定義と共通の規約・スキル・雛形を管理する。ワールドのプロジェクトはローカルの作業物で git の追跡対象外であり、`worlds/` の直下に作る（issue #57）。追跡解除した従来位置の `MyResoniteProject/`、`akichi/`、`slum02/`、`slum03/` もローカルの作業物として残る。resoloop のプラグイン（Meshy 用の usaturn/resoloop-meshy）は、別のリポジトリとして `external/resoloop-meshy` に checkout して開発する（「リポジトリ境界」）。
 
 ## 基本方針
 
@@ -92,6 +92,7 @@
 | --- | --- | --- |
 | usaturn/create-reso-world（このリポジトリの origin） | `git rev-parse --show-toplevel` | `origin` の URL が一致すること |
 | usaturn/resoloop または orange3134/resoloop | `<toplevel>/external/resoloop` | `origin` が usaturn/resoloop、`upstream` が orange3134/resoloop であること。checkout が無ければ `scripts/resoloop-fork.sh clone` を案内して停止する |
+| usaturn/resoloop-meshy | `<PARENT_ROOT>/external/resoloop-meshy` | `origin` が usaturn/resoloop-meshy であること。checkout が無ければ `bash scripts/resoloop-meshy.sh clone` を案内して停止する。実装は作業ルートの `.worktrees/<topic>` の worktree で行う。`pr-review`・`review-fix-planning` には作業ルートを `CODE_ROOT` として明示する。手順は `docs/resoloop-meshy-workflow.md` |
 | それ以外 | ユーザの依頼または確認済みの引き継ぎで明示された checkout の絶対パス（`CODE_ROOT`） | その checkout 自身のルートであり、remote のうち 1 つだけが対象の owner/repo と一致すること。この経路を持つのは `pr-review`（レビュー）と `review-fix-planning`（修正計画と、その PR の承認済み実装修正）で、既存の承認済み PR 修正経路は維持する。一般的な外部コード実装は非対応であり、実行経路が未定義の外部実装の handoff は blocked（not ready）として記録する。remote が無いローカル専用の checkout との PR 連携は非対応のため扱えない（明示指示があっても resolver は remote 0 件で停止する）。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。checkout の探索・clone はしない |
 
 ## GitHub Actions
