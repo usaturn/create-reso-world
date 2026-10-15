@@ -119,7 +119,7 @@ CI の gitleaks ジョブは `.gitleaks.toml`（既定の規則に、resoloop �
 
 ## Resonite ワールド開発ツール
 
-Dev Container の作成時に .NET 10 SDK、Blender、glTF import / export 用の `python3-numpy` を導入し、ResoLoop は NuGet の最新の公開版を
+Dev Container の作成時に .NET 10 SDK、Blender、glTF import / export 用の `python3-numpy`、open3d が読む `libegl1`・`libgl1` を導入し、ResoLoop は NuGet の最新の公開版を
 `.devcontainer/install_resoloop.bash`（`dotnet tool update --global ResoLoop --prerelease --allow-downgrade`）で導入する。
 続けて、各プロジェクトの `resoloop skills sync --check` の結果を `.devcontainer/report-resoloop-skills.bash` で表示する
 （差分があっても postCreate は失敗しない）。rebuild せずに最新へ上げるときも `bash .devcontainer/install_resoloop.bash` を実行する。
@@ -127,6 +127,11 @@ fork のビルドを一時的に使う方法は `docs/resoloop-fork-workflow.md`
 Blender は画面を開かずに実行する。Resonite 本体と ResoniteLink は
 Windows ホスト側で準備する。接続確認の `resoloop doctor`、
 Blender の GUI、ホスト側のネットワーク設定はこのセットアップの対象外とする。
+
+`libegl1`・`libgl1` は、Meshy の物の UV の展開（UVAtlas）に使う open3d のためのものである。open3d は CPU だけで使うときも、
+import のときに `libEGL.so.1`・`libGL.so.1` を読み、無いと `ImportError` で止まる。open3d 本体は Dev Container の全体には入れず、使う側が uv で入れる。
+rebuild の後は `uv run --no-project --with open3d==0.20.0 python -c "import open3d"` で確かめられる（open3d と依存の 59 パッケージを取得し、展開すると 1 GB を超える）。
+GPU（CUDA）と open3d の表示機能は対象外とする。
 
 コンテナの resoloop から ResoniteLink に届くことが前提である。WSL2 の mirrored networking
 （`.wslconfig` の `networkingMode=mirrored`）でホストの localhost を共有するか、
