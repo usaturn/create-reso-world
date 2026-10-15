@@ -541,3 +541,21 @@ PR の本文に、決定（D-1〜D-3）、受け入れ条件と検証の結果�
 - [ ] **Step 4: Issue に記録し、予約を解放する**
 
 #96 に、決めた名前・作業ルート・PR・リポジトリ・状態（planning: done 相当で実装済み、PR はマージ待ち）・handoff を作らなかった理由（Spec D-10）を書く。予約は `git push --force-with-lease=refs/heads/agent-claims/issue-96:b066ccef078603e70438a4f36e2c8ffcd4d0388c origin :refs/heads/agent-claims/issue-96` で解放し、ref が無くなったことを確かめる
+
+## 結果（2026-10-16 JST）
+
+| Task | create-reso-world のコミット | 検証 |
+| --- | --- | --- |
+| 1 | `7d8f150` | `bash tests/scripts/test-resoloop-meshy.bash` は実装前に失敗（スクリプトが無い）、実装後に PASS。親 checkout の解決と自前の checkout の判定を外す改変をそれぞれ入れると、ケース 9・7 が失敗することも確かめた。`test-file-modes.bash` PASS |
+| 2 | `400a7d1` | `test-docs.bash --refs docs/resoloop-meshy-workflow.md AGENTS.md`、`test-instructions.bash` PASS |
+| 3 | なし（プラグインのリポジトリ `c24d000`） | Actions `{"enabled":false}`、private、`main`、clone・status、`uv run pytest` 0（テストのファイルを置くと 5） |
+| 4 | Spec・Plan の記録 | `check-layout.sh` PASS、`run-tests.bash` 30/30 PASS |
+
+エージェントの判断（Ruling）:
+
+- 最終レビュー: プラグインの `AGENTS.md` の `../../AGENTS.md` は `.worktrees/<topic>` から見るとプラグインの checkout を指すため、worktree からの相対パスを足した。`.gitignore` には Spec D-7 の一覧に加えて `/.superpowers/`・`/.claude/worktrees/` を足した（superpowers の ledger や Claude Code の worktree を `git add -A` でコミットしないため）。どちらもプラグインの `1b64663`。文書と設定だけなのでテストは書かず、プラグインに一時的な worktree を作って `realpath` と `git check-ignore` で確かめた
+- 最終レビューは作者のセルフレビュー。このセッションではサブエージェントを起動していない
+
+後回しにした軽微な点: `status` は git が無いと 3 で終わるが、文書は「常に 0」と書いている。
+
+所要時間: 着手（予約）2026-10-15 18:40Z から記録まで約 20 分。Spec・Plan 約 7 分、Task 1 約 3 分、Task 2 約 2 分、Task 3 約 4 分、検証と最終レビュー約 6 分。

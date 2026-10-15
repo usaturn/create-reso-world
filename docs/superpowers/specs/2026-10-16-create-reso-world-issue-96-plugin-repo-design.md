@@ -86,7 +86,7 @@ GNU Affero General Public License v3.0 or later（AGPL-3.0-or-later）。resoloo
 | `AGENTS.md` | プラグインのリポジトリの規約（D-8） |
 | `CLAUDE.md` | `@AGENTS.md` の 1 行 |
 | `LICENSE` | AGPL-3.0 の全文（D-3） |
-| `.gitignore` | uv・Python の生成物、`/.worktrees/`、`/reviews/`、`tmp/`、Blender のバックアップ、個人設定 |
+| `.gitignore` | uv・Python の生成物、`/.worktrees/`、`/reviews/`、`tmp/`、`/.superpowers/`、`/.claude/worktrees/`、Blender のバックアップ、個人設定 |
 | `pyproject.toml` | uv の仮想プロジェクト（`package = false`）。`requires-python = ">=3.12"`（create-reso-world と同じ）、依存は無し、`dev` グループに pytest、`testpaths = ["tests"]` |
 | `uv.lock` | `uv lock` の結果 |
 | `tests/conftest.py` | テストのファイルが 1 つも無い間だけ、テストを集められなかった終了（終了コード 5）を成功に変える。最初のテストのファイルを足すと、pytest の既定に戻る |
@@ -99,7 +99,7 @@ GNU Affero General Public License v3.0 or later（AGPL-3.0-or-later）。resoloo
 簡潔に、次だけを書く。
 
 - このリポジトリの目的。Meshy の API（生成、ダウンロード、`meshy-cli`）は使わず、Web アプリからダウンロードした GLB だけを入力にする（#95 の利用者の決定）
-- create-reso-world の `external/resoloop-meshy` に checkout して開発し、create-reso-world の `AGENTS.md`（`../../AGENTS.md`）にも従う。Codex は git のルートより上の `AGENTS.md` を読まないので、場所を明示する
+- create-reso-world の `external/resoloop-meshy` に checkout して開発し、create-reso-world の `AGENTS.md` にも従う。Codex は git のルートより上の `AGENTS.md` を読まないので、場所を明示する（checkout からは `../../AGENTS.md`、`.worktrees/<topic>` の worktree からは `../../../../AGENTS.md`）
 - プラグインの manifest・コマンドの呼び出し・スキルの配布の仕様は fork（#97〜#100）で決まる。決まっていない仕様を推測で作らない
 - uv、`uv run pytest`、ブランチと worktree、push・PR・マージは利用者の指示、CI を作らない、Spec・Plan の置き場所、Meshy の原本（GLB・テクスチャ）をコミットしない
 
@@ -133,7 +133,17 @@ GNU Affero General Public License v3.0 or later（AGPL-3.0-or-later）。resoloo
 - 実際のリポジトリで: `gh api repos/usaturn/resoloop-meshy/actions/permissions`、`bash scripts/resoloop-meshy.sh clone`（2 回目は確認だけ）・`status`、checkout で `uv run pytest`
 - 新しいリポジトリには、守る挙動が無い（雛形と設定だけ）のでテストを書かない。`tests/conftest.py` は、テストが無い状態で `uv run pytest` が 0 で終わることと、テストのファイルを置いて集められないときに 5 へ戻ることを、手で確かめる
 
-## 5. リスクと対処
+## 5. 結果（2026-10-16 JST）
+
+- `usaturn/resoloop-meshy` を作成した（private、既定のブランチ `main`、GitHub がライセンスを AGPL-3.0 と認識）。Actions は作成直後に無効にした（`{"enabled":false,...}`）
+- プラグインのリポジトリの `main`: `c24d000`（初期の構成）、`1b64663`（最終レビューの修正: worktree から create-reso-world の `AGENTS.md` への相対パス、`/.superpowers/`・`/.claude/worktrees/` の無視）
+- `bash scripts/resoloop-meshy.sh clone` を create-reso-world の worktree から実行し、親 checkout の `/workspaces/reso-world/external/resoloop-meshy` に clone した（worktree の中には作られない）。2 回目は確認だけ、`status` は `(main, clean)`・`remote: origin is as expected`
+- プラグインのリポジトリで `uv run pytest` は 0（テスト無し）。テストのファイルを置いて集められないときは 5、通るテストを置くと 0（いずれも手で確認し、置いたファイルは消した）
+- create-reso-world: `bash scripts/check-layout.sh` PASS、`bash .devcontainer/run-tests.bash` 30 本すべて PASS（`tests/scripts/test-resoloop-meshy.bash` を含む）
+- 共通の helper: `--operation review-workspace --code-root /workspaces/reso-world/external/resoloop-meshy --repo usaturn/resoloop-meshy` は 0、`--code-root` を省くと 64（明示を求めて止まる）
+- 最終レビューは作者のセルフレビュー（このセッションではサブエージェントを起動していない）
+
+## 6. リスクと対処
 
 - private の clone は認証が要る。認証が無ければ `git clone` が失敗し、4 で止まる。`docs/resoloop-meshy-workflow.md` に `gh auth status` の確認を書く
 - `AGENTS.md` を変えるのは、ボードでは #96 だけである。ほかの PR と衝突したら、後からマージする方が rebase する（#95 の「共有インターフェースと担当」）
