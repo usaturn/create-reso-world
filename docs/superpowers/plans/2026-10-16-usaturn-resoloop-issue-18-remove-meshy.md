@@ -47,7 +47,7 @@
 - Revert: PR #11 の 29 ファイル（`skills/codex/meshy-resoloop/`、`tests/meshy/`、`tests/fixtures/meshy/`、`pyproject.toml`、`docs/MESHY-VALIDATION.md` を削除し、`BundledSkillManager.cs`・`RLoop.Core.csproj`・`ProjectInitializerTests.cs`・`.github/workflows/ci.yml`・README 3 本・`docs/BLENDER.md`・3 スキルの文を戻す）
 - Modify: `src/RLoop.Cli/RLoop.Cli.csproj`（`skills/codex` の `<None>`）
 
-- [ ] **Step 1: PR #11 のマージを戻す**
+- [x] **Step 1: PR #11 のマージを戻す**
 
 ```bash
 cd /workspaces/reso-world/external/resoloop/.worktrees/issue-18-remove-meshy
@@ -57,7 +57,7 @@ git show --stat HEAD | tail -3
 
 Expected: コンフリクトなし。`29 files changed, 11 insertions(+), 5356 deletions(-)`
 
-- [ ] **Step 2: `Exclude` を入れ直す**
+- [x] **Step 2: `Exclude` を入れ直す**
 
 `src/RLoop.Cli/RLoop.Cli.csproj` の
 
@@ -71,7 +71,7 @@ Expected: コンフリクトなし。`29 files changed, 11 insertions(+), 5356 d
     <None Include="../../skills/codex/**/*" Exclude="../../skills/codex/**/__pycache__/**/*;../../skills/codex/**/*.pyc" Pack="true" PackagePath="source/skills/codex/" />
 ```
 
-- [ ] **Step 3: build と既存のテスト**
+- [x] **Step 3: build と既存のテスト**
 
 ```bash
 dotnet build ResoLoop.slnx && dotnet test ResoLoop.slnx --no-build
@@ -79,7 +79,7 @@ dotnet build ResoLoop.slnx && dotnet test ResoLoop.slnx --no-build
 
 Expected: build の警告 0 件、テストはすべて成功（PR #11 の Meshy のテスト 5 件の分だけ減る）
 
-- [ ] **Step 4: コミット**
+- [x] **Step 4: コミット**
 
 ```bash
 git add src/RLoop.Cli/RLoop.Cli.csproj
@@ -96,7 +96,7 @@ git commit -m "build: keep excluding Python caches from packaged skills"
 **Interfaces:**
 - Consumes: `ProjectInitializer.Initialize(string)`、`BundledSkillManager.Sync(string, bool)`、`BundledSkillManager.LockRelativePath`、`SkillSyncResult.Updated`・`Synchronized`
 
-- [ ] **Step 1: テストを書く**
+- [x] **Step 1: テストを書く**
 
 `SkillSyncUpdateRestoresMissingLockedSkill` の後に足す。
 
@@ -149,7 +149,7 @@ git commit -m "build: keep excluding Python caches from packaged skills"
                 Convert.ToHexString(File.ReadAllBytes(path)), File.GetLastWriteTimeUtc(path))).ToArray();
 ```
 
-- [ ] **Step 2: revert 後のコードで成功することを確かめる**
+- [x] **Step 2: revert 後のコードで成功することを確かめる**
 
 ```bash
 dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --filter "FullyQualifiedName~SkillSyncKeepsFilesOfSkillsNoLongerBundled"
@@ -157,14 +157,14 @@ dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --filter "FullyQualifiedName~Sk
 
 Expected: PASS（1 件）
 
-- [ ] **Step 3: コミット**
+- [x] **Step 3: コミット**
 
 ```bash
 git add tests/RLoop.Tests/ProjectInitializerTests.cs
 git commit -m "test: keep files of skills that are no longer bundled on skills sync"
 ```
 
-- [ ] **Step 4: revert 前のコードで失敗することを確かめる（テストが条件を検出できることの確認）**
+- [x] **Step 4: revert 前のコードで失敗することを確かめる（テストが条件を検出できることの確認）**
 
 scratchpad に `84c7932` の一時 worktree を作り、テストのコミットだけを cherry-pick して実行する。Meshy を同梱している版では、lock の hash と一致するファイルを「update-available」として同梱の内容で上書きするため、失敗するはず。
 
@@ -182,7 +182,7 @@ Expected: FAIL（`Assert.True(... Synchronized)` が false）。一時 worktree 
 
 **テスト:** 書かない。受け入れ条件 1・2・4・5 を、静的な確認・build・テスト・導入した版の実行で確かめる。
 
-- [ ] **Step 1: `meshy` の出現箇所**
+- [x] **Step 1: `meshy` の出現箇所**
 
 ```bash
 git grep -n -i meshy
@@ -191,7 +191,7 @@ git grep -n 'meshy-resoloop/'
 
 Expected: 1 つ目は範囲外の 7 ファイル（`skills/codex/resonite-model-preproduction/SKILL.md` 7 箇所、`.../references/build-handoff.md` 7 箇所、`skills/codex/resonite-build/SKILL.md`・`README.md`・`README_JA.md`・`README-DETAILS.md`・`docs/BLENDER.md` 各 1 箇所）と、Task 2 のテストだけ。2 つ目は Task 2 のテストだけ（文書のリンクは 0 件）
 
-- [ ] **Step 2: 後のコミットの変更を巻き戻していない**
+- [x] **Step 2: 後のコミットの変更を巻き戻していない**
 
 ```bash
 git diff 84c7932 HEAD -- README-DETAILS.md docs/BLENDER.md skills/codex/resonite-blender/SKILL.md skills/codex/resonite-build/SKILL.md
@@ -200,7 +200,7 @@ git diff 8bcef8a HEAD --stat
 
 Expected: 1 つ目は Meshy の文の差分だけ。2 つ目は #15・#16 の変更に、`RLoop.Cli.csproj` の `Exclude` と Task 2 のテストが加わったものだけ
 
-- [ ] **Step 3: build とテスト（Debug・Release）**
+- [x] **Step 3: build とテスト（Debug・Release）**
 
 ```bash
 dotnet build ResoLoop.slnx && dotnet test ResoLoop.slnx --no-build
@@ -209,7 +209,7 @@ dotnet build ResoLoop.slnx -c Release && dotnet test ResoLoop.slnx -c Release --
 
 Expected: 警告 0 件、すべて成功
 
-- [ ] **Step 4: 配布物の確認（pack → install → init）**
+- [x] **Step 4: 配布物の確認（pack → install → init）**
 
 ```bash
 cd /workspaces/reso-world
@@ -222,7 +222,7 @@ resoloop skills sync "${T:?}" --check
 
 Expected: 版が `...g<HEAD の短い SHA>`。nupkg の grep は 0 件。`.agents/skills/` に `meshy-resoloop` が無い。`--check` は synchronized。実在のワールドでは `skills sync --update` を実行しない
 
-- [ ] **Step 5: ResoLoop の版を戻す**
+- [x] **Step 5: ResoLoop の版を戻す**
 
 ```bash
 bash scripts/resoloop-fork.sh install 84c7932
@@ -231,16 +231,34 @@ resoloop --version
 
 Expected: `0.1.0-preview.17.fork.20261009.g84c7932`
 
-- [ ] **Step 6: ブランチ全体のレビュー**
+- [x] **Step 6: ブランチ全体のレビュー**
 
 新しいコンテキストのレビュアー 1 名が `84c7932..HEAD` を、この Plan の Review Focus と Issue の受け入れ条件に照らして確認する。致命的な指摘だけを直す
 
 ### Task 4: 公開と報告
 
-- [ ] **Step 1:** fork のブランチを push し、usaturn/resoloop の `main` へ PR を作る（本文に検証の結果、範囲外、`Closes #18`）。上流へは出さない
-- [ ] **Step 2:** PR の公開 CI（windows: build・test・pack・導入の smoke test）の結果を確かめる
-- [ ] **Step 3:** この Plan に実施結果を記録し、create-reso-world の文書専用 PR を作る（コード PR と相互に参照する）
+- [x] **Step 1:** fork のブランチを push し、usaturn/resoloop の `main` へ PR を作る（本文に検証の結果、範囲外、`Closes #18`）。上流へは出さない
+- [x] **Step 2:** PR の公開 CI（windows: build・test・pack・導入の smoke test）の結果を確かめる
+- [x] **Step 3:** この Plan に実施結果を記録し、create-reso-world の文書専用 PR を作る（コード PR と相互に参照する）
 - [ ] **Step 4:** Issue #18 に、結果・検証の根拠・所要時間と主要な Task ごとの内訳をコメントする
 - [ ] **Step 5:** 予約 `refs/heads/agent-claims/resoloop-issue-18` を、保存した claim の SHA を lease にして削除し、無くなったことを確かめる
 
 マージ、マージ後の `bash scripts/resoloop-fork.sh install main`、この Plan の `completed` への更新は、利用者の指示を待つ。
+
+## 実施結果（2026-10-16）
+
+- 実行方法: Native（このセッションで実装）。作業記録は CODE_ROOT の `.superpowers/sdd/2026-10-16-usaturn-resoloop-issue-18-remove-meshy/progress.md`（git の追跡対象外。要点をこの節に写した後に削除）
+- コミット: `1136d73`（Task 1: PR #11 の revert、29 ファイル +11 −5356）、`4719f4a`（Task 1: `Exclude` の入れ直し。csproj は PR #11 の版と同じ blob）、`a35a740`（Task 2: テスト）
+- 判断（Ruling）: Task 2 の RED は、revert 前のコード（`84c7932`）にテストのコミットを cherry-pick して確かめた。本変更は機能の削除で、テストが守る挙動は revert で生じるため、revert 後の木では最初から成功する。cherry-pick は `Dispose` 前の helper の位置で衝突したので、一時 worktree の中だけで両方を残して解消した
+- テスト:
+  - Task 1: revert 後に build の警告 0 件、RLoop.Tests 451 件（PR #11 の Meshy のテスト 5 件の分だけ減った）・RLoop.IntegrationTests 19 件が成功
+  - Task 2: 追加したテストは revert 後に成功。`84c7932` では `--check` の検査（`Synchronized` が false）で失敗し、その行を外すと `Assert.Single(updated.Updated)` が 4 件（Meshy の 3 ファイルの上書きと lock）で失敗した
+  - Debug・Release とも build の警告 0 件、RLoop.Tests 452 件・RLoop.IntegrationTests 19 件がすべて成功
+- 検証（Task 3）:
+  - `git grep -i meshy` は範囲外の 7 ファイル（preproduction の `SKILL.md` 7・`build-handoff.md` 7、`resonite-build/SKILL.md`・`README.md`・`README_JA.md`・`README-DETAILS.md`・`docs/BLENDER.md` 各 1）と Task 2 のテストだけ。`meshy-resoloop/` はテストだけで、文書のリンクは 0 件
+  - `git diff 8bcef8a HEAD` は #15・#16 の 14 ファイル（`9cf7178..84c7932` と同じ 248+/27-）と csproj・テストだけ。#16 も触った 4 ファイルの Meshy の行は `8bcef8a` と一致
+  - `a35a740` を導入（`0.1.0-preview.17.fork.20261015.ga35a740`）。nupkg に `meshy`・`__pycache__`・`.pyc` は 0 件、skills は `resonite-*` の 7 本。空のディレクトリで `init` → `.agents/skills/meshy-resoloop/` は無く、lock にも Meshy の項目なし。`skills sync --check` は `synchronized=True`。実在のワールドでは `skills sync --update` を実行していない
+  - 検証の後、`install 84c7932` で `0.1.0-preview.17.fork.20261009.g84c7932` に戻した
+- ブランチ全体のレビュー: 新しいコンテキストのレビュアー（opus）が `84c7932..a35a740` を確認し、Critical・Important は 0 件、Review Focus の 1〜5 はすべて成り立つ（Ready to merge: Yes）。レビュアーは、`skills/codex` に `.pyc` を置いて pack して除外が効くこと、`84c7932` の実物の `meshy-resoloop` 9 ファイルと lock の項目を置いたプロジェクトで CLI の `--update` が lock だけを書き換えることも確かめた。Minor 3 件のうち 2 件（テストの `--check` の検査が既存の挙動まで固定している、revert で汎用の sync の検査 2 つも消えた）は致命的でないため対応せず PR 本文に記載。残りの 1 件（受け入れ条件 4 にテストのファイルが出ることの明記）は PR 本文で対応した
+- 公開: fork PR https://github.com/usaturn/resoloop/pull/19 を作成（`Closes #18`）。head `a35a740` の公開 CI（run 38790410680）の windows（build・test・pack・導入の smoke test）が成功。文書は create-reso-world の文書専用 PR で公開する
+- 残り: マージ（利用者の判断）、マージ後の `bash scripts/resoloop-fork.sh install main`、この Plan の `completed` への更新。Task 4 の Step 4（Issue へのコメント）・Step 5（予約の解放）は文書 PR の作成後に行い、結果は Issue #18 のコメントに記録する
