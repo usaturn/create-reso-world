@@ -60,7 +60,8 @@ resoloop のプラグインの仕様（manifest の形式、導入元、置き�
 | ファイル | 役割 |
 | --- | --- |
 | `SemanticVersion.cs` | SemVer 2.0 の解析と比較 |
-| `PluginNames.cs` | 名前の規則、予約された名前（組み込みのコマンド、同梱スキル、組み込みのレシピ） |
+| `PluginNames.cs` | 名前の規則、予約された名前（組み込みのコマンド、同梱スキル、組み込みのレシピ）、名前の衝突の検出 |
+| `PluginErrors.cs` | `PLUGIN_*` のコードと終了コードの対応 |
 | `PluginManifest.cs` | manifest（v1）の型、読み込み、検証 |
 | `PluginRegistry.cs` | 記録の型、ファイルの照合、`PluginRegistry` |
 | `PluginInstaller.cs` | 導入（ディレクトリ・Git）、削除、`git` の呼び出し |
@@ -167,7 +168,7 @@ resoloop のプラグインの仕様（manifest の形式、導入元、置き�
 1. プロジェクトのルートを決める（`--project DIR` は `DIR/.resoloop.json` が必要。省略時は上へ探す）。無ければ `PLUGIN_PROJECT_NOT_FOUND`
 2. `.resoloop/plugins/.staging-<guid>/` を作る
 3. 写すファイルの一覧を作る
-   - ディレクトリ: 上の「ローカルの写し方」。`git` が無い、または作業ツリーでなければ `.git` を除く全部
+   - ディレクトリ: 上の「ローカルの写し方」。ただし Git の一覧を使うのは、そのディレクトリが作業ツリーの最上位（`git rev-parse --show-toplevel` と一致）のときだけにする。親のリポジトリで無視された場所（`worlds/`・`tmp/` など）にあるディレクトリが空の一覧になるのを防ぐため。`git` が無い、または最上位でなければ `.git` を除く全部
    - Git: `git clone --quiet --no-checkout -- URL <staging>/checkout`、`git rev-parse --verify --quiet --end-of-options REF^{commit}`（無ければ `refs/remotes/origin/REF^{commit}`）でコミットを決める（無ければ `PLUGIN_GIT_REF_NOT_FOUND`）。`git ls-tree -r -z --full-tree COMMIT` の一覧を使い、symlink（120000）と submodule（160000）があれば `PLUGIN_SOURCE_INVALID`。`git checkout --quiet --detach COMMIT` で取り出す
    - `git` は `GIT_TERMINAL_PROMPT=0` と `-c core.fsmonitor=false` で呼ぶ。`git` が無ければ Git の導入元は `PLUGIN_GIT_FAILED`
 4. 一覧のファイルに symlink があれば `PLUGIN_SOURCE_INVALID`。ファイル数が 10,000 を、合計が 200 MiB を超えたら `PLUGIN_SOURCE_INVALID`
@@ -215,7 +216,8 @@ public sealed class PluginRegistry
 
 public sealed record PluginStatus(string Name, string InstallDirectory, PluginInstallRecord? Record,
     PluginManifest? Manifest, PluginProblem? Problem) { public bool Ok => Problem is null; }
-public sealed record PluginProblem(string Code, string Message, IReadOnlyDictionary<string, object?> Details);
+public sealed record PluginProblem(string Code, string Message, IReadOnlyDictionary<string, object?> Details,
+    IReadOnlyList<string> Suggestions);
 public sealed record InstalledPlugin(string Name, string InstallDirectory, string PackageDirectory,
     string DataDirectory, PluginManifest Manifest, PluginInstallRecord Record);
 ```
