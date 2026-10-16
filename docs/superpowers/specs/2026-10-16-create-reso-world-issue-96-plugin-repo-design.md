@@ -73,7 +73,7 @@ GNU Affero General Public License v3.0 or later（AGPL-3.0-or-later）。resoloo
 - checkout そのもの（`external/resoloop-meshy`）は `main` に置き、`git -C external/resoloop-meshy pull --ff-only` で `origin/main` に追従させる
 - 実装は `main` から作ったブランチ（`<type>/<topic>`）で、`external/resoloop-meshy/.worktrees/<topic>` の worktree で行う。プラグインのリポジトリの `.gitignore` で `/.worktrees/` を無視する
 - テストは checkout（または worktree）で `uv run pytest`
-- 反映は PR で `main` へ。push・PR の作成（`gh pr create --repo usaturn/resoloop-meshy`）・マージは利用者の指示による。初期コミットだけは、#96 の成果物として `main` へ直接 push する
+- 反映は PR で `main` へ。push・PR の作成（`gh pr create --repo usaturn/resoloop-meshy --base main --head <type>/<topic>`。親 checkout で実行するので `--head` を省かない）・マージは利用者の指示による。初期コミットだけは、#96 の成果物として `main` へ直接 push する
 - Spec・Plan は create-reso-world の `docs/superpowers/` に置く（`AGENTS.md` の「Spec・Plan の保存と公開」）
 - PR のレビューと修正: `pr-review`・`review-fix-planning` には、作業ルートを `CODE_ROOT` として明示して渡す。共通の helper（`scripts/superpowers_context.py`）の「その他の repo」の経路で、checkout 自身のルートであることと、対象と一致する remote が 1 つだけであることを照合する。helper は変えない。レビューの結果は `CODE_ROOT` の `reviews/` に書かれるので、プラグインのリポジトリの `.gitignore` で `/reviews/` を無視する
 - CI は作らない（`.github/workflows/` を置かない）。作成直後に Actions を無効にする
