@@ -82,7 +82,7 @@ if ! sudo apt update; then
 fi
 
 step "Installing the base packages"
-if ! sudo apt install -y vim tig ripgrep fzf jq bubblewrap libglib2.0-0t64 blender python3-numpy; then
+if ! sudo apt install -y vim tig ripgrep fzf jq bubblewrap libglib2.0-0t64 blender python3-numpy libegl1 libgl1; then
     fail "apt install of the base packages failed."
 fi
 
