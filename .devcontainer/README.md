@@ -306,8 +306,10 @@ bind mount なので、移植元の一時ファイルから rename する方式�
 ## pi の旧拡張・MCP 設定の移行
 
 ドキュメント取得は共有の `find-docs` スキル経由の CLI を標準とする。
-`pi-mcp-adapter`、`@upstash/context7-pi`、`pi-distill`、単独登録の
+`pi-mcp-adapter`、`@upstash/context7-pi`、`pi-distill`、`pi-lens`、単独登録の
 `pi-extensions-tool-display` と `pi-extensions-i18n` は導入しない。
+`pi-lens` は、意図しない整形と誤検知、リクエストごとのトークンと起動時間の増加があるため、
+共有の agent directory から外した（usaturn/agent-workspace#684）。
 postCreate は拡張の導入前に既存の登録・pi 管理 npm マニフェストと、pi agent directory 内の
 `mcp-cache.json`、`mcp-project-approvals.json`、`mcp-onboarding.json`、
 `mcp-npx-cache.json` を整理する。
@@ -316,6 +318,8 @@ settings の `extensions` から `-builtin:mcp` だけを除き、他の拡張�
 旧拡張の残留がなくても、利用者が設定した `-builtin:mcp` は、成功する cleanup の実行ごと
 （postCreate を含む）に除去する。ホストから共有する agent directory の設定変更なので、
 同じ directory を使うホスト側や他の環境の pi にも反映される。
+撤去は旧拡張の npm インストール実体も消すので、rebuild や手動の cleanup の前に、
+同じ directory を使うホスト側や他の環境で動いている pi を終了する。
 共有の MCP 設定・API キー・`find-docs`・`~/.npm` のキャッシュは変更しない。
 
 変更前には `agent/migration-backups/pi-retired-*` に settings と存在する npm マニフェストの
