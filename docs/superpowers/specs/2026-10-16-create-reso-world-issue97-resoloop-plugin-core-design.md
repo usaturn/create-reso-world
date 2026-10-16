@@ -3,14 +3,14 @@
 - 文書管理: `usaturn/create-reso-world`
 - 対象 Issue: https://github.com/usaturn/create-reso-world/issues/97（親: #95、ボードのキー `resoloop-plugins-board`、子のキー `plugin-core`）
 - 実装対象: `usaturn/resoloop`（fork）。上流 `orange3134/resoloop` への提案は #105
-- 状態: draft（人の承認は得ていない。利用者の指示「途中で止めずに推奨案で PR まで作成して」（2026-10-16 JST）により、判断はエージェントが推奨案で決め、実装と PR の作成まで進める。この指示は Spec の内容の承認ではない）
+- 状態: completed（2026-10-16 JST、利用者の指示「Spec と Plan を completed にして」による。内容の明示承認は記録していない。作業時は、利用者の指示「途中で止めずに推奨案で PR まで作成して」（2026-10-16 JST）により、判断はエージェントが推奨案で決め、実装と PR の作成まで進めた。完了の根拠は Plan の「完了」）
 - 調査したコード HEAD: resoloop 上流 `main` の `99c59be98df0f10b0a8e58781b7f4f67029016f5`（v0.1.0-preview.17）、create-reso-world `main` の `e7eb72a1602ac03e723bc50c9734773102947df1`
 - Plan: `../plans/2026-10-16-create-reso-world-issue97-resoloop-plugin-core.md`
 - 実装 HEAD: resoloop `a9a8427e33b14b700fdc2e558b6fbad46fd991b6`（ブランチ `feat/plugin-core`）。結果は Plan の「実施結果」
-- fork PR: https://github.com/usaturn/resoloop/pull/20（2026-10-16 JST に利用者の指示により作成。マージは未実施）
+- fork PR: https://github.com/usaturn/resoloop/pull/20（2026-10-16 JST に利用者の指示により作成。2026-10-16T04:48Z に fork の `main` へマージ、マージコミット `39db994`）
 - PARENT_ROOT: `/workspaces/reso-world`
-- DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-97-plugin-core-docs`（ブランチ `docs/issue-97-plugin-core`）
-- CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/issue-97-plugin-core`（ブランチ `feat/plugin-core`、`upstream/main` から作成）
+- DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-97-plugin-core-docs`（ブランチ `docs/issue-97-plugin-core`。完了後に削除済み）
+- CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/issue-97-plugin-core`（ブランチ `feat/plugin-core`、`upstream/main` から作成。完了後に削除済み）
 
 ## 目的と範囲
 

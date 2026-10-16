@@ -4,10 +4,10 @@
 
 - 文書管理: `usaturn/create-reso-world`
 - 対象 Issue: https://github.com/usaturn/create-reso-world/issues/97
-- 状態: draft（人の承認は得ていない。利用者の指示「途中で止めずに推奨案で PR まで作成して」（2026-10-16 JST）により実行する）
+- 状態: completed（2026-10-16 JST、利用者の指示「Spec と Plan を completed にして」による。内容の明示承認は記録していない。実行は利用者の指示「途中で止めずに推奨案で PR まで作成して」（2026-10-16 JST）による。完了の根拠は末尾の「完了」）
 - 実行方法: Native（executing-plans）。エージェントの判断。Task どうしが同じ型を共有して密につながり、利用者が途中で止めないことを求めたため。最後に新しいレビュアーがブランチ全体を見る
 - 基準: resoloop 上流 `main` の `99c59be98df0f10b0a8e58781b7f4f67029016f5`
-- CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/issue-97-plugin-core`（ブランチ `feat/plugin-core`）
+- CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/issue-97-plugin-core`（ブランチ `feat/plugin-core`。完了後に削除済み）
 
 **Goal:** resoloop にプラグインの manifest（v1）・導入・一覧・削除・記録と `PluginRegistry` を入れ、`resoloop plugin install|list|remove` を使えるようにする。
 
@@ -2458,3 +2458,14 @@ Spec・Plan に実施結果（HEAD、テストの数、CLI の確認、レビュ
 | Task 1〜4 の実装とテスト | 約 4 分（19:18〜19:22） |
 | 最終レビューと修正 | 約 4 分（19:22〜19:26） |
 | 全体の検証・fork の main との試しのマージ・PR | 約 3 分（19:26〜19:29） |
+
+## 完了
+
+2026-10-16 JST に完了した。
+
+- コード: usaturn/resoloop#20 を 2026-10-16T04:48Z に fork の `main` へマージした（マージコミット `39db994`。検証した head `a9a8427` を指定）。fork の `main` の CI（`39db994`）は成功
+- 文書: この Spec・Plan を含む #109 を 2026-10-16T05:00Z に `main` へマージした（マージコミット `6f93999`）
+- レビュー: 両 PR のレビュー指摘は致命的でないと判定し、修正なしでマージした。判定の記録は `../specs/2026-10-16-usaturn-resoloop-pr20-plugin-core-review-fixes-design.md`（PR #20）と `../specs/2026-10-16-create-reso-world-pr109-plugin-core-docs-review-fixes-design.md`（#109）。この Plan の全文ブロックのうち `PluginRegistry.cs`・`PluginInstaller.cs` の 2 個は最終レビューの修正（`a9a8427`）の前の版で、最終の内容は fork の `main` にある
+- 残した制約: PR #20 の既知の制限のうち 3 件を #110・#111・#112 に起票した（未着手。ボードへの登録は #95 の調整役）
+- Issue: #97 を 2026-10-16 に completed で close した。#98・#99・#100 が着手できる
+- worktree: DOC_ROOT・CODE_ROOT は完了後に削除した
