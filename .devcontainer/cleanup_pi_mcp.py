@@ -20,7 +20,7 @@ from pi_json import load_object, require_plain_file, write_object
 
 PACKAGES = (
     "pi-mcp-adapter", "@upstash/context7-pi", "pi-distill",
-    "pi-extensions-tool-display", "pi-extensions-i18n",
+    "pi-extensions-tool-display", "pi-extensions-i18n", "pi-lens",
 )
 # mcp.json and mcp-auth.json are also native MCP storage; never migrate or unlink them.
 MCP_FILES = (

@@ -324,7 +324,6 @@ for extension in \
     npm:pi-safe-search \
     npm:pi-diet-ripgrep \
     git:github.com/obra/superpowers \
-    npm:pi-lens \
     npm:pi-simplify \
     npm:@howaboua/pi-skill-skill-creator; do
     if ! pi install --approve "${extension}"; then
