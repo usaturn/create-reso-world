@@ -4,10 +4,10 @@
 - PR: https://github.com/usaturn/create-reso-world/pull/106（`feat/issue-96-plugin-repo` → `main`）
 - 関連 Issue: #96（本文の `Refs #96`。`closingIssuesReferences` は空）、親 #95
 - 関連文書: `docs/superpowers/specs/2026-10-16-create-reso-world-issue-96-plugin-repo-design.md`、`docs/superpowers/plans/2026-10-16-create-reso-world-issue-96-plugin-repo.md`
-- 検証したコード HEAD: `0c57c4f61487595875337fa9fca2c1ed457529e1`（PR の分岐点 `e7eb72a1602a`。base `main` は `1129cb3f2d5d` まで進んでいるが、#108 の文書だけで、この PR の変更ファイルと重ならない）
+- 検証したコード HEAD: 第 1 回 `0c57c4f61487595875337fa9fca2c1ed457529e1`（PR の分岐点 `e7eb72a1602a`。base `main` は `1129cb3f2d5d` まで進んでいたが、#108 の文書だけで、この PR の変更ファイルと重ならない）、第 2 回 `9d672e4c1bc33bb1feba0ebab1e78611baa107fb`（base `main` は `6f93999` まで進んでいる。#108・#109 の文書だけで重ならず、head に merge した一時的なツリーでも検証した）
 - 状態: completed
-- 実行許可: 利用者が `/review-fix-planning #106` を指定。計画のみの制限は無く、同スキルの完遂（修正要否の確定、修正が必要なら既存 PR への push）として扱う
-- 結論: 1（修正して push）
+- 実行許可: 利用者が `/review-fix-planning #106` を指定（第 1 回・第 2 回とも）。計画のみの制限は無く、同スキルの完遂（修正要否の確定、修正が必要なら既存 PR への push、不要ならマージ）として扱う
+- 結論: 第 1 回は 1（修正して push、`cbfae52`）、第 2 回は 2（修正不要でマージ）。第 1 回の記録は「入力」から「所要時間」まで、第 2 回の記録は「第 2 回（head `9d672e4`）」の節にある
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-96-plugin-repo`（PR head を checkout 済みの既存 worktree を、clean・PR head 一致の条件で再利用。このセッションの片付け対象ではない）
 
@@ -108,3 +108,66 @@
 ## 所要時間
 
 着手（2026-10-16 04:30Z ごろ）から Spec の記録まで約 20 分。レビューと PR の読み込み 約 8 分、指摘の再現と経路の確認 約 5 分、修正と検証（一括検証 152 秒を含む）約 5 分、自己レビューと記録 約 2 分。
+
+## 第 2 回（head `9d672e4`）
+
+- 実行許可: 利用者が 2026-10-16 に再び `/review-fix-planning #106` を指定。計画のみの制限は無く、同スキルの完遂（修正要否の確定、修正が不要ならマージと関連 Issue の更新）として扱う
+- 結論: 2（修正不要でマージ）
+- DOC_ROOT / CODE_ROOT: 第 1 回と同じ既存の worktree（clean・PR head `9d672e4` と一致を確かめて再利用。このセッションの片付け対象ではない）
+
+### 入力
+
+`reviews/#106-feat-issue-96-plugin-repo/` の 5 ファイル。各ファイルの対象 HEAD は、取得した `pull/106/head`（`9d672e4c1bc3`）の祖先であることを確かめた。
+
+| ファイル | 対象 HEAD | 判定 | 指摘 |
+| --- | --- | --- | --- |
+| `SWE-2-High.md` | `9d672e4c1bc3`（更新） | Approve | Low 1（R1） |
+| `claude-opus-5-5.md` | `9d672e4c1bc3`（更新） | Approve | Info 1（R1） |
+| `commandcode-deepseek-deepseek-v4.1-flash.md` | `9d672e4c1bc3`（初回） | Approve | Low 1（R5） |
+| `deepseek-deepseek-v4.1-flash.md` | `0c57c4f61487`（第 1 回のまま） | Approve | Low 1（R2）、Info 2（R1・R3） |
+| `gpt-6.1-sol.md` | `9d672e4c1bc3`（更新） | Approve | なし（M-1 = R4 は解消を確認） |
+
+### 分類
+
+| ID | 出どころ | 指摘 | 分類と根拠 |
+| --- | --- | --- | --- |
+| R1 | SWE L-1、Opus I-1、DeepSeek I-1 | `status` は「常に 0」と書かれているが、使い方の誤りで 2、git が無いと 3 で終わる | 対応しない。第 1 回と同じ。`scripts/resoloop-meshy.sh` は `0c57c4f` から変わっていない（`git diff --stat 0c57c4f 9d672e4` は文書 3 ファイルだけ）。`9d672e4` で `env PATH=/nonexistent /bin/bash scripts/resoloop-meshy.sh status` が 3、`status extra` が 2。どちらも何も変えずに理由を出して止まる。PR 本文の「後回しにした軽微な点」に既出 |
+| R2 | DeepSeek L-1 | `tests/scripts/test-docs.bash` の既定の対象に `docs/resoloop-meshy-workflow.md` が無い | 対応しない。第 1 回と同じ。`tests/scripts/test-docs.bash:51` は変わっておらず、`--refs docs/resoloop-meshy-workflow.md AGENTS.md` は `9d672e4` でも 0 |
+| R3 | DeepSeek I-2 | Plan の冒頭に「検証したコードの HEAD」が無い | 対応しない。第 1 回と同じ。記録の書き方 |
+| R4 | GPT M-1（解消の確認） | 運用文書の `gh pr create` に `--head` が無い | 解消済み。`cbfae52` で修正。`9d672e4` の `docs/resoloop-meshy-workflow.md:44` と Spec D-6（`2026-10-16-create-reso-world-issue-96-plugin-repo-design.md:76`）に `--base main --head <type>/<topic>` がある |
+| R5 | CommandCode DeepSeek L-1 | `review-fix-planning` の `#<番号>` は `external/resoloop-meshy/reviews/` を探さないので、プラグインの PR のレビューはフルパスで渡す必要があるが、運用文書と `AGENTS.md` の行に書いていない | 対応しない。確認した: `9d672e4` の `.agents/skills/review-fix-planning/SKILL.md:37,40` の探索先は、ルートの `reviews/` と `external/resoloop/reviews/` だけ。`#<番号>` は運用文書の手順にある呼び方ではなく、使っても誤った結果は残らない。0 件なら探した場所を示して何も変えずに止まる。ルートの `reviews/` に同じ番号の create-reso-world の PR のレビュー（例 `#2-`・`#6-`）があれば、その PR を対象にするが、該当する PR はすべてマージ済みで、手順 2 の PR の状態の確認で止まる。プラグインの PR の URL を添えれば、レビューの対象 HEAD がプラグインの PR の履歴に無いので、手順 2 の祖先の確認で止まる。番号が open の create-reso-world の PR（今は #106・#107）と重なる経路は、プラグインのリポジトリに Issue・PR がまだ 1 件も無いので到達しない。任意のリポジトリのレビューディレクトリをフルパスで受け取る規定は同 SKILL.md:54 にある。同じ論点を繰り返さないよう、PR の説明の既知の制限に回避方法（フルパスと PR の URL を渡す）を書き足した |
+
+分類: **解消済み 1 / 対応する 0 / 対応しない 4**。
+
+仕様の論点として残すもの: R5 の `#<番号>` の探索先に `external/resoloop-meshy/reviews/` を足すかは、スキルの変更になるので #96 の範囲外とする。
+
+同じ条件の再発と設計の見直し: 当たらない（「対応する」が 0 件）。
+
+### 確認の範囲
+
+- PR の変更 7 ファイルの全文（`scripts/resoloop-meshy.sh`、`tests/scripts/test-resoloop-meshy.bash`、`docs/resoloop-meshy-workflow.md`、`AGENTS.md` の差分、Issue #96 の Spec・Plan、この文書）
+- 関連: `.agents/skills/review-fix-planning/SKILL.md` の「第1引数の解決」と手順 2、`.agents/skills/pr-review/SKILL.md:85`（その他のリポジトリのレビューの保存先は `$CODE_ROOT/reviews/`）、`tests/scripts/test-docs.bash`、`.devcontainer/run-tests.bash`
+- 自己確認で PR の致命的な欠陥は見つからなかった
+- 検証は、PR head を checkout した既存の worktree と、`mktemp` の隔離 worktree（head に base を merge した一時的なツリー）で行った
+
+### 検証
+
+| 対象 | コマンド | 結果 |
+| --- | --- | --- |
+| PR head `9d672e4` | `bash tests/scripts/test-resoloop-meshy.bash` | PASS |
+| PR head `9d672e4` | `bash tests/scripts/test-docs.bash --refs docs/resoloop-meshy-workflow.md AGENTS.md` | 0 |
+| PR head `9d672e4` | `bash tests/scripts/test-instructions.bash`、`bash tests/scripts/test-file-modes.bash` | PASS |
+| PR head `9d672e4` | `bash .devcontainer/run-tests.bash` | 30/30 PASS |
+| PR head `9d672e4` | `bash scripts/check-layout.sh` | PASS |
+| head に base `6f93999` を merge したツリー（push しない） | `bash .devcontainer/run-tests.bash` | 30/30 PASS |
+| 同上 | `bash scripts/check-layout.sh` | PASS |
+
+base `main` は `6f93999`（#108・#109 の文書 5 ファイル）まで進んでいる。この PR の変更ファイルと重ならず、merge は競合しない。private の create-reso-world は CI を使わない（`AGENTS.md` の「GitHub Actions」）ので、check の確認は対象外。
+
+### 自己レビュー
+
+修正が無いので行わない（結論 2）。
+
+### 所要時間
+
+着手（2026-10-16 05:11Z ごろ）から Spec の記録まで約 10 分。レビューと PR の読み込み 約 3 分、指摘の確認と関連テスト 約 2 分、一括検証 2 回（各 約 150 秒）約 5 分（待ち時間に記録を下書き）。
