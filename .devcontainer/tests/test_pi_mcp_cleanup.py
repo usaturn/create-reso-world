@@ -19,7 +19,7 @@ MCP_FILES = (
 )
 BUILTIN_MCP_FILES = ("mcp.json", "mcp-auth.json")
 REMOVED = ("pi-mcp-adapter", "@upstash/context7-pi", "pi-distill",
-           "pi-extensions-tool-display", "pi-extensions-i18n")
+           "pi-extensions-tool-display", "pi-extensions-i18n", "pi-lens")
 KEPT = ["npm:keep-extension", {"source": "npm:other@1.0", "extensions": []}]
 
 
@@ -56,7 +56,7 @@ class PiMcpCleanupTests(unittest.TestCase):
                 "keep-extension": "^1.0", "other": "1.0", "pi-mcp-adapter": "^2.1",
                 "@upstash/context7-pi": "^1.1",
                 "pi-distill": "^1.0", "pi-extensions-tool-display": "^1.0",
-                "pi-extensions-i18n": "^1.0",
+                "pi-extensions-i18n": "^1.0", "pi-lens": "^4.4",
             }})
             self.save(self.agent / "npm/package-lock.json", {"lockfileVersion": 3, "packages": {
                 "": {"dependencies": {name: "*" for name in (*REMOVED, "keep-extension", "other")}},

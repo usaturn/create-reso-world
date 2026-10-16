@@ -14,7 +14,7 @@ args = sys.argv[1:]
 command = args.pop(0)
 args = [arg for arg in args if arg not in ("--approve", "--no-approve")]
 retired = ("pi-mcp-adapter", "@upstash/context7-pi", "pi-distill",
-           "pi-extensions-tool-display", "pi-extensions-i18n")
+           "pi-extensions-tool-display", "pi-extensions-i18n", "pi-lens")
 if os.environ.get("FAKE_PI_CALL_LOG"):
     with Path(os.environ["FAKE_PI_CALL_LOG"]).open("a") as log:
         log.write(json.dumps([command, *args]) + "\n")
