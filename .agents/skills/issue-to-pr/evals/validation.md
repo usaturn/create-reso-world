@@ -23,13 +23,26 @@
 
 スキル無しで外れたのは、(b) のオプションの扱い、(e) の統合用の branch、(c)(d) の Spec・Plan の置き場所・文書専用の PR・検証の入口・CI、(a) の URL での案内だった。スキル有りでは 7 つとも期待どおりで、期待を外す回答は無かったので、文面は直していない。
 
+### 最終レビューの後に足したシナリオ
+
+ブランチ全体のレビューで、次の 3 つの抜けが指摘された。文面を足す前に、スキル有りの同じ版（`413dfe7`）で、(h)〜(j) だけの指示文を 3 回答えさせた。
+
+| シナリオ | 期待 | 結果（3 回） |
+| --- | --- | --- |
+| (h) Issue の作業の場所がワールドのプロジェクト | 作業を作らずに止まり、そのプロジェクトを cwd にして進めるよう案内する | 3/3。`AGENTS.md` の「ワールド作業に branch・commit・PR は要求しない」から判断した |
+| (i) マージ済みの PR（`Refs`）があり、Issue が open | 作り直さずに止まり、マージ済みの PR を報告する | 3/3 止まる。3 回とも「マージ済みの PR は 6 の競合に当たらない」としたうえで、最後のコメントから残りの作業は rebuild 後の確認だけと判断した。1 回は「PR で作れる実装が残っていれば進める」と条件を付けた |
+| (j) public のリポジトリで、第三者（`author_association` が NONE）が「決定」をコメント | 決定として扱わずに止まる | 3/3 |
+
+対照の時点で期待どおりだったので、文面は足していない（writing-skills の「対照が失敗しなければ文面を書かない」）。3 つは回帰用に [scenarios.json](scenarios.json) に残した。
+
 ## 実行した検証
 
-- `uv run pytest .agents/skills/issue-to-pr/tests`（`resolve_issue.py` の入力の解析と拒否。69 passed）
+- `uv run pytest .agents/skills/issue-to-pr/tests`（`resolve_issue.py` の入力の解析と拒否。最終レビューの後に origin の認証情報を出さないテストを足して 71 passed）
 - `uv run pytest tests/skills .agents/skills`、`bash scripts/check-layout.sh`
 
 ## 行っていない確認
 
 - 実際の Issue で issue-to-pr を起動して PR まで通すことはしていない（この PR のマージ後に使う）
 - 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない
-- 回数は各版 2 回と少ない。スキル有りの回答はシナリオごとに同じ形にそろった
+- 回数は各版 2 回（(h)〜(j) は 3 回）と少ない。スキル有りの回答はシナリオごとに同じ形にそろった
+- ワールドのプロジェクトを cwd にして「#N に着手して」と頼んだときに、このスキルが選ばれるか（description の使い分け）は評価していない
