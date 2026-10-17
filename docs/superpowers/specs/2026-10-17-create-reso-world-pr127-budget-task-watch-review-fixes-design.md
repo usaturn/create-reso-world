@@ -4,12 +4,12 @@
 - PR: https://github.com/usaturn/create-reso-world/pull/127（`feat/issue-115-budget-task-watch` → `main`）
 - 関連 Issue: #115（`closingIssuesReferences`、本文の `Closes #115`）
 - 関連文書: `docs/superpowers/specs/2026-10-17-create-reso-world-issue115-budget-task-watch-design.md`、`docs/superpowers/plans/2026-10-17-create-reso-world-issue115-budget-task-watch.md`（どちらも draft のまま。この文書では変えない）
-- 検証したコード HEAD: 第 1 回は `e8d1287bf87e8f8885897a4db955249b14f5d1f4`、第 2 回は `27778ba5fd4f06f683956a51e7b4e45222b48fbe`。PR の分岐点は `cd602e6`。第 1 回の作業中に base `main` が PR #129・#130 のマージで `61763dc` に進んだ（「確認の範囲」の S-1）。第 2 回の時点の base は `fe35591`（#136 のマージ後）
+- 検証したコード HEAD: 第 1 回は `e8d1287bf87e8f8885897a4db955249b14f5d1f4`、第 2 回は `27778ba5fd4f06f683956a51e7b4e45222b48fbe`。PR の分岐点は `cd602e6`。第 1 回の作業中に base `main` が PR #129・#130 のマージで `61763dc` に進んだ（「確認の範囲」の S-1）。第 2 回の時点の base は `fe35591`（#136 のマージ後）。第 3 回は `c1c4fabdc30c9f9974a1015633c42c1a86d7855c` で、その時点の base は `8c44637`（#133 のマージ後）
 - 状態: completed
-- 実行許可: 利用者が 2026-10-17（JST）に `/review-fix-planning #127` を指定（第 1 回・第 2 回とも）。計画のみの制限は無く、同スキルの完遂（修正要否の確定、修正が必要なら既存 PR への push）として扱う
-- 結論: 第 1 回・第 2 回とも 1（修正して push）
-- 設計の見直し: 第 1 回はあり。L-1 の修正後の自己レビューで、直した条件がまた破れていた（きっかけ 3「自己レビューでの再発」）。下の「守る条件の設計」。第 2 回はなし（末尾の「第 2 回のレビュー修正」の「同じ条件の再発の確認」）
-- 第 2 回（HEAD `27778ba` の 5 件のレビュー）の記録は、末尾の「第 2 回のレビュー修正」にまとめた。それより前の節は第 1 回の記録である
+- 実行許可: 利用者が 2026-10-17（JST）に `/review-fix-planning #127` を指定（第 1 回・第 2 回とも）、2026-10-18（JST）に同じ指定（第 3 回）。計画のみの制限は無く、同スキルの完遂（修正要否の確定、修正が必要なら既存 PR への push、修正不要ならマージと関連 Issue の更新）として扱う
+- 結論: 第 1 回・第 2 回とも 1（修正して push）。第 3 回は 2（修正不要でマージ）
+- 設計の見直し: 第 1 回はあり。L-1 の修正後の自己レビューで、直した条件がまた破れていた（きっかけ 3「自己レビューでの再発」）。下の「守る条件の設計」。第 2 回はなし（末尾の「第 2 回のレビュー修正」の「同じ条件の再発の確認」）。第 3 回は「対応する」が無いので対象外
+- 第 2 回（HEAD `27778ba` の 5 件のレビュー）の記録は「第 2 回のレビュー修正」に、第 3 回（HEAD `c1c4fab` の 6 件のレビュー）の記録は末尾の「第 3 回のレビュー修正要否」にまとめた。それより前の節は第 1 回の記録である
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-115-budget-task-watch`（PR head を checkout 済みの既存 worktree を、clean・PR head 一致の条件で再利用。このセッションの片付け対象ではない）
 
@@ -362,3 +362,92 @@ SR-1 は L-1 で直した条件の再発なので、点の修正ではなく上�
 - 修正・テスト・ガードを外した対照: 約 5 分
 - 全体の検証（`run-tests.bash`・`check-layout.sh`・pytest 全体）と Spec の記録（待ち時間と重ねた）: 約 6 分
 - 自己レビュー（サブエージェント 3 件、並行。最も長い担当で約 12 分）と記録: 約 13 分
+
+## 第 3 回のレビュー修正要否（HEAD `c1c4fab`）
+
+### 入力
+
+`reviews/#127-feat-issue-115-budget-task-watch/` の 6 ファイル。各ファイルの対象 HEAD が、取得した `pull/127/head`（`c1c4fab`）の祖先であることを確かめた。
+
+| ファイル | 対象 HEAD | 判定 | 指摘 |
+| --- | --- | --- | --- |
+| `SWE-2-High.md` | `27778ba`（Initial）→ `c1c4fab`（Update） | Approve | L-1（前回から継続）、I-1 |
+| `claude-opus-5-5.md` | `e8d1287` → `27778ba` → `c1c4fab`（Update） | Approve | なし（L-1・I-1 は解消済みに移った） |
+| `commandcode-deepseek-deepseek-v4.1-flash.md` | `e8d1287` | Approve | なし |
+| `deepseek-deepseek-v4.1-flash.md` | `c1c4fab` | Approve | M-1 |
+| `gpt-6.1-sol.md` | `27778ba` → `c1c4fab`（Update） | Approve | L-1（前回から継続）。H-1 は解消済みに移った |
+| `grok-4.7.md` | `27778ba` | Approve | M-1 |
+
+### 分類
+
+| ID | 出どころ | 内容 | 分類と根拠 |
+| --- | --- | --- | --- |
+| DS-M1 | deepseek-deepseek-v4.1-flash M-1 | `issue_budget.py` の `summarize`（180〜181 行）が、同じ signature の分類を最後の記録で上書きする。`safety` の後に同じ signature を `reliability` で記録すると、`show` の `safety_failure` が `false` になり、その signature が `retry_limit_reached` に入る | 対応しない。現行 HEAD で再現した（下の「DS-M1 の再現」）が、致命的ではない。`execution-budget.md` は、安全の失敗があれば予算に関係なく全体停止して再試行しない（69 行・86 行）、checkpoint は worker が失敗した直後（55 行）と定める。手順どおりなら、同じ signature を別の分類で記録し直す前に止まり、判断は利用者に返る。どちらの分類を残すべきかは仕様の論点である（最初の safety を固定すると、利用者が安全の停止を解消して再開させた run でも `safety_failure: true` が続く）。コードは移植元のまま（D-3）にし、PR の既知の制限に条件と回避方法を書く |
+| SWE-L1 | SWE-2-High L-1 | 進捗ファイルを truncate・書き直すと、それより後の記録（安全の失敗を含む）を読み落とす | 対応しない。第 2 回と同じ判断。`read_progress`（`task_watch.py:212`）は第 2 回から変わっていない。`SKILL.md` の規約（1 行ずつ追記）の外の使い方で、PR の既知の制限に書いてある。現行 HEAD でも再現した（50 行を読んだ後に safety の失敗 1 行へ書き直すと `safety_signature` が `None`） |
+| SWE-I1 | SWE-2-High I-1 | `finish()` の `reason != "residual_processes"` の除外（`task_watch.py:488`）を固定するテストが無い | 対応しない。Info で致命的ではない。除外が無くても判定は `hold`・終了コード 3・`residual_pids` の報告のままで、依存作業を止める挙動は変わらない（変わるのは `reason` と `next_step` の文面）。指摘の事実は正しく、除外を外した版で `test_task_watch_process.py` が 22 件すべて通ることを確かめた。第 2 回の SR2-2 と同じ |
+| GPT-L1 | gpt-6.1-sol L-1 | 起動に失敗すると `declaration.json` を書かないので、`status` が終了コード 2 になる | 対応しない。第 2 回と同じ判断。現行 HEAD で再現した（`run` は終了コード 1・`launch_failed`、`declaration.json` は無く、`status` は終了コード 2）。対象は起動しておらず、`status` の失敗は片付けを止める安全側に倒れる。PR の既知の制限に回避方法がある |
+| GPT-H1 | gpt-6.1-sol H-1（`27778ba`） | 終了・停止の待ち合わせの後に進捗を読み直さず、安全の失敗と部分成果を落とす | 解消済み。第 2 回の `6600896`。`test_records_written_by_the_group_after_exit_reach_the_final`・`test_records_written_while_stopping_reach_the_final` が現行 HEAD で通る |
+| GROK-M1 | grok-4.7 M-1（`27778ba`） | 停止のシグナルの後に書かれた進捗が `final.json` に残らない | 解消済み。GPT-H1 と同じ修正とテスト |
+| OPUS-I1 | claude-opus-5-5 I-1 | `execution-budget.md` が、まだ無い `issue-to-pr` を参照する | 解消済み。base の `origin/main`（`8c44637`）に `.agents/skills/issue-to-pr` がある |
+| OPUS-L1 | claude-opus-5-5 L-1（`e8d1287`） | pi の bash ツールの timeout・中断で watcher だけが消える | 解消済み。第 1 回の `5152cae` |
+| U-1 | SWE-2-High・commandcode-deepseek の未確認候補 | `.devcontainer/README.md` と `review-fix-planning` の本文のテストのコマンドに `.agents/scripts` が無い | 対応しない。第 2 回と同じ（PR 本文の持ち越し候補） |
+| U-2 | SWE-2-High の未確認候補 | `uv.lock` が公開から 6 日の pydantic 2.14.1 を解決した | 対応しない。第 2 回と同じ |
+| U-3 | commandcode-deepseek の未確認候補 | `uv.lock` の revision が 3 から 5 に上がった | 対応しない。第 2 回と同じ。base を merge したツリーでも `uv lock --check` が通る |
+
+分類: **解消済み 4（GPT-H1・GROK-M1・OPUS-I1・OPUS-L1）/ 対応する 0 / 対応しない 7（DS-M1・SWE-L1・SWE-I1・GPT-L1・U-1〜U-3）**。
+
+仕様の論点として残すもの: DS-M1 の「同じ signature の分類を最初の safety で固定するか、最後の記録で決めるか」。`task_watch.py` は最初の分類を保ち（`setdefault`）、`issue_budget.py` は移植元のまま最後の記録で決める。
+
+### DS-M1 の再現（`c1c4fab` の隔離 worktree）
+
+| 記録の順 | `show` の結果 |
+| --- | --- |
+| `start` → `mark --event failure --failure-class safety --signature unknown-send` | `safety_failure: true`、`retry_limit_reached: []`、`failures.unknown-send` は safety・1 回 |
+| 続けて同じ signature を `--failure-class reliability` で記録 | `safety_failure: false`、`retry_limit_reached: ["unknown-send"]`、`failures.unknown-send` は reliability・2 回 |
+| 逆の順（reliability → safety） | `safety_failure: true`、safety・2 回 |
+
+同じ worktree で GPT-L1・SWE-L1 の再現と SWE-I1 の対照も行い、終わった後に worktree を外して消した。
+
+### 同じ条件の再発の確認（第 3 回）
+
+「対応する」項目が無いので対象外。
+
+### 確認の範囲（第 3 回）
+
+- 全文: `task_watch.py`（800 行）、`issue_budget.py`（283 行）、`fake_worker.py`、`test_task_watch_core.py`、`test_task_watch_process.py`、`test_issue_budget.py`、`SKILL.md`、`execution-budget.md`、`evals/2026-10-17-issue-115.md`、Issue #115 の Spec・Plan、この文書（第 1 回・第 2 回の記録）、PR 本文とコメント
+- 差分: `.agents/monitoring-runtimes.md`、`AGENTS.md`、`README.md`、`.github/workflows/ci.yml`、`pyproject.toml`、`docs/maatlog-poc-porting.md`、`uv.lock`（追加したパッケージと版）
+- base: `main` は `8c44637`（#133 のマージ）に進んだ。#133 は `AGENTS.md` に「push の前の秘密情報の検査」を足し、`review-fix-planning` の push の手順を検査付きに変えた。この PR の差分とは重ならず、`git merge-tree --write-tree origin/main HEAD` は衝突しない
+- 自己確認: PR が持ち込んだ致命的な欠陥は見つからなかった
+
+### 検証（第 3 回）
+
+| 場所 | コマンド | 結果 |
+| --- | --- | --- |
+| 隔離 worktree（`c1c4fab`） | `uv run --locked pytest -q .agents/scripts .agents/skills/monitoring-long-tasks` | 58 passed（29 秒） |
+| 専用の worktree（`c1c4fab`） | `bash .devcontainer/run-tests.bash` | `PASS: 30 test(s)`（終了コード 0） |
+| 専用の worktree | `bash scripts/check-layout.sh` | PASS |
+| 専用の worktree | `uv run --locked pytest -q tests/skills .agents/skills .agents/scripts` | 532 passed（133 秒）。実行後の `git status --porcelain` は空、HEAD は `c1c4fab` のまま |
+| base（`8c44637`）を merge した隔離ツリー（tree `99b7875`。push しない） | `uv lock --check` | OK |
+| 同上 | `bash .devcontainer/run-tests.bash` | `PASS: 32 test(s)`（base 側で増えた 2 件を含む） |
+| 同上 | `bash scripts/check-layout.sh` | PASS |
+| 同上 | `uv run --locked pytest -q tests/skills .agents/skills .agents/scripts` | 625 passed（134 秒）。終わった後に隔離ツリーを外して消した |
+
+負荷による時間依存の失敗（#128）を避けるため、専用の worktree と隔離ツリーの検証は並べずに順に実行した。
+
+結論 2 なのでコードは変えていない。private の create-reso-world は CI を使わない（`AGENTS.md` の「GitHub Actions」）。
+
+### 結論（第 3 回）
+
+- 結論: 2（修正不要でマージ）
+- 実行許可: 利用者が 2026-10-18（JST）に `/review-fix-planning #127` を指定した。計画のみの制限は無く、同スキルの完遂（修正不要なら、検証・状況コメント・マージ・関連 Issue の更新まで）として扱う
+- 自己レビュー: 結論 2 なので行っていない
+- PR の説明: 既知の制限に DS-M1（同じ signature の分類は最後の記録で決まる。回避: 安全の失敗を記録したら全体停止し、同じ signature を別の分類で記録しない）を足す
+
+### 所要時間（第 3 回）
+
+着手（2026-10-17 15:18Z）から Spec の記録（15:36Z ごろ）まで約 18 分。
+
+- レビュー 6 件・PR・共通 context と worktree の確認: 約 3 分
+- 変更ファイルの読み込み、隔離 worktree での再現と対照（DS-M1・GPT-L1・SWE-L1・SWE-I1、関連テスト 58 件）、分類: 約 5 分
+- 検証（専用の worktree と base を merge したツリー、順に実行）: 約 9 分。Spec の下書きと PR 本文の準備を重ねた
+- Spec の記録: 約 1 分
