@@ -132,3 +132,27 @@ Plan の末尾に「完了」の節（各検証の結果、所要時間と Task 
 - [ ] **Step 3: push と PR**
 
 `git push -u origin feat/issue-123-agent-tmp-safety-rules`、`gh pr create --base main`。本文は `Closes #123`、変更の要約、検証の結果、持ち越し（`.devcontainer/README.md` のテストのコマンド、`repo-cleanup-after-merge` の固定名、#115 の入口）を書く。
+
+## 完了
+
+実装と検証を終えた（2026-10-17 JST、検証した HEAD `299f381`）。PR の作成・マージの状態は PR を参照する。
+
+### 検証
+
+- Task 1: `uv run pytest .agents/scripts -q` は、実装前に収集エラー（`agent_tmp.py` が無い）で失敗し、移植後に 21 passed。親の checkout をスクリプトの置き場所ではなく cwd から求める変異を一時的に入れ、CLI のテスト 2 件（`test_cli_root_from_every_cwd`・`test_cli_mkdir_from_worktree_copy_writes_parent_tmp`）が失敗することを確かめてから元に戻した
+- Task 2: `bash tests/scripts/test-instructions.bash`・`bash tests/scripts/test-docs.bash` は PASS。「作業の安全」の書き分けの箇条（ワールドのプロジェクトの作業と、置き場所の表にある場所への書き込みは追跡するファイルの編集に当たらない）と、「プロジェクト運用」の 1 番目（ワールドを cwd にして起動する）・3 番目（branch・commit・PR を要求しない）を読み合わせ、ワールドの作業に worktree・branch を求める読み方が無いことを確かめた
+- Task 3（README の「テスト」の全項目、直列に実行）
+  - `bash .devcontainer/run-tests.bash`: `PASS: 30 test(s)`、終了コード 0
+  - `bash scripts/check-layout.sh`: `PASS: check-layout`、終了コード 0
+  - `uv run pytest tests/skills .agents/skills .agents/scripts -q`: 1 回目は 493 passed・1 failed・1 skipped（終了コード 1）。失敗は `test_save_waits_for_repository_review_lock` の 5 秒のタイムアウトで、実行中は 5 つのエージェントのセッションが並行して動き、load average は約 6 だった。単独では 3 回とも約 1.1 秒で成功した。skip は stale-git-lock-recovery の、他の git プロセスが動いているときの skip。再実行は 495 passed（終了コード 0）。どちらもこのブランチが触れていない pr-review・stale-git-lock-recovery のテストで、環境の負荷による失敗と判断した
+
+### 実行中の判断
+
+- SDD の作業領域（ledger）は、既定の worktree の中の `.superpowers/sdd/` ではなく、Claude Code の scratchpad に置いた。この Plan が足す「worktree の中にコミットしないファイルを作らない」に合わせるため
+- CLI の `root` のテストは、2 つの写し × 7 つの cwd を 1 つのテストの中で回す（fixture の作成を 1 回にするため）
+- 「worktree の中にコミットしないファイルを作らない」に、テストやビルドが作る再生成できるキャッシュ（`.venv/`・`__pycache__/` など）を除くことを足した。除かないと worktree で `uv run` が使えなくなるため。置き場所の表の PR レビュー結果に、その他のリポジトリは `CODE_ROOT` の `reviews/` であることを足した（pr-review の保存先のとおり）
+- 最終レビューは、利用者がサブエージェントの起動を指示していないため、作業者自身が行った（修正が要る指摘は無し）
+
+### 所要時間
+
+着手 21:05 から PR の作成まで約 40 分。内訳は、調査（Issue・移植元・移植先の確認）約 10 分、Spec・Plan 約 5 分、Task 1 約 5 分、Task 2 約 5 分、Task 3（検証・失敗の切り分け・PR）約 15 分。
