@@ -88,7 +88,8 @@
 - `pi-launcher-install.bash` が開始/終端を全て検証してからbufferを出力し、targetのshared-skills手前で切る。実行はread-only root、private /tmp、専用HOME bind、networkとPID namespaceに限定する。実導入処理そのものは移植元と同一で変えていない。
 - 8件の実行回帰（外部installerへの未到達、欠落/重複/逆順で出力無し、正しい範囲だけ実行、ホスト/tmpの内容保持・repo書込拒否・テスト所有のhost listenerへの接続拒否）は全て成功。
 - 修正後の全体再実行: bash32本、layout、pytest625件が終了0。migrationsは既存149件＋回帰8件の157件。以前の終了0と混同せず、再検証ログを分けた。
-- 実機・過去影響の不明点は引き続き残る。Windows/実range/rebuild/実providerの成功は主張しない。
+- 限定re-reviewでは、外側のread-only rootが内側helperの退行を隠す検査上の問題を指摘された。外側では書けるテスト所有mountを`/mnt`へ追加し、外側の書込成功・内側の書込拒否を個別に確認した。専用copyのhelperからreadonlyを外すと、このfixtureへの書込だけを起こして回帰検査が失敗（RED）。実helperは8件全成功（GREEN）。実領域の保護を緩めず検出力を確認した。
+- 実機・過去影響の不明点は引き続き残る。Windows/実range/rebuild/実providerの成功は主張しない。任意の悪意あるコードに対する完全なsandboxを保証する変更ではなく、テストの誤実行範囲とI/Oを隔離する。
 
 ## Builder check の裁定
 
