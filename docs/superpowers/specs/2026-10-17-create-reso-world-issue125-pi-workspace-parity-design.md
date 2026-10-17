@@ -8,6 +8,7 @@
 - PARENT_ROOT: `/workspaces/reso-world`
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-125-pi-workspace-parity`
 - branch: `feat/issue-125-pi-workspace-parity` → `main`
+- 公開: https://github.com/usaturn/create-reso-world/pull/141。実行は完了しPRで公開したが、Spec内容への承認とは区別して状態はdraftを維持する。Windows/rebuild/実providerの確認はIssue #125のchecklistに残す。
 - 移植先の基準: `76f1098af9f07388f4c10d55786ea9d726654171`
 - 移植元: `usaturn/agent-workspace` main `715d98168ab60011a98a42476ffea2759d4866d7`（2026-10-17 に再確認）。この SHA のファイルを読み取り専用の GitHub snapshot から取り入れる。外部 checkout の探索・clone・変更はしない。
 - 先行条件: agent-workspace #713 は PR #714 でマージ済み。後続の修正 #716 / PR #717 もマージ済み。同じ Issue の open PR・担当予約・branch・worktree は無い。GitHub parent は無い（parent API の 404 は正常な不在）。#122 は rebuild 後の確認待ちだが、必要な設定の PR #129 はマージ済みで基準に含まれる。

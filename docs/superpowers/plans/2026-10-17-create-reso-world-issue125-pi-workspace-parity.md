@@ -82,8 +82,8 @@
 - [x] 全検証: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts`。Expected: 全て終了0。移植元との一致ファイル・差分例外を記録する。
 - [x] 実 Plannotator を隔離・offlineで確認できるなら loopback / port fallback / HTTP review submission を確認。Windows・rebuild・実モデルは未検証のままchecklistへ。
 - [x] 明示ファイルをcommit後、`sp-review` に `Review scope: branch`、upstream `code-reviewer.md`、base/head・Spec/Plan・Review Focus・検証・Rulingを渡す。レビューは読み取り専用、テストは実装担当が実行する。Important/Critical は1回の修正passで対処し再発テストが必要なら RED→GREEN、文書のみなら参照と差分検査を実施する。
-- [ ] Issue状態・競合・remote予約を再確認。secret scanの返したSHAをそのままbranchへpushし、`gh pr create --repo usaturn/create-reso-world --base main --head feat/issue-125-pi-workspace-parity`。本文に `Closes #125`、決定理由・方式理由・検証・時間内訳・例外・未検証を記す。
-- [ ] #125に実機checklistをコメント。Spec/Planはdraftのまま結果を追記してコミットし（公開前に行う）、実行許可と承認を区別する。Herdrをcompletedにし、PR・branch/worktree・文書の絶対パス・所要を報告する。
+- [x] Issue状態・競合・remote予約を再確認。secret scanの返したSHAをそのままbranchへpushし、`gh pr create --repo usaturn/create-reso-world --base main --head feat/issue-125-pi-workspace-parity`。本文に `Closes #125`、決定理由・方式理由・検証・時間内訳・例外・未検証を記す。
+- [x] #125に実機checklistをコメント。Spec/Planはdraftのまま結果を追記してコミットし（公開前に行う）、実行許可と承認を区別する。Herdrをcompletedにし、PR・branch/worktree・文書の絶対パス・所要を報告する。
 
 ### Task 3: F-1 の安全修正（利用者の明示指示による再開）
 
@@ -96,17 +96,18 @@
 - [x] 欠落・重複・逆順で出力/実行無し、正しい範囲の実行、範囲外のtail不実行、書込拒否/network不通をbehavioral fixtureで検証。入口へ新pytestを加える。
 - [x] GREENと全体検証を同期実行。最初のREDと安全修正後の実行結果は別ログへ保存する。危険な旧版を隔離無しで再実行しない。
 - [x] F-1修正をcommitし、停止を挟んだ安全修正なので差分に限定した独立re-reviewで境界を確認する。元のbranch review全体をやり直さない。
-- [ ] Issue/競合を再確認し、scan済SHAのpushと元のPR計画を続行する。実機未検証と過去の安全停止/影響不明もPRに明記する。
+- [x] Issue/競合を再確認し、scan済SHAのpushと元のPR計画を続行する。実機未検証と過去の安全停止/影響不明もPRに明記する。
 
 再開の実行予算: 元の100分のうち前run約46分と再開準備約6分を差し引き48分。準備/修正15分、回帰/全体検証15分、限定review/公開18分。ledgerは同sessionの`recovery-budget.jsonl`。旧budget.jsonlの安全失敗を消さず保存し、利用者が明示許可した異なる安全な検証方法だけを別runで記録する。新しい安全失敗は即停止、信頼性は1回まで。任意sp-reconは結果無しで返ったため成功扱いせず、同じ呼出しを繰り返さずcontrollerの読み取り調査へ変更した。
 
 ## 実行記録
 
-準備: parent無し、競合無し、先行修正マージ済み。基準検証は bash 32本・layout・pytest 625件すべて終了0。Spec builder-checkの指摘3件を解決し、Specを `0a9e734` にコミット。Task 1 を `a24dc66` にコミット。Task 2 は文書・設定を反映し、全検証成功（bash32本、layout、pytest625件、migrations149件）。Plannotator は設定範囲が占有中だったため一時ポートでloopback・fallback・日本語Markdown・合成承認を検証（45123占有→45124、終了0）。初回branch reviewでF-1を検出して安全停止。その後、利用者の明示指示によりTask3を実行。隔離した実テストのRED→GREENと8件の回帰、全体32bash/layout/625pytestの再検証を確認した。安全修正をc35db31にコミットし、限定re-reviewを実施。指摘された検査の独立性をテスト所有の書込可能mountで補強し、readonlyを外したcopyが安全にREDになることを確認した。公開は未実施（次の段階）。
+準備: parent無し、競合無し、先行修正マージ済み。基準検証は bash 32本・layout・pytest 625件すべて終了0。Spec builder-checkの指摘3件を解決し、Specを `0a9e734` にコミット。Task 1 を `a24dc66` にコミット。Task 2 は文書・設定を反映し、全検証成功（bash32本、layout、pytest625件、migrations149件）。Plannotator は設定範囲が占有中だったため一時ポートでloopback・fallback・日本語Markdown・合成承認を検証（45123占有→45124、終了0）。初回branch reviewでF-1を検出して安全停止。その後、利用者の明示指示によりTask3を実行。隔離した実テストのRED→GREENと8件の回帰、全体32bash/layout/625pytestの再検証を確認した。安全修正をc35db31にコミットし、限定re-reviewを実施。指摘された検査の独立性をテスト所有の書込可能mountで補強し、readonlyを外したcopyが安全にREDになることを確認した。PR https://github.com/usaturn/create-reso-world/pull/141 をmain宛てに公開。初回pushの検査SHAは81e0691、Gitleaksは8commitを検査し検出無し。Issue #125 のコメント https://github.com/usaturn/create-reso-world/issues/125#issuecomment-6237948523 に実機checklistを保存した。PRはOPEN / MERGEABLE / CLEAN（17:46Z確認）、マージは行っていない。
 
 ### 最終検証
 
 - 修正後の最終 `run-tests.bash`: 32/32終了0（migrations157件を含む）、layout終了0、syntax/diff検査終了0。
 - 最終pytestは `test_abandon_waits_for_a_checkout_that_outlives_create` 1件で失敗（624成功）。既存testがchildの生成より前のworktree-add journalで待ちから戻るタイミング依存を確認した。対象外のコードは変えず、許可した1回だけ全体再実行し625件成功（172.80秒）。失敗を隠さずPRへ記録する。
 - 安全修正の限定re-reviewではF-1元経路は解消済み。検査の独立性の指摘も、テスト所有writable mountと実行mutation RED→GREENで対処した。Minorは無し。
+- 公開準備までの能動時間は約87分（初回46分、明示再開後41分、利用者待ち除外）。当初100分の範囲内。再開側ledgerに新たな安全失敗は無い。残したsession `/workspaces/reso-world/tmp/agents/issue-125.srg4whc3/` は安全事象の影響確認に必要な証跡として保持する。task_watch無し、所有smoke serverと同期workerは終了済み。元の安全失敗を削除・成功へ書き換えていない。
 - 裁定: 過去の実環境影響は復元不能なのでunknownを維持し自動復旧しない。変更していないlauncher/setupは初回branch reviewの範囲を維持する。Windows/rebuild/実providerと任意の悪意あるコードに対する完全な隔離保証は今回のローカル検証に含めない。
