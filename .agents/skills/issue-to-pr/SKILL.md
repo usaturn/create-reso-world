@@ -108,11 +108,11 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
   SCAN="$PARENT_ROOT/scripts/scan-before-push.sh"
   CODE_SHA="$(bash "$SCAN" -C <コードの worktree>)" && [ -n "$CODE_SHA" ] \
     && DOC_SHA="$(bash "$SCAN" -C <文書の worktree>)" && [ -n "$DOC_SHA" ] \
-    && git -C <コードの worktree> push origin "${CODE_SHA}:refs/heads/<branch>" \
-    && git -C <文書の worktree> push origin "${DOC_SHA}:refs/heads/docs/<名前>"
+    && git -C <文書の worktree> push origin "${DOC_SHA:?}:refs/heads/docs/<名前>" \
+    && git -C <コードの worktree> push origin "${CODE_SHA:?}:refs/heads/<branch>"
   ```
 
-  公開する worktree をすべて検査してから、どれかを push する。`TARGET_REPO` が create-reso-world なら、文書の worktree はコードの worktree と同じなので、`DOC_SHA` の 2 行を除く。検査の後に commit を足したら、検査からやり直す。CI の修正などの再 push も同じ形で行う。
+  どれかを push する前に、公開する worktree をすべて検査する。`TARGET_REPO` が create-reso-world なら、文書の worktree はコードの worktree と同じなので、`DOC_SHA` の 2 行を除く。SHA が空だと refspec が branch の削除になるので、呼び出しを分けるときも `:?` を外さない。検査の後に commit を足したら、検査からやり直す。CI の修正などの再 push も同じ形で行う。
 - push の後に `gh pr create --repo "$TARGET_REPO" --base main --head <branch>` で PR を作る。SHA を指定した push では upstream が設定されないので、`--head` を省かない。既存の PR が見つかったら重複して作らない。
 - PR 本文: Issue が `TARGET_REPO` にあれば `Closes #N`、別のリポジトリにあれば `Refs <Issue の URL>`（マージで別のリポジトリの Issue を閉じない）。変更概要、**Spec の決定と理由、実行方式と理由**、実行した検証と結果、作業時間と主要 Task 別の内訳を書く。未実行の確認を成功と書かない。
 - `TARGET_REPO` が create-reso-world でなければ、続けて、上で push した文書用の branch から create-reso-world に Spec・Plan だけの PR を作る。本文は `Refs <Issue の URL>` とコードの PR の URL。コードの PR の本文にも文書の PR の URL を足す。
