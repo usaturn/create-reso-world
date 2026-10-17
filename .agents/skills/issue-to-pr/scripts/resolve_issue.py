@@ -71,7 +71,9 @@ def resolve_target(reference: str, cwd: Path) -> tuple[str, int]:
         except (ValueError, OSError) as exc:
             raise ValueError(f"#N を解決する現在の checkout の origin を読めません（{exc}）") from exc
         if (origin_match := ORIGIN_URL.fullmatch(origin)) is None:
-            raise ValueError(f"現在の checkout の origin が GitHub のリポジトリではありません: {origin}")
+            # URL に埋め込まれた認証情報（user:token@）を報告に出さない
+            shown = re.sub(r"(?<=://)[^/@]*@", "***@", origin)
+            raise ValueError(f"現在の checkout の origin が GitHub のリポジトリではありません: {shown}")
         return supported(origin_match[1]), int(match[1])
     raise ValueError(
         "https://github.com/<owner>/<repo>/issues/N、<owner>/<repo>#N、現在の checkout の #N の"

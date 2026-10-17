@@ -224,6 +224,23 @@ def test_number_with_unusable_origin_stops(checkout: Path, gh_stub: Path, origin
     assert not gh_stub.exists()
 
 
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://user:s3cr3t-token@github.com/usaturn/create-reso-world.git",
+        "https://s3cr3t-token@gitlab.com/usaturn/create-reso-world.git",
+    ],
+)
+def test_origin_with_credentials_stops_without_printing_them(
+    checkout: Path, gh_stub: Path, origin: str
+) -> None:
+    subprocess.run(["git", "remote", "set-url", "origin", origin], cwd=checkout, check=True)
+    result = resolve(checkout, "#42")
+    assert_rejected(result)
+    assert "s3cr3t-token" not in result.stderr
+    assert not gh_stub.exists()
+
+
 def test_number_outside_a_checkout_stops(tmp_path: Path, gh_stub: Path) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
