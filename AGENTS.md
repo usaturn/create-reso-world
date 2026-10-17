@@ -58,6 +58,14 @@
    抽象語が必要な場合は、仕様・ルールを定義するファイルを文脈に応じて「定義元」「正式版」「基準となる文書・設定」「正式な保存先」「一元管理する場所」「〜を基準とする」など、日本人エンジニアに自然で分かりやすい表現に言い換えること。
    単純な置換ではなく、何を基準にするのかが伝わる文章にする。
 
+- レビュー修正ループの `round` を「巡」、`seat` を「席」と訳さない。
+
+  - 繰り返しの単位は「サイクル」、順番は「1 回目」「2 回目」、数は「サイクル数」「レビュー修正の回数」などと書く
+  - レビューを担当するモデル・エージェントは「レビュアー」、その組み合わせは「レビュアーの構成」などと書く
+  - 他のリポジトリの形式・記録に残る「巡」「席」は、引用するときだけ原文のまま書く
+
+- 「実行器」のような、日本人の IT エンジニアが一般的に使わない直訳は避ける。文脈に応じて「ランナー」「実行ツール」「実行処理」などを使い、対象が明確な場合は具体的なツール名を使う。
+
 ## ファイルとドラフト
 
 - `docs_draft/` はローカルの下書き置き場で、git では追跡しない。タスクで指定された場合だけ読む
@@ -68,12 +76,51 @@
 
 - どのリポジトリの作業でも、Spec・Plan の正本は `usaturn/create-reso-world` の `docs/superpowers/` に保存してコミットする。ResoLoop や無関係なリポジトリの作業でも、対象リポジトリには置かず、二重管理もしない。運用の要点は `docs/superpowers/README.md` にある
 - スキル superpowers で作成する Spec・Plan は、作業時に必ず作成している worktree のブランチにコミットし、ユーザ確認用で main の `docs_draft/superpowers/specs/` `docs_draft/superpowers/plan/` にコピーする
-- 作業先は 3 つを区別する。`PARENT_ROOT` はユーザが確認用ファイルを読む create-reso-world の親 checkout、`DOC_ROOT` は正本をコミットする create-reso-world の checkout または worktree、`CODE_ROOT` はユーザの依頼または確認済みの引き継ぎで明示された、コード対象の checkout の絶対パスである。コード対象の cwd の `git rev-parse --show-toplevel` を、`DOC_ROOT` や `PARENT_ROOT` とみなさない
+- 作業先は 3 つを区別する。`PARENT_ROOT` はユーザが確認用ファイルを読む create-reso-world の親 checkout（`uv run --no-project python .agents/scripts/agent_tmp.py root` が出力するディレクトリ）、`DOC_ROOT` は正本をコミットする create-reso-world の checkout または worktree、`CODE_ROOT` はユーザの依頼または確認済みの引き継ぎで明示された、コード対象の checkout の絶対パスである。コード対象の cwd の `git rev-parse --show-toplevel` を、`DOC_ROOT` や `PARENT_ROOT` とみなさない
 - 文書を create-reso-world に集めることは、他のリポジトリのコード変更・clone・push・PR 作成の許可ではない。対象 checkout の `AGENTS.md` 等も守る
 - 正式な Spec・Plan は、承認前でも `draft` のまま `DOC_ROOT` の作業ブランチにコミットする。状態は `draft`・`approved`・`completed`・`superseded`・`cancelled` で書き、コミットしただけで `approved` にしない。完了した文書も削除しない
 - 同じテーマのレビュー修正は既存の文書を更新し、過去の版は Git の履歴に残す。更新前には対象リポジトリ・Issue/PR・テーマ・正本のパスで現行の Spec/Plan を探し、複数の候補があって確定できないときは進めずに確認する。回ごとの新規文書（roundN）は既定で作らない。承認は内容のコミット SHA に結び付け、承認後の状態・記録追記だけの変更は再承認を求めない。実質的な設計・計画の変更は再承認を必要とする（記録した実行許可がその変更を明示的に含む場合を除く）。例外で進める場合は許可された変更内容を記録し、一般的な継続指示だけで変更の承認を推測しない
 - ユーザに Spec・Plan の確認を依頼する前に、コミット済みの版を `scripts/superpowers-review-copy.sh` で `PARENT_ROOT` の `tmp/superpowers-review/` へコピーし、コピー先・文書のコミット SHA・正本のパスを示す。ファイル名は内容が分かる短い名前に `-spec.md` か `-plan.md` を付け、関連する Issue・PR があれば `<repo>-pr<N>-` のように番号を含める。番号を発明しない。コピーは既存の entry を決して差し替えない。正本が変わったら `...-r2-spec.md` のような別名で新しいコピーを公開し、旧コピーとユーザの注記は残す
 - 公開: create-reso-world 自身の変更に伴う文書は、その作業の PR に含める。他のリポジトリの変更に伴う文書は、create-reso-world の文書用ブランチから、テーマごとに 1 つの文書専用 PR で公開する。コミット・push・PR 作成・マージは別の段階であり、ユーザまたは使っているワークフローの明示指示があるときだけ行う。ローカルのコミットだけのときは、報告と handoff に「公開未実施」と書く
+
+### コミットしないファイルの置き場所
+
+コミットしないファイルは、用途ごとに次の場所へ置く。表の相対パスは `PARENT_ROOT` が基準である。
+
+| 用途 | 置き場所 |
+| --- | --- |
+| セッション後も参照し得るスクラッチ・検証ログ・下書き | `tmp/agents/<topic>.XXXXXX/`（`uv run --no-project python .agents/scripts/agent_tmp.py mkdir <topic>` で作る。`<topic>` は `issue-123` のような英小文字の短い名前） |
+| エージェント間の引き継ぎ | `tmp/docs_draft/claude_handoffs/`（agent-handoff スキル） |
+| Spec・Plan の確認用コピー | `tmp/superpowers-review/`（`scripts/superpowers-review-copy.sh`）と、`docs_draft/superpowers/specs/`・`docs_draft/superpowers/plan/`（「Spec・Plan の保存と公開」のとおり両方に置く）。正式な Spec・Plan は今までどおり `DOC_ROOT` の `docs/superpowers/` にコミットする |
+| ユーザから作成を依頼された文書 | `docs_draft/` |
+| PR レビュー結果 | `reviews/#<PR>-<branch>/`（保存先は pr-review のヘルパーが決める。resoloop の PR は `external/resoloop/reviews/`、その他のリポジトリは `CODE_ROOT` の `reviews/`） |
+| 使い捨ての git worktree とその作業領域 | `/tmp` の一意のディレクトリ（pr-review の `/tmp/pr-review-*`、review-fix-planning の `mktemp -d`） |
+| 消えても困らない中間出力 | `/tmp` に `mktemp -d` で作るディレクトリ、Claude Code の scratchpad |
+
+- worktree（`.worktrees/<topic>`、`external/resoloop-meshy/.worktrees/<topic>`、レビュー用の使い捨ての worktree）の中に、コミットしないファイルを作らない。worktree を消すと失われ、repo-cleanup-after-merge が判定できずに止まる。テストやビルドが作る、再生成できるキャッシュ（`.venv/`・`__pycache__/` など）は除く
+- `/tmp` 直下に固定名のファイルを作らない。`/tmp` を使うときも `mktemp -d` で一意のディレクトリを作り、その中に置く
+- `tmp/agents/` のセッションディレクトリは、作ったスキル（スキルを使わないときは作ったエージェント）自身が不要と確かめた時点で消す。消せなかったものは最終報告に完全パスを書く
+- `tmp/agents/` 以外の `tmp/`（人が置いたファイルを含む）は、表の用途で書き足すほかは触らない
+- ワールドのプロジェクトの中に置く作業物（プロジェクトの `tmp/` のバックアップなど）は、今までどおりプロジェクトの `AGENTS.md` に従い、この表の対象にしない
+
+## 作業の安全
+
+### 編集前の確認
+
+- 編集の前に `git status --porcelain` と `git worktree list` を確認する
+- create-reso-world で追跡するファイルは、親の checkout（`PARENT_ROOT`。`origin/main` の detached HEAD）では編集しない。最新の `origin/main` から作った `.worktrees/<topic>` の worktree で編集する
+- 他のリポジトリの追跡ファイルは、「リポジトリ境界」の作業ルートと手順書（`docs/resoloop-fork-workflow.md`・`docs/resoloop-meshy-workflow.md`）に従って編集する
+- 次は追跡するファイルの編集に当たらないので、今までどおり親の checkout で行う
+  - ワールドのプロジェクト（`worlds/<name>/` と従来位置の 4 つ。git の追跡対象外）の作業。「プロジェクト運用」のとおり、プロジェクトのディレクトリを cwd にし、branch・worktree を求めない
+  - 「コミットしないファイルの置き場所」の表にある場所への書き込み
+
+### 削除
+
+rm / rmdir の削除対象にシェル変数を使う場合は、各変数に `${VAR:?}` 形式の空値ガードを付け、パス全体を引用する（例: `rm -rf -- "${T:?}/${n:?}"`）。サブエージェントが実行するコマンドにも適用する。
+
+### 一時 HOME
+
+永続シェルで `export HOME=...` しない。一時 HOME が要る検証は `env HOME="$tmpdir" ...` のワンショットに限る。HOME を差し替えたままにすると、後続の `gh`・`git` が別の HOME を見て未認証になる。
 
 ## プロジェクト運用
 
