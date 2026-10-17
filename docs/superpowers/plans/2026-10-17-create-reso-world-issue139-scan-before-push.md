@@ -58,11 +58,11 @@
 
 テストの要否: 書かない。SKILL.md の文面の変更で、実行して確かめるコードが無い（テストの採用基準の「書かない」）。代わりに行動比較で確かめる。
 
-- [ ] **Step 1: 対照の行動比較（RED）**
+- [x] **Step 1: 対照の行動比較（RED）**
 
 `origin/main`（`50e4a6b`）の `SKILL.md` を scratchpad に写し、`AGENTS.md` と一緒に読ませて、(k)〜(o) を 1 つの指示文で 3 回答えさせる（Agent ツール、model `sonnet`、Read 以外のツールを使わせない）。全回答を読み、期待（Spec の受け入れ条件）を外した点と、その理由づけを記録する。
 
-- [ ] **Step 2: 5 章を書き換える**
+- [x] **Step 2: 5 章を書き換える**
 
 - 2 つ目の項目: 「push して」を、公開する worktree をすべて検査し、全部が通ってから `"${SHA}:refs/heads/<branch>"` で push する手順にする。`finishing-a-development-branch` の `git push -u origin <branch>` は使わないと書く。コマンド例は `CODE_SHA`（と `DOC_SHA`）を使う
 - 4 つ目の項目（文書用の branch）: 検査は 2 つ目の項目でコードと一緒に済ませたことを前提に、`DOC_SHA` を push すると書く
@@ -70,15 +70,15 @@
 
 Step 1 で対照が既に満たした項目には、強調を足さない。
 
-- [ ] **Step 3: 「停止時の報告」に検査の停止を足す**
+- [x] **Step 3: 「停止時の報告」に検査の停止を足す**
 
 停止条件の列挙に「push の前の検査の検出・失敗（gitleaks が無い・版が違うを含む）」を足す。回避の禁止、gitleaks を自分で導入せず `bash "$PARENT_ROOT/.devcontainer/install_gitleaks.bash"` を案内すること、報告に検出の位置と push 済み・まだのものを書くこと、一部だけ公開されたら取り消さないこと、を足す。
 
-- [ ] **Step 4: 変更後の行動比較（GREEN）**
+- [x] **Step 4: 変更後の行動比較（GREEN）**
 
 Step 1 と同じ指示文で、変更後の `SKILL.md` の写しを読ませて 3 回答えさせる。期待を外した点があれば、文面を直して同じ手順で答えさせ直す（REFACTOR）。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .agents/skills/issue-to-pr/SKILL.md
@@ -97,20 +97,20 @@ git commit -m "fix: scan before pushing in issue-to-pr"
 
 テストの要否: 書かない。評価の記録で、実行して確かめるコードが無い。代わりに JSON の構文と参照先の実在を確かめる。
 
-- [ ] **Step 1: scenarios.json に (k)〜(o) を足す**
+- [x] **Step 1: scenarios.json に (k)〜(o) を足す**
 
 各項目に `id`（`k-push-create-reso-world`・`l-push-two-worktrees`・`m-detection-in-docs-worktree`・`n-gitleaks-version-mismatch`・`o-repush-after-ci-fix`）、`added`（#139 で足したこと、対照と比較の版、回数、共通の状況の追加分）、`prompt`、`expected` を書く。既存の項目は変えない。
 
-- [ ] **Step 2: validation.md に節を足す**
+- [x] **Step 2: validation.md に節を足す**
 
 評価の方法（版・回数・指示文の共通の状況）、シナリオごとの結果の表（対照 3 回・変更後 3 回）、対照で外れた点と文面に足した理由、行っていない確認を書く。既存の結果は書き換えない。
 
-- [ ] **Step 3: 構文と参照を確かめる**
+- [x] **Step 3: 構文と参照を確かめる**
 
 Run: `uv run --no-project python -m json.tool .agents/skills/issue-to-pr/evals/scenarios.json > /dev/null`
 Expected: 終了コード 0
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .agents/skills/issue-to-pr/evals/scenarios.json .agents/skills/issue-to-pr/evals/validation.md
@@ -124,21 +124,36 @@ git commit -m "docs: record issue-to-pr push scan evaluation"
 
 テストの要否: 新しいテストは無い。既存のテストの入口で回帰を確かめる。
 
-- [ ] **Step 1: README の「テスト」の 3 つ**
+- [x] **Step 1: README の「テスト」の 3 つ**
 
 Run（worktree のルート）: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts`
 Expected: 3 つとも終了コード 0。失敗したら `systematic-debugging` で調べ、この変更の原因でなければ環境要因として結果を記録する
 
-- [ ] **Step 2: `git diff --check origin/main...HEAD` と差分の確認**
+- [x] **Step 2: `git diff --check origin/main...HEAD` と差分の確認**
 
 Expected: 出力なし。差分は Global Constraints のファイルだけ
 
-- [ ] **Step 3: ブランチ全体のレビュー**
+- [x] **Step 3: ブランチ全体のレビュー**
 
 `superpowers:requesting-code-review` で、新しいサブエージェントにブランチ全体（`origin/main...HEAD`）をレビューさせる。致命的な指摘だけを直す
 
-- [ ] **Step 4: Plan に「完了」の節を書いて commit**
+- [x] **Step 4: Plan に「完了」の節を書いて commit**
 
 - [ ] **Step 5: 検査付きの push と PR**
 
 Issue の状態と競合を調べ直してから、`SHA="$(bash /workspaces/reso-world/scripts/scan-before-push.sh -C /workspaces/reso-world/.worktrees/issue-139-scan-before-push)" && [ -n "$SHA" ] && git -C /workspaces/reso-world/.worktrees/issue-139-scan-before-push push origin "${SHA}:refs/heads/fix/issue-139-scan-before-push"`。続けて `gh pr create --repo usaturn/create-reso-world --base main --head fix/issue-139-scan-before-push`（本文に `Closes #139`）
+
+## 完了
+
+- 状態: 実装完了。Plan・Spec の状態は `draft` のまま（issue-to-pr の実行許可で進めた。内容の承認は受けていない）。push と PR の作成（Task 3 の Step 5）は、この記録の commit の後に行う
+- Task 1: 対照（`50e4a6b`）の行動比較 3 回の後、`c91dc5c` で 5 章と停止条件を変え、変更後の行動比較 3 回で 5 つとも期待どおり。ブランチ全体のレビューの指摘で `c3db9c5` に直し、最終版でも 3 回とも期待どおり
+- Task 2: `78b9815`・`2456c20`（`evals/scenarios.json` に (k)〜(o)、`evals/validation.md` に結果）
+- Task 3:
+  - README の「テスト」の 3 つ: `2456c20` で `bash .devcontainer/run-tests.bash`・`bash scripts/check-layout.sh`・`uv run pytest tests/skills .agents/skills .agents/scripts` がすべて終了コード 0（pytest は 625 passed）。ログは `/workspaces/reso-world/tmp/agents/issue-139.n4jc4s8t/tests-final.log`
+  - `git diff --check origin/main...HEAD` は出力なし。差分は Global Constraints の 5 ファイルだけ
+  - ブランチ全体のレビュー: 判定は Yes、Critical なし。直したのは Important 1（空の SHA の refspec が branch の削除になる → `${SHA:?}`）、Minor 2（`DOC_SHA` の 2 行を除くと行末の `\` が残る → push の順序を文書・コードに）、Minor 5（(o) の対照の点数）、Minor 7（「人手で読んだ」の表現）。Minor 4（Spec の挙動 6・7 の一部を文面に入れていない）は理由を `validation.md` と Spec に書いた。Minor 3（文書の PR の `--head`）は変更後の評価で 3/3 正しかったので直していない。Minor 6 は同じ行を直すときに文を直した
+- 計画からの逸脱:
+  - Task 1 Step 3 の「報告に検出の位置を書く」は、対照が 3/3 で満たしたので文面に入れなかった
+  - Task 1 Step 2 の push の順序は、レビューの指摘で文書・コードの順にした
+  - 最初のテストの実行は、zsh が `$c` を単語に分割しないので 3 つともコマンドとして実行されなかった（終了コード 127）。明示的に書き直して実行し直した
+- 実行予算: ledger の能動時間は約 31 分（pi のセッションの約 3 分を含む）、使用率 51%。50% の checkpoint は `continue`。同じ失敗 `subagent-api-key-expired` は pi のセッションで上限に達し、Claude Code のセッションへの方法変更（`change-method`）で解消した
