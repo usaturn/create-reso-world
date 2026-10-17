@@ -104,6 +104,30 @@ commit_file config.txt "token = \"$token\" # gitleaks:allow"
 scan
 expect_leak 'a token with an inline gitleaks:allow comment'
 
+# git の設定で git log -p の出力が変わっても見逃さない（gitleaks 8.30.1 は色付きの diff の追加行を読めず、0 で終わる）
+new_repo
+git -C "$repo" config color.ui always
+git -C "$repo" config color.diff always
+commit_file config.txt "token = \"$token\""
+scan
+expect_leak 'a token when the git config forces colored diffs'
+
+new_repo
+mkdir -p "$repo/.git/info"
+printf '*.txt diff=hide\n' > "$repo/.git/info/attributes"
+git -C "$repo" config diff.hide.textconv 'sed d'
+commit_file config.txt "token = \"$token\""
+scan
+expect_leak 'a token that a textconv driver would hide'
+
+# 属性は base から読む。branch で足した .gitattributes で binary 扱いにしても見逃さない
+new_repo
+printf '* -diff\n' > "$repo/.gitattributes"
+git -C "$repo" add .gitattributes
+commit_file config.txt "token = \"$token\""
+scan
+expect_leak 'a token in a file that a .gitattributes on the branch marks as binary'
+
 new_repo "$tmp/default.toml"
 cp "$tmp/permissive.toml" "$repo/.gitleaks.toml"
 git -C "$repo" add .gitleaks.toml

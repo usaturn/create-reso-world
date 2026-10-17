@@ -195,3 +195,15 @@ Expected: どれも終了コード 0 で SHA を 1 行出す。resoloop・resolo
 - [ ] **Step 3: 検査付きで push して PR を作る**
 
 `SHA="$(bash scripts/scan-before-push.sh)" && [ -n "$SHA" ] && git push origin "$SHA:refs/heads/feat/issue-119-gitleaks-pre-push"`。PR の本文に `Refs #119`、検証の結果、移植元との違い（Spec D-11）、利用者に頼むこと（rebuild の後の `gitleaks version` と、3 つのリポジトリの worktree での検査）を書く
+
+## 実行記録
+
+2026-10-17 JST に、このセッションで Native 実行した。状態は draft のまま（Task 4 Step 2）。
+
+- 所要時間: 21:11（worktree の作成）〜 22:00 頃（PR の作成）の約 50 分。内訳は、調査・gitleaks の実測・Spec 11 分、Plan 1 分、Task 1 3 分、Task 2 5 分、Task 3 8 分（スキルの pytest の 3 分を含む）、Task 4 と最終の自己レビュー・修正・再検証 約 20 分
+- commit: Spec `66e904c`、Plan `f9a4761`、Task 1 `457912d`、Task 2 `adac95d`、Task 3 `366a1b4`、自己レビューの修正はこの記録と同じ commit
+- テストの検出力: 導入の 4 か所と検査の 15 か所の防御を 1 つずつ外して、テストが失敗することを確かめた。外しても失敗しないのは、`GITLEAKS_*` の unset（`--config` が `GITLEAKS_CONFIG`・`GITLEAKS_CONFIG_TOML` より優先される）と `--no-ext-diff`（`git log -p` は `--ext-diff` が無いと外部 diff を使わない）の 2 つで、どちらも Spec D-5 の念押しとして残した
+- 今のコンテナへの導入: `bash .devcontainer/install_gitleaks.bash` が release から取得し、SHA-256 を確かめて `~/.local/bin/gitleaks`（8.30.1）に置いた
+- 実環境での検査: この worktree（5 commit、検出なし）。usaturn/resoloop・usaturn/resoloop-meshy は、このセッションの隔離で worktree の外の checkout（`external/`）に git を実行できないため、GitHub から worktree の `tmp/` に浅く clone して試した。どちらも base に `.gitleaks.toml` が無く既定の規則で検査し、未 push の commit が無いとき・秘密情報の無い commit とマージ commit では HEAD の SHA を出し、偽のトークンの commit では終了コード 1・標準出力は空で止まった。`external/` の checkout と、作り直した Dev Container での確認は利用者に頼む
+- 最終の自己レビュー（サブエージェントは使っていない）: 利用者の git の設定（`color.ui=always`）と、branch で足した `.gitattributes`（`* -diff`）、textconv で、gitleaks が終了コード 0 のまま見逃すことを見つけた（Spec F-11）。テストを足して RED を確かめてから、`--no-color --no-ext-diff --no-textconv` と `GIT_ATTR_SOURCE=<base>` で直した
+- 範囲外の発見: `gitleaks dir` で作業ツリーを走査すると、`main` にある `tests/scripts/test_meshy.py:20`（テスト用の偽の値 `KEY`）が generic-api-key に当たる。push 済みの履歴なので、この検査（未 push の commit だけ）では止まらない。履歴の全体を走査するときにどう扱われるかは確かめていない

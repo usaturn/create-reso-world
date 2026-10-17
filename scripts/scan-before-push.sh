@@ -6,7 +6,8 @@
 #   -C      検査する checkout（既定は現在のディレクトリ）。そのルートで検査する
 #   --base  未 push とみなす範囲の基準（既定は origin/main）。fetch してから <base>..HEAD を検査する。
 #           設定は base の .gitleaks.toml を使い、base に無ければ Gitleaks の既定の規則だけを使う
-# 作業ツリーの設定、環境変数（GITLEAKS_*）、.gitleaksignore、inline の gitleaks:allow では検査を緩められない。
+# 作業ツリーの設定（.gitleaks.toml・.gitattributes）、環境変数（GITLEAKS_*）、.gitleaksignore、inline の gitleaks:allow、
+# git の色・textconv の設定では検査を緩められない。
 # マージ commit も各親との差分として検査する。gitleaks は git log が失敗しても終了コード 0 で終わるので、
 # 出力の ERR・FTL の行も失敗にする（このため、.devcontainer/install_gitleaks.bash で固定した版でないと検査しない）。
 # 終了コード: 0 成功、1 検出または検査の失敗、2 使い方の誤り。ログはすべて標準エラーに出す
@@ -71,10 +72,12 @@ fi
 : > "$scan_dir/ignore"
 
 say "scanning $base_sha..$head_sha against $base"
+# git の設定（color.ui=always や textconv）で git log -p の出力が変わると、gitleaks は追加行を読めずに 0 で終わる。
+# 属性（.gitattributes の -diff など）は作業ツリーではなく base から読む
 status=0
-gitleaks git --no-banner --no-color --redact --verbose --ignore-gitleaks-allow \
+GIT_ATTR_SOURCE="$base_sha" gitleaks git --no-banner --no-color --redact --verbose --ignore-gitleaks-allow \
   --config "$scan_dir/config.toml" --gitleaks-ignore-path "$scan_dir/ignore" \
-  --log-opts="--diff-merges=separate $base_sha..$head_sha" . 2>&1 | tee "$scan_dir/log" >&2 || status=$?
+  --log-opts="--no-color --no-ext-diff --no-textconv --diff-merges=separate $base_sha..$head_sha" . 2>&1 | tee "$scan_dir/log" >&2 || status=$?
 [ "$status" -eq 0 ] || die "gitleaks exited with status $status (leaks found or the scan failed). Do not push"
 if grep -Eq '^[^ ]+ (ERR|FTL) ' "$scan_dir/log"; then
   die 'gitleaks reported an error although it exited with 0. Do not push'

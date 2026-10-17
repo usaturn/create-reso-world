@@ -29,6 +29,7 @@ Gitleaks 8.30.1（`gitleaks_8.30.1_linux_x64.tar.gz`）を使い捨ての一時�
 - **F-8 push する箇所**: このリポジトリで新しい commit を push する手順は、`review-fix-planning` の「実装後」手順 5 と結論 2 の手順 6、`docs/resoloop-fork-workflow.md` の「上流へ PR を出すときの流れ」手順 5、`docs/resoloop-meshy-workflow.md` の「開発の流れ」手順 5。公開済みの commit だけを送る push は、`scripts/resoloop-fork.sh sync`（上流の `main` を fork の `main` へ）、`planning-parallel-issues` の claim ref の作成（既存の base の SHA）、`repo-cleanup-after-merge` のブランチ削除
 - **F-9 Dev Container**: gitleaks は入っていない。再設計のフェーズ 4（`docs/superpowers/plans/2026-09-27-redesign-phase4-devcontainer-and-ci.md`）で「gitleaks はコンテナに入れない」としたが、CI が止まっている今はその前提が成り立たない
 - **F-10 移植元の範囲**: `scan_before_push` は base を `origin/main` に固定し、`assert_working_root`（`projects.toml` の登録との照合）を前提にする。`gitleaks git` の終了コードだけで成否を決めるので、F-6 の失敗を成功として扱う
+- **F-11 git の設定と属性**（実装後の自己レビューで確かめた）: リポジトリの git の設定に `color.ui=always`（または `color.diff=always`）があると、gitleaks は色付きの diff の追加行を読めず、終了コード 0 で「no leaks found」と出す。`--log-opts` に `--no-color` を足すと検出する。textconv の設定（`diff.<driver>.textconv`）も内容を差し替えて隠せ、`--no-textconv` で検出する。branch に `* -diff` の `.gitattributes` を足すと内容が binary 扱いになって見逃し、`GIT_ATTR_SOURCE=<base の SHA>` で属性を base から読ませると検出する。`GIT_ATTR_SOURCE` が不正なら git が失敗し、gitleaks は `ERR` を出す
 
 ## 判断
 
@@ -70,7 +71,8 @@ base に `.gitleaks.toml` があればそれを使い、無ければ Gitleaks �
 - 設定は D-4 の一時ファイルを `--config` で渡す。作業ツリーの `.gitleaks.toml` は使わない
 - 検査する checkout のルートに `.gitleaksignore`（ファイルでも symlink でも）があれば止まる（F-3）。`--gitleaks-ignore-path` には空のファイルを渡す
 - `--ignore-gitleaks-allow` で inline の allow を無視する（F-4）
-- `--log-opts="--diff-merges=separate <base>..<HEAD>"` でマージ commit も各親との差分として検査する（F-5）
+- `--log-opts="--no-color --no-ext-diff --no-textconv --diff-merges=separate <base>..<HEAD>"` で、git の設定に左右されない diff を読み（F-11）、マージ commit も各親との差分として検査する（F-5）。`--no-ext-diff` は `git log -p` が外部 diff を使わないことの念押しである
+- gitleaks を `GIT_ATTR_SOURCE=<base の SHA>` で実行し、属性を作業ツリーではなく base から読ませる（F-11）。base が binary とした種類のファイルは、CI と同じく検査しない
 
 ### D-6 失敗を成功として扱わない
 
@@ -107,7 +109,7 @@ SHA="$(bash <create-reso-world のルート>/scripts/scan-before-push.sh [-C <ch
 ### D-10 テスト
 
 - `tests/scripts/test-scan-before-push.bash`（新規）: PATH 上の実際の gitleaks で、bare の origin を持つ一時リポジトリを検査する。偽のトークンは実行時に作り、テストのファイルにはトークンの形の文字列を書かない（このリポジトリ自体の検査で検出されないため）。gitleaks が無ければ、導入の手順を表示して失敗する（skip しない）
-  - 検出する: 通常の commit、マージ commit の中だけで足した内容、inline の `gitleaks:allow` を付けた行、作業ツリーと branch の `.gitleaks.toml`・`GITLEAKS_CONFIG`・`GITLEAKS_CONFIG_TOML` で全部を除外しようとした場合（base に設定がある場合と無い場合の両方）
+  - 検出する: 通常の commit、マージ commit の中だけで足した内容、inline の `gitleaks:allow` を付けた行、作業ツリーと branch の `.gitleaks.toml`・`GITLEAKS_CONFIG`・`GITLEAKS_CONFIG_TOML` で全部を除外しようとした場合（base に設定がある場合と無い場合の両方）、git の設定の `color.ui=always`・`color.diff=always`、textconv、branch で足した `* -diff` の `.gitattributes`（F-11）
   - 止まる: `.gitleaksignore` がある、base の設定が壊れている、範囲内の object が壊れている（F-6）、base の remote・branch が無い、gitleaks の版が違う、gitleaks が 0 以外で終わる
   - 成功する: 秘密情報の無い commit とマージ commit（標準出力が HEAD の SHA だけ）、base の `.gitleaks.toml` の allowlist が除外する値（base の設定を使っていることの確認）
   - 失敗したときは標準出力が空であることも確かめる
@@ -126,6 +128,7 @@ SHA="$(bash <create-reso-world のルート>/scripts/scan-before-push.sh [-C <ch
 | base | `origin/main` に固定 | `--base`、既定は `origin/main` | fork への PR（`upstream/main`）と、`review-fix-planning` の PR の base に合わせる |
 | base に設定が無いとき | 対象外（使わない） | 既定の規則（D-4） | resoloop と resoloop-meshy に設定が無い |
 | 失敗の判定 | 終了コードだけ | 終了コードと `ERR`・`FTL` の行、版の確認 | F-6 |
+| git の設定・属性 | `log.diffMerges` だけを固定 | 色・外部 diff・textconv を切り、属性を base から読む | F-11 |
 | 環境変数 | `GITLEAKS_CONFIG`・`GITLEAKS_CONFIG_TOML` を外す | `GITLEAKS_*` をすべて外す | 同じ目的で、名前を数え上げない |
 | 出力 | `--redact` | `--redact --verbose` | 何が検出されたかを、値を伏せたまま示す |
 | 導入 | `install_beforehand.bash` の関数 | `install_gitleaks.bash`。展開した gitleaks の版を確かめてから置く | D-1。置いた後の確認で失敗すると、既にある gitleaks を置き換えた後になるため |
@@ -139,7 +142,8 @@ PR の本文は `Refs #119` にし、マージで #119 を自動で close しな
 - push 済みの履歴の検査と書き換え、private の CI の再開（Issue の「対象にしない」）
 - usaturn/resoloop・usaturn/resoloop-meshy への `.gitleaks.toml` の追加（D-4）
 - CI の gitleaks ジョブを `scan-before-push.sh` に置き換えること
-- `.gitattributes` や git の設定で diff の出方を変えた場合（CI の gitleaks-action と同じ扱い）
+- 手元だけにある属性（`$GIT_DIR/info/attributes`、`core.attributesFile`）で binary 扱いにした場合。`GIT_ATTR_SOURCE` はこれらを置き換えない。`git log --text` で binary も検査する案は、CI と結果が変わり、画像などの中身を検査して誤検出を増やすので採らない
+- `GIT_ATTR_SOURCE` を知らない古い git（Dev Container の git 2.55 で確かめた）
 - 公開済みの commit だけを送る push（F-8）
 - このリポジトリの外にあるスキル（superpowers の `finishing-a-development-branch` など）の手順の書き換え。`AGENTS.md` の規則が優先する
 - #114 で取り込み中の `issue-to-pr` スキル（まだ `main` に無い）。取り込むときに `AGENTS.md` の規則に合わせる
