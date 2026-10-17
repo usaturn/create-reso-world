@@ -117,6 +117,105 @@ uv run pytest tests/skills .agents/skills  # スキルのテスト（CI の skil
 CI の gitleaks ジョブは `.gitleaks.toml`（既定の規則に、resoloop のマニフェストが持つ識別子の除外を足したもの）で
 秘密情報の混入を検査する。CI では Blender によるワールドのビルドは行わない。
 
+## uv の Python 実行環境
+
+uv が使う Python を、システムの `/usr/bin/python3`（3.14）にそろえる。Blender もこの Python で動く。
+uv は既定では、uv 管理の Python をシステムの Python より優先する。古い版を一度入れると、上位に `.venv` が無い場所
+（`/tmp` の worktree など）の `uv run --no-project python` や、新しく作る `.venv` がその版を選ぶ。必要な版が無いときは、
+断りなくダウンロードする。これを防ぐため、`devcontainer.json` の `containerEnv` に次を設定している（#122）。
+
+```json
+"UV_PYTHON_PREFERENCE": "system",
+"UV_PYTHON_DOWNLOADS": "manual"
+```
+
+- `system`: uv 管理の Python があっても、システムの Python を先に選ぶ
+- `manual`: 必要な版が見つからないとき、`uv run` などはダウンロードせずに失敗する。`uv python install` を明示したときだけ入る
+
+`containerEnv` なので、cwd に関係なく、Herdr のペインや各エージェントを含むコンテナ内のプロセスに同じ設定が渡る。
+`~/.config/uv/uv.toml`・`install_beforehand.bash`・`zshrc.txt`・プロジェクトの `pyproject.toml` には重複して置かない。
+Dev Container の外の Python の選択は変えない。
+
+版番号を強制する仕組みではない。`--python`・`UV_PYTHON` による版の明示、有効な仮想環境（`VIRTUAL_ENV`）、既存の `.venv` には効かず、
+導入済みの古い版は `--python` で引き続き使える。ルートと雛形の `requires-python`（`>=3.12`）は変えていない。
+uv の仕様は [Python versions](https://docs.astral.sh/uv/concepts/python-versions/) にある。
+
+Blender とワールドのプロジェクトへの影響は次のとおり。
+
+- Blender と `blenderExecutable` のラッパー（`.resoloop/blender-system-python`、#60・#68）は uv の Python の探索を使わないので、変わらない
+- 既存の `.venv` は作り直されず、作ったときの Python を使い続ける。参照先の interpreter が消えた `.venv` は、次の `uv run` が
+  `Ignoring existing virtual environment linked to non-existent Python interpreter` と表示して、システムの Python で作り直す。
+  uv 管理の Python（`~/.local/share/uv`）は mount していないので rebuild で消え、それで作った `.venv` はこの作り直しになる
+
+### 既存コンテナの移行
+
+1. uv 管理の Python を参照する `.venv` を確かめる。リポジトリのルートで次を実行し、`home` が `~/.local/share/uv/python/` を指すものが対象になる。
+
+   ```bash
+   find . -maxdepth 4 -path '*/.venv/pyvenv.cfg' -exec grep -H '^home' {} +
+   ```
+
+   対象の `.venv` は、rebuild の後の最初の `uv run`（`uv run pytest` など）でシステムの Python に作り直される。
+   その `.venv` で動いている処理は先に終える。`uv pip install` などで手で入れたパッケージは作り直しで消えるので、要るものは `pyproject.toml` の依存に書く。
+2. **Dev Containers: Rebuild Container を実行する。** `containerEnv` はコンテナの作成時に反映されるので、ファイルの保存や
+   エージェントの再起動だけでは既存のコンテナに効かない。uv 管理の Python とキャッシュは rebuild で消えるので、
+   rebuild の前の `uv python uninstall` は要らない。rebuild の後に Herdr とエージェントを起動し直す。
+3. Herdr のペインで起動したエージェントのシェルで次を実行する。上位に `.venv` が無い一時ディレクトリで、通常の実行が 3.14 以上になり、
+   未導入の 3.12 の明示指定が `No interpreter found` と、ダウンロードが `manual` である旨を表示して失敗することを確かめる。
+
+   ```bash
+   (
+       set -eu
+       CHECK_DIR="$(mktemp -d)"
+       trap 'rm -rf -- "${CHECK_DIR:?}"' EXIT
+       cd -- "$CHECK_DIR"
+       printf 'preference=%s downloads=%s\n' "${UV_PYTHON_PREFERENCE-}" "${UV_PYTHON_DOWNLOADS-}"
+       uv run --no-project python -c 'import sys; print(sys.version); assert sys.version_info >= (3, 14)'
+       if uv run --no-project --python 3.12 python -c 'import sys; print(sys.version)'; then
+           printf 'Unexpected: Python 3.12 is still available\n' >&2
+           exit 1
+       fi
+   )
+   ```
+
+   続けて、Blender とワールドのプロジェクトが今までどおり動くことを確かめる。
+
+   ```bash
+   bash .devcontainer/verify-resonite-tooling.bash
+   (cd worlds/<name> && uv run pytest)
+   ```
+
+   通常の実行が古い版なら、`UV_PYTHON`・`VIRTUAL_ENV`・PATH と `.venv` の参照先を確かめる。3.12 の明示指定が成功するなら、
+   探索先にまだ 3.12 がある。同じ環境変数を渡した子シェルでの確認は、rebuild と新しいペインでの確認の代わりにならない。
+
+### 旧版で互換性を確かめる場合
+
+`uv python install` をそのまま使うと、uv 管理の Python が `~/.local/share/uv` に残り、`~/.local/bin` に `python3.X` も置かれる。
+`~/.local/bin` の `python3.X` は Blender を壊すことがあるので使わない（`docs/meshy-resoloop.md`）。古い版が要るときに限り、
+一時ディレクトリに interpreter とキャッシュを隔離する。次は 3.12 の例で、`--no-bin` で `~/.local/bin` に実行ファイルを置かず、
+終了時（失敗時を含む）に一時ディレクトリを消す。`--with` でパッケージを足すときも、同じ `UV_CACHE_DIR` を使う。
+
+```bash
+(
+    set -eu
+    PYTHON_CHECK_DIR="$(mktemp -d)"
+    trap 'rm -rf -- "${PYTHON_CHECK_DIR:?}"' EXIT
+    cd -- "$PYTHON_CHECK_DIR"
+    env -u UV_PYTHON -u VIRTUAL_ENV \
+        UV_PYTHON_INSTALL_DIR="$PYTHON_CHECK_DIR/python" \
+        UV_CACHE_DIR="$PYTHON_CHECK_DIR/cache" \
+        UV_PYTHON_DOWNLOADS=manual \
+        uv python install --no-bin 3.12
+    env -u UV_PYTHON -u VIRTUAL_ENV \
+        UV_PYTHON_INSTALL_DIR="$PYTHON_CHECK_DIR/python" \
+        UV_CACHE_DIR="$PYTHON_CHECK_DIR/cache" \
+        UV_PYTHON_DOWNLOADS=manual \
+        uv run --no-project --python 3.12 python -c 'import sys; print(sys.version)'
+)
+```
+
+これらの変数を普段のシェルで export しない。古い版でリポジトリのスクリプトやワールドのビルドを実行しない。
+
 ## Resonite ワールド開発ツール
 
 Dev Container の作成時に .NET 10 SDK、Blender、glTF import / export 用の `python3-numpy`、open3d が読む `libegl1`・`libgl1` を導入し、ResoLoop は NuGet の最新の公開版を
