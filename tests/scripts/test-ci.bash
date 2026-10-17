@@ -25,6 +25,11 @@ assert leaks["env"]["GITLEAKS_CONFIG"] == ".gitleaks.toml", leaks
 version = leaks["env"]["GITLEAKS_VERSION"]
 parsed = tuple(int(part) for part in version.split("."))[:2]
 assert parsed >= (8, 25), version
+# 手元の検査（scripts/scan-before-push.sh）と CI で同じ版を使う。版は .devcontainer/install_gitleaks.bash にだけ書き、
+# CI の env はその値をそろえて持つ。ずれると CI と手元で規則の解釈やログの形が変わる
+installer = open(".devcontainer/install_gitleaks.bash", encoding="utf-8").read()
+(pinned,) = re.findall(r'^readonly GITLEAKS_VERSION="([^"]+)"$', installer, re.MULTILINE)
+assert version == pinned, (version, pinned)
 
 config = tomllib.load(open(".gitleaks.toml", "rb"))
 # 既定の規則を外すと、ほとんどの秘密情報を検出しなくなる

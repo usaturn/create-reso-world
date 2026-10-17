@@ -7,7 +7,7 @@ set -u
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
 # （同梱スキルの状態の表示と workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=27
+readonly STEP_TOTAL=28
 STEP_NUMBER=0
 
 step() {
@@ -167,6 +167,12 @@ if ! (
 fi
 if ! command -v uv >/dev/null 2>&1; then
     fail "uv installation completed without placing uv on PATH."
+fi
+
+step "Installing the pinned Gitleaks"
+# push の前の検査（scripts/scan-before-push.sh）が使う。版と SHA-256 は install_gitleaks.bash に固定してある
+if ! bash .devcontainer/install_gitleaks.bash; then
+    fail "Gitleaks installation failed."
 fi
 
 step "Installing the Cursor CLI"
