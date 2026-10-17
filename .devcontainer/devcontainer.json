@@ -27,7 +27,10 @@
     // zsh -l（非対話）は ~/.zshrc を読まないため、この経路を断てる。
     "userEnvProbe": "loginShell",
     "containerEnv": {
-        "SHELL": "/usr/bin/zsh"
+        "SHELL": "/usr/bin/zsh",
+        // uv は uv 管理の古い Python よりシステムの Python を選び、無い版を自動でダウンロードしない（README の「uv の Python 実行環境」）
+        "UV_PYTHON_PREFERENCE": "system",
+        "UV_PYTHON_DOWNLOADS": "manual"
     },
     "remoteEnv": {
         // ユーザ単位で導入するツール（claude・uv など、herdr の補助スクリプト、dotnet tool）。mounts と同じく
