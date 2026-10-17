@@ -65,7 +65,6 @@
 | D-7 | 移植元の実行テストは保持するが `test_opencode_go_tiers_use_opencode_go`（設定値の写し）を持ち込まない。構造検査と実ランチャーの実行は残す | テスト本文の完全一致 | AGENTS.md のテスト採用基準。model ID は実ランチャーから導出される。他の構造・機密情報禁止検査はユーザー所有の共有設定を守る検査 | 差分例外として PR に列記。文書テストは作らない |
 | D-8 | 共有登録の保持を追加の実行テストで確認する | extension 一覧の文字列検査だけ | 元の不具合（作り直すと登録が消える）を fake pi の状態で再現する必要がある | 通信・本物の資格情報の利用はしない |
 | D-9 | PR はスキル指定どおり `Closes #125` とし、実機確認が残ることを明記して同 Issue に checklist を残す | Refs のみで閉じない | この run の終了方式に従う。実機成功を偽らない | マージは行わない。必要なら利用者が実機確認後にマージ |
-
 | D-10 | Codexの導入テストは、開始とtargetのshared-skills終端を検証し、両端が揃うまで何も出力しないhelperで切り出す。実行はbwrapのread-only root、private /tmp、書込可能な専用HOMEのみ、独立network namespaceへ限定する。回帰検査は実テストを同じ隔離と外部コマンド拒否stubで実行する | 終端文字列だけの置換、PATH stubだけ | 未知の終端でEOFまで実行する再発と、absolute command/cleanupの実領域アクセスを構造で防ぐ | 利用者の安全な再開指示。非pi導入処理を変えずtest helperだけに適用 |
 
 ## 検証
@@ -82,6 +81,14 @@
 - 全体: `run-tests.bash` 32本、`check-layout.sh`、スキル・script の pytest 625件が全て終了0。
 - Plannotator 0.28.23: `REMOTE=0` の `127.0.0.1`、設定ポート範囲の解析を確認。現在の環境では19432〜19441が EADDRINUSE（Linuxのssに対応listenerは表示されない。Windows側の状態は未調査）。他者のserviceには触らず、一時範囲45123〜45128へ検証方法を変更し、意図的に45123を占有すると45124で起動、合成日本語Markdownの取得と合成承認のHTTP往復が成功（終了0）。これは実際のSpec / Planへの承認ではない。
 - 実設定範囲での起動、Windowsブラウザー、rebuild、実モデルは未検証。現在のrangeの占有原因と到達性は利用者の実機checklistに残す。
+
+## F-1 修正後の再検証（2026-10-17）
+
+- 外側をread-only root/private tmp/network namespaceと実外部操作を拒否するstubにした実CodexテストでREDを確認。旧終端はfake npxへ到達して終了1、実network/download/cleanupは行っていない。
+- `pi-launcher-install.bash` が開始/終端を全て検証してからbufferを出力し、targetのshared-skills手前で切る。実行はread-only root、private /tmp、専用HOME bind、networkとPID namespaceに限定する。実導入処理そのものは移植元と同一で変えていない。
+- 8件の実行回帰（外部installerへの未到達、欠落/重複/逆順で出力無し、正しい範囲だけ実行、ホスト/tmpの内容保持・repo書込拒否・テスト所有のhost listenerへの接続拒否）は全て成功。
+- 修正後の全体再実行: bash32本、layout、pytest625件が終了0。migrationsは既存149件＋回帰8件の157件。以前の終了0と混同せず、再検証ログを分けた。
+- 実機・過去影響の不明点は引き続き残る。Windows/実range/rebuild/実providerの成功は主張しない。
 
 ## Builder check の裁定
 

@@ -91,10 +91,10 @@
 
 **テスト要否:** 必要。切り出したshellの実行範囲・失敗分岐・filesystem/network隔離を実行して確かめる。文言検査は書かない。
 
-- [ ] RED: 実Codexテストをread-only root/private tmp/network namespaceと外部コマンド拒否stubの内側でのみ実行する回帰テストを追加。旧版がfake npxに到達して失敗することを観測し、実download/cleanupは行わない。
-- [ ] helperで開始/終端の存在・重複・順番を検証し、揃ったときだけbufferを出力。終端はtargetのshared-skills。抽出したlauncher配置/tier setupだけを専用HOMEでbwrap隔離して実行。Codexテストはhelperを呼ぶ。
-- [ ] 欠落・重複・逆順で出力/実行無し、正しい範囲の実行、範囲外のtail不実行、書込拒否/network不通をbehavioral fixtureで検証。入口へ新pytestを加える。
-- [ ] GREENと全体検証を同期実行。最初のREDと安全修正後の実行結果は別ログへ保存する。危険な旧版を隔離無しで再実行しない。
+- [x] RED: 実Codexテストをread-only root/private tmp/network namespaceと外部コマンド拒否stubの内側でのみ実行する回帰テストを追加。旧版がfake npxに到達して失敗することを観測し、実download/cleanupは行わない。
+- [x] helperで開始/終端の存在・重複・順番を検証し、揃ったときだけbufferを出力。終端はtargetのshared-skills。抽出したlauncher配置/tier setupだけを専用HOMEでbwrap隔離して実行。Codexテストはhelperを呼ぶ。
+- [x] 欠落・重複・逆順で出力/実行無し、正しい範囲の実行、範囲外のtail不実行、書込拒否/network不通をbehavioral fixtureで検証。入口へ新pytestを加える。
+- [x] GREENと全体検証を同期実行。最初のREDと安全修正後の実行結果は別ログへ保存する。危険な旧版を隔離無しで再実行しない。
 - [ ] F-1修正をcommitし、停止を挟んだ安全修正なので差分に限定した独立re-reviewで境界を確認する。元のbranch review全体をやり直さない。
 - [ ] Issue/競合を再確認し、scan済SHAのpushと元のPR計画を続行する。実機未検証と過去の安全停止/影響不明もPRに明記する。
 
@@ -102,4 +102,4 @@
 
 ## 実行記録
 
-準備: parent無し、競合無し、先行修正マージ済み。基準検証は bash 32本・layout・pytest 625件すべて終了0。Spec builder-checkの指摘3件を解決し、Specを `0a9e734` にコミット。Task 1 を `a24dc66` にコミット。Task 2 は文書・設定を反映し、全検証成功（bash32本、layout、pytest625件、migrations149件）。Plannotator は設定範囲が占有中だったため一時ポートでloopback・fallback・日本語Markdown・合成承認を検証（45123占有→45124、終了0）。レビューと公開は未実施。
+準備: parent無し、競合無し、先行修正マージ済み。基準検証は bash 32本・layout・pytest 625件すべて終了0。Spec builder-checkの指摘3件を解決し、Specを `0a9e734` にコミット。Task 1 を `a24dc66` にコミット。Task 2 は文書・設定を反映し、全検証成功（bash32本、layout、pytest625件、migrations149件）。Plannotator は設定範囲が占有中だったため一時ポートでloopback・fallback・日本語Markdown・合成承認を検証（45123占有→45124、終了0）。初回branch reviewでF-1を検出して安全停止。その後、利用者の明示指示によりTask3を実行。隔離した実テストのRED→GREENと8件の回帰、全体32bash/layout/625pytestの再検証を確認した。安全修正差分の限定re-reviewと公開は未実施。
