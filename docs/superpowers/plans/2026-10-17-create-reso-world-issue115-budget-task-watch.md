@@ -54,11 +54,11 @@
 
 **テスト:** 要る。ledger の集計と CLI の挙動をコードの実行で確かめる。移植元のテストを持ち込む。
 
-- [ ] `pyproject.toml` の `dependencies` を `["pydantic>=2.12,<3"]` にし、`testpaths` に `.agents/scripts` を足す。`uv lock` を実行する
-- [ ] 移植元の 2 ファイルを写し、docstring の `Issue #598` を `usaturn/agent-workspace#598` にする。`except A, B:` があれば括弧を付ける
-- [ ] `uv run pytest .agents/scripts -q` が通る
-- [ ] ledger を始める: `mkdir -p /workspaces/reso-world/tmp/agents` の後に `mktemp -d /workspaces/reso-world/tmp/agents/issue-115.XXXXXX`、`start --budget-minutes 240`
-- [ ] コミット
+- [x] `pyproject.toml` の `dependencies` を `["pydantic>=2.12,<3"]` にし、`testpaths` に `.agents/scripts` を足す。`uv lock` を実行する
+- [x] 移植元の 2 ファイルを写し、docstring の `Issue #598` を `usaturn/agent-workspace#598` にする。`except A, B:` があれば括弧を付ける
+- [x] `uv run pytest .agents/scripts -q` が通る
+- [x] ledger を始める: `mkdir -p /workspaces/reso-world/tmp/agents` の後に `mktemp -d /workspaces/reso-world/tmp/agents/issue-115.XXXXXX`、`start --budget-minutes 240`
+- [x] コミット
 
 ### Task 2: task_watch.py とテスト
 
@@ -67,9 +67,9 @@
 
 **テスト:** 要る。判定の優先順と、実プロセスの起動・停止を fake worker で確かめる。移植元のテストを持ち込む。
 
-- [ ] 移植元の 4 ファイルを写し、Issue 番号の表記を直し、`except A, B:` に括弧を付ける
-- [ ] `uv run pytest .agents/skills/monitoring-long-tasks -q` が通る。process のテストを続けてもう 1 回実行し、安定していることを確かめる
-- [ ] コミット
+- [x] 移植元の 4 ファイルを写し、Issue 番号の表記を直し、`except A, B:` に括弧を付ける
+- [x] `uv run pytest .agents/skills/monitoring-long-tasks -q` が通る。process のテストを続けてもう 1 回実行し、安定していることを確かめる
+- [x] コミット
 
 ### Task 3: execution-budget.md
 
@@ -78,8 +78,8 @@
 
 **テスト:** 不要（文書だけ）。代わりに Task 6 の行動比較の状況 D と、Task 7 の参照の検査で確かめる。
 
-- [ ] 移植元を基に、実行の入口（Spec D-5）、置き場所と片付け（D-5・D-6）、適用範囲（D-10）を書き換える。`#220` など移植元の Issue への参照を外す
-- [ ] コミット
+- [x] 移植元を基に、実行の入口（Spec D-5）、置き場所と片付け（D-5・D-6）、適用範囲（D-10）を書き換える。`#220` など移植元の Issue への参照を外す
+- [x] コミット
 
 ### Task 4: monitoring-long-tasks の SKILL.md と monitoring-runtimes.md
 
@@ -88,9 +88,9 @@
 
 **テスト:** 不要（文書だけ）。代わりに Task 6 の行動比較と、Task 7 の frontmatter・参照の検査で確かめる。
 
-- [ ] `SKILL.md` を Spec D-7 のとおり書き換える。`description` は今のまま
-- [ ] `monitoring-runtimes.md` を Spec D-8 のとおり書き換える
-- [ ] コミット
+- [x] `SKILL.md` を Spec D-7 のとおり書き換える。`description` は今のまま
+- [x] `monitoring-runtimes.md` を Spec D-8 のとおり書き換える
+- [x] コミット
 
 ### Task 5: AGENTS.md・README.md・ci.yml・移植の記録
 
@@ -99,11 +99,11 @@
 
 **テスト:** 不要（文書と設定値だけ）。代わりに `bash tests/scripts/test-instructions.bash` と `bash tests/scripts/test-docs.bash` で参照先の実在を確かめ、`git diff` を確認する。
 
-- [ ] `AGENTS.md` の「SDD 実行運用」を Spec D-9 のとおりにする
-- [ ] `README.md` の「テスト」と `ci.yml` の `skill-tests` のコマンドに `.agents/scripts` を足す（D-4）
-- [ ] `docs/maatlog-poc-porting.md` の 4 行に追記する（D-12）
-- [ ] checkpoint（phase の境界）を ledger に記録する
-- [ ] コミット
+- [x] `AGENTS.md` の「SDD 実行運用」を Spec D-9 のとおりにする
+- [x] `README.md` の「テスト」と `ci.yml` の `skill-tests` のコマンドに `.agents/scripts` を足す（D-4）
+- [x] `docs/maatlog-poc-porting.md` の 4 行に追記する（D-12）
+- [x] checkpoint（phase の境界）を ledger に記録する
+- [x] コミット
 
 ### Task 6: 行動比較（arm B）と記録
 
@@ -112,26 +112,47 @@
 
 **テスト:** 不要（評価の記録）。行動比較そのものが文面の検証にあたる。
 
-- [ ] 改訂後の `SKILL.md`・`monitoring-runtimes.md`・`execution-budget.md` を scratch の `eval/arm-b/` に写し、arm A と同じ指示文でサブエージェントを 1 件起動する（arm A は準備の phase に実施済み）
-- [ ] 結果を比べ、arm B が「定めが無い」と答えた点のうち、規則の欠けにあたるものを文書に足す。足したら再比較するかを記録に書く
-- [ ] 記録を書いてコミット
+- [x] 改訂後の `SKILL.md`・`monitoring-runtimes.md`・`execution-budget.md` を scratch の `eval/arm-b/` に写し、arm A と同じ指示文でサブエージェントを 1 件起動する（arm A は準備の phase に実施済み）
+- [x] 結果を比べ、arm B が「定めが無い」と答えた点のうち、規則の欠けにあたるものを文書に足す。足したら再比較するかを記録に書く
+- [x] 記録を書いてコミット
 
 ### Task 7: 検証
 
 **テスト:** 既存と移植したテストの全体を実行する。
 
-- [ ] `bash .devcontainer/run-tests.bash`（バックグラウンドで起動して終了コードを待つ）
-- [ ] `bash scripts/check-layout.sh`
-- [ ] `uv run pytest tests/skills .agents/skills .agents/scripts`
-- [ ] `git diff origin/main --stat` と差分の全体を読み、範囲外の変更が無いことを確かめる
-- [ ] checkpoint を ledger に記録する
+- [x] `bash .devcontainer/run-tests.bash`（バックグラウンドで起動して終了コードを待つ）
+- [x] `bash scripts/check-layout.sh`
+- [x] `uv run pytest tests/skills .agents/skills .agents/scripts`
+- [x] `git diff origin/main --stat` と差分の全体を読み、範囲外の変更が無いことを確かめる
+- [x] checkpoint を ledger に記録する
 
 ### Task 8: 完了の記録と PR
 
-- [ ] `issue_budget.py show` の要約を下の「完了」に書き、Spec・Plan の状態は draft のまま（利用者の承認が無いため）にする
-- [ ] push して PR を作る（本文: 変更の要約、Spec・Plan のパス、検証の結果、行動比較の要約、持ち越し候補、`Closes #115`）
-- [ ] ledger に `end` を記録し、セッションのディレクトリを片付ける（Spec D-6）
+- [x] `issue_budget.py show` の要約を下の「完了」に書き、Spec・Plan の状態は draft のまま（利用者の承認が無いため）にする
+- [x] push して PR を作る（本文: 変更の要約、Spec・Plan のパス、検証の結果、行動比較の要約、持ち越し候補、`Closes #115`）
+- [x] ledger に `end` を記録し、セッションのディレクトリを片付ける（Spec D-6）
 
 ## 完了
 
-（Task 8 で記入する）
+2026-10-17（JST）に Task 1〜7 を終え、PR を作った。Spec・Plan の状態は、内容に対する利用者の明示承認が無いので draft のまま。
+
+### 検証
+
+- `bash .devcontainer/run-tests.bash`: `PASS: 30 test(s)`（終了コード 0）
+- `bash scripts/check-layout.sh`: `PASS: check-layout`（終了コード 0。worktree にはローカルのワールドが無いので、プロジェクトの検査は対象が無い）
+- `uv run pytest tests/skills .agents/skills .agents/scripts`: 528 passed・1 failed（221 秒）。失敗は `pr-review` の `test_pr_review_workspace.py::test_killed_create_reports_its_last_phase_and_leftovers`（process group を kill した直後に、別 session の `git worktree add` が `running` のはずが `vanished`）。`run-tests.bash` と同時に実行して負荷が重なった時間依存の失敗と判断した。`pr-review` はこの変更で触っておらず、そのスクリプトは pydantic も新しいスクリプトも読み込まない。再試行の上限（1 回）の範囲でこのテストだけを再実行し、成功した（7.7 秒）。テストは変えていない
+- `uv run pytest .agents/skills/monitoring-long-tasks`: 40 passed（22 秒）。続けて process のテストだけを再実行し、19 passed（20 秒）
+- `uv run pytest .agents/scripts`: 15 passed
+- 移植したコードと移植元の差分は、Issue 番号の表記と `except (A, B):` の括弧だけ（`diff` で確認）。3.12 の文法で構文解析できることを `ast.parse(..., feature_version=(3, 12))` で確かめた
+- 文書に書いた失敗の記録の例（`mark --event failure --failure-class reliability --signature pytest-timeout:test_task_watch_process`）を scratch の ledger で実行し、`show` の `failures` に数えられることを確かめた
+
+### 行動比較
+
+`.agents/skills/monitoring-long-tasks/evals/2026-10-17-issue-115.md` に記録した。4 つの状況すべてで、改訂後の文書だけを読んだサブエージェントが期待どおりに判断した。改訂後が挙げた不足のうち 3 点を文書に足し、再比較はしていない。
+
+### 実行予算の記録
+
+- 準備（調査・Spec・Plan）は ledger の外で、壁時計で約 16 分（20:52 の worktree の更新から、21:08 の ledger の開始まで）。利用者待ちは無い
+- ledger（`/workspaces/reso-world/tmp/agents/issue-115.QqGjQF/budget.jsonl`）の検証の checkpoint の時点（21:18）の `show`: 能動時間 578 秒、利用者待ち 0 秒、予算 240 分の 4.0%、期日を過ぎた checkpoint は無い。失敗は上の pytest の 1 件（reliability、1 回。上限には達していない）。安全の失敗は無い
+- checkpoint は 3 回（準備の終わり、実装の終わり、検証の終わり）。判断はすべて `continue`
+- 予算の 50%・100% には達していない。縮小・切り出し・方法変更の候補は使わなかった
