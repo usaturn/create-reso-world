@@ -79,7 +79,7 @@ PR #129 で D-1〜D-6 は実装済み。rebuild 後の Python 選択・ダウン
 - 親checkoutの旧.gitignoreにはまだ新しい設定の除外が無いので、同じ1パスを `.git/info/exclude` にも登録した。追跡する親ファイルは未変更。
 - 修復後: 変更版checkerの `--root /workspaces/reso-world` 成功、akichiの通常 `uv run pytest` 62 passed、slum02は226 passed。環境の再作成なし。
 - 作業worktree: profile回帰テストRED→GREEN、配置検査成功、Pythonテスト625 passed、Resonite toolchain検査成功。
-- shell suiteの最初の実行は31/32。READMEの実在しない短縮パスを参照検査が検出したため、実際のパスとローカル設定の説明に修正。個別docs検査は成功。全体の最終再実行とブランチレビューは別途記録する。
+- shell suiteの最初の実行は31/32。READMEの実在しない短縮パスを参照検査が検出したため、実際のパスとローカル設定の説明に修正。個別docs検査と最終shell suiteの32/32成功を確認。全6ファイルのブランチレビューはCritical/Important/Minorすべて0件。詳しい検証表と裁定は関連Planの実行結果に記録した。
 - Argon/Opus/workshopの消失したuv管理3.12参照は、許可の対象外として保持。ResoLoopのスキル更新警告も自動更新しない。
 
 ## 範囲外
