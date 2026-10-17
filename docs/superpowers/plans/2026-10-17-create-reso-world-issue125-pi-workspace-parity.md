@@ -81,7 +81,7 @@
 - [x] `git grep` で凍結Spec/Plan以外の旧setup / cleanup / pigou参照を確認する。歴史の説明は明示して残し、実行手順に古い参照を残さない。
 - [x] 全検証: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts`。Expected: 全て終了0。移植元との一致ファイル・差分例外を記録する。
 - [x] 実 Plannotator を隔離・offlineで確認できるなら loopback / port fallback / HTTP review submission を確認。Windows・rebuild・実モデルは未検証のままchecklistへ。
-- [ ] 明示ファイルをcommit後、`sp-review` に `Review scope: branch`、upstream `code-reviewer.md`、base/head・Spec/Plan・Review Focus・検証・Rulingを渡す。レビューは読み取り専用、テストは実装担当が実行する。Important/Critical は1回の修正passで対処し再発テストが必要なら RED→GREEN、文書のみなら参照と差分検査を実施する。
+- [x] 明示ファイルをcommit後、`sp-review` に `Review scope: branch`、upstream `code-reviewer.md`、base/head・Spec/Plan・Review Focus・検証・Rulingを渡す。レビューは読み取り専用、テストは実装担当が実行する。Important/Critical は1回の修正passで対処し再発テストが必要なら RED→GREEN、文書のみなら参照と差分検査を実施する。
 - [ ] Issue状態・競合・remote予約を再確認。secret scanの返したSHAをそのままbranchへpushし、`gh pr create --repo usaturn/create-reso-world --base main --head feat/issue-125-pi-workspace-parity`。本文に `Closes #125`、決定理由・方式理由・検証・時間内訳・例外・未検証を記す。
 - [ ] #125に実機checklistをコメント。Spec/Planはdraftのまま結果を追記してコミットし（公開前に行う）、実行許可と承認を区別する。Herdrをcompletedにし、PR・branch/worktree・文書の絶対パス・所要を報告する。
 
@@ -102,4 +102,11 @@
 
 ## 実行記録
 
-準備: parent無し、競合無し、先行修正マージ済み。基準検証は bash 32本・layout・pytest 625件すべて終了0。Spec builder-checkの指摘3件を解決し、Specを `0a9e734` にコミット。Task 1 を `a24dc66` にコミット。Task 2 は文書・設定を反映し、全検証成功（bash32本、layout、pytest625件、migrations149件）。Plannotator は設定範囲が占有中だったため一時ポートでloopback・fallback・日本語Markdown・合成承認を検証（45123占有→45124、終了0）。初回branch reviewでF-1を検出して安全停止。その後、利用者の明示指示によりTask3を実行。隔離した実テストのRED→GREENと8件の回帰、全体32bash/layout/625pytestの再検証を確認した。安全修正をc35db31にコミットし、限定re-reviewを実施。指摘された検査の独立性をテスト所有の書込可能mountで補強し、readonlyを外したcopyが安全にREDになることを確認した。公開は未実施。
+準備: parent無し、競合無し、先行修正マージ済み。基準検証は bash 32本・layout・pytest 625件すべて終了0。Spec builder-checkの指摘3件を解決し、Specを `0a9e734` にコミット。Task 1 を `a24dc66` にコミット。Task 2 は文書・設定を反映し、全検証成功（bash32本、layout、pytest625件、migrations149件）。Plannotator は設定範囲が占有中だったため一時ポートでloopback・fallback・日本語Markdown・合成承認を検証（45123占有→45124、終了0）。初回branch reviewでF-1を検出して安全停止。その後、利用者の明示指示によりTask3を実行。隔離した実テストのRED→GREENと8件の回帰、全体32bash/layout/625pytestの再検証を確認した。安全修正をc35db31にコミットし、限定re-reviewを実施。指摘された検査の独立性をテスト所有の書込可能mountで補強し、readonlyを外したcopyが安全にREDになることを確認した。公開は未実施（次の段階）。
+
+### 最終検証
+
+- 修正後の最終 `run-tests.bash`: 32/32終了0（migrations157件を含む）、layout終了0、syntax/diff検査終了0。
+- 最終pytestは `test_abandon_waits_for_a_checkout_that_outlives_create` 1件で失敗（624成功）。既存testがchildの生成より前のworktree-add journalで待ちから戻るタイミング依存を確認した。対象外のコードは変えず、許可した1回だけ全体再実行し625件成功（172.80秒）。失敗を隠さずPRへ記録する。
+- 安全修正の限定re-reviewではF-1元経路は解消済み。検査の独立性の指摘も、テスト所有writable mountと実行mutation RED→GREENで対処した。Minorは無し。
+- 裁定: 過去の実環境影響は復元不能なのでunknownを維持し自動復旧しない。変更していないlauncher/setupは初回branch reviewの範囲を維持する。Windows/rebuild/実providerと任意の悪意あるコードに対する完全な隔離保証は今回のローカル検証に含めない。
