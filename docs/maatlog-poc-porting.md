@@ -144,10 +144,10 @@
 
 | 移植元のパス | 移植先のパス | 判断 | 理由 | 担当 Issue |
 | --- | --- | --- | --- | --- |
-| `.agents/skills/**`（85 件。agent-handoff、find-docs、herdr-agent-task、monitoring-long-tasks、pi-model-name、planning-parallel-issues、pr-review、pr-review-fix-loop、repo-cleanup-after-merge、repository-ownership、review-fix-planning、simplify-in-subagent、version-export） | `.agents/skills/` | 対象外 | スキルは移植・統合しない。移植先の現在の内容と `.claude/skills/` の symlink の構成を保つ | #17 |
-| `.claude/skills/**`（109 件。agent-handoff、herdr-agent-task、monitoring-long-tasks、planning-parallel-issues、pr-review、pr-review-fix-loop、python-extension-docs、repo-cleanup-after-merge、repository-ownership、review-fix-planning、rst-writer、version-export） | `.claude/skills/` | 対象外 | 同上 | #17 |
-| `.agents/monitoring-runtimes.md` | 同じ | 対象外 | スキルが参照する文書。移植先の内容を保つ | #17 |
-| `.agents/review-records.md`・`.agents/scripts/**`（4 件。`agent_tmp.py`・`review_records.py` とそのテスト） | なし | 対象外 | レビュー系ツール | #17 |
+| `.agents/skills/**`（85 件。agent-handoff、find-docs、herdr-agent-task、monitoring-long-tasks、pi-model-name、planning-parallel-issues、pr-review、pr-review-fix-loop、repo-cleanup-after-merge、repository-ownership、review-fix-planning、simplify-in-subagent、version-export） | `.agents/skills/` | 対象外 | スキルは移植・統合しない。移植先の現在の内容と `.claude/skills/` の symlink の構成を保つ。後に #115（2026-10-17）で、`monitoring-long-tasks` を usaturn/agent-workspace の版を基に置き換えた（maatlog-poc の版ではない） | #17 |
+| `.claude/skills/**`（109 件。agent-handoff、herdr-agent-task、monitoring-long-tasks、planning-parallel-issues、pr-review、pr-review-fix-loop、python-extension-docs、repo-cleanup-after-merge、repository-ownership、review-fix-planning、rst-writer、version-export） | `.claude/skills/` | 対象外 | 同上。後に #115（2026-10-17）で、`monitoring-long-tasks` を usaturn/agent-workspace の版を基に置き換えた（maatlog-poc の版ではない） | #17 |
+| `.agents/monitoring-runtimes.md` | 同じ | 対象外 | スキルが参照する文書。移植先の内容を保つ。後に #115（2026-10-17）で、usaturn/agent-workspace の版を基に `task_watch.py` の節と pi の行を足した（maatlog-poc の版ではない） | #17 |
+| `.agents/review-records.md`・`.agents/scripts/**`（4 件。`agent_tmp.py`・`review_records.py` とそのテスト） | なし | 対象外 | レビュー系ツール。後に #115（2026-10-17）で入れた `.agents/scripts/issue_budget.py` は usaturn/agent-workspace から取り入れたもので、この行の移植元のファイルとは別物 | #17 |
 | `.devcontainer/herdr-pr-review.bash`・`.devcontainer/herdr-pr-review-launch.bash`・`.devcontainer/herdr-pr-review.toml` | なし | 対象外 | レビュー系ツール | #17 |
 | `tools/__init__.py`・`tools/herdr_pr_review/**`（116 件）・`tools/review_triage/**`（37 件）・`tools/devenv/**`（3 件）・`tools/devenv_migration/**`（16 件）・`tools/test_support/**`（10 件） | なし | 対象外 | レビュー系ツールとその支援 | #17 |
 | `.devcontainer/install_beforehand.bash` の `npm:@upstash/context7-pi` の導入、`.pi/mcp.json` の `context7` | なし | 対象外 | pi の Context7 は持ち込まない。移植先の `cleanup_pi_mcp.py` による `@upstash/context7-pi` の撤去は続ける。Claude Code・Codex・Cursor の Context7 と `find-docs` は変えない | #17 |
