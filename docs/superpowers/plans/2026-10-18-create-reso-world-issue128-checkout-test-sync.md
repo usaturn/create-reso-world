@@ -41,12 +41,12 @@
 
 **テストの要否:** 必要。実際に起きたタイミング不具合の再発防止。新しい固定文言テストやメタテストは追加せず、既存の実 Git・プロセス・lock 検査を維持し、隔離遅延コピーで RED/GREEN を確認する。Spec/Plan の文章自体のテストは不要。
 
-- [ ] Step 1: Task の開始 SHA と brief を session ledger に記録する。基準版の test と helper を session 下に同じ相対配置でコピーする。コピー内の helper の `journal.record("worktree-add")` 直後に `time.sleep(0.5)` を挿入する。
-- [ ] Step 2: `uv run pytest <copy>/.agents/skills/pr-review/tests/test_pr_review_workspace.py -q -k 'test_killed_create_reports_its_last_phase_and_leftovers or test_abandon_waits_for_a_checkout_that_outlives_create'` を実行する。Expected: 両方失敗（running のはずが vanished、または abandon が still running を拒否しない）。実 helper は変更しない。
-- [ ] Step 3: テストファイルに `wait_for_stalled_git(tmp_path: Path) -> None` を追加する。PID ファイルの `is_file()` を monotonic deadline まで 0.05 秒ごとに調べる。期限切れは具体的な AssertionError。該当 2 テストの phase 待機の直後、kill の直前に呼ぶ。
-- [ ] Step 4: 修正したテストを隔離コピーに同期して同じコマンドを実行する。Expected: 2 passed。通常コピーでも該当 2 件を実行し、Expected: 2 passed。隔離実行で、ファイル無しの期限切れ（時計だけ制御）とファイル有りの成功を確認する。Expected: 期限切れは AssertionError、有りは正常終了。
-- [ ] Step 5: `uv run pytest .agents/skills/pr-review -q`、`git diff --check` を実行する。Expected: 全件成功・終了 0。テストファイルだけを明示 stage して `git commit -m "test: wait for checkout startup before killing create"`。Task 完了を ledger に記録する。
-- [ ] Step 6: README の非ワールド向け入口を worktree から実行する: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts`。Expected: 全コマンド終了 0。実 API の opt-in live check は無効にする。失敗は systematic-debugging で原因を調べ、同じ信頼性の失敗の再試行は 1 回まで。
+- [x] Step 1: Task の開始 SHA と brief を session ledger に記録する。基準版の test と helper を session 下に同じ相対配置でコピーする。コピー内の helper の `journal.record("worktree-add")` 直後に `time.sleep(0.5)` を挿入する。
+- [x] Step 2: `uv run pytest <copy>/.agents/skills/pr-review/tests/test_pr_review_workspace.py -q -k 'test_killed_create_reports_its_last_phase_and_leftovers or test_abandon_waits_for_a_checkout_that_outlives_create'` を実行する。Expected: 両方失敗（running のはずが vanished、または abandon が still running を拒否しない）。実 helper は変更しない。
+- [x] Step 3: テストファイルに `wait_for_stalled_git(tmp_path: Path) -> None` を追加する。PID ファイルの `is_file()` を monotonic deadline まで 0.05 秒ごとに調べる。期限切れは具体的な AssertionError。該当 2 テストの phase 待機の直後、kill の直前に呼ぶ。
+- [x] Step 4: 修正したテストを隔離コピーに同期して同じコマンドを実行する。Expected: 2 passed。通常コピーでも該当 2 件を実行し、Expected: 2 passed。隔離実行で、ファイル無しの期限切れ（時計だけ制御）とファイル有りの成功を確認する。Expected: 期限切れは AssertionError、有りは正常終了。
+- [x] Step 5: `uv run pytest .agents/skills/pr-review -q`、`git diff --check` を実行する。Expected: 全件成功・終了 0。テストファイルだけを明示 stage して `git commit -m "test: wait for checkout startup before killing create"`。Task 完了を ledger に記録する。
+- [x] Step 6: README の非ワールド向け入口を worktree から実行する: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts`。Expected: 全コマンド終了 0。実 API の opt-in live check は無効にする。失敗は systematic-debugging で原因を調べ、同じ信頼性の失敗の再試行は 1 回まで。
 - [ ] Step 7: 基準 SHA からの diff と Spec/Plan/ledger を渡して、読み取り専用の独立したブランチ全体レビューを実施。重要な問題は 1 回の修正工程で RED/GREEN と全体検証、軽微な指摘は記録する。検証結果を文書へ追記し commit。
 - [ ] Step 8: Issue の open 状態・PR/claim/branch の競合を再確認。Gitleaks 検査後の SHA をそのまま `fix/issue-128-checkout-test-sync` に push。再確認後、`--repo usaturn/create-reso-world --base main` で `Closes #128` の PR を作成する。private Actions は確認対象外。PR URL と実在パス・所要時間を報告する。マージしない。
 
@@ -64,3 +64,8 @@
 
 - Spec builder check: nothing important left（読み取り専用）。
 - baseline: pr-review 190 passed、exit 0、27.87 秒。
+- 実装 commit: `a483c40`。遅延 RED は 2 failed（exit 1）、同一条件 GREEN は 2 passed（exit 0）。通常条件 2 passed。待機の期限切れ・ファイル有りの隔離実行も成功。
+- 実装後 pr-review: 190 passed、exit 0、29.59 秒。
+- README の全体検証: run-tests.bash 32/32 PASS、check-layout PASS、pytest 625 passed（167.37 秒）。すべて exit 0、再試行なし。実 API の opt-in live check は無効。
+- `git diff --check` 成功。helper 本体・既存 assertion/cleanup は差分なし。
+- 03:49 JST checkpoint: 約 11 分経過。受け入れ条件を満たしたため、読み取り専用のブランチ全体レビューと公開へ進む。

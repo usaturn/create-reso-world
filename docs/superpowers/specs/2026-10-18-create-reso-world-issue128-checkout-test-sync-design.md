@@ -55,3 +55,16 @@ PID ファイルはテスト専用の新しい tmp_path に作る。PID の読�
 - Issue 本文・全コメント・親/依存・open PR 全ページ・予約 ref・branch/worktree を確認。同じ Issue の先行作業なし、親 Issue なし、blocked_by は空。#115 は完了済み。
 - 基準版の `uv run pytest .agents/skills/pr-review -q`: 190 passed、終了コード 0、27.87 秒。
 - 既知の競合なので基準版が通常条件で成功しても、遅延条件による再現を省略しない。
+
+### 実装・検証結果（2026-10-18）
+
+- 実装: `a483c40`。テストファイルに 13 行追加のみ。PID 待機 1 関数と既存 2 テストの呼び出し。helper 本体・既存 assertion・cleanup は不変。
+- 遅延コピーの RED: 2 failed、終了 1。1 件目は `vanished` と `running` の不一致、2 件目は `abandon` が `still running` のエラーを出さないことを再現（0.77 秒）。
+- 同じ遅延コピーの GREEN: 2 passed、終了 0（2.19 秒）。通常条件: 2 passed、終了 0（0.81 秒）。
+- 待機ユーティリティの隔離実行: ファイル無しで時計だけを進めると AssertionError、ファイル有りで即時正常終了。実行は終了 0。永続するメタテストは追加していない。
+- `uv run pytest .agents/skills/pr-review -q`: 190 passed、終了 0（29.59 秒）。
+- `bash .devcontainer/run-tests.bash`: 32/32 PASS、終了 0。実 API の opt-in は `PI_CODEX_LIVE_CHECK=0`・`PI_XAI_LIVE_CHECK=0`、uv は offline。
+- `bash scripts/check-layout.sh`: PASS、終了 0。
+- `uv run pytest tests/skills .agents/skills .agents/scripts`: 625 passed、終了 0（167.37 秒）。通常条件の最終全体検証は再試行なし。
+- `git diff --check`: 終了 0。追加の固定文言テストなし。private Actions は確認対象外。
+- ログ・隔離コピーは `/workspaces/reso-world/tmp/agents/issue-128.6jfkkfsu/`。公開と結果転記の後、不要を確認して削除する。
