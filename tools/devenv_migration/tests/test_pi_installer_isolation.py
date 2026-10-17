@@ -29,6 +29,7 @@ def _sandbox(
     return subprocess.run(
         [shutil.which("bwrap") or "bwrap", "--die-with-parent", *(["--unshare-net"] if network else []),
          "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+         "--ro-bind", str(ROOT), str(ROOT), "--chdir", str(ROOT),
          "--bind", str(tmp_path), str(tmp_path),
          *(["--bind", str(writable_mount), "/mnt"] if writable_mount is not None else []),
          "--", *command],
@@ -66,10 +67,21 @@ def test_actual_codex_suite_never_calls_external_installers(tmp_path: Path) -> N
 def test_invalid_boundaries_emit_nothing_and_execute_nothing(tmp_path: Path, text: str) -> None:
     installer = tmp_path / "invalid.bash"
     installer.write_text(text)
-    result = _sandbox(tmp_path, ["bash", "-c", 'source "$1"; pi_launcher_install_fragment "$2"',
-                                 "_", str(HELPER), str(installer)])
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "sentinel").write_text("unchanged")
+    before = {p.relative_to(tmp_path): (p.stat().st_mode, p.read_bytes() if p.is_file() else None)
+              for p in tmp_path.rglob("*")}
+    # A missing helper must fail this test, not masquerade as a rejected boundary.
+    # test_only_launcher_section_runs is the positive control for the same path.
+    result = _sandbox(tmp_path, ["bash", "-c", 'source "$1"; pi_run_launcher_install "$2" "$3"',
+                                 "_", str(HELPER), str(installer), str(home)])
     assert result.returncode != 0
     assert result.stdout == ""
+    assert "invalid section boundaries" in result.stderr
+    after = {p.relative_to(tmp_path): (p.stat().st_mode, p.read_bytes() if p.is_file() else None)
+             for p in tmp_path.rglob("*")}
+    assert after == before
 
 
 def test_only_launcher_section_runs(tmp_path: Path) -> None:

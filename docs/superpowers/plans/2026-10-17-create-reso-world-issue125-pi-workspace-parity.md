@@ -100,6 +100,22 @@
 
 再開の実行予算: 元の100分のうち前run約46分と再開準備約6分を差し引き48分。準備/修正15分、回帰/全体検証15分、限定review/公開18分。ledgerは同sessionの`recovery-budget.jsonl`。旧budget.jsonlの安全失敗を消さず保存し、利用者が明示許可した異なる安全な検証方法だけを別runで記録する。新しい安全失敗は即停止、信頼性は1回まで。任意sp-reconは結果無しで返ったため成功扱いせず、同じ呼出しを繰り返さずcontrollerの読み取り調査へ変更した。
 
+### Task 4: PR #141 のレビュー修正（review-fix-planning、2026-10-18）
+
+実行許可: 利用者の review-fix-planning と PR URL 指定。初回 issue-to-pr と別の作業であり、今回の判断は Spec の追記に定義する。新しい PR は作らず、修正を既存 head へ push する。`.agents/execution-budget.md` は review-fix-planning の修正計画を適用対象外としているため、当初 issue-to-pr の100分ledgerは再利用しない。今回の所要は Spec と状況コメントへ記録する。同期workerは待ちが戻るまで保持し、検証にtimeoutを付けて強制停止しない。
+
+- [x] 全レビューの対象HEAD・共通context・clean worktreeを確認し、現行のコミット内容と隔離した再現で分類する。テスト要: 実挙動の検証。旧/tmp sandboxの3失敗とsetupの退行を確認。
+- [x] Specに全16入力の分類、11件が対応する理由、影響経路、F-6の再発と設計見直しを記録。文書のためテスト不要、参照とdiffで確認する。
+- [x] providerの3setupを専用更新処理へ接続。全入力のpreflight、~解決、BOM、mode保持、リンク拒否、単一ファイルの完全置換を実装する。テスト要: 実setupの成功/拒否/I/O失敗と状態全体の比較。
+- [x] 隔離helper/pytestのrepo可視性とcwdを明示。テスト要: /tmpと通常worktree、正常対照、境界拒否とreadonly/networkの検出力。
+- [x] 失敗時の全状態比較とguard対照を完了し、migrations、run-tests、layout、shell/Python構文、diffを検証する。86件、/tmpの235件、featureのbash32本（235件を含む）が全成功。guard対照は12+5+1+1件が意図した失敗。
+- [x] 反証・PR全体・検出力の自己レビューを1回だけ実施。追加指摘0件、自己レビュー後のコード変更なし。実機未検証は解消扱いにしない。
+- [x] Specの結果をcompletedへ更新し、PRの保証/件数/既知の制限と照合する。文書のためテスト不要。
+- [ ] head/contextを再確認してcommit、Gitleaksが検査したSHAを既存headへpush、専用helperで状況コメントを投稿する。
+- [ ] 自作の一時worktreeだけを外して一時領域を削除。再利用したfeature worktreeは残す。
+
+上のチェックはcommit直前の実績。commit/pushと最終の片付け結果は、記録専用commitを足さずPR状況コメントへ残す。実機受け入れの項目は従来どおり未実施。
+
 ## 実行記録
 
 準備: parent無し、競合無し、先行修正マージ済み。基準検証は bash 32本・layout・pytest 625件すべて終了0。Spec builder-checkの指摘3件を解決し、Specを `0a9e734` にコミット。Task 1 を `a24dc66` にコミット。Task 2 は文書・設定を反映し、全検証成功（bash32本、layout、pytest625件、migrations149件）。Plannotator は設定範囲が占有中だったため一時ポートでloopback・fallback・日本語Markdown・合成承認を検証（45123占有→45124、終了0）。初回branch reviewでF-1を検出して安全停止。その後、利用者の明示指示によりTask3を実行。隔離した実テストのRED→GREENと8件の回帰、全体32bash/layout/625pytestの再検証を確認した。安全修正をc35db31にコミットし、限定re-reviewを実施。指摘された検査の独立性をテスト所有の書込可能mountで補強し、readonlyを外したcopyが安全にREDになることを確認した。PR https://github.com/usaturn/create-reso-world/pull/141 をmain宛てに公開。初回pushの検査SHAは81e0691、Gitleaksは8commitを検査し検出無し。Issue #125 のコメント https://github.com/usaturn/create-reso-world/issues/125#issuecomment-6237948523 に実機checklistを保存した。PRはOPEN / MERGEABLE / CLEAN（17:46Z確認）、マージは行っていない。

@@ -50,7 +50,13 @@ readonly PICCG_MODELS_CSV="meta/muse-spark-1.3,meta/muse-spark-1.3-contributor"
 readonly PICCD_DEFAULT_MODEL="deepseek/deepseek-v4.1-flash"
 readonly PICCD_MODELS_CSV="deepseek/deepseek-v4.1-flash"
 
-readonly PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+if [[ "${PI_DIR}" == "~" ]]; then
+    PI_DIR="${HOME}"
+elif [[ "${PI_DIR}" == "~/"* ]]; then
+    PI_DIR="${HOME}/${PI_DIR#'~/'}"
+fi
+readonly PI_DIR
 readonly MODELS_JSON="${PI_DIR}/models.json"
 
 #
@@ -121,9 +127,6 @@ check_launcher_source() {
 check_launcher_source piccg "${PICCG_DEFAULT_MODEL}" "${PICCG_MODELS_CSV}"
 check_launcher_source piccd "${PICCD_DEFAULT_MODEL}" "${PICCD_MODELS_CSV}"
 
-mkdir -p "${PI_DIR}"
-mkdir -p "${BIN_DIR}"
-
 log "Pi executable : $(command -v pi)"
 log "Pi config dir : ${PI_DIR}"
 log "Model source  : ${MODELS_SOURCE}"
@@ -164,70 +167,10 @@ fi
 # ----------------------------------------------------------------------
 #
 
-python3 - "${MODELS_JSON}" "${MODELS_SOURCE}" "${PROVIDER}" <<'PY'
-import json
-import os
-import shutil
-import sys
-from datetime import datetime
-from pathlib import Path
+python3 "${0:A:h}/../.devcontainer/pi-provider-setup.py" \
+    "${PI_DIR}" "${MODELS_SOURCE}" "${PROVIDER}"
 
-path = Path(sys.argv[1])
-source = Path(sys.argv[2])
-provider = sys.argv[3]
-
-try:
-    definition = json.loads(source.read_text()).get("providers", {}).get(provider)
-except json.JSONDecodeError as exc:
-    print(f"ERROR: Invalid JSON in {source}: {exc}", file=sys.stderr)
-    sys.exit(1)
-
-if definition is None:
-    print(
-        f"ERROR: Provider {provider!r} is not defined in {source}",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
-if path.exists():
-    try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
-        print(f"ERROR: Invalid JSON in {path}: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    if not isinstance(data, dict):
-        print(f"ERROR: {path} must contain a JSON object.", file=sys.stderr)
-        sys.exit(1)
-else:
-    data = {}
-
-if "providers" not in data:
-    providers = data["providers"] = {}
-else:
-    providers = data["providers"]
-    if not isinstance(providers, dict):
-        print(f"ERROR: {path} 'providers' must be an object.", file=sys.stderr)
-        sys.exit(1)
-
-if providers.get(provider) == definition:
-    print("already up to date")
-    sys.exit(0)
-
-if path.exists():
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup = path.with_name(path.name + f".bak.{timestamp}")
-    shutil.copy2(path, backup)
-    print(f"backup:{backup}")
-
-providers[provider] = definition
-
-tmp = path.with_name(path.name + ".tmp")
-tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
-os.replace(tmp, path)
-
-print("updated")
-PY
+mkdir -p "${BIN_DIR}"
 
 log "models.json: ${PROVIDER} definition applied."
 
@@ -334,7 +277,7 @@ provider = sys.argv[2]
 models = sys.argv[3:]
 
 try:
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8-sig"))
 except FileNotFoundError:
     print(f"ERROR: {path} was not created.", file=sys.stderr)
     sys.exit(1)

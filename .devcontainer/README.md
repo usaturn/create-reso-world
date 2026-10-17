@@ -896,6 +896,15 @@ pi remove npm:pi-lens
   （`install_beforehand.bash` は既存ファイルを上書きしないため）
 
 いずれも冪等で、`providers` のうち対象プロバイダのエントリだけを置き換える。
+3本は `.devcontainer/pi-provider-setup.py` で入力と保存先を先に検証する。
+`PI_CODING_AGENT_DIR` の `~`・`~/` は HOME へ展開し、相対パスは実行時の cwd が基準になる。
+UTF-8 BOM 付きの models/auth も読める。models の既存 mode と他 provider は保持し、新規は `0600`、
+auth は `0600` にする。models の変更時だけ、元のバイト列と mode を一意なバックアップに残す。
+symlink・hard link・特殊ファイルの保存先は、共有先の変更やリンク切断を避けるため、何も更新せず拒否する。
+その場合は共有方法と保存先を利用者が確認し、通常ファイルを使う設定にしてから再実行する。
+不正入力は auth・バックアップ・ランチャー・外部 Pi コマンドを変更する前に拒否する。
+I/O 障害では途中まで書いたファイルを置かず非0で終わるが、完了したファイルの置換と models のバックアップは
+残り得る。複数ファイル全体の取り消しや同時更新の排他は行わないため、Pi と他の setup を止めて実行する。
 `setup_pi_opencode_go.zsh` は `.devcontainer/pigo` と `.devcontainer/pigod` を、
 `setup_pi_commandcode_goat.zsh` は
 `.devcontainer/piccg` と `.devcontainer/piccd` をそのまま配置するため、

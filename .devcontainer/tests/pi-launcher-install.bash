@@ -26,8 +26,9 @@ pi_launcher_install_fragment() {
 }
 
 pi_run_launcher_install() {
-    local installer="$1" home="$2" fragment
+    local installer="$1" home="$2" fragment repo
     local body
+    repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)" || return 1
     # Buffer before creating executable content: missing/duplicate/reversed
     # boundaries must never stream a partial installer into a shell.
     body="$(pi_launcher_install_fragment "$installer")" || return 1
@@ -41,6 +42,7 @@ pi_run_launcher_install() {
     # cannot change the repository, real /tmp or installed tools, or download.
     bwrap --die-with-parent --unshare-net --unshare-pid \
         --ro-bind / / --proc /proc --dev /dev --tmpfs /tmp \
+        --ro-bind "$repo" "$repo" --chdir "$repo" \
         --bind "$home" "$home" --setenv HOME "$home" \
         -- /bin/bash -eu "$fragment"
 }

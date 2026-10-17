@@ -166,6 +166,15 @@ pi の部分は後に Issue #125（2026-10-17）で usaturn/agent-workspace の 
 | `opencode.json` | なし | 対象外 | OpenCode CLI の設定（Superpowers のプラグインと pyright の LSP）。移植先は OpenCode CLI を導入しない。`ccdu` と `pigo` などは OpenCode Go の API を使うが、この設定は使わない | #22 |
 | `scripts/add_pi_skills_setting.py` | なし | 除外 | pi は `.agents/skills` を cwd から git のルートまで自動で読むので不要。`~/.pi/agent/settings.json` に `.claude/skills` の絶対パスを足すと、ホストと共有する `~/.pi` を通じて他のワークスペースの pi にも効く。スキルの読み込みは #17 で対象外 | #22 |
 
+### PR #141 のレビュー修正による追加差分（2026-10-18）
+
+`715d981` との初回比較の結果は上表の履歴として残す。以後、provider setup 3本は完全一致ではない。
+`~` の解決・BOM の読み取り・失敗通知・mode と共有先の保護を、専用の
+`.devcontainer/pi-provider-setup.py` へまとめた。旧 cleanup / pi_json は復活させていない。
+Codex テストの隔離 helper と外側 pytest は、private `/tmp` の後に対象リポジトリを読み取り専用で
+明示 mount し、`/tmp` の worktree でも同じ検証を行う。正常対照・拒否理由・副作用を確認する実行回帰を追加した。
+判断と検証結果は Issue #125 の Spec の「PR #141 レビュー修正」に記録する。
+
 ## 網羅の確認
 
 移植元のファイルがすべていずれかの行に当たることを、次の方法で確かめた（#22 の Plan の一時スクリプト）。
