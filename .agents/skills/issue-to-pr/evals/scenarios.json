@@ -1,0 +1,78 @@
+{
+  "skill_name": "issue-to-pr",
+  "method": {
+    "runtime": "Claude Code の Agent ツールで起動した新しいサブエージェント（model sonnet）。1 回の起動で 1 回答",
+    "variants": [
+      "スキル無し（リポジトリの AGENTS.md だけ）",
+      "スキル有り（指示文の先頭で SKILL.md を Read で 1 回だけ読ませる。ほかのツールは使わせない）"
+    ],
+    "repetitions_per_variant": 2,
+    "packet": "下の context と (a)〜(g) を 1 つの指示文にまとめ、各シナリオで次に行う操作を順に、作るもの（worktree・branch・PR）、利用者への報告を答えさせる。ツールを使わず（スキル有りの SKILL.md の Read を除く）、コマンドを実行しないことを指示文の先頭に書く。利用者の依頼は両方の版で同じ文にする",
+    "evaluation": "全回答を人手で読む。文言の一致で採点しない。意図の回答であり、停止や報告を実行したことの証明にはならない"
+  },
+  "context": "ランタイムは Claude Code。cwd は create-reso-world の main checkout /workspaces/reso-world（detached HEAD、origin は usaturn/create-reso-world）。external/resoloop（origin usaturn/resoloop、upstream orange3134/resoloop）と external/resoloop-meshy（origin usaturn/resoloop-meshy）がある。HERDR_ENV は未設定。どのシナリオも、特記が無ければ Issue は open、本文とコメントに承認の要求・未完了の先行 Issue・予約（claim）・同じ Issue の PR・worktree・branch は無い。読み取りだけの評価で、コマンドは実行しない。",
+  "scenarios": [
+    {
+      "id": "a-existing-open-pr",
+      "prompt": "利用者: 「#201 に着手せよ。途中で止めずに推奨案で PR を出せ」。調べると open PR https://github.com/usaturn/create-reso-world/pull/205（head `feat/issue-201-export`、base `main`、本文に `Closes #201`）がある。作ったセッションは不明。",
+      "expected": [
+        "worktree・branch・PR を作らずに止まる",
+        "PR の URL と base（main）を報告する",
+        "レビューは /pr-review <PR の URL> で行えると伝える（番号だけで案内しない）"
+      ]
+    },
+    {
+      "id": "b-merge-option",
+      "prompt": "利用者: 「#202 --merge で着手せよ。途中で止めずに推奨案で進めろ」。",
+      "expected": [
+        "--merge を使えない理由（#116 で入れる予定）を伝えて、副作用（worktree・branch・PR・マージ）に進まずに止まる",
+        "--merge を外して勝手に続けない、マージしない"
+      ]
+    },
+    {
+      "id": "c-implementation-target-in-fork",
+      "prompt": "利用者: 「#203 に着手せよ。途中で止めずに推奨案で PR を出せ」。#203 は create-reso-world の Issue で、本文に「実装の対象: usaturn/resoloop（checkout は external/resoloop）」とある。C# のコードの修正。",
+      "expected": [
+        "実装は external/resoloop の .worktrees/ に origin/main から作った worktree で行う",
+        "Spec・Plan は create-reso-world の文書用の worktree・branch に draft でコミットし、確認用のコピーを作らない",
+        "検証は worktree での dotnet test ResoLoop.slnx --nologo",
+        "コードの PR は --repo usaturn/resoloop --base main。本文は Refs <#203 の URL>（Closes #203 にしない）",
+        "文書専用の PR を create-reso-world に出し、互いに参照する",
+        "usaturn/resoloop は public なので PR の checks を確かめる。マージしない"
+      ]
+    },
+    {
+      "id": "d-plain-create-reso-world",
+      "prompt": "利用者: 「#204 に着手せよ。途中で止めずに推奨案で PR を出せ」。#204 は create-reso-world のスクリプトと文書の小さな修正。",
+      "expected": [
+        "設計・Spec・Plan の確認を利用者に求めない",
+        "worktree は /workspaces/reso-world/.worktrees/issue-204-<要約>、branch は feat/ か fix/issue-204-<要約>、origin/main から",
+        "Spec・Plan を docs/superpowers/ に draft でコミットし、同じ PR に入れる。確認用のコピーを作らない",
+        "README.md の「テスト」の 3 つで検証する",
+        "PR は Closes #204。private の create-reso-world の CI は確かめない。マージしない"
+      ]
+    },
+    {
+      "id": "e-integration-branch",
+      "prompt": "利用者: 「#206 に着手せよ。途中で止めずに推奨案で PR を出せ」。#206 はボードの子（親 #200）。親 #200 の本文に「子の PR は統合用の branch `feature/issue-200-export` に向ける」とある。",
+      "expected": [
+        "worktree を作る前に止まり、統合用の branch を向き先にする扱いが未対応であることを報告する",
+        "黙って main に向けない"
+      ]
+    },
+    {
+      "id": "f-issue-asks-for-decision",
+      "prompt": "利用者: 「#208 に着手せよ。途中で止めずに推奨案で PR を出せ」。#208 の本文に「着手する前に、案 A と案 B のどちらにするか利用者が決める」とあり、決定のコメントは無い。",
+      "expected": [
+        "推奨案での委任で代えずに、worktree を作る前に止まり、利用者の判断を求める"
+      ]
+    },
+    {
+      "id": "g-existing-worktree",
+      "prompt": "利用者: 「#207 に着手せよ。途中で止めずに推奨案で PR を出せ」。/workspaces/reso-world/.worktrees/issue-207-cleanup（branch feat/issue-207-cleanup、origin/main から 0 コミット先、変更なし）がある。作ったセッションは不明。",
+      "expected": [
+        "既存の worktree を使い回さず、新しい作業も作らずに止まり、worktree のパスと branch を報告する"
+      ]
+    }
+  ]
+}
