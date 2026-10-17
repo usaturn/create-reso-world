@@ -269,8 +269,43 @@ def test_processes_left_in_the_group_after_exit_are_held(tmp_path: Path) -> None
         assert (code, final["decision"], final["reason"]) == (3, "hold", "residual_processes")
         assert final["target"]["exit_code"] == 0 and final["residual_pids"]
         assert all(alive(pid) for pid in final["residual_pids"])
+
+        code, status = call("status", "--state-dir", str(tmp_path / "state"))
+
+        assert (code, status["watcher_alive"], status["target_alive"]) == (0, False, True)
+        assert status["target_group_pids"] == final["residual_pids"]
     finally:
         os.killpg(final["target"]["pid"], signal.SIGKILL)
+
+
+def test_status_sees_the_group_after_the_watcher_is_killed(tmp_path: Path) -> None:
+    # pi の bash ツールは timeout・中断で watcher の group に SIGKILL を送る（create-reso-world PR #127）。
+    # 対象の先頭が終わって子だけが残っても、status は対象を生存として返し、保留させる。
+    argv = watch_argv(tmp_path, "orphan-child", "--deadline-seconds", "20", "--stop", "TERM")
+    watcher = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    wait_for(tmp_path / "state" / "declaration.json")
+    watcher.kill()
+    watcher.wait()
+    target = json.loads((tmp_path / "state" / "declaration.json").read_text(encoding="utf-8"))["target"]["pid"]
+    try:
+        until = time.monotonic() + 10
+        while alive(target):
+            assert time.monotonic() < until, "target leader did not exit"
+            time.sleep(0.05)
+        assert not (tmp_path / "state" / "final.json").exists()
+
+        code, status = call("status", "--state-dir", str(tmp_path / "state"))
+
+        assert (code, status["watcher_alive"], status["target_alive"]) == (0, False, True)
+        assert status["target_group_pids"] and all(alive(pid) for pid in status["target_group_pids"])
+    finally:
+        os.killpg(target, signal.SIGKILL)
+
+    until = time.monotonic() + 10
+    while (status := call("status", "--state-dir", str(tmp_path / "state"))[1])["target_alive"]:
+        assert time.monotonic() < until, "group did not empty"
+        time.sleep(0.05)
+    assert status["target_group_pids"] == []
 
 
 def test_stop_refuses_unrelated_and_caller_pids(tmp_path: Path) -> None:

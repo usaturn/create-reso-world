@@ -6,7 +6,8 @@ JSONL の新しい項目で数え、heartbeat・同じ内容の繰り返し・�
 Linux の /proc を前提にする。sandbox ではない。setsid で process group を抜けた子孫は観測しない。
 
 - ``run``: 対象を独立した session で起動し、state dir に宣言・状態・最終結果を書く
-- ``status``: 状態を短い JSON で返す。watcher と対象の生存は識別情報（PID・starttime）で照合する
+- ``status``: 状態を短い JSON で返す。watcher の生存は識別情報（PID・starttime）で照合し、
+  対象の生存は対象の process group 全体で見る
 - ``stop``: 識別情報が一致する watcher にだけ SIGINT を送り、宣言どおりの停止を待つ
 """
 
@@ -688,7 +689,12 @@ def _status(state_dir: Path) -> int:
             output = {"source": source, **loaded}
             break
     output["watcher_alive"] = _matches(declaration.watcher, watcher=True)
-    output["target_alive"] = declaration.target is not None and _matches(declaration.target)
+    # 先頭のプロセスが終わっても、同じ group に子孫が残ることがある。watcher が SIGKILL で消えた後は、
+    # その残存を確かめられるのはここだけなので、group 全体を見る。group が空になった後に番号が
+    # 別の group に再利用されると生存と誤るが、保留の側に倒れる。
+    group = _live_group_members(declaration.target.pid) if declaration.target is not None else ()
+    output["target_alive"] = declaration.target is not None and (_matches(declaration.target) or bool(group))
+    output["target_group_pids"] = list(group)
     _print(output)
     return 0
 

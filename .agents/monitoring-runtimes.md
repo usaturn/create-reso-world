@@ -11,7 +11,7 @@
 | --- | --- | --- | --- | --- |
 | Claude Code | Bash `run_in_background: true` の完了通知（終了コードを含む）。サブエージェントは `Agent` の完了通知 | 既知の PID を `kill -0` | 完了通知やツール結果が返す出力ファイル path を `Read`。ログ path を印字するコマンドはその path を使い、固定パスを仮定しない | 下の参考実装を `run_in_background: true` に渡す。進捗を都度イベントとして受け取るときだけ `Monitor` を使う |
 | Devin | バックグラウンド `exec`（`timeout: 0`、または既定の自動バックグラウンド化）で起動した対象を `get_output` で待つ。`get_output` は対象プロセスの終了で即復帰し、終了コードは出力末尾の `Exit code: <n>` で確認する。1 回の待機上限は約 280 秒のため、タイムアウトしたら呼び直す。非同期の完了通知が届くのは `run_subagent` のサブエージェント（`<subagent_completion_notification>`）だけであり、シェルプロセスの終了は push されない | 既知の PID を `kill -0`（`exec` 経由）。PID の同一性確認はスキルの手順 3 のまま適用する | コマンドが印字したログ path を `read` で読む。mtime / サイズが必要なら `exec` で `stat` を使う | 下の参考実装をそのままバックグラウンド `exec`（`timeout: 0`）で動かし、その監視シェルを `get_output` で待つ。ループの脱出がそのまま `report exists OR worker is not alive` の解消になる |
-| pi | 完了通知もバックグラウンド実行も無い（pi 1.3.0 の bash ツールの引数は `command`・`timeout` だけ）。対象を bash ツールの foreground で実行し、戻った後に終了コードと結果を確認する | foreground の呼び出しが戻らない間は、対象が動いている。既知の PID は `kill -0`（bash ツール） | 実行中は確かめられない。戻った後にログを必要な範囲だけ読む。途中で止める条件が要る対象は、起動前に `task_watch.py` で宣言して包む（下の「task_watch による途中の判断と停止」） | foreground の実行が戻ることが、そのまま `report exists OR worker is not alive` の解消になる |
+| pi | 完了通知もバックグラウンド実行も無い（pi 1.3.0 の bash ツールの引数は `command`・`timeout` だけ）。対象を bash ツールの foreground で実行し、戻った後に終了コードと結果を確認する | foreground の呼び出しが戻らない間は、対象が動いている。既知の PID は `kill -0`（bash ツール） | 実行中は確かめられない。戻った後にログを必要な範囲だけ読む。途中で止める条件が要る対象は、起動前に `task_watch.py` で宣言して包む（下の「task_watch による途中の判断と停止」） | foreground の実行が戻ることが、そのまま `report exists OR worker is not alive` の解消になる。ただし `task_watch.py` で包んだ対象は別の session で動くので、戻っただけでは解消しない（下の「task_watch による途中の判断と停止」） |
 | Cursor | TBD | TBD | TBD | TBD |
 
 ```bash
@@ -40,11 +40,12 @@ done
 | --- | --- | --- | --- |
 | Claude Code | `run` を Bash の `run_in_background: true` で起動する。watcher の終了が終了コード付きの完了通知になる | `status` を Bash で実行する | `stop` を Bash で実行する |
 | Devin | `run` をバックグラウンド `exec`（`timeout: 0`）で起動し、`get_output` で待つ | `status` を `exec` で実行する | `stop` を `exec` で実行する |
-| pi | `run` を bash ツールの foreground で実行する。controller は戻るまで待つが、watcher が宣言どおりに判定・停止する。これが同期のみのランタイムでの代替策である | 途中では確認できない。戻った後に標準出力の JSON か `final.json` を読む | 途中ではできない。起動前に宣言した条件（期限・無進捗・予約枠・失敗）が代わりに働くので、止める条件は起動前に決めておく |
+| pi | `run` を bash ツールの foreground で実行する。bash ツールの `timeout` は付けない（既定の timeout は無い。期限は watcher が守る）。controller は戻るまで待つが、watcher が宣言どおりに判定・停止する。これが同期のみのランタイムでの代替策である | 途中では確認できない。戻った後に標準出力の JSON か `final.json` を読む。`final.json` が無ければ `status` を実行する（下の箇条） | 途中ではできない。起動前に宣言した条件（期限・無進捗・予約枠・失敗）が代わりに働くので、止める条件は起動前に決めておく |
 | Cursor | TBD | TBD | TBD |
 
 - `run` の終了コードは 0 = `completed`、1 = 完了していない、2 = 入力の誤り、3 = `hold`（停止を確認できない、終了後も同じ group にプロセスが残っている、または `--stop none` の watcher に `stop` を送った）。3 のときは `final.json` の `residual_pids` と `paths` を報告し、依存する作業を始めない
 - `--stop none` の watcher は停止の条件を満たしても止めず、対象が自分で終わるまで動き続ける。pi の行の「宣言した条件が代わりに働く」は `INT`・`TERM` を宣言した場合に限る
+- pi 1.3.0 の bash ツールは、`timeout` を超えたとき・利用者が中断したとき・pi が終わるとき（SIGHUP・SIGTERM・端末の切断・異常終了）に、シェルの process group へ SIGKILL を送る。`task_watch.py` は対象を別の session で起動するので、消えるのは watcher だけで、対象は宣言した期限を過ぎても止まらない。このときは `final.json` が無いので、スキルの「task_watch で宣言・判定・停止する」のとおり `status` で確かめる
 - `task_watch.py` は CLI のプロセスを包むもので、Claude Code の `Agent` などのサブエージェントを止める手段にはならない。上の「PR レビュー委譲の起動可否」の表は変わらない
 
 ## 注記

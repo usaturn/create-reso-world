@@ -98,7 +98,7 @@ task_watch stop --state-dir "$SESSION/watch-eval-1"     # 方針を変えると�
 - `run` の終了コード: 0 = `completed`、1 = 完了していない（`stopped`・`exited_incomplete`）、2 = 入力の誤り、3 = `hold`（停止を確認できない、終了後も同じ group にプロセスが残っている、または `--stop none` の watcher に `stop` を送った）。終了時に `final.json` と同じ内容を標準出力にも出す
 - `final.json` の `next_step` が判定ごとの次の一手、`partial_results` が残った部分成果、`residual_pids` が終了・停止の後も同じ process group に残った PID である
 - `stop` は、watcher の識別情報（PID・starttime・コマンドライン）が一致しない場合と、caller 自身・その祖先の場合に、シグナルを送らずに拒否する（終了コード 2）
-- `status` が `watcher_alive: false` と `target_alive: true` を返したら、watcher だけが消えて対象が監視の無いまま残っている。手で kill せず、「停止不能のため保留」として対象・残存パスを報告する
+- watcher が SIGKILL などで `final.json` を書かずに消えると、別 session の対象は止まらずに残る（ランタイムのツールの timeout・中断が process group に SIGKILL を送る場合など）。`run` の終了後に `final.json` が無ければ、対象の終了とみなさず `status` を実行する。`status` の `target_alive` は、対象の process group に生きているプロセスが 1 つでもあれば `true` になり、その PID を `target_group_pids` に返す。`watcher_alive: false` と `target_alive: true` なら、watcher だけが消えて対象が監視の無いまま残っている。手で kill せず、「停止不能のため保留」として対象・残存パスを報告し、依存する作業を始めない
 - sandbox ではない。setsid で process group を抜けた子孫は確認できない
 
 ランタイムごとの使い方（バックグラウンド起動、同期のみのランタイムでの代替）は、リポジトリルートの `.agents/monitoring-runtimes.md` を参照する。
