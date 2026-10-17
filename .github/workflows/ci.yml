@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
-      - run: uv run pytest tests/skills .agents/skills
+      - run: uv run pytest tests/skills .agents/skills .agents/scripts
 
   gitleaks:
     runs-on: ubuntu-latest
