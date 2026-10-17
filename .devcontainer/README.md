@@ -29,6 +29,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`（alias） | `devin update`、`devin plugins update superpowers` |
 | Meshy CLI | `install_meshy.bash`（公式 npm `meshy-cli@0.4.0`、無認証 version / help） | — | — | — | — |
+| Gitleaks | `install_gitleaks.bash`（release の tar.gz を固定した SHA-256 で確かめて `~/.local/bin` に置く。版は CI の gitleaks ジョブと同じ） | — | — | — | — |
 | gh | Dev Container Feature（github-cli） | `~/.config/gh` | `~/.config/gh` | — | — |
 | gcloud / glab / bun | 未導入（参照だけ残す） | `~/.config/gcloud`、`~/.config/glab-cli` | `~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | — |
 | Resonite の写真フォルダ（任意） | WSL で Windows の Pictures/Resonite へのリンクを 1 回作る（「Resonite ワールド開発ツール」の節） | `~/.local/share/create-reso-world/resonite-screenshots`（読み取り専用） | `~/.local/share/create-reso-world/resonite-screenshots` | — | — |
@@ -115,7 +116,10 @@ uv run pytest tests/skills .agents/skills  # スキルのテスト（CI の skil
 テストは一時ディレクトリの `HOME` と、モックの resoloop・dotnet・Blender を使うので、実環境を変えない。
 1 本だけ実行するときは `bash .devcontainer/run-tests.bash <テストのパス>` のように渡す。
 CI の gitleaks ジョブは `.gitleaks.toml`（既定の規則に、resoloop のマニフェストが持つ識別子の除外を足したもの）で
-秘密情報の混入を検査する。CI では Blender によるワールドのビルドは行わない。
+秘密情報の混入を検査する。private の CI は止めているので、push の前に手元で `scripts/scan-before-push.sh` を実行する
+（ルートの `AGENTS.md` の「push の前の秘密情報の検査」）。この Gitleaks は postCreate が `install_gitleaks.bash` で入れる。
+rebuild せずに入れるときも `bash .devcontainer/install_gitleaks.bash` を実行する。`tests/scripts/test-scan-before-push.bash` も
+この gitleaks を使い、無ければ失敗する。CI では Blender によるワールドのビルドは行わない。
 
 ## Resonite ワールド開発ツール
 

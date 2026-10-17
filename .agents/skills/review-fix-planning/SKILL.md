@@ -220,7 +220,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 6. Spec に結果を書いて `completed` にし、コミットする。PR が create-reso-world のものなら Spec は PR の head に載るので、次の順で push する。確認していないコミットをマージに含めないため、**実装後** の手順 5 の「reject されたら rebase または merge」はここでは使わない
    - commit の前に、`gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` が検証した `HEAD_SHA` と一致することを確かめる
    - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD` を Spec のコミットとして記録し、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
-   - **実装後** の手順 5 の head の確認と共通 context の再実行の後、`git -C "$MAIN_ROOT" push "$HEAD_REMOTE" HEAD` で push する（fast-forward だけ。`--force` を付けない）
+   - **実装後** の手順 5 の head の確認と共通 context の再実行の後、同じ手順 5 の検査付きの push で push する（fast-forward だけ。`--force` を付けない。検査で止まったら push せずに結論 3 にする）
    - push 後、`HEAD_SHA` を `git -C "$MAIN_ROOT" rev-parse HEAD` に更新する
    - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head か作業ツリーが変わった）。Spec のコミットは下記「結論 3」の「書き始めた Spec の扱い」に従う（取り消してよい条件を満たさなければ、取り消さずに残して報告する）
 7. 最終の状況コメントを投稿する（「作業終了前の PR 投稿」）
@@ -309,7 +309,14 @@ Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の�
    - resoloop fork（`external/resoloop`）の変更: 変更したプロジェクトに関連する `dotnet test`
 3. 失敗したら直す。commit しない。
 4. 共通 context を再実行し、`git -C "$MAIN_ROOT" fetch "$PR_REMOTE"` で取得する。取得後に `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` でレビュー対象 PR の実際の先端も再確認する。手順 1・2 が通ったら、レビュー対象ブランチ（既存 PR の head）へ commit する。`main` ではない。新しい `*-review-fixes` ブランチでもない。
-5. そのブランチを **既存 PR** へ `git -C "$MAIN_ROOT" push "$HEAD_REMOTE" HEAD` する。push の成功を確認する。reject されたら rebase または merge し、手順 1・2 を再走してから再度 push する。新しい PR を開かない。`finishing-a-development-branch` のメニューを出さない。対象リポジトリにかかわらず、すべての push の前に `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRepository,headRepositoryOwner,headRefName` で PR の head リポジトリとブランチを確かめ、その確認結果を `HEAD_REPO`・`HEAD_BRANCH` に設定して共通 context を再実行し、返された `HEAD_REMOTE` へ push する。fork からの PR では base と head が別のリポジトリである。該当する remote が 1 つに決まらなければ推測せず停止する。
+5. そのブランチを **既存 PR** へ push する。ルート `AGENTS.md` の「push の前の秘密情報の検査」に従い、検査した SHA を push する（`<base>` は PR の `baseRefName`）。検出や検査の失敗で止まったら push せずに停止して報告する（完遂では結論 3）:
+
+   ```bash
+   SHA="$(bash "$TOPLEVEL/scripts/scan-before-push.sh" -C "$MAIN_ROOT" --base "$PR_REMOTE/<base>")" && [ -n "$SHA" ] \
+     && git -C "$MAIN_ROOT" push "$HEAD_REMOTE" "$SHA:refs/heads/$HEAD_BRANCH"
+   ```
+
+   push の成功を確認する。reject されたら rebase または merge し、手順 1・2 を再走してから再度 push する。新しい PR を開かない。`finishing-a-development-branch` のメニューを出さない。対象リポジトリにかかわらず、すべての push の前に `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRepository,headRepositoryOwner,headRefName` で PR の head リポジトリとブランチを確かめ、その確認結果を `HEAD_REPO`・`HEAD_BRANCH` に設定して共通 context を再実行し、返された `HEAD_REMOTE` へ push する。fork からの PR では base と head が別のリポジトリである。該当する remote が 1 つに決まらなければ推測せず停止する。
 6. 完了報告の前に **作業終了前の PR 投稿** を実行する。
 
 レビュー対象ブランチに open な PR が無いなら、作らず停止して報告する。ユーザが作れと言うまで作らない。コメントの投稿もしない。
@@ -318,9 +325,9 @@ Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の�
 
 **commit / push の条件にしないもの:** 上の検証に含まれない一括検証（変更と関係の無いワールドのプロジェクトの `uv run pytest`、`scripts/resoloop-fork.sh test` による fork の全テストなど。既存 PR の CI がまだ走る）、`superpowers:verification-before-completion` のフルスイート、`superpowers:finishing-a-development-branch`。
 
-例: レビュー対象 PR は `usaturn/create-reso-world` の #12 で、Spec の検証が `bash tests/scripts/test-check-layout.bash` —— `scripts/check-layout.sh` を直す環境の変更なので、`MAIN_ROOT` は toplevel。そのテストに続けて `bash .devcontainer/run-tests.bash` と `bash scripts/check-layout.sh` を通す。`fix/check-layout-mounts` に commit し、手順 5 の API 確認と共通 context の再実行で得た `HEAD_REMOTE` を使い、`git -C "$MAIN_ROOT" push "$HEAD_REMOTE" HEAD` で既存 PR へ反映する。status comment の `PR_REPO` は `usaturn/create-reso-world`。変更と関係の無いプロジェクトの `uv run pytest` は走らせない。`fix/check-layout-mounts-review-fixes` は開かない。push 後、同じ PR にレビュー状況・作業判断・作業結果のコメントを作成または更新する。
+例: レビュー対象 PR は `usaturn/create-reso-world` の #12 で、Spec の検証が `bash tests/scripts/test-check-layout.bash` —— `scripts/check-layout.sh` を直す環境の変更なので、`MAIN_ROOT` は toplevel。そのテストに続けて `bash .devcontainer/run-tests.bash` と `bash scripts/check-layout.sh` を通す。`fix/check-layout-mounts` に commit し、手順 5 の API 確認と共通 context の再実行で得た `HEAD_REMOTE` を使い、手順 5 の検査付きの push（`--base "$PR_REMOTE/main"`）で既存 PR へ反映する。status comment の `PR_REPO` は `usaturn/create-reso-world`。変更と関係の無いプロジェクトの `uv run pytest` は走らせない。`fix/check-layout-mounts-review-fixes` は開かない。push 後、同じ PR にレビュー状況・作業判断・作業結果のコメントを作成または更新する。
 
-resoloop の上流への PR も同じ規則が fork の経路で成立する: `PR_REPO=orange3134/resoloop`、`MAIN_ROOT` は `$TOPLEVEL/external/resoloop` で、取得は共通 context が返す `PR_REMOTE`（通常は `upstream`）を使い、PR の head branch は fork にあることを手順 5 の API と共通 context で確認する。その結果の `HEAD_REMOTE`（通常は `origin`）を使って `git -C "$MAIN_ROOT" push "$HEAD_REMOTE" HEAD` で反映する。検証は変更したプロジェクトに関連する `dotnet test` までで、`scripts/resoloop-fork.sh test` による全テストは反映の条件にしない。
+resoloop の上流への PR も同じ規則が fork の経路で成立する: `PR_REPO=orange3134/resoloop`、`MAIN_ROOT` は `$TOPLEVEL/external/resoloop` で、取得は共通 context が返す `PR_REMOTE`（通常は `upstream`）を使い、PR の head branch は fork にあることを手順 5 の API と共通 context で確認する。その結果の `HEAD_REMOTE`（通常は `origin`）を使い、手順 5 の検査付きの push（`--base "$PR_REMOTE/main"`）で反映する。base（上流の `main`）に `.gitleaks.toml` が無いので、Gitleaks の既定の規則で検査される。検証は変更したプロジェクトに関連する `dotnet test` までで、`scripts/resoloop-fork.sh test` による全テストは反映の条件にしない。
 
 ## 作業終了前の PR 投稿
 
