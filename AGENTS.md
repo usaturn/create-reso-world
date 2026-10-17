@@ -91,7 +91,7 @@
 | --- | --- |
 | セッション後も参照し得るスクラッチ・検証ログ・下書き | `tmp/agents/<topic>.XXXXXX/`（`uv run --no-project python .agents/scripts/agent_tmp.py mkdir <topic>` で作る。`<topic>` は `issue-123` のような英小文字の短い名前） |
 | エージェント間の引き継ぎ | `tmp/docs_draft/claude_handoffs/`（agent-handoff スキル） |
-| Spec・Plan の確認用コピー | `tmp/superpowers-review/`（`scripts/superpowers-review-copy.sh`）。正式な Spec・Plan は今までどおり `DOC_ROOT` の `docs/superpowers/` にコミットする |
+| Spec・Plan の確認用コピー | `tmp/superpowers-review/`（`scripts/superpowers-review-copy.sh`）と、`docs_draft/superpowers/specs/`・`docs_draft/superpowers/plan/`（「Spec・Plan の保存と公開」のとおり両方に置く）。正式な Spec・Plan は今までどおり `DOC_ROOT` の `docs/superpowers/` にコミットする |
 | ユーザから作成を依頼された文書 | `docs_draft/` |
 | PR レビュー結果 | `reviews/#<PR>-<branch>/`（保存先は pr-review のヘルパーが決める。resoloop の PR は `external/resoloop/reviews/`、その他のリポジトリは `CODE_ROOT` の `reviews/`） |
 | 使い捨ての git worktree とその作業領域 | `/tmp` の一意のディレクトリ（pr-review の `/tmp/pr-review-*`、review-fix-planning の `mktemp -d`） |

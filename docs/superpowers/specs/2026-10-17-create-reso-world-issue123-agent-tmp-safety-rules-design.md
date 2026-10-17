@@ -8,6 +8,7 @@
 - 状態: draft（文書の内容に対する利用者の明示承認は無い）
 - 関連 Plan: `docs/superpowers/plans/2026-10-17-create-reso-world-issue123-agent-tmp-safety-rules.md`
 - 実行許可: 2026-10-17（JST）、利用者が「#123 に着手せよ。専用 worktree を作成し、途中で止めずに推奨案で PR を出せ」と指示した。推奨案での実装、隔離 worktree、commit、push、create-reso-world への PR の作成まで許可されている。マージは利用者が行う。下の判断は確認を取らずに決めたエージェントの判断である
+- 追加の指示: 2026-10-17（JST）、PR #130 の作成後に利用者が「持ち越し候補について再調査し、本当に重要なことであれば Issue を作成せよ。採用しない場合は PR に採用しない理由を投稿すること」と指示した。D-5・D-9・D-12 と D-1 の表の確認用コピーの行は、この指示による再調査で改めた
 
 ## 意図
 
@@ -36,7 +37,7 @@
 | --- | --- |
 | セッション後も参照し得るスクラッチ・検証ログ・下書き | `tmp/agents/<topic>.XXXXXX/`（`agent_tmp.py mkdir <topic>` で作る） |
 | エージェント間の引き継ぎ | `tmp/docs_draft/claude_handoffs/`（agent-handoff） |
-| Spec・Plan の確認用コピー | `tmp/superpowers-review/`（`scripts/superpowers-review-copy.sh`）。正式な Spec・Plan は今までどおり `DOC_ROOT` の `docs/superpowers/` にコミットする |
+| Spec・Plan の確認用コピー | `tmp/superpowers-review/`（`scripts/superpowers-review-copy.sh`）と、`docs_draft/superpowers/specs/`・`docs_draft/superpowers/plan/`（「Spec・Plan の保存と公開」のとおり両方に置く）。正式な Spec・Plan は今までどおり `DOC_ROOT` の `docs/superpowers/` にコミットする |
 | ユーザから作成を依頼された文書 | `docs_draft/` |
 | PR レビュー結果 | `reviews/#<PR>-<branch>/`（保存先は pr-review のヘルパーが決める。resoloop の PR は `external/resoloop/reviews/`、その他のリポジトリは `CODE_ROOT` の `reviews/`） |
 | 使い捨ての git worktree とその作業領域 | `/tmp` の一意のディレクトリ（pr-review の `/tmp/pr-review-*`、review-fix-planning の `mktemp -d`） |
@@ -79,7 +80,7 @@
 
 - `pyproject.toml` の `testpaths` に `.agents/scripts` を足す。#115 のブランチと同じ行の同じ変更にし、後からマージする側で衝突しないようにする
 - `README.md` の「テスト」の節と `.github/workflows/ci.yml` の `skill-tests` のコマンドにも `.agents/scripts` を足す（CI は止めているが記載をそろえる。#115 の Spec の D-4 と同じ）
-- `.devcontainer/README.md` のテストのコマンドは変えない。`.devcontainer/` は #114 が変えるため（#115 の Spec の D-2 と同じ扱い）。持ち越しとして PR 本文に書く
+- `.devcontainer/README.md` の「テストの実行」のコマンドにも `.agents/scripts` を足す。この節は「CI も同じコマンドを実行する」と書いており、ci.yml を変えると食い違うため。#114 のブランチが `.devcontainer/README.md` で変えるのはツールの表だけで、この行とは重ならない（当初は #114 との衝突を理由に変えないとしたが、再調査で理由が成り立たないと分かった）
 
 ### D-6 作業の安全規則
 
@@ -104,7 +105,7 @@
 ### D-9 既存のスキルの一時ファイルは移さない
 
 - `pr-review`・`review-fix-planning` は、すでに表の「使い捨ての git worktree とその作業領域」の置き方（`/tmp` の一意のディレクトリ）に当たるので、移さない。`agent-handoff`・`superpowers-review-copy.sh`・`pr-review` の保存先も表のとおりで変えない
-- `repo-cleanup-after-merge` の手順 6 の `/tmp/gate-a.out`・`/tmp/gate-a.err` は、D-1 の「固定名を作らない」に反する。直すのはスキルの手順の変更なので、この PR では変えず、別の Issue の候補として PR 本文に書く
+- `repo-cleanup-after-merge` の手順 6 の `/tmp/gate-a.out`・`/tmp/gate-a.err` は、D-1 の「固定名を作らない」に反する。直すのはスキルの手順の変更なので、この PR では変えず、#131 で扱う。判定の 2 つの出力を並行するセッションが上書きすると、照合していない残骸を消すおそれがある
 
 ### D-10 #115 との関係
 
@@ -114,6 +115,10 @@
 ### D-11 PR と Issue
 
 PR の本文は `Closes #123` にする。受け入れ基準は、テストと文書の読み合わせで確かめられ、rebuild を要しない。
+
+### D-12 superpowers の SDD の作業領域
+
+superpowers の subagent-driven-development・executing-plans のスクリプトは、作業領域を worktree の中の `.superpowers/sdd/` に作り、場所を変える手段が無い。D-1 の「worktree の中にコミットしないファイルを作らない」と食い違い、repo-cleanup-after-merge は `.superpowers/` がある worktree を消さずに止まる（2026-10-17 の時点で親 checkout と 4 つの worktree に残っている）。扱いは #132 で決める。この PR の作業では、ledger を scratchpad に置いた
 
 ## 受け入れ基準との対応
 
@@ -129,6 +134,6 @@ PR の本文は `Closes #123` にする。受け入れ基準は、テストと�
 
 - 既存の `tmp/` の中身の片付け、ワールドのプロジェクトでの作業の流れの変更、既存のスクリプトの `rm` の一括の書き直し（Issue の「対象にしない」）
 - 静的 lint の自動修正、「検証前のルート確認」「環境側の検証」（Issue の「持ち込まないもの」）
-- `repo-cleanup-after-merge` の固定名の修正（D-9。別の Issue の候補）
-- `.devcontainer/README.md` のテストのコマンド（D-5）
+- `repo-cleanup-after-merge` の固定名の修正（D-9。#131）
+- superpowers の SDD の作業領域の扱い（D-12。#132）
 - #115 のファイル（D-10）

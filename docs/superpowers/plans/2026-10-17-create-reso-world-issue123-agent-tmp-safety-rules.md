@@ -22,7 +22,7 @@
 - 実行のコマンドは `uv run --no-project python .agents/scripts/agent_tmp.py root|mkdir <topic>`
 - topic の形は `[a-z0-9][a-z0-9._-]{0,63}`、作るディレクトリは `<PARENT_ROOT>/tmp/agents/<topic>.XXXXXX`
 - `testpaths = ["tests/skills", ".agents/skills", ".agents/scripts"]`（#115 のブランチと同じ行）
-- `.devcontainer/` と #115 のファイルは変えない
+- `.devcontainer/` は `README.md` の「テストの実行」のコマンドだけを変え（Spec の D-5、再調査で追加）、#115 のファイルは変えない
 - 文書は `AGENTS.md` の「日本語表現」に従う（「正本」「着地」を使わない、など）
 
 ## Review Focus
@@ -156,3 +156,12 @@ Plan の末尾に「完了」の節（各検証の結果、所要時間と Task 
 ### 所要時間
 
 着手 21:05 から PR の作成まで約 40 分。内訳は、調査（Issue・移植元・移植先の確認）約 10 分、Spec・Plan 約 5 分、Task 1 約 5 分、Task 2 約 5 分、Task 3（検証・失敗の切り分け・PR）約 15 分。
+
+### 持ち越しの再調査（追加の指示による）
+
+PR #130 の作成後、利用者の指示で持ち越し 4 件を調べ直した。
+
+- repo-cleanup-after-merge のゲート A の固定名（`/tmp/gate-a.out`・`.err`）: 削除の可否を決める出力を並行するセッションが上書きすると、照合していない残骸を消すおそれがある。#131 を作成した
+- superpowers の SDD の作業領域: 親 checkout と 4 つの worktree に `.superpowers/` が残り、repo-cleanup-after-merge はこれを理由に worktree を消さずに止まる。#132 を作成した
+- `.devcontainer/README.md` のテストのコマンド: 「CI も同じコマンドを実行する」と書いており、この PR の ci.yml の変更で食い違う。#114 が変えるのはツールの表だけで重ならないので、この PR で直した
+- 確認用コピーの置き場所: `docs_draft/superpowers/` へのコピー（`AGENTS.md` の「Spec・Plan の保存と公開」の 2 番目）は、利用者が 2026-10-05 に足した現役の規則で、古い記載ではなかった。置き場所の表に足し、この作業の Spec・Plan も `docs_draft/superpowers/` にコピーした
