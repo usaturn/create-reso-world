@@ -100,7 +100,7 @@
 「リポジトリ境界」のリポジトリへ commit を push する前に、まだ push していない commit を Gitleaks で検査し、検査した commit をそのまま push する。
 
 - 検査は `bash scripts/scan-before-push.sh [-C <checkout>] [--base <remote>/<branch>]`。base の既定は `origin/main` で、PR の base が別ならそれを渡す。成功すると、検査した commit の SHA だけを標準出力に出す
-- push は `SHA="$(bash scripts/scan-before-push.sh -C <checkout>)" && [ -n "$SHA" ] && git -C <checkout> push <remote> "$SHA:refs/heads/<branch>"` の形にする。検査の後に変わった HEAD を push しない
+- push は `SHA="$(bash scripts/scan-before-push.sh -C <checkout>)" && [ -n "$SHA" ] && git -C <checkout> push <remote> "${SHA}:refs/heads/<branch>"` の形にする（zsh は `$SHA:r` を修飾子として展開するので、`${SHA}` と書く）。検査の後に変わった HEAD を push しない
 - 検出や失敗で止まったら push しない。誤検出でも `.gitleaksignore`、inline の `gitleaks:allow`、作業ツリーの `.gitleaks.toml` で回避せず（検査はどれも使わない）、利用者に報告する。除外が必要なら、base の `.gitleaks.toml` を先に変える
 - gitleaks が無い・版が違うときも止まる。`bash .devcontainer/install_gitleaks.bash` で導入する
 - 対象にしない: 公開済みの commit だけを送る push（`scripts/resoloop-fork.sh sync`、claim ref の作成、ブランチの削除）

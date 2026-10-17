@@ -1,14 +1,17 @@
 #!/bin/bash
 # push の前に、まだ push していない commit を Gitleaks で検査する（AGENTS.md の「push の前の秘密情報の検査」）。
 # 成功したら、検査した commit の SHA だけを標準出力に出す。その SHA をそのまま push する:
-#   SHA="$(bash scripts/scan-before-push.sh)" && [ -n "$SHA" ] && git push origin "$SHA:refs/heads/<branch>"
+#   SHA="$(bash scripts/scan-before-push.sh)" && [ -n "$SHA" ] && git push origin "${SHA}:refs/heads/<branch>"
+# （zsh は "$SHA:r..." の :r を修飾子として展開するので、${SHA} と書く）
 # 使い方: scripts/scan-before-push.sh [-C <dir>] [--base <remote>/<branch>]
 #   -C      検査する checkout（既定は現在のディレクトリ）。そのルートで検査する
 #   --base  未 push とみなす範囲の基準（既定は origin/main）。fetch してから <base>..HEAD を検査する。
 #           設定は base の .gitleaks.toml を使い、base に無ければ Gitleaks の既定の規則だけを使う
 # 作業ツリーの設定（.gitleaks.toml・.gitattributes）、環境変数（GITLEAKS_*）、.gitleaksignore、inline の gitleaks:allow、
 # git の色・textconv の設定では検査を緩められない。
-# マージ commit も各親との差分として検査する。gitleaks は git log が失敗しても終了コード 0 で終わるので、
+# マージ commit は、親を自動でマージした結果との差分として検査する（マージで足した内容は検出し、base から取り込んだだけの
+# 公開済みの内容は検査し直さない）。その差分を作れない octopus マージ（親が 3 つ以上）があれば止まる。
+# gitleaks は git log が失敗しても終了コード 0 で終わるので、
 # 出力の ERR・FTL の行も失敗にする（このため、.devcontainer/install_gitleaks.bash で固定した版でないと検査しない）。
 # 終了コード: 0 成功、1 検出または検査の失敗、2 使い方の誤り。ログはすべて標準エラーに出す
 set -euo pipefail
@@ -57,6 +60,9 @@ git remote get-url "$remote" >/dev/null 2>&1 || die "no remote '$remote' in $top
 git fetch --quiet --no-tags "$remote" "+refs/heads/$branch:refs/remotes/$remote/$branch" >&2 || die "fetching $base failed"
 base_sha="$(git rev-parse --verify --quiet "refs/remotes/$remote/$branch^{commit}")" || die "cannot resolve $base"
 head_sha="$(git rev-parse --verify --quiet 'HEAD^{commit}')" || die 'cannot resolve HEAD'
+# --diff-merges=remerge は octopus マージの中身を出さない（警告を標準出力に出すだけで、gitleaks は検出 0 件で終わる）
+octopus="$(git rev-list --min-parents=3 "$base_sha..$head_sha")" || die "cannot list the commits in $base..HEAD"
+[ -z "$octopus" ] || die "the range has an octopus merge ${octopus%%$'\n'*}, which the scan cannot check. Do not push; report it to the user"
 
 scan_dir="$(mktemp -d)" || die 'cannot create a temporary directory'
 trap 'rm -rf -- "${scan_dir:?}"' EXIT
@@ -73,11 +79,12 @@ fi
 
 say "scanning $base_sha..$head_sha against $base"
 # git の設定（color.ui=always や textconv）で git log -p の出力が変わると、gitleaks は追加行を読めずに 0 で終わる。
-# 属性（.gitattributes の -diff など）は作業ツリーではなく base から読む
+# 属性（.gitattributes の -diff など）は作業ツリーではなく base から読む。
+# マージ commit を各親との差分（separate）で読むと、base を取り込んだマージで base の公開済みの内容まで検出して止まる
 status=0
 GIT_ATTR_SOURCE="$base_sha" gitleaks git --no-banner --no-color --redact --verbose --ignore-gitleaks-allow \
   --config "$scan_dir/config.toml" --gitleaks-ignore-path "$scan_dir/ignore" \
-  --log-opts="--no-color --no-ext-diff --no-textconv --diff-merges=separate $base_sha..$head_sha" . 2>&1 | tee "$scan_dir/log" >&2 || status=$?
+  --log-opts="--no-color --no-ext-diff --no-textconv --diff-merges=remerge $base_sha..$head_sha" . 2>&1 | tee "$scan_dir/log" >&2 || status=$?
 [ "$status" -eq 0 ] || die "gitleaks exited with status $status (leaks found or the scan failed). Do not push"
 if grep -Eq '^[^ ]+ (ERR|FTL) ' "$scan_dir/log"; then
   die 'gitleaks reported an error although it exited with 0. Do not push'

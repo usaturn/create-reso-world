@@ -1,7 +1,8 @@
 #!/bin/bash
 # push の前の検査（scripts/scan-before-push.sh）を、固定した版の実際の gitleaks で一時リポジトリに実行する。
 # 未 push の commit（マージ commit の中だけで足した内容を含む）の秘密情報で止まること、.gitleaksignore・inline の allow・
-# 作業ツリーや環境変数の設定で緩められないこと、設定の取得や gitleaks の失敗を成功として扱わないことを確かめる
+# 作業ツリーや環境変数の設定で緩められないこと、設定の取得や gitleaks の失敗を成功として扱わないことを確かめる。
+# base を取り込んだマージ commit で、base で公開済みの内容を検出し直さないことも確かめる
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 scan="$root/scripts/scan-before-push.sh"
@@ -76,7 +77,8 @@ expect_failure() {
 }
 expect_leak() {
   expect_failure "$1"
-  grep -q 'leaks found' "$tmp/stderr" || { show; fail "$1: stopped without reporting a leak"; }
+  # git が失敗したときも gitleaks は「no leaks found」と出すので、検出した件数まで見る
+  grep -Eq 'leaks found: [1-9]' "$tmp/stderr" || { show; fail "$1: stopped without reporting a leak"; }
 }
 # expect_stop <理由> <標準エラーに出るはずの ERE>
 expect_stop() {
@@ -172,6 +174,18 @@ chmod u+w "$object"
 scan
 expect_stop 'a corrupt object in the range' 'gitleaks reported an error'
 
+# マージ commit を読む --diff-merges=remerge は octopus マージの中身を出さない
+new_repo
+git -C "$repo" switch -qc side1
+commit_file side1.txt side1
+git -C "$repo" switch -qc side2 feature
+commit_file side2.txt side2
+git -C "$repo" switch -q feature
+commit_file mine.txt mine
+git -C "$repo" merge -q --no-edit side1 side2 > /dev/null
+scan
+expect_stop 'an octopus merge in the range' 'octopus merge'
+
 new_repo
 commit_file notes.txt hello
 scan --base origin/nope
@@ -206,6 +220,17 @@ commit_file notes.txt hello
 merge_side merged.txt 'nothing secret'
 scan
 expect_success 'commits and a merge commit without secrets'
+
+# base を取り込んだマージ commit で、base で公開済みの内容を検出し直さない（止まると、base の設定を変えるまで push できない）
+new_repo
+commit_file notes.txt hello
+git -C "$repo" switch -q main
+commit_file published.txt "token = \"$token\""
+git -C "$repo" push -q origin main
+git -C "$repo" switch -q feature
+git -C "$repo" merge -q --no-edit origin/main > /dev/null
+scan
+expect_success 'a merge commit that brings in a token already published on the base'
 
 # base の .gitleaks.toml の allowlist が効く（base の設定で検査している）
 { cat "$tmp/default.toml"; printf "\n[[allowlists]]\nregexTarget = \"match\"\nregexes = ['''%s''']\n" "$token"; } > "$tmp/allow-token.toml"

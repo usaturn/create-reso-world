@@ -313,7 +313,7 @@ Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の�
 
    ```bash
    SHA="$(bash "$TOPLEVEL/scripts/scan-before-push.sh" -C "$MAIN_ROOT" --base "$PR_REMOTE/<base>")" && [ -n "$SHA" ] \
-     && git -C "$MAIN_ROOT" push "$HEAD_REMOTE" "$SHA:refs/heads/$HEAD_BRANCH"
+     && git -C "$MAIN_ROOT" push "$HEAD_REMOTE" "${SHA}:refs/heads/$HEAD_BRANCH"
    ```
 
    push の成功を確認する。reject されたら rebase または merge し、手順 1・2 を再走してから再度 push する。新しい PR を開かない。`finishing-a-development-branch` のメニューを出さない。対象リポジトリにかかわらず、すべての push の前に `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRepository,headRepositoryOwner,headRefName` で PR の head リポジトリとブランチを確かめ、その確認結果を `HEAD_REPO`・`HEAD_BRANCH` に設定して共通 context を再実行し、返された `HEAD_REMOTE` へ push する。fork からの PR では base と head が別のリポジトリである。該当する remote が 1 つに決まらなければ推測せず停止する。

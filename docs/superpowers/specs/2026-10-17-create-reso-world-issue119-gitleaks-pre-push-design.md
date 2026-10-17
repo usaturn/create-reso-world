@@ -9,6 +9,7 @@
   - 移植元: `49c2e93e836154b13e2d30ec39ac8c7b0843fc56`（usaturn/agent-workspace の `main`）。Issue の比較基準 `d3f4151` からの 5 commit は `.devcontainer/install_beforehand.bash` と `.agents/skills/repository-ownership/SKILL.md` を変えていない
 - 状態: draft
 - 関連 Plan: `docs/superpowers/plans/2026-10-17-create-reso-world-issue119-gitleaks-pre-push.md`
+- レビュー修正: `docs/superpowers/specs/2026-10-17-create-reso-world-pr133-gitleaks-pre-push-review-fixes-design.md`（マージ commit の読み方を `remerge` に変え、F-5・D-5・D-6・D-10・D-11 を更新した）
 - 実行許可: 2026-10-17 21:11 JST、利用者が「#119 に着手せよ。専用 worktree を作成し、途中で止めずに推奨案で PR を出せ。」と指示した。推奨案での実装、専用の worktree、commit、push、create-reso-world への PR の作成まで許可されている。マージと rebuild は利用者が行う。下の判断は、確認を取らずに決めたエージェントの判断である
 
 ## 意図
@@ -23,7 +24,7 @@ Gitleaks 8.30.1（`gitleaks_8.30.1_linux_x64.tar.gz`）を使い捨ての一時�
 - **F-2 作業ツリーの設定**: `--config` を渡さないと、検査するディレクトリの `.gitleaks.toml` を読む（全パスを除外する allowlist を置くと検出 0 件）。`GITLEAKS_CONFIG_TOML` の内容も読む。`--config` を渡すと、`GITLEAKS_CONFIG` より優先される
 - **F-3 `.gitleaksignore`**: 検査するディレクトリの `.gitleaksignore` は、`--gitleaks-ignore-path` に別のファイルを渡しても読まれる（fingerprint を書くと検出 0 件）
 - **F-4 inline の allow**: 行末の `gitleaks:allow` は既定で効き、`--ignore-gitleaks-allow` で無効になる
-- **F-5 マージ commit**: マージ commit の中だけで足した内容（`git merge --no-commit` の後に足したファイル）は、`--log-opts` に `--diff-merges` を付けないと検出されない。`--diff-merges=separate` で検出される
+- **F-5 マージ commit**: マージ commit の中だけで足した内容（`git merge --no-commit` の後に足したファイル）は、`--log-opts` に `--diff-merges` を付けないと検出されない。`--diff-merges=separate` で検出されるが、各親との差分を出すので、base を取り込んだマージ commit では、分岐点の後に base へ入った公開済みの内容も追加行になり、base の設定で検出されて止まる（PR #133 のレビューで、main の `bbb2be2` の `tests/scripts/test_meshy.py` で再現）。`--diff-merges=remerge`（親を自動でマージした結果との差分）は、マージの中だけで足した内容と衝突の解消で足した内容を出し、base から取り込んだだけの内容は出さない。octopus マージ（親が 3 つ以上）には差分を出さず、警告を標準出力に出すだけなので、gitleaks は検出 0 件で終わる
 - **F-6 git の失敗**: `--log-opts` の範囲が解決できないとき、範囲内の object が壊れているときは、`ERR` の行（`error="stderr is not empty"` など）と「no leaks found」を出して**終了コード 0** で終わる。設定ファイルの構文の誤り・不在は終了コード 1
 - **F-7 push の形**: `git push -u origin <SHA>:refs/heads/<branch>` は push には成功するが、upstream を設定しない
 - **F-8 push する箇所**: このリポジトリで新しい commit を push する手順は、`review-fix-planning` の「実装後」手順 5 と結論 2 の手順 6、`docs/resoloop-fork-workflow.md` の「上流へ PR を出すときの流れ」手順 5、`docs/resoloop-meshy-workflow.md` の「開発の流れ」手順 5。公開済みの commit だけを送る push は、`scripts/resoloop-fork.sh sync`（上流の `main` を fork の `main` へ）、`planning-parallel-issues` の claim ref の作成（既存の base の SHA）、`repo-cleanup-after-merge` のブランチ削除
@@ -71,7 +72,7 @@ base に `.gitleaks.toml` があればそれを使い、無ければ Gitleaks �
 - 設定は D-4 の一時ファイルを `--config` で渡す。作業ツリーの `.gitleaks.toml` は使わない
 - 検査する checkout のルートに `.gitleaksignore`（ファイルでも symlink でも）があれば止まる（F-3）。`--gitleaks-ignore-path` には空のファイルを渡す
 - `--ignore-gitleaks-allow` で inline の allow を無視する（F-4）
-- `--log-opts="--no-color --no-ext-diff --no-textconv --diff-merges=separate <base>..<HEAD>"` で、git の設定に左右されない diff を読み（F-11）、マージ commit も各親との差分として検査する（F-5）。`--no-ext-diff` は `git log -p` が外部 diff を使わないことの念押しである
+- `--log-opts="--no-color --no-ext-diff --no-textconv --diff-merges=remerge <base>..<HEAD>"` で、git の設定に左右されない diff を読み（F-11）、マージ commit は親を自動でマージした結果との差分として検査する（F-5）。base から取り込んだだけの内容は base で公開済みなので検査し直さず、取り込んだ側の commit のうち base に無いものは範囲に入って 1 つずつ検査される。remerge が差分を出さない octopus マージが範囲にあれば止まる（D-6）。`--no-ext-diff` は `git log -p` が外部 diff を使わないことの念押しである
 - gitleaks を `GIT_ATTR_SOURCE=<base の SHA>` で実行し、属性を作業ツリーではなく base から読ませる（F-11）。base が binary とした種類のファイルは、CI と同じく検査しない
 
 ### D-6 失敗を成功として扱わない
@@ -79,7 +80,7 @@ base に `.gitleaks.toml` があればそれを使い、無ければ Gitleaks �
 次のどれでも終了コードを 0 以外にし、SHA を出さない。
 
 - gitleaks が無い、版が違う（D-2）、`install_gitleaks.bash` から版を読めない
-- 引数の誤り、git の checkout でない、remote が無い、fetch・commit の解決・設定の取得の失敗、`.gitleaksignore` がある
+- 引数の誤り、git の checkout でない、remote が無い、fetch・commit の解決・設定の取得の失敗、`.gitleaksignore` がある、範囲に octopus マージがある（F-5）
 - gitleaks の終了コードが 0 以外（検出を含む）
 - gitleaks の出力に `ERR`・`FTL` の行がある（F-6。終了コードが 0 でも失敗にする）
 
@@ -89,10 +90,10 @@ base に `.gitleaks.toml` があればそれを使い、無ければ Gitleaks �
 
 ```bash
 SHA="$(bash <create-reso-world のルート>/scripts/scan-before-push.sh [-C <checkout>] [--base <remote>/<branch>])" \
-  && [ -n "$SHA" ] && git -C <checkout> push <remote> "$SHA:refs/heads/<branch>"
+  && [ -n "$SHA" ] && git -C <checkout> push <remote> "${SHA}:refs/heads/<branch>"
 ```
 
-検査した SHA をそのまま push し、検査の後に変わった HEAD を push しない。`-u` は付けない（F-7）。
+検査した SHA をそのまま push し、検査の後に変わった HEAD を push しない。`-u` は付けない（F-7）。zsh は `"$SHA:refs/..."` の `:r` を修飾子として展開し、refspec が `<SHA>efs/...` になって push が失敗するので、`${SHA}` と書く（PR #133 のレビュー修正の自己レビューで確認）。
 
 ### D-8 規則と手順への組み込み
 
@@ -110,8 +111,8 @@ SHA="$(bash <create-reso-world のルート>/scripts/scan-before-push.sh [-C <ch
 
 - `tests/scripts/test-scan-before-push.bash`（新規）: PATH 上の実際の gitleaks で、bare の origin を持つ一時リポジトリを検査する。偽のトークンは実行時に作り、テストのファイルにはトークンの形の文字列を書かない（このリポジトリ自体の検査で検出されないため）。gitleaks が無ければ、導入の手順を表示して失敗する（skip しない）
   - 検出する: 通常の commit、マージ commit の中だけで足した内容、inline の `gitleaks:allow` を付けた行、作業ツリーと branch の `.gitleaks.toml`・`GITLEAKS_CONFIG`・`GITLEAKS_CONFIG_TOML` で全部を除外しようとした場合（base に設定がある場合と無い場合の両方）、git の設定の `color.ui=always`・`color.diff=always`、textconv、branch で足した `* -diff` の `.gitattributes`（F-11）
-  - 止まる: `.gitleaksignore` がある、base の設定が壊れている、範囲内の object が壊れている（F-6）、base の remote・branch が無い、gitleaks の版が違う、gitleaks が 0 以外で終わる
-  - 成功する: 秘密情報の無い commit とマージ commit（標準出力が HEAD の SHA だけ）、base の `.gitleaks.toml` の allowlist が除外する値（base の設定を使っていることの確認）
+  - 止まる: `.gitleaksignore` がある、base の設定が壊れている、範囲内の object が壊れている（F-6）、base の remote・branch が無い、範囲に octopus マージがある、gitleaks の版が違う、gitleaks が 0 以外で終わる
+  - 成功する: 秘密情報の無い commit とマージ commit（標準出力が HEAD の SHA だけ）、base の `.gitleaks.toml` の allowlist が除外する値（base の設定を使っていることの確認）、base を取り込んだマージ commit（base で公開済みの偽のトークンを検出し直さない）
   - 失敗したときは標準出力が空であることも確かめる
 - `.devcontainer/test-install-gitleaks.bash`（新規）: 偽の `curl` と、偽の gitleaks を入れた tar.gz で、ネットワークを使わずに導入を実行する
   - SHA-256 が合わないと失敗し、既にある `~/.local/bin/gitleaks` を変えない
@@ -128,6 +129,7 @@ SHA="$(bash <create-reso-world のルート>/scripts/scan-before-push.sh [-C <ch
 | base | `origin/main` に固定 | `--base`、既定は `origin/main` | fork への PR（`upstream/main`）と、`review-fix-planning` の PR の base に合わせる |
 | base に設定が無いとき | 対象外（使わない） | 既定の規則（D-4） | resoloop と resoloop-meshy に設定が無い |
 | 失敗の判定 | 終了コードだけ | 終了コードと `ERR`・`FTL` の行、版の確認 | F-6 |
+| マージ commit | `--diff-merges=separate` | `--diff-merges=remerge`。octopus マージがあれば止まる | F-5。`separate` は base を取り込んだマージで公開済みの内容まで検出し、止まると base の設定を変えるまで push できない |
 | git の設定・属性 | `log.diffMerges` だけを固定 | 色・外部 diff・textconv を切り、属性を base から読む | F-11 |
 | 環境変数 | `GITLEAKS_CONFIG`・`GITLEAKS_CONFIG_TOML` を外す | `GITLEAKS_*` をすべて外す | 同じ目的で、名前を数え上げない |
 | 出力 | `--redact` | `--redact --verbose` | 何が検出されたかを、値を伏せたまま示す |
