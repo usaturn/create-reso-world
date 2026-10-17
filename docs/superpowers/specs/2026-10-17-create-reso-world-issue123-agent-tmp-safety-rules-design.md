@@ -38,13 +38,13 @@
 | エージェント間の引き継ぎ | `tmp/docs_draft/claude_handoffs/`（agent-handoff） |
 | Spec・Plan の確認用コピー | `tmp/superpowers-review/`（`scripts/superpowers-review-copy.sh`）。正式な Spec・Plan は今までどおり `DOC_ROOT` の `docs/superpowers/` にコミットする |
 | ユーザから作成を依頼された文書 | `docs_draft/` |
-| PR レビュー結果 | `reviews/#<PR>-<branch>/`（保存先は pr-review のヘルパーが決める。resoloop の PR は `external/resoloop/reviews/`） |
+| PR レビュー結果 | `reviews/#<PR>-<branch>/`（保存先は pr-review のヘルパーが決める。resoloop の PR は `external/resoloop/reviews/`、その他のリポジトリは `CODE_ROOT` の `reviews/`） |
 | 使い捨ての git worktree とその作業領域 | `/tmp` の一意のディレクトリ（pr-review の `/tmp/pr-review-*`、review-fix-planning の `mktemp -d`） |
 | 消えても困らない中間出力 | `/tmp` の `mktemp -d` のディレクトリ、Claude Code の scratchpad |
 
 規則（Issue の範囲 1 のとおり）:
 
-- worktree（`.worktrees/<topic>`、`external/resoloop-meshy/.worktrees/<topic>`、レビュー用の使い捨ての worktree）の中に、コミットしないファイルを作らない。worktree を消すと失われ、`repo-cleanup-after-merge` が判定できずに止まるため
+- worktree（`.worktrees/<topic>`、`external/resoloop-meshy/.worktrees/<topic>`、レビュー用の使い捨ての worktree）の中に、コミットしないファイルを作らない。worktree を消すと失われ、`repo-cleanup-after-merge` が判定できずに止まるため。テストやビルドが作る、再生成できるキャッシュ（`.venv/`・`__pycache__/` など）は除く。`repo-cleanup-after-merge` が削除してよいと判定する種類で、`uv run` を worktree で使えなくしないため
 - `/tmp` 直下に固定名のファイルを作らない。`/tmp` を使うときも `mktemp -d` で一意のディレクトリを作り、その中に置く
 - `tmp/agents/` のセッションディレクトリは、作ったスキル（スキルを使わないときは作ったエージェント）自身が不要と確かめた時点で消す。消せなかったものは最終報告に完全パスを書く
 - `tmp/agents/` 以外の `tmp/`（人が置いたファイルを含む）は、表の用途で書き足すほかは触らない
