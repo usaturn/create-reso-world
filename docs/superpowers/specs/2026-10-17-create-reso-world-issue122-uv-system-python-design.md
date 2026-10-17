@@ -47,6 +47,31 @@ uv が uv 管理の古い Python を選んだり、必要な版が無いとき�
 - **D-5 テスト**: 新しいテストは書かない。設定値と文書だけの変更で、コードを実行して確かめる挙動が無い（`AGENTS.md` の「テストの採用基準」、Issue の「検証」）。代わりに、`devcontainer.json` の構文の検査、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills`、上の隔離した検証、README の確認の手順を子シェルで実行した結果を PR に書く
 - **D-6 PR と Issue**: PR の本文は `Refs #122` にし、マージで #122 を自動で close しない。受け入れ基準の確認（作り直した Dev Container での確認）は利用者の rebuild の後にしかできないため。#125 も同じ `containerEnv` に足すので、後からマージする側で衝突を解消する
 
+## 2026-10-17 リビルド後の残課題への実行許可
+
+利用者は issue-to-pr で「https://github.com/usaturn/create-reso-world/issues/122 問題解決をしてください。」と依頼し、続けて「ローカル配置の修復と、非ワールドを区別する検査仕様の変更まで進めてよいか。既存 `.venv` の再作成や別リポジトリの編集は含めない」との確認に「OK」と回答した。この具体的な範囲変更を実行許可として記録する。文書の内容承認を意味しないため状態は draft のまま。基準 HEAD は `76f1098af9f07388f4c10d55786ea9d726654171`。
+
+PR #129 で D-1〜D-6 は実装済み。rebuild 後の Python 選択・ダウンロード抑止・Blender の成功は Issue のコメント `6236361598` に記録済み。今回の新しい変更は以下の決定記録だけで、旧設定を再実装しない。下の範囲外にあるローカルでの uv run 禁止は、今回許可された正常な system Python 3.14 の環境に限り解除する。
+
+### 決定記録
+
+| ID | 選択した案 | 検討した別案 | 選択理由 | 委任指示または停止条件 |
+| --- | --- | --- | --- | --- |
+| D-7 | 検査ルート直下のローカル設定 `.check-layout-projects.json` で、プロジェクトの相対パスから `world`・`assets`・`items` を明示指定する。未指定は従来どおり world | 名前のハードコード、AGENTS や pyproject の有無による自動分類、全件 skip | 意図的な特殊構成だけを利用者側で区別でき、壊れたワールドの必須ファイル不足を自動分類で見逃さない。個人の配置は設定を gitignore して追跡しない | 利用者の OK による検査仕様の変更許可 |
+| D-8 | 設定は jq で object/string/既知の profile を検証。キーは `worlds/<英数字で始まる英数字・_-の名前>` または従来の4名だけ。存在する収集済みプロジェクトに完全一致しないキー、不正JSON、通常ファイルでない設定、jq 不足は FAIL | 不正値や古いキーを無視、glob で除外 | タイプミスや外部パス指定で検査範囲が静かに変わるのを防ぐ。設定ファイルは `--root` のディレクトリから読む | 検証不能な設定は成功扱いにしない |
+| D-9 | world は既存検査を維持。assets は通常ファイルの `.resoloop.json` のみを必要とし、同梱スキル同期の検査対象外。items は world の必須ファイル・共有リンク・スキルを検査し、ルートの `flux/resoloop.flux.json` の代わりに実ディレクトリ `items/` を要求 | 特殊構成にダミーの world 雛形を補う、items の共通検査も省く | Meshy原本領域とアイテムリポジトリの既存仕様に合わせ、必要な共通検査は残す。全体の追跡・ignore・mount 検査は全profileで維持 | 有料原本・独立リポジトリ内のファイルは変更しない |
+| D-10 | MyResoniteProject/akichi/slum02/slum03 の誤った共有リンク12本だけを相対深さに合わせて更新。Astra は `uv lock` のみで不足lockfileを生成 | new-world --apply の一括同期、resoloop init | --apply は誤った既存リンクを上書きせず、init は既存コンテンツを変える。lock作成だけなら環境や依存をインストールしない | 対象パスと旧値を確認・バックアップし、不一致や新規競合があれば止める |
+| D-11 | akichi/slum02 の正常な system 3.14 環境は、bin 内の生成済みテキストに残る旧 `.venv` 絶対パスのみ置換。パッケージや interpreter は変えない | 環境全体の再作成、旧位置への互換symlink | 現在の interpreter と依存は正常で、移設時の絶対パスだけが起動を妨げる。再インストールや恒久的な旧パス依存を避ける | 旧パスを含む通常ファイルだけをバックアップして編集。Argon/Opus/workshopの消失した3.12環境は触らない |
+| D-12 | 一時fixtureでprofileの分岐・入力拒否・未指定worldの検査維持・assetsでの同期回避をRED→GREEN確認。ローカル修復は差分と実コマンドで確認する | 設定値や文言の固定テスト | 実行ロジックには回帰テストが必要だが、ローカル設定やファイル一覧のコピーをテストにしない | root/worktreeでREADMEの検証入口を実行。ローカルはakichi/slum02の通常 `uv run pytest`、Astraに `.venv` が作られないことを確認 |
+
+### 今回の受け入れ基準
+
+- 標準ワールドは設定なしで従来どおり検査する。必須ファイル不足・不正profile設定は終了コード1。
+- 意図的な assets/items 構成が、明示設定によって必要な検査だけを受ける。プロジェクト内容は変更しない。
+- 修復後の親checkoutで、変更版 checker の `--root /workspaces/reso-world` と通常のワールド `uv run pytest` が成功する。
+- 作業worktreeで README の非ワールド検証3本が成功。親checkoutの追跡ファイルは編集しないため、マージ前の旧checkerが特殊構成で失敗することは別記する。
+- 新PRは Closes #122。今回の残課題を完了させる変更として公開し、マージは行わない。
+
 ## 範囲外
 
 - 既存の `.venv` の作り直し、`--python`・`UV_PYTHON` で版を明示した場合（Issue の「対象にしない」）
