@@ -144,6 +144,16 @@ AGENTS.md の「テストの採用基準」により、SKILL.md の文面と eva
 - `detached-other` を残す理由は 5 体とも「branch を持たない別 run の worktree で、clean で到達可能でも所有者が使っているか Git から分からない」だった
 - 新しい言い訳・読み違いは出なかったので、文面の手直し（REFACTOR）はしていない
 
+### ブランチ全体のレビューと追加の確認
+
+新しい文脈のレビュアー（Opus）は、Critical 0・Important 1・Minor 2 で「With fixes」とした。レビュアーは、文面にある git の挙動（移動した worktree の status が出力なしで 128、`prunable` の表示、`used by worktree` での `branch -d` の拒否、存在しないパスへの `worktree remove` が登録を消すこと、登録が残っていれば `repair` で戻せること）を使い捨てのリポジトリで確かめた。
+
+- Important 1: 手順 3 は `git log origin/main..<branch>` が空なら「取り込み済み」と書き、対応する PR が見つからないときの結論を書いていない。手順 5 が削除の範囲をこの判定に任せたので、`origin/main` から作ったばかりでコミットの無い別セッションの worktree を消しうる、という指摘
+  - 確認: `scenario-nopr.md`（マージ済みの `feat/done` と、PR の無い `fix/issue-140-cache`。後者は HEAD が `origin/main` と同じで clean）を、変更後の SKILL.md（`green-SKILL.md`）で 2 体に解かせた。2 体とも `fix/issue-140-cache` を「手順 3 の MERGED 確認が取れないので手順 5 の削除対象から外れる」として残し、作業を始めたばかりの場所かもしれないと報告した
+  - 判断: 文面を変えない。今の文面で正しい振る舞いが得られ、直すべき失敗を観測できなかった（writing-skills の「対照で失敗が出なければ直さない」）。誤りだった場合の影響は、別セッションの作ったばかりの clean な worktree と branch が消えること（追跡内容は失わず、作り直せる）
+- Minor 1（見送り）: eval 17 の prompt に、`/tmp/pr-review-*` の親の `session.json` が PR #11 を指すという事実が無く、D-3 の条件とずれる
+- Minor 2（見送り）: 手順 5 の末尾の「マージ済み・clean を確認していれば削除してよい」が手順 5 の範囲より広く読める。Red Flags と言い訳と現実の表が打ち消し、移植元も同じ文面である
+
 ## 残る危険
 
 - 文面のスキルなので、エージェントが手順を読まずに古い習慣で prune する可能性は残る。ガードレールと Red Flags に同じ規則を置いて減らす

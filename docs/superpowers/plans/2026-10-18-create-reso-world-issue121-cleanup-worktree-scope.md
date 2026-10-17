@@ -30,7 +30,7 @@
 4. `prunable` の worktree の branch（`feat/moved` のようにマージ済み）を手順 8 で消そうとしても、登録が branch を掴んでいるので消えず、それを理由に登録を消そうとしないこと
 5. 手順 5 のコードブロックが `git worktree remove <path>` だけになり、`--force` も prune も含まないこと
 
-これらは SKILL.md の文面で決まるので、Task 3 の GREEN の行動比較（`scenario-raw.md` が 1・3・4 を、`scenario.md` が 2 以外を含む）と差分の確認で確かめる。2 は文面の確認で確かめる。
+これらは SKILL.md の文面で決まるので、Task 3 の GREEN の行動比較（`scenario-raw.md` が 1・4 を、`scenario.md` が 2 以外を含む）と差分の確認で確かめる。2 は文面の確認で確かめる。3 は `scenario-raw.md` の `feat/locked` が `locked` の行も持つので確かめられず、ブランチ全体のレビューの後に `scenario-nopr.md` で確かめた（「完了」の節）。
 
 ---
 
@@ -113,3 +113,26 @@ Expected: それぞれ終了コード 0（環境要因の失敗は、変更前�
 - 既存のテストが失敗したら: 変更前の HEAD（`50e4a6b`）の baseline（624 件成功、#128 の 1 件失敗、`tmp/agents/issue-121.ry0nizlf/baseline-pytest.log`）と比べ、新しい失敗だけを調べる
 - GREEN で失敗が残ったら: 文面を直して 1 回だけ再実行し、なお残れば停止して報告する
 - 競合（同じ Issue の PR・予約）が見つかったら: push・PR をせずに停止する
+
+## 完了
+
+状態は draft のまま（内容の承認は無い）。Task 1〜3 を完了し、公開（Task 4）に進む。
+
+- Task 1: `d1eac7a`（SKILL.md）。`uv run pytest .agents/skills/repo-cleanup-after-merge -q` → 33 passed、`git diff --check` → 出力なし、手順 5 のコードブロックは `git worktree remove <path>` だけ
+- Task 2: `87003ae`（evals.json の id 17）。id の重複なし・末尾 17、移植元の eval 12 と id 以外一致、33 passed
+- Task 3: GREEN 5/5 準拠（Spec の「行動比較」）、`34c7b7c` で記録。検証（HEAD `87003ae`）: `uv run pytest tests/skills .agents/skills .agents/scripts` → 625 passed（EXIT 0）、`bash scripts/check-layout.sh` → PASS（EXIT 0）、`bash .devcontainer/run-tests.bash` → 32/32 PASS（EXIT 0）、`git diff --check origin/main...HEAD` → EXIT 0
+- ブランチ全体のレビュー（Opus）: Critical 0・Important 1・Minor 2。Important 1 は `scenario-nopr.md` の確認で失敗が出なかったので文面を変えず、Minor 2 件は見送った（Spec の「ブランチ全体のレビューと追加の確認」）
+- `run-tests.bash` は実行前に確かめた。Codex のテストが切り出すのは `install_beforehand.bash` の「Placing the launchers」と「Writing the pi-superagents」の 2 step だけで、次の step で止まり、一時 HOME で実行する。PR #141 が報告した危険は、その PR が最初に持ち込んだ版のもので、`main` の版には当てはまらない
+
+### 判断の記録（Rulings）
+
+- executing-plans の作業ディレクトリ（worktree 内の `.superpowers/sdd/`）を使わず、ledger を `PARENT_ROOT` の `tmp/agents/issue-121.ry0nizlf/sdd-progress.md` に置いた。AGENTS.md の「worktree の中にコミットしないファイルを作らない」に合わせた。誤りの影響は ledger の場所だけ
+- TDD のテストを書かず、writing-skills の行動比較で代えた（Spec D-7）。誤りの影響は、手順 5 の回帰テストが無いこと
+- レビューの「Declined to judge」の各項目（閉じた未マージ PR の pr-review worktree の削除、実行中の pr-review との競合、手順 6 の固定名、detached な worktree が自動で減らないこと、`gh pr list --limit 20`、`main` を掴む worktree の報告の重複）は変えない。変更前からの挙動か Spec で受け入れ済みで、安全側に倒れる
+- Important 1 は文面を変えない（上のとおり）
+
+### 実行予算と時間
+
+- ledger（`tmp/agents/issue-121.ry0nizlf/budget.jsonl`）: 予算 90 分、04:10 時点で能動時間 32 分（使用率 36%）。失敗は pi のセッションの `subagent-empty-result:sp-recon` 2 件（信頼性、上限到達）で、checkpoint で方法変更（Claude Code の Agent ツールへの切り替え）を記録した。安全の失敗は無い
+- pi のセッション（03:37〜03:42、約 4 分）: 事前確認、worktree の作成、baseline のテスト、停止と引き継ぎ資料
+- Claude Code（03:50〜）: 引き継ぎと競合の再確認 約 4 分、RED と Spec 約 5 分、Plan 約 1 分、実装（Task 1・2）約 2 分、GREEN・検証・レビュー 約 9 分、追加の確認と記録 約 2 分（公開は Task 4）
