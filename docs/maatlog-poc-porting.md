@@ -27,6 +27,7 @@
 - 移植元のパスの列で移植元の見出しを「」で引くときは、見出しの中のバッククォートを省く（`public/` などを含む見出し）。下の「網羅の確認」が、この列のバッククォートの中をパスとして読むため
 - 1 つのファイルを節ごとに別の子 Issue が担当した場合は、節ごとに行を分けた
 - 担当 Issue は、その判断を記録した Issue である。#17 の本文で範囲外と決めた項目は #17 とした
+- 移植の後に判断を見直した行は、見直した Issue を担当 Issue に書く（Cursor と Devin の alias は #114）。下の「網羅の確認」の結果は、見直す前の 2026-10-05 の時点のものである
 - 子 Issue の Spec が別の表記（「削除」「不採用」など）を使った行は、判断の後ろに括弧でその表記を残した。表記を揃えただけで、判断は変えていない
 - 各子 Issue の判断の詳細は、その Spec にある: #18 `docs/superpowers/specs/2026-10-04-issue-18-remove-excluded-agents-design.md`、#19 `docs/superpowers/specs/2026-10-04-issue-19-pi-migration-design.md`、#20 `docs/superpowers/specs/2026-10-04-issue-20-pi-launchers-design.md`、#21 `docs/superpowers/specs/2026-10-04-issue-21-claude-code-design.md`、#22 `docs/superpowers/specs/2026-10-05-issue-22-integration-design.md`
 
@@ -117,7 +118,7 @@
 | `.devcontainer/install_beforehand.bash` の `~` 配下の書き込み可能なディレクトリの用意、apt の設定、基本パッケージとロケール、Herdr の補助スクリプトの配置、作業領域の掃除、`~/.zshrc` への連結 | 同じファイルの同じ手順 | 既存維持 | 移植先の手順で足りる。違いは、ディレクトリの一覧（`.grok`・`.dsh` は #18 で撤去し、移植先は秘密情報の置き場 `~/.config/create-reso-world` を持つ）、移植先だけが導入する `blender`、基本パッケージの前の重複した `apt update`（移植先は直前の手順の 1 回だけ）、移植元だけが置くレビュー系ツールの herdr-pr-review（移植先は `cleanup-workspace.bash` を symlink ではなくコピーで置く）と、コメントの Issue 番号 | #22 |
 | `.devcontainer/install_beforehand.bash` の `public` の checkout、Gitleaks と Playwright の導入 | なし | 対象外 | MaatLog の公開アプリケーションと検証のための手順 | #22 |
 | なし | `.devcontainer/install_beforehand.bash` の ResoLoop の導入と Resonite のツールの確認 | 既存維持 | 移植先にだけある手順 | #22 |
-| `.devcontainer/zshrc.txt` の Cursor と Devin の alias（`cur`・`curo`・`dev`・`devo`・`devs` のモデルの固定） | 同じファイルの `cur`・`dev` | 対象外 | #17 の実行ボードで、Cursor と Devin の alias はどの子も変えないと決めた | #17 |
+| `.devcontainer/zshrc.txt` の Cursor と Devin の alias（`cur`・`curo`・`dev`・`devo`・`devs` のモデルの固定） | 同じファイルの `cur`・`curo`・`dev`・`devs`・`devo` | 移植 | usaturn/agent-workspace の `3bc4769`（#515 の定義）に合わせてモデルを固定し、`curo`・`devs`・`devo` を足した。#17 の実行ボードでは、どの子も変えないとして対象外にしていた | #114 |
 | `.devcontainer/zshrc.txt` の `maatlog_periodic_cleanup` と `update()` | 同じファイルの `workspace_periodic_cleanup` と `update()` | 既存維持 | 移植先は定期の掃除を汎用化し、`update()` は無いツールを飛ばす `update_if_present` を使う。`grok update` の撤去は #18 | #22 |
 | なし | `.devcontainer/zshrc.txt` の `require_command`・`update_if_present`、秘密情報の `env` の読み込み、.NET のツールの PATH | 既存維持 | 移植先にだけある補助 | #22 |
 | `.devcontainer/zshrc.txt` のほかの行で扱わない設定（シェルの基本設定、PATH、git の alias、`genv`・`cod`・`buni`、`EDITOR`・`LANG`、Herdr の起動の関数、Starship の初期化） | 同じファイルの同じ箇所 | 既存維持 | 移植元と同じ。違いは、関数の `require_command` の呼び出し（移植先にだけある補助）と、bun の補完のパス（移植先は `$BUN_INSTALL` を使う）だけ | #22 |

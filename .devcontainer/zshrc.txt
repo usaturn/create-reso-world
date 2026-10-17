@@ -62,8 +62,11 @@ alias gits="git stash list | fzf | awk -F '{|}' '{print $2}' | git stash apply"
 alias ccd="claude --dangerously-skip-permissions"
 alias ccdo="claude --dangerously-skip-permissions --model opus"
 alias ccds="claude --dangerously-skip-permissions --model sonnet"
-alias cur="agent --yolo"
-alias dev="devin --permission-mode dangerous"
+alias cur="agent --model grok-4.7-xhigh --yolo"
+alias curo="agent --model claude-opus-5-5-xhigh --yolo"
+alias dev="devin --model swe-2-max --permission-mode dangerous"
+alias devs="devin --model gpt-6-1-sol-xhigh --permission-mode dangerous"
+alias devo="devin --model claude-opus-5-5-xhigh --permission-mode dangerous"
 
 # プロバイダ切替ランチャー（ccdd / ccddg / ccdu）共通の env -u リスト。
 # 親シェルで export された主要な認証材料・プロバイダ切替・モデルピン留系の値が
