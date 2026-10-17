@@ -72,8 +72,8 @@
 - [x] Step 3: PARENT_ROOTのローカルprofile設定を作成。変更版checkerの `--root /workspaces/reso-world`、akichi/slum02の各cwdで通常 `uv run pytest` を実行。Expected: PASS/全件成功。残る壊れた3.12環境はそのままと記録。
 - [x] Step 4: 作業worktreeで `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts`。`bash .devcontainer/verify-resonite-tooling.bash` も確認。Expected: すべて終了コード0。新checkerを使う親ローカル検査と、worktree自身の検査結果を区別する。
 - [x] Step 5: Spec/Planの実行記録を更新してcommit。fresh sp-reviewでブランチ全体を読み取り専用レビューし、Critical/Importantのみ1回の修正passでRED→GREEN確認する。
-- [ ] Step 6: Issue状態・他者との競合を再確認。scan-before-pushで検査したSHAだけpushし、base mainのPRを作成する。本文にCloses #122、決定と理由、実行方式、検証、所要時間、残る対象外を記録。マージしない。Issueへ検証結果をコメントする。
-- [ ] Step 7: ログの要点をSpec/Plan/PRへ転記し、稼働中の子が無いことを確認。sessionを片付け、Herdrをcompletedにして報告する。親の旧checkerはマージ前なので未変更である旨も伝える。
+- [x] Step 6: Issue状態・他者との競合を再確認。scan-before-pushで検査したSHAだけpushし、base mainのPRを作成する。本文にCloses #122、決定と理由、実行方式、検証、所要時間、残る対象外を記録。マージしない。Issueへ検証結果をコメントする。
+- [x] Step 7: ログの要点をSpec/Plan/PRへ転記し、稼働中の子が無いことを確認。sessionを片付け、Herdrをcompletedにして報告する。親の旧checkerはマージ前なので未変更である旨も伝える。
 
 ## 実行結果
 
@@ -93,6 +93,8 @@
 
 最初のshell suiteは31/32（READMEの短縮パスを実在参照と誤記）。実際のパスとローカル設定の説明へ直し、個別docs検査と最終32件すべての再実行が成功した。未実施の検証を成功としていない。
 
+- 公開後に検証・レビュー・予算の要点を文書/PR/Issueへ転記し、同期の子がすべて戻ったことを確認。watcherは起動していない。sessionのログ・バックアップ・ledgerは削除済み。ローカル修復と設定は保持し、作業worktreeもレビュー用に保持する。
+
 ### 最終レビューと裁定
 
 - sp-reviewが全6ファイルのBase `76f1098` → Head `1f35ffe` を確認。Critical/Important/Minorはすべて0件。テスト実行はcontrollerが担当。以後の変更は検証記録だけ。
@@ -100,4 +102,4 @@
 - 裁定: 新しいローカル設定1件を.git/info/excludeにも登録した。親の追跡ファイルを変えずに誤stageを防ぐ。ローカル設定は意図的にcommitしない。
 - レビュアーが範囲外とした3.12環境/独立リポジトリ修復は、利用者の除外範囲どおり対応しない。その3環境は後日の許可された修復まで使用不可のまま。
 - レビュアーが範囲外としたpostCreateの状態表示へのprofile適用も行わない。表示は完了条件ではなく、余分なassets向け警告が残り得る。
-- 予算: 最終レビューと全体検証の終了時点で能動19分21秒/55分、信頼性失敗はdocs参照1回、安全の失敗なし。phase別は準備/設計4分、実装/TDD3分、ローカル修復と検証7分、レビュー/再検証5分が目安。公開に要した時間はPR本文に記録する。
+- 予算: 最終レビューと全体検証の終了時点で能動19分21秒/55分、信頼性失敗はdocs参照1回、安全の失敗なし。phase別は準備/設計4分、実装/TDD3分、ローカル修復と検証7分、レビュー/再検証5分が目安。PR公開とIssue記録の終了時点は21分42秒。公開先は https://github.com/usaturn/create-reso-world/pull/140 （base main、未マージ）、Issueの最終検証記録は https://github.com/usaturn/create-reso-world/issues/122#issuecomment-6236971134 。CIは規則どおり確認対象外。Spec/Planの状態はdraftのまま。
