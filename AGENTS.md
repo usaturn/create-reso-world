@@ -143,6 +143,16 @@ rm / rmdir の削除対象にシェル変数を使う場合は、各変数に `$
 | usaturn/resoloop-meshy | `<PARENT_ROOT>/external/resoloop-meshy` | `origin` が usaturn/resoloop-meshy であること。checkout が無ければ `bash scripts/resoloop-meshy.sh clone` を案内して停止する。実装は作業ルートの `.worktrees/<topic>` の worktree で行う。`pr-review`・`review-fix-planning` には作業ルートを `CODE_ROOT` として明示する。手順は `docs/resoloop-meshy-workflow.md` |
 | それ以外 | ユーザの依頼または確認済みの引き継ぎで明示された checkout の絶対パス（`CODE_ROOT`） | その checkout 自身のルートであり、remote のうち 1 つだけが対象の owner/repo と一致すること。この経路を持つのは `pr-review`（レビュー）と `review-fix-planning`（修正計画と、その PR の承認済み実装修正）で、既存の承認済み PR 修正経路は維持する。一般的な外部コード実装は非対応であり、実行経路が未定義の外部実装の handoff は blocked（not ready）として記録する。remote が無いローカル専用の checkout との PR 連携は非対応のため扱えない（明示指示があっても resolver は remote 0 件で停止する）。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。checkout の探索・clone はしない |
 
+## push の前の秘密情報の検査
+
+「リポジトリ境界」のリポジトリへ commit を push する前に、まだ push していない commit を Gitleaks で検査し、検査した commit をそのまま push する。
+
+- 検査は `bash scripts/scan-before-push.sh [-C <checkout>] [--base <remote>/<branch>]`。base の既定は `origin/main` で、PR の base が別ならそれを渡す。成功すると、検査した commit の SHA だけを標準出力に出す
+- push は `SHA="$(bash scripts/scan-before-push.sh -C <checkout>)" && [ -n "$SHA" ] && git -C <checkout> push <remote> "${SHA}:refs/heads/<branch>"` の形にする（zsh は `$SHA:r` を修飾子として展開するので、`${SHA}` と書く）。検査の後に変わった HEAD を push しない
+- 検出や失敗で止まったら push しない。誤検出でも `.gitleaksignore`、inline の `gitleaks:allow`、作業ツリーの `.gitleaks.toml` で回避せず（検査はどれも使わない）、利用者に報告する。除外が必要なら、base の `.gitleaks.toml` を先に変える
+- gitleaks が無い・版が違うときも止まる。`bash .devcontainer/install_gitleaks.bash` で導入する
+- 対象にしない: 公開済みの commit だけを送る push（`scripts/resoloop-fork.sh sync`、claim ref の作成、ブランチの削除）
+
 ## GitHub Actions
 
 - 料金の問題でプライベートの usaturn/create-reso-world の CI は使わず停止しているため、CI の確認は不要。パブリックの CI は停止していない為、確認すること

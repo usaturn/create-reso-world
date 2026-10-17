@@ -19,6 +19,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y zsh ripgrep bubblewrap
+      # tests/scripts/test-scan-before-push.bash は固定した版の gitleaks を実際に使う
+      - name: Install the pinned Gitleaks
+        run: |
+          bash .devcontainer/install_gitleaks.bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: bash .devcontainer/run-tests.bash
 
   layout:
