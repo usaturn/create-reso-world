@@ -1,6 +1,6 @@
 # pi workspace parity Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Issue #125 の pi 関連ファイルを agent-workspace の現行版へそろえ、共有拡張の登録が消える不具合を解消する。
 
@@ -84,6 +84,21 @@
 - [ ] 明示ファイルをcommit後、`sp-review` に `Review scope: branch`、upstream `code-reviewer.md`、base/head・Spec/Plan・Review Focus・検証・Rulingを渡す。レビューは読み取り専用、テストは実装担当が実行する。Important/Critical は1回の修正passで対処し再発テストが必要なら RED→GREEN、文書のみなら参照と差分検査を実施する。
 - [ ] Issue状態・競合・remote予約を再確認。secret scanの返したSHAをそのままbranchへpushし、`gh pr create --repo usaturn/create-reso-world --base main --head feat/issue-125-pi-workspace-parity`。本文に `Closes #125`、決定理由・方式理由・検証・時間内訳・例外・未検証を記す。
 - [ ] #125に実機checklistをコメント。Spec/Planはdraftのまま結果を追記してコミットし（公開前に行う）、実行許可と承認を区別する。Herdrをcompletedにし、PR・branch/worktree・文書の絶対パス・所要を報告する。
+
+### Task 3: F-1 の安全修正（利用者の明示指示による再開）
+
+**Files:** `.devcontainer/test-pi-openai-codex.bash`、新規 `.devcontainer/tests/pi-launcher-install.bash`、新規 `tools/devenv_migration/tests/test_pi_installer_isolation.py`、既存 `.devcontainer/test-pi-migrations.bash`、Spec/Plan。
+
+**テスト要否:** 必要。切り出したshellの実行範囲・失敗分岐・filesystem/network隔離を実行して確かめる。文言検査は書かない。
+
+- [ ] RED: 実Codexテストをread-only root/private tmp/network namespaceと外部コマンド拒否stubの内側でのみ実行する回帰テストを追加。旧版がfake npxに到達して失敗することを観測し、実download/cleanupは行わない。
+- [ ] helperで開始/終端の存在・重複・順番を検証し、揃ったときだけbufferを出力。終端はtargetのshared-skills。抽出したlauncher配置/tier setupだけを専用HOMEでbwrap隔離して実行。Codexテストはhelperを呼ぶ。
+- [ ] 欠落・重複・逆順で出力/実行無し、正しい範囲の実行、範囲外のtail不実行、書込拒否/network不通をbehavioral fixtureで検証。入口へ新pytestを加える。
+- [ ] GREENと全体検証を同期実行。最初のREDと安全修正後の実行結果は別ログへ保存する。危険な旧版を隔離無しで再実行しない。
+- [ ] F-1修正をcommitし、停止を挟んだ安全修正なので差分に限定した独立re-reviewで境界を確認する。元のbranch review全体をやり直さない。
+- [ ] Issue/競合を再確認し、scan済SHAのpushと元のPR計画を続行する。実機未検証と過去の安全停止/影響不明もPRに明記する。
+
+再開の実行予算: 元の100分のうち前run約46分と再開準備約6分を差し引き48分。準備/修正15分、回帰/全体検証15分、限定review/公開18分。ledgerは同sessionの`recovery-budget.jsonl`。旧budget.jsonlの安全失敗を消さず保存し、利用者が明示許可した異なる安全な検証方法だけを別runで記録する。新しい安全失敗は即停止、信頼性は1回まで。任意sp-reconは結果無しで返ったため成功扱いせず、同じ呼出しを繰り返さずcontrollerの読み取り調査へ変更した。
 
 ## 実行記録
 
