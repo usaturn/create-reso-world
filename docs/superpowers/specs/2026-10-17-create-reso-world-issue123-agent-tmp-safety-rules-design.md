@@ -73,7 +73,7 @@
   - `root`: 親の checkout の写しと worktree の写しのそれぞれを、親・worktree・`external/resoloop-meshy`・その worktree・ワールド・ワールドのサブディレクトリ・リポジトリの外の各 cwd から実行し、どれも親の checkout を出力することを確かめる
   - `mkdir`: worktree の写しを `external/resoloop-meshy` の worktree から実行し、親の checkout の `tmp/agents/<topic>.XXXXXX` が 0700 で作られること、親と worktree の `git status --porcelain` が空のままであることを確かめる
   - 不正な topic: 終了コード 1、stdout が空、stderr が `agent_tmp: ` で始まり、`tmp/agents` を作らないことを確かめる
-- `.gitignore` は実際のファイルを写す。`tmp/` の無視を外すと `mkdir` が止まる、という実際の挙動をこの fixture で確かめるためで、値の写しのテストではない
+- `.gitignore` は実際のファイルを写す。実際の無視の規則の上で `mkdir` が動くことを確かめるためで、値の写しのテストではない（`.gitignore` から `tmp/` の無視が外れると、`mkdir` のテストが失敗して気付ける）
 
 ### D-5 テストの範囲
 
