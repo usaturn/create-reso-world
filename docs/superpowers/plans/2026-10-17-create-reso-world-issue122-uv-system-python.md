@@ -53,11 +53,11 @@
 
 **テストの要否:** 必要。入力の型/パス拒否、profile分岐、外部コマンド呼び出し範囲、標準worldの安全条件という実行ロジックを守る。READMEの文言やローカルの固有名は照合テストにしない。
 
-- [ ] Step 1: 一時git fixtureでassets/items成功、未指定world欠落失敗、items共通リンク/lock不足失敗、不正JSON/型/profile/パス/未収集キー/設定symlink/jq不足、共通追跡禁止とassets同期回避の挙動テストを追加する。
-- [ ] Step 2: `bash tests/scripts/test-check-layout.bash` を実行。Expected: 新profileのfixtureだけFAIL（RED）。baselineは同じworktreeで成功済み。
-- [ ] Step 3: checkerに設定の検証・profile分岐を追加。ローカル設定をgitignoreし、READMEに各profileの意味・例・未指定の既定値・エラー条件・移設した起動パスの注意を書く。
-- [ ] Step 4: 同じテストを再実行。Expected: PASS。`bash -n scripts/check-layout.sh tests/scripts/test-check-layout.bash` と `git diff --check` も成功。
-- [ ] Step 5: 明示した4ファイルだけstage/commitする。
+- [x] Step 1: 一時git fixtureでassets/items成功、未指定world欠落失敗、items共通リンク/lock不足失敗、不正JSON/型/profile/パス/未収集キー/設定symlink/jq不足、共通追跡禁止とassets同期回避の挙動テストを追加する。
+- [x] Step 2: `bash tests/scripts/test-check-layout.bash` を実行。Expected: 新profileのfixtureだけFAIL（RED）。baselineは同じworktreeで成功済み。
+- [x] Step 3: checkerに設定の検証・profile分岐を追加。ローカル設定をgitignoreし、READMEに各profileの意味・例・未指定の既定値・エラー条件・移設した起動パスの注意を書く。
+- [x] Step 4: 同じテストを再実行。Expected: PASS。`bash -n scripts/check-layout.sh tests/scripts/test-check-layout.bash` と `git diff --check` も成功。
+- [x] Step 5: 明示した4ファイルだけstage/commitする。
 
 ### Task 2: ローカル配置を限定修復し、全体検証・PRを行う
 
@@ -67,9 +67,9 @@
 
 **テストの要否:** ローカル設定/リンク/生成物の修復だけなので新テスト不要。差分、旧値確認、バックアップ、実コマンド結果で検証する。
 
-- [ ] Step 1: 既存AGENTS・git status/worktree・interpreterを再確認し、修復対象の旧値/ファイルをsessionのbackupに保存する。akichi/slum02で通常 `uv run pytest` の旧shebang失敗を確認。Expected: 起動失敗、環境再作成なし。
-- [ ] Step 2: 12本のリンクを正しい深さに更新。正常な3.14環境のbin内旧パスだけを置換（symlink・binaryは除く）。Astraで `uv lock` を実行。Expected: uv.lock生成、`.venv`は無いまま。許可対象以外は触らない。
-- [ ] Step 3: PARENT_ROOTのローカルprofile設定を作成。変更版checkerの `--root /workspaces/reso-world`、akichi/slum02の各cwdで通常 `uv run pytest` を実行。Expected: PASS/全件成功。残る壊れた3.12環境はそのままと記録。
+- [x] Step 1: 既存AGENTS・git status/worktree・interpreterを再確認し、修復対象の旧値/ファイルをsessionのbackupに保存する。akichi/slum02で通常 `uv run pytest` の旧shebang失敗を確認。Expected: 起動失敗、環境再作成なし。
+- [x] Step 2: 12本のリンクを正しい深さに更新。正常な3.14環境のbin内旧パスだけを置換（symlink・binaryは除く）。Astraで `uv lock` を実行。Expected: uv.lock生成、`.venv`は無いまま。許可対象以外は触らない。
+- [x] Step 3: PARENT_ROOTのローカルprofile設定を作成。変更版checkerの `--root /workspaces/reso-world`、akichi/slum02の各cwdで通常 `uv run pytest` を実行。Expected: PASS/全件成功。残る壊れた3.12環境はそのままと記録。
 - [ ] Step 4: 作業worktreeで `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts`。`bash .devcontainer/verify-resonite-tooling.bash` も確認。Expected: すべて終了コード0。新checkerを使う親ローカル検査と、worktree自身の検査結果を区別する。
 - [ ] Step 5: Spec/Planの実行記録を更新してcommit。fresh sp-reviewでブランチ全体を読み取り専用レビューし、Critical/Importantのみ1回の修正passでRED→GREEN確認する。
 - [ ] Step 6: Issue状態・他者との競合を再確認。scan-before-pushで検査したSHAだけpushし、base mainのPRを作成する。本文にCloses #122、決定と理由、実行方式、検証、所要時間、残る対象外を記録。マージしない。Issueへ検証結果をコメントする。
