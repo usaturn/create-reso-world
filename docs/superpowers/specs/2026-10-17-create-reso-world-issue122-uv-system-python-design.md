@@ -6,7 +6,9 @@
 - 対象 Issue: https://github.com/usaturn/create-reso-world/issues/122
 - 検証した基準 HEAD: `cd602e63e04e51616cd5043dd46b0cbefd8fc60e`（`origin/main`。Issue の比較の基準 `71607d9` の後は文書の変更だけ）
 - 移植元: usaturn/agent-workspace の `main`、`d3f4151`（`.devcontainer/README.md` の「uv の Python 実行環境（#561）」）
-- 状態: draft
+- 状態: completed（PR #140 のレビュー選別と必要な検証を完了。内容の明示承認とは区別する）
+- レビュー対象 PR: https://github.com/usaturn/create-reso-world/pull/140
+- レビュー選別で検証した HEAD: `2bde95fab479930f284a6516e5b72323a04b42cd`
 - 関連 Plan: `docs/superpowers/plans/2026-10-17-create-reso-world-issue122-uv-system-python.md`
 - 実行許可: 2026-10-17（JST）、利用者が「#122 に着手せよ。専用 worktree を作成し、途中で止めずに推奨案で PR を出せ」と指示した。推奨案での実装、専用 worktree、commit、push、create-reso-world への PR の作成まで許可されている。マージと rebuild は利用者が行う。下の判断は確認を取らずに決めたエージェントの判断である
 
@@ -89,3 +91,56 @@ PR #129 で D-1〜D-6 は実装済み。rebuild 後の Python 選択・ダウン
 - Dev Container 外の環境での Python の選択
 - この作業の中で、ローカルのワールドの `.venv` に `uv run` を実行すること（追跡対象外の利用者の作業物で、作り直しが起きるため）
 - rebuild と、作り直した Dev Container での受け入れ確認（利用者が行う）
+
+## PR #140 のレビュー選別と完了判断（2026-10-17 UTC）
+
+### 対象・実行許可・文書の選択
+
+- 利用者が `review-fix-planning` と `#140` を指定した。計画のみの指定は無く、同スキルの完遂手順に従い、必要なら既存 PR へ修正を push、修正不要なら最終コメント・マージ・関連 Issue 更新まで進める実行許可である。過去の「マージは行わない」は当時の issue-to-pr の制限であり、この依頼の操作には適用しない。内容を `approved` にする承認ではない。
+- `PR_REPO=usaturn/create-reso-world`。PR は open・非 draft、base は `main`、head は `fix/issue-122-local-layout`。取得した `pull/140/head` と API の HEAD が一致し、全レビューの対象 HEAD がその祖先であることを確認した。
+- `PARENT_ROOT=/workspaces/reso-world`。`DOC_ROOT=CODE_ROOT=/workspaces/reso-world/.worktrees/issue-122-local-layout`。既存の worktree を clean・HEAD 一致の条件で再利用したため、このセッションでは削除しない。
+- 対象リポジトリ・Issue #122・PR #140 の profile 検査というテーマと、PR 本文の Spec/Plan 参照を照合し、本ファイルを更新する。既存の PR #129 用レビュー Spec は別 PR の uv 設定の選別記録であり、今回の更新先ではない。新規 Spec や第二の PR は作らない。
+
+### 入力と全指摘の分類
+
+入力ディレクトリ: `reviews/#140-fix-issue-122-local-layout/`。次の全4ファイルを読んだ。各ファイルの対象 HEAD は `2bde95fab479`（検証した完全 SHA と同一）。
+
+| ファイル | 指摘 |
+| --- | --- |
+| `openai-codex-gpt-6.1-sol.md` | 0件 |
+| `SWE-2-Max.md` | 0件 |
+| `claude-opus-5-5.md` | I-1 の1件 |
+| `grok-4.7.md` | 0件 |
+
+| ID・出どころ | 内容 | 分類 | 現行 HEAD での根拠・判断 |
+| --- | --- | --- | --- |
+| I-1・claude-opus-5-5 | profile 設定の解析失敗時に jq の詳細エラーを表示しない | 対応しない | `scripts/check-layout.sh:260–269` は stderr を一時 `profiles.err` へ保存し、固定の invalid メッセージだけを表示する。HEAD を照合した隔離 worktree の実スクリプトに、構文だけが不正な `{` と型だけが不正な `[]` を個別に渡し、双方が終了1・invalid 診断になること、jq 詳細は表示されないことを再現した。不正設定の受理や検査省略にはならず、原因調査の手間だけなので致命的条件を満たさない。付随する診断テストの追加提案も採用しない。 |
+
+分類の合計: **解消済み0 / 対応する0 / 対応しない1**。確認中に追加の致命的な欠陥は見つからなかった。未確認の指摘は無い。解消済みの項目は無く、対応する項目も無いため、修正の影響経路表・設計の見直し・失敗時ガードの対照検証は該当しない。
+
+### 確認範囲と検証
+
+- PR 全体差分と全6変更ファイルの全文（checker、fixture テスト、README、gitignore、本 Spec、関連 Plan）を確認した。関連する `scripts/new-world.sh` の雛形・リンク・命名規則、`.devcontainer/report-resoloop-skills.bash` の収集と同期、`tests/scripts/lib/path.bash`、一括テストランナー、mount 検査、CI 設定も確認した。
+- 未指定 world の厳格な検査、assets の manifest 要件と同期除外、items の共通検査と実ディレクトリ要件、不正設定の拒否、全体の追跡・ignore・mount 検査維持を確認した。追加済みテストは実際の checker を fixture 上で実行しており、文書の文言や設定一覧だけを写すテストではない。
+- `sp-recon` への読み取り専用委譲は結果本文が返らず、結果を取得できなかった。委譲成果を検証根拠には使わず、必要範囲は controller が直接確認した。
+
+| 検証 | 今回の実行結果 |
+| --- | --- |
+| 隔離 worktree での I-1 再現 | 2入力とも終了1。不正設定を拒否し、jq 詳細は表示しないことを確認 |
+| `bash -n scripts/check-layout.sh tests/scripts/test-check-layout.bash` | 終了0 |
+| 再利用した専用 worktree で `bash .devcontainer/run-tests.bash` | 32/32 PASS、終了0。変更された profile fixture と docs・gitignore テストを含む |
+| 同 worktree で `bash scripts/check-layout.sh` | PASS、終了0。mount 検査も実行 |
+| `git diff --check`、検証後の `git status --porcelain` | 終了0、作業ツリーは clean |
+| base の再取得と祖先確認 | `origin/main=76f1098af9f07388f4c10d55786ea9d726654171`。検証した HEAD の祖先なので、一時 merge 検証は不要 |
+
+- `.agents/skills/` の変更は無いため追加の skills pytest は不要。別ワールドの pytest、追跡対象外の修復の再実行、rebuild、実機操作は今回の検証対象にしない。過去のローカル修復結果を独立再現したとは主張しない。
+- private の create-reso-world は `AGENTS.md` の規定により CI 確認対象外。PR の保証は詳細な jq 診断を含まないので、I-1 による PR 本文の既知の制限の追加は不要。
+- このターンの変更は本 Spec の状態と結果記録のみで、実行コード・テストは変更しない。守る挙動の追加が無いため新規テストは作らず、記録変更後の差分・構造と既存 docs 検査で確認する。
+- I-1 再現用の一時 worktree は検証終了後に登録を外し、一時ルートごと削除した。検証ログも結果を読み取った後に削除済み。
+
+### 結論と後続操作
+
+- **結論2: 修正不要としてマージする。** 対応する指摘は0件で、全指摘・全変更ファイル・関連処理とテストの確認、必要な検証が終了した。
+- 修正後の自己レビュー: 未実施（コード修正が無く、結論1だけの工程であるため）。検証の省略や未確認事項の解消を意味しない。
+- この記録1ファイルだけを1コミットにし、API の PR head が検証した SHA のままであること、親コミットと変更対象が一致することを確かめる。秘密情報検査が返した SHA だけを fast-forward push し、最終コメント後に `--match-head-commit` で同じ head だけをマージする。push・マージ・Issue 更新の結果は本 Spec に追記せず、PR コメントと完了報告へ記録する。
+- 所要時間（記録作成時点）: 約8分。入力・context・全文と関連処理の確認約3分、実行検証約4分、分類・記録約1分。公開・マージ・Issue 更新はこの後に実施する。
