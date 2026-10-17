@@ -66,7 +66,14 @@
 - RED: 移植元の pytest の代表例を先に持ち込み、未移植の launcher / function が理由で失敗することを観測。追加の共有登録テストも旧導入節で context7 の撤去を観測する。
 - GREEN: 上記 README の3入口と、新しい pi migrations の入口を実行。元ファイルとの diff を取り、無変更対象の一致と例外を PR に書く。
 - Plannotator は導入済み拡張の `server/network.ts` と公式文書（Context7 `/backnotprop/plannotator`）で REMOTE=0 の loopback と port range 対応を確認済み。合成 Markdown と隔離設定だけで bind / port fallback / review HTTP の往復を可能なら確認する。共有状態は変えない。
-- JSON / JSONC・shell の構文と Git diff / file mode / 参照先を確認する。未 push commit を `scripts/scan-before-push.sh` で検査し、同じ SHA を push する。private Actions は無効のため確認しない。
+- JSON / JSONC・shell の構文と Git diff / file mode / 参照先を確認する。Plannotator の移植元文書が案内する `subagent.usePlannotatorReview` は現行の引数に無いため、通常の確認では提供されている `superpowers_plan_review` ツールを案内する（文書のAPI修正の例外）。未 push commit を `scripts/scan-before-push.sh` で検査し、同じ SHA を push する。private Actions は無効のため確認しない。
+
+## ローカル検証の結果（2026-10-17）
+
+- Task 1: 共有登録の回帰テストは旧導入処理で context7 が消え、2件が失敗（RED）。移植後は pi の3入口すべて成功。移植元 MCP / Vertex 2ファイルの内容は同一。追加の状態遷移テストを含む migrations は149件。
+- 全体: `run-tests.bash` 32本、`check-layout.sh`、スキル・script の pytest 625件が全て終了0。
+- Plannotator 0.28.23: `REMOTE=0` の `127.0.0.1`、設定ポート範囲の解析を確認。現在の環境では19432〜19441が EADDRINUSE（Linuxのssに対応listenerは表示されない。Windows側の状態は未調査）。他者のserviceには触らず、一時範囲45123〜45128へ検証方法を変更し、意図的に45123を占有すると45124で起動、合成日本語Markdownの取得と合成承認のHTTP往復が成功（終了0）。これは実際のSpec / Planへの承認ではない。
+- 実設定範囲での起動、Windowsブラウザー、rebuild、実モデルは未検証。現在のrangeの占有原因と到達性は利用者の実機checklistに残す。
 
 ## Builder check の裁定
 

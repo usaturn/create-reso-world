@@ -30,7 +30,10 @@
         "SHELL": "/usr/bin/zsh",
         // uv は uv 管理の古い Python よりシステムの Python を選び、無い版を自動でダウンロードしない（README の「uv の Python 実行環境」）
         "UV_PYTHON_PREFERENCE": "system",
-        "UV_PYTHON_DOWNLOADS": "manual"
+        "UV_PYTHON_DOWNLOADS": "manual",
+        // host network なので Plannotator は loopback に限定し、VS Code から転送する
+        "PLANNOTATOR_REMOTE": "0",
+        "PLANNOTATOR_PORT": "19432-19441"
     },
     "remoteEnv": {
         // ユーザ単位で導入するツール（claude・uv など、herdr の補助スクリプト、dotnet tool）。mounts と同じく
@@ -76,7 +79,7 @@
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-	"forwardPorts": [8000],
+	"forwardPorts": [8000, 19432, 19433, 19434, 19435, 19436, 19437, 19438, 19439, 19440, 19441],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "uname -a",

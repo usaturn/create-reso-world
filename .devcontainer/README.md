@@ -25,7 +25,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | --- | --- | --- | --- | --- | --- |
 | Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`、`ccdo`、`ccds`（alias）、`ccdd`、`ccddg`、`ccdu` | `claude update` |
 | Codex | `npm install -g @openai/codex@latest` | `~/.codex` | `~/.codex` | `cod` | `npm install -g @openai/codex@latest` |
-| pi | `npm install -g` で本体、`pi install` で拡張。ランチャー 9 本を `~/.local/bin` に置く | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
+| pi | `npm install -g` で本体、`pi install` で拡張。ランチャー 11 本を `~/.local/bin` に置く | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`、`curo`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`、`devs`、`devo`（alias） | `devin update`、`devin plugins update superpowers` |
 | Meshy CLI | `install_meshy.bash`（公式 npm `meshy-cli@0.4.0`、無認証 version / help） | — | — | — | — |
@@ -74,15 +74,15 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 2. ホストの `~/.config/create-reso-world/env` を見直す。`MAAS_ANTHROPIC_TOKEN` を削除し、
    Google Developer Knowledge の MCP を使う場合は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す（「API トークン」）。
 3. Dev Containers: Rebuild Container を実行する。postCreate が次を行う。
-   - pi の旧拡張の撤去と、settings の `-builtin:mcp` の除去。変更が必要なときだけバックアップを作る
+   - pi の旧拡張の撤去と、settings の `-builtin:mcp` の除去。context7-pi と Plannotator は導入・保持する
      （「pi の旧拡張・MCP 設定の移行」）
-   - 9 本の pi ランチャーと共通ヘルパの配置。ヘルパは pi を `--tui-mode regular` で起動する
+   - 11 本の pi ランチャーと共通ヘルパの配置。ヘルパは pi を `--tui-mode regular` で起動する
      （「pi の TUI モードと Herdr のスクロール履歴」）
    - Claude Code の alias（`ccd`・`ccdo`・`ccds`）とプロバイダ関数を含むシェル設定の配置
      （「Claude Code の起動と更新」）
    - dsh と Grok Build を導入せず、mount もしない。`PI_DISTILL_*` と `PI_EXTENSIONS_LOCALE` を export しない
 4. rebuild では変わらないものを反映する。
-   - ランチャー別の tier: `--if-absent` を付けずに `zsh .devcontainer/setup_pi_superagents.zsh` を実行する。
+   - ランチャー別の tier: `--if-absent` を付けずに `zsh scripts/setup_pi_superagents.zsh` を実行する。
      変更のある設定はバックアップされる（「pi-superagents のランチャー別 model tier」）
    - pi の project trust: まだ承認していなければ、リポジトリのルートで素の `pi` を起動して承認する。
      承認の後に `.pi/settings.json`・`.pi/mcp.json`・`.pi/APPEND_SYSTEM.md`（pi 固有の指示）と
@@ -93,12 +93,12 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 
 rebuild しない場合は、3 の代わりに次を行う。dsh は rebuild するまでコンテナに残る。
 
-- pi の旧拡張の撤去: 「pi の旧拡張・MCP 設定の移行」の `uv run --no-project .devcontainer/cleanup_pi_mcp.py`
+- pi の旧拡張の撤去と共有拡張の導入: 「pi の旧拡張・MCP 設定の移行」の手動コマンド
 - 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除。
   2 で `env` から消した `MAAS_ANTHROPIC_TOKEN` も、使用中のシェルでは `unset MAAS_ANTHROPIC_TOKEN` で外す
-- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜17 の `install -m 0755` で 9 本を置き直す。
+- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜19 の `install -m 0755` で 11 本を置き直す。
   同じ節の 8 の `models.json` のコピーは既存の定義を上書きするので行わない。共通ヘルパは、4 で実行する
-  `zsh .devcontainer/setup_pi_superagents.zsh` が更新する
+  `zsh scripts/setup_pi_superagents.zsh` が更新する
 - Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映。古い `~/.zshrc` に残る
   `ccda`（`claude-alibaba`）の関数と、`update()` の Grok Build の行も削除する
 
@@ -359,14 +359,16 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 8. `mkdir -p ~/.pi/agent && cp .devcontainer/pi-models.json ~/.pi/agent/models.json`
 9. `mkdir -p ~/.local/bin && install -m 0755 .devcontainer/pigo ~/.local/bin/pigo`
 10. `install -m 0755 .devcontainer/pigod ~/.local/bin/pigod`
-11. `install -m 0755 .devcontainer/pigou ~/.local/bin/pigou`
-12. `install -m 0755 .devcontainer/piccg ~/.local/bin/piccg`
-13. `install -m 0755 .devcontainer/piccd ~/.local/bin/piccd`
-14. `install -m 0755 .devcontainer/piga ~/.local/bin/piga`
-15. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
-16. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
-17. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
-18. `zsh .devcontainer/setup_pi_superagents.zsh`
+11. `install -m 0755 .devcontainer/piccg ~/.local/bin/piccg`
+12. `install -m 0755 .devcontainer/piccd ~/.local/bin/piccd`
+13. `install -m 0755 .devcontainer/piga ~/.local/bin/piga`
+14. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
+15. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
+16. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
+17. `install -m 0755 .devcontainer/pigemf ~/.local/bin/pigemf`
+18. `install -m 0755 .devcontainer/pigemp ~/.local/bin/pigemp`
+19. `install -m 0755 .devcontainer/pigema ~/.local/bin/pigema`
+20. `zsh scripts/setup_pi_superagents.zsh`
 
 プラグインの有効化は `.claude/settings.json` の `extraKnownMarketplaces` と
 `enabledPlugins` で行う。設定の反映には Claude Code の再起動が必要である。
@@ -408,59 +410,40 @@ bind mount なので、移植元の一時ファイルから rename する方式�
 
 ## pi の旧拡張・MCP 設定の移行
 
-ドキュメント取得は共有の `find-docs` スキル経由の CLI を標準とする。
-`pi-mcp-adapter`、`@upstash/context7-pi`、`pi-distill`、`pi-lens`、単独登録の
-`pi-extensions-tool-display` と `pi-extensions-i18n` は導入しない。
-`pi-lens` は、意図しない整形と誤検知、リクエストごとのトークンと起動時間の増加があるため、
-共有の agent directory から外した（usaturn/agent-workspace#684）。
-postCreate は拡張の導入前に既存の登録・pi 管理 npm マニフェストと、pi agent directory 内の
-`mcp-cache.json`、`mcp-project-approvals.json`、`mcp-onboarding.json`、
-`mcp-npx-cache.json` を整理する。
-組み込み MCP も使う `mcp.json` と `mcp-auth.json` は、内容とリンクをそのまま保持する。
-settings の `extensions` から `-builtin:mcp` だけを除き、他の拡張・独自モデル・認証は保持する。
-旧拡張の残留がなくても、利用者が設定した `-builtin:mcp` は、成功する cleanup の実行ごと
-（postCreate を含む）に除去する。ホストから共有する agent directory の設定変更なので、
-同じ directory を使うホスト側や他の環境の pi にも反映される。
-撤去は旧拡張の npm インストール実体も消すので、rebuild や手動の cleanup の前に、
-同じ directory を使うホスト側や他の環境で動いている pi を終了する。
-共有の MCP 設定・API キー・`find-docs`・`~/.npm` のキャッシュは変更しない。
+Issue #125 で agent-workspace の導入手順にそろえた。`pi-mcp-adapter`・`pi-distill`・
+単独登録の `pi-extensions-tool-display` / `pi-extensions-i18n`・`pi-lens` は撤去し、
+`@upstash/context7-pi` と `@plannotator/pi-extension` は導入・保持する。
+組み込み MCP のため settings の `-builtin:mcp` だけを取り除き、他の設定は保持する。
+撤去に失敗して登録や npm マニフェストが残った場合は、理由を表示して postCreate を止める。
 
-変更前には `agent/migration-backups/pi-retired-*` に settings と存在する npm マニフェストの
-元バイト列を保存し、保存先を表示する。各バックアップは固有名のディレクトリ（0700）に置く。
-バックアップに失敗した場合は撤去しない。途中で pi remove が失敗した場合は、理由を出して
-停止しバックアップを残す。復旧する場合は pi を終了し、表示されたディレクトリ内のファイルを
-元の agent directory の同じ相対パスへ戻してから npm の状態を確認し、必要な拡張を再導入する。
-バックアップは npm インストール実体を含まないため、node_modules の復旧には再導入が必要。
-整理済みの再実行や空の初回環境ではバックアップ・settings を新設しない。
+旧独自 cleanup / JSON helper と撤去前の自動バックアップは廃止した。古いバックアップや
+MCP の状態ファイル、利用者のモデルと認証は自動削除しない。共有 `~/.pi` を使う全コンテナの
+Pi を終了してから rebuild する。ほかのコンテナも context7-pi / Plannotator を保持する版にそろえる。
 
-既存環境では pi と uv を導入済みの状態で、リポジトリのルートから次を実行する。
+rebuild しない場合、利用者が Pi を止めて次を実行する。`pi remove` が未登録を理由に
+終了コード1を返す場合は `pi list` と npm マニフェストで撤去対象の不在を確かめる。
+`-builtin:mcp` が残っていれば settings の該当要素だけを手で取り除く。
 
 ```bash
-uv run --no-project .devcontainer/cleanup_pi_mcp.py
+pi remove npm:pi-mcp-adapter
+pi remove npm:pi-distill
+pi remove npm:pi-extensions-tool-display
+pi remove npm:pi-extensions-i18n
+pi remove npm:pi-lens
+pi install --approve npm:@upstash/context7-pi
+pi install --approve npm:@plannotator/pi-extension
 ```
 
-対象は `PI_CODING_AGENT_DIR`（未指定なら `~/.pi/agent`）。指定する場合は安全な絶対パスか
-`~/...` を使う。削除対象4ファイルの symlink はリンクだけを削除し、設定・パッケージ保存先が
-symlink や hard link の場合、読み取り・削除エラー時は停止する。
-`npm/` 自体がない場合は npm を実行せず、対象拡張の登録だけを撤去する。
-対象拡張の撤去が必要で `npm/` が存在するのに `npm/package.json` がない場合、または保持する npm 拡張の
-登録がそのマニフェストに宣言されていない場合は、npm による巻き添え削除を防ぐため変更せず停止する。
-対象のマニフェストを復旧してから再実行する。
-settings と対象の全 npm マニフェストは、NaN・Infinity や JavaScript Number の有限範囲を
-超える数値（巨大整数を含む）があれば、バックアップ・撤去・キャッシュ削除の前に停止する。
-エラーに示されたファイルの数値を確認して修正し、再実行する。有効な Unicode エスケープは保持する。
-`npm/npm-shrinkwrap.json` と `npm/package-lock.json` が両方あり、npm が無視する後者に
-撤去対象が残る場合も変更せず停止する。表示された両 lockfile を利用者側で整合させてから再実行する。
-cleanup は lockfile を自動削除しない。
-実行中の pi は古い拡張や接続を保持し、状態ファイルを再作成する場合があるため、先に終了する。
-整理後に起動し直す（セッションを継続する場合も `/reload` だけで不十分なら再起動する）。
+`pigou` と新規モデル雛形の `union-alpha` は廃止した。既存の `~/.local/bin/pigou` や
+利用者の `models.json` は自動では消さない。不要な旧ファイルとモデルは利用者が内容を確認して
+整理する。`ccdu`（Claude Code）は対象外なので変更しない。
 
 ## pi のモデル定義とランチャー
 
 `~/.pi` は `devcontainer.json` で bind mount している。認証情報
 （`~/.pi/agent/auth.json`）とモデル定義（`~/.pi/agent/models.json`）が
-ホスト側に残るため、リビルド後に `.devcontainer/setup_pi.zsh`、
-`.devcontainer/setup_pi_opencode_go.zsh`、`.devcontainer/setup_pi_commandcode_goat.zsh`
+ホスト側に残るため、リビルド後に `scripts/setup_pi.zsh`、
+`scripts/setup_pi_opencode_go.zsh`、`scripts/setup_pi_commandcode_goat.zsh`
 を実行し直す必要はない。
 
 `install_beforehand.bash` は次のものを配置する。挙動が異なるのは、
@@ -472,11 +455,11 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
 - `.devcontainer/pigo` → `~/.local/bin/pigo`。`~/.local/bin` は bind mount の
   対象外でリビルドのたびに失われるため、毎回上書きで配置する
 - `.devcontainer/pigod` → `~/.local/bin/pigod`。pigo と同じ理由で毎回上書き
-- `.devcontainer/pigou` → `~/.local/bin/pigou`。pigo と同じ理由で毎回上書き
 - `.devcontainer/piccg` → `~/.local/bin/piccg`。pigo と同じ理由で毎回上書き
 - `.devcontainer/piccd` → `~/.local/bin/piccd`。pigo と同じ理由で毎回上書き
 - `.devcontainer/piga`・`pigs`・`pigl` → `~/.local/bin/`。同様に毎回上書き
 - `.devcontainer/pixg` → `~/.local/bin/pixg`。同様に毎回上書き
+- `.devcontainer/pigemf`・`pigemp`・`pigema` → `~/.local/bin/`。同様に毎回上書き
 - `.devcontainer/pi-superagents/<launcher>.json` → `~/.pi/agent/extensions/subagent.d/<launcher>/config.json`、
   `.devcontainer/pi-superagents-exec.zsh` → `~/.local/bin/pi-superagents-exec.zsh`。
   `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 2 種を配置する
@@ -484,13 +467,68 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
 
 `~/.local/bin` への PATH は `zshrc.txt` が通すため、別途の設定は不要である。
 
-### モデル定義の正
+### Plannotator のブラウザーレビュー
+
+[Plannotator](https://plannotator.ai/) は、日本語を含む Markdown の Plan を
+ブラウザーで確認・注釈し、Pi へ承認／修正要求を返すために使う。
+Pi では `npm:@plannotator/pi-extension` 拡張だけでよく、既存の Node.js 24 で動く。
+Plannotator CLI や Bun の追加導入は不要である。
+
+コンテナ作成／リビルド時は、`install_beforehand.bash` の既存の Pi 拡張導入処理が
+この拡張も登録する。`devcontainer.json` は `PLANNOTATOR_REMOTE=0` と
+`PLANNOTATOR_PORT=19432-19441` を設定し、19432〜19441 の 10 ポートを個別に転送する。
+拡張は範囲内の空きポートを選ぶため、19432 が使用中でも別のポートを使える。
+既存の 8000、`~/.pi` の bind mount、認証・モデル・他のパッケージ設定、
+pi-superagents のランチャー別設定は保持する。
+
+反映作業は利用者が行う。推奨手順は **Dev Containers: Rebuild Container** を実行し、
+作成／リビルド後に Pi（使っているランチャー）を起動し直すことである。
+設定ファイルの保存や Pi の再起動だけでは、既存コンテナ全体に `containerEnv` は
+反映されない。
+
+リビルドしない既存環境では、利用者が次を実行する。環境変数はこの起動だけに渡す。
+普段のランチャーを使う場合は、末尾の `pi` をその実行ファイル名（例: `pigs`）に置き換える。
+起動済みの Pi は終了し、拡張を導入した後に起動し直す。
+
+```bash
+pi install --approve npm:@plannotator/pi-extension
+env PLANNOTATOR_REMOTE=0 PLANNOTATOR_PORT=19432-19441 pi
+```
+
+レビューの手順は次のとおり。
+
+1. 通常の Plan 確認時に pi-superagents の `superpowers_plan_review` ツールでレビューを依頼する。
+   受付時点ではレビュー待ちであり、まだ承認されたわけではない。
+2. Pi の端末に表示されるレビュー URL から、実際に使われたポートを確認する。
+   リビルドしない既存環境では、VS Code の **Ports** 画面でそのポートを追加転送する。
+3. Windows のブラウザーで、Ports 画面の転送先アドレス（Local Address）を開く。
+   レビュー URL にパスやクエリがある場合は、その部分も付ける。
+   コンテナ側の `localhost` ではなく、Windows ホストへの転送先を使う。
+4. ブラウザーで Plan を確認し、承認または注釈付きの修正要求を返す。
+   承認は Pi 側へ戻り、修正要求は Plan の見直しと再レビューに使われる。
+
+画面が出ないときは、pi-superagents の `usePlannotator` が `false` に上書きされて
+いないか確認する。ランチャー利用時は、共通設定に加え、実際に使う
+`~/.pi/agent/extensions/subagent.d/<launcher>/config.json` も確認する。
+変更する場合は必要なキーだけを調整し、既存の model tier や他の設定は残す。
+19432〜19441 がすべて使用中なら、新しいレビューを開始できない。
+自分の不要なレビューを終了して空きを作り、再度依頼する。無制限の同時レビューには対応しない。
+
+このリポジトリは `--network=host` を使うため、移植元の remote mode（`0.0.0.0` に bind）を
+使わない。`PLANNOTATOR_REMOTE=0` で `127.0.0.1` だけに bind し、VS Code のローカル転送で
+Windows から開く。host network でも転送は利用でき、WSL の localhost 到達性に依存しない。
+Docker の公開ポート、外部共有・トンネルは追加しない。
+レビュー URL を外部へ共有しない。ブラウザーの自動起動は保証しないため、
+Windows の実ブラウザーでの閲覧と承認／修正要求の往復は利用者が手動で確認する。
+
+### モデル定義の管理
 
 独自のモデル定義は `.devcontainer/pi-models.json` を単一の情報源とする。
 `install_beforehand.bash` も 3 つの setup スクリプトも、定義を埋め込まずこの
 ファイルから読む。定義を変更するときはこのファイルを編集してコミットする。
-`openai-codex` の GPT-6 モデルと `xai` の Grok 4.7 は Pi の組み込みカタログを
-使うため、このファイルには追加しない。
+`openai-codex` の GPT-6 モデル、`xai` の Grok 4.7、`google-vertex` の
+Gemini 3.8 Flash / Gemini 3.1 Pro Preview は Pi の組み込みカタログを使うため、
+このファイルには追加しない。
 
 `pigo` は pi を `opencode-go` プロバイダの `muse-spark-1.3-contributor` で
 起動するラッパーである。このモデルは pi の組み込みカタログ
@@ -510,8 +548,9 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
 できる。
 
 カタログは pi.dev 側で更新されるため、モデル ID が改名されることがある。
-ID は表示名と一致しないので、ランチャーの ID は必ず `pi --list-models` で
-確認する。2026-09-11 に `deepseek-flash` が `deepseek-v4.1-flash` へ改名され、
+ID は表示名と一致しないので、OpenCode Go ランチャーの ID は `pi --list-models` で
+確認する。Vertex ランチャーは認証を調べない bundled catalog の確認を使う（後述）。
+2026-09-11 に `deepseek-flash` が `deepseek-v4.1-flash` へ改名され、
 旧 ID を残していた `pigod` は次の警告を出したうえで `opencode-go` の既定モデル
 （`kimi-k2.6`）の定義を複製したモデルで起動していた:
 
@@ -523,7 +562,7 @@ Warning: Model "deepseek-flash" not found for provider "opencode-go". Using cust
 使われる結果、context window は 262,144（本来は 1,000,000）、max output は
 65,536（本来は 384,000）になり、`supportsReasoningEffort` が false のため
 `--thinking max` の `reasoning_effort` も送られない。
-`.devcontainer/setup_pi_opencode_go.zsh` の手順 6 は各ランチャーのモデル ID を
+`scripts/setup_pi_opencode_go.zsh` の手順 6 は各ランチャーのモデル ID を
 `pi --list-models` で検証するので、この種の改名は setup の時点で失敗する。
 
 ID と表示名が一致しないモデルなので注意する。カタログ上の表示名は
@@ -537,26 +576,6 @@ ID と表示名が一致しないモデルなので注意する。カタログ�
 `minimal` / `low` / `medium` / `high` / `xhigh` / `max` の文字列だけで、数値は
 受け付けない（`50` や `100` を送ると 400 になる）。許容値は不正値を送ったときに
 エンドポイント自身が返す検証エラーで確認できる。
-
-`pigou` は同じ `opencode-go` プロバイダを、既定モデル `union-alpha`（表示名
-`Union Alpha Free`）で起動するラッパーである。Union Alpha Free は OpenCode が
-期間限定で無料提供するステルスモデルで、context window は 262,144、
-max output は 131,072、画像入力に対応する。
-
-`union-alpha` は pi のモデルカタログに無いため、`pigo` と同じく定義は
-`pi-models.json` 側にある。ただし api が異なり、このモデルは
-`openai-completions` / `openai-responses` では 500 を返し、Anthropic 互換の
-`https://opencode.ai/zen/go/v1/messages` だけで応答する。そのため定義の
-`api` は `anthropic-messages` で、`baseUrl` は `/v1` を付けない
-`https://opencode.ai/zen/go` である（Anthropic SDK が `/v1/messages` を補う）。
-また Go エンドポイントは `x-opencode-session` ヘッダを必須とするが、pi は
-provider が `opencode-go` のモデルへ `x-opencode-session` と
-`x-opencode-client` を自動で付与するため、ランチャー側での対応は不要である。
-
-`union-alpha` は `thinking` パラメータを受理するが reasoning ブロックを
-返さないため `reasoning: false` としている。`--thinking max` は他ランチャーとの
-統一のため残しており、実装上は送られない。無料枠の提供は期間限定なので、
-提供終了後は `pi-models.json` の定義とこのランチャーを外す。
 
 `piccg` は Muse Spark 1.3 を Command Code GOAT 経由
 （`commandcode` プロバイダ、既定モデル `meta/muse-spark-1.3`）で
@@ -580,7 +599,7 @@ provider が `opencode-go` のモデルへ `x-opencode-session` と
 （画像は別モデル `deepseek/deepseek-v4-flash-vision-exp` が担う）。
 
 既存の `~/.pi/agent/models.json` がある環境では、初回だけ
-`zsh .devcontainer/setup_pi_commandcode_goat.zsh` を実行して `commandcode`
+`zsh scripts/setup_pi_commandcode_goat.zsh` を実行して `commandcode`
 プロバイダを反映する必要がある。`install_beforehand.bash` は `piccg` と
 `piccd` を毎回配置する一方 models.json は既存ファイルを上書きしないため、
 この一度の実行を省くと `piccg` が pi の `Unknown provider "commandcode"` で
@@ -609,11 +628,10 @@ OAuth 情報は `~/.pi/agent/auth.json` に保存される。`~/.pi` は Dev Con
 場合は、このログイン手順を表示して終了する。
 `pigs` の `cheap` tier の子 Pi は OpenCode Go の `deepseek-v4.1-flash` を
 使う。子 Pi が使う OpenCode Go の資格情報は `setup_pi_opencode_go.zsh` が
-`auth.json` に書いた api_key または `OPENCODE_API_KEY` で解決され、`pigo`・`pigod` と
-同じく起動前の確認は行わない。旧名の `OPENCODE_GO_API_KEY` だけが設定されている場合は、
-ランチャーが `OPENCODE_API_KEY` に引き継いでから起動する。`auth.json` に資格情報が無い環境では
-`cheap` tier の子 Pi が provider 認証エラーになるため、必要なら `OPENCODE_API_KEY` を
-設定して `zsh .devcontainer/setup_pi_opencode_go.zsh` を実行する。
+`auth.json` に書いた api_key または `OPENCODE_API_KEY` で解決され、`pixg` と
+同じく起動前の確認は行わない。`auth.json` に資格情報が無い環境では `cheap`
+tier の子 Pi が provider 認証エラーになるため、必要なら `OPENCODE_API_KEY` を
+設定して `zsh scripts/setup_pi_opencode_go.zsh` を実行する。
 
 GPT-6.1 Sol のため Pi 0.99.1 以上が必要（GPT-6 Astra / Luna もこの版に含まれる）。利用前に `pi --version` を確認し、
 ログイン後に各モデルが `openai-codex` 行にあることを確認する。
@@ -628,13 +646,14 @@ pi --list-models gpt-6-luna
 モデル行が無い場合は Pi を更新する。`pi --list-models` は利用可能なモデルを
 表示するため、未認証時には Pi がモデル定義を持っていても `openai-codex` 行は
 表示されない。3 ランチャーは `--thinking xhigh` で起動する。子 Pi の
-`cheap` / `balanced` / `max` tier はランチャーごとに GPT-6 Luna / GPT-6.1 Sol /
-GPT-6 Astra を割り当てる（`pigs` の `cheap` だけは OpenCode Go の
-`deepseek-v4.1-flash`。後述の tier の表を参照）。ログイン済みの環境では、次のテストでも Pi の版と
-3 モデルを検証できる。
+`cheap` / `balanced` / `max` tier はランチャーごとに GPT-6 Luna / GPT-6.1
+Sol / GPT-6 Astra を割り当てる（`pigs` の `cheap` だけは OpenCode Go の
+`deepseek-v4.1-flash`。下表を参照）。ログイン済みの環境では、次のテストでも、ランチャーと
+tier が使う `openai-codex` のモデルが Pi の一覧にあることを確認できる。
 
 ```bash
 PI_CODEX_LIVE_CHECK=1 bash .devcontainer/test-pi-openai-codex.bash
+bash .devcontainer/test-pi-migrations.bash
 ```
 
 ### SuperGrok / X Premium の Grok 4.7 ランチャー
@@ -646,7 +665,7 @@ PI_CODEX_LIVE_CHECK=1 bash .devcontainer/test-pi-openai-codex.bash
 `pixg` の親 Pi と `max` tier は SuperGrok または X Premium
 サブスクリプションの xAI OAuth 認証を使い、`cheap` / `balanced` tier の
 子 Pi は OpenCode Go の `deepseek-v4.1-flash` を使う。`XAI_API_KEY` は
-不要で、xAI API のキー課金には接続しない。OpenAI Codex の認証も使わない。
+不要で、xAI API のキー課金には接続しない。
 初回だけ素の `pi` を起動して `/login xai` を実行し、
 `Sign in with SuperGrok or X Premium` からログインする。OAuth 情報は
 `~/.pi/agent/auth.json` に保存される。`~/.pi` は Dev Container に bind mount
@@ -654,8 +673,8 @@ PI_CODEX_LIVE_CHECK=1 bash .devcontainer/test-pi-openai-codex.bash
 `postCreateCommand` から自動ログインしない。xAI が未認証なら、
 `pixg` はログイン手順を表示して起動前に終了する。
 子 Pi が使う OpenCode Go の資格情報は `setup_pi_opencode_go.zsh` が
-`auth.json` に書いた api_key または `OPENCODE_API_KEY` で解決され、`pigo`・`pigod` と
-同じく起動前の確認は行わない。旧名の `OPENCODE_GO_API_KEY` の扱いは `pigs` と同じである。
+`auth.json` に書いた api_key を共有し、`pigo` / `pigod` と同じく起動前の
+確認は行わない。
 
 Grok 4.7 と DeepSeek V4.1 Flash は Pi の組み込みカタログにあるため、
 `pi-models.json` への定義追加は不要である。ログイン後にそれぞれのモデルを
@@ -674,15 +693,132 @@ Grok 4.7 の thinking level は `low` / `medium` / `high` / `xhigh` で、
 `opencode-go/deepseek-v4.1-flash` の `max`、`max` が `xai/grok-4.7` の
 `xhigh` を使う。未認証時に別モデルへ自動フォールバックはしない。
 
+### Vertex AI の Gemini ランチャー（agent-workspace #578・#680）
+
+| launcher | Provider / Model | thinking |
+|---|---|---|
+| `pigemf` | `google-vertex/gemini-3.8-flash` | `high` |
+| `pigemp` | `google-vertex/gemini-3.1-pro-preview` | `high` |
+| `pigema` | `google-vertex/gemini-4-argon` | `high` |
+
+3 ランチャーとも Pi の native Google Vertex AI adapter と Application Default
+Credentials（ADC）を使う。Gemini API 用の `google` provider ではない。
+3 モデルとも Pi 1.3.0 の bundled catalog にあり、独自のモデル定義は追加しない。
+thinking level はどれも `low` / `medium` / `high` で、`high` が実際の最大値である。
+
+対応する location と課金の方式はモデルによって異なる（Google の公式情報、2026-10-15 更新）。
+
+- `gemini-3.8-flash`・`gemini-3.1-pro-preview`:
+  [Flex PayGo 対応モデル一覧](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/flex-paygo)
+  で `global` endpoint の対象
+- `gemini-4-argon`:
+  [モデルのページ](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/4-argon)
+  で GA。location は `global` と multi-region の `us`・`eu`、課金の方式は
+  Standard PayGo・Priority PayGo・Provisioned Throughput。Flex PayGo の一覧には載っていない
+
+location を変更する場合は、利用するモデルの対応先を確認する。
+`gemini-4-argon` の単価は、Pi 1.3.0 の catalog で 1M トークンあたり input $2・output $10 と、
+`gemini-3.8-flash`（input $0.75・output $3.75）より高い。Pi のシステムプロンプトだけで
+入力が約 1 万トークンあるため、agent-workspace #680 の起票時の実測では 1 回の呼び出しで約 $0.02 かかった。
+
+起動時の環境変数は次の順で決める（空文字も未設定として扱う）。
+
+- project: `GOOGLE_CLOUD_PROJECT` → `GCLOUD_PROJECT` → `hobby-372711`
+- location: `GOOGLE_CLOUD_LOCATION` → `global`
+- ADC パス: 非空の `GOOGLE_APPLICATION_CREDENTIALS` →
+  `auth.json` の `google-vertex.env.GOOGLE_APPLICATION_CREDENTIALS`。
+  どちらも無ければ Pi に通常の ADC 解決を任せる。他の環境変数はそのまま引き継ぐ
+- `GOOGLE_CLOUD_API_KEY` だけをランチャーのプロセスツリーから外す。
+  呼び出し元のシェル、素の `pi`、他のランチャーには影響しない
+
+ADC は利用者が事前に用意する。ランチャーは credential ファイルの存在・有効性を
+確認せず、ログイン、gcloud の実行、トークンの取得・保存を行わない。
+ADC が無い状態でも Pi まで起動し、認証の解決とエラー表示は Pi に任せる。
+Pi の `/login google-vertex` で保存したサービスアカウントの ADC パスも利用する。
+保存済みパスは同じ snapshot から取り出して、このプロセスツリーの環境へ渡す。
+パスをコマンドとして実行したり、資格情報ファイルを調べたりはしない。
+必要なら使うシェルで project / location や別の ADC パスを指定する。
+明示した非空の ADC パスが優先され、保存済み project / location は引き継がない。
+
+```bash
+export GOOGLE_CLOUD_PROJECT=your-project
+export GOOGLE_CLOUD_LOCATION=global
+# サービスアカウントの ADC ファイルを使う場合だけ指定する:
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+pigemf
+pigemp --session 'session with spaces.jsonl'
+pigema
+```
+
+環境変数の API key を外すだけでは、Pi が優先する `auth.json` の保存済み key や
+`models.json` の `apiKey` が使われ得る。そのため、この 3 ランチャーだけは、
+起動時に `auth.json` を設定として解析し、全 provider の `type: "oauth"` の entry を
+除外する。他 provider の非 OAuth entry は保持し、`google-vertex` を
+`{type: "api_key", key: "gcp-vertex-credentials"}` に置き換えた読み取り専用の overlay を、
+既存の bwrap namespace 内へ重ねる。保存済み Vertex env から残すのは ADC パスだけで、
+marker entry の `env` に保持する。この文字列は key / token ではなく、Pi native adapter が
+API key として送信せず ADC を使うための marker である。marker の key 分岐では saved env が
+SDK に渡らないため、ADC パスは前述の実効環境へも渡す。
+`!command` などの保存済み Vertex key は実行しない。
+既存の `auth.json` を上書きせず、内容や overlay をログ・argv・namespace 外のディスクへ
+出さない。`auth.json` が未作成の場合だけ、mount 先として空の JSON オブジェクト `{}` を
+mode `0600` で作る。同時起動時も既存ファイルは置き換えず、資格情報は書き込まない。
+解析に失敗した場合は秘密を含まない案内で起動を止める。
+
+子 Pi も同じ namespace と overlay を継承する。auth の重ね先は
+`PI_CODING_AGENT_DIR`（`~/` と相対パスも対応）に従い、子の cwd が変わっても
+同じ場所を読むようプロセス内で絶対パスにする。tier config の重ね先は、
+拡張の読み先である HOME 基準の共有パスのままである。
+
+**読み取り専用 overlay の注意:** Pi は起動時やモデル切替時にも OAuth を更新する。
+読み取り専用の snapshot では更新後の token を保存できず、refresh token が差し替わると
+元の認証が使えなくなる可能性があるため、期限内の OAuth entry も含めて除外する。
+この 3 ランチャー内では保存済み OAuth credential を使えない。それを使う provider は
+素の `pi` または既存の対応ランチャーで利用する。`auth.json` は全 provider で読み取り専用
+なので、`/login`・`/logout` も素の `pi` で行う。
+重ねるのは `auth.json` だけで、settings・sessions とそれらの lock は通常の保存先を使う。
+初回の設定・会話も永続化し、素の `pi` や別ランチャーとの
+設定更新は同じ lock を使う。これは認証先の既定を選ぶ仕組みであり、sandbox ではない。
+追加引数はそのまま渡す
+ため、明示的な `--api-key`・provider 変更や拡張による認証の変更までは禁止しない。
+
+起動前には npm でインストールした Pi の実体にある bundled catalog を、
+**メタデータだけ**読んで必要な exact ID を確認する。`pi --list-models` や
+availability API は認証を確認するため、このガードでは使わない。古い Pi、catalog の
+配置変更、必要な ID の欠落では起動を止め、fuzzy match や別モデルのメタデータを
+複製するフォールバックを防ぐ。catalog の cache や独自定義で欠落を補わず、Pi 本体を
+更新する。dry-run は argv だけを表示し、auth の読み取りや作成を行わない。
+確かめる ID は、親 Pi のモデルと、そのランチャーの tier が使う Vertex のモデルである
+（例: `pigema` は `gemini-4-argon` と `cheap` の `gemini-3.8-flash`）。
+
+Vertex ランチャーの一覧と確かめる ID は、`pi-superagents-exec.zsh` の
+`pi_google_vertex_models` だけで定義する。auth の overlay・catalog の確認・ADC の受け渡しは、
+この一覧に載ったランチャーにだけ適用される。Vertex ランチャーを足すときは、ランチャー本体と
+tier の設定に加えてこの一覧に登録し、確かめる ID を tier に合わせる。
+
+コンテナ作成／リビルド時は実行ファイルを毎回配置する。リビルドしない既存環境では、
+更新済みの親リポジトリのルートで次を実行する。認証設定やモデル定義は変更しない。
+
+```bash
+mkdir -p ~/.local/bin
+install -m 0755 .devcontainer/pigemf ~/.local/bin/pigemf
+install -m 0755 .devcontainer/pigemp ~/.local/bin/pigemp
+install -m 0755 .devcontainer/pigema ~/.local/bin/pigema
+zsh scripts/setup_pi_superagents.zsh --if-absent
+```
+
+`--if-absent` は共有 config と既存ランチャーの tier を保持し、新規 tier を配置する。
+新規ランチャーの tier を後からリポジトリの定義に揃えたい場合は、下の更新手順を使う。
+
 ### 組み込み MCP と廃止した拡張
 
 `.pi/settings.json` の `+builtin:mcp` で pi の組み込み MCP を有効にする。
-`.pi/mcp.json` は Google Developer Knowledge の HTTP サーバだけを設定しており、
-Context7 は含めない。利用者は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を設定し、pi の
+`.pi/mcp.json` は Google Developer Knowledge の HTTP サーバーと、
+Context7 の stdio サーバーを設定する。利用者は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を設定し、pi の
 project trust を許可してから使う。キーが無い場合、pi は接続せずに、キーを解決できないというこのサーバのエラーを
 起動後に1回通知するが、他の機能は使える。プロジェクトの定義は同名の利用者設定より優先されるため、利用者設定では無効化できない。
 `/mcp` で無効化すると追跡対象の `.pi/mcp.json` が書き換わるため、その変更はコミットしない。
-各ワールドの `.pi -> ../.pi` から同じ設定を読む。
+各ワールドはプロジェクト直下の `.pi` symlink から同じ設定を読む（`worlds/<name>` は `../../.pi`、従来位置は `../.pi`）。
 グローバルの MCP 設定・認証も保持する。
 
 pi-distill の出力圧縮と tool-display の調整は廃止した。既存の利用者が保存した
@@ -698,10 +834,58 @@ unset PI_DISTILL_TIMEOUT_SECONDS PI_DISTILL_MODEL PI_DISTILL_ERROR_RETRY_COUNT P
 既存 `models.json` に同名 provider があっても、独自モデルを保護するため削除しない。
 リポジトリからは参照しないため、不要な場合は利用者がモデル定義を確認してから除去できる。
 
+### pi-distill の撤去（agent-workspace #508）
+
+pi-distill（ツール出力の Distillation）は廃止した。インストール対象から外す
+だけでは bind mount 側の登録が残るため、`install_beforehand.bash` はリビルド時に
+`pi remove npm:pi-distill` で既存環境の登録と pi 管理の npm マニフェストも
+掃除する。`pi-extensions-tool-display` / `pi-extensions-i18n` が単独登録されて
+いる環境でも同じステップで外す。
+
+リビルドしない既存環境では、次を実行して登録を消し、`~/.zshrc` に残った
+`PI_DISTILL_*` と `PI_EXTENSIONS_LOCALE` の export を手で取り除く。
+
+```bash
+pi remove npm:pi-distill
+```
+
+`~/.pi/agent/extensions/pi-distill/` と `~/.pi/agent/extensions/pi-tool-display/`
+の設定ディレクトリ、および `~/.pi/agent/models.json` の `deepinfra-distill`
+ブロックは、参照されなくなった不活性な残骸として残る。消す場合は利用者側で
+削除する。手動選択用の `deepinfra` provider は残してある。
+
+### pi-lens の撤去（agent-workspace #684）
+
+pi-lens（書き込み直後の lint・整形と、`lens_diagnostics` などのツール）は廃止した。
+移植元で得ているものに比べて、整形による差分の混入、1 リクエストあたり
+約 3,000 トークンと起動時間の増加、agent-workspace #655 の回避策の保守の負担が大きいためである。
+インストール対象から外すだけでは bind mount 側の登録が残るため、
+`install_beforehand.bash` はリビルド時に `pi remove npm:pi-lens` で既存環境の登録と
+pi 管理の npm マニフェストも掃除する。撤去後も一覧かマニフェストに残っていれば、
+理由を出して Dev Container の作成を止める。
+
+`~/.pi` はホストと bind mount で共有しており、ほかのコンテナ（agent-workspace・xrift-poc）も
+同じ登録を使う。撤去はそれらのコンテナからも pi-lens を外す。`pi remove` は共有の
+`~/.pi/agent/npm/node_modules/pi-lens` を消すので、ほかのコンテナで動いている Pi を
+止めてからリビルドする。ほかのリポジトリのインストーラが `npm:pi-lens` を入れたままだと、
+そのコンテナを作り直したときに再登録される（usaturn/xrift-poc#16・
+usaturn/create-reso-world#117 で導入をやめる）。
+
+リビルドしない既存環境では、ほかのコンテナの Pi を止めてから次を実行する。
+
+```bash
+pi remove npm:pi-lens
+```
+
+コンテナ内の `~/.pi-lens`（pi-lens が取得した管理ツールとログ）は bind mount の
+対象外で、リビルドで消える。既存の worktree や `/tmp` の下に残った
+`.pi-lens-probe-home/` は、もう ignore しないので未追跡ファイルとして見える。
+中身が pi-lens のログだけであることを確かめてから削除する。
+
 ### setup スクリプトを使う場面
 
-`.devcontainer/setup_pi.zsh`（deepinfra）、`.devcontainer/setup_pi_opencode_go.zsh`
-（opencode-go）、`.devcontainer/setup_pi_commandcode_goat.zsh`（commandcode）は、
+`scripts/setup_pi.zsh`（deepinfra）、`scripts/setup_pi_opencode_go.zsh`
+（opencode-go）、`scripts/setup_pi_commandcode_goat.zsh`（commandcode）は、
 リビルドのたびに実行するものではない。次の場面で使う。
 
 - API キーをローテーションしたとき（`setup_pi_opencode_go.zsh` が
@@ -712,19 +896,8 @@ unset PI_DISTILL_TIMEOUT_SECONDS PI_DISTILL_MODEL PI_DISTILL_ERROR_RETRY_COUNT P
   （`install_beforehand.bash` は既存ファイルを上書きしないため）
 
 いずれも冪等で、`providers` のうち対象プロバイダのエントリだけを置き換える。
-3 つの setup は `PI_CODING_AGENT_DIR` の `~` と `~/` だけを HOME に展開する。
-入力 JSON（`pi-models.json` と、setup が書くファイル）は、バックアップや変更の前に上記と同じ数値検査を行い、
-モデル定義に `providers` があれば object であることも確かめる。
-保存内容は最後まで Unicode エスケープ付きで生成してから
-同じディレクトリの固有一時ファイルで元ファイルを置き換える。保存失敗時は元ファイルを残し、一時ファイルを掃除する。
-置き換えると symlink や hard link の共有先が更新されなくなるため、setup が書く `models.json` と
-`auth.json`（`setup_pi_opencode_go.zsh` のみ）が symlink、hard link、通常ファイル以外のいずれかなら、
-書き込みが不要な実行でも、バックアップや変更の前に停止する。リンクを通常ファイルに置き換えてから再実行する。
-検査するのはこの 2 ファイル自身で、agent directory がリンクでもファイルの置き換えでリンクは外れないため停止しない。
-models.json は既存 mode を保持し、新規作成は 0600。モデルのバックアップは時刻に固有 suffix を
-加えて同一秒の世代も上書きしない。auth.json は 0600 とし、平文認証を複製しないためバックアップを作らない。
-`setup_pi_opencode_go.zsh` は `.devcontainer/pigo`・`.devcontainer/pigod`・
-`.devcontainer/pigou` を、`setup_pi_commandcode_goat.zsh` は
+`setup_pi_opencode_go.zsh` は `.devcontainer/pigo` と `.devcontainer/pigod` を、
+`setup_pi_commandcode_goat.zsh` は
 `.devcontainer/piccg` と `.devcontainer/piccd` をそのまま配置するため、
 実行してもランチャの内容は `install_beforehand.bash` の配置結果と一致する。
 
@@ -740,12 +913,12 @@ Meshy の `MESHY_API_KEY` はここには含めない。ファイルを作らな
 次の変数は、「秘密情報」の節の `~/.config/create-reso-world/env` に書けばシェルの起動時に
 export される。書かない場合は、必要なときに手動で export する。
 
-- `OPENCODE_API_KEY` は `pigo`・`pigod`・`pigou` と、`pigs`・`pixg` の OpenCode Go の tier の
+- `OPENCODE_API_KEY` は `pigo`・`pigod` と、`pigs`・`pixg` の OpenCode Go の tier の
   子 Pi の実行には不要である。bind mount した `auth.json` に資格情報が残るため、pi はそこから読む
   （`pi auth check --provider opencode-go` が `ready` を返す）。
   `setup_pi_opencode_go.zsh` でキーを更新するときと、`auth.json` に資格情報が無い環境で
   pi の OpenCode Go を使うときに必要になる
-- `OPENCODE_GO_API_KEY` は旧名である。OpenCode Go を使う `pigo`・`pigod`・`pigou`・`pigs`・`pixg` は、
+- `OPENCODE_GO_API_KEY` は旧名である。OpenCode Go を使う `pigo`・`pigod`・`pigs`・`pixg` は、
   `OPENCODE_API_KEY` が空のときだけこの値を `OPENCODE_API_KEY` に引き継いでから起動する
 - `ccdu`（Claude Code で OpenCode Go を使う）は `auth.json` を読まない。
   `OPENCODE_GO_CLAUDE_API_KEY`、`OPENCODE_API_KEY`、`OPENCODE_GO_API_KEY` の順に
@@ -773,31 +946,27 @@ Pi 1.0.0 から、対話 TUI の既定モードは `fullscreen` になった。�
 代替画面を使って会話履歴を Pi 内で管理するため、Herdr の通常のスクロール履歴に
 過去の出力が残らず、コピーモードでさかのぼれない。
 
-このリポジトリが管理する `pigo`・`pigod`・`pigou`・`piccg`・`piccd`・`piga`・
-`pigs`・`pigl`・`pixg` は、共通ヘルパ `pi-superagents-exec.zsh` から
+このリポジトリが管理する `pigo`・`pigod`・`piccg`・`piccd`・`piga`・
+`pigs`・`pigl`・`pixg`・`pigemf`・`pigemp`・`pigema` は、共通ヘルパ `pi-superagents-exec.zsh` から
 `pi --tui-mode regular` を起動する。regular は通常画面と端末のスクロール履歴を
 使うため、画面高を超えた出力も Herdr のコピーモードで読める。
-利用者／プロジェクトの `settings.json` は書き換えず、起動引数で指定する。
+ユーザー／プロジェクトの `settings.json` は書き換えず、起動引数で指定する。
 provider・model・thinking・認証確認・ランチャー別設定の分離は従来どおりで、
 `--resume`・`--session`・メッセージなどの追加引数もそのまま転送する。
-この指定はランチャーの既定値なので、追加引数に `--tui-mode fullscreen` を指定した
-場合はその指定が優先される。素の `pi` の既定モードには影響しない。
 
-Dev Container の初期化／リビルドでは `install_beforehand.bash` が全ランチャーを
+Dev Container の初期化／リビルドでは `install_beforehand.bash` が全ラッパーを
 配置し、`setup_pi_superagents.zsh --if-absent` が共通ヘルパを更新する。
-`--if-absent` は既存のランチャー別 tier 設定を保持するが、共通ヘルパは毎回
-更新する。リビルドしない既存環境では、リポジトリのルートで次を実行してから
-ランチャーを起動し直す。
+リビルドしない既存環境では、更新済みの親リポジトリのルートで次を実行し、
+ラッパーを起動し直す。
 
 ```bash
-zsh .devcontainer/setup_pi_superagents.zsh --if-absent
+zsh scripts/setup_pi_superagents.zsh --if-absent
 ```
 
-`pigs`・`pixg` の tier の変更（後述）を既存環境に反映するには、`--if-absent` を付けずに
-`zsh .devcontainer/setup_pi_superagents.zsh` を実行する（変更のある設定はバックアップされる）。
-`pigs`・`pixg` の認証の確認の変更はランチャー自体にあり、リビルドで `~/.local/bin` に
-置き直される。リビルドしない場合は `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
-（`pixg` も同様）で置き直す。
+`--if-absent` は既存のランチャー別 tier 設定を保持するが、共通ヘルパは毎回
+更新する。各 provider の setup スクリプトが配置するラッパーも同じヘルパを使う。
+この指定はラッパーの既定値なので、追加引数に `--tui-mode fullscreen` を指定した
+場合はその指定が優先される。素の `pi` の既定モードには影響しない。
 
 ### pi-superagents のランチャー別 model tier
 
@@ -817,23 +986,26 @@ zsh .devcontainer/setup_pi_superagents.zsh --if-absent
 |---|---|---|---|
 | `pigo` | `opencode-go/muse-spark-1.3-contributor` | `opencode-go/muse-spark-1.3-contributor` | `opencode-go/deepseek-v4.1-flash` |
 | `pigod` | `opencode-go/muse-spark-1.3-contributor` | `opencode-go/deepseek-v4.1-flash` | `opencode-go/deepseek-v4.1-flash` |
-| `pigou` | `opencode-go/union-alpha` | `opencode-go/union-alpha` | `opencode-go/union-alpha` |
 | `piccg` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` |
 | `piccd` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` | `commandcode/deepseek/deepseek-v4.1-flash` |
 | `piga` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6-astra` |
 | `pigs` | `opencode-go/deepseek-v4.1-flash` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
 | `pigl` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
 | `pixg` | `opencode-go/deepseek-v4.1-flash` | `opencode-go/deepseek-v4.1-flash` | `xai/grok-4.7` |
+| `pigemf` | `google-vertex/gemini-3.8-flash` | `google-vertex/gemini-3.8-flash` | `google-vertex/gemini-3.8-flash` |
+| `pigemp` | `google-vertex/gemini-3.8-flash` | `google-vertex/gemini-3.1-pro-preview` | `google-vertex/gemini-3.1-pro-preview` |
+| `pigema` | `google-vertex/gemini-3.8-flash` | `google-vertex/gemini-4-argon` | `google-vertex/gemini-4-argon` |
 
-`pigo`・`pigod`・`pigou`・`piccg`・`piccd` の子 Pi は全 tier が `max`。
 `piga` の子 Pi は `cheap` / `balanced` が `xhigh`、`max` が `max`。
 `pigs` の子 Pi は `cheap` が `max`、`balanced` が `xhigh`、`max` が `max`。
 `pigl` の子 Pi は全 tier が `xhigh`。`pixg` の子 Pi は DeepSeek の
 `cheap` / `balanced` が `max`、Grok の `max` が `xhigh`。
+`pigemf`・`pigemp`・`pigema` は全 tier が `high`。`pigema` は Gemini 4 Argon の単価が高いため、
+軽い子タスクの `cheap` だけを Gemini 3.8 Flash にしている。
 tier を変更するときは、リポジトリの `.devcontainer/pi-superagents/<launcher>.json` を編集してから次を実行する。`install_beforehand.bash` は既存の設定を保持するため、rebuild だけでは反映されない。
 
 ```bash
-zsh .devcontainer/setup_pi_superagents.zsh
+zsh scripts/setup_pi_superagents.zsh
 ```
 
 `bwrap` が無い、またはランチャー用の設定が無い場合、ランチャーは起動せずに案内を出す。共有設定へ暗黙にフォールバックすると tier が警告なく混線するため。
@@ -845,7 +1017,7 @@ pi-superagents v1.14.3 以降は、git で導入したパッケージの `packag
 [upstream の修正 #72](https://github.com/teelicht/pi-superagents/pull/72) は
 [v1.14.3](https://github.com/teelicht/pi-superagents/releases/tag/v1.14.3) に含まれる。
 
-##### pi-superagents の版の更新
+##### 既存環境の更新
 
 古い環境では、回避設定を整理する前に pi-superagents を v1.14.3 以降へ更新する。
 `pi --version` は Pi 本体の版なので、拡張の版は別に確認する。
@@ -871,9 +1043,8 @@ pi update npm:@teelicht/pi-superagents
 その場合は `pi install npm:@teelicht/pi-superagents@1.14.3` で確認済み基準版へ
 指定を変更できる。既に v1.14.3 以降なら下げる必要はない。更新後に同じ版確認を行う。
 
-次に、旧エントリを追加していたセットアップを撤去した、現在のリポジトリのセットアップへ更新してから、
-下の任意整理に進む。
-新しい `.devcontainer/setup_pi_superagents.zsh` は `~/.pi/agent/settings.json` を
+次に、agent-workspace #408 の撤去変更を含むリポジトリのセットアップへ更新してから、下の任意整理に進む。
+新しい `scripts/setup_pi_superagents.zsh` は `~/.pi/agent/settings.json` を
 作成・変更しない。旧セットアップを残したままエントリだけ削除すると、再実行で追加される。
 
 ##### 旧エントリの任意整理
@@ -886,16 +1057,20 @@ v1.14.3 の隔離検証では、自動探索と同じ絶対パスに解決され
 
 ##### 検証範囲
 
-移行元リポジトリで行った隔離検証では、
+[隔離検証 #409](https://github.com/usaturn/agent-workspace/issues/409#issuecomment-5773449902)では、
 pi-superagents 1.14.3 / Pi loader 0.85.1 / Superpowers 6.4.1 について、
 旧エントリあり・なしと `includeProject` true・false の4条件で、
 `using-superpowers`、`brainstorming`、`writing-plans`、
 `subagent-driven-development`、`executing-plans` の解決と探索パスの重複排除を確認した。
 これは探索 API の検証であり、実 trust 設定の変更や対話 Pi の `/sp-*` 実行確認ではない。
 
-セットアップの設定非変更・ランチャー配置などの回帰テストは、リポジトリのルートで実行する。
+セットアップの設定非変更・ランチャー配置などの回帰テストは、
+`bash .devcontainer/run-tests.bash` から実行する。MCP 移行・Vertex の pytest は
+`.devcontainer/test-pi-migrations.bash` が uv 経由で実行する。
+単独で実行する場合は、リポジトリのルートで次を実行する。
 
 ```bash
 bash .devcontainer/test-pi-superagents.bash
 bash .devcontainer/test-pi-openai-codex.bash
+bash .devcontainer/test-pi-migrations.bash
 ```

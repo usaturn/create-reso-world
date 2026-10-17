@@ -11,8 +11,8 @@
 
 ## サブエージェントの起動
 
-- 現環境では pi-superagents の Superpowers role API を使う。
-- 使用できるロールと引数は、現在の subagent ツール定義を正とする。
+- `subagent` ツールは pi-superagents が提供し、Superpowers のロールを同期で起動する。
+- 使えるロール名と引数は、その時点の `subagent` ツールの定義（説明と引数のスキーマ）に従う。この節と食い違うときはツールの定義を優先する。
 - action、capabilities、async は指定しない。このAPIは同期実行専用で、子の終了まで待つ。
 - 実装は sp-implementer、レビューは sp-review、調査は sp-recon / sp-research、デバッグは sp-debug を使う。
 - Superpowersワークフロー内で、選択したスキルの委譲手順に従う。

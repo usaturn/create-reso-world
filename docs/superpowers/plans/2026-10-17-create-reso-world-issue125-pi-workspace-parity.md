@@ -1,6 +1,6 @@
 # pi workspace parity Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Issue #125 の pi 関連ファイルを agent-workspace の現行版へそろえ、共有拡張の登録が消える不具合を解消する。
 
@@ -55,13 +55,13 @@
 
 **テスト要否:** 必要。shell の入出力・共有設定保持・認証overlay・処理の失敗が対象。移植元の既存テストを先にコピーし、RED を確認してから実装する。
 
-- [ ] 移植元の2 pytest と2 bash を持ち込む。bash の削除ガードを適用し、設定値転記だけの `test_opencode_go_tiers_use_opencode_go` の定義・呼び出し・専用 `tier_model` を省く（他で使わない場合）。既存の構造と共有設定の保護検査は維持する。
-- [ ] 追加テスト `test_rebuild_preserves_shared_packages` を書く。登録済み/未登録の2条件で fake pi が list / install / remove を JSON に保存し、実 pi 節を隔離 HOME・fake npm・fake zsh で二度実行する。context7 / Plannotator の登録が残り、他パッケージも消えないことを検査する。fake remove は旧 cleanup が呼ぶ context7 撤去も再現し、失敗前の出力に秘密を含めない。
-- [ ] `uv run --no-project --with pytest python -m pytest -q tools/devenv_migration/tests/test_pi_mcp_adapter_migration.py::test_cleanup_accepts_bom_and_preserves_other_settings tools/devenv_migration/tests/test_pi_vertex_launchers.py::test_launch_reaches_pi_without_adc_preserving_args_cwd_environment_and_exit tools/devenv_migration/tests/test_pi_shared_packages.py`。Expected: 未実装の remove 関数・pigem ファイルと旧cleanupによる登録削除を理由に FAIL。依存の import error だけを RED の証拠にしない。
-- [ ] コピー対象を移植元から配置し、モードを維持。旧ファイルは明示パスで削除する。source pi 節（Installing pi → Installing DeepSeek Harness の前）を target pi 節（Installing pi → Installing the shared skills の前）へ置換する。STEP_TOTAL=30。uv の導入順を旧cleanupのためとする古いコメントだけ修正する。
-- [ ] 新入口 `.devcontainer/test-pi-migrations.bash` を作る。rootへcd後に `uv run --no-project --with pytest python -m pytest -q` で新規ディレクトリの3ファイルを実行する。100755 を設定する。
-- [ ] 新入口と移植した bash2本を実行。Expected: PASS（実モデルのlive checkは無効のまま）。差分の元ファイル比較、shell構文、`git diff --check` を確認する。
-- [ ] 明示ファイルだけ stage・commit。`progress.md` に BASE・RED/GREEN・例外と所要を記録する。
+- [x] 移植元の2 pytest と2 bash を持ち込む。bash の削除ガードを適用し、設定値転記だけの `test_opencode_go_tiers_use_opencode_go` の定義・呼び出し・専用 `tier_model` を省く（他で使わない場合）。既存の構造と共有設定の保護検査は維持する。
+- [x] 追加テスト `test_rebuild_preserves_shared_packages` を書く。登録済み/未登録の2条件で fake pi が list / install / remove を JSON に保存し、実 pi 節を隔離 HOME・fake npm・fake zsh で二度実行する。context7 / Plannotator の登録が残り、他パッケージも消えないことを検査する。fake remove は旧 cleanup が呼ぶ context7 撤去も再現し、失敗前の出力に秘密を含めない。
+- [x] `uv run --no-project --with pytest python -m pytest -q tools/devenv_migration/tests/test_pi_mcp_adapter_migration.py::test_cleanup_accepts_bom_and_preserves_other_settings tools/devenv_migration/tests/test_pi_vertex_launchers.py::test_launch_reaches_pi_without_adc_preserving_args_cwd_environment_and_exit tools/devenv_migration/tests/test_pi_shared_packages.py`。Expected: 未実装の remove 関数・pigem ファイルと旧cleanupによる登録削除を理由に FAIL。依存の import error だけを RED の証拠にしない。
+- [x] コピー対象を移植元から配置し、モードを維持。旧ファイルは明示パスで削除する。source pi 節（Installing pi → Installing DeepSeek Harness の前）を target pi 節（Installing pi → Installing the shared skills の前）へ置換する。STEP_TOTAL=30。uv の導入順を旧cleanupのためとする古いコメントだけ修正する。
+- [x] 新入口 `.devcontainer/test-pi-migrations.bash` を作る。rootへcd後に `uv run --no-project --with pytest python -m pytest -q` で新規ディレクトリの3ファイルを実行する。100755 を設定する。
+- [x] 新入口と移植した bash2本を実行。Expected: PASS（実モデルのlive checkは無効のまま）。差分の元ファイル比較、shell構文、`git diff --check` を確認する。
+- [x] 明示ファイルだけ stage・commit。`progress.md` に BASE・RED/GREEN・例外と所要を記録する。
 
 ### Task 2: Dev Container・指示・文書の統合とブランチ公開
 
@@ -74,17 +74,17 @@
 
 **テスト要否:** 設定・文書だけの新規テストは不要。既存検査・構文と参照先・全差分照合・必要なら実拡張のoffline probeで代える。
 
-- [ ] `containerEnv` と forwardPorts に Spec の値を追加し、host network・UV・8000・mountを維持する。
-- [ ] `.pi/APPEND_SYSTEM.md` の「サブエージェントの起動」の冒頭2項目を現行APIの説明へ。その他の制限・ペルソナは保持する。
-- [ ] source README の「pi のモデル定義とランチャー」から次の DSH 節の直前を取り込み、Plannotator local mode・Windows転送・既存設定・共有先・source Issue番号・テスト入口・このrepoに無いTypeSafe参照を調整する。旧cleanupの節を現在の撤去説明へ置換し、上部のrebuild/手動導入手順のsetup参照とlauncher数も直す。無関係な節は保持する。
-- [ ] ルート README のpi MCP説明をcontext7も含むものへ更新。`docs/maatlog-poc-porting.md` は過去の確認結果を消さず、#125が変更した決定と現行手順を明記し、実行可能な手順を新しいものへ更新する。
-- [ ] `git grep` で凍結Spec/Plan以外の旧setup / cleanup / pigou参照を確認する。歴史の説明は明示して残し、実行手順に古い参照を残さない。
-- [ ] 全検証: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts`。Expected: 全て終了0。移植元との一致ファイル・差分例外を記録する。
-- [ ] 実 Plannotator を隔離・offlineで確認できるなら loopback / port fallback / HTTP review submission を確認。Windows・rebuild・実モデルは未検証のままchecklistへ。
+- [x] `containerEnv` と forwardPorts に Spec の値を追加し、host network・UV・8000・mountを維持する。
+- [x] `.pi/APPEND_SYSTEM.md` の「サブエージェントの起動」の冒頭2項目を現行APIの説明へ。その他の制限・ペルソナは保持する。
+- [x] source README の「pi のモデル定義とランチャー」から次の DSH 節の直前を取り込み、Plannotator local mode・Windows転送・既存設定・共有先・source Issue番号・テスト入口・このrepoに無いTypeSafe参照を調整する。旧cleanupの節を現在の撤去説明へ置換し、上部のrebuild/手動導入手順のsetup参照とlauncher数も直す。無関係な節は保持する。
+- [x] ルート README のpi MCP説明をcontext7も含むものへ更新。`docs/maatlog-poc-porting.md` は過去の確認結果を消さず、#125が変更した決定と現行手順を明記し、実行可能な手順を新しいものへ更新する。
+- [x] `git grep` で凍結Spec/Plan以外の旧setup / cleanup / pigou参照を確認する。歴史の説明は明示して残し、実行手順に古い参照を残さない。
+- [x] 全検証: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts`。Expected: 全て終了0。移植元との一致ファイル・差分例外を記録する。
+- [x] 実 Plannotator を隔離・offlineで確認できるなら loopback / port fallback / HTTP review submission を確認。Windows・rebuild・実モデルは未検証のままchecklistへ。
 - [ ] 明示ファイルをcommit後、`sp-review` に `Review scope: branch`、upstream `code-reviewer.md`、base/head・Spec/Plan・Review Focus・検証・Rulingを渡す。レビューは読み取り専用、テストは実装担当が実行する。Important/Critical は1回の修正passで対処し再発テストが必要なら RED→GREEN、文書のみなら参照と差分検査を実施する。
 - [ ] Issue状態・競合・remote予約を再確認。secret scanの返したSHAをそのままbranchへpushし、`gh pr create --repo usaturn/create-reso-world --base main --head feat/issue-125-pi-workspace-parity`。本文に `Closes #125`、決定理由・方式理由・検証・時間内訳・例外・未検証を記す。
 - [ ] #125に実機checklistをコメント。Spec/Planはdraftのまま結果を追記してコミットし（公開前に行う）、実行許可と承認を区別する。Herdrをcompletedにし、PR・branch/worktree・文書の絶対パス・所要を報告する。
 
 ## 実行記録
 
-準備: parent無し、競合無し、先行修正マージ済み。基準検証は bash 32本・layout・pytest 625件すべて終了0。Spec builder-checkの指摘3件を解決し、Specを `0a9e734` にコミット。実装は未着手。
+準備: parent無し、競合無し、先行修正マージ済み。基準検証は bash 32本・layout・pytest 625件すべて終了0。Spec builder-checkの指摘3件を解決し、Specを `0a9e734` にコミット。Task 1 を `a24dc66` にコミット。Task 2 は文書・設定を反映し、全検証成功（bash32本、layout、pytest625件、migrations149件）。Plannotator は設定範囲が占有中だったため一時ポートでloopback・fallback・日本語Markdown・合成承認を検証（45123占有→45124、終了0）。レビューと公開は未実施。
