@@ -132,7 +132,17 @@ AGENTS.md の「テストの採用基準」により、SKILL.md の文面と eva
 - `scenario-raw.md` では、3 体とも「HEAD は origin/main の祖先、clean、ignore 対象はキャッシュだけ、オープン PR と無関係」を根拠に `detached-other` を `git worktree remove` した
 - `git worktree prune` は、手順 5 のコードブロックにあっても 6 体とも実行しなかった（`prunable` の行を見て、登録が消えると判断した）。この失敗は観測できなかったが、手順の本文が誤った操作を指示していることに変わりはないので、Issue の範囲のとおり削除する
 
-（GREEN の結果は実装後に追記する）
+### GREEN（変更後の SKILL.md、`green-SKILL.md`、blob `55e8aed`、commit `d1eac7a`）
+
+| 場面 | 体数 | `git worktree prune` | 別 run の detached を削除 | `prunable`・`locked`・終了コード 128 を削除 | マージ済み PR の `/tmp/pr-review-*` |
+| --- | --- | --- | --- | --- | --- |
+| `scenario.md` | 2 | 0 | 0 | 0 | 2 体とも削除 |
+| `scenario-raw.md` | 3 | 0 | 0 | 0 | 3 体とも削除 |
+
+- 5 体とも、削除は `done` と `/tmp/pr-review-11-example/worktree` だけで、`--force` を使わず、`feat/done` だけを `git branch -d` で消した
+- 5 体とも、残した worktree をパス・`prunable`／`locked` の行・終了コードを添えて「所有者の確認が要る」と報告し、移動済みのものは所有者が `git worktree repair <移動先>` を行うと書いた
+- `detached-other` を残す理由は 5 体とも「branch を持たない別 run の worktree で、clean で到達可能でも所有者が使っているか Git から分からない」だった
+- 新しい言い訳・読み違いは出なかったので、文面の手直し（REFACTOR）はしていない
 
 ## 残る危険
 
