@@ -17,7 +17,7 @@ set -euo pipefail
 # （"$COMMANDCODE_API_KEY"）が実行時に環境変数を参照して解決する。
 # API キーのローテーションでこのスクリプトを実行し直す必要はない。
 #
-# モデル定義の正本は .devcontainer/pi-models.json。
+# モデル定義の元データは .devcontainer/pi-models.json である。
 #
 # piccg と piccd は同じ commandcode プロバイダを共有する。プロバイダ定義の
 # 書き手を 1 本に保つため、両ランチャーをこのスクリプトが受け持つ。分けると
@@ -50,18 +50,14 @@ readonly PICCG_MODELS_CSV="meta/muse-spark-1.3,meta/muse-spark-1.3-contributor"
 readonly PICCD_DEFAULT_MODEL="deepseek/deepseek-v4.1-flash"
 readonly PICCD_MODELS_CSV="deepseek/deepseek-v4.1-flash"
 
-PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
-if [[ "$PI_DIR" == '~' || "$PI_DIR" == '~/'* ]]; then
-    PI_DIR="${HOME}${PI_DIR#\~}"
-fi
-readonly PI_DIR
+readonly PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
 readonly MODELS_JSON="${PI_DIR}/models.json"
 
 #
 # The model definition and the launchers are kept in the repository so
 # that install_beforehand.bash and this script cannot drift apart.
 #
-readonly DEVCONTAINER_DIR="${0:A:h}"
+readonly DEVCONTAINER_DIR="${0:A:h}/../.devcontainer"
 readonly MODELS_SOURCE="${DEVCONTAINER_DIR}/pi-models.json"
 
 readonly BIN_DIR="${HOME}/.local/bin"
@@ -133,29 +129,6 @@ log "Pi config dir : ${PI_DIR}"
 log "Model source  : ${MODELS_SOURCE}"
 log "Launchers     : ${BIN_DIR}/{piccg,piccd}"
 
-#
-# 入力とリンクをバックアップや変更の前に検査する。symlink・hard link を
-# 置き換えると共有先が更新されなくなる。
-#
-python3 - "${MODELS_SOURCE}" "${MODELS_JSON}" <<'PY'
-import sys
-from pathlib import Path
-
-source, models, *others = map(Path, sys.argv[1:])
-sys.path.insert(0, str(source.resolve().parent))
-from pi_json import load_models, load_object, require_plain_file
-
-try:
-    load_models(source)
-    for path in (models, *others):
-        require_plain_file(path)
-        if path.exists():
-            (load_models if path == models else load_object)(path)
-except ValueError as exc:
-    print(f"ERROR: {exc}", file=sys.stderr)
-    sys.exit(1)
-PY
-
 
 #
 # ----------------------------------------------------------------------
@@ -192,19 +165,21 @@ fi
 #
 
 python3 - "${MODELS_JSON}" "${MODELS_SOURCE}" "${PROVIDER}" <<'PY'
+import json
+import os
+import shutil
 import sys
+from datetime import datetime
 from pathlib import Path
 
 path = Path(sys.argv[1])
 source = Path(sys.argv[2])
 provider = sys.argv[3]
-sys.path.insert(0, str(source.resolve().parent))
-from pi_json import backup_file, load_models, write_object
 
 try:
-    definition = load_models(source).get("providers", {}).get(provider)
-except ValueError as exc:
-    print(f"ERROR: {exc}", file=sys.stderr)
+    definition = json.loads(source.read_text()).get("providers", {}).get(provider)
+except json.JSONDecodeError as exc:
+    print(f"ERROR: Invalid JSON in {source}: {exc}", file=sys.stderr)
     sys.exit(1)
 
 if definition is None:
@@ -216,9 +191,9 @@ if definition is None:
 
 if path.exists():
     try:
-        data = load_models(path)
-    except ValueError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: Invalid JSON in {path}: {exc}", file=sys.stderr)
         sys.exit(1)
 
     if not isinstance(data, dict):
@@ -240,12 +215,16 @@ if providers.get(provider) == definition:
     sys.exit(0)
 
 if path.exists():
-    backup = backup_file(path)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = path.with_name(path.name + f".bak.{timestamp}")
+    shutil.copy2(path, backup)
     print(f"backup:{backup}")
 
 providers[provider] = definition
 
-write_object(path, data)
+tmp = path.with_name(path.name + ".tmp")
+tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+os.replace(tmp, path)
 
 print("updated")
 PY
@@ -345,23 +324,22 @@ else
     log "No API key: skipping 'pi --list-models' validation."
     log "Verifying ${MODELS_JSON} instead..."
 
-    python3 - "${MODELS_JSON}" "${MODELS_SOURCE}" "${PROVIDER}" "${MODELS[@]}" <<'PY'
+    python3 - "${MODELS_JSON}" "${PROVIDER}" "${MODELS[@]}" <<'PY'
+import json
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-provider = sys.argv[3]
-models = sys.argv[4:]
-sys.path.insert(0, str(Path(sys.argv[2]).resolve().parent))
-from pi_json import load_object
+provider = sys.argv[2]
+models = sys.argv[3:]
 
 try:
-    data = load_object(path)
+    data = json.loads(path.read_text())
 except FileNotFoundError:
     print(f"ERROR: {path} was not created.", file=sys.stderr)
     sys.exit(1)
-except ValueError as exc:
-    print(f"ERROR: {exc}", file=sys.stderr)
+except json.JSONDecodeError as exc:
+    print(f"ERROR: Invalid JSON in {path}: {exc}", file=sys.stderr)
     sys.exit(1)
 
 definition = data.get("providers", {}).get(provider)
