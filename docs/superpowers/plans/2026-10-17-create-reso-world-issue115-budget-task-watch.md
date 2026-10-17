@@ -156,3 +156,5 @@
 - ledger（`/workspaces/reso-world/tmp/agents/issue-115.QqGjQF/budget.jsonl`）の検証の checkpoint の時点（21:18）の `show`: 能動時間 578 秒、利用者待ち 0 秒、予算 240 分の 4.0%、期日を過ぎた checkpoint は無い。失敗は上の pytest の 1 件（reliability、1 回。上限には達していない）。安全の失敗は無い
 - checkpoint は 3 回（準備の終わり、実装の終わり、検証の終わり）。判断はすべて `continue`
 - 予算の 50%・100% には達していない。縮小・切り出し・方法変更の候補は使わなかった
+- PR: https://github.com/usaturn/create-reso-world/pull/127 。作成の後に `end` を記録した最終の `show`: 能動時間 653 秒（予算の 4.5%）、利用者待ち 0 秒、状態 `ended`
+- セッションのディレクトリには `task_watch.py` の watch が無く（`budget.jsonl` だけ）、上の記録を転記した後に削除した（Spec D-6）
