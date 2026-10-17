@@ -5,7 +5,8 @@
 # 作業ツリーの未ステージの変更で変わらず、core.symlinks=false の checkout（symlink が通常ファイルになる）でも同じになる。
 # 例外として次は作業ツリーを読む: 検査 2（追跡中の symlink が解決できるか）、検査 3（ignore 規則は作業ツリーの
 # .gitignore と .git/info/exclude から git が読む）、検査 7（ローカルプロジェクトの雛形。追跡しないので index に無い）、
-# 検査 8（resoloop が作業ツリーのプロジェクトを読む）。
+# 検査 8（resoloop が作業ツリーのプロジェクトを読む）。検査 7・8 の用途別profileは、検査ルートの
+# .check-layout-projects.json（ローカル設定、未指定はworld）から読む。
 set -euo pipefail
 
 usage() {
@@ -40,7 +41,7 @@ ok() { printf 'ok: %s\n' "$1"; }
 
 # 一時ディレクトリ。list は git ls-files の出力を NUL 区切りで受け渡すファイルで、各 check 関数が使い捨てる
 tmp_dir="$(mktemp -d)"
-trap 'rm -rf "$tmp_dir"' EXIT
+trap 'rm -rf -- "${tmp_dir:?}"' EXIT
 tmp_list="$tmp_dir/list"
 empty_blob="$(git hash-object -t blob --stdin </dev/null)"
 
@@ -229,7 +230,8 @@ check_work_areas_untracked() {
 # 7. ローカルプロジェクト（作業領域の直下にあり .resoloop.json を持つディレクトリ）が仕様 4.2 の
 # 標準レイアウトを満たす。追跡していないため index ではなく作業ツリーで検査する。
 # 作業領域は worlds/ の直下と、追跡解除した従来位置の 4 名。
-# .devcontainer/report-resoloop-skills.bash と同じ定義。external/・private/・worktree・深い階層は走査しない
+# 収集範囲は .devcontainer/report-resoloop-skills.bash と同じ。用途別profileの適用はこのcheckerだけ。
+# external/・private/・worktree・深い階層は走査しない
 projects=()
 collect_projects() {
   local d
@@ -239,6 +241,45 @@ collect_projects() {
   done < <( { for d in worlds/*/; do [ -d "$d" ] && printf '%s\n' "${d%/}"; done
               printf '%s\n' MyResoniteProject akichi slum02 slum03; } | LC_ALL=C sort -u )
   return 0  # 最後の候補がプロジェクトでなくても検出自体は成功
+}
+
+# 自動分類すると壊れたworldまでassets扱いになるため、用途の違いはローカル設定で明示する。
+# キーの誤記・範囲外のパス・未知の用途を無視せずFAILにする。設定が無ければjqは不要。
+declare -A project_profiles=()
+load_project_profiles() {
+  local config='.check-layout-projects.json' rows p profile candidate found
+  if [ ! -e "$config" ] && [ ! -L "$config" ]; then return; fi
+  if [ -L "$config" ] || [ ! -f "$config" ]; then
+    fail "$config must be a regular file"
+    return
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    fail "jq is required for $config"
+    return
+  fi
+  if ! rows="$(jq -rs '
+    (if length == 1 then .[0] else error("expected one JSON object") end) |
+    if (type == "object" and all(to_entries[];
+      (.key | test("^(worlds/[A-Za-z0-9][A-Za-z0-9_-]*|MyResoniteProject|akichi|slum02|slum03)$"))
+      and (.value == "world" or .value == "assets" or .value == "items")))
+    then to_entries[] | [.key, .value] | @tsv
+    else error("expected a project-path to world/assets/items object") end
+  ' "$config" 2>"$tmp_dir/profiles.err")"; then
+    fail "invalid $config (expected a project-path to world/assets/items object)"
+    return
+  fi
+  while IFS=$'\t' read -r p profile; do
+    [ -n "$p" ] || continue
+    found=0
+    for candidate in ${projects[@]+"${projects[@]}"}; do
+      if [ "$candidate" = "$p" ]; then found=1; break; fi
+    done
+    if [ "$found" -eq 0 ]; then
+      fail "$config: project is not collected: $p"
+    else
+      project_profiles["$p"]="$profile"
+    fi
+  done <<<"$rows"
 }
 
 # リンクが要る .agents/skills 直下のディレクトリ: ファイルを 1 つ以上持つもの（SKILL.md の有無は問わない）。
@@ -294,6 +335,15 @@ check_local_skill_links() {
 
 check_project() {
   local p="$1" problems=() f link target sp content i
+  local profile="${project_profiles[$p]:-world}"
+  if [ "$profile" = assets ]; then
+    if [ -L "$p/.resoloop.json" ] || [ ! -f "$p/.resoloop.json" ]; then
+      fail "$p: missing regular file .resoloop.json"
+    else
+      ok "project $p layout (assets)"
+    fi
+    return
+  fi
   # ルートを指す symlink の行き先はプロジェクトの深さで決まる（new-world.sh と同じ規則）。
   # ルート直下は深さ 1、worlds/<name> は深さ 2
   local rel="${p#./}" depth=0 up_in="" up_sub=""
@@ -301,8 +351,16 @@ check_project() {
   depth=$((depth + 1))
   for ((i = 0; i < depth; i++)); do up_in+='../'; done
   for ((i = 0; i < depth + 1; i++)); do up_sub+='../'; done
-  for f in AGENTS.md CLAUDE.md .resoloop.json .resoloop/.gitignore pyproject.toml uv.lock \
-           .agents/skills/.resoloop-bundled.json flux/resoloop.flux.json; do
+  local files=(AGENTS.md CLAUDE.md .resoloop.json .resoloop/.gitignore pyproject.toml uv.lock
+               .agents/skills/.resoloop-bundled.json)
+  if [ "$profile" = items ]; then
+    if [ -L "$p/items" ] || [ ! -d "$p/items" ]; then
+      problems+=("missing real directory items")
+    fi
+  else
+    files+=(flux/resoloop.flux.json)
+  fi
+  for f in "${files[@]}"; do
     if [ -L "$p/$f" ] || [ ! -f "$p/$f" ]; then
       problems+=("missing regular file $f")
     fi
@@ -333,7 +391,7 @@ check_project() {
     local q
     for q in "${problems[@]}"; do fail "$p: $q"; done
   else
-    ok "project $p layout"
+    if [ "$profile" = items ]; then ok "project $p layout (items)"; else ok "project $p layout"; fi
   fi
   check_local_skill_links "$p/"
 }
@@ -349,6 +407,10 @@ check_resoloop_skills() {
     return
   fi
   for p in ${projects[@]+"${projects[@]}"}; do
+    if [ "${project_profiles[$p]:-world}" = assets ]; then
+      printf 'skip: resoloop skills sync --check (%s): assets profile\n' "$p"
+      continue
+    fi
     status=0
     # ./ を付けて、- で始まるプロジェクト名をオプションとして読ませない
     out="$(resoloop skills sync "./$p" --check 2>&1)" || status=$?
@@ -417,6 +479,7 @@ check_skill_links ""
 check_skill_hygiene
 check_work_areas_untracked
 collect_projects
+load_project_profiles
 for p in ${projects[@]+"${projects[@]}"}; do check_project "$p"; done
 check_resoloop_skills
 check_mounts

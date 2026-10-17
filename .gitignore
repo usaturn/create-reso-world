@@ -49,6 +49,7 @@ docs_draft/
 /.restructure-backup/
 
 ## 個人設定・秘密情報
+/.check-layout-projects.json
 **/.claude/settings.local.json
 **/.devin/mcp_config.local.json
 .env
