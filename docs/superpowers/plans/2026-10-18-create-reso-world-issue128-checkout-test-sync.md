@@ -47,8 +47,8 @@
 - [x] Step 4: 修正したテストを隔離コピーに同期して同じコマンドを実行する。Expected: 2 passed。通常コピーでも該当 2 件を実行し、Expected: 2 passed。隔離実行で、ファイル無しの期限切れ（時計だけ制御）とファイル有りの成功を確認する。Expected: 期限切れは AssertionError、有りは正常終了。
 - [x] Step 5: `uv run pytest .agents/skills/pr-review -q`、`git diff --check` を実行する。Expected: 全件成功・終了 0。テストファイルだけを明示 stage して `git commit -m "test: wait for checkout startup before killing create"`。Task 完了を ledger に記録する。
 - [x] Step 6: README の非ワールド向け入口を worktree から実行する: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts`。Expected: 全コマンド終了 0。実 API の opt-in live check は無効にする。失敗は systematic-debugging で原因を調べ、同じ信頼性の失敗の再試行は 1 回まで。
-- [ ] Step 7: 基準 SHA からの diff と Spec/Plan/ledger を渡して、読み取り専用の独立したブランチ全体レビューを実施。重要な問題は 1 回の修正工程で RED/GREEN と全体検証、軽微な指摘は記録する。検証結果を文書へ追記し commit。
-- [ ] Step 8: Issue の open 状態・PR/claim/branch の競合を再確認。Gitleaks 検査後の SHA をそのまま `fix/issue-128-checkout-test-sync` に push。再確認後、`--repo usaturn/create-reso-world --base main` で `Closes #128` の PR を作成する。private Actions は確認対象外。PR URL と実在パス・所要時間を報告する。マージしない。
+- [x] Step 7: 基準 SHA からの diff と Spec/Plan/ledger を渡して、読み取り専用の独立したブランチ全体レビューを実施。重要な問題は 1 回の修正工程で RED/GREEN と全体検証、軽微な指摘は記録する。検証結果を文書へ追記し commit。
+- [x] Step 8: Issue の open 状態・PR/claim/branch の競合を再確認。Gitleaks 検査後の SHA をそのまま `fix/issue-128-checkout-test-sync` に push。再確認後、`--repo usaturn/create-reso-world --base main` で `Closes #128` の PR を作成する。private Actions は確認対象外。PR URL と実在パス・所要時間を報告する。マージしない。
 
 ## 実行予算
 
@@ -69,3 +69,8 @@
 - README の全体検証: run-tests.bash 32/32 PASS、check-layout PASS、pytest 625 passed（167.37 秒）。すべて exit 0、再試行なし。実 API の opt-in live check は無効。
 - `git diff --check` 成功。helper 本体・既存 assertion/cleanup は差分なし。
 - 03:49 JST checkpoint: 約 11 分経過。受け入れ条件を満たしたため、読み取り専用のブランチ全体レビューと公開へ進む。
+- ブランチ全体レビュー `50e4a6b..a34554c`: Critical・Important・Minor・判断見送りはすべて 0。追加修正なし。
+- PR 公開済み: https://github.com/usaturn/create-reso-world/pull/142 。base `main`、head `fix/issue-128-checkout-test-sync`。自身の branch 以外の競合なし。Gitleaks は検出なし、検査済み SHA のみ push。この記録追記も push 前に再検査する。マージは未実施。
+- Task 1: complete。実装・検証・独立レビュー・PR 作成を完了。draft は内容の未承認を表し、完了の証拠とは区別する。
+- 実行予算の要約: ledger 開始 03:38:48 JST、03:52:27 時点の能動時間 819.63 秒、使用率 22.8%、安全失敗 0、信頼性失敗 0（意図した RED は除く）、期限超過 0。builder check 初回の scope 欠落は拒否後に修正して開始。task_watch による worker は起動していない。
+- 全体所要は約 15 分。目安内訳: 準備・設計 4 分、再現・実装 1 分、全体検証 6 分、レビュー・確認 2 分、公開・記録 2 分。子の自己申告時間は加算していない。session は終了記録後に削除し、残る場合は最終報告へ明記する。

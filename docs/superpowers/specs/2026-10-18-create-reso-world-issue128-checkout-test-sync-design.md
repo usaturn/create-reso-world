@@ -67,4 +67,13 @@ PID ファイルはテスト専用の新しい tmp_path に作る。PID の読�
 - `bash scripts/check-layout.sh`: PASS、終了 0。
 - `uv run pytest tests/skills .agents/skills .agents/scripts`: 625 passed、終了 0（167.37 秒）。通常条件の最終全体検証は再試行なし。
 - `git diff --check`: 終了 0。追加の固定文言テストなし。private Actions は確認対象外。
-- ログ・隔離コピーは `/workspaces/reso-world/tmp/agents/issue-128.6jfkkfsu/`。公開と結果転記の後、不要を確認して削除する。
+- ログ・隔離コピーは `/workspaces/reso-world/tmp/agents/issue-128.6jfkkfsu/` に保存して検証した。要点は本節へ転記済みで、終了時に不要を確認して削除する。残存する場合は最終報告に絶対パスを記載する。
+
+### レビュー・公開
+
+- 読み取り専用の独立したブランチ全体レビュー: `50e4a6b..a34554c`。Critical / Important / Minor / 判断を見送った項目はいずれも 0。再レビュー・追加修正は不要だった。子はテストを実行していない。
+- PR: https://github.com/usaturn/create-reso-world/pull/142 （base `main`、head `fix/issue-128-checkout-test-sync`）。マージ未実施。
+- 公開直前に Issue の OPEN、コメント・依存・open PR 全ページ・予約 ref・branch を再確認。自身の branch 以外に同 Issue の作業はなかった。
+- 初回 push は Gitleaks で 4 commits を検査し、検出なしの `a34554c2a63a72cae3972b74a42982cceeb61b5b` をそのまま送信。この結果追記の push も再検査する。
+- 所要: 約 15 分（03:38〜03:53 JST の目安）。準備・設計 4 分、再現・実装 1 分、全体検証 6 分、レビュー・結果確認 2 分、公開・記録 2 分。controller の壁時計で数え、子の概算時間は加算していない。
+- 実装・受け入れ検証・PR 作成は完了。文書の状態は実行許可と内容の承認を区別して `draft` のまま。
