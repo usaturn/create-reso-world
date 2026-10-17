@@ -83,7 +83,7 @@ Issue 対応が長引いたときに、当初の計画の完遂や再試行そ�
 - 手順 2〜5 は移植先の一般化した書き方を日本語にして使う。ログ名の末尾の PID の取り出し、`ps -p` と `/proc/<pid>/cwd` の同一性の確認、`EXIT=<code>` を書くコマンドならそれを、無ければ終了通知の終了コードを確かめる。`pgrep` のブラケットの例は `[.]devcontainer/run-tests[.]bash`。`verify.sh` 固有の手順は持ち込まない
 - 手順 6 に、移植元の「確認した時刻と値を進捗の記録に残す」を足す
 - 「事前宣言した打ち切り」の対象の例から agent_runner を外す（「専用の使い捨て領域（評価用の scratch など）だけに書く worker」）。対象にしない worker の例は「`bash .devcontainer/run-tests.bash`・テスト・lint などの検証コマンド」にする。打ち切りの対象から、検証のコマンド、共有の worktree に書く実装 worker、取り消せない外部操作を除く条件は移植元のまま
-- 「task_watch で宣言・判定・停止する」の実行例は D-5 の入口にする。agent_runner を対象にするときの箇条は #116 に回す
+- 「task_watch で宣言・判定・停止する」の実行例は D-5 の入口にする。agent_runner を対象にするときの箇条は、agent_runner の名前を外し、「SIGINT で子孫を止めて結果を保存する作りの対象なら `--stop INT` にし、`--escalate-kill` を付けない」という一般の箇条にする。agent_runner の具体的な使い方（result.json の `stop_confirmed` の確認など）は #116 に回す
 - 「停止した後」の Issue 全体の扱いは `.agents/execution-budget.md` の checkpoint の判断に従う（移植元のまま）
 
 ### D-8 monitoring-runtimes.md の分け方

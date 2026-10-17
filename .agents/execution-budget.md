@@ -25,6 +25,9 @@ budget start --ledger "$SESSION/budget.jsonl" --budget-minutes 240
 # 質問・承認を求めてターンを終える前と、再開した直後
 budget mark --ledger "$SESSION/budget.jsonl" --event await-user --reason "設計の確認"
 budget mark --ledger "$SESSION/budget.jsonl" --event resume
+# 失敗したら、その都度 1 行。同じ失敗には同じ signature を使う
+budget mark --ledger "$SESSION/budget.jsonl" --event failure \
+  --failure-class reliability --signature pytest-timeout:test_task_watch_process
 # checkpoint では show で数えてから、判断を 1 行で残す
 budget show --ledger "$SESSION/budget.jsonl"
 budget mark --ledger "$SESSION/budget.jsonl" --event checkpoint \
@@ -32,6 +35,8 @@ budget mark --ledger "$SESSION/budget.jsonl" --event checkpoint \
 ```
 
 シェルの関数や変数は次の呼び出しに残らないランタイムがある。その場合は 1 回の呼び出しの中で定義して使うか、`SESSION` の値をそのまま書く。
+
+`--signature` は、失敗の種類と対象を表す短い名前（`pytest-timeout:<テストのファイル>`、`permission-denied:<操作>` など）にする。同じ原因の失敗に別の名前を付けると、再試行の上限に達したことが数えられない。`--failure-class` は下の「失敗の分類と再試行」の `reliability`（信頼性）か `safety`（安全）。
 
 `show` は能動時間・利用者待ち・残り・使用率、期日を過ぎた checkpoint（閾値を越えた後に checkpoint の記録が無いもの）、signature ごとの失敗の回数と上限到達、安全の失敗の有無、最後の判断を JSON で返す。`mark` は利用者待ちを閉じずに他の記録を足すことを拒否する。壊れた行は行番号付きで拒否する（終了コード 2）。
 
@@ -68,6 +73,7 @@ budget mark --ledger "$SESSION/budget.jsonl" --event checkpoint \
 | 上のどれにも当たらない | **継続** |
 
 - 判断は ledger に `checkpoint` として残す（`--decision` は `continue`・`shrink`・`split`・`change-method`・`stop`）。理由と次の行動を `--reason` に書く
+- `show` の `due_checkpoints` に期日を過ぎた checkpoint があれば、気づいた時点で判断して記録する。複数あれば 1 回の判断でまとめて記録してよい
 - 「切り出し」で新しい Issue を作るのは、利用者の許可を得てから。許可が無い run では、PR 本文と Spec に持ち越し候補として書く
 - 完了条件を変える縮小（例: 「30 件すべて有効」を「各設定 1 件」にする）は、Spec の決定記録に変更として明記する
 - `issue-to-pr` の run では、予算の 100% と安全の失敗を停止条件として扱う
