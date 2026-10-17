@@ -481,6 +481,14 @@ class _Watch:
     def finish(
         self, decision: Decision, reason: Reason, stop: StopOutcome | None = None, residual: tuple[int, ...] = ()
     ) -> int:
+        if self.proc is not None:
+            # 終了の待ち合わせ・停止確認の間に、同じ group の子孫や停止のハンドラーが書いた記録
+            # （saved・安全の失敗）も最終結果に入れる。
+            self.observe()
+            if self.progress.safety_signature is not None and reason != "residual_processes":
+                # 安全の失敗は判定の優先順の先頭。どの経路で終わっても完了にせず、全体停止を案内する。
+                decision = "exited_incomplete" if decision == "completed" else decision
+                reason = "safety"
         self.record(decision, reason)
         saved = [*self.progress.saved, *self.policy.partial]
         partial = tuple(dict.fromkeys(path for path in saved if os.path.exists(path)))

@@ -101,6 +101,30 @@ def main(argv: list[str]) -> int:
         case "orphan-child":
             subprocess.Popen(["sleep", "30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return 0
+        case "save-on-stop":
+            # 停止のシグナルを受けてから部分成果を保存し、saved と安全の失敗を書いて終わる。
+            assert partial is not None
+
+            def save(_signum: int, _frame: FrameType | None) -> None:
+                partial.write_text("停止までの結論\n", encoding="utf-8")
+                append(progress, {"kind": "saved", "path": str(partial)})
+                append(progress, {"kind": "failure", "class": "safety", "signature": "found-on-stop"})
+                sys.exit(0)
+
+            signal.signal(signal.SIGINT, save)
+            signal.signal(signal.SIGTERM, save)
+            wait_forever()
+        case "late-child":
+            # 先頭は同じ group に子を起動して終わる。子は先頭の終了後に部分成果と安全の失敗を書いて終わる。
+            subprocess.Popen([sys.executable, __file__, "late-child-writer", *argv[2:]])
+            return 0
+        case "late-child-writer":
+            assert partial is not None
+            time.sleep(0.3)
+            partial.write_text("終了後の結論\n", encoding="utf-8")
+            append(progress, {"kind": "saved", "path": str(partial)})
+            append(progress, {"kind": "failure", "class": "safety", "signature": "found-after-exit"})
+            return 0
         case _:
             return 64
     return 0

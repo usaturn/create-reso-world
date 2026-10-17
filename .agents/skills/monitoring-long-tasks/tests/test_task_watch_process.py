@@ -261,6 +261,36 @@ def test_safety_failure_then_exit_is_not_completed(tmp_path: Path) -> None:
     assert final["decision"] in ("exited_incomplete", "stopped")
 
 
+def test_records_written_while_stopping_reach_the_final(tmp_path: Path) -> None:
+    # 停止のハンドラーが書いた saved・安全の失敗を、停止確認の後に読み直して最終結果に入れる（create-reso-world PR #127）。
+    code, final = run_watch(
+        tmp_path,
+        "save-on-stop",
+        "--deadline-seconds",
+        "1",
+        "--stop",
+        "INT",
+        "--stop-grace-seconds",
+        "5",
+        partial=True,
+    )
+
+    assert (code, final["decision"], final["reason"]) == (1, "stopped", "safety")
+    assert final["stop"]["confirmed"] is True
+    assert final["failures"] == {"found-on-stop": {"failure_class": "safety", "count": 1}}
+    assert final["partial_results"] == [str(tmp_path / "partial.md")]
+
+
+def test_records_written_by_the_group_after_exit_reach_the_final(tmp_path: Path) -> None:
+    # 先頭の終了後、終了の待ち合わせの間に同じ group の子が書いた安全の失敗で、完了にしない。
+    code, final = run_watch(tmp_path, "late-child", "--deadline-seconds", "20", "--stop", "TERM", partial=True)
+
+    assert (code, final["decision"], final["reason"]) == (1, "exited_incomplete", "safety")
+    assert final["target"]["exit_code"] == 0 and final["residual_pids"] == []
+    assert final["failures"] == {"found-after-exit": {"failure_class": "safety", "count": 1}}
+    assert final["partial_results"] == [str(tmp_path / "partial.md")]
+
+
 def test_processes_left_in_the_group_after_exit_are_held(tmp_path: Path) -> None:
     code, final = run_watch(
         tmp_path, "orphan-child", "--deadline-seconds", "20", "--stop", "TERM", "--stop-grace-seconds", "1"
