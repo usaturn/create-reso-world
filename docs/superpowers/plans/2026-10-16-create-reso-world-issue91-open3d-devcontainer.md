@@ -14,10 +14,10 @@
 
 - 文書管理・コード対象: `usaturn/create-reso-world`、Issue #91（親 #95、子のキー `open3d-devcontainer`）
 - 基準 HEAD: `e7eb72a1602ac03e723bc50c9734773102947df1`（`main`）
-- 状態: draft（文書の内容に対する利用者の明示承認は無い）
+- 状態: completed（2026-10-17 JST、利用者の指示（Spec・Plan を completed にする文書 PR の作成とマージ）による。文書の内容に対する利用者の明示承認は記録していない。完了の根拠は末尾の「完了」）
 - 実行許可: 2026-10-16（JST）、利用者の「#91 に着手せよ。途中で止めずに推奨案で PR まで作成して」。推奨案での実装、commit、push、PR の作成まで。マージと rebuild は利用者が行う
 - 実行方法: Native（このセッションでインライン実行）。エージェントの判断で、利用者に実行方法を選んでもらう段は省いた。Task が 2 つで互いのインターフェースに依存せず、誤りの影響は rebuild 時の apt の失敗（postCreate が ERROR 行を出して止まる）にとどまるため。サブエージェントは利用者が求めていないので使わず、レビューは自己レビューと PR での利用者の確認で行う
-- 作業場所: worktree `.worktrees/issue-91-open3d`、ブランチ `feat/issue-91-open3d-devcontainer`
+- 作業場所: worktree `.worktrees/issue-91-open3d`、ブランチ `feat/issue-91-open3d-devcontainer`（完了後に削除済み）
 
 ## Global Constraints
 
@@ -137,3 +137,13 @@ gh pr create --base main --head feat/issue-91-open3d-devcontainer --title "Dev C
 - 最終レビュー: 自己レビュー（利用者がサブエージェントを求めていないため、別の文脈のレビューは行っていない）。Critical・Important の指摘は無し。uv が選ぶ Python は環境で変わる（この作業では 3.14.4 と 3.12.15）が、open3d 0.20.0 には cp312・cp313・cp314 の配布物があるので影響しない
 - 所要時間: 着手（2026-10-16 03:38 JST）から PR の作成まで約 25 分。内訳は、調査と予約が約 5 分、Spec・Plan・handoff が約 6 分、#91 への公開と照合が約 4 分、Task 1 が約 11 分（うち `run-tests.bash` 2 回で約 9 分）、Task 2 が約 2 分
 - 残り: 利用者による PR のマージと rebuild → rebuild したコンテナで `uv run --no-project --with open3d==0.20.0 python -c "import open3d"` を実行して #91 に記録 → この Plan を completed にして #91 を completed で close
+
+## 完了
+
+2026-10-17 JST に完了した。
+
+- コード: #107 を 2026-10-16T05:36Z に `main` へマージした（マージコミット `eee9434`）。レビューの指摘は致命的でないと判定し、修正なしでマージした。判定の記録は `docs/superpowers/specs/2026-10-16-create-reso-world-pr107-open3d-devcontainer-review-fixes-design.md`
+- rebuild の後の確認: 2026-10-17 02:20 UTC 頃に `main` の `71607d9` で作り直した Dev Container で、`libegl1`・`libgl1`（1.7.0-3）が postCreate の基本パッケージの `apt install` の行で入り（`/var/log/apt/history.log`）、`uv run --no-project --with open3d==0.20.0 python -c "import open3d"` が `0.20.0`（Python 3.14.4、画面なし）で成功した。`LD_DEBUG=libs` で、システムの `libEGL.so.1`・`libGL.so.1` を読むことも確かめた
+- 検証: `bash .devcontainer/run-tests.bash` は `origin/main`（`71607d9`）の使い捨ての worktree で `PASS: 30 test(s)`。メインの checkout では `tests/scripts/test-check-layout.bash` が Git の追跡外のローカルワールドの雛形の不足で失敗するが、この変更とは関係ない
+- Issue: #91 を 2026-10-17 に completed で close した（記録は #91 の issuecomment-6233535796）。#90 の先行（#96・#91）はどちらも完了した
+- worktree: `.worktrees/issue-91-open3d` とブランチ `feat/issue-91-open3d-devcontainer` は 2026-10-16 に削除した

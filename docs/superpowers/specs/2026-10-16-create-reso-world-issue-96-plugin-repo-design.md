@@ -2,11 +2,11 @@
 
 ## 管理・実行許可
 
-- 文書管理: `usaturn/create-reso-world`（ブランチ `feat/issue-96-plugin-repo`）
+- 文書管理: `usaturn/create-reso-world`（ブランチ `feat/issue-96-plugin-repo`。#106 で `main` へマージ済み、ブランチは削除済み）
 - コード対象: `usaturn/create-reso-world`（同じブランチ）と、新しく作る `usaturn/resoloop-meshy`
 - 対象 Issue: usaturn/create-reso-world#96（親 #95、ボードのキー `resoloop-plugins-board`、子のキー `plugin-repo`）
 - 検証した基準: create-reso-world `main` の `e7eb72a1602ac03e723bc50c9734773102947df1`
-- 状態: draft（内容の承認は得ていない）
+- 状態: completed（2026-10-17 JST、利用者の指示（Spec・Plan を completed にする文書 PR の作成とマージ）による。内容の明示承認は記録していない。完了の根拠は Plan の「完了」）
 - 関連 Plan: `docs/superpowers/plans/2026-10-16-create-reso-world-issue-96-plugin-repo.md`
 - 実行の指示（2026-10-16 JST）: 利用者が「#96 に着手せよ。途中で止めずに推奨案で PR まで作成して」と指示した。この指示に基づき、Spec・Plan の承認を待たずに、推奨案で実装、GitHub のリポジトリの作成と初期コミットの push、create-reso-world への PR の作成まで行う。内容の承認は得ていないので状態は draft のままにし、PR のレビューで確認を受ける。create-reso-world の PR のマージは利用者の指示による
 - 予約: `refs/heads/agent-claims/issue-96` = `b066ccef078603e70438a4f36e2c8ffcd4d0388c`（#96 のコメント 6199592037）
