@@ -14,10 +14,10 @@
 
 - 文書管理・コード対象: `usaturn/create-reso-world`、Issue #117
 - 基準 HEAD: `eee9434adf017909770d61e9393129d802a332db`（`origin/main`）
-- 状態: draft（文書の内容に対する利用者の明示承認は無い）
+- 状態: completed（2026-10-17 JST、利用者の指示（Spec・Plan を completed にする文書 PR の作成とマージ）による。文書の内容に対する利用者の明示承認は記録していない。完了の根拠は末尾の「完了」）
 - 実行許可: 2026-10-17（JST）、利用者の「#117 に対応してください。途中で止めずに推奨案で PR まで実行してください」。推奨案での実装、commit、push、PR の作成まで。マージと rebuild は利用者が行う
 - 実行方法: Native（このセッションでインライン実行）。利用者に実行方法を選んでもらう段は、止めずに進める指示に従って省いた。サブエージェントは利用者が求めていないので使わず、レビューは自己レビューと PR での利用者の確認で行う
-- 作業場所: worktree `.worktrees/issue-117-retire-pi-lens`、ブランチ `feat/issue-117-retire-pi-lens`
+- 作業場所: worktree `.worktrees/issue-117-retire-pi-lens`、ブランチ `feat/issue-117-retire-pi-lens`（完了後に削除済み）
 
 ## Global Constraints
 
@@ -115,3 +115,14 @@ git commit -m "docs(devcontainer): document pi-lens retirement and drop .pi-lens
 ### Task 3: PR
 
 - [ ] push して PR を作る。本文に `Refs #117`、検証の結果、利用者に頼むこと（ほかのコンテナの Pi を止めてから rebuild、`pi list` に `npm:pi-lens` が無いことの確認、agent-workspace#684・xrift-poc#16 と合わせた取り込み）を書く
+
+## 完了
+
+2026-10-17 JST に完了した。
+
+- コード: #118 を 2026-10-16T19:24Z に `main` へマージした（マージコミット `71607d9`、head `dc2d41b`）。4 モデルのレビューは指摘 0 件で、修正不要と判定した。判定の記録は `docs/superpowers/specs/2026-10-17-create-reso-world-pr118-retire-pi-lens-review-fixes-design.md`
+- 検証: PR の head `cd81cde` で `bash .devcontainer/run-tests.bash` 30/30 PASS、`bash scripts/check-layout.sh` PASS、`uv run pytest tests/skills .agents/skills` 474 passed
+- rebuild の後の確認: 2026-10-17 02:20 UTC 頃に `main` の `71607d9` で作り直した Dev Container で、`pi list`（Pi 1.3.0）に `npm:pi-lens` が無く、`~/.pi/agent/settings.json`・`~/.pi/agent/npm/package.json`・`~/.pi/agent/npm/package-lock.json`・`~/.pi/agent/npm/node_modules/pi-lens` にも残っていない。撤去の前の登録は、バックアップ `~/.pi/agent/migration-backups/pi-retired-2n0w3n0x`（02:14 UTC）にある
+- 合わせて取り込む 2 件: usaturn/agent-workspace#684（PR usaturn/agent-workspace#688）と usaturn/xrift-poc#16（PR usaturn/xrift-poc#17）は、どちらもマージ済みで close
+- Issue: #117 を 2026-10-17 に completed で close した（記録は #117 の issuecomment-6233535977）
+- worktree: `.worktrees/issue-117-retire-pi-lens` とブランチ `feat/issue-117-retire-pi-lens`（ローカル・リモート）は 2026-10-17 に削除した

@@ -5,7 +5,7 @@
 - 文書管理・コード対象: `usaturn/create-reso-world`
 - 対象 Issue: https://github.com/usaturn/create-reso-world/issues/117
 - 検証した基準 HEAD: `eee9434adf017909770d61e9393129d802a332db`（`origin/main`）
-- 状態: draft（文書の内容に対する利用者の明示承認は無い）
+- 状態: completed（2026-10-17 JST、利用者の指示（Spec・Plan を completed にする文書 PR の作成とマージ）による。文書の内容に対する利用者の明示承認は記録していない。完了の根拠は Plan の「完了」）
 - 関連 Plan: `docs/superpowers/plans/2026-10-17-create-reso-world-issue117-retire-pi-lens.md`
 - 実行許可: 2026-10-17（JST）、利用者が「#117 に対応してください。途中で止めずに推奨案で PR まで実行してください」と指示した。推奨案での実装、隔離 worktree、commit、push、create-reso-world への PR の作成まで許可されている。マージと rebuild は利用者が行う。下の判断は確認を取らずに決めたエージェントの判断である
 

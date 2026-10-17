@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-- 文書管理: `usaturn/create-reso-world`（ブランチ `feat/issue-96-plugin-repo`）
+- 文書管理: `usaturn/create-reso-world`（ブランチ `feat/issue-96-plugin-repo`。#106 で `main` へマージ済み、ブランチは削除済み）
 - 対象 Issue: usaturn/create-reso-world#96
-- 状態: draft（内容の承認は得ていない。実行の指示は Spec の「管理・実行許可」）
+- 状態: completed（2026-10-17 JST、利用者の指示（Spec・Plan を completed にする文書 PR の作成とマージ）による。内容の明示承認は記録していない。実行の指示は Spec の「管理・実行許可」。完了の根拠は末尾の「完了」）
 - 実行方法: 利用者の指示「途中で止めずに推奨案で PR まで作成して」により、エージェントが選んだ。このセッションで controller が自分で実装する（superpowers:executing-plans）。Task が少なく、互いのインターフェースへの依存が小さいため
 
 **Goal:** `usaturn/resoloop-meshy` を作り、create-reso-world の `external/resoloop-meshy` から開発できるようにする。
@@ -559,3 +559,13 @@ PR の本文に、決定（D-1〜D-3）、受け入れ条件と検証の結果�
 後回しにした軽微な点: `status` は git が無いと 3 で終わるが、文書は「常に 0」と書いている。
 
 所要時間: 着手（予約）2026-10-15 18:40Z から記録まで約 20 分。Spec・Plan 約 7 分、Task 1 約 3 分、Task 2 約 2 分、Task 3 約 4 分、検証と最終レビュー約 6 分。
+
+## 完了
+
+2026-10-17 JST に完了した。
+
+- コード・文書: #106 を 2026-10-16T05:20Z に `main` へマージした（マージコミット `241140f`。検証した head `3073772` を指定）。2 回のレビューの指摘は致命的でないと判定し、コードは修正せずにマージした。判定の記録は `docs/superpowers/specs/2026-10-16-create-reso-world-pr106-plugin-repo-review-fixes-design.md`
+- 受け入れ条件の再確認（2026-10-17、`main` の `71607d9`）: `usaturn/resoloop-meshy` は private・AGPL-3.0 で、Actions は `"enabled": false`。`bash scripts/resoloop-meshy.sh clone` は既存の checkout の `origin` を確かめるだけで exit 0、`status` は `1b64663 (main, clean)`。プラグインのリポジトリの `uv run pytest` は exit 0。`bash .devcontainer/run-tests.bash` は `origin/main` の使い捨ての worktree で `PASS: 30 test(s)`
+- 「結果」の節で後回しにした軽微な点（`status` の終了コードの記述）は、#106 の review-fix で対応しないと判定したまま
+- Issue: #96 を 2026-10-17 に completed で close した（記録は #96 の issuecomment-6233536232）
+- worktree: 作業の worktree とブランチ `feat/issue-96-plugin-repo`（ローカル・リモート）は 2026-10-16 に削除した

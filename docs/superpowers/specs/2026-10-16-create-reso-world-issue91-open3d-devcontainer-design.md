@@ -5,7 +5,7 @@
 - 文書管理・コード対象: `usaturn/create-reso-world`
 - 対象 Issue: https://github.com/usaturn/create-reso-world/issues/91（親 #95 のボード、子のキー `open3d-devcontainer`）
 - 検証した基準 HEAD: `e7eb72a1602ac03e723bc50c9734773102947df1`（`main`）
-- 状態: draft（文書の内容に対する利用者の明示承認は無い）
+- 状態: completed（2026-10-17 JST、利用者の指示（Spec・Plan を completed にする文書 PR の作成とマージ）による。文書の内容に対する利用者の明示承認は記録していない。完了の根拠は Plan の「完了」）
 - 関連 Plan: `docs/superpowers/plans/2026-10-16-create-reso-world-issue91-open3d-devcontainer.md`
 - 実行許可: 2026-10-16（JST）、利用者が「#91 に着手せよ。途中で止めずに推奨案で PR まで作成して」と指示した。推奨案での実装、隔離 worktree、commit、push、create-reso-world への PR の作成まで許可されている。マージと rebuild は利用者が行う。下の判断は確認を取らずに決めたエージェントの判断である
 - 予約: `refs/heads/agent-claims/issue-91`（`93c587d5f2e454cc3f35ea81e43a638ffb8e0534`、#91 の issuecomment-6199566832）
