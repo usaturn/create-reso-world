@@ -154,6 +154,31 @@ Blender の Python がシステムの NumPy を使える。
 uv が無い環境では `--no-sync` で雛形だけを適用できるが、その場合は `uv.lock` がまだ無いので、uv を導入して `uv sync` するまで
 `scripts/check-layout.sh` が `uv.lock` の欠落を報告する。
 
+### ワールド以外のローカル構成を検査する
+
+`check-layout.sh` は、作業領域直下の `.resoloop.json` を持つプロジェクトを、既定では標準ワールドとして検査する。
+Meshy の原本置き場やアイテム用リポジトリなど、意図的に構成が違う場合だけ、リポジトリルートの
+`.check-layout-projects.json` に用途を明示する。このローカル設定は git の追跡対象外。
+
+```json
+{
+  "worlds/source-assets": "assets",
+  "worlds/item-library": "items"
+}
+```
+
+- `world`（未指定時の既定値）: 標準雛形・共有リンク・同梱スキルを検査する。
+- `assets`: 最小の生成素材置き場。通常ファイルの `.resoloop.json` だけを要求し、同梱スキルの同期確認は行わない。
+- `items`: 共通の雛形・リンク・スキルを検査するが、ルートの `flux/resoloop.flux.json` の代わりに、実ディレクトリの `items/` を要求する。
+
+どの用途でも、リポジトリ全体の追跡禁止・ignore・mount などの検査は省略しない。ファイルの不足から用途を自動判定することもない。
+設定には `jq` が必要。不正な JSON、未知の用途、収集対象に無いパスは失敗として報告する。
+キーは `worlds/<英数字で始まる英数字・_-の名前>`、または従来位置の4名だけで、glob・絶対パス・深い階層は指定できない。
+設定ファイルは通常ファイルとし、symlink は使わない。`--root DIR` では DIR のリポジトリルートの設定を読む。
+
+移動済みの `.venv` は interpreter が正常でも、`bin/pytest` などのshebangに古い絶対パスが残って起動できない場合がある。
+Python の選択の問題と区別し、既存環境の再作成や古い位置への互換リンク追加を行う前に、起動スクリプトのパスを確認する。
+
 ## ResoLoop の版
 
 ResoLoop は常に NuGet の最新の公開版（上流 orange3134/resoloop のリリース。今はプレリリースだけ）を使い、版を固定しない。

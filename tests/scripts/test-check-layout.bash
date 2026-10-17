@@ -475,4 +475,77 @@ printf '#!/bin/bash\n' > "$tmp/mount-worktree/.devcontainer/initialize.bash"
 bash "$checker" --root "$tmp/mount-worktree" > "$tmp/mount-worktree.out"
 grep -qF 'ok: mounts match .devcontainer/initialize.bash' "$tmp/mount-worktree.out"
 
+# 50. assets は明示された最小プロジェクトだけを受け入れ、同梱スキル同期を呼ばない。
+# 設定なしでは同じ構成も標準ワールドとして失敗する（欠落を自動分類で隠さない）。
+new_repo "$tmp/assets"
+mkdir -p "$tmp/assets/worlds/source"
+printf '{}\n' > "$tmp/assets/worlds/source/.resoloop.json"
+expect_fail_with "$tmp/assets" 'missing regular file AGENTS.md'
+printf '{"worlds/source":"assets"}\n' > "$tmp/assets/.check-layout-projects.json"
+MOCK_RESOLOOP_CONFLICT=source bash "$checker" --root "$tmp/assets" > "$tmp/assets.out"
+grep -qF 'ok: project worlds/source layout (assets)' "$tmp/assets.out"
+grep -qF 'skip: resoloop skills sync --check (worlds/source): assets profile' "$tmp/assets.out"
+printf 'bad\n' > "$tmp/assets/TNX.txt"
+commit_paths "$tmp/assets" TNX.txt
+expect_fail_with "$tmp/assets" 'forbidden tracked files'
+
+# 51. items は共通の配置とスキル検査を維持し、root flux の代わりに実ディレクトリ items を要求する。
+project_repo "$tmp/items"
+rm -- "${tmp:?}/items/worlds/demo/flux/resoloop.flux.json"
+mkdir "$tmp/items/worlds/demo/items"
+printf '{"worlds/demo":"items"}\n' > "$tmp/items/.check-layout-projects.json"
+bash "$checker" --root "$tmp/items" > "$tmp/items.out"
+grep -qF 'ok: project worlds/demo layout (items)' "$tmp/items.out"
+grep -qF 'ok: resoloop skills sync --check (worlds/demo)' "$tmp/items.out"
+rm -- "${tmp:?}/items/worlds/demo/uv.lock"
+expect_fail_with "$tmp/items" 'missing regular file uv.lock'
+printf 'version = 1\n' > "$tmp/items/worlds/demo/uv.lock"
+rm -- "${tmp:?}/items/worlds/demo/.pi"
+expect_fail_with "$tmp/items" '.pi must be a symlink'
+ln -s ../../.pi "$tmp/items/worlds/demo/.pi"
+rmdir -- "${tmp:?}/items/worlds/demo/items"
+expect_fail_with "$tmp/items" 'missing real directory items'
+ln -s flux "$tmp/items/worlds/demo/items"
+expect_fail_with "$tmp/items" 'missing real directory items'
+
+# 52. 壊れた設定や未収集パスは、暗黙の無視ではなく終了コード1になる。
+project_repo "$tmp/profiles"
+for config in '{' '[]' 'null' '{"worlds/demo":null}' '{"worlds/demo":"skip"}' \
+  '{} {}' \
+  '{"../elsewhere":"assets"}' '{"worlds/demo/deep":"assets"}' \
+  '{"worlds/demo*":"assets"}' '{"worlds/missing":"assets"}'; do
+  printf '%s\n' "$config" > "$tmp/profiles/.check-layout-projects.json"
+  expect_fail_with "$tmp/profiles" '.check-layout-projects.json'
+done
+printf '{}\n' > "$tmp/profiles/.check-layout-projects.json"
+bash "$checker" --root "$tmp/profiles" > "$tmp/empty-profiles.out"
+printf '{"worlds/demo":"world"}\n' > "$tmp/profiles/.check-layout-projects.json"
+bash "$checker" --root "$tmp/profiles" > "$tmp/profiles.out"
+rm -- "${tmp:?}/profiles/worlds/demo/uv.lock"
+expect_fail_with "$tmp/profiles" 'missing regular file uv.lock'
+printf 'version = 1\n' > "$tmp/profiles/worlds/demo/uv.lock"
+no_jq="$(path_without "$tmp/no-jq" jq)"
+PATH="$no_jq" expect_fail_with "$tmp/profiles" 'jq is required for .check-layout-projects.json'
+# 設定が無ければjqを追加の依存にしない。
+rm -- "${tmp:?}/profiles/.check-layout-projects.json"
+PATH="$no_jq" bash "$checker" --root "$tmp/profiles" > "$tmp/no-jq.out"
+ln -s nowhere "$tmp/profiles/.check-layout-projects.json"
+expect_fail_with "$tmp/profiles" '.check-layout-projects.json must be a regular file'
+rm -- "${tmp:?}/profiles/.check-layout-projects.json"
+mkdir "$tmp/profiles/.check-layout-projects.json"
+expect_fail_with "$tmp/profiles" '.check-layout-projects.json must be a regular file'
+
+# 53. assets のmanifestも通常ファイルが必要。--rootは呼出元ではなく対象の設定を読む。
+new_repo "$tmp/asset-link"
+mkdir -p "$tmp/asset-link/worlds/source"
+printf '{}\n' > "$tmp/asset-link/manifest.json"
+ln -s ../../manifest.json "$tmp/asset-link/worlds/source/.resoloop.json"
+printf '{"worlds/source":"assets"}\n' > "$tmp/asset-link/.check-layout-projects.json"
+expect_fail_with "$tmp/asset-link" 'missing regular file .resoloop.json'
+legacy_project_repo "$tmp/legacy-profile"
+printf '{"akichi":"items"}\n' > "$tmp/legacy-profile/.check-layout-projects.json"
+mkdir "$tmp/legacy-profile/akichi/items"
+bash "$checker" --root "$tmp/legacy-profile" > "$tmp/legacy-profile.out"
+grep -qF 'ok: project akichi layout (items)' "$tmp/legacy-profile.out"
+
 printf 'PASS: check-layout script behaves as specified\n'
