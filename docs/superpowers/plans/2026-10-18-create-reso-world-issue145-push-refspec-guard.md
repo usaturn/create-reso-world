@@ -88,4 +88,26 @@ Expected: それぞれ終了コード 0。失敗したら変更前の `origin/ma
 
 ## 完了
 
-（実装後に追記する）
+状態は draft のまま（内容の承認は無い）。Task 1・2 を完了し、公開（Task 3）に進む。
+
+- Task 1: `3ca8214`（5 ファイル、7 行追加・6 行削除）。`docs/superpowers/` の外の旧形は `.agents/skills/issue-to-pr/evals/scenarios.json:108` だけ、新形は 5 か所と issue-to-pr の 2 行。`bash -n scripts/scan-before-push.sh`・`git diff --check` は終了コード 0
+- Task 2: 再現は Spec の「検証の結果」のとおり、場面 A〜D が bash・`zsh -f` の両方で期待どおり。検証（HEAD `3ca8214`）: `bash .devcontainer/run-tests.bash` → 32/32 PASS（EXIT 0）、`bash scripts/check-layout.sh` → PASS（EXIT 0）、`uv run pytest tests/skills .agents/skills .agents/scripts` → 625 passed（EXIT 0）
+- ブランチ全体のレビュー（Opus）: Critical 0・Important 0・Minor 3、Ready to merge: Yes。レビュアーも一時ディレクトリの bare repo で、bash・zsh の非対話・対話・`eval` 経由のどれでも、空・未設定の SHA で push の前に止まることを確かめた。Minor 3 件は致命的ではないので直さない（下の「判断の記録」）
+
+### 判断の記録（Rulings）
+
+- ledger を worktree の `.superpowers/sdd/` ではなく `tmp/agents/issue-145.5u0itijo/sdd-progress.md` に置いた。`AGENTS.md` の「worktree の中にコミットしないファイルを作らない」に合わせた。誤りの影響は ledger の場所だけ
+- TDD のテストを書かず、再現の実行で代えた（Spec の決定記録）。誤りの影響は回帰テストが無いこと
+- Task 1 Step 2 の `grep -v '^./docs/superpowers/'` は、この環境の `grep`（シェル関数で、出力の先頭に `./` が付かない）では効かなかった。`docs/superpowers/` の行を除いて判定した（レビューの Minor 2）
+- `scripts/scan-before-push.sh` のコメントにも「呼び出しを分けるときも `:?` を外さない」を足した。Spec の必要な挙動 2 は `AGENTS.md` だけを指定しているが、使い方のコメントはそのまま写されるので、形と理由を同じ場所に置いた（レビューの Minor 3）。誤りの影響はコメント 1 行
+- レビューの Minor 1（`AGENTS.md` に、止まった後は検査から 1 回の呼び出しでやり直すことが書かれていない）は直さない。既存の「検査した commit をそのまま push する」「検査の後に変わった HEAD を push しない」で足り、指示文を短く保つ
+- レビューの「Declined to judge」（`planning-parallel-issues/evals/validation.md:19` の評価の引用、`scenarios.json:108`、review-fix-planning の変数の引き継ぎ、検査の動作、repo-cleanup の `--delete`）は変えない。どれも手順の定義ではないか範囲外で、誤った操作につながらない
+
+### 実行予算と時間
+
+目安 45 分に対し、05:46 時点で約 16 分（ledger は省いた）。
+
+- 着手の確認・worktree の作成（05:30〜05:35）: 約 5 分
+- Spec・Plan（05:35〜05:37）: 約 2 分
+- 実装（Task 1、05:37〜05:38）: 約 1 分
+- 再現・README のテスト・ブランチ全体のレビュー（Task 2、05:38〜05:46）: 約 8 分（テストとレビューは並行）

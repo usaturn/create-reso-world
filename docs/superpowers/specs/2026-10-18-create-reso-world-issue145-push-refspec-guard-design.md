@@ -61,4 +61,13 @@ refspec を `"${SHA:?}:refs/heads/<branch>"` にして、SHA が空・未設定�
 
 ## 検証の結果
 
-（実装後に追記する）
+再現（2026-10-18、`3ca8214`、bash 5.3.9・zsh 5.9・gitleaks 8.30.1）。各場面ごとに新しい bare repo を作り、`SHA` を `env -u SHA`（B は `env SHA=`）で外した新しいシェルで実行した。
+
+| 場面 | bash | `zsh -f` |
+|---|---|---|
+| A. 未設定・`${SHA:?}` | 終了コード 127、`SHA: parameter null or not set`。`fix/x` は残った | 終了コード 1、`SHA: parameter not set`。`fix/x` は残った |
+| B. 空文字列・`${SHA:?}` | A と同じ | A と同じ |
+| C. 未設定・`${SHA}`（今の形） | 終了コード 0、` - [deleted] fix/x`。`fix/x` が消えた | bash と同じ |
+| D. `AGENTS.md` の形を 1 回の呼び出しで | 終了コード 0、検査は `no leaks found`、`fix/x` が作業用の clone の HEAD と同じ | bash と同じ |
+
+zsh は空文字列のときも `parameter not set` と出すが、push の前に止まる点は同じ。
