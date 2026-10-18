@@ -57,7 +57,7 @@ done
 | --- | --- |
 | Claude Code | Bash の `run_in_background: true` で起動し、終了コード付きの完了通知で待つ（役割の期限は最大 90 分で、foreground の上限 10 分を超えうる） |
 | Devin | バックグラウンド `exec`（`timeout: 0`）で起動し、`get_output` で待つ |
-| pi | bash ツールの foreground で実行し、戻るまで待つ |
+| pi | bash ツールの foreground で実行し、戻るまで待つ。bash ツールの `timeout` は付けない（timeout・中断で runner が SIGKILL され、結果を保存できず、別の session の担当が残る）。途中で止める条件が要るときは `task_watch.py run --stop INT` で包む |
 | Cursor | TBD |
 
 - 完了: コマンドの終了コード（成功・self は 0、失敗・部分成功は 1、設定・入力の誤りは 2、SIGINT は 130）と、summary が示す `result.json` を確かめる。result の state・識別情報・各 attempt の `stop_confirmed` も確かめ、ログの更新や receipt のファイルがあることだけで成功と扱わない

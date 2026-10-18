@@ -416,9 +416,10 @@ bind mount なので、移植元の一時ファイルから rename する方式�
 [tools/agent_runner/interfaces.rst](../tools/agent_runner/interfaces.rst) にある。#149 の時点では具体的な adapter が無く、
 どの runtime も「未対応」と表示される。adapter と agent の定義は #150・#151 が足す。別のモデルや対話の方式へは暗黙に切り替えない。
 
-個人設定は `AGENT_RUNNER_CONFIG`、絶対パスの `XDG_CONFIG_HOME/agent-runner/config.toml`、`~/.config/agent-runner/config.toml`
-の順に探す。`install_beforehand.bash` は、後の 2 つの場所に設定が無いときだけ雛形 `.devcontainer/agent-runner.toml` を写し、
-既存の設定は更新しない。`~/.config/agent-runner` は mount していないので、rebuild で消え、次の postCreate で雛形から作り直される。
+個人設定の場所は 1 か所に決まる。`AGENT_RUNNER_CONFIG` があればそのパス、無ければ `XDG_CONFIG_HOME` が絶対パスのときだけ
+`XDG_CONFIG_HOME/agent-runner/config.toml`、それ以外は `~/.config/agent-runner/config.toml` で、そこにファイルが無ければ
+個人設定なしで動く（次の候補は探さない）。`install_beforehand.bash` は、後の 2 つの規則で決まる場所に設定が無いときだけ
+雛形 `.devcontainer/agent-runner.toml` を写し、既存の設定は更新しない。`~/.config/agent-runner` は mount していないので、rebuild で消え、次の postCreate で雛形から作り直される。
 残したい設定は、ホストから見える場所に置いて `AGENT_RUNNER_CONFIG` で指定する。
 設定は雛形 < 個人設定 < `--assign role=agent1,agent2` の順で上書きする（table は統合、配列は置換）。資格情報の値は書かず、
 `env` に変数の名前を書く。
