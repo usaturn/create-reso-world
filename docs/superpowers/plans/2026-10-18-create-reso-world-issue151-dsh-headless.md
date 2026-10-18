@@ -46,11 +46,11 @@
 - Produces: `ADAPTER = Dsh()`、`read_session_identity(dsh_home, work_dir, session_id, *, live=False) -> Identity`、`write_session(home, cwd, *, session_id='session-test', provider='observed-provider', model='observed-model', effort='high') -> Path`。
 - Tests: 必要。実行の入出力、認証・停止・cleanup・識別・write grant の安全条件を守る。
 
-- [ ] **Step 1:** upstream の実行テストと fake CLI / write_session を先に移植。create_workspace 依存は一時 git repository に置換。fake CLI は正常時に write_session で stdout と同じ sessionId の v4 log を作る。unit fixture も成功時の durable log を用意する。ログ不在 / 重複 / route 変更 / missing bwrap を追加し、成功 payload の自由記述（Unicode/fence）を維持する。
-- [ ] **Step 2:** `uv run pytest tools/agent_runner/tests/adapters/dsh tools/test_support` を実行。Expected: adapter/identity/sandbox がまだ無く失敗する。エラー原因と終了コードを記録。
-- [ ] **Step 3:** upstream の 3 実装ファイルを移植。prepare は許可 env の PATH（無いとき os.defpath）で bwrap を検索して状態作成前に拒否。collect は成功候補のログ不在を response_failed / None にし、既知の認証・承認・abort を保持。残りの strict parser / v4 reader / scoped helper は source を保つ。
-- [ ] **Step 4:** 同じ pytest コマンドを実行。Expected: 全件成功。実 bubblewrap も省略せず動かす。失敗は systematic-debugging で分類して原因を特定する。
-- [ ] **Step 5:** `env AGENT_RUNNER_DEPTH=1 uv run pytest tools/agent_runner/tests/adapters/dsh tools/test_support`。Expected: 成功、fake 以外を起動しない。`git diff --check` 後に Task 1 の明示パスを commit（`feat: add isolated DSH headless adapter`）。ledger にテスト・時間を記録。
+- [x] **Step 1:** upstream の実行テストと fake CLI / write_session を先に移植。create_workspace 依存は一時 git repository に置換。fake CLI は正常時に write_session で stdout と同じ sessionId の v4 log を作る。unit fixture も成功時の durable log を用意する。ログ不在 / 重複 / route 変更 / missing bwrap を追加し、成功 payload の自由記述（Unicode/fence）を維持する。
+- [x] **Step 2:** `uv run pytest tools/agent_runner/tests/adapters/dsh tools/test_support` を実行。Expected: adapter/identity/sandbox がまだ無く失敗する。エラー原因と終了コードを記録。
+- [x] **Step 3:** upstream の 3 実装ファイルを移植。prepare は許可 env の PATH（無いとき os.defpath）で bwrap を検索して状態作成前に拒否。collect は成功候補のログ不在を response_failed / None にし、既知の認証・承認・abort を保持。残りの strict parser / v4 reader / scoped helper は source を保つ。
+- [x] **Step 4:** 同じ pytest コマンドを実行。Expected: 全件成功。実 bubblewrap も省略せず動かす。失敗は systematic-debugging で分類して原因を特定する。
+- [x] **Step 5:** `env AGENT_RUNNER_DEPTH=1 uv run pytest tools/agent_runner/tests/adapters/dsh tools/test_support`。Expected: 成功、fake 以外を起動しない。`git diff --check` 後に Task 1 の明示パスを commit（`feat: add isolated DSH headless adapter`）。ledger にテスト・時間を記録。
 
 ## Task 2: CLI 導入・雛形・撤去履歴の更新
 
@@ -66,11 +66,11 @@
 - Produces: `install_deepseek_harness() -> shell status`、雛形の 2 agent、rebuild 後の実機確認手順。
 - Tests: installer のロジックは必要。設定・文書だけの追加テストは不要。runner check / TOML 解析 / diff で代替。
 
-- [ ] **Step 1:** test-install-beforehand に installer 内の関数を抽出して実行するテストを追加。stub npm は要求 package を保存、stub dsh はその版を返す。正常 / npm 失敗 / CLI 不在 / version 失敗 / 版不一致を検査。Expected（変更前のテスト実行）: 関数が無く失敗。実 npm/dsh は起動しない。
-- [ ] **Step 2:** install_deepseek_harness を追加し npm の固定版導入、存在、--version の一致を確認。if ! function の fail で必ず停止。段数を実際の step 数に合わせる。
-- [ ] **Step 3:** `bash .devcontainer/test-install-beforehand.bash`。Expected: 成功。雛形に source の [agents.dsh-*] だけを追加し、`uv run python -m tools.agent_runner check --config .devcontainer/agent-runner.toml`（CLI help で位置を確認）を実行。Expected: check 成功。
-- [ ] **Step 4:** README の全除外を headless CLI のみ導入と区別。maatlog の過去の実測は保持し、#151 の新期待値・rebuild 後未検証を明記。devcontainer.json / initialize.bash は追加要件が無い限り変更しない。
-- [ ] **Step 5:** 全体検証を同期実行しログと終了コードを確認。`uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`git diff --check`。Expected: 全件成功。Task 2 の明示パスを commit（`feat: install pinned DSH for headless reviewers`）。
+- [x] **Step 1:** test-install-beforehand に installer 内の関数を抽出して実行するテストを追加。stub npm は要求 package を保存、stub dsh はその版を返す。正常 / npm 失敗 / CLI 不在 / version 失敗 / 版不一致を検査。Expected（変更前のテスト実行）: 関数が無く失敗。実 npm/dsh は起動しない。
+- [x] **Step 2:** install_deepseek_harness を追加し npm の固定版導入、存在、--version の一致を確認。if ! function の fail で必ず停止。段数を実際の step 数に合わせる。
+- [x] **Step 3:** `bash .devcontainer/test-install-beforehand.bash`。Expected: 成功。雛形に source の [agents.dsh-*] だけを追加し、`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check`（CLI help で位置を確認）を実行。Expected: check 成功。
+- [x] **Step 4:** README の全除外を headless CLI のみ導入と区別。maatlog の過去の実測は保持し、#151 の新期待値・rebuild 後未検証を明記。devcontainer.json / initialize.bash は追加要件が無い限り変更しない。
+- [x] **Step 5:** 全体検証を同期実行しログと終了コードを確認。`uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`git diff --check`。Expected: 全件成功。Task 2 の明示パスを commit（`feat: install pinned DSH for headless reviewers`）。
 
 ## 実行予算
 
@@ -92,3 +92,12 @@
 - 準備: 必要な GitHub の権限・rulesets 等のプラン制限、Actions 無効、先行完了と main 包含、競合不在、ignore、clean worktree を確認。
 - 基準 `uv run pytest tools`: 758 passed、228.49 秒、終了コード 0（`baseline.log`）。
 - 設計・Plan の自己確認: Spec の範囲を Task 1/2 で網羅。観測値と要求値の区別、既知の診断の保持、cleanup の所有者、workflow/個人設定の注意を一致させた。
+- Task 1: runtime 未対応の RED、観測ログ欠落の RED、bwrap 不在の RED（いずれも終了コード 1）を確認してから実装。全 DSH テスト 119 passed、AGENT_RUNNER_DEPTH=1 でも 119 passed。runtime の RED は import エラーではなく未対応という挙動で確認するため、Step 2 は対象を runtime-registration に絞った。
+- Task 2: installer の段が無い状態で RED（終了コード 1）を確認。stub の正常系と 4 種類の失敗、実際の postCreate 呼出し段の停止を実行して GREEN。雛形の runner check は成功。CLI help に従い global --config の位置を修正した。
+- 初回全体検証: pytest 2010 passed（458.59 秒）、Dev Container 33 本 PASS（352.2 秒）、layout PASS。すべて終了コード 0。
+- 独立最終レビュー: sp-review（`Review scope: branch`、`a024a22..8f73624`、約 5 分）。Important 1 件、Critical / Minor 無し。最初の dispatch は scope 明示を要求され、レビュー開始前に再 dispatch した。
+- 指摘への対応: header(A) → assistant(A) → header(B) → assistant(B) で最後の観測が上書きされることを 4 件の RED で確認。header 読み込み時に provider/model/effort の変更を拒否し、変更して戻る場合も拒否。同一 route の複数応答は通す。DSH テスト 124 passed（14.08 秒）。修正後の再レビューは行わず、全体回帰で確認する。
+- 対象外の裁定: rebuild 後の実機は利用者（D-21）。実 API の互換性は未検証であり、Issue の completed はまだ宣言しない。read-only root は書き込み制限であり、ホストの読み取り・ネットワーク隔離は保証しない。
+- 修正後の最終検証: `uv run pytest tests/skills .agents/skills .agents/scripts tools` 2015 passed（414.03 秒）、`bash .devcontainer/run-tests.bash` 33 本 PASS（310.8 秒）、`bash scripts/check-layout.sh` PASS。すべて終了コード 0。ログは PARENT_ROOT の `tmp/agents/issue-151.w64st80v/` に一時保存し、公開した文書の復元確認と要約の転記後に片付ける。
+- 所要時間（公開前 2026-10-18T15:00Z まで、開始 14:25Z）: 約 35 分。準備・基準確認・Spec/Plan 約 9 分、Task 1 約 2 分、Task 2 と初回回帰 約 10 分、独立レビュー 約 5 分、修正と最終回帰 約 9 分。予算の利用は約 28%、残り約 86 分。並行の shell / pytest は壁時計に重ねて数えた。この後の公開処理の時間は PR と Issue の完了コメントに記録する。
+- 裁定の記録: スキルの scratch helper は使わず親の tmp に ledger を置いた（自動 brief の再作成は無いが Plan で復元可能）。Task 1 の RED は登録の挙動と厳格化する 2 条件に絞った（port の他の不具合の発見は GREEN 時だが、全体回帰は省略しない）。CLI の global --config を help に合わせた（誤れば副作用前に引数解析で停止）。rebuild / 実 API と read/network 隔離は上の対象外の裁定どおり。

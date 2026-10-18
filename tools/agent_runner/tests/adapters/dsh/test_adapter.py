@@ -271,6 +271,23 @@ def test_mismatched_identity_discards_success_payload(context: AdapterContext) -
     assert outcome.receipt.status == "response_failed" and outcome.receipt.payload is None
 
 
+@pytest.mark.parametrize("field", ["provider", "model", "reasoningEffort"])
+def test_changed_route_with_matching_response_discards_payload(context: AdapterContext, field: str) -> None:
+    path = write_session(context.receipt_path.parent / "dsh" / "state", context.work_dir, session_id="observed-session")
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    header, assistant = json.loads(json.dumps(rows[1:]))
+    header["seq"], assistant["seq"] = 2, 3
+    header["data"]["header"]["config"][field] = "different-value"
+    if field != "reasoningEffort":
+        assistant["data"]["message"]["source"][field] = "different-value"
+    rows.extend([header, assistant])
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    outcome = _collect(context, _stream())
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == "response_failed" and outcome.receipt.payload is None
+    assert outcome.identity.provider is outcome.identity.model is None
+
+
 def _status(context: AdapterContext, events: Iterable[object]) -> ReceiptStatus:
     outcome = _collect(context, events)
     assert outcome.receipt is not None

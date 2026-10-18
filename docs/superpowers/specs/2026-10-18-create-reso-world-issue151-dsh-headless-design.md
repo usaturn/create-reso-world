@@ -37,7 +37,7 @@ patch の sandbox runnerCommand は Python の `dsh_sandbox.py`。bubblewrap の
 
 headless JSONL は session、turn_start、turn_end(completed)、final の順序と中間イベントの型を検査する。空の回答、重複キー、非有限 JSON、壊れた行、truncated な session/final、認証・承認・abort、非ゼロ終了、停止未確認は成功にしない。json の payload は非空 object または JSON fence 内の非空 object、text は文字列をそのまま保持する。
 
-`read_session_identity(dsh_home: Path, work_dir: Path, session_id: str, *, live: bool = False) -> Identity` を公開する。stdout の sessionId に一致する `sessions/*/<id>/session.v4.jsonl` が 1 つで、通常ファイル・symlink でないディレクトリ、v4 header の id/cwd/isSeeded、連続 seq を検査する。resolved request route と interrupted でない assistant source の provider/model が一致した観測だけを返す。要求したモデルや親の環境から補完しない。live=True のときだけ、追記中の改行の無い末尾を無視する。
+`read_session_identity(dsh_home: Path, work_dir: Path, session_id: str, *, live: bool = False) -> Identity` を公開する。stdout の sessionId に一致する `sessions/*/<id>/session.v4.jsonl` が 1 つで、通常ファイル・symlink でないディレクトリ、v4 header の id/cwd/isSeeded、連続 seq を検査する。resolved request route と interrupted でない assistant source の provider/model が一致した観測だけを返す。呼出し中の provider/model/effort の変更は、変更先の応答があっても拒否する。同じ route の複数回の応答は認める。要求したモデルや親の環境から補完しない。live=True のときだけ、追記中の改行の無い末尾を無視する。
 
 移植元 collect はログ不在でも成功にするが、この子では **成功に観測した provider/model が必須**。ログ不在なら response_failed / payload=None にする。ただし認証・承認待ち・interrupted の既知の診断はログ欠落で上書きしない。ログ内の不一致や破損は response_failed。観測値を設定値へ置き換えず、設定値との違いだけで偽の観測値を返さない。
 
@@ -59,7 +59,7 @@ README の DSH 全体の除外を、対話用は除外・headless CLI だけ再�
 | D-2 | 成功には観測した識別が必要 | upstream のログ欠落でも成功を維持 | #151 の欠落・不一致を失敗にする受け入れ条件 | 通常判断の委任 |
 | D-3 | bubblewrap 不在を prepare/helper 両方で拒否 | 実ツール呼出しまで不在を保留 | 隔離無しの起動を事前に防ぐ | 不在を回避しない |
 | D-4 | CLI のみ固定版導入 | 共有 profile / web plugin / TUI を再導入 | D-14、headless に余分な導入を持ち込まない | 実機で追加が必要なら理由を記録、禁止範囲が必要なら停止 |
-| D-5 | inline 2 Task と最終レビュー | Task ごとに同期委譲 | 小さい port と導入の 2 Task。調査用 subagent は 2 回とも応答本文なしで、利用可能な結果が得られなかった | 実行方式は委任。使えない子を成功扱いしない |
+| D-5 | inline 2 Task と独立した最終レビュー | Task ごとに同期委譲 | 小さい port と導入の 2 Task。調査子の結果は取得できなかったが、最終レビューは `Review scope: branch` を明示した sp-review で取得できた | 実行方式は委任。使えない子を成功扱いしない |
 | D-6 | fake CLI と実 bubblewrap を先に検証、rebuild 後の実機は利用者 | rebuild をこの run で実施 | D-21。利用者が rebuild する前の結果を捏造しない | 必要なツール/API や検証の解消不能な失敗では停止 |
 
 ## 検証と受け入れ
@@ -76,3 +76,5 @@ README の DSH 全体の除外を、対話用は除外・headless CLI だけ再�
 ## 設計確認
 
 upstream と #149 の protocol を直接確認し、観測の欠落、fake CLI の durable log 不在、移植元の create_workspace 依存、後片付けの所有者、workflow 未定義、既存個人設定の優先を確認した。subagent の結果が取得できないため builder check は自己確認で代替し、実行方式と制約を D-5 に記録した。未解決の利用者判断は無い。実機確認は実装 PR の作成と分けて記録する。
+
+最終の独立レビュー（base `a024a22`、head `8f73624`）で、応答を伴う route 変更が最後の観測で上書きされる問題を指摘された。provider/model/effort の変更と、途中で変更して元へ戻る場合を RED→GREEN で確認し、header を読む時点で route の変更を拒否した。実機・読み取り/ネットワーク隔離の対象外という判断は上の制約どおりである。修正後の再レビューは行わず、回帰テストと全体検証で確かめる。

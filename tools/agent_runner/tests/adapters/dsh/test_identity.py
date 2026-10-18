@@ -26,6 +26,20 @@ def test_reads_observed_route_not_requested_or_parent(tmp_path: Path) -> None:
     assert identity.cli_version is None
 
 
+def test_accepts_repeated_responses_from_the_same_route(tmp_path: Path) -> None:
+    cwd = tmp_path / "work"
+    cwd.mkdir()
+    home = tmp_path / "state"
+    path = write_session(home, cwd)
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    header, assistant = json.loads(json.dumps(rows[1:]))
+    header["seq"], assistant["seq"] = 2, 3
+    rows.extend([header, assistant])
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    identity = dsh_identity.read_session_identity(home, cwd, "session-test")
+    assert (identity.provider, identity.model) == ("observed-provider", "observed-model")
+
+
 @pytest.mark.parametrize(
     "case",
     [
@@ -35,6 +49,7 @@ def test_reads_observed_route_not_requested_or_parent(tmp_path: Path) -> None:
         "source",
         "header_only",
         "route_changed",
+        "route_changed_then_returned",
         "sequence",
         "ambiguous",
         "malformed",
@@ -62,6 +77,13 @@ def test_rejects_unbound_or_invalid_records(tmp_path: Path, case: str) -> None:
         changed["seq"] = 2
         changed["data"]["header"]["config"]["model"] = "different-model"
         rows.append(changed)
+    elif case == "route_changed_then_returned":
+        changed = json.loads(json.dumps(rows[1]))
+        changed["seq"] = 2
+        changed["data"]["header"]["config"]["model"] = "temporary-model"
+        restored_header, restored_assistant = json.loads(json.dumps(rows[1:]))
+        restored_header["seq"], restored_assistant["seq"] = 3, 4
+        rows.extend([changed, restored_header, restored_assistant])
     elif case == "sequence":
         rows[-1]["seq"] = 9
     elif case == "ambiguous":

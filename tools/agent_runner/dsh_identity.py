@@ -97,7 +97,15 @@ def _read_session(dsh_home: Path, work_dir: Path, session_id: str, *, live: bool
             sequence += 1
             kind = value.get("type")
             if kind == "request/header":
-                route = _mapping(value["data"]["header"]["config"])
+                candidate = _mapping(value["data"]["header"]["config"])
+                # A single receipt cannot attribute a mixed-route invocation to
+                # just its last response, even if that response matches its header.
+                if route is not None and any(
+                    candidate.get(field) != route.get(field)
+                    for field in ("provider", "model", "reasoningEffort")
+                ):
+                    raise ValueError("DSH route changed within this invocation")
+                route = candidate
             elif kind == "assistant/message":
                 source = _mapping(value["data"]["message"]["source"])
                 if value["data"].get("interrupted") or source.get("kind") != "model":
