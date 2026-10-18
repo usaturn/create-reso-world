@@ -1,0 +1,98 @@
+# Issue #153: pr-review の非対話入口・全体差分・DSH の親保存
+
+## 管理・実行許可
+
+- 対象: `usaturn/create-reso-world`、https://github.com/usaturn/create-reso-world/issues/153
+- 親: #116、ボード `review-automation-board`、子キー `pr-review-v2`
+- 状態: draft（内容承認ではない）
+- 実行許可: 利用者の `/skill:issue-to-pr #153`。同スキルに従い、通常の設計判断を推奨案で決め、Spec・Plan・実装・検証・commit・push・main 向け PR 作成まで進める。マージ・rebuild・認証設定変更は含まない。
+- 基準: `origin/main` = `1335f410e624355cd558029bdcdad65eaa944ed8`。移植元: `usaturn/agent-workspace` の `a47b2065fddad76b7475752fd0088af0733de204`。
+- 作業場所: `/workspaces/reso-world/.worktrees/issue-153-pr-review-v2`、branch `feat/issue-153-pr-review-v2`。PARENT_ROOT は `/workspaces/reso-world`。
+- 予約: `refs/heads/agent-claims/issue-153`、SHA `83bcb7048656aa990e2ba7ee9a0590ec3941c512`、セッション `6f2ec92e-caff-47d7-bd5c-a99cb9d6e322`。
+- 親 #116 冒頭の「着手するエージェントへの注意（利用者決定: 2026-10-18）」と親 Spec D-1〜D-24 が適用される。tools/workspace・projects.toml は導入せず、review-fix-planning の致命的な指摘だけを直す基準・三択の結論・修正後の自己レビュー最大1回を変えない。
+- Plan: `docs/superpowers/plans/2026-10-18-create-reso-world-issue153-pr-review-v2.md`
+
+## 意図・受け入れ
+
+対話と runner の非対話で同じ prepare → PR 全体差分 → complete を使う。レビュー本文・候補 JSON・実行記録を親 checkout の `reviews/<owner>/<repo>/#<PR>-<branch>/` に保存する。DSH は親の取得済み情報だけを読み、親が停止と live HEAD を照合して正式保存する。
+
+1. `uv run pytest .agents/skills/pr-review` が成功する。移植元の文言照合テストは持ち込まず、実行挙動だけを検査する。
+2. 301 ファイル以上の PR 相当差分を手元の git で読み、本文と候補を保存できる（#59）。
+3. レビュー中の HEAD 変更を保存時に拒否し、draft・state を保持する。明示的に新しいセッションを始め直せ、古い成果を保存しない（#134）。
+4. fork と上流は PR 所属リポジトリで分離される。Git 操作の checkout と保存先を取り違えない。名前の規則は review_target.py に集約する。
+5. 番号・URL の読取は新配置だけを解決する。旧レビューは自動で読まず、移動・上書きしない。cleanup と review-fix-planning の読取と説明も同じ PR でそろえる。
+6. この子の PR で対話レビュー1回、DSH を含む2人を runner で並行起動する確認1回を行い、それぞれ本文・候補 JSON が保存されることを確かめる。成功を偽装せず、失敗時は reason・stop_confirmed・残存先を報告する。
+7. README のテスト入口（Python 全体・shell 回帰・layout）、runner の雛形の check と git diff --check が成功する。private repository の Actions は無効なので CI は確認しない。
+
+## 着手の根拠
+
+2026-10-18 UTC、#150/#151/#152/#146 は全て CLOSED/COMPLETED。必要な PR #173/#170/#164/#160 は base main に MERGED で、その merge commit が最新 origin/main に含まれることを確認した。#151 の実DSH確認は #175 に分離されており、コード完了とは区別する。ローカルの dsh は 0.2.0-rc.2。#153 の open PR・既存 branch/worktree・担当・予約は取得前に無かった。既存 pr-review は 221 passed、終了コード0（28.46秒）。
+
+## 範囲・禁止
+
+変更するのは `.agents/skills/pr-review/`、`.devcontainer/agent-runner.toml` の workflows.review（after_run と assignments.inspect）、AGENTS.md の「PR レビュー結果」の行、repo-cleanup-after-merge の pr-review セッション・保存先を扱う箇所、review-fix-planning/SKILL.md の「第1引数の解決」と手順2の保存先・PR_REPO 決定、docs/resoloop-meshy-workflow.md の保存先の文、およびこの Spec・Plan。
+
+`.agents/scripts/review_*.py`、tools/、ほかのスキル・workflow・agent・role は変更しない。旧レビューと他モデルのレビュー本文は読まない。共有インターフェースの変更が必要なら #116 に報告し、担当範囲を勝手に広げない。
+
+## 決定記録
+
+### D-1 移植する単位
+
+- 選択: 移植元の4 helper（pr_review_workspace.py、pr_review_parent.py、review_run.py、review_run_record.py）と references/evidence.md・noninteractive.md を基に、既存の安全条件と移植先 resolver へ適応する。SKILL.md はその入口を説明する形へ更新する。
+- 別案: 既存 helper のみに非対話を継ぎ足す。
+- 理由: 親保存・候補 pair・provenance・run 記録を後続 #155/#156 と同じ公開の形で使える。重複実装を減らす。
+- 委任: issue-to-pr の推奨案での設計判断。上流の過去の評価結果は本環境の成功として写さない。
+
+### D-2 保存先と checkout の分離
+
+- 選択: 保存先・保存ロック・fingerprint は PARENT_ROOT 基準。worktree/ref/object 操作は review_target.resolve が返す target_root/base_remote を使う。新しい target state は version 8 とし parent_root・target_root・target_kind・pr_repo を保持する。現行 version 7 の repository state は repo identity を含む既存の意味で保持し、上流の version 7（target state）と衝突させない。
+- 別案: CODE_ROOT に成果を置く／現行の version 7 を別の意味に流用する。
+- 理由: D-10 の親保存と #146 の fork/upstream 分離を両立し、残存セッションを誤解釈しない。
+- 委任: 親 Spec D-10/D-11。既存の legacy create 互換経路にも pr_repo を要求し、安全条件を弱めない。
+
+### D-3 resolver と専用 Git 領域
+
+- 選択: review_target.py の命名・対象解決・fetch_pull_head API をそのまま使う。未知の repository は利用者の明示した source-root（code-root 相当）を resolver に渡し、main checkout と remote 一致を確かめる。resoloop の upstream PR では origin 一致を要求せず、resolver の base_remote=upstream を使う。既存 checkout を探索・clone しない。
+- 別案: 上流の CloneTarget・tools/workspace・projects.toml を持ち込む／remote を origin に固定する。
+- 理由: #152 の公開仕様と AGENTS.md のリポジトリ境界を守る。
+- 委任: 親の利用者決定。親準備と DSH だけは helper が所有する一時 Git 領域を git init/fetch で作れる。これは欠けた対象 checkout を clone する経路ではなく、照合済み checkout/remote から完全な bundle を作るための隔離領域。既存 checkout を unshallow したり共有の追跡 ref/tag/FETCH_HEAD を動かしたりしない。
+
+### D-4 共通入口と出力
+
+- 選択: review_run.py の prepare/complete/fail/prepare-parent/finalize-parent/attach-runner を維持する。通常は PR head、明示 review-commit はその commit までの PR 全体を merge-base から読む。diff_command は `git -C <WT> diff --find-renames <base>..<reviewed_head>`。
+- 別案: 非対話だけ別の手順／gh pr diff／commit 単体差分。
+- 理由: #59 のAPI上限を避け、対話と runner を同じ検査に通す。
+- 委任: 子 Issue の指定。本文は `<model>.md`、指定commitは `<model>-commit-<fullSHA>.md`。候補 JSON は findings/ 配下。prepare 成功は prepared、DSH 子 complete は staged、親の保存・cleanup 後だけ success。CLI の未観測値を推測で補わない。
+
+### D-5 DSH の親保存
+
+- 選択: 認証済み親が PR/参照 Issue の情報・コメント・判断記録と Git bundle を snapshot に固定する。descriptor の path/sha256 と bundle digest を子で検査する。子は GitHub token・API・remote fetch を使わず、専用領域でレビューし、draft digest を固定して staged を返す。親が runner の実 Request/Identity/停止確認/sensitive cleanup と成果の対応を検査し、live PR HEAD を保存ロック内で照合して保存・cleanupする。
+- 別案: DSH に GitHub token を渡す／子の success 宣言だけを信頼する。
+- 理由: 既存 DSH の限定 grant を広げず、動いた HEAD や改変された staging を正式成果にしない。
+- 委任: 子 Issue の明示制約。認証不足・権限拒否を別 HOME・cache・full-access で回避しない。
+
+### D-6 記録と雛形
+
+- 選択: 候補 v2・本文 pair と run 記録を上流の形で保存。Unverified candidates は U-n 見出しか「なし」で始める。review workflow の after_run は finalize-parent → attach-runner の順。既定レビュアーは pi-gpt・devin-swe・dsh-ccd・claude-opus・pixg。
+- 別案: 結果の件数だけ回収／記録をモデルが手書きする。
+- 理由: 外側 success と payload success を区別でき、後続 #155/#156 が provenance を照合できる。
+- 委任: 親 D-12/D-13。実行にはルートの Python 3.14 project を `uv run --project <skill-source-root> --locked python` で使う。tools/devenv と grok-build は移植しない。個人設定は書き換えない。
+
+### D-7 テスト・実行方式
+
+- 選択: 実行する helper のテストを先に移し、欠落による RED を観測してから実装を移す。#146 の実行テストを保ち、#59/#134 と外部 checkout の経路・parent/DSH binding を追加する。文面・モデル一覧だけを照合するテストは追加・移植しない。スキルの無し/ありの比較は同じ非対話 DSH の場面で各1回、別コンテキストの dry-run で手順・停止判断を比較する（純粋な参照手順のため文面 micro-test の反復はしない）。
+- 別案: 上流の全テストを無条件コピー／文言の固定検査／多数の実モデル試行。
+- 理由: AGENTS.md の採用基準と費用上限を守りつつ実行経路の安全を検証する。
+- 委任: issue-to-pr。実装は同じ helper を順次変更する2 Taskなので executing-plans の inline を選ぶ。独立調査・builder check・スキル比較・最後のブランチ全体レビューは読み取り専用の subagent を使う。実装中の同期コマンドは終了コードとログを確認する。
+
+## Builder check 後に具体化した事項
+
+- 移植元は GitHub contents API の固定 commit から `/workspaces/reso-world/tmp/agents/issue-153.j8p_g6l_/donor/` に取得済み。`upstream-files.tsv` に blob SHA を保存し、Plan はこの snapshot を使う。引き継ぐ場合は同じ commit の各 path を contents API から新しい session dir へ取得し、blob SHA/内容を照合する。外部 checkout の clone はしない。
+- 実機の構成: このセッションで、この子の PR を新入口で対話レビュー1回する。ほかのレビュー本文は読まずに完了する。runner の並行確認は `dsh-ccd` と `devin-swe` を各1回、fallbackなし。追加試行は失敗の原因を変えたとき1回までで、認証・安全の失敗は再試行しない。全体の branch review は fresh reviewer 1件で別途実施する。
+- 起動の順: PR公開 → `prepare-parent --output-dir <SESSION/new-parent-input>` → descriptor を実 Request.prompt 末尾JSONの `parent_pr_data` に渡す → runner → `finalize-parent` → `attach-runner` → 結果の外側/内側と保存されたpairを確認。workflow に pre-run hook は足さない。
+- DSH の子の領域は `PARENT_ROOT/reviews/<owner>/<repo>/#N-branch/.staging/<run>/<request>/<agent>/`。snapshot/bundle は caller 所有の `SESSION/new-parent-input`。target_kind は既存 checkout なら `checkout`、helper 所有の一時Git領域なら上流との互換のため `clone`（取得処理自体は git init/fetch）。成功したものだけ helper cleanup に任せ、失敗時は実在の残存先を記録し勝手に消さない。
+- builder check の指摘は、既存API・手順・保存先の具体化としてこの節に反映した。利用者の内容承認を得たものとは扱わない。
+
+## 未確定部分と停止条件
+
+内部関数の細部は上流と既存テストを基準に実装者が決める。必要な API/ツールの失敗、依存/予約の競合、変更範囲の拡張、安全の失敗、予算超過、解消できない検証、Gitleaks の失敗では停止する。既存 #174/#175 の認証や adapter 本体をこの子で直さない。実機の並行レビューに失敗したら外側/内側の実結果を保持し、成功と報告しない。マージは利用者が行う。
