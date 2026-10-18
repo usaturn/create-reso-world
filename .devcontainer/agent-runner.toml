@@ -29,3 +29,43 @@ skills = []
 writes = false
 deadline_seconds = 2700
 result_shape = "json"
+
+[agents.pi-deepseek]
+runtime = "pi"
+command = ["piccd"]
+model = "deepseek/deepseek-v4.1-flash"
+provider = "commandcode"
+effort = "max"
+env = ["HOME", "PATH", "COMMANDCODE_API_KEY"]
+
+[agents.pi-gpt]
+runtime = "pi"
+command = ["pigs"]
+model = "gpt-6.1-sol"
+provider = "openai-codex"
+effort = "xhigh"
+env = ["HOME", "PATH", "OPENCODE_API_KEY"]
+
+[agents.pixg]
+runtime = "pi"
+command = ["pixg"]
+model = "grok-4.7"
+provider = "xai"
+effort = "xhigh"
+env = ["HOME", "PATH"]
+
+[agents.pigod]
+runtime = "pi"
+command = ["pigod"]
+model = "deepseek-v4.1-flash"
+provider = "opencode-go"
+effort = "max"
+env = ["HOME", "PATH", "OPENCODE_API_KEY"]
+
+[agents.pi-gemf]
+runtime = "pi"
+command = ["pigemf"]
+model = "gemini-3.8-flash"
+provider = "google-vertex"
+effort = "high"
+env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"]
