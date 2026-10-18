@@ -2045,3 +2045,162 @@ def test_a_repeated_signal_does_not_cut_the_end_record(tmp_path: Path, monkeypat
     report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
     assert report["status"] == "interrupted"
     assert report["signal"] == "SIGTERM"
+
+
+def fake_gh_path(tmp_path: Path, states: dict[str, str], *, number_offset: int = 0) -> str:
+    """Put a gh on PATH that reports `states` ({"owner/repo#N": STATE}) and fails for any other PR."""
+    bin_dir = tmp_path / "gh-bin"
+    bin_dir.mkdir()
+    states_file = tmp_path / "gh-states.json"
+    states_file.write_text(json.dumps(states), encoding="utf-8")
+    script = bin_dir / "gh"
+    script.write_text(
+        f"#!{sys.executable}\n"
+        "import json, sys\n"
+        "args = sys.argv[1:]\n"
+        "assert args[:2] == ['pr', 'view'] and args[args.index('--json') + 1] == 'number,state', args\n"
+        "number, repo = args[2], args[args.index('--repo') + 1]\n"
+        f"state = json.load(open({str(states_file)!r})).get(f'{{repo}}#{{number}}')\n"
+        "if state is None:\n"
+        "    sys.exit('GraphQL: Could not resolve to a PullRequest')\n"
+        f"print(json.dumps({{'number': int(number) + {number_offset}, 'state': state}}))\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    return f"{bin_dir}{os.pathsep}{os.environ['PATH']}"
+
+
+def session_files(temp_root: Path) -> dict[str, str]:
+    # Everything sessions might touch, without walking into the checkouts.
+    return {
+        str(path.relative_to(temp_root)): path.read_text(encoding="utf-8") if path.is_file() else "<dir>"
+        for path in sorted(temp_root.rglob("*"))
+        if "worktree" not in path.relative_to(temp_root).parts[1:2]
+    }
+
+
+@pytest.mark.parametrize(
+    ("fork_state", "upstream_state"), [("MERGED", "OPEN"), ("OPEN", "MERGED"), ("CLOSED", "OPEN")]
+)
+def test_sessions_keep_the_open_pr_when_fork_and_upstream_share_number_branch_and_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fork_state: str, upstream_state: str
+) -> None:
+    # Listing only the fork's PRs would call the upstream review "not open";
+    # each session must be looked up in its own repository.
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    temp_root = tmp_path / "sessions"
+    fork = workspace.create(identity_create_args(repo, commit, temp_root, "usaturn/resoloop"))
+    upstream = workspace.create(identity_create_args(repo, commit, temp_root, "orange3134/resoloop"))
+    git(repo, "worktree", "add", "--detach", str(tmp_path / "unrelated"), commit)
+    monkeypatch.setenv(
+        "PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": fork_state, "orange3134/resoloop#11": upstream_state})
+    )
+    before = (worktree_paths(repo), session_files(temp_root))
+
+    report = workspace.sessions(argparse.Namespace(repo=str(repo)))
+
+    assert (worktree_paths(repo), session_files(temp_root)) == before
+    assert report["main_root"] == str(repo.resolve())
+    by_repository = {entry["pr_repository"]: entry for entry in report["sessions"]}
+    assert set(by_repository) == {"usaturn/resoloop", "orange3134/resoloop"}
+    for result, state in ((fork, fork_state), (upstream, upstream_state)):
+        entry = by_repository[result["pr_repository"]]
+        assert entry["worktree"] == result["worktree"]
+        assert (entry["pr_number"], entry["head_branch"], entry["commit"]) == (11, "fix/shared", commit)
+        assert entry["pr_state"] == state
+        assert entry["removable"] is (state != "OPEN")
+        if state == "OPEN":
+            assert "open" in entry["reason"]
+
+
+def test_sessions_keep_a_version6_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    result = workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
+    state_file = Path(result["state_file"])
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    state["version"] = 6
+    del state["pr_repository"]
+    state_file.write_text(json.dumps(state) + "\n", encoding="utf-8")
+    monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": "MERGED"}))
+
+    [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
+
+    assert entry["removable"] is False
+    assert entry["pr_repository"] is None
+    assert "no PR repository" in entry["reason"]
+
+
+@pytest.mark.parametrize("failure", ["unknown-pr", "no-gh"])
+def test_sessions_keep_when_gh_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
+    if failure == "unknown-pr":
+        monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {}))
+    else:
+        git_only = tmp_path / "git-only"
+        git_only.mkdir()
+        real_git = shutil.which("git")
+        assert real_git is not None
+        (git_only / "git").symlink_to(real_git)
+        monkeypatch.setenv("PATH", str(git_only))
+
+    [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
+
+    assert entry["removable"] is False
+    assert entry["pr_state"] is None
+    assert entry["pr_repository"] == "usaturn/resoloop"
+
+
+def test_sessions_keep_when_gh_reports_another_number(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
+    monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": "MERGED"}, number_offset=1))
+
+    [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
+
+    assert entry["removable"] is False
+    assert entry["pr_state"] is None
+
+
+@pytest.mark.parametrize("content", [None, "[]\n"])
+def test_sessions_keep_a_session_without_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: str | None
+) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    result = workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
+    state_file = Path(result["state_file"])
+    if content is None:
+        state_file.unlink()
+    else:
+        state_file.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": "MERGED"}))
+
+    [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
+
+    assert entry["removable"] is False
+    assert entry["pr_repository"] is None
+    assert entry["worktree"] == result["worktree"]
+
+
+def test_sessions_keep_a_locked_worktree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    result = workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
+    git(repo, "worktree", "lock", "--reason", "in use", result["worktree"])
+    monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": "MERGED"}))
+
+    [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
+
+    assert entry["removable"] is False
+    assert "locked" in entry["reason"]
