@@ -1,8 +1,9 @@
 """Rebuilding either container must not remove packages shared through ~/.pi.
 
-The break caught is running the retired Context7 cleanup, or omitting registration
-in a fresh home. Execute the actual installer section twice, replacing only
-network/package-manager operations and the separately tested tier setup.
+The break caught is running a Context7 cleanup, or omitting registration of the
+packages this repository installs in a fresh home. Execute the actual installer
+section twice, replacing only network/package-manager operations and the
+separately tested tier setup.
 """
 
 from __future__ import annotations
@@ -17,7 +18,12 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
-SHARED_PACKAGES = ("npm:@upstash/context7-pi", "npm:@plannotator/pi-extension")
+# Packages this repository's setup registers in the shared ~/.pi.
+INSTALLED_PACKAGES = ("npm:@plannotator/pi-extension",)
+# This repository no longer installs context7-pi and stops loading it through
+# .pi/settings.json (#162). Other repositories sharing ~/.pi still install and
+# use it, so a rebuild here must keep their registration.
+KEPT_PACKAGE = "npm:@upstash/context7-pi"
 
 FAKE_PI = r'''
 import json, os, sys
@@ -50,7 +56,7 @@ def test_rebuild_preserves_shared_packages(tmp_path: Path, registered: bool) -> 
     agent.mkdir(parents=True)
     settings = agent / "settings.json"
     settings.write_text(json.dumps({
-        "packages": ["npm:unrelated-user-package", *(SHARED_PACKAGES if registered else ())],
+        "packages": ["npm:unrelated-user-package", *((*INSTALLED_PACKAGES, KEPT_PACKAGE) if registered else ())],
         "extensions": ["-builtin:mcp", "user-local-extension"],
         "theme": "user-choice",
     }))
@@ -93,10 +99,12 @@ def test_rebuild_preserves_shared_packages(tmp_path: Path, registered: bool) -> 
         )
         assert result.returncode == 0, result.stdout + result.stderr
         actual = json.loads(settings.read_text())
-        assert set(SHARED_PACKAGES) <= set(actual["packages"])
-        assert actual["packages"].count(SHARED_PACKAGES[0]) == 1
-        assert actual["packages"].count(SHARED_PACKAGES[1]) == 1
+        for package in INSTALLED_PACKAGES:
+            assert actual["packages"].count(package) == 1, package
+        if registered:
+            assert actual["packages"].count(KEPT_PACKAGE) == 1
         assert "npm:unrelated-user-package" in actual["packages"]
         assert actual["extensions"] == ["user-local-extension"]
         assert actual["theme"] == "user-choice"
-    assert not removals.exists() or not set(SHARED_PACKAGES).intersection(removals.read_text().splitlines())
+    removed = removals.read_text().splitlines() if removals.exists() else []
+    assert not {*INSTALLED_PACKAGES, KEPT_PACKAGE}.intersection(removed), removed

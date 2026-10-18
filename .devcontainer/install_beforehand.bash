@@ -531,9 +531,11 @@ remove_pi_lens() {
 remove_pi_lens
 
 step "Installing the pi extensions"
+# Context7 は ctx7 CLI と find-docs スキルで使い、npm:@upstash/context7-pi は導入しない。共有の ~/.pi に残っていても、
+# .pi/settings.json の autoload: false の項目でこのリポジトリでは読み込まない（#162）。~/.pi を共有するほかの
+# リポジトリが導入し続けるため、撤去の処理には加えない。
 for extension in \
     npm:@jc4649/notify \
-    npm:@upstash/context7-pi \
     npm:@plannotator/pi-extension \
     npm:pi-safe-search \
     npm:pi-diet-ripgrep \
