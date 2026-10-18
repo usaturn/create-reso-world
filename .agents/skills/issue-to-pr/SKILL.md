@@ -102,9 +102,20 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 ## 5. 検証・PR・完了
 
 - **`verification-before-completion` と `finishing-a-development-branch` 必須。** 終了方法は PR の作成を選び、改めて選択肢を尋ねない。検証は 2 章の表の入口で行う。長時間の検証・子・CI は `monitoring-long-tasks` 必須で、終了を待ち、終了コードと実ログを確かめる。
-- worktree で明示したパスだけを stage・commit し、push して `gh pr create --repo "$TARGET_REPO" --base main --head <branch>` で PR を作る。既存の PR が見つかったら重複して作らない。
+- worktree で明示したパスだけを stage・commit する。push は `finishing-a-development-branch` の `git push -u` ではなく、`AGENTS.md` の「push の前の秘密情報の検査」の形で、次の順に行う。検査のスクリプトは、どの対象でも `PARENT_ROOT` のものを使う（外部の checkout には無く、作業中の branch のものはその branch が書き換えられる）。
+
+  ```bash
+  SCAN="$PARENT_ROOT/scripts/scan-before-push.sh"
+  CODE_SHA="$(bash "$SCAN" -C <コードの worktree>)" && [ -n "$CODE_SHA" ] \
+    && DOC_SHA="$(bash "$SCAN" -C <文書の worktree>)" && [ -n "$DOC_SHA" ] \
+    && git -C <文書の worktree> push origin "${DOC_SHA:?}:refs/heads/docs/<名前>" \
+    && git -C <コードの worktree> push origin "${CODE_SHA:?}:refs/heads/<branch>"
+  ```
+
+  どれかを push する前に、公開する worktree をすべて検査する。`TARGET_REPO` が create-reso-world なら、文書の worktree はコードの worktree と同じなので、`DOC_SHA` の 2 行を除く。SHA が空だと refspec が branch の削除になるので、呼び出しを分けるときも `:?` を外さない。検査の後に commit を足したら、検査からやり直す。CI の修正などの再 push も同じ形で行う。
+- push の後に `gh pr create --repo "$TARGET_REPO" --base main --head <branch>` で PR を作る。SHA を指定した push では upstream が設定されないので、`--head` を省かない。既存の PR が見つかったら重複して作らない。
 - PR 本文: Issue が `TARGET_REPO` にあれば `Closes #N`、別のリポジトリにあれば `Refs <Issue の URL>`（マージで別のリポジトリの Issue を閉じない）。変更概要、**Spec の決定と理由、実行方式と理由**、実行した検証と結果、作業時間と主要 Task 別の内訳を書く。未実行の確認を成功と書かない。
-- `TARGET_REPO` が create-reso-world でなければ、続けて文書用の branch を push し、create-reso-world に Spec・Plan だけの PR を作る。本文は `Refs <Issue の URL>` とコードの PR の URL。コードの PR の本文にも文書の PR の URL を足す。
+- `TARGET_REPO` が create-reso-world でなければ、続けて、上で push した文書用の branch から create-reso-world に Spec・Plan だけの PR を作る。本文は `Refs <Issue の URL>` とコードの PR の URL。コードの PR の本文にも文書の PR の URL を足す。
 - CI は 2 章の表のとおり。public のリポジトリは PR の checks が green になってから完了とする。失敗したら直すか、直せなければ止まる。
 - マージ・タグ・リリース・デプロイ・プロビジョニングは行わない。admin マージ・auto-merge・force push・branch の削除もしない。
 - ボードの子の成果の公開・予約の解放は `planning-parallel-issues` に従う。自分の所有物だけを扱う。
@@ -112,7 +123,9 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 
 ## 停止時の報告
 
-不正な入力（helper の終了コード 2）、対象・remote の確認の失敗、競合、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗では止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
+不正な入力（helper の終了コード 2）、対象・remote の確認の失敗、競合、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出・失敗（gitleaks が無い・版が違うを含む）では止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
+
+検査で止まったら、どの worktree も push せず、PR を作らない。誤検出に見えても `AGENTS.md` のとおり回避しない。gitleaks は自分で導入せず、`bash "$PARENT_ROOT/.devcontainer/install_gitleaks.bash"` での導入を次の操作として報告する。検査が全部通った後の push や PR の作成が失敗して一部だけ公開されたら、公開済みの branch・PR を報告し、取り消さない。
 
 **理由 / 現在の状態 / 実施済みの検証と終了コード / 存在する worktree・branch・Spec・Plan・ログ / 次の操作** を報告する。作っていないパスは「未作成」と書く。通常の工程の区切り、推奨案の選択、実装方式の選択は停止の理由にしない。
 
