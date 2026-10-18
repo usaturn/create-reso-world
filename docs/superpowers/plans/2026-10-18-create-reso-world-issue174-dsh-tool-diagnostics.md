@@ -82,8 +82,8 @@
 - [x] README の入口（ワールド以外）を同期実行: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools`。終了コード・実ログを確認。
 - [x] branch 全体を fresh の sp-review に読み取り専用で依頼。Spec/Plan、基準 SHA、HEAD、Review Focus、ledger を渡す。重要な指摘は 1 回の RED→GREEN 修正で対応し、回帰を再実行する。
 - [x] Issue の open 状態・コメント・競合 PR/claim/branch を再確認する。自分の worktree と他者のものを区別する。
-- [ ] Plan の完了記録を更新（状態 draft のまま）して commit。親の秘密検査が成功した SHA のみを push し、明示 head/base main で PR を作成する。
-- [ ] PR に Closes #174、決定理由、実行方式、検証・所要時間を記載。private の停止済み CI は対象外。ログの要点を文書/PR に転記後 ledger を end にしてセッション scratch を回収する。worktree/branch は PR のため残す。
+- [x] Plan の完了記録を更新（状態 draft のまま）して commit。親の秘密検査が成功した SHA のみを push し、明示 head/base main で PR を作成する。
+- [x] PR に Closes #174、決定理由、実行方式、検証・所要時間を記載。private の停止済み CI は対象外。ログの要点を文書/PR に転記後 ledger を end にしてセッション scratch を回収する。worktree/branch は PR のため残す。
 
 ## 実行記録
 
@@ -95,4 +95,9 @@
 - 公開直前の再確認: Issue OPEN、コメント・依存・同 Issue の PR/claim に競合なし。PR #170 は main に MERGED。自分の worktree/branch のみ使用する。
 - 実行方式の scratch 配置は AGENTS.md に従った。設計上の変更・持ち越す軽微指摘はない。実モデル使用は 0 回。
 - 時間: 2026-10-18 21:34 UTC 着手。準備・設計・Plan 約 6 分、実装・TDD 約 3 分、全体回帰・結果記録 約 17 分、独立レビュー・公開準備 約 2 分。予算 ledger の記録開始は 21:37 UTC（準備途中）で、公開準備時点の記録対象能動時間は約 25 分、60 分の予算内。安全の失敗 0、fixture の信頼性失敗 1 回（修正後解消）。
-- 文書は承認されていないため状態 draft のまま。公開前の秘密検査と PR 作成へ進む。
+- 文書は承認されていないため状態 draft のまま。実装・検証・レビュー・PR 作成は完了。
+- 公開先: https://github.com/usaturn/create-reso-world/pull/180 （OPEN、base main、Closes #174 を確認）。マージは未実施。
+- 公開前の Gitleaks: 5 commits を検査し検出なし。検査した `d387fe6210af7ac493df16518fe68c9b229190a9` をそのまま push した。本完了記録も同じ検査経路で公開する。
+- budget 終了時の記録対象能動時間は 1608.81 秒（約 26 分 49 秒）、安全の失敗 0、再試行上限到達なし。開始前の準備約 3 分を含め、全体所要時間は約 30 分。worker の強制停止は 0 回、監視 watcher の作成も 0 回。
+- `/workspaces/reso-world/tmp/agents/issue-174.znhd_slh/` のログと ledger は、結果を本 Plan と PR に転記し、同期処理の終了と watcher 不在を確認して回収済み。残した scratch/log はない。
+- worktree `/workspaces/reso-world/.worktrees/issue-174-dsh-tool-diagnostics` と branch `fix/issue-174-dsh-tool-diagnostics` は PR の作業用に保持する。

@@ -56,3 +56,7 @@ DSH がファイル読み取りエラーから回復し、有効な final を返
 - README の入口（ワールドを除く）: `.devcontainer/run-tests.bash`、`scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`。
 - `git diff --check` とブランチ全体の読み取り専用レビューを実施する。
 - 公開前に親 checkout の `scripts/scan-before-push.sh` を使い、検査した SHA のみを push する。private リポジトリの停止済み CI は確認しない。
+
+## 実行結果
+
+実装と検証を完了し、https://github.com/usaturn/create-reso-world/pull/180 で公開した。内容の明示承認は受けていないため状態は draft を維持する。DSH 147 件成功、全 Python 回帰 2591 件成功・1 件スキップ、33 本のスクリプトとレイアウト検査が成功した。ブランチ全体の独立レビューに修正指摘はない。詳細は対応 Plan に記録した。実モデル・実 API の動作確認とマージは行っていない。
