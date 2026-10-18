@@ -4,10 +4,12 @@
 
 - 文書管理・実装対象: `usaturn/create-reso-world`
 - Issue: https://github.com/usaturn/create-reso-world/issues/128
-- 状態: `draft`。内容の承認は受けていない。
-- 調査基準: `50e4a6bcbbc3e04fc20802e74997b9b00afbe6c2`（origin/main）
-- 利用者の指示: `issue-to-pr` スキルを明示して `#128`。
-- 許可: スキルの「通常の設計判断は推奨案で決め、検証・commit・push・PR 作成まで継続する指示」に従う。マージ・リリース・他者の作業の変更はしない。
+- 状態: `completed`。実装と PR #142 のレビュー選別・受け入れ検証が完了。内容の明示承認（`approved`）とは区別する。
+- PR: https://github.com/usaturn/create-reso-world/pull/142
+- レビュー検証 HEAD: `bbbd91cc9d893f6e07ca3d03ee6fc7fc089f0a9e`。
+- 初回実装の調査基準: `50e4a6bcbbc3e04fc20802e74997b9b00afbe6c2`（origin/main）。
+- 初回実装の指示: `issue-to-pr` スキルを明示して `#128`。その時点の許可は検証・commit・push・PR 作成までで、マージ・リリース・他者の作業の変更は含まなかった。
+- 今回の指示: `review-fix-planning` を明示して `#142 --hold-action skip`。計画のみの指定がないため、同スキルの完遂（必要なら修正して既存 PR へ push、不要なら検証・最終コメント・マージ・関連 Issue 更新）を実行する。`--hold-action` はこのスキルには未定義であり、停止条件や安全確認を省く許可には使わない。
 - Plan: `docs/superpowers/plans/2026-10-18-create-reso-world-issue128-checkout-test-sync.md`
 
 ## 意図と原因
@@ -69,11 +71,67 @@ PID ファイルはテスト専用の新しい tmp_path に作る。PID の読�
 - `git diff --check`: 終了 0。追加の固定文言テストなし。private Actions は確認対象外。
 - ログ・隔離コピーは `/workspaces/reso-world/tmp/agents/issue-128.6jfkkfsu/` に保存して検証した。要点は本節へ転記済みで、終了時に不要を確認して削除する。残存する場合は最終報告に絶対パスを記載する。
 
-### レビュー・公開
+### レビュー・公開（初回実装時の記録）
 
 - 読み取り専用の独立したブランチ全体レビュー: `50e4a6b..a34554c`。Critical / Important / Minor / 判断を見送った項目はいずれも 0。再レビュー・追加修正は不要だった。子はテストを実行していない。
 - PR: https://github.com/usaturn/create-reso-world/pull/142 （base `main`、head `fix/issue-128-checkout-test-sync`）。マージ未実施。
 - 公開直前に Issue の OPEN、コメント・依存・open PR 全ページ・予約 ref・branch を再確認。自身の branch 以外に同 Issue の作業はなかった。
 - 初回 push は Gitleaks で 4 commits を検査し、検出なしの `a34554c2a63a72cae3972b74a42982cceeb61b5b` をそのまま送信。この結果追記の push も再検査する。
 - 所要: 約 15 分（03:38〜03:53 JST の目安）。準備・設計 4 分、再現・実装 1 分、全体検証 6 分、レビュー・結果確認 2 分、公開・記録 2 分。controller の壁時計で数え、子の概算時間は加算していない。
-- 実装・受け入れ検証・PR 作成は完了。文書の状態は実行許可と内容の承認を区別して `draft` のまま。
+- 実装・受け入れ検証・PR 作成は完了。この時点の文書の状態は実行許可と内容の承認を区別して `draft` のまま。
+
+## PR #142 の review-fix-planning（2026-10-18）
+
+### 範囲と入力
+
+- 担当: `openai-codex/gpt-6.1-sol`（pi の bash ツールが提示した `PI_PROVIDER` / `PI_MODEL`）。
+- 入力ディレクトリ: `/workspaces/reso-world/reviews/#142-fix-issue-128-checkout-test-sync/`。配下の全 4 ファイルを全文読んだ。
+- 全レビューの対象 HEAD は `bbbd91cc9d89`。取得した `pull/142/head` と PR API の現行 HEAD `bbbd91cc9d893f6e07ca3d03ee6fc7fc089f0a9e` が一致し、全対象 HEAD がその祖先であることを確認した。
+- `PARENT_ROOT`: `/workspaces/reso-world`。`CODE_ROOT` / `DOC_ROOT`: `/workspaces/reso-world/.worktrees/issue-128-checkout-test-sync`。既存 worktree が clean かつ現行 HEAD と一致したため再利用した。このセッションが作った worktree ではないので片付けない。
+- 文書の候補をリポジトリ・Issue #128・PR #142・checkout の待ち合わせというテーマで照合し、この Spec と冒頭の Plan に確定した。回ごとの別 Spec は作らない。
+
+### 全指摘の分類
+
+| 入力ファイル | 対象 HEAD | 解消済み | 対応する | 対応しない | 根拠 |
+| --- | --- | ---: | ---: | ---: | --- |
+| `SWE-2-Max.md` | `bbbd91cc9d89` | 0 | 0 | 0 | 報告された指摘なし |
+| `deepseek-deepseek-v4.1-flash.md` | `bbbd91cc9d89` | 0 | 0 | 0 | 報告された指摘なし |
+| `claude-opus-5-5.md` | `bbbd91cc9d89` | 0 | 0 | 0 | 報告された指摘なし |
+| `grok-4.7.md` | `bbbd91cc9d89` | 0 | 0 | 0 | 報告された指摘なし |
+| 自己確認 | `bbbd91cc9d89` | 0 | 0 | 0 | PR が導入した致命的な欠陥なし |
+| **合計** | | **0** | **0** | **0** | 指摘の総数は 0 件 |
+
+Opus の「反証済みで報告しない候補」は正式な指摘ではない。空の PID ファイルの理論上の窓に関して、今回追加した待機は PID を読まず、既存 cleanup が読むまでに親の終了待ちと inspect が入ることを確認した。今回の通常・遅延検証で誤動作はなく、到達条件を伴う致命的な欠陥は確認していない。将来の保険としての追加修正やテストは行わない。
+
+### 確認範囲と判断
+
+- PR の全差分、変更ファイル 3 件の全文（テスト 1,806 行・Spec・Plan）を確認した。検証根拠は現行 HEAD と clean の一致を確認した専用 worktree、および Git のコミット済み blob である。他の worktree の未コミット差分は見ていない。
+- `stalling_git_env` の全 3 呼出元、新待機の全 2 呼出元、`wait_for_phase` の lock-wait 経路、SIGTERM テスト、kill・finally の cleanup と既存 assertion を確認した。
+- helper の `git`、`CreateJournal`、`interruption_signals`、`create` / `create_session`、lock 継承、`creator_running` / `attempt_report` / `inspect_attempt`、`finished_creator` / `abandon_attempt` と削除対象の確認処理を読んだ。checkout 後の marker、継承する journal fd と別 session、子の終了後の `vanished` は既存の検査と一致する。
+- helper 本体は差分なし。変更はテストの待ち合わせ 13 行のみで、既存の assertion と cleanup は不変。実際に起きた不具合の再発防止であり、AGENTS.md のテスト採用基準に適合する。文書・文言の固定値を検査するテストは追加しない。
+- 「対応する」は 0 件のため、修正方針・影響経路の修正表・失敗時の修正検証は不要。以前のレビュー修正コミットもなく、設計の見直しのきっかけはない。新たな設計選択や PR の保証を狭める必要もない。
+
+### 今回の実行検証
+
+| 検証 | 結果 |
+| --- | --- |
+| 隔離 worktree の helper の `journal.record("worktree-add")` 直後だけに 0.5 秒の遅延を追加し、基準版 `50e4a6b` のテスト 3 件を実行 | 2 failed / 1 passed、exit 1、0.90 秒。`vanished` / `running` の不一致と `still running` 拒否が起きない失敗。SIGTERM は成功 |
+| 同じ遅延条件で現行 HEAD のテスト 3 件を実行 | 3 passed、exit 0、1.79 秒。2 件の修正効果と SIGTERM の既存挙動を確認 |
+| 専用 worktree: `uv run pytest .agents/skills/pr-review -q -p no:cacheprovider` | 190 passed、exit 0、27.09 秒 |
+| 専用 worktree: `bash .devcontainer/run-tests.bash` | 32/32 PASS、exit 0 |
+| 専用 worktree: `bash scripts/check-layout.sh` | PASS、exit 0 |
+| 専用 worktree: `uv run pytest tests/skills .agents/skills -q -p no:cacheprovider` | 589 passed、exit 0、263.17 秒 |
+| `git diff --check` | exit 0 |
+| 最新 base の確認 | `origin/main` は `50e4a6bcbbc3e04fc20802e74997b9b00afbe6c2` で現行 head の祖先。base 統合ツリーの再検証は不要 |
+| CI | private の create-reso-world であることを API で確認。AGENTS.md に従い確認対象外 |
+
+実 API の live check は `PI_CODEX_LIVE_CHECK=0` / `PI_XAI_LIVE_CHECK=0`、uv は offline。pytest の `--basetemp`・`TMPDIR` とログを `/tmp/review-fix-planning.3EKv5D/` に閉じ込めた。テストの再試行はしていない。意図した RED は検出力の証拠であり、検証の信頼性失敗ではない。今回コード修正はしていないため、失敗時の安全ガードを外す対照は対象外である。
+
+同期の sp-recon に独立調査を依頼したが、応答が空で成果と終了コードを得られなかった。成功扱いにせず、調整役が全確認を実施した。修正後の自己レビューは結論 1 のみの手順なので未実施。未確認の指摘・未読ファイルはない。
+
+### 結論と終了前の記録
+
+- **結論 2: 修正不要としてマージする。** 入力の指摘と自己確認の致命的な欠陥はいずれも 0 件で、現行 head の必要な検証はすべて成功した。
+- open・非 draft・許可対象の `usaturn/create-reso-world` であることを再確認した。文書コミット前に PR の head を再照合し、Spec 1 ファイルだけのコミットを Gitleaks 検査後に既存 head へ送る。最終状況コメントの後、`--match-head-commit` で検証した先端だけをマージし、関連 Issue #128 を更新する。これらの外部操作の結果は PR コメントと完了報告へ記録し、本 Spec に記録だけの追加コミットは作らない。
+- 再現・検証終了後に marker にある PID の生存を確認し、生き残ったプロセスはなかった。隔離 worktree を `git worktree remove --force` で解除してから親一時領域を削除済み。ログの要点は上の表へ転記した。確認用コピー・新しいテスト・新しい PR は作らない。
+- 所要の計測区間: 11:02:33 JST の PR/context 確認から必須検証終了 11:12:41 まで 10 分 8 秒。うち再現・一括検証は 11:04:15〜11:12:41 の 8 分 26 秒。初期のスキル確認およびその後の記録・公開時間はこの区間に含めず、総所要は完了報告に記載する。
