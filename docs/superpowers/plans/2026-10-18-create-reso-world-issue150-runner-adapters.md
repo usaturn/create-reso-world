@@ -280,3 +280,13 @@ env = ["HOME", "PATH"]
 能動時間は停止判断時点で約96.5分/180分（利用者待ちは除外、並行workerの時間を足さない）。主要Taskの担当時間: Pi約4分45秒、Claude約4分18秒＋修正約2分、Codex7分37秒、Cursor4分59秒、Devin約6〜7分＋修正約2分。全体レビュー約4分37秒、最終修正5分15秒、scoped再レビュー1分08秒。回帰は修正前8分44秒と修正後7分12秒（shellは並行）、実機約1分06秒。その他はhandoff検証・設計/計画・各Taskレビュー・記録/公開準備。準備の一部と各担当のphase内訳は親scratchの報告を参照し、計測していない時間を推測で加算しない。
 
 残存記録は `/workspaces/reso-world/tmp/agents/issue-150.x_25tm6g/`、SDD ledger/reportsはその下の `.superpowers/sdd/2026-10-18-create-reso-world-issue150-runner-adapters/`、最終検証は `checks/`、実機は `live-smoke/summary.json`。コードの受け入れが未完了なので削除しない。Spec/Planと新しいhandoff対はIssueコメントで完全な内容とhash/bytesを公開し、別領域への復元検証後に自分のclaimだけをexact-SHA leaseで解放する。元のIssueはopenのまま、親Issue・他者の予約・worktreeには触れない。
+
+## 認証復旧確認後の再開と再停止（2026-10-18 17:55 UTC）
+
+- 利用者の「認証は復旧済みです」を実機再開の条件充足として記録した。内容承認は記録せず、Spec/Planの状態はdraftのまま。新しい担当予約 `56056413395c4bd37999619bb066213dc145a0c0` を取得し、#149 completed・PR #163 mainマージ済み、Issue #150 open、競合PRと他者の予約なしを再確認した。
+- 既存HEAD `9395032` と検証済みコード `9a03f74` の差分はSpec/Planの記録だけ。全5 Task・個別レビュー・全体レビューと1回の修正・scoped再レビューは完了済みとして再実行しなかった。2181 pytest / 33 shell / depth adapter291件の既存の終了コード0とログを照合し、config check（5 runtime/11 agent supported）・branch全体のdiff checkを再実行して終了コード0を確認した。コード変更が無いため全回帰は繰り返していない。
+- 新しい `resume-20261018T175317Z/live-smoke-remaining/` に使い捨てgit repo・一時configを作り、対象を `pigod`・`pi-gemf`・`pi-go-glmf` だけに限定した。writes=False、deadline120秒、fallbackなし。元のsmokeと成功8件は変更していない。
+- `pigod` 1回の結果: runner exit1 / CLI exit0、`awaiting_authentication`、payload null、観測provider `opencode-go` / model `deepseek-v4.1-flash` / effort `max`、runner呼出し1.671秒（wrapper1.767秒、attempt1.299秒）。`stop_confirmed=true`、outside_changes=[]。実行プロセスの終了をharnessの終了コードとPIDの不在でも確認した。
+- CLIの診断は `401 / authentication_error / api_key_expired`。この実行で使われたキーが期限切れと判定されたこと以外は推測しない。認証ファイル・秘密値は取得・表示・変更せず、どの設定元のキーだったかは未確認。利用者による更新の反映状況を確認する必要がある。再ログインだけではキーの期限が更新されないという診断だった。
+- 停止条件に従い後続2件は未実行。`live-authentication:pigod` は記録上2回となり既定の再試行上限に達した。同条件の追加実行、認証やprovider/modelの変更、コードpush・PR作成は行わない。具体的な更新反映の確認または条件変更が必要であり、一般的な継続指示だけで同じrunを繰り返さない。
+- 詳細は親scratchの `resume-20261018T175317Z/diagnosis.json`・`live-smoke-remaining/summary.json`、`checks/live-smoke-remaining-9395032.json`、既存SDD ledger。停止記録と更新したhandoff対を公開・復元検証してから、この再開runのclaimだけをexact-SHA leaseで解放する。実装・受け入れは未完了のまま保持し、SDD workspaceとscratchは削除しない。

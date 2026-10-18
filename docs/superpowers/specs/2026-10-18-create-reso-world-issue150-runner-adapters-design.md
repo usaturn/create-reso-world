@@ -76,3 +76,9 @@ CLIが終了コード0でも完全な応答・receiptが無ければ成功にし
 5 adapter、対応テスト・文書、11 agentの設定を実装した。各Taskの独立レビューと、全体レビュー後の1回の修正・再レビューが完了し、指摘4件は修正済み。最終コードは `9a03f744e8544374fa52a400b4d5f3b240062f76`。Python 2181件、shell33件、子エージェント環境のadapter291件、layout/config/diff検査は終了コード0。通常環境のadapterは全体pytestにも含まれる。
 
 実機は8 agentが成功し、9番目の `pigod` が `awaiting_authentication` で停止した。診断にAPI keyの期限切れがあり、`stop_confirmed=true`、payloadなし、outside_changesなし。`pi-gemf` と `pi-go-glmf` は未実行。認証設定・provider・modelは変更せず、再試行しない。全agentの受け入れ条件を満たしていないため状態はdraftのまま、コードのpush・PRは未実施。詳細な観測値・所要時間と再開条件はPlan末尾に記録する。内容の承認記録はない。
+
+### 認証復旧確認後の再開結果（2026-10-18 17:55 UTC）
+
+利用者の「認証は復旧済みです」を受け、新しい担当予約を取得し、残り3 agentだけを新しい使い捨てrepo・一時configで確認するrunを開始した。最初の `pigod` 1回が再び `awaiting_authentication` となり、OpenCode Goの診断は `401 / authentication_error / api_key_expired` だった。runnerは終了コード1、CLIは0、payloadはnull、観測modelは `deepseek-v4.1-flash`、`stop_confirmed=true`、outside_changesは空。run全体は1.767秒で終了した。
+
+停止条件に従い `pi-gemf`・`pi-go-glmf` は未実行のまま。成功済み8件・元ログ・完了済みTaskとレビューは再実行していない。認証ファイル・秘密値は取得・表示・変更せず、別provider/modelや対話へのfallbackも行っていない。この実行で有効だったキーが期限切れと判定されたことは確認できたが、そのキーの設定元や利用者の更新が反映されなかった理由は未確認である。同じ実機認証失敗は記録上2回となったため、同条件の追加実行は行わない。コードは変更せず、停止記録だけを追記した。コードpush・PRは引き続き未実施で、状態はdraft、内容承認なし。
