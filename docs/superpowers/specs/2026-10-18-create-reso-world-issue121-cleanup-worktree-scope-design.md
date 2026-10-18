@@ -5,7 +5,7 @@
 - 文書管理・コード対象: `usaturn/create-reso-world`
 - 対象 Issue: https://github.com/usaturn/create-reso-world/issues/121
 - 検証した基準 HEAD: 移植先 `50e4a6bcbbc3e04fc20802e74997b9b00afbe6c2`（`origin/main`。Issue に書かれた比較の基準 `71607d9` より新しいが、`repo-cleanup-after-merge` の SKILL.md・evals.json は同じ）、移植元 usaturn/agent-workspace `d3f4151`（Issue の比較の基準。修正は #651・PR #652 の `378dfaf`・`0d3b76b`）
-- 状態: draft（文書の内容に対する利用者の明示承認は無い）
+- 状態: completed（PR #143 の review-fix-planning を完了。文書の内容に対する明示承認ではなく、下記の実行許可に基づく）
 - 関連 Plan: `docs/superpowers/plans/2026-10-18-create-reso-world-issue121-cleanup-worktree-scope.md`
 - 実行許可: 2026-10-18（JST）、利用者が Claude Code で `/issue-to-pr #121` を実行した。issue-to-pr スキルのとおり、通常の設計判断を推奨案で決め、検証・commit・push・create-reso-world への PR の作成まで進めることが許可されている。マージは利用者が行う。同じ Issue で先に pi のセッションが作った worktree・branch（`fix/issue-121-cleanup-worktree-scope`、変更なし）があったため、引き継ぐかを利用者に尋ね、「引き継いで続ける」の回答を得た。下の判断は確認を取らずに決めたエージェントの判断である
 
@@ -158,3 +158,73 @@ AGENTS.md の「テストの採用基準」により、SKILL.md の文面と eva
 
 - 文面のスキルなので、エージェントが手順を読まずに古い習慣で prune する可能性は残る。ガードレールと Red Flags に同じ規則を置いて減らす
 - `prunable`・`locked` の登録は片付けのたびに報告として残る。回収は所有者の判断で、このスキルは自動で減らさない
+
+## PR #143 レビュー指摘の選別（2026-10-18）
+
+### 対象と実行許可
+
+- 対象: https://github.com/usaturn/create-reso-world/pull/143
+- 検証 HEAD: `2840155dda3dfb28edee879e9bfd0ce2882611f4`
+- base: `origin/main` = `50e4a6bcbbc3e04fc20802e74997b9b00afbe6c2`。検証後にも fetch し、検証 HEAD の祖先であることを確認した。base を merge した追加の検証は不要
+- 実行許可: 利用者が `review-fix-planning #143 --hold-action skip` を指定した。計画で止める指定ではないため、現行スキルの完遂経路に従い、修正不要の場合の記録・検証・既存 PR への Spec の反映・最終コメント・マージ・関連 Issue の更新を行う。`--hold-action` は現行スキルに定義されていないため、別の動作や権限は付け加えない。この許可は当初の issue-to-pr の「マージは利用者が行う」より後の、この PR に対する実行指示である
+- 担当モデル: `openai-codex/gpt-6.1-sol`（pi の bash ツール内の `PI_PROVIDER`・`PI_MODEL` で確認）
+- 作業場所・文書の保存先: `/workspaces/reso-world/.worktrees/issue-121-cleanup-worktree-scope`、branch `fix/issue-121-cleanup-worktree-scope`。既存の worktree が clean で、HEAD が PR の head と一致することを確認して再利用した。他の作業の差分は参照していない
+- 同じリポジトリ・Issue・PR・テーマの Spec/Plan を検索し、既存のこの Spec を更新する。別のレビュー修正用文書は作らない
+
+### 入力と確認範囲
+
+入力ディレクトリ: `/workspaces/reso-world/reviews/#143-fix-issue-121-cleanup-worktree-scope/`。配下の全 3 ファイルを読んだ。全ファイルの対象 HEAD は `2840155dda3d` で、取得した PR head と同じコミットである。
+
+- `SWE-2-Max.md`: L-1、I-1
+- `deepseek-deepseek-v4.1-flash.md`: I-1
+- `claude-opus-5-5.md`: L-1
+
+PR の変更 4 ファイル（SKILL.md、evals.json、本 Spec、Plan）を全文確認した。関連する `test_detached_update.py` の全 711 行、`test_repo_cleanup_after_merge_contract.py`、`agents/openai.yaml`、レビュー workspace の `create_session`・保存 state・`load_state`・`cleanup`、`scripts/superpowers_context.py` の fork/upstream の経路も確認した。検証根拠は上記 HEAD のコミット済み内容であり、worktree 内を読む間は clean と HEAD の一致を確認した。
+
+### 全指摘の分類
+
+**解消済み 0 / 対応する 0 / 対応しない 4。** 同じモデル内の ID が重なるため、表ではファイル名を付けて区別する。解消済み扱いにした項目は無い。
+
+| ID | 分類 | 現行 HEAD の根拠と判断 |
+| --- | --- | --- |
+| SWE-2-Max L-1 | 対応しない | eval 17 に `session.json` の記述が無いことは事実。ただし手順 5 は `session.json` で PR を確かめられることを別途要求する（SKILL.md:124–126）。eval の場面と採点の精度の問題であり、実行されるテストは JSON の構造を検査するだけ。実際の削除条件を緩めたり主要処理を止めたりする変更ではない。本 Spec の既存 Minor 1 の判断を維持する |
+| SWE-2-Max I-1 | 対応しない | SKILL.md:136 の末尾の説明だけなら広く読めるが、同節冒頭の「次の worktree に限る」（121–126 行）、Red Flags（292 行）、言い訳と現実（310 行）が対象を限定する。節全体に従って別 run の detached な worktree を削除する経路ではない。既存 Minor 2 と同じ文面・設計の論点で、致命的な誤指示ではない |
+| deepseek I-1 | 対応しない | Spec:34 と Plan:20 のテスト名はリポジトリルートからのパスとしては省略がある。実在先は `.agents/skills/repo-cleanup-after-merge/tests/`。一方、Plan の実行コマンドは `uv run pytest .agents/skills/repo-cleanup-after-merge -q` で正しく、誤った `pytest tests/test_detached_update.py` を実行する指示は無い。記録上の参照表記の問題であり、主要手順の停止を起こす指示ではない |
+| claude-opus L-1 | 対応しない | `pr_review_workspace.py:548–562` の state が PR の owner/repo を持たず、`superpowers_context.py:224–234` が fork/upstream を同じ checkout に結び付けることは確認した。しかし SKILL.md:124 の削除許可は「対応する PR を確かめられるもの」に限り、126 行でそれ以外は残す。同番号・同 branch の別リポジトリの PR はその確認を満たさず、一方の一覧に無いだけでは削除許可にならない。誤削除にはこの確認条件を飛ばす前提が要るため、現行手順に従う致命的な誤操作とは判定しない。自動識別の強化は設計の論点として見送る |
+
+### fork の指摘についての確認と制約
+
+たとえば `usaturn/resoloop#11` が MERGED、`orange3134/resoloop#11` が OPEN で、両者の `head_branch` が同じ場合、`session.json` の `main_root`・`pr_number`・`head_branch` は PR の所属先を一意に表さない。`commit` も、同じコミットを両リポジトリへ提案できるため、常に所属先を区別する情報にはならない。この入力では手順 1 の片方の一覧との照合だけで「対応する PR を確かめられた」とは扱えず、手順 5 の対象外として残して報告するのが現行の条件から導かれる判断である。
+
+これは PR のリポジトリを state から常に自動識別できるという保証ではない。曖昧な session まで自動回収することは保証しない。所属先を確かめられないものは残し、所有者に確認するという制約・回避方法を PR の説明にも記載する。独立したエージェントによるこの場面の行動比較は今回実施できておらず、行動比較の合格実績や自動識別の実装があるとは主張しない。上の分類は、メタデータの不足と削除許可の必須条件を直接確認した判断である。
+
+### 結論と実装の扱い
+
+- 結論: **2 修正不要としてマージする**。スキル・eval・コード・テストは変更せず、この既存 Spec に選別結果だけを記録する
+- 対応する指摘が無いため、「守る条件と影響経路」の修正表・設計の見直し・失敗時のガードを外す対照検証は対象外。同じ PR で過去に修正した致命的指摘の再発にも該当しない
+- テスト追加: 不要。文書の記録変更だけで、守るべき新しい実行時の挙動は無い（AGENTS.md のテスト採用基準）。既存の挙動テストと構造検査で代える
+- 修正後の自己レビュー: 未実施。結論 1 の修正が無いため対象外。全指摘・全変更ファイル・関連処理の確認は上記のとおり実施した
+- 委譲: `sp-recon` に fork の指摘の読み取り専用調査を同期で依頼したが、ツールは報告を返さなかった。成功として数えず、同じ依頼を再起動せずに調整役が直接確認した。委譲の結果を分類の根拠にしていない
+
+### 検証結果
+
+検証 HEAD はすべて `2840155dda3dfb28edee879e9bfd0ce2882611f4`。文面を照合するだけの新規テストは作らなかった。
+
+| コマンド・確認 | 結果 |
+| --- | --- |
+| `uv run pytest tests/skills .agents/skills -q`（一時出力は `--basetemp`・`TMPDIR` で隔離） | 589 passed、223.64 秒、終了コード 0 |
+| `bash .devcontainer/run-tests.bash` | 32/32 PASS、終了コード 0 |
+| `bash scripts/check-layout.sh` | PASS、終了コード 0 |
+| `git diff --check origin/main...HEAD` | 出力なし、終了コード 0 |
+| base の再 fetch、`merge-base --is-ancestor origin/main <検証 HEAD>` | base は `50e4a6b` のまま、終了コード 0 |
+| PR 状態・head・共通 context | OPEN、非 draft、head 一致、文書先・コード先・origin を照合済み |
+
+`usaturn/create-reso-world` は private で Actions を停止しているため、CI の確認は不要。変更と関係の無いワールドや fork の全テストは実行していない。
+
+検証ログは一意な `/tmp/review-fix-planning.qsZNFD/` 配下に閉じ込め、結果の確認後、Spec の更新前に削除した。指摘は文面・メタデータ・設計の確認で判定したため、再現用 worktree は作っていない。今回のセッションは worktree を新設しておらず、再利用した作業 worktree と他の run の worktree は片付け対象にしない。
+
+### 作業記録
+
+- 確認済み: 入力と対象 HEAD の固定、全指摘・変更全文・関連処理の確認、3 区分の判定、既存 Spec の選定、変更の種類に応じた検証、base と PR 状態の再確認
+- 公開・マージ・Issue 更新の結果は、この文書への追記コミットではなく PR の状況コメントと完了報告に残す
+- 所要時間の目安: 11:03–11:14 JST、約 11 分。準備・精読・分類 約 3 分、pytest・シェルテスト・配置検査 約 8 分。記録と反映はこの後に実施する
