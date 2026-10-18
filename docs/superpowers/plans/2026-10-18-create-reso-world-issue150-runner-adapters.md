@@ -113,12 +113,12 @@ env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT",
 
 **テストの要否:** 必要。実行するargv/入力/CLI出力解析/失敗分類という挙動を守る。文書・TOMLの固定文言テストは不要で、parse/checkとdiff/参照構造の確認を使う。
 
-- [ ] Step 1: snapshotから対応の偽CLIと挙動テストを適応する。`test_prepare`でpromptがargvになくstdinまたはfileで届くこと、model/effort/非対話指定を確認する。JSON/text成功、auth/approval失敗、不完全/不正応答、非ゼロ終了、未観測identity、skill指定と観測の区別を検証する。固定文言/文書/モデル名一覧だけのテストは持ち込まない。
-- [ ] Step 2: `uv run pytest tools/agent_runner/tests/adapters/pi -q` を同期実行し、まだmoduleが無いことによるREDを記録する。
-- [ ] Step 3: adapterを移植・適応して上の挙動を満たす。schema/pydantic/共通skillsが既に検証するだけの重複テストは追加しない。必要な追加の回帰もRED→GREENで行う。
-- [ ] Step 4: 同じruntime全体のテストを同期実行してGREEN、必要ならそのruntimeのfake process統合テストのtimeout/cancel/停止確認も含める。実CLIを起動しない。全root回帰はcontrollerの最終検証でまとめる。
-- [ ] Step 5: 対応agent節とruntime RSTを追加する。移植元の実機記録をこの環境の成功として転記せず、出所または未検証と記す。`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check` と `git diff --check` で検証する。
-- [ ] Step 6: 自己確認後、列挙した担当pathだけをstage/commitする。報告にRED/GREENのコマンド・出力・件数・終了コード、変更files、懸念、所要時間と内訳を残す。controllerの別担当レビューを待つ。
+- [x] Step 1: snapshotから対応の偽CLIと挙動テストを適応する。`test_prepare`でpromptがargvになくstdinまたはfileで届くこと、model/effort/非対話指定を確認する。JSON/text成功、auth/approval失敗、不完全/不正応答、非ゼロ終了、未観測identity、skill指定と観測の区別を検証する。固定文言/文書/モデル名一覧だけのテストは持ち込まない。
+- [x] Step 2: `uv run pytest tools/agent_runner/tests/adapters/pi -q` を同期実行し、まだmoduleが無いことによるREDを記録する。
+- [x] Step 3: adapterを移植・適応して上の挙動を満たす。schema/pydantic/共通skillsが既に検証するだけの重複テストは追加しない。必要な追加の回帰もRED→GREENで行う。
+- [x] Step 4: 同じruntime全体のテストを同期実行してGREEN、必要ならそのruntimeのfake process統合テストのtimeout/cancel/停止確認も含める。実CLIを起動しない。全root回帰はcontrollerの最終検証でまとめる。
+- [x] Step 5: 対応agent節とruntime RSTを追加する。移植元の実機記録をこの環境の成功として転記せず、出所または未検証と記す。`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check` と `git diff --check` で検証する。
+- [x] Step 6: 自己確認後、列挙した担当pathだけをstage/commitする。報告にRED/GREENのコマンド・出力・件数・終了コード、変更files、懸念、所要時間と内訳を残す。controllerの別担当レビューを待つ。
 
 ### Task 2: Claude Code adapter・偽CLI・runtime文書・agent定義
 
@@ -140,12 +140,12 @@ env = ["HOME", "PATH"]
 
 **テストの要否:** 必要。実行するargv/入力/CLI出力解析/失敗分類という挙動を守る。文書・TOMLの固定文言テストは不要で、parse/checkとdiff/参照構造の確認を使う。
 
-- [ ] Step 1: snapshotから対応の偽CLIと挙動テストを適応する。`test_prepare`でpromptがargvになくstdinまたはfileで届くこと、model/effort/非対話指定を確認する。JSON/text成功、auth/approval失敗、不完全/不正応答、非ゼロ終了、未観測identity、skill指定と観測の区別を検証する。固定文言/文書/モデル名一覧だけのテストは持ち込まない。
-- [ ] Step 2: `uv run pytest tools/agent_runner/tests/adapters/claude_code -q` を同期実行し、まだmoduleが無いことによるREDを記録する。
-- [ ] Step 3: adapterを移植・適応して上の挙動を満たす。schema/pydantic/共通skillsが既に検証するだけの重複テストは追加しない。必要な追加の回帰もRED→GREENで行う。
-- [ ] Step 4: 同じruntime全体のテストを同期実行してGREEN、必要ならそのruntimeのfake process統合テストのtimeout/cancel/停止確認も含める。実CLIを起動しない。全root回帰はcontrollerの最終検証でまとめる。
-- [ ] Step 5: 対応agent節とruntime RSTを追加する。移植元の実機記録をこの環境の成功として転記せず、出所または未検証と記す。`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check` と `git diff --check` で検証する。
-- [ ] Step 6: 自己確認後、列挙した担当pathだけをstage/commitする。報告にRED/GREENのコマンド・出力・件数・終了コード、変更files、懸念、所要時間と内訳を残す。controllerの別担当レビューを待つ。
+- [x] Step 1: snapshotから対応の偽CLIと挙動テストを適応する。`test_prepare`でpromptがargvになくstdinまたはfileで届くこと、model/effort/非対話指定を確認する。JSON/text成功、auth/approval失敗、不完全/不正応答、非ゼロ終了、未観測identity、skill指定と観測の区別を検証する。固定文言/文書/モデル名一覧だけのテストは持ち込まない。
+- [x] Step 2: `uv run pytest tools/agent_runner/tests/adapters/claude_code -q` を同期実行し、まだmoduleが無いことによるREDを記録する。
+- [x] Step 3: adapterを移植・適応して上の挙動を満たす。schema/pydantic/共通skillsが既に検証するだけの重複テストは追加しない。必要な追加の回帰もRED→GREENで行う。
+- [x] Step 4: 同じruntime全体のテストを同期実行してGREEN、必要ならそのruntimeのfake process統合テストのtimeout/cancel/停止確認も含める。実CLIを起動しない。全root回帰はcontrollerの最終検証でまとめる。
+- [x] Step 5: 対応agent節とruntime RSTを追加する。移植元の実機記録をこの環境の成功として転記せず、出所または未検証と記す。`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check` と `git diff --check` で検証する。
+- [x] Step 6: 自己確認後、列挙した担当pathだけをstage/commitする。報告にRED/GREENのコマンド・出力・件数・終了コード、変更files、懸念、所要時間と内訳を残す。controllerの別担当レビューを待つ。
 
 ### Task 3: Codex adapter・偽CLI・runtime文書・agent定義
 
@@ -170,12 +170,12 @@ env = ["HOME", "PATH"]
 
 **テストの要否:** 必要。実行するargv/入力/CLI出力解析/失敗分類という挙動を守る。文書・TOMLの固定文言テストは不要で、parse/checkとdiff/参照構造の確認を使う。
 
-- [ ] Step 1: snapshotから対応の偽CLIと挙動テストを適応する。`test_prepare`でpromptがargvになくstdinまたはfileで届くこと、model/effort/非対話指定を確認する。JSON/text成功、auth/approval失敗、不完全/不正応答、非ゼロ終了、未観測identity、skill指定と観測の区別を検証する。固定文言/文書/モデル名一覧だけのテストは持ち込まない。
-- [ ] Step 2: `uv run pytest tools/agent_runner/tests/adapters/codex -q` を同期実行し、まだmoduleが無いことによるREDを記録する。
-- [ ] Step 3: adapterを移植・適応して上の挙動を満たす。schema/pydantic/共通skillsが既に検証するだけの重複テストは追加しない。必要な追加の回帰もRED→GREENで行う。
-- [ ] Step 4: 同じruntime全体のテストを同期実行してGREEN、必要ならそのruntimeのfake process統合テストのtimeout/cancel/停止確認も含める。実CLIを起動しない。全root回帰はcontrollerの最終検証でまとめる。
-- [ ] Step 5: 対応agent節とruntime RSTを追加する。移植元の実機記録をこの環境の成功として転記せず、出所または未検証と記す。`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check` と `git diff --check` で検証する。
-- [ ] Step 6: 自己確認後、列挙した担当pathだけをstage/commitする。報告にRED/GREENのコマンド・出力・件数・終了コード、変更files、懸念、所要時間と内訳を残す。controllerの別担当レビューを待つ。
+- [x] Step 1: snapshotから対応の偽CLIと挙動テストを適応する。`test_prepare`でpromptがargvになくstdinまたはfileで届くこと、model/effort/非対話指定を確認する。JSON/text成功、auth/approval失敗、不完全/不正応答、非ゼロ終了、未観測identity、skill指定と観測の区別を検証する。固定文言/文書/モデル名一覧だけのテストは持ち込まない。
+- [x] Step 2: `uv run pytest tools/agent_runner/tests/adapters/codex -q` を同期実行し、まだmoduleが無いことによるREDを記録する。
+- [x] Step 3: adapterを移植・適応して上の挙動を満たす。schema/pydantic/共通skillsが既に検証するだけの重複テストは追加しない。必要な追加の回帰もRED→GREENで行う。
+- [x] Step 4: 同じruntime全体のテストを同期実行してGREEN、必要ならそのruntimeのfake process統合テストのtimeout/cancel/停止確認も含める。実CLIを起動しない。全root回帰はcontrollerの最終検証でまとめる。
+- [x] Step 5: 対応agent節とruntime RSTを追加する。移植元の実機記録をこの環境の成功として転記せず、出所または未検証と記す。`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check` と `git diff --check` で検証する。
+- [x] Step 6: 自己確認後、列挙した担当pathだけをstage/commitする。報告にRED/GREENのコマンド・出力・件数・終了コード、変更files、懸念、所要時間と内訳を残す。controllerの別担当レビューを待つ。
 
 ### Task 4: Cursor adapter・偽CLI・runtime文書・agent定義
 
@@ -207,12 +207,12 @@ env = ["HOME", "PATH"]
 
 **テストの要否:** 必要。実行するargv/入力/CLI出力解析/失敗分類という挙動を守る。文書・TOMLの固定文言テストは不要で、parse/checkとdiff/参照構造の確認を使う。
 
-- [ ] Step 1: snapshotから対応の偽CLIと挙動テストを適応する。`test_prepare`でpromptがargvになくstdinまたはfileで届くこと、model/effort/非対話指定を確認する。JSON/text成功、auth/approval失敗、不完全/不正応答、非ゼロ終了、未観測identity、skill指定と観測の区別を検証する。固定文言/文書/モデル名一覧だけのテストは持ち込まない。
-- [ ] Step 2: `uv run pytest tools/agent_runner/tests/adapters/cursor -q` を同期実行し、まだmoduleが無いことによるREDを記録する。
-- [ ] Step 3: adapterを移植・適応して上の挙動を満たす。schema/pydantic/共通skillsが既に検証するだけの重複テストは追加しない。必要な追加の回帰もRED→GREENで行う。
-- [ ] Step 4: 同じruntime全体のテストを同期実行してGREEN、必要ならそのruntimeのfake process統合テストのtimeout/cancel/停止確認も含める。実CLIを起動しない。全root回帰はcontrollerの最終検証でまとめる。
-- [ ] Step 5: 対応agent節とruntime RSTを追加する。移植元の実機記録をこの環境の成功として転記せず、出所または未検証と記す。`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check` と `git diff --check` で検証する。
-- [ ] Step 6: 自己確認後、列挙した担当pathだけをstage/commitする。報告にRED/GREENのコマンド・出力・件数・終了コード、変更files、懸念、所要時間と内訳を残す。controllerの別担当レビューを待つ。
+- [x] Step 1: snapshotから対応の偽CLIと挙動テストを適応する。`test_prepare`でpromptがargvになくstdinまたはfileで届くこと、model/effort/非対話指定を確認する。JSON/text成功、auth/approval失敗、不完全/不正応答、非ゼロ終了、未観測identity、skill指定と観測の区別を検証する。固定文言/文書/モデル名一覧だけのテストは持ち込まない。
+- [x] Step 2: `uv run pytest tools/agent_runner/tests/adapters/cursor -q` を同期実行し、まだmoduleが無いことによるREDを記録する。
+- [x] Step 3: adapterを移植・適応して上の挙動を満たす。schema/pydantic/共通skillsが既に検証するだけの重複テストは追加しない。必要な追加の回帰もRED→GREENで行う。
+- [x] Step 4: 同じruntime全体のテストを同期実行してGREEN、必要ならそのruntimeのfake process統合テストのtimeout/cancel/停止確認も含める。実CLIを起動しない。全root回帰はcontrollerの最終検証でまとめる。
+- [x] Step 5: 対応agent節とruntime RSTを追加する。移植元の実機記録をこの環境の成功として転記せず、出所または未検証と記す。`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check` と `git diff --check` で検証する。
+- [x] Step 6: 自己確認後、列挙した担当pathだけをstage/commitする。報告にRED/GREENのコマンド・出力・件数・終了コード、変更files、懸念、所要時間と内訳を残す。controllerの別担当レビューを待つ。
 
 ### Task 5: Devin adapter・偽CLI・runtime文書・agent定義
 
@@ -234,18 +234,18 @@ env = ["HOME", "PATH"]
 
 **テストの要否:** 必要。実行するargv/入力/CLI出力解析/失敗分類という挙動を守る。文書・TOMLの固定文言テストは不要で、parse/checkとdiff/参照構造の確認を使う。
 
-- [ ] Step 1: snapshotから対応の偽CLIと挙動テストを適応する。`test_prepare`でpromptがargvになくstdinまたはfileで届くこと、model/effort/非対話指定を確認する。JSON/text成功、auth/approval失敗、不完全/不正応答、非ゼロ終了、未観測identity、skill指定と観測の区別を検証する。固定文言/文書/モデル名一覧だけのテストは持ち込まない。
-- [ ] Step 2: `uv run pytest tools/agent_runner/tests/adapters/devin -q` を同期実行し、まだmoduleが無いことによるREDを記録する。
-- [ ] Step 3: adapterを移植・適応して上の挙動を満たす。schema/pydantic/共通skillsが既に検証するだけの重複テストは追加しない。必要な追加の回帰もRED→GREENで行う。
-- [ ] Step 4: 同じruntime全体のテストを同期実行してGREEN、必要ならそのruntimeのfake process統合テストのtimeout/cancel/停止確認も含める。実CLIを起動しない。全root回帰はcontrollerの最終検証でまとめる。
-- [ ] Step 5: 対応agent節とruntime RSTを追加する。移植元の実機記録をこの環境の成功として転記せず、出所または未検証と記す。`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check` と `git diff --check` で検証する。
-- [ ] Step 6: 自己確認後、列挙した担当pathだけをstage/commitする。報告にRED/GREENのコマンド・出力・件数・終了コード、変更files、懸念、所要時間と内訳を残す。controllerの別担当レビューを待つ。
+- [x] Step 1: snapshotから対応の偽CLIと挙動テストを適応する。`test_prepare`でpromptがargvになくstdinまたはfileで届くこと、model/effort/非対話指定を確認する。JSON/text成功、auth/approval失敗、不完全/不正応答、非ゼロ終了、未観測identity、skill指定と観測の区別を検証する。固定文言/文書/モデル名一覧だけのテストは持ち込まない。
+- [x] Step 2: `uv run pytest tools/agent_runner/tests/adapters/devin -q` を同期実行し、まだmoduleが無いことによるREDを記録する。
+- [x] Step 3: adapterを移植・適応して上の挙動を満たす。schema/pydantic/共通skillsが既に検証するだけの重複テストは追加しない。必要な追加の回帰もRED→GREENで行う。
+- [x] Step 4: 同じruntime全体のテストを同期実行してGREEN、必要ならそのruntimeのfake process統合テストのtimeout/cancel/停止確認も含める。実CLIを起動しない。全root回帰はcontrollerの最終検証でまとめる。
+- [x] Step 5: 対応agent節とruntime RSTを追加する。移植元の実機記録をこの環境の成功として転記せず、出所または未検証と記す。`uv run python -m tools.agent_runner --config .devcontainer/agent-runner.toml check` と `git diff --check` で検証する。
+- [x] Step 6: 自己確認後、列挙した担当pathだけをstage/commitする。報告にRED/GREENのコマンド・出力・件数・終了コード、変更files、懸念、所要時間と内訳を残す。controllerの別担当レビューを待つ。
 
 ## 最終検証・反映（controller）
 
-- [ ] 各Taskの仕様/品質レビューと全fixのscoped re-reviewを終える。deferred minorやRulingはledgerへ残し、最終レビュアーへ渡す。
-- [ ] `uv run pytest tools/agent_runner/tests/adapters`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`git diff --check` を最終コードで実行する。検証プロセスの終了コードとログを確認し、実行中にターンを終えない。
-- [ ] ブランチ全体を最上位モデルの別担当がレビューする。所定の1回のfix waveとscoped re-reviewを使い、未解決は根拠付きで判定する。
+- [x] 各Taskの仕様/品質レビューと全fixのscoped re-reviewを終える。deferred minorやRulingはledgerへ残し、最終レビュアーへ渡す。
+- [x] `uv run pytest tools/agent_runner/tests/adapters`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`git diff --check` を最終コードで実行する。検証プロセスの終了コードとログを確認し、実行中にターンを終えない。
+- [x] ブランチ全体を最上位モデルの別担当がレビューする。所定の1回のfix waveとscoped re-reviewを使い、未解決は根拠付きで判定する。
 - [ ] 各定義agentを1回、promptは短いJSON marker、roleはwrites=False、各deadline 120秒、fallbackなしの最小一時configでrunnerから起動する。使い捨てのgit repo/runner worktreeに限定し、state/identity/payload/elapsed/stop_confirmed/outside_changesを確認して #150 へ記録する。認証・承認失敗を成功と書かず、認証やproviderを変えない。
 - [ ] 問題が無ければSpec/Planに完了記録（承認とは別）を追記してcommit。最新Issue/PR/claimを再確認し親checkoutのscan-before-push.shで検査した非空SHAをそのままpushする。main向け `Closes #150` のPRを1本作成する。親Issue本文/他者の予約を触らずマージしない。
 - [ ] 文書とhandoffを公開した内容から別領域へ復元してhash/bytesを照合し、予約をexact-SHA leaseで解放して不在を確認する。budgetと各担当時間、検証/実機の制限、残存pathを報告する。
@@ -253,3 +253,30 @@ env = ["HOME", "PATH"]
 ## Plan自己確認
 
 受け入れ1/2は各Task、3はcontroller実機、4は最終検証に対応する。全Taskは同じprotocolに一致し、TOMLは異なる節を直列追加する。Review Focusの5種類は各Taskのテストへ割り当てた。固定文言テスト・新規依存・共有ファイル変更を要求していない。
+
+## 部分成果・実機検証・停止（2026-10-18 UTC）
+
+- 状態はdraft、内容承認なし。実装コード `9a03f744e8544374fa52a400b4d5f3b240062f76` までの全5 Taskと全体レビュー後の修正を完了した。ローカルcommitのみで、コードのpush・PRは公開未実施。
+- 最終レビューはCritical0/Important3/Minor1。Piの破損末尾、Cursorの後続未完了応答、pi-go-glmfの省略、Codexの不正typeを1回の修正waveで直し、scoped再レビューは4件すべてADDRESSED、新たな問題なし。Claude/Devinの先行修正も維持した。
+- 最終コードで `uv run pytest tests/skills .agents/skills .agents/scripts tools` は2181 passed、exit0、431.53秒（wrapper432.385秒）。通常adapterを含む。`AGENT_RUNNER_DEPTH=1 uv run pytest tools/agent_runner/tests/adapters` は291 passed、exit0。shellは33PASS、exit0、327.932秒。layout、config（5 runtime/11 agent supported）、全branch diff checkもexit0。全検証プロセスの終了を確認済み。
+- 実機では使い捨てgit repoと一時config、writes=False、各deadline120秒、fallbackなし。表の時間はrunner呼び出し全体の秒数。全9呼び出しでstop_confirmed=true、outside_changesは空。成功8件は正確なmarkerを返した。CursorのAutoはCLIが返した観測値で、内部の選択モデルまでは確定しない。
+
+| agent | 観測model | attempt state | payload | 秒 | stop_confirmed |
+| --- | --- | --- | --- | ---: | --- |
+| codex | gpt-6.1-sol | success | `{"marker":"5cd780a703f2c374"}` | 7.215 | True |
+| claude-opus | claude-opus-5-5 | success | `{"marker":"35578348db179f71"}` | 7.310 | True |
+| devin-swe | SWE-2 Max | success | `{"marker":"98c588bb121e0036"}` | 4.755 | True |
+| cursor | Auto | success | `{"marker":"e72f3e0fa8320eec"}` | 14.470 | True |
+| cursor-grok47 | Grok 4.7 256K Extra High | success | `{"marker":"762355fe67bc4dc6"}` | 16.105 | True |
+| pi-gpt | gpt-6.1-sol | success | `{"marker":"417794b0a8fa15ce"}` | 7.918 | True |
+| pixg | grok-4.7 | success | `{"marker":"cb93583fd2d0655d"}` | 2.954 | True |
+| pi-deepseek | deepseek/deepseek-v4.1-flash | success | `{"marker":"af6fa915faa73afd"}` | 3.209 | True |
+| pigod | deepseek-v4.1-flash | awaiting_authentication | `null` | 1.628 | True |
+
+9番目のpigodがopencode-goの認証待ちとなった。診断のAPI key期限切れを確認したが、秘密値は読まず、公開ログにも載せない。CLI自体のexitは0でも、adapter/runnerは正しく失敗と分類しrunnerはexit1。スモーク全体は65.658秒でexit1。停止条件に従い後続のpi-gemf/pi-go-glmfは未実行、認証設定・provider・modelの変更や再試行も行っていない。実機の全件成功を条件から外さない。
+
+次の操作は利用者によるOpenCode Go認証の復旧とその確認。その後、再開セッションが新しいclaimを取得し、成功8件を繰り返さず、失敗したpigodと未実行2件の実機検証を別の明示的な再開runで行う。既存smokeディレクトリは再利用・上書きしない。残る受け入れを通してからscan・同じbranchのpush・mainへのPRを1本作成する。今回はコードのscan/push/PRは未実施。
+
+能動時間は停止判断時点で約96.5分/180分（利用者待ちは除外、並行workerの時間を足さない）。主要Taskの担当時間: Pi約4分45秒、Claude約4分18秒＋修正約2分、Codex7分37秒、Cursor4分59秒、Devin約6〜7分＋修正約2分。全体レビュー約4分37秒、最終修正5分15秒、scoped再レビュー1分08秒。回帰は修正前8分44秒と修正後7分12秒（shellは並行）、実機約1分06秒。その他はhandoff検証・設計/計画・各Taskレビュー・記録/公開準備。準備の一部と各担当のphase内訳は親scratchの報告を参照し、計測していない時間を推測で加算しない。
+
+残存記録は `/workspaces/reso-world/tmp/agents/issue-150.x_25tm6g/`、SDD ledger/reportsはその下の `.superpowers/sdd/2026-10-18-create-reso-world-issue150-runner-adapters/`、最終検証は `checks/`、実機は `live-smoke/summary.json`。コードの受け入れが未完了なので削除しない。Spec/Planと新しいhandoff対はIssueコメントで完全な内容とhash/bytesを公開し、別領域への復元検証後に自分のclaimだけをexact-SHA leaseで解放する。元のIssueはopenのまま、親Issue・他者の予約・worktreeには触れない。

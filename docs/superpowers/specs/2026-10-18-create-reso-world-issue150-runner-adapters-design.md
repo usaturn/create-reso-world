@@ -70,3 +70,9 @@ CLIが終了コード0でも完全な応答・receiptが無ければ成功にし
 各Taskは対象runtimeのテストでRED→GREENを記録し、実装者の自己確認と別担当による仕様・品質レビューを行う。文書・TOMLだけの固定文言テストは作らず、TOMLのparse/check、RSTの参照・構造、git diff --checkで確認する。最後に全adapter・README所定の全検証とブランチ全体の独立レビューを行う。
 
 実機では一時configに最小workflowを定義し `--config` で渡す。個人設定は更新せず、runnerをrepository rootからforegroundで起動し、bash timeoutを付けない。全結果を確認してから非空のscan済みSHAをpushし、main向けに `Closes #150` のPRを1本作る。マージしない。失敗時は部分成果と残る受け入れ条件を公開して予約をexact-SHA leaseで解放する。
+
+## 部分成果と停止記録（2026-10-18 UTC）
+
+5 adapter、対応テスト・文書、11 agentの設定を実装した。各Taskの独立レビューと、全体レビュー後の1回の修正・再レビューが完了し、指摘4件は修正済み。最終コードは `9a03f744e8544374fa52a400b4d5f3b240062f76`。Python 2181件、shell33件、子エージェント環境のadapter291件、layout/config/diff検査は終了コード0。通常環境のadapterは全体pytestにも含まれる。
+
+実機は8 agentが成功し、9番目の `pigod` が `awaiting_authentication` で停止した。診断にAPI keyの期限切れがあり、`stop_confirmed=true`、payloadなし、outside_changesなし。`pi-gemf` と `pi-go-glmf` は未実行。認証設定・provider・modelは変更せず、再試行しない。全agentの受け入れ条件を満たしていないため状態はdraftのまま、コードのpush・PRは未実施。詳細な観測値・所要時間と再開条件はPlan末尾に記録する。内容の承認記録はない。
