@@ -31,7 +31,7 @@ PR 全体の差分を隔離 worktree で読み、検証した指摘を助言と�
 - active のみを件数表へ数える。Decided / Pending / Resolved / Unverified は active JSON に入れない。新規 ID は全節で衝突させない。確認不足は coverage と Pending も見て判定する。
 - 保存時の worktree commit / PR head / API / destination の検査は予算より優先する。不一致や取得不能を指摘0にしない。予算超過時は新規調査を止め、未確認を明記して保存へ進む。自動延長・再委譲をしない。
 - 非対話は質問せず、確認不足・モデル未取得・成果欠落を failed と理由付きで返す。認証や権限を迂回しない。本文は日本語。**非対話では挨拶・開始宣言・進捗説明・完了説明を含む途中の自然言語メッセージを一切出さない**。ツールだけで作業し、phaseの記録はdraftへ書く。最後に1回だけcomplete/failのJSON payloadを返す（Devinは以下のJSONコードフェンスに載せる）。
-- 必要な追加スクラッチは親 main の `agent_tmp.py mkdir pr-review-scratch-<PR>` で作る。セッション名 `pr-review-<PR>-*` を追加スクラッチに流用せず、session.json を複製しない。根拠を本文へ移し、不要と確認した自身の scratch だけを空値ガード付きで削除する。残す場合は完全パスを報告する（[AGENTS.md](../../../AGENTS.md)の保存場所を参照）。
+- 必要な追加スクラッチは、DSH 以外では親 main の `agent_tmp.py mkdir pr-review-scratch-<PR>` で作る。DSH は既に許可された隔離 TMPDIR（未設定時のみ隔離 HOME）内に作り、追加 grant・権限拒否の回避をしない。具体的な手順は [evidence.md](references/evidence.md) の 1.2 節に従う。セッション名 `pr-review-<PR>-*` を追加スクラッチに流用せず、session.json を複製しない。根拠を本文へ移し、不要と確認した自身の scratch だけを空値ガード付きで削除する。残す場合は完全パスを報告する（[AGENTS.md](../../../AGENTS.md)の保存場所を参照）。
 - 補助委譲は time-budget の起動・期限・停止条件を全部満たす場合だけ最大1件。Pi の同期 subagent ではバックグラウンド起動・期限付き待機・停止確認を満たせないため省略する。非対話 worker からの再委譲は禁止。停止を確認できない worker が WT を使用中なら complete / cleanup を呼ばず、失敗・停止状態・残存パスを返す。
 - helper は他の fetch・gh 等と同じツール呼び出しにまとめず、timeout は未指定または600秒以上（上限が短い runtime はその上限）。期限は phase 境界で判断し、実行中の helper を短い timeout で切らない。失敗・中断時に prepare をそのまま再実行せず、返された run_record・state・残存パスと理由を報告する。旧 create の inspect/abandon は互換 API であり、新入口の失敗を手動 Git・保存・削除で代行しない。
 

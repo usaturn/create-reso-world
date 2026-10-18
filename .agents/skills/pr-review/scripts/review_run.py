@@ -14,6 +14,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Mapping
+from contextlib import ExitStack
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from types import ModuleType
@@ -394,18 +395,47 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             if snapshot is not None
             else read_records(target, args.records_comments)
         )
-        session = workspace.create(
-            argparse.Namespace(
-                target=json.dumps(target),
-                model_name=artifact_identity,
-                review_commit=args.review_commit,
-                source_root=args.source_root,
-                private_clone=args.runtime == "dsh",
-                parent_input=snapshot,
-                temp_root=str(temp_root),
-                session_dir=str(temp_root / session_name),
+        # Shallow boundaries are shared by linked worktrees. Complete history must
+        # be fetched into owned Git, never by unshallowing the user's checkout.
+        git_input = snapshot
+        with ExitStack() as inputs:
+            if (
+                snapshot is None
+                and workspace.git(
+                    Path(target["target_root"]), "rev-parse", "--is-shallow-repository"
+                )
+                == "true"
+            ):
+                directory = Path(
+                    inputs.enter_context(
+                        tempfile.TemporaryDirectory(prefix="pr-review-input-")
+                    )
+                )
+                descriptor = parent_data._populate(
+                    workspace, args, target, directory, [], None, {}
+                )
+                git_input = parent_data.load(workspace, descriptor, args.pr)
+            session = workspace.create(
+                argparse.Namespace(
+                    target=json.dumps(target),
+                    model_name=artifact_identity,
+                    review_commit=args.review_commit,
+                    source_root=args.source_root,
+                    private_clone=args.runtime == "dsh",
+                    parent_input=git_input,
+                    temp_root=str(temp_root),
+                    session_dir=str(temp_root / session_name),
+                )
             )
-        )
+            if (
+                snapshot is None
+                and git_input is not None
+                and workspace.current_pr_head(target["repository"], target["number"])
+                != target["head_sha"]
+            ):
+                raise workspace.WorkspaceError(
+                    "PR head changed after fetch; resolve again without saving"
+                )
     except FAILURES as error:
         retained = None
         session_dir = temp_root / session_name
@@ -464,7 +494,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
         # Keep the base private to this owned worktree, including during concurrent reviews.
         worktree = Path(session["worktree"])
         ref = "refs/worktree/pr-review-base"
-        if snapshot is None:
+        if git_input is None:
             workspace.git(
                 worktree,
                 "fetch",
@@ -476,9 +506,9 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
                 f"+refs/heads/{base_ref}:{ref}",
             )
         else:
-            workspace.git(worktree, "update-ref", ref, snapshot["base"])
+            workspace.git(worktree, "update-ref", ref, git_input["base"])
         base = workspace.git(worktree, "merge-base", ref, state["commit"])
-        if snapshot is not None and base != snapshot["base"]:
+        if git_input is not None and base != git_input["base"]:
             raise workspace.WorkspaceError("bundle does not match the prepared base")
         document: dict[str, Any] = {
             "schema": "review-findings/v2",

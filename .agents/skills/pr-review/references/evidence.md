@@ -22,7 +22,12 @@
 - `mkdir -p "$SCRATCH/tree" && git -C "$WT" archive HEAD | tar -x -C "$SCRATCH/tree"` で一時ディレクトリへ展開し、そこで実行する。新しい作業環境（仮想環境の無いディレクトリなど）を作るときもこの形にする。
 - 既存のテストは、`$WT` を cwd にして読み取りだけで実行できるものに限り、キャッシュを書かない指定を付ける。`-p no:cacheprovider` が止めるのは `.pytest_cache` だけなので、`__pycache__/` を止める `PYTHONDONTWRITEBYTECODE=1` と併用する。テストの実行方法はリポジトリの規約に従う（素の `python3` には pytest が無いことがある）。親リポジトリでの例: `PYTHONDONTWRITEBYTECODE=1 uv run --project "$TOPLEVEL" --locked pytest -c "$WT/pyproject.toml" --rootdir "$WT" -p no:cacheprovider <テストのパス> -q`（cwd は `$WT`。`--rootdir .` が無いと、テストのファイルを並べたときに別の conftest の同名の fixture を受け取る）。
 
-一時ファイルは、SKILL.md の規約どおり `uv run --project "$TOPLEVEL" --locked python "$TOPLEVEL/.agents/scripts/agent_tmp.py" mkdir "pr-review-scratch-${PR_NUMBER}"` で作る追加スクラッチ（親の main worktree の `tmp/agents/pr-review-scratch-<PR番号>.*`）に置く。証跡はレビュー本文の `再現` に転記し、スクラッチだけに残さない。一時ホームが要る場合は `env HOME="$tmpdir" …` のワンショットだけを使う。
+一時ファイルの置き場所は runtime に合わせる。`$WT` や他担当の領域へは書かない。
+
+- DSH 以外は、SKILL.md の規約どおり `uv run --project "$TOPLEVEL" --locked python "$TOPLEVEL/.agents/scripts/agent_tmp.py" mkdir "pr-review-scratch-${PR_NUMBER}"` で追加スクラッチ（親 main worktree の `tmp/agents/pr-review-scratch-<PR番号>.*`）を作る。
+- DSH は、adapter が既に書き込みを許可した隔離 `TMPDIR` に `SCRATCH="$(mktemp -d "${TMPDIR:?}/pr-review-scratch-${PR_NUMBER}.XXXXXX")"` で作る。`TMPDIR` が未設定の場合だけ、既存の隔離 `HOME` 配下に同じように作る。CSV 等の入力作成・archive 展開・一時ホームが要る再現も、このスクラッチ内で行う。親の `tmp/agents/` への grant を追加せず、別 HOME/cache・フルアクセスで権限拒否を回避しない。既存の許可領域でも実行できなければ停止し、未実施の理由を報告する。
+
+証跡（コマンド・場所・条件・結果）は cleanup より前にレビュー本文の `再現` に転記し、消えるスクラッチだけに残さない。不要と確認した自身のスクラッチだけを空値ガード付きで削除する。一時ホームが要る場合はスクラッチ内のディレクトリを `env HOME="$tmpdir" …` のワンショットで使い、永続的に HOME を変更しない。
 
 ### 1.3 どう書くか
 

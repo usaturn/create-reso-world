@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -1969,3 +1970,134 @@ def test_prepare_create_failure_reports_owned_session_retained_paths(
     assert Path(retained["draft"]) == session / "review-backup/observed-model.md"
     assert retained["pr_ref"] == "refs/pr-review/repos/example/syncer/7"
     assert result["pr_head"] == result["reviewed_head"] == prepared["head"]
+
+
+@pytest.mark.parametrize("explicit_commit", ["head", "explicit", "unpushed"])
+def test_ordinary_depth_one_checkout_reviews_whole_pr_without_shared_history_changes(
+    prepared: dict[str, Any], tmp_path: Path, explicit_commit: str
+) -> None:
+    # A linked worktree shares shallow boundaries: fetching base alone cannot recover ancestry.
+    base = git(prepared["source"], "rev-parse", "main")
+    shallow = tmp_path / "ordinary-shallow"
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--quiet",
+            "--depth=1",
+            "--branch=feature",
+            prepared["source"].as_uri(),
+            str(shallow),
+        ],
+        check=True,
+    )
+    git(shallow, "remote", "set-url", "origin", f"https://github.com/{REPOSITORY}.git")
+    prepared["args"].source_root = str(shallow)
+    reviewed = prepared["head"]
+    if explicit_commit == "unpushed":
+        git(shallow, "config", "user.name", "Fixture")
+        git(shallow, "config", "user.email", "fixture@example.test")
+        (shallow / "local.txt").write_text("unpushed review input\n")
+        git(shallow, "add", "local.txt")
+        git(shallow, "commit", "-qm", "local review input")
+        reviewed = git(shallow, "rev-parse", "HEAD")
+    if explicit_commit != "head":
+        prepared["args"].review_commit = reviewed
+    boundary = (shallow / ".git/shallow").read_bytes()
+    refs = shared_refs(shallow)
+    fetch_head = shallow / ".git/FETCH_HEAD"
+    fetch_head.write_text("user-owned fetch head\n")
+    worktrees = git(shallow, "worktree", "list", "--porcelain")
+    result = review_run.prepare(prepared["args"])
+    assert result["status"] == "prepared", result.get("reason")
+    assert result["base"] == base and result["reviewed_head"] == reviewed
+    diff = git(Path(result["worktree"]), "diff", f"{base}..{reviewed}")
+    assert "+a harmless fixture" in diff
+    if explicit_commit == "unpushed":
+        assert "+unpushed review input" in diff
+    state = json.loads(Path(result["state_file"]).read_text())
+    assert state["run_context"]["parent_pr_data"] is None
+    assert state["target_kind"] == "bundle"
+    assert (shallow / ".git/shallow").read_bytes() == boundary
+    assert shared_refs(shallow) == refs
+    assert fetch_head.read_text() == "user-owned fetch head\n"
+    assert git(shallow, "worktree", "list", "--porcelain") == worktrees
+    mark_reviewed(result)
+    completed = review_run.complete(argparse.Namespace(state=result["state_file"]))
+    assert completed["status"] == "success" and completed["cleanup"] == "success", (
+        completed
+    )
+    assert (
+        Path(completed["review_file"]).is_file()
+        and Path(completed["findings_file"]).is_file()
+    )
+    assert not Path(result["state_file"]).parent.exists()
+    assert (shallow / ".git/shallow").read_bytes() == boundary
+    assert (
+        shared_refs(shallow) == refs
+        and fetch_head.read_text() == "user-owned fetch head\n"
+    )
+
+
+def test_dsh_reproduction_in_declared_isolated_temp_saves_evidence_before_cleanup(
+    prepared: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Scratch may disappear: the saved body, not a sandbox-external path, must keep the evidence.
+    parent_input(prepared, tmp_path, monkeypatch)
+    isolated_temp = tmp_path / "dsh/tmp"
+    isolated_temp.mkdir(parents=True)
+    monkeypatch.setenv("TMPDIR", str(isolated_temp))
+    result = review_run.prepare(prepared["args"])
+    assert result["status"] == "prepared", result
+    with tempfile.TemporaryDirectory(
+        prefix="pr-review-scratch-7-", dir=os.environ["TMPDIR"]
+    ) as temporary:
+        scratch = Path(temporary)
+        tree = scratch / "tree"
+        tree.mkdir()
+        archive = subprocess.run(
+            ["git", "-C", result["worktree"], "archive", "HEAD"],
+            check=True,
+            capture_output=True,
+        ).stdout
+        subprocess.run(["tar", "-x", "-C", str(tree)], input=archive, check=True)
+        (scratch / "input.csv").write_text("\ufefftitle\nexample\n", encoding="utf-8")
+        reproduction = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import csv; from pathlib import Path; "
+                    "rows = list(csv.DictReader(Path('input.csv').open(encoding='utf-8-sig'))); "
+                    "assert rows == [{'title': 'example'}]; "
+                    "assert Path('tree/README.md').is_file(); print('CSV rows=1; archive readable')"
+                ),
+            ],
+            cwd=scratch,
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        assert (
+            reproduction.returncode == 0
+            and reproduction.stdout.strip() == "CSV rows=1; archive readable"
+        )
+        mark_reviewed(result)
+        draft = Path(result["draft"])
+        draft.write_text(
+            draft.read_text() + f"\n## Reproduction\n\n場所: {scratch}（隔離TMPDIR）\n"
+            f"条件: BOM付きCSVと固定HEADのarchive\n結果: exit 0; {reproduction.stdout}"
+        )
+        staged = review_run.complete(argparse.Namespace(state=result["state_file"]))
+        assert staged["status"] == "staged", staged
+    assert not scratch.exists()
+    batch = staged_batch(prepared, staged)
+    review_run.finalize_parent_batch(batch)
+    completed = batch.results[0].attempts[0].payload
+    assert isinstance(completed, dict) and completed["status"] == "success", completed
+    assert (
+        "CSV rows=1; archive readable"
+        in Path(str(completed["review_file"])).read_text()
+    )
+    assert not Path(result["state_file"]).parent.exists()
