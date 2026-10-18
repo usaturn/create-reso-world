@@ -5,7 +5,7 @@
 - 文書管理・コード対象: `usaturn/create-reso-world`
 - 対象 Issue: https://github.com/usaturn/create-reso-world/issues/114
 - 検証した基準 HEAD: 移植先 `cd602e63e04e51616cd5043dd46b0cbefd8fc60e`（`origin/main`）、移植元 usaturn/agent-workspace `84469b9bb1c35febc6e94e0a8bfa92cf75e7f4c4`（`main`、2026-10-17T10:58Z）
-- 状態: draft（利用者の明示承認は得ていない）
+- 状態: completed（2026-10-18 JST、利用者の指示「completed にしてください」による。内容の明示承認は記録していない。完了の根拠は Plan の「完了」）
 - 関連 Plan: `docs/superpowers/plans/2026-10-17-create-reso-world-issue114-issue-to-pr-alias.md`
 - 実行許可: 2026-10-17（JST）、利用者が「#114 に着手せよ。専用 worktree を作成し、途中で止めずに推奨案で PR を出せ」と指示した。推奨案での実装、隔離 worktree、commit、push、create-reso-world への PR の作成まで許可されている。マージと rebuild は利用者が行う。下の判断は確認を取らずに決めたエージェントの判断である
 
