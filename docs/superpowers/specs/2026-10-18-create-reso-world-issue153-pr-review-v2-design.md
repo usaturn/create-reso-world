@@ -90,7 +90,7 @@
 - 移植元は GitHub contents API の固定 commit から `/workspaces/reso-world/tmp/agents/issue-153.j8p_g6l_/donor/` に取得済み。`upstream-files.tsv` に blob SHA を保存し、Plan はこの snapshot を使う。引き継ぐ場合は同じ commit の各 path を contents API から新しい session dir へ取得し、blob SHA/内容を照合する。外部 checkout の clone はしない。
 - 実機の構成: このセッションで、この子の PR を新入口で対話レビュー1回する。ほかのレビュー本文は読まずに完了する。runner の並行確認は `dsh-ccd` と `devin-swe` を各1回、fallbackなし。追加試行は失敗の原因を変えたとき1回までで、認証・安全の失敗は再試行しない。全体の branch review は fresh reviewer 1件で別途実施する。
 - 起動の順: PR公開 → `prepare-parent --output-dir <SESSION/new-parent-input>` → descriptor を実 Request.prompt 末尾JSONの `parent_pr_data` に渡す → runner → `finalize-parent` → `attach-runner` → 結果の外側/内側と保存されたpairを確認。workflow に pre-run hook は足さない。
-- DSH の子の領域は `PARENT_ROOT/reviews/<owner>/<repo>/#N-branch/.staging/<run>/<request>/<agent>/`。snapshot/bundle は caller 所有の `SESSION/new-parent-input`。target_kind は既存 checkout なら `checkout`、helper 所有の一時Git領域なら上流との互換のため `clone`（取得処理自体は git init/fetch）。成功したものだけ helper cleanup に任せ、失敗時は実在の残存先を記録し勝手に消さない。
+- DSH の子の領域は `PARENT_ROOT/reviews/<owner>/<repo>/#N-branch/.staging/<run>/<request>/<agent>/`。snapshot/bundle は caller 所有の `SESSION/new-parent-input`。target_kind は既存 checkout なら `checkout`、helper 所有の一時Git領域なら `bundle`（子の取得元を bundle だけに制限する。上流の `clone` から内部の呼出し側を合わせる）。成功したものだけ helper cleanup に任せ、失敗時は実在の残存先を記録し勝手に消さない。
 - builder check の指摘は、既存API・手順・保存先の具体化としてこの節に反映した。利用者の内容承認を得たものとは扱わない。
 
 ## 未確定部分と停止条件

@@ -77,6 +77,7 @@
 ### Task 2: runner の共通入口・親入力・親保存を適応する
 
 **Files:**
+- Modify (接続時の限定修正): `.agents/skills/pr-review/scripts/pr_review_workspace.py` の cleanup の成功返却に、既存 compare-and-delete が確定した `pr_ref` と `pr_ref_status` を足す。削除順・条件・v7挙動は変えない。
 - Create: `.agents/skills/pr-review/scripts/pr_review_parent.py`
 - Create: `.agents/skills/pr-review/scripts/review_run.py`
 - Create: `.agents/skills/pr-review/scripts/review_run_record.py`
@@ -90,9 +91,9 @@
 
 - [ ] Step 1: donor test_review_run.pyの実行テストだけ移し、parent originをcreate-reso-worldに、source-rootをcode-rootへ対応させる。`test_shipped_runner_template_commands_accept_result_path` の文字列検査は持ち込まない。
 - [ ] Step 2: `uv run pytest .agents/skills/pr-review/tests/test_review_run.py`。Expected: 未導入helperによるRED。ログに保存する。
-- [ ] Step 3: donor3helperを適応。通常resolveへsource-rootをcode-rootとして渡す。baseはbase_remoteからfresh worktree専用refへfetch。親入力は照合済みremoteから所有一時Gitへ完全historyをfetchしてbundle化し、既存checkoutをunshallowしない。DSHは親descriptor/bundleのdigestと対象を照合し子のGitHub/API/fetch無し。ROOTのuv projectへ変更しgrok-buildは除外する。
+- [ ] Step 3: cleanup のcompare-and-delete結果を推測せずTask1 helperから返す（donorのcomplete実行テストが欠落によるREDを再現済み）。donor3helperを適応。通常resolveへsource-rootをcode-rootとして渡す。baseはbase_remoteからfresh worktree専用refへfetch。親入力は照合済みremoteから所有一時Gitへ完全historyをfetchしてbundle化し、既存checkoutをunshallowしない。DSHは親descriptor/bundleのdigestと対象を照合し子のGitHub/API/fetch無し。ROOTのuv projectへ変更しgrok-buildは除外する。
 - [ ] Step 4: DSHはRequest/Identity/coverage/draft digestを照合してstaged、親はstop_confirmed/sensitive cleanup/対象/Request/Identity/digest/live HEADを照合してsave/cleanup。run記録をhelperが作り、runner値はattach-runner欄だけへ保存する。途中失敗はfailedと残存先を返す。
-- [ ] Step 5: donorの実行テスト（shallow、同時session、共有refs不変、request/skill/draft改変、停止未確認、HEAD変更、記録失敗・保存後cleanup失敗）を通す。`uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py .agents/skills/pr-review/tests/test_port_routing.py .agents/skills/pr-review/tests/test_review_run.py` Expected: 全PASS。明示4pathだけstageしてcommit、reportにRED/GREENと時間を記録する。
+- [ ] Step 5: donorの実行テスト（shallow、同時session、共有refs不変、request/skill/draft改変、停止未確認、HEAD変更、記録失敗・保存後cleanup失敗）を通す。`uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py .agents/skills/pr-review/tests/test_port_routing.py .agents/skills/pr-review/tests/test_review_run.py` Expected: 全PASS。明示した4新規pathとcleanup返却の限定修正だけstageしてcommit、reportにRED/GREENと時間を記録する。
 
 ### Task 3: スキル・workflow・保存先を読む箇所をそろえ公開する
 
