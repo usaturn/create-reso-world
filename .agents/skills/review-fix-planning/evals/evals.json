@@ -85,10 +85,10 @@
       "id": 7,
       "name": "number-argument-resolves-review-directory",
       "prompt": "#300 のレビューを読んで修正計画をたてて。reviews/ 直下には #300-fix-issue-299-pr-review-budget/ と他の #<番号>-* ディレクトリが複数ある。",
-      "expected_output": "The `#300` argument resolves to the single top-level `reviews/` directory whose name starts with `#300-`, and every review file under it is read. No recursive scan.",
+      "expected_output": "The `#300` argument resolves to the single directory whose name starts with `#300-`, directly under `reviews/` or under `reviews/<owner>/<repo>/`, and every review file under it is read. No deeper recursive scan.",
       "files": [],
       "expectations": [
-        "Only directories directly under reviews/ are considered when resolving `#300`.",
+        "Only directories directly under reviews/ or under reviews/<owner>/<repo>/ are considered when resolving `#300`.",
         "A single `#300-` prefix match becomes the review directory; on multiple matches the run stops and lists the candidate names.",
         "`#300` does not match directories with a different number (e.g. `#3000-*`); a match requires the `#300-` prefix.",
         "Review files under the resolved directory are read and each target HEAD is recorded."

@@ -47,6 +47,8 @@ MODEL_SOURCE_EXPLICIT = "explicit"
 MODEL_SOURCES = {MODEL_SOURCE_CODEX, MODEL_SOURCE_EXPLICIT}
 
 ATTEMPT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+PR_OWNER = re.compile(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?")
+PR_NAME = re.compile(r"[a-z0-9_.-]+")
 JOURNAL_NAME = "create-journal.jsonl"
 TERMINAL_PHASES = ("completed", "failed", "interrupted")
 # Tool timeouts and closing terminals send these before any SIGKILL.
@@ -136,6 +138,21 @@ def normalize_head_branch(value: str) -> str:
     return normalized
 
 
+def normalize_pr_repository(value: str) -> str:
+    # GitHub ignores case in owner/repo; one spelling keeps one review path.
+    owner, separator, name = value.lower().partition("/")
+    if not separator or PR_OWNER.fullmatch(owner) is None or PR_NAME.fullmatch(name) is None or name in {".", ".."}:
+        raise WorkspaceError("PR repository must be a GitHub owner/repo")
+    return f"{owner}/{name}"
+
+
+def is_canonical_pr_repository(value: object) -> bool:
+    try:
+        return isinstance(value, str) and normalize_pr_repository(value) == value
+    except WorkspaceError:
+        return False
+
+
 def review_directory_name(pr_number: int, head_branch: str) -> str:
     if type(pr_number) is not int or pr_number < 1:
         raise WorkspaceError("PR number cannot produce a safe review directory")
@@ -148,12 +165,21 @@ def review_artifact_paths(
     model_name: str,
     *,
     pr_number: int,
+    pr_repository: str,
 ) -> tuple[Path, str]:
     if MODEL_FILENAME.fullmatch(model_name) is None:
         raise WorkspaceError("Codex model identifier is not a safe filename")
+    if not is_canonical_pr_repository(pr_repository):
+        raise WorkspaceError("PR repository must be a GitHub owner/repo")
     directory = review_directory_name(pr_number, head_branch)
     filename = f"{model_name}.md"
-    return backup_dir / filename, f"reviews/{directory}/{filename}"
+    # A fork and its upstream share one checkout and can reuse a number.
+    return backup_dir / filename, f"reviews/{pr_repository}/{directory}/{filename}"
+
+
+def legacy_review_destination(head_branch: str, model_name: str, *, pr_number: int) -> str:
+    """Return where this review went before sessions pinned the PR repository."""
+    return f"reviews/{review_directory_name(pr_number, head_branch)}/{model_name}.md"
 
 
 def git(
@@ -446,6 +472,7 @@ def attempt_sessions(temp_root: Path, pr_number: int, attempt_id: str) -> list[P
 
 def create(args: argparse.Namespace) -> dict[str, str | None]:
     attempt_id = validate_attempt_id(args.attempt_id)
+    pr_repository = normalize_pr_repository(args.pr_repo)
     model = resolve_runtime_model_name(args.model_name)
     review_directory_name(args.pr_number, args.head_branch)
     repo = require_main_checkout(args.repo)
@@ -461,6 +488,7 @@ def create(args: argparse.Namespace) -> dict[str, str | None]:
             "started",
             attempt_id=attempt_id,
             pid=os.getpid(),
+            pr_repository=pr_repository,
             pr_number=args.pr_number,
             commit=commit,
             head_branch=args.head_branch,
@@ -471,7 +499,7 @@ def create(args: argparse.Namespace) -> dict[str, str | None]:
         )
         with interruption_signals():
             try:
-                result = create_session(args, repo, commit, model, session_dir, journal)
+                result = create_session(args, repo, commit, model, pr_repository, session_dir, journal)
             except CreateInterrupted as error:
                 journal.record_end("interrupted", signal=signal.Signals(error.signum).name)
                 raise
@@ -492,6 +520,7 @@ def create_session(
     repo: Path,
     commit: str,
     model: tuple[str, str],
+    pr_repository: str,
     session_dir: Path,
     journal: CreateJournal,
 ) -> dict[str, str | None]:
@@ -504,7 +533,9 @@ def create_session(
         args.head_branch,
         model_name,
         pr_number=args.pr_number,
+        pr_repository=pr_repository,
     )
+    legacy = legacy_review_destination(args.head_branch, model_name, pr_number=args.pr_number)
     destination_path = safe_destination(repo, destination)
     require_destination_parent(destination_path)
 
@@ -545,13 +576,16 @@ def create_session(
     with review_save_lock(repo):
         journal.record("state-write")
         fingerprint, previous = snapshot_existing_review(destination_path, backup_dir)
+        # Reported only: it may be the other repository's review of this number.
+        legacy_review = legacy if os.path.lexists(repo / legacy) else None
         state: dict[str, Any] = {
-            "version": 6,
+            "version": 7,
             "main_root": str(repo),
             "worktree": str(worktree.resolve(strict=True)),
             "backup_dir": str(backup_dir.resolve(strict=True)),
             "commit": commit,
             "head_branch": args.head_branch,
+            "pr_repository": pr_repository,
             "pr_number": args.pr_number,
             "model_name": model_name,
             "model_source": model_source,
@@ -565,8 +599,10 @@ def create_session(
         "backup_dir": state["backup_dir"],
         "destination": state["destination"],
         "draft": state["draft"],
+        "legacy_review": legacy_review,
         "model_name": state["model_name"],
         "model_source": state["model_source"],
+        "pr_repository": pr_repository,
         "previous_review": state["previous_review"],
         "state_file": str(state_file.resolve(strict=True)),
         "worktree": state["worktree"],
@@ -577,6 +613,8 @@ def load_state(state_value: str) -> tuple[Path, dict[str, Any]]:
     state_file = Path(state_value).resolve(strict=True)
     with state_file.open(encoding="utf-8") as stream:
         state = json.load(stream)
+    if not isinstance(state, dict):
+        raise WorkspaceError("invalid PR-review session state")
     required = {
         "backup_dir",
         "commit",
@@ -585,13 +623,24 @@ def load_state(state_value: str) -> tuple[Path, dict[str, Any]]:
         "draft",
         "head_branch",
         "pr_number",
+        "pr_repository",
         "main_root",
         "model_name",
         "model_source",
         "previous_review",
         "worktree",
     }
-    if state.get("version") != 6 or not required.issubset(state) or state.get("model_source") not in MODEL_SOURCES:
+    if state.get("version") == 6:
+        raise WorkspaceError(
+            "PR-review session state has no PR repository (version 6); "
+            "keep the session and confirm which PR it belongs to"
+        )
+    if (
+        state.get("version") != 7
+        or not required.issubset(state)
+        or state.get("model_source") not in MODEL_SOURCES
+        or not is_canonical_pr_repository(state["pr_repository"])
+    ):
         raise WorkspaceError("invalid PR-review session state")
     if state_file.name != "session.json":
         raise WorkspaceError("invalid PR-review session state")
@@ -685,6 +734,7 @@ def save(args: argparse.Namespace) -> dict[str, str]:
             state["head_branch"],
             runtime_model,
             pr_number=state["pr_number"],
+            pr_repository=state["pr_repository"],
         )
         if str(expected_draft) != state["draft"]:
             raise WorkspaceError("draft does not match the pinned review path")
@@ -750,7 +800,9 @@ SESSION_FILES = {JOURNAL_NAME, "session.json"}
 SESSION_DIRECTORIES = {"review-backup", "worktree"}
 
 
-def locate_attempt(repo: Path, temp_root_value: str | None, pr_number: int, attempt_id: str) -> Path | None:
+def locate_attempt(
+    repo: Path, temp_root_value: str | None, pr_repository: str, pr_number: int, attempt_id: str
+) -> Path | None:
     temp_root = Path(temp_root_value).resolve() if temp_root_value else Path(tempfile.gettempdir()).resolve()
     if not temp_root.is_dir():
         return None
@@ -764,6 +816,7 @@ def locate_attempt(repo: Path, temp_root_value: str | None, pr_number: int, atte
     if (
         header.get("main_root") != str(repo)
         or header.get("session_dir") != str(session_dir)
+        or header.get("pr_repository") != pr_repository
         or header.get("pr_number") != pr_number
     ):
         raise WorkspaceError("create journal does not match this repository, PR and session directory")
@@ -780,20 +833,28 @@ def creator_running(journal: Path) -> bool:
     return False
 
 
-def worktree_registration(repo: Path, worktree: Path) -> dict[str, str] | None:
+def worktree_registrations(repo: Path) -> list[dict[str, str]]:
     listing = git(repo, "worktree", "list", "--porcelain", "-z", binary=True)
     assert isinstance(listing, bytes)
-    target = os.path.realpath(worktree)
+    entries: list[dict[str, str]] = []
     entry: dict[str, str] = {}
     for field in listing.decode("utf-8", errors="surrogateescape").split("\0"):
         if field:
             key, _, value = field.partition(" ")
             entry[key] = value
             continue
-        if "worktree" in entry and os.path.realpath(entry["worktree"]) == target:
-            return entry
+        if "worktree" in entry:
+            entries.append(entry)
         entry = {}
-    return None
+    return entries
+
+
+def worktree_registration(repo: Path, worktree: Path) -> dict[str, str] | None:
+    target = os.path.realpath(worktree)
+    return next(
+        (entry for entry in worktree_registrations(repo) if os.path.realpath(entry["worktree"]) == target),
+        None,
+    )
 
 
 def entry_name(path: Path, prefix: str = "") -> str:
@@ -837,10 +898,11 @@ def attempt_report(repo: Path, session_dir: Path, attempt_id: str, *, running: b
 
 def inspect_attempt(args: argparse.Namespace) -> dict[str, Any]:
     attempt_id = validate_attempt_id(args.attempt_id)
+    pr_repository = normalize_pr_repository(args.pr_repo)
     repo = require_main_checkout(args.repo)
     deadline = time.monotonic() + args.wait
     while True:
-        session_dir = locate_attempt(repo, args.temp_root, args.pr_number, attempt_id)
+        session_dir = locate_attempt(repo, args.temp_root, pr_repository, args.pr_number, attempt_id)
         if session_dir is None:
             return {"attempt_id": attempt_id, "status": "absent", "session_dir": None}
         # Probe before reading so a just-finished attempt shows its end record.
@@ -963,11 +1025,14 @@ def remove_attempt_worktree(repo: Path, worktree: Path) -> bool:
 
 def abandon_attempt(args: argparse.Namespace) -> dict[str, Any]:
     attempt_id = validate_attempt_id(args.attempt_id)
+    pr_repository = normalize_pr_repository(args.pr_repo)
     repo = require_main_checkout(args.repo)
     with review_save_lock(repo):
-        session_dir = locate_attempt(repo, args.temp_root, args.pr_number, attempt_id)
+        session_dir = locate_attempt(repo, args.temp_root, pr_repository, args.pr_number, attempt_id)
         if session_dir is None:
-            raise WorkspaceError(f"no create attempt {attempt_id} for PR {args.pr_number}; nothing to abandon")
+            raise WorkspaceError(
+                f"no create attempt {attempt_id} for PR {pr_repository}#{args.pr_number}; nothing to abandon"
+            )
         with finished_creator(session_dir / JOURNAL_NAME):
             status = attempt_report(repo, session_dir, attempt_id, running=False)["status"]
             require_abandonable_entries(session_dir)
@@ -981,6 +1046,87 @@ def abandon_attempt(args: argparse.Namespace) -> dict[str, Any]:
         "worktree": str(worktree),
         "worktree_removed": removed,
     }
+
+
+PR_STATES = {"OPEN", "CLOSED", "MERGED"}
+ENDED_PR_STATES = {"CLOSED", "MERGED"}
+
+
+def query_pr_state(pr_repository: str, pr_number: int) -> tuple[str | None, str]:
+    """Return the PR's GitHub state, or None and why it is unknown."""
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", str(pr_number), "--repo", pr_repository, "--json", "number,state"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as error:
+        return None, f"cannot run gh: {error}"
+    if result.returncode:
+        return None, f"gh pr view failed: {result.stderr.strip()}"
+    try:
+        reported = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None, "gh pr view returned invalid JSON"
+    if not isinstance(reported, dict) or reported.get("number") != pr_number or reported.get("state") not in PR_STATES:
+        return None, f"gh pr view did not report {pr_repository}#{pr_number}"
+    return reported["state"], ""
+
+
+def session_report(
+    repo: Path, registration: dict[str, str], pr_states: dict[tuple[str, int], tuple[str | None, str]]
+) -> dict[str, Any]:
+    worktree = Path(registration["worktree"])
+    report: dict[str, Any] = {
+        "session_dir": str(worktree.parent),
+        "worktree": str(worktree),
+        "pr_repository": None,
+        "pr_number": None,
+        "head_branch": None,
+        "commit": None,
+        "pr_state": None,
+        "removable": False,
+    }
+    try:
+        state_repo, state = load_state(str(worktree.parent / "session.json"))
+    except (WorkspaceError, OSError, ValueError) as error:
+        return {**report, "reason": f"session state cannot be used: {error}"}
+    pr_repository, pr_number = state["pr_repository"], state["pr_number"]
+    report.update(
+        pr_repository=pr_repository, pr_number=pr_number, head_branch=state["head_branch"], commit=state["commit"]
+    )
+    if state_repo != repo:
+        return {**report, "reason": f"session belongs to another checkout: {state_repo}"}
+    for flag in ("locked", "prunable"):
+        if flag in registration:
+            detail = f" ({registration[flag]})" if registration[flag] else ""
+            return {**report, "reason": f"worktree is {flag}{detail}"}
+    if type(pr_number) is not int or pr_number < 1:
+        return {**report, "reason": "session state has an invalid PR number"}
+    key = (pr_repository, pr_number)
+    if key not in pr_states:
+        pr_states[key] = query_pr_state(*key)
+    pr_state, failure = pr_states[key]
+    if pr_state is None:
+        return {**report, "reason": f"PR state is unknown: {failure}"}
+    report["pr_state"] = pr_state
+    if pr_state not in ENDED_PR_STATES:
+        return {**report, "reason": f"{pr_repository}#{pr_number} is open"}
+    return {**report, "removable": True, "reason": f"{pr_repository}#{pr_number} is {pr_state.lower()}"}
+
+
+def sessions(args: argparse.Namespace) -> dict[str, Any]:
+    """Report each review session of a checkout and whether its own PR has ended."""
+    repo = require_main_checkout(args.repo)
+    pr_states: dict[tuple[str, int], tuple[str | None, str]] = {}
+    reports = [
+        session_report(repo, entry, pr_states)
+        for entry in worktree_registrations(repo)
+        if PurePosixPath(entry["worktree"]).name == "worktree"
+        and PurePosixPath(entry["worktree"]).parent.name.startswith("pr-review-")
+    ]
+    return {"main_root": str(repo), "sessions": reports}
 
 
 def positive_integer(value: str) -> int:
@@ -999,6 +1145,7 @@ def non_negative_integer(value: str) -> int:
 
 def add_attempt_arguments(command: argparse.ArgumentParser) -> None:
     command.add_argument("--repo", required=True)
+    command.add_argument("--pr-repo", required=True)
     command.add_argument("--pr-number", required=True, type=positive_integer)
     command.add_argument("--attempt-id", required=True)
     command.add_argument("--temp-root")
@@ -1010,6 +1157,7 @@ def parser() -> argparse.ArgumentParser:
 
     create_parser = commands.add_parser("create", help="create a unique detached review worktree")
     create_parser.add_argument("--repo", required=True)
+    create_parser.add_argument("--pr-repo", required=True)
     create_parser.add_argument("--pr-number", required=True, type=positive_integer)
     create_parser.add_argument("--commit", required=True)
     create_parser.add_argument("--head-branch", required=True)
@@ -1040,6 +1188,12 @@ def parser() -> argparse.ArgumentParser:
     )
     add_attempt_arguments(abandon_parser)
     abandon_parser.set_defaults(handler=abandon_attempt)
+
+    sessions_parser = commands.add_parser(
+        "sessions", help="report the review sessions of a checkout and whether each one's PR has ended"
+    )
+    sessions_parser.add_argument("--repo", required=True)
+    sessions_parser.set_defaults(handler=sessions)
     return root
 
 

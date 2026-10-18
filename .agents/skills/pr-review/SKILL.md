@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: GitHub の指定した PR をレビューする。PRのメタデータ、説明、差分（diff）を gh CLI で取得し、使い捨て git worktree 上で検証した指摘を Severity・位置・根拠付きで reviews/#PR-branch/model.md に作成または更新する。PR番号・URLを指定したコードレビュー依頼で使用する
+description: GitHub の指定した PR をレビューする。PRのメタデータ、説明、差分（diff）を gh CLI で取得し、使い捨て git worktree 上で検証した指摘を Severity・位置・根拠付きで reviews/<owner>/<repo>/#PR-branch/model.md に作成または更新する。PR番号・URLを指定したコードレビュー依頼で使用する
 allowed-tools: Read, Grep, Glob, Bash(gh *), Bash(git *), Bash(date *), Bash(uv run --no-project python *pr_review_workspace.py *), Bash(uv run --no-project python *superpowers_context.py *), Edit(/tmp/pr-review-*/review-backup/**), Write(/tmp/pr-review-*/review-backup/**), Agent
 argument-hint: "<PR番号またはURL>"
 ---
@@ -53,7 +53,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 - `cleanup` は保存成功（`$DESTINATION` の内容が `$DRAFT` と一致）を検証できたときだけ削除する。検証できない場合は何も削除せず停止し、`$WT` と `$DRAFT` の完全パスを報告してユーザの判断に委ねる
 - レビュー中に生成した検証ログ・スクリーンショット・一時スクリプト等の証跡を `$WT` に残さない。あとで見返す必要がある内容はレビュー本文の「根拠」に転記し、`$DESTINATION` だけで完結させる
 - 最終応答で `$WT` 配下のパスを参照しない（`cleanup` 成功後は `$WT` が存在しないため）。`cleanup` の失敗または停止確認不能による省略時は、残った `$WT` とセッションの完全パスを報告する
-- 独立したレビューを行うため、`reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文は、候補の洗い出し・重点観点の収集・重複確認・自分の指摘の検証を含むいかなる目的でも読まない。レビュー完了後も読まない。メインリポジトリ側と `$WT` 側（PR に同梱された `reviews/`）のどちらも対象とする
+- 独立したレビューを行うため、`reviews/<owner>/<repo>/#<PR番号>-<変換後ブランチ名>/` と旧形式の `reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文は、候補の洗い出し・重点観点の収集・重複確認・自分の指摘の検証を含むいかなる目的でも読まない。レビュー完了後も読まない。メインリポジトリ側と `$WT` 側（PR に同梱された `reviews/`）のどちらも対象とする
 - `MAIN_ROOT`・`TOPLEVEL` は共通 context helper が照合した `code_root`・`tool_root` の別名である。`PARENT_ROOT` は create-reso-world の main checkout、その他の repo は明示された絶対パスの `CODE_ROOT` と一致 remote 1 件が必要。既知の ResoLoop 経路は `external/resoloop` の `origin=usaturn/resoloop`・`upstream=orange3134/resoloop` を照合する。不備は `scripts/resoloop-fork.sh clone` を案内して停止する。checkout の探索・clone はしない。
 - 自モデルの既存レビューはライブの `$DESTINATION` ではなく、`create` が返した `$PREVIOUS_REVIEW`（セッション内 snapshot）だけを読む。`$PREVIOUS_REVIEW` が空なら既存レビューなしとして扱う
 - Codex ではモデル名を自分で推測・短縮・一般化せず、`create` が Codex session metadata から確定した `model_name` を使用する。Codex 実行時は `create --model-name` を渡さない
@@ -81,8 +81,9 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 - 指摘が不確かな場合は【確認推奨】と明記する
 - 実行可能な指摘がない場合は、その旨を明確に伝える
 - レビューは日本語で返す
-- レビュー結果は常に `create` が返した `$DESTINATION` に作成する。`$DESTINATION` はヘルパーが `reviews/#<PR番号>-<変換後ブランチ名>/<model>.md` へ配置する。ブランチ名とモデル識別子に含まれる `/`・空白類およびディレクトリ名に使えない記号はヘルパーが使える記号へ変換する（例: PR 160・ブランチ `feature/issue-148-fail-fast` は `#160-feature-issue-148-fail-fast` 配下、モデル `opencode/deepseek-v4-flash-free` は `opencode-deepseek-v4-flash-free.md`、モデル `Cursor Grok 4.6` は `Cursor-Grok-4.6.md`）。`create` が返す `model_name` もこの変換後の値であり、エージェントが手で組み立てない
+- レビュー結果は常に `create` が返した `$DESTINATION` に作成する。`$DESTINATION` はヘルパーが `reviews/<owner>/<repo>/#<PR番号>-<変換後ブランチ名>/<model>.md` へ配置する。`<owner>/<repo>` は `create --pr-repo` に渡した PR の所属リポジトリ（小文字）で、fork と上流が同じ checkout を使い、番号やブランチ名が重なっても保存先が分かれる。ブランチ名とモデル識別子に含まれる `/`・空白類およびディレクトリ名に使えない記号はヘルパーが使える記号へ変換する（例: usaturn/create-reso-world の PR 160・ブランチ `feature/issue-148-fail-fast` は `reviews/usaturn/create-reso-world/#160-feature-issue-148-fail-fast/` 配下、モデル `opencode/deepseek-v4-flash-free` は `opencode-deepseek-v4-flash-free.md`、モデル `Cursor Grok 4.6` は `Cursor-Grok-4.6.md`）。`create` が返す `model_name` もこの変換後の値であり、エージェントが手で組み立てない
 - 保存先の `reviews/` は `MAIN_ROOT` の直下にある。resoloop の PR では `external/resoloop/reviews/` になり、fork の `.gitignore` はこれを無視しない。fork で commit するときは `git add` に明示したパスだけを渡し、`reviews/` を含めない。その他のリポジトリでは `$CODE_ROOT/reviews/` になり、その checkout の `.gitignore` が無視するとは限らないため、同じく `git add` に明示したパスだけを渡す。レビュー成果物は Spec・Plan ではないため、create-reso-world の `docs/superpowers/` へ集約しない
+- 所属リポジトリを含まない旧形式の `reviews/#<PR番号>-<変換後ブランチ名>/<model>.md` は、同じ checkout の別のリポジトリの PR のものかもしれない。`create` が `legacy_review` でそのパスを返しても、読まず・移動せず・上書きせず、Mode の判定にも使わない（Mode は `$PREVIOUS_REVIEW` だけで決める。旧形式がある PR の 2 回目以降の再レビューも Update になる）。保存先は新しい `$DESTINATION` で、最終応答で旧形式のパスを報告する。引き継ぐかどうかは、利用者が所属を確かめて決める
 - 同じ PR を同じモデルで再レビューする場合は、同一ファイルの内容全体を上書きし、別名ファイルを作らない。別モデルの結果は同じ PR ディレクトリ内の別ファイルへ保存する
 - PR 上で既に指摘済みの問題は重複報告しない（触れる場合は「既出」と明記する）
 - 件数表は active findings のみから計算する。重大度判定は active findings、確認不足判定は coverage と pending も参照する。Resolved findings は件数・重大度判定に含めない
@@ -129,11 +130,22 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
      MAIN_ROOT=$(printf '%s' "$CONTEXT_JSON" | jq -r .code_root)
      CODE_ROOT="$MAIN_ROOT"
      PR_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r .base_remote)
+     PR_REPOSITORY=$(printf '%s' "$CONTEXT_JSON" | jq -er .repository) || exit 66
      ```
 
+   - `PR_REPOSITORY` は context helper が照合した PR の所属リポジトリ（小文字の `owner/repo`）である。以降の取得 ref と helper の `--pr-repo` には、この値だけを使う。
+
    - `HELPER="$TOPLEVEL/.agents/skills/pr-review/scripts/pr_review_workspace.py"` を記録し、通常ファイルとして存在しなければ配置元 `PARENT_ROOT` と欠けた helper パスを報告して fetch 前に停止する。スキルはこのリポジトリにのみ存在するため、`MAIN_ROOT` が `external/resoloop` を指す場合でも `$TOPLEVEL` から解決する。以降、メインリポジトリに対する Git コマンドには必ず `git -C "$MAIN_ROOT"` を使い、カレントディレクトリへ暗黙に作用させない。
-   - PR head は PR 番号ごとの専用 ref `PR_REF=refs/pr-review/<PR_NUMBER>` に固定する。`git -C "$MAIN_ROOT" fetch "$PR_REMOTE" "+pull/<PR_NUMBER>/head:$PR_REF"` の後、`PR_HEAD=$(git -C "$MAIN_ROOT" rev-parse "$PR_REF")` で検証対象 SHA を確定する。共有の擬似参照 `FETCH_HEAD` は使わない。
-   - fetch 後に `git -C "$MAIN_ROOT" merge-base HEAD "$PR_REF"` が成功することを確認する。失敗した場合は `MAIN_ROOT` の選定が誤っている（無関係なリポジトリに PR のオブジェクトを取り込んだ状態）ため、保存を行わず停止して報告する。
+   - PR head は、所属リポジトリと PR 番号の組ごとの専用 ref に固定し、検証対象 SHA を確定する。fork と上流の PR は同じ checkout を使うので、番号だけの ref（旧形式の `refs/pr-review/<PR_NUMBER>`）を使うと、片方の取得がもう一方の head を変える。共有の擬似参照 `FETCH_HEAD` も使わない。
+
+     ```bash
+     PR_REF="refs/pr-review/repos/$PR_REPOSITORY/$PR_NUMBER"
+     git -C "$MAIN_ROOT" fetch "$PR_REMOTE" "+pull/$PR_NUMBER/head:$PR_REF" || exit 1
+     PR_HEAD=$(git -C "$MAIN_ROOT" rev-parse --verify "$PR_REF") || exit 1
+     git -C "$MAIN_ROOT" merge-base HEAD "$PR_REF" >/dev/null || exit 1
+     ```
+
+   - このブロックが失敗したら、保存を行わず停止して報告する。`merge-base` の失敗は `MAIN_ROOT` の選定が誤っている（無関係なリポジトリに PR のオブジェクトを取り込んだ状態）ことを示す。git が ref 名として受け付けない所属（`.` で始まる repo 名など）でも fetch が失敗して止まる。
    - dedicated ref fetch 後、次で GitHub の head と `PR_HEAD` の一致を確認する（HEAD consistency check 1/3）。不一致、空値、`gh` failure の場合は履歴を追記せず保存しない。
 
      ```bash
@@ -141,7 +153,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
      test "$CURRENT_PR_HEAD" = "$PR_HEAD"
      ```
 
-   - `create` は試行 ID ごとに一度だけ実行する。ヘルパーは `/tmp/pr-review-<PR_NUMBER>-<ランダム値>/worktree` に新しい detached worktree を作り（`--temp-root /tmp` で固定する。Claude Code の `allowed-tools` と一致させるため、どのランタイムでも同じにする）、保存先 `$DESTINATION` の create 時フィンガープリント（存在有無、通常ファイル・directory・symlink・その他の種別、通常ファイルの内容 SHA-256 または symlink target text の SHA-256）を `session.json` に保存する。既存パスは再利用しない。destination が通常ファイルの場合はセッション backup へ snapshot し、そのパスを `previous_review` として返す。destination が directory・symlink・特殊 entry の場合は fail-closed で停止する。
+   - `create` は試行 ID ごとに一度だけ実行する。`--pr-repo "$PR_REPOSITORY"` で PR の所属リポジトリを session に固定し、保存先・試行の照合・片付けはこの組（所属リポジトリと PR 番号）で行う。ヘルパーは `/tmp/pr-review-<PR_NUMBER>-<ランダム値>/worktree` に新しい detached worktree を作り（`--temp-root /tmp` で固定する。Claude Code の `allowed-tools` と一致させるため、どのランタイムでも同じにする）、保存先 `$DESTINATION` の create 時フィンガープリント（存在有無、通常ファイル・directory・symlink・その他の種別、通常ファイルの内容 SHA-256 または symlink target text の SHA-256）を `session.json` に保存する。既存パスは再利用しない。destination が通常ファイルの場合はセッション backup へ snapshot し、そのパスを `previous_review` として返す。destination が directory・symlink・特殊 entry の場合は fail-closed で停止する。
    - `create` の前に試行 ID を決め、開始時刻と同じく進捗記録に残す。`create` が何も返さずに終わっても、この ID で自分の試行を指せる。helper は同じ PR に同じ ID の試行があれば worktree を作る前に拒否する。
 
      ```bash
@@ -151,13 +163,13 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
    - Codex では次を実行する。helper が `CODEX_THREAD_ID` から model を解決する。
 
      ```bash
-     SESSION_JSON=$(uv run --no-project python "$HELPER" create --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --commit "$PR_HEAD" --head-branch "$HEAD_BRANCH" --temp-root /tmp --attempt-id "$ATTEMPT_ID")
+     SESSION_JSON=$(uv run --no-project python "$HELPER" create --repo "$MAIN_ROOT" --pr-repo "$PR_REPOSITORY" --pr-number "$PR_NUMBER" --commit "$PR_HEAD" --head-branch "$HEAD_BRANCH" --temp-root /tmp --attempt-id "$ATTEMPT_ID")
      ```
 
    - Codex 以外では、ランタイムから取得済みの正確な `MODEL_NAME` を使って次を実行する。
 
      ```bash
-     SESSION_JSON=$(uv run --no-project python "$HELPER" create --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --commit "$PR_HEAD" --head-branch "$HEAD_BRANCH" --model-name "$MODEL_NAME" --temp-root /tmp --attempt-id "$ATTEMPT_ID")
+     SESSION_JSON=$(uv run --no-project python "$HELPER" create --repo "$MAIN_ROOT" --pr-repo "$PR_REPOSITORY" --pr-number "$PR_NUMBER" --commit "$PR_HEAD" --head-branch "$HEAD_BRANCH" --model-name "$MODEL_NAME" --temp-root /tmp --attempt-id "$ATTEMPT_ID")
      ```
 
    - `CODEX_THREAD_ID` が存在するのに異なる `--model-name` を渡した場合、または非 Codex で `--model-name` を省略した場合、helper は worktree 作成前に停止する。
@@ -165,13 +177,13 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
      1. 次の `inspect` を実行する。`status` が `running` なら `--wait 540` を付けてやり直し、終わるのを待つ。それでも `running` なら、`abandon` も再試行もせず停止して報告する。
 
         ```bash
-        uv run --no-project python "$HELPER" inspect --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --attempt-id "$ATTEMPT_ID" --temp-root /tmp
+        uv run --no-project python "$HELPER" inspect --repo "$MAIN_ROOT" --pr-repo "$PR_REPOSITORY" --pr-number "$PR_NUMBER" --attempt-id "$ATTEMPT_ID" --temp-root /tmp
         ```
 
      2. `status` が `absent`・`failed` 以外なら、次の `abandon` で試行の残存物を片付ける。`abandon` は、試行が終わっていて、保存前の draft など helper が作った以外のファイルが無く、worktree がこのリポジトリの自セッションのものであるときだけ消す。拒否されたら削除を手で代行せず停止し、`inspect` の出力（工程・状態・残存パス）と拒否の理由を報告する。`failed` は helper のエラーで終わった試行なので、`abandon` も再試行もせず、下の helper のエラーと同じく扱う。
 
         ```bash
-        uv run --no-project python "$HELPER" abandon --repo "$MAIN_ROOT" --pr-number "$PR_NUMBER" --attempt-id "$ATTEMPT_ID" --temp-root /tmp
+        uv run --no-project python "$HELPER" abandon --repo "$MAIN_ROOT" --pr-repo "$PR_REPOSITORY" --pr-number "$PR_NUMBER" --attempt-id "$ATTEMPT_ID" --temp-root /tmp
         ```
 
      3. `abandon` が成功した、または `inspect` が `absent` を返した場合、調査期限まで 10 分以上残っていれば、新しい `ATTEMPT_ID` を決めて `create` を 1 回だけやり直してよい。残っていなければ停止して報告する。
@@ -189,11 +201,12 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
      MODEL_NAME=$(printf '%s' "$SESSION_JSON" | jq -r .model_name)
      MODEL_SOURCE=$(printf '%s' "$SESSION_JSON" | jq -r .model_source)
      PREVIOUS_REVIEW=$(printf '%s' "$SESSION_JSON" | jq -r '.previous_review // empty')
+     LEGACY_REVIEW=$(printf '%s' "$SESSION_JSON" | jq -r '.legacy_review // empty')
      SHORT_HEAD=$(git rev-parse --short=12 "$PR_HEAD")
      ```
 
    - `$SHORT_HEAD` は固定した `$PR_HEAD` の 12 文字短縮 hash である。`git rev-parse` は `$WT` または `$MAIN_ROOT` など、当該 object を参照できるリポジトリ上で実行する。
-   - `$PREVIOUS_REVIEW` が空なら Mode は `Initial`、helper が返した通常ファイル snapshot なら Mode は `Update` とする。ライブ `$DESTINATION` と他モデル files は読まない。
+   - `$PREVIOUS_REVIEW` が空なら Mode は `Initial`、helper が返した通常ファイル snapshot なら Mode は `Update` とする。ライブ `$DESTINATION` と他モデル files は読まない。`$LEGACY_REVIEW`（`$MAIN_ROOT` からの相対パス）は規約のとおり読まず、最終応答で報告する。
    - 以降のファイル読解・テスト実行は `$WT` を対象に行う。ただし重い一括検証は再実行しない。レビュー成果物は `create` が返した `$DESTINATION`（`$MAIN_ROOT` 直下の `reviews/` 配下。resoloop の PR なら `external/resoloop/reviews/`）に書き、`$WT` 内には書かない。
 3. **既存レビューの読解（更新時）**:
    - `$PREVIOUS_REVIEW` が空でない場合だけ、その snapshot ファイルを読む。ライブ `$DESTINATION`、他モデルのレビュー本文、ディレクトリ一覧から自モデルを推測して読むことはしない。この読解はメインエージェントのみが行い、サブエージェントに委譲しない。既存 review 本文を委譲 prompt に含めない。
@@ -261,7 +274,7 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
    - `cleanup` が失敗した場合は削除を手で代行せず停止し、`$WT`・セッションディレクトリ・`$DESTINATION` の完全パスと失敗理由を報告してユーザの判断に委ねる。
    - `cleanup` は他の worktree、`$MAIN_ROOT` の working tree、`reviews/` 配下の他ファイルを変更しない。
    - 停止確認不能なら cleanup を省略する。停止確認不能のときだけ cleanup を省略する限定条件であり、helper が失敗した場合の既存停止規則は保持する。省略時は残った委譲 ID・停止状態・WT とセッションの完全パスを報告し、このターンを終了する。
-   - 最終応答では save/cleanup の結果、`$DESTINATION` の完全パス、削除したセッションディレクトリのパス（省略時は省略理由と残した完全パス）、開始からの経過と全体実時間を報告する。保存済みレビューを後から直接書き換えない。`cleanup` 成功後は `$WT` 配下のパスは既に存在しないため案内に含めない。`create` をやり直した、または `abandon` を実行した場合は、試行 ID ごとの `inspect`・`abandon` の結果も報告する。
+   - 最終応答では save/cleanup の結果、`$DESTINATION` の完全パス、`$LEGACY_REVIEW` が空でなければその完全パス（所属を確かめられないため引き継いでいないこと）、削除したセッションディレクトリのパス（省略時は省略理由と残した完全パス）、開始からの経過と全体実時間を報告する。保存済みレビューを後から直接書き換えない。`cleanup` 成功後は `$WT` 配下のパスは既に存在しないため案内に含めない。`create` をやり直した、または `abandon` を実行した場合は、試行 ID ごとの `inspect`・`abandon` の結果も報告する。
 
 ## 検証プロトコル
 
@@ -427,10 +440,11 @@ Merge recommendation の判定基準:
 - 各指摘に反証を試みたか
 - 重い一括検証（`bash .devcontainer/run-tests.bash` など）を再実行していないか。指摘の検証に必要な範囲の実行はしてよい
 - 「コメントしないこと」に該当する指摘が紛れていないか
-- メインリポジトリ側と `$WT` 側の `reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文を、自分でもサブエージェント経由でも開いたり検索対象に含めたりしていないか
+- メインリポジトリ側と `$WT` 側の `reviews/<owner>/<repo>/#<PR番号>-<変換後ブランチ名>/` と旧形式の `reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文を、自分でもサブエージェント経由でも開いたり検索対象に含めたりしていないか
 - Merge recommendation が判定基準と整合しているか。重大度判定は active findings、確認不足判定は coverage と pending も参照する
-- `MAIN_ROOT` は PR URL の `owner/repository` を「リポジトリ境界」の表に照らして確定したか（このリポジトリ=検証済みの親 main checkout、resoloop=検証済みの `external/resoloop`、その他は明示された `CODE_ROOT` を照合し、明示が無い・不一致なら停止）。PR の head を `$PR_REMOTE` から取得したか。`merge-base HEAD "$PR_REF"` の成功を確認したか
+- `MAIN_ROOT` は PR URL の `owner/repository` を「リポジトリ境界」の表に照らして確定したか（このリポジトリ=検証済みの親 main checkout、resoloop=検証済みの `external/resoloop`、その他は明示された `CODE_ROOT` を照合し、明示が無い・不一致なら停止）。PR の head を `$PR_REMOTE` から、所属リポジトリを含む `$PR_REF` に取得したか。`merge-base HEAD "$PR_REF"` の成功を確認したか
 - helper の呼び出しを他の処理とまとめたり、600 秒未満のタイムアウトで打ち切ったりしていないか
+- `create`・`inspect`・`abandon` に `--pr-repo "$PR_REPOSITORY"` を渡したか。旧形式の `$LEGACY_REVIEW` を読まずに報告したか
 - `create` に `--attempt-id "$ATTEMPT_ID"` を渡し、結果を返さなかった試行を `inspect`・`abandon` で扱ったか（拒否されたら手で消さずに停止したか）
 - `create` が返した `model_name`、`draft`、`destination`、`previous_review` を変更・再構築せず使用したか
 - 正確な `$MODEL_NAME` を `--model-name "$MODEL_NAME"` で渡し、filename から推測していないか（Codex はヘルパーが確定する）

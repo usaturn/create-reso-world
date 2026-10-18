@@ -34,15 +34,15 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
 
 第1引数が `#<番号>`（例 `#300`）のとき、手順に入る前にレビューディレクトリへ解決する:
 
-- リポジトリのルートの `reviews/` 直下と、`external/resoloop/reviews/`（resoloop の PR のレビューが置かれる場所）の直下にあるディレクトリだけを見る。再帰せず、その階層のファイルは候補にしない。
+- リポジトリのルートの `reviews/` と、`external/resoloop/reviews/`（resoloop の PR のレビューが置かれる場所）の、それぞれ直下（旧形式）と `<owner>/<repo>/` の下（pr-review が所属リポジトリごとに保存する形式。例 `reviews/usaturn/create-reso-world/#300-…/`）にあるディレクトリだけを見る。それより深く再帰せず、ファイルは候補にしない。
 - ディレクトリ名が `#<番号>-` で開始されるものを一致とする（`#<番号>` の直後にハイフンが続くもの。例 `reviews/#300-fix-issue-299-pr-review-budget/`）。
 - 1 件だけ一致したら、そのディレクトリをレビューディレクトリとする。
-- 0 件なら、`reviews/` と `external/resoloop/reviews/` の直下に一致するディレクトリが無い旨を報告して停止する。
+- 0 件なら、`reviews/` と `external/resoloop/reviews/` に一致するディレクトリが無い旨を報告して停止する。
 - 複数一致したら、候補のディレクトリ名を列挙して停止し、フルパスでの指定を求める。
 
 `#<番号>` 以外の第1引数は従来どおりレビューディレクトリのパスとして扱う。
 
-PR の URL（`https://github.com/<owner>/<repo>/pull/<N>`）か番号が別に渡されたら、`<owner>/<repo>` を `PR_REPO`、`<N>` を `PR_NUMBER` にする。レビューディレクトリ名の `#<番号>` が `PR_NUMBER` と食い違うときは、推測せず停止する。
+PR の URL（`https://github.com/<owner>/<repo>/pull/<N>`）か番号が別に渡されたら、`<owner>/<repo>` を `PR_REPO`、`<N>` を `PR_NUMBER` にする。レビューディレクトリ名の `#<番号>` が `PR_NUMBER` と食い違うときは、推測せず停止する。レビューディレクトリが `reviews/<owner>/<repo>/` の下にあり、その `<owner>/<repo>` が `PR_REPO` と食い違う（大文字小文字は区別しない）ときも、推測せず停止する。fork と上流は番号も head も重なり得るので、別のリポジトリの PR のレビューで修正計画を立てない。
 
 ## 手順
 

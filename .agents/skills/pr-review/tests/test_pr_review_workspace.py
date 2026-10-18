@@ -25,6 +25,7 @@ workspace = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(workspace)
 
 THREAD_ID = "019fd23a-4723-7e02-83d9-58f32849f5ab"
+PR_REPO = "usaturn/create-reso-world"
 
 
 def attempt_id() -> str:
@@ -251,10 +252,11 @@ def test_review_artifact_paths_preserve_exact_model_name(tmp_path: Path) -> None
         "fix/herdr-session-cwd",
         "gpt-5.6-sol",
         pr_number=4,
+        pr_repository=PR_REPO,
     )
 
     assert draft == tmp_path / "review-backup" / "gpt-5.6-sol.md"
-    assert destination == "reviews/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
+    assert destination == "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
 
 
 def test_destination_fingerprint_distinguishes_symlink_entries(tmp_path: Path) -> None:
@@ -402,10 +404,10 @@ def make_repo(path: Path, *, tracked_reviews: bool = True) -> str:
     (path / "README.md").write_text("fixture\n", encoding="utf-8")
     git(path, "add", "README.md")
     if tracked_reviews:
-        old_review = path / "reviews" / "#4-fix-herdr-session-cwd" / "gpt-5.md"
+        old_review = path / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.md"
         old_review.parent.mkdir(parents=True)
         old_review.write_text("existing alias\n", encoding="utf-8")
-        git(path, "add", "reviews/#4-fix-herdr-session-cwd/gpt-5.md")
+        git(path, "add", "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.md")
     git(path, "commit", "-m", "fixture")
     return git(path, "rev-parse", "HEAD")
 
@@ -464,7 +466,7 @@ def test_snapshot_reports_changes_excluding_reviews(
         (repo / "notes.txt").write_text("notes\n", encoding="utf-8")
         (repo / "scratch").mkdir()
         (repo / "scratch" / "notes.txt").write_text("nested notes\n", encoding="utf-8")
-    reviews = repo / "reviews" / "#4-fix-herdr-session-cwd"
+    reviews = repo / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd"
     (reviews / "gpt-5.md").write_text("changed review\n", encoding="utf-8")
     (reviews / "new-model.md").write_text("new review\n", encoding="utf-8")
 
@@ -487,6 +489,7 @@ def test_create_requires_explicit_model_outside_codex(tmp_path: Path, monkeypatc
                 pr_number=5,
                 commit="unused-commit",
                 head_branch="fix/model-name",
+                pr_repo=PR_REPO,
                 model_name=None,
                 temp_root=str(temp_root),
                 attempt_id=attempt_id(),
@@ -508,6 +511,7 @@ def test_create_pins_slash_model_name_as_hyphenated_filename(tmp_path: Path, mon
             pr_number=42,
             commit=commit,
             head_branch="fix/model-name",
+            pr_repo=PR_REPO,
             model_name="opencode/deepseek-v4-flash-free",
             temp_root=str(tmp_path / "sessions"),
             attempt_id=attempt_id(),
@@ -515,7 +519,7 @@ def test_create_pins_slash_model_name_as_hyphenated_filename(tmp_path: Path, mon
     )
 
     assert result["model_name"] == "opencode-deepseek-v4-flash-free"
-    assert result["destination"] == "reviews/#42-fix-model-name/opencode-deepseek-v4-flash-free.md"
+    assert result["destination"] == "reviews/usaturn/create-reso-world/#42-fix-model-name/opencode-deepseek-v4-flash-free.md"
     assert result["draft"].endswith("/opencode-deepseek-v4-flash-free.md")
 
 
@@ -533,13 +537,14 @@ def test_create_destination_uses_hash_pr_number_and_sanitized_branch(
             pr_number=160,
             commit=commit,
             head_branch="feature/issue-148-fail-fast",
+            pr_repo=PR_REPO,
             model_name="grok-4.6",
             temp_root=str(tmp_path / "sessions"),
             attempt_id=attempt_id(),
         )
     )
 
-    assert result["destination"] == "reviews/#160-feature-issue-148-fail-fast/grok-4.6.md"
+    assert result["destination"] == "reviews/usaturn/create-reso-world/#160-feature-issue-148-fail-fast/grok-4.6.md"
 
 
 @pytest.mark.parametrize(
@@ -571,13 +576,14 @@ def test_create_destination_replaces_unsafe_directory_characters(
             pr_number=7,
             commit=commit,
             head_branch=head_branch,
+            pr_repo=PR_REPO,
             model_name="grok-4.6",
             temp_root=str(tmp_path / "sessions"),
             attempt_id=attempt_id(),
         )
     )
 
-    assert result["destination"] == f"reviews/{directory}/grok-4.6.md"
+    assert result["destination"] == f"reviews/usaturn/create-reso-world/{directory}/grok-4.6.md"
 
 
 def test_create_pins_explicit_model_outside_codex(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -592,6 +598,7 @@ def test_create_pins_explicit_model_outside_codex(tmp_path: Path, monkeypatch: p
             pr_number=5,
             commit=commit,
             head_branch="fix/model-name",
+            pr_repo=PR_REPO,
             model_name="opus-5",
             temp_root=str(tmp_path / "sessions"),
             attempt_id=attempt_id(),
@@ -601,7 +608,7 @@ def test_create_pins_explicit_model_outside_codex(tmp_path: Path, monkeypatch: p
     state = json.loads(Path(result["state_file"]).read_text(encoding="utf-8"))
     assert result["model_name"] == "opus-5"
     assert result["model_source"] == "explicit"
-    assert result["destination"] == "reviews/#5-fix-model-name/opus-5.md"
+    assert result["destination"] == "reviews/usaturn/create-reso-world/#5-fix-model-name/opus-5.md"
     assert state["model_source"] == "explicit"
 
 
@@ -618,6 +625,7 @@ def test_save_uses_pinned_explicit_model_without_codex_metadata(
             pr_number=5,
             commit=commit,
             head_branch="fix/model-name",
+            pr_repo=PR_REPO,
             model_name="opus-5",
             temp_root=str(tmp_path / "save-sessions"),
             attempt_id=attempt_id(),
@@ -627,7 +635,7 @@ def test_save_uses_pinned_explicit_model_without_codex_metadata(
 
     saved = workspace.save(argparse.Namespace(state=result["state_file"]))
 
-    assert saved["destination"].endswith("/reviews/#5-fix-model-name/opus-5.md")
+    assert saved["destination"].endswith("/reviews/usaturn/create-reso-world/#5-fix-model-name/opus-5.md")
     assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
 
 
@@ -656,6 +664,7 @@ def test_create_pins_model_and_artifact_paths(tmp_path: Path, monkeypatch: pytes
             pr_number=4,
             commit=commit,
             head_branch="fix/herdr-session-cwd",
+            pr_repo=PR_REPO,
             model_name=None,
             temp_root=str(tmp_path / "sessions"),
             attempt_id=attempt_id(),
@@ -663,9 +672,9 @@ def test_create_pins_model_and_artifact_paths(tmp_path: Path, monkeypatch: pytes
     )
 
     assert result["model_name"] == "gpt-5.6-sol"
-    assert result["destination"] == "reviews/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
+    assert result["destination"] == "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
     assert Path(result["draft"]).name == "gpt-5.6-sol.md"
-    assert (repo / "reviews/#4-fix-herdr-session-cwd/gpt-5.md").read_text(encoding="utf-8") == "existing alias\n"
+    assert (repo / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.md").read_text(encoding="utf-8") == "existing alias\n"
     state = json.loads(Path(result["state_file"]).read_text(encoding="utf-8"))
     assert result["previous_review"] is None
     assert state["previous_review"] is None
@@ -675,6 +684,8 @@ def test_create_pins_model_and_artifact_paths(tmp_path: Path, monkeypatch: pytes
     assert state["model_name"] == "gpt-5.6-sol"
     assert state["draft"] == result["draft"]
     assert state["destination"] == result["destination"]
+    assert state["pr_repository"] == result["pr_repository"] == PR_REPO
+    assert state["version"] == 7
 
 
 def test_create_pins_existing_review_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -684,7 +695,7 @@ def test_create_pins_existing_review_snapshot(tmp_path: Path, monkeypatch: pytes
     monkeypatch.setenv("CODEX_THREAD_ID", THREAD_ID)
     repo = tmp_path / "repo"
     commit = make_repo(repo)
-    own_review = repo / "reviews/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
+    own_review = repo / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
     own_review.write_text("own existing review\n", encoding="utf-8")
 
     result = workspace.create(
@@ -693,6 +704,7 @@ def test_create_pins_existing_review_snapshot(tmp_path: Path, monkeypatch: pytes
             pr_number=4,
             commit=commit,
             head_branch="fix/herdr-session-cwd",
+            pr_repo=PR_REPO,
             model_name=None,
             temp_root=str(tmp_path / "sessions"),
             attempt_id=attempt_id(),
@@ -724,10 +736,194 @@ def test_load_state_rejects_tampered_previous_review(
         workspace.load_state(str(state_file))
 
 
+def identity_create_args(
+    repo: Path,
+    commit: str,
+    temp_root: Path,
+    pr_repo: str,
+    *,
+    pr_number: int = 11,
+    head_branch: str = "fix/shared",
+    model_name: str = "opus-5",
+) -> argparse.Namespace:
+    return argparse.Namespace(
+        repo=str(repo),
+        pr_repo=pr_repo,
+        pr_number=pr_number,
+        commit=commit,
+        head_branch=head_branch,
+        model_name=model_name,
+        temp_root=str(temp_root),
+        attempt_id=attempt_id(),
+    )
+
+
+def create_and_save(args: argparse.Namespace, body: str) -> dict[str, Any]:
+    result = workspace.create(args)
+    Path(result["draft"]).write_text(body, encoding="utf-8")
+    workspace.save(argparse.Namespace(state=result["state_file"]))
+    workspace.cleanup(argparse.Namespace(state=result["state_file"]))
+    return result
+
+
+def test_fork_and_upstream_reviews_are_saved_and_rereviewed_independently(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # usaturn/resoloop and orange3134/resoloop share external/resoloop; the
+    # same number, branch, commit and model must still be two reviews.
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    temp_root = tmp_path / "sessions"
+
+    fork = create_and_save(
+        identity_create_args(repo, commit, temp_root, "usaturn/resoloop"), "Review for usaturn/resoloop#11\n"
+    )
+    upstream = create_and_save(
+        identity_create_args(repo, commit, temp_root, "orange3134/resoloop"), "Review for orange3134/resoloop#11\n"
+    )
+
+    assert fork["destination"] == "reviews/usaturn/resoloop/#11-fix-shared/opus-5.md"
+    assert upstream["destination"] == "reviews/orange3134/resoloop/#11-fix-shared/opus-5.md"
+    assert fork["legacy_review"] is None
+    assert upstream["previous_review"] is None
+    fork_review = repo / fork["destination"]
+    upstream_review = repo / upstream["destination"]
+    assert fork_review.read_text(encoding="utf-8") == "Review for usaturn/resoloop#11\n"
+    assert upstream_review.read_text(encoding="utf-8") == "Review for orange3134/resoloop#11\n"
+
+    rereview = workspace.create(identity_create_args(repo, commit, temp_root, "usaturn/resoloop"))
+    previous = Path(str(rereview["previous_review"]))
+    assert previous.read_text(encoding="utf-8") == "Review for usaturn/resoloop#11\n"
+    Path(rereview["draft"]).write_text("Updated review for usaturn/resoloop#11\n", encoding="utf-8")
+    workspace.save(argparse.Namespace(state=rereview["state_file"]))
+
+    assert fork_review.read_text(encoding="utf-8") == "Updated review for usaturn/resoloop#11\n"
+    assert upstream_review.read_text(encoding="utf-8") == "Review for orange3134/resoloop#11\n"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "",
+        "usaturn",
+        "usaturn/resoloop/extra",
+        "../resoloop",
+        "usaturn/..",
+        "-bad/resoloop",
+        "usaturn/res oloop",
+        "https://github.com/usaturn/resoloop",
+    ],
+)
+def test_create_rejects_invalid_pr_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bad: str) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    temp_root = tmp_path / "sessions"
+
+    with pytest.raises(workspace.WorkspaceError, match="PR repository"):
+        workspace.create(identity_create_args(tmp_path / "unused-repo", "unused-commit", temp_root, bad))
+
+    assert not temp_root.exists()
+
+
+def test_create_normalizes_pr_repository_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+
+    result = workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "Usaturn/ResoLoop"))
+
+    state = json.loads(Path(result["state_file"]).read_text(encoding="utf-8"))
+    assert result["pr_repository"] == "usaturn/resoloop"
+    assert state["pr_repository"] == "usaturn/resoloop"
+    assert result["destination"] == "reviews/usaturn/resoloop/#11-fix-shared/opus-5.md"
+    assert journal_records(Path(result["state_file"]).parent)[0]["pr_repository"] == "usaturn/resoloop"
+
+
+def test_create_reports_legacy_review_without_adopting_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A review saved before PR repositories were pinned may belong to either
+    # repository sharing the checkout, so it is reported, never read or moved.
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    legacy = repo / "reviews/#4-fix-herdr-session-cwd/opus-5.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("legacy review\n", encoding="utf-8")
+
+    result = workspace.create(explicit_create_args(repo, commit, tmp_path / "sessions", attempt_id()))
+    Path(result["draft"]).write_text("new review\n", encoding="utf-8")
+    workspace.save(argparse.Namespace(state=result["state_file"]))
+
+    assert result["legacy_review"] == "reviews/#4-fix-herdr-session-cwd/opus-5.md"
+    assert result["previous_review"] is None
+    assert legacy.read_text(encoding="utf-8") == "legacy review\n"
+    assert (repo / result["destination"]).read_text(encoding="utf-8") == "new review\n"
+
+
+def worktree_paths(repo: Path) -> list[str]:
+    return [line.removeprefix("worktree ") for line in git(repo, "worktree", "list", "--porcelain").splitlines()
+            if line.startswith("worktree ")]
+
+
+def test_version6_session_is_kept_by_verify_save_and_cleanup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo)
+    result = workspace.create(
+        explicit_create_args(repo, commit, tmp_path / "sessions", attempt_id(), model_name="gpt-5")
+    )
+    Path(result["draft"]).write_text("unsaved review\n", encoding="utf-8")
+    state_file = Path(result["state_file"])
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    state["version"] = 6
+    del state["pr_repository"]
+    state_file.write_text(json.dumps(state) + "\n", encoding="utf-8")
+    destination = repo / result["destination"]
+    before = (destination.read_text(encoding="utf-8"), worktree_paths(repo))
+
+    for handler in (workspace.verify, workspace.save, workspace.cleanup):
+        with pytest.raises(workspace.WorkspaceError, match="no PR repository"):
+            handler(argparse.Namespace(state=str(state_file)))
+
+    assert (destination.read_text(encoding="utf-8"), worktree_paths(repo)) == before
+    assert Path(str(result["previous_review"])).read_text(encoding="utf-8") == "existing alias\n"
+    assert Path(result["draft"]).read_text(encoding="utf-8") == "unsaved review\n"
+
+
+@pytest.mark.parametrize("value", ["Usaturn/resoloop", "usaturn", 7, None, "missing"])
+def test_load_state_rejects_non_canonical_pr_repository(created_session: dict[str, Any], value: object) -> None:
+    state_file = Path(created_session["result"]["state_file"])
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    if value == "missing":
+        del state["pr_repository"]
+    else:
+        state["pr_repository"] = value
+    state_file.write_text(json.dumps(state) + "\n", encoding="utf-8")
+
+    with pytest.raises(workspace.WorkspaceError, match="invalid PR-review session state"):
+        workspace.load_state(str(state_file))
+
+
+def test_save_rejects_rewritten_pr_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    result = workspace.create(explicit_create_args(repo, commit, tmp_path / "sessions", attempt_id()))
+    Path(result["draft"]).write_text("review\n", encoding="utf-8")
+    state_file = Path(result["state_file"])
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    state["pr_repository"] = "orange3134/resoloop"
+    state_file.write_text(json.dumps(state) + "\n", encoding="utf-8")
+
+    with pytest.raises(workspace.WorkspaceError, match="destination does not match"):
+        workspace.save(argparse.Namespace(state=str(state_file)))
+
+    assert not (repo / "reviews").exists()
+
+
 @pytest.mark.parametrize("head_branch", ["", "/", ".", "..", "..."])
 def test_review_artifact_paths_reject_invalid_branch(tmp_path: Path, head_branch: str) -> None:
     with pytest.raises(workspace.WorkspaceError, match="head branch"):
-        workspace.review_artifact_paths(tmp_path, head_branch, "gpt-5.6-sol", pr_number=1)
+        workspace.review_artifact_paths(tmp_path, head_branch, "gpt-5.6-sol", pr_number=1, pr_repository=PR_REPO)
 
 
 @pytest.mark.parametrize("pr_number", [0, -1, True, "160"])
@@ -738,6 +934,7 @@ def test_review_artifact_paths_reject_invalid_pr_number(tmp_path: Path, pr_numbe
             "feature/ok",
             "gpt-5.6-sol",
             pr_number=pr_number,  # type: ignore[arg-type]
+            pr_repository=PR_REPO,
         )
 
 
@@ -764,6 +961,8 @@ def test_create_parser_accepts_explicit_model_name() -> None:
             "/repo",
             "--pr-number",
             "5",
+            "--pr-repo",
+            PR_REPO,
             "--commit",
             "deadbeef",
             "--head-branch",
@@ -796,6 +995,7 @@ def create_session(
             pr_number=4,
             commit=commit,
             head_branch="fix/herdr-session-cwd",
+            pr_repo=PR_REPO,
             model_name=None,
             temp_root=str(tmp_path / "sessions"),
             attempt_id=attempt_id(),
@@ -816,7 +1016,7 @@ def test_save_uses_only_pinned_paths(created_session: dict[str, Any]) -> None:
 
     saved = workspace.save(argparse.Namespace(state=result["state_file"]))
 
-    assert saved["destination"].endswith("/reviews/#4-fix-herdr-session-cwd/gpt-5.6-sol.md")
+    assert saved["destination"].endswith("/reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.6-sol.md")
     assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
 
 
@@ -826,7 +1026,7 @@ def test_save_allows_another_review_destination_to_change(
     result = created_session["result"]
     repo = created_session["repo"]
     Path(result["draft"]).write_text("codex review\n", encoding="utf-8")
-    other = repo / "reviews/#4-fix-herdr-session-cwd/gemini-3.6-flash.md"
+    other = repo / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gemini-3.6-flash.md"
     other.write_text("gemini review\n", encoding="utf-8")
 
     saved = workspace.save(argparse.Namespace(state=result["state_file"]))
@@ -840,7 +1040,7 @@ def test_save_allows_untracked_reviews_directory_to_appear(tmp_path: Path, monke
     result = session["result"]
     repo = session["repo"]
     Path(result["draft"]).write_text("codex review\n", encoding="utf-8")
-    other = repo / "reviews" / "#4-fix-herdr-session-cwd" / "gemini.md"
+    other = repo / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gemini.md"
     other.parent.mkdir(parents=True)
     other.write_text("gemini review\n", encoding="utf-8")
     assert git(repo, "status", "--porcelain") == "?? reviews/"
@@ -864,8 +1064,8 @@ def test_save_rejects_non_directory_destination_parent(
     if collision == "reviews":
         (repo / "reviews").write_text("collision\n", encoding="utf-8")
     else:
-        reviews = repo / "reviews"
-        reviews.mkdir()
+        reviews = repo / "reviews/usaturn/create-reso-world"
+        reviews.mkdir(parents=True)
         (reviews / "#4-fix-herdr-session-cwd").write_text("collision\n", encoding="utf-8")
 
     with pytest.raises(
@@ -902,6 +1102,7 @@ def test_first_session_wins_same_destination(
             pr_number=4,
             commit=commit,
             head_branch="fix/herdr-session-cwd",
+            pr_repo=PR_REPO,
             model_name=None,
             temp_root=str(Path(first["state_file"]).parents[1]),
             attempt_id=attempt_id(),
@@ -956,7 +1157,7 @@ def test_save_rejects_tampered_destination(created_session: dict[str, Any]) -> N
     result = created_session["result"]
     state_file = Path(result["state_file"])
     state = json.loads(state_file.read_text(encoding="utf-8"))
-    state["destination"] = "reviews/#4-fix-herdr-session-cwd/gpt-5.md"
+    state["destination"] = "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.md"
     state_file.write_text(json.dumps(state) + "\n", encoding="utf-8")
 
     with pytest.raises(workspace.WorkspaceError, match="destination does not match"):
@@ -1067,7 +1268,7 @@ def test_cleanup_keeps_other_worktrees_and_main_checkout(tmp_path: Path, created
     repo = created_session["repo"]
     other = tmp_path / "unrelated-worktree"
     git(repo, "worktree", "add", "--detach", str(other), "HEAD")
-    other_review = repo / "reviews/#4-fix-herdr-session-cwd/gemini-3.6-flash.md"
+    other_review = repo / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gemini-3.6-flash.md"
     other_review.parent.mkdir(parents=True, exist_ok=True)
     other_review.write_text("gemini review\n", encoding="utf-8")
     saved_session(created_session)
@@ -1178,6 +1379,7 @@ def explicit_create_args(
         pr_number=4,
         commit=commit,
         head_branch="fix/herdr-session-cwd",
+        pr_repo=PR_REPO,
         model_name=model_name,
         temp_root=str(temp_root),
         attempt_id=attempt,
@@ -1198,6 +1400,8 @@ def test_create_parser_requires_attempt_id() -> None:
                 "/repo",
                 "--pr-number",
                 "5",
+                "--pr-repo",
+                PR_REPO,
                 "--commit",
                 "deadbeef",
                 "--head-branch",
@@ -1262,6 +1466,7 @@ def test_create_records_its_phases_in_the_journal(tmp_path: Path, monkeypatch: p
     assert header["pr_number"] == 4
     assert header["commit"] == commit
     assert header["main_root"] == str(repo.resolve())
+    assert header["pr_repository"] == PR_REPO
     assert header["session_dir"] == str(session_dir)
     assert header["worktree"] == result["worktree"]
     assert records[-1]["state_file"] == result["state_file"]
@@ -1308,7 +1513,9 @@ def test_create_outlives_a_reader_that_closed_its_stderr(tmp_path: Path, monkeyp
 
 
 def attempt_args(repo: Path, temp_root: Path, attempt: str, *, wait: int = 0) -> argparse.Namespace:
-    return argparse.Namespace(repo=str(repo), pr_number=4, attempt_id=attempt, temp_root=str(temp_root), wait=wait)
+    return argparse.Namespace(
+        repo=str(repo), pr_repo=PR_REPO, pr_number=4, attempt_id=attempt, temp_root=str(temp_root), wait=wait
+    )
 
 
 def stalling_git_env(tmp_path: Path) -> dict[str, str]:
@@ -1341,6 +1548,8 @@ def start_create(env: dict[str, str], repo: Path, commit: str, temp_root: Path, 
             str(repo),
             "--pr-number",
             "4",
+            "--pr-repo",
+            PR_REPO,
             "--commit",
             commit,
             "--head-branch",
@@ -1674,11 +1883,42 @@ def test_abandon_refuses_another_repository(tmp_path: Path, monkeypatch: pytest.
     assert attempt["result"]["worktree"] in git(attempt["repo"], "worktree", "list")
 
 
+def test_inspect_and_abandon_refuse_another_pr_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The fork and its upstream share the checkout; the PR number alone does
+    # not say whose attempt this is.
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    other = attempt_args(attempt["repo"], attempt["temp_root"], attempt["attempt"])
+    other.pr_repo = "orange3134/resoloop"
+    worktrees = worktree_paths(attempt["repo"])
+
+    for handler in (workspace.inspect_attempt, workspace.abandon_attempt):
+        with pytest.raises(workspace.WorkspaceError, match="does not match"):
+            handler(other)
+
+    assert attempt["session_dir"].is_dir()
+    assert worktree_paths(attempt["repo"]) == worktrees
+
+
+def test_abandon_keeps_a_journal_without_pr_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    journal = attempt["session_dir"] / "create-journal.jsonl"
+    lines = journal.read_text(encoding="utf-8").splitlines(keepends=True)
+    header = json.loads(lines[0])
+    del header["pr_repository"]
+    journal.write_text(json.dumps(header) + "\n" + "".join(lines[1:]), encoding="utf-8")
+
+    with pytest.raises(workspace.WorkspaceError, match="does not match"):
+        workspace.abandon_attempt(attempt_args(attempt["repo"], attempt["temp_root"], attempt["attempt"]))
+
+    assert attempt["session_dir"].is_dir()
+    assert attempt["result"]["worktree"] in git(attempt["repo"], "worktree", "list")
+
+
 def test_abandon_touches_only_its_own_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     mine = completed_attempt(tmp_path, monkeypatch)
     repo = mine["repo"]
     theirs = workspace.create(explicit_create_args(repo, mine["commit"], mine["temp_root"], attempt_id()))
-    other_review = repo / "reviews/#4-fix-herdr-session-cwd/gemini-3.6-flash.md"
+    other_review = repo / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gemini-3.6-flash.md"
     other_review.write_text("gemini review\n", encoding="utf-8")
     (repo / "notes.txt").write_text("user notes\n", encoding="utf-8")
     before = workspace.snapshot(repo)
@@ -1703,6 +1943,8 @@ def test_abandon_waits_for_the_repository_review_lock(tmp_path: Path, monkeypatc
         str(attempt["repo"]),
         "--pr-number",
         "4",
+        "--pr-repo",
+        PR_REPO,
         "--attempt-id",
         attempt["attempt"],
         "--temp-root",
@@ -1803,3 +2045,162 @@ def test_a_repeated_signal_does_not_cut_the_end_record(tmp_path: Path, monkeypat
     report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
     assert report["status"] == "interrupted"
     assert report["signal"] == "SIGTERM"
+
+
+def fake_gh_path(tmp_path: Path, states: dict[str, str], *, number_offset: int = 0) -> str:
+    """Put a gh on PATH that reports `states` ({"owner/repo#N": STATE}) and fails for any other PR."""
+    bin_dir = tmp_path / "gh-bin"
+    bin_dir.mkdir()
+    states_file = tmp_path / "gh-states.json"
+    states_file.write_text(json.dumps(states), encoding="utf-8")
+    script = bin_dir / "gh"
+    script.write_text(
+        f"#!{sys.executable}\n"
+        "import json, sys\n"
+        "args = sys.argv[1:]\n"
+        "assert args[:2] == ['pr', 'view'] and args[args.index('--json') + 1] == 'number,state', args\n"
+        "number, repo = args[2], args[args.index('--repo') + 1]\n"
+        f"state = json.load(open({str(states_file)!r})).get(f'{{repo}}#{{number}}')\n"
+        "if state is None:\n"
+        "    sys.exit('GraphQL: Could not resolve to a PullRequest')\n"
+        f"print(json.dumps({{'number': int(number) + {number_offset}, 'state': state}}))\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    return f"{bin_dir}{os.pathsep}{os.environ['PATH']}"
+
+
+def session_files(temp_root: Path) -> dict[str, str]:
+    # Everything sessions might touch, without walking into the checkouts.
+    return {
+        str(path.relative_to(temp_root)): path.read_text(encoding="utf-8") if path.is_file() else "<dir>"
+        for path in sorted(temp_root.rglob("*"))
+        if "worktree" not in path.relative_to(temp_root).parts[1:2]
+    }
+
+
+@pytest.mark.parametrize(
+    ("fork_state", "upstream_state"), [("MERGED", "OPEN"), ("OPEN", "MERGED"), ("CLOSED", "OPEN")]
+)
+def test_sessions_keep_the_open_pr_when_fork_and_upstream_share_number_branch_and_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fork_state: str, upstream_state: str
+) -> None:
+    # Listing only the fork's PRs would call the upstream review "not open";
+    # each session must be looked up in its own repository.
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    temp_root = tmp_path / "sessions"
+    fork = workspace.create(identity_create_args(repo, commit, temp_root, "usaturn/resoloop"))
+    upstream = workspace.create(identity_create_args(repo, commit, temp_root, "orange3134/resoloop"))
+    git(repo, "worktree", "add", "--detach", str(tmp_path / "unrelated"), commit)
+    monkeypatch.setenv(
+        "PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": fork_state, "orange3134/resoloop#11": upstream_state})
+    )
+    before = (worktree_paths(repo), session_files(temp_root))
+
+    report = workspace.sessions(argparse.Namespace(repo=str(repo)))
+
+    assert (worktree_paths(repo), session_files(temp_root)) == before
+    assert report["main_root"] == str(repo.resolve())
+    by_repository = {entry["pr_repository"]: entry for entry in report["sessions"]}
+    assert set(by_repository) == {"usaturn/resoloop", "orange3134/resoloop"}
+    for result, state in ((fork, fork_state), (upstream, upstream_state)):
+        entry = by_repository[result["pr_repository"]]
+        assert entry["worktree"] == result["worktree"]
+        assert (entry["pr_number"], entry["head_branch"], entry["commit"]) == (11, "fix/shared", commit)
+        assert entry["pr_state"] == state
+        assert entry["removable"] is (state != "OPEN")
+        if state == "OPEN":
+            assert "open" in entry["reason"]
+
+
+def test_sessions_keep_a_version6_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    result = workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
+    state_file = Path(result["state_file"])
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    state["version"] = 6
+    del state["pr_repository"]
+    state_file.write_text(json.dumps(state) + "\n", encoding="utf-8")
+    monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": "MERGED"}))
+
+    [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
+
+    assert entry["removable"] is False
+    assert entry["pr_repository"] is None
+    assert "no PR repository" in entry["reason"]
+
+
+@pytest.mark.parametrize("failure", ["unknown-pr", "no-gh"])
+def test_sessions_keep_when_gh_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
+    if failure == "unknown-pr":
+        monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {}))
+    else:
+        git_only = tmp_path / "git-only"
+        git_only.mkdir()
+        real_git = shutil.which("git")
+        assert real_git is not None
+        (git_only / "git").symlink_to(real_git)
+        monkeypatch.setenv("PATH", str(git_only))
+
+    [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
+
+    assert entry["removable"] is False
+    assert entry["pr_state"] is None
+    assert entry["pr_repository"] == "usaturn/resoloop"
+
+
+def test_sessions_keep_when_gh_reports_another_number(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
+    monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": "MERGED"}, number_offset=1))
+
+    [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
+
+    assert entry["removable"] is False
+    assert entry["pr_state"] is None
+
+
+@pytest.mark.parametrize("content", [None, "[]\n"])
+def test_sessions_keep_a_session_without_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: str | None
+) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    result = workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
+    state_file = Path(result["state_file"])
+    if content is None:
+        state_file.unlink()
+    else:
+        state_file.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": "MERGED"}))
+
+    [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
+
+    assert entry["removable"] is False
+    assert entry["pr_repository"] is None
+    assert entry["worktree"] == result["worktree"]
+
+
+def test_sessions_keep_a_locked_worktree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    repo = tmp_path / "repo"
+    commit = make_repo(repo, tracked_reviews=False)
+    result = workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
+    git(repo, "worktree", "lock", "--reason", "in use", result["worktree"])
+    monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": "MERGED"}))
+
+    [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
+
+    assert entry["removable"] is False
+    assert "locked" in entry["reason"]

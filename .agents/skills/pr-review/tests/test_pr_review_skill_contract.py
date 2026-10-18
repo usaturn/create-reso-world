@@ -69,9 +69,18 @@ def read(path: Path) -> str:
 
 def extract_resolver_script(skill_text: str) -> str:
     """Extract the resolver by its CLI operation, never its prose heading."""
+    return _extract_block(skill_text, "--operation review-workspace", "review-workspace")
+
+
+def extract_fetch_script(skill_text: str) -> str:
+    """Extract the PR head fetch by its refspec, never its prose heading."""
+    return _extract_block(skill_text, "+pull/$PR_NUMBER/head:", "PR head fetch")
+
+
+def _extract_block(skill_text: str, marker: str, name: str) -> str:
     blocks = re.findall(r"```bash\n(.*?)```", skill_text, re.DOTALL)
-    matches = [block for block in blocks if "--operation review-workspace" in block]
-    assert len(matches) == 1, "skill must have one unambiguous review-workspace block"
+    matches = [block for block in blocks if marker in block]
+    assert len(matches) == 1, f"skill must have one unambiguous {name} block"
     block = matches[0]
     # Nested list markdown indents the fence body; strip a common indent.
     lines = block.splitlines()
@@ -601,3 +610,81 @@ def test_missing_context_helper_stops_with_parent_checkout_guidance(tmp_path: Pa
     assert "superpowers_context.py" in stopped.value.stderr
     assert "PARENT_ROOT" in stopped.value.stderr
     assert stopped.value.stdout == ""
+
+
+def publish_pull_head(tmp_path: Path, checkout: Path, name: str) -> str:
+    """A bare stand-in for one GitHub repository whose PR 11 head builds on the checkout."""
+    bare = tmp_path / f"{name}.git"
+    _git(tmp_path, "init", "--bare", str(bare))
+    tree = _git(checkout, "rev-parse", "HEAD^{tree}").stdout.strip()
+    head = _git(checkout, "commit-tree", tree, "-p", "HEAD", "-m", f"{name} PR 11").stdout.strip()
+    _git(checkout, "push", str(bare), f"{head}:refs/pull/11/head")
+    return head
+
+
+def run_skill_block(
+    script: str, *, cwd: Path, variables: dict[str, str], prints: list[str], env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    assignments = "".join(f"{name}={shlex.quote(value)}\n" for name, value in variables.items())
+    harness = f"set -euo pipefail\n{assignments}{script}printf '%s\\n' {' '.join(f'"${name}"' for name in prints)}\n"
+    return subprocess.run(
+        ["bash", "-c", harness],
+        cwd=cwd,
+        env=dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null", **(env or {})),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def test_fork_and_upstream_fetches_keep_separate_refs(tmp_path: Path) -> None:
+    # usaturn/resoloop and orange3134/resoloop share external/resoloop, so a
+    # ref named by the PR number alone lets one fetch move the other's head.
+    parent = build_parent_with_fork(tmp_path)
+    checkout = parent / "external" / "resoloop"
+    heads = {name: publish_pull_head(tmp_path, checkout, name) for name in ("fork", "upstream")}
+    # Only the fetch is redirected: the resolver must still see GitHub URLs.
+    redirect = {
+        "GIT_CONFIG_COUNT": "2",
+        "GIT_CONFIG_KEY_0": f"url.{(tmp_path / 'fork.git').as_uri()}.insteadOf",
+        "GIT_CONFIG_VALUE_0": FORK_ORIGIN,
+        "GIT_CONFIG_KEY_1": f"url.{(tmp_path / 'upstream.git').as_uri()}.insteadOf",
+        "GIT_CONFIG_VALUE_1": FORK_UPSTREAM,
+    }
+    skill = read(AGENTS_SKILL)
+    fetched: dict[str, list[str]] = {}
+    contexts: dict[str, dict[str, str]] = {}
+    for name, owner in (("fork", "usaturn"), ("upstream", "orange3134")):
+        resolved = run_skill_block(
+            extract_resolver_script(skill),
+            cwd=parent,
+            variables={"PR_JSON": json.dumps({"url": f"https://github.com/{owner}/resoloop/pull/11"}),
+                       "CODE_ROOT": "", "PARENT_ROOT": ""},
+            prints=["MAIN_ROOT", "PR_REMOTE", "PR_REPOSITORY"],
+        )
+        assert resolved.returncode == 0, resolved.stderr
+        main_root, remote, repository = resolved.stdout.splitlines()
+        contexts[name] = {"MAIN_ROOT": main_root, "PR_REMOTE": remote, "PR_REPOSITORY": repository}
+        result = run_skill_block(
+            extract_fetch_script(skill),
+            cwd=parent,
+            variables={**contexts[name], "PR_NUMBER": "11"},
+            prints=["PR_REF", "PR_HEAD"],
+            env=redirect,
+        )
+        assert result.returncode == 0, result.stderr
+        fetched[name] = result.stdout.splitlines()
+
+    assert fetched["fork"] == ["refs/pr-review/repos/usaturn/resoloop/11", heads["fork"]]
+    assert fetched["upstream"] == ["refs/pr-review/repos/orange3134/resoloop/11", heads["upstream"]]
+    assert _git(checkout, "rev-parse", fetched["fork"][0]).stdout.strip() == heads["fork"]
+
+    missing = run_skill_block(
+        extract_fetch_script(skill),
+        cwd=parent,
+        variables={**contexts["fork"], "PR_NUMBER": "12"},
+        prints=["PR_REF", "PR_HEAD"],
+        env=redirect,
+    )
+    assert missing.returncode != 0
+    assert missing.stdout == ""
