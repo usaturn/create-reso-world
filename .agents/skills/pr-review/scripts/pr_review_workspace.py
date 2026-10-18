@@ -1397,6 +1397,7 @@ def cleanup(args: argparse.Namespace) -> dict[str, str]:
     draft = Path(state["draft"]).resolve(strict=False)
     destination = safe_destination(repo, state["destination"], repository=session_repository(state))
 
+    ref_details: dict[str, str] = {}
     with review_save_lock(repo):
         require_saved_review(draft, destination)
         target = session_target(state)
@@ -1404,16 +1405,17 @@ def cleanup(args: argparse.Namespace) -> dict[str, str]:
         require_saved_findings(repo, state)
         if state["version"] == STATE_VERSION_TARGET:
             # Compare-and-delete only this repository's pinned PR ref.
-            delete_pinned_ref(
-                target,
-                pinned_review_ref(state["pr_number"], session_repository(state)),
-                state["pr_head"],
-            )
+            pr_ref = pinned_review_ref(state["pr_number"], session_repository(state))
+            ref_details = {
+                "pr_ref": pr_ref,
+                "pr_ref_status": delete_pinned_ref(target, pr_ref, state["pr_head"]),
+            }
         git(target, "worktree", "remove", "--force", str(worktree))
         if worktree.exists():
             raise WorkspaceError(f"git did not remove the review worktree: {worktree}")
         shutil.rmtree(session_dir)
     return {
+        **ref_details,
         "destination": str(destination),
         "session_dir": str(session_dir),
         "worktree": str(worktree),
