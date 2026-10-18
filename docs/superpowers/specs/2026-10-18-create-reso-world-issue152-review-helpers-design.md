@@ -132,3 +132,23 @@ brainstorming の手順で、新しいサブエージェント 1 体にこの Sp
 - 文書の用語の書き換えで、文脈に応じた言い回し（「回」「レビュアー」の使い分け）
 - `review_target.py` の関数の分け方（D-4〜D-8 の挙動と CLI・JSON・終了コードを満たす範囲）
 - テストの fixture の書き方
+
+## 実装・検証結果（2026-10-18）
+
+実装は Plan の Task 1〜3 のとおり。commit は `81e15ee`（review_records）、`42e8d36`（review_findings）、`ccff011`（review_target）。
+
+- 実行した検証（全て worktree のルートで、終了コード 0）
+  - `uv run pytest .agents/scripts tests/scripts/test_superpowers_context.py`: 541 passed、109 subtests passed
+  - `uv run pytest tests/skills .agents/skills .agents/scripts`（`README.md` の「テスト」）: 1126 passed
+  - `bash .devcontainer/run-tests.bash`: PASS 32
+  - `bash scripts/check-layout.sh`: PASS
+- `test_review_target.py` は 59 件。主な分岐（パスのある checkout と `target_root` の照合、旧配置の案内の範囲、`fetch_pull_head` の remote、保存先の小文字、`--pr` のリポジトリの照合）を 1 つずつ壊すと、どれもテストが失敗することを確かめた
+- 実環境（読み取りだけ）: `review_target.py resolve 160` は親の checkout・`origin`、`resolve https://github.com/usaturn/resoloop/pull/16` は `external/resoloop`・`origin`、`resolve https://github.com/orange3134/resoloop/pull/6` は `external/resoloop`・`upstream` を返した。`review-dir 160` は新しい配置に無いので終了コード 8 で止まり、旧配置の `reviews/#160-…` を文に並べた。usaturn/resoloop-meshy には PR が無いので、`--code-root` の経路は実環境では確かめていない（テストだけ）
+- Issue の受け入れ（D-12）: 全て上のテストで確かめた
+- ブランチ全体のレビュー（新しいサブエージェント 1 体、opus、`3e3c1a3..ccff011`）: Critical 0・Important 0・Minor 6、マージ可。効果で格付けし直しても致命的なものは無いので、#116 の注意書き（致命的な指摘だけを直す、修正後の自己レビューは最大 1 回）に従って直さず、次を持ち越す
+  1. 番号・URL で探したときの旧配置の案内が「同じ PR のディレクトリ」と書くが、`external/resoloop/reviews/#<N>-*` は fork と上流のどちらの PR でも並ぶ（正しくは「同じ番号」）
+  2. `--pr` を添えたとき、層からも `findings/` からも決まらず名前だけで受け付けるディレクトリは、パスのある checkout と `target_root` の照合（D-7）を通らない
+  3. D-7 の 4 は「`--pr` を添えたときだけ読む」と書いたが、実装（Plan の手順 5）は `findings/` の PR が checkout の remote にあるときも読む
+  4. `.agents/review-records.md` の review-verify を指す箇所に「#154 で入る」が無い
+  5. `.agents/review-findings.md` の 314 行目に「親の main worktree」と、注記の無い `tools/agent_runner/interfaces.rst` が残る
+  6. `test_review_target.py` に、upstream が別のリポジトリを指す場合・GitHub の remote の無い checkout で `findings/` がある場合・親の旧配置に別リポジトリの `--pr` を添えた場合・D-7 の 3 で remote に無い場合のテストが無い（挙動はレビュアーが実行して確かめた）

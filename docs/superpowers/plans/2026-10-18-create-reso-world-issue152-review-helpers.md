@@ -289,3 +289,14 @@ git commit -m "docs: record Issue 152 verification results"
 - 既存のテストが失敗したら: `origin/main` の親の checkout で同じテストを実行して比べ、この変更で増えた失敗だけを調べる
 - `superpowers_context.py` を変えないと満たせない挙動が見つかったら: 既存の経路と拒否を変えない関数の追加だけを検討し、Spec の D-1 を更新する。既存の経路・拒否を変える必要があれば、#116 にコメントして止まる
 - 競合（同じ Issue の PR・予約の喪失）が見つかったら: push・PR をせずに止まる
+
+## 完了
+
+状態は draft のまま（内容の承認は無い）。Task 1〜4 を完了し、公開（push の前の検査・push・PR の作成）に進む。結果と持ち越した Minor は Spec の「実装・検証結果」にある。
+
+- Task 1（`81e15ee`）: Ruling: `test_review_records.py` は文書の記入例のテストで `review_findings.py` も読むので、Task 1 で `review_findings.py` を移植元のまま置き、文言の変更は Task 2 で行った。187 passed
+- Task 2（`42e8d36`）: `test_format_document_examples_are_valid` の固定値の assertion を外した。2 ファイルで 411 passed
+- Task 3（`ccff011`）: 59 passed。主な分岐を 1 つずつ壊すと、どれもテストが失敗することを確かめた。Ruling: `rg` の `submodule` の 2 件は、親の main checkout の確認（submodule を拒む）とテストの説明なので残した
+- Task 4: 検証 4 本は全て終了コード 0。ブランチ全体のレビューは Critical 0・Important 0・Minor 6 で、修正はしていない（再レビューもしていない）
+- Setup: Ruling: executing-plans の作業領域（`.superpowers/sdd/`）は worktree の中にできるので使わず、ledger は `tmp/agents/issue-152.ays8vbhd/progress.md` に手で書いた（`AGENTS.md` は worktree にコミットしないファイルを置くことを禁じる）
+- 実行予算: 240 分のうち、09:36Z の着手から 10:27Z の記録まで約 51 分（ledger の能動時間は 09:49:58Z からの分）。準備（Issue・ボードの確認、予約、worktree、移植元の取得と調査）約 13 分、Spec・builder check・Plan 約 18 分、Task 1〜3 約 11 分、検証約 8 分、ブランチ全体のレビュー約 10 分
