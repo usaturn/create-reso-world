@@ -15,7 +15,7 @@ description: >-
 
 ## 共通の境界
 
-- 書くのは `verified/` と自分の一意の一時ディレクトリだけ。PR コメント、push、commit、修正、レビューファイル・候補一覧の書換えはしない。他者の未コミット変更を読まない。
+- 新規成果物は D-10 の `PARENT_ROOT/reviews/<owner>/<repo>/#<PR>-<branch>/verified/` にだけ保存する。旧配置のレビューは読取元として扱い、保存先とは分ける。ほかに書けるのは自分の一意の一時ディレクトリだけ。PR コメント、push、commit、修正、レビューファイル・候補一覧の書換えはしない。他者の未コミット変更を読まない。
 - 根拠は `git show <HEAD>:<path>` と、その HEAD を照合した隔離 worktree での実行。元の作業ツリーの修正を「修正済み」の証拠にしない。
 - 判定は `confirmed`・`not_reproduced`・`unverified`。挙動の confirmed には実行証拠、静的な主張にはコミット済み記述の根拠が必要。コマンド失敗・依存不足・時間切れ・未読は `unverified` と `missing_checks`。票数は根拠にしない。
 - 入力不足を会話や未コミット案から補わない。秘密の値を入力・出力・ログへ写さない。
@@ -51,7 +51,9 @@ remove 失敗時は親を削除せず、WT と REPRO_ROOT の完全パスを報�
 
 形式の定義は [review-findings.md](../../review-findings.md) 3・5 章。新規結果は `review-findings/v2`。`pr`, `reviewed_head`, `base`, `verifier`, `skill`, `timing`, `inputs`, `coverage`, `findings`, `accuracy` を埋める。v2 の provenance は実観測値を使い、未観測は `unknown`。実際に読んだ SKILL.md bytes の SHA256 を主要 skill と provenance.skills に同じ値で記録する。要求モデル名を観測モデル名にしない。時間不明は null、待ち時間も記録する。
 
-JSON は同じ保存先の一時ファイルに書き、次を通してから `mv` で置換する。失敗時は既存結果を残す。fix_check の sidecar の検査手順はモード文書に従う。
+各モードで入力の読取先とは別に `OUTPUT_REVIEW_DIR` を確定し、`VERIFIED_DIR="$OUTPUT_REVIEW_DIR/verified"` を使う。owner/repo・PR番号・ブランチは確認済みPRメタデータから取得し、既存 helper の `review_directory` で D-10 のパスを組み立てる（[cycle の保存先確定](references/cycle.md#新規成果物の保存先)）。出力先やその親にリンクがある、書き込めない、PR対応を確認できない場合は停止し、旧配置へ保存し直さない。
+
+JSON と要約、fix_check の sidecar は全て `VERIFIED_DIR` に保存する。JSON はこのディレクトリの一時ファイルに書き、次を通してから `mv` で置換する。失敗時は既存結果を残す。fix_check の sidecar の検査手順はモード文書に従う。
 
 ```bash
 uv run --project "$PARENT_ROOT" --locked python "$TOOL_ROOT/.agents/scripts/review_findings.py" validate "$DRAFT_JSON"

@@ -11,10 +11,12 @@ request は次の7項目だけを持つ JSON object。全て必須、未知キ�
 | `to` | 修正後の完全 SHA。検証の `reviewed_head` と同じ |
 | `fix_ids` | 1件以上、重複なし、空白だけでない参照文字列の配列 |
 | `fix_sections` | 採用変更と検証を含む Spec の Fix 節全文。空白のみ不可 |
-| `verified_file` | 入力の確認済み一覧の絶対パス |
-| `review_dir` | 成果物保存先の絶対パス |
+| `verified_file` | 入力の確認済み一覧の絶対パス。旧配置も読取元として使える |
+| `review_dir` | 新規成果物を保存する D-10 レビューディレクトリの絶対パス（`verified/` の親） |
 
 不足時は入力不備として停止する。会話・過去案・未コミット変更から補わない。呼び出し前に verified_file を既存 helper で validate し、PR/対象 HEAD と fix_ids の対応を確認する。`TARGET_REPO_ROOT=repository`, `VERIFY_HEAD=to` とし、[共通の隔離手順](../SKILL.md#ツールと隔離実行)を使う。
+
+呼び出し側は入力のPRを `review_target.py resolve <PR URL> [--code-root <明示checkout>]` で確認し、その JSON の `review_dir`（既存 `review_directory` が組み立てる D-10 パス）を `OUTPUT_REVIEW_DIR` とする。`review_dir` 入力がこのパスと一致することを dispatch 前に確認し、不一致なら入力不備として停止する。`verified_file` の親や旧配置の読取先を保存先に流用せず、無断で request を補正しない。修正確認の対象SHAは引き続き request の `to` であり、resolve が返す公開PR headへ置き換えない。JSON・sidecar・要約は全て `OUTPUT_REVIEW_DIR/verified/` に保存する。D-10の保存条件を満たせなければ理由を報告して停止する。
 
 期限は最大1800秒、確定・保存の予約は `min(300, deadline_seconds // 2)` 秒。dispatch の `time_limits`（started_at, stop_new_checks_at, deadline_at）が指定する絶対期限を守る。確認の区切りで `date -u` を確認し、stop_new_checks_at 後は新規確認を始めず未確認を unchecked と coverage.remaining にして deadline_at 前に返す。再委譲しない。順序は一覧固定（主張・全変更ファイル・文書候補）→文書候補の判定→主張の確認→変更ファイルの検査。段階内は短い確認から行う。
 

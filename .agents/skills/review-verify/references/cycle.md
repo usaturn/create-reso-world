@@ -10,7 +10,29 @@ TARGET_JSON=$(uv run --project "$PARENT_ROOT" --locked python "$TOOL_ROOT/.agent
 
 必要な場合は `--code-root "$CODE_ROOT"`、曖昧な旧配置の明示パスには `--pr "$PR_URL"` を追加する。番号・URL は親の `reviews/<owner>/<repo>/` 直下だけを探す。旧配置は明示パスだけで読む。非0では停止し、2=指定不正、3=PR無し、4=repository無し、5=認証、6=API、7=親/checkout、8=レビュー無し、9=候補複数、11=パス/PR対応、12=fetch を区別して報告する。9 は候補の完全パスを示す。
 
-JSON の `parent_root`, `repository`, `number`, `url`, `review_dir`, `target_root`, `base_remote`, `head_sha`, `base_ref` を使い、`TARGET_REPO_ROOT=target_root` とする。返された実在 checkout を使う。番号・URL の経路でも全入力候補の `pr.repository` と `pr.number` を解決した PR と照合する。別 PR の候補は使わず、不一致を報告する。パス名から repository を推測しない。
+JSON の `parent_root`, `repository`, `number`, `url`, `review_dir`, `target_root`, `base_remote`, `head_ref`, `head_sha`, `base_ref` を使い、`TARGET_REPO_ROOT=target_root` とする。`review_dir` は入力の `INPUT_REVIEW_DIR` として保持する。返された実在 checkout を使う。番号・URL の経路でも全入力候補の `pr.repository` と `pr.number` を解決した PR と照合する。別 PR の候補は使わず、不一致を報告する。パス名から repository を推測しない。
+
+## 新規成果物の保存先
+
+resolver は旧配置の明示パスを `review_dir` としてそのまま返すため、これを出力先には流用しない。確認済みの `parent_root`・PR repository/number/head_ref を既存 helper の `review_directory` に渡し、番号・URL・旧配置のどの入口でも新規出力を D-10 へ固定する。ブランチ名のパス用変換と owner/repo の小文字化も同 helper に任せる。
+
+```bash
+OUTPUT_REVIEW_DIR=$(uv run --project "$PARENT_ROOT" --locked python - "$TOOL_ROOT" "$TARGET_JSON" <<'PYOUTPUT'
+import json
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / '.agents/scripts'))
+from review_target import review_directory
+target = json.loads(sys.argv[2])
+print(review_directory(Path(target['parent_root']), target['repository'], target['number'], target['head_ref']))
+PYOUTPUT
+)
+VERIFIED_DIR="$OUTPUT_REVIEW_DIR/verified"
+```
+
+PR照合・保存先のリンク/書込み可否の確認後、必要な D-10 ディレクトリを作る。入力レビュー・候補一覧は `INPUT_REVIEW_DIR` から読み、JSON・要約・保存前の一時ファイルは `VERIFIED_DIR` に書く。旧配置のファイルは移動・複製・書換えせず、`inputs` は review-findings の形式を保ち、要約に実際の読取元の完全パスを記録する。D-10へ保存できない場合は理由と読取元・予定保存先を報告して停止し、旧配置や対象 checkout の `verified/` へ迂回しない。
+
+## PR head の取得
 
 PR head は既存 helper の `fetch_pull_head(checkout, repository, number, head_sha, remote=base_remote)` で `refs/pr-review/repos/<owner>/<repo>/<N>` に固定する。CLI に clone サブコマンドはない。呼出例（値は取得した JSON から渡す）:
 
@@ -34,7 +56,7 @@ BASE=$(git -C "$TARGET_REPO_ROOT" merge-base FETCH_HEAD "$VERIFY_HEAD")
 
 1. **集める**
    - `TARGET_JSON` の `head_sha` を `VERIFY_HEAD` とする。上の fetch 手順で PR ref を固定し、`base_remote` の base ref を fetch して merge-base を `BASE` にする。HEAD が変われば入口からやり直す。
-   - レビュアーはレビューディレクトリの直下の `<model>.md` だけで数える（`findings/` と `verified/` はレビュアーではない）。各レビューファイルの `## Review history` の最後の行の HEAD（12文字）が `VERIFY_HEAD` の先頭12文字と違うレビュアーは「古いレビュアー」として区別し（`inputs[].stale`）、その候補は確かめるが、見逃しの集計には入れない。
+   - レビュアーは `INPUT_REVIEW_DIR` の直下の `<model>.md` だけで数える（`findings/` と `verified/` はレビュアーではない）。各レビューファイルの `## Review history` の最後の行の HEAD（12文字）が `VERIFY_HEAD` の先頭12文字と違うレビュアーは「古いレビュアー」として区別し（`inputs[].stale`）、その候補は確かめるが、見逃しの集計には入れない。
    - `findings/<model>-<VERIFY_HEAD 先頭 12 文字>.json` があれば、それを `uv run --project "$PARENT_ROOT" --locked python "$TOOL_ROOT/.agents/scripts/review_findings.py" validate <ファイル>` で検査し、`uv run --project "$PARENT_ROOT" --locked python "$TOOL_ROOT/.agents/scripts/review_findings.py" check-pair <model>.md <ファイル>` でレビューファイルと一致することを確かめてから読む（`input_kind: json`）。一致しなければ、その候補一覧は使わず、レビューファイルを読む。無いレビュアーは、`uv run --project "$PARENT_ROOT" --locked python "$TOOL_ROOT/.agents/scripts/review_findings.py" from-markdown <model>.md --review-file <model>.md --repo "$PR_REPO" --pr <PR> --model <モデル> --runtime <ランタイム>` で読み取る（`input_kind: markdown`。新しい項目は空なので、このスキルが補う）。`from-markdown` が読めなかった見出しや Summary の件数との食い違いを報告して止まったときは、そのレビューファイルの Markdown を直接読む: 指摘を 1 件ずつ拾い、読めなかった理由を `coverage` に書く。指摘を黙って落とさない。
    - レビュアーが Unverified candidates に挙げた候補も、確かめる対象に入れる。
 2. **まとめる**
