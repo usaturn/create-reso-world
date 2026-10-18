@@ -100,3 +100,9 @@ model = "grok-4.7-xhigh"
 approval = "noninteractive"
 skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
 env = ["HOME", "PATH"]
+
+[agents.devin-swe]
+runtime = "devin"
+command = ["devin"]
+model = "swe-2-max"
+env = ["HOME", "PATH"]
