@@ -48,4 +48,4 @@ Spec・Plan はプラグインのリポジトリに置かず、create-reso-world
 
 ## PR のレビューと修正
 
-`pr-review` と `review-fix-planning` には、checkout の絶対パス（例: `/workspaces/reso-world/external/resoloop-meshy`）を `CODE_ROOT` として明示して渡す。共通の helper（`scripts/superpowers_context.py`）は、それが checkout 自身のルートであることと、usaturn/resoloop-meshy と一致する remote が 1 つだけであることを照合する。レビューの結果は `CODE_ROOT` の `reviews/` に書かれ、プラグインのリポジトリの `.gitignore` で無視している。
+`pr-review` と `review-fix-planning` には、checkout の絶対パス（例: `/workspaces/reso-world/external/resoloop-meshy`）を `CODE_ROOT` として明示して渡す。共通の helper（`scripts/superpowers_context.py`）は、それが checkout 自身のルートであることと、usaturn/resoloop-meshy と一致する remote が 1 つだけであることを照合する。レビューの結果は create-reso-world の親 checkout の `reviews/usaturn/resoloop-meshy/#<PR>-<branch>/` に書く（保存先は `review_target.py` が決める）。`CODE_ROOT/reviews/` の旧成果は移さず、読むときはパスを明示する。

@@ -25,7 +25,7 @@ git の操作はほぼ全て取り消せる。取り消せないのは次の 2 �
 - `usaturn/resoloop` または `orange3134/resoloop` の PR: fork の checkout `external/resoloop`（リポジトリのルート基準）が root である。Git コマンドは `git -C external/resoloop ...`、`gh` 呼び出しには PR が属するリポジトリに合わせて `--repo usaturn/resoloop` か `--repo orange3134/resoloop` を付けて実行する。checkout が無い、または `origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` でない場合は、`scripts/resoloop-fork.sh clone` を案内して停止する
 - それ以外: 推測せず停止する
 
-両方にまたがる整理は、リポジトリごとにこの手順を回す。手順 6 の `session.json` の `destination` は相対パス（`reviews/<dir>/<model>.md`）であり、同じ `session.json` の `main_root` に結合して正本パスを得る（fork の経路では `main_root` が `external/resoloop` 配下を指す）。
+両方にまたがる整理は、リポジトリごとにこの手順を回す。pr-review の `session.json` の `destination` は相対パス。version 7 は `main_root`、version 8 は `parent_root` に結合して正式保存先を得る。version 8 の `target_root` は Git 操作先であり、保存先ではない。新規レビューは全リポジトリとも create-reso-world の親 checkout の `reviews/<owner>/<repo>/#<PR>-<branch>/` に保存する。旧配置は移さない。
 
 ### fork の経路（`external/resoloop`）だけの手順
 
@@ -72,7 +72,7 @@ Open PR の有無にかかわらず、`git worktree list --porcelain` で `pruna
 uv run --no-project python .agents/skills/pr-review/scripts/pr_review_workspace.py sessions --repo <整理対象のメイン作業ツリーの絶対パス>
 ```
 
-`--repo` は、create-reso-world では手順 7 の `MAIN_ROOT`（`git worktree list --porcelain` の先頭）、fork の経路では `external/resoloop` の絶対パスである。helper は各 session の `session.json` に固定された所属リポジトリ（`pr_repository`）と PR 番号で `gh pr view` を呼び、その PR が `MERGED` か `CLOSED` のときだけ `removable: true` を返す。何も変更しない。
+`--repo` は、create-reso-world では手順 7 の `MAIN_ROOT`（`git worktree list --porcelain` の先頭）、fork の経路では `external/resoloop` の絶対パスである。helper は各 session の `session.json` に固定された所属リポジトリ（version 7 の `pr_repository`、version 8 の `pr_repo`）と PR 番号で `gh pr view` を呼び、その PR が `MERGED` か `CLOSED` のときだけ `removable: true` を返す。何も変更しない。version 8 の checkout session は `target_root` に登録される。bundle session は専用 Git repository と `.staging/` にあり、対象 checkout の一覧に現れないことがある。未報告・照合不能を削除許可とせず、version 8 は下記のとおり保持する。
 
 - `removable: false` の worktree とその親ディレクトリは **整理対象外**である。`reason`（session.json が無い・読めない、所属を持たない version 6 以前の session、`locked`・`prunable`、オープン、gh の失敗など）を控え、手順 11 で報告する
 - helper が終了コード 0 以外で終わったら、`/tmp/pr-review-*` の worktree はすべて整理対象外にする
@@ -133,7 +133,9 @@ clean とするのは、2 つの終了コードがどちらも 0 で、1 つ目�
 削除してよいのは、手順 4 で clean を確認し、ignore 対象が再生成できるキャッシュだけだった次の worktree に限る。
 
 - 手順 3 でマージ済みと判定した branch を checkout している worktree
-- 手順 1 の `sessions` が `removable: true` を返し、手順 1 のオープン PR の対象外にも当たらない `/tmp/pr-review-*` の worktree
+- 手順 1 の `sessions` が `removable: true` を返し、session.json が version 7 で、手順 1 のオープン PR の対象外にも当たらない `/tmp/pr-review-*` の worktree
+
+version 8 の session（`target_kind=checkout`・`bundle` とも）と `.staging/` は、この手順で削除しない。`removable: true` でも保存 pair・停止・所有の確認を省略できないため、所有するレビューの complete／親 finalize-parent・cleanup の手順で扱う。安全に確認できなければ完全パスと理由を報告して保持する。
 
 それ以外の worktree は削除せず、手順 11 で報告する。手順 1 で対象外にしたもの（オープン PR に対応するもの、`prunable`・`locked` のもの）のほかに、branch を checkout していない detached な worktree（PR 修正ループなど、別の run が作ったもの。上の `/tmp/pr-review-*` は除く）も対象外である。HEAD が `origin/main` から到達可能で clean でも、所有者が使っている作業場所かどうかは Git から分からない。`/tmp/pr-review-*` の worktree も detached だが、親の `session.json` に固定された所属リポジトリと PR 番号で、helper が PR の終了を確かめられるので、上の条件で選ぶ。
 
@@ -153,13 +155,11 @@ worktree 本体の削除と、手順 6 の残骸削除は **別の判断**であ
 
 この手順は、`worktree/` が無くなった残骸ディレクトリだけに適用する。手順 1・5 で残した worktree を含むディレクトリは消さない。
 
-正本パスは残骸ディレクトリの `session.json` の `destination`（`reviews/<dir>/<model>.md` の相対パス）を、同じ `session.json` の `main_root` に結合して取る。branch 名の変換で推測しない。
+残骸の `session.json` を版ごとに読む。version 7 は `main_root` + `destination` が正式保存先で、`pr_repository` と PR 番号も照合する。version 8 は `parent_root` + `destination` が本文で、候補の相対パスは helper の `findings_artifact_paths` が state の repository・PR 番号・model・commit から返す値を使い、同じ `parent_root` に結合する。`pr_repo` と PR 番号も照合する。候補パスを state の架空の欄から読んだり、手で命名したりしない。`target_root`（checkout または所有 bundle repository）へ保存先を結合しない。branch 名の変換で推測しない。
 
-```bash
-uv run --no-project python -c 'import json,sys; d=json.load(open(sys.argv[1], encoding="utf-8")); print(d["main_root"] + "/" + d["destination"])' <残骸ディレクトリ>/session.json
-```
+version 8 は本文と候補の pair・snapshot・bundle・実行記録を含み得るので、以下の version 7 のディレクトリ比較・単独 draft コピーを適用しない。レビューの共通 helper の通常 cleanup で照合できない残骸は保持し、所有者に完全パスと状態を報告する。未対応の回収コマンドや手動削除を組み立てない。version 6 以前、未知の版、state が無い・読めない場合も保持する。
 
-`session.json` が無い、`main_root` または `destination` が読めない、または結合した正本パスがリポジトリの `reviews/` 配下に無い場合は削除せず停止する。
+**以下は version 7 の残骸だけ。** `main_root`・`destination`・`pr_repository` が読めず、repository/PR の対応を確かめられない場合、または結合した正式保存先がその checkout の `reviews/` 配下に無い場合は、削除せず停止する。相対パスの `..` や symlink による範囲外も拒否する。
 
 ```bash
 diff -rq <残骸ディレクトリ>/review-backup <正本ディレクトリ> > /tmp/gate-a.out 2> /tmp/gate-a.err; echo $?

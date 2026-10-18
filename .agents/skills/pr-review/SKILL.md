@@ -1,297 +1,118 @@
 ---
 name: pr-review
-description: GitHub の指定した PR をレビューする。PRのメタデータ、説明、差分（diff）を gh CLI で取得し、使い捨て git worktree 上で検証した指摘を Severity・位置・根拠付きで reviews/<owner>/<repo>/#PR-branch/model.md に作成または更新する。PR番号・URLを指定したコードレビュー依頼で使用する
-allowed-tools: Read, Grep, Glob, Bash(gh *), Bash(git *), Bash(date *), Bash(uv run --no-project python *pr_review_workspace.py *), Bash(uv run --no-project python *superpowers_context.py *), Edit(/tmp/pr-review-*/review-backup/**), Write(/tmp/pr-review-*/review-backup/**), Agent
-argument-hint: "<PR番号またはURL>"
+description: "Use when GitHub の PR 番号・URL、指定 commit・未 push commit の再レビュー、非対話ランナーからのコードレビューを依頼されたとき。PR の実装・指摘修正・レビュー結果の統合には使わない。"
+argument-hint: "<PR番号またはURL> [--review-commit SHA] [--source-root PATH] [--request PATH] [--records-comments PATH]"
+allowed-tools: Read, Grep, Glob, Bash(gh *), Bash(git *), Bash(date *), Bash(uv run *), Bash(sha256sum *), Edit(/tmp/pr-review-*/review-backup/**), Write(/tmp/pr-review-*/review-backup/**), Edit(tmp/agents/pr-review-scratch-*/**), Write(tmp/agents/pr-review-scratch-*/**), Agent
 ---
 
 # GitHub PR レビュー
 
-GitHub 上の指定された Pull Request（PR）に対して、Codex の `/review` に近い高品質なコードレビューを行います。git worktree を使用し、ユーザの作業ブランチ・working tree に触れずにレビューします。
+PR 全体の差分を隔離 worktree で読み、検証した指摘を助言として保存する。全ランタイムがこの本体・同じ helper・保存ロックを使う。
 
-対象 PR（スキル呼び出しの引数）: $ARGUMENTS
+対象 PR（Devin の引数補間欄）: $ARGUMENTS
 
-## ランタイム別の注意
+## 最初に読むもの
 
-このスキルの実体は `.agents/skills/pr-review/` の 1 つだけで、Claude Code は `.claude/skills/pr-review` の symlink 経由で同じファイルを読む。ヘルパーも `.agents/skills/pr-review/scripts/pr_review_workspace.py` の 1 本だけを使う。
+最初の PR API 呼び出しより前に、[時間予算と委譲規約](references/time-budget.md)・[根拠と判断の記録](references/evidence.md)・[非対話入口と結果](references/noninteractive.md)を全文読む。欄と値は [review-records](../../review-records.md)、候補 JSON は [review-findings](../../review-findings.md)に従う。相対リンクはこのファイルの実体から解決する。
 
-### 対象 PR の受け取り
+## 実行時の共通規則
 
-- 冒頭の `対象 PR` 行は、呼び出し引数を本文へ展開するランタイム（Claude Code、Devin）が埋める補間欄である。値が空欄、またはドル記号で始まるプレースホルダ表記のまま残っている場合は「未指定」とみなす
-- 未指定のときは、ユーザのメッセージで PR 番号・URL が指定されていればそれを使う。どちらも無ければ手順 1 のとおり現在のブランチの PR を使う
-- 引数を展開するランタイムは `＄ARGUMENTS` と `＄0`〜`＄9`（ドル記号と数字 1 文字）を呼び出し引数で置換する（この節では置換されないよう全角で書いている）。埋め込みのシェルコードに位置パラメータを書かず、入力は stdin か名前付き変数で受ける
+- アプリケーションのコード・テストを変更しない。レビュー対象 `$WT` 内にログ・キャッシュ・再現スクリプトを残さない。保存が済むまでは本文と候補は helper が返した draft だけへ書く。
+- 重い一括検証（`bash .devcontainer/run-tests.bash`、リポジトリ・ワールド全体の `uv run pytest`、`scripts/resoloop-fork.sh test`）を再実行しない。関連 pytest、個別スクリプト、REPL、最小再現はよい。このレビューの規則は `AGENTS.md` の通常の完了前検証より優先する。
+- `git clean`、強制 checkout/reset、既存 worktree の再利用をしない。セッション・pinned ref の削除は helper の cleanup だけ。拒否を手動削除で代行しない。
+- 保存先は create-reso-world の親 main checkout（`PARENT_ROOT`）の `reviews/<owner>/<repo>/#<PR>-<branch>/`。小文字の owner/repo は PR base 側であり、fork/head 側ではない。PR 番号は親 origin、URL はその repo を使い、別 repo の同じ番号を探さない。Git 操作先の `target_root` と保存先を混同しない。
+- 読んだ skill の実体がある checkout を `TOPLEVEL` とし、その版の helper を `uv run --project "$TOPLEVEL" --locked python` で呼ぶ。対象 repo・cwd・親 main の古い skill から配置元を推測しない。外部 repo は明示された main checkout の絶対パス `CODE_ROOT` を `--source-root` に渡し、一致 remote が 1 件でなければ停止する。checkout の探索・clone はしない。ResoLoop は既知の `external/resoloop` と origin/upstream を検査し、上流 PR の取得には helper が返す `base_remote=upstream` を使う。
+- 自モデルの既存レビューは `previous_review` の snapshot だけを読む。ライブ destination、他モデルのレビュー本文は、完了後も含め、重複確認・重点観点・反証を含むどんな目的でも読まない。親の旧配置・旧配置の `public/reviews/`・PR に同梱された reviews も同じ。
+- PR head と reviewed commit を区別する。通常は同じ SHA。明示 `--review-commit` は未 push でもよいが full SHA を渡し、その object を持つ main checkout を `--source-root` に指定する。linked worktree の object はmain checkoutと共有される。
+- 通常は `<model>.md`、明示 commit は `<model>-commit-<fullSHA>.md`。同じ PR・model・モード・対象の更新は同じファイルを上書きする。通常 head・指定 commit・別 commit の結果は混ぜない。パスを手で組み立てない。
+- 初回も更新も、prepare が返した merge-base から reviewed commit までの**全体 diff**を読む。commit 単体差分、前回からの増分、動いている PR の live diff を代用しない。rebase 後も同じ。
+- 継続指摘は ID・タイトル・検出時 HEAD を保持する。解消を確かめたものだけ Resolved へ、未再検証は Pending previous findings へ。既存 history / Resolved は順序を保持する。旧形式の不明 SHA を推測せず、安全に解釈できなければ上書きしない。
+- 実コードパス・依存関係・既存のガードを読み、報告前に反証する。推測・非現実的なエッジケース・好み・大規模改変の提案ではなく、具体的で実行可能な欠陥を報告する。
+- active のみを件数表へ数える。Decided / Pending / Resolved / Unverified は active JSON に入れない。新規 ID は全節で衝突させない。確認不足は coverage と Pending も見て判定する。
+- 保存時の worktree commit / PR head / API / destination の検査は予算より優先する。不一致や取得不能を指摘0にしない。予算超過時は新規調査を止め、未確認を明記して保存へ進む。自動延長・再委譲をしない。
+- 非対話は質問せず、確認不足・モデル未取得・成果欠落を failed と理由付きで返す。認証や権限を迂回しない。本文は日本語。**非対話では挨拶・開始宣言・進捗説明・完了説明を含む途中の自然言語メッセージを一切出さない**。ツールだけで作業し、phaseの記録はdraftへ書く。最後に1回だけcomplete/failのJSON payloadを返す（Devinは以下のJSONコードフェンスに載せる）。
+- 必要な追加スクラッチは親 main の `agent_tmp.py mkdir pr-review-scratch-<PR>` で作る。セッション名 `pr-review-<PR>-*` を追加スクラッチに流用せず、session.json を複製しない。根拠を本文へ移し、不要と確認した自身の scratch だけを空値ガード付きで削除する。残す場合は完全パスを報告する（[AGENTS.md](../../../AGENTS.md)の保存場所を参照）。
+- 補助委譲は time-budget の起動・期限・停止条件を全部満たす場合だけ最大1件。Pi の同期 subagent ではバックグラウンド起動・期限付き待機・停止確認を満たせないため省略する。非対話 worker からの再委譲は禁止。停止を確認できない worker が WT を使用中なら complete / cleanup を呼ばず、失敗・停止状態・残存パスを返す。
+- helper は他の fetch・gh 等と同じツール呼び出しにまとめず、timeout は未指定または600秒以上（上限が短い runtime はその上限）。期限は phase 境界で判断し、実行中の helper を短い timeout で切らない。失敗・中断時に prepare をそのまま再実行せず、返された run_record・state・残存パスと理由を報告する。旧 create の inspect/abandon は互換 API であり、新入口の失敗を手動 Git・保存・削除で代行しない。
 
-### Claude Code
+## ランタイムごとの違い
 
-- frontmatter の `allowed-tools` は Edit と Write を `/tmp/pr-review-*/review-backup/**` に限っている。`create` には必ず `--temp-root /tmp` を渡し、ヘルパーの一時ディレクトリをこの範囲に置く
-- `MODEL_NAME` は Claude Code ランタイムが提示する正確なモデル識別子を使う
-- helper を呼ぶ Bash には `timeout: 600000` を指定する（規約の「helper の呼び出し」）
-
-### Codex
-
-- `create` に `--model-name` を渡さない。ヘルパーが `CODEX_THREAD_ID` と Codex の session metadata からモデル名を確定する
-
-### Devin
-
-- `MODEL_NAME` はシステムプロンプトの `You are powered by <MODEL>` が提示する識別子を使う（例: `SWE-2 High`）
-- 過去のセッションの transcript（`~/.local/share/devin/cli/transcripts/` の `agent.model_name` など）は実行中のランタイムの提示ではないため、`MODEL_NAME` の根拠にしない
-
-### pi
-
-- `MODEL_NAME` は pi-model-name スキルの手順で決める。セッション履歴（`~/.pi/agent/sessions` 配下）の `model_change` は根拠にしない
-- bash ツールの `timeout` は秒単位である。helper を呼ぶときは指定しないか 600 以上にする（規約の「helper の呼び出し」）
-
-## 規約
-
-- [時間予算と委譲規約](references/time-budget.md)を最初の PR API 呼び出しより前に全文を読む。開始時刻・期限・委譲可否・打ち切りはその規約に従う
-- レビュー出力は助言として扱われる
-- プロダクトコード・テストを編集しない
-- レビュー中に重い一括検証を再実行しない。対象は `bash .devcontainer/run-tests.bash`、リポジトリ全体やワールドのプロジェクト全体の `uv run pytest`、`scripts/resoloop-fork.sh test`（fork の `dotnet test` 全体）などである。実装時と CI で確認済みであり、レビューで再実行すると時間がかかり冗長だからである。関連する pytest（ファイルやテスト名で絞ったもの）、個別のテストスクリプト、REPL、最小再現スクリプトなど、指摘の検証に必要な範囲の実行はしてよい。helper の `verify`（destination フィンガープリント確認）はテストの実行ではない。この規定は、`AGENTS.md` や他のスキルが求める完了前の検証より優先する（レビューでは一括検証を再実行しない）
-- helper の呼び出し: `pr_review_workspace.py` の各サブコマンドは、fetch・`gh` など所要時間の読めない別の処理と同じツール呼び出しにまとめない（結果の JSON を読む `jq` は同じ呼び出しでよい）。ツール呼び出しにタイムアウトを指定できるランタイムでは、指定しないか 600 秒以上を指定する（上限が 600 秒未満のランタイムではその上限）。`create` は同時のレビューやストレージの書き込み待ちで数分かかることがあり、短いタイムアウトで打ち切ると worktree が残ってレビューを続けられなくなる。時間予算はフェーズの境界で確かめ、helper を打ち切って守らない
-- レビュー中は `git clean`、`git checkout -f`、`git reset --hard` を実行しない。既存 worktree を再利用・初期化しない
-- 自セッションの worktree の削除は helper の `cleanup` だけが行う。`create` が結果を返さずに中断した試行の残存物は、helper の `abandon` だけが片付ける（手順 2）。`git worktree remove`、`rm -rf` などの削除コマンドを自分で組み立てない。`cleanup`・`abandon` が拒否した場合も手で代行しない
-- `cleanup` は保存成功（`$DESTINATION` の内容が `$DRAFT` と一致）を検証できたときだけ削除する。検証できない場合は何も削除せず停止し、`$WT` と `$DRAFT` の完全パスを報告してユーザの判断に委ねる
-- レビュー中に生成した検証ログ・スクリーンショット・一時スクリプト等の証跡を `$WT` に残さない。あとで見返す必要がある内容はレビュー本文の「根拠」に転記し、`$DESTINATION` だけで完結させる
-- 最終応答で `$WT` 配下のパスを参照しない（`cleanup` 成功後は `$WT` が存在しないため）。`cleanup` の失敗または停止確認不能による省略時は、残った `$WT` とセッションの完全パスを報告する
-- 独立したレビューを行うため、`reviews/<owner>/<repo>/#<PR番号>-<変換後ブランチ名>/` と旧形式の `reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文は、候補の洗い出し・重点観点の収集・重複確認・自分の指摘の検証を含むいかなる目的でも読まない。レビュー完了後も読まない。メインリポジトリ側と `$WT` 側（PR に同梱された `reviews/`）のどちらも対象とする
-- `MAIN_ROOT`・`TOPLEVEL` は共通 context helper が照合した `code_root`・`tool_root` の別名である。`PARENT_ROOT` は create-reso-world の main checkout、その他の repo は明示された絶対パスの `CODE_ROOT` と一致 remote 1 件が必要。既知の ResoLoop 経路は `external/resoloop` の `origin=usaturn/resoloop`・`upstream=orange3134/resoloop` を照合する。不備は `scripts/resoloop-fork.sh clone` を案内して停止する。checkout の探索・clone はしない。
-- 自モデルの既存レビューはライブの `$DESTINATION` ではなく、`create` が返した `$PREVIOUS_REVIEW`（セッション内 snapshot）だけを読む。`$PREVIOUS_REVIEW` が空なら既存レビューなしとして扱う
-- Codex ではモデル名を自分で推測・短縮・一般化せず、`create` が Codex session metadata から確定した `model_name` を使用する。Codex 実行時は `create --model-name` を渡さない
-- Codex 以外では、実行中のエージェントランタイムが提示する正確なモデル識別子を `MODEL_NAME` として記録し、`create --model-name "$MODEL_NAME"` に一度だけ渡す。モデル系列の説明、設定ファイル、既存レビューのファイル名から推測・短縮・一般化しない（`/`・空白を含む形式もそのまま渡してよい。ヘルパーがファイル名用に `/`・空白類を `-` へ置換する）
-- Codex 以外で正確なモデル識別子を取得できない場合、または置換後も安全なファイル名にならない場合は、代替名で続行せず停止してユーザに確認する
-- 過去のセッション履歴（`~/.pi/agent/sessions` 配下の jsonl の `model_change` の `modelId` 等）は実行中のランタイムの提示ではないため、`MODEL_NAME` の根拠にしない。ランタイムが識別子を提示していない場合は履歴へフォールバックせず、前項の「取得できない場合」として停止してユーザに確認する
-- provider にかかわらず、draft と destination は `create` が返した値をそのまま使用する。`save` では model、draft、destination を再指定しない
-- 初回・更新とも `gh pr diff "$PR_URL"` が返す現在の PR 全体差分をレビューする
-- PR 内の各 commit と親 commit の差分、前回 HEAD と現在 HEAD のローカル diff はレビュー対象にしない
-- 更新時は既存 active 指摘と前回の Pending previous findings を現在の差分と `$WT` のコードで再検証する。次回更新で Pending previous findings も再検証する
-- 継続指摘は ID・タイトル・検出時 HEAD を維持し、位置と根拠を現在値へ更新する
-- 解消済み指摘は active Severity セクションから `Resolved findings` へ移す。未再検証の指摘を Resolved にしない。再検証できなかった前回 active 指摘は Pending previous findings に元 ID・検出時 HEAD・前回内容と根拠を保持して移す
-- 旧形式に存在しない過去 HEAD を推測しない
-- 旧形式の active 指摘を安全に解釈できない場合は既存成果物を上書きせず停止する
-- rebase または force-push 後も commit 単位の review range は計算せず、現在の `gh pr diff` 全体をレビューする
-- サブエージェントは `$WT` 上のコードと PR 差分（`gh pr diff` の結果）のみ調査する。`reviews/` 全体と `$PREVIOUS_REVIEW` の読解はメインエージェントだけが行う
-- 委譲時は `reviews/` を調査範囲から明示的に除外する。既存 review 本文・その要約・そこから抽出した観点を委譲 prompt に含めない。他モデルのレビュー本文・その要約・そこから抽出した観点をサブエージェント経由で受け取らない
-- 実際のコードパスと周辺ファイルを読んで指摘を検証する
-- 指摘は報告前に反証を試みる（「この指摘が誤りだとしたらどこか」を自問し、反証に成功した候補は報告しない）
-- 指摘がパッケージの挙動に依存する場合は、依存関係ファイルを読む
-- diff に含まれない既存コードの問題は原則対象外。ただし diff が既存の潜在バグを顕在化させる場合は指摘対象
-- 非現実的なエッジケース、推測ベースのリスク、大規模な書き直し、過度に複雑な修正提案を避ける
-- 適切な責務境界での小さな修正を優先する
-- 重大で実行可能な問題に集中する
-- 指摘が不確かな場合は【確認推奨】と明記する
-- 実行可能な指摘がない場合は、その旨を明確に伝える
-- レビューは日本語で返す
-- レビュー結果は常に `create` が返した `$DESTINATION` に作成する。`$DESTINATION` はヘルパーが `reviews/<owner>/<repo>/#<PR番号>-<変換後ブランチ名>/<model>.md` へ配置する。`<owner>/<repo>` は `create --pr-repo` に渡した PR の所属リポジトリ（小文字）で、fork と上流が同じ checkout を使い、番号やブランチ名が重なっても保存先が分かれる。ブランチ名とモデル識別子に含まれる `/`・空白類およびディレクトリ名に使えない記号はヘルパーが使える記号へ変換する（例: usaturn/create-reso-world の PR 160・ブランチ `feature/issue-148-fail-fast` は `reviews/usaturn/create-reso-world/#160-feature-issue-148-fail-fast/` 配下、モデル `opencode/deepseek-v4-flash-free` は `opencode-deepseek-v4-flash-free.md`、モデル `Cursor Grok 4.6` は `Cursor-Grok-4.6.md`）。`create` が返す `model_name` もこの変換後の値であり、エージェントが手で組み立てない
-- 保存先の `reviews/` は `MAIN_ROOT` の直下にある。resoloop の PR では `external/resoloop/reviews/` になり、fork の `.gitignore` はこれを無視しない。fork で commit するときは `git add` に明示したパスだけを渡し、`reviews/` を含めない。その他のリポジトリでは `$CODE_ROOT/reviews/` になり、その checkout の `.gitignore` が無視するとは限らないため、同じく `git add` に明示したパスだけを渡す。レビュー成果物は Spec・Plan ではないため、create-reso-world の `docs/superpowers/` へ集約しない
-- 所属リポジトリを含まない旧形式の `reviews/#<PR番号>-<変換後ブランチ名>/<model>.md` は、同じ checkout の別のリポジトリの PR のものかもしれない。`create` が `legacy_review` でそのパスを返しても、読まず・移動せず・上書きせず、Mode の判定にも使わない（Mode は `$PREVIOUS_REVIEW` だけで決める。旧形式がある PR の 2 回目以降の再レビューも Update になる）。保存先は新しい `$DESTINATION` で、最終応答で旧形式のパスを報告する。引き継ぐかどうかは、利用者が所属を確かめて決める
-- 同じ PR を同じモデルで再レビューする場合は、同一ファイルの内容全体を上書きし、別名ファイルを作らない。別モデルの結果は同じ PR ディレクトリ内の別ファイルへ保存する
-- PR 上で既に指摘済みの問題は重複報告しない（触れる場合は「既出」と明記する）
-- 件数表は active findings のみから計算する。重大度判定は active findings、確認不足判定は coverage と pending も参照する。Resolved findings は件数・重大度判定に含めない
-- 新規 ID は active / pending / resolved 全体で ID の衝突を避ける。pending と resolved の ID を再利用しない
-- 補助委譲の省略・中断だけで本体が必要範囲を確認済みなら判定を悪化させない
-- 確認不足・時間切れを理由に既存の保存拒否条件（HEAD 不一致・API 失敗・destination 変更・既存レビューの解釈不能）を飛ばさない。拒否時は上書きせず、エラーと保存前 draft の場所を報告する
-- 停止確認不能なら cleanup を省略する。停止確認不能のときだけ cleanup を省略する限定条件であり、helper が失敗した場合の既存停止規則（削除を手で代行せず停止してパスを報告する）は保持する
-- 最終応答には save/cleanup の結果と開始からの経過・全体実時間を載せ、保存済みレビューを後から直接書き換えない
-- 既存 Review history と Resolved findings は削除・並べ替えず、今回分だけ追記する。同じ HEAD の再レビューでも Review history 行を追加する
+- Claude Code の allowed-tools は許可確認用で、独自の保存手順ではない。`.claude/skills/pr-review` はこの実体へのリンク。
+- Devin headlessでは途中のassistant説明もstdoutへ連結されるため、中間messageを抑止する。禁止指示だけで漏れを保証できないので、**最終complete/fail JSONを1つの `json` コードフェンスで囲む**。JSONの外に説明を付けず、途中にJSONフェンスを出さない。既存Devin adapterがこの形式をobjectとして回収するため、共有Request/Receipt/Resultやpayloadの内容は変更しない。Devin は冒頭の対象 PR 行だけを補間する。本文の `＄ARGUMENTS` / `＄1`〜`＄9` を説明やシェルの位置引数へ半角で書かない。空欄・ドル記号始まりは PR 未指定。モデルは現在のシステム提示 `You are powered by <MODEL>` を使い、過去 transcript や要求した設定を使わない。
+- Pi の `MODEL_NAME` は **pi-model-name スキルの手順**で決め、自身の bash で `PI_PROVIDER` と `PI_MODEL` の両方を確認する。どちらか空なら履歴の model_change・設定に fallback しない。対話では正確な識別子を確認し、非対話では failed を返す。bash の timeout は秒単位。
+- DSH 標準 headless は `--runtime dsh` で `--model-name` を省く。helper が自身の bash の `DSH_HOME`・`DSH_SESSION_ID`・cwd に結び付いた `session.v4.jsonl` を読み、直前の解決済み request header と assistant message source の provider/model の一致から確定する。effort は同じ header、CLI 版は未観測。`PI_*` や旧 `DSH_PROVIDER` / `DSH_MODEL` を根拠にせず、親の値・起動設定・他 session のログで代用しない。欠落・不一致・途中の経路変更は failed。保存名には provider を含め、本文には正確なモデル ID を使う。
+- DSH は認証済み親が作った `Request.prompt` の `parent_pr_data` を helper に検査させる。PR/Issue の要件は prepare の `requirements` を読み、GitHub API・token・remote fetch は子から使わない。complete の `staged` は保存成功ではなく、停止後に親が HEAD・Request・実測 Identity・draft を再照合して保存・cleanup する。欠けた親入力を ambient 認証で補わない。
+- DSH の cache/仮想環境は runner の隔離 HOME 内の設定をそのまま使う。子は helper を自身の bash から呼び、正式保存は停止後の親に任せる。runner が起動前に許可した HOME/temp・対象 PR の保存先・保存ロック以外への書き込みは禁止。権限拒否時は cache・cwd・sandbox 設定を変えて再試行せず failed で止める。
+- Codex は `--model-name` を渡さず、helper が現在の `CODEX_THREAD_ID` の rollout から確定する。未完の末尾だけを無視し、壊れた完了行・モデル欠落は拒否する。
+- 他 runtime も現在提示された正確な model ID だけを `--model-name` に渡す。系列名・過去成果・設定から推測しない。未知の provider / effort / session / CLI は unknown、未計測の待ちは null。設定のrequested値をactualに写さない。
 
 ## 手順
 
-0. **時間予算の開始**:
-   - [時間予算と委譲規約](references/time-budget.md)に従い、最初の PR API 呼び出しより前に開始時刻（UTC と epoch 秒）と予算（全体・調査期限・予約枠）を確定し、値をセッションの進捗記録に保持する。ユーザー指定の予算がある場合は開始時に値を確定する。
-1. **PR情報の取得**:
-   - 対象 PR は、冒頭の `対象 PR` 行が補間済みならその値、未指定ならユーザのメッセージで指定された PR 番号・URL から読み取り、前後空白を除去して `PR_ARG` に入れる。番号・`#` 始まり・GitHub URL はいずれも `gh pr view` がそのまま解釈できるため番号へ正規化しない。URL の owner/repository を失うと別リポジトリの同名番号 PR を取得する。行が空欄または `$` で始まるプレースホルダ表記のまま残っている場合は未指定とする。
-   - `PR_ARG` が確定している場合、`PR_JSON=$(gh pr view "$PR_ARG" --json number,title,body,baseRefName,headRefName,headRefOid,url,additions,deletions,changedFiles)` を実行し、PRのタイトル、説明、ベースブランチ、ヘッドブランチなどのメタ情報を取得してコンテキストを把握する。PR 番号・ヘッドブランチ・正規 URL は機械的に `PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r .number)`・`HEAD_BRANCH=$(printf '%s' "$PR_JSON" | jq -r .headRefName)`・`PR_URL=$(printf '%s' "$PR_JSON" | jq -r .url)` で確定する。以降 `gh pr view`・`gh pr diff` には `"$PR_URL"` を使い、カレントリポジトリへの暗黙解決に依存しない。
-   - `PR_ARG` が確定しない場合（`対象 PR` 行が未指定で、ユーザのメッセージにも PR 番号・URL が無い場合）、`PR_JSON=$(gh pr view --json number,title,body,baseRefName,headRefName,headRefOid,url,additions,deletions,changedFiles)` を実行して現在のブランチに関連付けられたPRの情報を取得し、同じく `PR_NUMBER`・`HEAD_BRANCH`・`PR_URL` を確定する。関連付けられたPRがない場合はユーザにPR番号の指定を促す。
-   - `gh pr view "$PR_URL" --comments` で既存のレビューコメント・議論を取得し、既出の指摘を把握する。
-   - gh が未認証・API エラーの場合はエラー内容をそのまま報告し、`gh auth login` を案内する。
-2. **worktree への展開**:
-   - ユーザの作業ブランチ・working tree に触れないため、`gh pr checkout` は使わない。
-   - ルート `AGENTS.md` の「リポジトリ境界」に従い、次の共通 helper で fetch・worktree 作成より前に root と remote を照合する。`PARENT_ROOT` は明示された create-reso-world の main checkout を使う。省略できるのはその main checkout 内の cwd だけで、linked・外部 cwd では明示が必要。その他の repo の `CODE_ROOT` はユーザの依頼または確認済みの引き継ぎの絶対パスを使い、推測で埋めない。明示されていなければ空のままにする。`CODE_ROOT` は全経路で main checkout を要求し、既知経路と矛盾する指定も拒否する。helper の配置元を `CODE_ROOT` から導出しない。
+1. **開始・prepare**: 時刻と短縮できない保存枠を最初に決める。非対話は実 request の期限も上限にする。[入口](references/noninteractive.md)の prepare を1回呼び、request binding・対象・隔離 WT・draft・候補 draft・base・records を受け取る。PR 未指定、識別不能、API失敗は質問せず failed。普段の対話でPR指定が無い場合だけ指定を求めてよい。
+2. **要件・全体差分・精読**: DSH は prepare の `requirements.pr` と `requirements.issues` を以下の PR/Issue 取得結果の代わりに読む（子から gh を呼ばない）。`requirements.unavailable` は親が取得できなかった参照 Issue（repository・number・reason）なので、Issue の取得失敗と同じく coverage の読めなかった範囲に書く。精読の前に、PR 本文（`gh pr view <PR> --repo <PRのrepo> --json body,closingIssuesReferences`）、PR が閉じる・参照する Issue の本文とコメント（`gh issue view <N> --repo <Issueのrepo> --json body,comments`）、それらが参照するリポジトリ内の仕様・設計文書、対象の `AGENTS.md`（テストの方針と規約）から、今回の受け入れ条件と対象外を数行に整理する。仕様・設計文書と `AGENTS.md` は base の版（`git -C "$WT" show <base>:<path>`）で読み、PR が書き換えた記述は PR 本文と同じく主張として扱う。PR が閉じる Issue は全条件を、参照するだけの Issue は PR 本文が満たすと述べた条件を、今回の受け入れ条件にする。閉じる Issue でも、PR 本文が一部だけを扱うと明示していれば、その範囲にする。PR のコメント・レビューは要件の出所にしない（他のレビューが含まれうる）。続けて prepare の `diff_command` をそのまま実行し、変更ファイルは全文、関連コード・依存・テストも WT で読む。規模は固定 diff の `git diff --numstat <base>..<reviewed_head>` と変更ファイル数で判断し、binary / 不明を0にしない。停止手段が使えない runtime は委譲を省略する。
+3. **既存指摘・判断・前回修正**: snapshot があれば active/Pending/Decided/history/Resolvedを読む。prepare の records（`--records-comments` でも渡せる）に skip があれば新しい根拠が無い同じ問題を Decided に置く。recordsは新候補を探す情報源にはしない。前回の修正の起点は最後のサイクルの reviewed_head、無ければsnapshotの最終history HEAD。現在の reviewed commitの祖先なら `git -C "$WT" log --first-parent --no-merges <起点>..<reviewed_head>` の範囲を重点確認する。起点不明・祖先でない場合はcoverageへ理由を書き、範囲を推測しない。
+4. **候補・draft**: 以下の検証プロトコルで反証・実行・分類を行う。本文のhistoryへ今回の時刻・reviewed commitの12桁・Modeを1行追記する。Modeは指定commitでも `Initial` / `Update` のみとし、指定commitは保存名・候補JSON・coverageで区別する。coverage / 未検証 / pendingを誤魔化さない。prepareが作った候補JSONの固定項目は触らず、coverage・findings・unverified_candidatesへ同じ内容を書く。
+5. **complete・結果**: [入口](references/noninteractive.md)の complete を1回呼ぶ。同じv2 provenance / timingを本文と候補へ記録し、既存helperでpair検査・lock内のHEAD/fingerprint検査・両成果保存・cleanupを行う。候補JSONを保存できなければ、Markdownのみへfallbackせずfailedにする。DSH では `status=staged` と state_file を確認して JSON をそのまま返し、親の通常保存・cleanup を待つ。他 runtime は status=success と両成果・cleanup成功を確認してJSON結果をそのまま返す。失敗なら理由と保存前state/draft/WTを報告し、手動保存・削除をしない。保存後の本文を直接追記しない。
 
-     ```bash
-     PR_URL=$(printf '%s' "$PR_JSON" | jq -r .url)
-     CODE_ROOT="${CODE_ROOT:-}"
-     CONTEXT_PARENT="${PARENT_ROOT:-}"
-     if [[ -z "$CONTEXT_PARENT" ]]; then
-       CONTEXT_PARENT=$(git rev-parse --show-toplevel 2>/dev/null) || {
-         printf 'Set PARENT_ROOT to the create-reso-world main checkout; cwd is not a checkout\n' >&2
-         exit 66
-       }
-     fi
-     CONTEXT_HELPER="$CONTEXT_PARENT/scripts/superpowers_context.py"
-     if [[ ! -f "$CONTEXT_HELPER" ]]; then
-       printf 'Missing context helper %s; set PARENT_ROOT to the create-reso-world main checkout containing scripts/superpowers_context.py\n' "$CONTEXT_HELPER" >&2
-       exit 66
-     fi
-     CONTEXT_JSON=$(uv run --no-project python "$CONTEXT_HELPER" --operation review-workspace \
-       --parent-root "$CONTEXT_PARENT" --code-root "$CODE_ROOT" --repo "$PR_URL") || exit 66
-     PARENT_ROOT=$(printf '%s' "$CONTEXT_JSON" | jq -r .parent_root)
-     TOPLEVEL=$(printf '%s' "$CONTEXT_JSON" | jq -r .tool_root)
-     MAIN_ROOT=$(printf '%s' "$CONTEXT_JSON" | jq -r .code_root)
-     CODE_ROOT="$MAIN_ROOT"
-     PR_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r .base_remote)
-     PR_REPOSITORY=$(printf '%s' "$CONTEXT_JSON" | jq -er .repository) || exit 66
-     ```
+## 確認観点
 
-   - `PR_REPOSITORY` は context helper が照合した PR の所属リポジトリ（小文字の `owner/repo`）である。以降の取得 ref と helper の `--pr-repo` には、この値だけを使う。
+精読では次の 4 つの観点で候補を探す。観点ごとにエージェントを分けない。
 
-   - `HELPER="$TOPLEVEL/.agents/skills/pr-review/scripts/pr_review_workspace.py"` を記録し、通常ファイルとして存在しなければ配置元 `PARENT_ROOT` と欠けた helper パスを報告して fetch 前に停止する。スキルはこのリポジトリにのみ存在するため、`MAIN_ROOT` が `external/resoloop` を指す場合でも `$TOPLEVEL` から解決する。以降、メインリポジトリに対する Git コマンドには必ず `git -C "$MAIN_ROOT"` を使い、カレントディレクトリへ暗黙に作用させない。
-   - PR head は、所属リポジトリと PR 番号の組ごとの専用 ref に固定し、検証対象 SHA を確定する。fork と上流の PR は同じ checkout を使うので、番号だけの ref（旧形式の `refs/pr-review/<PR_NUMBER>`）を使うと、片方の取得がもう一方の head を変える。共有の擬似参照 `FETCH_HEAD` も使わない。
+| 観点 | 確かめること |
+| --- | --- |
+| 要件・挙動 | 手順 2 の受け入れ条件ごとに、対応する実装・利用入口（CLI・スキルの手順・設定など）・確認結果（テスト・実行した確認）を照合する。変更されたコードの誤りだけでなく、必要なのに無い処理・入口も探す |
+| 境界・連携 | 入力・環境の変化、呼び出し元・呼び出し先、同じ仕様を扱う別の処理、条件を述べる文書との照合（「実行による確認と判断の記録」） |
+| テスト | 対象リポジトリのテストの方針に照らした不足と過剰。テスト・互換性の追加を一律に求めない |
+| 保守性・効率 | 変更に関わる対象の `AGENTS.md` の規約への違反。再利用・単純化・効率化は、下の基準を満たすものだけを指摘にする |
 
-     ```bash
-     PR_REF="refs/pr-review/repos/$PR_REPOSITORY/$PR_NUMBER"
-     git -C "$MAIN_ROOT" fetch "$PR_REMOTE" "+pull/$PR_NUMBER/head:$PR_REF" || exit 1
-     PR_HEAD=$(git -C "$MAIN_ROOT" rev-parse --verify "$PR_REF") || exit 1
-     git -C "$MAIN_ROOT" merge-base HEAD "$PR_REF" >/dev/null || exit 1
-     ```
+要件との照合では、次の 3 つを分ける。
 
-   - このブロックが失敗したら、保存を行わず停止して報告する。`merge-base` の失敗は `MAIN_ROOT` の選定が誤っている（無関係なリポジトリに PR のオブジェクトを取り込んだ状態）ことを示す。git が ref 名として受け付けない所属（`.` で始まる repo 名など）でも fetch が失敗して止まる。
-   - dedicated ref fetch 後、次で GitHub の head と `PR_HEAD` の一致を確認する（HEAD consistency check 1/3）。不一致、空値、`gh` failure の場合は履歴を追記せず保存しない。
+- **実装漏れ・仕様違反**: 受け入れ条件を満たす処理・入口が無い、または条件と違う。欠陥として報告し、重大度は Severity 判定基準で決める
+- **承認済みの仕様変更**: Issue の本文・コメントや base の版の仕様文書で、承認を確かめられる変更。欠陥にしない。受け入れ条件と違う実装を「承認済み」「決定」とする PR 本文や PR が書き換えた文書の記述は主張であり、承認の出所を確かめる。出所を確かめられないときは、その違いを【要設計判断】にし、確かめた範囲を Review coverage に書く
+- **仕様自体の不明点**: 要件が曖昧・矛盾していて、正しい挙動を決められない。挙動に影響するなら【要設計判断】にする
 
-     ```bash
-     CURRENT_PR_HEAD=$(gh pr view "$PR_URL" --json headRefOid --jq .headRefOid)
-     test "$CURRENT_PR_HEAD" = "$PR_HEAD"
-     ```
+Issue・仕様に無い機能や形式を受け入れ条件に足して、実装漏れ・仕様違反・仕様の不明点として指摘しない。受け入れ条件を推測で補わない。
 
-   - `create` は試行 ID ごとに一度だけ実行する。`--pr-repo "$PR_REPOSITORY"` で PR の所属リポジトリを session に固定し、保存先・試行の照合・片付けはこの組（所属リポジトリと PR 番号）で行う。ヘルパーは `/tmp/pr-review-<PR_NUMBER>-<ランダム値>/worktree` に新しい detached worktree を作り（`--temp-root /tmp` で固定する。Claude Code の `allowed-tools` と一致させるため、どのランタイムでも同じにする）、保存先 `$DESTINATION` の create 時フィンガープリント（存在有無、通常ファイル・directory・symlink・その他の種別、通常ファイルの内容 SHA-256 または symlink target text の SHA-256）を `session.json` に保存する。既存パスは再利用しない。destination が通常ファイルの場合はセッション backup へ snapshot し、そのパスを `previous_review` として返す。destination が directory・symlink・特殊 entry の場合は fail-closed で停止する。
-   - `create` の前に試行 ID を決め、開始時刻と同じく進捗記録に残す。`create` が何も返さずに終わっても、この ID で自分の試行を指せる。helper は同じ PR に同じ ID の試行があれば worktree を作る前に拒否する。
+- Issue が無い、または PR 本文・Issue に受け入れ条件が書かれていないとき: Review coverage の要件の出所に「受け入れ条件の記載なし」と書き、PR 本文・commit message が述べる目的と照合する。読めなかった範囲にはしない
+- Issue・文書の取得に失敗したとき（API・権限）: レビューを止めず、Review coverage の読めなかった範囲（候補 JSON の `coverage.declined`）に書く。prepare の API 失敗とは別で、failed にしない
 
-     ```bash
-     ATTEMPT_ID=$(date -u +%Y%m%dT%H%M%S%NZ)
-     ```
+再利用・単純化・効率化の改善案は、具体的な実害（誤った結果・機能停止・測れる性能の劣化など）か、対象リポジトリの規約違反を示せるときだけ指摘にする。示せない改善案は、Info を含めて指摘にしない（欠陥・必須の修正として扱わない）。改善案を挙げることは求めない。
 
-   - Codex では次を実行する。helper が `CODEX_THREAD_ID` から model を解決する。
-
-     ```bash
-     SESSION_JSON=$(uv run --no-project python "$HELPER" create --repo "$MAIN_ROOT" --pr-repo "$PR_REPOSITORY" --pr-number "$PR_NUMBER" --commit "$PR_HEAD" --head-branch "$HEAD_BRANCH" --temp-root /tmp --attempt-id "$ATTEMPT_ID")
-     ```
-
-   - Codex 以外では、ランタイムから取得済みの正確な `MODEL_NAME` を使って次を実行する。
-
-     ```bash
-     SESSION_JSON=$(uv run --no-project python "$HELPER" create --repo "$MAIN_ROOT" --pr-repo "$PR_REPOSITORY" --pr-number "$PR_NUMBER" --commit "$PR_HEAD" --head-branch "$HEAD_BRANCH" --model-name "$MODEL_NAME" --temp-root /tmp --attempt-id "$ATTEMPT_ID")
-     ```
-
-   - `CODEX_THREAD_ID` が存在するのに異なる `--model-name` を渡した場合、または非 Codex で `--model-name` を省略した場合、helper は worktree 作成前に停止する。
-   - `create` は進捗を工程ごとに stderr とセッション内の journal へ記録する。`create` の呼び出しが、結果の JSON も helper のエラー（`error:` で始まる行）も返さずに終わった場合（ツールのタイムアウト、ランタイムやシグナルによる中断など。シグナルで中断した `create` は `error:` ではなく `interrupted:` で始まる行を出す）は、`create` をそのまま再実行せず、次の順に扱う。
-     1. 次の `inspect` を実行する。`status` が `running` なら `--wait 540` を付けてやり直し、終わるのを待つ。それでも `running` なら、`abandon` も再試行もせず停止して報告する。
-
-        ```bash
-        uv run --no-project python "$HELPER" inspect --repo "$MAIN_ROOT" --pr-repo "$PR_REPOSITORY" --pr-number "$PR_NUMBER" --attempt-id "$ATTEMPT_ID" --temp-root /tmp
-        ```
-
-     2. `status` が `absent`・`failed` 以外なら、次の `abandon` で試行の残存物を片付ける。`abandon` は、試行が終わっていて、保存前の draft など helper が作った以外のファイルが無く、worktree がこのリポジトリの自セッションのものであるときだけ消す。拒否されたら削除を手で代行せず停止し、`inspect` の出力（工程・状態・残存パス）と拒否の理由を報告する。`failed` は helper のエラーで終わった試行なので、`abandon` も再試行もせず、下の helper のエラーと同じく扱う。
-
-        ```bash
-        uv run --no-project python "$HELPER" abandon --repo "$MAIN_ROOT" --pr-repo "$PR_REPOSITORY" --pr-number "$PR_NUMBER" --attempt-id "$ATTEMPT_ID" --temp-root /tmp
-        ```
-
-     3. `abandon` が成功した、または `inspect` が `absent` を返した場合、調査期限まで 10 分以上残っていれば、新しい `ATTEMPT_ID` を決めて `create` を 1 回だけやり直してよい。残っていなければ停止して報告する。
-     4. やり直した `create` も結果を返さなければ、同じく 1・2 を行い、再試行せずに停止して報告する。
-
-     `inspect` の出力から `create` の結果（`worktree`・`state_file` など）を組み立てて続行しない。`create` が helper のエラー（`error:` で始まる行。journal があれば `inspect` の `status` は `failed`）で終わった場合は従来どおり停止して報告し、残存パスの報告に `inspect` を使ってよいが `abandon` はしない。
-   - Codex rollout は追記中の末尾にある未完了 JSON レコードだけを無視する。改行済みの壊れた JSON レコード、正常な `turn_context.payload.model` の欠落は fail-closed で拒否する。モデル識別子に含まれる `/`・空白類はヘルパーが `-` に置換してファイル名に使う（例: `Cursor Grok 4.6` → `Cursor-Grok-4.6`）。`..` など置換後も安全なファイル名にならない識別子は fail-closed で拒否する。
-   - `SESSION_JSON` の JSON から以下を一度だけ取得する。値を推測・再構築しない。ヘルパーが失敗した場合は、手動で代替 Git コマンドを実行せず停止してエラーを報告する（`create` が結果を返さずに中断した場合は上の `inspect`・`abandon` の手順に従う）。
-
-     ```bash
-     WT=$(printf '%s' "$SESSION_JSON" | jq -r .worktree)
-     STATE_FILE=$(printf '%s' "$SESSION_JSON" | jq -r .state_file)
-     DRAFT=$(printf '%s' "$SESSION_JSON" | jq -r .draft)
-     DESTINATION=$(printf '%s' "$SESSION_JSON" | jq -r .destination)
-     MODEL_NAME=$(printf '%s' "$SESSION_JSON" | jq -r .model_name)
-     MODEL_SOURCE=$(printf '%s' "$SESSION_JSON" | jq -r .model_source)
-     PREVIOUS_REVIEW=$(printf '%s' "$SESSION_JSON" | jq -r '.previous_review // empty')
-     LEGACY_REVIEW=$(printf '%s' "$SESSION_JSON" | jq -r '.legacy_review // empty')
-     SHORT_HEAD=$(git rev-parse --short=12 "$PR_HEAD")
-     ```
-
-   - `$SHORT_HEAD` は固定した `$PR_HEAD` の 12 文字短縮 hash である。`git rev-parse` は `$WT` または `$MAIN_ROOT` など、当該 object を参照できるリポジトリ上で実行する。
-   - `$PREVIOUS_REVIEW` が空なら Mode は `Initial`、helper が返した通常ファイル snapshot なら Mode は `Update` とする。ライブ `$DESTINATION` と他モデル files は読まない。`$LEGACY_REVIEW`（`$MAIN_ROOT` からの相対パス）は規約のとおり読まず、最終応答で報告する。
-   - 以降のファイル読解・テスト実行は `$WT` を対象に行う。ただし重い一括検証は再実行しない。レビュー成果物は `create` が返した `$DESTINATION`（`$MAIN_ROOT` 直下の `reviews/` 配下。resoloop の PR なら `external/resoloop/reviews/`）に書き、`$WT` 内には書かない。
-3. **既存レビューの読解（更新時）**:
-   - `$PREVIOUS_REVIEW` が空でない場合だけ、その snapshot ファイルを読む。ライブ `$DESTINATION`、他モデルのレビュー本文、ディレクトリ一覧から自モデルを推測して読むことはしない。この読解はメインエージェントのみが行い、サブエージェントに委譲しない。既存 review 本文を委譲 prompt に含めない。
-   - snapshot から active findings、Pending previous findings、既存の Review history、Resolved findings を把握する。旧形式で過去 HEAD が無い場合は推測せず、今回の Review history から開始し、旧形式 active 指摘の検出時 HEAD は `不明（旧形式）` とする。
-   - 旧形式の active 指摘を安全に解釈できない場合は既存成果物を上書きせず停止する。
-4. **差分収集**:
-   - 次で PR 全体の差分を取得する。PR 内の各 commit 差分や前回 HEAD とのローカル diff は使わない。
-
-     ```bash
-     PR_DIFF=$(gh pr diff "$PR_URL")
-     ```
-
-   - `gh pr diff` 失敗時は履歴を追記せず保存しない。
-   - 取得直後に HEAD consistency check 2/3 を実行する。不一致、空値、`gh` failure の場合は履歴を追記せず保存しない。
-
-     ```bash
-     CURRENT_PR_HEAD=$(gh pr view "$PR_URL" --json headRefOid --jq .headRefOid)
-     test "$CURRENT_PR_HEAD" = "$PR_HEAD"
-     ```
-
-   - 規模判定は手順 1 で取得済みの `PR_JSON` の `additions`・`deletions`・`changedFiles` を使う（規模だけの API 往復を増やさない）。`additions + deletions` と `changedFiles` を上記 2/3 で確認した同一 HEAD に対応付け、空値・取得失敗・不一致は 0 にせず小規模とみなさない。変更量 300 行以下かつ変更ファイル 3 個以下の両方を満たせば既定は本体のみとする。バイナリ差分・規模不明・セキュリティ等は行数だけで軽量判定しない。詳細は[時間予算と委譲規約](references/time-budget.md)の「規模判定」に従う。
-
-5. **コンテキスト読解（条件付き早期委譲）**:
-   - 変更ファイル本体は、メインコンテキストで diff だけでなくファイル全体を読む。指摘の根拠となる精読をサブエージェント任せにしない。
-   - 変更箇所の呼び出し元・呼び出し先の調査、依存関係ファイル（pyproject.toml / package.json / lock ファイル等）の確認、変更に対応する既存テストの探索は、[時間予算と委譲規約](references/time-budget.md)の「委譲」の起動条件をすべて満たす場合だけ、読み取り専用の補助委譲として最大 1 件を本体精読と並行して起動してよい。委譲先の調査範囲は `$WT` 上のコードと PR 差分のみとする。`reviews/` と既存 review 本文は委譲範囲・prompt から除外する。残り調査枠 10 分未満、停止手段なし、追加委譲・再委譲はしない。prompt の必須欄（対象・期限・制約・中間出力・終了）は具体値で埋める。
-   - 委譲しない場合は、メインエージェントが自分で変更箇所の呼び出し元・呼び出し先を辿り、依存関係ファイルを確認し、変更に対応する既存テストを探す。
-6. **プロジェクト固有観点の取り込み**: `$WT` 上の `AGENTS.md`・`CLAUDE.md`（ワールドのプロジェクトを変更する PR では、そのプロジェクトの `AGENTS.md` も）と、規約・設計ドキュメントがあれば読み、そのプロジェクトの重点観点（例: 1 オブジェクト 1 メッシュ、resoloop の安全ルール、Python は uv で実行する）を優先順位のチェックリストに加える。メインリポジトリ側と `$WT` 側の `reviews/` にある他モデルのレビューは情報源にしない（サブエージェントに委譲する場合も調査範囲から除外する）。
-7. **候補洗い出し → 検証 → 報告**:
-   - 優先順位に沿って候補指摘を洗い出し、検証プロトコルを通過したものだけを指摘フォーマットで報告する。
-   - 調査期限・委譲期限を確認し、期限超過後は新規調査を止めて取得済み根拠で保存へ進む（[時間予算と委譲規約](references/time-budget.md)の「打ち切り」）。
-   - 更新時は既存 active 指摘と前回の Pending previous findings を現在の差分と `$WT` のコードで再検証し、active・resolved・pending に分類する。未再検証の指摘を Resolved にせず、再検証できなかった前回 active 指摘は Pending previous findings へ移す。未読箇所を解消としない。再検証の最終判定と `$PREVIOUS_REVIEW` の解釈はメインエージェントが行う。
-   - 継続指摘は ID・タイトル・検出時 HEAD を維持し、位置と根拠を現在値へ更新する。
-   - 解消済み指摘は active Severity セクションから `Resolved findings` へ移し、解消確認時 HEAD に今回の `$SHORT_HEAD` と確認根拠を記録する。
-   - Pending previous findings へ移す指摘は過去 ID・タイトル・元 Severity・検出時 HEAD・前回内容と根拠・今回未確認の理由を記録する。
-   - 新規指摘には検出時 HEAD として今回の `$SHORT_HEAD` を設定する。
-   - 新規 ID は active / pending / resolved 全体で ID の衝突を避ける。既存の Review history と Resolved findings は順序ごと維持する。
-8. **レビュー結果の保存**:
-   - draft 完成時の時刻を次で取得する。
-
-     ```bash
-     REVIEWED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-     ```
-
-   - Review history に今回分を 1 行だけ追記する（既存行は削除・並べ替えない）。列は Reviewed at (UTC)・HEAD（`$SHORT_HEAD`）・Mode（`Initial` または `Update`）。同じ HEAD でも追記する。
-   - draft/save 直前に HEAD consistency check 3/3 を実行する。不一致、空値、`gh` failure の場合は履歴を追記せず保存しない。
-
-     ```bash
-     CURRENT_PR_HEAD=$(gh pr view "$PR_URL" --json headRefOid --jq .headRefOid)
-     test "$CURRENT_PR_HEAD" = "$PR_HEAD"
-     ```
-
-   - 完成したレビュー本文を `create` が返した `$DRAFT` へ書く。これはメインリポジトリと `$WT` の外部にある保存前の正本であり、保存後は手順 9 の `cleanup` がセッションディレクトリごと削除する。あとで見返す必要がある内容は `$DRAFT` の本文に含め、セッションディレクトリにしか無いファイルを残さない。保存先と draft は `create` が確定して返した `$DESTINATION`・`$DRAFT` のみを使い、パスを自分で組み立てない。
-   - 時間切れでも HEAD チェックやフィンガープリント検証を飛ばさない。保存拒否時は上書きせず、エラーと保存前 draft の場所を報告する。
-   - 保存は `uv run --no-project python "$HELPER" save --state "$STATE_FILE"` だけを実行する。`save` は共有ロック（Git 共通ディレクトリの `flock`）で最終検証とアトミックなコピーを直列化し、保存直前の検証として、確定した `$DESTINATION` が create 時フィンガープリントと一致することを確認してからアトミックに保存する。`reviews/` 配下の無関係な他モデルのファイルも、`reviews/` 外のメインリポジトリの変更（tracked ファイルの編集、untracked ファイルの追加、HEAD・branch の移動）も `save` を妨げない。ただし確定した `$DESTINATION` はこのセッションが保存するまで不変でなければならない。resolved path は `reviews/` 外への脱出検証だけに使い、fingerprint とアトミックな置換は lexical destination entry を対象にする。同じ PR・モデルの再レビューでは内容全体を上書きし、別名ファイルは作らない。
-   - 途中確認用の `uv run --no-project python "$HELPER" verify --state "$STATE_FILE"` は残してよいが、`verify` も同じ共有ロックと上記の destination フィンガープリント検証を行う。ただし保存の安全性はその事前実行に依存しない。
-   - 別モデルのレビュー結果は、`create` が返した `$DESTINATION` に従って同じ PR ディレクトリ内の別ファイルへ保存する。レビュー成果物を `$WT` 内には書かない。
-9. **後片付けと報告**:
-   - `save` が成功したら、続けて次を実行し、このセッションの worktree とセッションディレクトリ（`$DRAFT`・`previous-review.md`・`session.json` を含む）を削除する。
-
-     ```bash
-     uv run --no-project python "$HELPER" cleanup --state "$STATE_FILE"
-     ```
-
-   - `cleanup` は共有ロック下で、`$DESTINATION` が通常ファイルとして存在し内容が `$DRAFT` と一致すること（= 保存成功）と、削除対象が state file に固定された自セッションの linked worktree であることを確認してから削除する。どちらかを満たさない場合は何も削除せず失敗する。
-   - `cleanup` が失敗した場合は削除を手で代行せず停止し、`$WT`・セッションディレクトリ・`$DESTINATION` の完全パスと失敗理由を報告してユーザの判断に委ねる。
-   - `cleanup` は他の worktree、`$MAIN_ROOT` の working tree、`reviews/` 配下の他ファイルを変更しない。
-   - 停止確認不能なら cleanup を省略する。停止確認不能のときだけ cleanup を省略する限定条件であり、helper が失敗した場合の既存停止規則は保持する。省略時は残った委譲 ID・停止状態・WT とセッションの完全パスを報告し、このターンを終了する。
-   - 最終応答では save/cleanup の結果、`$DESTINATION` の完全パス、`$LEGACY_REVIEW` が空でなければその完全パス（所属を確かめられないため引き継いでいないこと）、削除したセッションディレクトリのパス（省略時は省略理由と残した完全パス）、開始からの経過と全体実時間を報告する。保存済みレビューを後から直接書き換えない。`cleanup` 成功後は `$WT` 配下のパスは既に存在しないため案内に含めない。`create` をやり直した、または `abandon` を実行した場合は、試行 ID ごとの `inspect`・`abandon` の結果も報告する。
+- 同じ処理が 2 か所にあるだけでは指摘にしない
+- 同じ仕様を扱う 2 つの処理で受理・拒否の条件が食い違うときは、指摘にする。どちらが仕様どおりかを確かめ、両方に同じ入力を与えて実行する（実行できなければ【確認推奨】）
 
 ## 検証プロトコル
 
 候補指摘 1 件ごとに、以下を順に行う:
 
 1. **精読**: 指摘に関わる実コードパスを最後まで読む（途中の早期 return・ガード・呼び出し規約を見落とさない）
-2. **反証試行**: 「この指摘が誤りだとしたらどこか」を明示的に検討する（既存のガード、テストによる固定、ドキュメント化された意図的トレードオフ等）。反証に成功したら報告しない
-3. **実行検証**: 挙動が不確かな場合、可能なら worktree 側で実行して確かめる（関連する pytest、REPL、最小再現スクリプト）。重い一括検証は再実行しない（規約を参照）。テストコマンドが不明な場合は無理に実行しない。一時ホームが必要な場合は `env HOME="$tmpdir" ...` のワンショットだけを使い、永続シェルへ `export HOME=...` してはならない（後続の `gh` が別ホームを見て未認証になる）
-4. **期限確認**: phase 境界・呼び出し復帰時・委譲開始前・新規候補や実行検証の開始前に現在時刻を確認し、調査期限と委譲期限（絶対期限・実質無進捗 5 分）を再評価する。期限超過後は新規調査を増やさず保存へ進む
-
-反証試行のための追加委譲はしない。手順 5 で起動した 1 件の割当範囲内で得た報告は利用してよいが、確度ラベルの最終判定は、メインコンテキストが根拠（コードパス・実行結果）を直接確認した上で行う。サブエージェントの報告のみを根拠に【検証済み】を付けない。
+2. **反証試行**: 「この指摘が誤りだとしたらどこか」を明示的に検討する（既存のガード、テストによる固定、ドキュメント化された意図的トレードオフ等）。要件の指摘では、承認済みの仕様変更・対象外・別の場所での実装でないかも確かめる。反証に成功したら報告しない
+3. **実行検証**: 実行時の挙動についての Critical・High・Medium の候補は、worktree 側のコードで最小再現を実行して確かめる（関連する pytest、REPL、最小再現スクリプト）。それ以外も、挙動が不確かなら実行する。`$WT` の中にファイルを作らず、一時ファイルは追加スクラッチに置く。テストの実行方法が分からなくても、最小再現スクリプトで確かめる。重い一括検証は実行しない。外部からの入力・新しい作業環境を扱うコードでは、入力・環境の変化も試す（「実行による確認と判断の記録」）。一時ホームが必要な場合は `env HOME="$tmpdir" ...` のワンショットだけを使い、永続シェルへ `export HOME=...` してはならない（後続の `gh` が別ホームを見て未認証になる）
+4. **同種箇所**: 欠陥を確かめたら、同じパターンを PR の差分の全ファイルで検索し、該当箇所を 1 件の指摘にまとめる
+5. **期限確認**: phase 境界・呼び出し復帰時・委譲開始前・新規候補や実行検証の開始前に現在時刻を確認し、調査期限と委譲期限（絶対期限・実質無進捗 5 分）を再評価する。期限超過後は新規調査を増やさず保存へ進む
 
 検証結果に応じて、各指摘に確度ラベルを付ける:
 
-- **【検証済み】**: コード精読または実行検証で裏付けがある
-- **【確認推奨】**: もっともらしいが裏付けが不完全
+- **【検証済み】**: コード精読または実行検証で裏付けがある。ただし実行時の挙動についての Critical・High・Medium は、実行した再現があるものに限る（コードを読んだだけなら【確認推奨】）
+- **【確認推奨】**: もっともらしいが裏付けが不完全（実行時の挙動についての Critical・High・Medium で、再現を実行できなかったものを含む。足りない根拠を書く）
 - **【要設計判断】**: 挙動は確認済みだが、修正すべきか仕様とすべきかはユーザの判断が必要
+
+## 実行による確認と判断の記録
+
+挙動についての判断は、実行した結果で示す。手順と記入例は[指摘の根拠と判断の記録の規約](references/evidence.md)、欄の定義は形式の定義元 [review-records](../../review-records.md) の 4 章にある。
+
+- **実行した再現**: 実行時の挙動についての Critical・High・Medium は、最小再現を実行し、`再現` にコマンド・場所・条件・結果を書く。実行できなかった、または再現しなかった指摘は【確認推奨】にし、`再現: 実行しなかった（<理由>）` と足りない根拠を書く
+- **入力・環境の変化**: PR が外部からの入力（エージェントの出力、利用者の文章、ファイル、環境変数）を受け付けるコードや、新しい作業環境（新しい worktree、サブプロセス、一時ディレクトリ）で動くコードを含むときは、少なくとも 1 つの入力・環境の変化を試す（例: 複数行・空・非 ASCII の文章、区切り文字を含む値、仮想環境の無い作業ディレクトリ、submodule の状態の違い、空白を含むパス）。試せないときは、Review coverage の未実施の検証に理由を書く
+- **「安全か」と「動くか」**: 拒否・停止を確かめたことを、通常の利用経路で目的の操作が完了する根拠にしない。「失敗時は安全側（停止側）に倒れる」だけを理由に、実環境で確かめていない挙動を問題なしとしない。Review coverage の「実行した確認」に、入口ごとに「<条件> → 動く／止まる」を書く
+- **同種箇所**: 欠陥を 1 つ確かめたら、守るべき性質を 1 文にし、PR の差分の全ファイルで同じパターンを検索する。該当箇所はすべて同じ 1 件の指摘の `同種箇所` にまとめ、実際に実行した検索のコマンドを書く（実行していないコマンドを書かない）。別の指摘に分けない
+- **同じ種類の別の入力**: 欠陥を確かめた性質ごとに、同じ性質に反しうる別の入力（同じ文法の別の書き方、同じ状態の別の値、境界の値）を挙げて実行する。報告された入力の形（例: 報告された 1 つの日時の書式）だけで性質を書かない。結果は候補一覧の `variants` に、確かめなかった入力も理由を付けて書く（[規約](references/evidence.md)の 2 章）
+- **条件を述べる文書との照合**: PR が、受け付ける・拒否する状態や、動く・止まる条件を変えたときは、その条件を述べている README・スキル・`interfaces.rst`・ヘルプを検索し、両方向から照合する（文書が述べる条件を実装が満たすか、実装の新しい条件を文書が正しく述べているか）。結果は候補一覧の `statement_sites` に書き、食い違いは指摘にする
+- **安全性の経路**: 資格情報・秘密情報が想定していない相手へ渡る、意図した範囲の外を書き換える・削除する、権限の確認や書き込み前の検査を迂回できる、のどれかに当たる指摘は、経路（入口・入力・環境と、渡る先・書き換える先、または迂回される検査）を `内容` と候補一覧の `failure_scenario` に書く。重大度を引き上げるかどうかは決めない（review-fix-planning の安全性の再評価だけで判断する）
+- **判断しなかったもの**: 読まなかった範囲、確かめなかった観点・入力は、Review coverage と候補一覧の `coverage.declined` に、対象と理由を書く。無ければ「無し」と書く
+- **前回の修正の重点確認**: 前回の修正の範囲（手順 3）がある場合は、その変更が新しく足した仕組み・拒否条件・規則の写しと、「同じ規則」「同等」などの主張を重点的に確かめる。規則の写しは写し元と同じ入力で比べ、主張は実行して確かめる
+- **判断済みの指摘**: 判断の記録で `skip`（対応しない）の判断と同じ問題は、新しい根拠（形式の定義元 8.2 節）が無ければ active にせず、`## Decided findings`（テンプレートどおり `## Pending previous findings` の後、`## Test suggestions` の前）に書く。新しい根拠があれば active にして `見直しの根拠` を書く。表現の違い、別のレビュアーが同じ指摘を出したこと、重大度の表記だけの引き上げは、新しい根拠に当たらない
+- **D1 の材料**: 実行時の挙動についての全指摘に `利用経路` と `結果の種類` を、全指摘に `PR 起因` を書く。採否（Fix・Skip）は決めない
+- **未読範囲**: 更新時も PR 全体差分を読む。読めなかった範囲が残るときは、Merge recommendation を Approve にしない
 
 ## Severity 判定基準
 
@@ -316,18 +137,28 @@ GitHub 上の指定された Pull Request（PR）に対して、Codex の `/revi
 - 検出時 HEAD: `<12文字のshort-sha>` または `不明（旧形式）`
 - 内容: 何が・どの条件（入力・状態・操作列）で起きるか
 - 根拠: 読んだコードパス、実行した検証とその結果
+- 再現: 実行した | 実行しなかった（<理由>） | 該当なし
+  - コマンド: `<実行したコマンド>`
+  - 場所: <PR head の隔離 worktree か一時ディレクトリと、そこに置いたもの>
+  - 条件: <入力・環境>
+  - 結果: <終了コードと出力の要点>
+- 利用経路: 通常 | 限定的 | 不明 | 該当なし — <入口・入力・環境>
+- 結果の種類: 機能停止 | 誤った結果 | 安全性 | 性能 | 保守性 | 文書 | その他（<何が止まる・誤るか>）
+- PR 起因: 持ち込み | 顕在化 | 既存 | 不明（<根拠>）
+- 同種箇所: 該当なし（<理由>） | 性質「<守るべき性質>」／範囲 <検索した範囲>／検索 `<コマンド>`／結果 <該当箇所の一覧、または「他に無し」>
+- 前回の修正との関係: 該当なし | 前回の修正が足した仕組み | 規則の写し | 「同じ規則」の主張 | 不明（<説明>）
+- 見直しの根拠: <判断 ID と新しい根拠>
 - 推奨対応: 適切な責務境界での最小の修正案（あわせて固定すべきテスト）
 ```
 
-- ID は Severity 別の連番（Critical: C-1、High: H-1、Medium: M-1、Low: L-1、Info: I-1）
+- ID は Severity 別の連番（Critical: C-1、High: H-1、Medium: M-1、Low: L-1、Info: I-1）。Unverified candidates は `U-1` からの連番
+- `再現` から `見直しの根拠` までの欄の値と、どの指摘で必須かは、形式の定義元の 4.2 節に従う。実行時の挙動についての Critical・High・Medium には `再現` を、実行時の挙動についての全指摘には `利用経路` と `結果の種類` を、全指摘には `PR 起因` を、Critical・High・Medium の欠陥には `同種箇所` を、判断の記録に前のサイクルがある場合の全指摘には `前回の修正との関係` を書く。`見直しの根拠` は `skip` の判断を active に戻す指摘だけに書く。必須でない欄は行ごと省いてよい。文書の指摘は `再現: 該当なし`・`利用経路: 該当なし`・`結果の種類: 文書` とする
 - 「内容」には具体的な発生条件を必ず書く。「〜の可能性がある」だけの指摘は書かない
 - 新規指摘の検出時 HEAD は今回の `$SHORT_HEAD` を設定する。継続指摘は検出時 HEAD を維持する。旧形式から移行する指摘で過去 HEAD が無い場合は `不明（旧形式）` とし、hash を生成・推測しない
 
 ## 優先順位
 
-create-reso-world の PR では、テストの過不足を `AGENTS.md`「テストの採用基準」で判断し、基準に反する追加・変更も指摘する。
-
-1. 実行時バグ
+1. 実行時バグ・要件の実装漏れ
 2. セキュリティ問題
 3. 破壊的な挙動変更
 4. 依存関係の互換性リスク
@@ -337,10 +168,10 @@ create-reso-world の PR では、テストの過不足を `AGENTS.md`「テス�
 ## コメントしないこと
 
 - 無害なフォーマット差分
-- 命名の好み
+- 命名などの好みと、実害・規約違反を示せない改善案（「確認観点」の基準）
 - 根拠のない理論上の問題
 - 差分と無関係な広範なリファクタリング
-- 差分外の既存コードの問題（diff が顕在化させる場合を除く）
+- 差分外の既存コードの問題（diff が顕在化させる場合と、PR の受け入れ条件に必要な処理・入口が無い場合を除く）
 - 重要な不変条件を隠していないコメント不足
 - リンタ・フォーマッタで機械的に検出できる指摘だけの列挙
 
@@ -350,12 +181,13 @@ create-reso-world の PR では、テストの過不足を `AGENTS.md`「テス�
 
 ```markdown
 - 対象: PR #<N> / head <12文字のshort-sha> / <YYYY-MM-DD>
+- レビュアー: <モデル識別子>（ランタイム: <ランタイム>）
 
 ## Review history
 
 | Reviewed at (UTC) | HEAD                  | Mode                  |
 | ----------------- | --------------------- | --------------------- |
-| <RFC3339 UTC>     | `<12文字のshort-sha>` | Initial または Update |
+| <RFC3339 UTC>     | `<12文字のshort-sha>` | Initial / Update |
 
 ## Summary
 
@@ -383,23 +215,31 @@ create-reso-world の PR では、テストの過不足を `AGENTS.md`「テス�
 
 ## Review coverage
 
-（読んだ範囲・読めなかった範囲・実行検証・未実施の検証・委譲状態と省略・中断理由を記載する）
+（読んだ範囲・読めなかった範囲・実行検証・未実施の検証・委譲状態と省略・中断理由を記載する。判断の記録の集約の結果（記録なし・読めなかった理由を含む）と前回の修正の範囲も書く。要件の出所（読んだ Issue・文書。受け入れ条件の記載が無ければその旨）と照合の結果（満たさない条件は指摘 ID、確かめられない条件は理由）も書く。「実行した確認」には、入口ごとに「<条件> → 動く／止まる（<要点>）」を 1 行で書く）
 
 ## Unverified candidates
 
-（位置・具体的な疑い・確認済み根拠・不足根拠・次の確認方法を記載する。なければ「なし」と書く）
+### U-<n>: <一行の疑い>
+
+- 検出時 HEAD: `<12文字>`
+- 位置: `path:line`
+- 具体的な疑い・確認済み根拠・不足根拠・次の確認方法: <観測した内容>
+
+（候補が無ければ、この節の本文を「なし」だけにする。説明文を候補見出しより前に置かない）
 
 ## Pending previous findings
 
 （過去 ID・タイトル・元 Severity・検出時 HEAD・前回内容と根拠・今回未確認の理由を記載する。該当なしなら省略可）
 
+## Decided findings
+
+（判断の記録で `skip` の問題のうち、新しい根拠が無いもの。各指摘に判断 ID・位置・検出時 HEAD・新しい根拠（なし。見直す条件）を書く。件数表・重大度判定・Merge recommendation に数えない。該当なしなら省略可）
+
 ## Test suggestions
 
 （番号付きリスト。各項目にどの指摘（ID）を固定するテストかを明記する）
 
-## Review timing
-
-（開始 UTC・全体予算・調査期限・draft 時点経過・phase 内訳・委譲時刻と状態・超過理由を記載する）
+<!-- Review timing は complete が末尾へ生成する。予算・phase・委譲状態は Review coverage に書く。 -->
 
 ## Merge recommendation
 
@@ -414,47 +254,37 @@ create-reso-world の PR では、テストの過不足を `AGENTS.md`「テス�
 - 確認根拠: <現在のコードパスまたは実行検証による根拠>
 ```
 
-- Review history の時刻は `$REVIEWED_AT`（`date -u +"%Y-%m-%dT%H:%M:%SZ"`）を使う。HEAD は `$SHORT_HEAD`（12 文字）。Mode は `$PREVIOUS_REVIEW` が空なら `Initial`、snapshot があれば `Update`
+- Review history の時刻は `$REVIEWED_AT`（`date -u +"%Y-%m-%dT%H:%M:%SZ"`）を使う。HEAD は `$SHORT_HEAD`（12 文字）。Mode は `$PREVIOUS_REVIEW` が空なら `Initial`、snapshot があれば `Update`。明示 commit でも同じ値を使い、指定内容は保存名、候補JSONの `reviewed_head`、Review timing の `pr_head` / `review_kind`、Review coverage に残す
 - 既存 Review history 行と既存 Resolved findings は削除・並べ替えず、今回分だけ追記する。同じ HEAD でも追記する
 - Resolved findings が無い初回で解消も無い場合はセクションを省略してよい。更新で既存 Resolved findings がある場合は維持する
+- `レビュアー` の行には、ランタイムが提示した正確なモデル識別子（`prepare` に渡した実測値。Codex では現在の session metadata から確定した値）と、ランタイムの小文字の名前（Claude Code は `claude-code`、Devin は `devin`、Codex は `codex`、pi は `pi`）を書く（形式の定義元 3 章）
+- Merge recommendation は `Request changes`・`Needs manual verification`・`Approve` のどれかをそのまま先頭に書き、続けて理由を 1 文書く
+- `## Review history` の見出しと 3 つの列は変えない（PR 修正ループが読む）
 
 Merge recommendation の判定基準:
 
 - **Request changes**: 【検証済み】の Critical / High が 1 件以上ある
 - **Needs manual verification**: 【検証済み】の Critical / High がなく、active な【確認推奨】の High 以上・重要な未検証候補・未再検証の過去指摘・必要な検証の未実施・差分の実質的な未読箇所がある
 - **Approve**: 上記に該当せず、【検証済み】の Critical / High が 0 件で残る指摘が Medium 以下または【要設計判断】のみ。補助委譲の省略・中断だけで本体が必要範囲を確認済みなら判定を悪化させない
+- 実行時の挙動についての Critical / High は、実行した再現が無ければ【確認推奨】になるため、Request changes の根拠にならず、Needs manual verification の条件（active な【確認推奨】の High 以上）に入る。Decided findings は件数・判定に数えない
+
+## 候補一覧と実行情報
+
+新規JSONは `review-findings/v2`。prepare が主要skillのpath/hash、request のrun/request/agent/role、実測model/runtime/providerを固定する。未知の識別値はunknown、待ち時間はnull。completeが同じ reviewer/provenance/timingを候補と本文の `Review timing` に書く。保存・cleanupと全体の実測は返却payloadで別に報告する。
+
+実行記録（レビューディレクトリの `runs/`）は helper が書き、手で直さない。
+
+候補のfindingには本文の同じID・severity・confidence・位置・検出時HEADと、property / variants / statement_sites / 必要ならfailure_scenarioを記録する。再現・利用経路・結果の種類・PR起因・同種箇所・前回修正・見直しの欄は共有形式へ対応付ける。提案した修正を実行済みの根拠にしない。秘密値を記録しない。
 
 ## 出力前セルフチェック
 
-- 冒頭の `対象 PR` 行から引数を読み取り、未指定判定を正しく行ったか
-- `PR_HEAD`、`gh pr diff`、`$WT` が同じ headRefOid に対応しているか（3 地点の HEAD consistency check がすべて成功したか）
-- 自モデルの `$PREVIOUS_REVIEW` 以外（ライブ `$DESTINATION`、他モデルのレビュー本文）を読んでいないか。既存 review 本文をサブエージェントへ渡していないか
-- Review history に UTC、12 文字 HEAD、Mode（`Initial` または `Update`）が今回分として 1 行だけ追加されているか。既存行を削除・並べ替えていないか
-- active 指摘の検出時 HEAD が維持または新規設定されているか。旧形式の不明 hash を生成していないか（`不明（旧形式）` を使う）
-- 解消済み指摘が active counts から除かれ、Resolved findings に存在する（検出時 HEAD・解消確認時 HEAD・確認根拠付き）か
-- 未再検証の指摘を Resolved にせず Pending previous findings に保持したか。新規 ID が active / pending / resolved 全体で ID の衝突を避けているか
-- Review coverage・Unverified candidates・Pending previous findings・Review timing を記載したか（Pending previous findings は該当なしなら省略可）
-- 最終応答に save/cleanup の結果と開始からの経過・全体実時間を記載したか
-- 件数表と本文の active 指摘数が一致しているか
-- 全指摘に位置（`file:line`）・具体的な発生条件・確度ラベルがあるか
-- 各指摘に反証を試みたか
-- 重い一括検証（`bash .devcontainer/run-tests.bash` など）を再実行していないか。指摘の検証に必要な範囲の実行はしてよい
-- 「コメントしないこと」に該当する指摘が紛れていないか
-- メインリポジトリ側と `$WT` 側の `reviews/<owner>/<repo>/#<PR番号>-<変換後ブランチ名>/` と旧形式の `reviews/#<PR番号>-<変換後ブランチ名>/` にある他モデルのレビュー本文を、自分でもサブエージェント経由でも開いたり検索対象に含めたりしていないか
-- Merge recommendation が判定基準と整合しているか。重大度判定は active findings、確認不足判定は coverage と pending も参照する
-- `MAIN_ROOT` は PR URL の `owner/repository` を「リポジトリ境界」の表に照らして確定したか（このリポジトリ=検証済みの親 main checkout、resoloop=検証済みの `external/resoloop`、その他は明示された `CODE_ROOT` を照合し、明示が無い・不一致なら停止）。PR の head を `$PR_REMOTE` から、所属リポジトリを含む `$PR_REF` に取得したか。`merge-base HEAD "$PR_REF"` の成功を確認したか
-- helper の呼び出しを他の処理とまとめたり、600 秒未満のタイムアウトで打ち切ったりしていないか
-- `create`・`inspect`・`abandon` に `--pr-repo "$PR_REPOSITORY"` を渡したか。旧形式の `$LEGACY_REVIEW` を読まずに報告したか
-- `create` に `--attempt-id "$ATTEMPT_ID"` を渡し、結果を返さなかった試行を `inspect`・`abandon` で扱ったか（拒否されたら手で消さずに停止したか）
-- `create` が返した `model_name`、`draft`、`destination`、`previous_review` を変更・再構築せず使用したか
-- 正確な `$MODEL_NAME` を `--model-name "$MODEL_NAME"` で渡し、filename から推測していないか（Codex はヘルパーが確定する）
-- `save` を `--state "$STATE_FILE"` だけで実行し、caller-selected path を渡していないか
-- `save` の返却した destination が存在し、最終応答にその完全パスを記載したか
-- 同じ PR・モデルの再レビューで既存ファイルの内容全体を上書きし、別名ファイルを作っていないか
-- レビュー成果物が `create` が返した `$DESTINATION` に書かれ、`$WT` 配下に無いか
-- `git clean`、強制 checkout/reset を実行していないか。worktree の削除を `cleanup` 以外の手段で行っていないか
-- 保存前に検証（確定 `$DESTINATION` のフィンガープリントが不変）が成功し、`save` の出力先が存在するか
-- あとで見返す必要がある根拠をレビュー本文に転記し、`$WT` とセッションディレクトリにしか無い証跡ファイルに依存していないか
-- `save` の成功後に `cleanup --state "$STATE_FILE"` を実行し、worktree とセッションディレクトリが削除されたか（停止確認不能で省略した場合は、省略理由と残した完全パスを報告したか）
-- `cleanup` が失敗した場合に `git worktree remove` や `rm -rf` を手で組み立てず、停止してパスを報告したか
-- 最終応答に `$DESTINATION` の完全パスと削除したセッションディレクトリを記載し、`$WT` 配下のパスを参照していないか（省略時は省略理由と残した完全パスを報告する）
+- prepareの固定対象と全体diffを読んだか。PR headとreviewed commitを混同していないか。
+- 自モデルsnapshot以外のreviewを読んでいないか。既存history/Resolvedを保持し、Modeを `Initial` / `Update` のみに保ち、指定commitを保存名・候補JSON・coverageで区別したか。
+- 継続ID/検出HEAD、active/Resolved/Pending/Decidedの分類と件数、skipの新根拠を照合したか。
+- 本文と候補のID/位置/coverage/未検証が同じか。未読があるのにApproveにしていないか。
+- 受け入れ条件を実装・利用入口・確認結果と照合したか。受け入れ条件に無い機能や形式、実害・規約違反を示せない改善案を指摘にしていないか。
+- AGENTS.mdのテスト基準に沿い、文面や運用値の写しを要求するテストを提案していないか。
+- 実行時のCritical/High/Mediumの検証済みに実際の最小再現があり、「止まる」と「動く」を分けたか。
+- request binding、実測識別情報、skill hash、unknown/null、同一timingを維持したか。
+- DSH は complete の staged を親の保存成功と混同せず返したか。他 runtime / 親は成果2件・cleanup成功を確認したか。failed/missingを0件にしていないか。
+- cleanup後のWTを成果参照に使わず、残存領域は完全パスと理由を返したか。
