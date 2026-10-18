@@ -409,7 +409,43 @@ def test_abort_maps_to_interrupted(context: AdapterContext) -> None:
 @pytest.mark.parametrize(
     "diagnostic",
     [
+        'Error: offset 2001 is out of range for "x.py" (402 lines)',
+        'Error: offset 2001 is out of range for "x.py" (401 lines)',
+        'Error: offset 2001 is out of range for "x.py" (403 lines)',
+        'Error: ENOENT: no such file or directory, open "401.py"',
+        'Error: ENOENT: no such file or directory, open "403.py"',
+        'Error: no such file or directory, open "UNAUTHORIZED.py"',
+        "Error: invalid api key in a tool's fixture data",
+    ],
+)
+def test_recovered_tool_error_preserves_final_payload(context: AdapterContext, diagnostic: str) -> None:
+    events = _stream()
+    events[2:2] = [
+        {"type": "tool_call", "callId": "read-1", "tool": "read", "input": {}},
+        {"type": "tool_result", "callId": "read-1", "status": "error", "result": diagnostic},
+    ]
+    outcome = _collect(context, events)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == "success"
+    assert outcome.receipt.payload == {"ok": True}
+    assert outcome.identity.model == "observed-model"
+
+
+@pytest.mark.parametrize("code", ["MISSING_CREDENTIAL", "INVALID_CREDENTIAL", "UNAUTHORIZED", "401", "403"])
+def test_api_auth_error_overrides_completed_final(context: AdapterContext, code: str) -> None:
+    events = _stream()
+    events.insert(2, {"type": "error", "code": code, "message": "API request failed"})
+    outcome = _collect(context, events)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == "awaiting_authentication"
+    assert outcome.receipt.payload is None
+
+
+@pytest.mark.parametrize(
+    "diagnostic",
+    [
         'the user rejected tool "bash"',
+        'the user rejected tool "read" for "403.py"',
         (
             'the user rejected escalating this command to "danger-full-access"; '
             "it stays denied, so stop and explain instead of working around it"

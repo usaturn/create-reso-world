@@ -114,9 +114,10 @@ def _classify(events: list[dict[str, object]], shape: str) -> tuple[ReceiptStatu
         if event.get("type") == "error":
             return _diagnostic(str(event.get("code", "")) + " " + str(event.get("message", ""))), None
         if event.get("type") == "tool_result" and event.get("status") == "error":
-            hint = _diagnostic(str(event.get("result", "")))
-            if hint != "response_failed":
-                return hint, None
+            # Tool output can contain arbitrary file contents, paths or line counts,
+            # not the model API's authentication state. Keep approval denials fatal.
+            if _APPROVAL.search(str(event.get("result", ""))):
+                return "awaiting_approval", None
         if event.get("type") == "status" and event.get("phase") == "turn_end":
             reason = event.get("reason")
             if not isinstance(reason, dict):

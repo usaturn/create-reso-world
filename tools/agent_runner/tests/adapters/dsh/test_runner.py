@@ -113,6 +113,34 @@ def test_real_process_state_and_stdin(
         _assert_stopped(pid)
 
 
+@pytest.mark.parametrize(
+    "mode",
+    ["read-402-lines", "read-401-lines", "read-403-lines", "read-401-filename", "read-403-filename"],
+)
+@pytest.mark.parametrize("with_fallback", [False, True])
+def test_recovered_read_error_keeps_primary_result(
+    config: Config, repository: Path, tmp_path: Path, mode: str, with_fallback: bool
+) -> None:
+    config.agents["a"].command[-1] = mode
+    if with_fallback:
+        fallback = config.agents["a"].model_copy(deep=True)
+        fallback.command[-1] = "success"
+        fallback.model = "fallback-model"
+        config.agents["b"] = fallback
+        config.workflows["test"].assignments["inspect"].fallback = ["b"]
+    result = run_workflow(config, "test", "recover from a read error", repository, output_dir=tmp_path / "run")
+    assert result.state == "success"
+    role_result = result.results[0]
+    assert role_result.state == "success"
+    assert role_result.actual_agent == "a"
+    assert len(role_result.attempts) == 1
+    attempt = role_result.attempts[0]
+    assert attempt.agent_id == "a" and attempt.state == "success"
+    assert attempt.exit_code == 0 and attempt.stop_confirmed
+    assert isinstance(attempt.payload, dict) and attempt.payload["ok"] is True
+    assert (attempt.identity.provider, attempt.identity.model) == ("commandcode", "fixture-model")
+
+
 def test_explicit_provider_key_is_used_without_ambient_credentials(
     config: Config, repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
