@@ -77,7 +77,7 @@ bash scripts/resoloop-fork.sh status
 2. `git -C external/resoloop switch -c fix/<topic> upstream/main` で作業ブランチを作る。
 3. 修正してコミットする。
 4. `bash scripts/resoloop-fork.sh test` でテストを通す。
-5. 秘密情報を検査してから fork へ push する: `SHA="$(bash scripts/scan-before-push.sh -C external/resoloop --base upstream/main)" && [ -n "$SHA" ] && git -C external/resoloop push origin "${SHA}:refs/heads/fix/<topic>"`。検査で止まったら push しない（`AGENTS.md` の「push の前の秘密情報の検査」）。
+5. 秘密情報を検査してから fork へ push する: `SHA="$(bash scripts/scan-before-push.sh -C external/resoloop --base upstream/main)" && [ -n "$SHA" ] && git -C external/resoloop push origin "${SHA:?}:refs/heads/fix/<topic>"`。検査で止まったら push しない（`AGENTS.md` の「push の前の秘密情報の検査」）。
 6. 手元で試すときは `bash scripts/resoloop-fork.sh install fix/<topic>` でビルドして導入する。checkout は detached になるので、作業を続けるときは `git -C external/resoloop switch fix/<topic>` で戻る。push していないコミットを試すときは、ブランチ名ではなく `git -C external/resoloop rev-parse HEAD` の SHA を渡す。
 7. 上流へ PR を出す（例: `gh pr create --repo orange3134/resoloop --head usaturn:fix/<topic>`）。
 8. 上流がマージしてリリースしたら、`bash .devcontainer/install_resoloop.bash` で公開版に戻す。

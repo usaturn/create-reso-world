@@ -1,8 +1,9 @@
 #!/bin/bash
 # push の前に、まだ push していない commit を Gitleaks で検査する（AGENTS.md の「push の前の秘密情報の検査」）。
 # 成功したら、検査した commit の SHA だけを標準出力に出す。その SHA をそのまま push する:
-#   SHA="$(bash scripts/scan-before-push.sh)" && [ -n "$SHA" ] && git push origin "${SHA}:refs/heads/<branch>"
-# （zsh は "$SHA:r..." の :r を修飾子として展開するので、${SHA} と書く）
+#   SHA="$(bash scripts/scan-before-push.sh)" && [ -n "$SHA" ] && git push origin "${SHA:?}:refs/heads/<branch>"
+# （zsh は "$SHA:r..." の :r を修飾子として展開するので、${SHA:?} と波括弧で書く。
+#   SHA が空だと refspec が branch の削除になるので、呼び出しを分けるときも :? を外さない）
 # 使い方: scripts/scan-before-push.sh [-C <dir>] [--base <remote>/<branch>]
 #   -C      検査する checkout（既定は現在のディレクトリ）。そのルートで検査する
 #   --base  未 push とみなす範囲の基準（既定は origin/main）。fetch してから <base>..HEAD を検査する。
