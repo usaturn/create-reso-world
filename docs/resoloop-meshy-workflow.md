@@ -41,7 +41,7 @@ remote は `origin`（https://github.com/usaturn/resoloop-meshy.git）だけで�
 2. checkout そのものは `main` のまま切り替えず、`git -C external/resoloop-meshy pull --ff-only` で `origin/main` に追従させる。
 3. 作業ブランチと worktree を作る: `git -C external/resoloop-meshy worktree add -b <type>/<topic> .worktrees/<topic> origin/main`。`.worktrees/` はプラグインのリポジトリの `.gitignore` で無視している。
 4. worktree（`external/resoloop-meshy/.worktrees/<topic>`）で変更してコミットし、そこで `uv run pytest` を実行する。
-5. push（`SHA="$(bash scripts/scan-before-push.sh -C external/resoloop-meshy/.worktrees/<topic>)" && [ -n "$SHA" ] && git -C external/resoloop-meshy/.worktrees/<topic> push origin "${SHA}:refs/heads/<type>/<topic>"`。検査で止まったら push しない。`AGENTS.md` の「push の前の秘密情報の検査」）、PR の作成（`gh pr create --repo usaturn/resoloop-meshy --base main --head <type>/<topic>`）、マージは、利用者の指示があるときだけ行う。`--head` を省くと、`gh` は親 checkout（detached HEAD）のブランチを head にしようとして止まる。
+5. push（`SHA="$(bash scripts/scan-before-push.sh -C external/resoloop-meshy/.worktrees/<topic>)" && [ -n "$SHA" ] && git -C external/resoloop-meshy/.worktrees/<topic> push origin "${SHA:?}:refs/heads/<type>/<topic>"`。検査で止まったら push しない。`AGENTS.md` の「push の前の秘密情報の検査」）、PR の作成（`gh pr create --repo usaturn/resoloop-meshy --base main --head <type>/<topic>`）、マージは、利用者の指示があるときだけ行う。`--head` を省くと、`gh` は親 checkout（detached HEAD）のブランチを head にしようとして止まる。
 6. マージの後に、`git -C external/resoloop-meshy worktree remove .worktrees/<topic>` とブランチの削除で片付け、手順 2 で `main` を追従させる。
 
 Spec・Plan はプラグインのリポジトリに置かず、create-reso-world の `docs/superpowers/` に置く（create-reso-world の `AGENTS.md` の「Spec・Plan の保存と公開」）。
