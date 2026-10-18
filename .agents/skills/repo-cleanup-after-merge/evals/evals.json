@@ -212,6 +212,20 @@
         "The result also removes the clean /tmp/pr-review-*/worktree of the merged PR, even though it is detached.",
         "The final report lists the prunable and locked registrations and the other run's worktree with their paths and says they need to be checked by their owner."
       ]
+    },
+    {
+      "id": 18,
+      "name": "fork-and-upstream-review-sessions",
+      "prompt": "usaturn/resoloop の PR #9 がマージされたので external/resoloop の branch と worktree を整理して。/tmp/pr-review-9-*/worktree は usaturn/resoloop#9 のレビュー、/tmp/pr-review-6-*/worktree は orange3134/resoloop#6（open）のレビューで、どちらも branch fix/list-shrink-recreate-split と head 9e87dfb を持ち、clean である。usaturn/resoloop の PR 一覧には #6 も MERGED で載っている。ほかに、所属リポジトリを持たない version 6 の session の /tmp/pr-review-4-*/worktree がある。",
+      "expected_output": "pr-review の helper の sessions で各 session の所属リポジトリの PR を確かめ、usaturn/resoloop#9 の worktree だけを削除し、orange3134/resoloop#6 と version 6 の session の worktree と親ディレクトリを残して理由を報告した結果。",
+      "files": [],
+      "expectations": [
+        "The result runs the pr-review helper's sessions subcommand with --repo set to the absolute path of external/resoloop.",
+        "The result removes only the /tmp/pr-review-9-*/worktree, whose session belongs to the merged usaturn/resoloop#9.",
+        "The result does not remove the /tmp/pr-review-6-*/worktree or its parent directory, even though usaturn/resoloop lists a merged #6 and the branch and head match the merged #9.",
+        "The result does not remove the version 6 session's worktree or its parent directory, and does not copy its draft to reviews/.",
+        "The final report lists the kept sessions with the reason the helper returned."
+      ]
     }
   ]
 }
