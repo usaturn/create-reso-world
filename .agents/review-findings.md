@@ -915,6 +915,7 @@ uv run --no-project python "$TOPLEVEL/.agents/scripts/review_findings.py" stats 
 
 - `review_findings.py validate` は形式（キー・値・条件付きの必須）を確かめる。修正の確認の一覧（`fix-check.json`）だけは、同じディレクトリの候補ファイルとの突き合わせ（5 章）も行う。どの指摘で `再現` などを書くかの規則（4.2 節）は写さない。
 - `review_findings.py check-pair` は、レビューファイルの Critical〜Info の節の指摘と、Unverified candidates の ID を比べる。JSON の `locations` の各値が、レビューファイルの `位置` の行に含まれることを確かめる。
+- `from-markdown`・`check-pair` は、Unverified candidates の節を、最初の行が `### U-<n>: …` の見出し（[review-records](review-records.md) 4.3 節）か「なし」のものとして読む。見出しの無い候補（今の pr-review の様式の箇条書きなど）は、空の一覧にせず終了コード 65 で止まる。
 - `review_findings.py stats` は各ディレクトリの `verified/*.json` の cycle と v2 planning を検査・集計する。`runs/*.json` の実行記録も検査し、`runs` キーに集計する（7.2 節。`runs/` に実行記録以外のファイルがあれば形式不正）。従来の documents / reviewers / severity_drift（誤った指摘の割合、見逃し、遅れた発見、重大度のずれ）は維持し、provenance を追加する。修正の確認・v1 planning・文書の候補・候補一覧は従来どおり検査せず読み飛ばす。`kind`・`mode` が無い・知らない値の一覧は検査で止まる。形式不正は終了コード 65。
 
 ### 7.1 識別情報による集計（`provenance`）
@@ -957,7 +958,7 @@ uv run --no-project python "$TOPLEVEL/.agents/scripts/review_findings.py" stats 
 
 ## 8. 互換と、形式を変えるとき
 
-- 候補一覧の無いレビュアー（旧形式、JSON を保存できなかったとき）は、review-verify が `from-markdown` で読み、`inputs[].input_kind` を `markdown` にする。
+- 候補一覧の無いレビュアー（旧形式、JSON を保存できなかったとき）は、review-verify が `from-markdown` で読み、`inputs[].input_kind` を `markdown` にする。`from-markdown` が止まったら、そのレビューファイルを直接読む。
 - PR 修正ループ（#156 で入る）のレビュアーは通常の pr-review で候補一覧を作り、各サイクルの計画は review-fix-planning が確認済みの一覧と工程の記録を作る。
 - 新規の candidates / verified / planning は v2 にし、3.1節の識別情報を必須にする。既存 v1 は無変換で読み、検査条件も維持する。`from-markdown` は旧資料の読み取りなので v1、`statement-candidates` の出力も v1 のまま。スキルが新規項目を書く変更は、移植元では usaturn/agent-workspace#562・#568・#569、移植先では #153〜#155 が担当する。知らない版は拒否する。
 - 実行記録（`review_run`）は v2 だけで、v1 の形は無い。`runs/` の無い既存のレビューディレクトリも、そのまま読める。

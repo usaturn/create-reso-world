@@ -1484,6 +1484,8 @@ def validate_document(value: object) -> dict[str, Any]:
 
 _SEVERITY_HEADING = re.compile(r"## (Critical|High|Medium|Low|Info)\s*")
 _UNVERIFIED_HEADING = re.compile(r"## Unverified candidates\s*")
+# Unverified candidates の節が空であることの宣言（後に棄却した候補の説明が続いてもよい）
+_NO_UNVERIFIED = re.compile(r"(?:[-*]\s+)?なし")
 _FINDING_HEADING = re.compile(
     r"### (?P<id>[A-Za-z0-9][A-Za-z0-9._-]*)\s*[:：]\s*(?P<title>.*?)\s*(?:【(?P<label>[^】]+)】)?\s*"
 )
@@ -1520,13 +1522,18 @@ class ParsedReview:
         self.findings: list[ParsedFinding] = []
         self.unverified: list[str] = []
         self.unverified_summaries: dict[str, str] = {}
-        # 指摘らしいのに読めなかった見出しと、Summary の件数表（重大度 → 件数）
+        # 指摘らしいのに読めなかった見出し、見出しの無い未確認の候補、Summary の件数表（重大度 → 件数）
         self.unparsed: list[str] = []
+        self.unparsed_unverified: list[str] = []
         self.summary_counts: dict[str, int] = {}
 
     def problems(self) -> list[str]:
-        """読めなかった指摘と、Summary の件数との食い違い。"""
+        """読めなかった指摘・未確認の候補と、Summary の件数との食い違い。"""
         found = [f"unparsed finding heading: {heading}" for heading in self.unparsed]
+        found += [
+            f"unparsed Unverified candidates (write each under a ### U-<n>: heading, or start with なし): {line}"
+            for line in self.unparsed_unverified
+        ]
         for severity, expected in self.summary_counts.items():
             actual = sum(1 for finding in self.findings if finding.severity == severity)
             if expected != actual:
@@ -1535,13 +1542,18 @@ class ParsedReview:
 
 
 def parse_review_markdown(text: str) -> ParsedReview:
-    """pr-review のレビューファイルを読む。コードブロックの中の見出しは読まない。"""
+    """pr-review のレビューファイルを読む。コードブロックの中の見出しは読まない。
+
+    Unverified candidates の節は、最初の行が ``### <ID>:`` の見出しか「なし」のものだけを読む。
+    見出しの無い候補（箇条書きの旧形式など）は、空の一覧にせず ``problems()`` に挙げる。
+    """
     review = ParsedReview()
     section: str | None = None
     heading_line = ""
     current: ParsedFinding | None = None
     body: list[str] = []
     in_fence = False
+    unverified_started = False
 
     def finish() -> None:
         nonlocal current, body
@@ -1552,6 +1564,10 @@ def parse_review_markdown(text: str) -> ParsedReview:
         body = []
 
     for line in text.splitlines():
+        if section == "unverified" and not unverified_started and line.strip() and not line.startswith("## "):
+            unverified_started = True
+            if not line.startswith("### ") and _NO_UNVERIFIED.match(line.strip()) is None:
+                review.unparsed_unverified.append(line.strip())
         if line.lstrip().startswith("```"):
             in_fence = not in_fence
             if current is not None:
@@ -1567,6 +1583,7 @@ def parse_review_markdown(text: str) -> ParsedReview:
         if line.startswith("## "):
             finish()
             heading_line = line.strip()
+            unverified_started = False
             severity = _SEVERITY_HEADING.fullmatch(line)
             if severity is not None:
                 section = severity.group(1)
@@ -1622,7 +1639,7 @@ def candidates_from_markdown(
 ) -> dict[str, Any]:
     """レビューファイルの指摘を、候補一覧（``source: markdown``）の形にする。
 
-    読めなかった指摘や Summary の件数との食い違いがあれば、黙って落とさずに ``FindingsError`` を送出する。
+    読めなかった指摘・未確認の候補や Summary の件数との食い違いがあれば、黙って落とさずに ``FindingsError`` を送出する。
     呼び出し側（review-verify）は、そのレビューファイルを直接読む。
     """
     parsed = parse_review_markdown(text)

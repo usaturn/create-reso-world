@@ -1641,6 +1641,12 @@ def test_format_document_commands_are_accepted_by_the_cli() -> None:
             "## High\n\n### H-1: 例【検証済み】\n\n- 位置: a.py:1\n",
             "Summary counts 2 High finding(s) but 1 were read",
         ),
+        # 見出しの無い未確認の候補（移植先の今の pr-review の様式の箇条書き）を、空の一覧として通さない
+        ("## Unverified candidates\n\n- 位置: a.py:1\n  - 疑い: 例\n", "unparsed Unverified candidates"),
+        (
+            "## Unverified candidates\n\n前回の候補を引き継ぐ。\n\n- 位置: a.py:1\n",
+            "unparsed Unverified candidates",
+        ),
     ],
 )
 def test_from_markdown_refuses_findings_it_cannot_read(markdown: str, expected: str) -> None:
@@ -1661,6 +1667,32 @@ def test_from_markdown_still_reads_coverage_subsections_and_matching_summaries()
         markdown, review_file="m.md", repository="usaturn/maatlog-poc", number=1, model="m", runtime="r"
     )
     assert [item["id"] for item in value["findings"]] == ["H-1"]
+
+
+@pytest.mark.parametrize(
+    "unverified",
+    ["なし", "なし。", "- なし", "なし。検討して棄却した候補:\n\n- a.py:1 の疑い → 反証した"],
+)
+def test_from_markdown_reads_an_unverified_section_that_says_none(unverified: str) -> None:
+    value = review_findings.candidates_from_markdown(
+        f"## Unverified candidates\n\n{unverified}\n\n## Test suggestions\n\n- 何か\n",
+        review_file="m.md",
+        repository="usaturn/maatlog-poc",
+        number=1,
+        model="m",
+        runtime="r",
+    )
+    assert value["unverified_candidates"] == []
+
+
+def test_check_pair_refuses_unverified_candidates_it_cannot_read() -> None:
+    markdown = REVIEW_MD.replace("### U-1: 復旧の", "- 復旧の")
+    value = paired()
+    value["unverified_candidates"] = []
+    with pytest.raises(review_findings.FindingsError) as caught:
+        review_findings.check_pair(markdown, value)
+    (problem,) = caught.value.problems
+    assert problem.startswith("markdown: unparsed Unverified candidates"), problem
 
 
 # --- 条件を述べる文書の候補 -------------------------------------------------------------------------------------
