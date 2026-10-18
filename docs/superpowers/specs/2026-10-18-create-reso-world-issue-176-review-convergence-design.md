@@ -54,7 +54,7 @@
 - 追加evals: 9ケース。新規pytestなし。詳細な机上照合・同一2ケースの両版回答・限界は `.agents/skills/review-fix-planning/evals/convergence-validation.md`。
 - 最終検証: READMEの非ワールド3コマンドは、pytest **2569 passed / skip 0 / 659.23秒 / exit0**、環境 **33 test(s) PASS / 454秒 / exit0**、layout **PASS / exit0**。JSON/ID・相対参照実在・両スキル構造・diff checkは成功。構造checkerの日本語descriptionのwarning等は評価記録に残した。
 - 行動pilotは各条件1回で判断の差を観測しただけで、独立反復・別モデル比較・実運用の退行評価は未実施。baseline自体も主要な安全判断を満たしている。改善効果・main反映は実証していない。
-- ブランチ全体レビュー: `1335f41..2c2c4a5` の全差分と変更ファイルをsp-reviewが確認。Critical 0 / Important 1 / Minor 0。Importantは承認済みSpec反映経路への証拠照合の適用漏れで、現行手順の分岐をたどって確認・修正した。2回目のレビューは行っていない。修正後にREADMEの3コマンド、構造・JSON/ID・参照・diff checkを再実行し成功。公開前の作業は完了、push・PR作成は次の操作。
+- ブランチ全体レビュー: `1335f41..2c2c4a5` の全差分と変更ファイルをsp-reviewが確認。Critical 0 / Important 1 / Minor 0。Importantは承認済みSpec反映経路への証拠照合の適用漏れで、現行手順の分岐をたどって確認・修正した。2回目のレビューは行っていない。修正後にREADMEの3コマンド、構造・JSON/ID・参照・diff checkを再実行し成功。公開完了: Gitleaks検出なしの `80135b9bb6726afe33bf32da218731fbba777696` をpushし、https://github.com/usaturn/create-reso-world/pull/181 を作成。base `main` とhead SHAの一致を確認した。公開結果・チェック状態だけの追記も再検査して同じbranchへ反映する。マージはしていない。
 
 ### 最終レビュー修正: 分岐をまたぐ公開条件
 

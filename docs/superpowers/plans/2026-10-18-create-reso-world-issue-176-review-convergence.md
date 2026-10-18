@@ -54,11 +54,11 @@
 **Interfaces:** 共通参照に要件照合、原因から経路、検証と閉じ方の節を作り、両スキルが相対パスで読む。Task 2 はこの手順を入力に評価する。
 **テスト:** 新規 pytest 不要。文書手順だけであり、固定文言テストは作らない。改善前 pilot 実施済み（主要判断は満たすが、最終修正後・全経路の証拠の更新が不十分）。構造・参照検査と改善後 pilot で代える。
 
-- [ ] BASE を ledger へ記録し、既存の経路表・採否・自己レビュー・公開規則を読む。
-- [ ] 共通参照を書く。観測可能な条件から要件対応・因果経路を作り、両側・順序・期待値の独立性・現行版証拠を既存の表へ記す方法を定義する。
-- [ ] issue-to-pr の Plan 作成時・実装指示・統合検証で参照を必読にする。
-- [ ] review-fix-planning の経路表を拡張し、自己レビュー・公開前に原因単位で照合する。採否・上限・権限の規則は変えない。
-- [ ] skill-efficiency-check を両スキルへ `uv run --no-project python <installed-script> <skill-dir>` で実行し、参照先を確認。Expected: 構造エラーなし（既存由来の warning は記録）。`git diff --check`。明示パスで commit。
+- [x] BASE を ledger へ記録し、既存の経路表・採否・自己レビュー・公開規則を読む。
+- [x] 共通参照を書く。観測可能な条件から要件対応・因果経路を作り、両側・順序・期待値の独立性・現行版証拠を既存の表へ記す方法を定義する。
+- [x] issue-to-pr の Plan 作成時・実装指示・統合検証で参照を必読にする。
+- [x] review-fix-planning の経路表を拡張し、自己レビュー・公開前に原因単位で照合する。採否・上限・権限の規則は変えない。
+- [x] skill-efficiency-check を両スキルへ `uv run --no-project python <installed-script> <skill-dir>` で実行し、参照先を確認。Expected: 構造エラーなし（既存由来の warning は記録）。`git diff --check`。明示パスで commit。
 
 ### Task 2: シナリオ・比較記録・全体検証
 
@@ -71,12 +71,12 @@
 **Interfaces:** Task 1 の指示を改善後 packet に使用。既存 JSON の method・履歴は書き換えず、追加ケースの評価方法を別に明記する。
 **テスト:** 新規 pytest 不要。evals は行動シナリオであり SKILL.md の文字列テストではない。JSON の構文・ID重複・参照実在、既存 helper テストと README の検証で代える。
 
-- [ ] 要件欠落・共有条件・小変更、経路の適用漏れ・両側・独立性・原因分類・最終版証拠を扱う計9ケースを既存evalsへ追加。
-- [ ] baseline と同じ2シナリオを新しい sp-research に渡す。今回は2スキルと共通参照のみ読み取りを許可し、採点基準・他版回答は渡さない。Expected: 必要な経路を未確認で閉じず、現行版の両側検証と統合を具体化する。改善が認められない場合も記録し、効果を捏造しない。
-- [ ] convergence-validation.md に packet・生の回答・人手での比較、旧対策との差分、机上照合、未実施範囲を保存する。
-- [ ] 下記の最終検証を同期実行し、終了コード・実ログを読む。Expected: exit 0。失敗は systematic-debugging で原因を調べ、解消不能なら停止。
-- [ ] 明示パスで commit、最後のブランチ全体レビューを sp-review で1回実行。Critical/Important は1回の修正と再検証、2回目のレビューはしない。結果を Spec・Plan に追記。
-- [ ] Issue の open・全ページのPR/コメント/予約・同番号branch/worktreeを再確認し、自分の作成物と区別する。scan-before-push が出す SHA のみ push、`--repo usaturn/create-reso-world --base main --head fix/issue-176-review-convergence` で PR 作成。CI は private のため確認しない。マージしない。
+- [x] 要件欠落・共有条件・小変更、経路の適用漏れ・両側・独立性・原因分類・最終版証拠を扱う計9ケースを既存evalsへ追加。
+- [x] baseline と同じ2シナリオを新しい sp-research に渡す。今回は2スキルと共通参照のみ読み取りを許可し、採点基準・他版回答は渡さない。Expected: 必要な経路を未確認で閉じず、現行版の両側検証と統合を具体化する。改善が認められない場合も記録し、効果を捏造しない。
+- [x] convergence-validation.md に packet・生の回答・人手での比較、旧対策との差分、机上照合、未実施範囲を保存する。
+- [x] 下記の最終検証を同期実行し、終了コード・実ログを読む。Expected: exit 0。失敗は systematic-debugging で原因を調べ、解消不能なら停止。
+- [x] 明示パスで commit、最後のブランチ全体レビューを sp-review で1回実行。Critical/Important は1回の修正と再検証、2回目のレビューはしない。結果を Spec・Plan に追記。
+- [x] Issue の open・全ページのPR/コメント/予約・同番号branch/worktreeを再確認し、自分の作成物と区別する。scan-before-push が出す SHA のみ push、`--repo usaturn/create-reso-world --base main --head fix/issue-176-review-convergence` で PR 作成。CI は private のため確認しない。マージしない。
 
 ## 検証の入口
 
@@ -109,5 +109,6 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools
 - 最終レビュー: `1335f41..2c2c4a5`。Critical 0 / Important 1 / Minor 0。承認済みSpec反映だけの入口で証拠照合を迂回できる指摘を採用。実装後4へ照合を接続、eval19を当該入口へ具体化した。文書変更のため新規pytestなし。変更前後の経路トレースで確認し、最後の変更後のREADME3コマンド・構造・JSON/ID・参照・diff検証を再実行し成功。再レビューは実施していない。
 - 裁定: 最終レビュー担当がGitツールを持たずNEEDS_CONTEXTとなったため、同じGit範囲の差分・statを親tmpに保存して1回再試行した。費用は追加1試行、レビューの範囲・自己レビュー回数・実装範囲は変えない。評価外とされた実操作能力と運用効果は未実施と記録する。
 - Task 2の修正後検証: 22:03〜22:14 UTC（並行検証約11分）。準備からこの時点まで約41分、利用者待ちなし。全Taskの実装・検証・レビュー修正は完了。状態は実行許可と内容承認を区別するため draft のまま維持する。
-- 次の公開手順: 競合・Issue状態を再確認し、PARENT_ROOTのscan-before-pushで検査したSHAを同じbranchへpush、main向けPRを作る。現時点は公開未実施。CIはprivateのため対象外。main反映・運用効果は未実施、マージしない。
+- 公開完了: 競合・Issue状態を再確認し、Gitleaksで5 commits検出なしの `80135b9bb6726afe33bf32da218731fbba777696` をpush、main向けPR https://github.com/usaturn/create-reso-world/pull/181 を作成。PRのhead SHAとbaseを再取得して一致を確認。この追記は公開結果とチェック状態だけの変更で、手順・評価・検証対象は変えていない。追記後のcommitも再検査して同じbranchへ反映する。
+- 公開時点の所要時間は約43分、ledger集計42.2分/90分（起動直後の準備約1分を除く）。信頼性失敗1回、再試行上限未到達、安全の失敗なし。CIはprivateのため対象外。main反映・運用効果は未実施、マージしていない。
 - 要約と評価回答は追跡対象の文書へ保存済み。公開終了後にbudget ledgerをendにし、このrunのtmp/agentsだけを削除する。worktreeとbranchはPR用に残す。
