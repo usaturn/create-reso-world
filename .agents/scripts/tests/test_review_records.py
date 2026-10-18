@@ -1213,6 +1213,84 @@ def test_collect_records_reads_trusted_round_status_comments_only() -> None:
     assert review_records.collect_records(comments, exclude_comment_ids=[202])[0] == [(101, first)]
 
 
+@pytest.mark.parametrize("association", ["CONTRIBUTOR", "NONE"])
+def test_collect_records_accepts_explicit_trusted_login(association: str) -> None:
+    first = review_records.validate_record(round_one())
+    comments = [comment(101, status_body(first), association=association)]
+    records, ignored = review_records.collect_records(comments, trusted_login="usaturn")
+    assert records == [(101, first)]
+    assert ignored == []
+
+
+@pytest.mark.parametrize(
+    ("author", "trusted_login"),
+    [("someone-else", "usaturn"), ("usaturn", ""), ("", "usaturn"), (None, "usaturn"), ("", "")],
+)
+def test_collect_records_does_not_trust_other_or_empty_logins(author: str | None, trusted_login: str) -> None:
+    # A valid record isolates the trust boundary from schema/marker validation.
+    first = review_records.validate_record(round_one())
+    candidate = comment(101, status_body(first), association="CONTRIBUTOR")
+    if author is None:
+        del candidate["author"]
+    else:
+        candidate["author"] = author
+    records, ignored = review_records.collect_records([candidate], trusted_login=trusted_login)
+    assert records == []
+    assert [entry["comment_id"] for entry in ignored] == [101]
+    assert ignored[0]["reason"] == "the author is not trusted"
+
+
+@pytest.mark.parametrize("association", ["OWNER", "MEMBER", "COLLABORATOR"])
+def test_trusted_login_keeps_association_trust(association: str) -> None:
+    first = review_records.validate_record(round_one())
+    records, ignored = review_records.collect_records(
+        [comment(101, status_body(first), association=association)], trusted_login="someone-else"
+    )
+    assert records == [(101, first)]
+    assert ignored == []
+
+
+def test_read_state_trusted_login_continues_next_round() -> None:
+    first = review_records.validate_record(round_one())
+    second = review_records.validate_record(round_two())
+    state = review_records.read_state(
+        [comment(101, status_body(first), association="CONTRIBUTOR")],
+        expected_pr=POC_PR,
+        trusted_login="usaturn",
+    )
+    assert [entry["round"] for entry in state["rounds"]] == [1]
+    assert state["ignored_comments"] == []
+    review_records.check_against(second, state)
+    assert any("already recorded" in problem for problem in problems_of(lambda: review_records.check_against(first, state)))
+
+
+def test_trusted_login_does_not_bypass_pull_request_check() -> None:
+    first = review_records.validate_record(round_one())
+    comments = [comment(101, status_body(first), association="CONTRIBUTOR")]
+    other_pr = {"repository": "usaturn/maatlog", "number": 484}
+    assert problems_of(lambda: review_records.read_state(comments, expected_pr=other_pr, trusted_login="usaturn")) == (
+        "comment 101: belongs to a different pull request",
+    )
+
+
+def test_trusted_login_does_not_bypass_record_checks() -> None:
+    broken = status_body(review_records.validate_record(round_one())).replace('"round": 1,', '"round": 0,')
+    comments = [comment(101, broken, association="CONTRIBUTOR")]
+    assert problems_of(lambda: review_records.read_state(comments, trusted_login="usaturn")) == (
+        "comment 101: round: must be an integer of 1 or more",
+    )
+
+
+def test_trusted_login_keeps_comment_exclusion() -> None:
+    first = review_records.validate_record(round_one())
+    state = review_records.read_state(
+        [comment(101, status_body(first), association="CONTRIBUTOR")],
+        trusted_login="usaturn",
+        exclude_comment_ids=[101],
+    )
+    assert state == EMPTY_STATE
+
+
 def test_collect_records_names_every_broken_comment() -> None:
     marker_lines = "<!-- review-fix-planning:agent:claude-opus-5-5 -->\n" + review_records.round_marker(1, HEAD_1)
     broken = status_body(review_records.validate_record(round_one())).replace('"round": 1,', '"round": 0,')
@@ -1335,6 +1413,36 @@ def test_cli_fold_reports_gh_errors(monkeypatch: pytest.MonkeyPatch, capsys: pyt
     monkeypatch.setattr("sys.stdin", io.StringIO('{"message": "Not Found"}'))
     assert review_records.main(["fold"]) == 65
     assert "comments: gh api returned an error: Not Found" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(("trusted_login", "expected_rounds"), [(None, []), ("usaturn", [1]), ("someone-else", [])])
+def test_cli_fold_uses_explicit_trusted_login(
+    trusted_login: str | None,
+    expected_rounds: list[int],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    body = status_body(review_records.validate_record(round_one()))
+    payload = [[api_comment(101, body, association="CONTRIBUTOR")]]
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
+    args = ["fold", "--repo", "usaturn/maatlog-poc", "--pr", "484"]
+    if trusted_login is not None:
+        args.extend(["--trusted-login", trusted_login])
+    assert review_records.main(args) == 0
+    state = json.loads(capsys.readouterr().out)
+    assert [entry["round"] for entry in state["rounds"]] == expected_rounds
+    assert [entry["comment_id"] for entry in state["ignored_comments"]] == ([] if expected_rounds else [101])
+
+
+def test_cli_validate_uses_explicit_trusted_login(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    body = status_body(review_records.validate_record(round_one()))
+    comments = write_json(tmp_path / "comments.json", [[api_comment(101, body, association="CONTRIBUTOR")]])
+    record_file = write_json(tmp_path / "round-2.json", round_two())
+    args = ["validate", "--record-file", str(record_file), "--comments-file", str(comments)]
+    assert review_records.main(args) == 65
+    assert "round: must be 1" in capsys.readouterr().err
+    assert review_records.main([*args, "--trusted-login", "usaturn"]) == 0
+    assert capsys.readouterr().err == ""
 
 
 def test_cli_validate_checks_the_record_against_earlier_comments(
