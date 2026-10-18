@@ -1,6 +1,6 @@
 """review-findings v1: レビューの候補一覧・確認済みの一覧・工程の記録。
 
-Issue #547。形式と規則の定義元は ``.agents/review-findings.md`` にある。
+usaturn/agent-workspace#547。形式と規則の定義元は ``.agents/review-findings.md`` にある。
 このモジュールは、pr-review・review-verify・review-fix-planning が受け渡す
 JSON の検査・Markdown からの読み取り・突き合わせ・集計を、標準ライブラリだけで実装する。
 ``uv run --no-project`` で動く。
@@ -2189,8 +2189,8 @@ def _adoption_matches(records: Mapping[str, Any], source: str, actor: Mapping[st
     """v2の判断に実担当が残っていれば、同じ参照の別セッションへ採用を転用しない。
 
     actor 自身の実行識別子がすべて未観測（unknown）なら、実担当を同一実行と確認できないため None とする。
-    同席が actor と同じ実行識別子で観測されていれば一致し、その判断を後の巡に採用する。
-    一致する同席がなく、あとに未観測の同席が残る場合だけ、実担当の特定を保留して None とする。
+    同じサイクルのレビュアーが actor と同じ実行識別子で観測されていれば一致し、その判断を後のサイクルに採用する。
+    一致するレビュアーがなく、あとに未観測のレビュアーが残る場合だけ、実担当の特定を保留して None とする。
     """
     if records.get("schema") != _records.PROVENANCE_SCHEMA_ID:
         return True

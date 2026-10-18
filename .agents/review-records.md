@@ -729,7 +729,7 @@ planner は、サイクルごとに新しい状況コメントを作る。前の
 - Python の呼び出し方 `upsert(pr, repo, model_name, markdown, *, runner=None)` を保つ。記録を渡す引数を足す場合は、既定値のあるキーワード専用の引数にする。
 - エージェントのマーカーの ID は、3 章の規則（`agent_id_for`）で作る。同じ規則を helper に写さず、モジュールの関数を使う。
 
-**CLI**: 記録付きの投稿は `--records-file` に、planner が Write で書いたサイクルの記録の JSON のパスを渡す。JSON は、親の main worktree の `tmp/agents/` に作ったセッションのディレクトリに置く。拒否したときは、問題を標準エラー出力に 1 行ずつ書き、終了コード 64 で終わる（helper の既存の終了コード）。
+**CLI**: 記録付きの投稿は `--records-file` に、planner が Write で書いたサイクルの記録の JSON のパスを渡す。JSON は、親の main checkout（`PARENT_ROOT`）の `tmp/agents/` に作ったセッションのディレクトリに置く。拒否したときは、問題を標準エラー出力に 1 行ずつ書き、終了コード 64 で終わる（helper の既存の終了コード）。
 
 ### 7.5 投稿する場面
 
