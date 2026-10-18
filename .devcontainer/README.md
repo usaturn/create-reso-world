@@ -29,6 +29,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`、`curo`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`、`devs`、`devo`（alias） | `devin update`、`devin plugins update superpowers` |
 | Meshy CLI | `install_meshy.bash`（公式 npm `meshy-cli@0.4.0`、無認証 version / help） | — | — | — | — |
+| Context7 CLI（ctx7） | `install_ctx7.bash`（npm の `ctx7` を `CTX7_CLI_VERSION` に固定して入れ、`ctx7 --version` を確かめる。「Context7 CLI（ctx7）」の節） | — | — | — | — |
 | Gitleaks | `install_gitleaks.bash`（release の tar.gz を固定した SHA-256 で確かめて `~/.local/bin` に置く。版は CI の gitleaks ジョブと同じ） | — | — | — | — |
 | gh | Dev Container Feature（github-cli） | `~/.config/gh` | `~/.config/gh` | — | — |
 | gcloud / glab / bun | 未導入（参照だけ残す） | `~/.config/gcloud`、`~/.config/glab-cli` | `~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | — |
@@ -74,8 +75,9 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 2. ホストの `~/.config/create-reso-world/env` を見直す。`MAAS_ANTHROPIC_TOKEN` を削除し、
    Google Developer Knowledge の MCP を使う場合は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す（「API トークン」）。
 3. Dev Containers: Rebuild Container を実行する。postCreate が次を行う。
-   - pi の旧拡張の撤去と、settings の `-builtin:mcp` の除去。context7-pi と Plannotator は導入・保持する
-     （「pi の旧拡張・MCP 設定の移行」）
+   - pi の旧拡張の撤去と、settings の `-builtin:mcp` の除去。Plannotator は導入・保持する。context7-pi は導入しないが、
+     共有の `~/.pi` の登録は消さない（「pi の旧拡張・MCP 設定の移行」）
+   - Context7 CLI（`ctx7`）を固定した版で導入する（「Context7 CLI（ctx7）」）
    - 11 本の pi ランチャーと共通ヘルパの配置。ヘルパは pi を `--tui-mode regular` で起動する
      （「pi の TUI モードと Herdr のスクロール履歴」）
    - Claude Code の alias（`ccd`・`ccdo`・`ccds`）とプロバイダ関数を含むシェル設定の配置
@@ -310,6 +312,106 @@ toolchain probe は headless Blender の `import bpy, numpy` を確認する。�
 新規・既存プロジェクトともルートの `.agents/skills/meshy-resoloop/SKILL.md` を共有する。
 祖先スキルが見えないエージェントにはこの repository-relative パスを明示する。本文のコピー、project 側への追加リンク、エージェント設定の変更は不要。
 
+## Context7 CLI（ctx7）
+
+Context7 のドキュメントの取得は、`ctx7` CLI と `find-docs` スキル（`.agents/skills/find-docs`）で行う。Claude Code・Pi・Codex は同じ `find-docs` を読む。Context7 の MCP Server（`npx -y @upstash/context7-mcp`）と Pi の Context7 拡張（`npm:@upstash/context7-pi`）は使わない（#162）。2026-10-18 に別のリポジトリの Dev Container で、npx の一時展開物（`~/.npm/_npx`）の欠けから Context7 の MCP Server が Pi・Claude Code とも起動できなくなったため、npx と MCP Server に頼らない形にした。
+
+### 導入
+
+- postCreate は `bash .devcontainer/install_ctx7.bash` で、`ctx7` を `CTX7_CLI_VERSION` の版に固定して `npm install -g` し、PATH 上の `ctx7 --version` が一致することを確かめる。導入の失敗・PATH に無い・版の不一致は、postCreate の失敗として止まる。版は `install_ctx7.bash` にだけ書く
+- 実体は npm のグローバルの `node_modules`（`$(npm root -g)/ctx7`）に入る。`~/.npm/_npx` の一時展開物は使わない
+- `ctx7 setup` は実行しない。ctx7 0.8.0 の `ctx7 setup` は、`~/.claude`・`~/.claude.json`・`~/.codex/config.toml`・`~/.codex/AGENTS.md`・`~/.agents/skills` などに MCP 設定やスキルを書き込む。その多くはホストから bind mount した共有の場所で、ホストや他のコンテナにも影響する。生成するスキルは `find-docs` とも重複する
+- zsh の `update` では更新しない
+
+### 更新
+
+1. `npm view ctx7 version engines` で新しい版と、必要な Node.js の版を確かめる
+2. `.devcontainer/install_ctx7.bash` の `CTX7_CLI_VERSION` を変える
+3. `bash .devcontainer/install_ctx7.bash` を実行して入れ替える（Rebuild Container でもよい）。PATH 上の `ctx7` は、入れ替えるまで古い版のままである
+4. 下の「動作確認」が通ることを確かめ、PR で取り込む
+
+`ctx7` は新しい版があると、対話的な端末で `Update available` と表示し、`ctx7 upgrade` や `npm install -g ctx7@latest` を勧める。この案内には従わず、上の手順で版を変える。
+
+### MCP と Pi の拡張からの移行
+
+リポジトリの設定から、次を外した。
+
+- `.mcp.json`（Claude Code）と `.pi/mcp.json`（Pi）の `context7`。`google-dev-knowledge` は残す
+- `.cursor/mcp.json`（`context7` だけだった）と `.codex/config.toml`（`context7_stdio` だけだった）。どちらもファイルごと消した
+- `install_beforehand.bash` が導入する Pi の拡張の一覧の `npm:@upstash/context7-pi`
+
+リポジトリの外の Context7 の設定は、セットアップでは変えない。外すかどうかは利用者が決める。
+
+| 設定 | 場所 | 外し方 |
+|---|---|---|
+| Claude Code のユーザースコープの MCP | `~/.claude.json` の `mcpServers` | `claude mcp remove context7 -s user` |
+| Codex のユーザー設定の MCP | `~/.codex/config.toml` の `mcp_servers.context7` | その表を消す |
+| claude.ai の Context7 コネクタ（`mcp__claude_ai_Context7__*`） | claude.ai のアカウントの設定 | claude.ai のコネクタの設定で外す。アカウント単位の設定で、他のプロジェクトにも効く |
+| Pi の Context7 拡張 | 共有の `~/.pi/agent/settings.json` | 外さない（次の節） |
+
+マージの後、親の checkout を `origin/main` に更新するまでは、その下の worktree で起動した Claude Code にも `context7` が残る。Claude Code は祖先にある親の checkout の `.mcp.json` も読むためである。
+
+### Pi の Context7 拡張をプロジェクト単位で止める
+
+`npm:@upstash/context7-pi` は、`~/.pi` を共有する他のリポジトリ（usaturn/agent-workspace など）のセットアップが入れ続ける。`pi remove` で消すと、それらのリポジトリの Pi からも Context7 が外れ、次のセットアップでまた入る。このリポジトリでは共有の `~/.pi` を変えず、`.pi/settings.json` の `packages` に次の項目を置いて、プロジェクト単位で読み込みを止める。ワールドは `.pi` の symlink で同じ設定を読む。
+
+```json
+{
+  "source": "npm:@upstash/context7-pi",
+  "autoload": false,
+  "extensions": ["!**"],
+  "skills": ["!**"],
+  "prompts": ["!**"],
+  "themes": ["!**"]
+}
+```
+
+- `autoload: false` を付けた project の項目は、ユーザー設定の同じパッケージに対する差分として働く（Pi に同梱の `docs/packages.md` の「Understand scope and identity」）。`"!**"` で、拡張（`resolve-library-id`・`query-docs` のツール）、スキル（`context7-docs`）、プロンプト（`/c7-docs`）を読み込まない
+- 空配列（`"extensions": []` など）では止まらない。Pi 1.3.0 は差分の空配列を「変更なし」として扱い、ユーザー設定のとおりにすべて読み込む（2026-10-18 に確認）
+- project の設定なので、`+builtin:mcp` と同じく project trust を前提とする
+- ユーザー設定に `npm:@upstash/context7-pi` が無いと、差分の土台が無いため、Pi は project の `.pi/npm` に context7-pi を導入する（読み込みはしない）。すべてのリポジトリが移行して共有の `~/.pi` から context7-pi を外すときは、`.pi/settings.json` のこの項目も外す
+- `install_beforehand.bash` の撤去の処理（「pi-lens の撤去」などの `remove_pi_*`）には加えない。他のリポジトリが使い続けるため
+
+読み込んでいないことは、モデルを呼ばずに RPC モードで確かめられる。trust 済みの親の checkout で実行する。trust していない worktree では `--approve` を付ける。
+
+```bash
+printf '{"type":"get_commands"}\n' | pi --mode rpc --no-session --no-mcp --offline | grep -oE 'c7-docs|skill:context7-docs' || echo "context7-pi is not loaded"
+```
+
+### 認証
+
+- 環境変数 `CONTEXT7_API_KEY` を基本とする。「秘密情報」の節の `~/.config/create-reso-world/env` に書けば、シェルの起動時に export される。`ctx7` はこの変数があれば、`ctx7 login` の認証情報より優先して使う。キーの値をリポジトリ・Issue・PR・ログに書かない
+- `cod` は、`CONTEXT7_API_KEY` が無いと入力を求める。Codex から `ctx7` を呼ぶときにも使う
+- `ctx7 login` の認証情報は `~/.config/context7/credentials.json`（`XDG_CONFIG_HOME` が絶対パスならその下）に保存される。`~/.config/context7` は bind mount していないので、Rebuild で消える
+- `ctx7 whoami` は `ctx7 login` の状態だけを表示する。`CONTEXT7_API_KEY` を使っていても `Not logged in.` と出る
+- 認証なしでも使えるが、レート制限が低い。quota を超えると `Monthly quota reached` などで失敗する
+- `ctx7` は利用状況のテレメトリを Context7 に送る。止めるときは `CTX7_TELEMETRY_DISABLED=1` を export する（`env` に書いてもよい）
+
+### 動作確認
+
+```bash
+command -v ctx7
+readlink -f "$(command -v ctx7)"   # $(npm root -g)/ctx7/dist/index.js（~/.npm/_npx ではない）
+ctx7 --version                     # install_ctx7.bash の CTX7_CLI_VERSION と一致する
+if [ -n "${CONTEXT7_API_KEY:-}" ]; then echo "CONTEXT7_API_KEY: set"; else echo "CONTEXT7_API_KEY: not set"; fi
+ctx7 library react "How to clean up useEffect with async operations"
+ctx7 docs /react/react "useEffect cleanup"
+```
+
+加えて、Claude Code・Pi で `find-docs` を使った取得を試す。Claude Code の `/mcp`・`claude mcp list` と Pi の `pi mcp list` に Context7 が無く、`google-dev-knowledge` が接続できることを確かめる。
+
+### トラブルシュート
+
+| 症状 | 対応 |
+|---|---|
+| `ctx7: command not found` | Rebuild Container するか、`bash .devcontainer/install_ctx7.bash` を実行する。`npx ctx7` で代えない |
+| postCreate が `[install_ctx7] ERROR: ... is version ...` で止まる | `command -v ctx7` で、PATH の前のほうに別の `ctx7` が無いかを確かめる |
+| `⚠ Library has been redirected` と出て終了コード 1 | 表示された新しい ID でやり直す（例: `/facebook/react` → `/react/react`） |
+| `Monthly quota reached`・`quota exceeded` | `CONTEXT7_API_KEY` を設定するか、`ctx7 login` を実行する |
+| `Update available` と表示される | 従わない。「更新」の手順で版を変える |
+| `context7` が MCP の一覧に残る、`Failed to reconnect` になる | 古い設定を読んでいる。親の checkout を `origin/main` に更新し、エージェントを起動し直す。リポジトリの外の設定（「MCP と Pi の拡張からの移行」の表）も確かめる |
+| このリポジトリの Pi に `resolve-library-id`・`/c7-docs` が出る | project trust を確かめる。`.pi/settings.json` の項目が空配列になっていないかを確かめる |
+
 ## エージェントの読み込みの制約
 
 プロジェクト（`worlds/<name>/` など）を cwd にしてエージェントを起動したとき、次のエージェントはスキルの一部が見えない。
@@ -370,6 +472,7 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 18. `install -m 0755 .devcontainer/pigemp ~/.local/bin/pigemp`
 19. `install -m 0755 .devcontainer/pigema ~/.local/bin/pigema`
 20. `zsh scripts/setup_pi_superagents.zsh`
+21. `bash .devcontainer/install_ctx7.bash`
 
 プラグインの有効化は `.claude/settings.json` の `extraKnownMarketplaces` と
 `enabledPlugins` で行う。設定の反映には Claude Code の再起動が必要である。
@@ -443,7 +546,8 @@ uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner \
 
 Issue #125 で agent-workspace の導入手順にそろえた。`pi-mcp-adapter`・`pi-distill`・
 単独登録の `pi-extensions-tool-display` / `pi-extensions-i18n`・`pi-lens` は撤去し、
-`@upstash/context7-pi` と `@plannotator/pi-extension` は導入・保持する。
+`@plannotator/pi-extension` は導入・保持する。`@upstash/context7-pi` は #162 で導入をやめた。
+他のリポジトリが使うので共有 `~/.pi` の登録は消さず、このリポジトリでは読み込まない（「Context7 CLI（ctx7）」）。
 組み込み MCP のため settings の `-builtin:mcp` だけを取り除き、他の設定は保持する。
 撤去に失敗して登録や npm マニフェストが残った場合は、理由を表示して postCreate を止める。
 
@@ -468,7 +572,6 @@ pi remove npm:pi-distill
 pi remove npm:pi-extensions-tool-display
 pi remove npm:pi-extensions-i18n
 pi remove npm:pi-lens
-pi install --approve npm:@upstash/context7-pi
 pi install --approve npm:@plannotator/pi-extension
 ```
 
@@ -856,8 +959,8 @@ zsh scripts/setup_pi_superagents.zsh --if-absent
 ### 組み込み MCP と廃止した拡張
 
 `.pi/settings.json` の `+builtin:mcp` で pi の組み込み MCP を有効にする。
-`.pi/mcp.json` は Google Developer Knowledge の HTTP サーバーと、
-Context7 の stdio サーバーを設定する。利用者は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を設定し、pi の
+`.pi/mcp.json` は Google Developer Knowledge の HTTP サーバーを設定する（Context7 は MCP では使わない。
+「Context7 CLI（ctx7）」）。利用者は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を設定し、pi の
 project trust を許可してから使う。キーが無い場合、pi は接続せずに、キーを解決できないというこのサーバのエラーを
 起動後に1回通知するが、他の機能は使える。プロジェクトの定義は同名の利用者設定より優先されるため、利用者設定では無効化できない。
 `/mcp` で無効化すると追跡対象の `.pi/mcp.json` が書き換わるため、その変更はコミットしない。
@@ -988,10 +1091,8 @@ export される。書かない場合は、必要なときに手動で export �
 - `GOOGLE_DEV_KNOWLEDGE_API_KEY` は Google Developer Knowledge の MCP サーバーが使う。
   pi は `.pi/mcp.json`、Claude Code は `.mcp.json` のヘッダーでこの変数を参照する。
   無い場合の pi の挙動は「組み込み MCP と廃止した拡張」にある
-- `CONTEXT7_API_KEY` は `.codex/config.toml` の `env_vars` で Codex の Context7 の MCP サーバー
-  （`context7_stdio`）に渡す。未設定のまま `cod` を起動すると、入力を求める。
-  共有の `find-docs` スキルが使う Context7 の CLI と、Claude Code（`.mcp.json`）・Cursor（`.cursor/mcp.json`）の
-  Context7 の MCP サーバー（`@upstash/context7-mcp`）も、受け取った環境にこの変数があれば使う。無くても動くが、レート制限が低くなる
+- `CONTEXT7_API_KEY` は、共有の `find-docs` スキルが使う Context7 CLI（`ctx7`）が読む（「Context7 CLI（ctx7）」）。
+  未設定のまま `cod` を起動すると、入力を求める（Codex から `ctx7` を呼ぶときにも使う）。無くても動くが、レート制限が低くなる
 
 ### pi の TUI モードと Herdr のスクロール履歴
 

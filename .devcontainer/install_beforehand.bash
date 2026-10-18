@@ -7,7 +7,7 @@ set -u
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
 # （同梱スキルの状態の表示と workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=30
+readonly STEP_TOTAL=31
 STEP_NUMBER=0
 
 step() {
@@ -173,6 +173,12 @@ fi
 step "Installing Meshy CLI (local verification only)"
 if ! bash .devcontainer/install_meshy.bash; then
     fail "Meshy CLI installation or verification failed."
+fi
+
+step "Installing the pinned Context7 CLI (ctx7)"
+# find-docs スキルが使う。版の固定と導入後の確認は install_ctx7.bash にある（#162）
+if ! bash .devcontainer/install_ctx7.bash; then
+    fail "Context7 CLI installation failed."
 fi
 
 step "Installing uv"
@@ -544,9 +550,11 @@ remove_pi_lens() {
 remove_pi_lens
 
 step "Installing the pi extensions"
+# Context7 は ctx7 CLI と find-docs スキルで使い、npm:@upstash/context7-pi は導入しない。共有の ~/.pi に残っていても、
+# .pi/settings.json の autoload: false の項目でこのリポジトリでは読み込まない（#162）。~/.pi を共有するほかの
+# リポジトリが導入し続けるため、撤去の処理には加えない。
 for extension in \
     npm:@jc4649/notify \
-    npm:@upstash/context7-pi \
     npm:@plannotator/pi-extension \
     npm:pi-safe-search \
     npm:pi-diet-ripgrep \

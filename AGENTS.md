@@ -183,5 +183,5 @@ Windows 11 の WSL2（Gentoo Linux）上で Docker を動かし、Ubuntu 26.04 L
 
 ## 最新ドキュメントの取得
 
-- ライブラリ、フレームワーク、SDK、API、CLI、クラウドサービスの仕様は Context7 で確認する。手順は find-docs スキルを正本とする
+- ライブラリ、フレームワーク、SDK、API、CLI、クラウドサービスの仕様は、find-docs スキルの手順で Context7 CLI（`ctx7`）を使って確認する。npx・Context7 の MCP Server・Pi の Context7 拡張に切り替えない
 - 問い合わせは 1 件につき 3 回までとする
