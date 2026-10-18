@@ -2,8 +2,9 @@
 
 - 文書管理・対象: `usaturn/create-reso-world`、Issue #154（親 #116）
 - 基準 HEAD: `a024a22626d4ff6daa46e92aa7cb8aae081aa7ac`
-- 状態: `completed`。レビュー修正・検証と公開前の記録確定まで完了。内容承認の記録はなく、状態から承認を推測しない。
+- 状態: `completed`。前回のレビュー修正と、現行 HEAD `8ca547b4ab4c` に対する追加選別・マージ前の検証まで完了。内容承認の記録はなく、状態から承認を推測しない。
 - 実行許可: 当初は引き継ぎに記録された `/skill:issue-to-pr #154` と `$superpowers:subagent-driven-development` により実装・公開を許可（マージを除く）。追加の `review-fix-planning #171` により、同スキルの完遂手順で選別・修正・検証・既存 PR への commit/push・状況投稿を行う。安全上の停止を報告した後、利用者が「再開してください」と明示したため、残る検証・自己レビュー・必要な修正・既存 PR への反映を再開した。内容承認と実行許可は区別する。
+- 今回の実行許可: 利用者の `/skill:review-fix-planning #171` により、完遂の結論2（追加修正不要、検証・状況投稿・検証した head のマージ・関連 Issue 更新）まで許可されている。以下の「マージしない」は当初の実装・前回修正時の許可範囲であり、今回の最終判断は末尾の追加選別に記録する。
 - Plan: `docs/superpowers/plans/2026-10-19-create-reso-world-issue154-review-verify.md`
 - 参照: ボード Spec `2026-10-18-create-reso-world-issue116-review-automation-board-design.md` D-1〜D-24。移植元 `usaturn/agent-workspace@a47b2065fddad76b7475752fd0088af0733de204`。
 
@@ -186,3 +187,70 @@ PR の head と base を固定し、各 Markdown と対応する構造化候補�
 初回は実装担当が環境確認で資格情報相当の値をツール出力へ誤表示したと報告したため、安全の失敗として公開前に停止し、未コミットの実装とSpecを保全した。値は文書・handoffへ転記せず再収集もしない。外部公開や実サービスでの利用は報告されていないが、harnessの当該出力には残る。利用者へ必要な確認・更新を案内した後、「再開してください」と明示されたため残作業を再開した。資格情報の更新作業を代行・検証したとは主張しない。再開後の担当には環境の一括列挙を禁止し、新たな同種の事故は報告されていない。
 
 レビュー修正の着手は2026-10-18T18:11頃UTC、初回の停止記録と引き継ぎは18:38頃、再開は18:44頃、最終検証と記録確定は19:31頃。能動時間は計約74分（初回約27分＋再開後約47分、利用者待ち約6分を除外）。主な内訳は初期照合・再現・方針約8分、初回実装担当約14分、安全停止と引き継ぎ約5分、再開の照合・対照と初期検証約20分、3観点レビューと起動条件の調整約12分、再発の再現・設計見直しと修正約8分、最終回帰と記録約7分。並行した最後のスキル・環境検証は約5分54秒で、合算しない。既存worktreeは借用したものなのでこの作業の片付け対象にしない。初回の引き継ぎは親checkoutの `tmp/docs_draft/claude_handoffs/20261018T1835-pr171-review-fix-safety-stop.handoff.md` と対のJSONに残し、完了報告で状態を更新する。
+
+## 現行 HEAD 8ca547b の追加選別（2026-10-18）
+
+### 対象と実行許可
+
+対象は `usaturn/create-reso-world` PR #171、`feat/issue-154-review-verify`、検証 HEAD は `8ca547b4ab4c5556216bf1640468a537e9c9c44d`。利用者が `review-fix-planning` と `#171` を指定したため、承認待ちの計画ではなく完遂として実行する。本 Spec が同じテーマの現行文書であり、新規 Spec/Plan は作らない。
+
+入力は `/workspaces/reso-world/reviews/usaturn/create-reso-world/#171-feat-issue-154-review-verify/` の全5ファイル。SWE-2-Max.md、claude-opus-5-5.md、gpt-6.1-sol.md、opencode-go-deepseek-v4.1-flash.md の対象 HEAD は `8ca547b4ab4c`、commandcode-deepseek-deepseek-v4.1-flash.md は `513352e7825f`。両 SHA とも検証 HEAD の祖先であることを確認した。4ファイルの以前のレビュー履歴も読み、元の指摘と更新後の判定を区別した。
+
+親 checkout と同じ Git repository に属する既存の `/workspaces/reso-world/.worktrees/issue-154-review-verify` は clean、HEAD 一致を確認して借用した。共通 context に `PARENT_ROOT`・`CODE_ROOT`・`DOC_ROOT`・文書/head branch と head repository を明示した。2件の読み取り専用調査と本体で変更12ファイルの全文、関連 resolver/schema/runner とテストを確認した。子はテストを実行せず、挙動の根拠は本体が固定 HEAD の隔離 worktree で実行した。別の作業中 worktree の内容は読んでいない。
+
+### 今回の全指摘と分類
+
+**解消済み4 / 対応する0 / 対応しない11、合計15件。** 通常の指摘13件に未確認候補2件を加えた数。レビュー側の Resolved 表記ではなく、現在の挙動で分類する。以下は今回の入力だけの集計で、前回の14件の履歴を合算しない。
+
+| ID | 出典・内容 | 分類 | 現行 HEAD の根拠・判断 |
+| --- | --- | --- | --- |
+| S-L1 | SWE L-1: 不正 batch / 公開時 OSError の traceback | 対応しない | `dispatch.py:437,455,537-546,558-561`。不正 batch は CLI の終了1・KeyError、全既存状態不変を再現。I/O途中でsidecarだけ置換される可能性は既知の非保証。通常の生成済みbatchの主要処理は止まらず、診断形式や既知のI/O制限を拡張しない |
+| S-I1 | SWE I-1: 保存先祖先のリンク未検査 | 解消済み | `8ca547b` の `dispatch.py:205-214` は全祖先を検査。acceptの検査前後も同じsnapshot照合。実行回帰を含む774件成功 |
+| S-U1 | SWE 未確認候補: 同内容の配下ディレクトリ差替え・マウント点 | 対応しない | `dispatch.py:226-229` はroot以外のdev/inoを保証しない。同じlexical path・種類・mode・内容なら通常の書込先は変わらない。特権によるmount変更まで阻止するsandboxは保証外で、サポート経路での誤対象操作の根拠ではない |
+| C-L2 | claude L-2: review_dir欠落でdispatch成功・accept不能 | 対応しない | 不在rootでdispatchは0/success/変更なし、acceptは2、後からmkdirしても1を再現。rootを起動前に準備し再dispatchすると正常保存。未準備の初回移行先で1回の外部実行をやり直す制約で、誤った一覧の公開・既存データ破損はなく、準備済み保存先の主要経路は動作する。事前拒否を増やす仕様変更は採らず、PRに条件と回避手順を記録する |
+| C-I1 | claude I-1: リンク拒否の分類がValueErrorのみ | 対応しない | リンク入口で終了2、adapter未起動、管理状態不変、stderrがValueErrorになることを再現。拒否は動作し、診断の具体性だけの問題 |
+| C-L1 | claude L-1: base取得のFETCH_HEAD依存 | 解消済み | `8ca547b` の `cycle.md:48-67` は専用refと完全SHAを使用。bash/zshで競合fetch後も正しいbase、失敗2種と全後片付けを実行確認 |
+| C-I2 | claude I-2: D-10/PR照合をdispatcher自身も行うか | 対応しない | `fix-check.md:19` がresolve結果との照合を呼出側の責務と明記し、実装は変わっていない。レビュー側は設計確定としてResolvedだが、同じ入力をdispatcher単体へ渡す挙動の消滅ではないため設計の是非として分類 |
+| C-U1 | claude 未確認候補: 将来のloop/書込とsnapshotの衝突 | 対応しない | 起動後のloop/state.json追加はaccept終了1、全状態不変を再現。全エントリ固定は明記済み。検証HEADに#156のloop実装はなく、後続の書込順の設計事項。無変更として誤受領しない |
+| D-L1 | commandcode L-1: 保存先の起動前作成手順なし | 対応しない | root欠落部分はC-L2と同じ制約。rootがあればverified/はaccept自身が作って正常終了する。rootとverified/を混同せず、必要なroot準備は起動前、追加作成した後は再dispatchという回避手順をPRに記録 |
+| D-I1 | commandcode I-1: verifiedが通常ファイルだとtraceback | 対応しない | 正常payloadでCLI終了1・FileExistsErrorを再現。通常ファイルを含む全既存状態が不変。出力ディレクトリとして不適切な保存先の診断形式のみ |
+| G-M1 | gpt M-1: 保存先親リンクへの起動後差替え | 解消済み | `8ca547b` の `dispatch.py:205-214,511,535` は起動前・停止後・受領検査前後に同じ全snapshot条件を適用。祖先差替え・同内容別root・検査中更新の実行回帰成功 |
+| G-M2 | gpt M-2: 評価fixtureのGit環境継承 | 解消済み | `8ca547b` の `validation.md:61-72` が全subprocessの環境を分離。コード全体を実行し偽hostの状態を比べる11件を含む774件成功 |
+| O-L1 | opencode L-1: allowed-tools省略 | 対応しない | SKILL frontmatterはname/descriptionだけ。通常Claude起動時の許可確認が増えるメタデータの問題で、権限の無断拡張や主要処理の誤動作ではない。文書・スキルの任意メタデータを固定するテストは追加しない |
+| O-I1 | opencode I-1: CLAIMS_JSONは本文でなくパス | 対応しない | `review_findings.py` の--claimsはPathで、直前の文書はclaims.jsonを説明。本文を渡すと終了66・出力なし、ファイルパスでは成功する対照を再現。変数名の明確さの改善で、記載例自体が本文値を指定しているわけではない |
+| O-I2 | opencode I-2: Spec completed / Plan draft | 対応しない | 文書の状態メタデータの不揃いで機能・安全に影響しない。Planは内容未承認のdraftを維持した理由も末尾に記録。今回のSpecのcompletedも承認と区別する |
+
+独立した指摘でないテスト提案は上の該当IDに含む。opencodeの補足にあるdispatch記録の不備・snapshot型の直接固定テストの不足も確認したが、実害の欠陥ではないため追加しない。実AI CLIのE2E・特権mount操作は受け入れの範囲外であり、実行成功とみなさない。前回の停止記録にある資格情報は再収集していない。
+
+### 方針・再発の確認
+
+**結論2: 追加修正不要として、最終の状況コメント後に検証したheadをマージする。** 対応する項目は0件なので、修正対象の影響経路表・設計見直し・ガード削除対照・修正後の自己レビューは今回不要。子による調査は選別前の読取りで、修正後の自己レビューではない。前回F1/F2/F3/SR-C1の解消を現行コードと実行回帰で確認した。C-L2はroot準備に関する別の入力条件であり、前回の保存先同一性ガードの再発ではない。
+
+比較した案は、(1)入力存在ガード・診断形式・任意メタデータを追加する、(2)採用基準どおり追加実装をせず、実在する制約を条件・回避手順付きでPR説明へ残す、の2つ。主要な正常経路とfail-closedの境界が維持され、追加対象が致命的条件を満たさないため(2)を選ぶ。旧配置から初めてD-10へ出力する際は、PR照合・リンク/書込可否の確認後、dispatch前にD-10のrootを準備する。verified/の作成はacceptへ任せられる。起動後にroot等を作った場合は新たにdispatchする。
+
+### 今回実行した検証と結果
+
+| 対象 | 検証 | 結果 |
+| --- | --- | --- |
+| 固定HEADの隔離worktree | 一時probe6件: 欠落root→dispatch/accept→mkdir後拒否→準備後成功、不正batch、通常ファイルverified、リンクの診断・未起動、claims本文/パスの対照、loop書込後拒否 | 6 passed / 2.45秒。拒否時はtmp_path配下の全パス・種類・mode・bytes・リンクを処理前後で比較 |
+| 固定HEADのbase手順 | 文書のBASEスニペットを抽出し、ローカルGit remoteでbash/zsh各3ケース。専用fetch直後に別fetchでFETCH_HEADを上書き | 計6ケース成功。正常は期待base・終了0、無いbase/無効headは終了1。全ケースで専用ref・一時領域なし |
+| PRのcleanな専用worktree | `uv run --locked python -B -m pytest tests/skills .agents/skills -q` | 774 passed / 226.85秒 |
+| 同上 | `bash .devcontainer/run-tests.bash` / `bash scripts/check-layout.sh` | 33本PASS / PASS、終了0 |
+| head＋現行baseの一時merge | base `b5dc45af02606acdf52c75a8a66d004f97d1b4bc` は分岐点 `a024a22626d4ff6daa46e92aa7cb8aae081aa7ac` より先。隔離worktreeで `git merge --no-commit --no-ff <base>` | 競合なし。このmergeはpushしない |
+| 一時merge状態 | 同じ指定pytest・Dev Container・配置検査 | 774 passed / 228.42秒、33本PASS、配置PASS、すべて終了0 |
+| 固定HEADの構造 | Python4ファイルAST、評価JSON、15ローカル参照先、相対symlink、`git diff --check origin/main...HEAD` | PASS |
+
+新しい永続テストは作らない。今回はコード・挙動・設定を変えず、記録だけの更新であるため、実行probe・既存テスト・構造検査・差分確認を根拠とする。リポジトリ全体の追加一括pytestや関係のないワールドは実行しない。privateのcreate-reso-worldはActions無効のためCI確認は不要。PRはopen・非draftで、許可されたマージ対象であることをAPIで確認した。
+
+再現用のGit worktreeを登録から外してから親の一意な一時領域を削除した。借用した専用worktreeは削除しない。公開直前にAPI/contextを再確認し、検証HEADを親とする本Specだけの1コミットを秘密情報検査付きでfast-forward pushする。検証中にheadが変わればマージせず停止する。push・コメント・merge・Issue更新の結果は、本Specへ追記コミットせずPR状況コメントと完了報告へ記録する。
+
+### 今回のタスクと所要時間
+
+- [x] 5入力・両世代HEAD・context・cleanな既存専用worktree・変更全文を確認。
+- [x] 全指摘と関連処理を調査、隔離probeと既存回帰で分類。テスト追加は不要（記録のみ）。
+- [x] 追加修正0件の方針を確定、PRに残す制約と回避方法を整理。
+- [x] PR headと最新baseの一時mergeで同じ規定検証を完了、再現領域を片付け。
+- [x] 同じテーマの本Specを更新しcompleted、件数・保証・根拠を確定。
+- [ ] 公開直前のHEAD/context確認、本Specだけのcommit・検査付きpush、最終状況コメント、head一致条件付きmerge、関連Issue更新（外部操作の結果は状況コメントと完了報告へ）。
+
+着手は2026-10-18T20:03:22Z。20:28頃まで約25分。主要内訳は照合・全入力読取り約3分、独立調査・本体確認約5分、再現と方針・base probe約6分、head/baseの並列検証約9分31秒（20:17:16〜20:26:47）、構造検査・片付け約1分。子に時計がないため子の推測時間は採用しない。以後の記録・公開の時間を含む最終の所要時間は完了報告に記す。
