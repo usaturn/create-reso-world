@@ -222,10 +222,10 @@ postCreate は Meshy CLI の導入と無認証の version / help 確認だけを
 ## テスト
 
 ```bash
-bash .devcontainer/run-tests.bash                          # Dev Container とスクリプトのテスト
-bash scripts/check-layout.sh                               # リポジトリのレイアウトとローカルプロジェクトの雛形
-uv run pytest tests/skills .agents/skills .agents/scripts  # スキルと .agents/scripts のテスト
-(cd worlds/<name> && uv run pytest)                        # 各ローカルプロジェクトのテスト（追跡対象外なので CI では実行しない）
+bash .devcontainer/run-tests.bash                                # Dev Container とスクリプトのテスト
+bash scripts/check-layout.sh                                     # リポジトリのレイアウトとローカルプロジェクトの雛形
+uv run pytest tests/skills .agents/skills .agents/scripts tools  # スキル・.agents/scripts・tools（agent_runner など）のテスト
+(cd worlds/<name> && uv run pytest)                              # 各ローカルプロジェクトのテスト（追跡対象外なので CI では実行しない）
 ```
 
 ## 対象外
