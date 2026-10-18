@@ -84,3 +84,19 @@ provider = "openai"
 approval = "noninteractive"
 skill_sources = [".agents/skills", ".codex/skills"]
 env = ["HOME", "PATH"]
+
+[agents.cursor]
+runtime = "cursor"
+command = ["agent"]
+model = "auto"
+approval = "noninteractive"
+skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
+env = ["HOME", "PATH"]
+
+[agents.cursor-grok47]
+runtime = "cursor"
+command = ["agent"]
+model = "grok-4.7-xhigh"
+approval = "noninteractive"
+skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
+env = ["HOME", "PATH"]
