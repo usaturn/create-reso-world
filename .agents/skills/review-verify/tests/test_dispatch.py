@@ -625,6 +625,59 @@ def test_accept_saves_the_tool_output_unchanged_with_the_observed_verifier(
     assert not [path for path in verified_dir.iterdir() if path.name.startswith(".")]
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [("path", ".agents/skills/other/SKILL.md"), ("sha256", "d" * 64), ("sha256", "unknown")],
+)
+def test_accept_rejects_a_primary_skill_not_applied_by_dispatch_before_creating_output(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str], field: str, value: str
+) -> None:
+    """An additionally observed skill must not replace the skill actually applied."""
+    payload = scenario.payload()
+    payload["verified"]["skill"] = {
+        "path": ".agents/skills/review-verify/SKILL.md",
+        "sha256": hashlib.sha256(dispatch.SKILL.read_bytes()).hexdigest(),
+    }
+    payload["verified"]["skill"][field] = value
+
+    class ObservingAdapter(PayloadAdapter):
+        def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
+            skill = payload["verified"]["skill"]
+            return AdapterOutcome(identity=Identity(skill_versions={skill["path"]: "sha256:" + skill["sha256"]}))
+
+    dispatch.dispatch(
+        config("probe"), scenario.request, tmp_path / "run", adapter_loader=loader_for(ObservingAdapter(payload))
+    )
+    assert accept(dispatch, tmp_path / "run") == 1
+    assert not (scenario.review_dir / "verified").exists()
+    assert "skill differs from the applied skill" in capsys.readouterr().err
+
+
+def test_accept_keeps_the_applied_skill_when_identity_was_not_observed(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, findings_helpers: Any
+) -> None:
+    payload = scenario.payload()
+    applied = {
+        "path": ".agents/skills/review-verify/SKILL.md",
+        "sha256": hashlib.sha256(dispatch.SKILL.read_bytes()).hexdigest(),
+    }
+    payload["verified"]["skill"] = applied
+
+    class UnobservedAdapter(PayloadAdapter):
+        def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
+            return AdapterOutcome(identity=Identity())
+
+    dispatch.dispatch(
+        config("probe"), scenario.request, tmp_path / "run", adapter_loader=loader_for(UnobservedAdapter(payload))
+    )
+    assert accept(dispatch, tmp_path / "run") == 0
+    saved = json.loads((scenario.review_dir / "verified" / f"{scenario.fix[:12]}.fix-check.json").read_text())
+    assert saved["skill"] == applied
+    assert saved["verifier"]["model"] == "unknown"
+    assert saved["verifier"]["provenance"]["skills"] == [applied]
+    findings_helpers.review_findings.validate_document(saved)
+
+
 def drop_changed_file(payload: dict[str, Any]) -> None:
     payload["inventory"]["changed_files"].pop()
 

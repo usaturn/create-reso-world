@@ -473,9 +473,10 @@ def accept(run_dir: Path) -> dict[str, str]:
         batch = cast(Mapping[str, Any], saved["batch"])
         data = FixInput.model_validate(saved["request"])
         observed = saved["verifier"]
+        skill = saved["skill"]
         before = saved["review_snapshot"]
     except KeyError, ValidationError:
-        raise AcceptError("dispatch.json lacks batch, request, verifier or review_snapshot", 2) from None
+        raise AcceptError("dispatch.json lacks batch, request, verifier, skill or review_snapshot", 2) from None
     check_batch(batch)
     review_dir = Path(data.review_dir)
     if not review_dir.is_dir():
@@ -496,10 +497,12 @@ def accept(run_dir: Path) -> dict[str, str]:
     except ValueError:
         raise AcceptError("review_dir and verified must not be symlinks") from None
     payload = final_payload(batch)
+    document = cast(dict[str, Any], payload["verified"])
+    if document.get("skill") != skill:
+        raise AcceptError("verified skill differs from the applied skill")
     findings = load_review_findings()
     inventory = cast(dict[str, Any], payload["inventory"])
     check_inventory(findings, data, inventory)
-    document = cast(dict[str, Any], payload["verified"])
     document["verifier"] = observed
     stem = data.to[:12]
     verified_dir = review_dir / "verified"
