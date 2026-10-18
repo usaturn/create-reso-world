@@ -19,19 +19,26 @@ description: >-
 
 # Documentation Lookup
 
-Retrieve current documentation and code examples for any library using the Context7 CLI.
+Retrieve current documentation and code examples for any library using the Context7 CLI (`ctx7`).
 
-In this repository, run the CLI through `npx` without installing it. `ctx7` is not part of the Dev Container, and a global install would change the environment:
+## Prerequisite: use only the installed `ctx7`
+
+The Dev Container setup installs `ctx7` at the version pinned as `CTX7_CLI_VERSION` in `.devcontainer/install_ctx7.bash`. First check that it is on PATH:
 
 ```bash
-npx ctx7@latest <command>
+command -v ctx7
 ```
 
-The examples below write `ctx7` for short; run each of them as `npx ctx7@latest ...`.
+- If this prints nothing (exit code 1), stop. Tell the user that `ctx7` is missing and that Rebuild Container, or `bash .devcontainer/install_ctx7.bash`, installs it (see "Context7 CLI（ctx7）" in `.devcontainer/README.md`). Do not run `npm install` yourself
+- Do not switch to `npx ctx7`, a Context7 MCP server, the claude.ai Context7 connector, or the Pi Context7 extension (`resolve-library-id`, `query-docs`, `/c7-docs`). This repository uses Context7 only through `ctx7` in this skill
+- If `ctx7` prints `Update available` or suggests `ctx7 upgrade` or `npm install -g ctx7@latest`, do not follow it. The version changes only through a PR that updates `CTX7_CLI_VERSION`
+- Do not run `ctx7 setup` or `ctx7 remove`. They write MCP settings and skills to the shared `~/.claude`, `~/.codex`, and similar locations
+
+A subagent without a shell (Bash or similar) cannot run `ctx7`. Ask the parent agent, or a worker with a shell, to fetch the documentation, passing the library name and the question. If that is not possible, say in the result that the documentation could not be fetched; do not silently answer from training data.
 
 ## Scope in this repository
 
-This skill is the canonical Context7 procedure. The root `AGENTS.md` keeps only the limit of three commands per question and points here.
+This skill is the canonical Context7 procedure. The root `AGENTS.md` keeps only the rule not to switch away from `ctx7` and the limit of three commands per question, and points here.
 
 - Use it for the specifications of libraries, frameworks, SDKs, APIs, CLIs, and cloud services.
 - Do not use it for refactoring, business logic, or code review.
@@ -109,10 +116,22 @@ The available versions are listed in the `ctx7 library` output. Use the closest 
 Retrieves up-to-date documentation and code examples for the resolved library.
 
 ```bash
-ctx7 docs /facebook/react "How to clean up useEffect with async operations"
+ctx7 docs /react/react "How to clean up useEffect with async operations"
 ctx7 docs /vercel/next.js "How to add authentication middleware to app router"
-ctx7 docs /prisma/prisma "How to define one-to-many relations with cascade delete"
+ctx7 docs /prisma/orm "How to define one-to-many relations with cascade delete"
 ```
+
+### Redirected library IDs
+
+When a library ID has moved, `ctx7 docs` prints the new ID and exits with code 1:
+
+```text
+⚠ Library has been redirected
+New ID: /react/react
+Run: ctx7 docs "/react/react" "useEffect cleanup"
+```
+
+Retry once with the new ID. The retry counts toward the limit of three commands per question.
 
 ### Writing good queries
 
@@ -131,24 +150,36 @@ The output contains two types of content: **code snippets** (titled, with langua
 
 ## Authentication
 
-Works without authentication. For higher rate limits, either put `CONTEXT7_API_KEY=<key>` in `~/.config/create-reso-world/env` (the shell loads and exports it; see `.devcontainer/README.md`), or log in:
+Works without authentication. The environment variable `CONTEXT7_API_KEY` raises the rate limit; the user puts `CONTEXT7_API_KEY=<key>` in `~/.config/create-reso-world/env`, and the shell loads and exports it (see `.devcontainer/README.md`). When the variable is set, `ctx7` uses it ahead of `ctx7 login` credentials. Never print the key; check only whether it is set:
 
 ```bash
-npx ctx7@latest login
+if [ -n "${CONTEXT7_API_KEY:-}" ]; then echo "CONTEXT7_API_KEY: set"; else echo "CONTEXT7_API_KEY: not set"; fi
 ```
+
+`ctx7 whoami` shows only the `ctx7 login` state, so it prints `Not logged in.` even when `CONTEXT7_API_KEY` is in use.
+
+The user runs `ctx7 login` themselves. It stores credentials in `~/.config/context7/credentials.json` (under `XDG_CONFIG_HOME` when that is an absolute path). This Dev Container does not bind-mount that directory, so a rebuild removes them.
 
 ## Error Handling
 
-If a command fails with a quota error ("Monthly quota reached" or "quota exceeded"):
+| Situation | Response |
+|---|---|
+| `command -v ctx7` prints nothing | Stop and point to the setup, as in the prerequisite section |
+| `⚠ Library has been redirected` | Retry once with the new ID shown |
+| `✖ Library "..." not found` | Resolve the ID again with `ctx7 library` |
+| Quota error ("Monthly quota reached" or "quota exceeded") | The steps below |
+
+If a command fails with a quota error:
 1. Inform the user their Context7 quota is exhausted
-2. Suggest they authenticate for higher limits: `npx ctx7@latest login`, or `CONTEXT7_API_KEY` in `~/.config/create-reso-world/env`
+2. Suggest they authenticate for higher limits: `CONTEXT7_API_KEY` in `~/.config/create-reso-world/env`, or `ctx7 login`
 3. If they cannot or choose not to authenticate, answer from training knowledge and clearly note it may be outdated
 
 Do not silently fall back to training data — always tell the user why Context7 was not used.
 
 ## Common Mistakes
 
-- Library IDs require a `/` prefix — `/facebook/react` not `facebook/react`
+- Library IDs require a `/` prefix — `/react/react` not `react/react`
 - Always run `ctx7 library` first — `ctx7 docs react "hooks"` will fail without a valid ID
 - Use descriptive queries, not single words — `"React useEffect cleanup function"` not `"hooks"`
 - Do not include sensitive information (API keys, passwords, credentials) in queries
+- Do not make up for a missing `ctx7` with `npx ctx7@latest` or `npm install -g ctx7@latest`; stop and point to the setup
