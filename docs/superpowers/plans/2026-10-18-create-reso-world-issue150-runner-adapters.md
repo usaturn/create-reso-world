@@ -14,6 +14,8 @@
 
 **現在の実行許可（2026-10-18）:** 利用者の「OpenCode Go の認証確認は保留にして実装して。保留分は別の Issue にして。」により、`pigod`・`pi-go-glmf` の認証・実機確認を #172 に移管する。agent定義と実装は維持し、#150は残る9 agentの実機確認後にPRを公開する。過去の停止記録は履歴として残す。OpenCode Goの追加実行・認証設定変更は行わない。
 
+**最新の実行指示:** 続いて利用者が「OpenCode Go の障害がなおったので、認証確認を実行して。」と明示した。#172の確認として `pigod`・`pi-go-glmf` を新しい隔離環境で各1回だけ実行する。成功後は#172を完了し、両Issueへ証跡と保留解除を記録する。失敗時は#172の保留を維持し、#150の残る `pi-gemf` 確認とPR作成は先の切り分けに従う。過去の失敗・上限を消さず、今回の具体的な条件変更と実行指示を記録する。
+
 ## Global Constraints
 
 - runner本体、`adapters/__init__.py`・`adapters/skills.py`・`models.py`、DSH、ランチャー、zshrc、雛形のroles.*・workflows.*・agents.dsh-*を変更しない。
@@ -261,6 +263,7 @@ env = ["HOME", "PATH"]
 - 作業範囲: 既存Spec/Planの受け入れ条件と公開記録だけを更新する。5 Taskと全レビューは完了済みで再実行しない。`pigod`・`pi-go-glmf` の定義・adapter・テスト・ランチャーは変更しない。
 - #172はOpenCode Goの復旧確認後に両agentを各1回実行し、正確なmarker・観測model・終了コード・停止・outside_changesを記録するIssueとした。#150のPR作成・マージの先行条件にせず、親#116のボードと依存関係は変更しない。
 - 今回はGoogle Vertexの `pi-gemf` 1回だけを新しい使い捨てrepo・一時configで確認し、従来8件と合わせて9 agentの証跡を揃える。OpenCode Goの実APIは起動しない。
+- 最新指示による#172の確認では `pigod`・`pi-go-glmf` を各1回だけ実行する。成功なら#172の全受け入れ条件を確認してcompletedでcloseし、#150に結果と保留解除を記録する。失敗なら追加試行せず#172へ部分結果を記録する。#150に必要な `pi-gemf` 1回は独立に完了させる。
 - テストの要否: 新規テスト不要。コード・設定・実行ロジックを変更しないため。代わりに実機1件の結果、config check、git diff --check、検証済みコード9a03f74からの差分がSpec/Planだけであること、Issue/PRの参照と公開後の文書復元を確認する。既存の2181 pytest・33 shell・depth adapter291件の終了コード0と全体レビューの証跡は保持し、再実行したとは書かない。
 - 実行予算は既存ledgerを継続する。準備とIssue切り出し5分、残る実機最大2分、文書/公開/復元10分を目安とする。失敗時・phase境界でcheckpointを記録する。OpenCode Go以外で新たな失敗が起きた場合は、今回の保留指示を広げず停止する。
 
