@@ -68,17 +68,22 @@ usaturn/agent-workspace の、複数モデルの PR レビューの自動化（#
   1. `PARENT_ROOT/reviews/<owner>/<repo>/#<N>-*`: パスの `<owner>/<repo>`
   2. `PARENT_ROOT/reviews/#<N>-*`（移植先の旧形式）: 親の origin（create-reso-world）
   3. `<checkout>/reviews/<owner>/<repo>/#<N>-*`（#146 の checkout ごとの配置。例 `external/resoloop/reviews/usaturn/resoloop/#11-*`）: パスの `<owner>/<repo>`。`<checkout>` が Git の checkout のルートで、その remote に `<owner>/<repo>` があること
-  4. `<checkout>/reviews/#<N>-*`（各 checkout の旧形式）: `<checkout>` の remote の GitHub のリポジトリが 1 つだけならそれ。`external/resoloop` のように複数（fork と上流）なら、どちらの PR か決められないので終了コード 11 で止まる。ディレクトリ名との一致で絞らない（移植先の review-fix-planning の規則と同じ）
+  4. `<checkout>/reviews/#<N>-*`（各 checkout の旧形式）: `<checkout>` の remote の GitHub のリポジトリが 1 つだけならそれ。`external/resoloop` のように複数（fork と上流）なら、`--pr` で PR を添えたときだけ読む（D-15）。添えていなければ、どちらの PR か決められないので終了コード 11 で止まり、`--pr <PR の URL>` を添えるよう案内する。ディレクトリ名との一致で絞らない（移植先の review-fix-planning の規則と同じ）
   5. どれでもないとき: 移植元と同じく `findings/*.json` の `pr`。無ければ終了コード 11
   - 1〜4 で決めたときも、`findings/` があれば移植元と同じく食い違いを確かめる。GitHub に照会した PR の head ブランチとディレクトリ名が一致しなければ止まる（移植元と同じ）
-  - 検討した別案: 4 の複数のときに、fork と上流の両方に照会し、ディレクトリ名と head ブランチが一致する 1 件に絞る。移植先の review-fix-planning が「ディレクトリ名との一致で候補を 1 件に絞らない」と決めているので採らない。旧形式のディレクトリは、`reviews/<owner>/<repo>/` の下へ移せば 1 か 3 で読める
+  - 3・4 で決めたときは、パスのある `<checkout>` が D-4 で決まる `target_root` と同じであること。違えば終了コード 11 で止まる。既知の経路以外のリポジトリでは、パスから checkout を推測せず、`--code-root` の明示を求める（D-4。移植先の review-fix-planning は「`CODE_ROOT` 配下の `reviews/` をフルパスで受け取る」）
+  - 検討した別案: 4 の複数のときに、fork と上流の両方に照会し、ディレクトリ名と head ブランチが一致する 1 件に絞る。移植先の review-fix-planning が「ディレクトリ名との一致で候補を 1 件に絞らない」と決めているので採らない
 - **D-8 `--for-planning` で範囲を狭めない**: 移植元の owner の制限（`PLANNING_OWNERS = {"usaturn"}`、終了コード 10）は持ち込まない。移植先の review-fix-planning は既知の経路と明示した `CODE_ROOT` の PR を扱っていて（上流の orange3134/resoloop を含む）、owner で止めると停止理由が増え、#116 の注意書き（停止理由を変えない）に反する。範囲は D-4 の経路で決まるので、`resolve` と `review-dir` で同じになる。Issue の「対象にする PR の範囲を広げない」は D-4（clone をしない）で満たす
   - `--for-planning` は、移植元の呼び出し（review-verify・review-fix-planning の `review-dir "$ARG" --for-planning`）がそのまま動くように受け付け、範囲は変えない。ヘルプにそう書く
   - 検討した別案: (a) 移植元のとおり `usaturn` に限り、上流の `orange3134/resoloop` だけ加える。移植先で `CODE_ROOT` を明示した他の owner の PR が止まるようになるので採らない。(b) `--for-planning` を削る。移植元の呼び出しが引数の誤りで止まり、後続の子が呼び出しを書き換える手間が増えるだけなので採らない
-- **D-9 CLI と JSON**: `resolve <PR> [--code-root <絶対パス>]` と `review-dir <PR|パス> [--for-planning] [--code-root <絶対パス>]`。成功時の JSON は移植元の項目（`parent_root`・`repository`・`number`・`url`・`head_ref`・`head_sha`・`head_repository`・`base_ref`・`state`・`clone_url`・`review_dir`・`target_root`）に `base_remote` を足したもの。`target_root` は常に文字列（null にならない）。`clone_url` は PR の base のリポジトリの URL で、移植元と同じく出す（後続の pr-review が checkout からの clone の remote に使う）
+- **D-9 CLI と JSON**: `resolve <PR> [--code-root <絶対パス>]` と `review-dir <PR|パス> [--for-planning] [--code-root <絶対パス>] [--pr <PR>]`（`--pr` はパスのときだけ。D-15）。成功時の JSON は移植元の項目（`parent_root`・`repository`・`number`・`url`・`head_ref`・`head_sha`・`head_repository`・`base_ref`・`state`・`clone_url`・`review_dir`・`target_root`）に `base_remote` を足したもの。`target_root` は常に文字列（null にならない）。`clone_url` は PR の base のリポジトリの URL で、移植元と同じく出す（後続の pr-review が checkout からの clone の remote に使う）
   - 終了コード: 0 成功、2 引数の誤り、3 PR が存在しない、4 リポジトリが存在しないかアクセス権が無い、5 認証・権限の問題、6 通信・API の失敗、7 親の main checkout・origin、または Git 操作の対象の checkout を使えない、8 PR はあるが保存済みのレビューが無い、9 候補が複数、11 パスから PR を決められない・食い違う、12 fetch の失敗。10 は使わない（D-8）。値は移植元と同じ
   - 番号（`3`・`#3`）は親の origin（create-reso-world）の PR。ほかのリポジトリの PR は URL で指定する（移植元と同じ）
 - **D-10 Python の版**: 括弧の無い `except A, B:` を `except (A, B):` にする。`pyproject.toml` は #149 の担当で、今は `>=3.12` なので、この子の helper は 3.12 の文法に収める
+- **D-15 パスと PR を一緒に渡す（`review-dir <パス> --pr <PR>`。builder check の後に追加）**: 移植先の review-fix-planning は、レビューディレクトリと別に PR の URL か番号を受け取り、食い違えば推測せずに止まる。`external/resoloop/reviews/#<N>-*` も URL があれば読める。この挙動を #155 がこの helper で保てるように、`--pr` を足す（Spec の builder check の指摘 1）
+  - `--pr` は番号・`#番号`・PR の URL（引数と同じ解釈。番号は親の origin の PR）。PR の引数（番号・URL）と一緒には使えない（終了コード 2）
+  - PR は `--pr` で決め、パスから分かることと照合する。ディレクトリ名の `#<N>` が違う、1・3 のパスの `<owner>/<repo>` が違う、2 で create-reso-world でない、4 で `<checkout>` の remote に無い、`findings/` が別の PR を指す、のどれかなら終了コード 11 で止まる。照合を通れば、ディレクトリ名と head ブランチの一致（D-7）も確かめる
+  - 検討した別案: `--pr` を足さず、旧形式のディレクトリは `reviews/<owner>/<repo>/` の下へ移して読む。今の review-fix-planning で読めるディレクトリが、#155 の後に読めなくなり、停止理由が増える（#116 の注意書きに反する）ので採らない
 
 ### テスト
 
@@ -86,7 +91,7 @@ usaturn/agent-workspace の、複数モデルの PR レビューの自動化（#
   - `test_review_records.py`・`test_review_findings.py` は移植元のまま写す。文書の記入例を helper に通すテスト（記入例が検査・読み取り・描画で使えること）はコードを実行するので残す。ただし `test_format_document_examples_are_valid` の「記入例の種類の集合が決まった 6 つと一致する」の assertion は、文書の節構成を固定値で検査するので外し、記入例が 1 つ以上あって全て検査を通ることだけを確かめる
   - `test_review_target.py` は、移植元の `create_parent_repo`（`tools.test_support.repos`）の代わりに、実際の Git の checkout（親: origin が create-reso-world で `/reviews/`・`/external/` を無視、`external/resoloop`: origin が fork・upstream が上流、`--code-root` 用の別の checkout）を作る fixture で作り直す（#116 の D-8）。GitHub への照会は移植元の `FakeGh`（`gh api -i` の応答を返す偽物）で置き換え、`fetch_pull_head` はローカルの bare remote で確かめる。Git の設定は `GIT_CONFIG_NOSYSTEM=1`・`GIT_CONFIG_GLOBAL=/dev/null` で利用者の設定から切り離す
   - 写さないテスト: 一時 clone（`clone_repository`・`CloneTarget`）、submodule、owner の制限。D-4・D-5・D-8 で持ち込まない機能のため
-  - 足すテスト（移植先の規則の挙動）: 既知の経路と `base_remote`、fork と上流の同じ番号の PR が別のディレクトリと別の ref になること、checkout が無いときに clone せず終了コード 7 で止まること、`--code-root` の受け付けと拒否、D-7 の 2〜4 の旧配置、`--for-planning` で他の owner の PR が止まらないこと
+  - 足すテスト（移植先の規則の挙動）: 既知の経路と `base_remote`、fork と上流の同じ番号の PR が別のディレクトリと別の ref になること、checkout が無いときに clone せず終了コード 7 で止まること、`--code-root` の受け付けと拒否、D-7 の 2〜4 の旧配置とパスのある checkout と `target_root` の照合、D-15 の `--pr` の照合、`--for-planning` で他の owner の PR が止まらないこと
 - **D-12 受け入れの確かめ方**（Issue の「受け入れ」）
   - 移植したテストが通る: `uv run pytest .agents/scripts tests/scripts/test_superpowers_context.py`
   - fork と上流の同じ番号の PR が別のレビューディレクトリになる: `test_review_target.py`（D-11）
@@ -107,6 +112,13 @@ usaturn/agent-workspace の、複数モデルの PR レビューの自動化（#
 
 - **D-14 inline（`superpowers:executing-plans`）で実装する**: 作業の大半は、移植元のファイルをこのセッションに読み込んだうえでの写しと、文書の用語の書き換えである。`review_target.py` の適応はこの Spec の判断（D-4〜D-8）に強く依存する。子に渡すと、移植元と判断の文脈を全て渡し直すことになる。最後にブランチ全体のレビューを、新しいサブエージェントで 1 回行う
   - 検討した別案: `superpowers:subagent-driven-development` で Task ごとに担当とレビュアーを起動する。Task は独立しているが、文脈の受け渡しの量に対して得るものが小さいので採らない
+
+### Spec のレビュー（builder check）
+
+brainstorming の手順で、新しいサブエージェント 1 体にこの Spec を読ませ、計画の前に要る問いを挙げさせた（2026-10-18）。問いは 2 つで、どちらも利用者の判断を要しないので、エージェントの判断で決めた。
+
+1. 旧形式の `external/resoloop/reviews/#<N>-*` は、PR の URL を添えれば使えるか（今の review-fix-planning は使える）: D-15 で `--pr` を足した
+2. 既知の経路に無いリポジトリのレビューディレクトリをパスで渡したとき、`target_root` をどう決めるか: パスから推測せず `--code-root` を求め、checkout ごとの配置ではパスのある checkout と `target_root` の一致を求める（D-7 に追記）
 
 ## 範囲外
 

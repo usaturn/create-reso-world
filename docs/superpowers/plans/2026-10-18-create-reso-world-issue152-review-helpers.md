@@ -158,10 +158,11 @@ git commit -m "feat: port review_findings helper and format (#152)"
     - `describe(parent_root, pr, review_dir, checkout: TargetCheckout) -> dict` … 移植元の項目に `base_remote` を足す。`target_root` は `str(checkout.root)`
     - `resolve(argument: str, *, parent_root: Path, code_root: Path | None = None, runner=_run) -> dict`
     - `legacy_review_directories(parent_root: Path, repository: str, number: int, checkout: TargetCheckout) -> list[Path]` … checkout が親なら `parent/reviews/#<N>-*`、そうでなければ `<checkout>/reviews/#<N>-*` と `<checkout>/reviews/<owner 小文字>/<repo 小文字>/#<N>-*`
-    - `identify_review_directory(parent_root: Path, directory: Path) -> DirectoryIdentity` … Spec D-7 の 1〜5
-    - `find_review_directory(argument: str, *, parent_root: Path, code_root: Path | None = None, runner=_run) -> dict` … 移植元の `for_planning` 引数は持たない（Spec D-8）
+    - `DirectoryIdentity(NamedTuple)`: 移植元の `repository`・`number`・`check_name` に `checkout: Path | None = None`（Spec D-7 の 3・4 で決めたときの `<checkout>`）を足す
+    - `identify_review_directory(parent_root: Path, directory: Path, expected: tuple[str, int] | None = None) -> DirectoryIdentity` … Spec D-7 の 1〜5。`expected`（`--pr` の PR の `(repository, number)`）があれば D-15 の照合をする
+    - `find_review_directory(argument: str, *, parent_root: Path, code_root: Path | None = None, pr_argument: str | None = None, runner=_run) -> dict` … 移植元の `for_planning` 引数は持たない（Spec D-8）。`pr_argument` は `--pr` の値（Spec D-15）
     - `fetch_pull_head(checkout: Path, repository: str, number: int, head_sha: str, *, remote: str) -> str` … `git fetch --quiet --no-write-fetch-head --no-tags --refmap= <remote> +pull/<N>/head:refs/pr-review/repos/<repository の小文字>/<N>`。消えた ref への 1 回だけの再試行、head の一致の確認は移植元のまま。失敗は `EXIT_FETCH`
-    - `main(argv=None, *, runner=_run) -> int` … `resolve <pr> [--code-root P]`、`review-dir <target> [--for-planning] [--code-root P]`。`--for-planning` は受け付けて何もしない（ヘルプ: 移植元の呼び出しとの互換のため受け付ける。移植先では範囲を変えない）。`--code-root` は `Path` のまま `resolve_context` に渡す（絶対パスの検査は `superpowers_context.py` が行う）
+    - `main(argv=None, *, runner=_run) -> int` … `resolve <pr> [--code-root P]`、`review-dir <target> [--for-planning] [--code-root P] [--pr PR]`。`--for-planning` は受け付けて何もしない（ヘルプ: 移植元の呼び出しとの互換のため受け付ける。移植先では範囲を変えない）。`--code-root` は `Path` のまま `resolve_context` に渡す（絶対パスの検査は `superpowers_context.py` が行う）
   - 持ち込まない: `clone` サブコマンド、`clone_repository`、`CloneTarget`、`registered_submodules`、`PLANNING_OWNERS`・`require_planning_owner`・`EXIT_OWNER`・`EXIT_CLONE`
 
 テストの要否: 要る。経路の決定・拒否・旧配置の識別・ref の固定は、実際の Git の checkout と偽の `gh` で実行して確かめる。
@@ -188,7 +189,10 @@ git commit -m "feat: port review_findings helper and format (#152)"
 - `test_resolve_stops_without_parent_origin`: origin の無い親で `EXIT_PARENT`、`gh` を呼ばない（移植元のまま）
 - `test_find_review_directory_reports_missing_review_and_legacy_dirs`: 番号で探して新しい配置に無いとき `EXIT_NO_REVIEW`。親の `reviews/#4-feat-x` が文に並ぶ。resoloop の PR では `external/resoloop/reviews/#11-x` と `external/resoloop/reviews/usaturn/resoloop/#11-x` が文に並ぶ。どちらも選ばれない
 - `test_find_review_directory_accepts_checkout_owner_repo_layout`: `external/resoloop/reviews/orange3134/resoloop/#11-x` をパスで渡すと、`repository` が上流、`target_root` が `external/resoloop`、`base_remote == "upstream"`
-- `test_legacy_fork_checkout_directory_is_ambiguous`: `external/resoloop/reviews/#11-x`（`findings/` なし）で `EXIT_PATH`、文に `usaturn/resoloop` と `orange3134/resoloop`。`gh` を呼ばない
+- `test_legacy_fork_checkout_directory_is_ambiguous`: `external/resoloop/reviews/#11-x`（`findings/` なし）で `EXIT_PATH`、文に `usaturn/resoloop`・`orange3134/resoloop`・`--pr`。`gh` を呼ばない
+- `test_legacy_fork_checkout_directory_with_pr`: 同じディレクトリに `pr_argument="https://github.com/orange3134/resoloop/pull/11"` で受け付け、`repository` は上流、`base_remote == "upstream"`。`--pr` が `https://github.com/someone/x/pull/11`（checkout の remote に無い）や番号違い（`/pull/12`）なら `EXIT_PATH` で、`gh` を呼ばない
+- `test_pr_option_must_match_path`: 親の `reviews/usaturn/create-reso-world/#4-feat-x` に `pr_argument="5"` で `EXIT_PATH`、`pr_argument="https://github.com/usaturn/resoloop/pull/4"` で `EXIT_PATH`、`pr_argument="#4"` で受け付ける。PR の引数（`"#4"`）に `pr_argument` を足すと `EXIT_USAGE`
+- `test_checkout_layout_must_match_target_root`: `--code-root` の checkout A の `reviews/usaturn/resoloop-meshy/#2-y` を、別の checkout B（同じ remote）を `code_root` にして渡すと `EXIT_PATH`。`code_root=A` なら受け付ける。`code_root` なしなら `EXIT_PARENT`
 - `test_legacy_fork_checkout_directory_uses_findings`: 同じディレクトリに `findings/` が `orange3134/resoloop` #11 を指すと受け付ける。`findings/` が `other/x` を指すと `EXIT_PATH`
 - `test_legacy_single_remote_checkout_directory`: `--code-root` の checkout（remote 1 つ）の `reviews/#2-y` をパスで渡し、`code_root` も渡すと受け付ける
 - `test_legacy_checkout_without_github_remote`: GitHub の remote の無い checkout の `reviews/#2-y` は `findings/` が無ければ `EXIT_PATH`
@@ -214,10 +218,11 @@ Expected: FAIL（`review_target.py` が無いので収集時のエラー）
 2. `directory.parents[2] == reviews` → パスの `<owner>/<repo>`、`check_name=True`
 3. `directory.parent == reviews` → `parent_repository(parent_root)`、`check_name=True`
 4. `directory.parents[2].name == "reviews"` で `C = directory.parents[3]` が親以外の checkout のルート、かつ `remote_repositories(C)` にパスの `<owner>/<repo>`（大小を区別しない）がある → それ、`check_name=True`
-5. `directory.parent.name == "reviews"` で `C = directory.parents[1]` が親以外の checkout のルート → `remote_repositories(C)` が 1 件ならそれ（`check_name=True`）。2 件以上なら、`findings/` があって、その PR のリポジトリが `remote_repositories(C)` にあり、番号がディレクトリ名と同じならそれ（`check_name=False`）。`findings/` が無ければ `EXIT_PATH`（文に候補のリポジトリを並べ、`reviews/<owner>/<repo>/` の下に移せば読めることを書く）。`findings/` が一致しなければ `EXIT_PATH`。0 件なら層からは決めない
-6. 層から決めたときに `findings/` があれば、移植元のとおり食い違いを `EXIT_PATH` で止める。層から決まらなければ移植元のとおり `findings/` か `EXIT_PATH`
+5. `directory.parent.name == "reviews"` で `C = directory.parents[1]` が親以外の checkout のルート → `remote_repositories(C)` が 1 件ならそれ（`check_name=True`）。2 件以上なら、`expected` のリポジトリが `remote_repositories(C)` にあればそれ（`check_name=True`）、無ければ `findings/` の PR のリポジトリが `remote_repositories(C)` にあり番号がディレクトリ名と同じならそれ（`check_name=False`）。どちらも無ければ `EXIT_PATH`（文に候補のリポジトリを並べ、`--pr <PR の URL>` を添えるよう書く）。0 件なら層からは決めない
+6. 層から決めたときに `findings/` があれば、移植元のとおり食い違いを `EXIT_PATH` で止める。層から決まらなければ移植元のとおり `findings/` か `EXIT_PATH`。ただし `expected` があり、層からも `findings/` からも決まらないときは、ディレクトリ名が `#<expected の番号>-...` ならそれ（`check_name=True`）
+7. `expected` があるときは、決まった PR（リポジトリは大小を区別しない、番号）と、ディレクトリ名の `#<N>`（名前が `#<N>-` の形のとき）が `expected` と一致すること。違えば `EXIT_PATH`
 
-`find_review_directory` の順: 引数を解釈（パスなら `identify_review_directory` → `fetch_pull_request` → 名前の確認 → `target_checkout`）。番号・URL なら `fetch_pull_request` → `target_checkout` → 新しい配置の `numbered_directories` → 0 件なら `legacy_review_directories` を文に並べて `EXIT_NO_REVIEW`、2 件以上なら `EXIT_AMBIGUOUS`。
+`find_review_directory` の順: `pr_argument` を PR の引数（番号・URL）と一緒に渡したら `EXIT_USAGE`。パスなら `identify_review_directory`（`pr_argument` があれば解釈して `expected` に。番号は `parent_repository`）→ `fetch_pull_request` → 名前の確認 → `target_checkout` → `identity.checkout` があって `target_checkout(...).root` と違えば `EXIT_PATH`。番号・URL なら `fetch_pull_request` → `target_checkout` → 新しい配置の `numbered_directories` → 0 件なら `legacy_review_directories` を文に並べて `EXIT_NO_REVIEW`、2 件以上なら `EXIT_AMBIGUOUS`。
 
 - [ ] **Step 4: テストを通す**
 
