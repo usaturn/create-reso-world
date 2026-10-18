@@ -101,4 +101,9 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools
 
 ## 完了記録
 
-作業中。各TaskのBASE・結果・主要時間と、最終レビュー・公開結果を追記する。状態は実行許可と内容承認を区別するため draft のまま維持する。
+- Task 1: 完了。BASE `dfd9a1d`、手順実装 `442d78c`。共通参照・両スキルを接続し、構造検査両方exit0・参照確認・diff check・同一2ケースの両条件pilotを実施。
+- Task 2: evals 9件と評価記録を追加。JSON: 18件／20件、ID重複なし。READMEの非ワールド3コマンド: pytest **2568 passed / 1 skipped / 626.14秒 / exit0**、環境 **33件PASS / 444.9秒 / exit0**、layout **PASS / exit0**。ログを確認済み。
+- 主要Taskの壁時計: 準備・設計 21:33〜21:43 UTC（約10分）、Task 1 の手順・pilot 21:43〜21:45（約2分）、Task 2 の評価記録・全体検証 21:45〜21:57（約12分）。担当個別の所要時間はrole toolから返らず不明、並行検証時間は二重加算しない。
+- 予算checkpoint: 約23分／90分、失敗上限未到達、安全の失敗なし。受け入れ条件A〜Fの成果が増えたため継続。
+- 裁定: upstreamのworkspace管理スクリプトの代わりに親tmpのledgerを使用。理由はworktree内の未コミット成果物を禁じるAGENTS.md。取りこぼしのリスクをTask・BASE・検証・裁定の明示記録で補った。他のセッションの作業物は触っていない。
+- 最終レビュー・公開は未実施。状態は実行許可と内容承認を区別するため draft のまま維持し、結果を追記する。

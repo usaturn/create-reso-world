@@ -50,4 +50,8 @@
 
 ## 結果
 
-作業中。実行結果・最終レビュー・公開状態は完了時に追記する。main 反映・運用効果は本 run の完了条件にせず、未実施のまま記録する。
+- 手順実装: `442d78c`。要件照合、共通参照、経路表の観測結果・証拠、原因4分類、両側検証・独立性・最終版証拠更新を接続した。採否・自己レビュー最大1回・公開境界を変更していない。
+- 追加evals: 9ケース。新規pytestなし。詳細な机上照合・同一2ケースの両版回答・限界は `.agents/skills/review-fix-planning/evals/convergence-validation.md`。
+- 最終検証: READMEの非ワールド3コマンドは、pytest **2568 passed / 1 skipped / 626.14秒 / exit0**、環境 **33 test(s) PASS / 444.9秒 / exit0**、layout **PASS / exit0**。JSON/ID・相対参照実在・両スキル構造・diff checkは成功。構造checkerの日本語descriptionのwarning等は評価記録に残した。
+- 行動pilotは各条件1回で判断の差を観測しただけで、独立反復・別モデル比較・実運用の退行評価は未実施。baseline自体も主要な安全判断を満たしている。改善効果・main反映は実証していない。
+- 最終レビューと公開はこの時点で未実施。終了時に追記する。
