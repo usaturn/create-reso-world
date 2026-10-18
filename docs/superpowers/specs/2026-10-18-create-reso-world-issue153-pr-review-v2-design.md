@@ -83,7 +83,7 @@
 - 選択: 実行する helper のテストを先に移し、欠落による RED を観測してから実装を移す。#146 の実行テストを保ち、#59/#134 と外部 checkout の経路・parent/DSH binding を追加する。文面・モデル一覧だけを照合するテストは追加・移植しない。スキルの無し/ありの比較は同じ非対話 DSH の場面で各1回、別コンテキストの dry-run で手順・停止判断を比較する（純粋な参照手順のため文面 micro-test の反復はしない）。
 - 別案: 上流の全テストを無条件コピー／文言の固定検査／多数の実モデル試行。
 - 理由: AGENTS.md の採用基準と費用上限を守りつつ実行経路の安全を検証する。
-- 委任: issue-to-pr。実装は同じ helper を順次変更する2 Taskなので executing-plans の inline を選ぶ。独立調査・builder check・スキル比較・最後のブランチ全体レビューは読み取り専用の subagent を使う。実装中の同期コマンドは終了コードとログを確認する。
+- 委任: issue-to-pr。追加調査で、現行 workspace helper には移植元に無い journal/inspect/abandon/sessions と #146 の安全条件があると確認した。丸ごと置換せず、(1) workspace と候補pair、(2) runner・親入力・親保存、(3) 手順と読取側の3 Taskに分け、境界ごとに同期委譲する subagent-driven-development を選ぶ。各実装担当は1件ずつ直列に動かし、Taskレビューと最後の全体レビューは読み取り専用とする。独立調査・builder check・スキル比較も読み取り専用の subagent を使う。実装中の同期コマンドは終了コードとログを確認する。
 
 ## Builder check 後に具体化した事項
 
