@@ -12,7 +12,7 @@
 
 **管理:** draft。利用者のissue-to-pr #150と今回のOKによる実行許可であり、内容承認は記録しない。反映先feat/issue-150-runner-adapters、main向けPR1本、マージ禁止。
 
-**現在の実行許可（2026-10-18）:** 利用者の「OpenCode Go の認証確認は保留にして実装して。保留分は別の Issue にして。」により、`pigod`・`pi-go-glmf` の認証・実機確認を #172 に移管する。agent定義と実装は維持し、#150は残る9 agentの実機確認後にPRを公開する。過去の停止記録は履歴として残す。OpenCode Goの追加実行・認証設定変更は行わない。
+**保留・切り出し時の実行許可（2026-10-18）:** 利用者の「OpenCode Go の認証確認は保留にして実装して。保留分は別の Issue にして。」により、`pigod`・`pi-go-glmf` の認証・実機確認を #172 に移管する。agent定義と実装は維持し、#150は残る9 agentの実機確認後にPRを公開する。過去の停止記録は履歴として残す。OpenCode Goの追加実行・認証設定変更は行わない。
 
 **最新の実行指示:** 続いて利用者が「OpenCode Go の障害がなおったので、認証確認を実行して。」と明示した。#172の確認として `pigod`・`pi-go-glmf` を新しい隔離環境で各1回だけ実行する。成功後は#172を完了し、両Issueへ証跡と保留解除を記録する。失敗時は#172の保留を維持し、#150の残る `pi-gemf` 確認とPR作成は先の切り分けに従う。過去の失敗・上限を消さず、今回の具体的な条件変更と実行指示を記録する。
 
@@ -250,7 +250,7 @@ env = ["HOME", "PATH"]
 - [x] 各Taskの仕様/品質レビューと全fixのscoped re-reviewを終える。deferred minorやRulingはledgerへ残し、最終レビュアーへ渡す。
 - [x] `uv run pytest tools/agent_runner/tests/adapters`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`git diff --check` を最終コードで実行する。検証プロセスの終了コードとログを確認し、実行中にターンを終えない。
 - [x] ブランチ全体を最上位モデルの別担当がレビューする。所定の1回のfix waveとscoped re-reviewを使い、未解決は根拠付きで判定する。
-- [ ] OpenCode Go以外の9 agentの証跡を確認する。成功済み8件を再実行せず、`pi-gemf` だけを短いJSON marker、writes=False、deadline120秒、fallbackなしの最小一時configでrunnerから1回起動する。使い捨てgit repo/runner worktreeのstate/identity/payload/elapsed/stop_confirmed/outside_changesを #150 に記録する。`pigod`・`pi-go-glmf` は利用者の明示指示で #172 へ移管済みと記録し、成功とは書かない。agent定義・認証やproviderを変更しない。
+- [x] OpenCode Go以外の9 agentの証跡を確認する。成功済み8件を再実行せず、`pi-gemf` だけを短いJSON marker、writes=False、deadline120秒、fallbackなしの最小一時configでrunnerから1回起動する。使い捨てgit repo/runner worktreeのstate/identity/payload/elapsed/stop_confirmed/outside_changesを #150 に記録する。`pigod`・`pi-go-glmf` は利用者の明示指示で #172 へ移管済みと記録し、成功とは書かない。agent定義・認証やproviderを変更しない。
 - [ ] 問題が無ければSpec/Planに完了記録（承認とは別）を追記してcommit。最新Issue/PR/claimを再確認し親checkoutのscan-before-push.shで検査した非空SHAをそのままpushする。main向け `Closes #150` のPRを1本作成する。親Issue本文/他者の予約を触らずマージしない。
 - [ ] 文書とhandoffを公開した内容から別領域へ復元してhash/bytesを照合し、予約をexact-SHA leaseで解放して不在を確認する。budgetと各担当時間、検証/実機の制限、残存pathを報告する。
 
@@ -262,7 +262,7 @@ env = ["HOME", "PATH"]
 
 - 作業範囲: 既存Spec/Planの受け入れ条件と公開記録だけを更新する。5 Taskと全レビューは完了済みで再実行しない。`pigod`・`pi-go-glmf` の定義・adapter・テスト・ランチャーは変更しない。
 - #172はOpenCode Goの復旧確認後に両agentを各1回実行し、正確なmarker・観測model・終了コード・停止・outside_changesを記録するIssueとした。#150のPR作成・マージの先行条件にせず、親#116のボードと依存関係は変更しない。
-- 今回はGoogle Vertexの `pi-gemf` 1回だけを新しい使い捨てrepo・一時configで確認し、従来8件と合わせて9 agentの証跡を揃える。OpenCode Goの実APIは起動しない。
+- 切り出し時にはGoogle Vertexの `pi-gemf` 1回だけを確認する方針とした。その後、以下の最新指示により#172のOpenCode Go確認も実行した。
 - 最新指示による#172の確認では `pigod`・`pi-go-glmf` を各1回だけ実行する。成功なら#172の全受け入れ条件を確認してcompletedでcloseし、#150に結果と保留解除を記録する。失敗なら追加試行せず#172へ部分結果を記録する。#150に必要な `pi-gemf` 1回は独立に完了させる。
 - テストの要否: 新規テスト不要。コード・設定・実行ロジックを変更しないため。代わりに実機1件の結果、config check、git diff --check、検証済みコード9a03f74からの差分がSpec/Planだけであること、Issue/PRの参照と公開後の文書復元を確認する。既存の2181 pytest・33 shell・depth adapter291件の終了コード0と全体レビューの証跡は保持し、再実行したとは書かない。
 - 実行予算は既存ledgerを継続する。準備とIssue切り出し5分、残る実機最大2分、文書/公開/復元10分を目安とする。失敗時・phase境界でcheckpointを記録する。OpenCode Go以外で新たな失敗が起きた場合は、今回の保留指示を広げず停止する。
@@ -303,3 +303,26 @@ env = ["HOME", "PATH"]
 - CLIの診断は `401 / authentication_error / api_key_expired`。この実行で使われたキーが期限切れと判定されたこと以外は推測しない。認証ファイル・秘密値は取得・表示・変更せず、どの設定元のキーだったかは未確認。利用者による更新の反映状況を確認する必要がある。再ログインだけではキーの期限が更新されないという診断だった。
 - 停止条件に従い後続2件は未実行。`live-authentication:pigod` は記録上2回となり既定の再試行上限に達した。同条件の追加実行、認証やprovider/modelの変更、コードpush・PR作成は行わない。具体的な更新反映の確認または条件変更が必要であり、一般的な継続指示だけで同じrunを繰り返さない。
 - 詳細は親scratchの `resume-20261018T175317Z/diagnosis.json`・`live-smoke-remaining/summary.json`、`checks/live-smoke-remaining-9395032.json`、既存SDD ledger。停止記録と更新したhandoff対を公開・復元検証してから、この再開runのclaimだけをexact-SHA leaseで解放する。実装・受け入れは未完了のまま保持し、SDD workspaceとscratchは削除しない。
+
+## 実装・全agent実機検証の完了（2026-10-18 18:10 UTC）
+
+利用者は保留指示に続いて「OpenCode Go の障害がなおったので、認証確認を実行して。」と明示した。#172の新しい予約を取得し、外部障害復旧という条件変更後のrunとして `pigod`・`pi-go-glmf` を各1回実行した。残っていた `pi-gemf` も1回だけ実行した。
+
+| agent | 観測provider / model / effort | payload | runner呼出し秒 |
+| --- | --- | --- | ---: |
+| pigod | opencode-go / deepseek-v4.1-flash / max | `{"marker":"00b3e7b47f1c57a2"}` | 2.874 |
+| pi-go-glmf | opencode-go / glm-5.3-flash / max | `{"marker":"482689b7e7e67e68"}` | 4.376 |
+| pi-gemf | google-vertex / gemini-3.8-flash / high | `{"marker":"1b7be89083bff0a6"}` | 5.555 |
+
+3件ともrunner/CLI exit0、runner/attempt success、正確なmarker payload、stop_confirmed=true、outside_changes=[]。wrapper12.882秒、exit0、PID不在も確認。使い捨てgit repoと一時config、writes=False、deadline120秒、fallbackなし。秘密値・認証ファイルの取得や設定変更は行っていない。過去の失敗や元smokeディレクトリは保持し、成功8件を繰り返していない。既存8件と今回3件の計11 agentをresult.jsonとも照合した。CursorのAutoは引き続きCLIの観測値であり内部の選択modelは未確定。
+
+#172の3つの受け入れ項目を確認し、結果の読戻し検証後にcompletedでcloseした。#150本文にも確認の完了と保留解除を追記した。認証確認の保留分は残っていない。
+
+- #172結果: https://github.com/usaturn/create-reso-world/issues/172#issuecomment-6253372271
+- #150結果: https://github.com/usaturn/create-reso-world/issues/150#issuecomment-6253372680
+- 今回の全11成功証跡: `/workspaces/reso-world/tmp/agents/issue-150.x_25tm6g/defer-opencode-20261018T180600Z/live-accepted-summary.json`
+- 今回の実機ログ: `/workspaces/reso-world/tmp/agents/issue-150.x_25tm6g/defer-opencode-20261018T180600Z/live-smoke-restored/`、wrapperは親scratchの `checks/live-smoke-restored-3f63d8c.json`。
+
+コード・設定は最終レビュー・回帰を実行した `9a03f74` から変更していない。それ以降の変更はSpec/Planだけである。前runのpytest2181件（431.53秒）・shell33件（327.932秒）・depth adapter291件（6.187秒）の終了コード0とログを確認し、全Taskと最終レビューを再実行していない。今回config check（5 runtime/11 agent supported）と全branch diff checkを再実行してexit0。新しいテストは不要で、記録だけの変更を文言照合テストで検証しない。
+
+公開準備時点の累積能動時間は 117.5/180分。今回の実機は12.882秒。元の主要Task内訳は過去の停止記録に保持し、利用者待ちは加算しない。公開・復元・予約解放の実績と最終所要時間はPRと#150の完了コメント、作業用ledgerへ記録する。状態はdraft、内容承認なし。#150を完了でcloseするのはPRのmainマージ時であり、この作業ではマージしない。
