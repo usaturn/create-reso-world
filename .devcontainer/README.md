@@ -416,6 +416,13 @@ Issue #125 で agent-workspace の導入手順にそろえた。`pi-mcp-adapter`
 組み込み MCP のため settings の `-builtin:mcp` だけを取り除き、他の設定は保持する。
 撤去に失敗して登録や npm マニフェストが残った場合は、理由を表示して postCreate を止める。
 
+Pi の導入・拡張更新より前に `.devcontainer/pi-provider-setup.py` が settings を検査する。
+`settings.json` が symlink・hard link・特殊ファイル、または不正な JSON / 必要な配列構造なら、
+共有先を変更したりリンクを切断したりせず、その Pi 節を止める。保存先の共有方法を確認し、
+通常ファイルを使う配置へ利用者が調整してから再実行する。MCP 撤去の直前と cleanup 時も同じ
+検査を行い、通常ファイルの mode と他の設定を保持する。I/O 障害では未使用 staging を掃除するが、
+それ以前に完了した npm / Pi 操作全体の巻き戻しや同時更新との排他は保証しない。
+
 旧独自 cleanup / JSON helper と撤去前の自動バックアップは廃止した。古いバックアップや
 MCP の状態ファイル、利用者のモデルと認証は自動削除しない。共有 `~/.pi` を使う全コンテナの
 Pi を終了してから rebuild する。ほかのコンテナも context7-pi / Plannotator を保持する版にそろえる。

@@ -1,7 +1,8 @@
-"""Provider setup's local storage boundary (also usable before uv is installed).
+"""Local Pi JSON update boundary (also usable before uv is installed).
 
-Validate models, source and optional OpenCode auth before any persistent change.
-Each replacement is complete-file, not a transaction across files or processes.
+Provider models/auth and installer settings share validation and staging. The
+historical filename remains for callers. Replacements are not a transaction
+across files, external Pi commands or processes; stop Pi/other setup first.
 """
 from __future__ import annotations
 
@@ -104,9 +105,38 @@ def setup(agent: Path, source: Path, provider: str) -> None:
             temporary.unlink(missing_ok=True)
 
 
+def settings_update(agent: Path, *, check_only: bool = False) -> None:
+    settings = agent / "settings.json"
+    plain_file(settings)
+    if not settings.exists():
+        return
+    data = load_object(settings)
+    for field in ("extensions", "packages"):
+        if field in data and not isinstance(data[field], list):
+            raise ValueError(f"Expected {field} array: {settings}")
+    extensions = data.get("extensions", [])
+    # Serialize during preflight too, before external Pi may change packages.
+    payload = dict(data)
+    payload["extensions"] = [entry for entry in extensions if entry != "-builtin:mcp"]
+    encoded = (json.dumps(payload, ensure_ascii=True, indent=2, allow_nan=False) + "\n").encode()
+    if check_only or "-builtin:mcp" not in extensions:
+        return
+    temporary = stage(settings, encoded, stat.S_IMODE(settings.stat().st_mode))
+    try:
+        os.replace(temporary, settings)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 if __name__ == "__main__":
     try:
-        setup(Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3])
+        if sys.argv[1] in ("--settings-check", "--settings-clean"):
+            agent = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(
+                os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".pi" / "agent"
+            ).expanduser()
+            settings_update(agent, check_only=sys.argv[1] == "--settings-check")
+        else:
+            setup(Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3])
     except (OSError, ValueError) as error:
-        print(f"ERROR: provider setup: {error}", file=sys.stderr)
+        print(f"ERROR: Pi configuration update: {error}", file=sys.stderr)
         sys.exit(1)

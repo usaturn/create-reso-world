@@ -195,6 +195,85 @@ F-6は同じPRでc35db31とe5a77a8が扱った「対象fragmentを本当に実�
 
 所要（commit前の集計）: 約20分。準備・全指摘の照合/再現約6分、Spec・実装・回帰約6分、通常/tmpの全体検証約7分、自己レビュー・記録約1分。公開・後片付けの時間は最終コメントと報告に記録する。
 
+## PR #141 settings 更新のレビュー修正（2026-10-18、完了）
+
+- 状態: `completed`。結論は **1: 修正して push**（マージしない）。今回も `/skill:review-fix-planning #141` を既存 PR への修正・検証・push の実行許可として扱い、内容の承認とは区別する。
+- 入力: 同じレビュー directory の4ファイル。SWE/Opus/Grok は `52cc4a0456d2`、GPT は `60bcb6247e06`。両方とも取得した現行 PR head `52cc4a0456d21a104d23f66c05d8751ddc121d63` の祖先。clean かつ先端一致の既存 feature worktree を再利用する。
+- 現行 Spec/Plan を repo・Issue/PR・テーマで照合し、この Spec のみを更新する。別世代の Spec は作らない。
+- 再現: SHA照合済みの隔離 worktree で実 `remove_pi_mcp_adapter` を実行すると、symlink / hardlink の settings は終了0で別 inode の通常ファイルになり、共有先には `-builtin:mcp` が残る。隔離 worktree と親 directory は再現終了後に削除した。
+- 全47変更の現行ファイル、削除元（旧cleanup・JSON helper・旧テストを含む）、関連処理・呼出元・テストを確認した。他 worktree の差分は取り込んでいない。読み取り専用の `sp-recon` / `sp-research` は同期呼出しが結果無しで返り、成功扱いせず controller が全調査と自己レビューを行った。
+
+### 今回の全指摘の分類
+
+S=SWE、O=Opus、G=GPT、K=Grok。active/resolved の指摘15件と、独立した未検証候補4件の **計19件: 解消済み12 / 対応する1 / 対応しない6**。見出し以外の test suggestion は同じ項目の検証案であり重複加算しない。以下の解消済みは検証開始時の現行 HEAD `52cc4a0` に対する判定であり、今回直した K-M2 を解消済みに付け替えて数えない。
+
+| ID | 元の指摘・候補 | 分類 | 根拠・確認 |
+|---|---|---|---|
+| S-M1 | DeepInfra の偽成功 | 解消済み | `scripts/setup_pi.zsh:2` の errexit と helper の preflight。provider回帰78件が成功 |
+| S-L1 | shrinkwrap / 隠しlock / manifest-only helper の検査縮小 | 対応しない | installerはrootの2manifestと登録済みhelperだけを見る。Spec D-2の意図した範囲縮小で、表示helper残存だけでは致命的な処理停止にならず、PRに制限・手動確認を記載済み |
+| S-L2 | models の固定tmp・mode・リンク | 解消済み | helper `plain_file` / `stage` とmode保持が存在。provider回帰で共有先・mode・残骸を検査し成功 |
+| S-I1 | /tmp worktree で移行テスト不能 | 解消済み | private tmp後のrepo再bind。今回も/tmpの138回帰が成功し、正常fragmentも実行できた |
+| O-M1 | forwardPorts による Plannotator bind 競合の疑い | 対応しない | 全10portのEADDRINUSEとLinuxにlistener無しを再確認。Windows側所有者・転送との因果関係は未確認で、設定変更を正当化しない。既存PRの制限と一時port/手動転送の回避方法を維持 |
+| O-I1 | Vertex の一覧/project 固定値 | 対応しない | 現ランチャーと期待値は一致し実行不具合ではない。テスト設計の論点として既存の判断を維持 |
+| O-L1 | /tmp不可視・境界テストの空振り | 解消済み | S-I1と同じ実行根拠。境界診断・正常対照・前後状態の既存assertionも維持 |
+| O-L2 | DeepInfra の偽成功 | 解消済み | S-M1と同じ実setup回帰 |
+| G-M1 | models の0600→0644 | 解消済み | `stage` と既存mode保持、新規0600。別providerの合成keyを保持する実setup回帰成功 |
+| G-M2 | ~/ によるcwdへの誤保存 | 解消済み | 3setupのmkdirより前のHOME展開。絶対/相対/~/~の18実行ケース成功 |
+| G-M3 | DeepInfra の偽成功 | 解消済み | S-M1と同じ実行根拠 |
+| G-M4 | BOM付きmodels/authの拒否 | 解消済み | `load_object` はutf-8-sig。BOM有無の3setup実行回帰成功 |
+| K-M2 | settings の共有リンク切断 | 対応する (a) | 実MCP関数がsymlink/hardlinkを別inodeへ置換し終了0。通常rebuildで了承のない設定共有の変更になる。下記F-5の設計見直しで修正 |
+| K-H1 | ~/ 配下の資格情報の誤保存 | 解消済み | G-M2と同じ。OpenCodeの合成authはHOME側だけに保存されmode0600 |
+| K-M1 | DeepInfra の偽成功 | 解消済み | S-M1と同じ実行根拠 |
+| S-U1 | 移植元privateのため一致を検証できない | 解消済み | 今回はGitHub APIで固定SHA `715d981` のtree/installerを読み取り専用取得できた。初回コミット `a24dc66` の32blob SHAとPi導入節が全一致。現行は安全修正の例外があるというPRの説明も正しい |
+| S-U2 | rebuild/実共有HOME/ADC/Windowsの受け入れ | 対応しない | Spec受入条件6で初めから別枠の実機確認。offlineの共有登録・親子argv/auth/native SDK境界は全回帰で成功し、実環境障害の根拠ではない。実機未実施を維持し成功と書かない |
+| S-U3 | catalog更新失敗がwarnだけ | 対応しない | 合成Piでrefresh終了7を注入し、既存の正しいmodel行があれば終了0、欠落なら終了1・完了表示無しを実行確認。後段の厳密なprovider/model照合は機能し、refreshだけの非致命化は仕様 |
+| O-U1 | 別containerの転送との競合候補 | 対応しない | O-M1と同じ観測で、占有元との因果関係の根拠無し。転送・他者サービスは変更しない |
+
+
+### 守る条件の設計（F-5 の適用経路の見直し）
+
+前回 `52cc4a0` は provider setup の models/auth だけを対象として installer の settings を表から外した。同じ「共有リンクや特殊ファイルを暗黙に置換しない」条件の2回目なので、点のガード追加だけではなく、repository が直接更新する Pi JSON の境界を見直す。
+
+守る条件: models/auth/settings が単一リンクの通常ファイルまたは未作成であり、更新に必要な JSON 構造を検査できるまでは、その更新処理が管理する設定・共有先・manifest・backup・staging・外部 Pi 呼出しを変更しない。I/O 障害では完成済みの先行操作までの巻き戻しは保証せず、未使用 staging を掃除し、対象を途中まで書かない。Pi と他 setup を止めて実行する前提を維持し、同時更新の race は保証しない。
+
+| 守る条件 | 経路・停止位置 | 変更前の挙動 | 判定 | 確かめる方法 / assertion |
+|---|---|---|---|---|
+| F-5 | provider helper の models/auth、新規・更新・変更なし、backup/staging/置換 | preflight と一意 staging が存在 | 既に満たす。共通 `plain_file` / `load_object` / `stage` を維持 | provider 78回帰、拒否前後の全状態とmode/link数 |
+| F-5 | installer の Pi 導入開始→extension replacement/retirement/install | settings の安全確認前に外部 Pi が設定を変更し得る | 修正する。Pi節の先頭で同じ helper による settings preflight | Pi節の実 fragment + fake npm/pi で、拒否時の全状態・外部呼出し無し |
+| F-5 | MCP migration の list/remove前 | settings検査はremove後、statでリンクを追う | 修正する。同じ helper のpreflightを外部Piより前に行う | 実関数で各1異常、全状態比較、リンク/共有先/manifest/audit不変 |
+| F-5 | MCP cleanup の再読込→serialize→stage→replace | inline独自writer、異常時tmpが残り得る | 修正する。providerと同じ検査・stagingにまとめ、再読込してPi変更後のpackagesを保持 | 通常/BOM/欠落/no-op/再実行、入力拒否、fsync/replace障害の全状態比較 |
+| F-5 | Vertex auth overlay | host authを置換せずnamespaceにread-only overlay、未作成のみ新規配置 | 既に満たす。共有先の既存内容を変更しない | 既存Vertex回帰のhost auth/state比較 |
+| 対象外 | 実Pi内部のsettings lock・npm操作、tier設定、models雛形初回配置 | Pi内部の保存や別の入力・初回操作 | 対象外。外部CLI内部の実装は変更せず、Pi節入口の事前拒否で共有settingsを渡さない | 現行の回帰を維持。transaction/並行更新を保証しない |
+
+案の比較: (1) inline Python に lstat だけを足す案は外部 `pi remove` が先行し、provider との適用漏れも繰り返すため不採用。(2) 既存の小さな JSON 更新 helper に settings preflight/cleanup を加え、同じ storage guard・BOM reader・staging を使う案を採用。歴史的なファイル名は呼出元互換のため維持する。(3) 共有リンク切断を既知の制限として許容する案は通常の rebuild による了承のない変更を残すため不採用。旧cleanupの全manifest検査・汎用移行機能は復活させない。
+
+テストは再現した実行挙動・安全条件に必要なものだけ27件追加した。文書の検査はdiff・参照先と構文の確認に代えた。スキル本体は変更しておらずスキル全体pytestは追加の反映条件にしない。
+
+### 今回の検証・失敗時の検証・自己レビュー
+
+| 検証 | 結果 |
+|---|---|
+| RED（修正前の実関数・Pi導入fragment） | symlink/hardlinkの4例と導入前preflightの4例、計8件が誤った終了0を検出し失敗 |
+| MCP / provider / isolation の関連回帰 | 136 passed / exit 0 |
+| `/tmp` のHEAD照合済みworktreeへ修正をコピーして上記と共有登録を実行 | 138 passed / exit 0 |
+| 共通storage guardだけを外した隔離対照 | settingsの9例 + models/authの12例、計21/21が失敗（exit 1） |
+| MCPの外部Piより前のpreflightだけを外した隔離対照 | FIFO以外の単一異常16/16が失敗（exit 1）。FIFOを対照で開いて待ち続けさせず、実guardのFIFO拒否自体は通常回帰で確認 |
+| 対照を復元した同worktree | 138 passed / exit 0。検証worktreeを外し、結果転記後に親directoryごと削除 |
+| `PI_CODEX_LIVE_CHECK=0 PI_OFFLINE=1 UV_OFFLINE=1 bash .devcontainer/run-tests.bash` | 32/32 PASS / exit 0。migrations入口も成功し、現行の収集数は262件（従来235 + 新規27） |
+| `bash scripts/check-layout.sh` | PASS / exit 0 |
+| shell構文・変更PythonのAST・`git diff --check` | PASS / exit 0 |
+| 移植元・catalog候補 | 初回32blobと導入節一致。refresh失敗/モデル有無の2例が意図した終了状態 |
+
+不正入力は MCP の9種類（symlink・切れたsymlink・hardlink・directory・FIFO・JSON構文・object形・extensions形・packages形）×登録有無2条件の18例、Pi導入前4例の計22例を実行した。各負例は異常1つだけ。処理前からのsnapshotと、テスト所有root全体（HOME/settings、共有先、npm manifests、backup/stagingの有無、bin/fragment、外部Pi/npmのaudit）の種類・バイト列・mode・link先・link数が一致することを確かめた。構文エラーに合成secretを入れ、診断に内容を表示しないことも確認した。
+
+fsync/replaceを個別に失敗させた2例では、設定本体・共有先以外も含む同じ状態全体が一致し、stagingが残らない。通常/BOM/再実行で既存modeと他の設定を保持する。欠落/空object/変更不要の3例はpreflight・cleanupの両modeで作成も再保存もしない。MCPの外部remove後は最新のpackagesを再読込し、古いsnapshotで登録を復活させない。外部removeが既に成功した後のI/O障害は、その完了した操作まで巻き戻さない。
+
+自己レビューはcontrollerが1回、(1)F-5全経路への反証（既存/欠落/変更不要/拒否/外部remove後/各I/O停止位置）、(2)PR全体の差分・現行ファイルと削除元・呼出元、(3)検証の検出力（全状態・単一異常・21/16の対照・テスト採用基準）を確認した。追加の致命的指摘0件、追加の対応しない指摘0件。自己レビュー後のコード修正・2回目のレビューは無い。未実施の実機確認を解消したという意味ではない。
+
+実機rebuild・共有containerとの交互rebuild・実provider/ADC・Windows側のport所有者と実ブラウザー到達は未実施。元の受け入れchecklistと既知の制限を維持する。利用者のHOME/認証・他者サービスは変更していない。
+
+今回の所要（公開前、概算）: 約17分。準備/全入力照合・再現3分、設計/実装/回帰3分、全体/隔離対照検証6分、全文確認/候補検証/自己レビュー4分、記録1分。公開・片付けの結果はPR状況コメントと完了報告にだけ残し、記録専用commitは追加しない。
+
 ## 対象外・停止条件
 
 ccdu、DSH の launcher / installer、agent-runner、他リポジトリの変更、API 実呼び出し・ログイン・ADC 作成、rebuild・マージ・force push・タグ・リリースは対象外。同じ Issue の競合・明示の判断要求・未解消の依存・検証失敗・安全失敗が発生したら issue-to-pr に従って停止する。push / PR 作成直前に再確認する。

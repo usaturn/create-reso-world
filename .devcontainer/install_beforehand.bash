@@ -239,6 +239,11 @@ if ! install_devin_cli; then
 fi
 
 step "Installing pi"
+# Validate shared settings before any Pi installation/extension mutation. In
+# particular, never let a later cleanup silently sever a user's shared link.
+if ! python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --settings-check; then
+    fail "Unsafe or invalid pi settings.json; aborting before pi installation."
+fi
 # ~/.pi は devcontainer.json で bind mount している。ホスト側に存在しない場合は
 # Docker が root 所有で作成するため、以降の pi install が書き込めるよう所有権を直す。
 if ! ensure_user_writable_dir "${HOME}/.pi"; then
@@ -341,6 +346,10 @@ PYEOF
         echo "Failed to resolve the pi agent directory; aborting pi-mcp-adapter removal." >&2
         exit 1
     fi
+    if ! python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --settings-check "$agent_dir"; then
+        echo "Unsafe or invalid ${agent_dir}/settings.json; aborting pi-mcp-adapter removal." >&2
+        exit 1
+    fi
     if ! listed="$(pi list 2>&1)"; then
         echo "Failed to list pi extensions (pi list); aborting pi-mcp-adapter removal." >&2
         exit 1
@@ -378,37 +387,9 @@ PYEOF
     # pi remove はパッケージ登録を消すだけで、adapter が書き込んだ extensions の
     # -builtin:mcp は settings.json に残る。そのままだと組み込み MCP が無効のまま
     # なので、該当エントリだけを取り除く。他の extensions エントリは保持する。
-    if ! python3 - "$agent_dir" <<'PYEOF'
-import json
-import os
-import stat
-import sys
-import tempfile
-from pathlib import Path
-
-settings_path = Path(sys.argv[1]) / "settings.json"
-if not settings_path.exists():
-    sys.exit(0)
-try:
-    data = json.loads(settings_path.read_text(encoding="utf-8-sig"))
-except (ValueError, UnicodeError) as error:
-    print(f"Invalid JSON in {settings_path}: {error}", file=sys.stderr)
-    sys.exit(1)
-if not isinstance(data, dict):
-    sys.exit(0)
-extensions = data.get("extensions")
-if not isinstance(extensions, list) or "-builtin:mcp" not in extensions:
-    sys.exit(0)
-data["extensions"] = [entry for entry in extensions if entry != "-builtin:mcp"]
-fd, temp_name = tempfile.mkstemp(dir=settings_path.parent, prefix=".settings-", suffix=".tmp")
-temp_path = Path(temp_name)
-with os.fdopen(fd, "w", encoding="utf-8") as temp_file:
-    json.dump(data, temp_file, ensure_ascii=False, indent=2)
-    temp_file.write("\n")
-os.chmod(temp_path, stat.S_IMODE(settings_path.stat().st_mode))
-os.replace(temp_path, settings_path)
-PYEOF
-    then
+    # Re-read after pi remove: keep the packages it just updated. The shared
+    # helper validates again and stages a complete file, cleaning up on I/O error.
+    if ! python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --settings-clean "$agent_dir"; then
         echo "Failed to clean -builtin:mcp from ${agent_dir}/settings.json." >&2
         exit 1
     fi

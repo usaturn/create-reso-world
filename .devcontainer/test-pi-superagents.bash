@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export WORKSPACE_ROOT="$REPO_ROOT"
 HELPER="${REPO_ROOT}/.devcontainer/pi-superagents-exec.zsh"
 TEST_ROOT="$(mktemp -d)"
 ZSH_BIN="$(command -v zsh)"

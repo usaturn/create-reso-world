@@ -81,6 +81,7 @@ def test_rebuild_preserves_shared_packages(tmp_path: Path, registered: bool) -> 
     env = {
         **os.environ,
         "HOME": str(home),
+        "WORKSPACE_ROOT": str(ROOT),
         "PI_CODING_AGENT_DIR": str(agent),
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "TEST_REMOVALS": str(removals),
