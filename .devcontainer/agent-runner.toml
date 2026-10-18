@@ -75,3 +75,12 @@ runtime = "claude-code"
 command = ["claude"]
 model = "opus"
 env = ["HOME", "PATH"]
+
+[agents.codex]
+runtime = "codex"
+command = ["codex", "exec"]
+model = "gpt-6.1-sol"
+provider = "openai"
+approval = "noninteractive"
+skill_sources = [".agents/skills", ".codex/skills"]
+env = ["HOME", "PATH"]
