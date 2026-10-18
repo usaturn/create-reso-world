@@ -105,3 +105,29 @@ def test_plausible_response_does_not_hide_failure(repository: Path, tmp_path: Pa
     assert batch.state == 'failed'
     assert batch.results[0].state == state
     assert attempt.stop_confirmed
+
+
+@pytest.mark.parametrize("mode,exit_code,success", [
+    ("success", 0, True),
+    ("terminal", 0, False),
+    ("no-completion", 0, False),
+    ("no-message", 0, False),
+    ("turn-failed", 0, False),
+    ("success", 7, False),
+])
+def test_reconnect_requires_fresh_completion_and_clean_process_exit(
+    repository: Path, tmp_path: Path, mode: str, exit_code: int, success: bool,
+) -> None:
+    args = [f"--reconnect={mode}", *(["--nonzero"] if exit_code else [])]
+    batch = run_workflow(_config(args), "audit", "prompt", repository, output_dir=tmp_path / "run")
+    attempt = batch.results[0].attempts[0]
+    assert attempt.exit_code == exit_code and attempt.stop_confirmed
+    assert batch.state == ("success" if success else "failed")
+    assert attempt.state == ("success" if success else "response_failed")
+    assert attempt.identity.session_id == SESSION
+    assert attempt.identity.model == "observed-model"
+    assert batch.outside_changes == []
+    if success:
+        assert attempt.payload == {"answer": 42}
+    elif mode != "success":
+        assert attempt.payload is None

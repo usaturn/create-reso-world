@@ -113,7 +113,7 @@ def _read_evidence(event: dict[str, object]) -> list[tuple[str, str]]:
 def _skill_versions(text: str) -> dict[str, str]:
     """Version map from completed reads whose returned content still equals the present bytes."""
     evidence: list[tuple[str, str]] = []
-    for line in text.splitlines():
+    for line in text.split("\n"):
         event = _event(line)
         if event is None:
             continue
@@ -127,7 +127,7 @@ def _skill_versions(text: str) -> dict[str, str]:
 def _diagnostics(stdout: str, stderr: str) -> str:
     """CLI-emitted diagnostics: stderr, non-JSON stdout lines, and failure events."""
     parts = [stderr]
-    for line in stdout.splitlines():
+    for line in stdout.split("\n"):
         if not line.strip():
             continue
         event = _event(line)
@@ -161,7 +161,7 @@ class _CursorAdapter:
     def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
         stdout = _read(stdout_path)
         stderr = _read(stderr_path)
-        events = [e for e in (_event(line) for line in stdout.splitlines()) if e is not None]
+        events = [e for e in (_event(line) for line in stdout.split("\n")) if e is not None]
 
         session_id: str | None = None
         model: str | None = None
@@ -184,7 +184,7 @@ class _CursorAdapter:
 
         # Preserve malformed event failures instead of silently reusing an
         # earlier terminal result. Plain CLI progress lines remain harmless.
-        if any(line.lstrip().startswith(("{", "[")) and _event(line) is None for line in stdout.splitlines()):
+        if any(line.lstrip().startswith(("{", "[")) and _event(line) is None for line in stdout.split("\n")):
             return failed("response_failed")
 
         result: str | None = None

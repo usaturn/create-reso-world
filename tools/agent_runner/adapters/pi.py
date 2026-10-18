@@ -28,7 +28,7 @@ _APPROVAL = re.compile(
     r"|permission (?:denied|required)|grant access|confirm(?:ed)? (?:to )?continue)",
     re.IGNORECASE,
 )
-_FENCE = re.compile(r"```(?:json|JSON)\b[^\n]*\n(.*?)```", re.DOTALL)
+_FENCE = re.compile(r"```(?:json|JSON)\b[^\n]*\n")
 _STOP_OK = {"stop", "endturn", "end_turn", "completed", "complete", "finished", "normal"}
 
 
@@ -37,7 +37,7 @@ def _events(path: Path) -> Iterator[dict[str, object]]:
         data = path.read_bytes()
     except OSError:
         return
-    for line in data.decode("utf-8", errors="replace").splitlines():
+    for line in data.decode("utf-8", errors="replace").split("\n"):
         line = line.strip()
         if not line.startswith(("{", "[")):
             continue
@@ -61,16 +61,22 @@ def _text(path: Path) -> str:
 
 
 def _json_object(text: str) -> dict[str, object] | None:
-    candidates = [text.strip()]
-    candidates.extend(block.strip() for block in _FENCE.findall(text))
-    for candidate in candidates:
-        if not candidate:
-            continue
+    try:
+        value: object = json.loads(text.strip())
+    except ValueError:
+        pass
+    else:
+        return cast(dict[str, object], value) if isinstance(value, dict) else None
+    decoder = json.JSONDecoder()
+    for opening in _FENCE.finditer(text):
+        candidate = text[opening.end():].lstrip()
         try:
-            value: object = json.loads(candidate)
+            value, end = decoder.raw_decode(candidate)
         except ValueError:
             continue
-        if isinstance(value, dict):
+        # JSON strings may contain backticks. Only the decoder's object end
+        # can determine where to look for the Markdown closing fence.
+        if isinstance(value, dict) and candidate[end:].lstrip().startswith("```"):
             return cast(dict[str, object], value)
     return None
 

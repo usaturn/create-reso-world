@@ -108,7 +108,7 @@ def _skill_versions(*texts: str) -> dict[str, str]:
     """Version map from reads whose observed output still equals the present bytes."""
     evidence: list[tuple[str, str]] = []
     for text in texts:
-        for line in text.splitlines():
+        for line in text.split("\n"):
             event = _event(line)
             if event is None:
                 continue
@@ -116,15 +116,16 @@ def _skill_versions(*texts: str) -> dict[str, str]:
     return verified_versions(evidence)
 
 
-def _diagnostics(stdout: str, stderr: str) -> str:
-    """CLI-emitted diagnostics: stderr, non-JSON stdout lines, and failure events."""
+def _diagnostics(stdout: str, stderr: str, failures: list[dict[str, object]]) -> str:
+    """CLI diagnostics, retaining only unrecovered stream errors and fatal turns."""
     parts = [stderr]
-    for line in stdout.splitlines():
+    for line in stdout.split("\n"):
         if not line.strip():
             continue
         event = _event(line)
-        if event is None or event.get("type") in {"error", "turn.failed"}:
+        if event is None:
             parts.append(line)
+    parts.extend(json.dumps(event) for event in failures)
     return "\n".join(parts)
 
 
@@ -154,7 +155,7 @@ def _rollout(session_id: str | None, environment: Mapping[str, str]) -> str:
                 continue
             text = _read(path)
             mismatched = False
-            for line in text.splitlines():
+            for line in text.split("\n"):
                 record = _event(line)
                 if record is None or record.get("type") != "session_meta":
                     continue
@@ -172,12 +173,12 @@ def _rollout(session_id: str | None, environment: Mapping[str, str]) -> str:
 
 def _malformed_events(text: str) -> bool:
     """Reject JSON-like corruption without treating ordinary progress as JSON."""
-    return any(line.lstrip().startswith(("{", "[")) and _event(line) is None for line in text.splitlines())
+    return any(line.lstrip().startswith(("{", "[")) and _event(line) is None for line in text.split("\n"))
 
 
 def _rollout_fields(text: str) -> dict[str, str]:
     fields: dict[str, str] = {}
-    for line in text.splitlines():
+    for line in text.split("\n"):
         record = _event(line)
         if record is None:
             continue
@@ -208,7 +209,7 @@ class _CodexAdapter:
     def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
         stdout = _read(stdout_path)
         stderr = _read(stderr_path)
-        events = [e for e in (_event(line) for line in stdout.splitlines()) if e is not None]
+        events = [e for e in (_event(line) for line in stdout.split("\n")) if e is not None]
 
         session_id: str | None = None
         valid_thread = True
@@ -237,29 +238,43 @@ class _CodexAdapter:
         def failed(state: State) -> AdapterOutcome:
             return AdapterOutcome(identity=identity, state=state)
 
-        if _AUTHENTICATION.search(_diagnostics(stdout, stderr)):
-            return failed("awaiting_authentication")
-        if _APPROVAL.search(_diagnostics(stdout, stderr)):
-            return failed("awaiting_approval")
-        if not valid_thread or _malformed_events(stdout) or _malformed_events(rollout_text):
-            return failed("response_failed")
-        if any(e.get("type") in {"error", "turn.failed"} for e in events):
-            return failed("response_failed")
         text: str | None = None
         completed = False
+        pending_errors: list[dict[str, object]] = []
+        failed_turns: list[dict[str, object]] = []
         for event in events:
-            if event.get("type") == "turn.started":
+            kind = event.get("type")
+            if kind in {"turn.started", "error", "turn.failed"}:
+                # An error invalidates all prior message/completion evidence.
                 text = None
                 completed = False
-            elif event.get("type") == "turn.completed":
+                if kind == "error":
+                    pending_errors.append(event)
+                elif kind == "turn.failed":
+                    # Unlike transport errors, a failed turn is always fatal.
+                    failed_turns.append(event)
+            elif kind == "turn.completed":
                 completed = True
-            elif event.get("type") == "item.completed":
+                if text is not None and text.strip() and (
+                    context.request.result_shape != "json" or _json_object(text) is not None
+                ):
+                    pending_errors.clear()
+            elif kind == "item.completed":
                 item = event.get("item")
                 if not isinstance(item, dict) or item.get("type") != "agent_message":
                     continue
                 candidate = item.get("text")
                 text = candidate if isinstance(candidate, str) else None
                 completed = False
+        diagnostics = _diagnostics(stdout, stderr, [*pending_errors, *failed_turns])
+        if _AUTHENTICATION.search(diagnostics):
+            return failed("awaiting_authentication")
+        if _APPROVAL.search(diagnostics):
+            return failed("awaiting_approval")
+        if not valid_thread or _malformed_events(stdout) or _malformed_events(rollout_text):
+            return failed("response_failed")
+        if pending_errors or failed_turns:
+            return failed("response_failed")
         if not completed:
             return failed("response_failed")
         if text is None:

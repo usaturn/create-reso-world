@@ -60,19 +60,22 @@ def _json_object(text: str) -> dict[str, object] | None:
     # Plain CLI progress can follow the answer, but another JSON-like event
     # (complete or truncated) is not a valid single final response.
     candidate = text.strip()
-    trailing = ""
-    if candidate.startswith("```"):
-        fence = re.fullmatch(
-            r"```(?:json|JSON)\b[^\n]*\n(.*?)```(.*)", candidate, re.DOTALL
-        )
-        if fence is None:
+    fenced = candidate.startswith("```")
+    if fenced:
+        opening = re.match(r"```(?:json|JSON)\b[^\n]*\n", candidate)
+        if opening is None:
             return None
-        candidate, trailing = fence.group(1).strip(), fence.group(2).strip()
+        candidate = candidate[opening.end():].lstrip()
     try:
         value, end = json.JSONDecoder().raw_decode(candidate)
     except ValueError:
         return None
-    tail = "\n".join((candidate[end:].strip(), trailing)).strip()
+    tail = candidate[end:].strip()
+    if fenced:
+        # Do not interpret backticks inside a JSON string as the closing fence.
+        if not tail.startswith("```"):
+            return None
+        tail = tail[3:].strip()
     if _failure_status(tail) is not None or any(
         line.lstrip().startswith(("{", "[", "```")) for line in tail.splitlines()
     ):
@@ -218,7 +221,9 @@ class Devin:
         diagnostics = [
             line
             for text in (stdout, final or "")
-            for line in text.splitlines()
+            # Unicode separators within valid JSON strings are answer data,
+            # not the start of a CLI diagnostic line.
+            for line in text.split("\n")
             if _DIAGNOSTIC_LINE.match(line.strip())
         ]
         hint = _failure_status(stderr, *diagnostics)
