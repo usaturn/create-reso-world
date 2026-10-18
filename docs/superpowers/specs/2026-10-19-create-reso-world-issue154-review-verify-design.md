@@ -65,3 +65,7 @@ PR の head と base を固定し、各 Markdown と対応する構造化候補�
 - dispatcher を fake adapter で実行し、self/外部、完全入力、監査・停止確認、保存先変更、inventory、実測 identity、失敗を確認する。本物の CLI や資格情報を fixture にしない。
 - `uv run pytest .agents/skills/review-verify`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`。スキル構文と参照先を検査する。
 - push 前に親 checkout の秘密情報検査を実行し、その SHA を push。PR は同 branch から1件、main 向け。Actions は無効のため CI 確認不要。マージしない。
+
+## 実行の証拠
+
+実行許可の範囲で2 Taskを実装し、それぞれ独立レビューと1回の修正・差分再レビューを行った。旧配置への新規出力と、外部payloadの主要skill取り違えを修正した。cycle fixture、無し/あり判断評価、初回全体2000件、主要skill照合修正後の集中112件、Dev Container 33本、配置・構造の検査を実施。詳細と最終の回帰・公開結果は関連Planの実行記録に残す。文書の内容承認は記録されておらず、状態はdraftのままとする。
