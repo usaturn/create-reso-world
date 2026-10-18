@@ -1372,6 +1372,17 @@ def kill_stalled_git(tmp_path: Path) -> None:
             os.kill(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)
 
 
+def wait_for_stalled_git(tmp_path: Path) -> None:
+    # The journal phase precedes git startup; this marker follows checkout.
+    pid_file = tmp_path / "stalled-git.pid"
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if pid_file.is_file():
+            return
+        time.sleep(0.05)
+    raise AssertionError("git worktree add never reached its stall point")
+
+
 def wait_for_phase(repo: Path, temp_root: Path, attempt: str, phase: str) -> dict[str, Any]:
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
@@ -1411,6 +1422,7 @@ def test_killed_create_reports_its_last_phase_and_leftovers(tmp_path: Path) -> N
     process = start_create(stalling_git_env(tmp_path), repo, commit, temp_root, attempt)
     try:
         running = wait_for_phase(repo, temp_root, attempt, "worktree-add")
+        wait_for_stalled_git(tmp_path)
         kill_group(process.pid, signal.SIGKILL)
         _, stderr = process.communicate(timeout=10)
         # `git worktree add` runs in its own session, so the group kill spares it.
@@ -1563,6 +1575,7 @@ def test_abandon_waits_for_a_checkout_that_outlives_create(tmp_path: Path) -> No
     process = start_create(stalling_git_env(tmp_path), repo, commit, temp_root, attempt)
     try:
         wait_for_phase(repo, temp_root, attempt, "worktree-add")
+        wait_for_stalled_git(tmp_path)
         process.kill()  # only create itself; its git child keeps running
         process.communicate(timeout=10)
 
