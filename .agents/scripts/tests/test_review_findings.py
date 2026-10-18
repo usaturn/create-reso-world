@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -28,6 +29,18 @@ FIX = "d7b1085f0e1d2c3b4a5968778695a4b3c2d1e0f9"
 SHA = "0123456789abcdef" * 4
 
 Mutation = Callable[[dict[str, Any]], None]
+
+
+@pytest.fixture(autouse=True)
+def isolated_git(monkeypatch: pytest.MonkeyPatch) -> None:
+    """親プロセスの ``GIT_*`` を読まない。
+
+    linked worktree の ``git rebase --exec`` は ``GIT_DIR`` を export するので、残すと ``git -C <一時ディレクトリ>`` も
+    実リポジトリの設定・index・ブランチを書き換える。
+    """
+    for name in tuple(os.environ):
+        if name.startswith("GIT_"):
+            monkeypatch.delenv(name)
 
 
 def candidate_finding(finding_id: str = "H-1", severity: str = "High") -> dict[str, Any]:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -34,7 +35,14 @@ def url(repository: str) -> str:
 
 @pytest.fixture(autouse=True)
 def isolated_git(monkeypatch: pytest.MonkeyPatch) -> None:
-    """利用者の Git の設定（insteadOf など）を読まない。"""
+    """利用者の Git の設定（insteadOf など）と、親プロセスの ``GIT_*`` を読まない。
+
+    linked worktree の ``git rebase --exec`` は ``GIT_DIR`` を export するので、残すと ``git -C <一時ディレクトリ>`` も
+    実リポジトリの設定・index・ブランチを書き換える。
+    """
+    for name in tuple(os.environ):
+        if name.startswith("GIT_"):
+            monkeypatch.delenv(name)
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 
