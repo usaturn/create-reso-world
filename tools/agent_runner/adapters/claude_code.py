@@ -43,6 +43,10 @@ def _events(path: Path) -> Iterator[dict[str, object]]:
         try:
             value: object = json.loads(line)
         except ValueError:
+            # Preserve a broken event's position so an earlier result cannot
+            # hide a truncated later response. Plain notification lines above
+            # remain ignorable, and malformed text is never a diagnostic.
+            yield {"type": "_malformed_event"}
             continue
         if isinstance(value, dict):
             yield cast(dict[str, object], value)
@@ -150,7 +154,7 @@ def _classify(context: AdapterContext, events: list[dict[str, object]], stderr: 
     if result.get("permission_denials"):
         return "awaiting_approval", None
     if errors or (result_index is not None and any(
-        event.get("type") in {"assistant", "user"}
+        event.get("type") in {"assistant", "user", "_malformed_event"}
         or (event.get("type") == "system" and event.get("subtype") == "init")
         for event in events[result_index + 1:]
     )):

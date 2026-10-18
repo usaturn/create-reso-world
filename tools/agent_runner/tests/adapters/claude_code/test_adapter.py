@@ -176,7 +176,7 @@ def test_garbled_and_non_json_lines_are_skipped(context: AdapterContext) -> None
         json.dumps(init),
         "not json at all",
         json.dumps(_result('{"ok":1}')),
-        "truncated {",
+        "CLI notification: done",
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     outcome = ADAPTER.collect(context, path, _write_stderr(context, ""))
@@ -349,3 +349,23 @@ def test_explicit_assistant_error_is_auth_diagnostic(context: AdapterContext) ->
 def test_later_unfinished_turn_invalidates_earlier_success(context: AdapterContext) -> None:
     outcome = _collect(context, _result(), _assistant("partial next turn"))
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
+
+
+@pytest.mark.parametrize("tail", ['{"type":"result",', '{"type":"assistant",', '  {'])
+def test_truncated_event_after_success_invalidates_completion(context: AdapterContext, tail: str) -> None:
+    path = _write_stdout(context, _result())
+    with path.open("a") as stream:
+        stream.write(tail)
+    outcome = ADAPTER.collect(context, path, _write_stderr(context, ""))
+    assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
+    assert outcome.receipt.payload is None
+
+
+def test_malformed_event_before_final_completion_does_not_reuse_stale_result(context: AdapterContext) -> None:
+    path = _write_stdout(context, _result('{"old": true}'))
+    with path.open("a") as stream:
+        stream.write('{"type":"assistant",\n')
+        stream.write(_stream([_result('{"new": true}')]))
+    outcome = ADAPTER.collect(context, path, _write_stderr(context, ""))
+    assert outcome.receipt is not None and outcome.receipt.status == "success"
+    assert outcome.receipt.payload == {"new": True}

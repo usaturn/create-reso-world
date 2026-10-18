@@ -46,7 +46,8 @@ JSON の役割では最終回答を JSON object にする指示も追加する�
 ``subtype = "success"`` かつ ``is_error`` が偽であり、役割に対応した空でない JSON object または text が必要である。
 JSON は object 全体か JSON code fence 内の object を受け付ける。
 完了イベントの欠落、不正な応答、明示的なエラー、成功イベント後に続く未完了の応答は ``response_failed`` とする。
-JSON でない通知行や壊れた行は無視し、完了条件を別途検査する。
+JSON でない通知行は無視する。
+JSON イベントらしい行の解析に失敗した場合は位置を保持し、最後の完了イベントより後にあれば ``response_failed`` とする。
 
 stderr、明示的な ``error`` イベント、 ``error`` を持つ assistant、失敗した result の診断内容から認証待ち・承認待ちを分類する。
 これらの診断は一見有効な回答より優先する。
