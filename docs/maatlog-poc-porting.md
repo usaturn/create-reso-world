@@ -4,6 +4,8 @@
 
 pi の部分は後に Issue #125（2026-10-17）で usaturn/agent-workspace の `715d98168ab60011a98a42476ffea2759d4866d7` を基に置き換えた。下表の #125 の行が現在の判断であり、#17〜#22 の過去の Spec と rebuild の観測結果は履歴として残す。
 
+Context7 の扱いは、さらに Issue #162（2026-10-18）で変えた。Context7 は `find-docs` スキルから、postCreate が固定した版で入れる `ctx7` CLI だけで使う。MCP の `context7`（`.mcp.json`・`.pi/mcp.json`）を外し、`.codex/config.toml` と `.cursor/mcp.json` を消した。context7-pi は導入をやめ、`.pi/settings.json` で読み込みを止めたが、共有の `~/.pi` の登録は消さない。下表の Context7 に触れる #125 の行には、理由の列に #162 の変更を追記した。「指示文・MCP の読み込み」の表は 2026-10-05 の確認の記録で、書き換えていない。
+
 利用者が参照する現在の手順は `README.md` と `.devcontainer/README.md` にある。既存の環境への反映は `.devcontainer/README.md` の「既存環境の更新」を参照する。
 
 ## 基準
@@ -39,7 +41,7 @@ pi の部分は後に Issue #125（2026-10-17）で usaturn/agent-workspace の 
 
 | 移植元のパス | 移植先のパス | 判断 | 理由 | 担当 Issue |
 | --- | --- | --- | --- | --- |
-| `.devcontainer/install_beforehand.bash` の pi の導入、旧拡張の撤去（`Removing npm:pi-mcp-adapter`・`Removing npm:pi-distill`）、拡張の導入、`models.json` の配置 | 同じファイルの pi 節 | 移植 | agent-workspace の pi 節を採用。context7-pi と Plannotator を導入・保持し、旧 adapter・distill・lens を撤去する。独自 cleanup と撤去前バックアップを廃止。非 pi の節は保持する | #125 |
+| `.devcontainer/install_beforehand.bash` の pi の導入、旧拡張の撤去（`Removing npm:pi-mcp-adapter`・`Removing npm:pi-distill`）、拡張の導入、`models.json` の配置 | 同じファイルの pi 節 | 移植 | agent-workspace の pi 節を採用。context7-pi と Plannotator を導入・保持し、旧 adapter・distill・lens を撤去する。独自 cleanup と撤去前バックアップを廃止。非 pi の節は保持する。後に #162 で context7-pi の導入をやめた（登録は消さない） | #125 |
 | なし | `.devcontainer/cleanup_pi_mcp.py`（削除） | 適応 | 独自 cleanup を削除し、agent-workspace の導入節で撤去する。context7-pi は撤去しない | #125 |
 | なし | `.devcontainer/pi_json.py`（削除） | 適応 | 独自 JSON helper と setup の事前検査を削除し、agent-workspace の setup にそろえる | #125 |
 | なし | `.devcontainer/tests/fake_pi_packages.py`（削除） | 適応 | 旧 cleanup と一緒に削除。共有登録の保持は tools/devenv_migration/tests/test_pi_shared_packages.py で実行検査する | #125 |
@@ -49,7 +51,7 @@ pi の部分は後に Issue #125（2026-10-17）で usaturn/agent-workspace の 
 | `.devcontainer/pi-models.json` | 同じ | 移植 | agent-workspace と同じ定義にし、雛形から union-alpha を除く。利用者の既存 models.json は上書きしない | #125 |
 | `.devcontainer/zshrc.txt` の pi の環境変数 | 同じファイルの同じ箇所 | 適応 | `PI_EXTENSIONS_LOCALE` と `PI_DISTILL_*` の設定と説明を削除した。ランチャーと `update()` は保つ | #19 |
 | `.pi/settings.json` | 同じ | 適応（#19: 新規・適応） | `extensions` を `["+builtin:mcp"]` にした。移植元にある MaatLog 専用の `version-export` の skills は含めない | #19 |
-| `.pi/mcp.json` | 同じ | 移植 | agent-workspace と同じ。context7 と Google Developer Knowledge の設定を使う | #125 |
+| `.pi/mcp.json` | 同じ | 移植 | agent-workspace と同じ。context7 と Google Developer Knowledge の設定を使う。後に #162 で context7 を外した | #125 |
 | `.pi-lens.json` | 同じ | 既存維持 | 移植先の ignore（`tmp`・`.venv`・`artifacts`・`.resoloop`・`external`・`private`）は移植元を包含する | #19 |
 | `.pi/APPEND_SYSTEM.md` | 同じ | 適応 | 現行 role API の説明を合わせ、ワールド cwd・handoff・persona・Superpowers 内での同期直列委譲というこの環境の制限を保持する | #125 |
 | なし | `.devcontainer/test-install-beforehand.bash` | 適応 | cleanup の実行の順序と、廃止した helper が呼ばれないことを検査する | #19 |
@@ -152,7 +154,7 @@ pi の部分は後に Issue #125（2026-10-17）で usaturn/agent-workspace の 
 | `.agents/review-records.md`・`.agents/scripts/**`（4 件。`agent_tmp.py`・`review_records.py` とそのテスト） | なし | 対象外 | レビュー系ツール。後に #115（2026-10-17）で入れた `.agents/scripts/issue_budget.py` は usaturn/agent-workspace から取り入れたもので、この行の移植元のファイルとは別物 | #17 |
 | `.devcontainer/herdr-pr-review.bash`・`.devcontainer/herdr-pr-review-launch.bash`・`.devcontainer/herdr-pr-review.toml` | なし | 対象外 | レビュー系ツール | #17 |
 | `tools/__init__.py`・`tools/herdr_pr_review/**`（116 件）・`tools/review_triage/**`（37 件）・`tools/devenv/**`（3 件）・`tools/devenv_migration/**`（16 件）・`tools/test_support/**`（10 件） | なし | 対象外 | レビュー系ツールとその支援 | #17 |
-| `.devcontainer/install_beforehand.bash` の `npm:@upstash/context7-pi` の導入、`.pi/mcp.json` の `context7` | 同じファイルと `.pi/mcp.json` | 移植 | #17 の対象外とする判断を変更し、context7-pi と MCP の context7 を導入・保持する。共有 ~/.pi の登録が消える問題を解消する | #125 |
+| `.devcontainer/install_beforehand.bash` の `npm:@upstash/context7-pi` の導入、`.pi/mcp.json` の `context7` | 同じファイルと `.pi/mcp.json` | 移植 | #17 の対象外とする判断を変更し、context7-pi と MCP の context7 を導入・保持する。共有 ~/.pi の登録が消える問題を解消する。後に #162（2026-10-18）で、Context7 を `ctx7` CLI と `find-docs` に移し、context7-pi の導入と MCP の context7 を外した。共有 ~/.pi の登録は消さず、`.pi/settings.json` で読み込みを止める | #125 |
 
 ### 対象外: MaatLog 固有・他のエージェント
 

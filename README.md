@@ -112,14 +112,12 @@
 
 初回や設定の変更後に、次の点に注意する。
 
-- Codex: プロジェクトを信頼（trust）すると、`.codex/config.toml` の MCP サーバー（`context7_stdio`）が読まれる。初回の起動時に承認する。
-  ユーザー設定の `context7` が HTTP 接続でも、stdio 接続の設定と混ざらないよう別名にしている。
-  ユーザー側にも `context7` がある場合は、両方が独立したサーバーとして読み込まれる。ユーザー設定は変更しない。
-- cursor-agent: `.cursor/mcp.json` の MCP サーバーは、初回に承認を求められる。
+- Context7: どのエージェントも MCP ではなく、`find-docs` スキルから Context7 CLI（`ctx7`。postCreate が固定した版で入れる）を使う。
+  導入・更新・認証と、リポジトリの外に残る Context7 の設定の扱いは `.devcontainer/README.md` の「Context7 CLI（ctx7）」にある。
 - Devin: `.claude/skills` の symlink 経由で同じスキルが見えても、一覧には 1 回だけ表示される（`.devin/config.json` は置かない）。
 - Cursor: スキルの一部が見えない。詳細は `.devcontainer/README.md` の「エージェントの読み込みの制約」。
-- pi: プロジェクトを信頼（trust）すると、`.pi/settings.json`（組み込み MCP の有効化）と `.pi/mcp.json`（Google Developer Knowledge の
-  MCP サーバーと Context7）、`.pi/APPEND_SYSTEM.md`（pi 固有の指示）、プロジェクトのスキル（`.agents/skills`）が読まれる。ワールドはプロジェクト直下の `.pi` symlink（ルートへの相対パスはプロジェクトの深さに応じる）から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
+- pi: プロジェクトを信頼（trust）すると、`.pi/settings.json`（組み込み MCP の有効化と、共有の `~/.pi` にある Context7 拡張の読み込みの停止）と
+  `.pi/mcp.json`（Google Developer Knowledge の MCP サーバー）、`.pi/APPEND_SYSTEM.md`（pi 固有の指示）、プロジェクトのスキル（`.agents/skills`）が読まれる。ワールドはプロジェクト直下の `.pi` symlink（ルートへの相対パスはプロジェクトの深さに応じる）から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
   「組み込み MCP と廃止した拡張」にある。
 - pi-superagents: 組み込みと同じ定義（`sp-*.md`）は追跡しない。独自に変えた `.agents/sp-implementer.md` だけを追跡する。
 
