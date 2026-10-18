@@ -51,8 +51,9 @@ dispatch の終了コードは次のとおり。出力の JSON 行は `state`・
 
   - 終了コード 0: 受け取った。保存した 2 つのパス（`statement_candidates` と `fix_check`）を JSON で 1 行出力する。要約の `.fix-check.md` は helper が書かないので、呼び出し側が受け取った一覧から書く。
   - 終了コード 1: 受け取らない。helper は正式な成果物を追加保存せず、理由を stderr に 1 行出す。保存先が起動前と違う場合は、不正な payload でも、その検査より先に拒否し、変更した相対パスをエスケープして列挙する。外部担当や他セッションが書いたファイルは自動削除・復元しない。列挙されたファイルを以前の成功した保存とは見なさず、この run の結果として使用しない。これは観測と受け取りの検査であり sandbox や変更の復元を保証しない。
-  - 終了コード 2: `dispatch.json` が読めない、またはレビューディレクトリが無い。
-  - 受け取らない条件: 結果が `success` でない（`self` を含む。self は司令塔が自分で確認して validate する）、どれかの attempt の `stop_confirmed` が真でない、開始前から登録されていた checkout に変更がある（`outside_changes`）、保存先が起動前と異なる（dispatch 後の変更も再検査）・監査できない・保存入口がリンク、最後の payload が `verified` と `inventory` の 2 つの object だけでない、`inventory` が道具の出力と合わない、`inventory.fix_ids` が request の `fix_ids` と違う、validate に通らない。
+  - 終了コード 2: `dispatch.json` が読めない、固定済みの `verified.pr` が欠落・不正、またはレビューディレクトリが無い。
+  - 受け取らない条件: 結果が `success` でない（`self` を含む。self は司令塔が自分で確認して validate する）、どれかの attempt の `stop_confirmed` が真でない、開始前から登録されていた checkout に変更がある（`outside_changes`）、保存先が起動前と異なる（dispatch 後の変更も再検査）・監査できない・保存入口がリンク、最後の payload が `verified` と `inventory` の 2 つの object だけでない、payload の `verified.pr` の repository または number が `dispatch.json` の `verified.pr` と違う、`inventory` が道具の出力と合わない、`inventory.fix_ids` が request の `fix_ids` と違う、validate に通らない。
+  - 対象 PR は dispatch 時に保存した `verified.pr` を基準に照合し、元の `verified_file` を再読込して変更しない。固定済み PR の欠落・不正と、結果の PR の不一致は、`verified/` や成果物を作る前に拒否する。
   - `inventory` は、道具（`statement-candidates`）の出力をそのまま含み、担当が見つけた語・候補を後ろに足しただけのものだけを受け取る。道具の候補・変更ファイル・主張を消したり書き換えたりしたものは受け取らない。
 - 外部の `verifier` は `dispatch.json` の同名フィールド（実担当の model/runtime/provenance）で全体を置き換える。helper が runner の identity の null を unknown、skill_versions を skills(path/sha256)へ変換し、run_id/request_id/actual_agent は BatchResult/Result から、runtime は actual_agent の設定から得る。requested model/provider/effort を actual にコピーしない。実測 skill_versions の `sha256:` 接頭辞は除去し、skill 名だけのキーからパスを推測せず unknown にする。不明パスに異なる hash が複数ある場合は 1 つを選ばず、v2 の unknown 行にまとめる。元の名前と値は BatchResult に全件保持する。inline で渡したこのスキルの内容は input の skill(path/sha256)で特定し、ネイティブの discovery を観測したとは書かない。self は司令塔の実観測値を使い、未観測は unknown。timing には開始/終了/秒数と waiting_seconds（未計測は null）、accuracy.verify_seconds には実測値を記録する。入力レビュアーの provenance は inputs と accuracy で同じ観測値を使う。
 

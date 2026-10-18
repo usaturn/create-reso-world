@@ -90,6 +90,13 @@ class FixInput(BaseModel):
         return value
 
 
+class ReviewPR(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    repository: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
+    number: int = Field(gt=0)
+
+
 def select_fix_check(config: Config) -> Config:
     """固定した設定を変更せず、他の役割を起動対象から外す。"""
     config = validate_config(config, "fix")
@@ -498,6 +505,12 @@ def accept(run_dir: Path) -> dict[str, str]:
         raise AcceptError("review_dir and verified must not be symlinks") from None
     payload = final_payload(batch)
     document = cast(dict[str, Any], payload["verified"])
+    try:
+        expected_pr = ReviewPR.model_validate(saved["verified"]["pr"]).model_dump()
+    except KeyError, TypeError, ValidationError:
+        raise AcceptError("dispatch.json has an invalid verified pr", 2) from None
+    if document.get("pr") != expected_pr:
+        raise AcceptError("verified pr differs from the dispatched verified input")
     if document.get("skill") != skill:
         raise AcceptError("verified skill differs from the applied skill")
     findings = load_review_findings()

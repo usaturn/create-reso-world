@@ -79,7 +79,9 @@ def verification_input(tmp_path: Path) -> dict[str, Any]:
     )
     head = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
     verified = tmp_path / "verified.json"
-    verified.write_text('{"kind": "verified", "findings": []}')
+    verified.write_text(json.dumps({
+        "kind": "verified", "pr": {"repository": "usaturn/maatlog-poc", "number": 542}, "findings": []
+    }))
     return {
         "repository": str(root),
         "from": head,
@@ -487,8 +489,10 @@ def scenario(tmp_path: Path, findings_helpers: Any) -> Scenario:
     review_dir = tmp_path / "review"
     review_dir.mkdir()
     verified = tmp_path / "verified.json"
-    verified.write_text('{"kind": "verified", "findings": []}')
     h = findings_helpers
+    original = h.document_v2("verified")
+    h.review_findings.validate_document(original)
+    verified.write_text(json.dumps(original), encoding="utf-8")
     fix_id = f"claude-opus-5-5#H-1@{base[:12]}"
     claims = {
         "fix_ids": [fix_id],
@@ -616,6 +620,7 @@ def test_accept_saves_the_tool_output_unchanged_with_the_observed_verifier(
     assert sorted(out.values()) == sorted(str(path) for path in verified_dir.iterdir())
     saved = json.loads((verified_dir / f"{stem}.fix-check.json").read_text(encoding="utf-8"))
     observed = json.loads((run_dir / "dispatch.json").read_text(encoding="utf-8"))["verifier"]
+    assert saved["pr"] == {"repository": "usaturn/maatlog-poc", "number": 542}
     assert saved["verifier"] == observed
     assert saved["verifier"] != scenario.document["verifier"]
     assert saved["findings"] == scenario.document["findings"]
@@ -623,6 +628,85 @@ def test_accept_saves_the_tool_output_unchanged_with_the_observed_verifier(
     assert sidecar == scenario.inventory
     assert findings_helpers.review_findings.main(["validate", str(verified_dir / f"{stem}.fix-check.json")]) == 0
     assert not [path for path in verified_dir.iterdir() if path.name.startswith(".")]
+
+
+@pytest.mark.parametrize("field,value", [("repository", "different/repository"), ("number", 543)])
+@pytest.mark.parametrize("existing", [False, True], ids=["new-output", "existing-output"])
+def test_accept_rejects_a_different_pr_without_changing_outputs(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+    field: str, value: object, existing: bool,
+) -> None:
+    """A valid result for another PR must never replace this PR's accepted files."""
+    if existing:
+        verified_dir = scenario.review_dir / "verified"
+        verified_dir.mkdir()
+        for suffix in ("fix-check", "statement-candidates"):
+            (verified_dir / f"{scenario.fix[:12]}.{suffix}.json").write_bytes(b"previous output\n")
+    before = dispatch.snapshot_review(scenario.review_dir)
+    payload = scenario.payload()
+    payload["verified"]["pr"][field] = value
+    run_dir = run_external(dispatch, scenario, tmp_path, payload)
+    assert accept(dispatch, run_dir) == 1
+    assert dispatch.snapshot_review(scenario.review_dir) == before
+    assert (scenario.review_dir / "verified").exists() is existing
+    assert "pr differs from the dispatched verified input" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "trusted",
+    [
+        {}, {"pr": None}, {"pr": []}, {"pr": {}},
+        {"pr": {"repository": "usaturn/maatlog-poc"}},
+        {"pr": {"number": 542}},
+        {"pr": {"repository": "malformed", "number": 542}},
+        {"pr": {"repository": 42, "number": 542}},
+        {"pr": {"repository": "usaturn/maatlog-poc", "number": "542"}},
+        {"pr": {"repository": "usaturn/maatlog-poc", "number": True}},
+        {"pr": {"repository": "usaturn/maatlog-poc", "number": 0}},
+        {"pr": {"repository": "usaturn/maatlog-poc", "number": 542, "extra": True}},
+        None,
+    ],
+    ids=["missing-pr", "null-pr", "list-pr", "empty-pr", "missing-number", "missing-repository",
+         "bad-repository", "numeric-repository", "text-number", "boolean-number", "zero-number",
+         "extra-key", "null-verified"],
+)
+def test_accept_rejects_a_missing_or_malformed_trusted_pr_before_output(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str], trusted: object,
+) -> None:
+    """An unreadable frozen target must not fall back to payload or original-file metadata."""
+    payload = scenario.payload()
+    if isinstance(trusted, dict) and "pr" in trusted:
+        payload["verified"]["pr"] = trusted["pr"]
+    run_dir = run_external(dispatch, scenario, tmp_path, payload)
+    path = run_dir / "dispatch.json"
+    saved = json.loads(path.read_text())
+    saved["verified"] = trusted
+    path.write_text(json.dumps(saved))
+    assert accept(dispatch, run_dir) == 2
+    assert not (scenario.review_dir / "verified").exists()
+    assert "invalid verified pr" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("payload_matches_frozen", [True, False], ids=["frozen-match", "rewritten-file-match"])
+def test_accept_uses_the_frozen_pr_after_the_original_verified_file_changes(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, payload_matches_frozen: bool,
+) -> None:
+    """Rereading the caller's mutable file must not retarget an already dispatched check."""
+    payload = scenario.payload()
+    changed_pr = {"repository": "different/repository", "number": 543}
+    if not payload_matches_frozen:
+        payload["verified"]["pr"] = changed_pr
+    run_dir = run_external(dispatch, scenario, tmp_path, payload)
+    original_path = Path(scenario.request["verified_file"])
+    original = json.loads(original_path.read_text())
+    original["pr"] = changed_pr
+    original_path.write_text(json.dumps(original))
+    assert accept(dispatch, run_dir) == (0 if payload_matches_frozen else 1)
+    if payload_matches_frozen:
+        saved_path = scenario.review_dir / "verified" / f"{scenario.fix[:12]}.fix-check.json"
+        assert json.loads(saved_path.read_text())["pr"] == {"repository": "usaturn/maatlog-poc", "number": 542}
+    else:
+        assert not (scenario.review_dir / "verified").exists()
 
 
 @pytest.mark.parametrize(
