@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-17-create-reso-world-issue114-issue-to-pr-alias-design.md`
 
-- 状態: draft（利用者の明示承認は得ていない。実行許可は Spec の「管理・実行許可」）
+- 状態: completed（2026-10-18 JST、利用者の指示「completed にしてください」による。内容の明示承認は記録していない。実行許可は Spec の「管理・実行許可」。完了の根拠は末尾の「完了」）
 - 基準 HEAD: `cd602e63e04e51616cd5043dd46b0cbefd8fc60e`
 
 ## Global Constraints
@@ -184,3 +184,14 @@ git commit -m "feat(devcontainer): pin Cursor and Devin alias models (#114)"
 - 行動比較で、スキル有りでも期待を外す回答が 2 回続いたら、`SKILL.md` を直して 1 回だけ取り直し、残った差を `validation.md` に書いて進む
 - alias のモデルが起動で拒否されたら、そのモデルを今の CLI の一覧の名前で確かめ直す。一覧に無ければ移植元の定義を変えず、PR と #114 に記録する
 - #115 が先にマージされたら、`main` に追従してからテストを実行し直す
+
+## 完了
+
+2026-10-18 JST に完了した。
+
+- コード: #136 を 2026-10-17T14:10Z に `main` へマージした（マージコミット `fe35591`、head `f771dd4`）。3 モデルのレビューの指摘 4 件は致命的でないと判定し、修正なしでマージした。認証情報付きの `origin` で `#N` を解決しない件と、パスワードの生の `@` の表示の件は、PR の本文の「既知の制限」に書いた。判定の記録は `docs/superpowers/specs/2026-10-17-create-reso-world-pr136-issue-to-pr-alias-review-fixes-design.md`
+- 検証: PR の最終の HEAD で `bash .devcontainer/run-tests.bash` 30/30 PASS、`bash scripts/check-layout.sh` PASS、`uv run pytest .agents/skills/issue-to-pr/tests tests/skills` 100 passed。rebase の前の `uv run pytest tests/skills .agents/skills` は 545 passed・1 failed で、失敗は差分が触れていない pr-review の高負荷で不安定なテスト（#128）
+- push 前の検査: issue-to-pr の push を `scripts/scan-before-push.sh` 経由にする残りは #139 で扱い、#144 を 2026-10-18T02:29Z に `main` へマージした（マージコミット `2deb900`、head `0cad428`）
+- rebuild の後の確認: #136 のマージの後の 2026-10-18 00:43 JST に作り直した Dev Container で、新しい対話シェルに 5 つの alias があること、リポジトリのルートで 5 つを対話で起動すると指定したモデル（Grok 4.7 Extra High、Claude Opus 5.5 Extra High、SWE-2 Max、GPT-6.1 Sol XHigh、Claude Opus 5.5 XHigh）が表示されること、Claude Code の `/issue-to` の候補に `/issue-to-pr` が出ることを確かめた（記録は #114 の issuecomment-6246187849）
+- Issue: #114 を 2026-10-18 に completed で close した。持ち越しの #137・#138 は別の Issue として open のまま
+- worktree: `.worktrees/issue-114-agent-workspace-port` とブランチ `feat/issue-114-agent-workspace-port`（ローカル・リモート）は、2026-10-18 の時点で残っていない
