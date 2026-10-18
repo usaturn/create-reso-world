@@ -200,4 +200,21 @@
 
 ## 記録
 
-（実行中に追記する）
+2026-10-18（JST）、`superpowers:executing-plans` で実行した。台帳は `PARENT_ROOT` の `tmp/agents/issue-149.i17bhabl/sdd/progress.md`（worktree にコミットしないファイルを置かないため、スキルの `.superpowers/sdd` は使わなかった）。
+
+- 各 Task は、写したテストがモジュールの無い状態で失敗する（収集エラー）ことを確かめてからコードを写した。submodule の監査の検査（Task 4）と個人設定の導入の検査（Task 6）は、対象の処理を一時的に壊すと失敗することも確かめた
+- 全体の検証（Task 8 Step 1、`4f1f020` の前の `39a4f07` で実行。その後の変更は文書だけで、文書の検査を再実行した）:
+
+| コマンド | 結果 |
+| --- | --- |
+| `uv run pytest tools` | 終了コード 0、758 passed（runner 339、devenv_migration 419）、281 秒 |
+| `env AGENT_RUNNER_DEPTH=1 uv run pytest tools/agent_runner` | 終了コード 0、339 passed、59 秒 |
+| `uv run pytest tests/skills .agents/skills .agents/scripts tools` | 終了コード 0、1414 passed、465 秒 |
+| `bash .devcontainer/run-tests.bash` | 終了コード 0、PASS 32 本、390 秒 |
+| `bash scripts/check-layout.sh` | 終了コード 0、PASS |
+| `bash .devcontainer/test-pi-migrations.bash`（Task 1） | 終了コード 0、419 passed |
+| 文書の修正の後の `test-docs.bash`・`test-instructions.bash`・`test-readme.bash` | PASS 3 本 |
+
+- 最後のブランチ全体のレビュー（別のエージェント、Opus、1 回）: Critical・Important なし、Minor 7 件。影響で格付けし直し、3 件を直した（`4f1f020`）: `AGENTS.md` の規則に adapter が入るまでの扱いを足す、pi で runner に bash ツールの timeout を付けない、`.devcontainer/README.md` の個人設定の場所の説明を実装に合わせる。残りの 4 件は先送り: テストのたびに `/tmp/create-reso-world-agent-runner-*` が約 80 個（約 30 MB）残る（移植元と同じ）、`interfaces.rst`・雛形のコメントがまだ取り入れていないスクリプトを例に挙げる、雛形を丸ごと写すので後の雛形の変更が rebuild まで個人設定に負ける（#150 で扱いを決める）、`.devcontainer/README.md` の `uv run pytest tools` は devenv_migration も含む
+- 逸脱と判断（台帳の `Ruling:`）: Task 4 の C-7、Task 5 の `interfaces.rst` への cwd の追記（Review Focus 4）、Task 7 の monitoring-runtimes.md をランタイムごとの起動の表にしたこと（Claude Code の foreground の上限 10 分）、レビューの 3 件の格上げ
+- 所要時間（能動、JST）: 準備（Issue・親・移植元の調査、予約、worktree、基準のテスト）約 20 分、Spec・Plan 約 7 分、Task 1〜7 約 9 分（テストの実行を含む）、全体の検証 約 20 分（レビューと並行）、レビューの修正 約 4 分、PR の作成と記録 約 10 分。合計 約 70 分
