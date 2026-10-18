@@ -2,10 +2,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG_DIR="${REPO_ROOT}/.devcontainer/pi-superagents"
 TEST_ROOT="$(mktemp -d)"
-trap 'rm -rf "${TEST_ROOT}"' EXIT
+trap 'rm -rf -- "${TEST_ROOT:?}"' EXIT
 unset PI_CODING_AGENT_DIR
 cd "$REPO_ROOT"
+source "${REPO_ROOT}/.devcontainer/tests/pi-launcher-install.bash"
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 assert_eq() {
@@ -13,46 +15,92 @@ assert_eq() {
 }
 setup_for_home() {
     local output
-    output="$(env HOME="$1" zsh "${REPO_ROOT}/.devcontainer/setup_pi_superagents.zsh" 2>&1)" \
+    output="$(env HOME="$1" zsh "${REPO_ROOT}/scripts/setup_pi_superagents.zsh" 2>&1)" \
         || fail "pi-superagents setup failed: ${output}"
 }
-
-# 静的な期待値の読み取りを共有する。専用モードはスイートを実行しない。
-launcher_pi_args_from_source() {
-    bash "${REPO_ROOT}/.devcontainer/test-pi-superagents.bash" \
-        --launcher-pi-args-from-source "$1"
+write_oauth_auth() {
+    printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
+        > "$1"
+}
+# dry-run 出力から pi へ渡る引数だけを取り出す（"pi" より後ろ）。
+pi_args_of() {
+    printf '%s\n' "$1" | awk 'seen { print } $0 == "pi" { seen = 1 }'
+}
+# <option> <args...>: args の中で option の直後にある値を出す。
+option_value() {
+    local option="$1"
+    shift
+    while [ "$#" -gt 1 ]; do
+        if [ "$1" = "$option" ]; then
+            printf '%s\n' "$2"
+            return 0
+        fi
+        shift
+    done
+    return 1
 }
 
-test_launchers_accept_tilde_agent_dir() {
-    local home="${TEST_ROOT}/tilde-auth" launcher agent_dir output args prefix expected
+# ランチャーは .devcontainer/pi-superagents/<launcher>.json と 1 対 1 に対応する。
+# 一覧と、そのうち親 Pi が openai-codex を使うランチャーを、テストへ書き写さずに導く。
+# OAuth の確認が本文にあるかではなく、OAuth のある HOME で実際に渡す --provider で選ぶ。
+# 確認を外したランチャーが検査対象から黙って抜けないようにするためである。
+mapfile -t LAUNCHERS < <(find "$CONFIG_DIR" -maxdepth 1 -name '*.json' -printf '%f\n' \
+    | sed 's/\.json$//' | LC_ALL=C sort)
+[ "${#LAUNCHERS[@]}" -gt 0 ] || fail "no launcher configs in ${CONFIG_DIR}"
+CODEX_LAUNCHERS=()
+collect_codex_launchers() {
+    local home="${TEST_ROOT}/discover" launcher output provider
+    local -a own
     mkdir -p "${home}/.pi/agent"
-    printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
-        > "${home}/.pi/agent/auth.json"
-    printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
-        > "${home}/auth.json"
+    write_oauth_auth "${home}/.pi/agent/auth.json"
+    setup_for_home "$home"
+    for launcher in "${LAUNCHERS[@]}"; do
+        output="$(env HOME="$home" PI_CODING_AGENT_DIR="${home}/.pi/agent" \
+            COMMANDCODE_API_KEY=dummy-for-dry-run OPENCODE_API_KEY=dummy-for-dry-run \
+            PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
+            zsh "${REPO_ROOT}/.devcontainer/${launcher}" 2>&1)" \
+            || fail "${launcher} dry-run failed: ${output}"
+        mapfile -t own < <(pi_args_of "$output")
+        provider="$(option_value --provider "${own[@]}")" || provider=""
+        if [ "$provider" = openai-codex ]; then
+            CODEX_LAUNCHERS+=("$launcher")
+        fi
+    done
+}
+collect_codex_launchers
+[ "${#CODEX_LAUNCHERS[@]}" -gt 0 ] || fail "no launcher uses openai-codex"
+
+# PI_CODING_AGENT_DIR の ~ 形式は、絶対パスで指定したときと同じ引数で起動する。
+test_launchers_accept_tilde_agent_dir() {
+    local home="${TEST_ROOT}/tilde-auth" launcher agent_dir baseline output
+    mkdir -p "${home}/.pi/agent"
+    write_oauth_auth "${home}/.pi/agent/auth.json"
+    write_oauth_auth "${home}/auth.json"
     setup_for_home "$home"
 
-    for launcher in piga pigs pigl; do
-        prefix="$(launcher_pi_args_from_source "$launcher")" \
-            || fail "cannot read ${launcher} source arguments"
-        expected="$(printf '%s\n' "$prefix" --resume)"
-        for agent_dir in "${home}/.pi/agent" '~/.pi/agent' '~'; do
+    for launcher in "${CODEX_LAUNCHERS[@]}"; do
+        baseline="$(env HOME="$home" PI_CODING_AGENT_DIR="${home}/.pi/agent" \
+            PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
+            zsh "${REPO_ROOT}/.devcontainer/${launcher}" --resume 2>&1)" \
+            || fail "${launcher} rejected the absolute agent dir: ${baseline}"
+        assert_eq "$(printf '%s\n' "$baseline" | sed -n 1p)" bwrap "${launcher} must reach argv"
+        for agent_dir in '~/.pi/agent' '~'; do
             output="$(env HOME="$home" PI_CODING_AGENT_DIR="$agent_dir" \
                 PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
                 zsh "${REPO_ROOT}/.devcontainer/${launcher}" --resume 2>&1)" \
                 || fail "${launcher} rejected ${agent_dir}: ${output}"
-            args="$(printf '%s\n' "$output" | awk 'seen { print } $0 == "pi" { seen = 1 }')"
-            assert_eq "$args" "$expected" "${launcher} Pi arguments with ${agent_dir}"
+            assert_eq "$(pi_args_of "$output")" "$(pi_args_of "$baseline")" \
+                "${launcher} Pi arguments with ${agent_dir}"
         done
     done
 }
 
-test_missing_oauth_guides_login() {
+test_missing_oauth_guides_login_without_requesting_api_key() {
     local home="${TEST_ROOT}/no-oauth" launcher output status
     mkdir -p "$home"
     setup_for_home "$home"
 
-    for launcher in piga pigs pigl; do
+    for launcher in "${CODEX_LAUNCHERS[@]}"; do
         set +e
         output="$(env HOME="$home" PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
             zsh "${REPO_ROOT}/.devcontainer/${launcher}" 2>&1)"
@@ -61,32 +109,24 @@ test_missing_oauth_guides_login() {
         assert_eq "$status" "1" "${launcher} must stop without OAuth"
         grep -Fq '/login openai-codex' <<<"$output" \
             || fail "${launcher} must explain direct Codex OAuth login"
+        case "$output" in
+            *'ChatGPT Plus/Pro (Codex)'*) fail "${launcher} must not name a nonexistent login choice" ;;
+            *OPENAI_API_KEY*) fail "${launcher} must not request OPENAI_API_KEY" ;;
+        esac
     done
 }
 
 test_install_places_all_launchers_with_regular_mode() {
-    local home="${TEST_ROOT}/install" launcher output args prefix expected
-    local -a launchers
-    # ランチャーは定義元の .devcontainer/pi-superagents/<launcher>.json から列挙し、一覧をテストへ写さない
-    mapfile -t launchers < <(find "${REPO_ROOT}/.devcontainer/pi-superagents" -maxdepth 1 -name '*.json' -printf '%f\n' \
-        | sed 's/\.json$//' | LC_ALL=C sort)
-    [ "${#launchers[@]}" -gt 0 ] || fail "no launcher definitions"
+    local home="${TEST_ROOT}/install" launcher output
+    local -a args
     mkdir -p "${home}/.pi/agent"
-    printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
-        > "${home}/.pi/agent/auth.json"
+    write_oauth_auth "${home}/.pi/agent/auth.json"
     cp "${REPO_ROOT}/.devcontainer/pi-models.json" "${home}/.pi/agent/models.json"
-    # ランチャーの配置と、ヘルパを置く pi-superagents の手順だけを切り出す。
-    # 終わりは「この 2 つ以外の次の step」にし、後続の手順の並びに依存しない。
-    {
-        printf '%s\n' 'step() { :; }' 'fail() { printf "%s\n" "$1" >&2; exit 1; }'
-        awk '/^step "Placing the launchers / { copy = 1 }
-            /^step "/ && !/^step "(Placing the launchers |Writing the pi-superagents )/ { copy = 0 }
-            copy' "${REPO_ROOT}/.devcontainer/install_beforehand.bash"
-    } | env HOME="$home" bash -e
+    pi_run_launcher_install "${REPO_ROOT}/.devcontainer/install_beforehand.bash" "$home"
     cmp -s "${REPO_ROOT}/.devcontainer/pi-superagents-exec.zsh" "${home}/.local/bin/pi-superagents-exec.zsh" \
         || fail "install must place the current helper"
 
-    for launcher in "${launchers[@]}"; do
+    for launcher in "${LAUNCHERS[@]}"; do
         [ -x "${home}/.local/bin/${launcher}" ] || fail "install did not place executable ${launcher}"
         cmp -s "${REPO_ROOT}/.devcontainer/${launcher}" "${home}/.local/bin/${launcher}" \
             || fail "installed ${launcher} differs from the source"
@@ -94,54 +134,58 @@ test_install_places_all_launchers_with_regular_mode() {
             COMMANDCODE_API_KEY=dummy-for-dry-run OPENCODE_API_KEY=dummy-for-dry-run \
             PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
             zsh "${home}/.local/bin/${launcher}" --resume)"
-        prefix="$(launcher_pi_args_from_source "$launcher")" \
-            || fail "cannot read ${launcher} source arguments"
-        args="$(awk 'seen { print } $0 == "pi" { seen = 1 }' <<<"$output")"
-        expected="$(printf '%s\n' "$prefix" --resume)"
-        assert_eq "$args" "$expected" "installed ${launcher} Pi arguments must match the source"
+        mapfile -t args < <(pi_args_of "$output")
+        assert_eq "${args[0]}" --tui-mode "installed ${launcher} tui option"
+        assert_eq "${args[1]}" regular "installed ${launcher} tui mode"
+        assert_eq "${args[${#args[@]}-1]}" --resume "installed ${launcher} user argument"
     done
 }
 
+# 実環境の Pi が、ランチャー（親 Pi）と tier が使う openai-codex のモデルを提供しているかを確かめる。
+# モデル名はテストへ書き写さず、ランチャーの起動引数と tier 設定から導く。
 test_live_openai_codex_models() {
     [ "${PI_CODEX_LIVE_CHECK:-0}" = 1 ] || return 0
 
-    local version launcher model output models prefix
-    version="$(pi --version)" || fail "pi --version failed"
-    dpkg --compare-versions "$version" ge 0.99.1 \
-        || fail "Pi 0.99.1 or newer is required (installed: ${version})"
-
-    models="$(python3 - "${REPO_ROOT}/.devcontainer/pi-superagents" <<'PY_MODELS'
+    local home="${TEST_ROOT}/live" launcher provider model output
+    local -a own models=()
+    mkdir -p "${home}/.pi/agent"
+    write_oauth_auth "${home}/.pi/agent/auth.json"
+    setup_for_home "$home"
+    for launcher in "${LAUNCHERS[@]}"; do
+        output="$(env HOME="$home" PI_CODING_AGENT_DIR="${home}/.pi/agent" \
+            COMMANDCODE_API_KEY=dummy-for-dry-run OPENCODE_API_KEY=dummy-for-dry-run \
+            PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
+            zsh "${REPO_ROOT}/.devcontainer/${launcher}")" || fail "${launcher} dry-run failed"
+        mapfile -t own < <(pi_args_of "$output")
+        provider="$(option_value --provider "${own[@]}")" || provider=""
+        if [ "$provider" = openai-codex ]; then
+            models+=("$(option_value --model "${own[@]}")")
+        fi
+    done
+    mapfile -t -O "${#models[@]}" models < <(python3 - "$CONFIG_DIR" <<'PY'
 import json
-from pathlib import Path
+import pathlib
 import sys
 
-models = set()
-for launcher in ("piga", "pigs", "pigl"):
-    config = json.loads((Path(sys.argv[1]) / f"{launcher}.json").read_text(encoding="utf-8"))
-    for tier in config["superagents"]["modelTiers"].values():
-        provider, model = tier["model"].split("/", 1)
+for config in sorted(pathlib.Path(sys.argv[1]).glob("*.json")):
+    for tier in json.loads(config.read_text())["superagents"]["modelTiers"].values():
+        provider, _, model = tier["model"].partition("/")
         if provider == "openai-codex":
-            models.add(model)
-print(*sorted(models), sep="\n")
-PY_MODELS
-)" || fail "cannot read Codex tier models"
-    for launcher in piga pigs pigl; do
-        prefix="$(launcher_pi_args_from_source "$launcher")" \
-            || fail "cannot read ${launcher} source arguments"
-        model="$(awk '$0 == "--model" { getline; print; exit }' <<<"$prefix")"
-        models="$(printf '%s\n' "$models" "$model")"
-    done
-    models="$(sort -u <<<"$models")"
-    while IFS= read -r model; do
+            print(model)
+PY
+)
+    [ "${#models[@]}" -gt 0 ] || fail "no launcher or tier uses openai-codex"
+
+    for model in $(printf '%s\n' "${models[@]}" | sort -u); do
         output="$(pi --list-models "$model")" || fail "pi --list-models ${model} failed"
         printf '%s\n' "$output" | awk -v model="$model" \
             '$1 == "openai-codex" && $2 == model { found = 1 } END { exit !found }' \
             || fail "openai-codex/${model} is unavailable; log in with /login or update Pi"
-    done <<<"$models"
+    done
 }
 
 test_launchers_accept_tilde_agent_dir
-test_missing_oauth_guides_login
+test_missing_oauth_guides_login_without_requesting_api_key
 test_install_places_all_launchers_with_regular_mode
 test_live_openai_codex_models
 printf 'OK test-pi-openai-codex\n'

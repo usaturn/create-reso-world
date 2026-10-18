@@ -2,6 +2,8 @@
 
 [usaturn/maatlog-poc](https://github.com/usaturn/maatlog-poc) の pi と Claude Code の設定を、このリポジトリへ移植したときの記録である（Issue #17、子 Issue #18〜#22）。移植元の全ファイルについて、移植したか、移植先に合わせて変えたか、持ち込まなかったかを、理由と担当 Issue とともに残す。
 
+pi の部分は後に Issue #125（2026-10-17）で usaturn/agent-workspace の `715d98168ab60011a98a42476ffea2759d4866d7` を基に置き換えた。下表の #125 の行が現在の判断であり、#17〜#22 の過去の Spec と rebuild の観測結果は履歴として残す。
+
 利用者が参照する現在の手順は `README.md` と `.devcontainer/README.md` にある。既存の環境への反映は `.devcontainer/README.md` の「既存環境の更新」を参照する。
 
 ## 基準
@@ -27,7 +29,7 @@
 - 移植元のパスの列で移植元の見出しを「」で引くときは、見出しの中のバッククォートを省く（`public/` などを含む見出し）。下の「網羅の確認」が、この列のバッククォートの中をパスとして読むため
 - 1 つのファイルを節ごとに別の子 Issue が担当した場合は、節ごとに行を分けた
 - 担当 Issue は、その判断を記録した Issue である。#17 の本文で範囲外と決めた項目は #17 とした
-- 移植の後に判断を見直した行は、見直した Issue を担当 Issue に書く（Cursor と Devin の alias は #114）。下の「網羅の確認」の結果は、見直す前の 2026-10-05 の時点のものである
+- 移植の後に判断を見直した行は、見直した Issue を担当 Issue に書く（pi は #125、Cursor と Devin の alias は #114）。下の「網羅の確認」の結果は、見直す前の 2026-10-05 の時点のものである
 - 子 Issue の Spec が別の表記（「削除」「不採用」など）を使った行は、判断の後ろに括弧でその表記を残した。表記を揃えただけで、判断は変えていない
 - 各子 Issue の判断の詳細は、その Spec にある: #18 `docs/superpowers/specs/2026-10-04-issue-18-remove-excluded-agents-design.md`、#19 `docs/superpowers/specs/2026-10-04-issue-19-pi-migration-design.md`、#20 `docs/superpowers/specs/2026-10-04-issue-20-pi-launchers-design.md`、#21 `docs/superpowers/specs/2026-10-04-issue-21-claude-code-design.md`、#22 `docs/superpowers/specs/2026-10-05-issue-22-integration-design.md`
 
@@ -37,42 +39,42 @@
 
 | 移植元のパス | 移植先のパス | 判断 | 理由 | 担当 Issue |
 | --- | --- | --- | --- | --- |
-| `.devcontainer/install_beforehand.bash` の pi の導入、旧拡張の撤去（`Removing npm:pi-mcp-adapter`・`Removing npm:pi-distill`）、拡張の導入、`models.json` の配置 | 同じファイルの同じ手順 | 適応 | 撤去は移植先の `cleanup_pi_mcp.py` で行い、pi の導入の直後・全拡張の導入の前に実行する。pi-distill と tool-display の調整の呼び出しを削除した。手順の数は変えず、`STEP_TOTAL` は 25 のまま。#18 と #20 の変更を保持する | #19 |
-| なし | `.devcontainer/cleanup_pi_mcp.py` | 適応 | 既存の安全策（symlink・hard link の拒否、npm の巻き添えの防止）を保ち、pi-distill、単独登録の tool-display と i18n、`-builtin:mcp` の撤去を足した。`@upstash/context7-pi` と `pi-mcp-adapter` の撤去も続ける | #19 |
-| なし | `.devcontainer/pi_json.py` | 適応（#19: 新規、PR #27 のレビュー修正） | cleanup と 3 つの provider setup が共有する JSON の読み込み（有限の数値の検査）・保存（一時ファイルでの置き換え、mode の保持）・バックアップ・リンクの拒否。移植元には無い | #19 |
-| なし | `.devcontainer/tests/fake_pi_packages.py` | 適応 | `pi update --extensions` による再構築をオフラインで模擬し、撤去した拡張の再混入と導入の順序を検査する | #19 |
-| なし | `.devcontainer/tests/test_pi_mcp_cleanup.py`・`.devcontainer/test-pi-mcp-cleanup.bash` | 適応（#19: 適応・維持） | 拡張の撤去、バックアップ、設定の保持、実 npm の依存の扱い、初回と再実行を検査する。wrapper の公開 CLI は保つ | #19 |
+| `.devcontainer/install_beforehand.bash` の pi の導入、旧拡張の撤去（`Removing npm:pi-mcp-adapter`・`Removing npm:pi-distill`）、拡張の導入、`models.json` の配置 | 同じファイルの pi 節 | 移植 | agent-workspace の pi 節を採用。context7-pi と Plannotator を導入・保持し、旧 adapter・distill・lens を撤去する。独自 cleanup と撤去前バックアップを廃止。非 pi の節は保持する | #125 |
+| なし | `.devcontainer/cleanup_pi_mcp.py`（削除） | 適応 | 独自 cleanup を削除し、agent-workspace の導入節で撤去する。context7-pi は撤去しない | #125 |
+| なし | `.devcontainer/pi_json.py`（削除） | 適応 | 独自 JSON helper と setup の事前検査を削除し、agent-workspace の setup にそろえる | #125 |
+| なし | `.devcontainer/tests/fake_pi_packages.py`（削除） | 適応 | 旧 cleanup と一緒に削除。共有登録の保持は tools/devenv_migration/tests/test_pi_shared_packages.py で実行検査する | #125 |
+| なし | 旧テスト2本（削除） | 適応 | agent-workspace の MCP 移行・Vertex の pytest に置換。入口は .devcontainer/test-pi-migrations.bash | #125 |
 | なし | `.devcontainer/setup_pi_tool_display.py`（削除） | 適応（#19: 削除） | 廃止した拡張への調整を行わない。移植元は pi-distill の廃止とともにこの調整を持たない | #19 |
-| `scripts/setup_pi.zsh` | `.devcontainer/setup_pi.zsh` | 適応 | deepinfra だけを同期する。配置は `.devcontainer/` のまま。既存のモデルと他の provider を保持する | #19 |
-| `.devcontainer/pi-models.json` | 同じ | 適応 | `deepinfra-distill` だけを削除した。`union-alpha` などの移植先の定義は保つ | #19 |
+| `scripts/setup_pi.zsh` | `scripts/setup_pi.zsh` | 移植 | 配置を scripts/ に移し、agent-workspace と同じ内容にする。旧 .devcontainer/ に残す判断を変更した | #125 |
+| `.devcontainer/pi-models.json` | 同じ | 移植 | agent-workspace と同じ定義にし、雛形から union-alpha を除く。利用者の既存 models.json は上書きしない | #125 |
 | `.devcontainer/zshrc.txt` の pi の環境変数 | 同じファイルの同じ箇所 | 適応 | `PI_EXTENSIONS_LOCALE` と `PI_DISTILL_*` の設定と説明を削除した。ランチャーと `update()` は保つ | #19 |
 | `.pi/settings.json` | 同じ | 適応（#19: 新規・適応） | `extensions` を `["+builtin:mcp"]` にした。移植元にある MaatLog 専用の `version-export` の skills は含めない | #19 |
-| `.pi/mcp.json` | 同じ | 適応（#19: 新規・適応） | Google Developer Knowledge の HTTP の設定だけを移植した。`context7` は含めない（pi の Context7 は #17 で対象外） | #19 |
+| `.pi/mcp.json` | 同じ | 移植 | agent-workspace と同じ。context7 と Google Developer Knowledge の設定を使う | #125 |
 | `.pi-lens.json` | 同じ | 既存維持 | 移植先の ignore（`tmp`・`.venv`・`artifacts`・`.resoloop`・`external`・`private`）は移植元を包含する | #19 |
-| `.pi/APPEND_SYSTEM.md` | 同じ | 適応 | 正式なモデル名の根拠としての `PI_DISTILL_MODEL` の記述だけを削除した。persona と Superpowers の role API の運用は保つ。移植元の旧 API の記述は持ち込まない | #19 |
+| `.pi/APPEND_SYSTEM.md` | 同じ | 適応 | 現行 role API の説明を合わせ、ワールド cwd・handoff・persona・Superpowers 内での同期直列委譲というこの環境の制限を保持する | #125 |
 | なし | `.devcontainer/test-install-beforehand.bash` | 適応 | cleanup の実行の順序と、廃止した helper が呼ばれないことを検査する | #19 |
 | なし | `tests/scripts/test-agent-config.bash`・`tests/scripts/test-instructions.bash` | 適応（#19: 既存維持・適応） | agent-config の既存の検査は保ち、instructions に廃止した指示が無いことの検査を足した。共有の pi の設定とワールドの cwd の検査は cleanup のテストにまとめた | #19 |
-| `.devcontainer/README.md` の pi の拡張・MCP・pi-distill の節（「pi-distill の撤去（#508）」「setup スクリプトを使う場面」） | 同じファイルの「pi の旧拡張・MCP 設定の移行」「組み込み MCP と廃止した拡張」「setup スクリプトを使う場面」 | 適応 | 移行、バックアップ、既存の provider の保持を説明し、pi-distill を使う手順を削除した | #19 |
+| `.devcontainer/README.md` の pi の拡張・MCP・pi-distill の節（「pi-distill の撤去（#508）」「setup スクリプトを使う場面」） | 同じファイルの pi 節 | 適応 | agent-workspace の現在の撤去と共有拡張の保持へ更新。独自の自動バックアップは廃止し、利用者の古いバックアップとモデルは残す | #125 |
 
 ### pi のランチャー・モデル・サブエージェント
 
 | 移植元のパス | 移植先のパス | 判断 | 理由 | 担当 Issue |
 | --- | --- | --- | --- | --- |
-| `.devcontainer/pi-superagents-exec.zsh` | 同じ | 移植 | pi を `--tui-mode regular` で起動する。setup の案内のパスは `.devcontainer/` のまま | #20 |
+| `.devcontainer/pi-superagents-exec.zsh` | 同じ | 移植 | agent-workspace と同一。setup の案内は scripts/。Vertex の ADC overlay と子への継承を含む | #125 |
 | `.devcontainer/pi-superagents/pigs.json`・`.devcontainer/pi-superagents/pixg.json` | 同じ | 移植 | `cheap`（`pixg` は `balanced` も）を `opencode-go/deepseek-v4.1-flash` の `max` にした | #20 |
 | `.devcontainer/pi-superagents/pigo.json`・`.devcontainer/pi-superagents/pigod.json`・`.devcontainer/pi-superagents/piccg.json`・`.devcontainer/pi-superagents/piccd.json`・`.devcontainer/pi-superagents/piga.json`・`.devcontainer/pi-superagents/pigl.json` | 同じ | 既存維持 | 移植元と同一 | #20 |
-| なし | `.devcontainer/pi-superagents/pigou.json` | 既存維持 | 移植先にだけあるランチャー | #20 |
-| `.devcontainer/pigs` | 同じ | 移植 | `OPENCODE_GO_API_KEY` から `OPENCODE_API_KEY` への引き継ぎを足した。Codex OAuth の確認は保つ。案内のパスは `.devcontainer/` | #20 |
-| `.devcontainer/pixg` | 同じ | 移植 | Codex OAuth の確認をやめ、引き継ぎを足した。案内のパスは `.devcontainer/` | #20 |
-| `.devcontainer/pigo`・`.devcontainer/pigod`・`.devcontainer/piccg`・`.devcontainer/piccd`・`.devcontainer/piga`・`.devcontainer/pigl` | 同じ | 既存維持 | 差分は setup の案内のパスだけ。setup スクリプトを `.devcontainer/` に置く決定に合わせる | #20 |
-| なし | `.devcontainer/pigou` | 既存維持 | 移植先にだけあるランチャー。`--tui-mode regular` は共通ヘルパで付く | #20 |
-| `scripts/setup_pi_superagents.zsh`・`scripts/setup_pi_opencode_go.zsh`・`scripts/setup_pi_commandcode_goat.zsh` | `.devcontainer/` の同名のファイル | 適応 | 配置は `.devcontainer/` に残す。`pigou` を保ち、コメントの言い回しは移植先のまま | #20 |
-| `scripts/setup_pi_opencode_go.zsh`・`scripts/setup_pi_commandcode_goat.zsh` | `.devcontainer/` の同名のファイル | 適応（PR #27 のレビュー修正） | 入力の事前検査、`pi_json` による保存とバックアップ、`~` の展開を `setup_pi.zsh` と揃えた。provider の選択とランチャーは変えていない | #19 |
-| `.devcontainer/install_beforehand.bash` のランチャーの配置と `setup_pi_superagents.zsh --if-absent` の呼び出し | 同じファイルの同じ手順 | 既存維持 | 呼び出し方は変えない（#20 の D-11）。移植先は `pigou` を含む 9 本を置く。`--if-absent` が共通ヘルパを毎回更新する | #20 |
+| なし | `.devcontainer/pi-superagents/pigou.json`（削除） | 適応 | 独自の pi ランチャー pigou を削除。Claude Code の ccdu は変更しない | #125 |
+| `.devcontainer/pigs` | 同じ | 移植 | agent-workspace と同一。setup の案内も scripts/ に統一 | #125 |
+| `.devcontainer/pixg` | 同じ | 移植 | agent-workspace と同一。setup の案内も scripts/ に統一 | #125 |
+| `.devcontainer/pigo`・`.devcontainer/pigod`・`.devcontainer/piccg`・`.devcontainer/piccd`・`.devcontainer/piga`・`.devcontainer/pigl` | 同じ | 移植 | agent-workspace と同一。setup の案内も scripts/ に統一。pigemf・pigemp・pigema とその tier も追加 | #125 |
+| なし | `.devcontainer/pigou`（削除） | 適応 | 独自ランチャーを削除。利用者の既存ファイルは自動削除しない | #125 |
+| `scripts/setup_pi_superagents.zsh`・`scripts/setup_pi_opencode_go.zsh`・`scripts/setup_pi_commandcode_goat.zsh` | `scripts/` の同名3ファイル | 移植 | 配置を scripts/ に移し、agent-workspace と同一。旧 .devcontainer/ 維持と pigou の保持を取り消す | #125 |
+| `scripts/setup_pi_opencode_go.zsh`・`scripts/setup_pi_commandcode_goat.zsh` | `scripts/` の同名2ファイル | 移植 | 独自 pi_json の検査・バックアップをやめ、agent-workspace の内容にそろえる | #125 |
+| `.devcontainer/install_beforehand.bash` のランチャーの配置と `setup_pi_superagents.zsh --if-absent` の呼び出し | 同じファイルの同じ手順 | 移植 | 11本と共通ヘルパを配置し、scripts/setup_pi_superagents.zsh --if-absent を実行する | #125 |
 | `.agents/sp-implementer.md` | 同じ | 既存維持 | 移植元と同一 | #20 |
-| `.devcontainer/test-pi-superagents.bash` | 同じ | 適応 | `--tui-mode`、argv の一致、tier、`pixg` の認証、引き継ぎ、ヘルパの更新の検査を取り込んだ。here-string と `pigou` の検査は保つ。pi-distill の検査は #19 が別のテストで行う | #20 |
-| `.devcontainer/test-pi-openai-codex.bash` | 同じ | 適応 | `--tui-mode`、全ランチャーの配置の検査、Pi 0.99.1 を取り込んだ。導入の手順の切り出しは移植先の手順に合わせた | #20 |
-| `.devcontainer/README.md` の GPT-6・Grok 4.7・TUI モード・tier の節 | 同じファイルの同じ節 | 適応 | tier、認証、Pi の最小版、`--tui-mode regular` の節を移植し、`pigou` と `.devcontainer/` のパスに合わせた。既存環境の更新手順を足した | #20 |
+| `.devcontainer/test-pi-superagents.bash` | 同じ | 適応 | agent-workspace の版を採用。削除ガードを適用し、設定値だけを転記したtierテストを省く。実行・構造検査を残す | #125 |
+| `.devcontainer/test-pi-openai-codex.bash` | 同じ | 適応 | agent-workspace の版を採用し、削除ガードだけ適用 | #125 |
+| `.devcontainer/README.md` の GPT-6・Grok 4.7・TUI モード・tier の節 | 同じファイルの pi 節 | 適応 | agent-workspace の構成へ統一。Vertex・Plannotator・新しい配置と検証入口を説明する | #125 |
 
 ### Claude Code
 
@@ -131,7 +133,7 @@
 | `.gitignore` | 同じ | 既存維持 | 移植先の追跡の方針（2026-09-26 の再設計の 4.4 節）を保つ。`docs_draft/`・`/.worktrees/`・`/.claude/worktrees/` は移植先にもある。MaatLog と Node.js 向けの除外は持ち込まない | #22 |
 | `.devcontainer/README.md` の pi の「API トークン」 | 同じファイルの「秘密情報」「API トークン」と新設の「既存環境の更新」 | 適応 | #18〜#21 の変更に合わせて、変数の説明と既存環境の手順をまとめた | #22 |
 | `.devcontainer/README.md` の「Codex で CLAUDE.md を指示ファイルとして読む」「Herdr サイドバーの設定移行」「エージェント向けツールの導入」 | 同じファイルの「エージェントの読み込みの制約」「Herdr サイドバーの設定移行」「エージェント向けツールの導入」 | 既存維持 | 移植先の Codex は `AGENTS.md` を直接読むので、fallback の設定は不要と説明している。Herdr と導入の節は移植先の構成（9 本のランチャー、5 つのプラグイン）で書いてある | #22 |
-| `.devcontainer/README.md` の「pi のモデル定義とランチャー」「モデル定義の正」 | 同じファイルの同じ節 | 既存維持 | 差分は setup スクリプトのパス（移植先は `.devcontainer/` に置く）と、移植先にだけある `pigou` の説明だけ | #22 |
+| `.devcontainer/README.md` の「pi のモデル定義とランチャー」「モデル定義の正」 | 同じファイルの pi 節 | 適応 | scripts/ の setup と11本のlauncherへ統一。host network のため Plannotator は REMOTE=0 で loopback の空いているポートを使う。WSL の mirrored モードで bind を塞ぐため、固定範囲と forwardPorts は使わない | #125 |
 | `.devcontainer/README.md` の冒頭の説明と「public/ checkout の検査と復旧」「npm への一本化（#147）と既存環境の移行」 | なし | 対象外 | MaatLog の親子リポジトリと `public/` submodule（Playwright の導入を含む）、yarn からの移行の手順 | #22 |
 | `.devcontainer/README.md` の「PR レビューの一括起動（herdr-pr-review）」 | なし | 対象外 | レビュー系ツール | #17 |
 | `README.md` | `README.md` | 対象外 | 移植元の README は MaatLog の開発ワークスペースの説明で、エージェントの設定を含まない。移植先の README の更新は下の行と #18 の行 | #22 |
@@ -140,7 +142,7 @@
 | なし | `docs/maatlog-poc-porting.md`（この文書） | 適応 | #17 の比較表と rebuild での確認の記録 | #22 |
 | なし | `tests/skills/test_legacy_references.py` の `EXCLUDED` | 適応 | この文書は移植元の全ファイルを載せる移行の記録なので、追跡ファイルに移植元の名前を禁じるガードの例外にした。設計記録（`docs/superpowers`）と同じ扱い | #22 |
 
-### 対象外: スキル・レビュー系ツール・pi の Context7
+### スキル・レビュー系ツール・pi の Context7 の判断
 
 | 移植元のパス | 移植先のパス | 判断 | 理由 | 担当 Issue |
 | --- | --- | --- | --- | --- |
@@ -150,7 +152,7 @@
 | `.agents/review-records.md`・`.agents/scripts/**`（4 件。`agent_tmp.py`・`review_records.py` とそのテスト） | なし | 対象外 | レビュー系ツール。後に #115（2026-10-17）で入れた `.agents/scripts/issue_budget.py` は usaturn/agent-workspace から取り入れたもので、この行の移植元のファイルとは別物 | #17 |
 | `.devcontainer/herdr-pr-review.bash`・`.devcontainer/herdr-pr-review-launch.bash`・`.devcontainer/herdr-pr-review.toml` | なし | 対象外 | レビュー系ツール | #17 |
 | `tools/__init__.py`・`tools/herdr_pr_review/**`（116 件）・`tools/review_triage/**`（37 件）・`tools/devenv/**`（3 件）・`tools/devenv_migration/**`（16 件）・`tools/test_support/**`（10 件） | なし | 対象外 | レビュー系ツールとその支援 | #17 |
-| `.devcontainer/install_beforehand.bash` の `npm:@upstash/context7-pi` の導入、`.pi/mcp.json` の `context7` | なし | 対象外 | pi の Context7 は持ち込まない。移植先の `cleanup_pi_mcp.py` による `@upstash/context7-pi` の撤去は続ける。Claude Code・Codex・Cursor の Context7 と `find-docs` は変えない | #17 |
+| `.devcontainer/install_beforehand.bash` の `npm:@upstash/context7-pi` の導入、`.pi/mcp.json` の `context7` | 同じファイルと `.pi/mcp.json` | 移植 | #17 の対象外とする判断を変更し、context7-pi と MCP の context7 を導入・保持する。共有 ~/.pi の登録が消える問題を解消する | #125 |
 
 ### 対象外: MaatLog 固有・他のエージェント
 
@@ -163,6 +165,15 @@
 | `.devin/skills/**`（3 件。pr-review、simplify-in-subagent） | なし | 対象外 | Devin の設定とスキル | #17 |
 | `opencode.json` | なし | 対象外 | OpenCode CLI の設定（Superpowers のプラグインと pyright の LSP）。移植先は OpenCode CLI を導入しない。`ccdu` と `pigo` などは OpenCode Go の API を使うが、この設定は使わない | #22 |
 | `scripts/add_pi_skills_setting.py` | なし | 除外 | pi は `.agents/skills` を cwd から git のルートまで自動で読むので不要。`~/.pi/agent/settings.json` に `.claude/skills` の絶対パスを足すと、ホストと共有する `~/.pi` を通じて他のワークスペースの pi にも効く。スキルの読み込みは #17 で対象外 | #22 |
+
+### PR #141 のレビュー修正による追加差分（2026-10-18）
+
+`715d981` との初回比較の結果は上表の履歴として残す。以後、provider setup 3本は完全一致ではない。
+`~` の解決・BOM の読み取り・失敗通知・mode と共有先の保護を、専用の
+`.devcontainer/pi-provider-setup.py` へまとめた。旧 cleanup / pi_json は復活させていない。
+Codex テストの隔離 helper と外側 pytest は、private `/tmp` の後に対象リポジトリを読み取り専用で
+明示 mount し、`/tmp` の worktree でも同じ検証を行う。正常対照・拒否理由・副作用を確認する実行回帰を追加した。
+判断と検証結果は Issue #125 の Spec の「PR #141 レビュー修正」に記録する。
 
 ## 網羅の確認
 
@@ -200,7 +211,7 @@
 1. ホストの作業ツリー（`/workspaces/reso-world`）を最新の `origin/main` に追従させる。rebuild は作業ツリーの `.devcontainer/` を使う。#22 の PR は文書とテストの例外（`EXCLUDED` の 1 行とそのコメント）だけを変え、導入スクリプトと設定ファイルを変えないので、`origin/main`（`01affb7` 以降）で rebuild すれば、移植の結果を確かめられる
 2. `.devcontainer/README.md` の「既存環境の更新」に従って、ホストの `~/.config/create-reso-world/env` を見直す
 3. VS Code で Dev Containers: Rebuild Container を実行する
-4. 下の表の各項目を「確認のコマンド」で確かめ、「rebuild 後」の列に結果を書く。R-6 の `cleanup_pi_mcp.py` の再実行、R-8、R-11 は利用者の設定を変える操作や対話の承認を含むので、利用者が行うか、利用者の了承を得てから行う
+4. 下の表の各項目を「確認のコマンド」で確かめ、「rebuild 後」の列に結果を書く。R-8、R-11 は利用者の設定を変える操作や対話の承認を含むので、利用者が行うか、利用者の了承を得てから行う
 
 ### 確認項目と記録
 
@@ -220,6 +231,10 @@
 | R-10 | Claude Code のプラグインが宣言と一致する | `claude plugin list`（R-10 のコマンド） | `example-skills`・`feature-dev`・`ripgrep`・`superpowers`・`web-quality-skills` がある | 5 つともある | 5 つとも user のスコープで有効 |
 | R-11 | pi がルートとワールドでプロジェクトの設定を読む | ルートと、ワールドの代表として `slum02/` で素の `pi` を起動し、project trust を承認してから `/mcp` を開く（4 つのワールドは同じ `.pi -> ../.pi` を持ち、R-12 の `check-layout.sh` が検査する） | `google-dev-knowledge` が表示される（キーが無ければ接続のエラーを 1 回通知する） | 未確認 | 素の `pi` の `/mcp` の代わりに、ルートと `slum02/` で `pi mcp list` を実行し、どちらも `google-dev-knowledge: connected, 3 tools (codemode, project)` を出した。`/workspaces/reso-world` は rebuild 前から `~/.pi/agent/trust.json` で trust 済みなので、承認の操作は無かった |
 | R-12 | テスト一式が通る | リポジトリのルートでテスト一式を実行する（R-12 のコマンド） | すべて成功する | PASS、27/27、516 passed・1 skipped（`01affb7` の worktree） | PASS、27/27、516 passed・1 skipped（`test-instructions.bash` を直した後の `eb7c539` の worktree）。直す前の `e21121e` では、`test-instructions.bash` が失敗して 26/27 だった（PR #34 が AGENTS.md に `## GitHub Actions` の節を足したが、AGENTS.md の節の一覧を固定値と比べる検査が更新されていなかった。この検査は不要と判断して削除した）。親の checkout の pytest は、無視対象の `.agents/skills/repository-ownership/tests/__pycache__/` の残骸で 2 件失敗し、残骸を消すと通った |
+
+### #125 以降の確認で変わる点
+
+上の rebuild 表は 2026-10-05 の観測記録で、再検証結果ではない。#125 以降は R-5 で context7-pi と Plannotator の登録を保持し、R-6 の自動バックアップは作らない。R-7 は pigou を除く11本、R-11 は Context7 も確認する。現行の反映手順と未検証項目は `.devcontainer/README.md` と Issue #125 を参照する。以下のコマンドは現行の配置に更新し、削除済み cleanup は実行しない。
 
 ### 確認のコマンド
 
@@ -242,10 +257,10 @@ pi list --no-approve
 jq '.dependencies' ~/.pi/agent/npm/package.json
 jq '.extensions' ~/.pi/agent/settings.json
 jq '.providers | keys' ~/.pi/agent/models.json
-# R-6（一覧だけ。cleanup の再実行は下のブロック）
+# R-6（過去のバックアップの一覧だけ。#125 以降は自動作成しない）
 ls -d ~/.pi/agent/migration-backups/pi-retired-*
 # R-7
-for l in pigo pigod pigou piccg piccd piga pigs pigl pixg; do PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 $l --tui-mode fullscreen; done
+for l in pigo pigod piccg piccd piga pigs pigl pixg pigemf pigemp pigema; do PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 $l --tui-mode fullscreen; done
 # R-9（標準入力を閉じる。端末から実行しても、`~/.zshrc` の末尾が herdr を起動しない）
 zsh -ic 'alias ccd ccdo ccds; whence -w ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union ccda claude-alibaba' </dev/null
 # R-10
@@ -259,11 +274,9 @@ uv run pytest tests/skills .agents/skills
 利用者の設定を変えるコマンド（利用者が行うか、利用者の了承を得てから実行する）:
 
 ```bash
-# R-6: cleanup を再実行し、バックアップの一覧が増えないことを確かめる
-uv run --no-project .devcontainer/cleanup_pi_mcp.py
-ls -d ~/.pi/agent/migration-backups/pi-retired-*
+# R-6: #125 で独自 cleanup を廃止したため再実行しない。過去の確認結果だけを上表に残す
 # R-8: tier を置き直し、pigs と pixg の tier をリポジトリの値と比べる（一致すれば何も出ない）
-zsh .devcontainer/setup_pi_superagents.zsh
+zsh scripts/setup_pi_superagents.zsh
 for l in pigs pixg; do diff <(jq -cS .superagents.modelTiers ~/.pi/agent/extensions/subagent.d/$l/config.json) <(jq -cS .superagents.modelTiers .devcontainer/pi-superagents/$l.json); done
 ```
 
@@ -271,7 +284,8 @@ for l in pigs pixg; do diff <(jq -cS .superagents.modelTiers ~/.pi/agent/extensi
 
 次は実際の認証と provider への接続が要るので、この記録の対象外とし、未検証である。
 
-- pi の 9 ランチャーの起動と応答（OpenCode Go、Command Code、ChatGPT Pro の Codex OAuth、xAI OAuth）
+- pi の 11 ランチャーの起動と応答（OpenCode Go、Command Code、ChatGPT Pro の Codex OAuth、xAI OAuth、Vertex ADC）
+- Plannotator の Windows ブラウザーでの Plan 確認と承認／修正要求（#125）
 - pi-superagents の子 Pi の tier ごとの起動
 - `ccdd`・`ccdd --model fable`・`ccddg`（DeepInfra）と `ccdu`（OpenCode Go）
 - Claude Code の Google Developer Knowledge の MCP の接続（pi の接続は R-11 の `pi mcp list` で確かめた）

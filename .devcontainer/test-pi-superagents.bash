@@ -2,53 +2,11 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
-# 親モデルは tier と別の設定。唯一の静的な呼出しを読み、実行結果からは
-# 期待値を作らない。helper が追加する regular と、定数の引数順も比較する。
-launcher_pi_args_from_source() {
-    python3 - "${REPO_ROOT}/.devcontainer/$1" <<'PY_SOURCE'
-from pathlib import Path
-import re
-import shlex
-import sys
-
-path = Path(sys.argv[1])
-source = path.read_text(encoding="utf-8").replace("\\\n", "")
-calls = [shlex.split(line, comments=True) for line in source.splitlines()
-         if re.match(r"^\s*pi_superagents_exec(?:\s|$)", line)]
-assert len(calls) == 1, (path, "expected one pi_superagents_exec call", calls)
-call = calls[0]
-assert call[1] == path.name, (path, call)
-args = []
-for word in call[2:]:
-    if word in ("$@", "||", "&&", ";"):
-        break
-    args.append(word)
-assert len(args) % 2 == 0, (path, args)
-for flag in ("--provider", "--model", "--thinking"):
-    assert args[::2].count(flag) == 1, (path, flag, args)
-for flag, value in zip(args[::2], args[1::2]):
-    assert flag.startswith("--") and value, (path, flag, value)
-    assert not any(c in value for c in "$`\n"), (path, "nonconstant argument", value)
-print("--tui-mode", "regular", *args, sep="\n")
-PY_SOURCE
-}
-
-# Codex スイートもこの静的解析を使う。テスト用 HOME や一時ディレクトリを
-# 作らず、zsh やスイートの起動前に定義元の引数だけを返す。
-if [ "${1:-}" = --launcher-pi-args-from-source ]; then
-    if [ "$#" -ne 2 ]; then
-        printf 'Usage: %s --launcher-pi-args-from-source <launcher>\n' "$0" >&2
-        exit 2
-    fi
-    launcher_pi_args_from_source "$2"
-    exit 0
-fi
-
+export WORKSPACE_ROOT="$REPO_ROOT"
 HELPER="${REPO_ROOT}/.devcontainer/pi-superagents-exec.zsh"
 TEST_ROOT="$(mktemp -d)"
 ZSH_BIN="$(command -v zsh)"
-trap 'rm -rf "${TEST_ROOT}"' EXIT
+trap 'rm -rf -- "${TEST_ROOT:?}"' EXIT
 
 # 呼び出し側の PI_CODING_AGENT_DIR で結果が変わらないよう、スイート全体で
 # 無効化する。必要なテストは呼び出し単位で明示的に設定する。
@@ -88,6 +46,15 @@ write_xai_auth() {
     mkdir -p "${home}/.pi/agent"
     printf '%s\n' \
         '{"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
+        > "${home}/.pi/agent/auth.json"
+}
+
+# OAuth で起動前に確認するランチャー（openai-codex・xai）をまとめて起動できる auth.json を置く。
+write_oauth_auth() {
+    local home="$1"
+    mkdir -p "${home}/.pi/agent"
+    printf '%s\n' \
+        '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
         > "${home}/.pi/agent/auth.json"
 }
 
@@ -198,7 +165,7 @@ test_dry_run_one_prints_argv_without_exec() {
     local home out
     home="$(make_home dry1 with-config)"
     make_bwrap_shim
-    rm -f "$FAKE_BWRAP_LOG"
+    rm -f -- "${FAKE_BWRAP_LOG:?}"
     out="$(run_helper_dry_run "$home" dry1 1 --provider opencode-go)"
     assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "argv[0]"
     assert_contains "$out" "--dev-bind" "dev-bind option"
@@ -210,7 +177,7 @@ test_dry_run_zero_execs_bwrap() {
     local home log
     home="$(make_home dry0 with-config)"
     make_bwrap_shim
-    rm -f "$FAKE_BWRAP_LOG"
+    rm -f -- "${FAKE_BWRAP_LOG:?}"
     run_helper_dry_run "$home" dry0 0 --provider opencode-go
     log="$(cat "$FAKE_BWRAP_LOG")"
     assert_contains "$log" "bwrap invoked with" "=0 must exec bwrap"
@@ -219,12 +186,11 @@ test_dry_run_zero_execs_bwrap() {
 }
 
 test_actual_and_dry_run_argv_match() {
-    # dry-run の表示と実際の exec が同じ argv 配列を使うことを、空白を含む引数で確かめる。
     local home out expected
     local -a command_args
     home="$(make_home argv-match with-config)"
     make_bwrap_shim
-    rm -f "$FAKE_BWRAP_LOG"
+    rm -f -- "${FAKE_BWRAP_LOG:?}"
     out="$(run_helper "$home" argv-match --session 'session with spaces.jsonl' -- 'message with spaces')"
     mapfile -t command_args <<< "$out"
     expected="$(printf 'bwrap invoked with %s args\n' "$((${#command_args[@]} - 1))"; \
@@ -236,18 +202,11 @@ test_actual_and_dry_run_argv_match() {
 CONFIG_DIR="${REPO_ROOT}/.devcontainer/pi-superagents"
 PI_MODELS="${REPO_ROOT}/.devcontainer/pi-models.json"
 
-# ランチャーは定義元の .devcontainer/pi-superagents/<launcher>.json から列挙し、一覧をテストへ写さない
-mapfile -t LAUNCHERS < <(find "$CONFIG_DIR" -maxdepth 1 -name '*.json' -printf '%f\n' | sed 's/\.json$//' | LC_ALL=C sort)
-[ "${#LAUNCHERS[@]}" -gt 0 ] || fail "no launcher definitions in ${CONFIG_DIR}"
-
-# <launcher> <tier> の model 文字列を取り出す。
-tier_model() {
-    python3 -c '
-import json, sys
-data = json.load(open(sys.argv[1]))
-print(data["superagents"]["modelTiers"][sys.argv[2]]["model"])
-' "${CONFIG_DIR}/$1.json" "$2"
-}
+# ランチャーは .devcontainer/pi-superagents/<launcher>.json の tier 設定と 1 対 1 に対応する。
+# 一覧をテストへ書き写さず、設定ファイルから導く。
+mapfile -t LAUNCHERS < <(find "$CONFIG_DIR" -maxdepth 1 -name '*.json' -printf '%f\n' \
+    | sed 's/\.json$//' | LC_ALL=C sort)
+[ "${#LAUNCHERS[@]}" -gt 0 ] || fail "no launcher configs in ${CONFIG_DIR}"
 
 test_commandcode_models_are_defined_in_pi_models() {
     # commandcode は Pi の built-in provider ではないので、models.json に
@@ -276,22 +235,7 @@ if missing:
 ' "$PI_MODELS" "$CONFIG_DIR" || fail "commandcode tier models are not defined in pi-models.json"
 }
 
-test_opencode_go_tiers_use_opencode_go() {
-    local launcher tier model
-    for launcher in pigo pigod pigou; do
-        for tier in cheap balanced max; do
-            model="$(tier_model "$launcher" "$tier")"
-            case "$model" in
-                opencode-go/*) ;;
-                *) fail "${launcher}.${tier} must use opencode-go: ${model}" ;;
-            esac
-        done
-    done
-}
-
-# tier 設定はリポジトリで追跡し、ホストの ~/.pi へ複製する。資格情報は auth.json と環境変数から読むため、
-# 設定に鍵やトークンを書くと秘密情報を追跡・複製する。この禁止は固定値で守る
-test_configs_hold_no_secrets() {
+test_configs_contain_no_credentials() {
     local f
     for f in "${CONFIG_DIR}"/*.json; do
         if grep -qiE "api[_-]?key|token|\\\$[A-Z_]*KEY" "$f"; then
@@ -310,13 +254,19 @@ import json, sys
 data = json.load(open(sys.argv[1]))
 assert list(data) == ["superagents"], list(data)
 assert list(data["superagents"]) == ["modelTiers"], list(data["superagents"])
-assert sorted(data["superagents"]["modelTiers"]) == ["balanced", "cheap", "max"]
-' "$f" || fail "$f must contain only superagents.modelTiers with cheap/balanced/max"
+tiers = data["superagents"]["modelTiers"]
+assert sorted(tiers) == ["balanced", "cheap", "max"], sorted(tiers)
+for name, tier in tiers.items():
+    assert sorted(tier) == ["model", "thinking"], (name, tier)
+    provider, _, model = tier["model"].partition("/")
+    assert provider and model, (name, tier)
+    assert isinstance(tier["thinking"], str) and tier["thinking"], (name, tier)
+' "$f" || fail "$f must contain only superagents.modelTiers with cheap/balanced/max of {model: provider/id, thinking}"
     done
 }
 
 # ランチャーは install 後 ~/.local/bin に置かれるが、テストはリポジトリ内の
-# 正本を直接叩く。ヘルパの探索がリポジトリ相対で解決できることも同時に見る。
+# 元ファイルを直接叩く。ヘルパの探索がリポジトリ相対で解決できることも同時に見る。
 run_launcher() {
     local home="$1" launcher="$2"; shift 2
     env HOME="$home" \
@@ -327,19 +277,21 @@ run_launcher() {
         zsh "${REPO_ROOT}/.devcontainer/${launcher}" "$@"
 }
 
-test_opencode_key_reaches_child_process() {
-    # pigs の cheap と pixg の cheap / balanced は opencode-go を使う。旧名の
-    # OPENCODE_GO_API_KEY から OPENCODE_API_KEY への互換が、ランチャーから
-    # exec された子プロセスまで届くことを確かめる。
-    local shim_dir="${TEST_ROOT}/opencode-key-bin"
-    local launcher home row primary legacy expected output
+test_pigs_opencode_key_reaches_child_process() {
+    local home="${TEST_ROOT}/pigs-opencode-key" shim_dir="${TEST_ROOT}/pigs-opencode-bin"
+    local row primary legacy expected output
     local -a key_env cases=(
         '<unset>:dummy-legacy:dummy-legacy'
         ':dummy-legacy:dummy-legacy'
         'dummy-primary:dummy-legacy:dummy-primary'
         '<unset>:<unset>:<unset>'
     )
-    mkdir -p "$shim_dir"
+    mkdir -p "${home}/.pi/agent/extensions/subagent.d/pigs" "$shim_dir"
+    cp "${CONFIG_DIR}/pigs.json" "${home}/.pi/agent/extensions/subagent.d/pigs/config.json"
+    printf '%s\n' \
+        '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
+        > "${home}/.pi/agent/auth.json"
+
     # 実ランチャーから exec された bwrap の子で、export された値を観測する。
     # 実際の mount namespace や Pi の API 呼び出しはこのテストには不要。
     cat > "${shim_dir}/bwrap" <<'BWRAP_ENV_EOF'
@@ -348,28 +300,20 @@ bash -c 'printf "%s\n" "${OPENCODE_API_KEY-<unset>}"'
 BWRAP_ENV_EOF
     chmod +x "${shim_dir}/bwrap"
 
-    for launcher in pigs pixg; do
-        home="${TEST_ROOT}/${launcher}-opencode-key"
-        mkdir -p "${home}/.pi/agent/extensions/subagent.d/${launcher}"
-        cp "${CONFIG_DIR}/${launcher}.json" "${home}/.pi/agent/extensions/subagent.d/${launcher}/config.json"
-        printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
-            > "${home}/.pi/agent/auth.json"
-        for row in "${cases[@]}"; do
-            IFS=: read -r primary legacy expected <<< "$row"
-            key_env=(env -u OPENCODE_API_KEY -u OPENCODE_GO_API_KEY)
-            if [ "$primary" != '<unset>' ]; then
-                key_env+=("OPENCODE_API_KEY=$primary")
-            fi
-            if [ "$legacy" != '<unset>' ]; then
-                key_env+=("OPENCODE_GO_API_KEY=$legacy")
-            fi
-            output="$("${key_env[@]}" HOME="$home" \
-                PI_CODING_AGENT_DIR="${home}/.pi/agent" PATH="${shim_dir}:${PATH}" \
-                PI_SUPERAGENTS_LAUNCHER_DRY_RUN=0 \
-                "${ZSH_BIN}" "${REPO_ROOT}/.devcontainer/${launcher}")"
-            assert_eq "$output" "$expected" \
-                "${launcher} child key with primary='${primary}' legacy='${legacy}'"
-        done
+    for row in "${cases[@]}"; do
+        IFS=: read -r primary legacy expected <<< "$row"
+        key_env=(env -u OPENCODE_API_KEY -u OPENCODE_GO_API_KEY)
+        if [ "$primary" != '<unset>' ]; then
+            key_env+=("OPENCODE_API_KEY=$primary")
+        fi
+        if [ "$legacy" != '<unset>' ]; then
+            key_env+=("OPENCODE_GO_API_KEY=$legacy")
+        fi
+        output="$("${key_env[@]}" HOME="$home" \
+            PI_CODING_AGENT_DIR="${home}/.pi/agent" PATH="${shim_dir}:${PATH}" \
+            PI_SUPERAGENTS_LAUNCHER_DRY_RUN=0 \
+            "${ZSH_BIN}" "${REPO_ROOT}/.devcontainer/pigs")"
+        assert_eq "$output" "$expected" "pigs child key with primary='${primary}' legacy='${legacy}'"
     done
 }
 
@@ -378,44 +322,125 @@ pi_args_of() {
     printf '%s\n' "$1" | awk 'seen { print } $0 == "pi" { seen = 1 }'
 }
 
+# run_launcher は zsh 経由で起動するため実行ビットを必要としない。
+# リポジトリからの直接実行を案内するランチャーの git モード落ちをここで検出する。
+test_launcher_files_are_executable() {
+    local launcher
+    for launcher in "${LAUNCHERS[@]}"; do
+        [ -x "${REPO_ROOT}/.devcontainer/${launcher}" ] \
+            || fail ".devcontainer/${launcher} must be executable (git mode 100755)"
+    done
+}
+
+# 各ランチャーは自分の tier 設定を共有ディレクトリへ重ねて Pi を起動する。
+# bind 元・重ね先は --bind の直後の 2 要素で見る（部分一致だと重ね先が bind 元の
+# 部分文字列に化けて通るため）。
 test_launchers_wrap_pi_with_their_own_config() {
     local launcher home out
+    local -a argv
+    local i bind_at
     for launcher in "${LAUNCHERS[@]}"; do
         home="$(make_home "$launcher" with-config)"
-        printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
-            > "${home}/.pi/agent/auth.json"
+        write_oauth_auth "$home"
         out="$(run_launcher "$home" "$launcher")"
-        assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "${launcher} argv[0]"
-        assert_contains "$out" "${home}/.pi/agent/extensions/subagent.d/${launcher}" \
-            "${launcher} bind source"
-        # 重ね先 (argv[8]) を固定。部分一致だと bind 元の部分文字列に化けて通るため。
-        assert_eq "$(printf '%s\n' "$out" | sed -n 8p)" \
+        mapfile -t argv <<< "$out"
+        assert_eq "${argv[0]}" "bwrap" "${launcher} argv[0]"
+        bind_at=""
+        for i in "${!argv[@]}"; do
+            if [ "${argv[$i]}" = "--bind" ]; then
+                bind_at="$i"
+                break
+            fi
+        done
+        [ -n "$bind_at" ] || fail "${launcher} must pass --bind to bwrap"
+        assert_eq "${argv[$((bind_at + 1))]}" \
+            "${home}/.pi/agent/extensions/subagent.d/${launcher}" "${launcher} bind src"
+        assert_eq "${argv[$((bind_at + 2))]}" \
             "${home}/.pi/agent/extensions/subagent" "${launcher} bind dst"
     done
 }
 
+# <option> <args...>: args の中で option の直後にある値を出す。
+option_value() {
+    local option="$1"
+    shift
+    while [ "$#" -gt 1 ]; do
+        if [ "$1" = "$option" ]; then
+            printf '%s\n' "$2"
+            return 0
+        fi
+        shift
+    done
+    return 1
+}
+
+# 各ランチャーは Pi を regular TUI で起動し、provider・model・thinking を指定したうえで、
+# 利用者の引数を空白を含めてそのまま末尾へ渡す。モデル名はランチャーの設定なので写さず、
+# commandcode（Pi の built-in provider ではない）のモデルは pi-models.json に定義があることを見る。
 test_launchers_select_regular_and_forward_user_arguments() {
-    # 全ランチャーで regular、静的な指定、利用者の引数の順を比較する。
-    # 空白を含む引数も崩さずに並び、tier と異なる親モデルも許容する。
-    local home launcher args prefix expected
+    local launcher home option value provider models
+    local -a args own user_args=(--resume --session 'session with spaces.jsonl' -- 'message with spaces')
     for launcher in "${LAUNCHERS[@]}"; do
         home="$(make_home "$launcher" with-config)"
-        mkdir -p "${home}/.pi/agent"
-        printf '%s\n' '{"openai-codex":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999},"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
-            > "${home}/.pi/agent/auth.json"
-        prefix="$(launcher_pi_args_from_source "$launcher")" \
-            || fail "cannot read ${launcher} source arguments"
-        args="$(pi_args_of "$(run_launcher "$home" "$launcher" --resume --session 'session with spaces.jsonl' -- 'message with spaces')")"
-        expected="$(printf '%s\n' "$prefix" --resume --session 'session with spaces.jsonl' -- 'message with spaces')"
-        assert_eq "$args" "$expected" "${launcher} regular mode and pi arguments"
+        write_oauth_auth "$home"
+        mapfile -t args < <(pi_args_of "$(run_launcher "$home" "$launcher" "${user_args[@]}")")
+        [ "${#args[@]}" -gt "$((2 + ${#user_args[@]}))" ] || fail "${launcher} passed too few Pi arguments"
+        assert_eq "${args[0]} ${args[1]}" "--tui-mode regular" "${launcher} must select the regular TUI first"
+        assert_eq "$(printf '%s\n' "${args[@]:${#args[@]}-${#user_args[@]}}")" \
+            "$(printf '%s\n' "${user_args[@]}")" "${launcher} must forward user arguments last"
+        own=("${args[@]:2:${#args[@]}-2-${#user_args[@]}}")
+        for option in --provider --model --thinking; do
+            value="$(option_value "$option" "${own[@]}")" || fail "${launcher} must pass ${option}"
+            [ -n "$value" ] || fail "${launcher} must pass a value for ${option}"
+        done
+        provider="$(option_value --provider "${own[@]}")"
+        if [ "$provider" = commandcode ]; then
+            models="$(option_value --model "${own[@]}")"
+            if value="$(option_value --models "${own[@]}")"; then
+                models="${models},${value}"
+            fi
+            python3 - "$PI_MODELS" "$models" <<'PY' \
+                || fail "${launcher} must use commandcode models defined in pi-models.json"
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    defined = {entry["id"] for entry in json.load(source)["providers"]["commandcode"]["models"]}
+missing = sorted(set(sys.argv[2].split(",")) - defined)
+assert not missing, missing
+PY
+        fi
+    done
+}
+
+# Pi に google-vertex を渡すランチャーだけが auth.json の読み取り専用 overlay を重ねる。
+# helper の Vertex ランチャーの一覧へ登録し忘れると、保存済みの Vertex key や OAuth が
+# overlay なしで Pi に渡る。bwrap 側の引数（"pi" の行より前）だけを見る。
+test_only_vertex_launchers_overlay_auth() {
+    local launcher home out provider overlay
+    local -a own
+    for launcher in "${LAUNCHERS[@]}"; do
+        home="$(make_home "$launcher" with-config)"
+        write_oauth_auth "$home"
+        out="$(run_launcher "$home" "$launcher")"
+        mapfile -t own < <(pi_args_of "$out")
+        provider="$(option_value --provider "${own[@]}")" || provider=""
+        overlay=0
+        if printf '%s\n' "$out" | awk '$0 == "pi" { exit } $0 == "--ro-bind-data" { found = 1 } END { exit !found }'; then
+            overlay=1
+        fi
+        if [ "$provider" = google-vertex ]; then
+            assert_eq "$overlay" 1 "${launcher} passes google-vertex to Pi and must overlay auth.json"
+        else
+            assert_eq "$overlay" 0 "${launcher} does not use google-vertex and must not overlay auth.json"
+        fi
     done
 }
 
 test_pixg_oauth_guidance() {
-    local home status out expected
-    expected="$(launcher_pi_args_from_source pixg)" || fail "cannot read pixg source arguments"
+    local home status out
     # 専用の home を使う。先行テストが ${TEST_ROOT}/pixg に置いた auth.json が
-    # 残っていると未認証ケースを再現できない（pigou の tests と同じ構造）。
+    # 残っていると未認証ケースを再現できない。
     home="${TEST_ROOT}/pixg-oauth-guidance"
     mkdir -p "${home}/.pi/agent/extensions/subagent" \
         "${home}/.pi/agent/extensions/subagent.d/pixg"
@@ -429,6 +454,10 @@ test_pixg_oauth_guidance() {
     set -e
     assert_eq "$status" "1" "pixg must exit 1 without xai OAuth"
     assert_contains "$out" "/login xai" "must explain xai OAuth login"
+    assert_contains "$out" "SuperGrok" "must name the subscription sign-in"
+    case "$out" in
+        *XAI_API_KEY*) fail "pixg must not request XAI_API_KEY" ;;
+    esac
 
     # oauth 以外の xai credential（API key 等）も未設定として案内する。
     printf '%s\n' '{"xai":{"type":"api_key","key":"dummy"}}' \
@@ -443,16 +472,15 @@ test_pixg_oauth_guidance() {
     # xAI OAuth があれば起動する。cheap / balanced tier の子 Pi が使う
     # opencode-go の資格情報は auth.json の api_key または OPENCODE_API_KEY で
     # 解決し、ランチャーは起動前に確認しない（pigo / pigod と同じ）。
-    # Codex OAuth は使わないので、無くても止まらない。
     write_xai_auth "$home"
-    out="$(run_launcher "$home" pixg 2>&1)"
-    assert_eq "$(pi_args_of "$out")" "$expected" "valid xAI OAuth must reach argv"
+    out="$(run_launcher "$home" pixg)"
+    assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "valid xAI OAuth must reach argv"
 
     # PI_CODING_AGENT_DIR の ~ 展開も共有ヘルパと同じ受理形にする。
     out="$(env HOME="$home" PI_CODING_AGENT_DIR='~/.pi/agent' \
         PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
         zsh "${REPO_ROOT}/.devcontainer/pixg" 2>&1)"
-    assert_eq "$(pi_args_of "$out")" "$expected" "tilde agent dir must resolve the OAuth credential"
+    assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "tilde agent dir must resolve the OAuth credential"
 }
 
 test_commandcode_key_check_runs_before_launch() {
@@ -474,7 +502,7 @@ test_launcher_missing_config_fails_closed() {
     # make_home は TEST_ROOT 配下を名前で再利用するため、先行する
     # with-config テストが置いた config.json が残りうる。確実に「config 無し」を
     # 作るため、このテストが使う launcher の config 一式を先に取り除く。
-    rm -rf "${home}/.pi/agent/extensions/subagent.d/pigo"
+    rm -rf -- "${home:?}/.pi/agent/extensions/subagent.d/pigo"
     set +e
     out="$(run_launcher "$home" pigo 2>&1)"
     status=$?
@@ -483,101 +511,32 @@ test_launcher_missing_config_fails_closed() {
     assert_contains "$out" "setup_pi_superagents.zsh" "must point at the setup script"
 }
 
-# pigou が起動前に models.json で確かめるモデル。運用で変わるので、ランチャーの静的な呼出しから読む
-pigou_model() {
-    awk '$0 == "--model" { getline; print; exit }' <<<"$(launcher_pi_args_from_source pigou)"
-}
-
-test_pigou_missing_model_def_fails_with_guidance() {
-    local home status out model
-    model="$(pigou_model)"
-    # 専用の home を使う。make_home pigou で同名の home を再利用すると、ここで
-    # 置く models.json が他の pigou テストへ漏れる。
-    home="${TEST_ROOT}/pigou-stale-models"
+test_run_launcher_ignores_external_pi_coding_agent_dir() {
+    local home foreign status out
+    # 呼び出し側で PI_CODING_AGENT_DIR を export していても、run_launcher は
+    # テスト用 home 配下へ固定する。実環境側の auth.json を読んで誤って
+    # 成功扱いになることを防ぐ（test_bind_target_ignores_pi_coding_agent_dir
+    # と対になるランチャー側の観点）。
+    home="${TEST_ROOT}/pixg-env-isolation"
+    foreign="${TEST_ROOT}/pixg-env-isolation-foreign"
     mkdir -p "${home}/.pi/agent/extensions/subagent" \
-        "${home}/.pi/agent/extensions/subagent.d/pigou"
+        "${home}/.pi/agent/extensions/subagent.d/pixg" "$foreign"
     printf '{"superagents":{"modelTiers":{}}}\n' \
-        > "${home}/.pi/agent/extensions/subagent.d/pigou/config.json"
-    # pigou のモデルを含まない既存 models.json（このランチャー追加前の環境）を再現する。
-    printf '%s\n' '{"providers":{"opencode-go":{"models":[{"id":"stale-model"}]}}}' \
-        > "${home}/.pi/agent/models.json"
+        > "${home}/.pi/agent/extensions/subagent.d/pixg/config.json"
+    printf '%s\n' '{}' > "${home}/.pi/agent/auth.json"
+    # 外部環境側は xai OAuth 設定済み。こちらを読まれると exit 0 になる。
+    printf '%s\n' \
+        '{"xai":{"type":"oauth","access":"test-access","refresh":"test-refresh","expires":9999999999999}}' \
+        > "${foreign}/auth.json"
     set +e
-    out="$(run_launcher "$home" pigou 2>&1)"
+    out="$(PI_CODING_AGENT_DIR="$foreign" run_launcher "$home" pixg 2>&1)"
     status=$?
     set -e
-    assert_eq "$status" "1" "pigou must exit 1 when ${model} is undefined"
-    assert_contains "$out" "model \"${model}\" is not defined" "must name the missing model"
-    assert_contains "$out" "setup_pi_opencode_go.zsh" "must point at the setup script"
-
-    printf '{"providers":{"opencode-go":{"models":[{"id":"%s"}]}}}\n' "$model" \
-        > "${home}/.pi/agent/models.json"
-    out="$(run_launcher "$home" pigou)"
-    assert_contains "$out" "$model" "defined model must reach argv"
+    assert_eq "$status" "1" "run_launcher must pin PI_CODING_AGENT_DIR to the test home"
+    assert_contains "$out" "/login xai" "must read the test home's auth.json"
 }
 
-test_pigou_missing_provider_def_fails_with_guidance() {
-    local home status out
-    # providers.opencode-go 自体を持たない models.json（commandcode だけを
-    # セットアップした環境）では、モデル欠落ではなくプロバイダ欠落を案内する。
-    home="${TEST_ROOT}/pigou-no-provider-models"
-    mkdir -p "${home}/.pi/agent"
-    printf '%s\n' '{"providers":{"commandcode":{"models":[{"id":"meta/muse-spark-1.3"}]}}}' \
-        > "${home}/.pi/agent/models.json"
-    set +e
-    out="$(run_launcher "$home" pigou 2>&1)"
-    status=$?
-    set -e
-    assert_eq "$status" "1" "pigou must exit 1 when opencode-go provider is absent"
-    assert_contains "$out" 'provider "opencode-go" is not defined' "must name the missing provider"
-    assert_contains "$out" "setup_pi_opencode_go.zsh" "must point at the setup script"
-
-    # providers キー自体を持たない models.json でも pigou のモデルは確実に
-    # 未定義なので、スキップではなく同じ案内で止まる。
-    printf '%s\n' '{}' > "${home}/.pi/agent/models.json"
-    set +e
-    out="$(run_launcher "$home" pigou 2>&1)"
-    status=$?
-    set -e
-    assert_eq "$status" "1" "pigou must exit 1 when providers key is absent"
-    assert_contains "$out" 'provider "opencode-go" is not defined' "must name the missing provider"
-    assert_contains "$out" "setup_pi_opencode_go.zsh" "must point at the setup script"
-}
-
-test_pigou_models_json_uses_home_fallback() {
-    local home status out model
-    model="$(pigou_model)"
-    # run_launcher は PI_CODING_AGENT_DIR をテスト用 home へ固定するため、
-    # それ経由では pigou の PI_DIR 解決が ${HOME}/.pi/agent へのフォールバックを
-    # 通らない。env -u で直接起動し、フォールバック経路の models.json 判定を
-    # 被覆する。
-    home="${TEST_ROOT}/pigou-home-fallback"
-    mkdir -p "${home}/.pi/agent/extensions/subagent" \
-        "${home}/.pi/agent/extensions/subagent.d/pigou"
-    printf '{"superagents":{"modelTiers":{}}}\n' \
-        > "${home}/.pi/agent/extensions/subagent.d/pigou/config.json"
-    # pigou のモデルを含まない models.json がフォールバック先にある環境。
-    printf '%s\n' '{"providers":{"opencode-go":{"models":[{"id":"stale-model"}]}}}' \
-        > "${home}/.pi/agent/models.json"
-    set +e
-    out="$(env -u PI_CODING_AGENT_DIR HOME="$home" \
-        PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
-        zsh "${REPO_ROOT}/.devcontainer/pigou" 2>&1)"
-    status=$?
-    set -e
-    assert_eq "$status" "1" "pigou must exit 1 via the HOME fallback PI_DIR"
-    assert_contains "$out" "model \"${model}\" is not defined" \
-        "must read models.json under HOME/.pi/agent"
-
-    # フォールバック先の定義が正しく読まれることも確認する。
-    printf '{"providers":{"opencode-go":{"models":[{"id":"%s"}]}}}\n' "$model" \
-        > "${home}/.pi/agent/models.json"
-    out="$(env -u PI_CODING_AGENT_DIR HOME="$home" \
-        PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
-        zsh "${REPO_ROOT}/.devcontainer/pigou")"
-    assert_contains "$out" "$model" "defined model must reach argv via fallback"
-}
-
-SETUP="${REPO_ROOT}/.devcontainer/setup_pi_superagents.zsh"
+SETUP="${REPO_ROOT}/scripts/setup_pi_superagents.zsh"
 
 run_setup() {
     local home="$1"; shift
@@ -687,12 +646,21 @@ test_setup_if_absent_preserves_user_edits() {
     run_setup "$home" >/dev/null
     config="${home}/.pi/agent/extensions/subagent.d/piccd/config.json"
     printf '{"superagents":{"modelTiers":{"cheap":{"model":"x/y","thinking":"max"}}}}\n' > "$config"
-    # 既存環境の更新では --if-absent の再実行でヘルパ（--tui-mode など）を最新にする。
     printf '# stale helper\n' > "${home}/.local/bin/pi-superagents-exec.zsh"
     run_setup "$home" --if-absent >/dev/null
     grep -q '"x/y"' "$config" || fail "--if-absent must not overwrite an existing config"
     cmp -s "$HELPER" "${home}/.local/bin/pi-superagents-exec.zsh" \
         || fail "--if-absent must refresh the helper while preserving configs"
+}
+
+test_setup_output_mentions_each_launcher() {
+    local home out launcher
+    home="${TEST_ROOT}/setup-report"
+    mkdir -p "$home"
+    out="$(run_setup "$home")"
+    for launcher in "${LAUNCHERS[@]}"; do
+        assert_contains "$out" "$launcher" "setup report must mention ${launcher}"
+    done
 }
 
 # setup は settings を所有しない。書式を含めて既存のバイト列を比較する。
@@ -788,14 +756,90 @@ PI_EOF
     done
 }
 
-INSTALL_SCRIPT="${REPO_ROOT}/.devcontainer/install_beforehand.bash"
+# ------------------------------------------------------------------ 完了表示の起動経路
+# 完了表示は、ランチャーが実際に Pi を起動する経路（bwrap wrapper 経由）を正しく
+# 説明しなければならない。ランチャー自身の summary は provider/model/models/thinking
+# をランチャーから Pi へ渡す引数として示し、その経路が pi-superagents の bwrap
+# wrapper を通ることと、tier 設定が ~/.pi/agent/extensions/subagent.d/<launcher>/
+# config.json にあることを含める。
+SETUP_OPENCODE="${REPO_ROOT}/scripts/setup_pi_opencode_go.zsh"
+SETUP_COMMANDCODE="${REPO_ROOT}/scripts/setup_pi_commandcode_goat.zsh"
 
-# ~/.pi はホストの bind mount で rebuild 後も残る。--if-absent を外すと、利用者が編集した tier 設定を
-# rebuild のたびにリポジトリの内容へ置き換えるため、postCreate からの呼出しを固定値で守る
-test_install_script_seeds_launcher_configs() {
-    grep -q 'setup_pi_superagents.zsh --if-absent' "$INSTALL_SCRIPT" \
-        || fail "install_beforehand.bash must seed launcher configs"
+# 両 setup スクリプトが command -v pi / pi --list-models / pi update --models を
+# 使うため、PATH 先頭に置く fake pi。実環境の pi には影響を与えない。
+make_setup_pi_fake() {
+    mkdir -p "${TEST_ROOT}/setuppi"
+    cat > "${TEST_ROOT}/setuppi/pi" <<'SETUP_PI_EOF'
+#!/bin/bash
+case "$1" in
+    update)
+        exit 0
+        ;;
+    --list-models)
+        case "$2" in
+            muse-spark-1.3-contributor)
+                printf 'opencode-go muse-spark-1.3-contributor 128k\n'
+                ;;
+            deepseek-v4.1-flash)
+                printf 'opencode-go deepseek-v4.1-flash 128k\n'
+                ;;
+            *)
+                printf 'No models matching "%s"\n' "$2"
+                exit 0
+                ;;
+        esac
+        exit 0
+        ;;
+esac
+exit 0
+SETUP_PI_EOF
+    chmod +x "${TEST_ROOT}/setuppi/pi"
 }
+
+run_opencode_setup() {
+    local home="$1"; shift
+    env HOME="$home" PATH="${TEST_ROOT}/setuppi:${PATH}" \
+        OPENCODE_API_KEY="dummy-opencode-key" zsh "$SETUP_OPENCODE" "$@"
+}
+
+run_commandcode_setup() {
+    local home="$1"; shift
+    # このテストはキー無し経路（models.json 直接検証）を意図する。外側の環境に
+    # COMMANDCODE_API_KEY が残っているとキーあり経路に入り、fake pi が
+    # --list-models commandcode に応答できず失敗するため、確実に除去する。
+    env -u COMMANDCODE_API_KEY HOME="$home" PATH="${TEST_ROOT}/setuppi:${PATH}" \
+        zsh "$SETUP_COMMANDCODE" "$@"
+}
+
+test_setup_opencode_go_completion_mentions_bwrap_and_subagent_d() {
+    local home out
+    make_setup_pi_fake
+    home="${TEST_ROOT}/setup-ocgo-report"
+    mkdir -p "$home"
+    out="$(run_opencode_setup "$home")"
+    assert_contains "$out" "bwrap" "opencode-go completion must explain the bwrap wrapper"
+    # 部分一致の "subagent.d" ではなく、tier config の完全パスを要求する。
+    for l in pigo pigod; do
+        assert_contains "$out" "~/.pi/agent/extensions/subagent.d/${l}/config.json" \
+            "opencode-go completion must name the exact ${l} config path"
+    done
+}
+
+test_setup_commandcode_goat_completion_mentions_bwrap_and_subagent_d() {
+    local home out
+    make_setup_pi_fake
+    home="${TEST_ROOT}/setup-ccgoat-report"
+    mkdir -p "$home"
+    out="$(run_commandcode_setup "$home")"
+    assert_contains "$out" "bwrap" "commandcode-goat completion must explain the bwrap wrapper"
+    # 部分一致の "subagent.d" ではなく、tier config の完全パスを要求する。
+    for l in piccg piccd; do
+        assert_contains "$out" "~/.pi/agent/extensions/subagent.d/${l}/config.json" \
+            "commandcode-goat completion must name the exact ${l} config path"
+    done
+}
+
+INSTALL_SCRIPT="${REPO_ROOT}/.devcontainer/install_beforehand.bash"
 
 # ---------------------------------------------------------------- pi 置換の fail-loud 化
 # install_beforehand.bash 全体は sudo apt 等を含みテストで実行できないため、
@@ -825,6 +869,12 @@ case "$cmd" in
             printf 'npm:pi-subagents\nnpm:@teelicht/pi-superagents\n'
             exit 0
         fi
+        if [ "${FAKE_PI_KEEP_DISTILL:-0}" = 1 ]; then
+            # remove 後の再一覧にも npm:pi-distill が残り続ける状態を再現する。
+            [ -f "$state" ] && cat "$state" || true
+            printf 'npm:pi-distill\n'
+            exit 0
+        fi
         if [ "${FAKE_PI_MISSING_NEW:-0}" = 1 ]; then
             [ -f "$state" ] && grep -v '^npm:@teelicht/pi-superagents$' "$state" || true
             exit 0
@@ -847,12 +897,12 @@ case "$cmd" in
             mv "${state}.tmp" "$state"
         fi
         # 実物の pi remove は、settings に未登録でも管理マニフェストの記載は掃除し、
-        # 「No matching package found」で exit 1 を返す。この差が論点なので、
+        # 「No matching package found」で exit 1 を返す。この差が #289 の論点なので、
         # fake でも同じ振る舞いを再現する。
         if [ -n "${PI_FAKE_NPM_DIR:-}" ]; then
             for manifest in "${PI_FAKE_NPM_DIR}/package.json" "${PI_FAKE_NPM_DIR}/package-lock.json"; do
                 [ -f "$manifest" ] || continue
-                grep -v 'pi-subagents' "$manifest" > "${manifest}.tmp" || true
+                grep -v -- "${1#npm:}" "$manifest" > "${manifest}.tmp" || true
                 mv "${manifest}.tmp" "$manifest"
             done
         fi
@@ -891,7 +941,7 @@ run_install_fragment() {
 
 test_install_removes_old_and_installs_new() {
     # 旧拡張が登録済み → 削除 → 新拡張導入 → 事後確認まで成功し exit 0 になる。
-    rm -f "$FAKE_STATE" "$FAKE_LOG"
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
     printf 'npm:pi-subagents\n' >> "$FAKE_STATE"
     local status out
     set +e
@@ -908,7 +958,7 @@ test_install_removes_old_and_installs_new() {
 
 test_install_removal_failure_is_fail_loud() {
     # 旧拡張が登録済みなのに削除に失敗したら非 0 で、対象を stderr に示す。
-    rm -f "$FAKE_STATE" "$FAKE_LOG"
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
     printf 'npm:pi-subagents\n' >> "$FAKE_STATE"
     local status out
     set +e
@@ -921,7 +971,7 @@ test_install_removal_failure_is_fail_loud() {
 
 test_install_new_failure_is_fail_loud() {
     # 新拡張の導入に失敗したら非 0 で、対象を stderr に示す。
-    rm -f "$FAKE_STATE" "$FAKE_LOG"
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
     local status out
     set +e
     out="$(FAKE_PI_FAIL_INSTALL=1 run_install_fragment 2>&1)"
@@ -933,7 +983,7 @@ test_install_new_failure_is_fail_loud() {
 
 test_install_skips_remove_when_old_absent() {
     # 旧拡張が未登録なら削除を呼ばず、事後確認まで成功して exit 0 になる。
-    rm -f "$FAKE_STATE" "$FAKE_LOG"
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
     local status out
     set +e
     out="$(run_install_fragment 2>&1)"
@@ -950,8 +1000,8 @@ test_install_skips_remove_when_old_absent() {
 test_install_removes_stale_manifest_residue() {
     # settings の一覧が綺麗でも、pi が管理する npm マニフェストに旧拡張が残っていれば
     # 削除を呼ぶ。残っていると `pi update --extensions`（zsh の update()）で
-    # node_modules ごと復活し、subagent ツール名の衝突で pigo / pigod が起動できない。
-    rm -f "$FAKE_STATE" "$FAKE_LOG"
+    # node_modules ごと復活し、subagent ツール名の衝突で pigo / pigod が起動できない（#289）。
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
     local npm_dir="${TEST_ROOT}/fake-home/.pi/agent/npm"
     mkdir -p "$npm_dir"
     printf '{\n  "dependencies": {\n    "pi-subagents": "^0.67.0"\n  }\n}\n' > "${npm_dir}/package.json"
@@ -967,14 +1017,14 @@ test_install_removes_stale_manifest_residue() {
     if grep -q 'pi-subagents' "${npm_dir}/package.json" "${npm_dir}/package-lock.json"; then
         fail "the managed manifests must not keep pi-subagents after the replacement"
     fi
-    rm -rf "$npm_dir"
+    rm -rf -- "${npm_dir:?}"
 }
 
 test_install_removes_stale_lockfile_residue() {
     # package.json は綺麗で package-lock.json にだけ "node_modules/pi-subagents" が
     # 残っているときも削除を呼ぶ。json 側パターン '"pi-subagents"' は lock のキー
     # （直前が /）に一致しないため、lock 側パターンが無いとこの残骸は残る。
-    rm -f "$FAKE_STATE" "$FAKE_LOG"
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
     local npm_dir="${TEST_ROOT}/fake-home/.pi/agent/npm"
     mkdir -p "$npm_dir"
     printf '{\n  "dependencies": {}\n}\n' > "${npm_dir}/package.json"
@@ -990,13 +1040,13 @@ test_install_removes_stale_lockfile_residue() {
     if grep -q 'pi-subagents' "${npm_dir}/package.json" "${npm_dir}/package-lock.json"; then
         fail "the managed manifests must not keep pi-subagents after the replacement"
     fi
-    rm -rf "$npm_dir"
+    rm -rf -- "${npm_dir:?}"
 }
 
 test_install_fails_when_manifest_residue_remains() {
     # 掃除後もマニフェストに残っていれば fail-loud。pi remove は未登録のとき exit 1 を
     # 返すため、成否は終了コードではなく掃除後の実体で判定する。
-    rm -f "$FAKE_STATE" "$FAKE_LOG"
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
     local npm_dir="${TEST_ROOT}/fake-home/.pi/agent/npm"
     mkdir -p "$npm_dir"
     printf '{\n  "dependencies": {\n    "pi-subagents": "^0.67.0"\n  }\n}\n' > "${npm_dir}/package.json"
@@ -1008,12 +1058,12 @@ test_install_fails_when_manifest_residue_remains() {
     assert_eq "$status" "1" "a surviving manifest residue must exit 1"
     assert_contains "$out" "pi-subagents" "must name the package that must be removed"
     assert_contains "$out" "manifest" "must point at the managed npm manifest"
-    rm -rf "$npm_dir"
+    rm -rf -- "${npm_dir:?}"
 }
 
 test_install_fails_when_old_remains_after() {
     # 導入後の一覧に旧拡張が残っていたら非 0 で、残っている拡張を stderr に示す。
-    rm -f "$FAKE_STATE" "$FAKE_LOG"
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
     printf 'npm:pi-subagents\n' >> "$FAKE_STATE"
     local status out
     set +e
@@ -1026,7 +1076,7 @@ test_install_fails_when_old_remains_after() {
 
 test_install_fails_when_new_missing_after() {
     # 導入後の一覧に新拡張が存在しなかったら非 0 で、不足している拡張を stderr に示す。
-    rm -f "$FAKE_STATE" "$FAKE_LOG"
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
     printf 'npm:pi-subagents\n' >> "$FAKE_STATE"
     local status out
     set +e
@@ -1039,7 +1089,7 @@ test_install_fails_when_new_missing_after() {
 
 test_install_fails_when_list_fails() {
     # 一覧取得自体に失敗したら非 0 で、理由を stderr に示す。
-    rm -f "$FAKE_STATE" "$FAKE_LOG"
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
     local status out
     set +e
     out="$(FAKE_PI_FAIL_LIST=1 run_install_fragment 2>&1)"
@@ -1049,19 +1099,178 @@ test_install_fails_when_list_fails() {
     assert_contains "$out" "pi list" "must mention the failing list command"
 }
 
+# ---------------------------------------------------------------- pi-distill 撤去
+# install_pi_extensions() と同じく、install_beforehand.bash の remove_pi_distill()
+# 関数だけを取り出して fake pi で検証する。
+run_remove_distill_fragment() {
+    local src="${TEST_ROOT}/fragment-remove-distill.bash"
+    awk '/^remove_pi_distill\(\) \{/{p=1} p{print} p && /^\}/{exit}' "$INSTALL_SCRIPT" > "$src"
+    printf 'remove_pi_distill\n' >> "$src"
+    env HOME="${TEST_ROOT}/fake-home" PATH="${TEST_ROOT}/bin:${PATH}" \
+        PI_CODING_AGENT_DIR="${TEST_ROOT}/fake-home/.pi/agent" \
+        PI_FAKE_STATE="$FAKE_STATE" PI_FAKE_LOG="$FAKE_LOG" \
+        PI_FAKE_NPM_DIR="${TEST_ROOT}/fake-home/.pi/agent/npm" \
+        bash "$src"
+}
+
+seed_distill_manifests() {
+    local npm_dir="${TEST_ROOT}/fake-home/.pi/agent/npm"
+    mkdir -p "$npm_dir"
+    printf '{\n  "dependencies": {\n    "pi-distill": "^1.9.2"\n  }\n}\n' > "${npm_dir}/package.json"
+    printf '{\n  "packages": {\n    "node_modules/pi-distill": {}\n  }\n}\n' > "${npm_dir}/package-lock.json"
+}
+
+clear_distill_manifests() {
+    rm -rf -- "${TEST_ROOT:?}/fake-home/.pi/agent/npm"
+}
+
+test_remove_distill_runs_when_registered() {
+    # 登録済みなら remove が呼ばれ、一覧から消えて exit 0 になる。
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
+    printf 'npm:pi-distill\n' >> "$FAKE_STATE"
+    local status out
+    set +e
+    out="$(run_remove_distill_fragment 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" "0" "successful removal must exit 0"
+    grep -q '^remove: npm:pi-distill$' "$FAKE_LOG" || fail "remove must be called"
+    if grep -q 'pi-distill' "$FAKE_STATE"; then
+        fail "pi-distill must disappear from the registry"
+    fi
+}
+
+test_remove_distill_removes_registered_helpers() {
+    # pi-distill の依存（tool-display / i18n）が単独登録されている環境も吸収する。
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
+    printf 'npm:pi-distill\nnpm:pi-extensions-tool-display\nnpm:pi-extensions-i18n\n' >> "$FAKE_STATE"
+    local status out pkg
+    set +e
+    out="$(run_remove_distill_fragment 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" "0" "helper removal must exit 0"
+    for pkg in npm:pi-distill npm:pi-extensions-tool-display npm:pi-extensions-i18n; do
+        grep -q "^remove: ${pkg}$" "$FAKE_LOG" || fail "remove must be called for ${pkg}"
+    done
+    if grep -q 'pi-distill\|pi-extensions' "$FAKE_STATE"; then
+        fail "the registry must not keep pi-distill or its helpers"
+    fi
+}
+
+test_remove_distill_skips_when_absent() {
+    # 未登録でマニフェストも綺麗なら remove を呼ばず exit 0。
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
+    clear_distill_manifests
+    local status out
+    set +e
+    out="$(run_remove_distill_fragment 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" "0" "absent removal must exit 0"
+    if [ -f "$FAKE_LOG" ] && grep -q '^remove: ' "$FAKE_LOG"; then
+        fail "remove must not be called when pi-distill is absent"
+    fi
+}
+
+test_remove_distill_removes_manifest_only_residue() {
+    # 一覧が綺麗でも npm マニフェストに pi-distill が残っていれば remove を呼ぶ。
+    # 残っていると `pi update --extensions` で node_modules ごと復活する（#289）。
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
+    seed_distill_manifests
+    local status out
+    set +e
+    out="$(run_remove_distill_fragment 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" "0" "manifest-only residue must still exit 0"
+    grep -q '^remove: npm:pi-distill$' "$FAKE_LOG" \
+        || fail "remove must be called when the managed manifest still lists pi-distill"
+    local npm_dir="${TEST_ROOT}/fake-home/.pi/agent/npm"
+    if grep -q 'pi-distill' "${npm_dir}/package.json" "${npm_dir}/package-lock.json"; then
+        fail "the managed manifests must not keep pi-distill after removal"
+    fi
+    clear_distill_manifests
+}
+
+test_remove_distill_fails_when_manifest_residue_remains() {
+    # remove に失敗してマニフェストに残るなら fail-loud。pi remove は未登録で
+    # exit 1 を返すため、成否は終了コードではなく掃除後の実体で判定する。
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
+    seed_distill_manifests
+    local status out
+    set +e
+    out="$(FAKE_PI_FAIL_REMOVE=1 run_remove_distill_fragment 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" "1" "a surviving manifest residue must exit 1"
+    assert_contains "$out" "pi-distill" "must name the package that must be removed"
+    assert_contains "$out" "manifest" "must point at the managed npm manifest"
+    clear_distill_manifests
+}
+
+test_remove_distill_fails_when_still_registered() {
+    # 除去後の再一覧に pi-distill が残っていたら非 0 で、残存を stderr に示す。
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
+    printf 'npm:pi-distill\n' >> "$FAKE_STATE"
+    local status out
+    set +e
+    out="$(FAKE_PI_KEEP_DISTILL=1 run_remove_distill_fragment 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" "1" "pi-distill remaining after removal must exit 1"
+    assert_contains "$out" "pi-distill" "must name which extension still remains"
+}
+
+test_remove_distill_fails_when_list_fails() {
+    # 一覧取得自体に失敗したら非 0 で、理由を stderr に示す。
+    rm -f -- "${FAKE_STATE:?}" "${FAKE_LOG:?}"
+    clear_distill_manifests
+    local status out
+    set +e
+    out="$(FAKE_PI_FAIL_LIST=1 run_remove_distill_fragment 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" "1" "failed pi list must exit 1"
+    assert_contains "$out" "pi list" "must mention the failing list command"
+}
+
+# 実環境の Pi が、ランチャー（親 Pi）と tier が使う xai のモデルを提供しているかを確かめる。
+# 未認証では xai 行が出ないため、先に素の pi で /login xai から SuperGrok / X Premium の
+# OAuth を済ませておくこと。
 test_pixg_live_model() {
     [ "${PI_XAI_LIVE_CHECK:-0}" = 1 ] || return 0
 
-    # 実環境で定義元の親モデルを解決できることを確認する。未認証では xai 行が
-    # 出ないため、先に /login xai から OAuth を済ませておくこと。
-    local output prefix provider model
-    prefix="$(launcher_pi_args_from_source pixg)" || fail "cannot read pixg source arguments"
-    provider="$(awk '$0 == "--provider" { getline; print; exit }' <<<"$prefix")"
-    model="$(awk '$0 == "--model" { getline; print; exit }' <<<"$prefix")"
-    output="$(pi --list-models "$provider")" || fail "pi --list-models ${provider} failed"
-    printf '%s\n' "$output" | awk -v provider="$provider" -v model="$model" \
-        '$1 == provider && $2 == model { found = 1 } END { exit !found }' \
-        || fail "${provider}/${model} is unavailable; run /login ${provider} or update Pi"
+    local launcher home provider model output
+    local -a own models=()
+    for launcher in "${LAUNCHERS[@]}"; do
+        home="$(make_home "$launcher" with-config)"
+        write_oauth_auth "$home"
+        mapfile -t own < <(pi_args_of "$(run_launcher "$home" "$launcher")")
+        provider="$(option_value --provider "${own[@]}")" || provider=""
+        if [ "$provider" = xai ]; then
+            models+=("$(option_value --model "${own[@]}")")
+        fi
+    done
+    mapfile -t -O "${#models[@]}" models < <(python3 - "$CONFIG_DIR" <<'PY'
+import json
+import pathlib
+import sys
+
+for config in sorted(pathlib.Path(sys.argv[1]).glob("*.json")):
+    for tier in json.loads(config.read_text())["superagents"]["modelTiers"].values():
+        provider, _, model = tier["model"].partition("/")
+        if provider == "xai":
+            print(model)
+PY
+)
+    [ "${#models[@]}" -gt 0 ] || fail "no launcher or tier uses xai"
+
+    output="$(pi --list-models xai)" || fail "pi --list-models xai failed"
+    for model in $(printf '%s\n' "${models[@]}" | sort -u); do
+        printf '%s\n' "$output" | awk -v model="$model" '$1 == "xai" && $2 == model { found = 1 } END { exit !found }' \
+            || fail "xai/${model} is unavailable; run /login xai or update Pi"
+    done
 }
 
 test_dry_run_emits_bwrap_command
@@ -1072,25 +1281,26 @@ test_dry_run_one_prints_argv_without_exec
 test_dry_run_zero_execs_bwrap
 test_actual_and_dry_run_argv_match
 test_commandcode_models_are_defined_in_pi_models
-test_opencode_go_tiers_use_opencode_go
-test_configs_hold_no_secrets
+test_configs_contain_no_credentials
 test_configs_are_minimal_partial_configs
+test_launcher_files_are_executable
 test_launchers_wrap_pi_with_their_own_config
 test_launchers_select_regular_and_forward_user_arguments
-test_opencode_key_reaches_child_process
+test_only_vertex_launchers_overlay_auth
+test_pigs_opencode_key_reaches_child_process
 test_pixg_oauth_guidance
 test_commandcode_key_check_runs_before_launch
 test_launcher_missing_config_fails_closed
-test_pigou_missing_model_def_fails_with_guidance
-test_pigou_missing_provider_def_fails_with_guidance
-test_pigou_models_json_uses_home_fallback
+test_run_launcher_ignores_external_pi_coding_agent_dir
 test_setup_places_all_launcher_configs
 test_setup_backs_up_modified_config
 test_setup_preserves_prior_generation_on_name_collision
 test_setup_is_idempotent_without_changes
 test_setup_if_absent_preserves_user_edits
+test_setup_output_mentions_each_launcher
 test_setup_leaves_user_settings_untouched
-test_install_script_seeds_launcher_configs
+test_setup_opencode_go_completion_mentions_bwrap_and_subagent_d
+test_setup_commandcode_goat_completion_mentions_bwrap_and_subagent_d
 make_fake_pi
 test_install_removes_old_and_installs_new
 test_install_removal_failure_is_fail_loud
@@ -1102,5 +1312,12 @@ test_install_fails_when_manifest_residue_remains
 test_install_fails_when_old_remains_after
 test_install_fails_when_new_missing_after
 test_install_fails_when_list_fails
+test_remove_distill_runs_when_registered
+test_remove_distill_removes_registered_helpers
+test_remove_distill_skips_when_absent
+test_remove_distill_removes_manifest_only_residue
+test_remove_distill_fails_when_manifest_residue_remains
+test_remove_distill_fails_when_still_registered
+test_remove_distill_fails_when_list_fails
 test_pixg_live_model
-printf 'OK test-pi-superagents\n'
+printf 'OK test-pi-superagents (task5)\n'

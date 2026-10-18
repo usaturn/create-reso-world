@@ -24,12 +24,15 @@ if [[ -z "${PI_SUPERAGENTS_HELPER}" ]]; then
     print -ru2 -- ""
     print -ru2 -- "リポジトリのルートで setup スクリプトを一度実行してください:"
     print -ru2 -- ""
-    print -ru2 -- "  zsh .devcontainer/setup_pi_superagents.zsh"
+    print -ru2 -- "  zsh scripts/setup_pi_superagents.zsh"
     exit 1
 fi
 source "${PI_SUPERAGENTS_HELPER}"
 
-readonly PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+typeset REPLY
+pi_agent_directory
+readonly PI_DIR="${REPLY}"
+unset REPLY
 readonly MODELS_JSON="${PI_DIR}/models.json"
 readonly PROVIDER="commandcode"
 readonly MODEL="deepseek/deepseek-v4.1-flash"
@@ -104,7 +107,7 @@ PY
             print -ru2 -- ""
             print -ru2 -- "リポジトリのルートで setup スクリプトを一度実行してください:"
             print -ru2 -- ""
-            print -ru2 -- "  zsh .devcontainer/setup_pi_commandcode_goat.zsh"
+            print -ru2 -- "  zsh scripts/setup_pi_commandcode_goat.zsh"
             exit 1
             ;;
         no-model)
@@ -114,7 +117,7 @@ PY
             print -ru2 -- "provider \"${PROVIDER}\" の定義が古い可能性があります。"
             print -ru2 -- "リポジトリのルートで setup スクリプトを一度実行してください:"
             print -ru2 -- ""
-            print -ru2 -- "  zsh .devcontainer/setup_pi_commandcode_goat.zsh"
+            print -ru2 -- "  zsh scripts/setup_pi_commandcode_goat.zsh"
             exit 1
             ;;
         *)

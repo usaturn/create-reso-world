@@ -12,7 +12,6 @@ set -euo pipefail
 #   ~/.pi/agent/models.json   OpenCode Go model definition
 #   ~/.local/bin/pigo         Pi launcher
 #   ~/.local/bin/pigod        Pi launcher
-#   ~/.local/bin/pigou        Pi launcher
 #
 # Uses Pi's BUILT-IN opencode-go provider for authentication and
 # endpoint resolution. The model definition itself comes from
@@ -28,11 +27,12 @@ readonly PROVIDER="opencode-go"
 readonly MODEL="muse-spark-1.3-contributor"
 readonly THINKING="max"
 
-PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
-if [[ "$PI_DIR" == '~' || "$PI_DIR" == '~/'* ]]; then
-    PI_DIR="${HOME}${PI_DIR#\~}"
-fi
+# Keep path-owned trailing newlines; remove only the CLI delimiter and sentinel.
+PI_DIR="$(python3 "${0:A:h}/../.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"
+PI_DIR="${PI_DIR%$'\n'.}"
 readonly PI_DIR
+# Follow-up Pi commands must reuse this interpretation, even after joining paths.
+export PI_CODING_AGENT_DIR="${PI_DIR}"
 readonly AUTH_JSON="${PI_DIR}/auth.json"
 readonly MODELS_JSON="${PI_DIR}/models.json"
 
@@ -40,19 +40,19 @@ readonly MODELS_JSON="${PI_DIR}/models.json"
 # The model definition is kept in the repository so that
 # install_beforehand.bash and this script cannot drift apart.
 #
-readonly MODELS_SOURCE="${0:A:h}/pi-models.json"
+readonly MODELS_SOURCE="${0:A:h}/../.devcontainer/pi-models.json"
 
 #
 # Launchers placed by this script, as parallel arrays: each launcher is
 # copied verbatim from .devcontainer/<name> and uses the model listed at
 # the same index as its default.
 #
-# pigod / pigou share the opencode-go provider and auth.json with pigo and
-# differ only in their default model, so they are installed here as well.
+# pigod shares the opencode-go provider and auth.json with pigo and
+# differs only in its default model, so it is installed here as well.
 #
-readonly LAUNCHER_NAMES=(pigo pigod pigou)
-readonly LAUNCHER_MODELS=("${MODEL}" "deepseek-v4.1-flash" "union-alpha")
-readonly LAUNCHER_DIR="${0:A:h}"
+readonly LAUNCHER_NAMES=(pigo pigod)
+readonly LAUNCHER_MODELS=("${MODEL}" "deepseek-v4.1-flash")
+readonly LAUNCHER_DIR="${0:A:h}/../.devcontainer"
 
 readonly BIN_DIR="${HOME}/.local/bin"
 
@@ -85,6 +85,8 @@ command -v pi >/dev/null 2>&1 ||
 
 [[ -f "${MODELS_SOURCE}" ]] ||
     die "Model definition source not found: ${MODELS_SOURCE}"
+[[ -f "${LAUNCHER_DIR}/pi-superagents-exec.zsh" ]] ||
+    die "Launcher helper source not found: ${LAUNCHER_DIR}/pi-superagents-exec.zsh"
 
 #
 # Launchers are installed verbatim from the repository, so the model this
@@ -101,38 +103,10 @@ for _i in {1..${#LAUNCHER_NAMES}}; do
         die "${_source} does not use --model ${LAUNCHER_MODELS[_i]}."
 done
 
-mkdir -p "${PI_DIR}"
-mkdir -p "${BIN_DIR}"
-
 log "Pi executable : $(command -v pi)"
 log "Pi config dir : ${PI_DIR}"
 log "Model source  : ${MODELS_SOURCE}"
 log "Launchers     : ${LAUNCHER_NAMES[*]}"
-
-#
-# Validate every input before any credential or model change. Replacing a
-# symlink or hard link would silently detach the shared file, chmod would
-# follow a symlink to its target, and a model error found later would leave
-# auth.json already updated.
-#
-python3 - "${MODELS_SOURCE}" "${MODELS_JSON}" "${AUTH_JSON}" <<'PY'
-import sys
-from pathlib import Path
-
-source, models, *others = map(Path, sys.argv[1:])
-sys.path.insert(0, str(source.resolve().parent))
-from pi_json import load_models, load_object, require_plain_file
-
-try:
-    load_models(source)
-    for path in (models, *others):
-        require_plain_file(path)
-        if path.exists():
-            (load_models if path == models else load_object)(path)
-except ValueError as exc:
-    print(f"ERROR: {exc}", file=sys.stderr)
-    sys.exit(1)
-PY
 
 
 #
@@ -186,149 +160,12 @@ fi
 # ----------------------------------------------------------------------
 #
 
-python3 - "${AUTH_JSON}" "${API_KEY}" "${MODELS_SOURCE}" <<'PY'
-import os
-import sys
-from pathlib import Path
+python3 "${0:A:h}/../.devcontainer/pi-provider-setup.py" \
+    "${PI_DIR}" "${MODELS_SOURCE}" "${PROVIDER}"
 
-path = Path(sys.argv[1])
-new_key = sys.argv[2]
-sys.path.insert(0, str(Path(sys.argv[3]).resolve().parent))
-from pi_json import load_object, write_object
-
-if path.exists():
-    try:
-        data = load_object(path)
-    except ValueError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    if not isinstance(data, dict):
-        print(
-            f"ERROR: {path} must contain a JSON object.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-else:
-    data = {}
-
-existing = data.get("opencode-go")
-
-if new_key:
-    desired = {
-        "type": "api_key",
-        "key": new_key,
-    }
-
-    if existing == desired:
-        print("OpenCode Go credential: already configured")
-    else:
-        data["opencode-go"] = desired
-
-        path.parent.mkdir(parents=True, exist_ok=True)
-        # The shared writer preserves mode: tighten old auth before staging new credentials.
-        if path.exists():
-            os.chmod(path, 0o600)
-
-        write_object(path, data)
-        os.chmod(path, 0o600)
-
-        print("OpenCode Go credential: configured")
-
-else:
-    if (
-        isinstance(existing, dict)
-        and existing.get("type") == "api_key"
-        and existing.get("key")
-    ):
-        print("OpenCode Go credential: using existing auth.json entry")
-    else:
-        print(
-            "ERROR: No OpenCode Go API key is configured.\n"
-            "\n"
-            "Set one of:\n"
-            '  export OPENCODE_API_KEY="..."\n'
-            "\n"
-            "or, for compatibility with the previous setup:\n"
-            '  export OPENCODE_GO_API_KEY="..."\n',
-            file=sys.stderr,
-        )
-        sys.exit(1)
-PY
-
-chmod 600 "${AUTH_JSON}"
-
-
-#
-# ----------------------------------------------------------------------
-# 3. Apply the OpenCode Go model definition
-#
-# muse-spark-1.3-contributor is not in Pi's built-in catalog
-# (~/.pi/agent/models-store.json), so models.json has to define it.
-#
-# The definition is read from .devcontainer/pi-models.json and the
-# whole providers.opencode-go entry is replaced, so that re-running
-# this script always converges on the repository definition. This also
-# clears the provider generated by the previous version of this script,
-# whose provider level apiKey/baseUrl/api overrode Pi's built-in
-# metadata.
-#
-# Providers other than opencode-go are preserved untouched.
-# ----------------------------------------------------------------------
-#
-
-python3 - "${MODELS_JSON}" "${MODELS_SOURCE}" "${PROVIDER}" <<'PY'
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-source = Path(sys.argv[2])
-provider = sys.argv[3]
-sys.path.insert(0, str(source.resolve().parent))
-from pi_json import backup_file, load_models, write_object
-
-try:
-    definition = load_models(source).get("providers", {}).get(provider)
-except ValueError as exc:
-    print(f"ERROR: {exc}", file=sys.stderr)
-    sys.exit(1)
-
-if definition is None:
-    print(
-        f"ERROR: Provider {provider!r} is not defined in {source}",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
-if path.exists():
-    try:
-        data = load_models(path)
-    except ValueError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    if not isinstance(data, dict):
-        print(f"ERROR: {path} must contain a JSON object.", file=sys.stderr)
-        sys.exit(1)
-else:
-    data = {}
-
-providers = data.setdefault("providers", {})
-
-if providers.get(provider) == definition:
-    print("already up to date")
-    sys.exit(0)
-
-if path.exists():
-    backup = backup_file(path)
-    print(f"backup:{backup}")
-
-providers[provider] = definition
-
-write_object(path, data)
-
-print("updated")
-PY
+mkdir -p "${BIN_DIR}"
+# Ship the matching helper with the launchers; leave all existing tier configs alone.
+install -m 0644 "${LAUNCHER_DIR}/pi-superagents-exec.zsh" "${BIN_DIR}/pi-superagents-exec.zsh"
 
 log "models.json: ${PROVIDER} definition applied."
 
@@ -385,8 +222,8 @@ fi
 # ----------------------------------------------------------------------
 # 6. Validate provider/model availability
 #
-# All launchers' models are checked here. pigo's and pigou's come from
-# models.json, so this is the step that catches a stale definition. pigod's
+# Both launchers' models are checked here. pigo's comes from models.json,
+# so this is the step that catches a stale definition. pigod's
 # comes from the model catalog, which pi.dev can rename: a launcher left on a
 # retired ID still starts, but pi then substitutes another model's definition
 # and only prints a warning, so the stale ID has to fail loudly here.
