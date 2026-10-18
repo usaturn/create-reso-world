@@ -55,18 +55,18 @@
 
 **テストの要否:** 必要。信頼する投稿者の安全条件・引数の伝播・過去記録からの継続が実行時の挙動である。文書自体の文字列照合テストは不要。
 
-- [ ] **Step 1: 失敗する回帰テストを書く。**
+- [x] **Step 1: 失敗する回帰テストを書く。**
   - `test_collect_records_accepts_explicit_trusted_login`：CONTRIBUTOR / NONE の自分の記録が一件、ignored は空。
   - `test_collect_records_does_not_trust_other_or_empty_logins`：別 login / 空の信頼指定 / 空 author / 欠落 author の正常な記録は records が空、ignored に ID がある。負例は正常入力から不一致条件一つだけを作る。
   - `test_trusted_login_keeps_association_trust`：従来の三区分は異なる明示 login でも読める。
   - `test_read_state_trusted_login_continues_next_round`：自分の CONTRIBUTOR の round 1 を読んだ状態で round 2 の check_against は成功、round 1 の重複は拒否。
   - `test_trusted_login_does_not_bypass_record_checks`：PR 違い・壊れた記録・除外 ID の既存条件をそれぞれ検査。
   - CLI fold の有/無指定で rounds が `[1]` / `[]`、別人の投稿は無視。validate は自分の round 1 から round 2 が終了 0、無指定なら 65。
-- [ ] **Step 2: RED を確認。** `uv run pytest .agents/scripts/tests/test_review_records.py -q`。新しい引数・オプション未実装による新テストの失敗で、既存 187 件は成功すること。
-- [ ] **Step 3: 最小実装。** キーワード専用引数、空でない login の一致分岐、read_state と二つの CLI からの伝播を加える。
-- [ ] **Step 4: GREEN を確認。** `uv run pytest .agents/scripts/tests/test_review_records.py -q` と `uv run pytest .agents/scripts -q`。全件成功、終了コード 0。
-- [ ] **Step 5: 文書更新。** 7.4 の照合対象と同じ認証 login の利用、7.6 の API 引数、8.1 の取得失敗時停止と fold オプションを記す。validate の同オプションも説明する。`git diff --check` と差分閲覧で文書・参照を確認。
-- [ ] **Step 6: commit。** 上記の三つのパスだけ stage、`fix: trust explicit login when reading review records`。
+- [x] **Step 2: RED を確認。** `uv run pytest .agents/scripts/tests/test_review_records.py -q`。新しい引数・オプション未実装による新テストの失敗で、既存 187 件は成功すること。
+- [x] **Step 3: 最小実装。** キーワード専用引数、空でない login の一致分岐、read_state と二つの CLI からの伝播を加える。
+- [x] **Step 4: GREEN を確認。** `uv run pytest .agents/scripts/tests/test_review_records.py -q` と `uv run pytest .agents/scripts -q`。全件成功、終了コード 0。
+- [x] **Step 5: 文書更新。** 7.4 の照合対象と同じ認証 login の利用、7.6 の API 引数、8.1 の取得失敗時停止と fold オプションを記す。validate の同オプションも説明する。`git diff --check` と差分閲覧で文書・参照を確認。
+- [x] **Step 6: commit。** 上記の三つのパスだけ stage、`fix: trust explicit login when reading review records`。
 
 ### Task 2: 全体の検証・独立レビュー・PR 公開
 
@@ -76,12 +76,23 @@
 
 **テストの要否:** 新規テスト不要。既存の回帰入口とレビューで統合を確かめる。
 
-- [ ] **Step 1: README の入口を worktree で同期実行。** `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`。ログは親 checkout の上記 session に保存し、各終了コード 0 を確認する。失敗は systematic-debugging で切り分け、解消しなければ停止する。
-- [ ] **Step 2: sp-review にブランチ全体を read-only で依頼。** Spec・Plan・実施記録・開始 HEAD と Review Focus を渡す。テストは子に実行させない。重要な問題があれば一度の修正で RED→GREEN と全回帰を行う。
-- [ ] **Step 3: 結果を文書に追記して commit。** 状態は draft のまま実行結果・検証・時間を追記し、`git diff --check`、clean な git status を確認する。
+- [x] **Step 1: README の入口を worktree で同期実行。** `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`。ログは親 checkout の上記 session に保存し、各終了コード 0 を確認する。失敗は systematic-debugging で切り分け、解消しなければ停止する。
+- [x] **Step 2: sp-review にブランチ全体を read-only で依頼。** Spec・Plan・実施記録・開始 HEAD と Review Focus を渡す。テストは子に実行させない。重要な問題があれば一度の修正で RED→GREEN と全回帰を行う。
+- [x] **Step 3: 結果を文書に追記して commit。** 状態は draft のまま実行結果・検証・時間を追記し、`git diff --check`、clean な git status を確認する。
 - [ ] **Step 4: 競合を再確認し秘密情報検査→push。** Issue の open・全ページの PR/コメント・claim ref・同番号 branch/worktree を確認し、この run の所有物以外があれば停止。`SHA="$(bash /workspaces/reso-world/scripts/scan-before-push.sh -C /workspaces/reso-world/.worktrees/issue-169-trusted-login)" && [ -n "$SHA" ] && git push origin "${SHA:?}:refs/heads/fix/issue-169-trusted-login"`。検査の失敗時は何も push しない。
 - [ ] **Step 5: 再度重複 PR を確認し main 向けに PR 作成。** 本文へ Closes #169、設計判断、inline の理由、検証、所要時間を記載する。private のため CI 確認不要。作業中の worktree と branch を残し、Herdr を completed にする。
 
 ## Plan 自己確認
 
 Spec の受け入れ 1〜5 は Task 1、6 と公開規則は Task 2 に対応する。関数名・引数は Spec と一致。文書だけのテストは追加しない。builder check は「nothing important left」であり、未解決の利用者判断は無い。
+
+## 実施記録（公開前）
+
+- 実装 commit: `85e986e`。RED は 17 failed / 188 passed、終了 1（新しい引数・オプション未実装）。GREEN は記録テスト 205 passed、scripts 全体 531 passed、いずれも終了 0。
+- README の全入口: shell 33 本 PASS、check-layout PASS、Python 2587 passed（604.09 秒）。全て終了 0。
+- 全ブランチの独立レビュー: `1335f41..85e986e`、Critical / Important / Minor は全て無し。初回は diff を読めないため結論保留、保存した全差分を渡した 1 回の再試行で完了。テスト再実行はレビュアーにさせていない。
+- 裁定: SDD の標準スクリプトが worktree 内へ作るスクラッチは使わず、AGENTS.md に従い親 checkout の session へ brief・ledger・差分を記録した。失うものは自動生成 brief のみで、Plan と正確な差分範囲はレビュアーへ直接渡した。
+- レビュアーが判定範囲から除いた upsert/run_roles は、Spec のとおり #155 に残す。接続前の呼び出し元は login 未指定の既存挙動のままとなる。
+- 21:58 UTC の公開直前確認: Issue は open、コメント・競合 PR・claim ref は無し。同番号の branch/worktree はこの run の所有物だけ。
+- 時間: 21:33:35 UTC 開始、公開前記録まで約 25 分（準備・設計 4、実装 1、回帰約 17、レビュー・記録約 3 分）。残り約 5 分で検査・push・PR を行う。公開前コミットでは Step 4・5 は未実施のため未チェックとし、公開の証拠はこのブランチの PR と controller の報告に残す。
+- 実ログ・ledger: `/workspaces/reso-world/tmp/agents/issue-169.5aokzp_x/`（red.log、green.log、scripts.log、devcontainer.log、layout.log、full-pytest.log、progress.md、branch-review.diff）。PR の検証根拠として残す。

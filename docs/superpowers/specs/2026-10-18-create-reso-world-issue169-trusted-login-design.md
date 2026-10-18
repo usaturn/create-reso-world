@@ -52,3 +52,10 @@
 - Issue は open、コメント・親 Issue・blocked_by は無し。open PR・予約 ref・同番号の branch/worktree は無し。
 - `origin/main` から新規 worktree を作成。既存の `test_review_records.py` は `187 passed`、終了コード 0。
 - #155 は open だが今回の先行依存ではない。今回の API を使う接続は #155 の作業となる。
+
+## 実行結果（公開前）
+
+- 実装: `85e986e`。上記 API・fold/validate の CLI・利用文書を更新した。内容承認は未取得のため状態は draft のまま。
+- 記録テスト 205 件、scripts 全体 531 件、README の shell 33 本・layout・Python 2587 件が全て成功（終了 0）。信頼条件の負例・次サイクル・重複拒否を確認した。
+- `1335f41..85e986e` の独立した全体レビューで修正指摘無し。後続接続は #155 の範囲として維持する。自動 brief の代わりに親 checkout の session へ記録した配置上の裁定を Plan に残した。
+- 公開前時点の所要時間は約 25 分。詳細・実ログの絶対パス・公開予定は対応 Plan の実施記録に記載した。
