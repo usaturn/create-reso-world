@@ -318,6 +318,50 @@ def test_real_namespace_masks_auth_for_parent_and_child_preserving_saved_files(
     assert "secret" not in result.stdout + result.stderr
 
 
+@pytest.mark.parametrize("launcher", LAUNCHERS)
+@pytest.mark.parametrize("link", ["absolute", "relative", "hardlink"])
+def test_linked_auth_reaches_parent_and_child_without_changing_host_state(
+    sandbox: tuple[Path, Path, Path], launcher: str, link: str,
+) -> None:
+    # Break: passing a symlink mount target directly to bwrap fails before Pi starts.
+    # Canonicalize only the mount destination, never rewrite the user's shared auth.
+    import stat
+
+    home, _, cwd = sandbox
+    auth = home / ".pi/agent/auth.json"
+    target = cwd / "shared-auth.json"
+    target.write_text('{"other-provider":{"type":"api_key","key":"synthetic-other-secret"}}')
+    target.chmod(0o600)
+    if link == "hardlink":
+        os.link(target, auth)
+    else:
+        auth.symlink_to(target if link == "absolute" else os.path.relpath(target, auth.parent))
+    (home / ".pi/agent/extensions/subagent").mkdir()
+    _real_namespace_probe(sandbox)
+
+    def snapshot() -> dict:
+        state = {}
+        for path in cwd.parent.rglob("*"):
+            info = path.lstat()
+            content = os.readlink(path) if path.is_symlink() else path.read_bytes() if path.is_file() else None
+            state[str(path.relative_to(cwd.parent))] = (
+                stat.S_IFMT(info.st_mode), stat.S_IMODE(info.st_mode), info.st_nlink, content,
+            )
+        return state
+
+    before = snapshot()
+    result = _run(sandbox, launcher)
+    assert result.returncode == 0, result.stderr
+    payload = _payload(result)
+    for observed in (payload, payload["child"]):
+        assert observed["vertex_is_adc_marker"] is True
+        assert observed["native_key_is_adc_marker"] is True
+        assert observed["other_auth_preserved"] is True
+        assert observed["readonly"] is True
+    assert snapshot() == before
+    assert "synthetic-other-secret" not in result.stdout + result.stderr
+
+
 # Break caught: masking the whole agent directory drops fresh non-auth state
 # and puts shared settings locks in a private namespace rather than on the host.
 @pytest.mark.parametrize("launcher", LAUNCHERS)

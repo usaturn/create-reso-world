@@ -57,6 +57,14 @@ sys.exit(99)
 """
 
 
+def isolated_command(root: Path, command: list[str]) -> list[str]:
+    """Regression/mutation runs may write only their own fixture, not a real HOME."""
+    return ["bwrap", "--die-with-parent", "--unshare-net", "--unshare-pid",
+            "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+            "--ro-bind", str(ROOT), str(ROOT), "--bind", str(root), str(root),
+            "--chdir", str(root), "--", *command]
+
+
 @dataclass(frozen=True)
 class MigrationHarness:
     root: Path
@@ -111,7 +119,7 @@ class MigrationHarness:
                             'ensure_user_writable_dir() { return 0; }\n' + body)
         return fragment
 
-    def run(self, *, entry: str = "migration", **flags: str) -> subprocess.CompletedProcess[str]:
+    def run(self, *, entry: str = "migration", isolate: bool = False, **flags: str) -> subprocess.CompletedProcess[str]:
         fragment = self.prepare(entry=entry)
         env = dict(os.environ)
         env.pop("PI_CODING_AGENT_DIR", None)
@@ -128,7 +136,10 @@ class MigrationHarness:
             FAKE_KEEP_REGISTRATION="0",
         )
         env.update(flags)
-        return subprocess.run(["bash", str(fragment)], cwd=ROOT, env=env, text=True, capture_output=True, timeout=15)
+        command = ["bash", str(fragment)]
+        if isolate:
+            command = isolated_command(self.root, command)
+        return subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True, timeout=15)
 
 
 def _harness(tmp_path: Path, kind: str = "unset") -> MigrationHarness:

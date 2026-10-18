@@ -274,6 +274,108 @@ fsync/replaceを個別に失敗させた2例では、設定本体・共有先以
 
 今回の所要（公開前、概算）: 約17分。準備/全入力照合・再現3分、設計/実装/回帰3分、全体/隔離対照検証6分、全文確認/候補検証/自己レビュー4分、記録1分。公開・片付けの結果はPR状況コメントと完了報告にだけ残し、記録専用commitは追加しない。
 
+## PR #141 パス解決・Vertex共有authのレビュー修正（2026-10-18）
+
+- 状態: `completed`。結論: **1: 修正して既存PRへpush**。`/skill:review-fix-planning #141 --hold-action skip` を同PRの修正・検証・pushの実行許可として扱う。`--hold-action` は本スキルに定義がなく独自の保留処理は追加しない。内容の承認・rebuild・実認証・マージの実施とは区別する。
+- 現行HEAD: `3ec1d06e04a46124b5389c4863c57d4229418cd3`。同テーマの既存Spec/Planを内容で照合し、このSpecを更新する。cleanかつPR先端一致の既存feature worktreeを再利用し、片付けない。
+- 入力: `reviews/#141-feat-issue-125-pi-workspace-parity/` 配下の全6ファイル。`Grok-4.7.md` / `SWE-2-Max.md` / `claude-opus-5-5.md` / `commandcode-deepseek-deepseek-v4.1-flash.md` は `3ec1d06e04a4`、`gpt-6.1-sol.md` は `60bcb6247e06`、`grok-4.7.md` は `52cc4a0456d2`。全対象HEADの祖先照合に成功。大小文字の異なるGrokの2ファイルを別入力として扱う。
+- 調査委譲2件は同期呼出が結果なしで戻った。結果を再確認できるレポートも返らず、成功や読了には数えずcontrollerが引き継ぐ。
+
+### 全入力の分類
+
+N=Grok（大文字ファイル）、S=SWE、O=Opus、G=GPT、K=grok（小文字ファイル）。active/resolved指摘と独立した未検証候補の計24入力は **解消済み13 / 対応する2 / 対応しない9**。自己レビューのSR-1を加えた最終25件は **解消済み13 / 対応する3 / 対応しない9**。test suggestionsは同じ指摘の検証案なので重複加算しない。
+
+| ID | 指摘・候補 | 分類 | 現行HEADの根拠 |
+|---|---|---|---|
+| N-L1 | symlink authでVertexが起動しない | 対応する (a) | 実pigemf・実bwrap・合成authで終了1、通常ファイルは終了0。既存の共有authを読む対応経路で主要ランチャーがPi到達前に止まる |
+| N-L2 | printf引数からoverlayが漏れる | 解消済み | 実zsh builtinを大きな合成payloadのpipeで待機させても子cmdlineはzshの起動引数のみ。外部printfのargvとは異なり、本体の秘密をargvへ載せない |
+| N-L3 | ~userの検査先とPi更新先が異なる | 対応する (a) | 実MCP関数にliteral ~vscode配下の正常な共有settingsを渡すと検査をすり抜け、fake Piが共有先を変更して終了0。了承のない共有設定変更につながる |
+| S-L1 | shrinkwrap/manifest-only helperの検出縮小 | 対応しない | D-2の意図した範囲縮小。表示helperの残存だけでは致命的な処理停止にならず、PRに制限と回避方法を記載済み |
+| S-I2 | staging globが実名に一致しない | 対応しない | globの不一致は事実だが、同ファイルの全状態snapshotとI/O回帰が残存を検出。回帰ガード全体の欠落や現行の誤動作ではない |
+| S-M1 | DeepInfraの偽成功（resolved） | 解消済み | setupのerrexitとhelper preflight、既存の不正入力実行回帰 |
+| S-L2 | modelsのmode/link/固定tmp（resolved） | 解消済み | plain_file/stageと既存mode保持、一意backup、全状態の実行回帰 |
+| S-I1 | /tmp worktreeで移行テスト不能（resolved） | 解消済み | private tmp後のrepo ro-bindと正常対照を維持 |
+| S-U1 | rebuild/実共有HOME/ADC/Windows受入 | 対応しない | 当初から別枠の実機確認。offlineの保証と区別されており、未実施自体は現行欠陥の根拠ではない |
+| S-U2 | catalog更新失敗のwarn継続 | 対応しない | refreshはbest effort、後段で実provider/modelの存在を確認。既存catalogで起動可能なら継続する仕様で、前回の実行対照も維持 |
+| S-U3 | 非list settingsをPiが書く可能性 | 対応しない | 正常なpackages/extensionsは配列。helperは異常を副作用前に拒否する設計で、正規のPi出力を誤拒否する根拠なし |
+| O-M1 | forwardPortsによるbind競合の疑い | 対応しない | ポート占有と設定との因果関係は確定しておらず、既知の制限と一時範囲/手動転送の回避方法を維持。推測で設定を変更しない |
+| O-I1 | Vertex一覧/project固定値 | 対応しない | 現行と一致するテスト設計の論点で、現構成の実行不具合ではない |
+| O-I2 | staging globの空振り | 対応しない | S-I2と同じ。致命的な修正に付随しないテスト整理は行わない |
+| O-L1 | /tmp不可視と境界テスト空振り（resolved） | 解消済み | repo再bind・正常対照・境界診断の検査を維持 |
+| O-L2 | DeepInfra偽成功（resolved） | 解消済み | S-M1と同じ |
+| O-U1 | 別containerのポート転送と競合 | 対応しない | O-M1と同じ観測で、占有元との因果関係の根拠なし。他サービスは操作しない |
+| G-M1 | modelsの0600→0644 | 解消済み | helperが既存modeを保持し、新規0600、他providerも保持 |
+| G-M2 | ~/をcwdへ誤保存 | 解消済み | 3setupがmkdirより前に~・~/をHOMEへ展開 |
+| G-M3 | DeepInfra偽成功 | 解消済み | S-M1と同じ |
+| G-M4 | BOM付きmodels/authの拒否 | 解消済み | helperのutf-8-sig readerと実setup回帰 |
+| K-M2 | settingsの共有リンク切断 | 解消済み | 3ec1d06が共通storage guardをPi導入前/MCP操作前へ適用。ただしN-L3の別のパス解決漏れは今回対応する |
+| K-H1 | ~/の資格情報誤保存（resolved） | 解消済み | G-M2と同じ |
+| K-M1 | DeepInfra偽成功（resolved） | 解消済み | S-M1と同じ |
+
+Command Codeレビューは指摘/未検証候補0件。個別の誤動作を含まない未実施の実機確認はS-U1で記録する。
+
+### 守る条件の設計・影響経路
+
+N-L3は前々回F-2（書き手とPiの読み先の一致）の2回目であり、前回3ec1d06のsettings preflightがPython expanduserを導入したことでF-5を迂回する経路にもなった。前回は保存先の種類だけを集約し、パス解決を3つのheredocとhelperに残した点が足りなかった。今回の条件は、repositoryが対応するPOSIXパス（未指定/空/絶対/相対/~ /~/ /literal ~user）について、検査・manifest探索・cleanupがPiと同じファイルを扱い、不正なsettingsでは外部変更前に全状態を保持すること。同時更新・全操作rollbackは従来どおり保証しない。
+
+N-L1の条件は、通常ファイルへのauth symlinkを保持したまま、Piが辿る実体へnamespace内だけのreadonly overlayを重ね、親子が同じoverlayを読むこと。ホストのauth・共有先・mode/link数は変えない。
+
+| 条件 | 経路/停止位置 | 変更前の挙動 | 判定 | 確かめる方法/assertion |
+|---|---|---|---|---|
+| N-L3/F-2/F-5 | settings-check/cleanの既定/明示agent引数 | Python expanduserが~userを別HOMEへ展開 | 共通resolverへ集約して修正 | 各パス形式で実check/clean、fixture全体の変更が実対象だけであることを確認 |
+| 同上 | MCP/distill/lensのmanifest解決 | 3つのheredocが同じ誤展開 | 同じresolverのCLIへ集約 | 各実関数でliteral ~userのmanifest-only撤去・事後残存拒否 |
+| 同上 | subagentsのmanifest検査 | HOME固定でcustom agentと異なる | 同じresolverへ集約 | 実関数のcustom/literal ~userのmanifest-only撤去・拒否 |
+| 同上 | Pi導入開始/MCP remove前/cleanup再読込 | 誤ったsettingsが正常なら外部Piが先行 | 同じパス規則でpreflight | symlink/hardlink/JSON異常各1条件でroot全体snapshot一致、外部audit無し、誤展開へ戻した対照は失敗 |
+| 同上 | 3provider setup・Codex/xAI/Vertexのパス解決 | ~・~/のみ展開、~userはliteral | 既に満たす。規則を照合し既存回帰維持 | provider/Vertex/Codex実行suite。URI入力への対応追加は行わない |
+| N-L1 | auth読取→mount先→親子Pi | symlinkをbwrapに渡し起動失敗 | mount先だけ実体の絶対パスへ解決 | 実bwrap、絶対/相対symlinkとhardlink、親子overlay/readonly、ホスト全状態保持 |
+| N-L1 | 欠落auth/不正auth/dry-run | 既存は読取、欠落のみ0600作成、dry-runは無操作 | 既に満たす。挙動を維持 | 既存Vertex suiteで欠落/不正/並行起動/非auth状態保持 |
+| SR-1/F-6 | 新しいパス回帰のhelper/check/clean/実関数subprocess、旧版・変異版の実行 | 異常なresolverがfixture外のHOMEを指してもOS境界が無い | 共通のtest-only namespace呼出へ集約 | readonly root・private tmp・repo ro-bind・fixtureだけrw・network/PID隔離。外側で書ける専用/mntは内側で書けず、readonlyだけを外した隔離対照で検出 |
+| 対象外 | HOME固定のtierとmodels初回雛形 | 拡張の固定HOME仕様/従来の初回配置 | 従来の範囲を維持 | 既存導入suite。URI・Windows専用パスの対応を増やさない |
+
+比較: (1)4箇所のexpanduserを各々置換する点の修正は再発を防げない。(2)既存JSON helperへ小さなagent path resolverとCLIを置き、全installerの探索先とsettings処理を同じ規則にする案を採用。(3)~userや相対パスを拒否して保証を狭める案はPiが扱う既存の保存先を不要に拒否するため不採用。Vertexはリンク拒否で保証を狭めるより、読み取り先とmount先を一致させる案を選ぶ。authの内容の再保存や共有方法の変更はしない。
+
+### 自己レビューの裁定・再発の見直し
+
+controllerが1回、反証（パスの全入口・リンク先と親子namespace）、PR全体（全変更ファイルと削除元、関連caller/テスト/文書）、検出力（単一異常、全状態snapshot、対照）を確認した。同期の調査委譲は結果が無く本体で引き継いだ。追加はSR-1の1件で、設計論点・文言整理だけの修正は追加しない。
+
+| ID | 出どころ・指摘 | 分類 | 根拠・対応 |
+|---|---|---|---|
+| SR-1 | 自己レビュー: 新しいpath回帰の旧版/変異版にOS隔離がない | 対応する (a) | resolverをexpanduserへ戻すとfixture外の実HOME配下を指し、そこに同名settingsがあれば検証が変更し得る。以前のF-6と同じ検証境界の適用漏れ。全新規path subprocessをtest-only namespace helperへまとめ、fixtureだけを書込可にする |
+
+守る条件は、resolverの正否・check/clean/migration/installの入口・拒否/成功/対照にかかわらず、検証がfixture外の設定・共有先・manifest・キャッシュ・外部通信を変更できないこと。以前のc35db31/e5a77a8/52cc4a0はlauncher installerの範囲だけを隔離し、新設したpath検証へその境界を引き継いでいなかった。各caseのPATH stubだけを増やす案は絶対パスの書込みを防げず不採用、namespaceを共通test utilityへ集約する案を採用、旧版/対照を止め検出力の保証を狭める案は不採用。外側で書ける専用/mntのfixtureを内側だけreadonlyにし、実領域に触れず独立して境界を確かめる。初回RED/対照で誤展開した実HOME直下の候補ディレクトリは読み取り専用の存在確認で全て不在だった。実HOMEへテストデータを作ったり削除したりはしていない。
+
+SR-1は「自己レビューでの再発」として設計を見直して修正した。**この修正後は再レビューせず、検証だけをやり直す。** 実機rebuild/ADC/Windowsの未確認を、自己レビュー0件やテスト成功で解消扱いにしない。
+
+### 実行チェックリスト・予算
+
+- [x] 入力全件・HEAD・隔離worktreeのSHAを照合し、N-L1/N-L3とN-L2の反証を実行。再現worktreeと親directoryは削除済み。
+- [x] 実行回帰を先に追加しREDを確認（テスト要: 実際の起動/保存境界の不具合）。最小修正後にGREEN。
+- [x] 全経路の通常/負例と隔離対照を実行。文書/設定値だけのテストは追加しない。
+- [x] 環境suite/layout/構文/diffを実行し、自己レビュー3観点を1回、SR-1を裁定して最終検証を完了。公開の結果はPR状況コメントに記録する。
+
+### 最終検証・失敗時の検証
+
+| 検証 | 結果 |
+|---|---|
+| 初回RED | 39新規ケース中21 failed / 18 passed。named/unknown tildeの誤解決、preflight迂回、4manifest経路の残存/偽成功、絶対auth symlinkのbwrap失敗を検出 |
+| 修正後の関連6ファイル | 301 passed / exit 0（SR-1修正前）。/tmpのSHA照合済みworktreeへコピーした同じ6ファイルも301 passed |
+| 最初のGREENでの診断assertion | 4件は実装の正しい相対パス診断に絶対パスを要求して失敗。期待値を与えたraw pathに直し、実装を変更せず解消。失敗を隠していない |
+| path resolverをexpanduserへ戻した最終隔離対照 | 新設の6負例すべてが失敗 / exit 1。settings以外の状態や外部auditの変化も通常版では拒否する |
+| test namespaceのreadonlyだけを外した隔離対照 | 1/1が失敗、専用/mntの書込みで終了83。変化するのはテスト所有fixtureだけ |
+| 両対照を復元した/tmp worktree | 31 passed / exit 0。一時worktreeを外し、親directoryも削除済み |
+| SR-1修正後のpath+MCP | 81 passed / exit 0 |
+| SR-1修正後の最終環境suite | `PI_CODEX_LIVE_CHECK=0 PI_XAI_LIVE_CHECK=0 PI_OFFLINE=1 UV_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 bash .devcontainer/run-tests.bash` が32/32 PASS / exit 0。TMPDIRは一意な検証root内。migrationsは302件（元262 + 新規40）を収集し同入口で実行 |
+| layout・bash/zsh構文・Python AST・diff | すべてPASS / exit 0。スキルを変更していないためスキル全体pytestは追加の反映条件にしない |
+| ポート再確認 | 現在19432/19441の2個だけがEADDRINUSE、他8個はbind可能。別のephemeral loopbackも成功。以前の全10個の占有とは分けて記録し、Windows所有者/転送との因果関係やブラウザー往復は未確認 |
+
+失敗時の6負例は、symlink/hardlink/不正JSONの各1異常をPi節入口とMCP操作前に与える。比較はfixture root全体の有無・バイト列・mode・種類・link先・link数で、HOME/settings、共有先、両npm manifest、backup/stagingの有無、bin/fragment、外部Pi/npm auditを含む。期待値は実行前snapshotから取得し、診断へ合成secretを出さない。通常版は全状態不変で外部callなし。check/cleanの8パス形式ではcheckが無操作、cleanは実対象settingsのextensions以外を変えずmodeを保持する。4つの実関数はcustom絶対/literal named tildeの双方でmanifest-only撤去と撤去後の残存拒否を確認。Vertexの絶対/相対symlink・hardlink×3launcherは、実bwrapとnative auth consumerの親子でmarker/他provider/readonlyを確認し、ホストroot全体のsnapshotが一致した。
+
+新しいI/O処理は加えず既存stage/replaceを維持する。既存fsync/replace障害・BOM・不正構造・欠落/no-op・provider拒否の回帰も最終suiteで通る。複数ファイルや完了済み外部操作のrollback、並行更新の排他は従来どおり保証しない。自己レビュー後のSR-1修正は再レビューしていない。実機rebuild、実provider/ADC、Windowsブラウザーは未実施。private Actionsは規約により確認対象外。
+
+公開前の所要は概算33分（入力/範囲固定・再現8、設計/実装7、実行検証11、全文確認/自己レビュー/記録7）。検証の既知の失敗を再試行で隠していない。2件の調査workerは結果なしで戻り、同条件の再試行はしていない。
+
+今回の能動時間の目安は60分（調査/再現15、実装10、検証20、自己レビュー/記録/公開15）。同期workerは結果なしを成功扱いせずcontrollerへ切替、同条件再試行なし。検証の既存タイミング失敗は原因を確認したうえで再試行1回まで。安全失敗は停止。RED後/全体検証後/公開前にcheckpointを置き、全体の汎用移行処理を復活させず今回のpath/mount境界に絞る。実機rebuild・API/ADC・Windowsブラウザーは実施しない。
+
 ## 対象外・停止条件
 
 ccdu、DSH の launcher / installer、agent-runner、他リポジトリの変更、API 実呼び出し・ログイン・ADC 作成、rebuild・マージ・force push・タグ・リリースは対象外。同じ Issue の競合・明示の判断要求・未解消の依存・検証失敗・安全失敗が発生したら issue-to-pr に従って停止する。push / PR 作成直前に再確認する。

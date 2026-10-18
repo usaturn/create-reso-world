@@ -263,6 +263,11 @@ step "Replacing npm:pi-subagents with @teelicht/pi-superagents"
 install_pi_extensions() {
     local legacy_manifests
     local legacy_listed
+    local agent_dir
+    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir)"; then
+        echo "Failed to resolve the pi agent directory; aborting pi-superagents replacement." >&2
+        exit 1
+    fi
 
     # 1) 導入前の一覧を取得する。取得できないと置換の前提が崩れるので打ち切る。
     if ! before="$(pi list 2>&1)"; then
@@ -279,8 +284,8 @@ install_pi_extensions() {
     *"npm:pi-subagents"*) legacy_listed=1 ;;
     esac
     legacy_manifests="$(grep -l -e '"pi-subagents"' -e '"node_modules/pi-subagents"' \
-        "${HOME}/.pi/agent/npm/package.json" \
-        "${HOME}/.pi/agent/npm/package-lock.json" 2>/dev/null || true)"
+        "${agent_dir}/npm/package.json" \
+        "${agent_dir}/npm/package-lock.json" 2>/dev/null || true)"
     # 3) 登録済み、またはマニフェストに残っていれば削除する。pi remove は未登録の
     #    とき「No matching package found」で exit 1 を返すが、マニフェストの掃除自体は
     #    行う。そのため成否は終了コードではなく、掃除後の実体で判定する。
@@ -289,10 +294,10 @@ install_pi_extensions() {
         # 存在しないパスが混ざると grep は一致していても exit 2 になるため、
         # 終了コードではなく一致したファイルの有無で判定する。
         legacy_manifests="$(grep -l -e '"pi-subagents"' -e '"node_modules/pi-subagents"' \
-            "${HOME}/.pi/agent/npm/package.json" \
-            "${HOME}/.pi/agent/npm/package-lock.json" 2>/dev/null || true)"
+            "${agent_dir}/npm/package.json" \
+            "${agent_dir}/npm/package-lock.json" 2>/dev/null || true)"
         if [ -n "${legacy_manifests}" ]; then
-            echo "Failed to remove npm:pi-subagents from the pi managed npm manifest under ${HOME}/.pi/agent/npm." >&2
+            echo "Failed to remove npm:pi-subagents from the pi managed npm manifest under ${agent_dir}/npm." >&2
             exit 1
         fi
     fi
@@ -336,13 +341,7 @@ remove_pi_mcp_adapter() {
     local adapter_listed=0
 
     # settings と npm マニフェストは同じ agent directory を参照する。
-    if ! agent_dir="$(python3 - <<'PYEOF'
-import os
-from pathlib import Path
-
-print(Path(os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".pi" / "agent").expanduser())
-PYEOF
-    )"; then
+    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir)"; then
         echo "Failed to resolve the pi agent directory; aborting pi-mcp-adapter removal." >&2
         exit 1
     fi
@@ -407,15 +406,9 @@ remove_pi_distill() {
     local distill_listed=0 helpers_listed=0
 
     # settings.json の packages と npm マニフェストは同じ agent directory を参照する。
-    # pi は PI_CODING_AGENT_DIR の先頭の ~ を展開するが、bash は変数値の ~ を展開しない。
-    # remove_pi_mcp_adapter と同じ解決にそろえ、マニフェストの検査先を pi と一致させる。
-    if ! agent_dir="$(python3 - <<'PYEOF'
-import os
-from pathlib import Path
-
-print(Path(os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".pi" / "agent").expanduser())
-PYEOF
-    )"; then
+    # settings の検査と同じ resolver を使う。~ と ~/ だけを HOME へ展開し、
+    # ~user は Pi と同じく cwd 基準の literal パスとして扱う。
+    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir)"; then
         echo "Failed to resolve the pi agent directory; aborting pi-distill removal." >&2
         exit 1
     fi
@@ -481,13 +474,7 @@ remove_pi_lens() {
     local lens_listed=0
 
     # remove_pi_distill と同じく、マニフェストの検査先を pi の agent directory の解決にそろえる。
-    if ! agent_dir="$(python3 - <<'PYEOF'
-import os
-from pathlib import Path
-
-print(Path(os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".pi" / "agent").expanduser())
-PYEOF
-    )"; then
+    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir)"; then
         echo "Failed to resolve the pi agent directory; aborting pi-lens removal." >&2
         exit 1
     fi

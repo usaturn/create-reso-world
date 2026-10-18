@@ -14,6 +14,19 @@ import sys
 import tempfile
 
 
+def agent_directory(value: str | None = None) -> Path:
+    """Match Pi's POSIX path rules; ~user is a literal relative directory."""
+    raw = value if value is not None else os.environ.get("PI_CODING_AGENT_DIR")
+    if not raw:
+        return Path.home() / ".pi" / "agent"
+    if raw == "~":
+        return Path.home()
+    if raw.startswith("~/"):
+        # Concatenate rather than join: a second slash must not discard HOME.
+        return Path(str(Path.home()) + "/" + raw[2:])
+    return Path(raw)
+
+
 def plain_file(path: Path) -> None:
     try:
         info = path.lstat()
@@ -130,10 +143,10 @@ def settings_update(agent: Path, *, check_only: bool = False) -> None:
 
 if __name__ == "__main__":
     try:
-        if sys.argv[1] in ("--settings-check", "--settings-clean"):
-            agent = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(
-                os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".pi" / "agent"
-            ).expanduser()
+        if sys.argv[1] == "--agent-dir":
+            print(agent_directory())
+        elif sys.argv[1] in ("--settings-check", "--settings-clean"):
+            agent = agent_directory(sys.argv[2] if len(sys.argv) > 2 else None)
             settings_update(agent, check_only=sys.argv[1] == "--settings-check")
         else:
             setup(Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3])

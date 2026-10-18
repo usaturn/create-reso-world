@@ -254,7 +254,9 @@ pi_superagents_exec() {
 
         # auth のファイルだけを重ねる。settings / sessions とそれらの lock は
         # 元のディレクトリに残し、素の Pi や別ランチャーとの永続化・排他を保つ。
-        args_+=(--ro-bind-data 3 "${auth_file}")
+        # bwrap cannot mount data onto a symlink. Pi follows it, so mount only
+        # its resolved destination; keep the host link and shared bytes intact.
+        args_+=(--ro-bind-data 3 "${auth_file:A}")
     fi
 
     args_+=(
