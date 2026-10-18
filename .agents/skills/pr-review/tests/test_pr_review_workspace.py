@@ -7,6 +7,7 @@ import fcntl
 import importlib.util
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -2204,3 +2205,283 @@ def test_sessions_keep_a_locked_worktree(tmp_path: Path, monkeypatch: pytest.Mon
 
     assert entry["removable"] is False
     assert "locked" in entry["reason"]
+
+
+FINDINGS_MARKDOWN = """- 対象: PR #4 / head {head12} / 2026-10-05
+- レビュアー: gpt-5.6-sol（ランタイム: codex）
+
+## Medium
+
+### M-1: 例の指摘【検証済み】
+
+- 位置: `app.py:1`
+- 検出時 HEAD: `{head12}`
+"""
+
+
+def findings_document(commit: str, **overrides: Any) -> dict[str, Any]:
+    value: dict[str, Any] = {
+        "schema": "review-findings/v1",
+        "kind": "candidates",
+        "source": "reviewer",
+        "pr": {"repository": "usaturn/create-reso-world", "number": 4},
+        "reviewed_head": commit,
+        "base": commit,
+        "reviewer": {
+            "model": "gpt-5.6-sol",
+            "runtime": "codex",
+            "review_file": "gpt-5.6-sol.md",
+        },
+        "skill": {"path": ".agents/skills/pr-review/SKILL.md", "sha256": "0" * 64},
+        "timing": {
+            "started_at": "2026-10-05T01:00:00Z",
+            "finished_at": "2026-10-05T01:30:00Z",
+            "seconds": 1800,
+        },
+        "coverage": {"read": ["PR の差分全体"], "checks": [], "declined": []},
+        "findings": [
+            {
+                "id": "M-1",
+                "severity": "Medium",
+                "confidence": "verified",
+                "title": "例の指摘",
+                "locations": ["app.py:1"],
+                "detected_head": commit[:12],
+                "result_kind": {"value": "maintainability"},
+                "pr_relation": {"value": "introduced", "basis": "この PR が入れた"},
+                "property": "例の性質",
+                "variants": [],
+                "statement_sites": [],
+            }
+        ],
+        "unverified_candidates": [],
+    }
+    value.update(overrides)
+    return value
+
+
+def write_findings_pair(session: dict[str, Any], document: dict[str, Any] | None = None) -> tuple[Path, Path]:
+    result = session["result"]
+    commit = json.loads(Path(result["state_file"]).read_text(encoding="utf-8"))["commit"]
+    draft = Path(result["draft"])
+    draft.write_text(FINDINGS_MARKDOWN.format(head12=commit[:12]), encoding="utf-8")
+    findings_draft = Path(result["findings_draft"])
+    findings_draft.write_text(
+        json.dumps(document or findings_document(commit), ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return draft, findings_draft
+
+
+def findings_destination(session: dict[str, Any]) -> Path:
+    result = session["result"]
+    commit = json.loads(Path(result["state_file"]).read_text(encoding="utf-8"))["commit"]
+    return (
+        session["repo"]
+        / f"reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/findings/gpt-5.6-sol-{commit[:12]}.json"
+    )
+
+
+def test_create_returns_the_pinned_findings_draft(
+    created_session: dict[str, Any],
+) -> None:
+    result = created_session["result"]
+    assert result["findings_draft"] == str(Path(result["backup_dir"]) / "gpt-5.6-sol.findings.json")
+
+
+def test_save_with_findings_saves_the_review_and_the_candidates(
+    created_session: dict[str, Any],
+) -> None:
+    result = created_session["result"]
+    draft, findings_draft = write_findings_pair(created_session)
+
+    saved = workspace.save(argparse.Namespace(state=result["state_file"], findings=True))
+
+    assert Path(saved["destination"]).read_text(encoding="utf-8") == draft.read_text(encoding="utf-8")
+    assert saved["findings_destination"] == str(findings_destination(created_session))
+    assert findings_destination(created_session).read_bytes() == findings_draft.read_bytes()
+
+
+def _break_property(document: dict[str, Any]) -> None:
+    del document["findings"][0]["property"]
+
+
+def _move_head(document: dict[str, Any]) -> None:
+    document["reviewed_head"] = "f" * 40
+
+
+def _other_pr(document: dict[str, Any]) -> None:
+    document["pr"]["number"] = 5
+
+
+def _other_review_file(document: dict[str, Any]) -> None:
+    document["reviewer"]["review_file"] = "other-model.md"
+
+
+def _extra_finding(document: dict[str, Any]) -> None:
+    extra = json.loads(json.dumps(document["findings"][0]))
+    extra["id"] = "M-2"
+    document["findings"].append(extra)
+
+
+def _markdown_source(document: dict[str, Any]) -> None:
+    document["source"] = "markdown"
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (_break_property, "findings[0].property: required"),
+        (_move_head, "reviewed_head does not match the pinned commit"),
+        (_other_pr, "PR number does not match"),
+        (_other_review_file, "review_file does not match"),
+        (_extra_finding, "M-2 is in the JSON but not in the Markdown"),
+        (_markdown_source, "written by the reviewer"),
+    ],
+)
+def test_save_with_invalid_findings_saves_nothing(created_session: dict[str, Any], mutate: Any, message: str) -> None:
+    result = created_session["result"]
+    commit = json.loads(Path(result["state_file"]).read_text(encoding="utf-8"))["commit"]
+    document = findings_document(commit)
+    mutate(document)
+    write_findings_pair(created_session, document)
+
+    with pytest.raises(workspace.WorkspaceError, match=re.escape(message)):
+        workspace.save(argparse.Namespace(state=result["state_file"], findings=True))
+
+    assert not (
+        created_session["repo"] / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
+    ).exists()
+    assert not findings_destination(created_session).exists()
+
+
+def test_save_with_findings_requires_the_draft(created_session: dict[str, Any]) -> None:
+    result = created_session["result"]
+    Path(result["draft"]).write_text("review\n", encoding="utf-8")
+
+    with pytest.raises(workspace.WorkspaceError, match="findings draft is missing"):
+        workspace.save(argparse.Namespace(state=result["state_file"], findings=True))
+
+    assert not (
+        created_session["repo"] / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
+    ).exists()
+
+
+def test_save_with_findings_restores_the_candidates_when_the_review_copy_fails(
+    created_session: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = created_session["result"]
+    write_findings_pair(created_session)
+    previous = findings_destination(created_session)
+    previous.parent.mkdir(parents=True)
+    previous.write_text('{"old": true}\n', encoding="utf-8")
+    real_copy = workspace.atomic_copy
+
+    def failing_copy(source: Path, destination: Path) -> None:
+        if destination.suffix == ".md":
+            raise OSError("disk full")
+        real_copy(source, destination)
+
+    monkeypatch.setattr(workspace, "atomic_copy", failing_copy)
+
+    with pytest.raises(OSError, match="disk full"):
+        workspace.save(argparse.Namespace(state=result["state_file"], findings=True))
+
+    assert previous.read_text(encoding="utf-8") == '{"old": true}\n'
+
+
+def test_save_with_findings_removes_new_candidates_when_the_review_copy_fails(
+    created_session: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = created_session["result"]
+    write_findings_pair(created_session)
+    real_copy = workspace.atomic_copy
+
+    def failing_copy(source: Path, destination: Path) -> None:
+        if destination.suffix == ".md":
+            raise OSError("disk full")
+        real_copy(source, destination)
+
+    monkeypatch.setattr(workspace, "atomic_copy", failing_copy)
+
+    with pytest.raises(OSError, match="disk full"):
+        workspace.save(argparse.Namespace(state=result["state_file"], findings=True))
+
+    assert not findings_destination(created_session).exists()
+
+
+def test_save_parser_takes_findings_as_a_flag_without_a_path() -> None:
+    args = workspace.parser().parse_args(["save", "--state", "/tmp/session.json", "--findings"])
+    assert args.findings is True
+    assert workspace.parser().parse_args(["save", "--state", "/tmp/session.json"]).findings is False
+    with pytest.raises(SystemExit):
+        workspace.parser().parse_args(["save", "--state", "/tmp/session.json", "--findings", "/tmp/x.json"])
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "reviews/usaturn/create-reso-world/#4-x/findings/../escape.json",
+        "reviews/usaturn/create-reso-world/#4-x/other/model-abc.json",
+        "reviews/usaturn/create-reso-world/#4-x/findings/model.md",
+        "elsewhere/#4-x/findings/model.json",
+    ],
+)
+def test_findings_destination_must_stay_under_the_review_findings_directory(tmp_path: Path, value: str) -> None:
+    with pytest.raises(workspace.WorkspaceError):
+        workspace.safe_findings_destination(tmp_path, value)
+
+
+def test_save_without_findings_removes_the_stale_candidates_of_the_same_head(
+    created_session: dict[str, Any],
+) -> None:
+    # 最終レビュー I-2: 同じ HEAD を Markdown だけで保存し直したとき、古い候補一覧を review-verify に読ませない
+    result = created_session["result"]
+    stale = findings_destination(created_session)
+    stale.parent.mkdir(parents=True)
+    stale.write_text('{"old": true}\n', encoding="utf-8")
+    other = stale.with_name("other-model-000000000000.json")
+    other.write_text("{}\n", encoding="utf-8")
+    Path(result["draft"]).write_text("review\n", encoding="utf-8")
+
+    saved = workspace.save(argparse.Namespace(state=result["state_file"]))
+
+    assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
+    assert not stale.exists()
+    assert other.exists()
+    assert saved["removed_stale_findings"] == str(stale)
+
+
+def test_findings_draft_cannot_escape_the_session_via_symlink(
+    created_session: dict[str, Any],
+) -> None:
+    result = created_session["result"]
+    _, findings = write_findings_pair(created_session)
+    outside = findings.parent.parent.parent / "outside-findings.json"
+    findings.rename(outside)
+    findings.symlink_to(outside)
+    with pytest.raises(workspace.WorkspaceError, match="regular file inside"):
+        workspace.save(argparse.Namespace(state=result["state_file"], findings=True))
+    assert not (created_session["repo"] / result["destination"]).exists()
+
+
+def test_cleanup_keeps_v7_session_when_saved_candidates_are_missing(
+    created_session: dict[str, Any],
+) -> None:
+    result = created_session["result"]
+    write_findings_pair(created_session)
+    saved = workspace.save(argparse.Namespace(state=result["state_file"], findings=True))
+    Path(saved["findings_destination"]).unlink()
+    with pytest.raises(workspace.WorkspaceError, match="not saved"):
+        workspace.cleanup(argparse.Namespace(state=result["state_file"]))
+    assert Path(result["state_file"]).exists()
+
+
+@pytest.mark.parametrize("operation", ["paths", "destination"])
+def test_findings_paths_require_repository_identity(tmp_path: Path, operation: str) -> None:
+    # The donor's repository-less layout must never become a writable route.
+    with pytest.raises(workspace.WorkspaceError, match="repository"):
+        if operation == "paths":
+            workspace.findings_artifact_paths(tmp_path, "feature", "model", pr_number=4, commit="a" * 40)
+        else:
+            workspace.safe_findings_destination(tmp_path, "reviews/#4-feature/findings/model-aaaaaaaaaaaa.json")
