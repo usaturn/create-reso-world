@@ -50,6 +50,7 @@ usaturn/agent-workspace の、複数モデルの PR レビューの自動化（#
   - コメント・docstring・`--help` の文言の「巡」「席」を、`AGENTS.md` の「日本語表現」に合わせて書き換える（D-13）
   - 改名前のリポジトリの Issue 番号（`#494` など）を `usaturn/agent-workspace#494` の形にする
   - 検討した別案: 文言も移植元のまま写し、移植元との差分を小さく保つ。移植先の規則（`AGENTS.md`）に反するので採らない
+  - レビュー修正の例外（PR #164 の 1 回目）: `review_findings.py` の `from-markdown`・`check-pair` は、Unverified candidates の節が `### <ID>:` の見出しか「なし」で始まらなければ止まる。移植先の今の pr-review は見出しを求めず、候補が空の一覧として黙って落ちるため。詳細は `2026-10-18-create-reso-world-pr164-review-fixes-design.md`
 
 ### `review_target.py`
 
