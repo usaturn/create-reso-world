@@ -320,4 +320,12 @@ issue-to-pr の 5 章のとおり、`scan-before-push.sh` で検査した SHA �
 
 ## 実行記録
 
-（実行しながら追記する）
+- 実行方式: `superpowers:executing-plans`。ledger は worktree の `.superpowers/sdd/` ではなく `PARENT_ROOT` の `tmp/agents/issue-162.icutt74r/progress.md`（`AGENTS.md` の「worktree の中に、コミットしないファイルを作らない」）
+- Task 1（`bf74033`）: `test-install-ctx7.bash` の RED（`install_ctx7.bash lacks readonly CTX7_CLI_VERSION`）→ GREEN。版の検査を外す・`ctx7 setup` を足す、の 2 つの壊し方をどちらも捕まえた。実物の ctx7 0.8.0 をこのスクリプトで入れ、実体が `$(npm root -g)/ctx7/dist/index.js` であることを確かめた
+- Task 2（`18d2fea`）: `test_pi_shared_packages.py` は 2 passed。`pi remove npm:@upstash/context7-pi` を足す壊し方を捕まえた。Pi の RPC のプローブで、ルートとワールドの形（`.pi` の symlink だけの一時ディレクトリ）のどちらでも context7-pi の 4 つのリソースが読み込まれず、他は変更前と同じ。`.pi/npm` はできない。`test-pi-migrations.bash`・`test-pi-superagents.bash` も PASS
+- Task 3（`9a028ba`）: `jq empty` 3 ファイル成功。`pi mcp list`（worktree だけを trust した一時の agent ディレクトリ）は `google-dev-knowledge` だけ（変更前の親の checkout では `context7` も）。親の外の一時ディレクトリの `claude mcp list` は、新しい設定で `google-dev-knowledge` だけ、旧設定で `context7` もある。`~/.claude.json` に一時ディレクトリの項目は増えていない
+- Task 4（`79abf0c`）: 実物の ctx7 で `/facebook/react`・`/prisma/prisma` はリダイレクトで終了コード 1、`/react/react`・`/vercel/next.js`・`/prisma/orm` は 0。行動比較（`ctx7` を PATH から外し、`npm`・`npx` を記録だけの偽物にした `claude -p --model sonnet`）: 変更前は `npx ctx7@latest library ...` を試して WebFetch に切り替えた。変更後は `command -v ctx7` で止まってセットアップを案内し、`npm`・`npx` の呼び出しは 0 件。取得: Claude Code（`claude -p`）、Pi（`pi -p`、commandcode の `deepseek/deepseek-v4.1-flash`、ツール呼び出しを記録するプローブ拡張で確認）、Codex（`codex exec`）のどれも `find-docs` → `command -v ctx7` → `ctx7 library` → `ctx7 docs` で取得した。Pi の `--mode json` は 300 秒で出力なしの timeout になり（信頼性の失敗 1 件）、`-p` に変えた。最初の `pi -p` がこの pane の Herdr のタスク名を書き換えたので戻し、以降は `HERDR_*` を外して実行した
+- Task 5（`4051b8a`）: `test-readme.bash`・`test-docs.bash` PASS（Task 4 の時点の `test-docs.bash` の失敗は README の更新で解消）。README の RPC の確認コマンドを worktree（58 件、context7 なし）と親の checkout（`c7-docs` あり）で実行した
+- Task 6: `4051b8a` で `bash .devcontainer/run-tests.bash` 33/33 PASS、`bash scripts/check-layout.sh` PASS、`uv run pytest tests/skills .agents/skills .agents/scripts` 656 passed（すべて EXIT=0）
+- ブランチ全体のレビュー（`3e3c1a3..4051b8a`、読み取り専用の新しいレビュアー）: Ready to merge: Yes。Critical・Important は 0。Minor 5 件（`AGENTS.md` に claude.ai のコネクタを名指ししていない、移行の表に利用者のローカルの `.claude/settings.local.json` が無い、移植の記録の #17 の行、空白除去を通るテストが無い、途中の commit で `test-docs.bash` が失敗する）は、影響が文書の言葉と記録の整合だけなので直さない
+- 実行予算: 19:57 時点で ledger の能動時間 37 分（使用率 21%）、安全の失敗 0、信頼性の失敗 1（`pi-json-mode-timeout`、方法変更で解消）
