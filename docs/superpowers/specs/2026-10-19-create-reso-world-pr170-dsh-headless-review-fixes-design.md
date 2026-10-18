@@ -1,5 +1,74 @@
 # PR #170（Issue #151 DSH headless レビュアー）のレビュー指摘の選別と修正
 
+## 現行の判断（2026-10-18、HEAD 392da21 の再検証）
+
+- 対象: `usaturn/create-reso-world#170`、`feat/issue-151-dsh-headless`
+- 状態: `completed`。レビュー指摘の選別とローカル検証の完了であり、rebuild 後の実機受け入れの完了ではない
+- 実行許可: 利用者が `review-fix-planning` を明示して `#170` を指定。計画だけに留める指示が無いため、同スキルの完遂（既存 PR への記録の反映、修正不要ならマージと関連 Issue の更新）の許可として扱う。内容の承認を記録するものではない
+- 検証した HEAD: `392da213fda81844db6776b3830e509133d4e5b4`。全入力の対象 HEAD がその祖先（または同一）であることを確認
+- base: `main` / `a024a22626d4ff6daa46e92aa7cb8aae081aa7ac`。取得し直した remote の main と一致し、PR の祖先なので一時 merge の検証は不要
+- CODE_ROOT / DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-151-dsh-headless`。HEAD と clean を確認して既存 worktree を再利用。このセッションで作った worktree・ブランチではないため削除しない
+- 文書の選択: 対象 repo・PR・テーマを `docs/superpowers/specs/`・`plans/` で検索し、現行のレビュー修正文書は本ファイル 1 件と確定。同じ文書を更新し、下部に以前の判断を履歴として残す
+- 結論: **2 修正不要としてマージする**。解消済み **4** / 対応する **0** / 対応しない **8**。今回のコード・設定・テストの変更は無く、本ファイルのみ更新する
+
+### 入力と全指摘の分類
+
+入力ディレクトリは `reviews/usaturn/create-reso-world/#170-feat-issue-151-dsh-headless/`。以下の 4 ファイルを全文読んだ。接頭辞は O = claude-opus-5-5、G = gpt-6.1-sol、S = SWE-2-Max、D = commandcode-deepseek-deepseek-v4.1-flash。
+
+| ファイル | 冒頭の対象 HEAD | 履歴にある以前の HEAD |
+| --- | --- | --- |
+| `SWE-2-Max.md` | `392da213fda8` | `7bd3d6552582` |
+| `claude-opus-5-5.md` | `392da213fda8` | `7bd3d6552582` |
+| `commandcode-deepseek-deepseek-v4.1-flash.md` | `392da213fda8` | `7bd3d6552582` |
+| `gpt-6.1-sol.md` | `7bd3d6552582` | なし |
+
+| ID | 内容 | 区分 | 現行 HEAD での根拠・判断 |
+| --- | --- | --- | --- |
+| S-L1 | /tmp の checkout で sandbox テストが偽の失敗 | 解消済み | `fb6b4ad`、`test_sandbox.py:15` と `test_adapter.py:103` の interpreter resolve。/tmp の隔離 worktree で 124 件成功 |
+| O-L3 | 同上 | 解消済み | 同じ修正と同じ 124 件の実行で再現しないことを確認 |
+| D-L2 | 同上 | 解消済み | 同じ修正と同じ 124 件の実行で再現しないことを確認 |
+| G-L1 | 同上 | 解消済み | 古いレビューの対象から既に修正済み。sandbox の profile と assertion は維持 |
+| G-H1 | 標準 write/edit は scoped runner を通らずホスト /tmp に書ける | 対応しない | 固定版 fs-sandbox の実装と read→version 付き write で再現。`interfaces.rst:297-299`・`runner.py:396-399` の既存仕様は全 runtime とも書き込み範囲を指示として渡し、強制境界を保証しない。scoped runner はコマンド実行への追加制限。全プロセスを隔離する設計への変更は今回の修正対象にしない。PR 本文に範囲と /tmp 外の output-dir による回避が記載済み |
+| O-M1 | 応答前のログで認証・中断の診断が上書き | 対応しない | ログ無しでは認証待ち/中断、同じ stream に正常な応答前ログを加えると response_failed を再現（`dsh.py:299-308`、`dsh_identity.py:124-125`）。認証失敗は同様に fallback。DSH 自身の中断は fallback に進む差があるが、runner 自身の取消・期限切れは独立して保たれる（`runner.py:496-499,546`）。成功を偽らずログは残る。既知の制限に記載済み |
+| G-M1 | 同上 | 対応しない | O-M1 と同じ再現・理由。初回認証失敗時の診断ラベルの不正確さとして扱う |
+| O-L1 | tool_result の 401/403 で正常 payload を破棄 | 対応しない | 実 DSH の read エラー文言相当を含む completed stream で awaiting_authentication、403 を 402 にすると success を再現（`dsh.py:33-36,116-119`）。1 試行の結果を失い fallback へ進むが、誤った結果を成功として返さない。既知の制限に記載済み |
+| D-L1 | 同上（stderr の数値誤分類も含む） | 対応しない | 同じ `_diagnostic` が stderr にも適用される（`dsh.py:290-292`）。安全側の誤分類であり、同じ理由で対応しない |
+| O-L2 | symlink 経由 output-dir で全コマンド拒否 | 対応しない | canonical な出力先の runnerCommand は rc 0、symlink 経由は rc 127 を再現（`dsh.py:177-181,210`、`dsh_sandbox.py:15-18`）。何も実行せず拒否する。既定の出力先では発生せず、PR が正規パスを使う回避方法を明記している任意パスの制限 |
+| S-I1 | 履歴表 R-1 の [25/25] と現在の step 数の不一致 | 対応しない | 文言は実在するが base から同じ。`maatlog-poc-porting.md:240` は 2026-10-05 の観測記録と明記し、現行手順を README に案内。#151 が更新するのは R-2/R-3。実行ロジックを壊さない履歴表現の問題 |
+| D-I1 | sandbox_write_paths の配線テスト不在 | 対応しない | `AdapterContext:19` → `runner.py:428` → `dsh.py:210` の配線を確認。cli.py は引数を渡さず、現在の caller は既定の空 tuple。欠陥が再現した指摘ではなく網羅の提案で、helper の grant 検証は既存実行テストが確認 |
+
+「対応する」は 0 件なので、新しい守る条件・影響経路の表、設計の見直し、失敗時ガードの追加・対照検証は不要。前回修正した interpreter の条件は維持されており、同じ条件の再発には当たらない。実在する制約は全て既存 PR 本文の既知の制限と整合し、今回は PR 本文を変更しない。
+
+### 検証・確認範囲
+
+- PR 差分全体と変更 17 ファイルの全文を確認。実装、テスト 5 ファイルと test-support、installer、README 全文、TOML、移植記録、当初の Spec/Plan、本ファイルを含む。関連する runner の collect / cleanup / fallback、adapter protocol、CLI、interfaces、postCreate の呼出元・検証も確認
+- `sp-recon` を同期で 2 件、直列に委譲（読み取り専用）。1 件目は環境・文書、2 件目はテスト・関連呼出元。実行検証は調整役が担当。子が shell 不在で確かめられない HEAD / base の差分と実行結果は調整役が直接照合。README の子が精読しなかった後半も調整役が全文を読んだ
+- 挙動の再現は SHA を照合した `/tmp` の隔離 worktree で実行。認証 2 種・中断 1 種のログ有無、tool_result の 403・401 と 402 の対照、正規パスと symlink 経由の runnerCommand を確認
+- G-H1 は `@deepseek-ai/dsh-fs-sandbox@0.2.0-rc.2` と依存だけを一時領域へ `--ignore-scripts` で配置し、workspace / private TMPDIR の外にある /tmp の隣接ファイルへの version 付き書き込みを再現。CLI・モデル・認証 API は起動しない。最初の probe はファイル read の戻り値からの version 取得が誤っていたため、stat の version を使う形に直し、終了コード 0 と変更後のバイト列で再確認
+- 全再現・ログ・配布物・scratch は `/tmp/review-fix-planning.95PU72/` に閉じ込めた。検証終了後に `git worktree remove --force` の成功を確認して親ディレクトリを削除済み。Spec 作成まで残していない
+
+| 検証 | 場所 | 結果 |
+| --- | --- | --- |
+| `uv run --locked pytest tools/agent_runner/tests/adapters/dsh tools/test_support -q` | /tmp の隔離 worktree | 124 passed / 12.00 秒 / exit 0 |
+| `uv run --locked pytest tools/agent_runner tools/test_support -q` | 専用 worktree | 463 passed / 68.83 秒 / exit 0 |
+| `bash .devcontainer/run-tests.bash` | 専用 worktree | 33 本 PASS / exit 0 |
+| `bash scripts/check-layout.sh` | 専用 worktree | PASS / exit 0 |
+| 認証・中断・tool_result・symlink の再現 | /tmp の隔離 worktree | 上表の状態・payload・終了コードを assertion で確認 / exit 0 |
+| 固定版 fs-sandbox の隣接ファイルへの write | 一時領域 | original → changed / exit 0 |
+| `git diff --check` | 専用 worktree | PASS |
+
+- 今回は文書のみを更新するので新規テストを作らない（AGENTS.md の採用基準）。スキル自体の変更は無く、skills の追加一括検証は不要
+- CI は private の create-reso-world で停止中のため確認対象外。base が進んでいないため統合用の一時 merge は作らない
+- 自己確認で新たな致命的欠陥は無し。今回コード修正が無いため「修正後の自己レビュー」は未実施（初期検証の委譲を自己レビューとは数えない）
+- 実 DSH のグローバル導入・CLI 起動・provider 接続・rebuild は未実施。これは #116 D-14 / D-21 と README が利用者へ分担した実機受け入れであり、検証済みとは扱わない。マージ後も版・短い依頼 1 回・payload と観測モデルの記録が残作業
+- 所要: 18:11 UTC 着手、準備・入力確認約 3 分、文書/関連経路の調査（同期子 2 件）約 6 分、再現・環境回帰・runner 回帰約 7 分、判定・記録約 2 分。公開操作の時間と結果は状況コメント・完了報告に記録する
+
+---
+
+## 以前の判断（HEAD 7bd3d65 に対する初回の修正記録）
+
+以下は `fb6b4ad` のテスト修正につながった以前の記録であり、現行の分類件数は上節を基準とする。
+
 ## 管理・実行許可
 
 - 対象: `usaturn/create-reso-world` PR #170（`feat/issue-151-dsh-headless`、`Closes #151`）
