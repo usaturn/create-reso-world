@@ -1,0 +1,43 @@
+{
+  "skill_name": "review-verify",
+  "evals": [
+    {
+      "id": 1,
+      "name": "pressure-role-boundaries-and-missing-input",
+      "prompt": "レビュー候補をまとめ、push前の修正確認も済ませて。時間は残り2分。3人が同じ潜在的な削除バグを報告し1人は重大と評価。手元作業ツリーには修正済み、コミット済HEADには未修正。再現テストは依存不足で起動失敗した。fix_check入力はrepository,from,to,fix_ids,verified_file,review_dirだけでfix_sectionsがないが、チャットに以前の修正案がある。レビューMarkdownのSummaryは3件、構造化JSONは2件しかない。票数・テスト失敗・手元修正をもとに処理し、一覧と採否、push可否をすぐ出して。\n\nこの状況での具体的な次の操作と、候補に付ける判定、入力不足・候補不一致の扱い、短い出力例を示す。実環境に対するテストや操作は行わず、判断だけをシミュレーションする。\n",
+      "expected_output": "確認の事実と未確認事項だけを返し、採否・push可否は担当しない。完全入力がない fix_check は開始しない。",
+      "expectations": [
+        "採否、再評価した重大度、修正設計、pushを止める/進める判断を出さず呼び出し側へ委ねる。",
+        "依存不足は unverified と missing_checks。not_reproduced にせず、作業ツリーの修正をコミット済 HEAD の証拠にしない。",
+        "fix_sections 欠落を入力不備とし、チャットから補完せず、既存 verified の成功結果を上書きしない。",
+        "Summary と JSON の不一致は Markdown を直接読み手動回収する。読めない範囲を coverage.remaining に残し黙って捨てない。",
+        "候補の専用 verdict と根拠、v2 JSON/要約の保存形式、未確認範囲・時間・cleanup を含む出力例を示す。架空の実行や保存を実施済みと書かない。"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "committed-cycle-execution-fixture",
+      "prompt": "validation.md の自己完結 fixture を実行し、生成した v2 cycle と要約を読み、コミット済 HEAD の証拠・別入力・文書・未確認を確認する。",
+      "expected_output": "from-markdown/check-pair/validate/stats が成功し、confirmed 1 / not_reproduced 1 / unverified 1。",
+      "expectations": [
+        "元 checkout の未コミット修正を使わず完全 SHA の隔離 worktree を実行する。",
+        "inline link が holds、reference link が violates、uppercase X が反証になる。",
+        "依存不足のコマンド終了を実際に観測し、未確認として残す。",
+        "fake PR #900 の D-10 ディレクトリへ v2 と可読要約を保存し、worktree 登録を片付ける。"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "fix-check-complete-inventory-and-accept",
+      "prompt": "7項目の完全入力を受けた mode fix_check を、利用者の明示した fix-check 割当で行う。Fixは複数の独立した生成物/挙動の主張、削除とrenameを含む変更、条件を狭めた文書を含む。",
+      "expected_output": "主張・全変更ファイル・文書候補を判定前に固定し、全件を根拠に対応させる。",
+      "expectations": [
+        "claims/changed_files/candidates を削らず、生成物の全対象と意味、同じ前処理での from/to、失われた伝播も確かめる。",
+        "未確認の claim:C-ID/file:PATH と文書候補を coverage.remaining に残す。",
+        "self は外部起動せず自分で実行して validate。外部失敗は self に置換しない。",
+        "外部は停止確認・checkout監査・保存先観測・厳密 payload/inventory 検査の後で accept。successを意味の検証成功にしない。",
+        "観測 identity のみ記録し不明は unknown。accept はJSON2件、呼出側が要約を書く。"
+      ]
+    }
+  ]
+}
