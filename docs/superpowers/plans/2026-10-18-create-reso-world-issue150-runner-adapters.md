@@ -12,6 +12,8 @@
 
 **管理:** draft。利用者のissue-to-pr #150と今回のOKによる実行許可であり、内容承認は記録しない。反映先feat/issue-150-runner-adapters、main向けPR1本、マージ禁止。
 
+**現在の実行許可（2026-10-18）:** 利用者の「OpenCode Go の認証確認は保留にして実装して。保留分は別の Issue にして。」により、`pigod`・`pi-go-glmf` の認証・実機確認を #172 に移管する。agent定義と実装は維持し、#150は残る9 agentの実機確認後にPRを公開する。過去の停止記録は履歴として残す。OpenCode Goの追加実行・認証設定変更は行わない。
+
 ## Global Constraints
 
 - runner本体、`adapters/__init__.py`・`adapters/skills.py`・`models.py`、DSH、ランチャー、zshrc、雛形のroles.*・workflows.*・agents.dsh-*を変更しない。
@@ -246,13 +248,21 @@ env = ["HOME", "PATH"]
 - [x] 各Taskの仕様/品質レビューと全fixのscoped re-reviewを終える。deferred minorやRulingはledgerへ残し、最終レビュアーへ渡す。
 - [x] `uv run pytest tools/agent_runner/tests/adapters`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`git diff --check` を最終コードで実行する。検証プロセスの終了コードとログを確認し、実行中にターンを終えない。
 - [x] ブランチ全体を最上位モデルの別担当がレビューする。所定の1回のfix waveとscoped re-reviewを使い、未解決は根拠付きで判定する。
-- [ ] 各定義agentを1回、promptは短いJSON marker、roleはwrites=False、各deadline 120秒、fallbackなしの最小一時configでrunnerから起動する。使い捨てのgit repo/runner worktreeに限定し、state/identity/payload/elapsed/stop_confirmed/outside_changesを確認して #150 へ記録する。認証・承認失敗を成功と書かず、認証やproviderを変えない。
+- [ ] OpenCode Go以外の9 agentの証跡を確認する。成功済み8件を再実行せず、`pi-gemf` だけを短いJSON marker、writes=False、deadline120秒、fallbackなしの最小一時configでrunnerから1回起動する。使い捨てgit repo/runner worktreeのstate/identity/payload/elapsed/stop_confirmed/outside_changesを #150 に記録する。`pigod`・`pi-go-glmf` は利用者の明示指示で #172 へ移管済みと記録し、成功とは書かない。agent定義・認証やproviderを変更しない。
 - [ ] 問題が無ければSpec/Planに完了記録（承認とは別）を追記してcommit。最新Issue/PR/claimを再確認し親checkoutのscan-before-push.shで検査した非空SHAをそのままpushする。main向け `Closes #150` のPRを1本作成する。親Issue本文/他者の予約を触らずマージしない。
 - [ ] 文書とhandoffを公開した内容から別領域へ復元してhash/bytesを照合し、予約をexact-SHA leaseで解放して不在を確認する。budgetと各担当時間、検証/実機の制限、残存pathを報告する。
 
 ## Plan自己確認
 
-受け入れ1/2は各Task、3はcontroller実機、4は最終検証に対応する。全Taskは同じprotocolに一致し、TOMLは異なる節を直列追加する。Review Focusの5種類は各Taskのテストへ割り当てた。固定文言テスト・新規依存・共有ファイル変更を要求していない。
+受け入れ1/2は各Task、3はcontroller実機と利用者が明示した#172への移管、4は最終検証に対応する。全Taskは同じprotocolに一致し、TOMLは異なる節を直列追加する。Review Focusの5種類は各Taskのテストへ割り当てた。固定文言テスト・新規依存・共有ファイル変更を要求していない。
+
+### 利用者指示による保留分の切り出しと最終化
+
+- 作業範囲: 既存Spec/Planの受け入れ条件と公開記録だけを更新する。5 Taskと全レビューは完了済みで再実行しない。`pigod`・`pi-go-glmf` の定義・adapter・テスト・ランチャーは変更しない。
+- #172はOpenCode Goの復旧確認後に両agentを各1回実行し、正確なmarker・観測model・終了コード・停止・outside_changesを記録するIssueとした。#150のPR作成・マージの先行条件にせず、親#116のボードと依存関係は変更しない。
+- 今回はGoogle Vertexの `pi-gemf` 1回だけを新しい使い捨てrepo・一時configで確認し、従来8件と合わせて9 agentの証跡を揃える。OpenCode Goの実APIは起動しない。
+- テストの要否: 新規テスト不要。コード・設定・実行ロジックを変更しないため。代わりに実機1件の結果、config check、git diff --check、検証済みコード9a03f74からの差分がSpec/Planだけであること、Issue/PRの参照と公開後の文書復元を確認する。既存の2181 pytest・33 shell・depth adapter291件の終了コード0と全体レビューの証跡は保持し、再実行したとは書かない。
+- 実行予算は既存ledgerを継続する。準備とIssue切り出し5分、残る実機最大2分、文書/公開/復元10分を目安とする。失敗時・phase境界でcheckpointを記録する。OpenCode Go以外で新たな失敗が起きた場合は、今回の保留指示を広げず停止する。
 
 ## 部分成果・実機検証・停止（2026-10-18 UTC）
 

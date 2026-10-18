@@ -5,6 +5,7 @@
 - 状態: draft。対象: usaturn/create-reso-world #150、親 #116。
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-150-runner-adapters`。PARENT_ROOT: `/workspaces/reso-world`。
 - 実行許可: handoff に記録された issue-to-pr #150（推奨案で設計・実装・検証・commit・scan・push・PRまで）と、今回の利用者の「OK」（Codex標準のサブエージェントで設計・計画作成からPR作成まで進める）。認証設定の変更・マージは含まない。内容承認の記録はなく approved にしない。
+- 受け入れ変更の明示許可（2026-10-18）: 「現在、OpenCode Go で障害が起きてるので、OpenCode Go の認証確認は保留にして実装して。保留分は別の Issue にして。」。`pigod`・`pi-go-glmf` の認証・実機確認だけを #172 に移し、#150のコード実装・PR作成を継続する。内容承認を新たに記録せずdraftを維持する。
 - 継承元: `tmp/docs_draft/claude_handoffs/20261018T153829Z-issue-150.handoff.json`。旧piの期限切れキーを変更せず、調査・実装・レビューをCodex標準サブエージェントで行う。
 - 移植元: usaturn/agent-workspace `a47b2065fddad76b7475752fd0088af0733de204`。保存済みの26ファイルを基に移植する。外部リポジトリのclone・変更は行わない。
 
@@ -14,7 +15,7 @@
 
 1. 各adapterのprepare/collectと偽CLIを使う実プロセスのテストが通る。stdinまたはpromptファイル、JSON/text、認証・承認待ち、失敗終了、不完全な出力、identityの未観測を検証する。
 2. 雛形が有効で、移植したruntimeがsupportedとなる。agentの一覧は運用値なのでテストへ固定して写さない。
-3. 各定義agentを短い依頼で1回ずつ使い捨て対象に起動し、payload・観測モデル・所要時間・state・stop_confirmedを #150 に記録する。認証/承認待ちや未観測のモデルは受け入れ成功にしない。
+3. OpenCode Go以外の9 agentを短い依頼で1回ずつ使い捨て対象に起動し、payload・観測モデル・所要時間・state・stop_confirmedを #150 に記録する。成功済み8件は繰り返さず、未実行の `pi-gemf` だけを確認する。`pigod`・`pi-go-glmf` の認証・実機確認は利用者の明示指示で #172 に移管し、#150の公開を待たせない。認証/承認待ちや未観測のモデルを成功にせず、この2件の定義と失敗分類は維持する。
 4. `uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh` が通る。private repository のActionsは無効でCI確認不要。
 
 ## Global Constraints
@@ -29,6 +30,8 @@
 - 親checkoutと他者のbranch/worktreeを変更しない。未コミットの記録はPARENT_ROOTの `tmp/agents/issue-150.x_25tm6g/` に保存する。
 
 ## 先行条件と現在の状態
+
+現在の進行条件はD-150-6と受け入れ条件3を基準とする。後半の停止記録は、その時点の全agent実機確認条件と観測結果を残した履歴である。OpenCode Goに関する過去の停止・再試行上限は維持し、この作業では追加実行しない。外部サービスの障害状況は利用者申告であり、サービスの追加確認や秘密値の調査は行わない。
 
 2026-10-18の再確認で #149 はclosed/completed、PR #163 はmainにマージ済み（`6ca0ec8`）。native blocked_byは #149 のみ。最新origin/mainは `a024a22626d4ff6daa46e92aa7cb8aae081aa7ac`。継承worktreeは同じHEAD・clean・独自commitなしで、既存の基準テストは1891 passed（426.68秒）。#150の競合PR・他者の予約は無い。専用refを今回のセッションで取得し、所有権を各外部書き込み前に再確認する。
 
@@ -65,11 +68,13 @@ CLIが終了コード0でも完全な応答・receiptが無ければ成功にし
 
 - D-150-5 選択: `pi-go-glmf` を移植元と同じ raw `pi` と明示的なprovider/model/effortで定義する。最終レビュー I-3 で、元の起動コマンドは導入済みの `pi` であり、モデル専用launcherを使っていないと確認した。親D-13は利用可能なrawコマンドによるagentを除外しないため、当初の省略判断を撤回する。元のIssueが指定したagentを復元する通常の設計修正として、issue-to-prの実行許可内でcontrollerが裁定した。利用者による内容承認は記録せずdraftを維持する。pigo/piglの変更や再解釈はしない。`pi-gemf` は現行pigemfが存在するため含める。
 
+- D-150-6 選択: OpenCode Goの `pigod`・`pi-go-glmf` の認証・実機確認を [#172](https://github.com/usaturn/create-reso-world/issues/172) に切り出し、残る9 agentの実機証跡と全偽CLI検証で#150のPRを公開する。別案は障害復旧まで全体を待つ、またはagent定義を削除すること。利用者が保留と別Issue化を明示したため、実装と定義を保持し、外部サービスに依存する2件の確認だけを分離する。#172を#150の依存に追加せず、親ボードや他子Issueを変更しない。認証失敗を成功と扱うこと、provider/modelの変更・fallback・資格情報の調査は許可されていない。誤った判断だった場合の影響は、この2 agentの実接続を未確認のまま公開することであり、PRに明記して追跡する。
+
 ## 検証と反映
 
 各Taskは対象runtimeのテストでRED→GREENを記録し、実装者の自己確認と別担当による仕様・品質レビューを行う。文書・TOMLだけの固定文言テストは作らず、TOMLのparse/check、RSTの参照・構造、git diff --checkで確認する。最後に全adapter・README所定の全検証とブランチ全体の独立レビューを行う。
 
-実機では一時configに最小workflowを定義し `--config` で渡す。個人設定は更新せず、runnerをrepository rootからforegroundで起動し、bash timeoutを付けない。全結果を確認してから非空のscan済みSHAをpushし、main向けに `Closes #150` のPRを1本作る。マージしない。失敗時は部分成果と残る受け入れ条件を公開して予約をexact-SHA leaseで解放する。
+実機では一時configに最小workflowを定義し `--config` で渡す。個人設定は更新せず、runnerをrepository rootからforegroundで起動し、bash timeoutを付けない。D-150-6の移管を含む現在の受け入れ条件を確認してから非空のscan済みSHAをpushし、main向けに `Closes #150` のPRを1本作る。マージしない。保留2件を除く実行で失敗した場合は部分成果と残る受け入れ条件を公開して予約をexact-SHA leaseで解放する。
 
 ## 部分成果と停止記録（2026-10-18 UTC）
 
