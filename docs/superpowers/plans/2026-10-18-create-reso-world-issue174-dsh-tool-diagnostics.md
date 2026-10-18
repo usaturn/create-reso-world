@@ -59,27 +59,27 @@
 
 **テストの要否:** 必要。認証判定の分岐と、実際の subprocess が返す回答・fallback の発生を確認する。文書は diff と参照先の検査で代える。
 
-- [ ] **Step 1: task-start を記録し、回帰テストと偽 CLI mode を追加する**
+- [x] **Step 1: task-start を記録し、回帰テストと偽 CLI mode を追加する**
   - collector に 402 行、401 行、403 行、`401.py`/`403.py`、認証風文字列のツールエラーを挿入し、`status == "success"` と `payload == {"ok": True}` を確認する。
   - 既存承認テストへ 403 を含む拒否を追加し、`awaiting_approval` を確認する。
   - top-level error の `UNAUTHORIZED`/401/403 が completed/final 後も `awaiting_authentication`、payload None となることを確認する。
   - 偽 CLI に上記 5 つの read エラー用 mode を追加し、tool_call/result → completed/final と有効な session を出す。
   - 実プロセステストは 5 mode × fallback 有無。batch/role/primary が success、primary payload の ok が true、exit 0、stop_confirmed、観測 provider/model が一致、attempts は agent a の 1 件だけとする。fallback は別 id の既存偽 CLI success agent を明示登録する。
-- [ ] **Step 2: RED を確認する**
+- [x] **Step 2: RED を確認する**
   - Run: `uv run --locked pytest tools/agent_runner/tests/adapters/dsh/test_adapter.py tools/agent_runner/tests/adapters/dsh/test_runner.py -q`
   - Expected: 402 行の対照・真の認証診断は成功。401/403 の回帰は誤った認証待ちや batch failed、不要な fallback で失敗する。
-- [ ] **Step 3: 最小修正を入れる**
+- [x] **Step 3: 最小修正を入れる**
   - `_classify` の tool_result 分岐で `_diagnostic` を呼ばず、`_APPROVAL.search(result)` に一致した場合のみ `("awaiting_approval", None)` を返す。本文が API の認証状態を表さない理由をコメントに書く。
-- [ ] **Step 4: GREEN を確認する**
+- [x] **Step 4: GREEN を確認する**
   - Run: `uv run --locked pytest tools/agent_runner/tests/adapters/dsh -q`
   - Expected: 新規ケースと既存の真の認証・承認・非ゼロ終了・identity 検証を含め全件成功、終了コード 0。
-- [ ] **Step 5: 検証して commit、task-done を記録する**
+- [x] **Step 5: 検証して commit、task-done を記録する**
   - Run: `git diff --check`、明示した 4 パスのみ stage し、`fix(agent-runner): keep recovered DSH tool errors out of API auth checks` で commit。
   - Expected: 終了コード 0。記録に BASE/HEAD、RED/GREEN の結果とログ、所要時間を残す。
 
 ## 最終検証・公開
 
-- [ ] README の入口（ワールド以外）を同期実行: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools`。終了コード・実ログを確認。
+- [x] README の入口（ワールド以外）を同期実行: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools`。終了コード・実ログを確認。
 - [ ] branch 全体を fresh の sp-review に読み取り専用で依頼。Spec/Plan、基準 SHA、HEAD、Review Focus、ledger を渡す。重要な指摘は 1 回の RED→GREEN 修正で対応し、回帰を再実行する。
 - [ ] Issue の open 状態・コメント・競合 PR/claim/branch を再確認する。自分の worktree と他者のものを区別する。
 - [ ] Plan の完了記録を更新（状態 draft のまま）して commit。親の秘密検査が成功した SHA のみを push し、明示 head/base main で PR を作成する。
@@ -87,4 +87,8 @@
 
 ## 実行記録
 
-未着手。
+- 基準の DSH テスト: 124 passed（終了コード 0）。
+- RED: 最初の実行で fallback の同一 model が設定検証に拒否されたため、偽 fallback に独立した model を指定した。再実行で 15 failed / 109 passed（終了コード 1）。行数・ファイル名による payload 破棄と不要な fallback を確認した。
+- GREEN: DSH 全体 147 passed（終了コード 0）。実装修正 commit: `4a41d95`。
+- README の検証: Dev Container/スクリプト 33 passed、check-layout PASS、全 Python 回帰 2591 passed / 1 skipped（598.10 秒）。すべて終了コード 0。
+- 文書は承認されていないため状態 draft のまま。独立レビュー・公開はこれから実施する。
