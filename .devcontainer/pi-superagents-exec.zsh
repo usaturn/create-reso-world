@@ -25,14 +25,23 @@
 # 1 行 1 要素で出力する。テスト用。
 #
 
-pi_openai_codex_require_oauth() {
+# Match native Pi: expand only ~ / ~/ once, then collapse . / .. lexically.
+# :a must precede filesystem traversal; :A is reserved for the auth mount target.
+# REPLY avoids losing trailing newlines in a path through command substitution.
+pi_agent_directory() {
     local agent_dir="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
     if [[ "${agent_dir}" == "~" ]]; then
         agent_dir="${HOME}"
     elif [[ "${agent_dir}" == "~/"* ]]; then
         agent_dir="${HOME}/${agent_dir#'~/'}"
     fi
-    local auth_file="${agent_dir}/auth.json"
+    REPLY="${agent_dir:a}"
+}
+
+pi_openai_codex_require_oauth() {
+    local REPLY
+    pi_agent_directory
+    local auth_file="${REPLY}/auth.json"
 
     if [[ -f "${auth_file}" ]] && node -e '
 const fs = require("node:fs");
@@ -61,13 +70,9 @@ process.exit(credential?.type === "oauth" &&
 }
 
 pi_xai_require_oauth() {
-    local agent_dir="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
-    if [[ "${agent_dir}" == "~" ]]; then
-        agent_dir="${HOME}"
-    elif [[ "${agent_dir}" == "~/"* ]]; then
-        agent_dir="${HOME}/${agent_dir#'~/'}"
-    fi
-    local auth_file="${agent_dir}/auth.json"
+    local REPLY
+    pi_agent_directory
+    local auth_file="${REPLY}/auth.json"
 
     if [[ -f "${auth_file}" ]] && node -e '
 const fs = require("node:fs");
@@ -230,6 +235,11 @@ pi_superagents_exec() {
     # 注: zsh では $@ は特殊配列 argv に他ならないため、ローカル変数を argv と
     # 名付けると位置パラメータを影(shadow)にしてしまう。args_ などの別名で
     # 宣言して、pi への引数引き継ぎ(下の "$@")が空にならないようにする。
+    # Pin the interpreted directory for every native consumer and child cwd.
+    local REPLY
+    pi_agent_directory
+    export PI_CODING_AGENT_DIR="${REPLY}"
+
     local -a args_
     args_=(
         bwrap
@@ -237,19 +247,10 @@ pi_superagents_exec() {
         --die-with-parent
     )
 
-    local agent_dir auth_file vertex=0
+    local agent_dir="${PI_CODING_AGENT_DIR}" auth_file vertex=0
     local -a reply
     if pi_google_vertex_models "${launcher}"; then
         vertex=1
-        agent_dir="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
-        if [[ "${agent_dir}" == "~" ]]; then
-            agent_dir="${HOME}"
-        elif [[ "${agent_dir}" == "~/"* ]]; then
-            agent_dir="${HOME}/${agent_dir#'~/'}"
-        fi
-        agent_dir="${agent_dir:A}"
-        # 子 Pi の cwd が変わっても同じ設定と overlay を読むよう絶対パスにする。
-        export PI_CODING_AGENT_DIR="${agent_dir}"
         auth_file="${agent_dir}/auth.json"
 
         # auth のファイルだけを重ねる。settings / sessions とそれらの lock は

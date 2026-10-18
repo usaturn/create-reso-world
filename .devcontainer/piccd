@@ -29,7 +29,10 @@ if [[ -z "${PI_SUPERAGENTS_HELPER}" ]]; then
 fi
 source "${PI_SUPERAGENTS_HELPER}"
 
-readonly PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+typeset REPLY
+pi_agent_directory
+readonly PI_DIR="${REPLY}"
+unset REPLY
 readonly MODELS_JSON="${PI_DIR}/models.json"
 readonly PROVIDER="commandcode"
 readonly MODEL="deepseek/deepseek-v4.1-flash"

@@ -916,6 +916,7 @@ I/O 障害では途中まで書いたファイルを置かず非0で終わるが
 `setup_pi_commandcode_goat.zsh` は
 `.devcontainer/piccg` と `.devcontainer/piccd` をそのまま配置するため、
 実行してもランチャの内容は `install_beforehand.bash` の配置結果と一致する。
+この2本は互換な共通ヘルパも一緒に更新し、既存のランチャー別 tier 設定は変更しない。
 
 commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同居して
 受け持つのは、両者が同じ `providers.commandcode` エントリを共有するためで

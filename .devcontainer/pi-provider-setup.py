@@ -24,9 +24,9 @@ def agent_directory(value: str | None = None) -> Path:
     elif raw.startswith("~/"):
         # Concatenate rather than join: a second slash must not discard HOME.
         raw = str(Path.home()) + "/" + raw[2:]
-    # Path drops leading ./; absolutize before returning so ./~/x cannot become
-    # a fresh ~/x input. Keep symlinks and .. for the OS to traverse in order.
-    return Path(raw).absolute()
+    # Pi resolves . and .. lexically before touching symlinks. Keep the result
+    # absolute so ./~/x cannot become a fresh ~/x input on the next call.
+    return Path(os.path.abspath(raw))
 
 
 def plain_file(path: Path) -> None:

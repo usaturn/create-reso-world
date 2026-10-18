@@ -4,13 +4,12 @@ set -euo pipefail
 PROVIDERS=("deepinfra")
 
 # PI_CODING_AGENT_DIR が設定されている場合も考慮
-PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
-if [[ "${PI_DIR}" == "~" ]]; then
-    PI_DIR="${HOME}"
-elif [[ "${PI_DIR}" == "~/"* ]]; then
-    PI_DIR="${HOME}/${PI_DIR#'~/'}"
-fi
+# Keep path-owned trailing newlines; remove only the CLI delimiter and sentinel.
+PI_DIR="$(python3 "${0:A:h}/../.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"
+PI_DIR="${PI_DIR%$'\n'.}"
 readonly PI_DIR
+# Follow-up Pi commands must reuse this interpretation, even after joining paths.
+export PI_CODING_AGENT_DIR="${PI_DIR}"
 MODELS_JSON="${PI_DIR}/models.json"
 
 # モデル定義の正は .devcontainer/pi-models.json とする。

@@ -173,7 +173,7 @@ def test_invalid_source_is_rejected_before_any_side_effect(tmp_path: Path, scrip
     (repo / ".devcontainer").mkdir()
     shutil.copyfile(ROOT / "scripts" / script, repo / "scripts" / script)
     shutil.copyfile(ROOT / ".devcontainer/pi-provider-setup.py", repo / ".devcontainer/pi-provider-setup.py")
-    for launcher in ("pigo", "pigod", "piccg", "piccd"):
+    for launcher in ("pigo", "pigod", "piccg", "piccd", "pi-superagents-exec.zsh"):
         shutil.copyfile(ROOT / ".devcontainer" / launcher, repo / ".devcontainer" / launcher)
     (repo / ".devcontainer/pi-models.json").write_text(content)
     before = snapshot(tmp_path)
@@ -181,6 +181,23 @@ def test_invalid_source_is_rejected_before_any_side_effect(tmp_path: Path, scrip
     assert result.returncode != 0
     assert "pi-models.json" in result.stderr
     assert snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("script", ["setup_pi_commandcode_goat.zsh", "setup_pi_opencode_go.zsh"])
+def test_missing_launcher_helper_is_rejected_before_any_managed_change(tmp_path: Path, script: str) -> None:
+    # Break: validating a distribution dependency after the JSON update leaves a partial setup.
+    h = Harness(tmp_path, script)
+    source = tmp_path / "source"
+    (source / "scripts").mkdir(parents=True)
+    (source / ".devcontainer").mkdir()
+    shutil.copyfile(ROOT / "scripts" / script, source / "scripts" / script)
+    for name in ("pi-provider-setup.py", "pi-models.json", "pigo", "pigod", "piccg", "piccd"):
+        shutil.copyfile(ROOT / ".devcontainer" / name, source / ".devcontainer" / name)
+    before = snapshot(tmp_path)
+    result = h.run(source=source)
+    assert snapshot(tmp_path) == before
+    assert result.returncode != 0
+    assert "helper source not found" in result.stderr
 
 
 def test_missing_opencode_key_is_rejected_before_models_change(tmp_path: Path) -> None:

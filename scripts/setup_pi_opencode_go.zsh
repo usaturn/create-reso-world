@@ -27,13 +27,12 @@ readonly PROVIDER="opencode-go"
 readonly MODEL="muse-spark-1.3-contributor"
 readonly THINKING="max"
 
-PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
-if [[ "${PI_DIR}" == "~" ]]; then
-    PI_DIR="${HOME}"
-elif [[ "${PI_DIR}" == "~/"* ]]; then
-    PI_DIR="${HOME}/${PI_DIR#'~/'}"
-fi
+# Keep path-owned trailing newlines; remove only the CLI delimiter and sentinel.
+PI_DIR="$(python3 "${0:A:h}/../.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"
+PI_DIR="${PI_DIR%$'\n'.}"
 readonly PI_DIR
+# Follow-up Pi commands must reuse this interpretation, even after joining paths.
+export PI_CODING_AGENT_DIR="${PI_DIR}"
 readonly AUTH_JSON="${PI_DIR}/auth.json"
 readonly MODELS_JSON="${PI_DIR}/models.json"
 
@@ -86,6 +85,8 @@ command -v pi >/dev/null 2>&1 ||
 
 [[ -f "${MODELS_SOURCE}" ]] ||
     die "Model definition source not found: ${MODELS_SOURCE}"
+[[ -f "${LAUNCHER_DIR}/pi-superagents-exec.zsh" ]] ||
+    die "Launcher helper source not found: ${LAUNCHER_DIR}/pi-superagents-exec.zsh"
 
 #
 # Launchers are installed verbatim from the repository, so the model this
@@ -163,6 +164,8 @@ python3 "${0:A:h}/../.devcontainer/pi-provider-setup.py" \
     "${PI_DIR}" "${MODELS_SOURCE}" "${PROVIDER}"
 
 mkdir -p "${BIN_DIR}"
+# Ship the matching helper with the launchers; leave all existing tier configs alone.
+install -m 0644 "${LAUNCHER_DIR}/pi-superagents-exec.zsh" "${BIN_DIR}/pi-superagents-exec.zsh"
 
 log "models.json: ${PROVIDER} definition applied."
 

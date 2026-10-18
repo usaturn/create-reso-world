@@ -264,10 +264,12 @@ install_pi_extensions() {
     local legacy_manifests
     local legacy_listed
     local agent_dir
-    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir)"; then
+    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"; then
         echo "Failed to resolve the pi agent directory; aborting pi-superagents replacement." >&2
         exit 1
     fi
+    # Strip only the CLI delimiter and sentinel, not newlines owned by the path.
+    agent_dir="${agent_dir%$'\n'.}"
 
     # 1) 導入前の一覧を取得する。取得できないと置換の前提が崩れるので打ち切る。
     if ! before="$(pi list 2>&1)"; then
@@ -341,10 +343,12 @@ remove_pi_mcp_adapter() {
     local adapter_listed=0
 
     # settings と npm マニフェストは同じ agent directory を参照する。
-    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir)"; then
+    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"; then
         echo "Failed to resolve the pi agent directory; aborting pi-mcp-adapter removal." >&2
         exit 1
     fi
+    # Strip only the CLI delimiter and sentinel, not newlines owned by the path.
+    agent_dir="${agent_dir%$'\n'.}"
     if ! python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --settings-check "$agent_dir"; then
         echo "Unsafe or invalid ${agent_dir}/settings.json; aborting pi-mcp-adapter removal." >&2
         exit 1
@@ -408,10 +412,12 @@ remove_pi_distill() {
     # settings.json の packages と npm マニフェストは同じ agent directory を参照する。
     # settings の検査と同じ resolver を使う。~ と ~/ だけを HOME へ展開し、
     # ~user は Pi と同じく cwd 基準の literal パスとして扱う。
-    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir)"; then
+    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"; then
         echo "Failed to resolve the pi agent directory; aborting pi-distill removal." >&2
         exit 1
     fi
+    # Strip only the CLI delimiter and sentinel, not newlines owned by the path.
+    agent_dir="${agent_dir%$'\n'.}"
     if ! listed="$(pi list 2>&1)"; then
         echo "Failed to list pi extensions (pi list); aborting pi-distill removal." >&2
         exit 1
@@ -474,10 +480,12 @@ remove_pi_lens() {
     local lens_listed=0
 
     # remove_pi_distill と同じく、マニフェストの検査先を pi の agent directory の解決にそろえる。
-    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir)"; then
+    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"; then
         echo "Failed to resolve the pi agent directory; aborting pi-lens removal." >&2
         exit 1
     fi
+    # Strip only the CLI delimiter and sentinel, not newlines owned by the path.
+    agent_dir="${agent_dir%$'\n'.}"
     if ! listed="$(pi list 2>&1)"; then
         echo "Failed to list pi extensions (pi list); aborting pi-lens removal." >&2
         exit 1

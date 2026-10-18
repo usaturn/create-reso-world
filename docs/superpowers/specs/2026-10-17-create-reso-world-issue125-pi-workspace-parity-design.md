@@ -475,6 +475,134 @@ controller が1回、(1)全 resolver 入口と全4 caller、旧版との差、sy
 
 公開準備まで約22分（準備/全文確認/再現7、設計/実装2、検証10、自己レビュー/記録3）。開始は2026-10-18T04:03:20Z。公開と片付けの結果・総所要時間は最終コメントと報告に残し、この Spec に記録専用コミットは足さない。
 
+## PR #141 Pi の字句的パス解決への一致（2026-10-18）
+
+### 範囲・実行許可
+
+- 状態: `completed`。今回の `/skill:review-fix-planning #141` を、同 PR の修正・検証・既存 head への push の実行許可とする。結論1を選び、マージ・実認証・rebuild は行わない。内容の承認・実機受け入れの完了とは区別する。
+- 開始 HEAD: `f61289e62619edd0b963f6687ee5b8f86079f204`。既存の clean な専用 worktree、同じ Spec/Plan を再利用する。他 worktree の未コミット差分は読まない。
+- 入力8ファイル: N=`Grok-4.7.md`、P=`openai-codex-gpt-6.1-sol.md`、S=`SWE-2-Max.md`、O=`claude-opus-5-5.md` は `f61289e62619`、D=`deepseek-deepseek-v4.1-flash.md` は `e35fb6b89c9d`、C=`commandcode-deepseek-deepseek-v4.1-flash.md` は `3ec1d06e04a4`、G=`gpt-6.1-sol.md` は `60bcb6247e06`、K=`grok-4.7.md` は `52cc4a0456d2`。全 HEAD の祖先照合に成功した。
+- SHA を照合した `/tmp` 隔離 worktree で、helper は `real/agent/settings.json` だけを掃除し、Pi の `FileSettingsStorage` が選ぶ `agent/settings.json` の共有リンクを検査しないことを再現した。既存330回帰も成功し、現行 `symlink-parent` の誤った期待値が欠陥を固定していると確認した。再現用 worktree と親 directory は Spec 更新前に削除した。
+
+### 全入力の分類
+
+**計29件: 解消済み16 / 対応する2 / 対応しない11**。同一原因の N-M1 / P-M1 は入力として別々に数える。C は指摘0件。Test suggestions は対応する指摘の検証案として扱い、重複加算しない。
+
+| ID | 指摘・候補 | 判定 | 開始 HEAD の根拠 |
+|---|---|---|---|
+| N-M1 | symlink/.. で settings と manifest の対象が Pi とずれる | 対応する (a) | `alias -> real/nested`、`alias/../agent` で別設定だけを書き換え、実対象の共有 settings を preflight が見逃す。誤った対象への操作に該当 |
+| P-M1 | 同じパスによる共有 settings の事前検査迂回 | 対応する (a) | 同じ隔離再現。native `resolvePath(getAgentDir())` と helper の選択先が異なる |
+| N-L1 | 既存 auth symlink の Vertex 起動失敗 | 解消済み | `${auth_file:A}` の mount、共有リンクと親子 overlay の既存回帰が成功 |
+| N-L2 | builtin printf の argv への overlay 露出 | 解消済み | 現行も zsh builtin と FD 3。外部 printf への変更はなく、既存の反証根拠を維持 |
+| N-L3 | ~user の誤展開 | 解消済み | ~ / ~/ だけを展開する共通 resolver、named/unknown 回帰成功。今回の .. は別の入力条件 |
+| S-L1 | npm 残骸検査の対象縮小 | 対応しない | D-2 の意図した範囲縮小。表示 helper の残存だけでは致命的でなく、PR に制限と回避方法を記載済み |
+| S-I2 | staging glob の不一致 | 対応しない | 全状態 snapshot と fsync/replace 回帰が残存を検出する。致命的なガード全体の欠落ではない |
+| S-M1 | DeepInfra の偽成功 | 解消済み | errexit と共通 preflight、不正入力の実 setup 回帰成功 |
+| S-L2 | models の mode/link/固定 tmp | 解消済み | plain_file/stage、mode 保持、一意 backup の実行回帰成功 |
+| S-I1 | /tmp checkout の検証不能 | 解消済み | repo 再 bind と cwd 固定。今回も隔離 worktree の330件成功 |
+| S-U1 | rebuild/共有 HOME/ADC/Windows の受け入れ | 対応しない | 当初から別枠の実機確認。未実施を維持し、ローカル結果と混同しない |
+| S-U2 | catalog 更新失敗が warn のみ | 対応しない | refresh 終了7を注入し、モデル行ありは終了0、なしは終了1・完了表示なし。後段の検証が機能する仕様 |
+| S-U3 | 非 list settings の拒否 | 対応しない | 正常な packages/extensions は配列。必要構造を外部操作前に検査する仕様で、正規出力の誤拒否を示さない |
+| S-U4 | 相対 agent dir と別 cwd | 対応しない | 起動時 cwd 基準は Pi と同じ仕様。installer は同じ cwd。固定したい場合は絶対パスを使う |
+| O-M1 | forwardPorts と Plannotator の bind 競合 | 対応しない | 今回も全10ポート EADDRINUSE。Windows 所有者・転送との因果関係を確定できず、推測で設定を変えない。PR の制限・一時範囲/手動転送を維持 |
+| O-I1 | Vertex 一覧/project の転記 | 対応しない | 現構成で一致し実行回帰も成功。非致命的なテスト設計の論点 |
+| O-I2 | staging glob の空振り | 対応しない | S-I2 と同じ |
+| O-I3 | ./~ の再解釈による別 HOME 更新 | 解消済み | f61289e の絶対化と直接/再入力の回帰が成功。今回も1回だけの tilde 展開を保つ |
+| O-L1 | /tmp 不可視と境界テストの空振り | 解消済み | repo 再 bind・正常対照・拒否診断、隔離 suite 成功 |
+| O-L2 | DeepInfra の偽成功 | 解消済み | S-M1 と同じ |
+| O-U1 | 別コンテナのポート転送との競合 | 対応しない | O-M1 と同じ。所有者不明のサービスや転送を操作しない |
+| G-M1 | models の0600→0644 | 解消済み | 既存 mode/他 provider、新規0600を実 setup で検査し成功 |
+| G-M2 | ~/ の cwd への誤保存 | 解消済み | 3 setup の ~ / ~/ 展開回帰成功 |
+| G-M3 | DeepInfra の偽成功 | 解消済み | S-M1 と同じ |
+| G-M4 | BOM 付き models/auth の拒否 | 解消済み | utf-8-sig reader と BOM 有無の実 setup 回帰成功 |
+| K-M2 | settings の共有リンク切断 | 解消済み | 通常のパスは導入前/MCP前の storage guard と全状態回帰が成功。.. による対象ずれは今回の2入力として対応 |
+| K-H1 | ~/ の資格情報の誤保存 | 解消済み | G-M2 と同じ |
+| K-M1 | DeepInfra の偽成功 | 解消済み | S-M1 と同じ |
+| D-L1 | dangling auth symlink の起動失敗と汎用診断 | 対応しない | 終了1・stdout空・ホスト全状態不変を再確認。不完全な保存先の自動作成/診断詳細化は仕様・利便性の論点 |
+
+### 守る条件の設計と影響経路
+
+F-2/F-5 の同じ条件の再発であり、f61289e の「OS の辿り順を保持する」設計判断が誤っていた。e35fb6b は tilde の展開だけ、f61289e は再入力の安定性だけを見て、native Pi の consumer と照合していなかった。前節の OS 順序を保持する設計は履歴であり、今回の設計に置き換える。
+
+守る条件: 対応する POSIX 入力について、~ / ~/ を1回だけ展開し、cwd 基準の絶対パスへ字句的に . / .. を畳んでから I/O する。symlink を先に実体化しない。全 installer・provider setup・launcher の事前確認と、その後の Pi が同じ保存先を使う。再入力・子 cwd 変更で対象を変えず、不正な実対象なら設定・共有先・manifest・backup/staging・外部 audit を変更する前に拒否する。
+
+| 条件 | 経路・停止位置 | 変更前の挙動 | 判定 | 検証 / assertion |
+|---|---|---|---|---|
+| F-2/F-5 | Python resolver と settings check/clean の env/明示/再入力 | absolute() は .. を保持し OS 側へ迂回 | 修正する。字句的絶対化を共通化 | native Pi の FileSettingsStorage の保存先と一致、実対象だけを更新、decoy を含む全状態比較 |
+| 同上 | Pi 節入口、MCP の解決→preflight→list/remove→cleanup | 実対象が共有リンクでも正常な decoy を検査する | 同じ resolver で修正 | symlink/hardlink/JSON の単一異常×2入口、全状態不変・外部 audit なし |
+| 同上 | subagents/MCP/distill/lens の manifest 探索・事後検査 | OS 側を grep、Pi は字句的対象を操作 | 共通 resolver で修正 | 4関数×撤去/残存拒否、Pi 選択先の manifest と decoy を比較 |
+| 同上 | 3 provider setup の PI_DIR、helper.setup、OpenCode auth、後段 Pi | zsh は未正規化の文字列を渡し、別 models/auth を更新し得る | Python の --agent-dir へ集約 | 実3 setup の反映/拒否、別設定・共有先・backup・外部auditを比較 |
+| 同上 | Codex/xAI の OAuth 読取、piccg/piccd の models 確認 | 生の alias/.. を OS に渡す | launcher 共通の字句的 resolver へ集約 | 有効な Pi 側/無効な decoy と逆の配置で起動/拒否を確認、全状態保持 |
+| 同上 | Vertex の agent 絶対化→auth読取→mount→親子 | :A は字句的絶対化後に実体化し、この入力は既に一致 | 共通 resolver へ接続し、auth の mount 先だけ :A を維持 | 既存親子/共有auth回帰と alias/.. の native path 対照 |
+| F-5 | serialization/stage/backup/replace の失敗位置 | 既存の検査・完成後置換・finally掃除 | 既に満たす。変更しない | 既存 provider/settings I/O 回帰。全操作 rollback/並行更新の排他は保証しない |
+| 対象外 | HOME 固定の tier・models 雛形、URI/Windows パス | 拡張固有仕様/従来の別処理 | 対象外。保証を増やさない | 既存 suite を維持 |
+
+比較: (1) settings の1行と期待値だけを直す案は同じ条件の setup/launcher を残すため不採用。(2) Python は既存 helper の resolver、zsh は既存 launcher helper の resolver へ集約し、native Pi を独立した比較先にする案を採用。(3) 相対パス/symlink 親を全面拒否して保証を狭める案は Pi が扱う構成を不必要に止めるため不採用。旧 cleanup や汎用移行機能は復活させない。
+
+### 実行チェックリスト・検証
+
+- [x] 全入力・現行 HEAD・祖先・context・既存文書・再現を確認。既存330回帰は終了0。
+- [x] 行動テストを先に修正/追加して RED を観測し、同じ条件の全経路を修正する。テスト要: 実処理の保存先・拒否・変更/保持を確かめる。文書だけのテストは不要。
+- [x] 全状態比較、中心の字句的正規化を外す隔離対照、関連回帰と環境 suite/layout/構文/diff を実行する。
+- [x] 反証・PR全体・検出力の自己レビューを1回実施して判定を揃え、最終検証後に completed とする。Spec は公開前に1回だけ commit する。
+- [ ] head/context再確認、検査付きpush、状況コメント。実機受入・Windows所有者の未確認は成功へ読み替えない。
+
+調査委譲 sp-recon は同期呼出が結果・レポート参照なしで戻り、成功/読了に数えず controller が引き継いだ。同条件で再試行しない。
+
+### 自己レビューの裁定・設計の見直し
+
+読み取り専用 sp-review に反証・PR全体・検出力を1回依頼した。最初は git を使えないため判定前に NEEDS_CONTEXT と返った。controller が全文差分（削除元を含む9310行）・修正差分・base/head/全変更一覧を読取可能な artifact へ保存し、同じレビューを完了した。全差分の未読なし、追加2件を報告。controller が実行テストで **34 failed / 30 passed / 82 deselected** を観測し、2件とも採用した。最終分類は **計31件: 解消済み16 / 対応する4 / 対応しない11**。
+
+| ID | 出どころ・指摘 | 判定 | 再現・対応 |
+|---|---|---|---|
+| SR-PATH1 | 自己レビュー: コマンド置換がパス末尾のLFを失う | 対応する (a) | 末尾LF2文字を含む agent と除去後の decoy を置き、setup3本の誤更新、MCPの事前検査迂回、4manifestの探索ずれを再現。native Piと異なる対象への設定・資格情報保存になる |
+| SR-UPDATE1 | 自己レビュー: provider setup単独では新launcherと旧helperが非互換 | 対応する (a) | 旧公開APIだけのhelperと既存tierを持つHOMEでsetup→配置済みlauncherを実行。Command Codeはpi_agent_directory未定義で停止、OpenCodeも旧helperを使う。4ケースがPiへ届かない |
+
+SR-PATH1はF-2/F-5の自己レビューでの再発、SR-UPDATE1はこの回の新launcher依存が生んだ回帰である。**以下の修正後は再レビューせず、検証だけを再実行する。**
+
+守る条件の設計を「同じ意味のパス」だけでなく「受け渡す文字列全体を失わない」「配布単位に互換な依存を含める」へ見直す。PythonのCLIが付けた改行とパス自身のLFを区別し、全7箇所のshell受信（setup3、installer4）で成功時だけ末尾sentinelを付け、受信後に追加した区切り改行とsentinelだけを除く。zsh内はREPLYで受け渡し、コマンド置換しない。テストもrstrip/stripを使わずCLI自身の改行1文字だけを除く。
+
+| 条件 | 経路・停止位置 | 変更前の挙動 | 判定 | 検証 / assertion |
+|---|---|---|---|---|
+| F-2/F-5・文字列全体の保持 | settingsの直接/明示/再入力、setup3本とinstaller4関数のstdout受信 | $()がパス自身のLFも削除、正常decoyを検査/更新 | 全受信へsentinel方式を適用 | native保存先一致、LF付き実対象/decoy/共有先/auditの全状態比較。各拒否は異常1つだけ |
+| 同上 | zshのOAuth/model読取、Vertex mount、Pi起動環境 | REPLYではLFを保持する | 既に満たす。変更しない | 実launcherのLF付き環境受け渡し、既存gate/overlay回帰 |
+| 配布後の互換性 | Command Code/OpenCodeの事前入力検査→models/auth更新→bin/helper→launcher | launcherだけ配布し新依存を置かない | helper sourceの存在を事前検査し、tierを触らず同じ版のhelperも配布 | 旧helperからprovider単独setup→実配置済み4launcherがPiへ到達。起動前後の状態不変 |
+| 同上・拒否前の状態保持 | helper欠落、不正models/auth/sourceの各入力拒否 | helper配布を後から足すと不正入力で先にhelperを置き換え得る | helper配布は全preflightの後。欠落sourceも副作用前に拒否 | 単一異常の全状態比較、既存provider全回帰 |
+| 対象外 | DeepInfra setupのlauncher/helper配布 | もともとモデル定義のみを更新 | 対象外。配布機能を増やさない | 既存setup/環境回帰 |
+
+比較: 末尾LFだけを禁止する保証縮小はPiが扱うPOSIXパスを不必要に拒否するため不採用。7箇所へ個別の文字置換を足す案も、改行の連続数で失うため不採用。成功時sentinelという共通の受渡方式を採用する。新launcherへ旧helper用のfallbackを複製する案はresolver分散を復活させるため不採用。providerからtier setup全体を呼ぶ案は利用者tierを不要に扱うため不採用。互換なhelperだけをlauncherと一緒に配布する案を採用する。I/O障害時の先行したモデル更新のrollbackは従来どおり保証しない。
+
+レビューで挙げた判断対象外の項目は、実機受入、ポートの因果関係、D-2の撤去範囲、全体rollback/排他、運用値/glob/表示テストの整理、dangling自動修復、既存OAuthのBOM、symlink cwd/類似package名の未確定候補、移植元snapshotの再照合。実機/所有者は未確認を維持、意図した設計・非致命的な整理は採用しない。移植元の初回一致は既存記録を維持するだけで今回再検証したとは書かない。
+
+### 最終検証・失敗時の検証
+
+| 検証 | 結果 |
+|---|---|
+| 開始HEADの隔離 worktree | migrations 330 passed / exit 0。誤った symlink-parent の期待値を直す前の結果 |
+| 最初のRED | 40 failed / 58 passed / exit 1。対象ずれ・事前検査迂回・誤った認証/model gateを検出 |
+| 解決済みパスの環境固定のRED | 8 failed / 98 deselected / exit 1 |
+| 初回修正後のpath/provider/MCP | 226 passed / exit 0。pathは106件、同内容の/tmpも106件成功 |
+| Pythonの字句的正規化だけを外した隔離対照 | settings/providerの対象負例18/18が失敗 / exit 1 |
+| zshの字句的正規化だけを外した隔離対照 | 誤ったauth/modelを許す4/4負例が失敗 / exit 1。復元後106件成功 |
+| 自己レビュー2件のRED | 34 failed / 30 passed / 82 deselected。LF付き入力とprovider単独更新の破綻を検出 |
+| 自己レビュー修正後のpath/provider/MCP | 274 passed / exit 0。その後、helper欠落の事前拒否2回帰を追加し、下の最終suiteで検証 |
+| 成功時sentinelだけを各setupで1箇所ずつ外す隔離対照 | DeepInfra3/3、Command Code3/3、OpenCode6/6、計12/12負例が失敗 / exit 1 |
+| MCPの成功時sentinelだけを外す隔離対照 | MCPのLF付き3/3負例が失敗、同時選択された無変更の導入入口3例は成功 / exit 1 |
+| helper欠落の事前検査だけを各setupで1箇所ずつ外す隔離対照 | 2/2負例が、後段installの終了コードではなく全状態の変化で失敗 / exit 1 |
+| 対照をすべて復元した/tmp worktree | 最終path146件 + provider80件 = 226 passed / exit 0。worktreeと親directoryは削除済み |
+| 最後のコード変更後の環境suite | `PI_CODEX_LIVE_CHECK=0 PI_XAI_LIVE_CHECK=0 PI_OFFLINE=1 UV_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 bash .devcontainer/run-tests.bash` が32/32 PASS / exit 0。migrationsは最終収集数419件（開始330 + 今回89）で同入口から実行 |
+| layout・bash/zsh構文・Python AST・diff | すべてPASS / exit 0 |
+
+不正入力は、選択したsettings/models/authにsymlink・hardlink・不正JSONのうち異常1つだけを与える。比較する状態はテスト所有root全体のファイル有無・バイト列・mode・種類・リンク先・link数で、HOME、別settings/models/authと共有先、npm manifests、bin/既存helper、backup/staging、外部Pi/npm auditを含む。各期待値は実行前snapshotから取る。新しいhelper欠落も、他のsource/入力を正常にした単一異常で検証し、models/authやhelper配布より前に拒否することを確かめた。正常な設定更新は対象providerとextensionsだけを変更し、decoy・他provider・modeを保持する。
+
+中心境界の負例の対照は **計39件（18 + 4 + 12 + 3 + 2）** が意図した失敗を示した。いずれもSHA照合済みの使い捨てworktreeで1箇所ずつ保護を外し、readonly root/private tmp/fixtureのみrw/network・PID隔離を維持した。実装用worktreeでは保護を外していない。正常版の再検証後にworktreeを外し、親directoryを削除した。追加した89ケースは実処理の分岐・I/O・環境受け渡し・旧版からの更新を検証するもので、文書・一覧・設定値だけのテストは追加していない。
+
+I/O失敗のrollback範囲は変更していない。既存fsync/replaceの全状態回帰も最終suiteで成功した。設定更新後のhelper/launcher配布でI/O障害が起きた場合は、完了済みモデル更新やbackupが残り得る。全操作rollback・並行更新の排他は保証しない。symlink cwdの追加候補は、テスト所有のaliasへcdしたzshの:aとnative Node path.resolveが同じphysical cwd基準の保存先になることを局所確認し、この条件の新規指摘にはしない。
+
+自己レビューは1回、追加2件とも修正した。**自己レビュー後に変更したsentinel・helper配布・関連テストは再レビューしていない。** 実機rebuild・交互rebuild・実provider/ADC・Windowsブラウザー/所有者は未確認のまま。全10ポートのEADDRINUSEは観測事実でありforwardPortsが原因とは断定しない。既存PRの制限と回避方法を維持する。private Actionsは規約により対象外。Specの公開・pushの結果はPR状況コメントと完了報告へ記録し、記録だけのcommitを追加しない。
+
+公開前までの能動時間は約48分（準備/全入力・全文確認/再現9、設計/実装/局所回帰12、環境/隔離対照などの検証17、自己レビュー/裁定/記録10）。レビューworkerは所要を未計測と報告したため推測で補わない。最初のNEEDS_CONTEXTは判定前の入力不足で、読取用artifactを渡して同じ1回のレビューを完了した。最初の調査workerの結果なしを成功扱いしていない。
+
 ## 対象外・停止条件
 
 ccdu、DSH の launcher / installer、agent-runner、他リポジトリの変更、API 実呼び出し・ログイン・ADC 作成、rebuild・マージ・force push・タグ・リリースは対象外。同じ Issue の競合・明示の判断要求・未解消の依存・検証失敗・安全失敗が発生したら issue-to-pr に従って停止する。push / PR 作成直前に再確認する。
