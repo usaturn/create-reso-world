@@ -47,7 +47,7 @@ DSH がファイル読み取りエラーから回復し、有効な final を返
 | ツール結果では承認診断だけを行う | 全経路の `_AUTH` を HTTP 文脈付き正規表現へ変更する | ツール本文と API の信頼境界を分ける最小修正。top-level の認証判定を弱めない | issue-to-pr の通常設計委任。真の認証エラーを成功にする必要が生じたら停止 |
 | completed/final の既存検証へ進む | 有効な final があれば全エラーを無視する | final は認証・承認・終了・identity の失敗を覆せない | Issue の受け入れ条件 |
 | 偽 CLI を実プロセスとして起動する回帰 | 実モデルで再現する／文字列検査のみ | batch/fallback の挙動を課金や資格情報なしで確認できる | 実モデル禁止。想定外の外部送信は停止 |
-| inline の executing-plans | SDD による実装委譲 | 2 Task で fixture とテストを逐次変更する小さな修正。独立調査・最終レビューは別担当へ委譲 | issue-to-pr の実行方式選択規則 |
+| inline の executing-plans | SDD による実装委譲 | 1 Task で fixture とテストを逐次変更する小さな修正。独立調査・最終レビューは別担当へ委譲 | issue-to-pr の実行方式選択規則 |
 
 ## 検証
 
