@@ -15,16 +15,18 @@ import tempfile
 
 
 def agent_directory(value: str | None = None) -> Path:
-    """Match Pi's POSIX path rules; ~user is a literal relative directory."""
+    """Expand Pi's raw POSIX path once, returning a stable absolute path."""
     raw = value if value is not None else os.environ.get("PI_CODING_AGENT_DIR")
     if not raw:
-        return Path.home() / ".pi" / "agent"
-    if raw == "~":
-        return Path.home()
-    if raw.startswith("~/"):
+        raw = str(Path.home() / ".pi" / "agent")
+    elif raw == "~":
+        raw = str(Path.home())
+    elif raw.startswith("~/"):
         # Concatenate rather than join: a second slash must not discard HOME.
-        return Path(str(Path.home()) + "/" + raw[2:])
-    return Path(raw)
+        raw = str(Path.home()) + "/" + raw[2:]
+    # Path drops leading ./; absolutize before returning so ./~/x cannot become
+    # a fresh ~/x input. Keep symlinks and .. for the OS to traverse in order.
+    return Path(raw).absolute()
 
 
 def plain_file(path: Path) -> None:

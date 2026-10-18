@@ -44,11 +44,17 @@ def _named_tilde(tmp_path: Path) -> str:
     return f"~{pwd.getpwuid(os.getuid()).pw_name}/{tmp_path.name}"
 
 
-@pytest.mark.parametrize("kind", ["unset", "empty", "absolute", "relative", "tilde", "home", "named", "unknown"])
-def test_settings_check_and_cleanup_use_the_selected_path(tmp_path: Path, kind: str) -> None:
-    # Break: expanduser checks another HOME, or only explicit/default arguments are fixed.
+@pytest.mark.parametrize("roundtrip", [False, True])
+@pytest.mark.parametrize("kind", ["unset", "empty", "absolute", "relative", "tilde", "home", "named", "unknown",
+                                  "dot-tilde", "dot-tilde-root", "symlink-parent"])
+def test_settings_check_and_cleanup_use_the_selected_path(tmp_path: Path, kind: str, roundtrip: bool) -> None:
+    # Break: reinterpreting a resolved ./~/ path changes an unrelated HOME file;
+    # lexical normalization of alias/.. changes the OS-selected directory too.
     home = tmp_path / "home"
     home.mkdir()
+    if kind == "symlink-parent":
+        (tmp_path / "real/nested").mkdir(parents=True)
+        (tmp_path / "alias").symlink_to(tmp_path / "real/nested", target_is_directory=True)
     raw, agent = {
         "unset": (None, home / ".pi/agent"),
         "empty": ("", home / ".pi/agent"),
@@ -58,7 +64,16 @@ def test_settings_check_and_cleanup_use_the_selected_path(tmp_path: Path, kind: 
         "home": ("~", home),
         "named": (_named_tilde(tmp_path), tmp_path / _named_tilde(tmp_path)),
         "unknown": ("~pi-no-such-test-user/agent", tmp_path / "~pi-no-such-test-user/agent"),
+        "dot-tilde": ("./~/custom agent", tmp_path / "~/custom agent"),
+        "dot-tilde-root": ("./~", tmp_path / "~"),
+        "symlink-parent": ("alias/../agent", tmp_path / "real/agent"),
     }[kind]
+    decoy = {"dot-tilde": home / "custom agent/settings.json", "dot-tilde-root": home / "settings.json",
+             "symlink-parent": tmp_path / "agent/settings.json"}.get(kind)
+    if decoy is not None:
+        decoy.parent.mkdir(parents=True, exist_ok=True)
+        decoy.write_text('{"extensions":["-builtin:mcp","not-selected"],"secret":"SYNTHETIC_DECOY"}')
+        decoy.chmod(0o640)
     agent.mkdir(parents=True, exist_ok=True)
     settings = agent / "settings.json"
     settings.write_text('{"extensions":["-builtin:mcp","keep"],"theme":"user-choice"}')
@@ -69,13 +84,19 @@ def test_settings_check_and_cleanup_use_the_selected_path(tmp_path: Path, kind: 
         env["PI_CODING_AGENT_DIR"] = raw
     helper = ROOT / ".devcontainer/pi-provider-setup.py"
     before = _snapshot(tmp_path)
-    # Test both CLI entry paths, not just the resolver's return string.
-    for explicit in ([[], [raw]] if raw else [[]]):
+    resolved = subprocess.run(isolated_command(tmp_path, [sys.executable, str(helper), "--agent-dir"]),
+                              cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15)
+    assert resolved.returncode == 0, resolved.stderr
+    assert _snapshot(tmp_path) == before
+    selected = resolved.stdout.rstrip("\n")
+    # Exercise the emitted path as the next CLI input, as the MCP installer does.
+    for explicit in ([[], [raw], [selected]] if raw else [[], [selected]]):
         result = subprocess.run(isolated_command(tmp_path, [sys.executable, str(helper), "--settings-check", *explicit]),
                                 cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15)
         assert result.returncode == 0, result.stderr
         assert _snapshot(tmp_path) == before
-    result = subprocess.run(isolated_command(tmp_path, [sys.executable, str(helper), "--settings-clean"]), cwd=tmp_path,
+    result = subprocess.run(isolated_command(tmp_path, [sys.executable, str(helper), "--settings-clean",
+                                                           *([selected] if roundtrip else [])]), cwd=tmp_path,
                             env=env, capture_output=True, text=True, timeout=15)
     assert result.returncode == 0, result.stderr
     expected = dict(before)
@@ -86,12 +107,15 @@ def test_settings_check_and_cleanup_use_the_selected_path(tmp_path: Path, kind: 
     assert _snapshot(tmp_path) == expected
 
 
+@pytest.mark.parametrize("kind", ["named", "dot-tilde"])
 @pytest.mark.parametrize("entry", ["install", "migration"])
 @pytest.mark.parametrize("invalid", ["symlink", "hardlink", "syntax"])
-def test_named_tilde_preflight_preserves_all_managed_state(tmp_path: Path, entry: str, invalid: str) -> None:
-    # Break: inspecting ~user as a home permits Pi to mutate the literal path's shared settings.
+def test_relative_tilde_preflight_preserves_all_managed_state(
+    tmp_path: Path, entry: str, invalid: str, kind: str,
+) -> None:
+    # Break: expanding ~user or reparsing ./~/ after resolution bypasses preflight.
     base = _harness(tmp_path)
-    raw = _named_tilde(tmp_path)
+    raw = _named_tilde(tmp_path) if kind == "named" else "./~/selected agent"
     h = MigrationHarness(tmp_path, base.home, tmp_path / raw, raw)
     h.seed_settings(registered=True)
     for name in ("package.json", "package-lock.json"):
@@ -103,10 +127,10 @@ def test_named_tilde_preflight_preserves_all_managed_state(tmp_path: Path, entry
     h.prepare(entry=entry)
     before = _snapshot(tmp_path)
     result = h.run(entry=entry, isolate=True)
+    assert _snapshot(tmp_path) == before
     assert result.returncode != 0
     assert "settings.json" in result.stderr
     assert "SYNTHETIC_SECRET" not in result.stdout + result.stderr
-    assert _snapshot(tmp_path) == before
 
 
 @pytest.mark.parametrize("function,package", [
@@ -115,13 +139,14 @@ def test_named_tilde_preflight_preserves_all_managed_state(tmp_path: Path, entry
     ("remove_pi_distill", "pi-distill"),
     ("remove_pi_lens", "pi-lens"),
 ])
-@pytest.mark.parametrize("kind", ["absolute", "named"])
+@pytest.mark.parametrize("kind", ["absolute", "named", "dot-tilde"])
 @pytest.mark.parametrize("keep_manifest", [False, True])
 def test_manifest_cleanup_and_postcheck_use_pi_selected_directory(
     tmp_path: Path, function: str, package: str, kind: str, keep_manifest: bool,
 ) -> None:
     # Break: HOME-fixed or ~user-expanded checks miss manifest-only packages/false success.
-    raw = str(tmp_path / "custom agent") if kind == "absolute" else _named_tilde(tmp_path)
+    raw = {"absolute": str(tmp_path / "custom agent"), "named": _named_tilde(tmp_path),
+           "dot-tilde": "./~/selected agent"}[kind]
     agent = tmp_path / raw
     agent.mkdir(parents=True)
     settings = agent / "settings.json"
