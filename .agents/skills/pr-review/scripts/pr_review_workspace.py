@@ -413,6 +413,7 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
         head_branch=target["head_ref"],
         model_name=model_name,
         main_root=str(source),
+        target_kind="checkout" if checkout is not None else "bundle",
         parent_root=str(parent),
         session_dir=str(session_dir),
         worktree=str(worktree),
@@ -447,7 +448,16 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
             if parent_input is not None:
                 # DSH receives only the authenticated parent's bundle, never remote access.
                 bundle = Path(parent_input["bundle"]).resolve(strict=True)
+                source.mkdir()
+                ownership = source.stat()
+                journal.record(
+                    "bundle-created", repository=str(source), device=ownership.st_dev, inode=ownership.st_ino
+                )
                 git(parent, "init", "--quiet", str(source))
+                git_ownership = (source / ".git").stat()
+                journal.record(
+                    "bundle-initialized", repository=str(source), device=git_ownership.st_dev, inode=git_ownership.st_ino
+                )
                 git(
                     source,
                     "fetch",
@@ -1434,7 +1444,58 @@ def locate_attempt(
         or header.get("pr_number") != pr_number
     ):
         raise WorkspaceError("create journal does not match this repository, PR and session directory")
+    owned_attempt_repository(repo, session_dir)
     return session_dir
+
+
+def owned_attempt_repository(repo: Path, session_dir: Path) -> Path | None:
+    """Authorize only the dedicated Git created by this attempt, never arbitrary repo/."""
+    records = read_journal(session_dir / JOURNAL_NAME)
+    header = records[0]
+    owned = session_dir / "repo"
+    if header.get("target_kind") != "bundle" and repo != owned:
+        return None
+    if (
+        header.get("target_kind") != "bundle" or repo != owned
+        or header.get("main_root") != str(owned)
+        or header.get("worktree") != str(session_dir / "worktree")
+        or owned.is_symlink() or not owned.is_dir()
+    ):
+        raise WorkspaceError("create journal does not identify this bundle repository")
+    parent_value = header.get("parent_root")
+    if not isinstance(parent_value, str) or not Path(parent_value).is_absolute():
+        raise WorkspaceError("create journal has no bundle repository parent")
+    _target_call("require_parent_root", Path(parent_value))
+    created = [record for record in records if record["phase"] == "bundle-created"]
+    ownership = owned.stat()
+    if (
+        len(created) != 1 or created[0].get("repository") != str(owned)
+        or created[0].get("device") != ownership.st_dev
+        or created[0].get("inode") != ownership.st_ino
+        or ownership.st_uid != os.getuid() or session_dir.stat().st_uid != os.getuid()
+    ):
+        raise WorkspaceError("bundle repository is not this attempt's owned Git")
+    git_dir = owned / ".git"
+    if (
+        git_dir.is_symlink() or not git_dir.is_dir()
+        or git_path(owned, "--git-common-dir") != git_dir
+        or git_path(owned, "--git-dir") != git_dir
+        or any(child.name != ".git" for child in owned.iterdir())
+    ):
+        raise WorkspaceError("bundle repository contains unowned Git or user data; keep the session")
+    initialized = [record for record in records if record["phase"] == "bundle-initialized"]
+    git_ownership = git_dir.stat()
+    if (
+        len(initialized) != 1 or initialized[0].get("repository") != str(owned)
+        or initialized[0].get("device") != git_ownership.st_dev
+        or initialized[0].get("inode") != git_ownership.st_ino
+        or git_ownership.st_uid != os.getuid()
+    ):
+        raise WorkspaceError("bundle repository is not this attempt's owned Git")
+    allowed = {str(owned), str(session_dir / "worktree")}
+    if any(entry["worktree"] not in allowed for entry in worktree_registrations(owned)):
+        raise WorkspaceError("bundle repository owns another worktree; keep the session")
+    return owned
 
 
 def creator_running(journal: Path) -> bool:
@@ -1541,12 +1602,14 @@ def finished_creator(journal: Path) -> Generator[None]:
         yield
 
 
-def require_abandonable_entries(session_dir: Path) -> None:
+def require_abandonable_entries(session_dir: Path, *, owned_repo: Path | None = None) -> None:
     """Keep the session when it holds anything create itself did not write."""
     for child in session_dir.iterdir():
         name = child.name
         if child.is_symlink():
             raise WorkspaceError(f"session holds an unexpected entry; keep it for the user: {child}")
+        if child == owned_repo and child.is_dir():
+            continue
         if name in SESSION_DIRECTORIES and child.is_dir():
             continue
         if (name in SESSION_FILES or name.startswith(".session.json.")) and child.is_file():
@@ -1649,7 +1712,8 @@ def abandon_attempt(args: argparse.Namespace) -> dict[str, Any]:
             )
         with finished_creator(session_dir / JOURNAL_NAME):
             status = attempt_report(repo, session_dir, attempt_id, running=False)["status"]
-            require_abandonable_entries(session_dir)
+            owned_repo = owned_attempt_repository(repo, session_dir)
+            require_abandonable_entries(session_dir, owned_repo=owned_repo)
             worktree = session_dir / "worktree"
             removed = remove_attempt_worktree(repo, worktree)
             shutil.rmtree(session_dir)

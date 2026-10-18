@@ -1872,6 +1872,21 @@ def test_abandon_keeps_a_session_with_files_it_did_not_create(
     assert attempt["result"]["worktree"] in git(attempt["repo"], "worktree", "list")
 
 
+def test_legacy_inspect_reports_but_abandon_preserves_an_unowned_repo_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Bundle recovery must not adopt repo/ entries in legacy checkout attempts.
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    unowned = attempt["session_dir"] / "repo"
+    unowned.mkdir()
+    (unowned / "notes.txt").write_text("user data\n")
+    args = attempt_args(attempt["repo"], attempt["temp_root"], attempt["attempt"])
+    assert "repo/" in workspace.inspect_attempt(args)["entries"]
+    with pytest.raises(workspace.WorkspaceError, match="unexpected entry"):
+        workspace.abandon_attempt(args)
+    assert (unowned / "notes.txt").read_text() == "user data\n"
+
+
 def test_abandon_refuses_another_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     attempt = completed_attempt(tmp_path, monkeypatch)
     other = tmp_path / "other"
@@ -2419,17 +2434,21 @@ def test_save_parser_takes_findings_as_a_flag_without_a_path() -> None:
 
 
 @pytest.mark.parametrize(
-    "value",
+    ("value", "message"),
     [
-        "reviews/usaturn/create-reso-world/#4-x/findings/../escape.json",
-        "reviews/usaturn/create-reso-world/#4-x/other/model-abc.json",
-        "reviews/usaturn/create-reso-world/#4-x/findings/model.md",
-        "elsewhere/#4-x/findings/model.json",
+        ("reviews/usaturn/../#4-x/findings/escape.json", "normalized .json path"),
+        ("reviews/usaturn/create-reso-world/#4-x/other/model-abc.json", "findings destination must be reviews/"),
+        ("reviews/usaturn/create-reso-world/#4-x/findings/model.md", "normalized .json path"),
+        ("elsewhere/usaturn/create-reso-world/#4-x/findings/model.json", "findings destination must be reviews/"),
+        ("reviews/other/repo/#4-x/findings/model.json", "destination must be below reviews/usaturn/create-reso-world/"),
     ],
 )
-def test_findings_destination_must_stay_under_the_review_findings_directory(tmp_path: Path, value: str) -> None:
-    with pytest.raises(workspace.WorkspaceError):
-        workspace.safe_findings_destination(tmp_path, value)
+def test_findings_destination_must_stay_under_the_review_findings_directory(
+    tmp_path: Path, value: str, message: str
+) -> None:
+    # Removing normalization, findings-directory or repository guards must fail here.
+    with pytest.raises(workspace.WorkspaceError, match=re.escape(message)):
+        workspace.safe_findings_destination(tmp_path, value, repository=PR_REPO)
 
 
 def test_save_without_findings_removes_the_stale_candidates_of_the_same_head(

@@ -330,3 +330,114 @@ def test_ref_delete_failure_keeps_a_retryable_session(fixture: dict[str, Any], m
         workspace.cleanup(argparse.Namespace(state=result["state_file"]))
     assert Path(result["worktree"]).is_dir()
     workspace.load_state(result["state_file"])
+
+
+def bundle_input(f: dict[str, Any], *, mismatch: bool = False) -> dict[str, str]:
+    source = f["checkout"]
+    head_ref = "refs/pr-review/repos/orange3134/resoloop/3"
+    for ref, sha in (
+        (head_ref, f["base"] if mismatch else f["head"]),
+        ("refs/pr-review-parent/base", f["base"]),
+        ("refs/pr-review-parent/commit", f["head"]),
+    ):
+        git(source, "update-ref", ref, sha)
+    bundle = f["tmp"] / "recovery.bundle"
+    git(
+        source, "bundle", "create", str(bundle), head_ref,
+        "refs/pr-review-parent/base", "refs/pr-review-parent/commit",
+    )
+    return {"bundle": str(bundle)}
+
+
+def recovery_args(session: Path) -> argparse.Namespace:
+    return argparse.Namespace(
+        repo=str(session / "repo"), temp_root=str(session.parent),
+        pr_repo="orange3134/resoloop", pr_number=3, attempt_id="bundle-recovery", wait=0,
+    )
+
+
+@pytest.mark.parametrize("failure", ["bundle-head", "worktree-verify"])
+def test_failed_bundle_create_can_be_inspected_then_abandoned(
+    fixture: dict[str, Any], monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    # Rejecting all repo/ entries strands helper-owned Git after create fails.
+    f = fixture
+    t = target(f)
+    parent_input = bundle_input(f, mismatch=failure == "bundle-head")
+    if failure == "worktree-verify":
+        real_verify = workspace.require_created_worktree
+
+        def fail_verify(path: Path, commit: str) -> None:
+            real_verify(path, commit)
+            raise workspace.WorkspaceError("injected verification failure")
+
+        monkeypatch.setattr(workspace, "require_created_worktree", fail_verify)
+    with pytest.raises(workspace.WorkspaceError, match="HEAD does not match|injected verification failure"):
+        create(f, t, parent_input=parent_input, attempt_id="bundle-recovery")
+    (session,) = (f["tmp"] / "sessions").iterdir()
+    args = recovery_args(session)
+    before = workspace.snapshot(f["checkout"])
+    report = workspace.inspect_attempt(args)
+    assert report["status"] == "failed"
+    assert report["worktree_registered"] == (failure == "worktree-verify")
+    removed = workspace.abandon_attempt(args)
+    assert removed["status"] == "failed"
+    assert removed["worktree_removed"] == (failure == "worktree-verify")
+    assert not session.exists()
+    assert workspace.snapshot(f["checkout"]) == before
+
+
+@pytest.mark.parametrize(
+    ("violation", "message"),
+    [
+        ("journal-kind", "create journal does not identify"),
+        ("journal-worktree", "create journal does not identify"),
+        ("journal-parent", "create journal has no bundle repository parent"),
+        ("journal-owner", "not this attempt's owned Git"),
+        ("replacement", "not this attempt's owned Git"),
+        ("git-replacement", "not this attempt's owned Git"),
+        ("git-symlink", "unowned Git or user data"),
+        ("foreign-worktree", "owns another worktree"),
+        ("repo-notes", "unowned Git or user data"),
+    ],
+)
+def test_bundle_recovery_refuses_unowned_git_or_user_data(
+    fixture: dict[str, Any], violation: str, message: str
+) -> None:
+    # A repo/ allowlist alone must not authorize substituted Git or other worktrees.
+    f = fixture
+    result = create(f, target(f), parent_input=bundle_input(f), attempt_id="bundle-recovery")
+    session = Path(result["state_file"]).parent
+    repo = session / "repo"
+    if violation.startswith("journal-"):
+        journal = session / "create-journal.jsonl"
+        records = [json.loads(line) for line in journal.read_text().splitlines()]
+        if violation == "journal-kind":
+            records[0]["target_kind"] = "checkout"
+        elif violation == "journal-worktree":
+            records[0]["worktree"] = str(f["checkout"])
+        elif violation == "journal-parent":
+            records[0]["parent_root"] = None
+        else:
+            (created,) = [record for record in records if record["phase"] == "bundle-created"]
+            created["inode"] = -1
+        journal.write_text("".join(json.dumps(record) + "\n" for record in records))
+    elif violation == "replacement":
+        repo.rename(session / "original-repo")
+        init(repo, "someone/tool")
+    elif violation in {"git-replacement", "git-symlink"}:
+        outside = f["tmp"] / "original-git"
+        (repo / ".git").rename(outside)
+        if violation == "git-symlink":
+            (repo / ".git").symlink_to(outside, target_is_directory=True)
+        else:
+            git(repo, "init", "-q")
+    elif violation == "foreign-worktree":
+        git(repo, "worktree", "add", "--detach", str(f["tmp"] / "user-worktree"), f["head"])
+    else:
+        (repo / "notes.txt").write_text("user data\n")
+    before = git(repo, "worktree", "list", "--porcelain")
+    with pytest.raises(workspace.WorkspaceError, match=message):
+        workspace.abandon_attempt(recovery_args(session))
+    assert session.is_dir()
+    assert git(repo, "worktree", "list", "--porcelain") == before
