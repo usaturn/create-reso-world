@@ -93,7 +93,7 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools
 ## 実行予算
 
 - 能動時間90分（開始 2026-10-18 21:33 UTC、ledger start は 21:34 UTC）。準備・設計20分、文書編集20分、評価と検証35分、レビュー・公開15分。利用者待ちなし。
-- 実モデル呼び出しは最大5試行: baseline、builderのscope拒否、builder再送、改善後pilot、最終レビュー。追加の実機・モデル反復なし。拒否された試行をレビュー実施と数えない。
+- 実モデル呼び出しは6試行: baseline、builderのscope拒否、builder再送、改善後pilot、最終レビューのNEEDS_CONTEXTと差分を渡す1回の再試行。レビュー入力不足1回は既存の信頼性再試行1回の枠で補った（総予算90分は維持）。追加の実機・モデル反復なし。拒否・NEEDS_CONTEXTはレビュー実施と数えない。
 - pi の同期 role tool は deadline/stop を指定できない。期限・予約枠・無進捗の事前打ち切り宣言は付けられないため、偽の宣言はしない。各担当への作業目安5分・終了保存1分、foregroundで終了を待つ。stall時に勝手にkillしない。検証にも打ち切りを適用しない。
 - 同じ信頼性失敗の再試行は1回まで、以後は方法変更。安全の失敗は再試行せず全体停止。
 - checkpoint: phase境界、50%・100%、worker失敗直後。ledger は `/workspaces/reso-world/tmp/agents/issue-176.ezhmi15b/budget.jsonl`。100%で停止し延長しない。
@@ -102,8 +102,12 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools
 ## 完了記録
 
 - Task 1: 完了。BASE `dfd9a1d`、手順実装 `442d78c`。共通参照・両スキルを接続し、構造検査両方exit0・参照確認・diff check・同一2ケースの両条件pilotを実施。
-- Task 2: evals 9件と評価記録を追加。JSON: 18件／20件、ID重複なし。READMEの非ワールド3コマンド: pytest **2568 passed / 1 skipped / 626.14秒 / exit0**、環境 **33件PASS / 444.9秒 / exit0**、layout **PASS / exit0**。ログを確認済み。
+- Task 2: evals 9件と評価記録を追加。JSON: 18件／20件、ID重複なし。READMEの非ワールド3コマンド: pytest **2569 passed / skip 0 / 659.23秒 / exit0**、環境 **33件PASS / 454秒 / exit0**、layout **PASS / exit0**。ログを確認済み。
 - 主要Taskの壁時計: 準備・設計 21:33〜21:43 UTC（約10分）、Task 1 の手順・pilot 21:43〜21:45（約2分）、Task 2 の評価記録・全体検証 21:45〜21:57（約12分）。担当個別の所要時間はrole toolから返らず不明、並行検証時間は二重加算しない。
 - 予算checkpoint: 約23分／90分、失敗上限未到達、安全の失敗なし。受け入れ条件A〜Fの成果が増えたため継続。
 - 裁定: upstreamのworkspace管理スクリプトの代わりに親tmpのledgerを使用。理由はworktree内の未コミット成果物を禁じるAGENTS.md。取りこぼしのリスクをTask・BASE・検証・裁定の明示記録で補った。他のセッションの作業物は触っていない。
-- 最終レビュー・公開は未実施。状態は実行許可と内容承認を区別するため draft のまま維持し、結果を追記する。
+- 最終レビュー: `1335f41..2c2c4a5`。Critical 0 / Important 1 / Minor 0。承認済みSpec反映だけの入口で証拠照合を迂回できる指摘を採用。実装後4へ照合を接続、eval19を当該入口へ具体化した。文書変更のため新規pytestなし。変更前後の経路トレースで確認し、最後の変更後のREADME3コマンド・構造・JSON/ID・参照・diff検証を再実行し成功。再レビューは実施していない。
+- 裁定: 最終レビュー担当がGitツールを持たずNEEDS_CONTEXTとなったため、同じGit範囲の差分・statを親tmpに保存して1回再試行した。費用は追加1試行、レビューの範囲・自己レビュー回数・実装範囲は変えない。評価外とされた実操作能力と運用効果は未実施と記録する。
+- Task 2の修正後検証: 22:03〜22:14 UTC（並行検証約11分）。準備からこの時点まで約41分、利用者待ちなし。全Taskの実装・検証・レビュー修正は完了。状態は実行許可と内容承認を区別するため draft のまま維持する。
+- 次の公開手順: 競合・Issue状態を再確認し、PARENT_ROOTのscan-before-pushで検査したSHAを同じbranchへpush、main向けPRを作る。現時点は公開未実施。CIはprivateのため対象外。main反映・運用効果は未実施、マージしない。
+- 要約と評価回答は追跡対象の文書へ保存済み。公開終了後にbudget ledgerをendにし、このrunのtmp/agentsだけを削除する。worktreeとbranchはPR用に残す。

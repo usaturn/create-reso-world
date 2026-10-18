@@ -313,7 +313,7 @@ Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の�
    - ワールドのプロジェクトの変更: そのプロジェクトのディレクトリで `uv run pytest`
    - resoloop fork（`external/resoloop`）の変更: 変更したプロジェクトに関連する `dotnet test`
 3. 失敗したら直す。commit しない。
-4. 共通 context を再実行し、`git -C "$MAIN_ROOT" fetch "$PR_REMOTE"` で取得する。取得後に `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` でレビュー対象 PR の実際の先端も再確認する。手順 1・2 が通ったら、レビュー対象ブランチ（既存 PR の head）へ commit する。`main` ではない。新しい `*-review-fixes` ブランチでもない。
+4. commit・push の前に [要件・原因・検証の対応](references/convergence.md) の「3. 検証と閉じ方」を読み、経路表の観測結果・対象版・実行証拠、判定の両側・操作順・独立した根拠を照合する。最後の修正で影響した経路の証拠が不足していれば、必要な修正・検証と表の更新を終えるまで公開しない。承認済み Spec の反映だけの依頼でもこの照合は行うが、採否の選別や自己レビューをやり直す手順は追加しない。共通 context を再実行し、`git -C "$MAIN_ROOT" fetch "$PR_REMOTE"` で取得する。取得後に `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` でレビュー対象 PR の実際の先端も再確認する。手順 1・2 が通ったら、レビュー対象ブランチ（既存 PR の head）へ commit する。`main` ではない。新しい `*-review-fixes` ブランチでもない。
 5. そのブランチを **既存 PR** へ push する。ルート `AGENTS.md` の「push の前の秘密情報の検査」に従い、検査した SHA を push する（`<base>` は PR の `baseRefName`）。検出や検査の失敗で止まったら push せずに停止して報告する（完遂では結論 3）:
 
    ```bash

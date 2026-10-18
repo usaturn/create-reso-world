@@ -46,12 +46,24 @@
 
 既存関連テストの baseline は 180 passed / 25.64 秒 / exit 0。新たな pytest は作らない。最終検証は README の非ワールド3コマンド、関連 helper テスト、JSON/ID・参照先・skill-efficiency-check・diff check。
 
-行動評価は読み取り専用の意思決定シミュレーションのみで、実装・外部APIの操作能力を評価しない。モデル起動の試行は baseline 1、改善後1、builder check 2（最初の sp-review は scope 不足で拒否され、sp-research で再送）、最終レビュー1の合計5回までとする。拒否された試行を完了したレビューとは数えない。同一の2シナリオを baseline と改善後の fresh context に与える。本文作成前に baseline を実施済み。baseline は多くの目標行動を既に満たしたため、改善幅や統計的な効果は主張できない。改善後 pilot は本 run で実施する。シナリオは `.agents/skills/issue-to-pr/evals/scenarios.json` と `.agents/skills/review-fix-planning/evals/evals.json` へ追加し、共通の記録先 `.agents/skills/review-fix-planning/evals/convergence-validation.md` に実施方法・同一 pilot packet・両版の生の回答を保存する。baseline の生の回答は `/workspaces/reso-world/tmp/agents/issue-176.ezhmi15b/baseline.md` に確保済みで、終了前に記録先へ転記する。モデルの正確な識別子は tool が返さないため不明とし、異なるモデルの比較とは呼ばない。builder check の質問3件は、以上の保存先・改善後 pilot の実施・入力の固定で解消する。5反復以上の wording 比較・別モデル横断評価・実運用の退行評価は未実施と明記する。
+行動評価は読み取り専用の意思決定シミュレーションのみで、実装・外部APIの操作能力を評価しない。モデル起動の試行は baseline 1、改善後1、builder check 2（最初の sp-review は scope 不足で拒否され、sp-research で再送）、最終レビュー2（最初はread-only toolにGit差分が無くNEEDS_CONTEXT、差分ファイルを渡して1回再試行）の合計6試行。レビュー入力不足の信頼性失敗1回について、範囲を変えず既存の再試行1回の枠を適用した。拒否・NEEDS_CONTEXTを完了したレビューとは数えない。追加の実装評価や2回目の完了レビューは行わない。同一の2シナリオを baseline と改善後の fresh context に与える。本文作成前に baseline を実施済み。baseline は多くの目標行動を既に満たしたため、改善幅や統計的な効果は主張できない。改善後 pilot は本 run で実施する。シナリオは `.agents/skills/issue-to-pr/evals/scenarios.json` と `.agents/skills/review-fix-planning/evals/evals.json` へ追加し、共通の記録先 `.agents/skills/review-fix-planning/evals/convergence-validation.md` に実施方法・同一 pilot packet・両版の生の回答を保存する。baseline の生の回答は `/workspaces/reso-world/tmp/agents/issue-176.ezhmi15b/baseline.md` に確保済みで、終了前に記録先へ転記する。モデルの正確な識別子は tool が返さないため不明とし、異なるモデルの比較とは呼ばない。builder check の質問3件は、以上の保存先・改善後 pilot の実施・入力の固定で解消する。5反復以上の wording 比較・別モデル横断評価・実運用の退行評価は未実施と明記する。
 
 ## 結果
 
 - 手順実装: `442d78c`。要件照合、共通参照、経路表の観測結果・証拠、原因4分類、両側検証・独立性・最終版証拠更新を接続した。採否・自己レビュー最大1回・公開境界を変更していない。
 - 追加evals: 9ケース。新規pytestなし。詳細な机上照合・同一2ケースの両版回答・限界は `.agents/skills/review-fix-planning/evals/convergence-validation.md`。
-- 最終検証: READMEの非ワールド3コマンドは、pytest **2568 passed / 1 skipped / 626.14秒 / exit0**、環境 **33 test(s) PASS / 444.9秒 / exit0**、layout **PASS / exit0**。JSON/ID・相対参照実在・両スキル構造・diff checkは成功。構造checkerの日本語descriptionのwarning等は評価記録に残した。
+- 最終検証: READMEの非ワールド3コマンドは、pytest **2569 passed / skip 0 / 659.23秒 / exit0**、環境 **33 test(s) PASS / 454秒 / exit0**、layout **PASS / exit0**。JSON/ID・相対参照実在・両スキル構造・diff checkは成功。構造checkerの日本語descriptionのwarning等は評価記録に残した。
 - 行動pilotは各条件1回で判断の差を観測しただけで、独立反復・別モデル比較・実運用の退行評価は未実施。baseline自体も主要な安全判断を満たしている。改善効果・main反映は実証していない。
-- 最終レビューと公開はこの時点で未実施。終了時に追記する。
+- ブランチ全体レビュー: `1335f41..2c2c4a5` の全差分と変更ファイルをsp-reviewが確認。Critical 0 / Important 1 / Minor 0。Importantは承認済みSpec反映経路への証拠照合の適用漏れで、現行手順の分岐をたどって確認・修正した。2回目のレビューは行っていない。修正後にREADMEの3コマンド、構造・JSON/ID・参照・diff checkを再実行し成功。公開前の作業は完了、push・PR作成は次の操作。
+
+### 最終レビュー修正: 分岐をまたぐ公開条件
+
+原因は「完遂・結論1に置いた照合が全公開経路で実行される」という前提。承認済みSpecの反映依頼が実装後へ直行する境界で破れていた。新規のテストは作らず、変更前の分岐トレースと変更後の手順・参照実在・既存テストで検証する。
+
+| 経路 | 判定 | 観測する結果 | 確認と証拠 |
+|---|---|---|---|
+| 完遂・結論1 | 既に満たす | 最後の修正後の証拠がなければ公開しない | 公開前チェックから共通参照3へ接続済み。本文の経路を確認 |
+| 計画のみの承認後／承認済み実装修正の反映だけ | 修正する | 実装後のcommit/push前にも同じ照合、採否・自己レビューは増やさない | 実装後4へ共通参照3の読み込み・不足時の修正と検証を追加。eval19をこの入口へ具体化。現行文書の経路を確認 |
+| 修正不要・結論2 | 対象外 | 新しい修正を公開する経路ではない | 既存の全指摘・関連処理確認、検証・base結合・head固定マージ規則を変更しない |
+
+レビューが評価外とした「実際の修正・push・停止能力」「運用費用・統計的改善・退行率」は未評価のままとする。判断回答のpilotをその実証へ読み替えない。

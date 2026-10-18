@@ -57,7 +57,8 @@ S2: A fatal review finding showed an importer rejected unsupported IDs too late.
 - 最終JSON/ID検査: issue-to-pr 18件、review-fix-planning 20件、重複なし。両SKILL.mdの相対Markdownリンク先が実在、`git diff --check` exit0。
 - READMEの非ワールド3検証（2026-10-18 21:46:36〜21:57:04 UTC）: `uv run pytest tests/skills .agents/skills .agents/scripts tools` は **2568 passed / 1 skipped / 626.14秒 / exit0**。`bash .devcontainer/run-tests.bash` は **33 test(s) PASS / 444.9秒 / exit0**。`bash scripts/check-layout.sh` は **PASS / 0.7秒 / exit0**。同時起動し、いずれもforegroundで終了を待ち実ログを確認。全体pytestには関連helperテストも含む。
 - pytestの1件のskipについて、この実行のログは `-rs` を付けていないため理由の詳細は表示されていない。成功件数へ加えない。
-- 最後のブランチ全体レビューの結果は後述の設計・計画の完了記録へ追記する。
+- 最後のブランチ全体レビュー（sp-review、`1335f41..2c2c4a5`）: Critical 0 / Important 1 / Minor 0。承認済みSpecの反映だけの入口で公開前照合を迂回できる指摘を確認し、実装後4へ接続した。eval19をこの入口へ具体化、机上で経路をたどって確認した。変更後に追加の行動pilot・再レビューは実施していない。初回のNEEDS_CONTEXTは未完了で、差分ファイルを渡した1回の再試行だけが完了レビューである。
+- 修正後の最終検証（22:03:39〜22:14:39 UTC）: pytest **2569 passed / skip 0 / 659.23秒 / exit0**、環境 **33 test(s) PASS / 454秒 / exit0**、layout **PASS / 0.5秒 / exit0**。構造checker、JSON/ID、相対参照の実在、diff checkも再確認して成功。追加の手順は文書のみであり、fixture/fakeや実行コード・テストは変更していない。
 
 ## 未実施・残る追跡
 
