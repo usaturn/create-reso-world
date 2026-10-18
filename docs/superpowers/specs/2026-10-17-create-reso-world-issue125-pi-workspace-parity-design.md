@@ -701,6 +701,73 @@ controller が反証・PR 全体・検証の検出力の3観点を1回確認し�
 
 未確認: rebuild 後の VS Code の実際の転送と、Windows のブラウザーでの閲覧・承認・修正要求の往復（Issue #125 の利用者確認に残す）、NAT モードでの動作。指摘0件を、これらが解消した証拠として扱わない。自己レビュー後の修正は無い。
 
+## PR #141 修正不要の確認とマージ（2026-10-18）
+
+### 範囲・実行許可
+
+- 状態: `completed`。今回の `/review-fix-planning #141`（Claude Code、`claude-opus-5-5`、完遂）の結論は2（修正不要でマージ）。内容の承認・実機の受け入れの完了とは区別する。
+- マージの許可: D-9 と「対象外・停止条件」は issue-to-pr の実行範囲として「マージしない、必要なら利用者が実機確認後にマージ」と決めていた。今回は利用者に確認し、「Closes のままマージ」の回答を得た（2026-10-18 07:33Z 頃）。検証した head だけをマージし、#125 は `Closes` で自動 close する。rebuild 後の受け入れ確認は #125 へのコメントで案内する。rebuild・実認証・課金呼び出しは行わない。
+- 開始 HEAD: `06e3cc75283e96f11ce4ccb3c121453466f347a8`。既存の clean な専用 worktree（HEAD が PR の head と一致）と同じ Spec を再利用した。他 worktree の未コミット差分は読まない。
+- 入力9ファイル: X=`Claude-Opus-5.5-XHigh.md`・P=`openai-codex-gpt-6.1-sol.md` は `0967f0b6035e`、S=`SWE-2-Max.md`・O=`claude-opus-5-5.md`・G=`gpt-6.1-sol.md`・C=`commandcode-deepseek-deepseek-v4.1-flash.md` は `06e3cc75283e`、N=`Grok-4.7.md` は `f61289e62619`、D=`deepseek-deepseek-v4.1-flash.md` は `e35fb6b89c9d`、K=`grok-4.7.md` は `52cc4a0456d2`。全 HEAD の祖先照合に成功した。前回から増えた入力は O-I4 だけで、S の未検証候補は5件に分かれた。G・C は指摘0件。
+
+### 全入力の分類
+
+**計34件: 解消済み19 / 対応する0 / 対応しない15**。各レビューの active な指摘・未検証候補・Resolved findings を別々に数える。Test suggestions は重複加算しない。
+
+| ID | 指摘・候補 | 判定 | 現行 HEAD の根拠 |
+|---|---|---|---|
+| N-M1 / P-M1 | symlink と `..` による対象ずれ | 解消済み | `pi-provider-setup.py:29` の `os.path.abspath`。`alias` → `real/nested` で `--settings-clean alias/../agent` を実行し、Pi が読む `agent/settings.json` だけが掃除され、`real/agent/settings.json` は変わらないことを再現で確認 |
+| K-M2 | settings の共有リンク切断 | 解消済み | `settings_update` の `plain_file`。symlink・hard link の settings で `--settings-clean` が終了1、リンクの種類・inode・link 数・共有先の内容が不変 |
+| N-L1 | 既存 auth symlink の Vertex 起動 | 解消済み | `pi-superagents-exec.zsh:260` の `${auth_file:A}` |
+| N-L2 | builtin printf の argv への露出 | 解消済み | `:283`・`:300` は zsh builtin の `printf` と FD 3 のまま |
+| N-L3 / K-H1 / G-M2 | `~user`・`~/` の展開 | 解消済み | `agent_directory`（`:17-29`）と `pi_agent_directory`（`:31-39`）が `~`・`~/` だけを展開 |
+| S-M1 / O-L2 / G-M3 / K-M1 | DeepInfra の偽成功 | 解消済み | `scripts/setup_pi.zsh:2` の `set -euo pipefail` と helper の preflight |
+| S-L2 / G-M1 | models の mode・リンク・固定名の tmp | 解消済み | `plain_file`・`stage`・`S_IMODE` の mode 保持（`:32-120`） |
+| S-I1 / O-L1 | `/tmp` の checkout で検証できない・境界テストの空振り | 解消済み | `pi-launcher-install.bash` と `_sandbox` の repo の再 bind。下記の run-tests が成功 |
+| O-I3 | `./~` の再解釈 | 解消済み | 絶対パスを返す `agent_directory` |
+| G-M4 | BOM 付き models・auth の拒否 | 解消済み | `load_object` の `utf-8-sig` |
+| O-M1 | Plannotator のポートと `forwardPorts` | 解消済み | `devcontainer.json` は `PLANNOTATOR_REMOTE=0` だけで、`forwardPorts` は `[8000]` |
+| S-L1 | npm 残骸検査の対象縮小 | 対応しない | D-2 の意図した範囲縮小。既知の制限と手動の確認・撤去方法を PR に記載済み。表示 helper の残存は致命的でない |
+| S-I2 / O-I2 | staging の glob の不一致 | 対応しない | `stage()` の名前 `.settings.json.<乱数>.tmp` は `.settings-*.tmp` に一致しないことを再確認した。全状態 snapshot と fsync/replace の回帰が残存を検出するので、致命的な回帰ガードの欠落ではない |
+| O-I1 | Vertex の一覧・project の固定値 | 対応しない | 現構成と一致し回帰も成功。非致命的なテスト設計の論点 |
+| O-I4 | Spec の受け入れ条件4・「文書・設定の統合」と Plan の Global Constraints に撤去前のポートの設定が残る | 対応しない | 初回の設計の記録。D-5 に撤去の注記があり、現行の設計は「PR #141 Plannotator のポートのレビュー修正」の節が定める。設定・README・PR 本文の利用者確認は新しい設計に合っており、実装に影響しない。論点: 受け入れ条件4のポートの値と転送は、同節で撤去済み |
+| S-U1 | rebuild・共有 HOME・ADC の受け入れ | 対応しない | 当初から別枠の実機確認。#125 に残す |
+| S-U2 | Plannotator の Windows のブラウザーでの往復 | 対応しない | 同上。rebuild 後に利用者が確認する |
+| S-U3 | `pi update --models` の失敗が警告だけ | 対応しない | best effort の仕様。後段（`setup_pi_opencode_go.zsh:240-268`）がモデルの欠落を終了1で拒否する |
+| S-U4 | 配列でない settings の拒否 | 対応しない | packages/extensions は配列が正規。副作用の前に終了1で止まる（fail-closed） |
+| S-U5 | 相対 agent dir で別 cwd の素の `pi` | 対応しない | 起動時 cwd 基準は Pi 自身の仕様。ランチャーと setup は解決済みの絶対パスを子へ固定する |
+| D-L1 | dangling auth symlink の起動失敗と汎用の診断 | 対応しない | 今回も、絶対・相対の dangling symlink で終了1、ホストの状態（staging を含む）が不変であることを確認した。診断の詳細化は利便性の論点で、PR 本文に記載済み |
+| X-L1 | pixg の旧キー互換のテストが無くなった | 対応しない | 互換の export は現行に残る（`.devcontainer/pixg:32-34`）。マージしても動作は変わらず、将来の退行の検出力が下がるだけで致命的でない |
+| X-L2 | CI に pi が無く test-pi-migrations が失敗する | 対応しない | リポジトリは PRIVATE で Actions は無効（`enabled: false`）。`AGENTS.md` の「GitHub Actions」が CI を使わない方針を決めている。Dev Container では run-tests が成功する |
+| X-I1 | 移植の記録が共通ヘルパ等を「同一」と書く | 対応しない | 比較表は移植の履歴の記録で手順書ではない。「追加差分」の節と PR 本文が安全上の差分を示す。記録の網羅の指摘で致命的でない |
+| X-U1 | Vertex の readonly overlay で auth.json に書けない | 対応しない | README「読み取り専用 overlay の注意」が仕様と回避方法（素の `pi` で `/login`）を記載済み。移植元と同じ設計 |
+
+対応する項目が無いので、守る条件と影響経路の表・設計の見直し・失敗時の検証は無い。「対応しない」のうち、PR 本文の保証と食い違う実在の制約は無い（S-L1・D-L1 は既知の制限に記載済み）ので、PR 本文は変えない。
+
+### 確認した範囲
+
+- 全文: `.devcontainer/pi-provider-setup.py`・`pi-superagents-exec.zsh`、`install_beforehand.bash` の pi 節（`step "Installing pi"` から `step "Installing the shared skills"` まで）、`scripts/setup_pi*.zsh` の4本、ランチャー `pigo`・`pixg`・`piccg`・`pigemf`
+- 差分: `devcontainer.json`・`.pi/`・`pi-models.json`・tier の JSON・`piccd`・`piga`・`pigl`・`pigod`・`pigs`・`test-pi-migrations.bash`・ルートの README、`docs/maatlog-poc-porting.md` と Spec・Plan の該当行、テストの該当箇所（`test_pi_mcp_adapter_migration.py:178-186`、`test_pi_vertex_launchers.py` の固定値、`test-pi-superagents.bash` の旧キーの検査）
+- 前回から変わったのは `06e3cc7` の4ファイル（設定と文書）だけで、他の44ファイルは以前の回の確認と全テストの結果を前提にした。テストの本文の残りは、下記の run-tests の成功で代えた
+- 再現: N-M1・K-M2・D-L1・S-I2 を、`mktemp` の隔離 worktree（`06e3cc7`）で実行した。手順3の終わりに隔離 worktree と親ディレクトリを削除した
+
+### 検証
+
+| 検証 | 結果 |
+|---|---|
+| 再現（隔離 worktree、`06e3cc7`）: N-M1・K-M2・D-L1・S-I2 | 上表の根拠のとおり |
+| 専用 worktree の `bash .devcontainer/run-tests.bash` | 32/32 PASS / exit 0（`test-pi-migrations.bash` 176秒・`test-pi-openai-codex.bash`・`test-pi-superagents.bash` を含む）。実行後の `git status --porcelain` は空 |
+| 専用 worktree の `bash scripts/check-layout.sh` | PASS / exit 0 |
+| head に main `b1cc2b1` を merge した一時ツリー（競合なし。README は自動 merge） | run-tests 32/32 PASS、check-layout PASS |
+| 検証中に main が `5a7a31a`（#116 の文書3件の追加だけ）へ進んだため、同じ merge をやり直した一時ツリー | run-tests 32/32 PASS、check-layout PASS |
+| CI | private の Actions は `AGENTS.md` の「GitHub Actions」により確認対象外 |
+
+merge した一時ツリーは push せず、検証後に削除した。
+
+### 自己レビュー
+
+結論2のため、修正後の自己レビューは無い。未確認: rebuild 後の共有 `~/.pi` での context7-pi・Plannotator の保持、11ランチャーと `pigem*` の ADC での起動、Plannotator の Windows のブラウザーでの往復、agent-workspace との交互の rebuild。マージはこれらの完了を意味しない。
+
 ## 対象外・停止条件
 
 ccdu、DSH の launcher / installer、agent-runner、他リポジトリの変更、API 実呼び出し・ログイン・ADC 作成、rebuild・マージ・force push・タグ・リリースは対象外。同じ Issue の競合・明示の判断要求・未解消の依存・検証失敗・安全失敗が発生したら issue-to-pr に従って停止する。push / PR 作成直前に再確認する。
