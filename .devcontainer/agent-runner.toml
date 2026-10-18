@@ -69,3 +69,9 @@ model = "gemini-3.8-flash"
 provider = "google-vertex"
 effort = "high"
 env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"]
+
+[agents.claude-opus]
+runtime = "claude-code"
+command = ["claude"]
+model = "opus"
+env = ["HOME", "PATH"]
