@@ -33,7 +33,7 @@ usaturn/agent-workspace の、複数モデルの PR レビューの自動化（#
 - 移植先の `scripts/superpowers_context.py` の `resolve_context("review-workspace", ...)` は、create-reso-world を親の checkout、usaturn/resoloop・orange3134/resoloop を `external/resoloop`（origin が fork、upstream が上流）に固定し、それ以外は明示した `CODE_ROOT` の remote 1 件との一致で扱う。`CODE_ROOT` は main checkout に限る。返す `base_remote` は PR を取得する remote（上流の PR は `upstream`）
 - 移植先の pr-review（#146、PR #160 で `main` に入った）は、保存先を checkout ごとの `reviews/<owner>/<repo>/#<PR>-<branch>/`（owner/repo は小文字）にし、PR head を `refs/pr-review/repos/<owner>/<repo>/<PR>` に固定する。旧形式は各 checkout の `reviews/#<PR>-*`
 - 移植先の review-fix-planning は、既知の経路（create-reso-world・usaturn/resoloop・orange3134/resoloop）と、明示した `CODE_ROOT` の PR を扱う。`external/resoloop/reviews/` の旧形式のディレクトリは fork と上流のどちらの PR か分からないので、PR の URL が無ければ推測せずに止まる（ディレクトリ名との一致で絞らない）
-- 移植元の 2 つの文書は、「巡（round）」「席（seat）」を多く使う（`review-records.md` で 114 か所と 24 か所）。移植先の `AGENTS.md` の「日本語表現」は、round を「巡」、seat を「席」と訳さないと定めている。出力の形式（JSON のキー・マーカー）には「巡」「席」は含まれない
+- 移植元の `review-records.md` は、「巡（round）」「席（seat）」を多く使う（114 か所と 24 か所。helper とテストのコメントにも 25 か所）。`review-findings.md` は使わず、同じ単位を「サイクル」「レビュアー」と書いている。移植先の `AGENTS.md` の「日本語表現」は、round を「巡」、seat を「席」と訳さないと定めている。出力の形式（JSON のキー・マーカー）には「巡」「席」は含まれない
 - 移植元の文書と helper の `#494` などの番号は、改名前の usaturn/maatlog-poc（現 usaturn/agent-workspace）の Issue を指す。移植先でそのまま書くと create-reso-world の Issue を指してしまう
 
 ## 判断
@@ -97,7 +97,7 @@ usaturn/agent-workspace の、複数モデルの PR レビューの自動化（#
 ### 文書
 
 - **D-13 `.agents/review-records.md`・`.agents/review-findings.md`**: 形式（JSON・マーカー・ブロック・コマンドの引数）と記入例の構造は移植元のまま。次を移植先に合わせる
-  - 用語: 「巡（round）」は「回（round）」（「1 巡目」は「1 回目」、「各巡」は「各回」）、「席（seat）」は「レビュアー（seat）」、「席構成」は「レビュアーの構成」。PR 修正ループのサイクル（loop の番号）は回と別のものなので、「サイクル」は loop にだけ使う
+  - 用語: `AGENTS.md` のとおり、「巡（round）」は「サイクル（round）」（「1 巡目」は「1 回目」、「各巡」は「各サイクル」）、「席（seat）」は「レビュアー（seat）」、「席構成」は「レビュアーの構成」にする。移植元の `review-findings.md` も、同じ単位を既に「サイクル」と書いている。PR 修正ループ（loop）が run の中で数える番号は、この形式のサイクルの番号（`round`）と別のものなので、「loop のサイクル番号」と書き分ける
   - 改名前のリポジトリ（usaturn/maatlog-poc、現 usaturn/agent-workspace）の Issue 番号は `usaturn/agent-workspace#N` にする。記入例の架空の PR（#900）のリポジトリは `usaturn/create-reso-world` にする
   - 置き場所の説明は D-6・D-7 に合わせる（親の main checkout の `reviews/<owner>/<repo>/`、旧配置、`public/` などの移植元の構成を外す）
   - 移植先にまだ無いもの（`tools/agent_runner/`、pr-review の `review_run.py`、review-verify、pr-review-fix-loop など）を指す箇所は、どの子で入るか（#149・#153〜#156）を添えて残す。移植元にだけあり、持ち込まないもの（`tools/review_triage`、`tools/herdr_pr_review` など）を指す箇所は外すか、移植元のものと分かる書き方にする
