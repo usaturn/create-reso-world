@@ -61,7 +61,7 @@
 | D-2 | pi 導入節を丸ごと取り入れ、独自 cleanup / JSON helper を削除 | 独自の保護・バックアップを維持 | 明示された置き換えと共有登録の問題解消。ResoLoop・Meshy・DSH の節は不変 | 利用者 HOME の実操作が必要になったら止める |
 | D-3 | pytest の配置を移植元と同じにし、新規 `.devcontainer/test-pi-migrations.bash` から `uv run --no-project --with pytest python -m pytest` で当該2ファイルを実行 | testpaths へ追加、tests/ への移動 | ルートのスキルテストと混ぜず、既存 run-tests の自動収集から確実に実行できる。`parents[3]` を変えない | uv 必須。Python の一般的実行に python3 は使わない（bootstrap は既存例外） |
 | D-4 | `.pi/APPEND_SYSTEM.md` は既存のプロジェクト・handoff・所有権・同期直列・Superpowers 内だけという制限を保持する。「サブエージェントの起動」の冒頭2項目だけを移植元の現行APIの説明にする。`agent`/`task`/`tasks` の worktree 自動作成の説明は持ち込まず、ペルソナ節は1バイトも変えない | 移植元の節を完全コピー | 移植元の #717 はワークフロー外でも委譲するが、この環境の明示ツール制限に反する。projects.toml / repository-ownership は無い | 現在のツール定義と明示 opt-in 制限を優先。制限を緩和しない |
-| D-5 | Plannotator は `REMOTE=0`、port range と全10ポートの転送は共通 | REMOTE=1 の完全コピー、転送無し | host network で 0.0.0.0 待ち受けを作らない。Windows へは VS Code のローカル転送を使う。既存の8000とuv設定も保持 | 外部公開・トンネル・firewall変更はしない。実 browser は利用者が検証 |
+| D-5 | Plannotator は `REMOTE=0`、port range と全10ポートの転送は共通（port range と転送は、下段「PR #141 Plannotator のポートのレビュー修正」で撤去した） | REMOTE=1 の完全コピー、転送無し | host network で 0.0.0.0 待ち受けを作らない。Windows へは VS Code のローカル転送を使う。既存の8000とuv設定も保持 | 外部公開・トンネル・firewall変更はしない。実 browser は利用者が検証 |
 | D-6 | source bash テストの削除変数へ `${VAR:?}` と `--` を付ける。fixture の一時 HOME は env のみ | 無変更コピー | AGENTS.md の安全規則。実行時の失敗条件を変えない | 安全規則の回避は不可 |
 | D-7 | 移植元の実行テストは保持するが `test_opencode_go_tiers_use_opencode_go`（設定値の写し）を持ち込まない。構造検査と実ランチャーの実行は残す | テスト本文の完全一致 | AGENTS.md のテスト採用基準。model ID は実ランチャーから導出される。他の構造・機密情報禁止検査はユーザー所有の共有設定を守る検査 | 差分例外として PR に列記。文書テストは作らない |
 | D-8 | 共有登録の保持を追加の実行テストで確認する | extension 一覧の文字列検査だけ | 元の不具合（作り直すと登録が消える）を fake pi の状態で再現する必要がある | 通信・本物の資格情報の利用はしない |
@@ -602,6 +602,104 @@ I/O失敗のrollback範囲は変更していない。既存fsync/replaceの全�
 自己レビューは1回、追加2件とも修正した。**自己レビュー後に変更したsentinel・helper配布・関連テストは再レビューしていない。** 実機rebuild・交互rebuild・実provider/ADC・Windowsブラウザー/所有者は未確認のまま。全10ポートのEADDRINUSEは観測事実でありforwardPortsが原因とは断定しない。既存PRの制限と回避方法を維持する。private Actionsは規約により対象外。Specの公開・pushの結果はPR状況コメントと完了報告へ記録し、記録だけのcommitを追加しない。
 
 公開前までの能動時間は約48分（準備/全入力・全文確認/再現9、設計/実装/局所回帰12、環境/隔離対照などの検証17、自己レビュー/裁定/記録10）。レビューworkerは所要を未計測と報告したため推測で補わない。最初のNEEDS_CONTEXTは判定前の入力不足で、読取用artifactを渡して同じ1回のレビューを完了した。最初の調査workerの結果なしを成功扱いしていない。
+
+## PR #141 Plannotator のポートのレビュー修正（2026-10-18）
+
+### 範囲・実行許可
+
+- 状態: `completed`。今回の `/review-fix-planning #141`（Claude Code、`claude-opus-5-5`）を、同 PR の修正・検証・既存 head への push の実行許可とする（完遂、結論1）。マージ・rebuild・実認証は行わない。内容の承認・実機受け入れの完了とは区別する。
+- 開始 HEAD: `0967f0b6035ebb3b29c45dd681c50789d1e82e1a`。既存の clean な専用 worktree と同じ Spec を再利用する。他 worktree の未コミット差分は読まない。
+- 入力9ファイル: X=`Claude-Opus-5.5-XHigh.md`・S=`SWE-2-Max.md`・P=`openai-codex-gpt-6.1-sol.md` は `0967f0b6035e`、N=`Grok-4.7.md`・O=`claude-opus-5-5.md` は `f61289e62619`、D=`deepseek-deepseek-v4.1-flash.md` は `e35fb6b89c9d`、C=`commandcode-deepseek-deepseek-v4.1-flash.md` は `3ec1d06e04a4`、G=`gpt-6.1-sol.md` は `60bcb6247e06`、K=`grok-4.7.md` は `52cc4a0456d2`。全 HEAD の祖先照合に成功した。前回から増えた入力は X の4件で、S・P は対象 HEAD の更新だけ（新しい指摘なし）。
+
+### 全入力の分類
+
+**計33件: 解消済み18 / 対応する2 / 対応しない13**。同じ原因の入力も別々に数える。C は指摘0件。Test suggestions は重複加算しない。
+
+| ID | 指摘・候補 | 判定 | 現行 HEAD の根拠 |
+|---|---|---|---|
+| O-M1 | forwardPorts と Plannotator の bind 競合 | 対応する (a) | 下記「再現」。WSL2 の mirrored モードと host network という実在する構成で、PR が追加した Plannotator が設定した範囲で起動せず、README の手順どおりに使えない（主要な追加機能が止まる） |
+| O-U1 | 別コンテナのウィンドウの転送との競合 | 対応する (a) | agent-workspace だけが転送する 3080・8788 が Linux 側の listener 無しで占有され、loopback で接続できる。同じ仕組みで 19432〜19441 も塞がれ、いま全10個が使えない |
+| N-M1 / P-M1 | symlink と `..` による対象ずれ | 解消済み | `pi-provider-setup.py:29` の `os.path.abspath` と native 保存先の回帰。隔離 worktree の migrations 419件成功 |
+| N-L1 | 既存 auth symlink の Vertex 起動 | 解消済み | `${auth_file:A}` の mount と共有 auth の回帰が成功 |
+| N-L2 | builtin printf の argv への露出 | 解消済み | zsh builtin と FD 3 のまま。既存の反証根拠を維持 |
+| N-L3 | `~user` の誤展開 | 解消済み | `~`・`~/` だけを展開する共通 resolver と回帰が成功 |
+| S-M1 / O-L2 / G-M3 / K-M1 | DeepInfra の偽成功 | 解消済み | errexit と共通 preflight、不正入力の回帰が成功 |
+| S-L2 / G-M1 | models の mode・リンク・固定名の tmp | 解消済み | `plain_file`・`stage`・mode 保持の回帰が成功 |
+| S-I1 / O-L1 | `/tmp` の checkout で検証できない・境界テストの空振り | 解消済み | repo の再 bind と cwd 固定。今回も `/tmp` の隔離 worktree で419件成功 |
+| O-I3 | `./~` の再解釈 | 解消済み | 絶対化と再入力の回帰が成功 |
+| G-M2 / K-H1 | `~/` の cwd への誤保存 | 解消済み | 3 setup の展開の回帰が成功 |
+| G-M4 | BOM 付き models・auth の拒否 | 解消済み | `utf-8-sig` の reader と回帰が成功 |
+| K-M2 | settings の共有リンク切断 | 解消済み | storage guard と全状態の回帰が成功 |
+| S-L1 | npm 残骸検査の対象縮小 | 対応しない | D-2 の意図した範囲縮小。既知の制限と手動の確認・撤去方法を PR に記載済み。表示 helper の残存は致命的でない |
+| S-I2 / O-I2 | staging の glob の不一致 | 対応しない | 事実だが、全状態 snapshot と fsync/replace の回帰が残存を検出する。テストの整理で致命的でない |
+| O-I1 | Vertex の一覧・project の固定値 | 対応しない | 現構成と一致し回帰も成功。非致命的なテスト設計の論点 |
+| S-U1 | rebuild・共有 HOME・ADC・Windows の受け入れ | 対応しない | 当初から別枠の実機確認。未実施を成功に読み替えない |
+| S-U2 | catalog 更新の失敗が警告だけ | 対応しない | best effort の仕様。後段の検証が欠落を拒否する（前回の注入確認） |
+| S-U3 | 配列でない settings の拒否 | 対応しない | packages/extensions は配列が正規。副作用前の構造検査は設計どおり |
+| S-U4 | 相対 agent dir と別 cwd | 対応しない | 起動時 cwd 基準は Pi と同じ仕様 |
+| D-L1 | dangling auth symlink の起動失敗と汎用の診断 | 対応しない | 現行でも終了1・ホストの状態不変で拒否することを今回も確認。自動作成・診断の詳細化は利便性の論点 |
+| X-L1 | pixg の旧キー互換のテストが無くなった | 対応しない | 互換の export は現行に残る（`.devcontainer/pixg:32-34`）。マージしても動作は変わらず、将来の退行の検出力が下がるだけで致命的でない |
+| X-L2 | CI に pi が無く test-pi-migrations が失敗する | 対応しない | リポジトリは PRIVATE で Actions は無効（`enabled: false`）。`AGENTS.md` の「GitHub Actions」が CI を使わない方針を決めている。Dev Container では pi が導入済みで run-tests が成功する |
+| X-I1 | 移植の記録が共通ヘルパ等を「同一」と書く | 対応しない | 比較表は移植の履歴の記録で手順書ではない。「追加差分」の節と PR 本文が安全上の差分を示す。記録の正確さの指摘で致命的でない |
+| X-U1 | Vertex の readonly overlay で auth.json に書けない | 対応しない | README「読み取り専用 overlay の注意」が仕様と回避方法（素の `pi` で `/login`）を記載済み。移植元と同じ設計 |
+
+### 再現（O-M1・O-U1）
+
+- 環境: `lo` の `10.255.255.254/32`（WSL の `dnsTunnelingIpAddress` の既定値）と `loopback0` から WSL の mirrored モード。`--network=host` でコンテナは WSL のホストのネットワークを共有する。
+- Microsoft の WSL 文書（`.wslconfig` の `ignoredPorts`、mirrored モードの節）: mirrored モードでは、Windows 側で使われているポートを Linux のアプリは bind できない。Windows と WSL は `localhost`（127.0.0.1）で互いに接続できる。
+- 127.0.0.1 への bind: `8000, 8001, 3080, 3081, 8788, 19432〜19442` が `EADDRINUSE`、隣の `3079, 8002, 8787, 8789, 19431, 19443` は成功した。`ss -ltn` に該当する listener は無い。占有の組は agent-workspace（bridge network）の `forwardPorts`（`8000, 3080, 8788, 19432〜19441`）と現行コンテナの `forwardPorts`（`8000`）の和集合、および VS Code が使用中のときに選ぶ隣の番号に一致する。コンテナから 127.0.0.1 の 3080・8788・19432 へ TCP 接続でき、3079 は拒否された。占有しているのは loopback を共有する Windows 側の listener（VS Code の転送）である。
+- 導入済み Plannotator 0.28.23 の `server/network.ts`（`node_modules` の外へ複製）を、HEAD の `devcontainer.json` から取り出した `containerEnv` だけで実行すると `Port selection 19432-19441 exhausted` で起動しない。`PLANNOTATOR_PORT` 無しの `REMOTE=0` は、127.0.0.1 のランダムなポート（一時ポートの範囲 44620〜48715）で5/5起動した。
+- 推論で補う点: rebuild 後は、このコンテナの VS Code が `forwardPorts` の 19432〜19441 を Windows 側で待ち受けるので、agent-workspace を開いていなくても同じ範囲が塞がれる。根拠は上の文書と、現行の `forwardPorts: [8000]` による 8000 の占有。rebuild 後の実機での観測は行っていない。
+
+### 守る条件と影響経路
+
+守る条件: WSL2 の mirrored モードの host network のコンテナで、Plannotator が VS Code の転送（このコンテナと他のコンテナのウィンドウ）に塞がれないポートで待ち受け、Windows のブラウザーから開ける。
+
+| 守る条件 | 経路 | 判定 | 確かめる方法 |
+|---|---|---|---|
+| 上記 | `devcontainer.json` の `containerEnv.PLANNOTATOR_PORT=19432-19441` | 修正する。設定しない（Plannotator のローカルモードの既定のランダムなポート） | 修正後の `devcontainer.json` を JSONC として解析し、取り出した `containerEnv` だけで導入済み Plannotator の `listenOnPort` を、19432〜19441 が塞がれた環境で実行 |
+| 上記 | `devcontainer.json` の `forwardPorts` の 19432〜19441 | 修正する。`[8000]` に戻す | 同じ解析で `forwardPorts` が `[8000]` |
+| 上記 | `containerEnv.PLANNOTATOR_REMOTE=0`（loopback に限定） | 既に満たす。維持 | 同じ実行で bind 先が `127.0.0.1` |
+| 上記 | ランチャーの bwrap（`--dev-bind / /`、network namespace を分けない）と子 Pi | 既に満たす。環境を継承し、ホストの loopback で待ち受ける | `pi-superagents-exec.zsh` の bwrap 引数に network の unshare が無い |
+| 上記 | README の Plannotator 節（設定・既存環境のコマンド・手順・占有時の案内・remote mode の説明） | 修正する。転送前提と「WSL の localhost 到達性に依存しない」の誤りを直し、固定するときの条件を書く | 差分の確認、check-layout |
+| 上記 | `docs/maatlog-poc-porting.md` の #125 の行（現在の判断） | 修正する | 差分の確認 |
+| 上記 | Spec の D-5 | 修正する（本節で置き換えを記録） | 本節 |
+| 上記 | PR 本文の設定の説明・既知の制限・利用者の確認 | 修正する | `gh pr edit` 後の本文 |
+| 対象外 | `forwardPorts` の 8000 | 対象外。main からある既存の設定で、この PR の差分ではない。同じ仕組みで Linux 側から 8000 を bind できないが、8000 を使う処理はこのリポジトリに無い（grep） | — |
+| 対象外 | テスト | 値を写したテストは無い（grep）。`AGENTS.md` の採用基準により、設定値と文書の変更にテストを足さない | run-tests・check-layout |
+
+きっかけ（同じ条件の2回目・修正が生んだ回帰）には当たらない。ポートの設定は初回実装の `4220f04` で入り、以前のレビュー修正で直した条件でもない。失敗・拒否時の扱いの条件ではないため「失敗時の検証」の対象外。
+
+### 直し方の比較
+
+1. `forwardPorts` だけを外す: agent-workspace の転送が 19432〜19441 を塞ぐ（今の観測で全10個）ため足りない。不採用
+2. 別の固定範囲と `portsAttributes`: 番号を恣意的に選び、他のウィンドウの転送や隣の番号と衝突し得る。衝突の可能性を減らすだけ。不採用
+3. **`PLANNOTATOR_PORT` を外し、ローカルモードのランダムなポートを使う（採用）**: Plannotator の設計どおり一時ポートの範囲から空きを選ぶので、構造で衝突しない。固定ポートの「同時に1レビュー」の制約も無くなる。Windows からは mirrored モードの `localhost` で開き、届かなければ VS Code の Ports の Local Address を使う
+4. 現状維持と既知の制限: 既定の設定で起動しないため不採用
+5. `REMOTE=1`、`.wslconfig` の `ignoredPorts`: D-5 の外部公開をしない方針に反する、利用者の Windows 設定の変更で範囲外。不採用
+
+D-5 の「port range と全10ポートの転送は共通」を本節の設計で置き換える。移植元との差分は、`REMOTE=0` に加えて固定範囲と転送を持たないことになる。
+
+### 検証
+
+| 検証 | 結果 |
+|---|---|
+| 開始 HEAD の隔離 worktree の `test-pi-migrations.bash` | 419 passed / exit 0（173秒） |
+| 開始 HEAD の隔離 worktree の `test-pi-superagents.bash` | OK / exit 0 |
+| D-L1 の再確認（dangling symlink で overlay を実行） | 終了1、ホストの状態不変 |
+| HEAD の `containerEnv` での Plannotator のポート選択 | `Port selection 19432-19441 exhausted`（19432〜19441 は10/10占有） |
+| 修正後の `containerEnv` での同じ実行 | 127.0.0.1 のランダムなポートで5/5成功 |
+| 修正後の `bash .devcontainer/run-tests.bash`（`PI_CODEX_LIVE_CHECK=0 PI_XAI_LIVE_CHECK=0 PI_OFFLINE=1 UV_OFFLINE=1`） | 32/32 PASS / exit 0（`test-pi-migrations.bash`・`test-readme.bash` を含む） |
+| 修正後の `bash scripts/check-layout.sh` | PASS / exit 0 |
+| `git diff --check` | 問題なし |
+
+隔離 worktree と親ディレクトリは手順3の終わりに削除した。設定値と文書だけの変更なので、テストは追加していない。
+
+### 自己レビュー
+
+controller が反証・PR 全体・検証の検出力の3観点を1回確認し、追加の指摘は0件だった。反証では、ランチャーの bwrap が network namespace を分けないこと、`port 0` の失敗時に5回まで選び直すこと（`listenOnPort`）、ブラウザーを自動で開けないときに URL を通知する動作が修正前と同じことを確かめた。PR 全体では、値を写したテストが無いこと、PR 本文・D-5・移植の記録の更新が要ることを確かめた。検出力では、修正前後の `devcontainer.json` から取り出した値を同じ実行に渡し、修正前が失敗・修正後が成功することで、設定を戻すと検出できることを確かめた。
+
+未確認: rebuild 後の VS Code の実際の転送と、Windows のブラウザーでの閲覧・承認・修正要求の往復（Issue #125 の利用者確認に残す）、NAT モードでの動作。指摘0件を、これらが解消した証拠として扱わない。自己レビュー後の修正は無い。
 
 ## 対象外・停止条件
 

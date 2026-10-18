@@ -482,9 +482,9 @@ Pi では `npm:@plannotator/pi-extension` 拡張だけでよく、既存の Node
 Plannotator CLI や Bun の追加導入は不要である。
 
 コンテナ作成／リビルド時は、`install_beforehand.bash` の既存の Pi 拡張導入処理が
-この拡張も登録する。`devcontainer.json` は `PLANNOTATOR_REMOTE=0` と
-`PLANNOTATOR_PORT=19432-19441` を設定し、19432〜19441 の 10 ポートを個別に転送する。
-拡張は範囲内の空きポートを選ぶため、19432 が使用中でも別のポートを使える。
+この拡張も登録する。`devcontainer.json` は `PLANNOTATOR_REMOTE=0` だけを設定し、
+`PLANNOTATOR_PORT` と Plannotator 用の `forwardPorts` は設定しない。拡張はレビューごとに
+`127.0.0.1` の空いているポートを選ぶ（Plannotator のローカルモードの既定）。
 既存の 8000、`~/.pi` の bind mount、認証・モデル・他のパッケージ設定、
 pi-superagents のランチャー別設定は保持する。
 
@@ -499,18 +499,19 @@ pi-superagents のランチャー別設定は保持する。
 
 ```bash
 pi install --approve npm:@plannotator/pi-extension
-env PLANNOTATOR_REMOTE=0 PLANNOTATOR_PORT=19432-19441 pi
+env -u PLANNOTATOR_PORT PLANNOTATOR_REMOTE=0 pi
 ```
 
 レビューの手順は次のとおり。
 
 1. 通常の Plan 確認時に pi-superagents の `superpowers_plan_review` ツールでレビューを依頼する。
    受付時点ではレビュー待ちであり、まだ承認されたわけではない。
-2. Pi の端末に表示されるレビュー URL から、実際に使われたポートを確認する。
-   リビルドしない既存環境では、VS Code の **Ports** 画面でそのポートを追加転送する。
-3. Windows のブラウザーで、Ports 画面の転送先アドレス（Local Address）を開く。
-   レビュー URL にパスやクエリがある場合は、その部分も付ける。
-   コンテナ側の `localhost` ではなく、Windows ホストへの転送先を使う。
+2. Pi の端末に表示されるレビュー URL（`http://localhost:<ポート>/...`）を確認する。
+   ポートはレビューごとに変わる。
+3. Windows のブラウザーでレビュー URL を開く。WSL の mirrored モードでは、Windows と
+   host network のコンテナが `localhost` で互いに届く。開けないときは、VS Code の **Ports**
+   画面でそのポートの転送先アドレス（Local Address）を開く（自動で転送されていなければ追加する）。
+   その場合も、レビュー URL のパスとクエリを付ける。
 4. ブラウザーで Plan を確認し、承認または注釈付きの修正要求を返す。
    承認は Pi 側へ戻り、修正要求は Plan の見直しと再レビューに使われる。
 
@@ -518,12 +519,16 @@ env PLANNOTATOR_REMOTE=0 PLANNOTATOR_PORT=19432-19441 pi
 いないか確認する。ランチャー利用時は、共通設定に加え、実際に使う
 `~/.pi/agent/extensions/subagent.d/<launcher>/config.json` も確認する。
 変更する場合は必要なキーだけを調整し、既存の model tier や他の設定は残す。
-19432〜19441 がすべて使用中なら、新しいレビューを開始できない。
-自分の不要なレビューを終了して空きを作り、再度依頼する。無制限の同時レビューには対応しない。
 
 このリポジトリは `--network=host` を使うため、移植元の remote mode（`0.0.0.0` に bind）を
-使わない。`PLANNOTATOR_REMOTE=0` で `127.0.0.1` だけに bind し、VS Code のローカル転送で
-Windows から開く。host network でも転送は利用でき、WSL の localhost 到達性に依存しない。
+使わない。`PLANNOTATOR_REMOTE=0` で `127.0.0.1` だけに bind する。移植元の固定範囲
+（`PLANNOTATOR_PORT=19432-19441`）と、その範囲の `forwardPorts` も使わない。
+WSL の mirrored モードでは、Windows 側で使われているポートを Linux 側から bind できない
+（`.wslconfig` の `ignoredPorts` の説明）。VS Code の転送は Windows 側で待ち受けるため、
+このコンテナや他のコンテナ（agent-workspace など）のウィンドウが転送しているポートを
+Plannotator は使えず、範囲内のすべてが転送されていると起動できない（`Port selection ... exhausted`）。
+`PLANNOTATOR_PORT` を指定するときは、どのウィンドウも転送していないポートを選び、
+そのポートを `forwardPorts` に載せない。
 Docker の公開ポート、外部共有・トンネルは追加しない。
 レビュー URL を外部へ共有しない。ブラウザーの自動起動は保証しないため、
 Windows の実ブラウザーでの閲覧と承認／修正要求の往復は利用者が手動で確認する。
