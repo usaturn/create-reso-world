@@ -141,7 +141,8 @@ uv は既定では、uv 管理の Python をシステムの Python より優先�
 Dev Container の外の Python の選択は変えない。
 
 版番号を強制する仕組みではない。`--python`・`UV_PYTHON` による版の明示、有効な仮想環境（`VIRTUAL_ENV`）、既存の `.venv` には効かず、
-導入済みの古い版は `--python` で引き続き使える。ルートと雛形の `requires-python`（`>=3.12`）は変えていない。
+導入済みの古い版は `--python` で引き続き使える。ワールドの雛形の `requires-python`（`>=3.12`）は変えていない。
+ルートは、`tools/agent_runner` が Python 3.14 の構文を使うので `>=3.14` にした（#149）。
 uv の仕様は [Python versions](https://docs.astral.sh/uv/concepts/python-versions/) にある。
 
 Blender とワールドのプロジェクトへの影響は次のとおり。
@@ -407,6 +408,36 @@ Claude CLI 自体の更新は `claude update` を使う。`feature-dev` と `ccd
 onboarding の書き換えスクリプトは導入・自動実行しない。`~/.claude.json` はファイルの
 bind mount なので、移植元の一時ファイルから rename する方式はそのまま使えない。
 初回設定は通常の Claude Code の手順で行い、個人の `.claude/settings.local.json` は移植しない。
+
+## 非対話エージェントのランナー（agent-runner）
+
+端末 UI を操作せずに、agent（起動方法）・role（仕事）・workflow（割り当て）の 3 層の設定から各エージェントの CLI を
+起動し、同期で結果を回収する（usaturn/agent-workspace から #116 の子で取り入れる）。仕様は
+[tools/agent_runner/interfaces.rst](../tools/agent_runner/interfaces.rst) にある。#149 の時点では具体的な adapter が無く、
+どの runtime も「未対応」と表示される。adapter と agent の定義は #150・#151 が足す。別のモデルや対話の方式へは暗黙に切り替えない。
+
+個人設定の場所は 1 か所に決まる。`AGENT_RUNNER_CONFIG` があればそのパス、無ければ `XDG_CONFIG_HOME` が絶対パスのときだけ
+`XDG_CONFIG_HOME/agent-runner/config.toml`、それ以外は `~/.config/agent-runner/config.toml` で、そこにファイルが無ければ
+個人設定なしで動く（次の候補は探さない）。`install_beforehand.bash` は、後の 2 つの規則で決まる場所に設定が無いときだけ
+雛形 `.devcontainer/agent-runner.toml` を写し、既存の設定は更新しない。`~/.config/agent-runner` は mount していないので、rebuild で消え、次の postCreate で雛形から作り直される。
+残したい設定は、ホストから見える場所に置いて `AGENT_RUNNER_CONFIG` で指定する。
+設定は雛形 < 個人設定 < `--assign role=agent1,agent2` の順で上書きする（table は統合、配列は置換）。資格情報の値は書かず、
+`env` に変数の名前を書く。
+
+リポジトリのルートを cwd にして実行する（`python -m` が cwd から `tools` を読むため）。
+
+```bash
+uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner check
+uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner list
+uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner \
+  --config /path/to/personal.toml run --workflow audit \
+  --repository /path/to/repository --revision HEAD \
+  --prompt-file /path/to/prompt.txt --concurrency 2 --assign inspect=agent-a
+```
+
+`--template`・`--config` はサブコマンドの前に置く。設定が妥当なら、未対応の runtime があっても `check`・`list` は成功し、
+`run` はその担当を `unsupported` で返す。完了・停止の確かめ方は `.agents/monitoring-runtimes.md` の
+「agent-runner の同期実行と停止確認」にある。テストは偽の adapter・偽の CLI だけを使い、`uv run pytest tools` で実行する。
 
 ## pi の旧拡張・MCP 設定の移行
 

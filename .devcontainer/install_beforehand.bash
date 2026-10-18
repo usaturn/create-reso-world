@@ -73,6 +73,25 @@ for dir in \
     fi
 done
 
+# 非対話のエージェントのランナー（tools/agent_runner）の個人設定。既存の設定（壊れた symlink も含む）は上書きしない。
+# AGENT_RUNNER_CONFIG は個別の実行の指定なので、導入時の保存先には使わない。
+place_agent_runner_config() {
+    local config_home="${XDG_CONFIG_HOME:-}"
+    case "$config_home" in
+    /*) ;;
+    *) config_home="${HOME}/.config" ;;
+    esac
+    local config="${config_home}/agent-runner/config.toml"
+    if [ -e "$config" ] || [ -L "$config" ]; then
+        return 0
+    fi
+    mkdir -p "${config_home}/agent-runner" || return 1
+    cp .devcontainer/agent-runner.toml "$config" || return 1
+}
+if ! place_agent_runner_config; then
+    fail "Failed to place the agent-runner config."
+fi
+
 step "Rewriting the apt sources to HTTPS and updating the package index"
 if ! sudo perl -pi -e 's@http://archive\.ubuntu\.com@https://archive.ubuntu.com@g; s@http://security\.ubuntu\.com@https://security.ubuntu.com@g' /etc/apt/sources.list.d/ubuntu.sources; then
     fail "Failed to rewrite /etc/apt/sources.list.d/ubuntu.sources."

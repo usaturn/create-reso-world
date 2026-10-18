@@ -2,7 +2,7 @@
 name = "create-reso-world"
 version = "0.0.0"
 description = "Dev Container environment for building Resonite worlds with resoloop and Blender"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = ["pydantic>=2.12,<3"]
 
 [dependency-groups]
@@ -12,8 +12,11 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/skills", ".agents/skills", ".agents/scripts"]
-addopts = "-p no:cacheprovider"
+testpaths = ["tests/skills", ".agents/skills", ".agents/scripts", "tools"]
+# importlib: 移植した runner のテストは同じ名前のテストのファイルを別のディレクトリに持つ（#149 の Spec の C-1）。
+# pythonpath の 2 つ目は、tools/devenv_migration/tests のテストが兄弟のモジュールを名前で import するため
+addopts = "-p no:cacheprovider --import-mode=importlib"
+pythonpath = [".", "tools/devenv_migration/tests"]
 
 [tool.uv]
 package = false

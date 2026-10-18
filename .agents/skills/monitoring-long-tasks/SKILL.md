@@ -41,7 +41,7 @@ worker に実質進捗を報告させるときは、次の JSONL を進捗ファ
 対象にしてよい worker:
 
 - 読み取り専用の委譲（PR レビューの補助委譲、調査・評価の worker）
-- 専用の使い捨て領域（評価用の scratch など）だけに書く worker
+- 専用の使い捨て領域（agent_runner の attempt の worktree、評価用の scratch など）だけに書く worker
 
 対象にしない worker（宣言があっても止めない）:
 
@@ -93,7 +93,7 @@ task_watch stop --state-dir "$SESSION/watch-eval-1"     # 方針を変えると�
 
 - `--stop` は必須。`INT`・`TERM` は、宣言したシグナルを対象の process group に送る。`none` は監視だけでシグナルを送らない。停止の条件を満たしても `status` の判定が `hold` になるだけで、watcher は対象が自分で終わるまで動き続ける。同期のみのランタイムで `none` を使うと、controller は終わるまで待つことになる
 - 同じ失敗の上限は `--max-repeated-failures`（同じ signature の失敗の回数。既定 2 は「再試行 1 回まで」に当たる）で宣言する。無進捗の打ち切りは `--no-progress-seconds`、予約枠は `--reserve-seconds` で、どちらも省略すれば判定に使わない
-- 対象が SIGINT で子孫を止めて結果を保存する作りなら `--stop INT` にし、`--escalate-kill` を付けない。SIGKILL はその終了処理を壊す
+- 対象が SIGINT で子孫を止めて結果を保存する作りなら `--stop INT` にし、`--escalate-kill` を付けない。SIGKILL はその終了処理を壊す。agent_runner はこの作りである。止めた後は、runner の `result.json` の各 attempt の `stop_confirmed` も確かめる（`false` なら依存する作業を始めない）
 - `--state-dir` は存在しないパスにする（watcher が作る）。中に `declaration.json`・`status.json`・`events.jsonl`・`final.json`・`finalize.requested`・`target.stdout.log`・`target.stderr.log` ができる
 - `run` の終了コード: 0 = `completed`、1 = 完了していない（`stopped`・`exited_incomplete`）、2 = 入力の誤り、3 = `hold`（停止を確認できない、終了後も同じ group にプロセスが残っている、または `--stop none` の watcher に `stop` を送った）。終了時に `final.json` と同じ内容を標準出力にも出す
 - `final.json` の `next_step` が判定ごとの次の一手、`partial_results` が残った部分成果、`residual_pids` が終了・停止の後も同じ process group に残った PID である

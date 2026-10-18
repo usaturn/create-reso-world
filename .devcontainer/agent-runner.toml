@@ -1,0 +1,31 @@
+# 非対話のエージェントのランナー（tools/agent_runner）の雛形。資格情報の値は書かない。
+# install_beforehand.bash が、個人設定 ~/.config/agent-runner/config.toml が無いときだけ写す。
+# 仕様は tools/agent_runner/interfaces.rst。agent の定義（[agents.*]）は adapter と一緒に #150・#151 が、
+# workflow の割り当て（[workflows.*]）はそれを使う子（#153・#155・#157）が足す。
+schema_version = 1
+
+# 役割の期限（usaturn/agent-workspace#616）。PR レビューの全体の予算に合わせて 45 分とし、implement だけ 90 分にする。
+# fix-check は呼び出し側（review-verify・review-fix-planning）が 1800 秒に切り詰める。
+[roles.inspect]
+skills = []
+writes = false
+deadline_seconds = 2700
+result_shape = "json"
+
+[roles.implement]
+skills = []
+writes = true
+deadline_seconds = 5400
+result_shape = "json"
+
+[roles.self-review]
+skills = []
+writes = false
+deadline_seconds = 2700
+result_shape = "json"
+
+[roles.fix-check]
+skills = []
+writes = false
+deadline_seconds = 2700
+result_shape = "json"
