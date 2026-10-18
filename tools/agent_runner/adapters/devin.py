@@ -211,21 +211,29 @@ class Devin:
     ) -> AdapterOutcome:
         stdout = _text(stdout_path)
         stderr = _text(stderr_path)
-        # stdout can be a prose answer. Only explicit diagnostic lines are
-        # failure channels; a payload discussing authentication is ordinary data.
-        diagnostics = [
-            line for line in stdout.splitlines() if _DIAGNOSTIC_LINE.match(line.strip())
-        ]
-        hint = _failure_status(stderr, *diagnostics)
         export = _export(context.receipt_path.parent / _EXPORT_FILE)
         final = _final_agent_message(export) if export is not None else None
+        # Both answer channels can contain explicit failure diagnostics. Inspect
+        # diagnostic lines, not ordinary prose or JSON values about authentication.
+        diagnostics = [
+            line
+            for text in (stdout, final or "")
+            for line in text.splitlines()
+            if _DIAGNOSTIC_LINE.match(line.strip())
+        ]
+        hint = _failure_status(stderr, *diagnostics)
         failure = hint or (_export_failure(export) if export is not None else None)
         if failure is not None:
             status, payload = failure, None
         elif stdout.strip() and final is not None:
-            status, payload = _payload(stdout, context.role.result_shape)
-            if status != "success":
-                status = _failure_status(stdout) or status
+            # JSON roles require a complete object in both channels. A complete
+            # stdout answer cannot hide a truncated or malformed final ATIF answer.
+            status, _ = _payload(final, context.role.result_shape)
+            payload: Payload = None
+            if status == "success":
+                status, payload = _payload(stdout, context.role.result_shape)
+                if status != "success":
+                    status = _failure_status(stdout) or status
         else:
             status, payload = _failure_status(stdout) or "response_failed", None
         return AdapterOutcome(

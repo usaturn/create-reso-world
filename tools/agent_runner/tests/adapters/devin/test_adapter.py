@@ -177,7 +177,7 @@ def test_skill_tool_call_path_alone_does_not_prove_read(
     ]
     export = _export(tool_calls=calls)
     cast(list[object], export["steps"]).append(
-        {"source": "agent", "message": "final answer", "tool_calls": []}
+        {"source": "agent", "message": '{"ok": true}', "tool_calls": []}
     )
     outcome = _collect(context, '{"ok": true}', export=export)
     assert outcome.receipt is not None and outcome.receipt.status == "success"
@@ -260,7 +260,7 @@ def test_retained_export_with_secrets_is_redacted_before_collection(
     secret = "synthetic-cli-token-98765"
     monkeypatch.setenv("SERVICE_TOKEN", secret)
     fixture = tmp_path / "export.json"
-    export = _export(message="answer " + secret)
+    export = _export(message=json.dumps({"answer": secret}))
     extra: dict[str, object] = {
         "step_id": 4,
         "source": "agent",
@@ -277,7 +277,11 @@ def test_retained_export_with_secrets_is_redacted_before_collection(
     }
     cast(list[object], export["steps"]).append(extra)
     cast(list[object], export["steps"]).append(
-        {"source": "agent", "message": "final answer " + secret, "tool_calls": []}
+        {
+            "source": "agent",
+            "message": json.dumps({"final_answer": secret}),
+            "tool_calls": [],
+        }
     )
     fixture.write_text(json.dumps(export), encoding="utf-8")
     out = tmp_path / "out.txt"
@@ -355,7 +359,9 @@ def test_secret_free_multiline_export_is_retained_unchanged(
                 {
                     "step_id": 2,
                     "source": "agent",
-                    "message": "回答\n日本語",
+                    "message": json.dumps(
+                        {"answer": "回答\n日本語"}, ensure_ascii=False
+                    ),
                     "tool_calls": [],
                 },
             ],
@@ -607,3 +613,51 @@ def test_prepare_does_not_invent_provider_or_effort_flags(
         context.agent.provider not in spec.argv
         and context.agent.effort not in spec.argv
     )
+
+
+@pytest.mark.parametrize(
+    "diagnostic,state",
+    [
+        ("Not logged in", "awaiting_authentication"),
+        ("Error: Not logged in", "awaiting_authentication"),
+        ("Approval required", "awaiting_approval"),
+        ("waiting for approval", "awaiting_approval"),
+    ],
+)
+@pytest.mark.parametrize("shape", ["json", "text"])
+def test_final_atif_diagnostic_overrides_successful_stdout(
+    context: AdapterContext, diagnostic: str, state: str, shape: str
+) -> None:
+    context.role.result_shape = shape
+    outcome = _collect(context, '{"ok": true}', export=_export(message=diagnostic))
+    assert outcome.receipt is not None and outcome.receipt.status == state
+    assert outcome.receipt.payload is None
+
+
+@pytest.mark.parametrize(
+    "final", ['{"unfinished":', "[]", "{}", "plain incomplete answer"]
+)
+def test_json_role_requires_complete_final_atif_object(
+    context: AdapterContext, final: str
+) -> None:
+    outcome = _collect(context, '{"ok":true}', export=_export(message=final))
+    assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
+    assert outcome.receipt.payload is None
+
+
+@pytest.mark.parametrize(
+    "shape,final",
+    [
+        (
+            "json",
+            '{"explanation":"Authentication and approval required are diagnostic examples"}',
+        ),
+        ("text", "Authentication and approval required are diagnostic examples."),
+    ],
+)
+def test_final_atif_authentication_topic_is_ordinary_data(
+    context: AdapterContext, shape: str, final: str
+) -> None:
+    context.role.result_shape = shape
+    outcome = _collect(context, final, export=_export(message=final))
+    assert outcome.receipt is not None and outcome.receipt.status == "success"
