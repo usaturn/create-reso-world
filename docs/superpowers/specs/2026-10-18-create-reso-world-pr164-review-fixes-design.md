@@ -4,10 +4,67 @@
 
 - 対象 PR: https://github.com/usaturn/create-reso-world/pull/164（`feat/issue-152-review-helpers`、base `main`、関連 Issue #152）
 - 状態: completed
-- 回: 1 回目（レビュー対象の HEAD `60849067e1e7`、修正 `6bf6ba4`）、2 回目（レビュー対象の HEAD `738680742c29`、修正 `9bc5205`）
-- 実行許可: 1 回目・2 回目とも 2026-10-18（UTC）、利用者が `/review-fix-planning #164` を実行した。計画で止める指定が無いので、review-fix-planning の「完遂」として、この PR のレビュー修正の実装・検証・commit・push・状況コメントの投稿（結論 1）、または修正不要のときのマージと関連 Issue の更新（結論 2）まで進めることが許可されている。下の判断は、確認を取らずに決めたエージェントの判断であり、利用者の承認ではない
+- 回: 1 回目（レビュー対象の HEAD `60849067e1e7`、修正 `6bf6ba4`）、2 回目（レビュー対象の HEAD `738680742c29`、修正 `9bc5205`）、3 回目（レビュー対象の HEAD `fd0b6dd2bad4`、修正不要）
+- 実行許可: 1 回目・2 回目・3 回目とも 2026-10-18（UTC）、利用者が `/review-fix-planning #164` を実行した。計画で止める指定が無いので、review-fix-planning の「完遂」として、この PR のレビュー修正の実装・検証・commit・push・状況コメントの投稿（結論 1）、または修正不要のときのマージと関連 Issue の更新（結論 2）まで進めることが許可されている。下の判断は、確認を取らずに決めたエージェントの判断であり、利用者の承認ではない
 - 関連 Spec: `docs/superpowers/specs/2026-10-18-create-reso-world-issue152-review-helpers-design.md`（PR の設計。とくに D-3「`review_findings.py` は形式と挙動を移植元のまま」、D-11「テストの範囲」）
-- 作業場所: `/workspaces/reso-world/.worktrees/issue-152-review-helpers`（PR の head を checkout した既存の worktree。どちらの回も、未コミットの変更が無く、HEAD が PR の head と一致していたので使った）
+- 作業場所: `/workspaces/reso-world/.worktrees/issue-152-review-helpers`（PR の head を checkout した既存の worktree。どの回も、未コミットの変更が無く、HEAD が PR の head と一致していたので使った）
+
+## 3 回目（レビュー対象の HEAD `fd0b6dd2bad4`）
+
+### 入力
+
+レビューディレクトリ `reviews/usaturn/create-reso-world/#164-feat-issue-152-review-helpers/`。選別の時点の PR の head は `fd0b6dd2bad4264dfa0948b7e54f6181fd5dabcd`。2 つの対象 HEAD はどちらも PR の head の祖先で、`738680742c29..fd0b6dd2bad4` の差分は 2 回目の修正（2 つのテストの fixture）とこの Spec だけである。
+
+| ファイル | 対象 HEAD | 結論 | 指摘 |
+| --- | --- | --- | --- |
+| `claude-opus-5-5.md` | `fd0b6dd2bad4`（Update） | Approve | なし |
+| `SWE-2-Max.md` | `fd0b6dd2bad4`（Update） | Approve | なし（Unverified candidates 2 件。1 回目からの継続） |
+| `openai-codex-gpt-6.1-sol.md` | `fd0b6dd2bad4`（Update） | Approve | Medium 2・Low 1（1 回目からの継続）、M-2 は解消済みとして移動 |
+| `commandcode-deepseek-deepseek-v4.1-flash.md` | `fd0b6dd2bad4`（Initial） | Approve | なし |
+| `deepseek-deepseek-v4.1-flash.md` | `738680742c29`（Update、更新なし） | Approve | Info 1（1 回目からの継続） |
+| `gpt-6.1-sol.md` | `738680742c29`（Initial、更新なし） | Approve | なし |
+
+### 指摘の分類
+
+解消済み 1 / 対応する 0 / 対応しない 7。
+
+確認の範囲: 全指摘、PR の変更ファイル 11 本の全文（`review_target.py` とそのテスト・Spec・Plan は自分で、`review_findings.py` 系と `review_records.py` 系はサブエージェント 2 体に分けて読んだ）、呼出元（スキルからこの 3 つの helper を呼ぶ箇所は無い。`review_records.py` を使うのは `review_findings.py` の `identity_problems`・`provenance_problems` だけ）とテスト。検証は PR の head を detached で置いた隔離 worktree（`mktemp -d`）で行い、検証後に消した。
+
+| ID | 内容 | 区分 | 根拠 |
+| --- | --- | --- | --- |
+| Codex M-2 | 見出しの無い Unverified candidates を `from-markdown` が空の一覧として成功させる | 解消済み | `fd0b6dd` でも、箇条書きの候補は `from-markdown`・`check-pair` とも終了コード 65・標準出力 0 バイト。「なし」と `### U-1:` は終了コード 0（`review_findings.py:1567-1570`） |
+| Codex M-1 | 番号・URL の経路は、新しい配置のディレクトリの `findings/` が別の PR を指していても受理する | 対応しない | 再現した（番号では受理、同じディレクトリをパスで渡すと終了コード 11）。返る保存先・PR・Git 操作の対象は照会した PR のもので（`review_target.py:653-675`）、食い違う `findings/` は別の PR の候補一覧を手で写したときにしか置かれない。1・2 回目と同じ |
+| Codex M-3 | Markdown の指摘 ID が重複すると、`check-pair` が片方を照合から落とす | 対応しない | 再現した（`check-pair` が終了コード 0。`review_findings.py:1683` の辞書化で後の指摘が先を上書き）。ID の重複（形式の違反）と JSON 側の欠落の 2 つが重ならないと起きず、同じ Markdown の `from-markdown` は重複で終了コード 65。1・2 回目と同じ |
+| Codex L-1 | 外側 4 個・内側 3 個のバッククォート（または `~~~`）のフェンスで、内側の見出しを指摘と読む | 対応しない | 再現した。pr-review の様式で必須の Summary の件数表があれば終了コード 65 で止まる。フェンスの中の `## Resolved findings` の後の本物の指摘が落ちる形も、件数表があれば 65 で止まることを確かめた。1・2 回目と同じ |
+| DeepSeek I-1 | `review_target.py:97` のコメント「pr-review の helper もここを使う」が実態と違う | 対応しない | コメントは残っている（スキルからの参照は 0 件）。挙動に影響しない。規則の統一は #153 の担当 |
+| SWE-2-Max U-1 | `check-pair` の位置の照合が部分文字列の一致で、2 行目以降の `位置` を読まない | 対応しない | 再現した（`a.py:1` が `a.py:10` に一致して終了コード 0）。照合が弱まるだけで、JSON に 2 行目の位置を書くと止まる側（65）に倒れる。pr-review の様式は位置を 1 行に並べる。移植元と同じ |
+| SWE-2-Max U-2 | 番号だけの指定で `origin` の URL を insteadOf の展開前の値で読む | 対応しない | 意図した選択（`review_target.py:215-218`）。insteadOf の別名（`gh:usaturn/create-reso-world`）を origin にした親で `resolve 4` を実行し、終了コード 7 で止まって GitHub に照会しないことを確かめた |
+| 自己確認 S-6 | `statement-candidates` は、空白を含むパスの差分の見出し（`---`/`+++` の末尾のタブ）をタブごと読み、その文書を候補から外す（`review_findings.py:1814`・`:1818`） | 対応しない | 再現した。この repo の追跡ファイルに空白を含むパスは 0 件で、`statement-candidates` を呼ぶ review-verify（#154）もまだ無い。起きても候補が減るだけで、書き込みは検査の後に一時ファイルから `os.replace` する（`:2086-2097`・`:2671-2675`） |
+
+1・2 回目に「対応しない」とした自己確認（S-2 CONTRIBUTOR を信頼しない、S-4 `COMMENT_BODY_LIMIT` の数え方、S-5 `stop_reason` の検査）は、コードが変わっておらず、記録を読み書き・投稿する処理もまだ無い（`review_records.py` は標準ライブラリだけで、git・ネットワーク・ファイルへの書き込みを持たない）ので、判定を変えない。Unverified candidates の見出しの大小の揺れ（`## Unverified Candidates`）も、1 回目の自己レビューの反証 5 と同じ論点で、判定を変えない。2 回目の修正（`GIT_*` を除く fixture）は、偽のリポジトリを指す `GIT_DIR`・`GIT_WORK_TREE`・`GIT_INDEX_FILE` を渡したまま `test_review_findings.py` を実行し、231 件が通って偽のリポジトリの HEAD・refs・設定・index が変わらないことで確かめた。
+
+仕様の論点として残すもの（1 回目から変わらない）: Codex M-1 の、番号・URL の経路でも `findings/` との食い違いを確かめるかどうかは、review-verify（#154）・review-fix-planning（#155）を接続するときに決める。
+
+「同じ条件の再発と設計の見直し」: 「対応する」が無いので当たらない。
+
+### 実行した検証
+
+結論 2 の手順 1・2 のとおり。全て終了コード 0。create-reso-world は private で CI を止めているので、CI は確かめていない（`AGENTS.md` の「GitHub Actions」）。
+
+- PR の head（`fd0b6dd`、専用の worktree）
+  - `uv run pytest .agents/scripts tests/scripts/test_superpowers_context.py`: 548 passed、109 subtests passed
+  - `bash .devcontainer/run-tests.bash`: PASS 32
+  - `bash scripts/check-layout.sh`: PASS
+- base が分岐点（`3e3c1a3`）から `origin/main` の `5ef1216`（#163・#165）へ進んでいるので、隔離 worktree で head に `origin/main` を merge した一時的なツリー（tree `d2693ab7`、`git merge-tree --write-tree` の結果と一致、競合なし。push していない）でも同じ 3 つを実行した: 548 passed・109 subtests passed、PASS 33、PASS
+- 関連テストの個別の実行（サブエージェント）: `test_review_findings.py` 231 passed、`test_review_records.py` 187 passed
+
+### 結論
+
+結論 2（修正不要としてマージ）。マージの結果と関連 Issue の更新は、状況コメントと完了報告に書く（記録だけのコミットを PR に足さないため）。
+
+### 作業時間
+
+着手 2026-10-18T13:46Z。所要時間と内訳は、状況コメントと完了報告に書く。
 
 ## 2 回目（レビュー対象の HEAD `738680742c29`）
 
