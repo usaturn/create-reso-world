@@ -7,7 +7,7 @@ set -u
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
 # （同梱スキルの状態の表示と workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=31
+readonly STEP_TOTAL=32
 STEP_NUMBER=0
 
 step() {
@@ -168,6 +168,24 @@ if ! npm install -g @openai/codex@latest; then
 fi
 if ! command -v codex >/dev/null 2>&1; then
     fail "Codex installation completed without placing codex on PATH."
+fi
+
+# Only the headless CLI is needed. Do not initialize a shared ~/.dsh, install plugins or add TUI launchers.
+install_deepseek_harness() {
+    local -r version="0.2.0-rc.2"
+    local -r native_scripts="@deepseek-ai/dsh-subprocess-local,koffi,node-pty"
+    local installed_version
+    npm install -g --allow-scripts="$native_scripts" "@deepseek-ai/dsh@$version" || return 1
+    command -v dsh >/dev/null 2>&1 || return 1
+    installed_version="$(dsh --version)" || return 1
+    if [ "$installed_version" != "$version" ]; then
+        printf 'Unexpected dsh version: %s (expected %s).\n' "$installed_version" "$version" >&2
+        return 1
+    fi
+}
+step "Installing the pinned DSH headless CLI"
+if ! install_deepseek_harness; then
+    fail "DSH headless CLI installation or version verification failed."
 fi
 
 step "Installing Meshy CLI (local verification only)"

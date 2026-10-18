@@ -4,6 +4,23 @@
 # workflow の割り当て（[workflows.*]）はそれを使う子（#153・#155・#157）が足す。
 schema_version = 1
 
+# DSH 標準 headless。共有 profile と追加プラグインは読み込まない。
+[agents.dsh-ccd]
+runtime = "dsh"
+command = ["dsh"]
+model = "deepseek/deepseek-v4.1-flash"
+provider = "commandcode"
+effort = "max"
+env = ["PATH", "COMMANDCODE_API_KEY"]
+
+[agents.dsh-go]
+runtime = "dsh"
+command = ["dsh"]
+model = "deepseek-v4.1-flash"
+provider = "opencode-go"
+effort = "max"
+env = ["PATH", "OPENCODE_API_KEY"]
+
 # 役割の期限（usaturn/agent-workspace#616）。PR レビューの全体の予算に合わせて 45 分とし、implement だけ 90 分にする。
 # fix-check は呼び出し側（review-verify・review-fix-planning）が 1800 秒に切り詰める。
 [roles.inspect]
