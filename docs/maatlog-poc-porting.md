@@ -101,14 +101,15 @@ Context7 の扱いは、さらに Issue #162（2026-10-18）で変えた。Conte
 
 | 移植元のパス | 移植先のパス | 判断 | 理由 | 担当 Issue |
 | --- | --- | --- | --- | --- |
-| `.devcontainer/dsh-launcher.bash`・`.devcontainer/dshccd`・`.devcontainer/dshccd.patch.yml`・`.devcontainer/dshgo`・`.devcontainer/dshgo.patch.yml` | なし | 除外 | dsh は #17 で除外した。持ち込まない | #18 |
-| `.devcontainer/dsh-cordis.patch.yml` | `.devcontainer/dsh-cordis.patch.yml`（削除） | 除外 | 同上。移植先の既存のファイルも撤去した | #18 |
+| `.devcontainer/dsh-launcher.bash`・`.devcontainer/dshccd`・`.devcontainer/dshccd.patch.yml`・`.devcontainer/dshgo`・`.devcontainer/dshgo.patch.yml` | なし | 除外 | 対話用ランチャーは #17 で除外した。#151 の headless CLI 再導入でも持ち込まない | #18・#151 |
+| `.devcontainer/dsh-cordis.patch.yml` | `.devcontainer/dsh-cordis.patch.yml`（削除） | 除外 | #18 で共有設定を撤去した。#151 は呼出しごとに patch を生成し、共有ファイルは復活させない | #18・#151 |
 | なし | `.devcontainer/dsh-settings.yaml`（削除） | 除外 | 移植先にだけあった dsh の雛形 | #18 |
-| `.devcontainer/install_beforehand.bash` の dsh 0.2.0 系の導入（pi-tui の profile、managed block、ランチャーの配置）、Grok Build の導入、`skills add` の `-a grok` | 同じファイルの dsh 0.1.5 の導入と定数、書き込みの確認のリストの `.grok`・`.dsh` | 除外 | 移植元の手順は持ち込まず、移植先の手順も撤去した | #18 |
+| `.devcontainer/install_beforehand.bash` の dsh 0.2.0 系の導入（pi-tui の profile、managed block、ランチャーの配置）、Grok Build の導入、`skills add` の `-a grok` | 同じファイルの dsh 0.1.5 の導入と定数、書き込みの確認のリストの `.grok`・`.dsh` | 除外 | #18 で旧手順を撤去した。#151 でも対話用設定・Grok Build は戻さない | #18・#151 |
+| `tools/agent_runner/adapters/dsh.py`・`dsh_identity.py`・`dsh_sandbox.py` と dsh CLI の固定版導入 | 同じパスと `.devcontainer/install_beforehand.bash` の headless CLI 導入段 | 適応 | #151 で headless レビュアーとして再導入。CLI は `0.2.0-rc.2`、個別の HOME・DSH_HOME・TMPDIR、scoped bubblewrap、観測したモデルを使う。web plugin・pi-tui・共有 profile は不要とする構成で、rebuild 後の実機確認は未実施 | #151 |
 | `.devcontainer/devcontainer.json` の `.grok`・`.dsh` の mount、`pnpmVersion` の固定、`forwardPorts` の `3080` | 同じファイルの同じ箇所 | 適応 | 撤去し、pnpm は `"none"` にした。`name`・dotnet・`remoteEnv`・秘密情報の mount・`--network=host` の差分は、移植先が新しいので保つ | #18 |
 | `.devcontainer/initialize.bash` の `.grok`・`.dsh` | 同じ | 適応 | 撤去した。他の差分は移植先が新しいので保つ | #18 |
 | `.devcontainer/zshrc.txt` の `grok update`、`cc_launcher_unsets` | 同じファイルの `ccda`、`MAAS_ANTHROPIC_TOKEN`、`grok update`、コメント | 除外 | 撤去した。移植元も `ccda` を撤去済み | #18 |
-| `.devcontainer/README.md` の dsh・Grok Build の記述 | 同じファイルの dsh の節、ツールの表、読み込みの制約、秘密情報 | 適応 | 案内を撤去し、既存環境向けの注記を足した | #18 |
+| `.devcontainer/README.md` の dsh・Grok Build の記述 | 同じファイルの dsh の節、ツールの表、読み込みの制約、秘密情報 | 適応 | #18 の撤去履歴を保ち、#151 で headless CLI だけを再導入する案内に更新。共有 ~/.dsh は mount しない | #18・#151 |
 | `.devcontainer/docs/herdr-session-cwd-restore.md` | 同じ | 適応 | grok の例を外した。maatlog 固有のパスは移植先で汎用化済みなので保つ | #18 |
 | なし | `AGENTS.md`・`README.md` の対象エージェントの一覧 | 適応 | 一覧から dsh を外した | #18 |
 | `.devcontainer/test-herdr-migration.bash` の `ccda` の検査 | 同じファイル | 適応 | `ccda` の検査を外し、再混入の検査を足した。here-string などの差分は移植先が新しいので保つ | #18 |
@@ -222,8 +223,8 @@ Codex テストの隔離 helper と外側 pytest は、private `/tmp` の後に�
 | 番号 | 確認項目 | 確認方法 | 期待する結果 | rebuild 前（2026-10-05） | rebuild 後 |
 | --- | --- | --- | --- | --- | --- |
 | R-1 | postCreate が全手順を完了する | Dev Containers のログ（postCreateCommand の出力） | `[install_beforehand] [25/25] Installing Herdr` まで進み、エラーで止まっていない | （記録なし） | 利用者が Dev Containers のログで、`[install_beforehand] [25/25] Installing Herdr` までエラーで止まらずに進んだことを確かめた。コンテナ内でも `herdr` が配置され、`herdr --version` は `herdr 0.9.3` を返す |
-| R-2 | mount が 12 件で、dsh と Grok Build の mount が無い | `/home/vscode` 配下の mount の数と、`.dsh`・`.grok` の mount（R-2 のコマンド） | 12 件、`.dsh`・`.grok` は無い | 14 件。`~/.dsh`・`~/.grok` がある | 12 件。`.dsh`・`.grok` は無い |
-| R-3 | dsh・Grok Build が無く、pnpm を npm で導入せず、転送するポートは 8000 だけ | `dsh`・`grok` のコマンド、npm の大域パッケージの `pnpm`、`pnpm` のコマンドの実体（R-3 のコマンド）と、VS Code の「ポート」 | `dsh`・`grok` は無い。npm の大域パッケージに `pnpm` が無い（`(empty)`）。Node の feature が `corepack enable` で置く `pnpm` の shim は残ってよい（`readlink -f` が `corepack/dist/pnpm.js` を指す）。3080 は転送しない | `dsh` がある。`grok` は無い。`pnpm` は npm の大域パッケージ（`pnpm@12.4.1`） | `dsh`・`grok` は無い。npm の大域パッケージは `(empty)`。`pnpm` は `corepack/dist/pnpm.js` の shim。`forwardPorts` は `[8000]` で、3080 で待ち受けるプロセスは無い（VS Code の「ポート」の表示は見ていない） |
+| R-2 | dsh と Grok Build の mount が無い（#151 でも維持） | `/home/vscode` 配下の mount の数と、`.dsh`・`.grok` の mount（R-2 のコマンド） | 現行 devcontainer.json の mount 数に一致し、`.dsh`・`.grok` は無い（過去の 12 件は右の実測列） | 14 件。`~/.dsh`・`~/.grok` がある | 12 件。`.dsh`・`.grok` は無い |
+| R-3 | #151 で DSH headless CLI だけを導入し、Grok Build・pnpm の追加導入・3080 は無し | `dsh --version`、`grok` のコマンド、npm の大域パッケージの `pnpm`、`pnpm` の実体（R-3 のコマンド）と、VS Code の「ポート」 | `dsh --version` が `0.2.0-rc.2`。Grok Build は無し。npm の大域パッケージに pnpm は無い。corepack の pnpm shim は残ってよい。3080 は転送しない。headless の実機起動は別途 #151 に記録する | `dsh` がある。`grok` は無い。`pnpm` は npm の大域パッケージ（`pnpm@12.4.1`） | `dsh`・`grok` は無い。npm の大域パッケージは `(empty)`。`pnpm` は `corepack/dist/pnpm.js` の shim。`forwardPorts` は `[8000]` で、3080 で待ち受けるプロセスは無い（VS Code の「ポート」の表示は見ていない） |
 | R-4 | 廃止した環境変数が新しいシェルに無い | 新しいシェルの環境変数の名前（R-4 のコマンド。値は表示しない） | 何も出ない（`MAAS_ANTHROPIC_TOKEN` は `env` から消した場合）。残っていれば変数名だけが出て、値は出ない | `PI_DISTILL_*` の 3 つ、`PI_EXTENSIONS_LOCALE`、`MAAS_ANTHROPIC_TOKEN` がある | `MAAS_ANTHROPIC_TOKEN` だけが出る。利用者が rebuild の後に `~/.zshrc` の末尾へ手動で書き戻した `export` 行によるもので、リポジトリの設定からではない。`PI_DISTILL_*`・`PI_EXTENSIONS_LOCALE` は無い |
 | R-5 | 撤去した拡張が残らず、設定とモデルが残る | `pi list --no-approve`（プロジェクトの trust を問わない）、pi 管理の npm マニフェストの依存、settings の `extensions`、`models.json` の provider（R-5 のコマンド） | `pi-mcp-adapter`・`@upstash/context7-pi`・`pi-distill`・`pi-extensions-tool-display`・`pi-extensions-i18n` が無い。`extensions` に `-builtin:mcp` が無い。provider は rebuild 前と同じ | `@upstash/context7-pi` が登録され、npm マニフェストにもある。`extensions` は空。provider は `commandcode`・`deepinfra`・`deepinfra-distill`・`opencode-go` | 5 つの拡張は `pi list` にも npm マニフェストにも無い。`extensions` は `[]`。provider は `commandcode`・`deepinfra`・`deepinfra-distill`・`opencode-go` で rebuild 前と同じ |
 | R-6 | バックアップは変更が必要なときだけ作られる | バックアップの一覧を見て、cleanup を再実行してから同じ一覧を見る（R-6 のコマンド） | rebuild で 1 つ作られ（rebuild 前に `@upstash/context7-pi` があるため）、再実行では増えない | `migration-backups` は無い | rebuild で `pi-retired-u1wtbqna` が 1 つ作られ、cleanup の再実行（終了コード 0）では増えない |
@@ -238,6 +239,13 @@ Codex テストの隔離 helper と外側 pytest は、private `/tmp` の後に�
 
 上の rebuild 表は 2026-10-05 の観測記録で、再検証結果ではない。#125 以降は R-5 で context7-pi と Plannotator の登録を保持し、R-6 の自動バックアップは作らない。R-7 は pigou を除く11本、R-11 は Context7 も確認する。現行の反映手順と未検証項目は `.devcontainer/README.md` と Issue #125 を参照する。以下のコマンドは現行の配置に更新し、削除済み cleanup は実行しない。
 
+### #151 の DSH headless の確認で変わる点
+
+R-2 の期待値は共有 `~/.dsh` の mount 無しを維持し、R-3 の期待値は CLI の固定版だけを再導入する判断に更新した。
+右の rebuild 前後の実測列は 2026-10-05 の履歴のままであり、#151 の再検証結果ではない。
+利用者が rebuild した後に `dsh --version` と、使い捨て対象に対する `dsh-ccd` の 1 回の短い依頼を runner で確認し、
+payload と観測したモデルを #151 に記録する。現時点では未実施。手順は `.devcontainer/README.md` の「DSH headless レビュアー」。
+
 ### 確認のコマンド
 
 表のセルにはコマンドを書かない。表のセルでは `|` を `\|` と書く必要があり、Markdown のソースから写すとシェルが別のコマンドとして実行する（R-4 では環境変数の値がすべて表示される）。コマンドは次のブロックから写し、リポジトリのルートで実行する。R-4・R-9 は `zsh -i` で `~/.zshrc` を読むので、新しい端末を開いたときと同じく、24 時間に 1 回の作業領域の掃除（`cleanup-workspace.bash`）がバックグラウンドで動くことがある（利用者の設定は変えない）。
@@ -248,8 +256,9 @@ Codex テストの隔離 helper と外側 pytest は、private `/tmp` の後に�
 # R-2
 findmnt -rn -o TARGET | grep -c '^/home/vscode'
 findmnt -rn -o TARGET | grep -E '/\.(dsh|grok)$'
-# R-3
-command -v dsh grok
+# R-3（#151 以降）
+dsh --version
+command -v grok
 npm ls -g --depth=0 pnpm
 readlink -f "$(command -v pnpm)"
 # R-4（変数名だけを出し、値は出さない）
