@@ -231,3 +231,12 @@ def test_fork_and_upstream_fetches_keep_separate_refs(tmp_path):
 - 既存のテストが失敗したら: 基準版（302 件成功、`tmp/agents/issue-146.zw5ywlyu/baseline-skills.log`）と比べ、新しい失敗だけを調べる。#128 の不安定なテストは既知
 - 行動比較の GREEN で誤りが残ったら: 文面を直して 1 回だけ再実行し、なお残れば停止して報告する
 - 競合（同じ Issue の PR・予約）が見つかったら: push・PR をせずに停止する
+
+## 完了
+
+状態は draft のまま（内容の承認は無い）。Task 1〜6 を完了し、公開（Task 7）に進む。結果は Spec の「実装・検証結果」にある。
+
+- Task 1: Ruling: abandon の CLI テストは Step 1 で `--pr-repo` を足したため Task 2 まで失敗した（中間 commit `bd1a98c` の 1 件だけ）
+- Task 5: RED・GREEN の行動比較は各 1 体。GREEN で REFACTOR は不要
+- Task 6: ブランチ全体のレビューの Important 1 と、Important に上げた Minor 4 を `1cc7a8b` で修正。残りの Minor は見送り（Spec に記載）
+- 実行予算: 240 分のうち ledger の能動時間は約 35 分（05:40Z 開始）。ledger の前に Issue の確認・worktree の作成（05:35Z）・調査があった

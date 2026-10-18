@@ -99,3 +99,18 @@
 
 - Issue 本文を確認。コメント 0 件、親 Issue・依存（blocked_by）なし。同じ Issue の open PR・予約 ref・branch・worktree なし（open PR は #141 だけ）。
 - 基準版の `uv run pytest .agents/skills/pr-review .agents/skills/repo-cleanup-after-merge .agents/skills/review-fix-planning -q`: 302 passed、終了コード 0（63 秒）。ログは `/workspaces/reso-world/tmp/agents/issue-146.zw5ywlyu/baseline-skills.log`。
+
+### 実装・検証結果（2026-10-18）
+
+- 実装: `bd1a98c`（create・state・save）、`5449d5a`（inspect・abandon）、`5664303`（sessions）、`ba69ee5`（pr-review の SKILL.md と fetch のブロックのテスト）、`d9a5892`（片付け・review-fix-planning・AGENTS.md）、`1cc7a8b`（レビューの指摘 2 件の文面修正）。
+- helper のテスト: `test_pr_review_workspace.py` は基準の 141 件から 153 件。追加は、fork と上流の別々の保存・再レビュー、不正・大文字の `--pr-repo`、旧形式の報告、version 6 の拒否、非正規・書き換えた `pr_repository`、試行の所属の照合、`sessions` の 6 種（fork MERGED と上流 OPEN とその逆・CLOSED、version 6、gh の失敗と不在、別の番号、state の欠落・配列、locked）。
+- fetch のブロック: `test_fork_and_upstream_fetches_keep_separate_refs` が SKILL.md の共通 context と fetch のブロックを抜き出して実行し、fork と上流の PR 11 が別々の ref と head になり、後の取得が先の ref を変えないこと、存在しない PR で止まることを確かめた。
+- 行動比較（机上、コマンドは実行しない。場面は `tmp/agents/issue-146.zw5ywlyu/red-scenario.md`・`green-scenario.md`）:
+  - RED（変更前の SKILL.md）: 上流の一覧を見る指示が無い。回答は「usaturn だけを見ると手順 5 で 2 つとも消してしまう」。自分の判断で上流も見た結果、マージ済みの #9 の worktree まで残した。
+  - GREEN（変更後）: `sessions` の `removable: true` の #9 だけを削除し、上流 OPEN の #6 と version 6 の #4 を reason 付きで残した。ゲート A は #9 の session だけに適用した。REFACTOR は不要。
+- 検証（`d9a5892`）: `bash .devcontainer/run-tests.bash` 32 PASS・終了コード 0、`bash scripts/check-layout.sh` PASS・終了コード 0、`uv run pytest tests/skills .agents/skills .agents/scripts` 656 passed・終了コード 0（182.59 秒）。
+- 最終検証（`1cc7a8b`、レビューの修正の後）: `run-tests.bash` 32 PASS・終了コード 0、`check-layout.sh` PASS・終了コード 0、`uv run pytest tests/skills .agents/skills .agents/scripts` 656 passed・終了コード 0（175.50 秒）。ログは `/workspaces/reso-world/tmp/agents/issue-146.zw5ywlyu/` に置き、要点はこの節に転記した。
+- ブランチ全体のレビュー（新しい文脈のサブエージェント、読み取り専用）: Critical 0、Important 1、Minor 6。
+  - 修正: Important 1（旧形式があると「Initial として保存」と書き、Mode の規則と食い違う）。Minor 4（review-fix-planning が解決したディレクトリの所属と `PR_REPO` を照合しない）は Issue の取り違えと同じ形なので Important に上げて修正。どちらも文面だけで、テストは追加していない。
+  - 見送り: 壊れた `session.json` 1 件で `sessions` 全体が止まる（全件を残す側に倒れる）、gh の timeout 無し、片付けの SKILL.md の旧い保存先の例示、正規化の順序、移行期にレビューが 2 つのディレクトリに分かれること。
+- 既知の影響: 更新時にレビュー中の version 6 session は保存・削除できない（draft は `/tmp` に残る）。旧形式のレビュー・`refs/pr-review/<N>` は残る。旧形式のレビューがある open PR の次の再レビューは Initial から始まり、review-fix-planning の `#番号` は旧形式と新形式の両方に一致して止まる（フルパスで指定する）。
