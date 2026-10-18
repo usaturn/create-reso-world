@@ -42,7 +42,7 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
 
 `#<番号>` 以外の第1引数は従来どおりレビューディレクトリのパスとして扱う。
 
-PR の URL（`https://github.com/<owner>/<repo>/pull/<N>`）か番号が別に渡されたら、`<owner>/<repo>` を `PR_REPO`、`<N>` を `PR_NUMBER` にする。レビューディレクトリ名の `#<番号>` が `PR_NUMBER` と食い違うときは、推測せず停止する。
+PR の URL（`https://github.com/<owner>/<repo>/pull/<N>`）か番号が別に渡されたら、`<owner>/<repo>` を `PR_REPO`、`<N>` を `PR_NUMBER` にする。レビューディレクトリ名の `#<番号>` が `PR_NUMBER` と食い違うときは、推測せず停止する。レビューディレクトリが `reviews/<owner>/<repo>/` の下にあり、その `<owner>/<repo>` が `PR_REPO` と食い違う（大文字小文字は区別しない）ときも、推測せず停止する。fork と上流は番号も head も重なり得るので、別のリポジトリの PR のレビューで修正計画を立てない。
 
 ## 手順
 
