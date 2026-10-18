@@ -44,9 +44,27 @@ sys.path.insert(0, str(Path(sys.argv[1]) / '.agents/scripts'))
 from review_target import fetch_pull_head
 print(fetch_pull_head(Path(sys.argv[2]), sys.argv[3], int(sys.argv[4]), sys.argv[5], remote=sys.argv[6]))
 PYCODE
-git -C "$TARGET_REPO_ROOT" fetch --no-tags "$BASE_REMOTE" "$BASE_REF"
-BASE=$(git -C "$TARGET_REPO_ROOT" merge-base FETCH_HEAD "$VERIFY_HEAD")
+# BASE の取得は一意の専用 ref で行い、共有 FETCH_HEAD は読み書きしない。
+BASE=$(
+  set -eu
+  BASE_SESSION=$(mktemp -d "${TMPDIR:-/tmp}/review-verify-base.XXXXXX") || exit 1
+  BASE_FETCH_REF="refs/review-verify/base/${BASE_SESSION##*/}"
+  cleanup_base() {
+    cleanup_status=0
+    git -C "$TARGET_REPO_ROOT" update-ref -d "$BASE_FETCH_REF" || cleanup_status=$?
+    rmdir -- "${BASE_SESSION:?}" || cleanup_status=$?
+    return "$cleanup_status"
+  }
+  trap cleanup_base EXIT
+  trap 'exit 1' HUP INT TERM
+  git -C "$TARGET_REPO_ROOT" fetch --no-tags --no-write-fetch-head \
+    "$BASE_REMOTE" "+${BASE_REF}:${BASE_FETCH_REF}" || exit 1
+  BASE_SHA=$(git -C "$TARGET_REPO_ROOT" rev-parse --verify "$BASE_FETCH_REF^{commit}") || exit 1
+  git -C "$TARGET_REPO_ROOT" merge-base "$BASE_SHA" "$VERIFY_HEAD"
+) || { printf '%s\n' 'base の取得に失敗したため停止する' >&2; exit 1; }
 ```
+
+専用 ref は取得直後に完全 SHA へ固定し、以後の比較はその SHA を使う。並行 fetch が共有の `FETCH_HEAD` や remote-tracking ref を変えても `BASE` の算出には使わない。専用 ref と一時領域は成功・途中失敗のどちらでも trap で片付ける。
 
 ## 時間
 

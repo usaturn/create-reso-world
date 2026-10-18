@@ -57,7 +57,14 @@ review = area / 'reviews/example/review-demo/#900-fixture'
 started = time.monotonic()
 now = lambda: datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 started_at = now()
-env = dict(os.environ, GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+# Git's environment selectors override -C; never inherit host repositories/config.
+env = {name: value for name, value in os.environ.items()
+       if not name.startswith('GIT_') and name not in {'BASH_ENV', 'ENV'}}
+home = area / 'home'
+home.mkdir()
+env.update(HOME=str(home), XDG_CONFIG_HOME=str(home / 'config'),
+           GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
+           GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
            GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid',
            PYTHONDONTWRITEBYTECODE='1')
 transcript = []

@@ -1283,3 +1283,130 @@ def test_initial_snapshot_cannot_silently_skip_an_unreadable_subdirectory(dispat
             dispatch.snapshot_review(scenario.review_dir)
     finally:
         hidden.chmod(0o700)
+
+
+# These regressions catch ancestor-only guards, missed post-launch guards and
+# content-only snapshots. Every payload is otherwise valid.
+def publication_tree(scenario: Scenario, tmp_path: Path) -> Path:
+    parent = tmp_path / "publication"
+    review = parent / "owner/repository/review"
+    review.parent.mkdir(parents=True)
+    scenario.review_dir.rename(review)
+    scenario.review_dir = review
+    scenario.request["review_dir"] = str(review)
+    verified = review / "verified"
+    verified.mkdir()
+    for suffix in ("fix-check", "statement-candidates"):
+        (verified / f"{scenario.fix[:12]}.{suffix}.json").write_bytes(b"previous accepted result\n")
+    referent = tmp_path / "referent"
+    referent.write_bytes(b"outside contents\n")
+    (review / "reference").symlink_to(referent)
+    return parent
+
+
+def redirect_parent(parent: Path) -> None:
+    moved = parent.with_name(parent.name + "-moved")
+    parent.rename(moved)
+    parent.symlink_to(moved, target_is_directory=True)
+
+
+@pytest.mark.parametrize("depth", [1, 3])
+def test_initial_ancestor_symlink_rejects_without_launch_or_any_state_change(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, managed_state: Any, depth: int,
+) -> None:
+    parent = publication_tree(scenario, tmp_path)
+    for _ in range(depth - 1):
+        parent = next(child for child in parent.iterdir() if child.is_dir())
+    redirect_parent(parent)
+    argv = main_argv(tmp_path, scenario.request, "probe")
+    before = managed_state(tmp_path)
+
+    def forbidden(_: str) -> Any:
+        raise AssertionError("an invalid publication path must not launch an adapter")
+
+    assert dispatch.main(argv, adapter_loader=forbidden) == 2
+    assert managed_state(tmp_path) == before
+
+
+def test_ancestor_replaced_after_dispatch_is_not_unchanged_or_accepted(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, managed_state: Any,
+) -> None:
+    parent = publication_tree(scenario, tmp_path)
+    run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload())
+    saved = json.loads((run_dir / "dispatch.json").read_text())
+    redirect_parent(parent)
+    before = managed_state(tmp_path)
+    assert dispatch.review_changes(scenario.review_dir, saved["review_snapshot"])
+    assert accept(dispatch, run_dir) == 1
+    assert managed_state(tmp_path) == before
+
+
+def test_dispatch_observes_an_ancestor_replaced_before_the_worker_stops(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, managed_state: Any,
+) -> None:
+    parent = publication_tree(scenario, tmp_path)
+
+    class RedirectingAdapter(PayloadAdapter):
+        def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
+            redirect_parent(parent)
+            return super().collect(context, stdout_path, stderr_path)
+
+    result = dispatch.dispatch(
+        config("probe"), scenario.request, tmp_path / "run",
+        adapter_loader=loader_for(RedirectingAdapter(scenario.payload())),
+    )
+    assert result["batch"]["state"] == "success"
+    assert result["review_changes"]
+    before = managed_state(tmp_path)
+    assert accept(dispatch, Path(result["batch"]["artifact_dir"])) == 1
+    assert managed_state(tmp_path) == before
+
+
+@pytest.mark.parametrize("checkpoint", ["inventory", "validation"])
+@pytest.mark.parametrize("mutation", ["ancestor", "root", "contents"])
+def test_accept_rechecks_destination_after_validation_before_creating_any_output(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, managed_state: Any,
+    monkeypatch: pytest.MonkeyPatch, checkpoint: str, mutation: str,
+) -> None:
+    parent = publication_tree(scenario, tmp_path)
+    run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload())
+    at_redirect: list[Any] = []
+    if checkpoint == "inventory":
+        owner, name = dispatch, "check_inventory"
+    else:
+        owner, name = dispatch.load_review_findings(), "check_statement_judgments"
+        monkeypatch.setattr(dispatch, "load_review_findings", lambda: owner)
+    original = getattr(owner, name)
+
+    def redirect_after_real_check(*args: Any, **kwargs: Any) -> Any:
+        result = original(*args, **kwargs)
+        if mutation == "ancestor":
+            redirect_parent(parent)
+        elif mutation == "root":
+            moved = scenario.review_dir.with_name("original-review")
+            scenario.review_dir.rename(moved)
+            shutil.copytree(moved, scenario.review_dir, symlinks=True)
+        else:
+            # A concurrent accepted-file update must not be overwritten either.
+            existing = scenario.review_dir / "verified" / f"{scenario.fix[:12]}.fix-check.json"
+            existing.write_bytes(b"a later accepted result\n")
+        at_redirect.append(managed_state(tmp_path))
+        return result
+
+    monkeypatch.setattr(owner, name, redirect_after_real_check)
+    assert accept(dispatch, run_dir) == 1
+    assert len(at_redirect) == 1
+    assert managed_state(tmp_path) == at_redirect[0]
+
+
+def test_identical_contents_in_a_replacement_review_directory_are_not_accepted(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, managed_state: Any,
+) -> None:
+    publication_tree(scenario, tmp_path)
+    run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload())
+    moved = scenario.review_dir.with_name("original-review")
+    scenario.review_dir.rename(moved)
+    shutil.copytree(moved, scenario.review_dir, symlinks=True)
+    before = managed_state(tmp_path)
+    assert accept(dispatch, run_dir) == 1
+    assert managed_state(tmp_path) == before

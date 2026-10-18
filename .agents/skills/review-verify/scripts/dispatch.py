@@ -203,13 +203,15 @@ def time_limits(started: datetime, deadline_seconds: int) -> dict[str, Any]:
 
 
 def check_review_directories(root: Path) -> None:
-    """保存入口そのもののリンクは、呼び出し側の保存先外へ書くので拒否する。"""
-    if root.is_symlink() or (root / "verified").is_symlink():
+    """保存入口とその全祖先のリンクを拒否する（同時変更の sandbox ではない）。"""
+    if any(path.is_symlink() for path in (root, *root.parents, root / "verified")):
         raise ValueError("review_dir and verified must not be symlinks")
 
 
 def snapshot_review(root: Path) -> dict[str, str]:
     """Gitignore や repository の境界によらず保存先を観測する。内容とリンク参照先は保存しない。"""
+
+    check_review_directories(root)
 
     def inaccessible(error: OSError) -> None:
         raise error
@@ -224,7 +226,10 @@ def snapshot_review(root: Path) -> dict[str, str]:
             ".", dir_fd=root_fd, follow_symlinks=False, onerror=inaccessible
         ):
             relative = Path(directory)
-            entries[str(relative)] = str(os.fstat(directory_fd).st_mode)
+            info = os.fstat(directory_fd)
+            entries[str(relative)] = (
+                f"{info.st_mode}:{info.st_dev}:{info.st_ino}" if relative == Path(".") else str(info.st_mode)
+            )
             for name in dirs + files:
                 info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
                 value = ""
@@ -253,7 +258,7 @@ def review_changes(root: Path, before: dict[str, str]) -> list[str]:
     """監査不能も無変更とはしない。観測値から書込み元を断定せず、後片付けもしない。"""
     try:
         after = snapshot_review(root)
-    except OSError:
+    except OSError, ValueError:
         return ["<review snapshot unavailable>"]
     return sorted(path for path in before.keys() | after.keys() if before.get(path) != after.get(path))
 
@@ -396,6 +401,16 @@ class AcceptError(Exception):
         self.code = code
 
 
+def require_unchanged_review(root: Path, before: dict[str, str]) -> None:
+    """起動時の保存先全体と照合し、変更も監査不能も同じ理由で拒否する。"""
+    changes = review_changes(root, before)
+    if changes:
+        raise AcceptError(
+            "review_dir changed; do not treat these paths as previously accepted results: "
+            + json.dumps(changes, ensure_ascii=True)
+        )
+
+
 def load_review_findings() -> Any:
     spec = importlib.util.spec_from_file_location("review_findings", REVIEW_FINDINGS)
     assert spec is not None and spec.loader is not None
@@ -493,16 +508,7 @@ def accept(run_dir: Path) -> dict[str, str]:
         for key, value in cast(dict[object, object], before).items()
     ):
         raise AcceptError("dispatch.json has an invalid review_snapshot", 2)
-    changes = review_changes(review_dir, cast(dict[str, str], before))
-    if changes:
-        raise AcceptError(
-            "review_dir changed; do not treat these paths as previously accepted results: "
-            + json.dumps(changes, ensure_ascii=True)
-        )
-    try:
-        check_review_directories(review_dir)
-    except ValueError:
-        raise AcceptError("review_dir and verified must not be symlinks") from None
+    require_unchanged_review(review_dir, cast(dict[str, str], before))
     payload = final_payload(batch)
     document = cast(dict[str, Any], payload["verified"])
     try:
@@ -518,6 +524,15 @@ def accept(run_dir: Path) -> dict[str, str]:
     check_inventory(findings, data, inventory)
     document["verifier"] = observed
     stem = data.to[:12]
+    try:
+        checked = findings.validate_document(document)
+        if checked.get("mode") != "fix_check":
+            raise AcceptError("verified is not a fix_check document")
+        findings.check_statement_judgments(checked, inventory)
+    except findings.FindingsError as error:
+        raise AcceptError(f"validate failed: {error.problems[0]} (+{len(error.problems) - 1} more)") from None
+    # 検査中の変更も、一時ファイルを作る前に起動時の全 snapshot と照合する。
+    require_unchanged_review(review_dir, cast(dict[str, str], before))
     verified_dir = review_dir / "verified"
     verified_dir.mkdir(exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix=".accept-", dir=verified_dir))
@@ -526,13 +541,6 @@ def accept(run_dir: Path) -> dict[str, str]:
         target = work / f"{stem}.fix-check.json"
         sidecar.write_text(json.dumps(inventory, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         target.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        try:
-            checked = findings.validate_document(document)
-            if checked.get("mode") != "fix_check":
-                raise AcceptError("verified is not a fix_check document")
-            findings.check_statement_judgments(checked, cast(dict[str, Any], json.loads(sidecar.read_text("utf-8"))))
-        except findings.FindingsError as error:
-            raise AcceptError(f"validate failed: {error.problems[0]} (+{len(error.problems) - 1} more)") from None
         # sidecar を先に置き、fix-check が候補ファイルを欠いた状態で見えないようにする。
         os.replace(sidecar, verified_dir / sidecar.name)
         os.replace(target, verified_dir / target.name)
