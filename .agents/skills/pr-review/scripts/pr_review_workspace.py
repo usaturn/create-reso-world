@@ -798,7 +798,9 @@ SESSION_FILES = {JOURNAL_NAME, "session.json"}
 SESSION_DIRECTORIES = {"review-backup", "worktree"}
 
 
-def locate_attempt(repo: Path, temp_root_value: str | None, pr_number: int, attempt_id: str) -> Path | None:
+def locate_attempt(
+    repo: Path, temp_root_value: str | None, pr_repository: str, pr_number: int, attempt_id: str
+) -> Path | None:
     temp_root = Path(temp_root_value).resolve() if temp_root_value else Path(tempfile.gettempdir()).resolve()
     if not temp_root.is_dir():
         return None
@@ -812,6 +814,7 @@ def locate_attempt(repo: Path, temp_root_value: str | None, pr_number: int, atte
     if (
         header.get("main_root") != str(repo)
         or header.get("session_dir") != str(session_dir)
+        or header.get("pr_repository") != pr_repository
         or header.get("pr_number") != pr_number
     ):
         raise WorkspaceError("create journal does not match this repository, PR and session directory")
@@ -885,10 +888,11 @@ def attempt_report(repo: Path, session_dir: Path, attempt_id: str, *, running: b
 
 def inspect_attempt(args: argparse.Namespace) -> dict[str, Any]:
     attempt_id = validate_attempt_id(args.attempt_id)
+    pr_repository = normalize_pr_repository(args.pr_repo)
     repo = require_main_checkout(args.repo)
     deadline = time.monotonic() + args.wait
     while True:
-        session_dir = locate_attempt(repo, args.temp_root, args.pr_number, attempt_id)
+        session_dir = locate_attempt(repo, args.temp_root, pr_repository, args.pr_number, attempt_id)
         if session_dir is None:
             return {"attempt_id": attempt_id, "status": "absent", "session_dir": None}
         # Probe before reading so a just-finished attempt shows its end record.
@@ -1011,11 +1015,14 @@ def remove_attempt_worktree(repo: Path, worktree: Path) -> bool:
 
 def abandon_attempt(args: argparse.Namespace) -> dict[str, Any]:
     attempt_id = validate_attempt_id(args.attempt_id)
+    pr_repository = normalize_pr_repository(args.pr_repo)
     repo = require_main_checkout(args.repo)
     with review_save_lock(repo):
-        session_dir = locate_attempt(repo, args.temp_root, args.pr_number, attempt_id)
+        session_dir = locate_attempt(repo, args.temp_root, pr_repository, args.pr_number, attempt_id)
         if session_dir is None:
-            raise WorkspaceError(f"no create attempt {attempt_id} for PR {args.pr_number}; nothing to abandon")
+            raise WorkspaceError(
+                f"no create attempt {attempt_id} for PR {pr_repository}#{args.pr_number}; nothing to abandon"
+            )
         with finished_creator(session_dir / JOURNAL_NAME):
             status = attempt_report(repo, session_dir, attempt_id, running=False)["status"]
             require_abandonable_entries(session_dir)
@@ -1047,6 +1054,7 @@ def non_negative_integer(value: str) -> int:
 
 def add_attempt_arguments(command: argparse.ArgumentParser) -> None:
     command.add_argument("--repo", required=True)
+    command.add_argument("--pr-repo", required=True)
     command.add_argument("--pr-number", required=True, type=positive_integer)
     command.add_argument("--attempt-id", required=True)
     command.add_argument("--temp-root")

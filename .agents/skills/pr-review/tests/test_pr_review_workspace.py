@@ -1883,6 +1883,37 @@ def test_abandon_refuses_another_repository(tmp_path: Path, monkeypatch: pytest.
     assert attempt["result"]["worktree"] in git(attempt["repo"], "worktree", "list")
 
 
+def test_inspect_and_abandon_refuse_another_pr_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The fork and its upstream share the checkout; the PR number alone does
+    # not say whose attempt this is.
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    other = attempt_args(attempt["repo"], attempt["temp_root"], attempt["attempt"])
+    other.pr_repo = "orange3134/resoloop"
+    worktrees = worktree_paths(attempt["repo"])
+
+    for handler in (workspace.inspect_attempt, workspace.abandon_attempt):
+        with pytest.raises(workspace.WorkspaceError, match="does not match"):
+            handler(other)
+
+    assert attempt["session_dir"].is_dir()
+    assert worktree_paths(attempt["repo"]) == worktrees
+
+
+def test_abandon_keeps_a_journal_without_pr_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    attempt = completed_attempt(tmp_path, monkeypatch)
+    journal = attempt["session_dir"] / "create-journal.jsonl"
+    lines = journal.read_text(encoding="utf-8").splitlines(keepends=True)
+    header = json.loads(lines[0])
+    del header["pr_repository"]
+    journal.write_text(json.dumps(header) + "\n" + "".join(lines[1:]), encoding="utf-8")
+
+    with pytest.raises(workspace.WorkspaceError, match="does not match"):
+        workspace.abandon_attempt(attempt_args(attempt["repo"], attempt["temp_root"], attempt["attempt"]))
+
+    assert attempt["session_dir"].is_dir()
+    assert attempt["result"]["worktree"] in git(attempt["repo"], "worktree", "list")
+
+
 def test_abandon_touches_only_its_own_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     mine = completed_attempt(tmp_path, monkeypatch)
     repo = mine["repo"]
