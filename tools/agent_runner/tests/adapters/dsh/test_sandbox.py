@@ -10,6 +10,9 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parents[3] / "dsh_sandbox.py"
 BASE = ["--ro-bind", "/", "/", "--dev", "/dev", "--unshare-pid", "--proc", "/proc", "--die-with-parent"]
+# The writable profile hides /tmp, so a checkout's venv there is not visible; the
+# stdlib-only probe runs the interpreter the venv links to instead.
+PYTHON = str(Path(sys.executable).resolve())
 
 
 def invoke(
@@ -43,7 +46,7 @@ def invoke(
             "--",
             *profile,
             "--",
-            sys.executable,
+            PYTHON,
             "-c",
             program,
         ],

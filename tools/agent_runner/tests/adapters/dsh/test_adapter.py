@@ -99,7 +99,9 @@ def test_adapter_cache_paths_are_writable_with_its_scoped_runner(context: Adapte
     state.write_text("observed")
     program = "from pathlib import Path; " + "; ".join(f"Path({str(path)!r}).mkdir()" for path in (cache, venv))
     program += f"; assert Path({str(state)!r}).read_text() == 'observed'"
-    result = subprocess.run([*command, *profile, sys.executable, "-c", program], capture_output=True, text=True)
+    # The profile hides /tmp; a checkout's venv there is not visible, the interpreter it links to is.
+    python = str(Path(sys.executable).resolve())
+    result = subprocess.run([*command, *profile, python, "-c", program], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert cache.is_dir() and venv.is_dir()
 
