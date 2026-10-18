@@ -62,6 +62,14 @@ provider = "opencode-go"
 effort = "max"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
 
+[agents.pi-go-glmf]
+runtime = "pi"
+command = ["pi"]
+model = "glm-5.3-flash"
+provider = "opencode-go"
+effort = "max"
+env = ["HOME", "PATH", "OPENCODE_API_KEY"]
+
 [agents.pi-gemf]
 runtime = "pi"
 command = ["pigemf"]

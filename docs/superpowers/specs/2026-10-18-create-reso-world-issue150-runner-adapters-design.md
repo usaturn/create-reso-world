@@ -48,9 +48,9 @@ model identityがログに無ければnullとし、起動設定を観測結果�
 
 ### agent定義
 
-移植元の `claude-opus`・`devin-swe`・`pi-gpt`・`pixg`・`pi-deepseek`・`pigod`・`codex`・`cursor`・`cursor-grok47` を、移植先の導入済みコマンド/launcherに合わせる。`origin/main` に `pigemf` があるので `pi-gemf` も定義する。既定のレビュアーやworkflowはここでは追加しない。
+移植元の `claude-opus`・`devin-swe`・`pi-gpt`・`pixg`・`pi-deepseek`・`pigod`・`pi-go-glmf`・`codex`・`cursor`・`cursor-grok47` を、移植先の導入済みコマンド/launcherに合わせる。`origin/main` に `pigemf` があるので `pi-gemf` も定義する。既定のレビュアーやworkflowはここでは追加しない。
 
-`pi-go-glmf` は対応する現行launcherが無いため定義しない。移植先のpigo/piglは別モデルなので代用しない。Piの現行launcherが使う `OPENCODE_API_KEY` をenv許可へ反映する。その他のlauncherは現行ファイルを確認して設定を合わせる。envは資格情報の名前だけを列挙する。
+`pi-go-glmf` は移植元と同じ導入済みの raw `pi` を使い、provider `opencode-go`・model `glm-5.3-flash`・effort `max` を明示する。モデル専用launcherは必要なく、現行のpigo/piglは変更・代用しない。Piの現行launcherが使う `OPENCODE_API_KEY` をenv許可へ反映する。その他のlauncherは現行ファイルを確認して設定を合わせる。envは資格情報の名前だけを列挙する。
 
 ### エラーと安全条件
 
@@ -63,7 +63,7 @@ CLIが終了コード0でも完全な応答・receiptが無ければ成功にし
 - D-150-3 選択: skill_versionsの不確かな観測を空mapのままにする。別案: 設定/パスから現在のファイルをhash。既存protocolの「実測」に合わないので後者は採らない。正確な観測を追加する範囲は各adapter内に限る。
 - D-150-4 選択: fakeを先に検証し、実機は最終レビュー後に各定義agentを1回ずつ確認する。別案: 実装中の反復実機。不要なAPI実行と他者の環境への変更を避ける。必要なAPIが失敗した場合は停止して未完了の条件を報告する。
 
-- D-150-5 選択: `pi-go-glmf` を省く。別案: raw piにGLMを明示する。親D-13の「移植先に無いランチャーのagentを定義しない」を優先し、pigo/piglを再解釈しない。`pi-gemf` は現行pigemfが存在するため含める。
+- D-150-5 選択: `pi-go-glmf` を移植元と同じ raw `pi` と明示的なprovider/model/effortで定義する。最終レビュー I-3 で、元の起動コマンドは導入済みの `pi` であり、モデル専用launcherを使っていないと確認した。親D-13は利用可能なrawコマンドによるagentを除外しないため、当初の省略判断を撤回する。元のIssueが指定したagentを復元する通常の設計修正として、issue-to-prの実行許可内でcontrollerが裁定した。利用者による内容承認は記録せずdraftを維持する。pigo/piglの変更や再解釈はしない。`pi-gemf` は現行pigemfが存在するため含める。
 
 ## 検証と反映
 

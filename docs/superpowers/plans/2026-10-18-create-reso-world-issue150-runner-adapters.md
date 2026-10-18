@@ -92,6 +92,14 @@ provider = "opencode-go"
 effort = "max"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
 
+[agents.pi-go-glmf]
+runtime = "pi"
+command = ["pi"]
+model = "glm-5.3-flash"
+provider = "opencode-go"
+effort = "max"
+env = ["HOME", "PATH", "OPENCODE_API_KEY"]
+
 [agents.pi-gemf]
 runtime = "pi"
 command = ["pigemf"]
@@ -101,7 +109,7 @@ effort = "high"
 env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"]
 ```
 
-`pi-go-glmf` は現行に対応launcherが無いので追加しない。pigo/piglのモデルを変更/再解釈しない。
+`pi-go-glmf` は導入済みのraw `pi` を使い、上記のprovider/model/effortを明示して追加する。最終レビュー I-3 とSpec D-150-5のcontroller裁定により、当初の省略指示を撤回した。元のIssueの指定範囲に戻す実行許可内の修正であり、内容承認は記録しない。pigo/piglのモデルを変更/再解釈しない。configのparse/checkとcontrollerによる各agent1回の実機確認に含める。
 
 **テストの要否:** 必要。実行するargv/入力/CLI出力解析/失敗分類という挙動を守る。文書・TOMLの固定文言テストは不要で、parse/checkとdiff/参照構造の確認を使う。
 

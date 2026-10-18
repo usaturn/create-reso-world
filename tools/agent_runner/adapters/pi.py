@@ -39,14 +39,18 @@ def _events(path: Path) -> Iterator[dict[str, object]]:
         return
     for line in data.decode("utf-8", errors="replace").splitlines():
         line = line.strip()
-        if not line.startswith("{"):
+        if not line.startswith(("{", "[")):
             continue
         try:
             value: object = json.loads(line)
         except ValueError:
-            continue
+            value = None
         if isinstance(value, dict) and isinstance(value.get("type"), str):
             yield cast(dict[str, object], value)
+        else:
+            # Keep corruption in stream order so it cannot disappear behind
+            # a previous successful completion. A fresh response may recover.
+            yield {"type": None, "malformed": line}
 
 
 def _text(path: Path) -> str:
@@ -181,6 +185,12 @@ def _classify(
     diagnostics = [stderr]
     failed = False
     for event in events:
+        malformed = event.get("malformed")
+        if event.get("type") is None and isinstance(malformed, str) and re.search(
+            r'"type"\s*:\s*"(?:error|agent_error)"', malformed
+        ):
+            diagnostics.append(malformed)
+            failed = True
         if event.get("type") in {"error", "agent_error"}:
             diagnostics.append(json.dumps(event))
             failed = True
@@ -197,7 +207,7 @@ def _classify(
     # Recovery may emit several agent_end events; only the final one and its
     # following settlement can complete this request. A new run invalidates it.
     settled = next((event for event in reversed(trailing) if event.get("type") == "agent_settled"), None)
-    if settled is None or any(event.get("type") in {"agent_start", "turn_start"} for event in trailing):
+    if settled is None or any(event.get("type") in {None, "session", "agent_start", "turn_start"} for event in trailing):
         return "response_failed", None, message
     if settled.get("aborted") is True:
         return "interrupted", None, message
@@ -212,7 +222,7 @@ def _classify(
 
 def _identity(events: list[dict[str, object]], message: dict[str, object] | None, context: AdapterContext) -> Identity:
     empty: dict[str, object] = {}
-    session = next((event for event in events if event.get("type") == "session"), empty)
+    session = next((event for event in reversed(events) if event.get("type") == "session"), empty)
     message = message or empty
     return Identity(
         model=_str(message.get("model")),

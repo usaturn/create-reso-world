@@ -301,3 +301,44 @@ def test_empty_skill_requires_observed_text_content(context: AdapterContext) -> 
         _agent_end(), {"type": "agent_settled"},
     ])
     assert outcome.identity.skill_versions == {}
+
+
+@pytest.mark.parametrize("tail,expected", [
+    ('{"type":"agent_end","messages":', "response_failed"),
+    ('{"type":"error","message":"authentication', "awaiting_authentication"),
+    ('{"type":[]}', "response_failed"),
+    ('{"type":{}}', "response_failed"),
+])
+def test_trailing_broken_event_cannot_reuse_success(context: AdapterContext, tail: str, expected: str) -> None:
+    outcome = _collect(context, [_session(), _agent_end(), {"type": "agent_settled"}, tail + "\n"])
+    assert outcome.receipt.status == expected
+    assert outcome.receipt.payload is None
+    assert outcome.identity.session_id == "sess-1"
+    assert outcome.identity.model == "fixture-model"
+
+
+def test_broken_event_before_fresh_completion_can_recover(context: AdapterContext) -> None:
+    outcome = _collect(context, [
+        _session("old"), _agent_end(), {"type": "agent_settled"},
+        '{"type":"agent_end","messages":\n',
+        _session("new"), {"type": "agent_start"},
+        _agent_end([_assistant('{"new": true}', model="new-model")]),
+        {"type": "agent_settled"}, "ordinary progress after completion\n",
+    ])
+    assert outcome.receipt.status == "success"
+    assert outcome.receipt.payload == {"new": True}
+    assert outcome.identity.session_id == "new"
+    assert outcome.identity.model == "new-model"
+
+
+def test_plain_progress_after_completion_is_harmless(context: AdapterContext) -> None:
+    outcome = _collect(context, [_agent_end(), {"type": "agent_settled"}, "plain progress\n"])
+    assert outcome.receipt.status == "success"
+    assert outcome.receipt.payload == {"ok": True}
+
+
+def test_new_session_without_completion_cannot_reuse_old_payload(context: AdapterContext) -> None:
+    outcome = _collect(context, [_session("old"), _agent_end(), {"type": "agent_settled"}, _session("new")])
+    assert outcome.receipt.status == "response_failed"
+    assert outcome.receipt.payload is None
+    assert outcome.identity.session_id == "new"

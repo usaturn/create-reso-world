@@ -168,12 +168,9 @@ class _CursorAdapter:
         for event in events:
             if event.get("type") == "system" and event.get("subtype") == "init":
                 sid = event.get("session_id")
-                if isinstance(sid, str):
-                    session_id = sid
+                session_id = sid if isinstance(sid, str) else None
                 observed = event.get("model")
-                if isinstance(observed, str):
-                    model = observed
-                break
+                model = observed if isinstance(observed, str) else None
         identity = Identity(model=model, session_id=session_id, skill_versions=_skill_versions(stdout))
 
         def failed(state: State) -> AdapterOutcome:
@@ -193,6 +190,11 @@ class _CursorAdapter:
         result: str | None = None
         errored = False
         for event in events:
+            if event.get("type") == "assistant" or (
+                event.get("type") == "system" and event.get("subtype") == "init"
+            ):
+                # A new response/session must produce its own terminal result.
+                result = None
             if event.get("type") == "error":
                 errored = True
             if event.get("type") != "result":

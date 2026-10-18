@@ -42,7 +42,7 @@ JSON の役割では最終回答を JSON object にする指示も加える。
 
 最後の ``agent_end`` に含まれる最後の assistant を回答に採用する。
 その後の ``agent_settled`` が必須であり、先に出た settlement や以前の成功だけでは成功にしない。
-後続の ``agent_start`` や ``turn_start`` がある場合は、次の実行が未完了として扱う。
+後続の ``session`` 、 ``agent_start`` や ``turn_start`` がある場合は、次の実行が未完了として扱う。
 ``agent_settled.aborted = true`` または中断を示す ``stopReason`` は ``interrupted`` になる。
 
 正常な ``stopReason`` と、役割に対応した空でない JSON object または text を要求する。
@@ -53,7 +53,10 @@ JSON では object 全体か JSON code fence 内の object を受け付ける。
 stderr と明示的なエラーイベント、失敗した最終 assistant の診断内容から認証待ち・承認待ちを分類する。
 これらの診断は一見有効な回答より優先する。
 成功した回答やプロンプト、通常のツール出力に認証に関する語が含まれても、それだけでは認証待ちにしない。
-JSON でない通知行や壊れたイベントは無視し、完了条件は別途検査する。
+JSON でない通常の通知・進捗行は無視する。
+JSON らしい破損行や文字列でない ``type`` は位置を保持し、最後の ``agent_end`` 以降にあれば ``response_failed`` とする。
+破損後に新しい完全な ``agent_end`` と ``agent_settled`` が出れば、その新しい回答を採用できる。
+ただし明示的なエラーや、途中で切れたエラーイベントの認証・承認診断は、後続の回答より優先する。
 
 .. _agent_runner_pi_identity:
 
@@ -61,7 +64,7 @@ identity の観測範囲
 ========================
 
 - ``model`` と ``provider`` は最終 assistant の同名フィールド、 ``effort`` は ``thinkingLevel`` から取得する。
-- ``session_id`` は ``session.id`` から取得する。
+- ``session_id`` は最後に観測した ``session.id`` から取得する。
 - 未観測のフィールドは null とし、要求された設定値をコピーしない。CLI 版は現在のイベントから取得せず null とする。
 - ``skill_versions`` は同じ ``toolCallId`` の native ``read`` 開始と成功した完了を対応付け、読み取った全文が現在の UTF-8 ファイル内容と一致した場合だけ SHA-256 を記録する。
 

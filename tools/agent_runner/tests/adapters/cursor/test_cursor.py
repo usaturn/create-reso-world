@@ -543,3 +543,37 @@ def test_collect_failed_result_subtype_supplies_diagnostic(tmp_path: Path, diagn
     })
     outcome = ADAPTER.collect(_context(tmp_path), stdout, _write(tmp_path / "stderr.log", ""))
     assert outcome.receipt is None and outcome.state == state
+
+
+@pytest.mark.parametrize("later", [
+    {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "partial"}]}},
+    {"type": "system", "subtype": "init", "session_id": "new", "model": "new-model"},
+])
+@pytest.mark.parametrize("completed", [False, True])
+def test_later_response_requires_its_own_result(tmp_path: Path, later: dict[str, object], completed: bool) -> None:
+    events = [
+        {"type": "system", "subtype": "init", "session_id": "old", "model": "old-model"},
+        {"type": "result", "subtype": "success", "is_error": False, "result": '{"old": true}'},
+        later,
+    ]
+    if completed:
+        events.append({"type": "result", "subtype": "success", "is_error": False, "result": '{"new": true}'})
+    outcome = ADAPTER.collect(_context(tmp_path), _stdout_events(tmp_path, *events), _write(tmp_path / "stderr.log", ""))
+    if completed:
+        assert outcome.receipt is not None and outcome.receipt.status == "success"
+        assert outcome.receipt.payload == {"new": True}
+    else:
+        assert outcome.state == "response_failed" and outcome.receipt is None
+    new_session = later.get("type") == "system"
+    assert outcome.identity.session_id == ("new" if new_session else "old")
+    assert outcome.identity.model == ("new-model" if new_session else "old-model")
+
+
+def test_notification_after_result_is_harmless(tmp_path: Path) -> None:
+    stdout = _stdout_events(tmp_path,
+        {"type": "result", "subtype": "success", "is_error": False, "result": '{"ok": true}'},
+        {"type": "system", "subtype": "status", "message": "done"},
+    )
+    stdout.write_text(stdout.read_text() + "ordinary progress\n")
+    outcome = ADAPTER.collect(_context(tmp_path), stdout, _write(tmp_path / "stderr.log", ""))
+    assert outcome.receipt is not None and outcome.receipt.payload == {"ok": True}

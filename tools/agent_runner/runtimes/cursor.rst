@@ -45,7 +45,9 @@ JSON 形式には JSON オブジェクト、text 形式には空でない本文�
 散文と JSON が混在するときは最初の JSON オブジェクトを取り出すが、不正な外側の JSON から内側だけを取り出して成功にはしない。
 
 ``error`` イベント、不正な result 、壊れた JSON らしいイベントがあれば、先行する成功結果を再利用せず ``response_failed`` とする。
-通常の進捗行は成功を無効にしない。
+成功 result の後に ``assistant`` または新しい ``system`` / ``init`` が出た場合、その応答に対応する新しい完了 result を必要とする。
+未完了のまま終われば以前の payload は返さず、新しい完了 result が出ればその payload を採用する。
+通常の通知・進捗行は成功を無効にしない。
 stderr 、非 JSON の stdout 行、失敗イベントの診断に認証要求があれば ``awaiting_authentication`` 、trust や承認要求があれば ``awaiting_approval`` とする。
 成功応答や prompt echo の認証関連の単語だけでは失敗にしない。
 終了コードが非ゼロの場合はランナー本体が成功を拒否する。
@@ -55,7 +57,8 @@ stderr 、非 JSON の stdout 行、失敗イベントの診断に認証要求�
 観測する identity
 =================
 
-``model`` と ``session_id`` は ``system`` / ``init`` イベントから得る。
+``model`` と ``session_id`` は最後の ``system`` / ``init`` イベントから得る。
+新しい init に値が無ければ、以前のセッションから補わず null にする。
 model は CLI が返す表示名である。
 未観測の値は要求設定から補完せず null にする。
 ``provider`` / ``effort`` / ``cli_version`` は、このイベント形式では観測しておらず null のままである。

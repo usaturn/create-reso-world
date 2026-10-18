@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -663,3 +664,33 @@ def test_invalid_final_object_cannot_return_a_nested_fragment(tmp_path: Path, te
     outcome = ADAPTER.collect(_context(tmp_path), stdout, _write(tmp_path/'stderr.log',''))
     assert outcome.receipt is None
     assert outcome.state == 'response_failed'
+
+
+@pytest.mark.parametrize("bad_type", [[], {}])
+@pytest.mark.parametrize("prior_success", [False, True])
+def test_invalid_event_type_is_response_failed_with_identity(tmp_path: Path, bad_type: object, prior_success: bool) -> None:
+    events = [{"type": "thread.started", "thread_id": "observed-thread"}]
+    if prior_success:
+        events.extend([
+            {"type": "item.completed", "item": {"type": "agent_message", "text": '{"old": true}'}},
+            {"type": "turn.completed"},
+        ])
+    events.append({"type": bad_type})
+    stdout = _write(tmp_path / "stdout.log", "".join(json.dumps(event) + "\n" for event in events))
+    context = replace(_context(tmp_path), environment={"CODEX_HOME": str(tmp_path / "missing")})
+    outcome = ADAPTER.collect(context, stdout, _write(tmp_path / "stderr.log", ""))
+    assert outcome.state == "response_failed" and outcome.receipt is None
+    assert outcome.identity.session_id == "observed-thread"
+
+
+@pytest.mark.parametrize("bad_type", [[], {}])
+@pytest.mark.parametrize("diagnostic,state", [
+    ("authentication required", "awaiting_authentication"),
+    ("approval required", "awaiting_approval"),
+])
+def test_invalid_type_preserves_failure_diagnostic_precedence(tmp_path: Path, bad_type: object, diagnostic: str, state: str) -> None:
+    stdout = _stdout_events(tmp_path, {"type": "thread.started", "thread_id": "observed-thread"}, {"type": bad_type})
+    context = replace(_context(tmp_path), environment={"CODEX_HOME": str(tmp_path / "missing")})
+    outcome = ADAPTER.collect(context, stdout, _write(tmp_path / "stderr.log", diagnostic))
+    assert outcome.state == state and outcome.receipt is None
+    assert outcome.identity.session_id == "observed-thread"

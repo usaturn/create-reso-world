@@ -37,7 +37,9 @@ def _event(line: str) -> dict[str, object] | None:
         value: object = json.loads(line)
     except json.JSONDecodeError:
         return None
-    return cast(dict[str, object], value) if isinstance(value, dict) else None
+    # Invalid event types are malformed output, never ignorable events.
+    # Validate before either diagnostic or failure set membership sees them.
+    return cast(dict[str, object], value) if isinstance(value, dict) and isinstance(value.get("type"), str) else None
 
 
 def _read(path: Path) -> str:
