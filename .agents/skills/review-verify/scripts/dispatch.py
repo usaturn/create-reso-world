@@ -202,16 +202,37 @@ def time_limits(started: datetime, deadline_seconds: int) -> dict[str, Any]:
     }
 
 
-def check_review_directories(root: Path) -> None:
+def reject_review_links(root: Path) -> None:
     """保存入口とその全祖先のリンクを拒否する（同時変更の sandbox ではない）。"""
     if any(path.is_symlink() for path in (root, *root.parents, root / "verified")):
         raise ValueError("review_dir and verified must not be symlinks")
 
 
+def check_review_directories(root: Path) -> None:
+    """起動の前に、保存できない保存先を拒否する。作成・削除・置換はしない。
+
+    root は呼び出し側が用意した既存のディレクトリ、verified は無いかディレクトリでなければ、
+    担当の結果を accept で保存できない（#177）。起動の後の変化は snapshot の照合が拒否する。
+    """
+    reject_review_links(root)
+    try:
+        root_mode = root.lstat().st_mode
+    except OSError:
+        root_mode = 0
+    if not stat.S_ISDIR(root_mode):
+        raise ValueError("review_dir must be an existing directory")
+    try:
+        verified_mode = (root / "verified").lstat().st_mode
+    except FileNotFoundError:
+        return
+    if not stat.S_ISDIR(verified_mode):
+        raise ValueError("verified must be absent or a directory")
+
+
 def snapshot_review(root: Path) -> dict[str, str]:
     """Gitignore や repository の境界によらず保存先を観測する。内容とリンク参照先は保存しない。"""
 
-    check_review_directories(root)
+    reject_review_links(root)
 
     def inaccessible(error: OSError) -> None:
         raise error
@@ -377,6 +398,8 @@ REQUEST_ERRORS = frozenset(
         "repository/from/to cannot be resolved",
         "verified_file is not valid JSON",
         "verified_file must contain a verified document",
+        "review_dir must be an existing directory",
+        "verified must be absent or a directory",
     }
 )
 

@@ -78,6 +78,7 @@ def verification_input(tmp_path: Path) -> dict[str, Any]:
         check=True,
     )
     head = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+    (tmp_path / "review").mkdir()
     verified = tmp_path / "verified.json"
     verified.write_text(json.dumps({
         "kind": "verified", "pr": {"repository": "usaturn/maatlog-poc", "number": 542}, "findings": []
@@ -1210,6 +1211,58 @@ def test_accept_rejects_a_late_verified_directory_symlink(dispatch: Any, scenari
     (scenario.review_dir / "verified").symlink_to(outside, target_is_directory=True)
     assert accept(dispatch, run_dir) == 1
     assert list(outside.iterdir()) == []
+
+
+@pytest.mark.parametrize("assign", ["probe", "self"])
+@pytest.mark.parametrize(
+    "anomaly,reason",
+    [
+        ("missing", "review_dir must be an existing directory"),
+        ("file", "review_dir must be an existing directory"),
+        ("verified-file", "verified must be absent or a directory"),
+    ],
+)
+def test_unusable_review_directory_is_rejected_before_launch_or_any_state_change(
+    dispatch: Any,
+    scenario: Scenario,
+    tmp_path: Path,
+    managed_state: Any,
+    capsys: pytest.CaptureFixture[str],
+    anomaly: str,
+    reason: str,
+    assign: str,
+) -> None:
+    """保存できない保存先では、最大 1800 秒の担当を起動せず、保存先を作り直したりもしない（#177）。"""
+    if anomaly == "verified-file":
+        (scenario.review_dir / "verified").write_bytes(b"not a directory\n")
+    else:
+        scenario.review_dir.rmdir()
+        if anomaly == "file":
+            scenario.review_dir.write_bytes(b"not a directory\n")
+    argv = main_argv(tmp_path, scenario.request, assign)
+    before = managed_state(tmp_path)
+
+    def forbidden(_: str) -> Any:
+        raise AssertionError("an unusable review_dir must not launch an adapter")
+
+    assert dispatch.main(argv, adapter_loader=forbidden) == 2
+    assert reason in capsys.readouterr().err
+    assert managed_state(tmp_path) == before
+
+
+def test_accept_lists_a_verified_file_created_after_dispatch(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """起動の後の照合は、種類の検査で例外にせず、変わったパスを列挙して拒否する。"""
+    run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload())
+    late = scenario.review_dir / "verified"
+    late.write_bytes(b"late file\n")
+    capsys.readouterr()
+    assert accept(dispatch, run_dir) == 1
+    error = capsys.readouterr().err
+    assert len(error.strip().splitlines()) == 1
+    assert '"verified"' in error
+    assert late.read_bytes() == b"late file\n"
 
 
 def test_dispatch_does_not_read_the_review_directory_without_stop_confirmation(
