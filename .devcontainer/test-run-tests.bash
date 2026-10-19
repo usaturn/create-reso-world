@@ -7,6 +7,8 @@ runner="$root/.devcontainer/run-tests.bash"
 tmp="$(mktemp -d)"
 trap 'rm -rf -- "$tmp"' EXIT
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
+# 4 番目の場合の git が、外から渡された GIT_* のリポジトリを書き換えないように（直接実行したときも。#166）
+while IFS= read -r name; do unset "$name"; done < <(compgen -e -X '!GIT_*')
 
 # 1. 既定の対象は .devcontainer/test-*.bash と tests/scripts/*.bash のすべてで、補助の tests/scripts/lib は含まない
 listed="$(bash "$runner" --list)"
