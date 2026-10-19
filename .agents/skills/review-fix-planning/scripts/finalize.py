@@ -96,6 +96,11 @@ def check_evidence(checks: Mapping[str, Any], head: str) -> None:
             raise Stop("environment: 正式検証が成功していない")
 
 
+def is_one_of(value: object, allowed: frozenset[str]) -> bool:
+    """JSONの値が、許す文字列のどれかか。リストなど文字列でない値はハッシュできないので、先に除く。"""
+    return isinstance(value, str) and value in allowed
+
+
 def check_ci(view: Mapping[str, Any], repo: str) -> None:
     # CI免除は CI_REQUIRED で false の登録先だけ。表に無いリポジトリは CI を必須とする。
     if not CI_REQUIRED.get(repo, True):
@@ -112,10 +117,10 @@ def check_ci(view: Mapping[str, Any], repo: str) -> None:
         if kind == "CheckRun" and check.get("status") != "COMPLETED":
             pending = True
         elif kind == "CheckRun":
-            if check.get("conclusion") not in GREEN_CONCLUSIONS:
+            if not is_one_of(check.get("conclusion"), GREEN_CONCLUSIONS):
                 raise Stop("external: 公開PRのCIに失敗した検査がある")
             passed |= check.get("conclusion") == "SUCCESS"
-        elif kind == "StatusContext" and check.get("state") in PENDING_STATUSES:
+        elif kind == "StatusContext" and is_one_of(check.get("state"), PENDING_STATUSES):
             pending = True
         elif kind == "StatusContext" and check.get("state") == "SUCCESS":
             passed = True
@@ -186,7 +191,7 @@ def is_spec_only_child(comparison: object, base: str, spec_commit: str) -> bool:
     if not isinstance(name, str) or not name.startswith(SPEC_DIRECTORY):
         return False
     leaf = name.removeprefix(SPEC_DIRECTORY)
-    return changed.get("status") in SPEC_FILE_STATUSES and "/" not in leaf and leaf.endswith(".md")
+    return is_one_of(changed.get("status"), SPEC_FILE_STATUSES) and "/" not in leaf and leaf.endswith(".md")
 
 
 def check_spec_change(runner: Any, repo: str, reviewed_head: str, spec_commit: str) -> None:

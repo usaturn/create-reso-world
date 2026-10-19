@@ -251,14 +251,17 @@ def test_public_ci_still_running_waits_and_the_rerun_finalizes(rollup: list[Any]
         [RUNNING, FAILED],
         [FAILED, RUNNING],
         [{"__typename": "StatusContext", "state": "ERROR"}],
+        # GitHubの応答の値が文字列でない（リスト）。例外にも、待てば進む停止にもせず、成功ではないとして止める
+        [{"__typename": "CheckRun", "status": "COMPLETED", "conclusion": ["SUCCESS"]}],
+        [{"__typename": "StatusContext", "state": ["PENDING"]}],
     ],
 )
 def test_public_ci_failure_or_absence_stops_without_waiting(rollup: list[Any]) -> None:
     gh = FakeGh(repo=PUBLIC)
     gh.view["statusCheckRollup"] = rollup
     result = mod.finalize(public_record(), "状況", checks(), runner=gh)
-    assert result["outcome"] == "stopped" and "wait_for" not in result
-    assert gh.writes() == []
+    assert result["outcome"] == "stopped" and result["stop_reason"].startswith("external:")
+    assert "wait_for" not in result and gh.writes() == []
 
 
 def test_unknown_mergeable_waits_and_the_rerun_finalizes() -> None:
@@ -656,6 +659,15 @@ BAD_COMPARISONS: dict[str, Any] = {
     "script": compare_response(files=[compare_file("docs/superpowers/specs/run.py")]),
     "not_an_object": ["ahead"],
     "no_files_key": {key: value for key, value in compare_response().items() if key != "files"},
+    # 値の型が想定外（GitHubの応答が崩れた）。例外にせず、成功と見なさずに止める
+    "status_list": compare_response(files=[{"filename": SPEC_FILE, "status": ["added"]}]),
+    "status_object": compare_response(files=[{"filename": SPEC_FILE, "status": {}}]),
+    "filename_not_a_string": compare_response(files=[{"filename": [SPEC_FILE], "status": "added"}]),
+    "file_not_an_object": compare_response(files=[SPEC_FILE]),
+    "commits_not_a_list": compare_response(commits={"sha": SPEC_HEAD}),
+    "commit_not_an_object": compare_response(commits=[SPEC_HEAD]),
+    "parents_missing": compare_response(commits=[{"sha": SPEC_HEAD}]),
+    "parent_not_an_object": compare_response(commits=[{"sha": SPEC_HEAD, "parents": [HEAD]}]),
 }
 
 
