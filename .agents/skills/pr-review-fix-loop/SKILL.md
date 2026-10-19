@@ -68,8 +68,9 @@ uv run --project "$TOOL_ROOT" --locked python \
    - review-fix-planning は、状況コメント（判断の記録）を投稿して、`fixes_pushed`・`no_fix_needed`・`stopped` のどれかで終わる。create-reso-world の PR の結論 2 は、Spec だけの commit を載せて `finalize.py --spec-commit` でマージする（`.agents/skills/review-fix-planning/references/execution.md` の 3 章）。
 4. **`cycle-end`**: `next` のコマンドに、この計画の結果に合わせて次の引数を足して呼ぶ。
    - `--role-run <dir>`: この計画で実行した `run_roles.py` の出力ディレクトリ（`--output-dir`）ごとに 1 つ。実際の割り当ての記録に使う。`run_roles.py` を実行しなかったサイクルでは付けない。
-   - `--finalize-result <file>` と `--round-dir <dir>`: 判断の記録の結果が `no_fix_needed` のとき（finalize.py が `stopped` を返したときも含む）。finalize.py の `--result-file` と、finalize.py に渡した記録・本文・検証記録を置いたディレクトリ（review-fix-planning のセッションディレクトリ）。そのディレクトリは `cycle-end` の後まで消さない。
+   - `--finalize-result <file>` と `--round-dir <dir>`: 判断の記録の結果が `no_fix_needed` のとき（finalize.py が `stopped` を返したときも含む）。finalize.py の `--result-file` と、finalize.py に渡した記録・本文・検証記録を置いたディレクトリ（review-fix-planning のセッションディレクトリ）。
    - `--record-file <file>`: 状況コメントを投稿できなかったときだけ。投稿しようとした記録の JSON。
+   - ここで渡すディレクトリとファイルは、review-fix-planning のセッションディレクトリの中にある。review-fix-planning の後片付け（`.agents/skills/review-fix-planning/references/execution.md` の 4 章のセッションディレクトリの削除）は、`cycle-end` が終わった後に行う。
 5. `next` が `cycle-begin` なら 1 へ戻る。`finish` なら「終わり方」へ進む。
 
 `cycle-end` が返す主な拒否:

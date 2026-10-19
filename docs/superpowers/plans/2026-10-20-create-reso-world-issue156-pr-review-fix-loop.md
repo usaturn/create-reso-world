@@ -220,7 +220,7 @@
 
 Spec の D-17 のとおり。本物のレビュアー（agent-runner の設定の inspect）を起動する。起動の上限は D-17 の「本物の担当の起動の上限」（サイクルは合計 3 回）。
 
-- [ ] **Step 0: frozen tool root を用意する**: `TOOL_TMP="$(mktemp -d "${TMPDIR:-/tmp}/create-reso-world-pr-loop-tool.XXXXXX")"`、`git -C /workspaces/reso-world worktree add --detach "$TOOL_TMP/tool" <PR の head>`、`uv run --project "$TOOL_TMP/tool" --locked python -c pass`（レビュアーが同時に `.venv` を作り始めないよう先に作る）。run の後に `git worktree remove` で外し、`rm -rf -- "${TOOL_TMP:?}"` で消す
+- [ ] **Step 0: frozen tool root を用意する**: `TOOL_TMP="$(mktemp -d "${TMPDIR:-/tmp}/create-reso-world-loop-tool.XXXXXX")"`（loop の出力の接頭辞 `create-reso-world-pr-loop-` と取り違えない名前）、`git -C /workspaces/reso-world worktree add --detach "$TOOL_TMP/tool" <PR の head>`、`uv run --project "$TOOL_TMP/tool" --locked python -c pass`（レビュアーが同時に `.venv` を作り始めないよう先に作る）。run の後に `git worktree remove` で外し、`rm -rf -- "${TOOL_TMP:?}"` で消す
 - [ ] **Step 1: `start`**: frozen tool root の `loop.py start <PR の URL> --controller-model claude-opus-5-5 --controller-runtime claude-code`。`warnings`・`herdr_pane` を記録する
 - [ ] **Step 2: サイクル**: `cycle-begin` → `review`（Bash の `run_in_background: true` で終了の通知を待つ）→ 親の main checkout の review-fix-planning の完遂（`planning.review_dir`、`run_roles.py` に `planning.run_roles_options`）→ `cycle-end`
 - [ ] **Step 3: 終わり方**: `no_fix_needed` なら finalize.py（`--spec-commit`）がマージし、`cycle-end --finalize-result --round-dir` → `finish`。`fixes_pushed` なら次のサイクル（合計 3 回まで。create-reso-world の PR なので、次のサイクルはレビュアーを起動し直す。Spec の D-19）。`stopped`・上限は止まって報告する。helper 自体の不具合で進めないときは、記録を手で直さずに止めて報告する（D-17）
