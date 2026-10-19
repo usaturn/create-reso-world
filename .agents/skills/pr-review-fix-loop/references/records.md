@@ -51,7 +51,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `options` | `max_cycles`、`assign`（`--assign` の値）、`template`、`config`、`fresh_review` |
 | `assignments` | 読み込んだ設定の有効な割り当て。`review.inspect` と `fix.implement`・`fix.self-review`・`fix.fix-check`（`agents`・`fallback`） |
 | `started_at`・`ended_at` | 時刻 |
-| `state` | `running`・`ended`・`held`（停止を確認できない資源があり、ロックを保持）・`abandoned`（結果の無いまま回収した） |
+| `state` | `running`・`ended`・`held`（停止を確認できない試行・後処理があり、ロックを保持）・`abandoned`（結果の無いまま回収した） |
 | `result` | `{"outcome", "ended_by", "stop_reason", "merged", "cycles"}`。`outcome` は `fixes_pushed`・`no_fix_needed`・`stopped`、`ended_by` は `outcome`・`cycle_limit`・`abort` |
 | `resources` | `[{"path", "kind": "runner_output", "cycle", "state", "reason"}]`。`state` は `created`（未回収）・`removed`・`retained`（消さずに残した） |
 | `notes` | `recover` で受け取った確認の事実など |
@@ -86,7 +86,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 
 レビュー・確認・判断の中身は写さない。参考データ（`.agents/review-findings.md` の識別情報・時間）は、パスで参照する成果の側にある。
 
-再実行の対象は、runner は成功（停止確認済み・終了コード 0）したのに loop が受け付けなかったレビュアー（`rejected_stage` が `runner` 以外）だけで、1 サイクルに 1 回まで。1 回目の runner の結果に、別の担当でも停止を確かめられない試行があれば再実行しない（資源を残し、`finish` と `recover` の停止確認の経路に返す）。最初の `review` はサイクルを `reviewing` のまま `review.rerun` を保存し、`next` に `review` を返す。2 回目の `review` は PR の HEAD を確かめてから、その実担当だけを fallback 無し・同じ role の期限で起動し、同じ検査を行う。却下した試行の `request.json` は runner の仕様で環境の値を含まない（`tools/agent_runner/interfaces.rst`）。停止を確かめられない試行の `request.json` は読まない。秘密が残りうる stdout・stderr は写さない。
+再実行の対象は、runner は成功（停止確認済み・終了コード 0）したのに loop が受け付けなかったレビュアー（`rejected_stage` が `runner` 以外）だけで、1 サイクルに 1 回まで。1 回目の runner の結果に、別の担当でも停止を確かめられない試行があれば再実行しない（資源を残す）。1 回目・再実行のどちらでも、runner の結果に停止を確かめられない試行があれば、受け付けたレビュアーがいても計画に進まず、run を `held` にして終了コード 7（`resources`）で `recover` の経路に返す。受け付けたレビュアーが 0 人なら終了コード 6 で、`finish` が run を `held` にする。最初の `review` はサイクルを `reviewing` のまま `review.rerun` を保存し、`next` に `review` を返す。2 回目の `review` は PR の HEAD を確かめてから、その実担当だけを fallback 無し・同じ role の期限で起動し、同じ検査を行う。却下した試行の `request.json` は runner の仕様で環境の値を含まない（`tools/agent_runner/interfaces.rst`）。停止を確かめられない試行の `request.json` は読まない。秘密が残りうる stdout・stderr は写さない。
 
 ## 5. 終了コードと `stage`
 
@@ -99,7 +99,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | 4 | 対象の食い違い | `pr_not_open`、`head_moved`、`record_missing`、`record_inconsistent`、`pushed_head_mismatch`、`merge_mismatch` |
 | 5 | 外部（GitHub・git・runner）の失敗 | `github`、`git`、`parent`、`parent_preparation`、`runner`、`after_run` |
 | 6 | 全レビュアーの結果を受け付けられなかった | `review` |
-| 7 | 資源・後処理の停止を確認できない（ロックを保持） | `resources`、`after_run` |
+| 7 | 資源・後処理の停止を確認できない（run を `held` にしてロックを保持する。`next` は `recover`） | `resources`、`after_run` |
 
 `check-options` は記録を書かない。成功の出力は `{"status": "ok", "options", "assignments", "next": null}` で、`options` は `run.json` の `options` から `fresh_review` を除いた形、`assignments` は `run.json` と同じ形である。失敗は終了コード 2（`arguments`・`config`）で、`run_dir` と `next` は null。
 
@@ -111,4 +111,4 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 - 判断の記録は、書き込み権限のある投稿者（`OWNER`・`MEMBER`・`COLLABORATOR`）と、認証済みの利用者自身（`gh api user` の login）のコメントからだけ読む。login を取れないときは、`cycle-begin`・`cycle-end` が終了コード 5（`github`）で止まる（`.agents/review-records.md` 8.1）。
 - `review.reviewers[].identity` は runner の事後の観測、`reviewer` は pr-review が成果に記録した値で、同じとは限らない。未観測の値を設定から補わない。
 - `merged` は、finalize の結果と PR の実際の状態の両方で確かめた値である。finalize の結果に `spec_commit`（create-reso-world の PR の結論 2 の、Spec だけの commit）があれば PR の head が `spec_commit` と、無ければサイクルの HEAD と同じことを確かめる。
-- `recover` は、停止を確かめた事実を受け取った資源でも、秘密が残りうるファイル（runner の `sensitive_paths`。runner の結果が無いときはディレクトリ全体）を消さずに残し、`retained` に完全パスを書く。
+- `recover` は、runner の試行が停止済みでも、その出力で始めた後処理（after_run）の停止を確かめられない資源（後処理の報告が無い、または `stop_confirmed` が true でない報告を含む）を、事実なしには回収しない。停止を確かめた事実を受け取った資源でも、秘密が残りうるファイル（runner の `sensitive_paths`。runner の結果が無いときはディレクトリ全体）を消さずに残し、`retained` に完全パスを書く。

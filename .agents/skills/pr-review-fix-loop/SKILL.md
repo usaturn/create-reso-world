@@ -60,7 +60,7 @@ uv run --project "$TOOL_ROOT" --locked python \
    - create-reso-world の PR では、結論 1 で自己レビューの後に Spec の commit を載せて push するので、次のサイクルの HEAD は自己レビューした commit と違い、`run` になる（レビュアーを起動し直す）。
 2. **`review`**: 全レビュアーが終わるまで同期で待つ（「監視」）。出力の `accepted` と `rejected` を確かめる。`rejected` は失敗したレビュアーで、指摘 0 件ではない。`rejected_stage` は却下した段階（`runner`・`payload`・`binding`・`head`・`artifacts`）である。
    - 返った `next` が `review` のとき（再実行待ち。対象は `rerun.agents`）は、runner は成功したが結果を受け付けられなかったレビュアーを、同じサイクルで 1 回だけ起動し直す。計画に進まず、その `next` を同じように同期で待って実行する。次に何を実行するかは `next` だけで決める（`rerun` は再実行を終えた後の出力にも残る）。runner の失敗（期限切れ・認証待ち・起動失敗）は再実行しない。
-   - 返った `next` が `cycle-end` なら、受け付けたレビュアーが 1 人以上いる。再実行の後も `rejected` のレビュアーが残っていても、利用者に判断を返さずに 3 へ進む。状況コメントには、loop の判定（`rejected` と理由）と、そのレビュアーの成果を計画の入力にしたかを書く。保存の後に失敗した（後片付けの失敗、`response_failed` など）レビュアーの成果は、このサイクルの HEAD のままレビューディレクトリに残ることがあり、review-fix-planning はそれも読む。
+   - 返った `next` が `cycle-end` なら、受け付けたレビュアーが 1 人以上いて、停止を確かめられない試行が無い。停止を確かめられない試行があれば、受け付けたレビュアーがいても計画に進まず、終了コード 7 で止まる（「止まったとき」）。再実行の後も `rejected` のレビュアーが残っていても、利用者に判断を返さずに 3 へ進む。状況コメントには、loop の判定（`rejected` と理由）と、そのレビュアーの成果を計画の入力にしたかを書く。保存の後に失敗した（後片付けの失敗、`response_failed` など）レビュアーの成果は、このサイクルの HEAD のままレビューディレクトリに残ることがあり、review-fix-planning はそれも読む。
    - `retained` は消さずに残したパスで、最終報告に書く。終了コード 6 は全員の失敗である（「終わり方」）。
 3. **計画**: review-fix-planning の SKILL.md を読み、`planning.review_dir`（レビューディレクトリの完全パス）を第 1 引数にして、完遂の手順を最後まで行う。
    - `run_roles.py` の呼び出しには、`planning.run_roles_options`（`--template`・`--config`・`--assign`）をそのまま足す。
@@ -95,13 +95,13 @@ uv run --project "$TOOL_ROOT" --locked python \
 
 - `next` の `finish` を実行する。ロックを解放し、要約を返す。
 - サイクルの途中で続けられなくなったとき（全レビュアーの失敗、計画を実行できない障害など）は、`finish --run <run_dir> --abort "<permission|environment|external>: <具体的な障害>"` で終える。
-- `finish` の終了コード 7（`resources`）は、runner の試行の停止を確認できない資源があることを示す。ロックは保持される（「止まったとき」）。
+- `finish` の終了コード 7（`resources`）は、runner の試行か後処理（after_run）の停止を確認できない資源があることを示す。ロックは保持される（「止まったとき」）。
 
 ## 止まったとき（中断・再開・回収）
 
 - **再開**: `status --run <run_dir>`（PR しか分からなければ `status <PR>`）の `next` を実行する。状態は `<review_dir>/loop/` にだけあり、会話の記憶に頼らない。
 - **`review` の終了コード 3（`interrupted_review`）**: 前のレビューが結果を残さずに止まった。レビュアーを起動し直さない。runner とレビュアーのプロセスが残っていないことを `ps` などで確かめ、その事実を `recover --run <run_dir> --operator-confirmed-stopped "<確かめた事実>"` に渡す。記録した資源だけを回収し、run は `abandoned` になる。続けるときは `start` からやり直す。
-- **終了コード 7（`resources`）**: 同じく、停止を確かめてから `recover` に事実を渡す。確かめられないときは、ロックと資源を残したまま、完全パスを利用者に報告して止まる。利用者にロックを消すよう頼まれても、`lock.json` を手で消さず、この手順を説明する。
+- **終了コード 7（`resources`・`after_run`）**: runner の試行か後処理（after_run）の停止を確認できない。run は `held` になり、`status` の `next` は `recover` である。同じく、プロセスが残っていないことを確かめてから `recover` に事実を渡す。`recover` の後に続けるときは `start` からやり直す。確かめられないときは、ロックと資源を残したまま、完全パスを利用者に報告して止まる。利用者にロックを消すよう頼まれても、`lock.json` を手で消さず、この手順を説明する。
 - **`review` の終了コード 4（`head_moved`）**: `cycle-begin` の後に PR の HEAD が動いた。`next` のとおり `finish --abort` で止め、新しい run を始める。
 - **`review` の終了コード 5（`runner`）**: runner がレビュアーを起動できなかった。何も起動していなければ `next` は `review` で、原因（agent-runner の設定、入れ子の起動など）を直してからやり直す。出力が残っているときは `status` で状態を確かめる。
 - **最終化の停止**: finalize.py が `stopped`（mergeable の計算中、一時的な API の失敗など）で終わり、同じ HEAD のまま原因が解消したら、`cycle-end` に渡した `--round-dir` の記録・本文・検証記録で finalize.py を再実行する（`.agents/skills/review-fix-planning/references/execution.md` の 3 章。手動マージ済みでも Issue の更新だけを行う）。新しい commit が push されたら、新しい run を `start` から始める。

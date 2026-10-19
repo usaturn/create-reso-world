@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -1196,9 +1197,9 @@ def test_missing_output_parent_does_not_hide_registered_worktrees(
     if entrypoint == "cleanup":
         assert loop.cleanup_output(env.parent, resource, None, force=True) == [str(worktree)]
     else:
-        assert loop.audit_resources(run) == [str(parent)]
+        assert loop.audit_resources(run, []) == [str(parent)]
         # A retained resource still requires stop evidence on later calls.
-        assert loop.audit_resources(run) == [str(parent)]
+        assert loop.audit_resources(run, []) == [str(parent)]
     assert resource.state == "retained"
     assert str(worktree) in [str(path) for path in loop._registered_worktrees(env.parent)]
     assert (other / "untracked").read_text() == "do not remove"
@@ -1227,7 +1228,7 @@ def test_missing_output_checks_fail_closed(loop: Any, env: Any, tmp_path: Path, 
         result = (
             loop.cleanup_output(env.parent, resource, None, force=True)
             if entrypoint == "cleanup"
-            else loop.audit_resources(run)
+            else loop.audit_resources(run, [])
         )
         assert result == [str(parent)] and resource.state != "removed"
     finally:
@@ -1242,7 +1243,9 @@ def test_missing_parent_with_no_registration_is_removed(loop: Any, env: Any, tmp
     run = loop.load_run(Path(env.start()["run_dir"]))
     resource = loop.Resource(path=str(tmp_path / f"{loop.TMP_PREFIX}gone"), cycle=1, state="created")
     run.resources.append(resource)
-    result = loop.cleanup_output(env.parent, resource, None) if entrypoint == "cleanup" else loop.audit_resources(run)
+    result = (
+        loop.cleanup_output(env.parent, resource, None) if entrypoint == "cleanup" else loop.audit_resources(run, [])
+    )
     assert result == [] and resource.state == "removed"
 
 
@@ -1617,3 +1620,225 @@ def test_review_stops_before_creating_output_when_the_checkout_cannot_be_resolve
     monkeypatch.setattr(loop.target, "target_checkout", real)
     reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
     assert [item["agent"] for item in reviewed["accepted"]] == ["alpha"]
+
+
+# --- 停止を確認できない間の保持 -----------------------------------------------------------------------------------
+
+STOPPED_FACT = "ps で runner・レビュアー・後処理の子プロセスが無いことを確かめた"
+
+
+def tree(root: Path) -> list[tuple[str, bytes | str | None]] | None:
+    """ディレクトリの中の全項目（相対パスと、ファイルのバイト列・symlink の参照先）。無ければ None。"""
+    if not root.exists():
+        return None
+    entries: list[tuple[str, bytes | str | None]] = []
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            value: bytes | str | None = os.readlink(path)
+        elif path.is_file():
+            value = path.read_bytes()
+        else:
+            value = None
+        entries.append((str(path.relative_to(root)), value))
+    return entries
+
+
+def held_state(env: Any, run_dir: Path) -> dict[str, Any]:
+    """回収とロックの解放で変わる状態の全体。finish --abort が変える run の state と result は除く。"""
+    run = read(run_dir / "run.json")
+    return {
+        "outputs": {resource["path"]: tree(Path(resource["path"])) for resource in run["resources"]},
+        "lock": (env.review_dir / "loop/lock.json").read_bytes(),
+        "run": {key: value for key, value in run.items() if key not in ("state", "result")},
+        "worktrees": registered_worktrees(env.parent),
+    }
+
+
+def live_after_run(loop: Any, monkeypatch: pytest.MonkeyPatch, case: str) -> list[subprocess.Popen[bytes]]:
+    """出力ディレクトリを cwd にした子プロセスを残したまま、停止を確認できずに終わる（または中断する）後処理。"""
+    children: list[subprocess.Popen[bytes]] = []
+
+    def after_run(commands: list[list[str]], *, result_path: Path, cwd: Path, cancel: Any) -> list[dict[str, Any]]:
+        output = result_path.parent
+        stdout = output / "after-run-0.stdout.log"
+        with stdout.open("wb") as stream:
+            children.append(
+                subprocess.Popen(
+                    [sys.executable, "-c", "import time; time.sleep(120)"],
+                    cwd=output,
+                    stdout=stream,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+            )
+        if case == "interrupted":
+            raise KeyboardInterrupt
+        return [
+            {
+                "index": 0,
+                "state": "timed_out",
+                "exit_code": None,
+                "stop_confirmed": False,
+                "stdout_path": str(stdout),
+                "stderr_path": str(output / "after-run-0.stderr.log"),
+            }
+        ]
+
+    monkeypatch.setattr(loop, "run_after_run", after_run)
+    return children
+
+
+def stop(children: list[subprocess.Popen[bytes]]) -> None:
+    for child in children:
+        child.terminate()
+        child.wait()
+
+
+@pytest.mark.parametrize("entry", ["recover", "finish_abort"])
+@pytest.mark.parametrize("case", ["unconfirmed", "interrupted"])
+def test_unconfirmed_after_run_keeps_outputs_and_lock_until_the_operator_confirms(
+    loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch, case: str, entry: str
+) -> None:
+    # 後処理の停止を確かめられない間は、runner の試行が停止済みでも、出力を消さずロックを外さない
+    run_dir = started_cycle(loop, env)
+    children = live_after_run(loop, monkeypatch, case)
+    adapter = env.reviewers({"alpha": "success", "beta": "success"})
+    try:
+        if case == "unconfirmed":
+            with pytest.raises(loop.LoopError) as error:
+                loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+            assert (error.value.code, error.value.stage) == (7, "after_run")
+            assert error.value.next_command[-3:] == ["recover", "--run", str(run_dir)]
+            assert error.value.requires_input == loop.CONFIRM_STOPPED
+            assert read(run_dir / "run.json")["state"] == "held"
+            assert loop.status(run_dir=run_dir)["next"][-3:] == ["recover", "--run", str(run_dir)]
+        else:
+            # 後処理の途中で helper が止まった（after_run_started だけが残る）。review を呼び直さずに回収を試みる
+            with pytest.raises(KeyboardInterrupt):
+                loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+        assert len(children) == 1
+        before = held_state(env, run_dir)
+
+        with pytest.raises(loop.LoopError) as refused:
+            if entry == "recover":
+                loop.recover(run_dir)
+            else:
+                loop.finish(run_dir, abort="environment: 後処理の停止を確認できない")
+
+        assert (refused.value.code, refused.value.stage) == (7, "resources")
+        assert held_state(env, run_dir) == before
+        assert children[0].poll() is None
+
+        stop(children)
+        recovered = loop.recover(run_dir, operator_confirmed_stopped=STOPPED_FACT)
+
+        assert recovered["lock_released"] is True
+        assert not (env.review_dir / "loop/lock.json").exists()
+        assert [resource["state"] for resource in read(run_dir / "run.json")["resources"]] == ["removed"]
+    finally:
+        stop(children)
+
+
+def test_review_after_an_interrupted_after_run_holds_the_run(
+    loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_dir = started_cycle(loop, env)
+    children = live_after_run(loop, monkeypatch, "interrupted")
+    adapter = env.reviewers({"alpha": "success", "beta": "success"})
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+        launched = list(adapter.launched)
+
+        with pytest.raises(loop.LoopError) as error:
+            loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+        assert (error.value.code, error.value.stage) == (7, "after_run")
+        assert error.value.next_command[-3:] == ["recover", "--run", str(run_dir)]
+        assert error.value.requires_input == loop.CONFIRM_STOPPED
+        assert read(run_dir / "run.json")["state"] == "held"
+        assert loop.status(run_dir=run_dir)["next"][-3:] == ["recover", "--run", str(run_dir)]
+        assert adapter.launched == launched and len(children) == 1
+    finally:
+        stop(children)
+
+
+@pytest.mark.parametrize(
+    ("batch_number", "agent", "behaviors"),
+    [
+        (1, "alpha", {"alpha": "success", "beta": "success"}),
+        (1, "beta", {"alpha": "success", "beta": "success"}),
+        (2, "beta", {"alpha": "success", "beta": ["failed", "success"]}),
+    ],
+    ids=["first-alpha", "first-beta", "rerun-beta"],
+)
+def test_unconfirmed_attempt_holds_the_run_instead_of_planning(
+    loop: Any,
+    env: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    batch_number: int,
+    agent: str,
+    behaviors: dict[str, Any],
+) -> None:
+    # 計画は依存する作業なので、受け付けたレビュアーがいても、停止を確かめられない試行があれば始めない
+    run_dir = started_cycle(loop, env)
+    real = loop.run_workflow
+    batches: list[str] = []
+
+    def unconfirmed_once(*args: Any, **kwargs: Any) -> BatchResult:
+        batch: BatchResult = real(*args, **kwargs)
+        batches.append(batch.run_id)
+        if len(batches) != batch_number:
+            return batch
+        results = [
+            item.model_copy(
+                update={
+                    "attempts": [attempt.model_copy(update={"stop_confirmed": False}) for attempt in item.attempts]
+                }
+            )
+            if item.actual_agent == agent
+            else item
+            for item in batch.results
+        ]
+        return batch.model_copy(update={"results": results})
+
+    monkeypatch.setattr(loop, "run_workflow", unconfirmed_once)
+    adapter = env.reviewers(behaviors)
+    if batch_number == 2:
+        pending = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+        assert pending["rerun"] == {"agents": ["beta"]}
+
+    with pytest.raises(loop.LoopError) as error:
+        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    assert (error.value.code, error.value.stage) == (7, "resources")
+    assert error.value.next_command[-3:] == ["recover", "--run", str(run_dir)]
+    assert error.value.requires_input == loop.CONFIRM_STOPPED
+    assert agent in error.value.reason
+    assert read(run_dir / "cycle-1.json")["state"] == "reviewing"
+    assert read(run_dir / "run.json")["state"] == "held"
+    output = Path(read(run_dir / "run.json")["resources"][-1]["path"])
+    assert output.exists()
+    assert (env.review_dir / "loop/lock.json").exists()
+    assert loop.status(run_dir=run_dir)["next"][-3:] == ["recover", "--run", str(run_dir)]
+
+    launched = list(adapter.launched)
+    with pytest.raises(loop.LoopError) as again:
+        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+    assert (again.value.code, again.value.stage) == (7, "resources")
+    assert adapter.launched == launched
+    with pytest.raises(loop.LoopError) as begin:
+        loop.cycle_begin(run_dir, github=env.github)
+    assert (begin.value.code, begin.value.stage) == (3, "state")
+
+    before = held_state(env, run_dir)
+    with pytest.raises(loop.LoopError) as refused:
+        loop.recover(run_dir)
+    assert refused.value.code == 7
+    assert held_state(env, run_dir) == before
+
+    recovered = loop.recover(run_dir, operator_confirmed_stopped=STOPPED_FACT)
+
+    assert recovered["lock_released"] is True
+    assert read(run_dir / "run.json")["state"] == "abandoned"
+    assert not (env.review_dir / "loop/lock.json").exists()

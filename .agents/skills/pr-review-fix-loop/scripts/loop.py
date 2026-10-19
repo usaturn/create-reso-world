@@ -114,7 +114,8 @@ _PLACEHOLDER = re.compile(r"<[^<>]*>")
 # recover が求める確認の事実（LoopError.requires_input）
 CONFIRM_STOPPED = {
     "--operator-confirmed-stopped": (
-        "runner とレビュアーのプロセスが残っていないことを確かめた事実（例: 確かめたコマンドと結果）"
+        "runner・レビュアー・後処理（after_run）のプロセスが残っていないことを確かめた事実"
+        "（例: 確かめたコマンドと結果）"
     )
 }
 
@@ -1187,8 +1188,24 @@ def cleanup_output(
     return []
 
 
-def audit_resources(run: RunRecord) -> list[str]:
-    """停止を確認できない資源の完全パス。停止を確認できた資源は、ここで回収し直す。"""
+def _after_run_unsettled(part: ReviewPart | RerunPart) -> bool:
+    """後処理を始めたのに、結果が無いか、停止を確認できない報告を含む。"""
+    return part.after_run_started and (
+        part.after_run is None or any(report.get("stop_confirmed") is not True for report in part.after_run)
+    )
+
+
+def audit_resources(run: RunRecord, cycles: Sequence[CycleRecord]) -> list[str]:
+    """停止を確認できない資源の完全パス。停止を確認できた資源は、ここで回収し直す。
+
+    runner の試行が停止済みでも、その出力ディレクトリで始めた後処理（after_run）の停止を確認できなければ回収しない。
+    """
+    unsettled = {
+        Path(part.output_dir)
+        for cycle in cycles
+        for part in (cycle.review, cycle.review.rerun)
+        if part is not None and part.output_dir is not None and _after_run_unsettled(part)
+    }
     unconfirmed: list[str] = []
     for resource in run.resources:
         if resource.state == "removed":
@@ -1200,7 +1217,7 @@ def audit_resources(run: RunRecord) -> list[str]:
         if resource.state != "created":
             continue
         batch = _read_batch(_output_dir(resource) / "result.json")
-        if batch is None or not _stopped(batch):
+        if batch is None or not _stopped(batch) or _output_dir(resource) in unsettled:
             unconfirmed.append(resource.path)
             continue
         cleanup_output(Path(run.tool_root), resource, batch)
@@ -1589,6 +1606,23 @@ def _all_failed(run_dir: Path, entries: Sequence[ReviewerEntry]) -> LoopError:
     )
 
 
+def hold(run_dir: Path, run: RunRecord, stage: str, reason: str) -> LoopError:
+    """停止を確認できない処理が残る run を held にして保存し、recover の経路に返すエラーを作る。
+
+    依存する作業（計画・次のサイクル）を始めず、出力とロックを保持する。回収とロックの解放は、停止を確かめた事実を
+    受け取った recover だけが行う。
+    """
+    run.state = "held"
+    save_run(run_dir, run)
+    return LoopError(
+        7,
+        stage,
+        reason,
+        next_command=command("recover", "--run", str(run_dir)),
+        requires_input=CONFIRM_STOPPED,
+    )
+
+
 def keep_rejected_request(result: Result, entry: ReviewerEntry, directory: Path) -> None:
     """却下した試行に実際に渡した指示（runner が書いた request.json）を ``<request_id>.json`` に写す。
 
@@ -1754,7 +1788,13 @@ def _review_batch(
     config = load_review_config(run)
     if part.after_run is None:
         if part.after_run_started:
-            raise LoopError(7, "after_run", "前回の後処理の停止・結果が未確認。再実行せず recover で回収する")
+            raise hold(
+                run_dir,
+                run,
+                "after_run",
+                "前回の後処理の停止・結果が未確認。後処理を再実行せず、出力とロックを保持する。"
+                "後処理のプロセスが残っていないことを確かめ、その事実を recover に渡す",
+            )
         # 新規・再開とも、停止済みの staged だけを親が同じ検査で正式成果に確定する（確定済みは触らない）
         review_entry.finalize_parent_batch(batch)
         write_json(output_dir / "result.json", batch)
@@ -1777,7 +1817,13 @@ def _review_batch(
         part.after_run = cast(list[dict[str, Any]], reports)
         save_cycle(run_dir, cycle)
     if any(report.get("stop_confirmed") is not True for report in part.after_run):
-        raise LoopError(7, "after_run", "後処理の停止を確認できない。出力を保持して recover で回収する")
+        raise hold(
+            run_dir,
+            run,
+            "after_run",
+            "後処理の停止を確認できない。出力とロックを保持する。"
+            "後処理のプロセスが残っていないことを確かめ、その事実を recover に渡す",
+        )
     if any(report.get("state") != "success" for report in part.after_run):
         raise LoopError(5, "after_run", "レビュー後処理が失敗した。結果とログを保持し、再実行しない")
     # 後処理は result.json を更新しうる。新規・再開とも、保存された結果をレビュアーの検査に使う
@@ -1826,6 +1872,14 @@ def review(
 ) -> dict[str, Any]:
     run = load_run(run_dir)
     require_owner(run)
+    if run.state == "held":
+        raise hold(
+            run_dir,
+            run,
+            "resources",
+            f"run {run.run_id} は停止を確認できない処理があるので held。レビュアーを起動せず、出力とロックを保持する。"
+            "プロセスが残っていないことを確かめ、その事実を recover に渡す",
+        )
     existing = load_cycles(run_dir)
     if not existing or existing[-1].state != "reviewing" or run.result is not None:
         raise LoopError(3, "state", "レビューの段階のサイクルが無い（reuse のサイクルではレビュアーを起動しない）")
@@ -1853,6 +1907,21 @@ def review(
     entries = cycle.review.reviewers
     accepted = [entry for entry in entries if entry.verdict == "accepted"]
     pending = cycle.review.rerun is not None and cycle.review.rerun.batch is None
+    # 計画も依存する仕事なので、受け付けたレビュアーがいても、この batch に停止を確かめられない試行があれば始めない。
+    # 受け付けたレビュアーが 0 人なら、今までどおり終了コード 6（finish が停止未確認の資源で run を held にする）
+    if accepted and not _stopped(batch):
+        save_cycle(run_dir, cycle)
+        unstopped = sorted(
+            {item.actual_agent for item in batch.results for attempt in item.attempts if not attempt.stop_confirmed}
+        )
+        raise hold(
+            run_dir,
+            run,
+            "resources",
+            f"停止を確かめられない試行がある（{', '.join(unstopped)}）。計画に進まず、出力とロックを保持する。"
+            "runner とレビュアーのプロセスが残っていないことを確かめ、その事実を recover に渡す。"
+            "recover の後は run が abandoned になるので、続けるときは start からやり直す",
+        )
     if accepted and not pending:
         cycle.state = "planning"
     save_cycle(run_dir, cycle)
@@ -1890,7 +1959,7 @@ def recover(run_dir: Path, *, operator_confirmed_stopped: str | None = None) -> 
         if operator_confirmed_stopped is not None
         else None
     )
-    unconfirmed = audit_resources(run)
+    unconfirmed = audit_resources(run, load_cycles(run_dir))
     retained: list[str] = []
     if unconfirmed:
         if confirmation is None:
@@ -1898,7 +1967,7 @@ def recover(run_dir: Path, *, operator_confirmed_stopped: str | None = None) -> 
             raise LoopError(
                 7,
                 "resources",
-                "停止を確認できない資源がある: " + ", ".join(unconfirmed) + "。runner とレビュアーのプロセスが"
+                "停止を確認できない資源がある: " + ", ".join(unconfirmed) + "。runner・レビュアー・後処理のプロセスが"
                 "残っていないことを確かめ、その事実を --operator-confirmed-stopped で渡す",
                 next_command=command("recover", "--run", str(run_dir)),
                 requires_input=CONFIRM_STOPPED,
@@ -1956,7 +2025,7 @@ def finish(run_dir: Path, *, abort: str | None = None) -> dict[str, Any]:
         )
     elif run.result is None:
         raise LoopError(3, "state", "run はまだ終わっていない。サイクルの途中で止めるときは --abort を付ける")
-    unconfirmed = audit_resources(run)
+    unconfirmed = audit_resources(run, existing)
     if unconfirmed:
         run.state = "held"
         save_run(run_dir, run)
