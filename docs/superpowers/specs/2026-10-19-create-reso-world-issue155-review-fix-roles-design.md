@@ -4,7 +4,7 @@
 - 基準 HEAD: `8083a85eeb09c24818f9e00f537672a3217e6b78`（`origin/main`、2026-10-19）
 - 移植元: `usaturn/agent-workspace@415b3669dc06d045fe81fb15be7d82f8864c5cef`（`main`、2026-10-19）。ボードの基準 `a47b2065` からの差は D-2
 - 状態: `draft`。内容の承認は記録しない
-- 実行許可: 利用者が 2026-10-19 に `/issue-to-pr #155` と指示した。issue-to-pr の規則により、通常の設計判断を推奨案で決め、検証・commit・push・PR の作成まで続ける。着手の後に、利用者が「`/issue-to-pr #155 --merge` 相当で進めて」と指示した。これを、PR の作成後にレビュー修正のサイクル（D-13）を回し、修正不要と確かめたら PR をマージして #155 を閉じるまでの実行許可として扱う。どちらも実行の許可であり、この文書の内容の承認ではない。以下の判断は、確認を取らずに決めたエージェントの判断である
+- 実行許可: 利用者が 2026-10-19 に `/issue-to-pr #155` と指示した。issue-to-pr の規則により、通常の設計判断を推奨案で決め、検証・commit・push・PR の作成まで続ける。着手の後に、利用者が「`/issue-to-pr #155 --merge` 相当で進めて」と指示した。これを、PR の作成後にレビュー修正のサイクル（D-13）を回し、修正不要と確かめたら PR をマージして #155 を閉じるまでの実行許可として扱う。どちらも実行の許可であり、この文書の内容の承認ではない。以下の判断は、D-15（2026-10-19 の利用者の決定）を除き、確認を取らずに決めたエージェントの判断である
 - Plan: `docs/superpowers/plans/2026-10-19-create-reso-world-issue155-review-fix-roles.md`
 - 参照: ボードの Spec `docs/superpowers/specs/2026-10-18-create-reso-world-issue116-review-automation-board-design.md` の D-1〜D-24、#116 の「着手するエージェントへの注意（利用者決定: 2026-10-18）」
 
@@ -85,7 +85,7 @@ review-fix-planning が、agent-runner の設定の割り当てで、修正の�
 
 ### D-7 判断の記録の写し方
 
-- 選択した案: 新しい記録は `review-records/v2`（`provenance` つき）で書く。移植先の 3 区分を `state` に写す: 解消済み → `resolved`、対応する → `fix`、対応しない → `skip`（`revisit_when` が必須）。`hold` は使わない（移植先に判断保留は無い）。`unverified` は結論 3（`stopped`）の記録でだけ使う（停止の原因で確かめ終えられなかった指摘。`unverified_reason` に足りない確認を書く）。`severity` にはレビューの重大度のラベルを写す（`U-<n>` だけの判断は null）が、採否の根拠にしない。`d1` は書かない。`fix` の `reason` には、致命的である理由（実在する構成で到達できる条件）と (a)〜(d) のどれに当たるかを書く。三択を `outcome` に対応させる: 結論 1 → `fixes_pushed`（`commit` は push した SHA）、結論 2 → `no_fix_needed`、結論 3 → `stopped`（`stop_reason` は `permission:`・`environment:`・`external:` に具体的な障害）。前のサイクルの判断の扱いは review-records.md 8.4 に従う
+- 選択した案: 新しい記録は `review-records/v2`（`provenance` つき）で書く。移植先の 3 区分を `state` に写す: 解消済み → `resolved`、対応する → `fix`、対応しない → `skip`（`revisit_when` が必須）。`hold` は使わない（移植先に判断保留は無い）。`unverified` は結論 3（`stopped`）の記録でだけ使う（停止の原因で確かめ終えられなかった指摘。`unverified_reason` に足りない確認を書く）。`severity` にはレビューの重大度のラベルを写す（`U-<n>` だけの判断は null）が、採否の根拠にしない。`d1` は書かない。`fix` の `reason` には、致命的である理由（実在する構成で到達できる条件）と (a)〜(d) のどれに当たるかを書く。planner が確認の途中で見つけた PR の欠陥（SKILL.md の「自己確認」）は、参照を `planner#S-<n>@<reviewed_head の先頭 12 桁>` とし、`severity` には planner の見積もりを書く（記録の検査は参照のファイル名を形式だけで確かめ、レビュアーの構成と照合しない）。三択を `outcome` に対応させる: 結論 1 → `fixes_pushed`（`commit` は push した SHA）、結論 2 → `no_fix_needed`、結論 3 → `stopped`（`stop_reason` は `permission:`・`environment:`・`external:` に具体的な障害）。前のサイクルの判断の扱いは review-records.md 8.4 に従う
 - 検討した別案: v1 で書く。`hold`・`unverified` を結論 1・2 でも使う
 - 選択理由: review-records.md 6.2 は新しい記録を v2 と定める。移植先の「未確認は結論ではない」により、未確認を残したまま修正不要・push にしない（`no_fix_needed` の照合も `unverified` を拒否する）
 - 委任の指示・停止の条件: 記録を読めない（壊れた記録・`gh` の失敗）ときは、判断を引き継げないので結論 3 にする（review-records.md 8.4。結論 3 の「環境」「外部障害」に当たる）
@@ -98,7 +98,7 @@ review-fix-planning が、agent-runner の設定の割り当てで、修正の�
   - 手順 4: 分類を記録の `state` に写す（D-7）
   - 結論 1: 修正は `run_roles.py --phase implement`、自己レビューは `--phase self-review` の 1 回（`references/execution.md`）。push の後に記録付きで投稿する
   - 結論 2: 状況の投稿・CI・マージ・関連 Issue の更新は `finalize.py`（D-4・D-5）
-  - 結論 3: PR が open で記録を読めた場合は、記録付きで投稿する（`stopped`）
+  - 結論 3: PR が open で記録を読めた場合は、記録付きで投稿する（`stopped`）。ただしマージしてよい範囲の外のリポジトリ（上流の `orange3134/resoloop` など）では、今の規則（commit・push まで行ったターンだけ投稿が必須）を保ち、投稿を必須にしない（外部のリポジトリへの書き込みを増やさない）
   - 修正後の自己レビュー: 1 回は `run_roles.py --phase self-review` の 1 回の呼び出し。self-review の役割（pr-review の非対話の入口で、`--review-commit` を使う PR 全体の再レビュー）が観点 2、fix-check の役割（review-verify の fix_check）が観点 1・3 を受け持つ
   - 作業終了前の PR 投稿: 投稿ブロックに `--records-file "$ROUND_JSON"` を足す
   - 合理化の表・Red flags: 自己レビューの役割の外で pr-review を起動しない、2 回目の `run_roles.py --phase self-review` を起動しない、記録なしの投稿に切り替えない、を足す
@@ -155,6 +155,13 @@ review-fix-planning が、agent-runner の設定の割り当てで、修正の�
 - 選択理由: 利用者の明示の指示。#116・ボードの D-21 のマージの条件（利用者の明示の指示）を満たす。main の版のスキルを使うのは、変更中のスキルで自分の PR を判断しないため（移植元も親の main worktree のスキルを使う）
 - 委任の指示・停止の条件: レビュアーの起動の失敗、review-fix-planning の結論 3、サイクルの上限は、それぞれ停止として報告する
 
+### D-15 現行の PR head を再実行したレビュアーがいないサイクル（利用者の決定）
+
+- 選択した案: レビューディレクトリの `<model>.md` のうち、Review history の最後の HEAD が現行の PR head と同じもの（判断の記録の `rerun` が `true` になるレビュアー）が 1 つも無いときは、結論 3（環境: 現行の HEAD を再実行したレビュアーがいない）にし、「現行の HEAD でレビューを取り直す」を次の操作として報告する
+- 検討した別案: (i) 修正が要るときだけ、最新のレビュー HEAD を `reviewed_head` にして結論 1 まで進め、修正不要のときだけ止める。(ii) planner が agent-runner の既定のレビュアーで現行の HEAD のレビューを起動してから判断する
+- 選択理由: 記録の形式（#152）は、`stopped` 以外の記録に `rerun` が `true` のレビュアーを 1 つ以上求め、記録付きの投稿と `finalize.py` は `no_fix_needed` のとき PR の head と `reviewed_head` が同じことを求める。今の review-fix-planning は古いレビューの指摘を現行 HEAD で確かめて結論 1・2 に進めるが、記録をつなぐとその記録を作れない。2026-10-19 に、builder check でこの論点を見つけ、利用者に確認した（AskUserQuestion）。利用者が「結論 3 で止める」を選んだ（移植元と同じ扱い）
+- 委任の指示・停止の条件: 利用者の決定。結論 3 の環境の停止の条件が 1 つ増えることを #116 に記録する
+
 ### D-14 範囲外と、調整役に申し送る論点
 
 - pr-review の `read_records` は `trusted_login` を渡さない。上流の PR では、利用者自身の判断の記録を pr-review が読まない（#153 の領域）
@@ -162,6 +169,8 @@ review-fix-planning が、agent-runner の設定の割り当てで、修正の�
 - review-verify の `fix-check.md` の `review_dir` の文面と、`run_roles.py` の独立の保存先の食い違い（#154 の領域。D-9）
 - review-records.md 7.4 の「移植先の今の helper は記録なしの投稿だけを持つ」は、この変更の後は事実と違う（#152 の領域）
 - #156 の `loop.py` の、`spec_commit` のときのマージ済みの照合（D-5）
+- 自己確認の参照 `planner#S-<n>@<HEAD12>`（D-7）は、review-records.md 2.1 に無い移植先の取り決めである（#152 の領域）
+- 現行の PR head を再実行したレビュアーがいないサイクルを結論 3 にしたこと（D-15、利用者の決定）
 - `run_roles.py` から実際の外部の担当（implement の `claude-opus` など）を起動する確認は、費用がかかるので行わない。テストは偽の adapter で行い、CLI は `self` の割り当てで実際の雛形を読む確認だけを行う
 
 これらは `#116` にコメントし、調整役が決める。この PR では直さない。
