@@ -56,7 +56,9 @@ table は再帰的に統合、配列は置換する。``--assign role=a,b`` は 
 ``XDG_CONFIG_HOME/agent-runner/config.toml``、
 ``~/.config/agent-runner/config.toml`` の順。
 CLI は既存の個人設定を雛形に重ねる。明示された ``--config`` が読めなければエラー。
-雛形をコピーした後も、既存個人設定を導入処理で更新しない。
+導入処理は、個人設定が無いときだけ ``schema_version = 1`` と上書きの例のコメントだけの
+``.devcontainer/agent-runner-personal.toml`` を置き、既存の個人設定は更新しない。
+雛形は写さないので、個人設定に書いていない値は、雛形の変更が次の実行から効く。
 
 ``after_run`` も配列なので、個人設定の ``after_run = []`` で雛形の後処理を止められる。
 

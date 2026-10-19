@@ -1,5 +1,6 @@
 # 非対話のエージェントのランナー（tools/agent_runner）の雛形。資格情報の値は書かない。
-# install_beforehand.bash が、個人設定 ~/.config/agent-runner/config.toml が無いときだけ写す。
+# 個人設定 ~/.config/agent-runner/config.toml はこの雛形に重ねて読む。install_beforehand.bash は、個人設定が無いときに
+# agent-runner-personal.toml を置き、この雛形は写さない。
 # 仕様は tools/agent_runner/interfaces.rst。agent の定義（[agents.*]）は adapter と一緒に #150・#151 が、
 # workflow の割り当て（[workflows.*]）はそれを使う子（#153・#155・#157）が足す。
 schema_version = 1
