@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -133,6 +134,29 @@ def git(root: Path, *args: str) -> str:
     return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True).stdout.strip()
 
 
+# fetch の取得先だけを bare remote に差し替える git（PATH の先頭に置く実行ファイル）。remote の URL の照合
+# （superpowers_context の origin の確認）は本物の URL を見るので、GIT_CONFIG の insteadOf は使わない
+# （移植先の pr-review のテストと同じ方法）。本物の git・差し替える URL・bare remote は環境変数で受け取る
+FETCH_REDIRECT = r"""
+import os, sys
+args = sys.argv[1:]
+if "fetch" in args:
+    args = [os.environ["FAKE_GIT_REMOTE"] if value in ("origin", os.environ["FAKE_GIT_URL"]) else value for value in args]
+os.execv(os.environ["FAKE_GIT_REAL"], [os.environ["FAKE_GIT_REAL"], *args])
+"""
+
+
+def write_fetch_redirect(directory: Path) -> dict[str, str]:
+    """directory に fetch を差し替える git を置き、それが読む環境変数（PATH を除く）を返す。"""
+    real = shutil.which("git")
+    assert real is not None
+    directory.mkdir(parents=True, exist_ok=True)
+    wrapper = directory / "git"
+    wrapper.write_text(f"#!{sys.executable}\n{FETCH_REDIRECT}", encoding="utf-8")
+    wrapper.chmod(0o755)
+    return {"FAKE_GIT_REAL": real, "FAKE_GIT_URL": f"https://github.com/{REPOSITORY}.git"}
+
+
 def init_repo(path: Path) -> None:
     subprocess.run(["git", "init", "-q", "-b", "main", str(path)], check=True)
     git(path, "config", "user.name", "Fixture")
@@ -240,6 +264,13 @@ class LoopEnv:
 
     def base(self) -> str:
         return git(self.remote, "rev-parse", "refs/heads/main")
+
+    def redirect_fetch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """このテストの git の fetch（origin・PR のリポジトリの URL）を bare remote に向ける。"""
+        directory = self.root / "git-bin"
+        for name, value in {**write_fetch_redirect(directory), "FAKE_GIT_REMOTE": str(self.remote)}.items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.setenv("PATH", f"{directory}{os.pathsep}{os.environ['PATH']}")
 
     def place_review(
         self, head: str, model: str = "alpha", *, commit: bool = False, findings: int = 0
@@ -521,6 +552,10 @@ class Kit:
     @staticmethod
     def write_pair(review_dir: Path, model: str, head: str, base: str, **extra: Any) -> tuple[Path, Path]:
         return write_pair(review_dir, model, head, base, **extra)
+
+    @staticmethod
+    def write_fetch_redirect(directory: Path) -> dict[str, str]:
+        return write_fetch_redirect(directory)
 
     @staticmethod
     def finalize_result(

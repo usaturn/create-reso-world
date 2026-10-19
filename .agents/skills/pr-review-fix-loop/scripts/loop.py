@@ -21,7 +21,6 @@ import json
 import os
 import re
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -862,45 +861,28 @@ def review_config_without_github_tokens(config: Config) -> Config:
     return safe
 
 
-def review_write_paths(run: RunRecord, runtimes: Mapping[str, str]) -> tuple[Path, ...]:
-    """Controller-owned grants, never roots inferred from the agent's prompt/config."""
-    if "dsh" not in runtimes.values():
-        return ()
-    directory = Path(run.review_dir)
-    try:
-        if directory.resolve(strict=True) != directory or not directory.is_dir():
-            raise ValueError("review directory must be canonical")
-        parent = directory.parents[3]
-        common = Path(git_output(parent, "rev-parse", "--path-format=absolute", "--git-common-dir"))
-        lock = common / "pr-review-save.lock"
-        descriptor = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-        try:
-            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-                raise ValueError("save lock must be a regular file")
-        finally:
-            os.close(descriptor)
-        return directory, lock
-    except (OSError, ValueError, subprocess.SubprocessError) as error:
-        raise LoopError(5, "sandbox", "DSH の必要保存先を安全に準備できない") from error
-
-
 def review_write_exceptions(run: RunRecord) -> tuple[str, ...]:
-    """inspect のレビュアーに、runner の作業範囲の指示への例外として載せる書き込み先。
+    """DSH 以外のレビュアーに、runner の作業範囲の指示への例外として載せる書き込み先。
 
     helper が管理する書き込み先は pr-review の ``review_run.helper_write_exceptions`` が定める（review-fix-planning の
-    self-review と同じ一覧）。最後の行（ランタイムが自分で作るファイル。loop が回収でディレクトリごと捨てる）は
-    loop だけのもの。
+    self-review と同じ一覧）。``--source-root`` を使わないレビュアーの helper は、PR の Git 操作の対象の checkout
+    （resoloop の PR なら external/resoloop）の Git に review の worktree・ref を書くので、その Git を ``source_git``
+    に渡す。最後の行（ランタイムが自分で作るファイル。loop が回収でディレクトリごと捨てる）は loop だけのもの。
+    DSH の試行には、runner が attempt の領域の例外を自分で付け、この一覧を渡さない（#183）。
     """
     review_dir = Path(run.review_dir)
     parent = review_dir.parents[3]
-    common = git_output(parent, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    common = Path(git_output(parent, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    checkout = require_target_checkout(parent, run.pr.repository)
+    source = Path(git_output(checkout, "rev-parse", "--path-format=absolute", "--git-common-dir"))
     return (
         *review_entry.helper_write_exceptions(
             tool_root=Path(run.tool_root),
             parent=parent,
-            parent_git=Path(common),
+            parent_git=common,
             review_dir=str(review_dir),
             number=run.pr.number,
+            source_git=source,
         ),
         "files that the agent runtime or its extensions create by themselves in the directory you were launched in: "
         "they belong to the runtime, not to you. Do not edit or delete them, and do not count them as your "
@@ -1679,7 +1661,6 @@ def _review_batch(
             config.workflows["review"].assignments["inspect"] = Assignment(agents=list(rerun.agents), fallback=[])
         inspect = config.workflows["review"].assignments["inspect"]
         runtimes = {name: config.agents[name].runtime for name in [*inspect.agents, *inspect.fallback]}
-        write_paths = review_write_paths(run, runtimes)
         work.mkdir(exist_ok=True)
         if rerun is None:
             comments_file = work / "comments.json"
@@ -1737,7 +1718,8 @@ def _review_batch(
                 concurrency=len(inspect.agents),
                 output_dir=output_dir,
                 adapter_loader=adapter_loader,
-                sandbox_write_paths=write_paths,
+                # DSH の adapter は空でない許可を拒否する。DSH の書き込み先は runner が attempt の中に用意する（#183）
+                sandbox_write_paths=(),
                 write_exceptions=review_write_exceptions(run),
             )
         except (ConfigError, RunnerError) as error:
