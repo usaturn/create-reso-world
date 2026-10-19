@@ -16,7 +16,7 @@ request は次の7項目だけを持つ JSON object。全て必須、未知キ�
 
 不足時は入力不備として停止する。会話・過去案・未コミット変更から補わない。呼び出し前に verified_file を既存 helper で validate し、PR/対象 HEAD と fix_ids の対応を確認する。`TARGET_REPO_ROOT=repository`, `VERIFY_HEAD=to` とし、[共通の隔離手順](../SKILL.md#ツールと隔離実行)を使う。
 
-呼び出し側は入力のPRを `review_target.py resolve <PR URL> [--code-root <明示checkout>]` で確認し、その JSON の `review_dir`（既存 `review_directory` が組み立てる D-10 パス）を `OUTPUT_REVIEW_DIR` とする。`review_dir` 入力がこのパスと一致することを dispatch 前に確認し、不一致なら入力不備として停止する。`verified_file` の親や旧配置の読取先を保存先に流用せず、無断で request を補正しない。修正確認の対象SHAは引き続き request の `to` であり、resolve が返す公開PR headへ置き換えない。JSON・sidecar・要約は全て `OUTPUT_REVIEW_DIR/verified/` に保存する。D-10の保存条件を満たせなければ理由を報告して停止する。
+呼び出し側は入力のPRを `review_target.py resolve <PR URL> [--code-root <明示checkout>]` で確認し、その JSON の `review_dir`（既存 `review_directory` が組み立てる D-10 パス）を `OUTPUT_REVIEW_DIR` とする。`review_dir` 入力がこのパスと一致することを dispatch 前に確認し、不一致なら入力不備として停止する。`verified_file` の親や旧配置の読取先を保存先に流用せず、無断で request を補正しない。修正確認の対象SHAは引き続き request の `to` であり、resolve が返す公開PR headへ置き換えない。resolve の `review_dir` はまだ無いことがある。PR照合と保存先のリンクの確認の後、dispatch の前に `OUTPUT_REVIEW_DIR` を作る（[cycle の保存先確定](cycle.md#新規成果物の保存先)と同じ時点）。`verified/` は作らなくてよく、作るならディレクトリにする。dispatch は保存先を作らず、無ければ起動の前に終了コード 2 で止まる。JSON・sidecar・要約は全て `OUTPUT_REVIEW_DIR/verified/` に保存する。D-10の保存条件を満たせなければ理由を報告して停止する。
 
 期限は最大1800秒、確定・保存の予約は `min(300, deadline_seconds // 2)` 秒。dispatch の `time_limits`（started_at, stop_new_checks_at, deadline_at）が指定する絶対期限を守る。確認の区切りで `date -u` を確認し、stop_new_checks_at 後は新規確認を始めず未確認を unchecked と coverage.remaining にして deadline_at 前に返す。再委譲しない。順序は一覧固定（主張・全変更ファイル・文書候補）→文書候補の判定→主張の確認→変更ファイルの検査。段階内は短い確認から行う。
 
@@ -33,12 +33,12 @@ uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/dispatch.py"
 
 `SKILL_DIR` はこのスキル本体の絶対パス。既定 template は TOOL_ROOT の `.devcontainer/agent-runner.toml`、personal config は明示 `--config` または既存の設定解決順を使う。共有 template に workflow.fix が無ければ、利用者設定か session 内の明示 `--template` で供給する。共有設定へ自動追加しない。request は上の 7 項目を持つ JSON、NEW_RUN_DIR は既存でない一意の保存先（親 main root の agent_tmp.py で作ったセッション領域の子）。template/config は既存ランナーと同じ優先順位、必要なら `--template`/`--config`、担当だけ上書きする場合は `--assign <agent_id|self>`。書き込み役・複数一次担当・不完全入力は拒否する。
 
-dispatch の終了コードは次のとおり。出力の JSON 行は `state`・`artifact_dir`・`outside_changes`・`checkout_audit`・`review_changes`。起動前に `review_dir` 本体の device/inode と全エントリの種類・権限・内容ハッシュを固定し、停止確認後に照合する。同じ内容を持つ別ディレクトリへの置換も変更として拒否する。Gitignored・対象 repository 外の保存先も検査する。リンクはリンク先の文字列のハッシュだけを記録し、参照先は走査しない。保存入口の `review_dir` 本体・その全祖先・`verified` のリンクは起動前と各 snapshot 前に拒否する。accept は inventory 再生成前と、全ての文書・主張の検証後から最初のディレクトリ・一時ファイル作成までの間に、同じ処理で起動時の snapshot 全体と再照合する。リンクだけでなく root の device/inode、全エントリの種類・権限・内容・リンク先の変更や監査不能も、保存前に拒否する。
+dispatch の終了コードは次のとおり。出力の JSON 行は `state`・`artifact_dir`・`outside_changes`・`checkout_audit`・`review_changes`。起動前（`self` を含む）に、`review_dir` が既存のディレクトリで、`verified` が無いかディレクトリであることを確かめる。満たさなければ担当を起動せず、`artifact_dir` も作らず、保存先を作成・削除・置換しない。起動前に `review_dir` 本体の device/inode と全エントリの種類・権限・内容ハッシュを固定し、停止確認後に照合する。同じ内容を持つ別ディレクトリへの置換も変更として拒否する。Gitignored・対象 repository 外の保存先も検査する。リンクはリンク先の文字列のハッシュだけを記録し、参照先は走査しない。保存入口の `review_dir` 本体・その全祖先・`verified` のリンクは起動前と各 snapshot 前に拒否する。accept は inventory 再生成前と、全ての文書・主張の検証後から最初のディレクトリ・一時ファイル作成までの間に、同じ処理で起動時の snapshot 全体と再照合する。リンクだけでなく root の device/inode、全エントリの種類・権限・内容・リンク先の変更や監査不能も、保存前に拒否する。
 
 - 0: `self`、または `success` で `outside_changes` と `review_changes` が空。
 - 1: 失敗・停止未確認、または `outside_changes` / `review_changes` がある（`success` でも 1）。停止未確認では保存先を読み直さず `review_changes` は null、監査不能も無変更とはしない。
 - 起動前の checkout 監査失敗は `state=failed`, `category=environment` の診断を stdout JSON に出し終了1。監査できない状態を無変更にしない。
-- 2: 設定・入力の誤り。stderr に、秘密を含まない分類（設定・runner のカテゴリ、request の誤った欄名、入力の誤りの種類）を出す。
+- 2: 設定・入力の誤り。`review_dir` が無い・ディレクトリでない、`verified` がディレクトリでない、を含む。stderr に、秘密を含まない分類（設定・runner のカテゴリ、request の誤った欄名、入力の誤りの種類）を出す。
 
 `dispatch.json` の欄は、`batch`（runner の結果）・`request`（検証済みの入口）・`verified`（入力の確認済みの一覧）・`skill`（`path` と `sha256`）・`verifier`（`success` のときの実測値、ほかは null）・`time_limits`・`review_snapshot`（起動前の保存先の相対パスと観測値。内容そのものは保存しない）・`review_changes`（変更パス、停止未確認なら null）・`prompt`（`self` のときだけ）。
 
