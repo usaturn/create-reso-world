@@ -205,3 +205,15 @@ worker期限900秒、watcher1200秒、保存予約120秒、実質無進捗600秒
 M-1 の安全な入口を修正済み。追加12ケースを含む関連169 passed、残りのスキル729 passed、計898件成功。shell33系統・layout・実config check・diff検査も成功。自己レビュー3観点を1回行い、追加指摘なし。反証10ケースとガードを外す対照5負例で条件を確認した。詳細は既存 #183 Spec の M-1 検証記録と同じSESSIONのログを参照。
 
 通信失敗は第10応答stream開始直後に発生し、runner/DSH期限や取消の証拠なし。元のsocket causeは記録されず切断主体までは未確定。新しい2並列の宣言とハーネスを acceptance-1/ に準備した。このcommit時点では有料試行を起動していない。Task C のpush、Task Dの受け入れ・Issue更新・mergeの実結果はPR/Issueへ追記し、検証したHEADを文書だけの追加commitで変えない。
+
+### 有料受け入れ1・2の結果と次の実行条件
+
+受け入れ1（2654ff1）はDSHがnative成果/stagedまで成功したものの、本人が実行したhardlink拒否テストのfixture2ファイルが秘密情報後処理で拒否され、外側response_failed。2ファイルは再構築したfixtureと完全一致し実秘密なし。Devinは900秒でtimeout。両者停止済み、範囲外変更・watcher残存PIDなし。失敗成果は昇格しない。
+
+受け入れ2（同HEAD）はテスト/再現を禁止して保存を優先し、workerの外部応答待ち余裕を1800秒、watcher2100秒、無進捗1200秒へ変更した。レビュー自体は12分（調査6/保存6）。DSHは215.99秒で外側・payload・pair・run記録・cleanupまでsuccess、hash/binding/HEAD/runner添付一致。Devinは387.09秒でpair保存とcleanup成功、しかし進捗文がJSONに前置され外側response_failed。正式指摘1件（failのFIFO待ち）を既存Specへ追加し修正する。両者stop_confirmed、sensitive_pathsとoutside_changesは空。旧成功・失敗はそのまま保持する。
+
+次はfailの適用漏れのRED/GREEN・関連回帰を実行し、既存PRへ検査済みSHAをpush。自己レビューを追加せず、新HEADの2並列受け入れを行う。冒頭に「途中の自然文を出さずツール呼出だけ、最後に1つのJSONのみ」のプロトコルを明記する。adapterのパーサや権限は変えない。各失敗の原因が異なるため、同一条件の単純反復は行っていない。同じJSON形式違反が再発した場合は同じpromptの反復を止め、出力プロトコルの実装上の原因を調べる。
+
+証跡: PARENT_ROOT/tmp/agents/pr182-final.e7tffksd/acceptance-{1,2}/ の result・summary・verification・diagnosis。Devinの新sessionは履歴resumeではなく、自モデルのprevious-review snapshotを使うUpdate経路で、調査したツール記録に他モデル本文の読取証拠はなかった。
+
+fail適用漏れの修正・回帰は完了。通常fileの非block読取をbinding/deadlineへ共通化し、追加12ケースでstate3種類×入力4種類を確認した。REDはFIFO系6件、通常対照6件成功。GREEN24件、関連181件（156＋25）成功。追加自己レビューなし。未変更範囲の既存検証は引き継ぎ、新しいHEADで3回目の2並列受け入れを行う。

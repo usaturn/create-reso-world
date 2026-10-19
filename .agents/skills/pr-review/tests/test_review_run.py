@@ -1723,6 +1723,62 @@ def test_prepare_failure_is_kept_when_the_model_later_calls_fail(
     )
 
 
+@pytest.mark.parametrize("state_kind", ["absent", "prepared", "missing"])
+@pytest.mark.parametrize("kind", ["regular", "symlink", "fifo", "fifo_symlink"])
+def test_fail_request_returns_without_blocking_and_preserves_failure_record(
+    prepared: dict[str, Any], tmp_path: Path, state_kind: str, kind: str,
+) -> None:
+    # fail has no runtime flag: both its first binding read and the diagnostic
+    # retry after an invalid state/input must reject FIFOs without waiting.
+    argv = [sys.executable, str(SCRIPT), "fail", "--reason", "review stopped"]
+    if state_kind == "prepared":
+        session = review_run.prepare(prepared["args"])
+        assert session["status"] == "prepared", session
+        argv.extend(["--state", session["state_file"]])
+    elif state_kind == "missing":
+        argv.extend(["--state", str(tmp_path / "missing-session.json")])
+    before = run_records(prepared["parent"])
+    saved = {path: path.read_bytes() for path in before}
+    # Keep deliberately unsafe fixtures out of retained pytest scratch, even
+    # when a regression forces subprocess.run to kill and reap its child.
+    with tempfile.TemporaryDirectory(dir=tmp_path, prefix="fail-request-") as area:
+        target = Path(area) / "request.json"
+        if kind in {"fifo", "fifo_symlink"}:
+            os.mkfifo(target)
+        else:
+            target.write_bytes(prepared["request_path"].read_bytes())
+        candidate = target
+        if kind in {"symlink", "fifo_symlink"}:
+            candidate = Path(area) / "request-link.json"
+            candidate.symlink_to(target)
+        argv.extend(["--request", os.path.relpath(candidate, prepared["caller"])])
+        completed = subprocess.run(
+            argv, cwd=prepared["caller"], capture_output=True, text=True, timeout=5,
+        )
+    assert completed.returncode == 1, completed.stdout
+    result = json.loads(completed.stdout)
+    assert result["status"] == "failed" and result["reason"]
+    if kind in {"regular", "symlink"}:
+        assert result["request_id"] == "request-7"
+        if state_kind != "missing":
+            assert result["reason"] == "review stopped"
+        if state_kind == "prepared":
+            failure = only_record(prepared["parent"])
+            assert (failure["status"], failure["failed_at"], failure["reason"]) == (
+                "failed", "review", "review stopped",
+            )
+    else:
+        if state_kind == "prepared":
+            # The previously validated session binding is still available;
+            # refusing the new input must not erase it from the diagnostic.
+            assert result["request_id"] == "request-7"
+        else:
+            assert result.get("request_id") in {None, "unknown"}
+        assert {path: path.read_bytes() for path in before} == saved
+    if state_kind != "prepared":
+        assert run_records(prepared["parent"]) == []
+
+
 def test_model_fail_records_review(
     prepared: dict[str, Any], capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -134,3 +134,24 @@ M-1 は有料試行の TRANSPORT terminated の原因ではない。後者の原
 反証・PR全体・検出力の自己レビューを1回実施し、追加修正要求は0件。反証10ケース、5件の負例がガード除去時に失敗する対照を確認した。PR全体担当は変更31ファイルの全文・全差分・削除ファイルのbase版を読み、未読範囲と未検証候補なしと報告。検証後のコード3ファイルのSHA256を担当間で照合した。
 
 証跡は PARENT_ROOT/tmp/agents/pr182-final.e7tffksd/。主要所要は実装・関連回帰約13分、通信調査3分36秒、全体自己レビュー7分45秒、反証約6分、検出力約3分。並行した担当時間は合計の能動時間へ重複加算しない。commit / push と有料受け入れの実結果は、同じHEADを維持するため追加の文書だけのcommitをせず PR #182・Issue #153/#183に記録する。
+
+## 有料受け入れで確認した fail の適用漏れ
+
+固定HEAD `2654ff1` の受け入れ2で、DSHは外側・payloadともsuccess、本文/候補pair・run記録・cleanup・停止・hash/binding/HEAD一致まで成功した。Devinも本文/候補pairとcleanupは成功したが、stdoutの進捗文がJSONの前にあるため外側はresponse_failed。内側の保存成功を並行受け入れ成功へ読み替えない。
+
+Devinの正式保存済み指摘 SWE-2-Max M-1 を「対応する」とする。`fail --request <FIFO>` が期限内にfailedを返さず待つことを再現した。前回修正はprepareとその失敗診断へ厳格読取を入れたが、runtime引数を持たないfailのbinding取得は通常readのまま残った。ユーザーの実行指示とPlan Task Dの「受け入れで出た指摘への必要な修正」に含めて対応する。
+
+設計: 通常のRequest読取をO_NONBLOCKで開き、開いたfdが通常ファイルかをfstatで確認する。request_bindingと通常のdeadline読取でこれを使い、fail本体と例外診断の両方がFIFOを読まないようにする。非DSHの普通の相対パス・通常ファイルへのsymlinkは従来どおり受理する。DSH prepareは従来のnofollow・単一link・上限検査と同じbytesの利用を維持する。runtimeの推測や新しい必須flagは導入しない。
+
+比較: failだけを事前exists/is_fileで検査する点の修正は検査後の差替と例外診断の再読を漏らす。failで無条件nofollowにすると、runtime不明の入口で既存の非DSH symlinkを拒否する。共通の非block通常file読取なら、fdで対象を固定し、通常fileの互換を維持したまま失敗報告が停止する条件を除ける。failの全runtimeでDSHと同じnofollow制約を課すとは主張しない。
+
+| 経路 | 守る条件 | 検証 |
+| --- | --- | --- |
+| fail→binding | state有/無ともFIFOを読まず期限内failed、成果の誤保存なし | stateなし/有効/読取不能の3入口×FIFO/そのsymlinkの6ケースがRED timeout、GREENで期限内failed |
+| 失敗診断→binding再取得 | 不正Requestを通常readで再読して待たない | 上記の読取失敗stateを含むCLIケースで再読待ちなしを確認 |
+| 通常Request→failとrun記録 | 相対・通常fileへのsymlinkを受理し、指定した失敗reasonを既存どおり記録 | 普通Request/通常fileへのsymlinkの6対照成功。有効stateの指定reason保存、不正Request時の既存binding/run記録保持を確認 |
+| DSH prepare | nofollowとbytes共有を弱めない | 前回のstrict/互換12ケースも再実行して成功。通常読取だけ変更し、strict実装は無変更 |
+
+この修正後は影響する挙動テストと回帰を実行し、自己レビューは追加しない（今回の3観点1回は完了済み）。Devinの出力形式は既存adapterの拒否基準を変えず、非対話promptの冒頭でツール以外の途中出力禁止を明示して再確認する。過去のresponse_failedを成功に変更せず、新しい修正HEADで受け入れを行う。
+
+追加修正の検証結果: 新規12ケースと前回strict/互換12ケースが24 passed（31.86秒）。test_review_run.py 全156 passed（302.98秒）、test_port_routing.py 全25 passed（39.07秒）、合計181件成功。diff検査も成功。変更しない他スキル729件、shell33系統、layout、runner全体の先行結果は上記から引き継ぐ。自己レビューは追加していない。担当の所要約9分（設計/RED2、実装/GREEN2、回帰5）。追加修正後の有料受け入れはこのcommitのpush後にfresh snapshotで実行し、実結果をPR/Issueへ追記する。

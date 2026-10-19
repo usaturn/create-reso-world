@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -77,13 +78,25 @@ def command(argv: list[str]) -> str:
     return result.stdout
 
 
+def read_request(path: str) -> Request:
+    """Keep caller path compatibility, but never wait for a FIFO's writer."""
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise workspace.WorkspaceError("Request must be a regular file")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            return Request.model_validate_json(stream.read())
+    finally:
+        os.close(descriptor)
+
+
 def request_binding(
     path: str | None, *, work_dir: Path | None = None, request: Request | None = None
 ) -> dict[str, str]:
     if path is None:
         return dict.fromkeys(BINDING_KEYS, "unknown")
     if request is None:
-        request = Request.model_validate_json(Path(path).read_text(encoding="utf-8"))
+        request = read_request(path)
     if request.work_dir.resolve(strict=True) != (work_dir or Path.cwd()).resolve(
         strict=True
     ):
@@ -104,9 +117,7 @@ def read_dsh_request(path: str) -> tuple[Path, bytes, Request]:
 
 
 def request_deadline(path: str) -> float:
-    return Request.model_validate_json(
-        Path(path).read_text(encoding="utf-8")
-    ).deadline_seconds
+    return read_request(path).deadline_seconds
 
 
 def observed_dsh_identity() -> Identity:
