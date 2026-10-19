@@ -154,10 +154,15 @@
 
 ### D-17 実機の 1 サイクルと「`--merge` 相当」
 
-- 選択した案: PR の作成後、この PR に loop を使う。`main` に loop.py がまだ無いので、feature worktree の `loop.py` を使う（`tool_root` は feature worktree。レビュアーが読む pr-review は `main` と同じ）。`start <PR> --controller-model claude-opus-5-5 --controller-runtime claude-code`（ループ用のオプションは付けない）→ サイクル（最大 3 回）→ `finish`。計画は親の main checkout の review-fix-planning（完遂）で、`run_roles.py`・`finalize.py` も親の main checkout のものを使う。修正不要なら finalize.py が `--spec-commit` でマージし、#156 を閉じる。結論 3・サイクルの上限では止まって報告する
-- 検討した別案: (i) #155 と同じく手作りのスクリプトでレビュアーを起動し、loop を使わない（実機の確認は別の PR で行う）。(ii) 使い捨ての PR で実機の確認をする
-- 選択理由: 利用者の `--merge` の指示（ボードの D-21 のマージの条件）。Issue の受け入れ（利用者が許可した PR で 1 サイクル）と「`--merge` 相当」を同じ run で満たし、本物のレビュアーの起動を増やさない
-- 委任の指示・停止の条件: 移植元の SKILL.md の「feature worktree の `loop.py` を使わない」は、`main` に loop がある後の規則として残し、この PR だけの例外として PR に書く。レビュアーの起動の失敗・結論 3・サイクルの上限は停止として報告する
+- 選択した案: PR の作成後、この PR に loop を使う。`main` に loop.py がまだ無いので、PR の head を detached で置いた使い捨ての worktree（`/tmp` の一意のディレクトリ。以下 frozen tool root）の `loop.py` を使う（`tool_root` は frozen tool root。レビュアーが読む pr-review は `main` と同じ）。`start <PR> --controller-model claude-opus-5-5 --controller-runtime claude-code`（ループ用のオプションは付けない）→ サイクル → `finish`。計画は親の main checkout の review-fix-planning（完遂）で、`run_roles.py`・`finalize.py` も親の main checkout のものを使う。修正は review-fix-planning の手順どおり feature worktree（専用の worktree）で行う。修正不要なら finalize.py が `--spec-commit` でマージし、#156 を閉じる
+- 検討した別案: (i) #155 と同じく手作りのスクリプトでレビュアーを起動し、loop を使わない（実機の確認は別の PR で行う）。(ii) 使い捨ての PR で実機の確認をする。(iii) feature worktree の `loop.py` を使う
+- 選択理由: 利用者の `--merge` の指示（ボードの D-21 のマージの条件）。Issue の受け入れ（利用者が許可した PR で 1 サイクル）と「`--merge` 相当」を同じ run で満たし、本物のレビュアーの起動を増やさない。(iii) は、review-fix-planning が feature worktree を修正用の worktree として使うので、計画の途中の修正で実行中の helper が変わる。frozen tool root なら、run の間の helper は start の時点の版に固定される
+- 委任の指示・停止の条件（builder check の 1 点目への判断）:
+  - サイクルの修正が loop.py に入っても、同じ run は frozen tool root の版のまま続ける。修正した版は次のサイクルのレビュアーがレビューする
+  - helper 自体の不具合で run を正しく進められない（helper の内部エラー、記録と実際の状態の食い違い）ときは、記録を手で直さず、`finish --abort`（できなければ run を残したまま）で止めて報告する。run を作り直してもサイクルは合計で 3 回までにする
+  - マージの後の `cycle-end`・`finish` で見つかった不具合は、この PR では直せないので、持ち越しの候補として #116 と PR にコメントする（Issue は利用者の許可を得てから作る）
+  - 移植元の SKILL.md の「feature worktree の `loop.py` を使わない」は、`main` に loop がある後の規則として残し、この PR だけの例外として PR に書く。レビュアーの起動の失敗・結論 3・サイクルの上限は停止として報告する
+  - 本物の担当の起動の上限: サイクルは合計 3 回、各サイクルでレビュアー 4 人（runner の成功の後に受け付けなかったレビュアーの 1 回だけの再実行を含む）、結論 1 のたびに implement の担当（`claude-opus`）1 回。self-review・fix-check は雛形の既定（`self`）のまま
 
 ### D-18 範囲外と、調整役に申し送る論点
 
@@ -165,6 +170,14 @@
 - `CODE_ROOT` が要る PR（usaturn/resoloop-meshy など）を扱えないこと（D-3）
 - レビュアーの pr-review の `read_records` が login を渡さないこと（#153 の領域、#155 の D-14）
 - `devin-swe` の `response_failed`（#188）。loop は `rejected`（`runner`）として扱い、再実行しない。保存されたレビューは review-fix-planning が読む
+- create-reso-world の PR の結論 1 の後に再利用が働かないこと（D-19）
+
+### D-19 create-reso-world の PR では、結論 1 の後のサイクルで再利用が働かない
+
+- 選択した案: 既知の制限として受け入れ、SKILL.md・PR・#116 に書く。create-reso-world の PR の結論 1 では、自己レビューの後に Spec を `completed` にして commit し、push する（review-fix-planning の結論 1 の手順 5〜7）。push した head は自己レビューした commit と違うので、次のサイクルの `cycle-begin` は再利用せず、レビュアーを起動し直す。usaturn/resoloop の PR（Spec は create-reso-world の文書用ブランチ）と、同じ head での run のやり直しでは再利用が働く
+- 検討した別案: (i) Spec だけの commit を載せた head でも、親の commit のレビューを再利用する（finalize.py の `--spec-commit` と同じ形の確認）。(ii) review-fix-planning の手順を変え、Spec を自己レビューの前に commit する
+- 選択理由: (i) は loop だけを変えても、review-fix-planning の手順 2（現行の head をレビューしたレビュアーがいないと結論 3。#155 の D-15、利用者の決定）で止まるので解決しない。(ii) は review-fix-planning（#156 の「変えないもの」）と利用者の決定の変更で、範囲を超える
+- 委任の指示・停止の条件: builder check の 2 点目への判断。費用の上限は D-17 のとおり。再利用を広げるかは #116 に申し送り、調整役が決める
 
 ## インターフェース
 

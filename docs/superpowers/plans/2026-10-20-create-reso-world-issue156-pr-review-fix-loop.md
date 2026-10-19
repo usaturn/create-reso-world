@@ -165,7 +165,7 @@
 
 - [ ] **Step 1: SKILL.md を書く**（Spec の D-13）
 
-  移植元の節の構成を保つ。frontmatter は `name`・`description`（日本語）・`disable-model-invocation: true`・`argument-hint: "<PR番号またはURL> [--max-cycles N] [--assign ROLE=AGENT[,AGENT]] [--template PATH] [--config PATH] [--fresh-review]"`。起動のコマンドは `uv run --project "$TOOL_ROOT" --locked python "$TOOL_ROOT/.agents/skills/pr-review-fix-loop/scripts/loop.py" start ...`、`TOOL_ROOT` は親の main checkout（`agent_tmp.py root`）。計画は review-fix-planning の完遂（Hold の方針を書かない）。`cycle-end` の引数（`--role-run`・`--finalize-result`・`--round-dir`・`--record-file`）、create-reso-world の PR の結論 2 は finalize.py の `--spec-commit`、扱う PR（D-3）
+  移植元の節の構成を保つ。frontmatter は `name`・`description`（日本語）・`disable-model-invocation: true`・`argument-hint: "<PR番号またはURL> [--max-cycles N] [--assign ROLE=AGENT[,AGENT]] [--template PATH] [--config PATH] [--fresh-review]"`。起動のコマンドは `uv run --project "$TOOL_ROOT" --locked python "$TOOL_ROOT/.agents/skills/pr-review-fix-loop/scripts/loop.py" start ...`、`TOOL_ROOT` は親の main checkout（`agent_tmp.py root`）。計画は review-fix-planning の完遂（Hold の方針を書かない）。`cycle-end` の引数（`--role-run`・`--finalize-result`・`--round-dir`・`--record-file`）、create-reso-world の PR の結論 2 は finalize.py の `--spec-commit`、扱う PR（D-3）、create-reso-world の PR では結論 1 の後のサイクルでレビュアーを起動し直すこと（D-19）
 
 - [ ] **Step 2: references/records.md を書く**
 
@@ -218,11 +218,12 @@
 
 ### Task 6: PR の後の「`--merge` 相当」のサイクル（実機の 1 サイクル）
 
-Spec の D-17 のとおり。本物のレビュアー（agent-runner の設定の inspect）を起動する。
+Spec の D-17 のとおり。本物のレビュアー（agent-runner の設定の inspect）を起動する。起動の上限は D-17 の「本物の担当の起動の上限」（サイクルは合計 3 回）。
 
-- [ ] **Step 1: `start`**: feature worktree の `loop.py start <PR の URL> --controller-model claude-opus-5-5 --controller-runtime claude-code`。`warnings`・`herdr_pane` を記録する
+- [ ] **Step 0: frozen tool root を用意する**: `TOOL_TMP="$(mktemp -d "${TMPDIR:-/tmp}/create-reso-world-pr-loop-tool.XXXXXX")"`、`git -C /workspaces/reso-world worktree add --detach "$TOOL_TMP/tool" <PR の head>`、`uv run --project "$TOOL_TMP/tool" --locked python -c pass`（レビュアーが同時に `.venv` を作り始めないよう先に作る）。run の後に `git worktree remove` で外し、`rm -rf -- "${TOOL_TMP:?}"` で消す
+- [ ] **Step 1: `start`**: frozen tool root の `loop.py start <PR の URL> --controller-model claude-opus-5-5 --controller-runtime claude-code`。`warnings`・`herdr_pane` を記録する
 - [ ] **Step 2: サイクル**: `cycle-begin` → `review`（Bash の `run_in_background: true` で終了の通知を待つ）→ 親の main checkout の review-fix-planning の完遂（`planning.review_dir`、`run_roles.py` に `planning.run_roles_options`）→ `cycle-end`
-- [ ] **Step 3: 終わり方**: `no_fix_needed` なら finalize.py（`--spec-commit`）がマージし、`cycle-end --finalize-result --round-dir` → `finish`。`fixes_pushed` なら次のサイクル（最大 3 回）。`stopped`・上限は止まって報告する
+- [ ] **Step 3: 終わり方**: `no_fix_needed` なら finalize.py（`--spec-commit`）がマージし、`cycle-end --finalize-result --round-dir` → `finish`。`fixes_pushed` なら次のサイクル（合計 3 回まで。create-reso-world の PR なので、次のサイクルはレビュアーを起動し直す。Spec の D-19）。`stopped`・上限は止まって報告する。helper 自体の不具合で進めないときは、記録を手で直さずに止めて報告する（D-17）
 - [ ] **Step 4: 記録**: #156 に run の記録（run ID、サイクルごとの HEAD・レビュアーの状態・判断の記録・結果）をコメントし、#116・#158 に申し送りをコメントし、予約を解放する
 
 ## 要件の対応（実装前の照合）
@@ -239,6 +240,7 @@ Spec の D-17 のとおり。本物のレビュアー（agent-runner の設定�
 | D-11・D-12 | 1・2 | 接頭辞・コマンド | 移植した回収と `next` のテスト |
 | D-13・D-14 | 3・4 | 手順の文書と監視の表 | 構造の確認、行動の比較 |
 | D-17 実機 | 6 | 1 サイクル以上の記録 | `<review_dir>/loop/<run_id>/`、#156 のコメント |
+| D-19 再利用の既知の制限 | 3・5 | SKILL.md と PR の既知の制限 | 文書の確認。挙動は移植した `test_two_cycles_reuse_the_pre_push_review_and_end_merged`（head が自己レビューした commit のとき再利用する）のまま |
 
 共有する条件: 判断の記録の読み方（login）と `finalize.py` の結果の形は、review-fix-planning（#155）と共有する。Task 1 が `finalize.py` の実際の結果の形（`spec_commit` を含む）で照合を確かめ、Task 6 が実際の finalize.py の結果で `cycle-end` を通す。
 
