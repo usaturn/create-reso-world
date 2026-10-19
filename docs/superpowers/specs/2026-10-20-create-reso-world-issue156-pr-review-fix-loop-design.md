@@ -222,3 +222,58 @@ uv run --project "$TOOL_ROOT" --locked python "$TOOL_ROOT/.agents/skills/pr-revi
 - SKILL.md・records.md の文面の細部（判断の規則は review-fix-planning に従わせる）
 - テストの分け方と、移植元のテストのうち移植先で意味のあるものの選び方（`AGENTS.md`「テストの採用基準」の範囲で）
 - 行動の比較の場面の細部
+
+## 実行の記録（PR の作成の前、2026-10-19 UTC）
+
+### 受け入れ条件と証拠
+
+| Issue の受け入れ条件 | 証拠（対象版） |
+| --- | --- |
+| 移植したテストが通る | `uv run pytest .agents/skills/pr-review-fix-loop` 162 passed（`f69373e`）。`env AGENT_RUNNER_DEPTH=1` でも 162 passed。偽の gh・偽の adapter・一時の Git だけを使う。実際の pr-review の helper を動かすテスト（`test_loop_reviewer_protocol.py`）を含む |
+| 実機: 利用者が許可した PR で 1 サイクル | PR の作成の後に D-17 の run で行う（この時点では未実施）。結果は review-fix の Spec と #156 のコメントに書く |
+| `no_fix_needed` からのマージは利用者の明示の指示があるときだけ | 利用者の `--merge` の指示（D-17）。マージは finalize.py だけが行う |
+| テストは「テストの採用基準」に従う | 差分の確認とブランチ全体のレビュー。文言の照合・運用で変わる値の写しは無い。SKILL.md の固定値のテストは `disable-model-invocation: true` の 1 件だけで、守る権限と理由をコメントに書いた |
+| スキルの行動 | `evals/2026-10-20-issue156-behavior.md`。スキル無し（RED）の欠け 4 点を、スキルあり（GREEN）で満たした |
+
+### 適応ごとの対照（変更前後）
+
+適応を 1 つずつ外した `loop.py` で、対応するテストが失敗することを確かめ、元に戻して `cmp` で一致を確かめた。
+
+| 外した適応 | 失敗したテスト |
+| --- | --- |
+| D-3（`require_target_checkout` の呼び出し） | `test_start_refuses_a_pr_whose_checkout_cannot_be_resolved`（1 failed） |
+| D-9（login を空にする） | `test_records_need_the_authenticated_login`・`test_cycle_end_reads_the_authenticated_users_record`（4 failed） |
+| D-10（サイクルの HEAD だけで照合する） | `test_cycle_end_accepts_a_spec_commit_merge`（1 failed） |
+| D-10（`spec_commit` の形の検査） | `test_cycle_end_rejects_a_malformed_spec_commit`（4 failed） |
+| D-7・D-8（移植元の書き込みの許可と例外のまま） | `test_write_exceptions_name_the_target_checkout_git`・`test_review_passes_no_sandbox_grants_and_strips_dsh_tokens`（2 failed、ほか 77 passed） |
+| 例外の計算を出力ディレクトリの後に戻す | `test_review_stops_before_creating_output_when_the_checkout_cannot_be_resolved`（1 failed） |
+
+### 全体の検証
+
+- `f69373e`: `uv run pytest tests/skills .agents/skills .agents/scripts tools` 3377 passed（終了コード 0）、`bash .devcontainer/run-tests.bash` 33 本 PASS（0）、`bash scripts/check-layout.sh` PASS（0）、`env AGENT_RUNNER_DEPTH=1 uv run pytest .agents/skills/pr-review-fix-loop` 162 passed（0）。ログは `/workspaces/reso-world/tmp/agents/issue-156.vtjmipf1/verify-final/`
+- `aa28c20`（SKILL.md の 1 行と Plan の名前だけの変更）: `uv run pytest tests/skills .agents/skills/pr-review-fix-loop/tests/test_pr_review_fix_loop_skill_contract.py` 32 passed、`bash scripts/check-layout.sh` PASS。続けて `bash .devcontainer/run-tests.bash` 33 本 PASS（0）、`uv run pytest .agents/skills/pr-review-fix-loop tests/skills` 193 passed（0）、`bash scripts/check-layout.sh` PASS（0）。ログは `/workspaces/reso-world/tmp/agents/issue-156.vtjmipf1/verify-final2/`
+- 基準（`8f5074a`）: 3214 passed、33 本 PASS、PASS（`check-layout.sh` と `run-tests.bash` は使い捨ての worktree で実行）
+
+### 独立した根拠
+
+- 偽の gh と実装が同じ仮定に立たないよう、実際の pr-review の helper（`prepare` → 下書き → `complete`）を動かすテストで、移植先の `review_target`・`superpowers_context`・`pr_review_workspace` の実際の経路を通した（fetch の取得先だけを差し替えた）
+- DSH の staged の確定は、移植先の実物の `prepare`・`complete`・`finalize_parent_batch` と、#183 の `stdout.log` の native write の記録で確かめた
+- `gh api user --jq '.login // empty'` の出力の形（login と改行）は、#155 で実際の gh で確かめた形と同じ
+
+### レビュー
+
+- builder check（Spec）: 2 点。D-17（frozen tool root、サイクルの合計の上限）と D-19（再利用の既知の制限）に判断を書いた
+- ブランチ全体のレビュー（新しいコンテキストのレビュアー、opus）: Critical 0・Important 0・Minor 6、判定は Ready to merge: Yes。Minor 1（`--role-run` のディレクトリを `cycle-end` の前に消しうる）は、文書どおりに進めると結論 1 で必ず誤るので Important に格上げして直した（`aa28c20`）。Minor 5（frozen tool root の名前）は Plan を直した。Minor 2（結論 2 で投稿の後に push が拒否されたときの道筋）・3（`CONTRIBUTOR` での前の run の記録のテスト）・4（移植元の旧形式の記録のテスト）・6（checkout の解決の失敗の分類）は持ち越す（PR の既知の制限と #116 のコメント）
+- 実行の記録の判断（Ruling）と持ち越しの一覧は ledger `/workspaces/reso-world/tmp/agents/issue-156.vtjmipf1/sdd/progress.md`
+
+### 所要時間（2026-10-19 UTC。着手 15:08Z から PR の作成の準備まで約 1 時間 45 分）
+
+| 段階 | 時間 |
+| --- | --- |
+| 着手の条件・予約・worktree | 15:08–15:13 |
+| 移植元・移植先の調査、Spec | 15:13–15:27 |
+| Plan、Task 1（loop.py の移植と状態・検査のテスト） | 15:27–15:35 |
+| Task 2（レビュアーの起動・DSH の親の処理）、builder check への判断 | 15:35–15:46 |
+| Task 2 の追加、スキル無しの評価（RED）、Task 3（SKILL.md・records.md・監視の文書） | 15:46–16:01 |
+| Task 4（スキルありの評価と記録） | 16:01–16:10 |
+| Task 5（全体の検証・ブランチ全体のレビュー・修正） | 16:10–16:52 |

@@ -260,3 +260,11 @@ Spec の D-17 のとおり。本物のレビュアー（agent-runner の設定�
 - 移植先の helper の挙動が Spec の「確認した事実」と違ったら、意味を保つ最小の修正をして ledger と Spec の決定記録に書く。意味を変える必要があれば止まって報告する
 - 移植したテストが移植先の前提（例: `gh` の呼び方、DSH の outbox）で落ちたら、systematic-debugging で原因を確かめてから、テストの fixture を移植先の形に合わせる。挙動の保証を狭めて通さない
 - 本物のレビュアーの起動の失敗（認証待ち・クレジット切れ・`response_failed`）は loop の判定（`rejected`）どおりに扱い、全員が失敗したら `finish --abort` で止まる
+
+## 実行の記録（PR の作成の前）
+
+- 実行方式: `superpowers:executing-plans`（このセッション）。ledger は `/workspaces/reso-world/tmp/agents/issue-156.vtjmipf1/sdd/progress.md`（executing-plans の既定の置き場所は worktree の中なので、`AGENTS.md` の置き場所の規則に従って移した）
+- Task 1〜5 は完了。Task 4 のスキル無しの評価（RED）は、writing-skills の手順に従い、SKILL.md を書く前に行った
+- Plan と違えた判断（Ruling）: 移植元の `GIT_CONFIG` の insteadOf を、fetch だけを差し替える git に変えた（移植先は origin の URL を照合する）。書き込みの例外を runner の出力ディレクトリを作る前に計算する（中断の跡を残さない。テストを足した）。Task 6 の frozen tool root の名前を `create-reso-world-loop-tool.` にした（ブランチ全体のレビューの Minor 5）
+- 持ち越した Minor（ブランチ全体のレビュー）: 結論 2 で投稿の後に push が拒否されたときの道筋の記述、`CONTRIBUTOR` での前の run の記録のテスト、移植元の旧形式の記録のテスト、checkout の解決の失敗の分類
+- 予算: 能動時間 91 分（予算 480 分の 19%）。安全の失敗は無い。信頼性の失敗 1 件（`test_rerun_that_fails_again_continues_with_the_accepted_reviewers` が高負荷で 1 回だけ失敗。その後の全体の検証 2 回では通過）
