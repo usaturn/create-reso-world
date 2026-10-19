@@ -238,3 +238,46 @@ uv run --project "$TOPLEVEL" --locked python \
 - references の文書の分け方と、移植元の文書からどこまで写すか（判断の規則に関わる部分は SKILL.md に従わせる）
 - テストの細かな分け方と、移植元のテストのうち移植先で意味のあるものの選び方（`AGENTS.md`「テストの採用基準」の範囲で）
 - 行動の評価の packet の細かな事実（移植元の場面に相当し、移植先の規則で答えが決まるもの）
+
+## 実行の記録（PR の作成の前、2026-10-19）
+
+### 受け入れ条件と証拠
+
+| Issue の受け入れ条件 | 証拠（対象版） |
+| --- | --- |
+| 移植したテスト（偽の gh・偽の adapter・一時の Git）が通る。実 PR をマージするテストにしない | `uv run pytest .agents/skills/review-fix-planning` 305 passed（`bb30eb3`）。`test_upsert_pr_comment.py`・`test_run_roles.py`（46）・`test_finalize.py`（114）は偽の `gh`・偽の adapter・一時の Git だけを使う |
+| `finalize.py` が、HEAD が動いた・公開リポジトリの CI が足りない・手でマージ済み・Issue の更新の失敗を、完了と誤らない | `test_finalize.py` の移植した場面（head の移動、投稿後の head の移動、公開の CI の実行中・失敗・無し、手でのマージ（記録あり・無し・食い違い）、Issue の更新の失敗）と、`--spec-commit` の場面（比較の形 30 通り、記録の無し・食い違い、引数の誤り）。拒否側と、待った後に完了する側を対にしている |
+| `run_roles.py` が self・外部・混合の割り当てで同じ入力・成果・回数を守り、2 回目の自己レビューを拒否する | `test_run_roles.py` の割り当て 3 通りの場面、2 回目の予約の拒否、DSH・codex の担当（一次担当・fallback）の予約の前の拒否、implement が枠を消費しないこと。レビューの担当が予約の前に止まる入力 15 件と `main()` の終了コード 6 件を使い捨てのテストで確かめた |
+| 行動の評価 | `evals/2026-10-19-issue155-validation.md`（スキル無し・旧版・新版、同じモデルで各 1 回）。判断基準は旧版と新版で一致。差は意図した手段と D-15 だけ |
+| テストの採用基準 | Task ごとのレビューで確かめた（文言の照合・運用で変わる値の写しなし） |
+
+### 全体の検証
+
+- 最終（`3c77f21`、`origin/main` `d581f06` の上）: `uv run pytest tests/skills .agents/skills .agents/scripts tools` 3214 passed（終了コード 0、警告なし）、`bash .devcontainer/run-tests.bash` 33 本 PASS（0）、`bash scripts/check-layout.sh` PASS（0）、`env AGENT_RUNNER_DEPTH=1 uv run pytest .agents/skills/review-fix-planning` 305 passed（0）。ログは `/workspaces/reso-world/tmp/agents/issue-155.8zy2dh0_/verify2/`
+- その後の変更は文書の言い回しだけ（`bb30eb3`）。影響する経路（SKILL.md の手順のテスト、レイアウト）として `uv run pytest .agents/skills/review-fix-planning` 305 passed と `bash scripts/check-layout.sh` PASS をやり直した
+- ベースライン（`8083a85`）: 2876 passed、33 本 PASS、PASS
+
+### 独立した根拠
+
+- GitHub の比較の API の応答の形は、偽の `gh` と実装が同じ仮定に立つので、実装の担当が実在の PR の履歴にある Spec 1 ファイルだけの commit で、読み取りだけの API を 1 回呼んで確かめた
+- `gh api user --jq '.login // empty'` の出力（login と改行）は、このセッションで実際の `gh` で確かめた
+- `GIT_*` を除く fixture は、囮の `GIT_DIR` で、修正前は囮のリポジトリが書き換わり、修正後は変わらないことを確かめた
+
+### レビュー
+
+- Task 2・3: 仕様・品質とも Approved（Minor は ledger に記録）。Task 3 はレビューの前に `GIT_*` の分離を足した
+- Task 4: Important 1 件（比較の応答・CI の値が文字列でないと `TypeError`）→ fix round 1 で解消（再レビューで 336＋82,980 通りのファズで `Stop` 以外の例外 0 件）
+- Task 5・6（文書）: Important 2 件（`accept --run-dir` のパス、結論 2・3 の投稿の要否の食い違い）と Minor → 1 回の修正で解消（再レビューですべて ADDRESSED）
+- 最後のブランチ全体のレビューは、`--merge` 相当の指示により、PR の後のサイクルの 1 回目で行う（D-13）
+
+### 所要時間（2026-10-19 UTC、着手 10:44Z から PR の作成の準備まで約 2 時間 35 分）
+
+| 段階 | 時間 |
+| --- | --- |
+| 着手の条件・予約・worktree・ベースラインの起動 | 10:44–10:52 |
+| 移植元・移植先の調査、Spec（builder check と利用者の確認 D-15 を含む） | 10:52–11:50 |
+| Plan、Task 1 | 11:15–11:20 |
+| Task 2・3・4（SDD、実装とレビュー・修正） | 11:20–12:50 |
+| Task 5・6（文書、レビュー・修正） | 11:30–13:17（待ち時間に並行） |
+| Task 7（packet・採点の基準・評価 3 条件・記録） | 11:50–12:53 |
+| Task 8（全体の検証 2 回、`origin/main` への載せ直し） | 12:27–13:18 |

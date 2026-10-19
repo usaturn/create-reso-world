@@ -331,3 +331,19 @@ Expected: すべて終了コード 0
 - GitHub の比較の API の形が想定と違う: `finalize.py` は止まる側に倒す（`environment:`）。マージしない
 - 全体の pytest で時間に依存するテストが落ちる: 落ちたテストだけを 1 回実行し直し、結果を記録する。2 回目も落ちれば `systematic-debugging` で調べる
 - 行動の評価で旧版と新版の判断が食い違う: Task 7 の Step 4
+
+## 実行の記録（PR の作成の前、2026-10-19）
+
+| Task | commit（載せ直しの後） | 方式 | 結果 |
+| --- | --- | --- | --- |
+| 1 | `2ade58e` | controller | runner の `check` が終了コード 0、`load_config(workflow="fix")` の割り当てを確認 |
+| 2 | `ed1ec08` | SDD（sonnet） | 仕様・品質とも Approved |
+| 3 | `271b01b`・`5e16c2d` | SDD（sonnet） | レビューの前に `GIT_*` の分離を足し、Approved |
+| 4 | `955a476`・`6ea209a` | SDD（sonnet） | Important 1 件を fix round 1 で解消 |
+| 5・6 | `ec8c1ae`・`724d4e9`・`72b243d`・`bb30eb3` | controller | 文書のレビューの Important 2 件と Minor を 1 回の修正で解消 |
+| 7 | `7d0852f` | controller（評価はサブエージェント 3 条件） | 判断基準は旧版と新版で一致 |
+| 8 | ― | controller | 最終の全体検証（`3c77f21`）はすべて終了コード 0。Spec の「実行の記録」に詳細 |
+
+- Plan からのずれ: (1) builder check で見つかった論点を利用者に確認し、D-15 を Spec に足した。(2) Task 5・6 の文書にも別のレビューを付けた（Plan では controller が書くだけだった）。(3) PR の作成の前に、#157（PR #185）のマージ後の `origin/main` の上に載せ直し、雛形の衝突を解いた
+- 実行予算: ledger の能動時間は予算の約 21%（安全の失敗・再試行の上限の到達なし）。PR の後のサイクルは、この後の段階で記録する
+- SDD の作業領域・ledger は `/workspaces/reso-world/tmp/agents/issue-155.8zy2dh0_/sdd/`（AGENTS.md の置き場所の規則により worktree の外）
