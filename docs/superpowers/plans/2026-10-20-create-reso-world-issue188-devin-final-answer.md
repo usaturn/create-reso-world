@@ -56,7 +56,7 @@
 **Interfaces:**
 - Produces: `_plain_tail(tail: str) -> bool`（`_json_object` と `_ends_with` が使う後ろの行の規則）、`_ends_with(stdout: str, answer: str) -> bool`
 
-- [ ] **Step 1: 既存のテストの入力を揃える**
+- [x] **Step 1: 既存のテストの入力を揃える**
 
   - ファイルの中の `{"ok":true}` を、すべて `{"ok": true}`（既定の `_export()` の最後の発話と同じ文字列）にする
   - `test_collect_success_text_shape`: `_collect(context, "plain answer\n", export=_export(message="plain answer"))`、`payload == "plain answer"`
@@ -68,7 +68,7 @@
   - `test_retained_export_with_secrets_is_redacted_before_collection`: `out` を `json.dumps({"final_answer": secret}) + "\n"` にし、`attempt.payload == {"final_answer": "[REDACTED]"}`
   - `test_secret_free_multiline_export_is_retained_unchanged`: `out` を最後の発話（`json.dumps({"answer": "回答\n日本語"}, ensure_ascii=False)`）+ `"\n"` にし、`attempt.payload == {"answer": "回答\n日本語"}`
 
-- [ ] **Step 2: 実際の形の helper と C1〜C4 のテストを足す**
+- [x] **Step 2: 実際の形の helper と C1〜C4 のテストを足す**
 
 ```python
 _PROGRESS = (
@@ -126,24 +126,24 @@ def test_end_to_end_tool_run_collects_final_answer(repository, tmp_path):
     assert batch.results[0].attempts[0].payload == _FENCED_PAYLOAD
 ```
 
-- [ ] **Step 3: テストを実行して、変更前の失敗を確かめる**
+- [x] **Step 3: テストを実行して、変更前の失敗を確かめる**
 
 Run: `uv run pytest tools/agent_runner/tests/adapters/devin -q`
 Expected: FAIL。`test_tool_run_stdout_ending_with_final_answer_succeeds`（2 例とも）・`test_tool_run_answer_repeated_earlier_succeeds`・`test_end_to_end_tool_run_collects_final_answer` と、payload の期待を最後の発話に変えた `test_collect_success_text_shape` が失敗する。秘匿値の 2 件は stdout と最後の発話が同じ文字列なので変更前から通る。C2〜C4 の負例も変更前から通る（回帰の防止）
 
-- [ ] **Step 4: `devin.py` を変える**
+- [x] **Step 4: `devin.py` を変える**
 
   - `_plain_tail(tail: str) -> bool`: `_json_object` の 79–82 行の規則（`_failure_status(tail)` が None で、`{`・`[`・```` ``` ```` で始まる行が無い）を関数にし、`_json_object` もこれを使う
   - `_ends_with(stdout: str, answer: str) -> bool`: `answer.strip()` が `stdout` に最後に現れる位置（`rfind`）を探し、無ければ False。その後ろを最初の改行で分け、同じ行の残りが空白だけで、残りが `_plain_tail` を満たすときだけ True
   - `collect` の成功の分岐: `final is not None and _ends_with(stdout, final)` のとき `_payload(final, context.role.result_shape)` の結果を返す。それ以外は今の `else`（`_failure_status(stdout) or "response_failed"`）。コメントは「最後の ATIF の発話が回答で、stdout はそれで終わる必要がある。途中で切れた stdout や壊れた最後の発話は成功にしない」の意図を残す
   - docstring: 「The run's stdout is the final answer」を、「`devin -p` は全 agent の発話を区切りなしで stdout に出す。export の最後の agent の発話が回答で、stdout はそれで終わる必要がある」に直す
 
-- [ ] **Step 5: テストを実行して通ることを確かめる**
+- [x] **Step 5: テストを実行して通ることを確かめる**
 
 Run: `uv run pytest tools/agent_runner/tests/adapters/devin -q`
 Expected: PASS（失敗 0）
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tools/agent_runner/adapters/devin.py tools/agent_runner/tests/adapters/devin/test_adapter.py
@@ -160,18 +160,18 @@ git commit -m "fix(agent_runner): take devin's final ATIF message as the answer 
 **Interfaces:**
 - Consumes: Task 1 の規則（回答 = 最後の ATIF の応答、stdout はそれで終わる、後ろは通常の進捗行だけ、payload は回答から）
 
-- [ ] **Step 1: rst-writer スキルを読み、3 か所を直す**
+- [x] **Step 1: rst-writer スキルを読み、3 か所を直す**
 
   - 概要: 標準出力と `export.json` を解析し、回答は export の最後の agent 応答とする
   - 完了条件: `devin -p` の標準出力には全 agent 応答が区切りなしで連結される。標準出力が回答で終わることを確かめ、後ろには改行で区切った通常の進捗行だけを許す。JSON 形式の役割は最後の応答が空でない JSON object であることを求め、payload は最後の応答から取り出す。途中の応答の診断行も検査の対象になる（Spec の D-188-4）
   - 検証と制約: 3000.11.92 の実際の出力（#185・#186、2026-10-19）で、連結の形と最後の step の形を確かめた。テストは偽の CLI だけを使い、実 CLI・モデル・API を起動しない
 
-- [ ] **Step 2: rstcheck を実行する**
+- [x] **Step 2: rstcheck を実行する**
 
 Run: `uv run --no-project --with docutils --with rstcheck rstcheck --report-level warning tools/agent_runner/runtimes/devin.rst`
 Expected: `Success! No issues detected.`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tools/agent_runner/runtimes/devin.rst
@@ -184,19 +184,19 @@ git commit -m "docs(agent_runner): describe devin's concatenated stdout (#188)"
 
 **テストの要否:** 書かない。Task 1 のテストと、既存の入口の実行で確かめる。
 
-- [ ] **Step 1: C7 — 実際の 2 件に新しい `collect` を当てる**
+- [x] **Step 1: C7 — 実際の 2 件に新しい `collect` を当てる**
 
   scratchpad のスクリプトで、`/workspaces/reso-world/tmp/agents/issue-155.8zy2dh0_/loop/cycle1/runner/4c8509e10b9f42d2a9261ab934ca53fe/attempt-1/` と `/workspaces/reso-world/tmp/agents/issue-157.e6surmvx/review/cycle-1/runner/6d5531268ba24ba58823abd9e3555fc8/attempt-1/` を、元のファイルを変えずに一時ディレクトリへ複写し、JSON の役割の `AdapterContext` で `ADAPTER.collect` を呼ぶ。
   Expected: 2 件とも `status == "success"`、payload が最後の発話を `_json_object` で読んだ値と一致する
 
-- [ ] **Step 2: C6 — README の「テスト」の入口（ワールドの行を除く）**
+- [x] **Step 2: C6 — README の「テスト」の入口（ワールドの行を除く）**
 
 Run: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`
 Expected: どれも終了コード 0。環境の要因で失敗したら、変更と無関係であることを `origin/main` の同じ結果と比べて示す
 
-- [ ] **Step 3: C8 — `git diff origin/main` を読み、docstring・rst・コードの規則が一致し、除外範囲のファイルに変更が無いことを確かめる**
+- [x] **Step 3: C8 — `git diff origin/main` を読み、docstring・rst・コードの規則が一致し、除外範囲のファイルに変更が無いことを確かめる**
 
-- [ ] **Step 4: ブランチ全体のレビュー**（executing-plans の手順に従う）
+- [x] **Step 4: ブランチ全体のレビュー**（executing-plans の手順に従う）
 
 ## 実行予算
 
@@ -214,4 +214,10 @@ Expected: どれも終了コード 0。環境の要因で失敗したら、変�
 
 ## 完了
 
-（実装後に記録する）
+2026-10-19（UTC）に実装・検証を終えた。状態は draft のまま（内容の承認は無い）。
+
+- commit: `e0297bc`（Task 1）、`1899734`（Task 2）、`0126f92`（全体レビューの指摘 2 件）、`a4d0469`（全体の pytest で見つけた回帰テストの入力の揃え）
+- 受け入れ条件: C1〜C5 は devin のテスト（81 passed）と `test_parser_regressions.py`（104 passed）、C6 は `a4d0469` の `uv run pytest tests/skills .agents/skills .agents/scripts tools`（3227 passed、EXIT=0）と `1899734` の `run-tests.bash`・`check-layout.sh`（どちらも EXIT=0。以後の commit はテストのファイルと Plan だけ）、C7 は実際の 2 件で変更後 `success`・変更前 `response_failed`、C8 は rstcheck（Success）と差分の読み合わせ
+- 全体レビュー（新しい文脈のレビュアー、model opus）: With fixes。Important 1 と、Important に上げた Minor 1 を、変異で失敗するテストで直した。Minor 2・3 は PR 本文の既知の制限に書いた
+- 計画からの逸脱（ledger の Ruling）: SDD の workspace を worktree の外（セッションディレクトリ）に置いた、`test_json_role_requires_complete_final_atif_object` は stdout を最後の発話と同じにした、`test_parser_regressions.py` を担当ファイルに足した（当初の一覧の漏れ）、Minor 1 を Important に上げた
+- 記録: `/workspaces/reso-world/tmp/agents/issue-188.enxvpyw6/`（`progress.md`・`budget.jsonl`・各テストのログ）。PR の作成後に片付ける
