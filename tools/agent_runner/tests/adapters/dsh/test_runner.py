@@ -79,6 +79,7 @@ def config(monkeypatch: pytest.MonkeyPatch, ambient_tmp: Path) -> Config:
         ("success", "success", 0),
         ("auth", "awaiting_authentication", 1),
         ("approval", "awaiting_approval", 0),
+        ("approval-program", "awaiting_approval", 0),
         ("nonzero", "response_failed", 1),
         ("malformed", "response_failed", 0),
         ("missing-session", "response_failed", 0),
@@ -115,7 +116,11 @@ def test_real_process_state_and_stdin(
 
 @pytest.mark.parametrize(
     "mode",
-    ["read-402-lines", "read-401-lines", "read-403-lines", "read-401-filename", "read-403-filename"],
+    [
+        "read-402-lines", "read-401-lines", "read-403-lines", "read-401-filename", "read-403-filename",
+        "read-approval-cancelled", "read-approval-unavailable", "read-approval-rejected",
+        "read-requires-approval", "read-approvals-path",
+    ],
 )
 @pytest.mark.parametrize("with_fallback", [False, True])
 def test_recovered_read_error_keeps_primary_result(
