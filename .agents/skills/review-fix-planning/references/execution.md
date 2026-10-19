@@ -1,6 +1,6 @@
 # 役割の実行と修正不要の最終化
 
-review-fix-planning の完遂で、修正の実装・修正後の自己レビュー・修正の確認を agent-runner の担当で実行し（`scripts/run_roles.py`）、修正が不要なときに状況の投稿・マージ・関連 Issue の更新を行う（`scripts/finalize.py`）手順である。採否・結論・自己レビューの回数は [SKILL.md](../SKILL.md) の規則で決める。ここに書く helper は、その規則の中で使う手段であり、runner の `success` は応答を回収したことであって、修正の合格ではない。
+review-fix-planning の完遂で、修正の実装・修正後の自己レビュー・修正の確認を agent-runner の担当で実行し（`scripts/run_roles.py`）、修正が不要なときに CI の確認・マージ・関連 Issue の更新（create-reso-world 以外の PR では状況の投稿も）を行う（`scripts/finalize.py`）手順である。採否・結論・自己レビューの回数は [SKILL.md](../SKILL.md) の規則で決める。ここに書く helper は、その規則の中で使う手段であり、runner の `success` は応答を回収したことであって、修正の合格ではない。
 
 - `TOPLEVEL` は読んだスキルの source checkout（共通 context の `tool_root`）、`MAIN_ROOT` は専用の worktree（共通 context の `code_root`）、`REVIEW_DIR` は「第1引数の解決」で決めたレビューディレクトリ、`HEAD_SHA` はレビュー対象の PR の head である
 - helper は `uv run --project "$TOPLEVEL" --locked python` で動かす。対象 checkout や cwd から helper の置き場所を推測しない
@@ -12,7 +12,7 @@ SESSION="$(uv run --no-project python "$TOPLEVEL/.agents/scripts/agent_tmp.py" m
 
 agent-runner の設定は、雛形（`$TOPLEVEL/.devcontainer/agent-runner.toml`）→ 個人設定 → 明示した `--assign` の順に重なる。雛形の既定は、`implement` が `claude-opus`、`self-review`・`fix-check` が `self` である。PR 修正ループ（#156 で入る）から呼ばれたときは、ループが返す `planning.run_roles_options`（`--template`・`--config`・`--assign`）をそのまま付ける。存在しない担当や、投影できない設定を `self` に黙って置き換えない。
 
-`run_roles.py` は、すべての担当の終了と停止の確認まで戻らない同期のコマンドで、役割の期限は最大 90 分（implement）になる。`.agents/monitoring-runtimes.md` の「agent-runner の同期実行と停止確認」のとおりに待つ（Claude Code ではバックグラウンドで起動して終了の通知を待つ）。途中で止めるときは runner と同じく SIGINT を送り、いきなり SIGKILL しない（自己レビューの枠は止めても戻らない）。
+`run_roles.py` は、すべての担当の終了と停止の確認まで戻らない同期のコマンドで、役割の期限は最大 90 分（implement）になる。`.agents/monitoring-runtimes.md` の「agent-runner の同期実行と停止確認」のとおりに待つ（Claude Code ではバックグラウンドで起動して終了の通知を待つ）。途中で止めるときは、`run_roles.py` のプロセスに SIGINT を送って runner に担当を止めさせ、いきなり SIGKILL しない（自己レビューの枠は止めても戻らない）。
 
 ## 1. 修正の実装（`--phase implement`）
 
@@ -41,7 +41,7 @@ uv run --project "$TOPLEVEL" --locked python \
   --phase implement --request "$SESSION/implement-request.json" --output-dir "$SESSION/implement-run"
 ```
 
-- 割り当てが `self` なら外部を起動しない。`roles.json` の `self_prompts.implement` を司令塔が自分で実行する
+- 割り当てが `self` なら外部を起動しない。`<artifact_dir>/roles.json`（`artifact_dir` は `--output-dir` と同じパス）の `self_prompts.implement` を司令塔が自分で実行する
 - 外部の担当なら、停止の確認（各 attempt の `stop_confirmed`）の後に、実際の Request・Result の role・agent・commit・work_dir を照合し、その commit の差分だけを確かめてから `MAIN_ROOT` に取り込む（runner の worktree は同じ Git を使うので、`git -C "$MAIN_ROOT" cherry-pick <commit>` で取り込める）。応答の `success` を、テストの合格や commit の成功とみなさない
 - 取り込んだ後は、SKILL.md の「実装後」の手順 1〜3 を司令塔が行う。既存の PR の head ブランチ以外のブランチ・PR を作らない
 - 終了コード: 0 は回収した（`self` を含む）、1 は失敗・停止未確認・領域の変更、2 は入力・設定・起動の誤り（理由は標準エラー出力）

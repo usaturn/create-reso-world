@@ -1,8 +1,8 @@
 # 判断の記録の作り方と投稿
 
-review-fix-planning の planner が、サイクルの判断を記録（review-records）にして、状況コメントとして投稿する手順である。形式・検査の規則は `.agents/review-records.md` が定義元で、検査は `.agents/scripts/review_records.py` が行う。この文書は、それを planner の作業の順に並べ、[SKILL.md](../SKILL.md) の 3 区分と三択の結論に対応させたものである。規則が食い違って見えるときは `.agents/review-records.md` に従う。
+review-fix-planning の planner が、サイクルの判断を記録（review-records）にして、状況コメントとして投稿する手順である。形式・検査の規則は `.agents/review-records.md` が定義元で、検査は `.agents/scripts/review_records.py` が行う。この文書は、それを planner の作業の順に並べ、[SKILL.md](../SKILL.md) の 3 区分と三択の結論に対応させたものである。規則が食い違って見えるときは `.agents/review-records.md` に従う。ただし、マージしてよい範囲の外のリポジトリへの状況の投稿を必須にしない例外（6 章）は、外部のリポジトリへの書き込みを増やさないための SKILL.md の規則である。
 
-変数は SKILL.md と [execution.md](execution.md) のもの（`PR_REPO`・`PR_NUMBER`・`MODEL_NAME`・`SESSION`）を使う。`TOPLEVEL` は読んだスキルの source checkout で、手順 1 の時点では SKILL.md の「第1引数の解決」の `REVIEW_TOOL_ROOT` と同じパスである（手順 2 の共通 context の `tool_root` も同じ）。
+変数は SKILL.md と [execution.md](execution.md) のもの（`PR_REPO`・`PR_NUMBER`・`MODEL_NAME`・`SESSION`）を使う。`TOPLEVEL` は読んだスキルの source checkout で、SKILL.md の「第1引数の解決」の `REVIEW_TOOL_ROOT` と同じパスである（スキルを親の main checkout から読んだときは、手順 2 の共通 context の `tool_root` とも同じになる）。
 
 ## 1. 前の状態を読む（手順 1）
 

@@ -559,7 +559,7 @@ EOF
 - `worktree remove` を飛ばして `rm -rf` だけしようとしている（git の worktree 登録が壊れる）
 - 手順 3 のあと `$REPRO_ROOT` を残そうとしている
 - mktemp ではなくハイフン区切り名（`review-fix-planning-wt` / `-head` / `-repro-root`）を使おうとしている
-- commit / push まで完了したターンなのに、レビュー対象に open な PR があるのに status comment を投稿せず終了しようとしている
+- commit / push まで完了したターン、または完遂の結論 2・3（範囲外のリポジトリでは commit / push まで行ったターンだけ）なのに、レビュー対象に open な PR があるのに status comment を投稿せず終了しようとしている
 - `gh pr comment --edit-last` を使おうとしている
 - 他エージェントの PR コメントを編集しようとしている
 - 自エージェントのマーカーが既にあるのに新規コメントを作ろうとしている
