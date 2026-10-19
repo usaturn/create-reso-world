@@ -1661,6 +1661,8 @@ def _review_batch(
             config.workflows["review"].assignments["inspect"] = Assignment(agents=list(rerun.agents), fallback=[])
         inspect = config.workflows["review"].assignments["inspect"]
         runtimes = {name: config.agents[name].runtime for name in [*inspect.agents, *inspect.fallback]}
+        # 出力ディレクトリを作る前に決める（checkout を決められないときに、中断の跡を残さずに止まる）
+        exceptions = review_write_exceptions(run)
         work.mkdir(exist_ok=True)
         if rerun is None:
             comments_file = work / "comments.json"
@@ -1720,7 +1722,7 @@ def _review_batch(
                 adapter_loader=adapter_loader,
                 # DSH の adapter は空でない許可を拒否する。DSH の書き込み先は runner が attempt の中に用意する（#183）
                 sandbox_write_paths=(),
-                write_exceptions=review_write_exceptions(run),
+                write_exceptions=exceptions,
             )
         except (ConfigError, RunnerError) as error:
             if output_dir.exists():

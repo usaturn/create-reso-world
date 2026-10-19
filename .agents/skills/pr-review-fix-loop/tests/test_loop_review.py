@@ -1589,3 +1589,31 @@ def test_review_passes_no_sandbox_grants_and_strips_dsh_tokens(
     assert seen["config"].agents["alpha"].runtime == "dsh"
     assert seen["config"].agents["alpha"].env == ["PATH"]
     assert seen["config"].agents["beta"].env == ["GH_TOKEN", "GITHUB_TOKEN", "PATH"]
+
+
+def test_review_stops_before_creating_output_when_the_checkout_cannot_be_resolved(
+    loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """書き込みの例外は PR の Git 操作の対象の checkout から作る。決められなくなったら、runner の出力ディレクトリを
+    作る前に止まり、中断の跡（結果の無い出力）を残さない。原因を直せば同じサイクルの review をやり直せる。"""
+    run_dir = Path(env.start()["run_dir"])
+    loop.cycle_begin(run_dir, github=env.github)
+    adapter = env.reviewers({"alpha": "success"})
+    real = loop.target.target_checkout
+
+    def unresolved(*args: Any, **kwargs: Any) -> Any:
+        raise loop.target.TargetError(7, "external/resoloop が無い")
+
+    monkeypatch.setattr(loop.target, "target_checkout", unresolved)
+    with pytest.raises(loop.LoopError) as error:
+        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    assert (error.value.code, error.value.stage) == (2, "arguments")
+    assert read(run_dir / "run.json")["resources"] == []
+    assert read(run_dir / "cycle-1.json")["review"]["output_dir"] is None
+    assert list(env.tmp_root.iterdir()) == []
+    assert adapter.launched == []
+
+    monkeypatch.setattr(loop.target, "target_checkout", real)
+    reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+    assert [item["agent"] for item in reviewed["accepted"]] == ["alpha"]
