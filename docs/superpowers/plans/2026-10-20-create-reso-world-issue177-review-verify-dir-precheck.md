@@ -75,7 +75,7 @@
 **Interfaces:**
 - Produces: `reject_review_links(root: Path) -> None`（いまの `check_review_directories` の本体。`snapshot_review` が呼ぶ）、`check_review_directories(root: Path) -> None`（`reject_review_links` の後に種類を確かめ、`ValueError` を上げる。`dispatch()` と `run_roles.fix_context` が呼ぶ）
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
   fixture `verification_input` で `(tmp_path / "review").mkdir()` を足す（新しい入力の条件に合わせる）。テストを足す:
 
@@ -109,21 +109,21 @@
 
   2 つ目は変更の前から通る回帰の防止（D-1 で `snapshot_review` に種類の検査を入れない理由）。
 
-- [ ] **Step 2: 失敗を確かめる**
+- [x] **Step 2: 失敗を確かめる**
 
   Run: `uv run pytest -q .agents/skills/review-verify/tests/test_dispatch.py -k "unusable_review_directory or verified_file_created"`
   Expected: 1 つ目の 6 件が FAIL（終了コード 0 または 1、`main-run` が作られる）。2 つ目は PASS
 
-- [ ] **Step 3: 実装する**
+- [x] **Step 3: 実装する**
 
   `reject_review_links` を分け、`check_review_directories` で root を `lstat` して `S_ISDIR` でなければ（`OSError` を含む）`ValueError("review_dir must be an existing directory")`、`root / "verified"` を `lstat` して `FileNotFoundError` か `S_ISDIR` 以外なら `ValueError("verified must be absent or a directory")`。`snapshot_review` の先頭を `reject_review_links(root)` にする。2 つの文を `REQUEST_ERRORS` に足す。docstring に「作成・削除・置換はしない。root は呼び出し側が用意する」を書く。
 
-- [ ] **Step 4: 通ることを確かめる**
+- [x] **Step 4: 通ることを確かめる**
 
   Run: `uv run pytest -q .agents/skills/review-verify/tests`
   Expected: 全件 PASS（新しい 7 件を含む）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```bash
   git add .agents/skills/review-verify/scripts/dispatch.py .agents/skills/review-verify/tests/test_dispatch.py
@@ -140,7 +140,7 @@
 **Interfaces:**
 - Consumes: Task 1 の `check_review_directories`（`run_roles.fix_context` が呼ぶ）
 
-- [ ] **Step 1: テストを書く**
+- [x] **Step 1: テストを書く**
 
   ```python
   @pytest.mark.parametrize(
@@ -159,12 +159,12 @@
       assert not planning.with_suffix(".json.review-lock").exists()
   ```
 
-- [ ] **Step 2: 通ることを確かめる（Task 1 の後なので PASS）**
+- [x] **Step 2: 通ることを確かめる（Task 1 の後なので PASS）**
 
   Run: `uv run pytest -q .agents/skills/review-fix-planning/tests`
   Expected: 全件 PASS。Task 1 の前の版で失敗すること（予約が足される）は、Task 1 の commit を一時的に外さず、`git stash` も使わずに、Task 4 の対照で確かめる
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
   ```bash
   git add .agents/skills/review-fix-planning/tests/test_run_roles.py
@@ -178,10 +178,10 @@
 **Files:**
 - Modify: `.agents/skills/review-verify/references/fix-check.md:19`、`:36`、`:41`
 
-- [ ] **Step 1: 19 行に、PR の照合と保存先のリンクの確認の後、dispatch の前に `OUTPUT_REVIEW_DIR` を作ること（cycle の「新規成果物の保存先」と同じ時点）、`verified/` は作らなくてよいこと、起動の後に作った保存先は受け取れないことを書く**
-- [ ] **Step 2: 36 行に、dispatch が起動の前に root が既存のディレクトリで `verified` が無いかディレクトリであることを確かめ、満たさなければ担当も成果物も作らず、保存先を作らないことを書く**
-- [ ] **Step 3: 41 行の終了コード 2 に、保存先の不備（root が無い・ディレクトリでない、`verified` がディレクトリでない）を含める**
-- [ ] **Step 4: `git diff` を読み、Spec の D-5 と一致することを確かめて commit**
+- [x] **Step 1: 19 行に、PR の照合と保存先のリンクの確認の後、dispatch の前に `OUTPUT_REVIEW_DIR` を作ること（cycle の「新規成果物の保存先」と同じ時点）、`verified/` は作らなくてよいこと、起動の後に作った保存先は受け取れないことを書く**
+- [x] **Step 2: 36 行に、dispatch が起動の前に root が既存のディレクトリで `verified` が無いかディレクトリであることを確かめ、満たさなければ担当も成果物も作らず、保存先を作らないことを書く**
+- [x] **Step 3: 41 行の終了コード 2 に、保存先の不備（root が無い・ディレクトリでない、`verified` がディレクトリでない）を含める**
+- [x] **Step 4: `git diff` を読み、Spec の D-5 と一致することを確かめて commit**
 
   ```bash
   git add .agents/skills/review-verify/references/fix-check.md
@@ -192,10 +192,60 @@
 
 **テストの要否:** 新しいテストは無い。検証の入口を実行する。
 
-- [ ] **Step 1: 変更前との対照** — `git worktree add --detach` で `origin/main` の一時 worktree を `/tmp` の一意のディレクトリに作り、Task 1・2 の新しいテストのファイルだけを写して実行し、Task 1 の 6 件と Task 2 の 2 件が失敗することを確かめる。確かめたら worktree を消す
-- [ ] **Step 2: README の「テスト」** — worktree のルートで `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` を実行し、終了コードとログを記録する
-- [ ] **Step 3: 要件の照合** — Spec の A-1〜A-6 と D-1〜D-6 を、Task の commit と Step 1・2 の結果に対応させ、この Plan の「完了」に書く
+- [x] **Step 1: 変更前との対照** — `git worktree add --detach` で `origin/main` の一時 worktree を `/tmp` の一意のディレクトリに作り、Task 1・2 の新しいテストのファイルだけを写して実行し、Task 1 の 6 件と Task 2 の 2 件が失敗することを確かめる。確かめたら worktree を消す
+- [x] **Step 2: README の「テスト」** — worktree のルートで `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` を実行し、終了コードとログを記録する
+- [x] **Step 3: 要件の照合** — Spec の A-1〜A-6 と D-1〜D-6 を、Task の commit と Step 1・2 の結果に対応させ、この Plan の「完了」に書く
 
 ## 完了
 
-（実装後に記録する）
+2026-10-20（JST）に Task 1〜4 を完了した。状態は `draft` のまま（内容の承認は記録しない）。
+
+### commit
+
+| Task | commit | 内容 |
+| --- | --- | --- |
+| 1 | `dc0045e` | `dispatch.py` の起動前の検査、`test_dispatch.py` の負例 6 件・起動後の `verified` 1 件、fixture `verification_input` で `review_dir` を作る |
+| 2 | `60e8452` | `test_run_roles.py` の負例 2 件 |
+| 3 | `2c8e0ef` | `fix-check.md` の 19・36・41 行 |
+
+### 検証（HEAD `2c8e0ef`）
+
+| 確認 | 結果 |
+| --- | --- |
+| Task 1 の RED（実装前） | 新しい 7 件のうち 6 件が失敗（root が無い・`verified` が通常ファイルでは起動して終了コード 1／0、root が通常ファイルでは終了コード 2 だが分類の文が無い）、起動後の `verified` の 1 件は成功（回帰の防止） |
+| 対照（`origin/main` のコード＋新しいテスト、一時 worktree） | 8 failed・1 passed。`run_roles` の 2 件は `DID NOT RAISE ValueError`（予約・起動に進む） |
+| `uv run pytest -q .agents/skills/review-verify/tests` | 160 passed |
+| `uv run pytest -q .agents/skills/review-fix-planning/tests` | 307 passed |
+| `bash .devcontainer/run-tests.bash` | 終了コード 0（33 件 PASS） |
+| `bash scripts/check-layout.sh` | 終了コード 0（PASS） |
+| `uv run pytest tests/skills .agents/skills .agents/scripts tools` | 終了コード 0（3223 passed、33 分 10 秒。ほかのセッションの検証と並行） |
+| ruff・pyright | リポジトリの依存にも環境にも無く、実行していない。テストでの import・実行で代えた |
+
+### 要件の照合
+
+| 条件 | 結果 |
+| --- | --- |
+| A-1 起動・成果物の前の検査、リンクの拒否を保つ | 満たす。新しい負例（外部・`self`）で adapter 未起動・`main-run` 無し。既存のリンクのテスト（`test_symlink_publication_directories_are_rejected_without_writing_referents`・`test_initial_ancestor_symlink_rejects_without_launch_or_any_state_change`）は変えずに通る |
+| A-2 非 0・状態不変・単一の異常 | 満たす。終了コード 2、`managed_state(tmp_path)` が前後で同じ |
+| A-3 暗黙に作らない・消さない | 満たす。同じ状態の比較（root の通常ファイル・`verified` の通常ファイルが残る） |
+| A-4 正常系 | 満たす。既存の受け取りのテストが通る |
+| A-5 起動後の拒否・照合・停止確認 | 満たす。既存テストと `test_accept_lists_a_verified_file_created_after_dispatch` |
+| A-6 手順書 | 満たす（下の差分を参照）。文面の一致のテストは足していない |
+| D-1 `run_roles.py` への効果 | 満たす。`test_unusable_fix_check_destination_stops_before_reservation_or_launch` |
+
+Plan からの差分:
+
+- Task 3 Step 1 の「起動の後に作った保存先は受け取れない」は書かず、「dispatch は保存先を作らず、無ければ起動の前に終了コード 2 で止まる」と書いた。起動の前の検査で、root が無いまま起動する経路が無くなったため
+- 19 行の準備の時点は「PR照合と保存先のリンクの確認の後」と書き、cycle の「書込み可否」は書いていない。書き込みの可否は、同じ段落の末尾の「D-10の保存条件を満たせなければ…停止」と `SKILL.md` の「保存と報告」が扱う
+
+### 最後のレビュー
+
+新しいコンテキストのレビュアー（opus）がブランチ全体をレビューした。Critical 0・Important 0・Minor 3、マージしてよいとの判断。Minor は直していない。
+
+- root の `lstat` で `PermissionError` が起きたときも `review_dir must be an existing directory` と表示する（終了コード 2・起動しないことは同じ。表示の精度だけ）
+- 上の手順書の文面の差分（この節に記録した）
+- この節が空だった（記入した）
+
+### 所要時間
+
+着手（worktree の作成、01:08 JST）から全体の検証の終了（02:03 JST）まで約 55 分。内訳: 調査と Spec・Plan 約 6 分、Task 1〜3 約 4 分、Task 4 の対照と検証 約 45 分（全体の pytest が 33 分。ほかのセッションの検証と並行）、最後のレビュー 約 5 分（検証と並行）。
