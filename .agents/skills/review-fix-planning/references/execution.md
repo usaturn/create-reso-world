@@ -10,7 +10,9 @@ review-fix-planning の完遂で、修正の実装・修正後の自己レビュ
 SESSION="$(uv run --no-project python "$TOPLEVEL/.agents/scripts/agent_tmp.py" mkdir "review-fix-planning-pr$PR_NUMBER")"
 ```
 
-agent-runner の設定は、雛形（`$TOPLEVEL/.devcontainer/agent-runner.toml`）→ 個人設定 → 明示した `--assign` の順に重なる。雛形の既定は、`implement` が `claude-opus`、`self-review`・`fix-check` が `self` である。PR 修正ループ（#156）から呼ばれたときは、ループが返す `planning.run_roles_options`（`--template`・`--config`・`--assign`）をそのまま付ける。存在しない担当や、投影できない設定を `self` に黙って置き換えない。
+agent-runner の設定は、雛形（`$TOPLEVEL/.devcontainer/agent-runner.toml`）→ 個人設定 → 明示した `--assign` の順に重なる。雛形の既定は、`implement` が `claude-opus`、`self-review`・`fix-check` が `self` である。PR 修正ループ（#156 で入る）から呼ばれたときは、ループが返す `planning.run_roles_options`（`--template`・`--config`・`--assign`）をそのまま付ける。存在しない担当や、投影できない設定を `self` に黙って置き換えない。
+
+`run_roles.py` は、すべての担当の終了と停止の確認まで戻らない同期のコマンドで、役割の期限は最大 90 分（implement）になる。`.agents/monitoring-runtimes.md` の「agent-runner の同期実行と停止確認」のとおりに待つ（Claude Code ではバックグラウンドで起動して終了の通知を待つ）。途中で止めるときは runner と同じく SIGINT を送り、いきなり SIGKILL しない（自己レビューの枠は止めても戻らない）。
 
 ## 1. 修正の実装（`--phase implement`）
 
@@ -71,7 +73,7 @@ SKILL.md の「修正後の自己レビュー」の 1 回は、この呼び出�
 
 依頼の JSON は 1 章と同じ 5 項目で、`revision` を修正後の HEAD にし、`prompt` に `self-review` と `fix-check` の両方を書く。
 
-- `prompt["self-review"]`: pr-review の本体と `.agents/skills/pr-review/references/noninteractive.md` を読み、非対話の入口で PR 全体を再レビューする。`prepare --pr "$PR_URL" --runtime <自分の runtime> --request <その attempt の request.json> --review-commit <revision> --source-root <対象の main checkout> --records-comments <PR の全コメントの JSON>` → prepare が返す固定の全体差分・変更ファイルの全文・関連するコードとテスト → `complete`。merge-base から修正後の HEAD までの全体差分であり、修正だけの差分のレビューではない。守る条件・影響経路・実行した検証・未確認の事項を渡し、指摘に再現の手順か根拠（ファイルと行）を付けさせる。出力は `complete` の payload
+- `prompt["self-review"]`: pr-review の本体と `.agents/skills/pr-review/references/noninteractive.md` を読み、非対話の入口で PR 全体を再レビューする。`prepare --pr "$PR_URL" --runtime <自分の runtime> --request <その attempt の request.json> --review-commit <revision> --source-root <対象の main checkout> --records-comments <PR の全コメントの JSON>`（`--request` は外部の担当だけが渡す。`self` では省く） → prepare が返す固定の全体差分・変更ファイルの全文・関連するコードとテスト → `complete`。merge-base から修正後の HEAD までの全体差分であり、修正だけの差分のレビューではない。守る条件・影響経路・実行した検証・未確認の事項を渡し、指摘に再現の手順か根拠（ファイルと行）を付けさせる。出力は `complete` の payload
 - `prompt["fix-check"]`: 渡した 7 項目だけで review-verify の `fix_check` を行う。SKILL.md の観点 1（反証: 修正した条件が破れる入力・操作順・経路、旧版との挙動の差）と観点 3（検証の検出力: 追加・変更したテストが修正の対象の欠陥を検出できるか）を確認の対象に含める
 
 `run_roles.py` は、fix-check の依頼に固定の指示・7 項目・review-verify の SKILL.md を足し、全体の依頼に「自分の役割の依頼だけを実行する」指示を付ける。
@@ -80,14 +82,15 @@ SKILL.md の「修正後の自己レビュー」の 1 回は、この呼び出�
 uv run --project "$TOPLEVEL" --locked python \
   "$TOPLEVEL/.agents/skills/review-fix-planning/scripts/run_roles.py" \
   --phase self-review --request "$SESSION/self-review-request.json" --output-dir "$SESSION/self-review-run" \
-  --planning-file "$REVIEW_DIR/verified/${SOURCE_HEAD:0:12}.planning.json" --fix-input "$SESSION/fix-input.json"
+  --planning-file "$REVIEW_DIR/verified/${HEAD_SHA:0:12}.planning.json" --fix-input "$SESSION/fix-input.json"
 ```
 
 ### 2.3 1 回の枠
 
 - `run_roles.py` は、起動の前に工程の記録の `activities` に `stage=pre_push_review` を 1 件足す（排他ロックと一括置換）。司令塔は手で書き足さない（予約済みとして拒否され、その枠は消せない）
 - 失敗・中断でも枠は戻らない。2 回目の呼び出しは拒否される。別のファイル名・別のモデル・別の phase 名で上限を回避しない
-- 予約より前に止まる誤り（設定の投影、DSH・codex の担当、依頼・fix-input・確認済みの一覧の誤り、出力先が既にある、checkout の監査）では枠を消費しない。直してからもう一度呼んでよい
+- 予約より前に止まる誤り（設定の投影、DSH・codex の担当、依頼・fix-input・確認済みの一覧の誤り、出力先が既にある）では枠を消費しない。自分の入力を直してからもう一度呼んでよい。checkout の監査で止まったとき（終了コード 1）も枠は消費しないが、ほかの worktree の登録を勝手に直さず、1 章のとおり結論 3（環境）にする
+- 予約の後の runner の失敗でも終了コード 2 になることがある。終了コードだけで判断せず、工程の記録に `pre_push_review` が足されていれば枠は消費済みとして扱う
 
 self-review・fix-check には、runtime が `dsh` の担当（`dsh-ccd`・`dsh-go`）も `codex` の担当も、一次担当・fallback のどちらにも割り当てられない。DSH は pr-review の親の準備（`prepare-parent`・保存先への書き込み・`staged` の保存）が要るが `run_roles.py` はしない。codex は `writes=false` の役割を read-only の sandbox で起動し、pr-review・review-verify の helper が uv のキャッシュ・一時ディレクトリ・保存先に書けない。どちらも完了できずに枠だけを消費するので、`run_roles.py` が予約の前に終了コード 2 で止める。`implement` は対象外である。
 
@@ -95,14 +98,14 @@ self-review・fix-check には、runtime が `dsh` の担当（`dsh-ccd`・`dsh-
 
 ### 2.4 受け取りと判定
 
-- 標準出力の `pending_self` に挙がった役割は、司令塔が実行する（使えるサブエージェントに任せてもよく、1 回と数える）。実行していない役割を完了にしない
-- self の fix-check: `fix-check-receipt/dispatch.json` の `prompt` に従って確認し、確認済みの一覧（`mode: fix_check`）と文書の候補を `review_findings.py validate` に通してから `$FIX_STAGING/verified/` に保存する。自分の model・runtime・provenance と実際の時間を書き、外部の担当の識別情報を作らない
-- 外部の fix-check: 次で受け取る。終了コード 0 のときだけ受け取る。担当の「passed」だけを取り込まない
+- 標準出力の `pending_self` に挙がった役割は、司令塔が実行する（使えるサブエージェントに任せてもよく、1 回と数える）。依頼の全文は `roles.json` の `self_prompts`（self-review は `self_prompts["self-review"]`、fix-check は `fix-check-receipt/dispatch.json` の `prompt`）にある。実行していない役割を完了にしない
+- self の fix-check: `fix-check-receipt/dispatch.json` の `prompt` に従って確認し、確認済みの一覧（`mode: fix_check`）と文書の候補（`statement-candidates`）を同じ `$FIX_STAGING/verified/` に置いて `review_findings.py validate` に通してから保存する（review-verify の `references/fix-check.md`）。自分の model・runtime・provenance と実際の時間を書き、外部の担当の識別情報を作らない
+- 外部の fix-check: 次の `accept` で受け取る。`--run-dir` は `run_roles.py` の標準出力の `artifact_dir`（`--output-dir` と同じパス）の下の `fix-check-receipt` である。`accept` の終了コードが 0 のときだけ受け取る。担当の「passed」だけを取り込まない
 
   ```bash
   uv run --project "$TOPLEVEL" --locked python \
     "$TOPLEVEL/.agents/skills/review-verify/scripts/dispatch.py" accept \
-    --run-dir "$SESSION/self-review-run/<artifact_dir の名前>/fix-check-receipt"
+    --run-dir "$SESSION/self-review-run/fix-check-receipt"
   ```
 
 - 外部の self-review: runner の state・終了コード・停止の確認と、payload の `status`・run・request・actual_agent・role、repository・PR・review commit、保存された本文と候補の 2 件、cleanup と残ったパスを照合する。保存された成果を直接直さない
@@ -139,17 +142,18 @@ SKILL.md の結論 2 の手順 1〜5（検証、base との一時的な merge �
 uv run --project "$TOPLEVEL" --locked python \
   "$TOPLEVEL/.agents/skills/review-fix-planning/scripts/finalize.py" \
   --record-file "$ROUND_JSON" --body-file "$STATUS_BODY" --checks-file "$CHECKS_JSON" \
-  --result-file "$SESSION/finalize-result.json" --spec-commit "$SPEC_COMMIT"
+  --result-file "$SESSION/finalize-result.json" \
+  --spec-commit "$SPEC_COMMIT"
 ```
 
-`--spec-commit` を使わないときは、その行を省く（空の文字列を渡さない）。
+`--spec-commit` を使わないとき（create-reso-world 以外の PR）は、最後の行の `--spec-commit "$SPEC_COMMIT"` だけを省き、前の行の末尾の `\` を取る（空の文字列を渡さない）。
 
 ### 3.3 helper が確かめること
 
 - マージしてよい範囲は `usaturn/create-reso-world` と `usaturn/resoloop` の、open で draft でない PR だけ。範囲外は GitHub に問い合わせる前に `permission:` で止まる（SKILL.md の「マージしてよい範囲」）
 - CI: `usaturn/resoloop` は PR の checks が成功していること。`usaturn/create-reso-world` は確かめない（`AGENTS.md`「GitHub Actions」）
 - 認証済みの login を取り、PR の全コメントの記録と照合する。マージは `--merge --match-head-commit`（squash・rebase は使わない）。admin・auto マージ、ブランチの削除はしない
-- マージの後に MERGED・`mergedAt`・head を読み戻し、同じリポジトリの closing Issue だけを close して読み戻す
+- マージの後に MERGED・`mergedAt`・head を読み戻し、同じリポジトリの closing Issue だけを close して読み戻す。closing Issue に別のリポジトリのもの・URL と番号が合わないものがあれば、マージの前に `external:` で止まる
 - 同じ head で既にマージ済みなら、このサイクルの自分の記録が渡した記録と同じときだけ、投稿もマージもせずに Issue の更新を続ける。記録が無い・食い違うまま手でマージされていれば、Issue を更新せずに `merged: true` の `stopped` を返す
 
 ### 3.4 結果

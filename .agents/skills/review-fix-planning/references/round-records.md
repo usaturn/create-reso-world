@@ -2,7 +2,7 @@
 
 review-fix-planning の planner が、サイクルの判断を記録（review-records）にして、状況コメントとして投稿する手順である。形式・検査の規則は `.agents/review-records.md` が定義元で、検査は `.agents/scripts/review_records.py` が行う。この文書は、それを planner の作業の順に並べ、[SKILL.md](../SKILL.md) の 3 区分と三択の結論に対応させたものである。規則が食い違って見えるときは `.agents/review-records.md` に従う。
 
-変数は SKILL.md と [execution.md](execution.md) のもの（`TOPLEVEL`・`PR_REPO`・`PR_NUMBER`・`MODEL_NAME`・`SESSION`）を使う。
+変数は SKILL.md と [execution.md](execution.md) のもの（`PR_REPO`・`PR_NUMBER`・`MODEL_NAME`・`SESSION`）を使う。`TOPLEVEL` は読んだスキルの source checkout で、手順 1 の時点では SKILL.md の「第1引数の解決」の `REVIEW_TOOL_ROOT` と同じパスである（手順 2 の共通 context の `tool_root` も同じ）。
 
 ## 1. 前の状態を読む（手順 1）
 
@@ -18,7 +18,7 @@ gh api --paginate --slurp "repos/$PR_REPO/issues/$PR_NUMBER/comments" \
       --repo "$PR_REPO" --pr "$PR_NUMBER" --trusted-login "$TRUSTED_LOGIN"
 ```
 
-- 終了コード 0: 出力の `rounds` が記録済みのサイクル、`decisions` が判断の現在の状態、`ignored_comments` が読まなかったマーカー付きのコメントである。このサイクルの番号は、`rounds` の最大の `round` + 1（記録が無ければ 1）
+- 終了コード 0: 出力の `rounds` が記録済みのサイクル、`decisions` が判断の現在の状態、`ignored_comments` が読まなかったマーカー付きのコメントである。このサイクルの番号は、`rounds` の最大の `round` + 1（記録が無ければ 1）。ただし、計画のみで投稿したサイクル（`stopped` の `permission:`）を承認・push の後に更新するときは、新しい番号を取らず、そのサイクルの番号と `reviewed_head` をそのまま使う（同じサイクルの更新。判断も同じ記録を基にする）
 - login を取れない、終了コード 65（壊れた記録・ほかの PR の記録）、`gh` の失敗: 判断を引き継げないので、ここで止まる（SKILL.md の結論 3。壊れた記録は環境、`gh` の失敗は外部障害）。コメント ID と問題を報告する。利用者がコメント ID を指定したときだけ、`--exclude-comment <ID>` を付けて読み直す
 - サイクルのマーカーの無い旧形式の状況コメントしか無い PR は、記録が無いものとして 1 から数える。旧形式で「対応しない」とした指摘がこのサイクルの入力にあれば、`new` として記録し、`reason` に旧形式のコメントの ID を書く
 
@@ -38,7 +38,7 @@ gh api --paginate --slurp "repos/$PR_REPO/issues/$PR_NUMBER/comments" \
 - `reviewed_head` は、このサイクルで判断の対象にした PR の head（SKILL.md の `HEAD_SHA`、全桁）で、再実行したレビュアーがレビューした HEAD と同じである。`rerun` が `true` のレビュアーが 1 人もいなければ `stopped` 以外の記録を作れないので、SKILL.md の手順 2 のとおり止まる（完遂では結論 3。次の操作は「現行の HEAD でレビューを取り直す」）
 - `rerun` が `false` のレビュアー（古いレビュー）は、状況コメントの「入力から外したファイル」に理由とともに書く。判断済みの指摘は引き継ぎで済ませ、未判断の指摘だけを検証する
 - 指摘 ID の無いレビューファイルは、planner が `planner-<n>` を付け、そのレビュアーの `note` に書く
-- 新しい記録（v2）は、`planner` と各 `seats` に `provenance`（`.agents/review-findings.md` 3.1 節の全キー）を書く。測れない値は `unknown`、時間は null にし、設定の値や別の試行の成功で埋めない
+- 新しい記録（v2）は、`planner` と各 `seats` に `provenance`（`.agents/review-findings.md` 3.1 節の全キー）を書く。測れない値は `unknown` にし、設定の値や別の試行の成功で埋めない
 
 ## 3. 判断（`decisions`）
 
@@ -67,6 +67,7 @@ SKILL.md の 3 区分を、次のとおり `state` に写す。
 参照の出所が、レビューファイル以外のとき:
 
 - 修正の確認（fix-check）が新たに見つけた問題: `fix-check#V-<n>@<確かめたローカルの HEAD の先頭 12 桁>`（`.agents/review-records.md` 2.1 節）
+- 修正後の自己レビュー（self-review の役割の pr-review。保存名は `<model>-commit-<全桁の SHA>.md`）の指摘: そのファイル名から `.md` を除いたものを `<ファイル名>` にした通常の参照 `<model>-commit-<全桁の SHA>#<ID>@<HEAD の先頭 12 桁>`
 - planner が確認の途中で見つけた PR の欠陥（SKILL.md の手順 3 の「自己確認」）: `planner#S-<n>@<reviewed_head の先頭 12 桁>`（n は 1 から）。`severity` には planner の見積もりを書く（採否の根拠にしない）。この取り決めは移植先のもので、記録の検査は参照のファイル名の形だけを確かめる
 
 前のサイクルの判断の扱い（`.agents/review-records.md` 8.2・8.4 節）:
@@ -84,7 +85,7 @@ SKILL.md の 3 区分を、次のとおり `state` に写す。
 | 結論 2: 修正不要としてマージ | `no_fix_needed` | ― （マージ・Issue の更新が終わったかは `finalize.py` の結果で確かめる） |
 | 結論 3: 停止 | `stopped` | `stop_reason`: `permission: <具体的な障害>`・`environment: <…>`・`external: <…>` |
 
-- `no_fix_needed` は、前の状態にこのサイクルの判断を重ねた結果に `fix`・`hold`・`unverified` が残らないときだけ照合を通る
+- `no_fix_needed` は、前の状態にこのサイクルの判断を重ねた結果に `fix`・`hold`・`unverified` が残らないときだけ照合を通る。前のサイクル（旧形式の記録を含む）に `hold`・`unverified` が残っていれば、このサイクルで判断し直して `changed` で記録してから終える
 - 旧 `awaiting_approval`・`stopped_*` は読むだけで、新しい結果として書かない。前の記録は変換しない
 
 ## 5. ファイルを作って検査する

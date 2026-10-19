@@ -144,7 +144,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 ## 専用の worktree
 
-完遂では `pr-review` スキルを使わず、PR の head ブランチを checkout した専用の worktree で、修正・Spec のコミット（PR が create-reso-world のとき）・push を行う。計画のみと、実装後だけの依頼では作らない。
+完遂では、自己レビューの役割（`run_roles.py`）の外で `pr-review` スキルを使わず、PR の head ブランチを checkout した専用の worktree で、修正・Spec のコミット（PR が create-reso-world のとき）・push を行う。計画のみと、実装後だけの依頼では作らない。
 
 1. 手順 2 の共通 context（`HEAD_REPO` 無し）で得た `MAIN_ROOT`・`PR_REMOTE` と、手順 2 の `gh pr view` の結果を使う。`HEAD_BRANCH` は `headRefName`、`HEAD_SHA` は `headRefOid` である。
 2. PR の head を取得して SHA を照合し、checkout 済みの worktree を調べる。fork からの PR でも `pull/<N>/head` で取れる。
@@ -223,7 +223,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 ## 三択の結論
 
-完遂では、手順 1–6 の後に次のどれか 1 つを完了させる。結論 1・2 では、「対応しない」とした指摘のうち実在する制約（直さないが事実として起こるもの）が PR の説明の保証と食い違うなら、PR の説明の既知の制限に条件と回避方法を書き足す（`gh pr edit --body-file`）。同じ論点が次のレビューで繰り返し挙がるのを防ぐためである。どの結論でも、PR が open で判断の記録を読めた場合は、記録付きで状況を投稿する（下記「作業終了前の PR 投稿」。記録の結果は結論 1 が `fixes_pushed`、結論 2 が `no_fix_needed`、結論 3 が `stopped`）。
+完遂では、手順 1–6 の後に次のどれか 1 つを完了させる。結論 1・2 では、「対応しない」とした指摘のうち実在する制約（直さないが事実として起こるもの）が PR の説明の保証と食い違うなら、PR の説明の既知の制限に条件と回避方法を書き足す（`gh pr edit --body-file`）。同じ論点が次のレビューで繰り返し挙がるのを防ぐためである。どの結論でも、PR が open で判断の記録を読めた場合は、記録付きで状況を投稿する（下記「作業終了前の PR 投稿」。記録の結果は結論 1 が `fixes_pushed`、結論 2 が `no_fix_needed`、結論 3 が `stopped`）。ただし下記「マージしてよい範囲」の外のリポジトリでは、commit / push まで行ったターンだけ投稿が必須である。
 
 ### 結論 1: 修正して push する
 
@@ -244,13 +244,13 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 ### 結論 2: 修正不要としてマージする
 
-「対応する」が 0 件で、全指摘・変更ファイルの全文・関連処理とテストの確認が終わったとき。状況の投稿・CI の確認・マージ・closing Issue の更新は `finalize.py` が行う（[execution.md](references/execution.md) 3 章）。
+「対応する」が 0 件で、全指摘・変更ファイルの全文・関連処理とテストの確認が終わったとき。CI の確認・マージ・closing Issue の更新は `finalize.py` が行う（[execution.md](references/execution.md) 3 章）。状況の投稿は、create-reso-world の PR では Spec の push の前に planner が行い、それ以外の PR では `finalize.py` が行う。
 
 1. PR の変更の種類に応じた検証（**実装後** の手順 2）を、専用の worktree で通し、実際に実行したコマンドと終了コードを検証の記録に残す
 2. `git -C "$MAIN_ROOT" fetch "$PR_REMOTE" <base>` で base を取り直し、base が PR の分岐点より先に進んでいれば（`git -C "$MAIN_ROOT" merge-base --is-ancestor "$PR_REMOTE/<base>" "$HEAD_SHA"` が失敗する）、手順 3 と同じ `mktemp` の隔離 worktree で head に base を merge した一時的なツリーを作り、同じ検証を通す。この merge は push しない。検証後は手順 3 の teardown と同じ方法で消す
 3. base と競合して merge できないときは、競合の解消を修正として扱い、結論 1 に切り替える
 4. 下記「マージしてよい範囲」を確かめる。範囲外なら、ここで結論 3 にする（`finalize.py` も、範囲外の PR は GitHub に問い合わせる前に止める）
-5. 判断の記録（`no_fix_needed`）と、マージの前の採否・検証の状況を書いた本文を作る（[round-records.md](references/round-records.md)）。マージ済み・Issue の更新済みと先に書かない
+5. 判断の記録（`no_fix_needed`）と、マージの前の採否・検証の状況を書いた本文を作る（[round-records.md](references/round-records.md)）。マージ済み・Issue の更新済みと先に書かない。本文の Spec の行（文書のコミット SHA）は、手順 6 の commit の後に書き足す
 6. Spec に結果を書いて `completed` にし、コミットする。PR が create-reso-world のものなら Spec は PR の head に載るので、次の順で進める。確認していないコミットをマージに含めないため、**実装後** の手順 5 の「reject されたら rebase または merge」はここでは使わない
    - commit の前に、`gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` が検証した `HEAD_SHA` と一致することを確かめる
    - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD` を Spec のコミット（`SPEC_COMMIT`）として記録し、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
@@ -259,7 +259,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
    - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head か作業ツリーが変わった）。Spec のコミットは下記「結論 3」の「書き始めた Spec の扱い」に従う（取り消してよい条件を満たさなければ、取り消さずに残して報告する）
 
    PR が create-reso-world 以外のものなら、Spec は文書用ブランチにコミットし（「Spec のコミットと確認用コピー」）、状況の投稿は次の `finalize.py` が行う
-7. `finalize.py` で最終化する。create-reso-world の PR では `--spec-commit "$SPEC_COMMIT"` を付ける（helper は投稿せず、投稿済みの記録、Spec の commit が検証した HEAD の上の Spec 1 ファイルだけであること、PR の head を確かめてから、その commit をマージする）。それ以外の PR では付けない（helper が投稿し、CI を確かめ、検証した head をマージする）。終了コード 0 で結果の `outcome` が `no_fix_needed` のときだけ、マージと closing Issue の更新が終わった。`wait_for` 付きの `stopped` は、`monitoring-long-tasks` で期限を決めて待ち、同じ入力で再実行する。PR の変更が原因の CI の失敗は致命的な指摘として結論 1 に切り替える。それ以外の `stopped` は結論 3 にする（`merged: true` なら、マージ済みであることを分けて報告する）
+7. 共通 context を再実行してから、`finalize.py` で最終化する。create-reso-world の PR では `--spec-commit "$SPEC_COMMIT"` を付ける（helper は投稿せず、投稿済みの記録、Spec の commit が検証した HEAD の上の Spec 1 ファイルだけであること、PR の head を確かめてから、その commit をマージする）。それ以外の PR では付けない（helper が投稿し、CI を確かめ、検証した head をマージする）。終了コード 0 で結果の `outcome` が `no_fix_needed` のときだけ、マージと closing Issue の更新が終わった。`wait_for` 付きの `stopped` は、`monitoring-long-tasks` で期限を決めて待ち、同じ入力で再実行する。PR の変更が原因の CI の失敗は致命的な指摘として結論 1 に切り替える。それ以外の `stopped` は結論 3 にする（`merged: true` なら、マージ済みであることを分けて報告する）
 8. PR の本文・タイトルで参照しているだけの Issue に、マージの結果と残りの作業をコメントする。本文のチェック項目のうち、この PR で完了したことが明らかなものは、本文を取り直してから `[x]` にする（`finalize.py` は closing Issue だけを扱う）
 9. 工程の記録を更新し（[round-records.md](references/round-records.md) 7 章）、「専用の worktree」を片付ける
 
@@ -267,7 +267,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 ### 結論 3: 停止する
 
-次の場合だけ。未完了であること、具体的な停止理由、済んだ作業（コミット・push・投稿の有無）を報告する。PR が open で判断の記録を読めた場合は、`stopped` の記録（`stop_reason` は `permission:`・`environment:`・`external:` に続けて具体的な障害）を付けて状況を投稿する。
+次の場合だけ。未完了であること、具体的な停止理由、済んだ作業（コミット・push・投稿の有無）を報告する。PR が open で判断の記録を読めた場合は、`stopped` の記録（`stop_reason` は `permission:`・`environment:`・`external:` に続けて具体的な障害）を付けて状況を投稿する（マージしてよい範囲の外のリポジトリでは、commit / push まで行ったターンだけ必須）。
 
 - 権限: マージしてよい範囲外、push・マージの権限が無い、`gh` の認証が無い
 - PR の状態: draft、close 済み、マージ済み
@@ -370,7 +370,7 @@ resoloop の上流への PR も同じ規則が fork の経路で成立する: `P
 
 **commit / push まで完了したターン、完遂の結論 2（マージの前）、完遂の結論 3（PR が open で判断の記録を読めた場合。マージしてよい範囲の外のリポジトリでは、commit / push まで行ったターンだけ）では必須である。** commit / push まで実装したターンは push 後に1回投稿する。承認待ちで止まるだけのターンの投稿は任意である。同じサイクルの自分のコメントがあれば更新し、無ければ新規作成する。他エージェントのコメント・前のサイクルのコメントは読んでよいが編集しない。
 
-**判断の記録:** 状況コメントには判断の記録（review-records v2）を付ける。記録を `$ROUND_JSON` に書いて検査し（[round-records.md](references/round-records.md) 2〜5 章）、下のブロックの helper に `--records-file` で渡す。記録の結果は、結論 1 が `fixes_pushed`、結論 2 が `no_fix_needed`、結論 3 が `stopped`。計画のみで承認を待つターンに投稿するときは `stopped`（`permission: 計画のみの依頼のため、実装の承認を待つ`）にし、承認・push の後に同じサイクルのコメントを `fixes_pushed` に更新する。helper は認証済みの login を自分で取り、書き込み権限のある投稿者か認証済み利用者自身のコメントだけと照合し、PR の head（`fixes_pushed` は `commit`、それ以外は `reviewed_head`）や前のサイクルの記録と合わない記録を投稿しない。拒否されたら記録の問題を直して投稿し直すか、止まって報告し、記録なしの投稿や手書きの `gh` の呼び出しに切り替えない。
+**判断の記録:** 状況コメントには判断の記録（review-records v2）を付ける。記録を `$ROUND_JSON` に書いて検査し（[round-records.md](references/round-records.md) 2〜5 章）、下のブロックの helper に `--records-file` で渡す。`ROUND` はこのサイクルの番号（同じ文書の 1 章）である。記録の結果は、結論 1 が `fixes_pushed`、結論 2 が `no_fix_needed`、結論 3 が `stopped`。計画のみで承認を待つターンに投稿するときは `stopped`（`permission: 計画のみの依頼のため、実装の承認を待つ`）にし、承認・push の後に同じサイクルのコメントを `fixes_pushed` に更新する。helper は認証済みの login を自分で取り、書き込み権限のある投稿者か認証済み利用者自身のコメントだけと照合し、PR の head（`fixes_pushed` は `commit`、それ以外は `reviewed_head`）や前のサイクルの記録と合わない記録を投稿しない。拒否されたら記録の問題を直して投稿し直すか、止まって報告し、記録なしの投稿や手書きの `gh` の呼び出しに切り替えない。
 
 レビュー対象ブランチに open な PR が無い場合は投稿しない。PR を作ることもしない。チャットで報告して止まる。
 
@@ -493,7 +493,7 @@ EOF
 - 同じ条件に頼る経路は、PR の差分外も確認して直す（「守る条件と影響経路」）。原因の異なる新しい問題を探しには行かない。確認中に見つけた PR の致命的な欠陥は手順 3 のとおり扱う
 - 計画のみの流れでは、実装は承認後。計画フェーズでプロダクトコードを編集しない
 - 実装後はレビュー対象の既存 PR に載せる。第二の PR を開かない
-- PR への反映後は、レビュー状況・作業判断・作業結果をレビュー対象の既存 PR へ投稿する。実装せず止まるターンの投稿は任意である。第二の PR を開かない
+- PR への反映後は、レビュー状況・作業判断・作業結果をレビュー対象の既存 PR へ投稿する。実装せず止まるターンの投稿は、完遂の結論 2・3 では必須（範囲外のリポジトリの例外は「作業終了前の PR 投稿」）、計画のみの承認待ちでは任意である。第二の PR を開かない
 
 ## 合理化とその実態
 
@@ -516,7 +516,7 @@ EOF
 | 「レビュー修正は別 PR にするものだ」 | レビュー対象の既存 PR に push する。`*-review-fixes` の追加 PR はしない |
 | 「すでに review-fixes ブランチがある。捨てるのは無駄」 | サンクコスト。レビュー対象 PR の head ブランチに載せる |
 | 「チャットに計画を書けば十分」 | PR への記録も反映作業の一部である。計画のみのターンの投稿は任意である |
-| 「実装していないので投稿不要」 | 計画のみの投稿は任意である。commit / push まで完了したターンのみ必須である |
+| 「実装していないので投稿不要」 | 計画のみの投稿は任意である。commit / push まで完了したターンと、完遂の結論 2・3 は必須である（範囲外のリポジトリでは commit / push まで行ったターンだけ） |
 | 「push したのでコメントは不要」 | PR に結果を残すことも反映の一部である |
 | 「--edit-last で十分」 | 同じ GitHub アカウントを共有する別エージェントのコメントを上書きする。自エージェントのマーカーを持つコメントだけを更新する |
 | 「追加確認が必要と報告すれば終われる」 | 未確認は途中の状態。自分で確かめて三択のどれかにする |

@@ -100,7 +100,7 @@ review-fix-planning が、agent-runner の設定の割り当てで、修正の�
   - 結論 2: 状況の投稿・CI・マージ・関連 Issue の更新は `finalize.py`（D-4・D-5）
   - 結論 3: PR が open で記録を読めた場合は、記録付きで投稿する（`stopped`）。ただしマージしてよい範囲の外のリポジトリ（上流の `orange3134/resoloop` など）では、今の規則（commit・push まで行ったターンだけ投稿が必須）を保ち、投稿を必須にしない（外部のリポジトリへの書き込みを増やさない）
   - 修正後の自己レビュー: 1 回は `run_roles.py --phase self-review` の 1 回の呼び出し。self-review の役割（pr-review の非対話の入口で、`--review-commit` を使う PR 全体の再レビュー）が観点 2、fix-check の役割（review-verify の fix_check）が観点 1・3 を受け持つ
-  - 作業終了前の PR 投稿: 投稿ブロックに `--records-file "$ROUND_JSON"` を足す
+  - 作業終了前の PR 投稿: 投稿ブロックに `--records-file "$ROUND_JSON"` を足す。計画のみで承認を待つターンに投稿するときは `stopped`（`permission: 計画のみの依頼のため、実装の承認を待つ`）の記録にし、承認・push の後に同じサイクル（同じ番号と `reviewed_head`）のコメントを `fixes_pushed` に更新する（新しい記録の結果に承認待ち（`awaiting_approval`）を書かないため。review-records.md 6.2）
   - 合理化の表・Red flags: 自己レビューの役割の外で pr-review を起動しない、2 回目の `run_roles.py --phase self-review` を起動しない、記録なしの投稿に切り替えない、を足す
 
   新しい `references/execution.md`（役割の実行と最終化）と `references/round-records.md`（記録の作り方と投稿）は、移植元の同名の文書を基に、移植先の 3 区分・結論・パス・規則に直して置く。移植元の `references/decisions.md`・`porting.md` は持ち込まない
