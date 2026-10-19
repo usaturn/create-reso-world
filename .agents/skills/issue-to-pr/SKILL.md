@@ -88,7 +88,7 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 
 1. **`superpowers:brainstorming` 必須。** 利用者はこの指示で質問を省くことを選んでいるので、問答をせずに推奨案を選ぶ。意図・受け入れ条件・編集禁止を整理する。
 2. Spec を `DOC_ROOT` の `docs/superpowers/specs/` に書いて commit する。冒頭に管理・実行許可（利用者の指示の引用、許可された範囲、状態 `draft`）を書き、`approved` にしない。**決定記録**を設け、各項目に「選択した案 / 検討した別案 / 選択理由 / 委任指示または停止条件」を残す。確認用のコピー（`scripts/superpowers-review-copy.sh`）は作らない。
-3. **`superpowers:writing-plans` 必須。** Plan を `DOC_ROOT` の `docs/superpowers/plans/` に作って commit する。実在する Spec のパス、Task、担当ファイル、検証の入口（2 章の表）、実行方式と理由、contingency を書く。AGENTS.md の SDD 実行運用に従う。
+3. **`superpowers:writing-plans` 必須。** Plan を `DOC_ROOT` の `docs/superpowers/plans/` に作って commit する。実在する Spec のパス、Task、担当ファイル、検証の入口（2 章の表）、実行方式と理由、contingency を書く。AGENTS.md の SDD 実行運用に従う。実装前に [要件・原因・検証の対応](../review-fix-planning/references/convergence.md) の「1. 実装前の要件照合」を読み、Spec の条件・除外範囲と Task・観測結果・検証を照合する。共有する入力・状態・順序・外部仕様の確認は統合担当の Task にする。単純な変更は Plan の短い対応メモでよく、別帳票は作らない。
 4. 実行方式は次で決める。ランタイムのツール仕様を確かめ、存在しない一覧操作や同期フラグを渡さない。リポジトリが要求する起動条件を満たせなければ inline を選ぶ。
 
    | 条件 | 選ぶ方式 |
@@ -97,11 +97,12 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
    | 同じファイルの逐次変更、1–2 Task、委譲不可 | `superpowers:executing-plans` |
 
    Pi の `/sp-implement` は直列実行、`/sp-implement-parallel` は依存を満たした独立 Task を別 worktree で並列実行する入口。SDD なら常に parallel という対応ではない。同じファイルを同時に書かせない。run 中は選んだスキルで続け、コマンド再入力待ちにしない。
-5. 選んだスキルの実装・TDD・レビューに従い、最後のブランチ全体のレビューを省かない。スキルを作る場合は `superpowers:writing-skills` の無し/ありの振る舞い比較を行い、固定文言の検査テストで代用しない。テストは AGENTS.md の「テストの採用基準」に従い、迷ったら書かない。検証の失敗は `systematic-debugging` で調べ、解消できなければ止まる。
+5. 選んだスキルの実装・TDD・レビューに従い、最後のブランチ全体のレビューを省かない。実装担当（inline なら自分）へ、照合した条件・除外範囲・共有前提・必要な証拠を渡す。個別 Task の成功だけで共通条件を満たしたとせず、統合担当が条件単位で確認する。スキルを作る場合は `superpowers:writing-skills` の無し/ありの振る舞い比較を行い、固定文言の検査テストで代用しない。テストは AGENTS.md の「テストの採用基準」に従い、迷ったら書かない。検証の失敗は `systematic-debugging` で調べ、解消できなければ止まる。
 
 ## 5. 検証・PR・完了
 
 - **`verification-before-completion` と `finishing-a-development-branch` 必須。** 終了方法は PR の作成を選び、改めて選択肢を尋ねない。検証は 2 章の表の入口で行う。長時間の検証・子・CI は `monitoring-long-tasks` 必須で、終了を待ち、終了コードと実ログを確かめる。
+- 統合確認では [要件・原因・検証の対応](../review-fix-planning/references/convergence.md) の「3. 検証と閉じ方」を読む。Spec→Plan→Task→実行証拠を条件単位で照合し、判定の両側・意味のある操作順・検証の独立した根拠・最後の修正で影響した経路を確認する。要件の欠落や未確認をテスト件数や別版のレビューで埋めず、必要な証拠が揃ってから公開する。
 - worktree で明示したパスだけを stage・commit する。push は `finishing-a-development-branch` の `git push -u` ではなく、`AGENTS.md` の「push の前の秘密情報の検査」の形で、次の順に行う。検査のスクリプトは、どの対象でも `PARENT_ROOT` のものを使う（外部の checkout には無く、作業中の branch のものはその branch が書き換えられる）。
 
   ```bash

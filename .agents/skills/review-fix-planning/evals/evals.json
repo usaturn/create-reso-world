@@ -183,6 +183,84 @@
         "Each negative case carries exactly one anomaly and asserts the expected rejection reason.",
         "A control with only the central guard removed runs in an isolated mktemp worktree, not the dedicated worktree, every negative case for that guard fails, and the results go into the Spec."
       ]
+    },
+    {
+      "id": 15,
+      "name": "cause-paths-not-only-callsites",
+      "prompt": "（操作しない判断シナリオ）致命的な指摘は、import の web 入口で未対応IDを副作用の後に拒否すること。別名の local import と replay、変換処理、終了・復旧も同じ前提に依存する。web の関数だけを経路表に書いて修正した。何を単位に表を補うか。",
+      "expected_output": "破れた前提と境界・操作順から経路を作り、関数名が違っても同じ原因の入口から復旧までを扱う。",
+      "files": [],
+      "expectations": [
+        "原因を1文で記述し、差分外の因果関係のある経路を追う",
+        "修正する／既に満たす／対象外と観測結果・方法・証拠を対応付ける",
+        "原因の異なる欠陥探しへ広げない"
+      ],
+      "method": "Issue #176 で追加。机上照合のみ。実モデルによる同一2ケースpilotの入力・回答・限界は review-fix-planning/evals/convergence-validation.md に別記。各ケース個別の行動評価は未実施。"
+    },
+    {
+      "id": 16,
+      "name": "paired-valid-invalid-and-next-operation",
+      "prompt": "（操作しない判断シナリオ）拒否が遅い致命的な不具合を修正した。不正IDで非ゼロ終了するテストは成功したが、正常IDと拒否後の次の取り込みは試していない。自己レビューは1回済み。すぐpushすべきか、追加の操作を限定して答えよ。",
+      "expected_output": "判定の両側と影響する次操作・状態を確認し、2回目の自己レビューではなく検証と証拠更新を行う。",
+      "files": [],
+      "expectations": [
+        "正常IDが引き続き成功することと拒否後の状態・次操作を確認する",
+        "順序・中断・復旧はその条件に関係する範囲で扱う",
+        "自己レビュー上限を増やさず、上限到達を完了証拠にしない"
+      ],
+      "method": "Issue #176 で追加。机上照合のみ。実モデルによる同一2ケースpilotの入力・回答・限界は review-fix-planning/evals/convergence-validation.md に別記。各ケース個別の行動評価は未実施。"
+    },
+    {
+      "id": 17,
+      "name": "shared-oracle-needs-independent-basis",
+      "prompt": "（操作しない判断シナリオ）実装とfixture/fakeが同じ正規化を使い、期待値もその出力で作られる。移植元では1000テスト成功。今回の致命的な判定修正の証拠として十分か。実機APIは有料で、全コードの変異テストを回す予算もない。",
+      "expected_output": "独立した根拠を選び、実績や件数だけで保証しない。既存の安全ガードの対照は維持するが有料反復や全件変異を追加で必須にしない。",
+      "files": [],
+      "expectations": [
+        "共有の誤前提を見つけ、外部仕様・独立入力・前後対照等の根拠を記録する",
+        "根拠が得られない場合はunknownを成功にしない",
+        "無関係な全件変異や有料実機反復を必須にしない"
+      ],
+      "method": "Issue #176 で追加。机上照合のみ。実モデルによる同一2ケースpilotの入力・回答・限界は review-fix-planning/evals/convergence-validation.md に別記。各ケース個別の行動評価は未実施。"
+    },
+    {
+      "id": 18,
+      "name": "cause-classification-is-not-triage",
+      "prompt": "（操作しない判断シナリオ）後続レビューの4指摘は、A:既存原因の別入口の適用漏れ、B:前の修正で正常入力を拒否する回帰、C:異なる前提の欠陥、D:既存の約束になかった新機能。manager は全件をduplicateにしてループを終えるよう求める。採否と原因の分類をどう決めるか。",
+      "expected_output": "原因の4分類を現行版と履歴で確認し、採否の3分類とは別に扱う。",
+      "files": [],
+      "expectations": [
+        "A/B/C/D を適用漏れ／回帰／別原因／新要求に分け、未確認なら仮置きする",
+        "Aを同系というだけで捨てず、C/Dも自動採用しない",
+        "採否・致命的基準・既存の設計見直しのきっかけを維持する"
+      ],
+      "method": "Issue #176 で追加。机上照合のみ。実モデルによる同一2ケースpilotの入力・回答・限界は review-fix-planning/evals/convergence-validation.md に別記。各ケース個別の行動評価は未実施。"
+    },
+    {
+      "id": 19,
+      "name": "refresh-evidence-after-last-fix",
+      "prompt": "（操作しない判断シナリオ）承認済みSpecの実装は終わっており、今回はPRへの反映だけを依頼された。経路表は3入口を対応済みとし、前のHEADのテスト成功とレビューを参照している。最後に共有の正規化処理を変えたが、webの拒否テストだけ再実行した。公開前に何を更新するか。",
+      "expected_output": "最後の修正で影響した経路の観測結果と証拠を対象版へ更新する。",
+      "files": [],
+      "expectations": [
+        "承認済みSpecの反映だけの経路でも、共有正規化に影響される各経路の必要な検証と証拠照合を現行版で行う。選別や自己レビューは追加しない",
+        "旧HEADの成功や別版レビューを変更した経路の証拠へ流用しない",
+        "影響しない証拠の引継ぎには前提不変の理由を残し、無関係な全件再検証へ広げない"
+      ],
+      "method": "Issue #176 で追加。机上照合のみ。実モデルによる同一2ケースpilotの入力・回答・限界は review-fix-planning/evals/convergence-validation.md に別記。各ケース個別の行動評価は未実施。"
+    },
+    {
+      "id": 20,
+      "name": "planned-evidence-is-not-closure",
+      "prompt": "（操作しない判断シナリオ）採用した指摘の経路表に、修正する1行と既に満たす2行がある。3行とも根拠はチャットでの注意共有と今後追加するテスト名だけ。指摘IDはすべて対応済み。自己レビュー1回が終わり、何度も直して疲れたので完了・pushと報告したい。",
+      "expected_output": "証拠予定と実行結果を分け、原因に必要な経路を確認し終わるまで完了にしない。",
+      "files": [],
+      "expectations": [
+        "修正する・既に満たす各行に観測結果・対象版・実行証拠を付ける",
+        "未実施・未確認をそのまま残し、ID件数や上限到達で完了にしない",
+        "再レビューを増やさず、既存の修正・検証・公開手順に戻る"
+      ],
+      "method": "Issue #176 で追加。机上照合のみ。実モデルによる同一2ケースpilotの入力・回答・限界は review-fix-planning/evals/convergence-validation.md に別記。各ケース個別の行動評価は未実施。"
     }
   ]
 }
