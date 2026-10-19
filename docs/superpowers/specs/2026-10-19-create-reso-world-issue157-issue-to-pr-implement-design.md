@@ -13,6 +13,7 @@
 - 予約: `refs/heads/agent-claims/issue-157`（SHA `36c163d4419705386e0d96850889112f0be6b541`、セッション `272e7149-b69e-4212-9317-8709431161da`、2026-10-19T10:51:19Z）。記録: https://github.com/usaturn/create-reso-world/issues/157#issuecomment-6265511121
 - 基準: 移植先 `origin/main` の `8083a85`、移植元 usaturn/agent-workspace の `a47b2065`（#116 の基準）。基準の後に移植元で `implement_task.py`・そのテスト・`resolve_issue.py`・`SKILL.md` を変えたコミットは無い（2026-10-19 に GitHub の API で確認）
 - 方針: #116 の「着手するエージェントへの注意（利用者決定: 2026-10-18）」に従う。この子に関係するのは、`tools/workspace`・`projects.toml` を入れず、`resolve_issue.py` は #114 の版を土台にすること。D-157-13 のサイクルでは、移植先の review-fix-planning の判断基準（現行 HEAD で到達できる致命的な指摘だけを直す）、三択の結論、修正後の自己レビューは最大 1 回を保つ
+- builder check（brainstorming の読み合わせ、2026-10-19、model sonnet）の 5 点は、どれも既存の規則と移植元から決められたので、エージェントの判断として書き込んだ。実機の確認が通らないとき → D-157-11・D-157-13 の停止条件、レビュアーの起動と一部の失敗 → D-157-13 のサイクルの細部、修正の後の検証・`origin/main` が進んだとき・マージの方法 → 同、外部のリポジトリ → D-157-14、予算の総量 → Plan の「実行予算」（600 分）。利用者に確かめる必要のある点は無かった
 
 ## 意図
 
@@ -131,7 +132,7 @@
   - 別案: 移植元と同じく Pi で評価する
   - 理由: 移植先の既存の評価（#114・#139）が Claude Code の sonnet で行っている
 - **D-157-11 実機の確認は使い捨ての対象で、担当は `codex`**
-  - 選択: 「設計」の「実機の確認」のとおり。依頼は 1 回。環境による失敗は、同じ signature で 1 回まで依頼し直す
+  - 選択: 「設計」の「実機の確認」のとおり。依頼は最大 2 回。1 回目が `importable` → `accept` → `cleanup` まで通らなければ、もう 1 回だけ依頼し直す（担当の振る舞い（`BLOCKED`・`rejected` など）なら同じ `codex` に、`codex` が動かない（認証待ち・起動の失敗）なら `pi-deepseek` に）。2 回とも通らなければ、受け入れ条件 4 は未達として、PR は作るがマージしない（D-157-13 の停止条件）。正しく `rejected` と判定したことは、受け入れ条件 4（取り込み）の代わりにしない
   - 別案: (a) この PR の Task を runner に依頼する、(b) 親の checkout の別の Issue で行う、(c) 担当を `claude-opus`・`pi-deepseek` にする
   - 理由: (a)(b) は親の checkout が対象になり、消えた worktree の登録（他の作業の残り）で `checkout_audit` が止まる。片付けは他の作業の領域を変えるので、この子の範囲外。使い捨ての対象なら、親の登録・GitHub に触れずに、runner の起動・判定・取り込み・後片付けを本物の担当で通せる（#116 の D-21）。担当は Issue の受け入れのとおり DSH 以外で、移植元の実機の確認の意図（Claude 以外の担当）に合わせて `codex` にする（#150 で起動を確認済み）。`--config` を使わず、実際の雛形と個人設定と `--implement codex` で決まる経路を通す
 - **D-157-12 この Issue の実装の方式は inline（`superpowers:executing-plans`）**
@@ -140,9 +141,19 @@
   - 理由: 中心は移植元のコードの写しと移植先の API との照合で、その文脈（移植元のコード・テスト、runner の差分、テストの採用基準の判断）は既にこのセッションにある。Task は `resolve_issue.py` の出力 → SKILL.md → evals → 実機と 1 本の流れでつながり、子に文脈を渡しきれない（issue-to-pr の 4 章の 4 の表の条件）
 - **D-157-13 「`--merge` 相当」は、PR の作成後のレビュー修正のサイクルとマージ**
   - 選択: 利用者の「`/issue-to-pr #157 --merge` 相当で進めて」を、移植元の `--merge`（PR の作成後にレビュー修正のループを回し、修正不要と確かめられたらマージと関連 Issue の更新まで進む）に当たる指示として扱う。ループの部品（#155 の `run_roles.py`・`finalize.py`、#156 の pr-review-fix-loop、#158 の `--merge`）はまだ無いので、既存のスキルで手で回す。1 サイクルは、既定のレビュアー（agent-runner の workflow `review` の `inspect`。雛形と個人設定で決まる）がそれぞれ pr-review の非対話の入口で PR 全体をレビューし（DSH は `prepare-parent` の親入力を使う）、`review-fix-planning` が三択で結論し、修正するときは検証・push する。移植元の既定に合わせて、サイクルの上限は 3、利用者の判断が要る指摘は直さずに記録して進める。PR は draft にしない。実装の最後のブランチ全体のレビューは、1 サイクル目のレビューで代える（移植元の `--merge` と同じ）。マージは review-fix-planning が修正不要と結論したときだけ行い、`Closes #157` で #157 を close し、#157・#116 に結果を書く。上限に達したら、修正を push した状態で止まって報告する（マージしない）
+  - サイクルの細部（移植元の pr-review-fix-loop の「サイクル」「終わり方」に合わせる）:
+    - レビュアーは workflow `review` の `inspect`（2026-10-19 は雛形と個人設定で `pi-gpt`・`devin-swe`・`dsh-ccd`・`claude-opus`・`pixg`）で、役割の期限（2700 秒）のまま。レビュアーには `PARENT_ROOT` の pr-review を読ませる（PR で変えているスキルでレビューさせない。移植元と同じ）。起動は runner の CLI（`run --workflow review`、`--write-exception` は pr-review の `helper_write_exceptions` の値、DSH 向けに `prepare-parent` の親入力をプロンプトに入れる）。プロンプトと親入力はセッションディレクトリに置き、コミットしない
+    - 全レビュアーの終了と停止の確認を待つ。受け付けたレビューが 1 つ以上あれば review-fix-planning に進む。runner は成功したが結果を受け付けられなかったレビュアーは、同じサイクルで 1 回だけ起動し直す。runner の失敗（期限切れ・認証待ち・起動の失敗）は起動し直さない。全員の失敗は停止
+    - 修正したら、関連テストと README の「テスト」の 3 つを修正後の HEAD でやり直す。SKILL.md の振る舞いに関わる文面を変えたら、変更後の評価を 3 回取り直す。`implement_task.py` の `run`・`accept`・`cleanup` の経路を変えたら、実機の確認を 1 回やり直す。それ以外の変更では実機の記録を引き継ぎ、変更がその前提を変えない理由を書く
+    - マージの前に `origin/main` が進んでいれば、`origin/main` を feature branch に merge し（force push しない）、競合は節が分かれていて機械的に解消できるときだけ解消し、全体の検証をやり直してから push する。機械的に解消できなければ止まる
+    - マージは `gh pr merge --merge`（merge commit。branch は消さない）。その前に、PR が draft でない、`headRefOid` が検証した HEAD、マージできる状態であることを確かめる
   - 別案: (a) この版の SKILL.md の「`--merge` は止まる」に従って止まる、(b) 利用者に解釈を確かめる、(c) PR の作成で終える
   - 理由: 利用者は、この版で `--merge` が使えないことを踏まえて「相当で」と明示した。#116 の D-21 と #157 の「反映先」は、利用者の明示の指示があればマージを認める。手順の既定は移植元の `--merge` の既定で決まり、確かめる必要のある未決の判断が無い
-  - 停止条件: 安全の失敗、レビュアーの全員の失敗、マージの前の状態の不一致（HEAD が検証したものと違う、PR が draft・競合）、review-fix-planning の「停止」。予算（Plan の「実行予算」）の 100% で止まって報告する
+  - 停止条件: 安全の失敗、レビュアーの全員の失敗、マージの前の状態の不一致（HEAD が検証したものと違う、PR が draft、機械的に解消できない競合）、review-fix-planning の「停止」、実機の確認の未達（受け入れ条件 4）。予算（Plan の「実行予算」）の 100% で止まって報告する
+- **D-157-14 外部のリポジトリでも同じ手順で使える**
+  - 選択: `TARGET_REPO` が usaturn/resoloop・usaturn/resoloop-meshy でも、`--implement` を同じ手順で使える。依頼の `repository` は `TARGET_ROOT/.worktrees/<名前>` の feature worktree、`RUN_DIR` は `PARENT_ROOT/tmp/agents/` の下。実機では確かめていないことを validation.md に書く
+  - 別案: create-reso-world だけに限る
+  - 理由: `implement_task.py` は対象のリポジトリに依存しない（linked worktree の root であることだけを確かめる）。移植元も登録された全てのリポジトリで使える。限る理由が無い
 
 ## 受け入れ条件
 

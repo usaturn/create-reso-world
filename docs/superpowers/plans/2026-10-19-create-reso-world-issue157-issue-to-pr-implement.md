@@ -66,7 +66,7 @@
 
 - 移植したテストが移植先の runner の差（DSH の扱い、`grok-build` の除外）で落ちたら、`tools/` を変えずに原因を調べ、テストの前提だけを移植先に合わせて、理由を Plan の「実行の記録」に書く。仕様の意味を変える必要があれば止まる
 - 振る舞いの比較で変更後が期待を外したら、文面を直して変更後だけを取り直す（1 回まで）。それでも外れる場面は、外れたまま validation.md に書く
-- 実機が成功しない（`verdict` が `importable` にならない、`accept`・`cleanup` が失敗する）ときは、PR は作るが Task 9 のマージには進まず、止まって報告する（受け入れ条件 4 が完了の証拠のため）
+- 実機の 1 回目が `importable` → `accept` → `cleanup` まで通らなければ、1 回だけ依頼し直す（担当の振る舞いなら同じ `codex`、`codex` が動かないなら `pi-deepseek`）。2 回とも通らなければ、PR は作るが Task 9 のマージには進まず、止まって報告する（受け入れ条件 4 が完了の証拠のため。Spec の D-157-11）
 
 ---
 
@@ -206,11 +206,11 @@
 
 各サイクル（最大 3 回）:
 
-- [ ] **Step 1: レビュー** — `PARENT_ROOT` の pr-review の `references/noninteractive.md` を読み、`prepare-parent`（DSH の親入力）→ `uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner run --workflow review`（既定のレビュアー、`--write-exception` は `helper_write_exceptions` の値、プロンプトは各レビュアーが pr-review の非対話の入口で PR 全体をレビューする指示と `parent_pr_data`）を `run_in_background: true` で起動する。`after_run`（`finalize-parent`・`attach-runner`）の結果、各試行の state・`stop_confirmed`・payload を確かめる
+- [ ] **Step 1: レビュー** — `PARENT_ROOT` の pr-review の `references/noninteractive.md` を読み、`prepare-parent`（DSH の親入力。新しい出力先）→ `uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner run --workflow review --repository "$PARENT_ROOT" --revision <PR の HEAD> --prompt-file <セッションディレクトリのプロンプト> --concurrency 5 --output-dir <新しい出力先>`（`--write-exception` は `helper_write_exceptions` の値を 1 つずつ。プロンプトは、各レビュアーが `PARENT_ROOT` の pr-review の非対話の入口で PR 全体を独立にレビューし、他のレビュアーの成果を読まない指示と `parent_pr_data`）を `run_in_background: true` で起動する。雛形の `after_run`（`finalize-parent`・`attach-runner`）の結果、各試行の state・`stop_confirmed`・payload を確かめる。runner は成功したが結果を受け付けられなかったレビュアーだけを同じサイクルで 1 回起動し直す。受け付けたレビューが 0 なら止まる。`outside_changes` は中身を記録し、起動の前から監査できない登録（2026-10-19 の `/tmp/pr-review-182-177dc8a7/worktree`）と、同じ時間に動いている他のセッションの worktree だけなら、それを理由にレビューの失敗にしない（runner は他のセッションの変更との因果を断定しない）。それ以外の checkout が出たら、原因を確かめるまで次の段に進まない
 - [ ] **Step 2: 修正の要否** — `review-fix-planning` をレビューディレクトリ（`PARENT_ROOT/reviews/usaturn/create-reso-world/#<PR>-feat/issue-157-issue-to-pr-implement/`）で実行する。判断基準・三択・自己レビューの上限は review-fix-planning に従う
 - [ ] **Step 3: 結論ごとの操作**
-  - 修正する: 修正・検証・自己レビュー（最大 1 回）の後、Task 8 の Step 2 の形で push し、次のサイクルへ。3 回目の後は止まって報告する（マージしない）
-  - 修正不要: PR が draft でない、`headRefOid` が検証した HEAD、マージできる状態を確かめてから `gh pr merge --repo usaturn/create-reso-world --merge <PR>` でマージする。#157 が `completed` で close したことを確かめる
+  - 修正する: 修正・検証（関連テストと README の「テスト」の 3 つ。SKILL.md の振る舞いに関わる文面を変えたら変更後の評価を 3 回、`implement_task.py` の `run`・`accept`・`cleanup` の経路を変えたら実機を 1 回）・自己レビュー（最大 1 回）の後、Task 8 の Step 2 の形で push し、次のサイクルへ。3 回目の後は止まって報告する（マージしない）
+  - 修正不要: `origin/main` が進んでいれば feature branch に merge（force push しない。機械的に解消できない競合なら止まる）して全体の検証をやり直し push する。PR が draft でない、`headRefOid` が検証した HEAD、マージできる状態を確かめてから `gh pr merge --repo usaturn/create-reso-world --merge <PR>` でマージする（branch は消さない）。#157 が `completed` で close したことを確かめる
   - 停止: 理由を報告する
 - [ ] **Step 4: 記録と解放** — 各サイクルの結論を PR と #157 に書き、#116 に結果をコメントする（調整役の表は変えない）。予約を `git push --force-with-lease=refs/heads/agent-claims/issue-157:36c163d4419705386e0d96850889112f0be6b541 origin :refs/heads/agent-claims/issue-157` で解放し、ref が無いことを確かめる
 
