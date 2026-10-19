@@ -352,3 +352,63 @@ def test_reports_gh_failure_without_trying_another_repository(
     result = resolve(checkout, "#42")
     assert_rejected(result)
     assert "404" in result.stderr
+
+
+IMPLEMENT_SCRIPT = SCRIPT.parent / "implement_task.py"
+IMPLEMENT_TEMPLATE = """
+schema_version = 1
+
+[agents.codex]
+runtime = "codex"
+command = ["fake-codex"]
+model = "codex-model"
+
+[roles.implement]
+writes = true
+deadline_seconds = 60
+result_shape = "json"
+
+[workflows.issue.assignments.implement]
+agents = ["self"]
+"""
+
+
+@pytest.mark.parametrize(
+    ("argument", "expected"),
+    [
+        ("#42", (0, 0, True)),
+        ("#42 --implement codex", (0, 0, False)),
+        ("#42 --implement self", (0, 0, True)),
+        ("#42 --implement nobody", (0, 2, None)),
+        ("#42 --implement", (2, None, None)),
+    ],
+)
+def test_resolve_then_implement_check(
+    checkout: Path, gh_stub: Path, tmp_path: Path, argument: str, expected: tuple[int, int | None, bool | None]
+) -> None:
+    """worktree を作る前の 2 段（resolve_issue.py → implement_task.py check）を、本物の 2 つのスクリプトでつなぐ。
+
+    値は（resolve の終了コード、check の終了コード、check の self）。implement が null なら --implement を付けない。
+    """
+    template = tmp_path / "agent-runner.toml"
+    template.write_text(IMPLEMENT_TEMPLATE, encoding="utf-8")
+    resolved = resolve(checkout, argument)
+    if resolved.returncode != 0:
+        assert (resolved.returncode, None, None) == expected
+        return
+    implement = json.loads(resolved.stdout)["implement"]
+    checked = subprocess.run(
+        [
+            sys.executable,
+            str(IMPLEMENT_SCRIPT),
+            "check",
+            "--template",
+            str(template),
+            *(["--implement", implement] if implement is not None else []),
+        ],
+        cwd=checkout,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "AGENT_RUNNER_CONFIG": str(tmp_path / "no-personal.toml")},
+    )
+    assert (resolved.returncode, checked.returncode, json.loads(checked.stdout).get("self")) == expected
