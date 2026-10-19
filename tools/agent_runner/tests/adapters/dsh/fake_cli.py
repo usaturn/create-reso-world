@@ -103,6 +103,94 @@ def main() -> int:
         "parent_model": os.environ.get("PI_MODEL"),
         "key_present": bool(key),
     }
+    if mode == "parent-input":
+        from tools.agent_runner.dsh_sandbox import BASE
+
+        parameters = json.loads(prompt.rsplit("```json\n", 1)[1].split("\n```", 1)[0])
+        snapshot = Path(parameters["parent_pr_data"]["path"])
+        bundle = snapshot.with_name("objects.bundle")
+        capture["parent_visible"] = snapshot.is_file() and bundle.is_file()
+        if capture["parent_visible"]:
+            document = json.loads(snapshot.read_text())
+            capture["bundle"] = bundle.read_text()
+            denied = []
+            for path in (snapshot, bundle, Path(document["target"]["parent_root"]) / ".gitignore"):
+                try:
+                    path.write_text("changed")
+                    denied.append(False)
+                except OSError:
+                    denied.append(True)
+            capture["parent_writes_denied"] = denied
+            neighbor = Path(parameters["probe_neighbor"])
+            try:
+                neighbor.write_text("native shadow")
+            except OSError:
+                pass
+            target_script = Path(__file__).resolve().parents[5] / ".agents/scripts/review_target.py"
+            program = (
+                "from pathlib import Path; import importlib.util; "
+                f"s = importlib.util.spec_from_file_location('parent_root_probe', {str(target_script)!r}); "
+                "m = importlib.util.module_from_spec(s); s.loader.exec_module(m); "
+                f"assert m.require_parent_root(Path({document['target']['parent_root']!r})); "
+                f"assert Path({str(snapshot)!r}).is_file(); "
+                f"assert Path({str(bundle)!r}).read_text() == 'fixture bundle'; "
+                f"Path({str(neighbor)!r}).write_text('helper shadow')"
+            )
+            readonly_probe = (
+                "for value in " + repr([str(snapshot), str(bundle), str(Path(document["target"]["parent_root"]) / ".gitignore")])
+                + ":\n try:\n  Path(value).write_text('changed')\n"
+                + " except OSError:\n  continue\n raise AssertionError('parent input was writable')\n"
+            )
+            program += "; exec(" + repr(readonly_probe) + ")"
+            work = str(Path.cwd())
+            helper = subprocess.run(
+                [*rows["sandbox"]["config"]["runnerCommand"], *BASE, "--tmpfs", "/tmp", "--bind", work, work,
+                 "--", sys.executable, "-c", program], capture_output=True, text=True, check=False,
+            )
+            capture["helper_exit"] = helper.returncode
+            capture["helper_error"] = helper.stderr
+    if mode == "native-fence":
+        attempt = state.parent.parent
+        denied: dict[str, bool] = {}
+        for path in (attempt / "request.json", attempt / "receipt.json", Path(args[args.index("--patch") + 1])):
+            try:
+                path.write_text("forged")
+                denied[path.name] = False
+            except OSError:
+                denied[path.name] = True
+        target = Path(os.environ["FAKE_HOST_TARGET"])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            target.write_text("changed")
+        except OSError:
+            pass
+        for name, path in (("scratch", attempt / "review-scratch"), ("exports", state.parent / "tmp" / "exports")):
+            (path / "native.txt").write_text("native output")
+            capture[name] = str(path)
+        try:
+            os.link(Path(args[args.index("--patch") + 1]), state.parent / "tmp" / "patch-link")
+            capture["hardlink_denied"] = False
+        except OSError:
+            capture["hardlink_denied"] = True
+        capture["denied"] = denied
+        host_proc = Path("/proc") / os.environ["FAKE_HOST_PID"]
+        capture["host_proc_visible"] = (host_proc / "root").exists()
+        from tools.agent_runner.dsh_sandbox import BASE
+
+        work = str(Path.cwd())
+        profile = [*BASE, "--tmpfs", "/tmp", "--bind", work, work, "--"]
+        program = (
+            "from pathlib import Path; import subprocess; "
+            f"assert Path({str(attempt / 'request.json')!r}).is_file(); "
+            f"Path({str(attempt / 'review-scratch' / 'helper.txt')!r}).write_text('helper output'); "
+            "subprocess.run(['git','status','--porcelain'],check=True,capture_output=True)"
+        )
+        helper = subprocess.run(
+            [*rows["sandbox"]["config"]["runnerCommand"], *profile, sys.executable, "-c", program],
+            capture_output=True, text=True, check=False,
+        )
+        capture["helper_exit"] = helper.returncode
+        capture["helper_error"] = helper.stderr
     if mode in {"spill", "hang"}:
         # Like DSH's subprocess-local spill of >64 KB command output under tmpdir().
         spill = Path(tempfile.mkdtemp(prefix="dsh-subprocess-")) / "output.log"
@@ -126,6 +214,10 @@ def main() -> int:
         (Path(os.environ["TMPDIR"]) / "foreign-link").symlink_to(Path.cwd() / "README.md")
     elif mode == "tmp-fifo":
         os.mkfifo(Path(os.environ["TMPDIR"]) / "spill.fifo")
+    elif mode == "tmp-hardlink":
+        original = Path(os.environ["TMPDIR"]) / "original.json"
+        original.write_text("synthetic content")
+        os.link(original, original.with_name("linked.json"))
     elif mode == "tmp-link":
         # TMPDIR itself now resolves into the checkout, which holds a link of its own.
         scratch = Path(os.environ["TMPDIR"])
@@ -146,7 +238,11 @@ def main() -> int:
         (state / "session.jsonl").write_text(json.dumps({"tool": key}) + "\n")
     if mode in {"hang", "descendant"}:
         child = subprocess.Popen(
-            [sys.executable, "-c", "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(600)"],
+            [
+                sys.executable, "-c",
+                "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(600)",
+                str(Path.cwd() / "child.pid"),
+            ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )

@@ -131,3 +131,18 @@ runtime = "devin"
 command = ["devin"]
 model = "swe-2-max"
 env = ["HOME", "PATH"]
+
+# DSH の親入力は caller が起動前に prepare-parent で作る。after_run は事後の保存と観測値の記録だけ。
+# 個人設定は書き換えない。after_run = [] で無効にした caller は両コマンドを明示実行する。
+[workflows.review]
+after_run = [[
+  "uv", "run", "--project", ".", "--locked", "python",
+  ".agents/skills/pr-review/scripts/review_run.py", "finalize-parent", "--result", "{result}",
+], [
+  "uv", "run", "--project", ".", "--locked", "python",
+  ".agents/skills/pr-review/scripts/review_run.py", "attach-runner", "--result", "{result}",
+]]
+
+# 指定が無いときの既定構成。その回の --assign inspect=... または個人設定で選び直せる。
+[workflows.review.assignments.inspect]
+agents = ["pi-gpt", "devin-swe", "dsh-ccd", "claude-opus", "pixg"]

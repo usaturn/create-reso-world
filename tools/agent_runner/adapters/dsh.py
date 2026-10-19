@@ -4,6 +4,7 @@ The CLI owns profile initialization; no plugin install or subprocess runs here.
 The JSONL projection supplies sessionId; the bound durable session supplies
 observed provider/model/effort. Exit and descendant stop status are independently
 enforced by the runner, not inferred from ``final``.
+The entire CLI is fenced with bubblewrap; its bash tool uses a nested sandbox.
 HOME is a disposable cache the runner removes after stop. State, the patch and
 regular files in a private TMPDIR (DSH spills large command output there) are
 retained redacted; links and special files tools leave in TMPDIR are unlinked.
@@ -26,6 +27,8 @@ from tools.agent_runner.adapters import (
 )
 from tools.agent_runner.adapters.skills import prompt_lines
 from tools.agent_runner.dsh_identity import read_session_identity
+from tools.agent_runner.dsh_paths import parent_review_read_paths, review_exports, review_scratch
+from tools.agent_runner.dsh_sandbox import grant_path, outer_command
 from tools.agent_runner.environ import literal_environ
 from tools.agent_runner.models import Identity, Payload, Receipt, ReceiptStatus
 
@@ -202,14 +205,22 @@ class Dsh:
         agent = context.agent
         if agent.provider not in _KEYS or agent.args:
             raise ValueError("unsupported DSH launch configuration")
+        if context.sandbox_write_paths:
+            raise ValueError("arbitrary DSH write grants are unsupported")
         provider = agent.provider
         inherited = context.environment if context.environment is not None else literal_environ()
-        if shutil.which("bwrap", path=inherited.get("PATH", os.defpath)) is None:
+        bubblewrap = shutil.which("bwrap", path=inherited.get("PATH", os.defpath))
+        if bubblewrap is None:
             raise ValueError("bubblewrap is unavailable; cannot run unconfined")
-        root = context.receipt_path.parent / "dsh"
+        attempt = context.receipt_path.parent
+        grant_path(str(attempt))
+        grant_path(str(context.work_dir))
+        parent_inputs = parent_review_read_paths(context.request.prompt, inherited)
+        root = attempt / "dsh"
         root.mkdir(mode=0o700)
         home, dsh_home, tmp = root / "home", root / "state", root / "tmp"
-        for directory in (home, dsh_home, tmp):
+        scratch = review_scratch(attempt)
+        for directory in (home, dsh_home, tmp, scratch, review_exports(attempt)):
             directory.mkdir(mode=0o700)
         # A fresh reference prevents DSH from falling back to a project's .env
         # or a shared credential store under the original provider key name.
@@ -232,14 +243,34 @@ class Dsh:
                 baseURL="https://api.commandcode.ai/provider/v1",
                 compat={"thinkingFormat": "deepseek"},
             )
+        # Paths hidden by /tmp are restored read-only in both the native and
+        # bash sandboxes. Never restore a command's arbitrary parent directory.
+        reads = [Path(__file__).resolve().parents[2], Path(sys.prefix), *parent_inputs]
+        for argument in agent.command:
+            path = Path(argument)
+            if path.is_absolute() and path.is_file():
+                reads.append(path.resolve(strict=True))
+        git_file = context.work_dir / ".git"
+        if git_file.is_file():
+            text = git_file.read_text(encoding="utf-8").strip()
+            if not text.startswith("gitdir: "):
+                raise ValueError("invalid workspace gitdir")
+            git_dir = Path(text.removeprefix("gitdir: "))
+            if not git_dir.is_absolute():
+                git_dir = context.work_dir / git_dir
+            git_dir = git_dir.resolve(strict=True)
+            reads.append(git_dir)
+            common_file = git_dir / "commondir"
+            if common_file.is_file():
+                reads.append((git_dir / common_file.read_text(encoding="utf-8").strip()).resolve(strict=True))
+        read_paths = tuple(dict.fromkeys(path for path in reads if path.is_relative_to("/tmp")))
         runner_command = [
             sys.executable,
             str(Path(__file__).resolve().parents[1] / "dsh_sandbox.py"),
             "--workspace",
             str(context.work_dir.resolve(strict=True)),
-            "--read-root",
-            str(context.receipt_path.parent.resolve(strict=True)),
-            *[argument for path in (home, tmp, *context.sandbox_write_paths) for argument in ("--grant", str(path))],
+            *[argument for path in (attempt, *read_paths) for argument in ("--read-root", str(path))],
+            *[argument for path in (home, tmp, scratch) for argument in ("--grant", str(path))],
             "--",
         ]
         patch = [
@@ -280,16 +311,12 @@ class Dsh:
         prompt = context.request.prompt
         if skill_lines:
             prompt += "\n\n" + "\n".join(skill_lines)
+        argv = outer_command(
+            bubblewrap, context.work_dir, attempt, (home, dsh_home, tmp, scratch), read_paths,
+            (*agent.command, "--profile", "headless", "--patch", str(patch_path), "--json", "-"),
+        )
         return LaunchSpec(
-            argv=(
-                *agent.command,
-                "--profile",
-                "headless",
-                "--patch",
-                str(patch_path),
-                "--json",
-                "-",
-            ),
+            argv=argv,
             stdin=prompt.encode("utf-8"),
             env={
                 "HOME": str(home),

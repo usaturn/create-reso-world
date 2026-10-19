@@ -32,17 +32,26 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
 
 ## 第1引数の解決
 
-第1引数が `#<番号>`（例 `#300`）のとき、手順に入る前にレビューディレクトリへ解決する:
+第1引数は PR 番号（`300`・`#300`）、PR URL、または既存レビューディレクトリのパス。**読んだ skill の source checkout** を `REVIEW_TOOL_ROOT` とし、その版の `.agents/scripts/review_target.py review-dir` だけで、レビュー本文を読む前に対象 repository と保存先を照合する。対象 checkout や cwd から helper の配置元を推測しない。
 
-- リポジトリのルートの `reviews/` と、`external/resoloop/reviews/`（resoloop の PR のレビューが置かれる場所）の、それぞれ直下（旧形式）と `<owner>/<repo>/` の下（pr-review が所属リポジトリごとに保存する形式。例 `reviews/usaturn/create-reso-world/#300-…/`）にあるディレクトリだけを見る。それより深く再帰せず、ファイルは候補にしない。
-- ディレクトリ名が `#<番号>-` で開始されるものを一致とする（`#<番号>` の直後にハイフンが続くもの。例 `reviews/#300-fix-issue-299-pr-review-budget/`）。
-- 1 件だけ一致したら、そのディレクトリをレビューディレクトリとする。
-- 0 件なら、`reviews/` と `external/resoloop/reviews/` に一致するディレクトリが無い旨を報告して停止する。
-- 複数一致したら、候補のディレクトリ名を列挙して停止し、フルパスでの指定を求める。
+```bash
+TARGET_ARGS=(review-dir "$REVIEW_INPUT" --for-planning)
+if [[ -n "${CODE_ROOT:-}" ]]; then TARGET_ARGS+=(--code-root "$CODE_ROOT"); fi
+# PR の URL が別に渡された明示パス入力のときだけ追加する。番号・URL 入力には --pr を付けない。
+if [[ -n "${REVIEW_PATH_PR:-}" ]]; then TARGET_ARGS+=(--pr "$REVIEW_PATH_PR"); fi
+REVIEW_CONTEXT=$(uv run --project "$REVIEW_TOOL_ROOT" --locked python \
+  "$REVIEW_TOOL_ROOT/.agents/scripts/review_target.py" "${TARGET_ARGS[@]}") || exit
+REVIEW_DIR=$(printf '%s' "$REVIEW_CONTEXT" | jq -r .review_dir)
+PARENT_ROOT=$(printf '%s' "$REVIEW_CONTEXT" | jq -r .parent_root)
+PR_REPO=$(printf '%s' "$REVIEW_CONTEXT" | jq -r .repository)
+PR_NUMBER=$(printf '%s' "$REVIEW_CONTEXT" | jq -r .number)
+PR_URL=$(printf '%s' "$REVIEW_CONTEXT" | jq -r .url)
+```
 
-`#<番号>` 以外の第1引数は従来どおりレビューディレクトリのパスとして扱う。
-
-PR の URL（`https://github.com/<owner>/<repo>/pull/<N>`）か番号が別に渡されたら、`<owner>/<repo>` を `PR_REPO`、`<N>` を `PR_NUMBER` にする。レビューディレクトリ名の `#<番号>` が `PR_NUMBER` と食い違うときは、推測せず停止する。レビューディレクトリが `reviews/<owner>/<repo>/` の下にあり、その `<owner>/<repo>` が `PR_REPO` と食い違う（大文字小文字は区別しない）ときも、推測せず停止する。fork と上流は番号も head も重なり得るので、別のリポジトリの PR のレビューで修正計画を立てない。
+- 番号は親 origin の PR、URL はその base repository の PR。新配置 `PARENT_ROOT/reviews/<owner>/<repo>/#<PR>-<branch>/` だけを探す。別 repo の同じ番号や外部 checkout の旧配置を自動選択しない。
+- 旧配置（親の `reviews/#<PR>-*`、各 checkout の `reviews/`）は明示したパスでだけ使う。fork と上流の両 PR を含む旧配置では PR URL を `REVIEW_PATH_PR` に添える。移動・自動コピーはしない。
+- その他の repo は明示された main checkout の絶対パス `CODE_ROOT` と一致 remote 1 件が必要。既知の ResoLoop 経路は origin/upstream を照合し、上流 PR は `base_remote=upstream`。checkout の探索・clone はしない。
+- 候補無し・複数・repository/番号/branch の不一致・API 失敗は、その理由を報告して停止する。ディレクトリ名・祖先関係から別 PR を推測しない。
 
 ## 手順
 
@@ -51,7 +60,23 @@ PR の URL（`https://github.com/<owner>/<repo>/pull/<N>`）か番号が別に�
 それ以外は、各項目をランタイムの plan / todo 機能のタスクにしてから開始する（Claude Code では TodoWrite、Codex では `update_plan`）。完遂では「三択の結論」の各段もタスクにする。
 
 1. **範囲を固定する** — 解決したレビューディレクトリ配下の全ファイルを読む。各ファイル冒頭の「対象 HEAD」を記録する。複数世代が混在するのが普通である。レビュー成果物は gitignore 対象で未コミットのことがある（本リポジトリの `reviews/` がそうである）が、指定ディレクトリ内であれば Git の追跡状態にかかわらず正規の入力である。
-2. **現行 HEAD を特定する** — レビュー対象のブランチ／PR の現在の先端を `git` / `gh` で確認し、対象 PR の `owner/name` を `PR_REPO` に設定する。ルート `AGENTS.md` の「リポジトリ境界」に従い、下記「共通 context の確認」を後続の Git 操作より前に実行する。`pr-review` と同じ共通 helper だが、修正用の明示 worktree は同じ Git repository（git-common-dir）に属する場合に使える。その他の repo は、ユーザの依頼または確認済みの引き継ぎで明示された絶対パスの `CODE_ROOT` と一致 remote 1 件が必要で、推測せず停止する。レビューディレクトリは `CODE_ROOT` 配下の `reviews/` をフルパスで受け取る。ResoLoop の不備は `scripts/resoloop-fork.sh clone` を案内して停止する。helper は `$MAIN_ROOT` ではなく照合済みの `$TOPLEVEL`（tool_root）から解決する。PR の状態・draft かどうか・base・head・本文・関連 Issue は `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,body,closingIssuesReferences` で読む。レビューと PR の対応も確かめる。PR の URL（または `owner/repo` と番号）が渡されていないときに `PR_REPO` を決めてよいのは、ルートの `reviews/` のレビュー（usaturn/create-reso-world）だけである。`external/resoloop/reviews/` は usaturn/resoloop と orange3134/resoloop の両方の PR を含み、番号もブランチ名も重なり得るので、PR の URL が無ければ推測せず停止して URL を求める（完遂では結論 3）。祖先の確認やディレクトリ名との一致で候補を 1 件に絞って `PR_REPO` を決めない（rebase の後は、レビューした PR ではなく、レビューしたコミットを履歴に含む別の PR だけが条件を満たし得る）。`PR_REPO` を決めた後、`git -C "$MAIN_ROOT" fetch "$PR_REMOTE" "pull/$PR_NUMBER/head"` を行い、各レビューファイルの対象 HEAD がすべて `git -C "$MAIN_ROOT" merge-base --is-ancestor <対象 HEAD> FETCH_HEAD` を満たすことを確かめる。満たさなければ推測せず停止する（完遂では結論 3）。完遂では、続けて下記「専用の worktree」を用意する。
+2. **現行 HEAD を特定する** — 引数解決で照合した `PR_REPO`・`PR_NUMBER`・`PR_URL`・`REVIEW_DIR` を使い、ルート `AGENTS.md` の「リポジトリ境界」と下記「共通 context の確認」を後続の Git 操作より前に実行する。保存先は `PARENT_ROOT/reviews/`、Git 操作先は context の `MAIN_ROOT`（code_root）であり、同じとは限らない。修正用の明示 worktree は同じ Git repository（git-common-dir）の場合に使える。その他の repo は明示された絶対パス `CODE_ROOT` と一致 remote 1 件が必要で、推測しない。ResoLoop の不備は `scripts/resoloop-fork.sh clone` を案内して停止する。PR の状態・draft・base・head・本文・関連 Issue を `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,body,closingIssuesReferences` で読み、引数解決の repository/番号と一致することを確認する。helper は照合した `PR_REMOTE`（base_remote、上流 PR は upstream）から PR head を固定する。下の共通 API を、読んだ skill の `REVIEW_TOOL_ROOT` の project で実行する:
+
+   ```bash
+   PR_REF=$(uv run --project "$REVIEW_TOOL_ROOT" --locked python - "$REVIEW_TOOL_ROOT" "$MAIN_ROOT" "$PR_REPO" "$PR_NUMBER" "$HEAD_SHA" "$PR_REMOTE" <<'PY'
+import importlib.util
+import sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("review_target", Path(sys.argv[1]) / ".agents/scripts/review_target.py")
+helper = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(helper)
+print(helper.fetch_pull_head(Path(sys.argv[2]), sys.argv[3], int(sys.argv[4]), sys.argv[5], remote=sys.argv[6]))
+PY
+   ) || exit
+   ```
+
+   `HEAD_SHA` は直前の `headRefOid`。共有の追跡 ref・tag・`FETCH_HEAD` を更新せず、所属 repository を含む専用 ref に固定する。各レビューファイルの対象 HEAD がすべて `git -C "$MAIN_ROOT" merge-base --is-ancestor <対象 HEAD> "$PR_REF"` を満たすことを確かめる。満たさなければ停止する（完遂では結論 3）。祖先関係は既に照合した PR の世代確認にだけ使い、所属 repository を選ぶ根拠にしない。完遂では続けて下記「専用の worktree」を用意する。
+
 3. **各指摘を現行 HEAD の「コミット済み」内容で検証する** — `git show <HEAD>:<path>` で読む。指摘された path の `REVIEWED_HEAD` にある committed source/test blob は検証根拠として許可する。挙動の指摘は、path と reviewed HEAD を別引数にした隔離 worktree で再現する:
 
    ```bash
