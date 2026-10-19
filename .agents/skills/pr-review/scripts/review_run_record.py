@@ -16,6 +16,7 @@ import stat
 import sys
 from collections import Counter
 from collections.abc import Callable, Mapping
+from contextlib import nullcontext
 from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import Any
@@ -128,17 +129,17 @@ def read(path: Path) -> dict[str, Any]:
     return document
 
 
-def create(parent: Path, path: Path, document: Mapping[str, Any]) -> None:
+def create(parent: Path, path: Path, document: Mapping[str, Any], *, local: bool = False) -> None:
     findings.validate_document(document)
-    with workspace.review_save_lock(parent):
+    with (nullcontext() if local else workspace.review_save_lock(parent)):
         if path.exists() or path.is_symlink():
             raise workspace.WorkspaceError(f"run record already exists: {path}")
         workspace.write_json(path, dict(document))
 
 
-def update(parent: Path, path: Path, change: Change) -> bool:
+def update(parent: Path, path: Path, change: Change, *, local: bool = False) -> bool:
     """読む → 規則を適用 → 検査 → 置き換え。規則が書き換えを許さなければ何もしない。"""
-    with workspace.review_save_lock(parent):
+    with (nullcontext() if local else workspace.review_save_lock(parent)):
         current = read(path)
         changed = change(copy.deepcopy(current))
         if changed is None or changed == current:

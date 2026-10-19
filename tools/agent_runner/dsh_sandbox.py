@@ -22,6 +22,26 @@ def grant_path(value: str) -> str:
     return str(path)
 
 
+def outer_command(
+    runner: str, workspace: Path, attempt: Path, grants: tuple[Path, ...],
+    read_paths: tuple[Path, ...], command: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Fence native tools as well as bash, preserving only this attempt in /tmp.
+
+    The attempt is read-only; later mounts make only owned work/cache/state/temp
+    and helper staging writable. A fresh procfs in a PID namespace prevents
+    /proc/<host-pid>/root and fd paths from reaching the host mount namespace.
+    """
+    writable = tuple(dict.fromkeys(grant_path(str(path)) for path in (workspace, *grants)))
+    reads = tuple(dict.fromkeys(grant_path(str(path)) for path in (attempt, *read_paths)))
+    return (
+        runner, *BASE, "--cap-drop", "ALL", "--tmpfs", "/tmp",
+        *(argument for path in reads for argument in ("--ro-bind", path, path)),
+        *(argument for path in writable for argument in ("--bind", path, path)),
+        "--chdir", str(workspace), "--", *command,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     try:
         values = sys.argv[1:] if argv is None else argv

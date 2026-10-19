@@ -22,7 +22,7 @@ import threading
 import time
 import uuid
 from collections.abc import Generator, Mapping
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager, nullcontext, suppress
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from types import ModuleType
@@ -373,7 +373,16 @@ def pinned_review_ref(pr_number: int, repository: str) -> str:
 
 
 def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str, str | None]:
-    model_name, model_source = resolve_runtime_model_name(getattr(args, "model_name", None))
+    authenticated_model = getattr(args, "authenticated_model", None)
+    if authenticated_model is not None:
+        if not getattr(args, "private_clone", False) or getattr(args, "parent_input", None) is None:
+            raise WorkspaceError("authenticated model requires a private parent-bundle session")
+        # The controller has checked the child's Identity. Its own ambient Codex
+        # session must not replace the reviewer when rebuilding a save session.
+        model_name = validate_model_name(authenticated_model)
+        model_source = MODEL_SOURCE_EXPLICIT
+    else:
+        model_name, model_source = resolve_runtime_model_name(getattr(args, "model_name", None))
     target = parse_target(target_value)
     parent = _target_call("require_parent_root", Path(target["parent_root"]))
     repository, number, head = (
@@ -503,7 +512,9 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
                 raise WorkspaceError("PR head changed after fetch; resolve again without saving")
             state_file = session_dir / "session.json"
             journal.record("lock-wait")
-            with review_save_lock(parent):
+            # A bundled DSH child has read-only access to shared storage. The
+            # snapshot checks its own bytes; the parent locks and compares again on save.
+            with (nullcontext() if getattr(args, "private_clone", False) else review_save_lock(parent)):
                 journal.record("state-write")
                 fingerprint, previous = snapshot_existing_review(destination_path, backup)
                 findings_fingerprint = destination_fingerprint(findings_path)

@@ -1,5 +1,7 @@
 # Issue #153: pr-review の非対話入口・全体差分・DSH の親保存
 
+> 2026-10-19 PR #182 修正: 利用者の「Issue #183 を解決する形で、PR#182 を修正せよ」に基づき、DSH保存経路と必要なrunner隔離を変更する。最新の決定・実行範囲は `docs/superpowers/specs/2026-10-19-create-reso-world-issue116-dsh-native-write-policy-design.md` と対のPlanを参照。以下のtools除外・公式API待ち・DSH再開未許可は過去時点の記録であり、今回の実装を制限しない。有料並行レビューの未完了は維持する。
+
 ## 管理・実行許可
 
 - 対象: `usaturn/create-reso-world`、https://github.com/usaturn/create-reso-world/issues/153

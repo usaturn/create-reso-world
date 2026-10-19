@@ -110,8 +110,76 @@ def test_real_process_state_and_stdin(
         assert isinstance(attempt.payload, dict)
         assert attempt.payload["secret"] == "[REDACTED]"
     if mode == "descendant":
-        pid = int((attempt.work_dir / "child.pid").read_text())
-        _assert_stopped(pid)
+        # The file contains a PID in the runtime's private namespace; host-side
+        # descendant teardown is exercised below using an observed host PID.
+        assert int((attempt.work_dir / "child.pid").read_text()) > 0
+
+
+def test_native_process_has_private_tmp_and_readonly_attempt_metadata(
+    config: Config, repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "other-attempt" / "receipt.json"
+    target.parent.mkdir()
+    target.write_text("host original")
+    monkeypatch.setitem(environ._literal, "FAKE_HOST_TARGET", str(target))
+    monkeypatch.setitem(environ._literal, "FAKE_HOST_PID", str(os.getpid()))
+    config.agents["a"].env.extend(("FAKE_HOST_TARGET", "FAKE_HOST_PID"))
+    config.agents["a"].command[-1] = "native-fence"
+    result = run_workflow(config, "test", "respond", repository, output_dir=tmp_path / "run")
+    attempt = result.results[0].attempts[0]
+    assert target.read_text() == "host original"
+    assert attempt.state == "success" and attempt.stop_confirmed
+    assert attempt.request_path is not None
+    capture = json.loads((attempt.request_path.parent / "dsh/state/capture.json").read_text())
+    assert all(capture["denied"].values())
+    assert capture["hardlink_denied"]
+    assert not capture["host_proc_visible"]
+    assert capture["helper_exit"] == 0, capture["helper_error"]
+    assert not (attempt.request_path.parent / "receipt.json").exists()
+    assert Path(capture["scratch"]).joinpath("native.txt").read_text() == "native output"
+    assert Path(capture["scratch"]).joinpath("helper.txt").read_text() == "helper output"
+    assert Path(capture["exports"]).joinpath("native.txt").read_text() == "native output"
+
+
+def test_dsh_output_ancestor_symlink_is_rejected(
+    config: Config, repository: Path, tmp_path: Path,
+) -> None:
+    from tools.agent_runner.runner import RunnerError
+
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+    with pytest.raises(RunnerError):
+        run_workflow(config, "test", "respond", repository, output_dir=link / "run")
+    assert not (real / "run").exists()
+
+
+def test_runtime_hardlinks_are_rejected_before_redaction_hides_the_link(
+    config: Config, repository: Path, tmp_path: Path,
+) -> None:
+    config.agents["a"].command[-1] = "tmp-hardlink"
+    result = run_workflow(config, "test", "respond", repository, output_dir=tmp_path / "run")
+    attempt = result.results[0].attempts[0]
+    assert attempt.state == "response_failed" and attempt.stop_confirmed
+    assert attempt.request_path is not None
+    assert attempt.request_path.parent / "dsh/tmp/linked.json" in attempt.sensitive_paths
+
+
+def test_dsh_prompt_uses_only_its_owned_write_exceptions(
+    config: Config, repository: Path, tmp_path: Path,
+) -> None:
+    shared_exception = "shared/reviews: another runtime may save its review here"
+    result = run_workflow(
+        config, "test", "respond", repository, output_dir=tmp_path / "run",
+        write_exceptions=(shared_exception,),
+    )
+    attempt = result.results[0].attempts[0]
+    assert attempt.state == "success" and attempt.request_path is not None
+    request = json.loads(attempt.request_path.read_text())
+    assert shared_exception not in request["prompt"]
+    assert str(attempt.request_path.parent / "review-scratch") in request["prompt"]
+    assert str(attempt.request_path.parent / "dsh/tmp/exports") in request["prompt"]
 
 
 @pytest.mark.parametrize(
@@ -310,7 +378,7 @@ def test_scratch_unlink_failure_is_reported_not_success(
 
 
 @pytest.mark.parametrize("mode,replaced", [("home-link", "dsh/home"), ("root-link", "dsh"), ("tmp-link", "dsh/tmp")])
-def test_replaced_home_or_root_link_is_reported_and_target_kept(
+def test_kernel_rejects_replacing_runtime_mounts_and_keeps_target(
     config: Config, repository: Path, tmp_path: Path, mode: str, replaced: str
 ) -> None:
     config.agents["a"].command[-1] = mode
@@ -319,7 +387,8 @@ def test_replaced_home_or_root_link_is_reported_and_target_kept(
     assert attempt.state == "response_failed" and attempt.stop_confirmed
     assert attempt.request_path is not None and attempt.work_dir is not None
     link = attempt.request_path.parent / replaced
-    assert link in attempt.sensitive_paths and link.is_symlink()
+    assert not link.is_symlink()
+    assert attempt.sensitive_paths == []
     assert (attempt.work_dir / "README.md").read_text() == "# fixture workspace\n"
     assert (attempt.work_dir / ".git").exists()
     if mode == "root-link":
@@ -366,13 +435,33 @@ def test_timeout_and_cancellation_stop_descendants(
     # the run; the timeout covers checkout and startup (unloaded 0.17 s) (#694).
     config.roles["inspect"].deadline_seconds = 60.0 if interrupt else 3.0
     cancel = threading.Event()
-    with set_when(cancel, lambda: interrupt and written(tmp_path.glob("run/*/attempt-1/worktree/child.pid")) == 1):
+    observed: set[int] = set()
+
+    def child_running() -> bool:
+        markers = list(tmp_path.glob("run/*/attempt-1/worktree/child.pid"))
+        if not markers or written(markers) != 1:
+            return False
+        marker = os.fsencode(markers[0])
+        # A private procfs reports namespace PIDs. Observe the exact fake child
+        # argv from the controller's procfs before asking the runner to cancel.
+        for process_dir in Path("/proc").iterdir():
+            if process_dir.name.isdecimal():
+                try:
+                    if marker in (process_dir / "cmdline").read_bytes().split(b"\0"):
+                        observed.add(int(process_dir.name))
+                except OSError:
+                    pass
+        return interrupt and bool(observed)
+
+    with set_when(cancel, child_running):
         result = run_workflow(config, "test", "respond", repository, output_dir=tmp_path / "run", cancel=cancel)
     attempt = result.results[0].attempts[0]
     assert attempt.state == ("interrupted" if interrupt else "timed_out")
     assert attempt.stop_confirmed
     assert attempt.work_dir is not None
-    _assert_stopped(int((attempt.work_dir / "child.pid").read_text()))
+    assert observed
+    for pid in observed:
+        _assert_stopped(pid)
     assert attempt.request_path is not None
     root = attempt.request_path.parent / "dsh"
     session = root / "state" / "session.jsonl"

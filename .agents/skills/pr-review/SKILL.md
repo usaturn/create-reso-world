@@ -42,7 +42,7 @@ PR 全体の差分を隔離 worktree で読み、検証した指摘を助言と�
 - Pi の `MODEL_NAME` は **pi-model-name スキルの手順**で決め、自身の bash で `PI_PROVIDER` と `PI_MODEL` の両方を確認する。どちらか空なら履歴の model_change・設定に fallback しない。対話では正確な識別子を確認し、非対話では failed を返す。bash の timeout は秒単位。
 - DSH 標準 headless は `--runtime dsh` で `--model-name` を省く。helper が自身の bash の `DSH_HOME`・`DSH_SESSION_ID`・cwd に結び付いた `session.v4.jsonl` を読み、直前の解決済み request header と assistant message source の provider/model の一致から確定する。effort は同じ header、CLI 版は未観測。`PI_*` や旧 `DSH_PROVIDER` / `DSH_MODEL` を根拠にせず、親の値・起動設定・他 session のログで代用しない。欠落・不一致・途中の経路変更は failed。保存名には provider を含め、本文には正確なモデル ID を使う。
 - DSH は認証済み親が作った `Request.prompt` の `parent_pr_data` を helper に検査させる。PR/Issue の要件は prepare の `requirements` を読み、GitHub API・token・remote fetch は子から使わない。complete の `staged` は保存成功ではなく、停止後に親が HEAD・Request・実測 Identity・draft を再照合して保存・cleanup する。欠けた親入力を ambient 認証で補わない。
-- DSH の cache/仮想環境は runner の隔離 HOME 内の設定をそのまま使う。子は helper を自身の bash から呼び、正式保存は停止後の親に任せる。runner が起動前に許可した HOME/temp・対象 PR の保存先・保存ロック以外への書き込みは禁止。権限拒否時は cache・cwd・sandbox 設定を変えて再試行せず failed で止める。
+- DSH の cache/仮想環境は runner の隔離 HOME 内の設定をそのまま使う。子は helper を自身の bash から呼び、正式保存は停止後の親に任せる。helper の session・Git・子用記録は attempt の `review-scratch/`、本文と候補 JSON は `dsh/tmp/exports/{review.md,findings.json}` に固定する。本文と候補は native の write/edit ツールで作成・編集する。共有 reviews・共有 Git・保存ロックへの書き込み grant を追加しない。権限拒否時は cache・cwd・sandbox 設定を変えて再試行せず failed で止める。
 - Codex は `--model-name` を渡さず、helper が現在の `CODEX_THREAD_ID` の rollout から確定する。未完の末尾だけを無視し、壊れた完了行・モデル欠落は拒否する。
 - 他 runtime も現在提示された正確な model ID だけを `--model-name` に渡す。系列名・過去成果・設定から推測しない。未知の provider / effort / session / CLI は unknown、未計測の待ちは null。設定のrequested値をactualに写さない。
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import stat
@@ -15,10 +16,28 @@ SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"[0-9a-f]{64}")
 
 
-def regular_bytes(path: Path) -> bytes:
-    if path.resolve(strict=True) != path or not stat.S_ISREG(path.lstat().st_mode):
+def regular_bytes(path: Path, *, limit: int = 512 * 1024 * 1024) -> bytes:
+    """Read once through anchored directory descriptors; never follow links or block on a FIFO."""
+    if not path.is_absolute() or any(p in {".", ".."} for p in path.parts):
         raise ValueError("parent review input must be a canonical regular file")
-    return path.read_bytes()
+    directory = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in path.parts[1:-1]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            os.close(directory)
+            directory = child
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        with os.fdopen(descriptor, "rb") as stream:
+            before = os.fstat(stream.fileno())
+            if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > limit:
+                raise ValueError("parent review input must be a bounded, singly linked regular file")
+            raw = stream.read(limit + 1)
+            after = os.fstat(stream.fileno())
+            if len(raw) > limit or (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                raise ValueError("parent review input changed while reading")
+            return raw
+    finally:
+        os.close(directory)
 
 
 def digest(path: Path) -> str:
@@ -32,6 +51,13 @@ def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
             raise ValueError("duplicate parent review input key")
         result[key] = value
     return result
+
+
+def object_value(value: Any, label: str) -> dict[str, Any]:
+    """Reject malformed child-owned JSON before accessing nested fields."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be a JSON object")
+    return value
 
 
 def parameters_from_prompt(prompt: str) -> dict[str, Any]:
@@ -116,22 +142,6 @@ def load(workspace: ModuleType, descriptor: dict[str, str], pr: str) -> dict[str
         "bundle": str(bundle),
         "descriptor": descriptor,
     }
-
-
-def staging_root(workspace: ModuleType, target: dict[str, Any], request: Any) -> Path:
-    directory = workspace._target_call(
-        "review_directory",
-        Path(target["parent_root"]),
-        target["repository"],
-        target["number"],
-        target["head_ref"],
-    )
-    path = (
-        directory / ".staging" / request.run_id / request.request_id / request.agent_id
-    )
-    if path.resolve(strict=False) != path:
-        raise ValueError("staging directory must not contain symlinks")
-    return path
 
 
 def prepare(

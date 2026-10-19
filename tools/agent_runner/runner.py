@@ -21,6 +21,7 @@ from typing import TypedDict, cast
 
 from tools.agent_runner.adapters import Adapter, AdapterContext, LaunchSpec, load_adapter
 from tools.agent_runner.config import check_depth, validate_config
+from tools.agent_runner.dsh_paths import review_exports, review_scratch
 from tools.agent_runner.environ import literal_environ, secret_values
 from tools.agent_runner.models import Attempt, BatchResult, Config, Identity, Payload, Receipt, Request, Result, State
 from tools.agent_runner.process import execute, redact_file
@@ -74,10 +75,11 @@ def _redact_runtime_tree(root: Path, secrets: tuple[str, ...]) -> list[Path]:
     while pending:
         path = pending.pop()
         try:
-            mode = path.lstat().st_mode
+            info = path.lstat()
+            mode = info.st_mode
             if stat.S_ISDIR(mode):
                 pending.extend(sorted(path.iterdir(), reverse=True))
-            elif not stat.S_ISREG(mode) or not redact_file(path, secrets):
+            elif not stat.S_ISREG(mode) or info.st_nlink != 1 or not redact_file(path, secrets):
                 unsafe.append(path)
         except FileNotFoundError:
             continue
@@ -210,6 +212,10 @@ def _collect(
     payload_check: Callable[[Payload], bool] | None,
 ) -> tuple[State, Identity, Payload]:
     try:
+        if context.agent.runtime == "dsh" and os.path.lexists(context.receipt_path):
+            # DSH's JSONL/session collector is authoritative. A runtime-written
+            # receipt must never replace a failed native event stream.
+            return "invalid_result", Identity(), None
         # Validate regular, bounded file content before a collector can open it.
         receipt = read_receipt(context.receipt_path)
         outcome = adapter.collect(context, stdout, stderr)
@@ -322,6 +328,9 @@ def run_workflow(
             artifact_dir = Path(tempfile.mkdtemp(prefix="create-reso-world-agent-runner-", dir="/tmp"))
         else:
             artifact_dir = output_dir.absolute()
+            if any(agent.runtime == "dsh" for agent in config.agents.values()):
+                if artifact_dir.resolve(strict=False) != artifact_dir:
+                    raise OSError("noncanonical output directory")
             # mkdir without exist_ok rejects existing directories AND dangling links.
             artifact_dir.mkdir(mode=0o700)
     except OSError:
@@ -398,12 +407,21 @@ def run_workflow(
                 f"writes={role.writes}: {'changes are permitted here' if role.writes else 'do not modify files'}. "
                 "This is an instruction, not a sandbox.\n"
             )
-            if exceptions:
-                instructions += EXCEPTIONS_HEADING + "\n" + "".join(f"- {item}\n" for item in exceptions)
+            owned_exceptions = exceptions
+            if agent.runtime == "dsh":
+                owned_exceptions = (
+                    f"{review_scratch(directory)}: this attempt's helper staging, through the bash tool",
+                    f"{review_exports(directory)}: review outputs, through native write/edit tools",
+                    f"{directory / 'dsh/home'}: this runtime's HOME and caches",
+                    f"{directory / 'dsh/tmp'}: this runtime's temporary files",
+                    f"{directory / 'dsh/state'}: DSH session persistence only; do not edit directly",
+                )
+            if owned_exceptions:
+                instructions += EXCEPTIONS_HEADING + "\n" + "".join(f"- {item}\n" for item in owned_exceptions)
             instructions += "\n"
             if agent.runtime == "dsh":
                 instructions += (
-                    "Runtime-owned HOME/cache/temp and caller-authorized review outputs/lock are permitted "
+                    "Runtime-owned HOME/cache/temp and this attempt's review-scratch are permitted "
                     "write exceptions. Do not alter request/state/patch or retry sandbox denials.\n\n"
                 )
             request = Request(

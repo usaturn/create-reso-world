@@ -19,11 +19,11 @@
 
 runnerのrequestはそのattemptに渡されたものだけを読む。callerがpathを示せばそれを使う。既存runnerでは起動cwdの親の `request.json` がそれに当たる。別attemptのrequestを探索しない。completeも起動時と同じcwdで呼ぶ。レビュー用WTは別の隔離領域であり、そこへcdしたままrequest検査を実行しない。
 
-runnerの役割が `writes=false`（`inspect` など）のとき、その指示はレビュー対象（review用WTの追跡ファイルを含む）・どのcheckoutの追跡ファイル・他担当の成果を変更しないという意味である。helperが管理する実行記録・セッション（WT・backup・draft・state）・正式保存・保存ロック・Gitのworktree登録とref・uvの環境への書き込みはこれに当たらず、callerがrunnerの作業範囲の指示に「Caller-authorized exceptions」として列挙する。許可項目は `scripts/review_run.py` の `helper_write_exceptions(*, tool_root, parent, parent_git, review_dir, number, source_git=None)` の戻り値を caller が `run_workflow(..., write_exceptions=...)`（CLI は繰り返しの `--write-exception`）に渡す。自動で付くとは仮定しない。外部 checkout では `source_git` をその Git 共通ディレクトリにし、親の保存ロックと区別する。DSH は bundle から専用 Git repository を作り、共有 Git metadata に書かない。
+runnerの役割が `writes=false`（`inspect` など）のとき、その指示はレビュー対象（review用WTの追跡ファイルを含む）・どのcheckoutの追跡ファイル・他担当の成果を変更しないという意味である。helperが管理する実行記録・セッション（WT・backup・draft・state）・正式保存・保存ロック・Gitのworktree登録とref・uvの環境への書き込みはこれに当たらず、callerがrunnerの作業範囲の指示に「Caller-authorized exceptions」として列挙する。許可項目は `scripts/review_run.py` の `helper_write_exceptions(*, tool_root, parent, parent_git, review_dir, number, source_git=None, runtime=None)` の戻り値を caller が `run_workflow(..., write_exceptions=...)`（CLI は繰り返しの `--write-exception`）に渡す。自動で付くとは仮定しない。外部 checkout では `source_git` をその Git 共通ディレクトリにし、親の保存ロックと区別する。DSH は runtime="dsh" の例外を使い、共有 reviews・保存ロック・Git metadata への書き込みを許可しない。
 
 helper の実行には pydantic を持つ読んだ skill の source checkout のルート project（`pyproject.toml`・`uv.lock`）を使用する。`TOPLEVEL` は**読んだskillのsource checkoutのroot**、`RUN_HELPER`も同じ版。レビュー対象repoや今のcwdからhelperの置き場所を推測しない。例えばcallerがfeature版skillを指定したときは、そのfeature版のhelperを使う。uv の Python は3.14以上、lock を変更しない。最初の helper 呼び出しより前に `RUN_HELPER="$TOPLEVEL/.agents/skills/pr-review/scripts/review_run.py"` を設定する。
 
-DSH 標準 headless の場合、runner は Linux Dev Container の bubblewrap で、隔離 HOME/TMPDIR と controller が確定した対象 PR の正式保存先・通常ファイルの保存ロックだけを追加許可する。共有 `.git` 全体は許可しない。uv の cache/仮想環境は隔離 HOME 内に固定され、request/state/patch は bash から読み取り可能なまま保護される。モデルは自身の DSH_SESSION_ID/cwd に結び付いた v4 session の request/assistant 記録から helper が確定し、complete 前にも再照合する。Git 操作は snapshot/bundle だけから作る所有 Git repository 内で行う。子は元の外部 checkout が見えなくても動作し、GitHub API・remote fetch は使わない。保存名は provider ごとに分離する。CLI 版など観測できない値は unknown。
+DSH 標準 headless の場合、runner は native ツールも含めたプロセス全体を bubblewrap で隔離する。子は attempt 内の隔離 HOME/state/TMPDIR・review-scratch と自身の workspace にだけ書ける。request/receipt/log は読み取り専用で、共有 reviews・共有 Git・保存ロックへの grant は追加しない。uv の cache/仮想環境は隔離 HOME 内に固定する。モデルは自身の DSH_SESSION_ID/cwd に結び付いた v4 session の request/assistant 記録から helper が確定し、complete 前にも再照合する。Git 操作は親の snapshot/bundle だけから作る所有 Git repository 内で行う。元の外部 checkout が見えなくても動作し、GitHub API・remote fetch は使わない。保存名は provider ごとに分離する。CLI 版など観測できない値は unknown。
 
 ## 認証済み親の事前準備（DSH 必須）
 
@@ -31,7 +31,7 @@ DSH 標準 headless の場合、runner は Linux Dev Container の bubblewrap �
 
 返された descriptor を `Request.prompt` 末尾の JSON フェンスの `parent_pr_data: {path, sha256}` に入れる。任意の `pr_head` は snapshot と同じ値にする。子は snapshot/bundle の digest と PR/commit を検査し、足りない入力を ambient 認証で補わない。GitHub token を DSH の env に追加しない。
 
-DSH の caller は、controller が照合した正式 PR 保存ディレクトリと通常ファイルの保存ロックだけを、API の `run_workflow(..., sandbox_write_paths=(review_dir, save_lock), write_exceptions=...)` で起動前に許可する。保存先とロックは存在・種別を確認して用意し、共有 `.git` 全体を許可しない。CLI の `--write-exception` は自然言語の許可であり sandbox grant の代用ではない。隔離 HOME/temp は adapter が用意する。権限拒否・認証不足を HOME/cache/cwd 変更やフルアクセスで回避しない。
+DSH の caller は sandbox_write_paths を空にする。共有保存先や保存ロックへの grant は不要であり、非空の指定は拒否される。隔離 HOME/temp・review-scratch は adapter が用意する。CLI の --write-exception は自然言語の許可であり sandbox grant の代用ではない。権限拒否・認証不足を HOME/cache/cwd 変更やフルアクセスで回避しない。
 
 
 ```bash
@@ -45,7 +45,7 @@ uv run --project "$TOPLEVEL" --locked python "$RUN_HELPER" prepare-parent \
 {"parent_pr_data": {"path": "<返された絶対パス>", "sha256": "<返されたdigest>"}}
 ```
 
-`NEW_INPUT_DIR` は新しい所有ディレクトリ。任意の `--source-root` / `--review-commit` / `--records-comments` は親準備に渡す。子には同じ review-commit を渡す。DSH は bundle 用 Git repository/session を対象 PR directory の `.staging/<run>/<request>/<agent>/pr-review-<PR>-<一意な接尾辞>/` に作る。既存の限定 grant の内側であり、共有 `.git` は許可しない。staged Git tree を runtime の秘密値除去対象に混ぜず、通常の tracked symlink を sensitive spill と取り違えない。
+`NEW_INPUT_DIR` は新しい所有ディレクトリ。任意の --source-root / --review-commit / --records-comments は親準備に渡す。子には同じ review-commit を渡す。DSH の helper は actual Request の bytes の SHA256 先頭8文字を使って attempt の review-scratch/pr-review-<PR>-<digest8>/ に session と bundle 用 Git を作る。子用実行記録は review-scratch/run.json、native write/edit の出力先は dsh/tmp/exports/review.md と findings.json に固定する。Git tree は runtime の秘密値除去対象に混ぜず、通常の tracked symlink を sensitive spill と取り違えない。
 
 ## prepare
 
@@ -74,7 +74,7 @@ Codex/DSH標準headlessはmodel-nameを省き、Piも現在envから読むとき
 
 ## 実行記録
 
-helperは、resolveの後の実行ごとに、親の `reviews/<owner>/<repo>/#<PR>-<branch>/runs/<開始時刻>-<model>-<接尾辞>.json` へ実行記録（`kind: review_run`）を書く。形式・状態の移り方・書き込みの失敗の扱いは [review-findings](../../../review-findings.md) 4.1節に定義する。モデルは記録を書かず、手で直さない。
+DSH では子が review-scratch/run.json に記録し、親の検証成功後にだけ正式記録を作る。拒否・未停止の試行は子用記録と runner の結果を残す。他 runtime の helper は、resolveの後の実行ごとに、親の `reviews/<owner>/<repo>/#<PR>-<branch>/runs/<開始時刻>-<model>-<接尾辞>.json` へ実行記録（`kind: review_run`）を書く。形式・状態の移り方・書き込みの失敗の扱いは [review-findings](../../../review-findings.md) 4.1節に定義する。モデルは記録を書かず、手で直さない。
 
 - prepareはresolve直後に `started` で作り、完了時に入力の指紋（request・前回レビュー・判断の記録・差分の規模）を書き足す。作れなければprepareをfailedにする。resolve前の失敗は記録しない
 - completeは `success` か `failed`（`complete`・`save`・`cleanup`）、`fail --state` は `failed`（`review`）にする。強制終了・タイムアウトでは `started` のまま残る
@@ -88,7 +88,7 @@ uv run --project "$TOPLEVEL" --locked python "$RUN_HELPER" complete --state "$ST
 
 completeはrequestのbytes/hashとbinding、読んだ主要skillのhash、候補の固定項目とcoverageを検査する。同じv2 reviewer/provenance/timingを候補と本文の自動生成 `Review timing` に記録してから、既存helperのsave --findingsを呼ぶ。lock内でworktree commit、現在のPR head、destination fingerprint、候補schema/pairを検査し、両ファイルを保存する。候補コピー後に本文保存が失敗すれば既存のrollbackを使う。成功後だけhelperのcleanupを呼ぶ。
 
-DSH の子 complete は自身の Identity、Request、snapshot、coverage を検査し、draft の digest を固定して `status: staged`・state_file を返す。子は保存・cleanup せず、この JSON をそのまま最終応答にする。親の `finalize-parent --result <result.json>` が実試行の停止・sensitive cleanup・Request・runner Identity・対象・draft digest を照合し、同じ complete の通常 save/cleanup 部分を行う。API HEAD 検査は親の保存ロック内に残し、古い HEAD の正式成果は保存しない。snapshot を live HEAD 照合の代用にはしない。
+DSH の子 complete は自身の Identity、Request、snapshot、coverage と固定 outbox を検査し、draft の digest を固定して status: staged・state_file を返す。子は正式保存・cleanup せず、この JSON をそのまま最終応答にする。親の finalize-parent は実試行の停止・秘密値除去・native write/edit の成功記録と拒否履歴・Request・runner Identity・対象・固定 session パスを照合する。固定 outbox の二枚を symlink・hardlink・特殊ファイル・サイズ上限を検査して各1回読み、親は actual attempt の review-promotion/ に trusted bundle から新しい保存用 session を作り、検証した同じ bytes をその backup から既存 save/cleanup へ渡す。子の Git 設定・hooks・worktree の .git は親で読まず実行しない。元の destination fingerprint は引き継ぎ、正式保存成功後だけ固定 child session を symlink を追わず削除する。payload や state が申告する任意の入力先・保存先は使わない。API HEAD 検査は親の保存ロック内にも残し、古い HEAD の正式成果は保存しない。snapshot を live HEAD 照合の代用にはしない。
 
 本文のReview timingを二重に手書きしない。全体予算・調査期限・phase内訳・委譲状態/省略理由・超過理由はReview coverageへ書き、自動生成の実測と区別する。timingはprepare開始からdraft確定までの実測UTC/経過秒数、waiting_secondsは未計測ならnull。save_seconds / cleanup_seconds / total_secondsは最終payloadの別計測であり、本文を保存後に追記しない。
 

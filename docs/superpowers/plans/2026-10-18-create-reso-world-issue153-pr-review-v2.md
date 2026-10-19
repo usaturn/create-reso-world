@@ -1,5 +1,7 @@
 # Issue #153 pr-review v2 Implementation Plan
 
+> 2026-10-19 PR #182 修正: 利用者の「Issue #183 を解決する形で、PR#182 を修正せよ」に基づき、DSH保存経路と必要なrunner隔離を変更する。最新の決定・実行範囲は `docs/superpowers/specs/2026-10-19-create-reso-world-issue116-dsh-native-write-policy-design.md` と対のPlanを参照。以下のtools除外・公式API待ち・DSH再開未許可は過去時点の記録であり、今回の実装を制限しない。有料並行レビューの未完了は維持する。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 対話・非対話の PR 全体レビューと、DSH の認証情報を渡さない親保存を導入する。

@@ -205,6 +205,21 @@ def parent_input(
 
 def staged_batch(prepared: dict[str, Any], staged: dict[str, Any]) -> BatchResult:
     request = Request.model_validate_json(prepared["request_path"].read_text())
+    events = [
+        {"type": "session", "sessionId": "session-test", "cwd": str(prepared["caller"])},
+        {"type": "status", "phase": "turn_start", "turn": 1},
+    ]
+    exports = prepared["request_path"].parent / "dsh/tmp/exports"
+    for index, name in enumerate(("review.md", "findings.json")):
+        events.extend([
+            {"type": "tool_call", "callId": f"export-{index}", "tool": "write", "input": {"file_path": str(exports / name)}},
+            {"type": "tool_result", "callId": f"export-{index}", "status": "completed", "result": "written"},
+        ])
+    events.extend([
+        {"type": "status", "phase": "turn_end", "turn": 1, "reason": {"kind": "completed"}},
+        {"type": "final", "text": json.dumps(staged)},
+    ])
+    (prepared["request_path"].parent / "stdout.log").write_text("".join(json.dumps(event) + "\n" for event in events))
     return BatchResult(
         run_id=request.run_id,
         state="success",
@@ -268,7 +283,7 @@ def test_parent_bundle_child_needs_no_github_and_parent_saves(
     batch = staged_batch(prepared, staged)
     review_run.finalize_parent_batch(batch)
     completed = batch.results[0].attempts[0].payload
-    assert isinstance(completed, dict) and completed["status"] == "success", completed
+    assert isinstance(completed, dict) and completed["status"] == "success", completed.get("reason")
     assert completed["cleanup"] == "success"
     assert Path(str(completed["review_file"])).is_file()
     assert Path(str(completed["findings_file"])).is_file()
@@ -690,6 +705,296 @@ def mark_reviewed(result: dict[str, Any]) -> None:
     document = json.loads(findings.read_text(encoding="utf-8"))
     document["coverage"]["read"] = ["PR全体差分とREADME.md全文"]
     findings.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
+
+
+def test_dsh_child_uses_fixed_outbox_without_shared_writes(
+    prepared: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_input(prepared, tmp_path, monkeypatch)
+
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("child must not acquire the shared save lock")
+
+    monkeypatch.setattr(review_run.workspace, "review_save_lock", forbidden)
+    monkeypatch.setattr(review_run.record.workspace, "review_save_lock", forbidden)
+    result = review_run.prepare(prepared["args"])
+    assert result["status"] == "prepared", result
+    attempt = prepared["request_path"].parent
+    assert Path(result["draft"]) == attempt / "dsh/tmp/exports/review.md"
+    assert Path(result["findings_draft"]) == attempt / "dsh/tmp/exports/findings.json"
+    assert Path(result["run_record"]) == attempt / "review-scratch/run.json"
+    assert not list((prepared["parent"] / "reviews").rglob("runs/*.json"))
+    mark_reviewed(result)
+    staged = review_run.complete(argparse.Namespace(state=result["state_file"]))
+    assert staged["status"] == "staged", staged
+
+
+def test_complete_rejects_changed_draft_before_writing_anywhere(
+    prepared: dict[str, Any], tmp_path: Path
+) -> None:
+    result = review_run.prepare(prepared["args"])
+    mark_reviewed(result)
+    protected = tmp_path / "protected.md"
+    protected.write_text("user-owned bytes\n")
+    state_path = Path(result["state_file"])
+    state = json.loads(state_path.read_text())
+    state["draft"] = str(protected)
+    state_path.write_text(json.dumps(state))
+    candidates = Path(result["findings_draft"]).read_bytes()
+    completed = review_run.complete(argparse.Namespace(state=str(state_path)))
+    assert completed["status"] == "failed"
+    assert protected.read_bytes() == b"user-owned bytes\n"
+    assert Path(result["findings_draft"]).read_bytes() == candidates
+
+
+@pytest.mark.parametrize("changed", ["state_path", "draft_path", "destination", "symlink", "hardlink", "fifo", "parent_symlink", "oversize", "invalid_candidates", "native_denial", "missing_native"])
+def test_parent_outbox_refusal_preserves_all_files(
+    prepared: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: str
+) -> None:
+    parent_input(prepared, tmp_path, monkeypatch)
+    result = review_run.prepare(prepared["args"])
+    mark_reviewed(result)
+    staged = review_run.complete(argparse.Namespace(state=result["state_file"]))
+    batch = staged_batch(prepared, staged)
+    protected = tmp_path / "protected.md"
+    protected.write_text("unrelated user-owned bytes\n")
+    state_path = Path(result["state_file"])
+    draft = Path(result["draft"])
+    state = json.loads(state_path.read_text())
+    if changed in {"native_denial", "missing_native"}:
+        log = prepared["request_path"].parent / "stdout.log"
+        events = [json.loads(line) for line in log.read_text().splitlines()]
+        if changed == "native_denial":
+            events[2:2] = [
+                {"type": "tool_call", "callId": "denied", "tool": "write", "input": {}},
+                {"type": "tool_result", "callId": "denied", "status": "error", "result": 'Error: the user rejected tool "write"'},
+            ]
+        else:
+            events = [event for event in events if event["type"] not in {"tool_call", "tool_result"}]
+        log.write_text("".join(json.dumps(event) + "\n" for event in events))
+    elif changed == "state_path":
+        batch.results[0].attempts[0].payload["state_file"] = str(protected)
+    elif changed == "draft_path":
+        state["draft"] = str(protected)
+        state_path.write_text(json.dumps(state))
+    elif changed == "destination":
+        state["destination"] = "reviews/example/syncer/#7-feature/another-reviewer.md"
+        state_path.write_text(json.dumps(state))
+    elif changed == "parent_symlink":
+        draft.parent.rename(draft.parent.with_name("export-target"))
+        draft.parent.symlink_to(draft.parent.with_name("export-target"), target_is_directory=True)
+    elif changed == "invalid_candidates":
+        findings = Path(result["findings_draft"])
+        document = json.loads(findings.read_text())
+        document["findings"] = [{}]
+        findings.write_text(json.dumps(document))
+        state["run_context"]["staged"]["findings_sha256"] = hashlib.sha256(findings.read_bytes()).hexdigest()
+        state_path.write_text(json.dumps(state))
+        batch.results[0].attempts[0].payload["staged"] = state["run_context"]["staged"]
+    else:
+        if changed in {"hardlink", "symlink"}:
+            # Keep valid staged bytes: only the link should cause refusal.
+            protected.write_bytes(draft.read_bytes())
+        draft.unlink()
+        if changed == "symlink":
+            draft.symlink_to(protected)
+        elif changed == "hardlink":
+            os.link(protected, draft)
+        elif changed == "fifo":
+            os.mkfifo(draft)
+        else:
+            with draft.open("wb") as stream:
+                stream.truncate(16 * 1024 * 1024 + 1)
+    protected_before = protected.read_bytes()
+    state_before = state_path.read_bytes()
+    local = prepared["request_path"].parent / "review-scratch/run.json"
+    record_before = local.read_bytes()
+    review_run.finalize_parent_batch(batch)
+    completed = batch.results[0].attempts[0].payload
+    assert completed["status"] == "failed", completed
+    assert protected.read_bytes() == protected_before
+    assert state_path.read_bytes() == state_before
+    assert local.read_bytes() == record_before
+    assert not list((prepared["parent"] / "reviews").rglob("*"))
+
+
+def test_parent_uses_captured_export_bytes_without_reopening(
+    prepared: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_input(prepared, tmp_path, monkeypatch)
+    result = review_run.prepare(prepared["args"])
+    mark_reviewed(result)
+    staged = review_run.complete(argparse.Namespace(state=result["state_file"]))
+    batch = staged_batch(prepared, staged)
+    original = review_run.parent_data.regular_bytes
+    counts: dict[Path, int] = {}
+    exports = {Path(result["draft"]), Path(result["findings_draft"])}
+    expected = {path: path.read_bytes() for path in exports}
+
+    def captured(path: Path, **kwargs: Any) -> bytes:
+        raw = original(path, **kwargs)
+        if path in exports:
+            counts[path] = counts.get(path, 0) + 1
+            path.write_bytes(b"replaced after verified read")
+        return raw
+
+    monkeypatch.setattr(review_run.parent_data, "regular_bytes", captured)
+    review_run.finalize_parent_batch(batch)
+    completed = batch.results[0].attempts[0].payload
+    assert completed["status"] == "success", completed
+    assert counts == {path: 1 for path in exports}
+    assert Path(completed["review_file"]).read_bytes() == expected[Path(result["draft"])]
+    assert Path(completed["findings_file"]).read_bytes() == expected[Path(result["findings_draft"])]
+
+
+@pytest.mark.parametrize("poison", ["hook", "config", "git-pointer"])
+def test_parent_never_executes_git_in_child_owned_session(
+    prepared: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch, poison: str
+) -> None:
+    parent_input(prepared, tmp_path, monkeypatch)
+    result = review_run.prepare(prepared["args"])
+    mark_reviewed(result)
+    staged = review_run.complete(argparse.Namespace(state=result["state_file"]))
+    batch = staged_batch(prepared, staged)
+    child = Path(result["state_file"]).parent
+    protected = tmp_path / "protected"
+    protected.write_text("user-owned bytes\n")
+    if poison == "hook":
+        hook = child / "repo/.git/hooks/reference-transaction"
+        hook.write_text(f"#!/bin/sh\nprintf compromised > '{protected}'\n")
+        hook.chmod(0o755)
+    elif poison == "config":
+        with (child / "repo/.git/config").open("a") as stream:
+            stream.write(f"\n[core]\nfsmonitor = touch '{protected}'\n")
+    else:
+        (child / "worktree/.git").write_text(f"gitdir: {prepared['source'] / '.git'}\n")
+    original = review_run.workspace.git
+
+    def trusted_only(root: Path, *args: Any, **kwargs: Any) -> Any:
+        assert not Path(root).is_relative_to(child), "parent must not run child-owned Git"
+        return original(root, *args, **kwargs)
+
+    monkeypatch.setattr(review_run.workspace, "git", trusted_only)
+    review_run.finalize_parent_batch(batch)
+    completed = batch.results[0].attempts[0].payload
+    assert completed["status"] == "success", completed.get("reason")
+    assert protected.read_bytes() == b"user-owned bytes\n"
+    assert not child.exists()
+
+
+def test_parent_child_cleanup_failure_keeps_saved_artifacts_in_result(
+    prepared: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_input(prepared, tmp_path, monkeypatch)
+    result = review_run.prepare(prepared["args"])
+    mark_reviewed(result)
+    staged = review_run.complete(argparse.Namespace(state=result["state_file"]))
+    batch = staged_batch(prepared, staged)
+    child = Path(result["state_file"]).parent
+    original = review_run.shutil.rmtree
+
+    def fail_child(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if Path(path) == child:
+            raise OSError("child cleanup refused")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(review_run.shutil, "rmtree", fail_child)
+    review_run.finalize_parent_batch(batch)
+    completed = batch.results[0].attempts[0].payload
+    assert completed["status"] == "failed" and completed["cleanup"] == "failed"
+    assert completed["child_session_dir"] == str(child) and child.is_dir()
+    assert Path(completed["review_file"]).is_file()
+    assert Path(completed["findings_file"]).is_file()
+    document = json.loads(Path(completed["run_record"]).read_text())
+    assert document["status"] == "failed" and document["failed_at"] == "cleanup"
+
+
+@pytest.mark.parametrize("malformed", ["valid", "state", "context-list", "context-null", "staged", "inputs-null", "inputs-list", "request-list", "request-null", "monotonic"])
+def test_parent_invalid_first_result_does_not_block_valid_second(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, malformed: str
+) -> None:
+    # Both independent checkouts represent the same remote PR and fixed commit.
+    monkeypatch.setenv("GIT_AUTHOR_DATE", "2026-10-19T00:00:00Z")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-10-19T00:00:00Z")
+    first_root = tmp_path / "first"
+    first_root.mkdir()
+    prepared = globals()["prepared"].__wrapped__(first_root, monkeypatch)
+    parent_input(prepared, first_root, monkeypatch)
+    first = review_run.prepare(prepared["args"])
+    mark_reviewed(first)
+    staged = review_run.complete(argparse.Namespace(state=first["state_file"]))
+    batch = staged_batch(prepared, staged)
+    first_parent = prepared["parent"]
+    state_path = Path(first["state_file"])
+    local = prepared["request_path"].parent / "review-scratch/run.json"
+    state = json.loads(state_path.read_text())
+    journal = json.loads(local.read_text())
+    if malformed == "state":
+        state = []
+    elif malformed == "context-list":
+        state["run_context"] = []
+    elif malformed == "context-null":
+        state["run_context"] = None
+    elif malformed == "staged":
+        state["run_context"]["staged"] = []
+        batch.results[0].attempts[0].payload["staged"] = []
+    elif malformed.startswith("inputs-"):
+        journal["inputs"] = None if malformed == "inputs-null" else []
+    elif malformed == "request-list":
+        journal["inputs"]["request"] = []
+    elif malformed == "request-null":
+        journal["inputs"]["request"] = None
+    elif malformed == "monotonic":
+        state["run_context"]["started_monotonic"] = {}
+    state_path.write_text(json.dumps(state))
+    local.write_text(json.dumps(journal))
+    state_before, journal_before = state_path.read_bytes(), local.read_bytes()
+    second_root = tmp_path / "second"
+    second_root.mkdir()
+    second_prepared = globals()["prepared"].__wrapped__(second_root, monkeypatch)
+    parent_input(second_prepared, second_root, monkeypatch)
+    second = review_run.prepare(second_prepared["args"])
+    mark_reviewed(second)
+    second_staged = review_run.complete(argparse.Namespace(state=second["state_file"]))
+    batch.results.append(staged_batch(second_prepared, second_staged).results[0])
+    review_run.finalize_parent_batch(batch)
+    first_done, second_done = [result.attempts[0].payload for result in batch.results]
+    assert second_done["status"] == "success", second_done.get("reason")
+    if malformed == "valid":
+        assert first_done["status"] == "success", first_done.get("reason")
+    else:
+        assert first_done["status"] == "failed", first_done
+        assert state_path.read_bytes() == state_before and local.read_bytes() == journal_before
+        assert not list((first_parent / "reviews").rglob("*"))
+
+
+def test_parent_codex_rollout_does_not_replace_authenticated_child_model(
+    prepared: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_input(prepared, tmp_path, monkeypatch)
+    result = review_run.prepare(prepared["args"])
+    mark_reviewed(result)
+    staged = review_run.complete(argparse.Namespace(state=result["state_file"]))
+    batch = staged_batch(prepared, staged)
+    thread = "019fd23a-4723-7e02-83d9-58f32849f5ab"
+    home = tmp_path / "codex-parent"
+    rollout = home / "sessions" / f"rollout-{thread}.jsonl"
+    rollout.parent.mkdir(parents=True)
+    rollout.write_text(json.dumps({"type": "turn_context", "payload": {"model": "parent-codex-model"}}) + "\n")
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    monkeypatch.setenv("CODEX_THREAD_ID", thread)
+    assert review_run.workspace.resolve_codex_model_name() == "parent-codex-model"
+    # Ordinary interactive creates still compare an explicit model to the live Codex model.
+    with pytest.raises(review_run.workspace.WorkspaceError, match="does not match Codex"):
+        review_run.workspace.resolve_runtime_model_name("commandcode/actual/model")
+    review_run.finalize_parent_batch(batch)
+    completed = batch.results[0].attempts[0].payload
+    assert completed["status"] == "success", completed.get("reason")
+    findings = json.loads(Path(completed["findings_file"]).read_text())
+    assert findings["reviewer"]["model"] == "actual/model"
+    assert findings["reviewer"]["provenance"]["provider"] == "commandcode"
+    assert Path(completed["review_file"]).name == "commandcode-actual-model.md"
+    assert os.environ["CODEX_HOME"] == str(home) and os.environ["CODEX_THREAD_ID"] == thread
 
 
 @pytest.mark.parametrize("provider", ["commandcode", "opencode-go"])

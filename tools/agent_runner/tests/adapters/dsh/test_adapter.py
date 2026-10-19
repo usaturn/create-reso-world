@@ -110,6 +110,181 @@ def test_runtime_is_registered() -> None:
     assert runtime_supported("dsh")
 
 
+def test_arbitrary_write_grants_are_rejected_before_launch_state(context: AdapterContext) -> None:
+    from dataclasses import replace
+
+    context = replace(context, sandbox_write_paths=(context.work_dir,))
+    with pytest.raises(ValueError, match="grant"):
+        load_adapter("dsh").prepare(context)
+    assert not (context.receipt_path.parent / "dsh").exists()
+
+
+def test_dsh_disk_receipt_cannot_override_failed_jsonl(context: AdapterContext) -> None:
+    from tools.agent_runner.models import Receipt
+    from tools.agent_runner.runner import _collect as collect_attempt
+
+    _collect(context, ["invalid jsonl\n"])
+    receipt = Receipt(
+        run_id=context.request.run_id, request_id=context.request.request_id,
+        agent_id=context.request.agent_id, role=context.request.role,
+        status="success", payload={"forged": True},
+    )
+    context.receipt_path.write_text(receipt.model_dump_json())
+    state, _, payload = collect_attempt(
+        load_adapter("dsh"), context, context.receipt_path.parent / "stdout.log",
+        context.receipt_path.parent / "stderr.log", None,
+    )
+    assert state == "invalid_result" and payload is None
+
+
+def test_tmp_launch_script_and_shared_environment_are_visible_readonly(
+    context: AdapterContext, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import os
+    import subprocess
+    import sys
+
+    shared = context.work_dir.parent / "shared-venv"
+    shared.mkdir()
+    marker = shared / "dependency"
+    marker.write_text("shared dependency")
+    script = context.work_dir.parent / "cli.py"
+    script.write_text(
+        "import json; from pathlib import Path\n"
+        f"marker = Path({str(marker)!r})\n"
+        "assert marker.read_text() == 'shared dependency'\n"
+        "try:\n marker.write_text('changed')\nexcept OSError:\n print(json.dumps({'readonly': True}))\n"
+    )
+    context.agent.command = [sys.executable, str(script)]
+    with monkeypatch.context() as patch:
+        patch.setattr(sys, "prefix", str(shared))
+        spec = load_adapter("dsh").prepare(context)
+    result = subprocess.run(
+        spec.argv, input=spec.stdin, env={"PATH": os.defpath, **spec.env},
+        cwd=context.work_dir, capture_output=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {"readonly": True}
+    assert marker.read_text() == "shared dependency"
+
+
+@pytest.fixture
+def parent_review(context: AdapterContext) -> dict[str, Any]:
+    import hashlib
+    import subprocess
+
+    root = context.work_dir.parent / "parent"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+    (root / ".gitignore").write_text("/reviews/\n")
+    directory = context.work_dir.parent / "parent-input"
+    directory.mkdir()
+    bundle = directory / "objects.bundle"
+    bundle.write_text("fixture bundle")
+    document = {
+        "schema": "pr-review-parent/v1", "target": {"parent_root": str(root)},
+        "base": "a" * 40, "review_commit": None, "comments": [], "requirements": {},
+        "bundle_sha256": hashlib.sha256(bundle.read_bytes()).hexdigest(),
+    }
+    snapshot = directory / "snapshot.json"
+    snapshot.write_text(json.dumps(document))
+    neighbor = context.work_dir.parent / "host-neighbor"
+    neighbor.write_text("host original")
+    parameters = {
+        "parent_pr_data": {"path": str(snapshot), "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest()},
+        "probe_neighbor": str(neighbor),
+    }
+    context.request.prompt = "Review this PR.\n```json\n" + json.dumps(parameters) + "\n```\n"
+    return {"snapshot": snapshot, "bundle": bundle, "root": root, "neighbor": neighbor, "parameters": parameters}
+
+
+def test_tmp_parent_review_inputs_are_readonly_in_native_and_inner_bash(
+    context: AdapterContext, parent_review: dict[str, Any],
+) -> None:
+    import os
+    import subprocess
+    import sys
+
+    context.agent.command = [sys.executable, str(Path(__file__).with_name("fake_cli.py")), "parent-input"]
+    spec = load_adapter("dsh").prepare(context)
+    result = subprocess.run(
+        spec.argv, input=spec.stdin, env={"PATH": os.defpath, "AGENT_RUNNER_DEPTH": "1", **spec.env}, cwd=context.work_dir,
+        capture_output=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    capture = json.loads((Path(spec.env["DSH_HOME"]) / "capture.json").read_text())
+    assert capture["parent_visible"]
+    assert capture["bundle"] == "fixture bundle"
+    assert all(capture["parent_writes_denied"])
+    assert capture["helper_exit"] == 0, capture["helper_error"]
+    assert parent_review["neighbor"].read_text() == "host original"
+
+
+@pytest.mark.parametrize("prompt", [
+    "Explain parent_pr_data.", '```json\n{"unrelated": broken}\n```',
+    '```json\n{"parent_pr_data": broken}\n```', '```json\n{"unrelated": true}\n```',
+    '```json\n{"nested": {"parent_pr_data": null}}\n```',
+])
+def test_ordinary_prompt_without_parent_descriptor_is_unchanged(context: AdapterContext, prompt: str) -> None:
+    context.request.prompt = prompt
+    assert load_adapter("dsh").prepare(context).stdin == prompt.encode()
+
+
+@pytest.mark.parametrize("change", [
+    "hash", "bundle", "symlink", "hardlink", "bundle_symlink", "fifo", "schema",
+    "parent_root", "parent_root_slash", "not_parent", "descriptor", "malformed",
+])
+def test_invalid_parent_review_input_is_rejected_before_launch(
+    context: AdapterContext, parent_review: dict[str, Any], change: str,
+) -> None:
+    import hashlib
+
+    parameters = parent_review["parameters"]
+    if change == "hash":
+        parameters["parent_pr_data"]["sha256"] = "0" * 64
+    elif change == "bundle":
+        parent_review["bundle"].write_text("changed")
+    elif change == "symlink":
+        snapshot = parent_review["snapshot"]
+        target = snapshot.with_name("target.json")
+        snapshot.rename(target)
+        snapshot.symlink_to(target)
+    elif change == "hardlink":
+        import os
+
+        os.link(parent_review["snapshot"], parent_review["snapshot"].with_name("linked.json"))
+    elif change == "bundle_symlink":
+        bundle = parent_review["bundle"]
+        target = bundle.with_name("target.bundle")
+        bundle.rename(target)
+        bundle.symlink_to(target)
+    elif change == "fifo":
+        import os
+
+        snapshot = parent_review["snapshot"]
+        snapshot.unlink()
+        os.mkfifo(snapshot)
+    elif change in {"parent_root", "parent_root_slash", "not_parent", "schema"}:
+        snapshot = parent_review["snapshot"]
+        document = json.loads(snapshot.read_text())
+        if change == "schema":
+            document["schema"] = "unexpected"
+        else:
+            document["target"]["parent_root"] = {
+                "parent_root": "/tmp", "parent_root_slash": "/", "not_parent": str(snapshot.parent),
+            }[change]
+        snapshot.write_text(json.dumps(document))
+        parameters["parent_pr_data"]["sha256"] = hashlib.sha256(snapshot.read_bytes()).hexdigest()
+    elif change == "descriptor":
+        parameters["parent_pr_data"] = {"path": "/tmp"}
+    context.request.prompt = "```json\n" + json.dumps(parameters) + "\n```\n"
+    if change == "malformed":
+        context.request.prompt = '```json\n{"parent_pr_data": null}\n```\n'
+    with pytest.raises(ValueError):
+        load_adapter("dsh").prepare(context)
+    assert not (context.receipt_path.parent / "dsh").exists()
+
+
 def _patch(spec: LaunchSpec) -> dict[str, Any]:
     return {row["id"]: row for row in json.loads(Path(spec.argv[spec.argv.index("--patch") + 1]).read_text())}
 
@@ -125,7 +300,7 @@ def test_prepare_isolates_state_and_passes_config_not_credentials(
     context.agent.provider = provider
     context.agent.env = [key]
     spec = load_adapter("dsh").prepare(context)
-    assert spec.argv[:3] == ("dsh", "--profile", "headless")
+    assert spec.argv[spec.argv.index("--") + 1:][:3] == ("dsh", "--profile", "headless")
     assert spec.argv[-2:] == ("--json", "-")
     assert spec.stdin == context.request.prompt.encode()
     assert all("credential-not-for-files" not in arg for arg in spec.argv)
@@ -136,7 +311,7 @@ def test_prepare_isolates_state_and_passes_config_not_credentials(
     # never in the disposable HOME or an ambient temporary directory.
     tmpdir = Path(spec.env["TMPDIR"])
     assert tmpdir.is_relative_to(root) and not tmpdir.is_relative_to(spec.env["HOME"])
-    assert tmpdir.is_dir() and not any(tmpdir.iterdir())
+    assert tmpdir.is_dir() and list(tmpdir.iterdir()) == [tmpdir / "exports"]
     assert tmpdir.stat().st_mode & 0o077 == 0
     assert spec.env["DSH_TELEMETRY_MODE"] == "DISABLED"
     patch = _patch(spec)
