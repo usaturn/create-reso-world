@@ -306,13 +306,17 @@ v1 の記録に無い項目（移植元の usaturn/agent-workspace#485 が Spec 
 - 前の状態で `state` が `fix` の判断が、すべてこのサイクルの `decisions` にあること（`outcome` が `stopped` または `stopped_` で始まるサイクルを除く）。
 - `outcome` が `no_fix_needed` のとき、前の状態にこのサイクルの判断を重ねた結果に、`fix`・`hold`・`unverified` が残っていないこと。
 
-手で確かめるときは、次のように実行する。一時ファイルの置き場所は、各スキルの規則に従う。
+手で確かめるときは、次のブロック全体を実行する。一時ファイルの置き場所は、各スキルの規則に従う。認証済み login の取得と有効範囲は 8.1 節に従い、fold の後でも取得・検査を省かない。
 
 ```bash
+TRUSTED_LOGIN="$(gh api user --jq '.login // empty')" && [ -n "$TRUSTED_LOGIN" ] || {
+  printf '%s\n' '認証済み利用者の login を取得できないため停止する。' >&2
+  exit 1
+}
 uv run --no-project python "$TOPLEVEL/.agents/scripts/review_records.py" validate --record-file "$ROUND_JSON"
 gh api --paginate --slurp "repos/$PR_REPO/issues/$PR_NUMBER/comments" > "$COMMENTS_JSON"
 uv run --no-project python "$TOPLEVEL/.agents/scripts/review_records.py" validate \
-  --record-file "$ROUND_JSON" --comments-file "$COMMENTS_JSON"
+  --record-file "$ROUND_JSON" --comments-file "$COMMENTS_JSON" --trusted-login "$TRUSTED_LOGIN"
 ```
 
 更新しようとしているコメントがあるときは、2 つ目の `validate` に `--exclude-comment <そのコメントの ID>` を付ける。終了コードは、0 が成功、65 が内容の問題、66 がファイルを読めない場合、2 が引数の誤りである。問題は、標準エラー出力に場所付きで 1 行ずつ出る。
@@ -710,7 +714,9 @@ planner は、サイクルごとに新しい状況コメントを作る。前の
 
 ### 7.4 helper の規則
 
-`upsert_pr_comment.py` は、記録付きの投稿と記録なしの投稿を持つ（記録付きの投稿は #155 で入る。移植先の今の helper は記録なしの投稿だけを持つ）。どちらでも、照合の対象にするのは、書き込み権限のある投稿者（`author_association` が `OWNER`・`MEMBER`・`COLLABORATOR`）のコメントだけである。マーカーは、行全体が一致するかで比べる（部分一致にしない）。
+`upsert_pr_comment.py` は、記録付きの投稿と記録なしの投稿を持つ（記録付きの投稿は #155 で入る。移植先の今の helper は記録なしの投稿だけを持つ）。#155 で接続する際は、どちらでも、照合の対象を、書き込み権限のある投稿者（`author_association` が `OWNER`・`MEMBER`・`COLLABORATOR`）、または認証済み利用者自身のコメントに限る。呼び出し元は `gh api user --jq '.login // empty'` の成功と空でない結果を確認し、得た login をコメントの投稿者と完全一致で比べる。同じ login を `read_state(..., trusted_login=login)` に渡す。取得に失敗した場合や空の場合は停止し、PR の作者・コメント本文から推測しない。ほかの `CONTRIBUTOR`・`NONE` は信頼しない。マーカーは、行全体が一致するかで比べる（部分一致にしない）。
+
+`review_records.py` はこの login の明示指定に対応している。現行の upsert は投稿者で絞っておらず、upsert・`run_roles.py` から同じ認証済み login を渡す接続は #155 の範囲である。
 
 **記録付きの投稿**（`--records-file <サイクルの記録の JSON>`）: review-fix-planning は、この投稿だけを使う。
 
@@ -751,7 +757,8 @@ planner は、サイクルごとに新しい状況コメントを作る。前の
 | --- | --- |
 | `validate_record(value)` | 記録単体の検査 |
 | `check_against(record, prior)` | 前の状態との照合。`prior` は `read_state` の結果 |
-| `read_state(comments, *, expected_pr=None, exclude_comment_ids=())` | コメントの一覧から、現在の状態と `ignored_comments` を作る |
+| `read_state(comments, *, expected_pr=None, exclude_comment_ids=(), trusted_login="")` | コメントの一覧から、現在の状態と `ignored_comments` を作る。空でない `trusted_login` と投稿者 login が完全一致する場合も読む |
+| `collect_records(comments, *, exclude_comment_ids=(), trusted_login="")` | 信頼する投稿者の状況コメントから `(コメント ID, 記録)` の一覧と、理由付きの無視したコメントを取り出す |
 | `comments_from_api(payload)` | `gh api` の出力を、コメントの一覧（`id`・`body`・`author`・`author_association`）に整える |
 | `compose_comment(record, body)` | 記録付きの状況コメントの全文を組み立てる |
 | `render_block(record)`・`extract_record(body)`・`round_marker(n, head)` | 記録のブロックとサイクルのマーカーの描画・取り出し |
@@ -766,14 +773,22 @@ helper は、自分のファイルの位置から辿ってモジュールを読�
 
 ### 8.1 現在の状態の取り出し方
 
+**認証済み login の取得と有効範囲（6.4 節の照合にも適用）**: 各ツール呼び出しで、login の取得・検査から利用までを含むブロック全体を実行する。シェル変数は次のツール呼び出しへ引き継がれると仮定しない。fold と後続の照合の間では認証先を変えず、各呼び出しで同じ利用者の login を取得して渡す。取得失敗・空・中断後に再開するときも、取得からやり直す。認証先を切り替えた場合は fold からやり直し、その利用者で読んだ状態に基づいて判断と照合を行う。
+
 ```bash
+TRUSTED_LOGIN="$(gh api user --jq '.login // empty')" && [ -n "$TRUSTED_LOGIN" ] || {
+  printf '%s\n' '認証済み利用者の login を取得できないため停止する。' >&2
+  exit 1
+}
 gh api --paginate --slurp "repos/$PR_REPO/issues/$PR_NUMBER/comments" \
-  | uv run --no-project python "$TOPLEVEL/.agents/scripts/review_records.py" fold --repo "$PR_REPO" --pr "$PR_NUMBER"
+  | uv run --no-project python "$TOPLEVEL/.agents/scripts/review_records.py" fold \
+      --repo "$PR_REPO" --pr "$PR_NUMBER" --trusted-login "$TRUSTED_LOGIN"
 ```
 
 `$TOPLEVEL` は親リポジトリの toplevel、`$PR_REPO` は PR が存在するリポジトリ（`owner/name`）、`$PR_NUMBER` は PR の番号である。
 
-- 記録を読むのは、書き込み権限のある投稿者のコメントのうち、1 行目がエージェントのマーカー、2 行目がサイクルのマーカーのものだけである。マーカーと記録の `agent_id`・`round`・`reviewed_head` が食い違えば、壊れた記録として扱う。
+- 記録を読むのは、`OWNER`・`MEMBER`・`COLLABORATOR`、または明示した空でない login と投稿者 login が完全一致するコメントのうち、1 行目がエージェントのマーカー、2 行目がサイクルのマーカーのものだけである。`--trusted-login` を省くと従来の三つの区分だけを読む。`CONTRIBUTOR` 全員を信頼する指定ではない。空・欠落の投稿者 login に追加の信頼を与えない。マーカーと記録の `agent_id`・`round`・`reviewed_head` が食い違えば、壊れた記録として扱う。
+- `review_records.py` 自体は認証済み login を取得しない。呼び出し元が取得に失敗した場合や結果が空の場合は、指定を省いて続けず停止する。`validate --record-file <JSON> --comments-file <JSON>` にも同じ `--trusted-login "$TRUSTED_LOGIN"` を渡せる。認証済み利用者の過去記録を含む照合では、fold と同じ値を使う。
 - マーカーを持つが読まなかったコメントは、出力の `ignored_comments` に、コメント ID・投稿者・理由とともに挙がる。信頼しない投稿者のコメントと、サイクルの状況コメントの形でないのに記録のブロックを持つコメントである。人のコメントが記録のマーカーを引用していても、集約は失敗しない。
 - 記録のブロックを持たないコメント（旧形式の状況コメントなど）は無視する。`body` が null のコメントは、空の本文として扱う。
 - 記録を、サイクルの番号・記録時刻・コメント ID の順に並べ、判断 ID ごとに最後の記載を現在の状態とする。`sources` は全サイクルの分をまとめる。

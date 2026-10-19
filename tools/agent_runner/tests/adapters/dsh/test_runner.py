@@ -79,6 +79,7 @@ def config(monkeypatch: pytest.MonkeyPatch, ambient_tmp: Path) -> Config:
         ("success", "success", 0),
         ("auth", "awaiting_authentication", 1),
         ("approval", "awaiting_approval", 0),
+        ("approval-program", "awaiting_approval", 0),
         ("nonzero", "response_failed", 1),
         ("malformed", "response_failed", 0),
         ("missing-session", "response_failed", 0),
@@ -111,6 +112,39 @@ def test_real_process_state_and_stdin(
     if mode == "descendant":
         pid = int((attempt.work_dir / "child.pid").read_text())
         _assert_stopped(pid)
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "read-402-lines", "read-401-lines", "read-403-lines", "read-401-filename", "read-403-filename",
+        "read-approval-cancelled", "read-approval-unavailable", "read-approval-rejected",
+        "read-requires-approval", "read-approvals-path",
+        "ptc-read", "ptc-read_403", "ptc-captured_only", "ptc-caught_rejection",
+    ],
+)
+@pytest.mark.parametrize("with_fallback", [False, True])
+def test_recovered_read_error_keeps_primary_result(
+    config: Config, repository: Path, tmp_path: Path, mode: str, with_fallback: bool
+) -> None:
+    config.agents["a"].command[-1] = mode
+    if with_fallback:
+        fallback = config.agents["a"].model_copy(deep=True)
+        fallback.command[-1] = "success"
+        fallback.model = "fallback-model"
+        config.agents["b"] = fallback
+        config.workflows["test"].assignments["inspect"].fallback = ["b"]
+    result = run_workflow(config, "test", "recover from a read error", repository, output_dir=tmp_path / "run")
+    assert result.state == "success"
+    role_result = result.results[0]
+    assert role_result.state == "success"
+    assert role_result.actual_agent == "a"
+    assert len(role_result.attempts) == 1
+    attempt = role_result.attempts[0]
+    assert attempt.agent_id == "a" and attempt.state == "success"
+    assert attempt.exit_code == 0 and attempt.stop_confirmed
+    assert isinstance(attempt.payload, dict) and attempt.payload["ok"] is True
+    assert (attempt.identity.provider, attempt.identity.model) == ("commandcode", "fixture-model")
 
 
 def test_explicit_provider_key_is_used_without_ambient_credentials(
@@ -366,3 +400,30 @@ def test_unconfirmed_stop_reports_runtime_root(
     # Without stop evidence a live writer may still use HOME and TMPDIR; neither is removed nor read.
     assert (root / "home").is_dir()
     assert (root / "tmp" / "live-link").is_symlink()
+
+
+@pytest.mark.parametrize("case", ["rejected", "cancelled", "unavailable", "tool_approval"])
+@pytest.mark.parametrize("with_fallback", [False, True])
+def test_ptc_refusal_keeps_primary_failed(
+    config: Config, repository: Path, tmp_path: Path, case: str, with_fallback: bool
+) -> None:
+    config.agents["a"].command[-1] = "ptc-" + case
+    if with_fallback:
+        fallback = config.agents["a"].model_copy(deep=True)
+        fallback.command[-1] = "success"
+        fallback.model = "fallback-model"
+        config.agents["b"] = fallback
+        config.workflows["test"].assignments["inspect"].fallback = ["b"]
+    result = run_workflow(config, "test", "report the tool result", repository, output_dir=tmp_path / "run")
+    assert result.state == ("success" if with_fallback else "failed")
+    role = result.results[0]
+    assert role.actual_agent == ("b" if with_fallback else "a")
+    assert len(role.attempts) == (2 if with_fallback else 1)
+    primary = role.attempts[0]
+    assert primary.agent_id == "a" and primary.state == "awaiting_approval"
+    assert primary.payload is None
+    assert primary.exit_code == 0 and primary.stop_confirmed
+    assert (primary.identity.provider, primary.identity.model) == ("commandcode", "fixture-model")
+    if with_fallback:
+        assert role.attempts[1].state == "success"
+        assert isinstance(role.attempts[1].payload, dict) and role.attempts[1].payload["ok"] is True

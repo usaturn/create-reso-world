@@ -955,12 +955,13 @@ def _marker_problems(record: Mapping[str, Any], agent: re.Match[str], round_matc
 
 
 def collect_records(
-    comments: Sequence[Mapping[str, Any]], *, exclude_comment_ids: Iterable[int] = ()
+    comments: Sequence[Mapping[str, Any]], *, exclude_comment_ids: Iterable[int] = (), trusted_login: str = ""
 ) -> tuple[list[tuple[int, dict[str, Any]]], list[dict[str, Any]]]:
     """記録を持つサイクルの状況コメントから、(コメント ID, 記録) の一覧を作る。
 
-    読むのは、書き込み権限のある投稿者のコメントのうち、1 行目がエージェントの
-    マーカー、2 行目がサイクルのマーカーのものだけ。読まなかったコメントのうち、
+    読むのは、書き込み権限のある投稿者、または空でない trusted_login と author が
+    完全一致する投稿者のコメントのうち、1 行目がエージェントのマーカー、
+    2 行目がサイクルのマーカーのものだけ。読まなかったコメントのうち、
     2 つ目の戻り値に理由とともに入れるのは、マーカーを持つ信頼しない投稿者の
     コメントと、サイクルの状況コメントの形でないのに記録のブロックを持つコメントだけ。
     それ以外の読まなかったコメントは黙って読み飛ばす。除外したコメント、
@@ -979,7 +980,7 @@ def collect_records(
             continue
         association = cast(str, comment.get("author_association", ""))
         note = {"comment_id": comment_id, "author": comment.get("author", ""), "author_association": association}
-        if association not in TRUSTED_ASSOCIATIONS:
+        if association not in TRUSTED_ASSOCIATIONS and not (trusted_login and comment.get("author") == trusted_login):
             ignored.append({**note, "reason": "the author is not trusted"})
             continue
         lines = body.replace("\r\n", "\n").split("\n")
@@ -1010,13 +1011,14 @@ def read_state(
     *,
     expected_pr: Mapping[str, Any] | None = None,
     exclude_comment_ids: Iterable[int] = (),
+    trusted_login: str = "",
 ) -> dict[str, Any]:
     """コメントの一覧から、判断の現在の状態と ignored_comments を作る。
 
     ignored_comments は collect_records の 2 つ目の戻り値で、読まなかった
     コメントの全部ではない。
     """
-    records, ignored = collect_records(comments, exclude_comment_ids=exclude_comment_ids)
+    records, ignored = collect_records(comments, exclude_comment_ids=exclude_comment_ids, trusted_login=trusted_login)
     state = fold(records, expected_pr=expected_pr)
     state["ignored_comments"] = ignored
     return state
@@ -1029,10 +1031,12 @@ def _parser() -> argparse.ArgumentParser:
     fold_command.add_argument("--repo", help="期待する PR のリポジトリ（owner/name）")
     fold_command.add_argument("--pr", type=int, help="期待する PR の番号")
     fold_command.add_argument("--exclude-comment", type=int, action="append", help="読まないコメント ID")
+    fold_command.add_argument("--trusted-login", default="", help="追加で信頼する認証済み利用者の login")
     validate_command = commands.add_parser("validate", help="サイクルの記録を検査する")
     validate_command.add_argument("--record-file", type=Path, required=True)
     validate_command.add_argument("--comments-file", type=Path, help="照合に使うコメント一覧")
     validate_command.add_argument("--exclude-comment", type=int, action="append", help="照合から除くコメント ID")
+    validate_command.add_argument("--trusted-login", default="", help="追加で信頼する認証済み利用者の login")
     render_command = commands.add_parser("render", help="記録のブロックを出力する")
     render_command.add_argument("--record-file", type=Path, required=True)
     return parser
@@ -1059,13 +1063,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "fold":
             expected = None if args.repo is None else {"repository": args.repo, "number": args.pr}
             comments = comments_from_api(_load_json(sys.stdin.read(), "stdin"))
-            state = read_state(comments, expected_pr=expected, exclude_comment_ids=excluded)
+            state = read_state(
+                comments, expected_pr=expected, exclude_comment_ids=excluded, trusted_login=args.trusted_login
+            )
             sys.stdout.write(json.dumps(state, ensure_ascii=False, indent=2) + "\n")
         elif args.command == "validate":
             checked = validate_record(_read_json(args.record_file))
             if args.comments_file is not None:
                 comments = comments_from_api(_read_json(args.comments_file))
-                check_against(checked, read_state(comments, expected_pr=checked["pr"], exclude_comment_ids=excluded))
+                check_against(
+                    checked,
+                    read_state(
+                        comments,
+                        expected_pr=checked["pr"],
+                        exclude_comment_ids=excluded,
+                        trusted_login=args.trusted_login,
+                    ),
+                )
         else:
             sys.stdout.write(render_block(validate_record(_read_json(args.record_file))) + "\n")
     except RecordError as error:

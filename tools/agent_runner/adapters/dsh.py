@@ -39,7 +39,38 @@ _APPROVAL = re.compile(
     r"|the user rejected (?:tool|escalating)",
     re.IGNORECASE,
 )
+# DSH 0.2.0-rc.2: dsh-tools.serviceAsk / dsh-sandbox.approveEscalation,
+# Headless JSON has no structured denial tag. Match the entire reason after
+# decoding the direct/PTC envelope, never substrings of paths or captured output.
+# Subject/name/mode are producer parameters,
+# not a caller whitelist (run_code uses "program"). Keep control diagnostics generic.
+_TOOL_APPROVAL_REASON = re.compile(
+    r'(?:the user rejected tool "[^"\n]+"'
+    r'|approval for tool "[^"\n]+" was cancelled'
+    r'|tool "[^"\n]+" requires approval(?: \(not yet supported\)'
+    r'|, but (?:the call has no agent to route it through|no approval channel is available))'
+    r'|the user rejected escalating this [^"\n]+ to "[^"\n]+"; '
+    r'it stays denied, so stop and explain instead of working around it'
+    r'|approval for escalating to "[^"\n]+" was cancelled'
+    r'|sandbox escalation to "[^"\n]+" requires approval, but '
+    r'(?:no approval channel is available|no approval service is composed'
+    r'|the call has no agent to route it through))'
+)
 _FENCE = re.compile(r"```json\b[^\n]*\n(.*?)```", re.IGNORECASE | re.DOTALL)
+
+
+def _tool_denial(text: str) -> bool:
+    # run_code's uncaught binding failures become ToolCallError stacks, then
+    # CodeRunFailedError. Only the first exception line is a refusal reason;
+    # the stack, Captured output and sandbox annotations are ordinary data.
+    ptc_prefix = "Error: code run failed (exception): ToolCallError: "
+    if text.startswith(ptc_prefix):
+        reason = text[len(ptc_prefix):].partition("\n")[0]
+    elif text.startswith("Error: "):
+        reason = text[len("Error: "):]
+    else:
+        return False
+    return _TOOL_APPROVAL_REASON.fullmatch(reason) is not None
 
 
 def _constant(value: str) -> object:
@@ -109,14 +140,15 @@ def _intermediate_event_valid(event: dict[str, object], active: int | None) -> b
 
 
 def _classify(events: list[dict[str, object]], shape: str) -> tuple[ReceiptStatus, Payload]:
-    # Error events and error tool results are diagnostics, never answer text.
+    # Only control errors and recognized tool denials override a completed final.
     for event in events:
         if event.get("type") == "error":
             return _diagnostic(str(event.get("code", "")) + " " + str(event.get("message", ""))), None
         if event.get("type") == "tool_result" and event.get("status") == "error":
-            hint = _diagnostic(str(event.get("result", "")))
-            if hint != "response_failed":
-                return hint, None
+            # Tool output is data, not API auth/approval state. Only complete
+            # refusal reasons from DSH's direct/PTC producers remain fatal here.
+            if _tool_denial(str(event.get("result", ""))):
+                return "awaiting_approval", None
         if event.get("type") == "status" and event.get("phase") == "turn_end":
             reason = event.get("reason")
             if not isinstance(reason, dict):
