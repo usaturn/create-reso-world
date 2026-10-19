@@ -96,3 +96,12 @@
 ## 未確定部分と停止条件
 
 内部関数の細部は上流と既存テストを基準に実装者が決める。必要な API/ツールの失敗、依存/予約の競合、変更範囲の拡張、安全の失敗、予算超過、解消できない検証、Gitleaks の失敗では停止する。既存 #174/#175 の認証や adapter 本体をこの子で直さない。実機の並行レビューに失敗したら外側/内側の実結果を保持し、成功と報告しない。マージは利用者が行う。
+
+## 公開前の実装・検証結果
+
+- Task1 `8112185`、中断時の所有 bundle Git 復旧 `8ef6ebb`、Task2 `454f827`、Task3 `fbacf7c`、参照修正 `baebbc7`。元の journal/inspect/abandon/sessions と #146 の repository identity を保持した。
+- 全体レビューの Important 2件（通常 shallow の履歴不足・DSH の再現用 scratch が許可範囲外）を `021973e` の1回の修正で対応。実Gitの RED→GREEN と304件の対象回帰を確認し、1回の修正差分レビューで両件 ADDRESSED・新規 Critical/Important 無し。2回目の全体レビューは行っていない。
+- 最終コードで `uv run pytest tests/skills .agents/skills .agents/scripts tools`: **2652 passed / 565.88秒 / exit0**。対象304件は234.39秒/exit0。shell **33 PASS/exit0**、layout **PASS/exit0**。shellはAGENTSの省略参照1件で失敗した後、実在の完全パスに直して33本を再実行した。
+- スキル無し/ありの同一dry-runを各1回。無しはhelper/schema/資格情報隔離の契約不足で停止、ありは親入力→共通prepare→固定全体差分→staged→親保存を提示した。自己repo DSHのsource-rootに小さな不確実性が残る回答だったが、bundle-onlyと元checkout不在の実行回帰で確かめている。dry-runは実機成功の証拠にしない。
+- #59は301ファイルの実Git差分からpair保存・cleanupまで成功し、Closes対象とする。#134はmoving HEAD拒否・draft保持・fresh-session再開を検証したが、残存セッションの運用判断の全条件を解消したとは主張せず、Refsと結果報告にとどめる。
+- 2026-10-19 00:07 UTC時点で実機レビュー・push・PRは未実施。以後の結果は追記し、認証・停止・予算の失敗を隠さない。Spec/Planの状態はdraftのまま。

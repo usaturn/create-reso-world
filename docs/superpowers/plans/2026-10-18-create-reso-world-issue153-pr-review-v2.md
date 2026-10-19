@@ -130,3 +130,13 @@
 ## 自己点検
 
 Specの受入れ1〜7をTask1/2の実行検査とTask3の統合/実機/公開に対応させた。共有APIはTask1の出力をTask2で、Task2の入口をTask3で使い、review_target.pyの変更は計画に含めていない。未確定のsource取得・DSH pre-run・staging配置はSpecのbuilder check節で決めた。検証と実機は別に記録する。
+
+## 進捗・公開前結果
+
+Task1/2とTask3の文書・設定は実装・Taskレビュー済み。全体レビューの2件を1回の修正wave `021973e` で解消し、修正差分の再レビューは両件ADDRESSED、新規Critical/Important無し。最終コードのPython全体2652passed（565.88秒）、対象304passed（234.39秒）、shell33PASS、layoutPASS、すべてexit0。構造・実config・diff検査も成功。現時点で実機・公開の手順は未完了。
+
+主要時間: 準備/設計約14分、Task1実装38分＋修正7分、Task2実装約28分、Task3約7分、最後の修正約8分、ほか独立レビュー・最終回帰。並行検証は二重加算しない。Task1初回pytestに240秒timeoutがあり、その後は同期の長い実行で成功。Task2が指示に反して全体回帰を追加した11分14秒は運用上の超過として記録する。
+
+Ruling: SDD資料はworktree外SESSIONへ置いた（AGENTS優先）。内部target_kindはcloneでなくbundleとし、DSHの入力元をbundleだけに制限した。Task2接続ではcleanupの確定済みref状態を返す2項目を追加し、外部で推測しない。公開前に全体レビューを先に行い、実機はPR公開後に行う。いずれも実行許可内の通常判断であり、内容承認を記録したものではない。
+
+#134は保存拒否の実行挙動とfresh-session再開まで検証し、残存セッションの運用の全条件は解消済みとしない。PRはRefs #134とし、Issueに結果を報告する。#59は301ファイル保存を確認しCloses対象。
