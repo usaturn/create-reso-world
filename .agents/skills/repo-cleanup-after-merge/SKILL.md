@@ -1,7 +1,7 @@
 ---
 name: repo-cleanup-after-merge
 description: Use when ユーザーが、PR がマージされた後のローカルリポジトリの片付けを依頼する場合。マージ済み branch の削除、使い終わった worktree の整理、レビュー用の使い捨て worktree の残骸の掃除、作業ツリーの origin/main への追従が対象。未マージの作業のリベース、コンフリクト解消、リリース作業には使用しない。例:「PR が全て Merge されたことを確認して branch, worktree を整理してローカルを更新して」「マージ済みのブランチを消して」「worktree を掃除して」「origin/main に追従して」「リポジトリを整理して」
-allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(git *), Bash(gh *), Bash(ls *), Bash(diff *), Bash(cmp *), Bash(find *), Bash(cp *), Bash(rm *), Bash(uv run --no-project python -c *), Bash(uv run --no-project python *pr_review_workspace.py sessions *), Bash(bash scripts/resoloop-fork.sh sync)
+allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(git *), Bash(gh *), Bash(ls *), Bash(diff *), Bash(mktemp *), Bash(cmp *), Bash(find *), Bash(cp *), Bash(rm *), Bash(uv run --no-project python -c *), Bash(uv run --no-project python *pr_review_workspace.py sessions *), Bash(bash scripts/resoloop-fork.sh sync)
 ---
 
 # マージ後のリポジトリ整理
@@ -161,19 +161,26 @@ version 8 は本文と候補の pair・snapshot・bundle・実行記録を含み
 
 **以下は version 7 の残骸だけ。** `main_root`・`destination`・`pr_repository` が読めず、repository/PR の対応を確かめられない場合、または結合した正式保存先がその checkout の `reviews/` 配下に無い場合は、削除せず停止する。相対パスの `..` や symlink による範囲外も拒否する。
 
+`diff` の stdout・stderr は `mktemp -d` で作ったディレクトリに書き、同じブロックで表示してから消す。`/tmp` 直下の固定名のファイルは、並行するセッションの結果と混ざるので使わない。シェルの変数が次の呼び出しに残らないランタイムがあるので、ブロックは分けずに 1 回で実行する。
+
 ```bash
-diff -rq <残骸ディレクトリ>/review-backup <正本ディレクトリ> > /tmp/gate-a.out 2> /tmp/gate-a.err; echo $?
+GATE=$(mktemp -d "${TMPDIR:-/tmp}/repo-cleanup-gate-a.XXXXXX") || exit 1
+diff -rq <残骸ディレクトリ>/review-backup <正本ディレクトリ> > "$GATE/stdout" 2> "$GATE/stderr"
+echo "diff の終了コード: $?"
+echo '--- stderr ---'; cat -- "$GATE/stderr"
+echo '--- stdout ---'; cat -- "$GATE/stdout"
+rm -rf -- "${GATE:?}"
 ```
 
 削除してよいのは、次をすべて満たすときだけである。空の `grep '^Only in .*review-backup'` だけを削除許可にしてはならない。
 
-- `diff` の stderr（`/tmp/gate-a.err`）が空である。正本ディレクトリ不在はここに出る（終了コード 2）。stderr があれば削除しない
-- stdout に `Files ... differ` が無い
+- `diff` の stderr（`--- stderr ---` の下）が空である。正本ディレクトリ不在はここに出る（終了コード 2）。stderr があれば削除しない
+- stdout（`--- stdout ---` の下）に `Files ... differ` が無い
 - stdout の `Only in ...review-backup` が、`previous-review.md` 以外に無い。`previous-review.md` はセッション snapshot であり、正本へコピーせず、この判定からも除外する
 
 どれか一つでも欠ければ削除しない。
 
-- `Only in ...review-backup` の対象が `<model>.md` なら正本へ `cp` する。コピーは非破壊であり、AskUserQuestion は不要。コピー後に述語を再実行する。ただし `session.json` に `pr_repository` が無い（version 6 以前の）残骸からはコピーしない。旧形式の保存先は fork と上流の PR で共有され得るので、所属を確かめられない draft を置かない。残骸を残し、パスを手順 11 で報告する
+- `Only in ...review-backup` の対象が `<model>.md` なら正本へ `cp` する。コピーは非破壊であり、AskUserQuestion は不要。コピー後に上のブロックを実行し直す。ただし `session.json` に `pr_repository` が無い（version 6 以前の）残骸からはコピーしない。旧形式の保存先は fork と上流の PR で共有され得るので、所属を確かめられない draft を置かない。残骸を残し、パスを手順 11 で報告する
 - `previous-review.md` は正本へコピーしない
 - `Files ... differ` の `<model>.md` は正本を上書きしない。残すか別名退避するかをユーザーに確認し、確認が終わるまで残骸は消さない
 
