@@ -140,3 +140,11 @@ Task1/2とTask3の文書・設定は実装・Taskレビュー済み。全体レ�
 Ruling: SDD資料はworktree外SESSIONへ置いた（AGENTS優先）。内部target_kindはcloneでなくbundleとし、DSHの入力元をbundleだけに制限した。Task2接続ではcleanupの確定済みref状態を返す2項目を追加し、外部で推測しない。公開前に全体レビューを先に行い、実機はPR公開後に行う。いずれも実行許可内の通常判断であり、内容承認を記録したものではない。
 
 #134は保存拒否の実行挙動とfresh-session再開まで検証し、残存セッションの運用の全条件は解消済みとしない。PRはRefs #134とし、Issueに結果を報告する。#59は301ファイル保存を確認しCloses対象。
+
+## 実機での停止・引き継ぎ
+
+PR #182 を作成済み（main向け、マージ無し）。parallel runの実結果はpartial_success。Devinの本文/候補保存とcleanupはsuccess、DSHはawaiting_approvalで成果無し。DSHのworkspace-write拒否を観測し、権限・cache・HOMEを変えた回避や再試行は行っていない。両attempt stop_confirmed=true、sensitive_paths=[]、outside_changes=[]。finalize-parent/attach-runner exit0はDSHレビュー成功を意味しない。wrapper exit1、watcher exited_incomplete、全プロセス停止確認済み。
+
+非runner入口は依頼先sp-reviewにBash/書込ツールが無く未実施（実モデルのレビューを実行したとは数えない）。Task3の公開は済んだが、実機受け入れはblockedで未完了。残る検証を成功扱いしてPlanをcompletedにしない。
+
+記録: `/workspaces/reso-world/tmp/agents/issue-153.j8p_g6l_/live-summary.json`、`live-runner/result.json`、`watch-live/final.json`。次はDSHの拒否操作と必要な権限の確認、通常のBash/書込可能なpiセッションで非runner入口の実行。必要な利用者判断を得る前に再起動しない。新しいPR HEADへ動いた後は古いsnapshotを再利用せずprepare-parentから作る。成功済みDevinは再実行しない。

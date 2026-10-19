@@ -102,6 +102,9 @@
 - Task1 `8112185`、中断時の所有 bundle Git 復旧 `8ef6ebb`、Task2 `454f827`、Task3 `fbacf7c`、参照修正 `baebbc7`。元の journal/inspect/abandon/sessions と #146 の repository identity を保持した。
 - 全体レビューの Important 2件（通常 shallow の履歴不足・DSH の再現用 scratch が許可範囲外）を `021973e` の1回の修正で対応。実Gitの RED→GREEN と304件の対象回帰を確認し、1回の修正差分レビューで両件 ADDRESSED・新規 Critical/Important 無し。2回目の全体レビューは行っていない。
 - 最終コードで `uv run pytest tests/skills .agents/skills .agents/scripts tools`: **2652 passed / 565.88秒 / exit0**。対象304件は234.39秒/exit0。shell **33 PASS/exit0**、layout **PASS/exit0**。shellはAGENTSの省略参照1件で失敗した後、実在の完全パスに直して33本を再実行した。
-- スキル無し/ありの同一dry-runを各1回。無しはhelper/schema/資格情報隔離の契約不足で停止、ありは親入力→共通prepare→固定全体差分→staged→親保存を提示した。自己repo DSHのsource-rootに小さな不確実性が残る回答だったが、bundle-onlyと元checkout不在の実行回帰で確かめている。dry-runは実機成功の証拠にしない。
+- スキル無し/ありの同一dry-runを各1回。無しはhelper/schema/資格情報隔離の手順・入出力仕様の不足で停止、ありは親入力→共通prepare→固定全体差分→staged→親保存を提示した。自己repo DSHのsource-rootに小さな不確実性が残る回答だったが、bundle-onlyと元checkout不在の実行回帰で確かめている。dry-runは実機成功の証拠にしない。
 - #59は301ファイルの実Git差分からpair保存・cleanupまで成功し、Closes対象とする。#134はmoving HEAD拒否・draft保持・fresh-session再開を検証したが、残存セッションの運用判断の全条件を解消したとは主張せず、Refsと結果報告にとどめる。
-- 2026-10-19 00:07 UTC時点で実機レビュー・push・PRは未実施。以後の結果は追記し、認証・停止・予算の失敗を隠さない。Spec/Planの状態はdraftのまま。
+- PR: https://github.com/usaturn/create-reso-world/pull/182（main向け）。Gitleaksは公開前11commits/359331bytesを検査し検出無し、検査SHA `9652ca9c6dc88a03ca1b013a8ec15f054deb60fd` をそのままpushした。
+- 2026-10-19 00:16 UTC、実機の並行runは **partial_success**。`devin-swe` は外側/内側success・本文と候補pair保存・cleanup成功。`dsh-ccd` は外側 **awaiting_approval**（exit0）で成果無し。DSHログには自身の `workspace-write mode` の file access denied がある。承認・権限を拡張した再試行はしていない。両試行ともstop_confirmed=true、sensitive_paths空、outside_changes空。parent finalize/attachはexit0だが、DSH成果が無いので全体成功ではない。
+- watcherは235.86秒でexited_incomplete（wrapper exit1）、watcher_alive/target_aliveともfalse、residual_pids空。保存元は `/workspaces/reso-world/tmp/agents/issue-153.j8p_g6l_/live-runner/result.json`、要約は同ディレクトリの `live-summary.json`。モデルのレビュー本文は判断の出所にしていない。
+- 非runner入口の依頼先sp-reviewはBash/書き込みツールを持たず、prepare/completeは未実施、成果物も未作成。実機受け入れ全体は未完了であり、#153を完了扱いしない。必要な権限/実行セッションの確認後に、成功済みDevinを繰り返さず残るDSHと非runner入口を確認する。状態はdraft、実機のゲートはblocked。マージしていない。
