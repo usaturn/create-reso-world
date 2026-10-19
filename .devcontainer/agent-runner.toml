@@ -145,4 +145,4 @@ after_run = [[
 
 # 指定が無いときの既定構成。その回の --assign inspect=... または個人設定で選び直せる。
 [workflows.review.assignments.inspect]
-agents = ["pi-gpt", "devin-swe", "dsh-ccd", "claude-opus", "pixg"]
+agents = ["pi-gpt", "devin-swe", "dsh-ccd", "claude-opus"]
