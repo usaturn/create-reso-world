@@ -26,7 +26,7 @@ review-fix-planning が、agent-runner の設定の割り当てで、修正の�
 - review-verify の `fix-check.md` は、呼び出し側が `review_dir` を D-10 のパスに一致させると書く。`dispatch.py` はこれを強制せず、`review_dir` とその祖先・`verified` のリンクだけを拒否する。dispatch から accept までは `review_dir` 全体の snapshot を照合する
 - pr-review の `review_run.py` の `read_records` は `trusted_login` を渡さない
 - 雛形 `.devcontainer/agent-runner.toml` には `[workflows.review]` まであり、`[workflows.fix]` は無い。`claude-opus` は #150 が定義済み
-- 契約テスト（`tests/test_review_fix_planning_skill_contract.py`）は、SKILL.md の `--pr "$PR_NUMBER"` を含む bash ブロックが 1 つで、投稿ブロックが外部への操作の前に共通 context の確認で止まることを、ブロックを実行して確かめる
+- SKILL.md の手順のテスト（`tests/test_review_fix_planning_skill_contract.py`）は、SKILL.md の `--pr "$PR_NUMBER"` を含む bash ブロックが 1 つで、投稿ブロックが外部への操作の前に共通 context の確認で止まることを、ブロックを実行して確かめる
 - #156 の移植元の `loop.py` は、`run_roles.py` の `project`・`reject_dsh_review_agents`・`reject_codex_review_agents`・`RoleInputError`・`failure_reason` と `roles.json`、`finalize.py` の結果（`outcome`・`merged`・`issues`・`stop_reason`）を使う。マージ済みなら PR の head がそのサイクルの HEAD と同じことを確かめる
 
 ## 判断（決定記録）
@@ -80,7 +80,7 @@ review-fix-planning が、agent-runner の設定の割り当てで、修正の�
 
 - 選択した案: 移植元の記録付きの投稿（`--records-file`、`upsert(..., record=None)`、`view_pr`・`find_round_comment_id`・`_checked_record`・`_check_pull_request`・`_round_target`）を移す。review-records.md 7.4 のとおり、記録付き・記録なしのどちらでも、照合の対象を `OWNER`・`MEMBER`・`COLLABORATOR` または認証済み利用者自身のコメントに限る。login は helper が `gh api user --jq '.login // empty'` で取り、失敗・空なら投稿せずに止める（終了コード 64）。同じ login を `read_state(..., trusted_login=login)` に渡す。`finalize.py` も同じ関数で login を取る。マーカーは行全体の一致で比べる
 - 検討した別案: login を SKILL.md のシェルで取り、`--trusted-login` で helper に渡す
-- 選択理由: 投稿ブロックは契約テストが実行し、外部への操作の前に共通 context の確認で止まることを確かめている。シェルで先に `gh api user` を呼ぶと、その確認より前に外へ問い合わせる。helper の中なら、PR の解決と同じ `gh` の経路で取得・検査でき、`--trusted-login` の渡し忘れで三つの区分だけを読む挙動に黙って戻ることも無い
+- 選択理由: 投稿ブロックは SKILL.md の手順のテストが実行し、外部への操作の前に共通 context の確認で止まることを確かめている。シェルで先に `gh api user` を呼ぶと、その確認より前に外へ問い合わせる。helper の中なら、PR の解決と同じ `gh` の経路で取得・検査でき、`--trusted-login` の渡し忘れで三つの区分だけを読む挙動に黙って戻ることも無い
 - 委任の指示・停止の条件: 既存の挙動の変化として、記録なしの投稿も、信頼しない投稿者のマーカー付きコメントを自分のコメントとして更新しなくなる（7.4 が求める）。`upsert(pr, repo, model_name, markdown, *, runner=None)` の呼び方は保つ
 
 ### D-7 判断の記録の写し方
@@ -105,7 +105,7 @@ review-fix-planning が、agent-runner の設定の割り当てで、修正の�
 
   新しい `references/execution.md`（役割の実行と最終化）と `references/round-records.md`（記録の作り方と投稿）は、移植元の同名の文書を基に、移植先の 3 区分・結論・パス・規則に直して置く。移植元の `references/decisions.md`・`porting.md` は持ち込まない
 - 検討した別案: 移植元の SKILL.md の 6 節の構成に書き直す。コマンドをすべて SKILL.md の本文に書く
-- 選択理由: 判断の規則の文面を残したまま手段だけを差し替えると、旧版との判断の差が出にくい（D-12 で確かめる）。詳しいコマンドを references に置くと、契約テストの前提（`--pr "$PR_NUMBER"` を含む bash ブロックが 1 つ）も保てる
+- 選択理由: 判断の規則の文面を残したまま手段だけを差し替えると、旧版との判断の差が出にくい（D-12 で確かめる）。詳しいコマンドを references に置くと、SKILL.md の手順のテストの前提（`--pr "$PR_NUMBER"` を含む bash ブロックが 1 つ）も保てる
 - 委任の指示・停止の条件: なし
 
 ### D-9 確認済みの一覧・工程の記録・fix-check の保存先
@@ -131,7 +131,7 @@ review-fix-planning が、agent-runner の設定の割り当てで、修正の�
   - `test_run_roles.py`: PR の slug を移植先の例にし、venv のパスを `ROOT/.venv` にする
   - `test_finalize.py`: `projects.toml` の fixture を外し、固定値（D-4）と `--spec-commit`（D-5）の正常・拒否の場面に置き換える
   - `test_upsert_pr_comment.py`: 移植元の記録付きの投稿の場面を移し、認証済みの login の場面（取得の失敗・空で止まる、自分の login のコメントを読む・更新する、`CONTRIBUTOR` を信頼しない）を足す。既存のテストの偽の `gh` に login と投稿者を足す
-  - 契約テストは移植先の版を保つ。移植元の版（文面の照合）は写さない。`AGENTS.md`「テストの採用基準」に反する移植元のテスト（文言の照合など）は写さない
+  - SKILL.md の手順のテスト（`test_review_fix_planning_skill_contract.py`）は移植先の版を保つ。移植元の版（文面の照合）は写さない。`AGENTS.md`「テストの採用基準」に反する移植元のテスト（文言の照合など）は写さない
 - 検討した別案: 移植元のテストを全部そのまま写す
 - 選択理由: Issue の受け入れ条件と `AGENTS.md`「テストの採用基準」
 - 委任の指示・停止の条件: なし

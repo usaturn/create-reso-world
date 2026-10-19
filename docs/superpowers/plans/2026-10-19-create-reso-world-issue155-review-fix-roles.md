@@ -272,7 +272,7 @@ Expected: すべて PASS
 - Modify: `.agents/skills/review-fix-planning/SKILL.md`
 - Modify（必要なときだけ）: `.agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py`
 
-テスト: 新しいテストは書かない（文書の変更）。既存の契約テスト（投稿ブロックと共通 context の確認ブロックを実行する）が通ることを確かめる。
+テスト: 新しいテストは書かない（文書の変更）。既存の SKILL.md の手順のテスト（`test_review_fix_planning_skill_contract.py`。投稿ブロックと共通 context の確認ブロックを実行する）が通ることを確かめる。
 
 - [ ] **Step 1: Spec D-8 の箇所を書き換える。** 「第1引数の解決」の節と手順 2 のレビューディレクトリ・`PR_REPO` の決め方は変えない。frontmatter の `allowed-tools` に `Write(tmp/agents/**)`・`Edit(tmp/agents/**)` を足す（記録・依頼の JSON の置き場所）
 - [ ] **Step 2: 投稿ブロックに `--records-file "$ROUND_JSON"` を足す。** `--pr "$PR_NUMBER"` を含む bash ブロックは 1 つのまま、共通 context の確認より前に外部への操作を足さない

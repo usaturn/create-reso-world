@@ -1,7 +1,7 @@
 ---
 name: review-fix-planning
 description: PR とレビュー結果のディレクトリ（例 `reviews/ブランチ名/`、`docs/reviews/main/`、`reviews/#<PR番号>-<ブランチ>/` を指す `#番号`）を渡されて、修正要否の確定・指摘への対応・修正計画・指摘の取捨選択を求められたときに使う。「PR とレビュー結果を確認して修正要否を確定して」「レビュー指摘に対応して」「レビュー結果を確認して修正計画をたてて」「妥当な指摘だけ拾って直したい」「指摘のどれに対応するか決めたい」「複数モデルのレビューをまとめて」などの依頼が該当する。承認済みの review-fix 作業を実装する／対象ブランチへ反映させる依頼も該当する
-allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *), Bash(rm *), Bash(test *), Bash(uv run *), Bash(bash .devcontainer/run-tests.bash*), Bash(bash scripts/check-layout.sh*), Bash(bash tests/scripts/*), Bash(bash scripts/superpowers-review-copy.sh*), Write(docs/superpowers/specs/**), Edit(docs/superpowers/specs/**)
+allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *), Bash(rm *), Bash(test *), Bash(uv run *), Bash(bash .devcontainer/run-tests.bash*), Bash(bash scripts/check-layout.sh*), Bash(bash tests/scripts/*), Bash(bash scripts/superpowers-review-copy.sh*), Write(docs/superpowers/specs/**), Edit(docs/superpowers/specs/**), Write(tmp/agents/**), Edit(tmp/agents/**)
 ---
 
 # レビュー指摘の選別と修正
@@ -29,6 +29,8 @@ allowed-tools: Read, Grep, Glob, Skill, Bash(git *), Bash(gh *), Bash(mktemp *),
 3. **停止** — 権限・環境・外部障害で自力では続けられない場合だけ。未完了であることと具体的な停止理由を報告する
 
 **未確認は結論ではない。** 確認不足・未読・未検証は途中の状態である。自分で確かめて解消する。「追加確認が必要」を結論にして終えない。確認作業をユーザへ返さない。未確認の指摘を「修正不要」として扱わない。三択の完了条件を満たしたときだけ完了を報告する。
+
+判断の記録（review-records）の読み書きは [round-records.md](references/round-records.md)、agent-runner の担当による修正・自己レビュー・修正の確認と、修正不要の最終化は [execution.md](references/execution.md) に従う。これらの helper は手段であり、採否・結論・自己レビューの回数はこの文書の規則で決める。
 
 ## 第1引数の解決
 
@@ -59,7 +61,7 @@ PR_URL=$(printf '%s' "$REVIEW_CONTEXT" | jq -r .url)
 
 それ以外は、各項目をランタイムの plan / todo 機能のタスクにしてから開始する（Claude Code では TodoWrite、Codex では `update_plan`）。完遂では「三択の結論」の各段もタスクにする。
 
-1. **範囲を固定する** — 解決したレビューディレクトリ配下の全ファイルを読む。各ファイル冒頭の「対象 HEAD」を記録する。複数世代が混在するのが普通である。レビュー成果物は gitignore 対象で未コミットのことがある（本リポジトリの `reviews/` がそうである）が、指定ディレクトリ内であれば Git の追跡状態にかかわらず正規の入力である。
+1. **範囲を固定する** — 解決したレビューディレクトリ配下の全ファイルを読む。各ファイル冒頭の「対象 HEAD」を記録する。複数世代が混在するのが普通である。レビュー成果物は gitignore 対象で未コミットのことがある（本リポジトリの `reviews/` がそうである）が、指定ディレクトリ内であれば Git の追跡状態にかかわらず正規の入力である。レビュアーのファイルは直下の `<model>.md` で、`findings/`（候補一覧）・`verified/`（確認済みの一覧・工程の記録）・`runs/`（実行記録）はレビュアーではない。続けて PR の判断の記録を読み、このサイクルの番号と前の判断を決める（[round-records.md](references/round-records.md) 1 章。読むのは書き込み権限のある投稿者と認証済み利用者自身の記録だけ）。記録を読めないときは判断を引き継げないので、完遂では結論 3、計画のみでは停止して報告する。
 2. **現行 HEAD を特定する** — 引数解決で照合した `PR_REPO`・`PR_NUMBER`・`PR_URL`・`REVIEW_DIR` を使い、ルート `AGENTS.md` の「リポジトリ境界」と下記「共通 context の確認」を後続の Git 操作より前に実行する。保存先は `PARENT_ROOT/reviews/`、Git 操作先は context の `MAIN_ROOT`（code_root）であり、同じとは限らない。修正用の明示 worktree は同じ Git repository（git-common-dir）の場合に使える。その他の repo は明示された絶対パス `CODE_ROOT` と一致 remote 1 件が必要で、推測しない。ResoLoop の不備は `scripts/resoloop-fork.sh clone` を案内して停止する。PR の状態・draft・base・head・本文・関連 Issue を `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,body,closingIssuesReferences` で読み、引数解決の repository/番号と一致することを確認する。helper は照合した `PR_REMOTE`（base_remote、上流 PR は upstream）から PR head を固定する。下の共通 API を、読んだ skill の `REVIEW_TOOL_ROOT` の project で実行する:
 
    ```bash
@@ -75,7 +77,7 @@ PY
    ) || exit
    ```
 
-   `HEAD_SHA` は直前の `headRefOid`。共有の追跡 ref・tag・`FETCH_HEAD` を更新せず、所属 repository を含む専用 ref に固定する。各レビューファイルの対象 HEAD がすべて `git -C "$MAIN_ROOT" merge-base --is-ancestor <対象 HEAD> "$PR_REF"` を満たすことを確かめる。満たさなければ停止する（完遂では結論 3）。祖先関係は既に照合した PR の世代確認にだけ使い、所属 repository を選ぶ根拠にしない。完遂では続けて下記「専用の worktree」を用意する。
+   `HEAD_SHA` は直前の `headRefOid`。共有の追跡 ref・tag・`FETCH_HEAD` を更新せず、所属 repository を含む専用 ref に固定する。各レビューファイルの対象 HEAD がすべて `git -C "$MAIN_ROOT" merge-base --is-ancestor <対象 HEAD> "$PR_REF"` を満たすことを確かめる。満たさなければ停止する（完遂では結論 3）。祖先関係は既に照合した PR の世代確認にだけ使い、所属 repository を選ぶ根拠にしない。続けて、Review history の最後の HEAD が `HEAD_SHA` の先頭 12 桁と同じレビューファイル（判断の記録で `rerun` が `true` になるレビュアー）が 1 つ以上あることを確かめる。1 つも無ければ、判断の記録を `stopped` 以外にできないので停止し（完遂では結論 3）、「現行の HEAD でレビューを取り直す」を次の操作として報告する。完遂では続けて下記「専用の worktree」を用意する。
 
 3. **各指摘を現行 HEAD の「コミット済み」内容で検証する** — `git show <HEAD>:<path>` で読む。指摘された path の `REVIEWED_HEAD` にある committed source/test blob は検証根拠として許可する。挙動の指摘は、path と reviewed HEAD を別引数にした隔離 worktree で再現する:
 
@@ -90,6 +92,8 @@ PY
 
    **検証対象の source/test を working tree のファイルから読まない。** 手元の作業ツリーには誰かの未コミット変更が入っていることがあり、「もう直っている」という誤判定を生む。実際にこの誤判定は起きている。これは検証根拠の制約であり、入力であるレビュー成果物の読み取りには適用しない。例外は下記「専用の worktree」で、未コミットの変更が無く HEAD が PR の head と一致している間に限り、その中のファイルを committed content として読んでよい。
 
+   **確認済みの一覧:** `REVIEW_DIR/verified/<現行 HEAD の先頭 12 文字>.json` が、PR・現行 HEAD・今回再実行したレビュアーの入力と合っていればそれを読み、無い・不正・古いときは review-verify（mode cycle）で作る。一覧の判定（`confirmed`・`not_reproduced`・`unverified`）は根拠の 1 つで、上の規則（コミット済みの内容・隔離 worktree）での確認と、「分類の仕様」の判定を代えない。review-verify が一覧を作れないときは、理由を Spec に書いて自分で確認を続ける。結論 1 の自己レビュー（修正の確認）は一覧が無いと始められないので、そのときは結論 3 にする。
+
    **確認の範囲:** 結論にかかわらず、全指摘、PR の変更ファイルの全文、関連する処理（呼出元・同じ判定をする分岐）とテストを読む。一時的なコードで再現するときは上の隔離 worktree を使い、専用の worktree を汚さない。指摘ごとの検証・再現と関連箇所の調査は、互いに独立していれば使えるサブエージェントに任せ、使えなければ自分で行う。サブエージェントの監視は `monitoring-long-tasks` スキルに従う。確認中に PR が持ち込んだ致命的な欠陥を見つけたら、出どころを「自己確認」として指摘と同じように扱う。PR と関係しない既存の問題は直さず、致命的なものだけ報告に書く。
 
    **閉じ込め:** このセッションが検証のために作る一時ファイル（HEAD メモ、ログ、pytest 出力、スクラッチ）はすべて `$REPRO_ROOT` 配下に置く。`${TMPDIR:-/tmp}` 直下へ `review-fix-planning-*`、`review-fix-planning-*.txt`、ハイフン区切り名（`review-fix-planning-wt` / `review-fix-planning-head` / `review-fix-planning-repro-root`）を作らない。そのルートに置いてよいのは `mktemp` が返したディレクトリだけである。
@@ -101,7 +105,7 @@ PY
    ```
 
    `worktree remove` が失敗したら親を `rm -rf` しない（git の worktree 登録が欠けたパスを指す）。停止し、`$WT` と `$REPRO_ROOT` の完全パスを報告する。残りは `.devcontainer/cleanup-workspace.bash` に委ねる。`worktree remove` 無しで `rm -rf` だけを組み立てない。
-4. **下記「分類の仕様」に従って全指摘を 3 区分に振り分ける。** 「対応する」項目ごとに、下記「守る条件と影響経路」の表を作り、下記「同じ条件の再発と設計の見直し」のきっかけに当たるかを確かめる。
+4. **下記「分類の仕様」に従って全指摘を 3 区分に振り分ける。** 「対応する」項目ごとに、下記「守る条件と影響経路」の表を作り、下記「同じ条件の再発と設計の見直し」のきっかけに当たるかを確かめる。区分は判断の記録の `state` に写す（解消済み → `resolved`、対応する → `fix`、対応しない → `skip`。[round-records.md](references/round-records.md) 3 章）。前のサイクルの判断は、その文書の引き継ぎの規則に従う。
 5. **修正方針を決める** — 計画のみでは `superpowers:brainstorming` を呼び、選別結果を持って経路（spike / bounded / architectural）を判定させ、その経路の作法で設計を詰める。きっかけに当たった項目があれば、そのきっかけと根拠を渡して architectural にさせる。完遂では brainstorming を呼ばない（人の承認を必須の段として持つため）。推奨案を自分で決め、設計の選択があれば他の案と選んだ理由を Spec に残す。ユーザに問わない。きっかけに当たった項目は、点の修正ではなく設計の見直しで直す。
 6. **Spec を書く** — 経路に関わらず必ず書く（下記「Spec は経路に関わらず必須」）。書く前に、下記「Spec のコミットと確認用コピー」の 1. で `DOC_ROOT` を確定し、`$DOC_ROOT/docs/superpowers/specs/` に書く。完遂でも書く。コミットの時期は「Spec のコミットと確認用コピー」の完遂の項に従う。
 7. **承認を得て停止する**（計画のみ）— 下記「Spec のコミットと確認用コピー」に従って Spec をコミットし、確認用コピーを作ってから提示する。ユーザが明示的に「進めて」と言うまで実装に入らない。実装せず止まる場合の **作業終了前の PR 投稿** は任意であり、commit / push まで完了したターンのみ必須である。実装が終わったら **実装後** に従う。完遂では停止せず、下記「三択の結論」へ進む。
@@ -219,13 +223,13 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 ## 三択の結論
 
-完遂では、手順 1–6 の後に次のどれか 1 つを完了させる。結論 1・2 では、「対応しない」とした指摘のうち実在する制約（直さないが事実として起こるもの）が PR の説明の保証と食い違うなら、PR の説明の既知の制限に条件と回避方法を書き足す（`gh pr edit --body-file`）。同じ論点が次のレビューで繰り返し挙がるのを防ぐためである。
+完遂では、手順 1–6 の後に次のどれか 1 つを完了させる。結論 1・2 では、「対応しない」とした指摘のうち実在する制約（直さないが事実として起こるもの）が PR の説明の保証と食い違うなら、PR の説明の既知の制限に条件と回避方法を書き足す（`gh pr edit --body-file`）。同じ論点が次のレビューで繰り返し挙がるのを防ぐためである。どの結論でも、PR が open で判断の記録を読めた場合は、記録付きで状況を投稿する（下記「作業終了前の PR 投稿」。記録の結果は結論 1 が `fixes_pushed`、結論 2 が `no_fix_needed`、結論 3 が `stopped`）。
 
 ### 結論 1: 修正して push する
 
 「対応する」が 1 件以上あるとき。
 
-1. 推奨案を基本に修正する。「守る条件と影響経路」の表の「修正する」の行は、PR の差分外も同じ PR で直す。「同じ条件の再発と設計の見直し」のきっかけに当たった項目は、その節の手順で直す
+1. 推奨案を基本に、`run_roles.py --phase implement` で設定の担当に修正させる（[execution.md](references/execution.md) 1 章。雛形の既定は `claude-opus`、割り当てが `self` なら司令塔が直す）。外部の担当の commit は、停止の確認と差分の確認の後に専用の worktree へ取り込み、応答の成功を修正の合格とみなさない。「守る条件と影響経路」の表の「修正する」の行は、PR の差分外も同じ PR で直す。「同じ条件の再発と設計の見直し」のきっかけに当たった項目は、その節の手順で直す
 2. **実装後** の手順 1–3（実装に関連したテストと、変更の種類に応じた検証）を通す。失敗時の扱いを直したなら「失敗時の検証」も行う。失敗したら直す。base でも同じように失敗する既存のテストは、base での結果を根拠として Spec に記録し、先へ進めてよい
 3. 下記「修正後の自己レビュー」を 1 回だけ行う
 4. 自己レビューで出た致命的な指摘を直し、手順 2 をやり直す。2 回目のレビューはしない。致命的でない指摘は「対応しない」として記録する。この回に直した条件の再発や、この回の修正が原因の指摘は、きっかけ 3 として設計の見直しで直す
@@ -236,45 +240,39 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
    - 自己レビューの全指摘に判定がある（直した、または「対応しない」と理由）。未確認の事項は、未確認として Spec と状況コメントに書く
    - Spec と PR の説明に書いた件数・参照先・保証が、実装と検証の結果に合っている
    - 公開済みのコミットを書き換えない（force push しない）
-7. Spec をコミットし（「Spec のコミットと確認用コピー」の完遂の項）、**実装後** の手順 4–6 で既存 PR の head へ push し、状況コメントを投稿する。その後「専用の worktree」を片付ける
+7. Spec をコミットし（「Spec のコミットと確認用コピー」の完遂の項）、**実装後** の手順 4–6 で既存 PR の head へ push し、状況コメントを投稿する（判断の記録は `fixes_pushed`、`commit` は push した SHA）。工程の記録を更新し（[round-records.md](references/round-records.md) 7 章）、その後「専用の worktree」を片付ける
 
 ### 結論 2: 修正不要としてマージする
 
-「対応する」が 0 件で、全指摘・変更ファイルの全文・関連処理とテストの確認が終わったとき。
+「対応する」が 0 件で、全指摘・変更ファイルの全文・関連処理とテストの確認が終わったとき。状況の投稿・CI の確認・マージ・closing Issue の更新は `finalize.py` が行う（[execution.md](references/execution.md) 3 章）。
 
-1. PR の変更の種類に応じた検証（**実装後** の手順 2）を、専用の worktree で通す
+1. PR の変更の種類に応じた検証（**実装後** の手順 2）を、専用の worktree で通し、実際に実行したコマンドと終了コードを検証の記録に残す
 2. `git -C "$MAIN_ROOT" fetch "$PR_REMOTE" <base>` で base を取り直し、base が PR の分岐点より先に進んでいれば（`git -C "$MAIN_ROOT" merge-base --is-ancestor "$PR_REMOTE/<base>" "$HEAD_SHA"` が失敗する）、手順 3 と同じ `mktemp` の隔離 worktree で head に base を merge した一時的なツリーを作り、同じ検証を通す。この merge は push しない。検証後は手順 3 の teardown と同じ方法で消す
 3. base と競合して merge できないときは、競合の解消を修正として扱い、結論 1 に切り替える
-4. ルート `AGENTS.md` の「GitHub Actions」の規定で CI を確認する対象のリポジトリなら、`gh pr checks "$PR_NUMBER" --repo "$PR_REPO"` ですべての check の成功を確かめる。実行中なら `monitoring-long-tasks` スキルに従って待つ。PR の変更が原因の失敗は致命的な指摘として結論 1 に切り替え、基盤の障害なら結論 3 にする
-5. 下記「マージしてよい範囲」を確かめる。範囲外なら、ここで結論 3 にする
-6. Spec に結果を書いて `completed` にし、コミットする。PR が create-reso-world のものなら Spec は PR の head に載るので、次の順で push する。確認していないコミットをマージに含めないため、**実装後** の手順 5 の「reject されたら rebase または merge」はここでは使わない
+4. 下記「マージしてよい範囲」を確かめる。範囲外なら、ここで結論 3 にする（`finalize.py` も、範囲外の PR は GitHub に問い合わせる前に止める）
+5. 判断の記録（`no_fix_needed`）と、マージの前の採否・検証の状況を書いた本文を作る（[round-records.md](references/round-records.md)）。マージ済み・Issue の更新済みと先に書かない
+6. Spec に結果を書いて `completed` にし、コミットする。PR が create-reso-world のものなら Spec は PR の head に載るので、次の順で進める。確認していないコミットをマージに含めないため、**実装後** の手順 5 の「reject されたら rebase または merge」はここでは使わない
    - commit の前に、`gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` が検証した `HEAD_SHA` と一致することを確かめる
-   - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD` を Spec のコミットとして記録し、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
+   - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD` を Spec のコミット（`SPEC_COMMIT`）として記録し、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
+   - PR の head がまだ `HEAD_SHA` のうちに、状況コメントを記録付きで投稿する（「作業終了前の PR 投稿」。記録付きの投稿は、PR の head が記録の `reviewed_head` と同じときだけ通る）
    - **実装後** の手順 5 の head の確認と共通 context の再実行の後、同じ手順 5 の検査付きの push で push する（fast-forward だけ。`--force` を付けない。検査で止まったら push せずに結論 3 にする）
-   - push 後、`HEAD_SHA` を `git -C "$MAIN_ROOT" rev-parse HEAD` に更新する
    - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head か作業ツリーが変わった）。Spec のコミットは下記「結論 3」の「書き始めた Spec の扱い」に従う（取り消してよい条件を満たさなければ、取り消さずに残して報告する）
-7. 最終の状況コメントを投稿する（「作業終了前の PR 投稿」）
-8. 検証した head だけをマージする
 
-   ```bash
-   gh pr merge "$PR_NUMBER" --repo "$PR_REPO" --merge --match-head-commit "$HEAD_SHA"
-   ```
-
-9. 関連 Issue を更新する
-   - 手順 2 で読んだ `closingIssuesReferences` の Issue: マージ後に自動で close されていなければ、結果をコメントして close する
-   - PR の本文・タイトルで参照しているだけの Issue: マージの結果と残りの作業をコメントする。本文のチェック項目のうち、この PR で完了したことが明らかなものは、本文を取り直してから `[x]` にする
-10. 「専用の worktree」を片付ける
+   PR が create-reso-world 以外のものなら、Spec は文書用ブランチにコミットし（「Spec のコミットと確認用コピー」）、状況の投稿は次の `finalize.py` が行う
+7. `finalize.py` で最終化する。create-reso-world の PR では `--spec-commit "$SPEC_COMMIT"` を付ける（helper は投稿せず、投稿済みの記録、Spec の commit が検証した HEAD の上の Spec 1 ファイルだけであること、PR の head を確かめてから、その commit をマージする）。それ以外の PR では付けない（helper が投稿し、CI を確かめ、検証した head をマージする）。終了コード 0 で結果の `outcome` が `no_fix_needed` のときだけ、マージと closing Issue の更新が終わった。`wait_for` 付きの `stopped` は、`monitoring-long-tasks` で期限を決めて待ち、同じ入力で再実行する。PR の変更が原因の CI の失敗は致命的な指摘として結論 1 に切り替える。それ以外の `stopped` は結論 3 にする（`merged: true` なら、マージ済みであることを分けて報告する）
+8. PR の本文・タイトルで参照しているだけの Issue に、マージの結果と残りの作業をコメントする。本文のチェック項目のうち、この PR で完了したことが明らかなものは、本文を取り直してから `[x]` にする（`finalize.py` は closing Issue だけを扱う）
+9. 工程の記録を更新し（[round-records.md](references/round-records.md) 7 章）、「専用の worktree」を片付ける
 
 **マージしてよい範囲:** `usaturn/create-reso-world` と `usaturn/resoloop` の、open で draft でない PR だけ。それ以外（上流の `orange3134/resoloop` など）は、修正不要と判定してもマージせず結論 3 にする。範囲外のリポジトリへのコメント投稿は、commit / push まで行ったターンだけ必須である。
 
 ### 結論 3: 停止する
 
-次の場合だけ。未完了であること、具体的な停止理由、済んだ作業（コミット・push・投稿の有無）を報告する。
+次の場合だけ。未完了であること、具体的な停止理由、済んだ作業（コミット・push・投稿の有無）を報告する。PR が open で判断の記録を読めた場合は、`stopped` の記録（`stop_reason` は `permission:`・`environment:`・`external:` に続けて具体的な障害）を付けて状況を投稿する。
 
 - 権限: マージしてよい範囲外、push・マージの権限が無い、`gh` の認証が無い
 - PR の状態: draft、close 済み、マージ済み
-- 環境: 共通 context の確認が止まった（exit 64〜66）、レビューと PR の対応を確かめられない（手順 2。`external/resoloop/reviews/` で PR の URL が無いときを含む）、検証中に PR の head が更新された（結論 2 の手順 6）、head ブランチが PR に無いコミットや未コミットの変更を抱えている、必要なツールが無い
-- 外部障害: GitHub の API・ネットワークの障害、CI 基盤の障害
+- 環境: 共通 context の確認が止まった（exit 64〜66）、レビューと PR の対応を確かめられない（手順 2。`external/resoloop/reviews/` で PR の URL が無いときを含む）、現行の PR head を再実行したレビュアーがいない（手順 2）、判断の記録を読めない（壊れた記録）、検証中に PR の head が更新された（結論 2 の手順 6）、head ブランチが PR に無いコミットや未コミットの変更を抱えている、runner の起動の前の checkout の監査で止まった、確認済みの一覧が無く自己レビューを始められない、予約した自己レビューを終えられなかった、必要なツールが無い
+- 外部障害: GitHub の API・ネットワークの障害（判断の記録・認証済みの login を取得できないときを含む）、CI 基盤の障害
 
 未読・未検証、判断に迷う、修正が大きい、テストが失敗する（直す）、再現できない（根拠を付けて「解消済み」か「対応しない」にする）、同じ条件の再発（「同じ条件の再発と設計の見直し」で直す）は、結論 3 の理由にならない。
 
@@ -290,7 +288,12 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 ### 修正後の自己レビュー
 
-結論 1 の修正後に最大 1 回だけ行う。`pr-review` スキルは使わない。使えるサブエージェントが複数あれば、次の 3 観点を別々に同時に担当させ、それを 1 回と数える。使えなければ、自分で全観点を 1 回だけ見る。
+結論 1 の修正後に最大 1 回だけ行う。1 回は `run_roles.py --phase self-review` の 1 回の呼び出しである（[execution.md](references/execution.md) 2 章）。runner が self-review と fix-check の 2 つの役割を同時に動かし、起動の前に工程の記録に枠を 1 つ予約する。予約の後は失敗・中断でも枠は戻らず、2 回目の呼び出しは `run_roles.py` が拒否する。自己レビューのために、この呼び出しの外で `pr-review` スキルを起動しない。
+
+- self-review の役割: pr-review の非対話の入口で、ローカルで commit した修正後の HEAD（`--review-commit`）の PR 全体を再レビューする。下の観点 2 を受け持つ
+- fix-check の役割: review-verify の `fix_check` で、修正の主張・変更ファイル・関連する経路とテストを確かめる。`fix_sections` に「対応する」項目の修正方針・守る条件と影響経路の表・実行した検証を全文で渡し、依頼に観点 1 と観点 3 を書く
+- 割り当てが `self` の役割は司令塔が実行する。使えるサブエージェントに 2 つの依頼を同時に任せてもよく、どちらも 1 回と数える
+- self-review・fix-check に DSH・codex の担当は割り当てられない（`run_roles.py` が予約の前に止める）
 
 1. **反証** — 「守る条件と影響経路」の表を渡し、修正した条件が破れる入力・操作順・経路と、旧版との挙動の差を探す。拒否側と正常側、影響する前後操作・復旧、fixture／fake／期待値が実装と共有する誤前提、経路を閉じる証拠の不足を確認する
 2. **PR 全体** — 修正後の PR の全差分と変更ファイルの全文を読み、致命的な問題を探す
@@ -365,7 +368,9 @@ resoloop の上流への PR も同じ規則が fork の経路で成立する: `P
 
 コメントは単体で読めること。PR だけを読む読み手が Spec 無しで判断を理解できるように書く。
 
-**commit / push まで完了したターンと、完遂の結論 2（マージの前）では必須である。** commit / push まで実装したターンは push 後に1回投稿する。承認待ちで止まるだけのターンの投稿は任意である。同じエージェントの既存コメントがあれば更新し、無ければ新規作成する。他エージェントのコメントは読んでよいが編集しない。
+**commit / push まで完了したターン、完遂の結論 2（マージの前）、完遂の結論 3（PR が open で判断の記録を読めた場合。マージしてよい範囲の外のリポジトリでは、commit / push まで行ったターンだけ）では必須である。** commit / push まで実装したターンは push 後に1回投稿する。承認待ちで止まるだけのターンの投稿は任意である。同じサイクルの自分のコメントがあれば更新し、無ければ新規作成する。他エージェントのコメント・前のサイクルのコメントは読んでよいが編集しない。
+
+**判断の記録:** 状況コメントには判断の記録（review-records v2）を付ける。記録を `$ROUND_JSON` に書いて検査し（[round-records.md](references/round-records.md) 2〜5 章）、下のブロックの helper に `--records-file` で渡す。記録の結果は、結論 1 が `fixes_pushed`、結論 2 が `no_fix_needed`、結論 3 が `stopped`。計画のみで承認を待つターンに投稿するときは `stopped`（`permission: 計画のみの依頼のため、実装の承認を待つ`）にし、承認・push の後に同じサイクルのコメントを `fixes_pushed` に更新する。helper は認証済みの login を自分で取り、書き込み権限のある投稿者か認証済み利用者自身のコメントだけと照合し、PR の head（`fixes_pushed` は `commit`、それ以外は `reviewed_head`）や前のサイクルの記録と合わない記録を投稿しない。拒否されたら記録の問題を直して投稿し直すか、止まって報告し、記録なしの投稿や手書きの `gh` の呼び出しに切り替えない。
 
 レビュー対象ブランチに open な PR が無い場合は投稿しない。PR を作ることもしない。チャットで報告して止まる。
 
@@ -378,10 +383,12 @@ resoloop の上流への PR も同じ規則が fork の経路で成立する: `P
 ```markdown
 ## review-fix-planning（<MODEL_NAME>）
 
-対象 PR: #<N>（`<branch>`） / 現行 HEAD: `<sha>`
+対象 PR: #<N>（`<branch>`） / サイクル: <round> / 現行 HEAD: `<sha>`
 
 ### レビュー状況
 - 入力: `<review-dir>`（読んだファイルと各対象 HEAD）
+- レビュアーの構成: レビューファイル・モデル・ランタイム・レビュー HEAD・このサイクルで再実行したか・Merge recommendation の表。入力から外したファイルと理由
+- 前のサイクルの判断: 件数（引き継いだもの・見直したもの）
 - 分類: 解消済み N / 対応する N / 対応しない N
 
 ### 作業判断
@@ -392,7 +399,7 @@ resoloop の上流への PR も同じ規則が fork の経路で成立する: `P
 
 ### 作業結果
 - 結論: 1 修正して push | 2 修正不要でマージ | 3 停止（理由） | 計画のみ（承認待ち）
-- 自己レビュー: 観点と結果（自己レビュー後の修正は再レビューしていない） | 未実施
+- 自己レビュー: `run_roles.py` の 1 回の担当（self-review・fix-check）と観点ごとの結果（自己レビュー後の修正は再レビューしていない） | 未実施
 - このターン: 計画のみ | push 済み | マージ前の最終報告 | 途中停止
 - Spec: `<path>` @ `<文書コミット SHA>`（create-reso-world。PR に載っていればその URL。push していなければローカルにしか無い（公開未実施））または未作成
 - commit / push: `<sha>` またはしていない
@@ -416,10 +423,11 @@ if [[ ! -f "$HELPER" ]]; then
   printf 'Missing comment helper %s; check the verified PARENT_ROOT checkout\n' "$HELPER" >&2
   exit 66
 fi
-uv run --no-project python "$HELPER" --pr "$PR_NUMBER" --repo "$PR_REPO" --model-name "$MODEL_NAME" <<EOF
+uv run --no-project python "$HELPER" --pr "$PR_NUMBER" --repo "$PR_REPO" --model-name "$MODEL_NAME" \
+  --records-file "$ROUND_JSON" <<EOF
 ## review-fix-planning（$MODEL_NAME）
 
-対象 PR: #$PR_NUMBER（\`$HEAD_BRANCH\`） / 現行 HEAD: \`$HEAD_SHA\`
+対象 PR: #$PR_NUMBER（\`$HEAD_BRANCH\`） / サイクル: $ROUND / 現行 HEAD: \`$HEAD_SHA\`
 
 ### レビュー状況
 ...
@@ -430,7 +438,7 @@ uv run --no-project python "$HELPER" --pr "$PR_NUMBER" --repo "$PR_REPO" --model
 EOF
 ```
 
-ヘルパーは `<!-- review-fix-planning:agent:<sanitized> -->` を付与し、そのマーカーを持つコメントだけを更新する。`gh pr comment --edit-last` は使わない。同じ GitHub アカウントを共有する別エージェントのコメントを上書きしてしまう。ヘルパーが失敗したら stderr を報告して止まる。代替の `gh` 呼び出しを組み立てない。自エージェントのマーカーを持つコメントが複数ある場合も停止する。
+ヘルパーは 1 行目にエージェントのマーカー `<!-- review-fix-planning:agent:<sanitized> -->`、2 行目にサイクルのマーカーを付け、末尾に判断の記録のブロックを付ける。更新するのは、同じサイクルの自分のコメントだけである。`gh pr comment --edit-last` は使わない。同じ GitHub アカウントを共有する別エージェントのコメントを上書きしてしまう。ヘルパーが失敗したら stderr を報告して止まる（終了コード 64）。代替の `gh` 呼び出しを組み立てない。同じサイクルの自分のコメントが複数ある場合も停止する。
 
 ## 分類の仕様
 
@@ -474,6 +482,7 @@ EOF
   - 「解消済み」「対応しない」それぞれの根拠 1 行
   - 「対応する」項目ごとの修正方針と検証方法、「守る条件と影響経路」の表
   - 計画のみでは brainstorming が判定した経路名。完遂では結論（三択のどれか）、実行許可（依頼の文言の要旨）、実行した検証と結果、自己レビューの観点と結果
+  - レビュアーの構成の表（レビューファイル・モデル・ランタイム・レビュー HEAD・このサイクルで再実行したか）、planner のモデル、サイクルの番号。完遂では、修正と自己レビューの担当（`run_roles.py` の割り当て）、自己レビューの回数（呼び出し 1 回）、確認済みの一覧と工程の記録のパス
   - きっかけに当たった項目は、きっかけと根拠、守る条件の設計、比べた直し方と選んだ理由。「失敗時の検証」を行ったときは、比べた状態と対照の結果
 
 ## スコープ
@@ -518,7 +527,12 @@ EOF
 | 「差分外なので直さない」 | 同じ条件に頼る経路は、差分外も同じ PR で直す |
 | 「設計の選択なのでユーザに聞く」 | 完遂では推奨案を選び、他の案と理由を Spec に残す |
 | 「修正不要なのでマージしてよい」（範囲外・draft の PR） | マージは usaturn/create-reso-world と usaturn/resoloop の open で draft でない PR だけ。それ以外は結論 3 |
-| 「pr-review で再レビューする」 | 完遂の自己レビューはこのスキルの中で行う。pr-review は使わない |
+| 「pr-review で再レビューする」 | 完遂の自己レビューは `run_roles.py --phase self-review` の 1 回の中で行う。その外で pr-review を起動しない |
+| 「枠を使い切ったので、別の名前の工程の記録で予約し直す」 | 上限の回避である。2 回目の自己レビューはしない |
+| 「runner が success を返したので修正は合格」 | success は応答の回収である。fix-check の受け取り・指摘の判定・検証の結果で判断する |
+| 「記録付きの投稿が拒否されたので、記録なしで投稿する」 | 切り替えない。記録の問題を直して投稿し直すか、止まって報告する |
+| 「finalize.py は手間なので gh pr merge で済ませる」 | 修正不要のマージは `finalize.py` で行う。範囲・head・CI・記録の照合を省かない |
+| 「古いレビューでも現行 HEAD で確かめたので結論 2 にする」 | 現行の PR head を再実行したレビュアーがいなければ記録を作れない。結論 3 にしてレビューの取り直しを報告する |
 | 「前の回と同じ条件だが、今回の経路は別なので点の修正で足りる」 | 同じ守る条件の 2 回目である。設計の見直しに切り替え、仕組みから経路を列挙し直す |
 | 「回帰は、入れたコミットを直せば済む」 | 修正が生んだ回帰は、前の回の列挙が足りなかった証拠である。設計の見直しに切り替える |
 | 「同じ問題が続いたので、止めて利用者に判断を仰ぐ」（完遂） | 完遂では止まらない。設計の見直しを修正の中で行う。計画のみなら architectural にさせる |
@@ -551,10 +565,12 @@ EOF
 - 自エージェントのマーカーが既にあるのに新規コメントを作ろうとしている
 - 結論が三択のどれでもない（「追加確認が必要」「様子見」で終えようとしている）
 - 未確認の指摘を残したまま「修正不要」にしようとしている
-- 2 回目の自己レビューを始めようとしている
+- 2 回目の自己レビューを始めようとしている（`run_roles.py --phase self-review` を 2 回呼ぶ、工程の記録に `pre_push_review` を手で書き足す）
+- self-review・fix-check に DSH・codex の担当を割り当てようとしている
 - 範囲外のリポジトリ、draft の PR をマージしようとしている
-- `--match-head-commit` を付けずにマージしようとしている
-- 完遂で `pr-review` スキルや `superpowers:brainstorming` を呼ぼうとしている
+- `--match-head-commit` を付けずにマージしようとしている、修正不要のマージを `finalize.py` を使わずに行おうとしている
+- 記録付きの投稿が拒否されたのに、記録なしで投稿しようとしている
+- 完遂で、自己レビューの役割（`run_roles.py`）の外で `pr-review` スキルを呼ぼうとしている、または `superpowers:brainstorming` を呼ぼうとしている
 - 「対応する」項目に、守る条件と影響経路の表が無い
 - 専用の worktree を使わず、メイン checkout や他の作業中の worktree で修正しようとしている
 - `external/resoloop/reviews/` のレビューで PR の URL が無いのに、祖先の確認やディレクトリ名で `PR_REPO` を決めようとしている
