@@ -3,8 +3,10 @@
 ## 管理・実行許可
 
 - 文書管理・対象: `usaturn/create-reso-world`、[Issue #176](https://github.com/usaturn/create-reso-world/issues/176)
-- 状態: `draft`（内容の承認は得ていない。issue-to-pr の実行許可で進める）
-- 利用者の指示: `issue-to-pr` スキルを明示して `#176` を指定。スキルの「通常の設計判断は推奨案で決め、検証・commit・push・PR 作成まで継続する指示」を適用する。マージはしない。
+- 状態: `completed`（2026-10-19 の PR #181 レビュー選別・検証の完了。内容承認や未実施の効果評価の完了を意味しない。初回実装は `draft` で公開した）
+- 初回の利用者の指示: `issue-to-pr` スキルを明示して `#176` を指定。初回は検証・commit・push・PR 作成までを許可され、マージは対象外だった。
+- 今回の実行許可: `review-fix-planning` を明示して「#181 https://github.com/usaturn/create-reso-world/issues/176 も読んで対応して」。完遂の規則に従い、必要な修正の反映、または修正不要なら head 固定マージと関連 Issue 更新までを対象とする。
+- 対象 PR: https://github.com/usaturn/create-reso-world/pull/181 。検証 HEAD: `a2bb4a4992a194c7989a3316d88f7165881e606b`。レビュー判定者: `openai-codex/gpt-6.1-sol`。
 - 基準 HEAD: `1335f410e624355cd558029bdcdad65eaa944ed8`
 - CODE_ROOT / DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-176-review-convergence`
 - PARENT_ROOT: `/workspaces/reso-world`
@@ -67,3 +69,64 @@
 | 修正不要・結論2 | 対象外 | 新しい修正を公開する経路ではない | 既存の全指摘・関連処理確認、検証・base結合・head固定マージ規則を変更しない |
 
 レビューが評価外とした「実際の修正・push・停止能力」「運用費用・統計的改善・退行率」は未評価のままとする。判断回答のpilotをその実証へ読み替えない。
+
+## PR #181 のレビュー選別・検証（2026-10-19）
+
+### 入力と範囲
+
+入力ディレクトリは `/workspaces/reso-world/reviews/usaturn/create-reso-world/#181-fix-issue-176-review-convergence/`。次の5ファイルを全文読み、全件の対象 HEAD `a2bb4a4992a1` が PR の現行先端と一致し、その祖先でもあることを確認した。
+
+| レビューファイル | 指摘 |
+|---|---|
+| `openai-codex-gpt-6.1-sol.md` | なし |
+| `SWE-2-Max.md` | I-1 |
+| `deepseek-deepseek-v4.1-flash.md` | L-1 |
+| `claude-opus-5-5.md` | なし |
+| `opencode-go-deepseek-v4.1-flash.md` | なし |
+
+PR の変更8ファイル全文、両スキルの全分岐と共通参照、関連テスト、公式の symlink 配置と agent-runner のスキル参照処理、Issue #176 本文とコメント、PR 本文・コメント・履歴を確認した。既存の専用 worktree は clean かつ PR head と一致するため再利用した。他の worktree の未コミット差分は読んでいない。本書は対象リポジトリ・Issue・テーマと Plan の明示参照で特定し、別の Spec は作らない。
+
+### 全指摘の分類
+
+**解消済み 0 / 対応する 0 / 対応しない 2。** 自己確認で追加した欠陥はない。
+
+| ID・出典 | 分類 | 現行版の確認と理由 |
+|---|---|---|
+| I-1・SWE-2-Max | 対応しない | 共有資料の配置の設計論点。`issue-to-pr/SKILL.md:91,105` のリンクは `.agents/skills` と `.claude/skills` の公式配置で実在する。`tools/agent_runner/adapters/skills.py` は元の絶対パスを prompt に渡し、`adapters/pi.py:253-259` もスキルを移設しない。配置慣例との差はあるが、サポート経路の停止・誤操作は確認されない。移設や新しい配置規則の追加はしない。 |
+| L-1・deepseek-deepseek-v4.1-flash | 対応しない | `Closes #176` による自動 close と未実施の行動評価は事実だが、Issue の追跡単位の設計論点。`issue-to-pr/SKILL.md` 5章は同一リポジトリの Issue に `Closes` を指定し、今回の完遂も関連 Issue の close を指示する。実装・評価記録・PR 本文は効果を実証したと主張していない。`Refs` への変更や後継 Issue の新設は行わず、Issue 更新時に未実施の評価を未チェックのまま明記する。close を全完了条件の充足・効果実証とは扱わない。 |
+
+I-1 のリンクと手順分岐は読み取り専用の `sp-recon` にも同期委譲し、非致命的な設計論点との要約を受領した。主担当も参照先・公式経路と手順全文を確認した。委譲から詳細な所要時間は返らず不明。新たな行動 pilot・有料 API 評価は起動していない。
+
+### 結論と判断の境界
+
+結論は **2: 修正不要としてマージする**。配置を移す案と、Issue を `Refs` に変更する／後継 Issue を作る案は採用しない。いずれも致命的欠陥の修正ではなく、既存の方針と今回の採否基準を変えるためである。PR 本文には既に未評価の条件・範囲が明記され、効果実証の保証と食い違わないため、制限説明の追記も不要と判断した。
+
+「対応する」がないため、修正用の条件・影響経路表、失敗ガードの対照検証、再発による設計の見直しは対象なし。以前の `80135b9` が直した承認済み反映経路は、現行版の「実装後」4から共通参照3へ接続することを確認した。計画のみの承認後も同じ経路、完遂の結論1は公開前チェック、結論2は全件確認・検証・base確認・head固定の既存規則を通る。追加の自己レビューは結論1だけの手順なので未実施であり、指摘0件を行動評価の代用にしない。
+
+### Issue #176 の条件との照合
+
+| 条件 | 現行版で確認した内容 | 評価の限界 |
+|---|---|---|
+| A: 要件と検証の照合 | issue-to-pr 4章3・5、5章から共通参照1・3へ到達。Plan に条件 A〜F と統合担当が対応する | 実操作の実証ではない |
+| B: 原因から経路と証拠 | review-fix-planning の経路表と共通参照2に入口〜復旧・観測結果・対象版の証拠を定義 | 机上の手順照合 |
+| C: 両側・順序・独立性 | 共通参照3と自己レビューの反証へ接続。追加16・17・qの判断条件と一致 | 全ケースの独立した行動評価は未実施 |
+| D: 原因単位の完了判断 | 原因4分類は採否3分類と別軸。完遂と承認済み反映の両方で最後の修正後の証拠を照合 | 運用上の収束・費用・退行は未評価 |
+| 既存境界・小変更 | 採否・権限・自己レビュー上限を維持し、文書では構造・参照で代替。追加r・17は過剰な全件検証を求めない | 退行がないとの行動実証ではない |
+| 記録と公開 | pilot の版と生回答、9ケースの個別実行未実施が区別されている | main 取り込みはこの記録時点では未実施。結果は PR・Issue に記す |
+
+### 今回の検証
+
+すべて PR head `a2bb4a4992a194c7989a3316d88f7165881e606b` の clean な専用 worktree で実行した。
+
+- `uv run pytest tests/skills .agents/skills -q`（一時ディレクトリを `--basetemp` に指定）: **774 passed / 283.98秒 / exit 0**。既存 helper・シェル例・スキル構造の検証であり、自然言語手順の改善効果を示す件数ではない。
+- `bash .devcontainer/run-tests.bash`: **33 test(s) PASS / 448.3秒 / exit 0**。
+- `bash scripts/check-layout.sh`: **PASS / exit 0**。
+- JSON 構文・ID 一意性: issue-to-pr **18件**、review-fix-planning **20件**、重複なし。
+- 相対 Markdown リンク: issue-to-pr **2件**、review-fix-planning **4件**の実在確認成功。公式 symlink 経路からも到達可能。`git diff --check origin/main...HEAD`: exit 0。
+- base を再 fetch した結果は `1335f410e624355cd558029bdcdad65eaa944ed8` で、PR head の祖先。base 結合の追加検証は不要。挙動の再現が必要な指摘もなく、隔離 worktree は作っていない。
+- private リポジトリの停止済み Actions は規約により確認対象外。スキル・実行コード・テストを修正していないため、新規テスト、追加モデル pilot、無関係な tools 全体やワールドの検証は行わない。
+- 検証ログは要約を本書へ転記して `/tmp/review-fix-planning.PemfH6/` を削除した。専用 worktree と branch はこのセッションの作成物ではないため片付けない。
+
+今回の公開差分は本 Spec の状態・実行許可・判定と検証結果の記録だけで、検証したスキル・参照・evals の内容を変えない。新たな効果・退行の評価は実施しておらず、Issue の該当項目は完了にしない。commit 前の head 再確認、Spec だけの1コミット確認、Gitleaks 検査済み SHA の fast-forward push、最終コメント、`--match-head-commit` でのマージをこの順に行い、公開結果は本書へ再追記しない。
+
+作業内訳（暫定、公開前）: 準備・5レビューと Issue の読解／全文・周辺調査は約8分、同期検証は約7.5分（並列の時間を重複加算しない）。記録・公開と最終の所要時間は PR コメント・完了報告へ記載する。今回の作業は新規実装ではなく、この記録以外の変更はない。
