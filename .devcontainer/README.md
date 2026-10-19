@@ -526,7 +526,11 @@ bind mount なので、移植元の一時ファイルから rename する方式�
 個人設定の場所は 1 か所に決まる。`AGENT_RUNNER_CONFIG` があればそのパス、無ければ `XDG_CONFIG_HOME` が絶対パスのときだけ
 `XDG_CONFIG_HOME/agent-runner/config.toml`、それ以外は `~/.config/agent-runner/config.toml` で、そこにファイルが無ければ
 個人設定なしで動く（次の候補は探さない）。`install_beforehand.bash` は、後の 2 つの規則で決まる場所に設定が無いときだけ
-雛形 `.devcontainer/agent-runner.toml` を写し、既存の設定は更新しない。`~/.config/agent-runner` は mount していないので、rebuild で消え、次の postCreate で雛形から作り直される。
+`.devcontainer/agent-runner-personal.toml`（`schema_version = 1` と上書きの例のコメントだけ）を置き、既存の設定は更新しない。
+雛形 `.devcontainer/agent-runner.toml` は写さないので、個人設定に書いていない値は、雛形を変えると次の実行から効く。
+個人設定には変えたい値だけを書き、要らなくなったら消す。#167 より前の postCreate が置いた個人設定は雛形の丸写しで、
+雛形の値をすべて上書きするので、自分の上書きを足していなければ消してよい（rebuild でも置き換わる）。
+`~/.config/agent-runner` は mount していないので、rebuild で消え、次の postCreate で作り直される。
 残したい設定は、ホストから見える場所に置いて `AGENT_RUNNER_CONFIG` で指定する。
 設定は雛形 < 個人設定 < `--assign role=agent1,agent2` の順で上書きする（table は統合、配列は置換）。資格情報の値は書かず、
 `env` に変数の名前を書く。
@@ -565,7 +569,7 @@ prompt-file はツール実行やファイル変更を求めない短い依頼�
 agents = ["dsh-ccd"]
 ```
 
-既存の個人 agent-runner 設定は上書きされない。保存済みの agent 定義が古ければ `[agents.dsh-*]` を雛形に合わせるか、
+個人設定に `[agents.dsh-*]` を書いて上書きしているときは、それを雛形に合わせるか消すか、
 確認用 config を `--config` で明示する。API key・セッションログの内容を Issue に貼らない。
 HOME のキャッシュは停止確認後に削除し、TMPDIR の通常ファイルとセッション状態は redact して実行記録に残す。
 

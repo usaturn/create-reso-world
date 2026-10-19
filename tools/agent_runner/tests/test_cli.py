@@ -353,15 +353,16 @@ def test_unsupported_run_persists_result(
 # The shipped template is the base of every installed configuration. Loading it
 # checks its TOML shape and references (defined agents and roles, distinct
 # models per role); each agent it defines must name a runtime with an adapter.
-# postCreate copies the template as the personal config, so the copy must load too.
+# postCreate places the minimal personal config, so the template must load with it too.
 # The template may define no agents yet: adapters and their agents arrive together.
-@pytest.mark.parametrize("personal", ["absent", "template-copy"])
+@pytest.mark.parametrize("personal", ["absent", "postcreate"])
 def test_shipped_template_passes_check(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], personal: str
 ) -> None:
     config = tmp_path / "personal.toml"
-    if personal == "template-copy":
-        config.write_bytes((Path(cli.__file__).resolve().parents[2] / ".devcontainer/agent-runner.toml").read_bytes())
+    if personal == "postcreate":
+        shipped = Path(cli.__file__).resolve().parents[2] / ".devcontainer/agent-runner-personal.toml"
+        config.write_bytes(shipped.read_bytes())
     monkeypatch.setenv("AGENT_RUNNER_CONFIG", str(config))
     assert cli.main(["check"]) == 0
     agents = cast(list[dict[str, object]], document(capsys.readouterr().out)["agents"])

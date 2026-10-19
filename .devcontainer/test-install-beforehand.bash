@@ -28,7 +28,8 @@ $installed
 enabled:
 $enabled"
 
-# agent-runner の個人設定は、無いときだけ雛形を写す。既存の設定（壊れた symlink も）は変えず、置けなければ失敗を返す。
+# agent-runner の個人設定は、無いときだけ最小のファイル（agent-runner-personal.toml）を置く。既存の設定（壊れた symlink も）は変えず、
+# 置けなければ失敗を返す。
 # 保存先は runner の resolve_config_path と同じく、絶対パスの XDG_CONFIG_HOME か ~/.config の下
 function="$(sed -n '/^place_agent_runner_config() {$/,/^}$/p' "$installer")"
 [ -n "$function" ] || fail 'no place_agent_runner_config in install_beforehand.bash'
@@ -42,7 +43,8 @@ for xdg in '' relative absolute; do
   if [ "$xdg" = absolute ]; then value="$tmp/xdg" config_home="$tmp/xdg"; fi
   target="$config_home/agent-runner/config.toml"
   place "$home" "$value" || fail "place_agent_runner_config failed (XDG_CONFIG_HOME='$value')"
-  cmp -s "$target" "$root/.devcontainer/agent-runner.toml" || fail "the template was not copied to $target"
+  cmp -s "$target" "$root/.devcontainer/agent-runner-personal.toml" || fail "the minimal personal config was not placed at $target"
+  [ -e "$tmp/placed.toml" ] || cp "$target" "$tmp/placed.toml"
   printf 'user customization\n' > "$target"
   place "$home" "$value" || fail "the second run failed (XDG_CONFIG_HOME='$value')"
   [ "$(cat "$target")" = 'user customization' ] || fail "an existing personal config was overwritten: $target"
@@ -57,6 +59,27 @@ home="$tmp/unwritable-home"
 mkdir -p "$home"
 printf 'not a directory\n' > "$home/.config"
 if place "$home" '' 2>/dev/null; then fail 'place_agent_runner_config succeeded without a writable destination'; fi
+# 置いた個人設定と一緒に読んでも、雛形で変えた値が効く（#167）。各役割の期限と各 agent のモデルを変えた雛形で確かめる
+(cd "$root" && uv run --project "$root" --locked python - "$root/.devcontainer/agent-runner.toml" "$tmp/placed.toml" "$tmp/changed.toml") <<'PY' \
+  || fail 'a value changed in the template did not take effect with the personal config placed by postCreate'
+import re
+import sys
+from pathlib import Path
+
+from tools.agent_runner import load_config
+
+template, placed, changed = map(Path, sys.argv[1:])
+text = template.read_text(encoding="utf-8")
+text = re.sub(r"(?m)^(deadline_seconds = )(\d+)$", lambda match: f"{match[1]}{int(match[2]) + 1}", text)
+text = re.sub(r'(?m)^(model = "[^"]*)"$', r'\1-changed"', text)
+changed.write_text(text, encoding="utf-8")
+base = load_config(template)
+merged = load_config(changed, placed)
+assert base.roles and base.agents
+assert merged == load_config(changed)
+assert all(merged.roles[name].deadline_seconds == role.deadline_seconds + 1 for name, role in base.roles.items())
+assert all(merged.agents[name].model == f"{agent.model}-changed" for name, agent in base.agents.items())
+PY
 
 # Execute the DSH installation function and its actual postCreate call with shell stubs.
 # The stub derives its version from the requested package, rather than copying a changing version into this test.
