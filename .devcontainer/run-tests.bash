@@ -21,6 +21,9 @@ fi
 log="$(mktemp)"
 trap 'rm -f -- "$log"' EXIT
 failed=()
+# 外から渡された GIT_* をテストに渡さない。linked worktree の git rebase --exec は GIT_DIR を export するので、
+# 残すと一時リポジトリを作るテストの git が、実リポジトリの設定・index・ブランチを書き換える（#166）
+while IFS= read -r name; do unset "$name"; done < <(compgen -e -X '!GIT_*')
 for t in "${tests[@]}"; do
   start=$SECONDS
   if bash "$t" > "$log" 2>&1; then
