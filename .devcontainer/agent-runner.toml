@@ -146,3 +146,8 @@ after_run = [[
 # 指定が無いときの既定構成。その回の --assign inspect=... または個人設定で選び直せる。
 [workflows.review.assignments.inspect]
 agents = ["pi-gpt", "devin-swe", "dsh-ccd", "claude-opus"]
+
+# issue-to-pr の Plan の Task を実装する担当。既定の self はこのセッションが自分で実装する。
+# その回の --implement AGENT か個人設定で選び直せる（担当の fallback は個人設定に書く）。
+[workflows.issue.assignments.implement]
+agents = ["self"]

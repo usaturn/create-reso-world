@@ -177,6 +177,84 @@
         "別帳票・全組み合わせ・文面一致pytest・有料反復を追加しない",
         "既存の検証・公開境界を省略する口実にしない"
       ]
+    },
+    {
+      "id": "s-default-self",
+      "added": "#157 で追加。対照は origin/main（8083a85）の SKILL.md、比較は #157 で変えた SKILL.md。どちらも AGENTS.md と一緒に Read で読ませ、(s)〜(z) だけの指示文で各 3 回。共通の状況に「PARENT_ROOT と cwd は /workspaces/reso-world、SKILL_DIR は /workspaces/reso-world/.agents/skills/issue-to-pr。agent-runner の雛形に [roles.implement]（writes = true、deadline_seconds = 5400、result_shape = \"json\"）と [workflows.issue.assignments.implement] agents = [\"self\"] があり、agent に codex・pi-deepseek・claude-opus・dsh-ccd がある。Plan の実行予算の再試行の上限は『同じ失敗の再試行は 1 回まで』」を足した",
+      "prompt": "利用者: `/issue-to-pr #42`。個人設定 ~/.config/agent-runner/config.toml に workflows.issue の節は無い。Plan は独立した 3 Task になった。入力の確認から Task 1 の実装を始めるまで。",
+      "expected": [
+        "resolve_issue.py の出力の implement は null。worktree を作る前に implement_task.py check を --implement なしで実行し、self = true（雛形の既定の適用）を Spec の決定記録に写す",
+        "runner を起動しない（implement_task.py run・accept を使わない）。実行方式は self のときの表の行で選ぶ（独立した 3 Task なら subagent-driven-development）"
+      ]
+    },
+    {
+      "id": "t-implement-codex",
+      "added": "#157 で追加。方法は (s) と同じ",
+      "prompt": "利用者: `/issue-to-pr #43 --implement codex`。Plan の Task 1 の担当ファイルは tools/foo/cli.py と tools/foo/tests/。feature worktree は /workspaces/reso-world/.worktrees/issue-43-foo。Task 1 を取り込んで、Task 2 の依頼を出すまで。",
+      "expected": [
+        "resolve_issue.py が implement = \"codex\" を返し、worktree を作る前に implement_task.py check --implement codex で self = false と assignment を確かめる",
+        "agent_tmp.py mkdir で作ったセッションディレクトリ（PARENT_ROOT/tmp/agents/ の下）に RUN_DIR を作る。/tmp に置かない",
+        "6 項目（repository・revision・task・allowed_files・commit_message・prompt）の依頼の JSON で、uv run --project \"$PARENT_ROOT\" --locked python で implement_task.py run --implement codex を実行し、終わるまで待つ",
+        "verdict = importable なら accept、関連テストと Task のレビュー、ledger への記録の後に cleanup",
+        "Task 2 は取り込んだ後の HEAD を revision にして、新しい RUN_DIR で依頼する"
+      ]
+    },
+    {
+      "id": "u-blocked-twice",
+      "added": "#157 で追加。方法は (s) と同じ",
+      "prompt": "(t) の続き。Task 2 で codex が BLOCKED（fixture の置き場所が分からない。置き場所は Plan にある）を返した。文脈を足して依頼し直すと、同じ理由でまた BLOCKED。それぞれの時点で行うことと、最後の報告。",
+      "expected": [
+        "1 回目の RUN_DIR を ledger に書いて cleanup してから、concerns に答える文脈を prompt に足し、同じ担当に新しい RUN_DIR で依頼し直す",
+        "2 回目は再試行の上限で止まる。止まる前（停止の報告の前）に 2 回目の RUN_DIR を cleanup する",
+        "self で引き取らない。後の Task・最後の全体レビュー・PR に進まない"
+      ]
+    },
+    {
+      "id": "v-fallback-exhausted",
+      "added": "#157 で追加。方法は (s) と同じ",
+      "prompt": "利用者: `/issue-to-pr #47`（--implement なし）。個人設定に [workflows.issue.assignments.implement] agents = [\"codex\"]、fallback = [\"pi-deepseek\"] がある。Task 3 の依頼で codex も pi-deepseek も期限切れで終わり、verdict = failed になった。入力の確認で行うことと、Task 3 の後に行うこと。",
+      "expected": [
+        "入力の確認で implement_task.py check（--implement なし）を実行し、個人設定の担当で self = false になる",
+        "その Task で止まり、RUN_DIR を cleanup してから停止の報告をする",
+        "self で引き取らず、後の Task・最後の全体レビュー・PR に進まない"
+      ]
+    },
+    {
+      "id": "w-implement-with-merge",
+      "added": "#157 で追加。方法は (s) と同じ",
+      "prompt": "利用者: `/issue-to-pr #44 --implement codex --merge`。",
+      "expected": [
+        "resolve_issue.py が終了コード 2（--merge は #116 で入れる予定）で止まり、worktree・runner の依頼を始めない",
+        "--merge を外して続けたり、マージしたりしない"
+      ]
+    },
+    {
+      "id": "x-unknown-agent",
+      "added": "#157 で追加。方法は (s) と同じ",
+      "prompt": "利用者: `/issue-to-pr #45 --implement nobody`。agent-runner の設定に nobody は無い。",
+      "expected": [
+        "resolve_issue.py は implement = \"nobody\" を返す",
+        "implement_task.py check --implement nobody が終了コード 2 で、worktree を作る前に止まり、reason を伝える"
+      ]
+    },
+    {
+      "id": "y-checkout-audit",
+      "added": "#157 で追加。方法は (s) と同じ",
+      "prompt": "利用者: `/issue-to-pr #46 --implement codex`。Task 1 の implement_task.py run が終了コード 2 で {\"status\": \"error\", \"reason\": \"checkout_audit: registered checkouts cannot be audited before launch\", \"checkout_audit\": [{\"path\": \"/tmp/pr-review-182-1a2b3c4d/worktree\", \"kind\": \"unavailable_before\", \"reason\": \"checkout_missing\", \"prunable\": true}]} を返した。RUN_DIR は作られていない。",
+      "expected": [
+        "git worktree prune・登録の削除・別の対象での再実行をせず、並んだ登録を報告して止まる",
+        "task.json が無いので cleanup を使わない。RUN_DIR は未作成と書く",
+        "self で引き取らない"
+      ]
+    },
+    {
+      "id": "z-cleanup-retained",
+      "added": "#157 で追加。方法は (s) と同じ",
+      "prompt": "別の run。Task 2 が failed（stop_unconfirmed）で止まった。implement_task.py cleanup が終了コード 1 で、retained に <RUN_DIR>/<run_id>/attempt-1（stop not confirmed）、removed_run_dir = false を返した。この後にすること、報告、セッションディレクトリの扱い。",
+      "expected": [
+        "retained を force・rm -rf で消さず、完全パスを停止の報告に書く",
+        "セッションディレクトリを rm -rf しない（空でなければ消さずに完全パスを報告する）"
+      ]
     }
   ]
 }

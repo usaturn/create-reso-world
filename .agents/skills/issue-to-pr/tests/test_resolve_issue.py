@@ -127,6 +127,7 @@ def test_resolves_supported_forms_without_changing_git(
         "url": f"https://github.com/{repo}/issues/42",
         "title": "Fix a regression",
         "body": "Keep unrelated work intact.",
+        "implement": None,
     }
     assert subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout) == before
     assert subprocess.check_output(["git", "for-each-ref"], cwd=checkout) == b""
@@ -178,8 +179,8 @@ def test_rejects_input_before_looking_up_issue(checkout: Path, gh_stub: Path, ar
     [
         "#42 --merge",
         "#42 --merge=1",
-        "--implement self #42",
-        "#42 --implement=self",
+        # --implement を受け付けても、同じ引数の --merge は止める
+        "#42 --implement codex --merge",
         "#42 --merge --max-cycles 2",
         "#42 --hold-action skip",
         "#42 --assign implement=codex",
@@ -193,6 +194,53 @@ def test_rejects_options_with_reason(checkout: Path, gh_stub: Path, argument: st
     assert_rejected(result)
     assert "#116" in result.stderr
     assert not gh_stub.exists()
+
+
+@pytest.mark.parametrize(
+    ("argument", "implement"),
+    [
+        ("#42 --implement codex", "codex"),
+        ("#42 --implement=codex", "codex"),
+        ("#42 --implement self", "self"),
+        ("--implement codex #42", "codex"),
+        ("#42 --implement pi-deepseek", "pi-deepseek"),
+    ],
+)
+def test_implement_is_returned_without_changing_git(
+    checkout: Path, gh_stub: Path, argument: str, implement: str
+) -> None:
+    before = subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout)
+    result = resolve(checkout, argument)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["implement"] == implement
+    assert payload["number"] == 42
+    assert subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout) == before
+
+
+# 値はそのまま次の implement_task.py check の引数になるので、agent 名の形
+# （tools/agent_runner/models.py の識別子）でない値は Issue を読む前に止める
+@pytest.mark.parametrize(
+    "argument",
+    [
+        "#42 --implement",
+        "#42 --implement=",
+        "#42 --implement --merge",
+        "#42 --implement -x",
+        "#42 --implement a --implement b",
+        "#42 --implement=a --implement=b",
+        "#42 --implement 'x;touch injected'",
+        "#42 --implement ../x",
+        "#42 --implement 推奨案",
+    ],
+)
+def test_rejects_malformed_implement_before_looking_up_issue(
+    checkout: Path, gh_stub: Path, argument: str
+) -> None:
+    result = resolve(checkout, argument)
+    assert_rejected(result)
+    assert not gh_stub.exists()
+    assert not (checkout / "injected").exists()
 
 
 @pytest.mark.parametrize("argument", ["#42 --foo", "#42 -m", "--dry-run #42"])
@@ -304,3 +352,63 @@ def test_reports_gh_failure_without_trying_another_repository(
     result = resolve(checkout, "#42")
     assert_rejected(result)
     assert "404" in result.stderr
+
+
+IMPLEMENT_SCRIPT = SCRIPT.parent / "implement_task.py"
+IMPLEMENT_TEMPLATE = """
+schema_version = 1
+
+[agents.codex]
+runtime = "codex"
+command = ["fake-codex"]
+model = "codex-model"
+
+[roles.implement]
+writes = true
+deadline_seconds = 60
+result_shape = "json"
+
+[workflows.issue.assignments.implement]
+agents = ["self"]
+"""
+
+
+@pytest.mark.parametrize(
+    ("argument", "expected"),
+    [
+        ("#42", (0, 0, True)),
+        ("#42 --implement codex", (0, 0, False)),
+        ("#42 --implement self", (0, 0, True)),
+        ("#42 --implement nobody", (0, 2, None)),
+        ("#42 --implement", (2, None, None)),
+    ],
+)
+def test_resolve_then_implement_check(
+    checkout: Path, gh_stub: Path, tmp_path: Path, argument: str, expected: tuple[int, int | None, bool | None]
+) -> None:
+    """worktree を作る前の 2 段（resolve_issue.py → implement_task.py check）を、本物の 2 つのスクリプトでつなぐ。
+
+    値は（resolve の終了コード、check の終了コード、check の self）。implement が null なら --implement を付けない。
+    """
+    template = tmp_path / "agent-runner.toml"
+    template.write_text(IMPLEMENT_TEMPLATE, encoding="utf-8")
+    resolved = resolve(checkout, argument)
+    if resolved.returncode != 0:
+        assert (resolved.returncode, None, None) == expected
+        return
+    implement = json.loads(resolved.stdout)["implement"]
+    checked = subprocess.run(
+        [
+            sys.executable,
+            str(IMPLEMENT_SCRIPT),
+            "check",
+            "--template",
+            str(template),
+            *(["--implement", implement] if implement is not None else []),
+        ],
+        cwd=checkout,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "AGENT_RUNNER_CONFIG": str(tmp_path / "no-personal.toml")},
+    )
+    assert (resolved.returncode, checked.returncode, json.loads(checked.stdout).get("self")) == expected
