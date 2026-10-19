@@ -16,7 +16,7 @@
 ## Global Constraints
 
 - Python は `uv` で実行する（`python3` を使わない）。テストは偽の CLI だけを使い、devin・他の担当を起動しない
-- 変更するのは `tools/agent_runner/adapters/devin.py`・`tools/agent_runner/tests/adapters/devin/test_adapter.py`・`tools/agent_runner/runtimes/devin.rst` だけ（Spec の除外範囲）
+- 変更するのは `tools/agent_runner/adapters/devin.py`・`tools/agent_runner/tests/adapters/devin/test_adapter.py`・`tools/agent_runner/tests/adapters/test_parser_regressions.py`・`tools/agent_runner/runtimes/devin.rst` だけ（Spec の除外範囲）。`test_parser_regressions.py` は、全体の pytest で devin の 12 件が失敗して見つけた 2 つ目の devin のテストのファイルで、当初の一覧から漏れていた
 - 診断の優先（stderr、stdout と最後の発話の診断行、export の error の step）と `_final_agent_message` の検査は変えない（D-188-4）
 - 実際の #185・#186 の出力はテストに写さない（D-188-5）
 
@@ -49,7 +49,7 @@
 
 **Files:**
 - Modify: `tools/agent_runner/adapters/devin.py`（docstring 1–8 行、`_json_object` の 79–82 行、`collect` の 233–243 行）
-- Test: `tools/agent_runner/tests/adapters/devin/test_adapter.py`
+- Test: `tools/agent_runner/tests/adapters/devin/test_adapter.py`、`tools/agent_runner/tests/adapters/test_parser_regressions.py`（`test_devin_unicode_diagnostic_inside_json_remains_data` の入力を、stdout が最後の発話で終わる形に揃える）
 
 **テストの要否:** 書く。出力の解析で、実際に起きた不具合（#185・#186 の `response_failed`）の再発を防ぐ（AGENTS.md の「テストの採用基準」）。
 
