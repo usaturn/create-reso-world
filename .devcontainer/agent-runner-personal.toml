@@ -12,6 +12,7 @@ schema_version = 1
 # agents = ["agent-a"]
 # fallback = ["agent-b"]
 
-# 例: PR レビューの後処理を止める
+# 例: PR レビューの後処理を止める。止めたら、run の後に finalize-parent と attach-runner を自分で順に実行する
+# （.agents/skills/pr-review/references/noninteractive.md）
 # [workflows.review]
 # after_run = []
