@@ -239,4 +239,7 @@ ledger（SDD の進み）: `/workspaces/reso-world/tmp/agents/issue-157.e6surmvx
 | 2 `implement_task.py` と雛形 | `4c6c3fc` | RED: `implement_task.py` が無いことで収集の段で失敗。GREEN: 2 つのテストと `tools/agent_runner/tests/test_cli.py` で 133 passed。`implement_task.py` の SHA-256 は移植元と一致。新しい `checkout_audit` のテストは、監査を外す変異で失敗することを確かめた |
 | 3 2 段の結合 | `6f515e7` | `test_resolve_issue.py` 89 passed。期待を 1 か所変えると失敗することを確かめて戻した |
 | 4 評価の場面と変更前の回答 | `6b7384f` | `scenarios.json` の構文 OK（既存の部分は変えず 78 行の追加）。変更前の回答 3 回（sonnet、各回 Read 2 回だけ） |
+| 5 SKILL.md と変更後の回答 | `f365a09` | 変更後の回答 3 回で 9 行とも 3/3（変更前は 5 行が 0/3）。REFACTOR なし。参照先の実在 OK |
 | 6 実機 | （リポジトリの変更なし） | `codex` に 1 回依頼して `importable` → `accept`（helper の commit）→ テスト成功 → `cleanup`（`retained` なし）。#157 のコメントに記録 |
+
+Task 7 の全体の検証は、この記録を commit した HEAD で行う。その後に足す commit が Spec・Plan の記録だけなら、全体の検証をやり直さず、マージの前に、検証した HEAD からの差分が `docs/superpowers/` だけであることを確かめる（Spec の D-157-13）。
