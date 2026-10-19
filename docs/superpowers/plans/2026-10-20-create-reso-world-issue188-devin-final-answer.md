@@ -23,7 +23,7 @@
 ## Review Focus
 
 1. 回答が stdout に 2 回以上現れる（途中の発話で同じ JSON を下書きした）: 最後に現れた位置で判定する → Task 1 の `test_tool_run_answer_repeated_earlier_succeeds`
-2. 回答の前後の空白が stdout と export で違う（export の発話の末尾に改行が無い・ある）: 前後の空白を除いて比べる → Task 1 の C1 の正例（stdout は回答 + 改行、export の発話は改行なし）
+2. 回答の前後の空白が stdout と export で違う（export の発話の末尾に改行が無い・ある）: 前後の空白を除いて比べる → Task 1 の `test_tool_run_answer_whitespace_differs_from_stdout`（全体レビューの指摘で追加。当初の対応先の C1 の正例は、export の発話に前後の空白が無く、この条件を検査していなかった）
 3. text の役割の payload が stdout 全体から最後の発話に変わる: Task 1 で `test_collect_success_text_shape` を最後の発話の値で確かめる
 4. 秘匿値を含む回答: stdout と export の両方で同じ値に置き換わり、成功のまま置き換えた値を返す → Task 1 で `test_retained_export_with_secrets_is_redacted_before_collection` を揃える
 5. 既存の負例が、stdout と最後の発話の文字列の違い（`{"ok":true}` と `{"ok": true}`）だけで失敗し、本来の検査をしなくなる: Task 1 の Step 1 で両方を揃える

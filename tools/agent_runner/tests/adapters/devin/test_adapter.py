@@ -623,11 +623,16 @@ def test_fenced_json_answer(context: AdapterContext, answer: str) -> None:
         ("Approval required", "awaiting_approval"),
     ],
 )
+@pytest.mark.parametrize("shape,answer", [("text", "answer"), ("json", '{"ok": true}')])
 def test_text_diagnostic_with_valid_export_is_not_success(
-    context: AdapterContext, diagnostic: str, state: str
+    context: AdapterContext, diagnostic: str, state: str, shape: str, answer: str
 ) -> None:
-    context.role.result_shape = "text"
-    outcome = _collect(context, diagnostic)
+    # stdout ends with the final answer, so only the diagnostic line before it
+    # keeps this plausible run from succeeding.
+    context.role.result_shape = shape
+    outcome = _collect(
+        context, f"{diagnostic}\n{answer}\n", export=_export(message=answer)
+    )
     assert outcome.receipt is not None and outcome.receipt.status == state
 
 
@@ -781,3 +786,13 @@ def test_end_to_end_tool_run_collects_final_answer(
     )
     assert batch.state == "success"
     assert batch.results[0].attempts[0].payload == _FENCED_PAYLOAD
+
+
+def test_tool_run_answer_whitespace_differs_from_stdout(
+    context: AdapterContext,
+) -> None:
+    # The export may keep blank lines around the message that stdout does not.
+    final = "\n" + _FENCED + "\n\n"
+    outcome = _collect(context, _tool_run_stdout(), export=_tool_run_export(final))
+    assert outcome.receipt is not None and outcome.receipt.status == "success"
+    assert outcome.receipt.payload == _FENCED_PAYLOAD
