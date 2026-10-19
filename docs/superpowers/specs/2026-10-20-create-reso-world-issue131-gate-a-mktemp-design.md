@@ -48,9 +48,9 @@
 ## 検証
 
 - `SKILL.md` の手順 6 のブロックを取り出し、`<残骸ディレクトリ>`・`<正本ディレクトリ>` を一時の fixture のパスに置き換えて bash で実行する。次の各場合で、削除の 3 条件を判定できる表示が出て、実行の後に `repo-cleanup-gate-a.*` が残らないことを確かめる
-  - 削除してよい: `review-backup/` が `previous-review.md` と、正本と同じ `<model>.md` だけ
+  - 削除してよい: `review-backup/` が `previous-review.md` と、正式な保存先と同じ `<model>.md` だけ
   - 削除しない: `Files ... differ` がある
   - 削除しない（コピーの対象）: `previous-review.md` 以外の `Only in ...review-backup` がある
-  - 削除しない: 正本ディレクトリが無い（stderr に出て、終了コード 2）
+  - 削除しない: 正式な保存先（`<正本ディレクトリ>`）が無い（stderr に出て、終了コード 2）
 - 違う fixture で 2 つの実行を同時に動かし、それぞれが自分の fixture の結果だけを表示する
 - README の「テスト」のコマンド（ワールドの行を除く）と `git diff` の確認

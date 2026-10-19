@@ -22,7 +22,7 @@
 ## Review Focus
 
 1. ランタイムがブロックを複数の呼び出しに分けた → 後の呼び出しでは `GATE` が空になり、`rm` は `${GATE:?}` で止まって何も消さない（Task 2 の Step 4）
-2. 正本ディレクトリが無い → stderr に出て終了コード 2 を表示し、ディレクトリは消える（Task 2 の Step 2 の場合 d）
+2. 正式な保存先（`<正本ディレクトリ>`）が無い → stderr に出て終了コード 2 を表示し、ディレクトリは消える（Task 2 の Step 2 の場合 d）
 3. 2 つのセッションが同時に実行する → それぞれが自分の fixture の結果だけを表示する（Task 2 の Step 3）
 4. `mktemp` が失敗する（`TMPDIR` が無いディレクトリ）→ `exit 1` で止まり、`diff` を実行せず、`/stdout` などに書かない（Task 2 の Step 4）
 5. 実行の後に一時ディレクトリが残る → どの場合も `${TMPDIR:-/tmp}/repo-cleanup-gate-a.*` が残らない（Task 2 の Step 2・3）
@@ -99,12 +99,12 @@ git commit -m "fix(repo-cleanup-after-merge): keep gate A diff output in a mktem
 
 - [ ] **Step 2: 4 つの fixture で実行する**
 
-| 場合 | `review-backup/` | 正本 | 期待する表示 |
+| 場合 | `review-backup/` | 正式な保存先 | 期待する表示 |
 |---|---|---|---|
-| a 削除してよい | `previous-review.md`、正本と同じ `m.md` | `m.md` | 終了コード 1、stderr 空、stdout は `Only in ...review-backup: previous-review.md` だけ |
-| b differ | 正本と違う `m.md` | `m.md` | 終了コード 1、stdout に `Files ... differ` |
+| a 削除してよい | `previous-review.md`、正式な保存先と同じ `m.md` | `m.md` | 終了コード 1、stderr 空、stdout は `Only in ...review-backup: previous-review.md` だけ |
+| b differ | 正式な保存先と違う `m.md` | `m.md` | 終了コード 1、stdout に `Files ... differ` |
 | c コピーの対象 | `previous-review.md`、`n.md` | `m.md` | stdout に `previous-review.md` 以外の `Only in ...review-backup`（`n.md`） |
-| d 正本が無い | `m.md` | 無い | 終了コード 2、stderr に正本のパス、stdout 空 |
+| d 保存先が無い | `m.md` | 無い | 終了コード 2、stderr に保存先のパス、stdout 空 |
 
 各実行の後に `repo-cleanup-gate-a.*` が残らないこと。
 
@@ -142,4 +142,13 @@ Expected: どれも終了コード 0。環境による失敗が出たら、`orig
 
 ## 実行記録
 
-（実行後に書く）
+2026-10-20（JST）に Claude Code のセッションが `superpowers:executing-plans` で実行した。SDD の ledger は worktree の外の `tmp/agents/issue-131._t4l6bgq/progress.md` に置いた（worktree の `.superpowers/sdd/` は `AGENTS.md` に反するため使わない）。
+
+- Task 1: `f6022d2`。変更は frontmatter と手順 6 だけで、`gate-a` を含む行は `repo-cleanup-gate-a` の 1 行だけ
+- Task 2: `f6022d2` の `SKILL.md` から取り出したブロックで PASS。場合 a〜d、20 組の同時実行で不一致 0/40、`mktemp` の失敗で終了コード 1（`diff` を実行しない）、空の `GATE` で `rm` が止まる、どの場合も `repo-cleanup-gate-a.*` が残らず、`/tmp/gate-a.*` は実行の前後とも無かった
+  - Plan との違い: 空の `GATE` の終了コードは 1 ではなく 127（bash 5.3.9 の非対話シェルの展開エラー）。`rm` を実行せずに止まる点は同じ
+  - 変更前のブロックとの対照は実行していない。共有の `/tmp/gate-a.*` に書き、並行するセッションの判定を壊すおそれがあるため
+- Task 3: `bash .devcontainer/run-tests.bash`（33 件 PASS）・`bash scripts/check-layout.sh`（PASS）・`uv run pytest tests/skills .agents/skills .agents/scripts tools -q`（3214 passed、31 分。並行する他のセッションも同じテストを実行していた）のどれも終了コード 0
+- 最後のレビュー: 新しいレビュアー（opus）1 名。マージしてよい、Critical 0・Important 0・Minor 4。新しい Spec・Plan の地の文の「正本」（`AGENTS.md` の日本語表現）だけ直した。`diff`・`cat` の行の `$GATE` の `:?`、`|| exit 1`、`Bash(cat *)` は致命的でないので見送った
+- 持ち越し候補（Issue は作っていない）: `diff -rq` の `File X is a directory while file Y is a regular file` の行が 3 条件を通る（既存の条件の問題）。`review-fix-planning/SKILL.md` の `rm -rf -- "$REPRO_ROOT"` に `:?` が無い
+- 所要時間: 着手（01:05）から PR 作成の前（01:54）まで約 49 分。準備（Issue・競合の確認、worktree）約 3 分、Spec・Plan 約 4 分、Task 1・2 約 2 分、Task 3 の検証約 40 分（pytest の 31 分を含む。最後のレビューは並行して約 4 分）
