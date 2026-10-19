@@ -218,3 +218,25 @@
 
 - [ ] **Step 1:** 使い捨ての対象とセッションディレクトリ（`issue-157-implement.*` を含む）の中身を確かめ、要らないものだけを空値ガード付きで消す。残すものは完全パスを報告する
 - [ ] **Step 2:** Herdr のタスクを completed にし、PR の URL・検証結果・worktree・branch・Spec・Plan・残したログの絶対パス・所要時間を報告する
+
+---
+
+## 実行の記録
+
+ledger（SDD の進み）: `/workspaces/reso-world/tmp/agents/issue-157.e6surmvx/sdd/progress.md`。予算の ledger: 同じディレクトリの `budget.jsonl`（開始し直す前のものは `budget-initial.jsonl`）。
+
+### 判断（Ruling）
+
+- 作業領域: SDD・executing-plans の作業領域（`.superpowers/sdd/`）は worktree の中に作られるので、`tmp/agents/issue-157.e6surmvx/sdd/` に置き、スクリプトを使わずに ledger を手で書いた（AGENTS.md の「コミットしないファイルの置き場所」）
+- Task 5: writing-skills の手順（変更前の失敗を見てから文面を書く）に対し、変更前の回答の取得中に、移植元の評価（agent-workspace #679・#696）で確かめた文を土台に文面を書いた。変更前の回答は文面を書いた後に読んだ。変更後の回答を関門にした
+- Task 6: SKILL.md の手順（ledger を `cleanup` の前に書く）に対し、`task.json`・`accept.json` を `cleanup` の前に写して記録を保ち、ledger の行は `cleanup` の直後に書いた
+
+### Task ごとの結果
+
+| Task | commit | 検証 |
+| --- | --- | --- |
+| 1 `resolve_issue.py` の `--implement` | `3e5ce92` | RED: 14 件が失敗（`implement` の項目が無い・`--implement` を #116 で拒否）。GREEN: `test_resolve_issue.py` 84 passed |
+| 2 `implement_task.py` と雛形 | `4c6c3fc` | RED: `implement_task.py` が無いことで収集の段で失敗。GREEN: 2 つのテストと `tools/agent_runner/tests/test_cli.py` で 133 passed。`implement_task.py` の SHA-256 は移植元と一致。新しい `checkout_audit` のテストは、監査を外す変異で失敗することを確かめた |
+| 3 2 段の結合 | `6f515e7` | `test_resolve_issue.py` 89 passed。期待を 1 か所変えると失敗することを確かめて戻した |
+| 4 評価の場面と変更前の回答 | `6b7384f` | `scenarios.json` の構文 OK（既存の部分は変えず 78 行の追加）。変更前の回答 3 回（sonnet、各回 Read 2 回だけ） |
+| 6 実機 | （リポジトリの変更なし） | `codex` に 1 回依頼して `importable` → `accept`（helper の commit）→ テスト成功 → `cleanup`（`retained` なし）。#157 のコメントに記録 |

@@ -1,7 +1,7 @@
 ---
 name: issue-to-pr
 description: "Issue の URL・#番号を指定して『着手して』『実装して PR まで』『推奨案で進めて』と依頼されたときに使う。PR の番号・URL、PR レビュー・レビュー指摘の修正計画、ボードの親 Issue からの子の選択には使わない。"
-argument-hint: "<Issue>"
+argument-hint: "<Issue> [--implement AGENT]"
 ---
 
 # Issue to PR
@@ -20,7 +20,15 @@ argument-hint: "<Issue>"
 
 一度明示入口から開始した run では、工程ごとに次のコマンド入力を求めず、各スキルを読んで最後まで続ける。ランタイムの明示された承認・ツール制限は迂回しない。
 
-**オプションは受け付けない。** `--merge`（PR の作成後のレビュー修正ループとマージ）と `--implement`（Plan の Task を別の担当に実装させる）は #116 で入れる。利用者がオプションを書いたら、2 章の helper が理由を出して終了コード 2 で止まる。そのまま止まって理由を伝える。オプションを外して続けたり、マージしたりしない。
+**オプションは `--implement` だけを受け付ける。** `--merge`（PR の作成後のレビュー修正ループとマージ）とループ用のオプションは #116 で入れる。利用者がそれらを書いたら、2 章の helper が理由を出して終了コード 2 で止まる。そのまま止まって理由を伝える。オプションを外して続けたり、マージしたりしない。
+
+### `--implement`
+
+Plan の Task を実装する担当は、agent-runner の `workflows.issue` の `implement` で決まる（雛形 `.devcontainer/agent-runner.toml` < 個人設定 < `--implement`）。雛形の既定は `self`（このセッションが自分で実装する）。
+
+- `--implement AGENT`（`--implement=AGENT` も同じ）は、その回だけ一次担当を置き換える。値は agent-runner の設定にある agent 名か `self`。`fallback` は設定のものを保つ
+- Issue の参照の前でも後でも書け、1 回だけ書ける
+- 担当の検査は 2 章の 3、依頼の手順は 4 章の「Task の実装を runner の担当に依頼する」
 
 ## 2. 入力・対象・競合の確認
 
@@ -39,8 +47,15 @@ argument-hint: "<Issue>"
    ```
 
    - 受け付ける表記: `https://github.com/<owner>/<repo>/issues/N`、`<owner>/<repo>#N`、`#N`（**現在の checkout の origin** で解決する。番号からリポジトリを推測しない）。対象は usaturn/create-reso-world・usaturn/resoloop・usaturn/resoloop-meshy だけ
-   - 成功: 終了コード 0、`repo`・`number`・`url`・`title`・`body` の JSON。**最初に `repo` と `title` を利用者に表示する。** 失敗: 終了コード 2 と stderr の理由。副作用に進まずに止まる
+   - 成功: 終了コード 0、`repo`・`number`・`url`・`title`・`body`・`implement`（`--implement` の値か `null`）の JSON。**最初に `repo` と `title` を利用者に表示する。** 失敗: 終了コード 2 と stderr の理由。副作用に進まずに止まる
    - helper は入力の検証と Issue の確認だけで、競合・予約・承認を確かめた証拠にはならない
+   - 続けて Plan の実装の担当を検査する。`implement` が `null` でなければ `--implement <implement の値>` を付け（値は 1 つの引数として渡す）、`null` なら付けない。
+
+     ```bash
+     uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/implement_task.py" check [--implement <値>]
+     ```
+
+     終了コード 0 なら、出力の `assignment`（`agents`・`fallback`）と `self` を Spec の決定記録に写す（雛形の既定の `self` は既定の適用と書き、利用者の指定と書かない）。終了コード 2 なら `reason` を利用者に伝えて止まる（設定に無い agent、`agents` が 2 つ以上、`implement` の役割の `writes = false` など）。worktree・Herdr・予約のどれにも触れない。
 
 4. 本文、全ページのコメント、依存関係を読む。本文が利用者の承認・判断を求めていて、決定の記録が無ければ、推奨案での委任で代えずに止まる。
 5. 実装の対象 `TARGET_REPO` を決める。既定は helper の `repo`。本文が実装の対象を明記していれば（「実装の対象: usaturn/resoloop」など）それに従う。3 つの外なら止まる。`TARGET_REPO` の行で checkout（`TARGET_ROOT`）と remote を確かめる。checkout が無い・remote が違うときは「無いとき」の案内をして止まる。checkout を探したり clone したりしない。
@@ -93,11 +108,49 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 
    | 条件 | 選ぶ方式 |
    |---|---|
-   | Task が独立し、文脈を子に渡しきれ、同期委譲を使える | `superpowers:subagent-driven-development` |
-   | 同じファイルの逐次変更、1–2 Task、委譲不可 | `superpowers:executing-plans` |
+   | 2 章の 3 の `check` の `self` が false | 下の「Task の実装を runner の担当に依頼する」（`superpowers:subagent-driven-development` の形で、各 Task を runner の担当に依頼する） |
+   | `self` が true で、Task が独立し、文脈を子に渡しきれ、同期委譲を使える | `superpowers:subagent-driven-development` |
+   | `self` が true で、同じファイルの逐次変更、1–2 Task、委譲不可 | `superpowers:executing-plans` |
 
    Pi の `/sp-implement` は直列実行、`/sp-implement-parallel` は依存を満たした独立 Task を別 worktree で並列実行する入口。SDD なら常に parallel という対応ではない。同じファイルを同時に書かせない。run 中は選んだスキルで続け、コマンド再入力待ちにしない。
 5. 選んだスキルの実装・TDD・レビューに従い、最後のブランチ全体のレビューを省かない。実装担当（inline なら自分）へ、照合した条件・除外範囲・共有前提・必要な証拠を渡す。個別 Task の成功だけで共通条件を満たしたとせず、統合担当が条件単位で確認する。スキルを作る場合は `superpowers:writing-skills` の無し/ありの振る舞い比較を行い、固定文言の検査テストで代用しない。テストは AGENTS.md の「テストの採用基準」に従い、迷ったら書かない。検証の失敗は `systematic-debugging` で調べ、解消できなければ止まる。
+
+### Task の実装を runner の担当に依頼する（`self` 以外のとき）
+
+`superpowers:subagent-driven-development` を読み、Task を実装するサブエージェントの代わりに、`implement_task.py` で runner の担当に Task を 1 つずつ順に依頼する（並行しない）。runner の担当は入れ子に agent を起動できないので、Plan 全体を 1 回で渡さない。
+
+1. **出力先:** `uv run --no-project python "$PARENT_ROOT/.agents/scripts/agent_tmp.py" mkdir issue-<N>-implement` で作ったセッションディレクトリ（`SESSION`）の下の、存在しないパス（例: `$SESSION/task-2-attempt-1`）を依頼ごとの `RUN_DIR` にする。`/tmp` の下に置かない（DSH の隔離（bubblewrap）は `/tmp` を差し替えて起動するので、`/tmp` の下では失敗する。ログは後で読む）
+2. **依頼の JSON（`REQUEST_JSON`）:** 次の 6 項目だけを書き、`$SESSION` の下にファイルで置く。
+   - `repository`: feature worktree（`TARGET_ROOT/.worktrees/<名前>`）の root の絶対パス。`revision`: その HEAD の完全な SHA（未 commit の変更を残さない）
+   - `task`: 1 行の Task 名。`allowed_files`: Plan のその Task の担当ファイル（root からの相対パス。`/` で終わればディレクトリ）
+   - `commit_message`: Plan の commit の手順のメッセージ（担当が commit できなかったときに helper が使う）
+   - `prompt`: 担当がそれだけで作業できる依頼。Plan のその Task の全文、Spec の関係する節、受け入れ基準（Task をレビューする担当に渡すものと同じ）、実行する関連テストと静的チェック、テストの要否と理由。担当がどのスキルを読めるかはランタイムで違うので、スキルを前提にしない。作業範囲・禁止事項・返す JSON の形は helper が足す
+3. **依頼:** 終わるまで待つ（`implement` の役割の期限は 90 分。`monitoring-long-tasks` に従い、Claude Code では `run_in_background: true` の完了通知で待つ）。
+
+   ```bash
+   uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/implement_task.py" run \
+     --request "$REQUEST_JSON" --output-dir "$RUN_DIR" [--implement <値>]
+   ```
+
+   出力の `verdict` で次を決める。どの `verdict` でも、次の依頼を出す前・止まる前に、その依頼の `RUN_DIR` を 5 のとおり片付ける。
+
+   | `verdict` | 次の操作 |
+   | --- | --- |
+   | `importable` | `implement_task.py accept --run-dir "$RUN_DIR"`。判定を今の状態でやり直し、担当が commit しなかったとき（`helper_commit`）は helper が `commit_message` で commit してから、feature worktree に `--ff-only` で取り込む |
+   | `no_changes` | 取り込むものは無い。Task のレビューで、変更が要らないことを確かめる |
+   | `retry`（担当が `BLOCKED`・`NEEDS_CONTEXT`） | `result.concerns`・`result.incomplete` に答える文脈を `prompt` に足し、同じ担当に新しい依頼をする（新しい `RUN_DIR`）。回数は Plan の「実行予算」の再試行の上限まで。上限に達したら止まる |
+   | `rejected`（`outside_changes`、取り込みの前の確認に反した） | 取り込まない。再試行の上限の中で依頼し直すか止まるかを決め、`reasons` と理由を ledger に書く |
+   | `failed`（停止を確認できない、期限切れ・認証待ち・起動の失敗、`fallback` が尽きた。結果の形の誤りは runner が `fallback` の次の候補を試し、尽きたらここに入る） | その Task で止まる |
+
+4. **確認とレビュー:** 取り込んだ後、feature worktree で関連テストと静的チェックを実行し、SDD の Task のレビューを行う。指摘の修正も同じ担当に新しい依頼として出す（新しい `RUN_DIR`。`revision` は取り込んだ後の HEAD）
+5. **依頼ごとの記録と後片付け:** 依頼し直し（`retry`・`rejected`）も指摘の修正も、それぞれ 1 つの依頼として数える。1 つの依頼の `verdict` を処理し終えるたびに、その依頼の `RUN_DIR` について次の順に行う。依頼し直すときも、前の依頼の `RUN_DIR` を片付けてから新しい依頼を出す（Task の最後にまとめると、止まる経路で前の依頼の runner の worktree の登録が残る）
+   1. SDD の ledger に、Task 名と何回目の依頼か、`requested_agent`・`actual_agent`・`identity`（runner が観測したモデル）、`elapsed_seconds`、`verdict`（`accept` を実行したらその結果も）を書く。`cleanup` は `RUN_DIR`（`task.json` とログを含む）を消すので、先に書く
+   2. `implement_task.py cleanup --run-dir "$RUN_DIR"` を実行する。時点は、`importable` は `accept` の後（取り込めなかった場合も）、`no_changes`・`retry`・`rejected` は ledger に書いた直後、止まるとき（`failed`、上限に達した `retry`・`rejected`）は停止の報告の前。停止を確認した試行の worktree の登録を外し（force しない）、何も残らなければ `RUN_DIR` を消す
+   3. 終了コード 1 は、残したもの（`retained`。停止を確認できない試行、`sensitive_paths` のある試行など）があることを示す。それだけでは止まらない。完全パスを ledger に書き、最終報告（止まるときは停止の報告）に含める。force・`rm -rf` で消さない
+
+   `run` が終了コード 2（`status: error`）で終わったときは `task.json` が無く、`cleanup` を使えない。`RUN_DIR` が存在すれば、その完全パスを停止の報告に書く。`reason` が `checkout_audit` なら、`checkout_audit` に並んだ登録（消えた worktree など）を報告して止まる。他の作業の領域でありうるので、自分で prune・削除しない。セッションディレクトリは、すべての依頼の `cleanup` の後に空になったときだけ `rmdir` で消す。中身が残っていれば消さずに完全パスを報告する（`rm -rf` で消すと runner の worktree の登録だけが残り、runner を使う入口が起動の前の監査で止まる）
+
+失敗を理由に、このセッションが `self` で実装を引き取らない（`tools/agent_runner/interfaces.rst` の「失敗を理由に別モデルへ暗黙に切り替えない」と同じ）。止まった Task の後の Task・最後の全体レビュー・PR には進まない。担当を変えるかは利用者が決める。すべての Task を取り込めたときの最後の全体レビューと PR は、`self` のときと同じ。PR 本文には、5 章の項目に加えて、割り当て（雛形・個人設定・`--implement` のどれで決まったか）、runner が観測した agent・モデル、Task ごとの依頼の回数と所要時間を書く。
 
 ## 5. 検証・PR・完了
 
@@ -124,13 +177,13 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 
 ## 停止時の報告
 
-不正な入力（helper の終了コード 2）、対象・remote の確認の失敗、競合、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出・失敗（gitleaks が無い・版が違うを含む）では止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
+不正な入力（helper・`implement_task.py check` の終了コード 2）、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出・失敗（gitleaks が無い・版が違うを含む）では止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
 
 検査で止まったら、どの worktree も push せず、PR を作らない。誤検出に見えても `AGENTS.md` のとおり回避しない。gitleaks は自分で導入せず、`bash "$PARENT_ROOT/.devcontainer/install_gitleaks.bash"` での導入を次の操作として報告する。検査が全部通った後の push や PR の作成が失敗して一部だけ公開されたら、公開済みの branch・PR を報告し、取り消さない。
 
-**理由 / 現在の状態 / 実施済みの検証と終了コード / 存在する worktree・branch・Spec・Plan・ログ / 次の操作** を報告する。作っていないパスは「未作成」と書く。通常の工程の区切り、推奨案の選択、実装方式の選択は停止の理由にしない。
+**理由 / 現在の状態 / 実施済みの検証と終了コード / 存在する worktree・branch・Spec・Plan・ログ / 次の操作** を報告する。Task を runner の担当に依頼した run では、`cleanup` が残したもの（`retained`）と、`cleanup` を使えなかった `RUN_DIR` の完全パスも書く。作っていないパスは「未作成」と書く。通常の工程の区切り、推奨案の選択、実装方式の選択は停止の理由にしない。
 
 ## ランタイムごとの違い
 
-- **Claude Code:** `/issue-to-pr <Issue>`。スラッシュコマンドの引数（`ARGUMENTS`）から、2 章の規則で `INPUT` を切り出す。
-- **Pi:** `/skill:issue-to-pr` の引数から、2 章の規則で `INPUT` を切り出す。`/sp-brainstorm` から入るときは、Issue の URL を最初に書く（1 章の入口）。
+- **Claude Code:** `/issue-to-pr <Issue> [--implement AGENT]`。スラッシュコマンドの引数（`ARGUMENTS`）から、2 章の規則で `INPUT` を切り出す。
+- **Pi:** `/skill:issue-to-pr` の引数から、2 章の規則で `INPUT` を切り出す。`/sp-brainstorm` から入るときは、Issue の URL を最初に書き、`--implement` はその直後に続ける（`/sp-brainstorm <Issue URL> [--implement AGENT] issue-to-pr を使い、…`）。1 章の入口を案内するときも、利用者が書いた `--implement` だけを含める。

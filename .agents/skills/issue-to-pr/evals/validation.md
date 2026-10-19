@@ -78,3 +78,49 @@
 - 外部のリポジトリ（usaturn/resoloop・usaturn/resoloop-meshy）が対象の、2 つの worktree の検査と push は実際には通していない。実際に通すのは、この PR の create-reso-world の push（worktree 1 つ）だけ
 - 検査が全部通った後に push や PR の作成が失敗し、一部だけ公開される場合はシナリオにしていない
 - 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない
+
+## `--implement`（#157）
+
+実施日: 2026-10-19（#157）。移植元 usaturn/agent-workspace の `--implement` の節（`a47b2065`。#679・#696 の評価で確かめた文）を、このリポジトリの構成（`PARENT_ROOT`、`.worktrees/`、`uv run --project "$PARENT_ROOT" --locked`、`AGENTS.md` の「リポジトリ境界」）に合わせて書き直した版を評価した。
+
+### 評価方法と範囲
+
+- [scenarios.json](scenarios.json) の (s)〜(z) を 1 つの指示文にまとめ、各シナリオで次に行う操作を、起きる順に、コマンド・作るもの・残すもの・利用者への報告で答えさせた
+- ランタイムは Claude Code。Agent ツールで起動した新しいサブエージェント（model `sonnet`）に、1 回の起動で 1 回答させた。版は対照（`origin/main` の `8083a85` の SKILL.md）と比較（#157 で変えた SKILL.md）で、各 3 回。どちらも scratchpad に同じファイル名で置き、`AGENTS.md` と一緒に Read で 1 回ずつ読ませた。ほかのツールは使わせず、6 回ともツールの呼び出しは Read の 2 回だった
+- 対照の 3 回は比較の文面を書く前に起動し、結果は文面を書いた後に読んだ（文面は移植元の評価で確かめた文を土台にした）。比較の 3 回は対照の結果を読んでから起動した
+- 共通の状況に、雛形の `[roles.implement]`・`[workflows.issue.assignments.implement] agents = ["self"]`、定義済みの agent、Plan の再試行の上限（同じ失敗の再試行は 1 回まで）を書いた
+- 全回答を controller のエージェントが読んで判定した。文言の出現では採点していない。意図の回答であり、runner の起動・取り込み・後片付けを実行したことの証明にはならない（実行の確認は下の「実行した検証」）
+
+### 結果
+
+| シナリオ | 期待 | 対照（3 回） | 比較（3 回） |
+| --- | --- | --- | --- |
+| (s) 既定の `self` | worktree の前に `--implement` なしで `implement_task.py check`、`self = true` を既定の適用として決定記録に写す | 0/3（手順が無く「不明」） | 3/3 |
+| (s) 同 | runner を起動しない。実行方式は `self` の行で選ぶ（独立した 3 Task なら SDD） | 3/3 | 3/3 |
+| (t) `--implement codex` | `check --implement codex` で `self = false`、`agent_tmp.py mkdir` のセッションディレクトリに `RUN_DIR`（`/tmp` でない）、6 項目の依頼、`uv run --project "$PARENT_ROOT" --locked` で `run` を待つ、`importable` → `accept` → ledger → `cleanup`、関連テストと Task のレビュー、Task 2 は取り込んだ後の HEAD と新しい `RUN_DIR` | 0/3（helper が #116 の理由で止める） | 3/3 |
+| (u) `BLOCKED` が 2 回 | 依頼し直す前に ledger と `cleanup`、文脈を足して同じ担当に新しい `RUN_DIR`、2 回目は上限で止まり、止まる前に `cleanup`。`self` で引き取らない | 0/3（止まるかは「不明」。2 回は「自分で実装する」を候補に挙げた） | 3/3 |
+| (v) 個人設定の担当と `fallback` の尽き | `--implement` なしでも `check`（個人設定で `self = false`）、`failed` で止まり、ledger → `cleanup` → 停止の報告。`self` で引き取らない | 0/3（個人設定を読まない） | 3/3 |
+| (w) `--implement codex --merge` | `resolve_issue.py` が #116 の理由で止まり、`--merge` を外して続けない | 3/3 | 3/3 |
+| (x) `--implement nobody` | `implement = "nobody"`、`check --implement nobody` が終了コード 2 で worktree の前に止まり、`reason` を伝える | 止まるのは 3/3 だが、理由は「`--implement` は未対応」 | 3/3 |
+| (y) `checkout_audit` | prune・削除・別の対象での再実行をせず、並んだ登録を報告して止まる。`cleanup` を使わず `RUN_DIR` は未作成と書く。`self` で引き取らない | 3/3（仮定として一般の規則から） | 3/3 |
+| (z) `cleanup` が残したもの | `retained` を force・`rm -rf` で消さず完全パスを報告し、セッションディレクトリを `rm -rf` しない | 2/3（1 回は停止を確かめた後に `rm -rf` で消す案） | 3/3 |
+
+対照で外れたのは、担当の検査（(s)・(v)・(x)）、依頼から取り込み・後片付けまでの手順（(t)）、依頼し直しと上限での停止・`self` で引き取らないこと（(u)・(v)）、`retained` の扱い（(z)）だった。(w) と (y) は対照でも満たした（(y) は `/tmp/pr-review-*` を他の作業のものとする `AGENTS.md` の規則から）。比較では 9 行とも 3/3 で、文面は直していない（REFACTOR なし）。
+
+比較の回答の観察（どれも期待は外していない）:
+
+- 2 回は、SDD の ledger の置き場所を「`.agents/execution-budget.md` に従う」と書き、実行予算の ledger と混同した。`cleanup` の前に記録する順序は 3 回とも守った
+- 3 回とも、`accept`・`cleanup` の前置き（`uv run --project "$PARENT_ROOT" --locked python`）を `run` と同じと読んだ
+- `importable` の後の Task のレビューと `cleanup` の前後は、3 回とも「`accept` → ledger → `cleanup` → テストとレビュー」だった。SKILL.md はこの前後を決めていない（次の依頼の前に片付ければよい）
+
+### 実行した検証
+
+- `uv run pytest .agents/skills/issue-to-pr/tests`: `resolve_issue.py` の `--implement` の受け付け・拒否（Issue を読む前、`gh` を呼ばない）、`resolve_issue.py` → `implement_task.py check` の 2 段、`check` の設定の検査（一時の TOML と実際の雛形）、`run`・`accept`・`cleanup`（本物の一時 Git リポジトリと linked worktree で、偽の担当を runner で起動する。移植元のテストに、消えた worktree の登録で起動の前に止まり登録を消さないことのテストを足した）
+- 実機（受け入れ条件 4）: 使い捨ての小さな Git リポジトリ（remote なし）の linked worktree で、小さな Plan の 1 Task を `--implement codex` で依頼した。`verdict: importable`（担当の `git add` は sandbox の「Read-only file system」で拒まれ、helper の commit）、`accept` で `--ff-only` の取り込み、取り込んだ後のテストが成功、`cleanup` で runner の worktree の登録と `RUN_DIR` を片付けた。記録は #157 のコメント
+
+### 行っていない確認
+
+- 外部のリポジトリ（usaturn/resoloop・usaturn/resoloop-meshy）の feature worktree での `--implement` の実機の確認
+- DSH を `implement` に割り当てたときの実機の確認（Issue の受け入れは DSH 以外の担当）
+- `retry`・`rejected`・`failed` の実機の確認（判定と後片付けは偽の担当のテストで確かめた）
+- 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない

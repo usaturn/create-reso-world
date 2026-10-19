@@ -27,7 +27,7 @@
 - `tools/test_support` に `outside_runner`（`plugin.py`）と `FINDING_CONTENT`（`texts.py`）がある。テストは `pytest_plugins = ("tools.test_support.plugin",)` で読み込む
 - 現行の `resolve_issue.py` は `FUTURE_OPTIONS` に `--implement` を含め、どのオプションも終了コード 2 で止める。`uv run --no-project` で動き、pydantic を使わない
 - runner は起動の前に、対象のリポジトリに登録された全 worktree を監査する（`require_auditable_checkouts`）。2026-10-19 の時点で、親の checkout には消えた worktree の登録（`/tmp/pr-review-182-177dc8a7/worktree`、prunable）が 1 件あり、親の checkout を対象にした `implement_task.py run` は `checkout_audit` で起動の前に止まる
-- DSH の隔離（`dsh_sandbox.py`）は `/tmp` を空の tmpfs にし、依頼の worktree だけを書けるようにする。linked worktree の git の管理領域（共通の `.git`）は書けない側にあり、codex の `-s workspace-write` でも同じことが起きうる。移植元は、担当が commit できないときに helper が commit する経路を持つ
+- DSH の隔離（`dsh_sandbox.py`）は `/tmp` を tmpfs に差し替え、ルートを読み取り専用にして、依頼の worktree などだけを書けるようにする。linked worktree の git の管理領域（共通の `.git`）は書けない側にあり、codex の `-s workspace-write` でも同じことが起きうる。移植元は、担当が commit できないときに helper が commit する経路を持つ
 - 既存のテストのうち、fixture の git が `GIT_*` を引き継ぐものは #166（open）が扱う。`.agents/skills/issue-to-pr/tests/test_resolve_issue.py` も候補に入っている
 
 ## 設計
@@ -50,7 +50,7 @@
 - `TaskRequest` は 6 項目（`repository`・`revision`・`task`・`allowed_files`・`commit_message`・`prompt`）。`repository` は feature worktree（linked worktree）の root で、HEAD が `revision`、未 commit の変更が無いこと
 - 担当が返す `TaskResult` は 7 項目（`status`・`commit`・`changed_files`・`commands`・`concerns`・`incomplete`・`retained_paths`）。形に合わない結果は runner の `payload_check` で `invalid_result` になり、`fallback` の次の候補を試す
 - `verdict` は `importable`・`no_changes`・`retry`（`BLOCKED`・`NEEDS_CONTEXT`）・`rejected`・`failed`。報告を信用せず、worktree の HEAD・未 commit の変更・`revision` からの範囲のどの commit が触ったパスかを git で読み、担当ファイル（`allowed_files`）の外、merge commit、`revision` の子孫でない commit、`outside_changes` を拒む
-- `RUN_DIR` は `PARENT_ROOT/tmp/agents/` の下に置く。`/tmp` の下は、DSH の隔離が `/tmp` を空にするので担当から worktree が見えない
+- `RUN_DIR` は `PARENT_ROOT/tmp/agents/` の下に置く。DSH の隔離（bubblewrap）は `/tmp` を差し替えて起動するので、`/tmp` の下では失敗する（#157 の本文、移植元の SKILL.md）
 - 失敗を理由に、このセッションが `self` で引き取らない。止まった Task の後の Task・最後の全体レビュー・PR には進まない
 
 ### `resolve_issue.py`
