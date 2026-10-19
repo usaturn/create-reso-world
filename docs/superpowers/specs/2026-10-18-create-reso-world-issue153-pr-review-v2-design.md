@@ -108,3 +108,13 @@
 - 2026-10-19 00:16 UTC、実機の並行runは **partial_success**。`devin-swe` は外側/内側success・本文と候補pair保存・cleanup成功。`dsh-ccd` は外側 **awaiting_approval**（exit0）で成果無し。DSHログには自身の `workspace-write mode` の file access denied がある。承認・権限を拡張した再試行はしていない。両試行ともstop_confirmed=true、sensitive_paths空、outside_changes空。parent finalize/attachはexit0だが、DSH成果が無いので全体成功ではない。
 - watcherは235.86秒でexited_incomplete（wrapper exit1）、watcher_alive/target_aliveともfalse、residual_pids空。保存元は `/workspaces/reso-world/tmp/agents/issue-153.j8p_g6l_/live-runner/result.json`、要約は同ディレクトリの `live-summary.json`。モデルのレビュー本文は判断の出所にしていない。
 - 非runner入口の依頼先sp-reviewはBash/書き込みツールを持たず、prepare/completeは未実施、成果物も未作成。実機受け入れ全体は未完了であり、#153を完了扱いしない。必要な権限/実行セッションの確認後に、成功済みDevinを繰り返さず残るDSHと非runner入口を確認する。状態はdraft、実機のゲートはblocked。マージしていない。
+
+## resume-1の確認結果（2026-10-19）
+
+利用者の再開指示で追加30分、総予算210分として、拒否操作の調査と非runner入口確認を実施した。コード・設計・許可範囲は変えず、以下は検証結果の追記である。
+
+- DSHの拒否対象は、`.staging/`にある自身のMarkdown draftへのnative `write`。tool-call/権限メタデータだけを調べた。adapterが追加するbubblewrapの書込bindは、DSH自身のnative filesystem policyの追加writable rootsにはならない。導入済み`0.2.0-rc.2`は追加roots未対応であり、現在の許可・設定のまま成功させるサポート済み手段は確認できなかった。別cwd/HOME/cache、full-access、別ツールへの切替による迂回は行わず、DSHを再試行していない。
+- 通常のBash/write可能な本Piセッションで非runnerの共通入口を1回実行した。対象`a6e394059279d8b44611654deb82b32ada6b189a`、実測`openai-codex/gpt-6.1-sol`。prepare、固定merge-baseからの全体差分取得、Markdown/候補pair保存、cleanupはすべてexit0・success。run記録も保存し、所有session/worktreeと自身のpinned refはhelperが削除した。314.976秒。
+- 対象pytestは6 passed / 97 deselected / 11.58秒 / exit0。通常shallowの3入力、fake DSH隔離tempの証跡、Pi識別子の拒否・非runner unknownを実行。未読範囲を成果に明示し、active指摘0でも判定は`Needs manual verification`。入口の実行成功は独立レビューや実機受け入れ全体の完了ではない。
+- 成果はPARENT_ROOTの`reviews/usaturn/create-reso-world/#182-feat-issue-153-pr-review-v2/`の`gpt-6.1-sol.md`、`findings/gpt-6.1-sol-a6e394059279.json`、`runs/20261019T032735Z-gpt-6.1-sol-6ec2767b.json`。今回の調査・実行ログは既存SESSIONの`resume-1/`。成功済みDevinの有料再実行、全体回帰の再実行はしていない。
+- 残るblockerはDSHのnative policyと保存先の整合。adapter/tools/依存/許可範囲の変更や別cwdでの実行は今回の許可に含まれない。親 #116へ調整事項を返し、具体的な方針判断前に実行しない。新Issue・PR・branchは作らず、#153とPR #182はopenのまま、Spec/Planはdraft、実機ゲートはblocked/not ready。PR HEADが動いた後の古いsnapshotは再利用しない。

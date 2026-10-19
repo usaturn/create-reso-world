@@ -44,6 +44,7 @@
 ## 実行予算
 
 - 能動時間 180分。似た先行 #150/#151 と異なり adapter 実装はなく、4 helper の適応と3 Task・実機3レビューが中心。準備/設計25分、helper適応65分、手順統合20分、回帰/全体レビュー35分、公開/実機/記録35分を目安とする。
+- 2026-10-19の利用者の「提案どおりに再開してください」により追加30分、有効総予算210分。ledgerの初期180分は履歴として変更せず、resume-1/checkpointに延長を記録した。許可は拒否操作のメタデータ調査と未実施の非runner入口確認に限り、DSHの権限拡張・別経路での再試行を含まない。
 - ledger: `/workspaces/reso-world/tmp/agents/issue-153.j8p_g6l_/budget.jsonl`（開始済み）。SDD補助scriptの出力が worktree 内に置かれる場合は使わず、この session に progress.md・brief・diff package を保存する。これは AGENTS.md の未追跡成果物の置き場所を優先するため。
 - 共有feature worktreeに書く実装子・pytest・shell・layout・pushは中断する worker の対象にしない。pi の foregroundで終了まで待ち、終了コードとログを確認する。
 - 実機: 対話レビュー1回（このセッションが他者本文を読む前に実施）。並行runnerは `dsh-ccd` と `devin-swe` を各1回、fallbackなし。実機はこの子のPRだけ。役割期限は900秒、親 wrapper は task_watch `--deadline-seconds 1200 --reserve-seconds 120 --no-progress-seconds 600 --stop INT --stop-grace-seconds 30 --max-repeated-failures 2`、escalate-kill無し。wrapper の進捗ファイルは SESSION 内、result-file も SESSION 内に置く。runner は同期で停止確認まで待つ。
@@ -141,10 +142,21 @@ Ruling: SDD資料はworktree外SESSIONへ置いた（AGENTS優先）。内部tar
 
 #134は保存拒否の実行挙動とfresh-session再開まで検証し、残存セッションの運用の全条件は解消済みとしない。PRはRefs #134とし、Issueに結果を報告する。#59は301ファイル保存を確認しCloses対象。
 
-## 実機での停止・引き継ぎ
+## 初回実機での停止・引き継ぎ（再開前の記録）
 
 PR #182 を作成済み（main向け、マージ無し）。parallel runの実結果はpartial_success。Devinの本文/候補保存とcleanupはsuccess、DSHはawaiting_approvalで成果無し。DSHのworkspace-write拒否を観測し、権限・cache・HOMEを変えた回避や再試行は行っていない。両attempt stop_confirmed=true、sensitive_paths=[]、outside_changes=[]。finalize-parent/attach-runner exit0はDSHレビュー成功を意味しない。wrapper exit1、watcher exited_incomplete、全プロセス停止確認済み。
 
 非runner入口は依頼先sp-reviewにBash/書込ツールが無く未実施（実モデルのレビューを実行したとは数えない）。Task3の公開は済んだが、実機受け入れはblockedで未完了。残る検証を成功扱いしてPlanをcompletedにしない。
 
 記録: `/workspaces/reso-world/tmp/agents/issue-153.j8p_g6l_/live-summary.json`、`live-runner/result.json`、`watch-live/final.json`。次はDSHの拒否操作と必要な権限の確認、通常のBash/書込可能なpiセッションで非runner入口の実行。必要な利用者判断を得る前に再起動しない。新しいPR HEADへ動いた後は古いsnapshotを再利用せずprepare-parentから作る。成功済みDevinは再実行しない。
+
+## resume-1: 拒否操作の特定と非runner入口の実行
+
+- 利用者の再開指示を受け、Issue #153のclaimを新しく取得した。新しいbranch/PRは作らず、PR #182・既存feature worktreeを継続した。コード変更はしていない。
+- DSHの失敗は、正式保存先の`.staging/<run>/<request>/<agent>/pr-review-182-*/review-backup/`にある自身のMarkdown draftへのnative `write`。tool-call名・引数キー・対象パス・拒否診断だけを取得し、レビュー本文・thinkingは読まなかった。
+- 根拠: `tools/agent_runner/adapters/dsh.py:210,232–236`の追加grantは`dsh_sandbox.py:47–53`のbubblewrap bindに渡る。一方、導入済みDSH `0.2.0-rc.2`の`@deepseek-ai/dsh-sandbox-policy/README.md:147`では追加writable roots未対応。session cwdを主workspaceとするDSH自身のnative filesystem policyへ追加grantは伝わらない。現在の設定のまま成功させるサポート済み経路は確認できなかった。
+- full-access化、別cwd/HOME/cache、bashへの書き込み切替などの迂回とDSH再試行は実施しない。adapter/tools/外部依存/許可範囲の変更はこの子の許可外で、方針の具体的な利用者判断と親 #116の調整が必要。新Issueは勝手に作らない。
+- 非runner入口は本Piセッション（実測`openai-codex` / `gpt-6.1-sol`）で1回実行。`prepare → 固定base..HEADのローカル全体差分取得 → review Markdown/candidates pair作成 → complete/save/cleanup`は全exit0、payload `success`、cleanup `success`、`pr_ref_status=deleted`。対象HEADは`a6e394059279d8b44611654deb82b32ada6b189a`。一意session `/tmp/pr-review-182-6ec2767b`とworktreeはhelperが削除し、成果2件とrun記録は親reviewsへ残した。bindingは非runnerのためunknown、runnerはnull。5分14.98秒（314.976秒）。
+- 成果: `reviews/usaturn/create-reso-world/#182-feat-issue-153-pr-review-v2/gpt-6.1-sol.md`、`findings/gpt-6.1-sol-a6e394059279.json`、`runs/20261019T032735Z-gpt-6.1-sol-6ec2767b.json`（いずれもPARENT_ROOT基準）。active指摘0だが、全テスト全文・差分全行の精読を主張せず、実DSH保存も未達なので判定は`Needs manual verification`。入口の保存成功を、独立した第三者レビューやPR全体の受け入れ完了としない。
+- 固定HEADの隔離worktreeでキャッシュ書込を止めた対象pytest: **6 passed / 97 deselected / 11.58秒 / exit0**。通常depth-1のhead/指定commit/未pushcommit、fake DSHの隔離tempの証跡保存、Pi識別子の欠落/不一致拒否、非runnerのunknownを実行。fake DSH成功をnative writeの実機成功に読み替えない。全体回帰・有料Devinは再実行していない。
+- 今回の証跡は`/workspaces/reso-world/tmp/agents/issue-153.j8p_g6l_/resume-1/`の`dsh-denied-metadata.json`、`dsh-context7.txt`、`nonrunner-prepared.json`、`nonrunner-checks.log`、`live-nonrunner-result.json`。コードは変わらず、正式Spec/Planはdraft、実機受け入れ全体はblocked/not readyを維持する。
