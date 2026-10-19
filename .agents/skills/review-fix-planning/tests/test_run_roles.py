@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -82,6 +83,16 @@ def config(self_review: str = "self", fix_check: str = "self") -> Config:
             )
         },
     )
+
+
+@pytest.fixture(autouse=True)
+def isolated_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """GIT_DIR など（rebase --exec・フックが export）で、一時リポジトリの git が実リポジトリを書き換えない（#166）。"""
+    for name in tuple(os.environ):
+        if name.startswith("GIT_") or name in {"BASH_ENV", "ENV"}:
+            monkeypatch.delenv(name)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
 
 
 def git(repo: Path, *args: str) -> str:
