@@ -147,6 +147,17 @@ after_run = [[
 [workflows.review.assignments.inspect]
 agents = ["pi-gpt", "devin-swe", "dsh-ccd", "claude-opus"]
 
+# review-fix-planning の run_roles.py が使う担当（#116 のボードの D-13）。self は司令塔が自分で実行する。
+# self-review・fix-check には DSH・codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
+[workflows.fix.assignments.implement]
+agents = ["claude-opus"]
+
+[workflows.fix.assignments.self-review]
+agents = ["self"]
+
+[workflows.fix.assignments.fix-check]
+agents = ["self"]
+
 # issue-to-pr の Plan の Task を実装する担当。既定の self はこのセッションが自分で実装する。
 # その回の --implement AGENT か個人設定で選び直せる（担当の fallback は個人設定に書く）。
 [workflows.issue.assignments.implement]
