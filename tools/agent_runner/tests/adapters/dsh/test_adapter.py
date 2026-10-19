@@ -409,14 +409,81 @@ def test_abort_maps_to_interrupted(context: AdapterContext) -> None:
 @pytest.mark.parametrize(
     "diagnostic",
     [
-        'the user rejected tool "bash"',
-        (
-            'the user rejected escalating this command to "danger-full-access"; '
-            "it stays denied, so stop and explain instead of working around it"
-        ),
+        'Error: offset 2001 is out of range for "x.py" (402 lines)',
+        'Error: offset 2001 is out of range for "x.py" (401 lines)',
+        'Error: offset 2001 is out of range for "x.py" (403 lines)',
+        'Error: ENOENT: no such file or directory, open "401.py"',
+        'Error: ENOENT: no such file or directory, open "403.py"',
+        'Error: no such file or directory, open "UNAUTHORIZED.py"',
+        "Error: invalid api key in a tool's fixture data",
+        'Error: offset 2001 is out of range for "approval-cancelled.md" (402 lines)',
+        'Error: ENOENT: no such file or directory, open "approval-unavailable.txt"',
+        'Error: ENOENT: no such file or directory, open "approval-rejected.md"',
+        'Error: ENOENT: no such file or directory, open "notes/requires approval.md"',
+        'Error: ENOENT: no such file or directory, open "/approvals/cancelled.json"',
+        'Error: ENOENT: no such file, open \'the user rejected tool "read"\'',
     ],
 )
-def test_approval_error_in_tool_result_is_not_success(context: AdapterContext, diagnostic: str) -> None:
+def test_recovered_tool_error_preserves_final_payload(context: AdapterContext, diagnostic: str) -> None:
+    events = _stream()
+    events[2:2] = [
+        {"type": "tool_call", "callId": "read-1", "tool": "read", "input": {}},
+        {"type": "tool_result", "callId": "read-1", "status": "error", "result": diagnostic},
+    ]
+    outcome = _collect(context, events)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == "success"
+    assert outcome.receipt.payload == {"ok": True}
+    assert outcome.identity.model == "observed-model"
+
+
+@pytest.mark.parametrize("code", ["MISSING_CREDENTIAL", "INVALID_CREDENTIAL", "UNAUTHORIZED", "401", "403"])
+def test_api_auth_error_overrides_completed_final(context: AdapterContext, code: str) -> None:
+    events = _stream()
+    events.insert(2, {"type": "error", "code": code, "message": "API request failed"})
+    outcome = _collect(context, events)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == "awaiting_authentication"
+    assert outcome.receipt.payload is None
+
+
+@pytest.mark.parametrize(
+    "diagnostic",
+    [
+        # Literal producer messages, not strings generated from the adapter's matcher:
+        # @deepseek-ai/dsh-tools:serviceAsk and dsh-sandbox:approveEscalation (0.2.0-rc.2).
+        'Error: the user rejected tool "bash"',
+        'Error: the user rejected tool "403"',
+        'Error: approval for tool "read" was cancelled',
+        'Error: tool "read" requires approval (not yet supported)',
+        'Error: tool "read" requires approval, but the call has no agent to route it through',
+        'Error: tool "read" requires approval, but no approval channel is available',
+        (
+            'Error: the user rejected escalating this command to "danger-full-access"; '
+            "it stays denied, so stop and explain instead of working around it"
+        ),
+        (
+            'Error: the user rejected escalating this operation to "danger-full-access"; '
+            "it stays denied, so stop and explain instead of working around it"
+        ),
+        (
+            'Error: the user rejected escalating this program to "danger-full-access"; '
+            "it stays denied, so stop and explain instead of working around it"
+        ),
+        'Error: approval for escalating to "danger-full-access" was cancelled',
+        'Error: sandbox escalation to "danger-full-access" requires approval, but no approval channel is available',
+        'Error: sandbox escalation to "danger-full-access" requires approval, but no approval service is composed',
+        'Error: sandbox escalation to "danger-full-access" requires approval, but the call has no agent to route it through',
+    ],
+)
+@pytest.mark.parametrize("ptc", [False, True])
+def test_approval_error_in_tool_result_is_not_success(context: AdapterContext, diagnostic: str, ptc: bool) -> None:
+    if ptc:
+        # Producer framing checked independently with the installed runProgram/ToolRuntime.
+        diagnostic = (
+            "Error: code run failed (exception): ToolCallError: " + diagnostic.removeprefix("Error: ")
+            + "\n    at bindingFailure (file:///fixture/process.js:902:22)"
+        )
     events = _stream()
     events.insert(
         2,
@@ -427,7 +494,104 @@ def test_approval_error_in_tool_result_is_not_success(context: AdapterContext, d
             "result": diagnostic,
         },
     )
-    assert _status(context, events) == "awaiting_approval"
+    outcome = _collect(context, events)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == "awaiting_approval" and outcome.receipt.payload is None
+
+
+@pytest.mark.parametrize("source", ["error", "turn_end", "stderr"])
+@pytest.mark.parametrize(
+    "diagnostic,state",
+    [("APPROVAL_REQUIRED", "awaiting_approval"), ("401", "awaiting_authentication")],
+)
+def test_control_diagnostics_keep_generic_matching(
+    context: AdapterContext, source: str, diagnostic: str, state: str
+) -> None:
+    events = _stream()
+    stderr = ""
+    if source == "error":
+        events.insert(2, {"type": "error", "message": diagnostic})
+    elif source == "turn_end":
+        events[2]["reason"] = {"kind": "error", "message": diagnostic}
+    else:
+        events[-1]["text"] = ""  # Only failed streams consult stderr.
+        stderr = diagnostic
+    outcome = _collect(context, events, stderr)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == state and outcome.receipt.payload is None
+
+
+@pytest.mark.parametrize("denial_first", [False, True])
+@pytest.mark.parametrize("separate_turns", [False, True])
+@pytest.mark.parametrize("ptc", [False, True])
+def test_real_denial_is_not_hidden_by_later_recovery(
+    context: AdapterContext, denial_first: bool, separate_turns: bool, ptc: bool
+) -> None:
+    events = _stream()
+    denied = {"type": "tool_result", "callId": "deny", "status": "error",
+              "result": 'Error: the user rejected tool "bash"'}
+    if ptc:
+        denied = json.loads(Path(__file__).with_name("ptc_tool_results.json").read_text())["rejected"]
+    recovered = {"type": "tool_result", "callId": "read", "status": "error",
+                 "result": 'Error: no such file "approval-cancelled.md"'}
+    first, second = (denied, recovered) if denial_first else (recovered, denied)
+    if separate_turns:
+        events[2:2] = [
+            first,
+            {"type": "status", "phase": "turn_end", "turn": 1, "reason": {"kind": "completed"}},
+            {"type": "status", "phase": "turn_start", "turn": 2},
+            second,
+        ]
+        events[-2]["turn"] = 2
+    else:
+        events[2:2] = [first, second]
+    outcome = _collect(context, events)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == "awaiting_approval" and outcome.receipt.payload is None
+
+
+def test_completed_tool_output_is_not_control_diagnostic(context: AdapterContext) -> None:
+    events = _stream()
+    events.insert(2, {"type": "tool_result", "callId": "read", "status": "completed",
+                      "result": 'Error: the user rejected tool "bash"'})
+    outcome = _collect(context, events)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == "success" and outcome.receipt.payload == {"ok": True}
+
+
+@pytest.mark.parametrize("denied", [False, True])
+@pytest.mark.parametrize("ptc", [False, True])
+def test_approval_classification_does_not_mutate_input_state(context: AdapterContext, denied: bool, ptc: bool) -> None:
+    root = context.work_dir.parent
+    for name in ("credentials", "backup", "tmp-sentinel", "cache"):
+        (root / name).write_bytes(name.encode())
+    (context.work_dir / "shared-link").symlink_to(root / "credentials")
+    (context.work_dir / "shared-hardlink").hardlink_to(root / "credentials")
+    write_session(context.receipt_path.parent / "dsh" / "state", context.work_dir,
+                  session_id="observed-session")
+    events = _stream()
+    diagnostic = ('Error: the user rejected tool "bash"' if denied else
+                  'Error: offset 2001 is out of range for "approval-cancelled.md" (402 lines)')
+    if ptc:
+        cases = json.loads(Path(__file__).with_name("ptc_tool_results.json").read_text())
+        diagnostic = cases["rejected" if denied else "read"]["result"]
+    events.insert(2, {"type": "tool_result", "callId": "deny", "status": "error", "result": diagnostic})
+    stdout, stderr = context.receipt_path.parent / "stdout.log", context.receipt_path.parent / "stderr.log"
+    stdout.write_text("".join(json.dumps(event) + "\n" for event in events))
+    stderr.write_text("")
+
+    def snapshot() -> dict[str, tuple[int, bytes | str | None]]:
+        return {str(path.relative_to(root)): (
+            path.lstat().st_mode,
+            str(path.readlink()) if path.is_symlink() else path.read_bytes() if path.is_file() else None,
+        ) for path in root.rglob("*")}
+
+    before = snapshot()
+    outcome = load_adapter("dsh").collect(context, stdout, stderr)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == ("awaiting_approval" if denied else "success")
+    assert outcome.receipt.payload == (None if denied else {"ok": True})
+    assert snapshot() == before
 
 
 def test_startup_error_without_final_is_classified(context: AdapterContext) -> None:
@@ -492,3 +656,49 @@ def test_documented_truncated_tool_input_and_reasoning_are_accepted(context: Ada
         },
     ]
     assert _status(context, events) == "success"
+
+
+@pytest.mark.parametrize(
+    "case,state",
+    [("rejected", "awaiting_approval"), ("cancelled", "awaiting_approval"),
+     ("unavailable", "awaiting_approval"), ("tool_approval", "awaiting_approval"),
+     ("read", "success"), ("read_403", "success"), ("captured_only", "success"),
+     ("caught_rejection", "success")],
+)
+def test_ptc_producer_output(context: AdapterContext, case: str, state: str) -> None:
+    # Generated by DSH 0.2.0-rc.2 runProgram -> ToolRuntime -> projectJsonRun with
+    # fake transport/approval only, independently of this adapter. Stack paths normalized.
+    cases = json.loads(Path(__file__).with_name("ptc_tool_results.json").read_text())
+    events = _stream()
+    events.insert(2, cases[case])
+    outcome = _collect(context, events)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == state
+    assert outcome.receipt.payload == ({"ok": True} if state == "success" else None)
+    assert outcome.identity.model == "observed-model"
+    # collect has no denial latch: a subsequent independent successful stream is accepted.
+    recovered = _collect(context, _stream())
+    assert recovered.receipt is not None
+    assert recovered.receipt.status == "success" and recovered.receipt.payload == {"ok": True}
+
+
+def test_ptc_refusal_survives_truncated_captured_output(context: AdapterContext) -> None:
+    case = json.loads(Path(__file__).with_name("ptc_tool_results.json").read_text())["rejected"]
+    case["result"] += "\nCaptured output:\n" + "x" * 9000
+    case["result"] = case["result"][:8000]
+    case["truncated"] = True
+    events = _stream()
+    events.insert(2, case)
+    assert _status(context, events) == "awaiting_approval"
+
+
+@pytest.mark.parametrize("first", ["auth", "ptc"])
+def test_ptc_refusal_preserves_first_control_failure(context: AdapterContext, first: str) -> None:
+    refused = json.loads(Path(__file__).with_name("ptc_tool_results.json").read_text())["rejected"]
+    auth = {"type": "error", "code": "401", "message": "API request failed"}
+    events = _stream()
+    events[2:2] = [auth, refused] if first == "auth" else [refused, auth]
+    outcome = _collect(context, events)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == ("awaiting_authentication" if first == "auth" else "awaiting_approval")
+    assert outcome.receipt.payload is None
