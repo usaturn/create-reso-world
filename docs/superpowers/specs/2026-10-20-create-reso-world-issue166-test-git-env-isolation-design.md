@@ -52,7 +52,7 @@ linked worktree で `git rebase --exec <テスト>` を実行すると、git は
 ### 4. 回帰テスト
 
 - **pytest**: `tools/agent_runner/tests/test_git_isolation.py` を新しく作る。fixture と同じ形の git（`git -C <tmp> init`・`config user.name`・`add`・`commit`）を行い、git の管理領域が一時ディレクトリの `.git` であることを確かめるテストと、それを別の pytest のプロセスで起動するテストを置く。後者は、一時ディレクトリに作ったリポジトリと linked worktree について、その worktree の `GIT_DIR`（`rev-parse --absolute-git-dir`）を export した環境で前者を実行し、終了コード 0 と、共有の設定（`.git/config`）・worktree の HEAD のブランチと commit・index・`status --porcelain` が変わらないことを確かめる。内側の pytest の `--basetemp` は外側のテストの一時ディレクトリの中にする
-- **bash**: `.devcontainer/test-run-tests.bash` に 4 番目の場合を足す。一時ディレクトリのリポジトリの `.git` を `GIT_DIR` にして、`git init`・`git -C <dir> config` を行う偽のテストを `run-tests.bash` に渡し、そのリポジトリの `.git/config` が変わらず、偽のテストのリポジトリが自分の `.git` に作られることを確かめる
+- **bash**: `.devcontainer/test-run-tests.bash` に 4 番目の場合を足す。一時ディレクトリのリポジトリの `.git` を `GIT_DIR` にして、`git init`・`git -C <dir> config` を行う偽のテストを `run-tests.bash` に渡し、そのリポジトリの `.git/config` が変わらず、偽のテストのリポジトリが自分の `.git` に作られることを確かめる。`test-run-tests.bash` 自身も冒頭で `GIT_*` を除き、直接実行しても 4 番目の場合の `git init` が外の `GIT_DIR` に届かないようにする（最後のレビューの指摘で足した）
 - **unittest の 2 本**: テストを足さない。統合確認で `GIT_DIR` を export した環境で実行し、元のリポジトリが変わらないことを確かめる（D-166-6）
 
 ## 決定記録
