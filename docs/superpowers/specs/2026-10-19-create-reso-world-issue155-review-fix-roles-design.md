@@ -1,7 +1,7 @@
 # Issue #155 review-fix-planning に役割の実行（run_roles）と最終化（finalize）をつなぐ
 
 - 文書管理・対象: `usaturn/create-reso-world`、Issue #155（親 #116、ボード `review-automation-board`、子のキー `review-fix-roles`）
-- 基準 HEAD: `8083a85eeb09c24818f9e00f537672a3217e6b78`（`origin/main`、2026-10-19）
+- 基準 HEAD: `8083a85eeb09c24818f9e00f537672a3217e6b78`（`origin/main`、2026-10-19）で着手し、PR の作成の前に、#157（PR #185）のマージ後の `origin/main` `d581f06d33ba9cb99c0e5e7a28d69d56b7d1db0e` の上に載せ直した。雛形 `.devcontainer/agent-runner.toml` の末尾の衝突は、#157 の `[workflows.issue.assignments.implement]` を残し、review → fix → issue の順に並べて解いた
 - 移植元: `usaturn/agent-workspace@415b3669dc06d045fe81fb15be7d82f8864c5cef`（`main`、2026-10-19）。ボードの基準 `a47b2065` からの差は D-2
 - 状態: `draft`。内容の承認は記録しない
 - 実行許可: 利用者が 2026-10-19 に `/issue-to-pr #155` と指示した。issue-to-pr の規則により、通常の設計判断を推奨案で決め、検証・commit・push・PR の作成まで続ける。着手の後に、利用者が「`/issue-to-pr #155 --merge` 相当で進めて」と指示した。これを、PR の作成後にレビュー修正のサイクル（D-13）を回し、修正不要と確かめたら PR をマージして #155 を閉じるまでの実行許可として扱う。どちらも実行の許可であり、この文書の内容の承認ではない。以下の判断は、D-15（2026-10-19 の利用者の決定）を除き、確認を取らずに決めたエージェントの判断である
