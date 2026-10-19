@@ -170,3 +170,12 @@
 - [ ] **Step 3: 受け入れ条件の照合**
 
   上の「要件・検証の対応」の各行について、観測した結果（終了コードと出力の要点）を PR 本文に書く。最後のブランチ全体のレビュー（`superpowers:requesting-code-review` の観点で自分が読む）で、Spec の除外範囲に触れていないことを `git diff origin/main --stat` で確かめる
+
+## 実行記録（2026-10-20 JST）
+
+- 実行方式: `superpowers:executing-plans`（inline、担当 `self`）。ledger は `AGENTS.md` の置き場所の規則に合わせて `/workspaces/reso-world/tmp/agents/issue-167.6_cewr0j/progress.md` に置いた（worktree の `.superpowers/sdd` は使わない）
+- Task 1（`aee7be2`）: 旧挙動で `test-install-beforehand.bash` が `merged == load_config(changed)` の AssertionError で失敗することを確かめてから実装し、PASS。`test_cli.py -k shipped_template` は 2 passed
+- Task 2（`412eb2e`）: 文書 4 か所。`test-readme.bash` は PASS。「すぐに効く」は runner が起動のたびに設定を読むので「次の実行から効く」にした
+- Task 3: `run-tests.bash` は 33 件 PASS（EXIT=0）、`check-layout.sh` は EXIT=0（どちらも `412eb2e`）。`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools` は 3213 passed・1 failed（34 分）。失敗した `test_run_roles.py::test_environment_preflight_does_not_launch_or_consume_review[moved-self-review]`（`partial_success`）は、単独 3 回（6 passed×3）とファイル全体（46 passed）で再現しなかった。役割の期限 20 秒に対し全体の実行が通常より大きく遅れた負荷による失敗で、#167 の変更が触れない入力（テスト内の `Config`、存在しない個人設定）なので環境の要因と判断した
+- 最後の全体レビュー（新しい文脈のレビュアー、opus）: Critical 0・Important 0・Minor 4。Minor 1（`after_run = []` の例に、止めた後に `finalize-parent`・`attach-runner` を実行する注意が無い）は、全員のホームに置かれる例をそのまま有効にすると PR レビューの結果が保存されないので Important に格付けし直して直した（`8c28737`、コメントだけの変更なのでテストは足さず、`test-install-beforehand.bash`・`test-readme.bash`・`test_cli.py`（39 passed）を再実行）。持ち越し: 例の仮の agent 名のまま外すと `invalid_reference` になる、README に既存の丸写しを確かめる手順が無い、T' が期限とモデルだけを変える
+- 能動時間: 約 63 分（ledger の 53 分と、ledger を始める前の準備の約 10 分）。予算 150 分の範囲内
