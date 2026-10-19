@@ -11,7 +11,7 @@
 | --- | --- | --- | --- | --- |
 | Claude Code | Bash `run_in_background: true` の完了通知（終了コードを含む）。サブエージェントは `Agent` の完了通知 | 既知の PID を `kill -0` | 完了通知やツール結果が返す出力ファイル path を `Read`。ログ path を印字するコマンドはその path を使い、固定パスを仮定しない | 下の参考実装を `run_in_background: true` に渡す。進捗を都度イベントとして受け取るときだけ `Monitor` を使う |
 | Devin | バックグラウンド `exec`（`timeout: 0`、または既定の自動バックグラウンド化）で起動した対象を `get_output` で待つ。`get_output` は対象プロセスの終了で即復帰し、終了コードは出力末尾の `Exit code: <n>` で確認する。1 回の待機上限は約 280 秒のため、タイムアウトしたら呼び直す。非同期の完了通知が届くのは `run_subagent` のサブエージェント（`<subagent_completion_notification>`）だけであり、シェルプロセスの終了は push されない | 既知の PID を `kill -0`（`exec` 経由）。PID の同一性確認はスキルの手順 3 のまま適用する | コマンドが印字したログ path を `read` で読む。mtime / サイズが必要なら `exec` で `stat` を使う | 下の参考実装をそのままバックグラウンド `exec`（`timeout: 0`）で動かし、その監視シェルを `get_output` で待つ。ループの脱出がそのまま `report exists OR worker is not alive` の解消になる |
-| pi | 完了通知もバックグラウンド実行も無い（pi 1.3.0 の bash ツールの引数は `command`・`timeout` だけ）。対象を bash ツールの foreground で実行し、戻った後に終了コードと結果を確認する | foreground の呼び出しが戻らない間は、対象が動いている。既知の PID は `kill -0`（bash ツール） | 実行中は確かめられない。戻った後にログを必要な範囲だけ読む。途中で止める条件が要る対象は、起動前に `task_watch.py` で宣言して包む（下の「task_watch による途中の判断と停止」） | foreground の実行が戻ることが、そのまま `report exists OR worker is not alive` の解消になる。ただし `task_watch.py` で包んだ対象は別の session で動くので、戻っただけでは解消しない（下の「task_watch による途中の判断と停止」） |
+| pi | 完了通知もバックグラウンド実行も無い（pi 1.3.0 の bash ツールの引数は `command`・`timeout` だけ）。対象を bash ツールの foreground で実行し、戻った後に終了コードと結果を確認する。PR 修正ループの `loop.py review` も、全レビュアーの終了と停止の確認まで戻らない同期のコマンドなので、bash ツールの `timeout` を付けずに foreground で実行し、標準出力の JSON と終了コードを確かめる（期限は runner が守る） | foreground の呼び出しが戻らない間は、対象が動いている。既知の PID は `kill -0`（bash ツール） | 実行中は確かめられない。戻った後にログを必要な範囲だけ読む。途中で止める条件が要る対象は、起動前に `task_watch.py` で宣言して包む（下の「task_watch による途中の判断と停止」） | foreground の実行が戻ることが、そのまま `report exists OR worker is not alive` の解消になる。ただし `task_watch.py` で包んだ対象は別の session で動くので、戻っただけでは解消しない（下の「task_watch による途中の判断と停止」）。`loop.py review` が中断で結果を残さずに終わったときは、`loop.py status` の `next` と `recover --operator-confirmed-stopped`（`pr-review-fix-loop` の「止まったとき」）で回収する |
 | Cursor | TBD | TBD | TBD | TBD |
 
 ```bash
@@ -75,4 +75,4 @@ done
 - スキルの手順 1 が禁じる foreground sleep ループとは、エージェント本体のターンを `sleep` で占有することを指す。上の `sleep 30` のように監視スクリプト内に閉じた `sleep` は該当しない。待機はバックグラウンドへ置き、ターンは通知で戻す
 - `BashOutput` と `TaskOutput` は使わない
 - Devin にはシェルプロセス終了を届ける非同期通知が無く、`Monitor` 相当のツールも無い。controller は `get_output` のブロッキング呼び出しを繰り返してターンを保持し、stall ポーリングはその合間にログを読んで行う
-- TBD のセルは埋めない。ツール名をリポジトリまたは公式文書で確認できたときだけ書く。Cursor / Codex / Grok は CLI が導入済みでも、監視ツール名が確認できるまで行を追加しない。pi の行は、bash ツールの foreground 実行と `task_watch.py` という、このリポジトリで確認済みの仕組みだけを書く。PR 修正ループの使い方は #156 で足す
+- TBD のセルは埋めない。ツール名をリポジトリまたは公式文書で確認できたときだけ書く。Cursor / Codex / Grok は CLI が導入済みでも、監視ツール名が確認できるまで行を追加しない。pi の行は、bash ツールの foreground 実行と `task_watch.py`、PR 修正ループの `loop.py review` の同期実行という、このリポジトリで確認済みの仕組みだけを書く
