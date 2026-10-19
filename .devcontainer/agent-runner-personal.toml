@@ -1,0 +1,17 @@
+# agent-runner の個人設定。runner は雛形 .devcontainer/agent-runner.toml の上にこのファイルを重ねて読む（table は統合、配列は置換）。
+# ここに書いた値は雛形を変えても上書きし続けるので、変えたい値だけを書き、要らなくなったら消す。
+# 資格情報の値は書かず、env に変数の名前を書く。仕様は tools/agent_runner/interfaces.rst。
+schema_version = 1
+
+# 例: 役割の期限（秒）を変える。書かない項目は雛形の値が効く
+# [roles.implement]
+# deadline_seconds = 7200
+
+# 例: issue-to-pr の Task を実装する担当と fallback を選ぶ
+# [workflows.issue.assignments.implement]
+# agents = ["agent-a"]
+# fallback = ["agent-b"]
+
+# 例: PR レビューの後処理を止める
+# [workflows.review]
+# after_run = []

@@ -73,7 +73,8 @@ for dir in \
     fi
 done
 
-# 非対話のエージェントのランナー（tools/agent_runner）の個人設定。既存の設定（壊れた symlink も含む）は上書きしない。
+# 非対話のエージェントのランナー（tools/agent_runner）の個人設定。雛形を写すと雛形の変更が rebuild まで効かないので、
+# 上書きの例だけの最小のファイルを置く（#167）。既存の設定（壊れた symlink も含む）は上書きしない。
 # AGENT_RUNNER_CONFIG は個別の実行の指定なので、導入時の保存先には使わない。
 place_agent_runner_config() {
     local config_home="${XDG_CONFIG_HOME:-}"
@@ -86,7 +87,7 @@ place_agent_runner_config() {
         return 0
     fi
     mkdir -p "${config_home}/agent-runner" || return 1
-    cp .devcontainer/agent-runner.toml "$config" || return 1
+    cp .devcontainer/agent-runner-personal.toml "$config" || return 1
 }
 if ! place_agent_runner_config; then
     fail "Failed to place the agent-runner config."
