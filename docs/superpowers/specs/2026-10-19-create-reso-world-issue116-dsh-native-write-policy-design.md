@@ -1,6 +1,6 @@
 # Issue #183: PR #182 の DSH 成果作成と親保存
 
-- 状態: completed（利用者の実行指示に基づく修正・検証完了。事前の内容承認を意味しない）。
+- 状態: completed（#183 と M-1 の実装修正・ローカル検証。固定した修正後 HEAD の有料並行受け入れは #153 Plan で管理し、結果は PR / Issue に記録する）。
 - 対象: usaturn/create-reso-world #183、PR #182、関連 #153 / #116。
 - 実行許可: 2026-10-19 の利用者指示「Issue #183 を解決する形で、PR#182 を修正せよ」。既存PRへの実装・検証・commit・pushを行い、マージは行わない。
 - DOC_ROOT = CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-153-pr-review-v2`、branch `feat/issue-153-pr-review-v2`。PARENT_ROOT: `/workspaces/reso-world`。
@@ -96,3 +96,41 @@ TDDで各不具合のRED/GREENを記録する。安全ガードは正常系を�
 自己レビューの重複指摘はR2へまとめ、3件すべて修正・検証済み。担当範囲の全体回帰はrunner1016/helper333、先行の全体回帰は2821 passed。先行回帰の後に変更した経路は担当範囲の全体回帰と最新実DSHで再検証し、変更していない他skill/移行ツールの証拠は引き継いだ。
 
 最終確認: shell33 PASS、layout・実config check・Python構文・git diff --check成功。実DSHの最新確認は5.41秒、主要14コードfileの起動前後SHA256一致、watcher exit0/completed/residual_pids=[]。追加の有料並行受入は未実施、PRマージは対象外。公開結果はPR状況コメントと最終報告へ記録する。
+
+
+## 2026-10-19: M-1 修正と最終受け入れの実行
+
+利用者の「提案どおりに実施してください。課金は好きなだけ実行していいです。」に基づく。直前の提案は M-1 修正、通信終了の切り分け、修正後の固定 HEAD で DSH/Devin の並行受け入れ、成功後の Issue 更新と PR #182 のマージである。この実行許可は旧版の有料実行・マージ対象外の記録に優先し、金額・総回数の上限を課さない。内容の事前承認とは区別する。今回の担当範囲以外の認証設定変更や許可拡大は必要ない。
+
+入力は現行 PR HEAD `09dca613f3ba45b47663d411d88d1e452ab5a68f`。レビューの入力は親 reviews/usaturn/create-reso-world/#182-feat-issue-153-pr-review-v2/ の gpt-6-astra（09dca61）、SWE-2-Max（09dca61）、gpt-6.1-sol（a6e3940）と対応する候補・実行記録。現行祖先であることを確認した。失敗した旧 .staging は正式成果に数えない。
+
+| ID | 分類 | 根拠 |
+| --- | --- | --- |
+| gpt-6-astra M-1 | 対応する | 起動 cwd の親にある実 Request を相対指定すると prepare が失敗する。前回の最小再現で絶対指定のみ親保存まで成功。利用者がこの修正を含む提案を明示的に実行指示した |
+| その他の正式レビュー | 指摘なし | SWE-2-Max / gpt-6.1-sol の active findings は0。未読範囲・有料受入未達は指摘0と別に維持する |
+
+### 守る条件の設計と影響経路
+
+原因は、CLI のパス表記を受ける入口と、正規絶対パスだけを受ける安全なファイル読取の境界が分かれておらず、未正規化の Request を session/output の導出へ渡したこと。09dca61 が導入した回帰として仕組み全体を見直す。点の L362 修正では scratch/exports が相対のまま残り、単なる resolve はリンク拒否を弱める。絶対パスだけに保証を狭める案も通常の CLI 入口を失うため採らない。入口で安全に正規化した Request パスを一元的に使う案を採る。
+
+| 守る条件 | 経路 | 判定 | 変更前の挙動 | 観測・assertion | 実行証拠 |
+| --- | --- | --- | --- | --- | --- |
+| 同じ実 Request は表記によらず同じ attempt へ結び付く | prepare の引数→binding→Request読取→digest | 修正する | 相対・.. を含む絶対pathは digest 検査で停止 | 正規絶対・相対・..表記で prepared、同じ内容の binding/digest | CLI正常3ケースと追加反証4表記成功。初回読取後差替でも元bytesのbinding/digest/deadlineを保持 |
+| session と成果先は正規化済 Request に由来する | review-scratch / exports / run_context→complete→親finalize | 修正する | args.request を各所で個別に導出 | expected attempt 内の固定パス、staged→親pair保存/cleanup成功 | CLI正常3ケースすべて親保存とcleanup成功 |
+| 正規化でリンク・特殊file拒否を弱めない | Request 元の全階層→厳格read→副作用 | 修正する | 正規絶対pathを nofollow / 単一link / bounded read | symlink（..で隠れるものを含む）・hardlink等を拒否し、成果未作成 | 実CLIの危険入力7ケース成功。字句正規化へ置換すると3件、hardlinkガード除去では1件の負例が失敗 |
+| 失敗処理でも入力を通常readで再読しない | mainのprepare失敗→診断payload | 修正する | FIFO等を拒否しても失敗経路がread_textで待つ | CLIが期限内にfailedを返し、別先の読取・書込なし | REDでFIFO timeout、GREENで期限内failed。診断時の厳格read除去で同じtimeoutを再検出。初回読取後FIFO差替も約3msでfailed、成果未作成 |
+| 非DSHの通常入口を保つ | nonrunner / 他runtimeのRequest→complete | 既に満たす | 既存のbinding/cwd検査 | 非DSH回帰で従来の受理・拒否を維持 | 新規relative/symlinkの2ケースと関連169件成功 |
+| 通信失敗を成果成功と混同しない | provider stream→DSH→runner→親 | 既に満たす | TRANSPORT terminated はresponse_failed | 既存ログでローカル停止と外部通信終了を分離し、新しい試行の結果を保存 | 調査結果は下記。新しい有料試行はこのcommitのpush後に実施し、PR / Issueへ記録 |
+
+M-1 は有料試行の TRANSPORT terminated の原因ではない。後者の原因が分からないままコード変更で直ったとは記録しない。並行受け入れと公開の手順・予算は #153 Plan の今回の追記に従う。自己レビューは反証・PR全体・検出力の3観点で1回行い、必要な修正後は対象検証を通す。
+
+
+通信の調査結果: 最新失敗は9 step完了後、第10 step開始から約4.12秒、最初の応答chunkから約118msでTRANSPORT terminated。runner期限約900秒、DSH idle timeout300秒に未到達、watcher stop=null。導入済みCLIはcaller abortをABORTED、idle timeoutをTIMEOUTとして分類するため、今回と異なる。例外causeが保存されないので切断主体は不明であり、LLM応答streamの途中終了が最有力。接続先・timeout・sandboxを変えずfresh sessionで受け入れを行う。根拠は PARENT_ROOT/tmp/agents/pr182-final.e7tffksd/transport-diagnosis.md。
+
+### M-1 の最終検証記録
+
+追加12ケースは正常3表記、危険入力7種類、非DSH互換2種類。関連回帰169 passed（465.00秒）、残りのスキル回帰729 passed（226.53秒）で合計898件成功。shell33系統、layout、実config check、git diff --checkもexit0。以前の全体回帰以後に変更していないrunnerの検証結果は上記記録を引き継ぐ。
+
+反証・PR全体・検出力の自己レビューを1回実施し、追加修正要求は0件。反証10ケース、5件の負例がガード除去時に失敗する対照を確認した。PR全体担当は変更31ファイルの全文・全差分・削除ファイルのbase版を読み、未読範囲と未検証候補なしと報告。検証後のコード3ファイルのSHA256を担当間で照合した。
+
+証跡は PARENT_ROOT/tmp/agents/pr182-final.e7tffksd/。主要所要は実装・関連回帰約13分、通信調査3分36秒、全体自己レビュー7分45秒、反証約6分、検出力約3分。並行した担当時間は合計の能動時間へ重複加算しない。commit / push と有料受け入れの実結果は、同じHEADを維持するため追加の文書だけのcommitをせず PR #182・Issue #153/#183に記録する。

@@ -162,3 +162,46 @@ PR #182 を作成済み（main向け、マージ無し）。parallel runの実�
 - 成果: `reviews/usaturn/create-reso-world/#182-feat-issue-153-pr-review-v2/gpt-6.1-sol.md`、`findings/gpt-6.1-sol-a6e394059279.json`、`runs/20261019T032735Z-gpt-6.1-sol-6ec2767b.json`（いずれもPARENT_ROOT基準）。active指摘0だが、全テスト全文・差分全行の精読を主張せず、実DSH保存も未達なので判定は`Needs manual verification`。入口の保存成功を、独立した第三者レビューやPR全体の受け入れ完了としない。
 - 固定HEADの隔離worktreeでキャッシュ書込を止めた対象pytest: **6 passed / 97 deselected / 11.58秒 / exit0**。通常depth-1のhead/指定commit/未pushcommit、fake DSHの隔離tempの証跡保存、Pi識別子の欠落/不一致拒否、非runnerのunknownを実行。fake DSH成功をnative writeの実機成功に読み替えない。全体回帰・有料Devinは再実行していない。
 - 今回の証跡は`/workspaces/reso-world/tmp/agents/issue-153.j8p_g6l_/resume-1/`の`dsh-denied-metadata.json`、`dsh-context7.txt`、`nonrunner-prepared.json`、`nonrunner-checks.log`、`live-nonrunner-result.json`。コードは変わらず、正式Spec/Planはdraft、実機受け入れ全体はblocked/not readyを維持する。
+
+
+## 2026-10-19: 最終修正・並行受け入れ・マージ
+
+利用者の「提案どおりに実施してください。課金は好きなだけ実行していいです。」を実行許可とする。M-1 の設計は既存 #183 Spec に集約する。以前の有料起動回数の上限・マージ対象外は今回の実行を制限しない。今回の金額・総呼出回数は利用者が上限を設けていないが、同じ失敗を無検討で繰り返さない。
+
+### 実行予算
+
+能動時間の目安120分（修正・通信調査25、回帰・自己レビュー25、有料診断/並行受け入れ45、記録・公開・マージ25）。ledger は PARENT_ROOT/tmp/agents/pr182-final.e7tffksd/budget.jsonl。phase境界・50%・失敗直後に確認する。有料の実行は毎回対象・目的・期限・回数を事前記録し、新しい出力先とsnapshotを使う。最初は必要なら DSH の短い診断、最終は DSH/Devin各1回2並列で固定した修正後HEADを検証する。明示fallbackは使わない。
+
+worker期限900秒、watcher1200秒、保存予約120秒、実質無進捗600秒、SIGINT/猶予30秒、KILLへの昇格なし。信頼性の同一失敗は1回再試行までとして、その後は原因・プロンプト負荷・provider/モデルの経路等を根拠付きで見直してから別の宣言で進む。安全/認証/権限拒否の迂回は行わない。費用を理由に必要な検証を省かず、課金許可を環境変更の許可へ広げない。通信障害が続く場合は失敗を保持し、受け入れ条件を成功へ読み替えない。
+
+### Task A: M-1 修正と検証
+
+- [x] 安全な Request 正規化を入口に集約し、digest / scratch / exports / context を統一。
+- [x] 正常3表記のRED/GREEN、リンク・特殊file・cwd拒否、親保存までの回帰。
+- テスト必要: 再現済みの実行時不具合とファイル境界の拒否を守る。
+
+### Task B: 通信切り分け
+
+- [x] 既存試行の時系列と導入済みCLIの終了経路を確認し、ローカルtimeout/取消とstream切断を分離。
+- [x] 既存ログで原因範囲を絞れたため短い有料診断は省略。接続先等を変えず新しい並行受け入れを行う。
+- テスト追加不要: 診断は外部通信の観測で、コミットするテストはfake CLIのみ。
+
+### Task C: 回帰・自己レビュー・公開
+
+- [x] 関連テスト、tests/skills と .agents/skills、shell回帰、layoutを実行。
+- [x] 反証・PR全体・検出力の自己レビューを1回。指摘を対応して影響した検証を再実行。
+- [ ] Spec/Planに修正結果を記し、Gitleaks検査したSHAを既存PRへpush。
+- テスト追加不要: 既存の検証入口とTask Aのテストを使う。
+
+### Task D: 最終受け入れとマージ
+
+- [ ] 修正後の固定HEADでDSH/Devinの新しい2並列受け入れ。outer / payload / native evidence / pair / run記録 / cleanup / stopを照合。
+- [ ] 受け入れで出た指摘は現行コードで判定し、必要な修正には再検証。変更後の成果を旧HEADの成功で代替しない。
+- [ ] PR説明・#153/#183と関連Issueを実結果へ更新し、検証したHEADだけをマージ。親checkoutを最新origin/mainのdetached HEADへ更新。
+- テスト追加不要: 有料実機受け入れとGitHub状態の確認を証拠にする。
+
+### 公開前の実結果
+
+M-1 の安全な入口を修正済み。追加12ケースを含む関連169 passed、残りのスキル729 passed、計898件成功。shell33系統・layout・実config check・diff検査も成功。自己レビュー3観点を1回行い、追加指摘なし。反証10ケースとガードを外す対照5負例で条件を確認した。詳細は既存 #183 Spec の M-1 検証記録と同じSESSIONのログを参照。
+
+通信失敗は第10応答stream開始直後に発生し、runner/DSH期限や取消の証拠なし。元のsocket causeは記録されず切断主体までは未確定。新しい2並列の宣言とハーネスを acceptance-1/ に準備した。このcommit時点では有料試行を起動していない。Task C のpush、Task Dの受け入れ・Issue更新・mergeの実結果はPR/Issueへ追記し、検証したHEADを文書だけの追加commitで変えない。

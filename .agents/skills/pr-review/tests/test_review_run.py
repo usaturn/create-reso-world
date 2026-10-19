@@ -290,6 +290,104 @@ def test_parent_bundle_child_needs_no_github_and_parent_saves(
     assert not Path(result["worktree"]).exists()
 
 
+@pytest.mark.parametrize("notation", ["absolute", "relative", "absolute_dotdot"])
+def test_dsh_request_path_notation_preserves_parent_save(
+    prepared: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str], notation: str,
+) -> None:
+    # Regression: a valid relative Request must use the same outbox and binding
+    # as its absolute spelling, through the actual CLI and parent promotion.
+    parent_input(prepared, tmp_path, monkeypatch)
+    request_path = prepared["request_path"]
+    value = {
+        "absolute": str(request_path),
+        "relative": "../request.json",
+        "absolute_dotdot": str(prepared["caller"] / ".." / "request.json"),
+    }[notation]
+    code = review_run.main([
+        "prepare", "--pr", prepared["args"].pr, "--runtime", "dsh", "--request", value,
+    ])
+    result = json.loads(capsys.readouterr().out)
+    assert code == 0 and result["status"] == "prepared", result
+    state = json.loads(Path(result["state_file"]).read_text())
+    assert state["run_context"]["request_path"] == str(request_path)
+    assert Path(result["draft"]).parent == tmp_path / "dsh/tmp/exports"
+    mark_reviewed(result)
+    staged = review_run.complete(argparse.Namespace(state=result["state_file"]))
+    assert staged["status"] == "staged", staged
+    batch = staged_batch(prepared, staged)
+    review_run.finalize_parent_batch(batch)
+    completed = batch.results[0].attempts[0].payload
+    assert isinstance(completed, dict) and completed["status"] == "success", completed
+    assert completed["cleanup"] == "success"
+    assert Path(completed["review_file"]).is_file()
+    assert Path(completed["findings_file"]).is_file()
+    assert not Path(result["worktree"]).exists()
+
+
+@pytest.mark.parametrize("kind", [
+    "symlink", "hardlink", "fifo", "directory_symlink", "symlink_dotdot",
+    "missing_dotdot", "file_dotdot",
+])
+def test_dsh_request_rejects_unsafe_paths_before_creating_artifacts(
+    prepared: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+) -> None:
+    # Normalization must not conceal an unsafe component, and neither the
+    # initial read nor the error-response binding read may block on a FIFO.
+    parent_input(prepared, tmp_path, monkeypatch)
+    original = prepared["request_path"]
+    candidate = tmp_path / "unsafe-request.json"
+    if kind == "symlink":
+        candidate.symlink_to(original)
+    elif kind == "hardlink":
+        os.link(original, candidate)
+    elif kind == "fifo":
+        os.mkfifo(candidate)
+    else:
+        component = tmp_path / "component"
+        if kind in {"directory_symlink", "symlink_dotdot"}:
+            component.symlink_to(prepared["caller"], target_is_directory=True)
+        elif kind == "file_dotdot":
+            component.write_text("not a directory")
+        candidate = component / ".." / "request.json"
+        if kind == "directory_symlink":
+            (prepared["caller"] / "request.json").write_bytes(original.read_bytes())
+            candidate = component / "request.json"
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "prepare", "--pr", prepared["args"].pr,
+         "--runtime", "dsh", "--request", str(candidate)],
+        cwd=prepared["caller"], capture_output=True, text=True, timeout=5,
+    )
+    assert result.returncode == 1, result.stdout
+    outcome = json.loads(result.stdout)
+    assert outcome["status"] == "failed" and outcome["run_record"] is None
+    assert not (tmp_path / "dsh").exists()
+    assert not (prepared["parent"] / "reviews").exists()
+
+
+@pytest.mark.parametrize("linked", [False, True], ids=["relative", "symlink"])
+def test_other_runtime_request_path_acceptance_is_unchanged(
+    prepared: dict[str, Any], capsys: pytest.CaptureFixture[str], linked: bool,
+) -> None:
+    # DSH's stricter input boundary must not change other runtimes' existing
+    # handling of a relative Request or a caller-owned symbolic link to one.
+    value = "../request.json"
+    if linked:
+        (prepared["caller"] / "request-link.json").symlink_to(prepared["request_path"])
+        value = "request-link.json"
+    argv = prepared["argv"].copy()
+    argv[argv.index("--request") + 1] = value
+    code = review_run.main(argv)
+    result = json.loads(capsys.readouterr().out)
+    assert code == 0 and result["status"] == "prepared", result
+    mark_reviewed(result)
+    completed = review_run.complete(argparse.Namespace(state=result["state_file"]))
+    assert completed["status"] == "success" and completed["cleanup"] == "success", completed
+    assert Path(completed["review_file"]).is_file()
+    assert Path(completed["findings_file"]).is_file()
+
+
 def test_parent_bundle_from_shallow_checkout_is_complete(
     prepared: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

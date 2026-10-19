@@ -16,6 +16,24 @@ SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"[0-9a-f]{64}")
 
 
+def canonical_request_path(path: Path) -> Path:
+    """Normalize a caller's spelling without hiding linked or invalid directories."""
+    absolute = path if path.is_absolute() else Path.cwd() / path
+    canonical = Path("/")
+    directory = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in absolute.parts[1:-1]:
+            # Open even a component later cancelled by '..': lexical abspath
+            # would otherwise hide a symlink, missing directory or plain file.
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            os.close(directory)
+            directory = child
+            canonical = canonical.parent if part == ".." else canonical / part
+        return canonical / absolute.name
+    finally:
+        os.close(directory)
+
+
 def regular_bytes(path: Path, *, limit: int = 512 * 1024 * 1024) -> bytes:
     """Read once through anchored directory descriptors; never follow links or block on a FIFO."""
     if not path.is_absolute() or any(p in {".", ".."} for p in path.parts):

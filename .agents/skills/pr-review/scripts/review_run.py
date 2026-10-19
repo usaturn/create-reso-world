@@ -78,11 +78,12 @@ def command(argv: list[str]) -> str:
 
 
 def request_binding(
-    path: str | None, *, work_dir: Path | None = None
+    path: str | None, *, work_dir: Path | None = None, request: Request | None = None
 ) -> dict[str, str]:
     if path is None:
         return dict.fromkeys(BINDING_KEYS, "unknown")
-    request = Request.model_validate_json(Path(path).read_text(encoding="utf-8"))
+    if request is None:
+        request = Request.model_validate_json(Path(path).read_text(encoding="utf-8"))
     if request.work_dir.resolve(strict=True) != (work_dir or Path.cwd()).resolve(
         strict=True
     ):
@@ -94,6 +95,12 @@ def request_binding(
             "noninteractive review requires request result_shape=json"
         )
     return {key: str(getattr(request, key)) for key in BINDING_KEYS}
+
+
+def read_dsh_request(path: str) -> tuple[Path, bytes, Request]:
+    canonical = parent_data.canonical_request_path(Path(path))
+    raw = parent_data.regular_bytes(canonical)
+    return canonical, raw, Request.model_validate_json(raw)
 
 
 def request_deadline(path: str) -> float:
@@ -292,20 +299,22 @@ def helper_write_exceptions(
 
 def prepare(args: argparse.Namespace) -> dict[str, Any]:
     started_at, started_monotonic = utc_now(), time.monotonic()
-    binding = request_binding(args.request)
-    model, provider = observed_model(args.runtime, args.model_name)
-    artifact_identity = f"{provider}/{model}" if args.runtime == "dsh" else model
-    model_name, _source = workspace.resolve_runtime_model_name(artifact_identity)
-    snapshot = None
+    request_path = Path(args.request) if args.request else None
+    request_raw: bytes | None = None
     request: Request | None = None
     if args.runtime == "dsh":
         if not args.request:
             raise workspace.WorkspaceError(
                 "DSH review requires an authenticated parent's Request"
             )
-        request = Request.model_validate_json(
-            Path(args.request).read_text(encoding="utf-8")
-        )
+        request_path, request_raw, request = read_dsh_request(args.request)
+    binding = request_binding(args.request, request=request)
+    model, provider = observed_model(args.runtime, args.model_name)
+    artifact_identity = f"{provider}/{model}" if args.runtime == "dsh" else model
+    model_name, _source = workspace.resolve_runtime_model_name(artifact_identity)
+    snapshot = None
+    if args.runtime == "dsh":
+        assert request is not None
         snapshot = parent_data.load(
             workspace, parent_data.descriptor_from_prompt(request.prompt), args.pr
         )
@@ -358,20 +367,21 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     workspace.artifact_model(model_name, args.review_commit)
     # 記録の名前にセッションの接尾辞を使うので、セッションの名前を先に決めて create に渡す
     session_name, suffix = record.new_session_name(int(target["number"]))
-    if snapshot is not None and args.request:
-        suffix = hashlib.sha256(parent_data.regular_bytes(Path(args.request))).hexdigest()[:8]
+    if snapshot is not None and request_raw is not None:
+        suffix = hashlib.sha256(request_raw).hexdigest()[:8]
         session_name = f"pr-review-{target['number']}-{suffix}"
     temp_root = (
-        review_scratch(Path(args.request).parent)
-        if snapshot is not None and request is not None
+        review_scratch(request_path.parent)
+        if snapshot is not None and request_path is not None
         else Path(args.temp_root).resolve()
         if args.temp_root
         else Path(tempfile.gettempdir()).resolve()
     )
     local_record = snapshot is not None
     if local_record:
+        assert request_path is not None
         temp_root.mkdir(parents=True, exist_ok=True)
-        review_exports(Path(args.request).parent).mkdir(parents=True, exist_ok=True)
+        review_exports(request_path.parent).mkdir(parents=True, exist_ok=True)
     try:
         record_path = temp_root / "run.json" if local_record else record.safe_record_path(
             parent,
@@ -499,11 +509,15 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
         reviewer = {**identity, "review_file": session["review_file"]}
         context = {
             "binding": binding,
-            "request_path": str(Path(args.request).resolve(strict=True))
-            if args.request
+            "request_path": str(request_path)
+            if request_raw is not None
+            else str(request_path.resolve(strict=True))
+            if request_path is not None
             else None,
-            "request_sha256": workspace.file_digest(Path(args.request))
-            if args.request
+            "request_sha256": hashlib.sha256(request_raw).hexdigest()
+            if request_raw is not None
+            else workspace.file_digest(request_path)
+            if request_path is not None
             else None,
             "started_at": started_at,
             "started_monotonic": started_monotonic,
@@ -572,7 +586,9 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             "request": (
                 {
                     "sha256": context["request_sha256"],
-                    "deadline_seconds": request_deadline(args.request),
+                    "deadline_seconds": request.deadline_seconds
+                    if request is not None
+                    else request_deadline(args.request),
                 }
                 if args.request
                 else None
@@ -586,7 +602,8 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
         context["prepared_monotonic"] = time.monotonic()
         workspace.write_json(state_file, state)
         if local_record:
-            outbox = review_exports(Path(args.request).parent)
+            assert request_path is not None
+            outbox = review_exports(request_path.parent)
             session["draft"] = str(outbox / "review.md")
             session["findings_draft"] = str(outbox / "findings.json")
         workspace.write_json(Path(session["findings_draft"]), document)
@@ -1463,7 +1480,10 @@ def main(argv: list[str] | None = None) -> int:
         result = {**result_fields(state), "status": "failed", "reason": str(error)}
         if getattr(args, "request", None):
             try:
-                result.update(request_binding(args.request))
+                request = None
+                if getattr(args, "runtime", None) == "dsh":
+                    _path, _raw, request = read_dsh_request(args.request)
+                result.update(request_binding(args.request, request=request))
             except OSError, ValueError, RuntimeError:
                 pass
         if getattr(args, "state", None):
