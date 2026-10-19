@@ -40,12 +40,12 @@ _APPROVAL = re.compile(
     re.IGNORECASE,
 )
 # DSH 0.2.0-rc.2: dsh-tools.serviceAsk / dsh-sandbox.approveEscalation,
-# rendered with the "Error: " prefix by the tool executor. Headless JSON has
-# no structured denial tag. Match the entire producer message, never substrings
-# of file paths or tool output. Subject/name/mode are producer parameters,
+# Headless JSON has no structured denial tag. Match the entire reason after
+# decoding the direct/PTC envelope, never substrings of paths or captured output.
+# Subject/name/mode are producer parameters,
 # not a caller whitelist (run_code uses "program"). Keep control diagnostics generic.
-_TOOL_APPROVAL = re.compile(
-    r'Error: (?:the user rejected tool "[^"\n]+"'
+_TOOL_APPROVAL_REASON = re.compile(
+    r'(?:the user rejected tool "[^"\n]+"'
     r'|approval for tool "[^"\n]+" was cancelled'
     r'|tool "[^"\n]+" requires approval(?: \(not yet supported\)'
     r'|, but (?:the call has no agent to route it through|no approval channel is available))'
@@ -57,6 +57,20 @@ _TOOL_APPROVAL = re.compile(
     r'|the call has no agent to route it through))'
 )
 _FENCE = re.compile(r"```json\b[^\n]*\n(.*?)```", re.IGNORECASE | re.DOTALL)
+
+
+def _tool_denial(text: str) -> bool:
+    # run_code's uncaught binding failures become ToolCallError stacks, then
+    # CodeRunFailedError. Only the first exception line is a refusal reason;
+    # the stack, Captured output and sandbox annotations are ordinary data.
+    ptc_prefix = "Error: code run failed (exception): ToolCallError: "
+    if text.startswith(ptc_prefix):
+        reason = text[len(ptc_prefix):].partition("\n")[0]
+    elif text.startswith("Error: "):
+        reason = text[len("Error: "):]
+    else:
+        return False
+    return _TOOL_APPROVAL_REASON.fullmatch(reason) is not None
 
 
 def _constant(value: str) -> object:
@@ -132,8 +146,8 @@ def _classify(events: list[dict[str, object]], shape: str) -> tuple[ReceiptStatu
             return _diagnostic(str(event.get("code", "")) + " " + str(event.get("message", ""))), None
         if event.get("type") == "tool_result" and event.get("status") == "error":
             # Tool output is data, not API auth/approval state. Only complete
-            # messages from DSH's denial producers remain fatal here.
-            if _TOOL_APPROVAL.fullmatch(str(event.get("result", ""))):
+            # refusal reasons from DSH's direct/PTC producers remain fatal here.
+            if _tool_denial(str(event.get("result", ""))):
                 return "awaiting_approval", None
         if event.get("type") == "status" and event.get("phase") == "turn_end":
             reason = event.get("reason")

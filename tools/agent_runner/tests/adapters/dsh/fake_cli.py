@@ -177,6 +177,10 @@ def main() -> int:
         {"type": "session", "sessionId": "fake-observed", "cwd": str(Path.cwd())},
         {"type": "status", "phase": "turn_start", "turn": 1},
     ]
+    if mode.startswith("ptc-"):
+        # Actual fixed-version producer output; only disposable stack paths normalized.
+        cases = json.loads(Path(__file__).with_name("ptc_tool_results.json").read_text())
+        events.append(cases[mode.removeprefix("ptc-")])
     denials = {
         "approval": 'Error: the user rejected tool "bash"',
         "approval-program": (
