@@ -426,6 +426,31 @@ def test_binding_mismatch_is_rejected_before_reservation(inputs: Any, tmp_path: 
     assert json.loads(inputs[1].read_text())["activities"] == []
 
 
+@pytest.mark.parametrize(
+    "anomaly,reason",
+    [
+        ("missing", "review_dir must be an existing directory"),
+        ("verified-file", "verified must be absent or a directory"),
+    ],
+)
+def test_unusable_fix_check_destination_stops_before_reservation_or_launch(
+    inputs: Any, tmp_path: Path, parent: Path, anomaly: str, reason: str
+) -> None:
+    """保存できない fix-check の保存先では、戻せない 1 回枠を予約せず、担当も起動しない（#177）。"""
+    _, planning, fix_input = inputs
+    if anomaly == "missing":
+        fix_input["review_dir"] = str(tmp_path / "absent-staging")
+    else:
+        Path(fix_input["review_dir"], "verified").write_bytes(b"not a directory\n")
+    adapter = FakeAdapter()
+    with pytest.raises(ValueError, match=reason):
+        launch(inputs, tmp_path, config("a", "b"), adapter_loader=adapter)
+    assert adapter.requests == []
+    assert json.loads(planning.read_text())["activities"] == []
+    assert not (tmp_path / "run").exists()
+    assert not planning.with_suffix(".json.review-lock").exists()
+
+
 @pytest.mark.parametrize("phase", ["implement", "self-review"])
 @pytest.mark.parametrize("failure", ["missing", "locked", "moved"])
 def test_environment_preflight_does_not_launch_or_consume_review(
