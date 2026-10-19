@@ -306,13 +306,17 @@ v1 の記録に無い項目（移植元の usaturn/agent-workspace#485 が Spec 
 - 前の状態で `state` が `fix` の判断が、すべてこのサイクルの `decisions` にあること（`outcome` が `stopped` または `stopped_` で始まるサイクルを除く）。
 - `outcome` が `no_fix_needed` のとき、前の状態にこのサイクルの判断を重ねた結果に、`fix`・`hold`・`unverified` が残っていないこと。
 
-手で確かめるときは、次のように実行する。一時ファイルの置き場所は、各スキルの規則に従う。
+手で確かめるときは、次のように実行する。一時ファイルの置き場所は、各スキルの規則に従う。8.1 節と同じ方法で認証済み利用者の login を取得し、失敗・空の場合は照合へ進まない。8.1 節の fold に続けて照合する場合は、以下の login 取得を繰り返さず、取得済みの同じ `TRUSTED_LOGIN` を使う。
 
 ```bash
+TRUSTED_LOGIN="$(gh api user --jq '.login // empty')" && [ -n "$TRUSTED_LOGIN" ] || {
+  printf '%s\n' '認証済み利用者の login を取得できないため停止する。' >&2
+  exit 1
+}
 uv run --no-project python "$TOPLEVEL/.agents/scripts/review_records.py" validate --record-file "$ROUND_JSON"
 gh api --paginate --slurp "repos/$PR_REPO/issues/$PR_NUMBER/comments" > "$COMMENTS_JSON"
 uv run --no-project python "$TOPLEVEL/.agents/scripts/review_records.py" validate \
-  --record-file "$ROUND_JSON" --comments-file "$COMMENTS_JSON"
+  --record-file "$ROUND_JSON" --comments-file "$COMMENTS_JSON" --trusted-login "$TRUSTED_LOGIN"
 ```
 
 更新しようとしているコメントがあるときは、2 つ目の `validate` に `--exclude-comment <そのコメントの ID>` を付ける。終了コードは、0 が成功、65 が内容の問題、66 がファイルを読めない場合、2 が引数の誤りである。問題は、標準エラー出力に場所付きで 1 行ずつ出る。
