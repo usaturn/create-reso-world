@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: completed（PR #180 の PTC 経路のレビュー修正・検証完了。実行許可に基づく完了であり、内容承認は推測しない）
+- 状態: completed（PR #180 の 3 回目のレビュー結果は修正不要と確定し、検証を完了。実行許可に基づく完了であり、内容承認は推測しない）
 - 文書・実装対象: usaturn/create-reso-world
 - Issue: https://github.com/usaturn/create-reso-world/issues/174
 - 調査した HEAD: `1335f410e624355cd558029bdcdad65eaa944ed8`
@@ -274,3 +274,60 @@ SR-C1/SR-T1は**きっかけ3（自己レビューでの再発／今回の修正
 - 結論: **1 修正して既存PRへpush**。マージ・Issue closeは行わない。採用2件は同じ原因の報告であり、直接・PTC・runner/fallbackの全対象経路を修正・検証済み。本Specを修正と一緒に1回コミットし、秘密検査したSHAを通常pushする。公開結果は状況コメントに残す。
 - 統合担当の所要時間: 04:59 UTC開始、05:15 UTCごろ公開準備完了、約16分。準備/入力/原因調査約4分、設計/TDD/独立照合約3分、環境検証と証拠記録約5分、自己レビュー/照合約4分。公開所要時間はPRコメントで報告する。
 - 初期再現とguard対照の隔離worktree、生成元担当・反証担当のscratchは登録解除・回収済み。検証ログは `/tmp/review-fix-planning.ECmwQM/` に一時保存し、本Specへ結果を転記後、公開・停止確認を終えて回収する。再利用した既存worktreeはこのセッションの片付け対象ではない。
+
+
+## 3 回目のレビュー結果の選別（2026-10-19、修正不要）
+
+### 入力・分類・実行許可
+
+利用者の `/review-fix-planning #180`（追加の指定なし）を、review-fix-planning の完遂（既定）の依頼として扱う。修正要否の確定と、修正不要ならマージ・関連 Issue の更新までを実行許可とする。内容の承認は推測しない。対象は同じ PR・Issue・テーマなので本 Spec を更新し、初回 Plan は履歴のまま残す。
+
+対象 PR は usaturn/create-reso-world#180、現行 HEAD は `1688b205c0d4f10cd0fdb3ab8d17e173bb9d472d`。入力は `reviews/usaturn/create-reso-world/#180-fix-issue-174-dsh-tool-diagnostics/` の全 5 ファイルで、SWE-2-Max・claude-opus-5-5・gpt-6-astra・opencode-go-deepseek-v4.1-flash の対象 HEAD は `1688b205c0d4`、gpt-6.1-sol は `f5550936db66`。履歴にある `7000cde47e01` を含め、すべて取得した PR head の祖先であることを確かめた。5 件とも Approve で、未解決の指摘は無い。
+
+分類: **解消済み 4 / 対応する 0 / 対応しない 2**。
+
+| ID | 分類 | 根拠 |
+| --- | --- | --- |
+| SWE I-1 | 解消済み | 承認風パスを含む read エラーで回答を捨てる。`dsh.py:62-73,147-151` の全文一致で解消。下記の独立プローブで、`f555093` では承認風パス 10 件が `awaiting_approval` に倒れ、現行 HEAD では `success` と payload を保持する |
+| DeepSeek L-1 | 解消済み | SWE I-1 と同じ原因。同じプローブと `test_recovered_tool_error_preserves_final_payload`・`test_recovered_read_error_keeps_primary_result` で確認 |
+| Claude L-1 | 解消済み | PTC の program が拒否を捕まえないと成功になる。`_tool_denial` の PTC 接頭辞の分岐で解消。プローブで、`7000cde` では PTC の拒否 164 件がすべて `success` になり、現行 HEAD ではすべて `awaiting_approval` |
+| Astra H-1 | 解消済み | Claude L-1 と同じ原因の独立報告。同上 |
+| SWE 未検証候補 1（`ask.reason` の任意の理由・改行を含む理由） | 対応しない | `ask.reason` を使うのは `serviceAsk` の approval サービスが無い分岐（`dsh-tools/lib/index.js:3441-3444`）だけで、runner の patch は `approval`（policy: never）を必ず組み込む（`dsh.py:255`）ため、サポートする構成では到達しない。可変部分（ツール名・mode・subject）は固定版では引用符・改行を含まない。任意 plugin は既知の制限のとおり |
+| SWE 未検証候補 2（ツール本文だけに出る API 認証失敗） | 対応しない | `tool_result` はツールの出力で、親モデルの API 認証の状態ではない。親の API 失敗は top-level error・非 completed の turn_end・失敗時の stderr で従来どおり検出する（`test_control_diagnostics_keep_generic_matching`）。新しい要求であり致命的ではない |
+
+「対応する」が 0 件なので、守る条件と影響経路の表の追加、設計の見直しのきっかけの判定、修正後の自己レビューは該当しない。
+
+### 自己確認
+
+全指摘、PR の変更 7 ファイル（merge-base `1335f41` からの差分と `dsh.py` の全文）、`_diagnostic`・`_classify` の全呼出元（`collect` の stderr による再診断、identity の検証）、追加・変更されたテストを、現行 HEAD のコミット済みの内容で読んだ。導入済みの `@deepseek-ai/dsh@0.2.0-rc.2` では次を確かめた。PR が持ち込んだ致命的な欠陥は見つからなかった。
+
+- 拒否文の生成元は `dsh-tools` の `serviceAsk`（`lib/index.js:3439-3490`）と `dsh-sandbox` の `approveEscalation`（`lib/index.js:99-121`）だけで、旧判定（汎用の承認検索）に一致する文言をツールのエラーとして生成する箇所は他に無い（配布ソース全体の検索。残りはシステムプロンプト・説明文）
+- 直接の経路: bash の `execute` は `approveBashEscalation` の例外を包まずに伝え（`dsh-tool-bash/lib/index.js:641-644`）、`toolErrorResult` は `Error: ${message}` の 1 ブロックにする（`dsh-tools/lib/index.js:3616-3628`）。`tools/post-execute` の repeat-tool-reminder は `additionalContexts` に足すだけで本文を変えず、headless は `message.content` だけを投影する（`dsh-headless/lib/json-stream-BA-F3lfb.js:245-254`）
+- PTC の経路: `CodeRunFailedError` の本文は `code run failed (<kind>): <message>` の後に改行で Captured output・File sandbox・案内文を付け（`dsh-tools/lib/index.js:1430-1434`）、例外の本文は `ToolCallError` の stack である（`dsh-ptc-runtime-node/lib/process.js:876-903`）
+- サブエージェントの経路: 子の失敗は停止理由と部分出力の形で親へ返り（`dsh-tool-subagent/lib/index.js:305-317`）、拒否理由そのものの形では届かない。子のモデルの文は、本 Spec の方針どおりデータとして扱う
+
+独立プローブ（`/tmp` の隔離 worktree で実行し、回収済み）: 生成元のテンプレートから書いた拒否文 41 種（serviceAsk 5 文 × ツール名 5、approveEscalation の 4 文 × mode 2、却下の文 × subject 4 × mode 2）を、直接・PTC（stack あり・なし、Captured output 9,000 字、File sandbox の注記）の 5 形で `_classify` に入れ、承認風・認証風のパス 8 件の read エラー（直接・PTC）と行数 3 件、対照 4 件（Captured output だけに拒否文、捕まえて completed、`Error: Error: `、拒否文の後に文字）を加えた計 228 件。現行 HEAD は 228 件すべて期待どおり。同じプローブで、`7000cde` は 164 件（PTC の拒否すべて）、`f555093` は 13 件（承認風パス 10 件と対照 3 件）が期待と食い違い、それぞれの時点の指摘を検出できることを確かめた。
+
+### 検証
+
+| 検証 | 対象 | 結果 |
+| --- | --- | --- |
+| `uv run --locked pytest -p no:cacheprovider tools/agent_runner/tests/adapters/dsh -q` | PR head `1688b20` | 233 passed / 19.89 秒 |
+| `bash .devcontainer/run-tests.bash` | PR head | 33 本 PASS / 296 秒 |
+| `bash scripts/check-layout.sh` | PR head | PASS |
+| `git diff --check 1335f41 HEAD` | PR head | 問題なし |
+| DSH テスト（同上） | PR head に base `0b9c38c` を merge した一時ツリー（push しない） | 233 passed / 23.67 秒 |
+| `bash .devcontainer/run-tests.bash` | 同上 | 33 本 PASS / 331 秒 |
+| `bash scripts/check-layout.sh` | 同上 | PASS |
+| DSH テスト（同上） | 上の一時ツリーに base `34e7b67` をさらに merge したもの（push しない） | 233 passed / 38.56 秒 |
+| `bash .devcontainer/run-tests.bash` | 同上 | 33 本 PASS / 352 秒 |
+| `bash scripts/check-layout.sh` | 同上 | PASS |
+
+base は PR #181 のマージで分岐点より進んでおり、検証中に PR #179 のマージで `34e7b67` まで進んだので、最新の base でも同じ検証をやり直した。どちらもスキル・`.agents/scripts`・文書の変更で `tools/` は変えず、merge は競合なく成立した。usaturn/create-reso-world の CI は停止しているので確認しない（`AGENTS.md`「GitHub Actions」）。実 DSH と実モデル・実 API の確認は、これまでどおり未実施である。
+
+### 結論
+
+- 結論: **2 修正不要としてマージする**。PR は open・非 draft で、マージしてよい範囲にある
+- 自己レビュー: 該当なし（修正が無いため）
+- 本 Spec の追記だけを PR head に 1 回コミットし、検査した SHA を push してから、状況コメントを投稿し、`--match-head-commit` でマージする。push・マージ・Issue #174 の更新の結果は状況コメントと完了報告に書く
+- 再利用した既存 worktree（`.worktrees/issue-174-dsh-tool-diagnostics`）は、このセッションが作ったものではないので片付けの対象にしない
