@@ -1,4 +1,4 @@
-# PR #216（Issue #135）レビュー修正 サイクル 1
+# PR #216（Issue #135）レビュー修正（サイクル 1・2）
 
 ## 管理
 
@@ -88,3 +88,31 @@ dsh-ccd（deepseek/deepseek-v4.1-flash）は loop が runner の `response_faile
 ## 未確認の事項
 
 - 実際のループで、自己レビューの前の検査が偽の値を検出して直す経路は通していない（意図の回答の比較だけ）
+
+## サイクル 2
+
+- reviewed_head: `ef05410feaa3196812561290a3ae9da273241635`。base の先端: `01a93b40e8a4ab8bb91f0e5bfb0c53265c647acd`（PR #214・#217・#215 のマージで進み、head の祖先ではない。検証の後の投稿の直前に `76ae15c` から `01a93b4` に進んだので、新しい先端で検証し直した）
+- 確認済みの一覧: `verified/ef05410feaa3.json`（confirmed 1）。loop run `99fb6bc22e4e474fb82c580803421aae` のサイクル 2
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | 再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `ef05410feaa3` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | `ef05410feaa3` | はい | Approve |
+| `Grok-4.7.md` | Grok 4.7 | cursor | `ef05410feaa3` | はい | Approve |
+
+dsh-ccd は、サイクル 1 と同じく runner の `response_failed` で却下され、レビューファイルが無い。`claude-opus-5-5-commit-29eab52….md`（サイクル 1 の自己レビュー）は 29eab52 が head の祖先なので、手順 2 の祖先の確認を通る（M-1 の修正のとおり、自己レビューの後に自己レビューした commit を書き換えていない）。
+
+| 判断 ID | 区分 | 根拠 |
+| --- | --- | --- |
+| `gpt-6.1-sol#M-1@69f3e6924961` | 解消済み（前は対応する） | `29eab52` で `AGENTS.md:153-156` に 3 つ目の条件、review-fix-planning `SKILL.md:233・348` に自己レビューの前の検査と括弧の明記を入れた。3 人のレビューと前のサイクルの fix-check が解消を確認（使い捨てのリポジトリでの再現を含む） |
+| `SWE-2-Max#I-1@ef05410feaa3` | 対応しない | 評価のシナリオ (ga) の expected が「AGENTS.md の 2 条件」のまま。(ga) の場面ではレビューの保存が無く 3 つ目の条件は満たされるので、期待の結論は変わらない。評価の入力の文言で、致命的でない。見直す条件: (ga) を再評価するとき |
+
+前のサイクルで「対応しない」とした L-1 と自己レビューの I-1 は、このサイクルの入力に無い（レビューは Decided findings に置いた）ので引き継ぐ。
+
+### 結論 2（修正不要としてマージする）
+
+- 「対応する」は 0 件。全指摘・変更ファイル・関連する手順を確認した
+- 検証（head `ef05410` に base `01a93b4` を merge した一時的なツリー `3f26382`、mktemp の隔離 worktree、push しない。前後とも clean）: `bash .devcontainer/run-tests.bash` → 0（PASS: 33 test(s)）、`bash scripts/check-layout.sh` → 0、`uv run pytest -q -p no:cacheprovider tests/skills .agents/skills` → 0（1512 passed）。1 つ前の先端 `76ae15c` との merge ツリー `ea5d51a` でも同じ 3 つが終了コード 0（1495 passed）
+- head 自身の検証は、サイクル 1 の最後（`ef05410`、専用の worktree、前後とも clean）で `test-instructions.bash`・`test-docs.bash`・`run-tests.bash`（33）・`check-layout.sh`・`uv run pytest tests/skills .agents/skills`（1495 passed）がすべて終了コード 0
+- マージしてよい範囲: usaturn/create-reso-world の open で draft でない PR
+- 自己レビュー: このサイクルは修正が無いので行わない（サイクル 1 で 1 回）
