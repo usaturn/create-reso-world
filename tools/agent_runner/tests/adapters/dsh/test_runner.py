@@ -210,12 +210,16 @@ def test_dsh_output_ancestor_symlink_is_rejected(
 def test_runtime_hardlinks_are_rejected_before_redaction_hides_the_link(
     config: Config, repository: Path, tmp_path: Path,
 ) -> None:
-    config.agents["a"].command[-1] = "tmp-hardlink"
+    # Retained records keep the strict policy; only TMPDIR scratch hard links are unlinked.
+    config.agents["a"].command[-1] = "hardlink"
     result = run_workflow(config, "test", "respond", repository, output_dir=tmp_path / "run")
     attempt = result.results[0].attempts[0]
     assert attempt.state == "response_failed" and attempt.stop_confirmed
     assert attempt.request_path is not None
-    assert attempt.request_path.parent / "dsh/tmp/linked.json" in attempt.sensitive_paths
+    state = attempt.request_path.parent / "dsh/state"
+    assert {state / "original.json", state / "linked.json"} <= set(attempt.sensitive_paths)
+    # Redaction replaced neither name, so the second link is still visible.
+    assert (state / "linked.json").stat().st_nlink == 2
 
 
 def test_dsh_prompt_uses_only_its_owned_write_exceptions(
@@ -385,6 +389,24 @@ def test_scratch_links_and_fifos_are_unlinked_not_followed(
     assert (attempt.work_dir / "README.md").read_text() == "# fixture workspace\n"
 
 
+def test_scratch_hardlinks_are_unlinked_and_the_rest_redacted(
+    config: Config, repository: Path, tmp_path: Path
+) -> None:
+    config.agents["a"].command[-1] = "tmp-hardlink"
+    result = run_workflow(config, "test", "respond", repository, output_dir=tmp_path / "run")
+    attempt = result.results[0].attempts[0]
+    assert attempt.state == "success" and attempt.stop_confirmed
+    assert attempt.sensitive_paths == []
+    assert attempt.request_path is not None
+    root = attempt.request_path.parent / "dsh"
+    assert not os.path.lexists(root / "tmp" / "original.json")
+    assert not os.path.lexists(root / "tmp" / "linked.json")
+    files = [path for path in root.rglob("*") if path.is_file() and not path.is_symlink()]
+    # A name left with a single link is an ordinary scratch file, redacted like the others.
+    assert all(path.lstat().st_nlink == 1 for path in files if path.is_relative_to(root / "tmp"))
+    assert all(b"private-test-credential" not in path.read_bytes() for path in files)
+
+
 @pytest.mark.parametrize("mode", ["pytest", "pytest-fixtures"])
 def test_real_pytest_scratch_is_accepted(config: Config, repository: Path, tmp_path: Path, mode: str) -> None:
     config.agents["a"].command[-1] = mode
@@ -398,7 +420,9 @@ def test_real_pytest_scratch_is_accepted(config: Config, repository: Path, tmp_p
     assert attempt.sensitive_paths == []
     assert result.outside_changes == []
     leftovers = [
-        path for path in (root / "tmp").rglob("*") if path.is_symlink() or not (path.is_dir() or path.is_file())
+        path
+        for path in (root / "tmp").rglob("*")
+        if path.is_symlink() or not (path.is_dir() or path.is_file()) or (path.is_file() and path.stat().st_nlink > 1)
     ]
     assert leftovers == []
     # Regular files written by the test stay for diagnosis.
@@ -409,24 +433,29 @@ def test_real_pytest_scratch_is_accepted(config: Config, repository: Path, tmp_p
         assert (attempt.work_dir / "sentinel-link").is_symlink()
 
 
+@pytest.mark.parametrize(
+    "mode,names",
+    [("tmp-fifo", ["spill.fifo"]), ("tmp-hardlink", ["linked.json", "nested/shared.json", "original.json"])],
+)
 def test_scratch_unlink_failure_is_reported_not_success(
-    config: Config, repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    config: Config, repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, names: list[str]
 ) -> None:
     original = os.unlink
+    refused = {Path(name).name for name in names}
 
     def failing(path: Any, *, dir_fd: int | None = None) -> None:
-        if path == "spill.fifo":
+        if path in refused:
             raise PermissionError("injected unlink failure")
         original(path, dir_fd=dir_fd)
 
     monkeypatch.setattr(os, "unlink", failing)
-    config.agents["a"].command[-1] = "tmp-fifo"
+    config.agents["a"].command[-1] = mode
     result = run_workflow(config, "test", "respond", repository, output_dir=tmp_path / "run")
     attempt = result.results[0].attempts[0]
     assert attempt.state == "response_failed" and attempt.stop_confirmed
     assert attempt.request_path is not None
-    fifo = attempt.request_path.parent / "dsh" / "tmp" / "spill.fifo"
-    assert attempt.sensitive_paths == [fifo]
+    scratch = attempt.request_path.parent / "dsh" / "tmp"
+    assert sorted(attempt.sensitive_paths) == [scratch / name for name in names]
 
 
 @pytest.mark.parametrize("mode,replaced", [("home-link", "dsh/home"), ("root-link", "dsh"), ("tmp-link", "dsh/tmp")])

@@ -40,11 +40,13 @@ from pathlib import Path
 def test_tmp_path(tmp_path: Path) -> None:
     (tmp_path / "clean.txt").write_text("synthetic clean fixture\\n")
     if os.environ["FAKE_PYTEST_FIXTURES"] == "1":
-        # Like the repository's safety fixtures: links out of tmp_path and a FIFO.
+        # Like the repository's safety fixtures: links out of tmp_path, a FIFO and a hard link pair.
         outside = Path(os.environ["FAKE_OUTSIDE"])
         (tmp_path / "outside-file").symlink_to(outside / "README.md")
         (tmp_path / "outside-dir").symlink_to(outside)
         os.mkfifo(tmp_path / "fixture.fifo")
+        (tmp_path / "original.json").write_text("synthetic linked fixture\\n")
+        os.link(tmp_path / "original.json", tmp_path / "linked.json")
     assert (tmp_path / "clean.txt").is_file()
 '''
 
@@ -210,14 +212,22 @@ def main() -> int:
         (state / "foreign-link").symlink_to(Path.cwd() / "README.md")
     elif mode == "fifo":
         os.mkfifo(state / "session.fifo")
+    elif mode == "hardlink":
+        original = state / "original.json"
+        original.write_text("synthetic content")
+        os.link(original, original.with_name("linked.json"))
     elif mode == "tmp-symlink":
         (Path(os.environ["TMPDIR"]) / "foreign-link").symlink_to(Path.cwd() / "README.md")
     elif mode == "tmp-fifo":
         os.mkfifo(Path(os.environ["TMPDIR"]) / "spill.fifo")
     elif mode == "tmp-hardlink":
-        original = Path(os.environ["TMPDIR"]) / "original.json"
-        original.write_text("synthetic content")
-        os.link(original, original.with_name("linked.json"))
+        # Like pytest fixtures left in TMPDIR: a pair in one directory and a name in a child directory.
+        scratch = Path(os.environ["TMPDIR"])
+        original = scratch / "original.json"
+        original.write_text(f"synthetic content {key}\n")
+        os.link(original, scratch / "linked.json")
+        (scratch / "nested").mkdir()
+        os.link(original, scratch / "nested" / "shared.json")
     elif mode == "tmp-link":
         # TMPDIR itself now resolves into the checkout, which holds a link of its own.
         scratch = Path(os.environ["TMPDIR"])
