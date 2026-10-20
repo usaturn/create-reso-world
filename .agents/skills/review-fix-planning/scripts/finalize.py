@@ -1,6 +1,7 @@
 """追加修正が無いPRを、検証・状況投稿・マージ・関連Issue確認まで最終化する。
 
-形式だけの検証記録を実検証の代わりにしない。司令塔が実際のコマンドとHEADを記録する。
+形式だけの検証記録を実検証の代わりにしない。司令塔が実際のコマンド、HEAD、検証したツリーが含むbaseを記録する。
+状況を投稿する前とマージの直前に、PRのbaseブランチの今の先端がそのbaseと同じことを確かめ、違えばそこで止まる。
 終了コード0だけがno_fix_needed。それ以外はstoppedと具体的な未完了箇所を返す。
 マージしてよいPRはMERGEABLE_REPOSITORIESだけで、CIを確かめるかどうかはCI_REQUIREDで決める。
 """
@@ -47,6 +48,7 @@ FIELDS = (
     "url",
     "number",
     "headRefOid",
+    "baseRefName",
     "state",
     "isDraft",
     "mergeable",
@@ -63,17 +65,25 @@ class Stop(Exception):
 
     wait_for は、待てば解消する状態（ci: 公開CIの実行中・待機中、mergeable: GitHubがマージ可否を計算中）。
     司令塔が待ってから同じ記録で再実行する。
+    base_moved は、検証した後にbaseが進んだ停止（ref: baseブランチの名前、verified: 検証の記録のbase、
+    current: 今の先端）。待っても解消しないので、司令塔がcurrentで検証し直し、検証の記録を作り直してから再実行する。
     """
 
-    def __init__(self, reason: str, *, wait_for: str | None = None) -> None:
+    def __init__(
+        self, reason: str, *, wait_for: str | None = None, base_moved: dict[str, str] | None = None
+    ) -> None:
         super().__init__(reason)
         self.wait_for = wait_for
+        self.base_moved = base_moved
 
 
 def check_evidence(checks: Mapping[str, Any], head: str) -> None:
+    base = checks.get("base")
+    if not isinstance(base, str) or FULL_SHA.fullmatch(base) is None:
+        raise Stop("environment: 検証の記録に、検証したツリーが含む base の commit（完全な SHA）が無い")
     commands = checks.get("commands")
     if (
-        set(checks) != {"head", "commands"}
+        set(checks) != {"head", "base", "commands"}
         or checks.get("head") != head
         or not isinstance(commands, list)
         or not commands
@@ -204,6 +214,35 @@ def check_spec_change(runner: Any, repo: str, reviewed_head: str, spec_commit: s
         raise Stop("environment: Spec の commit が検証した HEAD の上の Spec 1 ファイルだけの変更ではない")
 
 
+def check_base(runner: Any, repo: str, view: Mapping[str, Any], verified: str) -> None:
+    """PRのbaseブランチの今の先端が、検証の記録のbase（verified）と同じことを確かめる。
+
+    先端はbaseブランチから読む。PRのbaseRefOidは、baseブランチの先端に追従しない。
+    応答の名前も照合し、改名したブランチのリダイレクトや、URLの中で別の意味になる名前の応答を成功と見なさない。
+    """
+    ref = view.get("baseRefName")
+    if not isinstance(ref, str) or not ref:
+        raise Stop("external: PRのbaseブランチの先端を確認できない")
+    branch = as_object(
+        poster.load_json(poster.run_gh(["api", f"repos/{repo}/branches/{ref}"], runner=runner), "gh api branch")
+    )
+    commit = None if branch is None else as_object(branch.get("commit"))
+    current = None if commit is None else commit.get("sha")
+    if (
+        branch is None
+        or branch.get("name") != ref
+        or not isinstance(current, str)
+        or FULL_SHA.fullmatch(current) is None
+    ):
+        raise Stop("external: PRのbaseブランチの先端を確認できない")
+    if current != verified:
+        # ブランチの名前は停止理由に入れない（判断の記録に写されうる）。base_moved.ref で返す
+        raise Stop(
+            f"external: 検証した後にPRのbaseブランチが進んだ（検証したbase {verified[:12]}、今の先端 {current[:12]}）",
+            base_moved={"ref": ref, "verified": verified, "current": current},
+        )
+
+
 def check_view(view: Mapping[str, Any], head: str, *, allow_merged: bool = False) -> None:
     if view.get("headRefOid") != head:
         raise Stop("external: PRのHEADが検証済みHEADから変わった")
@@ -330,6 +369,9 @@ def finalize(
                 )
             check_ci(view, repo)
             if spec_commit is None:
+                # 古いbaseの検証の状況を投稿しない
+                step = "base before posting"
+                check_base(active, repo, view, checks["base"])
                 step = "status posting"
                 result["comment"] = poster.upsert(
                     pr, repo, checked["planner"]["model"], markdown, runner=active, record=checked
@@ -340,6 +382,10 @@ def finalize(
             merged = view["state"] == "MERGED"
             if view["state"] != "MERGED":
                 check_ci(view, repo)
+                # 最後の確認。ここからGitHubがマージを処理するまでの間の前進は止められない
+                # （GitHubのマージはbaseを固定できない。references/execution.md の 3.5 節）
+                step = "pre-merge base"
+                check_base(active, repo, view, checks["base"])
                 step = "merge"
                 # loopの最終化と同じmerge commit。squashは祖先関係によるマージ済みの判定で未取り込みに見える。
                 poster.run_gh(
@@ -367,6 +413,8 @@ def finalize(
         result["stop_reason"] = str(error)
         if error.wait_for is not None:
             result["wait_for"] = error.wait_for
+        if error.base_moved is not None:
+            result["base_moved"] = error.base_moved
     except poster.records.RecordError:
         result["stop_reason"] = "environment: 状況記録が不正で最終化を開始できない"
     except poster.CommentError:
