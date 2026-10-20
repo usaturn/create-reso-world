@@ -769,14 +769,25 @@ def test_invalid_spec_commit_stops_before_network(bad: str) -> None:
     assert result["merged"] is False and gh.calls == []
 
 
-@pytest.mark.parametrize("head", [HEAD, "2" * 40])
-def test_spec_commit_requires_the_pr_head_to_be_the_spec_commit(head: str) -> None:
-    # Specのcommitをpushする前や、その後にheadが動いたとき
+def test_spec_commit_waits_until_the_pushed_spec_commit_is_the_pr_head() -> None:
+    # pushの直後は、GitHubがまだ前のhead（検証したHEAD）を返すことがある（PR #192）
     gh = spec_gh()
+    gh.view["headRefOid"] = HEAD
+    first = finalize_spec(gh)
+    assert first["outcome"] == "stopped" and first["wait_for"] == "head"
+    assert first["stop_reason"].startswith("external:") and first["merged"] is False and gh.writes() == []
+    gh.view["headRefOid"] = SPEC_HEAD
+    assert finalize_spec(gh)["outcome"] == "no_fix_needed"
+
+
+@pytest.mark.parametrize(("state", "head"), [("OPEN", "2" * 40), ("MERGED", HEAD)])
+def test_spec_commit_with_another_head_stops_without_waiting(state: str, head: str) -> None:
+    # headが別のcommitに動いた。または、Specのcommitのpushの前に、検証したHEADのまま手でマージされた
+    gh = spec_gh(state=state)
     gh.view["headRefOid"] = head
     result = finalize_spec(gh)
     assert result["outcome"] == "stopped" and result["stop_reason"].startswith("external:")
-    assert result["merged"] is False and gh.writes() == []
+    assert "wait_for" not in result and gh.writes() == []
 
 
 def test_spec_commit_waits_for_mergeable_and_the_rerun_finalizes() -> None:

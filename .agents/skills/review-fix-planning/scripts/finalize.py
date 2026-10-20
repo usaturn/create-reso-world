@@ -63,8 +63,8 @@ PENDING_STATUSES = frozenset({"PENDING", "EXPECTED"})
 class Stop(Exception):
     """秘密を含まない、具体的な障害。
 
-    wait_for は、待てば解消する状態（ci: 公開CIの実行中・待機中、mergeable: GitHubがマージ可否を計算中）。
-    司令塔が待ってから同じ記録で再実行する。
+    wait_for は、待てば解消する状態（ci: 公開CIの実行中・待機中、mergeable: GitHubがマージ可否を計算中、
+    head: pushしたSpecのcommitがまだPRのheadに反映されていない）。司令塔が待ってから同じ記録で再実行する。
     base_moved は、検証した後にbaseが進んだ停止（ref: baseブランチの名前、verified: 検証の記録のbase、
     current: 今の先端）。待っても解消しないので、司令塔がcurrentで検証し直し、検証の記録を作り直してから再実行する。
     """
@@ -243,8 +243,16 @@ def check_base(runner: Any, repo: str, view: Mapping[str, Any], verified: str) -
         )
 
 
-def check_view(view: Mapping[str, Any], head: str, *, allow_merged: bool = False) -> None:
+def check_view(
+    view: Mapping[str, Any], head: str, *, allow_merged: bool = False, pushed_from: str | None = None
+) -> None:
+    """pushed_from は、headにpushしたcommitの親（--spec-commitの検証したHEAD）。
+
+    pushの直後は、GitHubがまだpushの前のheadを返すことがある。openのままそのheadなら、待てば進む停止にする。
+    """
     if view.get("headRefOid") != head:
+        if pushed_from is not None and view.get("headRefOid") == pushed_from and view.get("state") == "OPEN":
+            raise Stop("external: PRのheadがまだ検証したHEADのまま（Specのcommitのpushが反映される前）", wait_for="head")
         raise Stop("external: PRのHEADが検証済みHEADから変わった")
     if allow_merged and view.get("state") == "MERGED" and view.get("mergedAt"):
         return
@@ -345,7 +353,7 @@ def finalize(
         merge_head = head if spec_commit is None else spec_commit
         step = "PR state/HEAD"
         view = poster.view_pr(pr, repo, active, FIELDS)
-        check_view(view, merge_head, allow_merged=True)
+        check_view(view, merge_head, allow_merged=True, pushed_from=None if spec_commit is None else head)
         merged = view["state"] == "MERGED"
         closing_issues(view, repo)
         if spec_commit is not None:
