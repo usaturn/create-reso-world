@@ -254,7 +254,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 6. Spec に結果を書いて `completed` にし、コミットする。PR が create-reso-world のものなら Spec は PR の head に載るので、次の順で進める。確認していないコミットをマージに含めないため、**実装後** の手順 5 の「reject されたら rebase または merge」はここでは使わない
    - commit の前に、`gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` が検証した `HEAD_SHA` と一致することを確かめる
    - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD` を Spec のコミット（`SPEC_COMMIT`）として記録し、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
-   - 状況コメントの投稿の直前と push の直前に、手順 2 と同じく base を取り直し、先端が検証の記録の `base` と同じことを確かめる。違えば、投稿・push をせずに手順 2〜5 を新しい先端でやり直し、Spec を直して、Spec のコミットを `git -C "$MAIN_ROOT" commit --amend`（Spec のファイルだけを add する）で作り直す（push していないので書き換えてよい）。作り直したら、上の commit の後の確認からやり直す。手順 3 で結論 1 に切り替えるときは、Spec のコミットを結論 3 の「書き始めた Spec の扱い」の「push していない」の項の方法で取り消してから進める
+   - 状況コメントの投稿の直前と push の直前に、手順 2 と同じく base を取り直し、先端が検証の記録の `base` と同じことを確かめる。違えば、投稿・push をせずに手順 2〜5 を新しい先端でやり直し、Spec を直して、Spec のファイルだけを `git -C "$MAIN_ROOT" add -- <Spec>` してから、`git -C "$MAIN_ROOT" commit --amend --no-edit` で Spec のコミットを作り直す（push していないので書き換えてよい）。作り直したら、上の commit の後の確認からやり直す。手順 3 で結論 1 に切り替えるときは、Spec のコミットを結論 3 の「書き始めた Spec の扱い」の「push していない」の項の方法で取り消してから進める
    - PR の head がまだ `HEAD_SHA` のうちに、状況コメントを記録付きで投稿する（「作業終了前の PR 投稿」。記録付きの投稿は、PR の head が記録の `reviewed_head` と同じときだけ通る）
    - **実装後** の手順 5 の head の確認と共通 context の再実行の後、同じ手順 5 の検査付きの push で push する（fast-forward だけ。`--force` を付けない。検査で止まったら push せずに結論 3 にする）
    - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head か作業ツリーが変わった）。Spec のコミットは下記「結論 3」の「書き始めた Spec の扱い」に従う（取り消してよい条件を満たさなければ、取り消さずに残して報告する）
