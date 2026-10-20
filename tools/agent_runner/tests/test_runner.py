@@ -177,11 +177,14 @@ def repository(tmp_path: Path) -> Path:
     return repo
 
 
+# The default deadline only bounds a run that hangs. It covers the worktree checkout
+# and CLI startup, which a loaded host stretches past a few seconds (#218); tests of
+# the deadline itself pass a short one.
 def configuration(
     agents: list[str] | None = None,
     fallback: list[str] | None = None,
     *,
-    deadline: float = 5.0,
+    deadline: float = 30.0,
     shape: str = "json",
 ) -> Config:
     return Config(

@@ -31,7 +31,10 @@ def launch(code: str, stdin: bytes = b"") -> LaunchSpec:
     return LaunchSpec((sys.executable, "-u", "-c", code), stdin)
 
 
-def run(tmp_path: Path, spec: LaunchSpec, *, deadline: float = 5, secrets: tuple[str, ...] = ()) -> ProcessResult:
+# The default deadline only bounds a command that hangs. Starting the supervisor and
+# its children stretches on a loaded host (#218); tests of the deadline itself pass a
+# short one.
+def run(tmp_path: Path, spec: LaunchSpec, *, deadline: float = 30, secrets: tuple[str, ...] = ()) -> ProcessResult:
     return asyncio.run(
         execute(
             spec,
