@@ -3,13 +3,14 @@
 ## 管理・実行許可
 
 - 文書管理・コード対象: `usaturn/create-reso-world`。対象 Issue: https://github.com/usaturn/create-reso-world/issues/201（親・ボード・依存なし。関連 #116・#150）
-- 状態: draft
+- 状態: completed（PR #202 のレビュー指摘確認まで完了。公開・マージの結果は PR の状況コメントを参照）
 - 関連 Plan: `docs/superpowers/plans/2026-10-20-create-reso-world-issue201-cursor-read-only-shell.md`
 - DOC_ROOT・CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-201-cursor-review-sandbox`（branch `fix/issue-201-cursor-review-sandbox`、`origin/main` の `d29c93c` から作成）。PARENT_ROOT: `/workspaces/reso-world`
 - 実行許可: 2026-10-20（JST）、利用者が `/issue-to-pr #201` で着手を指示した。issue-to-pr の委任により、通常の設計判断を推奨案で決め、Spec・Plan の commit、実装、検証、push の前の検査、push、PR の作成（`Closes #201`）まで行う。マージはしない
   - 実機の確認（本物の Cursor CLI の起動）は、Issue の「検証の進め方」が書いた対象と回数（下の D-201-4）に限る
   - 下の判断は、利用者に確認を取らずに決めたエージェントの判断であり、内容の承認（`approved`）ではない
 - Plan の実装の担当: `implement_task.py check` の結果は `agents = ["self"]`・`fallback = []`。雛形 `.devcontainer/agent-runner.toml` の既定の適用であり（個人設定の該当の節はコメントだけ）、利用者の `--implement` の指定は無い
+- 追加の実行許可: 2026-10-20、利用者が `$review-fix-planning #202` を指定した。スキルの既定の完遂手順に従い、指摘の確認・採否の記録、Spec の更新・commit・検査付き push、修正不要の場合の状況投稿・マージ・関連 Issue の更新まで行う。初回の実装依頼とは別の実行許可であり、設計内容を `approved` にはしない。R2 の確認用 run を再開したり、実モデルの起動回数を増やしたりしない
 
 ## 意図
 
@@ -115,3 +116,70 @@ runtime が `cursor` の担当を `writes = false` の役割（`inspect`・`self
 - 利用者が `permissions.deny` に書いたコマンド（`uv`・`git` など）は `-f` でも拒否され、そのときレビューは完了しない
 - この環境の利用者の設定は `sandbox.mode = "disabled"` なので、実機の確認は `--sandbox disabled` の効果を独立には確かめない。sandbox の範囲は参照 PR の観測による
 - 実機で確かめる役割は `inspect` だけで、`self-review`・`fix-check` は偽の CLI のテストだけ
+
+## PR #202 のレビュー指摘確認（2026-10-20、サイクル 1）
+
+### 対象と担当
+
+- PR: https://github.com/usaturn/create-reso-world/pull/202
+- 現行 HEAD: `e1e89be8cf8dfae3bf8b31bd6f8496dc622577aa`
+- PR の merge-base: `d29c93c12a817ca45cb8d0eb918a0a07615916ce`
+- 最新 base: `c4f7ed0558dbd408b64afef0aca6f836d042144d`
+- planner・確認担当: `gpt-6-astra` / `codex`（provider `openai`、effort `max`、CLI `0.163.0`、session `01a15865-f682-7441-9a20-3abbfaad1b3b`）。ランタイムのセッション情報で確認した
+- 入力: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#202-fix-issue-201-cursor-review-sandbox/`。直下のレビュー本文、候補 JSON、実行記録、R2 の loop 記録を確認した
+
+| レビューファイル | モデル | ランタイム | 最終レビュー HEAD | 今回の対象 HEAD と一致 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `Grok-4.7.md` | Grok 4.7 | cursor | `e1e89be8cf8d` | はい（Update） | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | `e1e89be8cf8d` | はい（Initial） | Approve |
+| `claude-opus-5-5.md` | claude-opus-5-5 | claude-code | `e1e89be8cf8d` | はい（Initial） | Approve |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `e1e89be8cf8d` | はい（Initial） | Approve |
+
+4 本の候補 JSON は形式検査と本文との照合を通った。Grok の `eb6233a` の候補は前の世代として読み、現行の件数には重複して数えない。`findings/`・`runs/`・`loop/` はレビュー本文の裏付けであり、レビュアーの数には含めない。前のサイクルの判断は無い。
+
+### 分類と判断
+
+分類は **解消済み 0 / 対応する 0 / 対応しない 1**。
+
+| 指摘 | 現行 HEAD での確認 | 判定と理由 | 見直す条件 |
+| --- | --- | --- | --- |
+| `SWE-2-Max#I-1@e1e89be8cf8d` | Plan 6 行目は Task が 4 つと書くが、49・97・117・131・140 行目に Task 1〜5 がある。初版 `08ac15c5c4ac1f300bf8e38ac6ba042776ca7dc5` から存在する | 対応しない。数の誤記は実在するが、Task 5 の検証手順・要件表・完了記録は存在し、PR 本文も 5 つと記載している。起動や利用手順を誤らせる欠陥ではなく、スキルが対応対象にする致命的な指摘には該当しない | この数を根拠に必須検証が省略される経路が判明したとき、または利用者が修正を明示したとき |
+
+追加の致命的な欠陥は確認しなかった。対応する項目が無いため、修正の影響経路表・設計の見直し・実装 Plan は追加しない。起動の設計と既知の制限は維持する。
+
+### 確認範囲と結果
+
+PR の変更 8 ファイルの全文、runner の役割引き渡し・fallback、設定の重複モデル検査、adapter の停止・応答回収、`run_roles.py`・loop の起動前の拒否を確認した。`writes` の両側、任意の担当名と fallback、3 つの役割名の経路はテストで実行される。偽 CLI は実際に受け取った引数を返しており、実装の本文を文字列で検査するテストではない。
+
+次の検証は現行 HEAD の専用 worktree と、現行 HEAD に最新 base を merge した一時 worktree の両方で実行した。merge の競合は無く、一時ツリーの tree SHA は `b09770386d7ee53db465bdfd3dd8bded0e42e1da`。検証用 merge は push しない。
+
+| 検証 | 現行 HEAD | 最新 base を統合したツリー |
+| --- | --- | --- |
+| Cursor adapter の pytest | 60 passed、exit 0（4.843 秒） | 60 passed、exit 0（9.769 秒） |
+| `bash .devcontainer/run-tests.bash` | 33 passed、exit 0（500.846 秒） | 33 passed、exit 0（459.467 秒） |
+| `bash scripts/check-layout.sh` | PASS、exit 0（0.497 秒） | PASS、exit 0（0.424 秒） |
+
+pytest は共有の依存環境を使い、対象の source と設定を明示して実行した。実行時の `ROOT` は現行 HEAD では `/workspaces/reso-world/.worktrees/issue-201-cursor-review-sandbox`、統合後では `/tmp/review-fix-planning.LczF78/worktree`。`CHECKS` はそれぞれ `/tmp/review-fix-planning.LczF78/head-checks`・`/tmp/review-fix-planning.LczF78/merge-checks` である。
+
+```bash
+# cwd は ROOT。キャッシュと一時出力は一意の検証領域に置いた。
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$ROOT" TMPDIR="$CHECKS/tmp" \
+  uv run --project /workspaces/reso-world --locked pytest \
+  -c "$ROOT/pyproject.toml" --rootdir "$ROOT" -p no:cacheprovider \
+  --basetemp "$CHECKS/pytest" tools/agent_runner/tests/adapters/cursor -q
+```
+
+- 現行 HEAD で `uv run --no-project --with docutils --with rstcheck rstcheck --report-level warning tools/agent_runner/runtimes/cursor.rst` が成功（exit 0）
+- `agent --version` と `agent --help` で CLI `2026.10.19-6bbf2c4` の force・sandbox・ask/plan の意味を再確認した。モデルは起動していない
+- merge-base から現行 HEAD までの `git diff --check` は成功。既定設定・runner・`run_roles.py`・loop の実装差分は空
+- R2 の loop とレビュー実行記録を照合し、`accepted`、exit 0、`stop_confirmed: true`、残存資源なし、要件どおりの `finish --abort` を確認した。過去の `outside_changes` 3 件は記録どおり別セッションの変更と既存の欠けた worktree 登録だった
+- 実機の `self-review`・`fix-check` と sandbox の独立した効果は対象外。追加の実モデル実行は 0 回で、実装時の記録を引き継ぐ。PR 本文はこれらの制限と追加引数による上書きを既に明記している
+- このサイクルの変更は判断・検証の記録だけなのでテストを追加しない。Spec の差分・参照先・記録 JSON の形式を確認する。private リポジトリの停止済み CI は確認対象外
+
+### 結論・記録・時間
+
+- 結論 2: **修正不要としてマージする**。修正後の自己レビューは未実施（`run_roles.py` の呼び出し・予約とも 0 回）。コードの追加修正が無いため、その工程は適用しない
+- 指摘の確認結果: 入力ディレクトリの `verified/e1e89be8cf8d.json`・同名 `.md`。工程と投稿 ID は `verified/e1e89be8cf8d.planning.json` に記録する
+- 一時 worktree と検証用ディレクトリは検証終了後に削除した。既存の専用 worktree は再利用したため、このセッションの削除対象にしない
+- 2026-10-20 08:20:39 UTC に着手。範囲・HEAD・入力の確定は約 2 分、指摘・全変更の確認と検証は 08:22:45〜08:34:42 UTC（717 秒、並行した検証の待ちを含む）。判断の記録・公開・後片付けの所要時間は工程記録と完了報告に残す
+- 公開・マージ・Issue 更新は、この Spec の commit 後に状況コメントと `finalize.py` で確定する。その結果のための追加 commit は作らない
