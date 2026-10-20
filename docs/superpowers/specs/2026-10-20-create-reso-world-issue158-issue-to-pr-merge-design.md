@@ -223,6 +223,12 @@
 
 あわせて、5 章の検証の記録の形を書き写さず、review-fix-planning の `references/execution.md` の 3 章を参照する文面に変えた。open の PR #203（#196）が記録に `base` を足し、`finalize.py` が 3 項目を求めるため（D-158-10）。
 
+## 実施した検証（2026-10-20）
+
+- 正式な検証（HEAD `e6405ef`、作業ツリーは clean）: `bash .devcontainer/run-tests.bash` PASS 33、`bash scripts/check-layout.sh` PASS、`uv run pytest tests/skills .agents/skills .agents/scripts tools` 3445 passed・1 skipped（skip は stale-git-lock-recovery の、他の git プロセスを除外できないときに skip する設計のテスト）。どれも終了コード 0。ベースライン（`d29c93c`）は 3409 passed
+- 実環境の 2 段（本物の #158）、TDD の RED・GREEN、評価（対照・比較・取り直し・最後の全体レビューの修正の RED・GREEN）の詳細は、Plan の「完了」と `evals/validation.md`
+- 受け入れ条件 8（実機のループ）は未実施。利用者の指示に `--merge` が無い
+
 ## Plan の実装の担当
 
 `implement_task.py check`（`--implement` なし）の結果: `assignment` は `agents: ["self"]`・`fallback: []`、`self: true`。雛形 `.devcontainer/agent-runner.toml` の既定の適用で、個人設定に `workflows.issue` は無い（利用者の指定ではない）。

@@ -81,7 +81,7 @@ inline（`superpowers:executing-plans`）。理由は Spec の D-158-21。サブ
 - Consumes: `loop.py check-options`（#156。`--max-cycles`・`--assign`・`--template`・`--config`。成功は `{"status": "ok", "options", "assignments", "next": null}`、拒否は終了コード 2）
 - Produces: `parse_input(text: str, cwd: Path) -> ParsedInput`（`ParsedInput(reference: str, loop_args: list[str] | None, implement: str | None)`）、出力の JSON の `merge`（`null` か `{"loop_args": list[str]}`）
 
-- [ ] **Step 1: テストを書く**
+- [x] **Step 1: テストを書く**
 
 既存のテストを次のように直し、足す（`resolve()`・`assert_rejected()`・`gh_stub`・`checkout` は今のものを使う）。
 
@@ -115,24 +115,24 @@ inline（`superpowers:executing-plans`）。理由は Spec の D-158-21。サブ
   - `"#42 --merge --template missing.toml"` → `(0, 2)`
 - `test_resolve_then_implement_check` に `("#42 --implement self --merge", (0, 0, True))` を足す
 
-- [ ] **Step 2: テストが失敗することを確かめる**
+- [x] **Step 2: テストが失敗することを確かめる**
 
 Run: `uv run pytest .agents/skills/issue-to-pr/tests/test_resolve_issue.py -q`
 Expected: `--merge` を含む場合が失敗する（今の版は「#116 で入れる予定」で終了コード 2）。`merge` の無い成功の場合は `"merge"` の項目が無いので失敗する
 
-- [ ] **Step 3: `resolve_issue.py` を直す**
+- [x] **Step 3: `resolve_issue.py` を直す**
 
 - `FUTURE_OPTIONS` を消し、ループ用のオプションの集合（`--max-cycles`・`--assign`・`--template`・`--config`）、パスのオプション（`--template`・`--config`）、理由付きで拒否するオプション（`--hold-action`・`--fresh-review` → 理由の文）を定数で持つ
 - 値の形: `--max-cycles` は `[0-9]+`、`--assign` は `[a-z][a-z-]*=` の後に agent 名の形（`IMPLEMENT_VALUE` と同じ）をカンマでつないだもの、パスは空でなく制御文字（`\x00`〜`\x1f`・`\x7f`）を含まない。`~` の展開の失敗（`RuntimeError`）は `ValueError` にする
 - `parse_input(text, cwd)` は `--merge` の回数、ループ用のオプションの列、`--implement` を集め、`--merge` が無いのにループ用のオプションがあれば拒否する。値が無い（次の語が無い・`-` で始まる）・空は今の `--implement` と同じく拒否する
 - `main` は `parse_input(args.input, Path.cwd())` を呼び、出力に `"merge": None if parsed.loop_args is None else {"loop_args": parsed.loop_args}` を `implement` の前に足す。`argparse` の `input` の help の「オプションは --implement AGENT だけ」を直す。docstring の 1 行目も直す
 
-- [ ] **Step 4: テストが通ることを確かめる**
+- [x] **Step 4: テストが通ることを確かめる**
 
 Run: `uv run pytest .agents/skills/issue-to-pr -q`
 Expected: すべて成功
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .agents/skills/issue-to-pr/scripts/resolve_issue.py .agents/skills/issue-to-pr/tests/test_resolve_issue.py
@@ -149,7 +149,7 @@ git commit -m "feat(issue-to-pr): parse --merge and the loop options in resolve_
 **Interfaces:**
 - Produces: 場面の ID（Task 3 の比較と `validation.md` が使う）
 
-- [ ] **Step 1: 場面を直し、足す**
+- [x] **Step 1: 場面を直し、足す**
 
 - (b) `b-merge-option` と (w) `w-implement-with-merge` の `expected` を新しい振る舞いに直し、`"changed": "#158 で期待を変えた（--merge を受け付ける）。#158 より前の結果は validation.md の各節"` を足す
   - (b): `resolve_issue.py -- "#202 --merge"` → `merge.loop_args = []` → worktree の前に `PARENT_ROOT` の `loop.py check-options`（引数なし）→ 最後の全体レビューは省かない → PR は draft にしない → `PARENT_ROOT` の `loop.py start <PR の URL> --controller-model <正確な ID> --controller-runtime claude-code`（オプションを足さない）→ pr-review-fix-loop の SKILL.md をファイルとして読んで従い、結果の表で報告
@@ -165,16 +165,16 @@ git commit -m "feat(issue-to-pr): parse --merge and the loop options in resolve_
   - (mh) `mh-checks-reuse`: `--merge` の 1 サイクル目で修正不要、サイクルの HEAD は PR の作成時に記録した検証の HEAD と同じ、base は進んでいない → 記録を結論 2 の検証の記録に使ってよい。base が進んでいたら merge の検証は省かない
   - (mi) `mi-input-with-trailing-text`: 引数が `#42 --merge --max-cycles 2 途中で止めずに PR まで` と `--merge #42` → `INPUT` はそれぞれ `#42 --merge --max-cycles 2` と `--merge #42`（並べ替えない）
 
-- [ ] **Step 2: JSON を確かめる**
+- [x] **Step 2: JSON を確かめる**
 
 Run: `uv run --no-project python -c "import json,sys; d=json.load(open('.agents/skills/issue-to-pr/evals/scenarios.json')); ids=[s['id'] for s in d['scenarios']]; assert len(ids)==len(set(ids)); print(len(ids))"`
 Expected: 場面の数が表示され、例外が無い
 
-- [ ] **Step 3: 対照を 3 回取る**
+- [x] **Step 3: 対照を 3 回取る**
 
 変更前の SKILL.md（`git show d29c93c:.agents/skills/issue-to-pr/SKILL.md`）と `AGENTS.md` をセッションディレクトリの `eval/control/` に置き、(b)・(w)・(ma)〜(mi) を 1 つの指示文にまとめて、Agent ツールの新しいサブエージェント（model `sonnet`）を 3 回起動する（Read で 2 ファイルを 1 回ずつ読む以外のツールを使わせない）。回答を `eval/control/answer-{1,2,3}.md` に保存する
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .agents/skills/issue-to-pr/evals/scenarios.json
@@ -192,7 +192,7 @@ git commit -m "test(issue-to-pr): add the --merge evaluation scenarios (#158)"
 **Interfaces:**
 - Consumes: Task 1 の `merge.loop_args`、Task 2 の場面の ID
 
-- [ ] **Step 1: SKILL.md を直す**
+- [x] **Step 1: SKILL.md を直す**
 
 Spec の「SKILL.md の変更箇所」の表のとおり。要点:
 
@@ -204,24 +204,24 @@ Spec の「SKILL.md の変更箇所」の表のとおり。要点:
 - 5 章: 検証の記録、draft にしない、CI を待たない、マージの例外、予約の解放の時点、完了の報告。`### --merge のとき: PR の作成後のループ` の節（Spec の 1〜6 と結果の表）
 - 停止時の報告、ランタイムごとの違い
 
-- [ ] **Step 2: 構造を確かめる**
+- [x] **Step 2: 構造を確かめる**
 
 Run: `bash scripts/check-layout.sh`
 Expected: 終了コード 0。加えて、SKILL.md が参照するパス（`.agents/skills/pr-review-fix-loop/SKILL.md`・`scripts/loop.py`）が実在することを `test -f` で確かめる
 
-- [ ] **Step 3: 比較を 3 回取る**
+- [x] **Step 3: 比較を 3 回取る**
 
 Task 2 の Step 3 と同じ指示文で、SKILL.md だけを変更後の版にして 3 回起動し、`eval/compare/answer-{1,2,3}.md` に保存する
 
-- [ ] **Step 4: 判定する**
+- [x] **Step 4: 判定する**
 
 対照・比較の全回答を読み、場面ごとの期待を満たした回数を数える。比較で外れた場面があれば、外れ方に合う形で文面を 1 回だけ直し（writing-skills の「Match the Form to the Failure」）、その場面だけを 3 回取り直す
 
-- [ ] **Step 5: `validation.md` に記録する**
+- [x] **Step 5: `validation.md` に記録する**
 
 `## --merge（#158）` の節を足す（評価方法と範囲、結果の表、観察、実行した検証、行っていない確認）。#157 の節と同じ形
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .agents/skills/issue-to-pr/SKILL.md .agents/skills/issue-to-pr/evals/validation.md
@@ -236,11 +236,11 @@ git commit -m "feat(issue-to-pr): run the PR review-fix loop after the PR with -
 - Modify: `docs/superpowers/specs/2026-10-20-create-reso-world-issue158-issue-to-pr-merge-design.md`（結果の記録）
 - Modify: `docs/superpowers/plans/2026-10-20-create-reso-world-issue158-issue-to-pr-merge.md`（チェックと完了の記録）
 
-- [ ] **Step 1: 共有する条件を確かめる**
+- [x] **Step 1: 共有する条件を確かめる**
 
 SKILL.md の `check-options`・`start` のコマンドが `loop_args` の各要素を 1 つの引数として、足さずに渡すこと、Task 1 のテストの 2 段と同じ列であることを読み合わせる。`convergence.md` の「3. 検証と閉じ方」で、Spec → Plan → Task → 実行の証拠を条件ごとに照合する
 
-- [ ] **Step 2: 実環境の 2 段**
+- [x] **Step 2: 実環境の 2 段**
 
 Run（worktree のルートで）:
 
@@ -251,11 +251,11 @@ uv run --project /workspaces/reso-world --locked python /workspaces/reso-world/.
 
 Expected: 1 つ目は終了コード 0 で `merge == {"loop_args": []}`、2 つ目は終了コード 0 で `status: ok`。結果をセッションディレクトリに保存する
 
-- [ ] **Step 3: 最後のブランチ全体のレビュー**
+- [x] **Step 3: 最後のブランチ全体のレビュー**
 
 `superpowers:executing-plans` の最後のレビューとして、新しいサブエージェントに `origin/main...HEAD` の差分全体と Spec・Plan を渡してレビューさせる。致命的な指摘は直して関連テストをやり直し、致命的でない指摘は PR の持ち越しに書く
 
-- [ ] **Step 4: 正式な検証**
+- [x] **Step 4: 正式な検証**
 
 最後の commit の後、作業ツリーが clean な状態で、README の「テスト」の 3 つを実行する（`monitoring-long-tasks` に従い、`run_in_background` の完了通知で待つ）。
 
@@ -267,7 +267,7 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools
 
 Expected: 3 つとも終了コード 0。HEAD・clean であること・終了コード・ログの完全パスを記録する
 
-- [ ] **Step 5: Spec・Plan に結果を書いて commit**（状態は `draft` のまま）。commit したら Step 4 をその HEAD でやり直すか、変更が `docs/superpowers/` だけであることを `git diff --name-only` で確かめて記録する
+- [x] **Step 5: Spec・Plan に結果を書いて commit**（状態は `draft` のまま）。commit したら Step 4 をその HEAD でやり直すか、変更が `docs/superpowers/` だけであることを `git diff --name-only` で確かめて記録する
 
 - [ ] **Step 6: push と PR**
 
@@ -279,4 +279,13 @@ issue-to-pr の 5 章のとおり、Issue の状態と競合を確かめ直し�
 
 ## 完了
 
-（Task 4 の後に、検証の結果、作業時間と Task 別の内訳、残したパスを書く）
+2026-10-20 に記録（状態は draft のまま）。Task 4 の手順 6・7（push・PR の作成、#158 の更新と予約の解放）は、この記録の commit の後に行い、PR 本文と #158 に書く。
+
+- 実行方式: inline（`superpowers:executing-plans`）。SDD の ledger は `/workspaces/reso-world/tmp/agents/issue-158.p1qjczc_/sdd/progress.md`（Ruling 5 件、持ち越しの Minor 2 件）
+- Task 1（`e9967d6`）: `uv run pytest .agents/skills/issue-to-pr` 220 passed。`tests/test_resolve_issue.py` は、変更前の `resolve_issue.py` で 28 failed、変更後に 126 passed。`REFUSED_OPTIONS` を無効にする変異を、足した確認が検出することを確かめた
+- Task 2（`a2fdfb6`。`c5de6cb`・`e6405ef` で場面を追記）・Task 3（`c5de6cb`）: 評価は対照 3 回・比較 3 回・REFACTOR の後の取り直し 3 回（`evals/validation.md`）
+- Task 4: 実環境の 2 段（04:06Z）、最後の全体レビュー（opus、`d29c93c..c5de6cb`、「修正すれば可」、Critical なし）、修正（`e6405ef`。足した場面 (mj)・(mk)・(ml) を直す前と直した後で各 3 回）、正式な検証
+- 正式な検証（HEAD `e6405ef`、検証の前後とも作業ツリーは clean、ログは `/workspaces/reso-world/tmp/agents/issue-158.p1qjczc_/verify/`）: `bash .devcontainer/run-tests.bash` PASS 33（終了コード 0）、`bash scripts/check-layout.sh` PASS（0）、`uv run pytest tests/skills .agents/skills .agents/scripts tools` 3445 passed・1 skipped（0、23 分 45 秒）。skip は `stale-git-lock-recovery` の `test_unheld_lock_is_stale_on_the_real_proc`（このマシンで他の git プロセスを除外できないときに skip する設計で、並行するセッションの git による。#158 では触れていない）。ベースライン（`d29c93c`、作業前）は PASS 33・PASS・3409 passed（42 分 54 秒）で、増えた 37 件は `test_resolve_issue.py` の差し引き
+- この記録の commit は `docs/superpowers/` の 2 ファイルだけで、検証した `e6405ef` からコードと評価の記録は変えていない
+- 作業時間（UTC）: 着手は 03:15 頃（読み込みの開始。予約は 03:26）。準備（読み込み・予約・worktree・Spec・Plan・builder check）約 37 分（〜03:52）、Task 1 約 12 分、Task 2・3（評価を含む）約 30 分（〜04:25）、Task 4 の全体レビュー約 28 分・修正と評価約 16 分（〜05:11）・正式な検証約 30 分（〜05:41）。ベースラインの検証（03:33〜04:30）は並行。ledger の能動時間は記録の時点で約 128 分 / 360 分（ledger の開始 03:35 より前の約 20 分を含まない）
+- 実機のループとマージ: 未実施（利用者の指示に `--merge` が無い。#158 の受け入れ、ボードの D-21）
