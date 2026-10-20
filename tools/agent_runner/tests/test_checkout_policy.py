@@ -31,6 +31,66 @@ class ConfinedFake(FakeAdapter):
         return super().prepare(context)
 
 
+def fallback_template(tmp_path: Path, fallback: list[str]) -> Path:
+    template = tmp_path / "template.toml"
+    template.write_text(
+        f"""
+[agents.primary]
+runtime = "dsh"
+command = ["never-launch"]
+model = "primary"
+
+[agents.d1]
+runtime = "dsh"
+command = ["never-launch"]
+model = "fallback-one"
+
+[agents.d2]
+runtime = "dsh"
+command = ["never-launch"]
+model = "fallback-two"
+
+[roles.inspect]
+writes = false
+deadline_seconds = 20
+result_shape = "json"
+
+[workflows.audit.assignments.inspect]
+agents = ["primary"]
+fallback = {fallback!r}
+""",
+        encoding="utf-8",
+    )
+    return template
+
+
+@pytest.mark.parametrize("fallback", [["d1"], ["d1", "d2"]])
+def test_self_override_does_not_use_retained_fallback_as_confinement_evidence(
+    repository: Path, tmp_path: Path, fallback: list[str],
+) -> None:
+    from tools.agent_runner.checkout_policy import require_auditable_workflow
+    from tools.agent_runner.config import load_config
+
+    neighbor = workspace.create_worktree(repository, "HEAD", tmp_path / "neighbor")
+    neighbor.rename(tmp_path / "moved")
+    config = load_config(fallback_template(tmp_path, fallback), assignments={"inspect": ["self"]}, workflow="audit")
+    assert config.workflows["audit"].assignments["inspect"].fallback == fallback
+    with pytest.raises(workspace.CheckoutAuditError) as caught:
+        require_auditable_workflow(config, "audit", repository, adapter_loader=lambda _: ConfinedFake())
+    assert [item.path for item in caught.value.findings] == [str(neighbor)]
+
+
+def test_confined_primary_keeps_targeted_scope_with_a_retained_fallback(
+    repository: Path, tmp_path: Path,
+) -> None:
+    from tools.agent_runner.checkout_policy import workflow_checkout_scope
+    from tools.agent_runner.config import load_config
+
+    config = load_config(fallback_template(tmp_path, ["d1"]), workflow="audit")
+    scope = workflow_checkout_scope(config, "audit", repository, adapter_loader=lambda _: ConfinedFake())
+    assert scope == workspace.protected_checkout_paths(repository)
+
+
 def test_confined_batch_reports_parallel_edit_without_blocking(repository: Path, tmp_path: Path) -> None:
     neighbor = workspace.create_worktree(repository, "HEAD", tmp_path / "neighbor")
     feature = workspace.create_worktree(repository, "HEAD", tmp_path / "feature")

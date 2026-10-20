@@ -1,7 +1,9 @@
 """One audit policy for the runner and strict result consumers.
 
 Only trusted adapters with whole-process confinement may separate unrelated
-checkouts. Every assigned candidate, including unused fallbacks, must qualify.
+checkouts. A workflow whose primaries are all self keeps the full audit because
+an assignment override can retain a fallback that never launches. Otherwise
+every assigned candidate, including unused fallbacks, must qualify.
 """
 
 from collections.abc import Callable
@@ -23,14 +25,16 @@ def workflow_checkout_scope(
     adapter_loader: Callable[[str], Adapter] = load_adapter,
 ) -> frozenset[str] | None:
     """None means all registrations are required; never trust the sandbox name."""
+    assignments = config.workflows[workflow].assignments.values()
+    if not any(name != "self" for assignment in assignments for name in assignment.agents):
+        # --assign self keeps the template's fallback, but that fallback never runs.
+        return None
     candidates = {
         name
-        for assignment in config.workflows[workflow].assignments.values()
+        for assignment in assignments
         for name in (*assignment.agents, *assignment.fallback)
         if name != "self"
     }
-    if not candidates:
-        return None
     try:
         for name in sorted(candidates):
             if adapter_loader(config.agents[name].runtime).capabilities.confined_writes is not True:

@@ -77,3 +77,12 @@ Task 2 の手順を `recovery-smoke.py` で使い捨て Git に実行し、移�
 SDD の未追跡資料は AGENTS.md に従い worktree 内へ作らず、`/workspaces/reso-world/tmp/agents/issue-187.wfma953n/` の `progress.md` と ledger に置いた。ブランチ全体の差分確認は inline で行い、PR 作成後の独立レビューは利用者が指定した --merge の既定構成で行う。追加の隔離評価用モデルは起動していない。
 
 最終 commit 後の検証結果・clean HEAD・argv・終了コード・ログの完全パスは同じセッションの `verification.json` と `checks.json`、PR 本文に記録する。ループ中は feature worktree を独自に編集せず、記録はセッションと PR/Issue に置く。
+
+### PR #210 1 回目のレビュー修正
+
+gpt-6.1-sol#M-1 の修正として、`workflow_checkout_scope` は workflow の全一次担当が self なら fallback の capability を確認せず `None`（全登録必須）を返すようにした。外部一次担当がある場合の全候補・全 fallback の隔離保証確認は変えていない。`SWE-2-Max#I-1` と `commandcode-deepseek-deepseek-v4.1-flash#I-1` は、危険な操作の再現が無いため対応しない。
+
+- 追加テスト: `test_self_override_does_not_use_retained_fallback_as_confinement_evidence`（DSH fallback 1 件・2 件）、`test_confined_primary_keeps_targeted_scope_with_a_retained_fallback`、`test_self_assignment_keeps_all_registrations_with_a_retained_dsh_fallback`
+- RED: 3 failed（0.54 秒）。GREEN: 対象 168 passed（33.56 秒）、関連 1351 passed（163.92 秒）、全体 3501 passed（1494.82 秒）、`run-tests.bash` 33 件、layout / `git diff --check` 成功
+- 自己レビュー・fix-check: `run_roles.py` の起動前監査が既存の prunable 2 件で止まるため未実施。登録の削除・repair はしていない
+- Spec の更新: `docs/superpowers/specs/2026-10-20-issue-187-checkout-audit-spec.md` の「PR #210: 1 回目のレビュー修正」に判断と証拠を記録した

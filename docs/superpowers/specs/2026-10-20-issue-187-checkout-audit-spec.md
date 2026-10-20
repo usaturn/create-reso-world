@@ -44,3 +44,28 @@ runner の fingerprint は checkout の変化を検出するが、書き込み�
 | PR 作成後に既定のレビュー修正ループ | PR 作成のみで終了 | 利用者が --merge を明示した | check-options 成功。max_cycles=3、assign={}、template=PARENT_ROOT/.devcontainer/agent-runner.toml、config=null |
 
 ループの解決済み担当は review.inspect=[pi-gpt, devin-swe, dsh-ccd, cursor-grok47]、fix.implement=[claude-opus]、fix.self-review=[self]、fix.fix-check=[self]（全 fallback=[]）。これらは設定の既定の適用であり、利用者の明示指定ではない。
+
+## PR #210: 1 回目のレビュー修正
+
+対象 HEAD は `b3251620d40cf8428c25b4167c96c2b12792f2bd`。現行の Spec はこの文書だけ、Plan は同日の issue-187 Plan であり、同じテーマの追加文書は作らない。実行許可は既存の --merge 指示のレビュー修正を使う。判断担当は gpt-6.1-sol / codex。
+
+4 レビュアーの入力は同一 HEAD で、候補 JSON の validate / check-pair は成功。`verified/b3251620d40c.json` の V-1 は挙動の再現、V-2 は文書の静的照合で confirmed。関連 17 テストも成功（3.64 秒）。
+
+| 出典 | 分類 | 理由と見直す条件 |
+| --- | --- | --- |
+| gpt-6.1-sol#M-1@b3251620d40c | 対応する | 通常の `dispatch.py --assign self` が、残る未使用 DSH fallback の保証で全登録監査不能を回避し exit 0 になる。手順どおりの操作で誤った拒否結果になるため (a)。実 loader / dispatcher の 4 条件で再現 |
+| SWE-2-Max#I-1@b3251620d40c、commandcode-deepseek-deepseek-v4.1-flash#I-1@b3251620d40c | 対応しない | 監視・fix-check・issue-to-pr の限定条件の説明漏れ。共通 interfaces.rst と実行時の必須拒否は存在し、説明漏れによる危険な操作は再現していない。該当説明だけに従って誤操作が成立する証拠、または利用者の名指し指示があれば見直す |
+
+原因は、起動される外部一次担当の有無を調べず、起動されない fallback も候補に含めたことである。全一次担当が self なら fallback の capability を確認せずに全登録監査を選び、外部一次担当がある場合の全候補と全 fallback の隔離保証確認を保つ。設定 loader の fallback 継承を変える案は、他の通常の上書き挙動を変えるため採らない。以前のレビュー修正はなく、再発・回帰による設計見直しの条件には該当しない。
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| 全 self は fallback に関係なく全登録必須 | load_config の担当上書き → workflow_checkout_scope → require_auditable_workflow | 修正する | DSH fallback 1 件・2 件でも消失登録を拒否 | 実 loader に self 上書き、未使用 fallback を保持して preflight を実行 | 修正前は通過（RED 3 件失敗、0.54 秒）。修正後は `test_self_override_does_not_use_retained_fallback_as_confinement_evidence` が成功 |
+| 出力先の作成前に監査不能を拒否 | dispatch.py --assign self → preflight → 出力保存 | 修正する | exit 1 / environment、出力先なし、登録と内容を保持、外部コマンドなし | 実 CLI main と使い捨て Git の状態・出力先・試行数を比較 | 修正前は exit 0 / state=self、試行 0、出力先あり（RED）。修正後は `test_self_assignment_keeps_all_registrations_with_a_retained_dsh_fallback` が成功 |
+| 外部一次担当があれば保証確認を維持 | 共通 policy → runner 起動 → 3 入口の結果判定 | 既に満たす | 隔離された一次担当 + self の混在は限定、非隔離 fallback は全登録 | 既存 policy と 3 入口のテスト、混在ケース | `test_confined_primary_keeps_targeted_scope_with_a_retained_fallback` と関連 1351 件が成功（163.92 秒） |
+| self を起動担当として扱わない入口の既存制限 | implement_task の self 拒否、run_roles self-review の DSH fallback 拒否 | 既に満たす | 既存の拒否を保ち、監査のために制限を緩めない | 各入口の既存テスト | 関連 1351 件に含めて成功 |
+| 残る登録の回収は所有者の照合が必要 | 実在する他セッションの登録 | 対象外 | 削除・repair・prune しない | helper が監査不能で止まれば環境停止として記録 | 未操作。`/tmp/pr-review-190-60a7527d/worktree` と `/tmp/pr-review-193-d26990b1/worktree` は prunable のまま |
+
+テストは実 loader / policy / dispatcher を実行し、拒否と正常側・状態保持を検査するため必要。追加したテストは 4 件（policy の parametrize 2 ケース、限定監査の維持 1 件、dispatcher 1 件）。文面やモデル名を写すテストは追加しない。修正対象は `tools/agent_runner/checkout_policy.py` と、挙動テスト（`test_checkout_policy.py`、`review-verify/tests/test_dispatch.py`）に限定した。
+
+検証は修正後 HEAD で、関連 1351 件（163.92 秒）、全体 pytest 3501 件（1494.82 秒）、Dev Container 33 件、`scripts/check-layout.sh`、`git diff --check` が成功した。初回の RED は新規テスト 3 件が失敗し、対照 1 件は成功した。`rstcheck` は環境に無く、RST は変更していないため未実行。自己レビューと fix-check は `run_roles.py` の起動前監査が既存の checkout_missing 2 件で通らないため未実施。これらを実施するには、所有者が登録を照合して個別に repair/remove する必要がある。この検証の後に commit・push し、マージは自己レビューの後にする。

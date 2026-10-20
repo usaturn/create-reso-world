@@ -153,6 +153,67 @@ def test_confined_dispatch_passes_result_guard_with_unavailable_unrelated_checko
     assert result["batch"]["unrelated_checkout_audit"][0]["path"] == str(neighbor)
 
 
+def test_self_assignment_keeps_all_registrations_with_a_retained_dsh_fallback(
+    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--assign self は template の fallback を残すが、その fallback は起動されない（#187 M-1）。"""
+    from tools.agent_runner.workspace import create_worktree
+
+    repository = Path(verification_input["repository"])
+    neighbor = create_worktree(repository, "HEAD", tmp_path / "neighbor")
+    neighbor.rename(tmp_path / "moved")
+    template = tmp_path / "template.toml"
+    template.write_text(
+        """
+[agents.probe]
+runtime = "pi"
+command = ["never-launch"]
+model = "primary"
+
+[agents.dsh]
+runtime = "dsh"
+command = ["never-launch"]
+model = "fallback"
+
+[roles.fix-check]
+writes = false
+deadline_seconds = 30
+result_shape = "json"
+
+[workflows.fix.assignments.fix-check]
+agents = ["probe"]
+fallback = ["dsh"]
+""",
+        encoding="utf-8",
+    )
+    request_file = tmp_path / "request.json"
+    request_file.write_text(json.dumps(verification_input), encoding="utf-8")
+    personal = tmp_path / "personal.toml"
+    personal.write_text("", encoding="utf-8")
+    output = tmp_path / "run"
+
+    class Confined(ReceiptAdapter):
+        capabilities = Capabilities(confined_writes=True)
+
+    code = dispatch.main(
+        [
+            "--template", str(template),
+            "--config", str(personal),
+            "--request", str(request_file),
+            "--output-dir", str(output),
+            "--assign", "self",
+        ],
+        adapter_loader=lambda _: Confined(),
+    )
+    assert code == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["category"] == "environment"
+    assert [(item["path"], item["kind"]) for item in report["checkout_audit"]] == [
+        (str(neighbor), "unavailable_before")
+    ]
+    assert not output.exists()
+
+
 def test_self_returns_complete_input_without_launching_implementation(
     dispatch: Any, verification_input: dict[str, Any], tmp_path: Path
 ) -> None:
