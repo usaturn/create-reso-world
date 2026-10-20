@@ -1,7 +1,7 @@
 # PR #215（Issue #207）のレビュー修正 1 回目
 
 - 文書管理・対象: `usaturn/create-reso-world` の PR #215（`fix/issue-207-finalize-merged-state`）、closing Issue #207
-- 状態: `completed`（結論 1: 修正して push。内容の承認は記録しない）
+- 状態: `completed`（1 回目は結論 1: 修正して push、2 回目は結論 2: 修正不要としてマージ。内容の承認は記録しない）
 - 実行許可: 利用者の 2026-10-20 の `/issue-to-pr #207 --merge`。issue-to-pr が PR の作成後に PR 修正ループ（pr-review-fix-loop）を回し、その計画を review-fix-planning の完遂（修正が要れば修正して push、不要ならマージと関連 Issue の更新）で行う。採否・修正方針は確認を取らずに決めた planner の判断で、内容の承認は記録しない
 - サイクル: 判断の記録の round 1（ループのサイクル 1）。前の記録は無い
 - planner: claude-opus-5-5（claude-code）
@@ -88,3 +88,15 @@
 | `fix-check#V-2@7a741faa3945` | I-1 と同じ（`execution.md:160`） | 対応しない | I-1 と同じ問題。`revisit_when` に I-1 を書く |
 
 - PR の説明の既知の制限に、V-2（L-1）と I-1 の停止理由の制限を書き足した
+
+## 2 回目（round 2、ループのサイクル 2）
+
+- 現行 HEAD（`reviewed_head`）: `239b32029d7888a7b839eb4fb08a419acfffd4de`。確認済みの一覧: `verified/239b32029d78.json`（confirmed 0）
+- レビュアーの構成: gpt-6.1-sol（pi）・SWE-2-Max（devin）・commandcode-deepseek-deepseek-v4.1-flash（dsh）・Grok-4.7（cursor）が `239b32029d78` を Update でレビューし、4 つとも Approve、active 0。Grok-4.7 は loop が runner の応答の回収を `response_failed` で却下したが、レビューと候補一覧は現行 HEAD で保存されており、validate・check-pair を通したので入力にした。修正後の自己レビュー（`claude-opus-5-5-commit-7a741faa…`）は再実行していない（`rerun: false`）
+- 判断: 前回の `fix` の `gpt-6.1-sol#M-1@27f028c19535` を `resolved`（`changed`、前の状態は `fix`）にした。`239b320` の隔離 worktree で、投稿 helper の中の確認で MERGED になる 3 通り（同じ head・別の head・create-reso-world）が `stopped`・`merged: true`・書き込み 0 件になることを、サイクル 1 の再現スクリプトで確かめた。前回の `skip`（`SWE-2-Max#L-1`、自己レビューの I-1・I-2）は新しい根拠が無いので引き継いだ。新しい指摘は無い
+- 結論: 2（修正不要としてマージ）。`finalize.py --spec-commit` で、この Spec だけの commit をマージする
+- 実行した検証（変更の種類はスキル）
+  - 手順 1（FIX_WT、head `239b320`、2026-10-20 17:22〜17:38Z、作業ツリーは前後とも clean）: `bash .devcontainer/run-tests.bash` → 0（33 PASS）、`bash scripts/check-layout.sh` → 0、`uv run pytest tests/skills .agents/skills` → 0（1512 passed）
+  - 手順 2（base の先端 `76ae15c089fa7f384899c64cfc1760f1be3371fe` は head の祖先ではないので、mktemp の隔離 worktree で head に merge したツリー `27659db` で同じ検証、17:38〜17:53Z）: `bash .devcontainer/run-tests.bash` → 0（33 PASS）、`bash scripts/check-layout.sh` → 0、`uv run pytest tests/skills .agents/skills` → 0（1512 passed）。base の変更（PR #214・#217、`tools/agent_runner` の DSH と文書）は、この PR の変更ファイルと重ならない。merge は push していない
+  - 検証の記録: `{"head": "239b320…", "base": "76ae15c…", "commands": [上の 3 つ、すべて 0]}`
+- 自己レビュー: 修正が無いので行っていない（1 回の枠はサイクル 1 で使用済み）
