@@ -42,7 +42,7 @@ _APPROVAL = re.compile(
     r"|the user rejected (?:tool|escalating)",
     re.IGNORECASE,
 )
-# DSH 0.2.0-rc.2: dsh-tools.serviceAsk / dsh-sandbox.approveEscalation,
+# DSH 0.2.0-rc.2 and 0.2.1-rc.2 (same text): dsh-tools.serviceAsk / dsh-sandbox.approveEscalation,
 # Headless JSON has no structured denial tag. Match the entire reason after
 # decoding the direct/PTC envelope, never substrings of paths or captured output.
 # Subject/name/mode are producer parameters,

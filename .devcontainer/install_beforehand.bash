@@ -173,7 +173,7 @@ fi
 
 # Only the headless CLI is needed. Do not initialize a shared ~/.dsh, install plugins or add TUI launchers.
 install_deepseek_harness() {
-    local -r version="0.2.0-rc.2"
+    local -r version="0.2.1-rc.2"
     local -r native_scripts="@deepseek-ai/dsh-subprocess-local,koffi,node-pty"
     local installed_version
     npm install -g --allow-scripts="$native_scripts" "@deepseek-ai/dsh@$version" || return 1
