@@ -594,6 +594,7 @@ agents = ["dsh-ccd"]
 個人設定に `[agents.dsh-*]` を書いて上書きしているときは、それを雛形に合わせるか消すか、
 確認用 config を `--config` で明示する。API key・セッションログの内容を Issue に貼らない。
 HOME のキャッシュは停止確認後に削除し、TMPDIR の通常ファイルとセッション状態は redact して実行記録に残す。
+TMPDIR に残ったシンボリックリンク・特殊ファイル・ハードリンク（pytest の fixture など）は消す。
 
 ## pi の旧拡張・MCP 設定の移行
 

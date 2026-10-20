@@ -7,7 +7,8 @@ enforced by the runner, not inferred from ``final``.
 The entire CLI is fenced with bubblewrap; its bash tool uses a nested sandbox.
 HOME is a disposable cache the runner removes after stop. State, the patch and
 regular files in a private TMPDIR (DSH spills large command output there) are
-retained redacted; links and special files tools leave in TMPDIR are unlinked.
+retained redacted; links, special files and hard links tools leave in TMPDIR
+are unlinked.
 """
 
 import json

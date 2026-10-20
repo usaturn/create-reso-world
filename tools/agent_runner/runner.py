@@ -142,22 +142,31 @@ def _dispose_home(runtime_root: Path) -> bool:
         os.close(root)
 
 
-def _unlink_special_entries(directory: int, owner: int, device: int) -> list[str]:
-    """Unlink owned non-regular entries of an open directory; return its subdirectories."""
+def _unlink_unredactable_entries(directory: int, owner: int, device: int) -> list[str]:
+    """Unlink owned entries of an open directory that redaction cannot make safe.
+
+    These are links, special files and regular files with another name:
+    redacting one name of a hard link leaves the original content behind the
+    other. Return the directory's subdirectories.
+    """
     subdirectories: list[str] = []
-    special: list[str] = []
+    unredactable: list[str] = []
     try:
         with os.scandir(directory) as entries:
             for entry in entries:
                 info = entry.stat(follow_symlinks=False)
                 if stat.S_ISDIR(info.st_mode):
                     subdirectories.append(entry.name)
-                elif not stat.S_ISREG(info.st_mode) and info.st_uid == owner and info.st_dev == device:
-                    special.append(entry.name)
+                elif (
+                    (not stat.S_ISREG(info.st_mode) or info.st_nlink > 1)
+                    and info.st_uid == owner
+                    and info.st_dev == device
+                ):
+                    unredactable.append(entry.name)
     except OSError:
         pass
-    # Unlink after the listing is closed: the link itself goes, never its target.
-    for name in special:
+    # Unlink after the listing is closed: only the name goes, never a target or the content.
+    for name in unredactable:
         try:
             os.unlink(name, dir_fd=directory)
         except OSError:
@@ -166,13 +175,15 @@ def _unlink_special_entries(directory: int, owner: int, device: int) -> list[str
 
 
 def _prune_scratch(runtime_root: Path) -> None:
-    """Unlink links and special files from a stopped runtime's ``tmp`` scratch.
+    """Unlink links, special files and hard links from a stopped runtime's ``tmp`` scratch.
 
-    Tools such as pytest leave ``*current`` links and fixture FIFOs in TMPDIR;
-    they hold no output to retain and cannot be inspected. Only owned entries
-    inside owned real directories on the runtime root's device are unlinked,
-    relative to their parent descriptor; nothing is followed or opened. Regular
-    files stay for strict redaction, which reports anything left here.
+    Tools such as pytest leave ``*current`` links, fixture FIFOs and fixture
+    hard links in TMPDIR; they hold no output to retain and cannot be inspected
+    or redacted. Only owned entries inside owned real directories on the runtime
+    root's device are unlinked, relative to their parent descriptor; nothing is
+    followed or opened. Single-link regular files stay for strict redaction,
+    which reports anything left here. A name whose other names were unlinked
+    first is left with a single link and is redacted like those files.
     """
     try:
         root = os.open(runtime_root, _NOFOLLOW_DIRECTORY)
@@ -197,7 +208,7 @@ def _prune_scratch(runtime_root: Path) -> None:
             stack.append((child, children))
             info = os.fstat(child)
             if info.st_uid == owner and info.st_dev == device:
-                children.extend(_unlink_special_entries(child, owner, device))
+                children.extend(_unlink_unredactable_entries(child, owner, device))
     except OSError:
         pass
     finally:
@@ -486,10 +497,10 @@ def run_workflow(
         if process.stop_confirmed:
             if runtime_root is not None:
                 # HOME only holds tool caches (uv links, read-only Go modules) and is
-                # not retained. TMPDIR is scratch: links and special files that tools
-                # such as pytest leave there are unlinked, while its regular spills stay
-                # with state and the patch under strict redaction. That pass reports
-                # anything left unsafe, including a HOME that could not be removed.
+                # not retained. TMPDIR is scratch: links, special files and hard links
+                # that tools such as pytest leave there are unlinked, while its regular
+                # spills stay with state and the patch under strict redaction. That pass
+                # reports anything left unsafe, including a HOME that could not be removed.
                 if not _dispose_home(runtime_root):
                     sensitive_paths.append(runtime_root / "home")
                 _prune_scratch(runtime_root)
