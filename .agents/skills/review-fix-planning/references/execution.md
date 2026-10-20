@@ -157,7 +157,7 @@ uv run --project "$TOPLEVEL" --locked python \
 - 認証済みの login を取り、PR の全コメントの記録と照合する。マージは `--merge --match-head-commit`（squash・rebase は使わない）。admin・auto マージ、ブランチの削除はしない
 - マージの後に MERGED・`mergedAt`・head を読み戻し、同じリポジトリの closing Issue だけを close して読み戻す。closing Issue に別のリポジトリのもの・URL と番号が合わないものがあれば、マージの前に `external:` で止まる
 - 同じ head で既にマージ済みなら、このサイクルの自分の記録が渡した記録と同じときだけ、投稿もマージもせずに Issue の更新を続ける。記録が無い・食い違うまま手でマージされていれば、Issue を更新せずに `merged: true` の `stopped` を返す
-- 別の head で既にマージ済み（投稿の後、マージの直前の確認までにマージされた場合を含む）なら、それ以上何も書き込まずに `external: PRが検証済みHEADと別のHEADでマージされた` の `merged: true` の `stopped` を返す。再実行しても完了しないので、何がマージされたかを確かめて報告する
+- 別の head で既にマージ済み（投稿の後、マージの直前の確認までにマージされた場合を含む）なら、それ以上何も書き込まずに `external: PRが検証済みHEADと別のHEADでマージされた` の `merged: true` の `stopped` を返す。再実行しても完了しないので、何がマージされたかを確かめて報告する。`--spec-commit` で、Spec の commit を push する前に `reviewed_head` のままマージされていたら、停止理由は `external: Specのcommitを載せる前に、PRが検証したHEADのままマージされた` になる（入ったのは検証済みのコードで、欠けているのは Spec の commit だけ）
 
 ### 3.4 結果
 

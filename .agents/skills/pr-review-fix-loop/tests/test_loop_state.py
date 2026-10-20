@@ -434,7 +434,12 @@ def test_finalize_stopped_ends_the_run_as_stopped_and_not_merged(
     assert cycle["planning"]["finalize"]["result"]["outcome"] == "stopped"
 
 
-@pytest.mark.parametrize(("reported", "another_head"), [(False, True), (None, False)], ids=["false", "null"])
+@pytest.mark.parametrize(
+    ("reported", "another_head"),
+    # true は、finalize が別の head のマージを観測して止まった結果（Review Focus 1 をループの最後まで通す経路）
+    [(False, True), (None, False), (True, True)],
+    ids=["false", "null", "true_another_head"],
+)
 def test_finalize_stopped_keeps_the_real_merge(
     loop: Any, env: Any, kit: Any, tmp_path: Path, reported: bool | None, another_head: bool
 ) -> None:

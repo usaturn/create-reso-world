@@ -63,7 +63,7 @@
 
 ### D-3 別の head でマージ済みのときの停止理由を分ける
 
-- 選択した案: `check_view` で head が違い、`state` が `MERGED` なら `external: PRが検証済みHEADと別のHEADでマージされた` で止める。OPEN で head が違う停止（`external: PRのHEADが検証済みHEADから変わった`）と、`--spec-commit` の `wait_for: head` は今までどおり
+- 選択した案: `check_view` で head が違い、`state` が `MERGED` なら `external: PRが検証済みHEADと別のHEADでマージされた` で止める。ただし `--spec-commit` で、head が検証した HEAD（Spec の commit の親）のままマージされていたら `external: Specのcommitを載せる前に、PRが検証したHEADのままマージされた` で止める（最終レビューの指摘で追加。入ったのは検証済みのコードで、欠けているのは Spec の commit だけなので、検証していないコードが入ったと読ませない）。OPEN で head が違う停止（`external: PRのHEADが検証済みHEADから変わった`）と、`--spec-commit` の `wait_for: head` は今までどおり
 - 検討した別案: 停止理由を変えず、`merged:true` だけで分かるようにする
 - 選択理由: OPEN で head が動いたなら新しい head でやり直せるが、別の head でマージ済みなら再実行しても完了しない。何がマージされたかを人が確かめる必要があり、次の一手が違う
 - 委任の指示・停止の条件: なし
@@ -99,7 +99,7 @@
 
 ### D-7 テストの範囲
 
-- 選択した案: `test_finalize.py` に、Issue の表の 4 経路、マージの依頼自体の失敗、確認の失敗からの再実行での復旧を足す。GitHub に問い合わせる前の停止を確かめる既存のテストは、期待を `merged is None` に直す。`test_loop_state.py` に、`stopped`・`merged:false` と `stopped`・`merged:null` の finalize の結果で実際の PR がマージ済みの場合、finalize が `true` なのに PR が未マージの `stopped` の場合、判断の記録が `stopped` で PR がマージ済みの場合を足す。偽の `gh`（`FakeGh`・`FakeGitHub`）とローカルの bare リポジトリだけを使う
+- 選択した案: `test_finalize.py` に、Issue の表の 4 経路、マージの依頼自体の失敗、確認の失敗からの再実行での復旧を足す。GitHub に問い合わせる前の停止を確かめる既存のテストは、期待を `merged is None` に直す。`test_loop_state.py` に、`stopped`・`merged:false`、`stopped`・`merged:null`、`stopped`・`merged:true`（別の head のマージを finalize が観測した結果。最終レビューの指摘で追加）の finalize の結果で実際の PR がマージ済みの場合、finalize が `true` なのに PR が未マージの `stopped` の場合、判断の記録が `stopped` で PR がマージ済みの場合を足す。偽の `gh`（`FakeGh`・`FakeGitHub`）とローカルの bare リポジトリだけを使う
 - 検討した別案: 実際の PR で手動マージを再現する
 - 選択理由: 取り消せない操作で、費用もかかる（受け入れ条件 A-5）
 - 委任の指示・停止の条件: なし

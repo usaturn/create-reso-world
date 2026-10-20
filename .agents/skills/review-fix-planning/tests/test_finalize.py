@@ -984,6 +984,21 @@ def test_merged_with_another_head_keeps_the_merge(spec: bool, head: str) -> None
     assert finalize_with(moved, spec, checks())["stop_reason"] != result["stop_reason"]
 
 
+def test_spec_parent_merge_is_reported_apart_from_an_unverified_head() -> None:
+    """Specのcommitを載せる前に、検証したHEADのまま手でマージされた。入ったのは検証済みのコードで、欠けたのはSpecだけ。
+
+    検証していないheadのマージと同じ停止理由にすると、読んだ人が検証していないコードが入ったと受け取る。
+    """
+    parent = spec_gh(state="MERGED")
+    parent.view["headRefOid"] = HEAD
+    other = spec_gh(state="MERGED")
+    other.view["headRefOid"] = "2" * 40
+    at_parent, elsewhere = finalize_spec(parent), finalize_spec(other)
+    assert at_parent["merged"] is True and elsewhere["merged"] is True
+    assert at_parent["stop_reason"].startswith("external:") and parent.writes() == []
+    assert at_parent["stop_reason"] != elsewhere["stop_reason"]
+
+
 def test_manual_merge_with_another_head_after_posting_keeps_the_merge() -> None:
     """状況を投稿した後、マージの直前の確認までに、別のheadで手でマージされた。"""
     gh = FakeGh()

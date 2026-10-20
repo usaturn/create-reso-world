@@ -265,8 +265,14 @@ def check_view(
     pushの直後は、GitHubがまだpushの前のheadを返すことがある。openのままそのheadなら、待てば進む停止にする。
     """
     if view.get("headRefOid") != head:
-        if pushed_from is not None and view.get("headRefOid") == pushed_from and view.get("state") == "OPEN":
-            raise Stop("external: PRのheadがまだ検証したHEADのまま（Specのcommitのpushが反映される前）", wait_for="head")
+        if pushed_from is not None and view.get("headRefOid") == pushed_from:
+            if view.get("state") == "OPEN":
+                raise Stop(
+                    "external: PRのheadがまだ検証したHEADのまま（Specのcommitのpushが反映される前）", wait_for="head"
+                )
+            if view.get("state") == "MERGED":
+                # 入ったのは検証済みのコードで、欠けたのはSpecのcommitだけ
+                raise Stop("external: Specのcommitを載せる前に、PRが検証したHEADのままマージされた")
         if view.get("state") == "MERGED":
             # 再実行しても完了しない。何がマージされたかを人が確かめる
             raise Stop("external: PRが検証済みHEADと別のHEADでマージされた")

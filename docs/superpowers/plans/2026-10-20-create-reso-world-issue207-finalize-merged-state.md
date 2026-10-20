@@ -17,7 +17,7 @@
 
 - finalize の結果の `merged` は `True`・`False`・`None`。`None` は、GitHub に問い合わせる前の停止・PR の状態を読めない・マージを依頼した後に状態を読めない
 - 観測: `state == "MERGED"` → `True`、`state` が `"OPEN"` か `"CLOSED"` → `False`、それ以外 → `None`。一度 `True` なら戻さない
-- 別の head でマージ済みの停止理由: `external: PRが検証済みHEADと別のHEADでマージされた`
+- 別の head でマージ済みの停止理由: `external: PRが検証済みHEADと別のHEADでマージされた`。`--spec-commit` で検証した HEAD のままマージ済みなら `external: Specのcommitを載せる前に、PRが検証したHEADのままマージされた`（最終レビューで追加）
 - `outcome`・`wait_for`・`base_moved`・停止理由の接頭辞・マージの方法・照合の順序は変えない。GitHub に問い合わせる前の停止で `gh` を呼ばない
 - run・cycle の `merged` は真偽値のまま。`no_fix_needed` の `merge_mismatch` の条件を弱めない
 - `upsert_pr_comment.py`・`review_records.py`・`.agents/review-records.md`・issue-to-pr の `SKILL.md` は変えない
@@ -144,7 +144,7 @@ Expected: PASS
 - [ ] **Step 1: 失敗するテストを書く**
 
 ```python
-@pytest.mark.parametrize(("reported", "another_head"), [(False, True), (None, False)])
+@pytest.mark.parametrize(("reported", "another_head"), [(False, True), (None, False), (True, True)])  # (True, True) は最終レビューで追加
 def test_finalize_stopped_keeps_the_real_merge(loop, env, kit, tmp_path, reported, another_head): ...
     # no_fix_needed の記録を投稿。another_head なら env.push で head を進めてから env.gh.merge()
     # finalize_result("stopped", merged=reported, stop_reason=...) で cycle_end
