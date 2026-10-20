@@ -383,7 +383,7 @@ def round_record(
 
 
 def finalize_result(
-    path: Path, outcome: str, *, merged: bool, stop_reason: str | None = None, spec_commit: str | None = None
+    path: Path, outcome: str, *, merged: bool | None, stop_reason: str | None = None, spec_commit: str | None = None
 ) -> Path:
     """finalize.py の結果ファイル。spec_commit は create-reso-world の PR の結論 2（``--spec-commit``）のときだけ入る。"""
     value: dict[str, Any] = {"outcome": outcome, "merged": merged, "issues": []}
@@ -559,7 +559,7 @@ class Kit:
 
     @staticmethod
     def finalize_result(
-        path: Path, outcome: str, *, merged: bool, stop_reason: str | None = None, spec_commit: str | None = None
+        path: Path, outcome: str, *, merged: bool | None, stop_reason: str | None = None, spec_commit: str | None = None
     ) -> Path:
         return finalize_result(path, outcome, merged=merged, stop_reason=stop_reason, spec_commit=spec_commit)
 

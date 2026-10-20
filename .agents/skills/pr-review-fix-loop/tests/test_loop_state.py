@@ -434,6 +434,74 @@ def test_finalize_stopped_ends_the_run_as_stopped_and_not_merged(
     assert cycle["planning"]["finalize"]["result"]["outcome"] == "stopped"
 
 
+@pytest.mark.parametrize(("reported", "another_head"), [(False, True), (None, False)], ids=["false", "null"])
+def test_finalize_stopped_keeps_the_real_merge(
+    loop: Any, env: Any, kit: Any, tmp_path: Path, reported: bool | None, another_head: bool
+) -> None:
+    """finalize が止まり、未マージ（false）か未確認（null）と返したが、PR は実際にはマージ済み（#207）。
+
+    cycle-end が読んだ実際の状態を保存し、finalize の値で上書きしない。別の head のマージは停止のまま。
+    """
+    env.start()
+    head = env.gh.head()
+    reuse_or_run(loop, env)
+    run_dir = env.run_dirs[-1]
+    env.gh.post_record(kit.round_record(1, head, "no_fix_needed", []))
+    if another_head:
+        env.push("検証していない commit")
+    env.gh.merge()
+    reason = "external: PRが検証済みHEADと別のHEADでマージされた" if another_head else "external: 確認に失敗した"
+    result = kit.finalize_result(tmp_path / "final.json", "stopped", merged=reported, stop_reason=reason)
+
+    ended = loop.cycle_end(run_dir, github=env.github, finalize_result=result)
+
+    assert (ended["outcome"], ended["merged"], ended["stop_reason"]) == ("stopped", True, reason)
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert (run["result"]["outcome"], run["result"]["merged"], run["result"]["stop_reason"]) == (
+        "stopped",
+        True,
+        reason,
+    )
+    cycle = json.loads((run_dir / "cycle-1.json").read_text(encoding="utf-8"))
+    assert cycle["planning"]["merged"] is True
+    assert cycle["planning"]["finalize"]["result"]["merged"] is reported
+
+
+def test_finalize_merged_but_pr_not_merged_is_a_mismatch_when_stopped(
+    loop: Any, env: Any, kit: Any, tmp_path: Path
+) -> None:
+    """マージは戻らない。finalize がマージ済みと返したのに PR が未マージなら、どちらかの読み取りが誤っている。"""
+    env.start()
+    head = env.gh.head()
+    reuse_or_run(loop, env)
+    run_dir = env.run_dirs[-1]
+    env.gh.post_record(kit.round_record(1, head, "no_fix_needed", []))
+    result = kit.finalize_result(
+        tmp_path / "final.json", "stopped", merged=True, stop_reason="external: 関連IssueがCLOSEDになったことを確認できない"
+    )
+
+    with pytest.raises(loop.LoopError) as error:
+        loop.cycle_end(run_dir, github=env.github, finalize_result=result)
+
+    assert (error.value.code, error.value.stage) == (4, "merge_mismatch")
+    assert json.loads((run_dir / "cycle-1.json").read_text(encoding="utf-8"))["state"] == "planning"
+
+
+def test_recorded_stop_keeps_a_manual_merge(loop: Any, env: Any, kit: Any) -> None:
+    """結論 3（finalize を呼ばない stopped の記録）の間に、PR が手でマージされた。"""
+    env.start()
+    head = env.gh.head()
+    reuse_or_run(loop, env)
+    env.gh.post_record(kit.round_record(1, head, "stopped", [], stop_reason="external: テスト", seats=[]))
+    env.gh.merge()
+
+    ended = loop.cycle_end(env.run_dirs[-1], github=env.github)
+
+    assert (ended["outcome"], ended["merged"]) == ("stopped", True)
+    run = json.loads((env.run_dirs[-1] / "run.json").read_text(encoding="utf-8"))
+    assert run["result"]["merged"] is True
+
+
 def test_cycle_limit_ends_with_fixes_pushed(loop: Any, env: Any, kit: Any) -> None:
     env.start(max_cycles=1)
     head = env.gh.head()
