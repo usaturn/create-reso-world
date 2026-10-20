@@ -61,7 +61,7 @@ runtime = "pi"
 command = ["pigs"]
 model = "gpt-6.1-sol"
 provider = "openai-codex"
-effort = "xhigh"
+effort = "max"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
 
 [agents.pixg]
@@ -146,7 +146,7 @@ after_run = [[
 
 # 指定が無いときの既定構成。その回の --assign inspect=... または個人設定で選び直せる。
 [workflows.review.assignments.inspect]
-agents = ["pi-gpt", "devin-swe", "dsh-ccd", "claude-opus"]
+agents = ["pi-gpt", "devin-swe", "dsh-ccd", "cursor-grok47"]
 
 # review-fix-planning の run_roles.py が使う担当（#116 のボードの D-13）。self は司令塔が自分で実行する。
 # self-review・fix-check には DSH・codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
