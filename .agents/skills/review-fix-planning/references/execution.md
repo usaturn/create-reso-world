@@ -119,10 +119,10 @@ SKILL.md の結論 2 の手順 1〜5（検証、base との一時的な merge �
 
 ### 3.1 入力
 
-- 検証の記録 `CHECKS_JSON`: 検証した HEAD と、実際に実行したコマンドと終了コードをそのまま書く。helper は HEAD・形式・成功を照合するだけで、ファイルを作れば検証したことになるわけではない
+- 検証の記録 `CHECKS_JSON`: 検証した HEAD、検証したツリーが含む base の commit（`base`）、実際に実行したコマンドと終了コードをそのまま書く。`base` は SKILL.md の結論 2 の手順 2 で取り直した base の先端の完全な SHA である。`commands` には、それが head の祖先なら head で、祖先でなければ head にそれを merge したツリーで実行した検証を書く。helper は HEAD・base・形式・成功を照合するだけで、ファイルを作れば検証したことになるわけではない
 
   ```json
-  {"head": "<HEAD_SHA>", "commands": [{"argv": ["bash", ".devcontainer/run-tests.bash"], "exit_code": 0}]}
+  {"head": "<HEAD_SHA>", "base": "<検証したツリーが含む base の SHA>", "commands": [{"argv": ["bash", ".devcontainer/run-tests.bash"], "exit_code": 0}]}
   ```
 
 - 判断の記録 `ROUND_JSON`（`outcome: no_fix_needed`、[round-records.md](round-records.md)）と、マージの前の採否・検証の状況を書いた状況の本文 `STATUS_BODY`。マージ済み・Issue の更新済みと先に書かない
@@ -132,11 +132,11 @@ SKILL.md の結論 2 の手順 1〜5（検証、base との一時的な merge �
 **create-reso-world の PR**（Spec を PR の head に載せる）:
 
 1. Spec を `completed` にして、`MAIN_ROOT` でローカルに commit する（S）。`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と同じで、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
-2. PR の head がまだ `HEAD_SHA` であることを確かめてから、記録付きで状況コメントを投稿する（[round-records.md](round-records.md) 6 章）。記録付きの投稿は、PR の head が `reviewed_head` と同じときだけ通る
-3. S を SKILL.md の「実装後」の手順 5 の検査付きの push で、fast-forward で push する
-4. `finalize.py` を `--spec-commit S` で実行する。helper は投稿しない。投稿済みの記録が渡した記録と同じこと、GitHub の比較で S が `reviewed_head` の直接の子の 1 commit で、変更が `docs/superpowers/specs/` の直下の Markdown 1 ファイルだけであること、PR の head が S であることを確かめてから、S を `--match-head-commit` でマージする
+2. base を取り直し、先端が検証の記録の `base` と同じことを確かめる（違えば SKILL.md の結論 2 の手順 6 のとおり、検証をやり直して S を作り直す）。PR の head がまだ `HEAD_SHA` であることを確かめてから、記録付きで状況コメントを投稿する（[round-records.md](round-records.md) 6 章）。記録付きの投稿は、PR の head が `reviewed_head` と同じときだけ通る
+3. push の直前にも base を同じように確かめてから、S を SKILL.md の「実装後」の手順 5 の検査付きの push で、fast-forward で push する
+4. `finalize.py` を `--spec-commit S` で実行する。helper は投稿しない。投稿済みの記録が渡した記録と同じこと、GitHub の比較で S が `reviewed_head` の直接の子の 1 commit で、変更が `docs/superpowers/specs/` の直下の Markdown 1 ファイルだけであること、PR の head が S であること（push の直後で、GitHub がまだ `reviewed_head` を返すなら `wait_for: head`）を確かめる。マージの直前に base ブランチの今の先端が検証の記録の `base` と同じことを確かめてから、S を `--match-head-commit` でマージする
 
-**usaturn/resoloop の PR**（Spec は create-reso-world の文書用ブランチに置く）: `finalize.py` を `--spec-commit` 無しで実行する。helper が状況を投稿し、CI の成功を確かめてからマージする。
+**usaturn/resoloop の PR**（Spec は create-reso-world の文書用ブランチに置く）: `finalize.py` を `--spec-commit` 無しで実行する。helper が base の先端を確かめてから状況を投稿し、CI の成功とマージの直前の base の先端を確かめてからマージする。
 
 ```bash
 uv run --project "$TOPLEVEL" --locked python \
@@ -152,6 +152,8 @@ uv run --project "$TOPLEVEL" --locked python \
 
 - マージしてよい範囲は `usaturn/create-reso-world` と `usaturn/resoloop` の、open で draft でない PR だけ。範囲外は GitHub に問い合わせる前に `permission:` で止まる（SKILL.md の「マージしてよい範囲」）
 - CI: `usaturn/resoloop` は PR の checks が成功していること。`usaturn/create-reso-world` は確かめない（`AGENTS.md`「GitHub Actions」）
+- base: PR の base ブランチ（`baseRefName`）の今の先端を `gh api repos/<repo>/branches/<base>` で読み、検証の記録の `base` と同じことを、状況の投稿の前（`--spec-commit` が無いとき）とマージの直前に確かめる。違えば、投稿・マージをせずに `base_moved` 付きの `stopped` を返す。PR の `baseRefOid` は base ブランチの先端に追従しないので使わない。応答のブランチの名前が `baseRefName` と違う、先端の SHA を読めないときは `external:` で止まる。マージ済みの PR（Issue の更新だけを行う再実行）では、base の先端がマージの commit に進んでいるので確かめない
+- `--spec-commit` のとき、PR の head がまだ `reviewed_head`（push が GitHub に反映される前）なら `wait_for: head` で止まる。それ以外の head なら待たずに止まる
 - 認証済みの login を取り、PR の全コメントの記録と照合する。マージは `--merge --match-head-commit`（squash・rebase は使わない）。admin・auto マージ、ブランチの削除はしない
 - マージの後に MERGED・`mergedAt`・head を読み戻し、同じリポジトリの closing Issue だけを close して読み戻す。closing Issue に別のリポジトリのもの・URL と番号が合わないものがあれば、マージの前に `external:` で止まる
 - 同じ head で既にマージ済みなら、このサイクルの自分の記録が渡した記録と同じときだけ、投稿もマージもせずに Issue の更新を続ける。記録が無い・食い違うまま手でマージされていれば、Issue を更新せずに `merged: true` の `stopped` を返す
@@ -159,10 +161,20 @@ uv run --project "$TOPLEVEL" --locked python \
 ### 3.4 結果
 
 - 終了コード 0 で、結果の `outcome` が `no_fix_needed` のときだけ、最終化が終わった
-- 終了コード 1 は `stopped`。`stop_reason`・`merged`・更新した `issues` を読む。`wait_for` があれば、待てば進む停止である。`ci`（公開の CI が実行中・待機中）は `gh pr checks <PR> --repo <repo> --watch` を `monitoring-long-tasks` で監視して待ち、`mergeable`（GitHub がマージの可否を計算中）は少し間を置いて、どちらも同じ記録・本文・検証の記録で再実行する。期限を決め、過ぎても解消しなければ結論 3 として報告する
+- 終了コード 1 は `stopped`。`stop_reason`・`merged`・更新した `issues` を読む。`wait_for` があれば、待てば進む停止である。`ci`（公開の CI が実行中・待機中）は `gh pr checks <PR> --repo <repo> --watch` を `monitoring-long-tasks` で監視して待ち、`mergeable`（GitHub がマージの可否を計算中）と `head`（push した Spec の commit が PR の head に反映される前）は少し間を置いて、どれも同じ記録・本文・検証の記録で再実行する。期限を決め、過ぎても解消しなければ結論 3 として報告する
+- `base_moved`（`ref`・`verified`・`current`）があれば、検証した後に base が進んだ停止である。待っても解消しないので、次の順で再実行する
+  1. `current` を head（`HEAD_SHA`）に merge したツリーで、SKILL.md の結論 2 の手順 2 と同じ検証を通す
+  2. 検証の記録を、`base` を `current`、`commands` をその実行にして作り直す。検証し直さずに `base` だけを書き換えない
+  3. create-reso-world の PR（`--spec-commit`）では、PR の head が Spec の commit になっていて状況コメントを直せない。補足のコメントを `gh pr comment <PR> --repo <repo> --body-file <file>` で新しく投稿する。1 行目は `補足（review-fix-planning、<MODEL_NAME>）:` とし、状況コメントのサイクル、base が `verified` から `current` へ進んだこと、merge したツリーで実行したコマンドと終了コードを書く。判断の記録・マーカー（`<!--`）を含めない。補足は状況コメントの代わりではなく、記録付きの投稿が拒否されたときの代わりにも使わない。push 済みの Spec は直さない。それ以外の PR では、本文の検証の状況を新しい検証に直す（helper が同じサイクルのコメントを更新する）
+  4. 同じ判断の記録で `finalize.py` を再実行する。やり直しの回数の上限は SKILL.md の結論 2 のとおり
 - 状況の本文の不備・PR 上の過去の記録との食い違いは `environment:`、`gh`・API の失敗は `external:`、範囲外は `permission:` で返る
 - マージの後の Issue の更新の失敗も `stopped` だが、マージ済みであることを隠さずに報告し、同じ head・同じ記録で再実行して復旧する
 - 終了コード 2 は入力・結果ファイルの障害。操作の後の保存の失敗では、標準出力の JSON に実際の `merged`・`issues` が残るので、終了コード 2 だけから「何もしていない」と推測しない
+
+### 3.5 既知の制限
+
+- `finalize.py` が base の先端を最後に読んでから GitHub が `gh pr merge` を処理するまでの間に、別のセッションのマージで base が進むと、検証していない組み合わせがマージされる。GitHub のマージは base の commit を指定できず（`--match-head-commit` が固定するのは head だけ）、セッションの間でマージを排他にする仕組みも無い。完全に防ぐには、その仕組みを別に検討する
+- 起きたかどうかは、マージ commit の最初の親（`<マージ commit>^1`）が検証の記録の `base` と違うことで分かる。違っていたら、マージ commit で同じ検証を通し、結果を PR に補足として書く
 
 ## 4. 後片付け
 

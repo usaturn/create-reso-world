@@ -247,21 +247,24 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 「対応する」が 0 件で、全指摘・変更ファイルの全文・関連処理とテストの確認が終わったとき。CI の確認・マージ・closing Issue の更新は `finalize.py` が行う（[execution.md](references/execution.md) 3 章）。状況の投稿は、create-reso-world の PR では Spec の push の前に planner が行い、それ以外の PR では `finalize.py` が行う。
 
 1. PR の変更の種類に応じた検証（**実装後** の手順 2）を、専用の worktree で通し、実際に実行したコマンドと終了コードを検証の記録に残す
-2. `git -C "$MAIN_ROOT" fetch "$PR_REMOTE" <base>` で base を取り直し、base が PR の分岐点より先に進んでいれば（`git -C "$MAIN_ROOT" merge-base --is-ancestor "$PR_REMOTE/<base>" "$HEAD_SHA"` が失敗する）、手順 3 と同じ `mktemp` の隔離 worktree で head に base を merge した一時的なツリーを作り、同じ検証を通す。この merge は push しない。検証後は手順 3 の teardown と同じ方法で消す
+2. `git -C "$MAIN_ROOT" fetch "$PR_REMOTE" <base>` で base を取り直し、その先端の SHA（`git -C "$MAIN_ROOT" rev-parse "$PR_REMOTE/<base>"`）を検証の記録の `base` にする（[execution.md](references/execution.md) 3.1 節）。先端が head の祖先でなければ（`git -C "$MAIN_ROOT" merge-base --is-ancestor <その SHA> "$HEAD_SHA"` が失敗する）、手順 3 と同じ `mktemp` の隔離 worktree で head にその SHA を merge した一時的なツリーを作り、同じ検証を通して、そのコマンドと終了コードを検証の記録にする。この merge は push しない。検証後は手順 3 の teardown と同じ方法で消す
 3. base と競合して merge できないときは、競合の解消を修正として扱い、結論 1 に切り替える
 4. 下記「マージしてよい範囲」を確かめる。範囲外なら、ここで結論 3 にする（`finalize.py` も、範囲外の PR は GitHub に問い合わせる前に止める）
-5. 判断の記録（`no_fix_needed`）と、マージの前の採否・検証の状況を書いた本文を作る（[round-records.md](references/round-records.md)）。マージ済み・Issue の更新済みと先に書かない。本文の Spec の行（文書のコミット SHA）は、手順 6 の commit の後に書き足す
+5. 判断の記録（`no_fix_needed`）と、マージの前の採否・検証の状況を書いた本文を作る（[round-records.md](references/round-records.md)）。検証の状況には、検証したツリー（head だけか、head に `base` を merge したツリーか）と `base` の SHA を書く。マージ済み・Issue の更新済みと先に書かない。本文の Spec の行（文書のコミット SHA）は、手順 6 の commit の後に書き足す
 6. Spec に結果を書いて `completed` にし、コミットする。PR が create-reso-world のものなら Spec は PR の head に載るので、次の順で進める。確認していないコミットをマージに含めないため、**実装後** の手順 5 の「reject されたら rebase または merge」はここでは使わない
    - commit の前に、`gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` が検証した `HEAD_SHA` と一致することを確かめる
    - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD` を Spec のコミット（`SPEC_COMMIT`）として記録し、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
+   - 状況コメントの投稿の直前と push の直前に、手順 2 と同じく base を取り直し、先端が検証の記録の `base` と同じことを確かめる。違えば、投稿・push をせずに手順 2〜5 を新しい先端でやり直し、Spec を直して、Spec のコミットを `git -C "$MAIN_ROOT" commit --amend`（Spec のファイルだけを add する）で作り直す（push していないので書き換えてよい）。作り直したら、上の commit の後の確認からやり直す。手順 3 で結論 1 に切り替えるときは、Spec のコミットを結論 3 の「書き始めた Spec の扱い」の「push していない」の項の方法で取り消してから進める
    - PR の head がまだ `HEAD_SHA` のうちに、状況コメントを記録付きで投稿する（「作業終了前の PR 投稿」。記録付きの投稿は、PR の head が記録の `reviewed_head` と同じときだけ通る）
    - **実装後** の手順 5 の head の確認と共通 context の再実行の後、同じ手順 5 の検査付きの push で push する（fast-forward だけ。`--force` を付けない。検査で止まったら push せずに結論 3 にする）
    - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head か作業ツリーが変わった）。Spec のコミットは下記「結論 3」の「書き始めた Spec の扱い」に従う（取り消してよい条件を満たさなければ、取り消さずに残して報告する）
 
    PR が create-reso-world 以外のものなら、Spec は文書用ブランチにコミットし（「Spec のコミットと確認用コピー」）、状況の投稿は次の `finalize.py` が行う
-7. 共通 context を再実行してから、`finalize.py` で最終化する。create-reso-world の PR では `--spec-commit "$SPEC_COMMIT"` を付ける（helper は投稿せず、投稿済みの記録、Spec の commit が検証した HEAD の上の Spec 1 ファイルだけであること、PR の head を確かめてから、その commit をマージする）。それ以外の PR では付けない（helper が投稿し、CI を確かめ、検証した head をマージする）。終了コード 0 で結果の `outcome` が `no_fix_needed` のときだけ、マージと closing Issue の更新が終わった。`wait_for` 付きの `stopped` は、`monitoring-long-tasks` で期限を決めて待ち、同じ入力で再実行する。PR の変更が原因の CI の失敗は致命的な指摘として結論 1 に切り替える。それ以外の `stopped` は結論 3 にする（`merged: true` なら、マージ済みであることを分けて報告する）
+7. 共通 context を再実行してから、`finalize.py` で最終化する。create-reso-world の PR では `--spec-commit "$SPEC_COMMIT"` を付ける（helper は投稿せず、投稿済みの記録、Spec の commit が検証した HEAD の上の Spec 1 ファイルだけであること、PR の head を確かめてから、その commit をマージする）。それ以外の PR では付けない（helper が投稿し、CI を確かめ、検証した head をマージする）。どちらでも helper は、投稿の前（`--spec-commit` が無いとき）とマージの直前に、PR の base ブランチの今の先端が検証の記録の `base` と同じことを確かめる。終了コード 0 で結果の `outcome` が `no_fix_needed` のときだけ、マージと closing Issue の更新が終わった。`wait_for` 付きの `stopped` は、`monitoring-long-tasks` で期限を決めて待ち、同じ入力で再実行する。`base_moved` 付きの `stopped`（検証した後に base が進んだ）は待っても解消しないので、[execution.md](references/execution.md) 3.4 節のとおり新しい先端で検証し直し、検証の記録を作り直してから再実行する。PR の変更が原因の CI の失敗は致命的な指摘として結論 1 に切り替える。それ以外の `stopped` は結論 3 にする（`merged: true` なら、マージ済みであることを分けて報告する）
 8. PR の本文・タイトルで参照しているだけの Issue に、マージの結果と残りの作業をコメントする。本文のチェック項目のうち、この PR で完了したことが明らかなものは、本文を取り直してから `[x]` にする（`finalize.py` は closing Issue だけを扱う）
 9. 工程の記録を更新し（[round-records.md](references/round-records.md) 7 章）、「専用の worktree」を片付ける
+
+**base が進んだときのやり直し:** 手順 6 の再確認と手順 7 の `base_moved` によるやり直しは、このサイクルで合わせて 3 回まで。超えたら結論 3 にする（停止理由は `external: 検証の間に base が進み続けた`）。検証し直さずに、検証の記録の `base` だけを新しい先端に書き換えない。`finalize.py` が最後に base を確かめてから GitHub がマージを処理するまでの間の前進は止められない（[execution.md](references/execution.md) 3.5 節の既知の制限）。
 
 **マージしてよい範囲:** `usaturn/create-reso-world` と `usaturn/resoloop` の、open で draft でない PR だけ。それ以外（上流の `orange3134/resoloop` など）は、修正不要と判定してもマージせず結論 3 にする。範囲外のリポジトリへのコメント投稿は、commit / push まで行ったターンだけ必須である。
 
@@ -272,7 +275,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 - 権限: マージしてよい範囲外、push・マージの権限が無い、`gh` の認証が無い
 - PR の状態: draft、close 済み、マージ済み
 - 環境: 共通 context の確認が止まった（exit 64〜66）、レビューと PR の対応を確かめられない（手順 2。`external/resoloop/reviews/` で PR の URL が無いときを含む）、現行の PR head を再実行したレビュアーがいない（手順 2）、判断の記録を読めない（壊れた記録）、検証中に PR の head が更新された（結論 2 の手順 6）、head ブランチが PR に無いコミットや未コミットの変更を抱えている、runner の起動の前の checkout の監査で止まった、確認済みの一覧が無く自己レビューを始められない、予約した自己レビューを終えられなかった、必要なツールが無い
-- 外部障害: GitHub の API・ネットワークの障害（判断の記録・認証済みの login を取得できないときを含む）、CI 基盤の障害
+- 外部障害: GitHub の API・ネットワークの障害（判断の記録・認証済みの login を取得できないときを含む）、CI 基盤の障害、検証の間に base が進み続けた（結論 2 のやり直しの上限）
 
 未読・未検証、判断に迷う、修正が大きい、テストが失敗する（直す）、再現できない（根拠を付けて「解消済み」か「対応しない」にする）、同じ条件の再発（「同じ条件の再発と設計の見直し」で直す）は、結論 3 の理由にならない。
 
@@ -532,6 +535,7 @@ EOF
 | 「runner が success を返したので修正は合格」 | success は応答の回収である。fix-check の受け取り・指摘の判定・検証の結果で判断する |
 | 「記録付きの投稿が拒否されたので、記録なしで投稿する」 | 切り替えない。記録の問題を直して投稿し直すか、止まって報告する |
 | 「finalize.py は手間なので gh pr merge で済ませる」 | 修正不要のマージは `finalize.py` で行う。範囲・head・CI・記録の照合を省かない |
+| 「base が進んだだけなので、検証の記録の `base` を新しい先端に書き換えて再実行する」 | 検証の記録は実際に検証したツリーを書く。新しい先端を head に merge したツリーで検証し直してから作り直す |
 | 「古いレビューでも現行 HEAD で確かめたので結論 2 にする」 | 現行の PR head を再実行したレビュアーがいなければ記録を作れない。結論 3 にしてレビューの取り直しを報告する |
 | 「前の回と同じ条件だが、今回の経路は別なので点の修正で足りる」 | 同じ守る条件の 2 回目である。設計の見直しに切り替え、仕組みから経路を列挙し直す |
 | 「回帰は、入れたコミットを直せば済む」 | 修正が生んだ回帰は、前の回の列挙が足りなかった証拠である。設計の見直しに切り替える |
@@ -569,6 +573,7 @@ EOF
 - self-review・fix-check に DSH・codex の担当を割り当てようとしている
 - 範囲外のリポジトリ、draft の PR をマージしようとしている
 - `--match-head-commit` を付けずにマージしようとしている、修正不要のマージを `finalize.py` を使わずに行おうとしている
+- 検証し直さずに、検証の記録の `base` を新しい先端に書き換えようとしている
 - 記録付きの投稿が拒否されたのに、記録なしで投稿しようとしている
 - 完遂で、自己レビューの役割（`run_roles.py`）の外で `pr-review` スキルを呼ぼうとしている、または `superpowers:brainstorming` を呼ぼうとしている
 - 「対応する」項目に、守る条件と影響経路の表が無い
