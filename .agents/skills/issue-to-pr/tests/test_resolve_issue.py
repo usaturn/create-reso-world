@@ -127,6 +127,7 @@ def test_resolves_supported_forms_without_changing_git(
         "url": f"https://github.com/{repo}/issues/42",
         "title": "Fix a regression",
         "body": "Keep unrelated work intact.",
+        "merge": None,
         "implement": None,
     }
     assert subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout) == before
@@ -174,25 +175,123 @@ def test_rejects_input_before_looking_up_issue(checkout: Path, gh_stub: Path, ar
     assert not (checkout / "injected").exists()
 
 
+def unchanged(checkout: Path, before: bytes) -> bool:
+    return (
+        subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout) == before
+        and subprocess.check_output(["git", "for-each-ref"], cwd=checkout) == b""
+    )
+
+
+@pytest.mark.parametrize(
+    ("argument", "loop_args"),
+    [
+        ("#42 --merge", []),
+        (
+            "#42 --merge --max-cycles 2 --assign inspect=claude-opus,devin-swe --assign implement=self",
+            ["--max-cycles", "2", "--assign", "inspect=claude-opus,devin-swe", "--assign", "implement=self"],
+        ),
+        ("--merge #42 --max-cycles=2", ["--max-cycles", "2"]),
+        # ループ用のオプションは --merge より前に書いてもよい
+        ("#42 --max-cycles 2 --merge", ["--max-cycles", "2"]),
+        # start の argparse と同じく、繰り返しは書いた順のまま渡す（--max-cycles は後の値が効く）
+        ("#42 --merge --max-cycles 2 --max-cycles 3", ["--max-cycles", "2", "--max-cycles", "3"]),
+        # 範囲は check-options が start と同じ関数で確かめる（test_resolve_then_check_options）
+        ("#42 --merge --max-cycles 0", ["--max-cycles", "0"]),
+    ],
+)
+def test_merge_arguments_are_passed_in_the_written_order(
+    checkout: Path, gh_stub: Path, argument: str, loop_args: list[str]
+) -> None:
+    before = subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout)
+    result = resolve(checkout, argument)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["number"] == 42
+    assert payload["merge"] == {"loop_args": loop_args}
+    assert payload["implement"] is None
+    assert unchanged(checkout, before)
+
+
+def test_template_and_config_become_absolute_from_the_starting_directory(
+    checkout: Path, gh_stub: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """loop.py は別の cwd で起動しうる。スラッシュコマンドの引数はシェルを通らないので、~ も helper が展開する。"""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = resolve(checkout, "#42 --merge --template sub/a.toml --config '~/c d.toml'")
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["merge"]["loop_args"] == [
+        "--template",
+        str((checkout / "sub" / "a.toml").resolve()),
+        "--config",
+        str((home / "c d.toml").resolve()),
+    ]
+
+
+def test_unresolvable_home_is_rejected(checkout: Path, gh_stub: Path) -> None:
+    result = resolve(checkout, "#42 --merge --config ~nosuchuser-158/x.toml")
+    assert_rejected(result)
+    assert "Traceback" not in result.stderr
+    assert not gh_stub.exists()
+
+
+# 値はそのまま loop.py check-options・start の引数になるので、形の合わない値は Issue を読む前に止める
 @pytest.mark.parametrize(
     "argument",
     [
-        "#42 --merge",
-        "#42 --merge=1",
-        # --implement を受け付けても、同じ引数の --merge は止める
-        "#42 --implement codex --merge",
-        "#42 --merge --max-cycles 2",
-        "#42 --hold-action skip",
-        "#42 --assign implement=codex",
+        "#42 --max-cycles 2",
+        "#42 --assign implement=self",
         "#42 --template x.toml",
-        "#42 --config x.toml",
-        "#42 --fresh-review",
+        "#42 --merge --merge",
+        "#42 --merge=yes",
+        "#42 --merge --max-cycles",
+        "#42 --merge --max-cycles x",
+        "#42 --merge --max-cycles -1",
+        "#42 --merge --max-cycles=٣",
+        "#42 --merge --assign inspect",
+        "#42 --merge --assign 'inspect=a;touch injected'",
+        "#42 --merge --assign =a",
+        "#42 --merge --template",
+        "#42 --merge --template=",
+        "#42 --merge --template --config x",
+        "#42 --merge --config 'a\nb'",
+        "#42 --merge --foo",
+        "#42 --merge -x",
+        "#42 extra --merge",
+        "#41 #42 --merge",
+        "--merge",
+        "#42 --merge --template 'a",
     ],
 )
-def test_rejects_options_with_reason(checkout: Path, gh_stub: Path, argument: str) -> None:
+def test_rejects_malformed_arguments_before_looking_up_issue(
+    checkout: Path, gh_stub: Path, argument: str
+) -> None:
+    before = subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout)
     result = resolve(checkout, argument)
     assert_rejected(result)
-    assert "#116" in result.stderr
+    assert not gh_stub.exists()
+    assert not (checkout / "injected").exists()
+    assert unchanged(checkout, before)
+
+
+# このリポジトリの review-fix-planning とループには判断保留が無く（#156 の D-4）、作ったばかりの PR には
+# 再利用するレビューが無い。どちらも黙って外さず、名前を挙げて止める
+@pytest.mark.parametrize(
+    ("argument", "option"),
+    [
+        ("#42 --merge --hold-action skip", "--hold-action"),
+        ("#42 --hold-action fix", "--hold-action"),
+        ("#42 --merge --fresh-review", "--fresh-review"),
+        ("#42 --fresh-review", "--fresh-review"),
+    ],
+)
+def test_refused_options_name_the_option(checkout: Path, gh_stub: Path, argument: str, option: str) -> None:
+    result = resolve(checkout, argument)
+    assert_rejected(result)
+    assert option in result.stderr
+    # 未知のオプションと区別して、理由付きで止める
+    assert "未知のオプション" not in result.stderr
     assert not gh_stub.exists()
 
 
@@ -248,7 +347,6 @@ def test_rejects_unknown_options(checkout: Path, gh_stub: Path, argument: str) -
     result = resolve(checkout, argument)
     assert_rejected(result)
     assert "未知のオプション" in result.stderr
-    assert "#116" not in result.stderr
     assert not gh_stub.exists()
 
 
@@ -379,6 +477,7 @@ agents = ["self"]
         ("#42", (0, 0, True)),
         ("#42 --implement codex", (0, 0, False)),
         ("#42 --implement self", (0, 0, True)),
+        ("#42 --implement self --merge", (0, 0, True)),
         ("#42 --implement nobody", (0, 2, None)),
         ("#42 --implement", (2, None, None)),
     ],
@@ -412,3 +511,116 @@ def test_resolve_then_implement_check(
         env={**os.environ, "AGENT_RUNNER_CONFIG": str(tmp_path / "no-personal.toml")},
     )
     assert (resolved.returncode, checked.returncode, json.loads(checked.stdout).get("self")) == expected
+
+
+@pytest.mark.parametrize(
+    ("argument", "implement", "merge"),
+    [
+        ("#42 --implement claude-opus --merge --max-cycles 2", "claude-opus", {"loop_args": ["--max-cycles", "2"]}),
+        # --merge の後ろに書いても、--implement はループ用のオプションにならない
+        ("#42 --merge --max-cycles 2 --implement codex", "codex", {"loop_args": ["--max-cycles", "2"]}),
+        # ループの --assign implement= はレビュー修正の担当で、Plan の Task の担当にはしない
+        ("#42 --merge --assign implement=self", None, {"loop_args": ["--assign", "implement=self"]}),
+    ],
+)
+def test_implement_is_returned_separately_from_loop_args(
+    checkout: Path, gh_stub: Path, argument: str, implement: str | None, merge: dict[str, list[str]]
+) -> None:
+    result = resolve(checkout, argument)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["implement"] == implement
+    assert payload["merge"] == merge
+
+
+LOOP_SCRIPT = SCRIPT.parents[2] / "pr-review-fix-loop" / "scripts" / "loop.py"
+LOOP_TEMPLATE = """
+schema_version = 1
+
+[agents.claude-opus]
+runtime = "claude-code"
+command = ["fake-claude"]
+model = "claude-model"
+
+[agents.devin-swe]
+runtime = "devin"
+command = ["fake-devin"]
+model = "devin-model"
+
+[agents.codex]
+runtime = "codex"
+command = ["fake-codex"]
+model = "codex-model"
+
+[roles.inspect]
+writes = false
+deadline_seconds = 60
+result_shape = "json"
+
+[roles.implement]
+writes = true
+deadline_seconds = 60
+result_shape = "json"
+
+[roles.self-review]
+writes = false
+deadline_seconds = 60
+result_shape = "json"
+
+[roles.fix-check]
+writes = false
+deadline_seconds = 60
+result_shape = "json"
+
+[workflows.review.assignments.inspect]
+agents = ["claude-opus", "devin-swe"]
+
+[workflows.fix.assignments.implement]
+agents = ["claude-opus"]
+
+[workflows.fix.assignments.self-review]
+agents = ["self"]
+
+[workflows.fix.assignments.fix-check]
+agents = ["self"]
+"""
+
+
+@pytest.mark.parametrize(
+    ("argument", "expected"),
+    [
+        ("#42 --merge", (0, 0)),
+        ("#42 --merge --max-cycles 2 --assign inspect=claude-opus,devin-swe --assign implement=self", (0, 0)),
+        ("#42 --max-cycles 2", (2, None)),
+        ("#42 --merge --hold-action skip", (2, None)),
+        ("#42 --merge --max-cycles 0", (0, 2)),
+        ("#42 --merge --assign inspect=nobody", (0, 2)),
+        ("#42 --merge --assign inspect=codex", (0, 2)),
+        # 利用者の --template は、下で先に渡す一時の雛形より後ろに来るので、利用者の値が効く
+        ("#42 --merge --template missing.toml", (0, 2)),
+    ],
+)
+def test_resolve_then_check_options(
+    checkout: Path, gh_stub: Path, tmp_path: Path, argument: str, expected: tuple[int, int | None]
+) -> None:
+    """worktree を作る前の 2 段（resolve_issue.py → loop.py check-options）を、本物の 2 つのスクリプトでつなぐ。
+
+    値は（resolve の終了コード、check-options の終了コード）。loop_args の各要素を 1 つの引数として渡す。
+    """
+    template = tmp_path / "agent-runner.toml"
+    template.write_text(LOOP_TEMPLATE, encoding="utf-8")
+    resolved = resolve(checkout, argument)
+    if resolved.returncode != 0:
+        assert (resolved.returncode, None) == expected
+        return
+    loop_args = json.loads(resolved.stdout)["merge"]["loop_args"]
+    checked = subprocess.run(
+        [sys.executable, str(LOOP_SCRIPT), "check-options", "--template", str(template), *loop_args],
+        cwd=checkout,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "AGENT_RUNNER_CONFIG": str(tmp_path / "no-personal.toml")},
+    )
+    assert (resolved.returncode, checked.returncode) == expected, checked.stdout + checked.stderr
+    if checked.stdout:
+        assert json.loads(checked.stdout)["status"] == ("ok" if checked.returncode == 0 else "error")
