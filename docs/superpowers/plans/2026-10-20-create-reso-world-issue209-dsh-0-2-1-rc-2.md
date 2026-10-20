@@ -119,7 +119,21 @@
 
 ## 検証の記録
 
-（Task 4 で書く）
+ログはすべて `/workspaces/reso-world/tmp/agents/issue-209.5_nf818o/` の下にある（commit しない）。
+
+- 基準（`f2350a4`）: `uv run pytest tools/agent_runner/tests/adapters/dsh -q` → 283 passed（`baseline/dsh-tests.log`）
+- 導入（Spec の段階）: 一時の HOME・npm cache・prefix で `npm install -g --allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty @deepseek-ai/dsh@0.2.1-rc.2` → `install_exit=0`、`dsh --version` → `0.2.1-rc.2`（`install-0.2.1-rc.2/install.log`）。旧版も同じ手順で `0.2.0-rc.2`
+- 上書きの上げ下げ: `swap-upgrade.result`（`0.2.0-rc.2` → `0.2.1-rc.2`）・`swap-rollback.result`（`0.2.1-rc.2` → `0.2.0-rc.2`）とも終了コード 0 で版が一致
+- Task 1: `bash .devcontainer/test-install-beforehand.bash` → PASS
+- Task 2: README に書いたコマンドを、文字列はそのままで `npm_config_prefix` だけ一時の場所に向けて実行し、`dsh --version` が `0.2.0-rc.2` → `0.2.1-rc.2` → `0.2.0-rc.2`、どれも終了コード 0（`readme-procedure/`。観測した版の値は `readme-procedure/versions.txt`）
+- Task 3: `uv run pytest tools/agent_runner/tests/adapters/dsh -q` → 283 passed（`sdd/task3-dsh-tests.log`）。`tools/` の差分はコメント行だけ
+- Task 4（HEAD `077ed13`、検証の前後とも `git status --porcelain` は空。`verify-1/`）
+  - `bash .devcontainer/run-tests.bash` → 終了コード 0、33 本 PASS（475 秒）
+  - `bash scripts/check-layout.sh` → 終了コード 0
+  - `uv run pytest tests/skills .agents/skills .agents/scripts tools` → 終了コード 0、3501 passed（1196 秒）
+  - 実 CLI と偽 provider の通し（新版、`e2e/results-final.json`）→ 7 シナリオとも、Spec の段階の新版（`e2e/results-all.json`）と旧版の結果に一致
+- ブランチ全体のレビュー（opus、`f2350a4..077ed13`）: Critical・Important なし、Minor 3。R-3 の期待値の指摘は直した（`f4b2ae5`）。dsh-go の上流の接続先への実接続が未確認であることは PR と #175 に書く
+- 最後の HEAD での入口のテストのやり直し（Task 4 の Step 5）は、この記録の commit の後に行い、結果は PR 本文と `verify-2/` に書く
 
 ## 完了
 
