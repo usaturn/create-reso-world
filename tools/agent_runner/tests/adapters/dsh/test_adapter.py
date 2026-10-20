@@ -155,7 +155,8 @@ def test_tmp_launch_script_and_shared_environment_are_visible_readonly(
         "assert marker.read_text() == 'shared dependency'\n"
         "try:\n marker.write_text('changed')\nexcept OSError:\n print(json.dumps({'readonly': True}))\n"
     )
-    context.agent.command = [sys.executable, str(script)]
+    # The profile hides /tmp; a checkout's venv there is not visible, the interpreter it links to is.
+    context.agent.command = [str(Path(sys.executable).resolve()), str(script)]
     with monkeypatch.context() as patch:
         patch.setattr(sys, "prefix", str(shared))
         spec = load_adapter("dsh").prepare(context)
