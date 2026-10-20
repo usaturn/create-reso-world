@@ -104,7 +104,7 @@ uv run --project "$TOOL_ROOT" --locked python \
 - **終了コード 7（`resources`・`after_run`）**: runner の試行か後処理（after_run）の停止を確認できない。run は `held` になり、`status` の `next` は `recover` である。同じく、プロセスが残っていないことを確かめてから `recover` に事実を渡す。`recover` の後に続けるときは `start` からやり直す。確かめられないときは、ロックと資源を残したまま、完全パスを利用者に報告して止まる。利用者にロックを消すよう頼まれても、`lock.json` を手で消さず、この手順を説明する。
 - **`review` の終了コード 4（`head_moved`）**: `cycle-begin` の後に PR の HEAD が動いた。`next` のとおり `finish --abort` で止め、新しい run を始める。
 - **`review` の終了コード 5（`runner`）**: runner がレビュアーを起動できなかった。何も起動していなければ `next` は `review` で、原因（agent-runner の設定、入れ子の起動など）を直してからやり直す。出力が残っているときは `status` で状態を確かめる。
-- **最終化の停止**: finalize.py が `stopped`（mergeable の計算中、一時的な API の失敗など）で終わり、同じ HEAD のまま原因が解消したら、`cycle-end` に渡した `--round-dir` の記録・本文・検証記録で finalize.py を再実行する（`.agents/skills/review-fix-planning/references/execution.md` の 3 章。手動マージ済みでも Issue の更新だけを行う）。base が進んで止まったとき（結果に `base_moved`）は待っても解消しないので、`execution.md` の 3.4 節のとおり新しい先端で検証し直し、`--round-dir` の検証記録を作り直してから再実行する。新しい commit が push されたら、新しい run を `start` から始める。
+- **最終化の停止**: finalize.py が `stopped`（mergeable の計算中、一時的な API の失敗など）で終わり、同じ HEAD のまま原因が解消したら、`cycle-end` に渡した `--round-dir` の記録・本文・検証記録で finalize.py を再実行する（`.agents/skills/review-fix-planning/references/execution.md` の 3 章。手動マージ済みでも Issue の更新だけを行う）。finalize.py の結果の `merged` が `false`・`null` でも、`cycle-end` は読んだ PR の実際のマージ状態を保存する。`null`（マージ済みかを確かめられていない）で止まったら、未マージと報告せず、同じ 3.4 節のとおり状態を読み直して再実行する。base が進んで止まったとき（結果に `base_moved`）は待っても解消しないので、`execution.md` の 3.4 節のとおり新しい先端で検証し直し、`--round-dir` の検証記録を作り直してから再実行する。新しい commit が push されたら、新しい run を `start` から始める。
 - 他の run のロック・資源・worktree を消さない。glob や `rm -rf` で推測して消さない。
 
 ## 監視
