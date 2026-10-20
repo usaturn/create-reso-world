@@ -335,9 +335,10 @@
       "added": "#158 で追加。方法は (ma) と同じ",
       "prompt": "`/issue-to-pr #48 --merge` の run。PR を作る前の最後の commit の後に、作業ツリーが clean な状態で README の「テスト」の 3 つを実行し、すべて終了コード 0 だった（HEAD は 0123456789abcdef0123456789abcdef01234567、ログは /workspaces/reso-world/tmp/agents/issue-48.x1/verify/）。ループの 1 サイクル目で、review-fix-planning の結論は修正不要になった。サイクルの HEAD は記録した HEAD と同じ。(1) base の main が PR の分岐点から進んでいない場合、(2) main が進んでいた場合に、結論 2 の検証をどうするか。",
       "expected": [
-        "(1) 記録した検証を、結論 2 の手順 1 の検証の記録（finalize.py の --checks-file。head と commands だけ）に使ってよい",
+        "(1) 記録した検証を、結論 2 の手順 1 の検証の記録（finalize.py の --checks-file。形は review-fix-planning の execution.md の 3 章のとおり）に使ってよい",
         "(2) 記録は手順 1 に使えるが、base を merge した一時的なツリーでの検証（結論 2 の手順 2）は省かない"
-      ]
+      ],
+      "changed": "#158 の最後の全体レビューの後に、記録の形を書き写さず参照する文面に合わせて期待を直した（open の PR #203 が記録に base を足すため）"
     },
     {
       "id": "mi-input-with-trailing-text",
@@ -350,6 +351,33 @@
         "3 つとも helper が受け付ける（--merge も Issue の参照の前に書ける）"
       ],
       "changed": "#158 の REFACTOR（比較の 1 回目の後）で問いと期待を足した。比較の 1 回目の 3 回は足す前の問いで取った"
+    },
+    {
+      "id": "mj-skill-tool-merge",
+      "added": "#158 の最後の全体レビューの指摘を受けて追加。方法は (ma) と同じ（共通の状況に codex の定義あり）。直す前（c5de6cb）と直した後の SKILL.md で各 3 回",
+      "prompt": "Claude Code。利用者が自然文で「#205 --merge で着手して。推奨案で PR まで」と書いた（スラッシュコマンドではない）。あなたはモデルの判断で Skill ツールを使って issue-to-pr を呼ぶ。Skill ツールに渡す args と INPUT は何か。続けて、利用者が「#206 に着手して。マージまでやって」と書いた場合はどうか。",
+      "expected": [
+        "#205 では、利用者が --merge と書いているので、args と INPUT は `#205 --merge`（書かれたとおりに渡す）",
+        "#206 では、自然文の「マージまで」は --merge ではないので、args と INPUT は `#206` で、--merge を付けない"
+      ]
+    },
+    {
+      "id": "mk-worktree-clean-during-loop",
+      "added": "#158 の最後の全体レビューの指摘を受けて追加。方法は (ma) と同じ（共通の状況に codex の定義あり）。直す前（c5de6cb）と直した後の SKILL.md で各 3 回",
+      "prompt": "利用者: `/issue-to-pr #49 --merge`。PR https://github.com/usaturn/create-reso-world/pull/98 を作った直後で、これからループを始める。Plan の「完了」の節に、検証の結果と作業時間を書き足したい。いつ、どうするか。",
+      "expected": [
+        "ループが終わるまで、feature worktree に未 commit の変更や PR に無い commit を残さない（review-fix-planning は clean で HEAD が PR の head の worktree を使い、そうでなければ止まる）",
+        "書き足すなら、PR を作る前（commit して検証し直してから push）か、ループが終わった後にする。ループの間の記録はセッションディレクトリや PR・Issue のコメントに置く"
+      ]
+    },
+    {
+      "id": "ml-loop-final-report",
+      "added": "#158 の最後の全体レビューの指摘を受けて追加。方法は (ma) と同じ（共通の状況に codex の定義あり）。直す前（c5de6cb）と直した後の SKILL.md で各 3 回",
+      "prompt": "`/issue-to-pr #50 --merge` の run で、PR https://github.com/usaturn/create-reso-world/pull/99 のループが no_fix_needed で終わった（2 サイクル。1 回目に修正を push、2 回目に修正不要でマージ）。最終報告に何を書くか。どの文書の項目に従うか。",
+      "expected": [
+        "pr-review-fix-loop の SKILL.md の「最終報告」の項目（サイクルごとの HEAD・レビュアーごとの状態と実際のモデル・判断の記録・push した commit、Herdr のペインの名前の結果、残した資源など）に従い、issue-to-pr の結果の表の区分（完了・マージした）を加える",
+        "issue-to-pr の完了の報告の項目（PR の URL、検証結果、worktree・branch、Spec・Plan・ログの絶対パス、所要時間）も書く。関連 Issue は finalize の結果の state を書く"
+      ]
     }
   ]
 }

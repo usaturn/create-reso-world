@@ -176,7 +176,7 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 ## 5. 検証・PR・完了
 
 - **`verification-before-completion` と `finishing-a-development-branch` 必須。** 終了方法は PR の作成を選び、改めて選択肢を尋ねない。検証は 2 章の表の入口で行う。長時間の検証・子・CI は `monitoring-long-tasks` 必須で、終了を待ち、終了コードと実ログを確かめる。
-- `--merge` のときは、最後の commit の後に検証し、検証した HEAD、そのときの `git status --porcelain` が空だったこと、各コマンドの argv と終了コード、ログの完全パスを `PARENT_ROOT/tmp/agents/` のセッションディレクトリに記録する。同じ場所に、`finalize.py` の `--checks-file` の形（`{"head": "<HEAD>", "commands": [{"argv": [...], "exit_code": 0}]}`。この 2 項目だけ）のファイルも作る。ループで再利用する条件になる（下の「`--merge` のとき: PR の作成後のループ」の 5）
+- `--merge` のときは、最後の commit の後に検証し、検証した HEAD、そのときの `git status --porcelain` が空だったこと、各コマンドの argv と終了コード、ログの完全パスを `PARENT_ROOT/tmp/agents/` のセッションディレクトリに記録する。同じ場所に、`finalize.py` の `--checks-file` の形のファイルも作る（形は review-fix-planning の `references/execution.md` の 3 章のとおり）。ループで再利用する条件になる（下の「`--merge` のとき: PR の作成後のループ」の 5）
 - 統合確認では [要件・原因・検証の対応](../review-fix-planning/references/convergence.md) の「3. 検証と閉じ方」を読む。Spec→Plan→Task→実行証拠を条件単位で照合し、判定の両側・意味のある操作順・検証の独立した根拠・最後の修正で影響した経路を確認する。要件の欠落や未確認をテスト件数や別版のレビューで埋めず、必要な証拠が揃ってから公開する。
 - worktree で明示したパスだけを stage・commit する。push は `finishing-a-development-branch` の `git push -u` ではなく、`AGENTS.md` の「push の前の秘密情報の検査」の形で、次の順に行う。検査のスクリプトは、どの対象でも `PARENT_ROOT` のものを使う（外部の checkout には無く、作業中の branch のものはその branch が書き換えられる）。
 
@@ -199,7 +199,7 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 
 ### `--merge` のとき: PR の作成後のループ
 
-PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文書の PR も作った後）、このセッションが司令塔としてループを回す。
+PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文書の PR も作った後）、このセッションが司令塔としてループを回す。ループが終わるまで、review-fix-planning の手順の外で feature worktree を変えない（未 commit の変更や PR に無い commit を残さない。review-fix-planning は、clean で HEAD が PR の head の worktree を修正に使い、そうでなければ結論 3 で止まる）。Spec・Plan への記録は PR を作る前に済ませ、ループの間の記録はセッションディレクトリと PR・Issue のコメントに置く。
 
 1. `HERDR_ENV=1` なら、Herdr のタスクを `herdr-agent-task set "PR #<PR の番号> レビュー・マージ"` に変える。ペインの名前は `start` が `PR#<番号>` に変えるので、自分で変えない
 2. `PARENT_ROOT` の `.agents/skills/pr-review-fix-loop/SKILL.md` をファイルとして読む（`disable-model-invocation: true` なので、Skill ツールでは起動できない）
@@ -212,9 +212,9 @@ PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文�
      <loop_args の各要素>
    ```
 
-4. サイクルは、pr-review-fix-loop の SKILL.md の「サイクル」「終わり方」「止まったとき」「監視」に従う
-5. **検証の記録の再利用:** 1 サイクル目で修正不要となり、サイクルの HEAD が上で記録した HEAD と同じなら、その記録を review-fix-planning の結論 2 の手順 1 の検証の記録（`finalize.py` の `--checks-file`）に使ってよい。条件は、同じ HEAD、検証のときに未 commit の変更が無い、すべての終了コードが 0、ログが残っていること。どれかを確かめられなければ、計画の中で検証し直す。base が進んでいたときの merge の検証（結論 2 の手順 2）は省かない
-6. **終了:** ループの結果で次のように報告する。run ID、`<review_dir>/loop/<run_id>/` の完全パス、サイクルごとの結果、ループの段階の所要時間も書く
+4. 以降は pr-review-fix-loop の SKILL.md 全体（守ること・起動の注意・サイクル・終わり方・止まったとき・監視・最終報告）に従う。起動のコマンドは上の 3 のとおり
+5. **検証の記録の再利用:** 1 サイクル目で修正不要となり、サイクルの HEAD が上で記録した HEAD と同じなら、その記録を review-fix-planning の結論 2 の手順 1 の検証の記録（`finalize.py` の `--checks-file`）に使ってよい。条件は、同じ HEAD、検証のときに未 commit の変更が無い、すべての終了コードが 0、ログが残っていること。どれかを確かめられなければ、計画の中で検証し直す。記録の形と base の扱い（結論 2 の手順 2）は review-fix-planning のとおりにし、base が進んでいたときの merge の検証は省かない
+6. **終了:** pr-review-fix-loop の SKILL.md の「最終報告」の項目と、5 章の完了の報告の項目を書き、ループの結果で次の区分を加える。ループの段階の所要時間も書く
 
    | ループの結果 | 報告 | マージ |
    | --- | --- | --- |
@@ -233,6 +233,6 @@ PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文�
 
 ## ランタイムごとの違い
 
-- **Claude Code:** `/issue-to-pr <Issue> [--implement AGENT] [--merge [ループ用のオプション]]`。スラッシュコマンドの引数（`ARGUMENTS`）から、2 章の規則で `INPUT` を切り出す。モデルが Skill ツールでこのスキルを呼ぶときは `--merge` を付けない。pr-review-fix-loop は Skill ツールで起動せず、5 章のとおりファイルとして読む。
+- **Claude Code:** `/issue-to-pr <Issue> [--implement AGENT] [--merge [ループ用のオプション]]`。スラッシュコマンドの引数（`ARGUMENTS`）から、2 章の規則で `INPUT` を切り出す。モデルが自分の判断で Skill ツールからこのスキルを呼ぶときは、利用者のメッセージから同じ規則で `INPUT` を切り出して args に渡す。利用者が書いた `--merge`・ループ用のオプションは書かれたとおりに含め、書かれていないものは足さない（自然文の「マージまで」は `--merge` ではない）。pr-review-fix-loop は Skill ツールで起動せず、5 章のとおりファイルとして読む。
 - **Pi:** `/skill:issue-to-pr` の引数から、2 章の規則で `INPUT` を切り出す。`/sp-brainstorm` から入るときは、Issue の URL を最初に書き、`--implement`・`--merge`・ループ用のオプションはその直後に続ける（`/sp-brainstorm <Issue URL> [--implement AGENT] [--merge [ループ用のオプション]] issue-to-pr を使い、…`）。1 章の入口を案内するときも、利用者が書いた `--implement`・`--merge`・ループ用のオプションだけを含める。
 - **`--controller-model`・`--controller-runtime`（5 章のループ）:** `--controller-runtime` は Claude Code なら `claude-code`、Pi なら `pi`。`--controller-model` は、現在提示されている正確なモデル ID（Pi は pi-model-name のスキルで `PI_PROVIDER` と `PI_MODEL` を確かめる。pr-review-fix-loop の「ランタイムごとの違い」）。

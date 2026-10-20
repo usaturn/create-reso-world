@@ -178,3 +178,23 @@
 - PR の作成後のループとマージの実機。利用者が `--merge` を書いて指示した run で行う（#158 の受け入れ、ボードの D-21）。この評価をした run の指示には `--merge` が無い
 - usaturn/resoloop の `--merge`（文書の PR を含む）の実機
 - 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない
+
+### 最後の全体レビューの指摘の修正
+
+最後のブランチ全体のレビュー（Claude Code の opus、`d29c93c..c5de6cb`）の指摘のうち、Important 1 件と、影響の大きさで Important に格上げした Minor 2 件を文面で直した。直す前の文面（`c5de6cb`）と直した後で、足した場面 (mj)・(mk)・(ml) を各 3 回取った（方法は (ma) と同じ。共通の状況に codex の定義あり）。
+
+| シナリオ | 期待 | 直す前（3 回） | 直した後（3 回） |
+| --- | --- | --- | --- |
+| (mj) 自然文の `--merge` と Skill ツール | 利用者が書いた `--merge` は args と `INPUT` に含め、書かれていなければ足さない | 3/3。ただし 3 回とも「Skill ツールで呼ぶときは `--merge` を付けない」と 1 章の食い違いを指摘し、1 章を優先する読みで答えた | 3/3（食い違いの指摘なし） |
+| (mk) ループの間の feature worktree | ループが終わるまで feature worktree を変えない（review-fix-planning は clean で HEAD が PR の head の worktree でないと止まる）。記録は PR の前に済ませ、ループの間はセッションディレクトリと PR・Issue のコメントに置く | 0/3（書き足さない判断は 3 回とも出たが、理由は検証の記録の再利用だけで、review-fix-planning の条件と記録の置き場所は出なかった） | 3/3 |
+| (ml) ループの最終報告 | pr-review-fix-loop の SKILL.md の「最終報告」の項目に従い、issue-to-pr の完了の報告の項目と結果の区分を加える | 0/3（issue-to-pr の項目だけを挙げ、pr-review-fix-loop の「最終報告」に従うことは出なかった） | 3/3 |
+
+直した文面:
+
+1. 「ランタイムごとの違い」の Claude Code の項: モデルが自分の判断で Skill ツールから呼ぶときは、利用者のメッセージから同じ規則で `INPUT` を切り出して args に渡す。利用者が書いた `--merge`・ループ用のオプションは含め、書かれていないものは足さない
+2. 5 章の「`--merge` のとき: PR の作成後のループ」の冒頭: ループが終わるまで、review-fix-planning の手順の外で feature worktree を変えない。Spec・Plan への記録は PR を作る前に済ませ、ループの間の記録はセッションディレクトリと PR・Issue のコメントに置く
+3. 同じ節の 4・6: pr-review-fix-loop の SKILL.md 全体に従い、報告はその「最終報告」の項目と 5 章の完了の報告の項目に、結果の区分を加える
+
+直した後の 3 回の後に、5 章の検証の記録の形を書き写さず、review-fix-planning の `references/execution.md` の 3 章を参照する文面に変えた（open の PR #203 が記録に `base` を足し、`finalize.py` が 3 項目を求めるため）。参照の仕方だけの変更なので、評価は取り直していない。
+
+持ち越した指摘（PR に書く）: パスの値のシェルの特殊文字（入力は利用者自身のもの）、検証の後に commit を足したときの記録の取り直し（同じ HEAD の条件で再利用されないだけで、安全側に止まる）。

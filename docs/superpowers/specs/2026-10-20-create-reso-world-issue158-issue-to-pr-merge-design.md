@@ -64,7 +64,7 @@
 
 - 4 章は変えない。`--merge` のときも、実装スキルの最後のブランチ全体のレビューを行う（D-158-9）
 - Plan の実行予算に、ループの段階（目安はサイクルの上限 ×（レビューの期限 45 分＋計画・修正））を含める
-- 検証の記録: `--merge` のときは、最後の commit の後に 2 章の表の入口で検証し、検証した HEAD、その時点の `git status --porcelain` が空だったこと、各コマンドの argv と終了コード、ログの完全パスを `PARENT_ROOT/tmp/agents/` のセッションディレクトリに残す。`finalize.py` の `--checks-file` の形（`head`・`commands` だけ）のファイルも同じ場所に作る
+- 検証の記録: `--merge` のときは、最後の commit の後に 2 章の表の入口で検証し、検証した HEAD、その時点の `git status --porcelain` が空だったこと、各コマンドの argv と終了コード、ログの完全パスを `PARENT_ROOT/tmp/agents/` のセッションディレクトリに残す。`finalize.py` の `--checks-file` の形のファイルも同じ場所に作る。形は書き写さず、review-fix-planning の `references/execution.md` の 3 章を参照する（`d29c93c` では `head`・`commands` の 2 項目。open の PR #203（#196）が `base` を足す）
 - PR は draft にしない（`finalize.py` は draft を拒否する）
 - usaturn/resoloop の PR でも、`--merge` のときは CI を待たずにループへ進む（マージの前に `finalize.py` が CI の成功を確かめ、実行中なら `wait_for: ci` で待つ）
 - ボードの子の予約は、ループの `finish` の後、その結果を子 Issue に書いてから解放する
@@ -130,7 +130,7 @@
 - **D-158-3 値の形は `resolve_issue.py` が確かめ、意味は `check-options` が確かめる**
   - 選択: 上の表の形（数字、`ROLE=AGENT[,AGENT]`、制御文字を含まないパス）を Issue を読む前に確かめる。範囲・役割の名前・担当の存在と数・設定による拒否は `check-options`（`start` と同じ関数）に任せる
   - 別案: (a) 移植元のとおり空の値だけを拒否する、(b) 意味まで `resolve_issue.py` で確かめる
-  - 理由: 値は次のコマンド（`check-options`・`start`）の引数になる。#157 の D-157-3（`--implement` の値を agent 名の形に限り、シェルの特殊文字を含む値を通さない）と同じ扱いにする。形は runner と loop の規則の範囲なので、正しい値を拒まない。(b) は `start` と同じ関数で検査する仕組み（#156）を二重にし、食い違いの元になる
+  - 理由: 値は次のコマンド（`check-options`・`start`）の引数になる。`--max-cycles`・`--assign` は、#157 の D-157-3（`--implement` の値を agent 名の形に限り、シェルの特殊文字を含む値を通さない）と同じ扱いにする。形は runner と loop の規則の範囲なので、正しい値を拒まない。パスは形を決められないので、制御文字だけを拒み、シェルの特殊文字（`'`・`$`・`` ` `` など）は通す。SKILL.md は各要素を 1 つの引数として渡すと定める（最後の全体レビューの Minor 1。入力は利用者自身のもので、権限の境界はまたがない）。(b) は `start` と同じ関数で検査する仕組み（#156）を二重にし、食い違いの元になる
 - **D-158-4 出力は `merge.loop_args`**
   - 選択: `merge` は `null` か `{"loop_args": [...]}`。書いた順、`--opt=value` は 2 語、パスは絶対パス、既定値を足さない
   - 別案: オプションごとの辞書にする
@@ -159,7 +159,7 @@
 - **D-158-10 検証の記録を残し、1 サイクル目の修正不要に限って再利用する**
   - 選択: 「設計」の「検証の記録」と、ループの節の 5 のとおり
   - 別案: (a) 再利用しない（結論 2 で毎回検証し直す）、(b) 移植元の文をそのまま写す
-  - 理由: 記録した検証は、review-fix-planning が専用の worktree として使う feature worktree で、同じ HEAD に対して、同じ入口（README の「テスト」は review-fix-planning の環境の変更の検証を含む）で実行したもので、結論 2 の手順 1 の根拠になる。再利用の条件を明記し、手順 2（base が進んだときの merge の検証）は省かないことも書く。(b) は `finalize.py` の検証の記録の形（`head`・`commands` だけ）と `PARENT_ROOT/tmp/agents/` の置き場所に合わせる必要がある
+  - 理由: 記録した検証は、review-fix-planning が専用の worktree として使う feature worktree で、同じ HEAD に対して、同じ入口（README の「テスト」は review-fix-planning の環境の変更の検証を含む）で実行したもので、結論 2 の手順 1 の根拠になる。再利用の条件を明記し、手順 2（base が進んだときの merge の検証）は省かないことも書く。(b) は移植元の置き場所と記録の形が移植先と違う。記録の形は書き写さず、review-fix-planning の `execution.md` の 3 章を参照する（open の PR #203 が記録に `base` を足し、`finalize.py` が 3 項目を求める。#158 とはファイルが重ならないので、書き写すと #203 が先にマージされたときに黙って誤りになる）
 - **D-158-11 `--merge` のときは PR を draft にしない**
   - 選択: 5 章に明記する
   - 理由: `finalize.py` が draft を拒否する。#158 の本文の制約
@@ -206,6 +206,22 @@
   - 別案: 使い捨ての PR でループを回す
   - 理由: 利用者の指示に `--merge` が無い（ボードの D-21、#158 の受け入れの「利用者の指示があるときだけ」）。ループ自体の実機の確認は #156 で済んでいる
   - 停止条件: なし（未実施として PR と #158 に書く）
+
+## 最後の全体レビューと修正（2026-10-20）
+
+最後のブランチ全体のレビュー（`superpowers:executing-plans` の最後のレビュー、Claude Code の opus、`d29c93c..c5de6cb`）の結論は「修正すれば可」。Critical は無い。指摘を影響の大きさで格付けし直し、次のとおり扱った（エージェントの判断）。
+
+| 指摘 | 格付け | 扱い |
+| --- | --- | --- |
+| Important 1: 「Skill ツールで呼ぶときは `--merge` を付けない」と 1 章の「利用者が書いたときだけ有効」が食い違う | Important | 直した。Claude Code の項を、利用者のメッセージから `INPUT` を切り出して args に渡し、書かれていないものは足さない、に変えた |
+| Minor 2: ループが終わるまで feature worktree を clean に保つ指示が無い | Important に格上げ（review-fix-planning が結論 3 で止まり、レビュアーの 1 サイクルを無駄にする） | 直した。ループの節の冒頭に、review-fix-planning の手順の外で feature worktree を変えないこと、記録の置き場所を書いた |
+| Minor 4: ループの節が pr-review-fix-loop の一部の節だけに従うように読め、最終報告の項目が足りない | Important に格上げ（利用者が受け取る報告が欠け、従う範囲があいまい） | 直した。pr-review-fix-loop の SKILL.md 全体に従い、報告はその「最終報告」の項目に結果の区分を加える、とした |
+| Minor 1: パスの値がシェルの特殊文字を通す。D-158-3 の理由の記述が事実と違う | Minor（入力は利用者自身のもので、権限の境界をまたがない） | 持ち越し（PR に書く）。D-158-3 の理由の記述は実態に合わせて直した |
+| Minor 3: 検証の後に commit を足したときの記録の取り直しが書かれていない | Minor（同じ HEAD の条件で再利用されないだけで、安全側に止まる） | 持ち越し（PR に書く） |
+
+直した 3 件は、評価の場面 (mj)・(mk)・(ml) を足し、直す前（`c5de6cb`）に 3 回取って外れることを確かめ（(mj) は 3 回とも食い違いを指摘、(mk)・(ml) は 0/3）、直した後の 3 回で 3/3 を確かめた（`evals/validation.md`）。
+
+あわせて、5 章の検証の記録の形を書き写さず、review-fix-planning の `references/execution.md` の 3 章を参照する文面に変えた。open の PR #203（#196）が記録に `base` を足し、`finalize.py` が 3 項目を求めるため（D-158-10）。
 
 ## Plan の実装の担当
 
