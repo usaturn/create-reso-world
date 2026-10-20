@@ -18,6 +18,7 @@
 - 実行許可: Spec の「管理・実行許可」と同じ（`/issue-to-pr … --merge --assign implement=self`。PR の作成後に PR 修正ループを回し、修正不要ならループの `finalize.py` がマージする）
 - 実行方式: inline（`superpowers:executing-plans`）。`implement_task.py check` の `self` が true で、変えるのは 1 ファイルの 1 Task。委譲しても並行できず、文脈を渡す手間が上回る
 - 検証のログ: `/workspaces/reso-world/tmp/agents/issue-219.f0wvtucb/`（commit しない）
+- 実行の記録（SDD の ledger `progress.md`・Task の brief・review package）: `/workspaces/reso-world/tmp/agents/issue-219.f0wvtucb/sdd/`（AGENTS.md のとおり、worktree の中には置かない）
 - `/tmp` の下の検証用 worktree: `/tmp/issue-219-repro.Nr5wNG/wt`（`git worktree add --detach` で作った使い捨て。自前の `.venv` は `uv sync --locked` で作った。Task 2 の最後に `git worktree remove` で外す）
 
 ## Global Constraints
@@ -66,8 +67,8 @@
 
 **テストの要否:** 既存のテストの前提を直す変更で、新しいテストは書かない（D-219-4）。修正の前の失敗は Spec の「確認した事実」で再現済み。
 
-- [ ] **Step 1:** `from pathlib import Path` の前に `from collections.abc import Iterator` を足す
-- [ ] **Step 2:** `make_paths` の後、`test_missing_bwrap_never_executes_command` の前に fixture を置く。82 行のコメントはここへ移す
+- [x] **Step 1:** `from pathlib import Path` の前に `from collections.abc import Iterator` を足す
+- [x] **Step 2:** `make_paths` の後、`test_missing_bwrap_never_executes_command` の前に fixture を置く。82 行のコメントはここへ移す
 
 ```python
 @pytest.fixture
@@ -82,9 +83,9 @@ def root() -> Iterator[Path]:
         yield Path(path)
 ```
 
-- [ ] **Step 3:** 3 つのテストに引数 `root: Path` を足し（パラメータ化したものは `(case: str, root: Path)`）、`with tempfile.TemporaryDirectory(...) as directory:` と `root = Path(directory)` の 2 行を消して本体の字下げを 1 段戻す。本体の行（`make_paths`・`invoke`・assert）は変えない
-- [ ] **Step 4:** feature worktree で `uv run pytest tools/agent_runner/tests/adapters/dsh/test_sandbox.py -q -rs`。期待: `6 passed`、`SKIPPED` の行が無い
-- [ ] **Step 5:** commit（`fix(agent_runner): skip the dsh sandbox tests when /var/tmp cannot be written (#219)`）
+- [x] **Step 3:** 3 つのテストに引数 `root: Path` を足し（パラメータ化したものは `(case: str, root: Path)`）、`with tempfile.TemporaryDirectory(...) as directory:` と `root = Path(directory)` の 2 行を消して本体の字下げを 1 段戻す。本体の行（`make_paths`・`invoke`・assert）は変えない
+- [x] **Step 4:** feature worktree で `uv run pytest tools/agent_runner/tests/adapters/dsh/test_sandbox.py -q -rs`。期待: `6 passed`、`SKIPPED` の行が無い
+- [x] **Step 5:** commit（`fix(agent_runner): skip the dsh sandbox tests when /var/tmp cannot be written (#219)`）
 
 ## Task 2: 統合確認
 
@@ -92,19 +93,57 @@ def root() -> Iterator[Path]:
 
 ログはどれも `/workspaces/reso-world/tmp/agents/issue-219.f0wvtucb/` に置く。`WT2=/tmp/issue-219-repro.Nr5wNG/wt`、`DSH_DIR=tools/agent_runner/tests/adapters/dsh`、`T=$DSH_DIR/test_sandbox.py`。mount の中の Python は `env PYTHONDONTWRITEBYTECODE=1 "$WT2/.venv/bin/python" -m pytest`。
 
-- [ ] **Step 1:** `git -C "$WT2" checkout --detach <Task 1 の SHA>`、`git -C "$WT2" status --porcelain` が空
-- [ ] **Step 2:** ホスト・`/tmp` の worktree・自前の `.venv`: `ls -d /var/tmp/dsh-sandbox-test-* 2>/dev/null | wc -l` を数え、`$DSH_DIR` を `-q -rs` で実行し、もう一度数える。期待: 0 failed・0 skipped、前後の数が同じ
-- [ ] **Step 3:** ホスト・`/tmp` の worktree・pr-review と同じ使い方: `cd "$WT2" && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$WT2" uv run --project /workspaces/reso-world --locked python -m pytest "$DSH_DIR" -q -rs`。期待: 0 failed・0 skipped
-- [ ] **Step 4:** ホスト・feature worktree（`/workspaces` の下）: `uv run pytest "$DSH_DIR" -q -rs`。期待: 0 failed・0 skipped
-- [ ] **Step 5:** DSH の形の mount（`bwrap --ro-bind / / --dev /dev --unshare-pid --proc /proc --die-with-parent --cap-drop ALL --tmpfs /tmp --bind "$WT2" "$WT2" --chdir "$WT2" --`）で `$T` を `-q -rs`。期待: 1 passed・5 skipped・0 failed、5 件の理由に `/var/tmp` と `Read-only file system`
-- [ ] **Step 6:** Issue の形の mount（`bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --bind "$WT2" "$WT2" --chdir "$WT2" --`）で `$T` と `$DSH_DIR` を `-q -rfEs`。期待: `$T` は Step 5 と同じ。`$DSH_DIR` は 278 passed・5 skipped・0 failed（基準は 5 failed・278 passed）
-- [ ] **Step 7:** 対照検証: `$WT2` の `tools/agent_runner/dsh_sandbox.py` の `mounts` の writable 側から `*additions` を外し（grant を mount しない）、ホストで `$T` を `-q -rs`。期待: `test_explicit_grants_preserve_neighboring_host_files` が failed（skipped ではない）。`git -C "$WT2" checkout -- tools/agent_runner/dsh_sandbox.py` で戻し、`git -C "$WT2" status --porcelain` が空
-- [ ] **Step 8:** feature worktree で `git diff --stat origin/main` が、`test_sandbox.py` と Spec・Plan だけであること
-- [ ] **Step 9:** ブランチ全体のレビュー（新しいコンテキストのサブエージェント）を受け、致命的な指摘があれば直す（直したら Step 1〜8 をやり直す）
-- [ ] **Step 10:** `/tmp` の検証用 worktree を `git -C /workspaces/reso-world worktree remove "$WT2"` で外し、`/tmp/issue-219-repro.Nr5wNG` を `rmdir` で消す
-- [ ] **Step 11:** Step 1〜9 の記録をこの Plan の「検証の記録」に書き、commit（これが最後の commit）
+- [x] **Step 1:** `git -C "$WT2" checkout --detach <Task 1 の SHA>`、`git -C "$WT2" status --porcelain` が空
+- [x] **Step 2:** ホスト・`/tmp` の worktree・自前の `.venv`: `ls -d /var/tmp/dsh-sandbox-test-* 2>/dev/null | wc -l` を数え、`$DSH_DIR` を `-q -rs` で実行し、もう一度数える。期待: 0 failed・0 skipped、前後の数が同じ
+- [x] **Step 3:** ホスト・`/tmp` の worktree・pr-review と同じ使い方: `cd "$WT2" && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$WT2" uv run --project /workspaces/reso-world --locked python -m pytest "$DSH_DIR" -q -rs`。期待: 0 failed・0 skipped
+- [x] **Step 4:** ホスト・feature worktree（`/workspaces` の下）: `uv run pytest "$DSH_DIR" -q -rs`。期待: 0 failed・0 skipped
+- [x] **Step 5:** DSH の形の mount（`bwrap --ro-bind / / --dev /dev --unshare-pid --proc /proc --die-with-parent --cap-drop ALL --tmpfs /tmp --bind "$WT2" "$WT2" --chdir "$WT2" --`）で `$T` を `-q -rs`。期待: 1 passed・5 skipped・0 failed、5 件の理由に `/var/tmp` と `Read-only file system`
+- [x] **Step 6:** Issue の形の mount（`bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --bind "$WT2" "$WT2" --chdir "$WT2" --`）で `$T` と `$DSH_DIR` を `-q -rfEs`。期待: `$T` は Step 5 と同じ。`$DSH_DIR` は 278 passed・5 skipped・0 failed（基準は 5 failed・278 passed）
+- [x] **Step 7:** 対照検証: `$WT2` の `tools/agent_runner/dsh_sandbox.py` の `mounts` の writable 側から `*additions` を外し（grant を mount しない）、ホストで `$T` を `-q -rs`。期待: `test_explicit_grants_preserve_neighboring_host_files` が failed（skipped ではない）。`git -C "$WT2" checkout -- tools/agent_runner/dsh_sandbox.py` で戻し、`git -C "$WT2" status --porcelain` が空
+- [x] **Step 8:** feature worktree で `git diff --stat origin/main` が、`test_sandbox.py` と Spec・Plan だけであること
+- [x] **Step 9:** ブランチ全体のレビュー（新しいコンテキストのサブエージェント）を受け、致命的な指摘があれば直す（直したら Step 1〜8 をやり直す）
+- [x] **Step 10:** `/tmp` の検証用 worktree を `git -C /workspaces/reso-world worktree remove "$WT2"` で外し、`/tmp/issue-219-repro.Nr5wNG` を `rmdir` で消す
+- [x] **Step 11:** Step 1〜9 の記録をこの Plan の「検証の記録」に書き、commit（これが最後の commit）
 - [ ] **Step 12:** 最後の commit の上で `git status --porcelain` が空であることを確かめてから、README の「テスト」の入口（`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`）を順に実行する。失敗があれば、基準（`5a6b096`）の同じ実行と比べ、この変更によるものでないことを確かめる。検証した HEAD・`git status --porcelain` が空だったこと・argv・終了コード・ログのパスと、`finalize.py` の `--checks-file` の形のファイルをログの置き場所に作る（issue-to-pr の 5 章）。結果は Plan に書かず（HEAD が変わるので）、PR 本文に書く
 
 ## 検証の記録
 
-（Task 2 の Step 11 で書く）
+ログはどれも `/workspaces/reso-world/tmp/agents/issue-219.f0wvtucb/` にある。`/tmp` の検証用 worktree は `/tmp/issue-219-repro.Nr5wNG/wt`（自前の `.venv`）。`-rs`（Issue の形の mount の実行は `-rfEs`）で skip の理由を出した。
+
+### 修正の前（`5a6b096`）
+
+| 場所・使い方 | 対象 | 結果 | ログ |
+| --- | --- | --- | --- |
+| ホスト・`/tmp` の worktree・自前の `.venv` | `test_sandbox.py` | 6 passed | `baseline-host-tmp.log` |
+| ホスト・`/workspaces` の feature worktree | `test_sandbox.py` | 6 passed | `baseline-host-workspaces.log` |
+| DSH の形の mount・`/tmp` の worktree | `test_sandbox.py` | 5 failed・1 passed（5 件とも `OSError: [Errno 30] Read-only file system: '/var/tmp/dsh-sandbox-test-…'`） | `baseline-mount-tmp.log` |
+| DSH の形の mount・`/tmp` の worktree | DSH のテスト全体 | 6 failed・277 passed（上の 5 件と、検証の mount の PID の重なりによる `test_native_process_has_private_tmp_and_readonly_attempt_metadata`） | `baseline-mount-tmp-dsh-dir.log` |
+| Issue の形の mount・`/tmp` の worktree | DSH のテスト全体 | 5 failed（`test_sandbox.py` の 5 件だけ）・278 passed | `baseline-issue-mount-tmp-dsh-dir.log` |
+
+### 修正の後（`38b1317`、Task 1）
+
+| 手順 | 場所・使い方 | 対象 | 結果 | ログ |
+| --- | --- | --- | --- | --- |
+| Task 1 Step 4 | ホスト・feature worktree | `test_sandbox.py` | 6 passed・SKIPPED なし | `task1-step4.log` |
+| Task 2 Step 2 | ホスト・`/tmp` の worktree・自前の `.venv` | DSH のテスト全体 | 283 passed・SKIPPED 0。`/var/tmp/dsh-sandbox-test-*` は実行の前後とも 0 件 | `after-host-tmp-own-venv.log` |
+| Step 3 | ホスト・`/tmp` の worktree・pr-review と同じ使い方 | DSH のテスト全体 | 283 passed・SKIPPED 0 | `after-host-tmp-parent-venv.log` |
+| Step 4 | ホスト・feature worktree | DSH のテスト全体 | 283 passed・SKIPPED 0 | `after-host-workspaces.log` |
+| Step 5 | DSH の形の mount | `test_sandbox.py` | 1 passed・5 skipped・0 failed。理由は 5 件とも `cannot create the host-visible directory under /var/tmp: [Errno 30] Read-only file system: '/var/tmp/dsh-sandbox-test-…'` | `after-mount-dsh-form-sandbox.log` |
+| Step 6 | Issue の形の mount | `test_sandbox.py` | Step 5 と同じ | `after-mount-issue-form-sandbox.log` |
+| Step 6 | Issue の形の mount | DSH のテスト全体 | 278 passed・5 skipped・0 failed（基準の 5 failed が skipped に変わり、ほかは同じ） | `after-mount-issue-form-dsh-dir.log` |
+| Step 7 | ホスト・`/tmp` の worktree（`dsh_sandbox.py` の writable の `mounts` から `*additions` を外した一時的な版） | `test_sandbox.py` | 1 failed（`test_explicit_grants_preserve_neighboring_host_files`。skip ではない）・5 passed。`git checkout` で戻し、`status --porcelain` は空 | `control-broken-grants-host.log` |
+
+Step 8: `git diff --stat origin/main`（`origin/main` は `5a6b096` のまま）は、Spec・Plan・`test_sandbox.py` の 3 ファイルだけ（受け入れ条件 4）。Step 10: `/tmp/issue-219-repro.Nr5wNG/wt` は `git worktree remove` で外し、`/tmp/issue-219-repro.Nr5wNG` も消した。
+
+### 最終レビュー（Step 9、opus、新しいコンテキスト）
+
+- 判定: マージしてよい。Critical・Important は無し
+- レビュアーは独立に、HEAD の使い捨て worktree（`/tmp/review-219.T5FNCz`。終了時に外して消した）で、ホストの `test_sandbox.py` 6 passed・DSH のテスト全体 283 passed、DSH の形の mount の 5 skipped、Issue の形の mount の 278 passed・5 skipped・0 failed を確かめた。追加の対照検証として、`make_paths` の中で作成の後に `FileExistsError`（`OSError` の一種）を起こし、5 件とも failed のまま（skip にならない）で、作業領域の残骸も 0 件であることを確かめた（Review Focus の 1 行目のうち、Step 7 で覆っていなかった型）
+- Minor 1（Step 7 の記録が作成の後の `OSError` を覆っていない）: 上のレビュアーの対照検証の結果をここに書いた。コードは変えない
+- Minor 2（ledger の場所が Plan に無い）: 「管理」に 1 行足した
+- Minor 3（Spec の mount の引数に `--chdir` が無い）: 見送り。結果に影響せず、実行した引数はこの Plan の Step 5・6 にある
+- 判断の対象外とした 7 件（ホストで `/var/tmp` に書き込めない環境の skip は D-219-5、候補 (b) は D-219-1、DSH の形の mount の PID の件は検証の形の性質、README の入口は Step 12、Step 3 の親の `.venv` は意図どおり、型検査はリポジトリにツールが無い、作業領域の削除の失敗が teardown の ERROR になる件は終了コード 1 で失敗を隠さない）は、どれもそのままにした
+
+### 所要時間（Step 11 の時点）
+
+着手 2026-10-20 20:14Z ごろ、Step 11 は 20:45Z ごろ（約 31 分）。内訳: 入力・競合の確認と worktree 5 分、再現 4 分、Spec・Plan 7 分、Task 1 2 分、Task 2 の Step 1〜8 4 分、最終レビューの待ち 9 分、Step 10・11 4 分。
