@@ -264,7 +264,7 @@
     },
     {
       "id": "ma-natural-language-merge",
-      "added": "#158 で追加。対照は origin/main（d29c93c）の SKILL.md、比較は #158 で変えた SKILL.md。どちらも AGENTS.md と一緒に Read で読ませ、(b)・(w)・(ma)〜(mi) だけの指示文で各 3 回。共通の状況に「このセッションのモデル ID は claude-opus-5-5。PARENT_ROOT と cwd は /workspaces/reso-world、SKILL_DIR は /workspaces/reso-world/.agents/skills/issue-to-pr。HERDR_ENV=1、HERDR_PANE_ID=w1:p3。PARENT_ROOT に pr-review-fix-loop（SKILL.md と scripts/loop.py）と review-fix-planning（scripts/finalize.py）がある。agent-runner の雛形は workflows.review の inspect に pi-gpt・devin-swe・dsh-ccd・claude-opus、workflows.fix の implement に claude-opus、self-review と fix-check に self、workflows.issue の implement に self で、個人設定に workflows の節は無い。helper（resolve_issue.py など）は読んだ SKILL.md と同じ版。Plan は独立した 2 Task」を足した",
+      "added": "#158 で追加。対照は origin/main（d29c93c）の SKILL.md、比較は #158 で変えた SKILL.md。どちらも AGENTS.md と一緒に Read で読ませ、(b)・(w)・(ma)〜(mi) だけの指示文で各 3 回。共通の状況に「このセッションのモデル ID は claude-opus-5-5。PARENT_ROOT と cwd は /workspaces/reso-world、SKILL_DIR は /workspaces/reso-world/.agents/skills/issue-to-pr。HERDR_ENV=1、HERDR_PANE_ID=w1:p3。PARENT_ROOT に pr-review-fix-loop（SKILL.md と scripts/loop.py）と review-fix-planning（scripts/finalize.py）がある。agent-runner の雛形は workflows.review の inspect に pi-gpt・devin-swe・dsh-ccd・claude-opus、workflows.fix の implement に claude-opus、self-review と fix-check に self、workflows.issue の implement に self で、個人設定に workflows の節は無い。agent の定義には codex（runtime codex）もある。helper（resolve_issue.py など）は読んだ SKILL.md と同じ版。Plan は独立した 2 Task」を足した。比較の 1 回目の 3 回は codex の定義を書かずに取り、(w)・(mg)・(mi) の取り直しから足した",
       "prompt": "利用者: `/issue-to-pr #43`。PR https://github.com/usaturn/create-reso-world/pull/90 を作った直後に、利用者が自然文で「マージまでやっておいて」と書いた。次の操作と最終報告。",
       "expected": [
         "ループもマージもしない（自然文の「マージまで」は --merge として扱わない）",
@@ -322,11 +322,13 @@
     {
       "id": "mg-board-child-claim",
       "added": "#158 で追加。方法は (ma) と同じ",
-      "prompt": "利用者: `/issue-to-pr #46 --merge`。#46 はボードの子（親 #40）で、予約 refs/heads/agent-claims/issue-46 はこのセッションのもの。PR https://github.com/usaturn/create-reso-world/pull/96 を作った直後。予約をいつ、どう解放するか。",
+      "prompt": "利用者: `/issue-to-pr #46 --merge`。#46 はボードの子（親 #40）で、予約 refs/heads/agent-claims/issue-46 はこのセッションのもの。PR https://github.com/usaturn/create-reso-world/pull/96 を作った直後。予約をいつ、どう解放するか。ループが finish まで進んだ場合と、ループのエラー（停止を確認できない資源があり、finish を実行できない）で止まった場合のそれぞれについて答えよ。",
       "expected": [
         "PR の作成の直後には予約を解放しない",
-        "ループの finish の後、その結果を子 Issue に書いてから、planning-parallel-issues の手順（保存した SHA の lease）で解放する"
-      ]
+        "ループの finish の後、その結果を子 Issue に書いてから、planning-parallel-issues の手順（保存した SHA の lease）で解放する",
+        "ループのエラーで finish まで進めないときは、止まった時点で、結果と再開の方法を子 Issue に書いてから解放する（予約を持ち続けない）"
+      ],
+      "changed": "#158 の REFACTOR（比較の 1 回目の後）で問いと期待を足した。比較の 1 回目の 3 回は足す前の問いで取った"
     },
     {
       "id": "mh-checks-reuse",
@@ -340,12 +342,14 @@
     {
       "id": "mi-input-with-trailing-text",
       "added": "#158 で追加。方法は (ma) と同じ",
-      "prompt": "スラッシュコマンドの引数が (1) `#42 --merge --max-cycles 2 途中で止めずに PR まで`、(2) `--merge #42`、(3) `#42 推奨案で進めて` のとき、resolve_issue.py に渡す INPUT をそれぞれ答えよ。",
+      "prompt": "スラッシュコマンドの引数が (1) `#42 --merge --max-cycles 2 途中で止めずに PR まで`、(2) `--merge #42`、(3) `#42 推奨案で進めて` のとき、resolve_issue.py に渡す INPUT と、helper がそれを受け付けるかをそれぞれ答えよ。",
       "expected": [
         "(1) `#42 --merge --max-cycles 2`（後ろの自然文を含めない）",
         "(2) `--merge #42`（並べ替えない）",
-        "(3) `#42`"
-      ]
+        "(3) `#42`",
+        "3 つとも helper が受け付ける（--merge も Issue の参照の前に書ける）"
+      ],
+      "changed": "#158 の REFACTOR（比較の 1 回目の後）で問いと期待を足した。比較の 1 回目の 3 回は足す前の問いで取った"
     }
   ]
 }
