@@ -1,10 +1,11 @@
 """Devin CLI adapter: ``devin -p`` with ``--prompt-file`` and ``--export``.
 
 ``devin -p`` does not read stdin, so ``prepare`` writes the prompt into the
-attempt directory and passes it by path. The run's stdout is the final answer;
-``--export`` leaves an ATIF export that reports the observed model, CLI
-version, and session id. Only local parsing happens here; this module never
-starts a process.
+attempt directory and passes it by path. ``--export`` leaves an ATIF export
+whose final agent message is the answer; it also reports the observed model,
+CLI version, and session id. ``devin -p`` prints every agent message to stdout
+without separators, so stdout must end with that answer. Only local parsing
+happens here; this module never starts a process.
 """
 
 import json
@@ -55,10 +56,28 @@ def _text(path: Path) -> str:
         return ""
 
 
-def _json_object(text: str) -> dict[str, object] | None:
-    # Decode from the start, never search nested objects in a malformed answer.
+def _plain_tail(tail: str) -> bool:
     # Plain CLI progress can follow the answer, but another JSON-like event
     # (complete or truncated) is not a valid single final response.
+    return _failure_status(tail) is None and not any(
+        line.lstrip().startswith(("{", "[", "```")) for line in tail.splitlines()
+    )
+
+
+def _ends_with(stdout: str, answer: str) -> bool:
+    # devin -p prints every agent message without separators, so earlier
+    # messages may precede the answer on its first line. The answer's last
+    # line must end there; only plain progress lines may follow.
+    answer = answer.strip()
+    index = stdout.rfind(answer)
+    if index < 0:
+        return False
+    rest, _, tail = stdout[index + len(answer):].partition("\n")
+    return not rest.strip() and _plain_tail(tail)
+
+
+def _json_object(text: str) -> dict[str, object] | None:
+    # Decode from the start, never search nested objects in a malformed answer.
     candidate = text.strip()
     fenced = candidate.startswith("```")
     if fenced:
@@ -76,9 +95,7 @@ def _json_object(text: str) -> dict[str, object] | None:
         if not tail.startswith("```"):
             return None
         tail = tail[3:].strip()
-    if _failure_status(tail) is not None or any(
-        line.lstrip().startswith(("{", "[", "```")) for line in tail.splitlines()
-    ):
+    if not _plain_tail(tail):
         return None
     return cast(dict[str, object], value) if isinstance(value, dict) and value else None
 
@@ -228,17 +245,13 @@ class Devin:
         ]
         hint = _failure_status(stderr, *diagnostics)
         failure = hint or (_export_failure(export) if export is not None else None)
+        payload: Payload
         if failure is not None:
             status, payload = failure, None
-        elif stdout.strip() and final is not None:
-            # JSON roles require a complete object in both channels. A complete
-            # stdout answer cannot hide a truncated or malformed final ATIF answer.
-            status, _ = _payload(final, context.role.result_shape)
-            payload: Payload = None
-            if status == "success":
-                status, payload = _payload(stdout, context.role.result_shape)
-                if status != "success":
-                    status = _failure_status(stdout) or status
+        elif final is not None and _ends_with(stdout, final):
+            # The final ATIF message is the answer, and stdout must end with it:
+            # neither a truncated stdout nor a malformed final answer succeeds.
+            status, payload = _payload(final, context.role.result_shape)
         else:
             status, payload = _failure_status(stdout) or "response_failed", None
         return AdapterOutcome(

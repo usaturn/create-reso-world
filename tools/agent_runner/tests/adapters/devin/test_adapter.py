@@ -76,6 +76,47 @@ def _collect(
     return ADAPTER.collect(context, out, err)
 
 
+# The shape devin 3000.11.92 produced for real reviews (#185, #186): agent
+# steps call tools before the final answer, and stdout concatenates every
+# agent message without separators, ending with the final one.
+_PROGRESS = (
+    "Python 3.14 allows unparenthesized `except A, B` — not a bug. Now checking the tests.",
+    "Running the new tests.",
+)
+_FENCED = '```json\n{\n  "status": "success",\n  "review_file": "SWE-2-Max.md"\n}\n```'
+_FENCED_PAYLOAD = {"status": "success", "review_file": "SWE-2-Max.md"}
+
+
+def _tool_run_export(
+    final: str = _FENCED, *, final_tool_calls: list[dict[str, object]] | None = None
+) -> dict[str, object]:
+    export = _export(message=None)
+    steps = cast(list[object], export["steps"])
+    for index, text in enumerate(_PROGRESS):
+        steps.append(
+            {
+                "source": "agent",
+                "message": text,
+                "tool_calls": [
+                    {
+                        "tool_call_id": f"call-{index}",
+                        "function_name": "read",
+                        "arguments": {},
+                    }
+                ],
+                "observation": {"results": []},
+            }
+        )
+    steps.append(
+        {"source": "agent", "message": final, "tool_calls": final_tool_calls or []}
+    )
+    return export
+
+
+def _tool_run_stdout(final: str = _FENCED) -> str:
+    return "".join(_PROGRESS) + final + "\n"
+
+
 def test_prepare_writes_prompt_file_and_maps_flags(context: AdapterContext) -> None:
     spec = ADAPTER.prepare(context)
     prompt_path = spec.argv[spec.argv.index("--prompt-file") + 1]
@@ -110,9 +151,11 @@ def test_collect_success_extracts_identity(context: AdapterContext) -> None:
 
 def test_collect_success_text_shape(context: AdapterContext) -> None:
     context.role.result_shape = "text"
-    outcome = _collect(context, "plain answer\n")
+    outcome = _collect(
+        context, "plain answer\n", export=_export(message="plain answer")
+    )
     assert outcome.receipt is not None and outcome.receipt.status == "success"
-    assert outcome.receipt.payload == "plain answer\n"
+    assert outcome.receipt.payload == "plain answer"
 
 
 def test_blank_stdout_fails_even_with_export(context: AdapterContext) -> None:
@@ -157,7 +200,7 @@ def test_workspace_trust_stderr_reports_awaiting_approval(
 
 
 def test_non_object_stdout_fails_json_shape(context: AdapterContext) -> None:
-    outcome = _collect(context, "plain text")
+    outcome = _collect(context, "plain text", export=_export(message="plain text"))
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
 
 
@@ -285,7 +328,8 @@ def test_retained_export_with_secrets_is_redacted_before_collection(
     )
     fixture.write_text(json.dumps(export), encoding="utf-8")
     out = tmp_path / "out.txt"
-    out.write_text('{"ok": true}\n')
+    # devin prints the final answer, so stdout repeats the secret as well.
+    out.write_text(json.dumps({"final_answer": secret}) + "\n")
     config = _devin_config(
         _runtime_agent(
             tmp_path,
@@ -304,7 +348,7 @@ def test_retained_export_with_secrets_is_redacted_before_collection(
     assert batch.state == "success"
     attempt = batch.results[0].attempts[0]
     assert attempt.state == "success"
-    assert attempt.payload == {"ok": True}
+    assert attempt.payload == {"final_answer": "[REDACTED]"}
     # Observed identity survives redaction of the transcript itself.
     assert attempt.identity.model == "observed-model"
     assert attempt.identity.session_id == "session-1"
@@ -345,6 +389,7 @@ def test_missing_retained_export_keeps_response_failed(
 def test_secret_free_multiline_export_is_retained_unchanged(
     repository: Path, tmp_path: Path
 ) -> None:
+    answer = json.dumps({"answer": "回答\n日本語"}, ensure_ascii=False)
     export = json.dumps(
         {
             "schema_version": "ATIF-v1.7",
@@ -359,9 +404,7 @@ def test_secret_free_multiline_export_is_retained_unchanged(
                 {
                     "step_id": 2,
                     "source": "agent",
-                    "message": json.dumps(
-                        {"answer": "回答\n日本語"}, ensure_ascii=False
-                    ),
+                    "message": answer,
                     "tool_calls": [],
                 },
             ],
@@ -371,7 +414,7 @@ def test_secret_free_multiline_export_is_retained_unchanged(
     fixture = tmp_path / "export.json"
     fixture.write_text(export, encoding="utf-8")
     out = tmp_path / "out.txt"
-    out.write_text('{"ok": true}\n')
+    out.write_text(answer + "\n", encoding="utf-8")
     config = _devin_config(
         _runtime_agent(
             tmp_path, "--fake-export", str(fixture), "--fake-stdout", str(out)
@@ -382,7 +425,7 @@ def test_secret_free_multiline_export_is_retained_unchanged(
     )
     attempt = batch.results[0].attempts[0]
     assert attempt.state == "success"
-    assert attempt.payload == {"ok": True}
+    assert attempt.payload == {"answer": "回答\n日本語"}
     assert attempt.identity.model == "observed-model"
     assert attempt.request_path is not None
     retained = attempt.request_path.parent / "export.json"
@@ -413,7 +456,7 @@ def test_identity_never_copies_requested_configuration(context: AdapterContext) 
     export = _export()
     export.pop("agent")
     export.pop("session_id")
-    outcome = _collect(context, '{"ok":true}', export=export)
+    outcome = _collect(context, '{"ok": true}', export=export)
     assert outcome.receipt is not None and outcome.receipt.status == "success"
     assert outcome.identity.model is None and outcome.identity.provider is None
     assert outcome.identity.effort is None and outcome.identity.cli_version is None
@@ -431,7 +474,7 @@ def test_identity_never_copies_requested_configuration(context: AdapterContext) 
 def test_diagnostics_override_plausible_success(
     context: AdapterContext, diagnostic: str, state: str
 ) -> None:
-    outcome = _collect(context, '{"ok":true}', stderr=diagnostic)
+    outcome = _collect(context, '{"ok": true}', stderr=diagnostic)
     assert outcome.receipt is not None and outcome.receipt.status == state
     assert outcome.receipt.payload is None
 
@@ -447,10 +490,10 @@ def test_stdout_diagnostic_without_answer_is_not_success(
 
 
 def test_success_payload_can_discuss_authentication(context: AdapterContext) -> None:
-    outcome = _collect(
-        context,
-        '{"explanation":"Authentication and approval required are diagnostic examples"}',
+    answer = (
+        '{"explanation":"Authentication and approval required are diagnostic examples"}'
     )
+    outcome = _collect(context, answer, export=_export(message=answer))
     assert outcome.receipt is not None and outcome.receipt.status == "success"
 
 
@@ -458,14 +501,14 @@ def test_success_payload_can_discuss_authentication(context: AdapterContext) -> 
 def test_truncated_later_stdout_cannot_reuse_completion(
     context: AdapterContext, tail: str
 ) -> None:
-    outcome = _collect(context, '{"ok":true}\n' + tail)
+    outcome = _collect(context, '{"ok": true}\n' + tail)
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
 
 
 def test_plain_progress_after_json_does_not_invalidate_completion(
     context: AdapterContext,
 ) -> None:
-    outcome = _collect(context, '{"ok":true}\nprogress: export saved\n')
+    outcome = _collect(context, '{"ok": true}\nprogress: export saved\n')
     assert outcome.receipt is not None and outcome.receipt.status == "success"
     assert outcome.receipt.payload == {"ok": True}
 
@@ -474,7 +517,7 @@ def test_truncated_later_export_cannot_reuse_completion(
     context: AdapterContext,
 ) -> None:
     outcome = _collect(
-        context, '{"ok":true}', export=json.dumps(_export()) + '\n{"step_id":'
+        context, '{"ok": true}', export=json.dumps(_export()) + '\n{"step_id":'
     )
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
 
@@ -485,7 +528,7 @@ def test_latest_empty_agent_message_cannot_reuse_earlier_answer(
 ) -> None:
     export = _export()
     cast(list[object], export["steps"]).append({"source": "agent", "message": message})
-    outcome = _collect(context, '{"ok":true}', export=export)
+    outcome = _collect(context, '{"ok": true}', export=export)
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
 
 
@@ -506,7 +549,7 @@ def test_incomplete_or_failed_export_does_not_reuse_prior_answer(
 ) -> None:
     export = _export()
     cast(list[object], export["steps"]).append(tail)
-    outcome = _collect(context, '{"ok":true}', export=export)
+    outcome = _collect(context, '{"ok": true}', export=export)
     assert outcome.receipt is not None and outcome.receipt.status != "success"
 
 
@@ -516,7 +559,7 @@ def test_incomplete_or_failed_export_does_not_reuse_prior_answer(
 def test_invalid_final_json_does_not_return_nested_fragment(
     context: AdapterContext, stdout: str
 ) -> None:
-    outcome = _collect(context, stdout)
+    outcome = _collect(context, stdout, export=_export(message=stdout))
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
 
 
@@ -526,7 +569,7 @@ def test_nonzero_cli_exit_cannot_succeed_with_valid_artifacts(
     fixture = tmp_path / "fixture.json"
     fixture.write_text(json.dumps(_export()))
     out = tmp_path / "out.txt"
-    out.write_text('{"ok":true}')
+    out.write_text('{"ok": true}')
     config = _devin_config(
         _runtime_agent(
             tmp_path,
@@ -546,7 +589,7 @@ def test_nonzero_cli_exit_cannot_succeed_with_valid_artifacts(
     assert attempt.stop_confirmed
 
 
-@pytest.mark.parametrize("prefix", ['{"ok":true}', '```json\n{"ok":true}\n```'])
+@pytest.mark.parametrize("prefix", ['{"ok": true}', '```json\n{"ok": true}\n```'])
 @pytest.mark.parametrize(
     "suffix,state",
     [
@@ -558,16 +601,18 @@ def test_nonzero_cli_exit_cannot_succeed_with_valid_artifacts(
 def test_late_diagnostic_or_truncation_after_answer_is_failure(
     context: AdapterContext, prefix: str, suffix: str, state: str
 ) -> None:
-    outcome = _collect(context, prefix + suffix)
+    outcome = _collect(context, prefix + suffix, export=_export(message=prefix))
     assert outcome.receipt is not None and outcome.receipt.status == state
 
 
 @pytest.mark.parametrize(
     "answer",
-    ['```json\n{"ok":true}\n```', '```json\n{"ok":true}\n```\nprogress: saved'],
+    ['```json\n{"ok": true}\n```', '```json\n{"ok": true}\n```\nprogress: saved'],
 )
 def test_fenced_json_answer(context: AdapterContext, answer: str) -> None:
-    outcome = _collect(context, answer)
+    outcome = _collect(
+        context, answer, export=_export(message='```json\n{"ok": true}\n```')
+    )
     assert outcome.receipt is not None and outcome.receipt.payload == {"ok": True}
 
 
@@ -578,11 +623,16 @@ def test_fenced_json_answer(context: AdapterContext, answer: str) -> None:
         ("Approval required", "awaiting_approval"),
     ],
 )
+@pytest.mark.parametrize("shape,answer", [("text", "answer"), ("json", '{"ok": true}')])
 def test_text_diagnostic_with_valid_export_is_not_success(
-    context: AdapterContext, diagnostic: str, state: str
+    context: AdapterContext, diagnostic: str, state: str, shape: str, answer: str
 ) -> None:
-    context.role.result_shape = "text"
-    outcome = _collect(context, diagnostic)
+    # stdout ends with the final answer, so only the diagnostic line before it
+    # keeps this plausible run from succeeding.
+    context.role.result_shape = shape
+    outcome = _collect(
+        context, f"{diagnostic}\n{answer}\n", export=_export(message=answer)
+    )
     assert outcome.receipt is not None and outcome.receipt.status == state
 
 
@@ -598,7 +648,7 @@ def test_export_error_fields_override_answer(
 ) -> None:
     export = _export()
     cast(list[object], export["steps"]).append(failure)
-    outcome = _collect(context, '{"ok":true}', export=export)
+    outcome = _collect(context, '{"ok": true}', export=export)
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
 
 
@@ -640,7 +690,7 @@ def test_final_atif_diagnostic_overrides_successful_stdout(
 def test_json_role_requires_complete_final_atif_object(
     context: AdapterContext, final: str
 ) -> None:
-    outcome = _collect(context, '{"ok":true}', export=_export(message=final))
+    outcome = _collect(context, final, export=_export(message=final))
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
     assert outcome.receipt.payload is None
 
@@ -661,3 +711,88 @@ def test_final_atif_authentication_topic_is_ordinary_data(
     context.role.result_shape = shape
     outcome = _collect(context, final, export=_export(message=final))
     assert outcome.receipt is not None and outcome.receipt.status == "success"
+
+
+@pytest.mark.parametrize(
+    "final,payload", [(_FENCED, _FENCED_PAYLOAD), ('{"ok": true}', {"ok": True})]
+)
+def test_tool_run_stdout_ending_with_final_answer_succeeds(
+    context: AdapterContext, final: str, payload: dict[str, object]
+) -> None:
+    outcome = _collect(context, _tool_run_stdout(final), export=_tool_run_export(final))
+    assert outcome.receipt is not None and outcome.receipt.status == "success"
+    assert outcome.receipt.payload == payload
+
+
+def test_tool_run_answer_repeated_earlier_succeeds(context: AdapterContext) -> None:
+    stdout = "".join(_PROGRESS) + _FENCED + "Double-checking." + _FENCED + "\n"
+    outcome = _collect(context, stdout, export=_tool_run_export())
+    assert outcome.receipt is not None and outcome.receipt.status == "success"
+    assert outcome.receipt.payload == _FENCED_PAYLOAD
+
+
+def test_tool_run_with_truncated_final_answer_fails(context: AdapterContext) -> None:
+    final = _FENCED[: _FENCED.index('"review_file"')]
+    outcome = _collect(context, _tool_run_stdout(final), export=_tool_run_export(final))
+    assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
+    assert outcome.receipt.payload is None
+
+
+@pytest.mark.parametrize(
+    "final,stdout",
+    [
+        # stdout stops in the middle of the answer
+        (_FENCED, "".join(_PROGRESS) + _FENCED[:-8]),
+        # another JSON-like event follows the answer
+        (_FENCED, _tool_run_stdout() + '{"event":'),
+        # the answer's line goes on, so stdout's last JSON is not the answer
+        ('{"ok": true}', "".join(_PROGRESS) + '{"ok": true}, "x": 1}\n'),
+        # the answer never reached stdout
+        (_FENCED, "".join(_PROGRESS) + "\n"),
+    ],
+)
+def test_tool_run_stdout_not_ending_with_final_answer_fails(
+    context: AdapterContext, final: str, stdout: str
+) -> None:
+    outcome = _collect(context, stdout, export=_tool_run_export(final))
+    assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
+    assert outcome.receipt.payload is None
+
+
+def test_tool_run_final_step_calling_tool_fails(context: AdapterContext) -> None:
+    calls: list[dict[str, object]] = [
+        {"tool_call_id": "call-9", "function_name": "exec", "arguments": {}}
+    ]
+    outcome = _collect(
+        context, _tool_run_stdout(), export=_tool_run_export(final_tool_calls=calls)
+    )
+    assert outcome.receipt is not None and outcome.receipt.status != "success"
+
+
+def test_end_to_end_tool_run_collects_final_answer(
+    repository: Path, tmp_path: Path
+) -> None:
+    fixture = tmp_path / "export.json"
+    fixture.write_text(json.dumps(_tool_run_export()), encoding="utf-8")
+    out = tmp_path / "out.txt"
+    out.write_text(_tool_run_stdout(), encoding="utf-8")
+    config = _devin_config(
+        _runtime_agent(
+            tmp_path, "--fake-export", str(fixture), "--fake-stdout", str(out)
+        )
+    )
+    batch = run_workflow(
+        config, "audit", "PROMPT", repository, output_dir=tmp_path / "run"
+    )
+    assert batch.state == "success"
+    assert batch.results[0].attempts[0].payload == _FENCED_PAYLOAD
+
+
+def test_tool_run_answer_whitespace_differs_from_stdout(
+    context: AdapterContext,
+) -> None:
+    # The export may keep blank lines around the message that stdout does not.
+    final = "\n" + _FENCED + "\n\n"
+    outcome = _collect(context, _tool_run_stdout(), export=_tool_run_export(final))
+    assert outcome.receipt is not None and outcome.receipt.status == "success"
+    assert outcome.receipt.payload == _FENCED_PAYLOAD

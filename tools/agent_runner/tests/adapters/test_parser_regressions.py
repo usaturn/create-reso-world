@@ -316,9 +316,11 @@ def test_devin_unicode_diagnostic_inside_json_remains_data(tmp_path: Path, chann
     payload = {"note": "example" + separator + diagnostic}
     text = json.dumps(payload, ensure_ascii=False)
     good = '{"ok":true}'
-    outcome = _collect(context, text if channel == "stdout" else good,
-                       export=_export(text if channel == "atif" else good))
-    _success(outcome, payload if channel == "stdout" else {"ok": True})
+    # stdout concatenates every agent message and ends with the final ATIF answer (#188),
+    # so the stdout-only case carries the text in an earlier message.
+    final = text if channel == "atif" else good
+    outcome = _collect(context, (text if channel == "stdout" else "") + final, export=_export(final))
+    _success(outcome, payload if channel == "atif" else {"ok": True})
 
 
 @pytest.mark.parametrize("separator", _SEPARATORS)
