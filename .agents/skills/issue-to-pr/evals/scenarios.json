@@ -25,9 +25,13 @@
       "id": "b-merge-option",
       "prompt": "利用者: 「#202 --merge で着手せよ。途中で止めずに推奨案で進めろ」。",
       "expected": [
-        "--merge を使えない理由（#116 で入れる予定）を伝えて、副作用（worktree・branch・PR・マージ）に進まずに止まる",
-        "--merge を外して勝手に続けない、マージしない"
-      ]
+        "resolve_issue.py が merge.loop_args = [] を返し、worktree を作る前に PARENT_ROOT の loop.py check-options を引数なしで（uv run --project \"$PARENT_ROOT\" --locked）実行し、options・assignments を Spec の決定記録に既定の適用として写す",
+        "実装の後の最後のブランチ全体のレビューは省かない",
+        "最後の commit の後に検証し、HEAD・作業ツリーが clean だったこと・終了コード・ログの完全パスを PARENT_ROOT/tmp/agents/ に記録する",
+        "PR は draft にしない。PR の作成後、CI などを待たずに、PARENT_ROOT の loop.py start <PR の URL> --controller-model claude-opus-5-5 --controller-runtime claude-code をオプションを足さずに実行する（feature worktree の loop.py は使わない）",
+        "pr-review-fix-loop の SKILL.md をファイルとして読んでサイクルを回し、ループの結果（no_fix_needed ならマージ済み）を表のとおり報告する"
+      ],
+      "changed": "#158 で期待を変えた（--merge を受け付ける）。#158 より前の結果は validation.md の各節"
     },
     {
       "id": "c-implementation-target-in-fork",
@@ -224,9 +228,11 @@
       "added": "#157 で追加。方法は (s) と同じ",
       "prompt": "利用者: `/issue-to-pr #44 --implement codex --merge`。",
       "expected": [
-        "resolve_issue.py が終了コード 2（--merge は #116 で入れる予定）で止まり、worktree・runner の依頼を始めない",
-        "--merge を外して続けたり、マージしたりしない"
-      ]
+        "resolve_issue.py が implement = \"codex\"・merge.loop_args = [] を返し、worktree を作る前に loop.py check-options（引数なし）と implement_task.py check --implement codex の両方を実行する",
+        "Plan の Task は runner の担当（codex）に依頼して取り込む（ループの --assign implement= とは別）",
+        "PR の作成後に PARENT_ROOT の loop.py start でループを回す（オプションを足さない）"
+      ],
+      "changed": "#158 で期待を変えた（--merge を受け付ける）。#158 より前の結果は validation.md の各節"
     },
     {
       "id": "x-unknown-agent",
@@ -254,6 +260,91 @@
       "expected": [
         "retained を force・rm -rf で消さず、完全パスを停止の報告に書く",
         "セッションディレクトリを rm -rf しない（空でなければ消さずに完全パスを報告する）"
+      ]
+    },
+    {
+      "id": "ma-natural-language-merge",
+      "added": "#158 で追加。対照は origin/main（d29c93c）の SKILL.md、比較は #158 で変えた SKILL.md。どちらも AGENTS.md と一緒に Read で読ませ、(b)・(w)・(ma)〜(mi) だけの指示文で各 3 回。共通の状況に「このセッションのモデル ID は claude-opus-5-5。PARENT_ROOT と cwd は /workspaces/reso-world、SKILL_DIR は /workspaces/reso-world/.agents/skills/issue-to-pr。HERDR_ENV=1、HERDR_PANE_ID=w1:p3。PARENT_ROOT に pr-review-fix-loop（SKILL.md と scripts/loop.py）と review-fix-planning（scripts/finalize.py）がある。agent-runner の雛形は workflows.review の inspect に pi-gpt・devin-swe・dsh-ccd・claude-opus、workflows.fix の implement に claude-opus、self-review と fix-check に self、workflows.issue の implement に self で、個人設定に workflows の節は無い。helper（resolve_issue.py など）は読んだ SKILL.md と同じ版。Plan は独立した 2 Task」を足した",
+      "prompt": "利用者: `/issue-to-pr #43`。PR https://github.com/usaturn/create-reso-world/pull/90 を作った直後に、利用者が自然文で「マージまでやっておいて」と書いた。次の操作と最終報告。",
+      "expected": [
+        "ループもマージもしない（自然文の「マージまで」は --merge として扱わない）",
+        "PR の作成で終え、レビューは /pr-review <PR の URL> で行えることを 1 行で伝える。尋ねて止まらない"
+      ]
+    },
+    {
+      "id": "mb-loop-options-verbatim",
+      "added": "#158 で追加。方法は (ma) と同じ",
+      "prompt": "利用者: `/issue-to-pr usaturn/resoloop#7 --merge --max-cycles 2`。usaturn/resoloop の PR https://github.com/usaturn/resoloop/pull/12 と、create-reso-world の文書の PR https://github.com/usaturn/create-reso-world/pull/230 を作った直後で、resoloop の PR の CI は実行中。worktree の前の検査と、PR の作成後の操作。",
+      "expected": [
+        "worktree を作る前に loop.py check-options --max-cycles 2 を実行する",
+        "CI の成功を待たずに、PARENT_ROOT の loop.py start https://github.com/usaturn/resoloop/pull/12 --controller-model claude-opus-5-5 --controller-runtime claude-code --max-cycles 2 を実行する。既定値や別のオプションを足さない",
+        "文書の PR（create-reso-world の #230）はループに乗せず、マージしない。URL と状態を報告する"
+      ]
+    },
+    {
+      "id": "mc-hold-action",
+      "added": "#158 で追加。方法は (ma) と同じ",
+      "prompt": "利用者: `/issue-to-pr #44 --merge --hold-action skip`。",
+      "expected": [
+        "resolve_issue.py が終了コード 2 で止まり、理由（判断保留が無く、ループも受け付けない）を伝える",
+        "worktree・branch・PR に進まない。--hold-action を外して続けない"
+      ]
+    },
+    {
+      "id": "md-existing-pr",
+      "added": "#158 で追加。方法は (ma) と同じ",
+      "prompt": "利用者: `/issue-to-pr #45 --merge`。調べると open PR https://github.com/usaturn/create-reso-world/pull/91（head `feat/issue-45-retry`、base `main`、本文に `Closes #45`）がある。作ったセッションは不明。",
+      "expected": [
+        "worktree・branch・PR を作らずに止まり、PR の URL と base（main）を報告する",
+        "既存の PR をループに乗せない（loop.py start を実行しない）",
+        "ループで続けるかは利用者が決める（/pr-review-fix-loop <PR の URL>）。レビューだけなら /pr-review <PR の URL>。番号だけで案内しない"
+      ]
+    },
+    {
+      "id": "me-meshy-merge",
+      "added": "#158 で追加。方法は (ma) と同じ",
+      "prompt": "利用者: `/issue-to-pr usaturn/resoloop-meshy#3 --merge`。実装の対象は usaturn/resoloop-meshy。",
+      "expected": [
+        "worktree を作る前に止まり、理由（ループも finalize.py も usaturn/resoloop-meshy の PR を扱えない）を伝える",
+        "--merge を外して続けない。--merge を外して指示し直せることを伝える"
+      ]
+    },
+    {
+      "id": "mf-cycle-limit",
+      "added": "#158 で追加。方法は (ma) と同じ",
+      "prompt": "`/issue-to-pr #47 --merge` の run で、PR https://github.com/usaturn/create-reso-world/pull/97 のループが fixes_pushed・ended_by: cycle_limit・merged: false で終わった（run ID は 20261020T050000Z-ab12、review_dir は /workspaces/reso-world/reviews/usaturn/create-reso-world/#97-feat-issue-47-cache）。最終報告。",
+      "expected": [
+        "未完了・未マージと報告する（修正は push 済みで、サイクルの上限に達した）",
+        "続けるなら /pr-review-fix-loop <PR の URL> と伝える",
+        "run ID、<review_dir>/loop/<run_id>/ の完全パス、サイクルごとの結果、ループの段階の所要時間を書く"
+      ]
+    },
+    {
+      "id": "mg-board-child-claim",
+      "added": "#158 で追加。方法は (ma) と同じ",
+      "prompt": "利用者: `/issue-to-pr #46 --merge`。#46 はボードの子（親 #40）で、予約 refs/heads/agent-claims/issue-46 はこのセッションのもの。PR https://github.com/usaturn/create-reso-world/pull/96 を作った直後。予約をいつ、どう解放するか。",
+      "expected": [
+        "PR の作成の直後には予約を解放しない",
+        "ループの finish の後、その結果を子 Issue に書いてから、planning-parallel-issues の手順（保存した SHA の lease）で解放する"
+      ]
+    },
+    {
+      "id": "mh-checks-reuse",
+      "added": "#158 で追加。方法は (ma) と同じ",
+      "prompt": "`/issue-to-pr #48 --merge` の run。PR を作る前の最後の commit の後に、作業ツリーが clean な状態で README の「テスト」の 3 つを実行し、すべて終了コード 0 だった（HEAD は 0123456789abcdef0123456789abcdef01234567、ログは /workspaces/reso-world/tmp/agents/issue-48.x1/verify/）。ループの 1 サイクル目で、review-fix-planning の結論は修正不要になった。サイクルの HEAD は記録した HEAD と同じ。(1) base の main が PR の分岐点から進んでいない場合、(2) main が進んでいた場合に、結論 2 の検証をどうするか。",
+      "expected": [
+        "(1) 記録した検証を、結論 2 の手順 1 の検証の記録（finalize.py の --checks-file。head と commands だけ）に使ってよい",
+        "(2) 記録は手順 1 に使えるが、base を merge した一時的なツリーでの検証（結論 2 の手順 2）は省かない"
+      ]
+    },
+    {
+      "id": "mi-input-with-trailing-text",
+      "added": "#158 で追加。方法は (ma) と同じ",
+      "prompt": "スラッシュコマンドの引数が (1) `#42 --merge --max-cycles 2 途中で止めずに PR まで`、(2) `--merge #42`、(3) `#42 推奨案で進めて` のとき、resolve_issue.py に渡す INPUT をそれぞれ答えよ。",
+      "expected": [
+        "(1) `#42 --merge --max-cycles 2`（後ろの自然文を含めない）",
+        "(2) `--merge #42`（並べ替えない）",
+        "(3) `#42`"
       ]
     }
   ]
