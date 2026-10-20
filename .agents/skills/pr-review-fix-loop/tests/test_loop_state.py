@@ -562,12 +562,154 @@ def test_abort_needs_a_classified_reason(loop: Any, env: Any) -> None:
     started = env.start()
 
     with pytest.raises(loop.LoopError) as error:
-        loop.finish(Path(started["run_dir"]), abort="レビュアーが全員失敗した")
+        loop.finish(Path(started["run_dir"]), abort="レビュアーが全員失敗した", github=env.github)
     assert error.value.code == 2
 
-    finished = loop.finish(Path(started["run_dir"]), abort="external: レビュアーが全員失敗した")
+    finished = loop.finish(Path(started["run_dir"]), abort="external: レビュアーが全員失敗した", github=env.github)
     assert finished["result"]["ended_by"] == "abort"
+    # マージしていない run の abort は、PR を読んだうえで今までどおり false
+    assert finished["result"]["merged"] is False
     assert not (env.review_dir / "loop/lock.json").exists()
+
+
+@pytest.mark.parametrize("pr_readable", [True, False], ids=["pr-read", "pr-unreadable"])
+def test_abort_after_a_finalize_merge_keeps_the_merge(
+    loop: Any, env: Any, kit: Any, tmp_path: Path, pr_readable: bool
+) -> None:
+    """finalize がマージした後に cycle-end が GitHub の失敗で止まり、司令塔が abort した（#221 の再現）。
+
+    abort は PR を読み、読めなければ渡された finalize の結果を使う。どちらでも、マージ済みを false にしない。
+    """
+    env.start()
+    head = env.gh.head()
+    reuse_or_run(loop, env)
+    run_dir = env.run_dirs[-1]
+    env.gh.post_record(kit.round_record(1, head, "no_fix_needed", []))
+    env.gh.merge()
+    result = kit.finalize_result(tmp_path / "final.json", "no_fix_needed", merged=True)
+    env.gh.login_status = 1
+    with pytest.raises(loop.LoopError) as error:
+        loop.cycle_end(run_dir, github=env.github, finalize_result=result)
+    assert (error.value.code, error.value.stage) == (5, "github")
+    env.gh.pull_status = 0 if pr_readable else 1
+
+    finished = loop.finish(
+        run_dir, abort="external: GitHub の読み取りが失敗した", finalize_result=result, github=env.github
+    )
+
+    assert (finished["result"]["ended_by"], finished["result"]["merged"]) == ("abort", True)
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert run["result"]["merged"] is True
+    # PR を読めなかったときだけ、finalize の結果を使った理由を残す
+    assert len(run["notes"]) == (0 if pr_readable else 1)
+
+
+ABSENT = "absent"
+
+
+@pytest.mark.parametrize(
+    ("pr", "reported", "expected"),
+    [
+        # PR を読めたら、その状態。マージしていない run の abort は今までどおり false
+        pytest.param("open", ABSENT, False, id="open"),
+        pytest.param("open", False, False, id="open-finalize-false"),
+        pytest.param("open", None, False, id="open-finalize-null"),
+        pytest.param("merged", ABSENT, True, id="merged"),
+        pytest.param("merged", False, True, id="merged-finalize-false"),
+        # 読めなければ、渡された finalize の結果（最後の観測）。どちらも無ければ未確認で、false にしない
+        pytest.param("unreadable", True, True, id="unreadable-finalize-true"),
+        pytest.param("unreadable", False, False, id="unreadable-finalize-false"),
+        pytest.param("unreadable", None, None, id="unreadable-finalize-null"),
+        pytest.param("unreadable", ABSENT, None, id="unreadable"),
+        # finalize はマージ済みと返したのに PR は未マージ: どちらかの読み取りが誤っているので未確認
+        pytest.param("open", True, None, id="open-finalize-true"),
+    ],
+)
+def test_abort_records_the_merge_state_it_observed(
+    loop: Any, env: Any, kit: Any, tmp_path: Path, pr: str, reported: bool | str | None, expected: bool | None
+) -> None:
+    env.start()
+    reuse_or_run(loop, env)
+    run_dir = env.run_dirs[-1]
+    if pr == "merged":
+        env.gh.merge()
+    env.gh.pull_status = 1 if pr == "unreadable" else 0
+    result = None
+    if reported != ABSENT:
+        result = kit.finalize_result(
+            tmp_path / "final.json",
+            "no_fix_needed" if reported is True else "stopped",
+            merged=reported,
+            stop_reason=None if reported is True else "external: テスト",
+        )
+
+    finished = loop.finish(run_dir, abort="external: テスト", finalize_result=result, github=env.github)
+
+    assert finished["result"]["merged"] is expected
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert (run["state"], run["result"]["merged"]) == ("ended", expected)
+
+
+def test_abort_treats_a_gh_that_cannot_start_as_unreadable(loop: Any, env: Any, kit: Any, tmp_path: Path) -> None:
+    """gh を起動できない（OSError）ときも abort を止めず、PR を読めないとして決める。"""
+    env.start()
+    run_dir = env.run_dirs[-1]
+
+    def missing(argv: Any) -> Any:
+        raise FileNotFoundError("gh")
+
+    result = kit.finalize_result(tmp_path / "final.json", "no_fix_needed", merged=True)
+
+    finished = loop.finish(
+        run_dir, abort="environment: gh を起動できない", finalize_result=result, github=loop.GitHub(missing)
+    )
+
+    assert finished["result"]["merged"] is True
+    assert len(json.loads((run_dir / "run.json").read_text(encoding="utf-8"))["notes"]) == 1
+
+
+def test_finalize_result_is_only_for_abort_and_must_be_a_finalize_result(
+    loop: Any, env: Any, kit: Any, tmp_path: Path
+) -> None:
+    """--finalize-result の誤りは、run を変えず、PR も読まずに終了コード 2 で止める。"""
+    env.start()
+    run_dir = env.run_dirs[-1]
+    good = kit.finalize_result(tmp_path / "final.json", "no_fix_needed", merged=True)
+    broken = tmp_path / "broken.json"
+    broken.write_text(json.dumps({"outcome": "no_fix_needed", "merged": "yes", "issues": []}), encoding="utf-8")
+    calls = len(env.gh.calls)
+
+    for options in (
+        {"finalize_result": good},
+        {"abort": "external: テスト", "finalize_result": broken},
+        {"abort": "external: テスト", "finalize_result": tmp_path / "missing.json"},
+    ):
+        with pytest.raises(loop.LoopError) as error:
+            loop.finish(run_dir, github=env.github, **options)
+        assert (error.value.code, error.value.stage) == (2, "arguments"), options
+
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert (run["state"], run["result"]) == ("running", None)
+    assert (env.review_dir / "loop/lock.json").exists()
+    assert env.gh.calls[calls:] == []
+
+
+def test_cli_finish_abort_passes_the_finalize_result(
+    loop: Any, env: Any, kit: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    env.start()
+    run_dir = env.run_dirs[-1]
+    env.gh.merge()
+    # PR を読めないので、merged が true になるのは渡したファイルを使ったときだけ
+    env.gh.pull_status = 1
+    result = kit.finalize_result(tmp_path / "final.json", "no_fix_needed", merged=True)
+    monkeypatch.setattr(loop, "GitHub", lambda: env.github)
+    capsys.readouterr()
+
+    arguments = ["finish", "--run", str(run_dir), "--abort", "external: GitHub の読み取りが失敗した"]
+    assert loop.main([*arguments, "--finalize-result", str(result)]) == 0
+
+    assert json.loads(capsys.readouterr().out)["result"]["merged"] is True
 
 
 def test_status_returns_the_next_command_after_a_restart(loop: Any, env: Any, kit: Any) -> None:

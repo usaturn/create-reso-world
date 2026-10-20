@@ -716,7 +716,7 @@ def test_review_with_no_accepted_reviewer_fails_with_code_6(loop: Any, env: Any)
     assert error.value.next_command[-4:-1] == ["finish", "--run", str(run_dir)]
     cycle = read(run_dir / "cycle-1.json")
     assert [item["verdict"] for item in cycle["review"]["reviewers"]] == ["rejected", "rejected"]
-    finished = loop.finish(run_dir, abort="external: レビュアーが全員失敗した")
+    finished = loop.finish(run_dir, abort="external: レビュアーが全員失敗した", github=env.github)
     assert finished["lock_released"] is True
 
 
@@ -875,7 +875,7 @@ def test_unconfirmed_stop_holds_the_lock_until_operator_recovery(
     assert resource.exists()
 
     with pytest.raises(loop.LoopError) as held:
-        loop.finish(run_dir, abort="environment: レビュアーの停止を確認できない")
+        loop.finish(run_dir, abort="environment: レビュアーの停止を確認できない", github=env.github)
     assert (held.value.code, held.value.stage) == (7, "resources")
     assert read(run_dir / "run.json")["state"] == "held"
     with pytest.raises(loop.LoopError) as refused:
@@ -1048,7 +1048,7 @@ def test_next_commands_never_carry_placeholders_and_recover_rejects_them(
     assert failed.value.code == 6
     assert not has_placeholder(failed.value.next_command)
     with pytest.raises(loop.LoopError) as held:
-        loop.finish(run_dir, abort="environment: レビュアーの停止を確認できない")
+        loop.finish(run_dir, abort="environment: レビュアーの停止を確認できない", github=env.github)
     with pytest.raises(loop.LoopError) as refused:
         loop.recover(run_dir)
     assert not has_placeholder(held.value.next_command)
@@ -1074,7 +1074,7 @@ def test_recover_keeps_files_that_may_hold_secrets(loop: Any, env: Any, monkeypa
     receipts = list(Path(read(run_dir / "run.json")["resources"][0]["path"]).rglob("receipt.json"))
     assert receipts
     with pytest.raises(loop.LoopError):
-        loop.finish(run_dir, abort="environment: レビュアーの停止を確認できない")
+        loop.finish(run_dir, abort="environment: レビュアーの停止を確認できない", github=env.github)
 
     recovered = loop.recover(run_dir, operator_confirmed_stopped="ps で runner の子プロセスが無いことを確かめた")
 
@@ -1723,7 +1723,7 @@ def test_unconfirmed_after_run_keeps_outputs_and_lock_until_the_operator_confirm
             if entry == "recover":
                 loop.recover(run_dir)
             else:
-                loop.finish(run_dir, abort="environment: 後処理の停止を確認できない")
+                loop.finish(run_dir, abort="environment: 後処理の停止を確認できない", github=env.github)
 
         assert (refused.value.code, refused.value.stage) == (7, "resources")
         assert held_state(env, run_dir) == before
