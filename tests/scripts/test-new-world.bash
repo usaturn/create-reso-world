@@ -1,6 +1,9 @@
 #!/bin/bash
 # scripts/new-world.sh の作成・適用・冪等性・食い違いの検出を、一時リポジトリとモックの resoloop / uv で検査する
 set -euo pipefail
+# 外から渡された GIT_* を除く。linked worktree の git rebase --exec は GIT_DIR を export するので、残すと
+# 直接実行したときに一時リポジトリの git init・git -C が、そのリポジトリの設定・index・ブランチを書き換える（#200）
+while IFS= read -r name; do unset "$name"; done < <(compgen -e -X '!GIT_*')
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # ユーザの git 設定から隔離する（システム・グローバル設定と core.excludesFile を外す）。グローバル設定の
 # safe.directory も外れるので、このリポジトリだけは所有者が違っても読めるようにしておく

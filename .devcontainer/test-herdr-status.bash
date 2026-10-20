@@ -1,5 +1,8 @@
 #!/bin/bash
 set -euo pipefail
+# 外から渡された GIT_* を除く。linked worktree の git rebase --exec は GIT_DIR を export するので、残すと
+# 直接実行したときに一時リポジトリの git init・git -C が、そのリポジトリの設定・index・ブランチを書き換える（#200）
+while IFS= read -r name; do unset "$name"; done < <(compgen -e -X '!GIT_*')
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GIT_CORE="${REPO_ROOT}/.devcontainer/herdr-git-status.bash"

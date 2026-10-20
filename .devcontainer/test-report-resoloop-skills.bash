@@ -3,6 +3,9 @@
 # 差分や失敗があっても 0 で終わることを、一時リポジトリとモックの resoloop で検査する
 # 仕様: docs/superpowers/specs/2026-10-06-issue-41-resoloop-latest-without-lock-design.md D-12
 set -euo pipefail
+# 外から渡された GIT_* を除く。linked worktree の git rebase --exec は GIT_DIR を export するので、残すと
+# 直接実行したときに一時リポジトリの git init・git -C が、そのリポジトリの設定・index・ブランチを書き換える（#200）
+while IFS= read -r name; do unset "$name"; done < <(compgen -e -X '!GIT_*')
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf -- "${tmp:?}"' EXIT

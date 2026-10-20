@@ -4,6 +4,9 @@
 # 作業ツリーや環境変数の設定で緩められないこと、設定の取得や gitleaks の失敗を成功として扱わないことを確かめる。
 # base を取り込んだマージ commit で、base で公開済みの内容を検出し直さないことも確かめる
 set -euo pipefail
+# 外から渡された GIT_* を除く。linked worktree の git rebase --exec は GIT_DIR を export するので、残すと
+# 直接実行したときに一時リポジトリの git init・git -C が、そのリポジトリの設定・index・ブランチを書き換える（#200）
+while IFS= read -r name; do unset "$name"; done < <(compgen -e -X '!GIT_*')
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 scan="$root/scripts/scan-before-push.sh"
 tmp="$(mktemp -d)"
