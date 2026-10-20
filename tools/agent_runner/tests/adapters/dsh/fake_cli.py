@@ -126,7 +126,7 @@ def main() -> int:
                 neighbor.write_text("native shadow")
             except OSError:
                 pass
-            target_script = Path(__file__).resolve().parents[5] / ".agents/scripts/review_target.py"
+            target_script = Path(parameters["probe_helper"])
             program = (
                 "from pathlib import Path; import importlib.util; "
                 f"s = importlib.util.spec_from_file_location('parent_root_probe', {str(target_script)!r}); "
