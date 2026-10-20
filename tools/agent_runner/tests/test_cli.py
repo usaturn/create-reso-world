@@ -25,6 +25,8 @@ pytest_plugins = ("tools.test_support.plugin",)
 # Only fake agents are launched here; drop AGENT_RUNNER_DEPTH inside each test so a runner agent can run them
 pytestmark = pytest.mark.usefixtures("outside_runner")
 
+# run_echo runs the real workflow (worktree checkout and a Python child) under this role
+# deadline. Like the defaults in test_runner.py, it only bounds a run that hangs (#218).
 _TEMPLATE = """schema_version = 1
 [agents.a]
 runtime = "pi"
@@ -36,7 +38,7 @@ command = ["never-invoke-this-command"]
 model = "model-b"
 [roles.inspect]
 writes = false
-deadline_seconds = 5
+deadline_seconds = 30
 result_shape = "json"
 [workflows.audit.assignments.inspect]
 agents = ["a"]
