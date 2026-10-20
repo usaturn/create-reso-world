@@ -1,14 +1,14 @@
 ---
 name: issue-to-pr
 description: "Issue の URL・#番号を指定して『着手して』『実装して PR まで』『推奨案で進めて』と依頼されたときに使う。PR の番号・URL、PR レビュー・レビュー指摘の修正計画、ボードの親 Issue からの子の選択には使わない。"
-argument-hint: "<Issue> [--implement AGENT]"
+argument-hint: "<Issue> [--implement AGENT] [--merge [--max-cycles N] [--assign ROLE=AGENT[,AGENT]]... [--template PATH] [--config PATH]]"
 ---
 
 # Issue to PR
 
 ## 1. 入口と委任の範囲
 
-このスキルによる着手を、**通常の設計判断は推奨案で決め、検証・commit・push・PR 作成まで継続する指示**として扱う。質問、設計・Spec・Plan の確認、実行方式、終了方法の選択は追加で尋ねない。AGENTS.md の「曖昧なら確認する」は、ここでは仕様の意味を変える判断・安全境界・後述の停止条件に適用する。実在しない承認や検証結果を記録しない。マージはしない。
+このスキルによる着手を、**通常の設計判断は推奨案で決め、検証・commit・push・PR 作成まで継続する指示**として扱う。質問、設計・Spec・Plan の確認、実行方式、終了方法の選択は追加で尋ねない。AGENTS.md の「曖昧なら確認する」は、ここでは仕様の意味を変える判断・安全境界・後述の停止条件に適用する。実在しない承認や検証結果を記録しない。マージは、`--merge` のときにループの中の `finalize.py` が行うものだけで、それ以外ではしない。
 
 - **Claude Code など:** `superpowers:using-superpowers` を読み、以下の流れを開始する。
 - **Pi:** 自動 bootstrap や設定を変更しない。明示 `/sp-brainstorm` から開始し、このスキルを使う。明示 `/skill:issue-to-pr` から読み込まれた場合も opt-in として、`brainstorming` を直接読んで開始できる。
@@ -20,7 +20,7 @@ argument-hint: "<Issue> [--implement AGENT]"
 
 一度明示入口から開始した run では、工程ごとに次のコマンド入力を求めず、各スキルを読んで最後まで続ける。ランタイムの明示された承認・ツール制限は迂回しない。
 
-**オプションは `--implement` だけを受け付ける。** `--merge`（PR の作成後のレビュー修正ループとマージ）とループ用のオプションは #116 で入れる。利用者がそれらを書いたら、2 章の helper が理由を出して終了コード 2 で止まる。そのまま止まって理由を伝える。オプションを外して続けたり、マージしたりしない。
+**オプションは `--implement`・`--merge`・ループ用のオプション（`--merge` と一緒のときだけ）を受け付ける。** ほかのオプション（`--hold-action`・`--fresh-review` を含む）は、2 章の helper が理由を出して終了コード 2 で止まる。そのまま止まって理由を伝える。オプションを外して続けない。
 
 ### `--implement`
 
@@ -29,6 +29,18 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
 - `--implement AGENT`（`--implement=AGENT` も同じ）は、その回だけ一次担当を置き換える。値は agent-runner の設定にある agent 名か `self`。`fallback` は設定のものを保つ
 - Issue の参照の前でも後でも書け、1 回だけ書ける
 - 担当の検査は 2 章の 3、依頼の手順は 4 章の「Task の実装を runner の担当に依頼する」
+
+### `--merge`
+
+`--merge` は、PR を作った後に PR 修正ループ（pr-review-fix-loop）を回し、修正不要と確かめられたら、マージと関連 Issue の更新まで進める指示である。ループの中の判断（致命的な指摘だけを直す、三択の結論、修正後の自己レビューは最大 1 回）は review-fix-planning のままで、マージはその `finalize.py` だけが行う。
+
+- 有効なのは、**利用者のメッセージ（スラッシュコマンドの引数を含む）に `--merge` という語が書かれているときだけ**。自然文の「マージまで」「マージして」は `--merge` として扱わない。モデルが自分でこのスキルを選んだ run で `--merge` を補わない
+- ループ用のオプションは `--max-cycles N`・`--assign ROLE=AGENT[,AGENT]`（複数可）・`--template PATH`・`--config PATH` で、名前・値・意味は pr-review-fix-loop の `start` と同じ。`--merge` と一緒のときだけ受け付ける。`--merge` もループ用のオプションも、Issue の参照の前でも後でも書ける。**利用者が書いたものだけを、書いた順に渡す。** 既定値を足さない（ループの既定はサイクルの上限 3、レビュアーと担当は agent-runner の設定のとおり）
+- `--hold-action` は受け付けない（このリポジトリの review-fix-planning には判断保留が無く、ループも受け付けない）。`--fresh-review` も受け付けない（作ったばかりの PR には再利用するレビューが無い）
+- ループの `--assign implement=…` はレビュー修正の担当（`workflows.fix` の `implement`）で、Plan の Task の担当（`--implement`）ではない。ループの `--template`・`--config` も `implement_task.py check` には渡さない
+- 使えるのは、`TARGET_REPO`（2 章の 5）が usaturn/create-reso-world か usaturn/resoloop のときだけ（ループが扱え、`finalize.py` がマージしてよい範囲）
+- `--merge` のときは、Plan の実行予算（4 章の 3）にループの段階を含める（目安はサイクルの上限 ×（レビューの期限 45 分＋計画・修正））
+- 手順は 2 章の 3 の `check-options`、5 章の検証の記録と「`--merge` のとき: PR の作成後のループ」。`--merge` が無い run は PR の作成で終わり、ループもマージもしない
 
 ## 2. 入力・対象・競合の確認
 
@@ -40,15 +52,24 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
    git -C "$PARENT_ROOT" remote get-url origin
    ```
 
-3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`）。語を足したり並べ替えたりしない。現在の checkout を cwd として、読み取り専用の helper を実行する。
+3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`、`#12 --merge --max-cycles 2 途中で止めずに` なら `#12 --merge --max-cycles 2`）。語を足したり並べ替えたりしない。現在の checkout を cwd として、読み取り専用の helper を実行する。
 
    ```bash
    uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" -- "$INPUT"
    ```
 
    - 受け付ける表記: `https://github.com/<owner>/<repo>/issues/N`、`<owner>/<repo>#N`、`#N`（**現在の checkout の origin** で解決する。番号からリポジトリを推測しない）。対象は usaturn/create-reso-world・usaturn/resoloop・usaturn/resoloop-meshy だけ
-   - 成功: 終了コード 0、`repo`・`number`・`url`・`title`・`body`・`implement`（`--implement` の値か `null`）の JSON。**最初に `repo` と `title` を利用者に表示する。** 失敗: 終了コード 2 と stderr の理由。副作用に進まずに止まる
+   - 成功: 終了コード 0、`repo`・`number`・`url`・`title`・`body`・`merge`・`implement` の JSON。`merge` は `--merge` が無ければ `null`、あれば `{"loop_args": [...]}`（利用者が書いた順のループ用のオプション。パスは絶対パス）。`implement` は `--implement` の値か `null`。**最初に `repo` と `title` を利用者に表示する。** 失敗: 終了コード 2 と stderr の理由。副作用に進まずに止まる
    - helper は入力の検証と Issue の確認だけで、競合・予約・承認を確かめた証拠にはならない
+   - `merge` が `null` でなければ、続けて `PARENT_ROOT` の `loop.py` で、ループ用のオプションと agent-runner の設定を検査する。`loop_args` の要素を順に、それぞれ 1 つの引数として渡す（空なら引数なし）。
+
+     ```bash
+     uv run --project "$PARENT_ROOT" --locked python \
+       "$PARENT_ROOT/.agents/skills/pr-review-fix-loop/scripts/loop.py" check-options <loop_args の各要素>
+     ```
+
+     終了コード 0 なら、出力の `options`・`assignments` を Spec の決定記録に写す（既定値は既定の適用と書き、利用者の指定と書かない）。終了コード 2 なら `reason`（argparse の拒否は stderr）を利用者に伝えて止まる。worktree・Herdr・予約のどれにも触れない。
+
    - 続けて Plan の実装の担当を検査する。`implement` が `null` でなければ `--implement <implement の値>` を付け（値は 1 つの引数として渡す）、`null` なら付けない。
 
      ```bash
@@ -58,7 +79,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
      終了コード 0 なら、出力の `assignment`（`agents`・`fallback`）と `self` を Spec の決定記録に写す（雛形の既定の `self` は既定の適用と書き、利用者の指定と書かない）。終了コード 2 なら `reason` を利用者に伝えて止まる（設定に無い agent、`agents` が 2 つ以上、`implement` の役割の `writes = false` など）。worktree・Herdr・予約のどれにも触れない。
 
 4. 本文、全ページのコメント、依存関係を読む。本文が利用者の承認・判断を求めていて、決定の記録が無ければ、推奨案での委任で代えずに止まる。
-5. 実装の対象 `TARGET_REPO` を決める。既定は helper の `repo`。本文が実装の対象を明記していれば（「実装の対象: usaturn/resoloop」など）それに従う。3 つの外なら止まる。`TARGET_REPO` の行で checkout（`TARGET_ROOT`）と remote を確かめる。checkout が無い・remote が違うときは「無いとき」の案内をして止まる。checkout を探したり clone したりしない。
+5. 実装の対象 `TARGET_REPO` を決める。既定は helper の `repo`。本文が実装の対象を明記していれば（「実装の対象: usaturn/resoloop」など）それに従う。3 つの外なら止まる。`merge` があり、`TARGET_REPO` が usaturn/resoloop-meshy なら止まる（ループが `CODE_ROOT` なしで checkout を決められず、`finalize.py` がマージしてよい範囲の外）。`--merge` を外して指示し直せることを伝える。`TARGET_REPO` の行で checkout（`TARGET_ROOT`）と remote を確かめる。checkout が無い・remote が違うときは「無いとき」の案内をして止まる。checkout を探したり clone したりしない。
 
    | `TARGET_REPO` | `TARGET_ROOT` | 確かめる remote | 無いとき | 検証の入口 | CI |
    | --- | --- | --- | --- | --- | --- |
@@ -73,7 +94,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
    - 未完了の先行 Issue・必要な未マージ PR
    - 親 Issue か handoff が、`main` 以外（統合用の branch など）を PR の向き先に指定している。この版は未対応なので、黙って `main` に向けない
 
-   既存の open PR で止まるときは、その PR の URL と base（`gh pr view <PR> --repo <repo> --json url,baseRefName`）を報告し、レビューは `/pr-review <PR の URL>`、指摘の修正の計画は `review-fix-planning` で行えると伝える。案内には PR の URL を使う（番号だけでは、別のリポジトリの PR を cwd の origin の PR として解決する）。
+   既存の open PR で止まるときは、その PR の URL と base（`gh pr view <PR> --repo <repo> --json url,baseRefName`）を報告し、レビューは `/pr-review <PR の URL>`、指摘の修正の計画は `review-fix-planning` で行えると伝える。案内には PR の URL を使う（番号だけでは、別のリポジトリの PR を cwd の origin の PR として解決する）。`--merge` があっても、既存の PR をループに乗せない（`loop.py start` を実行しない）。ループで続けるかは利用者が決め、続けるなら `/pr-review-fix-loop <PR の URL>` で行える。
 
    worktree を作る直前と、push・PR の作成の前に、Issue の状態と競合を調べ直す。新しい競合や close があれば止まり、この run で作った worktree・branch と他者の作業を区別して報告する。
 7. ボードの子（GitHub の親 Issue があり、子か親の本文にボードのキーがある）は **`planning-parallel-issues` 必須**。予約・先行条件・成果の公開・所有権の再確認・解放はそちらに従い、このスキルに写さない。親からの子の選択は担当外。
@@ -155,6 +176,7 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 ## 5. 検証・PR・完了
 
 - **`verification-before-completion` と `finishing-a-development-branch` 必須。** 終了方法は PR の作成を選び、改めて選択肢を尋ねない。検証は 2 章の表の入口で行う。長時間の検証・子・CI は `monitoring-long-tasks` 必須で、終了を待ち、終了コードと実ログを確かめる。
+- `--merge` のときは、最後の commit の後に検証し、検証した HEAD、そのときの `git status --porcelain` が空だったこと、各コマンドの argv と終了コード、ログの完全パスを `PARENT_ROOT/tmp/agents/` のセッションディレクトリに記録する。同じ場所に、`finalize.py` の `--checks-file` の形のファイルも作る（形は review-fix-planning の `references/execution.md` の 3 章のとおり）。ループで再利用する条件になる（下の「`--merge` のとき: PR の作成後のループ」の 5）
 - 統合確認では [要件・原因・検証の対応](../review-fix-planning/references/convergence.md) の「3. 検証と閉じ方」を読む。Spec→Plan→Task→実行証拠を条件単位で照合し、判定の両側・意味のある操作順・検証の独立した根拠・最後の修正で影響した経路を確認する。要件の欠落や未確認をテスト件数や別版のレビューで埋めず、必要な証拠が揃ってから公開する。
 - worktree で明示したパスだけを stage・commit する。push は `finishing-a-development-branch` の `git push -u` ではなく、`AGENTS.md` の「push の前の秘密情報の検査」の形で、次の順に行う。検査のスクリプトは、どの対象でも `PARENT_ROOT` のものを使う（外部の checkout には無く、作業中の branch のものはその branch が書き換えられる）。
 
@@ -167,23 +189,50 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
   ```
 
   どれかを push する前に、公開する worktree をすべて検査する。`TARGET_REPO` が create-reso-world なら、文書の worktree はコードの worktree と同じなので、`DOC_SHA` の 2 行を除く。SHA が空だと refspec が branch の削除になるので、呼び出しを分けるときも `:?` を外さない。検査の後に commit を足したら、検査からやり直す。CI の修正などの再 push も同じ形で行う。
-- push の後に `gh pr create --repo "$TARGET_REPO" --base main --head <branch>` で PR を作る。SHA を指定した push では upstream が設定されないので、`--head` を省かない。既存の PR が見つかったら重複して作らない。
+- push の後に `gh pr create --repo "$TARGET_REPO" --base main --head <branch>` で PR を作る。SHA を指定した push では upstream が設定されないので、`--head` を省かない。既存の PR が見つかったら重複して作らない。`--merge` のときは draft にしない（`finalize.py` は draft を拒否する）。
 - PR 本文: Issue が `TARGET_REPO` にあれば `Closes #N`、別のリポジトリにあれば `Refs <Issue の URL>`（マージで別のリポジトリの Issue を閉じない）。変更概要、**Spec の決定と理由、実行方式と理由**、実行した検証と結果、作業時間と主要 Task 別の内訳を書く。未実行の確認を成功と書かない。
 - `TARGET_REPO` が create-reso-world でなければ、続けて、上で push した文書用の branch から create-reso-world に Spec・Plan だけの PR を作る。本文は `Refs <Issue の URL>` とコードの PR の URL。コードの PR の本文にも文書の PR の URL を足す。
-- CI は 2 章の表のとおり。public のリポジトリは PR の checks が green になってから完了とする。失敗したら直すか、直せなければ止まる。
-- マージ・タグ・リリース・デプロイ・プロビジョニングは行わない。admin マージ・auto-merge・force push・branch の削除もしない。
-- ボードの子の成果の公開・予約の解放は `planning-parallel-issues` に従う。自分の所有物だけを扱う。
-- 完了したら Herdr のタスクを completed にし、PR の URL、検証結果、worktree・branch、実在する Spec・Plan・残したログの絶対パス、所要時間を報告する。レビューは `/pr-review <PR の URL>` で行えることを 1 行で伝える。尋ねて止まらない。
+- CI は 2 章の表のとおり。public のリポジトリは PR の checks が green になってから完了とする。失敗したら直すか、直せなければ止まる。`--merge` のときは、PR の作成後に CI を待たずにループへ進む（マージの前に `finalize.py` が CI の成功を確かめ、実行中なら `wait_for: ci` で待つ。PR の変更による失敗は、review-fix-planning が致命的な指摘として直す）。
+- `--merge` のときのループの `finalize.py` によるマージを除き、マージ・タグ・リリース・デプロイ・プロビジョニングは行わない。admin マージ・auto-merge・force push・branch の削除は、どの場合もしない。
+- ボードの子の成果の公開・予約の解放は `planning-parallel-issues` に従う。自分の所有物だけを扱う。`--merge` のときは、PR の作成の直後には解放しない。ループの `finish` の後（ループのエラーで `finish` まで進めないときは、止まった時点）に、結果と再開の方法を子 Issue に書いてから解放する。
+- 完了したら Herdr のタスクを completed にし、PR の URL、検証結果、worktree・branch、実在する Spec・Plan・残したログの絶対パス、所要時間を報告する。`--merge` が無ければ、レビューは `/pr-review <PR の URL>` で行えることを 1 行で伝える。尋ねて止まらない。`--merge` のときは、この 1 行の代わりに、下の節の 6 の報告を加える。
+
+### `--merge` のとき: PR の作成後のループ
+
+PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文書の PR も作った後）、このセッションが司令塔としてループを回す。ループが終わるまで、review-fix-planning の手順の外で feature worktree を変えない（未 commit の変更や PR に無い commit を残さない。review-fix-planning は、clean で HEAD が PR の head の worktree を修正に使い、そうでなければ結論 3 で止まる）。Spec・Plan への記録は PR を作る前に済ませ、ループの間の記録はセッションディレクトリと PR・Issue のコメントに置く。
+
+1. `HERDR_ENV=1` なら、Herdr のタスクを `herdr-agent-task set "PR #<PR の番号> レビュー・マージ"` に変える。ペインの名前は `start` が `PR#<番号>` に変えるので、自分で変えない
+2. `PARENT_ROOT` の `.agents/skills/pr-review-fix-loop/SKILL.md` をファイルとして読む（`disable-model-invocation: true` なので、Skill ツールでは起動できない）
+3. `PARENT_ROOT` の `loop.py` で `start` を実行する。feature worktree の `loop.py` は使わない（`loop.py` は置き場所からスキルと helper を決めるので、PR で変えているものでレビューさせない）。`<PR の URL>` はコードの PR。文書の PR はループに乗せず、マージもしない（URL と状態を報告する）
+
+   ```bash
+   uv run --project "$PARENT_ROOT" --locked python \
+     "$PARENT_ROOT/.agents/skills/pr-review-fix-loop/scripts/loop.py" start "<PR の URL>" \
+     --controller-model "<あなたの正確なモデル ID>" --controller-runtime "<ランタイム>" \
+     <loop_args の各要素>
+   ```
+
+4. 以降は pr-review-fix-loop の SKILL.md 全体（守ること・起動の注意・サイクル・終わり方・止まったとき・監視・最終報告）に従う。起動のコマンドは上の 3 のとおり
+5. **検証の記録の再利用:** 1 サイクル目で修正不要となり、サイクルの HEAD が上で記録した HEAD と同じなら、その記録を review-fix-planning の結論 2 の手順 1 の検証の記録（`finalize.py` の `--checks-file`）に使ってよい。条件は、同じ HEAD、検証のときに未 commit の変更が無い、すべての終了コードが 0、ログが残っていること。どれかを確かめられなければ、計画の中で検証し直す。記録の形と base の扱い（結論 2 の手順 2）は review-fix-planning のとおりにし、base が進んでいたときの merge の検証は省かない
+6. **終了:** pr-review-fix-loop の SKILL.md の「最終報告」の項目と、5 章の完了の報告の項目を書き、ループの結果で次の区分を加える。ループの段階の所要時間も書く
+
+   | ループの結果 | 報告 | マージ |
+   | --- | --- | --- |
+   | `no_fix_needed` | 完了。関連 Issue は、finalize の結果に含まれる、更新後に観測した state を書く | した |
+   | `fixes_pushed`（`ended_by: cycle_limit`） | 未完了。修正は push 済みで、サイクルの上限に達した。続けるなら `/pr-review-fix-loop <PR の URL>` | していない |
+   | `stopped` | 停止。`stop_reason` を書く。`merged: true` なら、マージ済みであることを分けて書く | 結果のとおり |
+   | ループのエラー（`lock_held`、全レビュアーの失敗、資源の停止を確認できない など） | 停止。ループの `stage`・`reason`・`next` と、残した資源の完全パスを書く | していない |
 
 ## 停止時の報告
 
-不正な入力（helper・`implement_task.py check` の終了コード 2）、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出・失敗（gitleaks が無い・版が違うを含む）では止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
+不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、`--merge` で `TARGET_REPO` が usaturn/resoloop-meshy、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
 
 検査で止まったら、どの worktree も push せず、PR を作らない。誤検出に見えても `AGENTS.md` のとおり回避しない。gitleaks は自分で導入せず、`bash "$PARENT_ROOT/.devcontainer/install_gitleaks.bash"` での導入を次の操作として報告する。検査が全部通った後の push や PR の作成が失敗して一部だけ公開されたら、公開済みの branch・PR を報告し、取り消さない。
 
-**理由 / 現在の状態 / 実施済みの検証と終了コード / 存在する worktree・branch・Spec・Plan・ログ / 次の操作** を報告する。Task を runner の担当に依頼した run では、`cleanup` が残したもの（`retained`）と、`cleanup` を使えなかった `RUN_DIR` の完全パスも書く。作っていないパスは「未作成」と書く。通常の工程の区切り、推奨案の選択、実装方式の選択は停止の理由にしない。
+**理由 / 現在の状態 / 実施済みの検証と終了コード / 存在する worktree・branch・Spec・Plan・ログ / 次の操作** を報告する。Task を runner の担当に依頼した run では、`cleanup` が残したもの（`retained`）と、`cleanup` を使えなかった `RUN_DIR` の完全パスも書く。ループで止まったときは、ループの `stage`・`reason`・`next`・run のディレクトリ・残した資源の完全パスも書く。作っていないパスは「未作成」と書く。通常の工程の区切り、推奨案の選択、実装方式の選択は停止の理由にしない。
 
 ## ランタイムごとの違い
 
-- **Claude Code:** `/issue-to-pr <Issue> [--implement AGENT]`。スラッシュコマンドの引数（`ARGUMENTS`）から、2 章の規則で `INPUT` を切り出す。
-- **Pi:** `/skill:issue-to-pr` の引数から、2 章の規則で `INPUT` を切り出す。`/sp-brainstorm` から入るときは、Issue の URL を最初に書き、`--implement` はその直後に続ける（`/sp-brainstorm <Issue URL> [--implement AGENT] issue-to-pr を使い、…`）。1 章の入口を案内するときも、利用者が書いた `--implement` だけを含める。
+- **Claude Code:** `/issue-to-pr <Issue> [--implement AGENT] [--merge [ループ用のオプション]]`。スラッシュコマンドの引数（`ARGUMENTS`）から、2 章の規則で `INPUT` を切り出す。モデルが自分の判断で Skill ツールからこのスキルを呼ぶときは、利用者のメッセージから同じ規則で `INPUT` を切り出して args に渡す。利用者が書いた `--merge`・ループ用のオプションは書かれたとおりに含め、書かれていないものは足さない（自然文の「マージまで」は `--merge` ではない）。pr-review-fix-loop は Skill ツールで起動せず、5 章のとおりファイルとして読む。
+- **Pi:** `/skill:issue-to-pr` の引数から、2 章の規則で `INPUT` を切り出す。`/sp-brainstorm` から入るときは、Issue の URL を最初に書き、`--implement`・`--merge`・ループ用のオプションはその直後に続ける（`/sp-brainstorm <Issue URL> [--implement AGENT] [--merge [ループ用のオプション]] issue-to-pr を使い、…`）。1 章の入口を案内するときも、利用者が書いた `--implement`・`--merge`・ループ用のオプションだけを含める。
+- **`--controller-model`・`--controller-runtime`（5 章のループ）:** `--controller-runtime` は Claude Code なら `claude-code`、Pi なら `pi`。`--controller-model` は、現在提示されている正確なモデル ID（Pi は pi-model-name のスキルで `PI_PROVIDER` と `PI_MODEL` を確かめる。pr-review-fix-loop の「ランタイムごとの違い」）。

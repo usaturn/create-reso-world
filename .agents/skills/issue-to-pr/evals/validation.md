@@ -124,3 +124,77 @@
 - DSH を `implement` に割り当てたときの実機の確認（Issue の受け入れは DSH 以外の担当）
 - `retry`・`rejected`・`failed` の実機の確認（判定と後片付けは偽の担当のテストで確かめた）
 - 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない
+
+## `--merge`（#158）
+
+実施日: 2026-10-20（#158）。移植元 usaturn/agent-workspace の `--merge` の節（`a47b2065`）を、このリポジトリの構成に合わせて書き直した版を評価した。移植元から変えた点は、`--hold-action`・`--fresh-review` を受け付けない、usaturn/resoloop-meshy の `--merge` は worktree の前に止まる、統合用の branch は今の版と同じく止まる、最後のブランチ全体のレビューを省かない、文書の PR をループに乗せない、など（Spec の決定記録）。
+
+### 評価方法と範囲
+
+- [scenarios.json](scenarios.json) の (b)・(w)（#158 で期待を変えた）と (ma)〜(mi)（#158 で追加）を 1 つの指示文にまとめ、各シナリオで次に行う操作を、起きる順に、コマンド・作るもの・作らないもの・利用者への報告で答えさせた
+- ランタイムは Claude Code。Agent ツールで起動した新しいサブエージェント（model `sonnet`）に、1 回の起動で 1 回答させた。版は対照（`origin/main` の `d29c93c` の SKILL.md）と比較（#158 で変えた SKILL.md）で、各 3 回。どちらも同じファイル名で置き、`AGENTS.md` と一緒に Read で 1 回ずつ読ませた。ほかのツールは使わせず、どの回もツールの呼び出しは Read の 2 回だった
+- 対照の 3 回は、比較の文面を書く前に起動した。比較の 3 回は、対照の 2 回分の結果を読んでから起動した（対照の残りの 1 回も同じ傾向だった）
+- 比較の 3 回で共通して挙がった 2 つの不足を直し（下の「REFACTOR」）、(w)・(mg)・(mi) だけを 3 回取り直した。取り直しでは、(mg) にループのエラーの場合を、(mi) に helper が受け付けるかを問いとして足し、共通の状況に codex の定義を足した（scenarios.json の `changed`・`added`）
+- 全回答を controller のエージェントが読んで判定した。文言の出現では採点していない。意図の回答であり、ループやマージを実行したことの証明にはならない
+
+### 結果
+
+| シナリオ | 期待 | 対照（3 回） | 比較（3 回） |
+| --- | --- | --- | --- |
+| (b) `#202 --merge` | `merge.loop_args = []`、worktree の前に `PARENT_ROOT` の `loop.py check-options`（引数なし）、最後の全体レビューを省かない、検証の記録、draft でない PR、CI を待たずに `PARENT_ROOT` の `loop.py start`（オプションを足さない）、pr-review-fix-loop の SKILL.md をファイルとして読み、結果の表で報告 | 0/3（helper が #116 の理由で止める） | 3/3 |
+| (w) `--implement codex --merge` | `implement = "codex"`・`loop_args = []`、worktree の前に `check-options` と `implement_task.py check --implement codex`、Task は runner の担当に依頼、PR の後にループ | 0/3（同上） | 2/3（1 回は、共通の状況に codex の定義を書かなかったため「設定に無い担当」と推定し、`check` で止まった。評価の状況の不足）。codex の定義を足した取り直しで 3/3 |
+| (ma) 自然文の「マージまで」 | ループもマージもしない、`/pr-review <PR の URL>` を 1 行で伝える | 3/3 | 3/3 |
+| (mb) usaturn/resoloop・`--max-cycles 2` | `check-options --max-cycles 2`、CI を待たずに `start <resoloop の PR の URL> ... --max-cycles 2`、文書の PR はループに乗せない | 0/3（helper で止まる） | 3/3 |
+| (mc) `--hold-action skip` | helper が終了コード 2 で、判断保留が無い理由を伝える。外して続けない | 止まるのは 3/3。理由は「`--merge` が未対応」 | 3/3 |
+| (md) 既存の open PR | 止まって URL と base を報告、既存の PR をループに乗せない、ループで続けるなら `/pr-review-fix-loop <PR の URL>` | 0/3（helper で止まり、PR まで調べない） | 3/3 |
+| (me) usaturn/resoloop-meshy | worktree の前に止まり、ループと `finalize.py` が扱えない理由を伝える | 止まるのは 3/3。理由は「`--merge` が未対応」 | 3/3 |
+| (mf) `cycle_limit` で終了 | 未完了・未マージ、`/pr-review-fix-loop <PR の URL>`、run ID・ループの記録の完全パス・サイクルごとの結果 | 0/3（書いていない） | 3/3 |
+| (mg) ボードの子の予約 | PR の作成の直後に解放しない。`finish` の後に結果を子 Issue に書いてから解放する | 0/3（書いていない） | 3/3。ただし 3 回ともループのエラーのときを「書いていない」とし、1 回は予約を保持すると推測した。REFACTOR の後の取り直しで、エラーのときも 3/3 |
+| (mh) 検証の記録の再利用 | (1) 結論 2 の手順 1 の検証の記録に使う (2) base が進んでいれば merge の検証は省かない | 0/3（書いていない） | 3/3 |
+| (mi) `INPUT` | `#42 --merge --max-cycles 2`、`--merge #42`、`#42` | 3/3 | 3/3。ただし 3 回とも、`--merge` を Issue の参照の前に書けるかが書かれていないと指摘した。REFACTOR の後の取り直しで、helper が受け付けることも 3/3 |
+
+対照では、`--merge` の流れ（検査・ループ・報告・予約・検証の記録）がどれも外れた。(ma) と (mi) は対照でも満たした（`--merge` の無い流れと、`INPUT` の切り出しの規則は変えていない）。
+
+### REFACTOR
+
+比較の 3 回で共通して挙がった不足を、文面で直した。
+
+1. `--merge` 自体を Issue の参照の前に書けるか（ループ用のオプションの位置だけを書いていた）→ 1 章の `--merge` の節に「`--merge` もループ用のオプションも、Issue の参照の前でも後でも書ける」と書いた
+2. ループがエラーで `finish` まで進めないときの予約の解放 → 5 章のボードの子の項に「ループのエラーで `finish` まで進めないときは、止まった時点に、結果と再開の方法を子 Issue に書いてから解放する」と書いた。直す前の 1 回は予約を保持すると推測した（#116 の「止まったら途中の成果を書いて解放し、予約を持ち続けない」に反する）
+
+### 観察（どれも期待は外していない）
+
+- (ma) では 3 回とも、`/pr-review` の 1 行に加えて、マージまで進めたいときの手段として `/pr-review-fix-loop <PR の URL>` を、2 章の 6 からの推論として補足した。ループもマージも実行していない
+- 独立した 2 Task が、実行方式の表の 2 行目（subagent-driven-development）と 3 行目（1–2 Task）の両方に当たるとの指摘が 2 回あった。#158 の前からの表の書き方で、#158 では変えていない
+- Herdr を completed にするコマンドと、ループが未完了で終わったときの Herdr の状態は書かれていない、との指摘が複数回あった（`herdr-agent-task` のスキルにある）
+
+### 実行した検証
+
+- `uv run pytest .agents/skills/issue-to-pr`: 220 passed。`tests/test_resolve_issue.py` は、変更前の `resolve_issue.py` で 28 件が想定どおりの理由（「#116 で入れる予定」の拒否と `merge` の欠落）で失敗し、変更後は 126 件成功した。`REFUSED_OPTIONS` を無効にする変異を、足した確認（未知のオプションと区別して止める）が検出することを確かめた
+- 実環境の 2 段（2026-10-20T04:06Z、本物の #158、実際の雛形と個人設定）: `resolve_issue.py -- "#158 --merge"` は `merge.loop_args = []`、`PARENT_ROOT` の `loop.py check-options` は `status: ok`（review の inspect は `pi-gpt`・`devin-swe`・`dsh-ccd`・`claude-opus`、fix は `claude-opus`・`self`・`self`）。`#158 --merge --max-cycles 2 --assign inspect=claude-opus,devin-swe` は、`loop_args` の各要素を 1 引数で渡して `max_cycles: 2`・`inspect: [claude-opus, devin-swe]`。`#158 --merge --hold-action skip` は理由付きで終了コード 2
+
+### 行っていない確認
+
+- PR の作成後のループとマージの実機。利用者が `--merge` を書いて指示した run で行う（#158 の受け入れ、ボードの D-21）。この評価をした run の指示には `--merge` が無い
+- usaturn/resoloop の `--merge`（文書の PR を含む）の実機
+- 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない
+
+### 最後の全体レビューの指摘の修正
+
+最後のブランチ全体のレビュー（Claude Code の opus、`d29c93c..c5de6cb`）の指摘のうち、Important 1 件と、影響の大きさで Important に格上げした Minor 2 件を文面で直した。直す前の文面（`c5de6cb`）と直した後で、足した場面 (mj)・(mk)・(ml) を各 3 回取った（方法は (ma) と同じ。共通の状況に codex の定義あり）。
+
+| シナリオ | 期待 | 直す前（3 回） | 直した後（3 回） |
+| --- | --- | --- | --- |
+| (mj) 自然文の `--merge` と Skill ツール | 利用者が書いた `--merge` は args と `INPUT` に含め、書かれていなければ足さない | 3/3。ただし 3 回とも「Skill ツールで呼ぶときは `--merge` を付けない」と 1 章の食い違いを指摘し、1 章を優先する読みで答えた | 3/3（食い違いの指摘なし） |
+| (mk) ループの間の feature worktree | ループが終わるまで feature worktree を変えない（review-fix-planning は clean で HEAD が PR の head の worktree でないと止まる）。記録は PR の前に済ませ、ループの間はセッションディレクトリと PR・Issue のコメントに置く | 0/3（書き足さない判断は 3 回とも出たが、理由は検証の記録の再利用だけで、review-fix-planning の条件と記録の置き場所は出なかった） | 3/3 |
+| (ml) ループの最終報告 | pr-review-fix-loop の SKILL.md の「最終報告」の項目に従い、issue-to-pr の完了の報告の項目と結果の区分を加える | 0/3（issue-to-pr の項目だけを挙げ、pr-review-fix-loop の「最終報告」に従うことは出なかった） | 3/3 |
+
+直した文面:
+
+1. 「ランタイムごとの違い」の Claude Code の項: モデルが自分の判断で Skill ツールから呼ぶときは、利用者のメッセージから同じ規則で `INPUT` を切り出して args に渡す。利用者が書いた `--merge`・ループ用のオプションは含め、書かれていないものは足さない
+2. 5 章の「`--merge` のとき: PR の作成後のループ」の冒頭: ループが終わるまで、review-fix-planning の手順の外で feature worktree を変えない。Spec・Plan への記録は PR を作る前に済ませ、ループの間の記録はセッションディレクトリと PR・Issue のコメントに置く
+3. 同じ節の 4・6: pr-review-fix-loop の SKILL.md 全体に従い、報告はその「最終報告」の項目と 5 章の完了の報告の項目に、結果の区分を加える
+
+直した後の 3 回の後に、5 章の検証の記録の形を書き写さず、review-fix-planning の `references/execution.md` の 3 章を参照する文面に変えた（open の PR #203 が記録に `base` を足し、`finalize.py` が 3 項目を求めるため）。参照の仕方だけの変更なので、評価は取り直していない。
+
+持ち越した指摘（PR に書く）: パスの値のシェルの特殊文字（入力は利用者自身のもの）、検証の後に commit を足したときの記録の取り直し（同じ HEAD の条件で再利用されないだけで、安全側に止まる）。
