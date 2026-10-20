@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,18 @@ def make_paths(root: Path) -> list[Path]:
     return [root / name for name in ("home", "tmp", "review", "git/lock")]
 
 
+@pytest.fixture
+def root() -> Iterator[Path]:
+    # /var/tmp remains visible read-only; bwrap's per-call /tmp is ephemeral. A DSH
+    # attempt mounts / read-only, so there the directory cannot be created at all.
+    try:
+        directory = tempfile.TemporaryDirectory(prefix="dsh-sandbox-test-", dir="/var/tmp")
+    except OSError as error:
+        pytest.skip(f"cannot create the host-visible directory under /var/tmp: {error}")
+    with directory as path:
+        yield Path(path)
+
+
 def test_missing_bwrap_never_executes_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from tools.agent_runner import dsh_sandbox
 
@@ -78,38 +91,31 @@ def test_missing_bwrap_never_executes_command(tmp_path: Path, monkeypatch: pytes
     assert not marker.exists()
 
 
-def test_explicit_grants_preserve_neighboring_host_files() -> None:
-    # /var/tmp remains visible read-only; bwrap's per-call /tmp is ephemeral.
-    with tempfile.TemporaryDirectory(prefix="dsh-sandbox-test-", dir="/var/tmp") as directory:
-        root = Path(directory)
-        result = invoke(root, make_paths(root))
-        assert result.returncode == 0, result.stderr
-        assert json.loads(result.stdout) == ["written"] * 5 + ["denied"] * 2
-        assert (root / "neighbor").read_text() == (root / "git/protected").read_text() == "original"
-        assert (root / "git/lock").read_text() == "changed"
+def test_explicit_grants_preserve_neighboring_host_files(root: Path) -> None:
+    result = invoke(root, make_paths(root))
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == ["written"] * 5 + ["denied"] * 2
+    assert (root / "neighbor").read_text() == (root / "git/protected").read_text() == "original"
+    assert (root / "git/lock").read_text() == "changed"
 
 
-def test_readonly_does_not_apply_additional_grants() -> None:
-    with tempfile.TemporaryDirectory(prefix="dsh-sandbox-test-", dir="/var/tmp") as directory:
-        root = Path(directory)
-        result = invoke(root, make_paths(root), readonly=True)
-        assert result.returncode == 0, result.stderr
-        assert json.loads(result.stdout) == ["denied"] * 7
+def test_readonly_does_not_apply_additional_grants(root: Path) -> None:
+    result = invoke(root, make_paths(root), readonly=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == ["denied"] * 7
 
 
 @pytest.mark.parametrize("case", ["symlink", "missing", "invalid_profile"])
-def test_unsafe_grants_or_profile_never_run_the_command(case: str) -> None:
-    with tempfile.TemporaryDirectory(prefix="dsh-sandbox-test-", dir="/var/tmp") as directory:
-        root = Path(directory)
-        grants = make_paths(root)
-        if case == "symlink":
-            link = root / "link"
-            link.symlink_to(root / "review")
-            grants.append(link)
-        elif case == "missing":
-            grants.append(root / "absent")
-        result = invoke(root, grants, invalid=case == "invalid_profile")
-        assert result.returncode != 0 and result.stdout == ""
-        assert "dsh-sandbox:" in result.stderr
-        assert not (root / "work/out").exists()
-        assert (root / "git/lock").read_text() == "original"
+def test_unsafe_grants_or_profile_never_run_the_command(case: str, root: Path) -> None:
+    grants = make_paths(root)
+    if case == "symlink":
+        link = root / "link"
+        link.symlink_to(root / "review")
+        grants.append(link)
+    elif case == "missing":
+        grants.append(root / "absent")
+    result = invoke(root, grants, invalid=case == "invalid_profile")
+    assert result.returncode != 0 and result.stdout == ""
+    assert "dsh-sandbox:" in result.stderr
+    assert not (root / "work/out").exists()
+    assert (root / "git/lock").read_text() == "original"
