@@ -62,12 +62,12 @@
 
 **テストの要否:** 足さない（Spec の D-200-3）。代わりに、修正の前後の `repro.bash` の結果と、8 本の通常の実行で確かめる。
 
-- [ ] **Step 1: 修正の前の再現を記録する**
+- [x] **Step 1: 修正の前の再現を記録する**
 
 Run: `bash /workspaces/reso-world/tmp/agents/issue-200.zk8vujd2/repro.bash /workspaces/reso-world d29c93c12a817ca45cb8d0eb918a0a07615916ce /workspaces/reso-world/tmp/agents/issue-200.zk8vujd2/before`
 Expected: `summary.tsv` の `changed` に `yes` がある（Issue の表と同じ傾向）
 
-- [ ] **Step 2: 8 本に除去の行を置く**
+- [x] **Step 2: 8 本に除去の行を置く**
 
 各ファイルの `set -euo pipefail` の直後に、次の 2 行を置く（コメントは `test-run-tests.bash` に合わせる）。
 
@@ -77,16 +77,16 @@ Expected: `summary.tsv` の `changed` に `yes` がある（Issue の表と同�
 while IFS= read -r name; do unset "$name"; done < <(compgen -e -X '!GIT_*')
 ```
 
-- [ ] **Step 3: `.devcontainer/README.md` に 1 文足す**
+- [x] **Step 3: `.devcontainer/README.md` に 1 文足す**
 
 「テストは一時ディレクトリの `HOME` と、…実環境を変えない。」の直後に、一時リポジトリを作るテストは冒頭で外から渡された `GIT_*` を除くこと（`git rebase --exec` が export する `GIT_DIR` のため。1 本だけ直接実行しても効く）と、新しく足すテストも同じ形にすることを書く。
 
-- [ ] **Step 4: 構文と通常の実行を確かめる**
+- [x] **Step 4: 構文と通常の実行を確かめる**
 
 Run: `for f in <8 本>; do bash -n "$f" || echo "syntax: $f"; done` と `bash .devcontainer/run-tests.bash <8 本>`
 Expected: 構文の誤りが無く、`PASS: 8 test(s)`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add <8 本> .devcontainer/README.md
@@ -99,25 +99,61 @@ git commit -m "fix: drop inherited GIT_* in bash tests run directly (#200)"
 
 **テストの要否:** 足さない。この Task が検証そのもの。
 
-- [ ] **Step 1: 修正の後の再現**
+- [x] **Step 1: 修正の後の再現**
 
 Run: `bash .../repro.bash /workspaces/reso-world <Task 1 の commit> .../after`
 Expected: `summary.tsv` の 8 行すべてが `exit=0`・`changed=no`
 
-- [ ] **Step 2: `git rebase --exec`**
+- [x] **Step 2: `git rebase --exec`**
 
 Run: `bash .../rebase.bash /workspaces/reso-world <Task 1 の commit> .../rebase-after HEAD~1 tests/scripts/test-new-world.bash`
-Expected: `rebase exit=0`、`exec.txt` に `GIT_DIR=<clone>/.git/worktrees/linked` と `exit=0`、`core.bare=`（空）、`config unchanged`、`main status exit=0`
+Expected: `rebase exit=0`、`exec.txt` に `GIT_DIR=<clone>/.git/worktrees/linked` と `exit=0`、`core.bare=false`（clone の元の値のまま）、`config unchanged`、`main status exit=0`
 
-- [ ] **Step 3: 入口のテスト**
+- [x] **Step 3: 入口のテスト**
 
 Run（worktree のルート）: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`
 Expected: 基準（`d29c93c` の worktree で変更の前に実行した結果）と同じ PASS/FAIL
 
-- [ ] **Step 4: 記録して commit**
+- [x] **Step 4: 記録して commit**
 
 下の「検証の記録」に結果を書き、`git commit -m "docs: record the Issue #200 verification (#200)"`
 
 ## 検証の記録
 
-（Task 2 の後に書く）
+2026-10-20（JST）。ログは `/workspaces/reso-world/tmp/agents/issue-200.zk8vujd2/` にある（commit しない）。
+
+### 修正の前（`d29c93c`）
+
+`repro.bash` の `before/summary.tsv`。8 本すべてで clone が変わった。`core.bare=true` になった 7 本は、どれも main の checkout の `git status` が 128 で止まった。
+
+| テスト | 終了コード | 変わったもの |
+| --- | --- | --- |
+| `tests/scripts/test-check-layout.bash` | 1 | `core.bare=true`・`user.name`・`user.email`、`work` に偽の commit、index |
+| `tests/scripts/test-new-world.bash` | 0 | `core.bare=true` |
+| `tests/scripts/test-resoloop-fork.bash` | 128 | `core.bare=true`、`work` に偽の commit、index（実ファイルが削除の扱い） |
+| `tests/scripts/test-resoloop-meshy.bash` | 128 | 同上 |
+| `tests/scripts/test-scan-before-push.bash` | 1 | `work` に偽の commit、index（実ファイルがすべて未追跡の扱い） |
+| `tests/scripts/test-superpowers-review-copy.bash` | 3 | `core.bare=true`・`user.name`・`user.email` |
+| `.devcontainer/test-herdr-status.bash` | 1 | `core.bare=true`・`user.name`・`user.email`、偽の commit、index |
+| `.devcontainer/test-report-resoloop-skills.bash` | 0 | `core.bare=true`、偽の commit、index |
+
+`rebase.bash`（upstream `HEAD~1`、`bash .devcontainer/test-report-resoloop-skills.bash`）: exec のコマンドが受け取った `GIT_DIR` は `<clone>/.git/worktrees/linked`、テストは終了コード 0。テストが index を変えたので rebase は 1 回目の exec の後に止まった（終了コード 1）。共有の設定は `core.bare=true` になり、main の checkout の `git status` は `fatal: this operation must be run in a work tree`（128）。
+
+### 修正の後（`d78b23a`）
+
+- `repro.bash` の `after/summary.tsv`: 8 本すべて終了コード 0・`changed=no`（`diff.txt` は 8 本とも 0 行）。各テストのログは最後の PASS の行まで出ている（受け入れ条件 1・2）
+- `rebase.bash`（upstream `HEAD~1`、`bash tests/scripts/test-new-world.bash`）: exec は `GIT_DIR=<clone>/.git/worktrees/linked` を受け取り、テストは `PASS: new-world script behaves as specified`、`Successfully rebased and updated refs/heads/work.`（終了コード 0）。`core.bare=false` のまま、`config unchanged`、main の `git status` は 0（受け入れ条件 3）
+- 入口のテスト（受け入れ条件 4）
+  - `bash .devcontainer/run-tests.bash`: `PASS: 33 test(s)`、終了コード 0（基準の `d29c93c` も 33 本 PASS。基準の実行は `tests/scripts/` の途中で Task 1 の編集と重なったが、8 本は Task 1 の前に別に実行して PASS）
+  - `bash scripts/check-layout.sh`: `PASS: check-layout`、終了コード 0
+  - `uv run pytest -q -p no:cacheprovider tests/skills .agents/skills .agents/scripts tools`: `3409 passed`、終了コード 0
+- 除去の行の単体の確認: `env -i` の bash で、`GIT_*` が 1 つも無いときに `set -euo pipefail` のもとで止まらないこと、export された `GIT_DIR`・`GIT_REFLOG_ACTION`・`GIT_EDITOR` は除かれ、`GITX`・export しない `GIT_LOCAL` は残ることを確かめた
+- 受け入れ条件 5（README の「実環境を変えない」）は、1・3 の結果で代える
+
+### 最終レビュー（opus、新しいコンテキスト）
+
+Critical・Important は 0、Minor 3。README に行を置く位置の条件が無い指摘は、今後のテストへの伝達手段（D-200-3）が README だけなので Important に上げて直した（`3ca9717`。`test-readme`・`test-docs`・`test-instructions` PASS）。Task 2 Step 2 の Expected の誤記はこの記録とともに直した。8 本のコメントの「そのリポジトリ」が一時リポジトリにも読める指摘は、動作に影響しないので見送った。
+
+### 所要時間
+
+着手 12:57 から PR の作成の直前 14:22 まで約 85 分（利用者待ちは無し）。入力・競合の確認と修正の前の再現、Spec・Plan で約 12 分、Task 1 で約 7 分、Task 2 で約 46 分（pytest の 41 分が大半）、最終レビュー（約 53 分、Task 2 と並行）と修正で約 18 分。
