@@ -35,10 +35,11 @@ from tools.agent_runner import (  # noqa: E402
     run_workflow,
 )
 from tools.agent_runner.adapters import Adapter, load_adapter  # noqa: E402
+from tools.agent_runner.checkout_policy import require_auditable_workflow  # noqa: E402
 from tools.agent_runner.config import validate_config  # noqa: E402
 from tools.agent_runner.environ import literal_environ  # noqa: E402
 from tools.agent_runner.models import Assignment, BatchResult  # noqa: E402
-from tools.agent_runner.workspace import CheckoutAuditError, require_auditable_checkouts  # noqa: E402
+from tools.agent_runner.workspace import CheckoutAuditError  # noqa: E402
 
 DEFAULT_TEMPLATE = ROOT / ".devcontainer/agent-runner.toml"
 WORKFLOW = "issue"
@@ -495,7 +496,7 @@ def run(
     check_feature(repository, request.revision)
     if output_dir.exists() or output_dir.is_symlink():
         raise TaskInputError("output directory must be new")
-    require_auditable_checkouts(repository)
+    require_auditable_workflow(selected, WORKFLOW, repository, adapter_loader=adapter_loader)
     batch = run_workflow(
         selected,
         WORKFLOW,

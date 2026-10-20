@@ -261,5 +261,6 @@ class BatchResult(StrictModel):
     results: list[Result]
     outside_changes: list[str]
     checkout_audit: list[CheckoutAudit] = Field(default_factory=list[CheckoutAudit])
+    unrelated_checkout_audit: list[CheckoutAudit] = Field(default_factory=list[CheckoutAudit])
     elapsed_seconds: ElapsedSeconds
     artifact_dir: Path

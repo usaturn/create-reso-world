@@ -135,6 +135,24 @@ class ReceiptAdapter:
         return AdapterOutcome(identity=Identity(model="observed-model", provider="observed-provider"))
 
 
+def test_confined_dispatch_passes_result_guard_with_unavailable_unrelated_checkout(
+    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path,
+) -> None:
+    repository = Path(verification_input["repository"])
+    neighbor = tmp_path / "neighbor"
+    subprocess.run(["git", "-C", str(repository), "worktree", "add", "--detach", str(neighbor)], check=True)
+    neighbor.rename(tmp_path / "moved")
+
+    class Confined(ReceiptAdapter):
+        capabilities = Capabilities(confined_writes=True)
+
+    result = dispatch.dispatch(
+        config("probe"), verification_input, tmp_path / "run", adapter_loader=lambda _: Confined(),
+    )
+    dispatch.check_batch(result["batch"])
+    assert result["batch"]["unrelated_checkout_audit"][0]["path"] == str(neighbor)
+
+
 def test_self_returns_complete_input_without_launching_implementation(
     dispatch: Any, verification_input: dict[str, Any], tmp_path: Path
 ) -> None:
