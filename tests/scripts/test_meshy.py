@@ -17,7 +17,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 ENTRY = ROOT / "scripts/meshy.py"
-KEY = "msy_test_secret_sentinel_123456"
+# push の前の Gitleaks の検査に当たらないよう、偽の値は実行時に組み立てる（tests/scripts/test-ci.bash と同じ考え方）
+KEY = "_".join(("msy", "test", "secret", "sentinel", "123456"))
 TASK = "01957f00-a111-7777-8888-0123456789ab"
 
 FAKE = r"""#!__PYTHON__
