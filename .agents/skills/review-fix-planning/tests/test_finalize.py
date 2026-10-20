@@ -135,6 +135,9 @@ class FakeGh:
         self.view_fails = False
         self.confirm_fails = False
         self.merge_fails = False
+        # n回目の pr view の直前に変えるPRの状態（人が手でマージ・closeした場合）
+        self.before_view: dict[int, dict[str, Any]] = {}
+        self.views = 0
 
     def __call__(self, args: Sequence[str], *, input_text: str | None = None) -> CompletedProcess[str]:
         argv = tuple(args)
@@ -143,6 +146,8 @@ class FakeGh:
         text: str | None = None
         code = 0
         if argv[1:3] == ("pr", "view"):
+            self.views += 1
+            self.view.update(self.before_view.pop(self.views, {}))
             code = 1 if self.view_fails or self.confirm_fails and self.view["state"] == "MERGED" else 0
             value = self.view
         elif argv[1:3] == ("api", "user"):
@@ -1007,6 +1012,26 @@ def test_manual_merge_with_another_head_after_posting_keeps_the_merge() -> None:
     assert result["outcome"] == "stopped" and result["merged"] is True and result["issues"] == []
     assert result["stop_reason"].startswith("external:")
     assert written(gh) == ["POST"]
+
+
+@pytest.mark.parametrize("head", [HEAD, "2" * 40], ids=["same_head", "another_head"])
+def test_manual_merge_before_posting_keeps_the_merge(head: str) -> None:
+    """最初の確認の後、状況を投稿するまでに手でマージされた。投稿helperの中の確認で読んだマージ済みを失わない。"""
+    gh = FakeGh(repo=PUBLIC)
+    # 1回目は最初の確認、2回目は投稿helperの中の確認
+    gh.before_view[2] = {"state": "MERGED", "mergedAt": "2026-10-08T06:05:00Z", "headRefOid": head}
+    result = mod.finalize(public_record(), "状況", checks(), runner=gh)
+    assert result["outcome"] == "stopped" and result["merged"] is True and result["issues"] == []
+    assert result["stop_reason"].startswith("external:") and gh.writes() == []
+
+
+def test_closed_before_posting_is_not_merged() -> None:
+    """投稿helperの中の確認でCLOSEDを読んだ。未マージの観測として残す。"""
+    gh = FakeGh(repo=PUBLIC)
+    gh.before_view[2] = {"state": "CLOSED"}
+    result = mod.finalize(public_record(), "状況", checks(), runner=gh)
+    assert result["outcome"] == "stopped" and result["merged"] is False and result["issues"] == []
+    assert result["stop_reason"].startswith("external:") and gh.writes() == []
 
 
 def test_failed_confirmation_after_the_merge_is_unconfirmed_and_the_rerun_recovers() -> None:

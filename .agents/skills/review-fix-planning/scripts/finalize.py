@@ -406,9 +406,14 @@ def finalize(
                 step = "base before posting"
                 check_base(active, repo, view, checks["base"])
                 step = "status posting"
-                result["comment"] = poster.upsert(
-                    pr, repo, checked["planner"]["model"], markdown, runner=active, record=checked
-                )
+                try:
+                    result["comment"] = poster.upsert(
+                        pr, repo, checked["planner"]["model"], markdown, runner=active, record=checked
+                    )
+                except poster.PullRequestStateError as error:
+                    # 投稿helperの中の確認で読んだPRの状態も残す（その間に手でマージされた場合など）
+                    merged = observe_merged(error.view, merged)
+                    raise
             step = "pre-merge HEAD/CI"
             view = poster.view_pr(pr, repo, active, FIELDS)
             merged = observe_merged(view, merged)
