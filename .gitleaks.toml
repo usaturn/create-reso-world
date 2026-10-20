@@ -1,6 +1,8 @@
-# gitleaks の設定（CI の gitleaks ジョブと、手元で gitleaks を実行するとき）。既定の規則をそのまま使い、
-# resoloop のマニフェストが持つ識別子（"key": "mat_material_Slum02_rubber_d4d07289" など）を
-# generic-api-key の検出から外すことだけを足す。形式の決まったトークン（ghp_・sk-ant- など）は専用の規則で検出される
+# gitleaks の設定（CI の gitleaks ジョブと、push の前の検査 scripts/scan-before-push.sh）。既定の規則をそのまま使い、
+# generic-api-key の検出から次の 3 つだけを外す。形式の決まったトークン（ghp_・sk-ant- など）は専用の規則で検出される
+# - resoloop のマニフェストの "key": "<識別子>" の形
+# - resoloop の key() が作る識別子（key() の接頭辞_名前_sha256 の先頭 8 桁）の値。書き方（代入・引用・JSON）を問わない（#135）
+# - tests/scripts/test-ci.bash の偽のトークンそのもの
 [extend]
 useDefault = true
 
@@ -15,3 +17,9 @@ description = "the fake token tests/scripts/test-ci.bash uses to check that rand
 targetRules = ["generic-api-key"]
 regexTarget = "secret"
 regexes = ['''^Zx9Qm2Lp8Rt4Vw6Yb1Nc3Kd5Hf7Jg0Ss$''']
+
+[[allowlists]]
+description = "identifiers made by the key() of resoloop's blender_export.py: one of its prefixes (tex, mat, pbr, mesh, object, renderer, blender; worlds may put more lowercase prefixes before it), the name split by _ or -, and the first 8 hex digits of its sha256. the prefix is required so that passwords of words and 8 digits are still reported. each part of the name is letters followed by digits, digits only, or an 8-digit hash (a nested identifier), so a value with letters and digits mixed inside a part, as random values have, is still reported"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+regexes = ['''^(?:[a-z]{2,10}_)*(?:tex|mat|pbr|mesh|object|renderer|blender)_(?:[A-Za-z]+[0-9]*|[0-9]+|[0-9a-f]{8})(?:[_-]+(?:[A-Za-z]+[0-9]*|[0-9]+|[0-9a-f]{8}))*_[0-9a-f]{8}$''']

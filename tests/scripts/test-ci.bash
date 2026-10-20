@@ -7,6 +7,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 
 uv run python - <<'PY'
+import hashlib
 import re
 import tomllib
 
@@ -34,9 +35,9 @@ assert version == pinned, (version, pinned)
 config = tomllib.load(open(".gitleaks.toml", "rb"))
 # 既定の規則を外すと、ほとんどの秘密情報を検出しなくなる
 assert config["extend"]["useDefault"] is True, config
-# 除外は次の 2 つだけ。増やすと秘密情報を除外してしまうおそれがある
+# 除外は次の 3 つだけ。増やすと秘密情報を除外してしまうおそれがある
 allowlists = config["allowlists"]
-assert len(allowlists) == 2, allowlists
+assert len(allowlists) == 3, allowlists
 identifiers = next(a for a in allowlists if a["regexTarget"] == "match")
 assert identifiers["targetRules"] == ["generic-api-key"], identifiers
 (pattern,) = identifiers["regexes"]
@@ -46,13 +47,45 @@ for identifier in ('key":"mat_material_Slum02_rubber_d4d07289"', 'key": "mesh_ju
     assert re.search(pattern, identifier), identifier
 for secret in (f'key": "{fake_token}"', 'api_key": "mat_material_x"'):
     assert not re.search(pattern, secret), secret
-fixture = next(a for a in allowlists if a["regexTarget"] == "secret")
+values = [a for a in allowlists if a["regexTarget"] == "secret"]
+fixture = next(a for a in values if re.search(a["regexes"][0], fake_token))
 assert fixture["targetRules"] == ["generic-api-key"], fixture
 (fixture_pattern,) = fixture["regexes"]
-assert re.search(fixture_pattern, fake_token), fixture_pattern
 # 別の値（実行時に作る逆順の文字列）や、前後に文字が付いた値は除外しない
 for other in (fake_token[::-1], fake_token + "x", "x" + fake_token):
     assert not re.search(fixture_pattern, other), other
+
+# 3 つ目は、resoloop の key() が作る識別子（接頭辞_名前_sha256 の先頭 8 桁）の値を、書き方を問わず除外する（#135）
+(names,) = [a for a in values if a is not fixture]
+assert names["targetRules"] == ["generic-api-key"], names
+(names_pattern,) = names["regexes"]
+# push の前の検査は base の設定を使うので、除外が入る前の設定でも止まらないよう、識別子は連結で組み立てる
+for parts in (
+    ("mat", "material", "Slum02", "rubber", "d4d07289"),
+    ("ul", "mat", "material", "Asakusa01", "ticker", "0a1b2c3d"),
+    ("pbr", "mat", "material", "Slum02", "rubber", "d4d07289", "0f1e2d3c"),
+    ("mesh", "SM", "NeonSign-LOD0__Cube", "001", "1a2b3c4d"),
+):
+    assert re.search(names_pattern, "_".join(parts)), parts
+# 無作為な値は、識別子の前後や区切りを付けても除外しない。名前の塊に英字と数字が入り混じる値も無作為な値とみなす
+hex32 = hashlib.sha256(b"create-reso-world issue-135 hex").hexdigest()[:32]
+identifier = "_".join(("mat", "material", "Slum02", "rubber", "d4d07289"))
+for other in (
+    fake_token[::-1],
+    "msy_" + fake_token,
+    "ghp_" + fake_token,
+    "_".join(("mat", "material", fake_token[4:20], "d4d07289")),
+    "_".join(("mat", "material", "x")),
+    "_".join(("mat", "material", "Slum02", "D4D07289")),
+    # 前後に値が続くもの（正規表現の ^ と $ を守る）
+    "_".join(("mat", "live", hex32)),
+    fake_token + "_" + identifier,
+    identifier + fake_token[:8],
+    # key() の接頭辞（tex・mat・pbr・mesh・object・renderer・blender）が無い、人が付けたパスワードの形
+    "_".join(("summer", "Holiday2024", "31415926")),
+    "_".join(("letmein", "Tokyo", "88772211")),
+):
+    assert not re.search(names_pattern, other), other
 PY
 
 printf 'PASS: secret scanning covers the full history with the default rules and narrow allowlists\n'

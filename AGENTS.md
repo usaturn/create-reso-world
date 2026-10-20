@@ -149,7 +149,13 @@ rm / rmdir の削除対象にシェル変数を使う場合は、各変数に `$
 
 - 検査は `bash scripts/scan-before-push.sh [-C <checkout>] [--base <remote>/<branch>]`。base の既定は `origin/main` で、PR の base が別ならそれを渡す。成功すると、検査した commit の SHA だけを標準出力に出す
 - push は `SHA="$(bash scripts/scan-before-push.sh -C <checkout>)" && [ -n "$SHA" ] && git -C <checkout> push <remote> "${SHA:?}:refs/heads/<branch>"` の形にする（zsh は `$SHA:r` を修飾子として展開するので、`${SHA:?}` と波括弧で書く）。SHA が空だと refspec が branch の削除になるので、呼び出しを分けるときも `:?` を外さない。検査の後に変わった HEAD を push しない
-- 検出や失敗で止まったら push しない。誤検出でも `.gitleaksignore`、inline の `gitleaks:allow`、作業ツリーの `.gitleaks.toml` で回避せず（検査はどれも使わない）、利用者に報告する。除外が必要なら、base の `.gitleaks.toml` を先に変える
+- 検出や失敗で止まったら push しない。誤検出でも `.gitleaksignore`、inline の `gitleaks:allow`、作業ツリーの `.gitleaks.toml` で回避しない（検査はどれも使わない）
+- 検出が次の 3 つをすべて満たすときは、その行を足した commit を直し、検証と検査をやり直して続けてよい
+  - その commit は、この作業で作り、まだどこにも push していない（`git branch -r --contains <commit>` が空）
+  - 値が秘密情報でないと確かめられる: この作業で書いたテスト用の偽の値・例か、名前から作った識別子であり、環境変数・認証情報のファイル・コマンドやツールの出力・利用者や Issue の文から写した値ではない
+  - その commit は、レビューを保存した commit（review-fix-planning の自己レビューが `<model>-commit-<SHA>.md` に記録した commit）でも、その祖先でもない。書き換えると、保存したレビューの commit が PR の履歴から外れ、次のサイクルの祖先の確認で止まる
+- 直すときは、その行を足した commit そのものを書き換える。上に commit を足しても、検査は範囲のすべての commit を見るので通らない。テスト用の偽の値は実行時に組み立てる（`"_".join(...)` で連結する、`tests/scripts/test-scan-before-push.bash` のトークンのように `sha256sum` から作る）。文書では値を省くか `<16 進 8 桁>` のように置き換え、分割・符号化した形でも書き残さない。報告に、検出した rule・file・commit と直し方を書く（値は書かない）
+- それ以外の検出は直さず、直した後も検出が残るときはそれ以上直さずに、利用者に報告する。push 済みの commit は書き換えない（force push しない）。除外が必要なら、base の `.gitleaks.toml` を先に変える
 - gitleaks が無い・版が違うときも止まる。`bash .devcontainer/install_gitleaks.bash` で導入する
 - 対象にしない: 公開済みの commit だけを送る push（`scripts/resoloop-fork.sh sync`、claim ref の作成、ブランチの削除）
 

@@ -150,6 +150,22 @@ scan
 expect_leak 'a token when the base has no .gitleaks.toml and the working tree has a permissive one'
 grep -q 'default rules' "$tmp/stderr" || { show; fail 'did not say that the default rules were used'; }
 
+# リポジトリの .gitleaks.toml を base にしても、無作為な値は検出する。resoloop の識別子の除外（#135）に、
+# 識別子の前後や区切りを付けた無作為な値が紛れない。値は実行時に作る（英字の大小と数字が入り混じる）
+random="$(printf 'create-reso-world issue-135 random value' | sha256sum | cut -c1-64 | base64 -w0 | tr -dc 'A-Za-z0-9' | cut -c1-32)"
+hash8="$(printf 'create-reso-world issue-135 name' | sha256sum | cut -c1-8)"
+leak_with_repo_config() {
+  new_repo "$root/.gitleaks.toml"
+  commit_file config.py "api_key = \"$2\""
+  scan
+  expect_leak "$1 with the repository .gitleaks.toml"
+}
+leak_with_repo_config 'a random value without separators' "$random"
+leak_with_repo_config 'a random value after a prefix' "msy_$random"
+leak_with_repo_config 'a random value shaped like an identifier' "mat_material_${random:0:16}_$hash8"
+leak_with_repo_config 'a password of words and 8 digits without a key() prefix' "summer_Holiday2024_${hash8//[a-f]/7}"
+leak_with_repo_config 'a GitHub token' "$token"
+
 # --- 検査できないときは止まる ---
 new_repo
 commit_file notes.txt hello
@@ -241,6 +257,15 @@ new_repo "$tmp/allow-token.toml"
 commit_file config.txt "token = \"$token\""
 scan
 expect_success 'a token that the base .gitleaks.toml allows'
+
+# リポジトリの .gitleaks.toml では、resoloop の key() が作る識別子（接頭辞_名前_sha256 の先頭 8 桁）は書き方を問わず
+# 止まらない（#135。Python の代入、テストの出力の KeyError、JSON、名前に識別子を含む pbr_）
+name="material_Slum02_rubber_$hash8"
+new_repo "$root/.gitleaks.toml"
+commit_file ids.txt "$(printf '%s\n' "key = 'mat_$name'" "KeyError: 'ul_mat_$name'" \
+  "\"mesh_key\": \"mesh_Slum02_rubber_$hash8\"" "texture_key = \"pbr_mat_${name}_$hash8\"")"
+scan
+expect_success 'resoloop identifiers with the repository .gitleaks.toml'
 
 new_repo
 commit_file notes.txt hello
