@@ -217,4 +217,22 @@ Expected: PASS。`git diff` の各文を Task 1・2 の実装とテストに対�
 
 ## 完了
 
-（Task 4 で書く）
+実装と最終レビューの修正は完了した。README の「テスト」（Task 4 Step 4）はこの記録の commit の後に実行し、結果は PR の本文に書く。状態は `draft` のまま（内容の承認は記録しない）。
+
+- 所要時間（2026-10-20 UTC、着手 約 14:27Z〜この記録 約 15:10Z、約 43 分）
+  - 準備（Issue・競合の確認、worktree）: 約 6 分
+  - Spec・Plan（`d48beb7`・`e69500a`、〜14:37Z）: 約 4 分。ほかに準備に含めたコードの読み取り
+  - Task 1（`2756989`、〜14:41Z）: 約 4 分。RED は 31 件の失敗（`merged` が `False` のまま）、GREEN は review-fix-planning のテスト 342 件
+  - Task 2（`738c2a7`、〜14:47Z）: 約 6 分。RED は 3 件、GREEN は pr-review-fix-loop のテスト 174 件
+  - Task 3（`374709b`、〜14:48Z）: 約 1 分。skill contract のテスト 71 件
+  - Task 4 の最終レビュー（opus のサブエージェント 1 回、約 13 分）と修正（`965270d`、〜15:06Z）: 約 18 分
+- 実行方式: inline（`superpowers:executing-plans`）。SDD の ledger は worktree の外の `/workspaces/reso-world/tmp/agents/issue-207.zssx2rku/sdd/progress.md` に置いた（`AGENTS.md` が worktree の中にコミットしないファイルを置くことを禁じるため）
+- 最終レビュー: With fixes（Critical 0、Important 1、Minor 4）。重大度を付け直し、次の 3 件を直した。2 つのスキルのテスト全体は 518 件が通った
+  - I-1: `cycle_end` が、finalize の `stopped`・`merged: true`・別の head のマージを受け付ける条件を守るテストが無かった。`test_finalize_stopped_keeps_the_real_merge[true_another_head]` を足し、条件を一時的に変更前に戻すと `merge_mismatch` で失敗することを確かめた
+  - M-1（Important に上げた）: `--spec-commit` で検証した HEAD のままマージされたときに、今回足した停止理由が「別の HEAD」と事実と違うことを言っていた。停止理由を分けて（Spec の D-3）、`test_spec_parent_merge_is_reported_apart_from_an_unverified_head` で確かめた
+  - M-4（Important に上げた）: `records.md` の新しい文が、`finish --abort` の `merged: false` も実際の状態と読ませた。abort は PR を読まないことを書いた
+- 持ち越し（直していない）
+  - M-2: `test_manual_merge_with_another_head_after_posting_keeps_the_merge` が停止理由の区別まで確かめていない（`check_view` は共通の関数で、危険は小さい）
+  - M-3: `loop.py` の条件と `FakeGh` の `and`・`or` に括弧が無い（優先順位どおりに動く）
+  - `finish --abort` は PR を読まずに `merged: false` を書く。Spec の D-6 は `cycle_end` だけを扱い、run の `merged` は真偽値のままと決めたので扱わない。別の Issue の候補（起票は利用者の許可が要るので、PR に書く）
+  - レビュアーが判断から外したほかの 4 件（マージを依頼した後に OPEN を読んだら `false`、`null` のときの再実行と `cycle-end` の順序、後の再実行で完了しても run は `stopped` のまま、読み取りのずれによる `merge_mismatch`）は、どれも Spec の判断か変更前からの挙動として残した（ledger の `Ruling:`）
