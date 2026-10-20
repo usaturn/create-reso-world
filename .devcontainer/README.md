@@ -28,7 +28,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | pi | `npm install -g` で本体、`pi install` で拡張。ランチャー 11 本を `~/.local/bin` に置く | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`、`curo`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`、`devs`、`devo`（alias） | `devin update`、`devin plugins update superpowers` |
-| DSH（headless のみ） | `npm install -g @deepseek-ai/dsh@0.2.0-rc.2`（導入後に版を照合） | — | — | — | — |
+| DSH（headless のみ） | `npm install -g @deepseek-ai/dsh@0.2.1-rc.2`（導入後に版を照合） | — | — | — | — |
 | Meshy CLI | `install_meshy.bash`（公式 npm `meshy-cli@0.4.0`、無認証 version / help） | — | — | — | — |
 | Context7 CLI（ctx7） | `install_ctx7.bash`（npm の `ctx7` を `CTX7_CLI_VERSION` に固定して入れ、`ctx7 --version` を確かめる。「Context7 CLI（ctx7）」の節） | — | — | — | — |
 | Gitleaks | `install_gitleaks.bash`（release の tar.gz を固定した SHA-256 で確かめて `~/.local/bin` に置く。版は CI の gitleaks ジョブと同じ） | — | — | — | — |
@@ -44,6 +44,8 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 DSH は #18 で撤去した対話用ランチャーを戻さず、#151 で agent-runner の headless レビュアー用の CLI だけを再導入する。
 `dsh --profile headless` は呼出しごとの HOME・DSH_HOME・TMPDIR と bubblewrap を使い、共有の `~/.dsh`、pi-tui、
 web の provider プラグイン、`cordis.patch.yml`、pnpm、ポート 3080 は使わない。bubblewrap が無ければ起動しない。
+0.2.1 系の headless は保存済みの key を読まない。key は agent-runner が呼出しごとに作る名前の環境変数で渡すので、
+作業対象の `.env` や共有の保存済み key が認証に使われることは無い。
 Grok Build（`grok`）は導入しない。Claude Code を Alibaba Cloud 経由で使う `ccda`（`claude-alibaba`）も置かない。
 ホストの `~/.dsh`・`~/.grok` は mount せず、削除もしない。不要になったら利用者がホスト側で消す。
 rebuild 前に古い `dsh` が残っている場合も、headless 用の固定版と同じとは限らないので `dsh --version` で確かめる。
@@ -568,9 +570,17 @@ runner が `outside_changes` として事後に報告する。`~/.cursor/cli-con
 値は個人設定の TOML に書かず、「秘密情報」の env から渡す。観測した provider / model / effort は当該 session の v4 log から読み、
 要求したモデルや親の `PI_MODEL` では補わない。識別ログの欠落・不一致は成功にしない。
 
-rebuild 後に `dsh --version` が `0.2.0-rc.2` を返すことと、使い捨ての git repository に対する短い依頼を
-`dsh-ccd` で 1 回実行して payload と観測したモデルが返ることを確認する。この実機結果は #151 に記録する。
+rebuild 後に `dsh --version` が `0.2.1-rc.2` を返すことと、使い捨ての git repository に対する短い依頼を
+`dsh-ccd` で 1 回実行して payload と観測したモデルが返ることを確認する。この実機結果は #175 に記録し、#151 からも辿れるようにする。
 rebuild と実 API 呼出しを行っていない段階では、偽 CLI のテストが通っていても実機確認済みとは扱わない。
+
+rebuild せずに固定版へ上げるとき、または旧い固定版（`0.2.0-rc.2`）へ戻すときは、版を指定して上書きし、`dsh --version` で確かめる。
+DSH の状態は呼出しごとの `DSH_HOME` にあり、移す共有の状態は無い。戻した版は、次の rebuild で `install_beforehand.bash` の固定版に戻る。
+
+```bash
+npm install -g --allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty @deepseek-ai/dsh@0.2.1-rc.2  # 戻すときは @0.2.0-rc.2
+dsh --version
+```
 
 #153 より前は雛形に review workflow が無いので、確認用の一時 config に次だけを足し、
 上の run 例で `--workflow dsh-smoke --assign inspect=dsh-ccd` を指定する。
