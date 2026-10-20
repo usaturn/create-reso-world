@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`
+- 状態: `completed`
 - 対象: usaturn/create-reso-world、https://github.com/usaturn/create-reso-world/issues/187
 - 利用者の指示: `$issue-to-pr https://github.com/usaturn/create-reso-world/issues/187 --merge`
 - 実行許可: 通常の設計判断を推奨案で決め、実装、検証、commit、秘密情報検査、push、PR 作成、最大 3 サイクルのレビュー修正ループとその finalize によるマージまで進める。文書の内容の承認とは扱わない。
@@ -69,3 +69,41 @@ runner の fingerprint は checkout の変化を検出するが、書き込み�
 テストは実 loader / policy / dispatcher を実行し、拒否と正常側・状態保持を検査するため必要。追加したテストは 4 件（policy の parametrize 2 ケース、限定監査の維持 1 件、dispatcher 1 件）。文面やモデル名を写すテストは追加しない。修正対象は `tools/agent_runner/checkout_policy.py` と、挙動テスト（`test_checkout_policy.py`、`review-verify/tests/test_dispatch.py`）に限定した。
 
 検証は修正後 HEAD で、関連 1351 件（163.92 秒）、全体 pytest 3501 件（1494.82 秒）、Dev Container 33 件、`scripts/check-layout.sh`、`git diff --check` が成功した。初回の RED は新規テスト 3 件が失敗し、対照 1 件は成功した。`rstcheck` は環境に無く、RST は変更していないため未実行。自己レビューと fix-check は `run_roles.py` の起動前監査が既存の checkout_missing 2 件で通らないため未実施だったが、利用者の指示を受けて prunable な登録 2 件を個別に remove し、起動前監査が 19 登録で成功することを確認した。利用者の判断により、この回は自己レビュー・fix-check・マージを行わない。M-1 の修正・検証・commit・push までを完了とし、PR は未マージのまま残す。
+
+## PR #210: 2 回目の判断と最終検証
+
+利用者が `$pr-review-fix-loop #210` を明示したため、前回の停止後に新しい run `0c48d4777c184862be6f7a07f08edb6f` を開始した。この指示をレビュー、必要な修正、検証、既存 PR への反映と最終化の実行許可として扱い、文書内容の承認とは扱わない。今回の planner は `gpt-6-astra` / `codex`。loop の第 1 サイクル、判断の記録では第 2 サイクルに当たる。
+
+対象 HEAD は `bab64911f65be8ff28bd5e91d6ee6faf2a509811`、取り直した base は `6becc65ca40a906f817cafeec32373cc36b4f1f5`。base が対象 HEAD の祖先であることを確認したため、検証したツリーは対象 HEAD そのものである。全 18 変更ファイルの全文、関連処理・呼出元・テストを確認した。監査本体と受け取り入口の全文確認は読み取り専用の担当 2 名にも分担し、未解消の致命的な問題は見つからなかった。
+
+| レビューファイル | モデル / ランタイム | 対象 HEAD | 今回の再実行と結果 |
+| --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol / pi | `bab64911f65b` | accepted、active 指摘 0、M-1 を Resolved として確認 |
+| `SWE-2-Max.md` | SWE-2 Max / devin | `bab64911f65b` | accepted、active 指摘 0 |
+| `Grok-4.7.md` | Grok 4.7 / cursor | `bab64911f65b` | accepted、active 指摘 0。runner の観測モデルは Grok 4.7 256K Extra High |
+| `commandcode-deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash / dsh | 旧版 `b3251620d40c` | 今回の dsh-ccd は runner 段階で `response_failed`、終了コード 1 のため rejected。現行 HEAD の成果は無く、旧ファイルは I-1 の既存判断と記述の照合にだけ使用 |
+
+DSH の失敗を「指摘なし」とは扱わない。runner の失敗は再実行しない規則と、停止確認済みで accepted が 1 件以上あれば計画へ進む規則に従った。レビュー helper の終了コードは 0、試行領域は回収済みで `retained` は空。新たな active 指摘や未確認候補は無い。
+
+| 判断 ID・出典 | 今回の分類 | 根拠 |
+| --- | --- | --- |
+| `gpt-6.1-sol#M-1@b3251620d40c` | 解消済み（fix → resolved） | commit `4276811468105f1ea54ef6fbea828046a0ae8072` の `checkout_policy.py:28-31` は全一次担当 self を先に判定する。固定 HEAD の隔離 worktree で policy 17 ケースと実 dispatcher の 1 ケースを実行し、18 件成功。DSH fallback が 1 件・2 件残っていても消失登録を拒否し、出力先を作らず、外部 DSH 一次担当の限定監査は維持する |
+| `SWE-2-Max#I-1@b3251620d40c`（`commandcode-deepseek-deepseek-v4.1-flash#I-1@b3251620d40c` を統合） | 対応しない（skip を引き継ぐ） | 固定 HEAD でも一部手順の説明不足は残るが、共通 `interfaces.rst:223-234` と実行時の拒否条件は整合している。説明不足による誤操作・誤受理の新しい証拠は無い。通常の手順でそれらが成立する具体的証拠、または名指しの修正指示があれば見直す |
+
+分類は判断単位で解消済み 1、対応する 0、対応しない 1（元指摘 2 件を統合）。結論は **2: 修正不要**。新しいコード修正、設計の見直し、追加テストは不要である。今回の追加変更はこの Spec の状態と検証記録だけであり、文面照合のテストは作らない。文書の差分・参照・記録の構造を検査する。
+
+| 対象・経路 | 今回の対象版で確認した結果・証拠 |
+| --- | --- |
+| C1–C3・C5: policy、runner、main/依頼元保護、全 fallback、3 受け取り入口 | 関連 pytest 2,551 件に該当テストを含め、すべて成功。投影後 config を共通 policy と runner に渡し、予約・出力先作成より前に監査不能を拒否することを全文と実行結果で照合 |
+| M-1 の拒否側と正常側 | 独立した隔離 worktree の 18 件が成功（30.89 秒）。未使用 DSH fallback の 1 件・2 件、外部 DSH 一次担当、非隔離 fallback などの対照を含む。3 件の accepted レビューもそれぞれ別の入力・対照で解消を確認 |
+| C4: DSH の隔離 | 実 adapter・実 bubblewrap・偽 CLI による main、依頼元、隣接 checkout、共有 `.git`、host `/tmp` への書き込み拒否と試行内出力のテストが関連 pytest に含まれ成功。実モデル・実資格情報による追加評価は既存の対象外のまま |
+| C6: 個別回収手順 | 使い捨て Git で移動先 repair、HEAD/index の commit/ref/bundle 保存、別 repo への復元、指定した消失登録 1 件だけの remove、別の missing/locked 登録の保持、locked の削除拒否を確認（終了コード 0）。実在する他者の登録は操作していない |
+| 環境・配置 | `bash .devcontainer/run-tests.bash`: 33 件成功（459.44 秒）。`bash scripts/check-layout.sh`: 成功（0.68 秒） |
+| 関連検証全体 | `uv run --locked pytest tests/skills .agents/skills tools/agent_runner/tests`: 2,551 件成功（pytest 実測 1,028.46 秒）。開始・終了とも HEAD は対象 SHA、作業ツリーは clean |
+| 文書・差分 | `git diff --check origin/main HEAD` 成功。候補 JSON の validate と本文との check-pair、確認済み一覧の validate、判断の記録の validate が成功 |
+
+確認済みの一覧は `reviews/usaturn/create-reso-world/#210-fix-issue-187-checkout-audit/verified/bab64911f65b.json`、工程の記録は同じディレクトリの `bab64911f65b.planning.json` に保存する。旧 DSH の説明不足 1 件は静的に confirmed とし、現行レビューで Resolved に移った M-1 は active 候補の件数に含めず、確認範囲に再現結果を残した。未確認候補と必要な確認の残りは無い。
+
+設定の担当は implement=claude-opus、self-review=self、fix-check=self。今回の修正は不要なので `run_roles.py` の実装・自己レビュー・fix-check 呼出しはすべて 0 回である。既にある M-1 修正を現行 HEAD のレビューと隔離検証で確認したことと、今回修正して自己レビューしたことを区別する。
+
+レビュー helper の実測は 881.09 秒（約 14.7 分）。環境・関連テストはレビューと並行し、関連 pytest の経過時間は 1,030.30 秒。全文確認担当の所要時間は約 2 分と約 3 分。サイクル全体と最終化の所要時間、push・マージ・Issue 更新の結果は loop の記録と最終報告に残す。
