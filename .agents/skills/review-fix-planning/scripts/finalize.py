@@ -3,6 +3,7 @@
 形式だけの検証記録を実検証の代わりにしない。司令塔が実際のコマンド、HEAD、検証したツリーが含むbaseを記録する。
 状況を投稿する前とマージの直前に、PRのbaseブランチの今の先端がそのbaseと同じことを確かめ、違えばそこで止まる。
 終了コード0だけがno_fix_needed。それ以外はstoppedと具体的な未完了箇所を返す。
+結果のmergedは、最後に観測したPRのマージ状態（true・false）。確かめていなければnull（未マージとは言わない）。
 マージしてよいPRはMERGEABLE_REPOSITORIESだけで、CIを確かめるかどうかはCI_REQUIREDで決める。
 """
 
@@ -243,6 +244,19 @@ def check_base(runner: Any, repo: str, view: Mapping[str, Any], verified: str) -
         )
 
 
+def observe_merged(view: Mapping[str, Any], known: bool | None) -> bool | None:
+    """PRの応答から、マージ済みかを返す。状態を読めない応答はNone（未確認）。
+
+    マージは取り消せないので、一度観測したマージ済み（known）は後の応答で戻さない。
+    """
+    state = view.get("state")
+    if known is True or state == "MERGED":
+        return True
+    if state in ("OPEN", "CLOSED"):
+        return False
+    return None
+
+
 def check_view(
     view: Mapping[str, Any], head: str, *, allow_merged: bool = False, pushed_from: str | None = None
 ) -> None:
@@ -251,8 +265,17 @@ def check_view(
     pushの直後は、GitHubがまだpushの前のheadを返すことがある。openのままそのheadなら、待てば進む停止にする。
     """
     if view.get("headRefOid") != head:
-        if pushed_from is not None and view.get("headRefOid") == pushed_from and view.get("state") == "OPEN":
-            raise Stop("external: PRのheadがまだ検証したHEADのまま（Specのcommitのpushが反映される前）", wait_for="head")
+        if pushed_from is not None and view.get("headRefOid") == pushed_from:
+            if view.get("state") == "OPEN":
+                raise Stop(
+                    "external: PRのheadがまだ検証したHEADのまま（Specのcommitのpushが反映される前）", wait_for="head"
+                )
+            if view.get("state") == "MERGED":
+                # 入ったのは検証済みのコードで、欠けたのはSpecのcommitだけ
+                raise Stop("external: Specのcommitを載せる前に、PRが検証したHEADのままマージされた")
+        if view.get("state") == "MERGED":
+            # 再実行しても完了しない。何がマージされたかを人が確かめる
+            raise Stop("external: PRが検証済みHEADと別のHEADでマージされた")
         raise Stop("external: PRのHEADが検証済みHEADから変わった")
     if allow_merged and view.get("state") == "MERGED" and view.get("mergedAt"):
         return
@@ -331,9 +354,10 @@ def finalize(
     spec_commit: str | None = None,
 ) -> dict[str, Any]:
     active = poster.GhRunner() if runner is None else runner
-    merged = False
+    # GitHubに問い合わせる前は、PRの状態を見ていないのでNone
+    merged: bool | None = None
     step = "input"
-    result: dict[str, Any] = {"outcome": "stopped", "merged": False, "issues": []}
+    result: dict[str, Any] = {"outcome": "stopped", "merged": None, "issues": []}
     try:
         checked = poster.records.validate_record(dict(record))
         try:
@@ -353,8 +377,9 @@ def finalize(
         merge_head = head if spec_commit is None else spec_commit
         step = "PR state/HEAD"
         view = poster.view_pr(pr, repo, active, FIELDS)
+        # 合否の判定より先に、観測した状態を残す。headが違って止まっても、マージ済みの事実は失わない
+        merged = observe_merged(view, merged)
         check_view(view, merge_head, allow_merged=True, pushed_from=None if spec_commit is None else head)
-        merged = view["state"] == "MERGED"
         closing_issues(view, repo)
         if spec_commit is not None:
             step = "Spec commit comparison"
@@ -381,13 +406,18 @@ def finalize(
                 step = "base before posting"
                 check_base(active, repo, view, checks["base"])
                 step = "status posting"
-                result["comment"] = poster.upsert(
-                    pr, repo, checked["planner"]["model"], markdown, runner=active, record=checked
-                )
+                try:
+                    result["comment"] = poster.upsert(
+                        pr, repo, checked["planner"]["model"], markdown, runner=active, record=checked
+                    )
+                except poster.PullRequestStateError as error:
+                    # 投稿helperの中の確認で読んだPRの状態も残す（その間に手でマージされた場合など）
+                    merged = observe_merged(error.view, merged)
+                    raise
             step = "pre-merge HEAD/CI"
             view = poster.view_pr(pr, repo, active, FIELDS)
+            merged = observe_merged(view, merged)
             check_view(view, merge_head, allow_merged=True)
-            merged = view["state"] == "MERGED"
             if view["state"] != "MERGED":
                 check_ci(view, repo)
                 # 最後の確認。ここからGitHubがマージを処理するまでの間の前進は止められない
@@ -395,6 +425,8 @@ def finalize(
                 step = "pre-merge base"
                 check_base(active, repo, view, checks["base"])
                 step = "merge"
+                # 依頼の後は、GitHubが処理したかを読み直して確かめるまで未確認（失敗の応答でも処理済みでありうる）
+                merged = None
                 # loopの最終化と同じmerge commit。squashは祖先関係によるマージ済みの判定で未取り込みに見える。
                 poster.run_gh(
                     ["pr", "merge", str(pr), "--repo", repo, "--merge", "--match-head-commit", merge_head],
@@ -402,10 +434,9 @@ def finalize(
                 )
         step = "post-merge confirmation"
         view = poster.view_pr(pr, repo, active, FIELDS)
+        merged = observe_merged(view, merged)
         if view.get("state") != "MERGED" or not view.get("mergedAt") or view.get("headRefOid") != merge_head:
             raise Stop("external: マージ済み状態と検証済みHEADの一致を確認できない")
-        merged = True
-        result["merged"] = True
         for number in closing_issues(view, repo):
             step = f"Issue #{number} state"
             issue = view_issue(active, repo, number)
@@ -455,7 +486,7 @@ def main(argv: list[str] | None = None) -> int:
         help="create-reso-worldのPRで、検証したHEADの上に載せたSpecのcommit（完全なSHA）。記録は先に投稿しておく",
     )
     args = parser.parse_args(argv)
-    result: dict[str, Any] = {"outcome": "stopped", "merged": False, "issues": []}
+    result: dict[str, Any] = {"outcome": "stopped", "merged": None, "issues": []}
     temporary: Path | None = None
     stage = "入力読取り"
     try:

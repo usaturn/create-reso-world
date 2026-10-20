@@ -131,6 +131,13 @@ class FakeGh:
         self.tip_after_post: str | None = None
         self.branch: Any = None
         self.branch_fails = False
+        # PRの読み取りの失敗（すべて・マージ済みの間だけ）と、マージの依頼の失敗（状態は変えない）
+        self.view_fails = False
+        self.confirm_fails = False
+        self.merge_fails = False
+        # n回目の pr view の直前に変えるPRの状態（人が手でマージ・closeした場合）
+        self.before_view: dict[int, dict[str, Any]] = {}
+        self.views = 0
 
     def __call__(self, args: Sequence[str], *, input_text: str | None = None) -> CompletedProcess[str]:
         argv = tuple(args)
@@ -139,6 +146,9 @@ class FakeGh:
         text: str | None = None
         code = 0
         if argv[1:3] == ("pr", "view"):
+            self.views += 1
+            self.view.update(self.before_view.pop(self.views, {}))
+            code = 1 if self.view_fails or self.confirm_fails and self.view["state"] == "MERGED" else 0
             value = self.view
         elif argv[1:3] == ("api", "user"):
             # `gh api user --jq` は、JSONではなく login だけを出力する
@@ -170,7 +180,9 @@ class FakeGh:
             if value is None and not code:
                 value = {"name": name, "commit": {"sha": self.tips[name]}, "protected": False}
         elif argv[1:3] == ("pr", "merge"):
-            if not self.merge_stays_open:
+            if self.merge_fails:
+                code = 1
+            elif not self.merge_stays_open:
                 self.view.update(state="MERGED", mergedAt="2026-10-08T06:05:00Z")
                 # GitHubはbaseブランチをマージのcommitに進める
                 self.tips[self.view.get("baseRefName", "main")] = MERGE_COMMIT
@@ -236,7 +248,8 @@ def test_missing_or_wrong_verification_stops_before_network(mutation: str) -> No
     gh = FakeGh()
     result = mod.finalize(record(), "状況", evidence, runner=gh)
     assert result["outcome"] == "stopped" and result["stop_reason"].startswith("environment:")
-    assert gh.calls == []
+    # PRの状態を見ていないので、未マージ（false）とも言わない
+    assert result["merged"] is None and gh.calls == []
 
 
 @pytest.mark.parametrize("condition", ["draft", "moving", "mergeable", "state"])
@@ -354,7 +367,7 @@ def test_repository_outside_the_merge_scope_stops_before_network(repo: str) -> N
     value["pr"]["repository"] = repo
     result = mod.finalize(value, "状況", checks(), runner=gh)
     assert result["outcome"] == "stopped" and result["stop_reason"].startswith("permission:")
-    assert result["merged"] is False and gh.calls == []
+    assert result["merged"] is None and gh.calls == []
 
 
 def test_comment_rejection_cannot_be_bypassed_with_manual_post() -> None:
@@ -453,7 +466,7 @@ def test_malformed_record_is_stopped_before_network(bad_planner: Any) -> None:
     value["planner"] = bad_planner
     gh = FakeGh()
     result = mod.finalize(value, "状況", checks(), runner=gh)
-    assert result["outcome"] == "stopped" and gh.calls == []
+    assert result["outcome"] == "stopped" and result["merged"] is None and gh.calls == []
 
 
 def cli_args(tmp_path: Path, result: Path) -> list[str]:
@@ -479,6 +492,7 @@ def cli_args(tmp_path: Path, result: Path) -> list[str]:
 def test_unusable_result_path_stops_before_gh(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
     bad: str,
 ) -> None:
     result = tmp_path / "result.json"
@@ -493,7 +507,7 @@ def test_unusable_result_path_stops_before_gh(
     gh = FakeGh()
     monkeypatch.setattr(mod.poster, "GhRunner", lambda: gh)
     assert mod.main(cli_args(tmp_path, result)) == 2
-    assert gh.calls == []
+    assert gh.calls == [] and json.loads(capsys.readouterr().out)["merged"] is None
     if bad == "symlink":
         assert target.read_text() == "preserve"
 
@@ -587,7 +601,7 @@ def test_blank_status_body_is_an_input_problem_found_before_network() -> None:
     gh = FakeGh()
     result = mod.finalize(record(), "  ", checks(), runner=gh)
     assert result["outcome"] == "stopped" and result["stop_reason"].startswith("environment:")
-    assert gh.calls == []
+    assert result["merged"] is None and gh.calls == []
 
 
 def test_conflict_with_earlier_records_is_environment_and_names_the_decision() -> None:
@@ -766,7 +780,7 @@ def test_invalid_spec_commit_stops_before_network(bad: str) -> None:
     result = mod.finalize(value, "状況", checks(), runner=gh, spec_commit=spec_commit)
     expected = "permission:" if bad == "other_repo" else "environment:"
     assert result["outcome"] == "stopped" and result["stop_reason"].startswith(expected)
-    assert result["merged"] is False and gh.calls == []
+    assert result["merged"] is None and gh.calls == []
 
 
 def test_spec_commit_waits_until_the_pushed_spec_commit_is_the_pr_head() -> None:
@@ -788,6 +802,8 @@ def test_spec_commit_with_another_head_stops_without_waiting(state: str, head: s
     result = finalize_spec(gh)
     assert result["outcome"] == "stopped" and result["stop_reason"].startswith("external:")
     assert "wait_for" not in result and gh.writes() == []
+    # 止まっても、観測したマージ済みは失わない（#207）
+    assert result["merged"] is (state == "MERGED")
 
 
 def test_spec_commit_waits_for_mergeable_and_the_rerun_finalizes() -> None:
@@ -943,3 +959,115 @@ def test_retargeted_base_is_compared_with_the_new_base_branch() -> None:
     assert result["outcome"] == "stopped" and result["merged"] is False
     assert result["base_moved"] == {"ref": "develop", "verified": BASE, "current": NEW_BASE}
     assert gh.writes() == []
+
+
+# --- 観測したマージ状態（#207） ---
+# merged は、finalizeが最後に観測したPRの状態。止まってもマージ済みの事実を失わず、
+# 確かめていないとき（マージを依頼した後に読めないなど）は未マージ（false）と言わずにNoneを返す
+
+
+def written(gh: FakeGh) -> list[Any]:
+    return [call[3] if call[1] == "api" else call[1:3] for call in gh.writes()]
+
+
+@pytest.mark.parametrize(
+    ("spec", "head"),
+    [(False, "2" * 40), (True, "2" * 40), (True, HEAD)],
+    ids=["another_head", "spec_another_head", "spec_parent"],
+)
+def test_merged_with_another_head_keeps_the_merge(spec: bool, head: str) -> None:
+    """検証したのと別のheadで、既にマージされていた。止まるが、マージ済みは報告する。"""
+    gh = spec_gh(state="MERGED") if spec else FakeGh(state="MERGED")
+    gh.view["headRefOid"] = head
+    result = finalize_with(gh, spec, checks())
+    assert result["outcome"] == "stopped" and result["merged"] is True and result["issues"] == []
+    assert result["stop_reason"].startswith("external:") and "wait_for" not in result
+    assert gh.writes() == []
+    # openのままheadが動いた停止（新しいheadでやり直せる）とは、停止理由で区別できる
+    moved = spec_gh() if spec else FakeGh()
+    moved.view["headRefOid"] = "2" * 40
+    assert finalize_with(moved, spec, checks())["stop_reason"] != result["stop_reason"]
+
+
+def test_spec_parent_merge_is_reported_apart_from_an_unverified_head() -> None:
+    """Specのcommitを載せる前に、検証したHEADのまま手でマージされた。入ったのは検証済みのコードで、欠けたのはSpecだけ。
+
+    検証していないheadのマージと同じ停止理由にすると、読んだ人が検証していないコードが入ったと受け取る。
+    """
+    parent = spec_gh(state="MERGED")
+    parent.view["headRefOid"] = HEAD
+    other = spec_gh(state="MERGED")
+    other.view["headRefOid"] = "2" * 40
+    at_parent, elsewhere = finalize_spec(parent), finalize_spec(other)
+    assert at_parent["merged"] is True and elsewhere["merged"] is True
+    assert at_parent["stop_reason"].startswith("external:") and parent.writes() == []
+    assert at_parent["stop_reason"] != elsewhere["stop_reason"]
+
+
+def test_manual_merge_with_another_head_after_posting_keeps_the_merge() -> None:
+    """状況を投稿した後、マージの直前の確認までに、別のheadで手でマージされた。"""
+    gh = FakeGh()
+    gh.after_post = {"headRefOid": "2" * 40, "state": "MERGED", "mergedAt": "2026-10-08T06:05:00Z"}
+    result = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert result["outcome"] == "stopped" and result["merged"] is True and result["issues"] == []
+    assert result["stop_reason"].startswith("external:")
+    assert written(gh) == ["POST"]
+
+
+@pytest.mark.parametrize("head", [HEAD, "2" * 40], ids=["same_head", "another_head"])
+def test_manual_merge_before_posting_keeps_the_merge(head: str) -> None:
+    """最初の確認の後、状況を投稿するまでに手でマージされた。投稿helperの中の確認で読んだマージ済みを失わない。"""
+    gh = FakeGh(repo=PUBLIC)
+    # 1回目は最初の確認、2回目は投稿helperの中の確認
+    gh.before_view[2] = {"state": "MERGED", "mergedAt": "2026-10-08T06:05:00Z", "headRefOid": head}
+    result = mod.finalize(public_record(), "状況", checks(), runner=gh)
+    assert result["outcome"] == "stopped" and result["merged"] is True and result["issues"] == []
+    assert result["stop_reason"].startswith("external:") and gh.writes() == []
+
+
+def test_closed_before_posting_is_not_merged() -> None:
+    """投稿helperの中の確認でCLOSEDを読んだ。未マージの観測として残す。"""
+    gh = FakeGh(repo=PUBLIC)
+    gh.before_view[2] = {"state": "CLOSED"}
+    result = mod.finalize(public_record(), "状況", checks(), runner=gh)
+    assert result["outcome"] == "stopped" and result["merged"] is False and result["issues"] == []
+    assert result["stop_reason"].startswith("external:") and gh.writes() == []
+
+
+def test_failed_confirmation_after_the_merge_is_unconfirmed_and_the_rerun_recovers() -> None:
+    """マージは成功したが、直後の確認の読み取りだけが失敗した。未マージとは言わず、再実行で読み直して完了する。"""
+    gh = FakeGh()
+    gh.confirm_fails = True
+    first = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert first["outcome"] == "stopped" and first["merged"] is None and first["issues"] == []
+    assert first["stop_reason"].startswith("external:")
+    assert written(gh) == ["POST", ("pr", "merge")] and gh.view["state"] == "MERGED"
+    gh.confirm_fails = False
+    second = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert second["outcome"] == "no_fix_needed" and second["merged"] is True and second["issues"] == [901]
+    # 2回目はマージも投稿もしない。Issueの更新だけを続ける
+    assert written(gh) == ["POST", ("pr", "merge"), ("issue", "close")]
+
+
+def test_failed_merge_request_is_unconfirmed_and_the_rerun_recovers() -> None:
+    """マージの依頼が失敗を返した。GitHubが処理したかは分からないので未確認とし、再実行で読み直す。"""
+    gh = FakeGh()
+    gh.merge_fails = True
+    first = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert first["outcome"] == "stopped" and first["merged"] is None
+    assert all(call[1:3] != ("issue", "close") for call in gh.calls)
+    gh.merge_fails = False
+    second = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert second["outcome"] == "no_fix_needed" and second["merged"] is True and second["issues"] == [901]
+
+
+@pytest.mark.parametrize("problem", ["request_fails", "unknown_state"])
+def test_unreadable_pr_state_is_unconfirmed(problem: str) -> None:
+    gh = FakeGh()
+    if problem == "request_fails":
+        gh.view_fails = True
+    else:
+        gh.view["state"] = "UNKNOWN"
+    result = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert result["outcome"] == "stopped" and result["merged"] is None
+    assert result["stop_reason"].startswith("external:") and gh.writes() == []

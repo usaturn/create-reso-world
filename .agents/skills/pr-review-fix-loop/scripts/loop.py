@@ -1383,10 +1383,12 @@ def _decision_counts(record: Mapping[str, Any]) -> dict[str, dict[str, int]]:
 
 def _read_finalize(path: Path) -> dict[str, Any]:
     value = read_json(path)
+    # merged は finalize が最後に観測したマージ状態。確かめていなければ null（#207）
     if (
         not isinstance(value, dict)
         or cast(dict[str, Any], value).get("outcome") not in ("no_fix_needed", "stopped")
-        or not isinstance(cast(dict[str, Any], value).get("merged"), bool)
+        or "merged" not in cast(dict[str, Any], value)
+        or not isinstance(cast(dict[str, Any], value)["merged"], bool | None)
         or not isinstance(cast(dict[str, Any], value).get("issues"), list)
     ):
         raise LoopError(2, "arguments", f"{path} は finalize.py の結果（outcome・merged・issues）ではない")
@@ -1489,7 +1491,9 @@ def cycle_end(
     pull = github.pull(run.pr.repository, run.pr.number)
     final_outcome = outcome
     stop_reason = cast(str | None, record.get("stop_reason"))
-    merged = False
+    # 読んだ PR の実際のマージ状態を保存する。止まったサイクルでも finalize の false・null で上書きしない
+    # （結論 3 の間の手動マージを含む。#207）。正常完了は、下で照合する HEAD のマージを確かめる
+    merged = pull.merged
     finalize: FinalizePart | None = None
     if outcome == "fixes_pushed":
         commit = cast(str, record["commit"])
@@ -1497,7 +1501,8 @@ def cycle_end(
             raise LoopError(
                 4,
                 "pushed_head_mismatch",
-                f"記録の commit {commit[:12]} と PR の HEAD {pull.head_sha[:12]}（state={pull.state}）が一致しない",
+                f"記録の commit {commit[:12]} と PR の HEAD {pull.head_sha[:12]}"
+                f"（state={pull.state}、merged={pull.merged}）が一致しない",
             )
     elif outcome == "no_fix_needed":
         if finalize_result is None:
@@ -1510,11 +1515,15 @@ def cycle_end(
             result=result,
             round_dir=str(round_dir.resolve()) if round_dir is not None else None,
         )
-        merged = cast(bool, result["merged"])
+        reported = cast(bool | None, result["merged"])
         # create-reso-world の PR の結論 2 は、検証した HEAD に Spec だけの commit を載せて、その commit を
         # マージする（finalize.py の --spec-commit）。S の形（直接の子で Spec 1 ファイル）は finalize.py が確かめ済み
         merged_head = cast(str, result.get("spec_commit", cycle.head))
-        if merged and (not pull.merged or pull.head_sha != merged_head):
+        # マージは戻らない。finalize がマージ済みと返したのに PR が未マージなら、どちらかの読み取りが誤っている。
+        # 正常完了は、照合する HEAD のマージだけ。停止のときの別の HEAD のマージは、停止のまま実際の状態を保存する
+        if reported is True and (
+            not pull.merged or result["outcome"] == "no_fix_needed" and pull.head_sha != merged_head
+        ):
             raise LoopError(
                 4,
                 "merge_mismatch",
@@ -1522,7 +1531,7 @@ def cycle_end(
                 f"（照合する HEAD は {merged_head[:12]}）",
             )
         if result["outcome"] == "no_fix_needed":
-            if not merged:
+            if reported is not True:
                 raise LoopError(4, "merge_mismatch", "finalize の結果が no_fix_needed なのにマージされていない")
         else:
             final_outcome = "stopped"

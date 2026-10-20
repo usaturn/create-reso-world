@@ -57,6 +57,17 @@ class CommentError(RuntimeError):
     """Fail closed without posting a malformed or ambiguous comment."""
 
 
+class PullRequestStateError(CommentError):
+    """The PR was read but is not the open PR at the HEAD the round ends at.
+
+    ``view`` is the checked ``gh pr view`` payload, so a caller can keep the state it observed.
+    """
+
+    def __init__(self, message: str, view: Mapping[str, object]) -> None:
+        super().__init__(message)
+        self.view = view
+
+
 def _record_problems(error: Exception) -> CommentError:
     problems = cast(list[str], getattr(error, "problems", [str(error)]))
     return CommentError("\n".join(problems))
@@ -294,14 +305,14 @@ def _check_pull_request(checked: Mapping[str, Any], repo: str, pr: int, runner: 
     """The record names this PR, the PR is open, and its head is the HEAD the round ends at."""
     view = view_pr(pr, repo, runner, ("url", "number", "headRefOid", "state"))
     if checked["pr"] != {"repository": repo, "number": view["number"]}:
-        raise CommentError(f"the record is for another pull request: {checked['pr']}")
+        raise PullRequestStateError(f"the record is for another pull request: {checked['pr']}", view)
     if view.get("state") != "OPEN":
-        raise CommentError(f"pull request {repo}#{pr} is not open")
+        raise PullRequestStateError(f"pull request {repo}#{pr} is not open", view)
     outcome = checked["outcome"]
     expected = checked["commit"] if outcome == "fixes_pushed" else checked["reviewed_head"]
     if view.get("headRefOid") != expected:
         head = view.get("headRefOid")
-        raise CommentError(f"the PR head is {head}, but a {outcome} round must be posted at {expected}")
+        raise PullRequestStateError(f"the PR head is {head}, but a {outcome} round must be posted at {expected}", view)
 
 
 def _round_target(checked: Mapping[str, Any], comments: Sequence[Mapping[str, Any]], trusted_login: str) -> int | None:

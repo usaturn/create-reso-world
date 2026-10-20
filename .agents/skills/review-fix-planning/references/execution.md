@@ -157,10 +157,12 @@ uv run --project "$TOPLEVEL" --locked python \
 - 認証済みの login を取り、PR の全コメントの記録と照合する。マージは `--merge --match-head-commit`（squash・rebase は使わない）。admin・auto マージ、ブランチの削除はしない
 - マージの後に MERGED・`mergedAt`・head を読み戻し、同じリポジトリの closing Issue だけを close して読み戻す。closing Issue に別のリポジトリのもの・URL と番号が合わないものがあれば、マージの前に `external:` で止まる
 - 同じ head で既にマージ済みなら、このサイクルの自分の記録が渡した記録と同じときだけ、投稿もマージもせずに Issue の更新を続ける。記録が無い・食い違うまま手でマージされていれば、Issue を更新せずに `merged: true` の `stopped` を返す
+- 別の head で既にマージ済み（投稿の後、マージの直前の確認までにマージされた場合を含む）なら、それ以上何も書き込まずに `external: PRが検証済みHEADと別のHEADでマージされた` の `merged: true` の `stopped` を返す。再実行しても完了しないので、何がマージされたかを確かめて報告する。`--spec-commit` で、Spec の commit を push する前に `reviewed_head` のままマージされていたら、停止理由は `external: Specのcommitを載せる前に、PRが検証したHEADのままマージされた` になる（入ったのは検証済みのコードで、欠けているのは Spec の commit だけ）
 
 ### 3.4 結果
 
 - 終了コード 0 で、結果の `outcome` が `no_fix_needed` のときだけ、最終化が終わった
+- `merged` は、helper が最後に観測した PR のマージ状態である。`true` はマージ済みを観測した、`false` は未マージ（open か close）を観測し、その後にマージを依頼していない、`null` は確かめられていない（GitHub に問い合わせる前に止まった、PR の状態を読めなかった、マージを依頼した後に状態を読めなかった）。head の違いなどで止まっても、観測したマージ済みは `true` のまま返る
 - 終了コード 1 は `stopped`。`stop_reason`・`merged`・更新した `issues` を読む。`wait_for` があれば、待てば進む停止である。`ci`（公開の CI が実行中・待機中）は `gh pr checks <PR> --repo <repo> --watch` を `monitoring-long-tasks` で監視して待ち、`mergeable`（GitHub がマージの可否を計算中）と `head`（push した Spec の commit が PR の head に反映される前）は少し間を置いて、どれも同じ記録・本文・検証の記録で再実行する。期限を決め、過ぎても解消しなければ結論 3 として報告する
 - `base_moved`（`ref`・`verified`・`current`）があれば、検証した後に base が進んだ停止である。待っても解消しないので、次の順で再実行する
   1. `current` を head（`HEAD_SHA`）に merge したツリーで、SKILL.md の結論 2 の手順 2 と同じ検証を通す
@@ -169,6 +171,7 @@ uv run --project "$TOPLEVEL" --locked python \
   4. 同じ判断の記録で `finalize.py` を再実行する。やり直しの回数の上限は SKILL.md の結論 2 のとおり
 - 状況の本文の不備・PR 上の過去の記録との食い違いは `environment:`、`gh`・API の失敗は `external:`、範囲外は `permission:` で返る
 - マージの後の Issue の更新の失敗も `stopped` だが、マージ済みであることを隠さずに報告し、同じ head・同じ記録で再実行して復旧する
+- `merged: null` の `stopped` を未マージと報告しない。`gh pr view <PR> --repo <repo> --json state,mergedAt,headRefOid` で読み直した状態を報告に書き、原因（`stop_reason`）を直してから同じ記録・本文・検証の記録で再実行する。再実行は最初に PR の状態を読み直し、同じ head でマージ済みで、このサイクルの記録が投稿済みなら Issue の更新だけを続けて完了する。open なら今までどおり照合してからマージする。GitHub に問い合わせる前の停止（`environment:`・`permission:`）は、入力を直さなければ同じ理由で止まる
 - 終了コード 2 は入力・結果ファイルの障害。操作の後の保存の失敗では、標準出力の JSON に実際の `merged`・`issues` が残るので、終了コード 2 だけから「何もしていない」と推測しない
 
 ### 3.5 既知の制限
