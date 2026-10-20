@@ -160,4 +160,10 @@ git commit -m "fix(agent-runner): launch cursor read-only roles with -f --sandbo
 
 ## 完了
 
-（作業の後に、所要時間と主要 Task 別の内訳、実行した検証を書く）
+2026-10-20（JST）に実行した。状態は draft のまま（内容の承認ではない）。
+
+- 所要: 着手（12:55 JST ごろ、Issue の解決）から記録の commit（14:10 JST ごろ）まで約 75 分。予算の ledger（13:02 JST から）の能動時間は約 67 分で、予算 240 分の約 28%
+- 内訳: 調査・Spec・Plan 約 10 分、Task 1 約 3 分、Task 2 約 2 分、Task 3（R1 の 2 回）約 3 分、全体レビュー（サブエージェント、並行）約 8 分とその修正 約 5 分、Task 5 の全体テストの待ち 約 48 分（ほかのセッションの全体テストと並行して遅かった）、push・PR 約 2 分、Task 4（R2）約 8 分、記録・PR の更新 約 5 分
+- 受け入れ条件: C1〜C3 は cursor のテスト（`d6b9daf` の後 60 passed。足した 2 つのテストは adapter を変える前に失敗した）、C4 は R1（`cursor`・`cursor-grok47` とも `success`）、C5 は R2（loop の `accepted`、pr-review の実行記録 `success`、cleanup 済み）、C6 は `runtimes/cursor.rst` の「実機の確認（#201）」と PR 本文、C7 は `git diff origin/main -- .devcontainer/agent-runner.toml` が空・rstcheck Success・全体レビュー（必須・推奨 0 件）、C8 は `uv run pytest tests/skills .agents/skills .agents/scripts tools`（`c499d2e` で 3411 passed）・`run-tests.bash`（PASS 33）・`check-layout.sh`（PASS）
+- 判断（ledger の Ruling）: SDD の workspace を worktree の中に作らず `tmp/agents` に置いた。偽 CLI の `--model` の検査に fallback 用の値を足した（`duplicate_model`）。helper のネットワーク利用の出所を `gh`・`git fetch` にした。全体レビューの軽微 4 件のうち、Spec の設計 1 と C6 に関わる 3 点を直し、残り 3 点（`args` での上書き、CLI の自動更新、runner の worktree 自体の変更）は PR 本文の既知の制限に書いて見送った
+- ledger・実機の出力: `/workspaces/reso-world/tmp/agents/issue-201.p2cop2y9/`（PR を作った後に片付ける）

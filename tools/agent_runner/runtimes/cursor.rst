@@ -163,4 +163,17 @@ stdout には完了した ``readToolCall``（``marker.txt``）と ``shellToolCal
 runner の worktree は変わらなかった（``git status --porcelain`` が空）。
 init イベントの ``permissionMode`` は ``default`` だった。
 
+PR レビュー（``inspect``）:
+2026-10-20 05:00〜05:07 UTC、#201 の PR（#202）の HEAD ``eb6233a`` を、その branch の版の ``loop.py`` から ``start <PR の URL> --assign inspect=cursor-grok47`` → ``cycle-begin``（``mode: run``）→ ``review`` で実行した（loop の run ``beb24b3639944602a18a193c61bcb59d``）。
+``cursor-grok47`` は pr-review の helper の prepare → complete → cleanup まで完了し、loop は ``accepted`` にした。
+
+- runner: batch ``57fa07a0784341298780c73a0ab79cd5`` は ``success`` 。試行は終了コード 0 、``stop_confirmed`` は true 、所要 423.1 秒、観測した model ``Grok 4.7 256K Extra High``
+- pr-review の実行記録: ``status: success`` 、prepare 3.4 秒・レビュー 363.7 秒・保存 0.8 秒・cleanup 0.13 秒。prepare に渡したモデル名は ``Grok 4.7`` 。指摘 0 件、Merge recommendation は Approve
+- runner の ``outside_changes`` は 3 件で、どれもレビュアーの変更ではなかった。2 件は run の前から checkout が無かった登録（``checkout_audit`` の ``unavailable_before`` 、``prunable``）、1 件は同じ時間帯に別のセッションが別の Issue の commit を 2 つ作った worktree（``content_changed`` 。変わったファイルはその commit の中身で、作業ツリーは clean）
+- loop の ``retained`` は空。pr-review のレビュー用 worktree と一時領域は残っておらず、loop は runner の出力を回収した
+- 確認のための run なので、計画の前に ``finish --abort "external: …"`` で終えた（``stopped`` 、マージなし、ロックは解放）
+- CLI の版と、利用者の ``cli-config.json`` の ``sandbox`` ・ ``approvalMode`` ・ ``permissions`` は、run の前後で変わらなかった
+
+``self-review`` ・ ``fix-check`` は ``inspect`` と同じ起動だが、実機では確かめていない（偽 CLI のテストだけ）。
+
 以上
