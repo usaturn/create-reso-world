@@ -256,7 +256,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
    - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD` を Spec のコミット（`SPEC_COMMIT`）として記録し、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
    - 状況コメントの投稿の直前と push の直前に、手順 2 と同じく base を取り直し、先端が検証の記録の `base` と同じことを確かめる。違えば、投稿・push をせずに手順 2〜5 を新しい先端でやり直し、Spec を直して、Spec のファイルだけを `git -C "$MAIN_ROOT" add -- <Spec>` してから、`git -C "$MAIN_ROOT" commit --amend --no-edit` で Spec のコミットを作り直す（push していないので書き換えてよい）。作り直したら、上の commit の後の確認からやり直す。手順 3 で結論 1 に切り替えるときは、Spec のコミットを結論 3 の「書き始めた Spec の扱い」の「push していない」の項の方法で取り消してから進める
    - PR の head がまだ `HEAD_SHA` のうちに、状況コメントを記録付きで投稿する（「作業終了前の PR 投稿」。記録付きの投稿は、PR の head が記録の `reviewed_head` と同じときだけ通る）
-   - **実装後** の手順 5 の head の確認と共通 context の再実行の後、同じ手順 5 の検査付きの push で push する（fast-forward だけ。`--force` を付けない。検査で止まったら push せずに結論 3 にする）
+   - **実装後** の手順 5 の head の確認と共通 context の再実行の後、同じ手順 5 の検査付きの push で push する（fast-forward だけ。`--force` を付けない。検査で止まったら push せずに結論 3 にする。状況コメントは投稿済みなので、`AGENTS.md` の直し方は使わない）
    - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head か作業ツリーが変わった）。Spec のコミットは下記「結論 3」の「書き始めた Spec の扱い」に従う（取り消してよい条件を満たさなければ、取り消さずに残して報告する）
 
    PR が create-reso-world 以外のものなら、Spec は文書用ブランチにコミットし（「Spec のコミットと確認用コピー」）、状況の投稿は次の `finalize.py` が行う
@@ -345,7 +345,7 @@ Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の�
    - resoloop fork（`external/resoloop`）の変更: 変更したプロジェクトに関連する `dotnet test`
 3. 失敗したら直す。commit しない。
 4. commit・push の前に [要件・原因・検証の対応](references/convergence.md) の「3. 検証と閉じ方」を読み、経路表の観測結果・対象版・実行証拠、判定の両側・操作順・独立した根拠を照合する。最後の修正で影響した経路の証拠が不足していれば、必要な修正・検証と表の更新を終えるまで公開しない。承認済み Spec の反映だけの依頼でもこの照合は行うが、採否の選別や自己レビューをやり直す手順は追加しない。共通 context を再実行し、`git -C "$MAIN_ROOT" fetch "$PR_REMOTE"` で取得する。取得後に `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` でレビュー対象 PR の実際の先端も再確認する。手順 1・2 が通ったら、レビュー対象ブランチ（既存 PR の head）へ commit する。`main` ではない。新しい `*-review-fixes` ブランチでもない。
-5. そのブランチを **既存 PR** へ push する。ルート `AGENTS.md` の「push の前の秘密情報の検査」に従い、検査した SHA を push する（`<base>` は PR の `baseRefName`）。検出や検査の失敗で止まったら push せずに停止して報告する（完遂では結論 3）:
+5. そのブランチを **既存 PR** へ push する。ルート `AGENTS.md` の「push の前の秘密情報の検査」に従い、検査した SHA を push する（`<base>` は PR の `baseRefName`）。検出や検査の失敗で止まったら push しない。`AGENTS.md` の「push の前の秘密情報の検査」の条件を満たす検出なら、その commit を直して手順 1 からやり直す。それ以外は停止して報告する（完遂では結論 3）:
 
    ```bash
    SHA="$(bash "$TOPLEVEL/scripts/scan-before-push.sh" -C "$MAIN_ROOT" --base "$PR_REMOTE/<base>")" && [ -n "$SHA" ] \
