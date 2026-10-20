@@ -104,9 +104,11 @@ nested_invocation / invalid_config。原文・値・Git 診断は返さない。
        def collect(self, context: AdapterContext,
                    stdout_path: Path, stderr_path: Path) -> AdapterOutcome: ...
 
-``Capabilities(noninteractive=True, stdin=True)``
-  両方が literal True の場合だけ起動する。
+``Capabilities(noninteractive=True, stdin=True, confined_writes=False)``
+  noninteractive と stdin の両方が literal True の場合だけ起動する。
   機能宣言はランタイム担当が実機で確かめる。対話への代替は不可。
+  ``confined_writes`` は trusted adapter がプロセス全体の書き込みを試行内へ制限する保証であり、設定や prompt の権限ではない。
+  既存の outer bubblewrap を使う DSH だけが True を宣言する。
 
 ``AdapterContext(request, agent, role, work_dir, receipt_path)``
   request は現在の識別情報と依頼、agent/role は有効な設定。
@@ -174,7 +176,7 @@ after_run は後処理ごとの index / state / exit_code / stop_confirmed / std
 
 BatchResult
   schema_version / run_id / state / assignments / results / outside_changes /
-  elapsed_seconds / artifact_dir。
+  checkout_audit / unrelated_checkout_audit / elapsed_seconds / artifact_dir。
   assignments は self を含む有効な一次担当。成功・失敗混在は partial_success。
   state は success / self / partial_success / failed。
 
@@ -220,9 +222,17 @@ PID/starttime が一致する場合だけ追加の group member を観測する�
 
 監査は開始前から登録されていた checkout の HEAD・index・tracked ファイル・
 非 ignored untracked ファイルの内容を比較する。initialized submodule も含む。
-変更は outside_changes に警告として返し、処理自体は止めない。
+全外部担当と全 fallback が ``confined_writes=True`` を保証するときだけ、必須監査を main checkout と依頼元 checkout に限定する。
+未対応 adapter、保証の無い担当との混在、外部担当の無い構成、bare repository は全登録を必須対象にする。
+実際の起動時にも adapter の保証を再確認し、限定監査のまま非隔離担当を起動しない。
+必須対象の変化・監査不能は ``checkout_audit`` と ``outside_changes`` に返す。
+runner 自体は診断として返し、issue-to-pr・review-verify・review-fix-planning の受け取り入口が拒否する。
+必須対象以外の変化・監査不能は ``unrelated_checkout_audit`` に残し、受け取りを拒否する理由にはしない。
+起動前も共通の ``require_auditable_workflow`` で同じ必須対象を確認し、監査不能なら予約・有料起動より前に止める。
 Gitignored 資源、symlink の参照先、Git 外の任意のディレクトリは監査範囲外。
 外部セッションによる変更と委譲先による変更の因果までは断定しない。
+非隔離担当での直列運用と、消えた登録の所有者の照合・個別 repair / remove は、リポジトリルートの ``docs/agent-runner-checkout-recovery.md`` に記載する。
+監査は他セッションの登録を自動で回収しない。
 
 環境変数は agent.env の名前だけ引き継ぎ、PATH が無ければ os.defpath を使う。
 引き継ぐ値は runner プロセスの起動時環境から読み、

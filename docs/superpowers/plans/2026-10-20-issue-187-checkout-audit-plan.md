@@ -70,4 +70,10 @@ issue.implement の検査結果は self。共通 policy と 3 入口は逐次変
 
 ## 実施記録
 
-未着手。実行の証拠は Task ごとに追記する。
+Task 1 は commit `35652d8` で完了した。変更前は関連テスト 1324 件（192.41 秒）、変更後は 1347 件（204.23 秒）が成功した。policy の追加前は 13 件、入口の変更前は 3 件の新規テストが失敗し、実装後に成功した。実 DSH adapter と偽 CLI の sandbox 対照試験を含む。証拠はセッションの `baseline.log`・`task1-red.log`・`consumers-red.log`・`task1-suite.log`。
+
+Task 2 の手順を `recovery-smoke.py` で使い捨て Git に実行し、移動先の repair、HEAD/index の回収用 commit/ref/bundle の保存と検証、missing 1 件だけの remove、ほかの missing/locked 登録の保持を確認した（終了コード 0）。実在する他セッションの登録は変更していない。文書の固定文言テストは追加していない。
+
+SDD の未追跡資料は AGENTS.md に従い worktree 内へ作らず、`/workspaces/reso-world/tmp/agents/issue-187.wfma953n/` の `progress.md` と ledger に置いた。ブランチ全体の差分確認は inline で行い、PR 作成後の独立レビューは利用者が指定した --merge の既定構成で行う。追加の隔離評価用モデルは起動していない。
+
+最終 commit 後の検証結果・clean HEAD・argv・終了コード・ログの完全パスは同じセッションの `verification.json` と `checks.json`、PR 本文に記録する。ループ中は feature worktree を独自に編集せず、記録はセッションと PR/Issue に置く。
