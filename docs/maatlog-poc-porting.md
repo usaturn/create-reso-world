@@ -105,7 +105,7 @@ Context7 の扱いは、さらに Issue #162（2026-10-18）で変えた。Conte
 | `.devcontainer/dsh-cordis.patch.yml` | `.devcontainer/dsh-cordis.patch.yml`（削除） | 除外 | #18 で共有設定を撤去した。#151 は呼出しごとに patch を生成し、共有ファイルは復活させない | #18・#151 |
 | なし | `.devcontainer/dsh-settings.yaml`（削除） | 除外 | 移植先にだけあった dsh の雛形 | #18 |
 | `.devcontainer/install_beforehand.bash` の dsh 0.2.0 系の導入（pi-tui の profile、managed block、ランチャーの配置）、Grok Build の導入、`skills add` の `-a grok` | 同じファイルの dsh 0.1.5 の導入と定数、書き込みの確認のリストの `.grok`・`.dsh` | 除外 | #18 で旧手順を撤去した。#151 でも対話用設定・Grok Build は戻さない | #18・#151 |
-| `tools/agent_runner/adapters/dsh.py`・`dsh_identity.py`・`dsh_sandbox.py` と dsh CLI の固定版導入 | 同じパスと `.devcontainer/install_beforehand.bash` の headless CLI 導入段 | 適応 | #151 で headless レビュアーとして再導入。CLI は `0.2.0-rc.2`、個別の HOME・DSH_HOME・TMPDIR、scoped bubblewrap、観測したモデルを使う。web plugin・pi-tui・共有 profile は不要とする構成で、rebuild 後の実機確認は未実施 | #151 |
+| `tools/agent_runner/adapters/dsh.py`・`dsh_identity.py`・`dsh_sandbox.py` と dsh CLI の固定版導入 | 同じパスと `.devcontainer/install_beforehand.bash` の headless CLI 導入段 | 適応 | #151 で headless レビュアーとして再導入。CLI は `0.2.0-rc.2`、個別の HOME・DSH_HOME・TMPDIR、scoped bubblewrap、観測したモデルを使う。web plugin・pi-tui・共有 profile は不要とする構成で、rebuild 後の実機確認は未実施。#209 で CLI を `0.2.1-rc.2` に上げた（現在の版と手順は `.devcontainer/README.md`） | #151・#209 |
 | `.devcontainer/devcontainer.json` の `.grok`・`.dsh` の mount、`pnpmVersion` の固定、`forwardPorts` の `3080` | 同じファイルの同じ箇所 | 適応 | 撤去し、pnpm は `"none"` にした。`name`・dotnet・`remoteEnv`・秘密情報の mount・`--network=host` の差分は、移植先が新しいので保つ | #18 |
 | `.devcontainer/initialize.bash` の `.grok`・`.dsh` | 同じ | 適応 | 撤去した。他の差分は移植先が新しいので保つ | #18 |
 | `.devcontainer/zshrc.txt` の `grok update`、`cc_launcher_unsets` | 同じファイルの `ccda`、`MAAS_ANTHROPIC_TOKEN`、`grok update`、コメント | 除外 | 撤去した。移植元も `ccda` を撤去済み | #18 |
