@@ -86,7 +86,7 @@
   - `check_base(runner: Any, repo: str, view: Mapping[str, Any], verified: str) -> None`
   - `finalize` の結果の `base_moved: {"ref": str, "verified": str, "current": str}`
 
-- [ ] **Step 1: 偽の `gh` と fixture を変える**
+- [x] **Step 1: 偽の `gh` と fixture を変える**
 
   - 定数 `BASE = "a" * 40`、`NEW_BASE = "b" * 40`、`MERGE_COMMIT = "c" * 40`。`checks()` に `"base": BASE`
   - `FakeGh.view` に `"baseRefName": "main"`。属性 `tips: dict[str, str] = {"main": BASE}`、`tip_after_post: str | None = None`、`branch: Any = None`（応答の差し替え）、`branch_fails = False`
@@ -94,7 +94,7 @@
   - 投稿（`--method`）の後、`tip_after_post` があれば `tips[view["baseRefName"]]` をそれにして `None` に戻す。マージ（`merge_stays_open` でないとき）では `tips[view.get("baseRefName", "main")] = MERGE_COMMIT`
   - `branch_requests() -> list[str]`: base の API の呼び出しのパスの一覧
 
-- [ ] **Step 2: 失敗するテストを書く**
+- [x] **Step 2: 失敗するテストを書く**
 
   ```python
   def finalize_with(gh: FakeGh, spec: bool, evidence: dict[str, Any]) -> dict[str, Any]:
@@ -174,24 +174,24 @@
       assert gh.writes() == []
   ```
 
-- [ ] **Step 3: 失敗を確かめる**
+- [x] **Step 3: 失敗を確かめる**
 
   Run: `uv run pytest -q .agents/skills/review-fix-planning/tests/test_finalize.py`
   Expected: FAIL。新しいテストに加え、`checks()` に `base` を足したので、既存の多くも `check_evidence` で止まって失敗する
 
-- [ ] **Step 4: 実装する**
+- [x] **Step 4: 実装する**
 
   - `FIELDS` に `"baseRefName"`。`Stop` に `base_moved` を足し、docstring に意味（待っても解消しない。検証し直して記録を作り直す）を書く
   - `check_evidence`: 先頭で `base` が `str` で `FULL_SHA` に合うことを確かめ、キーの集合を `{"head", "base", "commands"}` にする
   - `check_base`: `view["baseRefName"]` が空でない `str`、応答がオブジェクトで `name` が同じ、`commit.sha` が `FULL_SHA` に合う、を確かめ、満たさなければ `Stop("external: PRのbaseブランチの先端を確認できない")`。先端が `verified` と違えば `base_moved` 付きの `Stop`。docstring に、`baseRefOid` を使わない理由と、名前の照合の理由を書く
   - `finalize`: `--spec-commit` が無い経路は、`check_ci` の後・投稿の前に `step = "base before posting"` で `check_base`。マージの直前は、読み直した PR の `check_ci` の後に `step = "pre-merge base"` で `check_base`。`except Stop` で `base_moved` を結果に写す。モジュールの docstring に base の照合を書く
 
-- [ ] **Step 5: 通ることを確かめる**
+- [x] **Step 5: 通ることを確かめる**
 
   Run: `uv run pytest -q .agents/skills/review-fix-planning/tests .agents/skills/pr-review-fix-loop/tests`
   Expected: 全件 PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
   ```bash
   git add .agents/skills/review-fix-planning/scripts/finalize.py .agents/skills/review-fix-planning/tests/test_finalize.py
@@ -210,7 +210,7 @@
 - Consumes: Task 1 の `Stop`
 - Produces: `check_view(view: Mapping[str, Any], head: str, *, allow_merged: bool = False, pushed_from: str | None = None) -> None`。`finalize` は `--spec-commit` の最初の読み取りだけで `pushed_from=reviewed_head` を渡す
 
-- [ ] **Step 1: テストを書く。既存の `test_spec_commit_requires_the_pr_head_to_be_the_spec_commit` はこの 2 つで置き換える**
+- [x] **Step 1: テストを書く。既存の `test_spec_commit_requires_the_pr_head_to_be_the_spec_commit` はこの 2 つで置き換える**
 
   ```python
   def test_spec_commit_waits_until_the_pushed_spec_commit_is_the_pr_head() -> None:
@@ -233,21 +233,21 @@
       assert "wait_for" not in result and gh.writes() == []
   ```
 
-- [ ] **Step 2: 失敗を確かめる**
+- [x] **Step 2: 失敗を確かめる**
 
   Run: `uv run pytest -q .agents/skills/review-fix-planning/tests/test_finalize.py -k "pushed_spec_commit or another_head"`
   Expected: 1 つ目が FAIL（`wait_for` が無い）、2 つ目の 2 件は PASS
 
-- [ ] **Step 3: 実装する**
+- [x] **Step 3: 実装する**
 
   head が違い、`pushed_from` と同じで state が `OPEN` なら `Stop("external: PRのheadがまだ検証したHEADのまま（Specのcommitのpushが反映される前）", wait_for="head")`。それ以外は今の `Stop`。`Stop` の docstring の `wait_for` に `head` を足す
 
-- [ ] **Step 4: 通ることを確かめる**
+- [x] **Step 4: 通ることを確かめる**
 
   Run: `uv run pytest -q .agents/skills/review-fix-planning/tests .agents/skills/pr-review-fix-loop/tests`
   Expected: 全件 PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```bash
   git add .agents/skills/review-fix-planning/scripts/finalize.py .agents/skills/review-fix-planning/tests/test_finalize.py
@@ -263,28 +263,28 @@
 - Modify: `.agents/skills/review-fix-planning/references/execution.md`（3.1〜3.4、新しい 3.5）
 - Modify: `.agents/skills/pr-review-fix-loop/SKILL.md`（24 行、手順 3、「最終化の停止」）
 
-- [ ] **Step 1: `SKILL.md` の結論 2 を直す（Spec の D-6・D-7・D-8）**
+- [x] **Step 1: `SKILL.md` の結論 2 を直す（Spec の D-6・D-7・D-8）**
   - 手順 2: 取り直した先端の SHA を検証の記録の `base` にする。head の祖先でなければ、その SHA を merge したツリーで検証してそのコマンドを記録する
   - 手順 5: 本文の検証の状況に、検証したツリーと `base` を書く
   - 手順 6: 投稿の直前と push の直前に base を取り直し、先端が `base` と違えば、投稿・push をせずに手順 2〜5 を新しい先端でやり直し、Spec を直して `git -C "$MAIN_ROOT" commit --amend` で作り直し、commit の後の確認から続ける。結論 1 に切り替えるときは Spec の commit を結論 3 の方法で取り消す
   - 手順 7: helper が投稿の前とマージの直前に base を照合すること、`base_moved` は待たずに `execution.md` 3.4 節のとおり検証し直して再実行すること
   - 手順 9 の後: やり直しは合わせて 3 回まで、超えたら結論 3。検証し直さずに `base` だけを書き換えない。既知の制限は `execution.md` 3.5 節
   - 結論 3 の外部障害、合理化の表、Red flags に 1 行ずつ
-- [ ] **Step 2: `execution.md` を直す**
+- [x] **Step 2: `execution.md` を直す**
   - 3.1: 検証の記録に `base`（意味と、どの検証のコマンドを書くか）
   - 3.2: create-reso-world の 2〜4 に、投稿・push の直前の再確認、`wait_for: head`、マージの直前の照合。resoloop の文に、投稿の前とマージの直前の照合
   - 3.3: base の照合の箇条（時点、`baseRefOid` を使わない、マージ済みでは照合しない）と、`--spec-commit` の head の箇条
   - 3.4: `wait_for` の `head`。`base_moved` の箇条（検証し直し、記録の作り直し、create-reso-world の補足のコメントの形、それ以外の本文の更新、同じ判断の記録での再実行）
   - 3.5（新規）既知の制限
-- [ ] **Step 3: loop の `SKILL.md` を直す（Spec の D-10）**
+- [x] **Step 3: loop の `SKILL.md` を直す（Spec の D-10）**
   - 24 行: PR への書き込みに、review-fix-planning の補足のコメントを含める
   - 手順 3: `finalize.py` の `wait_for`・`base_moved` による再実行は計画の中で行い、終わってから `cycle-end` を呼ぶ
   - 「最終化の停止」: `base_moved` では検証し直し、`--round-dir` の検証記録を作り直してから再実行する
-- [ ] **Step 4: 確かめる**
+- [x] **Step 4: 確かめる**
   - `git diff` を読み、キー名（`base`・`base_moved`・`ref`・`verified`・`current`）、`wait_for` の `head`、照合の時点、`baseRefOid` を使わないこと、停止理由が Task 1・2 と一致することを確かめる
   - Run: `uv run pytest -q .agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py .agents/skills/pr-review-fix-loop/tests/test_pr_review_fix_loop_skill_contract.py`
   - Expected: PASS（投稿のブロックと共通 context のブロックが崩れていない）
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```bash
   git add .agents/skills/review-fix-planning/SKILL.md .agents/skills/review-fix-planning/references/execution.md .agents/skills/pr-review-fix-loop/SKILL.md
@@ -295,12 +295,21 @@
 
 **テストの要否:** 新しいテストは無い。検証の入口を実行し、ガードを外した対照で新しいテストの検出力を確かめる。
 
-- [ ] **Step 1: ガードを外した対照** — feature の HEAD から `mktemp -d` の中に `git worktree add --detach` で一時 worktree を作り、`finalize.py` のガードを 1 つずつ外して `test_finalize.py` を実行する。外すもの: (a) `check_base` を何もしない関数に (b) 投稿の前の照合だけ (c) マージの直前の照合だけ (d) `check_base` の先端を `view.get("baseRefOid")` に (e) `check_evidence` の `base` の検査 (f) `check_view` の `pushed_from`。それぞれ、そのガードを確かめるテストが失敗することを記録する。終わったら worktree を外して一時ディレクトリを消す
-- [ ] **Step 2: README の「テスト」** — worktree のルートで `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` を実行し、終了コードとログの要点を記録する
-- [ ] **Step 3: 要件の照合** — `review-fix-planning/references/convergence.md` の「3. 検証と閉じ方」に従い、Spec の A-1〜A-5・D-1〜D-11 を commit と Step 1・2 の結果に対応させる
-- [ ] **Step 4: 最終レビュー** — ブランチ全体（`origin/main...HEAD`）のレビューを新しいレビュアー 1 つに依頼し、指摘を判定する。直したら関連テストと Step 2 の該当コマンドをやり直す
-- [ ] **Step 5: 記録** — この Plan の「完了」に、検証の結果・対照の結果・レビューの判定・所要時間を書いて commit する
+- [x] **Step 1: ガードを外した対照** — feature の HEAD から `mktemp -d` の中に `git worktree add --detach` で一時 worktree を作り、`finalize.py` のガードを 1 つずつ外して `test_finalize.py` を実行する。外すもの: (a) `check_base` を何もしない関数に (b) 投稿の前の照合だけ (c) マージの直前の照合だけ (d) `check_base` の先端を `view.get("baseRefOid")` に (e) `check_evidence` の `base` の検査 (f) `check_view` の `pushed_from`。それぞれ、そのガードを確かめるテストが失敗することを記録する。終わったら worktree を外して一時ディレクトリを消す
+- [x] **Step 2: README の「テスト」** — worktree のルートで `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` を実行し、終了コードとログの要点を記録する
+- [x] **Step 3: 要件の照合** — `review-fix-planning/references/convergence.md` の「3. 検証と閉じ方」に従い、Spec の A-1〜A-5・D-1〜D-11 を commit と Step 1・2 の結果に対応させる
+- [x] **Step 4: 最終レビュー** — ブランチ全体（`origin/main...HEAD`）のレビューを新しいレビュアー 1 つに依頼し、指摘を判定する。直したら関連テストと Step 2 の該当コマンドをやり直す
+- [x] **Step 5: 記録** — この Plan の「完了」に、検証の結果・対照の結果・レビューの判定・所要時間を書いて commit する
 
 ## 完了
 
-（Task 4 の後に書く）
+- 実行: 2026-10-20、`superpowers:executing-plans`（inline）。ledger は `/workspaces/reso-world/tmp/agents/issue-196.1dvcegcd/progress.md`（superpowers の作業領域のスクリプトは worktree の中に書くので使わず、`AGENTS.md` の置き場所に置いた）
+- commit: Spec `140a7a2`、Plan `50dbb09`、Task 1 `50f0bf4`、Task 2 `12ba4ee`、Task 3 `7adfb5c`、最終レビューの修正 `69004ba`
+- Task 1: RED は `test_finalize.py` の 79 failed / 60 passed（`base` を足した記録で既存の正常系も止まる）→ GREEN は 139 passed → review-fix-planning と PR 修正ループのテストは 502 passed
+- Task 2: RED は新しい反映待ちのテスト 1 件だけが失敗し、待たない 2 件は通った → 503 passed
+- Task 3: 契約テスト 2 本で 71 passed。差分を Task 1・2 のキー・照合の時点・停止理由と照合した
+- Task 4 Step 1（ガードを外した対照。`7adfb5c` の一時 worktree を `/tmp` の一意のディレクトリに作り、片付け済み）: 8 つの変異のどれでも、そのガードのテストが失敗した。(a) `check_base` が何もしない → 19 件、(b) 投稿の前の照合なし → 9 件、(c) マージの直前の照合なし → 9 件、(d) `baseRefOid` を先端に使う → 28 件、(e) 記録の `base` の検査なし → 3 件、(f) 反映待ちなし → 1 件、(g) 名前の照合なし → 2 件、(h) マージ済みでも照合 → 2 件
+- Task 4 Step 2（README の「テスト」、`7adfb5c`、04:05〜05:03Z）: `bash .devcontainer/run-tests.bash` は終了コード 0（33 本 PASS）、`bash scripts/check-layout.sh` は 0（PASS）、`uv run pytest tests/skills .agents/skills .agents/scripts tools` は 0（3435 passed、38 分）
+- Task 4 Step 3（要件の照合）: A-1 は両経路の `base_moved` のテストと投稿の後のテスト、対照 (a)(b)(c)。A-2 は記録の負例と対照 (e)、`baseRefOid` が古いままのテストと対照 (d)、既存のテストの通過。A-3 は手順書の差分と、`loop.py` の `FinalizePart.result` が `dict[str, Any]` で余分なキーを拒否しないこと。A-4 は `execution.md` の 3.5 節。A-5 は反映待ちのテストと待たないテスト、対照 (f)。マージの後の再実行は対照 (h)
+- Task 4 Step 4（最終レビュー。新しいレビュアー 1 つ、opus、`7adfb5c`）: Critical・Important は 0、Minor 4、マージ可。M-2（`git commit --amend` に `--no-edit` が無く、GIT_EDITOR を設定しないランタイムで手順のとおりに実行すると vim が開いて止まりうる）を Important に上げて `69004ba` で直した。文書だけの変更なのでテストは足さず、差分を読み、契約テスト 71 passed・`check-layout.sh` PASS を確かめた。コードとテストは `7adfb5c` から変わらないので、Step 2 の結果を引き継ぐ。M-1（3.5 節の確かめ方を実行する手順が無い）・M-3（`base_moved` の再検証で `current` に固定している）・M-4（3.3・3.4 節の文言が一部の場合に合わない）は持ち越し、PR の本文に書く。レビュアーが判断から外した 10 項目は ledger で判定した（`--spec-commit` で手でマージ済みの PR に `merged: false` を返す既存の挙動は、別の Issue の候補）
+- 所要時間（UTC）: 着手 03:24。準備と調査 18 分、Spec・Plan 6 分、Task 1 で 8 分、Task 2 で 4 分、Task 3 で 4 分、Task 4 で 61 分（README の 3 コマンドの待ち 58 分。最終レビューはその間に並行）。ここまで約 1 時間 41 分
