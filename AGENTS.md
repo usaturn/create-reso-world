@@ -153,8 +153,8 @@ rm / rmdir の削除対象にシェル変数を使う場合は、各変数に `$
 - 検出が次の 2 つをどちらも満たすときは、その行を足した commit を直し、検証と検査をやり直して続けてよい
   - その commit は、この作業で作り、まだどこにも push していない（`git branch -r --contains <commit>` が空）
   - 値が秘密情報でないと確かめられる: この作業で書いたテスト用の偽の値・例か、名前から作った識別子であり、環境変数・認証情報のファイル・コマンドやツールの出力・利用者や Issue の文から写した値ではない
-- 直すときは、その行を足した commit そのものを書き換える。上に commit を足しても、検査は範囲のすべての commit を見るので通らない。テスト用の偽の値は実行時に組み立て（`tests/scripts/test-scan-before-push.bash` のトークン）、文書では値を省くか `<16 進 8 桁>` のように置き換える。同じ値を分割・符号化して残さない。報告に、検出した rule・file・commit と直し方を書く（値は書かない）
-- それ以外の検出は、直さずに利用者に報告する。除外が必要なら、base の `.gitleaks.toml` を先に変える
+- 直すときは、その行を足した commit そのものを書き換える。上に commit を足しても、検査は範囲のすべての commit を見るので通らない。テスト用の偽の値は実行時に組み立てる（`"_".join(...)` で連結する、`tests/scripts/test-scan-before-push.bash` のトークンのように `sha256sum` から作る）。文書では値を省くか `<16 進 8 桁>` のように置き換え、分割・符号化した形でも書き残さない。報告に、検出した rule・file・commit と直し方を書く（値は書かない）
+- それ以外の検出は直さず、直した後も検出が残るときはそれ以上直さずに、利用者に報告する。push 済みの commit は書き換えない（force push しない）。除外が必要なら、base の `.gitleaks.toml` を先に変える
 - gitleaks が無い・版が違うときも止まる。`bash .devcontainer/install_gitleaks.bash` で導入する
 - 対象にしない: 公開済みの commit だけを送る push（`scripts/resoloop-fork.sh sync`、claim ref の作成、ブランチの削除）
 

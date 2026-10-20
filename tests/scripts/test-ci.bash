@@ -7,6 +7,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 
 uv run python - <<'PY'
+import hashlib
 import re
 import tomllib
 
@@ -67,6 +68,8 @@ for parts in (
 ):
     assert re.search(names_pattern, "_".join(parts)), parts
 # 無作為な値は、識別子の前後や区切りを付けても除外しない。名前の塊に英字と数字が入り混じる値も無作為な値とみなす
+hex32 = hashlib.sha256(b"create-reso-world issue-135 hex").hexdigest()[:32]
+identifier = "_".join(("mat", "material", "Slum02", "rubber", "d4d07289"))
 for other in (
     fake_token[::-1],
     "msy_" + fake_token,
@@ -74,6 +77,13 @@ for other in (
     "_".join(("mat", "material", fake_token[4:20], "d4d07289")),
     "_".join(("mat", "material", "x")),
     "_".join(("mat", "material", "Slum02", "D4D07289")),
+    # 前後に値が続くもの（正規表現の ^ と $ を守る）
+    "_".join(("mat", "live", hex32)),
+    fake_token + "_" + identifier,
+    identifier + fake_token[:8],
+    # key() の接頭辞（tex・mat・pbr・mesh・object・renderer・blender）が無い、人が付けたパスワードの形
+    "_".join(("summer", "Holiday2024", "31415926")),
+    "_".join(("letmein", "Tokyo", "88772211")),
 ):
     assert not re.search(names_pattern, other), other
 PY

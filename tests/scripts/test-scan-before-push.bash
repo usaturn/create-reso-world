@@ -163,6 +163,7 @@ leak_with_repo_config() {
 leak_with_repo_config 'a random value without separators' "$random"
 leak_with_repo_config 'a random value after a prefix' "msy_$random"
 leak_with_repo_config 'a random value shaped like an identifier' "mat_material_${random:0:16}_$hash8"
+leak_with_repo_config 'a password of words and 8 digits without a key() prefix' "summer_Holiday2024_${hash8//[a-f]/7}"
 leak_with_repo_config 'a GitHub token' "$token"
 
 # --- 検査できないときは止まる ---
@@ -262,7 +263,7 @@ expect_success 'a token that the base .gitleaks.toml allows'
 name="material_Slum02_rubber_$hash8"
 new_repo "$root/.gitleaks.toml"
 commit_file ids.txt "$(printf '%s\n' "key = 'mat_$name'" "KeyError: 'ul_mat_$name'" \
-  "\"mesh_key\": \"mesh_SM_NeonSign-LOD0__Cube_001_$hash8\"" "texture_key = \"pbr_mat_${name}_$hash8\"")"
+  "\"mesh_key\": \"mesh_Slum02_rubber_$hash8\"" "texture_key = \"pbr_mat_${name}_$hash8\"")"
 scan
 expect_success 'resoloop identifiers with the repository .gitleaks.toml'
 
