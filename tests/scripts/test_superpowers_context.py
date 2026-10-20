@@ -32,7 +32,9 @@ class ContextTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.linked_checkouts = []
-        self.env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null")
+        # GIT_DIR など（linked worktree の git rebase --exec が export）を残すと、一時リポジトリの git が実リポジトリを書き換える（#166）
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")} | {
+            "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
         self.parent = self.checkout("parent", {"origin": ORIGIN})
         self.external = self.checkout("external code", {"origin": "https://github.com/other/repository.git"})
         self.fork = self.checkout("parent/external/resoloop", {
