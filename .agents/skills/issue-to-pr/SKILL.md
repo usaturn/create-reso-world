@@ -220,8 +220,8 @@ PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文�
    | --- | --- | --- |
    | `no_fix_needed` | 完了。関連 Issue は、finalize の結果に含まれる、更新後に観測した state を書く | した |
    | `fixes_pushed`（`ended_by: cycle_limit`） | 未完了。修正は push 済みで、サイクルの上限に達した。続けるなら `/pr-review-fix-loop <PR の URL>` | していない |
-   | `stopped` | 停止。`stop_reason` を書く。`merged: true` なら、マージ済みであることを分けて書く | 結果のとおり |
-   | ループのエラー（`lock_held`、全レビュアーの失敗、資源の停止を確認できない など） | 停止。ループの `stage`・`reason`・`next` と、残した資源の完全パスを書く | していない |
+   | `stopped`（`ended_by: outcome`） | 停止。`stop_reason` を書く。`merged: true` なら、マージ済みであることを分けて書く | 結果のとおり |
+   | ループのエラー（`lock_held`、全レビュアーの失敗、資源の停止を確認できない など。`finish --abort` で終えた run（`ended_by: abort`）を含む） | 停止。ループの `stage`・`reason`・`next` と、残した資源の完全パスを書く | PR の状態（`gh pr view <PR の URL> --json state,mergedAt,headRefOid`）を読み直して書く。読めなければ未確認（`finish --abort` の結果の `merged` が `true` なら、マージ済みと書く） |
 
 ## 停止時の報告
 
