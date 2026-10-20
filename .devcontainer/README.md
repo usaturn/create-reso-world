@@ -120,6 +120,10 @@ uv run pytest tests/skills .agents/skills .agents/scripts  # スキルと .agent
 ```
 
 テストは一時ディレクトリの `HOME` と、モックの resoloop・dotnet・Blender を使うので、実環境を変えない。
+一時リポジトリを作るテストは、`set -euo pipefail` の直後で外から渡された `GIT_*` を除く（linked worktree の
+`git rebase --exec` は `GIT_DIR` を export するので、残すと実リポジトリを書き換える）。1 本だけ直接実行しても効く。
+新しく足すテストも、`tests/scripts/test-resoloop-meshy.bash` の冒頭のように、自分で `GIT_CONFIG_*` などを export するより前に
+同じ 1 行を置く（後に置くと、その隔離の設定まで消える）。
 1 本だけ実行するときは `bash .devcontainer/run-tests.bash <テストのパス>` のように渡す。
 CI の gitleaks ジョブは `.gitleaks.toml`（既定の規則に、resoloop のマニフェストが持つ識別子の除外を足したもの）で
 秘密情報の混入を検査する。private の CI は止めているので、push の前に手元で `scripts/scan-before-push.sh` を実行する

@@ -4,6 +4,9 @@
 # test_superpowers_context.py にある。
 # 仕様: docs/superpowers/specs/2026-10-04-create-reso-world-pr16-document-lifecycle-root-cause-review-fixes-design.md 5.2 節
 set -euo pipefail
+# 外から渡された GIT_* を除く。linked worktree の git rebase --exec は GIT_DIR を export するので、残すと
+# 直接実行したときに一時リポジトリの git init・git -C が、そのリポジトリの設定・index・ブランチを書き換える（#200）
+while IFS= read -r name; do unset "$name"; done < <(compgen -e -X '!GIT_*')
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # ユーザの git 設定から隔離する（test-check-layout.bash と同じ）
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null

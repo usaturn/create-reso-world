@@ -1,6 +1,9 @@
 #!/bin/bash
 # scripts/check-layout.sh が通過・失敗を正しく判定することを一時リポジトリで検査する
 set -euo pipefail
+# 外から渡された GIT_* を除く。linked worktree の git rebase --exec は GIT_DIR を export するので、残すと
+# 直接実行したときに一時リポジトリの git init・git -C が、そのリポジトリの設定・index・ブランチを書き換える（#200）
+while IFS= read -r name; do unset "$name"; done < <(compgen -e -X '!GIT_*')
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # GIT_CONFIG_GLOBAL=/dev/null だけでは XDG 既定の ~/.config/git/ignore が働いてしまうため、
 # core.excludesFile も無効化し、システム設定も外してユーザの git 設定から隔離する。
