@@ -116,7 +116,47 @@ model は CLI が返す表示名である。
 移植元は snapshot ``a47b2065fddad76b7475752fd0088af0733de204`` の同名アダプター、偽 CLI 、テストである。
 移植元の文書には 2026-10-07 UTC の ``2026.10.01-e373342`` による読み取り・指定 skill ・書き込みの実機記録があるが、この移植の成功実績とは区別する。
 事前調査ではインストール済み ``2026.10.16-e3cb207`` の help/version で起動引数を確認した。
-現行 CLI のイベント形式とモデルの利用可否は実モデルでは再検証していない。
+#201 より前は、この環境で実モデルを起動していない。
+#201 の実機の確認は下の「実機の確認（#201）」にある。
+usaturn/agent-workspace#753 の実機の記録（同 PR の ``runtimes/cursor.rst`` の「実機 run（#752）」）は、この環境の成功実績とは区別する。
 共通の入出力仕様は ``tools/agent_runner/interfaces.rst`` にある。
+
+.. _agent_runner_cursor_live_201:
+
+実機の確認（#201）
+------------------
+
+2026-10-20 UTC、この環境の Dev Container で、#201 の adapter（commit ``d6b9daf``）を runner 経由で起動した。
+CLI は ``2026.10.19-6bbf2c4``（ログイン済み）で、どの run の前後でも版は変わらなかった。
+利用者の ``~/.cursor/cli-config.json`` は ``sandbox.mode = "disabled"`` 、``approvalMode = "allowlist"`` 、``permissions.allow = ["Shell(ls)"]`` 、``permissions.deny = []`` で、run の前後で ``sandbox`` ・ ``approvalMode`` ・ ``permissions`` は変わらなかった。
+雛形の担当の定義から adapter が組んだ ``inspect`` の起動は次のとおり（prompt は標準入力） ::
+
+    agent -p --output-format stream-json --trust -f --sandbox disabled --model auto
+    agent -p --output-format stream-json --trust -f --sandbox disabled --model grok-4.7-xhigh
+
+読み取りとシェル（``inspect`` 、``writes = false``）:
+親の ``tmp/agents/`` の下に作った使い捨ての git リポジトリ（commit 1 つ、``marker.txt`` に ``8642``）を対象に、``marker.txt`` の読み取りと、``date -u +%Y`` ・ ``uv --version`` ・ ``mktemp -d`` で作ったディレクトリへの書き込み・読み取り・削除を 1 回の依頼で求めた。
+担当ごとに 1 回ずつ実行した。
+
+.. list-table::
+   :header-rows: 1
+
+   * - 担当
+     - 結果
+     - 観測した model
+     - 所要
+   * - ``cursor``
+     - ``success`` 、payload ``{"marker": 8642, "year": "2026", "uv": "uv 0.13.3 (x86_64-unknown-linux-gnu)", "tmp": "ok"}``
+     - ``Auto``
+     - 29.6 秒
+   * - ``cursor-grok47``
+     - ``success`` 、同じ payload
+     - ``Grok 4.7 256K Extra High``
+     - 31.1 秒
+
+どちらも終了コード 0 、``stop_confirmed`` は true 、``outside_changes`` ・ ``checkout_audit`` は空。
+stdout には完了した ``readToolCall``（``marker.txt``）と ``shellToolCall``（3 つの操作を 1 つのコマンドにまとめたもの、``exitCode: 0``）が 1 つずつあった。
+runner の worktree は変わらなかった（``git status --porcelain`` が空）。
+init イベントの ``permissionMode`` は ``default`` だった。
 
 以上
