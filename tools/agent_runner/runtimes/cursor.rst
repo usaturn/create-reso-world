@@ -19,16 +19,36 @@ Cursor ランタイムアダプター
 
 起動引数は次の形式である ::
 
-    agent -p --output-format stream-json --trust (--mode ask | -f) --model <model> [args...]
+    agent -p --output-format stream-json --trust -f [--sandbox disabled] --model <model> [args...]
 
 prompt は標準入力に渡し、本文を引数には含めない。
-読み取りロールには ``--mode ask`` 、書き込みロールには ``-f`` を付ける。
+どのロールにも ``-f`` を付け、``writes = false`` のロール（``inspect`` ・ ``self-review`` ・ ``fix-check``）にだけ ``--sandbox disabled`` を足す（#201）。
+``writes = true`` のロールは #201 の前と同じく ``-f`` だけで起動する。
+担当の名前・モデルでは分けず、runtime が ``cursor`` の担当は一次担当でも fallback でも同じ起動になる。
 ``--trust`` は新しい worktree を信頼済みとして扱う指定であり、対話による trust 確認は行わない。
 ``agent.model`` は ``--model`` に渡す。
 ``agent.effort`` があれば ``model[effort=<value>]`` 形式にする。
 既にブラケット指定がある model と別の effort 設定は、二重の指定を避けるため起動準備で拒否する。
 汎用の provider 選択引数は実装しておらず、``agent.provider`` の設定だけでは provider の選択を保証しない。
 認証操作や失敗時のモデル切り替えは行わない。
+
+``-f`` は、利用者の allowlist（``~/.cursor/cli-config.json`` の ``permissions.allow``）に無いシェルのコマンドも確認なしで実行する。
+CLI のヘルプでは、明示的に拒否したもの（``permissions.deny``）は ``-f`` でも拒否される。
+``--sandbox disabled`` は、CLI のヘルプでは利用者の設定（``sandbox.mode``）を上書きする。
+利用者が対話用に sandbox を有効にしていても、``writes = false`` のロールは同じ起動になる。
+
+``--mode ask`` ・ ``--mode plan`` は使わない。
+どちらも read-only のモードで、シェルのコマンドを拒否する。
+#201 までは ``writes = false`` のロールを ``--mode ask`` で起動していたので、PR レビュー（``inspect``）・自己レビュー・修正の確認の担当は、pr-review ・ review-verify の helper（``review_run.py prepare`` ・ ``complete`` など）を実行できなかった。
+
+``--sandbox disabled`` を明示するのは、Cursor の sandbox が helper の書き込み先を拒否するからである。
+pr-review の helper は、親の checkout の ``reviews/`` の保存先、Git の共有ディレクトリ（保存のロック・レビュー用 worktree の登録）、uv のキャッシュに書き（``review_run.helper_write_exceptions``）、PR の取得に ``gh`` ・ ``git fetch`` でネットワークを使う。
+usaturn/agent-workspace#753 の観測（merge commit ``6e7b16e5e5de11e4beb711b4a5a84f5f274249e1`` の ``tools/agent_runner/runtimes/cursor.rst``）では、sandbox は worktree と ``/tmp`` の外・共有 ``.git`` ・ HOME の下への書き込みとネットワークを拒否した。
+同じ観測で ``-f`` のときは sandbox が掛からなかったが（``2026.10.18-ea085cb``）、この挙動は文書に無く版によって変わりうるので頼らない。
+この環境では sandbox の範囲を再観測していない。
+
+``writes = false`` は、runner が依頼の冒頭に書く指示（``This is an instruction, not a sandbox.``）であり、Cursor の sandbox や OS による書き込みの禁止ではない。
+claude-code ・ devin ・ pi も、``writes`` によらずシェルを使える起動である。
 
 ``role.skills`` は共有の ``prompt_lines`` で prompt に追加する。
 ``agent.skill_sources`` から最初に見つかった ``<source>/<name>/SKILL.md`` があれば、その絶対パスでの読み込みを指示する。
@@ -69,14 +89,29 @@ model は CLI が返す表示名である。
 開始イベント、引数だけのパス、部分読み込み、失敗、本文の言及、内容の欠落や不一致では記録しない。
 読み込みを確認できなければ空 map のままである。
 
+.. _agent_runner_cursor_limits:
+
+既知の制限
+==========
+
+- ``writes = false`` は runner の指示であり、Cursor の sandbox でも OS でも保証しない。
+  ``-f`` のため、担当はファイルを書き換えられる。
+  ほかの checkout の変更は、runner の ``outside_changes`` ・ ``checkout_audit`` が事後に報告するだけで、任意のパスへの書き込みは防がない。
+- ``-f`` でも、利用者が ``permissions.deny`` に書いたコマンドは拒否される（CLI のヘルプ）。
+  helper が使うコマンド（``uv`` ・ ``git`` ・ ``gh`` など）を拒否すると、PR レビューの担当は完了できない。
+- ``writes = true`` のロールには ``--sandbox`` を付けないので、sandbox の扱いは利用者の設定（``sandbox.mode``）と ``-f`` の挙動に従う。
+- ``--sandbox disabled`` の要否は usaturn/agent-workspace#753 の観測による。
+  この環境の利用者の設定は ``sandbox.mode = "disabled"`` なので、ここでの実機の確認は ``--sandbox disabled`` の効果を独立には確かめていない。
+
 .. _agent_runner_cursor_verification:
 
 検証と出所
 ==========
 
 この移植では偽 CLI による単体テストとランナー統合テストを実行する。
-実モデルへの接続と認証設定の変更は行っていない。
-この環境での実機の成功確認は未実施である。
+#201 の起動は、``prepare`` の単体テストと、偽 CLI が受け取った引数を返す runner の統合テストで確かめる。
+統合テストは、任意の名前の担当と fallback で起動した担当が、``inspect`` ・ ``self-review`` ・ ``fix-check`` の ``writes = false`` のロールで同じ起動になることを確かめる。
+認証設定の変更は行っていない。
 
 移植元は snapshot ``a47b2065fddad76b7475752fd0088af0733de204`` の同名アダプター、偽 CLI 、テストである。
 移植元の文書には 2026-10-07 UTC の ``2026.10.01-e373342`` による読み取り・指定 skill ・書き込みの実機記録があるが、この移植の成功実績とは区別する。

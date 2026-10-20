@@ -550,6 +550,14 @@ uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner \
 `run` はその担当を `unsupported` で返す。完了・停止の確かめ方は `.agents/monitoring-runtimes.md` の
 「agent-runner の同期実行と停止確認」にある。テストは偽の adapter・偽の CLI だけを使い、`uv run pytest tools` で実行する。
 
+runtime が `cursor` の担当（雛形の `cursor`・`cursor-grok47` と、同じ runtime の任意の名前の担当）は、`writes = false` の役割
+（`inspect`・`self-review`・`fix-check`）を `-f --sandbox disabled` で起動する（#201。`writes = true` の役割は今までどおり
+`-f` だけ）。シェルを使えるので、レビューの役割でも pr-review・review-verify の helper を実行できる。
+`writes = false` は claude-code・devin・pi と同じく runner の指示であって sandbox ではなく、ほかの checkout の変更は
+runner が `outside_changes` として事後に報告する。`~/.cursor/cli-config.json` の `permissions.deny` に helper が使う
+コマンドを書くと、`-f` でも拒否されて完了しない。起動の理由・実機の記録・既知の制限は
+[tools/agent_runner/runtimes/cursor.rst](../tools/agent_runner/runtimes/cursor.rst) にある。
+
 ### DSH headless レビュアー
 
 雛形の `dsh-ccd` は `COMMANDCODE_API_KEY`、`dsh-go` は `OPENCODE_API_KEY` を使う。
