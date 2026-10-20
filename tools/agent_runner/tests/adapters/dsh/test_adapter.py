@@ -172,6 +172,7 @@ def test_tmp_launch_script_and_shared_environment_are_visible_readonly(
 @pytest.fixture
 def parent_review(context: AdapterContext) -> dict[str, Any]:
     import hashlib
+    import shutil
     import subprocess
 
     root = context.work_dir.parent / "parent"
@@ -191,9 +192,14 @@ def parent_review(context: AdapterContext) -> dict[str, Any]:
     snapshot.write_text(json.dumps(document))
     neighbor = context.work_dir.parent / "host-neighbor"
     neighbor.write_text("host original")
+    # The profile hides /tmp and restores only the checkout's tools/, so a /tmp checkout's
+    # .agents/ is not visible; the attempt is restored read-only in both sandboxes.
+    helper = context.receipt_path.parent / "review_target.py"
+    shutil.copyfile(Path(__file__).resolve().parents[5] / ".agents/scripts/review_target.py", helper)
     parameters = {
         "parent_pr_data": {"path": str(snapshot), "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest()},
         "probe_neighbor": str(neighbor),
+        "probe_helper": str(helper),
     }
     context.request.prompt = "Review this PR.\n```json\n" + json.dumps(parameters) + "\n```\n"
     return {"snapshot": snapshot, "bundle": bundle, "root": root, "neighbor": neighbor, "parameters": parameters}
