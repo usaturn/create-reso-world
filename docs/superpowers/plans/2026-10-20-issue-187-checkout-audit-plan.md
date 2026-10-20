@@ -84,5 +84,5 @@ gpt-6.1-sol#M-1 の修正として、`workflow_checkout_scope` は workflow の�
 
 - 追加テスト: `test_self_override_does_not_use_retained_fallback_as_confinement_evidence`（DSH fallback 1 件・2 件）、`test_confined_primary_keeps_targeted_scope_with_a_retained_fallback`、`test_self_assignment_keeps_all_registrations_with_a_retained_dsh_fallback`
 - RED: 3 failed（0.54 秒）。GREEN: 対象 168 passed（33.56 秒）、関連 1351 passed（163.92 秒）、全体 3501 passed（1494.82 秒）、`run-tests.bash` 33 件、layout / `git diff --check` 成功
-- 自己レビュー・fix-check: `run_roles.py` の起動前監査が既存の prunable 2 件で止まるため未実施。登録の削除・repair はしていない
+- 自己レビュー・fix-check・マージ: 利用者の指示により行わない。prunable 2 件は利用者の指示で個別に `git worktree remove --force` し、起動前監査が 19 登録で成功することを確認した
 - Spec の更新: `docs/superpowers/specs/2026-10-20-issue-187-checkout-audit-spec.md` の「PR #210: 1 回目のレビュー修正」に判断と証拠を記録した
