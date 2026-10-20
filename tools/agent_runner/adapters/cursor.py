@@ -155,7 +155,8 @@ class _CursorAdapter:
         model = agent.model if agent.effort is None else f"{agent.model}[effort={agent.effort}]"
         argv = [*agent.command, "-p", "--output-format", "stream-json", "--trust"]
         # writes=false is only an instruction (#201): --mode ask/plan reject shell commands, and Cursor's sandbox
-        # blocks the review helpers' writes outside the worktree, so read-only roles get the shell with it off
+        # blocks the review helpers' writes outside the worktree, so read-only roles get the shell with it off.
+        # State --sandbox disabled: -f skipping the sandbox is undocumented and may change between versions
         argv += ["-f"] if context.role.writes else ["-f", "--sandbox", "disabled"]
         argv += ["--model", model, *agent.args]
         return LaunchSpec(tuple(argv), _prompt(context).encode("utf-8"))

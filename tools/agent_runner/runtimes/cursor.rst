@@ -32,14 +32,18 @@ prompt は標準入力に渡し、本文を引数には含めない。
 汎用の provider 選択引数は実装しておらず、``agent.provider`` の設定だけでは provider の選択を保証しない。
 認証操作や失敗時のモデル切り替えは行わない。
 
-``-f`` は、利用者の allowlist（``~/.cursor/cli-config.json`` の ``permissions.allow``）に無いシェルのコマンドも確認なしで実行する。
-CLI のヘルプでは、明示的に拒否したもの（``permissions.deny``）は ``-f`` でも拒否される。
-``--sandbox disabled`` は、CLI のヘルプでは利用者の設定（``sandbox.mode``）を上書きする。
-利用者が対話用に sandbox を有効にしていても、``writes = false`` のロールは同じ起動になる。
+次の 3 つは、#201 で ``2026.10.19-6bbf2c4`` の ``agent --help`` を読んで確かめた。
+
+- ``-f`` は、利用者の allowlist（``~/.cursor/cli-config.json`` の ``permissions.allow``）に無いシェルのコマンドも確認なしで実行する。
+  明示的に拒否したもの（``permissions.deny``）は ``-f`` でも拒否される。
+- ``--sandbox disabled`` は利用者の設定（``sandbox.mode``）を上書きする。
+  利用者が対話用に sandbox を有効にしていても、``writes = false`` のロールは同じ起動になる。
+- ``--mode ask`` ・ ``--mode plan`` は read-only のモードである。
 
 ``--mode ask`` ・ ``--mode plan`` は使わない。
-どちらも read-only のモードで、シェルのコマンドを拒否する。
-#201 までは ``writes = false`` のロールを ``--mode ask`` で起動していたので、PR レビュー（``inspect``）・自己レビュー・修正の確認の担当は、pr-review ・ review-verify の helper（``review_run.py prepare`` ・ ``complete`` など）を実行できなかった。
+#201 までは ``writes = false`` のロールを ``--mode ask`` で起動していた。
+usaturn/agent-workspace#753 の観測では、Ask mode でシェルのコマンドが拒否され、PR レビュー（``inspect``）の担当が pr-review の helper（``review_run.py prepare`` ・ ``complete``）を実行できずに PR 修正ループで rejected になった。
+この環境では #201 の前の起動での失敗を再現していない。
 
 ``--sandbox disabled`` を明示するのは、Cursor の sandbox が helper の書き込み先を拒否するからである。
 pr-review の helper は、親の checkout の ``reviews/`` の保存先、Git の共有ディレクトリ（保存のロック・レビュー用 worktree の登録）、uv のキャッシュに書き（``review_run.helper_write_exceptions``）、PR の取得に ``gh`` ・ ``git fetch`` でネットワークを使う。
