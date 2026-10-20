@@ -31,6 +31,9 @@ class LaunchSpec:
 class Capabilities:
     noninteractive: bool = True
     stdin: bool = True
+    # A trusted adapter guarantees all child filesystem writes stay in its
+    # owned attempt. This is not a configurable runtime/prompt permission.
+    confined_writes: bool = False
 
 
 @dataclass(frozen=True, slots=True)

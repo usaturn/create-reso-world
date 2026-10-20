@@ -21,6 +21,7 @@ from typing import TypedDict, cast
 
 from tools.agent_runner.adapters import Adapter, AdapterContext, LaunchSpec, load_adapter
 from tools.agent_runner.config import check_depth, validate_config
+from tools.agent_runner.checkout_policy import workflow_checkout_scope
 from tools.agent_runner.dsh_paths import review_exports, review_scratch
 from tools.agent_runner.environ import literal_environ, secret_values
 from tools.agent_runner.models import Attempt, BatchResult, Config, Identity, Payload, Receipt, Request, Result, State
@@ -320,7 +321,10 @@ def run_workflow(
     try:
         repository = repository.absolute()
         commit = resolve_revision(repository, revision)
+        required = workflow_checkout_scope(config, workflow, repository, adapter_loader=adapter_loader)
         before = snapshot_checkouts(repository)
+        if required is not None and not required.issubset(before):
+            raise WorkspaceError()
     except WorkspaceError:
         raise RunnerError("workspace") from None
     try:
@@ -367,6 +371,8 @@ def run_workflow(
         try:
             adapter = adapter_loader(agent.runtime)
             if adapter.capabilities.noninteractive is not True or adapter.capabilities.stdin is not True:
+                return finished("unsupported")
+            if required is not None and adapter.capabilities.confined_writes is not True:
                 return finished("unsupported")
         except Exception:
             return finished("unsupported")
@@ -599,7 +605,8 @@ def run_workflow(
         if all(result.state == "self" for result in results)
         else ("success" if successful == len(results) else "partial_success" if successful else "failed")
     )
-    checkout_audit = audit_checkouts(before)
+    observed = audit_checkouts(before)
+    checkout_audit = [finding for finding in observed if required is None or finding.path in required]
     return BatchResult(
         run_id=run_id,
         state=state,
@@ -607,6 +614,7 @@ def run_workflow(
         results=results,
         outside_changes=[finding.path for finding in checkout_audit],
         checkout_audit=checkout_audit,
+        unrelated_checkout_audit=[finding for finding in observed if required is not None and finding.path not in required],
         elapsed_seconds=time.monotonic() - started,
         artifact_dir=artifact_dir,
     )

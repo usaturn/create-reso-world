@@ -196,6 +196,24 @@ def launch(
     )
 
 
+def test_confined_implementation_does_not_block_on_unrelated_missing_registration(
+    inputs: tuple[dict[str, Any], Path, dict[str, Any]], tmp_path: Path,
+) -> None:
+    request, _, _ = inputs
+    repository = Path(request["repository"])
+    neighbor = tmp_path / "neighbor"
+    git(repository, "worktree", "add", "--detach", str(neighbor))
+    neighbor.rename(tmp_path / "moved")
+
+    class Confined(FakeAdapter):
+        capabilities = Capabilities(confined_writes=True)
+
+    batch = mod.run(config(), "implement", request, tmp_path / "run", adapter_loader=Confined())
+    assert batch.state == "success" and batch.outside_changes == [] and batch.checkout_audit == []
+    assert [item.path for item in batch.unrelated_checkout_audit] == [str(neighbor)]
+    assert str(neighbor) in git(repository, "worktree", "list", "--porcelain")
+
+
 SELF_REVIEW, FIX_CHECK = " (self-review role only)", " (fix-check role only)"
 
 

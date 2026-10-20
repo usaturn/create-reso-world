@@ -36,13 +36,13 @@ from tools.agent_runner import (  # noqa: E402
     run_workflow,
 )
 from tools.agent_runner.adapters import Adapter, load_adapter  # noqa: E402
+from tools.agent_runner.checkout_policy import require_auditable_workflow  # noqa: E402
 from tools.agent_runner.config import validate_config  # noqa: E402
 from tools.agent_runner.models import BatchResult, CheckoutAudit  # noqa: E402
 from tools.agent_runner.workspace import (  # noqa: E402
     CheckoutAuditError,
     WorkspaceError,
     git_common_dir,
-    require_auditable_checkouts,
     resolve_revision,
 )
 
@@ -302,7 +302,7 @@ def dispatch(
                 raise ValueError("revision is not a commit")
     except WorkspaceError:
         raise ValueError("repository/from/to cannot be resolved") from None
-    require_auditable_checkouts(repository)
+    require_auditable_workflow(config, "fix", repository, adapter_loader=adapter_loader)
     try:
         raw: object = json.loads(Path(data.verified_file).read_text(encoding="utf-8"))
     except json.JSONDecodeError:

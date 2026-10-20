@@ -199,7 +199,7 @@ def _classify(events: list[dict[str, object]], shape: str) -> tuple[ReceiptStatu
 
 
 class Dsh:
-    capabilities = Capabilities()
+    capabilities = Capabilities(confined_writes=True)
 
     def prepare(self, context: AdapterContext) -> LaunchSpec:
         agent = context.agent

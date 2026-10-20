@@ -223,7 +223,22 @@ def snapshot_checkouts(repository: Path) -> CheckoutSnapshot:
     return result
 
 
-def require_auditable_checkouts(repository: Path) -> CheckoutSnapshot:
+def protected_checkout_paths(repository: Path) -> frozenset[str] | None:
+    """Protect the main and caller checkout; bare repositories keep a full audit."""
+    first = _git(repository, "worktree", "list", "--porcelain", "-z").split(b"\x00\x00", 1)[0]
+    fields = first.split(b"\x00")
+    if b"bare" in fields:
+        return None
+    main = next((field[len(b"worktree ") :] for field in fields if field.startswith(b"worktree ")), None)
+    if main is None:
+        raise WorkspaceError()
+    root = _git(repository, "rev-parse", "--path-format=absolute", "--show-toplevel").rstrip(b"\n")
+    return frozenset((os.fsdecode(main), os.fsdecode(root)))
+
+
+def require_auditable_checkouts(
+    repository: Path, *, required_paths: frozenset[str] | None = None,
+) -> CheckoutSnapshot:
     """Preflight for strict consumers; never repair, prune, reserve or launch."""
     try:
         snapshot = snapshot_checkouts(repository)
@@ -231,8 +246,15 @@ def require_auditable_checkouts(repository: Path) -> CheckoutSnapshot:
         raise CheckoutAuditError(
             [CheckoutAudit(path=str(repository), kind="unavailable_before", reason=error.reason)]
         ) from None
-    if snapshot.failures:
-        raise CheckoutAuditError([snapshot.failures[path] for path in sorted(snapshot.failures)])
+    required = set(snapshot) if required_paths is None else required_paths
+    failures = [
+        snapshot.failures.get(path)
+        or CheckoutAudit(path=path, kind="unavailable_before", reason="audit_unavailable")
+        for path in sorted(required)
+        if snapshot.get(path) is None
+    ]
+    if failures:
+        raise CheckoutAuditError(failures)
     return snapshot
 
 

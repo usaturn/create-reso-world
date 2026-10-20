@@ -36,13 +36,13 @@ from tools.agent_runner import (  # noqa: E402
     run_workflow,
 )
 from tools.agent_runner.adapters import Adapter, load_adapter  # noqa: E402
+from tools.agent_runner.checkout_policy import require_auditable_workflow  # noqa: E402
 from tools.agent_runner.config import validate_config  # noqa: E402
 from tools.agent_runner.models import BatchResult  # noqa: E402
 from tools.agent_runner.workspace import (  # noqa: E402
     CheckoutAuditError,
     WorkspaceError,
     git_common_dir,
-    require_auditable_checkouts,
     resolve_revision,
 )
 
@@ -342,7 +342,7 @@ def run(
         if not data.prompt.get(role, "").strip():
             raise RoleInputError("each selected role needs a complete prompt")
         role_prompts[role] = data.prompt[role]
-    require_auditable_checkouts(repository)
+    require_auditable_workflow(selected, "fix", repository, adapter_loader=adapter_loader)
     # 1 回枠の予約より前に求める。求められなければ枠を消費せずに止まる
     exceptions = write_exceptions(selected, data) if phase == "self-review" else ()
     context = None

@@ -16,6 +16,7 @@ from tools.agent_runner.models import Agent, Assignment, Config, Role, Workflow
 from tools.agent_runner.process import ProcessResult
 from tools.agent_runner.runner import run_workflow
 from tools.agent_runner.tests.test_runner import set_when, written
+from tools.agent_runner.tests.test_workspace import git
 
 pytest_plugins = ("tools.test_support.plugin",)
 # Only fake agents are launched here; drop AGENT_RUNNER_DEPTH inside each test so a runner agent can run them
@@ -139,6 +140,57 @@ def test_native_process_has_private_tmp_and_readonly_attempt_metadata(
     assert Path(capture["scratch"]).joinpath("native.txt").read_text() == "native output"
     assert Path(capture["scratch"]).joinpath("helper.txt").read_text() == "helper output"
     assert Path(capture["exports"]).joinpath("native.txt").read_text() == "native output"
+
+
+@pytest.mark.parametrize("target", ["main", "feature", "neighbor", "git", "host-tmp"])
+def test_scoped_dsh_cannot_modify_protected_or_unrelated_host_paths(
+    config: Config, repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str,
+) -> None:
+    from tools.agent_runner.workspace import create_worktree
+
+    feature = create_worktree(repository, "HEAD", tmp_path / "feature")
+    neighbor = create_worktree(repository, "HEAD", tmp_path / "neighbor")
+    host_tmp = tmp_path / "host-tmp.txt"
+    host_tmp.write_text("host temporary data")
+    protected = {
+        "main": repository / "README.md",
+        "feature": feature / "README.md",
+        "neighbor": neighbor / "README.md",
+        "git": repository / ".git" / "config",
+        "host-tmp": host_tmp,
+    }[target]
+    before = protected.read_bytes()
+    monkeypatch.setitem(environ._literal, "FAKE_HOST_TARGET", str(protected))
+    monkeypatch.setitem(environ._literal, "FAKE_HOST_PID", str(os.getpid()))
+    config.agents["a"].env.extend(("FAKE_HOST_TARGET", "FAKE_HOST_PID"))
+    config.agents["a"].command[-1] = "native-fence"
+    batch = run_workflow(config, "test", "respond", feature, output_dir=tmp_path / "run")
+    attempt = batch.results[0].attempts[0]
+    assert attempt.state == "success" and attempt.stop_confirmed
+    assert protected.read_bytes() == before
+    assert batch.outside_changes == [] and batch.unrelated_checkout_audit == []
+    assert attempt.work_dir is not None
+    assert git(attempt.work_dir, "rev-parse", "HEAD") == git(feature, "rev-parse", "HEAD")
+
+
+def test_real_dsh_keeps_parallel_edit_as_observation(
+    config: Config, repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.agent_runner.workspace import create_worktree
+
+    neighbor = create_worktree(repository, "HEAD", tmp_path / "neighbor")
+    original = runner.snapshot_checkouts
+
+    def snapshot(root: Path) -> Any:
+        before = original(root)
+        # This is a write by another controller, outside the sandboxed child.
+        (neighbor / "README.md").write_text("another session's edit")
+        return before
+
+    monkeypatch.setattr(runner, "snapshot_checkouts", snapshot)
+    batch = run_workflow(config, "test", "respond", repository, output_dir=tmp_path / "run")
+    assert batch.state == "success" and batch.outside_changes == []
+    assert [item.path for item in batch.unrelated_checkout_audit] == [str(neighbor)]
 
 
 def test_dsh_output_ancestor_symlink_is_rejected(
