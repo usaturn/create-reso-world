@@ -224,7 +224,7 @@ Codex テストの隔離 helper と外側 pytest は、private `/tmp` の後に�
 | --- | --- | --- | --- | --- | --- |
 | R-1 | postCreate が全手順を完了する | Dev Containers のログ（postCreateCommand の出力） | `[install_beforehand] [25/25] Installing Herdr` まで進み、エラーで止まっていない | （記録なし） | 利用者が Dev Containers のログで、`[install_beforehand] [25/25] Installing Herdr` までエラーで止まらずに進んだことを確かめた。コンテナ内でも `herdr` が配置され、`herdr --version` は `herdr 0.9.3` を返す |
 | R-2 | dsh と Grok Build の mount が無い（#151 でも維持） | `/home/vscode` 配下の mount の数と、`.dsh`・`.grok` の mount（R-2 のコマンド） | 現行 devcontainer.json の mount 数に一致し、`.dsh`・`.grok` は無い（過去の 12 件は右の実測列） | 14 件。`~/.dsh`・`~/.grok` がある | 12 件。`.dsh`・`.grok` は無い |
-| R-3 | #151 で DSH headless CLI だけを導入し、Grok Build・pnpm の追加導入・3080 は無し | `dsh --version`、`grok` のコマンド、npm の大域パッケージの `pnpm`、`pnpm` の実体（R-3 のコマンド）と、VS Code の「ポート」 | `dsh --version` が `0.2.0-rc.2`。Grok Build は無し。npm の大域パッケージに pnpm は無い。corepack の pnpm shim は残ってよい。3080 は転送しない。headless の実機起動は別途 #151 に記録する | `dsh` がある。`grok` は無い。`pnpm` は npm の大域パッケージ（`pnpm@12.4.1`） | `dsh`・`grok` は無い。npm の大域パッケージは `(empty)`。`pnpm` は `corepack/dist/pnpm.js` の shim。`forwardPorts` は `[8000]` で、3080 で待ち受けるプロセスは無い（VS Code の「ポート」の表示は見ていない） |
+| R-3 | #151 で DSH headless CLI だけを導入し、Grok Build・pnpm の追加導入・3080 は無し | `dsh --version`、`grok` のコマンド、npm の大域パッケージの `pnpm`、`pnpm` の実体（R-3 のコマンド）と、VS Code の「ポート」 | `dsh --version` が `0.2.1-rc.2`（#209 で更新）。Grok Build は無し。npm の大域パッケージに pnpm は無い。corepack の pnpm shim は残ってよい。3080 は転送しない。headless の実機起動は別途 #175 に記録する | `dsh` がある。`grok` は無い。`pnpm` は npm の大域パッケージ（`pnpm@12.4.1`） | `dsh`・`grok` は無い。npm の大域パッケージは `(empty)`。`pnpm` は `corepack/dist/pnpm.js` の shim。`forwardPorts` は `[8000]` で、3080 で待ち受けるプロセスは無い（VS Code の「ポート」の表示は見ていない） |
 | R-4 | 廃止した環境変数が新しいシェルに無い | 新しいシェルの環境変数の名前（R-4 のコマンド。値は表示しない） | 何も出ない（`MAAS_ANTHROPIC_TOKEN` は `env` から消した場合）。残っていれば変数名だけが出て、値は出ない | `PI_DISTILL_*` の 3 つ、`PI_EXTENSIONS_LOCALE`、`MAAS_ANTHROPIC_TOKEN` がある | `MAAS_ANTHROPIC_TOKEN` だけが出る。利用者が rebuild の後に `~/.zshrc` の末尾へ手動で書き戻した `export` 行によるもので、リポジトリの設定からではない。`PI_DISTILL_*`・`PI_EXTENSIONS_LOCALE` は無い |
 | R-5 | 撤去した拡張が残らず、設定とモデルが残る | `pi list --no-approve`（プロジェクトの trust を問わない）、pi 管理の npm マニフェストの依存、settings の `extensions`、`models.json` の provider（R-5 のコマンド） | `pi-mcp-adapter`・`@upstash/context7-pi`・`pi-distill`・`pi-extensions-tool-display`・`pi-extensions-i18n` が無い。`extensions` に `-builtin:mcp` が無い。provider は rebuild 前と同じ | `@upstash/context7-pi` が登録され、npm マニフェストにもある。`extensions` は空。provider は `commandcode`・`deepinfra`・`deepinfra-distill`・`opencode-go` | 5 つの拡張は `pi list` にも npm マニフェストにも無い。`extensions` は `[]`。provider は `commandcode`・`deepinfra`・`deepinfra-distill`・`opencode-go` で rebuild 前と同じ |
 | R-6 | バックアップは変更が必要なときだけ作られる | バックアップの一覧を見て、cleanup を再実行してから同じ一覧を見る（R-6 のコマンド） | rebuild で 1 つ作られ（rebuild 前に `@upstash/context7-pi` があるため）、再実行では増えない | `migration-backups` は無い | rebuild で `pi-retired-u1wtbqna` が 1 つ作られ、cleanup の再実行（終了コード 0）では増えない |
@@ -244,7 +244,8 @@ Codex テストの隔離 helper と外側 pytest は、private `/tmp` の後に�
 R-2 の期待値は共有 `~/.dsh` の mount 無しを維持し、R-3 の期待値は CLI の固定版だけを再導入する判断に更新した。
 右の rebuild 前後の実測列は 2026-10-05 の履歴のままであり、#151 の再検証結果ではない。
 利用者が rebuild した後に `dsh --version` と、使い捨て対象に対する `dsh-ccd` の 1 回の短い依頼を runner で確認し、
-payload と観測したモデルを #151 に記録する。現時点では未実施。手順は `.devcontainer/README.md` の「DSH headless レビュアー」。
+payload と観測したモデルを #175 に記録し、#151 からも辿れるようにする。現時点では未実施。手順は `.devcontainer/README.md` の「DSH headless レビュアー」。
+#209 で固定版を `0.2.1-rc.2` に上げ、R-3 の期待値と記録先を合わせた。
 
 ### 確認のコマンド
 

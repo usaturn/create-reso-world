@@ -25,7 +25,7 @@
 - アダプター（`tools/agent_runner/adapters/dsh.py`）の patch・正規表現・判定、`dsh_identity.py`、fixture の内容は変えない（D-209-2・D-209-4）
 - テストを足さない（コードの挙動を変えないため。`AGENTS.md` の「テストの採用基準」。版の値をテストに写さない）
 - 実 API・実 key・共有 `~/.dsh` を使わない。今のコンテナの大域の `dsh` を入れ替えない
-- `docs/maatlog-poc-porting.md` の R-3 の行は書き換えない（D-209-7）
+- `docs/maatlog-poc-porting.md` の R-3 は期待値と記録先だけを合わせ、rebuild 前後の実測列は書き換えない（D-209-7）
 
 ## Review Focus
 
@@ -90,11 +90,11 @@
 **Files:**
 - Modify: `tools/agent_runner/adapters/dsh.py:45`（`# DSH 0.2.0-rc.2: dsh-tools.serviceAsk / dsh-sandbox.approveEscalation,`）
 - Modify: `tools/agent_runner/tests/adapters/dsh/test_adapter.py:629`（文面の由来）・`:844`〜`:845`（fixture の由来）
-- Modify: `docs/maatlog-poc-porting.md:108`（比較表の DSH の行）
+- Modify: `docs/maatlog-poc-porting.md:108`（比較表の DSH の行）・`:227`（R-3）・`:244`〜`:247`（「#151 の DSH headless の確認で変わる点」）
 
 - [ ] **Step 1:** `dsh.py:45` のコメントを、`0.2.0-rc.2` と `0.2.1-rc.2` で同じ文面であることが分かる形にする（例: `# DSH 0.2.0-rc.2 and 0.2.1-rc.2 (unchanged): dsh-tools.serviceAsk / dsh-sandbox.approveEscalation,`）。他の行は変えない
 - [ ] **Step 2:** `test_adapter.py:629` を同じ形にする。`:844` の fixture の由来は、`0.2.0-rc.2` で生成したことを残し、`0.2.1-rc.2` の実 CLI（直接と PTC）でアダプターが読む 1 行目が同じことを確かめた旨を 1 行足す
-- [ ] **Step 3:** `docs/maatlog-poc-porting.md:108` の理由の列の末尾に「#209 で `0.2.1-rc.2` に上げた（現在の版と手順は `.devcontainer/README.md`）」を足し、担当 Issue の列を `#151・#209` にする。R-3 は変えない
+- [ ] **Step 3:** `docs/maatlog-poc-porting.md:108` の理由の列の末尾に「#209 で `0.2.1-rc.2` に上げた（現在の版と手順は `.devcontainer/README.md`）」を足し、担当 Issue の列を `#151・#209` にする。R-3 の期待値の `dsh --version` を `0.2.1-rc.2`、実機の記録先を #175 にし、「#151 の DSH headless の確認で変わる点」の節にも書く。実測列は変えない（最終レビューの指摘で追加。ledger の Final: Ruling）
 - [ ] **Step 4:** `git diff -U0` で、`dsh.py`・`test_adapter.py` の変更がコメント行だけであることを確かめる
 - [ ] **Step 5:** `uv run pytest tools/agent_runner/tests/adapters/dsh -q` を実行する。期待: 283 passed
 - [ ] **Step 6:** commit する（3 ファイル、メッセージ `docs: record DSH 0.2.1-rc.2 provenance (#209)`）
