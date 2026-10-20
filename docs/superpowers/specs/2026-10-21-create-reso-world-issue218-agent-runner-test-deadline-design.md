@@ -31,7 +31,8 @@
   - `test_review_regressions.py`: `test_success_receipt_survives_cli_immediate_exit_with_child` は `configuration(deadline=10)` を明示し、60 秒の子を待つ runner を期限切れで落とす
 - 既定の期限を使う中断のテスト（`test_cancel_during_run_prevents_fallback`・`test_preexisting_cancel_launches_nothing`・`test_cancel_at_preparation_completion_retains_log_paths`）は、cancel で止めて `interrupted` を確かめる。期限には頼らない。負荷で 5 秒を越えると `interrupted` の代わりに `timed_out` になりうる
 - 既定の期限に頼って時間切れを確かめるテストは、静的に探した範囲では無い（`timed_out` を期待するテストはどれも上のとおり期限を明示する）。変更の後に所要時間で確かめる（設計の 3）
-- 補助の外にある 5 秒: `test_process.py` で `execute(..., deadline_seconds=5)` を直接呼ぶ 3 か所（`test_stdin_quotes_multiline_cwd_and_environment_are_literal`、環境変数の受け渡しのテスト、`test_already_cancelled_does_not_spawn`。最後のものは起動しない）と、`test_cli.py` の TOML の `deadline_seconds = 5`（agent の command は `never-invoke-this-command` で、起動しない）
+- 補助の外にある 5 秒: `test_process.py` で `execute(..., deadline_seconds=5)` を直接呼ぶ 3 か所（`test_stdin_quotes_multiline_cwd_and_environment_are_literal`、環境変数の受け渡しのテスト、`test_already_cancelled_does_not_spawn`。最後のものは起動しない）
+- `test_cli.py` の `_TEMPLATE`（`template` fixture が書く TOML）の `deadline_seconds = 5`: 最初の版は「agent の command は `never-invoke-this-command` で、起動しない」と書いたが、最終レビュー（I-1）の指摘で誤りと分かった。`run_echo` は pi の adapter を `EchoAdapter` に差し替えて本物の `run_workflow` を通し、この役割の期限の中で `git worktree add` と Python の子を起動する（`template` fixture は個人設定を存在しないパスにするので、期限は TOML の値のまま）。該当するのは `test_write_exceptions_follow_the_work_scope_lines_in_order`（2 回実行）と `test_invalid_write_exceptions_are_rejected_before_any_output[valid]` の 2 件で、期限を一時的に 0.1 秒にすると 2 件とも `failed` になる。`test_cli.py` で時間切れを確かめるのは after_run の hook（`AFTER_RUN_DEADLINE_SECONDS` を 0.5 秒に差し替え）だけで、TOML の期限には頼らない（`run_audit` は `run_workflow` を `fake_run` に差し替える）
 - 変更の前の基準（負荷の低い状態（load average 0.5〜0.9）で `uv run pytest tools/agent_runner --durations=40` を 1 回）: 1056 passed、77.79 秒。所要時間の上位 7 件は、期限 3 秒を明示した時間切れ・中断のテスト（3.01〜3.66 秒。`test_checkout_preparation_is_supervised[late_cancel]`・`[none]`、`test_deadline_kills_term_resistant_leader[True]`・`[False]` など）で、その次は 1.00 秒以下。ログは `/workspaces/reso-world/tmp/agents/issue-218.4_mv9dka/baseline-agent-runner.log`
 
 ## 設計
@@ -39,6 +40,7 @@
 ### 1. 2 つの補助の既定の期限を 30 秒にする
 
 - `configuration()` の `deadline: float = 5.0` を `30.0` に、`run()` の `deadline: float = 5` を `30` にする
+- `test_cli.py` の `_TEMPLATE` の `deadline_seconds = 5` も `30` にする（最終レビューの I-1 で追加。D-218-3）
 - それぞれの補助に、既定の期限は止まらなくなった実行の上限にすぎず、負荷の高いホストでは準備と起動だけで伸びること（#218）、期限そのものを確かめるテストは短い期限を明示することを、短いコメントで書く。周りのテストが期限の選び方をコメントで説明している書き方に合わせる
 
 ### 2. 時間切れ・中断を確かめるテストは変えない
@@ -65,10 +67,11 @@
   - 別案: 中断のテストにも期限を明示する
   - 理由: 利用者の決定。cancel で止める中断のテストは期限に頼らず、既定の期限が長いほど負荷に強くなる
   - 委任指示: 利用者の決定（上の引用の 2 項目め）
-- **D-218-3 補助の外にある 5 秒は変えない**
-  - 選択: `test_process.py` で `execute` を直接呼ぶ 3 か所と、`test_cli.py` の TOML の `deadline_seconds = 5` を変えない
-  - 別案: これらも 30 秒にする
-  - 理由: 利用者の決定は 2 つの補助の既定の期限に限る。これらは個々のテストが明示した値で、#218 の実際の発生には含まれない。`test_cli.py` の agent と `test_already_cancelled_does_not_spawn` は子プロセスを起動しない。負荷で切れることが分かったら、別の Issue の候補として扱う（PR に持ち越し候補として書く）
+- **D-218-3 `test_cli.py` の `_TEMPLATE` は 30 秒にし、`execute` を直接呼ぶ 5 秒は変えない（最終レビューの後に変更）**
+  - 選択: `test_cli.py` の `_TEMPLATE` の `deadline_seconds = 5` を `30` にする。`test_process.py` で `execute` を直接呼ぶ 3 か所の 5 秒は変えない
+  - 別案: (a) どちらも変えない（最初の版の選択）、(b) どちらも 30 秒にする
+  - 理由: `_TEMPLATE` は `template` fixture が書くテストの補助の既定の設定で、`run_echo` の 2 件は 2 つの補助と同じ仕組み（worktree の作成と子の起動が負荷で 5 秒を越える）で切れうる（「確認した事実」）。利用者の決定（補助の既定の期限を 30 秒にする）の趣旨のとおりで、時間切れを確かめるテストは TOML の期限に頼らない。(a) は、最初の版が「起動しない」という誤った事実に基づいて選んだもので、最終レビュー（I-1）の指摘で改めた。`execute` を直接呼ぶ 5 秒は、個々のテストが明示した値で、補助の既定ではなく、#218 の実際の発生にも含まれない。`test_already_cancelled_does_not_spawn` は子プロセスを起動しない。負荷で切れることが分かったら、別の Issue の候補として扱う（PR に持ち越し候補として書く）
+  - 委任指示: 推奨案（エージェントの判断。利用者の決定の範囲を狭めも広げもしない補助の既定値の追加）
 - **D-218-4 テストを足さない**
   - 選択: 実行して確かめる（設計の 3）。テストのコードは補助の既定値とコメントだけを変える
   - 別案: (a) 既定値が 30 秒であることを確かめるテスト、(b) 所要時間を確かめるテスト
@@ -85,7 +88,7 @@
 
 ## 受け入れ条件
 
-1. `configuration()` と `run()` の既定の期限が 30 秒になり、時間切れ・中断を確かめるテストの明示の期限は変わらない（`git diff` で確かめる）
+1. `configuration()` と `run()` の既定の期限と、`test_cli.py` の `_TEMPLATE` の役割の期限が 30 秒になり、時間切れ・中断を確かめるテストの明示の期限は変わらない（`git diff` で確かめる）
 2. 変更の後の `uv run pytest tools/agent_runner` が通り、時間切れ・中断のテストの所要時間が基準と同程度で、既定の 30 秒まで待つテストが無い
 3. 別の pytest を並行で動かした状態で、`uv run pytest tools/agent_runner` を 3 回実行し、3 回とも期限切れの失敗が出ない
 4. `README.md` の「テスト」の入口（ワールドの行を除く）が、変更の前の基準と同じ結果になる
@@ -93,7 +96,7 @@
 ## 範囲外
 
 - runner・process の本体（`tools/agent_runner/` のテスト以外）の変更
-- 補助の外にある 5 秒（D-218-3）と、adapter のテストの期限
+- `test_process.py` で `execute` を直接呼ぶ 5 秒（D-218-3）、時間切れを確かめないテストが明示した短い期限（`test_workspace.py` の 3 秒など。最終レビューの M-1、PR の持ち越し候補）、adapter のテストの期限
 - #128（一括実行で不安定に失敗する別のテスト）と、`tools/devenv_migration/tests/test_pi_agent_paths.py` の subprocess の 20 秒の期限切れ（Issue が対象外とした）
 - CI（`AGENTS.md` の「GitHub Actions」）
 

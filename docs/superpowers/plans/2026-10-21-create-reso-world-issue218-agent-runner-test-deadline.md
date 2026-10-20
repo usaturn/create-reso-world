@@ -15,9 +15,9 @@
 
 ## Global Constraints
 
-- 既定の期限: `tools/agent_runner/tests/test_runner.py` の `configuration(..., deadline: float = 30.0, ...)`、`tools/agent_runner/tests/test_process.py` の `run(..., deadline: float = 30, ...)`
+- 既定の期限: `tools/agent_runner/tests/test_runner.py` の `configuration(..., deadline: float = 30.0, ...)`、`tools/agent_runner/tests/test_process.py` の `run(..., deadline: float = 30, ...)`。最終レビューの I-1 で、`tools/agent_runner/tests/test_cli.py` の `_TEMPLATE` の `deadline_seconds = 30` を追加した（Spec の D-218-3）
 - 明示している期限（3・4・6・8・10 秒、cancel の場合の 60 秒）は変えない
-- 補助の外にある 5 秒（`test_process.py` で `execute` を直接呼ぶ 3 か所、`test_cli.py` の TOML）は変えない（Spec の D-218-3）
+- `test_process.py` で `execute` を直接呼ぶ 3 か所の 5 秒は変えない（Spec の D-218-3）
 - runner・process の本体（`tools/agent_runner/` のテスト以外）は変えない
 - テストを足さない（Spec の D-218-4）
 - ログ・検証の記録は worktree の外の `/workspaces/reso-world/tmp/agents/issue-218.4_mv9dka/` に置く（`AGENTS.md` の「コミットしないファイルの置き場所」）
@@ -29,7 +29,7 @@
 1. 既定の期限に頼って時間切れを確かめるテストがあれば、30 秒待つか、時間切れにならずに落ちる → Task 1 の Step 3 の所要時間の比較で、30 秒近いテストが無いことと、時間切れのテストが基準（3.01〜3.66 秒）と同程度であることを確かめる
 2. `configuration` を import する別のファイル（`test_review_regressions.py`・`test_checkout_policy.py`）も新しい既定を使う → Task 1 の Step 3 は `tools/agent_runner` 全体を実行するので、両方を含む
 3. cancel で止める中断のテスト（`test_cancel_during_run_prevents_fallback` など）で cancel が来ないと、失敗までの待ちが 5 秒から 30 秒に伸びる → 失敗するときだけの影響。Task 2 の負荷の下で `interrupted` のまま通ることを確かめる
-4. 負荷の下で、補助の外にある 5 秒のテストが期限切れになる → Task 2 で確かめ、起きたら下の Contingency に従う
+4. 負荷の下で、補助の外にある 5 秒のテストが期限切れになる → Task 2 で確かめ、起きたら下の Contingency に従う（最終レビューの I-1 で、`test_cli.py` の `_TEMPLATE` の 5 秒は補助の既定と同じ仕組みと分かり、30 秒にした）
 5. 30 秒でも足りない負荷 → Task 2 の各回の load average と `--durations` の上位を記録し、余裕を示す
 
 ## 要件と Task の対応（実装前の照合）
