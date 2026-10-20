@@ -2,10 +2,11 @@
 
 - 文書管理・対象: `usaturn/create-reso-world`、Issue #196（ラベル `bug`。親 Issue・依存なし。重複の #197 は統合済みで close）
 - 基準 HEAD: `d29c93c1`（`origin/main`、2026-10-20）。Issue が指す `b65ef0c` から `.agents/skills/review-fix-planning/`・`.agents/skills/pr-review-fix-loop/`・`.agents/scripts/review_records.py` に変更は無い
-- 状態: `draft`。内容の承認は記録しない
+- 状態: `completed`。実装と PR #203 のレビュー確認を完了した。内容の承認は記録しない
 - 実行許可: 利用者が 2026-10-20 に `/issue-to-pr #196` と指示した。issue-to-pr の規則により、通常の設計判断を推奨案で決め、検証・commit・push・PR の作成まで続ける（マージはしない）。これは実行の許可であり、この文書の内容の承認ではない。以下の判断は、確認を取らずに決めたエージェントの判断である
 - 実装の担当: `implement_task.py check` の出力は `assignment={"agents": ["self"], "fallback": []}`、`self=true`。雛形 `.devcontainer/agent-runner.toml` の既定の適用で（個人設定の `workflows.issue` はコメントアウトされている）、利用者の指定ではない
 - Plan: `docs/superpowers/plans/2026-10-20-create-reso-world-issue196-finalize-verified-base.md`
+- レビュー後の実行許可: 利用者の 2026-10-20 の `$review-fix-planning #203` により、指摘の確認・採否・必要な修正と、修正不要の場合のマージ・関連 Issue の更新まで進める。上の issue-to-pr の実行許可とは別に記録する
 
 ## 意図
 
@@ -159,7 +160,7 @@ review-fix-planning の結論 2（修正不要としてマージ）は、手順 
 - `.agents/review-records.md`・`review_records.py`・`upsert_pr_comment.py`・`loop.py` のコード
 - 公開 CI の結果が古い base で出ていること（resoloop の CI の再実行の扱い）
 
-## 要件と経路の対応
+## 要件と経路の対応（実装前の判断）
 
 | 経路 | 判定 | 観測する結果と確かめ方 |
 | --- | --- | --- |
@@ -174,3 +175,74 @@ review-fix-planning の結論 2（修正不要としてマージ）は、手順 
 | `SKILL.md` の結論 2・合理化・Red flags | 修正する | 差分を読み、手順 2・5・6・7、やり直しの上限、補足の形が D-1〜D-8 と一致することを確かめる（A-3） |
 | `references/execution.md` の 3 章 | 修正する | 3.1〜3.5 が `finalize.py` の実装（キー・時点・結果）と一致することを、差分とテストの対応で確かめる（A-3・A-4） |
 | PR 修正ループ | 修正する（文書だけ） | `pr-review-fix-loop/SKILL.md` の 3 か所が手順 7 と食い違わないことを差分で確かめる。`loop.py` の `cycle_end` が結果の余分なキーを拒否しないことはコードで確かめた（A-3） |
+
+## PR #203 のレビュー確認（2026-10-20、サイクル 1）
+
+### 対象と入力
+
+- PR: <https://github.com/usaturn/create-reso-world/pull/203>
+- レビュー対象 HEAD: `3d4ab76c0b3445ad7ac5b08172b984b269e34abe`
+- 差分の基準（merge-base）: `d29c93c12a817ca45cb8d0eb918a0a07615916ce`
+- 最新 main: `6c2259b91e726a75f9d088e005f2bfac9d523561`
+- HEAD と最新 main を merge した検証用の tree: `8e318e7f0236c3c7a74d53519d338ec56f100257`。競合なし。この merge は公開しない
+- planner: `gpt-6-astra` / `codex`。実行中のセッション記録でモデル・ランタイムを確認した
+- レビュー入力: `reviews/usaturn/create-reso-world/#203-fix-issue-196-finalize-verified-base/`。対応する候補 JSON・実行記録の形式、組み合わせ、本文と候補の SHA256 を照合した
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | 今回の入力として再実行済み | 判定 | 指摘 / 未確認候補 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Grok-4.7.md` | `Grok 4.7` | `cursor` | `3d4ab76c0b34` | はい | Approve | 0 / 0 |
+| `SWE-2-Max.md` | `SWE-2 Max` | `devin` | `3d4ab76c0b34` | はい | Approve | 0 / 0 |
+| `claude-opus-5-5.md` | `claude-opus-5-5` | `claude-code` | `3d4ab76c0b34` | はい | Approve | 0 / 0 |
+| `gpt-6.1-sol.md` | `gpt-6.1-sol` | `pi` | `3d4ab76c0b34` | はい | Approve | 0 / 0 |
+
+ここでの「再実行済み」は、この HEAD を対象とした保存済みレビューを今回の入力に採用したことを指す。planner が 4 モデルを起動し直したわけではない。前のサイクルの判断記録・引き継ぐ指摘・除外したレビューファイルは無い。
+
+### 採否と確認範囲
+
+- 解消済み 0 件、対応する 0 件、対応しない 0 件。入力候補が無く、確認中にも PR が持ち込んだ致命的な欠陥は見つからなかった
+- 結論 2（修正不要としてマージする）。既存の D-1〜D-11 を変える必要は無く、設計の見直しのきっかけに当たる項目も無い
+- 変更 7 ファイルの全文と全体差分を確認した。関連する `upsert_pr_comment.py`・`review_records.py` の投稿と記録の照合、`loop.py` の `FinalizePart`・`_read_finalize`・`cycle_end` とテストも確認した
+- 補助エージェント `pr203_related` は、変更された文書 5 件と関連処理・テストを独立して読み、追加の問題なしと報告した。終了を確認済み
+- 実装コードの追加修正は無い。`run_roles.py` の implement・self-review・fix-check は未実施（呼び出し 0 回）。修正後の自己レビューを実施したという扱いにはしない
+- 最後の base 照合から GitHub がマージを処理するまでの競合は D-9 の既知の制限として残る。PR 本文にも記載済み。PR 本文に残る過去のレビューの軽微な項目は、今回の入力候補に数えない
+
+### 実行した検証
+
+次の 3 コマンドを、clean な PR の HEAD と、最新 main を取り込んだ一時 worktree の両方で実行した。すべて終了コード 0 を確認した。
+
+| コマンド | PR の HEAD | 最新 main との merge ツリー |
+| --- | --- | --- |
+| `bash .devcontainer/run-tests.bash` | 33 本 PASS | 33 本 PASS |
+| `bash scripts/check-layout.sh` | PASS | PASS |
+| `uv run pytest tests/skills .agents/skills` | 1,454 passed | 1,491 passed |
+
+| 条件・経路 | 現行 HEAD で確認した証拠 |
+| --- | --- |
+| A-1・A-2: 入力、投稿の前、マージの直前、base 前進後の再実行 | 上の pytest に含まれる `test_finalize.py` 140 件が両ツリーで成功。偽の `gh` で正常時のマージ、進んだ base の拒否、投稿後の前進の拒否、新しい検証記録での再実行、記録の不備と API 応答の異常時の停止を確認した |
+| A-2: `baseRefOid` と実際のブランチの先端を区別 | テストに加え、現行 HEAD の `check_base` と `GhRunner` で本物の branches API を読み取り実行。main の現在の先端は受理し、古い `d29c93c1` は `verified`・`current` を含む `base_moved` で拒否し、`wait_for` を付けなかった |
+| 既存の照合とマージ済みの再実行 | 同じテスト群で head・記録・Spec・コマンド・CI の照合を確認。マージ後に base が進んでいても、Issue 更新を再開できるテストが成功した |
+| A-5: Spec の push の反映待ち | open の PR がレビュー対象 HEAD のままなら `wait_for: head`、反映後は成功、それ以外の head とマージ済みの不一致は待たずに停止するテストが成功した |
+| A-3・A-4: 手順書と PR 修正ループ | 文書 5 件の全文を実装と照合した。ループの結果保存は追加キーを保持し、`base_moved` の扱い、再検証、補足コメント、既知の制限の説明と矛盾しない |
+| 負例の検出力 | 既存 Plan にある `7adfb5c` の 8 種類の変異が対応するテストで失敗した実行記録を確認した。その時点と今回の HEAD で `finalize.py`・`test_finalize.py` の差分は空。今回も通常のテストを実行し、コードを変えていないため変異の実行は繰り返していない |
+
+`git diff --check` も成功した。実 GitHub への書き込みを伴う拒否経路の再現は、Issue の受け入れ条件どおり偽の `gh` で検証している。create-reso-world の GitHub Actions は共通規約に従い確認対象外とした。未確認候補・残る調査項目は無い。
+
+今回追加する変更はこの Spec の記録だけであり、実行して守る新しい挙動が無いためテストは追加しない。文書の差分、参照先、検証記録の JSON 形式と、Spec 1 ファイルだけの commit であることを確認して公開する。
+
+### 最終化に使う記録と手順
+
+- 確認済みの一覧: 上記レビューディレクトリの `verified/3d4ab76c0b34.json` と `.md`
+- 工程の記録: 同じ場所の `verified/3d4ab76c0b34.planning.json`。状況コメントの ID と実測時間は最終化後に保存する
+- 判断の記録は `review-records/v2`、サイクル 1、`outcome: no_fix_needed`、`decisions: []`。状況コメントには、マージ前の判断と検証結果を記録する
+- 検証の記録は `head: 3d4ab76c0b3445ad7ac5b08172b984b269e34abe`、`base: 6c2259b91e726a75f9d088e005f2bfac9d523561` と、merge ツリーで成功した上の 3 コマンドを持つ
+- 最終化には、この PR のレビュー・検証済み `finalize.py` を明示して使う。親 checkout の旧版は `base` を照合しないため、この PR が追加した照合を今回のマージにも適用する。resolver・状況投稿・秘密情報検査は親 checkout の helper を使う
+- 状況の投稿・push の直前に base と PR の HEAD を取り直す。検証した base が変わっていれば、新しい組み合わせで検証をやり直す。検査した Spec の commit だけを push し、`finalize.py --spec-commit` でマージと closing Issue の更新を行う
+- マージ後は実際の merge commit の最初の親と検証した base を照合する。この文書の commit 時点では、マージ・Issue 更新の完了はまだ記録しない
+
+### 所要時間と片付け
+
+- planner 着手: 07:38:18Z。入力の準備・関連処理の調査は 07:45 頃までに終了し、検証の監視と最終化の準備を続けた
+- 必須検証: HEAD 側は 07:40:53Z から、merge ツリー側は 07:43 頃から並行実行。すべての終了と結果の保存は 08:06:38Z。pytest の実測はそれぞれ 1,382.45 秒、1,408.49 秒
+- review-verify の確認工程: 07:39:54Z〜08:06:38Z（1,604 秒、検証の待ちを含む）。待ち時間だけの内訳は未計測。調査と検証の実時間には重複があるため、各欄の時間を足し合わせない
+- 補助エージェント: 07:41:45Z〜07:45:05Z（200 秒）。文書 80 秒、関連処理・テスト 105 秒、報告 15 秒
+- 検証用の一時 worktree とそのスクラッチは、すべての検証プロセスの終了後、この追記の前に削除した。既存の PR 用 worktree は再利用したため残す。セッションの記録は、状況コメント・工程の記録へ保存した後に片付ける
