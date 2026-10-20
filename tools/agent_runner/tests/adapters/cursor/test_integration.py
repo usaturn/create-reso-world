@@ -77,6 +77,55 @@ def test_error_result_maps_to_response_failed(repository: Path, tmp_path: Path) 
     assert batch.results[0].state == "response_failed"
 
 
+# #201: every cursor agent, whatever its name and whether it runs as the primary or a fallback, launches the
+# writes=false roles that run the review helpers (inspect, self-review, fix-check) with the shell and without
+# Cursor's sandbox
+def test_read_only_roles_launch_any_cursor_agent_with_shell_and_without_sandbox(
+    repository: Path, tmp_path: Path
+) -> None:
+    def agent(*args: str, model: str = "requested-model") -> Agent:
+        return Agent(
+            runtime="cursor", command=[sys.executable, _FAKE], model=model, args=list(args), env=["PATH", "HOME"]
+        )
+
+    read_only = Role(skills=[], writes=False, deadline_seconds=30.0, result_shape="json")
+    config = Config(
+        agents={
+            "reviewer-one": agent("--echo-argv"),
+            "broken-primary": agent("--fail-bad"),
+            "fallback-reviewer": agent("--echo-argv", model="fallback-model"),
+            "my-cursor": agent("--echo-argv"),
+        },
+        roles={"inspect": read_only, "self-review": read_only, "fix-check": read_only},
+        workflows={
+            "review-roles": Workflow(
+                assignments={
+                    "inspect": Assignment(agents=["reviewer-one"]),
+                    "self-review": Assignment(agents=["broken-primary"], fallback=["fallback-reviewer"]),
+                    "fix-check": Assignment(agents=["my-cursor"]),
+                }
+            )
+        },
+    )
+    batch = run_workflow(config, "review-roles", "prompt", repository, output_dir=tmp_path / "run")
+    assert batch.state == "success"
+    results = {result.role: result for result in batch.results}
+    assert [attempt.state for attempt in results["self-review"].attempts] == ["response_failed", "success"]
+    assert {role: result.actual_agent for role, result in results.items()} == {
+        "inspect": "reviewer-one",
+        "self-review": "fallback-reviewer",
+        "fix-check": "my-cursor",
+    }
+    for result in results.values():
+        payload = result.attempts[-1].payload
+        assert isinstance(payload, dict)
+        argv = payload["argv"]
+        assert isinstance(argv, list)
+        assert argv.count("-f") == 1
+        assert argv[argv.index("--sandbox") + 1] == "disabled"
+        assert "--mode" not in argv and "--plan" not in argv
+
+
 @pytest.mark.parametrize("args,state", [
     (["--nonzero"], "response_failed"),
     (["--truncate"], "response_failed"),

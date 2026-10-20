@@ -1,4 +1,4 @@
-"""Fake `cursor-agent`: reads stdin, emits stream-json init/result, honors --fail-*."""
+"""Fake `cursor-agent`: reads stdin, emits stream-json init/result, honors --fail-* and --echo-argv."""
 
 import json
 import sys
@@ -11,8 +11,8 @@ def main() -> int:
     assert prompt and prompt not in sys.argv
     assert "-p" in sys.argv and "--trust" in sys.argv
     assert sys.argv[sys.argv.index("--output-format") + 1] == "stream-json"
-    assert sys.argv[sys.argv.index("--mode") + 1] == "ask"
-    assert sys.argv[sys.argv.index("--model") + 1] == "requested-model"
+    # A fallback must use another model than its primary (duplicate_model)
+    assert sys.argv[sys.argv.index("--model") + 1] in {"requested-model", "fallback-model"}
     if "--fail-auth" in sys.argv:
         print("Error: not logged in. Run 'agent login' first.", file=sys.stderr)
         return 1
@@ -23,7 +23,10 @@ def main() -> int:
     if "--fail-bad" in sys.argv:
         print(json.dumps({"type": "result", "subtype": "success", "is_error": True, "session_id": SESSION}))
         return 0
-    result = json.dumps({"answer": 42})
+    answer: dict[str, object] = {"answer": 42}
+    if "--echo-argv" in sys.argv:
+        answer["argv"] = sys.argv[1:]
+    result = json.dumps(answer)
     print(
         json.dumps(
             {
