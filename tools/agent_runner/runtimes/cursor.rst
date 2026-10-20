@@ -19,16 +19,40 @@ Cursor ランタイムアダプター
 
 起動引数は次の形式である ::
 
-    agent -p --output-format stream-json --trust (--mode ask | -f) --model <model> [args...]
+    agent -p --output-format stream-json --trust -f [--sandbox disabled] --model <model> [args...]
 
 prompt は標準入力に渡し、本文を引数には含めない。
-読み取りロールには ``--mode ask`` 、書き込みロールには ``-f`` を付ける。
+どのロールにも ``-f`` を付け、``writes = false`` のロール（``inspect`` ・ ``self-review`` ・ ``fix-check``）にだけ ``--sandbox disabled`` を足す（#201）。
+``writes = true`` のロールは #201 の前と同じく ``-f`` だけで起動する。
+担当の名前・モデルでは分けず、runtime が ``cursor`` の担当は一次担当でも fallback でも同じ起動になる。
 ``--trust`` は新しい worktree を信頼済みとして扱う指定であり、対話による trust 確認は行わない。
 ``agent.model`` は ``--model`` に渡す。
 ``agent.effort`` があれば ``model[effort=<value>]`` 形式にする。
 既にブラケット指定がある model と別の effort 設定は、二重の指定を避けるため起動準備で拒否する。
 汎用の provider 選択引数は実装しておらず、``agent.provider`` の設定だけでは provider の選択を保証しない。
 認証操作や失敗時のモデル切り替えは行わない。
+
+次の 3 つは、#201 で ``2026.10.19-6bbf2c4`` の ``agent --help`` を読んで確かめた。
+
+- ``-f`` は、利用者の allowlist（``~/.cursor/cli-config.json`` の ``permissions.allow``）に無いシェルのコマンドも確認なしで実行する。
+  明示的に拒否したもの（``permissions.deny``）は ``-f`` でも拒否される。
+- ``--sandbox disabled`` は利用者の設定（``sandbox.mode``）を上書きする。
+  利用者が対話用に sandbox を有効にしていても、``writes = false`` のロールは同じ起動になる。
+- ``--mode ask`` ・ ``--mode plan`` は read-only のモードである。
+
+``--mode ask`` ・ ``--mode plan`` は使わない。
+#201 までは ``writes = false`` のロールを ``--mode ask`` で起動していた。
+usaturn/agent-workspace#753 の観測では、Ask mode でシェルのコマンドが拒否され、PR レビュー（``inspect``）の担当が pr-review の helper（``review_run.py prepare`` ・ ``complete``）を実行できずに PR 修正ループで rejected になった。
+この環境では #201 の前の起動での失敗を再現していない。
+
+``--sandbox disabled`` を明示するのは、Cursor の sandbox が helper の書き込み先を拒否するからである。
+pr-review の helper は、親の checkout の ``reviews/`` の保存先、Git の共有ディレクトリ（保存のロック・レビュー用 worktree の登録）、uv のキャッシュに書き（``review_run.helper_write_exceptions``）、PR の取得に ``gh`` ・ ``git fetch`` でネットワークを使う。
+usaturn/agent-workspace#753 の観測（merge commit ``6e7b16e5e5de11e4beb711b4a5a84f5f274249e1`` の ``tools/agent_runner/runtimes/cursor.rst``）では、sandbox は worktree と ``/tmp`` の外・共有 ``.git`` ・ HOME の下への書き込みとネットワークを拒否した。
+同じ観測で ``-f`` のときは sandbox が掛からなかったが（``2026.10.18-ea085cb``）、この挙動は文書に無く版によって変わりうるので頼らない。
+この環境では sandbox の範囲を再観測していない。
+
+``writes = false`` は、runner が依頼の冒頭に書く指示（``This is an instruction, not a sandbox.``）であり、Cursor の sandbox や OS による書き込みの禁止ではない。
+claude-code ・ devin ・ pi も、``writes`` によらずシェルを使える起動である。
 
 ``role.skills`` は共有の ``prompt_lines`` で prompt に追加する。
 ``agent.skill_sources`` から最初に見つかった ``<source>/<name>/SKILL.md`` があれば、その絶対パスでの読み込みを指示する。
@@ -69,19 +93,87 @@ model は CLI が返す表示名である。
 開始イベント、引数だけのパス、部分読み込み、失敗、本文の言及、内容の欠落や不一致では記録しない。
 読み込みを確認できなければ空 map のままである。
 
+.. _agent_runner_cursor_limits:
+
+既知の制限
+==========
+
+- ``writes = false`` は runner の指示であり、Cursor の sandbox でも OS でも保証しない。
+  ``-f`` のため、担当はファイルを書き換えられる。
+  ほかの checkout の変更は、runner の ``outside_changes`` ・ ``checkout_audit`` が事後に報告するだけで、任意のパスへの書き込みは防がない。
+- ``-f`` でも、利用者が ``permissions.deny`` に書いたコマンドは拒否される（CLI のヘルプ）。
+  helper が使うコマンド（``uv`` ・ ``git`` ・ ``gh`` など）を拒否すると、PR レビューの担当は完了できない。
+- ``writes = true`` のロールには ``--sandbox`` を付けないので、sandbox の扱いは利用者の設定（``sandbox.mode``）と ``-f`` の挙動に従う。
+- ``--sandbox disabled`` の要否は usaturn/agent-workspace#753 の観測による。
+  この環境の利用者の設定は ``sandbox.mode = "disabled"`` なので、ここでの実機の確認は ``--sandbox disabled`` の効果を独立には確かめていない。
+
 .. _agent_runner_cursor_verification:
 
 検証と出所
 ==========
 
 この移植では偽 CLI による単体テストとランナー統合テストを実行する。
-実モデルへの接続と認証設定の変更は行っていない。
-この環境での実機の成功確認は未実施である。
+#201 の起動は、``prepare`` の単体テストと、偽 CLI が受け取った引数を返す runner の統合テストで確かめる。
+統合テストは、任意の名前の担当と fallback で起動した担当が、``inspect`` ・ ``self-review`` ・ ``fix-check`` の ``writes = false`` のロールで同じ起動になることを確かめる。
+認証設定の変更は行っていない。
 
 移植元は snapshot ``a47b2065fddad76b7475752fd0088af0733de204`` の同名アダプター、偽 CLI 、テストである。
 移植元の文書には 2026-10-07 UTC の ``2026.10.01-e373342`` による読み取り・指定 skill ・書き込みの実機記録があるが、この移植の成功実績とは区別する。
 事前調査ではインストール済み ``2026.10.16-e3cb207`` の help/version で起動引数を確認した。
-現行 CLI のイベント形式とモデルの利用可否は実モデルでは再検証していない。
+#201 より前は、この環境で実モデルを起動していない。
+#201 の実機の確認は下の「実機の確認（#201）」にある。
+usaturn/agent-workspace#753 の実機の記録（同 PR の ``runtimes/cursor.rst`` の「実機 run（#752）」）は、この環境の成功実績とは区別する。
 共通の入出力仕様は ``tools/agent_runner/interfaces.rst`` にある。
+
+.. _agent_runner_cursor_live_201:
+
+実機の確認（#201）
+------------------
+
+2026-10-20 UTC、この環境の Dev Container で、#201 の adapter（commit ``d6b9daf``）を runner 経由で起動した。
+CLI は ``2026.10.19-6bbf2c4``（ログイン済み）で、どの run の前後でも版は変わらなかった。
+利用者の ``~/.cursor/cli-config.json`` は ``sandbox.mode = "disabled"`` 、``approvalMode = "allowlist"`` 、``permissions.allow = ["Shell(ls)"]`` 、``permissions.deny = []`` で、run の前後で ``sandbox`` ・ ``approvalMode`` ・ ``permissions`` は変わらなかった。
+雛形の担当の定義から adapter が組んだ ``inspect`` の起動は次のとおり（prompt は標準入力） ::
+
+    agent -p --output-format stream-json --trust -f --sandbox disabled --model auto
+    agent -p --output-format stream-json --trust -f --sandbox disabled --model grok-4.7-xhigh
+
+読み取りとシェル（``inspect`` 、``writes = false``）:
+親の ``tmp/agents/`` の下に作った使い捨ての git リポジトリ（commit 1 つ、``marker.txt`` に ``8642``）を対象に、``marker.txt`` の読み取りと、``date -u +%Y`` ・ ``uv --version`` ・ ``mktemp -d`` で作ったディレクトリへの書き込み・読み取り・削除を 1 回の依頼で求めた。
+担当ごとに 1 回ずつ実行した。
+
+.. list-table::
+   :header-rows: 1
+
+   * - 担当
+     - 結果
+     - 観測した model
+     - 所要
+   * - ``cursor``
+     - ``success`` 、payload ``{"marker": 8642, "year": "2026", "uv": "uv 0.13.3 (x86_64-unknown-linux-gnu)", "tmp": "ok"}``
+     - ``Auto``
+     - 29.6 秒
+   * - ``cursor-grok47``
+     - ``success`` 、同じ payload
+     - ``Grok 4.7 256K Extra High``
+     - 31.1 秒
+
+どちらも終了コード 0 、``stop_confirmed`` は true 、``outside_changes`` ・ ``checkout_audit`` は空。
+stdout には完了した ``readToolCall``（``marker.txt``）と ``shellToolCall``（3 つの操作を 1 つのコマンドにまとめたもの、``exitCode: 0``）が 1 つずつあった。
+runner の worktree は変わらなかった（``git status --porcelain`` が空）。
+init イベントの ``permissionMode`` は ``default`` だった。
+
+PR レビュー（``inspect``）:
+2026-10-20 05:00〜05:07 UTC、#201 の PR（#202）の HEAD ``eb6233a`` を、その branch の版の ``loop.py`` から ``start <PR の URL> --assign inspect=cursor-grok47`` → ``cycle-begin``（``mode: run``）→ ``review`` で実行した（loop の run ``beb24b3639944602a18a193c61bcb59d``）。
+``cursor-grok47`` は pr-review の helper の prepare → complete → cleanup まで完了し、loop は ``accepted`` にした。
+
+- runner: batch ``57fa07a0784341298780c73a0ab79cd5`` は ``success`` 。試行は終了コード 0 、``stop_confirmed`` は true 、所要 423.1 秒、観測した model ``Grok 4.7 256K Extra High``
+- pr-review の実行記録: ``status: success`` 、prepare 3.4 秒・レビュー 363.7 秒・保存 0.8 秒・cleanup 0.13 秒。prepare に渡したモデル名は ``Grok 4.7`` 。指摘 0 件、Merge recommendation は Approve
+- runner の ``outside_changes`` は 3 件で、どれもレビュアーの変更ではなかった。2 件は run の前から checkout が無かった登録（``checkout_audit`` の ``unavailable_before`` 、``prunable``）、1 件は同じ時間帯に別のセッションが別の Issue の commit を 2 つ作った worktree（``content_changed`` 。変わったファイルはその commit の中身で、作業ツリーは clean）
+- loop の ``retained`` は空。pr-review のレビュー用 worktree と一時領域は残っておらず、loop は runner の出力を回収した
+- 確認のための run なので、計画の前に ``finish --abort "external: …"`` で終えた（``stopped`` 、マージなし、ロックは解放）
+- CLI の版と、利用者の ``cli-config.json`` の ``sandbox`` ・ ``approvalMode`` ・ ``permissions`` は、run の前後で変わらなかった
+
+``self-review`` ・ ``fix-check`` は ``inspect`` と同じ起動だが、実機では確かめていない（偽 CLI のテストだけ）。
 
 以上

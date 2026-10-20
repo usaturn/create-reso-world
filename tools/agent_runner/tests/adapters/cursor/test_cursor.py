@@ -61,16 +61,27 @@ def test_prepare_reads_prompt_from_stdin_and_trusts_worktree(tmp_path: Path) -> 
     assert spec.argv[:2] == ("agent", "-p")
     assert spec.argv[spec.argv.index("--output-format") + 1] == "stream-json"
     assert "--trust" in spec.argv
-    assert spec.argv[spec.argv.index("--mode") + 1] == "ask"
     assert spec.argv[spec.argv.index("--model") + 1] == "requested-model"
     assert all("PROMPT-UNIQUE-TEXT" not in argument for argument in spec.argv)
     assert "PROMPT-UNIQUE-TEXT" in spec.stdin.decode()
 
 
+# #201: --mode ask (and plan) reject every shell command, so a writes=false role could not run the pr-review and
+# review-verify helpers. Cursor's sandbox denies the helpers' writes outside the worktree (save directory, shared
+# Git directory, uv's cache), and -f skipping it is undocumented, so the launch states --sandbox disabled.
+# The observations are in runtimes/cursor.rst; re-check a real CLI and update it when changing these flags
+def test_prepare_read_only_role_allows_shell_without_cursor_sandbox(tmp_path: Path) -> None:
+    argv = ADAPTER.prepare(_context(tmp_path, writes=False)).argv
+    assert argv.count("-f") == 1
+    assert argv[argv.index("--sandbox") + 1] == "disabled"
+    assert "--mode" not in argv and "--plan" not in argv
+
+
+# #201 keeps the write roles' launch (-f only; Cursor's sandbox follows the user's setting)
 def test_prepare_write_role_forces_and_effort_uses_bracket(tmp_path: Path) -> None:
     spec = ADAPTER.prepare(_context(tmp_path, writes=True, effort="high", args=("--flag",)))
-    assert "-f" in spec.argv
-    assert "--mode" not in spec.argv
+    assert spec.argv.count("-f") == 1
+    assert "--mode" not in spec.argv and "--sandbox" not in spec.argv
     assert spec.argv[spec.argv.index("--model") + 1] == "requested-model[effort=high]"
     assert "--flag" in spec.argv
 

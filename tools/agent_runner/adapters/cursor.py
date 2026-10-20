@@ -154,7 +154,10 @@ class _CursorAdapter:
             raise ValueError("effort cannot be combined with a model override")
         model = agent.model if agent.effort is None else f"{agent.model}[effort={agent.effort}]"
         argv = [*agent.command, "-p", "--output-format", "stream-json", "--trust"]
-        argv += ["-f"] if context.role.writes else ["--mode", "ask"]
+        # writes=false is only an instruction (#201): --mode ask/plan reject shell commands, and Cursor's sandbox
+        # blocks the review helpers' writes outside the worktree, so read-only roles get the shell with it off.
+        # State --sandbox disabled: -f skipping the sandbox is undocumented and may change between versions
+        argv += ["-f"] if context.role.writes else ["-f", "--sandbox", "disabled"]
         argv += ["--model", model, *agent.args]
         return LaunchSpec(tuple(argv), _prompt(context).encode("utf-8"))
 
