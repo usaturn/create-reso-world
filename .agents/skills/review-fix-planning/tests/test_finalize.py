@@ -26,6 +26,10 @@ ME = "usaturn"
 # create-reso-worldの結論2でmainにマージされるのは、検証したHEADの上に載せたSpec 1ファイルだけ。
 # 場所を取り違えると、確認していない変更をマージに含める
 SPEC_FILE = "docs/superpowers/specs/2026-10-19-example-design.md"
+# 検証したツリーが含む base（mainの先端）。偽のGitHubは、投稿の後・マージの後に先端を動かせる
+BASE = "a" * 40
+NEW_BASE = "b" * 40
+MERGE_COMMIT = "c" * 40
 
 
 def record() -> dict[str, Any]:
@@ -53,7 +57,7 @@ def record() -> dict[str, Any]:
 
 
 def checks() -> dict[str, Any]:
-    return {"head": HEAD, "commands": [{"argv": ["./scripts/ci/verify-devenv.sh"], "exit_code": 0}]}
+    return {"head": HEAD, "base": BASE, "commands": [{"argv": ["./scripts/ci/verify-devenv.sh"], "exit_code": 0}]}
 
 
 PUBLIC = "usaturn/resoloop"
@@ -102,6 +106,7 @@ class FakeGh:
             "url": f"https://github.com/{repo}/pull/{PR}",
             "number": PR,
             "headRefOid": HEAD,
+            "baseRefName": "main",
             "state": state,
             "isDraft": False,
             "mergeable": "MERGEABLE",
@@ -121,6 +126,11 @@ class FakeGh:
         self.login_fails = False
         self.compare: Any = compare_response()
         self.compare_fails = False
+        # baseブランチの先端（ブランチの名前ごと）。投稿の後に動かす先端、応答の差し替え、取得の失敗
+        self.tips: dict[str, str] = {"main": BASE}
+        self.tip_after_post: str | None = None
+        self.branch: Any = None
+        self.branch_fails = False
 
     def __call__(self, args: Sequence[str], *, input_text: str | None = None) -> CompletedProcess[str]:
         argv = tuple(args)
@@ -147,12 +157,23 @@ class FakeGh:
                 value = {"id": 99, "html_url": self.view["url"] + "#issuecomment-99"}
                 self.view.update(self.after_post)
                 self.after_post = {}
+                if self.tip_after_post is not None:
+                    self.tips[self.view["baseRefName"]] = self.tip_after_post
+                    self.tip_after_post = None
         elif len(argv) == 3 and argv[1] == "api" and "/compare/" in argv[2]:
             code = 1 if self.compare_fails else 0
             value = self.compare
+        elif len(argv) == 3 and argv[1] == "api" and "/branches/" in argv[2]:
+            name = argv[2].split("/branches/", 1)[1]
+            code = 1 if self.branch_fails or name not in self.tips else 0
+            value = self.branch
+            if value is None and not code:
+                value = {"name": name, "commit": {"sha": self.tips[name]}, "protected": False}
         elif argv[1:3] == ("pr", "merge"):
             if not self.merge_stays_open:
                 self.view.update(state="MERGED", mergedAt="2026-10-08T06:05:00Z")
+                # GitHubはbaseブランチをマージのcommitに進める
+                self.tips[self.view.get("baseRefName", "main")] = MERGE_COMMIT
             value = {}
         elif argv[1:3] == ("issue", "view"):
             value = {"url": f"https://github.com/{self.repo}/issues/901", "number": 901, "state": self.issue_state}
@@ -173,6 +194,9 @@ class FakeGh:
     def compare_requests(self) -> list[str]:
         return [call[2] for call in self.calls if len(call) == 3 and call[1] == "api" and "/compare/" in call[2]]
 
+    def branch_requests(self) -> list[str]:
+        return [call[2] for call in self.calls if len(call) == 3 and call[1] == "api" and "/branches/" in call[2]]
+
 
 @pytest.mark.parametrize("repo", [REPO, PUBLIC])
 def test_no_fix_result_requires_post_merge_confirmation_and_issue_update(repo: str) -> None:
@@ -192,18 +216,27 @@ def test_no_fix_result_requires_post_merge_confirmation_and_issue_update(repo: s
     assert gh.calls[-1][1:3] == ("issue", "view")
 
 
-@pytest.mark.parametrize("mutation", ["head", "missing", "failed", "bool"])
+# 検証の記録のbaseが完全なSHAでない。照合できるbaseの無い記録で最終化を始めない
+BAD_BASES: dict[str, Any] = {"short_base": BASE[:12], "upper_base": "A" * 40, "null_base": None}
+
+
+@pytest.mark.parametrize("mutation", ["head", "missing", "failed", "bool", "no_base", *BAD_BASES])
 def test_missing_or_wrong_verification_stops_before_network(mutation: str) -> None:
     evidence = checks()
     if mutation == "head":
         evidence["head"] = "2" * 40
     elif mutation == "missing":
         evidence["commands"] = []
+    elif mutation == "no_base":
+        del evidence["base"]
+    elif mutation in BAD_BASES:
+        evidence["base"] = BAD_BASES[mutation]
     else:
         evidence["commands"][0]["exit_code"] = True if mutation == "bool" else 1
     gh = FakeGh()
     result = mod.finalize(record(), "状況", evidence, runner=gh)
-    assert result["outcome"] == "stopped" and gh.calls == []
+    assert result["outcome"] == "stopped" and result["stop_reason"].startswith("environment:")
+    assert gh.calls == []
 
 
 @pytest.mark.parametrize("condition", ["draft", "moving", "mergeable", "state"])
@@ -736,14 +769,25 @@ def test_invalid_spec_commit_stops_before_network(bad: str) -> None:
     assert result["merged"] is False and gh.calls == []
 
 
-@pytest.mark.parametrize("head", [HEAD, "2" * 40])
-def test_spec_commit_requires_the_pr_head_to_be_the_spec_commit(head: str) -> None:
-    # Specのcommitをpushする前や、その後にheadが動いたとき
+def test_spec_commit_waits_until_the_pushed_spec_commit_is_the_pr_head() -> None:
+    # pushの直後は、GitHubがまだ前のhead（検証したHEAD）を返すことがある（PR #192）
     gh = spec_gh()
+    gh.view["headRefOid"] = HEAD
+    first = finalize_spec(gh)
+    assert first["outcome"] == "stopped" and first["wait_for"] == "head"
+    assert first["stop_reason"].startswith("external:") and first["merged"] is False and gh.writes() == []
+    gh.view["headRefOid"] = SPEC_HEAD
+    assert finalize_spec(gh)["outcome"] == "no_fix_needed"
+
+
+@pytest.mark.parametrize(("state", "head"), [("OPEN", "2" * 40), ("MERGED", HEAD)])
+def test_spec_commit_with_another_head_stops_without_waiting(state: str, head: str) -> None:
+    # headが別のcommitに動いた。または、Specのcommitのpushの前に、検証したHEADのまま手でマージされた
+    gh = spec_gh(state=state)
     gh.view["headRefOid"] = head
     result = finalize_spec(gh)
     assert result["outcome"] == "stopped" and result["stop_reason"].startswith("external:")
-    assert result["merged"] is False and gh.writes() == []
+    assert "wait_for" not in result and gh.writes() == []
 
 
 def test_spec_commit_waits_for_mergeable_and_the_rerun_finalizes() -> None:
@@ -794,3 +838,108 @@ def test_cli_spec_commit_merges_the_spec_head_and_reports_it(
     assert json.loads(result.read_text()) == actual
     assert actual["outcome"] == "no_fix_needed" and actual["spec_commit"] == SPEC_HEAD
     assert [call[1:3] for call in gh.writes()] == [("pr", "merge"), ("issue", "close")]
+
+
+# --- 検証したbaseの照合 ---
+
+
+def finalize_with(gh: FakeGh, spec: bool, evidence: dict[str, Any]) -> dict[str, Any]:
+    return mod.finalize(record(), "状況", evidence, runner=gh, spec_commit=SPEC_HEAD if spec else None)
+
+
+@pytest.mark.parametrize("spec", [False, True])
+def test_base_moved_after_verification_is_not_merged_until_the_new_base_is_verified(spec: bool) -> None:
+    """検証の後に別のPRがマージされた。検証していない組み合わせをマージせず、新しい先端の検証を求める。"""
+    gh = spec_gh() if spec else FakeGh()
+    gh.tips["main"] = NEW_BASE
+    # PRのbaseRefOidはbaseブランチの先端に追従しない。検証したbaseのままでも、ブランチの先端で判定する
+    gh.view["baseRefOid"] = BASE
+    first = finalize_with(gh, spec, checks())
+    assert first["outcome"] == "stopped" and first["merged"] is False and "wait_for" not in first
+    assert first["stop_reason"].startswith("external:")
+    assert first["base_moved"] == {"ref": "main", "verified": BASE, "current": NEW_BASE}
+    # 投稿もマージもしない（--spec-commitが無い経路は、投稿の前に照合する）
+    assert gh.writes() == [] and gh.branch_requests() == [f"repos/{REPO}/branches/main"]
+    # 新しい先端をheadにmergeしたツリーで検証し直した記録なら、同じ判断の記録でマージする
+    second = finalize_with(gh, spec, {**checks(), "base": NEW_BASE})
+    assert second["outcome"] == "no_fix_needed" and second["merged"] is True and "base_moved" not in second
+    posted = [] if spec else [("api", "--method")]
+    assert [call[1:3] for call in gh.writes()] == [*posted, ("pr", "merge"), ("issue", "close")]
+
+
+def test_base_moved_after_posting_is_not_merged_and_the_rerun_updates_the_comment() -> None:
+    gh = FakeGh()
+    gh.tip_after_post = NEW_BASE
+    first = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert first["outcome"] == "stopped" and first["merged"] is False
+    assert first["base_moved"] == {"ref": "main", "verified": BASE, "current": NEW_BASE}
+    assert [call[3] for call in gh.writes()] == ["POST"]
+    second = mod.finalize(record(), "状況", {**checks(), "base": NEW_BASE}, runner=gh)
+    assert second["outcome"] == "no_fix_needed" and second["comment"]["action"] == "updated"
+    assert [call[3] if call[1] == "api" else call[1:3] for call in gh.writes()] == [
+        "POST",
+        "PATCH",
+        ("pr", "merge"),
+        ("issue", "close"),
+    ]
+
+
+@pytest.mark.parametrize("spec", [False, True])
+def test_rerun_after_the_merge_does_not_compare_the_moved_base(spec: bool) -> None:
+    """マージの後はbaseの先端がマージのcommitに進む。Issueの更新をやり直す再実行を、baseの照合で止めない。"""
+    gh = spec_gh() if spec else FakeGh()
+    gh.issue_fails = True
+    first = finalize_with(gh, spec, checks())
+    assert first["outcome"] == "stopped" and first["merged"] is True and gh.tips["main"] == MERGE_COMMIT
+    gh.issue_fails = False
+    requests = len(gh.branch_requests())
+    second = finalize_with(gh, spec, checks())
+    assert second["outcome"] == "no_fix_needed" and second["issues"] == [901]
+    assert len(gh.branch_requests()) == requests
+
+
+# baseブランチの応答が想定と違う。どれも先端を確認できないとして、マージせずに止まる
+UNREADABLE_BASES: dict[str, Any] = {
+    # 改名したブランチのリダイレクトなど、問い合わせたのと別のブランチの応答
+    "renamed": {"name": "trunk", "commit": {"sha": BASE}, "protected": False},
+    "short_sha": {"name": "main", "commit": {"sha": BASE[:12]}, "protected": False},
+    "no_commit": {"name": "main", "protected": False},
+    "not_an_object": ["main"],
+}
+
+
+@pytest.mark.parametrize("problem", [*UNREADABLE_BASES, "request_fails", "no_base_ref", "blank_base_ref"])
+@pytest.mark.parametrize("spec", [False, True])
+def test_unreadable_base_tip_stops_without_merging(spec: bool, problem: str) -> None:
+    gh = spec_gh() if spec else FakeGh()
+    if problem == "request_fails":
+        gh.branch_fails = True
+    elif problem == "no_base_ref":
+        del gh.view["baseRefName"]
+    elif problem == "blank_base_ref":
+        gh.view["baseRefName"] = ""
+    else:
+        gh.branch = UNREADABLE_BASES[problem]
+    result = finalize_with(gh, spec, checks())
+    assert result["outcome"] == "stopped" and result["stop_reason"].startswith("external:")
+    assert result["merged"] is False and "base_moved" not in result and gh.writes() == []
+
+
+def test_base_branch_name_with_a_slash_is_read_whole() -> None:
+    gh = FakeGh()
+    gh.view["baseRefName"] = "release/1.0"
+    gh.tips = {"release/1.0": BASE}
+    result = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert result["outcome"] == "no_fix_needed" and result["merged"] is True
+    assert gh.branch_requests()[0] == f"repos/{REPO}/branches/release/1.0"
+
+
+def test_retargeted_base_is_compared_with_the_new_base_branch() -> None:
+    """検証の後にPRのbaseを別のブランチに変えた。変えた先のブランチの先端と照合する。"""
+    gh = FakeGh()
+    gh.view["baseRefName"] = "develop"
+    gh.tips["develop"] = NEW_BASE
+    result = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert result["outcome"] == "stopped" and result["merged"] is False
+    assert result["base_moved"] == {"ref": "develop", "verified": BASE, "current": NEW_BASE}
+    assert gh.writes() == []

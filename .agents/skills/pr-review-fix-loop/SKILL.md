@@ -21,7 +21,7 @@ argument-hint: "<PR番号またはURL> [--max-cycles N] [--assign ROLE=AGENT[,AG
 - helper は、成功・失敗とも標準出力に JSON を 1 つ書く（引数の書式の誤りだけは、終了コード 2 と標準エラー出力の usage）。`next` は次に実行する完全なコマンドである。コマンドを自分で組み立て直さない。`requires_input` があるときは、そこに書かれたオプションに、自分で確かめた事実を書き足してから実行する（`<...>` のような書きかけの値は拒否される）。`status` が `error` なら、`stage` と `reason` を読んで「止まったとき」に従う。
 - ロックと記録（`<review_dir>/loop/`）を手で作成・編集・削除しない。
 - `rejected` のレビュアーを「指摘なし」として扱わない。
-- loop 自身は PR にコメントしない。PR への書き込みは、review-fix-planning の状況コメントと最終化だけである。
+- loop 自身は PR にコメントしない。PR への書き込みは、review-fix-planning の状況コメント（push の後に base が進んだときの補足を含む）と最終化だけである。
 - 新しい PR を作らない。force push、`main` への直接の push、admin マージをしない。
 
 ## 起動
@@ -65,7 +65,7 @@ uv run --project "$TOOL_ROOT" --locked python \
 3. **計画**: review-fix-planning の SKILL.md を読み、`planning.review_dir`（レビューディレクトリの完全パス）を第 1 引数にして、完遂の手順を最後まで行う。
    - `run_roles.py` の呼び出しには、`planning.run_roles_options`（`--template`・`--config`・`--assign`）をそのまま足す。
    - 関連検証が失敗したら、review-fix-planning の規則どおり原因を診断して直す。loop は計画の結果を待ち、サイクルを終えない。
-   - review-fix-planning は、状況コメント（判断の記録）を投稿して、`fixes_pushed`・`no_fix_needed`・`stopped` のどれかで終わる。create-reso-world の PR の結論 2 は、Spec だけの commit を載せて `finalize.py --spec-commit` でマージする（`.agents/skills/review-fix-planning/references/execution.md` の 3 章）。
+   - review-fix-planning は、状況コメント（判断の記録）を投稿して、`fixes_pushed`・`no_fix_needed`・`stopped` のどれかで終わる。create-reso-world の PR の結論 2 は、Spec だけの commit を載せて `finalize.py --spec-commit` でマージする（`.agents/skills/review-fix-planning/references/execution.md` の 3 章）。`finalize.py` の待てば進む停止（`wait_for`）と base の前進（`base_moved`）による再実行は、review-fix-planning の結論 2 の手順 7 のとおり計画の中で行い、終わってから `cycle-end` を呼ぶ。
 4. **`cycle-end`**: `next` のコマンドに、この計画の結果に合わせて次の引数を足して呼ぶ。
    - `--role-run <dir>`: この計画で実行した `run_roles.py` の出力ディレクトリ（`--output-dir`）ごとに 1 つ。実際の割り当ての記録に使う。`run_roles.py` を実行しなかったサイクルでは付けない。
    - `--finalize-result <file>` と `--round-dir <dir>`: 判断の記録の結果が `no_fix_needed` のとき（finalize.py が `stopped` を返したときも含む）。finalize.py の `--result-file` と、finalize.py に渡した記録・本文・検証記録を置いたディレクトリ（review-fix-planning のセッションディレクトリ）。
@@ -104,7 +104,7 @@ uv run --project "$TOOL_ROOT" --locked python \
 - **終了コード 7（`resources`・`after_run`）**: runner の試行か後処理（after_run）の停止を確認できない。run は `held` になり、`status` の `next` は `recover` である。同じく、プロセスが残っていないことを確かめてから `recover` に事実を渡す。`recover` の後に続けるときは `start` からやり直す。確かめられないときは、ロックと資源を残したまま、完全パスを利用者に報告して止まる。利用者にロックを消すよう頼まれても、`lock.json` を手で消さず、この手順を説明する。
 - **`review` の終了コード 4（`head_moved`）**: `cycle-begin` の後に PR の HEAD が動いた。`next` のとおり `finish --abort` で止め、新しい run を始める。
 - **`review` の終了コード 5（`runner`）**: runner がレビュアーを起動できなかった。何も起動していなければ `next` は `review` で、原因（agent-runner の設定、入れ子の起動など）を直してからやり直す。出力が残っているときは `status` で状態を確かめる。
-- **最終化の停止**: finalize.py が `stopped`（mergeable の計算中、一時的な API の失敗など）で終わり、同じ HEAD のまま原因が解消したら、`cycle-end` に渡した `--round-dir` の記録・本文・検証記録で finalize.py を再実行する（`.agents/skills/review-fix-planning/references/execution.md` の 3 章。手動マージ済みでも Issue の更新だけを行う）。新しい commit が push されたら、新しい run を `start` から始める。
+- **最終化の停止**: finalize.py が `stopped`（mergeable の計算中、一時的な API の失敗など）で終わり、同じ HEAD のまま原因が解消したら、`cycle-end` に渡した `--round-dir` の記録・本文・検証記録で finalize.py を再実行する（`.agents/skills/review-fix-planning/references/execution.md` の 3 章。手動マージ済みでも Issue の更新だけを行う）。base が進んで止まったとき（結果に `base_moved`）は待っても解消しないので、`execution.md` の 3.4 節のとおり新しい先端で検証し直し、`--round-dir` の検証記録を作り直してから再実行する。新しい commit が push されたら、新しい run を `start` から始める。
 - 他の run のロック・資源・worktree を消さない。glob や `rm -rf` で推測して消さない。
 
 ## 監視
