@@ -152,10 +152,11 @@ uv run --project "$TOPLEVEL" --locked python \
 
 - マージしてよい範囲は `usaturn/create-reso-world` と `usaturn/resoloop` の、open で draft でない PR だけ。範囲外は GitHub に問い合わせる前に `permission:` で止まる（SKILL.md の「マージしてよい範囲」）
 - CI: `usaturn/resoloop` は PR の checks が成功していること。`usaturn/create-reso-world` は確かめない（`AGENTS.md`「GitHub Actions」）
-- base: PR の base ブランチ（`baseRefName`）の今の先端を `gh api repos/<repo>/branches/<base>` で読み、検証の記録の `base` と同じことを、状況の投稿の前（`--spec-commit` が無いとき）とマージの直前に確かめる。違えば、投稿・マージをせずに `base_moved` 付きの `stopped` を返す。PR の `baseRefOid` は base ブランチの先端に追従しないので使わない。応答のブランチの名前が `baseRefName` と違う、先端の SHA を読めないときは `external:` で止まる。マージ済みの PR（Issue の更新だけを行う再実行）では、base の先端がマージの commit に進んでいるので確かめない
+- base: PR の base ブランチ（`baseRefName`）の今の先端を `gh api repos/<repo>/branches/<base>` で読み、検証の記録の `base` と同じことを、状況の投稿の前（`--spec-commit` が無いとき）とマージの直前に確かめる。違えば、投稿・マージをせずに `base_moved` 付きの `stopped` を返す。PR の `baseRefOid` は base ブランチの先端に追従しないので使わない。応答のブランチの名前が `baseRefName` と違う、先端の SHA を読めないときは `external:` で止まる。マージ済みの PR（Issue の更新だけを行う再実行）では、base の先端がマージの commit に進んでいるので確かめない（代わりに、過去の merge commit の最初の親を照合する。下の merge commit の項）
 - `--spec-commit` のとき、PR の head がまだ `reviewed_head`（push が GitHub に反映される前）なら `wait_for: head` で止まる。それ以外の head なら待たずに止まる
 - 認証済みの login を取り、PR の全コメントの記録と照合する。マージは `--merge --match-head-commit`（squash・rebase は使わない）。admin・auto マージ、ブランチの削除はしない
-- マージの後に MERGED・`mergedAt`・head を読み戻し、同じリポジトリの closing Issue だけを close して読み戻す。closing Issue に別のリポジトリのもの・URL と番号が合わないものがあれば、マージの前に `external:` で止まる
+- マージの後に MERGED・`mergedAt`・head を読み戻し、merge commit を照合してから（次の項）、同じリポジトリの closing Issue だけを close して読み戻す。closing Issue に別のリポジトリのもの・URL と番号が合わないものがあれば、マージの前に `external:` で止まる
+- merge commit: PR の `mergeCommit` と、`gh api repos/<repo>/git/commits/<merge commit>` の `parents` の先頭（GitHub がマージしたときの base の先端）を読み、検証の記録の `base` と同じことを確かめる。違う、または読めない（`mergeCommit` が無い、応答の `sha` が merge commit と違う、`parents` が空など）ときは、関連 Issue を読まず閉じずに、`merge_parent` 付きの `merged: true` の `stopped` を返す（3.4 節）。この run がマージした PR にも、既にマージ済みの PR の再実行（Issue の更新の再開・手動マージ）にも同じに行う
 - 同じ head で既にマージ済みなら、このサイクルの自分の記録が渡した記録と同じときだけ、投稿もマージもせずに Issue の更新を続ける。記録が無い・食い違うまま手でマージされていれば、Issue を更新せずに `merged: true` の `stopped` を返す
 - 別の head で既にマージ済み（投稿の後、マージの直前の確認までにマージされた場合を含む）なら、それ以上何も書き込まずに `external: PRが検証済みHEADと別のHEADでマージされた` の `merged: true` の `stopped` を返す。再実行しても完了しないので、何がマージされたかを確かめて報告する。`--spec-commit` で、Spec の commit を push する前に `reviewed_head` のままマージされていたら、停止理由は `external: Specのcommitを載せる前に、PRが検証したHEADのままマージされた` になる（入ったのは検証済みのコードで、欠けているのは Spec の commit だけ）
 
@@ -169,6 +170,15 @@ uv run --project "$TOPLEVEL" --locked python \
   2. 検証の記録を、`base` を `current`、`commands` をその実行にして作り直す。検証し直さずに `base` だけを書き換えない
   3. create-reso-world の PR（`--spec-commit`）では、PR の head が Spec の commit になっていて状況コメントを直せない。補足のコメントを `gh pr comment <PR> --repo <repo> --body-file <file>` で新しく投稿する。1 行目は `補足（review-fix-planning、<MODEL_NAME>）:` とし、状況コメントのサイクル、base が `verified` から `current` へ進んだこと、merge したツリーで実行したコマンドと終了コードを書く。判断の記録・マーカー（`<!--`）を含めない。補足は状況コメントの代わりではなく、記録付きの投稿が拒否されたときの代わりにも使わない。push 済みの Spec は直さない。それ以外の PR では、本文の検証の状況を新しい検証に直す（helper が同じサイクルのコメントを更新する）
   4. 同じ判断の記録で `finalize.py` を再実行する。やり直しの回数の上限は SKILL.md の結論 2 のとおり
+- `merge_parent`（`verified`・`merge_commit`・`first_parent`。読めなかった値は null）があれば、マージの後の照合で止まった（3.3 節）。PR はマージ済み（`merged: true`）で、helper は関連 Issue を更新していない（`Closes` による GitHub の自動の close は 3.5 節）。どちらの場合も、補足のコメントを上の `base_moved` の 3 と同じ形（`gh pr comment`、1 行目は `補足（review-fix-planning、<MODEL_NAME>）:`、判断の記録・マーカーを含めない）で投稿してから、結論 3 にする。補足に書くのは、状況コメントのサイクル、`merge_parent` の 3 つの値（読めなかった値は読めなかったこと）、関連 Issue を更新していないことと、下の次の手順である。finalize に渡した記録・本文・検証の記録とセッションディレクトリは消さずに残し、完全パスを報告する
+  - `first_parent` が null（読めない）: 照合できていない。原因が解消してから、同じ記録・本文・検証の記録で再実行すると、読み直して照合する
+  - `first_parent` が `verified` と違う: base に検証していない組み合わせ（merge commit のツリー）が入った。待っても、同じ記録で再実行しても解消しない。merge commit のツリーで検証し直すまで、関連 Issue を更新しない。PR 修正ループの中でも、このサイクルでは再検証しない
+  - 完了させるときは、利用者の指示で次の順に行う
+    1. merge commit を取得し（`git -C <checkout> fetch <remote> <merge_commit>`）、`mktemp -d` の隔離 worktree で checkout して、SKILL.md の結論 2 の手順 1 と同じ検証を通す。検証の後は、結論 2 の手順 2 の一時的なツリーと同じ方法で消す
+    2. 検証の記録を、`head` はそのまま、`base` を `first_parent`、`commands` をその実行にして作り直す。検証し直さずに `base` だけを書き換えない
+    3. 補足のコメントに、merge commit のツリーで実行したコマンドと終了コードを書く
+    4. 同じ判断の記録・本文で `finalize.py` を再実行する（`--spec-commit` を付けた実行なら、同じ commit を付ける）。helper は投稿もマージもせず、照合が通れば関連 Issue を更新して `no_fix_needed` を返す
+    5. 検証が失敗したら、`finalize.py` を再実行しない（関連 Issue を閉じない）。補足のコメントに失敗したコマンドと終了コードを書き、利用者に報告する（base を直す変更は別の PR で行う）
 - 状況の本文の不備・PR 上の過去の記録との食い違いは `environment:`、`gh`・API の失敗は `external:`、範囲外は `permission:` で返る
 - マージの後の Issue の更新の失敗も `stopped` だが、マージ済みであることを隠さずに報告し、同じ head・同じ記録で再実行して復旧する
 - `merged: null` の `stopped` を未マージと報告しない。`gh pr view <PR> --repo <repo> --json state,mergedAt,headRefOid` で読み直した状態を報告に書き、原因（`stop_reason`）を直してから同じ記録・本文・検証の記録で再実行する。再実行は最初に PR の状態を読み直し、同じ head でマージ済みで、このサイクルの記録が投稿済みなら Issue の更新だけを続けて完了する。open なら今までどおり照合してからマージする。GitHub に問い合わせる前の停止（`environment:`・`permission:`）は、入力を直さなければ同じ理由で止まる
@@ -176,8 +186,10 @@ uv run --project "$TOPLEVEL" --locked python \
 
 ### 3.5 既知の制限
 
-- `finalize.py` が base の先端を最後に読んでから GitHub が `gh pr merge` を処理するまでの間に、別のセッションのマージで base が進むと、検証していない組み合わせがマージされる。GitHub のマージは base の commit を指定できず（`--match-head-commit` が固定するのは head だけ）、セッションの間でマージを排他にする仕組みも無い。完全に防ぐには、その仕組みを別に検討する
-- 起きたかどうかは、マージ commit の最初の親（`<マージ commit>^1`）が検証の記録の `base` と違うことで分かる。違っていたら、マージ commit で同じ検証を通し、結果を PR に補足として書く
+- `finalize.py` が base の先端を最後に読んでから GitHub が `gh pr merge` を処理するまでの間に、別のセッションのマージで base が進むことは防げない。GitHub のマージは base の commit を指定できず（`--match-head-commit` が固定するのは head だけ）、セッションの間でマージを排他にする仕組みも無い
+- helper は、マージの後に merge commit の最初の親を検証の記録の `base` と照合して、これを見つける（3.3 節）。見つけたときは関連 Issue を更新せずに止まるが、その時点で base には検証していない組み合わせが入っている。merge commit のツリーで検証し直すまで、補足のコメントと報告でそのことを示す（3.4 節の `merge_parent`）
+- PR 本文の `Closes` による GitHub の自動の close は、helper の照合と関係なく、マージの時に起きる（#138）。止まっても関連 Issue が既に閉じていることがあり、helper は開き直さない
+- 2 つ以上の commit を rebase でマージした PR や、fast-forward の push でマージされた PR は、merge commit の最初の親が PR の commit になるので止まる
 
 ## 4. 後片付け
 

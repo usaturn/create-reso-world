@@ -111,6 +111,7 @@ class FakeGh:
             "isDraft": False,
             "mergeable": "MERGEABLE",
             "mergedAt": "2026-10-08T06:05:00Z" if state == "MERGED" else None,
+            "mergeCommit": {"oid": MERGE_COMMIT} if state == "MERGED" else None,
             "statusCheckRollup": [{"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"}],
             "closingIssuesReferences": [{"number": 901, "url": f"https://github.com/{repo}/issues/901"}],
         }
@@ -138,6 +139,14 @@ class FakeGh:
         # n回目の pr view の直前に変えるPRの状態（人が手でマージ・closeした場合）
         self.before_view: dict[int, dict[str, Any]] = {}
         self.views = 0
+        # merge commitごとの親（GitのcommitのAPIが返す）。最初の親は、GitHubがマージしたときのbaseの先端。
+        # 最初からMERGEDなら、検証したbaseの上でマージされている
+        self.merge_parents: dict[str, list[str]] = {MERGE_COMMIT: [BASE, HEAD]} if state == "MERGED" else {}
+        # マージの処理の直前に動かすbaseの先端（最後の照合の後に、別のセッションのマージでbaseが進んだ）
+        self.tip_at_merge: str | None = None
+        # commitの応答の差し替えと、取得の失敗
+        self.commit: Any = None
+        self.commit_fails = False
 
     def __call__(self, args: Sequence[str], *, input_text: str | None = None) -> CompletedProcess[str]:
         argv = tuple(args)
@@ -179,13 +188,34 @@ class FakeGh:
             value = self.branch
             if value is None and not code:
                 value = {"name": name, "commit": {"sha": self.tips[name]}, "protected": False}
+        elif len(argv) == 3 and argv[1] == "api" and "/git/commits/" in argv[2]:
+            sha = argv[2].rsplit("/", 1)[1]
+            code = 1 if self.commit_fails or sha not in self.merge_parents else 0
+            value = self.commit
+            if value is None and not code:
+                # GitのcommitのAPIの応答の形（finalizeが読むのは sha と parents の sha）
+                value = {
+                    "sha": sha,
+                    "tree": {"sha": "e" * 40},
+                    "message": f"Merge pull request #{PR}",
+                    "parents": [
+                        {"sha": parent, "url": f"https://api.github.com/repos/{self.repo}/git/commits/{parent}"}
+                        for parent in self.merge_parents[sha]
+                    ],
+                }
         elif argv[1:3] == ("pr", "merge"):
             if self.merge_fails:
                 code = 1
             elif not self.merge_stays_open:
-                self.view.update(state="MERGED", mergedAt="2026-10-08T06:05:00Z")
+                ref = self.view.get("baseRefName", "main")
+                if self.tip_at_merge is not None:
+                    self.tips[ref] = self.tip_at_merge
+                    self.tip_at_merge = None
+                # merge commitの最初の親はマージしたときのbaseの先端、2つ目はPRのhead
+                self.merge_parents[MERGE_COMMIT] = [self.tips[ref], self.view["headRefOid"]]
+                self.view.update(state="MERGED", mergedAt="2026-10-08T06:05:00Z", mergeCommit={"oid": MERGE_COMMIT})
                 # GitHubはbaseブランチをマージのcommitに進める
-                self.tips[self.view.get("baseRefName", "main")] = MERGE_COMMIT
+                self.tips[ref] = MERGE_COMMIT
             value = {}
         elif argv[1:3] == ("issue", "view"):
             value = {"url": f"https://github.com/{self.repo}/issues/901", "number": 901, "state": self.issue_state}
@@ -208,6 +238,9 @@ class FakeGh:
 
     def branch_requests(self) -> list[str]:
         return [call[2] for call in self.calls if len(call) == 3 and call[1] == "api" and "/branches/" in call[2]]
+
+    def commit_requests(self) -> list[str]:
+        return [call[2] for call in self.calls if len(call) == 3 and call[1] == "api" and "/git/commits/" in call[2]]
 
 
 @pytest.mark.parametrize("repo", [REPO, PUBLIC])
@@ -902,16 +935,21 @@ def test_base_moved_after_posting_is_not_merged_and_the_rerun_updates_the_commen
 
 @pytest.mark.parametrize("spec", [False, True])
 def test_rerun_after_the_merge_does_not_compare_the_moved_base(spec: bool) -> None:
-    """マージの後はbaseの先端がマージのcommitに進む。Issueの更新をやり直す再実行を、baseの照合で止めない。"""
+    """マージの後はbaseの先端がマージのcommitに進む。Issueの更新をやり直す再実行を、baseの照合で止めない。
+
+    代わりに、過去のマージのmerge commitの最初の親を照合する（#206）。
+    """
     gh = spec_gh() if spec else FakeGh()
     gh.issue_fails = True
     first = finalize_with(gh, spec, checks())
     assert first["outcome"] == "stopped" and first["merged"] is True and gh.tips["main"] == MERGE_COMMIT
     gh.issue_fails = False
     requests = len(gh.branch_requests())
+    commits = len(gh.commit_requests())
     second = finalize_with(gh, spec, checks())
     assert second["outcome"] == "no_fix_needed" and second["issues"] == [901]
     assert len(gh.branch_requests()) == requests
+    assert len(gh.commit_requests()) == commits + 1
 
 
 # baseブランチの応答が想定と違う。どれも先端を確認できないとして、マージせずに止まる
@@ -1071,3 +1109,112 @@ def test_unreadable_pr_state_is_unconfirmed(problem: str) -> None:
     result = mod.finalize(record(), "状況", checks(), runner=gh)
     assert result["outcome"] == "stopped" and result["merged"] is None
     assert result["stop_reason"].startswith("external:") and gh.writes() == []
+
+
+# --- マージの後のmerge commitの照合（#206） ---
+# 最後のbaseの照合からGitHubがマージを処理するまでの間に、別のセッションのマージでbaseが進む。
+# GitHubのマージはbaseを固定できないので、マージの後にmerge commitの最初の親と検証したbaseを比べる
+
+
+@pytest.mark.parametrize("moved", [True, False], ids=["base_moved_at_merge", "base_kept"])
+@pytest.mark.parametrize("spec", [False, True])
+def test_merge_commit_parent_must_be_the_verified_base(spec: bool, moved: bool) -> None:
+    """Issue #206 の再現と対照。マージの処理の直前にbaseが進むと、マージ済みのまま止まり、Issueを閉じない。"""
+    gh = spec_gh() if spec else FakeGh()
+    if moved:
+        gh.tip_at_merge = NEW_BASE
+    result = finalize_with(gh, spec, checks())
+    posted = [] if spec else ["POST"]
+    assert gh.commit_requests() == [f"repos/{REPO}/git/commits/{MERGE_COMMIT}"]
+    if moved:
+        assert (result["outcome"], result["merged"], result["issues"]) == ("stopped", True, [])
+        assert result["merge_parent"] == {"verified": BASE, "merge_commit": MERGE_COMMIT, "first_parent": NEW_BASE}
+        assert result["stop_reason"].startswith("external:")
+        assert "wait_for" not in result and "base_moved" not in result
+        # 関連Issueは読みも閉じもしない
+        assert written(gh) == [*posted, ("pr", "merge")]
+        assert all(call[1:3] != ("issue", "view") for call in gh.calls)
+    else:
+        assert result["outcome"] == "no_fix_needed" and result["issues"] == [901] and "merge_parent" not in result
+        assert written(gh) == [*posted, ("pr", "merge"), ("issue", "close")]
+
+
+@pytest.mark.parametrize("spec", [False, True])
+def test_only_a_record_verified_on_the_merge_commit_completes_the_issue_update(spec: bool) -> None:
+    """止まった後、同じ記録の再実行は止まったまま。merge commitのツリーで検証し直した記録でだけ、Issueの更新に進む。"""
+    gh = spec_gh() if spec else FakeGh()
+    gh.tip_at_merge = NEW_BASE
+    first = finalize_with(gh, spec, checks())
+    assert (first["outcome"], first["merged"]) == ("stopped", True)
+    before = written(gh)
+    # 司令塔が検証し直さずに、同じ記録で再実行した。merge commitは変わらないので、同じ停止になる
+    again = finalize_with(gh, spec, checks())
+    assert (again["outcome"], again["merged"], again["issues"]) == ("stopped", True, [])
+    assert again["merge_parent"] == first["merge_parent"] and again["stop_reason"] == first["stop_reason"]
+    assert written(gh) == before
+    # merge commitのツリーで同じ検証をした記録（baseは実際の最初の親）
+    reverified = finalize_with(gh, spec, {**checks(), "base": NEW_BASE})
+    assert (reverified["outcome"], reverified["merged"], reverified["issues"]) == ("no_fix_needed", True, [901])
+    assert "merge_parent" not in reverified
+    # 投稿もマージもせず、Issueの更新だけを行う
+    assert written(gh) == [*before, ("issue", "close")]
+
+
+def test_manual_merge_on_a_moved_base_is_merged_but_not_completed() -> None:
+    """記録を投稿した後、人がbaseの進んだmainへ手でマージした。Issueの更新の再開の経路でも、Issueを閉じない。"""
+    gh = FakeGh(state="MERGED")
+    gh.comments = [status_comment(record())]
+    gh.merge_parents[MERGE_COMMIT] = [NEW_BASE, HEAD]
+    result = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert (result["outcome"], result["merged"], result["issues"]) == ("stopped", True, [])
+    assert result["merge_parent"] == {"verified": BASE, "merge_commit": MERGE_COMMIT, "first_parent": NEW_BASE}
+    assert result["stop_reason"].startswith("external:") and gh.writes() == []
+
+
+# 読めないmerge commitの応答。どれも照合できないとして、マージ済みのまま止まる
+UNREADABLE_MERGE_COMMITS: dict[str, Any] = {
+    # 問い合わせたのと別のcommitの応答
+    "wrong_sha": {"sha": "d" * 40, "parents": [{"sha": BASE}, {"sha": HEAD}]},
+    "no_parents": {"sha": MERGE_COMMIT, "parents": []},
+    "parents_not_a_list": {"sha": MERGE_COMMIT, "parents": {"sha": BASE}},
+    "parent_not_an_object": {"sha": MERGE_COMMIT, "parents": [BASE]},
+    "short_parent": {"sha": MERGE_COMMIT, "parents": [{"sha": BASE[:12]}]},
+    "not_an_object": [MERGE_COMMIT],
+}
+
+
+@pytest.mark.parametrize("problem", ["no_merge_commit", "short_oid", "request_fails", *UNREADABLE_MERGE_COMMITS])
+def test_unreadable_merge_commit_is_merged_but_not_completed(problem: str) -> None:
+    """マージ済みのPRで、merge commitかその最初の親を読めない。照合できないのでIssueを閉じず、読めた値だけを残す。"""
+    gh = FakeGh(state="MERGED")
+    gh.comments = [status_comment(record())]
+    if problem == "no_merge_commit":
+        gh.view["mergeCommit"] = None
+    elif problem == "short_oid":
+        gh.view["mergeCommit"] = {"oid": MERGE_COMMIT[:12]}
+    elif problem == "request_fails":
+        gh.commit_fails = True
+    else:
+        gh.commit = UNREADABLE_MERGE_COMMITS[problem]
+    result = mod.finalize(record(), "状況", checks(), runner=gh)
+    read = None if problem in ("no_merge_commit", "short_oid") else MERGE_COMMIT
+    assert (result["outcome"], result["merged"], result["issues"]) == ("stopped", True, [])
+    assert result["stop_reason"].startswith("external:") and "wait_for" not in result
+    assert result["merge_parent"] == {"verified": BASE, "merge_commit": read, "first_parent": None}
+    # SHAでないmerge commitは問い合わせない
+    assert len(gh.commit_requests()) == (0 if read is None else 1)
+    assert gh.writes() == [] and all(call[1:3] != ("issue", "view") for call in gh.calls)
+
+
+def test_merge_commit_read_failure_after_the_merge_recovers_with_the_same_record() -> None:
+    """マージの直後にmerge commitの取得だけが失敗した。マージ済みは失わず、読めるようになった同じ記録の再実行で完了する。"""
+    gh = FakeGh()
+    gh.commit_fails = True
+    first = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert (first["outcome"], first["merged"], first["issues"]) == ("stopped", True, [])
+    assert first["merge_parent"] == {"verified": BASE, "merge_commit": MERGE_COMMIT, "first_parent": None}
+    assert written(gh) == ["POST", ("pr", "merge")]
+    gh.commit_fails = False
+    second = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert second["outcome"] == "no_fix_needed" and second["issues"] == [901] and "merge_parent" not in second
+    assert written(gh) == ["POST", ("pr", "merge"), ("issue", "close")]

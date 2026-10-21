@@ -387,14 +387,25 @@ def round_record(
 
 
 def finalize_result(
-    path: Path, outcome: str, *, merged: bool | None, stop_reason: str | None = None, spec_commit: str | None = None
+    path: Path,
+    outcome: str,
+    *,
+    merged: bool | None,
+    stop_reason: str | None = None,
+    spec_commit: str | None = None,
+    merge_parent: dict[str, str | None] | None = None,
 ) -> Path:
-    """finalize.py の結果ファイル。spec_commit は create-reso-world の PR の結論 2（``--spec-commit``）のときだけ入る。"""
+    """finalize.py の結果ファイル。spec_commit は create-reso-world の PR の結論 2（``--spec-commit``）のときだけ入る。
+
+    merge_parent は、マージの後の merge commit の照合で止まったときだけ入る（#206）。
+    """
     value: dict[str, Any] = {"outcome": outcome, "merged": merged, "issues": []}
     if stop_reason is not None:
         value["stop_reason"] = stop_reason
     if spec_commit is not None:
         value["spec_commit"] = spec_commit
+    if merge_parent is not None:
+        value["merge_parent"] = merge_parent
     path.write_text(json.dumps(value), encoding="utf-8")
     return path
 
@@ -563,9 +574,17 @@ class Kit:
 
     @staticmethod
     def finalize_result(
-        path: Path, outcome: str, *, merged: bool | None, stop_reason: str | None = None, spec_commit: str | None = None
+        path: Path,
+        outcome: str,
+        *,
+        merged: bool | None,
+        stop_reason: str | None = None,
+        spec_commit: str | None = None,
+        merge_parent: dict[str, str | None] | None = None,
     ) -> Path:
-        return finalize_result(path, outcome, merged=merged, stop_reason=stop_reason, spec_commit=spec_commit)
+        return finalize_result(
+            path, outcome, merged=merged, stop_reason=stop_reason, spec_commit=spec_commit, merge_parent=merge_parent
+        )
 
 
 @pytest.fixture
