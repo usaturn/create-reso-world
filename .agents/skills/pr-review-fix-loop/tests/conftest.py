@@ -167,7 +167,8 @@ class FakeGitHub:
     """PR の状態・コメント・マージを持つ偽の gh。head は bare remote の branch から読む。
 
     ``login`` は ``gh api user --jq '.login // empty'`` の出力（認証済みの利用者）。``login_status`` が 0 以外なら失敗する。
-    ``repository`` は PR の base のリポジトリの正式な名前（扱えない PR のテストで変える）。
+    ``pull_status`` が 0 以外なら、PR の読み取り（``gh api repos/<repo>/pulls/<N>``）がその終了コードで失敗する
+    （GitHub の障害）。``repository`` は PR の base のリポジトリの正式な名前（扱えない PR のテストで変える）。
     """
 
     def __init__(self, remote: Path) -> None:
@@ -175,6 +176,7 @@ class FakeGitHub:
         self.repository = REPOSITORY
         self.login = "usaturn\n"
         self.login_status = 0
+        self.pull_status = 0
         self.state = "open"
         self.merged = False
         self.merged_head: str | None = None
@@ -220,6 +222,8 @@ class FakeGitHub:
         comments = f"repos/{self.repository}/issues/{NUMBER}/comments"
         # GitHub の API はリポジトリ名の大文字小文字を区別せず、応答には正式な名前を返す
         if args[:2] == ["gh", "api"] and args[-1].lower() == pulls.lower() and len(args) == 3:
+            if self.pull_status:
+                return subprocess.CompletedProcess(args, self.pull_status, "", "HTTP 502")
             body = {
                 "number": NUMBER,
                 "html_url": f"https://github.com/{self.repository}/pull/{NUMBER}",

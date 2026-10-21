@@ -83,6 +83,8 @@ uv run --project "$TOOL_ROOT" --locked python \
 | 2 `arguments` | `no_fix_needed` なのに `--finalize-result` が無い、など。正しい引数で呼び直す |
 | 5 `github` | 認証済みの login（`gh api user`）や PR のコメントを読めない。`gh` の認証と GitHub の状態を確かめ、直せなければ利用者に報告して止まる |
 
+finalize.py を実行した後の拒否は、「止まったとき」の「finalize の後の `cycle-end` の停止」も読む。
+
 ## 終わり方
 
 ループの結果は、最後のサイクルの結果である。
@@ -94,7 +96,7 @@ uv run --project "$TOOL_ROOT" --locked python \
 | `fixes_pushed`（`ended_by: cycle_limit`） | 修正を push したが、サイクルの上限に達した。マージしていない |
 
 - `next` の `finish` を実行する。ロックを解放し、要約を返す。
-- サイクルの途中で続けられなくなったとき（全レビュアーの失敗、計画を実行できない障害など）は、`finish --run <run_dir> --abort "<permission|environment|external>: <具体的な障害>"` で終える。
+- サイクルの途中で続けられなくなったとき（全レビュアーの失敗、計画を実行できない障害など）は、`finish --run <run_dir> --abort "<permission|environment|external>: <具体的な障害>"` で終える。このサイクルで finalize.py を実行していたら、最後の結果ファイルを `--finalize-result <file>` で足す。`finish --abort` は PR の実際のマージ状態を `result.merged` に保存し、PR を読めなければ渡した結果の `merged` を、それも無ければ `null`（未確認）を保存する（[records.md](references/records.md) の 6 章）。
 - `finish` の終了コード 7（`resources`）は、runner の試行か後処理（after_run）の停止を確認できない資源があることを示す。ロックは保持される（「止まったとき」）。
 
 ## 止まったとき（中断・再開・回収）
@@ -105,6 +107,7 @@ uv run --project "$TOOL_ROOT" --locked python \
 - **`review` の終了コード 4（`head_moved`）**: `cycle-begin` の後に PR の HEAD が動いた。`next` のとおり `finish --abort` で止め、新しい run を始める。
 - **`review` の終了コード 5（`runner`）**: runner がレビュアーを起動できなかった。何も起動していなければ `next` は `review` で、原因（agent-runner の設定、入れ子の起動など）を直してからやり直す。出力が残っているときは `status` で状態を確かめる。
 - **最終化の停止**: finalize.py が `stopped`（mergeable の計算中、一時的な API の失敗など）で終わり、同じ HEAD のまま原因が解消したら、`cycle-end` に渡した `--round-dir` の記録・本文・検証記録で finalize.py を再実行する（`.agents/skills/review-fix-planning/references/execution.md` の 3 章。手動マージ済みでも Issue の更新だけを行う）。finalize.py の結果の `merged` が `false`・`null` でも、`cycle-end` は読んだ PR の実際のマージ状態を保存する。`null`（マージ済みかを確かめられていない）で止まったら、未マージと報告せず、同じ 3.4 節のとおり状態を読み直して再実行する。base が進んで止まったとき（結果に `base_moved`）は待っても解消しないので、`execution.md` の 3.4 節のとおり新しい先端で検証し直し、`--round-dir` の検証記録を作り直してから再実行する。新しい commit が push されたら、新しい run を `start` から始める。
+- **finalize の後の `cycle-end` の停止**: finalize.py を実行した後に `cycle-end` が止まったら（5 `github`、4 `merge_mismatch` など）、やり直すか `finish --abort` で終えるかを決める前に、`--finalize-result` に渡した結果ファイルの `merged` を確かめる。`true` は finalize がマージ済みを観測した記録で、マージは取り消せないので、PR に commit を足さない。abort するときは、`merged` が `false`・`null` でも同じファイルを `--finalize-result` で渡す（`finish` が PR を読めなくても、観測したマージ状態が run に残る）。`null` は未確認で、未マージと報告しない。
 - 他の run のロック・資源・worktree を消さない。glob や `rm -rf` で推測して消さない。
 
 ## 監視
@@ -121,7 +124,7 @@ uv run --project "$TOOL_ROOT" --locked python \
 - PR の URL、run ID、`<review_dir>/loop/<run_id>/` の完全パス
 - 現在の Herdr ペインの名前を変えた結果（`run.json` の `herdr_pane` の `state`。`skipped`・`failed` は `reason` も）
 - サイクルごとに: HEAD、レビューの `mode`、レビュアーごとの状態・実際の担当・モデル、判断の記録（round とコメントの URL）、結果、push した commit
-- 最終の結果、`ended_by`、マージしたか、`stop_reason`
+- 最終の結果、`ended_by`、マージしたか（`result.merged`。`null` は未確認で、未マージと書かず、PR の状態を読み直して書く）、`stop_reason`
 - 関連 Issue は、finalize の結果に含まれる、更新後に観測した state を書く。GitHub 側の自動 close を含め、Issue が閉じたことを要件が完了したことの証明として扱わない（要件の評価は review-fix-planning の記録に従う）
 - 残した資源（`retained`）の完全パスと、回収の操作
 - 所要時間（全体とサイクルごと）

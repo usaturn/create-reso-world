@@ -179,7 +179,9 @@ class RunResult(StrictModel):
     outcome: Literal["fixes_pushed", "no_fix_needed", "stopped"]
     ended_by: Literal["outcome", "cycle_limit", "abort"]
     stop_reason: str | None
-    merged: bool
+    # PR の実際のマージ状態。finish --abort が確かめられなかったとき（PR も finalize の結果も読めない、
+    # 両者が食い違う）は null（未確認）（#221）
+    merged: bool | None
     cycles: int
 
 
@@ -2018,19 +2020,49 @@ def _cycle_summary(cycle: CycleRecord) -> dict[str, Any]:
     }
 
 
-def finish(run_dir: Path, *, abort: str | None = None) -> dict[str, Any]:
+def _abort_merged(
+    run: RunRecord, github: GitHub, finalize: Mapping[str, Any] | None
+) -> tuple[bool | None, str | None]:
+    """finish --abort が保存する merged と、PR の状態だけで決められなかったときの理由（決められたら None）。
+
+    merged は finalize.py の merged（#207）と同じ意味で、最後に観測した PR のマージ状態である。PR を読めればその状態、
+    読めなければ渡された finalize の結果の merged、それも無ければ null（未確認）にして、未マージとは書かない。
+    マージは戻らないので、finalize がマージ済みと返したのに PR が未マージなら、どちらかの読み取りが誤っている
+    （cycle-end の merge_mismatch）。abort を拒否すると run を終えられずロックが残るので、未確認として残す（#221）。
+    """
+    reported = None if finalize is None else cast(bool | None, finalize["merged"])
+    try:
+        pull = github.pull(run.pr.repository, run.pr.number)
+    except (LoopError, OSError) as error:
+        detail = error.reason if isinstance(error, LoopError) else f"gh を起動できない: {error}"
+        basis = "渡された finalize の結果のもの" if finalize is not None else "未確認（null）"
+        return reported, f"PR の状態を読めない（{detail[:300]}）。merged は {basis}"
+    if reported is True and not pull.merged:
+        return None, "finalize の結果はマージ済みだが、PR は未マージ。merged は未確認（null）"
+    return pull.merged, None
+
+
+def finish(
+    run_dir: Path, *, abort: str | None = None, finalize_result: Path | None = None, github: GitHub | None = None
+) -> dict[str, Any]:
     run = load_run(run_dir)
     require_owner(run)
     if run.state not in ("running", "held"):
         raise LoopError(3, "state", f"run {run.run_id} は {run.state}")
     existing = load_cycles(run_dir)
+    if finalize_result is not None and abort is None:
+        raise LoopError(2, "arguments", "--finalize-result は --abort と一緒のときだけ使う")
     if abort is not None:
         if STOP_REASON.fullmatch(abort) is None or _PLACEHOLDER.search(abort):
             raise LoopError(2, "arguments", "--abort は「permission|environment|external: 具体的な障害」の形で書く")
         if run.result is not None:
             raise LoopError(3, "state", "run は既に結果が決まっている。--abort なしで finish する")
+        finalize = _read_finalize(finalize_result) if finalize_result is not None else None
+        merged, note = _abort_merged(run, github or GitHub(), finalize)
+        if note is not None:
+            run.notes.append(f"{now()} finish --abort: {note}")
         run.result = RunResult(
-            outcome="stopped", ended_by="abort", stop_reason=abort, merged=False, cycles=len(existing)
+            outcome="stopped", ended_by="abort", stop_reason=abort, merged=merged, cycles=len(existing)
         )
     elif run.result is None:
         raise LoopError(3, "state", "run はまだ終わっていない。サイクルの途中で止めるときは --abort を付ける")
@@ -2152,6 +2184,9 @@ def parser() -> argparse.ArgumentParser:
     done = commands.add_parser("finish")
     done.add_argument("--run", type=Path, required=True)
     done.add_argument("--abort", help="permission|environment|external: <具体的な障害>")
+    done.add_argument(
+        "--finalize-result", type=Path, help="--abort のとき、このサイクルで実行した finalize.py の最後の結果ファイル"
+    )
     show = commands.add_parser("status")
     show.add_argument("pr", nargs="?")
     show.add_argument("--run", type=Path)
@@ -2199,7 +2234,7 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
             record_file=args.record_file,
         )
     if name == "finish":
-        return finish(args.run.resolve(), abort=args.abort)
+        return finish(args.run.resolve(), abort=args.abort, finalize_result=args.finalize_result)
     if name == "status":
         return status(args.run.resolve() if args.run else None, argument=args.pr)
     if name == "review":

@@ -52,9 +52,9 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `assignments` | 読み込んだ設定の有効な割り当て。`review.inspect` と `fix.implement`・`fix.self-review`・`fix.fix-check`（`agents`・`fallback`） |
 | `started_at`・`ended_at` | 時刻 |
 | `state` | `running`・`ended`・`held`（停止を確認できない試行・後処理があり、ロックを保持）・`abandoned`（結果の無いまま回収した） |
-| `result` | `{"outcome", "ended_by", "stop_reason", "merged", "cycles"}`。`outcome` は `fixes_pushed`・`no_fix_needed`・`stopped`、`ended_by` は `outcome`・`cycle_limit`・`abort` |
+| `result` | `{"outcome", "ended_by", "stop_reason", "merged", "cycles"}`。`outcome` は `fixes_pushed`・`no_fix_needed`・`stopped`、`ended_by` は `outcome`・`cycle_limit`・`abort`。`merged` は `true`・`false`・`null`（`null` は `finish --abort` だけが書く未確認。6 章） |
 | `resources` | `[{"path", "kind": "runner_output", "cycle", "state", "reason"}]`。`state` は `created`（未回収）・`removed`・`retained`（消さずに残した） |
-| `notes` | `recover` で受け取った確認の事実など |
+| `notes` | `recover` で受け取った確認の事実、`finish --abort` が `merged` を PR の状態だけで決められなかった理由など |
 | `herdr_pane` | `{"state", "pane_id", "label", "reason"}`。`start` が現在の Herdr ペインの名前を変えた結果 |
 
 移植元の `options.hold_action` は無い。移植先の review-fix-planning には判断保留が無いので、`start` は `--hold-action` を受け付けない。
@@ -110,5 +110,6 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 - サイクルの番号は run の中の通し番号で、判断の記録の `round`（PR 全体の通し番号）とは別である。対応は `planning.round` にある。
 - 判断の記録は、書き込み権限のある投稿者（`OWNER`・`MEMBER`・`COLLABORATOR`）と、認証済みの利用者自身（`gh api user` の login）のコメントからだけ読む。login を取れないときは、`cycle-begin`・`cycle-end` が終了コード 5（`github`）で止まる（`.agents/review-records.md` 8.1）。
 - `review.reviewers[].identity` は runner の事後の観測、`reviewer` は pr-review が成果に記録した値で、同じとは限らない。未観測の値を設定から補わない。
-- `cycle-end` が保存する `merged`（`planning.merged` と、そのときの `result.merged`）は、`cycle-end` が読んだ PR の実際のマージ状態である。`finish --abort` が書く `result.merged` は PR を読まずに `false` なので、マージ状態を表さない（確かめるときは PR を読み直す）。結果が `no_fix_needed` になるのは、finalize の結果の `merged` が `true` で、PR がマージ済みで、PR の head が finalize の結果の `spec_commit`（create-reso-world の PR の結論 2 の、Spec だけの commit）と、無ければサイクルの HEAD と同じときだけで、食い違えば `merge_mismatch` で止まる。finalize が `stopped` のときは、finalize の `merged`（`false`・`null`。`null` は確かめられていない）で上書きせず、PR の実際の状態を保存する。別の head のマージも `stopped` のままで、停止理由は finalize のものである。finalize が `true` なのに PR が未マージなら `merge_mismatch`。判断の記録が `stopped`（finalize を呼ばない）のときも、PR の実際の状態を保存する。finalize の結果そのものは `planning.finalize.result` に残る。
+- `cycle-end` が保存する `merged`（`planning.merged` と、そのときの `result.merged`）は、`cycle-end` が読んだ PR の実際のマージ状態である。結果が `no_fix_needed` になるのは、finalize の結果の `merged` が `true` で、PR がマージ済みで、PR の head が finalize の結果の `spec_commit`（create-reso-world の PR の結論 2 の、Spec だけの commit）と、無ければサイクルの HEAD と同じときだけで、食い違えば `merge_mismatch` で止まる。finalize が `stopped` のときは、finalize の `merged`（`false`・`null`。`null` は確かめられていない）で上書きせず、PR の実際の状態を保存する。別の head のマージも `stopped` のままで、停止理由は finalize のものである。finalize が `true` なのに PR が未マージなら `merge_mismatch`。判断の記録が `stopped`（finalize を呼ばない）のときも、PR の実際の状態を保存する。finalize の結果そのものは `planning.finalize.result` に残る。
+- `finish --abort` が書く `result.merged` は、finalize.py の `merged`（`.agents/skills/review-fix-planning/references/execution.md` 3.4 節）と同じ意味で、最後に観測した PR のマージ状態である。`finish` が PR を読めればその状態を書く。読めなければ `--finalize-result` で渡された finalize の結果の `merged` を書き、渡されていなければ `null`（未確認）を書く。finalize の結果が `true` なのに PR が未マージなら、どちらかの読み取りが誤っているので、abort は止めずに `null` を書く。PR の状態だけで決められなかったときは、理由を `notes` に残す。`null` を未マージとして扱わない（確かめるときは PR を読み直す）。
 - `recover` は、runner の試行が停止済みでも、その出力で始めた後処理（after_run）の停止を確かめられない資源（後処理の報告が無い、または `stop_confirmed` が true でない報告を含む）を、事実なしには回収しない。停止を確かめた事実を受け取った資源でも、秘密が残りうるファイル（runner の `sensitive_paths`。runner の結果が無いときはディレクトリ全体）を消さずに残し、`retained` に完全パスを書く。
