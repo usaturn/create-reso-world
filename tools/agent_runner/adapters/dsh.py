@@ -356,6 +356,8 @@ class Dsh:
         identity = Identity(
             session_id=session if isinstance(session, str) and not events[0].get("truncated") else None
         )
+        # The classified status, kept when the identity check below replaces it (#212)
+        reported: ReceiptStatus | None = None
         if identity.session_id:
             try:
                 identity = read_session_identity(
@@ -363,9 +365,9 @@ class Dsh:
                 )
             except FileNotFoundError:
                 if status == "success":
-                    status, payload = "response_failed", None
+                    reported, status, payload = status, "response_failed", None
             except OSError, ValueError, KeyError, TypeError:
-                status, payload = "response_failed", None
+                reported, status, payload = status, "response_failed", None
         return AdapterOutcome(
             receipt=Receipt(
                 run_id=context.request.run_id,
@@ -376,6 +378,7 @@ class Dsh:
                 payload=payload,
             ),
             identity=identity,
+            reported_state=reported,
         )
 
 

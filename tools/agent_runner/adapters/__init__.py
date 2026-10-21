@@ -41,6 +41,9 @@ class AdapterOutcome:
     receipt: Receipt | None = None
     identity: Identity = field(default_factory=Identity)
     state: State | None = None
+    # The state classified from the output before the adapter's own later check replaced it.
+    # Recorded for diagnostics only; the runner never decides state from it.
+    reported_state: State | None = None
 
 
 @runtime_checkable

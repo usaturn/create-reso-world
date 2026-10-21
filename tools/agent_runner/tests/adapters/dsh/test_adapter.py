@@ -130,11 +130,12 @@ def test_dsh_disk_receipt_cannot_override_failed_jsonl(context: AdapterContext) 
         status="success", payload={"forged": True},
     )
     context.receipt_path.write_text(receipt.model_dump_json())
-    state, _, payload = collect_attempt(
+    state, _, payload, reported = collect_attempt(
         load_adapter("dsh"), context, context.receipt_path.parent / "stdout.log",
         context.receipt_path.parent / "stderr.log", None,
     )
-    assert state == "invalid_result" and payload is None
+    # The collector never ran, so nothing was classified before an override (#212)
+    assert state == "invalid_result" and payload is None and reported is None
 
 
 def test_tmp_launch_script_and_shared_environment_are_visible_readonly(
@@ -443,6 +444,28 @@ def test_missing_identity_preserves_known_failure(context: AdapterContext, code:
     outcome = _collect(context, events, with_identity=False)
     assert outcome.receipt is not None
     assert outcome.receipt.status == status and outcome.receipt.payload is None
+
+
+@pytest.mark.parametrize(
+    ("reason", "reported"),
+    [({"kind": "error", "error": {"code": "AUTH", "message": "401: rejected"}}, "awaiting_authentication"), (None, "success")],
+)
+def test_unreadable_identity_keeps_the_classified_state(
+    context: AdapterContext, reason: dict[str, object] | None, reported: str
+) -> None:
+    # A session without an assistant response (the first request failed, #212): collect replaces the
+    # classified state with response_failed and hands the classified one over as reported_state
+    path = write_session(context.receipt_path.parent / "dsh" / "state", context.work_dir, session_id="observed-session")
+    path.write_text("".join(line + "\n" for line in path.read_text().splitlines()[:-1]))
+    outcome = _collect(context, _stream(reason=reason))
+    assert outcome.receipt is not None
+    assert (outcome.receipt.status, outcome.reported_state) == ("response_failed", reported)
+
+
+def test_readable_identity_reports_no_replaced_state(context: AdapterContext) -> None:
+    outcome = _collect(context, _stream())
+    assert outcome.receipt is not None and outcome.receipt.status == "success"
+    assert outcome.reported_state is None
 
 
 def test_mismatched_identity_discards_success_payload(context: AdapterContext) -> None:
