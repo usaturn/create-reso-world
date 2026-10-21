@@ -14,6 +14,7 @@ check-options は start と同じオプションと agent-runner の設定だけ
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import importlib.util
 import itertools
@@ -21,6 +22,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -39,6 +41,7 @@ sys.path.insert(0, str(ROOT))
 
 from tools.agent_runner import (  # noqa: E402
     Assignment,
+    Attempt,
     BatchResult,
     Config,
     ConfigError,
@@ -239,6 +242,64 @@ class ReviewerEntry(StrictModel):
     rejected_stage: RejectedStage | None = None
     request_file: str | None = None
     request_sha256: str | None = None
+    # 失敗した担当のいるレビュアーの診断（cycle-<n>/diagnostics/<request_id>.json）と、保存できなかった理由（#212）
+    diagnostic_file: str | None = None
+    diagnostic_sha256: str | None = None
+    diagnostic_error: str | None = None
+
+
+# 原因の分類（上から優先）と、ログ・値を取得できなかった理由。どちらも固定の語彙で、ログの文字列を入れない
+Cause = Literal[
+    "authentication",
+    "approval",
+    "rate_limit",
+    "sandbox",
+    "timeout",
+    "connection",
+    "runtime_error",
+    "response_extraction",
+    "unknown",
+]
+Unavailable = Literal[
+    "not_recorded",
+    "not_stopped",
+    "sensitive",
+    "outside_output",
+    "missing",
+    "not_regular_file",
+    "unreadable",
+    "partial",
+    "not_observed",
+]
+DiagnosticItem = Literal["stdout", "stderr", "exit_code", "reported_state"]
+
+
+class AttemptDiagnostic(StrictModel):
+    """runner の 1 回の試行の診断。値は列挙値・数値・識別子だけ。"""
+
+    agent_id: str
+    state: str
+    reported_state: str | None
+    exit_code: int | None
+    stop_confirmed: bool
+    elapsed_seconds: float
+    cause: Cause
+    unavailable: dict[DiagnosticItem, Unavailable] = Field(default_factory=dict[DiagnosticItem, Unavailable])
+
+
+class ReviewerDiagnostic(StrictModel):
+    """失敗した担当のいるレビュアーの診断（``cycle-<n>/diagnostics/<request_id>.json``）。"""
+
+    schema_: Literal["pr-review-fix-loop/v1"] = Field(default="pr-review-fix-loop/v1", alias="schema")
+    kind: Literal["diagnostic"] = "diagnostic"
+    request_id: str
+    role: str
+    requested_agent: str
+    actual_agent: str
+    verdict: Literal["accepted", "rejected"]
+    stage: RejectedStage | None
+    state: str
+    attempts: list[AttemptDiagnostic]
 
 
 class ReusedReview(StrictModel):
@@ -1652,6 +1713,220 @@ def keep_rejected_request(result: Result, entry: ReviewerEntry, directory: Path)
     shutil.copyfile(source, destination)
     entry.request_file = str(destination)
     entry.request_sha256 = sha256_file(destination)
+
+
+# --- 失敗の診断（#212） -------------------------------------------------------------------------------------------
+
+# 診断で読む各ログの末尾の上限（バイト）。ログの大きさに上限は無く、失敗はストリームを終わらせるので原因は末尾に出る
+DIAGNOSTIC_READ_BYTES = 1 << 20
+# HTTP の状態コードは、これらの語に続くときだけ数える（Traceback の行番号などを状態コードと取り違えない）
+_STATUS = r"(?:\bhttp(?:/[\d.]+)?|\bstatus(?:[ _-]?code)?|\berror[ _-]code)\W{0,3}"
+# 上から照合し、最初に当たった分類を採る。最初に取る手が決まる具体的なものを先に、結果としても出る例外を後に置く
+CAUSE_PATTERNS: tuple[tuple[Cause, re.Pattern[str]], ...] = tuple(
+    (cause, re.compile(pattern, re.IGNORECASE))
+    for cause, pattern in cast(
+        tuple[tuple[Cause, str], ...],
+        (
+            (
+                "authentication",
+                r"unauthori[sz]ed|\bforbidden\b|invalid[ _-]?api[ _-]?key|(?:missing|no)[ _-]?api[ _-]?key"
+                r"|api[ _-]?key[ _-]?is[ _-]?invalid|not (?:logged in|authenticated)|login required"
+                r"|please (?:log|sign)[ -]?in|authentication[ _-]?(?:error|failed|required)"
+                r"|(?:missing|invalid)_credential|credentials? (?:missing|invalid|expired)|token (?:has )?expired"
+                r"|(?-i:\bAUTH\b)|" + _STATUS + r"40[13]\b",
+            ),
+            (
+                "approval",
+                r"approval[ _-]?required|requires? (?:user )?approval|(?:awaiting|waiting for) approval"
+                r"|workspace trust|trust (?:this|the contents)|the user rejected (?:tool|escalating)",
+            ),
+            (
+                "rate_limit",
+                r"rate[ _-]?limit|too many requests|\bquota\b|insufficient[ _-](?:credits?|balance|funds|quota)"
+                r"|usage[ _-]limit|" + _STATUS + r"429\b",
+            ),
+            ("sandbox", r"\bdsh-sandbox:|\bbwrap:"),
+            (
+                "timeout",
+                r"\btimed[ -]?out\b|deadline[ _-]exceeded|\bETIMEDOUT\b|\btimeout(?:error|exception)\b"
+                r"|(?-i:\b[A-Z]\w*Timeout\b)|\b(?:gateway|request|read|connect(?:ion)?|socket|operation) time[ -]?out\b"
+                r"|" + _STATUS + r"(?:408|504)\b",
+            ),
+            (
+                "connection",
+                r"connection[ _-]?(?:reset|refused|closed|aborted|error|lost|failed)|connect[ _-]?error"
+                r"|\bECONN(?:RESET|REFUSED|ABORTED)\b|\bENOTFOUND\b|\bEAI_AGAIN\b|\bE(?:HOST|NET)UNREACH\b|\bEPIPE\b"
+                r"|broken pipe|remote ?disconnected|socket hang ?up|fetch failed|network (?:error|(?:is )?unreachable)"
+                r"|\b(?:ssl|tls)[ _-]?(?:error|handshake|alert)|certificate verify failed|getaddrinfo|name resolution"
+                r"|bad gateway|service unavailable|\boverloaded|internal server error|" + _STATUS + r"5(?:00|02|03|29)\b",
+            ),
+            (
+                "runtime_error",
+                r"traceback \(most recent call last\)|\bpanic(?:ked)?\b|uncaught (?:exception|error)"
+                r"|unhandled (?:exception|error|(?:promise )?rejection)|segmentation fault|core dumped|\bfatal error\b",
+            ),
+        ),
+    )
+)
+# JSON でない stdout の行のうち、CLI の診断として数える行。モデルの本文は数えない
+_DIAGNOSTIC_LINE = re.compile(
+    r"\s*(?:\[?(?:error|fatal|panic|critical)\b|traceback \(most recent call last\)|[\w.]*(?:error|exception):"
+    r"|(?:dsh|dsh-sandbox|bwrap):)",
+    re.IGNORECASE,
+)
+_EXTRACTION_STATES = frozenset({"response_failed", "missing_result", "invalid_result"})
+
+
+def read_log_tail(path: Path | None, attempt: Attempt, output_dir: Path) -> tuple[str | None, Unavailable | None]:
+    """試行のログの末尾（``DIAGNOSTIC_READ_BYTES`` まで）を読む。読まない・読めないときは (None, 理由)。
+
+    停止を確認できない試行（生きた書き手が差し替えうる）、``sensitive_paths``、このレビューの runner の出力の外、
+    symlink・特殊ファイルは読まない。上限を超えたら末尾だけを読み、理由に ``partial`` を返す。
+    """
+    if path is None:
+        return None, "not_recorded"
+    if not attempt.stop_confirmed:
+        return None, "not_stopped"
+    if any(path == item or path.is_relative_to(item) for item in attempt.sensitive_paths):
+        return None, "sensitive"
+    try:
+        if not path.resolve().is_relative_to(output_dir.resolve()):
+            return None, "outside_output"
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return None, "missing"
+    except OSError as error:
+        return None, "not_regular_file" if error.errno == errno.ELOOP else "unreadable"
+    except RuntimeError:
+        return None, "unreadable"
+    try:
+        with os.fdopen(descriptor, "rb") as stream:
+            size = os.fstat(stream.fileno())
+            if not stat.S_ISREG(size.st_mode):
+                return None, "not_regular_file"
+            partial = size.st_size > DIAGNOSTIC_READ_BYTES
+            if partial:
+                stream.seek(size.st_size - DIAGNOSTIC_READ_BYTES)
+            data = stream.read(DIAGNOSTIC_READ_BYTES)
+    except OSError:
+        return None, "unreadable"
+    return data.decode("utf-8", errors="replace"), "partial" if partial else None
+
+
+def _failure_event(event: dict[str, object]) -> bool:
+    """stdout の JSON のイベントが失敗の経路か。ツールの出力・モデルの本文のイベントは数えない。"""
+    kind, subtype, reason = event.get("type"), event.get("subtype"), event.get("reason")
+    return (
+        (isinstance(kind, str) and ("error" in kind.lower() or "fail" in kind.lower()))
+        or event.get("is_error") is True
+        or (isinstance(subtype, str) and subtype.lower().startswith("error"))
+        or bool(event.get("error"))
+        or (isinstance(reason, dict) and cast(dict[str, object], reason).get("kind") == "error")
+    )
+
+
+def diagnostic_text(stdout: str | None, stderr: str | None) -> str:
+    """原因の分類に使う文: stderr の全体と、stdout の失敗のイベント・診断の行。
+
+    モデルの本文とツールの出力は、レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない
+    （各 adapter が認証・承認の分類に失敗の経路と stderr だけを使うのと同じ）。
+    """
+    parts = [stderr] if stderr else []
+    for line in (stdout or "").split("\n"):
+        try:
+            event: object = json.loads(line)
+        except ValueError, RecursionError:
+            if _DIAGNOSTIC_LINE.match(line):
+                parts.append(line)
+            continue
+        if isinstance(event, dict) and _failure_event(cast(dict[str, object], event)):
+            parts.append(line)
+    return "\n".join(parts)
+
+
+def classify_cause(text: str, attempt: Attempt) -> Cause:
+    """診断の文を既知のパターンと上から照合した分類名。照合した文字列は返さない。
+
+    どれにも当たらなければ、停止を確認でき、終了コード 0 なのに結果を得られず、adapter も成功と分類しておらず、
+    秘密の残る保持物も無いときだけ ``response_extraction``（応答を取り出せなかった）、ほかは ``unknown``。
+    """
+    for cause, pattern in CAUSE_PATTERNS:
+        if pattern.search(text):
+            return cause
+    if (
+        attempt.stop_confirmed
+        and attempt.exit_code == 0
+        and attempt.state in _EXTRACTION_STATES
+        and attempt.reported_state != "success"
+        and not attempt.sensitive_paths
+    ):
+        return "response_extraction"
+    return "unknown"
+
+
+def diagnose_attempt(attempt: Attempt, output_dir: Path) -> AttemptDiagnostic:
+    """1 回の試行の診断。ログは ``read_log_tail`` の条件でだけ読み、読んだ文は分類にだけ使う。"""
+    unavailable: dict[DiagnosticItem, Unavailable] = {}
+    stdout, missing = read_log_tail(attempt.stdout_path, attempt, output_dir)
+    if missing is not None:
+        unavailable["stdout"] = missing
+    stderr, missing = read_log_tail(attempt.stderr_path, attempt, output_dir)
+    if missing is not None:
+        unavailable["stderr"] = missing
+    if attempt.exit_code is None:
+        unavailable["exit_code"] = "not_observed"
+    if attempt.reported_state is None:
+        unavailable["reported_state"] = "not_observed"
+    return AttemptDiagnostic(
+        agent_id=attempt.agent_id,
+        state=attempt.state,
+        reported_state=attempt.reported_state,
+        exit_code=attempt.exit_code,
+        stop_confirmed=attempt.stop_confirmed,
+        elapsed_seconds=attempt.elapsed_seconds,
+        cause=classify_cause(diagnostic_text(stdout, stderr), attempt),
+        unavailable=unavailable,
+    )
+
+
+def _error_name(error: Exception) -> str:
+    """errno の名前か例外の型の名前。パスや例外の文を記録に入れない。"""
+    number = getattr(error, "errno", None)
+    return errno.errorcode.get(number, type(error).__name__) if isinstance(number, int) else type(error).__name__
+
+
+def keep_diagnostic(result: Result, entry: ReviewerEntry, directory: Path, output_dir: Path) -> bool:
+    """失敗した担当のいるレビュアーの診断を、回収の前に ``<request_id>.json`` に保存する（#212）。
+
+    対象は却下したレビュアーと、success 以外の試行（fallback で失敗した担当）があるレビュアーで、ほかは何も書かずに
+    True を返す。生の stdout・stderr・session は写さない。保存できなければ理由を ``entry.diagnostic_error`` に書いて
+    False を返す（呼び出し側はログを含む出力を消さずに残す）。
+    """
+    if entry.verdict != "rejected" and all(attempt.state == "success" for attempt in result.attempts):
+        return True
+    try:
+        if Path(result.request_id).name != result.request_id:
+            raise ValueError("request_id is not a file name")
+        diagnostic = ReviewerDiagnostic(
+            request_id=result.request_id,
+            role=result.role,
+            requested_agent=result.requested_agent,
+            actual_agent=result.actual_agent,
+            verdict=entry.verdict,
+            stage=entry.rejected_stage,
+            state=result.state,
+            attempts=[diagnose_attempt(attempt, output_dir) for attempt in result.attempts],
+        )
+        directory.mkdir(parents=True, exist_ok=True)
+        destination = directory / f"{result.request_id}.json"
+        write_json(destination, diagnostic)
+        digest = sha256_file(destination)
+    except (OSError, ValueError) as error:
+        entry.diagnostic_file = entry.diagnostic_sha256 = None
+        entry.diagnostic_error = f"診断を保存できない（{_error_name(error)}）"
+        return False
+    entry.diagnostic_file, entry.diagnostic_sha256, entry.diagnostic_error = str(destination), digest, None
+    return True
 
 
 def _review_batch(
