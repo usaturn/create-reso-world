@@ -195,9 +195,10 @@ Attempt
   プロセス作成前の unsupported などでは path が null の場合がある。
   reported_state は、adapter が担当の出力から分類した状態で、adapter の後段の検査と runner の検査
   （終了コード・期限・停止・receipt の照合）が state を置き換える前の値。adapter の reported_state、
-  無ければ adapter が返した成功以外の state、無ければ receipt の status の順に採る。
-  adapter が分類しなかったとき（起動前の失敗、停止未確認で収集しない、collect の例外、
-  許されない state を返した、DSH の receipt ファイルを拒否した）は null。診断の記録だけに使う。
+  無ければ adapter が返した成功以外の state、無ければ receipt の status、無ければ adapter が返した
+  state（null か success）の順に採る。adapter が分類しなかったとき（起動前の失敗、停止未確認で収集しない、
+  Devin の export を伏せ字にできずに収集しない、collect の例外、許されない state を返した、
+  DSH の receipt ファイルを拒否した）は null。診断の記録だけに使う。
 
 Attempt / Result の state は success / self / unsupported / launch_failed /
 awaiting_authentication / awaiting_approval / response_failed / missing_result /

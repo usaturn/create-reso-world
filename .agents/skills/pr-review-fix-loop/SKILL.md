@@ -62,7 +62,7 @@ uv run --project "$TOOL_ROOT" --locked python \
    - 返った `next` が `review` のとき（再実行待ち。対象は `rerun.agents`）は、runner は成功したが結果を受け付けられなかったレビュアーを、同じサイクルで 1 回だけ起動し直す。計画に進まず、その `next` を同じように同期で待って実行する。次に何を実行するかは `next` だけで決める（`rerun` は再実行を終えた後の出力にも残る）。runner の失敗（期限切れ・認証待ち・起動失敗）は再実行しない。
    - 返った `next` が `cycle-end` なら、受け付けたレビュアーが 1 人以上いて、停止を確かめられない試行が無い。停止を確かめられない試行があれば、受け付けたレビュアーがいても計画に進まず、終了コード 7 で止まる（「止まったとき」）。再実行の後も `rejected` のレビュアーが残っていても、利用者に判断を返さずに 3 へ進む。状況コメントには、loop の判定（`rejected` と理由）と、そのレビュアーの成果を計画の入力にしたかを書く。保存の後に失敗した（後片付けの失敗、`response_failed` など）レビュアーの成果は、このサイクルの HEAD のままレビューディレクトリに残ることがあり、review-fix-planning はそれも読む。
    - `retained` は消さずに残したパスで、最終報告に書く。終了コード 6 は全員の失敗である（「終わり方」）。
-   - 失敗した担当がいるレビュアーには、試行ごとの診断（`diagnostic_file`）がある。runner のログは回収で消えるので、失敗の原因（`cause`）・上書きの前の状態（`reported_state`）・取得できなかった情報（`unavailable`）は診断で調べる（[records.md](references/records.md) の 4.1 節）。`diagnostic_error` があれば診断を保存できなかったので、その理由と、ログを含めて残した出力（`retained`）を利用者に伝える。
+   - 失敗した担当がいるレビュアーには、試行ごとの診断（`diagnostic_file`）がある（終了コード 6 のエラーの出力の `rejected` にもある）。runner のログは回収で消えるので、失敗の原因（`cause`）・上書きの前の状態（`reported_state`）・取得できなかった情報（`unavailable`）は診断で調べる（[records.md](references/records.md) の 4.1 節）。`diagnostic_error` があれば診断を保存できなかったので、その理由と、ログを含めて残した出力（`retained`）を利用者に伝える。
 3. **計画**: review-fix-planning の SKILL.md を読み、`planning.review_dir`（レビューディレクトリの完全パス）を第 1 引数にして、完遂の手順を最後まで行う。
    - `run_roles.py` の呼び出しには、`planning.run_roles_options`（`--template`・`--config`・`--assign`）をそのまま足す。
    - 関連検証が失敗したら、review-fix-planning の規則どおり原因を診断して直す。loop は計画の結果を待ち、サイクルを終えない。

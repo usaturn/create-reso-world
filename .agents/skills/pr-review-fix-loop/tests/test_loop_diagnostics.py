@@ -124,7 +124,9 @@ DSH_AUTH_TURN_END = {
             id="tool-output-is-data",
         ),
         pytest.param("The handler returns 429 when rate limited.\n", "", "unknown", id="model-prose-is-data"),
-        pytest.param(json.dumps({"type": "error", "message": "invalid api key"}) + "\n", "", "authentication", id="error-event"),
+        pytest.param(
+            json.dumps({"type": "error", "message": "invalid api key"}) + "\n", "", "authentication", id="error-event"
+        ),
         pytest.param(json.dumps(DSH_AUTH_TURN_END) + "\n", "", "authentication", id="dsh-turn-end"),
         pytest.param("Error: fetch failed\n", "", "connection", id="diagnostic-line"),
         pytest.param(
@@ -137,6 +139,48 @@ DSH_AUTH_TURN_END = {
         pytest.param("", "HTTP 429 Too Many Requests\n", "rate_limit", id="rate-limit"),
         pytest.param("", "dsh-sandbox: cannot bind the workspace\n", "sandbox", id="sandbox"),
         pytest.param("", "Request timed out\n", "timeout", id="timeout"),
+        # 失敗のイベントの各条件（claude-code・cursor の result、assistant の error、codex の turn.failed）
+        pytest.param(
+            json.dumps({"type": "result", "is_error": True, "result": "Request timed out"}) + "\n",
+            "",
+            "timeout",
+            id="event-is-error",
+        ),
+        pytest.param(
+            json.dumps({"type": "result", "subtype": "error_during_execution", "result": "Request timed out"}) + "\n",
+            "",
+            "timeout",
+            id="event-error-subtype",
+        ),
+        pytest.param(
+            json.dumps({"type": "assistant", "error": "Request timed out"}) + "\n", "", "timeout", id="event-error-key"
+        ),
+        pytest.param(
+            json.dumps({"type": "turn.failed", "message": "Request timed out"}) + "\n",
+            "",
+            "timeout",
+            id="event-failed-type",
+        ),
+        # JSON でない行は、行頭の診断（コロン付き・角括弧付き）だけを数える。Devin の本文の行や字下げした引用は数えない
+        pytest.param(
+            "Error handling for connection reset is missing.\n", "", "unknown", id="prose-starting-with-error"
+        ),
+        pytest.param("    Error: connection refused\n", "", "unknown", id="indented-quote"),
+        pytest.param("[ERROR] connection refused\n", "", "connection", id="bracketed-diagnostic"),
+        # DSH のエラーコード（stderr の「dsh: <CODE>: ...」と、turn_end の reason.error.code）
+        pytest.param("", "dsh: TRANSPORT: terminated\n", "connection", id="dsh-transport"),
+        pytest.param(
+            json.dumps({**DSH_AUTH_TURN_END, "reason": {"kind": "error", "error": {"code": "TRANSPORT"}}}) + "\n",
+            "",
+            "connection",
+            id="dsh-transport-turn-end",
+        ),
+        pytest.param("", "dsh: SERVER: upstream failure\n", "connection", id="dsh-server"),
+        pytest.param("", "dsh: ACCOUNT_QUOTA: balance exhausted\n", "rate_limit", id="dsh-account-quota"),
+        pytest.param("", "dsh: TIMEOUT: no response\n", "timeout", id="dsh-timeout"),
+        pytest.param(
+            "", "dsh: EMPTY_RESPONSE: the model returned no content\n", "response_extraction", id="dsh-empty-response"
+        ),
     ],
 )
 def test_cause_uses_only_failure_channels(loop: Any, tmp_path: Path, stdout: str, stderr: str, cause: str) -> None:
@@ -175,6 +219,52 @@ def test_response_extraction_is_decided_from_the_end_state(
         stop_confirmed=stopped,
         sensitive_paths=[tmp_path / "receipt.json"] if sensitive else [],
     )
+
+    assert loop.diagnose_attempt(attempt, output).cause == cause
+
+
+def pi_message(stop_reason: str, error: str | None = None) -> dict[str, Any]:
+    message: dict[str, Any] = {"role": "assistant", "stopReason": stop_reason, "content": []}
+    if error is not None:
+        message["errorMessage"] = error
+    return message
+
+
+PI_PROMPT = {"role": "user", "content": "Check the 401 Unauthorized handling and the connection reset path."}
+
+
+@pytest.mark.parametrize(
+    ("events", "cause"),
+    [
+        pytest.param(
+            [{"type": "message_end", "message": pi_message("error", '503 {"error":{"type":"overloaded_error"}}')}],
+            "connection",
+            id="failed-message",
+        ),
+        pytest.param(
+            [{"type": "agent_end", "messages": [PI_PROMPT, pi_message("error", "429 rate_limit_error")]}],
+            "rate_limit",
+            id="failed-message-in-agent-end-without-the-prompt",
+        ),
+        pytest.param(
+            [{"type": "turn_end", "message": pi_message("error", "something unexpected happened")}],
+            "unknown",
+            id="unclassified-reported-failure",
+        ),
+        pytest.param(
+            [{"type": "agent_end", "messages": [PI_PROMPT, pi_message("stop")]}],
+            "response_extraction",
+            id="nothing-reported",
+        ),
+    ],
+)
+def test_reported_failures_are_not_response_extraction(
+    loop: Any, tmp_path: Path, events: list[dict[str, Any]], cause: str
+) -> None:
+    # pi は提供元の失敗を、失敗で終わった assistant のメッセージの errorMessage にだけ書き、終了コード 0 で終わる。
+    # 報告された失敗は「応答の取り出し」にしない。プロンプト（PR の本文を含みうる）は分類に使わない
+    stdout = "".join(json.dumps(event) + "\n" for event in events)
+    attempt, output = failed_attempt(tmp_path, stdout=stdout, exit_code=0)
 
     assert loop.diagnose_attempt(attempt, output).cause == cause
 
@@ -234,7 +324,7 @@ def test_keep_diagnostic_covers_only_reviewers_with_a_failure(
     assert loop.sha256_file(path) == entry.diagnostic_sha256 and entry.diagnostic_error is None
     diagnostic = loop.ReviewerDiagnostic.model_validate_json(path.read_text(encoding="utf-8"))
     assert (diagnostic.verdict, diagnostic.stage) == (verdict, stage)
-    assert [item.agent_id for item in diagnostic.attempts] == [f"agent-{number}" for number in range(1, len(states) + 1)]
+    assert [item.agent_id for item in diagnostic.attempts] == [f"agent-{index}" for index in range(1, len(states) + 1)]
 
 
 # --- review の全体の経路（偽の CLI と偽の gh） --------------------------------------------------------------------
@@ -268,7 +358,7 @@ class MixedReviewers:
         failure = self.failures.get(context.request.agent_id)
         if failure is None:
             return cast_spec(self.others.prepare(context))
-        spec = {"stdout": failure.get("stdout", ""), "stderr": failure.get("stderr", ""), "exit": failure.get("exit", 1)}
+        spec = {key: failure.get(key, default) for key, default in (("stdout", ""), ("stderr", ""), ("exit", 1))}
         return LaunchSpec(argv=(sys.executable, "-c", FAILING_PROGRAM, json.dumps(spec)), stdin=b"")
 
     def collect(self, context: Any, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
@@ -358,7 +448,12 @@ def test_secret_in_logs_never_reaches_the_records(loop: Any, env: Any) -> None:
     run_dir = started_cycle(loop, env)
     adapter = MixedReviewers(
         env.reviewers({"alpha": "success"}),
-        {"beta": {"stderr": f"HTTP 401 Unauthorized: token {secret} was rejected\n", "reported": "awaiting_authentication"}},
+        {
+            "beta": {
+                "stderr": f"HTTP 401 Unauthorized: token {secret} was rejected\n",
+                "reported": "awaiting_authentication",
+            }
+        },
     )
 
     reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
@@ -416,3 +511,33 @@ def test_rerun_keeps_a_diagnostic_for_each_request(loop: Any, env: Any) -> None:
     for entry in (first, second):
         diagnostic = read_diagnostic(loop, entry.diagnostic_file)
         assert (diagnostic.stage, [attempt.state for attempt in diagnostic.attempts]) == ("payload", ["success"])
+
+
+@pytest.mark.parametrize("unsaved", [False, True], ids=["saved", "unsaved"])
+def test_all_failed_review_returns_the_diagnostics_to_the_controller(
+    loop: Any, env: Any, capsys: pytest.CaptureFixture[str], unsaved: bool
+) -> None:
+    # 全員が失敗した（終了コード 6）ときも、診断のパスか保存できなかった理由を司令塔に返す（受け入れ条件 3）
+    run_dir = started_cycle(loop, env)
+    if unsaved:
+        (run_dir / "cycle-1" / "diagnostics").write_text("not a directory", encoding="utf-8")
+    failure = {"stderr": "Error: read ECONNRESET\n"}
+    adapter = MixedReviewers(env.reviewers({}), {"alpha": failure, "beta": failure})
+
+    with pytest.raises(loop.LoopError) as error:
+        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+    assert error.value.code == 6
+    # CLI の出力。2 回目の review はレビュアーを起動せず、同じ失敗を返す
+    assert loop.main(["review", "--run", str(run_dir)]) == 6
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "error"
+    rejected = {item["agent"]: item for item in output["rejected"]}
+    assert sorted(rejected) == ["alpha", "beta"]
+    for item in rejected.values():
+        if unsaved:
+            assert (item["diagnostic_file"], item["diagnostic_error"]) == (None, "診断を保存できない（EEXIST）")
+        else:
+            assert item["diagnostic_error"] is None
+            (attempt,) = read_diagnostic(loop, item["diagnostic_file"]).attempts
+            assert attempt.cause == "connection"

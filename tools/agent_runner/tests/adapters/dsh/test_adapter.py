@@ -448,7 +448,10 @@ def test_missing_identity_preserves_known_failure(context: AdapterContext, code:
 
 @pytest.mark.parametrize(
     ("reason", "reported"),
-    [({"kind": "error", "error": {"code": "AUTH", "message": "401: rejected"}}, "awaiting_authentication"), (None, "success")],
+    [
+        ({"kind": "error", "error": {"code": "AUTH", "message": "401: rejected"}}, "awaiting_authentication"),
+        (None, "success"),
+    ],
 )
 def test_unreadable_identity_keeps_the_classified_state(
     context: AdapterContext, reason: dict[str, object] | None, reported: str

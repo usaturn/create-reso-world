@@ -102,7 +102,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `state` | runner の `Result.state` |
 | `attempts[]` | 試行（fallback を含む起動順）ごとに `agent_id`・`state`・`reported_state`（adapter が出力から分類した、adapter と runner が置き換える前の状態。`tools/agent_runner/interfaces.rst`）・`exit_code`・`stop_confirmed`・`elapsed_seconds`・`cause`・`unavailable` |
 
-`cause`（原因の分類）は、stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）と、JSON でない診断の行（行頭が `error`・`fatal`・`panic`・`Traceback`・`<名前>Error:`・`dsh:`・`dsh-sandbox:`・`bwrap:` など）を、既知のパターンと上から照合して、最初に当たった分類名である。照合した文字列は残さない。モデルの本文とツールの出力は使わない（レビュー対象のコードが認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ数える。各ログは末尾から 1 MiB までを読む。
+`cause`（原因の分類）は、stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）、失敗で終わった assistant のメッセージ（`message`・`messages[]` の `stopReason` が `error`。pi の形）の `errorMessage`、JSON でない行のうち行頭（字下げなし）のコロン付き・角括弧付きの診断の行（`Error:`・`fatal:`・`panic:`・`[ERROR]`・`<名前>Error:`・`Traceback (most recent call last)`・`dsh:`・`dsh-sandbox:`・`bwrap:` など）を、既知のパターンと上から照合して、最初に当たった分類名である。照合した文字列は残さない。モデルの本文・ツールの出力・プロンプトは使わない（レビュー対象のコードや PR の本文が認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ、DSH のエラーコード（`AUTH`・`RATE_LIMIT`・`QUOTA`・`ACCOUNT_QUOTA`・`TIMEOUT`・`TRANSPORT`・`SERVER`・`EMPTY_RESPONSE`）は大文字のときだけ数える。各ログは末尾から 1 MiB までを読む。
 
 | `cause` | 意味 |
 | --- | --- |
@@ -113,7 +113,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `timeout` | 提供元・通信の期限切れ（runner の期限切れは `state` の `timed_out`） |
 | `connection` | 提供元への接続の失敗と、提供元の一時的な障害（5xx・過負荷） |
 | `runtime_error` | ランタイム（CLI）自身の例外・異常終了 |
-| `response_extraction` | ログの照合はどれにも当たらず、停止を確認でき、終了コードが 0 なのに結果を得られなかった（`reported_state` が `success` でなく、`sensitive_paths` が無い） |
+| `response_extraction` | DSH の `EMPTY_RESPONSE`。または、ログの照合はどれにも当たらず、停止を確認でき、終了コードが 0 で、stdout でランタイムが失敗を報告していない（失敗のイベント・失敗で終わったメッセージ・診断の行が無い）のに結果を得られなかった（`reported_state` が `success` でなく、`sensitive_paths` が無い） |
 | `unknown` | どれにも当たらない、またはログを読めなかった。推測で補わない |
 
 `unavailable` は、取得できなかった情報（キーは `stdout`・`stderr`・`exit_code`・`reported_state`）と、その理由である。
@@ -128,7 +128,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `partial` | 1 MiB を超えたので末尾だけを読んだ |
 | `not_observed` | `exit_code`・`reported_state` が null |
 
-`review` の出力の各レビュアー（`accepted`・`rejected`）にも、`diagnostic_file` と `diagnostic_error` を返す。診断を書けなかったとき（ディレクトリを作れない・書けないなど）は、`diagnostic_error` に理由（errno の名前か例外の型の名前だけ）を書き、その出力ディレクトリは worktree の登録だけを外して、ログを含めて消さずに残す（`resources` の `retained`、出力の `retained`）。`review` は止めない。
+`review` の出力の各レビュアー（`accepted`・`rejected`）にも、`diagnostic_file` と `diagnostic_error` を返す。全レビュアーの失敗（終了コード 6）のエラーの出力にも、同じ形の `rejected` が入る（5 章）。診断を書けなかったとき（ディレクトリを作れない・書けないなど）は、`diagnostic_error` に理由（errno の名前か例外の型の名前だけ）を書き、その出力ディレクトリは worktree の登録だけを外して、ログを含めて消さずに残す（`resources` の `retained`、出力の `retained`）。`review` は止めない。
 
 ## 5. 終了コードと `stage`
 
@@ -145,7 +145,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 
 `check-options` は記録を書かない。成功の出力は `{"status": "ok", "options", "assignments", "next": null}` で、`options` は `run.json` の `options` から `fresh_review` を除いた形、`assignments` は `run.json` と同じ形である。失敗は終了コード 2（`arguments`・`config`）で、`run_dir` と `next` は null。
 
-失敗の出力は `{"status": "error", "stage", "reason", "run_dir", "next", "requires_input"}`。`requires_input` は、`next` に足すオプションと、そこに書く事実の説明（`recover` の `--operator-confirmed-stopped` など）。書きかけの値を実行させないよう、`next` にはそのオプションを含めない。失敗しても、それまでに保存した記録と runner の結果は書き換えない。引数の書式の誤り（argparse が拒否するもの）だけは、標準エラー出力の usage と終了コード 2 で、JSON を書かない。
+失敗の出力は `{"status": "error", "stage", "reason", "run_dir", "next", "requires_input"}`。全レビュアーの結果を受け付けられなかった（終了コード 6）ときだけ、`review` の成功の出力と同じ形の `rejected`（却下したレビュアーごとの `reason`・`rejected_stage`・`diagnostic_file`・`diagnostic_error` など。4.1 節）も入る。`requires_input` は、`next` に足すオプションと、そこに書く事実の説明（`recover` の `--operator-confirmed-stopped` など）。書きかけの値を実行させないよう、`next` にはそのオプションを含めない。失敗しても、それまでに保存した記録と runner の結果は書き換えない。引数の書式の誤り（argparse が拒否するもの）だけは、標準エラー出力の usage と終了コード 2 で、JSON を書かない。
 
 ## 6. 読む側の注意
 

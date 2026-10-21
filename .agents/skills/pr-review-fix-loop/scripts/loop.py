@@ -102,6 +102,7 @@ class LoopError(Exception):
         *,
         next_command: list[str] | None = None,
         requires_input: dict[str, str] | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(reason)
         self.code = code
@@ -111,6 +112,8 @@ class LoopError(Exception):
         # next_command に足す引数のうち、司令塔が事実を確かめて書く値（{オプション: 書く内容}）。
         # 書きかけの値を実行させないよう、next_command には含めない
         self.requires_input = requires_input
+        # 失敗の出力に足す項目（全レビュアーの失敗の rejected。#212）
+        self.details = details
 
 
 _PLACEHOLDER = re.compile(r"<[^<>]*>")
@@ -1688,6 +1691,8 @@ def _all_failed(run_dir: Path, entries: Sequence[ReviewerEntry]) -> LoopError:
         reason.removeprefix("external: ") + "。指摘 0 件としては扱わない。"
         "停止の理由が外部ではなく環境・権限なら、--abort の分類を書き換える",
         next_command=command("finish", "--run", str(run_dir), f"--abort={reason}"),
+        # 原因を調べる手がかり（診断のパス、保存できなかった理由）を、成功の出力と同じ形で司令塔に返す（#212）
+        details={"rejected": [_reviewer_summary(entry) for entry in entries if entry.verdict == "rejected"]},
     )
 
 
@@ -1742,7 +1747,7 @@ CAUSE_PATTERNS: tuple[tuple[Cause, re.Pattern[str]], ...] = tuple(
         (
             (
                 "authentication",
-                r"unauthori[sz]ed|\bforbidden\b|invalid[ _-]?api[ _-]?key|(?:missing|no)[ _-]?api[ _-]?key"
+                r"unauthori[sz]ed|\bforbidden\b|invalid[ _-]?(?:x-)?api[ _-]?key|(?:missing|no)[ _-]?api[ _-]?key"
                 r"|api[ _-]?key[ _-]?is[ _-]?invalid|not (?:logged in|authenticated)|login required"
                 r"|please (?:log|sign)[ -]?in|authentication[ _-]?(?:error|failed|required)"
                 r"|(?:missing|invalid)_credential|credentials? (?:missing|invalid|expired)|token (?:has )?expired"
@@ -1755,24 +1760,29 @@ CAUSE_PATTERNS: tuple[tuple[Cause, re.Pattern[str]], ...] = tuple(
             ),
             (
                 "rate_limit",
-                r"rate[ _-]?limit|too many requests|\bquota\b|insufficient[ _-](?:credits?|balance|funds|quota)"
-                r"|usage[ _-]limit|" + _STATUS + r"429\b",
+                r"rate[ _-]?limit|too many requests|quotas?(?:\b|[ _-]?exceeded)"
+                r"|insufficient[ _-](?:credits?|balance|funds|quota)|usage[ _-]limit|" + _STATUS + r"429\b",
             ),
             ("sandbox", r"\bdsh-sandbox:|\bbwrap:"),
             (
                 "timeout",
                 r"\btimed[ -]?out\b|deadline[ _-]exceeded|\bETIMEDOUT\b|\btimeout(?:error|exception)\b"
-                r"|(?-i:\b[A-Z]\w*Timeout\b)|\b(?:gateway|request|read|connect(?:ion)?|socket|operation) time[ -]?out\b"
+                r"|(?-i:\bTIMEOUT\b)|(?-i:\b[A-Z]\w*Timeout\b)"
+                r"|\b(?:gateway|request|read|connect(?:ion)?|socket|operation) time[ -]?out\b"
                 r"|" + _STATUS + r"(?:408|504)\b",
             ),
             (
                 "connection",
                 r"connection[ _-]?(?:reset|refused|closed|aborted|error|lost|failed)|connect[ _-]?error"
+                r"|(?-i:\b(?:TRANSPORT|SERVER)\b)"
                 r"|\bECONN(?:RESET|REFUSED|ABORTED)\b|\bENOTFOUND\b|\bEAI_AGAIN\b|\bE(?:HOST|NET)UNREACH\b|\bEPIPE\b"
                 r"|broken pipe|remote ?disconnected|socket hang ?up|fetch failed|network (?:error|(?:is )?unreachable)"
                 r"|\b(?:ssl|tls)[ _-]?(?:error|handshake|alert)|certificate verify failed|getaddrinfo|name resolution"
-                r"|bad gateway|service unavailable|\boverloaded|internal server error|" + _STATUS + r"5(?:00|02|03|29)\b",
+                r"|bad gateway|service unavailable|\boverloaded|internal server error"
+                r"|" + _STATUS + r"5(?:00|02|03|29)\b",
             ),
+            # DSH の EMPTY_RESPONSE（応答は正常に終わったが中身が無い）
+            ("response_extraction", r"(?-i:\bEMPTY_RESPONSE\b)"),
             (
                 "runtime_error",
                 r"traceback \(most recent call last\)|\bpanic(?:ked)?\b|uncaught (?:exception|error)"
@@ -1781,10 +1791,11 @@ CAUSE_PATTERNS: tuple[tuple[Cause, re.Pattern[str]], ...] = tuple(
         ),
     )
 )
-# JSON でない stdout の行のうち、CLI の診断として数える行。モデルの本文は数えない
+# JSON でない stdout の行のうち、CLI の診断として数える行（行頭のコロン付き・角括弧付きの診断）。Devin の stdout は
+# モデルの発言の平文なので、字下げした引用や「Error handling for ...」のような本文の行は数えない
 _DIAGNOSTIC_LINE = re.compile(
-    r"\s*(?:\[?(?:error|fatal|panic|critical)\b|traceback \(most recent call last\)|[\w.]*(?:error|exception):"
-    r"|(?:dsh|dsh-sandbox|bwrap):)",
+    r"(?:\[(?:error|fatal|panic|critical)\]|(?:fatal|panic|critical):|traceback \(most recent call last\)"
+    r"|[\w.]*(?:error|exception):|(?:dsh|dsh-sandbox|bwrap):)",
     re.IGNORECASE,
 )
 _EXTRACTION_STATES = frozenset({"response_failed", "missing_result", "invalid_result"})
@@ -1838,30 +1849,55 @@ def _failure_event(event: dict[str, object]) -> bool:
     )
 
 
-def diagnostic_text(stdout: str | None, stderr: str | None) -> str:
-    """原因の分類に使う文: stderr の全体と、stdout の失敗のイベント・診断の行。
+def _failed_messages(event: dict[str, object]) -> list[str]:
+    """失敗で終わった assistant のメッセージ（``stopReason`` が ``error``）の ``errorMessage``。
 
-    モデルの本文とツールの出力は、レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない
-    （各 adapter が認証・承認の分類に失敗の経路と stderr だけを使うのと同じ）。
+    pi は提供元の失敗を、``message``（message_end・turn_end）と ``messages``（agent_end）の中のこの形にだけ書き、
+    終了コード 0 で終わる。プロンプト（PR の本文を含みうる）とモデルの本文は使わない。
     """
-    parts = [stderr] if stderr else []
+    messages = event.get("messages")
+    found: list[str] = []
+    for item in [event.get("message"), *(cast(list[object], messages) if isinstance(messages, list) else [])]:
+        if not isinstance(item, dict):
+            continue
+        message = cast(dict[str, object], item)
+        if message.get("role") == "assistant" and message.get("stopReason") == "error":
+            error = message.get("errorMessage")
+            found.append(error if isinstance(error, str) else "")
+    return found
+
+
+def diagnostic_text(stdout: str | None, stderr: str | None) -> tuple[str, bool]:
+    """原因の分類に使う文と、stdout でランタイムが失敗を報告していたか。
+
+    文は stderr の全体と、stdout の失敗のイベント・失敗で終わった assistant のメッセージの ``errorMessage``・
+    診断の行。モデルの本文とツールの出力は、レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので
+    使わない（各 adapter が認証・承認の分類に失敗の経路と stderr だけを使うのと同じ）。
+    """
+    reported: list[str] = []
     for line in (stdout or "").split("\n"):
         try:
             event: object = json.loads(line)
         except ValueError, RecursionError:
             if _DIAGNOSTIC_LINE.match(line):
-                parts.append(line)
+                reported.append(line)
             continue
-        if isinstance(event, dict) and _failure_event(cast(dict[str, object], event)):
-            parts.append(line)
-    return "\n".join(parts)
+        if not isinstance(event, dict):
+            continue
+        mapping = cast(dict[str, object], event)
+        if _failure_event(mapping):
+            reported.append(line)
+        else:
+            reported.extend(_failed_messages(mapping))
+    return "\n".join([stderr, *reported] if stderr else reported), bool(reported)
 
 
-def classify_cause(text: str, attempt: Attempt) -> Cause:
+def classify_cause(text: str, attempt: Attempt, *, reported: bool = False) -> Cause:
     """診断の文を既知のパターンと上から照合した分類名。照合した文字列は返さない。
 
-    どれにも当たらなければ、停止を確認でき、終了コード 0 なのに結果を得られず、adapter も成功と分類しておらず、
-    秘密の残る保持物も無いときだけ ``response_extraction``（応答を取り出せなかった）、ほかは ``unknown``。
+    どれにも当たらなければ、停止を確認でき、終了コード 0 なのに結果を得られず、stdout でランタイムが失敗を報告して
+    おらず（``reported``）、adapter も成功と分類しておらず、秘密の残る保持物も無いときだけ ``response_extraction``
+    （応答を取り出せなかった）、ほかは ``unknown``。報告された失敗を取り出しの失敗と取り違えない。
     """
     for cause, pattern in CAUSE_PATTERNS:
         if pattern.search(text):
@@ -1870,6 +1906,7 @@ def classify_cause(text: str, attempt: Attempt) -> Cause:
         attempt.stop_confirmed
         and attempt.exit_code == 0
         and attempt.state in _EXTRACTION_STATES
+        and not reported
         and attempt.reported_state != "success"
         and not attempt.sensitive_paths
     ):
@@ -1890,6 +1927,7 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path) -> AttemptDiagnostic:
         unavailable["exit_code"] = "not_observed"
     if attempt.reported_state is None:
         unavailable["reported_state"] = "not_observed"
+    text, reported = diagnostic_text(stdout, stderr)
     return AttemptDiagnostic(
         agent_id=attempt.agent_id,
         state=attempt.state,
@@ -1897,7 +1935,7 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path) -> AttemptDiagnostic:
         exit_code=attempt.exit_code,
         stop_confirmed=attempt.stop_confirmed,
         elapsed_seconds=attempt.elapsed_seconds,
-        cause=classify_cause(diagnostic_text(stdout, stderr), attempt),
+        cause=classify_cause(text, attempt, reported=reported),
         unavailable=unavailable,
     )
 
@@ -2545,19 +2583,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = dispatch(args)
     except LoopError as error:
         run = getattr(args, "run", None)
-        print(
-            json.dumps(
-                {
-                    "status": "error",
-                    "stage": error.stage,
-                    "reason": error.reason,
-                    "run_dir": str(run) if run is not None else None,
-                    "next": error.next_command,
-                    "requires_input": error.requires_input,
-                },
-                ensure_ascii=False,
-            )
-        )
+        failure: dict[str, Any] = {
+            "status": "error",
+            "stage": error.stage,
+            "reason": error.reason,
+            "run_dir": str(run) if run is not None else None,
+            "next": error.next_command,
+            "requires_input": error.requires_input,
+        }
+        print(json.dumps({**failure, **(error.details or {})}, ensure_ascii=False))
         return error.code
     print(json.dumps(output, ensure_ascii=False))
     return 0
