@@ -2,6 +2,7 @@
 
 形式だけの検証記録を実検証の代わりにしない。司令塔が実際のコマンド、HEAD、検証したツリーが含むbaseを記録する。
 状況を投稿する前とマージの直前に、PRのbaseブランチの今の先端がそのbaseと同じことを確かめ、違えばそこで止まる。
+マージの後は、merge commitの最初の親がそのbaseと同じことを確かめ、違う・読めなければ関連Issueを更新せずにマージ済みのまま止まる。
 終了コード0だけがno_fix_needed。それ以外はstoppedと具体的な未完了箇所を返す。
 結果のmergedは、最後に観測したPRのマージ状態（true・false）。確かめていなければnull（未マージとは言わない）。
 マージしてよいPRはMERGEABLE_REPOSITORIESだけで、CIを確かめるかどうかはCI_REQUIREDで決める。
@@ -54,6 +55,7 @@ FIELDS = (
     "isDraft",
     "mergeable",
     "mergedAt",
+    "mergeCommit",
     "statusCheckRollup",
     "closingIssuesReferences",
 )
@@ -68,14 +70,22 @@ class Stop(Exception):
     head: pushしたSpecのcommitがまだPRのheadに反映されていない）。司令塔が待ってから同じ記録で再実行する。
     base_moved は、検証した後にbaseが進んだ停止（ref: baseブランチの名前、verified: 検証の記録のbase、
     current: 今の先端）。待っても解消しないので、司令塔がcurrentで検証し直し、検証の記録を作り直してから再実行する。
+    merge_parent は、マージの後にmerge commitの最初の親が検証の記録のbaseと違う・読めない停止（verified・merge_commit・
+    first_parent。読めなかった値はNone）。PRはマージ済みで、司令塔がmerge commitのツリーで検証し直してから再実行する。
     """
 
     def __init__(
-        self, reason: str, *, wait_for: str | None = None, base_moved: dict[str, str] | None = None
+        self,
+        reason: str,
+        *,
+        wait_for: str | None = None,
+        base_moved: dict[str, str] | None = None,
+        merge_parent: dict[str, str | None] | None = None,
     ) -> None:
         super().__init__(reason)
         self.wait_for = wait_for
         self.base_moved = base_moved
+        self.merge_parent = merge_parent
 
 
 def check_evidence(checks: Mapping[str, Any], head: str) -> None:
@@ -241,6 +251,43 @@ def check_base(runner: Any, repo: str, view: Mapping[str, Any], verified: str) -
         raise Stop(
             f"external: 検証した後にPRのbaseブランチが進んだ（検証したbase {verified[:12]}、今の先端 {current[:12]}）",
             base_moved={"ref": ref, "verified": verified, "current": current},
+        )
+
+
+def check_merge_parent(runner: Any, repo: str, view: Mapping[str, Any], verified: str) -> None:
+    """マージしたPRのmerge commitの最初の親が、検証の記録のbase（verified）と同じことを確かめる。
+
+    最初の親は、GitHubがマージしたときのbaseの先端である。最後のbaseの照合からGitHubがマージを処理するまでの間の
+    前進は止められないので（references/execution.md の 3.5 節）、マージの後にここで見つける。
+    PRの応答のmergeCommitのoidと、GitのcommitのAPIの応答のsha・最初の親がどれも完全なSHAで、shaがoidと同じとき
+    だけ読めたとする。gh の失敗も読めないとして扱う。
+    """
+    found: dict[str, str | None] = {"verified": verified, "merge_commit": None, "first_parent": None}
+    unreadable = (
+        "external: マージの後にmerge commitの最初の親を読めず、検証したbaseで作られたかを確かめられない。"
+        "読めるようになってから同じ記録で再実行し、違っていればmerge commitのツリーで再検証する"
+    )
+    merge_commit = as_object(view.get("mergeCommit"))
+    oid = None if merge_commit is None else merge_commit.get("oid")
+    if not isinstance(oid, str) or FULL_SHA.fullmatch(oid) is None:
+        raise Stop(unreadable, merge_parent=found)
+    found["merge_commit"] = oid
+    try:
+        commit = as_object(
+            poster.load_json(poster.run_gh(["api", f"repos/{repo}/git/commits/{oid}"], runner=runner), "gh api commit")
+        )
+    except poster.CommentError:
+        commit = None
+    parents = None if commit is None or commit.get("sha") != oid else as_list(commit.get("parents"))
+    first = (as_object(parents[0]) or {}).get("sha") if parents else None
+    if not isinstance(first, str) or FULL_SHA.fullmatch(first) is None:
+        raise Stop(unreadable, merge_parent=found)
+    found["first_parent"] = first
+    if first != verified:
+        raise Stop(
+            f"external: merge commit {oid[:12]} の最初の親 {first[:12]} が検証したbase {verified[:12]} と違い、"
+            "検証していない組み合わせがマージされた。merge commitのツリーで同じ検証をし、検証の記録を作り直してから再実行する",
+            merge_parent=found,
         )
 
 
@@ -421,7 +468,8 @@ def finalize(
             if view["state"] != "MERGED":
                 check_ci(view, repo)
                 # 最後の確認。ここからGitHubがマージを処理するまでの間の前進は止められない
-                # （GitHubのマージはbaseを固定できない。references/execution.md の 3.5 節）
+                # （GitHubのマージはbaseを固定できない。references/execution.md の 3.5 節）。
+                # マージの後にmerge commitの最初の親で確かめる
                 step = "pre-merge base"
                 check_base(active, repo, view, checks["base"])
                 step = "merge"
@@ -437,6 +485,9 @@ def finalize(
         merged = observe_merged(view, merged)
         if view.get("state") != "MERGED" or not view.get("mergedAt") or view.get("headRefOid") != merge_head:
             raise Stop("external: マージ済み状態と検証済みHEADの一致を確認できない")
+        # 既にマージ済みだったPR（Issueの更新の再開・手動マージ）も、過去のマージのmerge commitで照合する
+        step = "merge commit"
+        check_merge_parent(active, repo, view, checks["base"])
         for number in closing_issues(view, repo):
             step = f"Issue #{number} state"
             issue = view_issue(active, repo, number)
@@ -454,6 +505,8 @@ def finalize(
             result["wait_for"] = error.wait_for
         if error.base_moved is not None:
             result["base_moved"] = error.base_moved
+        if error.merge_parent is not None:
+            result["merge_parent"] = error.merge_parent
     except poster.records.RecordError:
         result["stop_reason"] = "environment: 状況記録が不正で最終化を開始できない"
     except poster.CommentError:
