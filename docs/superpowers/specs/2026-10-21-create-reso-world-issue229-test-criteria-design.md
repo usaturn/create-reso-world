@@ -17,7 +17,7 @@
 - ループのオプション（`loop.py check-options` の出力）: `max_cycles = 3`、`assign = {}`、`template = .devcontainer/agent-runner.toml`、`config = null`（いずれも既定の適用。利用者の指定は無い）。割り当ては、レビュー（`inspect`）が `devin-swe`・`pi-deepseek`・`claude-opus`・`pi-gpt`（個人設定 `~/.config/agent-runner/config.toml` の適用）、修正（`implement`）が `claude-opus`、自己レビュー（`self-review`）・修正の確認（`fix-check`）が `self`（雛形の既定の適用）。いずれも `fallback` なし
 - 実装の担当: `implement_task.py check` は `assignment.agents = ["self"]`・`fallback = []`・`self: true`（雛形 `.devcontainer/agent-runner.toml` の `workflows.issue` の既定の適用。個人設定に `workflows.issue` は無い。利用者の指定ではない）
 - 予約: `refs/heads/agent-claims/issue-229` = `5df1a4c2b86be52ee6a31be98d712098a33fe548`（https://github.com/usaturn/create-reso-world/issues/229#issuecomment-6310421835）
-- 基準: `origin/main` の `7d44355`
+- 基準: `origin/main` の `7d44355`（この Spec を書いた時点）。実装の後に、PR #237 のマージで進んだ `d643cda` へ rebase した（Plan の「検証の記録」）
 
 ## 意図
 
