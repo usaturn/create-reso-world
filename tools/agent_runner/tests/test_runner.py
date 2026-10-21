@@ -73,11 +73,14 @@ class FakeAdapter:
         env: dict[str, str] | None = None,
         outcome_state: State | None = None,
         identity: Identity | None = None,
+        reported_state: object = None,
     ) -> None:
         self.options = options or {}
         self.env = env or {}
         self.outcome_state: State | None = outcome_state
         self.identity = identity or Identity()
+        # Trusted adapters are not validated: a non-State value must not reach Attempt
+        self.reported_state = reported_state
 
     def prepare(self, context: AdapterContext) -> LaunchSpec:
         return LaunchSpec(
@@ -97,7 +100,7 @@ class FakeAdapter:
         receipt = (
             Receipt.model_validate_json(context.receipt_path.read_bytes()) if context.receipt_path.exists() else None
         )
-        return AdapterOutcome(receipt, self.identity, self.outcome_state)
+        return AdapterOutcome(receipt, self.identity, self.outcome_state, cast(State | None, self.reported_state))
 
 
 @contextlib.contextmanager
@@ -331,6 +334,26 @@ def test_adapter_success_cannot_bypass_missing_receipt(repository: Path) -> None
     assert batch.results[0].state == "missing_result"
 
 
+def test_reported_state_keeps_the_adapter_state_before_the_exit_code_override(repository: Path) -> None:
+    # The CLI writes a success receipt but exits 1: the runner fails the attempt, the adapter's view stays (#212)
+    batch = run_workflow(
+        configuration(), "audit", "prompt", repository, adapter_loader=lambda _: FakeAdapter({"a": {"exit": 1}})
+    )
+    attempt = batch.results[0].attempts[0]
+    assert (attempt.state, attempt.reported_state) == ("response_failed", "success")
+
+
+@pytest.mark.parametrize(
+    ("reported", "expected"), [("awaiting_authentication", "awaiting_authentication"), ("bogus", "response_failed")]
+)
+def test_adapter_reported_state_is_recorded(repository: Path, reported: str, expected: str) -> None:
+    # An adapter that replaced its own classification hands over the earlier state; a non-State value is ignored
+    adapter = FakeAdapter(outcome_state="response_failed", reported_state=reported)
+    batch = run_workflow(configuration(), "audit", "prompt", repository, adapter_loader=lambda _: adapter)
+    attempt = batch.results[0].attempts[0]
+    assert (attempt.state, attempt.reported_state) == ("response_failed", expected)
+
+
 def test_partial_success_and_independent_worktrees(repository: Path) -> None:
     batch = run_workflow(
         configuration(["a", "b"]),
@@ -415,6 +438,8 @@ def test_launch_failed_is_safe(repository: Path) -> None:
     cfg.agents["a"].command = ["/does/not/exist"]
     failed = run_workflow(cfg, "audit", "secret prompt", repository, adapter_loader=lambda _: FakeAdapter())
     assert failed.results[0].state == "launch_failed"
+    # Nothing was classified from output, so no earlier state is reported
+    assert failed.results[0].attempts[0].reported_state is None
     assert "secret prompt" not in failed.model_dump_json()
 
 
@@ -591,6 +616,8 @@ def test_unconfirmed_stop_blocks_success_and_fallback(repository: Path, monkeypa
     assert result.state != "success"
     assert len(result.attempts) == 1
     assert not result.attempts[0].stop_confirmed
+    # Output of an unconfirmed stop is never collected, so no earlier state is reported
+    assert result.attempts[0].reported_state is None
     assert result.attempts[0].work_dir is not None and result.attempts[0].work_dir.exists()
 
 

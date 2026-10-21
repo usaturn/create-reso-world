@@ -211,6 +211,9 @@ class Identity(StrictModel):
 class Attempt(StrictModel):
     agent_id: Identifier
     state: State
+    # What the adapter classified from the output before the adapter's later checks or the runner
+    # replaced it; null when nothing was classified. A diagnostic only: never used to decide state.
+    reported_state: State | None = None
     identity: Identity = Field(default_factory=Identity)
     exit_code: int | None = None
     elapsed_seconds: ElapsedSeconds

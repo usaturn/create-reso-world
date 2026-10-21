@@ -14,6 +14,7 @@ check-options は start と同じオプションと agent-runner の設定だけ
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import importlib.util
 import itertools
@@ -21,6 +22,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -39,6 +41,7 @@ sys.path.insert(0, str(ROOT))
 
 from tools.agent_runner import (  # noqa: E402
     Assignment,
+    Attempt,
     BatchResult,
     Config,
     ConfigError,
@@ -99,6 +102,7 @@ class LoopError(Exception):
         *,
         next_command: list[str] | None = None,
         requires_input: dict[str, str] | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(reason)
         self.code = code
@@ -108,6 +112,8 @@ class LoopError(Exception):
         # next_command に足す引数のうち、司令塔が事実を確かめて書く値（{オプション: 書く内容}）。
         # 書きかけの値を実行させないよう、next_command には含めない
         self.requires_input = requires_input
+        # 失敗の出力に足す項目（全レビュアーの失敗の rejected。#212）
+        self.details = details
 
 
 _PLACEHOLDER = re.compile(r"<[^<>]*>")
@@ -239,6 +245,64 @@ class ReviewerEntry(StrictModel):
     rejected_stage: RejectedStage | None = None
     request_file: str | None = None
     request_sha256: str | None = None
+    # 失敗した担当のいるレビュアーの診断（cycle-<n>/diagnostics/<request_id>.json）と、保存できなかった理由（#212）
+    diagnostic_file: str | None = None
+    diagnostic_sha256: str | None = None
+    diagnostic_error: str | None = None
+
+
+# 原因の分類（上から優先）と、ログ・値を取得できなかった理由。どちらも固定の語彙で、ログの文字列を入れない
+Cause = Literal[
+    "authentication",
+    "approval",
+    "rate_limit",
+    "sandbox",
+    "timeout",
+    "connection",
+    "runtime_error",
+    "response_extraction",
+    "unknown",
+]
+Unavailable = Literal[
+    "not_recorded",
+    "not_stopped",
+    "sensitive",
+    "outside_output",
+    "missing",
+    "not_regular_file",
+    "unreadable",
+    "partial",
+    "not_observed",
+]
+DiagnosticItem = Literal["stdout", "stderr", "exit_code", "reported_state"]
+
+
+class AttemptDiagnostic(StrictModel):
+    """runner の 1 回の試行の診断。値は列挙値・数値・識別子だけ。"""
+
+    agent_id: str
+    state: str
+    reported_state: str | None
+    exit_code: int | None
+    stop_confirmed: bool
+    elapsed_seconds: float
+    cause: Cause
+    unavailable: dict[DiagnosticItem, Unavailable] = Field(default_factory=dict[DiagnosticItem, Unavailable])
+
+
+class ReviewerDiagnostic(StrictModel):
+    """失敗した担当のいるレビュアーの診断（``cycle-<n>/diagnostics/<request_id>.json``）。"""
+
+    schema_: Literal["pr-review-fix-loop/v1"] = Field(default="pr-review-fix-loop/v1", alias="schema")
+    kind: Literal["diagnostic"] = "diagnostic"
+    request_id: str
+    role: str
+    requested_agent: str
+    actual_agent: str
+    verdict: Literal["accepted", "rejected"]
+    stage: RejectedStage | None
+    state: str
+    attempts: list[AttemptDiagnostic]
 
 
 class ReusedReview(StrictModel):
@@ -1125,12 +1189,19 @@ def _registered_worktrees(root: Path) -> list[Path]:
 
 
 def cleanup_output(
-    tool_root: Path, resource: Resource, batch: BatchResult | None, *, force: bool = False, reason: str | None = None
+    tool_root: Path,
+    resource: Resource,
+    batch: BatchResult | None,
+    *,
+    force: bool = False,
+    reason: str | None = None,
+    keep: str | None = None,
 ) -> list[str]:
     """記録した出力ディレクトリの資源だけを回収する。残したパスを返し、resource.state を更新する。
 
     停止を確認できない（force でない）ときは何も消さない。worktree は対象の checkout から外す
     （force のときだけ --force）。秘密が残りうる sensitive_paths は消さずに残して報告する。
+    keep は出力ディレクトリ（ログ）を消さずに残す理由で、worktree は外す（失敗の診断を保存できなかったとき。#212）。
     """
     parent = Path(resource.path)
     if not parent.name.startswith(TMP_PREFIX) or parent.is_symlink():
@@ -1180,6 +1251,9 @@ def cleanup_output(
         # runner の結果が無いと、秘密が残りうるファイル（receipt など）を判別できないので、ディレクトリごと残す
         retained.append(str(parent))
         reason = reason or "runner の結果が無く、秘密が残りうるファイルを判別できない"
+    if keep is not None and str(parent) not in retained:
+        retained.append(str(parent))
+        reason = reason or keep
     if retained:
         resource.state = "retained"
         resource.reason = reason or "外せない worktree か、秘密が残りうるファイルがある"
@@ -1596,6 +1670,9 @@ def _reviewer_summary(entry: ReviewerEntry) -> dict[str, Any]:
         "active_findings": entry.active_findings,
         "review_file": entry.review_file,
         "warnings": entry.warnings,
+        # 失敗した担当の診断のパス。保存できなかったときは理由（ログは retained に残る。#212）
+        "diagnostic_file": entry.diagnostic_file,
+        "diagnostic_error": entry.diagnostic_error,
     }
 
 
@@ -1614,6 +1691,8 @@ def _all_failed(run_dir: Path, entries: Sequence[ReviewerEntry]) -> LoopError:
         reason.removeprefix("external: ") + "。指摘 0 件としては扱わない。"
         "停止の理由が外部ではなく環境・権限なら、--abort の分類を書き換える",
         next_command=command("finish", "--run", str(run_dir), f"--abort={reason}"),
+        # 原因を調べる手がかり（診断のパス、保存できなかった理由）を、成功の出力と同じ形で司令塔に返す（#212）
+        details={"rejected": [_reviewer_summary(entry) for entry in entries if entry.verdict == "rejected"]},
     )
 
 
@@ -1652,6 +1731,288 @@ def keep_rejected_request(result: Result, entry: ReviewerEntry, directory: Path)
     shutil.copyfile(source, destination)
     entry.request_file = str(destination)
     entry.request_sha256 = sha256_file(destination)
+
+
+# --- 失敗の診断（#212） -------------------------------------------------------------------------------------------
+
+# 診断で読む各ログの末尾の上限（バイト）。ログの大きさに上限は無く、試行を終わらせた失敗は末尾に出る。pi の agent_end は
+# 会話の履歴全体を 1 行に含み、実際のレビューの出力で 1 MiB を超えるので、レビューのログが丸ごと収まる大きさにする
+DIAGNOSTIC_READ_BYTES = 64 << 20
+# HTTP の状態コードは、これらの語に続くときだけ数える（Traceback の行番号などを状態コードと取り違えない）
+_STATUS = r"(?:\bhttp(?:/[\d.]+)?|\bstatus(?:[ _-]?code)?|\berror[ _-]code)\W{0,3}"
+# 上から照合し、最初に当たった分類を採る。最初に取る手が決まる具体的なものを先に、結果としても出る例外を後に置く
+CAUSE_PATTERNS: tuple[tuple[Cause, re.Pattern[str]], ...] = tuple(
+    (cause, re.compile(pattern, re.IGNORECASE))
+    for cause, pattern in cast(
+        tuple[tuple[Cause, str], ...],
+        (
+            (
+                "authentication",
+                r"unauthori[sz]ed|\bforbidden\b|invalid[ _-]?(?:x-)?api[ _-]?key|(?:missing|no)[ _-]?api[ _-]?key"
+                r"|api[ _-]?key[ _-]?is[ _-]?invalid|not (?:logged in|authenticated)|login required"
+                r"|please (?:log|sign)[ -]?in|authentication[ _-]?(?:error|failed|required)"
+                r"|(?:missing|invalid)_credential|credentials? (?:missing|invalid|expired)|token (?:has )?expired"
+                r"|(?-i:\bAUTH\b)|" + _STATUS + r"40[13]\b",
+            ),
+            (
+                "approval",
+                r"approval[ _-]?required|requires? (?:user )?approval|(?:awaiting|waiting for) approval"
+                r"|workspace trust|trust (?:this|the contents)|the user rejected (?:tool|escalating)",
+            ),
+            (
+                "rate_limit",
+                r"rate[ _-]?limit|too many requests|quotas?(?:\b|[ _-]?exceeded)"
+                r"|insufficient[ _-](?:credits?|balance|funds|quota)|usage[ _-]limit|" + _STATUS + r"429\b",
+            ),
+            ("sandbox", r"\bdsh-sandbox:|\bbwrap:"),
+            (
+                "timeout",
+                r"\btimed[ -]?out\b|deadline[ _-]exceeded|\bETIMEDOUT\b|\btimeout(?:error|exception)\b"
+                r"|(?-i:\bTIMEOUT\b)|(?-i:\b[A-Z]\w*Timeout\b)"
+                r"|\b(?:gateway|request|read|connect(?:ion)?|socket|operation) time[ -]?out\b"
+                r"|" + _STATUS + r"(?:408|504)\b",
+            ),
+            (
+                "connection",
+                r"connection[ _-]?(?:reset|refused|closed|aborted|error|lost|failed)|connect[ _-]?error"
+                r"|(?-i:\b(?:TRANSPORT|SERVER)\b)"
+                r"|\bECONN(?:RESET|REFUSED|ABORTED)\b|\bENOTFOUND\b|\bEAI_AGAIN\b|\bE(?:HOST|NET)UNREACH\b|\bEPIPE\b"
+                r"|broken pipe|remote ?disconnected|socket hang ?up|fetch failed|network (?:error|(?:is )?unreachable)"
+                r"|\b(?:ssl|tls)[ _-]?(?:error|handshake|alert)|certificate verify failed|getaddrinfo|name resolution"
+                r"|bad gateway|service unavailable|\boverloaded|internal server error"
+                r"|" + _STATUS + r"5(?:00|02|03|29)\b",
+            ),
+            # DSH の EMPTY_RESPONSE（応答は正常に終わったが中身が無い）
+            ("response_extraction", r"(?-i:\bEMPTY_RESPONSE\b)"),
+            (
+                "runtime_error",
+                r"traceback \(most recent call last\)|\bpanic(?:ked)?\b|uncaught (?:exception|error)"
+                r"|unhandled (?:exception|error|(?:promise )?rejection)|segmentation fault|core dumped|\bfatal error\b",
+            ),
+        ),
+    )
+)
+# JSON でない stdout の行のうち、CLI の診断として数える行（行頭のコロン付き・角括弧付きの診断）。字下げした引用や
+# 「Error handling for ...」のような文は数えない
+_DIAGNOSTIC_LINE = re.compile(
+    r"(?:\[(?:error|fatal|panic|critical)\]|(?:fatal|panic|critical):|traceback \(most recent call last\)"
+    r"|[\w.]*(?:error|exception):|(?:dsh|dsh-sandbox|bwrap):)",
+    re.IGNORECASE,
+)
+_EXTRACTION_STATES = frozenset({"response_failed", "missing_result", "invalid_result"})
+# stdout が JSON のイベントの stream のランタイム。モデルの発言は JSON の文字列の中にだけあり、JSON でない行は CLI の出力
+# である。Devin（devin -p）はモデルの発言を平文で stdout に書き、コードブロックの中のログの例も行頭から始まるので、
+# 行の形ではランタイムの診断と区別できない（#212、PR #237 のサイクル 2）
+_EVENT_STREAM_RUNTIMES = frozenset({"claude-code", "codex", "cursor", "dsh", "pi"})
+
+
+def read_log_tail(path: Path | None, attempt: Attempt, output_dir: Path) -> tuple[str | None, Unavailable | None]:
+    """試行のログの末尾（``DIAGNOSTIC_READ_BYTES`` まで）を読む。読まない・読めないときは (None, 理由)。
+
+    停止を確認できない試行（生きた書き手が差し替えうる）、``sensitive_paths``、このレビューの runner の出力の外、
+    symlink・特殊ファイルは読まない。上限を超えたら末尾だけを読み、理由に ``partial`` を返す。
+    """
+    if path is None:
+        return None, "not_recorded"
+    if not attempt.stop_confirmed:
+        return None, "not_stopped"
+    if any(path == item or path.is_relative_to(item) for item in attempt.sensitive_paths):
+        return None, "sensitive"
+    try:
+        if not path.resolve().is_relative_to(output_dir.resolve()):
+            return None, "outside_output"
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return None, "missing"
+    except OSError as error:
+        return None, "not_regular_file" if error.errno == errno.ELOOP else "unreadable"
+    except RuntimeError:
+        return None, "unreadable"
+    try:
+        with os.fdopen(descriptor, "rb") as stream:
+            size = os.fstat(stream.fileno())
+            if not stat.S_ISREG(size.st_mode):
+                return None, "not_regular_file"
+            partial = size.st_size > DIAGNOSTIC_READ_BYTES
+            if partial:
+                stream.seek(size.st_size - DIAGNOSTIC_READ_BYTES)
+            data = stream.read(DIAGNOSTIC_READ_BYTES)
+    except OSError:
+        return None, "unreadable"
+    return data.decode("utf-8", errors="replace"), "partial" if partial else None
+
+
+def _failure_event(event: dict[str, object]) -> bool:
+    """stdout の JSON のイベントが失敗の経路か。ツールの出力・モデルの本文のイベントは数えない。"""
+    kind, subtype, reason = event.get("type"), event.get("subtype"), event.get("reason")
+    return (
+        (isinstance(kind, str) and ("error" in kind.lower() or "fail" in kind.lower()))
+        or event.get("is_error") is True
+        or (isinstance(subtype, str) and subtype.lower().startswith("error"))
+        or bool(event.get("error"))
+        or (isinstance(reason, dict) and cast(dict[str, object], reason).get("kind") == "error")
+    )
+
+
+def _retry_notice(event: dict[str, object]) -> bool:
+    """自動の再試行の通知（Claude Code の system/api_retry、pi の auto_retry_start・auto_retry_end など）。"""
+    names = (event.get("type"), event.get("subtype"))
+    return any(isinstance(name, str) and "retry" in name.lower() for name in names)
+
+
+def _latest_assistant(event: dict[str, object]) -> dict[str, object] | None:
+    """イベントが運ぶ assistant のメッセージのうち最後のもの（pi の message_start・message_end・turn_end の ``message``、
+    agent_end の ``messages``）。"""
+    messages = event.get("messages")
+    latest: dict[str, object] | None = None
+    for item in [event.get("message"), *(cast(list[object], messages) if isinstance(messages, list) else [])]:
+        if isinstance(item, dict) and cast(dict[str, object], item).get("role") == "assistant":
+            latest = cast(dict[str, object], item)
+    return latest
+
+
+def diagnostic_text(stdout: str | None, stderr: str | None, *, prose: bool) -> tuple[str, bool]:
+    """原因の分類に使う文と、stdout に試行を終わらせた失敗の報告があったか。
+
+    文は stderr の全体と、stdout の失敗のイベント・診断の行と、stream の中で最後に現れた assistant のメッセージが失敗で
+    終わっていれば（pi の ``stopReason`` が ``error``）その ``errorMessage``。pi は提供元の失敗をこの形にだけ書き、
+    終了コード 0 で終わる。最後のメッセージは agent_end の履歴の行（1 MiB を超えうる）の前の message_end にもある。
+    担当が自動の再試行で回復した一時的な失敗（再試行の通知と、再試行の前の失敗）は使わず、再試行を使い切った・
+    取り消した通知（``success`` が false）だけを、その ``finalError`` で数える。モデルの本文・ツールの出力・プロンプト
+    は、レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない（各 adapter が状態の分類に、
+    回復した失敗とモデルの本文を使わないのと同じ。#212）。
+
+    ``prose`` は stdout がモデルの発言の平文（Devin）か、ランタイムが分からないとき。その stdout は文にせず、
+    失敗の報告に見える行があることだけを返す（報告の有無を判定できないので、応答の取り出しの失敗と推測させない）。
+    """
+    reported: list[str] = []
+    final: str | None = None
+    for line in (stdout or "").split("\n"):
+        try:
+            event: object = json.loads(line)
+        except ValueError, RecursionError:
+            if _DIAGNOSTIC_LINE.match(line):
+                reported.append(line)
+            continue
+        if not isinstance(event, dict):
+            continue
+        mapping = cast(dict[str, object], event)
+        if _retry_notice(mapping):
+            if mapping.get("success") is False:
+                error = mapping.get("finalError")
+                reported.append(error if isinstance(error, str) else "")
+        elif _failure_event(mapping):
+            reported.append(line)
+        elif (message := _latest_assistant(mapping)) is not None:
+            error = message.get("errorMessage")
+            failed = message.get("stopReason") == "error"
+            final = (error if isinstance(error, str) else "") if failed else None
+    if final is not None:
+        reported.append(final)
+    if prose:
+        return stderr or "", bool(reported)
+    return "\n".join([stderr, *reported] if stderr else reported), bool(reported)
+
+
+def classify_cause(text: str, attempt: Attempt, *, reported: bool, observed: bool) -> Cause:
+    """診断の文を既知のパターンと上から照合した分類名。照合した文字列は返さない。
+
+    どれにも当たらなければ、stdout・stderr を丸ごと観測でき（``observed``）、試行を終わらせた失敗の報告が無く
+    （``reported`` が偽）、停止を確認でき、終了コード 0 なのに結果を得られず、adapter も成功と分類しておらず、
+    秘密の残る保持物も無いときだけ ``response_extraction``（応答を取り出せなかった）、ほかは ``unknown``。
+    報告された失敗や、観測できなかったログを、取り出しの失敗と推測しない。
+    """
+    for cause, pattern in CAUSE_PATTERNS:
+        if pattern.search(text):
+            return cause
+    if (
+        observed
+        and not reported
+        and attempt.stop_confirmed
+        and attempt.exit_code == 0
+        and attempt.state in _EXTRACTION_STATES
+        and attempt.reported_state != "success"
+        and not attempt.sensitive_paths
+    ):
+        return "response_extraction"
+    return "unknown"
+
+
+def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None) -> AttemptDiagnostic:
+    """1 回の試行の診断。ログは ``read_log_tail`` の条件でだけ読み、読んだ文は分類にだけ使う。
+
+    ``runtime`` は担当の設定のランタイム（分からなければ None）。JSON のイベントの stream でない stdout は照合の文にしない。
+    """
+    unavailable: dict[DiagnosticItem, Unavailable] = {}
+    stdout, missing = read_log_tail(attempt.stdout_path, attempt, output_dir)
+    if missing is not None:
+        unavailable["stdout"] = missing
+    stderr, missing = read_log_tail(attempt.stderr_path, attempt, output_dir)
+    if missing is not None:
+        unavailable["stderr"] = missing
+    if attempt.exit_code is None:
+        unavailable["exit_code"] = "not_observed"
+    if attempt.reported_state is None:
+        unavailable["reported_state"] = "not_observed"
+    # stdout・stderr を両方とも丸ごと読めたときだけ、失敗の報告の有無を観測したとみなす。末尾だけを読んだログ（partial）は、
+    # 切れた行に試行を終わらせた失敗が隠れうる
+    observed = "stdout" not in unavailable and "stderr" not in unavailable
+    text, reported = diagnostic_text(stdout, stderr, prose=runtime not in _EVENT_STREAM_RUNTIMES)
+    return AttemptDiagnostic(
+        agent_id=attempt.agent_id,
+        state=attempt.state,
+        reported_state=attempt.reported_state,
+        exit_code=attempt.exit_code,
+        stop_confirmed=attempt.stop_confirmed,
+        elapsed_seconds=attempt.elapsed_seconds,
+        cause=classify_cause(text, attempt, reported=reported, observed=observed),
+        unavailable=unavailable,
+    )
+
+
+def _error_name(error: Exception) -> str:
+    """errno の名前か例外の型の名前。パスや例外の文を記録に入れない。"""
+    number = getattr(error, "errno", None)
+    return errno.errorcode.get(number, type(error).__name__) if isinstance(number, int) else type(error).__name__
+
+
+def keep_diagnostic(
+    result: Result, entry: ReviewerEntry, directory: Path, output_dir: Path, runtimes: Mapping[str, str]
+) -> bool:
+    """失敗した担当のいるレビュアーの診断を、回収の前に ``<request_id>.json`` に保存する（#212）。
+
+    対象は却下したレビュアーと、success 以外の試行（fallback で失敗した担当）があるレビュアーで、ほかは何も書かずに
+    True を返す。生の stdout・stderr・session は写さない。保存できなければ理由を ``entry.diagnostic_error`` に書いて
+    False を返す（呼び出し側はログを含む出力を消さずに残す）。``runtimes`` は担当の ID から設定のランタイムへの対応。
+    """
+    if entry.verdict != "rejected" and all(attempt.state == "success" for attempt in result.attempts):
+        return True
+    try:
+        if Path(result.request_id).name != result.request_id:
+            raise ValueError("request_id is not a file name")
+        diagnostic = ReviewerDiagnostic(
+            request_id=result.request_id,
+            role=result.role,
+            requested_agent=result.requested_agent,
+            actual_agent=result.actual_agent,
+            verdict=entry.verdict,
+            stage=entry.rejected_stage,
+            state=result.state,
+            attempts=[
+                diagnose_attempt(attempt, output_dir, runtime=runtimes.get(attempt.agent_id))
+                for attempt in result.attempts
+            ],
+        )
+        directory.mkdir(parents=True, exist_ok=True)
+        destination = directory / f"{result.request_id}.json"
+        write_json(destination, diagnostic)
+        digest = sha256_file(destination)
+    except (OSError, ValueError) as error:
+        entry.diagnostic_file = entry.diagnostic_sha256 = None
+        entry.diagnostic_error = f"診断を保存できない（{_error_name(error)}）"
+        return False
+    entry.diagnostic_file, entry.diagnostic_sha256, entry.diagnostic_error = str(destination), digest, None
+    return True
 
 
 def _review_batch(
@@ -1852,13 +2213,21 @@ def _review_batch(
         )
         for item in batch.results
     ]
-    # 回収で出力が消える前に、却下した試行に渡した指示を残す
+    # 回収で出力が消える前に、却下した試行に渡した指示と、失敗した担当の診断を残す。診断を保存できなかったら、
+    # 原因を調べられるようにログを含む出力を消さずに残す（#212）
+    unsaved = False
+    agent_runtimes = {name: agent.runtime for name, agent in config.agents.items()}
     for item, entry in zip(batch.results, entries, strict=True):
         keep_rejected_request(item, entry, work / "requests")
+        if not keep_diagnostic(item, entry, work / "diagnostics", output_dir, agent_runtimes):
+            unsaved = True
     result_copy = work / f"{prefix or 'review-'}result.json"
     write_json(result_copy, batch)
     resource = next((item for item in run.resources if _output_dir(item) == output_dir), None)
-    retained = cleanup_output(Path(run.tool_root), resource, batch) if resource is not None else [str(output_dir)]
+    keep = "失敗した担当の診断を保存できなかったので、ログを含む出力を消さずに残す" if unsaved else None
+    retained = (
+        cleanup_output(Path(run.tool_root), resource, batch, keep=keep) if resource is not None else [str(output_dir)]
+    )
     part.batch = BatchInfo(
         run_id=batch.run_id,
         state=batch.state,
@@ -2250,19 +2619,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = dispatch(args)
     except LoopError as error:
         run = getattr(args, "run", None)
-        print(
-            json.dumps(
-                {
-                    "status": "error",
-                    "stage": error.stage,
-                    "reason": error.reason,
-                    "run_dir": str(run) if run is not None else None,
-                    "next": error.next_command,
-                    "requires_input": error.requires_input,
-                },
-                ensure_ascii=False,
-            )
-        )
+        failure: dict[str, Any] = {
+            "status": "error",
+            "stage": error.stage,
+            "reason": error.reason,
+            "run_dir": str(run) if run is not None else None,
+            "next": error.next_command,
+            "requires_input": error.requires_input,
+        }
+        print(json.dumps({**failure, **(error.details or {})}, ensure_ascii=False))
         return error.code
     print(json.dumps(output, ensure_ascii=False))
     return 0

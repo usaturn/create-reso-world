@@ -17,9 +17,9 @@ import unicodedata
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import TypedDict, cast, get_args
 
-from tools.agent_runner.adapters import Adapter, AdapterContext, LaunchSpec, load_adapter
+from tools.agent_runner.adapters import Adapter, AdapterContext, AdapterOutcome, LaunchSpec, load_adapter
 from tools.agent_runner.config import check_depth, validate_config
 from tools.agent_runner.checkout_policy import workflow_checkout_scope
 from tools.agent_runner.dsh_paths import review_exports, review_scratch
@@ -216,18 +216,35 @@ def _prune_scratch(runtime_root: Path) -> None:
             os.close(descriptor)
 
 
+_STATES = frozenset(get_args(State))
+
+
+def _reported(outcome: AdapterOutcome, receipt: Receipt | None) -> State | None:
+    """What the adapter classified from the output before any later check replaced it (diagnostics only).
+
+    The adapter's own earlier state first, then a failure it returned, then the receipt's status.
+    A value that is not a State is ignored rather than failing the attempt.
+    """
+    if isinstance(outcome.reported_state, str) and outcome.reported_state in _STATES:
+        return outcome.reported_state
+    if outcome.state is not None and outcome.state != "success":
+        return outcome.state
+    return receipt.status if receipt is not None else outcome.state
+
+
 def _collect(
     adapter: Adapter,
     context: AdapterContext,
     stdout: Path,
     stderr: Path,
     payload_check: Callable[[Payload], bool] | None,
-) -> tuple[State, Identity, Payload]:
+) -> tuple[State, Identity, Payload, State | None]:
+    """Collect one stopped attempt. The last value is the reported state (null when nothing was classified)."""
     try:
         if context.agent.runtime == "dsh" and os.path.lexists(context.receipt_path):
             # DSH's JSONL/session collector is authoritative. A runtime-written
             # receipt must never replace a failed native event stream.
-            return "invalid_result", Identity(), None
+            return "invalid_result", Identity(), None, None
         # Validate regular, bounded file content before a collector can open it.
         receipt = read_receipt(context.receipt_path)
         outcome = adapter.collect(context, stdout, stderr)
@@ -241,12 +258,14 @@ def _collect(
             "response_failed",
             "interrupted",
         }:
-            return "invalid_result", identity, None
+            return "invalid_result", identity, None, None
         if receipt is None:
             if outcome.receipt is not None:
                 receipt = Receipt.model_validate(outcome.receipt.model_dump(warnings=False))
             else:
-                return ("missing_result" if failure is None or failure == "success" else failure), identity, None
+                state = "missing_result" if failure is None or failure == "success" else failure
+                return state, identity, None, _reported(outcome, None)
+        reported = _reported(outcome, receipt)
         request = context.request
         if (receipt.run_id, receipt.request_id, receipt.agent_id, receipt.role) != (
             request.run_id,
@@ -254,7 +273,7 @@ def _collect(
             request.agent_id,
             request.role,
         ):
-            return "invalid_result", identity, None
+            return "invalid_result", identity, None, reported
         if receipt.status == "success":
             payload = receipt.payload
             valid = (
@@ -263,7 +282,7 @@ def _collect(
                 else isinstance(payload, str) and bool(payload.strip())
             )
             if not valid:
-                return "invalid_result", identity, None
+                return "invalid_result", identity, None, reported
             if payload_check is not None:
                 # A caller refusal is not an adapter failure: keep the observed
                 # identity, but never expose the check's exception text.
@@ -272,14 +291,14 @@ def _collect(
                 except Exception:
                     accepted = False
                 if not accepted:
-                    return "invalid_result", identity, None
+                    return "invalid_result", identity, None, reported
         state = receipt.status if failure is None or failure == "success" else failure
-        return state, identity, receipt.payload
+        return state, identity, receipt.payload, reported
     except FileNotFoundError:
-        return "missing_result", Identity(), None
+        return "missing_result", Identity(), None, None
     except Exception:
         # Includes adapter parsing/validation failures; never expose exception text.
-        return "invalid_result", Identity(), None
+        return "invalid_result", Identity(), None, None
 
 
 def run_workflow(
@@ -491,6 +510,7 @@ def run_workflow(
             secrets=tuple(secrets),
         )
         sensitive_paths: list[Path] = []
+        reported: State | None = None
         export_path = context.receipt_path.parent / "export.json" if agent.runtime == "devin" else None
         export_unsafe = False
         runtime_root = context.receipt_path.parent / "dsh" if agent.runtime == "dsh" else None
@@ -516,7 +536,9 @@ def run_workflow(
                 sensitive_paths.append(export_path)
                 state, identity, payload = "response_failed", Identity(), None
             else:
-                state, identity, payload = _collect(adapter, context, stdout_path, stderr_path, payload_check)
+                state, identity, payload, reported = _collect(
+                    adapter, context, stdout_path, stderr_path, payload_check
+                )
             if not redact_file(context.receipt_path, tuple(secrets)):
                 sensitive_paths.append(context.receipt_path)
         else:
@@ -540,6 +562,7 @@ def run_workflow(
         return Attempt(
             agent_id=agent_id,
             state=state,
+            reported_state=reported,
             identity=identity,
             payload=payload,
             elapsed_seconds=time.monotonic() - attempt_started,

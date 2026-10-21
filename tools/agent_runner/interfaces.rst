@@ -120,12 +120,15 @@ nested_invocation / invalid_config。原文・値・Git 診断は返さない。
   シェルは使用しない。env は明示的な追加だけ。
   入れ子防止の AGENT_RUNNER_DEPTH=1 と Git routing の除外は runner が強制する。
 
-``AdapterOutcome(receipt=None, identity=Identity(), state=None)``
+``AdapterOutcome(receipt=None, identity=Identity(), state=None, reported_state=None)``
   collect は CLI イベント・終了情報を解釈し、receipt と実測の identity を返す。
   receipt ファイルを使わず、CLI 出力から抽出した Receipt を返すことも可能。
   状態だけの success は受け入れない。
   認証・承認待ちを state として返せるため、receipt が無い失敗も分類できる。
   receipt ファイルがある場合は、その内容も runner が独立に検証する。
+  reported_state は、出力から分類した状態を adapter 自身の後段の検査（DSH の session の識別など）で
+  置き換えたときの、置き換える前の状態。診断の記録だけに使い、runner は状態の判定に使わない。
+  State でない値は無視する。
 
 ``Identity``
   model / provider / effort / session_id / cli_version は実測値または null。
@@ -185,11 +188,17 @@ Result
   attempts には明示 fallback を含む実際の起動順が残る。
 
 Attempt
-  agent_id / state / identity / exit_code / elapsed_seconds / stop_confirmed /
+  agent_id / state / reported_state / identity / exit_code / elapsed_seconds / stop_confirmed /
   work_dir / stdout_path / stderr_path / request_path / sensitive_paths / payload。
   sensitive_paths は、停止未確認または安全な redact ができず、秘密が残る可能性のある
   receipt やランタイムの既知保持物（Devin の ``export.json`` など）のパス。
   プロセス作成前の unsupported などでは path が null の場合がある。
+  reported_state は、adapter が担当の出力から分類した状態で、adapter の後段の検査と runner の検査
+  （終了コード・期限・停止・receipt の照合）が state を置き換える前の値。adapter の reported_state、
+  無ければ adapter が返した成功以外の state、無ければ receipt の status、無ければ adapter が返した
+  state（null か success）の順に採る。adapter が分類しなかったとき（起動前の失敗、停止未確認で収集しない、
+  Devin の export を伏せ字にできずに収集しない、collect の例外、許されない state を返した、
+  DSH の receipt ファイルを拒否した）は null。診断の記録だけに使う。
 
 Attempt / Result の state は success / self / unsupported / launch_failed /
 awaiting_authentication / awaiting_approval / response_failed / missing_result /
