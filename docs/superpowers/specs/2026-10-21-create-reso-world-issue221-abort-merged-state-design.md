@@ -150,3 +150,4 @@ PR 修正ループの中で `finalize.py` が PR をマージした後に `cycle
   - `--finalize-result` を渡し忘れ、PR も読めなければ `merged` は null（未確認）になる。未マージとは書かない
   - loop は、渡された finalize の結果ファイルがこの PR・この run のものかを確かめない（`cycle-end` と同じ）。PR を読めれば、食い違いは null になる
   - `cycle-end` のエラーの後に司令塔が `finish --abort` を実行せずに止まったときは、run は `running` のままで、`merged` は保存されない（今までどおり。報告は issue-to-pr の表のとおり PR を読み直す）
+  - `finish --abort` は PR を期限なしで読む（loop のほかの GitHub の読み取りと同じ）。応答が返らない障害のときは abort が戻らない。run を保存する前に読むので途中の状態は残らず、障害が直ってからやり直せる（最後のブランチ全体のレビューの Minor 4。持ち越し）

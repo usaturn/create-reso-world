@@ -72,11 +72,11 @@
 
 **テストの要否:** 書く。abort の結果の分岐（PR を読める・読めない・食い違い × finalize の結果の有無と値）と、引数の検査、CLI の配線を新しく足すので、拒否する入力（引数の誤り）と受け入れる入力を対にして実経路で確かめる（AGENTS.md「テストの採用基準」の「書く」と、実際に起きた不具合の再発防止）。
 
-- [ ] **Step 1: 偽の gh に `pull_status` を足す**（`conftest.py`）
+- [x] **Step 1: 偽の gh に `pull_status` を足す**（`conftest.py`）
 
 `FakeGitHub.__init__` に `self.pull_status = 0` を足し、docstring に「`pull_status` が 0 以外なら、PR の読み取り（`gh api repos/<repo>/pulls/<N>`）がその終了コードで失敗する（GitHub の障害）」を足す。`runner` の pulls の分岐の先頭で、`self.pull_status` が 0 以外なら `subprocess.CompletedProcess(args, self.pull_status, "", "HTTP 502")` を返す。
 
-- [ ] **Step 2: 失敗するテストを書く**（`test_loop_state.py`、`test_loop_review.py`）
+- [x] **Step 2: 失敗するテストを書く**（`test_loop_state.py`、`test_loop_review.py`）
 
 既存の呼び出しを直す:
 - `test_abort_needs_a_classified_reason` の 2 つの `loop.finish` に `github=env.github` を渡し、最後に `assert finished["result"]["merged"] is False` を足す（マージしていない run の abort。受け入れ条件 3）
@@ -113,24 +113,24 @@
 - `test_finalize_result_is_only_for_abort_and_must_be_a_finalize_result`: `env.start()` の後、(a) `--abort` なしで正しい結果ファイル、(b) `merged` が `"yes"` の結果ファイル、(c) 存在しないパスを、それぞれ `loop.finish(run_dir, github=env.github, …)` に渡す。3 つとも `(2, "arguments")`。最後に run.json が `state == "running"`・`result is None`、`loop/lock.json` が残り、3 回の呼び出しの間に `env.gh.calls` が増えていない（PR を読む前に止まる）
 - `test_cli_finish_abort_passes_the_finalize_result`: `env.start()` → `env.gh.merge()` → `env.gh.pull_status = 1`。`monkeypatch.setattr(loop, "GitHub", lambda: env.github)` の後、`loop.main(["finish", "--run", str(run_dir), "--abort", "external: GitHub の読み取りが失敗した", "--finalize-result", str(result)])` が 0 で、標準出力の JSON の `result.merged` が True（PR を読めないので、渡したファイルが使われたことが分かる）
 
-- [ ] **Step 3: 失敗を確かめる**
+- [x] **Step 3: 失敗を確かめる**
 
 Run: `uv run pytest .agents/skills/pr-review-fix-loop/tests -q -k "abort or finalize_result"`（worktree のルートで実行）
 Expected: 新しいテストと、`github=` を渡した既存のテストが `TypeError`（`finish` が `github`・`finalize_result` を受け付けない）で失敗する。ログは `$SESSION/task1-red.log`
 
-- [ ] **Step 4: 実装する**（`loop.py`）
+- [x] **Step 4: 実装する**（`loop.py`）
 
 - `RunResult.merged: bool | None`。行の上のコメントに「PR の実際のマージ状態。finish --abort が PR も finalize の結果も読めなければ null（未確認）（#221）」
 - `_abort_merged(run, github, finalize)` を `finish` の前に置く。docstring に、意味が finalize の `merged` と同じであること、決め方（Global Constraints の 2 行目）、食い違いで abort を止めない理由（run を終えられず、ロックが残る）を書く。`github.pull` の `LoopError`・`OSError` を捕まえ、理由の注記は `PR の状態を読めない（<理由の先頭 300 文字>）。merged は <finalize の結果のもの|未確認（null）>`、食い違いは `finalize の結果はマージ済みだが、PR は未マージ。merged は未確認（null）`
 - `finish(run_dir, *, abort=None, finalize_result=None, github=None)`: 状態の検査の後、`finalize_result is not None and abort is None` なら `LoopError(2, "arguments", "--finalize-result は --abort と一緒のときだけ使う")`。`--abort` の形と「結果が決まっていない」の検査の後に、`_read_finalize(finalize_result)`（渡されたときだけ）→ `_abort_merged(run, github or GitHub(), finalize)` → 理由があれば `run.notes.append(f"{now()} finish --abort: {note}")` → `RunResult(..., merged=merged, ...)`
 - CLI: `finish` の parser に `--finalize-result`（`type=Path`、help「--abort のとき、このサイクルで実行した finalize.py の最後の結果ファイル」）。`dispatch` で `finalize_result=args.finalize_result` を渡す
 
-- [ ] **Step 5: 通ることを確かめる**
+- [x] **Step 5: 通ることを確かめる**
 
 Run: `uv run pytest .agents/skills/pr-review-fix-loop/tests -q`（worktree のルート）
 Expected: すべて passed（基準の件数＋新しいテストの件数）、終了コード 0。ログは `$SESSION/task1-green.log`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .agents/skills/pr-review-fix-loop/scripts/loop.py .agents/skills/pr-review-fix-loop/tests/conftest.py \
@@ -150,24 +150,24 @@ git commit -m "fix(pr-review-fix-loop): keep the observed merge state when a run
 
 **テストの要否:** 書かない。文書だけの変更で、文言を照合するテストは AGENTS.md「テストの採用基準」の作らない型 1・4 に当たる。代わりに、`git diff` の確認、`scripts/check-layout.sh`、スキルの frontmatter のテスト（`tests/skills`）、Task 3 のレビューで、記述が Task 1 の挙動と一致することを確かめる。
 
-- [ ] **Step 1: pr-review-fix-loop の SKILL.md**
+- [x] **Step 1: pr-review-fix-loop の SKILL.md**
   - 拒否の表の後に「finalize.py を実行した後の拒否は、「止まったとき」の「finalize の後の `cycle-end` の停止」も読む。」
   - 「終わり方」の abort の項の後に「このサイクルで finalize.py を実行していたら、最後の結果ファイルを `--finalize-result <file>` で足す。`finish --abort` は PR の実際のマージ状態を `result.merged` に保存し、PR を読めなければ渡した結果の `merged` を、それも無ければ `null`（未確認）を保存する（[records.md](references/records.md) の 6 章）。」
   - 「止まったとき」の「最終化の停止」の後に、Spec の設計 2 の 1 項目め（「finalize の後の `cycle-end` の停止」）を 1 項で書く: 渡した結果ファイルの `merged` を確かめる、`true` は取り消せないマージの観測なので PR に commit を足さない、abort するときは同じファイルを `--finalize-result` で渡す（`false`・`null` のときも渡す）、`null` を未マージと報告しない
   - 「最終報告」の「マージしたか」を「マージしたか（`result.merged`。`null` は未確認で、未マージと書かず、PR の状態を読み直して書く）」にする
-- [ ] **Step 2: `references/records.md`**
+- [x] **Step 2: `references/records.md`**
   - 3 章の `result` の行の末尾に「。`merged` は `true`・`false`・`null`（`null` は `finish --abort` だけが書く未確認。6 章）」
   - 3 章の `notes` の行を「`recover` で受け取った確認の事実、`finish --abort` が `merged` を PR の状態だけで決められなかった理由など」にする
   - 6 章の `merged` の項から「`finish --abort` が書く `result.merged` は PR を読まずに `false` なので、マージ状態を表さない（確かめるときは PR を読み直す）。」を除き、直後に新しい項を足す: `finish --abort` の `merged` は finalize.py の `merged`（`execution.md` 3.4 節）と同じ意味の最後の観測。決め方（PR を読めればその状態、読めなければ `--finalize-result` の結果、渡されていなければ `null`、finalize が `true` で PR が未マージなら `null`）、理由を `notes` に残すこと、`null` を未マージとして扱わないこと
-- [ ] **Step 3: issue-to-pr の SKILL.md の表**（Spec の設計 4・D-221-6）
+- [x] **Step 3: issue-to-pr の SKILL.md の表**（Spec の設計 4・D-221-6）
   - `stopped` の行の 1 列目を「`stopped`（`ended_by: outcome`）」にする
   - ループのエラーの行の 1 列目を「ループのエラー（`lock_held`、全レビュアーの失敗、資源の停止を確認できない など。`finish --abort` で終えた run（`ended_by: abort`）を含む）」、3 列目を「PR の状態（`gh pr view <PR の URL> --json state,mergedAt,headRefOid`）を読み直して書く。読めなければ未確認（`finish --abort` の結果の `merged` が `true` なら、マージ済みと書く）」にする
-- [ ] **Step 4: 確かめる**
+- [x] **Step 4: 確かめる**
 
 Run: `git diff -- .agents/skills/pr-review-fix-loop/SKILL.md .agents/skills/pr-review-fix-loop/references/records.md .agents/skills/issue-to-pr/SKILL.md` を読み、`bash scripts/check-layout.sh` と `uv run pytest tests/skills -q` を実行する
 Expected: 記述が Global Constraints の 2・5 行目と一致し、AGENTS.md「日本語表現」に反する語が無い。2 つのコマンドが終了コード 0
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .agents/skills/pr-review-fix-loop/SKILL.md .agents/skills/pr-review-fix-loop/references/records.md .agents/skills/issue-to-pr/SKILL.md
@@ -184,16 +184,16 @@ git commit -m "docs(pr-review-fix-loop,issue-to-pr): read the run merge state as
 
 **テストの要否:** 書かない。新しい挙動は Task 1 のテストが受け持つ。ここでは古い判定に戻す対照、ブランチ全体のレビュー、README の入口で、条件単位の証拠をそろえる。
 
-- [ ] **Step 1: 古い判定に戻す対照**
+- [x] **Step 1: 古い判定に戻す対照**
 
 `_abort_merged` を一時的に `return False, None`（PR を読まずに false。基準の挙動）に変えて `uv run pytest .agents/skills/pr-review-fix-loop/tests -q -k "abort"` を実行し、`git checkout -- .agents/skills/pr-review-fix-loop/scripts/loop.py` で戻して `git status --porcelain` が空であることを確かめる
 Expected: 再現のテスト（`pr-read`・`pr-unreadable`）と、`expected` が True・None の組み合わせが失敗し、`expected` が False の組み合わせは通る（テストが元の不具合を検出し、マージしていない run の abort を変えていないことの対照）。ログは `$SESSION/verify/control.log`
 
-- [ ] **Step 2: ブランチ全体のレビュー**（新しいコンテキストのサブエージェント 1 回）
+- [x] **Step 2: ブランチ全体のレビュー**（新しいコンテキストのサブエージェント 1 回）
 
 Spec・Plan・`git diff origin/main...HEAD` を渡し、(1) Spec の受け入れ条件と決定記録を満たすか、(2) 文書の記述（Task 2）が `loop.py` の挙動とテストの組み合わせの表に一致するか、(3) 既存の `cycle-end`・正常な `finish`・`recover`・`status` の挙動を変えていないか、(4) テストが AGENTS.md「テストの採用基準」に反していないかを見てもらう。致命的な指摘だけを直し、直したら Task 1 の Step 5 をやり直す
 
-- [ ] **Step 3: Plan の「検証の記録」を書いて commit する**（これが最後の commit）
+- [x] **Step 3: Plan の「検証の記録」を書いて commit する**（これが最後の commit）
 
 各 Step のチェック、Task 別の所要時間、Task 1 の Step 3・Step 5 と Step 1 の結果、レビューの結果と対応を「検証の記録」の節に書き、`git commit -m "docs: record the Issue #221 verification and final review in the plan"`
 
@@ -204,4 +204,39 @@ Expected: 3 つとも終了コード 0。落ちたら基準（`baseline/`）の�
 
 ## 検証の記録
 
-（Task 3 の Step 3 で書く）
+ログはどれも `/workspaces/reso-world/tmp/agents/issue-221.439bd74f/` にある（commit しない）。SDD の ledger は `sdd/progress.md`、予算の ledger は `budget.jsonl`。
+
+### 修正の前（`b741085`）
+
+| 対象 | 結果 | ログ |
+| --- | --- | --- |
+| `bash .devcontainer/run-tests.bash` | 終了コード 0 | `baseline/run-tests.log` |
+| `bash scripts/check-layout.sh` | 終了コード 0 | `baseline/check-layout.log` |
+| `uv run pytest tests/skills .agents/skills .agents/scripts tools` | 3520 passed（943.82 秒）、終了コード 0 | `baseline/pytest.log` |
+
+### Task 1（`c5d86b6`）
+
+- Step 3（RED）: `-k "abort or finalize_result"` で 18 failed・2 passed。新しいテストと、偽の gh を渡した既存のテストが `TypeError`（`finish` が `github`・`finalize_result` を受け付けない）、CLI のテストが argparse の unrecognized arguments で失敗した（`sdd/task1-red.log`）
+- Step 5（GREEN）: `.agents/skills/pr-review-fix-loop/tests` 全体が 190 passed（新しいテスト 15 件を含む。`sdd/task1-green.log`）。コメントだけを直した後に `test_loop_state.py` を 69 passed で確かめ直した（`sdd/task1-state.log`）
+
+### Task 2（`c9c6494`）
+
+- 差分を Global Constraints の 2〜5 行目と照合した。AGENTS.md「日本語表現」で避ける語は無い。`bash scripts/check-layout.sh` は終了コード 0、`uv run pytest tests/skills -q` は 31 passed（`sdd/task2-check-layout.log`・`sdd/task2-tests-skills.log`）
+
+### Task 3
+
+- Step 1（対照）: `_abort_merged` の先頭を `return False, None`（基準の挙動）にすると、`-k abort` で 10 failed・9 passed。落ちたのは再現のテスト（`pr-read`・`pr-unreadable`）、`expected` が True・None の組み合わせ（`merged`・`merged-finalize-false`・`unreadable-finalize-true`・`unreadable-finalize-null`・`unreadable`・`open-finalize-true`）、`OSError` と CLI のテスト。`expected` が False の組み合わせ（`open`・`open-finalize-false`・`open-finalize-null`・`unreadable-finalize-false`）、引数の誤りのテスト、既存の abort のテストは通った。戻した後の `git status --porcelain` は空（`verify/control.log`）
+- Step 2（ブランチ全体のレビュー。新しいコンテキストの Opus のサブエージェント 1 回、約 15 分）: Ready to merge: Yes。Critical・Important は無く、Minor が 7 件。レビュアーは loop のテスト（190 passed）と、写しでの変異の確認（食い違いの規則、`OSError`、PR だけで決まったときの notes、PR を読めないときの finalize の無視、held の経路の `result` の削除を検出）を行った。Minor は致命的でないので直さず、持ち越しとして記録する
+  1. 食い違いのときと、finalize が無く PR を読めないときの notes、held の経路で保存する `merged` の値が、テストで固定されていない
+  2. SKILL.md の abort の項に、食い違いのときの `null` が書かれていない（`records.md` の 6 章にはある）
+  3. issue-to-pr の表の補足が `finish --abort` の結果に限られている（held の abort など、結果が run.json と `status` にだけある run は、報告のときに PR を読めないと「未確認」になる）
+  4. `finish --abort` が期限なしで gh を呼ぶ（応答が返らない障害のとき abort が戻らない。ほかのサブコマンドと同じで、保存の前に読むので途中の状態は残らない）
+  5. notes に、使った finalize の結果ファイルのパスが残らない（値は `result.merged`）
+  6. SKILL.md の後片付けの順序（`cycle-end` の後にセッションディレクトリを消す）と、新しい abort の手順の関係が書かれていない（`execution.md` の 4 章は失敗・復旧に使う記録を残すとしている）
+  7. `finish` に偽の gh を渡していない 2 か所のテスト（`test_loop_state.py` の `not_owner`、`test_loop_review.py` の `<理由>` の拒否。今は PR を読む前に止まる）
+- レビュアーが判断しなかったことへの判定は、ledger の `Final: Ruling:` の行に書いた
+
+### 所要時間（Task 3 の Step 3 の commit まで）
+
+- 着手は 2026-10-21 08:38（JST）
+- 準備・調査 約 9 分、Spec・Plan 約 7 分、Task 1 約 4 分、Task 2 約 1 分、Task 3（対照、レビューの待ちと判定、記録）約 20 分
