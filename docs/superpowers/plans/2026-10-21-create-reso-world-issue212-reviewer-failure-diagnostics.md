@@ -319,4 +319,39 @@ Expected: 3 つとも終了コード 0。失敗があれば `baseline/` と比�
 
 ## 完了
 
-（Task 5 で書く）
+状態は draft のまま（内容の承認は無い）。ledger: `/workspaces/reso-world/tmp/agents/issue-212.28g3rn4w/progress.md`
+
+| Task | commit | 検証 |
+| --- | --- | --- |
+| 1 runner の `reported_state` | `6ba35eb` | 新しいテストは実装の前に 8 failed（`reported_state` が無い）。`uv run pytest tools/agent_runner -q` は 1064 passed |
+| 2 診断の部品 | `80dc442` | 実装の前に 30 failed（関数が無い）。`test_loop_diagnostics.py` は 30 passed |
+| 3 回収の前の保存 | `e9f9093` | 実装の前に 4 failed（診断が無い・出力の項目が無い）。loop のテスト一式は 225 passed |
+| 4 文書 | `292adb0` | `bash scripts/check-layout.sh` は PASS。項目名・値を loop.py のモデルと照合 |
+| 5 検証・最後のレビュー | `c8d42e0`（最後のレビューの修正） | `292adb0` の README の入口（verify-1）: `run-tests.bash` 33 件 PASS、`check-layout.sh` PASS、pytest 3593 passed（1074 秒）。どれも終了コード 0 で、実行の前後の `git status --porcelain` は空 |
+
+基準の検証（`baseline/`）は 3 つとも終了コード 0（pytest は 3553 passed）。実行中に Task 1〜3 の変更が作業ツリーに入ったので、厳密な基準ではない（件数は PR #227 の 3553 と同じ）。
+
+### 最後のブランチ全体のレビュー（新しいコンテキストの Opus、約 23 分）
+
+結論は「直せば Yes」。Critical は無い。レビュアーは一時 worktree で変異を試し、読む条件・分類・保存・回収・`reported_state` の主な変異は検出された。
+
+- I-1（Important）: pi の提供元の失敗（失敗で終わった assistant のメッセージの `errorMessage`、終了コード 0）と DSH の `TRANSPORT` を分類できず、pi の形の 503・429 を `response_extraction` にする → 直した（D-212-13）。pi の `errorMessage` を照合の対象に足し、DSH のエラーコード（大文字）を分類の語に足し、stdout で失敗が報告されていれば `response_extraction` にしない
+- I-2（Important）: 全員の失敗（終了コード 6）で診断が司令塔に返らない → 直した。エラーの出力に `rejected`（`diagnostic_file`・`diagnostic_error`）を足した
+- m-1（Minor → Important に上げた）: JSON でない行の判定が広い（字下げ・コロン無しの `error`）→ 直した。Devin の本文の行で誤って分類しうるので、I-1 と同じ影響として扱った
+- m-3（Minor）: `interfaces.rst` の null の条件の抜け → Spec 設計 1 との食い違いなので直した
+- m-2（Minor）: 修正した `_failure_event` の各条件のテストを足した（回帰の確認）。残り（runner の型の確認・`collect` の例外の null、DSH の session ファイルの欠落、request ID のファイル名の確認、`AUTH` の大文字だけ）は持ち越し
+- 修正の確認: 新しいテストは修正の前に 13 failed（診断の行 2、DSH のコード 6、pi 3、全員失敗 2）、修正の後は `test_loop_diagnostics.py` が 53 passed、loop のテスト一式が 244 passed。ローカルに残る実際の runner の結果では、dsh-ccd の `TRANSPORT` が `connection`、pi の 401 が `authentication` になった（修正の前はどちらも `unknown`。分類だけを出し、ログの中身は出していない）
+
+### 判断（Ruling）
+
+- SDD の作業場所を worktree の中に作らず、ledger をセッションディレクトリに置いた（AGENTS.md）
+- `test_dsh_disk_receipt_cannot_override_failed_jsonl` を `_collect` の 4 値に合わせた（`reported_state` が null であることも確かめる）
+- `test_keep_diagnostic_covers_only_reviewers_with_a_failure` に、受け付けた・fallback で失敗・却下の 3 通りをまとめた
+- 最後のレビューの m-1 を Important に上げ、m-3 と m-2 の一部を直した（上）
+
+### 持ち越し（Minor）
+
+- m-2 の残りのテスト（上）
+- 実データの dsh-ccd の終了コード 0 の `response_failed` は、`sensitive_paths`（HOME の残りなど）があるので `response_extraction` にならず `unknown` になる。新しい記録では `reported_state` で runner の伏せ字の上書きと区別できるので、条件を「`reported_state` が null で `sensitive_paths` がある」に絞れる
+
+最後の commit の README の入口の結果は、PR 本文と `/workspaces/reso-world/tmp/agents/issue-212.28g3rn4w/verify-final/` に書く。
