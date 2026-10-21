@@ -72,9 +72,10 @@ PR 修正ループ（`.agents/skills/pr-review-fix-loop/scripts/loop.py`）の `
 照合の対象（診断の文）:
 
 - stderr の全体
-- stdout の行のうち、JSON の object として読めるものは失敗のイベントだけ（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）。失敗のイベントでなければ、その中の失敗で終わった assistant のメッセージ（`message`・`messages[]` の `stopReason` が `error`）の `errorMessage` だけ（pi の形。プロンプトとモデルの本文は使わない）
+- stdout の行のうち、JSON の object として読めるものは失敗のイベントだけ（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）。失敗のイベントでなければ、pi の最後の `agent_end` の最後の assistant のメッセージが失敗で終わっていれば（`stopReason` が `error`）その `errorMessage` だけ（pi の adapter と同じ。プロンプトとモデルの本文は使わない）
+- 担当が自動の再試行で回復した一時的な失敗は使わない（PR #237 のレビュー修正）。再試行の通知（`type` か `subtype` に `retry` を含む。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを `finalError` で数える。pi の再試行の前の失敗（`message_end`・`turn_end`、`agent_end` の履歴）も使わない
 - stdout の行のうち、JSON として読めないものは、行頭（字下げなし）のコロン付き・角括弧付きの診断の行だけ（`Error:`・`fatal:`・`panic:`・`[ERROR]`、`<名前>Error:`・`<名前>Exception:`、`Traceback (most recent call last)`、`dsh:`・`dsh-sandbox:`・`bwrap:` など）。Devin の stdout はモデルの発言の平文なので、「Error handling for ...」のような本文の行や字下げした引用は数えない
-- stdout の失敗のイベント・失敗で終わったメッセージ・診断の行が 1 つでもあれば、ランタイムが失敗を報告した（`response_extraction` にしない）
+- stdout の失敗のイベント・使い切った再試行・pi の最後の失敗メッセージ・診断の行が 1 つでもあれば、ランタイムが試行を終わらせた失敗を報告した（`response_extraction` にしない）
 - 各ログは末尾から 1 MiB までを読む
 
 分類（上から順に、最初に当たったものを採る）:
@@ -88,7 +89,7 @@ PR 修正ループ（`.agents/skills/pr-review-fix-loop/scripts/loop.py`）の `
 | `timeout` | 提供元・通信の期限切れ | timed out、deadline exceeded、`ETIMEDOUT`、`TimeoutError`、gateway timeout、`status 408`・`504`、DSH の `TIMEOUT` |
 | `connection` | 提供元への接続と提供元の一時的な障害 | connection reset・refused、`ECONNRESET`、`ENOTFOUND`、socket hang up、fetch failed、TLS・SSL の失敗、bad gateway、service unavailable、overloaded、internal server error、`status 500`・`502`・`503`・`529`、DSH の `TRANSPORT`・`SERVER` |
 | `runtime_error` | ランタイム（CLI）自身の例外・異常終了 | `Traceback (most recent call last)`、panic、uncaught exception、unhandled rejection、segmentation fault、core dumped |
-| `response_extraction` | 応答を取り出せなかった | DSH の `EMPTY_RESPONSE`。または上のどれにも当たらず、停止を確認でき、終了コードが 0 で、stdout でランタイムが失敗を報告しておらず、state が `response_failed`・`missing_result`・`invalid_result`、`reported_state` が `success` でなく、`sensitive_paths` が無い |
+| `response_extraction` | 応答を取り出せなかった | DSH の `EMPTY_RESPONSE`。または上のどれにも当たらず、stdout・stderr を観測でき（`unavailable` の理由が無いか `partial`）、停止を確認でき、終了コードが 0 で、stdout でランタイムが試行を終わらせた失敗を報告しておらず、state が `response_failed`・`missing_result`・`invalid_result`、`reported_state` が `success` でなく、`sensitive_paths` が無い |
 | `unknown` | どれにも当てはまらない、またはログを読めなかった | ― |
 
 - HTTP の状態コードは、`HTTP`・`status`・`error code` などの語に続くときだけ数える（Traceback の `line 401` などを数えない）
@@ -112,7 +113,7 @@ PR 修正ループ（`.agents/skills/pr-review-fix-loop/scripts/loop.py`）の `
 | `partial` | 1 MiB を超えたので、末尾だけを読んだ（このときは分類にも使う） |
 | `not_observed` | `exit_code`・`reported_state` が null |
 
-ログを読めないときの分類は、終了状態から決まる `response_extraction` のほかは `unknown` で、推測で補わない。
+ログを観測できないとき（`partial` 以外の理由）の分類は `unknown` で、終了状態だけから `response_extraction` と推測しない（PR #237 のレビュー修正。受け入れ条件 2）。
 
 ### 5. 保存できなかったとき
 
@@ -217,7 +218,7 @@ PR 修正ループ（`.agents/skills/pr-review-fix-loop/scripts/loop.py`）の `
 - **D-212-13 最後のブランチ全体のレビューを受けた変更**
   - 選択: (1) 照合の対象に、pi の失敗で終わった assistant のメッセージの `errorMessage` を足し、DSH のエラーコード（大文字）を分類の語に足す。(2) stdout でランタイムが失敗を報告していたら `response_extraction` にしない。(3) JSON でない行は、行頭のコロン付き・角括弧付きの診断だけを数える。(4) 全レビュアーの失敗（終了コード 6）のエラーの出力に、`rejected`（`diagnostic_file`・`diagnostic_error`）を足す
   - 別案: (1)(2) は変えない（レビュアーのローカルの実データで、pi の 401 と dsh-ccd の `TRANSPORT` が `unknown`、pi の形の 503・429 が `response_extraction` になる）。(3) は今のまま。(4) は SKILL.md に「`cycle-<n>.json` を読む」と書くだけにする
-  - 理由: 個人設定のレビュアー 4 人のうち 2 人が pi で、提供元の失敗を「応答の取り出し」と記録すると、司令塔と利用者が adapter の解析を疑い、障害を待つ・資格情報を直すという対応を取れない。原因が失敗の経路に出ているのに `unknown` になるのは受け入れ条件 2 とも違う。pi の adapter も同じ `errorMessage` を分類に使う。プロンプト（PR の本文）を含む `messages` の行全体は使わない。(3) は Devin の stdout がレビュー本文で、本文の行で原因を誤って分類しうるので、D-212-6 の意図に合わせて絞った（devin の adapter と同じくコロン付き）。(4) は、全員の失敗が原因を最も調べたい経路で、D-212-1 の「理由を記録して返す」を出力で満たすため。成功の出力と同じ形で返し、`status`・`finish` の出力は変えない
+  - 理由: 個人設定のレビュアー 4 人のうち 2 人が pi で、提供元の失敗を「応答の取り出し」と記録すると、司令塔と利用者が adapter の解析を疑い、障害を待つ・資格情報を直すという対応を取れない。原因が失敗の経路に出ているのに `unknown` になるのは受け入れ条件 2 とも違う。pi の adapter も、最後の `agent_end` の最後の assistant のメッセージの `errorMessage` を分類に使う（PR #237 のレビュー修正で、再試行の前の失敗を使わないように同じ範囲に絞った）。プロンプト（PR の本文）を含む `messages` の行全体は使わない。(3) は Devin の stdout がレビュー本文で、本文の行で原因を誤って分類しうるので、D-212-6 の意図に合わせて絞った（devin の adapter と同じくコロン付き）。(4) は、全員の失敗が原因を最も調べたい経路で、D-212-1 の「理由を記録して返す」を出力で満たすため。成功の出力と同じ形で返し、`status`・`finish` の出力は変えない
   - 委任指示: issue-to-pr の「通常の設計判断は推奨案で決める」。D-212-1 の範囲の中の設計の抜けの修正
 - **D-212-12 対象外とするもの**
   - 選択: 次は変えない。`finish`・`recover` の回収（`audit_resources` と `force`）の前の診断、`run_roles.py`（review-fix-planning の担当）と `implement_task.py`（issue-to-pr の Task の担当）の失敗の診断、DSH の上書きそのもの

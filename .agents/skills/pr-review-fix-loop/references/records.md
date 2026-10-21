@@ -102,7 +102,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `state` | runner の `Result.state` |
 | `attempts[]` | 試行（fallback を含む起動順）ごとに `agent_id`・`state`・`reported_state`（adapter が出力から分類した、adapter と runner が置き換える前の状態。`tools/agent_runner/interfaces.rst`）・`exit_code`・`stop_confirmed`・`elapsed_seconds`・`cause`・`unavailable` |
 
-`cause`（原因の分類）は、stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）、失敗で終わった assistant のメッセージ（`message`・`messages[]` の `stopReason` が `error`。pi の形）の `errorMessage`、JSON でない行のうち行頭（字下げなし）のコロン付き・角括弧付きの診断の行（`Error:`・`fatal:`・`panic:`・`[ERROR]`・`<名前>Error:`・`Traceback (most recent call last)`・`dsh:`・`dsh-sandbox:`・`bwrap:` など）を、既知のパターンと上から照合して、最初に当たった分類名である。照合した文字列は残さない。モデルの本文・ツールの出力・プロンプトは使わない（レビュー対象のコードや PR の本文が認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ、DSH のエラーコード（`AUTH`・`RATE_LIMIT`・`QUOTA`・`ACCOUNT_QUOTA`・`TIMEOUT`・`TRANSPORT`・`SERVER`・`EMPTY_RESPONSE`）は大文字のときだけ数える。各ログは末尾から 1 MiB までを読む。
+`cause`（原因の分類）は、試行を終わらせた失敗の報告だけから決める。stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）、pi の最後の `agent_end` の最後の assistant のメッセージが失敗で終わっていれば（`stopReason` が `error`）その `errorMessage`、JSON でない行のうち行頭（字下げなし）のコロン付き・角括弧付きの診断の行（`Error:`・`fatal:`・`panic:`・`[ERROR]`・`<名前>Error:`・`Traceback (most recent call last)`・`dsh:`・`dsh-sandbox:`・`bwrap:` など）を、既知のパターンと上から照合して、最初に当たった分類名である。担当が自動の再試行で回復した一時的な失敗は使わない: 再試行の通知（`type` か `subtype` に `retry` を含むイベント。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを、その `finalError` で数える。pi の再試行の前の失敗（`message_end`・`turn_end` と、`agent_end` の履歴の失敗メッセージ）も使わない。照合した文字列は残さない。モデルの本文・ツールの出力・プロンプトは使わない（レビュー対象のコードや PR の本文が認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ、DSH のエラーコード（`AUTH`・`RATE_LIMIT`・`QUOTA`・`ACCOUNT_QUOTA`・`TIMEOUT`・`TRANSPORT`・`SERVER`・`EMPTY_RESPONSE`）は大文字のときだけ数える。各ログは末尾から 1 MiB までを読む。
 
 | `cause` | 意味 |
 | --- | --- |
@@ -113,8 +113,8 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `timeout` | 提供元・通信の期限切れ（runner の期限切れは `state` の `timed_out`） |
 | `connection` | 提供元への接続の失敗と、提供元の一時的な障害（5xx・過負荷） |
 | `runtime_error` | ランタイム（CLI）自身の例外・異常終了 |
-| `response_extraction` | DSH の `EMPTY_RESPONSE`。または、ログの照合はどれにも当たらず、停止を確認でき、終了コードが 0 で、stdout でランタイムが失敗を報告していない（失敗のイベント・失敗で終わったメッセージ・診断の行が無い）のに結果を得られなかった（`reported_state` が `success` でなく、`sensitive_paths` が無い） |
-| `unknown` | どれにも当たらない、またはログを読めなかった。推測で補わない |
+| `response_extraction` | DSH の `EMPTY_RESPONSE`。または、ログの照合はどれにも当たらず、stdout・stderr を観測でき（`unavailable` の理由が無いか `partial`）、停止を確認でき、終了コードが 0 で、試行を終わらせた失敗の報告が無い（失敗のイベント・使い切った再試行・pi の最後の失敗メッセージ・診断の行が無い）のに結果を得られなかった（`reported_state` が `success` でなく、`sensitive_paths` が無い） |
+| `unknown` | どれにも当たらない、またはログを観測できなかった（`partial` 以外の `unavailable` の理由がある）。推測で補わない |
 
 `unavailable` は、取得できなかった情報（キーは `stdout`・`stderr`・`exit_code`・`reported_state`）と、その理由である。
 

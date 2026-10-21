@@ -1849,32 +1849,43 @@ def _failure_event(event: dict[str, object]) -> bool:
     )
 
 
-def _failed_messages(event: dict[str, object]) -> list[str]:
-    """失敗で終わった assistant のメッセージ（``stopReason`` が ``error``）の ``errorMessage``。
+def _retry_notice(event: dict[str, object]) -> bool:
+    """自動の再試行の通知（Claude Code の system/api_retry、pi の auto_retry_start・auto_retry_end など）。"""
+    names = (event.get("type"), event.get("subtype"))
+    return any(isinstance(name, str) and "retry" in name.lower() for name in names)
 
-    pi は提供元の失敗を、``message``（message_end・turn_end）と ``messages``（agent_end）の中のこの形にだけ書き、
-    終了コード 0 で終わる。プロンプト（PR の本文を含みうる）とモデルの本文は使わない。
+
+def _final_failure(event: dict[str, object]) -> str | None:
+    """pi の agent_end の最後の assistant のメッセージが失敗で終わっていれば、その ``errorMessage``（無ければ空）。
+
+    pi は提供元の失敗を、失敗で終わった assistant のメッセージ（``stopReason`` が ``error``）にだけ書き、終了コード 0
+    で終わる。自動の再試行の前の失敗も message_end・turn_end と agent_end の履歴に残すので、pi の adapter と同じく
+    最後の agent_end の最後の assistant のメッセージだけを見る。プロンプト（PR の本文を含みうる）とモデルの本文は使わない。
     """
     messages = event.get("messages")
-    found: list[str] = []
-    for item in [event.get("message"), *(cast(list[object], messages) if isinstance(messages, list) else [])]:
-        if not isinstance(item, dict):
-            continue
-        message = cast(dict[str, object], item)
-        if message.get("role") == "assistant" and message.get("stopReason") == "error":
+    if event.get("type") != "agent_end" or not isinstance(messages, list):
+        return None
+    for item in reversed(cast(list[object], messages)):
+        if isinstance(item, dict) and cast(dict[str, object], item).get("role") == "assistant":
+            message = cast(dict[str, object], item)
+            if message.get("stopReason") != "error":
+                return None
             error = message.get("errorMessage")
-            found.append(error if isinstance(error, str) else "")
-    return found
+            return error if isinstance(error, str) else ""
+    return None
 
 
 def diagnostic_text(stdout: str | None, stderr: str | None) -> tuple[str, bool]:
-    """原因の分類に使う文と、stdout でランタイムが失敗を報告していたか。
+    """原因の分類に使う文と、stdout に試行を終わらせた失敗の報告があったか。
 
-    文は stderr の全体と、stdout の失敗のイベント・失敗で終わった assistant のメッセージの ``errorMessage``・
-    診断の行。モデルの本文とツールの出力は、レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので
-    使わない（各 adapter が認証・承認の分類に失敗の経路と stderr だけを使うのと同じ）。
+    文は stderr の全体と、stdout の失敗のイベント・診断の行・pi の最後の agent_end の失敗メッセージの ``errorMessage``。
+    担当が自動の再試行で回復した一時的な失敗（再試行の通知と、再試行の前の失敗）は使わず、再試行を使い切った・
+    取り消した通知（``success`` が false）だけを、その ``finalError`` で数える。モデルの本文とツールの出力は、
+    レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない（各 adapter が状態の分類に、
+    回復した失敗とモデルの本文を使わないのと同じ。#212）。
     """
     reported: list[str] = []
+    final: str | None = None
     for line in (stdout or "").split("\n"):
         try:
             event: object = json.loads(line)
@@ -1885,28 +1896,36 @@ def diagnostic_text(stdout: str | None, stderr: str | None) -> tuple[str, bool]:
         if not isinstance(event, dict):
             continue
         mapping = cast(dict[str, object], event)
-        if _failure_event(mapping):
+        if _retry_notice(mapping):
+            if mapping.get("success") is False:
+                error = mapping.get("finalError")
+                reported.append(error if isinstance(error, str) else "")
+        elif _failure_event(mapping):
             reported.append(line)
-        else:
-            reported.extend(_failed_messages(mapping))
+        elif mapping.get("type") == "agent_end":
+            final = _final_failure(mapping)
+    if final is not None:
+        reported.append(final)
     return "\n".join([stderr, *reported] if stderr else reported), bool(reported)
 
 
-def classify_cause(text: str, attempt: Attempt, *, reported: bool = False) -> Cause:
+def classify_cause(text: str, attempt: Attempt, *, reported: bool, observed: bool) -> Cause:
     """診断の文を既知のパターンと上から照合した分類名。照合した文字列は返さない。
 
-    どれにも当たらなければ、停止を確認でき、終了コード 0 なのに結果を得られず、stdout でランタイムが失敗を報告して
-    おらず（``reported``）、adapter も成功と分類しておらず、秘密の残る保持物も無いときだけ ``response_extraction``
-    （応答を取り出せなかった）、ほかは ``unknown``。報告された失敗を取り出しの失敗と取り違えない。
+    どれにも当たらなければ、stdout・stderr を観測でき（``observed``）、試行を終わらせた失敗の報告が無く
+    （``reported`` が偽）、停止を確認でき、終了コード 0 なのに結果を得られず、adapter も成功と分類しておらず、
+    秘密の残る保持物も無いときだけ ``response_extraction``（応答を取り出せなかった）、ほかは ``unknown``。
+    報告された失敗や、観測できなかったログを、取り出しの失敗と推測しない。
     """
     for cause, pattern in CAUSE_PATTERNS:
         if pattern.search(text):
             return cause
     if (
-        attempt.stop_confirmed
+        observed
+        and not reported
+        and attempt.stop_confirmed
         and attempt.exit_code == 0
         and attempt.state in _EXTRACTION_STATES
-        and not reported
         and attempt.reported_state != "success"
         and not attempt.sensitive_paths
     ):
@@ -1927,6 +1946,8 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path) -> AttemptDiagnostic:
         unavailable["exit_code"] = "not_observed"
     if attempt.reported_state is None:
         unavailable["reported_state"] = "not_observed"
+    # 末尾だけを読んだログ（partial）は観測したとみなす。試行を終わらせた失敗は末尾に出る
+    observed = all(unavailable.get(item) in (None, "partial") for item in ("stdout", "stderr"))
     text, reported = diagnostic_text(stdout, stderr)
     return AttemptDiagnostic(
         agent_id=attempt.agent_id,
@@ -1935,7 +1956,7 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path) -> AttemptDiagnostic:
         exit_code=attempt.exit_code,
         stop_confirmed=attempt.stop_confirmed,
         elapsed_seconds=attempt.elapsed_seconds,
-        cause=classify_cause(text, attempt, reported=reported),
+        cause=classify_cause(text, attempt, reported=reported, observed=observed),
         unavailable=unavailable,
     )
 

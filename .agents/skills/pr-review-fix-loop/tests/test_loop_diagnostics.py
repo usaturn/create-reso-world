@@ -231,13 +231,18 @@ def pi_message(stop_reason: str, error: str | None = None) -> dict[str, Any]:
 
 
 PI_PROMPT = {"role": "user", "content": "Check the 401 Unauthorized handling and the connection reset path."}
+PI_FAILED_429 = pi_message("error", "429 rate_limit_error")
+PI_FAILED_503 = pi_message("error", '503 {"error":{"type":"overloaded_error"}}')
 
 
 @pytest.mark.parametrize(
     ("events", "cause"),
     [
         pytest.param(
-            [{"type": "message_end", "message": pi_message("error", '503 {"error":{"type":"overloaded_error"}}')}],
+            [
+                {"type": "message_end", "message": PI_FAILED_503},
+                {"type": "agent_end", "messages": [PI_PROMPT, PI_FAILED_503]},
+            ],
             "connection",
             id="failed-message",
         ),
@@ -247,7 +252,7 @@ PI_PROMPT = {"role": "user", "content": "Check the 401 Unauthorized handling and
             id="failed-message-in-agent-end-without-the-prompt",
         ),
         pytest.param(
-            [{"type": "turn_end", "message": pi_message("error", "something unexpected happened")}],
+            [{"type": "agent_end", "messages": [PI_PROMPT, pi_message("error", "something unexpected happened")]}],
             "unknown",
             id="unclassified-reported-failure",
         ),
@@ -267,6 +272,129 @@ def test_reported_failures_are_not_response_extraction(
     attempt, output = failed_attempt(tmp_path, stdout=stdout, exit_code=0)
 
     assert loop.diagnose_attempt(attempt, output).cause == cause
+
+
+CLAUDE_INIT = {"type": "system", "subtype": "init", "model": "claude-opus-5-5", "session_id": "s"}
+CLAUDE_TEXT = {"type": "assistant", "message": {"content": [{"type": "text", "text": "done"}]}}
+CLAUDE_NON_JSON = {"type": "result", "subtype": "success", "is_error": False, "result": "not a json object"}
+CLAUDE_OVERLOADED = {"type": "result", "subtype": "success", "is_error": True, "result": "API Error: 529 overloaded_error"}
+
+
+def claude_retry(error: str, status: int) -> dict[str, Any]:
+    """Claude Code が自動の再試行のたびに stream-json に出す通知（回復すれば試行は続く）。"""
+    return {"type": "system", "subtype": "api_retry", "attempt": 1, "max_retries": 10, "error_status": status, "error": error}
+
+
+# pi は再試行の前の失敗を message_end・turn_end に出し、agent_end の履歴にも残してから auto_retry_start を出す
+PI_RETRY = [
+    {"type": "message_end", "message": PI_FAILED_429},
+    {"type": "turn_end", "message": PI_FAILED_429},
+    {"type": "auto_retry_start", "attempt": 1, "maxAttempts": 3, "delayMs": 500, "errorMessage": "429 rate_limit_error"},
+]
+
+
+@pytest.mark.parametrize(
+    ("events", "exit_code", "cause"),
+    [
+        pytest.param(
+            [CLAUDE_INIT, claude_retry("overloaded", 529), CLAUDE_TEXT, CLAUDE_NON_JSON],
+            0,
+            "response_extraction",
+            id="claude-retry-overloaded",
+        ),
+        pytest.param(
+            [CLAUDE_INIT, claude_retry("rate_limit", 429), CLAUDE_TEXT, CLAUDE_NON_JSON],
+            0,
+            "response_extraction",
+            id="claude-retry-rate-limit",
+        ),
+        pytest.param(
+            [CLAUDE_INIT, claude_retry("overloaded", 529), CLAUDE_OVERLOADED], 1, "connection", id="claude-retries-exhausted"
+        ),
+        pytest.param(
+            [
+                *PI_RETRY,
+                {"type": "auto_retry_end", "success": True, "attempt": 1},
+                {"type": "message_end", "message": pi_message("stop")},
+                {"type": "agent_end", "messages": [PI_PROMPT, PI_FAILED_429, pi_message("stop")]},
+            ],
+            0,
+            "response_extraction",
+            id="pi-retry-recovered",
+        ),
+        pytest.param(
+            [
+                *PI_RETRY,
+                {"type": "message_end", "message": PI_FAILED_503},
+                {"type": "agent_end", "messages": [PI_PROMPT, PI_FAILED_429, PI_FAILED_503]},
+            ],
+            0,
+            "connection",
+            id="pi-retry-then-503",
+        ),
+        pytest.param(
+            [
+                *PI_RETRY,
+                {"type": "message_end", "message": PI_FAILED_503},
+                {"type": "auto_retry_end", "success": False, "attempt": 3, "finalError": "503 overloaded_error"},
+            ],
+            0,
+            "connection",
+            id="pi-retries-exhausted-without-agent-end",
+        ),
+        pytest.param(
+            [{"type": "auto_retry_end", "success": False, "attempt": 1, "finalError": "Retry cancelled"}],
+            0,
+            "unknown",
+            id="pi-retry-cancelled",
+        ),
+    ],
+)
+def test_recovered_failures_do_not_decide_the_cause(
+    loop: Any, tmp_path: Path, events: list[dict[str, Any]], exit_code: int, cause: str
+) -> None:
+    # 回復した一時的な失敗ではなく、試行を終わらせた失敗で分類する（PR #237 の claude-opus-5-5#M-1）。
+    # 再試行を使い切った・取り消した失敗は報告なので、分類できなくても response_extraction にしない
+    stdout = "".join(json.dumps(event) + "\n" for event in events)
+    attempt, output = failed_attempt(tmp_path, stdout=stdout, exit_code=exit_code)
+
+    assert loop.diagnose_attempt(attempt, output).cause == cause
+
+
+@pytest.mark.parametrize(
+    ("log", "change", "cause"),
+    [
+        ("stdout", "missing", "unknown"),
+        ("stderr", "missing", "unknown"),
+        ("stderr", "symlink", "unknown"),
+        ("stderr", "unreadable", "unknown"),
+        ("stdout", "partial", "response_extraction"),
+    ],
+)
+def test_unobservable_logs_are_not_response_extraction(
+    loop: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: str, change: str, cause: str
+) -> None:
+    # 失敗の報告の有無を観測できなければ、終了状態だけから「応答の取り出し」と推測しない（受け入れ条件 2、
+    # PR #237 の deepseek#M-1）。末尾だけを読んだ（partial）ときは、試行を終わらせた失敗が末尾にあるので観測とみなす
+    attempt, output = failed_attempt(tmp_path, stdout="x" * 100 + "\n" if change == "partial" else "", exit_code=0)
+    path = attempt.stdout_path if log == "stdout" else attempt.stderr_path
+    assert path is not None
+    if change == "missing":
+        path.unlink()
+    elif change == "symlink":
+        target = output / "target.log"
+        target.write_text("", encoding="utf-8")
+        path.unlink()
+        path.symlink_to(target)
+    elif change == "unreadable":
+        path.chmod(0)
+    else:
+        monkeypatch.setattr(loop, "DIAGNOSTIC_READ_BYTES", 16)
+
+    diagnostic = loop.diagnose_attempt(attempt, output)
+
+    expected = {"missing": "missing", "symlink": "not_regular_file", "unreadable": "unreadable", "partial": "partial"}
+    assert (diagnostic.cause, diagnostic.unavailable.get(log)) == (cause, expected[change])
 
 
 def test_unobserved_values_are_listed(loop: Any, tmp_path: Path) -> None:
