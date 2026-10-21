@@ -21,7 +21,7 @@ argument-hint: "<PR番号またはURL> [--max-cycles N] [--assign ROLE=AGENT[,AG
 - helper は、成功・失敗とも標準出力に JSON を 1 つ書く（引数の書式の誤りだけは、終了コード 2 と標準エラー出力の usage）。`next` は次に実行する完全なコマンドである。コマンドを自分で組み立て直さない。`requires_input` があるときは、そこに書かれたオプションに、自分で確かめた事実を書き足してから実行する（`<...>` のような書きかけの値は拒否される）。`status` が `error` なら、`stage` と `reason` を読んで「止まったとき」に従う。
 - ロックと記録（`<review_dir>/loop/`）を手で作成・編集・削除しない。
 - `rejected` のレビュアーを「指摘なし」として扱わない。
-- loop 自身は PR にコメントしない。PR への書き込みは、review-fix-planning の状況コメント（push の後に base が進んだときの補足を含む）と最終化だけである。
+- loop 自身は PR にコメントしない。PR への書き込みは、review-fix-planning の状況コメント（push の後に base が進んだときと、マージの後の照合で止まったときの補足を含む）と最終化だけである。
 - 新しい PR を作らない。force push、`main` への直接の push、admin マージをしない。
 
 ## 起動

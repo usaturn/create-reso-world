@@ -170,9 +170,9 @@ uv run --project "$TOPLEVEL" --locked python \
   2. 検証の記録を、`base` を `current`、`commands` をその実行にして作り直す。検証し直さずに `base` だけを書き換えない
   3. create-reso-world の PR（`--spec-commit`）では、PR の head が Spec の commit になっていて状況コメントを直せない。補足のコメントを `gh pr comment <PR> --repo <repo> --body-file <file>` で新しく投稿する。1 行目は `補足（review-fix-planning、<MODEL_NAME>）:` とし、状況コメントのサイクル、base が `verified` から `current` へ進んだこと、merge したツリーで実行したコマンドと終了コードを書く。判断の記録・マーカー（`<!--`）を含めない。補足は状況コメントの代わりではなく、記録付きの投稿が拒否されたときの代わりにも使わない。push 済みの Spec は直さない。それ以外の PR では、本文の検証の状況を新しい検証に直す（helper が同じサイクルのコメントを更新する）
   4. 同じ判断の記録で `finalize.py` を再実行する。やり直しの回数の上限は SKILL.md の結論 2 のとおり
-- `merge_parent`（`verified`・`merge_commit`・`first_parent`。読めなかった値は null）があれば、マージの後の照合で止まった（3.3 節）。PR はマージ済み（`merged: true`）で、helper は関連 Issue を更新していない（`Closes` による GitHub の自動の close は 3.5 節）
-  - `first_parent` が null（読めない）: ほかの `gh` の失敗と同じく結論 3 にする。原因が解消してから、同じ記録・本文・検証の記録で再実行すると、読み直して照合する
-  - `first_parent` が `verified` と違う: base に検証していない組み合わせ（merge commit のツリー）が入った。待っても、同じ記録で再実行しても解消しない。補足のコメントを、上の `base_moved` の 3 と同じ形（`gh pr comment`、1 行目は `補足（review-fix-planning、<MODEL_NAME>）:`、判断の記録・マーカーを含めない）で投稿する。書くのは、状況コメントのサイクル、3 つの SHA、merge commit のツリーで検証し直すまで関連 Issue を更新しないこと。その後は結論 3 にする（PR 修正ループの中でも、このサイクルでは再検証しない）。finalize に渡した記録・本文・検証の記録とセッションディレクトリは消さずに残し、完全パスを報告する
+- `merge_parent`（`verified`・`merge_commit`・`first_parent`。読めなかった値は null）があれば、マージの後の照合で止まった（3.3 節）。PR はマージ済み（`merged: true`）で、helper は関連 Issue を更新していない（`Closes` による GitHub の自動の close は 3.5 節）。どちらの場合も、補足のコメントを上の `base_moved` の 3 と同じ形（`gh pr comment`、1 行目は `補足（review-fix-planning、<MODEL_NAME>）:`、判断の記録・マーカーを含めない）で投稿してから、結論 3 にする。補足に書くのは、状況コメントのサイクル、`merge_parent` の 3 つの値（読めなかった値は読めなかったこと）、関連 Issue を更新していないことと、下の次の手順である。finalize に渡した記録・本文・検証の記録とセッションディレクトリは消さずに残し、完全パスを報告する
+  - `first_parent` が null（読めない）: 照合できていない。原因が解消してから、同じ記録・本文・検証の記録で再実行すると、読み直して照合する
+  - `first_parent` が `verified` と違う: base に検証していない組み合わせ（merge commit のツリー）が入った。待っても、同じ記録で再実行しても解消しない。merge commit のツリーで検証し直すまで、関連 Issue を更新しない。PR 修正ループの中でも、このサイクルでは再検証しない
   - 完了させるときは、利用者の指示で次の順に行う
     1. merge commit を取得し（`git -C <checkout> fetch <remote> <merge_commit>`）、`mktemp -d` の隔離 worktree で checkout して、SKILL.md の結論 2 の手順 1 と同じ検証を通す。検証の後は、結論 2 の手順 2 の一時的なツリーと同じ方法で消す
     2. 検証の記録を、`head` はそのまま、`base` を `first_parent`、`commands` をその実行にして作り直す。検証し直さずに `base` だけを書き換えない

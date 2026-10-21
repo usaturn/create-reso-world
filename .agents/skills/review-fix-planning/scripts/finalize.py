@@ -71,7 +71,8 @@ class Stop(Exception):
     base_moved は、検証した後にbaseが進んだ停止（ref: baseブランチの名前、verified: 検証の記録のbase、
     current: 今の先端）。待っても解消しないので、司令塔がcurrentで検証し直し、検証の記録を作り直してから再実行する。
     merge_parent は、マージの後にmerge commitの最初の親が検証の記録のbaseと違う・読めない停止（verified・merge_commit・
-    first_parent。読めなかった値はNone）。PRはマージ済みで、司令塔がmerge commitのツリーで検証し直してから再実行する。
+    first_parent。読めなかった値はNone）。PRはマージ済み。違うときは司令塔がmerge commitのツリーで検証し直してから、
+    読めないときは読めるようになってから、再実行する。
     """
 
     def __init__(
