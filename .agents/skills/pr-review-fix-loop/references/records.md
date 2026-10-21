@@ -21,8 +21,10 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
             ├── after-run-<i>.stdout.log・after-run-<i>.stderr.log  # 後処理（after_run）のログの写し（再実行は rerun- を付ける）
             ├── review-result.json  # runner の結果（BatchResult）の写し
             ├── rerun-result.json   # 再実行したときだけ。再実行の runner の結果の写し
-            └── requests/
-                └── <request_id>.json  # 却下したレビュアーの試行に渡した指示（runner の request.json）の写し
+            ├── requests/
+            │   └── <request_id>.json  # 却下したレビュアーの試行に渡した指示（runner の request.json）の写し
+            └── diagnostics/
+                └── <request_id>.json  # 失敗した担当がいるレビュアーの、試行ごとの診断（4.1 節。分類名だけを残し、ログは写さない）
 ```
 
 - レビューディレクトリの直下には `<model>.md` 以外のファイルを置かない（`.agents/review-findings.md` 2 章）。`loop/` はサブディレクトリである。
@@ -53,7 +55,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `started_at`・`ended_at` | 時刻 |
 | `state` | `running`・`ended`・`held`（停止を確認できない試行・後処理があり、ロックを保持）・`abandoned`（結果の無いまま回収した） |
 | `result` | `{"outcome", "ended_by", "stop_reason", "merged", "cycles"}`。`outcome` は `fixes_pushed`・`no_fix_needed`・`stopped`、`ended_by` は `outcome`・`cycle_limit`・`abort`。`merged` は `true`・`false`・`null`（`null` は `finish --abort` だけが書く未確認。6 章） |
-| `resources` | `[{"path", "kind": "runner_output", "cycle", "state", "reason"}]`。`state` は `created`（未回収）・`removed`・`retained`（消さずに残した） |
+| `resources` | `[{"path", "kind": "runner_output", "cycle", "state", "reason"}]`。`state` は `created`（未回収）・`removed`・`retained`（消さずに残した）。`retained` の `reason` は、外せない worktree・秘密が残りうるファイル・runner の結果が無い、または失敗した担当の診断を保存できなかった（4.1 節）など |
 | `notes` | `recover` で受け取った確認の事実、`finish --abort` が `merged` を PR の状態だけで決められなかった理由など |
 | `herdr_pane` | `{"state", "pane_id", "label", "reason"}`。`start` が現在の Herdr ペインの名前を変えた結果 |
 
@@ -77,7 +79,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `state` | `reviewing`・`planning`・`ended` |
 | `prior_round` | `cycle-begin` の時点で PR にあった判断の記録の最大の `round`。`cycle-end` はこれより後の記録だけをこのサイクルの記録として受け付ける（前の run の同じ HEAD の記録を拾わない） |
 | `review.mode` | `run`（レビュアーを起動した）・`reuse`（現在の HEAD の成果を使った） |
-| `review.reviewers[]` | `requested_agent`・`actual_agent`、runner の state、`verdict`（`accepted`・`rejected`）と `reason`、runner が観測した `identity`、payload の `reviewer`・`timing`、成果 2 件のパスと SHA-256、`active_findings`、pr-review の `cleanup`・`warnings`・`retained_paths`。却下したときは `rejected_stage`（`runner`: 停止未確認・runner の失敗、`payload`: payload の形・pr-review の失敗、`binding`: request・担当・PR の不一致、`head`: レビューした HEAD の不一致、`artifacts`: 成果 2 件の欠落・不整合）と、その試行の `request.json` の写しの `request_file`・`request_sha256`（写せないときは null） |
+| `review.reviewers[]` | `requested_agent`・`actual_agent`、runner の state、`verdict`（`accepted`・`rejected`）と `reason`、runner が観測した `identity`、payload の `reviewer`・`timing`、成果 2 件のパスと SHA-256、`active_findings`、pr-review の `cleanup`・`warnings`・`retained_paths`。却下したときは `rejected_stage`（`runner`: 停止未確認・runner の失敗、`payload`: payload の形・pr-review の失敗、`binding`: request・担当・PR の不一致、`head`: レビューした HEAD の不一致、`artifacts`: 成果 2 件の欠落・不整合）と、その試行の `request.json` の写しの `request_file`・`request_sha256`（写せないときは null）。失敗した担当がいるレビュアーは、診断の `diagnostic_file`・`diagnostic_sha256`（保存できなかったときは null）と、保存できなかった理由の `diagnostic_error`（4.1 節） |
 | `review.rerun` | 再実行したときだけ。`agents`（起動し直した実担当）、`replaced`（置き換えた 1 回目の `reviewers[]` の記録）、再実行の `output_dir`・`started_at`・`ended_at`・`seconds`・`batch`・`after_run`・`cleanup`。`review.reviewers` は再実行の結果で置き換えた後の記録 |
 | `review.reused[]` | 再利用した成果 2 件のパスと SHA-256、`model`・`runtime`・`reviewed_head`・`active_findings` |
 | `review.batch` | runner の run ID・state・assignments・`result_file`（写し）・`outside_changes` |
@@ -86,7 +88,47 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 
 レビュー・確認・判断の中身は写さない。参考データ（`.agents/review-findings.md` の識別情報・時間）は、パスで参照する成果の側にある。
 
-再実行の対象は、runner は成功（停止確認済み・終了コード 0）したのに loop が受け付けなかったレビュアー（`rejected_stage` が `runner` 以外）だけで、1 サイクルに 1 回まで。1 回目の runner の結果に、別の担当でも停止を確かめられない試行があれば再実行しない（資源を残す）。1 回目・再実行のどちらでも、runner の結果に停止を確かめられない試行があれば、受け付けたレビュアーがいても計画に進まず、run を `held` にして終了コード 7（`resources`）で `recover` の経路に返す。受け付けたレビュアーが 0 人なら終了コード 6 で、`finish` が run を `held` にする。最初の `review` はサイクルを `reviewing` のまま `review.rerun` を保存し、`next` に `review` を返す。2 回目の `review` は PR の HEAD を確かめてから、その実担当だけを fallback 無し・同じ role の期限で起動し、同じ検査を行う。却下した試行の `request.json` は runner の仕様で環境の値を含まない（`tools/agent_runner/interfaces.rst`）。停止を確かめられない試行の `request.json` は読まない。秘密が残りうる stdout・stderr は写さない。
+再実行の対象は、runner は成功（停止確認済み・終了コード 0）したのに loop が受け付けなかったレビュアー（`rejected_stage` が `runner` 以外）だけで、1 サイクルに 1 回まで。1 回目の runner の結果に、別の担当でも停止を確かめられない試行があれば再実行しない（資源を残す）。1 回目・再実行のどちらでも、runner の結果に停止を確かめられない試行があれば、受け付けたレビュアーがいても計画に進まず、run を `held` にして終了コード 7（`resources`）で `recover` の経路に返す。受け付けたレビュアーが 0 人なら終了コード 6 で、`finish` が run を `held` にする。最初の `review` はサイクルを `reviewing` のまま `review.rerun` を保存し、`next` に `review` を返す。2 回目の `review` は PR の HEAD を確かめてから、その実担当だけを fallback 無し・同じ role の期限で起動し、同じ検査を行う。却下した試行の `request.json` は runner の仕様で環境の値を含まない（`tools/agent_runner/interfaces.rst`）。停止を確かめられない試行の `request.json` は読まない。秘密が残りうる stdout・stderr は写さず、失敗した担当のログからは 4.1 節の診断（分類名と列挙値）だけを残す。
+
+### 4.1 失敗した担当の診断（`cycle-<n>/diagnostics/<request_id>.json`）
+
+`review` は、runner の出力を回収する前に、却下したレビュアーと、success 以外の試行（fallback で失敗した担当）があるレビュアーについて、試行ごとの診断を書く（#212）。runner のログ（stdout・stderr、DSH の session）は回収で消えるので、失敗の原因はこの診断と `rejected_stage`・`reason` で調べる。生の stdout・stderr・session は写さず、値は列挙値・数値・識別子だけである。再実行の診断も同じディレクトリに置く（request ID が違う）。
+
+| キー | 値 |
+| --- | --- |
+| `schema`・`kind` | `"pr-review-fix-loop/v1"`・`"diagnostic"` |
+| `request_id`・`role`・`requested_agent`・`actual_agent` | runner の `Result` の値 |
+| `verdict`・`stage` | loop の判定（`accepted`・`rejected`）と、却下の段階（`rejected_stage`。受け付けたレビュアーは null） |
+| `state` | runner の `Result.state` |
+| `attempts[]` | 試行（fallback を含む起動順）ごとに `agent_id`・`state`・`reported_state`（adapter が出力から分類した、adapter と runner が置き換える前の状態。`tools/agent_runner/interfaces.rst`）・`exit_code`・`stop_confirmed`・`elapsed_seconds`・`cause`・`unavailable` |
+
+`cause`（原因の分類）は、stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）と、JSON でない診断の行（行頭が `error`・`fatal`・`panic`・`Traceback`・`<名前>Error:`・`dsh:`・`dsh-sandbox:`・`bwrap:` など）を、既知のパターンと上から照合して、最初に当たった分類名である。照合した文字列は残さない。モデルの本文とツールの出力は使わない（レビュー対象のコードが認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ数える。各ログは末尾から 1 MiB までを読む。
+
+| `cause` | 意味 |
+| --- | --- |
+| `authentication` | 認証の失敗（資格情報が無い・無効・期限切れ） |
+| `approval` | 承認待ち・承認の拒否 |
+| `rate_limit` | 利用上限・残高 |
+| `sandbox` | DSH の隔離（bubblewrap）の失敗 |
+| `timeout` | 提供元・通信の期限切れ（runner の期限切れは `state` の `timed_out`） |
+| `connection` | 提供元への接続の失敗と、提供元の一時的な障害（5xx・過負荷） |
+| `runtime_error` | ランタイム（CLI）自身の例外・異常終了 |
+| `response_extraction` | ログの照合はどれにも当たらず、停止を確認でき、終了コードが 0 なのに結果を得られなかった（`reported_state` が `success` でなく、`sensitive_paths` が無い） |
+| `unknown` | どれにも当たらない、またはログを読めなかった。推測で補わない |
+
+`unavailable` は、取得できなかった情報（キーは `stdout`・`stderr`・`exit_code`・`reported_state`）と、その理由である。
+
+| 理由 | 意味 |
+| --- | --- |
+| `not_recorded` | runner がログのパスを記録していない |
+| `not_stopped` | 停止を確認できない試行なので読まない（生きた書き手が差し替えうる） |
+| `sensitive` | runner の `sensitive_paths`（その下を含む）にあるので読まない |
+| `outside_output` | このレビューの runner の出力ディレクトリの外なので読まない |
+| `missing`・`not_regular_file`・`unreadable` | ファイルが無い・symlink か特殊ファイル・読めない |
+| `partial` | 1 MiB を超えたので末尾だけを読んだ |
+| `not_observed` | `exit_code`・`reported_state` が null |
+
+`review` の出力の各レビュアー（`accepted`・`rejected`）にも、`diagnostic_file` と `diagnostic_error` を返す。診断を書けなかったとき（ディレクトリを作れない・書けないなど）は、`diagnostic_error` に理由（errno の名前か例外の型の名前だけ）を書き、その出力ディレクトリは worktree の登録だけを外して、ログを含めて消さずに残す（`resources` の `retained`、出力の `retained`）。`review` は止めない。
 
 ## 5. 終了コードと `stage`
 
