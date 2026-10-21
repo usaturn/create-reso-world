@@ -72,11 +72,11 @@ PR 修正ループ（`.agents/skills/pr-review-fix-loop/scripts/loop.py`）の `
 照合の対象（診断の文）:
 
 - stderr の全体
-- stdout の行のうち、JSON の object として読めるものは失敗のイベントだけ（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）。失敗のイベントでなければ、pi の最後の `agent_end` の最後の assistant のメッセージが失敗で終わっていれば（`stopReason` が `error`）その `errorMessage` だけ（pi の adapter と同じ。プロンプトとモデルの本文は使わない）
-- 担当が自動の再試行で回復した一時的な失敗は使わない（PR #237 のレビュー修正）。再試行の通知（`type` か `subtype` に `retry` を含む。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを `finalError` で数える。pi の再試行の前の失敗（`message_end`・`turn_end`、`agent_end` の履歴）も使わない
+- stdout の行のうち、JSON の object として読めるものは失敗のイベントだけ（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）。失敗のイベントでなければ、stream の中で最後に現れた assistant のメッセージ（pi の `message_start`・`message_end`・`turn_end` の `message` と `agent_end` の `messages`）が失敗で終わっていれば（`stopReason` が `error`）その `errorMessage` だけ（pi の adapter の最後のメッセージと同じ。プロンプトとモデルの本文は使わない）
+- 担当が自動の再試行で回復した一時的な失敗は使わない（PR #237 のレビュー修正）。再試行の通知（`type` か `subtype` に `retry` を含む。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを `finalError` で数える。pi の再試行の前の失敗（後に別の assistant のメッセージが続く失敗メッセージ）も使わない
 - stdout の行のうち、JSON として読めないものは、行頭（字下げなし）のコロン付き・角括弧付きの診断の行だけ（`Error:`・`fatal:`・`panic:`・`[ERROR]`、`<名前>Error:`・`<名前>Exception:`、`Traceback (most recent call last)`、`dsh:`・`dsh-sandbox:`・`bwrap:` など）。Devin の stdout はモデルの発言の平文なので、「Error handling for ...」のような本文の行や字下げした引用は数えない
 - stdout の失敗のイベント・使い切った再試行・pi の最後の失敗メッセージ・診断の行が 1 つでもあれば、ランタイムが試行を終わらせた失敗を報告した（`response_extraction` にしない）
-- 各ログは末尾から 1 MiB までを読む
+- 各ログは末尾から 64 MiB までを読む（PR #237 のレビュー修正で 1 MiB から広げた。pi の `agent_end` は会話の履歴全体を 1 行に含み、実際のレビューの出力で 1.9 MB ある）
 
 分類（上から順に、最初に当たったものを採る）:
 
@@ -89,7 +89,7 @@ PR 修正ループ（`.agents/skills/pr-review-fix-loop/scripts/loop.py`）の `
 | `timeout` | 提供元・通信の期限切れ | timed out、deadline exceeded、`ETIMEDOUT`、`TimeoutError`、gateway timeout、`status 408`・`504`、DSH の `TIMEOUT` |
 | `connection` | 提供元への接続と提供元の一時的な障害 | connection reset・refused、`ECONNRESET`、`ENOTFOUND`、socket hang up、fetch failed、TLS・SSL の失敗、bad gateway、service unavailable、overloaded、internal server error、`status 500`・`502`・`503`・`529`、DSH の `TRANSPORT`・`SERVER` |
 | `runtime_error` | ランタイム（CLI）自身の例外・異常終了 | `Traceback (most recent call last)`、panic、uncaught exception、unhandled rejection、segmentation fault、core dumped |
-| `response_extraction` | 応答を取り出せなかった | DSH の `EMPTY_RESPONSE`。または上のどれにも当たらず、stdout・stderr を観測でき（`unavailable` の理由が無いか `partial`）、停止を確認でき、終了コードが 0 で、stdout でランタイムが試行を終わらせた失敗を報告しておらず、state が `response_failed`・`missing_result`・`invalid_result`、`reported_state` が `success` でなく、`sensitive_paths` が無い |
+| `response_extraction` | 応答を取り出せなかった | DSH の `EMPTY_RESPONSE`。または上のどれにも当たらず、stdout・stderr を丸ごと観測でき（`unavailable` に `stdout`・`stderr` が無い。`partial` も観測としない）、停止を確認でき、終了コードが 0 で、stdout でランタイムが試行を終わらせた失敗を報告しておらず、state が `response_failed`・`missing_result`・`invalid_result`、`reported_state` が `success` でなく、`sensitive_paths` が無い |
 | `unknown` | どれにも当てはまらない、またはログを読めなかった | ― |
 
 - HTTP の状態コードは、`HTTP`・`status`・`error code` などの語に続くときだけ数える（Traceback の `line 401` などを数えない）
@@ -110,10 +110,10 @@ PR 修正ループ（`.agents/skills/pr-review-fix-loop/scripts/loop.py`）の `
 | `missing` | ファイルが無い |
 | `not_regular_file` | symlink・特殊ファイル（`O_NOFOLLOW`・`O_NONBLOCK` で開き、通常のファイルだけを読む） |
 | `unreadable` | 開けない・読めない |
-| `partial` | 1 MiB を超えたので、末尾だけを読んだ（このときは分類にも使う） |
+| `partial` | 64 MiB を超えたので、末尾だけを読んだ（読んだ部分は照合に使うが、`response_extraction` の推測には観測としない） |
 | `not_observed` | `exit_code`・`reported_state` が null |
 
-ログを観測できないとき（`partial` 以外の理由）の分類は `unknown` で、終了状態だけから `response_extraction` と推測しない（PR #237 のレビュー修正。受け入れ条件 2）。
+stdout・stderr の一方でも丸ごと観測できないとき（`partial` を含む）は、終了状態だけから `response_extraction` と推測しない（PR #237 のレビュー修正。受け入れ条件 2）。観測できたログの照合に当たれば、その分類になる。
 
 ### 5. 保存できなかったとき
 
@@ -136,8 +136,8 @@ PR 修正ループ（`.agents/skills/pr-review-fix-loop/scripts/loop.py`）の `
   - 異なる既知の失敗（接続の切断、ランタイムの例外）を stderr に書いて終了コード 1 で終わる偽の CLI 2 人: `review` が終了コード 6 で終わった後も、出力ディレクトリとログは消え、診断が残り、分類は `connection`・`runtime_error` で互いに区別できる。保存したファイルに、偽の CLI が書いた文字列は含まれない
   - 秘密の値の対照: 認証の失敗と偽のトークン（実行時に組み立てる）を stderr に書く偽の CLI と、成功するレビュアー: 分類は `authentication`、`reported_state` は adapter が返した値。run のディレクトリのどのファイルにも、`review` の出力にも、偽のトークンが含まれない
   - 保存できないとき: `cycle-1/diagnostics` を通常のファイルにしておく: `diagnostic_error` が入り、`review` は計画に進み、出力ディレクトリとログは残り（`retained`）、worktree の登録は外れ、`finish --abort` が残したパスを返す
-  - 読む条件と分類の単体の確認: 停止未確認・`sensitive_paths`・出力の外・symlink・無いファイル・記録の無いパスはログを読まず、理由が入る。1 MiB を超えるログは `partial`。終了コード 0 の `response_failed` は `response_extraction`、`reported_state` が `success` なら `unknown`。Traceback の `line 401` は `runtime_error`、成功したツールの出力の「401 Unauthorized」は分類に使わない、失敗のイベントの invalid api key は `authentication`、認証と接続の両方が出たら `authentication`。失敗のイベントの各条件、Devin の本文の行・字下げした引用は数えない、DSH のエラーコード
-  - pi の形（終了コード 0）: 失敗で終わったメッセージの `errorMessage` で分類し（503 overloaded は `connection`、429 は `rate_limit`）、プロンプトは使わない。分類できない報告された失敗は `unknown` で、`response_extraction` にしない
+  - 読む条件と分類の単体の確認: 停止未確認・`sensitive_paths`・出力の外・symlink・無いファイル・記録の無いパスはログを読まず、理由が入る。上限を超えるログは `partial`。ログを丸ごと読めた終了コード 0 の `response_failed` は `response_extraction`、`reported_state` が `success` なら `unknown`。Traceback の `line 401` は `runtime_error`、成功したツールの出力の「401 Unauthorized」は分類に使わない、失敗のイベントの invalid api key は `authentication`、認証と接続の両方が出たら `authentication`。失敗のイベントの各条件、Devin の本文の行・字下げした引用は数えない、DSH のエラーコード
+  - pi の形（終了コード 0）: 最後の失敗メッセージの `errorMessage` で分類し（503 overloaded は `connection`、429 は `rate_limit`）、プロンプトと再試行の前の失敗は使わない。履歴の行が 1 MiB を超えても分類は変わらない。分類できない報告された失敗は `unknown` で、`response_extraction` にしない
   - 全レビュアーの失敗（終了コード 6）: CLI のエラーの出力の `rejected` に、診断のパスか保存できなかった理由が入る
 - テストは AGENTS.md の「テストの採用基準」に従い、コードを実行して確かめる挙動だけを書く。文書の文言のテストは書かない
 
@@ -191,7 +191,7 @@ PR 修正ループ（`.agents/skills/pr-review-fix-loop/scripts/loop.py`）の `
   - 選択: 設計 1。`AdapterOutcome.reported_state` を足して DSH の上書き前の状態を受け取り、runner が `_collect` の段で `Attempt.reported_state` に入れる。runner 自身の上書き（終了コードなど）の前の値も同じ項目に入る
   - 別案: (a) loop が stdout を DSH の adapter の内部の関数（`_classify`）で読み直す、(b) DSH が識別を読めないときに状態を上書きしないようにする、(c) runner の上書きの前の値（`_collect` の値）だけを記録する
   - 理由: (a) は adapter の非公開の実装に loop が依存し、adapter ごとに読み方が要る。(b) は状態の表示を変え（`awaiting_authentication` になる）、決定（上書き前の状態を残す）より範囲が広い。(c) は Issue のコメントの事例（DSH が adapter の中で上書きする）を残せない。runner は adapter の値と自身の上書きの両方を知る唯一の場所で、`Attempt` に足せば loop 以外（`run_roles.py`・`implement_task.py`）の記録にも残る。項目は既定 null で、読む側は名前で項目を読むので動きは変わらない
-- **D-212-6 分類の照合の対象は、stderr と、stdout の失敗のイベント・診断の行（末尾 1 MiB）にする**
+- **D-212-6 分類の照合の対象は、stderr と、stdout の失敗のイベント・診断の行（末尾 1 MiB。PR #237 のレビュー修正で 64 MiB に広げた）にする**
   - 選択: 設計 3 の照合の対象
   - 別案: (a) stdout と stderr の全体、(b) stderr だけ、(c) 各 adapter が自分の失敗の経路で分類して `AdapterOutcome` で返す
   - 理由: (a) は、モデルの本文とツールの出力（レビュー対象のコードや PR の本文。この Issue 自身も「401」「connection reset」を含む）で誤って分類する。各 adapter も同じ理由で、失敗の経路と stderr だけを分類に使っている。(b) は、DSH の `turn_end` の理由（`{"kind":"error","error":{"code":"AUTH"}}`）や、cursor・claude-code の失敗した `result` のように、stdout にだけ出る原因を落とす。(c) は 6 つの adapter を変え、adapter が成功と分類した後の runner の上書き（終了コード 1 など）や、`collect` を呼ばない経路を覆えない。loop の側で同じ規則を全試行に使えば、PR #210 の事例（終了コード 1 の `response_failed`）も分類できる。末尾に限るのは、失敗がストリームを終わらせるので原因が末尾に出ることと、大きさの上限が無いログを無制限に読まないため

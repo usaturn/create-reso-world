@@ -368,14 +368,14 @@ def test_recovered_failures_do_not_decide_the_cause(
         ("stderr", "missing", "unknown"),
         ("stderr", "symlink", "unknown"),
         ("stderr", "unreadable", "unknown"),
-        ("stdout", "partial", "response_extraction"),
+        ("stdout", "partial", "unknown"),
     ],
 )
 def test_unobservable_logs_are_not_response_extraction(
     loop: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: str, change: str, cause: str
 ) -> None:
     # 失敗の報告の有無を観測できなければ、終了状態だけから「応答の取り出し」と推測しない（受け入れ条件 2、
-    # PR #237 の deepseek#M-1）。末尾だけを読んだ（partial）ときは、試行を終わらせた失敗が末尾にあるので観測とみなす
+    # PR #237 の deepseek#M-1）。末尾だけを読んだ（partial）ログも、切れた行に最後の失敗が隠れうるので観測としない
     attempt, output = failed_attempt(tmp_path, stdout="x" * 100 + "\n" if change == "partial" else "", exit_code=0)
     path = attempt.stdout_path if log == "stdout" else attempt.stderr_path
     assert path is not None
@@ -395,6 +395,33 @@ def test_unobservable_logs_are_not_response_extraction(
 
     expected = {"missing": "missing", "symlink": "not_regular_file", "unreadable": "unreadable", "partial": "partial"}
     assert (diagnostic.cause, diagnostic.unavailable.get(log)) == (cause, expected[change])
+
+
+@pytest.mark.parametrize(
+    ("limit", "tail_events", "cause"),
+    [
+        pytest.param(None, ["message_end", "agent_end"], "connection", id="history-line-over-1-mib"),
+        pytest.param(4096, ["message_end", "agent_end"], "unknown", id="history-line-over-the-limit"),
+        pytest.param(None, ["message_end"], "connection", id="final-message-without-agent-end"),
+    ],
+)
+def test_final_pi_failure_survives_a_long_history(
+    loop: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, limit: int | None, tail_events: list[str], cause: str
+) -> None:
+    # pi の agent_end は会話の履歴全体を 1 行に含み、実際のレビューの出力で 1 MiB を超える（PR #237 の自己レビューの
+    # M-1）。最後の失敗はその直前の message_end にもあるので、履歴の行の大きさで分類が変わらない。
+    # 上限を超えて末尾しか読めなければ、最後の失敗を見落としうるので response_extraction と推測しない
+    if limit is not None:
+        monkeypatch.setattr(loop, "DIAGNOSTIC_READ_BYTES", limit)
+    history = [PI_PROMPT, *({"role": "toolResult", "content": "x" * 1000} for _ in range(1500)), PI_FAILED_503]
+    events = {
+        "message_end": {"type": "message_end", "message": PI_FAILED_503},
+        "agent_end": {"type": "agent_end", "messages": history},
+    }
+    stdout = "".join(json.dumps(events[name]) + "\n" for name in tail_events)
+    attempt, output = failed_attempt(tmp_path, stdout=stdout, exit_code=0)
+
+    assert loop.diagnose_attempt(attempt, output).cause == cause
 
 
 def test_unobserved_values_are_listed(loop: Any, tmp_path: Path) -> None:

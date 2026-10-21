@@ -1735,8 +1735,9 @@ def keep_rejected_request(result: Result, entry: ReviewerEntry, directory: Path)
 
 # --- 失敗の診断（#212） -------------------------------------------------------------------------------------------
 
-# 診断で読む各ログの末尾の上限（バイト）。ログの大きさに上限は無く、失敗はストリームを終わらせるので原因は末尾に出る
-DIAGNOSTIC_READ_BYTES = 1 << 20
+# 診断で読む各ログの末尾の上限（バイト）。ログの大きさに上限は無く、試行を終わらせた失敗は末尾に出る。pi の agent_end は
+# 会話の履歴全体を 1 行に含み、実際のレビューの出力で 1 MiB を超えるので、レビューのログが丸ごと収まる大きさにする
+DIAGNOSTIC_READ_BYTES = 64 << 20
 # HTTP の状態コードは、これらの語に続くときだけ数える（Traceback の行番号などを状態コードと取り違えない）
 _STATUS = r"(?:\bhttp(?:/[\d.]+)?|\bstatus(?:[ _-]?code)?|\berror[ _-]code)\W{0,3}"
 # 上から照合し、最初に当たった分類を採る。最初に取る手が決まる具体的なものを先に、結果としても出る例外を後に置く
@@ -1855,33 +1856,26 @@ def _retry_notice(event: dict[str, object]) -> bool:
     return any(isinstance(name, str) and "retry" in name.lower() for name in names)
 
 
-def _final_failure(event: dict[str, object]) -> str | None:
-    """pi の agent_end の最後の assistant のメッセージが失敗で終わっていれば、その ``errorMessage``（無ければ空）。
-
-    pi は提供元の失敗を、失敗で終わった assistant のメッセージ（``stopReason`` が ``error``）にだけ書き、終了コード 0
-    で終わる。自動の再試行の前の失敗も message_end・turn_end と agent_end の履歴に残すので、pi の adapter と同じく
-    最後の agent_end の最後の assistant のメッセージだけを見る。プロンプト（PR の本文を含みうる）とモデルの本文は使わない。
-    """
+def _latest_assistant(event: dict[str, object]) -> dict[str, object] | None:
+    """イベントが運ぶ assistant のメッセージのうち最後のもの（pi の message_start・message_end・turn_end の ``message``、
+    agent_end の ``messages``）。"""
     messages = event.get("messages")
-    if event.get("type") != "agent_end" or not isinstance(messages, list):
-        return None
-    for item in reversed(cast(list[object], messages)):
+    latest: dict[str, object] | None = None
+    for item in [event.get("message"), *(cast(list[object], messages) if isinstance(messages, list) else [])]:
         if isinstance(item, dict) and cast(dict[str, object], item).get("role") == "assistant":
-            message = cast(dict[str, object], item)
-            if message.get("stopReason") != "error":
-                return None
-            error = message.get("errorMessage")
-            return error if isinstance(error, str) else ""
-    return None
+            latest = cast(dict[str, object], item)
+    return latest
 
 
 def diagnostic_text(stdout: str | None, stderr: str | None) -> tuple[str, bool]:
     """原因の分類に使う文と、stdout に試行を終わらせた失敗の報告があったか。
 
-    文は stderr の全体と、stdout の失敗のイベント・診断の行・pi の最後の agent_end の失敗メッセージの ``errorMessage``。
+    文は stderr の全体と、stdout の失敗のイベント・診断の行と、stream の中で最後に現れた assistant のメッセージが失敗で
+    終わっていれば（pi の ``stopReason`` が ``error``）その ``errorMessage``。pi は提供元の失敗をこの形にだけ書き、
+    終了コード 0 で終わる。最後のメッセージは agent_end の履歴の行（1 MiB を超えうる）の前の message_end にもある。
     担当が自動の再試行で回復した一時的な失敗（再試行の通知と、再試行の前の失敗）は使わず、再試行を使い切った・
-    取り消した通知（``success`` が false）だけを、その ``finalError`` で数える。モデルの本文とツールの出力は、
-    レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない（各 adapter が状態の分類に、
+    取り消した通知（``success`` が false）だけを、その ``finalError`` で数える。モデルの本文・ツールの出力・プロンプト
+    は、レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない（各 adapter が状態の分類に、
     回復した失敗とモデルの本文を使わないのと同じ。#212）。
     """
     reported: list[str] = []
@@ -1902,8 +1896,10 @@ def diagnostic_text(stdout: str | None, stderr: str | None) -> tuple[str, bool]:
                 reported.append(error if isinstance(error, str) else "")
         elif _failure_event(mapping):
             reported.append(line)
-        elif mapping.get("type") == "agent_end":
-            final = _final_failure(mapping)
+        elif (message := _latest_assistant(mapping)) is not None:
+            error = message.get("errorMessage")
+            failed = message.get("stopReason") == "error"
+            final = (error if isinstance(error, str) else "") if failed else None
     if final is not None:
         reported.append(final)
     return "\n".join([stderr, *reported] if stderr else reported), bool(reported)
@@ -1912,7 +1908,7 @@ def diagnostic_text(stdout: str | None, stderr: str | None) -> tuple[str, bool]:
 def classify_cause(text: str, attempt: Attempt, *, reported: bool, observed: bool) -> Cause:
     """診断の文を既知のパターンと上から照合した分類名。照合した文字列は返さない。
 
-    どれにも当たらなければ、stdout・stderr を観測でき（``observed``）、試行を終わらせた失敗の報告が無く
+    どれにも当たらなければ、stdout・stderr を丸ごと観測でき（``observed``）、試行を終わらせた失敗の報告が無く
     （``reported`` が偽）、停止を確認でき、終了コード 0 なのに結果を得られず、adapter も成功と分類しておらず、
     秘密の残る保持物も無いときだけ ``response_extraction``（応答を取り出せなかった）、ほかは ``unknown``。
     報告された失敗や、観測できなかったログを、取り出しの失敗と推測しない。
@@ -1946,8 +1942,9 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path) -> AttemptDiagnostic:
         unavailable["exit_code"] = "not_observed"
     if attempt.reported_state is None:
         unavailable["reported_state"] = "not_observed"
-    # 末尾だけを読んだログ（partial）は観測したとみなす。試行を終わらせた失敗は末尾に出る
-    observed = all(unavailable.get(item) in (None, "partial") for item in ("stdout", "stderr"))
+    # stdout・stderr を両方とも丸ごと読めたときだけ、失敗の報告の有無を観測したとみなす。末尾だけを読んだログ（partial）は、
+    # 切れた行に試行を終わらせた失敗が隠れうる
+    observed = "stdout" not in unavailable and "stderr" not in unavailable
     text, reported = diagnostic_text(stdout, stderr)
     return AttemptDiagnostic(
         agent_id=attempt.agent_id,
