@@ -6,14 +6,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import subprocess
+import sys
+import uuid
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from tools.agent_runner.models import Attempt, Result
+from tools.agent_runner.adapters import AdapterOutcome, Capabilities, LaunchSpec
+from tools.agent_runner.models import Attempt, BatchResult, Identity, Result
 
 pytest_plugins = ("tools.test_support.plugin",)
 # 偽の担当だけを起動するので、runner の担当（AGENT_RUNNER_DEPTH=1）の中でもテストの中だけ depth を外す
@@ -230,3 +235,184 @@ def test_keep_diagnostic_covers_only_reviewers_with_a_failure(
     diagnostic = loop.ReviewerDiagnostic.model_validate_json(path.read_text(encoding="utf-8"))
     assert (diagnostic.verdict, diagnostic.stage) == (verdict, stage)
     assert [item.agent_id for item in diagnostic.attempts] == [f"agent-{number}" for number in range(1, len(states) + 1)]
+
+
+# --- review の全体の経路（偽の CLI と偽の gh） --------------------------------------------------------------------
+
+# stdout・stderr に書いて、指定の終了コードで終わる偽の CLI。receipt は書かない
+FAILING_PROGRAM = r"""
+import json, sys
+spec = json.loads(sys.argv[1])
+sys.stdout.write(spec["stdout"])
+sys.stderr.write(spec["stderr"])
+sys.exit(spec["exit"])
+"""
+
+
+class MixedReviewers:
+    """failures の担当は FAILING_PROGRAM、ほかは conftest の偽のレビュアー（others）に任せる adapter。
+
+    失敗させる担当の collect は、DSH のように adapter の中で分類を置き換えた形（state は response_failed、
+    reported_state は置き換える前の値）を返す。
+    """
+
+    def __init__(self, others: Any, failures: dict[str, dict[str, Any]]) -> None:
+        self.capabilities = Capabilities()
+        self.others = others
+        self.failures = failures
+
+    def __call__(self, runtime: str) -> MixedReviewers:
+        return self
+
+    def prepare(self, context: Any) -> LaunchSpec:
+        failure = self.failures.get(context.request.agent_id)
+        if failure is None:
+            return cast_spec(self.others.prepare(context))
+        spec = {"stdout": failure.get("stdout", ""), "stderr": failure.get("stderr", ""), "exit": failure.get("exit", 1)}
+        return LaunchSpec(argv=(sys.executable, "-c", FAILING_PROGRAM, json.dumps(spec)), stdin=b"")
+
+    def collect(self, context: Any, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
+        failure = self.failures.get(context.request.agent_id)
+        if failure is None:
+            return self.others.collect(context, stdout_path, stderr_path)
+        return AdapterOutcome(
+            identity=Identity(model=context.agent.model),
+            state="response_failed",
+            reported_state=failure.get("reported"),
+        )
+
+
+def cast_spec(value: Any) -> LaunchSpec:
+    assert isinstance(value, LaunchSpec)
+    return value
+
+
+def started_cycle(loop: Any, env: Any) -> Path:
+    run_dir = Path(env.start()["run_dir"])
+    loop.cycle_begin(run_dir, github=env.github)
+    return run_dir
+
+
+def saved_text(root: Path) -> str:
+    """root の下の全ファイルの中身（保存した記録に、ログの文字列が写っていないかを調べる）。"""
+    return "\n".join(
+        path.read_bytes().decode("utf-8", errors="replace") for path in sorted(root.rglob("*")) if path.is_file()
+    )
+
+
+def registered_worktrees(root: Path) -> list[str]:
+    listing = subprocess.run(
+        ["git", "-C", str(root), "worktree", "list", "--porcelain"], check=True, capture_output=True, text=True
+    ).stdout
+    return [line.removeprefix("worktree ") for line in listing.splitlines() if line.startswith("worktree ")]
+
+
+def read_diagnostic(loop: Any, path: str | None) -> Any:
+    assert path is not None
+    return loop.ReviewerDiagnostic.model_validate_json(Path(path).read_text(encoding="utf-8"))
+
+
+def test_different_failures_leave_distinct_causes_after_cleanup(loop: Any, env: Any) -> None:
+    # Issue #212 の再現と同じ形: 原因の違う失敗が、ログを回収した後も原因の分類で区別できる（受け入れ条件 1・5）
+    run_dir = started_cycle(loop, env)
+    markers = [f"fixture-{uuid.uuid4().hex}" for _ in range(2)]
+    adapter = MixedReviewers(
+        env.reviewers({}),
+        {
+            "alpha": {"stderr": f"Error: read ECONNRESET ({markers[0]})\n"},
+            "beta": {
+                "stderr": f'Traceback (most recent call last):\n  File "{markers[1]}.py", line 401, in main\n'
+                "RuntimeError: boom\n"
+            },
+        },
+    )
+
+    with pytest.raises(loop.LoopError) as error:
+        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    assert (error.value.code, error.value.stage) == (6, "review")
+    causes: dict[str, str] = {}
+    for entry in loop.load_cycles(run_dir)[-1].review.reviewers:
+        assert loop.sha256_file(Path(entry.diagnostic_file)) == entry.diagnostic_sha256
+        diagnostic = read_diagnostic(loop, entry.diagnostic_file)
+        (attempt,) = diagnostic.attempts
+        assert (diagnostic.stage, attempt.state, attempt.exit_code, attempt.stop_confirmed) == (
+            "runner",
+            "response_failed",
+            1,
+            True,
+        )
+        assert attempt.unavailable == {}
+        causes[entry.actual_agent] = attempt.cause
+    assert causes == {"alpha": "connection", "beta": "runtime_error"}
+    run = loop.load_run(run_dir)
+    assert [resource.state for resource in run.resources] == ["removed"]
+    assert not Path(run.resources[0].path).exists()
+    saved = saved_text(env.review_dir)
+    assert not any(marker in saved for marker in markers)
+
+
+def test_secret_in_logs_never_reaches_the_records(loop: Any, env: Any) -> None:
+    # 偽の秘密（実行時に組み立てる）を原因と同じ行に書いても、診断には分類名だけが残る（受け入れ条件 3・5）
+    secret = "sk-" + hashlib.sha256(b"issue-212 fixture").hexdigest()[:40]
+    run_dir = started_cycle(loop, env)
+    adapter = MixedReviewers(
+        env.reviewers({"alpha": "success"}),
+        {"beta": {"stderr": f"HTTP 401 Unauthorized: token {secret} was rejected\n", "reported": "awaiting_authentication"}},
+    )
+
+    reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    assert reviewed["next"][-3:] == ["cycle-end", "--run", str(run_dir)]
+    (accepted,) = reviewed["accepted"]
+    (rejected,) = reviewed["rejected"]
+    assert accepted["diagnostic_file"] is None and rejected["diagnostic_error"] is None
+    (attempt,) = read_diagnostic(loop, rejected["diagnostic_file"]).attempts
+    assert (attempt.cause, attempt.reported_state, attempt.state) == (
+        "authentication",
+        "awaiting_authentication",
+        "response_failed",
+    )
+    assert secret not in saved_text(env.review_dir)
+    assert secret not in json.dumps(reviewed, ensure_ascii=False)
+
+
+def test_unsaved_diagnostic_keeps_the_output_and_tells_the_controller(loop: Any, env: Any) -> None:
+    # 診断を保存できなければ、理由を司令塔に返し、ログを含む出力を消さずに残す（受け入れ条件 3）
+    run_dir = started_cycle(loop, env)
+    (run_dir / "cycle-1" / "diagnostics").write_text("not a directory", encoding="utf-8")
+    adapter = MixedReviewers(env.reviewers({"alpha": "success"}), {"beta": {"stderr": "Error: read ECONNRESET\n"}})
+
+    reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    assert reviewed["next"][-3:] == ["cycle-end", "--run", str(run_dir)]
+    (rejected,) = reviewed["rejected"]
+    assert (rejected["diagnostic_file"], rejected["diagnostic_error"]) == (None, "診断を保存できない（EEXIST）")
+    (resource,) = loop.load_run(run_dir).resources
+    assert resource.state == "retained" and "診断を保存できなかった" in str(resource.reason)
+    assert resource.path in reviewed["retained"]
+    cycle = loop.load_cycles(run_dir)[-1]
+    batch = BatchResult.model_validate_json(Path(cycle.review.batch.result_file).read_text(encoding="utf-8"))
+    beta = next(result for result in batch.results if result.actual_agent == "beta")
+    assert beta.attempts[-1].stderr_path is not None and beta.attempts[-1].stderr_path.is_file()
+    assert registered_worktrees(env.parent) == [str(env.parent)]
+    finished = loop.finish(run_dir, abort="environment: 診断を保存できなかった", github=env.github)
+    assert resource.path in finished["retained"]
+
+
+def test_rerun_keeps_a_diagnostic_for_each_request(loop: Any, env: Any) -> None:
+    # 同じサイクルの再実行でも、1 回目（replaced）と再実行のそれぞれの request に診断が残る
+    run_dir = started_cycle(loop, env)
+    adapter = env.reviewers({"alpha": "success", "beta": "failed"})
+    loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+    loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    cycle = loop.load_cycles(run_dir)[-1]
+    first = cycle.review.rerun.replaced[0]
+    second = next(entry for entry in cycle.review.reviewers if entry.actual_agent == "beta")
+    assert sorted([Path(first.diagnostic_file), Path(second.diagnostic_file)]) == sorted(
+        (run_dir / "cycle-1" / "diagnostics").iterdir()
+    )
+    for entry in (first, second):
+        diagnostic = read_diagnostic(loop, entry.diagnostic_file)
+        assert (diagnostic.stage, [attempt.state for attempt in diagnostic.attempts]) == ("payload", ["success"])

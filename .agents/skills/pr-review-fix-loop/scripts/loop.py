@@ -1186,12 +1186,19 @@ def _registered_worktrees(root: Path) -> list[Path]:
 
 
 def cleanup_output(
-    tool_root: Path, resource: Resource, batch: BatchResult | None, *, force: bool = False, reason: str | None = None
+    tool_root: Path,
+    resource: Resource,
+    batch: BatchResult | None,
+    *,
+    force: bool = False,
+    reason: str | None = None,
+    keep: str | None = None,
 ) -> list[str]:
     """記録した出力ディレクトリの資源だけを回収する。残したパスを返し、resource.state を更新する。
 
     停止を確認できない（force でない）ときは何も消さない。worktree は対象の checkout から外す
     （force のときだけ --force）。秘密が残りうる sensitive_paths は消さずに残して報告する。
+    keep は出力ディレクトリ（ログ）を消さずに残す理由で、worktree は外す（失敗の診断を保存できなかったとき。#212）。
     """
     parent = Path(resource.path)
     if not parent.name.startswith(TMP_PREFIX) or parent.is_symlink():
@@ -1241,6 +1248,9 @@ def cleanup_output(
         # runner の結果が無いと、秘密が残りうるファイル（receipt など）を判別できないので、ディレクトリごと残す
         retained.append(str(parent))
         reason = reason or "runner の結果が無く、秘密が残りうるファイルを判別できない"
+    if keep is not None and str(parent) not in retained:
+        retained.append(str(parent))
+        reason = reason or keep
     if retained:
         resource.state = "retained"
         resource.reason = reason or "外せない worktree か、秘密が残りうるファイルがある"
@@ -1657,6 +1667,9 @@ def _reviewer_summary(entry: ReviewerEntry) -> dict[str, Any]:
         "active_findings": entry.active_findings,
         "review_file": entry.review_file,
         "warnings": entry.warnings,
+        # 失敗した担当の診断のパス。保存できなかったときは理由（ログは retained に残る。#212）
+        "diagnostic_file": entry.diagnostic_file,
+        "diagnostic_error": entry.diagnostic_error,
     }
 
 
@@ -2127,13 +2140,20 @@ def _review_batch(
         )
         for item in batch.results
     ]
-    # 回収で出力が消える前に、却下した試行に渡した指示を残す
+    # 回収で出力が消える前に、却下した試行に渡した指示と、失敗した担当の診断を残す。診断を保存できなかったら、
+    # 原因を調べられるようにログを含む出力を消さずに残す（#212）
+    unsaved = False
     for item, entry in zip(batch.results, entries, strict=True):
         keep_rejected_request(item, entry, work / "requests")
+        if not keep_diagnostic(item, entry, work / "diagnostics", output_dir):
+            unsaved = True
     result_copy = work / f"{prefix or 'review-'}result.json"
     write_json(result_copy, batch)
     resource = next((item for item in run.resources if _output_dir(item) == output_dir), None)
-    retained = cleanup_output(Path(run.tool_root), resource, batch) if resource is not None else [str(output_dir)]
+    keep = "失敗した担当の診断を保存できなかったので、ログを含む出力を消さずに残す" if unsaved else None
+    retained = (
+        cleanup_output(Path(run.tool_root), resource, batch, keep=keep) if resource is not None else [str(output_dir)]
+    )
     part.batch = BatchInfo(
         run_id=batch.run_id,
         state=batch.state,
