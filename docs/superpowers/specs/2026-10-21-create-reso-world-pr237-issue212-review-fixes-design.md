@@ -11,7 +11,8 @@
 - 専用の worktree: PR の head ブランチ `fix/issue-212-reviewer-failure-diagnostics` を checkout した `/workspaces/reso-world/.worktrees/issue-212-reviewer-failure-diagnostics`（clean・HEAD 一致のものを再利用。片付けの対象にしない）
 - 担当（`run_roles.py` の割り当て。ループの `planning.run_roles_options` は `--template .devcontainer/agent-runner.toml --assign implement=self`）: 修正 `self`（利用者の指定）、自己レビュー `self`・修正の確認 `self`（雛形の既定）。自己レビューは `run_roles.py --phase self-review` の 1 回
 - 確認済みの一覧: `reviews/usaturn/create-reso-world/#237-fix-issue-212-reviewer-failure-diagnostics/verified/d0004f264c85.json`（review-verify mode cycle、V-1・V-2 とも confirmed）。修正の確認: 同じディレクトリの `a2ad29805761.fix-check.json`（V-1・V-2 とも confirmed）。工程の記録: `d0004f264c85.planning.json`
-- 修正の commit: `a2ad298`（レビュアーの指摘 2 件）、`7dd2bdc`（自己レビューの M-1 と修正の確認の V-1）
+- 修正の commit: `a2ad298`（レビュアーの指摘 2 件）、`7dd2bdc`（自己レビューの M-1 と修正の確認の V-1）。サイクル 2 は `1092fa0`
+- サイクル 2: 末尾の「サイクル 2」の節（`reviewed_head` は `ee1b569`、結論 1）。冒頭からここまでと、次の「レビュアーの構成」から「自己レビュー」までの節はサイクル 1 の記録
 
 ## レビュアーの構成
 
@@ -137,3 +138,130 @@
 - self-review（pr-review の非対話の入口、観点 2: PR 全体）: `claude-opus-5-5-commit-a2ad298057618d6532436a21841ab53a2672fe81.md`、05:33:58Z〜05:48:29Z（871 秒）。Approve。Medium 1（M-1: pi の 1 MiB を超える `agent_end` で `response_extraction`。実際の runner と pi の adapter で再現）、Info 1（I-1: `unknown` の説明が実装より広い）。差分の 13 ファイルをすべて読んだ
 - fix-check（review-verify の `fix_check`、観点 1: 反証、観点 3: 検証の検出力）: `verified/a2ad29805761.fix-check.json`、05:33:42Z〜05:49:18Z（936 秒）。主張 19 件のうち holds 15・violates 2（V-1: `partial` の前提の破れ、V-2: 文書）・unchecked 2（C-10・C-19）。観点 1 は 16 通りの入力を修正の前後で実行し、破れたのは V-1・V-2 だけ。観点 3 は `loop.py` だけを修正の前に戻すと新しいテストが 10 件落ちることを確かめ、[stdout-partial] は V-1 を検出しないと指摘した（`7dd2bdc` で期待を `unknown` に変え、`test_final_pi_failure_survives_a_long_history` を足した）
 - 判定: M-1 と V-1 は致命的として `7dd2bdc` で直した（きっかけ 3。経路表の `7dd2bdc` の行）。I-1 と V-2 は文書の食い違いで致命的でないので対応しない（「全指摘と区分」）
+
+## サイクル 2
+
+### 管理
+
+- サイクル: 2（判断の記録はサイクル 1 の `fixes_pushed`、コメント https://github.com/usaturn/create-reso-world/pull/237#issuecomment-6309349234）。planner: `claude-opus-5-5`（Claude Code 2.1.306）
+- 判断の対象の HEAD（`reviewed_head`）: `ee1b56901e43ea0b549373ba75c6147cba080fb4`、base `7d4435581c3aa0c0a06b94f9a92bd0326d0f4e2e`
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#237-fix-issue-212-reviewer-failure-diagnostics/verified/ee1b56901e43.json`（review-verify mode cycle。V-1 confirmed、V-2・V-3 not_reproduced）。工程の記録: 同じディレクトリの `ee1b56901e43.planning.json`
+- 担当: 修正 `self`（`run_roles.py --phase implement`、利用者の指定）、自己レビュー・修正の確認 `self`（`run_roles.py --phase self-review` の 1 回）
+- 修正の commit: `1092fa0`（gpt-6.1-sol の M-1 と deepseek の L-1）
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `SWE-2-Max` | SWE-2 Max | devin | `ee1b56901e43` | はい | Approve |
+| `claude-opus-5-5` | claude-opus-5-5 | claude-code | `ee1b56901e43` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash` | deepseek/deepseek-v4.1-flash | pi | `ee1b56901e43` | はい | Approve |
+| `gpt-6.1-sol` | gpt-6.1-sol | pi | `ee1b56901e43` | はい | Approve |
+| `claude-opus-5-5-commit-a2ad298057618d6532436a21841ab53a2672fe81` | claude-opus-5-5 | claude-code | `a2ad29805761` | いいえ（サイクル 1 の自己レビュー。指摘はサイクル 1 で判断済み） | Approve |
+
+### 全指摘と区分
+
+判断 11 件（指摘 12 件）: 解消済み 3 / 対応する 1（指摘 2）/ 対応しない 7（自己レビュー・修正の確認の 5 件を含む）。前のサイクルの判断: `fix` 3 件をすべて現行 HEAD で確かめて解消済みにした（`changed`）。`skip` 1 件（I-1）は、SWE-2-Max・gpt-6.1-sol の Decided findings にあり、このサイクルの入力ではない。
+
+| 判断 ID | 出典 | 区分 | 理由 |
+| --- | --- | --- | --- |
+| `gpt-6.1-sol#M-1@ee1b56901e43`（`deepseek-deepseek-v4.1-flash#L-1@ee1b56901e43` と同じ問題。確認済みの一覧の V-1） | gpt-6.1-sol・deepseek | 対応する | 致命的（手順・ツールのとおりに使うと誤った結果）: 標準のレビュアーの devin-swe（Devin）は、モデルの発言を平文で stdout に書く。レビューの本文がコードブロックでログの例（行頭の `Error: connection refused`・`[ERROR] ...`・`{"type":"error",...}`・`Traceback (most recent call last):`）を引き、その後に却下（payload）や取り出しの失敗で終わると、診断の `cause` を `connection`・`runtime_error`・`authentication` と記録する（adapter が success でも）。司令塔と利用者が障害を待つなどの誤った対応を取る。障害を扱う PR のレビューでは、こうした引用は普通に起きる。(a) 再現した（V-1。6 通り） |
+| `SWE-2-Max#U-1@ee1b56901e43`（V-2） | SWE-2-Max | 対応しない | 自分で作った subtype `error_retry_exhausted` でだけ起き、実在のランタイムはこの形を出さない（Claude Code 2.1.306 の失敗の subtype は `error_during_execution`・`error_max_turns`・`error_max_budget_usd`・`error_max_structured_output_retries` で、retry を含むのは通知の `api_retry` だけ。pi の再試行の終わりは `success` を持ち、DSH は再試行しない）。見直す条件: 名前に retry を含み `success` を持たない失敗のイベントを出すランタイムが加わったとき |
+| `deepseek-deepseek-v4.1-flash#U-1@ee1b56901e43`（V-3） | deepseek | 対応しない | 導入済みの pi（pi-agent-core の agent-loop.js・agent.js）は、どの実行でも assistant のメッセージを足してから `agent_end` を出すので、最後の `agent_end` に assistant が無い stream は現れない。loop と adapter は同じメッセージを使う。見直す条件: pi が assistant のメッセージを含まない `agent_end` を出す版に変わったとき |
+| `claude-opus-5-5-commit-1092fa0c54eee1778ab4fe6b63aae86dcde42946#U-1@1092fa0c54ee` | 自己レビュー（未検証の候補） | 対応しない | Devin が失敗を export の error の step にだけ記録し、stdout・stderr に失敗に見える行が無く終了コード 0 なら、loop は export を読まないので `response_extraction` と推測する。実際の Devin がこの形を出すかは観測していない（ローカルの実際の Devin の試行 8 件に error の step は無く、終了コード 0 の `response_failed` 3 件は本当の取り出しの失敗）。ee1b569 からの挙動で、このサイクルの修正による変化ではない。見直す条件: 実際の Devin の提供元の失敗がこの形で記録されるのを観測したとき |
+| `fix-check#V-1@1092fa0c54ee` | 修正の確認（検証の検出力） | 対応しない | 実装は試行ごとの `agent_id` でランタイムを引き正しい（修正の確認の反証で fallback の 2 試行を確かめた）。`result.actual_agent` で引く変異をテストが検出しないだけで、誤った結果は起きない。見直す条件: ランタイムの引き方を変えるとき |
+| `fix-check#V-2@1092fa0c54ee` | 修正の確認（検証の検出力） | 対応しない | `_EVENT_STREAM_RUNTIMES` は 5 つのランタイムを持ち、その stdout の分類は ee1b569 と同じ（修正の確認の反証で 5 つとも実行した）。集合から外す変異をテストが検出しないだけで、誤った結果は起きない。見直す条件: 集合を変えるとき |
+| `fix-check#V-3@1092fa0c54ee` | 修正の確認（文書） | 対応しない | Plan（実装の前の計画）の関数の形と、実装の Spec の D-212-8 が修正の前の形のまま。動きは変わらず、サイクル 1 の `claude-opus-5-5-commit-a2ad298057618d6532436a21841ab53a2672fe81#I-1@a2ad29805761`（対応しない）と同じ論点。見直す条件: その判断と同じ |
+| `fix-check#V-4@1092fa0c54ee` | 修正の確認（文書） | 対応しない | 実装の Spec の 35・198 行と `loop.py` の docstring の「各 adapter はモデルの本文を使わない」は、Devin の adapter（base からの `devin.py`。行頭の診断を認証・承認の判定に使う）と食い違う。loop の分類はadapter に依らず、このサイクルの修正で Devin の stdout を使わなくなったので、動きは変わらない。Devin の adapter 自身の判定は別の課題の候補として報告する。見直す条件: Devin の adapter の判定を直すとき |
+| `claude-opus-5-5#M-1@d0004f264c85` | サイクル 1 の fix | 解消済み | ee1b569 の `test_recovered_failures_do_not_decide_the_cause` が通り（loop のテスト 259 passed）、claude-opus-5-5 は Resolved findings に移した |
+| `deepseek-deepseek-v4.1-flash#M-1@d0004f264c85` | サイクル 1 の fix | 解消済み | ee1b569 の `test_unobservable_logs_are_not_response_extraction` が通り、deepseek は Resolved findings に移した |
+| `claude-opus-5-5-commit-a2ad298057618d6532436a21841ab53a2672fe81#M-1@a2ad29805761` | サイクル 1 の fix | 解消済み | ee1b569 の `test_final_pi_failure_survives_a_long_history` が通り、4 人のレビューに再発の指摘は無い |
+
+### 設計の見直し（きっかけ 1）
+
+- きっかけ 1（同じ守る条件の 2 回目）: V-1 は、PR の作成の前の最後のブランチ全体のレビューの m-1（`c8d42e0`。Devin のレビューの本文の行で原因を誤って分類しうる）と同じ守る条件「モデルが書いた文を失敗の報告にしない」の破れである。`c8d42e0` は行の形（行頭・コロン付き・字下げなし）で本文を外したが、Markdown のコードブロックの中の例は字下げしないので残った
+
+#### 守る条件の設計
+
+**診断の原因の分類（`cause`）は、ランタイムが報告した失敗から決め、モデルが書いた文を使わない。** どの経路がモデルの発言かは、行の形ではなく、担当の設定のランタイムで決める。
+
+1. stdout が JSON のイベントの stream のランタイム（`claude-code`・`codex`・`cursor`・`dsh`・`pi`）は、モデルの発言が JSON の文字列の中にだけある。JSON でない行は CLI の出力なので、今までどおり照合に使う
+2. Devin（`devin -p`）はモデルの発言を平文で stdout に書く。設定からランタイムが分からない担当も同じに扱う。その stdout は照合の文にしない。stderr は使う
+3. 2 の stdout に失敗の報告に見える行（診断の行・失敗のイベント・使い切った再試行・最後の失敗メッセージ）があれば、ランタイムの報告かモデルの引用かを判定できないので、`response_extraction` と推測しない（`unknown`）。無ければ今までどおり終了状態から推測する
+
+#### 比べた直し方
+
+- (A) 点の修正を続ける: コードブロック（``` と ~~~）の中の行を数えない。字下げしない引用、閉じていないコードブロック、ほかの Markdown の形でまた漏れる（同じ条件の 3 回目になりうる）。Devin の adapter（`devin.py`）も行頭の `error:` を CLI の診断として扱っており、行の形での区別には根拠が無い
+- (B) ランタイムで決める（選択）: 上の守る条件。`_review_batch` は設定（`load_review_config`）の担当ごとのランタイムを `keep_diagnostic` に渡し、`diagnose_attempt` が JSON のイベントの stream でない stdout を本文として扱う
+- (C) 保証を狭める: どのランタイムでも stdout の JSON でない行を使わない。cursor の CLI は認証の失敗などを平文で stdout に書く（cursor の adapter の `_diagnostics`）ので、分類できる原因を失う
+- 理由: (B) はモデルの発言の経路を、行の形の推測ではなくランタイムの仕様（Devin の adapter の docstring: `devin -p` prints every agent message to stdout）で決めるので、引用の書き方に依らない。JSON のイベントの stream のランタイムの分類は変わらない。分からないランタイムは推測しない側に倒れる。deepseek は、Devin の本文に診断に見える行があっても `response_extraction` を期待したが、Devin の CLI が自分の失敗を stdout に書く場合と区別できないので、`unknown` にした（Issue の受け入れ条件 2: 観測できなければ unknown）
+
+### 守る条件と影響経路
+
+守る条件: 診断の `cause` は、ランタイムが報告した失敗から決め、モデルが書いた文（Devin の stdout）を使わない。
+
+対象版は修正の commit `1092fa0`。「loop のテスト」は `1092fa0` の `uv run pytest .agents/skills/pr-review-fix-loop/tests -q -p no:cacheprovider` の結果（実行した検証）。
+
+| 経路 | 判定 | 変更前（`ee1b569`）の挙動 | 観測する結果 | 確かめる方法（assertion） | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| Devin の stdout のコードブロックの中の行頭の診断の行（``` と ~~~） | 修正する | `connection` | `unknown` | `test_model_prose_stdout_never_decides_the_cause[devin-fenced-example]`・`[devin-tilde-fence]`: `cause` を比べる | `1092fa0` で RED→GREEN（修正の前は `runtime` 引数が無く 8 failed、修正の後に `test_loop_diagnostics.py` 77 passed）。レビュアーの再現の形（`repro.py`、Devin の adapter の `collect` と `diagnose_attempt`）も修正の後は `unknown`（修正の前は `connection`） |
+| Devin の stdout のコードブロックの中の JSON の失敗のイベントの例 | 修正する | `connection` | `unknown` | 同じテストの `[devin-json-example]` | `1092fa0` で RED→GREEN。`repro.py` も `unknown` |
+| Devin の本文に診断に見える行があり、回答を取り出せない（終了コード 0、`response_failed`） | 修正する | `runtime_error`（Traceback の例） | `unknown`（推測しない） | 同じテストの `[devin-diagnostic-like-line-blocks-the-guess]` | `1092fa0` で RED→GREEN。`repro.py` の Traceback の例と `Error: invalid api key` の例も `unknown`（修正の前は `runtime_error`・`authentication`） |
+| Devin の本文に診断に見える行が無く、回答を取り出せない | 既に満たす | `response_extraction` | 変わらない | 同じテストの `[devin-prose]` | `1092fa0` で通った。`repro.py` の字下げした例・本文だけの例も `response_extraction`。ローカルの実際の Devin の終了コード 0 の `response_failed`（3 件）も診断に見える行が無く `response_extraction` のまま |
+| Devin の stderr | 既に満たす | 照合に使う | 変わらない（`Error: read ECONNRESET` は `connection`） | 同じテストの `[devin-stderr]` | `1092fa0` で通った |
+| JSON のイベントの stream のランタイムの stdout（失敗のイベント・pi の最後の失敗メッセージ・CLI の平文の行） | 既に満たす | 照合に使う | 変わらない | 既存の診断のテスト（`runtime="pi"` を渡す）と、同じテストの `[cursor-cli-line]`（cursor の `Error: Authentication required` は `authentication`） | `1092fa0` の loop のテストで既存の診断のテストがすべて通った |
+| 設定からランタイムが分からない担当 | 修正する | stdout を照合に使う | stdout を本文として扱う（pi の失敗メッセージでも `unknown`） | 同じテストの `[unknown-runtime]` | `1092fa0` で RED→GREEN |
+| `_review_batch` → `keep_diagnostic` → `diagnose_attempt` のランタイムの受け渡し | 修正する | 渡さない | 設定の担当のランタイムを渡す | `test_review_reads_stdout_by_the_reviewer_runtime`: pi の担当の stdout の失敗のイベントが `connection` | `1092fa0` で通った。`_review_batch` が空の対応を渡す変異では落ちることを確かめた（検出力） |
+| Devin の adapter（`tools/agent_runner/adapters/devin.py`）の行頭の診断の判定 | 対象外 | ― | この PR の差分外で、base からある挙動（コードブロックの中の `Error: invalid api key` で状態が `awaiting_authentication` になる。`repro.py`）。loop の分類はもう Devin の stdout を使わない | ― | 別の課題の候補として報告する |
+| 文書: `references/records.md` 4.1 節、実装の Spec の設計 3・D-212-13、`loop.py` のコメント・docstring | 修正する | Devin の本文を行の形で外すと書く | ランタイムで決めると書く | `git diff` で照合 | `git diff ee1b569 1092fa0` で照合した |
+
+### 修正方針
+
+- `loop.py`
+  - `_EVENT_STREAM_RUNTIMES = frozenset({"claude-code", "codex", "cursor", "dsh", "pi"})`
+  - `diagnostic_text(stdout, stderr, *, prose: bool) -> tuple[str, bool]`: `prose` なら文は stderr だけで、stdout の報告に見える行は「報告があったか」にだけ数える
+  - `diagnose_attempt(attempt, output_dir, *, runtime: str | None)`: `runtime` が `_EVENT_STREAM_RUNTIMES` に無ければ `prose`
+  - `keep_diagnostic(result, entry, directory, output_dir, runtimes)`: 試行の `agent_id` のランタイムを渡す
+  - `_review_batch`: `load_review_config` の設定の `agents` から `{agent_id: runtime}` を作って渡す
+- 文書: `references/records.md` 4.1 節、実装の Spec の設計 3・D-212-13
+- テスト（`test_loop_diagnostics.py`）: `test_model_prose_stdout_never_decides_the_cause`（8 通り）と `test_review_reads_stdout_by_the_reviewer_runtime` を足し、既存の診断のテストの呼び出しに `runtime="pi"` を渡す
+
+### 実行した検証
+
+修正の commit `1092fa0`（`ee1b569` の子）の専用の worktree で、実装後の手順 1・2 を実行した。ログは `/workspaces/reso-world/tmp/agents/pr237-review-fix.yefz7n5b/fix-verify-1/`（commit しない）。実行の前後の HEAD は `1092fa0`、未 commit の変更は無い。
+
+| argv | 終了コード | 結果 |
+| --- | --- | --- |
+| `uv run pytest .agents/skills/pr-review-fix-loop/tests -q -p no:cacheprovider` | 0 | 268 passed |
+| `bash .devcontainer/run-tests.bash` | 0 | PASS: 33 test(s) |
+| `bash scripts/check-layout.sh` | 0 | PASS: check-layout |
+| `uv run pytest tests/skills .agents/skills` | 0 | 1622 passed（601 秒） |
+
+- TDD: 新しいテストは修正の前に 8 failed（`diagnose_attempt` に `runtime` が無い）、修正の後に `test_loop_diagnostics.py` 77 passed。結合テスト `test_review_reads_stdout_by_the_reviewer_runtime` は、`_review_batch` が空の対応を渡す変異で落ちることを確かめた
+- レビュアーの再現の形（確認済みの一覧の `repro.py` を、Devin の担当としてランタイムを渡すように直した `repro_after.py`）を `1092fa0` の作業ツリーで実行した: コードブロックの中の例 5 通りは `unknown`（修正の前は `connection`・`runtime_error`・`authentication`）、字下げした例と本文だけの例は `response_extraction`
+- ローカルに残る実際の runner の結果（`tmp/agents/` の 30 件の試行。担当の ID からランタイムを当てた。利用者が操作中の pixg は除いた。分類だけを出した）: `7dd2bdc` と同じ分類（Devin の終了コード 0 の `response_failed` 3 件は `response_extraction`、dsh-ccd の `TRANSPORT` は `connection`、pi の `awaiting_authentication` 2 件は `authentication`、成功した 21 件はすべて `unknown`）
+- push の前の検査（`scripts/scan-before-push.sh --base origin/main`）: 自己レビューの前に `1092fa0` まで 12 commit で検出なし（push はしていない）
+
+### 結論
+
+結論 1（修正して push する）。対応する 1 件（指摘 2 件）を `1092fa0` で直し、修正の後の検証（実装後の手順 1・2）は 4 つとも終了コード 0 だった。自己レビュー（self-review・fix-check）に致命的な指摘は無く、自己レビューの後の修正はしていない。
+
+公開の前の照合（convergence.md の「3. 検証と閉じ方」）:
+
+- 経路表の「修正する」「既に満たす」の各行に、対象版 `1092fa0` の観測結果と実行証拠がある。判定を変えた経路は、拒否する側（Devin の本文の例・分からないランタイムで推測しない）と受け入れる側（Devin の本文だけの `response_extraction`・Devin の stderr・JSON のイベントの stream の 5 ランタイムの分類）を対にした
+- fixture が実装と同じ仮定を共有しうるので、独立した根拠として、実際の Devin の adapter の `collect` を通した再現（`repro.py`・`repro_after.py`）、ローカルに残る実際の runner の出力 30 件、修正の確認の反証（20 通りの入力と fallback の 2 試行を修正の前後で実行）を使った
+- 「対象外」の行（Devin の adapter 自身の判定）は、この PR の差分外の base からの挙動で、loop の分類の保証と矛盾しない
+
+未確認の事項:
+
+- devin・cursor の自動の再試行の出力の形（ローカルに出力が無い。サイクル 1 から持ち越し）
+- 実際の Devin の失敗の出力の形（export の error の step だけに記録するか。自己レビューの U-1）
+- 修正の確認の claim:C-14（全体のテストは確認の期限内に終わらなかった。司令塔の同じ commit の実行は 1622 passed）と claim:C-17（実データの分類は確認の入力に含まれない。司令塔が上のとおり実行した）
+
+### 自己レビュー
+
+`run_roles.py --phase self-review` の 1 回（run `79b4c6e16a6846c096792c00b2967ab7`、reviewed commit `1092fa0`）。割り当てはどちらも `self` で、司令塔の代わりに新しいコンテキストの claude-opus-5-5 のサブエージェント 2 つが同時に実行した。自己レビューの後の修正はしていない（2 回目のレビューはしない）。
+
+- self-review（pr-review の非対話の入口、観点 2: PR 全体）: `claude-opus-5-5-commit-1092fa0c54eee1778ab4fe6b63aae86dcde42946.md`、07:02:53Z〜07:20:02Z（1029 秒）。Approve。数える指摘 0 件。未検証の候補 U-1（Devin の export だけの失敗）と、判断済みの I-1（Plan の関数の形。サイクル 1 の I-1 と同じ）。13 の担当のランタイムが診断まで渡ること、Issue の受け入れ条件 1〜5 を確かめた
+- fix-check（review-verify の `fix_check`、観点 1: 反証、観点 3: 検証の検出力）: `verified/1092fa0c54ee.fix-check.json`、07:02:33Z〜07:23:04Z（1231 秒）。主張 18 件のうち holds 16・violates 0・unchecked 2（C-14・C-17）。観点 1 は 20 通りの入力と fallback の 2 試行を修正の前後で実行し、修正した条件が破れる入力は無かった。観点 3 は V-1・V-2（ランタイムの受け渡しの一部の変異をテストが検出しない）を見つけた
+- 判定: 致命的な指摘は無い。U-1 と V-1〜V-4 は「対応しない」（「全指摘と区分」）
