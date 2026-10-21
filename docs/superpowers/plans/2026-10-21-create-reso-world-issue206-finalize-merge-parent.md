@@ -70,7 +70,7 @@
 
 **テストの要否:** 書く。マージの後の完了条件（分岐）と、止まったときの結果の形、再実行の操作の順を新しく足すので、拒否する側（base が進んだ・手動マージ・読めない）と受け入れる側（base が動かない・再検証した記録・読めるようになった再実行）を対にして、偽の gh の実経路で確かめる（AGENTS.md「テストの採用基準」の「書く」と、Issue の再現の再発防止）。
 
-- [ ] **Step 1: 偽の gh に merge commit とその親を持たせる**（`test_finalize.py`）
+- [x] **Step 1: 偽の gh に merge commit とその親を持たせる**（`test_finalize.py`）
 
 `FakeGh.__init__` に足す（コメントは既存の属性と同じ書き方）:
 - `self.view["mergeCommit"]`: `{"oid": MERGE_COMMIT}`（`state == "MERGED"`）か `None`
@@ -82,7 +82,7 @@
 
 新しい分岐: `len(argv) == 3 and argv[1] == "api" and "/git/commits/" in argv[2]` のとき、末尾の SHA が `merge_parents` に無いか `commit_fails` なら終了コード 1。そうでなければ `self.commit`、無ければ `{"sha": <SHA>, "parents": [{"sha": p} for p in merge_parents[SHA]]}` を返す。`commit_requests()` は、その呼び出しのパスの一覧（`branch_requests()` と同じ書き方）。
 
-- [ ] **Step 2: 失敗するテストを書く**（`test_finalize.py`）
+- [x] **Step 2: 失敗するテストを書く**（`test_finalize.py`）
 
 `test_rerun_after_the_merge_does_not_compare_the_moved_base` の docstring に「代わりに、過去のマージの merge commit の最初の親を照合する（#206）」を足し、2 回目の前の `len(gh.commit_requests())` を取って、2 回目の後に 1 件増えたことを確かめる。
 
@@ -141,12 +141,12 @@
 
 - `test_merge_commit_read_failure_after_the_merge_recovers_with_the_same_record`: docstring「マージの直後にmerge commitの取得だけが失敗した。マージ済みは失わず、読めるようになった同じ記録の再実行で完了する。」。`gh = FakeGh()`・`gh.commit_fails = True` で 1 回目が `stopped`・`merged: true`・`issues: []`・`merge_parent == {"verified": BASE, "merge_commit": MERGE_COMMIT, "first_parent": None}`、`written(gh) == ["POST", ("pr", "merge")]`。`gh.commit_fails = False` で 2 回目が `no_fix_needed`・`issues == [901]`・`merge_parent` 無し、`written(gh) == ["POST", ("pr", "merge"), ("issue", "close")]`
 
-- [ ] **Step 3: 失敗を確かめる**
+- [x] **Step 3: 失敗を確かめる**
 
 Run: `uv run pytest .agents/skills/review-fix-planning/tests/test_finalize.py -q`（worktree のルート）
 Expected: 新しいテストと、`commit_requests` を足した既存のテストが失敗する（`base_moved_at_merge`・手動マージ・読めない組み合わせは `no_fix_needed` か `KeyError: 'merge_parent'`、`base_kept` は commit を読まないこと）。ほかの既存のテストは通る。ログは `$SESSION/task1-red.log`
 
-- [ ] **Step 4: 実装する**（`finalize.py`）
+- [x] **Step 4: 実装する**（`finalize.py`）
 
 - `FIELDS` の `"mergedAt"` の後に `"mergeCommit"`
 - `Stop.__init__` に `merge_parent: dict[str, str | None] | None = None` を足して属性に持つ。docstring に「merge_parent は、マージの後に merge commit の最初の親が検証の記録のbaseと違う・読めない停止（verified・merge_commit・first_parent。読めなかった値はNone）。PRはマージ済みで、司令塔がmerge commitのツリーで検証し直してから再実行する」を足す
@@ -156,12 +156,12 @@ Expected: 新しいテストと、`commit_requests` を足した既存のテス�
 - `finalize` のマージの後の確認: head の照合の後に `step = "merge commit"`、`check_merge_parent(active, repo, view, checks["base"])`。`except Stop` で `merge_parent` があれば結果に写す
 - モジュールの docstring の 4 行目の後に「マージの後は、merge commitの最初の親がそのbaseと同じことを確かめ、違う・読めなければ関連Issueを更新せずにマージ済みのまま止まる。」、マージの直前のコメント（`:423-424`）に「マージの後にmerge commitの最初の親で確かめる」を足す
 
-- [ ] **Step 5: 通ることを確かめる**
+- [x] **Step 5: 通ることを確かめる**
 
 Run: `uv run pytest .agents/skills/review-fix-planning/tests -q`（worktree のルート）
 Expected: すべて passed、終了コード 0。ログは `$SESSION/task1-green.log`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .agents/skills/review-fix-planning/scripts/finalize.py .agents/skills/review-fix-planning/tests/test_finalize.py
@@ -180,11 +180,11 @@ git commit -m "fix(review-fix-planning): stop without closing issues when the me
 
 **テストの要否:** 書く。finalize がマージ済み（`true`）を返して止まり、PR の head がサイクルの HEAD と同じ組み合わせは、`cycle_end` の `merge_mismatch` の分岐の受け入れ側で、テストが無い（Spec の確認した事実）。`loop.py` は変えないので、通ることを確かめる（受け入れ条件 4 の、ループが新しい停止を `no_fix_needed` にも `merge_mismatch` にもせず、結果を残すことの保証）。
 
-- [ ] **Step 1: 偽の結果ファイルに `merge_parent` を渡せるようにする**（`conftest.py`）
+- [x] **Step 1: 偽の結果ファイルに `merge_parent` を渡せるようにする**（`conftest.py`）
 
 `finalize_result` と `Kit.finalize_result` に `merge_parent: dict[str, str | None] | None = None` を足し、渡されたら結果に入れる。docstring に「merge_parent は、マージの後の merge commit の照合で止まったときだけ入る（#206）」を足す。
 
-- [ ] **Step 2: 組み合わせを足す**（`test_loop_state.py`）
+- [x] **Step 2: 組み合わせを足す**（`test_loop_state.py`）
 
 `test_finalize_stopped_keeps_the_real_merge` の組み合わせに `(True, False)`（id `true_merge_parent`）を足し、コメントに「finalize がマージの後の merge commit の照合で止まった（#206）。PR は検証した HEAD でマージ済み」を書く。この組み合わせだけ、停止理由を `"external: merge commitの最初の親が検証したbaseと違う"`、`merge_parent = {"verified": "a" * 40, "merge_commit": "c" * 40, "first_parent": "b" * 40}` を `kit.finalize_result(..., merge_parent=...)` に渡す。最後に足す
 
@@ -194,12 +194,12 @@ assert cycle["planning"]["finalize"]["result"].get("merge_parent") == merge_pare
 
 （ほかの組み合わせは `merge_parent` が None で、結果にキーが無いこと）
 
-- [ ] **Step 3: 通ることを確かめる**
+- [x] **Step 3: 通ることを確かめる**
 
 Run: `uv run pytest .agents/skills/pr-review-fix-loop/tests/test_loop_state.py -q`（worktree のルート）
 Expected: 70 passed、終了コード 0（`loop.py` を変えずに通る）。通らなければ、`loop.py` を直さずに止まって Spec を見直す。ログは `$SESSION/task2.log`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .agents/skills/pr-review-fix-loop/tests/conftest.py .agents/skills/pr-review-fix-loop/tests/test_loop_state.py
@@ -218,24 +218,24 @@ git commit -m "test(pr-review-fix-loop): keep a finalize stop after the merge as
 
 **テストの要否:** 書かない。文書だけの変更で、文言を照合するテストは AGENTS.md「テストの採用基準」の作らない型 1・4 に当たる。代わりに、`git diff` の確認、`scripts/check-layout.sh`、スキルの frontmatter のテスト（`tests/skills`）、Task 4 のレビューで、記述が Task 1 の挙動と一致することを確かめる。
 
-- [ ] **Step 1: `references/execution.md`**（Spec の設計 2）
+- [x] **Step 1: `references/execution.md`**（Spec の設計 2）
   - 3.3 節の base の項の最後の文（マージ済みの PR では base の先端を確かめない）に「代わりに、過去の merge commit の最初の親を照合する（下）」を足す
   - 3.3 節の「マージの後に MERGED・`mergedAt`・head を読み戻し…」の項の前に、マージの後の照合の項を足す: `mergeCommit` と `gh api repos/<repo>/git/commits/<merge commit>` の `parents` の先頭を読み、検証の記録の `base` と同じことを確かめる。違う・読めないときは、関連 Issue を更新せずに `merge_parent` 付きの `merged: true` の `stopped` を返す。この run がマージした PR にも、既にマージ済みの PR の再実行にも同じに行う
   - 3.4 節の `base_moved` の項の後に `merge_parent` の項を足す（Spec の設計 2 の 3.4 節の 4 項目。補足のコメントの形は同じ節の手順 3 と同じで、書くのはサイクル・3 つの SHA・merge commit のツリーで検証し直すまで関連 Issue を更新しないこと。完了させる手順の 5 つの段と、検証が失敗したときに再実行しないこと）
   - 3.5 節を、Spec の設計 2 の 3.5 節（防げないこと、helper がマージの後に見つけて止まること、その時点で base には検証していない組み合わせが入っていること、`Closes` による自動の close は照合と関係なく起きること（#138））に書き換える
-- [ ] **Step 2: review-fix-planning の SKILL.md**（Spec の設計 3）
+- [x] **Step 2: review-fix-planning の SKILL.md**（Spec の設計 3）
   - 手順 7 の `base_moved` の文の後に、`merge_parent` 付きの `stopped` の扱いを足す（マージ済みで helper は関連 Issue を更新していない。読めないだけならほかの `stopped` と同じく結論 3。最初の親が違えば、execution.md 3.4 節のとおり補足のコメントを投稿し、再検証せずに結論 3。再検証と再実行は利用者の指示で別に行う）
   - 「base が進んだときのやり直し」の最後の文を「`finalize.py` が最後に base を確かめてから GitHub がマージを処理するまでの間の前進は止められない。helper はマージの後に merge commit の最初の親で見つけて止まる（[execution.md](references/execution.md) 3.4 節の `merge_parent`、3.5 節）。この停止はやり直しの回数に数えない。」にする
-- [ ] **Step 3: pr-review-fix-loop の SKILL.md**（Spec の設計 4）
+- [x] **Step 3: pr-review-fix-loop の SKILL.md**（Spec の設計 4）
   - サイクルの 3 の `wait_for`・`base_moved` の文の後に「マージの後の照合で止まったとき（結果に `merge_parent`）は、計画の中で再検証せずに `cycle-end` に渡す（run は `stopped`・`merged: true` で終わる）。」
   - 「最終化の停止」の `base_moved` の文の後に、`merge_parent` の扱いを足す（PR はマージ済みで、関連 Issue は finalize が更新していない。`first_parent` が null なら、原因が解消してから同じ記録で再実行する。違っていればループの中では再検証しない。完了させるときは、利用者の指示で、execution.md 3.4 節のとおり merge commit のツリーで検証し、`--round-dir` の検証の記録を作り直してから finalize.py を再実行する（Issue の更新だけを行う）。そのため `--round-dir` を消さずに残し、完全パスを報告する）
   - 「最終報告」の関連 Issue の項の後に「finalize の結果に `merge_parent` があれば、3 つの SHA と、関連 Issue を finalize が更新していないこと（`Closes` による GitHub の自動の close は別。#138）、再検証の手順（`.agents/skills/review-fix-planning/references/execution.md` の 3.4 節）」
-- [ ] **Step 4: 確かめる**
+- [x] **Step 4: 確かめる**
 
 Run: `git diff -- .agents/skills/review-fix-planning/references/execution.md .agents/skills/review-fix-planning/SKILL.md .agents/skills/pr-review-fix-loop/SKILL.md` を読み、`bash scripts/check-layout.sh` と `uv run pytest tests/skills -q` を実行する
 Expected: 記述が Global Constraints の 1〜5 行目と一致し、AGENTS.md「日本語表現」で避ける語が無い。2 つのコマンドが終了コード 0。ログは `$SESSION/task3-*.log`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .agents/skills/review-fix-planning/references/execution.md .agents/skills/review-fix-planning/SKILL.md .agents/skills/pr-review-fix-loop/SKILL.md
@@ -252,16 +252,16 @@ git commit -m "docs(review-fix-planning,pr-review-fix-loop): stop and re-verify 
 
 **テストの要否:** 書かない。新しい挙動は Task 1・Task 2 のテストが受け持つ。ここでは照合を外す対照、ブランチ全体のレビュー、README の入口で、条件単位の証拠をそろえる。
 
-- [ ] **Step 1: 照合を外す対照**
+- [x] **Step 1: 照合を外す対照**
 
 `finalize.py` の `check_merge_parent(active, repo, view, checks["base"])` の呼び出しを一時的に消して `uv run pytest .agents/skills/review-fix-planning/tests/test_finalize.py -q` を実行し、`git checkout -- .agents/skills/review-fix-planning/scripts/finalize.py` で戻して `git status --porcelain` が空であることを確かめる
 Expected: Task 1 の新しいテストのうち、拒否する側（`base_moved_at_merge`、操作の順、手動マージ、読めない組み合わせ、読めない後の回復の 1 回目）と commit を読むことを確かめるテストが失敗し、ほかの既存のテストは通る（テストが元の不具合を検出することの対照）。ログは `$SESSION/verify/control.log`
 
-- [ ] **Step 2: ブランチ全体のレビュー**（新しいコンテキストのサブエージェント 1 回）
+- [x] **Step 2: ブランチ全体のレビュー**（新しいコンテキストのサブエージェント 1 回）
 
 Spec・Plan・`git diff origin/main...HEAD` を渡し、(1) Spec の受け入れ条件と決定記録を満たすか、(2) 文書の記述（Task 3）が `finalize.py` の挙動とテストに一致するか、(3) マージの前の照合・既存の再実行・ループの `cycle-end` の挙動を変えていないか、(4) テストが AGENTS.md「テストの採用基準」に反していないかを見てもらう。致命的な指摘だけを直し、直したら関係する Task の検証をやり直す
 
-- [ ] **Step 3: Plan の「検証の記録」を書いて commit する**（これが最後の commit）
+- [x] **Step 3: Plan の「検証の記録」を書いて commit する**（これが最後の commit）
 
 各 Step のチェック、Task 別の所要時間、Task 1 の Step 3・Step 5、Task 2 の Step 3、Step 1 の結果、レビューの結果と対応を「検証の記録」の節に書き、`git commit -m "docs: record the Issue #206 verification and final review in the plan"`
 
@@ -282,3 +282,29 @@ Expected: 3 つとも終了コード 0。落ちたら基準（`$SESSION/baseline
 | `uv run pytest tests/skills .agents/skills .agents/scripts tools` | 3535 passed（757.29 秒）、終了コード 0 | `baseline-pytest.log` |
 | `bash .devcontainer/run-tests.bash` | 33 件 PASS、終了コード 0 | `baseline-run-tests.log` |
 | `bash scripts/check-layout.sh` | PASS、終了コード 0 | `baseline-check-layout.log` |
+
+### Task 1（`37feb8a`）
+
+- Step 3（RED）: `test_finalize.py` で 19 failed・150 passed。新しいテストは `no_fix_needed` のままになるか、merge commit を読まないことで失敗し、例外やタイプミスによる失敗は無かった（`sdd/task1-red.log`）
+- Step 5（GREEN）: review-fix-planning のテストが 363 passed（`sdd/task1-green.log`）。Issue の再現スクリプトは両方の経路で `stopped`・`merged: true`・`issues: []` になった（`repro-after.log`）
+
+### Task 2（`c6389d4`）
+
+- Step 3: `test_loop_state.py` が 70 passed（`sdd/task2.log`）。最初から通るテストなので、`loop.py` の `cycle_end` を一時的に「finalize が `true` なら完了」に変えて、`true_merge_parent`・`true_another_head` が落ちることを確かめた（`sdd/task2-mutation.log`）。戻した後の `loop.py` の差分は無い
+
+### Task 3（`633a36c`）
+
+- 差分を Global Constraints の 1〜5 行目と照合した。AGENTS.md「日本語表現」で避ける語は無い。`bash scripts/check-layout.sh` は PASS、`tests/skills` と 2 つのスキルの contract テストは 102 passed（`sdd/task3-check-layout.log`・`sdd/task3-tests-skills.log`）
+
+### Task 4
+
+- Step 1（対照）: `check_merge_parent` の呼び出しを外すと、`test_finalize.py` で 19 failed・150 passed。落ちたのは新しいテストと、merge commit を読むことを足した既存のテストだけ。戻した後の `git status --porcelain` は空（`verify/control.log`）
+- Step 2（ブランチ全体のレビュー。新しいコンテキストの Opus のサブエージェント 1 回、約 18 分）: Ready to merge: Yes。Critical・Important は無く、Minor が 5 件。レビュアーは一時 worktree で 12 種類の変異を試し、照合の受け入れ側の 2 種類（Minor 2）を除いてすべて検出された
+  - Minor 1（merge commit を読めない停止で、PR に補足を残さない）は、利用者の決定 D-206-1 の「一致しない、または読めないときは…状況コメントに残す」を満たしていないので Important に引き上げ、同じ説明の行の Minor 3（ループの SKILL.md:24）・Minor 4（`Stop` の docstring）と合わせて直した（`9caf335`）。文書・docstring だけの修正なので、文言のテストは作らず、`uv run pytest .agents/skills/review-fix-planning/tests tests/skills .agents/skills/pr-review-fix-loop/tests/test_pr_review_fix_loop_skill_contract.py -q`（395 passed）と `bash scripts/check-layout.sh`（PASS）で確かめた
+  - 持ち越し（直さない）: Minor 2（親が 1 つのマージ（手で squash）を受け入れる側を守るテストが無い。偽の gh の `spec_gh(state="MERGED")` の 2 つ目の親が `SPEC_HEAD` でなく `HEAD`。helper は 2 つ目の親を読まない）、Minor 5（既知の制限の「fast-forward の push でマージされた PR は止まる」が広い。検証した base の直接の子 1 commit の fast-forward は照合を通り、それは正しい）
+  - レビュアーが判断しなかったことへの判定は、ledger の `Final: Ruling:` の行に書いた
+
+### 所要時間（Task 4 の Step 3 の commit まで）
+
+- 着手は 2026-10-21 10:15 ごろ（JST）
+- 準備・調査 約 16 分、Spec・Plan 約 25 分（基準の検証と並行）、Task 1 約 3 分、Task 2 約 1 分、Task 3 約 2 分、Task 4（対照、レビューの待ち約 18 分と判定、修正、記録）約 25 分
