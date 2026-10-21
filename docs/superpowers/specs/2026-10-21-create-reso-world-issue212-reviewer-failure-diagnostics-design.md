@@ -74,8 +74,9 @@ PR 修正ループ（`.agents/skills/pr-review-fix-loop/scripts/loop.py`）の `
 - stderr の全体
 - stdout の行のうち、JSON の object として読めるものは失敗のイベントだけ（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）。失敗のイベントでなければ、stream の中で最後に現れた assistant のメッセージ（pi の `message_start`・`message_end`・`turn_end` の `message` と `agent_end` の `messages`）が失敗で終わっていれば（`stopReason` が `error`）その `errorMessage` だけ（pi の adapter の最後のメッセージと同じ。プロンプトとモデルの本文は使わない）
 - 担当が自動の再試行で回復した一時的な失敗は使わない（PR #237 のレビュー修正）。再試行の通知（`type` か `subtype` に `retry` を含む。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを `finalError` で数える。pi の再試行の前の失敗（後に別の assistant のメッセージが続く失敗メッセージ）も使わない
-- stdout の行のうち、JSON として読めないものは、行頭（字下げなし）のコロン付き・角括弧付きの診断の行だけ（`Error:`・`fatal:`・`panic:`・`[ERROR]`、`<名前>Error:`・`<名前>Exception:`、`Traceback (most recent call last)`、`dsh:`・`dsh-sandbox:`・`bwrap:` など）。Devin の stdout はモデルの発言の平文なので、「Error handling for ...」のような本文の行や字下げした引用は数えない
+- stdout の行のうち、JSON として読めないものは、行頭（字下げなし）のコロン付き・角括弧付きの診断の行だけ（`Error:`・`fatal:`・`panic:`・`[ERROR]`、`<名前>Error:`・`<名前>Exception:`、`Traceback (most recent call last)`、`dsh:`・`dsh-sandbox:`・`bwrap:` など）。「Error handling for ...」のような文の行や字下げした引用は数えない（Devin の stdout は下の項のとおり照合に使わない）
 - stdout の失敗のイベント・使い切った再試行・pi の最後の失敗メッセージ・診断の行が 1 つでもあれば、ランタイムが試行を終わらせた失敗を報告した（`response_extraction` にしない）
+- stdout を照合に使うのは、stdout が JSON のイベントの stream の担当（設定のランタイムが `claude-code`・`codex`・`cursor`・`dsh`・`pi`）だけ（PR #237 のサイクル 2 のレビュー修正）。Devin はモデルの発言を平文で stdout に書き、コードブロックの中のログの例（字下げしない）を行の形では診断と区別できないので、Devin と設定からランタイムが分からない担当の stdout は照合の文にしない。その stdout に上の報告に見える行があれば、報告の有無を判定できないので `response_extraction` と推測しない
 - 各ログは末尾から 64 MiB までを読む（PR #237 のレビュー修正で 1 MiB から広げた。pi の `agent_end` は会話の履歴全体を 1 行に含み、実際のレビューの出力で 1.9 MB ある）
 
 分類（上から順に、最初に当たったものを採る）:
@@ -216,7 +217,7 @@ stdout・stderr の一方でも丸ごと観測できないとき（`partial` を
   - 別案: (a) 出力に分類（`cause`）も入れる、(b) 出力は変えず、記録だけに残す
   - 理由: 決定の「保存できなかったときは controller に返す」は出力に要る。保存できたときはパスがあれば診断を読める。(a) は試行ごとの分類を出力に写す形を別に決める必要があり、記録と出力の二重管理になる。(b) は決定に反する
 - **D-212-13 最後のブランチ全体のレビューを受けた変更**
-  - 選択: (1) 照合の対象に、pi の失敗で終わった assistant のメッセージの `errorMessage` を足し、DSH のエラーコード（大文字）を分類の語に足す。(2) stdout でランタイムが失敗を報告していたら `response_extraction` にしない。(3) JSON でない行は、行頭のコロン付き・角括弧付きの診断だけを数える。(4) 全レビュアーの失敗（終了コード 6）のエラーの出力に、`rejected`（`diagnostic_file`・`diagnostic_error`）を足す
+  - 選択: (1) 照合の対象に、pi の失敗で終わった assistant のメッセージの `errorMessage` を足し、DSH のエラーコード（大文字）を分類の語に足す。(2) stdout でランタイムが失敗を報告していたら `response_extraction` にしない。(3) JSON でない行は、行頭のコロン付き・角括弧付きの診断だけを数える（PR #237 のサイクル 2 のレビュー修正で、コードブロックの中の例を区別できない Devin の stdout は照合に使わないことにした。設計 3）。(4) 全レビュアーの失敗（終了コード 6）のエラーの出力に、`rejected`（`diagnostic_file`・`diagnostic_error`）を足す
   - 別案: (1)(2) は変えない（レビュアーのローカルの実データで、pi の 401 と dsh-ccd の `TRANSPORT` が `unknown`、pi の形の 503・429 が `response_extraction` になる）。(3) は今のまま。(4) は SKILL.md に「`cycle-<n>.json` を読む」と書くだけにする
   - 理由: 個人設定のレビュアー 4 人のうち 2 人が pi で、提供元の失敗を「応答の取り出し」と記録すると、司令塔と利用者が adapter の解析を疑い、障害を待つ・資格情報を直すという対応を取れない。原因が失敗の経路に出ているのに `unknown` になるのは受け入れ条件 2 とも違う。pi の adapter も、最後の `agent_end` の最後の assistant のメッセージの `errorMessage` を分類に使う（PR #237 のレビュー修正で、再試行の前の失敗を使わないように同じ範囲に絞った）。プロンプト（PR の本文）を含む `messages` の行全体は使わない。(3) は Devin の stdout がレビュー本文で、本文の行で原因を誤って分類しうるので、D-212-6 の意図に合わせて絞った（devin の adapter と同じくコロン付き）。(4) は、全員の失敗が原因を最も調べたい経路で、D-212-1 の「理由を記録して返す」を出力で満たすため。成功の出力と同じ形で返し、`status`・`finish` の出力は変えない
   - 委任指示: issue-to-pr の「通常の設計判断は推奨案で決める」。D-212-1 の範囲の中の設計の抜けの修正

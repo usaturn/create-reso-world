@@ -81,7 +81,7 @@ def test_logs_are_read_only_when_safe(loop: Any, tmp_path: Path, case: str) -> N
         log.unlink()
         os.mkfifo(log)
 
-    diagnostic = loop.diagnose_attempt(attempt.model_copy(update=update), output)
+    diagnostic = loop.diagnose_attempt(attempt.model_copy(update=update), output, runtime="pi")
 
     expected = {"readable": None, "symlink": "not_regular_file", "fifo": "not_regular_file"}.get(case, case)
     assert diagnostic.unavailable.get("stderr") == expected
@@ -99,7 +99,7 @@ def test_large_log_is_read_from_the_tail(
     monkeypatch.setattr(loop, "DIAGNOSTIC_READ_BYTES", 64)
     attempt, output = failed_attempt(tmp_path, stderr=text)
 
-    diagnostic = loop.diagnose_attempt(attempt, output)
+    diagnostic = loop.diagnose_attempt(attempt, output, runtime="pi")
 
     assert (diagnostic.unavailable.get("stderr"), diagnostic.cause) == ("partial", cause)
 
@@ -186,7 +186,7 @@ DSH_AUTH_TURN_END = {
 def test_cause_uses_only_failure_channels(loop: Any, tmp_path: Path, stdout: str, stderr: str, cause: str) -> None:
     attempt, output = failed_attempt(tmp_path, stdout=stdout, stderr=stderr)
 
-    assert loop.diagnose_attempt(attempt, output).cause == cause
+    assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
 
 
 @pytest.mark.parametrize(
@@ -220,7 +220,7 @@ def test_response_extraction_is_decided_from_the_end_state(
         sensitive_paths=[tmp_path / "receipt.json"] if sensitive else [],
     )
 
-    assert loop.diagnose_attempt(attempt, output).cause == cause
+    assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
 
 
 def pi_message(stop_reason: str, error: str | None = None) -> dict[str, Any]:
@@ -271,7 +271,7 @@ def test_reported_failures_are_not_response_extraction(
     stdout = "".join(json.dumps(event) + "\n" for event in events)
     attempt, output = failed_attempt(tmp_path, stdout=stdout, exit_code=0)
 
-    assert loop.diagnose_attempt(attempt, output).cause == cause
+    assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
 
 
 CLAUDE_INIT = {"type": "system", "subtype": "init", "model": "claude-opus-5-5", "session_id": "s"}
@@ -358,7 +358,7 @@ def test_recovered_failures_do_not_decide_the_cause(
     stdout = "".join(json.dumps(event) + "\n" for event in events)
     attempt, output = failed_attempt(tmp_path, stdout=stdout, exit_code=exit_code)
 
-    assert loop.diagnose_attempt(attempt, output).cause == cause
+    assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
 
 
 @pytest.mark.parametrize(
@@ -391,7 +391,7 @@ def test_unobservable_logs_are_not_response_extraction(
     else:
         monkeypatch.setattr(loop, "DIAGNOSTIC_READ_BYTES", 16)
 
-    diagnostic = loop.diagnose_attempt(attempt, output)
+    diagnostic = loop.diagnose_attempt(attempt, output, runtime="pi")
 
     expected = {"missing": "missing", "symlink": "not_regular_file", "unreadable": "unreadable", "partial": "partial"}
     assert (diagnostic.cause, diagnostic.unavailable.get(log)) == (cause, expected[change])
@@ -421,13 +421,71 @@ def test_final_pi_failure_survives_a_long_history(
     stdout = "".join(json.dumps(events[name]) + "\n" for name in tail_events)
     attempt, output = failed_attempt(tmp_path, stdout=stdout, exit_code=0)
 
-    assert loop.diagnose_attempt(attempt, output).cause == cause
+    assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
+
+
+@pytest.mark.parametrize(
+    ("runtime", "stdout", "stderr", "state", "cause"),
+    [
+        pytest.param(
+            "devin",
+            "ログには次の行が出ていました。\n```text\nError: connection refused\n```\n" + json.dumps({"status": "failed"}),
+            "",
+            "success",
+            "unknown",
+            id="devin-fenced-example",
+        ),
+        pytest.param(
+            "devin", "~~~\n[ERROR] connection refused\n~~~\n", "", "success", "unknown", id="devin-tilde-fence"
+        ),
+        pytest.param(
+            "devin",
+            '```json\n{"type": "error", "message": "connection refused"}\n```\n',
+            "",
+            "success",
+            "unknown",
+            id="devin-json-example",
+        ),
+        pytest.param(
+            "devin",
+            "```\nTraceback (most recent call last):\n```\n結果は次のとおり\n",
+            "",
+            "response_failed",
+            "unknown",
+            id="devin-diagnostic-like-line-blocks-the-guess",
+        ),
+        pytest.param("devin", "レビューを終えました。\n", "", "response_failed", "response_extraction", id="devin-prose"),
+        pytest.param("devin", "", "Error: read ECONNRESET\n", "response_failed", "connection", id="devin-stderr"),
+        pytest.param(
+            "cursor", "Error: Authentication required\n", "", "response_failed", "authentication", id="cursor-cli-line"
+        ),
+        pytest.param(
+            None,
+            json.dumps({"type": "message_end", "message": PI_FAILED_503}) + "\n",
+            "",
+            "response_failed",
+            "unknown",
+            id="unknown-runtime",
+        ),
+    ],
+)
+def test_model_prose_stdout_never_decides_the_cause(
+    loop: Any, tmp_path: Path, runtime: str | None, stdout: str, stderr: str, state: str, cause: str
+) -> None:
+    # Devin の stdout はモデルの発言の平文で、コードブロックの中のログの例を含みうる（PR #237 のサイクル 2 の
+    # gpt-6.1-sol#M-1・deepseek#L-1）。JSON のイベントの stream でないランタイムの stdout は照合の文にせず、
+    # 失敗の報告に見える行があれば response_extraction とも推測しない。stderr は今までどおり使う
+    attempt, output = failed_attempt(
+        tmp_path, stdout=stdout, stderr=stderr, state=state, reported_state=state, exit_code=0
+    )
+
+    assert loop.diagnose_attempt(attempt, output, runtime=runtime).cause == cause
 
 
 def test_unobserved_values_are_listed(loop: Any, tmp_path: Path) -> None:
     attempt, output = failed_attempt(tmp_path, exit_code=None, reported_state=None)
 
-    diagnostic = loop.diagnose_attempt(attempt, output)
+    diagnostic = loop.diagnose_attempt(attempt, output, runtime="pi")
 
     assert diagnostic.unavailable == {"exit_code": "not_observed", "reported_state": "not_observed"}
     assert (diagnostic.exit_code, diagnostic.reported_state, diagnostic.cause) == (None, None, "unknown")
@@ -469,7 +527,7 @@ def test_keep_diagnostic_covers_only_reviewers_with_a_failure(
     )
     directory = tmp_path / "diagnostics"
 
-    assert loop.keep_diagnostic(result, entry, directory, tmp_path) is True
+    assert loop.keep_diagnostic(result, entry, directory, tmp_path, {}) is True
 
     if not saved:
         assert not directory.exists() and entry.diagnostic_file is None
@@ -648,6 +706,19 @@ def test_unsaved_diagnostic_keeps_the_output_and_tells_the_controller(loop: Any,
     assert registered_worktrees(env.parent) == [str(env.parent)]
     finished = loop.finish(run_dir, abort="environment: 診断を保存できなかった", github=env.github)
     assert resource.path in finished["retained"]
+
+
+def test_review_reads_stdout_by_the_reviewer_runtime(loop: Any, env: Any) -> None:
+    # review は担当の設定のランタイムを診断に渡す。pi（JSON のイベントの stream）は stdout の失敗のイベントで分類する
+    run_dir = started_cycle(loop, env)
+    failure = {"stdout": json.dumps({"type": "error", "message": "connection refused"}) + "\n"}
+    adapter = MixedReviewers(env.reviewers({"beta": "success"}), {"alpha": failure})
+
+    reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    (rejected,) = reviewed["rejected"]
+    (attempt,) = read_diagnostic(loop, rejected["diagnostic_file"]).attempts
+    assert (rejected["agent"], attempt.cause) == ("alpha", "connection")
 
 
 def test_rerun_keeps_a_diagnostic_for_each_request(loop: Any, env: Any) -> None:

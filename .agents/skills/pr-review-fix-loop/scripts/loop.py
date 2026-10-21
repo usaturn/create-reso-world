@@ -1792,14 +1792,18 @@ CAUSE_PATTERNS: tuple[tuple[Cause, re.Pattern[str]], ...] = tuple(
         ),
     )
 )
-# JSON でない stdout の行のうち、CLI の診断として数える行（行頭のコロン付き・角括弧付きの診断）。Devin の stdout は
-# モデルの発言の平文なので、字下げした引用や「Error handling for ...」のような本文の行は数えない
+# JSON でない stdout の行のうち、CLI の診断として数える行（行頭のコロン付き・角括弧付きの診断）。字下げした引用や
+# 「Error handling for ...」のような文は数えない
 _DIAGNOSTIC_LINE = re.compile(
     r"(?:\[(?:error|fatal|panic|critical)\]|(?:fatal|panic|critical):|traceback \(most recent call last\)"
     r"|[\w.]*(?:error|exception):|(?:dsh|dsh-sandbox|bwrap):)",
     re.IGNORECASE,
 )
 _EXTRACTION_STATES = frozenset({"response_failed", "missing_result", "invalid_result"})
+# stdout が JSON のイベントの stream のランタイム。モデルの発言は JSON の文字列の中にだけあり、JSON でない行は CLI の出力
+# である。Devin（devin -p）はモデルの発言を平文で stdout に書き、コードブロックの中のログの例も行頭から始まるので、
+# 行の形ではランタイムの診断と区別できない（#212、PR #237 のサイクル 2）
+_EVENT_STREAM_RUNTIMES = frozenset({"claude-code", "codex", "cursor", "dsh", "pi"})
 
 
 def read_log_tail(path: Path | None, attempt: Attempt, output_dir: Path) -> tuple[str | None, Unavailable | None]:
@@ -1867,7 +1871,7 @@ def _latest_assistant(event: dict[str, object]) -> dict[str, object] | None:
     return latest
 
 
-def diagnostic_text(stdout: str | None, stderr: str | None) -> tuple[str, bool]:
+def diagnostic_text(stdout: str | None, stderr: str | None, *, prose: bool) -> tuple[str, bool]:
     """原因の分類に使う文と、stdout に試行を終わらせた失敗の報告があったか。
 
     文は stderr の全体と、stdout の失敗のイベント・診断の行と、stream の中で最後に現れた assistant のメッセージが失敗で
@@ -1877,6 +1881,9 @@ def diagnostic_text(stdout: str | None, stderr: str | None) -> tuple[str, bool]:
     取り消した通知（``success`` が false）だけを、その ``finalError`` で数える。モデルの本文・ツールの出力・プロンプト
     は、レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない（各 adapter が状態の分類に、
     回復した失敗とモデルの本文を使わないのと同じ。#212）。
+
+    ``prose`` は stdout がモデルの発言の平文（Devin）か、ランタイムが分からないとき。その stdout は文にせず、
+    失敗の報告に見える行があることだけを返す（報告の有無を判定できないので、応答の取り出しの失敗と推測させない）。
     """
     reported: list[str] = []
     final: str | None = None
@@ -1902,6 +1909,8 @@ def diagnostic_text(stdout: str | None, stderr: str | None) -> tuple[str, bool]:
             final = (error if isinstance(error, str) else "") if failed else None
     if final is not None:
         reported.append(final)
+    if prose:
+        return stderr or "", bool(reported)
     return "\n".join([stderr, *reported] if stderr else reported), bool(reported)
 
 
@@ -1929,8 +1938,11 @@ def classify_cause(text: str, attempt: Attempt, *, reported: bool, observed: boo
     return "unknown"
 
 
-def diagnose_attempt(attempt: Attempt, output_dir: Path) -> AttemptDiagnostic:
-    """1 回の試行の診断。ログは ``read_log_tail`` の条件でだけ読み、読んだ文は分類にだけ使う。"""
+def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None) -> AttemptDiagnostic:
+    """1 回の試行の診断。ログは ``read_log_tail`` の条件でだけ読み、読んだ文は分類にだけ使う。
+
+    ``runtime`` は担当の設定のランタイム（分からなければ None）。JSON のイベントの stream でない stdout は照合の文にしない。
+    """
     unavailable: dict[DiagnosticItem, Unavailable] = {}
     stdout, missing = read_log_tail(attempt.stdout_path, attempt, output_dir)
     if missing is not None:
@@ -1945,7 +1957,7 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path) -> AttemptDiagnostic:
     # stdout・stderr を両方とも丸ごと読めたときだけ、失敗の報告の有無を観測したとみなす。末尾だけを読んだログ（partial）は、
     # 切れた行に試行を終わらせた失敗が隠れうる
     observed = "stdout" not in unavailable and "stderr" not in unavailable
-    text, reported = diagnostic_text(stdout, stderr)
+    text, reported = diagnostic_text(stdout, stderr, prose=runtime not in _EVENT_STREAM_RUNTIMES)
     return AttemptDiagnostic(
         agent_id=attempt.agent_id,
         state=attempt.state,
@@ -1964,12 +1976,14 @@ def _error_name(error: Exception) -> str:
     return errno.errorcode.get(number, type(error).__name__) if isinstance(number, int) else type(error).__name__
 
 
-def keep_diagnostic(result: Result, entry: ReviewerEntry, directory: Path, output_dir: Path) -> bool:
+def keep_diagnostic(
+    result: Result, entry: ReviewerEntry, directory: Path, output_dir: Path, runtimes: Mapping[str, str]
+) -> bool:
     """失敗した担当のいるレビュアーの診断を、回収の前に ``<request_id>.json`` に保存する（#212）。
 
     対象は却下したレビュアーと、success 以外の試行（fallback で失敗した担当）があるレビュアーで、ほかは何も書かずに
     True を返す。生の stdout・stderr・session は写さない。保存できなければ理由を ``entry.diagnostic_error`` に書いて
-    False を返す（呼び出し側はログを含む出力を消さずに残す）。
+    False を返す（呼び出し側はログを含む出力を消さずに残す）。``runtimes`` は担当の ID から設定のランタイムへの対応。
     """
     if entry.verdict != "rejected" and all(attempt.state == "success" for attempt in result.attempts):
         return True
@@ -1984,7 +1998,10 @@ def keep_diagnostic(result: Result, entry: ReviewerEntry, directory: Path, outpu
             verdict=entry.verdict,
             stage=entry.rejected_stage,
             state=result.state,
-            attempts=[diagnose_attempt(attempt, output_dir) for attempt in result.attempts],
+            attempts=[
+                diagnose_attempt(attempt, output_dir, runtime=runtimes.get(attempt.agent_id))
+                for attempt in result.attempts
+            ],
         )
         directory.mkdir(parents=True, exist_ok=True)
         destination = directory / f"{result.request_id}.json"
@@ -2199,9 +2216,10 @@ def _review_batch(
     # 回収で出力が消える前に、却下した試行に渡した指示と、失敗した担当の診断を残す。診断を保存できなかったら、
     # 原因を調べられるようにログを含む出力を消さずに残す（#212）
     unsaved = False
+    agent_runtimes = {name: agent.runtime for name, agent in config.agents.items()}
     for item, entry in zip(batch.results, entries, strict=True):
         keep_rejected_request(item, entry, work / "requests")
-        if not keep_diagnostic(item, entry, work / "diagnostics", output_dir):
+        if not keep_diagnostic(item, entry, work / "diagnostics", output_dir, agent_runtimes):
             unsaved = True
     result_copy = work / f"{prefix or 'review-'}result.json"
     write_json(result_copy, batch)
