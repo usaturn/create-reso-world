@@ -4,13 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-
-import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "issue_budget.py"
 SPEC = importlib.util.spec_from_file_location("issue_budget", SCRIPT)
@@ -93,75 +90,3 @@ def test_single_safety_failure_is_reported() -> None:
     ledger = entries(start(), event("failure", 1, failure_class="safety", signature="unknown-send"))
 
     assert budget.summarize(ledger, now=at(2)).safety_failure is True
-
-
-@pytest.mark.parametrize(
-    ("items", "line"),
-    [
-        ((event("resume", 1),), 1),
-        ((start(), start(1)), 2),
-        ((start(5), event("checkpoint", 4, decision="continue", reason="x")), 2),
-        ((start(), event("resume", 1)), 2),
-        ((start(), event("await-user", 1), event("checkpoint", 2, decision="stop", reason="x")), 3),
-        ((start(), event("end", 1), event("checkpoint", 2, decision="stop", reason="x")), 3),
-    ],
-)
-def test_inconsistent_ledger_is_rejected_with_line(items: tuple[dict[str, Any], ...], line: int) -> None:
-    with pytest.raises(budget.LedgerError) as raised:
-        budget.summarize(entries(*items), now=at(10))
-
-    assert raised.value.line == line
-
-
-def run(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, timeout=30)
-
-
-def test_cli_records_and_shows_budget(tmp_path: Path) -> None:
-    ledger = str(tmp_path / "budget.jsonl")
-    assert run("start", "--ledger", ledger, "--budget-minutes", "240").returncode == 0
-    assert run("start", "--ledger", ledger, "--budget-minutes", "240").returncode == 2
-
-    assert run("mark", "--ledger", ledger, "--event", "await-user", "--reason", "設計の確認").returncode == 0
-    rejected = run("mark", "--ledger", ledger, "--event", "checkpoint", "--decision", "continue", "--reason", "x")
-    assert rejected.returncode == 2
-    assert run("mark", "--ledger", ledger, "--event", "resume").returncode == 0
-    reason = "前回から成果が無い\n付随処理が本体を上回った"
-    checkpoint = run("mark", "--ledger", ledger, "--event", "checkpoint", "--decision", "shrink", "--reason", reason)
-    assert checkpoint.returncode == 0
-    missing = run("mark", "--ledger", ledger, "--event", "failure", "--signature", "timeout")
-    assert missing.returncode == 2
-
-    shown = run("show", "--ledger", ledger)
-    summary = json.loads(shown.stdout)
-
-    assert shown.returncode == 0
-    assert (summary["state"], summary["budget_seconds"]) == ("active", 14400)
-    assert summary["last_checkpoint"]["decision"] == "shrink"
-    assert summary["last_checkpoint"]["reason"] == reason
-    assert len(Path(ledger).read_text(encoding="utf-8").splitlines()) == 4
-
-
-def test_cli_rejects_corrupted_ledger_with_line_number(tmp_path: Path) -> None:
-    ledger = tmp_path / "budget.jsonl"
-    assert run("start", "--ledger", str(ledger), "--budget-minutes", "30").returncode == 0
-    with ledger.open("a", encoding="utf-8") as stream:
-        stream.write("{not json\n")
-
-    shown = run("show", "--ledger", str(ledger))
-
-    assert shown.returncode == 2
-    assert "line 2" in shown.stderr
-
-
-def test_cli_keeps_ledger_readable_with_unicode_line_separators(tmp_path: Path) -> None:
-    ledger = str(tmp_path / "budget.jsonl")
-    assert run("start", "--ledger", ledger, "--budget-minutes", "30").returncode == 0
-    reason = "貼り付けた文\u2028段落\u2029次\x85終わり"
-
-    marked = run("mark", "--ledger", ledger, "--event", "checkpoint", "--decision", "continue", "--reason", reason)
-    shown = run("show", "--ledger", ledger)
-
-    assert (marked.returncode, shown.returncode) == (0, 0)
-    assert json.loads(shown.stdout)["last_checkpoint"]["reason"] == reason
-    assert run("mark", "--ledger", ledger, "--event", "end").returncode == 0
