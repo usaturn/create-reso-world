@@ -1,5 +1,6 @@
 #!/bin/bash
-# scripts/new-world.sh が既存のファイルを壊さないことを、一時リポジトリとモックの resoloop で検査する（守りごとに代表の 1 件）
+# scripts/new-world.sh が既存のファイルを壊さず、失敗を成功と報告しないことを、一時リポジトリとモックの resoloop・uv で
+# 検査する（守りごとに代表の 1 件）
 set -euo pipefail
 # 外から渡された GIT_* を除く。linked worktree の git rebase --exec は GIT_DIR を export するので、残すと
 # 直接実行したときに一時リポジトリの git init・git -C が、そのリポジトリの設定・index・ブランチを書き換える（#200）
@@ -235,5 +236,30 @@ mkdir "$tmp/r15-worlds" && ln -s "$tmp/r15-worlds" "$tmp/r15/worlds"
 expect_exit 3 'not a real directory' "$tmp/r15" --no-sync demo
 [ ! -s "$MOCK_LOG" ] || fail 'ran resoloop although worlds/ is a symlink'
 [ -z "$(ls -A "$tmp/r15-worlds")" ] || fail 'created the project through the worlds/ symlink'
+
+# 16. .pi が実ディレクトリなら 1 を返し、何も変更しない（CLAUDE.md も作らない）。通すと、プロジェクトが共有の .pi を
+#     読まないまま作業が進む
+new_root "$tmp/r16"
+run "$tmp/r16" --no-sync demo >/dev/null
+rm "$tmp/r16/worlds/demo/.pi" "$tmp/r16/worlds/demo/CLAUDE.md" && mkdir "$tmp/r16/worlds/demo/.pi"
+before="$(snapshot "$tmp/r16/worlds/demo")"
+expect_exit 1 'CONFLICT: .pi exists and is not a symlink' "$tmp/r16" --apply --no-sync demo
+[ "$before" = "$(snapshot "$tmp/r16/worlds/demo")" ] || fail 'case 16 changed files'
+
+# 17. 行き先の違う symlink は 1 を返し、何も変更しない
+new_root "$tmp/r17"
+run "$tmp/r17" --no-sync demo >/dev/null
+rm "$tmp/r17/worlds/demo/.pi" && ln -s ../other "$tmp/r17/worlds/demo/.pi"
+before="$(snapshot "$tmp/r17/worlds/demo")"
+expect_exit 1 'CONFLICT: .pi points to ../other, expected ../../.pi' "$tmp/r17" --apply --no-sync demo
+[ "$before" = "$(snapshot "$tmp/r17/worlds/demo")" ] || fail 'case 17 changed files'
+
+# 18. 同期ありで uv sync が失敗したら、成功と報告せずに 3 を返し、雛形の適用が済んでいることを伝える
+new_root "$tmp/r18"
+mkdir -p "$tmp/uv-fail"
+printf '#!/bin/bash\nexit 1\n' > "$tmp/uv-fail/uv"
+chmod +x "$tmp/uv-fail/uv"
+PATH="$tmp/uv-fail:$PATH" expect_exit 3 'already applied' "$tmp/r18" demo
+[ "$(cat "$tmp/r18/worlds/demo/CLAUDE.md")" = '@AGENTS.md' ] || fail 'scaffold was not applied before the failing uv sync'
 
 printf 'PASS: new-world script keeps existing files intact\n'

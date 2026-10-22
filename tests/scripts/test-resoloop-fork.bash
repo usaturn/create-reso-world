@@ -43,8 +43,8 @@ fork_version_of() {
     "$(git -C "$tmp/seed" rev-parse --short=7 "$1")"
 }
 
-# モックの dotnet: build・test は成功し、pack は nupkg を作る。tool update は MOCK_STATE に版を書き、
-# ~/.dotnet/tools/resoloop に版（MOCK_SHIM_VERSION があればその値）を返す shim を置く
+# モックの dotnet: build は成功し、test は MOCK_TEST_FAIL があれば失敗する。pack は nupkg を作る。tool update は
+# MOCK_STATE に版を書き、~/.dotnet/tools/resoloop に版（MOCK_SHIM_VERSION があればその値）を返す shim を置く
 mkdir -p "$tmp/mockbin" "$tmp/home/.dotnet/tools"
 cat > "$tmp/mockbin/dotnet" <<'EOF'
 #!/bin/bash
@@ -58,7 +58,8 @@ arg_after() {  # $1=オプション名。その次の引数を出力する
 }
 case "$1" in
   --version) echo 10.0.201 ;;
-  build | test) ;;
+  build) ;;
+  test) [ "${MOCK_TEST_FAIL:-0}" = 0 ] ;;
   pack)
     out="$(arg_after -o "$@")" ver=""
     for a in "$@"; do case "$a" in -p:PackageVersion=*) ver="${a#-p:PackageVersion=}" ;; esac; done
@@ -90,11 +91,14 @@ expect_exit() {  # $1=期待する終了コード、$2=出力に含まれるべ�
   grep -qF -- "$needle" "$tmp/out.txt" || { cat "$tmp/out.txt" >&2; fail "expected output '$needle': $*"; }
 }
 
-# 1. clone は origin と upstream を持つ checkout を作り、2 回目は remote を確かめるだけ
+# 1. clone は origin と upstream を持つ checkout を作り、2 回目は remote を確かめるだけ。clone に失敗したら 4 で、
+#    checkout を残さない（外部コマンドの失敗を捨てると、sync の push の失敗も成功と報告する）
 expect_exit 0 "cloned: $co" clone
 [ "$(git -C "$co" remote get-url origin)" = "$tmp/origin.git" ] || fail 'origin url'
 [ "$(git -C "$co" remote get-url upstream)" = "$tmp/upstream.git" ] || fail 'upstream url'
 expect_exit 0 'is already cloned' clone
+RESOLOOP_CHECKOUT="$tmp/work/broken" RESOLOOP_ORIGIN_URL="$tmp/no-such-remote.git" expect_exit 4 'git clone failed' clone
+[ ! -e "$tmp/work/broken" ] || fail 'a failed clone left a directory'
 
 # 2. 他の remote を持つ checkout は、clone も checkout も sync も受け付けず、何も変えない
 git -C "$co" remote set-url origin "$tmp/upstream.git"
@@ -132,6 +136,14 @@ local_commit="$(git -C "$co" rev-parse HEAD)"
 expect_exit 0 "checked out: $co at $local_commit (HEAD, detached)" checkout HEAD
 [ "$(git -C "$co" rev-parse HEAD)" = "$local_commit" ] || fail 'checkout HEAD moved away from the current commit'
 git -C "$co" branch -D -q local-only
+# upstream も fetch してから取り出す。fetch しないと、古い upstream/main を黙って選ぶ
+git -C "$tmp/seed" checkout -q main
+printf 'upstream\n' >> "$tmp/seed/file.txt"
+git -C "$tmp/seed" commit -q -am upstream
+git -C "$tmp/seed" push -q "$tmp/upstream.git" main
+upstream_commit="$(git -C "$tmp/seed" rev-parse HEAD)"
+if git -C "$co" cat-file -e "$upstream_commit^{commit}" 2>/dev/null; then fail 'case 4 needs a commit the checkout has not fetched'; fi
+expect_exit 0 "checked out: $co at $upstream_commit (upstream/main, detached)" checkout upstream/main
 
 # 5. 追跡ファイルに未コミットの変更があれば 1 で、HEAD を動かさない。未追跡ファイルは妨げない
 git -C "$co" checkout -q main
@@ -195,8 +207,12 @@ expect_exit 1 'local main has commits that upstream/main lacks' sync
 [ "$(git -C "$co" rev-parse main)" = "$local_main" ] || fail 'sync moved a diverged local main'
 bash "$script" checkout fix/x >/dev/null
 
-# 9. install: checkout を build し、tool update の後に resoloop --version を照合する。
-#    導入した版と resoloop --version が違えば成功と報告せず 1
+# 9. test は checkout の中で dotnet test を実行し、失敗を成功と報告せずに 4
+expect_exit 0 'ok: dotnet test passed' test
+MOCK_TEST_FAIL=1 expect_exit 4 'dotnet test failed' test
+
+# 10. install: checkout を build し、tool update の後に resoloop --version を照合する。
+#     導入した版と resoloop --version が違えば成功と報告せず 1
 fix2_version="$(fork_version_of "$fix2")"
 printf '0.0.1\n' > "$MOCK_STATE"
 expect_exit 0 "ok: resoloop --version is $fix2_version" install fix/x

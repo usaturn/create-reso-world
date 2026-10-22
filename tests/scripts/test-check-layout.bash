@@ -174,8 +174,8 @@ grep -qF 'ok: project worlds/demo layout' "$tmp/proj-ok.out"
 grep -qF 'PASS: check-layout' "$tmp/proj-ok.out"
 MOCK_RESOLOOP_CONFLICT=demo expect_fail_with "$tmp/proj-ok" 'resoloop skills sync --check failed for worlds/demo'
 
-# 7. 標準レイアウトからの逸脱（必須ファイルの欠落・CLAUDE.md の内容・symlink の行き先・スキルのリンクの欠落・
-#    向き違い・実ディレクトリ）は失敗する
+# 7. 標準レイアウトからの逸脱（必須ファイルの欠落・CLAUDE.md の内容・symlink の行き先・宙吊りの symlink・
+#    スキルのリンクの欠落・向き違い・実ディレクトリ）は失敗する
 project_repo "$tmp/p-file" && rm "$tmp/p-file/worlds/demo/CLAUDE.md"
 expect_fail_with "$tmp/p-file" 'worlds/demo: missing regular file CLAUDE.md'
 
@@ -186,6 +186,11 @@ expect_fail_with "$tmp/p-claude" 'worlds/demo: CLAUDE.md must be exactly @AGENTS
 
 project_repo "$tmp/p-pi" && rm "$tmp/p-pi/worlds/demo/.pi" && ln -s ../../.agents "$tmp/p-pi/worlds/demo/.pi"
 expect_fail_with "$tmp/p-pi" 'worlds/demo: .pi must be a symlink to ../../.pi'
+
+# 行き先の文字列が正しくても、ルートの共有物が無ければ宙吊りとして失敗する。宙吊りの .pi・.claude/settings.json を
+# 通すと、プロジェクトが共有の指示・設定を読まないまま、エラーにならずに作業が進む
+project_repo "$tmp/p-dangling" && rm -rf "$tmp/p-dangling/.pi"
+expect_fail_with "$tmp/p-dangling" 'worlds/demo: .pi is a dangling symlink to ../../.pi'
 
 project_repo "$tmp/p-link" && rm "$tmp/p-link/worlds/demo/.claude/skills/resonite-build"
 expect_fail_with "$tmp/p-link" 'worlds/demo/.claude/skills: missing link resonite-build'
