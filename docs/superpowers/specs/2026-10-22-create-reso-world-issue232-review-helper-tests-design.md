@@ -616,4 +616,75 @@ conftest.py: managed_state は test_dispatch.py・test_evaluation.py（Task 3）
 
 ## 検証の記録
 
-（実装後に追記する）
+### 前後の件数・行数（Issue の「検証」の計測、コミット済みの状態）
+
+| 指標 | 基準値（`481a047`） | 後 | 割合 |
+| --- | --- | --- | --- |
+| 件数 | 1,056 | 380 | 36.0% |
+| 行数 | 9,919 | 6,802 | 68.6% |
+
+| ファイル | 件数 | 行数 |
+| --- | --- | --- |
+| `.agents/scripts/tests/test_agent_tmp.py` | 21 → 11 | 243 → 198 |
+| `.agents/scripts/tests/test_issue_budget.py` | 15 → 6 | 167 → 92 |
+| `.agents/scripts/tests/test_review_findings.py` | 231 → 94 | 2,415 → 1,687 |
+| `.agents/scripts/tests/test_review_records.py` | 205 → 51 | 1,552 → 744 |
+| `.agents/scripts/tests/test_review_target.py` | 59 → 23 | 820 → 468 |
+| `.agents/skills/review-fix-planning/tests/test_finalize.py` | 169 → 61 | 1,220 → 961 |
+| `.agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py` | 70 → 18 | 231 → 219 |
+| `.agents/skills/review-fix-planning/tests/test_run_roles.py` | 49 → 16 | 725 → 451 |
+| `.agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py` | 75 → 33 | 840 → 558 |
+| `.agents/skills/review-verify/tests/conftest.py` | – | 33 → 33 |
+| `.agents/skills/review-verify/tests/test_dispatch.py` | 151 → 61 | 1,544 → 1,275 |
+| `.agents/skills/review-verify/tests/test_evaluation.py` | 11 → 6 | 129 → 116 |
+
+見積もり（件数約 28%、行数約 65%）に近い。行数が残るのは、残した S のテストが実際の git・プロセスを動かす長い準備を持つため（#228 の見積もりの注記と同じ）。
+
+### コードの撤去
+
+なし。担当ごとに `git grep` で確かめ、テストだけが使う関数・経路は見つからなかった（`review_findings.py` の `stats` は `review-verify/evals/validation.md`、`statement-candidates`・`validate`・`from-markdown`・`check-pair` は pr-review・pr-review-fix-loop・review-verify・run_roles、`review_records.py` の公開関数はほかのスクリプトとテスト、`run_roles.py`・`upsert_pr_comment.py` は `loop.py` などが使う）。`VALID_VARIANTS`・`EMPTY_STATE`・run_roles の `TEMPLATE` はテストの補助で、使うテストを消したので一緒に消した。`tools/test_support/` の名前は消していない（使われなくなった名前は無かった）。
+
+文書の変更は `.agents/review-records.md` の 2 行だけ（「この文書の記入例は `test_review_records.py` が検査する」「記入例を変えたら `test_review_records.py` を実行する」）。記入例を読むテスト 2 件（F）を消したので、この説明が偽になった。
+
+### 守りを壊した使い捨てのコピーでの確認
+
+`mktemp -d` のコピーで守る処理を壊し、残したテストが失敗することを 1 回ずつ確かめた。作業ツリーのコードは壊していない。
+
+| 守り | 壊した内容 | 失敗した残すテスト |
+| --- | --- | --- |
+| finalize: マージの親の照合 | `check_merge_parent` の呼び出しを除く | 7 件 |
+| finalize: マージ直前の base の確認 | `check_base` を除く | 2 件 |
+| finalize: 検証した head との比較 | `first != verified` を無効にする | 3 件 |
+| finalize: マージ済みの PR の記録の照合 | 照合を無効にする | 3 件 |
+| finalize: マージの範囲の検査 | 範囲の検査を無効にする | 1 件 |
+| finalize: Spec の commit がサブディレクトリでない | `"/" not in leaf` を除く | `test_spec_commit_compare_must_be_one_spec_file_on_the_reviewed_head[subdirectory]`（担当が代表に絞ったとき検知できなかったので 1 件戻し、controller が再確認した） |
+| review_records: 空の login を信頼しない | 空の `trusted_login` を信頼する | `test_collect_records_does_not_trust_other_or_empty_logins` |
+| review_records: 権限による信頼 | 権限の確認を外す | 7 件 |
+| review_records: 前の fix の脱落 | 脱落を許す | `earlier-fix-omitted` ほか 1 件 |
+| review_records: マーカーと記録の不一致 | 照合を外す | `test_collect_records_rejects_markers_that_disagree_with_the_record` |
+| review_records: `check_against` の PR 不一致 | 照合を外す | `another-pull-request`（代表に絞ったとき検知できなかったので 1 件戻して確かめた） |
+| review_findings: 判定漏れ・fix の証拠・組の不一致 | `check_statement_judgments`・`fix_evidence` の "not judged"、`check_pair` の severity 差を無効にする | 5 件 |
+| agent_tmp: パスの脱出 | symlink の脱出の検査・ignore の検査・topic の検証を外す | 残すテストが全て失敗 |
+| review_target: 対象の取り違え | `usaturn/..` の拒否・linked worktree の拒否・`reviews/` の ignore の検査を外す | 残すテストが全て失敗 |
+| review-verify の評価: 環境の隔離 | `GIT_` 接頭辞・`BASH_ENV`・`ENV` の除去を外す | 残すテストが全て失敗 |
+| upsert: 信頼の判定 | `_trusted` を常に True にする／空の login の判定を外す | 残すテストが失敗 |
+| run_roles: 競合と 1 回だけの枠 | ロック競合・再予約の拒否を外す | 残すテストが失敗 |
+| run_roles: 入力の照合 | planning・verified の PR/HEAD の照合を外す、self-review の書き込み例外を付けない | 残すテストが失敗 |
+| run_roles: 予約の前に親を解決する | `write_exceptions` を `reserve_review` の後に動かす | `test_unresolved_parent_stops_before_reserving_the_review` ほか 3 件（最後のレビューの指摘で戻したテスト） |
+| dispatch: 別 PR・遅れた symlink・保存先の再照合・外部書き込み | それぞれの拒否・照合を外す | `test_accept_rejects_a_different_pr_without_changing_outputs[new-output-repository]`、`test_accept_rejects_a_late_verified_directory_symlink`、`test_accept_rechecks_destination_after_validation_before_creating_any_output[inventory-ancestor]`、`test_accept_rejects_outside_changes_and_dispatch_exits_1_for_them` |
+
+### 層をまたぐ重複の確認
+
+- `test_review_target.py` の `code_root` の拒否・fork の前提・親の origin の欠落: `review_target.target_checkout` は `superpowers_context` の `resolve` を呼ぶだけで、検査は `scripts/superpowers_context.py` が実装する。`tests/scripts/test_superpowers_context.py` に同じ守りのテストが残る（最後のレビューで実在を確かめた）
+- run_roles・dispatch の checkout の事前検査: `tools/agent_runner` が実装し、そのテストに残る。dispatch には repair 後の正例を含む `moved` の 1 件を残した
+- 使えない保存先（#177）・レビューディレクトリの改ざん: `dispatch.py` が実装するので dispatch 側に残した。run_roles には「予約も起動もしない」の 1 件を残した
+
+### 最後の全体レビュー
+
+ブランチ全体を別の担当（code-reviewer）が、棚卸しに寄せずに読んだ。致命的な指摘（S の守りが消えた）は無し。重要 1 件（`test_unresolved_parent_stops_before_reserving_the_review` を D として消したが、代表が別の分岐だった）を受けて 1 件戻し、表を「迷い（S 中）」に直した。軽微 1 件（run_roles の `require_auditable_workflow` を予約の前に呼ぶ順序。枠は消費されるがエラーとして見え、監査は `tools/agent_runner` が実装する）は直さない。
+
+### 実行時の注意
+
+- `uv run --locked ruff` はこの環境で起動できない（ruff が依存に無い）。`uvx ruff check --isolated --select F,I` で、変更したテストのファイルに新しい指摘が無いことを確かめた（`origin/main` と同じ結果）
+- 全体の入口（`README.md` の「テスト」）の結果と、検証した HEAD は PR 本文と Issue のコメントに書く（この記録を commit した後に実行するため）
+- Task 1 の担当が、壊したコピーでの確認の途中で、`ls -dt /tmp/tmp.*` で選んだ対象を確かめずに `rm -rf` した（`/tmp/tmp.RUCtMjR6LZ`）。`.agents/execution-budget.md` の安全の失敗として全体停止し、利用者に報告した。利用者が不要なファイルだったと確かめて再開を指示し、以後の担当には「削除の前に対象を確かめ、`mktemp -d` の戻り値だけを消す」を指示に加えた
