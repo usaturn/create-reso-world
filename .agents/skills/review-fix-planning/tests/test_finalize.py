@@ -311,7 +311,7 @@ def test_public_ci_still_running_waits_and_the_rerun_finalizes(rollup: list[Any]
 
 @pytest.mark.parametrize(
     "rollup",
-    [[FAILED], [RUNNING, FAILED]],
+    [[FAILED], [RUNNING, FAILED], [{"__typename": "StatusContext", "state": "ERROR"}]],
 )
 def test_public_ci_failure_or_absence_stops_without_waiting(rollup: list[Any]) -> None:
     gh = FakeGh(repo=PUBLIC)
@@ -650,6 +650,7 @@ BAD_COMPARISONS: dict[str, Any] = {
     "subdirectory": compare_response(files=[compare_file("docs/superpowers/specs/draft/x.md")]),
     "repository_root": compare_response(files=[compare_file("README.md")]),
     "script": compare_response(files=[compare_file("docs/superpowers/specs/run.py")]),
+    "renamed": compare_response(files=[compare_file(status="renamed")]),
 }
 
 

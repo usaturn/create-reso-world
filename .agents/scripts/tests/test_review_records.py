@@ -203,6 +203,11 @@ INVALID_RECORDS = [
         "planner.agent_id: must be claude-opus-5-5 (agent_id_for(planner.model))",
         id="agent-id-not-derived-from-model",
     ),
+    pytest.param(
+        set_value("reviewed_head", value="a78ab78"),
+        "reviewed_head: must be a full lowercase commit hash",
+        id="short-reviewed-head",
+    ),
     pytest.param(set_value("seats", value=[]), "seats: must not be empty unless the round stopped", id="empty-seats"),
     pytest.param(
         set_value("seats", 1, "review_file", value="Grok-4.7"),
@@ -228,6 +233,11 @@ INVALID_RECORDS = [
         set_value("decisions", 0, "sources", value=["Grok-4.7#M-9@25e76f6c513f"]),
         "decisions[0].sources: must contain the reference part of the decision id",
         id="sources-without-decision-id",
+    ),
+    pytest.param(
+        set_value("decisions", 0, "sources", value=["Grok-4.7#M-1"]),
+        "decisions[0].sources[0]: must be a finding reference <file>#<id>@<head>",
+        id="reference-without-head",
     ),
     pytest.param(
         set_value("decisions", 0, "change", value="changed"),

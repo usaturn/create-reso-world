@@ -203,7 +203,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 壊したコピーでの確認（高の守りは無し。中の代表を `mktemp -d` のコピーで確認）: `check_statement_judgments` の "not judged"、`fix_evidence` の "not judged"、`check_pair` の severity 差の `problems.add` を無効化すると、5 件が失敗（unjudged、cli_validate_checks、check_pair_names_each_mismatch[severity]、fix_evidence_requires_every_claim[claims/files]）。
 
 
-### Task 2: `.agents/scripts/tests/test_review_records.py`（205 件 → 69 件、1552 行 → 837 行）
+### Task 2: `.agents/scripts/tests/test_review_records.py`（205 件 → 71 件、1552 行 → 847 行）
 
 | テスト/群 | 件数 | 分類 | 理由 | 結果 |
 | --- | --- | --- | --- | --- |
@@ -211,7 +211,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | v2: identity 欠落の拒否（parametrize 9）、session_id の不正（5）、unknown/sha256、重複 skills | 16 | L・D | 検査の拒否は `RecordError` で見える。session_id の `<!-- -->` は comment-marker-in-text と同じ守り | 消す |
 | 正しい 2 つの記録が検査を通る | 1 | S | 何でも拒否する実装で通らないための通る例 | 残す |
 | `VALID_VARIANTS` の通る例（12 件） | 12 | L | 過剰な拒否は投稿時に `RecordError` で見える | 消す |
-| `INVALID_RECORDS` 75 件の群 | 75 → 21 | S（高・中）・D | 代表（中）: agent_id（マーカー一致）、rerun と head の矛盾、skip の revisit_when、changed の previous_state、skip の再開に new_evidence、d1 の reproduction、重複 decision id、複数 decision にまたがる source、no_fix_needed と未決、fixes_pushed に fix 無し、コメントマーカー混入（記録ブロックの偽造）。PR #246 のレビューで戻した 3 件: `empty-seats`・`no-rerun-seat`（高。停止していないサイクルの空の seats と、reviewed_head を再実行したレビュアーが無い記録を通すと、再レビューしていない記録で未検証のマージに進む。2 つは独立した検査）、`commit-equal-to-reviewed`（中。新しい commit の無い fixes_pushed を通すと誤った結果を報告する）。PR #246 の自己レビューで戻した 7 件（迷い。検査が外れると、誤った記録がエラーなしに投稿される）: `repeated-review-file`（同じレビューファイルの行の重複）、`sources-without-decision-id`（decision の ID が sources に無い）、`previous-state-equal-to-state`、`null-severity-for-a-finding`（指摘の重大度を空にする）、`d1-on-a-preexisting-problem`、`d1-reproduced-by-another-finding`、`awaiting-approval-without-fix-or-hold`。どれも `review_records.py` の別の検査の分岐（411・429・520・533・542・444・620 行）で、残した代表では検出しない。「違反は `RecordError` で見える」と書いた理由は検査が働いたときの経路で、検査が外れたときは黙って通るので事実に合わなかった。残り 54 件は同じ検査器の別の項目で、違反は `RecordError` か同じ守りの別の組み合わせ（L・D） | 21 残す・54 消す |
+| `INVALID_RECORDS` 75 件の群 | 75 → 23 | S（高・中）・D | 代表（中）: agent_id（マーカー一致）、rerun と head の矛盾、skip の revisit_when、changed の previous_state、skip の再開に new_evidence、d1 の reproduction、重複 decision id、複数 decision にまたがる source、no_fix_needed と未決、fixes_pushed に fix 無し、コメントマーカー混入（記録ブロックの偽造）。PR #246 のレビューで戻した 3 件: `empty-seats`・`no-rerun-seat`（高。停止していないサイクルの空の seats と、reviewed_head を再実行したレビュアーが無い記録を通すと、再レビューしていない記録で未検証のマージに進む。2 つは独立した検査）、`commit-equal-to-reviewed`（中。新しい commit の無い fixes_pushed を通すと誤った結果を報告する）。PR #246 の自己レビューで戻した 7 件（迷い。検査が外れると、誤った記録がエラーなしに投稿される）: `repeated-review-file`（同じレビューファイルの行の重複）、`sources-without-decision-id`（decision の ID が sources に無い）、`previous-state-equal-to-state`、`null-severity-for-a-finding`（指摘の重大度を空にする）、`d1-on-a-preexisting-problem`、`d1-reproduced-by-another-finding`、`awaiting-approval-without-fix-or-hold`。どれも `review_records.py` の別の検査の分岐（411・429・520・533・542・444・620 行）で、残した代表では検出しない。PR #246 のサイクル 2 の自己レビューで戻した 2 件（迷い。同じ理由）: `short-reviewed-head`（`_pattern` の `pattern.fullmatch` の条件、195 行）、`reference-without-head`（sources の参照の形、423 行）。「違反は `RecordError` で見える」と書いた理由は検査が働いたときの経路で、検査が外れたときは黙って通るので事実に合わなかった。残り 52 件は同じ検査器の別の項目で、違反は `RecordError` か同じ守りの別の組み合わせ（L・D） | 23 残す・52 消す |
 | `validation_reports_every_problem`、record は object | 2 | L | 例外メッセージの内容だけ | 消す |
 | `agent_id_for` のマーカー規則 | 4 → 2 | S（中） | 計画者の同一性（1 サイクル 1 計画者）の基準。例は通常名と `/` の 2 つ。`Cursor Grok 4.6`・`a / b` は D | 2 残す・2 消す |
 | `agent_id_for("..")` 拒否 | 1 | L | 例外 | 消す |
@@ -257,7 +257,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | CLI render、66（読めないファイル）、65（不正 JSON）、UTF-8 でない入力、未知の除外 ID | 5 | L | メッセージ付きの非 0 の終了・出力が見える | 消す |
 | 文書の記入例: from-markdown が読める、compose が記入例を作る | 2 | L（F 寄り） | 記入例が古くなると、写した利用者が `RecordError` で気付く。文書の例を写すテストで、`review_findings` の import と正規表現も一緒に撤去 | 消す |
 
-件数: 残す 69 / 消す 136（元 205）。収集名との突き合わせは `uv run --locked pytest --collect-only -q` の元の一覧（git HEAD 版）で全群を網羅した。
+件数: 残す 71 / 消す 134（元 205）。収集名との突き合わせは `uv run --locked pytest --collect-only -q` の元の一覧（git HEAD 版）で全群を網羅した。
 
 
 # Task 3 棚卸し（106 件 → 51 件）
@@ -321,7 +321,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | test_resolve_main_root_from_main_worktree | 1 | D | test_cli_root_from_every_cwd（親・worktree・外部 checkout・ワールド）が同じ解決を通る | 消す |
 | test_resolve_main_root_from_subdirectory_and_linked_worktree | 1 | D | 同上 | 消す |
 | test_resolve_main_root_rejects_submodule_checkout | 1 | S（中: 親でない checkout に tmp を作る）。迷い | submodule を親として拒否 | 残す |
-| test_resolve_main_root_rejects_non_git_directory | 1 | L・D | AgentTmpError で停止。`returncode != 0` の検査を外しても、`--git-common-dir` の出力が空になり、`.git` でない common dir の検査（42 行）が同じ入力を AgentTmpError で拒否する（D。PR #246 のサイクル 2 の走査で確かめた） | 消す |
+| test_resolve_main_root_rejects_non_git_directory | 1 | L・D | AgentTmpError で停止。`returncode != 0` の検査を外しても、`--git-common-dir` の出力が空になり、`.git` でない common dir の検査（42 行）が同じ入力を AgentTmpError で拒否する（D。PR #246 のサイクル 2 の走査で確かめた）。ただしプロセスの cwd が main checkout の `.git` のときは、空の出力が cwd に解決されて受理される（PR #246 のサイクル 2 の fix-check#V-1）。base のこのテストも同じ cwd でしか走らずこの場合を検出しないので、この PR が検出力を失ったのではない。#236 への持ち越し | 消す |
 | test_make_session_dir_creates_unique_dirs_under_tmp_agents | 1 | S（中: 同名の上書き）の正例 | 一意なディレクトリ・git が汚れない | 残す |
 | test_make_session_dir_accepts_version_like_topic | 1 | L | 受理できなければエラー | 消す |
 | test_make_session_dir_rejects_invalid_topic | 8→3 | S（高: tmp/agents の外への作成） | `a/b`・`../x`・`.x` を残す。空・`-x`・大文字・65 文字・空白は D | 残す（3 件） |
@@ -367,7 +367,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 なし。review_target.py・agent_tmp.py・issue_budget.py のどの関数も git grep（docs/superpowers を除く全体）で他の呼び出し元があり、テストだけが使っていたものは無い。test_evaluation.py のテスト内の分岐（消した attack の設定）だけを消した。
 
 
-### `.agents/skills/review-fix-planning/tests/test_finalize.py`（169 件 → 63 件、1220 行 → 964 行）
+### `.agents/skills/review-fix-planning/tests/test_finalize.py`（169 件 → 65 件、1220 行 → 965 行）
 
 | テスト/群 | 件数 | 分類 | 理由 | 結果 |
 | --- | --- | --- | --- | --- |
@@ -375,7 +375,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | missing_or_wrong_verification（head/missing/failed/bool/no_base/short/upper/null） | 8→4 | S 高 / D | 未検証・base 不明で最終化しない。head・missing・failed・short_base を代表に。missing（`commands` が空）は `or not commands` の独立した分岐で、failed では代わりにならない（PR #246 のレビューで戻した） | 4 件残す |
 | invalid_pr_state（draft/moving/mergeable/state） | 4→2 | S 高 / D | head 移動・draft を代表。mergeable/state は GitHub が拒否 | 2 件残す |
 | public_ci_still_running（5） | 5→1 | S 中 / D | 待機後の再実行で完了する例を 1 件 | 1 件残す |
-| public_ci_failure_or_absence（7） | 7→2 | S 高 / D | 失敗・失敗+実行中を代表。型崩れは例外で気付ける（L）、空は ci テストが担当 | 2 件残す |
+| public_ci_failure_or_absence（7） | 7→3 | S 高 / D | 失敗・失敗+実行中を代表。StatusContext の `ERROR`（`state == "SUCCESS"` の判定の唯一の例。外すと CI が ERROR の PR を未検証のままマージする。D と書いた理由は事実に合わなかった。PR #246 のサイクル 2 の自己レビューで戻した）。型崩れは例外で気付ける（L）、空は ci テストが担当 | 3 件残す |
 | unknown_mergeable_waits | 1 | L | 待つだけの停止。誤っても未マージで止まる | 消す |
 | wait_after_post_reruns_by_updating_the_same_comment | 1 | S 中 | 再実行で重複コメントしない | 残す |
 | create_reso_world_ci_is_not_required_but_resoloop_ci_is | 1 | S 高 | 公開 PR を CI 無しでマージしない | 残す |
@@ -397,7 +397,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | foreign_or_malformed_closing_issue | 1 | S 高 | 別リポジトリの Issue を close しない | 残す |
 | login_failure（8） | 8→2 | S 中 / D | fails の OPEN・MERGED を代表。empty・spec は同じ分岐 | 2 件残す |
 | spec_commit_merges_the_spec_head（2） | 2→1 | S 高 | 正しく通る例。match-head-commit が Spec commit | 1 件残す |
-| spec_commit_compare（30+1） | 31→6 | S 高 / D / L | wrong_parent・two_files・other_directory・subdirectory・repository_root・script を代表。repository_root（README.md だけを変えた commit）は Spec のディレクトリの接頭辞の検査（`not name.startswith(SPEC_DIRECTORY)`）を確かめる唯一の例で、外すと Spec 以外を変えた commit を未検証のままマージする。D と書いた理由は事実に合わなかった（PR #246 の自己レビューで戻した）。形の崩れは例外・環境エラーで気付ける、要求失敗は D | 6 件残す |
+| spec_commit_compare（30+1） | 31→7 | S 高 / D / L | wrong_parent・two_files・other_directory・subdirectory・repository_root・script・renamed を代表。renamed（Spec の commit のファイルの状態の判定 `is_one_of(changed.get("status"), SPEC_FILE_STATUSES)` の唯一の例。外すと rename・削除の commit を Spec の commit として未検証のままマージする。PR #246 のサイクル 2 の自己レビューで戻した）。repository_root（README.md だけを変えた commit）は Spec のディレクトリの接頭辞の検査（`not name.startswith(SPEC_DIRECTORY)`）を確かめる唯一の例で、外すと Spec 以外を変えた commit を未検証のままマージする。D と書いた理由は事実に合わなかった（PR #246 の自己レビューで戻した）。形の崩れは例外・環境エラーで気付ける、要求失敗は D | 7 件残す |
 | spec_commit_requires_identical_record_posted（4）+ accepts_authenticated_user | 5→3 | S 高 / D | none・different・untrusted_author。stopped は同分岐、ME 採用は拒否側と対 | 3 件残す |
 | invalid_spec_commit_stops_before_network（4） | 4→1 | S 高 / L | 他リポジトリの禁止が S。SHA の形式は L | 1 件残す |
 | spec_commit_waits_until_pr_head / another_head（2）/ waits_for_mergeable / already_merged / merged_without_record / cli_spec_commit | 7 | L / D | 待機・停止のみ、同じ分岐を非 spec のテストが担当、argparse | 消す |
@@ -624,17 +624,17 @@ conftest.py: managed_state は test_dispatch.py・test_evaluation.py（Task 3）
 
 | 指標 | 基準値（`481a047`） | 後 | 割合 |
 | --- | --- | --- | --- |
-| 件数 | 1,056 | 424 | 40.2% |
-| 行数 | 9,919 | 7,070 | 71.3% |
+| 件数 | 1,056 | 428 | 40.5% |
+| 行数 | 9,919 | 7,081 | 71.4% |
 
 | ファイル | 件数 | 行数 |
 | --- | --- | --- |
 | `.agents/scripts/tests/test_agent_tmp.py` | 21 → 11 | 243 → 198 |
 | `.agents/scripts/tests/test_issue_budget.py` | 15 → 10 | 167 → 110 |
 | `.agents/scripts/tests/test_review_findings.py` | 231 → 111 | 2,415 → 1,818 |
-| `.agents/scripts/tests/test_review_records.py` | 205 → 69 | 1,552 → 837 |
+| `.agents/scripts/tests/test_review_records.py` | 205 → 71 | 1,552 → 847 |
 | `.agents/scripts/tests/test_review_target.py` | 59 → 24 | 820 → 479 |
-| `.agents/skills/review-fix-planning/tests/test_finalize.py` | 169 → 63 | 1,220 → 964 |
+| `.agents/skills/review-fix-planning/tests/test_finalize.py` | 169 → 65 | 1,220 → 965 |
 | `.agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py` | 70 → 18 | 231 → 219 |
 | `.agents/skills/review-fix-planning/tests/test_run_roles.py` | 49 → 17 | 725 → 459 |
 | `.agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py` | 75 → 34 | 840 → 562 |
@@ -642,7 +642,7 @@ conftest.py: managed_state は test_dispatch.py・test_evaluation.py（Task 3）
 | `.agents/skills/review-verify/tests/test_dispatch.py` | 151 → 61 | 1,544 → 1,275 |
 | `.agents/skills/review-verify/tests/test_evaluation.py` | 11 → 6 | 129 → 116 |
 
-見積もり（件数約 28%、行数約 65%）より多く残る。PR #246 のレビューと自己レビュー、サイクル 2 のレビューと走査で、base のテストが検出していた守りの分岐の例を戻したため（「守りを壊した使い捨てのコピーでの確認」の最後の 2 行）。行数が残るのは、残した S のテストが実際の git・プロセスを動かす長い準備を持つため（#228 の見積もりの注記と同じ）。
+見積もり（件数約 28%、行数約 65%）より多く残る。PR #246 のレビューと自己レビュー、サイクル 2 のレビューと走査で、base のテストが検出していた守りの分岐の例を戻したため（「守りを壊した使い捨てのコピーでの確認」の最後の 3 行）。行数が残るのは、残した S のテストが実際の git・プロセスを動かす長い準備を持つため（#228 の見積もりの注記と同じ）。
 
 ### コードの撤去
 
@@ -685,6 +685,7 @@ conftest.py: managed_state は test_dispatch.py・test_evaluation.py（Task 3）
 | review_records: 空の `seats` と再実行したレビュアー（PR #246 のレビューで戻した） | `seats` の空の拒否を無効にする／`rerun` が true のレビュアーの検査を無効にする／停止したサイクルでも空を拒否する | 空: `test_invalid_records_are_rejected[empty-seats]`、rerun: `[no-rerun-seat]`、停止でも拒否: `test_stopped_round_preserves_category_and_pending_decisions[permission]` |
 | base（`481a047`）のテストが検出し、縮小後のテストが検出しなかった守りの分岐（PR #246 の自己レビューで戻した） | 単一行の `if`/`elif` の条件を `False` にする変異 26 件（`finalize.py` 213、`review_records.py` 411・429・444・520・533・542・616・620・708、`review_target.py` 517、`review_findings.py` 1442・1690・1862・1879・1948・1997・2151・2152・2154・2165・2167・2215・2480・2578、`run_roles.py` 123）と、置換の変異 2 件（`review_records.py` 613 の `stop_reason` の欠落を許す、616 の `detail.strip()` を外す）。戻す例は、base のテストに同じ変異を当てて失敗した例から 1 つずつ選んだ。修正後の木を `git archive` で `mktemp -d` に展開し、`git init` したコピー（run_roles の親の解決のため）で領域の全体のテストを実行した。変異なしの基準は 417 件すべて通る | 28 件すべて失敗し、どれも戻した例が失敗する（2151・2480 は統計の 4 件、616 の条件全体は区分の 4 件）。表の分岐はすべて base のテストが検出していた。2152・2154・2165・2480 などは黙って通り、2167・2215 の変異は AttributeError、2578 の変異はメッセージ付きの終了 65 で現れる |
 | サイクル 1 の走査の範囲の外の守りの分岐（PR #246 のサイクル 2 のレビューと走査で戻した） | サイクル 1 と同じ方法（base `481a047` と修正前の HEAD `efe56bf` を `git archive` で `mktemp -d` に展開し、`git init` したコピーで領域の全体のテストを実行）で、(1) `issue_budget.py` の単一行の `if`/`elif` 12 件と `case StartEntry()` の拒否を外す置換 1 件、(2) `agent_tmp.py` の単一行の `if`/`elif` 7 件、(3) `review_findings.py` の証拠の検査（`_check_fix_evidence`・`_check_evidence_judgments`・`_check_claim_inventory`・`_check_verified` の `fix_evidence` 必須の判定と、そこから呼ぶ `_text`・`_pattern`・`_choice`・`_items`）の `and`/`or` の条件を 1 つずつ外す変異 41 件（複数行の条件全体を `False` にする 2 件を含む）を当てた | base が検出し修正前の HEAD が検出しなかったのは 15 件。戻した 7 件: `issue_budget.py` 153（end の後の記録）・155（時刻の逆行）・157（利用者待ちの途中の記録）・2 回目の start の拒否（`test_inconsistent_ledger_is_rejected_with_line` の 4 例）、`review_findings.py` 2069 の生成物の条件（`{"artifact": None}`）、`_pattern` の `pattern.fullmatch` の条件（`reviewed_head` が `abc`）、`_items` の `non_empty and not items` の条件（verified の `sources` が空）。修正後の木で、どの変異も戻した例が失敗する。戻さなかった 8 件: `issue_budget.py` 142（AttributeError）・166（TypeError）・253（start がメッセージ付きの終了 2）・261（show のトレースバック）・282（CLI が何もせず、ledger を作らず show が何も出さない）は L、`agent_tmp.py` 39 は 42 行の検査が同じ入力を AgentTmpError で拒否する D。`_pattern` の `isinstance` と `_items` の `items is None` の条件は外すと TypeError（L）。base も検出しない変異（`issue_budget.py` 51・171・256、`agent_tmp.py` 46、`review_findings.py` の 15 件）は対象外 |
+| PR #246 のサイクル 2 の自己レビューで見つかった守りの分岐 | 自己レビューの担当が、全モジュールの複合条件の条件ごとの変異（`review_findings.py` は一部）を base と修正前の HEAD `c5f7f4d` のテストで走らせた。controller が戻した例ごとに、その条件だけを外したコピー（`mktemp -d`、`git init`）で `test_finalize.py`・`test_review_records.py` を実行した | 戻した 4 件はどれも、条件を外したコピーで戻した例だけが失敗した: `finalize.py` 147 の StatusContext の `state == "SUCCESS"`（`test_public_ci_failure_or_absence_stops_without_waiting[rollup2]`、ERROR）、216 の Spec のファイルの状態（`[renamed]`）、`review_records.py` 195 の `_pattern` の `fullmatch`（`[short-reviewed-head]`）、423 の参照の形（`[reference-without-head]`）。`review_findings.py` の複合条件の走査は 192 件中 4 件で止まっており、全モジュールの式・`return` の走査はしていない（#236 への持ち越し） |
 
 ### 層をまたぐ重複の確認
 
