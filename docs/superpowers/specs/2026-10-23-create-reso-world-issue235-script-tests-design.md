@@ -36,9 +36,9 @@
 | Python のテスト（pytest の収集数） | 61 | 33 | 54% |
 | bash のテスト（`tests/scripts/test-*.bash`） | 14 本 | 9 本 | 64% |
 | 件数の合計 | 75 | 42 | 56% |
-| 行数（`tests/scripts` の追跡ファイル。Meshy を除く） | 3,293 | 1,778 | 54% |
+| 行数（`tests/scripts` の追跡ファイル。Meshy を除く） | 3,293 | 1,786 | 54% |
 
-「後」は実装の commit の後に、同じコマンドで測る（Plan の「検証の記録」に出力を残す）。
+「後」は実装の commit（`d0ef1f5`）の後に、同じコマンドで測った（`33 tests collected`、`ls` が 9、`wc -l` が 1786）。
 
 ## 決定記録
 

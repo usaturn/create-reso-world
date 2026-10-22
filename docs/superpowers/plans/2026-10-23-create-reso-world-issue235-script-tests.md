@@ -122,10 +122,10 @@
 
 **Files:** 変更なし
 
-- [ ] **Step 1:** 領域のテスト: `bash .devcontainer/run-tests.bash tests/scripts/*.bash`
-- [ ] **Step 2:** 全体: `uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`
-- [ ] **Step 3:** 計測（コミット済みの状態で、Issue の「検証」の 3 つのコマンド）
-- [ ] **Step 4:** `git diff --name-only origin/main` が `tests/scripts/` と `docs/superpowers/` の中だけ。`git diff --check`
+- [x] **Step 1:** 領域のテスト: `bash .devcontainer/run-tests.bash tests/scripts/*.bash`
+- [x] **Step 2:** 全体: `uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`
+- [x] **Step 3:** 計測（コミット済みの状態で、Issue の「検証」の 3 つのコマンド）
+- [x] **Step 4:** `git diff --name-only origin/main` が `tests/scripts/` と `docs/superpowers/` の中だけ。`git diff --check`
 - [ ] **Step 5:** 最後のブランチ全体のレビュー（PR 修正ループのレビュアー）
 
 ## PR と PR 修正ループ（issue-to-pr の 5 章）
@@ -143,3 +143,12 @@
 ### Task 7（変異の確認）
 
 - Spec の「変異の確認」の 13 件が全て失敗した（使い捨てのコピーは終了時に削除した）
+
+### Task 8（統合確認。実装の commit `d0ef1f5` で実行）
+
+- `bash .devcontainer/run-tests.bash tests/scripts/*.bash`: 9 本が通った（終了コード 0）
+- `uv run pytest tests/skills .agents/skills .agents/scripts tools`: 3636 passed（17 分、終了コード 0）
+- `bash .devcontainer/run-tests.bash`: 28 本が通った（終了コード 0）。`bash scripts/check-layout.sh`: PASS（終了コード 0）
+- 計測（Spec の「計測」）: 33 件、9 本、1786 行（前は 61 件、14 本、3293 行）
+- `git diff --name-only origin/main` は `tests/scripts/` と `docs/superpowers/` の中だけ。`git diff --check` は問題なし
+- ログ: `$SESSION/{area,pytest,runtests,layout}.log`、終了コード `$SESSION/verify-exit.txt`
