@@ -578,6 +578,10 @@ def _change_severity(value: dict[str, Any]) -> None:
     value["findings"][0]["severity"] = "Medium"
 
 
+def _move_location(value: dict[str, Any]) -> None:
+    value["findings"][1]["locations"] = ["tools/missing.py:1"]
+
+
 def _drop_unverified(value: dict[str, Any]) -> None:
     value["unverified_candidates"] = []
 
@@ -587,6 +591,7 @@ def _drop_unverified(value: dict[str, Any]) -> None:
     [
         (_drop_last_finding, "findings: L-2 is in the Markdown but not in the JSON"),
         (_change_severity, "findings[0].severity: the Markdown says High"),
+        (_move_location, "findings[1].locations[0]: not in the Markdown"),
         (_drop_unverified, "unverified_candidates: U-1 is in the Markdown"),
     ],
 )
@@ -1272,6 +1277,19 @@ def test_statement_candidates_keeps_the_excerpt_around_a_term_far_into_a_long_li
     assert "deep_marker_alpha" in text
     assert text.startswith("… ") and text.endswith(" …")
     assert len(text) < len(long_line)
+
+
+def test_statement_candidates_does_not_count_a_term_inside_a_longer_word(tmp_path: Path) -> None:
+    root = _repo(tmp_path, {"tool.py": "a = 1\n", "README.md": "LIMIT_VALUE を守る\n\nLIMIT は上限\n"})
+    base = _git(root, "rev-parse", "HEAD")
+    head = _commit(root, {"tool.py": "a = LIMIT_VALUE + LIMIT\n"}, "limit")
+
+    document = review_findings.statement_candidates(root, base, head, generated_at="2026-10-05T00:00:00Z")
+
+    assert [(candidate["path"], candidate["terms"]) for candidate in document["candidates"]] == [
+        ("README.md:1", ["LIMIT_VALUE"]),
+        ("README.md:3", ["LIMIT"]),
+    ]
 
 
 def test_statement_candidates_finds_terms_containing_regex_characters(tmp_path: Path) -> None:

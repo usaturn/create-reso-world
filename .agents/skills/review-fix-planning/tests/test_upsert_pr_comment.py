@@ -527,6 +527,9 @@ def test_records_post_requires_the_pull_request_head(value: dict[str, Any], head
     assert_rejected(FakeGh(pr_view=pr_view(head=head), comments=[]), value, "head", operations=["pr view"])
 
 
+def test_records_post_rejects_a_closed_pull_request() -> None:
+    gh = FakeGh(pr_view=pr_view(state="MERGED"), comments=[])
+    assert_rejected(gh, awaiting_record(), "not open", operations=["pr view"])
 
 
 def test_records_post_stops_when_another_agent_recorded_the_round() -> None:

@@ -97,7 +97,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 
 凡例: F・F∩S・L・S・D・撤去・迷い。S は「損害 / 重さ」。ファイルごとの見出しの下に、群ごとの行を置く。元の全テストがいずれかの行に入る（担当が収集名と突き合わせた）。
 
-### `.agents/scripts/tests/test_review_findings.py`（231 件 / 2415 行 → 94 件 / 1687 行）
+### `.agents/scripts/tests/test_review_findings.py`（231 件 / 2415 行 → 96 件 / 1705 行）
 
 重さの凡例: 高=秘密漏れ・データ消失・誤対象の破壊・未検証マージ、中=誤った結果の報告・記録の取り違え、低=統計・表示。コードの撤去は無し（stats は `review-verify/evals/validation.md` が呼び、statement-candidates・validate・from-markdown・check-pair は pr-review・loop・review-verify・run_roles が呼ぶため）。
 
@@ -131,7 +131,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | test_parse_review_markdown_tolerates_empty_and_missing_sections | 1 | L | 空入力の挙動 | 消す |
 | test_candidates_from_markdown_is_a_valid_markdown_source_document | 1 | S 中 | 変換結果の取り違え | 残す |
 | test_check_pair_accepts_a_matching_pair | 1 | D | 対 | 残す |
-| test_check_pair_names_each_mismatch（5→3） | 5→3 | S 中 | 欠落・severity 差・未確認候補の欠落を残す。D: 余分な指摘、位置の移動 | 3 件残す |
+| test_check_pair_names_each_mismatch（5→4） | 5→4 | S 中 | 欠落・severity 差・位置の移動・未確認候補の欠落を残す。位置の照合は独立した分岐で、位置だけが違う組を拒否する（記録の取り違え。PR #246 のレビューで戻した）。D: 余分な指摘 | 4 件残す |
 | test_stats_reports_false_positives_misses_late_detections_and_severity_drift | 1 | S 低 | 精度の統計の代表 | 残す |
 | test_reference_key_drops_the_markdown_suffix | 1 | D | 下の either_reference_style が通る | 消す |
 | test_stats_counts_severity_drift_with_either_reference_style | 2 | S 低 | .md 付き・なしの参照 | 残す |
@@ -173,7 +173,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | test_statement_candidates_puts_frequent_terms_in_common_terms / merges_terms_on_the_same_line | 2 | S 低/D | 表示・集約 | 消す |
 | test_statement_candidates_keeps_the_excerpt_around_a_term_far_into_a_long_line | 1 | S 低 | 抜粋に語が残る（代表） | 残す |
 | test_statement_candidates_keeps_a_short_line / joins_excerpts_of_distant_terms / merges_overlapping_excerpts | 3 | D | 抜粋の表示 | 消す |
-| test_statement_candidates_does_not_count_a_term_inside_a_longer_word | 1 | S 低/迷い | 語境界。低なので消す | 消す |
+| test_statement_candidates_does_not_count_a_term_inside_a_longer_word | 1 | S 低 | 語の境界（`_word_pattern`）。長い語の中の語を数えると誤った候補が出る。S なので重さで消さない（PR #246 のレビューで戻した） | 残す |
 | test_statement_candidates_finds_terms_containing_regex_characters | 1 | S 低 | 記号入りの語を落とさない | 残す |
 | test_statement_candidates_ignores_documents_under_excluded_directories / with_only_excluded_changes_writes_an_empty_list | 2 | S 低/D | 除外ディレクトリ | 消す |
 | test_statement_candidates_handles_deleted_files / handles_non_ascii_paths / ignores_user_diff_prefix_settings | 3 | S 中 | 削除・日本語パス・利用者の git 設定で候補を黙って落とす | 残す |
@@ -199,7 +199,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 壊したコピーでの確認（高の守りは無し。中の代表を `mktemp -d` のコピーで確認）: `check_statement_judgments` の "not judged"、`fix_evidence` の "not judged"、`check_pair` の severity 差の `problems.add` を無効化すると、5 件が失敗（unjudged、cli_validate_checks、check_pair_names_each_mismatch[severity]、fix_evidence_requires_every_claim[claims/files]）。
 
 
-### Task 2: `.agents/scripts/tests/test_review_records.py`（205 件 → 51 件、1552 行 → 744 行）
+### Task 2: `.agents/scripts/tests/test_review_records.py`（205 件 → 58 件、1552 行 → 780 行）
 
 | テスト/群 | 件数 | 分類 | 理由 | 結果 |
 | --- | --- | --- | --- | --- |
@@ -207,7 +207,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | v2: identity 欠落の拒否（parametrize 9）、session_id の不正（5）、unknown/sha256、重複 skills | 16 | L・D | 検査の拒否は `RecordError` で見える。session_id の `<!-- -->` は comment-marker-in-text と同じ守り | 消す |
 | 正しい 2 つの記録が検査を通る | 1 | S | 何でも拒否する実装で通らないための通る例 | 残す |
 | `VALID_VARIANTS` の通る例（12 件） | 12 | L | 過剰な拒否は投稿時に `RecordError` で見える | 消す |
-| `INVALID_RECORDS` 75 件の群 | 75 → 11 | S（中）・D | 代表: agent_id（マーカー一致）、rerun と head の矛盾、skip の revisit_when、changed の previous_state、skip の再開に new_evidence、d1 の reproduction、重複 decision id、複数 decision にまたがる source、no_fix_needed と未決、fixes_pushed に fix 無し、コメントマーカー混入（記録ブロックの偽造）。残り 64 件は同じ検査器の別の項目で、違反は `RecordError` か同じ守りの別の組み合わせ（L・D） | 11 残す・64 消す |
+| `INVALID_RECORDS` 75 件の群 | 75 → 14 | S（高・中）・D | 代表（中）: agent_id（マーカー一致）、rerun と head の矛盾、skip の revisit_when、changed の previous_state、skip の再開に new_evidence、d1 の reproduction、重複 decision id、複数 decision にまたがる source、no_fix_needed と未決、fixes_pushed に fix 無し、コメントマーカー混入（記録ブロックの偽造）。PR #246 のレビューで戻した 3 件: `empty-seats`・`no-rerun-seat`（高。停止していないサイクルの空の seats と、reviewed_head を再実行したレビュアーが無い記録を通すと、再レビューしていない記録で未検証のマージに進む。2 つは独立した検査）、`commit-equal-to-reviewed`（中。新しい commit の無い fixes_pushed を通すと誤った結果を報告する）。残り 61 件は同じ検査器の別の項目で、違反は `RecordError` か同じ守りの別の組み合わせ（L・D） | 14 残す・61 消す |
 | `validation_reports_every_problem`、record は object | 2 | L | 例外メッセージの内容だけ | 消す |
 | `agent_id_for` のマーカー規則 | 4 → 2 | S（中） | 計画者の同一性（1 サイクル 1 計画者）の基準。例は通常名と `/` の 2 つ。`Cursor Grok 4.6`・`a / b` は D | 2 残す・2 消す |
 | `agent_id_for("..")` 拒否 | 1 | L | 例外 | 消す |
@@ -226,7 +226,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | check_against: 付け替えた参照の許容 | 1 | L | 過剰な拒否は見える | 消す |
 | check_against: 分割後の参照を保つ（拒否 1、許容 2） | 3 → 1 | S（中）・L | 拒否だけ残す。許容 2 件は L | 1 残す・2 消す |
 | check_against: 停止サイクルは前の fix を省ける（2） | 2 | L | 過剰な拒否は見える | 消す |
-| 停止サイクルのカテゴリ保持（3）、具体的なカテゴリの要求（6） | 9 | L・D | 拒否は `RecordError`。stopped-without-reason の代表も上の群に無いが、検査の例外で見える | 消す |
+| 停止サイクルのカテゴリ保持（3 → 1）、具体的なカテゴリの要求（6 → 3） | 9 → 4 | S（中）・L・D | `stopped` の `stop_reason` の区分（`permission`・`environment`・`external` と空でない具体的な理由）の検査が外れると、区分の無い停止を記録しても気付けない（記録の取り違え）。拒否は `permission:`・`iteration_limit: 1`・`確認待ち`、正しく通る例は `permission`（`seats` が空の停止サイクル。停止したサイクルでは空の `seats` を許す側も確かめる）。`None`・空は必須の検査（`_conditional_text`）の例で従来の分類（L）のまま、`external:   `・ほかの区分の保持は同じ分岐で D（PR #246 のレビューで戻した） | 4 残す・5 消す |
 | `round_marker`（保持・拒否） | 3 | L・D | compose の出力は collect の marker 照合のテストでも使う | 消す |
 | 描画と取り出しの往復、CRLF、unicode 行区切り | 3 → 1 | L・S（低） | 往復と CRLF の失敗は `RecordError`。unicode 行区切りは実際に起きた分割による記録の破損の再発防止 | 1 残す・2 消す |
 | extract: ブロック無し、2 ブロック、終了が先、fence 無し、不正 JSON | 5 | L | `RecordError` | 消す |
@@ -253,7 +253,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | CLI render、66（読めないファイル）、65（不正 JSON）、UTF-8 でない入力、未知の除外 ID | 5 | L | メッセージ付きの非 0 の終了・出力が見える | 消す |
 | 文書の記入例: from-markdown が読める、compose が記入例を作る | 2 | L（F 寄り） | 記入例が古くなると、写した利用者が `RecordError` で気付く。文書の例を写すテストで、`review_findings` の import と正規表現も一緒に撤去 | 消す |
 
-件数: 残す 51 / 消す 154（元 205）。収集名との突き合わせは `uv run --locked pytest --collect-only -q` の元の一覧（git HEAD 版）で全群を網羅した。
+件数: 残す 58 / 消す 147（元 205）。収集名との突き合わせは `uv run --locked pytest --collect-only -q` の元の一覧（git HEAD 版）で全群を網羅した。
 
 
 # Task 3 棚卸し（106 件 → 46 件）
@@ -363,12 +363,12 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 なし。review_target.py・agent_tmp.py・issue_budget.py のどの関数も git grep（docs/superpowers を除く全体）で他の呼び出し元があり、テストだけが使っていたものは無い。test_evaluation.py のテスト内の分岐（消した attack の設定）だけを消した。
 
 
-### `.agents/skills/review-fix-planning/tests/test_finalize.py`（169 件 → 61 件、1220 行 → 約 960 行）
+### `.agents/skills/review-fix-planning/tests/test_finalize.py`（169 件 → 62 件、1220 行 → 963 行）
 
 | テスト/群 | 件数 | 分類 | 理由 | 結果 |
 | --- | --- | --- | --- | --- |
 | no_fix_result_requires_post_merge...（REPO/PUBLIC） | 2→1 | S 高 | マージ方式・--match-head-commit・Issue close の順序。PUBLIC は CI の群と重複 | 1 件残す |
-| missing_or_wrong_verification（head/missing/failed/bool/no_base/short/upper/null） | 8→3 | S 高 / D | 未検証・base 不明で最終化しない。head・failed・short_base を代表に | 3 件残す |
+| missing_or_wrong_verification（head/missing/failed/bool/no_base/short/upper/null） | 8→4 | S 高 / D | 未検証・base 不明で最終化しない。head・missing・failed・short_base を代表に。missing（`commands` が空）は `or not commands` の独立した分岐で、failed では代わりにならない（PR #246 のレビューで戻した） | 4 件残す |
 | invalid_pr_state（draft/moving/mergeable/state） | 4→2 | S 高 / D | head 移動・draft を代表。mergeable/state は GitHub が拒否 | 2 件残す |
 | public_ci_still_running（5） | 5→1 | S 中 / D | 待機後の再実行で完了する例を 1 件 | 1 件残す |
 | public_ci_failure_or_absence（7） | 7→2 | S 高 / D | 失敗・失敗+実行中を代表。型崩れは例外で気付ける（L）、空は ci テストが担当 | 2 件残す |
@@ -414,13 +414,13 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | merge_commit_read_failure_after_the_merge_recovers | 1 | D | 上の request_fails と failed_confirmation が担当 | 消す |
 
 - 撤去したコード: なし（finalize.py は変更せず。分岐はすべて製品経路で使われる）
-- 壊したコピーでの確認（.agents のコピー、一時ディレクトリは削除済み）: check_merge_parent 呼び出しの除去（7 件失敗）、マージ直前の check_base 除去（2 件失敗）、`first != verified` 無効化（3 件失敗）、マージ後の記録照合の無効化（3 件失敗）、マージ範囲検査の無効化（1 件失敗）。サブディレクトリの Spec 検査の無効化は代表を絞った時点で通ったため subdirectory を戻した（戻した後の確認は未再実施）
+- 壊したコピーでの確認（.agents のコピー、一時ディレクトリは削除済み）: check_merge_parent 呼び出しの除去（7 件失敗）、マージ直前の check_base 除去（2 件失敗）、`first != verified` 無効化（3 件失敗）、マージ後の記録照合の無効化（3 件失敗）、マージ範囲検査の無効化（1 件失敗）。サブディレクトリの Spec 検査の無効化は代表を絞った時点で通ったため subdirectory を戻した（戻した後に controller が再確認した。「検証の記録」の表）
 - 領域の pytest: test_finalize.py 61 件（subdirectory 追加後を含む）パス。ruff は環境に無く未実行（未使用 import・名前は目視で確認）
 
 
-### Task 5 の棚卸し（review-fix-planning/tests の 3 ファイル。194 件 → 66 件）
+### Task 5 の棚卸し（review-fix-planning/tests の 3 ファイル。194 件 → 68 件）
 
-#### test_run_roles.py（47 → 15 件）
+#### test_run_roles.py（49 → 16 件）
 
 | テスト/群 | 件数 | 分類 | 理由 | 結果 |
 | --- | --- | --- | --- | --- |
@@ -447,7 +447,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | review_directory_tampering_is_not_accepted_or_cleaned | 1 | S 高 | review_dir の改ざんを受け取らず、消さない（データの消失）。verifier 側（Task 6）にも同種があるが run_roles 側の roles.json の記録を守る | 残す（迷い） |
 | unconfirmed_stop_blocks_fix_check_accept_and_keeps_budget | 1 | S 中 | 停止未確認を成功と報告しない | 残す |
 
-#### test_upsert_pr_comment.py（約 89 → 33 件）
+#### test_upsert_pr_comment.py（75 → 34 件）
 
 | テスト/群 | 件数 | 分類 | 理由 | 結果 |
 | --- | --- | --- | --- | --- |
@@ -485,7 +485,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | records_post_rejects_a_different_model_name_before_any_gh_call | 1 | S 中 | 別名義の記録を投稿しない（迷い） | 残す |
 | records_post_rejects_a_record_for_another_pull_request | 1 | S 中 | 別 PR の記録 | 残す |
 | records_post_requires_the_pull_request_head | 2 | S 中 | 古い HEAD の記録 | 残す |
-| records_post_rejects_a_closed_pull_request | 1 | 低 | 閉じた PR への投稿は実害が小さい | 消す |
+| records_post_rejects_a_closed_pull_request | 1 | S 低 | open でない PR に記録を投稿しない（誤った対象への書き込み）。S なので重さで消さない（PR #246 のレビューで戻した） | 残す |
 | records_post_stops_when_another_agent_recorded_the_round | 1 | S 高 | 他担当の記録を上書きしない | 残す |
 | records_post_stops_when_a_later_round_exists | 1 | S 中 | 古いサイクルの上書き | 残す |
 | records_post_requires_earlier_fix_decisions | 1 | D | prior_round のテストの後半と同じ守り | 消す |
@@ -513,10 +513,10 @@ SKILL.md の手順を取り出して実際に実行するテストなので F �
 
 | ファイル | 件数 前→後 | 行数 前→後 |
 | --- | --- | --- |
-| test_run_roles.py | 47 → 15 | 725 → 438 |
-| test_upsert_pr_comment.py | 約 89 → 33 | 840 → 558 |
+| test_run_roles.py | 49 → 16 | 725 → 451 |
+| test_upsert_pr_comment.py | 75 → 34 | 840 → 561 |
 | test_review_fix_planning_skill_contract.py | 70 → 18 | 231 → 219 |
-| 合計 | 194 → 66 | 1796 → 1215 |
+| 合計 | 194 → 68 | 1796 → 1231 |
 
 #### 撤去したコード
 
@@ -620,20 +620,20 @@ conftest.py: managed_state は test_dispatch.py・test_evaluation.py（Task 3）
 
 | 指標 | 基準値（`481a047`） | 後 | 割合 |
 | --- | --- | --- | --- |
-| 件数 | 1,056 | 380 | 36.0% |
-| 行数 | 9,919 | 6,802 | 68.6% |
+| 件数 | 1,056 | 391 | 37.0% |
+| 行数 | 9,919 | 6,861 | 69.2% |
 
 | ファイル | 件数 | 行数 |
 | --- | --- | --- |
 | `.agents/scripts/tests/test_agent_tmp.py` | 21 → 11 | 243 → 198 |
 | `.agents/scripts/tests/test_issue_budget.py` | 15 → 6 | 167 → 92 |
-| `.agents/scripts/tests/test_review_findings.py` | 231 → 94 | 2,415 → 1,687 |
-| `.agents/scripts/tests/test_review_records.py` | 205 → 51 | 1,552 → 744 |
+| `.agents/scripts/tests/test_review_findings.py` | 231 → 96 | 2,415 → 1,705 |
+| `.agents/scripts/tests/test_review_records.py` | 205 → 58 | 1,552 → 780 |
 | `.agents/scripts/tests/test_review_target.py` | 59 → 23 | 820 → 468 |
-| `.agents/skills/review-fix-planning/tests/test_finalize.py` | 169 → 61 | 1,220 → 961 |
+| `.agents/skills/review-fix-planning/tests/test_finalize.py` | 169 → 62 | 1,220 → 963 |
 | `.agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py` | 70 → 18 | 231 → 219 |
 | `.agents/skills/review-fix-planning/tests/test_run_roles.py` | 49 → 16 | 725 → 451 |
-| `.agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py` | 75 → 33 | 840 → 558 |
+| `.agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py` | 75 → 34 | 840 → 561 |
 | `.agents/skills/review-verify/tests/conftest.py` | – | 33 → 33 |
 | `.agents/skills/review-verify/tests/test_dispatch.py` | 151 → 61 | 1,544 → 1,275 |
 | `.agents/skills/review-verify/tests/test_evaluation.py` | 11 → 6 | 129 → 116 |
@@ -672,6 +672,13 @@ conftest.py: managed_state は test_dispatch.py・test_evaluation.py（Task 3）
 | run_roles: 入力の照合 | planning・verified の PR/HEAD の照合を外す、self-review の書き込み例外を付けない | 残すテストが失敗 |
 | run_roles: 予約の前に親を解決する | `write_exceptions` を `reserve_review` の後に動かす | `test_unresolved_parent_stops_before_reserving_the_review` ほか 3 件（最後のレビューの指摘で戻したテスト） |
 | dispatch: 別 PR・遅れた symlink・保存先の再照合・外部書き込み | それぞれの拒否・照合を外す | `test_accept_rejects_a_different_pr_without_changing_outputs[new-output-repository]`、`test_accept_rejects_a_late_verified_directory_symlink`、`test_accept_rechecks_destination_after_validation_before_creating_any_output[inventory-ancestor]`、`test_accept_rejects_outside_changes_and_dispatch_exits_1_for_them` |
+| finalize: 検証コマンドが 0 件の記録（PR #246 のレビューで戻した） | `check_evidence` の `or not commands` を除く | `test_missing_or_wrong_verification_stops_before_network[missing]` |
+| review_findings: 組の位置の照合（PR #246 のレビューで戻した） | `check_pair` の `if location not in locations_text:` を無効にする | `test_check_pair_names_each_mismatch[_move_location-…]` |
+| review_findings: 語の境界（PR #246 のレビューで戻した） | `_word_pattern` の前後の境界を外す／後ろの境界だけを外す | どちらも `test_statement_candidates_does_not_count_a_term_inside_a_longer_word`。前の境界だけを外したコピーでは全て通る（この例は前の境界を確かめない） |
+| review_records: `stopped` の `stop_reason` の区分（PR #246 のレビューで戻した） | 区分の検査（`if outcome == "stopped" …`）を無効にする／区分の一覧の照合だけを外す／常に拒否する | 無効: `test_stopped_round_requires_a_concrete_allowed_category` の 3 件（`permission:`・`iteration_limit: 1`・`確認待ち`）、一覧だけ: `[iteration_limit: 1]`。どちらも正しく通る例 `test_stopped_round_preserves_category_and_pending_decisions[permission]` は通る。常に拒否: 正しく通る例が失敗 |
+| review_records: `fixes_pushed` の commit（PR #246 のレビューで戻した） | `commit` と `reviewed_head` の比較を無効にする | `test_invalid_records_are_rejected[commit-equal-to-reviewed]` |
+| upsert: open でない PR（PR #246 のレビューで戻した） | `_check_pull_request` の `state != "OPEN"` を無効にする | `test_records_post_rejects_a_closed_pull_request` |
+| review_records: 空の `seats` と再実行したレビュアー（PR #246 のレビューで戻した） | `seats` の空の拒否を無効にする／`rerun` が true のレビュアーの検査を無効にする／停止したサイクルでも空を拒否する | 空: `test_invalid_records_are_rejected[empty-seats]`、rerun: `[no-rerun-seat]`、停止でも拒否: `test_stopped_round_preserves_category_and_pending_decisions[permission]` |
 
 ### 層をまたぐ重複の確認
 

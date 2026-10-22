@@ -22,6 +22,7 @@ HEAD_1 = "25e76f6c513f8083cb229077cde193047be4cf24"
 HEAD_2 = "a78ab78d6b329b647864d4c850dc03e612a0f057"
 COMMIT_2 = "63c4d79d5298e2d709d6b76b78189f012914612d"
 SHA256_HEAD = "0123456789abcdef" * 4
+UNSYNCED = "000000000000"
 
 Mutation = Callable[[dict[str, Any]], None]
 
@@ -202,10 +203,21 @@ INVALID_RECORDS = [
         "planner.agent_id: must be claude-opus-5-5 (agent_id_for(planner.model))",
         id="agent-id-not-derived-from-model",
     ),
+    pytest.param(set_value("seats", value=[]), "seats: must not be empty unless the round stopped", id="empty-seats"),
     pytest.param(
         set_value("seats", 0, "rerun", value=False),
         "seats[0].rerun: must be true exactly when file_head is the first 12 characters of reviewed_head",
         id="rerun-disagrees-with-heads",
+    ),
+    pytest.param(
+        apply(
+            set_value("seats", 0, "file_head", value=UNSYNCED),
+            set_value("seats", 0, "rerun", value=False),
+            set_value("seats", 1, "file_head", value=UNSYNCED),
+            set_value("seats", 1, "rerun", value=False),
+        ),
+        "seats: at least one seat must have rerun true unless the round stopped",
+        id="no-rerun-seat",
     ),
     pytest.param(
         set_value("decisions", 0, "change", value="changed"),
@@ -247,6 +259,9 @@ INVALID_RECORDS = [
         "decisions: Grok-4.7#M-1@25e76f6c513f is in more than one decision "
         "(Grok-4.7#M-1@25e76f6c513f, Grok-4.7#M-2@25e76f6c513f); only its parts may share it",
         id="source-shared-across-bases",
+    ),
+    pytest.param(
+        set_value("commit", value=HEAD_1), "commit: must differ from reviewed_head", id="commit-equal-to-reviewed"
     ),
     pytest.param(
         apply(
@@ -486,6 +501,27 @@ def test_check_against_keeps_a_reference_with_the_part_that_holds_it() -> None:
         "decisions[3].sources: qwen3.8-max#L-2@25e76f6c513f already belongs to Grok-4.7#L-1@25e76f6c513f/a"
         in problems_of(lambda: review_records.check_against(checked, prior))
     )
+
+
+@pytest.mark.parametrize("category", ["permission"])
+def test_stopped_round_preserves_category_and_pending_decisions(category: str) -> None:
+    record = round_one()
+    del record["commit"]
+    record.update(outcome="stopped", stop_reason=f"{category}: 認証を更新できず push を完了できない")
+    record["seats"] = []
+    checked = review_records.validate_record(record)
+    extracted = review_records.extract_record(review_records.render_block(checked))
+    assert extracted == checked
+    assert review_records.fold([(1, checked)])["rounds"][0]["stop_reason"] == checked["stop_reason"]
+
+
+@pytest.mark.parametrize("reason", ["permission:", "iteration_limit: 1", "確認待ち"])
+def test_stopped_round_requires_a_concrete_allowed_category(reason: str) -> None:
+    record = round_one()
+    del record["commit"]
+    record["outcome"] = "stopped"
+    record["stop_reason"] = reason
+    assert any("stop_reason" in problem for problem in problems_of(lambda: review_records.validate_record(record)))
 
 
 HUMAN_PART = "\n".join(["## review-fix-planning（claude-opus-5-5）", "", "### レビュー状況", "", "- 分類: 例"])

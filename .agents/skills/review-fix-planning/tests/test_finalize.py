@@ -262,11 +262,13 @@ def test_no_fix_result_requires_post_merge_confirmation_and_issue_update() -> No
 BAD_BASES: dict[str, Any] = {"short_base": BASE[:12]}
 
 
-@pytest.mark.parametrize("mutation", ["head", "failed", "short_base"])
+@pytest.mark.parametrize("mutation", ["head", "missing", "failed", "short_base"])
 def test_missing_or_wrong_verification_stops_before_network(mutation: str) -> None:
     evidence = checks()
     if mutation == "head":
         evidence["head"] = "2" * 40
+    elif mutation == "missing":
+        evidence["commands"] = []
     elif mutation in BAD_BASES:
         evidence["base"] = BAD_BASES[mutation]
     else:
