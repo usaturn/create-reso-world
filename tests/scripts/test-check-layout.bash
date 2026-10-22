@@ -74,7 +74,7 @@ git -C "$tmp/ignored" add -f .gitignore secret.txt && git -C "$tmp/ignored" comm
 expect_fail_with "$tmp/ignored" 'tracked but ignored'
 
 # 5. .agents/skills と .claude/skills が 1:1 の symlink なら通過し、リンクが無い・実ディレクトリ（コピーは元と食い違う）・
-#    行き先が違うものは失敗する
+#    リンクの行き先を書いた通常ファイル・行き先が違うものは失敗する
 skill_repo "$tmp/skills-ok"
 ln -s ../../.agents/skills/foo "$tmp/skills-ok/.claude/skills/foo"
 commit_paths "$tmp/skills-ok" .agents .claude
@@ -89,6 +89,11 @@ mkdir -p "$tmp/skills-realdir/.claude/skills/foo"
 cp "$tmp/skills-realdir/.agents/skills/foo/SKILL.md" "$tmp/skills-realdir/.claude/skills/foo/SKILL.md"
 commit_paths "$tmp/skills-realdir" .agents .claude
 expect_fail_with "$tmp/skills-realdir" '.claude/skills/foo is not a symlink'
+
+skill_repo "$tmp/skills-regular"
+printf '../../.agents/skills/foo\n' > "$tmp/skills-regular/.claude/skills/foo"
+commit_paths "$tmp/skills-regular" .agents .claude
+expect_fail_with "$tmp/skills-regular" '.claude/skills/foo is not a symlink'
 
 skill_repo "$tmp/skills-target"
 mkdir -p "$tmp/skills-target/other/foo" && printf 'x\n' > "$tmp/skills-target/other/foo/SKILL.md"

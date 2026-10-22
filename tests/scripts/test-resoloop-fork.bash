@@ -166,7 +166,8 @@ expect_exit 1 'origin/main has commits that upstream/main lacks' sync
 [ "$(git -C "$tmp/origin.git" rev-parse main)" = "$stray" ] || fail 'sync changed a diverged origin main'
 
 # 8. main を checkout 中で未コミットの変更があるまま sync すると、ローカル main は動かさず 1 で止まる。
-#    上流に無いコミットを持つローカル main も動かさない（どちらも止まる前に origin の main を上流の先端へ進める）
+#    きれいなローカル main は fast-forward する（detached の 6 とは別の分岐）。上流に無いコミットを持つローカル main は
+#    動かさない（止まるときも、先に origin の main を上流の先端へ進める）
 git -C "$tmp/seed" push -q -f "$tmp/origin.git" "$v2:refs/heads/main"
 git -C "$tmp/seed" checkout -q main
 printf 'v3\n' >> "$tmp/seed/file.txt"
@@ -180,6 +181,9 @@ expect_exit 1 'has uncommitted changes on main' sync
 [ "$(git -C "$tmp/origin.git" rev-parse main)" = "$v3" ] || fail 'sync did not push origin main forward despite the dirty local main'
 [ "$(git -C "$co" rev-parse main)" = "$v2" ] || fail 'sync moved local main despite uncommitted changes on main'
 git -C "$co" checkout -q -- file.txt
+expect_exit 0 "updated: local main -> $v3" sync
+[ "$(git -C "$co" rev-parse HEAD)" = "$v3" ] && [ "$(git -C "$co" symbolic-ref --short HEAD)" = main ] || fail 'sync did not fast-forward the checked-out main'
+[ -z "$(git -C "$co" status --porcelain --untracked-files=no)" ] || fail 'sync left changes to tracked files'
 printf 'local\n' >> "$co/file.txt" && git -C "$co" commit -q -am local
 local_main="$(git -C "$co" rev-parse main)"
 printf 'v4\n' >> "$tmp/seed/file.txt"

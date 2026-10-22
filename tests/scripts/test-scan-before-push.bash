@@ -162,6 +162,11 @@ leak_with_repo_config() {
 leak_with_repo_config 'a random value after a prefix' "msy_$random"
 leak_with_repo_config 'a random value shaped like an identifier' "mat_material_${random:0:16}_$hash8"
 leak_with_repo_config 'a password of words and 8 digits without a key() prefix' "summer_Holiday2024_${hash8//[a-f]/7}"
+# 1 つ目の allowlist（resoloop のマニフェストの "key": "<識別子>" の形）も、区切りの無い無作為な値は除外しない
+new_repo "$root/.gitleaks.toml"
+commit_file manifest.json "{\"key\": \"$random\"}"
+scan
+expect_leak 'a random value as a manifest key with the repository .gitleaks.toml'
 
 # --- 検査できないときは止まる ---
 new_repo
