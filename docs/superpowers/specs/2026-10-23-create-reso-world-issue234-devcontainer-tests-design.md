@@ -80,7 +80,7 @@ Issue #234 の「範囲と禁止」のとおり。変えるのは次だけ。
 | --- | --- | --- | --- |
 | pi の Python 設定（F1） | 359 / 1,505 | 38 / 約 720 | agent_paths 146→7（`test_pi_provider_setup.py` へ移す）、provider_setup 80→13、vertex 133→18 |
 | pi の導入と移行（F2） | 63 / 2,161 | 2 / 約 490 | 撤去する経路のテストと、互いを安全に動かすためのテストを消す。`test-pi-superagents.bash` は 46 場面から 9 つの関数に |
-| herdr（F3） | 3 / 1,225 | 1 / 約 425 | 2 本を消し、`test-herdr-migration.bash` を縮める |
+| herdr（F3） | 3 / 1,225 | 1 / 約 425（実測 435） | 2 本を消し、`test-herdr-migration.bash` を縮める |
 | その他の bash（F4） | 12 / 887 | 10 / 約 385 | 2 本を消し、残りを S の場面に絞る |
 | 合計 | 437 / 5,778 | 約 51 / 約 2,020 | 件数 約 12%、行数 約 35% |
 
@@ -697,17 +697,17 @@ S か L か決められず、残したもの。
 
 ## 計測の結果
 
-計測は #234 の「検証」のコマンドを、commit 済みの状態（`32ce013`）で実行した。
+計測は #234 の「検証」のコマンドを、commit 済みの状態で実行した。値は PR #244 のレビュー修正（サイクル 1）の後の `2b30c3e` のもの（修正の前の `32ce013` では行数 2,501）。
 
 | 指標 | 前（`481a047`） | 後 | 割合 |
 | --- | --- | --- | --- |
 | pytest（`tools/devenv_migration`） | 419 | 39 | 約 9% |
 | bash のテスト（Meshy を除く） | 18 | 12 | 67% |
 | 件数の合計 | 437 | 51 | 約 12%（目安の 1/3 以下を満たす） |
-| 行数 | 5,778 | 2,501 | 約 43% |
+| 行数 | 5,778 | 2,518 | 約 44% |
 
-- 件数は 1/3 以下に届いた。行数は約 43% で、1/3（1,926 行）には届かない。残りの行は、S の中核の長いシナリオ（vertex の native probe と OAuth/ADC の検査、`session.json` 修復の fixture、実際の git・プロセス・bwrap を動かす準備）で、Issue の見積もり（約 56%）よりは小さい。数を合わせるために気付けない損害を防ぐテストは消さない（#228 の決定 6）ので、行数の残りは `integration` の一覧で扱う
-- 群ごとの実測の行数: `test_pi_provider_setup.py` 359、`test_pi_vertex_launchers.py` 691、`test_pi_shared_packages.py` 約 100、`test-pi-superagents.bash` 439、`test-herdr-migration.bash` 425、その他の bash 10 本 487
+- 件数は 1/3 以下に届いた。行数は約 44% で、1/3（1,926 行）には届かない。残りの行は、S の中核の長いシナリオ（vertex の native probe と OAuth/ADC の検査、`session.json` 修復の fixture、実際の git・プロセス・bwrap を動かす準備）で、Issue の見積もり（約 56%）よりは小さい。数を合わせるために気付けない損害を防ぐテストは消さない（#228 の決定 6）ので、行数の残りは `integration` の一覧で扱う
+- 群ごとの実測の行数: `test_pi_provider_setup.py` 359、`test_pi_vertex_launchers.py` 691、`test_pi_shared_packages.py` 約 100、`test-pi-superagents.bash` 439、`test-herdr-migration.bash` 435、その他の bash 10 本 494
 - 撤去: `install_beforehand.bash` は `STEP_TOTAL` 29（`grep -c '^step "'` も 29）。`bash -n` は通る。撤去した名前・ファイルへの参照は、`docs/superpowers/` と凍結した `docs/maatlog-poc-porting.md` 以外に残っていない（`git grep`、0 件）
 
 ### 重さが高の守りの確認（D-234-6）
@@ -718,6 +718,13 @@ S か L か決められず、残したもの。
 - pi（F1・F2）の 20 通りのうち、F1-7（同時起動で先着の auth を上書きしない）以外は、壊すと残したテストが失敗した。F1-7 は上の「迷いの一覧」のとおり。F1-4・F1-9・F2-h は、狙ったテストより先に別のテストが落ちた（残したテストのどれかで検出される）。詳細の表: `mutation-F1F2.md`（セッションディレクトリ）
 
 守りになっていないテスト: F1-7 の「先着の auth を後着が上書きしない」部分だけ（この変更で弱めたものではない）。
+
+### レビュー修正（PR #244 サイクル 1）で直した分析の誤り
+
+PR 修正ループのサイクル 1 で、分析の誤りで S の守りを消した 2 件が指摘され、最小の検査を戻した（`docs/superpowers/specs/2026-10-23-create-reso-world-pr244-issue234-review-fixes-design.md`）。下の F3・F4 の表の該当行は、分析時点の記述のままで、次のとおり読み替える。
+
+- F3「関数 6 名前の argv」「6 名前 → 3 関数」: `claude-deepinfra` などは `ccdd` と同じ関数だが、`zshrc.txt` の 3 関数は呼ばれた名前（`$funcstack[1]`）で `--dangerously-skip-permissions` を分岐するので、名前違いは同じ実体ではない。通常名に権限確認の省略が付かないこと（F∩S・権限の境界）を、`test-herdr-migration.bash` に戻した（3 組すべて）
+- F4 `test-run-tests.bash` の場面 1「既定の対象（`--list`）」を L としたこと: 出力は件数と名前を表示するだけで、期待値との比較も失敗も無く、`tests/scripts/*.bash` が既定の一覧から落ちると、そのテストが 1 本も走らないまま PASS と終了コード 0 になる（S）。両方の入口を含み `lib` を含まないことの検査を、ファイル名と件数を固定せずに戻した
 
 ### 守りの確認の詳細
 
