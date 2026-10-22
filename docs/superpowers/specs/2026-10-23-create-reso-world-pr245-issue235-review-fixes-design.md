@@ -1,4 +1,4 @@
-# PR #245（Issue #235）のレビュー修正: サイクル 1
+# PR #245（Issue #235）のレビュー修正: サイクル 1・2
 
 ## 管理
 
@@ -55,7 +55,7 @@
 | （自己レビュー）マニフェストの `"key"` の allowlist は、区切りの無い無作為な値を除外しない | `.gitleaks.toml` の 1 つ目の allowlist（`scan-before-push.sh` が base の設定で使う） | 修正する | `scan-before-push.sh` が `"key": "<無作為な値>"` で検出して止まる | `test-scan-before-push.bash` に 1 件足し、allowlist を `.*` に広げた写しで失敗する | 通る。広げると失敗（P1） |
 | （自己レビュー）main を checkout 中のきれいなローカル main を fast-forward する | `do_sync` の `merge --ff-only` の分岐（detached の `branch -f` とは別） | 修正する | `updated: local main`、HEAD が上流の先端で main のまま、追跡ファイルの変更が無い | `test-resoloop-fork.bash` の新 8 に足し、分岐を何もしない処理にした写しで失敗する | 通る。外すと失敗（P2） |
 | （自己レビュー）`.claude/skills/<name>` の通常ファイルは symlink とみなさない | `check-layout.sh` の `rec_mode != 120000` の条件 | 修正する | `.claude/skills/foo is not a symlink` で失敗 | `test-check-layout.bash` の新 5 に `skills-regular` を足し、条件を外した写しで失敗する | 通る。外すと失敗（P3） |
-| `new-world.sh` の `parent_ok` の通常ファイルの条件（旧 22・23） | `parent_ok` | 対象外 | — | — | 欠けても `mkdir` のエラーで終了 1、プロジェクトは不変（fix-check V-4。L） |
+| `new-world.sh` の `parent_ok` の通常ファイルの条件（旧 22。fix-check の V-4 は旧 22・23 としたが、旧 23 は `:208` の別の文だった（サイクル 2 の fix-check の V-2）） | `parent_ok` | 対象外 | — | — | 欠けても `mkdir` のエラーで終了 1、プロジェクトは不変（fix-check V-4。L） |
 | `context`・`review_copy` の D の組み合わせ | `_require_origin` の共有、push URL の検査 | 既に満たす | 同じ関数・同じ分岐の値違い（Spec の表） | `test_superpowers_context.py` ほか | 別の関数に分かれているものは無い（`select_push_remote` の後ろの宛先は残した） |
 
 ## 修正方針
@@ -86,7 +86,7 @@
   - V-1（preexisting）: 新 14 のリンク先の snapshot の比較は書き込みを検出せず、検出はメッセージの照合だけ → 対応しない（ガードの欠落は今も検出される。見直す条件: 新 14 がメッセージの照合を失うとき）
   - V-2（preexisting）: `p-target` は行き先違いと宙吊りの 2 つの異常を持ち、比較を `[ -e ]` に置き換えた変異が生き残る → 対応しない（今の実装の欠落は検出される。置き換えは別の実装の変更で、致命的な見逃しではない。見直す条件: `check_local_skill_links` の行き先の判定を変えるとき）
   - V-3（文書）: Spec の表の「34 の通常ファイルの `worlds/` は `check-layout.sh` が失敗する」は事実と違う（`mkdir` が失敗して終了 1） → 対応しない（L の分類は変わらず、誤った結果にならない。見直す条件: 表を直すとき）
-  - V-4: 旧 22・23（`parent_ok` の通常ファイルの条件）と旧 34（`rec_mode`）は同じ if の別の条件 → 旧 34 は self-review の M-1 (3) として直した。旧 22・23 は対応しない（欠けても `mkdir` のエラーで終了 1、プロジェクトは不変で、気付けない損害は観測されていない。見直す条件: 途中の通常ファイルで書き込みが起きる経路が見つかったとき）
+  - V-4: 旧 22（`parent_ok` の通常ファイルの条件。旧 23 とした記述はサイクル 2 で訂正）と旧 34（`rec_mode`）は同じ if の別の条件 → 旧 34 は self-review の M-1 (3) として直した。旧 22 は対応しない（欠けても `mkdir` のエラーで終了 1、プロジェクトは不変で、気付けない損害は観測されていない。見直す条件: 途中の通常ファイルで書き込みが起きる経路が見つかったとき）
 
 自己レビュー後の修正（M-1 の 3 か所。planner が直した。`cbc3de0`・`9abd900`）は再レビューしていない。修正の検証: 3 本のテストが通り、ガードを外した写し（P1〜P3）で、足した確認がどれも失敗した。
 
@@ -96,4 +96,67 @@
 
 ### PR の説明の既知の制限
 
-「対応しない」とした指摘のうち、実在する制約（V-1・V-2・V-4 の旧 22・23）は、PR の本文の「既知の制限」に書き足す。
+「対応しない」とした指摘のうち、実在する制約（V-1・V-2・V-4 の旧 22）は、PR の本文の「既知の制限」に書き足す。
+
+## サイクル 2
+
+- 対象 HEAD: `d50196d26add1b78a5202af3848d2c375723c28a`。planner: claude-opus-5-5（claude-code）。確認済みの一覧: `verified/d50196d26add.json`（3 件とも confirmed。自己レビュー（サイクル 1）の M-1 は not_reproduced で解消を確認）。工程の記録: `verified/d50196d26add.planning.json`
+- 修正と自己レビューの担当: サイクル 1 と同じ（`implement` は `claude-opus`、`self-review`・`fix-check` は `self`）。自己レビューの回数: 1
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | 担当 | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | pi-gpt | `d50196d26add` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | devin-swe | `d50196d26add` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | pi-deepseek | `d50196d26add` | はい | Approve |
+| `Grok-4.7.md` | Grok 4.7 256K Extra High | cursor | cursor-grok47 | `d50196d26add` | はい | Approve |
+
+`claude-opus-5-5-commit-f48a125209431fedf5ecf7c5ca5d67ac6cce429b.md`（サイクル 1 の自己レビュー）は、このサイクルの HEAD ではないので入力から外した（指摘は判断済み）。
+
+### 指摘の一覧と振り分け
+
+前のサイクルの `fix` の 5 件は、4 人の Resolved findings と確認済みの一覧（V-4）のとおり解消を確かめた（`resolved`）。`skip` の 6 件は引き継ぐ。新しい指摘は 3 件で、どれも confirmed・introduced（原因は `d0ef1f5`）。分類: 解消済み 5 / 対応する 3 / 対応しない 0（新しい指摘）。
+
+| 判断 | 元の指摘 | 分類 | 根拠 |
+| --- | --- | --- | --- |
+| F-5 | `gpt-6.1-sol#M-3@d50196d26add` | 対応する | `new-world.sh` の `want_link` の行き先比較（143 行）と非 symlink の拒否（145 行）の代表（旧 6・26）を消した。外すと、別の指示を読む `.pi` を残して成功と報告し、JSON も書き換える（誤った結果）。(c) |
+| F-6 | `deepseek-deepseek-v4.1-flash#M-3@d50196d26add` | 対応する | `resoloop-fork.sh test` の `dotnet test` の呼び出し（217 行）を外すと、テストを実行せずに `ok: dotnet test passed` と報告する（失敗を成功と報告）。旧 16 を L として消した。(c) |
+| F-7 | `deepseek-deepseek-v4.1-flash#M-4@d50196d26add` | 対応する | `check-layout.sh` のプロジェクトの symlink の宙吊りの検査（386 行）を外すと、宙吊りの `.pi` を持つプロジェクトを PASS と報告する。旧 42c を L として消した。(c) |
+
+### 設計の見直し
+
+- きっかけ: 1（同じ守る条件の 2 回目）。3 件とも、サイクル 1 の F-1〜F-4 と同じ条件（別の分岐・文だけが守る S のガードの代表を、D・L として消した）が、サイクル 1 の経路表で列挙しなかった経路で破れていた
+- **守る条件の設計:** 対象スクリプトの拒否・停止・動作の各文について、それを 1 つ外したときに気付けない損害（S）が残るなら、今のテストのどれかが失敗する。L（外すと普段の利用か既存の検査で、エラー・明らかな異常として現れる）なら、テストは要らない。判定は、性質（「symlink の先に書かない」など）ではなく文ごとに行う。サイクル 1 の修正（F-1〜F-4、自己レビューの M-1）は、レビュアーと自己レビューが挙げた経路を 1 つずつ直しただけで、レビュアーが試さなかった文（`want_link`・`do_test`・宙吊りの検査）が残った。性質でまとめて「同じ守り」と扱った分類の手順そのものが足りなかった
+- **比べた直し方:** (1) 点の修正を続ける（指摘の 3 件だけを戻す）: 次のサイクルで同じ種類が続く見込みが高い。(2) 条件を 1 か所で保つ形にする: 対象スクリプトの全ての拒否・停止・動作の文を機械的に 1 つずつ外し（変異 193 件）、今のテストと base のテストの両方で実行して、「base は検出するが今は検出しない」ものを全て洗い出し、文ごとに S・L・F を判定する。S は代表を戻し、監査を流し直して検出を確かめる。(3) PR の保証を狭める（S の代表を全ては保たないと PR に書く）: #228 の決定 6（S のテストを消さない）に反する。推奨案は (2)。条件が「全ての文を列挙した表」という構造で成り立ち、レビュアーの試行に頼らない
+- **影響経路（仕組みから作り直した表）:** #235 の Spec の「変異の監査」の表（53 件。S 7 件、L・F 46 件）。base も確かめていなかった 54 件と、今のテストが検出する 86 件は、この PR で守りが減っていないので対象外
+- 監査の限界: 1 つの文を外す変異だけを扱う。複合の条件の片方（サイクル 1 の `rec_mode`）、早い `return`、設定の値（`.gitleaks.toml`）は対象外で、レビューで見つかったものを個別に戻した
+
+### 修正と検証
+
+- 実装: `run_roles.py --phase implement`（`claude-opus`、所要 453 秒）が commit `16d6884` を作った。停止と差分（3 つのテストのファイルだけ、56 行の追加・9 行の削除）を確かめてから cherry-pick した（`22af07f`）。戻した場面: `test-check-layout.bash` の `p-dangling`（旧 42c）、`test-new-world.bash` の新 16〜18（旧 6・26・14）、`test-resoloop-fork.bash` の clone の失敗（旧 6）・`checkout upstream/main` の前の fetch（新 4）・`test`（新 9。旧 16）
+- 監査の流し直し（`22af07f`）: 53 件だけを今のテストと base のテストで実行した。S の 7 件は今のテストが全て検出し、残りの 46 件は L・F として分類したものだけになった（54 件目は、メッセージ中の `run '` に当たっただけの効果の無い変異）。担当も (a)〜(g) の対照を独立に実行し、同じ結果を報告した
+- 関連テスト（`22af07f`）: `test-check-layout.bash`・`test-new-world.bash`・`test-resoloop-fork.bash` が終了コード 0
+- 変更の種類に応じた検証（`15209fc`）: `bash .devcontainer/run-tests.bash` が終了コード 0（`PASS: 28 test(s)`）、`bash scripts/check-layout.sh` が終了コード 0。ログ: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr245.83dl3pq2/verify/`
+- push の前の検査（push はしていない）: `scan-before-push.sh -C <専用の worktree> --base origin/main` が検出なし
+- 計測（`15209fc`）: 33 件・9 本・1903 行（56%・58%）。自己レビュー後の新 19 を足して 1912 行（58%）
+- base の前進: 検証の間に `origin/main` が `135c273`（PR #244、#234 のマージ）に進んだ。この PR と重なるファイルは無く、`git merge-tree` は衝突しない。最終化のときに merge したツリーで検証する
+
+### 自己レビュー（サイクル 2）
+
+`run_roles.py --phase self-review` を 1 回呼んだ（self-review・fix-check とも `self`。claude-opus-5-5 のサブエージェント 2 つに同時に任せた）。対象は修正後の `15209fc`。
+
+- self-review（`claude-opus-5-5-commit-15209fc3f0dc02f1caebd41ec935e5ecbb434c24.md`、Approve）
+  - M-1（Medium、検証済み）: 監査で L とした `new-world.sh:95` の `die` は、既存のプロジェクトの `AGENTS.md` が無い場合、外すと終了コード 0・`DONE` で固有節だけの `AGENTS.md` を作り、`check-layout.sh` も通す（規約の本文の無いプロジェクトを成功と報告する）。→ 対応する（(c)。旧 32 を新 19 として戻し、外した写しで失敗することを確かめた）。きっかけ 3（自己レビューでの再発）に当たるが、設計の見直し（監査）の中の判定の誤り 1 件で、監査の流し直しは 53 件で済んでいる。自己レビュー後の修正は再レビューしていない
+  - I-1（Info）: Spec が監査の結果を「Plan の検証の記録」にあると書いているが、Plan に無い → 対応しない（致命的でない）。公開の前に揃える手順として、参照先を review-fix の Spec に直した
+- fix-check（`verified/15209fc3f0dc.fix-check.json`・`.statement-candidates.json`・`.fix-check.md`）: 主張 16 件のうち holds 11・violates 2・unchecked 2（C-8 の F の判定と実際の git・dotnet での停止、C-16 の fetch を伴う検査）。戻した 7 件の文は、外した写しで全て検出された（`dotnet test` の失敗を `|| true` で捨てる変異も検出）
+  - V-1: 監査は `exit` の文を外していない。`resoloop-fork.sh:210` の `|| exit "$?"` を外すと、今のテストは通り base は検出する → 対応しない（外しても版が空になり、後段の nupkg の確認が 4 で止める L。Spec の監査の限界に `exit` を書き足した）
+  - V-2: Spec の new-world の表が旧 8・23・27 を D としていたが、監査の表では L（`:208`・`:147`）。D-235-9 の定義にも合わない → 対応しない（文書の表記だけ）。公開の前に揃える手順として、表の記述を監査の表に合わせた
+
+自己レビュー後の修正: `new-world.sh:95` の場面（新 19）を planner が戻し、Spec を揃えた。`test-new-world.bash` が通り、`:95` を外した写しで新 19 が失敗した。
+
+最後の修正の後（`007bd06`）: `bash .devcontainer/run-tests.bash` が終了コード 0（`PASS: 28 test(s)`）、`bash scripts/check-layout.sh` が終了コード 0。ログ: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr245.83dl3pq2/verify2/`。全体の pytest は、Python のファイルを変えていないので再実行していない（修正前の `5e9bc8c` で 3636 passed）
+
+### 結論（サイクル 2）
+
+結論 1: 修正して push する。push する HEAD と検証の結果は状況コメントに書く。
