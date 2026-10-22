@@ -262,4 +262,13 @@ chmod +x "$tmp/uv-fail/uv"
 PATH="$tmp/uv-fail:$PATH" expect_exit 3 'already applied' "$tmp/r18" demo
 [ "$(cat "$tmp/r18/worlds/demo/CLAUDE.md")" = '@AGENTS.md' ] || fail 'scaffold was not applied before the failing uv sync'
 
+# 19. 既存プロジェクトに AGENTS.md が無ければ、--apply は 3 で止まり何も変更しない。通すと、規約の本文の無い
+#     固有節だけの AGENTS.md を作って成功と報告する
+new_root "$tmp/r19"
+run "$tmp/r19" --no-sync demo >/dev/null
+rm "$tmp/r19/worlds/demo/AGENTS.md"
+before="$(snapshot "$tmp/r19/worlds/demo")"
+expect_exit 3 'demo/AGENTS.md is missing or not a regular file' "$tmp/r19" --apply --no-sync demo
+[ "$before" = "$(snapshot "$tmp/r19/worlds/demo")" ] || fail 'case 19 changed files'
+
 printf 'PASS: new-world script keeps existing files intact\n'
