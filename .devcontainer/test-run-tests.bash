@@ -1,5 +1,5 @@
 #!/bin/bash
-# .devcontainer/run-tests.bash の終了コードと GIT_* の隔離を検査する。仕様 7.2・9.2 節
+# .devcontainer/run-tests.bash の終了コード、GIT_* の隔離と既定の対象を検査する。仕様 7.2・9.2 節
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runner="$root/.devcontainer/run-tests.bash"
@@ -28,4 +28,11 @@ GIT_DIR="$tmp/victim/.git" bash "$runner" "$tmp/git.bash" > "$tmp/out" 2>&1 || f
 cmp -s "$tmp/victim/.git/config" "$tmp/victim-config" || fail 'a test changed the repository named by the inherited GIT_DIR'
 [ -d "$tmp/fixture/.git" ] || fail 'the test did not get its own repository'
 
-printf 'PASS: run-tests.bash reports failures and isolates GIT_*\n'
+# 4. 引数なしの既定の対象は .devcontainer/ と tests/scripts/ の両方を含み、補助の tests/scripts/lib/ を含まない。
+#    片方が落ちると、そのテストが 1 本も走らないまま PASS を報告する（ファイル名と件数は照合しない）
+listed="$(bash "$runner" --list)"
+grep -q '^\.devcontainer/' <<<"$listed" || fail 'the default list lacks .devcontainer/'
+grep -q '^tests/scripts/' <<<"$listed" || fail 'the default list lacks tests/scripts/'
+if grep -q '^tests/scripts/lib/' <<<"$listed"; then fail 'the default list includes a helper under tests/scripts/lib/'; fi
+
+printf 'PASS: run-tests.bash reports failures, isolates GIT_* and lists both test roots\n'

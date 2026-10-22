@@ -386,11 +386,13 @@ PY
     chmod +x "$test_home/bin/claude"
 }
 
+# F∩S: 権限確認を省く --dangerously-skip-permissions は短縮名（ccdd / ccddg / ccdu）だけに付ける。
+# 通常名に付いても動くので、了承の無いまま権限確認が外れる。
 test_cc_launcher_destination_and_exit_status() {
     local test_home="${TEST_ROOT}/home-cc-destination"
     make_claude_probe "$test_home"
     local fn log rc
-    for fn in ccdd ccddg ccdu; do
+    for fn in ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union; do
         log="${test_home}/${fn}.json"
         run_zshrc_code "$test_home" "source \"\$ZSHRC_TEMPLATE\"; ${fn} probe" \
             HERDR_TEST_CLAUDE_DUMP="$log" DEEPINFRA_TOKEN=fake-di OPENCODE_GO_CLAUDE_API_KEY=fake-union
@@ -400,8 +402,16 @@ import sys
 
 log, name = sys.argv[1:]
 with open(log, encoding="utf-8") as handle:
-    env = json.load(handle)["env"]
-union = name == "ccdu"
+    data = json.load(handle)
+argv, env = data["argv"], data["env"]
+# 利用者の引数より前の、ランチャーが付ける部分にだけ省略のフラグが入る（モデル名などは照合しない）
+assert argv[-1] == "probe", (name, argv)
+skip = "--dangerously-skip-permissions"
+if name in ("ccdd", "ccddg", "ccdu"):
+    assert skip in argv[:-1], (name, argv)
+else:
+    assert skip not in argv, (name, argv)
+union = name in ("ccdu", "claude-opencode-union")
 assert env["ANTHROPIC_BASE_URL"] == ("https://opencode.ai/zen/go" if union else "https://api.deepinfra.com/anthropic")
 assert env["ANTHROPIC_AUTH_TOKEN"] == (None if union else "fake-di")
 assert env["ANTHROPIC_API_KEY"] == ("fake-union" if union else None)
