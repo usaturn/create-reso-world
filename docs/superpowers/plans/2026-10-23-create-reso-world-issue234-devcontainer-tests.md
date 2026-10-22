@@ -66,9 +66,9 @@
 
 **テストの要否:** 既存テストの削除と代表化（新しい挙動のテストは書かない）。確認は、領域の pytest と、移した 7 件が兄弟 import なしで通ること。
 
-- [ ] **Step 1:** Spec の F1 の表のとおり処置する。`test_pi_agent_paths.py` の 7 件が使う補助（`ROOT`・`_snapshot`・`isolated_command`・`Harness`・`SETUPS` など）は、`test_pi_provider_setup.py` に持たせ、`test_pi_mcp_adapter_migration` からの import を無くす。`--settings-check`・`--settings-clean` を使う部分は外す（Task 2 が撤去する）
-- [ ] **Step 2:** `uv run --locked pytest tools/devenv_migration/tests/test_pi_provider_setup.py tools/devenv_migration/tests/test_pi_vertex_launchers.py` が通る。`git grep -n 'test_pi_agent_paths\|test_pi_mcp_adapter_migration' -- tools .devcontainer/test-pi-migrations.bash` で `test_pi_provider_setup.py` と `test_pi_vertex_launchers.py` からの参照が無い
-- [ ] **Step 3:** commit（`test(devenv): reduce the pi provider setup and vertex launcher tests (#234)`）
+- [x] **Step 1:** Spec の F1 の表のとおり処置する。`test_pi_agent_paths.py` の 7 件が使う補助（`ROOT`・`_snapshot`・`isolated_command`・`Harness`・`SETUPS` など）は、`test_pi_provider_setup.py` に持たせ、`test_pi_mcp_adapter_migration` からの import を無くす。`--settings-check`・`--settings-clean` を使う部分は外す（Task 2 が撤去する）
+- [x] **Step 2:** `uv run --locked pytest tools/devenv_migration/tests/test_pi_provider_setup.py tools/devenv_migration/tests/test_pi_vertex_launchers.py` が通る。`git grep -n 'test_pi_agent_paths\|test_pi_mcp_adapter_migration' -- tools .devcontainer/test-pi-migrations.bash` で `test_pi_provider_setup.py` と `test_pi_vertex_launchers.py` からの参照が無い
+- [x] **Step 3:** commit（`test(devenv): reduce the pi provider setup and vertex launcher tests (#234)`）
 
 ## Task 2: pi の導入と移行（F2、Task 1 の後）
 
@@ -81,10 +81,10 @@
 
 **テストの要否:** 撤去と削除。残す場面（`test-pi-superagents.bash` の導入の場面と `test_rebuild_preserves_shared_packages`）は撤去後の `install_pi_extensions` と合わせて直す。
 
-- [ ] **Step 1:** 撤去を実装する。`install_pi_extensions` は `pi install --approve npm:@teelicht/pi-superagents` と、導入後の `pi list` に新拡張が在ることの確認だけを残す。`bash -n .devcontainer/install_beforehand.bash`、`STEP_TOTAL` と `grep -c '^step "'` が同じ（29）
-- [ ] **Step 2:** テストを処置する（Spec の F2 の表）。`bash .devcontainer/test-pi-superagents.bash` と `uv run --locked pytest tools/devenv_migration` が通る
-- [ ] **Step 3:** README の行を直す。`.devcontainer/README.md` に、残っていたら手で `pi remove npm:<名前>` する旨を残す
-- [ ] **Step 4:** commit（`refactor(devcontainer): retire the finished pi extension cleanups and their tests (#234)`）
+- [x] **Step 1:** 撤去を実装する。`install_pi_extensions` は `pi install --approve npm:@teelicht/pi-superagents` と、導入後の `pi list` に新拡張が在ることの確認だけを残す。`bash -n .devcontainer/install_beforehand.bash`、`STEP_TOTAL` と `grep -c '^step "'` が同じ（29）
+- [x] **Step 2:** テストを処置する（Spec の F2 の表）。`bash .devcontainer/test-pi-superagents.bash` と `uv run --locked pytest tools/devenv_migration` が通る
+- [x] **Step 3:** README の行を直す。`.devcontainer/README.md` に、残っていたら手で `pi remove npm:<名前>` する旨を残す
+- [x] **Step 4:** commit（`refactor(devcontainer): retire the finished pi extension cleanups and their tests (#234)`）
 
 ## Task 3: herdr の bash テスト（F3、Task 1 と並行）
 
@@ -94,9 +94,9 @@
 
 **テストの要否:** 削除と縮小。F∩S（unset の一覧・POLLUTED_・資格情報の送り先）は消さない。
 
-- [ ] **Step 1:** Spec の F3 の表のとおり処置する。`bash .devcontainer/test-herdr-migration.bash` が通る
-- [ ] **Step 2:** 消した 2 本への参照（README・docs・スクリプト）を `git grep` で調べ、撤去した経路を説明する行だけを直す
-- [ ] **Step 3:** commit（`test(devcontainer): reduce the herdr tests to the guarded behaviors (#234)`）
+- [x] **Step 1:** Spec の F3 の表のとおり処置する。`bash .devcontainer/test-herdr-migration.bash` が通る
+- [x] **Step 2:** 消した 2 本への参照（README・docs・スクリプト）を `git grep` で調べ、撤去した経路を説明する行だけを直す
+- [x] **Step 3:** commit（`test(devcontainer): reduce the herdr tests to the guarded behaviors (#234)`）
 
 ## Task 4: その他の bash テスト（F4、Task 1 と並行）
 
@@ -106,9 +106,9 @@
 
 **テストの要否:** 削除と縮小。mount の一覧は F∩S として残す。`test-install-beforehand.bash` の pi の step は触らない（Task 2）。
 
-- [ ] **Step 1:** Spec の F4 の表のとおり処置する。変えた各ファイルを `bash .devcontainer/test-*.bash` で個別に実行して通る
-- [ ] **Step 2:** 消した 2 本への参照を `git grep` で調べ、撤去した経路を説明する行だけを直す
-- [ ] **Step 3:** commit（`test(devcontainer): reduce the shell tests to the guarded behaviors (#234)`）
+- [x] **Step 1:** Spec の F4 の表のとおり処置する。変えた各ファイルを `bash .devcontainer/test-*.bash` で個別に実行して通る
+- [x] **Step 2:** 消した 2 本への参照を `git grep` で調べ、撤去した経路を説明する行だけを直す
+- [x] **Step 3:** commit（`test(devcontainer): reduce the shell tests to the guarded behaviors (#234)`）
 
 ## Task 5: 統合確認
 
@@ -117,13 +117,17 @@
 
 **テストの要否:** 書かない。参照の掃除、重さが高の守りの確認、計測、全体検証で確かめる。
 
-- [ ] **Step 1: 参照の掃除。** 消したファイル名と撤去した名前（`test-pi-migrations`・`test-pi-openai-codex`・`test-herdr-status`・`test-herdr-agent-task`・`test-verify-resonite-tooling`・`test-resoloop-tool`・`test_pi_agent_paths`・`test_pi_mcp_adapter_migration`・`test_pi_installer_isolation`・`pi-launcher-install`・`remove_pi_mcp_adapter`・`remove_pi_distill`・`remove_pi_lens`・`--settings-check`・`--settings-clean`）を `git grep` し、凍結した記録（`docs/maatlog-poc-porting.md`、過去の Spec・Plan）以外に残っていれば撤去した経路の説明だけを直す（`.devcontainer/README.md` の「テストの実行」・`README.md` の「テスト」は `integration` の担当なので、残る参照は #228 にコメントする）
-- [ ] **Step 2: 重さが高の守りの確認（D-234-6）。** Spec の各棚卸しの「壊し方案」のうち、重さが高のもの（F1 の 9 件、F2 の bwrap 不在・Vertex の auth overlay・`--if-absent`、F3 の 10 件、F4 の必須 5 件）を、`mktemp -d` で作った `/tmp` の使い捨てのコピーで 1 つずつ壊し、残したテストが失敗することを確かめる。結果（守り・壊し方・失敗したテスト・終了コード）を Spec の「計測の結果」に書き、コピーを `${d:?}` 付きで消す。失敗しないテストは守りになっていないので、テストを直す
-- [ ] **Step 3: 計測。** #234 の「検証」の 3 つのコマンドを commit 済みの状態で実行し、前後（437 件・5,778 行→?）を Spec の「計測の結果」に書く。「迷いの一覧」を各棚卸しから集める
+- [x] **Step 1: 参照の掃除。** 消したファイル名と撤去した名前（`test-pi-migrations`・`test-pi-openai-codex`・`test-herdr-status`・`test-herdr-agent-task`・`test-verify-resonite-tooling`・`test-resoloop-tool`・`test_pi_agent_paths`・`test_pi_mcp_adapter_migration`・`test_pi_installer_isolation`・`pi-launcher-install`・`remove_pi_mcp_adapter`・`remove_pi_distill`・`remove_pi_lens`・`--settings-check`・`--settings-clean`）を `git grep` し、凍結した記録（`docs/maatlog-poc-porting.md`、過去の Spec・Plan）以外に残っていれば撤去した経路の説明だけを直す（`.devcontainer/README.md` の「テストの実行」・`README.md` の「テスト」は `integration` の担当なので、残る参照は #228 にコメントする）
+- [x] **Step 2: 重さが高の守りの確認（D-234-6）。** Spec の各棚卸しの「壊し方案」のうち、重さが高のもの（F1 の 9 件、F2 の bwrap 不在・Vertex の auth overlay・`--if-absent`、F3 の 10 件、F4 の必須 5 件）を、`mktemp -d` で作った `/tmp` の使い捨てのコピーで 1 つずつ壊し、残したテストが失敗することを確かめる。結果（守り・壊し方・失敗したテスト・終了コード）を Spec の「計測の結果」に書き、コピーを `${d:?}` 付きで消す。失敗しないテストは守りになっていないので、テストを直す
+- [x] **Step 3: 計測。** #234 の「検証」の 3 つのコマンドを commit 済みの状態で実行し、前後（437 件・5,778 行→?）を Spec の「計測の結果」に書く。「迷いの一覧」を各棚卸しから集める
 - [ ] **Step 4: 検証。** `git status --porcelain` が空であることを確かめ、worktree のルートで `uv run --locked pytest tools/devenv_migration`、`bash .devcontainer/run-tests.bash .devcontainer/test-*.bash`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh` を順にバックグラウンドで実行する（並行させない。各 30 分まで）。落ちたら単独で再実行し、基準（`481a047`）の同じテストと比べて判定する。検証した HEAD・argv・終了コード・ログの完全パスを `$SESSION/verify/record.md` に、`finalize.py --checks-file` の形のファイルを `$SESSION/verify/checks.json` に書く
-- [ ] **Step 5: ブランチ全体のレビュー**（新しい文脈のサブエージェント 1 回）。Spec・Plan・Issue #234・#228 の基準・`git diff origin/main...HEAD` を渡し、(1) S を消していないか、(2) 撤去が postCreate を壊していないか、(3) F∩S が残っているか、(4) 担当外のファイルを変えていないか、を見てもらう。致命的な指摘だけを直す
-- [ ] **Step 6:** Spec・Plan の記録を commit する（これが最後の commit。以降に変えたら Step 3〜4 をやり直す）
+- [x] **Step 5: ブランチ全体のレビュー**（新しい文脈のサブエージェント 1 回）。Spec・Plan・Issue #234・#228 の基準・`git diff origin/main...HEAD` を渡し、(1) S を消していないか、(2) 撤去が postCreate を壊していないか、(3) F∩S が残っているか、(4) 担当外のファイルを変えていないか、を見てもらう。致命的な指摘だけを直す
+- [x] **Step 6:** Spec・Plan の記録を commit する（これが最後の commit。以降に変えたら Step 3〜4 をやり直す）
 
 ## 検証の記録
 
-（実装の後に書く）
+- 棚卸し（4 群を並行で分析）から Spec・Plan まで、実装（Task 1・3・4 を並行、Task 2 は Task 1 の後）、重さが高の守りの確認、ブランチ全体のレビューを、2026-10-23（UTC）に 1 セッションで行った
+- 実装後の計測（commit `32ce013`）: pytest 419→39、bash 18→12、件数の合計 437→51（約 12%）、行数 5,778→2,501（約 43%）。値と群ごとの内訳は Spec の「計測の結果」
+- 重さが高の守りの確認: herdr・その他の bash は全件、pi は F1-7 を除く全件で、壊すと残したテストが失敗した。F1-7 は「迷いの一覧」に載せた（Spec の「計測の結果」）
+- ブランチ全体のレビュー（新しい文脈のサブエージェント 1 回）: 致命的な指摘なし。軽微な指摘の「契約」の語は直した。旧拡張の自動撤去が無くなったことは意図した仕様（Spec D-234-1 と「既知の制限」）
+- 最後の commit の上での README の「テスト」の入口の実行結果は、HEAD が変わるので Plan に書かず、PR 本文に書く

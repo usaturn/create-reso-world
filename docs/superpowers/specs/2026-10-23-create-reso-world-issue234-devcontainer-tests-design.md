@@ -566,7 +566,7 @@ worktree: `.worktrees/issue-234-devcontainer-tests`（HEAD `481a047`）。
 
 | 場面 | 分類 | 理由 | 処置 |
 | --- | --- | --- | --- |
-| 1. プロジェクトごとの結果を表示し、差分・失敗があっても 0 で終わる | S（中） | 同梱スキルの同期の要否を postCreate で知らせる唯一の経路。終了コード 6＋`SKILL_SYNC_REQUIRED` の読み違えで「最新」と表示すると、更新が必要なことに気付けない（誤った結果の報告）。常に 0 で終わる契約も、壊れると postCreate が止まる。 | 残す。ok・stale・edited の 3 つに絞る |
+| 1. プロジェクトごとの結果を表示し、差分・失敗があっても 0 で終わる | S（中） | 同梱スキルの同期の要否を postCreate で知らせる唯一の経路。終了コード 6＋`SKILL_SYNC_REQUIRED` の読み違えで「最新」と表示すると、更新が必要なことに気付けない（誤った結果の報告）。常に 0 で終わる既存の挙動も、壊れると postCreate が止まる。 | 残す。ok・stale・edited の 3 つに絞る |
 | 2. プロジェクト検出（ネスト・`.resoloop.json` の無いものを除く、`./` 付きで渡す） | D | 検出の誤りは該当プロジェクトの行が出ない／ `check failed` と見える（表示の異常）。場面 1 の状態の読み取りが代表。`-dash` の名前は L（オプションとして読まれればエラー）。 | 消す |
 | 3. resoloop が無ければ表示して 0 | L | 表示のみ。 | 消す |
 | 4. プロジェクトが 0 件なら表示して 0 | L | 表示のみ。 | 消す |
@@ -684,8 +684,122 @@ worktree: `.worktrees/issue-234-devcontainer-tests`（HEAD `481a047`）。
 
 ## 迷いの一覧（`integration` の一覧の先頭に並べる）
 
-実装後に、各棚卸しの「迷い」の項目をここに集める。
+S か L か決められず、残したもの。
+
+| テスト | 内容 | 残した理由 |
+| --- | --- | --- |
+| `test-pi-superagents.bash` の config 無しで止まる場面 | tier 設定が無いとき exit 1 | L 寄りだが、止まらずに tier が効かないまま起動すると気付きにくい（低） |
+| 同 導入の場面（導入後の `pi list` に新拡張が無ければ exit 1） | 検査が抜けると postCreate が成功扱いで終わる | 初回の利用で気付ける L の面もあるが、失敗を成功と報告する損害に当たりうる（中） |
+| `test-herdr-migration.bash` の multi ③ | 健全な兄弟 identity の pane の行き先 | S（中-低）か L か決めきれない |
+| 同 ccdd の終了コード・親環境の保持 | 終了コードを握りつぶしても起動は成功する | 低 |
+| `test-install-beforehand.bash` の DSH の版の不一致 | 固定した版でない CLI を使っても動く | L とも読める（低） |
+| `test_concurrent_launchers_initialize_only_empty_missing_auth`（`test_pi_vertex_launchers.py`） | 先着の Pi が書いた auth を後着が上書きしないこと | 守りの確認で、`link` を `rename` に壊しても失敗しなかった（高）。空 `{}` どうしの競合では結果が同じで区別できない。この変更の前から同じ観測で、決定的な再現は難しい。空 auth の mode・内容・staging の後始末は守られている |
 
 ## 計測の結果
 
-実装後に、前後の件数・行数（#234 の「検証」の計測）、重さが高の守りの確認の結果、rebuild の後の確認の結果を書く。
+計測は #234 の「検証」のコマンドを、commit 済みの状態（`32ce013`）で実行した。
+
+| 指標 | 前（`481a047`） | 後 | 割合 |
+| --- | --- | --- | --- |
+| pytest（`tools/devenv_migration`） | 419 | 39 | 約 9% |
+| bash のテスト（Meshy を除く） | 18 | 12 | 67% |
+| 件数の合計 | 437 | 51 | 約 12%（目安の 1/3 以下を満たす） |
+| 行数 | 5,778 | 2,501 | 約 43% |
+
+- 件数は 1/3 以下に届いた。行数は約 43% で、1/3（1,926 行）には届かない。残りの行は、S の中核の長いシナリオ（vertex の native probe と OAuth/ADC の検査、`session.json` 修復の fixture、実際の git・プロセス・bwrap を動かす準備）で、Issue の見積もり（約 56%）よりは小さい。数を合わせるために気付けない損害を防ぐテストは消さない（#228 の決定 6）ので、行数の残りは `integration` の一覧で扱う
+- 群ごとの実測の行数: `test_pi_provider_setup.py` 359、`test_pi_vertex_launchers.py` 691、`test_pi_shared_packages.py` 約 100、`test-pi-superagents.bash` 439、`test-herdr-migration.bash` 425、その他の bash 10 本 487
+- 撤去: `install_beforehand.bash` は `STEP_TOTAL` 29（`grep -c '^step "'` も 29）。`bash -n` は通る。撤去した名前・ファイルへの参照は、`docs/superpowers/` と凍結した `docs/maatlog-poc-porting.md` 以外に残っていない（`git grep`、0 件）
+
+### 重さが高の守りの確認（D-234-6）
+
+`git archive` で `mktemp -d` に展開した使い捨てのコピーで、守りを 1 つずつ壊し、残したテストを実行した。元のコピーでは対象のテストがすべて通った。壊した後に失敗したか、の結果は次のとおり。
+
+- herdr（F3）14 通り、その他の bash（F4）の重さが高の守り（gitleaks の SHA-256 検証、失敗時に既存を保つ、`run-tests` の `GIT_*` の隔離、`buni`、`~/.claude.json`）と、余力の中・F∩S の守り（700、個人設定の上書き禁止、雛形の変更が効く、ctx7、`run-tests` の終了コード、`/workspaces/reso-world`・`/home/vscode` の禁止）は、すべて失敗した。詳細の表: `mutation-F3F4.md`（セッションディレクトリ）
+- pi（F1・F2）の 20 通りのうち、F1-7（同時起動で先着の auth を上書きしない）以外は、壊すと残したテストが失敗した。F1-7 は上の「迷いの一覧」のとおり。F1-4・F1-9・F2-h は、狙ったテストより先に別のテストが落ちた（残したテストのどれかで検出される）。詳細の表: `mutation-F1F2.md`（セッションディレクトリ）
+
+守りになっていないテスト: F1-7 の「先着の auth を後着が上書きしない」部分だけ（この変更で弱めたものではない）。
+
+### 守りの確認の詳細
+
+### 守りの確認（F3・F4、HEAD の使い捨てコピー）
+
+元のコピーで該当テストは全て通った（rc=0）。各行は壊して実行し、元に戻した。
+
+| # | 守り | 重さ | 壊し方 | 実行したテスト | 結果（rc） |
+| --- | --- | --- | --- | --- | --- |
+| 1 | サーバー稼働中の無変更 | 中 | running 判定を削除 | test-herdr-migration | 失敗した rc=1: FAIL: running must leave session unchanged |
+| 2 | 状態判定の厳密さ(numeric_zero) | 中 | is not False を not status.get に | test-herdr-migration | 失敗した rc=1:  |
+| 3 | 未知 version の無変更 | 中 | version 判定を削除 | test-herdr-migration | 失敗した rc=1: FAIL: unknown_version must leave session unchanged |
+| 4 | 修復先がルート自身 | 中低 | ルート自身の return を削除 | test-herdr-migration | 失敗した rc=1: FAIL: workspace_root must leave session unchanged |
+| 5 | 修復先の不在 | 中低 | -d/-x の確認を削除 | test-herdr-migration | 失敗した rc=1: FAIL: missing_destination must leave session unchanged |
+| 6 | 複数 entry の収束防止(代入) | 中 | target_taken = True を削除 | test-herdr-migration | 失敗した rc=1:  |
+| 7 | 複数 entry の収束防止(初期値) | 中 | 初期の any(...) を False に | test-herdr-migration | 失敗した rc=1: FAIL: workspace entry must remain unchanged when repair target is taken |
+| 8 | pane の流れ先(迷い) | 中低 | pane_target を workspace 固定 | test-herdr-migration | 失敗した rc=1:  |
+| 10 | 資格情報の漏れ(ANTHROPIC_API_KEY を配列から削除) | 高 | 配列から 1 件削除 | test-herdr-migration | 失敗した rc=1: FAIL: cc_launcher_unsets must match expected_unsets exactly |
+| 11 | 資格情報の漏れ(ccdu の入力キー OPENCODE_API_KEY を削除) | 高 | 配列から入力キーを削除 | test-herdr-migration | 失敗した rc=1: FAIL: cc_launcher_unsets must match expected_unsets exactly |
+| 12 | 資格情報の送り先(URL) | 高 | ANTHROPIC_BASE_URL を別 URL に | test-herdr-migration | 失敗した rc=1:  |
+| 13 | 資格情報の送り先(MCP) | 高 | ENABLE_CLAUDEAI_MCP_SERVERS=true | test-herdr-migration | 失敗した rc=1:  |
+| 14 | 終了コード(迷い) | 低 | ccdd の claude 行に || true | test-herdr-migration | 失敗した rc=1: FAIL: CLI exit status and parent env (got 0) |
+| 9 | 資格情報の漏れ(ccddg の配列) | 高 | ccddg の env から配列を外す（153 行） | test-herdr-migration | 失敗した rc=1: ccddg.log must not contain POLLUTED_ |
+| 9b | 資格情報の漏れ(ccdu の配列) | 高 | ccdu の env から配列を外す（184 行） | test-herdr-migration | 失敗した rc=1: ccdu.log must not contain POLLUTED_ |
+
+###2・6・8・12・13 の失敗の出力は Python の AssertionError（stdin の assert）。終了コードは全て 1。
+
+#### F4
+
+| # | 守り | 重さ | 壊し方 | 実行したテスト | 結果（rc） |
+| --- | --- | --- | --- | --- | --- |
+| 1 | gitleaks SHA-256 検証 | 高 | sha256sum -c の検証を true に | test-install-gitleaks | 失敗した rc=1: FAIL: installer accepted an archive that does not match the pinned SHA-256 |
+| 3 | run-tests の GIT_* 隔離 | 高 | unset の行を削除 | test-run-tests | 失敗した rc=1: FAIL: a test changed the repository named by the inherited GIT_DIR |
+| 4 | run-tests の終了コード | 中 | exit 1 を exit 0 に | test-run-tests | 失敗した rc=1: FAIL: expected exit 1, got 0 |
+| 5 | buni が bun 無しで node_modules を消さない | 高 | require_command bun を削除 | test-shell-tools | 失敗した rc=1: FAIL: buni removed node_modules although bun is missing |
+| 7 | 秘密情報ディレクトリの 700 | 中 | chmod 700 を削除 | test-initialize-mounts | 失敗した rc=1: FAIL: ~/.config/create-reso-world must be mode 700 |
+| 8 | 個人設定の上書き禁止 | 中 | 既存の早期 return を削除 | test-install-beforehand | 失敗した rc=1: FAIL: an existing personal config was overwritten: /tmp/tmp.S7j3XWL7HX/home/.config/agent-runner/config.toml |
+| 9 | ctx7 を --version 以外で呼ばない | 中 | 末尾に ctx7 setup | test-install-ctx7 | 失敗した rc=1: FAIL: installer ran ctx7 for more than its version: ctx7 --version ctx7 setup |
+| 10 | 絶対パス禁止 (/workspaces/reso-world) | F∩S | README に追記 | test-readme | 失敗した rc=1: .devcontainer/README.md:1:/workspaces/reso-world FAIL: .devcontainer hard-codes the workspace path |
+| 11 | 絶対パス禁止 (/home/vscode) | F∩S | zshrc.txt に追記 | test-shell-tools | 失敗した rc=1: 1:# /home/vscode FAIL: zshrc.txt must not hard-code /home/vscode |
+
+再確認（上の壊し方が守りに当たっていなかった 3 件を差し替え）
+
+| 守り | 重さ | 壊し方 | 実行したテスト | 結果 |
+| --- | --- | --- | --- | --- |
+| gitleaks 失敗時に既存を変えない | 高 | SHA 確認の前に既存の実行ファイルを上書き | test-install-gitleaks | 失敗した rc=1: FAIL: installer replaced gitleaks although the SHA-256 did not match |
+| initialize が ~/.claude.json を消さない | 高 | touch の前に rm -f | test-initialize-mounts | 失敗した rc=1: FAIL: initialize.bash changed ~/.claude.json |
+| 個人設定が雛形の丸写しでない(#167) | 中 | 最小の個人設定の代わりに雛形を丸写し | test-install-beforehand | 失敗した rc=1: FAIL: the minimal personal config was not placed at /tmp/tmp.8ovmV4T95g/home/.config/agent-runner/config.toml |
+※ F4 表の 2・6・12 行は差し替え済み（下の再確認表が有効）
+
+### 重さが高の守りの確認: F1（pi の Python 設定）・F2（pi の導入と移行）
+
+commit 32ce013 を `git archive` で `mktemp -d` に展開した使い捨てコピーで、守りを 1 つずつ壊し、残したテストを実行した。元のコピーでは 4 つの対象（`test_pi_provider_setup.py`・`test_pi_vertex_launchers.py`・`test_pi_shared_packages.py`・`test-pi-superagents.bash`）はすべて終了コード 0。壊した後は `git checkout` で戻した。
+
+| ID | 守り（重さ） | 壊し方（コピー内） | 失敗したテスト | 終了コード |
+| --- | --- | --- | --- | --- |
+| F1-1 | 保存済み OAuth を Pi が消費・更新して失わない（高） | `pi-superagents-exec.zsh` の `--ro-bind-data 3 …` を `--bind` に | `test_real_namespace_masks_auth_for_parent_and_child_preserving_saved_files` | 1 |
+| F1-2 | `GOOGLE_CLOUD_API_KEY` を外す（高） | `pigemf` の `unset GOOGLE_CLOUD_API_KEY` を削除 | `test_cloud_defaults_precedence_and_api_key_removal` | 1 |
+| F1-3a | 鍵を含む auth を 0600 に保つ（高） | `pi-provider-setup.py` の auth の mode を `0o644` に | `test_update_preserves_other_providers_and_private_permissions` | 1 |
+| F1-3b | 他の provider・鍵を消さない（高） | `providers[provider] = …` を `data["providers"] = {provider: …}` に | 同上 | 1 |
+| F1-4 | 固定名 tmp の symlink 先を上書きしない（高） | `stage()` の `mkstemp` を固定名 `.tmp` の `os.open` に | `test_update_preserves_other_providers_and_private_permissions`（`test_existing_fixed_name_tmp…` の前に落ちた） | 1 |
+| F1-5 | symlink・hardlink の先へ書かない（高） | `plain_file()` を即 `return` に | `test_rejected_models_change_no_managed_state[symlink]` | 1 |
+| F1-6 | 入出力の失敗でファイルを切り詰めない（高） | `os.replace(temporary, path)` を `path.write_bytes(…)` に | `test_new_models_are_private_even_under_public_umask` | 1 |
+| F1-7 | 同時起動で保存済みの auth を置き換えない（高） | 空 auth の作成を `fs.linkSync`（EEXIST なら先着を尊重）から `fs.renameSync`（上書き）に | **失敗しなかった**（終了コード 0） | 0 |
+| F1-7b | 同上（空 auth の mode・staging の後始末・内容） | `{ mode: 0o644 }` / `fs.rmSync(staging…)` を削除 / 内容を `[]` に | `test_concurrent_launchers_initialize_only_empty_missing_auth`（3 通りとも） | 1 |
+| F1-8 | 壊れた auth で秘密を出さない（高） | `catch` で `auth.json` の中身を stderr に出す | `test_invalid_auth_configuration_fails_closed_without_secret_output` | 1 |
+| F1-9 | セッションなどの状態が host に残る（高） | auth の overlay を agent dir 全体の `--tmpfs` に | `test_real_namespace_masks_auth_for_parent_and_child_preserving_saved_files`（`test_nonauth_state…` の前に落ちた） | 1 |
+| F2-a | bwrap 不在で止まる（高） | `if ! command -v bwrap` を `if false` に | `test-pi-superagents.bash`: `missing bwrap must exit 1` | 1 |
+| F2-b | Vertex だけ auth overlay（高） | `pigemp) reply=(…) ;;` を `pigemp) return 1 ;;` に | `test-pi-superagents.bash`: `pigemp … must overlay auth.json` | 1 |
+| F2-c | `--if-absent` が利用者の編集を保つ（高〜中） | `setup_pi_superagents.zsh` の保持の分岐を削除 | `test-pi-superagents.bash`: `--if-absent must not overwrite an existing config` | 1 |
+| F2-d | 共有登録を消さない（中） | `Installing the shared skills` の前に `pi remove npm:@upstash/context7-pi` を足す | `test_rebuild_preserves_shared_packages` | 1 |
+| F2-e | 退避世代を上書きしない（中） | `while [[ -e "${backup}" ]]` の連番ループを削除 | `test-pi-superagents.bash`: `two generations must be preserved` | 1 |
+| F2-f | setup が settings を書き換えない（中） | `setup_pi_superagents.zsh` の末尾で `settings.json` に追記 | `test-pi-superagents.bash`: `setup changed settings bytes` | 1 |
+| F2-g | tier が別ランチャーの設定を重ねない（中） | `--bind "${launcher_dir}" …` の src を `subagent.d/pigo` に | `test-pi-superagents.bash`: `piccd bind src` | 1 |
+| F2-h | dry-run と実 argv の一致（中） | dry-run の `printf` に引数 `extra` を足す | `test-pi-superagents.bash`: `bind dst must equal HOME-based shared dir`（位置のずれとして別の検査が先に落ちた） | 1 |
+
+#### 判定
+
+- F1-7 だけ、壊しても失敗しなかった。`test_concurrent_launchers_initialize_only_empty_missing_auth` は、起動前に auth が無い状態で複数のランチャーを同時に起動し、最後の内容が `{}`・mode 0600・staging の残りが無いことを確かめる。`link`（先着を尊重）と `rename`（後着が上書き）は、空 `{}` どうしの競合では結果が同じなので、この観測では区別できない（上書きが害になるのは、先着の Pi が OAuth を書き込んだ後に後着が空で上書きする場合で、決定的に再現しにくい）。空 auth の作成そのもの（mode・内容・staging の後始末）は F1-7b の 3 通りで守られている。
+- F1-4、F1-9、F2-h は、狙ったテストより先に別のテストが落ちた。残したテストのどれかが失敗する点では守りになっている。
+- 守りになっていないテストは F1-7 の「先着の auth を後着が上書きしない」部分のみ。
+
+## rebuild の後の確認の結果
+
+未実施（利用者が rebuild した後に、Issue #234 に記録する）。
