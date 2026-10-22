@@ -1,4 +1,6 @@
 #!/bin/bash
+# Dev Container の zshrc.txt（herdr のセッション cwd 修復と Claude Code のランチャー）の、
+# 壊れてもエラーにならずに損害が残る守りだけを確かめる（#234）。
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,25 +33,7 @@ run_zshrc_code() {
         ZSHRC_TEMPLATE="$ZSHRC_TEMPLATE" \
         "$@" /usr/bin/zsh -f -c "$zsh_code" </dev/null >/dev/null
 }
-run_zshrc() {
-    local test_home="$1"
-    shift
-    run_zshrc_code "$test_home" 'source "$ZSHRC_TEMPLATE"' "$@"
-}
-run_zshrc_tty() {
-    local test_home="$1"
-    # 意図的に HOME から起動し、herdrstart がワークスペースへ cd するかを検証できるようにする
-    local zsh_command='cd "$HOME" && /usr/bin/zsh -f -c '\''source "$ZSHRC_TEMPLATE"'\'' 2>"$HERDR_TEST_STDERR"'
-    shift
-    env -u TMUX -u HERDR_ENV -u HERDR_SOCKET_PATH \
-        HOME="$test_home" \
-        PATH="$test_home/bin:/usr/bin:/bin" \
-        HERDR_TEST_LOG="$test_home/herdr.log" \
-        HERDR_TEST_STDERR="$test_home/stderr.log" \
-        ZSHRC_TEMPLATE="$ZSHRC_TEMPLATE" \
-        "$@" script -qec "$zsh_command" /dev/null
-}
-# herdr / herdr-status-updater / starship のスタブと空ログを用意する。
+# herdr（status server だけ応答する）と starship のスタブを用意する。
 make_stub_home() {
     local dir="$1"
     mkdir -p "$dir/bin"
@@ -59,15 +43,8 @@ make_stub_home() {
         '    printf "%s\n" "${HERDR_TEST_STATUS_JSON:-{\"running\":false\}}"' \
         '    exit "${HERDR_TEST_STATUS_RC:-0}"' \
         'fi' \
-        'printf "called TZ=%s PWD=%s\\n" "${TZ:-}" "$PWD" >> "$HERDR_TEST_LOG"' \
         > "$dir/bin/herdr"
-    printf '%s\n' '#!/bin/sh' \
-        'printf "updater %s\\n" "$*" >> "$HERDR_TEST_LOG.upd"' \
-        > "$dir/bin/herdr-status-updater"
-    chmod +x "$dir/bin/starship" "$dir/bin/herdr" "$dir/bin/herdr-status-updater"
-    # set -e 下で `wc -l < 不在ファイル` が無言終了しないよう先に空で作る
-    : > "$dir/herdr.log"
-    : > "$dir/herdr.log.upd"
+    chmod +x "$dir/bin/starship" "$dir/bin/herdr"
 }
 
 write_session_fixture() {
@@ -107,35 +84,6 @@ with open(session_file, "w", encoding="utf-8") as handle:
 PY
 }
 
-write_multi_workspace_fixture() {
-    local session_file="$1"
-    local workspace_dir="$2"
-    mkdir -p "$(dirname "$session_file")" "$workspace_dir"
-    python3 - "$session_file" <<'PY'
-import json
-import sys
-
-session_file = sys.argv[1]
-data = {
-    "version": 3,
-    "workspaces": [
-        {
-            "id": "w1",
-            "identity_cwd": "/home/vscode",
-            "tabs": [{"id": "w1:t1", "panes": {"0": {"cwd": "/home/vscode"}}}],
-        },
-        {
-            "id": "w2",
-            "identity_cwd": "/home/vscode/other",
-            "tabs": [{"id": "w2:t1", "panes": {"0": {"cwd": "/nonexistent/gone"}}}],
-        },
-    ],
-}
-with open(session_file, "w", encoding="utf-8") as handle:
-    json.dump(data, handle, indent=2)
-PY
-}
-
 run_session_repair() {
     local test_home="$1"
     local workspace_root="$2"
@@ -148,54 +96,9 @@ run_session_repair() {
         "$@"
 }
 
-# ここで検証するのは herdrstart 経路のみ。
-# herdr-status-updater の起動経路は現在 herdrstart 内の 1 本だけである
-# （precmd フックは production から削除済み）。
-test_launch_and_guards() {
-    local test_home="${TEST_ROOT}/home"
-    # 実機の /workspaces に依存しないよう、テスト用のワークスペースルートを用意する
-    local workspace_root="${TEST_ROOT}/workspaces"
-    local workspace_dir="${workspace_root}/reso-world"
-    mkdir -p "$workspace_dir"
-    make_stub_home "$test_home"
 
-    # 起動元 cwd が HOME でも herdr プロセスは HERDR_WORKSPACE_ROOT 配下の
-    # ワークスペースで起動すること
-    run_zshrc_tty "$test_home" HERDR_WORKSPACE_ROOT="$workspace_root"
-    [ "$(wc -l < "$test_home/herdr.log")" -eq 1 ] || fail 'TTY herdr call count'
-    assert_contains "$test_home/herdr.log" "^called TZ=Asia/Tokyo PWD=${workspace_dir}"
-    assert_contains "$test_home/herdr.log.upd" '^updater --daemon$'
-    [ "$(wc -l < "$test_home/herdr.log.upd")" -eq 1 ] || fail 'TTY herdrstart updater call count'
-
-    : > "$test_home/herdr.log"
-    : > "$test_home/herdr.log.upd"
-    run_zshrc "$test_home"
-    [ ! -s "$test_home/herdr.log" ] || fail 'non-TTY guard'
-    [ ! -s "$test_home/herdr.log.upd" ] || fail 'non-TTY herdrstart updater guard'
-
-    : > "$test_home/herdr.log"
-    : > "$test_home/herdr.log.upd"
-    run_zshrc_tty "$test_home" HERDR_ENV=1
-    [ ! -s "$test_home/herdr.log" ] || fail 'HERDR_ENV guard'
-    # herdrstart 経路では updater を起動しないこと（precmd 経路は存在しない）
-    [ ! -s "$test_home/herdr.log.upd" ] || fail 'HERDR_ENV herdrstart updater guard'
-
-    # tmux 撤去後は TMUX が立っていても herdrstart は進行する
-    : > "$test_home/herdr.log"
-    : > "$test_home/herdr.log.upd"
-    run_zshrc_tty "$test_home" TMUX=/tmp/tmux-test
-    [ "$(wc -l < "$test_home/herdr.log")" -eq 1 ] || fail 'TMUX must not suppress herdrstart'
-    [ "$(wc -l < "$test_home/herdr.log.upd")" -eq 1 ] || fail 'TMUX must not suppress herdrstart updater'
-
-    mv "$test_home/bin/herdr" "$test_home/bin/herdr.disabled"
-    : > "$test_home/herdr.log.upd"
-    run_zshrc_tty "$test_home"
-    assert_contains "$test_home/stderr.log" 'herdr not found'
-    [ ! -s "$test_home/herdr.log.upd" ] || fail 'herdrstart updater skipped when herdr missing'
-}
-
-# セッション cwd 修復は guard 済みで、precmd 経路は存在しない（production で削除済み）。
-
+# herdr_repair_session_cwd は、利用者の herdr セッション記録（session.json）を直接書き換える。
+# 守るのは、修復が壊れてもエラーにならず、復元先やエージェントの再開情報が気付かないまま変わる損害。
 test_session_cwd_repair() {
     local test_home="${TEST_ROOT}/home-repair"
     local workspace_root="${TEST_ROOT}/workspaces"
@@ -204,6 +107,7 @@ test_session_cwd_repair() {
     local session_file="${test_home}/.config/herdr/session.json"
     make_stub_home "$test_home"
 
+    # 壊れた cwd だけを直し、worktree 配下・agent_session・未知のフィールドを保つ
     write_session_fixture "$session_file" "$workspace_root" "$workspace_dir" "$worktree_dir"
     run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
         HERDR_TEST_STATUS_JSON='{"running":false}'
@@ -226,216 +130,125 @@ assert data["unknown_top_level"] == {"keep": True}
 PY
     [ ! -e "${session_file}.tmp" ] || fail 'repair must not leave a temporary file'
 
-    write_session_fixture "$session_file" "$workspace_root" "$workspace_dir" "$worktree_dir"
-    cp "$session_file" "${session_file}.before"
-    run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-        HERDR_TEST_STATUS_JSON='{"running":true}'
-    cmp -s "$session_file" "${session_file}.before" \
-        || fail 'running server must leave session unchanged'
-
-    printf '%s\n' '{invalid json' > "$session_file"
-    cp "$session_file" "${session_file}.before"
-    run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-        HERDR_TEST_STATUS_JSON='{"running":false}'
-    cmp -s "$session_file" "${session_file}.before" \
-        || fail 'invalid session JSON must remain unchanged'
-    [ ! -e "${session_file}.tmp" ] || fail 'invalid JSON must not leave a temporary file'
-
-    write_session_fixture "$session_file" "$workspace_root" "$workspace_dir" "$worktree_dir"
-    python3 - "$session_file" <<'PY'
+    # 次の場合は session.json を変えない: サーバー稼働中（保存と競合する）、未知の version、
+    # 修復先が無い、サーバー状態が判定できない（`running` が 0）、修復先がワークスペースルート自身
+    local case_name
+    for case_name in running unknown_version missing_destination numeric_zero workspace_root; do
+        write_session_fixture "$session_file" "$workspace_root" "$workspace_dir" "$worktree_dir"
+        local status_json='{"running":false}' destination="$workspace_dir"
+        case "$case_name" in
+            running) status_json='{"running":true}' ;;
+            numeric_zero) status_json='{"running":0}' ;;
+            missing_destination) destination="${workspace_root}/no-such-dir" ;;
+            workspace_root) destination="$workspace_root" ;;
+            unknown_version)
+                python3 - "$session_file" <<'PY'
 import json
 import sys
 
-session_file = sys.argv[1]
-with open(session_file, encoding="utf-8") as handle:
+with open(sys.argv[1], encoding="utf-8") as handle:
     data = json.load(handle)
 data["version"] = 4
-with open(session_file, "w", encoding="utf-8") as handle:
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
     json.dump(data, handle, indent=2)
 PY
-    cp "$session_file" "${session_file}.before"
-    run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-        HERDR_TEST_STATUS_JSON='{"running":false}'
-    cmp -s "$session_file" "${session_file}.before" \
-        || fail 'unknown session version must remain unchanged'
-    [ ! -e "${session_file}.tmp" ] \
-        || fail 'unknown session version must not leave a temporary file'
-
-    local restricted_dir="${workspace_root}/restricted"
-    mkdir -p "$restricted_dir"
-    chmod 0444 "$restricted_dir"
-    local bad_workspace
-    for bad_workspace in "${workspace_root}/no-such-dir" "$restricted_dir"; do
-        write_session_fixture "$session_file" "$workspace_root" "$workspace_dir" "$worktree_dir"
-        cp "$session_file" "${session_file}.before"
-        run_session_repair "$test_home" "$workspace_root" "$bad_workspace" \
-            HERDR_TEST_STATUS_JSON='{"running":false}'
-        cmp -s "$session_file" "${session_file}.before" \
-            || fail "invalid repair destination must leave session unchanged: $bad_workspace"
-        [ ! -e "${session_file}.tmp" ] \
-            || fail "invalid repair destination must not leave a temporary file: $bad_workspace"
-    done
-    chmod 0755 "$restricted_dir"
-
-    local status_case
-    for status_case in command_failure malformed_json missing_running string_false numeric_zero; do
-        write_session_fixture "$session_file" "$workspace_root" "$workspace_dir" "$worktree_dir"
-        cp "$session_file" "${session_file}.before"
-        case "$status_case" in
-            command_failure)
-                run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-                    HERDR_TEST_STATUS_JSON='{"running":false}' HERDR_TEST_STATUS_RC=1
-                ;;
-            malformed_json)
-                run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-                    HERDR_TEST_STATUS_JSON='not-json'
-                ;;
-            missing_running)
-                run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-                    HERDR_TEST_STATUS_JSON='{"status":"unknown"}'
-                ;;
-            string_false)
-                run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-                    HERDR_TEST_STATUS_JSON='{"running":"false"}'
-                ;;
-            numeric_zero)
-                run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-                    HERDR_TEST_STATUS_JSON='{"running":0}'
                 ;;
         esac
-        cmp -s "$session_file" "${session_file}.before" \
-            || fail "$status_case must leave session unchanged"
-        [ ! -e "${session_file}.tmp" ] \
-            || fail "$status_case must not leave a temporary file"
+        cp "$session_file" "${session_file}.before"
+        run_session_repair "$test_home" "$workspace_root" "$destination" HERDR_TEST_STATUS_JSON="$status_json"
+        cmp -s "$session_file" "${session_file}.before" || fail "${case_name} must leave session unchanged"
+        [ ! -e "${session_file}.tmp" ] || fail "${case_name} must not leave a temporary file"
     done
-
-    # 修復先がワークスペースルート自身: fzf キャンセル相当。session を焼き付けない
-    write_session_fixture "$session_file" "$workspace_root" "$workspace_dir" "$worktree_dir"
-    cp "$session_file" "${session_file}.before"
-    run_session_repair "$test_home" "$workspace_root" "$workspace_root" \
-        HERDR_TEST_STATUS_JSON='{"running":false}'
-    cmp -s "$session_file" "${session_file}.before" \
-        || fail 'repair target equal to workspace root must leave session unchanged'
-    [ ! -e "${session_file}.tmp" ] \
-        || fail 'workspace-root repair target must not leave a temporary file'
 }
 
-# 複数エントリの収束回避: 修復されるのは最大 1 エントリ。
+# 複数の workspace が同じ identity に収束したり、pane が別の workspace へ流れたりすると、
+# セッションの復元先が気付かないまま取り違えられる。
 test_session_cwd_repair_multi_workspace() {
     local test_home="${TEST_ROOT}/home-repair-multi"
     local workspace_root="${TEST_ROOT}/workspaces-multi"
     local workspace_dir="${workspace_root}/reso-world"
+    local other_dir="${workspace_root}/other-project"
     local session_file="${test_home}/.config/herdr/session.json"
     make_stub_home "$test_home"
+    mkdir -p "$(dirname "$session_file")" "$workspace_dir" "$other_dir"
 
-    # 修復先をまだ誰も持たない場合: 先頭の壊れたエントリだけを修復し、2 件目は触らない
-    write_multi_workspace_fixture "$session_file" "$workspace_dir"
-    run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-        HERDR_TEST_STATUS_JSON='{"running":false}'
+    # 修復先をまだ誰も持たない: 先頭の壊れたエントリだけを直し、2 件目は触らない
+    python3 - "$session_file" <<'PY'
+import json
+import sys
+
+data = {"version": 3, "workspaces": [
+    {"id": "w1", "identity_cwd": "/home/vscode",
+     "tabs": [{"id": "w1:t1", "panes": {"0": {"cwd": "/home/vscode"}}}]},
+    {"id": "w2", "identity_cwd": "/home/vscode/other",
+     "tabs": [{"id": "w2:t1", "panes": {"0": {"cwd": "/nonexistent/gone"}}}]},
+]}
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2)
+PY
+    run_session_repair "$test_home" "$workspace_root" "$workspace_dir" HERDR_TEST_STATUS_JSON='{"running":false}'
     python3 - "$session_file" "$workspace_dir" <<'PY'
 import json
 import sys
 
-session_file, workspace_dir = sys.argv[1:]
-with open(session_file, encoding="utf-8") as handle:
-    data = json.load(handle)
-w1, w2 = data["workspaces"]
-assert w1["identity_cwd"] == workspace_dir
-assert w1["tabs"][0]["panes"]["0"]["cwd"] == workspace_dir
+with open(sys.argv[1], encoding="utf-8") as handle:
+    w1, w2 = json.load(handle)["workspaces"]
+assert w1["identity_cwd"] == sys.argv[2]
+assert w1["tabs"][0]["panes"]["0"]["cwd"] == sys.argv[2]
 assert w2["identity_cwd"] == "/home/vscode/other"
 assert w2["tabs"][0]["panes"]["0"]["cwd"] == "/nonexistent/gone"
 PY
 
-    # 修復先を既に identity_cwd に持つエントリがある場合: 壊れたエントリは無変更
+    # 修復先を既に identity_cwd に持つエントリがある: 壊れたエントリは無変更
     python3 - "$session_file" "$workspace_dir" <<'PY'
 import json
 import sys
 
-session_file, workspace_dir = sys.argv[1:]
-data = {
-    "version": 3,
-    "workspaces": [
-        {"id": "w1", "identity_cwd": workspace_dir, "tabs": []},
-        {
-            "id": "w2",
-            "identity_cwd": "/home/vscode/other",
-            "tabs": [{"id": "w2:t1", "panes": {"0": {"cwd": "/nonexistent/gone"}}}],
-        },
-    ],
-}
-with open(session_file, "w", encoding="utf-8") as handle:
+data = {"version": 3, "workspaces": [
+    {"id": "w1", "identity_cwd": sys.argv[2], "tabs": []},
+    {"id": "w2", "identity_cwd": "/home/vscode/other",
+     "tabs": [{"id": "w2:t1", "panes": {"0": {"cwd": "/nonexistent/gone"}}}]},
+]}
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
     json.dump(data, handle, indent=2)
 PY
     cp "$session_file" "${session_file}.before"
-    run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-        HERDR_TEST_STATUS_JSON='{"running":false}'
+    run_session_repair "$test_home" "$workspace_root" "$workspace_dir" HERDR_TEST_STATUS_JSON='{"running":false}'
     cmp -s "$session_file" "${session_file}.before" \
         || fail 'workspace entry must remain unchanged when repair target is taken'
-    [ ! -e "${session_file}.tmp" ] \
-        || fail 'taken repair target must not leave a temporary file'
 
-    # 健全な兄弟 identity + 壊れた pane: pane は兄弟 identity へ。起動中 workspace へ流れない
-    local other_dir="${workspace_root}/other-project"
-    mkdir -p "$other_dir"
+    # 健全な兄弟 identity の壊れた pane は兄弟へ戻す。起動中の workspace へ流さない
     python3 - "$session_file" "$workspace_dir" "$other_dir" <<'PY'
 import json
 import sys
 
 session_file, workspace_dir, other_dir = sys.argv[1:]
-data = {
-    "version": 3,
-    "workspaces": [
-        {
-            "id": "w-other",
-            "identity_cwd": other_dir,
-            "tabs": [{
-                "id": "w-other:t1",
-                "panes": {
-                    "0": {
-                        "cwd": "/home/vscode",
-                        "agent_session": {"provider": "codex", "id": "keep-me"},
-                    },
-                },
-            }],
-        },
-        {
-            "id": "w-current",
-            "identity_cwd": workspace_dir,
-            "tabs": [{"id": "w-current:t1", "panes": {"0": {"cwd": workspace_dir}}}],
-        },
-    ],
-}
+data = {"version": 3, "workspaces": [
+    {"id": "w-other", "identity_cwd": other_dir, "tabs": [{"id": "w-other:t1", "panes": {
+        "0": {"cwd": "/home/vscode", "agent_session": {"provider": "codex", "id": "keep-me"}}}}]},
+    {"id": "w-current", "identity_cwd": workspace_dir,
+     "tabs": [{"id": "w-current:t1", "panes": {"0": {"cwd": workspace_dir}}}]},
+]}
 with open(session_file, "w", encoding="utf-8") as handle:
     json.dump(data, handle, indent=2)
 PY
-    run_session_repair "$test_home" "$workspace_root" "$workspace_dir" \
-        HERDR_TEST_STATUS_JSON='{"running":false}'
+    run_session_repair "$test_home" "$workspace_root" "$workspace_dir" HERDR_TEST_STATUS_JSON='{"running":false}'
     python3 - "$session_file" "$workspace_dir" "$other_dir" <<'PY'
 import json
 import sys
 
-session_file, workspace_dir, other_dir = sys.argv[1:]
-with open(session_file, encoding="utf-8") as handle:
-    data = json.load(handle)
-other, current = data["workspaces"]
-assert other["identity_cwd"] == other_dir
-assert other["tabs"][0]["panes"]["0"]["cwd"] == other_dir
-assert other["tabs"][0]["panes"]["0"]["agent_session"] == {
-    "provider": "codex",
-    "id": "keep-me",
-}
-assert current["identity_cwd"] == workspace_dir
-assert current["tabs"][0]["panes"]["0"]["cwd"] == workspace_dir
-assert other["tabs"][0]["panes"]["0"]["cwd"] != workspace_dir
+with open(sys.argv[1], encoding="utf-8") as handle:
+    other, current = json.load(handle)["workspaces"]
+assert other["tabs"][0]["panes"]["0"]["cwd"] == sys.argv[3]
+assert other["tabs"][0]["panes"]["0"]["agent_session"] == {"provider": "codex", "id": "keep-me"}
+assert current["tabs"][0]["panes"]["0"]["cwd"] == sys.argv[2]
 PY
 }
 
-# ccdd / ccddg / ccdu の env -u 共有リストが、親シェルで export された
-# 主要な認証材料・プロバイダ切替・モデルピン留系の値を子 claude へ漏らさない
-# ことを検査する。対象範囲の正本は下の expected_unsets。
-# 共有配列ブロックから抽出した unset_vars は下の expected_unsets と集合比較する。
-# 配列への追加・削除のどちらでも expected_unsets の更新が必要になる（下限検査では
-# リストからの削除を検出できない）。配列外の env -u は比較対象にしない。
+# F∩S: ccdd / ccddg / ccdu の env -u 共有リストが、親シェルで export された認証材料・プロバイダ切替・
+# モデルのピン留めの値を子 claude へ漏らさない。漏れても子は動くので、気付かないまま別の資格情報で
+# 動いたり、資格情報が他のプロバイダへ渡ったりする。unset の一覧は expected_unsets が基準で、
+# 配列の追加・削除のどちらでも更新が要る（配列外の env -u は比較しない）。
 test_cc_launcher_env_unsets() {
     local test_home="${TEST_ROOT}/home-cc-launcher"
     make_stub_home "$test_home"
@@ -521,7 +334,7 @@ test_cc_launcher_env_unsets() {
     done
 
     local fn log
-    for fn in ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union; do
+    for fn in ccdd ccddg ccdu; do
         log="${dump_dir}/${fn}.log"
         : > "$log"
         run_zshrc_code "$test_home" \
@@ -538,7 +351,7 @@ test_cc_launcher_env_unsets() {
         OPENCODE_GO_CLAUDE_API_KEY \
         OPENCODE_API_KEY \
         OPENCODE_GO_API_KEY; do
-        for fn in ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union; do
+        for fn in ccdd ccddg ccdu; do
             assert_absent "${dump_dir}/${fn}.log" "^${source_key}="
         done
     done
@@ -549,8 +362,10 @@ test_cc_launcher_env_unsets() {
     assert_contains "${dump_dir}/ccdu.log" '^ANTHROPIC_API_KEY=fake-open$'
 }
 
-# 誤った権限フラグや "$@" の分割、資格情報の渡し先を、子 CLI に実際に渡る値で検出する。
-# 実プロバイダには接続せず、指定した環境変数だけを記録する。
+
+# F∩S: 資格情報の送り先（ANTHROPIC_BASE_URL）と claude.ai の MCP 接続を他社のモデルへ渡さない設定。
+# 送り先を変えても動くが、DEEPINFRA_TOKEN などを別のホストへ送り、MCP を有効にすると利用者の接続先のデータを渡す。
+# 実プロバイダには接続せず、子 CLI に実際に渡る値だけを記録する。
 make_claude_probe() {
     local test_home="$1"
     make_stub_home "$test_home"
@@ -571,55 +386,16 @@ PY
     chmod +x "$test_home/bin/claude"
 }
 
-test_cc_launcher_arguments_and_models() {
-    local test_home="${TEST_ROOT}/home-cc-arguments"
+# F∩S: 権限確認を省く --dangerously-skip-permissions は短縮名（ccdd / ccddg / ccdu）だけに付ける。
+# 通常名に付いても動くので、了承の無いまま権限確認が外れる。
+test_cc_launcher_destination_and_exit_status() {
+    local test_home="${TEST_ROOT}/home-cc-destination"
     make_claude_probe "$test_home"
-    local fn log
-    local probe_code='"" "two words" "line
-break" "*.blend" --model sonnet'
-    for fn in ccd ccdo ccds; do
-        log="${test_home}/${fn}.json"
-        # source の後に解析し直すことで、起動するシェルと同じ alias 展開を行う。
-        run_zshrc_code "$test_home" \
-            'source "$ZSHRC_TEMPLATE"; eval "$HERDR_TEST_CLAUDE_COMMAND"' \
-            HERDR_TEST_CLAUDE_COMMAND="${fn} ${probe_code}" \
-            HERDR_TEST_CLAUDE_DUMP="$log"
-        # alias は実行したシェルから取得せず、テンプレートを独立に解析する。
-        python3 - "$log" "$fn" "$ZSHRC_TEMPLATE" <<'PY'
-import json
-from pathlib import Path
-import re
-import shlex
-import sys
-
-log, name, template = sys.argv[1:]
-definitions = [shlex.split(line, comments=True)
-               for line in Path(template).read_text(encoding="utf-8").splitlines()
-               if re.match(rf"^\s*alias\s+{re.escape(name)}=", line)]
-assert len(definitions) == 1, (name, definitions)
-_, definition = definitions[0]
-command = shlex.split(definition.split("=", 1)[1])
-assert command[0] == "claude", (name, command)
-prefix = command[1:]
-# モデル以外の既存の権限フラグ・引数構造は維持する。
-assert prefix[:1] == ["--dangerously-skip-permissions"], (name, prefix)
-if name == "ccd":
-    assert len(prefix) == 1, (name, prefix)
-else:
-    assert len(prefix) == 3 and prefix[1] == "--model", (name, prefix)
-want = prefix + ["", "two words", "line\nbreak", "*.blend", "--model", "sonnet"]
-with open(log, encoding="utf-8") as handle:
-    got = json.load(handle)["argv"]
-assert got == want, (name, got, want)
-PY
-    done
-
+    local fn log rc
     for fn in ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union; do
         log="${test_home}/${fn}.json"
-        run_zshrc_code "$test_home" \
-            "source \"\$ZSHRC_TEMPLATE\"; ${fn} ${probe_code}" \
-            HERDR_TEST_CLAUDE_DUMP="$log" \
-            DEEPINFRA_TOKEN=fake-di OPENCODE_GO_CLAUDE_API_KEY=fake-union
+        run_zshrc_code "$test_home" "source \"\$ZSHRC_TEMPLATE\"; ${fn} probe" \
+            HERDR_TEST_CLAUDE_DUMP="$log" DEEPINFRA_TOKEN=fake-di OPENCODE_GO_CLAUDE_API_KEY=fake-union
         python3 - "$log" "$fn" <<'PY'
 import json
 import sys
@@ -627,86 +403,33 @@ import sys
 log, name = sys.argv[1:]
 with open(log, encoding="utf-8") as handle:
     data = json.load(handle)
+argv, env = data["argv"], data["env"]
+# 利用者の引数より前の、ランチャーが付ける部分にだけ省略のフラグが入る（モデル名などは照合しない）
+assert argv[-1] == "probe", (name, argv)
+skip = "--dangerously-skip-permissions"
+if name in ("ccdd", "ccddg", "ccdu"):
+    assert skip in argv[:-1], (name, argv)
+else:
+    assert skip not in argv, (name, argv)
 union = name in ("ccdu", "claude-opencode-union")
-argv = data["argv"]
-# モデル名と調整値は運用で変わるため照合しない。--model とその値の後に、短い名前だけが権限確認を
-# 省くフラグを付け、利用者の引数を崩さずに渡すことを見る
-assert argv[0] == "--model" and argv[1], (name, argv)
-opts = ["--dangerously-skip-permissions"] if name in ("ccdd", "ccddg", "ccdu") else []
-assert argv[2:] == opts + ["", "two words", "line\nbreak", "*.blend", "--model", "sonnet"], (name, argv)
-# 資格情報の送り先と渡し方、claude.ai の MCP 接続を他社のモデルへ渡さないことは固定値で守る。
-# 送り先を変えると DEEPINFRA_TOKEN などを別のホストへ送り、MCP を有効にすると利用者の接続先のデータを渡す
-env = data["env"]
 assert env["ANTHROPIC_BASE_URL"] == ("https://opencode.ai/zen/go" if union else "https://api.deepinfra.com/anthropic")
 assert env["ANTHROPIC_AUTH_TOKEN"] == (None if union else "fake-di")
 assert env["ANTHROPIC_API_KEY"] == ("fake-union" if union else None)
 assert env["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"
 PY
     done
+
+    # 子の終了コードを返し、親シェルの変数を消さない（迷い: 対話ランチャーの影響は小さい）
+    rc=0
+    run_zshrc_code "$test_home" \
+        "source \"\$ZSHRC_TEMPLATE\"; ccdd probe; result=\$?; [[ \$ANTHROPIC_MODEL == parent-model ]] || exit 99; [[ \$DEEPINFRA_TOKEN == fake-di ]] || exit 98; exit \$result" \
+        HERDR_TEST_CLAUDE_DUMP="${test_home}/exit.json" HERDR_TEST_CLAUDE_RC=23 \
+        DEEPINFRA_TOKEN=fake-di ANTHROPIC_MODEL=parent-model || rc=$?
+    [ "$rc" -eq 23 ] || fail "CLI exit status and parent env (got ${rc})"
 }
 
-test_cc_launcher_auth_and_exit_status() {
-    local test_home="${TEST_ROOT}/home-cc-auth"
-    make_claude_probe "$test_home"
-    local fn log rc mode
-    local -a keys
-    for fn in ccdd ccddg ccdu claude-deepinfra claude-deepinfra-glm claude-opencode-union; do
-        log="${test_home}/${fn}.json"
-        for mode in unset empty; do
-            rm -f "$log"
-            keys=(DEEPINFRA_TOKEN= OPENCODE_GO_CLAUDE_API_KEY= OPENCODE_API_KEY= OPENCODE_GO_API_KEY=)
-            local unset_code=''
-            if [ "$mode" = unset ]; then
-                unset_code='unset DEEPINFRA_TOKEN OPENCODE_GO_CLAUDE_API_KEY OPENCODE_API_KEY OPENCODE_GO_API_KEY; '
-            fi
-            rc=0
-            run_zshrc_code "$test_home" \
-                "source \"\$ZSHRC_TEMPLATE\"; ${unset_code}${fn} probe" \
-                "${keys[@]}" HERDR_TEST_CLAUDE_DUMP="$log" \
-                2>"${test_home}/missing-key.log" || rc=$?
-            [ "$rc" -ne 0 ] || fail "${fn}: ${mode} credentials must fail"
-            [ ! -e "$log" ] || fail "${fn}: missing credentials must not call claude"
-            assert_contains "${test_home}/missing-key.log" 'is not set'
-        done
-
-        rc=0
-        run_zshrc_code "$test_home" \
-            "source \"\$ZSHRC_TEMPLATE\"; ${fn} probe; result=\$?; [[ \$ANTHROPIC_MODEL == parent-model ]] || exit 99; [[ \$DEEPINFRA_TOKEN == fake-di ]] || exit 98; [[ \$OPENCODE_GO_CLAUDE_API_KEY == fake-union ]] || exit 97; exit \$result" \
-            HERDR_TEST_CLAUDE_DUMP="$log" HERDR_TEST_CLAUDE_RC=23 \
-            DEEPINFRA_TOKEN=fake-di OPENCODE_GO_CLAUDE_API_KEY=fake-union \
-            ANTHROPIC_MODEL=parent-model || rc=$?
-        [ "$rc" -eq 23 ] || fail "${fn}: CLI exit status and parent env (got ${rc})"
-    done
-
-    local tier
-    for fn in ccdu claude-opencode-union; do
-        for tier in dedicated generic go; do
-            log="${test_home}/${fn}-${tier}.json"
-            case "$tier" in
-                dedicated) keys=(OPENCODE_GO_CLAUDE_API_KEY=fake-dedicated OPENCODE_API_KEY=fake-generic OPENCODE_GO_API_KEY=fake-go) ;;
-                generic) keys=(OPENCODE_GO_CLAUDE_API_KEY= OPENCODE_API_KEY=fake-generic OPENCODE_GO_API_KEY=fake-go) ;;
-                go) keys=(OPENCODE_GO_CLAUDE_API_KEY= OPENCODE_API_KEY= OPENCODE_GO_API_KEY=fake-go) ;;
-            esac
-            run_zshrc_code "$test_home" \
-                "source \"\$ZSHRC_TEMPLATE\"; ${fn} probe" \
-                HERDR_TEST_CLAUDE_DUMP="$log" "${keys[@]}"
-            python3 - "$log" "$tier" <<'PY'
-import json
-import sys
-
-log, tier = sys.argv[1:]
-with open(log, encoding="utf-8") as handle:
-    got = json.load(handle)["env"]["ANTHROPIC_API_KEY"]
-assert got == {"dedicated": "fake-dedicated", "generic": "fake-generic", "go": "fake-go"}[tier]
-PY
-        done
-    done
-}
-
-test_launch_and_guards
 test_session_cwd_repair
 test_session_cwd_repair_multi_workspace
 test_cc_launcher_env_unsets
-test_cc_launcher_arguments_and_models
-test_cc_launcher_auth_and_exit_status
+test_cc_launcher_destination_and_exit_status
 printf 'PASS: herdr Dev Container migration\n'

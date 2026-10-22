@@ -81,8 +81,8 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 2. ホストの `~/.config/create-reso-world/env` を見直す。`MAAS_ANTHROPIC_TOKEN` を削除し、
    Google Developer Knowledge の MCP を使う場合は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す（「API トークン」）。
 3. Dev Containers: Rebuild Container を実行する。postCreate が次を行う。
-   - pi の旧拡張の撤去と、settings の `-builtin:mcp` の除去。Plannotator は導入・保持する。context7-pi は導入しないが、
-     共有の `~/.pi` の登録は消さない（「pi の旧拡張・MCP 設定の移行」）
+   - Plannotator は導入・保持する。context7-pi は導入しないが、共有の `~/.pi` の登録は消さない。
+     pi の旧拡張の撤去は自動では行わない（「pi の旧拡張・MCP 設定の移行」）
    - Context7 CLI（`ctx7`）を固定した版で導入する（「Context7 CLI（ctx7）」）
    - 11 本の pi ランチャーと共通ヘルパの配置。ヘルパは pi を `--tui-mode regular` で起動する
      （「pi の TUI モードと Herdr のスクロール履歴」）
@@ -380,7 +380,7 @@ Context7 のドキュメントの取得は、`ctx7` CLI と `find-docs` スキ�
 - 空配列（`"extensions": []` など）では止まらない。Pi 1.3.0 は差分の空配列を「変更なし」として扱い、ユーザー設定のとおりにすべて読み込む（2026-10-18 に確認）
 - project の設定なので、`+builtin:mcp` と同じく project trust を前提とする
 - ユーザー設定に `npm:@upstash/context7-pi` が無いと、差分の土台が無いため、Pi は project の `.pi/npm` に context7-pi を導入する（読み込みはしない）。すべてのリポジトリが移行して共有の `~/.pi` から context7-pi を外すときは、`.pi/settings.json` のこの項目も外す
-- `install_beforehand.bash` の撤去の処理（「pi-lens の撤去」などの `remove_pi_*`）には加えない。他のリポジトリが使い続けるため
+- 手で行う撤去の手順（「pi の旧拡張・MCP 設定の移行」）には加えない。他のリポジトリが使い続けるため
 
 読み込んでいないことは、モデルを呼ばずに RPC モードで確かめられる。trust 済みの親の checkout で実行する。trust していない worktree では `--approve` を付ける。
 
@@ -599,28 +599,19 @@ TMPDIR に残ったシンボリックリンク・特殊ファイル・ハード�
 ## pi の旧拡張・MCP 設定の移行
 
 Issue #125 で agent-workspace の導入手順にそろえた。`pi-mcp-adapter`・`pi-distill`・
-単独登録の `pi-extensions-tool-display` / `pi-extensions-i18n`・`pi-lens` は撤去し、
+単独登録の `pi-extensions-tool-display` / `pi-extensions-i18n`・`pi-lens` は撤去済みで、
 `@plannotator/pi-extension` は導入・保持する。`@upstash/context7-pi` は #162 で導入をやめた。
 他のリポジトリが使うので共有 `~/.pi` の登録は消さず、このリポジトリでは読み込まない（「Context7 CLI（ctx7）」）。
-組み込み MCP のため settings の `-builtin:mcp` だけを取り除き、他の設定は保持する。
-撤去に失敗して登録や npm マニフェストが残った場合は、理由を表示して postCreate を止める。
 
-Pi の導入・拡張更新より前に `.devcontainer/pi-provider-setup.py` が settings を検査する。
-`settings.json` が symlink・hard link・特殊ファイル、または不正な JSON / 必要な配列構造なら、
-共有先を変更したりリンクを切断したりせず、その Pi 節を止める。保存先の共有方法を確認し、
-通常ファイルを使う配置へ利用者が調整してから再実行する。MCP 撤去の直前と cleanup 時も同じ
-検査を行い、通常ファイルの mode と他の設定を保持する。I/O 障害では未使用 staging を掃除するが、
-それ以前に完了した npm / Pi 操作全体の巻き戻しや同時更新との排他は保証しない。
-
-旧独自 cleanup / JSON helper と撤去前の自動バックアップは廃止した。古いバックアップや
-MCP の状態ファイル、利用者のモデルと認証は自動削除しない。共有 `~/.pi` を使う全コンテナの
-Pi を終了してから rebuild する。ほかのコンテナも context7-pi / Plannotator を保持する版にそろえる。
-
-rebuild しない場合、利用者が Pi を止めて次を実行する。`pi remove` が未登録を理由に
-終了コード1を返す場合は `pi list` と npm マニフェストで撤去対象の不在を確かめる。
+`install_beforehand.bash` の旧拡張の自動撤去（`pi remove` と npm マニフェストの掃除、settings の `-builtin:mcp` の
+除去、`pi-provider-setup.py` の settings 検査）は #234 で外した。今の環境に対象が無いことを確かめて外したもので、
+rebuild は旧拡張を掃除しない。ほかのコンテナの rebuild が旧拡張を再登録した場合は、共有 `~/.pi` を使う全コンテナの
+Pi を終了してから、次を手で実行する。`pi remove` が未登録を理由に終了コード1を返す場合は `pi list` と
+`~/.pi/agent/npm/package.json`・`package-lock.json` で撤去対象の不在を確かめる。
 `-builtin:mcp` が残っていれば settings の該当要素だけを手で取り除く。
 
 ```bash
+pi remove npm:pi-subagents
 pi remove npm:pi-mcp-adapter
 pi remove npm:pi-distill
 pi remove npm:pi-extensions-tool-display
@@ -849,12 +840,7 @@ pi --list-models gpt-6-luna
 `cheap` / `balanced` / `max` tier はランチャーごとに GPT-6 Luna / GPT-6.1
 Sol / GPT-6 Astra を割り当てる（`pigs` の `cheap` だけは OpenCode Go の
 `deepseek-v4.1-flash`。下表を参照）。ログイン済みの環境では、次のテストでも、ランチャーと
-tier が使う `openai-codex` のモデルが Pi の一覧にあることを確認できる。
-
-```bash
-PI_CODEX_LIVE_CHECK=1 bash .devcontainer/test-pi-openai-codex.bash
-bash .devcontainer/test-pi-migrations.bash
-```
+tier が使う `openai-codex` のモデルは、ログイン済みの環境で `pi --list-models openai-codex` で確認できる。
 
 ### SuperGrok / X Premium の Grok 4.7 ランチャー
 
@@ -1036,13 +1022,10 @@ unset PI_DISTILL_TIMEOUT_SECONDS PI_DISTILL_MODEL PI_DISTILL_ERROR_RETRY_COUNT P
 
 ### pi-distill の撤去（agent-workspace #508）
 
-pi-distill（ツール出力の Distillation）は廃止した。インストール対象から外す
-だけでは bind mount 側の登録が残るため、`install_beforehand.bash` はリビルド時に
-`pi remove npm:pi-distill` で既存環境の登録と pi 管理の npm マニフェストも
-掃除する。`pi-extensions-tool-display` / `pi-extensions-i18n` が単独登録されて
-いる環境でも同じステップで外す。
+pi-distill（ツール出力の Distillation）は廃止した。リビルド時の自動撤去は #234 で外した。
+`pi-extensions-tool-display` / `pi-extensions-i18n` が単独登録されている環境も同じ。
 
-リビルドしない既存環境では、次を実行して登録を消し、`~/.zshrc` に残った
+既存環境に登録が残っていれば、次を実行して登録を消し、`~/.zshrc` に残った
 `PI_DISTILL_*` と `PI_EXTENSIONS_LOCALE` の export を手で取り除く。
 
 ```bash
@@ -1059,19 +1042,16 @@ pi remove npm:pi-distill
 pi-lens（書き込み直後の lint・整形と、`lens_diagnostics` などのツール）は廃止した。
 移植元で得ているものに比べて、整形による差分の混入、1 リクエストあたり
 約 3,000 トークンと起動時間の増加、agent-workspace #655 の回避策の保守の負担が大きいためである。
-インストール対象から外すだけでは bind mount 側の登録が残るため、
-`install_beforehand.bash` はリビルド時に `pi remove npm:pi-lens` で既存環境の登録と
-pi 管理の npm マニフェストも掃除する。撤去後も一覧かマニフェストに残っていれば、
-理由を出して Dev Container の作成を止める。
+リビルド時の自動撤去は #234 で外した。
 
 `~/.pi` はホストと bind mount で共有しており、ほかのコンテナ（agent-workspace・xrift-poc）も
-同じ登録を使う。撤去はそれらのコンテナからも pi-lens を外す。`pi remove` は共有の
+同じ登録を使う。`pi remove` は共有の
 `~/.pi/agent/npm/node_modules/pi-lens` を消すので、ほかのコンテナで動いている Pi を
-止めてからリビルドする。ほかのリポジトリのインストーラが `npm:pi-lens` を入れたままだと、
+止めてから実行する。ほかのリポジトリのインストーラが `npm:pi-lens` を入れたままだと、
 そのコンテナを作り直したときに再登録される（usaturn/xrift-poc#16・
 usaturn/create-reso-world#117 で導入をやめる）。
 
-リビルドしない既存環境では、ほかのコンテナの Pi を止めてから次を実行する。
+既存環境に登録が残っていれば、ほかのコンテナの Pi を止めてから次を実行する。
 
 ```bash
 pi remove npm:pi-lens
@@ -1273,12 +1253,9 @@ pi-superagents 1.14.3 / Pi loader 0.85.1 / Superpowers 6.4.1 について、
 これは探索 API の検証であり、実 trust 設定の変更や対話 Pi の `/sp-*` 実行確認ではない。
 
 セットアップの設定非変更・ランチャー配置などの回帰テストは、
-`bash .devcontainer/run-tests.bash` から実行する。MCP 移行・Vertex の pytest は
-`.devcontainer/test-pi-migrations.bash` が uv 経由で実行する。
+`bash .devcontainer/run-tests.bash` から実行する。Vertex などの pytest は `uv run pytest` が実行する。
 単独で実行する場合は、リポジトリのルートで次を実行する。
 
 ```bash
 bash .devcontainer/test-pi-superagents.bash
-bash .devcontainer/test-pi-openai-codex.bash
-bash .devcontainer/test-pi-migrations.bash
 ```

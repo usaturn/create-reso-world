@@ -1,21 +1,19 @@
 """Rebuilding either container must not remove packages shared through ~/.pi.
 
-The break caught is running a Context7 cleanup, or omitting registration of the
-packages this repository installs in a fresh home. Execute the actual installer
-section twice, replacing only network/package-manager operations and the
-separately tested tier setup.
+Damage guarded (#162): a rebuild silently removing other repositories' registrations
+(context7-pi) or the user's packages/extensions/theme. The install still succeeds, so
+the other repositories' Pi notices only later. Execute the actual installer section
+twice, replacing only network/package-manager operations and the separately tested
+tier setup.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import shlex
 import subprocess
 import sys
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 # Packages this repository's setup registers in the shared ~/.pi.
@@ -49,14 +47,13 @@ else:
 '''
 
 
-@pytest.mark.parametrize("registered", [False, True])
-def test_rebuild_preserves_shared_packages(tmp_path: Path, registered: bool) -> None:
+def test_rebuild_preserves_shared_packages(tmp_path: Path) -> None:
     home = tmp_path / "home"
     agent = home / ".pi/agent"
     agent.mkdir(parents=True)
     settings = agent / "settings.json"
     settings.write_text(json.dumps({
-        "packages": ["npm:unrelated-user-package", *((*INSTALLED_PACKAGES, KEPT_PACKAGE) if registered else ())],
+        "packages": ["npm:unrelated-user-package", *INSTALLED_PACKAGES, KEPT_PACKAGE],
         "extensions": ["-builtin:mcp", "user-local-extension"],
         "theme": "user-choice",
     }))
@@ -69,12 +66,6 @@ def test_rebuild_preserves_shared_packages(tmp_path: Path, registered: bool) -> 
         fake = bin_dir / command
         fake.write_text("#!/bin/sh\nexit 0\n")
         fake.chmod(0o755)
-    # The old installer delegates cleanup through uv; run that real cleanup with
-    # this test's interpreter, without changing uv's cache/config outside the home.
-    uv = bin_dir / "uv"
-    uv.write_text("#!/bin/sh\n[ \"$1\" = run ] && [ \"$2\" = --no-project ] || exit 99\n"
-                  "shift 2\nexec " + shlex.quote(sys.executable) + ' "$@"\n')
-    uv.chmod(0o755)
     installer = (ROOT / ".devcontainer/install_beforehand.bash").read_text()
     start = installer.index('step "Installing pi"\n')
     end = installer.index('step "Installing the shared skills (herdr / find-skills)"\n', start)
@@ -101,10 +92,9 @@ def test_rebuild_preserves_shared_packages(tmp_path: Path, registered: bool) -> 
         actual = json.loads(settings.read_text())
         for package in INSTALLED_PACKAGES:
             assert actual["packages"].count(package) == 1, package
-        if registered:
-            assert actual["packages"].count(KEPT_PACKAGE) == 1
+        assert actual["packages"].count(KEPT_PACKAGE) == 1
         assert "npm:unrelated-user-package" in actual["packages"]
-        assert actual["extensions"] == ["user-local-extension"]
+        assert actual["extensions"] == ["-builtin:mcp", "user-local-extension"]
         assert actual["theme"] == "user-choice"
     removed = removals.read_text().splitlines() if removals.exists() else []
     assert not {*INSTALLED_PACKAGES, KEPT_PACKAGE}.intersection(removed), removed

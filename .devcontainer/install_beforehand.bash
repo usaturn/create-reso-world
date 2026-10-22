@@ -7,7 +7,7 @@ set -u
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
 # （同梱スキルの状態の表示と workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=32
+readonly STEP_TOTAL=29
 STEP_NUMBER=0
 
 step() {
@@ -283,11 +283,6 @@ if ! install_devin_cli; then
 fi
 
 step "Installing pi"
-# Validate shared settings before any Pi installation/extension mutation. In
-# particular, never let a later cleanup silently sever a user's shared link.
-if ! python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --settings-check; then
-    fail "Unsafe or invalid pi settings.json; aborting before pi installation."
-fi
 # ~/.pi は devcontainer.json で bind mount している。ホスト側に存在しない場合は
 # Docker が root 所有で作成するため、以降の pi install が書き込めるよう所有権を直す。
 if ! ensure_user_writable_dir "${HOME}/.pi"; then
@@ -297,276 +292,31 @@ if ! npm install -g --ignore-scripts @earendil-works/pi-coding-agent; then
     fail "pi installation failed."
 fi
 
-step "Replacing npm:pi-subagents with @teelicht/pi-superagents"
+step "Installing npm:@teelicht/pi-superagents"
 # --approve は project trust の確認を自動承認する（.agents/skills があると対話プロンプトで止まる）
-# npm:pi-subagents は @teelicht/pi-superagents の subagent tool と競合する。
-# ~/.pi は bind mount なので、既存環境の settings.json に残った登録も消す。
-# この置換は必須なので、失敗を成功扱いしない（fail-loud）。関数化は隔離テスト
-# （test-pi-superagents.bash）が install_pi_extensions だけを取り出して fake pi で
-# 実行できるようにするため。
+# 導入に失敗した場合と、導入後の一覧に無い場合は、失敗を成功扱いしない（fail-loud）。関数化は隔離テスト
+# （test-pi-superagents.bash）が install_pi_extensions だけを取り出して fake pi で実行できるようにするため。
+# 旧拡張（pi-subagents・pi-mcp-adapter・pi-distill・pi-lens）の自動撤去は #234 で外した。共有の ~/.pi に残って
+# いれば、手で `pi remove npm:<名前>` する（.devcontainer/README.md）。
 install_pi_extensions() {
-    local legacy_manifests
-    local legacy_listed
-    local agent_dir
-    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"; then
-        echo "Failed to resolve the pi agent directory; aborting pi-superagents replacement." >&2
-        exit 1
-    fi
-    # Strip only the CLI delimiter and sentinel, not newlines owned by the path.
-    agent_dir="${agent_dir%$'\n'.}"
-
-    # 1) 導入前の一覧を取得する。取得できないと置換の前提が崩れるので打ち切る。
-    if ! before="$(pi list 2>&1)"; then
-        echo "Failed to list pi extensions (pi list); aborting pi-superagents replacement." >&2
-        exit 1
-    fi
-    # 2) 旧 npm:pi-subagents の残骸を探す。settings の一覧（pi list）だけでなく、
-    #    pi が管理する npm マニフェストも見る。一覧が綺麗でもマニフェストに残って
-    #    いると、`pi update --extensions`（zsh の update() が実行する）で node_modules
-    #    ごと再構築されて復活し、subagent ツール名が @teelicht/pi-superagents と
-    #    衝突して pigo / pigod が起動できなくなる（#289）。
-    legacy_listed=0
-    case "$before" in
-    *"npm:pi-subagents"*) legacy_listed=1 ;;
-    esac
-    legacy_manifests="$(grep -l -e '"pi-subagents"' -e '"node_modules/pi-subagents"' \
-        "${agent_dir}/npm/package.json" \
-        "${agent_dir}/npm/package-lock.json" 2>/dev/null || true)"
-    # 3) 登録済み、またはマニフェストに残っていれば削除する。pi remove は未登録の
-    #    とき「No matching package found」で exit 1 を返すが、マニフェストの掃除自体は
-    #    行う。そのため成否は終了コードではなく、掃除後の実体で判定する。
-    if [ "${legacy_listed}" -eq 1 ] || [ -n "${legacy_manifests}" ]; then
-        pi remove npm:pi-subagents 2>&1 || true
-        # 存在しないパスが混ざると grep は一致していても exit 2 になるため、
-        # 終了コードではなく一致したファイルの有無で判定する。
-        legacy_manifests="$(grep -l -e '"pi-subagents"' -e '"node_modules/pi-subagents"' \
-            "${agent_dir}/npm/package.json" \
-            "${agent_dir}/npm/package-lock.json" 2>/dev/null || true)"
-        if [ -n "${legacy_manifests}" ]; then
-            echo "Failed to remove npm:pi-subagents from the pi managed npm manifest under ${agent_dir}/npm." >&2
-            exit 1
-        fi
-    fi
-    # 4) 新拡張を導入する。導入失敗は対象を明示して打ち切る。
     if ! pi install --approve npm:@teelicht/pi-superagents 2>&1; then
         echo "Failed to install npm:@teelicht/pi-superagents." >&2
         exit 1
     fi
-    # 5) 導入後に一覧を再取得し、事後条件（旧拡張が残らず新拡張が存在する）を確認する。
     if ! after="$(pi list 2>&1)"; then
         echo "Failed to re-list pi extensions after install." >&2
         exit 1
     fi
     case "$after" in
-    *"npm:pi-subagents"*)
-        echo "npm:pi-subagents is still registered after replacement." >&2
-        exit 1
-        ;;
-    esac
-    case "$after" in
     *"npm:@teelicht/pi-superagents"*)
         ;;
     *)
-        echo "npm:@teelicht/pi-superagents is missing after replacement." >&2
+        echo "npm:@teelicht/pi-superagents is missing after install." >&2
         exit 1
         ;;
     esac
 }
 install_pi_extensions
-
-step "Removing npm:pi-mcp-adapter (superseded by built-in MCP)"
-# pi 1.0 の組み込み MCP 拡張（builtin:mcp）に一本化するため pi-mcp-adapter を外す。
-# ~/.pi は bind mount なので、既存環境の settings.json には登録が残っている。
-# adapter のインストーラは同じ settings.json に -builtin:mcp を書き込んで組み込み側を
-# 無効化するため、パッケージ削除と併せてそのエントリも取り除く。
-remove_pi_mcp_adapter() {
-    local listed
-    local after
-    local agent_dir
-    local adapter_manifests
-    local adapter_listed=0
-
-    # settings と npm マニフェストは同じ agent directory を参照する。
-    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"; then
-        echo "Failed to resolve the pi agent directory; aborting pi-mcp-adapter removal." >&2
-        exit 1
-    fi
-    # Strip only the CLI delimiter and sentinel, not newlines owned by the path.
-    agent_dir="${agent_dir%$'\n'.}"
-    if ! python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --settings-check "$agent_dir"; then
-        echo "Unsafe or invalid ${agent_dir}/settings.json; aborting pi-mcp-adapter removal." >&2
-        exit 1
-    fi
-    if ! listed="$(pi list 2>&1)"; then
-        echo "Failed to list pi extensions (pi list); aborting pi-mcp-adapter removal." >&2
-        exit 1
-    fi
-    # 一覧だけでなく pi 管理の npm マニフェストも見る。マニフェストに残っていると
-    # pi update --extensions で node_modules ごと再構築されて復活する。
-    adapter_manifests="$(grep -l -e '"pi-mcp-adapter"' -e '"node_modules/pi-mcp-adapter"' \
-        "${agent_dir}/npm/package.json" \
-        "${agent_dir}/npm/package-lock.json" 2>/dev/null || true)"
-    case "$listed" in
-    *"npm:pi-mcp-adapter"*) adapter_listed=1 ;;
-    esac
-    if [ "${adapter_listed}" -eq 1 ] || [ -n "${adapter_manifests}" ]; then
-        # pi remove は未登録のとき「No matching package found」で exit 1 を返すが、
-        # マニフェストの掃除自体は行う。成否は終了コードではなく掃除後の実体で判定する。
-        pi remove npm:pi-mcp-adapter 2>&1 || true
-        adapter_manifests="$(grep -l -e '"pi-mcp-adapter"' -e '"node_modules/pi-mcp-adapter"' \
-            "${agent_dir}/npm/package.json" \
-            "${agent_dir}/npm/package-lock.json" 2>/dev/null || true)"
-        if [ -n "${adapter_manifests}" ]; then
-            echo "Failed to remove npm:pi-mcp-adapter from the pi managed npm manifest under ${agent_dir}/npm." >&2
-            exit 1
-        fi
-        if ! after="$(pi list 2>&1)"; then
-            echo "Failed to re-list pi extensions (pi list) after pi-mcp-adapter removal." >&2
-            exit 1
-        fi
-        case "$after" in
-        *"npm:pi-mcp-adapter"*)
-            echo "npm:pi-mcp-adapter is still registered after removal." >&2
-            exit 1
-            ;;
-        esac
-    fi
-    # pi remove はパッケージ登録を消すだけで、adapter が書き込んだ extensions の
-    # -builtin:mcp は settings.json に残る。そのままだと組み込み MCP が無効のまま
-    # なので、該当エントリだけを取り除く。他の extensions エントリは保持する。
-    # Re-read after pi remove: keep the packages it just updated. The shared
-    # helper validates again and stages a complete file, cleaning up on I/O error.
-    if ! python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --settings-clean "$agent_dir"; then
-        echo "Failed to clean -builtin:mcp from ${agent_dir}/settings.json." >&2
-        exit 1
-    fi
-}
-remove_pi_mcp_adapter
-
-step "Removing npm:pi-distill (distillation retired)"
-# pi-distill は廃止する（#508）。~/.pi は bind mount なので、インストール対象から
-# 外すだけでは既存環境の settings.json 登録は消えない。依存の
-# pi-extensions-tool-display / pi-extensions-i18n は通常 pi-distill の npm 依存と
-# してのみ入るが、単独登録された環境では一緒に外す。
-remove_pi_distill() {
-    local agent_dir listed
-    local distill_manifests
-    local distill_listed=0 helpers_listed=0
-
-    # settings.json の packages と npm マニフェストは同じ agent directory を参照する。
-    # settings の検査と同じ resolver を使う。~ と ~/ だけを HOME へ展開し、
-    # ~user は Pi と同じく cwd 基準の literal パスとして扱う。
-    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"; then
-        echo "Failed to resolve the pi agent directory; aborting pi-distill removal." >&2
-        exit 1
-    fi
-    # Strip only the CLI delimiter and sentinel, not newlines owned by the path.
-    agent_dir="${agent_dir%$'\n'.}"
-    if ! listed="$(pi list 2>&1)"; then
-        echo "Failed to list pi extensions (pi list); aborting pi-distill removal." >&2
-        exit 1
-    fi
-    # 一覧が綺麗でも pi 管理の npm マニフェストに残っていると
-    # `pi update --extensions`（zsh の update() が実行する）で node_modules ごと
-    # 復活する（pi-subagents 撤去の #289 と同じ穴）。
-    distill_manifests="$(grep -l -e '"pi-distill"' -e '"node_modules/pi-distill"' \
-        "${agent_dir}/npm/package.json" \
-        "${agent_dir}/npm/package-lock.json" 2>/dev/null || true)"
-    case "$listed" in
-    *"npm:pi-distill"*) distill_listed=1 ;;
-    esac
-    case "$listed" in
-    *"npm:pi-extensions-tool-display"*|*"npm:pi-extensions-i18n"*) helpers_listed=1 ;;
-    esac
-    if [ "${distill_listed}" -eq 0 ] && [ -z "${distill_manifests}" ] && [ "${helpers_listed}" -eq 0 ]; then
-        return 0
-    fi
-    # pi remove は未登録のとき「No matching package found」で exit 1 を返すが、
-    # マニフェストの掃除自体は行う。成否は終了コードではなく掃除後の実体で判定する。
-    if [ "${distill_listed}" -eq 1 ] || [ -n "${distill_manifests}" ]; then
-        pi remove npm:pi-distill 2>&1 || true
-    fi
-    case "$listed" in
-    *"npm:pi-extensions-tool-display"*)
-        pi remove npm:pi-extensions-tool-display 2>&1 || true ;;
-    esac
-    case "$listed" in
-    *"npm:pi-extensions-i18n"*)
-        pi remove npm:pi-extensions-i18n 2>&1 || true ;;
-    esac
-    distill_manifests="$(grep -l -e '"pi-distill"' -e '"node_modules/pi-distill"' \
-        "${agent_dir}/npm/package.json" \
-        "${agent_dir}/npm/package-lock.json" 2>/dev/null || true)"
-    if [ -n "${distill_manifests}" ]; then
-        echo "Failed to remove npm:pi-distill from the pi managed npm manifest under ${agent_dir}/npm." >&2
-        exit 1
-    fi
-    if ! listed="$(pi list 2>&1)"; then
-        echo "Failed to re-list pi extensions (pi list) after pi-distill removal." >&2
-        exit 1
-    fi
-    case "$listed" in
-    *"npm:pi-distill"*|*"npm:pi-extensions-tool-display"*|*"npm:pi-extensions-i18n"*)
-        echo "npm:pi-distill or its bundled extensions are still registered after removal." >&2
-        exit 1
-        ;;
-    esac
-}
-remove_pi_distill
-
-step "Removing npm:pi-lens (Pi extension retired)"
-# pi-lens は廃止する（#684）。得ているものに比べて、整形による差分の混入・
-# トークンと起動時間・回避策の保守の負担が大きい。~/.pi は bind mount なので、
-# インストール対象から外すだけでは既存環境の登録は消えない。pi remove は共有の
-# node_modules/pi-lens も消すため、ほかのコンテナの Pi を止めてから作り直す。
-remove_pi_lens() {
-    local agent_dir listed lens_manifests
-    local lens_listed=0
-
-    # remove_pi_distill と同じく、マニフェストの検査先を pi の agent directory の解決にそろえる。
-    if ! agent_dir="$(python3 "${WORKSPACE_ROOT}/.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"; then
-        echo "Failed to resolve the pi agent directory; aborting pi-lens removal." >&2
-        exit 1
-    fi
-    # Strip only the CLI delimiter and sentinel, not newlines owned by the path.
-    agent_dir="${agent_dir%$'\n'.}"
-    if ! listed="$(pi list 2>&1)"; then
-        echo "Failed to list pi extensions (pi list); aborting pi-lens removal." >&2
-        exit 1
-    fi
-    # 一覧が綺麗でも pi 管理の npm マニフェストに残っていると、
-    # `pi update --extensions` で node_modules ごと復活する（#289）。
-    lens_manifests="$(grep -l -e '"pi-lens"' -e '"node_modules/pi-lens"' \
-        "${agent_dir}/npm/package.json" \
-        "${agent_dir}/npm/package-lock.json" 2>/dev/null || true)"
-    case "$listed" in
-    *"npm:pi-lens"*) lens_listed=1 ;;
-    esac
-    if [ "${lens_listed}" -eq 0 ] && [ -z "${lens_manifests}" ]; then
-        return 0
-    fi
-    # pi remove は未登録のとき「No matching package found」で exit 1 を返すが、
-    # マニフェストの掃除自体は行う。成否は終了コードではなく掃除後の実体で判定する。
-    pi remove npm:pi-lens 2>&1 || true
-    lens_manifests="$(grep -l -e '"pi-lens"' -e '"node_modules/pi-lens"' \
-        "${agent_dir}/npm/package.json" \
-        "${agent_dir}/npm/package-lock.json" 2>/dev/null || true)"
-    if [ -n "${lens_manifests}" ]; then
-        echo "Failed to remove npm:pi-lens from the pi managed npm manifest under ${agent_dir}/npm." >&2
-        exit 1
-    fi
-    if ! listed="$(pi list 2>&1)"; then
-        echo "Failed to re-list pi extensions (pi list) after pi-lens removal." >&2
-        exit 1
-    fi
-    case "$listed" in
-    *"npm:pi-lens"*)
-        echo "npm:pi-lens is still registered after removal." >&2
-        exit 1
-        ;;
-    esac
-}
-remove_pi_lens
 
 step "Installing the pi extensions"
 # Context7 は ctx7 CLI と find-docs スキルで使い、npm:@upstash/context7-pi は導入しない。共有の ~/.pi に残っていても、

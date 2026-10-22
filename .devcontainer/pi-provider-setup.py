@@ -1,7 +1,7 @@
 """Local Pi JSON update boundary (also usable before uv is installed).
 
-Provider models/auth and installer settings share validation and staging. The
-historical filename remains for callers. Replacements are not a transaction
+Provider models/auth share validation and staging. The historical filename
+remains for callers. Replacements are not a transaction
 across files, external Pi commands or processes; stop Pi/other setup first.
 """
 from __future__ import annotations
@@ -120,36 +120,10 @@ def setup(agent: Path, source: Path, provider: str) -> None:
             temporary.unlink(missing_ok=True)
 
 
-def settings_update(agent: Path, *, check_only: bool = False) -> None:
-    settings = agent / "settings.json"
-    plain_file(settings)
-    if not settings.exists():
-        return
-    data = load_object(settings)
-    for field in ("extensions", "packages"):
-        if field in data and not isinstance(data[field], list):
-            raise ValueError(f"Expected {field} array: {settings}")
-    extensions = data.get("extensions", [])
-    # Serialize during preflight too, before external Pi may change packages.
-    payload = dict(data)
-    payload["extensions"] = [entry for entry in extensions if entry != "-builtin:mcp"]
-    encoded = (json.dumps(payload, ensure_ascii=True, indent=2, allow_nan=False) + "\n").encode()
-    if check_only or "-builtin:mcp" not in extensions:
-        return
-    temporary = stage(settings, encoded, stat.S_IMODE(settings.stat().st_mode))
-    try:
-        os.replace(temporary, settings)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
 if __name__ == "__main__":
     try:
         if sys.argv[1] == "--agent-dir":
             print(agent_directory())
-        elif sys.argv[1] in ("--settings-check", "--settings-clean"):
-            agent = agent_directory(sys.argv[2] if len(sys.argv) > 2 else None)
-            settings_update(agent, check_only=sys.argv[1] == "--settings-check")
         else:
             setup(Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3])
     except (OSError, ValueError) as error:

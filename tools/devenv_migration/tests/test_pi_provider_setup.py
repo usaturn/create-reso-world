@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import stat
 import subprocess
+import sys
 
 import pytest
 
@@ -48,7 +49,7 @@ class Harness:
                       'update) [ "$2" = --models ] || exit 99;;\n*) exit 99;;\nesac\n')
         pi.chmod(0o755)
 
-    def run(self, *, directory: str | None = None, source: Path = ROOT,
+    def run(self, *, directory: str | None = None,
             api_key: str | None = "SYNTHETIC_NEW_KEY") -> subprocess.CompletedProcess[str]:
         env = {"HOME": str(self.home), "PATH": f"{self.bin}:/usr/bin:/bin",
                "DEEPINFRA_TOKEN": "SYNTHETIC_TOKEN", "CALL_LOG": str(self.root / "calls")}
@@ -59,15 +60,16 @@ class Harness:
         return subprocess.run([
             "bwrap", "--die-with-parent", "--unshare-net", "--unshare-pid",
             "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
-            "--bind", str(self.root), str(self.root), "--ro-bind", str(source), str(source),
-            "--chdir", str(self.cwd), "--", "zsh", str(source / "scripts" / self.script),
+            "--bind", str(self.root), str(self.root), "--ro-bind", str(ROOT), str(ROOT),
+            "--chdir", str(self.cwd), "--", "zsh", str(ROOT / "scripts" / self.script),
         ], env=env, text=True, capture_output=True, timeout=20, umask=0o022)
 
 
-@pytest.mark.parametrize("script", SETUPS)
-@pytest.mark.parametrize("directory", [None, "", "absolute", "relative agent", "~", "~/.pi/agent"])
-def test_setup_targets_the_same_agent_directory_as_pi(tmp_path: Path, script: str, directory: str | None) -> None:
-    # Break: quoted ~/ written literally, or relative paths resolved after a cwd change.
+@pytest.mark.parametrize("directory", [None, "relative agent", "~", "~/.pi/agent"])
+def test_setup_targets_the_same_agent_directory_as_pi(tmp_path: Path, directory: str | None) -> None:
+    # Break: quoted ~/ written literally, or relative paths resolved after a cwd change
+    # (models.json / auth.json of the wrong directory are written; the three scripts share --agent-dir).
+    script = "setup_pi_opencode_go.zsh"
     h = Harness(tmp_path, script)
     supplied = str(h.agent) if directory == "absolute" else directory
     target = h.home if directory == "~" else h.cwd / directory if directory == "relative agent" else h.agent
@@ -80,10 +82,9 @@ def test_setup_targets_the_same_agent_directory_as_pi(tmp_path: Path, script: st
     assert "SYNTHETIC_NEW_KEY" not in result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("script", SETUPS)
-@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig"])
-def test_update_preserves_other_providers_permissions_and_bom_input(tmp_path: Path, script: str, encoding: str) -> None:
-    # Break: plain UTF-8 reads reject BOM; write_text(tmp)+replace broadens private data.
+def test_update_preserves_other_providers_and_private_permissions(tmp_path: Path) -> None:
+    # Break: replacing providers drops other providers' keys; write_text(tmp)+replace broadens private data.
+    script, encoding = "setup_pi_opencode_go.zsh", "utf-8"
     h = Harness(tmp_path, script)
     before_models = h.models.read_bytes()
     h.models.write_text(before_models.decode(), encoding=encoding)
@@ -109,20 +110,20 @@ def test_update_preserves_other_providers_permissions_and_bom_input(tmp_path: Pa
     assert not list(h.agent.glob(".*.tmp"))
 
 
-@pytest.mark.parametrize("script", SETUPS)
-def test_new_models_are_private_even_under_public_umask(tmp_path: Path, script: str) -> None:
-    h = Harness(tmp_path, script)
+def test_new_models_are_private_even_under_public_umask(tmp_path: Path) -> None:
+    # Break: a new models.json (holding API keys) is created world-readable under umask 022.
+    h = Harness(tmp_path, "setup_pi_opencode_go.zsh")
     h.models.unlink()
     result = h.run()
     assert result.returncode == 0, result.stdout + result.stderr
     assert stat.S_IMODE(h.models.stat().st_mode) == 0o600
 
 
-@pytest.mark.parametrize("script", SETUPS)
-@pytest.mark.parametrize("invalid", ["syntax", "object", "providers", "symlink", "dangling", "hardlink", "directory", "fifo"])
-def test_rejected_models_change_no_managed_state(tmp_path: Path, script: str, invalid: str) -> None:
-    # Break: a guard after auth/backup/mkdir or pi refresh leaves unrelated state changed.
-    h = Harness(tmp_path, script)
+@pytest.mark.parametrize("invalid", ["syntax", "symlink"])
+def test_rejected_models_change_no_managed_state(tmp_path: Path, invalid: str) -> None:
+    # Break: a guard after auth/backup/mkdir or pi refresh leaves unrelated state changed,
+    # or a symlinked/shared models.json is written through (silently detaches the shared file).
+    h = Harness(tmp_path, "setup_pi_opencode_go.zsh")
     if invalid in ("syntax", "object", "providers"):
         h.models.write_text({"syntax": "{broken", "object": "[]", "providers": '{"providers": []}'}[invalid])
     else:
@@ -144,8 +145,9 @@ def test_rejected_models_change_no_managed_state(tmp_path: Path, script: str, in
     assert snapshot(tmp_path) == before
 
 
-@pytest.mark.parametrize("invalid", ["syntax", "object", "symlink", "dangling", "hardlink", "directory", "fifo"])
-def test_rejected_auth_changes_neither_models_nor_other_state(tmp_path: Path, invalid: str) -> None:
+def test_rejected_auth_changes_neither_models_nor_other_state(tmp_path: Path) -> None:
+    # Break: a symlinked auth.json (shared, holds credentials) is replaced, or models.json changes before the guard.
+    invalid = "symlink"
     h = Harness(tmp_path, "setup_pi_opencode_go.zsh")
     if invalid in ("syntax", "object"):
         h.auth.write_text("{broken" if invalid == "syntax" else "[]")
@@ -164,52 +166,8 @@ def test_rejected_auth_changes_neither_models_nor_other_state(tmp_path: Path, in
     assert snapshot(tmp_path) == before
 
 
-@pytest.mark.parametrize("script", SETUPS)
-@pytest.mark.parametrize("content", ["{broken", "[]", '{"providers": []}', '{"providers": {}}'])
-def test_invalid_source_is_rejected_before_any_side_effect(tmp_path: Path, script: str, content: str) -> None:
-    h = Harness(tmp_path, script)
-    repo = tmp_path / "source"
-    (repo / "scripts").mkdir(parents=True)
-    (repo / ".devcontainer").mkdir()
-    shutil.copyfile(ROOT / "scripts" / script, repo / "scripts" / script)
-    shutil.copyfile(ROOT / ".devcontainer/pi-provider-setup.py", repo / ".devcontainer/pi-provider-setup.py")
-    for launcher in ("pigo", "pigod", "piccg", "piccd", "pi-superagents-exec.zsh"):
-        shutil.copyfile(ROOT / ".devcontainer" / launcher, repo / ".devcontainer" / launcher)
-    (repo / ".devcontainer/pi-models.json").write_text(content)
-    before = snapshot(tmp_path)
-    result = h.run(source=repo)
-    assert result.returncode != 0
-    assert "pi-models.json" in result.stderr
-    assert snapshot(tmp_path) == before
-
-
-@pytest.mark.parametrize("script", ["setup_pi_commandcode_goat.zsh", "setup_pi_opencode_go.zsh"])
-def test_missing_launcher_helper_is_rejected_before_any_managed_change(tmp_path: Path, script: str) -> None:
-    # Break: validating a distribution dependency after the JSON update leaves a partial setup.
-    h = Harness(tmp_path, script)
-    source = tmp_path / "source"
-    (source / "scripts").mkdir(parents=True)
-    (source / ".devcontainer").mkdir()
-    shutil.copyfile(ROOT / "scripts" / script, source / "scripts" / script)
-    for name in ("pi-provider-setup.py", "pi-models.json", "pigo", "pigod", "piccg", "piccd"):
-        shutil.copyfile(ROOT / ".devcontainer" / name, source / ".devcontainer" / name)
-    before = snapshot(tmp_path)
-    result = h.run(source=source)
-    assert snapshot(tmp_path) == before
-    assert result.returncode != 0
-    assert "helper source not found" in result.stderr
-
-
-def test_missing_opencode_key_is_rejected_before_models_change(tmp_path: Path) -> None:
-    h = Harness(tmp_path, "setup_pi_opencode_go.zsh")
-    before = snapshot(tmp_path)
-    result = h.run(api_key=None)
-    assert result.returncode != 0
-    assert "API key" in result.stderr
-    assert snapshot(tmp_path) == before
-
-
 def test_existing_opencode_key_is_preserved_without_environment_key(tmp_path: Path) -> None:
+    # Break: a missing OPENCODE_API_KEY erases the saved key, or the key is printed.
     h = Harness(tmp_path, "setup_pi_opencode_go.zsh")
     auth = json.loads(h.auth.read_text())
     auth["opencode-go"] = {"type": "api_key", "key": "SYNTHETIC_SAVED_KEY"}
@@ -221,9 +179,9 @@ def test_existing_opencode_key_is_preserved_without_environment_key(tmp_path: Pa
     assert "SYNTHETIC_SAVED_KEY" not in result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("script", SETUPS)
-def test_existing_fixed_name_tmp_and_its_shared_target_are_untouched(tmp_path: Path, script: str) -> None:
-    h = Harness(tmp_path, script)
+def test_existing_fixed_name_tmp_and_its_shared_target_are_untouched(tmp_path: Path) -> None:
+    # Break: staging through a fixed models.json.tmp follows a user's symlink and overwrites their file.
+    h = Harness(tmp_path, "setup_pi_opencode_go.zsh")
     shared = h.home / "user-data"
     shared.write_text("do not overwrite")
     temporary = h.agent / "models.json.tmp"
@@ -234,9 +192,10 @@ def test_existing_fixed_name_tmp_and_its_shared_target_are_untouched(tmp_path: P
     assert (shared.read_bytes(), shared.stat().st_mode, os.readlink(temporary)) == before
 
 
-@pytest.mark.parametrize("failure", ["fsync", "replace-model", "replace-auth"])
+@pytest.mark.parametrize("failure", ["fsync", "replace-auth"])
 def test_io_failure_never_truncates_files_and_cleans_unused_staging(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                                                    failure: str) -> None:
+    # Break: an I/O failure mid-update truncates models.json / auth.json (credentials lost) or leaves staging files.
     h = Harness(tmp_path, "setup_pi_opencode_go.zsh")
     spec = importlib.util.spec_from_file_location("provider_setup", ROOT / ".devcontainer/pi-provider-setup.py")
     assert spec is not None and spec.loader is not None
@@ -283,3 +242,118 @@ def test_io_failure_never_truncates_files_and_cleans_unused_staging(tmp_path: Pa
         if failure == "replace-auth":
             after["home/.pi/agent/models.json"] = before["home/.pi/agent/models.json"]
         assert after == before
+
+
+def isolated_command(root: Path, command: list[str]) -> list[str]:
+    """Run with only `root` writable, so a broken resolver cannot touch a real HOME."""
+    return ["bwrap", "--die-with-parent", "--unshare-net", "--unshare-pid",
+            "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+            "--ro-bind", str(ROOT), str(ROOT), "--bind", str(root), str(root),
+            "--chdir", str(root), "--", *command]
+
+
+def _native_agent_directory(root: Path, env: dict[str, str]) -> str:
+    # Independent consumer oracle: do not derive the expectation with our resolver.
+    pi = shutil.which("pi")
+    assert pi is not None
+    package = Path(pi).resolve().parents[2]
+    script = """import {pathToFileURL} from 'node:url';
+import {join, dirname} from 'node:path';
+const load = file => import(pathToFileURL(join(process.argv[1], file)).href);
+const {getAgentDir} = await load('dist/config.js');
+const {FileSettingsStorage} = await load('dist/core/settings-manager.js');
+console.log(dirname(new FileSettingsStorage(process.cwd(), getAgentDir()).globalSettingsPath));
+"""
+    result = subprocess.run(isolated_command(root, ["node", "--input-type=module", "-e", script, str(package)]),
+                            cwd=root, env=env, capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+    return result.stdout.removesuffix("\n")
+
+
+def _symlink_parent(root: Path) -> Path:
+    (root / "real/nested").mkdir(parents=True)
+    (root / "alias").symlink_to(root / "real/nested", target_is_directory=True)
+    decoy = root / "real/agent"
+    decoy.mkdir()
+    (decoy / "settings.json").write_text("{}")
+    return decoy
+
+
+@pytest.mark.parametrize("kind", ["unset", "tilde", "relative", "symlink-parent"])
+def test_agent_dir_matches_the_directory_pi_selects(tmp_path: Path, kind: str) -> None:
+    # Break: reinterpreting ~ or following an alias before collapsing .. selects a different directory
+    # than native Pi, so models/auth/settings of an unrelated directory get read and written.
+    home = tmp_path / "home"
+    home.mkdir()
+    if kind == "symlink-parent":
+        _symlink_parent(tmp_path)
+    raw = {"unset": None, "tilde": "~/custom agent", "relative": "relative agent",
+           "symlink-parent": "alias/../agent"}[kind]
+    env = {**os.environ, "HOME": str(home)}
+    env.pop("PI_CODING_AGENT_DIR", None)
+    if raw is not None:
+        env["PI_CODING_AGENT_DIR"] = raw
+    before = snapshot(tmp_path)
+    resolved = subprocess.run(
+        isolated_command(tmp_path, [sys.executable, str(ROOT / ".devcontainer/pi-provider-setup.py"), "--agent-dir"]),
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15)
+    assert resolved.returncode == 0, resolved.stderr
+    assert resolved.stdout.removesuffix("\n") == _native_agent_directory(tmp_path, env)
+    assert snapshot(tmp_path) == before
+
+
+def test_provider_setup_uses_lexical_path_before_validation_or_writes(tmp_path: Path) -> None:
+    # Break: raw alias/.. bypasses a real target guard and writes a different auth/models.
+    h = Harness(tmp_path, "setup_pi_opencode_go.zsh")
+    decoy = _symlink_parent(h.cwd)
+    agent = h.cwd / "agent"
+    agent.mkdir()
+    shutil.copyfile(h.models, agent / "models.json")
+    shutil.copyfile(h.auth, agent / "auth.json")
+    for path in agent.iterdir():
+        path.chmod(0o600)
+    decoy_before, default_before = snapshot(decoy), snapshot(h.agent)
+    result = h.run(directory="alias/../agent")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert snapshot(decoy) == decoy_before
+    assert snapshot(h.agent) == default_before
+    assert json.loads((agent / "models.json").read_text())["providers"]["keep"] == h.other
+    assert json.loads((agent / "auth.json").read_text())["opencode-go"]["key"] == "SYNTHETIC_NEW_KEY"
+
+
+def test_setup_pins_resolved_directory_for_its_followup_pi_commands(tmp_path: Path) -> None:
+    # Break: a later Pi consumer reinterprets a raw relative path after join/chdir and updates another directory.
+    h = Harness(tmp_path, "setup_pi_opencode_go.zsh")
+    _symlink_parent(h.cwd)
+    (h.cwd / "agent").mkdir()
+    env = {"HOME": str(h.home), "PATH": f"{h.bin}:/usr/bin:/bin", "PI_CODING_AGENT_DIR": "alias/../agent",
+           "DEEPINFRA_TOKEN": "SYNTHETIC_TOKEN", "OPENCODE_API_KEY": "SYNTHETIC_KEY",
+           "CALL_LOG": str(tmp_path / "calls")}
+    result = subprocess.run(isolated_command(tmp_path, ["zsh", "-c",
+        'cd -- "$2"; source "$1"; print -rn -- "PINNED:$PI_CODING_AGENT_DIR"',
+        "_", str(ROOT / "scripts/setup_pi_opencode_go.zsh"), str(h.cwd)]),
+        cwd=h.cwd, env=env, capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.rsplit("PINNED:", 1)[-1] == str(h.cwd / "agent")
+
+
+def test_launcher_pins_same_directory_before_executing_pi(tmp_path: Path) -> None:
+    # Break: prechecks normalize a path but the process tree still receives its raw spelling.
+    _symlink_parent(tmp_path)
+    home = tmp_path / "home"
+    config = home / ".pi/agent/extensions/subagent.d/pigo/config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text("{}")
+    (tmp_path / "agent").mkdir()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    pi = bin_dir / "pi"
+    pi.write_text('#!/bin/sh\nprintf "%s\\n" "$PI_CODING_AGENT_DIR"\n')
+    pi.chmod(0o755)
+    env = {**os.environ, "HOME": str(home), "PATH": f"{bin_dir}:{os.environ['PATH']}",
+           "PI_CODING_AGENT_DIR": "alias/../agent", "PI_SUPERAGENTS_LAUNCHER_DRY_RUN": "0"}
+    result = subprocess.run(isolated_command(tmp_path, ["zsh", "-c",
+        'source "$1"; pi_superagents_exec pigo', "_", str(ROOT / ".devcontainer/pi-superagents-exec.zsh")]),
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.removesuffix("\n") == str(tmp_path / "agent")
