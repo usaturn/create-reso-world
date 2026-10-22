@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from tools.agent_runner import Config
+from tools.agent_runner import Config, ConfigError
 from tools.agent_runner.adapters import AdapterContext, AdapterOutcome, Capabilities, LaunchSpec
 from tools.agent_runner.models import Agent, Assignment, Identity, Receipt, Role, Runtime, Workflow
 from tools.agent_runner.runner import EXCEPTIONS_HEADING
@@ -370,6 +370,14 @@ def test_unusable_fix_check_destination_stops_before_reservation_or_launch(
     assert json.loads(planning.read_text())["activities"] == []
     assert not (tmp_path / "run").exists()
     assert not planning.with_suffix(".json.review-lock").exists()
+
+
+def test_invalid_writable_review_role_never_consumes_budget(inputs: Any, tmp_path: Path) -> None:
+    selected = config()
+    selected.roles["self-review"].writes = True
+    with pytest.raises(ConfigError):
+        launch(inputs, tmp_path, selected)
+    assert json.loads(inputs[1].read_text())["activities"] == []
 
 
 

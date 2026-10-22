@@ -350,6 +350,17 @@ def test_legacy_fork_checkout_directory_is_ambiguous(tmp_path: Path) -> None:
     assert gh.calls == []
 
 
+def test_legacy_fork_checkout_directory_rejects_findings_of_another_repository(tmp_path: Path) -> None:
+    parent = make_parent(tmp_path)
+    fork = make_fork(parent)
+    directory = review_dir(fork, "#11-x")
+
+    write_findings(directory, "someone/x", 11)
+    with pytest.raises(target.TargetError) as excinfo:
+        target.find_review_directory(str(directory), parent_root=parent, runner=FakeGh({}))
+    assert error_code(excinfo) == target.EXIT_PATH
+
+
 def test_pr_option_must_match_path(tmp_path: Path) -> None:
     parent = make_parent(tmp_path)
     directory = review_dir(parent, "usaturn", "create-reso-world", "#4-feat-x")

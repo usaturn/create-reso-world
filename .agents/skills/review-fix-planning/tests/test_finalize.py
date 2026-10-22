@@ -648,6 +648,7 @@ BAD_COMPARISONS: dict[str, Any] = {
     "two_files": compare_response(files=[compare_file(), compare_file("docs/superpowers/specs/other.md")]),
     "other_directory": compare_response(files=[compare_file("docs/superpowers/plans/x.md")]),
     "subdirectory": compare_response(files=[compare_file("docs/superpowers/specs/draft/x.md")]),
+    "repository_root": compare_response(files=[compare_file("README.md")]),
     "script": compare_response(files=[compare_file("docs/superpowers/specs/run.py")]),
 }
 

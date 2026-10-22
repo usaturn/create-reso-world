@@ -205,6 +205,11 @@ INVALID_RECORDS = [
     ),
     pytest.param(set_value("seats", value=[]), "seats: must not be empty unless the round stopped", id="empty-seats"),
     pytest.param(
+        set_value("seats", 1, "review_file", value="Grok-4.7"),
+        "seats: must not repeat a review_file",
+        id="repeated-review-file",
+    ),
+    pytest.param(
         set_value("seats", 0, "rerun", value=False),
         "seats[0].rerun: must be true exactly when file_head is the first 12 characters of reviewed_head",
         id="rerun-disagrees-with-heads",
@@ -220,9 +225,22 @@ INVALID_RECORDS = [
         id="no-rerun-seat",
     ),
     pytest.param(
+        set_value("decisions", 0, "sources", value=["Grok-4.7#M-9@25e76f6c513f"]),
+        "decisions[0].sources: must contain the reference part of the decision id",
+        id="sources-without-decision-id",
+    ),
+    pytest.param(
         set_value("decisions", 0, "change", value="changed"),
         "decisions[0].previous_state: required when change is changed",
         id="changed-without-previous-state",
+    ),
+    pytest.param(
+        apply(
+            set_value("decisions", 0, "change", value="changed"),
+            set_value("decisions", 0, "previous_state", value="fix"),
+        ),
+        "decisions[0].previous_state: must differ from state",
+        id="previous-state-equal-to-state",
     ),
     pytest.param(
         apply(
@@ -240,14 +258,37 @@ INVALID_RECORDS = [
         id="skip-without-revisit-condition",
     ),
     pytest.param(
+        set_value("decisions", 0, "severity", value=None),
+        "decisions[0].severity: may be null only when every source is an Unverified candidate",
+        id="null-severity-for-a-finding",
+    ),
+    pytest.param(
         set_value("decisions", 0, "reason", value="理由 <!-- x -->"),
         "decisions[0].reason: must not contain '<!--' or '-->'",
         id="comment-marker-in-text",
     ),
     pytest.param(
+        apply(
+            set_value("decisions", 0, "d1", value=PLANNER_REPRODUCTION),
+            set_value("decisions", 0, "pr_relation", value="preexisting"),
+        ),
+        "decisions[0].d1: requires pr_relation introduced or surfaced",
+        id="d1-on-a-preexisting-problem",
+    ),
+    pytest.param(
         set_value("decisions", 0, "d1", value=PLANNER_D1),
         "decisions[0].d1.reproduction: required when reproduced_by is planner or verifier",
         id="planner-d1-without-reproduction",
+    ),
+    pytest.param(
+        set_value(
+            "decisions",
+            0,
+            "d1",
+            value={**PLANNER_D1, "reproduced_by": "Grok-4.7#M-2@25e76f6c513f"},
+        ),
+        "decisions[0].d1.reproduced_by: must be one of the decision's sources, planner, or verifier",
+        id="d1-reproduced-by-another-finding",
     ),
     pytest.param(
         duplicate_second_decision,
@@ -270,6 +311,16 @@ INVALID_RECORDS = [
         ),
         "outcome: fixes_pushed requires at least one fix decision",
         id="pushed-without-fix",
+    ),
+    pytest.param(
+        apply(
+            set_value("outcome", value="awaiting_approval"),
+            delete("commit"),
+            set_value("decisions", 0, "state", value="skip"),
+            set_value("decisions", 0, "revisit_when", value="条件"),
+        ),
+        "outcome: awaiting_approval requires a fix or hold decision",
+        id="awaiting-approval-without-fix-or-hold",
     ),
     pytest.param(
         apply(set_value("outcome", value="no_fix_needed"), delete("commit")),
@@ -388,6 +439,11 @@ INVALID_NEXT_ROUNDS = [
         apply(set_value("decisions", 2, "state", value="fix"), delete("decisions", 2, "revisit_when")),
         "decisions[2].state: an inherited decision must keep the earlier state skip",
         id="inherited-with-another-state",
+    ),
+    pytest.param(
+        set_value("decisions", 1, "previous_state", value="hold"),
+        "decisions[1].previous_state: must be the earlier state fix",
+        id="changed-from-the-wrong-state",
     ),
     pytest.param(set_value("round", value=3), "round: must be 2", id="skipped-round-number"),
     pytest.param(
@@ -515,12 +571,13 @@ def test_stopped_round_preserves_category_and_pending_decisions(category: str) -
     assert review_records.fold([(1, checked)])["rounds"][0]["stop_reason"] == checked["stop_reason"]
 
 
-@pytest.mark.parametrize("reason", ["permission:", "iteration_limit: 1", "確認待ち"])
-def test_stopped_round_requires_a_concrete_allowed_category(reason: str) -> None:
+@pytest.mark.parametrize("reason", [None, "", "permission:", "external:   ", "iteration_limit: 1", "確認待ち"])
+def test_stopped_round_requires_a_concrete_allowed_category(reason: object) -> None:
     record = round_one()
     del record["commit"]
     record["outcome"] = "stopped"
-    record["stop_reason"] = reason
+    if reason is not None:
+        record["stop_reason"] = reason
     assert any("stop_reason" in problem for problem in problems_of(lambda: review_records.validate_record(record)))
 
 

@@ -398,6 +398,12 @@ def test_check_statement_judgments_reports_a_different_to() -> None:
     assert any("to" in problem for problem in _judgment_problems(document, candidates_value))
 
 
+def test_check_statement_judgments_reports_a_different_from() -> None:
+    document, candidates_value = judged_pair()
+    candidates_value["from"] = BASE
+    assert any("fix_check.from" in problem for problem in _judgment_problems(document, candidates_value))
+
+
 def test_check_statement_judgments_requires_inconsistent_sites_in_findings() -> None:
     document, candidates_value = judged_pair()
     document["findings"][0]["statement_sites"] = []
@@ -574,6 +580,10 @@ def _drop_last_finding(value: dict[str, Any]) -> None:
     value["findings"].pop()
 
 
+def _add_unknown_finding(value: dict[str, Any]) -> None:
+    value["findings"].append(candidate_finding("M-5", "Medium"))
+
+
 def _change_severity(value: dict[str, Any]) -> None:
     value["findings"][0]["severity"] = "Medium"
 
@@ -590,6 +600,7 @@ def _drop_unverified(value: dict[str, Any]) -> None:
     ("mutation", "expected"),
     [
         (_drop_last_finding, "findings: L-2 is in the Markdown but not in the JSON"),
+        (_add_unknown_finding, "findings: M-5 is in the JSON but not in the Markdown"),
         (_change_severity, "findings[0].severity: the Markdown says High"),
         (_move_location, "findings[1].locations[0]: not in the Markdown"),
         (_drop_unverified, "unverified_candidates: U-1 is in the Markdown"),
@@ -854,6 +865,38 @@ def test_provenance_stats_leaves_adoption_unevaluated_when_identifiers_are_unobs
     assert [row["adopted"] for row in finders] == [None, None]
 
 
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"schema": "review-records/v999", "decisions": []},
+        {"decisions": [{"sources": [f"example#H-1@{HEAD[:12]}"], "severity": "Blocker"}]},
+        {"decisions": [{"sources": [f"example#H-1@{HEAD[:12]}"], "history": [None]}]},
+    ],
+)
+def test_stats_rejects_malformed_folded_records_without_a_traceback(
+    bad: object, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    review_dir = tmp_path / "review"
+    _write(review_dir / "verified" / f"{HEAD[:12]}.json", document_v2())
+    records_path = _write(tmp_path / "records.json", bad)
+    assert review_findings.main(["stats", str(review_dir), "--records", str(records_path)]) == 65
+    assert "records" in capsys.readouterr().err
+
+
+def test_stats_names_records_pr_for_a_malformed_pr(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    review_dir = tmp_path / "review"
+    _write(review_dir / "verified" / f"{HEAD[:12]}.json", document_v2())
+    records_path = _write(tmp_path / "records.json", {"pr": "not-a-pr", "decisions": []})
+    assert review_findings.main(["stats", str(review_dir), "--records", str(records_path)]) == 65
+    assert "records.pr" in capsys.readouterr().err
+
+
+def test_legacy_findings_cannot_prove_the_actor_of_a_v2_adoption() -> None:
+    records = review_findings._records.fold([(123, v2_adoption_round(document_v2()))])
+    rows = review_findings.stats([verified()], records)["provenance"]["executions"]
+    assert all(row["adopted"] is None for row in rows if row["stage"] == "find")
+
+
 def test_v2_model_identity_cannot_contain_a_line_break() -> None:
     kind, owner = "verified", "verifier"
     document = document_v2(kind)
@@ -977,6 +1020,19 @@ def test_cli_stats_reads_cycle_documents_under_verified(tmp_path: Path, capsys: 
     _write(review_dir / "verified" / f"{HEAD[:12]}.json", verified())
     _write(review_dir / "verified" / f"{FIX[:12]}.fix-check.json", fix_check())
     _write(review_dir / "verified" / f"{HEAD[:12]}.planning.json", planning())
+    assert review_findings.main(["stats", str(review_dir)]) == 0
+    assert json.loads(capsys.readouterr().out)["documents"] == 1
+
+
+def test_cli_stats_skips_lists_other_than_cycle_even_if_they_lack_newer_sections(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    review_dir = tmp_path / "#542-feat-x"
+    _write(review_dir / "verified" / f"{HEAD[:12]}.json", verified())
+    stage2 = fix_check()
+    del stage2["statement_candidates"]
+    _write(review_dir / "verified" / f"{FIX[:12]}.fix-check.json", stage2)
+    _write(review_dir / "verified" / f"{FIX[:12]}.statement-candidates.json", statement_candidates_document())
     assert review_findings.main(["stats", str(review_dir)]) == 0
     assert json.loads(capsys.readouterr().out)["documents"] == 1
 
@@ -1264,6 +1320,18 @@ def test_statement_candidates_reads_code_spans_removed_from_documents(tmp_path: 
     assert [candidate["path"] for candidate in document["candidates"]] == ["README.md:1"]
 
 
+def test_statement_candidates_puts_frequent_terms_in_common_terms(tmp_path: Path) -> None:
+    lines = "".join(f"MODE_FLAG の説明 {index}\n" for index in range(review_findings.COMMON_TERM_LIMIT + 1))
+    root = _repo(tmp_path, {"tool.py": "x = 1\n", "notes.md": lines, "README.md": "MODE_FLAG を見る\n"})
+    base = _git(root, "rev-parse", "HEAD")
+    head = _commit(root, {"tool.py": "x = MODE_FLAG\n"}, "use flag")
+
+    document = review_findings.statement_candidates(root, base, head, generated_at="2026-10-05T00:00:00Z")
+
+    assert document["common_terms"] == [{"term": "MODE_FLAG", "count": review_findings.COMMON_TERM_LIMIT + 2}]
+    assert document["candidates"] == []
+
+
 def test_statement_candidates_keeps_the_excerpt_around_a_term_far_into_a_long_line(tmp_path: Path) -> None:
     long_line = "前置き" * 100 + " deep_marker_alpha " + "後書き" * 100
     root = _repo(tmp_path, {"tool.py": "a = 1\n", "README.md": f"{long_line}\n"})
@@ -1277,6 +1345,31 @@ def test_statement_candidates_keeps_the_excerpt_around_a_term_far_into_a_long_li
     assert "deep_marker_alpha" in text
     assert text.startswith("… ") and text.endswith(" …")
     assert len(text) < len(long_line)
+
+
+def test_statement_candidates_keeps_a_short_line_as_it_is(tmp_path: Path) -> None:
+    line = "x" * 100 + " short_marker_beta " + "y" * 81
+    assert len(line) == 200
+    root = _repo(tmp_path, {"tool.py": "a = 1\n", "README.md": f"  {line}  \n"})
+    base = _git(root, "rev-parse", "HEAD")
+    head = _commit(root, {"tool.py": "a = short_marker_beta\n"}, "marker")
+
+    document = review_findings.statement_candidates(root, base, head, generated_at="2026-10-05T00:00:00Z")
+
+    assert document["candidates"][0]["text"] == line
+
+
+def test_statement_candidates_merges_overlapping_excerpts(tmp_path: Path) -> None:
+    long_line = "前" * 150 + " near_marker_eps " + "あ" * 30 + " near_marker_zeta " + "後" * 150
+    root = _repo(tmp_path, {"tool.py": "a = 1\n", "README.md": f"{long_line}\n"})
+    base = _git(root, "rev-parse", "HEAD")
+    head = _commit(root, {"tool.py": "a = (near_marker_eps, near_marker_zeta)\n"}, "markers")
+
+    document = review_findings.statement_candidates(root, base, head, generated_at="2026-10-05T00:00:00Z")
+
+    text = document["candidates"][0]["text"]
+    assert text.count(" … ") == 0
+    assert "near_marker_eps" in text and "near_marker_zeta" in text
 
 
 def test_statement_candidates_does_not_count_a_term_inside_a_longer_word(tmp_path: Path) -> None:
@@ -1523,6 +1616,24 @@ def test_statement_candidates_reads_kebab_case_names(tmp_path: Path) -> None:
         ("README.md:1", ["input-write"]),
         ("README.md:3", ["review-complete"]),
     ]
+
+
+def _duplicate_first_candidate(value: dict[str, Any]) -> None:
+    value["candidates"].append(dict(value["candidates"][0]))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        (_duplicate_first_candidate, "duplicate"),
+    ],
+)
+def test_invalid_statement_candidates_name_the_problem(
+    mutation: Callable[[dict[str, Any]], None], expected: str
+) -> None:
+    value = statement_candidates_document()
+    mutation(value)
+    assert any(expected in problem for problem in problems_of(value))
 
 
 # 修正主張と変更ファイルの判定漏れ・実行証拠の取り違えを防ぐ。
