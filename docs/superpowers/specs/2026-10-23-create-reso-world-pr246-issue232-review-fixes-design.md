@@ -127,3 +127,69 @@ PR 修正ループの判定: 4 人とも 1 回目で受け付けられた（`rej
 - 以前の回の修正で足りなかった理由: サイクル 1 は、レビュアーが個別に見つけた 7 件だけを戻した。棚卸しの D・L の理由を、守りの分岐ごとに確かめていなかった
 - 比べた直し方: (1) 見つかった分だけ戻す点の修正を続ける — 走査をしないと、次のレビューでまた別の分岐が見つかる。(2) 走査で、base が検出し今が検出しない分岐を全部挙げ、L・D と確かめたもの以外を戻す（選んだ案）— 条件が走査の結果で確かめられる。(3) この PR の保証を狭め、「S は残す」をやめる — #228 の決定 6 に反するので取れない
 - 範囲と限界: 走査は単一行の `if`/`elif` だけで、`if` でない検査（`review_records.py:613` など）は個別に見た。対象は finalize.py・upsert_pr_comment.py・run_roles.py・review_target.py・dispatch.py・review_records.py・review_findings.py。agent_tmp.py・issue_budget.py・review-verify の評価（bash）は走査していない。L・D と確かめた分岐の一覧は、自己レビューのファイルの M-1 の「同種箇所」にある
+
+# サイクル 2
+
+## 管理（サイクル 2）
+
+- reviewed_head `efe56bf4b65983d2dbac6e6ea8ccad3d3e1369f3`。結論: 1 修正して push
+- planner: claude-opus-5-5（claude-code）。修正の担当は `run_roles.py --phase implement`（`claude-opus`、観測したモデル claude-opus-5-5、2,760 秒、`stop_confirmed: true`、run `5b9d83d4f92641ad8d07661382ad926e`）と司令塔。自己レビューは self-review・fix-check とも `self`
+- 確認済みの一覧: `verified/efe56bf4b659.json`（confirmed 4・not_reproduced 4・unverified 0）。工程の記録: `verified/efe56bf4b659.planning.json`
+
+## レビュアーの構成（サイクル 2）
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `efe56bf4b659` | はい | Approve |
+| `Grok-4.7.md` | Grok 4.7 | cursor | `efe56bf4b659` | はい | Needs manual verification |
+| `SWE-2-Max.md` | SWE-2 Max | devin | `efe56bf4b659` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | `efe56bf4b659` | はい | Approve |
+
+`claude-opus-5-5-commit-8438ecff15e0….md`（サイクル 1 の自己レビュー）は古いレビューとして入力から外した（指摘はサイクル 1 で判断済み。確認済みの一覧の V-6〜V-8 で、現行 HEAD で解消を確かめた）。
+
+## 指摘の振り分け（サイクル 2）
+
+前のサイクルの `fix` の判断（15）は、現行 HEAD で解消を確かめて `resolved`（`changed`、`previous_state: fix`）にした（根拠: サイクル 2 のレビュアーが戻した例の検出を確かめた記述と、確認済みの一覧 V-6〜V-8）。前のサイクルの `skip`（2）は引き継いだ。
+
+| 判断 | 出典 | 区分 | 根拠 |
+| --- | --- | --- | --- |
+| G1 | gpt-6.1-sol#M-3 | 対応する | 生成物の証拠の拒否（`{"artifact": None}`）の唯一の例を消した。壊れると生成物を確かめていない主張を holds と記録する（確認済みの一覧 V-1） |
+| G2 | gpt-6.1-sol#L-3（Grok-4.7#L-3） | 対応する | 矛盾した台帳の拒否を L として消したが、壊れるともっともらしい誤った集計が終了 0 で返る（V-2）。拒否の分岐ごとに 1 例の 4 例を戻した |
+| G3 | planner#S-1 | 対応する | 走査を広げて見つけた、`review_findings.py` の `_pattern`・`_items` の条件の唯一の例（迷い） |
+| G4 | SWE-2-Max#I-2 | 対応する | 棚卸しの `INVALID_RECORDS` の件数欄が古い。#236 が集計に使う（(b)） |
+| G5 | deepseek-deepseek-v4.1-flash#I-1 | 対応する | サイクル 1 の review-fix の Spec の S3 の区分が判断の記録（fix）と食い違う（(b)）。F8 に直した |
+| R2 | deepseek-deepseek-v4.1-flash#I-2 | 解消済み | `history` の検査は L ではない（V-5。`[{"state": "bogus"}]` は終了 0 で集計される）。表記だけ S 低に直した |
+
+## 設計の見直し（サイクル 2）
+
+- きっかけ: 1（同じ守る条件の 3 回目。サイクル 1 の走査の範囲の外から、消したままの S が見つかった）
+- 選んだ直し方: 走査の範囲を広げた（`issue_budget.py`・`agent_tmp.py` の単一行の `if`/`elif`、`review_findings.py` の証拠の検査の複合条件の条件ごと）。base が検出し今が検出しない 15 件のうち、L・D と確かめた 8 件を除く 7 件の例を戻した（#232 の Spec の「守りを壊した使い捨てのコピーでの確認」）
+- 縮小: ほかのモジュールの複合条件の条件ごとと、式・`return` の検査の網羅的な走査はしない。#236（integration）への持ち越しとして PR の既知の制限に書く（予算の checkpoint の判断。`.agents/execution-budget.md`）
+
+## 自己レビュー（サイクル 2、1 回）
+
+| 役割 | 成果 | 結果 |
+| --- | --- | --- |
+| self-review | `claude-opus-5-5-commit-c5f7f4daead592109d5290e5977755f0233f3ca0.md` | Medium 1・Low 1。Needs manual verification |
+| fix-check | `verified/c5f7f4daead5.fix-check.json`・`.statement-candidates.json`・`.fix-check.md` | 主張 13 件のうち holds 11・violates 1・unchecked 1。新しい問題 1 |
+
+| 指摘 | 区分 | 根拠 |
+| --- | --- | --- |
+| self#M-1（`finalize.py:147`・`216`） | 対応する | CI の StatusContext の `SUCCESS` の判定と、Spec の commit のファイルの状態の判定の唯一の例を消していた。壊れると CI が ERROR の PR や rename の commit を未検証のままマージする（高）。base の 2 例（ERROR、renamed）を戻した |
+| self#L-1（`review_records.py:195`・`423`） | 対応する | `reviewed_head` の形と sources の参照の形の検査の唯一の例を消していた（迷い）。base の 2 例を戻した |
+| fix-check#V-1（`agent_tmp.py:39`） | 対応しない | cwd が main checkout の `.git` のときだけ、42 行の検査が同じ入力を拒否しない。base のテストもこの場合を検出しないので、この PR が検出力を失ったのではない。普段の使い方で到達しにくい。棚卸しの行にこの条件を書き、#236 に持ち越す |
+
+戻した 4 例はどれも、条件を外したコピーで戻した例だけが失敗した（司令塔が確かめた）。自己レビューの後の修正（`b93af5f903c9`）は再レビューしていない。
+
+## 検証（サイクル 2 の最後の修正の後、HEAD `b93af5f903c9`、clean）
+
+| コマンド | 終了コード | 結果 |
+| --- | --- | --- |
+| `uv run --locked pytest .agents/scripts .agents/skills/review-fix-planning .agents/skills/review-verify` | 0 | 428 passed |
+| `uv run pytest tests/skills .agents/skills .agents/scripts tools` | 0 | 3,008 passed |
+| `bash .devcontainer/run-tests.bash` | 0 | PASS: 33 test(s) |
+| `bash scripts/check-layout.sh` | 0 | PASS |
+| `git diff --check origin/main...HEAD` | 0 | — |
+
+- 前後の数（Issue の計測、HEAD `b93af5f903c9`）: 1,056 件 → 428 件（40.5%）、9,919 行 → 7,081 行（71.4%）。#232 の Spec の「検証の記録」と一致
+- 未確認の事項: 複合条件の網羅的な走査（`review_findings.py` の残りとほかのモジュールの式・`return`）。サイクル 2 の自己レビューの後の修正は再レビューしていない
