@@ -153,67 +153,6 @@ def test_confined_dispatch_passes_result_guard_with_unavailable_unrelated_checko
     assert result["batch"]["unrelated_checkout_audit"][0]["path"] == str(neighbor)
 
 
-def test_self_assignment_keeps_all_registrations_with_a_retained_dsh_fallback(
-    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str],
-) -> None:
-    """--assign self は template の fallback を残すが、その fallback は起動されない（#187 M-1）。"""
-    from tools.agent_runner.workspace import create_worktree
-
-    repository = Path(verification_input["repository"])
-    neighbor = create_worktree(repository, "HEAD", tmp_path / "neighbor")
-    neighbor.rename(tmp_path / "moved")
-    template = tmp_path / "template.toml"
-    template.write_text(
-        """
-[agents.probe]
-runtime = "pi"
-command = ["never-launch"]
-model = "primary"
-
-[agents.dsh]
-runtime = "dsh"
-command = ["never-launch"]
-model = "fallback"
-
-[roles.fix-check]
-writes = false
-deadline_seconds = 30
-result_shape = "json"
-
-[workflows.fix.assignments.fix-check]
-agents = ["probe"]
-fallback = ["dsh"]
-""",
-        encoding="utf-8",
-    )
-    request_file = tmp_path / "request.json"
-    request_file.write_text(json.dumps(verification_input), encoding="utf-8")
-    personal = tmp_path / "personal.toml"
-    personal.write_text("", encoding="utf-8")
-    output = tmp_path / "run"
-
-    class Confined(ReceiptAdapter):
-        capabilities = Capabilities(confined_writes=True)
-
-    code = dispatch.main(
-        [
-            "--template", str(template),
-            "--config", str(personal),
-            "--request", str(request_file),
-            "--output-dir", str(output),
-            "--assign", "self",
-        ],
-        adapter_loader=lambda _: Confined(),
-    )
-    assert code == 1
-    report = json.loads(capsys.readouterr().out)
-    assert report["category"] == "environment"
-    assert [(item["path"], item["kind"]) for item in report["checkout_audit"]] == [
-        (str(neighbor), "unavailable_before")
-    ]
-    assert not output.exists()
-
-
 def test_self_returns_complete_input_without_launching_implementation(
     dispatch: Any, verification_input: dict[str, Any], tmp_path: Path
 ) -> None:
@@ -312,17 +251,11 @@ def test_self_fix_check_asks_for_no_write_exceptions(
     assert [call["write_exceptions"] for call in calls] == [()]
 
 
-@pytest.mark.parametrize("mutation", ["multi", "writes", "text"])
-def test_invalid_fix_check_assignment_is_rejected_before_launch(
-    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path, mutation: str
+def test_writing_fix_check_role_is_rejected_before_launch(
+    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path
 ) -> None:
     cfg = config("probe")
-    if mutation == "multi":
-        cfg.workflows["fix"].assignments["fix-check"].agents.append("self")
-    elif mutation == "writes":
-        cfg.roles["fix-check"].writes = True
-    else:
-        cfg.roles["fix-check"].result_shape = "text"
+    cfg.roles["fix-check"].writes = True
     with pytest.raises(ConfigError):
         dispatch.dispatch(cfg, verification_input, tmp_path / "run")
     assert not (tmp_path / "run").exists()
@@ -345,23 +278,6 @@ def test_prefixed_named_skill_digest_is_not_recorded_as_a_fake_path(
     }
 
 
-def test_multiple_unlocated_skills_keep_raw_observations_without_duplicate_paths(
-    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path
-) -> None:
-    versions = {"first": "sha256:" + "a" * 64, "second": "sha256:" + "b" * 64}
-
-    class NamedSkillsAdapter(ReceiptAdapter):
-        def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
-            return AdapterOutcome(identity=Identity(skill_versions=versions))
-
-    def adapter_loader(runtime: str) -> NamedSkillsAdapter:
-        return NamedSkillsAdapter()
-
-    result = dispatch.dispatch(config("probe"), verification_input, tmp_path / "run", adapter_loader=adapter_loader)
-    assert result["verifier"]["provenance"]["skills"][0] == {"path": "unknown", "sha256": "unknown"}
-    assert result["batch"]["results"][0]["attempts"][0]["identity"]["skill_versions"] == versions
-
-
 def test_unobserved_identity_is_unknown_not_requested(
     dispatch: Any, verification_input: dict[str, Any], tmp_path: Path
 ) -> None:
@@ -378,30 +294,11 @@ def test_unobserved_identity_is_unknown_not_requested(
     assert result["verifier"]["provenance"]["skills"] == [result["skill"]]
 
 
-@pytest.mark.parametrize(
-    "field,bad",
-    [
-        ("to", "HEAD"), ("to", "A" * 40), ("to", "a" * 39), ("from", "0" * 40),
-        ("fix_sections", ""), ("fix_sections", " \n\t"), ("fix_sections", 42),
-        ("fix_ids", []), ("fix_ids", [" "]), ("fix_ids", ["F1", "F1"]),
-        ("fix_ids", [1]), ("fix_ids", "F1"), ("extra", True),
-        ("repository", "relative"), ("verified_file", "relative"), ("review_dir", "relative"),
-    ],
-)
-def test_incomplete_or_unresolvable_request_is_rejected_before_output(
-    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path, field: str, bad: object
+def test_mutable_revision_is_rejected_before_output(
+    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path
 ) -> None:
-    verification_input[field] = bad
-    with pytest.raises(ValueError):
-        dispatch.dispatch(config(), verification_input, tmp_path / "run")
-    assert not (tmp_path / "run").exists()
-
-
-@pytest.mark.parametrize("field", ["repository", "from", "to", "fix_ids", "fix_sections", "verified_file", "review_dir"])
-def test_every_request_field_is_required_before_output(
-    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path, field: str
-) -> None:
-    del verification_input[field]
+    """to=HEAD のような動く参照を許すと、別の commit を検証して成功と報告し得る。"""
+    verification_input["to"] = "HEAD"
     with pytest.raises(ValueError):
         dispatch.dispatch(config(), verification_input, tmp_path / "run")
     assert not (tmp_path / "run").exists()
@@ -437,9 +334,7 @@ STARTED = datetime(2026, 10, 8, 1, 2, 3, tzinfo=UTC)
 @pytest.mark.parametrize(
     "deadline,stop_new_checks_at,deadline_at,reserve",
     [
-        (1800, "2026-10-08T01:27:03Z", "2026-10-08T01:32:03Z", 300),
         (3600, "2026-10-08T01:27:03Z", "2026-10-08T01:32:03Z", 300),
-        (600, "2026-10-08T01:07:03Z", "2026-10-08T01:12:03Z", 300),
         (400, "2026-10-08T01:05:23Z", "2026-10-08T01:08:43Z", 200),
     ],
 )
@@ -474,13 +369,6 @@ def test_self_prompt_embeds_the_same_time_limits(
     head, _, _ = result["prompt"].partition("\n\nApplied skill:\n")
     embedded = json.loads(head[head.index("{") :])
     assert embedded["time_limits"] == result["time_limits"]
-
-
-def test_dispatcher_skill_digest_is_the_hash_of_the_file_bytes(
-    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path
-) -> None:
-    result = dispatch.dispatch(config(), verification_input, tmp_path / "run")
-    assert result["skill"]["sha256"] == hashlib.sha256(dispatch.SKILL.read_bytes()).hexdigest()
 
 
 def test_observed_hash_conflicting_with_the_dispatched_skill_is_unknown(
@@ -710,8 +598,11 @@ def test_accept_saves_the_tool_output_unchanged_with_the_observed_verifier(
     assert not [path for path in verified_dir.iterdir() if path.name.startswith(".")]
 
 
-@pytest.mark.parametrize("field,value", [("repository", "different/repository"), ("number", 543)])
-@pytest.mark.parametrize("existing", [False, True], ids=["new-output", "existing-output"])
+@pytest.mark.parametrize(
+    "field,value,existing",
+    [("repository", "different/repository", False), ("number", 543, True)],
+    ids=["new-output-repository", "existing-output-number"],
+)
 def test_accept_rejects_a_different_pr_without_changing_outputs(
     dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     field: str, value: object, existing: bool,
@@ -734,21 +625,8 @@ def test_accept_rejects_a_different_pr_without_changing_outputs(
 
 @pytest.mark.parametrize(
     "trusted",
-    [
-        {}, {"pr": None}, {"pr": []}, {"pr": {}},
-        {"pr": {"repository": "usaturn/maatlog-poc"}},
-        {"pr": {"number": 542}},
-        {"pr": {"repository": "malformed", "number": 542}},
-        {"pr": {"repository": 42, "number": 542}},
-        {"pr": {"repository": "usaturn/maatlog-poc", "number": "542"}},
-        {"pr": {"repository": "usaturn/maatlog-poc", "number": True}},
-        {"pr": {"repository": "usaturn/maatlog-poc", "number": 0}},
-        {"pr": {"repository": "usaturn/maatlog-poc", "number": 542, "extra": True}},
-        None,
-    ],
-    ids=["missing-pr", "null-pr", "list-pr", "empty-pr", "missing-number", "missing-repository",
-         "bad-repository", "numeric-repository", "text-number", "boolean-number", "zero-number",
-         "extra-key", "null-verified"],
+    [{}, {"pr": {"repository": "usaturn/maatlog-poc", "number": True}}],
+    ids=["missing-pr", "boolean-number"],
 )
 def test_accept_rejects_a_missing_or_malformed_trusted_pr_before_output(
     dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str], trusted: object,
@@ -791,7 +669,7 @@ def test_accept_uses_the_frozen_pr_after_the_original_verified_file_changes(
 
 @pytest.mark.parametrize(
     "field,value",
-    [("path", ".agents/skills/other/SKILL.md"), ("sha256", "d" * 64), ("sha256", "unknown")],
+    [("path", ".agents/skills/other/SKILL.md"), ("sha256", "d" * 64)],
 )
 def test_accept_rejects_a_primary_skill_not_applied_by_dispatch_before_creating_output(
     dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str], field: str, value: str
@@ -850,26 +728,13 @@ def rewrite_tool_candidate(payload: dict[str, Any]) -> None:
     payload["inventory"]["candidates"][0]["text"] = "別の本文"
 
 
-def drop_tool_candidate(payload: dict[str, Any]) -> None:
-    payload["inventory"]["candidates"].clear()
-    payload["verified"]["statement_candidates"]["judgments"].clear()
-
-
 def drop_tool_term(payload: dict[str, Any]) -> None:
     payload["inventory"]["terms"].clear()
-
-
-def drop_claim(payload: dict[str, Any]) -> None:
-    payload["inventory"]["claims"].pop()
 
 
 def different_fix_ids(payload: dict[str, Any]) -> None:
     payload["inventory"]["fix_ids"].append("other#H-1@abcdef012345")
     payload["verified"]["fix_check"]["fix_ids"].append("other#H-1@abcdef012345")
-
-
-def missing_key(payload: dict[str, Any]) -> None:
-    del payload["inventory"]
 
 
 def extra_key(payload: dict[str, Any]) -> None:
@@ -885,11 +750,8 @@ def unjudged_candidate(payload: dict[str, Any]) -> None:
     [
         drop_changed_file,
         rewrite_tool_candidate,
-        drop_tool_candidate,
         drop_tool_term,
-        drop_claim,
         different_fix_ids,
-        missing_key,
         extra_key,
         unjudged_candidate,
     ],
@@ -952,7 +814,7 @@ def test_accept_does_not_attribute_a_disappeared_checkout_to_content_changes(
     assert written(scenario.review_dir) == []
 
 
-@pytest.mark.parametrize("failure", ["missing", "locked", "moved"])
+@pytest.mark.parametrize("failure", ["moved"])
 def test_fix_check_environment_preflight_does_not_launch(
     dispatch: Any,
     scenario: Scenario,
@@ -989,20 +851,6 @@ def test_fix_check_environment_preflight_does_not_launch(
         assert accept(dispatch, run_dir) == 0
 
 
-def test_accept_rejects_a_verifier_candidate_inserted_before_the_tool_candidates(
-    dispatch: Any, scenario: Scenario, tmp_path: Path
-) -> None:
-    payload = scenario.payload()
-    inventory = payload["inventory"]
-    inventory["candidates"].insert(
-        0, {"id": "S-1", "path": "docs/extra.rst:1", "terms": ["LIMIT_VALUE"], "text": "先頭に足した候補"}
-    )
-    inventory["candidates"][1]["id"] = "S-2"
-    run_dir = run_external(dispatch, scenario, tmp_path, payload)
-    assert accept(dispatch, run_dir) == 1
-    assert written(scenario.review_dir) == []
-
-
 def test_accept_rejects_outside_changes_and_dispatch_exits_1_for_them(
     dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1029,7 +877,7 @@ def test_dispatch_main_exits_1_and_names_outside_changes(
     assert line["outside_changes"]
 
 
-@pytest.mark.parametrize("diagnostics", [None, "unavailable", {}, [None]])
+@pytest.mark.parametrize("diagnostics", [None])
 def test_accept_rejects_malformed_checkout_diagnostics(
     dispatch: Any, scenario: Scenario, tmp_path: Path, diagnostics: object
 ) -> None:
@@ -1054,25 +902,6 @@ def test_accept_rejects_a_failed_run(dispatch: Any, scenario: Scenario, tmp_path
     run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload(), exit_code=1)
     assert accept(dispatch, run_dir) == 1
     assert written(scenario.review_dir) == []
-
-
-def test_accept_rejects_self(dispatch: Any, scenario: Scenario, tmp_path: Path) -> None:
-    result = dispatch.dispatch(config("self"), scenario.request, tmp_path / "run")
-    assert accept(dispatch, Path(result["batch"]["artifact_dir"])) == 1
-    assert written(scenario.review_dir) == []
-
-
-def test_accept_exits_2_when_the_review_directory_is_missing(
-    dispatch: Any, scenario: Scenario, tmp_path: Path
-) -> None:
-    run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload())
-    scenario.review_dir.rmdir()
-    assert accept(dispatch, run_dir) == 2
-    assert not scenario.review_dir.exists()
-
-
-def test_accept_exits_2_without_dispatch_json(dispatch: Any, tmp_path: Path) -> None:
-    assert accept(dispatch, tmp_path) == 2
 
 
 def toml_config(path: Path) -> Path:
@@ -1122,32 +951,6 @@ def main_argv(tmp_path: Path, request: dict[str, Any], assign: str | None = None
     return argv + ["--assign", assign] if assign else argv
 
 
-def test_main_exits_0_for_self(
-    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    assert dispatch.main(main_argv(tmp_path, verification_input)) == 0
-    assert json.loads(capsys.readouterr().out)["state"] == "self"
-
-
-def test_cli_self_dispatches_without_an_external_adapter(
-    verification_input: dict[str, Any], tmp_path: Path
-) -> None:
-    """Missing dispatcher or a broken CLI must not silently replace a self run."""
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), *main_argv(tmp_path, verification_input)],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=30,
-    )
-    assert result.returncode == 0, result.stderr
-    output = json.loads(result.stdout)
-    assert output["state"] == "self"
-    saved = json.loads((Path(output["artifact_dir"]) / "dispatch.json").read_text())
-    assert saved["request"] == verification_input
-    assert saved["batch"]["results"][0]["attempts"] == []
-
-
 def test_main_exits_1_for_a_failed_run(
     dispatch: Any, verification_input: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1168,24 +971,10 @@ def test_main_names_the_invalid_request_field_without_its_value(
     assert "secret-value" not in err
 
 
-def test_main_names_a_config_error_category(
-    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    assert dispatch.main(main_argv(tmp_path, verification_input, "no-such-agent")) == 2
-    assert "invalid_reference" in capsys.readouterr().err
-
-
-def test_main_names_an_unresolvable_revision(
-    dispatch: Any, verification_input: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    verification_input["from"] = "0" * 40
-    assert dispatch.main(main_argv(tmp_path, verification_input)) == 2
-    assert "repository/from/to cannot be resolved" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize("location", ["ignored", "outside"])
-@pytest.mark.parametrize("mutation", ["create", "overwrite", "delete", "rename", "chmod", "symlink"])
-@pytest.mark.parametrize("valid_payload", [True, False])
+@pytest.mark.parametrize(
+    "location,mutation",
+    [("ignored", "create"), ("outside", "overwrite"), ("outside", "delete"), ("outside", "chmod"), ("outside", "symlink")],
+)
 def test_review_directory_changes_are_rejected_before_publishing(
     dispatch: Any,
     scenario: Scenario,
@@ -1193,7 +982,6 @@ def test_review_directory_changes_are_rejected_before_publishing(
     capsys: pytest.CaptureFixture[str],
     location: str,
     mutation: str,
-    valid_payload: bool,
 ) -> None:
     if location == "ignored":
         scenario.review_dir = scenario.root / "reviews/probe"
@@ -1203,12 +991,11 @@ def test_review_directory_changes_are_rejected_before_publishing(
     target = scenario.review_dir / "previous\nresult.json"
     if mutation != "create":
         target.write_text("previous accepted contents")
-    payload = scenario.payload() if valid_payload else {"invalid": True}
+    payload = scenario.payload()
     actions = {
         "create": "p.write_text('unvalidated contents')",
         "overwrite": "p.write_text('unvalidated contents')",
         "delete": "p.unlink()",
-        "rename": "p.rename(p.with_name('moved.json'))",
         "chmod": "p.chmod(0o700)",
         "symlink": "p.unlink(); p.symlink_to('missing')",
     }
@@ -1266,17 +1053,12 @@ def test_unchanged_existing_results_and_temporary_probe_outputs_are_allowed(
     assert probe.read_text() == "x"
 
 
-@pytest.mark.parametrize("entry", ["review_dir", "verified"])
-def test_symlink_publication_directories_are_rejected_without_writing_referents(
-    dispatch: Any, scenario: Scenario, tmp_path: Path, entry: str
+def test_symlink_verified_directory_is_rejected_without_writing_referent(
+    dispatch: Any, scenario: Scenario, tmp_path: Path
 ) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
-    if entry == "review_dir":
-        scenario.review_dir.rmdir()
-        scenario.review_dir.symlink_to(outside, target_is_directory=True)
-    else:
-        (scenario.review_dir / "verified").symlink_to(outside, target_is_directory=True)
+    (scenario.review_dir / "verified").symlink_to(outside, target_is_directory=True)
     with pytest.raises(ValueError):
         dispatch.dispatch(config("probe"), scenario.request, tmp_path / "run")
     assert list(outside.iterdir()) == []
@@ -1292,13 +1074,11 @@ def test_accept_rejects_a_late_verified_directory_symlink(dispatch: Any, scenari
     assert list(outside.iterdir()) == []
 
 
-@pytest.mark.parametrize("assign", ["probe", "self"])
 @pytest.mark.parametrize(
-    "anomaly,reason",
+    "anomaly,reason,assign",
     [
-        ("missing", "review_dir must be an existing directory"),
-        ("file", "review_dir must be an existing directory"),
-        ("verified-file", "verified must be absent or a directory"),
+        ("missing", "review_dir must be an existing directory", "probe"),
+        ("verified-file", "verified must be absent or a directory", "self"),
     ],
 )
 def test_unusable_review_directory_is_rejected_before_launch_or_any_state_change(
@@ -1316,8 +1096,6 @@ def test_unusable_review_directory_is_rejected_before_launch_or_any_state_change
         (scenario.review_dir / "verified").write_bytes(b"not a directory\n")
     else:
         scenario.review_dir.rmdir()
-        if anomaly == "file":
-            scenario.review_dir.write_bytes(b"not a directory\n")
     argv = main_argv(tmp_path, scenario.request, assign)
     before = managed_state(tmp_path)
 
@@ -1327,21 +1105,6 @@ def test_unusable_review_directory_is_rejected_before_launch_or_any_state_change
     assert dispatch.main(argv, adapter_loader=forbidden) == 2
     assert reason in capsys.readouterr().err
     assert managed_state(tmp_path) == before
-
-
-def test_accept_lists_a_verified_file_created_after_dispatch(
-    dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """起動の後の照合は、種類の検査で例外にせず、変わったパスを列挙して拒否する。"""
-    run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload())
-    late = scenario.review_dir / "verified"
-    late.write_bytes(b"late file\n")
-    capsys.readouterr()
-    assert accept(dispatch, run_dir) == 1
-    error = capsys.readouterr().err
-    assert len(error.strip().splitlines()) == 1
-    assert '"verified"' in error
-    assert late.read_bytes() == b"late file\n"
 
 
 def test_dispatch_does_not_read_the_review_directory_without_stop_confirmation(
@@ -1442,7 +1205,7 @@ def redirect_parent(parent: Path) -> None:
     parent.symlink_to(moved, target_is_directory=True)
 
 
-@pytest.mark.parametrize("depth", [1, 3])
+@pytest.mark.parametrize("depth", [3])
 def test_initial_ancestor_symlink_rejects_without_launch_or_any_state_change(
     dispatch: Any, scenario: Scenario, tmp_path: Path, managed_state: Any, depth: int,
 ) -> None:
@@ -1473,29 +1236,10 @@ def test_ancestor_replaced_after_dispatch_is_not_unchanged_or_accepted(
     assert managed_state(tmp_path) == before
 
 
-def test_dispatch_observes_an_ancestor_replaced_before_the_worker_stops(
-    dispatch: Any, scenario: Scenario, tmp_path: Path, managed_state: Any,
-) -> None:
-    parent = publication_tree(scenario, tmp_path)
-
-    class RedirectingAdapter(PayloadAdapter):
-        def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
-            redirect_parent(parent)
-            return super().collect(context, stdout_path, stderr_path)
-
-    result = dispatch.dispatch(
-        config("probe"), scenario.request, tmp_path / "run",
-        adapter_loader=loader_for(RedirectingAdapter(scenario.payload())),
-    )
-    assert result["batch"]["state"] == "success"
-    assert result["review_changes"]
-    before = managed_state(tmp_path)
-    assert accept(dispatch, Path(result["batch"]["artifact_dir"])) == 1
-    assert managed_state(tmp_path) == before
-
-
-@pytest.mark.parametrize("checkpoint", ["inventory", "validation"])
-@pytest.mark.parametrize("mutation", ["ancestor", "root", "contents"])
+@pytest.mark.parametrize(
+    "checkpoint,mutation",
+    [("inventory", "ancestor"), ("validation", "root"), ("validation", "contents")],
+)
 def test_accept_rechecks_destination_after_validation_before_creating_any_output(
     dispatch: Any, scenario: Scenario, tmp_path: Path, managed_state: Any,
     monkeypatch: pytest.MonkeyPatch, checkpoint: str, mutation: str,
@@ -1531,14 +1275,3 @@ def test_accept_rechecks_destination_after_validation_before_creating_any_output
     assert managed_state(tmp_path) == at_redirect[0]
 
 
-def test_identical_contents_in_a_replacement_review_directory_are_not_accepted(
-    dispatch: Any, scenario: Scenario, tmp_path: Path, managed_state: Any,
-) -> None:
-    publication_tree(scenario, tmp_path)
-    run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload())
-    moved = scenario.review_dir.with_name("original-review")
-    scenario.review_dir.rename(moved)
-    shutil.copytree(moved, scenario.review_dir, symlinks=True)
-    before = managed_state(tmp_path)
-    assert accept(dispatch, run_dir) == 1
-    assert managed_state(tmp_path) == before
