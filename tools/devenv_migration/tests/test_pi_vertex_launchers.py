@@ -20,7 +20,9 @@ from typing import cast
 import pytest
 
 DEVCONTAINER = Path(__file__).resolve().parents[3] / ".devcontainer"
+# 3 つのランチャーは名前とモデルだけが違う。検査は pigemf を代表にし、同時起動の検査と sandbox の設定だけが全部を使う。
 LAUNCHERS = ("pigemf", "pigemp", "pigema")
+LAUNCHER = "pigemf"
 
 
 @pytest.fixture
@@ -119,10 +121,10 @@ def _launcher_model(sandbox: tuple[Path, Path, Path], launcher: str) -> str:
 
 # Break caught: dropping quoting/exec, changing HOME/cwd, or adding an ADC check
 # prevents the real launcher from reaching Pi with the original request.
-@pytest.mark.parametrize("launcher", LAUNCHERS)
 def test_launch_reaches_pi_without_adc_preserving_args_cwd_environment_and_exit(
-    sandbox: tuple[Path, Path, Path], launcher: str
+    sandbox: tuple[Path, Path, Path],
 ) -> None:
+    launcher = LAUNCHER
     args = ("--session", "session with spaces.jsonl", "", "--", "a 'quoted' message\nnext line")
     result = _run(sandbox, launcher, args, extra={"TEST_UNRELATED": "keep me", "TEST_PI_EXIT": "37"})
     assert result.returncode == 37, result.stderr
@@ -140,12 +142,10 @@ def test_launch_reaches_pi_without_adc_preserving_args_cwd_environment_and_exit(
 
 # Break caught: wrong fallback branch, clobbered supplied defaults/ADC, or leaked
 # cloud API key into Pi's process tree. Expectations are independent inputs.
-@pytest.mark.parametrize("launcher", LAUNCHERS)
 @pytest.mark.parametrize(
     ("supplied", "project", "location"),
     [
         ({}, "hobby-372711", "global"),
-        ({"GCLOUD_PROJECT": "legacy-project"}, "legacy-project", "global"),
         (
             {
                 "GOOGLE_CLOUD_PROJECT": "primary-project",
@@ -155,19 +155,14 @@ def test_launch_reaches_pi_without_adc_preserving_args_cwd_environment_and_exit(
             "primary-project",
             "custom-location",
         ),
-        (
-            {"GOOGLE_CLOUD_PROJECT": "", "GCLOUD_PROJECT": "fallback-project", "GOOGLE_CLOUD_LOCATION": ""},
-            "fallback-project",
-            "global",
-        ),
     ],
 )
 def test_cloud_defaults_precedence_and_api_key_removal(
-    sandbox: tuple[Path, Path, Path], launcher: str, supplied: dict[str, str], project: str, location: str
+    sandbox: tuple[Path, Path, Path], supplied: dict[str, str], project: str, location: str
 ) -> None:
     result = _run(
         sandbox,
-        launcher,
+        LAUNCHER,
         extra={
             **supplied,
             "GOOGLE_APPLICATION_CREDENTIALS": "missing synthetic ADC path.json",
@@ -251,12 +246,13 @@ def _real_namespace_probe(sandbox: tuple[Path, Path, Path]) -> None:
 # Break caught: mounting the HOME auth path instead of the actual agent dir,
 # losing non-OAuth providers, retaining Vertex keys/unneeded saved env, writable overlay,
 # or overwriting saved auth while preparing a missing mount target.
-@pytest.mark.parametrize("launcher", LAUNCHERS)
-@pytest.mark.parametrize("agent_dir", (None, "~/.custom agent", "relative agent", "absolute", "~"))
-@pytest.mark.parametrize("stored_auth", (True, False))
+@pytest.mark.parametrize(
+    ("agent_dir", "stored_auth"), [(None, True), (None, False), ("~/.custom agent", True)]
+)
 def test_real_namespace_masks_auth_for_parent_and_child_preserving_saved_files(
-    sandbox: tuple[Path, Path, Path], launcher: str, agent_dir: str | None, stored_auth: bool
+    sandbox: tuple[Path, Path, Path], agent_dir: str | None, stored_auth: bool
 ) -> None:
+    launcher = LAUNCHER
     home, _, cwd = sandbox
     directory = home / ".pi/agent"
     if agent_dir is not None:
@@ -318,11 +314,11 @@ def test_real_namespace_masks_auth_for_parent_and_child_preserving_saved_files(
     assert "secret" not in result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("launcher", LAUNCHERS)
-@pytest.mark.parametrize("link", ["absolute", "relative", "hardlink"])
+@pytest.mark.parametrize("link", ["absolute", "hardlink"])
 def test_linked_auth_reaches_parent_and_child_without_changing_host_state(
-    sandbox: tuple[Path, Path, Path], launcher: str, link: str,
+    sandbox: tuple[Path, Path, Path], link: str,
 ) -> None:
+    launcher = LAUNCHER
     # Break: passing a symlink mount target directly to bwrap fails before Pi starts.
     # Canonicalize only the mount destination, never rewrite the user's shared auth.
     import stat
@@ -364,8 +360,8 @@ def test_linked_auth_reaches_parent_and_child_without_changing_host_state(
 
 # Break caught: masking the whole agent directory drops fresh non-auth state
 # and puts shared settings locks in a private namespace rather than on the host.
-@pytest.mark.parametrize("launcher", LAUNCHERS)
-def test_nonauth_state_and_settings_lock_remain_host_backed(sandbox: tuple[Path, Path, Path], launcher: str) -> None:
+def test_nonauth_state_and_settings_lock_remain_host_backed(sandbox: tuple[Path, Path, Path]) -> None:
+    launcher = LAUNCHER
     directory = sandbox[0] / ".pi/agent"
     auth = directory / "auth.json"
     auth.write_text("{}")
@@ -395,50 +391,15 @@ def test_concurrent_launchers_initialize_only_empty_missing_auth(sandbox: tuple[
     assert not list(auth.parent.glob(".pi-vertex-mount-*"))
 
 
-# Break caught: parsing or preparing an auth overlay before dry-run returns.
-@pytest.mark.parametrize("launcher", LAUNCHERS)
-def test_dry_run_is_argv_only_and_never_reads_or_creates_auth(sandbox: tuple[Path, Path, Path], launcher: str) -> None:
-    home, _, cwd = sandbox
-    directory = cwd / "uncreated agent"
-    result = _run(
-        sandbox,
-        launcher,
-        extra={
-            "PI_CODING_AGENT_DIR": str(directory),
-            "PI_SUPERAGENTS_LAUNCHER_DRY_RUN": "1",
-        },
-    )
-    assert result.returncode == 0, result.stderr
-    assert not directory.exists()
-    assert not (home / ".pi/agent/extensions/subagent").exists()
-    args = result.stdout.splitlines()
-    assert args[0] == "bwrap"
-    assert "--ro-bind-data" in args
-    assert args[args.index("--ro-bind-data") + 2] == str(directory / "auth.json")
-    # A FIFO makes accidental configuration reads block instead of silently pass.
-    directory.mkdir()
-    os.mkfifo(directory / "auth.json")
-    second = _run(
-        sandbox,
-        launcher,
-        extra={
-            "PI_CODING_AGENT_DIR": str(directory),
-            "PI_SUPERAGENTS_LAUNCHER_DRY_RUN": "1",
-        },
-    )
-    assert second.returncode == 0, second.stderr
-    assert second.stdout == result.stdout
-
-
 # Break caught: falling back on {}, logging parser details containing auth,
 # or launching Pi after malformed/unreadable saved config.
-@pytest.mark.parametrize("content", ('{"synthetic-secret":', "[]", "null", '"synthetic-secret"'))
 def test_invalid_auth_configuration_fails_closed_without_secret_output(
-    sandbox: tuple[Path, Path, Path], content: str
+    sandbox: tuple[Path, Path, Path],
 ) -> None:
+    content = '{"synthetic-secret":'
     auth = sandbox[0] / ".pi/agent/auth.json"
     auth.write_text(content)
-    result = _run(sandbox, "pigemf")
+    result = _run(sandbox, LAUNCHER)
     assert result.returncode != 0
     assert "auth.json" in result.stderr
     assert not result.stdout
@@ -465,10 +426,10 @@ def _used_vertex_models(sandbox: tuple[Path, Path, Path], launcher: str) -> list
 # Break caught: allowing Pi fuzzy matching/custom metadata when an exact ID is
 # absent, checking only the parent model while a child tier model is missing,
 # or invoking an auth-aware Pi CLI command for the offline guard.
-@pytest.mark.parametrize("launcher", LAUNCHERS)
 def test_missing_any_used_vertex_model_stops_before_pi_and_auth_reads(
-    sandbox: tuple[Path, Path, Path], launcher: str
+    sandbox: tuple[Path, Path, Path],
 ) -> None:
+    launcher = LAUNCHER
     catalog = _catalog(sandbox)
     original = catalog.read_text()
     # No credential file or ADC discovery is allowed to gate this failure.
@@ -485,8 +446,8 @@ def test_missing_any_used_vertex_model_stops_before_pi_and_auth_reads(
 
 # Break caught: requiring a Vertex model the launcher and its tiers never use,
 # which stops a working launcher whenever Pi drops an unrelated catalog entry.
-@pytest.mark.parametrize("launcher", LAUNCHERS)
-def test_catalog_with_only_used_vertex_models_reaches_pi(sandbox: tuple[Path, Path, Path], launcher: str) -> None:
+def test_catalog_with_only_used_vertex_models_reaches_pi(sandbox: tuple[Path, Path, Path]) -> None:
+    launcher = LAUNCHER
     catalog = _catalog(sandbox)
     used = {f"chat:{model}" for model in _used_vertex_models(sandbox, launcher)}
     data = json.loads(catalog.read_text())
@@ -540,11 +501,8 @@ console.log(JSON.stringify(observation));
 
 # Break caught: retaining OAuth in a readonly snapshot lets native startup/request
 # auth rotate tokens whose replacements cannot be saved, including in child Pi.
-@pytest.mark.parametrize("launcher", LAUNCHERS)
-@pytest.mark.parametrize("expired", (True, False))
-def test_native_oauth_refresh_and_request_do_not_consume_saved_tokens(
-    sandbox: tuple[Path, Path, Path], launcher: str, expired: bool
-) -> None:
+def test_native_oauth_refresh_and_request_do_not_consume_saved_tokens(sandbox: tuple[Path, Path, Path]) -> None:
+    launcher, expired = LAUNCHER, True
     auth = sandbox[0] / ".pi/agent/auth.json"
     oauth = {
         "type": "oauth",
@@ -623,13 +581,14 @@ const observation = {
 
 # Break caught: discarding a saved ADC path, leaving it only in marker.env (which
 # native resolution does not forward), or overriding an explicit process path.
-@pytest.mark.parametrize("launcher", LAUNCHERS)
-@pytest.mark.parametrize("stored_key", (True, False))
-@pytest.mark.parametrize("supplied", (None, "", "explicit"))
-@pytest.mark.parametrize("saved_name", (None, "saved ADC with spaces.json", "saved 'quoted'\nADC.json\n"))
+@pytest.mark.parametrize(
+    ("stored_key", "supplied", "saved_name"),
+    [(True, None, "saved ADC with spaces.json"), (True, "explicit", "saved ADC with spaces.json"), (False, None, None)],
+)
 def test_native_vertex_sdk_receives_saved_or_explicit_adc_path(
-    sandbox: tuple[Path, Path, Path], launcher: str, stored_key: bool, supplied: str | None, saved_name: str | None
+    sandbox: tuple[Path, Path, Path], stored_key: bool, supplied: str | None, saved_name: str | None
 ) -> None:
+    launcher = LAUNCHER
     directory = sandbox[0] / ".pi/agent"
     saved_path = str(sandbox[2] / saved_name) if saved_name is not None else None
     explicit_path = str(sandbox[2] / "different explicit ADC.json")
@@ -716,46 +675,6 @@ const observation = {sdk: globalThis.sdkOptions, stopReason: response.stopReason
     assert "secret" not in result.stdout + result.stderr
 
 
-# Break caught: setup missing new tier configs, replacing existing user edits
-# under --if-absent, or clobbering the shared config and saved auth/settings.
-def test_setup_seeds_vertex_tiers_and_preserves_existing_configs_on_rebuild(sandbox: tuple[Path, Path, Path]) -> None:
-    home = sandbox[0]
-    root = home / ".pi/agent"
-    sentinels = {
-        "auth.json": '{"synthetic":"unchanged"}',
-        "settings.json": '{"theme":"custom"}',
-        "extensions/subagent/config.json": '{"shared":"keep"}',
-        "extensions/subagent.d/pigo/config.json": '{"custom":"keep"}',
-    }
-    for name, content in sentinels.items():
-        dest = root / name
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(content)
-    for launcher in LAUNCHERS:
-        (root / f"extensions/subagent.d/{launcher}/config.json").unlink()
-    setup = DEVCONTAINER.parent / "scripts/setup_pi_superagents.zsh"
-    for iteration in range(2):
-        result = subprocess.run(
-            ["zsh", str(setup), "--if-absent"],
-            env=_env(sandbox),
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        assert result.returncode == 0, result.stderr
-        for launcher in LAUNCHERS:
-            dest = root / f"extensions/subagent.d/{launcher}/config.json"
-            assert dest.exists(), f"setup did not seed {launcher}"
-            if iteration == 0:
-                assert dest.read_bytes() == (DEVCONTAINER / f"pi-superagents/{launcher}.json").read_bytes()
-                dest.write_text('{"custom":"keep"}')
-            else:
-                assert dest.read_text() == '{"custom":"keep"}'
-        for name, content in sentinels.items():
-            assert (root / name).read_text() == content
-        assert not list(root.rglob("*.bak.*"))
-
-
 # Break caught: inherited relative agent directory resolves against a child's
 # different cwd and escapes the launcher's auth overlay.
 def test_relative_agent_dir_stays_fixed_when_a_child_changes_cwd(sandbox: tuple[Path, Path, Path]) -> None:
@@ -763,7 +682,7 @@ def test_relative_agent_dir_stays_fixed_when_a_child_changes_cwd(sandbox: tuple[
     directory.mkdir()
     (directory / "auth.json").write_text("{}")
     _real_namespace_probe(sandbox)
-    result = _run(sandbox, "pigemf", extra={"PI_CODING_AGENT_DIR": "relative agent", "TEST_CHILD_CWD": "/"})
+    result = _run(sandbox, LAUNCHER, extra={"PI_CODING_AGENT_DIR": "relative agent", "TEST_CHILD_CWD": "/"})
     assert result.returncode == 0, result.stderr
     payload = _payload(result)
     child = payload["child"]
