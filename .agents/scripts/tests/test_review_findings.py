@@ -429,7 +429,9 @@ def test_cli_validate_checks_the_fix_check_against_its_candidates(
     ("factory", "mutation", "expected"),
     [
         (candidates, _drop("findings", 0, "failure_scenario"), "findings[0].failure_scenario: required"),
+        (candidates, _set("abc", "reviewed_head"), "reviewed_head: must be"),
         (verified, _drop("findings", 0, "reproduction"), "findings[0].reproduction: required when verdict is"),
+        (verified, _set([], "findings", 0, "sources"), "findings[0].sources: must be a non-empty array"),
         (fix_check, _drop("fix_check"), "fix_check: required when mode is fix_check"),
         (fix_check, _set(HEAD, "fix_check", "to"), "fix_check.to: must equal reviewed_head"),
     ],
@@ -1723,7 +1725,7 @@ def test_fix_evidence_rejects_malformed_execution(field: str, bad: object) -> No
         validate_evidence(document, inventory)
 
 
-@pytest.mark.parametrize("change", [{"mode": "static"}, {"exit_code": 1}])
+@pytest.mark.parametrize("change", [{"mode": "static"}, {"exit_code": 1}, {"artifact": None}])
 def test_artifact_claim_requires_executed_generated_evidence(change: dict[str, Any]) -> None:
     document, inventory = evidence_pair()
     document["fix_evidence"]["claims"][0]["checks"][0].update(change)

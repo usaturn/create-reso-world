@@ -9,6 +9,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 SCRIPT = Path(__file__).resolve().parents[1] / "issue_budget.py"
 SPEC = importlib.util.spec_from_file_location("issue_budget", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
@@ -90,3 +92,19 @@ def test_single_safety_failure_is_reported() -> None:
     ledger = entries(start(), event("failure", 1, failure_class="safety", signature="unknown-send"))
 
     assert budget.summarize(ledger, now=at(2)).safety_failure is True
+
+
+@pytest.mark.parametrize(
+    ("items", "line"),
+    [
+        ((start(), start(1)), 2),
+        ((start(5), event("checkpoint", 4, decision="continue", reason="x")), 2),
+        ((start(), event("await-user", 1), event("checkpoint", 2, decision="stop", reason="x")), 3),
+        ((start(), event("end", 1), event("checkpoint", 2, decision="stop", reason="x")), 3),
+    ],
+)
+def test_inconsistent_ledger_is_rejected_with_line(items: tuple[dict[str, Any], ...], line: int) -> None:
+    with pytest.raises(budget.LedgerError) as raised:
+        budget.summarize(entries(*items), now=at(10))
+
+    assert raised.value.line == line
