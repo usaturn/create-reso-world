@@ -169,15 +169,31 @@ grep -qF 'ok: project worlds/demo layout' "$tmp/proj-ok.out"
 grep -qF 'PASS: check-layout' "$tmp/proj-ok.out"
 MOCK_RESOLOOP_CONFLICT=demo expect_fail_with "$tmp/proj-ok" 'resoloop skills sync --check failed for worlds/demo'
 
-# 7. 標準レイアウトからの逸脱（必須ファイルの欠落・symlink の行き先・スキルのリンクの欠落）は失敗する
+# 7. 標準レイアウトからの逸脱（必須ファイルの欠落・CLAUDE.md の内容・symlink の行き先・スキルのリンクの欠落・
+#    向き違い・実ディレクトリ）は失敗する
 project_repo "$tmp/p-file" && rm "$tmp/p-file/worlds/demo/CLAUDE.md"
 expect_fail_with "$tmp/p-file" 'worlds/demo: missing regular file CLAUDE.md'
+
+# CLAUDE.md は指示ファイルの読み込み指定（@AGENTS.md）。違う内容を通すと、Claude Code がプロジェクトの
+# AGENTS.md（規約と安全ルール）を読まないまま、エラーにならずに作業が進む
+project_repo "$tmp/p-claude" && printf 'other\n' > "$tmp/p-claude/worlds/demo/CLAUDE.md"
+expect_fail_with "$tmp/p-claude" 'worlds/demo: CLAUDE.md must be exactly @AGENTS.md'
 
 project_repo "$tmp/p-pi" && rm "$tmp/p-pi/worlds/demo/.pi" && ln -s ../../.agents "$tmp/p-pi/worlds/demo/.pi"
 expect_fail_with "$tmp/p-pi" 'worlds/demo: .pi must be a symlink to ../../.pi'
 
 project_repo "$tmp/p-link" && rm "$tmp/p-link/worlds/demo/.claude/skills/resonite-build"
 expect_fail_with "$tmp/p-link" 'worlds/demo/.claude/skills: missing link resonite-build'
+
+# プロジェクト側のスキルのリンクは、ルート側（場面 5）とは別の関数が作業ツリーで検査するので、ここでも確かめる
+project_repo "$tmp/p-target" && rm "$tmp/p-target/worlds/demo/.claude/skills/resonite-build" \
+  && ln -s ../../../.agents/skills/resonite-build "$tmp/p-target/worlds/demo/.claude/skills/resonite-build"
+expect_fail_with "$tmp/p-target" 'worlds/demo/.claude/skills/resonite-build has unexpected target ../../../.agents/skills/resonite-build'
+
+project_repo "$tmp/p-realdir" && rm "$tmp/p-realdir/worlds/demo/.claude/skills/resonite-build" \
+  && mkdir "$tmp/p-realdir/worlds/demo/.claude/skills/resonite-build"
+cp "$tmp/p-realdir/worlds/demo/.agents/skills/resonite-build/SKILL.md" "$tmp/p-realdir/worlds/demo/.claude/skills/resonite-build/SKILL.md"
+expect_fail_with "$tmp/p-realdir" 'worlds/demo/.claude/skills/resonite-build is not a symlink'
 
 # 8. 追跡解除した従来位置（ルート直下・深さ 1）のプロジェクトも検出して通過する
 legacy_project_repo "$tmp/legacy"

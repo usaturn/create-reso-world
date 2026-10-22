@@ -200,4 +200,40 @@ expect_exit 0 'DONE:' "$tmp/r12" --apply --no-sync demo
 expect_wrapper "$p"
 [ "$(stat -c %a "$p/.resoloop/blender-system-python")" = 755 ] || fail 'wrapper mode not repaired'
 
+# 13〜15. symlink の先には書かない。AGENTS.md・途中のディレクトリ・worlds/ はそれぞれ別の経路で検査するので、
+#     経路ごとに確かめる。リンク先はルートの外（利用者のファイル）に置く
+# 13. AGENTS.md が symlink なら追記せずに 1。リンク先を書き換えない
+new_root "$tmp/r13"
+run "$tmp/r13" --no-sync demo >/dev/null
+p="$tmp/r13/worlds/demo"
+mkdir "$tmp/r13-user" && printf '# shared guide\n' > "$tmp/r13-user/AGENTS.md"
+rm "$p/AGENTS.md" && ln -s "$tmp/r13-user/AGENTS.md" "$p/AGENTS.md"
+before="$(snapshot "$p")"
+before_target="$(snapshot "$tmp/r13-user")"
+expect_exit 1 'CONFLICT: AGENTS.md is a symlink' "$tmp/r13" --apply --no-sync demo
+[ "$before" = "$(snapshot "$p")" ] || fail 'case 13 changed files'
+[ "$before_target" = "$(snapshot "$tmp/r13-user")" ] || fail 'wrote through the AGENTS.md symlink'
+
+# 14. 途中のディレクトリ（.claude）がディレクトリへの symlink なら 1 を返し、リンク先にも手元にも書かない。
+#     リンク先の settings.json を消し、書けば差が出るようにしておく
+new_root "$tmp/r14"
+run "$tmp/r14" --no-sync demo >/dev/null
+p="$tmp/r14/worlds/demo"
+mv "$p/.claude" "$tmp/r14-claude" && ln -s "$tmp/r14-claude" "$p/.claude"
+rm "$tmp/r14-claude/settings.json"
+before="$(snapshot "$p")"
+before_target="$(snapshot "$tmp/r14-claude")"
+expect_exit 1 'CONFLICT: .claude is not a directory' "$tmp/r14" --apply --no-sync demo
+[ "$before" = "$(snapshot "$p")" ] || fail 'case 14 changed files'
+[ "$before_target" = "$(snapshot "$tmp/r14-claude")" ] || fail 'wrote through the .claude symlink'
+
+# 15. worlds/ が symlink なら、新規作成は resoloop を呼ばず何も作らずに 3。
+#     プロジェクトの相対リンクがリンク先基準で解決されてルートに届かないため拒否する
+new_root "$tmp/r15"
+mkdir "$tmp/r15-worlds" && ln -s "$tmp/r15-worlds" "$tmp/r15/worlds"
+: > "$MOCK_LOG"
+expect_exit 3 'not a real directory' "$tmp/r15" --no-sync demo
+[ ! -s "$MOCK_LOG" ] || fail 'ran resoloop although worlds/ is a symlink'
+[ -z "$(ls -A "$tmp/r15-worlds")" ] || fail 'created the project through the worlds/ symlink'
+
 printf 'PASS: new-world script keeps existing files intact\n'

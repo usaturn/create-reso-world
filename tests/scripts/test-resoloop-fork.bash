@@ -166,16 +166,18 @@ expect_exit 1 'origin/main has commits that upstream/main lacks' sync
 [ "$(git -C "$tmp/origin.git" rev-parse main)" = "$stray" ] || fail 'sync changed a diverged origin main'
 
 # 8. main を checkout 中で未コミットの変更があるまま sync すると、ローカル main は動かさず 1 で止まる。
-#    上流に無いコミットを持つローカル main も動かさない（origin への push は済ませる）
+#    上流に無いコミットを持つローカル main も動かさない（どちらも止まる前に origin の main を上流の先端へ進める）
 git -C "$tmp/seed" push -q -f "$tmp/origin.git" "$v2:refs/heads/main"
 git -C "$tmp/seed" checkout -q main
 printf 'v3\n' >> "$tmp/seed/file.txt"
 git -C "$tmp/seed" commit -q -am v3
 git -C "$tmp/seed" push -q "$tmp/upstream.git" main
+v3="$(git -C "$tmp/seed" rev-parse HEAD)"
 git -C "$co" branch -f main "$v2"
 git -C "$co" checkout -q main
 printf 'dirty\n' >> "$co/file.txt"
 expect_exit 1 'has uncommitted changes on main' sync
+[ "$(git -C "$tmp/origin.git" rev-parse main)" = "$v3" ] || fail 'sync did not push origin main forward despite the dirty local main'
 [ "$(git -C "$co" rev-parse main)" = "$v2" ] || fail 'sync moved local main despite uncommitted changes on main'
 git -C "$co" checkout -q -- file.txt
 printf 'local\n' >> "$co/file.txt" && git -C "$co" commit -q -am local
@@ -183,7 +185,9 @@ local_main="$(git -C "$co" rev-parse main)"
 printf 'v4\n' >> "$tmp/seed/file.txt"
 git -C "$tmp/seed" commit -q -am v4
 git -C "$tmp/seed" push -q "$tmp/upstream.git" main
+v4="$(git -C "$tmp/seed" rev-parse HEAD)"
 expect_exit 1 'local main has commits that upstream/main lacks' sync
+[ "$(git -C "$tmp/origin.git" rev-parse main)" = "$v4" ] || fail 'sync did not push origin main'
 [ "$(git -C "$co" rev-parse main)" = "$local_main" ] || fail 'sync moved a diverged local main'
 bash "$script" checkout fix/x >/dev/null
 
