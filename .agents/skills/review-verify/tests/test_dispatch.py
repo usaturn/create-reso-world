@@ -1273,5 +1273,3 @@ def test_accept_rechecks_destination_after_validation_before_creating_any_output
     assert accept(dispatch, run_dir) == 1
     assert len(at_redirect) == 1
     assert managed_state(tmp_path) == at_redirect[0]
-
-

@@ -428,7 +428,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | external_review_roles_list_their_write_exceptions_with_the_role | 1 | S 高 | 外部担当への書き込み例外の範囲（sandbox の境界）。過大な許可は気付けない | 残す |
 | only_the_externally_assigned_role_lists_exceptions | 2 | S 高 | 同上。self の役割に例外を付けない | 残す |
 | self_review_roles_ask_for_no_write_exceptions | 1 | D | 上の ("self","b") の例が同じ守り | 消す |
-| unresolved_parent_stops_before_reserving_the_review | 1 | D | 「予約の前に止まる」は他の残すテスト（verified 不一致・binding・保存先）が同じ順序を確かめる | 消す |
+| unresolved_parent_stops_before_reserving_the_review | 1 | 迷い（S 中） | `write_exceptions`（親の解決）を `reserve_review` より前に求める順序。ほかの残すテストは `fix_context`・担当の事前拒否の別の分岐を通るので代表にならない。順序が崩れると 1 回だけの枠が消費される（再実行は「already reserved」で止まるのでエラーにはなる）。最後のレビューの指摘で戻した | 残す |
 | single_call_uses_both_review_roles_and_retains_self_instructions | 3 → 2 | S 中 | 1 回枠の予約・記録・accept の拒否。("a","self") は ("self","self")・("a","b") と同じ分岐で D | 残す（1 件消す） |
 | verified_input_mismatch_never_consumes_the_only_review | 3 → 2 | S 中 | 別 PR/HEAD の verified を受けて枠を消費する。malformed は FindingsError で L | 残す（malformed を消す） |
 | v2_verified_input_is_still_accepted | 1 | L | 壊れれば検証エラーで起動に失敗する | 消す |

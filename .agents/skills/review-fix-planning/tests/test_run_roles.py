@@ -302,6 +302,19 @@ def test_single_call_uses_both_review_roles_and_retains_self_instructions(
             mod.verifier.accept(batch.artifact_dir / "fix-check-receipt")
 
 
+def test_unresolved_parent_stops_before_reserving_the_review(
+    inputs: tuple[dict[str, Any], Path, dict[str, Any]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unresolved() -> Path:
+        raise mod.review_target.TargetError(2, "no parent main worktree")
+
+    monkeypatch.setattr(mod.review_target, "default_parent_root", unresolved)
+    with pytest.raises(mod.RoleInputError):
+        launch(inputs, tmp_path, config("a", "self"), adapter_loader=FakeAdapter())
+    assert json.loads(inputs[1].read_text())["activities"] == []
+    assert not (tmp_path / "run").exists()
+
+
 @pytest.mark.parametrize("wrong", ["pr", "head"])
 def test_verified_input_mismatch_never_consumes_the_only_review(inputs: Any, tmp_path: Path, wrong: str) -> None:
     path = Path(inputs[2]["verified_file"])
