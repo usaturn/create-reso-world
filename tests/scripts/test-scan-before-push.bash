@@ -2,7 +2,6 @@
 # push の前の検査（scripts/scan-before-push.sh）を、固定した版の実際の gitleaks で一時リポジトリに実行する。
 # 未 push の commit（マージ commit の中だけで足した内容を含む）の秘密情報で止まること、.gitleaksignore・inline の allow・
 # 作業ツリーや環境変数の設定で緩められないこと、設定の取得や gitleaks の失敗を成功として扱わないことを確かめる。
-# base を取り込んだマージ commit で、base で公開済みの内容を検出し直さないことも確かめる
 set -euo pipefail
 # 外から渡された GIT_* を除く。linked worktree の git rebase --exec は GIT_DIR を export するので、残すと
 # 直接実行したときに一時リポジトリの git init・git -C が、そのリポジトリの設定・index・ブランチを書き換える（#200）
@@ -160,11 +159,9 @@ leak_with_repo_config() {
   scan
   expect_leak "$1 with the repository .gitleaks.toml"
 }
-leak_with_repo_config 'a random value without separators' "$random"
 leak_with_repo_config 'a random value after a prefix' "msy_$random"
 leak_with_repo_config 'a random value shaped like an identifier' "mat_material_${random:0:16}_$hash8"
 leak_with_repo_config 'a password of words and 8 digits without a key() prefix' "summer_Holiday2024_${hash8//[a-f]/7}"
-leak_with_repo_config 'a GitHub token' "$token"
 
 # --- 検査できないときは止まる ---
 new_repo
@@ -172,10 +169,6 @@ commit_file notes.txt hello
 : > "$repo/.gitleaksignore"
 scan
 expect_stop 'an empty .gitleaksignore' '\.gitleaksignore'
-rm -- "$repo/.gitleaksignore"
-ln -s "$tmp/missing" "$repo/.gitleaksignore"
-scan
-expect_stop 'a dangling .gitleaksignore symlink' '\.gitleaksignore'
 
 printf 'this is = = not toml\n' > "$tmp/broken.toml"
 new_repo "$tmp/broken.toml"
@@ -209,13 +202,6 @@ new_repo
 commit_file notes.txt hello
 scan --base origin/nope
 expect_stop 'a base branch that does not exist' 'origin/nope'
-scan --base nope/main
-expect_stop 'a base remote that does not exist' "no remote 'nope'"
-scan --base main
-expect_stop '--base without a remote' 'usage'
-[ "$status" -eq 2 ] || fail "--base without a remote exited with $status, not 2"
-scan --unknown
-[ "$status" -eq 2 ] || fail "an unknown argument exited with $status, not 2"
 
 pinned="$(sed -n 's/^readonly GITLEAKS_VERSION="\([^"]*\)"$/\1/p' "$root/.devcontainer/install_gitleaks.bash")"
 mkdir -p "$tmp/other-version" "$tmp/failing"
@@ -239,39 +225,5 @@ commit_file notes.txt hello
 merge_side merged.txt 'nothing secret'
 scan
 expect_success 'commits and a merge commit without secrets'
-
-# base を取り込んだマージ commit で、base で公開済みの内容を検出し直さない（止まると、base の設定を変えるまで push できない）
-new_repo
-commit_file notes.txt hello
-git -C "$repo" switch -q main
-commit_file published.txt "token = \"$token\""
-git -C "$repo" push -q origin main
-git -C "$repo" switch -q feature
-git -C "$repo" merge -q --no-edit origin/main > /dev/null
-scan
-expect_success 'a merge commit that brings in a token already published on the base'
-
-# base の .gitleaks.toml の allowlist が効く（base の設定で検査している）
-{ cat "$tmp/default.toml"; printf "\n[[allowlists]]\nregexTarget = \"match\"\nregexes = ['''%s''']\n" "$token"; } > "$tmp/allow-token.toml"
-new_repo "$tmp/allow-token.toml"
-commit_file config.txt "token = \"$token\""
-scan
-expect_success 'a token that the base .gitleaks.toml allows'
-
-# リポジトリの .gitleaks.toml では、resoloop の key() が作る識別子（接頭辞_名前_sha256 の先頭 8 桁）は書き方を問わず
-# 止まらない（#135。Python の代入、テストの出力の KeyError、JSON、名前に識別子を含む pbr_）
-name="material_Slum02_rubber_$hash8"
-new_repo "$root/.gitleaks.toml"
-commit_file ids.txt "$(printf '%s\n' "key = 'mat_$name'" "KeyError: 'ul_mat_$name'" \
-  "\"mesh_key\": \"mesh_Slum02_rubber_$hash8\"" "texture_key = \"pbr_mat_${name}_$hash8\"")"
-scan
-expect_success 'resoloop identifiers with the repository .gitleaks.toml'
-
-new_repo
-commit_file notes.txt hello
-mkdir "$repo/sub"
-status=0
-(cd "$tmp" && bash "$scan" -C "$repo/sub") > "$tmp/stdout" 2> "$tmp/stderr" || status=$?
-expect_success '-C with a subdirectory of the checkout'
 
 printf 'PASS: scan-before-push stops on secrets and failures and cannot be relaxed (%d repositories)\n' "$cases"

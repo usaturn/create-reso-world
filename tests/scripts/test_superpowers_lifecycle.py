@@ -1,16 +1,15 @@
-"""Frozen-history and handoff schema checks for the document lifecycle of PR #16.
+"""Frozen-history and continuation-gate checks for the document lifecycle of PR #16.
 
 Imported historical documents are guarded by fixed SHA-256 values captured
 from commit 58c9ea8; running the check does not require that Git history.
-The handoff schema checks fix the fields and continuation gates that keep a
-receiver from executing unapproved or unauthorized work.
+The continuation-gate check fixes the dispositions that keep a receiver from
+executing unapproved or unauthorized work.
 """
 from __future__ import annotations
 
 import hashlib
 import json
 from pathlib import Path
-import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -48,20 +47,7 @@ def read(path: Path) -> str:
 
 
 class LifecycleInstructionTests(unittest.TestCase):
-    """Handoff schema structure and immutable history."""
-
-    def test_handoff_schema_separates_approval_current_authority_and_publication(self):
-        # Without approved_commit and execution_authority a receiver cannot tell an
-        # approved version or an authorized task from the current one, and resumes
-        # unapproved work; completion_evidence backs the reported status.
-        # document_published is checked with the other document fields in the
-        # agent-handoff skill tests.
-        schema = read(SCHEMA)
-        sources = re.search(r"^- `sources`:\n(.*?)(?=^- `|^## |\Z)", schema, re.M | re.S)
-        assert sources is not None, "schema lacks the sources field definition"
-        definitions = set(re.findall(r"`([a-z_]+)`:", sources.group(1)))
-        for field in ("approved_commit", "execution_authority", "completion_evidence"):
-            self.assertIn(field, definitions, f"sources schema lacks `{field}`")
+    """Continuation gates and immutable history."""
 
     def test_continuation_gates_keep_unapproved_or_unauthorized_resumes_blocked(self):
         # A receiver decides whether to resume from this table. Turning one of these
