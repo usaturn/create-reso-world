@@ -528,7 +528,8 @@ def test_records_post_requires_the_pull_request_head(value: dict[str, Any], head
 
 
 def test_records_post_rejects_a_closed_pull_request() -> None:
-    gh = FakeGh(pr_view=pr_view(state="MERGED"), comments=[])
+    # MERGED は test_finalize.py の同じ head の手動マージの例が確かめる。CLOSED は他に無い
+    gh = FakeGh(pr_view=pr_view(state="CLOSED"), comments=[])
     assert_rejected(gh, awaiting_record(), "not open", operations=["pr view"])
 
 

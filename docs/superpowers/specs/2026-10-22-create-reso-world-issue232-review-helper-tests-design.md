@@ -176,7 +176,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | test_statement_candidates_does_not_count_a_term_inside_a_longer_word | 1 | S 低 | 語の境界（`_word_pattern`）。長い語の中の語を数えると誤った候補が出る。S なので重さで消さない（PR #246 のレビューで戻した） | 残す |
 | test_statement_candidates_finds_terms_containing_regex_characters | 1 | S 低 | 記号入りの語を落とさない | 残す |
 | test_statement_candidates_ignores_documents_under_excluded_directories / with_only_excluded_changes_writes_an_empty_list | 2 | S 低/D | 除外ディレクトリ | 消す |
-| test_statement_candidates_handles_deleted_files / handles_non_ascii_paths / ignores_user_diff_prefix_settings | 3 | S 中 | 削除・日本語パス・利用者の git 設定で候補を黙って落とす | 残す |
+| test_statement_candidates_handles_deleted_files / handles_non_ascii_paths / ignores_user_diff_prefix_settings | 3 | S 中（diff の設定は迷い） | 削除・日本語パスで候補を黙って落とす・誤ったパスにする（PR #246 の確認済みの一覧 V-10 で、quotePath を外すと文書だけが日本語パスのときにエラーにならず誤ったパスになると確認）。diff の設定は、外すと `diff header not understood` で止まるので L に近い（V-9）が、迷いとして残す | 残す |
 | test_cli_statement_candidates_writes_the_file | 1 | S 中 | 出力ファイルを書く | 残す |
 | test_cli_statement_candidates_rejects_an_unknown_revision | 1 | S 中 | 失敗時に既存の出力を上書きしない | 残す |
 | test_extract_terms_does_not_mistake_removed_dash_lines_for_headers / places_removed_lines_in_the_old_file / reads_changed_lines_of_documents | 3 | S 低 | 差分の読み取り | 残す |
@@ -485,7 +485,7 @@ Issue 本文の「範囲と禁止」のとおり。変えてよいのは、こ�
 | records_post_rejects_a_different_model_name_before_any_gh_call | 1 | S 中 | 別名義の記録を投稿しない（迷い） | 残す |
 | records_post_rejects_a_record_for_another_pull_request | 1 | S 中 | 別 PR の記録 | 残す |
 | records_post_requires_the_pull_request_head | 2 | S 中 | 古い HEAD の記録 | 残す |
-| records_post_rejects_a_closed_pull_request | 1 | S 低 | open でない PR に記録を投稿しない（誤った対象への書き込み）。S なので重さで消さない（PR #246 のレビューで戻した） | 残す |
+| records_post_rejects_a_closed_pull_request | 1 | S 低 | open でない PR に記録を投稿しない（誤った対象への書き込み）。S なので重さで消さない（PR #246 のレビューで戻した）。例は CLOSED にした（MERGED は `test_finalize.py` の `test_manual_merge_before_posting_keeps_the_merge[same_head]` が確かめる） | 残す |
 | records_post_stops_when_another_agent_recorded_the_round | 1 | S 高 | 他担当の記録を上書きしない | 残す |
 | records_post_stops_when_a_later_round_exists | 1 | S 中 | 古いサイクルの上書き | 残す |
 | records_post_requires_earlier_fix_decisions | 1 | D | prior_round のテストの後半と同じ守り | 消す |
@@ -677,7 +677,7 @@ conftest.py: managed_state は test_dispatch.py・test_evaluation.py（Task 3）
 | review_findings: 語の境界（PR #246 のレビューで戻した） | `_word_pattern` の前後の境界を外す／後ろの境界だけを外す | どちらも `test_statement_candidates_does_not_count_a_term_inside_a_longer_word`。前の境界だけを外したコピーでは全て通る（この例は前の境界を確かめない） |
 | review_records: `stopped` の `stop_reason` の区分（PR #246 のレビューで戻した） | 区分の検査（`if outcome == "stopped" …`）を無効にする／区分の一覧の照合だけを外す／常に拒否する | 無効: `test_stopped_round_requires_a_concrete_allowed_category` の 3 件（`permission:`・`iteration_limit: 1`・`確認待ち`）、一覧だけ: `[iteration_limit: 1]`。どちらも正しく通る例 `test_stopped_round_preserves_category_and_pending_decisions[permission]` は通る。常に拒否: 正しく通る例が失敗 |
 | review_records: `fixes_pushed` の commit（PR #246 のレビューで戻した） | `commit` と `reviewed_head` の比較を無効にする | `test_invalid_records_are_rejected[commit-equal-to-reviewed]` |
-| upsert: open でない PR（PR #246 のレビューで戻した） | `_check_pull_request` の `state != "OPEN"` を無効にする | `test_records_post_rejects_a_closed_pull_request` |
+| upsert: open でない PR（PR #246 のレビューで戻した） | `_check_pull_request` の `state != "OPEN"` を `state not in ("OPEN", "CLOSED")` にする（CLOSED だけを通す） | `test_records_post_rejects_a_closed_pull_request` |
 | review_records: 空の `seats` と再実行したレビュアー（PR #246 のレビューで戻した） | `seats` の空の拒否を無効にする／`rerun` が true のレビュアーの検査を無効にする／停止したサイクルでも空を拒否する | 空: `test_invalid_records_are_rejected[empty-seats]`、rerun: `[no-rerun-seat]`、停止でも拒否: `test_stopped_round_preserves_category_and_pending_decisions[permission]` |
 
 ### 層をまたぐ重複の確認
