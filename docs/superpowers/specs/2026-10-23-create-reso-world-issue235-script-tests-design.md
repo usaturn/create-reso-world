@@ -36,9 +36,9 @@
 | Python のテスト（pytest の収集数） | 61 | 33 | 54% |
 | bash のテスト（`tests/scripts/test-*.bash`） | 14 本 | 10 本 | 71% |
 | 件数の合計 | 75 | 43 | 57% |
-| 行数（`tests/scripts` の追跡ファイル。Meshy を除く） | 3,293 | 1,990 | 60% |
+| 行数（`tests/scripts` の追跡ファイル。Meshy を除く） | 3,293 | 1,994 | 61% |
 
-「後」は、PR 修正ループのサイクル 1〜4（D-235-9、条件単位の監査、F の行の見直し）で戻した後に、同じコマンドで測った（`33 tests collected`、`ls` が 10、`wc -l` が 1990）。戻す前（`d0ef1f5`）は 1786 行、サイクル 2 の後は 1912 行だった。
+「後」は、PR 修正ループのサイクル 1〜5（D-235-9、条件単位の監査、F の行と確認の見直し）で戻した後に、同じコマンドで測った（`33 tests collected`、`ls` が 10、`wc -l` が 1994）。戻す前（`d0ef1f5`）は 1786 行、サイクル 2 の後は 1912 行だった。
 
 ## 決定記録
 
@@ -65,7 +65,7 @@
 | `test-agent-config.bash` | S（高） | 共有する MCP 設定の header に鍵の直書きが入る。private の CI と gitleaks は停止していて、この検査だけが直書きのコミットを止める | 残す |
 | `test-blender-system-python.bash` | L・S | D-235-3。終了コードの伝搬だけは S（サイクル 3） | 終了コードの確認だけを残す |
 | `test-ci.bash`（`ci.yml` の gitleaks ジョブ、版の一致） | F | ワークフローと `install_gitleaks.bash` の値の写し。private の CI は止めていてジョブは実行されない | 消す |
-| `test-ci.bash`（`.gitleaks.toml` の allowlist の正規表現と件数） | F・D・F∩S | 設定の値を写して照合している。3 つの allowlist が秘密情報を除外しないことは、`test-scan-before-push.bash` が実際の gitleaks で確かめる。1 つ目の確認はサイクル 1 の自己レビューの指摘で足した。サイクル 3 で、境界（1 つ目の `^` と区切りの要求、2 つ目の `^`・`$`、3 つ目の `^`・`$`・末尾の小文字の 16 進）ごとに、外すと通る値を 1 件ずつ足し、値そのものの検出（`decoded:` の付かない検出）を求める形にした（条件単位の監査）。除外の形（allowlist が 3 つで、どれも `generic-api-key` の正規表現を 1 つだけ持つこと。`test-ci.bash` の件数の確認・タプルの分解・`regexTarget` の参照が確かめていた）は、秘密情報の検査の除外の範囲を決める F∩S なので、サイクル 4 で `test-scan-before-push.bash` に移した。既定の規則だけを使うこと（`[[rules]]`・`disabledRules`・大文字のキーで除外を足さない）も同じ確認に含めた | 消す（除外の形の確認は移す） |
+| `test-ci.bash`（`.gitleaks.toml` の allowlist の正規表現と件数） | F・D・F∩S | 設定の値を写して照合している。3 つの allowlist が秘密情報を除外しないことは、`test-scan-before-push.bash` が実際の gitleaks で確かめる。1 つ目の確認はサイクル 1 の自己レビューの指摘で足した。サイクル 3 で、境界（1 つ目の `^` と区切りの要求、2 つ目の `^`・`$`、3 つ目の `^`・`$`・末尾の小文字の 16 進）ごとに、外すと通る値を 1 件ずつ足し、値そのものの検出（`decoded:` の付かない検出）を求める形にした（条件単位の監査）。除外の形（allowlist が 3 つで、どれも `generic-api-key` の正規表現を 1 つだけ持つこと。`test-ci.bash` の件数の確認・タプルの分解・`regexTarget` の参照が確かめていた）は、秘密情報の検査の除外の範囲を決める F∩S なので、サイクル 4 で `test-scan-before-push.bash` に移した。既定の規則だけを使うこと（`[[rules]]`・`disabledRules`・大文字のキーで除外を足さない）も同じ確認に含めた。2 つ目の allowlist が除外する値の同一性（`test-ci.bash` が偽の値を直書きして確かめていた）も F∩S なので、サイクル 5 で値の SHA-256 の固定として移した | 消す（除外の形と値の同一性の確認は移す） |
 | `test-docs.bash`・`test-instructions.bash` の参照実在の検査 | L・F | 参照先のファイルの存在は構造の検査（`AGENTS.md`「テストを書かないとき」）。文書の本文の写しでもある | 消す |
 | `test-file-modes.bash` | L | 実行権限は、実行したときに「Permission denied」として現れる | 消す |
 | `test-gitignore.bash` の 3 つの一覧 | F∩S | gitignore の範囲。Issue の「変えないもの」。値は変えていない | 残す |
@@ -317,7 +317,7 @@
 
 base も確かめていなかった変異（PR で守りが減っていない）は対象外にした。そのうち S に当たりうるものは次のとおりで、この PR では足さない（`AGENTS.md` の範囲外の既存の問題）: `new-world.sh:185` の `! -L` を `true`（symlink の `.resoloop/.gitignore` のリンク先へ `cache/` を追記する）、`check-layout.sh:364` の `-L` を `false`（world の必須ファイルの symlink）、`.gitleaks.toml` の 3 つ目の最初の名前の塊を英字と数字の混在に広げる。
 
-変異は既にある条件を変えるだけで、規則を足す変更は作らない。そこでサイクル 4 で、F として消した確認を全て見直し、規則を足して範囲を広げる変更を止める固定値（F∩S）を探した（review-fix の Spec のサイクル 4 の「見直した F の行」）。当たったのは `.gitleaks.toml` の除外の形（allowlist の件数・種類・正規表現の数）で、`test-scan-before-push.bash` に戻した。最初は件数だけを戻し、自己レビューと fix-check の指摘（入れ替え・正規表現の追加は件数を変えない）で、形の全体を確かめる形に広げた。
+変異は既にある条件を変えるだけで、規則を足す変更は作らない。そこでサイクル 4 で、F として消した確認を全て見直し、規則を足して範囲を広げる変更を止める固定値（F∩S）を探した（review-fix の Spec のサイクル 4 の「見直した F の行」）。当たったのは `.gitleaks.toml` の除外の形（allowlist の件数・種類・正規表現の数）で、`test-scan-before-push.bash` に戻した。最初は件数だけを戻し、自己レビューと fix-check の指摘（入れ替え・正規表現の追加は件数を変えない）で、形の全体を確かめる形に広げた。サイクル 5 で、`test-ci.bash` の確認を行ではなく 1 つずつ並べ直し、2 つ目の allowlist の値の同一性（F∩S）を見落としていたので戻した（review-fix の Spec のサイクル 5 の表）。
 
 監査の限界: 文字列・正規表現の定数の値（追跡禁止のパターンなど）、代入・数値、出力の文言は変えていない。追跡禁止のパターンは、base も `TNX.txt` の 1 件だけを確かめていた。
 
