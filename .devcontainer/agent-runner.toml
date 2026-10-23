@@ -5,23 +5,6 @@
 # workflow の割り当て（[workflows.*]）はそれを使う子（#153・#155・#157）が足す。
 schema_version = 1
 
-# DSH 標準 headless。共有 profile と追加プラグインは読み込まない。
-[agents.dsh-ccd]
-runtime = "dsh"
-command = ["dsh"]
-model = "deepseek/deepseek-v4.1-flash"
-provider = "commandcode"
-effort = "max"
-env = ["PATH", "COMMANDCODE_API_KEY"]
-
-[agents.dsh-go]
-runtime = "dsh"
-command = ["dsh"]
-model = "deepseek-v4.1-flash"
-provider = "opencode-go"
-effort = "max"
-env = ["PATH", "OPENCODE_API_KEY"]
-
 # 役割の期限（usaturn/agent-workspace#616）。PR レビューの全体の予算に合わせて 45 分とし、implement だけ 90 分にする。
 # fix-check は呼び出し側（review-verify・review-fix-planning）が 1800 秒に切り詰める。
 [roles.inspect]
@@ -133,23 +116,20 @@ command = ["devin"]
 model = "swe-2-max"
 env = ["HOME", "PATH"]
 
-# DSH の親入力は caller が起動前に prepare-parent で作る。after_run は事後の保存と観測値の記録だけ。
-# 個人設定は書き換えない。after_run = [] で無効にした caller は両コマンドを明示実行する。
+# after_run はレビュー結果に runner の実行記録を付ける。
+# 個人設定は書き換えない。after_run = [] で無効にした caller は attach-runner を明示実行する。
 [workflows.review]
 after_run = [[
-  "uv", "run", "--project", ".", "--locked", "python",
-  ".agents/skills/pr-review/scripts/review_run.py", "finalize-parent", "--result", "{result}",
-], [
   "uv", "run", "--project", ".", "--locked", "python",
   ".agents/skills/pr-review/scripts/review_run.py", "attach-runner", "--result", "{result}",
 ]]
 
 # 指定が無いときの既定構成。その回の --assign inspect=... または個人設定で選び直せる。
 [workflows.review.assignments.inspect]
-agents = ["pi-gpt", "devin-swe", "dsh-ccd", "cursor-grok47"]
+agents = ["pi-gpt", "devin-swe", "pi-deepseek", "cursor-grok47"]
 
 # review-fix-planning の run_roles.py が使う担当（#116 のボードの D-13）。self は司令塔が自分で実行する。
-# self-review・fix-check には DSH・codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
+# self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
 [workflows.fix.assignments.implement]
 agents = ["claude-opus"]
 

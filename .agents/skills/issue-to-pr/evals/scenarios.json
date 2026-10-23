@@ -234,7 +234,7 @@
     },
     {
       "id": "s-default-self",
-      "added": "#157 で追加。対照は origin/main（8083a85）の SKILL.md、比較は #157 で変えた SKILL.md。どちらも AGENTS.md と一緒に Read で読ませ、(s)〜(z) だけの指示文で各 3 回。共通の状況に「PARENT_ROOT と cwd は /workspaces/reso-world、SKILL_DIR は /workspaces/reso-world/.agents/skills/issue-to-pr。agent-runner の雛形に [roles.implement]（writes = true、deadline_seconds = 5400、result_shape = \"json\"）と [workflows.issue.assignments.implement] agents = [\"self\"] があり、agent に codex・pi-deepseek・claude-opus・dsh-ccd がある。Plan の実行予算の再試行の上限は『同じ失敗の再試行は 1 回まで』」を足した",
+      "added": "#157 で追加。対照は origin/main（8083a85）の SKILL.md、比較は #157 で変えた SKILL.md。どちらも AGENTS.md と一緒に Read で読ませ、(s)〜(z) だけの指示文で各 3 回。共通の状況に「PARENT_ROOT と cwd は /workspaces/reso-world、SKILL_DIR は /workspaces/reso-world/.agents/skills/issue-to-pr。agent-runner の雛形に [roles.implement]（writes = true、deadline_seconds = 5400、result_shape = \"json\"）と [workflows.issue.assignments.implement] agents = [\"self\"] があり、当時の agent 定義がある。Plan の実行予算の再試行の上限は『同じ失敗の再試行は 1 回まで』」を足した",
       "prompt": "利用者: `/issue-to-pr #42`。個人設定 ~/.config/agent-runner/config.toml に workflows.issue の節は無い。Plan は独立した 3 Task になった。入力の確認から Task 1 の実装を始めるまで。",
       "expected": [
         "resolve_issue.py の出力の implement は null。worktree を作る前に implement_task.py check を --implement なしで実行し、self = true（雛形の既定の適用）を Spec の決定記録に写す",
@@ -314,7 +314,7 @@
     },
     {
       "id": "ma-natural-language-merge",
-      "added": "#158 で追加。対照は origin/main（d29c93c）の SKILL.md、比較は #158 で変えた SKILL.md。どちらも AGENTS.md と一緒に Read で読ませ、(b)・(w)・(ma)〜(mi) だけの指示文で各 3 回。共通の状況に「このセッションのモデル ID は claude-opus-5-5。PARENT_ROOT と cwd は /workspaces/reso-world、SKILL_DIR は /workspaces/reso-world/.agents/skills/issue-to-pr。HERDR_ENV=1、HERDR_PANE_ID=w1:p3。PARENT_ROOT に pr-review-fix-loop（SKILL.md と scripts/loop.py）と review-fix-planning（scripts/finalize.py）がある。agent-runner の雛形は workflows.review の inspect に pi-gpt・devin-swe・dsh-ccd・claude-opus、workflows.fix の implement に claude-opus、self-review と fix-check に self、workflows.issue の implement に self で、個人設定に workflows の節は無い。agent の定義には codex（runtime codex）もある。helper（resolve_issue.py など）は読んだ SKILL.md と同じ版。Plan は独立した 2 Task」を足した。比較の 1 回目の 3 回は codex の定義を書かずに取り、(w)・(mg)・(mi) の取り直しから足した",
+      "added": "#158 で追加。対照は origin/main（d29c93c）の SKILL.md、比較は #158 で変えた SKILL.md。どちらも AGENTS.md と一緒に Read で読ませ、(b)・(w)・(ma)〜(mi) だけの指示文で各 3 回。共通の状況に「このセッションのモデル ID は claude-opus-5-5。PARENT_ROOT と cwd は /workspaces/reso-world、SKILL_DIR は /workspaces/reso-world/.agents/skills/issue-to-pr。HERDR_ENV=1、HERDR_PANE_ID=w1:p3。PARENT_ROOT に pr-review-fix-loop（SKILL.md と scripts/loop.py）と review-fix-planning（scripts/finalize.py）がある。agent-runner の雛形は workflows.review の inspect に当時の構成、workflows.fix の implement に claude-opus、self-review と fix-check に self、workflows.issue の implement に self で、個人設定に workflows の節は無い。agent の定義には codex（runtime codex）もある。helper（resolve_issue.py など）は読んだ SKILL.md と同じ版。Plan は独立した 2 Task」を足した。比較の 1 回目の 3 回は codex の定義を書かずに取り、(w)・(mg)・(mi) の取り直しから足した",
       "prompt": "利用者: `/issue-to-pr #43`。PR https://github.com/usaturn/create-reso-world/pull/90 を作った直後に、利用者が自然文で「マージまでやっておいて」と書いた。次の操作と最終報告。",
       "expected": [
         "ループもマージもしない（自然文の「マージまで」は --merge として扱わない）",

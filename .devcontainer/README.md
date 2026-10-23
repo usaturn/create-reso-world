@@ -28,7 +28,6 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | pi | `npm install -g` で本体、`pi install` で拡張。ランチャー 11 本を `~/.local/bin` に置く | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`、`curo`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`、`devs`、`devo`（alias） | `devin update`、`devin plugins update superpowers` |
-| DSH（headless のみ） | `npm install -g @deepseek-ai/dsh@0.2.1-rc.2`（導入後に版を照合） | — | — | — | — |
 | Meshy CLI | `install_meshy.bash`（公式 npm `meshy-cli@0.4.0`、無認証 version / help） | — | — | — | — |
 | Context7 CLI（ctx7） | `install_ctx7.bash`（npm の `ctx7` を `CTX7_CLI_VERSION` に固定して入れ、`ctx7 --version` を確かめる。「Context7 CLI（ctx7）」の節） | — | — | — | — |
 | Gitleaks | `install_gitleaks.bash`（release の tar.gz を固定した SHA-256 で確かめて `~/.local/bin` に置く。版は CI の gitleaks ジョブと同じ） | — | — | — | — |
@@ -41,14 +40,8 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 未導入のツールを呼ぶ関数（`cod`、`genv`、`buni`）は、コマンドが無ければ理由を表示して 127 を返す。
 `update()` は無いツールの項目を飛ばし、飛ばした項目を表示する。
 
-DSH は #18 で撤去した対話用ランチャーを戻さず、#151 で agent-runner の headless レビュアー用の CLI だけを再導入する。
-`dsh --profile headless` は呼出しごとの HOME・DSH_HOME・TMPDIR と bubblewrap を使い、共有の `~/.dsh`、pi-tui、
-web の provider プラグイン、`cordis.patch.yml`、pnpm、ポート 3080 は使わない。bubblewrap が無ければ起動しない。
-0.2.1 系の headless は保存済みの key を読まない。key は agent-runner が呼出しごとに作る名前の環境変数で渡すので、
-作業対象の `.env` や共有の保存済み key が認証に使われることは無い。
 Grok Build（`grok`）は導入しない。Claude Code を Alibaba Cloud 経由で使う `ccda`（`claude-alibaba`）も置かない。
-ホストの `~/.dsh`・`~/.grok` は mount せず、削除もしない。不要になったら利用者がホスト側で消す。
-rebuild 前に古い `dsh` が残っている場合も、headless 用の固定版と同じとは限らないので `dsh --version` で確かめる。
+ホストの `~/.grok` は mount せず、削除もしない。不要になったら利用者がホスト側で消す。
 
 ## 秘密情報
 
@@ -75,7 +68,7 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 ## 既存環境の更新
 
 2026-10 に pi と Claude Code の設定を取り込み、pi のランチャー・拡張・MCP、Claude Code のランチャー、
-除外したツール（DSH の対話用ランチャー・Grok Build・`ccda`）の扱いが変わった。#151 では DSH の headless CLI だけを再導入する。既存の環境には次の順に反映する。
+除外したツール（Grok Build・`ccda`）の扱いが変わった。既存の環境には次の順に反映する。
 
 1. ホストの作業ツリーを最新の `origin/main` に追従させる。rebuild は作業ツリーの `.devcontainer/` を使う。
 2. ホストの `~/.config/create-reso-world/env` を見直す。`MAAS_ANTHROPIC_TOKEN` を削除し、
@@ -88,7 +81,7 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
      （「pi の TUI モードと Herdr のスクロール履歴」）
    - Claude Code の alias（`ccd`・`ccdo`・`ccds`）とプロバイダ関数を含むシェル設定の配置
      （「Claude Code の起動と更新」）
-   - DSH は headless CLI だけを固定版で導入し、Grok Build は導入しない。`~/.dsh`・`~/.grok` は mount しない。`PI_DISTILL_*` と `PI_EXTENSIONS_LOCALE` を export しない
+   - Grok Build は導入しない。`PI_DISTILL_*` と `PI_EXTENSIONS_LOCALE` を export しない
 4. rebuild では変わらないものを反映する。
    - ランチャー別の tier: `--if-absent` を付けずに `zsh scripts/setup_pi_superagents.zsh` を実行する。
      変更のある設定はバックアップされる（「pi-superagents のランチャー別 model tier」）
@@ -99,7 +92,7 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
    - `~/.pi/agent/models.json` に残る `deepinfra-distill` は自動では消さない。不要なら定義を確かめてから削除する
 5. 確かめる項目と、rebuild 前の状態の記録は、ルートの `README.md` の「対象外」が案内する移植の記録にある。
 
-rebuild しない場合は、3 の代わりに次を行う。ただし、DSH headless CLI の導入と実機確認は利用者が rebuild した後に行う。
+rebuild しない場合は、3 の代わりに次を行う。
 
 - pi の旧拡張の撤去と共有拡張の導入: 「pi の旧拡張・MCP 設定の移行」の手動コマンド
 - 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除。
@@ -564,37 +557,11 @@ runner が `outside_changes` として事後に報告する。`~/.cursor/cli-con
 コマンドを書くと、`-f` でも拒否されて完了しない。起動の理由・実機の記録・既知の制限は
 [tools/agent_runner/runtimes/cursor.rst](../tools/agent_runner/runtimes/cursor.rst) にある。
 
-### DSH headless レビュアー
+### 旧担当からの個人設定の移行
 
-雛形の `dsh-ccd` は `COMMANDCODE_API_KEY`、`dsh-go` は `OPENCODE_API_KEY` を使う。
-値は個人設定の TOML に書かず、「秘密情報」の env から渡す。観測した provider / model / effort は当該 session の v4 log から読み、
-要求したモデルや親の `PI_MODEL` では補わない。識別ログの欠落・不一致は成功にしない。
-
-rebuild 後に `dsh --version` が `0.2.1-rc.2` を返すことと、使い捨ての git repository に対する短い依頼を
-`dsh-ccd` で 1 回実行して payload と観測したモデルが返ることを確認する。この実機結果は #175 に記録し、#151 からも辿れるようにする。
-rebuild と実 API 呼出しを行っていない段階では、偽 CLI のテストが通っていても実機確認済みとは扱わない。
-
-rebuild せずに固定版へ上げるとき、または旧い固定版（`0.2.0-rc.2`）へ戻すときは、版を指定して上書きし、`dsh --version` で確かめる。
-DSH の状態は呼出しごとの `DSH_HOME` にあり、移す共有の状態は無い。戻した版は、次の rebuild で `install_beforehand.bash` の固定版に戻る。
-
-```bash
-npm install -g --allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty @deepseek-ai/dsh@0.2.1-rc.2  # 戻すときは @0.2.0-rc.2
-dsh --version
-```
-
-#153 より前は雛形に review workflow が無いので、確認用の一時 config に次だけを足し、
-上の run 例で `--workflow dsh-smoke --assign inspect=dsh-ccd` を指定する。
-prompt-file はツール実行やファイル変更を求めない短い依頼（例: `{"ok":true} の JSON だけを返す`）にする。
-
-```toml
-[workflows.dsh-smoke.assignments.inspect]
-agents = ["dsh-ccd"]
-```
-
-個人設定に `[agents.dsh-*]` を書いて上書きしているときは、それを雛形に合わせるか消すか、
-確認用 config を `--config` で明示する。API key・セッションログの内容を Issue に貼らない。
-HOME のキャッシュは停止確認後に削除し、TMPDIR の通常ファイルとセッション状態は redact して実行記録に残す。
-TMPDIR に残ったシンボリックリンク・特殊ファイル・ハードリンク（pytest の fixture など）は消す。
+#243 で DSH 担当を撤去した。個人設定 `~/.config/agent-runner/config.toml` に `runtime = "dsh"` の agent 定義があれば削除し、
+担当と fallback の参照を `pi-deepseek` など残る担当へ手で変更する。`workflows.review.after_run` を上書きしている場合は、
+`finalize-parent` を外し、`attach-runner` を残す。個人設定は自動更新しない。
 
 ## pi の旧拡張・MCP 設定の移行
 

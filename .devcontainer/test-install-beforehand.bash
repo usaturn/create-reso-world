@@ -1,5 +1,5 @@
 #!/bin/bash
-# postCreate（.devcontainer/install_beforehand.bash）の agent-runner の個人設定の配置と、固定した DSH の導入を検査する。仕様 7.1 節
+# postCreate（.devcontainer/install_beforehand.bash）の agent-runner の個人設定の配置を検査する。仕様 7.1 節
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 installer="$root/.devcontainer/install_beforehand.bash"
@@ -44,39 +44,4 @@ assert all(merged.roles[name].deadline_seconds == role.deadline_seconds + 1 for 
 assert all(merged.agents[name].model == f"{agent.model}-changed" for name, agent in base.agents.items())
 PY
 
-# A wrong version is accepted silently otherwise: the reviewers would run a DSH other than the pinned one.
-# Execute the DSH installation function and its actual postCreate call with shell stubs.
-# The stub derives its version from the requested package, rather than copying a changing version into this test.
-dsh_function="$(sed -n '/^install_deepseek_harness() {$/,/^}$/p' "$installer")"
-dsh_stage="$(sed -n '/^step "Installing the pinned DSH headless CLI"$/,/^fi$/p' "$installer")"
-[ -n "$dsh_function" ] && [ -n "$dsh_stage" ] || fail 'no DSH installation stage in install_beforehand.bash'
-for mode in success wrong-version; do
-  probe="$tmp/dsh-$mode"
-  mkdir -p "$probe/bin" "$probe/home"
-  status=0
-  env HOME="$probe/home" PATH="$probe/bin" PROBE="$probe" MODE="$mode" /bin/bash --noprofile --norc -c '
-    step() { :; }
-    fail() { printf "failed: %s\n" "$*" >&2; exit 1; }
-    npm() {
-      printf "%s\n" "$@" > "$PROBE/npm-args"
-      [ "$1" = install ] && [ "$2" = -g ] || return 24
-      case "$3" in --allow-scripts=?*) ;; *) return 25 ;; esac
-      case "$4" in @deepseek-ai/dsh@?*) printf "%s\n" "${4#@deepseek-ai/dsh@}" > "$PROBE/version" ;; *) return 26 ;; esac
-      [ "$#" = 4 ] || return 27
-    }
-    dsh() {
-        printf "%s\n" "$@" > "$PROBE/dsh-args"
-        [ "$1" = --version ] && [ "$#" = 1 ] || return 28
-        if [ "$MODE" = wrong-version ]; then printf "not-the-requested-version\n"; return; fi
-        read -r version < "$PROBE/version"
-        printf "%s\n" "$version"
-      }
-  '"$dsh_function"$'\n'"$dsh_stage"$'\n''printf "reached\n" > "$PROBE/after"' > "$probe/stdout" 2> "$probe/stderr" || status=$?
-  if [ "$mode" = success ]; then
-    [ "$status" = 0 ] && [ -f "$probe/after" ] && [ -f "$probe/dsh-args" ] || fail 'DSH installation did not reach the next stage'
-  else
-    [ "$status" != 0 ] && [ ! -e "$probe/after" ] || fail "DSH installation continued after $mode"
-  fi
-done
-
-printf 'PASS: postCreate preserves the agent-runner personal config and rejects another DSH version\n'
+printf 'PASS: postCreate preserves the agent-runner personal config\n'
