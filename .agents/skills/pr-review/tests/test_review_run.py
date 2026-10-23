@@ -1189,10 +1189,16 @@ def _granted(lines: tuple[str, ...], path: object) -> int:
 
 
 @pytest.mark.parametrize("separate", [False, True])
+@pytest.mark.parametrize("shallow", [False, True])
 def test_helper_write_exceptions_grant_git_data_only_where_the_helper_writes_it(
-    tmp_path: Path, separate: bool
+    tmp_path: Path, separate: bool, shallow: bool
 ) -> None:
-    """--source-root が親と別の repository なら、親の Git ディレクトリには保存ロックだけを許可する（#658）。"""
+    """--source-root が親と別の repository なら、親の Git ディレクトリには保存ロックだけを許可する（#658）。
+
+    浅い checkout では helper が履歴をセッション内の所有 Git に取得し、その checkout の Git には書かない。親と同じ
+    Git でも別でも、その Git を worktree のデータの書き込み先として許可すると、writes=false の担当が利用者の Git を
+    書いてよいと読む（PR #249）。
+    """
     from tools.agent_runner.runner import _single_line  # pyright: ignore[reportPrivateUsage]
 
     tool_root, parent = tmp_path / "tool", tmp_path / "parent"
@@ -1205,6 +1211,7 @@ def test_helper_write_exceptions_grant_git_data_only_where_the_helper_writes_it(
         review_dir=review_dir,
         number=7,
         source_git=source_git if separate else None,
+        source_shallow=shallow,
     )
     expected = [
         tool_root,
@@ -1212,13 +1219,16 @@ def test_helper_write_exceptions_grant_git_data_only_where_the_helper_writes_it(
         f"{parent}/tmp/agents/pr-review-scratch-7.*",
         tool_root / ".venv",
     ]
-    expected += (
-        [parent_git / "pr-review-save.lock", source_git] if separate else [parent_git]
-    )
+    if shallow:
+        expected.append(parent_git / "pr-review-save.lock")
+    else:
+        expected += [parent_git / "pr-review-save.lock", source_git] if separate else [parent_git]
     assert [_granted(lines, path) for path in expected] == [1] * len(expected)
     assert sum(line.startswith("/") for line in lines) == len(expected)
-    if separate:
+    if separate or shallow:
         assert _granted(lines, parent_git) == 0
+    if shallow:
+        assert _granted(lines, source_git) == 0
     same = review_run.helper_write_exceptions(
         tool_root=tool_root,
         parent=parent,
@@ -1226,6 +1236,7 @@ def test_helper_write_exceptions_grant_git_data_only_where_the_helper_writes_it(
         review_dir=review_dir,
         number=7,
         source_git=parent_git,
+        source_shallow=shallow,
     )
     assert same == review_run.helper_write_exceptions(
         tool_root=tool_root,
@@ -1233,6 +1244,7 @@ def test_helper_write_exceptions_grant_git_data_only_where_the_helper_writes_it(
         parent_git=parent_git,
         review_dir=review_dir,
         number=7,
+        source_shallow=shallow,
     )
     assert all(_single_line(line) for line in lines)
 

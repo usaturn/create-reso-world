@@ -235,23 +235,25 @@ def write_exceptions(config: Config, data: RoleInput) -> tuple[str, ...]:
 
     self は起動しないので求めない（既定の流れを変えない）。runner は workflow のすべての役割に同じ一覧を付けるので、
     各行の末尾にその役割を書く。self-review は未 push の commit を ``--source-root`` で pr-review に渡すので、
-    helper の Git の書き込み先は RoleInput.repository の共有ディレクトリになる。保存先はブランチ名を知らないので
-    ``#<PR>-*`` のパターンにする。
+    helper の Git の書き込み先は RoleInput.repository の共有ディレクトリになる（浅い checkout ならセッション内の
+    所有 Git になり、そこには書かない）。保存先はブランチ名を知らないので ``#<PR>-*`` のパターンにする。
     """
     lines: list[str] = []
     if verifier.assigned_externally(config, "self-review"):
         try:
             parent = review_target.default_parent_root()
             reviews = review_target.repository_reviews_root(parent, data.pr.repository)
+            repository = Path(data.repository)
             helper = review_entry.helper_write_exceptions(
                 tool_root=ROOT,
                 parent=parent,
                 parent_git=git_common_dir(parent),
                 review_dir=f"{reviews}/#{data.pr.number}-*",
                 number=data.pr.number,
-                source_git=git_common_dir(Path(data.repository)),
+                source_git=git_common_dir(repository),
+                source_shallow=review_entry.workspace.uses_owned_history(repository),
             )
-        except review_target.TargetError, WorkspaceError:
+        except review_target.TargetError, WorkspaceError, review_entry.workspace.WorkspaceError:
             raise RoleInputError(
                 "self-review write exceptions need the parent main worktree and its Git data"
             ) from None

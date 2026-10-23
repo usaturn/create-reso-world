@@ -5,7 +5,14 @@ import re
 from pathlib import Path
 from typing import Annotated, Literal, cast
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 Runtime = Literal["claude-code", "devin", "pi", "codex", "cursor"]
 ResultShape = Literal["json", "text"]
@@ -266,3 +273,18 @@ class BatchResult(StrictModel):
     checkout_audit: list[CheckoutAudit] = Field(default_factory=list[CheckoutAudit])
     elapsed_seconds: ElapsedSeconds
     artifact_dir: Path
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_unrelated_audit(cls, value: object) -> object:
+        """Read results saved before #243, which always wrote ``unrelated_checkout_audit``.
+
+        Only an empty list is dropped, so saved runs can be resumed and their stopped resources
+        reclaimed. A recorded observation still fails as an extra field rather than being lost.
+        """
+        if isinstance(value, dict):
+            data = cast(dict[str, object], value)
+            legacy = data.get("unrelated_checkout_audit")
+            if type(legacy) is list and not legacy:
+                return {key: item for key, item in data.items() if key != "unrelated_checkout_audit"}
+        return value

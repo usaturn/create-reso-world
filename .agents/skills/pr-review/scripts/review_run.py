@@ -234,6 +234,7 @@ def helper_write_exceptions(
     review_dir: str,
     number: int,
     source_git: Path | None = None,
+    source_shallow: bool,
 ) -> tuple[str, ...]:
     """この helper が管理する書き込み先。呼び出し側が runner の作業範囲の指示に、許可する例外として載せる。
 
@@ -244,20 +245,27 @@ def helper_write_exceptions(
     review_dir は保存先のディレクトリで、ブランチ名を知らない呼び出し側は ``#<PR>-*`` のパターンを渡す。
     source_git は ``--source-root`` の checkout の Git の共有ディレクトリ。親（parent_git）と違えば、
     helper は review 用の worktree・ref・オブジェクトをそちらに書き、親には保存ロックだけを書く。
-    浅い checkout では、履歴をセッション内の所有 Git に取得する。
+    source_shallow はその checkout が浅いか（``pr_review_workspace.uses_owned_history``）。浅ければ helper は
+    履歴をセッション内の所有 Git に取得し、その checkout の Git は読むだけなので、親と同じ Git でも保存ロックだけを許可する。
     """
     worktree_data = "the Git objects, refs and worktree registrations that the helper adds and removes for its review worktree"
-    if source_git is None or source_git == parent_git:
+    save_lock = f"{parent_git / 'pr-review-save.lock'}: the helper's save lock"
+    if source_shallow:
+        git_data: tuple[str, ...] = (save_lock,)
+    elif source_git is None or source_git == parent_git:
         git_data = (
             (
                 f"{parent_git}: the helper's save lock (pr-review-save.lock) and {worktree_data} (a submodule's Git data "
-                "is here too; a shallow checkout uses owned Git inside the helper's session instead)"
+                "is here too)"
             ),
         )
     else:
-        git_data = (
-            f"{parent_git / 'pr-review-save.lock'}: the helper's save lock",
-            f"{source_git}: {worktree_data} in the --source-root checkout",
+        git_data = (save_lock, f"{source_git}: {worktree_data} in the --source-root checkout")
+    session = "its review worktree, backup and state belong to the helper"
+    if source_shallow:
+        session = (
+            "the Git repository it fetches the history into (the checkout is shallow and its Git is only read), "
+            "its review worktree, backup and state belong to the helper"
         )
     return (
         (
@@ -275,7 +283,7 @@ def helper_write_exceptions(
         ),
         (
             f"the session that the helper's prepare creates (pr-review-{number}-* in the temporary directory): "
-            "its review worktree, backup and state belong to the helper. Write only the "
+            f"{session}. Write only the "
             "draft and findings_draft that prepare returns, and leave no files in the review worktree"
         ),
         (

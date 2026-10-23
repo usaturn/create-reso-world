@@ -923,13 +923,18 @@ def review_write_exceptions(run: RunRecord) -> tuple[str, ...]:
     helper が管理する書き込み先は pr-review の ``review_run.helper_write_exceptions`` が定める（review-fix-planning の
     self-review と同じ一覧）。``--source-root`` を使わないレビュアーの helper は、PR の Git 操作の対象の checkout
     （resoloop の PR なら external/resoloop）の Git に review の worktree・ref を書くので、その Git を ``source_git``
-    に渡す。最後の行（ランタイムが自分で作るファイル。loop が回収でディレクトリごと捨てる）は loop だけのもの。
+    に渡す。浅い checkout なら helper はセッション内の所有 Git に書き、その Git には書かないので、helper と同じ判定を
+    ``source_shallow`` に渡す。最後の行（ランタイムが自分で作るファイル。loop が回収でディレクトリごと捨てる）は loop だけのもの。
     """
     review_dir = Path(run.review_dir)
     parent = review_dir.parents[3]
     common = Path(git_output(parent, "rev-parse", "--path-format=absolute", "--git-common-dir"))
     checkout = require_target_checkout(parent, run.pr.repository)
     source = Path(git_output(checkout, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    try:
+        shallow = review_entry.workspace.uses_owned_history(checkout)
+    except review_entry.workspace.WorkspaceError as error:
+        raise LoopError(5, "git", f"{checkout} が浅い checkout か確かめられない: {error}") from error
     return (
         *review_entry.helper_write_exceptions(
             tool_root=Path(run.tool_root),
@@ -938,6 +943,7 @@ def review_write_exceptions(run: RunRecord) -> tuple[str, ...]:
             review_dir=str(review_dir),
             number=run.pr.number,
             source_git=source,
+            source_shallow=shallow,
         ),
         "files that the agent runtime or its extensions create by themselves in the directory you were launched in: "
         "they belong to the runtime, not to you. Do not edit or delete them, and do not count them as your "

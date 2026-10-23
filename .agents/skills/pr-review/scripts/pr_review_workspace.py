@@ -372,6 +372,15 @@ def pinned_review_ref(pr_number: int, repository: str) -> str:
     return f"refs/pr-review/repos/{normalize_pr_repository(repository)}/{pr_number}"
 
 
+def uses_owned_history(checkout: Path) -> bool:
+    """Whether create fetches into a Git repository owned by its session instead of the checkout's Git.
+
+    Linked worktrees share shallow boundaries. Own a separate Git repository
+    for full history without changing the caller's refs, FETCH_HEAD or boundary.
+    """
+    return git(checkout, "rev-parse", "--is-shallow-repository") == "true"
+
+
 def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str, str | None]:
     model_name, model_source = resolve_runtime_model_name(getattr(args, "model_name", None))
     target = parse_target(target_value)
@@ -391,9 +400,7 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
         raise WorkspaceError("target checkout or base_remote does not match the resolver")
     if review_commit is not None:
         require_review_commit(checkout, commit)
-    # Linked worktrees share shallow boundaries. Own a separate Git repository
-    # for full history without changing the caller's refs, FETCH_HEAD or boundary.
-    owned_history = git(checkout, "rev-parse", "--is-shallow-repository") == "true"
+    owned_history = uses_owned_history(checkout)
     attempt = validate_attempt_id(getattr(args, "attempt_id", None) or uuid.uuid4().hex)
     session_dir = new_session_dir(args, number)
     journal = CreateJournal(session_dir, attempt)
