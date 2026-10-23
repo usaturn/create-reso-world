@@ -258,10 +258,27 @@ expect_fail_with "$tmp/assets" 'missing regular file AGENTS.md'
 printf '{"worlds/source":"assets"}\n' > "$tmp/assets/.check-layout-projects.json"
 bash "$checker" --root "$tmp/assets" > "$tmp/assets.out"
 grep -qF 'ok: project worlds/source layout (assets)' "$tmp/assets.out"
+# manifest が symlink なら、リンク先の別のファイルの設定を読むので失敗する
+printf '{}\n' > "$tmp/assets/manifest.json"
+ln -sfn ../../manifest.json "$tmp/assets/worlds/source/.resoloop.json"
+expect_fail_with "$tmp/assets" 'missing regular file .resoloop.json'
+
+# 11b. items は、root の flux の代わりに実ディレクトリの items を要求する。items が symlink なら、
+#      アイテムの処理がリンク先に書くので失敗する
+project_repo "$tmp/items"
+rm -- "${tmp:?}/items/worlds/demo/flux/resoloop.flux.json"
+mkdir "$tmp/items/worlds/demo/items" "$tmp/items/elsewhere"
+printf '{"worlds/demo":"items"}\n' > "$tmp/items/.check-layout-projects.json"
+bash "$checker" --root "$tmp/items" > "$tmp/items.out"
+grep -qF 'ok: project worlds/demo layout (items)' "$tmp/items.out"
+rmdir -- "${tmp:?}/items/worlds/demo/items"
+ln -s ../../elsewhere "$tmp/items/worlds/demo/items"
+expect_fail_with "$tmp/items" 'missing real directory items'
 
 # 12. 壊れた設定や、収集できないパスを指す設定は、暗黙に無視せず失敗する。正しい設定は通過する
 project_repo "$tmp/profiles"
-for config in '{' '{"../elsewhere":"assets"}' '{"worlds/missing":"assets"}'; do
+# 2 つの文書の設定は、先頭の文書だけを読むと正しい設定に見えるので、文書の数で拒否する
+for config in '{' '{"worlds/demo":"world"} {}' '{"../elsewhere":"assets"}' '{"worlds/missing":"assets"}'; do
   printf '%s\n' "$config" > "$tmp/profiles/.check-layout-projects.json"
   expect_fail_with "$tmp/profiles" '.check-layout-projects.json'
 done

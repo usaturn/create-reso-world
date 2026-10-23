@@ -137,13 +137,14 @@ for value in '/custom/blender' '/previous/world/.resoloop/blender-system-python'
   [ "$before" = "$(snapshot "$p")" ] || fail "overwrote user setting '$value'"
 done
 
-# 9. JSON 構文・値型の競合は exit 1、追加や +x の予定も含め無変更。
+# 9. JSON 構文・文書数・root の型・値型の競合は exit 1、追加や +x の予定も含め無変更。
+#    2 つ目の文書を読まない・null の root を受け入れると、更新で利用者の設定を書き換える
 new_root "$tmp/r9"
 run "$tmp/r9" --no-sync demo >/dev/null
 p="$tmp/r9/worlds/demo"
 chmod 0640 "$p/.resoloop/blender-system-python"
 rm "$p/CLAUDE.md"
-for json in '{broken' '[]' '{"blenderExecutable":1}'; do
+for json in '{broken' '{} {}' 'null' '[]' '{"blenderExecutable":1}'; do
   printf '%s\n' "$json" > "$p/.resoloop.json"
   before="$(snapshot "$p")"
   expect_exit 1 'CONFLICT: .resoloop.json' "$tmp/r9" --apply --no-sync demo

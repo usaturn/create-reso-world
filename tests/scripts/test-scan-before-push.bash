@@ -153,20 +153,42 @@ grep -q 'default rules' "$tmp/stderr" || { show; fail 'did not say that the defa
 # 識別子の前後や区切りを付けた無作為な値が紛れない。値は実行時に作る（英字の大小と数字が入り混じる）
 random="$(printf 'create-reso-world issue-135 random value' | sha256sum | cut -c1-64 | base64 -w0 | tr -dc 'A-Za-z0-9' | cut -c1-32)"
 hash8="$(printf 'create-reso-world issue-135 name' | sha256sum | cut -c1-8)"
+# 値は base64 として復号した後にも検出されることがある（Tags: [decoded:base64 ...]）。その検出だけで止まると、
+# allowlist を広げても通ってしまうので、値そのものの検出を 1 件以上求める
+expect_direct_leak() {
+  expect_leak "$1"
+  [ "$(grep -c '^Finding:' "$tmp/stderr")" -gt "$(grep -c '^Tags:.*decoded:' "$tmp/stderr")" ] \
+    || { show; fail "$1: reported only decoded values"; }
+}
 leak_with_repo_config() {
   new_repo "$root/.gitleaks.toml"
   commit_file config.py "api_key = \"$2\""
   scan
-  expect_leak "$1 with the repository .gitleaks.toml"
+  expect_direct_leak "$1 with the repository .gitleaks.toml"
 }
 leak_with_repo_config 'a random value after a prefix' "msy_$random"
 leak_with_repo_config 'a random value shaped like an identifier' "mat_material_${random:0:16}_$hash8"
 leak_with_repo_config 'a password of words and 8 digits without a key() prefix' "summer_Holiday2024_${hash8//[a-f]/7}"
+# 2 つ目（テスト用の偽の値そのもの）と 3 つ目（key() の識別子）の allowlist は、前後に値が続くものを除外しない（^ と $）。
+# 偽の値は追跡するファイルに増やさないよう、.gitleaks.toml の 2 つ目の allowlist から読む
+fake="$(grep -E "^regexes = \['''\^?[A-Za-z0-9]{20,}\\\$?'''\]$" "$root/.gitleaks.toml" | grep -oE '[A-Za-z0-9]{20,}')" \
+  || fail 'cannot read the fake token of the second allowlist in .gitleaks.toml'
+identifier="mat_material_Slum02_rubber_$hash8"
+leak_with_repo_config 'the fake token after a prefix' "x$fake"
+leak_with_repo_config 'the fake token before a suffix' "${fake}x"
+leak_with_repo_config 'a random value before an identifier' "${random:0:8}_$identifier"
+leak_with_repo_config 'an identifier before a random value' "$identifier${random:0:8}"
+leak_with_repo_config 'an identifier whose hash is not lowercase hex' "mat_material_Slum02_${random:0:8}"
 # 1 つ目の allowlist（resoloop のマニフェストの "key": "<識別子>" の形）も、区切りの無い無作為な値は除外しない
 new_repo "$root/.gitleaks.toml"
 commit_file manifest.json "{\"key\": \"$random\"}"
 scan
-expect_leak 'a random value as a manifest key with the repository .gitleaks.toml'
+expect_direct_leak 'a random value as a manifest key with the repository .gitleaks.toml'
+# 1 つ目の allowlist は "key" という名前の項目だけを対象にする（^）。api_key などの項目の値は除外しない
+new_repo "$root/.gitleaks.toml"
+commit_file config.json "{\"api_key\": \"msy_$random\"}"
+scan
+expect_direct_leak 'a random value with separators in an api_key item with the repository .gitleaks.toml'
 
 # --- 検査できないときは止まる ---
 new_repo
