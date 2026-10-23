@@ -51,7 +51,7 @@
 
 ## Task 2: pr-review の DSH 親入力と bundle
 
-**担当ファイル:** `.agents/skills/pr-review/scripts/review_run.py`、`pr_review_parent.py`、`pr_review_workspace.py`、`.agents/skills/pr-review/tests/test_review_run.py`、`test_pr_review_workspace.py`、`SKILL.md`、`references/evidence.md`、`references/noninteractive.md`。
+**担当ファイル:** `.agents/skills/pr-review/scripts/review_run.py`、`pr_review_parent.py`、`pr_review_workspace.py`、`.agents/skills/pr-review/tests/test_review_run.py`、`test_pr_review_workspace.py`、`test_port_routing.py`、`SKILL.md`、`references/evidence.md`、`references/noninteractive.md`。
 
 - [ ] `prepare-parent`・`finalize-parent`、DSH session identity、staged 親保存の CLI と呼出しを削除する。
 - [ ] 親入力 bundle と private clone の専用経路を削除する。浅い checkout は必要な履歴を所有する使い捨て領域へ直接取得し、元 checkout の shallow 境界・ref・FETCH_HEAD を保持する。通常 checkout の保存・cleanup も残す。
