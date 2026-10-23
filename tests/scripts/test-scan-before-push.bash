@@ -149,6 +149,12 @@ scan
 expect_leak 'a token when the base has no .gitleaks.toml and the working tree has a permissive one'
 grep -q 'default rules' "$tmp/stderr" || { show; fail 'did not say that the default rules were used'; }
 
+# F∩S: リポジトリの .gitleaks.toml の除外は、下で境界を確かめる 3 つの allowlist だけにする。除外を足すと
+# （例: settings.py を path で除外する 4 つ目の allowlist、全体に効く [allowlist]）、下の確認はどれも通ったまま、
+# 足した除外が秘密情報を通す
+allowlists="$(uv run --no-project python -c 'import sys, tomllib; c = tomllib.load(open(sys.argv[1], "rb")); print(len(c.get("allowlists", [])), "allowlist" in c)' "$root/.gitleaks.toml")"
+[ "$allowlists" = '3 False' ] || fail ".gitleaks.toml must keep exactly the three allowlists checked below (count, singular [allowlist]): $allowlists"
+
 # リポジトリの .gitleaks.toml を base にしても、無作為な値は検出する。resoloop の識別子の除外（#135）に、
 # 識別子の前後や区切りを付けた無作為な値が紛れない。値は実行時に作る（英字の大小と数字が入り混じる）
 random="$(printf 'create-reso-world issue-135 random value' | sha256sum | cut -c1-64 | base64 -w0 | tr -dc 'A-Za-z0-9' | cut -c1-32)"
