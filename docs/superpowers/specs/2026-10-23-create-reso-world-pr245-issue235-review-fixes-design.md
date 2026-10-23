@@ -1,4 +1,4 @@
-# PR #245（Issue #235）のレビュー修正: サイクル 1〜3
+# PR #245（Issue #235）のレビュー修正: サイクル 1〜4
 
 ## 管理
 
@@ -260,3 +260,85 @@
 ### 結論（サイクル 3）
 
 結論 1: 修正して push する。対応する 6 件（F-8〜F-13）と、自己レビューの M-1（F-14）を直した。push する HEAD と検証の結果は状況コメントに書く。
+
+## サイクル 4
+
+- 対象 HEAD: `f5141658b460d1bcd438c6396ab564056b31571d`。ループ: run `57738b570eae49e9802cbfb6de681eed` の 2 サイクル目（4 人のレビュアーを新しい HEAD で起動した。4 人とも受け付け、`rejected`・`retained` なし）。planner: claude-opus-5-5（claude-code）
+- 確認済みの一覧: `verified/f5141658b460.json`（V-1（gpt-6.1-sol M-6）は confirmed。前のサイクルの自己レビューの M-1 などは not_reproduced。サイクル 3 の自己レビューの L-1 は confirmed（判断は引き継ぐ）。前のサイクルで直した 7 件は、条件を外した写しで今のテストが失敗し、解消したまま（`coverage.closed`））。工程の記録: `verified/f5141658b460.planning.json`
+- 修正と自己レビューの担当: 前のサイクルと同じ（`implement` は `claude-opus`、`self-review`・`fix-check` は `self`）。自己レビューの回数: 1
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | 担当 | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | pi-gpt | `f5141658b460` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | devin-swe | `f5141658b460` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | pi-deepseek | `f5141658b460` | はい | Approve |
+| `Grok-4.7.md` | Grok 4.7 256K Extra High | cursor | cursor-grok47 | `f5141658b460` | はい | Approve |
+
+`claude-opus-5-5-commit-*.md`（サイクル 1〜3 の自己レビュー）は、このサイクルの HEAD ではないので入力から外した（指摘は判断済み）。
+
+### 指摘の一覧と振り分け
+
+前のサイクルの `fix` の 7 件は、4 人のレビュー（指摘なし）と確認済みの一覧（V-2 と `coverage.closed`）のとおり、守る条件を外した写しで今のテストが失敗することを確かめ、解消とした（`resolved`）。`skip` の 12 件は引き継ぐ。新しい指摘は 1 件（gpt-6.1-sol M-6、Medium）。分類: 解消済み 7 / 対応する 1 / 対応しない 0（新しい指摘）。自己レビューの指摘は下の「自己レビュー（サイクル 4）」。
+
+| 判断 | 元の指摘 | 分類 | 根拠 |
+| --- | --- | --- | --- |
+| F-15 | `gpt-6.1-sol#M-6@f5141658b460` | 対応する | 消した `test-ci.bash` の `len(allowlists) == 3`（「増やすと秘密情報を除外してしまうおそれがある」）は、F ではなく F∩S（秘密情報の検査の範囲を決める設定値）。`.gitleaks.toml` に 4 つ目の allowlist（`settings.py` を path で除外するなど）を足しても今のテストは全て通り、`scan-before-push.sh` がその除外で秘密情報を通す。(c) |
+| F-16 | `claude-opus-5-5-commit-676946d08d0c25810342c071da5f774c76ad4068#M-1@676946d08d0c`・`fix-check#V-1@676946d08d0c`（自己レビュー） | 対応する | F-15 で戻した件数の確認では、allowlist の入れ替えと、既にある allowlist への正規表現の追加を止められない（base の `test-ci.bash` は `regexTarget` の参照とタプルの分解で止めていた）。どちらも `scan-before-push.sh` が秘密情報を通す（再現）。(c) |
+
+### 設計の見直し
+
+- きっかけ: 1（同じ守る条件の 4 回目）。サイクル 3 の条件単位の監査は、既にある条件を変える変異だけを扱い、規則を足す変更と、F として消した固定値の確認の中の F∩S を見ていなかった（変異は「足す」変更を作らない）
+- **守る条件の設計（サイクル 3 からの追加）:** F として消した確認は、変異の監査では見つからない。そこで、棚卸しの表で F（F・D、L・F を含む）とした確認を全て並べ、それぞれが「壊れてもエラーにならない損害を防ぐ固定値」（秘密情報・権限・安全な範囲・凍結した履歴）に当たるかを判定し直した
+- **比べた直し方:** (1) 点の修正（件数の確認だけを戻す）: 同じ形の F∩S が残っていれば次のサイクルでまた出る。(2) F の行を全て見直してから、F∩S に当たるものを戻す（推奨）。(3) 設定の全体の値を写すテスト（`test-ci.bash` を戻す）: F の確認まで戻り、基準に反する（書きすぎ）。(2) を選んだ
+- **見直した F の行:**
+
+  | 棚卸しの表の行 | 判定 | 理由 |
+  | --- | --- | --- |
+  | `test-ci.bash` の `.gitleaks.toml` の allowlist の件数・種類・正規表現の数（件数の確認、タプルの分解、`regexTarget` の参照） | F∩S（戻す） | 秘密情報の検査の除外の範囲を決める。足した・入れ替えた・広げた除外は、ほかのどのテストにも現れない（最初は件数だけを戻し、自己レビューで形の全体に広げた） |
+  | `test-ci.bash` の `.gitleaks.toml` の正規表現・`targetRules`・`regexTarget`・`useDefault` | S（サイクル 3 で戻した）・L | 実際の gitleaks で確かめる（境界・`useDefault`）。`targetRules`・`regexTarget` は除外を広げない |
+  | `test-ci.bash` の `ci.yml` の gitleaks ジョブ（`fetch-depth`・`GITLEAKS_CONFIG`・版） | F | private の CI は止めていて、ジョブは実行されない（`AGENTS.md` の「GitHub Actions」）。push の前の秘密情報の検査は `scan-before-push.sh` が担い、そのテストが残っている |
+  | `test-docs.bash`・`test-instructions.bash` の参照の実在 | L・F | 参照先が無いことは、読んだときに分かる（構造の検査） |
+  | `test-check-layout.bash` の旧 18（`.devin/skills`） | F | 削除した旧ファイルが無いことの確認（`AGENTS.md` が F と明記） |
+  | `test-check-layout.bash` の旧 26・27・38 | F | 文書の節・`.gitignore` の行・空行の写し |
+  | `test_superpowers_lifecycle.py` の `handoff_schema_...` | F | schema の項目名の写し（D-235-4） |
+
+  F∩S は `.gitleaks.toml` の除外の形の確認だけだった。gitignore の範囲・指示ファイルの読み込み指定・凍結した文書のハッシュは、最初から F∩S として残している
+- 監査の限界: allowlist の正規表現の中身の変更は、実際の gitleaks で確かめる境界（サイクル 3）の範囲だけを見る
+
+### 守る条件と影響経路
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| `.gitleaks.toml` の除外は、既定の規則と、テストが境界を確かめる 3 つの allowlist（`generic-api-key` の正規表現を 1 つだけ持つ）だけ | `[[allowlists]]` を足す | 修正する | `test-scan-before-push.bash` の設定の形の確認が失敗する | 4 つ目の path の allowlist を足した写し | `8a6b5f0` で通る。外した写しで失敗する（planner の 9 種の変異） |
+| 同上 | 全体に効く `[allowlist]` | 対象外 | — | — | L: `[[allowlists]]` と一緒には使えず、gitleaks が設定の読み込みで止まり（`FTL Failed to load config`）、`scan-before-push.sh` が失敗にする。担当の修正（`3b5d3fe`）はこの有無も確かめていたが、L なので planner が件数だけの確認に直した（`d6b3ffb`） |
+| 同上 | allowlist の入れ替え（1 つ目・3 つ目を path の allowlist に）、既にある allowlist に正規表現・`paths` を足す | 修正する | 同上 | fix-check の V-1・自己レビューの M-1 の再現と同じ変更を入れた写し | `8a6b5f0` で通る。外した写しで失敗する（同上） |
+| 同上 | `[[rules]]` による規則の書き換え、`disabledRules`、大文字の `[[ALLOWLISTS]]` | 修正する | 同上 | 各変更を入れた写し | `8a6b5f0` で通る。外した写しで失敗する（同上。base の `test-ci.bash` は確かめていなかったが、同じ守り（除外の範囲）を 1 つの確認で保つ形にした） |
+
+### 修正と検証
+
+- 実装: `run_roles.py --phase implement`（担当 `claude-opus`、観測したモデル claude-opus-5-5、所要 461 秒、`state: success`、停止は確認済み）が commit `3b5d3fe` を作った（結果の `commit` の欄は空だったが、runner の worktree の HEAD と検証の記録の HEAD が `3b5d3fe` だった）。planner が、親が `f514165` で、差分が `tests/scripts/test-scan-before-push.bash` の 6 行の追加だけで、planner の試作と同じであることを確かめてから fast-forward で取り込んだ
+- ガードを外した対照（担当と planner がそれぞれ実行）: `.gitleaks.toml` に 4 つ目の path の allowlist を足した写しで、`test-scan-before-push.bash` が件数の確認で失敗した。元の設定では 24 リポジトリとも通る
+- planner の訂正（`d6b3ffb`・`676946d`。自己レビューの前）: 確認済みの一覧の別の入力で、全体に効く `[allowlist]` は gitleaks が設定の読み込みで止まる（L）と分かったので、担当の確認から `[allowlist]` の有無を外し、件数だけにした。テストのコメントと #235 の Spec の記述も事実に合わせた。訂正の後も、4 つ目の allowlist を足した写しで失敗し、元の設定で通る
+- 関連テストと変更の種類に応じた検証（`3b5d3fe` と、訂正の後の `676946d`。どちらも未 commit の変更なし）: `bash tests/scripts/test-scan-before-push.bash`・`bash .devcontainer/run-tests.bash`（`PASS: 29 test(s)`）・`bash scripts/check-layout.sh` がどれも終了コード 0。ログ: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr245.mmabx5c6/verify/`
+- push の前の検査: 自己レビューの前（`676946d`）と push の前に `scan-before-push.sh` で検査し、どちらも検出なし
+- 計測（`676946d`）: 43 件・10 本・1981 行（57%・60%）
+
+### 自己レビュー（サイクル 4）
+
+`run_roles.py --phase self-review` を 1 回呼んだ（工程の記録に `pre_push_review` を予約。self-review・fix-check とも `self` なので、claude-opus-5-5 のサブエージェント 2 つに同時に任せた。1 回と数える）。対象は修正後の `676946d`。
+
+- self-review（`claude-opus-5-5-commit-676946d08d0c25810342c071da5f774c76ad4068.md`、Approve、1112 秒）
+  - M-1（Medium、検証済み）: base の `test-ci.bash` は、タプルの分解で各 allowlist の正規表現がちょうど 1 つであることも確かめていた。既にある allowlist に正規表現を足すと、今のテストは通り、`scan-before-push.sh` が秘密情報を通す（再現） → 対応する（F-16。(c)。きっかけ 3（この回の修正が足りなかった）。下の「自己レビュー後の修正」）
+  - I-1（Info、検証済み）: 条件単位の監査の表の `scan-before-push.sh:57` の理由（作業ツリーの `.gitleaksignore` を使わない）は事実と違う（gitleaks は source のルートの `.gitleaksignore` を読む。L の分類は正しい） → 対応しない（致命的でない）。公開の前に揃える手順で、理由を「宙吊りの symlink は gitleaks が読めない」に直した
+- fix-check（`verified/676946d08d0c.fix-check.json`・`.statement-candidates.json`・`.fix-check.md`、746 秒）: 主張 14 件のうち holds 9・violates 3（C-4・C-9・C-10）・unchecked 2
+  - V-1（PR 起因）: 件数の確認では、1 つ目・3 つ目の allowlist を path の allowlist に入れ替える変更を止められない（件数は 3 のまま。base は `regexTarget` の参照で止めていた） → 対応する（F-16 と同じ守り。きっかけ 3）
+  - V-2（既存）: 大文字の `[[ALLOWLISTS]]` は件数の確認をすり抜け、gitleaks はその除外を適用する。base も検出していなかった → 対応しない（この PR で減った守りではない）。ただし F-16 の直し方（設定のキーの全体を確かめる）で、同時に検出するようになった。見直す条件: 設定の形の確認を変えるとき
+  - V-3: #235 の Spec の計測の時点の記述が値と合わない → 対応しない（致命的でない）。公開の前に揃える手順で、記述と値を直した
+
+自己レビュー後の修正（F-16。planner が直した。`8a6b5f0`）: 件数だけの確認を、設定の形の全体の確認に広げた。トップレベルのキーが `extend`・`allowlists` だけで、`extend` が `useDefault = true` だけで、allowlist がちょうど 3 つ（`regexTarget` が match 1・secret 2、`targetRules` が `generic-api-key` だけ、キーが `description`・`regexTarget`・`regexes`・`targetRules` だけ、正規表現が 1 つ）であること。9 種の変更（4 つ目の追加、1 つ目・3 つ目の入れ替え、大文字のキー、`[[rules]]`、既にある allowlist への `paths`・正規表現の追加 2 種、`disabledRules`）を入れた写しで、どれも失敗し、元の設定で通ることを確かめた。#235 の Spec の記述（除外の形、`:57` の理由、計測）も直した。この修正は再レビューしていない。検証（`8a6b5f0`、未 commit の変更なし）: `bash tests/scripts/test-scan-before-push.bash`・`bash .devcontainer/run-tests.bash`（`PASS: 29 test(s)`）・`bash scripts/check-layout.sh` がどれも終了コード 0。ログ: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr245.mmabx5c6/verify3/`。計測: 43 件・10 本・1990 行（57%・60%）
+
+### 結論（サイクル 4）
+
+結論 1: 修正して push する。対応する 1 件（F-15）と、自己レビューの M-1・fix-check の V-1（F-16、同じ守り）を直した。push する HEAD と検証の結果は状況コメントに書く。

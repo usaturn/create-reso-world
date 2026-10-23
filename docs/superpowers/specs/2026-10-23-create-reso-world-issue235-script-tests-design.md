@@ -36,9 +36,9 @@
 | Python のテスト（pytest の収集数） | 61 | 33 | 54% |
 | bash のテスト（`tests/scripts/test-*.bash`） | 14 本 | 10 本 | 71% |
 | 件数の合計 | 75 | 43 | 57% |
-| 行数（`tests/scripts` の追跡ファイル。Meshy を除く） | 3,293 | 1,981 | 60% |
+| 行数（`tests/scripts` の追跡ファイル。Meshy を除く） | 3,293 | 1,990 | 60% |
 
-「後」は、PR 修正ループのサイクル 1〜3（D-235-9、条件単位の監査）で戻した後に、同じコマンドで測った（`33 tests collected`、`ls` が 10、`wc -l` が 1981）。戻す前（`d0ef1f5`）は 1786 行、サイクル 2 の後は 1912 行だった。
+「後」は、PR 修正ループのサイクル 1〜4（D-235-9、条件単位の監査、F の行の見直し）で戻した後に、同じコマンドで測った（`33 tests collected`、`ls` が 10、`wc -l` が 1990）。戻す前（`d0ef1f5`）は 1786 行、サイクル 2 の後は 1912 行だった。
 
 ## 決定記録
 
@@ -65,7 +65,7 @@
 | `test-agent-config.bash` | S（高） | 共有する MCP 設定の header に鍵の直書きが入る。private の CI と gitleaks は停止していて、この検査だけが直書きのコミットを止める | 残す |
 | `test-blender-system-python.bash` | L・S | D-235-3。終了コードの伝搬だけは S（サイクル 3） | 終了コードの確認だけを残す |
 | `test-ci.bash`（`ci.yml` の gitleaks ジョブ、版の一致） | F | ワークフローと `install_gitleaks.bash` の値の写し。private の CI は止めていてジョブは実行されない | 消す |
-| `test-ci.bash`（`.gitleaks.toml` の allowlist の正規表現と件数） | F・D・F∩S | 設定の値を写して照合している。3 つの allowlist が秘密情報を除外しないことは、`test-scan-before-push.bash` が実際の gitleaks で確かめる。1 つ目の確認はサイクル 1 の自己レビューの指摘で足した。サイクル 3 で、境界（1 つ目の `^` と区切りの要求、2 つ目の `^`・`$`、3 つ目の `^`・`$`・末尾の小文字の 16 進）ごとに、外すと通る値を 1 件ずつ足し、値そのものの検出（`decoded:` の付かない検出）を求める形にした（条件単位の監査）。allowlist の件数（`len(allowlists) == 3`）は、秘密情報の検査の除外の範囲を決める F∩S なので、サイクル 4 で `test-scan-before-push.bash` に移した（全体に効く `[allowlist]` を足した設定は、gitleaks が読み込みで止まり `scan-before-push.sh` が失敗にするので L） | 消す（件数の確認は移す） |
+| `test-ci.bash`（`.gitleaks.toml` の allowlist の正規表現と件数） | F・D・F∩S | 設定の値を写して照合している。3 つの allowlist が秘密情報を除外しないことは、`test-scan-before-push.bash` が実際の gitleaks で確かめる。1 つ目の確認はサイクル 1 の自己レビューの指摘で足した。サイクル 3 で、境界（1 つ目の `^` と区切りの要求、2 つ目の `^`・`$`、3 つ目の `^`・`$`・末尾の小文字の 16 進）ごとに、外すと通る値を 1 件ずつ足し、値そのものの検出（`decoded:` の付かない検出）を求める形にした（条件単位の監査）。除外の形（allowlist が 3 つで、どれも `generic-api-key` の正規表現を 1 つだけ持つこと。`test-ci.bash` の件数の確認・タプルの分解・`regexTarget` の参照が確かめていた）は、秘密情報の検査の除外の範囲を決める F∩S なので、サイクル 4 で `test-scan-before-push.bash` に移した。既定の規則だけを使うこと（`[[rules]]`・`disabledRules`・大文字のキーで除外を足さない）も同じ確認に含めた | 消す（除外の形の確認は移す） |
 | `test-docs.bash`・`test-instructions.bash` の参照実在の検査 | L・F | 参照先のファイルの存在は構造の検査（`AGENTS.md`「テストを書かないとき」）。文書の本文の写しでもある | 消す |
 | `test-file-modes.bash` | L | 実行権限は、実行したときに「Permission denied」として現れる | 消す |
 | `test-gitignore.bash` の 3 つの一覧 | F∩S | gitignore の範囲。Issue の「変えないもの」。値は変えていない | 残す |
@@ -307,7 +307,7 @@
 | `resoloop-fork.sh:121`（同じ commit の push）、`:237`（導入済みの版の再導入） | 21・19 | L | 損害が無い（同じ commit への push、同じ版の入れ直し） |
 | `resoloop-fork.sh:252`〜`:285`（`status` の表示の条件） | 10・22・23 | L | 表示だけ（棚卸しの表の `status` と同じ）。導入した版は `install` の照合と `resoloop --version` で確かめられる |
 | `resoloop-meshy.sh:24`（引数の数）、`:31`（親 checkout の位置）、`:81`〜`:99`（`status` の表示） | 1・9・2・4 | L | 引数の解析、表示だけ。親 checkout の位置は旧 9 と同じ理由で L（既定の checkout 先は `AGENTS.md`・手順書が `<PARENT_ROOT>/external/resoloop-meshy` と決めていて、次の `status`・作業で missing と分かる） |
-| `scan-before-push.sh:31`（引数）、`:57`（宙吊りの `.gitleaksignore` の symlink） | usage・壊れた symlink | L | 引数の解析。検査は作業ツリーの `.gitleaksignore` を使わない（一時ディレクトリの ignore を渡す）ので、通しても除外は起きない |
+| `scan-before-push.sh:31`（引数）、`:57`（宙吊りの `.gitleaksignore` の symlink） | usage・壊れた symlink | L | 引数の解析。宙吊りの symlink の `.gitleaksignore` は gitleaks が読めないので、通しても除外は起きない（実在する `.gitleaksignore` は条件の `-e` の部分が止め、今のテストが確かめる） |
 | `templates/world-project/blender-system-python:10`（`exec` を外して終了コードを捨てる） | `test-blender-system-python.bash` | S（中） | resoloop は Blender の終了コードが 0 以外なら `BLENDER_FAILED` で止まるので、捨てると Blender の失敗を成功と報告する。D-235-3 は「`exec` なので終了コードは変わらない」として L にしたが、壊れたときの損害で判定し直した。戻した（終了コードの確認だけの `test-blender-system-python.bash`） |
 | 同じ wrapper の PATH から `.venv/bin` を外す処理・`VIRTUAL_ENV` の解除・引数の引用・`/usr/bin/blender` の指定 | `test-blender-system-python.bash` | L | D-235-3 のとおり（NumPy の import のエラー、Blender・argparse のエラーとして現れる） |
 | `superpowers_context.py:44`・`:65`・`:66`・`:76`・`:78`・`:80`（識別子・URL の形式の条件） | `parse_repository` ほか | L | 誤った形式を受け入れても、どの remote とも一致せずに止まるか、正しい URL を誤って拒否する |
@@ -317,7 +317,7 @@
 
 base も確かめていなかった変異（PR で守りが減っていない）は対象外にした。そのうち S に当たりうるものは次のとおりで、この PR では足さない（`AGENTS.md` の範囲外の既存の問題）: `new-world.sh:185` の `! -L` を `true`（symlink の `.resoloop/.gitignore` のリンク先へ `cache/` を追記する）、`check-layout.sh:364` の `-L` を `false`（world の必須ファイルの symlink）、`.gitleaks.toml` の 3 つ目の最初の名前の塊を英字と数字の混在に広げる。
 
-変異は既にある条件を変えるだけで、規則を足す変更は作らない。そこでサイクル 4 で、F として消した確認を全て見直し、規則を足して範囲を広げる変更を止める固定値（F∩S）を探した（review-fix の Spec のサイクル 4 の「見直した F の行」）。当たったのは `.gitleaks.toml` の allowlist の件数だけで、`test-scan-before-push.bash` に戻した。
+変異は既にある条件を変えるだけで、規則を足す変更は作らない。そこでサイクル 4 で、F として消した確認を全て見直し、規則を足して範囲を広げる変更を止める固定値（F∩S）を探した（review-fix の Spec のサイクル 4 の「見直した F の行」）。当たったのは `.gitleaks.toml` の除外の形（allowlist の件数・種類・正規表現の数）で、`test-scan-before-push.bash` に戻した。最初は件数だけを戻し、自己レビューと fix-check の指摘（入れ替え・正規表現の追加は件数を変えない）で、形の全体を確かめる形に広げた。
 
 監査の限界: 文字列・正規表現の定数の値（追跡禁止のパターンなど）、代入・数値、出力の文言は変えていない。追跡禁止のパターンは、base も `TNX.txt` の 1 件だけを確かめていた。
 
