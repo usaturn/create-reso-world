@@ -141,10 +141,10 @@
 
 **担当:** `review-fix-planning` の既定の修正担当。同じ transport 認証条件の適用漏れなので、Spec の「守る条件の設計」と Git 呼出元の表を先に確認する。隔離 worktree で実装・commit し、controller が差分、担当の停止、現行 HEAD の検証を確かめて取り込む。TDD は行わない。
 
-- [ ] 4 レビュアーの同一指摘を現行 HEAD で独立に確認し、`verified/4ded95313c51.json` に保存する。前サイクルの `fix`・`skip` 判断を引き継ぐ。
-- [ ] `review_target.fetch_pull_head` の remote fetch にだけ認証用4変数を渡す。ローカル Git の解決と ref 確認では `GIT_*` の除去を維持し、base/historical fetch と書き込み許可の経路を照合する。
-- [ ] SSH・HTTPS の偽 transport で、直接 `prepare` から HEAD fetch まで、認証なし／ありと汚染された `GIT_DIR` の両側を実行する。関連テスト、`run-tests.bash`、`check-layout.sh`、スキルテストを実行し、差分・構文・Gitleaks を確認する。
-- [ ] 規定の1回の自己レビューと fix-check を実施し、致命的な指摘を直して再検証する。Spec の経路表へ実測を記録し、検査した SHA を既存 PR に push して状況コメントを投稿する。
+- [x] 4 レビュアーの同一指摘を現行 HEAD で独立に確認し、`verified/4ded95313c51.json` に保存した。前サイクルの `fix`・`skip` 判断を引き継いだ。
+- [x] `review_target.fetch_pull_head` の remote fetch にだけ認証用4変数を渡した。ローカル Git の解決と ref 確認では `GIT_*` の除去を維持し、base/historical fetch と書き込み許可の経路を照合した。
+- [x] SSH・HTTPS の偽 transport で、直接 `prepare` から HEAD fetch まで、認証なし／ありと汚染された `GIT_DIR` の両側を実行した。関連テスト、`run-tests.bash`、`check-layout.sh`、全 Python テスト、差分・構文を確認した。最終 SHA の Gitleaks 検査は push 直前に行う。
+- [x] 規定の1回の自己レビューと fix-check を実施した。自己レビューの active 指摘0件、コードの fix-check 主張9件成立。前サイクルの誤った検証記録を Spec で訂正した。自己レビュー後のコード変更はない。
 - [ ] ループへ結果を返し、返された終了条件に従う。マージできた場合にだけ #175・#211 の not planned クローズ、#116 のコメント、#243 の状態確認へ進む。
 
 **テスト要否:** 今回の直接 fetch の欠陥は明示的な非0終了で気付ける L。恒久テストは追加しない。DSH 廃止の有無を固定するテストも利用者の指示に従って作らない。修正後の一時的な偽 transport 実行と、既存の S テスト・構造検査で確かめる。
