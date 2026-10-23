@@ -192,6 +192,11 @@ expect_fail_with "$tmp/p-pi" 'worlds/demo: .pi must be a symlink to ../../.pi'
 project_repo "$tmp/p-dangling" && rm -rf "$tmp/p-dangling/.pi"
 expect_fail_with "$tmp/p-dangling" 'worlds/demo: .pi is a dangling symlink to ../../.pi'
 
+# ルートの .agents/sp-*.md へのリンクは、.pi などとは別の一覧で検査する。リンクが無いプロジェクトを通すと、
+# pi-superagents がエラーにならずに組み込みの定義（別の model の tier）で担当を動かす
+project_repo "$tmp/p-sp" && rm "$tmp/p-sp/worlds/demo/.agents/sp-implementer.md"
+expect_fail_with "$tmp/p-sp" 'worlds/demo: .agents/sp-implementer.md must be a symlink to ../../../.agents/sp-implementer.md'
+
 project_repo "$tmp/p-link" && rm "$tmp/p-link/worlds/demo/.claude/skills/resonite-build"
 expect_fail_with "$tmp/p-link" 'worlds/demo/.claude/skills: missing link resonite-build'
 
