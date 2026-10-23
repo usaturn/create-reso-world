@@ -24,9 +24,7 @@
 
 一時ファイルの置き場所は runtime に合わせる。`$WT` や他担当の領域へは書かない。
 
-- DSH 以外は、SKILL.md の規約どおり `uv run --project "$TOPLEVEL" --locked python "$TOPLEVEL/.agents/scripts/agent_tmp.py" mkdir "pr-review-scratch-${PR_NUMBER}"` で追加スクラッチ（親 main worktree の `tmp/agents/pr-review-scratch-<PR番号>.*`）を作る。
-- DSH は、adapter が既に書き込みを許可した隔離 `TMPDIR` に `SCRATCH="$(mktemp -d "${TMPDIR:?}/pr-review-scratch-${PR_NUMBER}.XXXXXX")"` で作る。`TMPDIR` が未設定の場合だけ、既存の隔離 `HOME` 配下に同じように作る。CSV 等の入力作成・archive 展開・一時ホームが要る再現も、このスクラッチ内で行う。親の `tmp/agents/` への grant を追加せず、別 HOME/cache・フルアクセスで権限拒否を回避しない。既存の許可領域でも実行できなければ停止し、未実施の理由を報告する。
-- DSH の本文と候補 JSON は prepare が返した attempt の `dsh/tmp/exports/review.md` と `findings.json` だけへ native write/edit で書く。helper の Git・session・子用 run 記録は別の `review-scratch/` にあり、runtime の秘密値除去対象と混ぜない。共有 reviews や保存ロックへの grant は追加しない。親は停止と秘密値除去の確認後に固定 outbox の bytes と native ツールの実行記録を検証して正式保存する。
+- SKILL.md の規約どおり `uv run --project "$TOPLEVEL" --locked python "$TOPLEVEL/.agents/scripts/agent_tmp.py" mkdir "pr-review-scratch-${PR_NUMBER}"` で追加スクラッチ（親 main worktree の `tmp/agents/pr-review-scratch-<PR番号>.*`）を作る。
 
 証跡（コマンド・場所・条件・結果）は cleanup より前にレビュー本文の `再現` に転記し、消えるスクラッチだけに残さない。不要と確認した自身のスクラッチだけを空値ガード付きで削除する。一時ホームが要る場合はスクラッチ内のディレクトリを `env HOME="$tmpdir" …` のワンショットで使い、永続的に HOME を変更しない。
 
