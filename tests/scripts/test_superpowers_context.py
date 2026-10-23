@@ -171,7 +171,9 @@ class ContextTests(unittest.TestCase):
         self.assertIsNone(value["head_remote"])
 
     def test_missing_unsupported_or_foreign_parent_origin_has_actionable_error(self):
-        for url in (None, "https://example.com/usaturn/create-reso-world.git", "https://github.com/other/repository"):
+        # scp 形式（git@host:）は URL 形式とは別の分岐でホストを確かめるので、GitHub 以外のホストの例を両方に置く
+        for url in (None, "https://example.com/usaturn/create-reso-world.git", "git@example.com:usaturn/create-reso-world.git",
+                    "https://github.com/other/repository"):
             with self.subTest(url=url):
                 if url is None:
                     self.git(self.parent, "remote", "remove", "origin")
