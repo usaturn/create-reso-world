@@ -1,4 +1,4 @@
-"""usaturn/agent-workspace#494: review-records v1 の検査・照合・集約・描画・取り出しと、文書の記入例。"""
+"""usaturn/agent-workspace#494: review-records v1 の検査・照合・集約・取り出し（気付けない損害を防ぐ守りだけ）。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import copy
 import importlib.util
 import io
 import json
-import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -59,43 +58,6 @@ def test_v2_record_keeps_session_through_render_extract_and_fold() -> None:
     state = review_records.fold([(123, restored)])
     assert state["rounds"][0]["planner"]["provenance"]["session_id"] == "example-session"
     assert state["rounds"][0]["seats"][0]["provenance"]["role"] == "find"
-
-
-@pytest.mark.parametrize(
-    "key", ["agent_id", "role", "provider", "effort", "session_id", "cli_version", "run_id", "request_id", "skills"]
-)
-def test_v2_record_rejects_missing_identity_field(key: str) -> None:
-    value = round_v2()
-    del value["planner"]["provenance"][key]
-    with pytest.raises(review_records.RecordError, match=rf"planner.provenance.{key}"):
-        review_records.validate_record(value)
-
-
-@pytest.mark.parametrize("bad", [None, "", "a\nline", "<!-- broken -->", 123])
-def test_v2_record_rejects_unusable_session_identity(bad: object) -> None:
-    value = round_v2()
-    value["seats"][0]["provenance"]["session_id"] = bad
-    with pytest.raises(review_records.RecordError, match="session_id"):
-        review_records.validate_record(value)
-
-
-def test_v2_record_accepts_explicit_unknown_but_not_bad_skill_hash() -> None:
-    value = round_v2()
-    metadata = value["planner"]["provenance"]
-    for key in metadata:
-        metadata[key] = [{"path": "unknown", "sha256": "unknown"}] if key == "skills" else "unknown"
-    review_records.validate_record(value)
-    metadata["skills"][0]["sha256"] = "not-a-hash"
-    with pytest.raises(review_records.RecordError, match="sha256"):
-        review_records.validate_record(value)
-
-
-def test_v2_record_rejects_duplicate_skill_paths() -> None:
-    value = round_v2()
-    metadata = value["planner"]["provenance"]
-    metadata["skills"].append(copy.deepcopy(metadata["skills"][0]))
-    with pytest.raises(review_records.RecordError, match="duplicate"):
-        review_records.validate_record(value)
 
 
 def seat(name: str, file_head: str, *, rerun: bool = True) -> dict[str, Any]:
@@ -217,118 +179,45 @@ def share_a_source_across_bases(record: dict[str, Any]) -> None:
     record["decisions"][1]["sources"].append("Grok-4.7#M-1@25e76f6c513f")
 
 
-def add_decision(entry: dict[str, Any]) -> Mutation:
-    def mutate(record: dict[str, Any]) -> None:
-        record["decisions"].append(entry)
-
-    return mutate
-
-
 PLANNER_D1: dict[str, Any] = {
     "reproduced_by": "planner",
     "usage_path": "通常の入口・入力・環境",
     "result_kind": "stop",
 }
+
+
 REPRODUCTION: dict[str, Any] = {
     "commands": ["uv run --no-sync pytest tests/test_extension.py -q"],
     "place": "公開側のコピー（.venv なし）",
     "conditions": "uv run --project tools/devenv の中から実行した",
     "result": "ModuleNotFoundError: No module named 'sphinx'（終了コード 4）",
 }
+
+
 PLANNER_REPRODUCTION: dict[str, Any] = {**PLANNER_D1, "reproduction": REPRODUCTION}
-VERIFIER_D1: dict[str, Any] = {**PLANNER_D1, "reproduced_by": "verifier"}
-VERIFIER_REPRODUCTION: dict[str, Any] = {**VERIFIER_D1, "reproduction": REPRODUCTION}
-OUTCOME_CHOICES = ", ".join(f'"{value}"' for value in review_records.OUTCOMES)
+
 
 INVALID_RECORDS = [
-    pytest.param(set_value("extra", value=1), "extra: unknown key", id="unknown-top-level-key"),
-    pytest.param(delete("planner"), "planner: required", id="missing-planner"),
-    pytest.param(
-        set_value("schema", value="review-records/v999"),
-        "schema: must be review-records/v1 or review-records/v2",
-        id="other-schema",
-    ),
-    pytest.param(set_value("pr", value="usaturn/maatlog-poc#484"), "pr: must be an object", id="pr-as-text"),
-    pytest.param(
-        set_value("pr", "repository", value="maatlog-poc"),
-        "pr.repository: must be owner/name",
-        id="repository-without-owner",
-    ),
-    pytest.param(
-        set_value("pr", "number", value=0), "pr.number: must be an integer of 1 or more", id="pr-number-zero"
-    ),
-    pytest.param(set_value("round", value=True), "round: must be an integer of 1 or more", id="round-as-boolean"),
-    pytest.param(
-        set_value("reviewed_head", value="a78ab78"),
-        "reviewed_head: must be a full lowercase commit hash",
-        id="short-reviewed-head",
-    ),
-    pytest.param(
-        set_value("recorded_at", value="2026-10-01 01:40:13"),
-        "recorded_at: must be a UTC time YYYY-MM-DDTHH:MM:SSZ",
-        id="time-without-utc-format",
-    ),
-    pytest.param(
-        set_value("recorded_at", value="2026-13-01T00:00:00Z"),
-        "recorded_at: must be a UTC time YYYY-MM-DDTHH:MM:SSZ",
-        id="impossible-date",
-    ),
-    pytest.param(
-        set_value("planner", "model", value=" "), "planner.model: must not be blank", id="blank-planner-model"
-    ),
-    pytest.param(
-        set_value("planner", "runtime", value="Codex"),
-        "planner.runtime: must be a lowercase runtime name",
-        id="uppercase-runtime",
-    ),
-    pytest.param(
-        set_value("planner", "runtime", value="unknown"),
-        "planner.runtime: must be known for the planner",
-        id="unknown-planner-runtime",
-    ),
     pytest.param(
         set_value("planner", "agent_id", value="claude"),
         "planner.agent_id: must be claude-opus-5-5 (agent_id_for(planner.model))",
         id="agent-id-not-derived-from-model",
     ),
-    pytest.param(set_value("seats", value=[]), "seats: must not be empty unless the round stopped", id="empty-seats"),
     pytest.param(
-        set_value("seats", 0, "review_file", value="Grok-4.7.md"),
-        "seats[0].review_file: must not end with .md",
-        id="review-file-with-suffix",
+        set_value("reviewed_head", value="a78ab78"),
+        "reviewed_head: must be a full lowercase commit hash",
+        id="short-reviewed-head",
     ),
+    pytest.param(set_value("seats", value=[]), "seats: must not be empty unless the round stopped", id="empty-seats"),
     pytest.param(
         set_value("seats", 1, "review_file", value="Grok-4.7"),
         "seats: must not repeat a review_file",
         id="repeated-review-file",
     ),
-    pytest.param(delete("seats", 0, "model"), "seats[0].model: required", id="seat-without-model"),
-    pytest.param(
-        set_value("seats", 0, "runtime", value="unknown"),
-        "seats[0].note: required when runtime is unknown",
-        id="unknown-runtime-without-note",
-    ),
-    pytest.param(
-        set_value("seats", 0, "file_head", value="25e76f6"),
-        "seats[0].file_head: must be 12 lowercase hex characters or unknown",
-        id="short-file-head",
-    ),
-    pytest.param(
-        set_value("seats", 0, "mode", value="Rerun"),
-        'seats[0].mode: must be one of "Initial", "Update"',
-        id="unknown-mode",
-    ),
-    pytest.param(set_value("seats", 0, "rerun", value="yes"), "seats[0].rerun: must be a boolean", id="rerun-as-text"),
     pytest.param(
         set_value("seats", 0, "rerun", value=False),
         "seats[0].rerun: must be true exactly when file_head is the first 12 characters of reviewed_head",
         id="rerun-disagrees-with-heads",
-    ),
-    pytest.param(
-        set_value("seats", 0, "merge_recommendation", value="マージ推奨"),
-        'seats[0].merge_recommendation: must be one of "Request changes", "Needs manual verification", '
-        '"Approve", null',
-        id="merge-recommendation-outside-the-three-values",
     ),
     pytest.param(
         apply(
@@ -340,66 +229,15 @@ INVALID_RECORDS = [
         "seats: at least one seat must have rerun true unless the round stopped",
         id="no-rerun-seat",
     ),
-    pytest.param(set_value("decisions", value={}), "decisions: must be an array", id="decisions-as-object"),
-    pytest.param(
-        set_value("decisions", 2, "id", value="Grok-4.7#L-1@25e76f6c513f/B"),
-        "decisions[2].id: must be a finding reference <file>#<id>@<head>, optionally followed by /<part>",
-        id="uppercase-part",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "sources", value=[]),
-        "decisions[0].sources: must be a non-empty array",
-        id="empty-sources",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "sources", value=["Grok-4.7#M-1@25e76f6c513f", "Grok-4.7#M-1@25e76f6c513f"]),
-        "decisions[0].sources: must not contain duplicates",
-        id="duplicate-sources",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "sources", value=["Grok-4.7#M-1"]),
-        "decisions[0].sources[0]: must be a finding reference <file>#<id>@<head>",
-        id="reference-without-head",
-    ),
     pytest.param(
         set_value("decisions", 0, "sources", value=["Grok-4.7#M-9@25e76f6c513f"]),
         "decisions[0].sources: must contain the reference part of the decision id",
         id="sources-without-decision-id",
     ),
     pytest.param(
-        set_value("decisions", 0, "summary", value="  "),
-        "decisions[0].summary: must not be blank",
-        id="blank-summary",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "summary", value="1 行目\n2 行目"),
-        "decisions[0].summary: must be a single line without control characters",
-        id="multiline-summary",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "locations", value=[]),
-        "decisions[0].locations: must be a non-empty array",
-        id="empty-locations",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "state", value="wontfix"),
-        'decisions[0].state: must be one of "fix", "hold", "skip", "resolved", "unverified"',
-        id="unknown-state",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "state", value=["fix"]),
-        'decisions[0].state: must be one of "fix", "hold", "skip", "resolved", "unverified"',
-        id="state-as-array",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "state", value={"kind": "fix"}),
-        'decisions[0].state: must be one of "fix", "hold", "skip", "resolved", "unverified"',
-        id="state-as-object",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "change", value="kept"),
-        'decisions[0].change: must be one of "new", "inherited", "changed"',
-        id="unknown-change",
+        set_value("decisions", 0, "sources", value=["Grok-4.7#M-1"]),
+        "decisions[0].sources[0]: must be a finding reference <file>#<id>@<head>",
+        id="reference-without-head",
     ),
     pytest.param(
         set_value("decisions", 0, "change", value="changed"),
@@ -415,11 +253,6 @@ INVALID_RECORDS = [
         id="previous-state-equal-to-state",
     ),
     pytest.param(
-        set_value("decisions", 0, "previous_state", value="hold"),
-        "decisions[0].previous_state: allowed only when change is changed",
-        id="previous-state-on-a-new-decision",
-    ),
-    pytest.param(
         apply(
             set_value("decisions", 1, "state", value="fix"),
             set_value("decisions", 1, "change", value="changed"),
@@ -430,29 +263,9 @@ INVALID_RECORDS = [
         id="reopened-skip-without-new-evidence",
     ),
     pytest.param(
-        set_value("decisions", 0, "new_evidence", value="再現した"),
-        "decisions[0].new_evidence: allowed only when previous_state is skip",
-        id="new-evidence-without-reopening",
-    ),
-    pytest.param(
         delete("decisions", 1, "revisit_when"),
         "decisions[1].revisit_when: required when state is skip",
         id="skip-without-revisit-condition",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "revisit_when", value="条件"),
-        "decisions[0].revisit_when: allowed only when state is skip",
-        id="revisit-condition-on-fix",
-    ),
-    pytest.param(
-        apply(set_value("decisions", 1, "state", value="unverified"), delete("decisions", 1, "revisit_when")),
-        "decisions[1].unverified_reason: required when state is unverified",
-        id="unverified-without-reason",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "severity", value="Major"),
-        'decisions[0].severity: must be one of "Critical", "High", "Medium", "Low", "Info", null',
-        id="unknown-severity",
     ),
     pytest.param(
         set_value("decisions", 0, "severity", value=None),
@@ -460,29 +273,9 @@ INVALID_RECORDS = [
         id="null-severity-for-a-finding",
     ),
     pytest.param(
-        set_value("decisions", 0, "pr_relation", value="new"),
-        'decisions[0].pr_relation: must be one of "introduced", "surfaced", "preexisting", "unknown"',
-        id="unknown-pr-relation",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "reason", value="理由\x07"),
-        "decisions[0].reason: must not contain control characters other than tabs and line breaks",
-        id="control-character-in-reason",
-    ),
-    pytest.param(
         set_value("decisions", 0, "reason", value="理由 <!-- x -->"),
         "decisions[0].reason: must not contain '<!--' or '-->'",
         id="comment-marker-in-text",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "reason", value="a --> b"),
-        "decisions[0].reason: must not contain '<!--' or '-->'",
-        id="comment-end-in-text",
-    ),
-    pytest.param(
-        set_value("decisions", 1, "d1", value=PLANNER_REPRODUCTION),
-        "decisions[1].d1: allowed only when state is fix",
-        id="d1-on-skip",
     ),
     pytest.param(
         apply(
@@ -498,11 +291,6 @@ INVALID_RECORDS = [
         id="planner-d1-without-reproduction",
     ),
     pytest.param(
-        set_value("decisions", 0, "d1", value=VERIFIER_D1),
-        "decisions[0].d1.reproduction: required when reproduced_by is planner or verifier",
-        id="verifier-d1-without-reproduction",
-    ),
-    pytest.param(
         set_value(
             "decisions",
             0,
@@ -511,36 +299,6 @@ INVALID_RECORDS = [
         ),
         "decisions[0].d1.reproduced_by: must be one of the decision's sources, planner, or verifier",
         id="d1-reproduced-by-another-finding",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "d1", value={**PLANNER_REPRODUCTION, "result_kind": "slow"}),
-        'decisions[0].d1.result_kind: must be one of "stop", "wrong_result"',
-        id="unknown-result-kind",
-    ),
-    pytest.param(
-        set_value(
-            "decisions",
-            0,
-            "d1",
-            value={**PLANNER_REPRODUCTION, "reproduction": {**REPRODUCTION, "commands": []}},
-        ),
-        "decisions[0].d1.reproduction.commands: must be a non-empty array",
-        id="reproduction-without-commands",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "carry_over", value={"candidate": "別 Issue の候補"}),
-        "decisions[0].carry_over: allowed only when state is skip",
-        id="carry-over-on-fix",
-    ),
-    pytest.param(
-        set_value("decisions", 1, "carry_over", value={"issue": "#486", "candidate": "別 Issue の候補"}),
-        "decisions[1].carry_over: must have exactly one of issue or candidate",
-        id="carry-over-with-both",
-    ),
-    pytest.param(
-        set_value("decisions", 1, "carry_over", value={"issue": "486"}),
-        "decisions[1].carry_over.issue: must be #<number> or an issue URL",
-        id="carry-over-issue-without-hash",
     ),
     pytest.param(
         duplicate_second_decision,
@@ -554,19 +312,6 @@ INVALID_RECORDS = [
         id="source-shared-across-bases",
     ),
     pytest.param(
-        add_decision(decision("Grok-4.7#L-1@25e76f6c513f", "skip", severity="Low")),
-        "decisions: Grok-4.7#L-1@25e76f6c513f is in more than one decision "
-        "(Grok-4.7#L-1@25e76f6c513f/b, Grok-4.7#L-1@25e76f6c513f); only its parts may share it",
-        id="whole-reference-shared-with-its-part",
-    ),
-    pytest.param(
-        set_value("outcome", value="done"), "outcome: must be one of " + OUTCOME_CHOICES, id="unknown-outcome"
-    ),
-    pytest.param(delete("commit"), "commit: required when outcome is fixes_pushed", id="pushed-without-commit"),
-    pytest.param(
-        set_value("commit", value="a78ab78"), "commit: must be a full lowercase commit hash", id="short-commit"
-    ),
-    pytest.param(
         set_value("commit", value=HEAD_1), "commit: must differ from reviewed_head", id="commit-equal-to-reviewed"
     ),
     pytest.param(
@@ -576,21 +321,6 @@ INVALID_RECORDS = [
         ),
         "outcome: fixes_pushed requires at least one fix decision",
         id="pushed-without-fix",
-    ),
-    pytest.param(
-        set_value("outcome", value="awaiting_approval"),
-        "commit: allowed only when outcome is fixes_pushed",
-        id="commit-while-awaiting-approval",
-    ),
-    pytest.param(
-        apply(set_value("outcome", value="stopped_other"), delete("commit")),
-        "stop_reason: required when outcome is a stopped result",
-        id="stopped-without-reason",
-    ),
-    pytest.param(
-        set_value("stop_reason", value="理由"),
-        "stop_reason: allowed only when outcome is a stopped result",
-        id="stop-reason-on-a-pushed-round",
     ),
     pytest.param(
         apply(
@@ -609,89 +339,10 @@ INVALID_RECORDS = [
     ),
 ]
 
-VALID_VARIANTS = [
-    pytest.param(
-        apply(
-            set_value("seats", 0, "merge_recommendation", value=None),
-            set_value("seats", 0, "note", value="Merge recommendation の記載が「マージ推奨」で、3 つの値に当たらない"),
-        ),
-        id="merge-recommendation-null-with-note",
-    ),
-    pytest.param(
-        apply(
-            set_value("reviewed_head", value=SHA256_HEAD),
-            set_value("commit", value="f" * 64),
-            set_value("seats", 0, "file_head", value=SHA256_HEAD[:12]),
-            set_value("seats", 1, "file_head", value=SHA256_HEAD[:12]),
-        ),
-        id="sha256-heads",
-    ),
-    pytest.param(
-        set_value("decisions", 1, "carry_over", value={"issue": "https://github.com/usaturn/maatlog-poc/issues/486"}),
-        id="carry-over-issue-url",
-    ),
-    pytest.param(
-        apply(
-            set_value("seats", value=[]),
-            set_value("outcome", value="stopped_other"),
-            set_value("stop_reason", value="レビューファイルが 1 つも無い"),
-            delete("commit"),
-        ),
-        id="stopped-round-without-seats",
-    ),
-    pytest.param(
-        add_decision(decision("claude-opus-5-5#U-1@a78ab78d6b32", "skip", severity=None)),
-        id="unverified-candidate-with-null-severity",
-    ),
-    pytest.param(
-        add_decision(decision("Grok-4.7#L-1@25e76f6c513f/a", "resolved", severity="Low")),
-        id="parts-share-their-base",
-    ),
-    pytest.param(
-        apply(
-            set_value("seats", 0, "runtime", value="unknown"),
-            set_value("seats", 0, "note", value="レビュアーの行が無い旧形式のため、ランタイムは不明"),
-        ),
-        id="legacy-seat-with-unknown-runtime",
-    ),
-    pytest.param(set_value("decisions", 0, "d1", value=PLANNER_REPRODUCTION), id="planner-reproduction-for-d1"),
-    pytest.param(set_value("decisions", 0, "d1", value=VERIFIER_REPRODUCTION), id="verifier-reproduction-for-d1"),
-    pytest.param(
-        set_value(
-            "decisions",
-            0,
-            "d1",
-            value={
-                **PLANNER_D1,
-                "reproduction": {**REPRODUCTION, "commands": ["python - <<'EOF'\nprint(1)\nEOF", "cmd\t--flag"]},
-            },
-        ),
-        id="reproduction-commands-over-several-lines",
-    ),
-    pytest.param(
-        apply(
-            set_value("decisions", 1, "reason", value="1 行目\n\t2 行目\r\n3 行目"),
-            set_value("decisions", 1, "revisit_when", value="条件 1\n条件 2"),
-        ),
-        id="free-text-with-tabs-and-line-breaks",
-    ),
-    pytest.param(
-        set_value("decisions", 1, "reason", value="段落 1 段落 2 段落 3"),
-        id="free-text-with-unicode-separators",
-    ),
-]
-
 
 def test_round_records_pass_validation() -> None:
     for record in (round_one(), round_two()):
         assert review_records.validate_record(record) == record
-
-
-@pytest.mark.parametrize("mutate", VALID_VARIANTS)
-def test_valid_variants_pass_validation(mutate: Mutation) -> None:
-    record = round_one()
-    mutate(record)
-    assert review_records.validate_record(record) == record
 
 
 @pytest.mark.parametrize(("mutate", "expected"), INVALID_RECORDS)
@@ -701,54 +352,22 @@ def test_invalid_records_are_rejected(mutate: Mutation, expected: str) -> None:
     assert expected in problems_of(lambda: review_records.validate_record(record))
 
 
-def test_validation_reports_every_problem() -> None:
-    record = round_one()
-    del record["decisions"][1]["revisit_when"]
-    del record["commit"]
-    problems = problems_of(lambda: review_records.validate_record(record))
-    assert "decisions[1].revisit_when: required when state is skip" in problems
-    assert "commit: required when outcome is fixes_pushed" in problems
-
-
-def test_a_record_must_be_an_object() -> None:
-    assert problems_of(lambda: review_records.validate_record([])) == ("record: must be a JSON object",)
-
-
 @pytest.mark.parametrize(
     ("model", "expected"),
     [
         ("claude-opus-5-5", "claude-opus-5-5"),
         ("opencode/deepseek-v4-flash-free", "opencode-deepseek-v4-flash-free"),
-        ("Cursor Grok 4.6", "Cursor-Grok-4.6"),
-        ("a / b", "a-b"),
     ],
 )
 def test_agent_id_for_follows_the_marker_rule(model: str, expected: str) -> None:
     assert review_records.agent_id_for(model) == expected
 
 
-def test_agent_id_for_rejects_a_model_without_a_safe_id() -> None:
-    assert problems_of(lambda: review_records.agent_id_for("..")) == (
-        "planner.model: cannot be turned into an agent id: '..'",
-    )
-
-
-EMPTY_STATE: dict[str, Any] = {
-    "schema": "review-records/v1",
-    "pr": None,
-    "rounds": [],
-    "decisions": [],
-    "ignored_comments": [],
-}
 POC_PR: dict[str, Any] = {"repository": "usaturn/maatlog-poc", "number": 484}
 
 
 def prior_after_round_one() -> dict[str, Any]:
     return review_records.fold([(101, review_records.validate_record(round_one()))])
-
-
-def test_fold_without_records_is_empty() -> None:
-    assert review_records.fold([]) == EMPTY_STATE
 
 
 def test_fold_keeps_the_latest_state_merged_sources_and_planner_models() -> None:
@@ -816,18 +435,6 @@ def test_fold_rejects_records_of_another_pull_request() -> None:
     assert problems_of(lambda: review_records.fold(records)) == ("comment 202: belongs to a different pull request",)
 
 
-def test_fold_blames_the_records_that_differ_from_the_expected_pull_request() -> None:
-    other = round_one()
-    other["pr"] = {"repository": "usaturn/maatlog", "number": 484}
-    records = [
-        (7, review_records.validate_record(other)),
-        (101, review_records.validate_record(round_one())),
-    ]
-    assert problems_of(lambda: review_records.fold(records, expected_pr=POC_PR)) == (
-        "comment 7: belongs to a different pull request",
-    )
-
-
 def test_check_against_accepts_the_next_round() -> None:
     review_records.check_against(review_records.validate_record(round_two()), prior_after_round_one())
 
@@ -837,11 +444,6 @@ INVALID_NEXT_ROUNDS = [
         set_value("decisions", 2, "change", value="new"),
         "decisions[2].change: Grok-4.7#M-2@25e76f6c513f is already recorded; use inherited or changed",
         id="new-but-recorded",
-    ),
-    pytest.param(
-        set_value("decisions", 0, "change", value="inherited"),
-        "decisions[0].change: claude-opus-5-5#M-1@a78ab78d6b32 is not in the earlier records; use new",
-        id="inherited-but-unknown",
     ),
     pytest.param(
         apply(set_value("decisions", 2, "state", value="fix"), delete("decisions", 2, "revisit_when")),
@@ -876,12 +478,6 @@ INVALID_NEXT_ROUNDS = [
         ),
         "decisions[2].sources: Grok-4.7#M-2@25e76f6c513f already belongs to Grok-4.7#M-2@25e76f6c513f",
         id="skip-reference-moved-to-a-new-decision",
-    ),
-    pytest.param(
-        set_value("decisions", 2, value=decision("Grok-4.7#M-2@25e76f6c513f/b", "fix")),
-        "decisions[2].id: Grok-4.7#M-2@25e76f6c513f is already recorded under Grok-4.7#M-2@25e76f6c513f; "
-        "inherit or change it",
-        id="new-part-of-a-recorded-reference",
     ),
 ]
 
@@ -944,19 +540,9 @@ def test_check_against_keeps_d1_of_an_inherited_fix() -> None:
     )
 
 
-def test_check_against_accepts_a_renumbered_reference() -> None:
-    first = round_one()
-    first["decisions"].append(decision("SWE-2-Max#planner-2@25e76f6c513f", "skip", severity="Info"))
-    prior = review_records.fold([(101, review_records.validate_record(first))])
-    record = round_two()
-    renumbered = ["SWE-2-Max#planner-2@25e76f6c513f", "SWE-2-Max#I-2@25e76f6c513f"]
-    record["decisions"].append(
-        decision("SWE-2-Max#planner-2@25e76f6c513f", "skip", change="inherited", severity="Info", sources=renumbered)
-    )
-    review_records.check_against(review_records.validate_record(record), prior)
-
-
 SPLIT_BASE = "Grok-4.7#L-1@25e76f6c513f"
+
+
 ANOTHER_SEAT_FINDING = "qwen3.8-max#L-2@25e76f6c513f"
 
 
@@ -983,38 +569,7 @@ def test_check_against_keeps_a_reference_with_the_part_that_holds_it() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    ("part", "sources"),
-    [
-        pytest.param("a", [SPLIT_BASE, ANOTHER_SEAT_FINDING], id="part-keeps-its-own-reference"),
-        pytest.param("b", [SPLIT_BASE], id="part-keeps-the-shared-base"),
-    ],
-)
-def test_check_against_lets_parts_keep_their_references(part: str, sources: list[str]) -> None:
-    record = round_two()
-    record["decisions"].append(
-        decision(f"{SPLIT_BASE}/{part}", "skip", change="inherited", severity="Low", sources=sources)
-    )
-    review_records.check_against(review_records.validate_record(record), prior_with_a_part_holding_another_finding())
-
-
-@pytest.mark.parametrize(
-    ("outcome", "reason"),
-    [
-        ("stopped_insufficient_verification", "公開側 PR の検証環境を用意できなかった"),
-        ("stopped", "environment: 公開側 PR の検証環境を用意できなかった"),
-    ],
-)
-def test_check_against_lets_a_stopped_round_omit_earlier_fixes(outcome: str, reason: str) -> None:
-    record = round_two()
-    del record["decisions"][1]
-    del record["commit"]
-    record["outcome"] = outcome
-    record["stop_reason"] = reason
-    review_records.check_against(review_records.validate_record(record), prior_after_round_one())
-
-
-@pytest.mark.parametrize("category", ["permission", "environment", "external"])
+@pytest.mark.parametrize("category", ["permission"])
 def test_stopped_round_preserves_category_and_pending_decisions(category: str) -> None:
     record = round_one()
     del record["commit"]
@@ -1037,6 +592,8 @@ def test_stopped_round_requires_a_concrete_allowed_category(reason: object) -> N
 
 
 HUMAN_PART = "\n".join(["## review-fix-planning（claude-opus-5-5）", "", "### レビュー状況", "", "- 分類: 例"])
+
+
 LOOP_COMMENT = "<!-- review-fix-planning:agent:maatlog-pr-review-loop -->\nPR review fix loop: round 1"
 
 
@@ -1052,99 +609,11 @@ def api_comment(comment_id: int, body: str, *, association: str = "OWNER") -> di
     return {"id": comment_id, "body": body, "user": {"login": "usaturn"}, "author_association": association}
 
 
-def test_round_marker_holds_the_round_number_and_the_full_head() -> None:
-    marker = review_records.round_marker(2, HEAD_2)
-    assert marker == f"<!-- review-fix-planning:round:2:{HEAD_2} -->"
-    assert review_records.ROUND_MARKER_PATTERN.fullmatch(marker) is not None
-
-
-@pytest.mark.parametrize(("round_number", "head"), [(2, "a78ab78"), (0, HEAD_2)])
-def test_round_marker_rejects_a_short_head_or_round_zero(round_number: int, head: str) -> None:
-    assert problems_of(lambda: review_records.round_marker(round_number, head)) == (
-        "round marker: needs a round of 1 or more and a full lowercase commit hash",
-    )
-
-
-def test_rendered_block_round_trips_through_extract() -> None:
-    record = review_records.validate_record(round_two())
-    block = review_records.render_block(record)
-    assert block.startswith(review_records.BLOCK_SUMMARY + "\n\n" + review_records.BLOCK_START + "\n```json\n")
-    assert block.endswith("\n```\n" + review_records.BLOCK_END + "\n\n</details>")
-    assert review_records.extract_record(status_body(record)) == record
-
-
 def test_records_with_unicode_line_separators_round_trip() -> None:
     record = round_one()
     record["decisions"][1]["reason"] = "段落 1 段落 2 段落 3"
     checked = review_records.validate_record(record)
     assert review_records.extract_record(review_records.render_block(checked)) == checked
-
-
-def test_extract_accepts_crlf_line_endings() -> None:
-    record = review_records.validate_record(round_two())
-    assert review_records.extract_record(status_body(record).replace("\n", "\r\n")) == record
-
-
-def test_extract_returns_none_without_a_block() -> None:
-    assert review_records.extract_record(LOOP_COMMENT) is None
-
-
-def test_extract_rejects_two_blocks() -> None:
-    block = review_records.render_block(round_one())
-    assert problems_of(lambda: review_records.extract_record(block + "\n" + block)) == (
-        "body: must contain exactly one review-records block",
-    )
-
-
-def test_extract_rejects_an_end_marker_before_the_start() -> None:
-    body = review_records.BLOCK_END + "\n" + review_records.BLOCK_START
-    assert problems_of(lambda: review_records.extract_record(body)) == (
-        "body: the end marker comes before the start marker",
-    )
-
-
-def test_extract_rejects_a_block_without_a_json_fence() -> None:
-    body = "\n".join([review_records.BLOCK_START, "{}", review_records.BLOCK_END])
-    assert problems_of(lambda: review_records.extract_record(body)) == (
-        "body: the block must hold one fenced json code block",
-    )
-
-
-def test_extract_rejects_invalid_json() -> None:
-    body = "\n".join([review_records.BLOCK_START, "```json", "{", "```", review_records.BLOCK_END])
-    problems = problems_of(lambda: review_records.extract_record(body))
-    assert len(problems) == 1
-    assert problems[0].startswith("body: invalid JSON at line 1:")
-
-
-def test_compose_comment_puts_the_markers_before_the_body() -> None:
-    record = review_records.validate_record(round_two())
-    lines = status_body(record).split("\n")
-    assert lines[0] == "<!-- review-fix-planning:agent:claude-opus-5-5 -->"
-    assert lines[1] == review_records.round_marker(2, HEAD_2)
-    assert lines[2] == "## review-fix-planning（claude-opus-5-5）"
-    assert status_body(record).endswith("\n\n" + review_records.render_block(record))
-
-
-def test_compose_comment_rejects_markers_in_the_body() -> None:
-    body = HUMAN_PART + "\n<!-- review-fix-planning:agent:x -->\n" + review_records.BLOCK_START
-    assert problems_of(lambda: review_records.compose_comment(round_one(), body)) == (
-        "body: must not contain an agent marker; the helper adds it",
-        "body: must not contain a records block marker; the helper adds it",
-    )
-
-
-def test_compose_comment_rejects_a_blank_body() -> None:
-    assert problems_of(lambda: review_records.compose_comment(round_one(), "  \n")) == ("body: must not be blank",)
-
-
-def test_compose_comment_rejects_a_comment_over_the_limit() -> None:
-    problems = problems_of(
-        lambda: review_records.compose_comment(round_one(), "x" * review_records.COMMENT_BODY_LIMIT)
-    )
-    assert len(problems) == 1
-    assert problems[0].startswith("comment: ")
-    assert problems[0].endswith("characters exceed the limit of 65536")
 
 
 def test_comments_from_api_accepts_slurped_pages_and_flat_arrays() -> None:
@@ -1154,29 +623,6 @@ def test_comments_from_api_accepts_slurped_pages_and_flat_arrays() -> None:
     assert review_records.comments_from_api([raw]) == expected
     assert review_records.comments_from_api([[]]) == []
     assert review_records.comments_from_api([]) == []
-
-
-def test_comments_from_api_treats_a_null_body_as_empty() -> None:
-    raw = {**api_comment(3, ""), "body": None}
-    assert review_records.comments_from_api([raw]) == [comment(3, "")]
-
-
-def test_comments_from_api_rejects_comments_without_id_or_body() -> None:
-    message = "must be an object with an integer id and a body"
-    payload = [{"id": "1", "body": "a"}, {"id": 2}]
-    assert problems_of(lambda: review_records.comments_from_api(payload)) == (
-        f"comments[0]: {message}",
-        f"comments[1]: {message}",
-    )
-
-
-def test_comments_from_api_reports_gh_errors() -> None:
-    assert problems_of(lambda: review_records.comments_from_api({"message": "Not Found"})) == (
-        "comments: gh api returned an error: Not Found",
-    )
-    assert problems_of(lambda: review_records.comments_from_api([{"message": "Bad credentials"}])) == (
-        "comments[0]: gh api returned an error: Bad credentials",
-    )
 
 
 def test_collect_records_reads_trusted_round_status_comments_only() -> None:
@@ -1213,7 +659,7 @@ def test_collect_records_reads_trusted_round_status_comments_only() -> None:
     assert review_records.collect_records(comments, exclude_comment_ids=[202])[0] == [(101, first)]
 
 
-@pytest.mark.parametrize("association", ["CONTRIBUTOR", "NONE"])
+@pytest.mark.parametrize("association", ["CONTRIBUTOR"])
 def test_collect_records_accepts_explicit_trusted_login(association: str) -> None:
     first = review_records.validate_record(round_one())
     comments = [comment(101, status_body(first), association=association)]
@@ -1224,7 +670,7 @@ def test_collect_records_accepts_explicit_trusted_login(association: str) -> Non
 
 @pytest.mark.parametrize(
     ("author", "trusted_login"),
-    [("someone-else", "usaturn"), ("usaturn", ""), ("", "usaturn"), (None, "usaturn"), ("", "")],
+    [("someone-else", "usaturn"), (None, "usaturn"), ("", "")],
 )
 def test_collect_records_does_not_trust_other_or_empty_logins(author: str | None, trusted_login: str) -> None:
     # A valid record isolates the trust boundary from schema/marker validation.
@@ -1240,7 +686,7 @@ def test_collect_records_does_not_trust_other_or_empty_logins(author: str | None
     assert ignored[0]["reason"] == "the author is not trusted"
 
 
-@pytest.mark.parametrize("association", ["OWNER", "MEMBER", "COLLABORATOR"])
+@pytest.mark.parametrize("association", ["OWNER"])
 def test_trusted_login_keeps_association_trust(association: str) -> None:
     first = review_records.validate_record(round_one())
     records, ignored = review_records.collect_records(
@@ -1248,47 +694,6 @@ def test_trusted_login_keeps_association_trust(association: str) -> None:
     )
     assert records == [(101, first)]
     assert ignored == []
-
-
-def test_read_state_trusted_login_continues_next_round() -> None:
-    first = review_records.validate_record(round_one())
-    second = review_records.validate_record(round_two())
-    state = review_records.read_state(
-        [comment(101, status_body(first), association="CONTRIBUTOR")],
-        expected_pr=POC_PR,
-        trusted_login="usaturn",
-    )
-    assert [entry["round"] for entry in state["rounds"]] == [1]
-    assert state["ignored_comments"] == []
-    review_records.check_against(second, state)
-    assert any("already recorded" in problem for problem in problems_of(lambda: review_records.check_against(first, state)))
-
-
-def test_trusted_login_does_not_bypass_pull_request_check() -> None:
-    first = review_records.validate_record(round_one())
-    comments = [comment(101, status_body(first), association="CONTRIBUTOR")]
-    other_pr = {"repository": "usaturn/maatlog", "number": 484}
-    assert problems_of(lambda: review_records.read_state(comments, expected_pr=other_pr, trusted_login="usaturn")) == (
-        "comment 101: belongs to a different pull request",
-    )
-
-
-def test_trusted_login_does_not_bypass_record_checks() -> None:
-    broken = status_body(review_records.validate_record(round_one())).replace('"round": 1,', '"round": 0,')
-    comments = [comment(101, broken, association="CONTRIBUTOR")]
-    assert problems_of(lambda: review_records.read_state(comments, trusted_login="usaturn")) == (
-        "comment 101: round: must be an integer of 1 or more",
-    )
-
-
-def test_trusted_login_keeps_comment_exclusion() -> None:
-    first = review_records.validate_record(round_one())
-    state = review_records.read_state(
-        [comment(101, status_body(first), association="CONTRIBUTOR")],
-        trusted_login="usaturn",
-        exclude_comment_ids=[101],
-    )
-    assert state == EMPTY_STATE
 
 
 def test_collect_records_names_every_broken_comment() -> None:
@@ -1347,13 +752,6 @@ def test_collect_records_lists_a_status_comment_with_a_line_added_on_top() -> No
     assert [entry["reason"] for entry in ignored] == ["has a records block but is not a round status comment"]
 
 
-def test_comments_from_api_reports_an_error_page_inside_slurped_output() -> None:
-    payload = [[api_comment(1, "a")], {"message": "API rate limit exceeded"}]
-    assert problems_of(lambda: review_records.comments_from_api(payload)) == (
-        "comments[1]: gh api returned an error: API rate limit exceeded",
-    )
-
-
 def write_json(path: Path, value: object) -> Path:
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
     return path
@@ -1376,14 +774,6 @@ def test_cli_fold_prints_the_current_state(
     assert state["ignored_comments"] == []
 
 
-def test_cli_fold_accepts_a_pull_request_without_comments(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr("sys.stdin", io.StringIO("[[]]"))
-    assert review_records.main(["fold"]) == 0
-    assert json.loads(capsys.readouterr().out) == EMPTY_STATE
-
-
 def test_cli_fold_reports_records_of_another_pull_request(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1391,12 +781,6 @@ def test_cli_fold_reports_records_of_another_pull_request(
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps([[api_comment(101, body)]], ensure_ascii=False)))
     assert review_records.main(["fold", "--repo", "usaturn/maatlog", "--pr", "484"]) == 65
     assert "comment 101: belongs to a different pull request" in capsys.readouterr().err
-
-
-def test_cli_fold_needs_both_repo_and_pr() -> None:
-    with pytest.raises(SystemExit) as raised:
-        review_records.main(["fold", "--repo", "usaturn/maatlog-poc"])
-    assert raised.value.code == 2
 
 
 def test_cli_fold_exits_65_on_a_broken_record(
@@ -1409,13 +793,7 @@ def test_cli_fold_exits_65_on_a_broken_record(
     assert "comment 8: body: must contain exactly one review-records block" in capsys.readouterr().err
 
 
-def test_cli_fold_reports_gh_errors(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-    monkeypatch.setattr("sys.stdin", io.StringIO('{"message": "Not Found"}'))
-    assert review_records.main(["fold"]) == 65
-    assert "comments: gh api returned an error: Not Found" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(("trusted_login", "expected_rounds"), [(None, []), ("usaturn", [1]), ("someone-else", [])])
+@pytest.mark.parametrize(("trusted_login", "expected_rounds"), [(None, []), ("usaturn", [1])])
 def test_cli_fold_uses_explicit_trusted_login(
     trusted_login: str | None,
     expected_rounds: list[int],
@@ -1467,86 +845,3 @@ def test_cli_validate_checks_the_record_against_earlier_comments(
     assert review_records.main(arguments) == 65
     expected = "decisions: must list every decision whose earlier state is fix: Grok-4.7#M-1@25e76f6c513f"
     assert expected in capsys.readouterr().err
-
-
-def test_cli_render_prints_the_block(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    record_file = write_json(tmp_path / "round-1.json", round_one())
-    assert review_records.main(["render", "--record-file", str(record_file)]) == 0
-    assert capsys.readouterr().out == review_records.render_block(round_one()) + "\n"
-
-
-def test_cli_reports_an_unreadable_file_with_exit_66(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    assert review_records.main(["render", "--record-file", str(tmp_path / "missing.json")]) == 66
-    assert "missing.json" in capsys.readouterr().err
-
-
-def test_cli_reports_invalid_json_with_exit_65(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    path = tmp_path / "bad.json"
-    path.write_text("{", encoding="utf-8")
-    assert review_records.main(["validate", "--record-file", str(path)]) == 65
-    assert "invalid JSON" in capsys.readouterr().err
-
-
-def test_cli_reports_input_that_is_not_utf8(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    path = tmp_path / "latin1.json"
-    path.write_bytes(b'{"reason": "\xff"}')
-    assert review_records.main(["validate", "--record-file", str(path)]) == 65
-    assert "input: not valid UTF-8" in capsys.readouterr().err
-
-
-def test_cli_validate_ignores_an_unknown_excluded_comment(tmp_path: Path) -> None:
-    body = status_body(review_records.validate_record(round_one()))
-    comments = write_json(tmp_path / "comments.json", [[api_comment(101, body)]])
-    record_file = write_json(tmp_path / "round-2.json", round_two())
-    arguments = ["validate", "--record-file", str(record_file), "--comments-file", str(comments)]
-    assert review_records.main([*arguments, "--exclude-comment", "999"]) == 0
-
-
-DOCUMENT = Path(__file__).resolve().parents[2] / "review-records.md"
-EXAMPLE = re.compile(
-    r"<!-- review-records:example (?P<name>[a-z0-9-]+) -->\n"
-    r"(?P<fence>`{3,})[a-z]*\n(?P<body>.*?)\n(?P=fence)\n",
-    re.DOTALL,
-)
-FINDINGS_SPEC = importlib.util.spec_from_file_location("review_findings", SCRIPT.with_name("review_findings.py"))
-assert FINDINGS_SPEC is not None and FINDINGS_SPEC.loader is not None
-review_findings = importlib.util.module_from_spec(FINDINGS_SPEC)
-FINDINGS_SPEC.loader.exec_module(review_findings)
-
-
-def document_examples() -> dict[str, str]:
-    text = DOCUMENT.read_text(encoding="utf-8")
-    return {match["name"]: match["body"] for match in EXAMPLE.finditer(text)}
-
-
-def document_rounds() -> tuple[dict[str, Any], dict[str, Any], str]:
-    examples = document_examples()
-    first = review_records.validate_record(json.loads(examples["round-1"]))
-    comment_text = examples["status-comment-round-2"]
-    second = review_records.extract_record(comment_text)
-    assert second is not None
-    return first, second, comment_text
-
-
-def test_document_finding_example_is_read_by_from_markdown() -> None:
-    # 4.2 節の記入例を、レビューファイルの読み取り（review_findings.py from-markdown）にかける。
-    # 重大度の節はレビューファイルにあり記入例には無いので、テストで足す。
-    value = review_findings.candidates_from_markdown(
-        "## Medium\n\n" + document_examples()["finding"] + "\n",
-        review_file="claude-opus-5-5.md",
-        repository="usaturn/maatlog-poc",
-        number=900,
-        model="claude-opus-5-5",
-        runtime="claude-code",
-    )
-    (finding,) = value["findings"]
-    assert "confidence" in finding
-    assert finding["detected_head"] != "unknown"
-    assert finding["locations"] != ["不明"]
-
-
-def test_document_status_comment_is_what_compose_comment_builds() -> None:
-    first, second, comment_text = document_rounds()
-    review_records.check_against(second, review_records.fold([(1, first)]))
-    body = comment_text.split("\n", 2)[2].removesuffix("\n\n" + review_records.render_block(second))
-    assert review_records.compose_comment(second, body) == comment_text

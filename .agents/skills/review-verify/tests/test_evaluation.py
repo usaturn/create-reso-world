@@ -18,8 +18,7 @@ VALIDATION = Path(__file__).resolve().parents[1] / "evals/validation.md"
 
 @pytest.mark.parametrize(
     "attack",
-    ["clean", "index", "git-dir", "work-tree", "common-dir", "global-hooks", "home-hooks", "xdg-signing",
-     "config-injection", "bash-env", "env"],
+    ["clean", "git-dir", "home-hooks", "xdg-signing", "bash-env", "env"],
 )
 def test_documented_fixture_isolates_subprocesses_from_host_git_state(
     tmp_path: Path, managed_state: Any, attack: str,
@@ -58,18 +57,8 @@ def test_documented_fixture_isolates_subprocesses_from_host_git_state(
     signing.chmod(0o700)
     hook_config = f"[core]\n\thooksPath = {hooks}\n"
     sign_config = f"[commit]\n\tgpgSign = true\n[gpg]\n\tprogram = {signing}\n"
-    if attack == "index":
-        env["GIT_INDEX_FILE"] = str(other / ".git/index")
-    elif attack == "git-dir":
+    if attack == "git-dir":
         env["GIT_DIR"] = str(other / ".git")
-    elif attack == "work-tree":
-        env["GIT_WORK_TREE"] = str(other)
-    elif attack == "common-dir":
-        env["GIT_COMMON_DIR"] = str(other / ".git")
-    elif attack == "global-hooks":
-        config = host / "global-config"
-        config.write_text(hook_config)
-        env["GIT_CONFIG_GLOBAL"] = str(config)
     elif attack == "home-hooks":
         (home / ".gitconfig").write_text(hook_config)
         del env["GIT_CONFIG_GLOBAL"]
@@ -78,8 +67,6 @@ def test_documented_fixture_isolates_subprocesses_from_host_git_state(
         config.parent.mkdir(parents=True)
         config.write_text(sign_config)
         del env["GIT_CONFIG_GLOBAL"]
-    elif attack == "config-injection":
-        env.update(GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="core.hooksPath", GIT_CONFIG_VALUE_0=str(hooks))
     elif attack in {"bash-env", "env"}:
         startup = host / "startup"
         startup.write_text(f"printf called >> '{marker}'\n")

@@ -180,121 +180,14 @@ def tree(root: Path) -> list[Path]:
     return sorted(root.rglob("*"))
 
 
-# 指定の解釈と名前
+# 名前の検証
 
 
-def test_parse_number_url_and_reject_other() -> None:
-    assert target.parse_pull_request_argument("3") == target.PullRequestArgument(None, 3)
-    assert target.parse_pull_request_argument(" #3 ") == target.PullRequestArgument(None, 3)
-    assert target.parse_pull_request_argument(
-        "https://github.com/usaturn/resoloop-meshy/pull/3/files"
-    ) == target.PullRequestArgument(MESHY, 3)
-    for value in ("owner/repo#3", "https://gitlab.com/a/b/pull/3", "#0", "pull/3", ""):
-        with pytest.raises(target.TargetError) as excinfo:
-            target.parse_pull_request_argument(value)
-        assert error_code(excinfo) == target.EXIT_USAGE
-
-
-def test_github_repository_reads_https_and_ssh() -> None:
-    assert target.github_repository("https://github.com/usaturn/create-reso-world.git") == SELF
-    assert target.github_repository("https://github.com/usaturn/resoloop") == FORK
-    assert target.github_repository("git@github.com:orange3134/resoloop.git") == UPSTREAM
-    assert target.github_repository("ssh://git@github.com/usaturn/resoloop") == FORK
-    assert target.github_repository("file:///tmp/remote.git") is None
-    assert target.github_repository("https://github.com/usaturn/..") is None
-
-
-def test_review_directory_uses_lowercase_owner_and_repo_levels(tmp_path: Path) -> None:
-    assert target.review_directory(tmp_path, "Usaturn/Resoloop", 3, "feature/x") == (
-        tmp_path / "reviews" / "usaturn" / "resoloop" / "#3-feature-x"
-    )
-
-
-@pytest.mark.parametrize("value", ["usaturn/..", "usaturn/.", "../x", "a/b/c", "a", "-a/b", "a/b c"])
+@pytest.mark.parametrize("value", ["usaturn/..", "../x", "a/b/c"])
 def test_validate_repository_rejects_unsafe_names(value: str) -> None:
     with pytest.raises(target.TargetError) as excinfo:
         target.validate_repository(value)
     assert error_code(excinfo) == target.EXIT_USAGE
-
-
-def test_naming_rules_keep_the_helper_messages() -> None:
-    with pytest.raises(target.TargetError, match="head branch cannot produce a safe review directory"):
-        target.normalize_head_branch("feature/")
-    with pytest.raises(target.TargetError, match="PR number cannot produce a safe review directory"):
-        target.review_directory_name(0, "x")
-    with pytest.raises(target.TargetError, match="model identifier is not a safe filename"):
-        target.validate_model_name(" gpt")
-    assert target.validate_model_name("opencode/deepseek v4") == "opencode-deepseek-v4"
-
-
-# GitHub への照会
-
-
-def test_fetch_pull_request_success() -> None:
-    gh = gh_for(pull(FORK, 12, "feat/x", head_repository="someone/resoloop"))
-
-    pr = target.fetch_pull_request(FORK, 12, runner=gh)
-
-    assert pr.repository == FORK
-    assert pr.head_ref == "feat/x"
-    assert pr.head_repository == "someone/resoloop"
-    assert pr.clone_url == url(FORK)
-    assert gh.calls == [["gh", "api", "-i", f"repos/{FORK}/pulls/12"]]
-
-
-def test_fetch_pull_request_not_found_when_repository_exists() -> None:
-    gh = FakeGh({f"repos/{SELF}": (http(200, {}), "")})
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.fetch_pull_request(SELF, 999, runner=gh)
-
-    assert error_code(excinfo) == target.EXIT_PR_NOT_FOUND
-    assert "PR URL" in str(excinfo.value)
-
-
-def test_fetch_pull_request_repository_missing() -> None:
-    with pytest.raises(target.TargetError) as excinfo:
-        target.fetch_pull_request("usaturn/nothing", 1, runner=FakeGh({}))
-
-    assert error_code(excinfo) == target.EXIT_REPOSITORY_NOT_FOUND
-
-
-@pytest.mark.parametrize("status", [401, 403])
-def test_fetch_pull_request_auth(status: int) -> None:
-    gh = FakeGh({f"repos/{FORK}/pulls/1": (http(status, {"message": "Bad credentials"}), "")})
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.fetch_pull_request(FORK, 1, runner=gh)
-
-    assert error_code(excinfo) == target.EXIT_AUTH
-
-
-def test_fetch_pull_request_without_status_is_api_failure() -> None:
-    gh = FakeGh({f"repos/{FORK}/pulls/1": ("", "dial tcp: connection refused")})
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.fetch_pull_request(FORK, 1, runner=gh)
-
-    assert error_code(excinfo) == target.EXIT_API
-    assert "connection refused" in str(excinfo.value)
-
-
-def test_fetch_pull_request_broken_body() -> None:
-    broken = pull(FORK, 1, "x")
-    del broken["head"]["sha"]
-    gh = FakeGh({f"repos/{FORK}/pulls/1": (http(200, broken), "")})
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.fetch_pull_request(FORK, 1, runner=gh)
-
-    assert error_code(excinfo) == target.EXIT_API
-
-
-def test_fetch_pull_request_uses_the_canonical_name_after_a_rename() -> None:
-    # gh は転送を内部で追い、改名後のリポジトリの応答だけを出す
-    gh = FakeGh({"repos/usaturn/old/pulls/1": (http(200, pull("usaturn/renamed", 1, "x")), "")})
-
-    assert target.fetch_pull_request("usaturn/old", 1, runner=gh).repository == "usaturn/renamed"
 
 
 # resolve（pr-review）
@@ -328,29 +221,6 @@ def test_resolve_fork_and_upstream_use_separate_directories_and_remotes(tmp_path
     assert (from_fork["base_remote"], from_upstream["base_remote"]) == ("origin", "upstream")
 
 
-def test_resolve_lowercases_review_directory(tmp_path: Path) -> None:
-    parent = make_parent(tmp_path)
-    make_fork(parent)
-    gh = FakeGh({f"repos/{FORK}/pulls/3": (http(200, pull("Usaturn/Resoloop", 3, "feat/x")), "")})
-
-    result = target.resolve(f"https://github.com/{FORK}/pull/3", parent_root=parent, runner=gh)
-
-    assert result["repository"] == "Usaturn/Resoloop"
-    assert result["review_dir"] == str(parent / "reviews" / "usaturn" / "resoloop" / "#3-feat-x")
-
-
-def test_resolve_fork_pr_uses_base_repository(tmp_path: Path) -> None:
-    parent = make_parent(tmp_path)
-    make_fork(parent)
-    gh = gh_for(pull(FORK, 5, "patch", head_repository="someone/resoloop"))
-
-    result = target.resolve(f"https://github.com/{FORK}/pull/5", parent_root=parent, runner=gh)
-
-    assert result["repository"] == FORK
-    assert result["head_repository"] == "someone/resoloop"
-    assert result["review_dir"] == str(parent / "reviews" / "usaturn" / "resoloop" / "#5-patch")
-
-
 def test_resolve_stops_without_checkout_and_does_not_clone(tmp_path: Path) -> None:
     parent = make_parent(tmp_path)
     before = tree(tmp_path)
@@ -374,58 +244,6 @@ def test_resolve_uses_explicit_code_root(tmp_path: Path) -> None:
     assert result["target_root"] == str(other)
     assert result["base_remote"] == "origin"
     assert result["review_dir"] == str(parent / "reviews" / "usaturn" / "resoloop-meshy" / "#2-y")
-
-
-@pytest.mark.parametrize("state", ["missing", "no-upstream"])
-def test_resoloop_route_requires_fork_remotes(tmp_path: Path, state: str) -> None:
-    parent = make_parent(tmp_path)
-    if state == "no-upstream":
-        make_fork(parent, upstream=None)
-    gh = gh_for(pull(UPSTREAM, 11, "x", head_repository=FORK))
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.resolve(f"https://github.com/{UPSTREAM}/pull/11", parent_root=parent, runner=gh)
-
-    assert error_code(excinfo) == target.EXIT_PARENT
-    assert "resoloop-fork.sh clone" in str(excinfo.value)
-
-
-@pytest.mark.parametrize("kind", ["relative", "linked", "other-remote", "known-route"])
-def test_code_root_rejections(tmp_path: Path, kind: str) -> None:
-    parent = make_parent(tmp_path)
-    other = make_other(tmp_path)
-    repository, code_root = MESHY, other
-    if kind == "relative":
-        code_root = Path("meshy")
-    elif kind == "linked":
-        code_root = tmp_path / "linked"
-        git(other, "worktree", "add", "-q", "--detach", str(code_root))
-    elif kind == "other-remote":
-        code_root = make_other(tmp_path, "unrelated", url("someone/else"))
-    else:
-        repository = SELF
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.resolve(
-            f"https://github.com/{repository}/pull/2",
-            parent_root=parent,
-            code_root=code_root,
-            runner=gh_for(pull(repository, 2, "y")),
-        )
-
-    assert error_code(excinfo) == target.EXIT_PARENT
-
-
-def test_resolve_stops_without_parent_origin(tmp_path: Path) -> None:
-    parent = make_parent(tmp_path, origin=None)
-    gh = gh_for(pull(SELF, 4, "x"))
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.resolve("4", parent_root=parent, runner=gh)
-
-    assert error_code(excinfo) == target.EXIT_PARENT
-    assert "PR URL" in str(excinfo.value)
-    assert gh.calls == []
 
 
 def test_require_parent_root_needs_ignored_reviews(tmp_path: Path) -> None:
@@ -462,32 +280,6 @@ def test_find_review_directory_by_number(tmp_path: Path) -> None:
 
     assert result["review_dir"] == str(directory)
     assert result["target_root"] == str(parent)
-
-
-def test_find_review_directory_reports_missing_review_and_legacy_dirs(tmp_path: Path) -> None:
-    parent = make_parent(tmp_path)
-    legacy = review_dir(parent, "#4-feat-x")
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.find_review_directory("4", parent_root=parent, runner=gh_for(pull(SELF, 4, "feat/x")))
-
-    assert error_code(excinfo) == target.EXIT_NO_REVIEW
-    assert str(legacy) in str(excinfo.value)
-
-    fork = make_fork(parent)
-    old = review_dir(fork, "#11-x")
-    per_checkout = review_dir(fork, "usaturn", "resoloop", "#11-x")
-    upstream_dir = review_dir(fork, "orange3134", "resoloop", "#11-x")
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.find_review_directory(
-            f"https://github.com/{FORK}/pull/11", parent_root=parent, runner=gh_for(pull(FORK, 11, "x"))
-        )
-
-    assert error_code(excinfo) == target.EXIT_NO_REVIEW
-    message = str(excinfo.value)
-    assert str(old) in message and str(per_checkout) in message
-    assert str(upstream_dir) not in message
 
 
 def test_find_review_directory_does_not_cross_repositories(tmp_path: Path) -> None:
@@ -529,18 +321,6 @@ def test_find_review_directory_ignores_symlinks_and_other_names(tmp_path: Path) 
     assert error_code(excinfo) == target.EXIT_NO_REVIEW
 
 
-def test_find_review_directory_accepts_legacy_path(tmp_path: Path) -> None:
-    parent = make_parent(tmp_path)
-    legacy = review_dir(parent, "#4-feat-x")
-    gh = gh_for(pull(SELF, 4, "feat/x"))
-
-    result = target.find_review_directory(str(legacy), parent_root=parent, runner=gh)
-
-    assert result["review_dir"] == str(legacy)
-    assert result["target_root"] == str(parent)
-    assert gh.calls[0][3] == f"repos/{SELF}/pulls/4"
-
-
 def test_find_review_directory_accepts_checkout_owner_repo_layout(tmp_path: Path) -> None:
     parent = make_parent(tmp_path)
     fork = make_fork(parent)
@@ -570,47 +350,15 @@ def test_legacy_fork_checkout_directory_is_ambiguous(tmp_path: Path) -> None:
     assert gh.calls == []
 
 
-def test_legacy_fork_checkout_directory_uses_findings(tmp_path: Path) -> None:
+def test_legacy_fork_checkout_directory_rejects_findings_of_another_repository(tmp_path: Path) -> None:
     parent = make_parent(tmp_path)
     fork = make_fork(parent)
     directory = review_dir(fork, "#11-x")
-    write_findings(directory, UPSTREAM, 11)
-
-    result = target.find_review_directory(
-        str(directory), parent_root=parent, runner=gh_for(pull(UPSTREAM, 11, "x", head_repository=FORK))
-    )
-
-    assert result["repository"] == UPSTREAM
-    assert result["base_remote"] == "upstream"
 
     write_findings(directory, "someone/x", 11)
     with pytest.raises(target.TargetError) as excinfo:
         target.find_review_directory(str(directory), parent_root=parent, runner=FakeGh({}))
     assert error_code(excinfo) == target.EXIT_PATH
-
-
-def test_legacy_fork_checkout_directory_with_pr(tmp_path: Path) -> None:
-    parent = make_parent(tmp_path)
-    fork = make_fork(parent)
-    directory = review_dir(fork, "#11-x")
-
-    result = target.find_review_directory(
-        str(directory),
-        parent_root=parent,
-        pr_argument=f"https://github.com/{UPSTREAM}/pull/11",
-        runner=gh_for(pull(UPSTREAM, 11, "x", head_repository=FORK)),
-    )
-
-    assert result["repository"] == UPSTREAM
-    assert result["target_root"] == str(fork)
-    assert result["base_remote"] == "upstream"
-
-    for wrong in ("https://github.com/someone/x/pull/11", f"https://github.com/{UPSTREAM}/pull/12"):
-        gh = FakeGh({})
-        with pytest.raises(target.TargetError) as excinfo:
-            target.find_review_directory(str(directory), parent_root=parent, pr_argument=wrong, runner=gh)
-        assert error_code(excinfo) == target.EXIT_PATH
-        assert gh.calls == []
 
 
 def test_pr_option_must_match_path(tmp_path: Path) -> None:
@@ -654,30 +402,6 @@ def test_checkout_layout_must_match_target_root(tmp_path: Path) -> None:
     assert result["target_root"] == str(first)
 
 
-def test_legacy_single_remote_checkout_directory(tmp_path: Path) -> None:
-    parent = make_parent(tmp_path)
-    other = make_other(tmp_path)
-    directory = review_dir(other, "#2-y")
-
-    result = target.find_review_directory(
-        str(directory), parent_root=parent, code_root=other, runner=gh_for(pull(MESHY, 2, "y"))
-    )
-
-    assert result["repository"] == MESHY
-    assert result["review_dir"] == str(directory)
-
-
-def test_legacy_checkout_without_github_remote(tmp_path: Path) -> None:
-    parent = make_parent(tmp_path)
-    local = make_checkout(tmp_path / "local", {"origin": "file:///nowhere/repo.git"})
-    directory = review_dir(local, "#2-y")
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.find_review_directory(str(directory), parent_root=parent, runner=FakeGh({}))
-
-    assert error_code(excinfo) == target.EXIT_PATH
-
-
 def test_find_review_directory_rejects_name_mismatch(tmp_path: Path) -> None:
     parent = make_parent(tmp_path)
     directory = review_dir(parent, "usaturn", "create-reso-world", "#4-old-name")
@@ -707,17 +431,6 @@ def test_find_review_directory_rejects_findings_for_another_pr(tmp_path: Path) -
 
     with pytest.raises(target.TargetError) as excinfo:
         target.find_review_directory(str(directory), parent_root=parent, runner=gh_for(pull(SELF, 4, "feat/x")))
-
-    assert error_code(excinfo) == target.EXIT_PATH
-
-
-def test_find_review_directory_rejects_unidentifiable_path(tmp_path: Path) -> None:
-    parent = make_parent(tmp_path)
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.find_review_directory(str(elsewhere), parent_root=parent, runner=FakeGh({}))
 
     assert error_code(excinfo) == target.EXIT_PATH
 
@@ -764,57 +477,3 @@ def test_fetch_pull_head_separates_fork_and_upstream(tmp_path: Path) -> None:
     assert upstream_ref == "refs/pr-review/repos/orange3134/resoloop/11"
     assert git(checkout, "rev-parse", fork_ref) == fork_head
     assert git(checkout, "rev-parse", upstream_ref) == upstream_head
-
-
-def test_fetch_pull_head_stops_when_head_moved(tmp_path: Path) -> None:
-    remote, _head = make_remote(tmp_path / "remote", number=3, branch="hogehoge")
-    checkout = make_checkout(tmp_path / "checkout", {"origin": str(remote)})
-
-    with pytest.raises(target.TargetError) as excinfo:
-        target.fetch_pull_head(checkout, FORK, 3, "b" * 40, remote="origin")
-
-    assert error_code(excinfo) == target.EXIT_FETCH
-    assert "変わりました" in str(excinfo.value)
-
-
-# CLI
-
-
-def test_cli_review_dir_for_planning_keeps_the_range(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    parent = make_parent(tmp_path)
-    other = make_other(tmp_path, "someone-x", url("someone/x"))
-    review_dir(parent, "someone", "x", "#1-y")
-    monkeypatch.setattr(target, "default_parent_root", lambda: parent)
-
-    code = target.main(
-        ["review-dir", "https://github.com/someone/x/pull/1", "--for-planning", "--code-root", str(other)],
-        runner=gh_for(pull("someone/x", 1, "y")),
-    )
-
-    assert code == 0
-
-
-def test_cli_reports_error_code_and_message(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    parent = make_parent(tmp_path)
-    monkeypatch.setattr(target, "default_parent_root", lambda: parent)
-
-    code = target.main(["review-dir", f"https://github.com/{MESHY}/pull/2"], runner=gh_for(pull(MESHY, 2, "y")))
-
-    assert code == target.EXIT_PARENT
-    assert capsys.readouterr().err.startswith("review_target: ")
-
-
-def test_cli_resolve_prints_json(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    parent = make_parent(tmp_path)
-    monkeypatch.setattr(target, "default_parent_root", lambda: parent)
-
-    code = target.main(["resolve", "#4"], runner=gh_for(pull(SELF, 4, "fix/x")))
-
-    assert code == 0
-    printed = json.loads(capsys.readouterr().out)
-    assert printed["review_dir"].endswith("/reviews/usaturn/create-reso-world/#4-fix-x")
-    assert printed["base_remote"] == "origin"

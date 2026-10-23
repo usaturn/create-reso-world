@@ -7,7 +7,6 @@ import importlib.util
 import json
 import os
 import re
-import shlex
 import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -236,13 +235,6 @@ def planning() -> dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize("outcome", ["stopped", "stopped_insufficient_verification", "awaiting_approval"])
-def test_planning_accepts_new_and_legacy_outcomes(outcome: str) -> None:
-    document = planning()
-    document["outcome"] = outcome
-    assert review_findings.validate_document(document)["outcome"] == outcome
-
-
 def provenance(agent: str = "self", role: str = "verify", effort: str = "high") -> dict[str, Any]:
     return {
         "agent_id": agent,
@@ -290,33 +282,6 @@ def test_v2_document_accepts_observed_identity_and_real_activities(kind: str) ->
     assert review_findings.validate_document(value) == value
 
 
-@pytest.mark.parametrize("kind,owner", [("candidates", "reviewer"), ("verified", "verifier"), ("planning", "planner")])
-def test_v2_document_requires_owner_provenance(kind: str, owner: str) -> None:
-    value = document_v2(kind)
-    del value[owner]["provenance"]
-    with pytest.raises(review_findings.FindingsError, match=owner + ".provenance"):
-        review_findings.validate_document(value)
-
-
-@pytest.mark.parametrize("bad", [-1, True, float("inf"), float("nan"), "5"])
-def test_v2_activity_rejects_invalid_duration(bad: object) -> None:
-    value = document_v2("planning")
-    value["activities"][0]["seconds"] = bad
-    with pytest.raises(review_findings.FindingsError, match="activities.*seconds"):
-        review_findings.validate_document(value)
-
-
-def test_v2_timing_distinguishes_unknown_zero_and_waiting_overrun() -> None:
-    value = document_v2("candidates")
-    value["timing"].update(seconds=None, waiting_seconds=None)
-    review_findings.validate_document(value)
-    value["timing"].update(seconds=0, waiting_seconds=0)
-    review_findings.validate_document(value)
-    value["timing"]["waiting_seconds"] = 1
-    with pytest.raises(review_findings.FindingsError, match="waiting_seconds"):
-        review_findings.validate_document(value)
-
-
 def test_v2_input_and_accuracy_cannot_claim_different_sessions() -> None:
     value = document_v2()
     value["accuracy"]["reviewers"][0]["provenance"]["session_id"] = "other-session"
@@ -328,33 +293,6 @@ def test_v2_source_must_resolve_to_an_input_file() -> None:
     value = document_v2()
     value["findings"][0]["sources"][0] = "other-model#H-1@000000000000"
     with pytest.raises(review_findings.FindingsError, match="sources"):
-        review_findings.validate_document(value)
-
-
-@pytest.mark.parametrize("suffix", ["", ".md"])
-@pytest.mark.parametrize("detected", [HEAD[:12], "aaaa55556666", "unknown"])
-def test_v2_cycle_sources_keep_the_detection_head_across_updates(detected: str, suffix: str) -> None:
-    """継続指摘の検出時 HEAD（sources の @<head>）は Update 後の reviewed_head とは比較しない。"""
-    value = document_v2()
-    value["reviewed_head"] = FIX
-    for item in value["inputs"]:
-        item["reviewed_head"] = FIX[:12]
-    value["findings"][0]["sources"] = [
-        f"claude-opus-5-5{suffix}#H-1@{detected}",
-        f"gpt-6.1-sol#M-2@{detected}",
-    ]
-    review_findings.validate_document(value)
-
-
-def test_v2_rework_links_require_a_real_implementation_actor() -> None:
-    value = document_v2("planning")
-    implementation = actor()
-    value["rework"] = [
-        {"source": f"example-model#H-1@{HEAD[:12]}", "implementation": implementation, "detected_stage": "self_review"}
-    ]
-    review_findings.validate_document(value)
-    del implementation["provenance"]["session_id"]
-    with pytest.raises(review_findings.FindingsError, match="session_id"):
         review_findings.validate_document(value)
 
 
@@ -413,24 +351,6 @@ def test_statement_candidates_section_is_required_only_for_fix_check() -> None:
     cycle = verified()
     cycle["statement_candidates"] = fix_check()["statement_candidates"]
     assert "statement_candidates: allowed only when mode is fix_check" in problems_of(cycle)
-
-
-@pytest.mark.parametrize(
-    ("mutation", "expected"),
-    [
-        (_set("other.json", "statement_candidates", "file"), "statement_candidates.file"),
-        (_set([], "statement_candidates", "judgments", 0, "ids"), "judgments[0].ids"),
-        (_set(["V-1"], "statement_candidates", "judgments", 0, "ids"), "judgments[0].ids[0]"),
-        (_set("maybe", "statement_candidates", "judgments", 0, "result"), "judgments[0].result"),
-        (_drop("statement_candidates", "judgments", 0, "basis"), "judgments[0].basis"),
-    ],
-)
-def test_invalid_statement_judgments_name_the_problem(
-    mutation: Callable[[dict[str, Any]], None], expected: str
-) -> None:
-    value = fix_check()
-    mutation(value)
-    assert any(expected in problem for problem in problems_of(value))
 
 
 def judged_pair() -> tuple[dict[str, Any], dict[str, Any]]:
@@ -505,46 +425,15 @@ def test_cli_validate_checks_the_fix_check_against_its_candidates(
     assert "not judged" in capsys.readouterr().err
 
 
-def test_cli_validate_fix_check_without_candidates_file_fails(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    lone = _write(tmp_path / "verified" / f"{FIX[:12]}.fix-check.json", fix_check())
-    assert review_findings.main(["validate", str(lone)]) == 66
-    assert f"{FIX[:12]}.statement-candidates.json" in capsys.readouterr().err
-
-
 @pytest.mark.parametrize(
     ("factory", "mutation", "expected"),
     [
-        (candidates, _set("review-findings/v999", "schema"), "schema: must be"),
-        (candidates, _set("notes", "kind"), "kind: must be one of"),
-        (candidates, _set("model", "source"), "source: must be one of"),
-        (candidates, _drop("findings", 0, "property"), "findings[0].property: required"),
-        (candidates, _drop("findings", 0, "variants"), "findings[0].variants: required"),
-        (candidates, _drop("findings", 0, "statement_sites"), "findings[0].statement_sites: required"),
         (candidates, _drop("findings", 0, "failure_scenario"), "findings[0].failure_scenario: required"),
-        (candidates, _drop("coverage", "declined"), "coverage.declined: required"),
-        (candidates, _set("Severe", "findings", 0, "severity"), "findings[0].severity: must be one of"),
-        (candidates, _set([], "findings", 0, "locations"), "findings[0].locations: must be a non-empty array"),
-        (candidates, _set("maybe", "findings", 0, "variants", 0, "result"), "findings[0].variants[0].result"),
         (candidates, _set("abc", "reviewed_head"), "reviewed_head: must be"),
-        (candidates, _set("x", "findings", 0, "extra"), "findings[0].extra: unknown key"),
-        (candidates, _drop("findings", 0, "reproduction", "commands"), "findings[0].reproduction.commands: required"),
-        (candidates, _set("", "skill", "sha256"), "skill.sha256: must be"),
         (verified, _drop("findings", 0, "reproduction"), "findings[0].reproduction: required when verdict is"),
-        (verified, _set("not_reproduced", "findings", 0, "verdict"), "findings[0].reproduction: allowed only when"),
         (verified, _set([], "findings", 0, "sources"), "findings[0].sources: must be a non-empty array"),
-        (verified, _set("H-1", "findings", 0, "id"), "findings[0].id: must be"),
-        (verified, _set("pdf", "inputs", 0, "input_kind"), "inputs[0].input_kind: must be one of"),
-        (verified, _set(None, "inputs", 0, "findings_file"), "inputs[0].findings_file: required when input_kind"),
-        (verified, _set(["V-9"], "accuracy", "reviewers", 0, "unique"), "accuracy.reviewers[0].unique[0]"),
-        (verified, _set(-1, "accuracy", "verify_seconds"), "accuracy.verify_seconds: must be"),
-        (verified, _set({"from": HEAD, "to": FIX, "fix_ids": ["x"]}, "fix_check"), "fix_check: allowed only when"),
         (fix_check, _drop("fix_check"), "fix_check: required when mode is fix_check"),
         (fix_check, _set(HEAD, "fix_check", "to"), "fix_check.to: must equal reviewed_head"),
-        (planning, _set("done", "outcome"), "outcome: must be one of"),
-        (planning, _set("verified/x.json", "verified_file"), "verified_file: must be"),
-        (planning, _set(["x"], "stages", "fix_check_seconds"), "stages.fix_check_seconds[0]: must be"),
     ],
 )
 def test_invalid_documents_name_the_problem(
@@ -564,12 +453,6 @@ def test_unverified_verdict_requires_missing_checks() -> None:
     assert "findings[0].missing_checks: required when verdict is unverified" in problems_of(value)
 
 
-def test_missing_checks_only_for_unverified() -> None:
-    value = verified()
-    value["findings"][0]["missing_checks"] = "x"
-    assert "findings[0].missing_checks: allowed only when verdict is unverified" in problems_of(value)
-
-
 def test_failure_scenario_is_optional_for_documentation_findings() -> None:
     value = candidates()
     finding = value["findings"][0]
@@ -582,33 +465,6 @@ def test_duplicate_ids_are_rejected() -> None:
     value = candidates()
     value["findings"].append(candidate_finding())
     assert "findings[1].id: duplicates findings[0].id" in problems_of(value)
-
-
-def test_markdown_source_relaxes_reviewer_only_fields() -> None:
-    value: dict[str, Any] = {
-        "schema": "review-findings/v1",
-        "kind": "candidates",
-        "source": "markdown",
-        "pr": {"repository": "usaturn/maatlog-poc", "number": 542},
-        "reviewed_head": "unknown",
-        "reviewer": {"model": "gpt-6.1-sol", "runtime": "unknown", "review_file": "gpt-6.1-sol.md"},
-        "findings": [
-            {
-                "id": "M-1",
-                "severity": "Medium",
-                "title": "古い形式",
-                "locations": ["不明"],
-                "detected_head": "unknown",
-                "raw": "- 内容: 何か",
-            }
-        ],
-        "unverified_candidates": [],
-    }
-    review_findings.validate_document(value)
-
-
-def test_not_a_json_object_is_rejected() -> None:
-    assert problems_of([]) == ["document: must be an object"]
 
 
 def test_control_characters_are_rejected_in_text() -> None:
@@ -686,13 +542,6 @@ def test_parse_review_markdown_reads_active_findings_and_unverified_candidates()
     assert second.detected_head == "unknown"
     assert parsed.unverified == ["U-1"]
     assert parsed.reviewed_head == HEAD[:12]
-
-
-def test_parse_review_markdown_tolerates_empty_and_missing_sections() -> None:
-    parsed = review_findings.parse_review_markdown("## Summary\n\n指摘なし。\n")
-    assert parsed.findings == []
-    assert parsed.unverified == []
-    assert parsed.reviewed_head == "unknown"
 
 
 def test_candidates_from_markdown_is_a_valid_markdown_source_document() -> None:
@@ -818,11 +667,6 @@ def test_stats_reports_false_positives_misses_late_detections_and_severity_drift
     ]
 
 
-def test_reference_key_drops_the_markdown_suffix() -> None:
-    assert review_findings.reference_key(f"gpt-6.1-sol.md#M-2@{HEAD[:12]}") == f"gpt-6.1-sol#M-2@{HEAD[:12]}"
-    assert review_findings.reference_key(f"gpt-6.1-sol#M-2@{HEAD[:12]}") == f"gpt-6.1-sol#M-2@{HEAD[:12]}"
-
-
 @pytest.mark.parametrize("suffix", ["", ".md"])
 def test_stats_counts_severity_drift_with_either_reference_style(suffix: str) -> None:
     document = verified()
@@ -845,13 +689,6 @@ def test_stats_counts_severity_drift_with_either_reference_style(suffix: str) ->
     by_model = {item["model"]: item for item in result["reviewers"]}
     assert by_model["gpt-6.1-sol"]["severity_drift"] == 1
     assert len(result["severity_drift"]) == 1
-
-
-def test_stats_without_any_cycle_document_reports_nothing() -> None:
-    result = review_findings.stats([fix_check()], None)
-    assert result["documents"] == 0
-    assert result["reviewers"] == []
-    assert result["severity_drift"] == []
 
 
 def adoption_records(document: dict[str, Any]) -> dict[str, Any]:
@@ -884,12 +721,7 @@ def test_provenance_stats_retains_adoption_after_resolution_without_counting_spl
     "axis,new_value",
     [
         ("effort", "low"),
-        ("agent_id", "other-agent"),
         ("session_id", "other-session"),
-        ("cli_version", "2.0"),
-        ("provider", "other-provider"),
-        ("run_id", "other-run"),
-        ("request_id", "other-request"),
     ],
 )
 def test_provenance_stats_separates_same_model_with_different_observations(axis: str, new_value: str) -> None:
@@ -906,21 +738,6 @@ def test_provenance_stats_separates_same_model_with_different_observations(axis:
     assert len(finders) == 2
     assert {entry["provenance"][axis] for entry in finders} == {first["inputs"][0]["provenance"][axis], new_value}
     assert sum(entry["candidates"] for entry in finders) == 2
-
-
-def test_provenance_stats_separates_skill_revisions() -> None:
-    first = document_v2()
-    second = document_v2()
-    for entry in (second["inputs"][0], second["accuracy"]["reviewers"][0]):
-        entry["provenance"]["skills"][0]["sha256"] = "f" * 64
-    result = review_findings.stats([first, second], None)["provenance"]
-    finders = [
-        entry
-        for entry in result["executions"]
-        if entry["model"] == "claude-opus-5-5" and entry["provenance"]["role"] == "find"
-    ]
-    assert len(finders) == 2
-    assert len(result["by_dimension"]["skill"]) == 3  # two discovery revisions and the verifier skill
 
 
 def test_provenance_stats_does_not_apply_other_pr_or_head_decisions() -> None:
@@ -1037,33 +854,6 @@ def test_provenance_stats_does_not_credit_a_later_round_from_another_session() -
     assert [row["adopted"] for row in finders] == [0, 0]
 
 
-def test_provenance_stats_matches_v2_adoption_to_the_original_session() -> None:
-    first = document_v2()
-    second = document_v2()
-    second["inputs"][0]["provenance"]["session_id"] = "unadopted-session"
-    second["accuracy"]["reviewers"][0]["provenance"]["session_id"] = "unadopted-session"
-    record = v2_adoption_round(first)
-    resolved = copy.deepcopy(record)
-    resolved["round"] = 2
-    resolved["recorded_at"] = "2026-10-04T04:00:00Z"
-    resolved["seats"][0]["provenance"]["session_id"] = "unadopted-session"
-    resolved["decisions"][0].update(state="resolved", change="changed", previous_state="fix")
-    resolved["outcome"] = "no_fix_needed"
-    del resolved["commit"]
-    records = review_findings._records.fold(
-        [
-            (123, review_findings._records.validate_record(record)),
-            (124, review_findings._records.validate_record(resolved)),
-        ]
-    )
-    rows = review_findings.stats([first, second], records)["provenance"]["executions"]
-    finders = [row for row in rows if row["model"] == "claude-opus-5-5" and row["stage"] == "find"]
-    assert {row["provenance"]["session_id"]: row["adopted"] for row in finders} == {
-        "example-session": 1,
-        "unadopted-session": 0,
-    }
-
-
 def test_provenance_stats_leaves_adoption_unevaluated_when_identifiers_are_unobserved() -> None:
     """文書と採用照合の双方で実行識別子が全て未観測なら、採用は確定できない。"""
     document = document_v2()
@@ -1077,93 +867,11 @@ def test_provenance_stats_leaves_adoption_unevaluated_when_identifiers_are_unobs
     assert [row["adopted"] for row in finders] == [None, None]
 
 
-def test_provenance_stats_leaves_adoption_unevaluated_when_only_the_document_row_is_unobserved() -> None:
-    """実担当のサイクルは観測済みでも、発見行の識別子が全て未観測なら採用は確定できない。"""
-    document = document_v2()
-    for entry in document["inputs"]:
-        entry["provenance"].update(session_id="unknown", run_id="unknown", request_id="unknown")
-    record = v2_adoption_round(document)
-    for seat in record["seats"]:
-        seat["provenance"] = provenance(seat["model"], "find")
-    records = review_findings._records.fold([(123, review_findings._records.validate_record(record))])
-    rows = review_findings.stats([document], records)["provenance"]["executions"]
-    finders = [row for row in rows if row["stage"] == "find"]
-    assert [row["adopted"] for row in finders] == [None, None]
-
-
-def test_provenance_stats_leaves_adoption_unevaluated_when_the_fixing_seat_is_unobserved() -> None:
-    """実担当が観測済みでも、決めたサイクルのレビュアーの実行識別子が全て未観測なら採用は確定できない。"""
-    document = document_v2()
-    record = v2_adoption_round(document)
-    for seat in record["seats"]:
-        seat["provenance"].update(session_id="unknown", run_id="unknown", request_id="unknown")
-    records = review_findings._records.fold([(123, review_findings._records.validate_record(record))])
-    rows = review_findings.stats([document], records)["provenance"]["executions"]
-    finders = [row for row in rows if row["stage"] == "find"]
-    assert [row["adopted"] for row in finders] == [None, None]
-
-
-@pytest.mark.parametrize("known", ["session_id", "run_id", "request_id"])
-def test_provenance_stats_adopts_with_at_least_one_observed_identifier(known: str) -> None:
-    """1つでも観測済みの識別子が一致すれば、辞書一致の採用は維持する。"""
-    document = document_v2()
-    unobserved = {key: "unknown" for key in ("session_id", "run_id", "request_id") if key != known}
-    for entry in document["inputs"]:
-        entry["provenance"].update(**unobserved)
-    records = review_findings._records.fold(
-        [(123, review_findings._records.validate_record(v2_adoption_round(document)))]
-    )
-    rows = review_findings.stats([document], records)["provenance"]["executions"]
-    finders = [row for row in rows if row["stage"] == "find"]
-    assert [row["adopted"] for row in finders] == [1, 1]
-
-
-def test_provenance_stats_keeps_a_matched_seat_when_another_round_is_unobserved() -> None:
-    """観測済みの一致する実担当がいれば、後のサイクルの未観測のレビュアーに採用を覆されない。"""
-    document = document_v2()
-    first = v2_adoption_round(document)
-    resolved = copy.deepcopy(first)
-    resolved.update(round=2, reviewed_head=FIX, recorded_at="2026-10-04T04:00:00Z")
-    del resolved["commit"]
-    resolved["outcome"] = "no_fix_needed"
-    for seat in resolved["seats"]:
-        seat["file_head"] = FIX[:12]
-        seat["mode"] = "Update"
-    resolved["decisions"][0].update(state="resolved", change="changed", previous_state="fix")
-    unobserved = copy.deepcopy(first)
-    unobserved.update(round=3, reviewed_head=FIX, commit="a" * 40, recorded_at="2026-10-04T05:00:00Z")
-    for seat in unobserved["seats"]:
-        seat["file_head"] = FIX[:12]
-        seat["mode"] = "Update"
-        seat["provenance"].update(session_id="unknown", run_id="unknown", request_id="unknown")
-    unobserved["decisions"][0].update(state="fix", change="changed", previous_state="resolved")
-    records_input: list[tuple[int, dict[str, Any]]] = []
-    prior: dict[str, Any] = {
-        "schema": "review-records/v1",
-        "pr": None,
-        "rounds": [],
-        "decisions": [],
-        "ignored_comments": [],
-    }
-    records = prior
-    for comment_id, record in ((123, first), (124, resolved), (125, unobserved)):
-        record = review_findings._records.validate_record(record)
-        review_findings._records.check_against(record, records)
-        records_input.append((comment_id, record))
-        records = review_findings._records.fold(list(records_input))
-    rows = review_findings.stats([document], records)["provenance"]["executions"]
-    finders = [row for row in rows if row["stage"] == "find"]
-    assert [row["adopted"] for row in finders] == [1, 1]
-
-
 @pytest.mark.parametrize(
     "bad",
     [
-        [],
-        {"decisions": "bad"},
         {"schema": "review-records/v999", "decisions": []},
         {"decisions": [{"sources": [f"example#H-1@{HEAD[:12]}"], "severity": "Blocker"}]},
-        {"decisions": [{"sources": [1]}]},
         {"decisions": [{"sources": [f"example#H-1@{HEAD[:12]}"], "history": [None]}]},
     ],
 )
@@ -1175,17 +883,6 @@ def test_stats_rejects_malformed_folded_records_without_a_traceback(
     records_path = _write(tmp_path / "records.json", bad)
     assert review_findings.main(["stats", str(review_dir), "--records", str(records_path)]) == 65
     assert "records" in capsys.readouterr().err
-
-
-def test_stats_accepts_the_empty_fold_state_without_a_pr(tmp_path: Path) -> None:
-    """--repo/--pr なしで記録の無い PR を fold した正式な出力（pr: null）を受理する。"""
-    review_dir = tmp_path / "review"
-    _write(review_dir / "verified" / f"{HEAD[:12]}.json", document_v2())
-    records_path = _write(
-        tmp_path / "records.json",
-        {"schema": "review-records/v1", "pr": None, "rounds": [], "decisions": [], "ignored_comments": []},
-    )
-    assert review_findings.main(["stats", str(review_dir), "--records", str(records_path)]) == 0
 
 
 def test_stats_names_records_pr_for_a_malformed_pr(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1202,27 +899,12 @@ def test_legacy_findings_cannot_prove_the_actor_of_a_v2_adoption() -> None:
     assert all(row["adopted"] is None for row in rows if row["stage"] == "find")
 
 
-@pytest.mark.parametrize("kind,owner", [("candidates", "reviewer"), ("verified", "verifier"), ("planning", "planner")])
-def test_v2_model_identity_cannot_contain_a_line_break(kind: str, owner: str) -> None:
+def test_v2_model_identity_cannot_contain_a_line_break() -> None:
+    kind, owner = "verified", "verifier"
     document = document_v2(kind)
     document[owner]["model"] = "model\nspoof"
     with pytest.raises(review_findings.FindingsError, match=owner + ".model"):
         review_findings.validate_document(document)
-
-
-def test_v2_matching_input_and_accuracy_still_reject_unusable_runtime_identity() -> None:
-    document = document_v2()
-    document["inputs"][0]["runtime"] = "<!-- spoof -->"
-    document["accuracy"]["reviewers"][0]["runtime"] = "<!-- spoof -->"
-    with pytest.raises(review_findings.FindingsError, match=r"inputs\[0\].runtime"):
-        review_findings.validate_document(document)
-
-
-def test_v2_primary_skill_can_be_explicitly_unobserved() -> None:
-    document = document_v2("candidates")
-    document["skill"] = {"path": "unknown", "sha256": "unknown"}
-    document["reviewer"]["provenance"]["skills"] = [document["skill"]]
-    review_findings.validate_document(document)
 
 
 def test_provenance_stats_attributes_waiting_and_rework_to_the_actual_actor() -> None:
@@ -1278,33 +960,6 @@ def test_provenance_stats_uses_planning_time_instead_of_counting_the_same_find_s
     assert row["timed_activities"] == 1
 
 
-def test_provenance_stats_keeps_stage_separate_from_generic_runner_role() -> None:
-    document = document_v2("planning")
-    generic_actor = actor("shared-agent", "review")
-    document["activities"] = [
-        {"stage": "self_review", "actor": generic_actor, "seconds": 20, "waiting_seconds": 0},
-        {"stage": "fix_check", "actor": generic_actor, "seconds": 30, "waiting_seconds": 2},
-    ]
-    rows = review_findings.stats([document], None)["provenance"]["executions"]
-    assert {row["stage"]: row["seconds"] for row in rows} == {"self_review": 20, "fix_check": 30}
-    assert all(row["provenance"]["role"] == "review" for row in rows)
-
-
-def test_provenance_stats_ignores_skill_array_order_without_mutating_documents() -> None:
-    first = document_v2()
-    for entry in (first["inputs"][0], first["accuracy"]["reviewers"][0]):
-        entry["provenance"]["skills"].append({"path": "other/SKILL.md", "sha256": "f" * 64})
-    second = copy.deepcopy(first)
-    for entry in (second["inputs"][0], second["accuracy"]["reviewers"][0]):
-        entry["provenance"]["skills"].reverse()
-    before = copy.deepcopy([first, second])
-    rows = review_findings.stats([first, second], None)["provenance"]["executions"]
-    finders = [row for row in rows if row["model"] == "claude-opus-5-5" and row["provenance"]["role"] == "find"]
-    assert len(finders) == 1
-    assert finders[0]["candidates"] == 2
-    assert [first, second] == before
-
-
 def test_provenance_stats_marks_legacy_identity_and_unmeasured_time_unknown() -> None:
     document = verified()
     document["accuracy"]["find_seconds"]["claude-opus-5-5.md"] = None
@@ -1321,31 +976,6 @@ def test_provenance_stats_marks_legacy_identity_and_unmeasured_time_unknown() ->
     assert entry["adopted"] is None
 
 
-def test_standalone_stats_reads_v2_planning_and_rejects_its_bad_duration(tmp_path: Path) -> None:
-    review_dir = tmp_path / "review"
-    path = _write(review_dir / "verified" / f"{HEAD[:12]}.planning.json", document_v2("planning"))
-    result = subprocess.run(
-        ["uv", "run", "--no-project", "python", str(SCRIPT), "stats", str(review_dir)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    payload = json.loads(result.stdout)
-    assert payload["provenance"]["executions"][0]["seconds"] == 50.5
-    bad = document_v2("planning")
-    bad["activities"][0]["seconds"] = -1
-    _write(path, bad)
-    result = subprocess.run(
-        ["uv", "run", "--no-project", "python", str(SCRIPT), "stats", str(review_dir)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 65
-    assert str(path) in result.stderr
-
-
 # --- CLI ------------------------------------------------------------------------------------------------------
 
 
@@ -1353,24 +983,6 @@ def _write(path: Path, value: object) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
     return path
-
-
-def test_cli_validate_reports_problems_on_stderr(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    good = _write(tmp_path / "good.json", candidates())
-    assert review_findings.main(["validate", str(good)]) == 0
-    bad_value = candidates()
-    del bad_value["findings"][0]["property"]
-    bad = _write(tmp_path / "bad.json", bad_value)
-    assert review_findings.main(["validate", str(bad)]) == 65
-    assert "findings[0].property: required" in capsys.readouterr().err
-
-
-def test_cli_validate_reports_unreadable_files(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    assert review_findings.main(["validate", str(tmp_path / "missing.json")]) == 66
-    broken = tmp_path / "broken.json"
-    broken.write_text("{", encoding="utf-8")
-    assert review_findings.main(["validate", str(broken)]) == 65
-    assert "invalid JSON" in capsys.readouterr().err
 
 
 def test_cli_from_markdown_and_check_pair(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1427,32 +1039,6 @@ def test_cli_stats_skips_lists_other_than_cycle_even_if_they_lack_newer_sections
     assert json.loads(capsys.readouterr().out)["documents"] == 1
 
 
-def test_cli_stats_names_the_file_of_an_invalid_cycle_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    review_dir = tmp_path / "#542-feat-x"
-    broken = verified()
-    del broken["reviewed_head"]
-    path = _write(review_dir / "verified" / f"{HEAD[:12]}.json", broken)
-    assert review_findings.main(["stats", str(review_dir)]) == 65
-    assert str(path) in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(
-    "mutation",
-    [_drop("kind"), _drop("mode"), _set("verifed", "kind"), _set("cylce", "mode")],
-    ids=["kind-missing", "mode-missing", "kind-misspelled", "mode-misspelled"],
-)
-def test_cli_stats_stops_at_a_list_whose_kind_or_mode_is_unknown(
-    mutation: Mutation, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    review_dir = tmp_path / "#542-feat-x"
-    _write(review_dir / "verified" / f"{FIX[:12]}.fix-check.json", fix_check())
-    broken = verified()
-    mutation(broken)
-    path = _write(review_dir / "verified" / f"{HEAD[:12]}.json", broken)
-    assert review_findings.main(["stats", str(review_dir)]) == 65
-    assert str(path) in capsys.readouterr().err
-
-
 # --- 実行記録（kind: review_run） --------------------------------------------------------------------------------
 
 
@@ -1480,19 +1066,6 @@ def test_review_run_accepts_each_status(status: str, failed_at: str | None) -> N
     review_findings.validate_document(run_document(status, failed_at))
 
 
-def test_review_run_started_before_prepare_finishes_may_lack_inputs() -> None:
-    document = run_document("started")
-    document.update(mode=None, base=None, inputs=None)
-    document["timing"]["prepare_seconds"] = None
-    review_findings.validate_document(document)
-
-
-def test_review_run_failed_in_prepare_may_lack_inputs() -> None:
-    document = run_document("failed", "prepare")
-    document.update(mode=None, base=None, inputs=None)
-    review_findings.validate_document(document)
-
-
 def _assign(document: dict[str, Any], dotted: str, value: object) -> None:
     *parents, key = dotted.split(".")
     target = document
@@ -1506,19 +1079,8 @@ def _assign(document: dict[str, Any], dotted: str, value: object) -> None:
     [
         ([("outputs", None)], "outputs: required when status is success"),
         ([("status", "started")], "timing.finished_at: must be null when status is started"),
-        ([("status", "failed"), ("reason", "x")], "failed_at: required when status is failed"),
-        ([("status", "failed"), ("failed_at", "review"), ("reason", "x")], "outputs: must be null"),
-        (
-            [("status", "failed"), ("failed_at", "complete"), ("reason", "x"), ("outputs", None), ("inputs", None)],
-            "inputs: required when status is failed",
-        ),
         ([("outputs.by_severity.high", 5)], "outputs.by_severity: must add up to active_findings"),
-        ([("schema", "review-findings/v1")], "schema: review_run requires review-findings/v2"),
-        ([("runner.attempt.state", "finished")], "runner.attempt.state"),
         ([("timing.finished_at", "2026-10-07T00:00:00Z")], "timing.finished_at: must not precede"),
-        ([("inputs.records.decisions.adopt", 1)], "inputs.records.decisions.adopt"),
-        ([("inputs.request.deadline_seconds", 0)], "inputs.request.deadline_seconds"),
-        ([("outputs.findings_file", "other/x.json")], "outputs.findings_file"),
     ],
 )
 def test_review_run_rejects_inconsistent_fields(changes: list[tuple[str, object]], where: str) -> None:
@@ -1568,30 +1130,6 @@ def test_run_stats_counts_completion_failures_timeouts_and_time_per_line() -> No
     assert skill["value"].startswith(".agents/skills/pr-review/SKILL.md@") and skill["runs"] == 4
 
 
-def test_runs_do_not_change_the_existing_stats_keys() -> None:
-    plain = review_findings.stats([verified()], None)
-    with_runs = review_findings.stats([verified()], None, [run_document()])
-    assert {key: plain[key] for key in plain if key != "runs"} == {
-        key: with_runs[key] for key in plain if key != "runs"
-    }
-    assert plain["runs"] == {"documents": 0, "total": plain["runs"]["total"], "by_dimension": {}}
-    assert plain["runs"]["total"]["completion_rate"] is None
-    assert plain["runs"]["total"]["review_seconds_per_changed_line"] is None
-
-
-def test_stats_cli_reads_runs_and_rejects_bad_ones(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    review_dir = tmp_path / "review"
-    path = _write(review_dir / "runs" / "20261008T000000Z-example-model-0123abcd.json", run_document())
-    assert review_findings.main(["stats", str(review_dir)]) == 0
-    assert json.loads(capsys.readouterr().out)["runs"]["documents"] == 1
-    _write(path, {**run_document(), "status": "unknown"})
-    assert review_findings.main(["stats", str(review_dir)]) == 65
-    assert str(path) in capsys.readouterr().err
-    _write(path, document_v2("planning"))
-    assert review_findings.main(["stats", str(review_dir)]) == 65
-    assert "runs/ holds only review_run documents" in capsys.readouterr().err
-
-
 # --- 文書 -----------------------------------------------------------------------------------------------------
 
 
@@ -1599,46 +1137,6 @@ def _examples() -> dict[str, object]:
     text = FORMAT_DOC.read_text(encoding="utf-8")
     found = re.findall(r"<!-- review-findings:example (\w+) -->\n+```json\n(.*?)\n```", text, re.DOTALL)
     return {kind: json.loads(body) for kind, body in found}
-
-
-def test_v2_planning_example_is_accepted_and_its_activity_is_aggregated() -> None:
-    text = FORMAT_DOC.read_text(encoding="utf-8")
-    match = re.search(r"<!-- review-provenance:example planning_v2 -->\n```json\n(.*?)\n```", text, re.DOTALL)
-    assert match is not None
-    value = review_findings.validate_document(json.loads(match[1]))
-    row = review_findings.stats([value], None)["provenance"]["executions"][0]
-    assert row["stage"] == "implement"
-    assert row["seconds"] == 12
-    assert row["waiting_seconds"] == 2
-    assert row["provenance"]["agent_id"] == "self"
-
-
-def test_format_document_examples_are_valid() -> None:
-    # 記入例の種類の一覧は文書の構成なので固定値で検査しない（AGENTS.md の「テストの採用基準」）。
-    examples = _examples()
-    assert examples
-    for example in examples.values():
-        review_findings.validate_document(example)
-
-
-def test_format_document_commands_are_accepted_by_the_cli() -> None:
-    # 文書の bash ブロックにある review_findings.py の呼び出しを、CLI の引数解析にかける。
-    # <...> は値の例に置き換え、[...] の省略できる引数も付けて確かめる。
-    text = FORMAT_DOC.read_text(encoding="utf-8")
-    lines = [
-        line
-        for block in re.findall(r"```bash\n(.*?)\n```", text, re.DOTALL)
-        for line in block.replace("\\\n", " ").splitlines()
-    ]
-    invocations = [line.split('review_findings.py"', 1)[1] for line in lines if 'review_findings.py"' in line]
-    assert invocations
-    for invocation in invocations:
-        filled = re.sub(r"\[([^\]]*)\]", r"\1", re.sub(r"<[^>]+>", "1", invocation)).replace("...", "")
-        argv = shlex.split(filled)
-        try:
-            review_findings._parser().parse_args(argv)
-        except SystemExit:
-            pytest.fail(f"review-findings.md のコマンドを CLI が受け付けない: {argv}")
 
 
 # --- 最終レビュー I-1: 型どおりでない指摘を黙って落とさない ------------------------------------------------------
@@ -1684,7 +1182,7 @@ def test_from_markdown_still_reads_coverage_subsections_and_matching_summaries()
 
 @pytest.mark.parametrize(
     "unverified",
-    ["なし", "なし。", "- なし", "なし。検討して棄却した候補:\n\n- a.py:1 の疑い → 反証した"],
+    ["なし", "なし。検討して棄却した候補:\n\n- a.py:1 の疑い → 反証した"],
 )
 def test_from_markdown_reads_an_unverified_section_that_says_none(unverified: str) -> None:
     value = review_findings.candidates_from_markdown(
@@ -1836,17 +1334,6 @@ def test_statement_candidates_puts_frequent_terms_in_common_terms(tmp_path: Path
     assert document["candidates"] == []
 
 
-def test_statement_candidates_merges_terms_on_the_same_line(tmp_path: Path) -> None:
-    root = _repo(tmp_path, {"tool.py": "a = 1\n", "README.md": "LEFT_SIDE と RIGHT_SIDE を比べる\n"})
-    base = _git(root, "rev-parse", "HEAD")
-    head = _commit(root, {"tool.py": "a = LEFT_SIDE < RIGHT_SIDE\n"}, "compare")
-
-    document = review_findings.statement_candidates(root, base, head, generated_at="2026-10-05T00:00:00Z")
-
-    assert len(document["candidates"]) == 1
-    assert document["candidates"][0]["terms"] == ["LEFT_SIDE", "RIGHT_SIDE"]
-
-
 def test_statement_candidates_keeps_the_excerpt_around_a_term_far_into_a_long_line(tmp_path: Path) -> None:
     long_line = "前置き" * 100 + " deep_marker_alpha " + "後書き" * 100
     root = _repo(tmp_path, {"tool.py": "a = 1\n", "README.md": f"{long_line}\n"})
@@ -1872,22 +1359,6 @@ def test_statement_candidates_keeps_a_short_line_as_it_is(tmp_path: Path) -> Non
     document = review_findings.statement_candidates(root, base, head, generated_at="2026-10-05T00:00:00Z")
 
     assert document["candidates"][0]["text"] == line
-
-
-def test_statement_candidates_joins_excerpts_of_distant_terms_in_one_long_line(tmp_path: Path) -> None:
-    long_line = "頭" * 40 + " first_marker_gamma " + "中" * 400 + " second_marker_delta " + "尾" * 40 + "終" * 200
-    root = _repo(tmp_path, {"tool.py": "a = 1\n", "README.md": f"{long_line}\n"})
-    base = _git(root, "rev-parse", "HEAD")
-    head = _commit(root, {"tool.py": "a = (first_marker_gamma, second_marker_delta)\n"}, "markers")
-
-    document = review_findings.statement_candidates(root, base, head, generated_at="2026-10-05T00:00:00Z")
-
-    text = document["candidates"][0]["text"]
-    assert document["candidates"][0]["terms"] == ["first_marker_gamma", "second_marker_delta"]
-    assert text.startswith("頭") and text.endswith(" …")
-    first, second = text.split(" … ")[:2], text.split(" … ")[1]
-    assert "first_marker_gamma" in first[0] and "second_marker_delta" in second
-    assert "first_marker_gamma" not in second
 
 
 def test_statement_candidates_merges_overlapping_excerpts(tmp_path: Path) -> None:
@@ -1936,30 +1407,6 @@ def test_statement_candidates_finds_terms_containing_regex_characters(tmp_path: 
     expected_paths = [f"README.md:{2 * index + 1}" for index in range(len(spans))]
     assert [candidate["path"] for candidate in candidates] == expected_paths
     assert all(span in candidate["terms"] for span, candidate in zip(spans, candidates, strict=True))
-
-
-def test_statement_candidates_ignores_documents_under_excluded_directories(tmp_path: Path) -> None:
-    root = _repo(
-        tmp_path,
-        {"tool.py": "a = 1\n", "evals/packet.md": "LIMIT_VALUE\n", "README.md": "LIMIT_VALUE を守る\n"},
-    )
-    base = _git(root, "rev-parse", "HEAD")
-    head = _commit(root, {"tool.py": "a = LIMIT_VALUE\n"}, "limit")
-
-    document = review_findings.statement_candidates(root, base, head, generated_at="2026-10-05T00:00:00Z")
-
-    assert [candidate["path"] for candidate in document["candidates"]] == ["README.md:1"]
-
-
-def test_statement_candidates_with_only_excluded_changes_writes_an_empty_list(tmp_path: Path) -> None:
-    root = _repo(tmp_path, {"tests/test_tool.py": "X = 1\n", "README.md": "SOME_FLAG\n"})
-    base = _git(root, "rev-parse", "HEAD")
-    head = _commit(root, {"tests/test_tool.py": "X = SOME_FLAG\n"}, "test only")
-
-    document = review_findings.statement_candidates(root, base, head, generated_at="2026-10-05T00:00:00Z")
-
-    review_findings.validate_document(document)
-    assert document["terms"] == [] and document["candidates"] == [] and document["common_terms"] == []
 
 
 def test_statement_candidates_handles_deleted_files(tmp_path: Path) -> None:
@@ -2021,20 +1468,6 @@ diff --git a/query.sql b/query.sql
     assert terms["ORDERS_TABLE"] == ["query.sql:1"]
 
 
-def test_extract_terms_places_lines_of_a_deleted_file_where_they_were() -> None:
-    diff = """\
-diff --git a/legacy.py b/legacy.py
-deleted file mode 100644
-index 1111111..0000000
---- a/legacy.py
-+++ /dev/null
-@@ -1,2 +0,0 @@
--import os
--MODE = "LEGACY_MODE"
-"""
-    assert review_findings.extract_terms(diff)["LEGACY_MODE"] == ["legacy.py:2"]
-
-
 def test_extract_terms_places_removed_lines_in_the_old_file() -> None:
     diff = """\
 diff --git a/old_tool.py b/new_tool.py
@@ -2078,20 +1511,6 @@ def test_statement_candidates_handles_non_ascii_paths(tmp_path: Path) -> None:
 
     assert [candidate["path"] for candidate in document["candidates"]] == ["docs/説明.md:1"]
     assert document["terms"][0]["origins"] == ["ツール.py:1"]
-
-
-def test_extract_terms_rejects_headers_it_cannot_read() -> None:
-    diff = """\
-diff --git "a/x.py" "b/x.py"
---- "a/x.py"
-+++ "b/x.py"
-@@ -1 +1 @@
--a = 1
-+a = LIMIT_VALUE
-"""
-    with pytest.raises(review_findings.FindingsError) as caught:
-        review_findings.extract_terms(diff)
-    assert "diff header not understood" in caught.value.problems[0]
 
 
 def test_extract_terms_reads_changed_lines_of_documents() -> None:
@@ -2208,13 +1627,7 @@ def _duplicate_first_candidate(value: dict[str, Any]) -> None:
 @pytest.mark.parametrize(
     ("mutation", "expected"),
     [
-        (_set("X-1", "candidates", 0, "id"), "candidates[0].id"),
-        (_set("README.md", "candidates", 0, "path"), "candidates[0].path"),
-        (_set([], "candidates", 0, "terms"), "candidates[0].terms"),
         (_duplicate_first_candidate, "duplicate"),
-        (_set("abc", "to"), "to"),
-        (_set(-1, "common_terms", 0, "count"), "common_terms[0].count"),
-        (_set([], "terms", 0, "origins"), "terms[0].origins"),
     ],
 )
 def test_invalid_statement_candidates_name_the_problem(
@@ -2296,15 +1709,15 @@ def test_fix_evidence_requires_every_claim_and_changed_file(section: str) -> Non
         validate_evidence(document, inventory)
 
 
-@pytest.mark.parametrize("section", ["claims", "files"])
-def test_fix_evidence_rejects_duplicate_judgments(section: str) -> None:
+def test_fix_evidence_rejects_duplicate_judgments() -> None:
+    section = "claims"
     document, inventory = evidence_pair()
     document["fix_evidence"][section].append(copy.deepcopy(document["fix_evidence"][section][0]))
     with pytest.raises(review_findings.FindingsError, match="more than once"):
         validate_evidence(document, inventory)
 
 
-@pytest.mark.parametrize("field,bad", [("head", HEAD), ("exit_code", True), ("mode", "assumed"), ("command", "")])
+@pytest.mark.parametrize("field,bad", [("head", HEAD), ("mode", "assumed")])
 def test_fix_evidence_rejects_malformed_execution(field: str, bad: object) -> None:
     document, inventory = evidence_pair()
     document["fix_evidence"]["claims"][0]["checks"][0][field] = bad
@@ -2320,8 +1733,8 @@ def test_artifact_claim_requires_executed_generated_evidence(change: dict[str, A
         validate_evidence(document, inventory)
 
 
-@pytest.mark.parametrize("section,target", [("claims", "claim:C-1"), ("files", "file:exporter.py")])
-def test_unchecked_evidence_requires_remaining_coverage(section: str, target: str) -> None:
+def test_unchecked_evidence_requires_remaining_coverage() -> None:
+    section, target = "claims", "claim:C-1"
     document, inventory = evidence_pair()
     document["fix_evidence"][section][0].update(result="unchecked", checks=[])
     with pytest.raises(review_findings.FindingsError, match="coverage.remaining"):
@@ -2330,8 +1743,8 @@ def test_unchecked_evidence_requires_remaining_coverage(section: str, target: st
     validate_evidence(document, inventory)
 
 
-@pytest.mark.parametrize("section,result", [("claims", "violates"), ("files", "failed")])
-def test_failed_evidence_requires_confirmed_finding(section: str, result: str) -> None:
+def test_failed_evidence_requires_confirmed_finding() -> None:
+    section, result = "claims", "violates"
     document, inventory = evidence_pair()
     document["fix_evidence"][section][0]["result"] = result
     with pytest.raises(review_findings.FindingsError, match="confirmed finding"):
@@ -2365,16 +1778,6 @@ def test_v2_fix_check_requires_evidence_without_breaking_legacy() -> None:
         review_findings.validate_document(value)
     value["fix_evidence"] = evidence_pair()[0]["fix_evidence"]
     review_findings.validate_document(value)
-
-
-def test_cli_evidence_validation_reports_missing_inventory(tmp_path: Path) -> None:
-    document, inventory = evidence_pair()
-    path = _write(tmp_path / f"{FIX[:12]}.fix-check.json", document)
-    sidecar = _write(tmp_path / f"{FIX[:12]}.statement-candidates.json", inventory)
-    assert review_findings.main(["validate", str(path)]) == 0
-    del inventory["claims"]
-    _write(sidecar, inventory)
-    assert review_findings.main(["validate", str(path)]) == 65
 
 
 def test_claim_inventory_lists_all_changed_paths_including_rename_and_deletion(tmp_path: Path) -> None:

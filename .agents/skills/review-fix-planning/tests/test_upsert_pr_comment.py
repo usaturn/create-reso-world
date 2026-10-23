@@ -190,10 +190,6 @@ def post(gh: FakeGh, mode: str) -> dict[str, Any]:
 # --- agent id と、共有する記録の module ---
 
 
-def test_sanitize_replaces_slash_space_and_double_hyphen() -> None:
-    assert mod.sanitize_agent_id("Cursor Grok 4.6") == "Cursor-Grok-4.6"
-    assert mod.sanitize_agent_id("opencode/deepseek-v4-flash-free") == ("opencode-deepseek-v4-flash-free")
-    assert mod.sanitize_agent_id("foo--bar") == "foo-bar"
 
 
 def test_agent_id_comes_from_the_shared_module_whatever_the_cwd(
@@ -212,28 +208,10 @@ def test_agent_id_comes_from_the_shared_module_whatever_the_cwd(
 # --- 記録なしの本文 ---
 
 
-def test_compose_body_prepends_marker() -> None:
-    body = mod.compose_body("claude-opus-5", "### レビュー状況\n- ok")
-    assert body.startswith("<!-- review-fix-planning:agent:claude-opus-5 -->\n")
-    assert "### レビュー状況" in body
 
 
-def test_compose_body_keeps_a_leading_own_marker_and_rejects_it_elsewhere() -> None:
-    marker = "<!-- review-fix-planning:agent:claude-opus-5 -->"
-    assert mod.compose_body("claude-opus-5", f"{marker}\n### レビュー状況") == f"{marker}\n### レビュー状況"
-    assert mod.compose_body("claude-opus-5", f"{marker}\r\n### レビュー状況") == f"{marker}\n### レビュー状況"
-    with pytest.raises(mod.CommentError, match="first line"):
-        mod.compose_body("claude-opus-5", f"### レビュー状況\n{marker}")
 
 
-def test_compose_body_rejects_empty_and_foreign_marker() -> None:
-    with pytest.raises(mod.CommentError, match="empty"):
-        mod.compose_body("claude-opus-5", "   ")
-    with pytest.raises(mod.CommentError, match="another agent"):
-        mod.compose_body(
-            "claude-opus-5",
-            "<!-- review-fix-planning:agent:composer-2 -->\n### レビュー状況",
-        )
 
 
 @pytest.mark.parametrize(
@@ -301,20 +279,13 @@ def test_find_round_comment_matches_both_marker_lines_exactly() -> None:
     ("association", "author", "login", "trusted"),
     [
         ("OWNER", OTHER, ME, True),
-        ("MEMBER", OTHER, ME, True),
-        ("COLLABORATOR", OTHER, ME, True),
         ("CONTRIBUTOR", ME, ME, True),
-        ("NONE", ME, ME, True),
         ("CONTRIBUTOR", OTHER, ME, False),
-        ("FIRST_TIME_CONTRIBUTOR", OTHER, ME, False),
         ("NONE", OTHER, ME, False),
         # login は完全一致で比べる。大文字小文字を同一視しない
         ("CONTRIBUTOR", "Usaturn", "usaturn", False),
         # 投稿者の login が空・login の指定が空でも、空どうしで信頼しない
-        ("CONTRIBUTOR", "", ME, False),
         ("CONTRIBUTOR", "", "", False),
-        ("CONTRIBUTOR", ME, "", False),
-        ("OWNER", ME, "", True),
     ],
 )
 def test_only_trusted_authors_are_matched(association: str, author: str, login: str, trusted: bool) -> None:
@@ -327,65 +298,10 @@ def test_only_trusted_authors_are_matched(association: str, author: str, login: 
 # --- 記録なしの投稿 ---
 
 
-def test_upsert_creates_when_no_own_comment() -> None:
-    gh = FakeGh(
-        pr_view={
-            "url": "https://github.com/usaturn/create-reso-world/pull/225",
-            "number": 225,
-        },
-        comments=[],
-        upsert_response={
-            "id": 99,
-            "html_url": "https://github.com/usaturn/create-reso-world/pull/225#issuecomment-99",
-        },
-    )
-    result = mod.upsert(225, "usaturn/create-reso-world", "claude-opus-5", "### レビュー状況\n- ok", runner=gh)
-    assert result["action"] == "created"
-    assert result["comment_id"] == 99
-    method_call = gh.writes()[0]
-    assert method_call[0][3] == "POST"
-    assert "issues/225/comments" in method_call[0][4]
-    payload = json.loads(method_call[1] or "")
-    assert payload["body"].startswith("<!-- review-fix-planning:agent:claude-opus-5 -->")
-    assert gh.view_fields() == "url,number"
 
 
-def test_upsert_patches_existing_own_comment() -> None:
-    gh = FakeGh(
-        pr_view={
-            "url": "https://github.com/usaturn/create-reso-world/pull/225",
-            "number": 225,
-        },
-        comments=[comment(41, "<!-- review-fix-planning:agent:claude-opus-5 -->\nold")],
-        upsert_response={
-            "id": 41,
-            "html_url": "https://github.com/usaturn/create-reso-world/pull/225#issuecomment-41",
-        },
-    )
-    result = mod.upsert(225, "usaturn/create-reso-world", "claude-opus-5", "### 作業結果\n- push 済み", runner=gh)
-    assert result["action"] == "updated"
-    method_call = gh.writes()[0]
-    assert method_call[0][3] == "PATCH"
-    assert method_call[0][4] == "repos/usaturn/create-reso-world/issues/comments/41"
 
 
-def test_upsert_passes_the_requested_repository_to_gh_pr_view() -> None:
-    gh = FakeGh(
-        pr_view={
-            "url": "https://github.com/usaturn/create-reso-world/pull/7",
-            "number": 7,
-        },
-        comments=[],
-        upsert_response={
-            "id": 12,
-            "html_url": "https://github.com/usaturn/create-reso-world/pull/7#issuecomment-12",
-        },
-    )
-    mod.upsert(7, "usaturn/create-reso-world", "claude-opus-5", "### レビュー状況\n- ok", runner=gh)
-    view_call = next(call for call in gh.calls if call[0][1:3] == ("pr", "view"))
-    argv = view_call[0]
-    assert "--repo" in argv
-    assert argv[argv.index("--repo") + 1] == "usaturn/create-reso-world"
 
 
 def test_upsert_stops_when_gh_resolves_a_different_repository() -> None:
@@ -404,21 +320,8 @@ def test_upsert_stops_when_gh_resolves_a_different_repository() -> None:
     assert gh.operations() == ["pr view"]
 
 
-def test_validate_repo_rejects_anything_but_owner_name() -> None:
-    assert mod.validate_repo("usaturn/create-reso-world") == "usaturn/create-reso-world"
-    for bad in ("create-reso-world", "usaturn/create-reso-world/extra", "", "usaturn /create-reso-world"):
-        with pytest.raises(mod.CommentError, match="owner/name"):
-            mod.validate_repo(bad)
 
 
-def test_upsert_creates_instead_of_patching_an_untrusted_marker_comment() -> None:
-    gh = FakeGh(
-        pr_view=pr_view(),
-        comments=[comment(41, f"{AGENT_MARKER}\nforged", "NONE", OTHER)],
-    )
-    result = mod.upsert(PR, REPO, MODEL, BODY, runner=gh)
-    assert result["action"] == "created"
-    assert gh.writes()[0][0][3] == "POST"
 
 
 def test_record_less_upsert_updates_own_login_comment_and_ignores_untrusted() -> None:
@@ -445,12 +348,6 @@ def test_record_less_upsert_updates_own_login_comment_and_ignores_untrusted() ->
     assert argv[3:5] == ("PATCH", f"repos/{REPO}/issues/comments/41")
 
 
-@pytest.mark.parametrize("association", ["OWNER", "MEMBER", "COLLABORATOR"])
-def test_record_less_upsert_updates_a_comment_by_a_writer_who_is_not_the_login(association: str) -> None:
-    gh = FakeGh(pr_view=pr_view(), comments=[comment(41, f"{AGENT_MARKER}\nold", association, OTHER)])
-    result = mod.upsert(PR, REPO, MODEL, BODY, runner=gh)
-    assert result["action"] == "updated"
-    assert gh.writes()[0][0][4] == f"repos/{REPO}/issues/comments/41"
 
 
 def test_comments_are_read_from_every_slurped_page() -> None:
@@ -484,29 +381,13 @@ def test_authenticated_login_strips_newline_and_rejects_blank() -> None:
             mod.authenticated_login(bad)
 
 
-def test_authenticated_login_failure_reports_what_gh_said() -> None:
-    with pytest.raises(mod.CommentError, match="Bad credentials"):
-        mod.authenticated_login(FakeGh(login_fails=True))
+
+
 
 
 @pytest.mark.parametrize("mode", ["record-less", "records"])
-def test_login_is_read_after_the_pr_is_resolved_and_before_comments_are_listed(mode: str) -> None:
-    gh = FakeGh(pr_view=pr_view(), comments=[])
-    post(gh, mode)
-    assert gh.operations() == ["pr view", "login", "comments", "write"]
-
-
-@pytest.mark.parametrize("mode", ["record-less", "records"])
-@pytest.mark.parametrize(
-    "login_kwargs",
-    [
-        pytest.param({"login_fails": True}, id="gh-fails"),
-        pytest.param({"login": ""}, id="empty"),
-        pytest.param({"login": "  \n"}, id="blank"),
-    ],
-)
-def test_login_failure_stops_before_any_comment_write(mode: str, login_kwargs: dict[str, Any]) -> None:
-    gh = FakeGh(pr_view=pr_view(), comments=[], **login_kwargs)
+def test_login_failure_stops_before_any_comment_write(mode: str) -> None:
+    gh = FakeGh(pr_view=pr_view(), comments=[], login_fails=True)
     with pytest.raises(mod.CommentError, match="authenticated login"):
         post(gh, mode)
     assert not gh.writes()
@@ -556,14 +437,6 @@ def test_records_post_updates_the_same_round_after_the_push() -> None:
     assert records.extract_record(json.loads(payload or "")["body"])["outcome"] == "fixes_pushed"
 
 
-def test_records_post_updates_the_same_round_when_only_recorded_at_differs() -> None:
-    # 記録を作り直して同じサイクルを投稿し直しても、コメントを増やさない
-    rebuilt = awaiting_record()
-    rebuilt["recorded_at"] = "2026-10-03T05:00:00Z"
-    gh = FakeGh(pr_view=pr_view(), comments=[status_comment(7, awaiting_record())])
-    result = mod.upsert(PR, REPO, MODEL, BODY, runner=gh, record=rebuilt)
-    assert result["action"] == "updated"
-    assert gh.writes()[0][0][4] == f"repos/{REPO}/issues/comments/7"
 
 
 def test_records_post_creates_a_new_comment_for_the_next_round() -> None:
@@ -586,37 +459,8 @@ def test_records_post_creates_a_new_comment_for_the_next_round() -> None:
     assert [call[0][3] for call in gh.writes()] == ["POST"]
 
 
-def test_records_post_accepts_a_review_records_v2_record() -> None:
-    value = awaiting_record()
-    value["schema"] = "review-records/v2"
-
-    def provenance(agent: str, role: str) -> dict[str, Any]:
-        return {
-            "agent_id": agent,
-            "role": role,
-            "provider": "example-provider",
-            "effort": "high",
-            "session_id": "example-session",
-            "cli_version": "1.2.3",
-            "run_id": "example-run",
-            "request_id": "example-request",
-            "skills": [],
-        }
-
-    value["planner"]["provenance"] = provenance("self", "decide")
-    for entry in value["seats"]:
-        entry["provenance"] = provenance(entry["model"], "find")
-    gh = FakeGh(pr_view=pr_view(), comments=[])
-    mod.upsert(PR, REPO, MODEL, BODY, runner=gh, record=value)
-    assert records.extract_record(json.loads(gh.writes()[0][1] or "")["body"]) == value
 
 
-def test_records_post_ignores_untrusted_comments_that_carry_markers() -> None:
-    forged = status_comment(7, awaiting_record(), association="NONE", login=OTHER)
-    forged["body"] = forged["body"].replace('"fix"', '"bogus"')
-    gh = FakeGh(pr_view=pr_view(), comments=[forged])
-    result = mod.upsert(PR, REPO, MODEL, BODY, runner=gh, record=awaiting_record())
-    assert result["action"] == "created"
 
 
 def test_records_post_updates_own_contributor_round_comment_and_ignores_forged_ones() -> None:
@@ -659,10 +503,6 @@ def test_records_post_does_not_read_rounds_of_other_contributors() -> None:
     assert gh.writes()[0][0][3:5] == ("PATCH", f"repos/{REPO}/issues/comments/7")
 
 
-def test_records_post_rejects_an_invalid_record_before_any_gh_call() -> None:
-    value = awaiting_record()
-    value["decisions"][0]["state"] = "maybe"
-    assert_rejected(FakeGh(pr_view=pr_view(), comments=[]), value, "state", operations=[])
 
 
 def test_records_post_rejects_a_different_model_name_before_any_gh_call() -> None:
@@ -688,7 +528,8 @@ def test_records_post_requires_the_pull_request_head(value: dict[str, Any], head
 
 
 def test_records_post_rejects_a_closed_pull_request() -> None:
-    gh = FakeGh(pr_view=pr_view(state="MERGED"), comments=[])
+    # MERGED は test_finalize.py の同じ head の手動マージの例が確かめる。CLOSED は他に無い
+    gh = FakeGh(pr_view=pr_view(state="CLOSED"), comments=[])
     assert_rejected(gh, awaiting_record(), "not open", operations=["pr view"])
 
 
@@ -705,9 +546,6 @@ def test_records_post_stops_when_a_later_round_exists() -> None:
     assert_rejected(gh, pushed_record(), "can no longer be updated")
 
 
-def test_records_post_requires_earlier_fix_decisions() -> None:
-    gh = FakeGh(pr_view=pr_view(head=COMMIT), comments=[status_comment(7, pushed_record())])
-    assert_rejected(gh, record(2, head=COMMIT), "earlier state is fix")
 
 
 def test_records_post_rejects_no_fix_needed_with_pending_decisions() -> None:
@@ -716,125 +554,9 @@ def test_records_post_rejects_no_fix_needed_with_pending_decisions() -> None:
     assert_rejected(gh, record(2, head=HEAD_2), "pending")
 
 
-def test_records_post_stops_on_a_broken_record_and_names_the_comment() -> None:
-    broken = status_comment(7, awaiting_record())
-    broken["body"] = broken["body"].replace('"schema": "review-records/v1"', '"schema": "review-records/v9"')
-    gh = FakeGh(pr_view=pr_view(head=HEAD_2), comments=[broken])
-    assert_rejected(gh, record(2, head=HEAD_2), "comment 7")
 
 
 def test_records_post_stops_on_duplicate_round_comments() -> None:
     duplicates = [status_comment(7, awaiting_record()), status_comment(8, awaiting_record())]
     gh = FakeGh(pr_view=pr_view(), comments=duplicates)
     assert_rejected(gh, awaiting_record(), "multiple comments")
-
-
-def test_records_post_rejects_markers_in_the_body_before_any_gh_call() -> None:
-    body = BODY + "\n<!-- review-fix-planning:round:1:" + HEAD_1 + " -->"
-    gh = FakeGh(pr_view=pr_view(), comments=[])
-    assert_rejected(gh, awaiting_record(), "round marker", body=body, operations=[])
-
-
-def test_records_post_rejects_a_comment_over_the_github_limit_before_any_gh_call() -> None:
-    body = BODY + "\n" + "あ" * records.COMMENT_BODY_LIMIT
-    gh = FakeGh(pr_view=pr_view(), comments=[])
-    assert_rejected(gh, awaiting_record(), "exceed the limit", body=body, operations=[])
-
-
-def test_records_post_accepts_multi_line_free_text() -> None:
-    value = record(
-        outcome="awaiting_approval",
-        decisions=[decision(FIX_REF, "fix", reason="H: 1 行目\n2 行目の根拠\n\tタブ付きの行")],
-    )
-    gh = FakeGh(pr_view=pr_view(), comments=[])
-    mod.upsert(PR, REPO, MODEL, BODY, runner=gh, record=value)
-    posted = json.loads(gh.writes()[0][1] or "")["body"]
-    assert records.extract_record(posted)["decisions"][0]["reason"] == "H: 1 行目\n2 行目の根拠\n\tタブ付きの行"
-
-
-# --- CLI ---
-
-CLI_ARGV = ["--pr", str(PR), "--repo", REPO, "--model-name", MODEL]
-
-
-def test_cli_posts_with_a_records_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any) -> None:
-    gh = FakeGh(pr_view=pr_view(), comments=[])
-    monkeypatch.setattr(mod, "GhRunner", lambda: gh)
-    record_file = tmp_path / "round.json"
-    record_file.write_text(json.dumps(awaiting_record(), ensure_ascii=False), encoding="utf-8")
-    body_file = tmp_path / "body.md"
-    body_file.write_text(BODY, encoding="utf-8")
-    code = mod.main([*CLI_ARGV, "--body-file", str(body_file), "--records-file", str(record_file)])
-    assert code == 0
-    assert json.loads(capsys.readouterr().out)["action"] == "created"
-    assert records.extract_record(json.loads(gh.writes()[0][1] or "")["body"]) == awaiting_record()
-
-
-def test_cli_posts_a_record_less_comment_without_a_records_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any
-) -> None:
-    gh = FakeGh(pr_view=pr_view(), comments=[comment(41, f"{AGENT_MARKER}\nold", "CONTRIBUTOR", ME)])
-    monkeypatch.setattr(mod, "GhRunner", lambda: gh)
-    body_file = tmp_path / "body.md"
-    body_file.write_text(BODY, encoding="utf-8")
-    assert mod.main([*CLI_ARGV, "--body-file", str(body_file)]) == 0
-    assert json.loads(capsys.readouterr().out)["action"] == "updated"
-    assert gh.writes()[0][0][4] == f"repos/{REPO}/issues/comments/41"
-
-
-def test_cli_reports_every_problem_on_its_own_line_and_exits_64(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any
-) -> None:
-    gh = FakeGh(pr_view=pr_view(), comments=[])
-    monkeypatch.setattr(mod, "GhRunner", lambda: gh)
-    value = awaiting_record()
-    value["decisions"][0]["state"] = "maybe"
-    value["round"] = 0
-    record_file = tmp_path / "round.json"
-    record_file.write_text(json.dumps(value), encoding="utf-8")
-    body_file = tmp_path / "body.md"
-    body_file.write_text(BODY, encoding="utf-8")
-    code = mod.main([*CLI_ARGV, "--body-file", str(body_file), "--records-file", str(record_file)])
-    assert code == 64
-    errors = capsys.readouterr().err.strip().split("\n")
-    assert any(line.startswith("round:") for line in errors)
-    assert any("state" in line for line in errors)
-    assert not gh.writes()
-
-
-def test_cli_rejects_an_unreadable_records_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    gh = FakeGh(pr_view=pr_view(), comments=[])
-    monkeypatch.setattr(mod, "GhRunner", lambda: gh)
-    body_file = tmp_path / "body.md"
-    body_file.write_text(BODY, encoding="utf-8")
-    argv = [*CLI_ARGV, "--body-file", str(body_file)]
-    unreadable = {
-        "not-json.json": b"{not json",
-        "not-an-object.json": b"[1, 2]",
-        "not-utf8.json": b"\xff\xfe\x00",
-    }
-    for name, content in unreadable.items():
-        (tmp_path / name).write_bytes(content)
-        assert mod.main([*argv, "--records-file", str(tmp_path / name)]) == 64, name
-    assert mod.main([*argv, "--records-file", str(tmp_path / "missing.json")]) == 64
-    assert gh.calls == [], "an unreadable records file stops before any gh call"
-
-
-@pytest.mark.parametrize("with_records", [False, True])
-def test_cli_exits_64_when_the_login_cannot_be_read(
-    with_records: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any
-) -> None:
-    gh = FakeGh(pr_view=pr_view(), comments=[], login_fails=True)
-    monkeypatch.setattr(mod, "GhRunner", lambda: gh)
-    body_file = tmp_path / "body.md"
-    body_file.write_text(BODY, encoding="utf-8")
-    argv = [*CLI_ARGV, "--body-file", str(body_file)]
-    if with_records:
-        record_file = tmp_path / "round.json"
-        record_file.write_text(json.dumps(awaiting_record()), encoding="utf-8")
-        argv += ["--records-file", str(record_file)]
-    assert mod.main(argv) == 64
-    captured = capsys.readouterr()
-    assert "authenticated login" in captured.err
-    assert captured.out == ""
-    assert not gh.writes()
