@@ -1709,7 +1709,7 @@ CAUSE_PATTERNS: tuple[tuple[Cause, re.Pattern[str]], ...] = tuple(
                 r"connection[ _-]?(?:reset|refused|closed|aborted|error|lost|failed)|connect[ _-]?error"
                 r"|\bECONN(?:RESET|REFUSED|ABORTED)\b|\bENOTFOUND\b|\bEAI_AGAIN\b|\bE(?:HOST|NET)UNREACH\b|\bEPIPE\b"
                 r"|broken pipe|remote ?disconnected|socket hang ?up|fetch failed|network (?:error|(?:is )?unreachable)"
-                r"|\b(?:ssl|tls)[ _-]?(?:error|handshake|alert)|certificate verify failed|getaddrinfo|name resolution"
+                r"|\b(?:ssl|tls)[ _-]?(?:error|hand(?:shake)|alert)|certificate verify failed|getaddrinfo|name resolution"
                 r"|bad gateway|service unavailable|\boverloaded|internal server error"
                 r"|" + _STATUS + r"5(?:00|02|03|29)\b",
             ),
