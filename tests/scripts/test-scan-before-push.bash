@@ -149,10 +149,19 @@ scan
 expect_leak 'a token when the base has no .gitleaks.toml and the working tree has a permissive one'
 grep -q 'default rules' "$tmp/stderr" || { show; fail 'did not say that the default rules were used'; }
 
-# F∩S: リポジトリの .gitleaks.toml の除外は、下で境界を確かめる 3 つの allowlist だけにする。4 つ目を足すと
-# （例: settings.py を path で除外する）、下の確認はどれも通ったまま、足した除外が秘密情報を通す
-allowlists="$(uv run --no-project python -c 'import sys, tomllib; print(len(tomllib.load(open(sys.argv[1], "rb")).get("allowlists", [])))' "$root/.gitleaks.toml")"
-[ "$allowlists" = 3 ] || fail ".gitleaks.toml must keep exactly the three allowlists checked below, not $allowlists"
+# F∩S: リポジトリの .gitleaks.toml は、既定の規則と、下で境界を確かめる generic-api-key の 3 つの allowlist
+# （正規表現を 1 つだけ持つ）だけにする。allowlist を足す・入れ替える（例: settings.py を path で除外する）、既にある
+# allowlist に正規表現や paths を足す、規則を書き換えると、下の確認はどれも通ったまま、その除外が秘密情報を通す
+uv run --no-project python - "$root/.gitleaks.toml" <<'PY' || fail '.gitleaks.toml has exclusions other than the three allowlists checked below'
+import sys, tomllib
+config = tomllib.load(open(sys.argv[1], "rb"))
+shapes = sorted((sorted(a), a.get("targetRules"), a.get("regexTarget"), len(a.get("regexes", [])))
+                for a in config.get("allowlists", []))
+keys = ["description", "regexTarget", "regexes", "targetRules"]
+want = [(keys, ["generic-api-key"], target, 1) for target in ("match", "secret", "secret")]
+if sorted(config) != ["allowlists", "extend"] or config["extend"] != {"useDefault": True} or shapes != want:
+    sys.exit(f"unexpected configuration: {sorted(config)} {config.get('extend')} {shapes}")
+PY
 
 # リポジトリの .gitleaks.toml を base にしても、無作為な値は検出する。resoloop の識別子の除外（#135）に、
 # 識別子の前後や区切りを付けた無作為な値が紛れない。値は実行時に作る（英字の大小と数字が入り混じる）
