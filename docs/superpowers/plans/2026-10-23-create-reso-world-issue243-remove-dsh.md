@@ -45,7 +45,7 @@
 - [ ] DSH runtime と adapter・専用モジュールを削除し、個人設定の旧 runtime に専用の安全な設定エラーを返す。
 - [ ] `confined_writes` と限定監査、DSH 専用の書き込み先・receipt 処理を削除する。`require_auditable_workflow` と runner は全登録を監査する。
 - [ ] DSH 専用テストと fixture を削除し、共通の安全性テストは全登録監査の現行仕様に合わせて整理する。新規の廃止確認テストは書かない。
-- [ ] `uv run pytest tools/agent_runner .agents/skills/issue-to-pr/tests .agents/skills/review-verify/tests`、`uv run ruff check`、一時設定で正常・旧 runtime の読み込みを確認する。
+- [ ] `uv run pytest tools/agent_runner .agents/skills/issue-to-pr/tests .agents/skills/review-verify/tests`、`uvx ruff check`、一時設定で正常・旧 runtime の読み込みを確認する。
 
 **テスト要否:** 新規テストは不要。廃止の有無を照合するテストは F または L であり利用者も禁止した。既存の安全性テストは全登録監査という S の守りを維持する。
 
@@ -56,7 +56,7 @@
 - [ ] `prepare-parent`・`finalize-parent`、DSH session identity、staged 親保存の CLI と呼出しを削除する。
 - [ ] 親入力 bundle と private clone の専用経路を、通常 checkout の保存・cleanup を残しつつ削除する。
 - [ ] DSH 専用テストを削除し、共有の HEAD・保存・cleanup テストを維持する。現行スキルの説明を更新する。
-- [ ] `uv run pytest .agents/skills/pr-review/tests` と `uv run ruff check .agents/skills/pr-review/scripts` を実行する。
+- [ ] `uv run pytest .agents/skills/pr-review/tests` と `uvx ruff check .agents/skills/pr-review/scripts` を実行する。
 
 **テスト要否:** 新規テストは不要。削除の固定値テストは F。残す安全性テストは誤った HEAD・保存先・cleanup による S の損害を防ぐ。
 
@@ -67,7 +67,7 @@
 - [ ] DSH の親側準備・プロンプト・書き込み例外・成果照合・診断分類を削除し、通常レビュアーの経路を維持する。
 - [ ] `run_roles.py` とループの DSH 拒否を削除し、Codex の拒否を維持する。設定・記録の説明を更新する。
 - [ ] DSH 専用の既存テストを削除し、一般の protocol・安全性テストを残す。
-- [ ] `uv run pytest .agents/skills/pr-review-fix-loop/tests .agents/skills/review-fix-planning/tests` と `uv run ruff check` を実行する。
+- [ ] `uv run pytest .agents/skills/pr-review-fix-loop/tests .agents/skills/review-fix-planning/tests` と `uvx ruff check` を実行する。
 
 **テスト要否:** 新規テストは不要。専用経路の撤去は静的検査と実ループで確認する。既存の Codex 拒否と成果照合の安全性テストは維持する。
 
