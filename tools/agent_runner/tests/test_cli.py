@@ -344,6 +344,19 @@ def test_after_run_internal_error_is_reported_without_changing_the_exit_code(
     assert (report["state"], report["exit_code"], report["stop_confirmed"]) == ("response_failed", None, False)
 
 
+def test_after_run_is_not_started_after_an_interrupted_run(tmp_path: Path) -> None:
+    cancel = threading.Event()
+    cancel.set()
+    marker = tmp_path / "hook.json"
+    reports = hooks.run_after_run(
+        [[sys.executable, "-c", _HOOK, "{result}", str(marker), "0"]],
+        result_path=tmp_path / "result.json",
+        cwd=tmp_path,
+        cancel=cancel,
+    )
+    assert reports[0]["state"] == "interrupted" and not marker.exists()
+
+
 # --- write_exceptions（agent-workspace#656） --------------------------------------------------------------------------------
 
 _BODY = "review the change"

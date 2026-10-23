@@ -51,14 +51,14 @@ Issue の「検証」の計測のコマンド（`uv run --locked pytest --collec
 
 | 指標 | 前（`7a8e4b7`） | 後（PR #247 のサイクル 1 の修正の後） | 比 |
 | --- | --- | --- | --- |
-| 件数（pytest の収集数） | 1,064 | 370 | 34.8% |
-| 行数（`tools/agent_runner/tests` の追跡ファイル） | 10,404 | 7,158 | 68.8% |
+| 件数（pytest の収集数） | 1,064 | 371 | 34.9% |
+| 行数（`tools/agent_runner/tests` の追跡ファイル） | 10,404 | 7,171 | 68.9% |
 | ファイル数 | 34 | 29 | — |
 
-- 残す 370 件の内訳: 棚卸しで残す 347 件（S・F∩S・迷い）、監査で戻した 16 件（D-230-4。縮めた木での確認で、変異を検出しないと分かった 3 件の戻しは取り消した）、fixture の起動の経路だけが違うので一緒に残す 2 件（D-230-10）、PR #247 のサイクル 1 のレビュー修正で戻した 5 件（D-230-14）
+- 残す 371 件の内訳: 棚卸しで残す 347 件（S・F∩S・迷い）、監査で戻した 16 件（D-230-4。縮めた木での確認で、変異を検出しないと分かった 3 件の戻しは取り消した）、fixture の起動の経路だけが違うので一緒に残す 2 件（D-230-10）、PR #247 のサイクル 1 のレビュー修正で戻した 6 件（D-230-14）
 - PR の作成の時点（`c13ea67`）は 365 件・7,125 行（34.3%・68.5%）だった
 - Issue の「手がかり」の基準値（`5a6b096`、1,058 件・10,351 行）は、その後の main で 6 件・53 行増えていた。比は `7a8e4b7` を基準にした
-- 件数は #228 の目標の 1/3 にほぼ届く（34.8%）が、行数は 68.8% で届かない。残る行は、実際のプロセス・git・bubblewrap を動かす S の長いシナリオと、その準備の fixture である（決定 6 のとおり `integration` の一覧で扱う）
+- 件数は #228 の目標の 1/3 にほぼ届く（34.9%）が、行数は 68.9% で届かない。残る行は、実際のプロセス・git・bubblewrap を動かす S の長いシナリオと、その準備の fixture である（決定 6 のとおり `integration` の一覧で扱う）
 
 ## 決定記録
 
@@ -79,7 +79,7 @@ Issue の「検証」の計測のコマンド（`uv run --locked pytest --collec
 | D-230-11 | 行数のための fixture の共通化（git の repository の写し、Devin の export のよく似たテスト）はこの子では行わず、#236 に申し送る | この子で共通化する | #228 の決定 6（子は基準に当てはまるテストを消すだけ）。共通化は残す S のテストの準備を変える | #228 の決定 6 |
 | D-230-12 | 監査の走査は 3 回方法を変えた（記録は ledger）: (1) 基準の順の事前の走査が遅いので、速い順・完了順の書き込みにした、(2) 安全のため PID 名前空間に変えた（D-230-5）、(3) 止まるテストに 1 件 30 秒の上限（SIGALRM。止まったテストが検出したと数える）を付けた | 同じ方法で続ける | 予算（`.agents/execution-budget.md` の方法変更）。(3) は変異なしの全件の実行で誤検出が無いことを確かめた | 実行予算 |
 | D-230-13 | 実行予算の 100% では止まって報告する。延長は、利用者（司令塔は 10:12Z に終了し、このペインは利用者が管理する）の指示がある場合の 1 回だけとし、そのときはこの表に記録する | 自分で延長する | D-230-U7 | D-230-U7 |
-| D-230-14 | PR #247 のサイクル 1 のレビュー（gpt-6.1-sol の M-1・M-2）を受けて 5 件を戻す。(1) 中断の分類（`test_abort_maps_to_interrupted`）と、同じ「担当が報告した中断は fallback を始めない」性質に頼る 2 つの経路（`dsh_identity.py:57-58` の v4 のログが無いときの分類の保持: `test_missing_identity_preserves_known_failure` の MISSING_CREDENTIAL のケース、`runner.py:557` の保持物があるときの success だけの置き換え: `test_nonregular_receipt_is_rejected_before_adapter_reads_it` と `FifoAdapter`）。(2) 厳密な判定の緩和（`runner.py:290` の `is True`: `[returns-false]`、`dsh.py:140` の `truncated` の `is True`: `test_invalid_intermediate_event_is_not_ignored` の tool_call のケース） | 指摘の 2 件だけを戻す | 原因が 2 つあり、同じ原因に頼る経路を同じ PR で直す（review-fix-planning の「守る条件と影響経路」）。(1) lost の判定で「失敗の種類だけが変わる」を L とした判定が、その種類が `runner.py:604` の fallback の続行・停止を決める場合を見落とした。L の判定の理由を全て読み直し、停止の状態（interrupted）を続行の状態に変える変異を拾った。(2) 変異の演算子に値の緩和が無かった。比較の緩和・状態の差し替えの 191 個を足して流した（「サイクル 1 のレビューを受けた確認」） | 実行許可（`--merge` の PR 修正ループ）の中の review-fix-planning の完遂 |
+| D-230-14 | PR #247 のサイクル 1 のレビュー（gpt-6.1-sol の M-1・M-2）と修正後の自己レビュー（L-2）を受けて 6 件を戻す。(1) 中断の分類（`test_abort_maps_to_interrupted`）と、同じ「担当が報告した中断は fallback を始めない」性質に頼る 2 つの経路（`dsh_identity.py:57-58` の v4 のログが無いときの分類の保持: `test_missing_identity_preserves_known_failure` の MISSING_CREDENTIAL のケース、`runner.py:557` の保持物があるときの success だけの置き換え: `test_nonregular_receipt_is_rejected_before_adapter_reads_it` と `FifoAdapter`）。(2) 厳密な判定の緩和（`runner.py:290` の `is True`: `[returns-false]`、`dsh.py:140` の `truncated` の `is True`: `test_invalid_intermediate_event_is_not_ignored` の tool_call のケース）。(3) D の代表が別の層にあり、消したテストの守りを通らない（自己レビューの L-2: `hooks.py:49-56` が後処理に run の cancel を渡す守りの `test_after_run_is_not_started_after_an_interrupted_run`） | 指摘の 2 件だけを戻す | 原因が 2 つあり、同じ原因に頼る経路を同じ PR で直す（review-fix-planning の「守る条件と影響経路」）。(1) lost の判定で「失敗の種類だけが変わる」を L とした判定が、その種類が `runner.py:604` の fallback の続行・停止を決める場合を見落とした。L の判定の理由を全て読み直し、停止の状態（interrupted）を続行の状態に変える変異を拾った。(2) 変異の演算子に値の緩和が無かった。比較の緩和・状態の差し替えの 191 個を足して流した。(3) の形（受け渡しの引数の差し替え）は、停止の event・期限・環境・cwd・伏せ字・パスの安全を運ぶキーワード引数の値の差し替え 57 個を足して流した（「サイクル 1 のレビューを受けた確認」） | 実行許可（`--merge` の PR 修正ループ）の中の review-fix-planning の完遂 |
 
 ## 変異の監査（利用者の決定の 2 つ目）
 
@@ -107,7 +107,7 @@ Issue の「検証」の計測のコマンド（`uv run --locked pytest --collec
 | 生成 | 3,421 | 除外 405（`__all__` の要素 18、`else` の無い `if` の文の削除 387） |
 | 事前の走査（基準のテストを速い順） | 1,315 | 基準が検出 975、検出しない 283、通るテスト無し 57。このうち 2 個（m00019・m00030）は、最初の走査の後に除いた `else` の無い `if` の文の削除。本走査では、実行する 3,016 個のうち検出しない 282 個と通るテスト無し 57 個の計 339 個を除いた |
 | 本走査（残す → 消す） | 2,677 | 残すテストが検出 1,931（止まった 3 を含む）、lost 252（止まった 1 を含む）、基準も検出しない 457、通るテスト無し 36、止まったときに走っていたテストが残す側の異常終了 1（m01678）。縮めた木での確認で、残すテストの検出のうち 2 個（m00046・m02596）は誤りで lost と分かった |
-| lost の判定 | 254 | S 18・迷い 9（どちらも検出していた消す側のテストを戻した。戻したテストは 16 件）、L 221、撤去 3（`runtime_supported`）、縮めた木での確認で lost ではないと分かったもの 3（基準も検出しない 2、残すテストが検出 1） |
+| lost の判定 | 254 | S 18・迷い 9（どちらも検出していた消す側のテストを戻した。戻したテストは 16 件）、L 221（PR #247 のサイクル 1 で 7 個を S・1 個を迷いに改めた。D-230-14）、撤去 3（`runtime_supported`）、縮めた木での確認で lost ではないと分かったもの 3（基準も検出しない 2、残すテストが検出 1） |
 | 縮めた木での確認 | 1,962 | 下の「縮めた木での確認」 |
 
 lost の判定は、変異のある箇所ごとに controller と 3 つのサブエージェント（読むだけ。DSH 系、pi・cli・config 系、models・hooks・sandbox 系）が D-230-4 の原則で行い、controller が確かめた。pi 系の担当の指摘で、controller が L としていた `claude_code.py:75` の m00101 を S に直した（同じ経路の `pi.py:76` の m01301 と合わせた）。
@@ -145,11 +145,12 @@ lost の判定は、変異のある箇所ごとに controller と 3 つのサブ
 | adapters/cursor.py: _prompt（22 行）・_read_evidence（83・86・90・100 行）・_diagnostics（135・138 行）・collect（197・219 行） | m00659・m00663・m00664・m00665・m00679・m00668・m00692・m00705・m00706・m00722・m00721・m00744・m00655 | L | 22 行: JSON の形の指示の欠落は JSON 以外の回答の response_failed として見える。83〜100 行: dict でない read・result・success・readRange を読み進めると None.get の AttributeError で invalid_result（shell などの読み取り以外の tool_call が来るだけで失敗する）。90 行で error と success の両方がある読み取りを証拠… |  |
 | adapters/cursor.py: _prompt（23 行）・_read_evidence（84・87・91・101 行）・_diagnostics（142 行） | m00534・m00565・m00568・m00572・m00582・m00605 | L | 23 行: JSON の形の指示の欠落は、JSON 以外の回答の response_failed として見える。84〜101 行: 形の違う tool_call・read・result・path を読み進めると .get・fullmatch の AttributeError・TypeError で invalid_result になる。142 行: stdout の診断の行を外しても、失敗は errored と result の検査で決まり… |  |
 | adapters/devin.py: _ends_with（71 行）・_json_object（100 行）・最後の回答（156 行）・診断の行（244 行） | m00750・m00864・m00872・m00889 | L | 71 行: 回答を strip しないと、stdout の末尾との照合が外れて成功が response_failed になる（失敗を成功にはしない）。100 行: 空の object は runner の形の確認で invalid_result。156 行: message が None のとき .strip() の AttributeError で invalid_result。244 行: 全ての行を診断の行として扱うと… |  |
-| adapters/dsh.py: _classify の aborted（161・162 行） | m01127・m00954・m01223・m01224 | L | aborted の turn_end が interrupted ではなく、_diagnostic（dsh.py:163-164）の response_failed になるか、要素を外したタプル（(None,)・('interrupted',)）の分解の ValueError を dsh.py:348-349 が response_failed にする。どちらも失敗で payload は None。runner 自身の取り消しと期限は… |  |
+| adapters/dsh.py: _classify の aborted（161・162 行） | m01127・m00954・m01223・m01224 | S（PR #247 のサイクル 1 で L から改めた） | 中断が別の失敗の種類になると、`runner.py:604` が fallback の担当を起動して成功を返す。当初の判定は、PR #170 の既知の制限（応答の前のログで診断が上書きされる場合だけの話）を一般の中断に当てはめて L とした誤り（D-230-14） | `test_abort_maps_to_interrupted` |
 | adapters/dsh.py: _classify の completed の tool_result（151 行）・text の形（196・197 行） | m01122・m01079・m00985・m01139・m01140 | L | 成功が失敗になる向き。151 行: completed の tool の結果が拒否の文の形をしていると awaiting_approval になり（dsh.py:154-155）、正しい回答を捨てる。196・197 行: text の役割の回答を JSON として取り出し、JSON でなければ response_failed（dsh.py:198-199）… |  |
 | adapters/dsh.py: _classify の長さ・先頭・末尾の検査（165・166 行） | m01075・m01088・m00958 | L | 空の stream は dsh.py:165・167 の events[0] の IndexError が collect の except（dsh.py:348）を抜け、runner が invalid_result にする（runner.py:299-301）。それ以外の短い・先頭が session でない・末尾が final でない stream は… |  |
 | adapters/dsh.py: _diagnostic（113・114 行）・_classify の top-level の error（149・150 行）・collect の stderr の診断（350・352 行） | m01070・m00926・m01085・m00944・m01106・m01056 | L | 失敗の種類だけが変わる。113・114 行: _diagnostic が awaiting_approval を返さず response_failed になる。呼び出し元（dsh.py:150・164・352）はどれも既に失敗の経路で、tool の拒否は _diagnostic を通らず dsh.py:154-155 が awaiting_approval にする。149・150 行: top-level の error を先に分類しなくても… |  |
-| adapters/dsh.py: _intermediate_event_valid の step の turn・型（127 行）・tool_call の input（138 行） | m01112・m01113・m01167 | L | 損害が無い。受け付けるようになる形（今の turn と違う step、int でない step、input も truncated も無い tool_call）は、導入済みの DSH 0.2.1-rc.2 の投影では出ない（step は同じ session の turn・step をそのまま書く: json-stream:183・192-199・214-228。tool_call は常に input を書き… |  |
+| adapters/dsh.py: _intermediate_event_valid の step の turn・型（127 行）・tool_call の input（138 行） | m01112・m01113 | L | 損害が無い。受け付けるようになる形（今の turn と違う step、int でない step、（m01167 は下の行））は、導入済みの DSH 0.2.1-rc.2 の投影では出ない（step は同じ session の turn・step をそのまま書く: json-stream:183・192-199・214-228。tool_call は常に input を書き… |  |
+| adapters/dsh.py: _intermediate_event_valid の tool_call の input（138 行） | m01167 | 迷い（PR #247 のサイクル 1 で L から改めた） | input も truncated も無い tool_call を受け付ける。導入済みの DSH の投影では出ないが、同じ形を値の変異 v0070 でも見つけたので、不正な中間イベントを黙って受け入れる向きとして迷いにした（D-230-14） | `test_invalid_intermediate_event_is_not_ignored` の tool_call のケース |
 | adapters/dsh.py: _intermediate_event_valid の text・thinking（122・123 行）・step の代入（125 行）・truncated の tool_call（140 行） | m01072・m01109・m00932・m00934・m01216 | L | 成功が失敗になる向きで、普段の利用で現れる。122・123 行: DSH の投影は応答の reasoning・text を thinking・text のイベントにする（導入済みの dsh-headless の lib/json-stream-BA-F3lfb.js:203-212）ので… |  |
 | adapters/dsh.py: _json_payload（106 行） | m01164 | L | 空の object を payload として返しても、collect は success と {} の Receipt を返し、runner の形の確認（runner.py:279-285… |  |
 | adapters/dsh.py: collect の object でないイベント（344・345 行）と TypeError の捕捉（348 行） | m01205・m01051・m01209 | L | object でない行をイベントに入れると、_classify の event.get（dsh.py:149）の AttributeError が collect の except（dsh.py:348）を抜ける。TypeError を捕まえないと、dsh.py:345 の TypeError と… |  |
@@ -166,7 +167,7 @@ lost の判定は、変異のある箇所ごとに controller と 3 つのサブ
 | config.py: _validate_references（133・134・140・141 行） | m01877・m01809・m01872・m01879・m01880・m01815 | L | 133・134 行: 未定義の agent の拒否を外しても、config.py:135 の agent.model が None の AttributeError で止まる。CLI は cli.py:190-192 の runner_failed（終了コード 2）、呼び出し側のスクリプトは AttributeError を捕まえずにトレースバックで止まる（run_roles.py:507、implement_task.py:702… |  |
 | config.py: check_depth（56 行） | m01762 | L | 整数でない AGENT_RUNNER_DEPTH で raise を外しても、config.py:57 の if nested: で nested が未束縛の UnboundLocalError になる。CLI は cli.py:190-192 の runner_failed（終了コード 2）… |  |
 | config.py: validate_config（152・153 行） | m01842・m01821 | L | 未知の workflow を validate_config が通しても… |  |
-| dsh_identity.py: _read_session のログが無いとき（57・58 行） | m01951・m01901 | L | v4 のログが無いと FileNotFoundError ではなく len(paths) != 1 の ValueError（ambiguous）になり… |  |
+| dsh_identity.py: _read_session のログが無いとき（57・58 行） | m01951・m01901 | S（PR #247 のサイクル 1 で L から改めた） | v4 のログが無いと ValueError（ambiguous）になり、collect（dsh.py:369-372）が中断（interrupted）も response_failed に置き換えて、fallback の担当が起動する（変異を当てた写しで確かめた）。当初の判定は認証待ちの種類の違いだけを見た（D-230-14） | `test_missing_identity_preserves_known_failure` の MISSING_CREDENTIAL のケース |
 | dsh_identity.py: _read_session の改行の無い末尾（79・80 行） | m01972・m01920 | L | 棚卸しの理由（json.loads が止める）は誤りで、この 2 つは break を残すので、停止後のログでも改行の無い末尾を黙って捨て、完全な前半の記録から identity を返す。それでも損害は無い。DSH の JSONL の永続化は同じプロセスの worker_threads で動き… |  |
 | dsh_paths.py: _regular_bytes の通常ファイル・単一リンク・大きさ（52・53 行）・parent_review_read_paths の snapshot の形（118・125 行）と bundle の digest（130・131 行） | m02075・m02102・m02016・m02073・m02087・m02051・m02074・m02057 | L | 後段が同じ条件で必ず止める。DSH の review は、sandbox の中の helper の prepare（pr-review の review_run.py:329-330）・complete（787 行）と、停止の後の親の finalize（1191 行）が parent_data.load（pr_review_parent.py:112-158）で、単一リンクの通常ファイル（pr_review_parent.py:50）… |  |
 | dsh_paths.py: parent_review_read_paths の parent_pr_data の無い依頼文（100・101・102 行） | m02037・m02069・m02079・m02039 | L | json の fence があって parent_pr_data の無い依頼文で prepare が失敗し… |  |
@@ -189,7 +190,7 @@ lost の判定は、変異のある箇所ごとに controller と 3 つのサブ
 | process.py: _stop の stopped（137 行）・_command_outcome（164・165 行）・execute の変数の初期化と状態（346・349・400・419・432 行） | m02497・m02651・m02517・m02595・m02598・m02620・m02757・m02674 | L | 137 行: preserve のある停止の判定が常に偽になり、SIGTERM・SIGKILL の猶予を最後まで待つだけ（信号を送る対象は同じ観測した PID で、anchor は preserve で除かれる）。遅くなるだけで、止まらなければ目に見えて止まる。164・165 行: 不正な状態の行で matched が None のまま int(matched[1]) の TypeError になり… |  |
 | runner.py: _single_line の型（102 行）・adapter が返してよい状態の集合（253 行）・DSH の依頼文の例外（447 行） | m03043・m03130・m03131・m03104 | L | 102 行: 文字列でない write_exceptions の要素で value.strip() の AttributeError が run_workflow から出る（CLI は runner_failed の終了コード 2）。253 行: awaiting_authentication・awaiting_approval を許す状態から外すと… |  |
 | runner.py: adapter の読み込みの失敗（408 行）・DSH の所有の書き込みの例外（448 行） | m02922・m02943 | L | 408 行: adapter が未束縛のまま後の prepare の NameError を runner.py:495-496 が launch_failed にする（unsupported との区別だけ）。448 行: DSH の依頼文の書き込みの例外が呼び出し側のものになっても、柵（bubblewrap）は変わらず、担当が所有の領域に書けずに失敗する（成功が失敗になる向き） |  |
-| runner.py: 伏せ字にできない保持物の扱い（557 行、state == "success" を外す） | m03231 | L | sensitive_paths があると、成功だけでなく awaiting_authentication などの失敗も response_failed になる（成功を response_failed にするのは base と同じで、変わるのは失敗の種類だけ） |  |
+| runner.py: 伏せ字にできない保持物の扱い（557 行、state == "success" を外す） | m03231 | S（PR #247 のサイクル 1 で L から改めた） | sensitive_paths があると、担当が報告した中断も response_failed になり、fallback の担当が起動する（自己レビューの fix-check が実行で確かめた）。中断だけを置き換える変更は基準のテストも検出しない（申し送り）（D-230-14） | `test_nonregular_receipt_is_rejected_before_adapter_reads_it` |
 | runner.py: 準備の失敗の状態（433 行）・DSH の所有の書き込みの例外の要素（448 行） | m03199・m03201・m03202 | L | 433 行: 準備の timed_out・interrupted が response_failed になっても、次の候補の試行は期限（runner.py:397）・取り消し（runner.py:395）で同じ状態で終わり、失敗の種類と試行の記録が 1 つ増えるだけ。448 行: DSH の依頼文から所有の書き込みの例外の行を 1 つ外しても柵（bubblewrap）は変わらず、担当がその領域に書かずに失敗するか、書いて成功する（成果は柵の中だけ） |  |
 | workspace.py: _fingerprint のディレクトリの確認（151・152 行）・symlink の祖先の扱い（164〜174 行）・require_auditable_checkouts の事前の失敗（246 行） | m03367・m03288・m03298・m03300・m03397・m03304・m03307・m03345・m03388 | L | 151・152 行: ディレクトリでない checkout は、続く git -C の失敗で WorkspaceError（git_unavailable）になり、同じく監査できない checkout として記録される（理由の名前だけが変わる）。164〜174 行: symlink の祖先をたどると、外の referent の内容を指紋に入れるので、外の変化を checkout の変更（content_changed）として誤って報告するか… |  |
 
@@ -214,6 +215,10 @@ PR #247 のサイクル 1 で、gpt-6.1-sol が S の最後の代表を消した
   - 縮めた木: 39 個を検出し、144 個は検出せず、8 個は覆うテストが無い
   - 基準の木（縮めた木で検出しなかった 152 個）: 15 個を消すテストが検出し、137 個は基準も検出しない
   - 15 個のうち、v0083（`dsh.py:162`）と v0195（`runner.py:290`）は指摘の 2 件と同じ守り。v0070（`dsh.py:140`。input も truncated も無い tool_call を受け付ける）は不正な中間イベントを黙って受け入れる向きなので、迷いとして戻した。残りの 12 個は L: 失敗の状態を success にしても payload が null なので runner の形の確認（`runner.py:279-285`）で invalid_result になる（v0013・v0076・v0077・v0080・v0085）、`process.py:400・419` は runner の取り消しの確認と `runner.py:553-560` で失敗のままになる（v0172・v0170）、`cli.py:83-84` は `check`・`list` の表示だけを変える（v0117〜v0120）、`codex.py:226` は runner が常に PATH を含む環境を渡すので空の環境に届かない（v0025）
+- 代表が別の層にある D（修正後の自己レビューの L-2）: `test_after_run_is_not_started_after_an_interrupted_run` は D（代表 `test_process.py::test_already_cancelled_does_not_spawn`）として消していたが、代表は `process.execute` に取り消し済みの event を直接渡すだけで、`hooks.run_after_run` が後処理の `execute` に run の cancel を渡すこと（`hooks.py:49-56`）を通らない。cancel を新しい event に差し替えると、SIGINT で中断した run でも後処理が起動する（interfaces.rst「後処理」の保証が破れる）。同じ形（受け渡しの引数の差し替え）を、停止の event・期限・環境・cwd・伏せ字・パスの安全を運ぶキーワード引数（`cancel`・`deadline_seconds`・`timeout`・`env`・`cwd`・`dir_fd`・`secrets`・`preserve`・`required_paths`・`follow_symlinks`・`strict`・`check`・`stop_confirmed`）の値の差し替え 58 個（消すテストが覆う 57 個）で流した（`bin/gen_kwarg_ops.py`、縮めた木は修正の commit の木）
+  - 縮めた木: 39 個を検出し、18 個は検出しない
+  - 基準の木（18 個）: 2 個を消すテストが検出し、16 個は基準も検出しない。2 個のうち k0024（`hooks.py:49` の cancel）は S として `test_after_run_is_not_started_after_an_interrupted_run` を戻した。k0023（`hooks.py:49` の期限を 1e9）は、止まらない後処理で CLI が戻らず目に見えて止まるので L
+  - 基準も検出しない 16 個には、`hooks.py:49` の `secrets=()`（後処理のログを伏せ字にしない）、`runner.py:126` の `follow_symlinks=True`、`cli.py:144` の cancel（CLI から後処理への受け渡し）がある（#236 への申し送り）
 
 ## 撤去（#228 の決定 5）
 
@@ -268,20 +273,20 @@ Issue の受け入れ（守る処理を一時的に壊した使い捨てのコ�
 
 - 棚卸しの迷い（12 件）: `test_runner.py` の `test_unproven_capability_is_unsupported`、`adapters/dsh/test_adapter.py` の `test_unallowlisted_key_is_not_inherited`・`test_skill_source_is_used_in_stdin`、`adapters/dsh/test_identity.py` の `test_rejects_unbound_or_invalid_records` の symlink・directory_link（2 件）、`test_workspace.py` の `test_git_common_dir_of_a_linked_worktree_is_the_main_git_directory`、`test_checkout_policy.py` の `test_unproven_configuration_keeps_unavailable_registration_blocking[truthy]`、`test_config.py` の `test_self_cannot_be_mixed_or_used_as_fallback` の空の agents のケース、`adapters/cursor/test_cursor.py` の `test_prepare_read_only_role_allows_shell_without_cursor_sandbox`・`test_prepare_rejects_ambiguous_second_model_override`、`adapters/devin/test_adapter.py` の `test_export_error_fields_override_answer`（2 件。`_export_failure` を外しても結果が response_failed のままで、守りを検出しない。直すかは #236 で決める）
 - 監査の迷い（変異 9 個、戻したテスト 6 件。うち 1 件は S の m00671 と同じテスト）: 上の「lost の判定」の迷いの行（`cursor.py:155`、`skills.py:33-34`、`dsh.py:142`、`process.py:270`、`runner.py:367・457`）
-- PR #247 のサイクル 1 の迷い（2 件、D-230-14）: `test_review_regressions.py` の `test_nonregular_receipt_is_rejected_before_adapter_reads_it`（m03231）、`adapters/dsh/test_adapter.py` の `test_invalid_intermediate_event_is_not_ignored` の tool_call のケース（v0070）
+- PR #247 のサイクル 1 の迷い（1 件、D-230-14）: `adapters/dsh/test_adapter.py` の `test_invalid_intermediate_event_is_not_ignored` の tool_call のケース（v0070・m01167）
 
 ## 申し送り（`integration`（#236）へ）
 
-- 行数は 68.5% で 1/3 に届かない。行数のための fixture の共通化（git の repository の写し: `test_runner.py`・`test_review_regressions.py`・`adapters/*/conftest.py` など、Devin の export のよく似たテスト）はこの子では行っていない（D-230-11）
+- 行数は 68.9% で 1/3 に届かない。行数のための fixture の共通化（git の repository の写し: `test_runner.py`・`test_review_regressions.py`・`adapters/*/conftest.py` など、Devin の export のよく似たテスト）はこの子では行っていない（D-230-11）
 - `tools/agent_runner/tests/conftest.py` の `supervisor_bootstrap` が返す `configure(startup)` の `startup` は、消したテスト（`test_supervisor_rejects_unreadable_original_environment`）だけが使っていた。残すテストの型注釈（`Callable[[str], None]`）まで変わるので整理していない（D-230-10）
 - 重さが高の守りで、基準にも決定的なテストが無いもの: `process.py:77`（anchored の条件。数値の PGID を識別にしない。m02745 は基準のテストの全体でも検出しない）、`process.py:94`（子孫の探索。m02658 は、前のテストが残したプロセスで後のテストが失敗する形でしか検出しない）。`process.py:284`（終了時の stdin の close、m02574）も基準が検出しない
-- 基準のテストも検出しない変異が 457 個ある（守りの穴の候補。この子の範囲外。一覧は監査の記録 `res/main-v1.jsonl` の `survived`）。PR #247 のサイクル 1 で足した値の緩和・状態の差し替えでも 137 個（`c1/res/phaseB.jsonl` の `survived`）。うち `runner.py:604` の停止の集合から interrupted を外す変異（m03253）と `runner.py:555`（m03117・m03172・m03173）は、担当が報告した中断で fallback を始めないことを runner の層で確かめるテストが基準にも無いことを示す
+- 基準のテストも検出しない変異が 457 個ある（守りの穴の候補。この子の範囲外。一覧は監査の記録 `res/main-v1.jsonl` の `survived`）。PR #247 のサイクル 1 で足した値の緩和・状態の差し替えでも 137 個（`c1/res/phaseB.jsonl` の `survived`）、キーワード引数の値の差し替えでも 16 個（`c1/res/kwargB.jsonl`。`hooks.py:49` の `secrets=()`、`runner.py:126` の `follow_symlinks=True` など）。うち `runner.py:604` の停止の集合から interrupted を外す変異（m03253）と `runner.py:555`（m03117・m03172・m03173）は、担当が報告した中断で fallback を始めないことを runner の層で確かめるテストが基準にも無いことを示す
 - 監査の道具（PID 名前空間での実行、子の Python も含めたテストごとの coverage、テスト 1 件 30 秒の上限、残す → 消すの順の 1 回の走査）は `/workspaces/reso-world/tmp/agents/issue-230.fuotebjq/audit/bin/` にある。#231・#233・#236 でも使える
 - `test_checkout_policy.py` の ruff の F811（`test_runner.py` から import した fixture の `repository` を引数の名前で使う形）は基準からある（基準 10 件、今は 8 件）
 
 ## 検証
 
-- 領域: `uv run --locked pytest tools/agent_runner`（`--basetemp` は `/tmp` の `mktemp -d`）。`c13ea67` で 365 件が通った（34 秒）。PR #247 のサイクル 1 の修正の commit で 370 件が通った（戻した 5 件の検出は、レビュー修正の Spec の「実行した検証と結果」）
+- 領域: `uv run --locked pytest tools/agent_runner`（`--basetemp` は `/tmp` の `mktemp -d`）。`c13ea67` で 365 件が通った（34 秒）。PR #247 のサイクル 1 の修正の commit で 371 件が通った（戻した 5 件の検出は、レビュー修正の Spec の「実行した検証と結果」）
 - 未使用の名前: `uv run --no-project --with ruff==0.17.2 ruff check --no-cache --isolated --select F401,F841,F821,F823 tools/agent_runner` が通る（F811 は基準からある形。「申し送り」）
 - 収集の照合: 計画の残す node ID（`retained-final.txt`）と収集の node ID は、関数ごとの件数とパラメータの無いテストで一致した
 - 全体の入口（`README.md` の「テスト」）は、最後のコミットの後に実行し、argv・終了コード・ログを PR の本文と検証の記録（`/workspaces/reso-world/tmp/agents/issue-230.fuotebjq/verify/`）に書く
@@ -291,9 +296,9 @@ Issue の受け入れ（守る処理を一時的に壊した使い捨てのコ�
 | Issue の受け入れ | 対応 |
 | --- | --- |
 | Spec に棚卸しの表がある | 「棚卸しの表」 |
-| F（F∩S を除く）・L・D の余り・撤去した経路のテストと、それだけが使っていた fixture・偽の CLI が消えている | commit `4c4a964`（テストと補助）・`c1d8755`（`runtime_supported`）・`c13ea67`（検出しない戻しの取り消し）。PR #247 のサイクル 1 で、S・迷いの 5 件を戻した（D-230-14）。消した補助は「補助・偽の CLI」 |
+| F（F∩S を除く）・L・D の余り・撤去した経路のテストと、それだけが使っていた fixture・偽の CLI が消えている | commit `4c4a964`（テストと補助）・`c1d8755`（`runtime_supported`）・`c13ea67`（検出しない戻しの取り消し）。PR #247 のサイクル 1 で、S・迷いの 6 件を戻した（D-230-14）。消した補助は「補助・偽の CLI」 |
 | 重さが高の守りで代表に絞ったものを、壊したコピーで確かめた | 「守りの確認」（32 項目）と「縮めた木での確認」 |
-| 残したテストが通る | 「検証」（PR #247 のサイクル 1 の修正の後は 370 件） |
+| 残したテストが通る | 「検証」（PR #247 のサイクル 1 の修正の後は 371 件） |
 | 前後の件数・行数を Spec と Issue に書く | 「計測」。Issue には完了のコメントで書く |
 
 ## 補助・偽の CLI
@@ -825,7 +830,7 @@ Issue の受け入れ（守る処理を一時的に壊した使い捨てのコ�
 | `test_required_path_missing_from_snapshot_is_not_success` | S（高） | 必須のパスが登録の一覧に無いときも、失敗の記録が無いことを成功にせず、audit_unavailable の finding で止める… | 残す |
 | `test_changed_adapter_guarantee_never_launches_nonconfined_attempt` | S（高） | 範囲を決めた後に adapter の保証が変わったら、起動の直前の再確認で unsupported にし、限定の監査のまま保証の無い担当を起動しない…。外すと、保証の無い担当の書き込みを unrelated に回して見逃す | 残す |
 
-#### `test_cli.py`（39 件 → 11 件）
+#### `test_cli.py`（39 件 → 12 件）
 
 | テスト（群） | 分類 | 理由・防ぐ損害（重さ） | 扱い |
 | --- | --- | --- | --- |
@@ -846,7 +851,7 @@ Issue の受け入れ（守る処理を一時的に壊した使い捨てのコ�
 | `test_after_run_gets_the_result_path_and_never_changes_the_exit_code`（2 件） | S（中） | 後処理に {result} を置き換えた result.json のパスを渡し（hooks.py:44）…。壊れると、雛形の review の後処理（review_run.py の finalize-parent・attach-runner）が失敗しても成功と報告され… | 残す |
 | `test_after_run_timeout_is_reported_without_changing_the_exit_code` | L | 後処理の期限切れ（#230 の L の例の期限切れの kill） | 消す |
 | `test_summary_lists_no_after_run_when_unset` | L | 後処理が無いときに summary の after_run が空であること（表示）。壊れて after_run が欠けると、summary を読む呼び出し側が KeyError で失敗する | 消す |
-| `test_after_run_is_not_started_after_an_interrupted_run` | D | 代表: `test_already_cancelled_does_not_spawn`。SIGINT で中断した run では後処理を起動しない（interfaces.rst「後処理」） | 消す |
+| `test_after_run_is_not_started_after_an_interrupted_run` | S | PR #247 のサイクル 1 で戻した（D-230-14）: SIGINT で中断した run では後処理を起動しない（interfaces.rst「後処理」、`hooks.py:56` が run の cancel を渡す）。当初の代表 `test_already_cancelled_does_not_spawn` は hooks を通らず、cancel を新しい event に差し替える変異（k0024）を検出しない | 残す |
 | `test_after_run_internal_error_is_reported_without_changing_the_exit_code` | S（中） | 監督の例外を、終了コードを変えずに response_failed・停止未確認で報告する（hooks.py:65-67 | 残す |
 | `test_write_exceptions_follow_the_work_scope_lines_in_order` | 迷い | 監査で戻した: 空行が無いと、依頼文の先頭の行が呼び出し側の許可した例外の一覧の続きに見える（依頼文が「- <パス>: …」で始まると、担当には許可された書き込みの例外として読める）（m02946） | 残す |
 | `test_invalid_write_exceptions_are_rejected_before_any_output`（`[valid]`） | S（中） | [dash-separate-token] の拒否の正しく通る例 | 残す |
@@ -972,7 +977,7 @@ Issue の受け入れ（守る処理を一時的に壊した使い捨てのコ�
 | `test_abnormal_exit_without_receipt_is_response_failure` | D | 代表: `test_exit_zero_is_not_a_substitute_for_valid_receipt`。受領が無く終了コードが 7 なら response_failed | 消す |
 | `test_success_receipt_survives_cli_immediate_exit_with_child`（`[False]`） | D | 代表: `test_immediate_exit_before_ownership_observation_stops_children`。CLI が受領を書いてすぐ終わり、パイプを持った子が残る場合 | 消す |
 | `test_success_receipt_survives_cli_immediate_exit_with_child`（`[True]`） | D | 代表: `test_immediate_exit_before_ownership_observation_stops_children`。代表を残すケースに付け替えた（棚卸しで挙げた代表は別の担当が消した） | 消す |
-| `test_nonregular_receipt_is_rejected_before_adapter_reads_it` | 迷い | PR #247 のサイクル 1 で戻した（D-230-14）: `runner.py:557` の保持物があるときに success だけを response_failed にする守りの代表（m03231 を検出する。壊れると保持物のある中断も response_failed になり、fallback を始めうる） | 残す |
+| `test_nonregular_receipt_is_rejected_before_adapter_reads_it` | S | PR #247 のサイクル 1 で戻した（D-230-14）: `runner.py:557` の `state == "success"` の項を外す変異（m03231）の唯一の検出。その変異では保持物のある中断も response_failed になり、fallback の担当が起動する。中断だけを置き換える変更は、このテストも基準の全体も検出しない（申し送り） | 残す |
 | `test_unconfirmed_stop_does_not_read_or_rewrite_live_receipt` | S（高） | 担当の停止を確認できないときは受領を読まず書き換えず（collect を呼ばない）、sensitive_paths に出し、fallback も起動しない…。防ぐ損害は、生きた書き手が FIFO・差し替えで受領を操作している間に読んで秘密を結果に写すこと・伏せ字にしたつもりで残すこと（秘密情報の漏れ） | 残す |
 | `test_oversized_receipt_rejected_before_unbounded_collection` | L | 16 MiB を超える受領を adapter に渡さない（receipts.py:20 の st_size と 22-24 の読む量の 2 つの検査）。2 つの検査が重なっていて、どちらか 1 つを外しても他方が拒否するので結果は変わらない | 消す |
 | `test_allowlisted_environment_is_the_literal_exec_environment`（`[exec_env0-C]`） | S（低） | runner を LC_CTYPE=C で起動した新しいインタープリタ（Python が os.environ の LC_CTYPE を C.UTF-8 に強制する）でも…。防ぐ損害は、利用者が設定していない値に書き換えた環境で担当を実行すること（環境の隔離） | 残す |
