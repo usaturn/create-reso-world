@@ -91,15 +91,18 @@ def _run(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(list(argv), check=False, capture_output=True, text=True)
 
 
-def git_environment() -> dict[str, str]:
-    """PR レビューの Git を呼ぶ環境。``GIT_*`` を除き、``-C`` で指定した checkout の Git だけを見る。
+def git_environment(*, transport_auth: bool = False) -> dict[str, str]:
+    """``-C`` で指定した checkout の Git を見る環境。
 
     ``GIT_DIR``・``GIT_COMMON_DIR`` など（linked worktree の ``git rebase --exec``・フックが export）が残ると、
     ``git -C <checkout>`` も別の Git を読み書きする。runner はレビュアーの子の環境から ``GIT_*`` を除くので、
     呼び出し側（loop・review-fix-planning）の checkout の解決・浅い checkout の判定も、子の helper と同じ Git を見る。
     pr-review の helper（``pr_review_workspace.git``）と loop の ``git_output`` もここを使う。
+    helper の直接起動では Git の認証に必要な transport 設定だけを残す。これらはローカルの
+    Git ディレクトリや worktree の選択を変えない。runner の子は従来どおり全 ``GIT_*`` を除く。
     """
-    return {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    allowed = {"GIT_ASKPASS", "GIT_SSH", "GIT_SSH_COMMAND", "GIT_TERMINAL_PROMPT"} if transport_auth else set()
+    return {key: value for key, value in os.environ.items() if not key.startswith("GIT_") or key in allowed}
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
