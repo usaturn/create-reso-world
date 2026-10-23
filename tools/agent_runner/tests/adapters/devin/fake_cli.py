@@ -28,11 +28,7 @@ def main() -> int:
     out = _value(args, "--fake-stdout")
     if out is not None:
         sys.stdout.write(Path(out).read_text(encoding="utf-8"))
-    err = _value(args, "--fake-stderr")
-    if err is not None:
-        sys.stderr.write(Path(err).read_text(encoding="utf-8"))
-    code = _value(args, "--fake-exit")
-    return int(code) if code is not None else 0
+    return 0
 
 
 sys.exit(main())

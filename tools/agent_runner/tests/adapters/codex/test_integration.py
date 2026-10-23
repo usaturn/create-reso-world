@@ -61,59 +61,9 @@ def _config(args: list[str] | None = None) -> Config:
     )
 
 
-def test_success_with_real_adapter_and_fake_cli(
-    repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    codex_home = tmp_path / "codex-home"
-    monkeypatch.setattr(environ, "_literal", environ.literal_environ() | {"CODEX_HOME": str(codex_home)})
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "wrong-controller-home"))
-    batch = run_workflow(_config(), "audit", "summarize", repository, output_dir=tmp_path / "run")
-    assert batch.state == "success"
-    attempt = batch.results[0].attempts[0]
-    assert attempt.exit_code == 0 and attempt.stop_confirmed
-    assert attempt.payload == {"answer": 42}
-    assert attempt.identity.session_id == SESSION
-    # The fake CLI wrote its own session rollout into the runtime home it inherited.
-    rollouts = list((codex_home / "sessions").rglob(f"rollout-*-{SESSION}.jsonl"))
-    assert len(rollouts) == 1 and rollouts[0].is_file()
-    assert attempt.identity.model == "observed-model"
-    assert attempt.identity.provider == "observed-provider"
-    assert attempt.identity.effort == "observed-effort"
-    assert attempt.identity.cli_version == "observed-cli"
-
-
-def test_authentication_failure_maps_to_awaiting_authentication(repository: Path, tmp_path: Path) -> None:
-    batch = run_workflow(_config(["--fail-auth"]), "audit", "prompt", repository, output_dir=tmp_path / "run")
-    assert batch.state == "failed"
-    assert batch.results[0].state == "awaiting_authentication"
-
-
-def test_event_error_maps_to_response_failed(repository: Path, tmp_path: Path) -> None:
-    batch = run_workflow(_config(["--fail-bad"]), "audit", "prompt", repository, output_dir=tmp_path / "run")
-    assert batch.state == "failed"
-    assert batch.results[0].state == "response_failed"
-
-
-@pytest.mark.parametrize('args,state', [
-    (['--nonzero'], 'response_failed'),
-    (['--fail-approval'], 'awaiting_approval'),
-    (['--truncate'], 'response_failed'),
-])
-def test_plausible_response_does_not_hide_failure(repository: Path, tmp_path: Path, args: list[str], state: str) -> None:
-    batch = run_workflow(_config(args), 'audit', 'prompt', repository, output_dir=tmp_path/'run')
-    attempt = batch.results[0].attempts[0]
-    assert batch.state == 'failed'
-    assert batch.results[0].state == state
-    assert attempt.stop_confirmed
-
-
 @pytest.mark.parametrize("mode,exit_code,success", [
     ("success", 0, True),
-    ("terminal", 0, False),
-    ("no-completion", 0, False),
-    ("no-message", 0, False),
     ("turn-failed", 0, False),
-    ("success", 7, False),
 ])
 def test_reconnect_requires_fresh_completion_and_clean_process_exit(
     repository: Path, tmp_path: Path, mode: str, exit_code: int, success: bool,

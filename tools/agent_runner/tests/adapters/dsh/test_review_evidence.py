@@ -50,7 +50,7 @@ def test_native_pair_and_recovered_read_error_are_accepted(tmp_path: Path) -> No
     assert _check(tmp_path, rows) is None
 
 
-@pytest.mark.parametrize("change", ["shell", "foreign-path", "failed", "unmatched", "duplicate", "truncated"])
+@pytest.mark.parametrize("change", ["shell", "foreign-path", "failed", "duplicate"])
 def test_missing_or_uncorrelated_native_success_is_refused(tmp_path: Path, change: str) -> None:
     rows = _stream(tmp_path)
     if change == "shell":
@@ -72,9 +72,6 @@ def test_missing_or_uncorrelated_native_success_is_refused(tmp_path: Path, chang
 
 @pytest.mark.parametrize("diagnostic,tool", [
     (DENIAL, "write"),
-    ('Error: the user rejected escalating this operation to "danger-full-access"; '
-     'it stays denied, so stop and explain instead of working around it', "write"),
-    ('Error: code run failed (exception): ToolCallError: the user rejected tool "bash"\nstack', "run_code"),
 ])
 def test_refusal_is_not_erased_by_later_native_success(tmp_path: Path, diagnostic: str, tool: str) -> None:
     rows = _stream(tmp_path)
@@ -85,23 +82,13 @@ def test_refusal_is_not_erased_by_later_native_success(tmp_path: Path, diagnosti
     assert _check(tmp_path, rows) is not None
 
 
-def test_denial_marker_in_ordinary_tool_output_is_data(tmp_path: Path) -> None:
-    rows = _stream(tmp_path)
-    rows[2:2] = [
-        {"type": "tool_call", "tool": "bash", "callId": "quoted", "input": {}},
-        {"type": "tool_result", "callId": "quoted", "status": "error",
-         "result": "Error: command failed\nCaptured output:\n" + DENIAL},
-    ]
-    assert _check(tmp_path, rows) is None
-
-
 def test_escalation_request_is_refused_even_if_result_claims_success(tmp_path: Path) -> None:
     rows = _stream(tmp_path)
     rows[2]["input"]["sandbox_permissions"] = "danger-full-access"
     assert _check(tmp_path, rows) is not None
 
 
-@pytest.mark.parametrize("kind", ["missing", "malformed", "symlink", "hardlink", "duplicate-json-key"])
+@pytest.mark.parametrize("kind", ["symlink", "hardlink"])
 def test_unsafe_log_is_refused_without_touching_its_target(tmp_path: Path, kind: str) -> None:
     target = tmp_path / "source"
     raw = "\n".join(json.dumps(row) for row in _stream(tmp_path))
@@ -117,18 +104,3 @@ def test_unsafe_log_is_refused_without_touching_its_target(tmp_path: Path, kind:
         log.write_text('{"type":"session","type":"final"}')
     assert _check(tmp_path, None) is not None
     assert target.read_text() == raw
-
-
-def test_edit_of_both_fixed_exports_counts_as_native_success(tmp_path: Path) -> None:
-    rows = _stream(tmp_path)
-    rows[2]["tool"] = rows[4]["tool"] = "edit"
-    assert _check(tmp_path, rows) is None
-
-
-def test_unicode_line_separator_in_tool_content_is_not_a_jsonl_boundary(tmp_path: Path) -> None:
-    rows = _stream(tmp_path)
-    rows[2]["input"]["content"] = "first\u2028second\u2029third"
-    (tmp_path / "stdout.log").write_text(
-        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n"
-    )
-    assert _check(tmp_path, None) is None

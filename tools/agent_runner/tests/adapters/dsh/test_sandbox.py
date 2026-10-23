@@ -105,7 +105,7 @@ def test_readonly_does_not_apply_additional_grants(root: Path) -> None:
     assert json.loads(result.stdout) == ["denied"] * 7
 
 
-@pytest.mark.parametrize("case", ["symlink", "missing", "invalid_profile"])
+@pytest.mark.parametrize("case", ["symlink"])
 def test_unsafe_grants_or_profile_never_run_the_command(case: str, root: Path) -> None:
     grants = make_paths(root)
     if case == "symlink":

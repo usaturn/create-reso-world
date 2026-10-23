@@ -97,12 +97,3 @@ def load_adapter(runtime: str) -> Adapter:
     except Exception:
         raise UnsupportedRuntime() from None
     return adapter
-
-
-def runtime_supported(runtime: str) -> bool:
-    """Check/list helper: whether a usable adapter is currently installed."""
-    try:
-        load_adapter(runtime)
-    except UnsupportedRuntime:
-        return False
-    return True
