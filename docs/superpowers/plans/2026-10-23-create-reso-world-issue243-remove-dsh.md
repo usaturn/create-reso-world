@@ -110,3 +110,16 @@
 ## Contingency
 
 検証が失敗した場合は `systematic-debugging` に従って原因を特定し、影響した Task の担当範囲で直す。DSH 以外の既存不具合と確認できた場合は、失敗を成功扱いせず、対象と証拠を報告する。push 前の検査・ループの停止条件は issue-to-pr の規則どおりに扱う。
+
+## Task 6: PR #249 レビュー修正サイクル 1
+
+**担当:** `review-fix-planning` の既定 `claude-opus`。`run_roles.py --phase implement` の隔離 worktree で実装・commit し、controller が差分と停止を確かめて既存の feature branch に取り込む。TDD は行わない。
+
+- [x] `BatchResult` の入力境界で、旧結果の空 `unrelated_checkout_audit` だけを受け入れる。現行の出力からは除外し、空以外や未知欄は引き続き拒否する。対象は `tools/agent_runner/models.py` と、その守りを実装するモジュールの安全性テスト。読取側4入口を独立に実行して確認する。
+- [x] `helper_write_exceptions` と loop / run_roles の呼出元で、checkout の浅さと実際の Git 書き込み先を一致させる。shallow では元 Git の書き込みを許可せず、通常 checkout では必要な許可を残す。対象は `.agents/skills/pr-review/scripts/review_run.py`、`.agents/skills/pr-review-fix-loop/scripts/loop.py`、`.agents/skills/review-fix-planning/scripts/run_roles.py` と既存の安全性テスト。変更した共通の許可範囲の説明も実装と一致させる。別の既存 Cursor 解説の不一致は fix-check の V-1 として記録する。
+- [x] `STEP_TOTAL` の表示ずれは実在を記録し、今回の致命的な修正に含めない。該当するコード・テスト・文書を編集しない。
+- [x] 変更した入口の局所検証、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills`、関連する `tools/agent_runner` のテストと静的解析を通す。必要な一時入力・ログは session に置く。controller が最後の変更後に検証と Gitleaks の検査を確認する。
+- [x] 保存済みの確認済み一覧を使って、既定の1回の自己レビューと fix-check を行う。自己レビューは指摘0件、fix-check は9主張・8ファイル・181文書候補を確認し、致命的な指摘は無い。Spec の経路表を実測結果へ更新する。
+- [ ] `completed` の Spec を1回 commit し、検査済みの SHA を既存 PR へ push して状況コメントを記録する。ループへ結果を返す。
+
+**テスト要否:** 2つの安全条件は S。旧結果の誤った未確認扱いと書き込み許可の過大化は、失敗が目立たないまま停止状態や利用者の Git に影響するため、守りを実装するモジュールに代表テストを置く。DSH を廃止した事実を照合するテストは書かず、TDD も行わない。読取入口や文書の固定値を重複して写すテストは作らず、実行・構造確認で確かめる。
