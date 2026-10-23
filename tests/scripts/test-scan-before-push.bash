@@ -187,6 +187,10 @@ leak_with_repo_config 'a password of words and 8 digits without a key() prefix' 
 # 偽の値は追跡するファイルに増やさないよう、.gitleaks.toml の 2 つ目の allowlist から読む
 fake="$(grep -E "^regexes = \['''\^?[A-Za-z0-9]{20,}\\\$?'''\]$" "$root/.gitleaks.toml" | grep -oE '[A-Za-z0-9]{20,}')" \
   || fail 'cannot read the fake token of the second allowlist in .gitleaks.toml'
+# F∩S: 2 つ目の allowlist が除外するのは、過去の文書（commit 5a723fa の Plan）に残る既知の偽の値だけ。値は書かずに
+# ハッシュで固定する。別の値に差し替えると、上で読む値も変わるので境界の確認は通ったまま、差し替えた値を除外する
+[ "$(printf '%s' "$fake" | sha256sum | cut -c1-64)" = b2891065e1971f703843debbe0300167a7b83f742e6b6f7a74c9d95f3be59f21 ] \
+  || fail 'the second allowlist in .gitleaks.toml excludes a value other than the known fake one'
 identifier="mat_material_Slum02_rubber_$hash8"
 leak_with_repo_config 'the fake token after a prefix' "x$fake"
 leak_with_repo_config 'the fake token before a suffix' "${fake}x"
