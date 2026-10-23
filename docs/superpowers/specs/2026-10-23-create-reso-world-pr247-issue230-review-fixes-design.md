@@ -1,4 +1,4 @@
-# PR #247（Issue #230）のレビュー修正: サイクル 1
+# PR #247（Issue #230）のレビュー修正: サイクル 1〜2
 
 ## 管理
 
@@ -107,3 +107,45 @@
 ## 結論
 
 結論 1（修正して push）。修正の commit は `f43d192`・`48d7dc4`。この Spec を `completed` で commit し、`scripts/scan-before-push.sh` の検査を通した commit を既存の PR の head に push する。PR の本文の件数（371 件・7,171 行）とレビュー修正の節も更新する。
+
+## サイクル 2
+
+- 対象 HEAD: `7867cf563f83d5b1a675a3edd44f8da219a40566`（サイクル 1 で push した commit）。サイクルの番号: 2（PR の判断の記録の round 1 の次）
+- planner: claude-opus-5-5（claude-code）。修正と自己レビューの担当は使っていない（修正が無い）
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#247-feat-issue-230-agent-runner-tests/verified/7867cf563f83.json`。工程の記録: 同じ場所の `7867cf563f83.planning.json`
+
+### レビュアーの構成（サイクル 2）
+
+ループの `review` が 4 人を並行に起動し、4 人とも 1 回目で受け付けられた（`rejected`・`retained` なし）。
+
+| レビューファイル | モデル | ランタイム | 担当 | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | pi-gpt | `7867cf563f83` | はい（Update） | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | devin-swe | `7867cf563f83` | はい（Update） | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | pi-deepseek | `7867cf563f83` | はい（Update） | Approve |
+| `Grok-4.7.md` | Grok 4.7 256K Extra High | cursor | cursor-grok47 | `7867cf563f83` | はい（Update） | Approve |
+| `claude-opus-5-5-commit-f43d1928b233910e9b48276894fbec04190214fb.md` | claude-opus-5-5 | claude-code | self（サイクル 1 の自己レビュー） | `f43d1928b233` | いいえ（古い） | Needs manual verification |
+
+### 指摘の一覧と振り分け（サイクル 2）
+
+| 判断 | 元の指摘 | 確認済み | 分類 | 根拠 |
+| --- | --- | --- | --- | --- |
+| サイクル 1 の F-1 | `gpt-6.1-sol#M-1@c899bd42fd88` | — | 解消済み | `7867cf5` の `test_abort_maps_to_interrupted` が分類の変異 3 種で失敗する（サイクル 1 の `f43d192` の写しでの記録。テストは同一）。サイクル 2 の deepseek も HEAD の写しで確かめた |
+| サイクル 1 の F-2 | `gpt-6.1-sol#M-2@c899bd42fd88` | — | 解消済み | `[returns-false]` が `is not None` の変異で失敗する（同上） |
+| サイクル 1 の自己レビューの L-2 | `claude-opus-5-5-commit-f43d1928…#L-2@f43d1928b233` | V-3（not_reproduced） | 解消済み | `48d7dc4` で戻したテストが k0024 で失敗する。`git diff 48d7dc4 7867cf5 -- tools/` は空 |
+| サイクル 1 の fix-check の V-1・V-3 | `fix-check#V-1@f43d1928b233`・`fix-check#V-3@f43d1928b233` | — | 解消済み | 実装の Spec の 275 行は 68.9%、lost の判定の表の 4 行は S・迷い（`7867cf5` を git show で確かめた） |
+| S-2 | `deepseek-deepseek-v4.1-flash#I-1@7867cf563f83` | V-1 | 対応しない | 棚卸しの表の 4 行が、行数を超える行番号（`skills.py:288-292`、`adapters/__init__.py:178-211` など）を挙げる。事実として正しいが、読む人は該当の行が無いことにすぐ気付き、誤った結果・データの消失は起きない。致命的でない |
+
+- サイクル 1 で「対応しない」とした判断（SWE-2-Max の I-1、自己レビューの L-1・U-1、fix-check の V-4）は、新しい根拠が無いので引き継ぐ（確認済みの一覧の V-2・V-5 は同じ内容）
+- 「対応する」は 0 件。設計の見直しのきっかけ: なし
+
+### 検証と結論（サイクル 2）
+
+| コマンド | 対象 | 結果 |
+| --- | --- | --- |
+| `uv run --locked pytest -p no:cacheprovider -q tools/agent_runner --basetemp /tmp/issue-230-c2-pytest.QO62Pa/bt` | `7867cf5`（専用の worktree、clean） | 371 件通過、終了コード 0 |
+| `bash .devcontainer/run-tests.bash` | `7867cf5` | PASS: 23 test(s)、終了コード 0 |
+| `bash scripts/check-layout.sh` | `7867cf5` | PASS: check-layout、終了コード 0 |
+
+- 検証したツリーは head（`7867cf5`）だけ。base（`main` の先端 `7a8e4b70b721`）は head の祖先なので、merge したツリーでの検証は要らない
+- 結論 2（修正不要としてマージ）。この節を足した Spec の commit を PR の head に載せ、`finalize.py --spec-commit` でマージと関連 Issue（#230）の更新を行う（結果は状況コメントと完了の報告に書く）
