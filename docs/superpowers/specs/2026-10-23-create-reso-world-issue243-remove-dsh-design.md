@@ -3,7 +3,7 @@
 - 文書管理: `usaturn/create-reso-world`
 - 対象: `usaturn/create-reso-world#243`
 - 着手時のコード: `7cf60715caf0026f7a4c95c72cdc2527e8075e2c`
-- 状態: `draft`。レビュー修正サイクル 2 の設計と検証を進めている。内容の承認を受けた記録ではない
+- 状態: `draft`。レビュー修正サイクル 3 の設計と検証を進めている。内容の承認を受けた記録ではない
 - 実行許可: 利用者の「`$issue-to-pr https://github.com/usaturn/create-reso-world/issues/243 --merge`」。推奨案で設計・実装・検証・PR 作成・指定のレビュー修正ループまで進める指示として扱う
 - 追加指示: 利用者の「廃止したことについて、テストを書かないこと。TDD で実装しないこと。」を優先する
 
@@ -152,3 +152,25 @@ fix-check の `V-1` は `tools/agent_runner/runtimes/cursor.rst:49` の説明が
 点の修正として helper だけで `GIT_ASKPASS` を戻す案は、`GIT_SSH_COMMAND` など同じ transport 経路を取りこぼす。全 `GIT_*` を戻す案は、`GIT_DIR` で別 Git へ向く元の安全問題を再発させる。直接実行の認証機能を保証から外す案は、現行の pr-review 手順と食い違う。`review_target.git_environment` の引数で transport 認証だけを許可する方式を選び、同じ関数を使う resolver と helper でローカル Git の選択規則を共有した。4変数は `GIT_ASKPASS`・`GIT_SSH`・`GIT_SSH_COMMAND`・`GIT_TERMINAL_PROMPT` に限定し、repository の向きを変える設定・環境は渡さない。
 
 自己レビューは規定の1回だけで、`93bf88f` の後に2回目を行っていない。V-1 の修正は上の from/to/修正後の再現、関連98件、全 Python 1726件、`run-tests.bash` 23件、`check-layout.sh`、差分・静的確認で確かめた。DSH の廃止を確認する新しいテストや TDD 工程は追加していない。fix-check の元成果は `reviews/usaturn/create-reso-world/#249-feat-issue-243-remove-dsh/verified/172bc8ff26d5.fix-check.json` と同じ接頭辞の要約・文書候補に保存した。残る未確認は実認証サービスを使った private remote の fetch であり、偽 transport と既存の直接 helper 経路で動作を確認した。
+
+## PR #249 レビュー修正サイクル 3（計画）
+
+対象 HEAD は `4ded95313c51c98b857769edf64ce0c934fbacf2`。4 レビュアーの active 指摘各 1 件は、すべて直接起動した `review_run.py prepare` の PR head 取得で transport 認証用環境変数を落とす同じ原因を指す。前回の `fix-check#V-1@172bc8ff26d5` を直す目的で `93bf88f` が `pr_review_workspace.git` へ認証用変数を戻したが、`fetch_pull_head` は別の `review_target._git` を使う。前節の表にある「`review_run.py prepare` → `pr_review_workspace.git fetch`」は head fetch の実経路ではなく、base 側の fetch にしか当てはまらない。この表現と結果の範囲を本節で訂正する。現行 HEAD の独立した確認済み一覧は作成中であり、採否と実行結果は確認後に確定する。
+
+### 守る条件の設計
+
+守る条件は、直接起動の PR レビューが、利用者の `GIT_ASKPASS`・`GIT_SSH`・`GIT_SSH_COMMAND`・`GIT_TERMINAL_PROMPT` を remote fetch に渡しながら、checkout の選択を変える `GIT_DIR`・`GIT_COMMON_DIR`・`GIT_WORK_TREE`・`GIT_CONFIG_*` は渡さないこと。ローカルの Git 解決、浅さ判定、ref 確認、書き込み許可は明示した checkout を一貫して参照する。remote fetch の失敗は明示エラーで止め、違う checkout の ref に取り違えない。runner の子は既存の全 `GIT_*` 除去を維持する。
+
+破れた前提は「認証用変数を戻した `pr_review_workspace.git` が prepare のすべての remote fetch を担当する」というもの。実際には PR head は `create_from_target` → `review_target.fetch_pull_head` → `review_target._git`、base と浅い履歴は `pr_review_workspace.git` を通る。`172bc8f` の共通除去はローカル Git の対象を守った一方、認証も消した。`93bf88f` は後者の経路だけを直し、前者を未修正のまま残した。これは同じ条件の再発、かつ前回修正の適用漏れであり、経路を全面的に見直す。
+
+| 守る条件 | 経路・状態・停止位置 | `4ded953` の挙動 | 判定 | 観測する結果・assertion | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 指定 checkout の Git を読む | `review_target._git` の root・remote 設定解決、ref の `rev-parse`、`agent_tmp`・`superpowers_context` の前段解決 | 全 `GIT_*` を除く | 既に満たす | 汚染環境でも指定 checkout の root・remote・ref と一致し、別 Git を読まない | 通常・浅い checkout と別 Git を指す `GIT_DIR`・`GIT_COMMON_DIR` の実関数対照 | 未実施 |
+| head の transport 認証を保つ | `review_run.prepare` → `create_from_target` → `fetch_pull_head` → `review_target._git fetch`、失敗時の `TargetError` | 4 認証変数も除き、直接起動の SSH/HTTPS fetch が止まる | 修正する | 認証用変数が fetch に届き、汚染された Git 選択変数は届かず、期待 HEAD を取得する。認証失敗時は別 ref を採用しない | 独立したローカル SSH/HTTP transport で prepare 全体と fetch 単体、正常・失敗・汚染環境を対照 | 未実施 |
+| base・浅い履歴の transport 認証を保つ | `pr_review_workspace.git fetch`、通常・浅い source、prepare→complete→cleanup と失敗回収 | `transport_auth=True` で 4 変数を残す | 既に満たす | base/historical fetch は認証変数に到達し、元の浅い Git の shallow 境界・ref・FETCH_HEAD・worktree 登録は変わらない | 前回の偽 transport と既存の浅い checkout 検証を、現行修正後の実経路で再実行 | 未実施 |
+| 書き込み許可を実操作先に限る | `loop.git_output`、`run_roles.write_exceptions`、`uses_owned_history`、runner 子の環境 | ローカル Git の選択は環境除去済み | 既に満たす | shallow 元 Git の過大許可 0 行、通常 checkout は必要な許可 1 行 | 代表 S テストと同じ Git 汚染の隔離実行 | 未実施 |
+| 関連する Git 呼出の環境を明示する | `review_target._git` 全呼出元、`pr_review_workspace.git`、loop、親・対象 resolver、runner の Git 呼出 | remote fetch が 2 入口に分かれ、認証の扱いが不一致 | 修正する | transport を使う fetch だけ 4 変数を残し、local 読取と安全判定はすべて除く | 各呼出元の全列挙と実行対照、差分・構文確認 | 未実施 |
+
+直し方は、(1) `fetch_pull_head` の fetch にだけ認証用の環境を戻す点の修正、(2) `review_target._git` に local と remote の用途を明示し、remote fetch が共通の `git_environment(transport_auth=True)` を使うようにする案、(3) 直接起動の認証環境を保証から外す案を比べる。(1) は別の remote Git 操作が増えた際に同じ適用漏れを起こしやすい。(3) は現行の直接レビュー手順を狭める。(2) を採り、`fetch_pull_head` の remote 操作を明示する。ローカル ref 検証は認証変数も含めて除去し、remote fetch の前後で同じ指定 checkout と期待 HEAD を照合する。`pr_review_workspace.git` は認証用変数以外を除去する現行の共通関数を使い続ける。
+
+**テストの採用:** 今回の欠陥は正常な認証条件で prepare が明示エラーになる L であり、恒久テストを追加しない。廃止した事実のテストは追加しない。偽 transport による prepare 全体の一時検証、既存の S テスト、静的・構造検査、差分確認で確かめる。TDD は行わない。実認証サービスは使わず、その未確認範囲を PR の説明に残す。

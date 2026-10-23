@@ -133,6 +133,18 @@
 - [x] 実装の後で、`test_run_roles.py` に S の代表テストを1件加えた。浅い／通常と汚染なし／`GIT_DIR` を対照し、ガードを外した一時変異では1件失敗。DSH 廃止を確認するテストは作らず、TDD は行っていない。
 - [x] resolver、prepare・save・cleanup、loop の許可文、外部 self-review の許可文を隔離実行で照合した。担当は関連587件、`run-tests.bash` 23件、`check-layout.sh`、全 Python 1726件を成功させ、旧版との lint・型検査比較で新規指摘0件。controller は同一ツリー ID、代表テスト4件、`git diff --check`、Gitleaks 15 commit 検出0件を確認した。
 - [x] 確認済み一覧を入力に既定1回の自己レビューと fix-check を行った。自己レビューは `172bc8f` の全体差分で指摘0件。fix-check の V-1 は直接 pr-review helper の認証変数が消える機能停止として確認し、`93bf88f` で transport 認証だけ戻した。自己レビューは繰り返さず、偽 transport の from/to/修正後、関連98件、全 Python 1726件、`run-tests.bash` 23件、`check-layout.sh` で再検証した。Spec の設計表と実測を更新した。
-- [ ] Gitleaks が検査した最終 SHA だけを既存 PR に push し、判断の記録と状況コメントを投稿してループへ結果を返す。
+- [x] Gitleaks が検査した最終 SHA `4ded95313c51c98b857769edf64ce0c934fbacf2` だけを既存 PR に push し、判断の記録と状況コメントを投稿してループへ結果を返した。
 
 **テスト要否:** 書き込み許可が不要な元 Git を含むと、失敗が表示されず利用者の Git を変更し得るため S。1件の代表テストで正常と環境汚染の両側を確かめる。廃止の事実、文言、ファイル一覧を写すテストは F/L に当たり不要。代わりに現行 code の静的確認・実コマンド・差分を確認する。
+
+## Task 8: PR #249 レビュー修正サイクル 3
+
+**担当:** `review-fix-planning` の既定の修正担当。同じ transport 認証条件の適用漏れなので、Spec の「守る条件の設計」と Git 呼出元の表を先に確認する。隔離 worktree で実装・commit し、controller が差分、担当の停止、現行 HEAD の検証を確かめて取り込む。TDD は行わない。
+
+- [ ] 4 レビュアーの同一指摘を現行 HEAD で独立に確認し、`verified/4ded95313c51.json` に保存する。前サイクルの `fix`・`skip` 判断を引き継ぐ。
+- [ ] `review_target.fetch_pull_head` の remote fetch にだけ認証用4変数を渡す。ローカル Git の解決と ref 確認では `GIT_*` の除去を維持し、base/historical fetch と書き込み許可の経路を照合する。
+- [ ] SSH・HTTPS の偽 transport で、直接 `prepare` から HEAD fetch まで、認証なし／ありと汚染された `GIT_DIR` の両側を実行する。関連テスト、`run-tests.bash`、`check-layout.sh`、スキルテストを実行し、差分・構文・Gitleaks を確認する。
+- [ ] 規定の1回の自己レビューと fix-check を実施し、致命的な指摘を直して再検証する。Spec の経路表へ実測を記録し、検査した SHA を既存 PR に push して状況コメントを投稿する。
+- [ ] ループへ結果を返し、返された終了条件に従う。マージできた場合にだけ #175・#211 の not planned クローズ、#116 のコメント、#243 の状態確認へ進む。
+
+**テスト要否:** 今回の直接 fetch の欠陥は明示的な非0終了で気付ける L。恒久テストは追加しない。DSH 廃止の有無を固定するテストも利用者の指示に従って作らない。修正後の一時的な偽 transport 実行と、既存の S テスト・構造検査で確かめる。
