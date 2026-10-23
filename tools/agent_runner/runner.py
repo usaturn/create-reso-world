@@ -8,8 +8,6 @@ it. Adapters are trusted integrations, not a security sandbox.
 import asyncio
 import os
 import re
-import shutil
-import stat
 import tempfile
 import threading
 import time
@@ -21,18 +19,17 @@ from typing import TypedDict, cast, get_args
 
 from tools.agent_runner.adapters import Adapter, AdapterContext, AdapterOutcome, LaunchSpec, load_adapter
 from tools.agent_runner.config import check_depth, validate_config
-from tools.agent_runner.checkout_policy import workflow_checkout_scope
-from tools.agent_runner.dsh_paths import review_exports, review_scratch
 from tools.agent_runner.environ import literal_environ, secret_values
 from tools.agent_runner.models import Attempt, BatchResult, Config, Identity, Payload, Receipt, Request, Result, State
 from tools.agent_runner.process import execute, redact_file
 from tools.agent_runner.receipts import read_receipt
 from tools.agent_runner.workspace import (
+    CheckoutAuditError,
     WorkspaceError,
     audit_checkouts,
     prepare_worktree,
     resolve_revision,
-    snapshot_checkouts,
+    require_auditable_checkouts,
 )
 
 
@@ -69,27 +66,6 @@ def _scrub(value: object, secrets: set[str]) -> object:
     return value
 
 
-def _redact_runtime_tree(root: Path, secrets: tuple[str, ...]) -> list[Path]:
-    """Redact a stopped runtime's owned tree without opening links or special files."""
-    unsafe: list[Path] = []
-    pending = [root]
-    while pending:
-        path = pending.pop()
-        try:
-            info = path.lstat()
-            mode = info.st_mode
-            if stat.S_ISDIR(mode):
-                pending.extend(sorted(path.iterdir(), reverse=True))
-            elif not stat.S_ISREG(mode) or info.st_nlink != 1 or not redact_file(path, secrets):
-                unsafe.append(path)
-        except FileNotFoundError:
-            continue
-        except OSError:
-            unsafe.append(path)
-    return unsafe
-
-
-_NOFOLLOW_DIRECTORY = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 EXCEPTIONS_HEADING = "Caller-authorized exceptions to the rules above (only these; everything else stays forbidden):"
 
 
@@ -105,115 +81,6 @@ def _single_line(value: object) -> bool:
         and value.splitlines() == [value]
         and not any(unicodedata.category(character) == "Cc" for character in value)
     )
-
-
-def _dispose_home(runtime_root: Path) -> bool:
-    """Remove a stopped runtime's disposable ``home`` without following any link.
-
-    Only a real directory owned by this user, on the runtime root's device, is
-    removed through descriptors relative to that root. False leaves the rest in
-    place for the caller to report and redact.
-    """
-    try:
-        root = os.open(runtime_root, _NOFOLLOW_DIRECTORY)
-    except FileNotFoundError:
-        return True
-    except OSError:
-        return False
-    try:
-        owner, device = os.getuid(), os.fstat(root).st_dev
-        try:
-            home = os.stat("home", dir_fd=root, follow_symlinks=False)
-        except FileNotFoundError:
-            return True
-        if not stat.S_ISDIR(home.st_mode) or home.st_uid != owner or home.st_dev != device:
-            return False
-        # Tool caches such as Go modules leave read-only directories; fwalk
-        # opens each without following links before the owner's access is restored.
-        for _, _, _, descriptor in os.fwalk("home", dir_fd=root):
-            info = os.fstat(descriptor)
-            if info.st_uid == owner and (info.st_mode & 0o700) != 0o700:
-                os.fchmod(descriptor, stat.S_IMODE(info.st_mode) | 0o700)
-        shutil.rmtree("home", dir_fd=root)
-        return True
-    except OSError:
-        return False
-    finally:
-        os.close(root)
-
-
-def _unlink_unredactable_entries(directory: int, owner: int, device: int) -> list[str]:
-    """Unlink owned entries of an open directory that redaction cannot make safe.
-
-    These are links, special files and regular files with another name:
-    redacting one name of a hard link leaves the original content behind the
-    other. Return the directory's subdirectories.
-    """
-    subdirectories: list[str] = []
-    unredactable: list[str] = []
-    try:
-        with os.scandir(directory) as entries:
-            for entry in entries:
-                info = entry.stat(follow_symlinks=False)
-                if stat.S_ISDIR(info.st_mode):
-                    subdirectories.append(entry.name)
-                elif (
-                    (not stat.S_ISREG(info.st_mode) or info.st_nlink > 1)
-                    and info.st_uid == owner
-                    and info.st_dev == device
-                ):
-                    unredactable.append(entry.name)
-    except OSError:
-        pass
-    # Unlink after the listing is closed: only the name goes, never a target or the content.
-    for name in unredactable:
-        try:
-            os.unlink(name, dir_fd=directory)
-        except OSError:
-            pass
-    return subdirectories
-
-
-def _prune_scratch(runtime_root: Path) -> None:
-    """Unlink links, special files and hard links from a stopped runtime's ``tmp`` scratch.
-
-    Tools such as pytest leave ``*current`` links, fixture FIFOs and fixture
-    hard links in TMPDIR; they hold no output to retain and cannot be inspected
-    or redacted. Only owned entries inside owned real directories on the runtime
-    root's device are unlinked, relative to their parent descriptor; nothing is
-    followed or opened. Single-link regular files stay for strict redaction,
-    which reports anything left here. A name whose other names were unlinked
-    first is left with a single link and is redacted like those files.
-    """
-    try:
-        root = os.open(runtime_root, _NOFOLLOW_DIRECTORY)
-    except OSError:
-        return
-    owner = os.getuid()
-    # Only the directories on the current path stay open: depth + 1 descriptors.
-    stack: list[tuple[int, list[str]]] = [(root, ["tmp"])]
-    try:
-        device = os.fstat(root).st_dev
-        while stack:
-            descriptor, pending = stack[-1]
-            if not pending:
-                stack.pop()
-                os.close(descriptor)
-                continue
-            try:
-                child = os.open(pending.pop(), _NOFOLLOW_DIRECTORY, dir_fd=descriptor)
-            except OSError:
-                continue
-            children: list[str] = []
-            stack.append((child, children))
-            info = os.fstat(child)
-            if info.st_uid == owner and info.st_dev == device:
-                children.extend(_unlink_unredactable_entries(child, owner, device))
-    except OSError:
-        pass
-    finally:
-        for descriptor, _ in stack:
-            os.close(descriptor)
 
 
 _STATES = frozenset(get_args(State))
@@ -241,10 +108,6 @@ def _collect(
 ) -> tuple[State, Identity, Payload, State | None]:
     """Collect one stopped attempt. The last value is the reported state (null when nothing was classified)."""
     try:
-        if context.agent.runtime == "dsh" and os.path.lexists(context.receipt_path):
-            # DSH's JSONL/session collector is authoritative. A runtime-written
-            # receipt must never replace a failed native event stream.
-            return "invalid_result", Identity(), None, None
         # Validate regular, bounded file content before a collector can open it.
         receipt = read_receipt(context.receipt_path)
         outcome = adapter.collect(context, stdout, stderr)
@@ -313,7 +176,6 @@ def run_workflow(
     cancel: threading.Event | None = None,
     adapter_loader: Callable[[str], Adapter] = load_adapter,
     environment: Mapping[str, str] | None = None,
-    sandbox_write_paths: tuple[Path, ...] = (),
     write_exceptions: Sequence[str] = (),
     payload_check: Callable[[Payload], bool] | None = None,
 ) -> BatchResult:
@@ -351,20 +213,14 @@ def run_workflow(
     try:
         repository = repository.absolute()
         commit = resolve_revision(repository, revision)
-        required = workflow_checkout_scope(config, workflow, repository, adapter_loader=adapter_loader)
-        before = snapshot_checkouts(repository)
-        if required is not None and not required.issubset(before):
-            raise WorkspaceError()
-    except WorkspaceError:
+        before = require_auditable_checkouts(repository)
+    except (WorkspaceError, CheckoutAuditError):
         raise RunnerError("workspace") from None
     try:
         if output_dir is None:
             artifact_dir = Path(tempfile.mkdtemp(prefix="create-reso-world-agent-runner-", dir="/tmp"))
         else:
             artifact_dir = output_dir.absolute()
-            if any(agent.runtime == "dsh" for agent in config.agents.values()):
-                if artifact_dir.resolve(strict=False) != artifact_dir:
-                    raise OSError("noncanonical output directory")
             # mkdir without exist_ok rejects existing directories AND dangling links.
             artifact_dir.mkdir(mode=0o700)
     except OSError:
@@ -401,8 +257,6 @@ def run_workflow(
         try:
             adapter = adapter_loader(agent.runtime)
             if adapter.capabilities.noninteractive is not True or adapter.capabilities.stdin is not True:
-                return finished("unsupported")
-            if required is not None and adapter.capabilities.confined_writes is not True:
                 return finished("unsupported")
         except Exception:
             return finished("unsupported")
@@ -443,23 +297,9 @@ def run_workflow(
                 f"writes={role.writes}: {'changes are permitted here' if role.writes else 'do not modify files'}. "
                 "This is an instruction, not a sandbox.\n"
             )
-            owned_exceptions = exceptions
-            if agent.runtime == "dsh":
-                owned_exceptions = (
-                    f"{review_scratch(directory)}: this attempt's helper staging, through the bash tool",
-                    f"{review_exports(directory)}: review outputs, through native write/edit tools",
-                    f"{directory / 'dsh/home'}: this runtime's HOME and caches",
-                    f"{directory / 'dsh/tmp'}: this runtime's temporary files",
-                    f"{directory / 'dsh/state'}: DSH session persistence only; do not edit directly",
-                )
-            if owned_exceptions:
-                instructions += EXCEPTIONS_HEADING + "\n" + "".join(f"- {item}\n" for item in owned_exceptions)
+            if exceptions:
+                instructions += EXCEPTIONS_HEADING + "\n" + "".join(f"- {item}\n" for item in exceptions)
             instructions += "\n"
-            if agent.runtime == "dsh":
-                instructions += (
-                    "Runtime-owned HOME/cache/temp and this attempt's review-scratch are permitted "
-                    "write exceptions. Do not alter request/state/patch or retry sandbox denials.\n\n"
-                )
             request = Request(
                 run_id=run_id,
                 request_id=request_id,
@@ -479,7 +319,6 @@ def run_workflow(
                 role,
                 work_dir,
                 directory / "receipt.json",
-                sandbox_write_paths if agent.runtime == "dsh" else (),
                 environment=env,
             )
             spec = adapter.prepare(context)
@@ -513,19 +352,7 @@ def run_workflow(
         reported: State | None = None
         export_path = context.receipt_path.parent / "export.json" if agent.runtime == "devin" else None
         export_unsafe = False
-        runtime_root = context.receipt_path.parent / "dsh" if agent.runtime == "dsh" else None
         if process.stop_confirmed:
-            if runtime_root is not None:
-                # HOME only holds tool caches (uv links, read-only Go modules) and is
-                # not retained. TMPDIR is scratch: links, special files and hard links
-                # that tools such as pytest leave there are unlinked, while its regular
-                # spills stay with state and the patch under strict redaction. That pass
-                # reports anything left unsafe, including a HOME that could not be removed.
-                if not _dispose_home(runtime_root):
-                    sensitive_paths.append(runtime_root / "home")
-                _prune_scratch(runtime_root)
-                unsafe = _redact_runtime_tree(runtime_root, tuple(secrets))
-                sensitive_paths.extend(path for path in unsafe if path not in sensitive_paths)
             # Devin leaves an ATIF export next to the receipt; inherited values can
             # be repeated in the final answer, history, and tool arguments. Redact
             # it like the receipt, before any collection reads it.
@@ -548,8 +375,6 @@ def run_workflow(
             sensitive_paths.append(context.receipt_path)
             if export_path is not None:
                 sensitive_paths.append(export_path)
-            if runtime_root is not None:
-                sensitive_paths.append(runtime_root)
         if process.state in {"timed_out", "launch_failed"}:
             state = process.state
         elif event.is_set() or process.state == "interrupted":
@@ -639,8 +464,7 @@ def run_workflow(
         if all(result.state == "self" for result in results)
         else ("success" if successful == len(results) else "partial_success" if successful else "failed")
     )
-    observed = audit_checkouts(before)
-    checkout_audit = [finding for finding in observed if required is None or finding.path in required]
+    checkout_audit = audit_checkouts(before)
     return BatchResult(
         run_id=run_id,
         state=state,
@@ -648,7 +472,6 @@ def run_workflow(
         results=results,
         outside_changes=[finding.path for finding in checkout_audit],
         checkout_audit=checkout_audit,
-        unrelated_checkout_audit=[finding for finding in observed if required is not None and finding.path not in required],
         elapsed_seconds=time.monotonic() - started,
         artifact_dir=artifact_dir,
     )

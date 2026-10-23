@@ -7,7 +7,7 @@ from typing import Annotated, Literal, cast
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 
-Runtime = Literal["claude-code", "devin", "pi", "codex", "cursor", "dsh"]
+Runtime = Literal["claude-code", "devin", "pi", "codex", "cursor"]
 ResultShape = Literal["json", "text"]
 State = Literal[
     "success",
@@ -264,6 +264,5 @@ class BatchResult(StrictModel):
     results: list[Result]
     outside_changes: list[str]
     checkout_audit: list[CheckoutAudit] = Field(default_factory=list[CheckoutAudit])
-    unrelated_checkout_audit: list[CheckoutAudit] = Field(default_factory=list[CheckoutAudit])
     elapsed_seconds: ElapsedSeconds
     artifact_dir: Path

@@ -2,7 +2,7 @@
 ======================================
 
 この文書は、usaturn/agent-workspace の agent_runner を取り入れたランナー（#149）の共通インターフェースを示す。
-ランタイムの具体的な起動処理（adapter）は #150（Claude Code・Codex・Cursor・Devin・pi）と #151（DSH）が入れる。
+ランタイムの具体的な起動処理（adapter）は Claude Code・Codex・Cursor・Devin・pi に対応する。
 PR レビューの保存・ロック・GitHub 操作、修正計画や修正ループはランナーの責務ではない。
 
 設定
@@ -12,7 +12,7 @@ TOML の ``schema_version = 1`` と以下の三層を使う。
 未知のキー、版、不正な型・参照を拒否する。資格情報の値は書かない。
 
 ``agents.<agent_id>``
-  ``runtime``: claude-code / devin / pi / codex / cursor / dsh。
+  ``runtime``: claude-code / devin / pi / codex / cursor。
   ``command``: 空でない argv 配列。シェル文字列・alias ではなく実行可能なコマンド。
   ``model``: 空でないモデル値。
   ``provider`` / ``effort``: 任意の文字列。
@@ -67,7 +67,9 @@ Python の ``load_config(template, personal=None, assignments=None, workflow=Non
 ``validate_config(config, workflow=None)`` は直接 API に渡す設定も同じルールで検証する。
 ``ConfigError.category`` は schema_version / unknown_key / invalid_type /
 invalid_value / invalid_reference / duplicate_model / config_io / invalid_toml /
-nested_invocation / invalid_config。原文・値・Git 診断は返さない。
+nested_invocation / invalid_config / dsh_removed。原文・値・Git 診断は返さない。
+個人設定に ``runtime = "dsh"`` が残る場合は ``dsh_removed`` で読み込みを拒否する。
+DSH は撤去済みのため、該当する agent 定義を個人設定から削除する。自動移行はしない。
 
 ランタイム別モジュール
 ----------------------
@@ -90,8 +92,6 @@ nested_invocation / invalid_config。原文・値・Git 診断は返さない。
      - tools.agent_runner.adapters.codex
    * - cursor
      - tools.agent_runner.adapters.cursor
-   * - dsh
-     - tools.agent_runner.adapters.dsh
 
 型は ``tools.agent_runner.adapters`` で定義する。
 
@@ -104,11 +104,9 @@ nested_invocation / invalid_config。原文・値・Git 診断は返さない。
        def collect(self, context: AdapterContext,
                    stdout_path: Path, stderr_path: Path) -> AdapterOutcome: ...
 
-``Capabilities(noninteractive=True, stdin=True, confined_writes=False)``
+``Capabilities(noninteractive=True, stdin=True)``
   noninteractive と stdin の両方が literal True の場合だけ起動する。
   機能宣言はランタイム担当が実機で確かめる。対話への代替は不可。
-  ``confined_writes`` は trusted adapter がプロセス全体の書き込みを試行内へ制限する保証であり、設定や prompt の権限ではない。
-  既存の outer bubblewrap を使う DSH だけが True を宣言する。
 
 ``AdapterContext(request, agent, role, work_dir, receipt_path)``
   request は現在の識別情報と依頼、agent/role は有効な設定。
@@ -126,7 +124,7 @@ nested_invocation / invalid_config。原文・値・Git 診断は返さない。
   状態だけの success は受け入れない。
   認証・承認待ちを state として返せるため、receipt が無い失敗も分類できる。
   receipt ファイルがある場合は、その内容も runner が独立に検証する。
-  reported_state は、出力から分類した状態を adapter 自身の後段の検査（DSH の session の識別など）で
+  reported_state は、出力から分類した状態を adapter 自身の後段の検査で
   置き換えたときの、置き換える前の状態。診断の記録だけに使い、runner は状態の判定に使わない。
   State でない値は無視する。
 
@@ -179,7 +177,7 @@ after_run は後処理ごとの index / state / exit_code / stop_confirmed / std
 
 BatchResult
   schema_version / run_id / state / assignments / results / outside_changes /
-  checkout_audit / unrelated_checkout_audit / elapsed_seconds / artifact_dir。
+  checkout_audit / elapsed_seconds / artifact_dir。
   assignments は self を含む有効な一次担当。成功・失敗混在は partial_success。
   state は success / self / partial_success / failed。
 
@@ -197,8 +195,7 @@ Attempt
   （終了コード・期限・停止・receipt の照合）が state を置き換える前の値。adapter の reported_state、
   無ければ adapter が返した成功以外の state、無ければ receipt の status、無ければ adapter が返した
   state（null か success）の順に採る。adapter が分類しなかったとき（起動前の失敗、停止未確認で収集しない、
-  Devin の export を伏せ字にできずに収集しない、collect の例外、許されない state を返した、
-  DSH の receipt ファイルを拒否した）は null。診断の記録だけに使う。
+  Devin の export を伏せ字にできずに収集しない、collect の例外、許されない state を返した）は null。診断の記録だけに使う。
 
 Attempt / Result の state は success / self / unsupported / launch_failed /
 awaiting_authentication / awaiting_approval / response_failed / missing_result /
@@ -231,13 +228,11 @@ PID/starttime が一致する場合だけ追加の group member を観測する�
 
 監査は開始前から登録されていた checkout の HEAD・index・tracked ファイル・
 非 ignored untracked ファイルの内容を比較する。initialized submodule も含む。
-全外部担当と全 fallback が ``confined_writes=True`` を保証するときだけ、必須監査を main checkout と依頼元 checkout に限定する。
-未対応 adapter、保証の無い担当との混在、外部担当の無い構成、bare repository は全登録を必須対象にする。
-実際の起動時にも adapter の保証を再確認し、限定監査のまま非隔離担当を起動しない。
-必須対象の変化・監査不能は ``checkout_audit`` と ``outside_changes`` に返す。
-runner 自体は診断として返し、issue-to-pr・review-verify・review-fix-planning の受け取り入口が拒否する。
-必須対象以外の変化・監査不能は ``unrelated_checkout_audit`` に残し、受け取りを拒否する理由にはしない。
-起動前も共通の ``require_auditable_workflow`` で同じ必須対象を確認し、監査不能なら予約・有料起動より前に止める。
+すべての登録済み checkout を監査する。
+変化・監査不能は ``checkout_audit`` と ``outside_changes`` に返し、
+issue-to-pr・review-verify・review-fix-planning の受け取り入口が拒否する。
+起動前も共通の ``require_auditable_workflow`` と runner が全登録を確認し、
+監査不能なら予約・外部担当の起動より前に止める。
 Gitignored 資源、symlink の参照先、Git 外の任意のディレクトリは監査範囲外。
 外部セッションによる変更と委譲先による変更の因果までは断定しない。
 非隔離担当での直列運用と、消えた登録の所有者の照合・個別 repair / remove は、リポジトリルートの ``docs/agent-runner-checkout-recovery.md`` に記載する。
@@ -317,7 +312,7 @@ run は同期で全依頼の終了・停止確認まで待つ。
 API は既存 asyncio event loop 内からは呼ばない。
 ``write_exceptions`` は、呼び出し側が作業範囲の指示（``Work in this worktree only`` と ``writes=...``）への
 例外として許可するものの列。runner は空でなければ、その 2 行の直後に見出しと ``- <値>`` の行を順に置くだけで、
-内容を解釈・強制しない（sandbox ではない。DSH の ``sandbox_write_paths`` とは別）。
+内容を解釈・強制しない（sandbox ではない）。
 例えば PR レビューの loop と review-fix-planning の self-review は、pr-review の helper が書く実行記録・保存先・保存ロックなどを、
 review-verify の fix-check は一時ディレクトリ・再現用 worktree の登録などを渡す。
 見出しは ``Caller-authorized exceptions to the rules above (only these; everything else stays forbidden):`` で、

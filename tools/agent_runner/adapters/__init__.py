@@ -16,7 +16,6 @@ class AdapterContext:
     role: Role
     work_dir: Path
     receipt_path: Path
-    sandbox_write_paths: tuple[Path, ...] = ()
     environment: Mapping[str, str] | None = None
 
 
@@ -31,9 +30,6 @@ class LaunchSpec:
 class Capabilities:
     noninteractive: bool = True
     stdin: bool = True
-    # A trusted adapter guarantees all child filesystem writes stay in its
-    # owned attempt. This is not a configurable runtime/prompt permission.
-    confined_writes: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +57,6 @@ _MODULES = {
     "pi": "pi",
     "codex": "codex",
     "cursor": "cursor",
-    "dsh": "dsh",
 }
 
 

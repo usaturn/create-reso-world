@@ -811,13 +811,13 @@ def test_checkout_preparation_is_supervised(
         "time.sleep(60)\n"
     )
     hook.chmod(0o755)
-    real_snapshot = runner.snapshot_checkouts
+    real_snapshot = runner.require_auditable_checkouts
 
     def slow_snapshot(repository: Path) -> workspace.CheckoutSnapshot:
         time.sleep(0.3)
         return real_snapshot(repository)
 
-    monkeypatch.setattr(runner, "snapshot_checkouts", slow_snapshot)
+    monkeypatch.setattr(runner, "require_auditable_checkouts", slow_snapshot)
     monkeypatch.setenv("SERVICE_TOKEN", "prep-token-value")
     monkeypatch.setenv("UNCONFIGURED_SECRET", "ambient-prep-value")
     monkeypatch.setenv("GIT_DIR", "/bogus-ambient-git")
