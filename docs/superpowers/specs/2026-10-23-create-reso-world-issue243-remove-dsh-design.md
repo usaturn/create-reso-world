@@ -25,7 +25,7 @@
 
 ### PR レビューと修正ループ
 
-`prepare-parent`、`finalize-parent`、`pr_review_parent.py`、親からの bundle を使う private clone、DSH の観測 identity と staged 成果の親保存を撤去する。通常の checkout を使う prepare・complete・保存・cleanup は維持する。修正ループの DSH 用プロンプト、書き込み例外、成果照合、失敗分類、run_roles の DSH 拒否を撤去する。Codex の拒否と他のレビュアーの判定は維持する。
+`prepare-parent`、`finalize-parent`、`pr_review_parent.py`、親からの bundle を使う private clone、DSH の観測 identity と staged 成果の親保存を撤去する。通常の checkout を使う prepare・complete・保存・cleanup は維持する。浅い checkout でも元の Git の shallow 境界・ref・FETCH_HEAD を書き換えずに PR 全体をレビューできるよう、必要な履歴は使い捨ての所有領域へ直接取得する。修正ループの DSH 用プロンプト、書き込み例外、成果照合、失敗分類、run_roles の DSH 拒否を撤去する。Codex の拒否と他のレビュアーの判定は維持する。
 
 ### Dev Container と文書
 
