@@ -36,9 +36,9 @@
 | Python のテスト（pytest の収集数） | 61 | 33 | 54% |
 | bash のテスト（`tests/scripts/test-*.bash`） | 14 本 | 10 本 | 71% |
 | 件数の合計 | 75 | 43 | 57% |
-| 行数（`tests/scripts` の追跡ファイル。Meshy を除く） | 3,293 | 1,994 | 61% |
+| 行数（`tests/scripts` の追跡ファイル。Meshy を除く） | 3,293 | 1,996 | 61% |
 
-「後」は、PR 修正ループのサイクル 1〜5（D-235-9、条件単位の監査、F の行と確認の見直し）で戻した後に、同じコマンドで測った（`33 tests collected`、`ls` が 10、`wc -l` が 1994）。戻す前（`d0ef1f5`）は 1786 行、サイクル 2 の後は 1912 行だった。
+「後」は、PR 修正ループのサイクル 1〜5（D-235-9、条件単位の監査、F の行と確認の見直し）で戻した後に、同じコマンドで測った（`33 tests collected`、`ls` が 10、`wc -l` が 1996）。戻す前（`d0ef1f5`）は 1786 行、サイクル 2 の後は 1912 行だった。
 
 ## 決定記録
 
@@ -180,7 +180,7 @@
 | `parent_origin_rejection_does_not_disclose_url_credentials`、`push_url_rejection_does_not_disclose_credentials...`、`repository_input_errors_do_not_echo_credentials...` | S（高） | 拒否のメッセージに URL の資格情報が出ない（秘密情報の漏れ） | 残す |
 | `document_origin_rejection_does_not_disclose_url_credentials` | D | `_require_origin` を PARENT_ROOT と共有する（`superpowers_context.py:143`）。同じ関数のラベル違い | 消す |
 | `external_cwd_cannot_become_implicit_parent`、`explicit_parent_supports_external_cwd_but_code_stays_explicit`、`empty_roots_are_omitted_not_external_defaults` | S（高） | 別のリポジトリの cwd を PARENT_ROOT に選ばない。通る例を含む | 残す |
-| `missing_unsupported_or_foreign_parent_origin_has_actionable_error`、`linked_parent_requires_explicit_main_parent`、`explicit_roots_must_be_absolute_checkout_roots` | S（中） | 別のリポジトリ・worktree・checkout の外を root に選ばない。値の組み合わせを代表の数件にした | 残す |
+| `missing_unsupported_or_foreign_parent_origin_has_actionable_error`、`linked_parent_requires_explicit_main_parent`、`explicit_roots_must_be_absolute_checkout_roots` | S（中） | 別のリポジトリ・worktree・checkout の外を root に選ばない。値の組み合わせを代表の数件にした。origin の URL は、scp 形式（`git@host:`）と URL 形式を別の分岐で確かめるので、GitHub 以外のホストの例を両方に残す（scp 形式の例はサイクル 5 の自己レビューの指摘で戻した。D-235-9） | 残す |
 | `external_remote_selection_requires_exactly_one_name`、`known_routes_select_base_and_reject_conflicting_explicit_root`、`fork_requires_both_expected_remotes` | S（高） | base の remote を 1 つに決め、既知のリポジトリの経路を別の checkout にすり替えない | 残す |
 | `workspace_rejects_linked_code_but_fix_accepts_verified_worktrees`、`fix_rejects_known_worktree_effective_fetch_rewrites_without_disclosing_urls`、`fix_accepts_known_worktree_same_repository_transport_rewrites`、`fix_rejects_same_url_clone_and_its_linked_worktree_for_known_routes`、`document_main_and_linked_roots_verify_requested_branch` | S（高） | worktree の実効の fetch URL の書き換えや同じ URL の clone を、既知の checkout と誤認しない。経路と URL の値を代表にした。通る例を含む | 残す |
 | `base_and_head_remote_are_independent_and_head_branch_must_match`、`head_remote_rejects_matching_first_pushurl_with_wrong_later_destination`、`head_remote_rejects_mixed_fetch_url_fallback_destinations` | S（高） | push 先の remote を 1 つに決め、後ろの push URL や fetch URL の fallback の誤った宛先を見逃さない（誤った対象への push）。通る例を含む | 残す |

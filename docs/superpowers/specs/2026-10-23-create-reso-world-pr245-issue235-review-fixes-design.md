@@ -1,4 +1,4 @@
-# PR #245（Issue #235）のレビュー修正: サイクル 1〜4
+# PR #245（Issue #235）のレビュー修正: サイクル 1〜5
 
 ## 管理
 
@@ -342,3 +342,88 @@
 ### 結論（サイクル 4）
 
 結論 1: 修正して push する。対応する 1 件（F-15）と、自己レビューの M-1・fix-check の V-1（F-16、同じ守り）を直した。push する HEAD と検証の結果は状況コメントに書く。
+
+## サイクル 5
+
+- 対象 HEAD: `451f4070adf7c7aa074c1b7363a62b2b789d5dd7`。ループ: run `57738b570eae49e9802cbfb6de681eed` の 3 サイクル目（サイクルの上限。4 人を新しい HEAD で起動し、4 人とも受け付け、`rejected`・`retained` なし）。planner: claude-opus-5-5（claude-code）
+- 確認済みの一覧: `verified/451f4070adf7.json`（V-1（gpt-6.1-sol M-7）は confirmed。前のサイクルで直した 4 件（`gpt-6.1-sol#M-6`、自己レビューの M-1、fix-check の V-1・V-2）は、設定を変えた写しで今のテストが失敗し、解消したまま（`coverage.closed`））。工程の記録: `verified/451f4070adf7.planning.json`
+- 修正と自己レビューの担当: 前のサイクルと同じ（`implement` は `claude-opus`、`self-review`・`fix-check` は `self`）。自己レビューの回数: 1
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | 担当 | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | pi-gpt | `451f4070adf7` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | devin-swe | `451f4070adf7` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | pi-deepseek | `451f4070adf7` | はい | Approve |
+| `Grok-4.7.md` | Grok 4.7 256K Extra High | cursor | cursor-grok47 | `451f4070adf7` | はい | Approve |
+
+`claude-opus-5-5-commit-*.md`（サイクル 1〜4 の自己レビュー）は、このサイクルの HEAD ではないので入力から外した（指摘は判断済み）。
+
+### 指摘の一覧と振り分け
+
+前のサイクルの `fix` の 3 件は、4 人のレビュー（gpt の M-7 のほかに指摘なし）と確認済みの一覧（`coverage.closed`）のとおり、設定を変えた写しで今のテストが失敗することを確かめ、解消とした（`resolved`）。`skip` の 15 件は引き継ぐ。新しい指摘は 1 件（gpt-6.1-sol M-7、Medium）。分類: 解消済み 3 / 対応する 1 / 対応しない 0（新しい指摘）。自己レビューの指摘は下の「自己レビュー（サイクル 5）」。
+
+| 判断 | 元の指摘 | 分類 | 根拠 |
+| --- | --- | --- | --- |
+| F-17 | `gpt-6.1-sol#M-7@451f4070adf7` | 対応する | `.gitleaks.toml` の 2 つ目の allowlist は、過去の文書に残る既知の偽の値そのものだけを除外する。消した `test-ci.bash` は値を直書きして、その値だけを除外することを確かめていた。今のテストは値を `.gitleaks.toml` から読むので、2 つ目を別の値に差し替えても通り、`scan-before-push.sh` がその値を除外する（再現）。F∩S（凍結した履歴の値、秘密情報の検査の範囲）。(c) |
+| F-18 | `claude-opus-5-5-commit-0f4d7ae7e11221fefefe00c18c9776a04691b3e9#M-1@0f4d7ae7e112`（自己レビュー） | 対応する | `test_superpowers_context.py` の scp 形式の GitHub 以外のホストの例を消していた（URL 形式とは別の分岐の、最後の代表）。外すと GitHub 以外のホストの origin を取得元・push 先に選ぶ（別の対象を選ぶ）。(c) |
+
+### 設計の見直し
+
+- きっかけ: 1（同じ守る条件の 5 回目）。サイクル 4 の F の見直しは棚卸しの表の行の単位で、`test-ci.bash` の行の中の確認を 1 つずつは見ていなかった（除外の形は見たが、2 つ目の allowlist の値の同一性を見落とした）
+- **守る条件の設計（サイクル 4 からの追加）:** F として消したファイルは、行ではなく、その中の確認（assert・比較）を 1 つずつ並べて判定する。`test-ci.bash` の確認を全て並べた（下の表）
+- **比べた直し方:** (1) 値を直書きして比べる: 追跡するファイルに偽の値を増やし、gitleaks の除外に頼ることになる（`AGENTS.md` の「push の前の秘密情報の検査」は値を実行時に組み立てるとしている）。(2) 値の SHA-256 を固定して比べる（推奨）: 値を書かずに同一性を確かめられる。(3) 2 つ目の allowlist を確かめない: F∩S の消去で #228 の決定 6 に反する。(2) を選んだ
+- **`test-ci.bash` の確認（base の行）:**
+
+  | 確認 | 判定 | 今の守り |
+  | --- | --- | --- |
+  | `ci.yml` の `fetch-depth`・`GITLEAKS_CONFIG`・版の下限・版の一致（:20〜:33） | F | private の CI は止めていて、ジョブは実行されない。push の前の検査は `scan-before-push.sh`（棚卸しの表） |
+  | `useDefault` が true（:37） | S | 実際の gitleaks の確認（`useDefault` を外すと検出しない）と、サイクル 4 の設定の形の確認 |
+  | allowlist が 3 つ（:40） | F∩S | サイクル 4 の設定の形の確認 |
+  | 1 つ目の `regexTarget`・`targetRules`・正規表現が 1 つ（:41〜:43） | F∩S | 同上 |
+  | 1 つ目が識別子の例を除外する（:46〜:47） | L | 除外しないと誤検出で止まる（気付ける） |
+  | 1 つ目が偽の値・`api_key` の値を除外しない（:48〜:49） | S | サイクル 3 の実際の gitleaks の確認（区切りの無い値、`api_key` の項目） |
+  | 2 つ目が既知の偽の値を除外する（:51、`next` の `StopIteration`） | F∩S | **このサイクルで戻す**（値の SHA-256 の固定） |
+  | 2 つ目の `targetRules`・正規表現が 1 つ（:52〜:53） | F∩S | サイクル 4 の設定の形の確認 |
+  | 2 つ目が別の値・前後に文字の付いた値を除外しない（:55〜:56） | S | サイクル 3 の実際の gitleaks の確認（前後に 1 文字） |
+  | 3 つ目の `targetRules`・正規表現が 1 つ（:59〜:61） | F∩S | サイクル 4 の設定の形の確認 |
+  | 3 つ目が識別子を除外する（:63〜:69） | L | 除外しないと誤検出で止まる |
+  | 3 つ目が無作為な値・接頭辞の無い値・前後に値の続く値を除外しない（:73〜:88） | S | サイクル 3 の実際の gitleaks の確認（識別子に似た値、語と 8 桁、前後、末尾の 16 進、接頭辞付き）。`ghp_` を付けた値は github-pat の規則が検出し、`mat_material_x` はエントロピーが低く generic-api-key が検出しない（allowlist に関係しない） |
+
+  ほかに F として消したファイル（`test-docs.bash`・`test-instructions.bash` の参照、`test-check-layout.bash` の旧 18・26・27・38、`test_superpowers_lifecycle.py` の schema）は、サイクル 4 の表のとおり F・L で、F∩S の確認を含まない（確認を 1 つずつ読み直した）
+
+### 守る条件と影響経路
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| 2 つ目の allowlist が除外するのは、既知の偽の値だけ | 2 つ目の allowlist の値の差し替え | 修正する | `test-scan-before-push.bash` が値の SHA-256 の照合で失敗する | 値を逆順の文字列・無関係の値に差し替えた写し | `faa39d6` で通る。値を逆順・無関係の値に差し替えた写しで失敗する（担当と planner の試作） |
+| 同上 | 2 つ目の allowlist の `^`・`$` を外す | 既に満たす | 前後に 1 文字付けた値を検出する | サイクル 3 の確認 | 流し直し（サイクル 3）で検出 |
+| 1 つ目・3 つ目の allowlist の正規表現の別の書き換え | `.gitleaks.toml` | 対象外 | — | — | base も値で固定していなかった（例の入力での振る舞いを確かめるだけ）。境界はサイクル 3 の実際の gitleaks の確認が守る |
+
+### 修正と検証
+
+- 実装: `run_roles.py --phase implement`（担当 `claude-opus`、観測したモデル claude-opus-5-5、所要 434 秒、`state: success`、停止は確認済み）が commit `faa39d6` を作った。planner が、親が `451f407` で、差分が `tests/scripts/test-scan-before-push.bash` の 4 行の追加だけで、planner の試作と同じであることを確かめてから fast-forward で取り込んだ。追跡するファイルに偽の値は書いていない（SHA-256 だけ。gitleaks は既定の規則でもリポジトリの設定でも検出なし）
+- ガードを外した対照: 2 つ目の allowlist の値を、`^`・`$` を保ったまま逆順の文字列・無関係の値に差し替えた写しで、`test-scan-before-push.bash` が値の照合で失敗した（担当と planner がそれぞれ実行）。元の設定では 24 リポジトリとも通る
+- 関連テストと変更の種類に応じた検証（`faa39d6`、未 commit の変更なし）: `bash tests/scripts/test-scan-before-push.bash`・`bash .devcontainer/run-tests.bash`（`PASS: 29 test(s)`）・`bash scripts/check-layout.sh` がどれも終了コード 0。ログ: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr245.dwmtd18_/verify/`
+- push の前の検査: 自己レビューの前（`0f4d7ae`）に検出なし（1 回目は `origin/main` の取得が名前解決の失敗で止まり、やり直した）
+- 計測（`faa39d6`）: 43 件・10 本・1994 行（57%・61%）
+
+### 自己レビュー（サイクル 5）
+
+`run_roles.py --phase self-review` を 1 回呼んだ（工程の記録に `pre_push_review` を予約。self-review・fix-check とも `self` なので、claude-opus-5-5 のサブエージェント 2 つに同時に任せた。1 回と数える）。対象は修正後の `0f4d7ae`。self-review には、消したテストのファイルと場面の確認を 1 つずつ照合することを求めた。
+
+- self-review（`claude-opus-5-5-commit-0f4d7ae7e11221fefefe00c18c9776a04691b3e9.md`、Approve、887 秒）
+  - M-1（Medium、検証済み）: `test_superpowers_context.py` の `missing_unsupported_or_foreign_parent_origin_has_actionable_error` から、scp 形式の GitHub 以外のホスト（`git@example.com:…`）の例を消していた。`normalize_github_url` は scp 形式と URL 形式を別の分岐で確かめ、残した負の例は URL 形式だけを通る。scp 形式のホストの確認を外すと、今のテストは通り、GitHub 以外のホストの origin を取得元・push 先に選ぶ（再現） → 対応する（F-18。(c)。D-235-9 の「別の分岐は別の守り」に反していた。条件単位の監査は定数の値を変えない（監査の限界）ので見つからなかった）
+  - 消したテストの照合: `test-ci.bash` の全ての確認は今のテストか F・L に対応し、ほかの消したファイル・場面も F・L・D として成り立つ。漏れは M-1 の 1 件だけだった
+- fix-check（`verified/0f4d7ae7e112.fix-check.json`・`.statement-candidates.json`・`.fix-check.md`、761 秒）: 主張 14 件のうち holds 13・violates 1（C-12: #235 の Spec が参照する、この Spec のサイクル 5 の節が未 commit）・unchecked 0。値の差し替え 3 種がどれも値の照合で失敗し、旧版では通ることを確かめた
+  - V-1（PR 起因）: 照合する値は行単位の grep で読み、tomllib の 2 つ目の allowlist と結び付いていない。古い `regexes` の行を description の複数行の文字列へ移し、本当の値を基本文字列で差し替える意図的な編集は通る → 対応しない（致命的でない。古い行を文字列の中へ隠す意図的な編集だけが通り、素直な差し替え・書き換えはどれも止まる）。見直す条件: `.gitleaks.toml` の書き方を変えるとき
+  - V-2: #235 の Spec のサイクル 5 への参照先が未 commit → 対応しない（このサイクルの Spec の commit で解消した）。見直す条件: なし
+
+自己レビュー後の修正（F-18。planner が直した。`924d043`）: 同じテストの値の組に `git@example.com:usaturn/create-reso-world.git` を戻した（旧版の値。コメントで、scp 形式と URL 形式が別の分岐であることを書いた）。scp 形式のホストの確認をホストを問わない形に変えた写しで、戻したテストが失敗した（`0 != 66`）。#235 の Spec の表の行も直した。この修正は再レビューしていない。
+
+検証（`924d043`、未 commit の変更なし）: `test_superpowers_*.py`（unittest）、`bash .devcontainer/run-tests.bash`（`PASS: 29 test(s)`）、`bash scripts/check-layout.sh` がどれも終了コード 0。ログ: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr245.dwmtd18_/verify2/`。計測: 43 件・10 本・1996 行（57%・61%）
+
+### 結論（サイクル 5）
+
+結論 1: 修正して push する。対応する 1 件（F-17）と、自己レビューの M-1（F-18）を直した。ループはこのサイクルで上限（3）に達するので、push の後は新しい run で新しい HEAD をレビューする。
