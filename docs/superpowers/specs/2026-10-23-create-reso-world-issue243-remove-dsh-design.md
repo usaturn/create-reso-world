@@ -3,7 +3,7 @@
 - 文書管理: `usaturn/create-reso-world`
 - 対象: `usaturn/create-reso-world#243`
 - 着手時のコード: `7cf60715caf0026f7a4c95c72cdc2527e8075e2c`
-- 状態: `completed`。実行・検証結果を記録した状態であり、内容の承認を受けた記録ではない
+- 状態: `draft`。レビュー修正サイクル 2 の設計と検証を進めている。内容の承認を受けた記録ではない
 - 実行許可: 利用者の「`$issue-to-pr https://github.com/usaturn/create-reso-world/issues/243 --merge`」。推奨案で設計・実装・検証・PR 作成・指定のレビュー修正ループまで進める指示として扱う
 - 追加指示: 利用者の「廃止したことについて、テストを書かないこと。TDD で実装しないこと。」を優先する
 
@@ -107,3 +107,48 @@ Issue にない別リポジトリへの反映、利用者設定の編集、追�
 `run_roles.py --phase self-review` を1回だけ呼び、既定の `self` で PR 全体の自己レビューと fix-check を実施した。自己レビューは指定 commit `f12c400` の全体差分を対象に指摘0件で、関連テスト9件が成功した。fix-check は修正の9主張がすべて成立し、8変更ファイルの検査、文書候補181件の判定、関連テスト83件と安全性テストの変異対照を完了した。未確認は0件。結果は `reviews/usaturn/create-reso-world/#249-feat-issue-243-remove-dsh/verified/f12c400fc2e4.fix-check.json` と同じ接頭辞の要約・文書候補に保存した。レビュー後にコードを変更していないため、自己レビューを繰り返していない。
 
 fix-check の `V-1` は `tools/agent_runner/runtimes/cursor.rst:49` の説明が、shallow checkout でも共有 Git に worktree 登録を書き込むように読めるという文書の不一致である。旧版にも同じ説明があり、修正後の helper の許可文と実際の prepare/complete は、浅い元 Git を書き換えずに動く。既存の不正確な説明ではあるが、現行の利用手順や安全境界を破る致命的な問題ではないので、このサイクルでは対応しない。文書を根拠に実際の書き込み先を広げる運用が生じた場合、または新しい証拠で操作結果への影響が示された場合に見直す。自己レビューと fix-check に新たな致命的な指摘は無く、結論は既存 PR への修正 push と次サイクルの再レビューとする。
+
+## PR #249 レビュー修正サイクル 2（設計の見直し）
+
+現行 HEAD `ed1c1bbb9e683ce88f30a810c95b24de7d7563d3` の4件の再レビューでは、`gpt-6.1-sol#M-2@ed1c1bbb9e68` が新しい active 指摘、ほか3件は active 指摘なし。`verified/ed1c1bbb9e68.json` は `confirmed` 1件、`unverified` 0件。M-2 は外部 checkout の自己レビューで、controller の `GIT_DIR` または `GIT_COMMON_DIR` が別の完全な Git を指すと、`run_roles.write_exceptions` の `uses_owned_history` が浅い checkout を通常の checkout と誤判定し、元 Git 全体への書き込み許可を渡すというもの。runner の子は `GIT_*` を除くため、同じ checkout を浅いと判定してセッション所有 Git に書く。これは利用者の Git に余計な権限を与える安全境界の不一致であり、前サイクルの `Grok-4.7#M-1` と同じ守る条件の2回目、かつ修正コミット `f12c400` が導入した判定の回帰である。`STEP_TOTAL` と旧 Cursor 文書の既存の `skip` 判断は、新しい影響証拠が無い限り引き継ぐ。
+
+### 守る条件の設計
+
+**守る条件:** 明示した checkout に対する Git の解決・浅さの判定・実操作は、controller と runner の子で同じ Git を参照する。外から渡された `GIT_*` によって別の Git へ向かわせない。その結果、通常／浅い checkout、親と同一／別 Git、準備・保存・失敗後の回収のどの状態でも、外部担当に渡す書き込み許可は helper が実際に管理する場所だけに限る。浅い元 Git は読取専用とし、必要な履歴と review 用 worktree はセッション所有 Git に置く。Git の解決に失敗したときは、過大な許可を出さず担当起動の前に止まる。
+
+前サイクルの `f12c400` は `source_shallow` を許可文へ渡す仕組みを作ったが、判定の `pr_review_workspace.git` は controller の `GIT_*` を継承し、runner の子と同じ Git を見ている保証が無かった。`helper_write_exceptions` の純粋な分岐と、runner の `tools/agent_runner.workspace._git` の Git 環境除去だけでは、controller 側の判定と `review_target`・loop の checkout 解決が揃わない。
+
+| 守る条件 | 経路・状態・停止位置 | 変更前の挙動 | 判定 | 観測する結果・assertion | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 明示した checkout を読む | `agent_tmp._git` → `review_target._git` の親解決、`superpowers_context._git` → 対象解決、remote・ref の読取 | 外部 `GIT_*` を継承し、別 Git の設定や ref を読む余地がある | 修正する | `GIT_DIR`・`GIT_COMMON_DIR` が別 Git を指しても、指定 checkout の Git ディレクトリ・remote を得る。解決不能なら停止 | 独立した Git を使う隔離再現、通常入力との対照 | `172bc8f`: `review_target.git_environment` を中心に3入口を除去。`agent_tmp` と `superpowers_context` は循環 import を避けて同じ規則を各入口で実装。担当の一時再現では親 root・対象の出力が環境なし／2種類の汚染で一致。旧版の親 root は `GIT_DIR` 下で別 checkout を返した |
+| 判定と実操作が同じ Git を見る | `pr_review_workspace.git` の `uses_owned_history`、prepare の fetch/worktree、complete/save、cleanup | `uses_owned_history` が周囲の Git 環境を継承し、浅い元 Git を通常と判定し得る | 修正する | 浅い source は常に true、通常 source は false。浅い元 Git の shallow 境界・ref・FETCH_HEAD・worktree 登録は準備から回収まで不変 | 所有 Git の動作確認と、別 Git へ向けた `GIT_*` の代表例を正常入力と対で実行 | `172bc8f`: 実関数の汚染なし／`GIT_DIR`／`GIT_COMMON_DIR` が一致。旧版では2種類とも誤判定。既存の浅い prepare/complete と全 Python 1726件成功 |
+| 許可の根拠が実操作先と一致する | `loop.git_output` による親/source Git パス、`uses_owned_history`、`helper_write_exceptions`、reviewer prompt | Git パスの読取と浅さの判定で環境の扱いが異なる | 修正する | shallow なら親の保存ロックだけ、通常なら実際の source Git だけを許可する。失敗時は起動前に停止 | 環境あり／なしの許可文と実操作先を照合 | `172bc8f`: 一時的な loop の実関数で浅い／通常の親・source を各3環境で実行し、許可文が一致。旧版は remote が一致する別 Git を `GIT_DIR` に置くと別 Git 全体を許可した。関連587件成功 |
+| 外部 self-review の許可を狭く保つ | `run_roles.write_exceptions` の `git_common_dir`、`uses_owned_history`、runner の子、fix-check | `git_common_dir` は `GIT_*` を除くが浅さの判定だけ継承するため、同じ source の2つの解釈が食い違う | 既に満たす（共通判定の修正に依存） | 浅い外部 source で元 Git 全体の許可が無く、通常 source では必要な許可がある。子と一致 | 実 `write_exceptions` を浅い／通常と環境あり／なしで実行 | `172bc8f`: 代表の S テストは浅い／通常と汚染なし／`GIT_DIR` を対照し4件成功。ガードを外した一時変異では1件失敗。`GIT_COMMON_DIR` は一時再現で同じ結果。元 Git の過大許可0行、通常 source は必要な1行 |
+| 保存と回収の範囲を保つ | `review_run.helper_write_exceptions` と `pr_review_workspace` の保存ロック・セッション削除 | 許可文の分岐は正しいが、渡される浅さ・Git パスが誤り得る | 既に満たす（入力解決の修正に依存） | 元 Git の ref・object・登録と、親の保存ロック以外を増やさない。正常 checkout で必要な作成・回収ができる | 既存の浅い checkout 検証と正常 checkout の対照、差分の静的確認 | `172bc8f`: `helper_write_exceptions` は不変。浅い／通常の一時再現で許可文と対象一致。既存の save/cleanup テストを含む587件と全1726件成功 |
+
+**直し方の比較:** (1) `uses_owned_history` だけで `GIT_*` を除く点の修正は、`review_target._git` と `loop.git_output` のパス解決を残し、同じ判定と操作が再びずれる。(2) checkout を明示する Git 呼出の環境を共通の方法で除去し、resolver・レビュー helper・loop の各入口で使う案は、環境が渡っても Git の対象を固定できる。(3) `GIT_*` がある呼出を非対応として拒否する案は、Git hook や `rebase --exec` から使う経路を不必要に狭める。**(2) を採用**する。Git 環境の除去は agent-runner の子と同じ規則にし、各 caller が独自に浅さや許可先を推測しない。PR の分割は、同じ安全条件を複数 PR にまたがって一時的に破るため採らない。
+
+**検証の範囲:** M-2 は廃止の有無を問う指摘ではなく、残るレビュー経路の権限を守る S の条件である。実装後に、その守りを実装する場所へ代表的な安全性テストを1件置き、浅い source と通常 source の両側を確かめる。DSH 廃止を確認するテストは追加せず、TDD もしない。ほかの caller は同じ条件を隔離実行で照合し、固定の文言やファイル一覧を写すテストは作らない。
+
+### 実装と検証（自己レビュー前）
+
+既定の `claude-opus` 担当は隔離 worktree の `0c9b5de` に6ファイルをコミットした。runner は `success`・終了コード0・停止確認済みで、`outside_changes` と `checkout_audit` は空。controller は差分と親 `ed1c1bb`、clean status を確認して `172bc8f` として取り込んだ。両 commit のツリー ID は `6b2eef94e031b572cba5c4f05b819fbb01bfccb3` で一致する。担当は `run-tests.bash` 23件、`check-layout.sh`、関連587件、全 Python 1726件を完走した。controller は取り込み後の代表テスト4件と `git diff --check` を確認した。通常の Ruff と basedpyright は旧版からの指摘が残り、変更ファイルを旧版と同じ設定で比較した結果、新規指摘は0件。Gitleaks は `origin/main` からの15 commit で検出0件。DSH の廃止を確認するテストは足していない。
+
+実モデルで不要な許可が利用された事実は確認しておらず、安全性の再現は許可文までである。
+
+### 自己レビュー・fix-check と追加修正
+
+`run_roles.py --phase self-review` を1回だけ呼び、既定の `self` で PR 全体の自己レビューと fix-check を進めた。自己レビューは指定 commit `172bc8f` の全体差分を対象に、保存と cleanup を完了し、active 指摘0件。fix-check は11主張と6変更ファイルを確認し、関連98件のテストと安全性テストの変異対照を通した。一方、`fix-check#V-1@172bc8ff26d5` を confirmed とした。`pr-review` の対話・非対話は直接 `review_run.py prepare→complete` を使う経路を含み、`GIT_ASKPASS` または `GIT_SSH_COMMAND` を唯一の Git 認証手段にした直接実行では、`172bc8f` がその変数まで除くため fetch が止まる。ローカルの偽 transport で両変数とも `ed1c1bb` は成功し、`172bc8f` は環境変数不足で停止した。実 private remote の認証は使わず、この条件の到達性は transport の実行とスキルの手順から判定した。これは今回の修正が作ったサポート対象の機能停止なので「対応する」とした。
+
+同じ修正が生んだ回帰であり、自己レビュー後の指摘でもあるため、守る条件を次のように拡張して経路を見直した。**明示した checkout のローカル Git の解決・浅さ判定・書き込み先は外部の `GIT_*` に左右されない。一方、直接起動した pr-review helper は、Git transport の認証に必要な環境だけを fetch へ渡す。** runner の子は従来からすべての `GIT_*` を除いており、その経路の認証条件は変えない。
+
+| 守る条件 | 経路・状態・停止位置 | `172bc8f` の挙動 | 判定 | 観測する結果・assertion | 確かめる方法 | `93bf88f` の結果 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Git の対象を固定する | `review_target._git`、loop、親 root、対象 resolver | 全 `GIT_*` を除き、指定 checkout を読む | 既に満たす | `GIT_DIR`・`GIT_COMMON_DIR` が別 Git を指しても、指定 checkout の Git を読む | 既存の実関数対照と代表 S テスト | 既存の安全性テストを含む関連98件と全 Python 1726件成功。新しい `transport_auth` の既定は false で、これらの呼出元は変更しない |
+| 浅さの判定と実操作先を一致させる | `pr_review_workspace.git` のローカル Git 操作、浅い prepare、save、cleanup、失敗後の abandon | Git の対象は揃うが、認証変数も除く | 修正する | local Git の対象は固定し、通常／浅い checkout の両側で所有領域だけを作成・回収する | GIT 環境が汚染された実 prepare→complete→cleanup、失敗→inspect→abandon、既存テスト | helper の Git 呼出だけ `transport_auth=True` とし、認証用4変数を許可した。`GIT_DIR`・`GIT_COMMON_DIR` は引き続き除く。修正前の fix-check で実成功3件・失敗回収1件と元 Git 不変を確認。修正後は関連98件と全 Python 1726件成功 |
+| 直接実行の transport 認証を保つ | `review_run.py prepare` → `pr_review_workspace.git fetch`。認証変数だけに依存する Git remote | `GIT_ASKPASS` と `GIT_SSH_COMMAND` が消え、準備が停止 | 修正する | 偽 transport の同じ入力で `ed1c1bb` と修正後が成功し、`172bc8f` だけが停止する | from/to/修正後で各認証変数を必要とする偽 fetch を実行 | `GIT_ASKPASS`・`GIT_SSH_COMMAND` とも `ed1c1bb=success`、`172bc8f=missing`、`93bf88f=success`。実認証サーバでの確認は未実施 |
+| 外部担当への書き込み許可を増やさない | loop と run_roles の許可文、runner 子の環境 | 浅い元 Git への過大許可は解消済み | 既に満たす | shallow では元 Git への許可0行、通常では必要な1行 | 代表 S テストと修正前の fix-check の実関数対照 | 認証変数の許可は pr-review helper の直接実行だけ。loop・run_roles の環境は変更せず、代表 S テストと全 Python 1726件成功 |
+
+点の修正として helper だけで `GIT_ASKPASS` を戻す案は、`GIT_SSH_COMMAND` など同じ transport 経路を取りこぼす。全 `GIT_*` を戻す案は、`GIT_DIR` で別 Git へ向く元の安全問題を再発させる。直接実行の認証機能を保証から外す案は、現行の pr-review 手順と食い違う。`review_target.git_environment` の引数で transport 認証だけを許可する方式を選び、同じ関数を使う resolver と helper でローカル Git の選択規則を共有した。4変数は `GIT_ASKPASS`・`GIT_SSH`・`GIT_SSH_COMMAND`・`GIT_TERMINAL_PROMPT` に限定し、repository の向きを変える設定・環境は渡さない。
+
+自己レビューは規定の1回だけで、`93bf88f` の後に2回目を行っていない。V-1 の修正は上の from/to/修正後の再現、関連98件、全 Python 1726件、`run-tests.bash` 23件、`check-layout.sh`、差分・静的確認で確かめた。DSH の廃止を確認する新しいテストや TDD 工程は追加していない。fix-check の元成果は `reviews/usaturn/create-reso-world/#249-feat-issue-243-remove-dsh/verified/172bc8ff26d5.fix-check.json` と同じ接頭辞の要約・文書候補に保存した。残る未確認は実認証サービスを使った private remote の fetch であり、偽 transport と既存の直接 helper 経路で動作を確認した。

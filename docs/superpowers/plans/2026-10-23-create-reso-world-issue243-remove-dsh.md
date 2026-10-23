@@ -120,6 +120,19 @@
 - [x] `STEP_TOTAL` の表示ずれは実在を記録し、今回の致命的な修正に含めない。該当するコード・テスト・文書を編集しない。
 - [x] 変更した入口の局所検証、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills`、関連する `tools/agent_runner` のテストと静的解析を通す。必要な一時入力・ログは session に置く。controller が最後の変更後に検証と Gitleaks の検査を確認する。
 - [x] 保存済みの確認済み一覧を使って、既定の1回の自己レビューと fix-check を行う。自己レビューは指摘0件、fix-check は9主張・8ファイル・181文書候補を確認し、致命的な指摘は無い。Spec の経路表を実測結果へ更新する。
-- [ ] `completed` の Spec を1回 commit し、検査済みの SHA を既存 PR へ push して状況コメントを記録する。ループへ結果を返す。
+- [x] `completed` の Spec を1回 commit し、検査済みの SHA `ed1c1bbb9e683ce88f30a810c95b24de7d7563d3` を既存 PR へ push して状況コメントを記録した。ループへ結果を返し、第2サイクルへ進んだ。
 
 **テスト要否:** 2つの安全条件は S。旧結果の誤った未確認扱いと書き込み許可の過大化は、失敗が目立たないまま停止状態や利用者の Git に影響するため、守りを実装するモジュールに代表テストを置く。DSH を廃止した事実を照合するテストは書かず、TDD も行わない。読取入口や文書の固定値を重複して写すテストは作らず、実行・構造確認で確かめる。
+
+## Task 7: PR #249 レビュー修正サイクル 2
+
+**担当:** `review-fix-planning` の既定 `claude-opus`。前サイクルと同じ安全条件の2回目かつ `f12c400` が作った判定の回帰なので、Spec の「守る条件の設計」と影響経路の表を先に確認する。担当は `run_roles.py --phase implement` の隔離 worktree で実装・commit し、controller が差分・停止・検証を確認して取り込む。TDD は行わない。
+
+- [x] 現行 HEAD `ed1c1bbb9e683ce88f30a810c95b24de7d7563d3` の M-2 を隔離 worktree で再現し、`verified/ed1c1bbb9e68.json` に confirmed 1件・未確認0件を保存した。ほか3件のレビューの active 指摘と、前回の判断を照合した。
+- [x] 明示した checkout の Git 操作が、`GIT_DIR`・`GIT_COMMON_DIR` を含む外部の `GIT_*` に向かわないよう、`review_target._git`、`pr_review_workspace.git`、`loop.git_output` の環境を共通の方法で扱った。親・対象の前段にある `agent_tmp._git` と `superpowers_context._git` にも同じ除去を適用した。runner の子と同じ対象を `uses_owned_history` が判定し、浅い元 Git への過大な許可を出さず、通常 checkout で必要な権限を保つ。
+- [x] 実装の後で、`test_run_roles.py` に S の代表テストを1件加えた。浅い／通常と汚染なし／`GIT_DIR` を対照し、ガードを外した一時変異では1件失敗。DSH 廃止を確認するテストは作らず、TDD は行っていない。
+- [x] resolver、prepare・save・cleanup、loop の許可文、外部 self-review の許可文を隔離実行で照合した。担当は関連587件、`run-tests.bash` 23件、`check-layout.sh`、全 Python 1726件を成功させ、旧版との lint・型検査比較で新規指摘0件。controller は同一ツリー ID、代表テスト4件、`git diff --check`、Gitleaks 15 commit 検出0件を確認した。
+- [x] 確認済み一覧を入力に既定1回の自己レビューと fix-check を行った。自己レビューは `172bc8f` の全体差分で指摘0件。fix-check の V-1 は直接 pr-review helper の認証変数が消える機能停止として確認し、`93bf88f` で transport 認証だけ戻した。自己レビューは繰り返さず、偽 transport の from/to/修正後、関連98件、全 Python 1726件、`run-tests.bash` 23件、`check-layout.sh` で再検証した。Spec の設計表と実測を更新した。
+- [ ] Gitleaks が検査した最終 SHA だけを既存 PR に push し、判断の記録と状況コメントを投稿してループへ結果を返す。
+
+**テスト要否:** 書き込み許可が不要な元 Git を含むと、失敗が表示されず利用者の Git を変更し得るため S。1件の代表テストで正常と環境汚染の両側を確かめる。廃止の事実、文言、ファイル一覧を写すテストは F/L に当たり不要。代わりに現行 code の静的確認・実コマンド・差分を確認する。
