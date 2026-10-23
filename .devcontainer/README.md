@@ -253,7 +253,7 @@ GPU（CUDA）と open3d の表示機能は対象外とする。
 （`.wslconfig` の `networkingMode=mirrored`）でホストの localhost を共有するか、
 `resoloop discover` で ResoniteLink の告知を確かめ、`--url ws://<ホスト>:<ポート>` または
 環境変数 `RESONITE_LINK_URL` で接続先を指定する。
-ProtoFlux 用の flux-sdk はこの環境の対象外で、導入しない。
+ProtoFlux 用の flux-sdk は既定のセットアップでは導入しない。必要になったときの導入手順は「ProtoFlux 用の flux-sdk（必要なときだけ）」にある。
 
 導入を確認するにはコンテナ内で次を実行する。
 
@@ -266,6 +266,21 @@ bash scripts/resoloop-fork.sh status
 
 ResoLoop の公式要件には Windows 10/11 が記載されている。Linux で
 CLI が動作しない場合は `postCreateCommand` を失敗とし、成功扱いにはしない。
+
+### ProtoFlux 用の flux-sdk（必要なときだけ）
+
+postCreate は flux-sdk を導入しない。ProtoFlux のグラフを作る・配備するときだけ、次の手順で入れる。ProtoFlux を使わない作業には要らない。
+
+```bash
+dotnet tool install --global Papaltine.FluxSDK --version 1.9.0   # 更新は dotnet tool update --global
+resoloop flux status
+resoloop doctor --json
+```
+
+- 版は `resoloop flux status` と `resoloop doctor` が案内する版に合わせる（2026-10-24 時点は 1.9.0）。flux-sdk は Resonite 本体の版との組み合わせで互換が変わり、未検証の組は `resoloop doctor` が警告する
+- Resonite 本体の managed data をコンテナから読めることが前提である。Resonite は Windows ホスト側にあり、既定のコンテナには mount しない。読める場所を用意し、環境変数 `RESONITE_MANAGED_DATA_PATH` で指す。flux-sdk の実行ファイルが `flux-sdk` と違う名前・場所にあるときは `RESOLOOP_FLUX_EXECUTABLE` で指す
+- 導入できた確認は、`resoloop flux status` が成功し、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が warning でなくなること
+- グラフの作り方と配備は、プロジェクトの `resonite-flux` スキルを参照する
 
 ### Resonite の写真フォルダ（任意）
 

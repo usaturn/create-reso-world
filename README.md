@@ -228,6 +228,6 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools  # スキル・.
 
 ## 対象外
 
-リポジトリの公開と LICENSE の選定、Git LFS、flux-sdk の導入、Rebuild を伴う確認の自動化は対象外である。
+リポジトリの公開と LICENSE の選定、Git LFS、Rebuild を伴う確認の自動化は対象外である。
 Rebuild 後の確認は、ユーザが `docs/integration.md` の手順で行う。pi と Claude Code の設定の移植（Issue #17）で確かめる項目と
 記録は、`docs/` にある移植の比較表（Issue #22）の「rebuild での確認」にある。
