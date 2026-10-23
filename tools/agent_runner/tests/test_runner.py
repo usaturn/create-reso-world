@@ -315,7 +315,7 @@ def _raise_with_payload(payload: object) -> bool:
     return True
 
 
-@pytest.mark.parametrize("check", [_raise_with_payload], ids=["raises"])
+@pytest.mark.parametrize("check", [_ok_flag, _raise_with_payload], ids=["returns-false", "raises"])
 def test_payload_check_refusal_is_invalid_result_and_tries_fallback(
     repository: Path, check: Callable[[object], bool]
 ) -> None:

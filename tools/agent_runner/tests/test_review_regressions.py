@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from tools.agent_runner import environ, process
-from tools.agent_runner.adapters import AdapterContext, AdapterOutcome
+from tools.agent_runner.adapters import AdapterContext, AdapterOutcome, LaunchSpec
 from tools.agent_runner.runner import run_workflow
 from tools.agent_runner.tests.test_runner import FakeAdapter, configuration
 
@@ -70,6 +70,26 @@ def test_retained_receipts_are_scrubbed_even_when_invalid(
     assert secret not in batch.model_dump_json()
     if not malformed:
         assert json.loads(raw)["payload"]["credential"] == "[REDACTED]"
+
+
+class FifoAdapter(FakeAdapter):
+    collected = False
+
+    def prepare(self, context: AdapterContext) -> LaunchSpec:
+        original = super().prepare(context)
+        command = "import os; os.mkfifo(" + repr(str(context.receipt_path)) + ")"
+        return type(original)((context.agent.command[0], "-c", command), b"")
+
+    def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
+        self.collected = True
+        raise AssertionError("collector must not run on a nonregular receipt")
+
+
+def test_nonregular_receipt_is_rejected_before_adapter_reads_it(repo: Path) -> None:
+    adapter = FifoAdapter()
+    batch = run_workflow(configuration(), "audit", "inspect", repo, adapter_loader=lambda _: adapter)
+    assert batch.results[0].state == "invalid_result"
+    assert not adapter.collected
 
 
 class NeverCollect(FakeAdapter):

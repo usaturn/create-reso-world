@@ -315,6 +315,14 @@ def test_missing_identity_discards_success_payload(context: AdapterContext) -> N
     assert outcome.identity.provider is outcome.identity.model is None
 
 
+@pytest.mark.parametrize("code,status", [("MISSING_CREDENTIAL", "awaiting_authentication")])
+def test_missing_identity_preserves_known_failure(context: AdapterContext, code: str, status: str) -> None:
+    events = _stream(reason={"kind": "error", "error": {"code": code}})
+    outcome = _collect(context, events, with_identity=False)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == status and outcome.receipt.payload is None
+
+
 @pytest.mark.parametrize(
     ("reason", "reported"),
     [
@@ -420,6 +428,10 @@ def test_error_reason_overrides_even_nonempty_final(context: AdapterContext, cod
     assert outcome.receipt is not None
     assert outcome.receipt.status == state
     assert outcome.receipt.payload is None
+
+
+def test_abort_maps_to_interrupted(context: AdapterContext) -> None:
+    assert _status(context, _stream("", {"kind": "aborted"})) == "interrupted"
 
 
 @pytest.mark.parametrize(
@@ -578,6 +590,7 @@ def test_error_events_cannot_be_hidden_by_completed_final(context: AdapterContex
     "event",
     [
         {"type": "status", "phase": "unknown", "turn": 1},
+        {"type": "tool_call", "callId": "call", "tool": "read"},
         {"type": "tool_result", "callId": "call", "status": "unknown", "result": "x"},
         {"type": "tool_result", "callId": "call", "status": "completed"},
     ],
