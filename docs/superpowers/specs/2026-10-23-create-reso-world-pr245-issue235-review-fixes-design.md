@@ -1,4 +1,4 @@
-# PR #245（Issue #235）のレビュー修正: サイクル 1・2
+# PR #245（Issue #235）のレビュー修正: サイクル 1〜3
 
 ## 管理
 
@@ -160,3 +160,103 @@
 ### 結論（サイクル 2）
 
 結論 1: 修正して push する。push する HEAD と検証の結果は状況コメントに書く。
+
+## サイクル 3
+
+- 対象 HEAD: `1b0a290f8f8033287346ce8733fe54710559f7ed`。ループ: run `57738b570eae49e9802cbfb6de681eed`（前の run `447944ba887042c88970b3d02d7005ee` は、このサイクルのレビューの後に、実行予算の 91% で `finish --abort` した。新しい run の 1 サイクル目は、同じ HEAD のレビューを再利用した（`review.mode: reuse`））。planner: claude-opus-5-5（claude-code）
+- 実行許可の追加: 2026-10-23（JST）、利用者が `/goal PR マージできるまで実行してください。` と指示した。issue-to-pr の実行予算（300 分）の延長と、PR がマージできるまでループを続けることの許可として記録する（内容の承認ではない）
+- 確認済みの一覧: `verified/1b0a290f8f80.json`（V-1〜V-4 は confirmed、前のサイクルの修正の V-5〜V-8 は not_reproduced）。工程の記録: `verified/1b0a290f8f80.planning.json`
+- 修正と自己レビューの担当: サイクル 1・2 と同じ（`implement` は `claude-opus`、`self-review`・`fix-check` は `self`）。自己レビューの回数: 1
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | 担当 | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | pi-gpt | `1b0a290f8f80` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | devin-swe | `1b0a290f8f80` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | pi-deepseek | `1b0a290f8f80` | はい | Approve |
+| `Grok-4.7.md` | Grok 4.7 | cursor | cursor-grok47 | `1b0a290f8f80` | はい | Approve |
+
+`claude-opus-5-5-commit-*.md`（サイクル 1・2 の自己レビュー）は、このサイクルの HEAD ではないので入力から外した（指摘は判断済み）。
+
+### 指摘の一覧と振り分け
+
+前のサイクルの `fix` の 4 件は、4 人の Resolved findings と確認済みの一覧（V-5）のとおり解消を確かめた（`resolved`）。`skip` の 9 件は引き継ぐ。新しい指摘は 4 件（Medium 3・未確認の候補 1）で、どれも confirmed・introduced（原因は `d0ef1f5`・`da5ee51`）。監査（下の「設計の見直し」）で、planner が 2 件を足した。分類: 解消済み 4 / 対応する 6 / 対応しない 0（新しい指摘）。
+
+| 判断 | 元の指摘 | 分類 | 根拠 |
+| --- | --- | --- | --- |
+| F-8 | `gpt-6.1-sol#M-4@1b0a290f8f80` | 対応する | `new-world.sh:160` の jq の文書数（`length == 1`）と root の型（`type == "object"`）、`check-layout.sh:261` の設定の文書数の代表（旧 41・52）を消した。外すと、`--apply` が 2 つの文書・`null` の `.resoloop.json` を書き換えて利用者の設定を上書きし、成功と報告する。check-layout は先頭の文書の profile を黙って使い、壊れた配置を PASS と報告する。(c) |
+| F-9 | `gpt-6.1-sol#M-5@1b0a290f8f80` | 対応する | `.gitleaks.toml` の 2 つ目（偽の値）の `^`・`$` と、3 つ目（`key()` の識別子）の `^`・`$` の代表（`test-ci.bash`）を消した。広げても今のテストが通り、`scan-before-push.sh` が秘密情報を除外して検査した SHA を返す（秘密情報の漏れ）。(c) |
+| F-10 | `deepseek-deepseek-v4.1-flash#M-5@1b0a290f8f80` | 対応する | サイクル 1 で足した 1 つ目の allowlist（マニフェストの `"key"`）の確認は、値が base64 として復号された別の検出（`decoded:base64`）で止まるので、区切りの要求を外して広げても通る。サイクル 1 の修正の検証（`.*` に広げた写し）は、この経路を区別していなかった。(c) |
+| F-11 | `deepseek-deepseek-v4.1-flash#U-1@1b0a290f8f80` | 対応する | `check-layout.sh:357` の items の検査のうち、`items` が symlink の部分（旧 51）の代表を消した。通すと、アイテムの処理がリンク先へ書く items のプロジェクトを PASS と報告する。サイクル 2 の監査は文単位で L としたが、条件単位では symlink の部分は「symlink の先に書かない」の S（欠落・種類違いの部分は L のまま）。(c) |
+| F-12 | `planner#S-1@1b0a290f8f80`（条件単位の監査） | 対応する | `check-layout.sh:340` の assets の `.resoloop.json` が symlink の部分（旧 53）の代表を消した。通すと、リンク先の別のファイルの設定（接続先など）を読む assets のプロジェクトを PASS と報告する。F-11 と同じ理由。(c) |
+
+| F-13 | `planner#S-2@1b0a290f8f80`（条件単位の監査） | 対応する | 雛形の wrapper（`templates/world-project/blender-system-python`）の `exec` による終了コードの伝搬の代表（消した `test-blender-system-python.bash`）。resoloop は Blender の終了コードが 0 以外なら `BLENDER_FAILED` で止まるので、終了コードを捨てると Blender の失敗を成功と報告する（`AGENTS.md` の L のただし書きの S）。D-235-3 は「`exec` なので変わらない」と今の実装で判定していた。(c) |
+
+| F-14 | `claude-opus-5-5-commit-ccd469733d737de5a7efaf8f712e5e09b144d092#M-1@ccd469733d73`（自己レビュー） | 対応する | 監査で L とした `check-layout.sh:378`（`.agents/sp-*.md` のリンクの一覧）は S。リンクの欠けたプロジェクトを PASS と報告し、pi-superagents が組み込みの定義で担当を黙って動かす（誤った結果）。(c)。下の「自己レビュー（サイクル 3）」 |
+
+- 監査の候補のうち、上の 6 つの守り以外（bash 117、Python 27、`.gitleaks.toml` の 6、wrapper の 6）は、どれも L・F に分けた（#235 の Spec の「条件単位の監査（サイクル 3）」の表）。サイクル 2 で文単位に L・F とした文の条件の部分と、正しい入力を誤って拒否する方向の変異が大半である
+- 確認中に PR が持ち込んだ致命的な欠陥は、上のほかには見つからなかった
+
+### 設計の見直し
+
+- きっかけ: 1（同じ守る条件の 3 回目）。F-8〜F-12 は、サイクル 1・2 と同じ条件（S の守りの最後の代表を D・L・F として消した）が、サイクル 2 の監査が扱わなかった形で破れていた。サイクル 2 の監査は「文を 1 つ外す」変異だけで、複合の条件の一部分（jq の `and`、`[ a ] || [ b ]` の片方）、設定の値（`.gitleaks.toml`）、テストの検出が別の経路（base64 の復号）に隠れることを扱っていなかった
+- **守る条件の設計（サイクル 2 からの追加）:** S の守りは、文ではなく、守りを決める条件の各部分（`&&`・`||`・jq の `and`・`or` の各項、`[ ]`・`[[ ]]` の各判定、安全に関わるオプション、allowlist の正規表現の各部分）を単位にする。どの部分を 1 つ外しても、気付けない損害（S）が残るなら、今のテストのどれかが失敗する。テストの検出は、外した部分そのものの効果で起きる（別の拒否の理由・別の検出の経路で止まった検出は数えない）。そのため、負例には異常を 1 つだけ入れ、gitleaks の検出は値そのものの検出（`decoded:` の付かない `Finding:`）を求める
+- **比べた直し方:** (1) 点の修正（指摘の 3 件だけ）: 同じ種類の指摘が 4 回目も出る見込みが高い。(2) 監査を条件の各部分・設定の値まで広げ、「base は検出するが今は検出しない」ものを全て分類し、S を戻す（推奨）。(3) 保証を狭める（S の代表を全ては保たないと PR に書く）: #228 の決定 6 に反する。(2) を選んだ。条件が「全ての条件の部分を列挙した表」で成り立ち、レビュアーの試行に頼らない
+- **影響経路（仕組みから作り直した表）:** #235 の Spec の「条件単位の監査（サイクル 3）」。変異 860 件のうち、今のテストが検出 527 件、base も検出しない 163 件（対象外）、base は検出するが今は検出しない 170 件を S・L・F に分けた。S は 6 つの守りの 14 件（new-world の jq 2、check-layout 3、`.gitleaks.toml` 8、wrapper 1）。自己レビューの指摘で、L としていた `check-layout.sh:378` を S に直し、7 つの守り・15 件にした
+- 監査の限界: 文字列・正規表現の定数の値（追跡禁止のパターンなど）、代入・数値の変異、出力の文言は扱わない。追跡禁止のパターンは、base も `TNX.txt` の 1 件だけを確かめていた（減っていない）
+
+### 守る条件と影響経路
+
+| 守る条件（ガード） | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| `.resoloop.json` の JSON は 1 つの文書だけ | `new-world.sh:160` の `length == 1` | 修正する | `CONFLICT: .resoloop.json`・終了コード 1・プロジェクト全体の `snapshot` が不変 | `test-new-world.bash` の新 9 の `'{} {}'`。`true` にした写しで失敗する | `2aff2d6` で通る。外した写しで失敗する（流し直し） |
+| root は object | 同じ jq の `type == "object"` | 修正する | 同上 | 新 9 の `'null'`。`true` にした写しで失敗する | `2aff2d6` で通る。外した写しで失敗する（流し直し） |
+| `blenderExecutable` は string か null | 同じ jq の `type == "null" or type == "string"` | 既に満たす | 同上 | 新 9 の `'{"blenderExecutable":1}'`（各項を `true` にした写しで失敗する。監査で今のテストが検出） | 監査（`1b0a290`）で検出 |
+| `.check-layout-projects.json` は 1 つの文書だけ | `check-layout.sh:261` の `length == 1` | 修正する | `.check-layout-projects.json` を含むメッセージで失敗 | `test-check-layout.bash` の新 12 の `'{"worlds/demo":"world"} {}'`。`true` にした写しで失敗する | `2aff2d6` で通る。外した写しで失敗する（流し直し） |
+| 設定の型・キー・値 | `check-layout.sh:262`・`:264` の jq の各項 | 対象外 | — | — | L: 外しても、未知の値・型は world（いちばん厳しい検査）として扱われるか、jq のエラーで失敗し、壊れた配置は通らない |
+| assets の manifest は symlink でない通常ファイル | `check-layout.sh:340` の `-L` | 修正する | `missing regular file .resoloop.json` で失敗 | 新 11 の symlink の確認。`false` にした写しで失敗する | `2aff2d6` で通る。外した写しで失敗する（流し直し） |
+| assets の manifest の種類（ディレクトリなど） | `check-layout.sh:340` の `! -f` | 対象外 | — | — | L: resoloop が設定を読めずにエラーで止まる |
+| items は実ディレクトリ（symlink でない） | `check-layout.sh:357` の `-L` | 修正する | `missing real directory items` で失敗。正しい items は `ok: ... (items)` で通る | 新 11b。`false` にした写しで失敗する | `2aff2d6` で通る。外した写しで失敗する（流し直し） |
+| items の欠落 | `check-layout.sh:357` の `! -d` | 対象外 | — | — | L: アイテムの処理がディレクトリを見つけられずに止まる |
+| 1 つ目の allowlist は `"key"` という名前の項目だけ（`^`） | `.gitleaks.toml` の 1 つ目 | 修正する | `scan-before-push.sh` が `{"api_key": "msy_<無作為な値>"}` を直接の検出で止める | `test-scan-before-push.bash` に 1 件。`^` を外した写しで失敗する | `2aff2d6` で通る。外した写しで失敗する（流し直し） |
+| 1 つ目は区切りを持つ値だけ | 1 つ目の `(?:[_.:/-]+[A-Za-z0-9]+)+` | 修正する | マニフェストの `"key": "<区切りの無い値>"` を直接の検出で止める | 既存の 1 件を `expect_direct_leak` に変える。`+` を `*` にした写しで失敗する | `2aff2d6` で通る。外した写しで失敗する（流し直し） |
+| 2 つ目は偽の値そのものだけ（`^`・`$`） | `.gitleaks.toml` の 2 つ目 | 修正する | 偽の値の前後に 1 文字付けた値を直接の検出で止める | 2 件を足す（偽の値は `.gitleaks.toml` から読む）。`^`・`$` を外した写しで失敗する | `2aff2d6` で通る。外した写しで失敗する（流し直し） |
+| 3 つ目は識別子そのものだけ（`^`・`$`）、末尾は小文字の 16 進 8 桁 | `.gitleaks.toml` の 3 つ目 | 修正する | 識別子の前後に無作為な値を付けた値、末尾が英字の大小を含む 8 文字の値を直接の検出で止める | 3 件を足す。`^`・`$`・末尾のクラスを広げた写しで失敗する | `2aff2d6` で通る。外した写しで失敗する（流し直し） |
+| allowlist の `targetRules`・`regexTarget`・1 つ目の `$` | `.gitleaks.toml` | 対象外 | — | — | 実際の gitleaks で確かめた: `targetRules` を外しても、ほかの規則の検出が `key"` で始まる・偽の値そのもの・`key()` の接頭辞を持つことは無く、除外は広がらない。`regexTarget` の入れ替えは除外を狭める（誤検出で止まり、気付ける）。1 つ目の `$` は、generic-api-key の検出が値の後の引用符で終わるので効果が無い |
+| 1 つ目の先頭の英字、3 つ目の最初の名前の塊 | `.gitleaks.toml` | 対象外 | — | — | base のテストも確かめていない（この PR で減った守りではない） |
+
+| Blender の終了コードを返す | wrapper の `exec` | 修正する | `test-blender-system-python.bash` が 0 と 37 をそのまま受け取る | `exec` を外して `exit 0` にした写しで失敗する | `2aff2d6` で通る。外した写しで失敗する（流し直し） |
+| プロジェクトの `.agents/sp-*.md` はルートへの symlink（自己レビューの M-1） | `check-layout.sh:378`（`.pi` などの一覧とは別の一覧） | 修正する | `must be a symlink to ../../../.agents/sp-implementer.md` で失敗 | 新 7 の `p-sp`。`:378` を `false || continue` にした写しで失敗する | `17640aa` で通る。外した写しで失敗する |
+| 作ったプロジェクトの `sp-*.md` のリンク | `new-world.sh:194` | 対象外 | — | — | L: リンクの欠けたプロジェクトは `check-layout.sh` が新 7 の `p-sp` の検査で失敗にする（new-world の `:146` と同じ扱い） |
+| wrapper の PATH・`VIRTUAL_ENV`・引数 | wrapper | 対象外 | — | — | L: NumPy の import のエラー、Blender・argparse のエラー（D-235-3） |
+| Python の識別子・URL・root・review-copy の条件 | `superpowers_context.py`・`superpowers_review_copy.py` | 対象外 | — | — | L: サイクル 2 で L とした文の条件の部分（誤った入力は別のエラーで止まるか、正しい入力を誤って拒否する） |
+
+### 修正と検証
+
+- 実装 1（F-8〜F-12）: `run_roles.py --phase implement`（担当 `claude-opus`、観測したモデル claude-opus-5-5、所要 1374 秒）が commit `a6fc2ed` を作った。runner は、担当の Bash の 1 つ（変異の確認用のスクリプトのファイルへの書き込み）が許可されなかったことから `awaiting_approval` と判定し、結果を受け付けなかった（`state: failed`、停止は確認済み）。planner が、親が `1b0a290` で、差分が 3 つのテストのファイルだけ（45 行の追加・5 行の削除）で、planner が変異で確かめた試作と同じであることを確かめてから取り込んだ（`6baee64`）
+- 実装 2（F-13）: 同じく `claude-opus` が commit `2aff2d6` を作ったが、検証の途中で planner のセッションが終わって中断した（`run_roles.py` の結果は残らなかった。担当のプロセスが残っていないことを確かめた）。親が `6baee64` で、差分が `tests/scripts/test-blender-system-python.bash`（100755、19 行）だけで、試作と同じであることを確かめてから fast-forward で取り込んだ。担当の環境では `run-tests.bash` が `test-pi-migrations.bash` の中の 3 件で失敗したが、この PR が変えていないファイルで、planner の環境では再現しなかった
+- 関連テスト: `6baee64` で `test-new-world.bash`・`test-check-layout.bash`・`test-scan-before-push.bash`（24 リポジトリ）が終了コード 0。`2aff2d6` で `test-blender-system-python.bash` が終了コード 0
+- 変更の種類に応じた検証（`2aff2d6`、未 commit の変更なし）: `bash .devcontainer/run-tests.bash` が終了コード 0（`PASS: 29 test(s)`）、`bash scripts/check-layout.sh` が終了コード 0。ログ: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr245.9y924o38/verify2/`。`6baee64` でも同じく通った（`verify/`、28 本）
+- ガードを外した対照（失敗時の検証の 4）: 監査の候補 170 件を、`2aff2d6` のテストで流し直した。S の 14 件は全て失敗した（外した守りを検出）。正しい items の通過も確かめるので、items を誤って失敗させる L の 5 件も検出するようになった。残りの 151 件は、#235 の Spec の表で L・F とした変異だけ。負例には異常を 1 つだけ入れ（`items` の symlink の行き先は実在させ、`! -d` で止まらないようにした）、gitleaks の確認は値そのものの検出を求める
+- 計測（`2aff2d6`）: 43 件・10 本・1971 行（57%・60%）
+- 全体の pytest は、Python のファイルを変えていないので再実行していない（修正前の `5e9bc8c` で 3636 passed）
+- runner の worktree（`implement-run/80388b7ff6744bae87474952dd8c09b6/attempt-1/worktree`・`implement2-run/13dc796c1fa74c2a84501e722e18ed1e/attempt-1/worktree`。どちらも `/workspaces/reso-world/tmp/agents/review-fix-planning-pr245.9y924o38/` の下）は、停止を確かめたので、サイクルの最後に `git worktree remove`（force なし）で外す
+
+### 自己レビュー（サイクル 3）
+
+`run_roles.py --phase self-review` を 1 回呼んだ（工程の記録に `pre_push_review` を予約。self-review・fix-check とも `self` なので、claude-opus-5-5 のサブエージェント 2 つに同時に任せた。1 回と数える）。対象は修正後の `ccd4697`。
+
+- self-review（`claude-opus-5-5-commit-ccd469733d737de5a7efaf8f712e5e09b144d092.md`、Needs manual verification、約 19 分）
+  - M-1（Medium、検証済み）: 監査で L とした `check-layout.sh:378`（`.agents/sp-*.md` のリンクの一覧）は S。pi-superagents はプロジェクトに無い定義を組み込みの定義（`model: cheap`。リポジトリの定義は `balanced`）で黙って補うので、リンクの欠けたプロジェクトを PASS と報告すると、担当がエラーにならずに別の設定で動く。表の理由（「見つからずに止まる」）は事実と違う → 対応する（F-14。(c)。きっかけ 3（自己レビューでの再発: この回の監査の判定の誤り）。下の「自己レビュー後の修正」）
+  - L-1（Low、要設計判断）: new-world の新 9 の `'{} {}'`・`'null'` は、外しても損害が残らない書きすぎ。check-layout の新 12 の値は、後ろの文書を無視しても検査が緩まない組 → 対応しない（致命的でない。gpt-6.1-sol M-4 の再現では、利用者の `blenderExecutable` を持つ文書と空の文書の組で、変異が利用者の値を wrapper のパスに上書きして失う経路があるので S のままにする。新 12 の値でも、文書数の項を外した変異は検出する。論点: 読めない設定の中の利用者の値の上書きを損害とみなすか）。見直す条件: resoloop が複数の文書の設定を受け付けるようになったとき、または利用者の値の上書きを損害としない判断に変えるとき
+  - Merge recommendation の理由（表の行がまとめた候補の一覧が残っていない）は、候補 170 件の一覧を `tmp/agents/issue-235.9hro_7qe/audit3/` に残し、全ての候補の行が表のどれかの行にあることを機械的に照合して解消した（表に漏れていた `new-world.sh:39`・`:56`・`:86`・`:89`・`:101`・`:194`・`:206`・`:249` の行を足した）
+- fix-check（`verified/ccd469733d73.fix-check.json`・`.statement-candidates.json`・`.fix-check.md`、785 秒）: 主張 17 件のうち holds 15・violates 0・unchecked 2（C-14 の `targetRules`、C-16 の監査の流し直し。どちらも planner が別に確かめた）。守りの条件の部分を 1 つずつ壊した 15 種で、戻した場面が全て失敗した
+  - V-1（既存）: `.gitleaks.toml` の説明が、削除済みの `test-ci.bash` を偽の値の使い手としている → 対応しない（説明の文だけで、除外の範囲は変わらない。#235 の Spec の申し送りに記録済み）。見直す条件: `.gitleaks.toml` を変えるとき
+  - V-2: Plan の Delete の一覧が、戻した `test-blender-system-python.bash` を挙げたまま → 対応しない（Plan は当時の計画の記録で、結果は Spec に書いた。致命的でない）。見直す条件: この Plan を実行し直すとき
+
+自己レビュー後の修正（M-1。planner が直した。`17640aa`）: `test-check-layout.bash` の新 7 に、`.agents/sp-implementer.md` のリンクを消したプロジェクトが `must be a symlink to ../../../.agents/sp-implementer.md` で失敗する `p-sp` を戻した（旧場面 30 に当たる。異常は 1 つだけ）。`:378` を `false || continue` にした写しで `p-sp was accepted` と失敗し、check-layout の候補 44 件の流し直しで、検出は 8 件から 9 件になった（残りは L・F とした変異だけ）。#235 の Spec の表の `:378` を S に直した。この修正は再レビューしていない。検証（`17640aa`、未 commit の変更なし）: `test-check-layout.bash`・`test-new-world.bash`・`test-scan-before-push.bash`・`test-blender-system-python.bash` が終了コード 0、`bash .devcontainer/run-tests.bash` が終了コード 0（`PASS: 29 test(s)`）、`bash scripts/check-layout.sh` が終了コード 0。ログ: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr245.9y924o38/verify3/`。計測: 43 件・10 本・1976 行（57%・60%）
+
+### 結論（サイクル 3）
+
+結論 1: 修正して push する。対応する 6 件（F-8〜F-13）と、自己レビューの M-1（F-14）を直した。push する HEAD と検証の結果は状況コメントに書く。
