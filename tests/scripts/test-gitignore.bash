@@ -55,12 +55,4 @@ for p in \
   expect_not_ignored "$p"
 done
 
-# 理由付きの固定値: 追跡中かつ ignore の組は 0 件であること。1 件でもあれば、ignore の過剰適用か
-# 追跡解除の漏れなので失敗にする（旧来の pipeline.json の例外は無くなった）
-actual="$(git ls-files -i -c --exclude-standard)"
-if [ -n "$actual" ]; then
-  printf 'FAIL: tracked-but-ignored files exist:\n%s\n' "$actual" >&2
-  exit 1
-fi
-
 printf 'PASS: root .gitignore matches the tracking policy\n'

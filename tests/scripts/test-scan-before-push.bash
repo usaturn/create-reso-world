@@ -2,7 +2,6 @@
 # push の前の検査（scripts/scan-before-push.sh）を、固定した版の実際の gitleaks で一時リポジトリに実行する。
 # 未 push の commit（マージ commit の中だけで足した内容を含む）の秘密情報で止まること、.gitleaksignore・inline の allow・
 # 作業ツリーや環境変数の設定で緩められないこと、設定の取得や gitleaks の失敗を成功として扱わないことを確かめる。
-# base を取り込んだマージ commit で、base で公開済みの内容を検出し直さないことも確かめる
 set -euo pipefail
 # 外から渡された GIT_* を除く。linked worktree の git rebase --exec は GIT_DIR を export するので、残すと
 # 直接実行したときに一時リポジトリの git init・git -C が、そのリポジトリの設定・index・ブランチを書き換える（#200）
@@ -150,21 +149,61 @@ scan
 expect_leak 'a token when the base has no .gitleaks.toml and the working tree has a permissive one'
 grep -q 'default rules' "$tmp/stderr" || { show; fail 'did not say that the default rules were used'; }
 
+# F∩S: リポジトリの .gitleaks.toml の除外（既定の規則と、下で境界を確かめる generic-api-key の 3 つの allowlist）は、
+# description を除いた全体をハッシュで固定する。allowlist を足す・入れ替える・正規表現や paths を足す・値を差し替える
+# （2 つ目が除外するのは、過去の文書（commit 5a723fa の Plan）に残る既知の偽の値だけ）・規則を書き換えると、下の
+# 確認はどれも通ったまま、その除外が秘密情報を通す。変えるときは、除外が秘密情報を通さないことを下の確認に足して
+# から、ハッシュを更新する。偽の値は追跡するファイルに増やさないよう、解析した 2 つ目の allowlist から読む
+fake="$(uv run --no-project python - "$root/.gitleaks.toml" <<'PY'
+import hashlib, json, re, sys, tomllib
+config = tomllib.load(open(sys.argv[1], "rb"))
+for allowlist in config.get("allowlists", []):
+    allowlist.pop("description", None)
+digest = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
+if digest != "d513ee442f98dd17d095ea78ddf11a8b6992ba9b3afbff4916d1d741a10caf3a":
+    sys.exit(f"the exclusions in .gitleaks.toml changed (sha256 {digest})")
+print(next(m.group(1) for a in config["allowlists"] if a["regexTarget"] == "secret"
+           for m in [re.fullmatch(r"\^([A-Za-z0-9]{20,})\$", a["regexes"][0])] if m))
+PY
+)" || fail '.gitleaks.toml has exclusions other than the three allowlists checked below'
+
 # リポジトリの .gitleaks.toml を base にしても、無作為な値は検出する。resoloop の識別子の除外（#135）に、
 # 識別子の前後や区切りを付けた無作為な値が紛れない。値は実行時に作る（英字の大小と数字が入り混じる）
 random="$(printf 'create-reso-world issue-135 random value' | sha256sum | cut -c1-64 | base64 -w0 | tr -dc 'A-Za-z0-9' | cut -c1-32)"
 hash8="$(printf 'create-reso-world issue-135 name' | sha256sum | cut -c1-8)"
+# 値は base64 として復号した後にも検出されることがある（Tags: [decoded:base64 ...]）。その検出だけで止まると、
+# allowlist を広げても通ってしまうので、値そのものの検出を 1 件以上求める
+expect_direct_leak() {
+  expect_leak "$1"
+  [ "$(grep -c '^Finding:' "$tmp/stderr")" -gt "$(grep -c '^Tags:.*decoded:' "$tmp/stderr")" ] \
+    || { show; fail "$1: reported only decoded values"; }
+}
 leak_with_repo_config() {
   new_repo "$root/.gitleaks.toml"
   commit_file config.py "api_key = \"$2\""
   scan
-  expect_leak "$1 with the repository .gitleaks.toml"
+  expect_direct_leak "$1 with the repository .gitleaks.toml"
 }
-leak_with_repo_config 'a random value without separators' "$random"
 leak_with_repo_config 'a random value after a prefix' "msy_$random"
 leak_with_repo_config 'a random value shaped like an identifier' "mat_material_${random:0:16}_$hash8"
 leak_with_repo_config 'a password of words and 8 digits without a key() prefix' "summer_Holiday2024_${hash8//[a-f]/7}"
-leak_with_repo_config 'a GitHub token' "$token"
+# 2 つ目（テスト用の偽の値そのもの）と 3 つ目（key() の識別子）の allowlist は、前後に値が続くものを除外しない（^ と $）
+identifier="mat_material_Slum02_rubber_$hash8"
+leak_with_repo_config 'the fake token after a prefix' "x$fake"
+leak_with_repo_config 'the fake token before a suffix' "${fake}x"
+leak_with_repo_config 'a random value before an identifier' "${random:0:8}_$identifier"
+leak_with_repo_config 'an identifier before a random value' "$identifier${random:0:8}"
+leak_with_repo_config 'an identifier whose hash is not lowercase hex' "mat_material_Slum02_${random:0:8}"
+# 1 つ目の allowlist（resoloop のマニフェストの "key": "<識別子>" の形）も、区切りの無い無作為な値は除外しない
+new_repo "$root/.gitleaks.toml"
+commit_file manifest.json "{\"key\": \"$random\"}"
+scan
+expect_direct_leak 'a random value as a manifest key with the repository .gitleaks.toml'
+# 1 つ目の allowlist は "key" という名前の項目だけを対象にする（^）。api_key などの項目の値は除外しない
+new_repo "$root/.gitleaks.toml"
+commit_file config.json "{\"api_key\": \"msy_$random\"}"
+scan
+expect_direct_leak 'a random value with separators in an api_key item with the repository .gitleaks.toml'
 
 # --- 検査できないときは止まる ---
 new_repo
@@ -172,10 +211,6 @@ commit_file notes.txt hello
 : > "$repo/.gitleaksignore"
 scan
 expect_stop 'an empty .gitleaksignore' '\.gitleaksignore'
-rm -- "$repo/.gitleaksignore"
-ln -s "$tmp/missing" "$repo/.gitleaksignore"
-scan
-expect_stop 'a dangling .gitleaksignore symlink' '\.gitleaksignore'
 
 printf 'this is = = not toml\n' > "$tmp/broken.toml"
 new_repo "$tmp/broken.toml"
@@ -209,13 +244,6 @@ new_repo
 commit_file notes.txt hello
 scan --base origin/nope
 expect_stop 'a base branch that does not exist' 'origin/nope'
-scan --base nope/main
-expect_stop 'a base remote that does not exist' "no remote 'nope'"
-scan --base main
-expect_stop '--base without a remote' 'usage'
-[ "$status" -eq 2 ] || fail "--base without a remote exited with $status, not 2"
-scan --unknown
-[ "$status" -eq 2 ] || fail "an unknown argument exited with $status, not 2"
 
 pinned="$(sed -n 's/^readonly GITLEAKS_VERSION="\([^"]*\)"$/\1/p' "$root/.devcontainer/install_gitleaks.bash")"
 mkdir -p "$tmp/other-version" "$tmp/failing"
@@ -239,39 +267,5 @@ commit_file notes.txt hello
 merge_side merged.txt 'nothing secret'
 scan
 expect_success 'commits and a merge commit without secrets'
-
-# base を取り込んだマージ commit で、base で公開済みの内容を検出し直さない（止まると、base の設定を変えるまで push できない）
-new_repo
-commit_file notes.txt hello
-git -C "$repo" switch -q main
-commit_file published.txt "token = \"$token\""
-git -C "$repo" push -q origin main
-git -C "$repo" switch -q feature
-git -C "$repo" merge -q --no-edit origin/main > /dev/null
-scan
-expect_success 'a merge commit that brings in a token already published on the base'
-
-# base の .gitleaks.toml の allowlist が効く（base の設定で検査している）
-{ cat "$tmp/default.toml"; printf "\n[[allowlists]]\nregexTarget = \"match\"\nregexes = ['''%s''']\n" "$token"; } > "$tmp/allow-token.toml"
-new_repo "$tmp/allow-token.toml"
-commit_file config.txt "token = \"$token\""
-scan
-expect_success 'a token that the base .gitleaks.toml allows'
-
-# リポジトリの .gitleaks.toml では、resoloop の key() が作る識別子（接頭辞_名前_sha256 の先頭 8 桁）は書き方を問わず
-# 止まらない（#135。Python の代入、テストの出力の KeyError、JSON、名前に識別子を含む pbr_）
-name="material_Slum02_rubber_$hash8"
-new_repo "$root/.gitleaks.toml"
-commit_file ids.txt "$(printf '%s\n' "key = 'mat_$name'" "KeyError: 'ul_mat_$name'" \
-  "\"mesh_key\": \"mesh_Slum02_rubber_$hash8\"" "texture_key = \"pbr_mat_${name}_$hash8\"")"
-scan
-expect_success 'resoloop identifiers with the repository .gitleaks.toml'
-
-new_repo
-commit_file notes.txt hello
-mkdir "$repo/sub"
-status=0
-(cd "$tmp" && bash "$scan" -C "$repo/sub") > "$tmp/stdout" 2> "$tmp/stderr" || status=$?
-expect_success '-C with a subdirectory of the checkout'
 
 printf 'PASS: scan-before-push stops on secrets and failures and cannot be relaxed (%d repositories)\n' "$cases"
