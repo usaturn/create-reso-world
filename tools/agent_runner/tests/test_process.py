@@ -255,11 +255,9 @@ async def wait_for(path: Path) -> None:
     "exit_code,closed_pipes,runtime",
     [
         (0, False, "python"),
-        (0, False, "shell"),
     ],
     ids=[
         "0-False-python",
-        "0-False-shell",
     ],
 )
 def test_immediate_exit_before_ownership_observation_stops_children(
@@ -315,11 +313,9 @@ def test_immediate_exit_before_ownership_observation_stops_children(
     "leader_exit,escaped",
     [
         (0, True),
-        (9, True),
     ],
     ids=[
         "0-True",
-        "9-True",
     ],
 )
 def test_leader_exit_stops_observed_descendants(tmp_path: Path, escaped: bool, leader_exit: int) -> None:

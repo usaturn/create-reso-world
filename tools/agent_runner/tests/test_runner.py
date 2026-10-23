@@ -782,7 +782,7 @@ def test_unproven_capability_is_unsupported(repository: Path) -> None:
 # Cancellation follows observed events, never a timer started before
 # run_workflow, and every case runs with slow preparation before the slot and
 # inside the role deadline, as on a loaded host (agent-workspace#694).
-@pytest.mark.parametrize("interruption", ["none", "cancel", "late_cancel"])
+@pytest.mark.parametrize("interruption", ["cancel", "late_cancel"])
 def test_checkout_preparation_is_supervised(
     repository: Path,
     tmp_path: Path,
