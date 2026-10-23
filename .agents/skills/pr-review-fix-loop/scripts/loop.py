@@ -508,7 +508,10 @@ def command(subcommand: str, *args: str) -> list[str]:
 
 
 def git_output(root: Path, *args: str) -> str:
-    result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, check=False)
+    """``root`` の Git を読む。レビュアーの helper と同じく ``GIT_*`` を除く（``review_target.git_environment``）。"""
+    result = subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=False, env=target.git_environment()
+    )
     if result.returncode:
         raise LoopError(5, "git", f"git {' '.join(args[:2])} が失敗した: {result.stderr.strip()[:300]}")
     return result.stdout.strip()

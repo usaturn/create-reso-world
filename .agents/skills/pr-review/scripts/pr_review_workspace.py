@@ -683,6 +683,8 @@ def git(
         capture_output=True,
         pass_fds=pass_fds,
         start_new_session=new_session,
+        # The runner's child and its callers must resolve, judge and write the same Git.
+        env=load_review_target().git_environment(),
     )
     if result.returncode:
         message = result.stderr.decode("utf-8", errors="replace").strip()

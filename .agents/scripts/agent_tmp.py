@@ -14,6 +14,7 @@ usaturn/agent-workspace#333 の版を create-reso-world#123 で移植した。AG
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -30,7 +31,10 @@ class AgentTmpError(Exception):
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", "-C", str(cwd), *args], check=False, capture_output=True, text=True)
+    # GIT_DIR などが残ると、別の Git から親を決める。review_target.py がこのスクリプトを読み込むので、
+    # その git_environment を import できず、同じ規則（GIT_* を除く）をここに書く。
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    return subprocess.run(["git", "-C", str(cwd), *args], check=False, capture_output=True, text=True, env=env)
 
 
 def resolve_main_root(anchor: Path) -> Path:
