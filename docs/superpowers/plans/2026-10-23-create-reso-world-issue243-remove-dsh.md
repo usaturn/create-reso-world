@@ -40,9 +40,9 @@
 
 ## Task 1: agent_runner と全登録監査
 
-**担当ファイル:** `tools/agent_runner/models.py`、`config.py`、`adapters/__init__.py`、`adapters/dsh.py`、`dsh_identity.py`、`dsh_paths.py`、`dsh_review_evidence.py`、`dsh_sandbox.py`、`checkout_policy.py`、`workspace.py`、`runner.py`、`interfaces.rst`、`tools/test_support/dsh.py`、`tools/agent_runner/tests/adapters/dsh/`、関連する `tools/agent_runner/tests/test_*.py`、`.agents/skills/issue-to-pr/tests/test_implement_task_run.py`、`.agents/skills/review-verify/tests/test_dispatch.py`。
+**担当ファイル:** `tools/agent_runner/models.py`、`config.py`、`cli.py`、`adapters/__init__.py`、`adapters/dsh.py`、`dsh_identity.py`、`dsh_paths.py`、`dsh_review_evidence.py`、`dsh_sandbox.py`、`checkout_policy.py`、`workspace.py`、`runner.py`、`interfaces.rst`、`tools/test_support/dsh.py`、`tools/agent_runner/tests/adapters/dsh/`、関連する `tools/agent_runner/tests/test_*.py`、`.agents/skills/issue-to-pr/tests/test_implement_task_run.py`、`.agents/skills/review-verify/tests/test_dispatch.py`。
 
-- [ ] DSH runtime と adapter・専用モジュールを削除し、個人設定の旧 runtime に専用の安全な設定エラーを返す。
+- [ ] DSH runtime と adapter・専用モジュールを削除し、個人設定の旧 runtime に専用の安全な設定エラーを返す。CLI でも撤去と必要な設定変更が分かる固定文面を出す。
 - [ ] `confined_writes` と限定監査、DSH 専用の書き込み先・receipt 処理を削除する。`require_auditable_workflow` と runner は全登録を監査する。
 - [ ] DSH 専用テストと fixture を削除し、共通の安全性テストは全登録監査の現行仕様に合わせて整理する。新規の廃止確認テストは書かない。
 - [ ] `uv run pytest tools/agent_runner .agents/skills/issue-to-pr/tests .agents/skills/review-verify/tests`、`uvx ruff check`、一時設定で正常・旧 runtime の読み込みを確認する。
