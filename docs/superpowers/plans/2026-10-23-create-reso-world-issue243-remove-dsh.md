@@ -85,7 +85,7 @@
 
 **担当:** このセッション。作業対象は上記の統合修正、Spec・Plan の実行記録、PR・Issue の更新。
 
-- [ ] Spec の条件と Task 1〜4 の現行 HEAD の観測結果を照合する。`git grep -il dsh`、`git diff --check`、構文・参照先・設定を確認し、DSH 以外の adapter と Codex 拒否を精読する。
+- [ ] Spec の条件と Task 1〜4 の現行 HEAD の観測結果を照合する。`git grep -il dsh`、`git diff --check`、構文・参照先・設定を確認し、DSH 以外の adapter と Codex 拒否を精読する。撤去した親側の確定手順を参照していた `repo-cleanup-after-merge/SKILL.md` の旧 session 案内も更新する。
 - [ ] `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` と関連 lint を最終 commit 後に実行し、HEAD・clean status・argv・終了コード・ログの完全パスを session に記録する。
 - [ ] push 前に Issue 状態・競合と gitleaks を再確認し、検査した SHA のみを push して PR を作る。PR 本文に実行方式、判断、検証、時間、`Closes #243` を記す。
 - [ ] `pr-review-fix-loop` を指定の既定設定で回し、`finalize.py` の結果を確認する。マージ成功後に #175・#211 を理由付きで not planned として閉じ、#116 に撤去をコメントする。PR と #243 の最終状態を確認する。
