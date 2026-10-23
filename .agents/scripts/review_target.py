@@ -98,16 +98,22 @@ def git_environment(*, transport_auth: bool = False) -> dict[str, str]:
     ``git -C <checkout>`` も別の Git を読み書きする。runner はレビュアーの子の環境から ``GIT_*`` を除くので、
     呼び出し側（loop・review-fix-planning）の checkout の解決・浅い checkout の判定も、子の helper と同じ Git を見る。
     pr-review の helper（``pr_review_workspace.git``）と loop の ``git_output`` もここを使う。
-    helper の直接起動では Git の認証に必要な transport 設定だけを残す。これらはローカルの
-    Git ディレクトリや worktree の選択を変えない。runner の子は従来どおり全 ``GIT_*`` を除く。
+    ``transport_auth=True`` は remote と通信する Git（PR head・base の fetch）を直接起動したときに、
+    Git の認証に必要な transport 設定だけを残す。これらはローカルの Git ディレクトリや worktree の選択を変えない。
+    runner の子は従来どおり全 ``GIT_*`` を除く。
     """
     allowed = {"GIT_ASKPASS", "GIT_SSH", "GIT_SSH_COMMAND", "GIT_TERMINAL_PROMPT"} if transport_auth else set()
     return {key: value for key, value in os.environ.items() if not key.startswith("GIT_") or key in allowed}
 
 
-def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _git(cwd: Path, *args: str, transport_auth: bool = False) -> subprocess.CompletedProcess[str]:
+    """ローカルの読取は全 ``GIT_*`` を除く。remote と通信する呼出だけ ``transport_auth=True`` を渡す。"""
     return subprocess.run(
-        ["git", "-C", str(cwd), *args], check=False, capture_output=True, text=True, env=git_environment()
+        ["git", "-C", str(cwd), *args],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=git_environment(transport_auth=transport_auth),
     )
 
 
@@ -719,6 +725,7 @@ def fetch_pull_head(checkout: Path, repository: str, number: int, head_sha: str,
             "--refmap=",
             remote,
             f"+pull/{number}/head:{ref}",
+            transport_auth=True,
         )
         if fetched.returncode:
             raise TargetError(
