@@ -136,25 +136,6 @@ def project(config: Config, phase: str) -> Config:
     return validate_config(selected, "fix")
 
 
-def reject_dsh_review_agents(config: Config) -> None:
-    """self-review・fix-check を DSH の担当に割り当てた設定を、1 回枠を予約する前に拒否する（#671）。
-
-    loop が DSH のレビュアーに行う親側の準備（``prepare_parent``・保存先への書き込みの許可・``staged`` の保存）を
-    run_roles は行わないので、DSH の self-review は完了できず、戻せない枠だけを消費する。runner は一次担当が
-    self のとき fallback を試さないが、「割り当てられない」という 1 つの規則にするため fallback も見る。
-    """
-    for role in ("self-review", "fix-check"):
-        assignment = config.workflows["fix"].assignments[role]
-        if any(
-            config.agents[name].runtime == "dsh" for name in assignment.agents + assignment.fallback if name != "self"
-        ):
-            raise RoleInputError(
-                "self-review/fix-check cannot be assigned to a dsh runtime agent (primary or fallback): run_roles "
-                "lacks the parent-side preparation DSH needs (prepare_parent, sandbox write paths, saving staged "
-                "results)"
-            )
-
-
 # writes=false の役割を、書き込みを一切許さない sandbox で起動する runtime（#731）。codex は -s read-only で起動し、
 # uv のキャッシュ・一時ディレクトリ・保存先のどこにも書けないので、pr-review・review-verify の helper を起動できない
 READ_ONLY_SANDBOX_RUNTIMES = frozenset({"codex"})
@@ -325,7 +306,6 @@ def run(
 ) -> BatchResult:
     selected = project(config, phase)
     if phase == "self-review":
-        reject_dsh_review_agents(selected)
         reject_codex_review_agents(selected, "fix", ("self-review", "fix-check"))
     data = RoleInput.model_validate(request)
     repository = Path(data.repository)

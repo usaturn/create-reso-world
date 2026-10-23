@@ -61,8 +61,8 @@ class FakeAdapter:
 
 
 def config(self_review: str = "self", fix_check: str = "self") -> Config:
-    """``a``・``b`` は pi、``d`` は DSH、``c`` は codex の担当（どれも fake adapter で動く）。"""
-    runtimes: dict[str, Runtime] = {"a": "pi", "b": "pi", "d": "dsh", "c": "codex"}
+    """``a``・``b`` は pi、``c`` は codex の担当（どれも fake adapter で動く）。"""
+    runtimes: dict[str, Runtime] = {"a": "pi", "b": "pi", "c": "codex"}
     return Config(
         agents={
             name: Agent(runtime=runtime, command=[sys.executable, "-c", PROGRAM], model=name)
@@ -388,11 +388,10 @@ def test_invalid_writable_review_role_never_consumes_budget(inputs: Any, tmp_pat
 
 
 
-# DSH には親の準備が無い（#671）。codex は read-only の sandbox で helper を起動できない（#731）
+# codex は read-only の sandbox で helper を起動できない（#731）
 @pytest.mark.parametrize(
     ("agent", "reason", "role", "slot"),
     [
-        pytest.param("d", "dsh runtime", "self-review", "agents", id="dsh-self-review"),
         pytest.param("c", "codex runtime agent", "fix-check", "fallback", id="codex-fix-check-fallback"),
     ],
 )
@@ -405,7 +404,7 @@ def test_review_assignment_that_cannot_run_the_helpers_stops_before_reserving_th
     role: str,
     slot: str,
 ) -> None:
-    """完了できない担当は、1 回枠を消費する前に止める（#671・#731）。fallback は一次担当が self でも見る。"""
+    """完了できない担当は、1 回枠を消費する前に止める（#731）。fallback は一次担当が self でも見る。"""
     selected = config()
     assignment = selected.workflows["fix"].assignments[role]
     if slot == "agents":

@@ -296,7 +296,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 - self-review の役割: pr-review の非対話の入口で、ローカルで commit した修正後の HEAD（`--review-commit`）の PR 全体を再レビューする。下の観点 2 を受け持つ
 - fix-check の役割: review-verify の `fix_check` で、修正の主張・変更ファイル・関連する経路とテストを確かめる。`fix_sections` に「対応する」項目の修正方針・守る条件と影響経路の表・実行した検証を全文で渡し、依頼に観点 1 と観点 3 を書く
 - 割り当てが `self` の役割は司令塔が実行する。使えるサブエージェントに 2 つの依頼を同時に任せてもよく、どちらも 1 回と数える
-- self-review・fix-check に DSH・codex の担当は割り当てられない（`run_roles.py` が予約の前に止める）
+- self-review・fix-check に codex の担当は割り当てられない（`run_roles.py` が予約の前に止める）
 
 1. **反証** — 「守る条件と影響経路」の表を渡し、修正した条件が破れる入力・操作順・経路と、旧版との挙動の差を探す。拒否側と正常側、影響する前後操作・復旧、fixture／fake／期待値が実装と共有する誤前提、経路を閉じる証拠の不足を確認する
 2. **PR 全体** — 修正後の PR の全差分と変更ファイルの全文を読み、致命的な問題を探す
@@ -570,7 +570,7 @@ EOF
 - 結論が三択のどれでもない（「追加確認が必要」「様子見」で終えようとしている）
 - 未確認の指摘を残したまま「修正不要」にしようとしている
 - 2 回目の自己レビューを始めようとしている（`run_roles.py --phase self-review` を 2 回呼ぶ、工程の記録に `pre_push_review` を手で書き足す）
-- self-review・fix-check に DSH・codex の担当を割り当てようとしている
+- self-review・fix-check に codex の担当を割り当てようとしている
 - 範囲外のリポジトリ、draft の PR をマージしようとしている
 - `--match-head-commit` を付けずにマージしようとしている、修正不要のマージを `finalize.py` を使わずに行おうとしている
 - 検証し直さずに、検証の記録の `base` を新しい先端に書き換えようとしている
