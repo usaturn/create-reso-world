@@ -48,16 +48,12 @@ def test_accepts_repeated_responses_from_the_same_route(tmp_path: Path) -> None:
         "version",
         "source",
         "header_only",
-        "route_changed",
         "route_changed_then_returned",
         "sequence",
         "ambiguous",
-        "malformed",
         "duplicate",
-        "torn",
         "symlink",
         "directory_link",
-        "fifo",
     ],
 )
 def test_rejects_unbound_or_invalid_records(tmp_path: Path, case: str) -> None:

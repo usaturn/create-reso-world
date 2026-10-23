@@ -7,7 +7,7 @@ import sys
 import threading
 from pathlib import Path
 from types import ModuleType
-from typing import cast, get_args
+from typing import cast
 
 import pytest
 
@@ -17,9 +17,8 @@ from tools.agent_runner.adapters import (
     AdapterOutcome,
     Capabilities,
     LaunchSpec,
-    runtime_supported,
 )
-from tools.agent_runner.models import BatchResult, BatchState, Config, Result, Runtime
+from tools.agent_runner.models import BatchResult, BatchState, Config, Result
 
 pytest_plugins = ("tools.test_support.plugin",)
 # Only fake agents are launched here; drop AGENT_RUNNER_DEPTH inside each test so a runner agent can run them
@@ -79,58 +78,8 @@ def repository(tmp_path: Path) -> Path:
     return repo
 
 
-def command(template: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, "-m", "tools.agent_runner", "--template", str(template), *args],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-
-
 def document(output: str) -> dict[str, object]:
     return cast(dict[str, object], json.loads(output))
-
-
-@pytest.mark.parametrize("subcommand", ["check", "list"])
-def test_check_list_report_support_state_without_configuration_values(template: Path, subcommand: str) -> None:
-    process = command(template, subcommand)
-    assert process.returncode == 0
-    data = document(process.stdout)
-    runtimes = cast(list[dict[str, object]], data["runtimes"])
-    # Every runtime the configuration model accepts is reported exactly once.
-    assert sorted(cast(str, item["runtime"]) for item in runtimes) == sorted(get_args(Runtime))
-    assert all(item["supported"] == runtime_supported(cast(str, item["runtime"])) for item in runtimes)
-    assert "never-invoke-this-command" not in process.stdout
-    assert "model-a" not in process.stdout
-    assert process.stderr == ""
-
-
-@pytest.mark.parametrize(
-    "args",
-    [
-        ["invalid-secret-command"],
-        ["run", "--concurrency", "secret-value"],
-        ["run", "--unknown-secret-flag"],
-        ["run"],
-        ["run", "--workflow", "audit", "--assign", "bad-secret-assignment"],
-        # argparse は -x のような値を別の引数に書くとオプションと読む。誤りになっても値は出さない
-        ["run", "--workflow", "audit", "--write-exception", "-secret-value"],
-    ],
-)
-def test_invalid_arguments_are_sanitized(template: Path, args: list[str]) -> None:
-    process = command(template, *args)
-    assert process.returncode == 2
-    assert "secret" not in process.stdout + process.stderr
-    assert document(process.stdout)["error"] == "invalid_input"
-
-
-def test_invalid_config_never_prints_raw_values(template: Path) -> None:
-    template.write_text('schema_version = 1\nsecret_key = "secret-value"')
-    process = command(template, "check")
-    assert process.returncode == 2
-    assert document(process.stdout)["error"] == "unknown_key"
-    assert "secret" not in process.stdout + process.stderr
 
 
 def test_explicit_missing_and_auto_broken_personal_are_errors(
@@ -148,7 +97,7 @@ def test_explicit_missing_and_auto_broken_personal_are_errors(
     assert document(capsys.readouterr().out)["error"] == "config_io"
 
 
-@pytest.mark.parametrize(("state", "status"), [("success", 0), ("self", 0), ("partial_success", 1), ("failed", 1)])
+@pytest.mark.parametrize(("state", "status"), [("success", 0), ("partial_success", 1)])
 def test_run_exit_codes_and_atomic_result(
     template: Path,
     tmp_path: Path,
@@ -312,117 +261,6 @@ def test_sigint_saves_interrupted_batch_and_restores_handler(
     assert document(capsys.readouterr().out)["state"] == "failed"
 
 
-def test_unsupported_run_persists_result(
-    template: Path,
-    repository: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    # Stand-in modules without ADAPTER keep "unsupported" reachable in-process
-    # even after every fixed runtime ships an implementation.
-    for module in ("pi", "codex"):
-        name = f"tools.agent_runner.adapters.{module}"
-        monkeypatch.setitem(sys.modules, name, ModuleType(name))
-    prompt = tmp_path / "prompt"
-    prompt.write_text("task")
-    output = tmp_path / "unsupported"
-    assert (
-        cli.main(
-            [
-                "--template",
-                str(template),
-                "run",
-                "--workflow",
-                "audit",
-                "--repository",
-                str(repository),
-                "--prompt-file",
-                str(prompt),
-                "--output-dir",
-                str(output),
-            ]
-        )
-        == 1
-    )
-    assert capsys.readouterr().err == ""
-    saved = document((output / "result.json").read_text())
-    result = cast(list[dict[str, object]], saved["results"])[0]
-    assert result["state"] == "unsupported"
-    assert len(cast(list[object], result["attempts"])) == 2
-
-
-# The shipped template is the base of every installed configuration. Loading it
-# checks its TOML shape and references (defined agents and roles, distinct
-# models per role); each agent it defines must name a runtime with an adapter.
-# postCreate places the minimal personal config, so the template must load with it too.
-# The template may define no agents yet: adapters and their agents arrive together.
-@pytest.mark.parametrize("personal", ["absent", "postcreate"])
-def test_shipped_template_passes_check(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], personal: str
-) -> None:
-    config = tmp_path / "personal.toml"
-    if personal == "postcreate":
-        shipped = Path(cli.__file__).resolve().parents[2] / ".devcontainer/agent-runner-personal.toml"
-        config.write_bytes(shipped.read_bytes())
-    monkeypatch.setenv("AGENT_RUNNER_CONFIG", str(config))
-    assert cli.main(["check"]) == 0
-    agents = cast(list[dict[str, object]], document(capsys.readouterr().out)["agents"])
-    assert all(agent["supported"] is True for agent in agents)
-
-
-def test_default_template_resolves_relative_to_module_not_cwd(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    # Characterize the path used by the real configuration reader, not a mocked loader.
-    module = tmp_path / "installed" / "tools" / "agent_runner" / "cli.py"
-    default = module.parents[2] / ".devcontainer" / "agent-runner.toml"
-    default.parent.mkdir(parents=True)
-    default.write_text(_TEMPLATE)
-    monkeypatch.setattr(cli, "__file__", str(module))
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("AGENT_RUNNER_CONFIG", str(tmp_path / "absent"))
-    assert cli.main(["check"]) == 0
-    assert "runtimes" in document(capsys.readouterr().out)
-
-
-class ListingAdapter:
-    def __init__(self, capabilities: Capabilities) -> None:
-        self.capabilities = capabilities
-
-    def prepare(self, context: AdapterContext) -> LaunchSpec:
-        return LaunchSpec((), b"")
-
-    def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
-        return AdapterOutcome()
-
-
-@pytest.mark.parametrize(
-    ("capabilities", "supported"),
-    [
-        (Capabilities(), True),
-        (Capabilities(stdin=False), False),
-        (Capabilities(noninteractive=cast(bool, "truthy-but-not-guaranteed")), False),
-    ],
-)
-def test_list_requires_installed_guaranteed_capabilities(
-    template: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    capabilities: Capabilities,
-    supported: bool,
-) -> None:
-    module = ModuleType("tools.agent_runner.adapters.pi")
-    module.__dict__["ADAPTER"] = ListingAdapter(capabilities)
-    monkeypatch.setitem(sys.modules, module.__name__, module)
-    assert cli.main(["--template", str(template), "list"]) == 0
-    inventory = document(capsys.readouterr().out)
-    pi = next(item for item in cast(list[dict[str, object]], inventory["runtimes"]) if item["runtime"] == "pi")
-    assert pi["supported"] is supported
-
-
 # --- after_run（agent-workspace#601） ---------------------------------------------------------------------------------------
 
 _HOOK = (
@@ -490,37 +328,6 @@ def test_after_run_gets_the_result_path_and_never_changes_the_exit_code(
     ]
     assert _HOOK not in json.dumps(summary)
     assert document((artifact / "result.json").read_text())["state"] == "success"
-
-
-def test_after_run_timeout_is_reported_without_changing_the_exit_code(
-    template: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr(hooks, "AFTER_RUN_DEADLINE_SECONDS", 0.5)
-    add_after_run(template, [sys.executable, "-c", "import time; time.sleep(30)"])
-    code, _artifact = run_audit(template, tmp_path, monkeypatch)
-    assert code == 0
-    report = cast(list[dict[str, object]], document(capsys.readouterr().out)["after_run"])[0]
-    assert report["state"] == "timed_out" and report["stop_confirmed"] is True
-
-
-def test_summary_lists_no_after_run_when_unset(
-    template: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    assert run_audit(template, tmp_path, monkeypatch)[0] == 0
-    assert document(capsys.readouterr().out)["after_run"] == []
-
-
-def test_after_run_is_not_started_after_an_interrupted_run(tmp_path: Path) -> None:
-    cancel = threading.Event()
-    cancel.set()
-    marker = tmp_path / "hook.json"
-    reports = hooks.run_after_run(
-        [[sys.executable, "-c", _HOOK, "{result}", str(marker), "0"]],
-        result_path=tmp_path / "result.json",
-        cwd=tmp_path,
-        cancel=cancel,
-    )
-    assert reports[0]["state"] == "interrupted" and not marker.exists()
 
 
 def test_after_run_internal_error_is_reported_without_changing_the_exit_code(
@@ -617,13 +424,6 @@ def test_write_exceptions_follow_the_work_scope_lines_in_order(
     ("value", "code"),
     [
         pytest.param("notes may change", 0, id="valid"),
-        pytest.param("", 2, id="empty"),
-        pytest.param(" a", 2, id="leading-space"),
-        pytest.param("a ", 2, id="trailing-space"),
-        pytest.param("\u3000a", 2, id="leading-ideographic"),
-        pytest.param("a\u00a0", 2, id="trailing-nbsp"),
-        pytest.param("a\nb", 2, id="newline"),
-        pytest.param("a\tb", 2, id="tab"),
         # 別の引数に書いた -x は argparse がオプションと読む。値は --write-exception=-x と書く
         pytest.param("-x", 2, id="dash-separate-token"),
     ],

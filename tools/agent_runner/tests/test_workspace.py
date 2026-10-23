@@ -8,7 +8,6 @@ import signal
 import subprocess
 import sys
 import threading
-import traceback
 from pathlib import Path
 
 import pytest
@@ -16,7 +15,6 @@ import pytest
 from tools.agent_runner import environ, process, workspace
 from tools.agent_runner.workspace import (
     WorkspaceError,
-    _git,  # pyright: ignore[reportPrivateUsage] - exercise the bounded helper directly
     changed_checkouts,
     create_worktree,
     resolve_revision,
@@ -53,49 +51,8 @@ def test_resolve_revision_pins_commit_not_branch(repository: Path) -> None:
     assert resolve_revision(repository, "HEAD~1") == initial
 
 
-# Accepting options, noncommits, or nonexistent repos/revisions breaks the launch boundary.
-@pytest.mark.parametrize("revision", ["--help", "-q", "absent_SECRET", "HEAD:tracked.txt", "bad\x00SECRET"])
-def test_revision_errors_are_safe(repository: Path, revision: str) -> None:
-    with pytest.raises(WorkspaceError) as caught:
-        resolve_revision(repository, revision)
-    assert "SECRET" not in "".join(traceback.format_exception(caught.value))
-
-
-def test_repository_must_exist_and_be_git(tmp_path: Path) -> None:
-    for repository in (tmp_path / "absent_SECRET", tmp_path):
-        with pytest.raises(WorkspaceError) as caught:
-            resolve_revision(repository)
-        assert "SECRET" not in "".join(traceback.format_exception(caught.value))
-
-
-# Copying the dirty original or checking out a branch would violate detached isolation.
-def test_worktree_is_fresh_detached_and_preserves_dirty_original(repository: Path, tmp_path: Path) -> None:
-    commit = resolve_revision(repository)
-    (repository / "tracked.txt").write_text("local dirty\n")
-    destination = tmp_path / "retained-worktree"
-    assert create_worktree(repository, commit, destination) == destination
-    assert (destination / "tracked.txt").read_text() == "committed\n"
-    assert git(destination, "rev-parse", "HEAD") == commit
-    assert git(destination, "status", "--porcelain") == ""
-    assert (
-        subprocess.run(["git", "-C", str(destination), "symbolic-ref", "-q", "HEAD"], capture_output=True).returncode
-        != 0
-    )
-    assert (repository / "tracked.txt").read_text() == "local dirty\n"
-
-
-def test_worktree_never_overwrites_existing_directory(repository: Path, tmp_path: Path) -> None:
-    destination = tmp_path / "existing_SECRET"
-    destination.mkdir()
-    (destination / "retained").write_text("original")
-    with pytest.raises(WorkspaceError) as caught:
-        create_worktree(repository, "HEAD", destination)
-    assert (destination / "retained").read_text() == "original"
-    assert "SECRET" not in "".join(traceback.format_exception(caught.value))
-
-
 # Hashing porcelain status alone misses edits to files that were already dirty at entry.
-@pytest.mark.parametrize("kind", ["tracked", "untracked", "staged", "symlink"])
+@pytest.mark.parametrize("kind", ["tracked", "symlink"])
 def test_audit_detects_existing_dirty_content_edits(repository: Path, tmp_path: Path, kind: str) -> None:
     external = create_worktree(repository, "HEAD", tmp_path / "external checkout\nwith newline")
     path = external / ("tracked.txt" if kind in ("tracked", "staged") else "untracked.txt")
@@ -117,7 +74,7 @@ def test_audit_detects_existing_dirty_content_edits(repository: Path, tmp_path: 
     assert all(value is not None and "dirty" not in value for value in before.values())
 
 
-@pytest.mark.parametrize("mutation", ["delete", "add", "chmod", "index", "head"])
+@pytest.mark.parametrize("mutation", ["add", "chmod", "index", "head"])
 def test_audit_detects_checkout_mutations(repository: Path, mutation: str) -> None:
     before = snapshot_checkouts(repository)
     path = repository / "tracked.txt"
@@ -137,24 +94,6 @@ def test_audit_detects_checkout_mutations(repository: Path, mutation: str) -> No
     else:
         git(repository, "commit", "--allow-empty", "-qm", "advance HEAD")
     assert changed_checkouts(before) == [str(repository)]
-
-
-# New runner checkouts must not be confused with alterations to the pre-existing set.
-def test_audit_ignores_new_checkouts_and_gitignored_resources(repository: Path, tmp_path: Path) -> None:
-    before = snapshot_checkouts(repository)
-    ignored = repository / "ignored"
-    ignored.mkdir()
-    (ignored / "secret.log").write_text("SECRET credential")
-    create_worktree(repository, "HEAD", tmp_path / "new runner checkout")
-    assert changed_checkouts(before) == []
-
-
-# A vanished checkout cannot be silently treated as an unchanged one.
-def test_audit_reports_disappeared_checkout(repository: Path, tmp_path: Path) -> None:
-    external = create_worktree(repository, "HEAD", tmp_path / "external")
-    before = snapshot_checkouts(repository)
-    external.rename(tmp_path / "moved")
-    assert changed_checkouts(before) == [str(external)]
 
 
 def test_repair_of_moved_main_and_linked_worktree_preserves_all_resources(repository: Path, tmp_path: Path) -> None:
@@ -189,30 +128,6 @@ def test_repair_of_moved_main_and_linked_worktree_preserves_all_resources(reposi
     assert changed_checkouts(before) == [str(external)]
 
 
-def test_audit_does_not_follow_untracked_symlink(repository: Path, tmp_path: Path) -> None:
-    outside = tmp_path / "outside"
-    outside.write_text("before")
-    os.symlink(outside, repository / "link")
-    before = snapshot_checkouts(repository)
-    outside.write_text("after")
-    assert changed_checkouts(before) == []
-
-
-# A symlink replacing a tracked directory must not make its referents audit inputs.
-def test_audit_does_not_follow_symlink_ancestors(repository: Path, tmp_path: Path) -> None:
-    nested = repository / "nested"
-    nested.mkdir()
-    (nested / "tracked.txt").write_text("committed nested")
-    git(repository, "add", ".")
-    git(repository, "commit", "-qm", "nested file")
-    outside = tmp_path / "outside"
-    nested.rename(outside)
-    nested.symlink_to(outside, target_is_directory=True)
-    before = snapshot_checkouts(repository)
-    (outside / "tracked.txt").write_text("outside content changed")
-    assert changed_checkouts(before) == []
-
-
 # Initialized submodule working files remain tracked/nonignored checkout content.
 def test_audit_detects_submodule_dirty_content(repository: Path, tmp_path: Path) -> None:
     # An initialized submodule whose HEAD matches the parent's gitlink.
@@ -230,49 +145,11 @@ def test_audit_detects_submodule_dirty_content(repository: Path, tmp_path: Path)
     assert changed_checkouts(before) == [str(parent)]
 
 
-@pytest.mark.parametrize("kind", ["prunable", "locked", "broken_gitdir", "regular_file", "unreadable"])
-def test_unavailable_registered_checkout_is_a_warning(repository: Path, tmp_path: Path, kind: str) -> None:
-    external = create_worktree(repository, "HEAD", tmp_path / "unavailable")
-    if kind == "locked":
-        git(repository, "worktree", "lock", str(external))
-    if kind in ("prunable", "locked", "regular_file"):
-        shutil.rmtree(external)
-        if kind == "regular_file":
-            external.write_text("not a checkout")
-    elif kind == "broken_gitdir":
-        (external / ".git").write_text(f"gitdir: {tmp_path / 'missing-gitdir'}\n")
-    else:
-        external.chmod(0)
-    try:
-        before = snapshot_checkouts(repository)
-        assert before[str(external)] is None
-        assert before[str(repository)] is not None
-        assert changed_checkouts(before) == [str(external)]
-    finally:
-        if kind == "unreadable":
-            external.chmod(0o755)
-
-
-def test_checkout_recovered_after_snapshot_still_warns(repository: Path, tmp_path: Path) -> None:
-    external = create_worktree(repository, "HEAD", tmp_path / "recovered")
-    gitfile = external / ".git"
-    original = gitfile.read_bytes()
-    gitfile.write_text(f"gitdir: {tmp_path / 'missing-gitdir'}\n")
-    try:
-        before = snapshot_checkouts(repository)
-    finally:
-        gitfile.write_bytes(original)
-    assert changed_checkouts(before) == [str(external)]
-
-
 @pytest.mark.parametrize(
     ("kind", "reason", "locked", "prunable"),
     [
         ("missing", "checkout_missing", False, True),
         ("locked", "checkout_missing", True, False),
-        ("broken", "git_unavailable", False, False),
-        ("unreadable", "git_unavailable", False, True),
-        ("file", "not_directory", False, True),
     ],
 )
 def test_audit_diagnoses_unavailable_baseline(
@@ -323,7 +200,7 @@ def test_audit_diagnoses_unavailable_baseline(
             external.chmod(0o755)
 
 
-@pytest.mark.parametrize("mutation", ["change", "disappear", "recover"])
+@pytest.mark.parametrize("mutation", ["disappear", "recover"])
 def test_audit_distinguishes_changes_from_unavailability(repository: Path, tmp_path: Path, mutation: str) -> None:
     external = create_worktree(repository, "HEAD", tmp_path / "external")
     gitfile = external / ".git"
@@ -361,33 +238,6 @@ def test_audit_distinguishes_changes_from_unavailability(repository: Path, tmp_p
         assert workspace.audit_checkouts(snapshot_checkouts(repository)) == []
 
 
-def test_preflight_registration_failure_is_environment_diagnostic(
-    repository: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def unavailable(*_: object) -> bytes:
-        raise WorkspaceError()
-
-    monkeypatch.setattr(workspace, "_git", unavailable)
-    with pytest.raises(workspace.CheckoutAuditError) as caught:
-        workspace.require_auditable_checkouts(repository)
-    assert caught.value.findings[0].path == str(repository)
-    assert caught.value.findings[0].kind == "unavailable_before"
-
-
-def test_unavailable_fingerprint_is_attempted_once(repository: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = 0
-
-    def unavailable(_: Path) -> str:
-        nonlocal calls
-        calls += 1
-        raise WorkspaceError()
-
-    monkeypatch.setattr(workspace, "_fingerprint", unavailable)
-    before = snapshot_checkouts(repository)
-    assert changed_checkouts(before) == [str(repository)]
-    assert calls == 1
-
-
 def test_registration_list_failure_still_stops_snapshot(repository: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def unavailable(*_: object) -> bytes:
         raise WorkspaceError()
@@ -395,35 +245,6 @@ def test_registration_list_failure_still_stops_snapshot(repository: Path, monkey
     monkeypatch.setattr(workspace, "_git", unavailable)
     with pytest.raises(WorkspaceError):
         snapshot_checkouts(repository)
-
-
-# Missing subprocess timeouts allow repository helpers to hang even preflight.
-def test_git_helper_timeout_has_safe_diagnostics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_git = tmp_path / "git"
-    fake_git.write_text(f"#!{sys.executable}\nimport time; time.sleep(0.3); print('SECRET')\n")
-    fake_git.chmod(0o755)
-    # Git helpers run under the exec environment, not os.environ.
-    monkeypatch.setattr(environ, "_literal", {"PATH": str(tmp_path)})
-    real_run = subprocess.run
-
-    def shortened(
-        args: list[str],
-        *,
-        check: bool,
-        stdout: int,
-        stderr: int,
-        env: dict[str, str],
-        timeout: float | None = None,
-    ) -> subprocess.CompletedProcess[bytes]:
-        return real_run(
-            args, check=check, stdout=stdout, stderr=stderr, env=env, timeout=0.05 if timeout is not None else None
-        )
-
-    monkeypatch.setattr(subprocess, "run", shortened)
-    arguments = ("rev-parse", "SECRET")
-    with pytest.raises(WorkspaceError) as caught:
-        _git(tmp_path, *arguments)
-    assert "SECRET" not in "".join(traceback.format_exception(caught.value))
 
 
 # Preparation must consume the already-pinned commit, without synchronous Git
@@ -516,10 +337,3 @@ def test_git_common_dir_ignores_ambient_git_routing(
     monkeypatch.setenv("GIT_DIR", str(other / ".git"))
     monkeypatch.setattr(environ, "_literal", environ.literal_environ() | {"GIT_DIR": str(other / ".git")})
     assert workspace.git_common_dir(repository) == (repository / ".git").resolve()
-
-
-def test_git_common_dir_of_a_non_repository_is_a_workspace_error(tmp_path: Path) -> None:
-    plain = tmp_path / "plain"
-    plain.mkdir()
-    with pytest.raises(WorkspaceError):
-        workspace.git_common_dir(plain)

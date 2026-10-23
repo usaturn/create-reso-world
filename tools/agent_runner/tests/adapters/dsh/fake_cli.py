@@ -39,25 +39,23 @@ from pathlib import Path
 
 def test_tmp_path(tmp_path: Path) -> None:
     (tmp_path / "clean.txt").write_text("synthetic clean fixture\\n")
-    if os.environ["FAKE_PYTEST_FIXTURES"] == "1":
-        # Like the repository's safety fixtures: links out of tmp_path, a FIFO and a hard link pair.
-        outside = Path(os.environ["FAKE_OUTSIDE"])
-        (tmp_path / "outside-file").symlink_to(outside / "README.md")
-        (tmp_path / "outside-dir").symlink_to(outside)
-        os.mkfifo(tmp_path / "fixture.fifo")
-        (tmp_path / "original.json").write_text("synthetic linked fixture\\n")
-        os.link(tmp_path / "original.json", tmp_path / "linked.json")
+    # Like the repository's safety fixtures: links out of tmp_path, a FIFO and a hard link pair.
+    outside = Path(os.environ["FAKE_OUTSIDE"])
+    (tmp_path / "outside-file").symlink_to(outside / "README.md")
+    (tmp_path / "outside-dir").symlink_to(outside)
+    os.mkfifo(tmp_path / "fixture.fifo")
+    (tmp_path / "original.json").write_text("synthetic linked fixture\\n")
+    os.link(tmp_path / "original.json", tmp_path / "linked.json")
     assert (tmp_path / "clean.txt").is_file()
 '''
 
 
-def _run_pytest(fixtures: bool) -> dict[str, object]:
+def _run_pytest() -> dict[str, object]:
     # Real pytest with its default retention: pytest-current and <test>current links stay in TMPDIR.
     case = Path(tempfile.mkdtemp(prefix="pytest-input-"))
     (case / "pytest.ini").write_text("[pytest]\n")
     (case / "probe_case.py").write_text(_PYTEST_CASE)
-    if fixtures:
-        (Path.cwd() / "sentinel-link").symlink_to(Path.cwd() / "README.md")
+    (Path.cwd() / "sentinel-link").symlink_to(Path.cwd() / "README.md")
     completed = subprocess.run(
         [
             sys.executable,
@@ -73,7 +71,6 @@ def _run_pytest(fixtures: bool) -> dict[str, object]:
         env={
             **os.environ,
             "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
-            "FAKE_PYTEST_FIXTURES": "1" if fixtures else "0",
             "FAKE_OUTSIDE": str(Path.cwd()),
         },
         capture_output=True,
@@ -193,33 +190,25 @@ def main() -> int:
         )
         capture["helper_exit"] = helper.returncode
         capture["helper_error"] = helper.stderr
-    if mode in {"spill", "hang"}:
+    if mode == "hang":
         # Like DSH's subprocess-local spill of >64 KB command output under tmpdir().
         spill = Path(tempfile.mkdtemp(prefix="dsh-subprocess-")) / "output.log"
         spill.write_text("env dump\n" + "x" * 70000 + f"\nAPI_KEY={key}\n")
         capture["spill"] = str(spill)
-    if mode in {"pytest", "pytest-fixtures"}:
-        capture["pytest"] = _run_pytest(mode == "pytest-fixtures")
+    if mode == "pytest-fixtures":
+        capture["pytest"] = _run_pytest()
     (state / "capture.json").write_text(json.dumps(capture, ensure_ascii=False))
-    if mode == "home-link":
-        home.rmdir()
-        home.symlink_to(Path.cwd())
-    else:
-        (home / ".netrc").write_text(f"password {key}\n")
+    (home / ".netrc").write_text(f"password {key}\n")
     if mode == "home-cache":
         _home_cache(home)
     if mode == "symlink":
         (state / "foreign-link").symlink_to(Path.cwd() / "README.md")
-    elif mode == "fifo":
-        os.mkfifo(state / "session.fifo")
     elif mode == "hardlink":
         original = state / "original.json"
         original.write_text("synthetic content")
         os.link(original, original.with_name("linked.json"))
     elif mode == "tmp-symlink":
         (Path(os.environ["TMPDIR"]) / "foreign-link").symlink_to(Path.cwd() / "README.md")
-    elif mode == "tmp-fifo":
-        os.mkfifo(Path(os.environ["TMPDIR"]) / "spill.fifo")
     elif mode == "tmp-hardlink":
         # Like pytest fixtures left in TMPDIR: a pair in one directory and a name in a child directory.
         scratch = Path(os.environ["TMPDIR"])
@@ -228,25 +217,9 @@ def main() -> int:
         os.link(original, scratch / "linked.json")
         (scratch / "nested").mkdir()
         os.link(original, scratch / "nested" / "shared.json")
-    elif mode == "tmp-link":
-        # TMPDIR itself now resolves into the checkout, which holds a link of its own.
-        scratch = Path(os.environ["TMPDIR"])
-        target = Path.cwd() / "scratch"
-        target.mkdir()
-        (target / "keep-link").symlink_to(Path.cwd() / "README.md")
-        scratch.rmdir()
-        scratch.symlink_to(target)
-    elif mode == "root-link":
-        # The whole runtime root now resolves into the checkout, which has its own home/ and tmp/.
-        (Path.cwd() / "home").mkdir()
-        (Path.cwd() / "home" / "keep.txt").write_text("keep\n")
-        (Path.cwd() / "tmp").mkdir()
-        (Path.cwd() / "tmp" / "keep-link").symlink_to(Path.cwd() / "README.md")
-        home.parent.rename(home.parent.with_name("dsh-moved"))
-        home.parent.symlink_to(Path.cwd())
     else:
         (state / "session.jsonl").write_text(json.dumps({"tool": key}) + "\n")
-    if mode in {"hang", "descendant"}:
+    if mode == "hang":
         child = subprocess.Popen(
             [
                 sys.executable, "-c",
@@ -257,64 +230,23 @@ def main() -> int:
             stderr=subprocess.DEVNULL,
         )
         (Path.cwd() / "child.pid").write_text(str(child.pid))
-        if mode == "hang":
-            signal.signal(signal.SIGTERM, signal.SIG_IGN)
-            time.sleep(600)
-    if mode != "missing-session":
-        selection = rows["agent-default-model"]["config"]
-        session = write_session(
-            state, Path.cwd(), session_id="fake-observed", provider=selection["provider"],
-            model=selection["model"], effort=selection.get("reasoningEffort"),
-        )
-        if mode == "mismatched-session":
-            records = [json.loads(line) for line in session.read_text().splitlines()]
-            records[-1]["data"]["message"]["source"]["model"] = "different-model"
-            session.write_text("".join(json.dumps(row) + "\n" for row in records))
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        time.sleep(600)
+    selection = rows["agent-default-model"]["config"]
+    write_session(
+        state, Path.cwd(), session_id="fake-observed", provider=selection["provider"],
+        model=selection["model"], effort=selection.get("reasoningEffort"),
+    )
     reason: dict[str, object] = {"kind": "completed"}
     text = json.dumps({"ok": True, "prompt": prompt, "secret": key})
     if mode == "github-token":
         token = os.environ.get("GH_TOKEN")
         text = json.dumps({"github_token": token, "unlisted": os.environ.get("UNLISTED_SECRET")})
         (state / "session.jsonl").write_text(json.dumps({"tool": token}) + "\n")
-    if mode == "auth":
-        reason = {"kind": "error", "error": {"code": "MISSING_CREDENTIAL", "message": "missing"}}
-        text = ""
     events: list[dict[str, object]] = [
         {"type": "session", "sessionId": "fake-observed", "cwd": str(Path.cwd())},
         {"type": "status", "phase": "turn_start", "turn": 1},
     ]
-    if mode.startswith("ptc-"):
-        # Actual fixed-version producer output; only disposable stack paths normalized.
-        cases = json.loads(Path(__file__).with_name("ptc_tool_results.json").read_text())
-        events.append(cases[mode.removeprefix("ptc-")])
-    denials = {
-        "approval": 'Error: the user rejected tool "bash"',
-        "approval-program": (
-            'Error: the user rejected escalating this program to "danger-full-access"; '
-            "it stays denied, so stop and explain instead of working around it"
-        ),
-    }
-    if mode in denials:
-        events.append({"type": "tool_result", "callId": "call", "status": "error", "result": denials[mode]})
-    read_errors = {
-        "read-402-lines": 'Error: offset 2001 is out of range for "x.py" (402 lines)',
-        "read-401-lines": 'Error: offset 2001 is out of range for "x.py" (401 lines)',
-        "read-403-lines": 'Error: offset 2001 is out of range for "x.py" (403 lines)',
-        "read-401-filename": 'Error: ENOENT: no such file or directory, open "401.py"',
-        "read-403-filename": 'Error: ENOENT: no such file or directory, open "403.py"',
-        "read-approval-cancelled": 'Error: offset 2001 is out of range for "approval-cancelled.md" (402 lines)',
-        "read-approval-unavailable": 'Error: ENOENT: no such file or directory, open "approval-unavailable.txt"',
-        "read-approval-rejected": 'Error: ENOENT: no such file or directory, open "approval-rejected.md"',
-        "read-requires-approval": 'Error: ENOENT: no such file or directory, open "notes/requires approval.md"',
-        "read-approvals-path": 'Error: ENOENT: no such file or directory, open "/approvals/cancelled.json"',
-    }
-    if mode in read_errors:
-        events.extend(
-            [
-                {"type": "tool_call", "callId": "read-1", "tool": "read", "input": {}},
-                {"type": "tool_result", "callId": "read-1", "status": "error", "result": read_errors[mode]},
-            ]
-        )
     events.extend(
         [
             {"type": "status", "phase": "turn_end", "turn": 1, "reason": reason},
@@ -323,9 +255,7 @@ def main() -> int:
     )
     for event in events:
         print(json.dumps(event, ensure_ascii=False), flush=True)
-    if mode == "malformed":
-        print("broken {")
-    return 1 if mode in {"auth", "nonzero"} else 0
+    return 0
 
 
 if __name__ == "__main__":

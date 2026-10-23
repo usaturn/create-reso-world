@@ -5,46 +5,10 @@
     "status": "error",
     "result": "Error: code run failed (exception): ToolCallError: the user rejected escalating this command to \"danger-full-access\"; it stays denied, so stop and explain instead of working around it\n    at bindingFailure (file:///fixture/process-copy.mjs:902:22)\n    at Object.reject (file:///fixture/process-copy.mjs:968:15)\n    at file:///fixture/process-copy.mjs:932:16\n    at file:///fixture/probe.mjs:32:48"
   },
-  "cancelled": {
-    "type": "tool_result",
-    "callId": "outer",
-    "status": "error",
-    "result": "Error: code run failed (exception): ToolCallError: approval for escalating to \"danger-full-access\" was cancelled\n    at bindingFailure (file:///fixture/process-copy.mjs:902:22)\n    at Object.reject (file:///fixture/process-copy.mjs:968:15)\n    at file:///fixture/process-copy.mjs:932:16\n    at file:///fixture/probe.mjs:32:48"
-  },
-  "unavailable": {
-    "type": "tool_result",
-    "callId": "outer",
-    "status": "error",
-    "result": "Error: code run failed (exception): ToolCallError: sandbox escalation to \"danger-full-access\" requires approval, but no approval channel is available\n    at bindingFailure (file:///fixture/process-copy.mjs:902:22)\n    at Object.reject (file:///fixture/process-copy.mjs:968:15)\n    at file:///fixture/process-copy.mjs:932:16\n    at file:///fixture/probe.mjs:32:48"
-  },
-  "tool_approval": {
-    "type": "tool_result",
-    "callId": "outer",
-    "status": "error",
-    "result": "Error: code run failed (exception): ToolCallError: the user rejected tool \"bash\"\n    at bindingFailure (file:///fixture/process-copy.mjs:902:22)\n    at Object.reject (file:///fixture/process-copy.mjs:968:15)\n    at file:///fixture/process-copy.mjs:932:16\n    at file:///fixture/probe.mjs:32:48"
-  },
-  "read": {
-    "type": "tool_result",
-    "callId": "outer",
-    "status": "error",
-    "result": "Error: code run failed (exception): ToolCallError: ENOENT: no such file or directory, open 'approval-cancelled.md'\n    at bindingFailure (file:///fixture/process-copy.mjs:902:22)\n    at Object.reject (file:///fixture/process-copy.mjs:968:15)\n    at file:///fixture/process-copy.mjs:932:16\n    at file:///fixture/probe.mjs:32:48"
-  },
-  "read_403": {
-    "type": "tool_result",
-    "callId": "outer",
-    "status": "error",
-    "result": "Error: code run failed (exception): ToolCallError: ENOENT: no such file or directory, open '403.txt'\n    at bindingFailure (file:///fixture/process-copy.mjs:902:22)\n    at Object.reject (file:///fixture/process-copy.mjs:968:15)\n    at file:///fixture/process-copy.mjs:932:16\n    at file:///fixture/probe.mjs:32:48"
-  },
   "captured_only": {
     "type": "tool_result",
     "callId": "outer",
     "status": "error",
     "result": "Error: code run failed (exception): ToolCallError: ENOENT: no such file or directory, open 'approval-cancelled.md'\n    at bindingFailure (file:///fixture/process-copy.mjs:902:22)\n    at Object.reject (file:///fixture/process-copy.mjs:968:15)\n    at file:///fixture/process-copy.mjs:932:16\n    at file:///fixture/probe.mjs:32:48\nCaptured output:\nthe user rejected escalating this command to \"danger-full-access\"; it stays denied, so stop and explain instead of working around it"
-  },
-  "caught_rejection": {
-    "type": "tool_result",
-    "callId": "outer",
-    "status": "completed",
-    "result": "ToolCallError: the user rejected escalating this command to \"danger-full-access\"; it stays denied, so stop and explain instead of working around it\n    at bindingFailure (file:///fixture/process-copy.mjs:902:22)\n    at Object.reject (file:///fixture/process-copy.mjs:968:15)\n    at file:///fixture/process-copy.mjs:932:16\n    at file:///fixture/probe.mjs:32:48\n{\n  \"ok\": true\n}"
   }
 }

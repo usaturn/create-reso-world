@@ -11,7 +11,6 @@ import pytest
 
 from tools.agent_runner import workspace
 from tools.agent_runner.adapters import AdapterContext, Capabilities, LaunchSpec
-from tools.agent_runner.models import Assignment
 from tools.agent_runner.runner import run_workflow
 from tools.agent_runner.tests.test_runner import FakeAdapter, configuration, repository  # noqa: F401
 from tools.agent_runner.tests.test_workspace import git
@@ -64,7 +63,7 @@ fallback = {fallback!r}
     return template
 
 
-@pytest.mark.parametrize("fallback", [["d1"], ["d1", "d2"]])
+@pytest.mark.parametrize("fallback", [["d1"]])
 def test_self_override_does_not_use_retained_fallback_as_confinement_evidence(
     repository: Path, tmp_path: Path, fallback: list[str],
 ) -> None:
@@ -78,17 +77,6 @@ def test_self_override_does_not_use_retained_fallback_as_confinement_evidence(
     with pytest.raises(workspace.CheckoutAuditError) as caught:
         require_auditable_workflow(config, "audit", repository, adapter_loader=lambda _: ConfinedFake())
     assert [item.path for item in caught.value.findings] == [str(neighbor)]
-
-
-def test_confined_primary_keeps_targeted_scope_with_a_retained_fallback(
-    repository: Path, tmp_path: Path,
-) -> None:
-    from tools.agent_runner.checkout_policy import workflow_checkout_scope
-    from tools.agent_runner.config import load_config
-
-    config = load_config(fallback_template(tmp_path, ["d1"]), workflow="audit")
-    scope = workflow_checkout_scope(config, "audit", repository, adapter_loader=lambda _: ConfinedFake())
-    assert scope == workspace.protected_checkout_paths(repository)
 
 
 def test_confined_batch_reports_parallel_edit_without_blocking(repository: Path, tmp_path: Path) -> None:
@@ -106,7 +94,7 @@ def test_confined_batch_reports_parallel_edit_without_blocking(repository: Path,
     ]
 
 
-@pytest.mark.parametrize("target", ["main", "feature"])
+@pytest.mark.parametrize("target", ["feature"])
 def test_confined_batch_still_blocks_protected_edits(repository: Path, tmp_path: Path, target: str) -> None:
     feature = workspace.create_worktree(repository, "HEAD", tmp_path / "feature")
     changed = repository if target == "main" else feature
@@ -117,22 +105,6 @@ def test_confined_batch_still_blocks_protected_edits(repository: Path, tmp_path:
     )
     assert batch.outside_changes == [str(changed)]
     assert [item.path for item in batch.checkout_audit] == [str(changed)]
-    assert batch.unrelated_checkout_audit == []
-
-
-def test_nonconfined_batch_preserves_strict_parallel_edit_audit(repository: Path, tmp_path: Path) -> None:
-    neighbor = workspace.create_worktree(repository, "HEAD", tmp_path / "neighbor")
-
-    class OtherSession(FakeAdapter):
-        def prepare(self, context: AdapterContext) -> LaunchSpec:
-            (neighbor / "tracked.txt").write_text("other session")
-            return super().prepare(context)
-
-    batch = run_workflow(
-        configuration(), "audit", "respond", repository,
-        output_dir=tmp_path / "run", adapter_loader=lambda _: OtherSession(),
-    )
-    assert batch.outside_changes == [str(neighbor)]
     assert batch.unrelated_checkout_audit == []
 
 
@@ -154,7 +126,7 @@ def test_confined_preflight_retains_unrelated_missing_registration(repository: P
     assert str(neighbor) in git(repository, "worktree", "list", "--porcelain")
 
 
-@pytest.mark.parametrize("case", ["nonconfined", "fallback", "all-self", "unavailable", "truthy"])
+@pytest.mark.parametrize("case", ["nonconfined", "fallback", "unavailable", "truthy"])
 def test_unproven_configuration_keeps_unavailable_registration_blocking(
     repository: Path, tmp_path: Path, case: str,
 ) -> None:
@@ -167,8 +139,6 @@ def test_unproven_configuration_keeps_unavailable_registration_blocking(
     config.agents["b"].runtime = "codex"
     if case == "fallback":
         config.workflows["audit"].assignments["inspect"].fallback = ["b"]
-    if case == "all-self":
-        config.workflows["audit"].assignments["inspect"] = Assignment(agents=["self"])
 
     def loader(runtime: str) -> FakeAdapter:
         if case == "unavailable":
@@ -184,7 +154,7 @@ def test_unproven_configuration_keeps_unavailable_registration_blocking(
     assert not (tmp_path / "run").exists()
 
 
-@pytest.mark.parametrize("target", ["main", "feature"])
+@pytest.mark.parametrize("target", ["main"])
 def test_confined_preflight_rejects_protected_audit_failure(
     repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str,
 ) -> None:

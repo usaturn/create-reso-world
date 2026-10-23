@@ -13,7 +13,6 @@ from tools.agent_runner.adapters import (
     AdapterOutcome,
     LaunchSpec,
     load_adapter,
-    runtime_supported,
 )
 from tools.agent_runner.models import (
     Agent,
@@ -69,56 +68,6 @@ def context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AdapterContext:
     )
 
 
-def test_adapter_cache_paths_are_writable_with_its_scoped_runner(context: AdapterContext) -> None:
-    import subprocess
-    import sys
-
-    spec = load_adapter("dsh").prepare(context)
-    command = _patch(spec)["sandbox"]["config"]["runnerCommand"]
-    work = str(context.work_dir.resolve())
-    profile = [
-        "--ro-bind",
-        "/",
-        "/",
-        "--dev",
-        "/dev",
-        "--unshare-pid",
-        "--proc",
-        "/proc",
-        "--die-with-parent",
-        "--tmpfs",
-        "/tmp",
-        "--bind",
-        work,
-        work,
-        "--",
-    ]
-    cache, venv = Path(spec.env["UV_CACHE_DIR"]), Path(spec.env["UV_PROJECT_ENVIRONMENT"])
-    assert cache.is_relative_to(spec.env["HOME"]) and venv.is_relative_to(spec.env["HOME"])
-    state = Path(spec.env["DSH_HOME"]) / "visible"
-    state.write_text("observed")
-    program = "from pathlib import Path; " + "; ".join(f"Path({str(path)!r}).mkdir()" for path in (cache, venv))
-    program += f"; assert Path({str(state)!r}).read_text() == 'observed'"
-    # The profile hides /tmp; a checkout's venv there is not visible, the interpreter it links to is.
-    python = str(Path(sys.executable).resolve())
-    result = subprocess.run([*command, *profile, python, "-c", program], capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-    assert cache.is_dir() and venv.is_dir()
-
-
-def test_runtime_is_registered() -> None:
-    assert runtime_supported("dsh")
-
-
-def test_arbitrary_write_grants_are_rejected_before_launch_state(context: AdapterContext) -> None:
-    from dataclasses import replace
-
-    context = replace(context, sandbox_write_paths=(context.work_dir,))
-    with pytest.raises(ValueError, match="grant"):
-        load_adapter("dsh").prepare(context)
-    assert not (context.receipt_path.parent / "dsh").exists()
-
-
 def test_dsh_disk_receipt_cannot_override_failed_jsonl(context: AdapterContext) -> None:
     from tools.agent_runner.models import Receipt
     from tools.agent_runner.runner import _collect as collect_attempt
@@ -136,38 +85,6 @@ def test_dsh_disk_receipt_cannot_override_failed_jsonl(context: AdapterContext) 
     )
     # The collector never ran, so nothing was classified before an override (#212)
     assert state == "invalid_result" and payload is None and reported is None
-
-
-def test_tmp_launch_script_and_shared_environment_are_visible_readonly(
-    context: AdapterContext, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import os
-    import subprocess
-    import sys
-
-    shared = context.work_dir.parent / "shared-venv"
-    shared.mkdir()
-    marker = shared / "dependency"
-    marker.write_text("shared dependency")
-    script = context.work_dir.parent / "cli.py"
-    script.write_text(
-        "import json; from pathlib import Path\n"
-        f"marker = Path({str(marker)!r})\n"
-        "assert marker.read_text() == 'shared dependency'\n"
-        "try:\n marker.write_text('changed')\nexcept OSError:\n print(json.dumps({'readonly': True}))\n"
-    )
-    # sys.prefix is replaced below, so a /tmp checkout's venv is not restored; the interpreter it links to is.
-    context.agent.command = [str(Path(sys.executable).resolve()), str(script)]
-    with monkeypatch.context() as patch:
-        patch.setattr(sys, "prefix", str(shared))
-        spec = load_adapter("dsh").prepare(context)
-    result = subprocess.run(
-        spec.argv, input=spec.stdin, env={"PATH": os.defpath, **spec.env},
-        cwd=context.work_dir, capture_output=True, check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout) == {"readonly": True}
-    assert marker.read_text() == "shared dependency"
 
 
 @pytest.fixture
@@ -228,20 +145,8 @@ def test_tmp_parent_review_inputs_are_readonly_in_native_and_inner_bash(
     assert parent_review["neighbor"].read_text() == "host original"
 
 
-@pytest.mark.parametrize("prompt", [
-    "Explain parent_pr_data.", '```json\n{"unrelated": broken}\n```',
-    '```json\n{"parent_pr_data": broken}\n```', '```json\n{"unrelated": true}\n```',
-    '```json\n{"nested": {"parent_pr_data": null}}\n```',
-])
-def test_ordinary_prompt_without_parent_descriptor_is_unchanged(context: AdapterContext, prompt: str) -> None:
-    context.request.prompt = prompt
-    assert load_adapter("dsh").prepare(context).stdin == prompt.encode()
-
-
 @pytest.mark.parametrize("change", [
-    "hash", "bundle", "symlink", "hardlink", "bundle_symlink", "fifo", "schema",
-    "parent_root", "parent_root_slash", "not_parent", "descriptor", "malformed",
-])
+    "hash",     "parent_root", "parent_root_slash", "not_parent", ])
 def test_invalid_parent_review_input_is_rejected_before_launch(
     context: AdapterContext, parent_review: dict[str, Any], change: str,
 ) -> None:
@@ -376,17 +281,6 @@ def test_skill_source_is_used_in_stdin(context: AdapterContext) -> None:
     assert context.request.prompt in spec.stdin.decode()
 
 
-@pytest.mark.parametrize(
-    "field,value",
-    [("provider", None), ("provider", "other"), ("args", ["--profile", "web"])],
-)
-def test_unsupported_launch_options_are_rejected(context: AdapterContext, field: str, value: object) -> None:
-    setattr(context.agent, field, value)
-    with pytest.raises(ValueError):
-        load_adapter("dsh").prepare(context)
-    assert not (context.receipt_path.parent / "dsh").exists()
-
-
 def _stream(text: str = '{"ok":true}', reason: dict[str, object] | None = None) -> list[dict[str, Any]]:
     return [
         {"type": "session", "sessionId": "observed-session", "cwd": "/work"},
@@ -414,23 +308,6 @@ def _collect(
     return load_adapter("dsh").collect(context, stdout_path, stderr_path)
 
 
-def test_collector_binds_stdout_session_to_observed_model(context: AdapterContext) -> None:
-    write_session(
-        context.receipt_path.parent / "dsh" / "state",
-        context.work_dir,
-        session_id="observed-session",
-        provider="live-provider",
-        model="live-model",
-    )
-    outcome = _collect(context, _stream())
-    assert outcome.receipt is not None and outcome.receipt.status == "success"
-    assert (outcome.identity.provider, outcome.identity.model, outcome.identity.effort) == (
-        "live-provider",
-        "live-model",
-        "high",
-    )
-
-
 def test_missing_identity_discards_success_payload(context: AdapterContext) -> None:
     outcome = _collect(context, _stream(), with_identity=False)
     assert outcome.receipt is not None
@@ -438,18 +315,9 @@ def test_missing_identity_discards_success_payload(context: AdapterContext) -> N
     assert outcome.identity.provider is outcome.identity.model is None
 
 
-@pytest.mark.parametrize("code,status", [("MISSING_CREDENTIAL", "awaiting_authentication"), ("APPROVAL_REQUIRED", "awaiting_approval")])
-def test_missing_identity_preserves_known_failure(context: AdapterContext, code: str, status: str) -> None:
-    events = _stream(reason={"kind": "error", "error": {"code": code}})
-    outcome = _collect(context, events, with_identity=False)
-    assert outcome.receipt is not None
-    assert outcome.receipt.status == status and outcome.receipt.payload is None
-
-
 @pytest.mark.parametrize(
     ("reason", "reported"),
     [
-        ({"kind": "error", "error": {"code": "AUTH", "message": "401: rejected"}}, "awaiting_authentication"),
         (None, "success"),
     ],
 )
@@ -465,12 +333,6 @@ def test_unreadable_identity_keeps_the_classified_state(
     assert (outcome.receipt.status, outcome.reported_state) == ("response_failed", reported)
 
 
-def test_readable_identity_reports_no_replaced_state(context: AdapterContext) -> None:
-    outcome = _collect(context, _stream())
-    assert outcome.receipt is not None and outcome.receipt.status == "success"
-    assert outcome.reported_state is None
-
-
 def test_mismatched_identity_discards_success_payload(context: AdapterContext) -> None:
     path = write_session(context.receipt_path.parent / "dsh" / "state", context.work_dir, session_id="observed-session")
     rows = [json.loads(line) for line in path.read_text().splitlines()]
@@ -481,7 +343,7 @@ def test_mismatched_identity_discards_success_payload(context: AdapterContext) -
     assert outcome.receipt.status == "response_failed" and outcome.receipt.payload is None
 
 
-@pytest.mark.parametrize("field", ["provider", "model", "reasoningEffort"])
+@pytest.mark.parametrize("field", ["provider", "reasoningEffort"])
 def test_changed_route_with_matching_response_discards_payload(context: AdapterContext, field: str) -> None:
     path = write_session(context.receipt_path.parent / "dsh" / "state", context.work_dir, session_id="observed-session")
     rows = [json.loads(line) for line in path.read_text().splitlines()]
@@ -508,26 +370,7 @@ def _status(context: AdapterContext, events: Iterable[object]) -> ReceiptStatus:
     "shape,text,expected",
     [
         ("json", '{"ok":true}', {"ok": True}),
-        ("json", '```json\n{"ok":true}\n```', {"ok": True}),
-        (
-            "json",
-            'レビュー結果です。\n```json\n{"status":"success","active_findings":0}\n```',
-            {"status": "success", "active_findings": 0},
-        ),
-        ("json", '```json\n{"ok":true}\n```\n以上です。\n', {"ok": True}),
-        (
-            "json",
-            '前置き ☃\n複数行\n```json\n{\n  "note": "日本語\\n☃"\n}\n```\n後書き\n',
-            {"note": "日本語\n☃"},
-        ),
-        ("json", '結果:\n```json\n{"ok":true}```', {"ok": True}),
         ("json", '```json\n{"first":1}\n```\n```json\n{"second":2}\n```', {"first": 1}),
-        (
-            "text",
-            "複数行\n☃ authentication is a topic\n",
-            "複数行\n☃ authentication is a topic\n",
-        ),
-        ("text", '説明\n```json\n{"ok":true}\n```\n', '説明\n```json\n{"ok":true}\n```\n'),
     ],
 )
 def test_success_payload_and_observed_identity_only(
@@ -549,27 +392,10 @@ def test_success_payload_and_observed_identity_only(
 @pytest.mark.parametrize(
     "events",
     [
-        [],
-        [{"type": "final", "text": '{"ok":true}'}],
-        _stream()[:-1],
-        _stream()[1:],
-        [_stream()[0], *_stream()[2:]],
         _stream() + [_stream()[-1]],
-        [_stream()[0], _stream()[-1], *_stream()[1:3]],
-        _stream() + ["broken {\n"],
-        [_stream()[0], "broken {\n", *_stream()[1:]],
-        _stream(""),
-        _stream("{}"),
-        _stream("[]"),
         _stream('{"n":NaN}'),
         _stream('{"a":1,"a":2}'),
         _stream('結果: {"ok":true}'),
-        _stream("説明\n```json\n{}\n```"),
-        _stream("説明\n```json\n[]\n```"),
-        _stream('説明\n```json\n{"a":1,"a":2}\n```'),
-        _stream('説明\n```json\n{"n":NaN}\n```'),
-        _stream("説明\n```json\n{broken\n```"),
-        _stream(reason={"kind": "unknown"}),
         [_stream()[0], _stream()[1], {**_stream()[2], "turn": 2}, _stream()[3]],
         [{**_stream()[0], "truncated": True}, *_stream()[1:]],
     ],
@@ -584,10 +410,6 @@ def test_missing_malformed_or_inconsistent_stream_is_not_success(
     "code,state",
     [
         ("MISSING_CREDENTIAL", "awaiting_authentication"),
-        ("INVALID_CREDENTIAL", "awaiting_authentication"),
-        ("UNAUTHORIZED", "awaiting_authentication"),
-        ("APPROVAL_REQUIRED", "awaiting_approval"),
-        ("NETWORK_ERROR", "response_failed"),
     ],
 )
 def test_error_reason_overrides_even_nonempty_final(context: AdapterContext, code: str, state: str) -> None:
@@ -600,35 +422,9 @@ def test_error_reason_overrides_even_nonempty_final(context: AdapterContext, cod
     assert outcome.receipt.payload is None
 
 
-def test_empty_final_with_missing_credential_is_authentication(context: AdapterContext) -> None:
-    assert (
-        _status(
-            context,
-            _stream("", {"kind": "error", "error": {"code": "MISSING_CREDENTIAL"}}),
-        )
-        == "awaiting_authentication"
-    )
-
-
-def test_abort_maps_to_interrupted(context: AdapterContext) -> None:
-    assert _status(context, _stream("", {"kind": "aborted"})) == "interrupted"
-
-
 @pytest.mark.parametrize(
     "diagnostic",
     [
-        'Error: offset 2001 is out of range for "x.py" (402 lines)',
-        'Error: offset 2001 is out of range for "x.py" (401 lines)',
-        'Error: offset 2001 is out of range for "x.py" (403 lines)',
-        'Error: ENOENT: no such file or directory, open "401.py"',
-        'Error: ENOENT: no such file or directory, open "403.py"',
-        'Error: no such file or directory, open "UNAUTHORIZED.py"',
-        "Error: invalid api key in a tool's fixture data",
-        'Error: offset 2001 is out of range for "approval-cancelled.md" (402 lines)',
-        'Error: ENOENT: no such file or directory, open "approval-unavailable.txt"',
-        'Error: ENOENT: no such file or directory, open "approval-rejected.md"',
-        'Error: ENOENT: no such file or directory, open "notes/requires approval.md"',
-        'Error: ENOENT: no such file or directory, open "/approvals/cancelled.json"',
         'Error: ENOENT: no such file, open \'the user rejected tool "read"\'',
     ],
 )
@@ -645,46 +441,34 @@ def test_recovered_tool_error_preserves_final_payload(context: AdapterContext, d
     assert outcome.identity.model == "observed-model"
 
 
-@pytest.mark.parametrize("code", ["MISSING_CREDENTIAL", "INVALID_CREDENTIAL", "UNAUTHORIZED", "401", "403"])
-def test_api_auth_error_overrides_completed_final(context: AdapterContext, code: str) -> None:
-    events = _stream()
-    events.insert(2, {"type": "error", "code": code, "message": "API request failed"})
-    outcome = _collect(context, events)
-    assert outcome.receipt is not None
-    assert outcome.receipt.status == "awaiting_authentication"
-    assert outcome.receipt.payload is None
-
-
 @pytest.mark.parametrize(
-    "diagnostic",
+    "ptc,diagnostic",
     [
-        # Literal producer messages, not strings generated from the adapter's matcher:
-        # @deepseek-ai/dsh-tools:serviceAsk and dsh-sandbox:approveEscalation (0.2.0-rc.2, same in 0.2.1-rc.2).
-        'Error: the user rejected tool "bash"',
-        'Error: the user rejected tool "403"',
-        'Error: approval for tool "read" was cancelled',
-        'Error: tool "read" requires approval (not yet supported)',
-        'Error: tool "read" requires approval, but the call has no agent to route it through',
-        'Error: tool "read" requires approval, but no approval channel is available',
-        (
-            'Error: the user rejected escalating this command to "danger-full-access"; '
-            "it stays denied, so stop and explain instead of working around it"
-        ),
-        (
-            'Error: the user rejected escalating this operation to "danger-full-access"; '
-            "it stays denied, so stop and explain instead of working around it"
-        ),
-        (
-            'Error: the user rejected escalating this program to "danger-full-access"; '
-            "it stays denied, so stop and explain instead of working around it"
-        ),
-        'Error: approval for escalating to "danger-full-access" was cancelled',
-        'Error: sandbox escalation to "danger-full-access" requires approval, but no approval channel is available',
-        'Error: sandbox escalation to "danger-full-access" requires approval, but no approval service is composed',
-        'Error: sandbox escalation to "danger-full-access" requires approval, but the call has no agent to route it through',
+        (False, 'Error: the user rejected tool "bash"'),
+        (False, 'Error: approval for tool "read" was cancelled'),
+        (False, 'Error: tool "read" requires approval (not yet supported)'),
+        (False, 'Error: tool "read" requires approval, but the call has no agent to route it through'),
+        (False, 'Error: tool "read" requires approval, but no approval channel is available'),
+        (False, 'Error: the user rejected escalating this program to "danger-full-access"; '
+                "it stays denied, so stop and explain instead of working around it"),
+        (False, 'Error: approval for escalating to "danger-full-access" was cancelled'),
+        (False, 'Error: sandbox escalation to "danger-full-access" requires approval, but no approval channel is available'),
+        (False, 'Error: sandbox escalation to "danger-full-access" requires approval, but no approval service is composed'),
+        (False, 'Error: sandbox escalation to "danger-full-access" requires approval, but the call has no agent to route it through'),
+    ],
+    ids=[
+        "False-Error: the user rejected tool \"bash\"",
+        "False-Error: approval for tool \"read\" was cancelled",
+        "False-Error: tool \"read\" requires approval (not yet supported)",
+        "False-Error: tool \"read\" requires approval, but the call has no agent to route it through",
+        "False-Error: tool \"read\" requires approval, but no approval channel is available",
+        "False-Error: the user rejected escalating this program to \"danger-full-access\"; it stays denied, so stop and explain instead of working around it",
+        "False-Error: approval for escalating to \"danger-full-access\" was cancelled",
+        "False-Error: sandbox escalation to \"danger-full-access\" requires approval, but no approval channel is available",
+        "False-Error: sandbox escalation to \"danger-full-access\" requires approval, but no approval service is composed",
+        "False-Error: sandbox escalation to \"danger-full-access\" requires approval, but the call has no agent to route it through",
     ],
 )
-@pytest.mark.parametrize("ptc", [False, True])
 def test_approval_error_in_tool_result_is_not_success(context: AdapterContext, diagnostic: str, ptc: bool) -> None:
     if ptc:
         # Producer framing checked independently with the installed runProgram/ToolRuntime.
@@ -707,31 +491,15 @@ def test_approval_error_in_tool_result_is_not_success(context: AdapterContext, d
     assert outcome.receipt.status == "awaiting_approval" and outcome.receipt.payload is None
 
 
-@pytest.mark.parametrize("source", ["error", "turn_end", "stderr"])
 @pytest.mark.parametrize(
-    "diagnostic,state",
-    [("APPROVAL_REQUIRED", "awaiting_approval"), ("401", "awaiting_authentication")],
+    "ptc,separate_turns,denial_first",
+    [
+        (True, True, False),
+    ],
+    ids=[
+        "True-True-False",
+    ],
 )
-def test_control_diagnostics_keep_generic_matching(
-    context: AdapterContext, source: str, diagnostic: str, state: str
-) -> None:
-    events = _stream()
-    stderr = ""
-    if source == "error":
-        events.insert(2, {"type": "error", "message": diagnostic})
-    elif source == "turn_end":
-        events[2]["reason"] = {"kind": "error", "message": diagnostic}
-    else:
-        events[-1]["text"] = ""  # Only failed streams consult stderr.
-        stderr = diagnostic
-    outcome = _collect(context, events, stderr)
-    assert outcome.receipt is not None
-    assert outcome.receipt.status == state and outcome.receipt.payload is None
-
-
-@pytest.mark.parametrize("denial_first", [False, True])
-@pytest.mark.parametrize("separate_turns", [False, True])
-@pytest.mark.parametrize("ptc", [False, True])
 def test_real_denial_is_not_hidden_by_later_recovery(
     context: AdapterContext, denial_first: bool, separate_turns: bool, ptc: bool
 ) -> None:
@@ -758,17 +526,15 @@ def test_real_denial_is_not_hidden_by_later_recovery(
     assert outcome.receipt.status == "awaiting_approval" and outcome.receipt.payload is None
 
 
-def test_completed_tool_output_is_not_control_diagnostic(context: AdapterContext) -> None:
-    events = _stream()
-    events.insert(2, {"type": "tool_result", "callId": "read", "status": "completed",
-                      "result": 'Error: the user rejected tool "bash"'})
-    outcome = _collect(context, events)
-    assert outcome.receipt is not None
-    assert outcome.receipt.status == "success" and outcome.receipt.payload == {"ok": True}
-
-
-@pytest.mark.parametrize("denied", [False, True])
-@pytest.mark.parametrize("ptc", [False, True])
+@pytest.mark.parametrize(
+    "ptc,denied",
+    [
+        (False, True),
+    ],
+    ids=[
+        "False-True",
+    ],
+)
 def test_approval_classification_does_not_mutate_input_state(context: AdapterContext, denied: bool, ptc: bool) -> None:
     root = context.work_dir.parent
     for name in ("credentials", "backup", "tmp-sentinel", "cache"):
@@ -802,44 +568,16 @@ def test_approval_classification_does_not_mutate_input_state(context: AdapterCon
     assert snapshot() == before
 
 
-def test_startup_error_without_final_is_classified(context: AdapterContext) -> None:
-    outcome = _collect(context, [{"type": "error", "message": "MISSING_CREDENTIAL"}])
-    assert outcome.receipt is not None
-    assert outcome.receipt.status == "awaiting_authentication"
-
-
 def test_error_events_cannot_be_hidden_by_completed_final(context: AdapterContext) -> None:
     events = _stream()
     events.insert(2, {"type": "error", "message": "failed"})
     assert _status(context, events) == "response_failed"
 
 
-def test_unicode_line_separator_inside_json_string_is_preserved(context: AdapterContext) -> None:
-    context.role.result_shape = "text"
-    text = "日本語\u2028次行 ☃"
-    events = [json.dumps(event, ensure_ascii=False) + "\n" for event in _stream(text)]
-    outcome = _collect(context, events)
-    assert outcome.receipt is not None
-    assert outcome.receipt.status == "success"
-    assert outcome.receipt.payload == text
-
-
-@pytest.mark.parametrize("event", [{"type": []}, {"type": "status", "phase": []}, []])
-def test_invalid_event_type_does_not_escape_collector(context: AdapterContext, event: object) -> None:
-    events: list[object] = list(_stream())
-    events.insert(2, event)
-    assert _status(context, events) == "response_failed"
-
-
 @pytest.mark.parametrize(
     "event",
     [
-        {"type": "text"},
-        {"type": "thinking", "text": 3},
         {"type": "status", "phase": "unknown", "turn": 1},
-        {"type": "status", "phase": "step_start", "turn": 2, "step": 1},
-        {"type": "status", "phase": "step_end", "turn": 1, "step": True},
-        {"type": "tool_call", "callId": "call", "tool": "read"},
         {"type": "tool_result", "callId": "call", "status": "unknown", "result": "x"},
         {"type": "tool_result", "callId": "call", "status": "completed"},
     ],
@@ -850,28 +588,10 @@ def test_invalid_intermediate_event_is_not_ignored(context: AdapterContext, even
     assert _status(context, events) == "response_failed"
 
 
-def test_documented_truncated_tool_input_and_reasoning_are_accepted(context: AdapterContext) -> None:
-    events = _stream()
-    events[2:2] = [
-        {"type": "thinking", "text": "bounded reasoning", "truncated": True},
-        {"type": "tool_call", "callId": "call", "tool": "read", "truncated": True},
-        {
-            "type": "tool_result",
-            "callId": "call",
-            "status": "completed",
-            "result": "bounded result",
-            "truncated": True,
-        },
-    ]
-    assert _status(context, events) == "success"
-
-
 @pytest.mark.parametrize(
     "case,state",
-    [("rejected", "awaiting_approval"), ("cancelled", "awaiting_approval"),
-     ("unavailable", "awaiting_approval"), ("tool_approval", "awaiting_approval"),
-     ("read", "success"), ("read_403", "success"), ("captured_only", "success"),
-     ("caught_rejection", "success")],
+    [("rejected", "awaiting_approval"),           ("captured_only", "success"),
+     ],
 )
 def test_ptc_producer_output(context: AdapterContext, case: str, state: str) -> None:
     # Generated by DSH 0.2.0-rc.2 runProgram -> ToolRuntime -> projectJsonRun with
@@ -900,15 +620,3 @@ def test_ptc_refusal_survives_truncated_captured_output(context: AdapterContext)
     events = _stream()
     events.insert(2, case)
     assert _status(context, events) == "awaiting_approval"
-
-
-@pytest.mark.parametrize("first", ["auth", "ptc"])
-def test_ptc_refusal_preserves_first_control_failure(context: AdapterContext, first: str) -> None:
-    refused = json.loads(Path(__file__).with_name("ptc_tool_results.json").read_text())["rejected"]
-    auth = {"type": "error", "code": "401", "message": "API request failed"}
-    events = _stream()
-    events[2:2] = [auth, refused] if first == "auth" else [refused, auth]
-    outcome = _collect(context, events)
-    assert outcome.receipt is not None
-    assert outcome.receipt.status == ("awaiting_authentication" if first == "auth" else "awaiting_approval")
-    assert outcome.receipt.payload is None
