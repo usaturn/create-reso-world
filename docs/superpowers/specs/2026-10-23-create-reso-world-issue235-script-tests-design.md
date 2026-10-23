@@ -36,9 +36,9 @@
 | Python のテスト（pytest の収集数） | 61 | 33 | 54% |
 | bash のテスト（`tests/scripts/test-*.bash`） | 14 本 | 10 本 | 71% |
 | 件数の合計 | 75 | 43 | 57% |
-| 行数（`tests/scripts` の追跡ファイル。Meshy を除く） | 3,293 | 1,982 | 60% |
+| 行数（`tests/scripts` の追跡ファイル。Meshy を除く） | 3,293 | 1,981 | 60% |
 
-「後」は、PR 修正ループのサイクル 1〜3（D-235-9、条件単位の監査）で戻した後に、同じコマンドで測った（`33 tests collected`、`ls` が 10、`wc -l` が 1982）。戻す前（`d0ef1f5`）は 1786 行、サイクル 2 の後は 1912 行だった。
+「後」は、PR 修正ループのサイクル 1〜3（D-235-9、条件単位の監査）で戻した後に、同じコマンドで測った（`33 tests collected`、`ls` が 10、`wc -l` が 1981）。戻す前（`d0ef1f5`）は 1786 行、サイクル 2 の後は 1912 行だった。
 
 ## 決定記録
 
@@ -65,7 +65,7 @@
 | `test-agent-config.bash` | S（高） | 共有する MCP 設定の header に鍵の直書きが入る。private の CI と gitleaks は停止していて、この検査だけが直書きのコミットを止める | 残す |
 | `test-blender-system-python.bash` | L・S | D-235-3。終了コードの伝搬だけは S（サイクル 3） | 終了コードの確認だけを残す |
 | `test-ci.bash`（`ci.yml` の gitleaks ジョブ、版の一致） | F | ワークフローと `install_gitleaks.bash` の値の写し。private の CI は止めていてジョブは実行されない | 消す |
-| `test-ci.bash`（`.gitleaks.toml` の allowlist の正規表現と件数） | F・D・F∩S | 設定の値を写して照合している。3 つの allowlist が秘密情報を除外しないことは、`test-scan-before-push.bash` が実際の gitleaks で確かめる。1 つ目の確認はサイクル 1 の自己レビューの指摘で足した。サイクル 3 で、境界（1 つ目の `^` と区切りの要求、2 つ目の `^`・`$`、3 つ目の `^`・`$`・末尾の小文字の 16 進）ごとに、外すと通る値を 1 件ずつ足し、値そのものの検出（`decoded:` の付かない検出）を求める形にした（条件単位の監査）。allowlist の件数（`len(allowlists) == 3`）は、秘密情報の検査の除外の範囲を決める F∩S なので、サイクル 4 で `test-scan-before-push.bash` に移した（全体に効く `[allowlist]` が無いことも確かめる） | 消す（件数の確認は移す） |
+| `test-ci.bash`（`.gitleaks.toml` の allowlist の正規表現と件数） | F・D・F∩S | 設定の値を写して照合している。3 つの allowlist が秘密情報を除外しないことは、`test-scan-before-push.bash` が実際の gitleaks で確かめる。1 つ目の確認はサイクル 1 の自己レビューの指摘で足した。サイクル 3 で、境界（1 つ目の `^` と区切りの要求、2 つ目の `^`・`$`、3 つ目の `^`・`$`・末尾の小文字の 16 進）ごとに、外すと通る値を 1 件ずつ足し、値そのものの検出（`decoded:` の付かない検出）を求める形にした（条件単位の監査）。allowlist の件数（`len(allowlists) == 3`）は、秘密情報の検査の除外の範囲を決める F∩S なので、サイクル 4 で `test-scan-before-push.bash` に移した（全体に効く `[allowlist]` を足した設定は、gitleaks が読み込みで止まり `scan-before-push.sh` が失敗にするので L） | 消す（件数の確認は移す） |
 | `test-docs.bash`・`test-instructions.bash` の参照実在の検査 | L・F | 参照先のファイルの存在は構造の検査（`AGENTS.md`「テストを書かないとき」）。文書の本文の写しでもある | 消す |
 | `test-file-modes.bash` | L | 実行権限は、実行したときに「Permission denied」として現れる | 消す |
 | `test-gitignore.bash` の 3 つの一覧 | F∩S | gitignore の範囲。Issue の「変えないもの」。値は変えていない | 残す |
