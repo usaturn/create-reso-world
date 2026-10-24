@@ -165,4 +165,11 @@
 
 ## 完了
 
-（実行の後に記録する）
+（2026-10-24 の実行の記録。PR の作成より前に書いた分。commit は最後の載せ直しの後の SHA）
+
+- 準備と設計（15:45Z ごろ〜16:30Z、約 45 分）: 入力・先行・競合の確認、予約（15:50Z）、worktree、計測の再現（基準値 `7d44355` と着手時 `bdbe02b`）、Spec・Plan、brainstorming の builder check（問い 2 つを D-236-8・D-236-20 で判断）
+- Task 1（16:31Z〜16:45Z、約 15 分。Task 2 と並行）: commit `e7e005c`。実装の担当（sonnet）と Task のレビュー（sonnet、Approved）。`verify/names.txt`・`verify/paths.txt`、`pytest tools/devenv_migration .agents/skills/issue-to-pr` 95 passed、収集 1,224
+- Task 2（16:31Z〜17:36Z、約 65 分）: 6 つの領域を並行で分類（sonnet、16〜22 分）。領域のレビュー（sonnet）で、`script-tests`・`pr-review-tests`・`skill-tests` は一致、`devcontainer-tests` は修正 3 回、`agent-runner-tests`・`review-helper-tests` は修正 1 回（再レビューは haiku・sonnet）。PR #258・#256 で増減した 7 つの関数も分類し直した
+- Task 3（17:36Z〜18:19Z、約 45 分）: commit `40563f2`・`1823614`・`d603ffc`。一覧 967 行。レビュー（sonnet、Important 1・Minor 10）を直し、再レビューで 11 件とも解消（新しい Minor 6 件も直した）。`main` の前進（PR #258・#256・#257）に合わせて 3 回載せ直した（D-236-21）
+- Task 4（18:20Z〜19:05Z ごろ）: ブランチ全体のレビュー（opus、23 分、With fixes: Important 2・Minor 8）を `39b7de0` で直し、範囲を絞った再レビュー（sonnet）で 10 件とも解消。そこで出た Minor 4 件（言い回し）は、この記録の commit で直した。最後の head での検証（`README.md` の「テスト」の入口と #228 の「計測」）は、この記録の commit の後に行い、PR の本文と `PARENT_ROOT/tmp/agents/issue-236.15yls_nc/verify/` に書く。`bb66593` での事前の検証は 1224 passed・PASS 23・PASS
+- 能動時間（ledger、15:57Z から）: 約 3 時間 5 分（予算 480 分の 39%）。ledger の前の約 12 分を足すと約 3 時間 15 分
