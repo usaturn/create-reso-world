@@ -4,8 +4,9 @@
 attempt directory and passes it by path. ``--export`` leaves an ATIF export
 whose final agent message is the answer; it also reports the observed model,
 CLI version, and session id. ``devin -p`` prints every agent message to stdout
-without separators, so stdout must end with that answer. Only local parsing
-happens here; this module never starts a process.
+without separators, so stdout must end with that answer. Those messages are the
+model's own words, so only stderr and the export's error steps report the CLI's
+failures. Only local parsing happens here; this module never starts a process.
 """
 
 import json
@@ -40,11 +41,6 @@ _APPROVAL = re.compile(
     r"|permission (?:denied|required)|grant access|confirm(?:ed)? (?:to )?continue)",
     re.IGNORECASE,
 )
-_DIAGNOSTIC_LINE = re.compile(
-    r"^(?:error:|fatal:|not logged in\b|not authenticated\b|approval required\b"
-    r"|waiting for approval\b|awaiting approval\b|workspace trust\b)",
-    re.IGNORECASE,
-)
 _PROMPT_FILE = "prompt.txt"
 _EXPORT_FILE = "export.json"
 
@@ -57,9 +53,10 @@ def _text(path: Path) -> str:
 
 
 def _plain_tail(tail: str) -> bool:
-    # Plain CLI progress can follow the answer, but another JSON-like event
-    # (complete or truncated) is not a valid single final response.
-    return _failure_status(tail) is None and not any(
+    # Plain lines can follow the answer, but another JSON-like event (complete
+    # or truncated) is not a valid single final response. Their words are not
+    # CLI diagnostics: devin reports its own failures on stderr (#239).
+    return not any(
         line.lstrip().startswith(("{", "[", "```")) for line in tail.splitlines()
     )
 
@@ -233,18 +230,12 @@ class Devin:
         stderr = _text(stderr_path)
         export = _export(context.receipt_path.parent / _EXPORT_FILE)
         final = _final_agent_message(export) if export is not None else None
-        # Both answer channels can contain explicit failure diagnostics. Inspect
-        # diagnostic lines, not ordinary prose or JSON values about authentication.
-        diagnostics = [
-            line
-            for text in (stdout, final or "")
-            # Unicode separators within valid JSON strings are answer data,
-            # not the start of a CLI diagnostic line.
-            for line in text.split("\n")
-            if _DIAGNOSTIC_LINE.match(line.strip())
-        ]
-        hint = _failure_status(stderr, *diagnostics)
-        failure = hint or (_export_failure(export) if export is not None else None)
+        # stdout and the final ATIF message are the model's own words, so a line
+        # quoting "Error: invalid api key" there is answer data. Only stderr and
+        # the export's error steps report the CLI's failures (#239).
+        failure = _failure_status(stderr) or (
+            _export_failure(export) if export is not None else None
+        )
         payload: Payload
         if failure is not None:
             status, payload = failure, None
@@ -253,7 +244,7 @@ class Devin:
             # neither a truncated stdout nor a malformed final answer succeeds.
             status, payload = _payload(final, context.role.result_shape)
         else:
-            status, payload = _failure_status(stdout) or "response_failed", None
+            status, payload = "response_failed", None
         return AdapterOutcome(
             receipt=_receipt(context.request, status, payload),
             identity=_identity(export) if export is not None else Identity(),
