@@ -1134,7 +1134,7 @@ def test_helper_write_exceptions_grant_git_data_only_where_the_helper_writes_it(
     assert all(_single_line(line) for line in lines)
 
 
-@pytest.mark.parametrize("status", ["deleted", "repinned"])
+@pytest.mark.parametrize("status", ["deleted", "missing", "repinned"])
 def test_complete_returns_actual_compare_and_delete_outcome(
     prepared: dict[str, Any], status: str
 ) -> None:
@@ -1142,7 +1142,9 @@ def test_complete_returns_actual_compare_and_delete_outcome(
     result = review_run.prepare(prepared["args"])
     mark_reviewed(result)
     ref = "refs/pr-review/repos/example/syncer/7"
-    if status == "repinned":
+    if status == "missing":
+        git(prepared["source"], "update-ref", "-d", ref)
+    elif status == "repinned":
         git(
             prepared["source"],
             "update-ref",
