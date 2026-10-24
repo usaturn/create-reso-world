@@ -136,25 +136,6 @@ def project(config: Config, phase: str) -> Config:
     return validate_config(selected, "fix")
 
 
-def reject_dsh_review_agents(config: Config) -> None:
-    """self-review・fix-check を DSH の担当に割り当てた設定を、1 回枠を予約する前に拒否する（#671）。
-
-    loop が DSH のレビュアーに行う親側の準備（``prepare_parent``・保存先への書き込みの許可・``staged`` の保存）を
-    run_roles は行わないので、DSH の self-review は完了できず、戻せない枠だけを消費する。runner は一次担当が
-    self のとき fallback を試さないが、「割り当てられない」という 1 つの規則にするため fallback も見る。
-    """
-    for role in ("self-review", "fix-check"):
-        assignment = config.workflows["fix"].assignments[role]
-        if any(
-            config.agents[name].runtime == "dsh" for name in assignment.agents + assignment.fallback if name != "self"
-        ):
-            raise RoleInputError(
-                "self-review/fix-check cannot be assigned to a dsh runtime agent (primary or fallback): run_roles "
-                "lacks the parent-side preparation DSH needs (prepare_parent, sandbox write paths, saving staged "
-                "results)"
-            )
-
-
 # writes=false の役割を、書き込みを一切許さない sandbox で起動する runtime（#731）。codex は -s read-only で起動し、
 # uv のキャッシュ・一時ディレクトリ・保存先のどこにも書けないので、pr-review・review-verify の helper を起動できない
 READ_ONLY_SANDBOX_RUNTIMES = frozenset({"codex"})
@@ -254,23 +235,25 @@ def write_exceptions(config: Config, data: RoleInput) -> tuple[str, ...]:
 
     self は起動しないので求めない（既定の流れを変えない）。runner は workflow のすべての役割に同じ一覧を付けるので、
     各行の末尾にその役割を書く。self-review は未 push の commit を ``--source-root`` で pr-review に渡すので、
-    helper の Git の書き込み先は RoleInput.repository の共有ディレクトリになる。保存先はブランチ名を知らないので
-    ``#<PR>-*`` のパターンにする。
+    helper の Git の書き込み先は RoleInput.repository の共有ディレクトリになる（浅い checkout ならセッション内の
+    所有 Git になり、そこには書かない）。保存先はブランチ名を知らないので ``#<PR>-*`` のパターンにする。
     """
     lines: list[str] = []
     if verifier.assigned_externally(config, "self-review"):
         try:
             parent = review_target.default_parent_root()
             reviews = review_target.repository_reviews_root(parent, data.pr.repository)
+            repository = Path(data.repository)
             helper = review_entry.helper_write_exceptions(
                 tool_root=ROOT,
                 parent=parent,
                 parent_git=git_common_dir(parent),
                 review_dir=f"{reviews}/#{data.pr.number}-*",
                 number=data.pr.number,
-                source_git=git_common_dir(Path(data.repository)),
+                source_git=git_common_dir(repository),
+                source_shallow=review_entry.workspace.uses_owned_history(repository),
             )
-        except review_target.TargetError, WorkspaceError:
+        except review_target.TargetError, WorkspaceError, review_entry.workspace.WorkspaceError:
             raise RoleInputError(
                 "self-review write exceptions need the parent main worktree and its Git data"
             ) from None
@@ -325,7 +308,6 @@ def run(
 ) -> BatchResult:
     selected = project(config, phase)
     if phase == "self-review":
-        reject_dsh_review_agents(selected)
         reject_codex_review_agents(selected, "fix", ("self-review", "fix-check"))
     data = RoleInput.model_validate(request)
     repository = Path(data.repository)

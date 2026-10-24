@@ -106,13 +106,6 @@ def test_large_log_is_read_from_the_tail(
 
 # --- 原因の分類 ---------------------------------------------------------------------------------------------------
 
-DSH_AUTH_TURN_END = {
-    "type": "status",
-    "phase": "turn_end",
-    "turn": 1,
-    "reason": {"kind": "error", "error": {"code": "AUTH", "message": "401: rejected"}},
-}
-
 
 @pytest.mark.parametrize(
     ("stdout", "stderr", "cause"),
@@ -127,7 +120,6 @@ DSH_AUTH_TURN_END = {
         pytest.param(
             json.dumps({"type": "error", "message": "invalid api key"}) + "\n", "", "authentication", id="error-event"
         ),
-        pytest.param(json.dumps(DSH_AUTH_TURN_END) + "\n", "", "authentication", id="dsh-turn-end"),
         pytest.param("Error: fetch failed\n", "", "connection", id="diagnostic-line"),
         pytest.param(
             "",
@@ -137,7 +129,7 @@ DSH_AUTH_TURN_END = {
         ),
         pytest.param("", "HTTP 401 Unauthorized\nconnection reset by peer\n", "authentication", id="priority"),
         pytest.param("", "HTTP 429 Too Many Requests\n", "rate_limit", id="rate-limit"),
-        pytest.param("", "dsh-sandbox: cannot bind the workspace\n", "sandbox", id="sandbox"),
+        pytest.param("", "bwrap: cannot bind the workspace\n", "sandbox", id="sandbox"),
         pytest.param("", "Request timed out\n", "timeout", id="timeout"),
         # 失敗のイベントの各条件（claude-code・cursor の result、assistant の error、codex の turn.failed）
         pytest.param(
@@ -167,20 +159,6 @@ DSH_AUTH_TURN_END = {
         ),
         pytest.param("    Error: connection refused\n", "", "unknown", id="indented-quote"),
         pytest.param("[ERROR] connection refused\n", "", "connection", id="bracketed-diagnostic"),
-        # DSH のエラーコード（stderr の「dsh: <CODE>: ...」と、turn_end の reason.error.code）
-        pytest.param("", "dsh: TRANSPORT: terminated\n", "connection", id="dsh-transport"),
-        pytest.param(
-            json.dumps({**DSH_AUTH_TURN_END, "reason": {"kind": "error", "error": {"code": "TRANSPORT"}}}) + "\n",
-            "",
-            "connection",
-            id="dsh-transport-turn-end",
-        ),
-        pytest.param("", "dsh: SERVER: upstream failure\n", "connection", id="dsh-server"),
-        pytest.param("", "dsh: ACCOUNT_QUOTA: balance exhausted\n", "rate_limit", id="dsh-account-quota"),
-        pytest.param("", "dsh: TIMEOUT: no response\n", "timeout", id="dsh-timeout"),
-        pytest.param(
-            "", "dsh: EMPTY_RESPONSE: the model returned no content\n", "response_extraction", id="dsh-empty-response"
-        ),
     ],
 )
 def test_cause_uses_only_failure_channels(loop: Any, tmp_path: Path, stdout: str, stderr: str, cause: str) -> None:
@@ -555,7 +533,7 @@ sys.exit(spec["exit"])
 class MixedReviewers:
     """failures の担当は FAILING_PROGRAM、ほかは conftest の偽のレビュアー（others）に任せる adapter。
 
-    失敗させる担当の collect は、DSH のように adapter の中で分類を置き換えた形（state は response_failed、
+    失敗させる担当の collect は、adapter の中で分類を置き換えた形（state は response_failed、
     reported_state は置き換える前の値）を返す。
     """
 

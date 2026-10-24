@@ -61,8 +61,8 @@ class FakeAdapter:
 
 
 def config(self_review: str = "self", fix_check: str = "self") -> Config:
-    """``a``・``b`` は pi、``d`` は DSH、``c`` は codex の担当（どれも fake adapter で動く）。"""
-    runtimes: dict[str, Runtime] = {"a": "pi", "b": "pi", "d": "dsh", "c": "codex"}
+    """``a``・``b`` は pi、``c`` は codex の担当（どれも fake adapter で動く）。"""
+    runtimes: dict[str, Runtime] = {"a": "pi", "b": "pi", "c": "codex"}
     return Config(
         agents={
             name: Agent(runtime=runtime, command=[sys.executable, "-c", PROGRAM], model=name)
@@ -257,6 +257,37 @@ def test_only_the_externally_assigned_role_lists_exceptions(
     assert lines and all(line.endswith(external) for line in lines)
 
 
+def test_self_review_never_grants_a_shallow_checkout_git_under_ambient_git_routing(
+    inputs: tuple[dict[str, Any], Path, dict[str, Any]],
+    tmp_path: Path,
+    parent: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """浅い checkout の Git は helper が読むだけなので、self-review の担当に書き込みを許可しない（PR #249）。
+
+    runner の子の helper は ``GIT_*`` を除いて浅いかを判定し、浅ければ履歴をセッション内の所有 Git に取得する。
+    rebase --exec・フックが export した ``GIT_DIR`` で別の Git を見て判定すると、浅い checkout を完全な履歴と見なし、
+    writes=false の担当に利用者の Git（オブジェクト・ref・worktree の登録）を書いてよいと伝える。
+    """
+    full = Path(inputs[0]["repository"])
+    shallow = tmp_path / "shallow"
+    git(tmp_path, "clone", "-q", "--depth=1", full.as_uri(), str(shallow))
+    gits = {full: (full / ".git").resolve(), shallow: (shallow / ".git").resolve()}
+    selected = config("a", "self")
+
+    def exceptions(checkout: Path) -> list[str]:
+        data = mod.RoleInput.model_validate({**inputs[0], "repository": str(checkout)})
+        return list(mod.write_exceptions(selected, data))
+
+    clean = {checkout: exceptions(checkout) for checkout in gits}
+    for checkout, other in ((shallow, full), (full, shallow)):
+        with monkeypatch.context() as polluted:
+            polluted.setenv("GIT_DIR", str(gits[other]))
+            assert exceptions(checkout) == clean[checkout]
+    assert granted(clean[shallow], gits[shallow]) == 0
+    assert granted(clean[full], gits[full]) == 1
+
+
 
 
 
@@ -388,11 +419,10 @@ def test_invalid_writable_review_role_never_consumes_budget(inputs: Any, tmp_pat
 
 
 
-# DSH には親の準備が無い（#671）。codex は read-only の sandbox で helper を起動できない（#731）
+# codex は read-only の sandbox で helper を起動できない（#731）
 @pytest.mark.parametrize(
     ("agent", "reason", "role", "slot"),
     [
-        pytest.param("d", "dsh runtime", "self-review", "agents", id="dsh-self-review"),
         pytest.param("c", "codex runtime agent", "fix-check", "fallback", id="codex-fix-check-fallback"),
     ],
 )
@@ -405,7 +435,7 @@ def test_review_assignment_that_cannot_run_the_helpers_stops_before_reserving_th
     role: str,
     slot: str,
 ) -> None:
-    """完了できない担当は、1 回枠を消費する前に止める（#671・#731）。fallback は一次担当が self でも見る。"""
+    """完了できない担当は、1 回枠を消費する前に止める（#731）。fallback は一次担当が self でも見る。"""
     selected = config()
     assignment = selected.workflows["fix"].assignments[role]
     if slot == "agents":

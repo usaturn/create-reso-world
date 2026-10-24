@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -85,7 +86,10 @@ def parse_repository(value: str) -> str:
 
 
 def _git(root: Path, *args: str) -> str:
-    result = subprocess.run(["git", "-C", str(root), *args], text=True, capture_output=True)
+    # Inspect the named root's own Git, not one that ambient GIT_DIR and friends point at.
+    # review_target.py loads this module, so it repeats that helper's rule instead of importing it.
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    result = subprocess.run(["git", "-C", str(root), *args], text=True, capture_output=True, env=env)
     if result.returncode:
         raise ContextError(f"Git inspection failed in {root}: {' '.join(args)}; {result.stderr.strip()}")
     return result.stdout.strip()

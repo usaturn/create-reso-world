@@ -135,7 +135,7 @@ clean とするのは、2 つの終了コードがどちらも 0 で、1 つ目�
 - 手順 3 でマージ済みと判定した branch を checkout している worktree
 - 手順 1 の `sessions` が `removable: true` を返し、session.json が version 7 で、手順 1 のオープン PR の対象外にも当たらない `/tmp/pr-review-*` の worktree
 
-version 8 の session（`target_kind=checkout`・`bundle` とも）と `.staging/` は、この手順で削除しない。`removable: true` でも保存 pair・停止・所有の確認を省略できないため、所有するレビューの complete／親 finalize-parent・cleanup の手順で扱う。安全に確認できなければ完全パスと理由を報告して保持する。
+version 8 の session（`target_kind=checkout`・`bundle` とも）と `.staging/` は、この手順で削除しない。`removable: true` でも保存 pair・停止・所有の確認を省略できない。旧版の親側の確定手順は撤去済みなので、現行のレビュー helper で対応と所有を確認できない過去の session は、完全パスと理由を報告して保持する。
 
 それ以外の worktree は削除せず、手順 11 で報告する。手順 1 で対象外にしたもの（オープン PR に対応するもの、`prunable`・`locked` のもの）のほかに、branch を checkout していない detached な worktree（PR 修正ループなど、別の run が作ったもの。上の `/tmp/pr-review-*` は除く）も対象外である。HEAD が `origin/main` から到達可能で clean でも、所有者が使っている作業場所かどうかは Git から分からない。`/tmp/pr-review-*` の worktree も detached だが、親の `session.json` に固定された所属リポジトリと PR 番号で、helper が PR の終了を確かめられるので、上の条件で選ぶ。
 

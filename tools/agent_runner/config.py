@@ -22,6 +22,7 @@ _CATEGORIES = frozenset(
         "invalid_toml",
         "nested_invocation",
         "invalid_config",
+        "dsh_removed",
     }
 )
 
@@ -31,7 +32,10 @@ class ConfigError(Exception):
 
     def __init__(self, category: str) -> None:
         self.category = category if category in _CATEGORIES else "invalid_config"
-        super().__init__(f"agent-runner configuration error: {self.category}")
+        message = f"agent-runner configuration error: {self.category}"
+        if self.category == "dsh_removed":
+            message += ': DSH runtime has been removed; remove runtime = "dsh" agent definitions from personal configuration'
+        super().__init__(message)
 
 
 def resolve_config_path() -> Path:
@@ -143,10 +147,20 @@ def _validate_references(config: Config) -> None:
                 raise ConfigError("duplicate_model")
 
 
+def _reject_removed_runtime(data: dict[str, object]) -> None:
+    agents = data.get("agents")
+    if isinstance(agents, dict) and any(
+        isinstance(agent, dict) and agent.get("runtime") == "dsh" for agent in agents.values()
+    ):
+        raise ConfigError("dsh_removed")
+
+
 def validate_config(config: Config, workflow: str | None = None) -> Config:
     """Revalidate mutable API instances and all semantic references."""
+    data = config.model_dump(warnings=False)
+    _reject_removed_runtime(data)
     try:
-        validated = Config.model_validate(config.model_dump(warnings=False))
+        validated = Config.model_validate(data)
     except ValidationError:
         raise ConfigError("invalid_config") from None
     if workflow is not None and workflow not in validated.workflows:
@@ -169,6 +183,7 @@ def load_config(
     data = _read(template)
     if personal is not None:
         data = _merge(data, _read(personal))
+    _reject_removed_runtime(data)
     if assignments:
         _override(data, assignments, workflow)
     try:

@@ -221,23 +221,6 @@ def test_uncommitted_changes_matching_report_are_importable_by_helper(fx: Fixtur
     assert summary["changed_files"] == ["src/a.py", "src/new/c.py"]
 
 
-def test_confined_task_accepts_with_unavailable_unrelated_checkout(fx: Fixture) -> None:
-    neighbor = fx.tmp / "neighbor"
-    git(fx.main, "worktree", "add", "--detach", str(neighbor))
-    neighbor.rename(fx.tmp / "moved")
-    agent = fx.scenario("a", done(None), steps=[WRITE_A])
-
-    class Confined(FakeAdapter):
-        capabilities = Capabilities(confined_writes=True)
-
-    summary = mod.run(fx.config(("a", agent)), fx.request(), fx.output, adapter_loader=Confined())
-    assert summary["verdict"] == "importable", summary["reasons"]
-    accepted = mod.accept(fx.output)
-    assert accepted["state"] == "accepted"
-    assert (fx.feature / "src/a.py").read_text() == "a = 2\n"
-    assert str(neighbor) in git(fx.main, "worktree", "list", "--porcelain")
-
-
 @pytest.mark.parametrize(
     ("steps", "reported"),
     [

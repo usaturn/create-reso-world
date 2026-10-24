@@ -121,7 +121,6 @@
 ### 行っていない確認
 
 - 外部のリポジトリ（usaturn/resoloop・usaturn/resoloop-meshy）の feature worktree での `--implement` の実機の確認
-- DSH を `implement` に割り当てたときの実機の確認（Issue の受け入れは DSH 以外の担当）
 - `retry`・`rejected`・`failed` の実機の確認（判定と後片付けは偽の担当のテストで確かめた）
 - 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない
 
@@ -171,7 +170,7 @@
 ### 実行した検証
 
 - `uv run pytest .agents/skills/issue-to-pr`: 220 passed。`tests/test_resolve_issue.py` は、変更前の `resolve_issue.py` で 28 件が想定どおりの理由（「#116 で入れる予定」の拒否と `merge` の欠落）で失敗し、変更後は 126 件成功した。`REFUSED_OPTIONS` を無効にする変異を、足した確認（未知のオプションと区別して止める）が検出することを確かめた
-- 実環境の 2 段（2026-10-20T04:06Z、本物の #158、実際の雛形と個人設定）: `resolve_issue.py -- "#158 --merge"` は `merge.loop_args = []`、`PARENT_ROOT` の `loop.py check-options` は `status: ok`（review の inspect は `pi-gpt`・`devin-swe`・`dsh-ccd`・`claude-opus`、fix は `claude-opus`・`self`・`self`）。`#158 --merge --max-cycles 2 --assign inspect=claude-opus,devin-swe` は、`loop_args` の各要素を 1 引数で渡して `max_cycles: 2`・`inspect: [claude-opus, devin-swe]`。`#158 --merge --hold-action skip` は理由付きで終了コード 2
+- 実環境の 2 段（2026-10-20T04:06Z、本物の #158、実際の雛形と個人設定）: `resolve_issue.py -- "#158 --merge"` は `merge.loop_args = []`、`PARENT_ROOT` の `loop.py check-options` は `status: ok`（review の inspect は当時の構成、fix は `claude-opus`・`self`・`self`）。`#158 --merge --max-cycles 2 --assign inspect=claude-opus,devin-swe` は、`loop_args` の各要素を 1 引数で渡して `max_cycles: 2`・`inspect: [claude-opus, devin-swe]`。`#158 --merge --hold-action skip` は理由付きで終了コード 2
 
 ### 行っていない確認
 

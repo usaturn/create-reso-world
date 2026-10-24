@@ -17,7 +17,6 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
         ├── cycle-<n>.json          # サイクルごとの記録
         └── cycle-<n>/
             ├── comments.json       # レビュアーに渡した PR の全コメント（gh api --paginate --slurp の出力）
-            ├── parent-pr-data/     # DSH のレビュアーがいるときだけ。親が作った PR の入力（prepare-parent。再実行は rerun-parent-pr-data/）
             ├── after-run-<i>.stdout.log・after-run-<i>.stderr.log  # 後処理（after_run）のログの写し（再実行は rerun- を付ける）
             ├── review-result.json  # runner の結果（BatchResult）の写し
             ├── rerun-result.json   # 再実行したときだけ。再実行の runner の結果の写し
@@ -92,7 +91,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 
 ### 4.1 失敗した担当の診断（`cycle-<n>/diagnostics/<request_id>.json`）
 
-`review` は、runner の出力を回収する前に、却下したレビュアーと、success 以外の試行（fallback で失敗した担当）があるレビュアーについて、試行ごとの診断を書く（#212）。runner のログ（stdout・stderr、DSH の session）は回収で消えるので、失敗の原因はこの診断と `rejected_stage`・`reason` で調べる。生の stdout・stderr・session は写さず、値は列挙値・数値・識別子だけである。再実行の診断も同じディレクトリに置く（request ID が違う）。
+`review` は、runner の出力を回収する前に、却下したレビュアーと、success 以外の試行（fallback で失敗した担当）があるレビュアーについて、試行ごとの診断を書く（#212）。runner のログ（stdout・stderr）は回収で消えるので、失敗の原因はこの診断と `rejected_stage`・`reason` で調べる。生の stdout・stderr は写さず、値は列挙値・数値・識別子だけである。再実行の診断も同じディレクトリに置く（request ID が違う）。
 
 | キー | 値 |
 | --- | --- |
@@ -102,18 +101,18 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `state` | runner の `Result.state` |
 | `attempts[]` | 試行（fallback を含む起動順）ごとに `agent_id`・`state`・`reported_state`（adapter が出力から分類した、adapter と runner が置き換える前の状態。`tools/agent_runner/interfaces.rst`）・`exit_code`・`stop_confirmed`・`elapsed_seconds`・`cause`・`unavailable` |
 
-`cause`（原因の分類）は、試行を終わらせた失敗の報告だけから決める。stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない、`reason.kind` が `error`）、stream の中で最後に現れた assistant のメッセージ（pi の `message_start`・`message_end`・`turn_end` の `message` と `agent_end` の `messages`）が失敗で終わっていれば（`stopReason` が `error`）その `errorMessage`、JSON でない行のうち行頭（字下げなし）のコロン付き・角括弧付きの診断の行（`Error:`・`fatal:`・`panic:`・`[ERROR]`・`<名前>Error:`・`Traceback (most recent call last)`・`dsh:`・`dsh-sandbox:`・`bwrap:` など）を、既知のパターンと上から照合して、最初に当たった分類名である。stdout を照合に使うのは、stdout が JSON のイベントの stream の担当（設定のランタイムが `claude-code`・`codex`・`cursor`・`dsh`・`pi`）だけである。Devin（`devin -p`）はモデルの発言を平文で stdout に書き、コードブロックの中のログの例も行頭から始まるので、Devin と設定からランタイムが分からない担当の stdout は照合の文にしない（stderr は使う）。その stdout に失敗の報告に見える行（診断の行・失敗のイベントなど）があれば、報告の有無を判定できないので `response_extraction` と推測しない。担当が自動の再試行で回復した一時的な失敗は使わない: 再試行の通知（`type` か `subtype` に `retry` を含むイベント。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを、その `finalError` で数える。pi の再試行の前の失敗（後に別の assistant のメッセージが続く失敗メッセージ）も使わない。照合した文字列は残さない。モデルの本文・ツールの出力・プロンプトは使わない（レビュー対象のコードや PR の本文が認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ、DSH のエラーコード（`AUTH`・`RATE_LIMIT`・`QUOTA`・`ACCOUNT_QUOTA`・`TIMEOUT`・`TRANSPORT`・`SERVER`・`EMPTY_RESPONSE`）は大文字のときだけ数える。各ログは末尾から 64 MiB までを読む（pi の `agent_end` は会話の履歴全体を 1 行に含み、1 MiB を超える）。
+`cause`（原因の分類）は、試行を終わらせた失敗の報告だけから決める。stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない）、stream の中で最後に現れた assistant のメッセージ（pi の `message_start`・`message_end`・`turn_end` の `message` と `agent_end` の `messages`）が失敗で終わっていれば（`stopReason` が `error`）その `errorMessage`、JSON でない行のうち行頭（字下げなし）のコロン付き・角括弧付きの診断の行（`Error:`・`fatal:`・`panic:`・`[ERROR]`・`<名前>Error:`・`Traceback (most recent call last)`・`bwrap:` など）を、既知のパターンと上から照合して、最初に当たった分類名である。stdout を照合に使うのは、stdout が JSON のイベントの stream の担当（設定のランタイムが `claude-code`・`codex`・`cursor`・`pi`）だけである。Devin（`devin -p`）はモデルの発言を平文で stdout に書き、コードブロックの中のログの例も行頭から始まるので、Devin と設定からランタイムが分からない担当の stdout は照合の文にしない（stderr は使う）。その stdout に失敗の報告に見える行（診断の行・失敗のイベントなど）があれば、報告の有無を判定できないので `response_extraction` と推測しない。担当が自動の再試行で回復した一時的な失敗は使わない: 再試行の通知（`type` か `subtype` に `retry` を含むイベント。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを、その `finalError` で数える。pi の再試行の前の失敗（後に別の assistant のメッセージが続く失敗メッセージ）も使わない。照合した文字列は残さない。モデルの本文・ツールの出力・プロンプトは使わない（レビュー対象のコードや PR の本文が認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ数える。各ログは末尾から 64 MiB までを読む（pi の `agent_end` は会話の履歴全体を 1 行に含み、1 MiB を超える）。
 
 | `cause` | 意味 |
 | --- | --- |
 | `authentication` | 認証の失敗（資格情報が無い・無効・期限切れ） |
 | `approval` | 承認待ち・承認の拒否 |
 | `rate_limit` | 利用上限・残高 |
-| `sandbox` | DSH の隔離（bubblewrap）の失敗 |
+| `sandbox` | bubblewrap による隔離の失敗 |
 | `timeout` | 提供元・通信の期限切れ（runner の期限切れは `state` の `timed_out`） |
 | `connection` | 提供元への接続の失敗と、提供元の一時的な障害（5xx・過負荷） |
 | `runtime_error` | ランタイム（CLI）自身の例外・異常終了 |
-| `response_extraction` | DSH の `EMPTY_RESPONSE`。または、ログの照合はどれにも当たらず、stdout・stderr を丸ごと観測でき（`unavailable` に `stdout`・`stderr` が無い。`partial` も観測としない）、停止を確認でき、終了コードが 0 で、試行を終わらせた失敗の報告が無い（失敗のイベント・使い切った再試行・pi の最後の失敗メッセージ・診断の行が無い）のに結果を得られなかった（`reported_state` が `success` でなく、`sensitive_paths` が無い） |
+| `response_extraction` | ログの照合はどれにも当たらず、stdout・stderr を丸ごと観測でき（`unavailable` に `stdout`・`stderr` が無い。`partial` も観測としない）、停止を確認でき、終了コードが 0 で、試行を終わらせた失敗の報告が無い（失敗のイベント・使い切った再試行・pi の最後の失敗メッセージ・診断の行が無い）のに結果を得られなかった（`reported_state` が `success` でなく、`sensitive_paths` が無い） |
 | `unknown` | 観測したログの照合がどれにも当たらず、`response_extraction` の条件も満たさない。stdout・stderr の一方でも丸ごと観測できなかった（`unavailable` に `stdout`・`stderr` がある）ときは、終了状態から推測しない |
 
 `unavailable` は、取得できなかった情報（キーは `stdout`・`stderr`・`exit_code`・`reported_state`）と、その理由である。

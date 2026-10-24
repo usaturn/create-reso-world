@@ -22,7 +22,7 @@ import threading
 import time
 import uuid
 from collections.abc import Generator, Mapping
-from contextlib import contextmanager, nullcontext, suppress
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from types import ModuleType
@@ -343,9 +343,9 @@ def require_target_checkout(path: Path, repository: str, parent_root: Path) -> P
 
 def require_session_target(state: Mapping[str, Any], session_dir: Path) -> None:
     target = Path(state["target_root"])
-    if state["target_kind"] == "bundle":
+    if state["target_kind"] == "owned-history":
         if target != session_dir / "repo" or target.is_symlink():
-            raise WorkspaceError("session bundle repository does not match its state file")
+            raise WorkspaceError("session owned-history repository does not match its state file")
         require_main_checkout(str(target))
     elif state["target_kind"] == "checkout":
         parent = Path(state["parent_root"])
@@ -372,17 +372,17 @@ def pinned_review_ref(pr_number: int, repository: str) -> str:
     return f"refs/pr-review/repos/{normalize_pr_repository(repository)}/{pr_number}"
 
 
+def uses_owned_history(checkout: Path) -> bool:
+    """Whether create fetches into a Git repository owned by its session instead of the checkout's Git.
+
+    Linked worktrees share shallow boundaries. Own a separate Git repository
+    for full history without changing the caller's refs, FETCH_HEAD or boundary.
+    """
+    return git(checkout, "rev-parse", "--is-shallow-repository") == "true"
+
+
 def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str, str | None]:
-    authenticated_model = getattr(args, "authenticated_model", None)
-    if authenticated_model is not None:
-        if not getattr(args, "private_clone", False) or getattr(args, "parent_input", None) is None:
-            raise WorkspaceError("authenticated model requires a private parent-bundle session")
-        # The controller has checked the child's Identity. Its own ambient Codex
-        # session must not replace the reviewer when rebuilding a save session.
-        model_name = validate_model_name(authenticated_model)
-        model_source = MODEL_SOURCE_EXPLICIT
-    else:
-        model_name, model_source = resolve_runtime_model_name(getattr(args, "model_name", None))
+    model_name, model_source = resolve_runtime_model_name(getattr(args, "model_name", None))
     target = parse_target(target_value)
     parent = _target_call("require_parent_root", Path(target["parent_root"]))
     repository, number, head = (
@@ -393,24 +393,18 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
     review_commit = getattr(args, "review_commit", None)
     artifact_model(model_name, review_commit)
     commit = review_commit or head
-    parent_input = getattr(args, "parent_input", None)
-    if getattr(args, "private_clone", False) and parent_input is None:
-        raise WorkspaceError("private Git requires a parent bundle; checkout clones are not supported")
-    checkout = None
-    if parent_input is None:
-        source_root = Path(getattr(args, "source_root", None) or target["target_root"])
-        checkout = require_target_checkout(source_root, repository, parent)
-        resolved = _target_call("target_checkout", parent, repository, code_root=checkout)
-        if resolved.remote != target["base_remote"] or checkout != Path(target["target_root"]).resolve():
-            raise WorkspaceError("target checkout or base_remote does not match the resolver")
-        if review_commit is not None:
-            require_review_commit(checkout, commit)
-    elif not isinstance(parent_input, dict) or not isinstance(parent_input.get("bundle"), str):
-        raise WorkspaceError("parent_input requires a bundle")
+    source_root = Path(getattr(args, "source_root", None) or target["target_root"])
+    checkout = require_target_checkout(source_root, repository, parent)
+    resolved = _target_call("target_checkout", parent, repository, code_root=checkout)
+    if resolved.remote != target["base_remote"] or checkout != Path(target["target_root"]).resolve():
+        raise WorkspaceError("target checkout or base_remote does not match the resolver")
+    if review_commit is not None:
+        require_review_commit(checkout, commit)
+    owned_history = uses_owned_history(checkout)
     attempt = validate_attempt_id(getattr(args, "attempt_id", None) or uuid.uuid4().hex)
     session_dir = new_session_dir(args, number)
     journal = CreateJournal(session_dir, attempt)
-    source = checkout if checkout is not None else session_dir / "repo"
+    source = session_dir / "repo" if owned_history else checkout
     worktree, backup = session_dir / "worktree", session_dir / "review-backup"
     journal.record(
         "started",
@@ -422,7 +416,7 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
         head_branch=target["head_ref"],
         model_name=model_name,
         main_root=str(source),
-        target_kind="checkout" if checkout is not None else "bundle",
+        target_kind="owned-history" if owned_history else "checkout",
         parent_root=str(parent),
         session_dir=str(session_dir),
         worktree=str(worktree),
@@ -451,46 +445,30 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
             findings_path = safe_findings_destination(parent, findings_value, repository=repository)
             require_destination_parent(destination_path)
             require_destination_parent(findings_path)
-            before = snapshot(source) if checkout is not None else None
-            head_ref = pinned_review_ref(number, repository)
+            before = snapshot(checkout)
             journal.record("fetch")
-            if parent_input is not None:
-                # DSH receives only the authenticated parent's bundle, never remote access.
-                bundle = Path(parent_input["bundle"]).resolve(strict=True)
+            if owned_history:
                 source.mkdir()
                 ownership = source.stat()
                 journal.record(
-                    "bundle-created", repository=str(source), device=ownership.st_dev, inode=ownership.st_ino
+                    "owned-history-created", repository=str(source), device=ownership.st_dev, inode=ownership.st_ino
                 )
                 git(parent, "init", "--quiet", str(source))
                 git_ownership = (source / ".git").stat()
                 journal.record(
-                    "bundle-initialized", repository=str(source), device=git_ownership.st_dev, inode=git_ownership.st_ino
+                    "owned-history-initialized", repository=str(source), device=git_ownership.st_dev, inode=git_ownership.st_ino
                 )
+                remote = target["base_remote"]
+                remote_url = git(checkout, "config", "--get", f"remote.{remote}.url")
+                git(source, "remote", "add", remote, remote_url)
+            _target_call(
+                "fetch_pull_head", source, repository, number, head,
+                remote=target["base_remote"],
+            )
+            if owned_history and review_commit is not None:
                 git(
-                    source,
-                    "fetch",
-                    "--quiet",
-                    "--no-write-fetch-head",
-                    "--no-tags",
-                    "--refmap=",
-                    str(bundle),
-                    f"+{head_ref}:{head_ref}",
-                    "+refs/pr-review-parent/base:refs/pr-review-parent/base",
-                    "+refs/pr-review-parent/commit:refs/pr-review-parent/commit",
-                )
-                if pinned_ref_commit(source, head_ref) != head:
-                    raise WorkspaceError("parent bundle PR HEAD does not match its metadata")
-                if pinned_ref_commit(source, "refs/pr-review-parent/commit") != commit:
-                    raise WorkspaceError("parent bundle review commit does not match its metadata")
-            else:
-                _target_call(
-                    "fetch_pull_head",
-                    source,
-                    repository,
-                    number,
-                    head,
-                    remote=target["base_remote"],
+                    source, "fetch", "--quiet", "--no-write-fetch-head",
+                    "--no-tags", "--refmap=", str(checkout), commit,
                 )
             require_review_commit(source, commit)
             journal.record("worktree-add")
@@ -506,15 +484,13 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
             )
             journal.record("worktree-verify")
             require_created_worktree(worktree, commit)
-            if before is not None and snapshot(source) != before:
+            if snapshot(checkout) != before:
                 raise WorkspaceError("creating the review worktree changed the target checkout")
-            if parent_input is None and current_pr_head(repository, number) != head:
+            if current_pr_head(repository, number) != head:
                 raise WorkspaceError("PR head changed after fetch; resolve again without saving")
             state_file = session_dir / "session.json"
             journal.record("lock-wait")
-            # A bundled DSH child has read-only access to shared storage. The
-            # snapshot checks its own bytes; the parent locks and compares again on save.
-            with (nullcontext() if getattr(args, "private_clone", False) else review_save_lock(parent)):
+            with review_save_lock(parent):
                 journal.record("state-write")
                 fingerprint, previous = snapshot_existing_review(destination_path, backup)
                 findings_fingerprint = destination_fingerprint(findings_path)
@@ -524,7 +500,7 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
                     "version": STATE_VERSION_TARGET,
                     "parent_root": str(parent),
                     "target_root": str(source),
-                    "target_kind": "checkout" if checkout is not None else "bundle",
+                    "target_kind": "owned-history" if owned_history else "checkout",
                     "pr_repo": repository,
                     "base_remote": target["base_remote"],
                     "base_ref": target["base_ref"],
@@ -707,6 +683,8 @@ def git(
         capture_output=True,
         pass_fds=pass_fds,
         start_new_session=new_session,
+        # Keep the named repository while allowing direct callers' Git transport authentication.
+        env=load_review_target().git_environment(transport_auth=True),
     )
     if result.returncode:
         message = result.stderr.decode("utf-8", errors="replace").strip()
@@ -1466,20 +1444,20 @@ def owned_attempt_repository(repo: Path, session_dir: Path) -> Path | None:
     records = read_journal(session_dir / JOURNAL_NAME)
     header = records[0]
     owned = session_dir / "repo"
-    if header.get("target_kind") != "bundle" and repo != owned:
+    if header.get("target_kind") != "owned-history" and repo != owned:
         return None
     if (
-        header.get("target_kind") != "bundle" or repo != owned
+        header.get("target_kind") != "owned-history" or repo != owned
         or header.get("main_root") != str(owned)
         or header.get("worktree") != str(session_dir / "worktree")
         or owned.is_symlink() or not owned.is_dir()
     ):
-        raise WorkspaceError("create journal does not identify this bundle repository")
+        raise WorkspaceError("create journal does not identify this owned-history repository")
     parent_value = header.get("parent_root")
     if not isinstance(parent_value, str) or not Path(parent_value).is_absolute():
-        raise WorkspaceError("create journal has no bundle repository parent")
+        raise WorkspaceError("create journal has no owned-history repository parent")
     _target_call("require_parent_root", Path(parent_value))
-    created = [record for record in records if record["phase"] == "bundle-created"]
+    created = [record for record in records if record["phase"] == "owned-history-created"]
     ownership = owned.stat()
     if (
         len(created) != 1 or created[0].get("repository") != str(owned)
@@ -1487,7 +1465,7 @@ def owned_attempt_repository(repo: Path, session_dir: Path) -> Path | None:
         or created[0].get("inode") != ownership.st_ino
         or ownership.st_uid != os.getuid() or session_dir.stat().st_uid != os.getuid()
     ):
-        raise WorkspaceError("bundle repository is not this attempt's owned Git")
+        raise WorkspaceError("owned-history repository is not this attempt's owned Git")
     git_dir = owned / ".git"
     if (
         git_dir.is_symlink() or not git_dir.is_dir()
@@ -1495,8 +1473,8 @@ def owned_attempt_repository(repo: Path, session_dir: Path) -> Path | None:
         or git_path(owned, "--git-dir") != git_dir
         or any(child.name != ".git" for child in owned.iterdir())
     ):
-        raise WorkspaceError("bundle repository contains unowned Git or user data; keep the session")
-    initialized = [record for record in records if record["phase"] == "bundle-initialized"]
+        raise WorkspaceError("owned-history repository contains unowned Git or user data; keep the session")
+    initialized = [record for record in records if record["phase"] == "owned-history-initialized"]
     git_ownership = git_dir.stat()
     if (
         len(initialized) != 1 or initialized[0].get("repository") != str(owned)
@@ -1504,10 +1482,10 @@ def owned_attempt_repository(repo: Path, session_dir: Path) -> Path | None:
         or initialized[0].get("inode") != git_ownership.st_ino
         or git_ownership.st_uid != os.getuid()
     ):
-        raise WorkspaceError("bundle repository is not this attempt's owned Git")
+        raise WorkspaceError("owned-history repository is not this attempt's owned Git")
     allowed = {str(owned), str(session_dir / "worktree")}
     if any(entry["worktree"] not in allowed for entry in worktree_registrations(owned)):
-        raise WorkspaceError("bundle repository owns another worktree; keep the session")
+        raise WorkspaceError("owned-history repository owns another worktree; keep the session")
     return owned
 
 

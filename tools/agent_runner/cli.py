@@ -185,7 +185,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(_inventory(config)))
         return 0
     except (ConfigError, RunnerError) as error:
-        print(json.dumps({"error": error.category}))
+        payload = {"error": error.category}
+        if isinstance(error, ConfigError) and error.category == "dsh_removed":
+            payload["message"] = str(error)
+        print(json.dumps(payload))
         return 2
     except Exception:
         print(json.dumps({"error": "runner_failed"}))

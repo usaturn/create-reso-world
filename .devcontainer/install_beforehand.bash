@@ -171,24 +171,6 @@ if ! command -v codex >/dev/null 2>&1; then
     fail "Codex installation completed without placing codex on PATH."
 fi
 
-# Only the headless CLI is needed. Do not initialize a shared ~/.dsh, install plugins or add TUI launchers.
-install_deepseek_harness() {
-    local -r version="0.2.1-rc.2"
-    local -r native_scripts="@deepseek-ai/dsh-subprocess-local,koffi,node-pty"
-    local installed_version
-    npm install -g --allow-scripts="$native_scripts" "@deepseek-ai/dsh@$version" || return 1
-    command -v dsh >/dev/null 2>&1 || return 1
-    installed_version="$(dsh --version)" || return 1
-    if [ "$installed_version" != "$version" ]; then
-        printf 'Unexpected dsh version: %s (expected %s).\n' "$installed_version" "$version" >&2
-        return 1
-    fi
-}
-step "Installing the pinned DSH headless CLI"
-if ! install_deepseek_harness; then
-    fail "DSH headless CLI installation or version verification failed."
-fi
-
 step "Installing Meshy CLI (local verification only)"
 if ! bash .devcontainer/install_meshy.bash; then
     fail "Meshy CLI installation or verification failed."

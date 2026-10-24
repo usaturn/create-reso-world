@@ -89,10 +89,10 @@ uv run --project "$TOPLEVEL" --locked python \
 
 - `run_roles.py` は、起動の前に工程の記録の `activities` に `stage=pre_push_review` を 1 件足す（排他ロックと一括置換）。司令塔は手で書き足さない（予約済みとして拒否され、その枠は消せない）
 - 失敗・中断でも枠は戻らない。2 回目の呼び出しは拒否される。別のファイル名・別のモデル・別の phase 名で上限を回避しない
-- 予約より前に止まる誤り（設定の投影、DSH・codex の担当、依頼・fix-input・確認済みの一覧の誤り、出力先が既にある）では枠を消費しない。自分の入力を直してからもう一度呼んでよい。checkout の監査で止まったとき（終了コード 1）も枠は消費しないが、ほかの worktree の登録を勝手に直さず、1 章のとおり結論 3（環境）にする
+- 予約より前に止まる誤り（設定の投影、codex の担当、依頼・fix-input・確認済みの一覧の誤り、出力先が既にある）では枠を消費しない。自分の入力を直してからもう一度呼んでよい。checkout の監査で止まったとき（終了コード 1）も枠は消費しないが、ほかの worktree の登録を勝手に直さず、1 章のとおり結論 3（環境）にする
 - 予約の後の runner の失敗でも終了コード 2 になることがある。終了コードだけで判断せず、工程の記録に `pre_push_review` が足されていれば枠は消費済みとして扱う
 
-self-review・fix-check には、runtime が `dsh` の担当（`dsh-ccd`・`dsh-go`）も `codex` の担当も、一次担当・fallback のどちらにも割り当てられない。DSH は pr-review の親の準備（`prepare-parent`・保存先への書き込み・`staged` の保存）が要るが `run_roles.py` はしない。codex は `writes=false` の役割を read-only の sandbox で起動し、pr-review・review-verify の helper が uv のキャッシュ・一時ディレクトリ・保存先に書けない。どちらも完了できずに枠だけを消費するので、`run_roles.py` が予約の前に終了コード 2 で止める。`implement` は対象外である。
+self-review・fix-check には、runtime が `codex` の担当を、一次担当・fallback のどちらにも割り当てられない。codex は `writes=false` の役割を read-only の sandbox で起動し、pr-review・review-verify の helper が uv のキャッシュ・一時ディレクトリ・保存先に書けない。完了できずに枠だけを消費するので、`run_roles.py` が予約の前に終了コード 2 で止める。`implement` は対象外である。
 
 外部の担当に割り当てた役割には、その役割の helper の書き込み（pr-review の `helper_write_exceptions`、review-verify の `fix_check_write_exceptions`）を、runner の作業範囲の指示の例外として `run_roles.py` が渡す。各行の末尾に `(self-review role only)`・`(fix-check role only)` が付く。`self` の役割には渡さない。
 
