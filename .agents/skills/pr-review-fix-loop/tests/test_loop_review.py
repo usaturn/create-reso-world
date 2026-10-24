@@ -107,12 +107,16 @@ def broken(result: Result, case: str, env: Any, tmp_path: Path) -> Result:
     attempt = result.attempts[-1]
     payload: dict[str, Any] = dict(cast(dict[str, Any], attempt.payload))
     attempt_update: dict[str, Any] = {}
+    result_update: dict[str, Any] = {}
     if case == "stop_unconfirmed":
         attempt_update["stop_confirmed"] = False
     elif case == "payload_failed":
         payload["status"] = "failed"
     elif case == "request_mismatch":
         payload["request_id"] = "request-2"
+    elif case == "actual_agent_mismatch":
+        # request と payload が一致していても、実際に実行した担当との照合が必要。
+        result_update["actual_agent"] = "beta"
     elif case == "other_pr":
         payload["pr_number"] = 901
     elif case == "reviewed_head_mismatch":
@@ -132,7 +136,7 @@ def broken(result: Result, case: str, env: Any, tmp_path: Path) -> Result:
         payload["active_findings"] = 0
     attempt_update["payload"] = payload
     attempts = [attempt.model_copy(update=attempt_update)]
-    return result.model_copy(update={"attempts": attempts})
+    return result.model_copy(update={**result_update, "attempts": attempts})
 
 
 @pytest.mark.parametrize(
@@ -141,6 +145,7 @@ def broken(result: Result, case: str, env: Any, tmp_path: Path) -> Result:
         "stop_unconfirmed",
         "payload_failed",
         "request_mismatch",
+        "actual_agent_mismatch",
         "other_pr",
         "reviewed_head_mismatch",
         "review_outside_dir",

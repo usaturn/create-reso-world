@@ -55,6 +55,7 @@ def failed_attempt(tmp_path: Path, *, stdout: str = "", stderr: str = "", **upda
     "case",
     [
         "readable",
+        "not_stopped",
         "sensitive",
         "outside_output",
         "symlink",
@@ -67,7 +68,10 @@ def test_logs_are_read_only_when_safe(loop: Any, tmp_path: Path, case: str) -> N
     log = attempt.stderr_path
     assert log is not None
     update: dict[str, Any] = {}
-    if case == "sensitive":
+    if case == "not_stopped":
+        # 生存中の書き手がログを差し替えうるので、パスが安全でも読まない。
+        update["stop_confirmed"] = False
+    elif case == "sensitive":
         update["sensitive_paths"] = [log]
     elif case == "outside_output":
         outside = tmp_path / "elsewhere.log"
@@ -281,41 +285,19 @@ def test_recovered_failures_do_not_decide_the_cause(
     assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
 
 
-@pytest.mark.parametrize(
-    ("log", "change", "cause"),
-    [
-        ("stdout", "partial", "unknown"),
-    ],
-)
 def test_unobservable_logs_are_not_response_extraction(
     loop: Any,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    log: str,
-    change: str,
-    cause: str,
 ) -> None:
     # 失敗の報告の有無を観測できなければ、終了状態だけから「応答の取り出し」と推測しない（受け入れ条件 2、
     # PR #237 の deepseek#M-1）。末尾だけを読んだ（partial）ログも、切れた行に最後の失敗が隠れうるので観測としない
-    attempt, output = failed_attempt(tmp_path, stdout="x" * 100 + "\n" if change == "partial" else "", exit_code=0)
-    path = attempt.stdout_path if log == "stdout" else attempt.stderr_path
-    assert path is not None
-    if change == "missing":
-        path.unlink()
-    elif change == "symlink":
-        target = output / "target.log"
-        target.write_text("", encoding="utf-8")
-        path.unlink()
-        path.symlink_to(target)
-    elif change == "unreadable":
-        path.chmod(0)
-    else:
-        monkeypatch.setattr(loop, "DIAGNOSTIC_READ_BYTES", 16)
+    attempt, output = failed_attempt(tmp_path, stdout="x" * 100 + "\n", exit_code=0)
+    monkeypatch.setattr(loop, "DIAGNOSTIC_READ_BYTES", 16)
 
     diagnostic = loop.diagnose_attempt(attempt, output, runtime="pi")
 
-    expected = {"missing": "missing", "symlink": "not_regular_file", "unreadable": "unreadable", "partial": "partial"}
-    assert (diagnostic.cause, diagnostic.unavailable.get(log)) == (cause, expected[change])
+    assert (diagnostic.cause, diagnostic.unavailable.get("stdout")) == ("unknown", "partial")
 
 
 @pytest.mark.parametrize(
