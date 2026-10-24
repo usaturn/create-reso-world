@@ -385,8 +385,9 @@ time.sleep(60)
                 launch(code),
                 cwd=tmp_path,
                 env={"PATH": os.defpath, "OVERRIDE": "original"},
-                # Cancellation, not the deadline, stops it; a deadline before the
-                # cancel returns timed_out instead of raising CancelledError.
+                # Cancellation, not the deadline, must stop it: a deadline that fires
+                # first stops the process itself, so the test fails or no longer
+                # exercises cancellation.
                 deadline_seconds=30,
                 stdout_path=tmp_path / "stdout",
                 stderr_path=tmp_path / "stderr",

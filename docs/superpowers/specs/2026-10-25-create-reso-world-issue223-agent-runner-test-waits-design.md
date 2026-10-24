@@ -32,7 +32,9 @@
 
 - Issue の表にあって、今の `main` に無いもの: `test_large_parallel_output_is_streamed_to_files`（`run(..., deadline=10)`）と `test_thread_event_cancels_running_process`（`wait_for()` の呼び出しと `asyncio.wait_for(task, 3)` の 1 件ずつ）。どちらも #230 で消えた（`git log -S` で `4c4a964`）
 - `execute` の期限は、関数の先頭（`started = time.monotonic()`）から数え、起動の後のループで `time.monotonic() - started >= deadline_seconds` のときに `timed_out` にする（`tools/agent_runner/process.py` 327-438 行）。`create_subprocess_exec` を差し替えたテストでは、差し替えた関数の中の待ちも期限と `elapsed_seconds` に入る
-- cancel のテスト 2 件（`test_coroutine_cancellation_stops_leader_and_escaped_descendant`・`test_repeated_cancellation_during_launch_still_stops_process`）は、子が pid ファイルを書くのを `wait_for()` で待ってから task を cancel し、`CancelledError` を確かめる。cancel の前に `execute` の期限 10 秒が来ると、`execute` が `timed_out` で普通に返るので、`pytest.raises(CancelledError)` が失敗する。`wait_for()` の待ちだけを 30 秒にしても、この 2 件では期限 10 秒が先に切れる
+- cancel のテスト 2 件は、子が pid ファイルを書くのを `wait_for()` で待ってから task を cancel し、`CancelledError` を確かめる。期限の扱いは 2 件で違う（最終レビューの M-1 で直した）
+  - `test_coroutine_cancellation_stops_leader_and_escaped_descendant`: 起動の後のループで cancel を受ける。cancel の前に `execute` の期限 10 秒が来ると、期限の後始末がプロセスを止めるので、テストは失敗する（`wait_for()` の `TimeoutError`、`CancelledError` が出ない）か、cancel の後始末を確かめないまま通る（レビュアーが期限を 1 ms にして確かめた）。`wait_for()` の待ちだけを 30 秒にしても、負荷で起動が 10 秒を越えると期限が先に来る
+  - `test_repeated_cancellation_during_launch_still_stops_process`: 起動の途中で cancel するので、`execute` は期限を判定するループの前に `CancelledError` を投げる（`process.py` の `if launch_cancelled: raise asyncio.CancelledError`）。期限には届かない（レビュアーが期限を 0.001 秒にしても通ることを確かめた）
 - `test_immediate_exit_before_ownership_observation_stops_children` は `run(..., deadline=3)` と `result.elapsed_seconds < 2` を明示する。差し替えた起動の中の待ち（`wait_for()` と `asyncio.timeout(2)`）は `elapsed_seconds` に入るので、このテストは待ちが 2 秒を越えると、待ちの長さに関係なく `elapsed_seconds < 2` で失敗する。待ちの `TimeoutError` で失敗すると、60 秒の子は `children` に記録される前なので、テストの `finally` が止める対象に入らない
 - 時間切れを確かめるテスト・子を待たないことを時間で確かめるテストは、短い期限を意図して明示している（#218 の Spec の「確認した事実」と同じ）
   - `test_process.py:151`（`test_buffered_original_exit_survives_anchor_reap`、`deadline=3` で `timed_out` を確かめる）
@@ -81,7 +83,7 @@
 - **D-223-3 cancel のテスト 2 件の `execute` の期限 10 秒も 30 秒にする（Issue の表に無い）**
   - 選択: `test_process.py:385`・`442` の `deadline_seconds=10` を `30` にする
   - 別案: Issue の表のとおり、`wait_for()` と `asyncio.wait_for(task, 3)` だけを変える
-  - 理由: この 2 件は、`wait_for()` の待ちが終わってから cancel する。待ちを 30 秒にしても、負荷で起動が 10 秒を越えると、期限 10 秒で `execute` が `timed_out` で返り、`CancelledError` を確かめられずに失敗する（「確認した事実」）。この 2 件は cancel を確かめるテストで、期限を確かめない。Issue の案 (a) の基準（時間切れを確かめないテストの期限を 30 秒にする）にそのまま当たり、範囲を広げない
+  - 理由: `test_coroutine_cancellation_stops_leader_and_escaped_descendant` は、`wait_for()` の待ちが終わってから cancel する。待ちを 30 秒にしても、負荷で起動が 10 秒を越えると期限 10 秒が先に来て、テストが失敗するか、cancel を確かめなくなる（「確認した事実」）。`test_repeated_cancellation_during_launch_still_stops_process` は期限に届かないので、30 秒は値をそろえるためだけで、害も無い。どちらも cancel を確かめるテストで、期限を確かめない。Issue の案 (a) の基準（時間切れを確かめないテストの期限を 30 秒にする）にそのまま当たり、範囲を広げない
 - **D-223-4 `test_immediate_exit_before_ownership_observation_stops_children` の差し替えの中の `asyncio.timeout(2)` も 30 秒にし、`deadline=3` と `elapsed_seconds < 2` は変えない**
   - 選択: `asyncio.timeout(2)` を `30` にする（共有の `wait_for()` も 30 秒になる）。テスト自身の `deadline=3` と `elapsed_seconds < 2` は残す
   - 別案: (a) このテストの待ちを 2 秒・5 秒のまま残す、(b) `deadline=3` と `elapsed_seconds < 2` も緩める
