@@ -1320,6 +1320,7 @@ def test_abandon_refuses_while_the_attempt_is_running(tmp_path: Path, monkeypatc
     ("extra", "message"),
     [
         ("review-backup/opus-5.md", "review backup"),
+        ("review-backup/nested/", "review backup"),
         ("notes.txt", "unexpected entry"),
     ],
 )

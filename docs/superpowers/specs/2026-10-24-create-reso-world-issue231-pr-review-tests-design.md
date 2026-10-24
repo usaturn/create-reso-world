@@ -1,6 +1,6 @@
 # Issue #231: pr-review 系テストの棚卸しと削減
 
-- 状態: draft
+- 状態: completed
 - 対象: `usaturn/create-reso-world` / [Issue #231](https://github.com/usaturn/create-reso-world/issues/231)
 - 基準: `origin/main` `ad89c150bc9a269921088ee63c1ccbd109e93b16`（2026-10-24 の着手時）
 - 関連 Plan: `docs/superpowers/plans/2026-10-24-create-reso-world-issue231-pr-review-tests.md`
@@ -163,7 +163,7 @@
 | `test_pr_review_workspace.py::test_abandon_clears_an_attempt_killed_while_waiting_for_the_lock` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_abandon_clears_records_left_by_an_interrupted_worktree_add` | 3 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 縮約: 代表: HEAD。ほかの破損形は同じ管理レコード回収の D。 |
 | `test_pr_review_workspace.py::test_abandon_keeps_a_journal_without_pr_repository` | 1 | S | 防ぐ損害（高）: 所属 PR が分からない旧 journal の session を推測して削除しない。 | 残す |
-| `test_pr_review_workspace.py::test_abandon_keeps_a_session_with_files_it_did_not_create` | 3 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 縮約: 代表: notes.txt と review-backup/opus-5.md。nested/ は同じ利用者所有 entry の D。 |
+| `test_pr_review_workspace.py::test_abandon_keeps_a_session_with_files_it_did_not_create` | 3 | S | 防ぐ損害（高）: 利用者ファイル・利用者ディレクトリ・別 worktree・共有 Git を削除または変更する。 | 3 ケースを残す。トップレベルの予期しないファイル、バックアップ内の予期しないファイル、バックアップ内のディレクトリはそれぞれ別の拒否条件。自己レビューで `nested/` の欠落を確認し復元した。 |
 | `test_pr_review_workspace.py::test_abandon_keeps_a_worktree_locked_for_another_reason` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_abandon_refuses_another_repository` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_abandon_refuses_records_of_another_worktree` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
@@ -351,6 +351,7 @@
 | `review-empty-normalized-branch` | `review_target.py` | `test_pr_review_workspace.py::test_review_artifact_paths_reject_invalid_branch[...]` | 検出（1 passed → 1 failed） |
 | `review-fork-upstream-session` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_sessions_keep_the_open_pr_when_fork_and_upstream_share_number_branch_and_head[MERGED-OPEN]` | 検出（1 passed → 1 failed） |
 | `review-abandon-user-file` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_abandon_keeps_a_session_with_files_it_did_not_create[notes.txt-unexpected entry]` | 検出（1 passed → 1 failed） |
+| `review-abandon-nested-directory` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_abandon_keeps_a_session_with_files_it_did_not_create[review-backup/nested/-review backup]` | 検出（残した通常ファイル 2 件は通過、復元したディレクトリ 1 件は失敗） |
 | `review-target-base-remote` | `pr_review_workspace.py` | `test_port_routing.py::test_target_rejects_unvalidated_input_without_creating_session[remote]` | 検出（1 passed → 1 failed） |
 | `review-invalid-repository-name` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_create_rejects_invalid_pr_repository[usaturn/..]` | 検出（1 passed → 1 failed） |
 | `review-owned-history-foreign-worktree` | `pr_review_workspace.py` | `test_port_routing.py::test_shallow_recovery_refuses_unowned_git_or_user_data[foreign-worktree-owns another worktree]` | 検出（1 passed → 1 failed） |
@@ -366,7 +367,7 @@
 
 ### 計測・検証の記録
 
-指定の計測コマンドによる前後: **514 → 287 件**（227 件、44.2% 削減）、**8,830 → 7,301 行**（1,529 行、17.3% 削減）。前値は着手時の `origin/main`、後値はレビュー修正を取り込んだ `7924043` で測定した。正式な文書 commit はテスト収集対象を変えない。最終 HEAD の検証結果はセッションの記録と PR 本文に記載する。
+指定の計測コマンドによる前後: **514 → 288 件**（226 件、44.0% 削減）、**8,830 → 7,302 行**（1,528 行、17.3% 削減）。前値は着手時の `origin/main`、後値は自己レビューで欠けた S を復元した版で測定した。正式な文書 commit はテスト収集対象を変えない。最終 HEAD で再計測した結果と検証のログはセッションの記録と PR 本文にも残す。
 
 ## PR #255 レビュー修正サイクル 1
 
@@ -403,8 +404,18 @@
 | マージ状態は実際に読めた PR を優先する | `finish --abort` の PR open と finalize 無し | 修正する | merged false と null を区別 | open の代表と false→null 変異 | `702a177` のテストで、通常版通過・false→null 変異で失敗。 |
 | 秘密の残る保持物がある試行を誤診しない | `diagnose_attempt` → `classify_cause` → 原因記録 | 修正する | 非ログ receipt があれば unknown、空なら response_extraction | 負例・正例と条件除去変異 | `702a177` のテストで、通常版通過・条件除去で負例が失敗。 |
 | 共有 Git ref と別 worktree を変えない | `configure_base_fetch` → `prepare` → `complete`、失敗後の回収 | 修正する | PR head・未 push commit の両方で共有 ref が不変 | diverged の代表、tag fetch と update-ref の変異 | `702a177` で通常版 2 件通過、両変異で 2 件失敗。 |
-| #231 の成果を確認できる | テスト収集・追跡行数 → Spec・Issue・Plan | 修正する | 数値・実施状態が一致 | 指定コマンド、Issue コメント、Plan 差分 | 計測は `7924043` で 287 件・7,301 行。Plan のチェック欄を更新した。Issue コメントは push 後に投稿する。 |
+| #231 の成果を確認できる | テスト収集・追跡行数 → Spec・Issue・Plan | 修正する | 数値・実施状態が一致 | 指定コマンド、Issue コメント、Plan 差分 | 自己レビュー修正後は 288 件・7,302 行。Plan の実施済み工程を更新した。Issue コメントは push 後に投稿する。 |
 
 失敗時の状態確認は、テスト内の fake GitHub・bare remote の実状態と loop が記録した merged を対にしている。変異は隔離コピーだけに入れ、対象 PR の本体実装は変更していない。共有 ref の `--refmap=` を外す変異はこの fixture のどの relation でも検出せず、代表を縮めて失った検出力ではない。tag fetch と共有 ref 更新の変異は縮約後の 2 例がともに検出した。
 
-修正後の領域テストは `287 passed`、全体 pytest は `1,499 passed`、bash は `23 tests`、配置と Ruff は通過した。実行ログは `tmp/agents/issue-231.qhu0z91i/` の `full-pytest-cycle1.log`、`bash-cycle1.log`、`layout-cycle1.log`、`ruff-cycle1.log`。`run_roles.py` の担当は `stop_confirmed=true`・コミット `702a177` を返したが、別タスクの worktree が並行して変更・削除された監査通知により runner 自体は終了コード 1 だった。担当のコミットは指定した 4 テストファイルだけで、専用 worktree に `7924043` として取り込んだ。別タスクの worktree は変更していない。自己レビューと Issue への計測反映は続行中。
+自己レビュー前の修正では領域 `287 passed`、全体 `1,499 passed`、bash `23 tests`、配置と Ruff が通過した。実行ログは `tmp/agents/issue-231.qhu0z91i/` の `full-pytest-cycle1.log`、`bash-cycle1.log`、`layout-cycle1.log`、`ruff-cycle1.log`。`run_roles.py` の担当は `stop_confirmed=true`・コミット `702a177` を返したが、別タスクの worktree が並行して変更・削除された監査通知により runner 自体は終了コード 1 だった。担当のコミットは指定した 4 テストファイルだけで、専用 worktree に `7924043` として取り込んだ。別タスクの worktree は変更していない。Issue への計測反映は push 後に行う。
+
+### 自己レビューで見つかった独立条件
+
+`run_roles.py --phase self-review` の 1 回の枠から、PR 全体の自己レビュー（509.1 秒）と修正の確認（722.8 秒）を実行した。自己レビューは `gpt-6-sol-commit-5c3aeac6109857f623d8c50cc51e85c2ac239eeb.md` に Medium 1 件を保存し、修正確認は `verified/5c3aeac61098.fix-check.json` に元の 7 件の検証を保存した。修正確認ではコードと Plan の 6 件は確認済みで、Issue への計測コメント 1 件は push 後の外部工程として未完了。新しい指摘は 0 件だった。
+
+自己レビューの `M-1` は、着手時の `test_abandon_keeps_a_session_with_files_it_did_not_create` から `review-backup/nested/` を消した判断の誤りである。`require_abandonable_entries` はトップレベルの entry とバックアップ内の entry を別々に走査し、後者はファイル以外も拒否する。ディレクトリを読み飛ばす変異では、残した通常ファイル 2 ケースは通過し、復元したディレクトリケースだけが失敗して、実際に利用者のディレクトリが削除された。データ消失を見逃すため「対応する」。正常版の拒否・保存と変異版の削除を対にして確認した。トップレベルのディレクトリやバックアップ内の通常ファイルでは、この種類の欠落を検出できない。
+
+この指摘はサイクル 1 で直した CLI・診断・マージ状態・共有 ref とは別の条件で、最初のテスト削減で生じた。今回の修正が生んだ回帰でも、同じ条件の 2 回目でもないため設計の見直しのきっかけには当たらない。旧 3 ケースをすべて戻し、独立した 3 条件をそれぞれ 1 件で検査する。自己レビューの 2 回目は行わない。復元後の対象 3 件と領域 288 件は通過した。自己レビューで見つけたディレクトリ条件は、初回の 32 か所の変異とは別に検査した。
+
+自己レビュー後の最終内容では、指定領域 `288 passed`（`domain-self-review-fix.log`）、全体 `1,500 passed`（`full-pytest-self-review-fix.log`）、bash `23 tests`（`bash-self-review-fix.log`）、配置検査と Ruff は通過（`layout-self-review-fix.log`、`ruff-self-review-fix.log`）。いずれも `tmp/agents/issue-231.qhu0z91i/` に保存した。自己レビュー後の追加修正について 2 回目の自己レビューは行っていない。最終の差分はテスト 1 ケースと Spec・Plan だけで、実装コードは変えていない。
