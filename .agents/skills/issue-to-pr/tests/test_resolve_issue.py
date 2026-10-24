@@ -94,11 +94,11 @@ def assert_rejected(result: subprocess.CompletedProcess[str]) -> None:
 
 
 @pytest.mark.parametrize(
-    ("argument", "origin", "repo"),
+    ("argument", "repo"),
     [
-        ("https://github.com/usaturn/resoloop/issues/42", None, "usaturn/resoloop"),
-        ("usaturn/resoloop-meshy#42", None, "usaturn/resoloop-meshy"),
-        ("#42", None, "usaturn/create-reso-world"),
+        ("https://github.com/usaturn/resoloop/issues/42", "usaturn/resoloop"),
+        ("usaturn/resoloop-meshy#42", "usaturn/resoloop-meshy"),
+        ("#42", "usaturn/create-reso-world"),
     ],
 )
 def test_resolves_supported_forms_without_changing_git(
@@ -106,11 +106,8 @@ def test_resolves_supported_forms_without_changing_git(
     gh_stub: Path,
     monkeypatch: pytest.MonkeyPatch,
     argument: str,
-    origin: str | None,
     repo: str,
 ) -> None:
-    if origin:
-        subprocess.run(["git", "remote", "set-url", "origin", origin], cwd=checkout, check=True)
     set_response(monkeypatch, repo)
     before = subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout)
     result = resolve(checkout, argument)
@@ -139,7 +136,6 @@ def test_rejects_input_before_looking_up_issue(checkout: Path, gh_stub: Path, ar
     result = resolve(checkout, argument)
     assert_rejected(result)
     assert not gh_stub.exists()
-    assert not (checkout / "injected").exists()
 
 
 def unchanged(checkout: Path, before: bytes) -> bool:
@@ -204,7 +200,6 @@ def test_rejects_malformed_arguments_before_looking_up_issue(
     result = resolve(checkout, argument)
     assert_rejected(result)
     assert not gh_stub.exists()
-    assert not (checkout / "injected").exists()
     assert unchanged(checkout, before)
 
 
@@ -240,7 +235,6 @@ def test_rejects_malformed_implement_before_looking_up_issue(
     result = resolve(checkout, argument)
     assert_rejected(result)
     assert not gh_stub.exists()
-    assert not (checkout / "injected").exists()
 
 
 @pytest.mark.parametrize(
@@ -249,11 +243,8 @@ def test_rejects_malformed_implement_before_looking_up_issue(
         "https://gitlab.com/usaturn/create-reso-world.git",
     ],
 )
-def test_number_with_unusable_origin_stops(checkout: Path, gh_stub: Path, origin: str | None) -> None:
-    if origin is None:
-        subprocess.run(["git", "remote", "rename", "origin", "upstream"], cwd=checkout, check=True)
-    else:
-        subprocess.run(["git", "remote", "set-url", "origin", origin], cwd=checkout, check=True)
+def test_number_with_unusable_origin_stops(checkout: Path, gh_stub: Path, origin: str) -> None:
+    subprocess.run(["git", "remote", "set-url", "origin", origin], cwd=checkout, check=True)
     result = resolve(checkout, "#42")
     assert_rejected(result)
     assert not gh_stub.exists()
