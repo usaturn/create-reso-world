@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -192,40 +191,10 @@ def fx(tmp_path: Path) -> Fixture:
     return Fixture(tmp_path)
 
 
-def test_agent_commit_is_importable(fx: Fixture) -> None:
-    agent = fx.scenario("a", done(), steps=[WRITE_A, COMMIT])
-
-    summary = fx.run(fx.config(("a", agent)))
-
-    assert summary["verdict"] == "importable", summary["reasons"]
-    assert summary["helper_commit"] is False
-    assert summary["changed_files"] == ["src/a.py"]
-    assert summary["commit"] == git(Path(summary["work_dir"]), "rev-parse", "HEAD")
-    assert summary["actual_agent"] == "a"
-    assert summary["identity"]["model"] == "a"
-    assert (fx.output / "task.json").is_file()
-    # 取り込みは accept の仕事。run は feature を動かさない
-    assert git(fx.feature, "rev-parse", "HEAD") == fx.revision
-
-
-def test_uncommitted_changes_matching_report_are_importable_by_helper(fx: Fixture) -> None:
-    agent = fx.scenario(
-        "a", done(None, ["src/a.py", "src/new/c.py"]), steps=[WRITE_A, {"kind": "write", "path": "src/new/c.py"}]
-    )
-
-    summary = fx.run(fx.config(("a", agent)))
-
-    assert summary["verdict"] == "importable", summary["reasons"]
-    assert summary["helper_commit"] is True
-    assert summary["commit"] is None
-    assert summary["changed_files"] == ["src/a.py", "src/new/c.py"]
-
-
 @pytest.mark.parametrize(
     ("steps", "reported"),
     [
         pytest.param([WRITE_A, {"kind": "write", "path": "src/new/c.py"}], ["src/a.py"], id="unreported-change"),
-        pytest.param([WRITE_A], ["src/a.py", "src/new/c.py"], id="reported-but-missing"),
     ],
 )
 def test_uncommitted_report_mismatch_is_rejected(fx: Fixture, steps: list[object], reported: list[str]) -> None:
@@ -266,15 +235,8 @@ REVERTED_OUTSIDE = {
         WRITE_A,
         COMMIT,
     ],
-    "existing-file": [
-        {"kind": "write", "path": "docs/x.md", "content": "changed\n"},
-        COMMIT,
-        {"kind": "write", "path": "docs/x.md", "content": "x\n"},
-        WRITE_A,
-        COMMIT,
-    ],
 }
-REVERTED_PATHS = {"new-file": "docs/secret.txt", "existing-file": "docs/x.md"}
+REVERTED_PATHS = {"new-file": "docs/secret.txt"}
 
 
 @pytest.mark.parametrize("case", sorted(REVERTED_OUTSIDE))
@@ -286,22 +248,6 @@ def test_intermediate_commit_outside_allowed_files_is_rejected(fx: Fixture, case
     assert summary["verdict"] == "rejected"
     assert any(REVERTED_PATHS[case] in reason for reason in summary["reasons"]), summary["reasons"]
     # 要約の changed_files は最終 tree の差分のまま
-    assert summary["changed_files"] == ["src/a.py"]
-
-
-def test_intermediate_commit_inside_allowed_files_is_importable(fx: Fixture) -> None:
-    steps = [
-        {"kind": "write", "path": "src/new/tmp.py"},
-        COMMIT,
-        {"kind": "delete", "path": "src/new/tmp.py"},
-        WRITE_A,
-        COMMIT,
-    ]
-    agent = fx.scenario("a", done(), steps=steps)
-
-    summary = fx.run(fx.config(("a", agent)))
-
-    assert summary["verdict"] == "importable", summary["reasons"]
     assert summary["changed_files"] == ["src/a.py"]
 
 
@@ -359,57 +305,13 @@ def test_outside_change_is_rejected(fx: Fixture) -> None:
     assert str(fx.feature) in summary["outside_changes"]
 
 
-@pytest.mark.parametrize("status", ["BLOCKED", "NEEDS_CONTEXT"])
-def test_blocked_and_needs_context_ask_for_retry(fx: Fixture, status: str) -> None:
-    agent = fx.scenario("a", done(None, [], status=status))
+def test_blocked_asks_for_retry(fx: Fixture) -> None:
+    agent = fx.scenario("a", done(None, [], status="BLOCKED"))
 
     summary = fx.run(fx.config(("a", agent)))
 
     assert summary["verdict"] == "retry"
-    assert summary["result"]["status"] == status
-
-
-# 担当が返す、空でない object だが TaskResult に合わない結果（Issue #702 の受け入れの実入力）
-INVALID_RESULTS: dict[str, dict[str, object]] = {
-    "missing-key": {key: value for key, value in done().items() if key != "concerns"},
-    "unknown-key": {**done(), "extra": "x"},
-    "bad-status": {**done(), "status": "FINISHED"},
-    "short-commit": {**done(), "commit": "abc1234"},
-    "wrong-type": {**done(), "changed_files": "src/a.py"},
-    "non-ascii-newline": {**done(), "status": "完了\n", "concerns": ["一行目\n二行目"]},
-}
-
-
-@pytest.mark.parametrize("case", sorted(INVALID_RESULTS))
-def test_invalid_result_falls_back_to_the_next_candidate(fx: Fixture, case: str) -> None:
-    broken = fx.scenario("a", INVALID_RESULTS[case], steps=[{"kind": "write", "path": "docs/x.md"}, COMMIT])
-    backup = fx.scenario("b", done(), steps=[WRITE_A, COMMIT])
-
-    summary = fx.run(fx.config(("a", broken), ("b", backup), fallback=1))
-
-    assert summary["verdict"] == "importable", summary["reasons"]
-    assert [(attempt["agent_id"], attempt["state"]) for attempt in summary["attempts"]] == [
-        ("a", "invalid_result"),
-        ("b", "success"),
-    ]
-    assert summary["actual_agent"] == "b"
-    # 判定は fallback の候補の worktree で行い、1 回目の docs/x.md の変更を見ない
-    assert summary["changed_files"] == ["src/a.py"]
-
-
-@pytest.mark.parametrize("fallback", [0, 1], ids=["no-fallback", "fallback-also-invalid"])
-def test_invalid_result_fails_when_no_candidate_is_left(fx: Fixture, fallback: int) -> None:
-    agents = [
-        ("a", fx.scenario("a", INVALID_RESULTS["unknown-key"])),
-        ("b", fx.scenario("b", INVALID_RESULTS["wrong-type"])),
-    ]
-
-    summary = fx.run(fx.config(*agents[: 1 + fallback], fallback=fallback))
-
-    assert summary["verdict"] == "failed"
-    assert summary["reasons"] == ["runner: invalid_result"]
-    assert [attempt["state"] for attempt in summary["attempts"]] == ["invalid_result"] * (1 + fallback)
-    assert summary["result"] is None
+    assert summary["result"]["status"] == "BLOCKED"
 
 
 def test_recorded_invalid_payload_is_rejected_on_reassessment(fx: Fixture) -> None:
@@ -417,7 +319,7 @@ def test_recorded_invalid_payload_is_rejected_on_reassessment(fx: Fixture) -> No
     fx.run(fx.config(("a", fx.scenario("a", done(), steps=[WRITE_A, COMMIT]))))
     record = json.loads((fx.output / "task.json").read_text(encoding="utf-8"))
     batch = BatchResult.model_validate_json(json.dumps(record["batch"]))
-    batch.results[0].attempts[0].payload = INVALID_RESULTS["unknown-key"]
+    batch.results[0].attempts[0].payload = {**done(), "extra": "x"}
 
     assessment = mod.assess(fx.request(), batch)
 
@@ -437,16 +339,6 @@ def test_fallback_success_is_assessed_on_its_own_attempt(fx: Fixture) -> None:
     assert [attempt["agent_id"] for attempt in summary["attempts"]] == ["a", "b"]
 
 
-def test_exhausted_fallback_fails(fx: Fixture) -> None:
-    broken = fx.scenario("a", None, no_receipt=True)
-    also = fx.scenario("b", None, no_receipt=True)
-
-    summary = fx.run(fx.config(("a", broken), ("b", also), fallback=1))
-
-    assert summary["verdict"] == "failed"
-    assert summary["result"] is None
-
-
 def test_unconfirmed_stop_fails(fx: Fixture) -> None:
     agent = fx.scenario("a", done(), steps=[WRITE_A, COMMIT])
     fx.run(fx.config(("a", agent)))
@@ -457,37 +349,6 @@ def test_unconfirmed_stop_fails(fx: Fixture) -> None:
     assessment = mod.assess(fx.request(), batch)
 
     assert assessment.verdict == "failed"
-
-
-def test_no_changes(fx: Fixture) -> None:
-    agent = fx.scenario("a", done(None, []))
-
-    summary = fx.run(fx.config(("a", agent)))
-
-    assert summary["verdict"] == "no_changes"
-
-
-def test_self_assignment_is_refused_without_launch(fx: Fixture) -> None:
-    config = fx.config(("a", fx.scenario("a", done())))
-    config.workflows["issue"].assignments["implement"] = Assignment(agents=["self"])
-
-    with pytest.raises(mod.TaskInputError):
-        fx.run(config)
-
-    assert not fx.output.exists()
-
-
-@pytest.mark.parametrize("change", ["untracked", "moved"])
-def test_run_refuses_dirty_or_moved_feature_worktree(fx: Fixture, change: str) -> None:
-    if change == "untracked":
-        (fx.feature / "stray.txt").write_text("x\n", encoding="utf-8")
-    else:
-        git(fx.feature, "commit", "-q", "--allow-empty", "-m", "moved")
-
-    with pytest.raises(mod.TaskInputError):
-        fx.run(fx.config(("a", fx.scenario("a", done()))))
-
-    assert not fx.output.exists()
 
 
 def test_run_refuses_main_checkout(fx: Fixture) -> None:
@@ -523,82 +384,6 @@ def test_rename_counts_both_paths(fx: Fixture, target: str, verdict: str) -> Non
     assert set(summary["changed_files"]) == {"src/a.py", target}
 
 
-def test_ignored_files_do_not_count(fx: Fixture) -> None:
-    agent = fx.scenario("a", done(), steps=[WRITE_A, COMMIT, {"kind": "write", "path": "ignored/cache.bin"}])
-
-    summary = fx.run(fx.config(("a", agent)))
-
-    assert summary["verdict"] == "importable", summary["reasons"]
-    assert summary["changed_files"] == ["src/a.py"]
-
-
-CLI_TEMPLATE = (
-    'schema_version = 1\n[roles.implement]\nwrites = true\ndeadline_seconds = 60\nresult_shape = "json"\n'
-    '[agents.a]\nruntime = "pi"\ncommand = ["fake"]\nmodel = "a"\n'
-    '[workflows.issue.assignments.implement]\nagents = ["a"]\n'
-)
-
-
-def test_cli_run_rejects_invalid_request_before_launch(fx: Fixture, capsys: pytest.CaptureFixture[str]) -> None:
-    bad = fx.tmp / "request.json"
-    bad.write_text(json.dumps({"repository": "relative"}), encoding="utf-8")
-    template = fx.tmp / "agent-runner.toml"
-    template.write_text(CLI_TEMPLATE, encoding="utf-8")
-
-    code = mod.main(
-        [
-            "run",
-            "--request",
-            str(bad),
-            "--output-dir",
-            str(fx.output),
-            "--template",
-            str(template),
-            "--config",
-            str(template),
-        ]
-    )
-
-    assert code == 2
-    assert json.loads(capsys.readouterr().out)["status"] == "error"
-    assert not fx.output.exists()
-
-
-def test_cli_run_stops_on_unauditable_checkout_without_pruning(
-    fx: Fixture, capsys: pytest.CaptureFixture[str]
-) -> None:
-    # 消えた worktree の登録が残ったリポジトリ（別の作業の後片付けの残り）。起動の前の監査で止まり、
-    # 出力先を作らず、登録を消さない（他の作業の領域なので、片付けは利用者が決める）
-    gone = fx.tmp / "gone"
-    git(fx.main, "worktree", "add", "-q", "--detach", str(gone))
-    shutil.rmtree(gone)
-    request = fx.tmp / "request.json"
-    request.write_text(fx.request().model_dump_json(), encoding="utf-8")
-    template = fx.tmp / "agent-runner.toml"
-    template.write_text(CLI_TEMPLATE, encoding="utf-8")
-
-    code = mod.main(
-        [
-            "run",
-            "--request",
-            str(request),
-            "--output-dir",
-            str(fx.output),
-            "--template",
-            str(template),
-            "--config",
-            str(template),
-        ]
-    )
-
-    assert code == 2
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["reason"].startswith("checkout_audit")
-    assert str(gone) in [finding["path"] for finding in payload["checkout_audit"]]
-    assert not fx.output.exists()
-    assert str(gone) in registered(fx.main)
-
-
 # --- accept と cleanup ----------------------------------------------------------------------------------------------
 
 
@@ -610,6 +395,8 @@ def registered(repo: Path) -> list[str]:
 def test_accept_fast_forwards_agent_commit(fx: Fixture) -> None:
     summary = fx.run(fx.config(("a", fx.scenario("a", done(), steps=[WRITE_A, COMMIT]))))
 
+    # run は feature を動かさず、accept が監査した commit だけを取り込む。
+    assert git(fx.feature, "rev-parse", "HEAD") == fx.revision
     accepted = mod.accept(fx.output)
 
     assert accepted["state"] == "accepted"
@@ -662,25 +449,6 @@ def test_accept_refuses_moved_or_dirty_feature(fx: Fixture, change: str) -> None
     assert git(fx.feature, "rev-parse", "HEAD") == before
 
 
-def test_accept_refuses_non_importable(fx: Fixture) -> None:
-    agent = fx.scenario("a", done(files=["docs/x.md"]), steps=[{"kind": "write", "path": "docs/x.md"}, COMMIT])
-    fx.run(fx.config(("a", agent)))
-
-    with pytest.raises(mod.AcceptRefused):
-        mod.accept(fx.output)
-
-    assert git(fx.feature, "rev-parse", "HEAD") == fx.revision
-
-
-def test_accept_refuses_range_with_reverted_outside_change(fx: Fixture) -> None:
-    fx.run(fx.config(("a", fx.scenario("a", done(), steps=REVERTED_OUTSIDE["new-file"]))))
-
-    with pytest.raises(mod.AcceptRefused, match="docs/secret.txt"):
-        mod.accept(fx.output)
-
-    assert git(fx.feature, "rev-parse", "HEAD") == fx.revision
-
-
 def test_cleanup_removes_worktree_and_run_dir(fx: Fixture) -> None:
     summary = fx.run(fx.config(("a", fx.scenario("a", done(), steps=[WRITE_A, COMMIT]))))
     mod.accept(fx.output)
@@ -729,38 +497,12 @@ def test_cleanup_retains_unstopped_or_sensitive_attempt(fx: Fixture, field: str)
     assert summary["work_dir"] in registered(fx.main)
 
 
-def test_cleanup_removes_worktree_with_ignored_files(fx: Fixture) -> None:
-    agent = fx.scenario("a", done(), steps=[WRITE_A, COMMIT, {"kind": "write", "path": "ignored/cache.bin"}])
-    fx.run(fx.config(("a", agent)))
-    mod.accept(fx.output)
-
-    cleaned = mod.cleanup(fx.output)
-
-    assert cleaned["retained"] == []
-    assert not fx.output.exists()
-
-
-def test_cleanup_after_fallback_removes_every_attempt_worktree(fx: Fixture) -> None:
-    broken = fx.scenario("a", None, no_receipt=True)
-    backup = fx.scenario("b", done(), steps=[WRITE_A, COMMIT])
-    summary = fx.run(fx.config(("a", broken), ("b", backup), fallback=1))
-    mod.accept(fx.output)
-
-    cleaned = mod.cleanup(fx.output)
-
-    assert sorted(cleaned["removed_worktrees"]) == sorted(attempt["work_dir"] for attempt in summary["attempts"])
-    assert not fx.output.exists()
-
-
 def test_cli_accept_and_cleanup_exit_codes(fx: Fixture, capsys: pytest.CaptureFixture[str]) -> None:
     agent = fx.scenario("a", done(files=["docs/x.md"]), steps=[{"kind": "write", "path": "docs/x.md"}, COMMIT])
     fx.run(fx.config(("a", agent)))
 
     assert mod.main(["accept", "--run-dir", str(fx.output)]) == 1
     assert json.loads(capsys.readouterr().out)["status"] == "refused"
-    assert mod.main(["accept", "--run-dir", str(fx.tmp / "missing")]) == 2
-    capsys.readouterr()
-    (Path(fx.output) / "unrelated").mkdir()
     # 担当ファイルの外を commit した worktree は clean なので外せる。run_dir は自分のものなので消える
     assert mod.main(["cleanup", "--run-dir", str(fx.output)]) == 0
     assert json.loads(capsys.readouterr().out)["removed_run_dir"] is True

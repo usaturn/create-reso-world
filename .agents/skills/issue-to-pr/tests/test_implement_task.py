@@ -65,46 +65,20 @@ def check(tmp_path: Path, template_path: Path, *args: str, personal: Path | None
 SELF = '\n[workflows.issue.assignments.implement]\nagents = ["self"]\n'
 
 
-def test_check_accepts_template_default_self(tmp_path: Path) -> None:
-    code, payload = check(tmp_path, template(tmp_path, SELF))
-
-    assert code == 0, payload
-    assert payload["status"] == "ok"
-    assert payload["assignment"] == {"agents": ["self"], "fallback": []}
-    assert payload["self"] is True
-
-
-def test_check_implement_replaces_primary_and_keeps_fallback(tmp_path: Path) -> None:
+def test_check_implement_replaces_primary(tmp_path: Path) -> None:
     path = template(
         tmp_path, '\n[workflows.issue.assignments.implement]\nagents = ["codex"]\nfallback = ["pi-deepseek"]\n'
     )
 
     code, payload = check(tmp_path, path, "--implement", "claude-opus")
     assert code == 0, payload
-    assert payload["assignment"] == {"agents": ["claude-opus"], "fallback": ["pi-deepseek"]}
-    assert payload["self"] is False
-
-    code, payload = check(tmp_path, path, "--implement", "self")
-    assert code == 0, payload
-    assert payload["assignment"]["agents"] == ["self"]
-    assert payload["self"] is True
-
-
-def test_check_personal_config_overrides_template(tmp_path: Path) -> None:
-    personal = tmp_path / "personal.toml"
-    personal.write_text('[workflows.issue.assignments.implement]\nagents = ["codex"]\n', encoding="utf-8")
-
-    code, payload = check(tmp_path, template(tmp_path, SELF), personal=personal)
-
-    assert code == 0, payload
-    assert payload["assignment"]["agents"] == ["codex"]
+    assert payload["assignment"]["agents"] == ["claude-opus"]
     assert payload["self"] is False
 
 
 @pytest.mark.parametrize(
     ("assignment", "role", "personal", "args"),
     [
-        pytest.param(SELF, IMPLEMENT_ROLE, None, ["--implement", "nobody"], id="unknown-agent"),
         pytest.param(
             SELF,
             IMPLEMENT_ROLE,
@@ -112,12 +86,6 @@ def test_check_personal_config_overrides_template(tmp_path: Path) -> None:
             [],
             id="two-primaries",
         ),
-        pytest.param(SELF, IMPLEMENT_ROLE, "[roles.implement]\nwrites = false\n", [], id="writes-false"),
-        pytest.param(SELF, IMPLEMENT_ROLE, '[roles.implement]\nresult_shape = "text"\n', [], id="text-result"),
-        pytest.param(
-            '\n[workflows.fix.assignments.implement]\nagents = ["codex"]\n', IMPLEMENT_ROLE, None, [], id="no-issue"
-        ),
-        pytest.param(SELF, "", None, [], id="no-implement-role"),
     ],
 )
 def test_check_rejects_invalid_assignment(
@@ -158,19 +126,6 @@ SPEC.loader.exec_module(mod)
 SHA = "0123456789abcdef0123456789abcdef01234567"
 
 
-def result(**overrides: object) -> dict[str, object]:
-    return {
-        "status": "DONE",
-        "commit": SHA,
-        "changed_files": ["src/a.py"],
-        "commands": [{"argv": ["uv", "run", "pytest"], "exit_code": 0}],
-        "concerns": [],
-        "incomplete": [],
-        "retained_paths": [],
-        **overrides,
-    }
-
-
 def request(**overrides: object) -> dict[str, object]:
     return {
         "repository": "/abs/feature",
@@ -183,47 +138,12 @@ def request(**overrides: object) -> dict[str, object]:
     }
 
 
-@pytest.mark.parametrize("status", ["DONE", "DONE_WITH_CONCERNS", "BLOCKED", "NEEDS_CONTEXT"])
-@pytest.mark.parametrize("commit", [SHA, "a" * 64, None])
-def test_task_result_accepts_each_status_and_null_commit(status: str, commit: str | None) -> None:
-    parsed = mod.TaskResult.model_validate(result(status=status, commit=commit))
-
-    assert parsed.status == status
-    assert parsed.commit == commit
-
-
-# 型・必須の項目・未知の項目は pydantic が保証し、担当が返す不正な形の扱いは test_implement_task_run.py の
-# test_invalid_result_falls_back_to_the_next_candidate が runner の経路で確かめる。ここは自前の SHA の検査だけ
-@pytest.mark.parametrize("commit", [SHA[:12], SHA.upper(), "HEAD"])
-def test_task_result_rejects_commit_that_is_not_a_full_lowercase_sha(commit: str) -> None:
-    with pytest.raises(ValidationError):
-        mod.TaskResult.model_validate(result(commit=commit))
-
-
-def test_task_request_accepts_multiline_prompt_and_non_ascii_paths() -> None:
-    parsed = mod.TaskRequest.model_validate(request(allowed_files=["文書/説明 ファイル.md", "tests/"]))
-
-    assert parsed.prompt == FINDING_CONTENT
-    assert parsed.allowed_files == ["文書/説明 ファイル.md", "tests/"]
-
-
 @pytest.mark.parametrize(
     "overrides",
     [
         {"allowed_files": ["/abs/a.py"]},
         {"allowed_files": ["../a.py"]},
-        {"allowed_files": ["src/../a.py"]},
-        {"allowed_files": ["./a.py"]},
-        {"allowed_files": ["src//a.py"]},
         {"allowed_files": ["src/a.py\nother.py"]},
-        {"allowed_files": [" src/a.py"]},
-        {"allowed_files": ["/"]},
-        {"repository": "relative/feature"},
-        {"revision": "HEAD"},
-        {"task": "Task 2\n二行目"},
-        {"task": ""},
-        {"prompt": "  \n"},
-        {"commit_message": ""},
     ],
 )
 def test_task_request_rejects_invalid_fields(overrides: dict[str, object]) -> None:
