@@ -117,6 +117,58 @@ def _tool_run_stdout(final: str = _FENCED) -> str:
     return "".join(_PROGRESS) + final + "\n"
 
 
+# #239: devin -p prints the model's own messages to stdout, so a review can
+# quote a CLI-looking line in a code block or after its JSON answer.
+_QUOTE = "The adapter logs this on a bad key:\n```\nError: invalid api key\n```\n"
+_QUOTED_FINAL = _FENCED + "\nError: invalid api key above is quoted from the diff."
+
+
+@pytest.mark.parametrize(
+    "final_tool_calls,state,payload",
+    [
+        (None, "success", _FENCED_PAYLOAD),
+        (
+            [{"tool_call_id": "call-9", "function_name": "exec", "arguments": {}}],
+            "response_failed",
+            None,
+        ),
+    ],
+    ids=["answer", "no-answer"],
+)
+def test_quoted_diagnostics_in_model_messages_are_answer_data(
+    context: AdapterContext,
+    final_tool_calls: list[dict[str, object]] | None,
+    state: str,
+    payload: dict[str, object] | None,
+) -> None:
+    export = _tool_run_export(_QUOTED_FINAL, final_tool_calls=final_tool_calls)
+    # The quoting message is an earlier agent step; stdout concatenates every
+    # agent message and ends with the final one.
+    read = [{"tool_call_id": "call-q", "function_name": "read", "arguments": {}}]
+    cast(list[object], export["steps"]).insert(
+        -1, {"source": "agent", "message": _QUOTE, "tool_calls": read}
+    )
+    stdout = "".join(_PROGRESS) + _QUOTE + _QUOTED_FINAL + "\n"
+    outcome = _collect(context, stdout, export=export)
+    assert outcome.receipt is not None and outcome.receipt.status == state
+    assert outcome.receipt.payload == payload
+
+
+def test_export_error_step_authentication_overrides_answer(
+    context: AdapterContext,
+) -> None:
+    # An error step reports devin's own failure even though stdout still ends
+    # with a plausible final answer.
+    export = _tool_run_export()
+    cast(list[object], export["steps"]).insert(
+        -1, {"source": "error", "message": "Error: invalid api key"}
+    )
+    outcome = _collect(context, _tool_run_stdout(), export=export)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == "awaiting_authentication"
+    assert outcome.receipt.payload is None
+
+
 def test_prepare_writes_prompt_file_and_maps_flags(context: AdapterContext) -> None:
     spec = ADAPTER.prepare(context)
     prompt_path = spec.argv[spec.argv.index("--prompt-file") + 1]
@@ -387,29 +439,6 @@ def test_invalid_final_json_does_not_return_nested_fragment(
 
 
 @pytest.mark.parametrize(
-    "shape,answer,diagnostic,state",
-    [
-        ("text", "answer", "Error: Not logged in", "awaiting_authentication"),
-        ("text", "answer", "Approval required", "awaiting_approval"),
-    ],
-    ids=[
-        "text-answer-Error: Not logged in-awaiting_authentication",
-        "text-answer-Approval required-awaiting_approval",
-    ],
-)
-def test_text_diagnostic_with_valid_export_is_not_success(
-    context: AdapterContext, diagnostic: str, state: str, shape: str, answer: str
-) -> None:
-    # stdout ends with the final answer, so only the diagnostic line before it
-    # keeps this plausible run from succeeding.
-    context.role.result_shape = shape
-    outcome = _collect(
-        context, f"{diagnostic}\n{answer}\n", export=_export(message=answer)
-    )
-    assert outcome.receipt is not None and outcome.receipt.status == state
-
-
-@pytest.mark.parametrize(
     "failure",
     [
         {"source": "agent", "message": "answer", "error": "operation failed"},
@@ -423,26 +452,6 @@ def test_export_error_fields_override_answer(
     cast(list[object], export["steps"]).append(failure)
     outcome = _collect(context, '{"ok": true}', export=export)
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
-
-
-@pytest.mark.parametrize(
-    "shape,diagnostic,state",
-    [
-        ("json", "Not logged in", "awaiting_authentication"),
-        ("json", "waiting for approval", "awaiting_approval"),
-    ],
-    ids=[
-        "json-Not logged in-awaiting_authentication",
-        "json-waiting for approval-awaiting_approval",
-    ],
-)
-def test_final_atif_diagnostic_overrides_successful_stdout(
-    context: AdapterContext, diagnostic: str, state: str, shape: str
-) -> None:
-    context.role.result_shape = shape
-    outcome = _collect(context, '{"ok": true}', export=_export(message=diagnostic))
-    assert outcome.receipt is not None and outcome.receipt.status == state
-    assert outcome.receipt.payload is None
 
 
 @pytest.mark.parametrize(
