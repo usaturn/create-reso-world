@@ -598,3 +598,47 @@ def test_deleted_path_diff_error_stops_before_checkout_or_branch_deletion(
         ["-C", str(checkout), "diff", "--no-renames", "--name-only", "--diff-filter=D",
          "HEAD", "origin/main", "--", *PROTECTED_WORLD_ROOTS],
     ], "only the read-only status/diff queries may run; checkout must not be called"
+
+
+def test_protected_world_update_from_linked_project_deletes_only_merged_branch(
+    checkout: Path,
+) -> None:
+    # Normal counterpart of the refusal tests above: refusing every world
+    # change, or running step 8 against the caller's stale linked HEAD or not
+    # at all, still passes them. Only the merged candidate may be deleted.
+    source, peer = tracked_world_fixture(checkout, "worlds")
+    linked = checkout.parent / "linked feature"
+    git(checkout, "worktree", "add", "-qb", "active-feature", str(linked))
+    project = linked / "project"
+    project.mkdir()
+    caller_head = git(linked, "rev-parse", "HEAD")
+    publisher = checkout.parent / "publisher"
+    (publisher / source).write_bytes(b"updated world source\n")
+    git(publisher, "add", source)
+    git(publisher, "commit", "-qm", "update world source without deletion")
+    target = publish_world_changes(checkout)
+    git(checkout, "branch", "-f", "merged-feature", target)
+    assert git(checkout, "diff", "--no-renames", "--name-only", "HEAD", "origin/main") == source
+    assert git(checkout, "diff", "--no-renames", "--name-only", "--diff-filter=D",
+               "HEAD", "origin/main") == ""
+    assert git(checkout, "log", "--oneline", "origin/main..merged-feature") == ""
+    assert git(linked, "log", "--oneline", "HEAD..merged-feature") != ""
+    retained_refs = "\n".join(
+        line for line in local_refs(checkout).splitlines()
+        if not line.startswith("refs/heads/merged-feature ")
+    )
+    cache_before = snapshot_paths(checkout / "worlds" / ".uv-cache")
+    # Checkout unlinks the worktree path, so the peer's link count and ctime
+    # change; its own inode and bytes must not.
+    peer_before = (peer.lstat().st_ino, peer.read_bytes())
+
+    result = run_step7(checkout, cwd=project, following_delete=True)
+
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert_detached_at(checkout, target)
+    assert (checkout / source).read_bytes() == b"updated world source\n"
+    assert local_refs(checkout) == retained_refs, "only the merged candidate may be deleted"
+    assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
+    assert git(linked, "rev-parse", "HEAD") == caller_head
+    assert snapshot_paths(checkout / "worlds" / ".uv-cache") == cache_before
+    assert (peer.lstat().st_ino, peer.read_bytes()) == peer_before
