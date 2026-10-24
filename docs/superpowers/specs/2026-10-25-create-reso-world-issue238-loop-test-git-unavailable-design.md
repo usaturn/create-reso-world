@@ -1,6 +1,6 @@
 # Issue #238: loop の `git_unavailable` のテストを、一時ディレクトリの場所に依らず通す
 
-- 状態: draft
+- 状態: completed（PR #257 のサイクル 1 で修正不要と判断した。末尾の「PR #257 のレビュー修正（サイクル 1）」）
 - 文書管理リポジトリ: `usaturn/create-reso-world`（`docs/superpowers/`）
 - 対象: `usaturn/create-reso-world` / [Issue #238](https://github.com/usaturn/create-reso-world/issues/238)
 - 検証したコードの HEAD: `origin/main` `bdbe02b1bfdc8e884dfb836fc1083cd0cf3ae858`（2026-10-24T15:47Z の着手時）
@@ -65,3 +65,25 @@
 | 親の checkout | 既に満たす | 対象のテストを `tmp/agents/` の下の basetemp で実行した前後で、HEAD・refs・worktree・status・stash・`.git/config` の写しに差が無い | 前後の写しの比較 |
 | テスト全体（pr-review-fix-loop を含む） | 既に満たす | 使い捨ての外側のリポジトリの中の basetemp で、変更前は 1 failed（対象だけ）・1223 passed、変更後は 1224 passed。外側のリポジトリは、basetemp のディレクトリが増えたほかは変わらない | `uv run --locked pytest --basetemp <外側のリポジトリ>/… tests/skills .agents/skills .agents/scripts tools` |
 | `loop.py`・`git_environment()`・ほかのスキルのテスト | 対象外 | — | 「対象外」の理由 |
+
+## PR #257 のレビュー修正（サイクル 1）
+
+- 実行許可: 利用者の `/issue-to-pr #238 --merge`。issue-to-pr の 5 章のとおり PR 修正ループ（run `a79c749924af42999d62ed93389373cd`）を回し、review-fix-planning の完遂で判断した。結論 2 のマージと関連 Issue の更新は `finalize.py` が行う
+- planner: `claude-opus-5-5`（claude-code）。サイクル 1（判断の記録の round 1）で、前のサイクルの記録は無い
+- 対象: PR の head `2ff7d38b6507cb51ab0b529ecea1a13105401353`。base `main` の先端は、レビューの後に PR #258 と PR #256 のマージで `095961022c8bef74683aff4c8010bb1d73f7dc4f` に進んだ（merge-base は `bdbe02b`）
+- 入力: `reviews/usaturn/create-reso-world/#257-fix-issue-238-loop-test-git-unavailable/` の 4 レビューファイルと `findings/*-2ff7d38b6507.json`。候補 JSON は 4 件とも `validate`・`check-pair` を通った
+- 確認済みの一覧: `verified/2ff7d38b6507.json`（review-verify の mode cycle。確認担当は planner 自身）。confirmed 0・not_reproduced 0・unverified 0 で、未確認の範囲は無い。工程の記録は `verified/2ff7d38b6507.planning.json`
+
+| レビューファイル | モデル | ランタイム | 担当 | レビュー HEAD | 今回再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | pi-gpt | `2ff7d38b6507` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | devin-swe | `2ff7d38b6507` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | pi-deepseek | `2ff7d38b6507` | はい | Approve |
+| `Grok-4.7.md` | Grok 4.7 | cursor | cursor-grok47 | `2ff7d38b6507` | はい | Approve |
+
+- 指摘の振り分け: 指摘は 0 件（4 レビュアーとも active findings・Unverified candidates が無い）。解消済み 0 / 対応する 0 / 対応しない 0。「対応する」項目が無いので、守る条件と影響経路の表は作らない
+- planner の確認: PR の変更ファイルの全文（テストの関数、この Spec、Plan）、関連する処理（`loop.py` の `git_output`・`_registered_worktrees`・`cleanup_output`・`audit_resources`、`review_target.git_environment()`、ルートの `conftest.py` の autouse fixture、loop のテストの `env` fixture）と、正常側の対のテスト（`test_missing_parent_with_no_registration_is_removed`）を読んだ。`2ff7d38` の隔離 worktree で、対象のテストは basetemp が外側の Git リポジトリの中でも作業ツリーの外でも 1 passed、pr-review-fix-loop のテストは 114 passed。PR の欠陥は見つからなかった
+- 結論: 2 修正不要としてマージする
+- 検証: head `2ff7d38` に base の新しい先端 `0959610` を一時の隔離 worktree で merge したツリー（競合なし。push しない）で、`bash .devcontainer/run-tests.bash` は終了コード 0（23 test(s) PASS）、`bash scripts/check-layout.sh` は 0、`uv run pytest tests/skills .agents/skills .agents/scripts tools` は 0（1224 passed）。検証した base は `095961022c8bef74683aff4c8010bb1d73f7dc4f`。途中の先端 `6b6fd9a`（PR #258 のマージ）を merge したツリーでも 3 つとも 0 だった（pytest は 1223 passed。1 件の差は PR #258 の devin の adapter のテストの減少）。head だけのツリー（未 commit の変更なし）でも 3 つとも 0（pytest は 1224 passed）
+- 自己レビュー: 修正が無い（結論 2）ので行っていない。`run_roles.py` も実行していない
+- 所要時間: レビュー 16:37Z〜16:56Z（約 19 分）、確認済みの一覧と計画 16:57Z〜17:25Z ごろ（base が 2 回進み、merge したツリーの検証を 2 回行った）
