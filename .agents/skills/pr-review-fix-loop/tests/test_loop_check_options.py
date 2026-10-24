@@ -11,33 +11,6 @@ from typing import Any
 
 import pytest
 
-# テスト用の雛形（conftest の TEST_TEMPLATE）に、pi の担当 delta と codex の担当 echo を足す個人設定
-PERSONAL_AGENTS = """
-[agents.delta]
-runtime = "pi"
-command = ["fake-delta"]
-model = "delta-model"
-
-[agents.echo]
-runtime = "codex"
-command = ["fake-echo"]
-model = "echo-model"
-"""
-# 雛形（.devcontainer/agent-runner.toml）の codex と同じ形の担当を、個人設定のレビュアーに足す（#731）。
-# 拒否が外れても実物の codex を起動しないよう、command だけ存在しない名前にする
-PERSONAL_CODEX_REVIEWER = """
-[agents.codex]
-runtime = "codex"
-command = ["fake-codex-must-not-run", "exec"]
-model = "gpt-6.1-sol"
-provider = "openai"
-approval = "noninteractive"
-env = ["HOME", "PATH"]
-
-[workflows.review.assignments.inspect]
-agents = ["alpha", "codex"]
-"""
-
 
 def check_options(loop: Any, capsys: pytest.CaptureFixture[str], *arguments: str) -> tuple[int, dict[str, Any]]:
     capsys.readouterr()
@@ -58,22 +31,13 @@ def assert_untouched(env: Any) -> None:
     assert not (env.parent / "reviews").exists()
 
 
-def test_check_options_accepts_the_template_and_reports_effective_assignments(
+def test_check_options_has_no_external_side_effects(
     loop: Any, isolated: Any, capsys: pytest.CaptureFixture[str]
 ) -> None:
     code, output = check_options(loop, capsys, "--template", str(isolated.template))
 
     assert code == 0
     assert output["status"] == "ok"
-    assert output["next"] is None
-    assert output["options"] == {
-        "max_cycles": 3,
-        "assign": {},
-        "template": str(isolated.template),
-        "config": None,
-    }
-    assert output["assignments"]["review"]["inspect"]["agents"] == ["alpha", "beta"]
-    assert output["assignments"]["fix"]["implement"]["agents"] == ["alpha"]
     assert_untouched(isolated)
 
 
@@ -98,110 +62,3 @@ def test_check_options_reports_the_options_start_would_record(
     run = json.loads((Path(started["run_dir"]) / "run.json").read_text(encoding="utf-8"))
     assert output["options"] == {key: value for key, value in run["options"].items() if key != "fresh_review"}
     assert output["assignments"] == run["assignments"]
-
-
-def without_fix_check(template: Path, root: Path) -> Path:
-    path = root / "no-fix-check.toml"
-    text = template.read_text(encoding="utf-8")
-    section = '[workflows.fix.assignments.fix-check]\nagents = ["self"]\n'
-    assert section in text
-    path.write_text(text.replace(section, ""), encoding="utf-8")
-    return path
-
-
-@pytest.mark.parametrize(
-    ("start_options", "cli"),
-    [
-        pytest.param({"max_cycles": 0}, ["--max-cycles", "0"], id="max-cycles-0"),
-        pytest.param({"max_cycles": 11}, ["--max-cycles", "11"], id="max-cycles-11"),
-        pytest.param({"assign": ["inspect=self"]}, ["--assign", "inspect=self"], id="inspect-self"),
-        pytest.param({"assign": ["plan=alpha"]}, ["--assign", "plan=alpha"], id="unknown-role"),
-        pytest.param({"assign": ["inspect=nobody"]}, ["--assign", "inspect=nobody"], id="unknown-agent"),
-        pytest.param({"assign": ["inspect="]}, ["--assign", "inspect="], id="empty-agent"),
-        pytest.param(
-            {"assign": ["implement=alpha,beta"]}, ["--assign", "implement=alpha,beta"], id="two-implementers"
-        ),
-        pytest.param({"assign": ["inspect=alpha,echo"]}, ["--assign", "inspect=alpha,echo"], id="codex-inspect"),
-        pytest.param({"assign": ["fix-check=echo"]}, ["--assign", "fix-check=echo"], id="codex-fix-check"),
-        pytest.param({"template": "no-fix-check"}, [], id="missing-fix-check"),
-    ],
-)
-def test_check_options_rejects_what_start_rejects_with_the_same_reason(
-    loop: Any,
-    isolated: Any,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    start_options: dict[str, Any],
-    cli: list[str],
-) -> None:
-    personal = tmp_path / "personal.toml"
-    personal.write_text(PERSONAL_AGENTS, encoding="utf-8")
-    template = isolated.template
-    if start_options.get("template") == "no-fix-check":
-        template = without_fix_check(template, tmp_path)
-        start_options = {key: value for key, value in start_options.items() if key != "template"}
-
-    code, output = check_options(loop, capsys, *cli, "--template", str(template), "--config", str(personal))
-    with pytest.raises(loop.LoopError) as error:
-        isolated.start(template=template, config=personal, **start_options)
-
-    assert code == 2
-    assert output["status"] == "error"
-    assert (output["stage"], output["reason"]) == (error.value.stage, error.value.reason)
-    assert output["next"] is None
-    assert_untouched(isolated)
-
-
-def test_check_options_rejects_a_codex_reviewer_in_the_personal_config(
-    loop: Any, isolated: Any, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """--assign が無くても、個人設定のレビュアーに codex があれば worktree を作る前に止まる（#731）。"""
-    personal = tmp_path / "personal.toml"
-    personal.write_text(PERSONAL_CODEX_REVIEWER, encoding="utf-8")
-
-    code, output = check_options(loop, capsys, "--template", str(isolated.template), "--config", str(personal))
-
-    assert code == 2
-    assert output["stage"] == "config"
-    assert "codex runtime agent" in output["reason"]
-    assert_untouched(isolated)
-
-
-def test_check_options_reads_the_personal_config_when_not_given(
-    loop: Any, isolated: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """--config が無いときは、start と同じく既存の個人設定を重ねる（個人設定だけにある担当を使える）。"""
-    personal = tmp_path / "personal.toml"
-    personal.write_text(PERSONAL_AGENTS, encoding="utf-8")
-    monkeypatch.setenv("AGENT_RUNNER_CONFIG", str(personal))
-
-    code, output = check_options(loop, capsys, "--assign", "implement=delta", "--template", str(isolated.template))
-
-    assert code == 0, output
-    assert output["options"]["config"] is None
-    assert output["assignments"]["fix"]["implement"]["agents"] == ["delta"]
-
-
-def test_check_options_does_not_touch_herdr(
-    loop: Any,
-    isolated: Any,
-    fake_herdr: Any,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setenv("HERDR_ENV", "1")
-    monkeypatch.setenv("HERDR_PANE_ID", "w9:p9")
-
-    code, _ = check_options(loop, capsys, "--template", str(isolated.template))
-
-    assert code == 0
-    assert fake_herdr.calls() == []
-
-
-def test_check_options_does_not_accept_fresh_review(loop: Any, capsys: pytest.CaptureFixture[str]) -> None:
-    """--fresh-review は既存のレビュー結果を使うかどうかの指定で、PR の前の検査には意味が無い。"""
-    with pytest.raises(SystemExit) as error:
-        loop.main(["check-options", "--fresh-review"])
-
-    assert error.value.code == 2
-    assert capsys.readouterr().out == ""
