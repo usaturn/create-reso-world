@@ -6,6 +6,7 @@
 終了コード0だけがno_fix_needed。それ以外はstoppedと具体的な未完了箇所を返す。
 結果のmergedは、最後に観測したPRのマージ状態（true・false）。確かめていなければnull（未マージとは言わない）。
 マージしてよいPRはMERGEABLE_REPOSITORIESだけで、CIを確かめるかどうかはCI_REQUIREDで決める。
+ghの失敗で止まったときは、ghの応答の要点を結果のerror_detailに残す。stop_reasonには入れない。
 """
 
 from __future__ import annotations
@@ -45,6 +46,10 @@ SPEC_REPOSITORY = "usaturn/create-reso-world"
 SPEC_DIRECTORY = "docs/superpowers/specs/"
 SPEC_FILE_STATUSES = frozenset({"added", "modified"})
 FULL_SHA = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+# error_detailの長さの上限と、伏せるGitHubのトークンの形。ghは失敗の出力にトークンを出さないが、
+# 結果はループの記録や報告に写されるので、念のため伏せる
+DETAIL_LIMIT = 500
+GITHUB_TOKEN = re.compile(r"(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]+")
 
 FIELDS = (
     "url",
@@ -67,12 +72,14 @@ class Stop(Exception):
     """秘密を含まない、具体的な障害。
 
     wait_for は、待てば解消する状態（ci: 公開CIの実行中・待機中、mergeable: GitHubがマージ可否を計算中、
-    head: pushしたSpecのcommitがまだPRのheadに反映されていない）。司令塔が待ってから同じ記録で再実行する。
+    head: pushしたSpecのcommitがまだPRのheadに反映されていない、compare: SpecのcommitがPRのheadになった後に、
+    GitHubの比較を取得できなかった）。司令塔が待ってから同じ記録で再実行する。
     base_moved は、検証した後にbaseが進んだ停止（ref: baseブランチの名前、verified: 検証の記録のbase、
     current: 今の先端）。待っても解消しないので、司令塔がcurrentで検証し直し、検証の記録を作り直してから再実行する。
     merge_parent は、マージの後にmerge commitの最初の親が検証の記録のbaseと違う・読めない停止（verified・merge_commit・
     first_parent。読めなかった値はNone）。PRはマージ済み。違うときは司令塔がmerge commitのツリーで検証し直してから、
     読めないときは読めるようになってから、再実行する。
+    detail は、ghの失敗で止まったときのghの応答の要点（failure_detail）。結果のerror_detailに写す。
     """
 
     def __init__(
@@ -82,11 +89,23 @@ class Stop(Exception):
         wait_for: str | None = None,
         base_moved: dict[str, str] | None = None,
         merge_parent: dict[str, str | None] | None = None,
+        detail: str | None = None,
     ) -> None:
         super().__init__(reason)
         self.wait_for = wait_for
         self.base_moved = base_moved
         self.merge_parent = merge_parent
+        self.detail = detail
+
+
+def failure_detail(error: Exception) -> str:
+    """ghの失敗の要点（ghの標準エラー、無ければ標準出力。応答を使えなかったときはその理由）。
+
+    1行にまとめ、印字できない文字を除き、トークンの形を伏せてから切り詰める。
+    stop_reasonには入れない（判断の記録・PRのコメントに写されうる）。
+    """
+    text = "".join(char for char in " ".join(str(error).split()) if char.isprintable())
+    return GITHUB_TOKEN.sub("[REDACTED]", text)[:DETAIL_LIMIT]
 
 
 def check_evidence(checks: Mapping[str, Any], head: str) -> None:
@@ -217,11 +236,20 @@ def is_spec_only_child(comparison: object, base: str, spec_commit: str) -> bool:
 
 
 def check_spec_change(runner: Any, repo: str, reviewed_head: str, spec_commit: str) -> None:
-    """GitHubの比較で、Specのcommitが検証したHEADの上のSpec 1ファイルだけの変更と確かめる。"""
-    comparison = poster.load_json(
-        poster.run_gh(["api", f"repos/{repo}/compare/{reviewed_head}...{spec_commit}"], runner=runner),
-        "gh api compare",
-    )
+    """GitHubの比較で、Specのcommitが検証したHEADの上のSpec 1ファイルだけの変更と確かめる。
+
+    呼ぶ前に、PRのheadがSpecのcommitであることをcheck_viewで確かめている。それでもpushの直後は、
+    GitHubの比較の取得だけが失敗することがある（#241）。ghの失敗は待てば進む停止にする。応答の形が違えば待たない。
+    """
+    try:
+        output = poster.run_gh(["api", f"repos/{repo}/compare/{reviewed_head}...{spec_commit}"], runner=runner)
+    except poster.CommentError as error:
+        raise Stop(
+            "external: GitHubの比較を取得できない（Specのcommitのpushの直後は比較が遅れることがある）",
+            wait_for="compare",
+            detail=failure_detail(error),
+        ) from None
+    comparison = poster.load_json(output, "gh api compare")
     if not is_spec_only_child(comparison, reviewed_head, spec_commit):
         raise Stop("environment: Spec の commit が検証した HEAD の上の Spec 1 ファイルだけの変更ではない")
 
@@ -273,16 +301,17 @@ def check_merge_parent(runner: Any, repo: str, view: Mapping[str, Any], verified
     if not isinstance(oid, str) or FULL_SHA.fullmatch(oid) is None:
         raise Stop(unreadable, merge_parent=found)
     found["merge_commit"] = oid
+    detail = None
     try:
         commit = as_object(
             poster.load_json(poster.run_gh(["api", f"repos/{repo}/git/commits/{oid}"], runner=runner), "gh api commit")
         )
-    except poster.CommentError:
-        commit = None
+    except poster.CommentError as error:
+        commit, detail = None, failure_detail(error)
     parents = None if commit is None or commit.get("sha") != oid else as_list(commit.get("parents"))
     first = (as_object(parents[0]) or {}).get("sha") if parents else None
     if not isinstance(first, str) or FULL_SHA.fullmatch(first) is None:
-        raise Stop(unreadable, merge_parent=found)
+        raise Stop(unreadable, merge_parent=found, detail=detail)
     found["first_parent"] = first
     if first != verified:
         raise Stop(
@@ -508,10 +537,13 @@ def finalize(
             result["base_moved"] = error.base_moved
         if error.merge_parent is not None:
             result["merge_parent"] = error.merge_parent
+        if error.detail is not None:
+            result["error_detail"] = error.detail
     except poster.records.RecordError:
         result["stop_reason"] = "environment: 状況記録が不正で最終化を開始できない"
-    except poster.CommentError:
+    except poster.CommentError as error:
         result["stop_reason"] = f"external: {step} の取得・検査・書込みに失敗した"
+        result["error_detail"] = failure_detail(error)
     except OSError, ValueError:
         result["stop_reason"] = f"environment: {step} の実行に必要な入力・コマンドを利用できない"
     result["merged"] = merged

@@ -127,6 +127,8 @@ class FakeGh:
         self.login_fails = False
         self.compare: Any = compare_response()
         self.compare_fails = False
+        # 失敗したghの標準エラー
+        self.stderr = "fake failure"
         # baseブランチの先端（ブランチの名前ごと）。投稿の後に動かす先端、応答の差し替え、取得の失敗
         self.tips: dict[str, str] = {"main": BASE}
         self.tip_after_post: str | None = None
@@ -228,7 +230,7 @@ class FakeGh:
         else:
             raise AssertionError(argv)
         stdout = json.dumps(copy.deepcopy(value)) if text is None else text
-        return CompletedProcess(list(args), code, stdout, "fake failure" if code else "")
+        return CompletedProcess(list(args), code, stdout, self.stderr if code else "")
 
     def writes(self) -> list[tuple[str, ...]]:
         return [call for call in self.calls if "--method" in call or call[1:3] in (("pr", "merge"), ("issue", "close"))]
@@ -455,6 +457,23 @@ def test_issue_update_failure_is_reported_after_real_merge() -> None:
     assert "external:" in result["stop_reason"]
 
 
+def test_gh_failure_detail_is_kept_without_tokens_or_stop_reason() -> None:
+    """ghの失敗の要点は結果に残すが、トークンの形の文字列は伏せる。stop_reasonは判断の記録・PRのコメントに
+    写されうるので、ghの出力を入れない。"""
+    # gitleaksに検出されないよう、トークンの形の偽の値は実行時に組み立てる
+    token = "_".join(["ghp", "Ab3" * 12])
+    gh = FakeGh()
+    gh.login_fails = True
+    gh.stderr = f"HTTP 401: Bad credentials\n(token {token})"
+    result = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert result["outcome"] == "stopped" and result["stop_reason"].startswith("external:")
+    # authenticated_loginはghの標準エラーに前置きを付ける
+    assert result.get("error_detail") == (
+        "cannot read the authenticated login: HTTP 401: Bad credentials (token [REDACTED])"
+    )
+    assert token not in json.dumps(result) and "Bad credentials" not in result["stop_reason"]
+    assert gh.writes() == []
+
 
 def cli_args(tmp_path: Path, result: Path) -> list[str]:
     record_file = tmp_path / "record.json"
@@ -663,12 +682,20 @@ def test_spec_commit_compare_must_be_one_spec_file_on_the_reviewed_head(mutation
     assert result["merged"] is False and gh.writes() == []
 
 
-def test_spec_commit_compare_request_failure_is_external_and_does_not_merge() -> None:
+def test_spec_commit_compare_failure_after_the_push_waits_and_the_rerun_merges() -> None:
+    """#241: PRのheadがSpecのcommitになった直後に、GitHubの比較だけが失敗した（PR #240）。
+    マージせずに待てば進む停止にし、ghの応答の要点を残す。比較が戻った同じ入力の再実行でマージする。"""
     gh = spec_gh()
     gh.compare_fails = True
-    result = finalize_spec(gh)
-    assert result["outcome"] == "stopped" and result["stop_reason"].startswith("external:")
+    gh.stderr = "gh: Not Found (HTTP 404)"
+    first = finalize_spec(gh)
+    assert (first["outcome"], first["merged"], first.get("wait_for")) == ("stopped", False, "compare")
+    assert first["stop_reason"].startswith("external:") and first.get("error_detail") == "gh: Not Found (HTTP 404)"
     assert gh.writes() == []
+    gh.compare_fails = False
+    second = finalize_spec(gh)
+    assert second["outcome"] == "no_fix_needed" and "wait_for" not in second and "error_detail" not in second
+    assert [call[1:3] for call in gh.writes()] == [("pr", "merge"), ("issue", "close")]
 
 
 @pytest.mark.parametrize("posted", ["none", "different", "untrusted_author"])
