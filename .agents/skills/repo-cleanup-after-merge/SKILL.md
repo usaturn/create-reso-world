@@ -122,7 +122,7 @@ clean とするのは、2 つの終了コードがどちらも 0 で、1 つ目�
 
 削除候補の worktree にある untracked ファイルは正本と照合する述語を持たないため、ゲート A の対象として必ず人間の判断を要求する。同じ種類のファイルで毎回止まるのは、**worktree 内に判定不能な生成物を残す手順が上流にある**ということである。ゲートを緩めて解決してはならない。
 
-報告時は「どのスキル・どの手順の生成物か」を添えて指摘し、生成側を次の原則へ合わせるよう促す。
+報告時は「どのスキル・どの手順の生成物か」を添えて指摘し、生成側を次の原則へ合わせるよう促す。たとえば `.superpowers/sdd/` は superpowers の subagent-driven-development・executing-plans のスクリプト（`sdd-workspace`・`task-start`・`task-done`）の生成物で、ルート `AGENTS.md` の「SDD 実行運用」が置き場所を `tmp/agents/` に定めている。
 
 **生成物は worktree の外（scratchpad / `mktemp -d`）に出す。** untracked が発生しないので手順 4 で止まらない。本スキルは worktree 直下の untracked を機械的に照合する述語を持たない。手順 6 のゲート A は `session.json` を持つ残骸ディレクトリ専用であり、worktree 内に残す限り毎回ユーザー確認になる。
 
