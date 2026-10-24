@@ -1,6 +1,6 @@
 # Issue #233: スキルと tests/skills のテスト削減設計
 
-> 状態: draft（レビュー修正サイクル 2 の対応を記録）。管理先: `usaturn/create-reso-world`。対象 Issue: https://github.com/usaturn/create-reso-world/issues/233 。対象 PR: https://github.com/usaturn/create-reso-world/pull/254 。対象ブランチ: `feat/issue-233-skill-tests`。サイクル 2 のレビュー対象 HEAD: `af0349e28d3e0f713cb541ff4298a44075aa80fd`。修正後のコード HEAD: `f4db3dc4d188dfbdd0f88a8c16e2880c770f70ae`。
+> 状態: completed。管理先: `usaturn/create-reso-world`。対象 Issue: https://github.com/usaturn/create-reso-world/issues/233 。対象 PR: https://github.com/usaturn/create-reso-world/pull/254 。対象ブランチ: `feat/issue-233-skill-tests`。最終レビュー対象 HEAD: `0002d03507576cb7cd39ffdb40fb6fbf9c0fefe4`。実装コードの最終変更 HEAD: `f4db3dc4d188dfbdd0f88a8c16e2880c770f70ae`。
 >
 > 実行許可: 利用者の「`$issue-to-pr #233 --merge`」（2026-10-24）。これは実装、検証、commit、push、PR 作成、および指定されたレビュー修正ループで条件を満たした場合のマージの許可であり、本書の内容承認を意味しない。
 
@@ -566,7 +566,7 @@ Task 1 は 54 件、Task 2 は 83 件、Task 3 は 80 件のテストを残し�
 
 fix-check は修正前 `2e517c6` と修正後 `b73019e` の 4 主張を、コミット済みの差分・正常例・6 件の使い捨て変異で照合した。新規指摘 0、4 主張すべて `holds`、変更 3 ファイルすべて `passed`、`coverage.remaining=[]`。v2 の形式検査は終了コード 0。実測確認は 380.891 秒、後片付け込み約 409 秒。結果は同レビューディレクトリの `verified/b73019e04093.fix-check.json`、要約と文書候補 sidecar に保存した。自己レビュー後に直したのは計測の文書と PR 本文のみで、2 回目の自己レビューは実施しない。
 
-このサイクルの判断は、初回レビューの 4 件と自己レビューの 1 件をすべて「対応する」とし、解消済み・対応しない・未確認は 0 件。変更対象はテスト 3 ファイルと本 Spec、外部の実装 API は変えていない。最終の Spec は `completed` として同じ PR のブランチへ 1 commit だけ追加し、検査付きで push する。PR 本文・Issue コメント・判断の記録の投稿と次のレビューサイクルは、その後の工程として実行する。
+サイクル 1 時点の判断は、初回レビューの 4 件と自己レビューの 1 件をすべて「対応する」とし、解消済み・対応しない・未確認は 0 件。変更対象はテスト 3 ファイルと本 Spec、外部の実装 API は変えていない。この時点の Spec は `completed` として同じ PR のブランチへ 1 commit だけ追加し、検査付きで push した。PR 本文・Issue コメント・判断の記録も更新し、次のレビューサイクルを実行した。
 
 ## PR #254 のレビュー修正（サイクル 2）
 
@@ -602,3 +602,18 @@ fix-check は修正前 `2e517c6` と修正後 `b73019e` の 4 主張を、コミ
 独立した fix-check は `af0349e..f4db3dc` の主張 3 件をすべて `holds`、変更テストファイル 1 件を `passed` とし、未確認は 0 件。確認時間は 304.26 秒。追加テストが 4 変異を検出した一方、コミット済み Spec の旧説明を `fix-check#V-1@f4db3dc4d188` として confirmed にした。旧説明は、先頭の一般更新テストが保護領域更新の拒否テストと対になるように読めるが、そのテストは `incoming.txt` だけを更新する。本書の棚卸し行で、保護領域の更新成功を今回の代表テストが担うことを明記した。保存先は `PARENT_ROOT/reviews/usaturn/create-reso-world/#254-feat-issue-233-skill-tests/verified/f4db3dc4d188.fix-check.json` と対応する候補一覧・要約。両担当とも隔離 worktree と一時生成物を片付け、停止中の処理や残存パスはない。
 
 このサイクルで新たに判断した 3 件は、レビュアーの L-1 をテスト追加、自己レビューの Info と fix-check の V-1 を本書の更新と公開報告で対応する。前サイクルの 5 件は現行 HEAD でも解消済み。今回の修正はテスト 1 件と本書だけであり、実装コード・スキル手順・公開 API は変更していない。文書だけの修正後に自己レビューの枠を再実行しない。
+
+## PR #254 の最終レビュー（サイクル 3）
+
+公開済み HEAD `0002d03507576cb7cd39ffdb40fb6fbf9c0fefe4` を 4 レビュアーが再確認した。ループは 4 件すべてを受理し、却下は 0 件。別タスクの `.worktrees/issue-231-pr-review-tests` に変更があったことを `outside_changes` に記録したが、その worktree は本件の入力・変更に使っていない。
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | 今回の再実行 | 新規指摘 | Merge recommendation |
+| --- | --- | --- | --- | --- | ---: | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `0002d0350757` | はい | 0 | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | `0002d0350757` | はい | 0 | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | `0002d0350757` | はい | 0 | Approve |
+| `Grok-4.7.md` | Grok 4.7 | cursor | `0002d0350757` | はい | 0 | Approve |
+
+確認済み一覧 `PARENT_ROOT/reviews/usaturn/create-reso-world/#254-feat-issue-233-skill-tests/verified/0002d0350757.json` は、4 組のレビュー本文・候補一覧・対象 HEAD・provenance を照合し、新規指摘・未確認候補とも 0 件。確認担当の実測は 210.90 秒、全工程は約 253 秒。隔離 worktree は片付けた。前サイクルの 3 判断は、代表テストが手順 7・8 の正常経路を通すことと、保護領域の一律拒否・手順 8 の削除省略・caller cwd 実行の変異で失敗すること、Spec の棚卸し行と最終計測値が更新済みであることを固定 HEAD で確認し、すべて解消済みとする。サイクル 1 の 5 判断も解消済みを維持する。
+
+マージ前の検証はこの HEAD で実行した。`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools` は 1,450 passed（789.19 秒）、`bash .devcontainer/run-tests.bash` は 23 件成功、`bash scripts/check-layout.sh` は PASS、`git diff --check origin/main..HEAD` は終了コード 0。#233 指定領域は前サイクルの同じ実装ツリーで 195 passed と収集 195 件、追跡テストファイル 4,087 行であり、今回の HEAD は Spec の追記だけでテストファイルを変更していない。検証時の `origin/main` は `ad89c150bc9a269921088ee63c1ccbd109e93b16` で、HEAD の祖先である。検証ログは `PARENT_ROOT/tmp/agents/review-fix-pr254-r2.zgdtcmkf/round3-*.log`。公開済みの PR 本文と Issue #233 のコメントも 195 件・4,087 行・1,450 passed に一致する。判断担当は GPT-6（codex）で、サイクル 1 の判断は [PR コメント](https://github.com/usaturn/create-reso-world/pull/254#issuecomment-6382439017)、サイクル 2 の判断は [PR コメント](https://github.com/usaturn/create-reso-world/pull/254#issuecomment-6382960371) に記録した。最終サイクルの判断は「対応する」0 件、修正不要として PR #254 のサイクル 3 の記録に投稿し、本書だけの最終コミットを push してからマージの直前に base を再確認する。
