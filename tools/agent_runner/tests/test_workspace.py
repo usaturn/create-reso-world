@@ -270,7 +270,8 @@ def test_async_preparation_uses_pinned_commit_and_safe_environment(
             repository,
             commit,
             destination,
-            deadline_seconds=3,
+            # Only bounds a hang; creating the worktree stretches on a loaded host (#223).
+            deadline_seconds=30,
             cancel=threading.Event(),
             stdout_path=tmp_path / "worktree.stdout.log",
             stderr_path=tmp_path / "worktree.stderr.log",
@@ -302,7 +303,8 @@ def test_git_preparation_stops_term_resistant_child_of_exited_hook(repository: P
                 repository,
                 resolve_revision(repository),
                 tmp_path / "hook-worktree",
-                deadline_seconds=3,
+                # Success, not a timeout, is checked; the deadline only bounds a hang (#223).
+                deadline_seconds=30,
                 cancel=threading.Event(),
                 stdout_path=tmp_path / "worktree.stdout.log",
                 stderr_path=tmp_path / "worktree.stderr.log",

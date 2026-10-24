@@ -62,7 +62,7 @@ def test_stdin_quotes_multiline_cwd_and_environment_are_literal(tmp_path: Path) 
             spec,
             cwd=tmp_path,
             env={"EXPECTED_CWD": str(tmp_path), "EXTRA": "literal"},
-            deadline_seconds=5,
+            deadline_seconds=30,
             stdout_path=tmp_path / "stdout",
             stderr_path=tmp_path / "stderr",
             cancel=threading.Event(),
@@ -172,7 +172,7 @@ def test_supervisor_preserves_literal_environment(
             LaunchSpec(("/usr/bin/env", "-0"), b"", env=additions),
             cwd=tmp_path,
             env=env,
-            deadline_seconds=5,
+            deadline_seconds=30,
             stdout_path=tmp_path / "stdout",
             stderr_path=tmp_path / "stderr",
             cancel=threading.Event(),
@@ -245,8 +245,11 @@ def alive(pid: int) -> bool:
     return state not in (b"Z", b"X")
 
 
+# Like run()'s default, the waits of tests that do not check a deadline only bound
+# a hang: starting the supervisor and its children stretches on a loaded host
+# (#218, #223).
 async def wait_for(path: Path) -> None:
-    async with asyncio.timeout(5):
+    async with asyncio.timeout(30):
         while not path.exists() or not path.read_text():
             await asyncio.sleep(0.01)
 
@@ -272,7 +275,7 @@ def test_immediate_exit_before_ownership_observation_stops_children(
         leader = int((tmp_path / "leader.pid").read_text())
         # Hold delivery, not the command: the original CLI must be reaped before
         # execute constructs its ownership tree. The supervisor must still live.
-        async with asyncio.timeout(2):
+        async with asyncio.timeout(30):
             while _read_proc(leader) is not None:
                 await asyncio.sleep(0.001)
         child = _read_proc(int((tmp_path / "child.pid").read_text()))
@@ -382,7 +385,10 @@ time.sleep(60)
                 launch(code),
                 cwd=tmp_path,
                 env={"PATH": os.defpath, "OVERRIDE": "original"},
-                deadline_seconds=10,
+                # Cancellation, not the deadline, must stop it: a deadline that fires
+                # first stops the process itself, so the test fails or no longer
+                # exercises cancellation.
+                deadline_seconds=30,
                 stdout_path=tmp_path / "stdout",
                 stderr_path=tmp_path / "stderr",
                 cancel=threading.Event(),
@@ -392,7 +398,7 @@ time.sleep(60)
         await asyncio.sleep(0.1)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await asyncio.wait_for(task, 3)
+            await asyncio.wait_for(task, 30)
 
     asyncio.run(exercise())
     pids = [int((tmp_path / name).read_text()) for name in ("leader.pid", "child.pid")]
@@ -439,7 +445,7 @@ def test_repeated_cancellation_during_launch_still_stops_process(
                 launch("import os,time; open('leader.pid','w').write(str(os.getpid())); time.sleep(60)"),
                 cwd=tmp_path,
                 env={"PATH": os.defpath, "OVERRIDE": "original"},
-                deadline_seconds=10,
+                deadline_seconds=30,
                 stdout_path=tmp_path / "stdout",
                 stderr_path=tmp_path / "stderr",
                 cancel=threading.Event(),
@@ -451,7 +457,7 @@ def test_repeated_cancellation_during_launch_still_stops_process(
         task.cancel()
         delivery.set()
         with pytest.raises(asyncio.CancelledError):
-            await asyncio.wait_for(task, 3)
+            await asyncio.wait_for(task, 30)
 
     asyncio.run(exercise())
     pid = int((tmp_path / "leader.pid").read_text())
