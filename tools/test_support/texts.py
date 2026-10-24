@@ -1,6 +1,6 @@
-"""レビュー指摘とその理由の、実環境の形をした自由記述サンプル。
+"""レビュー指摘の、実環境の形をした自由記述サンプル。
 
-`ReviewFinding.content` や planner の `reason` は、改行・タブ・CRLF・
+担当への依頼の `prompt` のような自由記述は、改行・タブ・CRLF・
 非 ASCII 文字を含む複数行の文章になりうる。識別子やパスとして解釈
 できる形ではない（``str.isidentifier()`` が False）。
 """
@@ -13,10 +13,4 @@ FINDING_CONTENT: Final[str] = (
     "\t- `Failed to spawn: pytest`（exit 2）で終わる\n"
     "\t- controller 側は親 checkout の `.venv` 済みなので同じ argv が通る\n"
     "再現: `git worktree add` の結果を cwd にして同じコマンドを実行する。\n"
-)
-
-FINDING_REASON: Final[str] = (
-    "実環境と同じ形の入力で起きる失敗のため採用する。\r\n"
-    "\t根拠: `uv run` の spawn 失敗はテストが常に uv を成功で返していたことに由来し、\n"
-    "\tFakeRunner 前提の fixture では検出できない。\n"
 )

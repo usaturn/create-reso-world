@@ -106,13 +106,13 @@ rebuild しない場合は、3 の代わりに次を行う。
 
 ## テストの実行
 
-リポジトリのルートで次を実行する。CI（`.github/workflows/ci.yml`）も同じコマンドを実行する。
+リポジトリのルートで次を実行する。CI（`.github/workflows/ci.yml`）も同じコマンドを実行する（skill-tests のジョブは pytest の `tools` を除く）。
 
 ```bash
-bash .devcontainer/run-tests.bash                          # .devcontainer/test-*.bash と tests/scripts/*.bash（CI の devcontainer-tests）
-bash scripts/check-layout.sh                               # リポジトリのレイアウト（CI の layout。resoloop が無ければ skills sync の検査を skip）
-uv run pytest tests/skills .agents/skills .agents/scripts  # スキルと .agents/scripts のテスト（CI の skill-tests）
-(cd worlds/<name> && uv run pytest)                        # 各ローカルプロジェクトのテスト（追跡対象外なので CI では実行しない）
+bash .devcontainer/run-tests.bash                                # .devcontainer/test-*.bash と tests/scripts/*.bash（CI の devcontainer-tests）
+bash scripts/check-layout.sh                                     # リポジトリのレイアウト（CI の layout。resoloop が無ければ skills sync の検査を skip）
+uv run pytest tests/skills .agents/skills .agents/scripts tools  # スキル・.agents/scripts・tools のテスト（CI の skill-tests は tools を除く）
+(cd worlds/<name> && uv run pytest)                              # 各ローカルプロジェクトのテスト（追跡対象外なので CI では実行しない）
 ```
 
 テストは一時ディレクトリの `HOME` と、モックの resoloop・dotnet・Blender を使うので、実環境を変えない。
