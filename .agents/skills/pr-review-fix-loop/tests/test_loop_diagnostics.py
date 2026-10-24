@@ -137,6 +137,7 @@ def test_cause_uses_only_failure_channels(loop: Any, tmp_path: Path, stdout: str
     ("exit_code", "state", "reported", "sensitive", "stopped", "cause"),
     [
         (0, "response_failed", None, False, True, "response_extraction"),
+        (0, "missing_result", "success", False, True, "unknown"),
         (1, "response_failed", None, False, True, "unknown"),
     ],
 )

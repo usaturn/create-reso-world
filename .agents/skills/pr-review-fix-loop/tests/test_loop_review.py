@@ -108,7 +108,9 @@ def broken(result: Result, case: str, env: Any, tmp_path: Path) -> Result:
     payload: dict[str, Any] = dict(cast(dict[str, Any], attempt.payload))
     attempt_update: dict[str, Any] = {}
     result_update: dict[str, Any] = {}
-    if case == "stop_unconfirmed":
+    if case == "outer_failed":
+        result_update["state"] = "timed_out"
+    elif case == "stop_unconfirmed":
         attempt_update["stop_confirmed"] = False
     elif case == "payload_failed":
         payload["status"] = "failed"
@@ -142,6 +144,7 @@ def broken(result: Result, case: str, env: Any, tmp_path: Path) -> Result:
 @pytest.mark.parametrize(
     "case",
     [
+        "outer_failed",
         "stop_unconfirmed",
         "payload_failed",
         "request_mismatch",
