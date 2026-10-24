@@ -63,7 +63,7 @@
 | `test_loop_diagnostics.py::test_recovered_failures_do_not_decide_the_cause` | 7 | S | 中: 回復した一時的エラーを最終原因として保存する損害を防ぐ。 | 縮約: id=claude-retry-overloaded,claude-retries-exhausted,pi-retry-recovered,pi-retries-exhausted-without-agent-end を残す。残りは同じ回復/失敗経路。 |
 | `test_loop_diagnostics.py::test_reported_failures_are_not_response_extraction` | 4 | S | 中: pi が報告した提供元の失敗を応答抽出失敗と誤記録する損害を防ぐ。 | 縮約: id=failed-message,nothing-reported を残す。agent_end 内の類似例は重複。 |
 | `test_loop_diagnostics.py::test_rerun_keeps_a_diagnostic_for_each_request` | 1 | S | 中: 再実行が最初の失敗記録を上書きして調査履歴を失う損害を防ぐ。 | 残す |
-| `test_loop_diagnostics.py::test_response_extraction_is_decided_from_the_end_state` | 6 | S | 中: runner や adapter の終了状態と食い違う応答抽出失敗を永続診断に保存し、復旧判断を誤らせる損害を防ぐ。 | 縮約: 値 (0,response_failed,None,False,True,response_extraction)、(0,missing_result,success,False,True,unknown)、(1,response_failed,None,False,True,unknown) を残す。adapter が成功を報告した missing_result は独立条件。 |
+| `test_loop_diagnostics.py::test_response_extraction_is_decided_from_the_end_state` | 6 | S | 中: runner や adapter の終了状態と食い違う応答抽出失敗を永続診断に保存し、復旧判断を誤らせる損害を防ぐ。 | 縮約: 応答抽出の正例、adapter 成功、終了コード 1、非ログの `sensitive_paths` を持つ負例を残す。非ログの保持物は独立条件であり、サイクル 1 のレビューで復元した。 |
 | `test_loop_diagnostics.py::test_review_reads_stdout_by_the_reviewer_runtime` | 1 | S | 中: レビュアーの runtime を取り違え、失敗の原因を誤記録する損害を防ぐ。 | 残す |
 | `test_loop_diagnostics.py::test_secret_in_logs_never_reaches_the_records` | 1 | S | 高: ログ中の秘密情報が永続記録や CLI の JSON 出力へ漏れる損害を防ぐ。 | 残す |
 | `test_loop_diagnostics.py::test_unobservable_logs_are_not_response_extraction` | 5 | S | 中: 部分取得のログだけで応答抽出失敗と誤判定し、復旧判断を誤らせる損害を防ぐ。末尾切り出しは通常の読取不能と別条件。 | 縮約: change=partial のみ残す。partial は末尾切り出しに失敗報告が隠れる固有条件。 |
@@ -117,9 +117,9 @@
 | `test_loop_state.py::test_a_failed_lock_write_leaves_no_lock` | 1 | L | ロック書込が失敗して残留しても、次の start は lock_held と所有者を明示して止まる。成功・競合の守りは test_second_start_is_refused_while_the_first_run_holds_the_lock と test_finish_releases_only_its_own_lock が確認する。 | 消す |
 | `test_loop_state.py::test_abort_after_a_finalize_merge_keeps_the_merge` | 2 | S | 高: finalize 後に cycle-end が停止しても、abort でマージ済みを false と記録する損害を防ぐ。 | 縮約: id=pr-unreadable を残す。pr-read は abort_records_the_merge_state_it_observed と重複。 |
 | `test_loop_state.py::test_abort_needs_a_classified_reason` | 1 | L | 理由の書式違反は finish が引数エラーとして明示する。 | 消す |
-| `test_loop_state.py::test_abort_records_the_merge_state_it_observed` | 10 | S | 高: PR の実状態、finalize の最後の観測、未確認 null を混同してマージ状態を誤報告する損害を防ぐ。 | 縮約: id=merged-finalize-false、unreadable、open-finalize-true を残す。他 7 件は同じ優先順位の重複。 |
+| `test_loop_state.py::test_abort_records_the_merge_state_it_observed` | 10 | S | 高: PR の実状態、finalize の最後の観測、未確認 null を混同してマージ状態を誤報告する損害を防ぐ。 | 縮約: open・finalize 不在で false、merged・finalize false で true、PR 不可読で null、open・finalize true で null を残す。false と null の区別は独立条件としてサイクル 1 で復元した。 |
 | `test_loop_state.py::test_abort_treats_a_gh_that_cannot_start_as_unreadable` | 1 | D | PR が読めないときの finalize fallback は abort_after_a_finalize_merge_keeps_the_merge の pr-unreadable で代表する。 | 消す |
-| `test_loop_state.py::test_cli_finish_abort_passes_the_finalize_result` | 1 | D | finalize 結果を abort へ渡す守りは abort_after_a_finalize_merge_keeps_the_merge で代表する。 | 消す |
+| `test_loop_state.py::test_cli_finish_abort_passes_the_finalize_result` | 1 | S | 高: CLI が `--finalize-result` を実処理へ渡さないと、PR 不可読時に観測済みマージを null と記録する。API の直接呼出しでは CLI 境界を守れない。 | 残す。サイクル 1 で復元し、CLI の転送だけを壊すと失敗することを確認した。 |
 | `test_loop_state.py::test_cli_start_reports_a_refused_fix_assignment` | 1 | L | closed PR・無効な担当は start、run_roles、runner が理由付き非 0 終了で検出する。 | 消す |
 | `test_loop_state.py::test_cycle_end_accepts_a_spec_commit_merge` | 1 | S | 高: 検証 HEAD の上に Spec commit を載せた PR のマージを、別 commit と誤照合する損害を防ぐ。 | 残す |
 | `test_loop_state.py::test_cycle_end_before_the_record_is_posted_keeps_the_cycle_open` | 1 | S | 高: レビューや判断記録の前にサイクルを完了し、未検証の PR を成功扱いする損害を防ぐ。 | 残す |
@@ -129,7 +129,7 @@
 | `test_loop_state.py::test_finalize_merged_but_pr_not_merged_is_a_mismatch_when_stopped` | 1 | S | 高: 未マージまたは別 HEAD のマージを検証済みとして完了報告する損害を防ぐ。 | 残す |
 | `test_loop_state.py::test_finalize_result_is_only_for_abort_and_must_be_a_finalize_result` | 1 | S | 高: 不正な finalize 結果で run を上書きし、マージ状態を誤記録する損害を防ぐ。 | 残す |
 | `test_loop_state.py::test_finalize_stopped_ends_the_run_as_stopped_and_not_merged` | 1 | S | 高: finalize の停止をマージ成功として報告する損害を防ぐ。 | 残す |
-| `test_loop_state.py::test_finalize_stopped_keeps_the_real_merge` | 4 | S | 高: finalize が停止しても、実際のマージを未マージとして誤報告する損害を防ぐ。 | 縮約: id=null と true_merge_parent を残す。false/true_another_head は同じ状態優先の重複。 |
+| `test_loop_state.py::test_finalize_stopped_keeps_the_real_merge` | 4 | S | 高: finalize が停止しても、実際のマージを未マージとして誤報告する損害を防ぐ。 | 縮約: finalize の false・PR の別 HEAD の true、finalize の null・PR の true、merge parent 不一致での true を残す。false と null の優先順位は独立条件としてサイクル 1 で復元した。 |
 | `test_loop_state.py::test_finish_releases_only_its_own_lock` | 1 | S | 高: 同じ PR の同時書き込み、または別 run のロック解放による競合を防ぐ。 | 残す |
 | `test_loop_state.py::test_fixes_pushed_requires_the_pr_head_to_be_the_pushed_commit` | 1 | S | 高: 別 HEAD の判断や push を現サイクルのものとして採用する損害を防ぐ。 | 残す |
 | `test_loop_state.py::test_inherited_skip_changed_without_evidence_is_rejected` | 1 | S | 中: 引き継いだ判断を根拠なしに変更し、判断履歴を誤記録する損害を防ぐ。 | 残す |
@@ -141,7 +141,7 @@
 | `test_loop_state.py::test_records_need_the_authenticated_login` | 3 | S | 高: login を得られないまま投稿者の絞り込みを緩め、他人の判断記録を採用する損害を防ぐ。 | 縮約: id=blank を残す。gh-failed/empty は同じ認証境界の重複。 |
 | `test_loop_state.py::test_second_start_is_refused_while_the_first_run_holds_the_lock` | 1 | S | 高: 同じ PR の同時書き込み、または別 run のロック解放による競合を防ぐ。 | 残す |
 | `test_loop_state.py::test_start_accepts_fix_assignments_that_run_roles_accepts` | 3 | S | 中: 有効な設定を誤った担当に置き換えて起動する損害を防ぐ。 | 縮約: default と implement-codex を残す。external-review-roles は同じ割当保存の重複。 |
-| `test_loop_state.py::test_start_records_options_and_effective_assignments` | 2 | S | 中: run.json と計画への引き渡しで別の担当・設定を記録する損害を防ぐ。 | 縮約: entrypoint=api を残す。cli は同じ保存経路。 |
+| `test_loop_state.py::test_start_records_options_and_effective_assignments` | 2 | S | 中: CLI が担当指定を渡さず、run.json と計画に別の担当を記録する損害を防ぐ。 | 縮約: CLI 入口の 1 件を残し、API の直接呼出しとの重複を作らない。サイクル 1 で入口を変更し、転送だけを壊すと失敗することを確認した。 |
 | `test_loop_state.py::test_start_refuses_a_closed_pr` | 1 | L | closed PR・無効な担当は start、run_roles、runner が理由付き非 0 終了で検出する。 | 消す |
 | `test_loop_state.py::test_start_refuses_a_pr_whose_checkout_cannot_be_resolved` | 1 | L | checkout 不明は対象 resolver またはレビュアーが理由付きエラーで停止する。 | 消す |
 | `test_loop_state.py::test_start_rejects_a_codex_reviewer` | 3 | L | closed PR・無効な担当は start、run_roles、runner が理由付き非 0 終了で検出する。 | 消す |
@@ -301,7 +301,7 @@
 | `test_review_run.py::test_prepare_nonrunner_marks_unobserved_identity_unknown` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
 | `test_review_run.py::test_prepare_parallel_sessions_pin_their_own_base` | 1 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_prepare_pi_requires_both_current_environment_identifiers` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
-| `test_review_run.py::test_prepare_preserves_shared_refs_and_other_worktree_base_refs` | 10 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
+| `test_review_run.py::test_prepare_preserves_shared_refs_and_other_worktree_base_refs` | 10 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 縮約: remote base と共有 ref が diverge した代表を、PR head と未 push commit の 2 経路で残す。ほかの relation 8 件は同じ守りの D としてサイクル 1 で削除した。 |
 | `test_review_run.py::test_prepare_refuses_external_pr_without_explicit_checkout` | 1 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_prepare_rejects_wrong_request_workdir_and_shape` | 2 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_prepare_returns_skip_decisions_through_ordinary_comments` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
@@ -366,4 +366,45 @@
 
 ### 計測・検証の記録
 
-指定の計測コマンドによる前後: **514 → 291 件**（223 件、43.4% 削減）、**8,830 → 7,299 行**（1,531 行、17.3% 削減）。前値は着手時の `origin/main`、後値はレビューで見つかった 2 件の S を復元した `a28ad4e` で測定した。正式な文書 commit はテスト収集対象を変えない。最終 HEAD の検証結果はセッションの記録と PR 本文に記載する。
+指定の計測コマンドによる前後: **514 → 287 件**（227 件、44.2% 削減）、**8,830 → 7,301 行**（1,529 行、17.3% 削減）。前値は着手時の `origin/main`、後値はレビュー修正を取り込んだ `7924043` で測定した。正式な文書 commit はテスト収集対象を変えない。最終 HEAD の検証結果はセッションの記録と PR 本文に記載する。
+
+## PR #255 レビュー修正サイクル 1
+
+- 対象: `4b834563549aa366c6d42b4e8c54008f8da1fee7`。4 レビュアーの 7 件を、同 HEAD のコミット済み内容と隔離コピーで確認した。確認済み一覧: `reviews/usaturn/create-reso-world/#255-feat-issue-231-pr-review-tests/verified/4b834563549a.json`。7 件 confirmed、未確認 0 件。
+- 分類: 解消済み 0 件、対応する 7 件、対応しない 0 件。実行許可は利用者の `$issue-to-pr #231 --merge`。`M-1`・`L-1` の欠けた S は誤った担当・診断・マージ状態をもっともらしく保存し得る。残りは Issue #231 が明示する D・専用補助・計測と Plan の成果物を満たすため対応する。
+- 計画・判断担当: `gpt-6-sol`（Codex）。修正担当: `claude-opus-5-5`（`run_roles.py` の implement、担当 `claude-opus`）。自己レビューと修正確認の担当は `self`、1 回を予定する。
+
+| レビューファイル | モデル / ランタイム | レビュー HEAD | 再実行 | 推奨 |
+| --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | `gpt-6.1-sol` / pi | `4b834563549a` | はい | Approve |
+| `SWE-2-Max.md` | `SWE-2 Max` / devin | `4b834563549a` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | `deepseek/deepseek-v4.1-flash` / pi | `4b834563549a` | はい | Approve |
+| `Grok-4.7.md` | `Grok 4.7` / cursor | `4b834563549a` | はい | Approve |
+
+| 指摘 | 現行 HEAD での確認と採否 | 修正方針・検証 |
+| --- | --- | --- |
+| `gpt-6.1-sol#M-1` | CLI の `assign` と `finalize-result` の転送をそれぞれ除くと、API 代表は通過する。誤担当・誤マージ状態を記録し得るため対応する。 | 既存の start 代表を CLI 入口へ変更し、finish の CLI 代表を 1 件復元する。各転送の変異で失敗を確認する。 |
+| `gpt-6.1-sol#L-1` | 非ログの `sensitive_paths` 条件を外すと、誤った `response_extraction` を保存する。対応する。 | 読める通常ログと非ログの receipt の負例を戻し、空の `sensitive_paths` の正例を残す。 |
+| `gpt-6.1-sol#L-2` | 共有 ref の 5 relation × 2 local_commit は PR 前から存在し、同じ実装経路・不変条件を重ねる。#231 の D 削減条件として対応する。 | diverged の 1 relation と、PR head・未 push commit の 2 経路を残す。共有 ref の変更と tag fetch の変異で検出力を確かめる。 |
+| `gpt-6.1-sol#L-3` | `record_attempts` は唯一の呼出しテストを削除した後、定義だけ残った。#231 の専用補助の削除条件として対応する。 | 補助を削除し、参照検索と Ruff で確認する。テスト追加は不要。 |
+| `deepseek-deepseek-v4.1-flash#M-1` | finalize false・PR true と、PR open・finalize 無しの false を削除していた。false と null を混同した誤報告を防ぐため対応する。 | 互いに独立した 2 ケースを復元し、各判定だけを壊して検出する。 |
+| `Grok-4.7#I-1` | Spec と PR 本文には前後の数値があるが、Issue #231 に無い。受入条件として対応する。 | 修正後のコミット済み計測値を Issue にコメントする。 |
+| `SWE-2-Max#I-1` | Plan Task 3 の Step 4・5 が未チェックのまま、計測・push・PR 作成は実行済み。成果物の状態を正す。 | 実行済みの段階を確認し、Plan のチェックを更新する。 |
+
+### 守る条件と影響経路
+
+このサイクルが初回のレビュー修正であり、同じ条件の再発・レビュー修正が生んだ回帰のきっかけには当たらない。採用条件は `AGENTS.md` の S/F∩S と D の代表の定義に従う。設計案は「旧テストをすべて戻す」「API 代表だけ残す」「独立する CLI・false・receipt の条件だけ戻す」を比べ、最後の案を選んだ。旧テスト全件では D が残り、API だけでは CLI 境界の欠落を検出できない。
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| CLI の意味を変える引数が実処理へ届く | `main/dispatch start` → `start` → run.json / 計画 | 修正する | 指定した担当とサイクル数を保存 | CLI 代表と `assign` 転送の変異 | `702a177` のテストで、通常版通過・転送除去で失敗。 |
+| CLI の意味を変える引数が実処理へ届く | `main/dispatch finish` → `finish` → merged の記録 | 修正する | PR 不可読時に finalize の `true` を保存 | CLI 代表と `finalize-result` 転送の変異 | `702a177` のテストで、通常版通過・転送除去で失敗。 |
+| マージ状態は実際に読めた PR を優先する | `cycle_end` の finalize false と PR merged true | 修正する | 停止したまま merged true を保存 | false の代表と上書き変異 | `702a177` のテストで、通常版通過・上書き変異で失敗。 |
+| マージ状態は実際に読めた PR を優先する | `finish --abort` の PR open と finalize 無し | 修正する | merged false と null を区別 | open の代表と false→null 変異 | `702a177` のテストで、通常版通過・false→null 変異で失敗。 |
+| 秘密の残る保持物がある試行を誤診しない | `diagnose_attempt` → `classify_cause` → 原因記録 | 修正する | 非ログ receipt があれば unknown、空なら response_extraction | 負例・正例と条件除去変異 | `702a177` のテストで、通常版通過・条件除去で負例が失敗。 |
+| 共有 Git ref と別 worktree を変えない | `configure_base_fetch` → `prepare` → `complete`、失敗後の回収 | 修正する | PR head・未 push commit の両方で共有 ref が不変 | diverged の代表、tag fetch と update-ref の変異 | `702a177` で通常版 2 件通過、両変異で 2 件失敗。 |
+| #231 の成果を確認できる | テスト収集・追跡行数 → Spec・Issue・Plan | 修正する | 数値・実施状態が一致 | 指定コマンド、Issue コメント、Plan 差分 | 計測は `7924043` で 287 件・7,301 行。Plan のチェック欄を更新した。Issue コメントは push 後に投稿する。 |
+
+失敗時の状態確認は、テスト内の fake GitHub・bare remote の実状態と loop が記録した merged を対にしている。変異は隔離コピーだけに入れ、対象 PR の本体実装は変更していない。共有 ref の `--refmap=` を外す変異はこの fixture のどの relation でも検出せず、代表を縮めて失った検出力ではない。tag fetch と共有 ref 更新の変異は縮約後の 2 例がともに検出した。
+
+修正後の領域テストは `287 passed`、全体 pytest は `1,499 passed`、bash は `23 tests`、配置と Ruff は通過した。実行ログは `tmp/agents/issue-231.qhu0z91i/` の `full-pytest-cycle1.log`、`bash-cycle1.log`、`layout-cycle1.log`、`ruff-cycle1.log`。`run_roles.py` の担当は `stop_confirmed=true`・コミット `702a177` を返したが、別タスクの worktree が並行して変更・削除された監査通知により runner 自体は終了コード 1 だった。担当のコミットは指定した 4 テストファイルだけで、専用 worktree に `7924043` として取り込んだ。別タスクの worktree は変更していない。自己レビューと Issue への計測反映は続行中。

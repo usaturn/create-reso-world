@@ -255,7 +255,7 @@ def test_finalize_stopped_ends_the_run_as_stopped_and_not_merged(
 
 @pytest.mark.parametrize(
     ("reported", "another_head"),
-    # true は、finalize が別の head のマージを観測して止まった結果（Review Focus 1 をループの最後まで通す経路）。
+    # false は、finalize が別の head のマージを観測して止まった結果（Review Focus 1 をループの最後まで通す経路）。
     # true_merge_parent は、finalize がマージの後の merge commit の照合で止まった結果（#206）。PR は検証した HEAD でマージ済み
     [
         (False, True),
