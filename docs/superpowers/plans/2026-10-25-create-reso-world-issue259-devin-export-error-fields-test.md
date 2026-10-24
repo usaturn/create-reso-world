@@ -64,21 +64,21 @@
 
 **テストの要否:** 既存の S のテストの入力を直すだけで、新しいテストは書かない（Spec D2）。守りの確かめは Task 2 の変異で行う。
 
-- [ ] **Step 1: 挿入に変える**
+- [x] **Step 1: 挿入に変える**
 
 `cast(list[object], export["steps"]).append(failure)` を `cast(list[object], export["steps"]).insert(-1, failure)` にする。
 
-- [ ] **Step 2: 理由のコメントを足す**
+- [x] **Step 2: 理由のコメントを足す**
 
 挿入の直前に 2 行ほどのコメントを足す。内容: 失敗の step を最終応答の前に置くので、標準出力は最終応答で終わり、`response_failed` にできるのは step の `error`・`is_error` の欄だけである（#259）。
 
-- [ ] **Step 3: devin の adapter のテストと静的検査**
+- [x] **Step 3: devin の adapter のテストと静的検査**
 
 Run: `uv run --locked pytest -q -p no:cacheprovider tools/agent_runner/tests/adapters/devin`、`uvx ruff check tools/agent_runner/tests/adapters/devin/test_adapter.py`、`git diff --check`
 
 Expected: 29 passed、ruff と diff の検査は終了コード 0。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tools/agent_runner/tests/adapters/devin/test_adapter.py
@@ -96,19 +96,19 @@ git commit -m "test: guard the devin export error fields with a step before the 
 
 **テストの要否:** 新しいテストは書かない。変異は一時的な確認としてコミットしない（`AGENTS.md` の「テストの採用基準」）。
 
-- [ ] **Step 1: 変異で守りを確かめる（受け入れ条件 1）**
+- [x] **Step 1: 変異で守りを確かめる（受け入れ条件 1）**
 
 `T1` を `git archive` で `mktemp -d` に展開したコピーを 3 つ作る。対照（変更なし）、`devin.py` の `_export_failure` から `or step.get("is_error") is True` の行を消したもの、`or step.get("error")` の行を消したもの（どちらも 1 か所だけであることを確かめる）。それぞれで `uv run --locked pytest -q -p no:cacheprovider tools/agent_runner/tests/adapters/devin/test_adapter.py` を実行する。
 
 Expected: 対照は 29 passed。`is_error` を外すと `test_export_error_fields_override_answer[failure1]` だけ、`error` を外すと `[failure0]` だけが失敗し、失敗の内容は `status='success'`。
 
-- [ ] **Step 2: 挙動を変えないことを確かめる（受け入れ条件 2）**
+- [x] **Step 2: 挙動を変えないことを確かめる（受け入れ条件 2）**
 
 Run: `git diff --stat origin/main` と `git diff origin/main -- tools/`
 
 Expected: 変更は `test_adapter.py` と Spec・Plan だけで、`tools/` の差分は `test_export_error_fields_override_answer` の中だけ。
 
-- [ ] **Step 3: 記録して commit する**
+- [x] **Step 3: 記録して commit する**
 
 Spec の「経路表」に観測した結果を書き、この Plan に「完了」の節（Task 別の所要時間、各確認のコマンド・終了コード・ログのパス）を足す。
 
@@ -119,3 +119,11 @@ git commit -m "docs: record issue 259 verification"
 ```
 
 最後の commit の後、issue-to-pr の 5 章のとおり、README の「テスト」の 3 つの入口で全体を検証し、`finalize.py` の `--checks-file` の形の記録をセッションディレクトリに作る。この記録は Spec・Plan に書かず、PR 本文に書く（記録の commit の後に検証するため）。
+
+## 完了
+
+- Task 1: `0ec4843`（2026-10-24T19:12Z）。`uv run --locked pytest -q -p no:cacheprovider tools/agent_runner/tests/adapters/devin` は 29 passed（`task1-devin.log`）、`uvx ruff check` と `git diff --check` は終了コード 0
+- Task 2: 19:12Z〜19:15Z。Step 1・2 の結果は Spec の経路表のとおりで、どれも Expected と一致した（`mutation-t1/`）
+- Ruling: SDD の ledger を、worktree の中（`sdd-workspace` の `.superpowers/sdd/`）ではなく、`/workspaces/reso-world/tmp/agents/issue-259.lr_064lf/sdd-ledger.md` に置いた。`AGENTS.md` の「worktree の中に、コミットしないファイルを作らない」に従った
+- ログ: `/workspaces/reso-world/tmp/agents/issue-259.lr_064lf/`（`baseline-adapters.log`、`mutation-before/`、`task1-devin.log`、`mutation-t1/`）
+- 所要時間（着手 2026-10-24T19:05Z ごろから Task 2 の記録まで）: 約 10 分。内訳は、入力・競合の確認と原因・案の検証 5 分、Spec・Plan 3 分、Task 1 が 1 分、Task 2 が 2 分

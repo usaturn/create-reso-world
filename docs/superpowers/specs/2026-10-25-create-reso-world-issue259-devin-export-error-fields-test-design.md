@@ -3,7 +3,7 @@
 - 状態: draft
 - 文書管理リポジトリ: `usaturn/create-reso-world`（`docs/superpowers/`）
 - 対象: `usaturn/create-reso-world` / [Issue #259](https://github.com/usaturn/create-reso-world/issues/259)
-- 検証したコードの HEAD: `origin/main` `dcdc0d9adee1f4e6757c1e584ae5a581169b1ac5`（2026-10-24T19:05Z の着手時）
+- 検証したコードの HEAD: `origin/main` `dcdc0d9adee1f4e6757c1e584ae5a581169b1ac5`（2026-10-24T19:08Z ごろ、worktree を作る前の fetch の時点）
 - 関連 Plan: `docs/superpowers/plans/2026-10-25-create-reso-world-issue259-devin-export-error-fields-test.md`
 - 関連: #239・PR #258（発見の経緯）、#228（テストの採用基準）
 - 実行許可: 利用者の `/issue-to-pr #259 --merge --max-cycles 3`。通常の設計判断を推奨案で決め、実装・検証・commit・push・PR の作成と、PR 修正ループ（サイクルの上限 3）、その結論に従う `finalize.py` のマージまでを許可する。本 Spec の内容の承認（`approved`）ではない
@@ -53,4 +53,12 @@
 
 ## 経路表
 
-（Task 2 で、観測した結果を書く）
+観測した結果は、Task 1 の commit `0ec4843` に対するものである。ログは `/workspaces/reso-world/tmp/agents/issue-259.lr_064lf/` の `task1-devin.log`・`mutation-t1/` にある。
+
+| 経路 | 判定 | 観測した結果 | 確かめた方法 |
+| --- | --- | --- | --- |
+| `is_error` の欄の検出（受け入れ条件 1） | 修正した | 変更前は、検出を外しても 29 passed。変更後は、検出を外すと `test_export_error_fields_override_answer[failure1]` だけが 1 failed（`status='success', payload={'ok': True}`） | `0ec4843` を `git archive` で `mktemp -d` に展開したコピーの変異（`or step.get("is_error") is True` の行を消す） |
+| `error` の欄の検出（受け入れ条件 1） | 修正した | 変更前は、検出を外しても 29 passed。変更後は、検出を外すと `[failure0]` だけが 1 failed（同じく `status='success'`） | 同じコピーの変異（`or step.get("error")` の行を消す） |
+| 変異なし（受け入れ条件 3） | 既に満たす | 対照のコピーと worktree で 29 passed。`uvx ruff check` と `git diff --check` は終了コード 0 | pytest・ruff |
+| `devin.py` の挙動（受け入れ条件 2） | 既に満たす | `git diff --stat origin/main` はテストのファイルと Spec・Plan だけ。`tools/` の差分は `test_export_error_fields_override_answer` の挿入とコメントだけ | `git diff` |
+| `source: "error"` の step | 対象外 | `test_export_error_step_authentication_overrides_answer` が守る（Issue の確認のとおり） | — |
