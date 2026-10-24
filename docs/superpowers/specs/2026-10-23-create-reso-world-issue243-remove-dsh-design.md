@@ -3,7 +3,7 @@
 - 文書管理: `usaturn/create-reso-world`
 - 対象: `usaturn/create-reso-world#243`
 - 着手時のコード: `7cf60715caf0026f7a4c95c72cdc2527e8075e2c`
-- 状態: `completed`。レビュー修正サイクル 3 の設計と検証を記録した。内容の承認を受けた記録ではない
+- 状態: `completed`。レビュー修正サイクル 5（修正不要）の確認と検証まで記録した。内容の承認を受けた記録ではない
 - 実行許可: 利用者の「`$issue-to-pr https://github.com/usaturn/create-reso-world/issues/243 --merge`」。推奨案で設計・実装・検証・PR 作成・指定のレビュー修正ループまで進める指示として扱う
 - 追加指示: 利用者の「廃止したことについて、テストを書かないこと。TDD で実装しないこと。」を優先する
 
@@ -182,3 +182,53 @@ fix-check の `V-1` は `tools/agent_runner/runtimes/cursor.rst:49` の説明が
 規定の自己レビューは1回だけで、`92639d4` の PR 全体差分に active・未確認指摘は0件。fix-check はコードに関する9主張すべて成立、関連217件と独立した SSH/HTTP prepare が成功した。一方、前サイクルの上の表が `93bf88f` で直接 prepare の head fetch まで成功したように記載していた点を文書不整合 V-1 として確認した。この版で head と base の検証範囲を明記して訂正した。コードの追加修正や自己レビューの再実行はない。
 
 今サイクルの結論は修正を既存 PR に push し、規定のレビュー修正サイクル数の上限に従って終了すること。マージは次のレビューサイクルで修正不要と判定された場合に行う。DSH 廃止の事実を照合するテストと TDD は実施していない。
+
+## PR #249 レビュー修正サイクル 5（修正不要）
+
+- 対象 HEAD: `1c5e7ebcdab23acb605a885add38841fdf62386a`。判断の記録の round 5
+- 実行許可: 利用者が明示的に起動した `pr-review-fix-loop`（`#249`、オプションなし）。その計画として review-fix-planning を完遂の手順で行い、修正が不要ならマージと関連 Issue の更新まで進める指示として扱う。文書の内容を承認済みにする指示ではない
+- ループ: run `bea81b244c664c9fb6739afaf43f3a22` のサイクル 1。雛形の `inspect`（`pi-gpt`・`devin-swe`・`pi-deepseek`・`cursor-grok47`）の 4 担当とも accepted で、rejected・outside_changes・retained は無い。loop の helper は規則どおり親の main checkout（`360d971`）の版を使った
+- planner: `Claude Opus 5.5 Max` / `devin`。修正と自己レビューの割り当ては `implement=claude-opus`・`self-review=self`・`fix-check=self` だが、対応する指摘が無いので `run_roles.py` は起動していない。自己レビューの回数は 0
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#249-feat-issue-243-remove-dsh/verified/1c5e7ebcdab2.json`（confirmed・not_reproduced・unverified とも 0 件）。工程の記録は同じディレクトリの `verified/1c5e7ebcdab2.planning.json`
+- round 4: レビューを取り直す前に同じ HEAD で review-fix-planning を実行し、現行 HEAD を再実行したレビュアーがいないため、判断 0 件の `stopped`（environment）で記録した。このサイクルでレビューを取り直した。round 4 の reviewed_head が現行 HEAD と同じなので、レビュアーが記録から求める前回の修正の範囲は空になったが、4 レビュアーとも前回の snapshot か `fix` の判断から `93a2c8b`・`92639d4`・`1c5e7eb` を重点確認した
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `Grok-4.7.md` | `Grok 4.7` | `cursor` | `1c5e7ebcdab2` | 再実行 | Approve |
+| `SWE-2-Max.md` | `SWE-2 Max` | `devin` | `1c5e7ebcdab2` | 再実行 | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | `deepseek/deepseek-v4.1-flash` | `pi` | `1c5e7ebcdab2` | 再実行 | Approve |
+| `gpt-6.1-sol.md` | `gpt-6.1-sol` | `pi` | `1c5e7ebcdab2` | 再実行 | Approve |
+| `gpt-6-sol-commit-f12c400fc2e49731d7bb8459fd20021d68f6fbe2.md` | `gpt-6-sol` | `codex` | `f12c400fc2e4` | 古い（1 回目の修正後の自己レビュー） | Approve |
+| `gpt-6-sol-commit-172bc8ff26d512d0e707bacccb25f89113567a43.md` | `gpt-6-sol` | `codex` | `172bc8ff26d5` | 古い（2 回目の修正後の自己レビュー） | Approve |
+| `gpt-6-sol-commit-92639d4aaabc30db1460d24d1bf90342d74dd4cb.md` | `gpt-6-sol` | `codex` | `92639d4aaabc` | 古い（3 回目の修正後の自己レビュー） | Approve |
+
+| 元指摘 | 区分 | 現行 HEAD での根拠と判断 |
+| --- | --- | --- |
+| `fix-check#V-1@172bc8ff26d5`（`Grok-4.7#M-2@4ded95313c51`・`SWE-2-Max#M-1@4ded95313c51`・`deepseek-deepseek-v4.1-flash#M-1@4ded95313c51`・`gpt-6.1-sol#M-3@4ded95313c51` を含む） | 解消済み（前の状態は対応する） | `92639d4` が `fetch_pull_head` の fetch だけ `transport_auth=True` にした。下の表のとおり現行 HEAD で解消を確かめ、4 レビュアーも解消を確認した |
+| 4 レビュアーの active 指摘・Unverified candidates | 該当なし | 4 件とも 0 件。候補 JSON を validate・check-pair した |
+| `deepseek-deepseek-v4.1-flash#L-1@2b2fc1181cb7` | 対応しない（引き継ぎ。このサイクルの入力外） | 4 レビュアーとも Decided findings に置き、新しい根拠は無い |
+| `fix-check#V-1@f12c400fc2e4` | 対応しない（引き継ぎ。このサイクルの入力外） | 同上 |
+
+### 前のサイクルの修正の確認
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| 直接起動の PR head 取得は、認証用の 4 変数を remote fetch に渡し、checkout の選択を変える `GIT_*` は渡さない | `create_from_target` → `review_target.fetch_pull_head` → `_git(..., transport_auth=True)` | 既に満たす（`92639d4`） | 認証変数だけの transport で期待 SHA の ref を対象の checkout に固定し、別 Git は変わらない。認証が無ければ別 ref を採用せず止まる | 現行 HEAD を detach した隔離 worktree で、偽 ssh とローカルの `git-upload-pack`、別 Git を指す `GIT_DIR`・`GIT_COMMON_DIR`・`GIT_WORK_TREE`、既定の ssh を失敗する stub にした `PATH` で実関数を実行。修正前 `4ded953` の同じ関数を対照にした | `1c5e7eb`: `GIT_SSH_COMMAND`・`GIT_SSH` とも成功し、ref は期待 SHA、偽 ssh の `git-upload-pack` は各 1 回、別 Git は不変。認証変数なしは `TargetError` で ref を作らない。`4ded953` は認証変数があっても `TargetError`（検出力の対照） |
+| 同上 | base と浅い履歴の fetch（`review_run.py:437`・`pr_review_workspace.py:470` の `pr_review_workspace.git`） | 既に満たす | 認証用の 4 変数が届き、ローカルの Git の選択は変わらない | remote と通信する Git 呼出の検索と、レビュアーの prepare 全体の再現の照合 | 現行 HEAD の PR の変更ファイルで remote と通信するのは上の 3 か所だけで、すべて `transport_auth=True`。`gpt-6.1-sol` は通常・浅い source の 12 条件で head と base の fetch・complete・cleanup の成功を報告 |
+| ローカルの Git の解決・浅さの判定・書き込み許可は、明示した checkout を見る | `_git` の既定、`agent_tmp`・`superpowers_context`・loop の Git 呼出、`uses_owned_history` | 既に満たす | 外部の `GIT_*` に左右されない | 変更の確認と、関連テストの実行 | `92639d4` は既定（全 `GIT_*` を除く）を変えていない。代表の S テストを含む全 Python 1726 件が成功（下の検証） |
+
+### 確認した範囲
+
+- 4 レビュアーと修正後の自己レビュー 3 件の本文と候補 JSON、判断の記録（round 1〜4）、確認済みの一覧
+- `7cf6071..1c5e7eb` の変更ファイルの一覧（追加 3・変更 44・削除 13）。Python の変更（`review_target.py`・`agent_tmp.py`・`superpowers_context.py`・`checkout_policy.py`・`cli.py`・`config.py`・`models.py`・`runner.py`・`workspace.py`・`adapters/__init__.py`・`run_roles.py`・`pr_review_workspace.py`・`review_run.py`・`loop.py`）は差分を読み、追加した処理を前後の行と合わせて確かめた。大きなファイル（`loop.py`・`review_run.py`・`pr_review_workspace.py`・`runner.py`）は全文ではなく差分の箇所を読んだ
+- 削除 13 ファイルの import・参照が現行 HEAD に残らないこと（`git grep`）。docs/superpowers 以外で dsh を含むのは撤去説明と設定拒否の 5 ファイルだけ
+- 自己確認で、PR が持ち込んだ致命的な欠陥は見つからなかった
+
+### 結論と検証
+
+- 結論: 2（修正不要としてマージ）。対応する指摘は 0 件
+- 専用 worktree（`.worktrees/issue-243-remove-dsh`、`1c5e7eb`）: `bash .devcontainer/run-tests.bash` 23 件成功（終了 0）、`bash scripts/check-layout.sh` 成功（終了 0）、`uv run pytest tests/skills .agents/skills .agents/scripts tools` 1726 件成功（終了 0）
+- base との一時的な merge: `origin/main` の先端 `360d9715bc3ef62b1dcdb8bb62ed5cf54f5a8496` は head の祖先ではないので、隔離 worktree で head に merge した（競合なし、ツリー `5d3cb6d0e4ae`、push しない）。同じ 3 つを実行し、`run-tests.bash` 23 件成功、`check-layout.sh` 成功、pytest 1726 件成功（いずれも終了 0）。finalize に渡す検証の記録はこの merge したツリーの結果で、`base` は `360d971`
+- 自己レビュー: 行っていない（結論 2 のため）
+- テストの採用: テストの追加・変更はしていない。廃止した事実のテストと TDD は行っていない
+- 未確認: 実 private remote の SSH/HTTPS 認証、実 HTTP の `GIT_ASKPASS`、Dev Container の rebuild、PR の版の loop・runner の実起動（マージ前は規則で起動しない）。#175・#211 のクローズと #116 へのコメントはマージ後の作業として残る
