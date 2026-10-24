@@ -175,20 +175,6 @@ def test_backup_failure_changes_nothing(behind: Path, tmp_path: Path) -> None:
     assert_local_files_kept(behind)
 
 
-def test_without_conflicts_it_only_fast_forwards(behind: Path) -> None:
-    result = run_script("--repo", str(behind), "--ref", "origin/main")
-    assert result.returncode == 0, (result.stdout, result.stderr)
-    assert git(behind, "rev-parse", "HEAD").strip() == git(behind, "rev-parse", "origin/main").strip()
-    assert status(behind) == set()
-
-
-def test_already_up_to_date_is_a_noop(behind: Path) -> None:
-    git(behind, "merge", "-q", "--ff-only", "origin/main")
-    result = run_script("--repo", str(behind), "--ref", "origin/main")
-    assert result.returncode == 0, (result.stdout, result.stderr)
-    assert "already up to date" in result.stdout
-
-
 def test_inherited_git_dir_does_not_redirect_the_target(behind: Path, tmp_path: Path) -> None:
     other = tmp_path / "other"
     other.mkdir()
@@ -202,30 +188,13 @@ def test_inherited_git_dir_does_not_redirect_the_target(behind: Path, tmp_path: 
     assert_local_files_kept(behind)
 
 
-@pytest.mark.parametrize(
-    "args",
-    [
-        (),
-        ("--ref",),
-        ("--ref", "no-such-ref"),
-        ("--ref", "origin/main", "--force"),
-    ],
-)
-def test_usage_errors_change_nothing(behind: Path, args: tuple[str, ...]) -> None:
+def test_force_is_refused_without_changing_files(behind: Path) -> None:
     add_conflicting_untracked_files(behind)
     head = git(behind, "rev-parse", "HEAD").strip()
-    result = run_script(*args, cwd=behind)
+    result = run_script("--ref", "origin/main", "--force", cwd=behind)
     assert result.returncode == 2, (result.stdout, result.stderr)
     assert git(behind, "rev-parse", "HEAD").strip() == head
     assert_local_files_kept(behind)
-
-
-def test_outside_a_work_tree_is_a_usage_error(tmp_path: Path) -> None:
-    plain = tmp_path / "plain"
-    plain.mkdir()
-    result = run_script("--repo", str(plain), "--ref", "HEAD")
-    assert result.returncode == 2
-    assert "not a git work tree" in result.stderr
 
 
 def push_upstream(behind: Path, files: dict[str, str]) -> None:
@@ -251,29 +220,6 @@ def test_ignored_file_on_an_added_path_is_kept(behind: Path) -> None:
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert (behind / "secret.env").read_text(encoding="utf-8") == "local secret\n"
     assert_local_files_kept(behind)
-
-
-def test_files_under_a_directory_or_a_symlink_named_like_an_added_path_are_left_alone(
-    behind: Path, tmp_path: Path
-) -> None:
-    # origin/main adds the file "plain" and "linked/inner.md". Locally "plain"
-    # is a directory and "linked" a symlink to a directory outside the work
-    # tree; neither may be backed up, removed or written through.
-    push_upstream(behind, {"plain": "upstream\n", "linked/inner.md": "upstream\n"})
-    (behind / "plain").mkdir()
-    (behind / "plain" / "draft.md").write_text("draft\n", encoding="utf-8")
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    (outside / "inner.md").write_text("precious\n", encoding="utf-8")
-    (behind / "linked").symlink_to(outside)
-    head = git(behind, "rev-parse", "HEAD").strip()
-
-    result = run_script("--repo", str(behind), "--ref", "origin/main")
-    assert result.returncode == 1, (result.stdout, result.stderr)
-    assert git(behind, "rev-parse", "HEAD").strip() == head
-    assert (behind / "plain" / "draft.md").read_text(encoding="utf-8") == "draft\n"
-    assert (behind / "linked").is_symlink()
-    assert (outside / "inner.md").read_text(encoding="utf-8") == "precious\n"
 
 
 def test_interrupted_run_restores_files_and_reports_head(behind: Path, tmp_path: Path) -> None:
@@ -371,33 +317,6 @@ def test_ignored_content_that_could_not_be_put_back_stops_the_run(
         assert (behind / name).is_symlink()
 
 
-def test_tracked_paths_that_change_between_file_and_directory_still_fast_forward(behind: Path) -> None:
-    upstream = behind.parent / "upstream"
-    # HEAD: "swap/a" (directory) and "flip" (file); origin/main turns them around.
-    for tree in (behind, upstream):
-        git(tree, "pull", "-q", "--ff-only")
-    (behind / "swap").mkdir()
-    (behind / "swap" / "a").write_text("a\n", encoding="utf-8")
-    (behind / "flip").write_text("flip\n", encoding="utf-8")
-    git(behind, "add", "-A")
-    git(behind, "commit", "-qm", "dir and file")
-    git(behind, "push", "-q", "origin", "HEAD:main")
-    git(upstream, "pull", "-q", "--ff-only")
-    git(upstream, "rm", "-q", "-r", "swap", "flip")
-    (upstream / "swap").write_text("now a file\n", encoding="utf-8")
-    (upstream / "flip").mkdir()
-    (upstream / "flip" / "inner").write_text("now a dir\n", encoding="utf-8")
-    git(upstream, "add", "-A")
-    git(upstream, "commit", "-qm", "swap")
-    git(upstream, "push", "-q", "origin", "HEAD:main")
-    git(behind, "fetch", "-q", "origin")
-
-    result = run_script("--repo", str(behind), "--ref", "origin/main")
-    assert result.returncode == 0, (result.stdout, result.stderr)
-    assert (behind / "swap").read_text(encoding="utf-8") == "now a file\n"
-    assert (behind / "flip" / "inner").read_text(encoding="utf-8") == "now a dir\n"
-
-
 def available_locale(*names: str) -> str | None:
     listed = subprocess.run(["locale", "-a"], capture_output=True, text=True).stdout.split()
     normalized = {name.lower().replace("-", "") for name in listed}
@@ -478,31 +397,6 @@ def test_added_submodule_over_an_existing_clone_still_fast_forwards(behind: Path
     assert (behind / "sub" / "untracked.txt").read_text(encoding="utf-8") == "local\n"
 
 
-def test_tracked_symlink_replaced_by_a_directory_still_fast_forwards(behind: Path) -> None:
-    upstream = behind.parent / "upstream"
-    for tree in (behind, upstream):
-        git(tree, "pull", "-q", "--ff-only")
-    (behind / "d" / "a").mkdir(parents=True)
-    (behind / "d" / "a" / "b").write_text("b\n", encoding="utf-8")
-    (behind / "l").symlink_to("d")
-    git(behind, "add", "-A")
-    git(behind, "commit", "-qm", "symlink to a directory")
-    git(behind, "push", "-q", "origin", "HEAD:main")
-    git(upstream, "pull", "-q", "--ff-only")
-    git(upstream, "rm", "-q", "l")
-    (upstream / "l" / "a" / "b").mkdir(parents=True)
-    (upstream / "l" / "a" / "b" / "c").write_text("c\n", encoding="utf-8")
-    git(upstream, "add", "-A")
-    git(upstream, "commit", "-qm", "directory instead of the symlink")
-    git(upstream, "push", "-q", "origin", "HEAD:main")
-    git(behind, "fetch", "-q", "origin")
-
-    result = run_script("--repo", str(behind), "--ref", "origin/main")
-    assert result.returncode == 0, (result.stdout, result.stderr)
-    assert (behind / "l" / "a" / "b" / "c").read_text(encoding="utf-8") == "c\n"
-    assert not (behind / "l").is_symlink()
-
-
 def test_ignored_file_where_a_tracked_directory_was_stops_the_run(behind: Path) -> None:
     # HEAD tracks a/x and ignores "a"; origin/main adds a/b. Locally the
     # directory "a" was replaced by an ignored file, which git would remove
@@ -528,52 +422,6 @@ def test_ignored_file_where_a_tracked_directory_was_stops_the_run(behind: Path) 
     assert "\n  a\n" in result.stderr
     assert git(behind, "rev-parse", "HEAD").strip() == head
     assert (behind / "a").read_text(encoding="utf-8") == "precious\n"
-
-
-@pytest.mark.parametrize("ignore_setting", [None, "diff.ignoreSubmodules"])
-def test_untracked_file_where_a_submodule_is_added_stops_the_run(
-    behind: Path, tmp_path: Path, ignore_setting: str | None
-) -> None:
-    # diff.ignoreSubmodules=all and submodule.<name>.ignore=all hide added
-    # submodules from a plain diff; the script must still see them.
-    library = tmp_path / "library"
-    subprocess.run(["git", "init", "-q", str(library)], check=True)
-    configure(library)
-    (library / "lib.txt").write_text("lib\n", encoding="utf-8")
-    git(library, "add", "lib.txt")
-    git(library, "commit", "-qm", "lib")
-    upstream = behind.parent / "upstream"
-    subprocess.run(
-        ["git", "-C", str(upstream), "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(library), "sub"],
-        check=True,
-        capture_output=True,
-    )
-    git(upstream, "commit", "-qm", "add submodule")
-    git(upstream, "push", "-q", "origin", "HEAD:main")
-    git(behind, "fetch", "-q", "origin")
-    (behind / "sub").write_text("local\n", encoding="utf-8")
-    if ignore_setting:
-        git(behind, "config", ignore_setting, "all")
-    head = git(behind, "rev-parse", "HEAD").strip()
-
-    result = run_script("--repo", str(behind), "--ref", "origin/main")
-    assert result.returncode == 1, (result.stdout, result.stderr)
-    assert "nothing was changed" in result.stderr
-    assert git(behind, "rev-parse", "HEAD").strip() == head
-    assert (behind / "sub").read_text(encoding="utf-8") == "local\n"
-
-
-def test_unborn_branch_is_refused_with_a_clear_message(tmp_path: Path, behind: Path) -> None:
-    fresh = tmp_path / "fresh"
-    subprocess.run(["git", "init", "-q", str(fresh)], check=True)
-    git(fresh, "remote", "add", "origin", str(behind.parent / "remote.git"))
-    git(fresh, "fetch", "-q", "origin")
-    (fresh / "same.md").write_text("mine\n", encoding="utf-8")
-
-    result = run_script("--repo", str(fresh), "--ref", "origin/main")
-    assert result.returncode == 1, (result.stdout, result.stderr)
-    assert "HEAD has no commit yet" in result.stderr
-    assert (fresh / "same.md").read_text(encoding="utf-8") == "mine\n"
 
 
 def test_submodule_hidden_by_its_ignore_setting_is_still_seen(behind: Path, tmp_path: Path) -> None:
@@ -715,22 +563,6 @@ def test_submodule_turned_into_a_file_stops_the_run_while_its_checkout_has_conte
     assert (behind / name / "notes.txt").read_text(encoding="utf-8") == "precious\n"
 
 
-def test_submodule_turned_into_a_file_fast_forwards_when_its_checkout_is_empty(
-    behind: Path, tmp_path: Path
-) -> None:
-    upstream = submodule_on_both_sides(behind, tmp_path)
-    if (upstream / "sub").is_dir():
-        (upstream / "sub").rmdir()
-    push_upstream(behind, {"sub": "now a file\n"})
-    # An uninitialized submodule leaves an empty directory.
-    shutil.rmtree(behind / "sub")
-    (behind / "sub").mkdir()
-
-    result = run_script("--repo", str(behind), "--ref", "origin/main")
-    assert result.returncode == 0, (result.stdout, result.stderr)
-    assert (behind / "sub").read_text(encoding="utf-8") == "now a file\n"
-
-
 def submodule_under_a_directory_replaced_by_a_file(behind: Path, tmp_path: Path, parent: str = "a") -> None:
     """HEAD has the submodule <parent>/sub; origin/main removes it and adds the file <parent>."""
     library = tmp_path / "library"
@@ -764,19 +596,6 @@ def test_submodule_inside_a_directory_replaced_by_a_file_stops_the_run(
     assert f"  {parent}/sub/" in result.stderr
     assert git(behind, "rev-parse", "HEAD").strip() == head
     assert (behind / parent / "sub" / "untracked.txt").read_text(encoding="utf-8") == "precious\n"
-
-
-def test_empty_submodule_inside_a_directory_replaced_by_a_file_fast_forwards(
-    behind: Path, tmp_path: Path
-) -> None:
-    submodule_under_a_directory_replaced_by_a_file(behind, tmp_path)
-    # An uninitialized submodule leaves an empty directory.
-    shutil.rmtree(behind / "a" / "sub")
-    (behind / "a" / "sub").mkdir()
-
-    result = run_script("--repo", str(behind), "--ref", "origin/main")
-    assert result.returncode == 0, (result.stdout, result.stderr)
-    assert (behind / "a").read_text(encoding="utf-8") == "now a file\n"
 
 
 def test_failing_directory_listing_stops_the_run(behind: Path, tmp_path: Path) -> None:

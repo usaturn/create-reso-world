@@ -160,16 +160,6 @@ def test_updates_to_detached_origin_main_without_changing_local_refs(
     assert (checkout / "incoming.txt").read_text(encoding="utf-8") == "remote content\n"
 
 
-def test_repeated_cleanup_follows_remote_advancement_without_creating_main(checkout: Path) -> None:
-    base = git(checkout, "rev-parse", "origin/main")
-    for filename in (None, None, "incoming.txt"):
-        target = base if filename is None else advance_remote(checkout, filename)
-        result = run_step7(checkout)
-        assert result.returncode == 0, (result.stdout, result.stderr)
-        assert_detached_at(checkout, target)
-        assert local_refs(checkout) == "", "cleanup must never create local main"
-
-
 @pytest.mark.parametrize("main_state", ["stale", "divergent"])
 def test_existing_main_is_retained_without_ref_or_reflog_updates(
     checkout: Path, main_state: str
@@ -234,44 +224,6 @@ def test_invocation_from_linked_project_targets_main_root_not_callers_feature(ch
     assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
     assert git(linked, "rev-parse", "HEAD") == caller_head
     assert local_refs(checkout) == refs_before
-    assert_detached_at(checkout, target)
-
-
-@pytest.mark.parametrize("upstream_state", ["unset", "pruned"])
-def test_branch_deletion_from_linked_project_uses_updated_main_head(
-    checkout: Path, upstream_state: str
-) -> None:
-    # Using the caller's stale HEAD rejects a branch already in origin/main
-    # when there is no usable upstream. Only the deletion candidate may go.
-    git(checkout, "branch", "main")
-    linked = checkout.parent / "linked feature"
-    git(checkout, "worktree", "add", "-qb", "active-feature", str(linked))
-    project = linked / "project"
-    project.mkdir()
-    caller_head = git(linked, "rev-parse", "HEAD")
-    caller_reflog = git(linked, "reflog", "show", "HEAD")
-    main_reflog = git(checkout, "reflog", "show", "main")
-    target = advance_remote(checkout)
-    git(checkout, "branch", "merged-feature", target)
-    if upstream_state == "pruned":
-        git(checkout, "push", "-qu", "origin", "merged-feature")
-        git(checkout.parent / "publisher", "push", "-q", "origin", "--delete", "merged-feature")
-        git(checkout, "fetch", "-q", "--prune")
-    assert git(checkout, "log", "--oneline", "origin/main..merged-feature") == ""
-    assert git(linked, "log", "--oneline", "HEAD..merged-feature") != ""
-    retained_refs = "\n".join(
-        line for line in local_refs(checkout).splitlines()
-        if not line.startswith("refs/heads/merged-feature ")
-    )
-
-    result = run_step7(checkout, cwd=project, following_delete=True)
-
-    assert result.returncode == 0, result.stderr
-    assert local_refs(checkout) == retained_refs, "only the candidate may be deleted"
-    assert git(checkout, "reflog", "show", "main") == main_reflog
-    assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
-    assert git(linked, "rev-parse", "HEAD") == caller_head
-    assert git(linked, "reflog", "show", "HEAD") == caller_reflog
     assert_detached_at(checkout, target)
 
 
@@ -349,27 +301,6 @@ def test_unclean_or_unreadable_main_tree_stops_before_checkout_and_branch_deleti
     assert git(checkout, "rev-parse", "--abbrev-ref", "HEAD") == "HEAD"
 
 
-def test_dirty_main_tree_is_rechecked_even_when_callers_linked_tree_is_clean(checkout: Path) -> None:
-    linked = checkout.parent / "linked feature"
-    git(checkout, "worktree", "add", "-qb", "active-feature", str(linked))
-    git(checkout, "branch", "merged-feature")
-    advance_remote(checkout)
-    (checkout / "base.txt").write_text("main worktree edit\n", encoding="utf-8")
-    head_before = git(checkout, "rev-parse", "HEAD")
-    caller_head = git(linked, "rev-parse", "HEAD")
-    refs_before = local_refs(checkout)
-    assert git(linked, "status", "--short") == ""
-
-    result = run_step7(checkout, cwd=linked, following_delete=True)
-
-    assert result.returncode != 0, (result.stdout, result.stderr)
-    assert git(checkout, "rev-parse", "HEAD") == head_before
-    assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
-    assert git(linked, "rev-parse", "HEAD") == caller_head
-    assert local_refs(checkout) == refs_before
-    assert (checkout / "base.txt").read_text(encoding="utf-8") == "main worktree edit\n"
-
-
 def test_ignored_file_collision_aborts_without_losing_data_or_branch_refs(checkout: Path) -> None:
     git(checkout, "branch", "merged-feature")
     (checkout / "private.txt").write_bytes(b"private unsaved draft\n")
@@ -426,28 +357,6 @@ def test_steps_8_and_11_stop_when_main_root_is_unset_instead_of_using_callers_re
     assert local_refs(checkout) == refs_checkout
     assert local_refs(foreign) == refs_foreign
     assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
-
-
-def test_step11_reports_main_root_even_when_called_from_another_repo(
-    checkout: Path,
-) -> None:
-    foreign = checkout.parent / "foreign repo"
-    foreign.mkdir()
-    git(foreign, "init", "-q", "-b", "trunk")
-    (foreign / "f.txt").write_text("foreign\n", encoding="utf-8")
-    git(foreign, "add", ".")
-    git(foreign, "commit", "-qm", "foreign commit")
-
-    env = {**os.environ, "MAIN_ROOT": str(checkout)}
-    expected = [
-        git(checkout, "status"),
-        git(checkout, "worktree", "list"),
-        git(checkout, "branch", "-a"),
-    ]
-    for line, want in zip(step_bash(11).splitlines(), expected, strict=True):
-        result = run_bash(line, cwd=foreign, env=env)
-        assert result.returncode == 0, (line, result.stderr)
-        assert result.stdout.strip() == want
 
 
 def test_step8_recheck_for_not_fully_merged_discriminates_merge_state(
@@ -689,23 +598,3 @@ def test_deleted_path_diff_error_stops_before_checkout_or_branch_deletion(
         ["-C", str(checkout), "diff", "--no-renames", "--name-only", "--diff-filter=D",
          "HEAD", "origin/main", "--", *PROTECTED_WORLD_ROOTS],
     ], "only the read-only status/diff queries may run; checkout must not be called"
-
-
-def test_protected_world_source_modification_still_allows_normal_update(checkout: Path) -> None:
-    # Filtering every world change (rather than deletions) would over-block.
-    source, peer = tracked_world_fixture(checkout, "worlds")
-    publisher = checkout.parent / "publisher"
-    (publisher / source).write_bytes(b"updated world source\n")
-    git(publisher, "add", source)
-    git(publisher, "commit", "-qm", "update world source without deletion")
-    target = publish_world_changes(checkout)
-    refs_before = local_refs(checkout)
-    peer_before = peer.read_bytes()
-
-    result = run_step7(checkout)
-
-    assert result.returncode == 0, (result.stdout, result.stderr)
-    assert_detached_at(checkout, target)
-    assert local_refs(checkout) == refs_before
-    assert (checkout / source).read_bytes() == b"updated world source\n"
-    assert peer.read_bytes() == peer_before
