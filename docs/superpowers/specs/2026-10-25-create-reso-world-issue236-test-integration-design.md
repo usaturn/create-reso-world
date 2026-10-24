@@ -78,17 +78,17 @@
 | D-236-8 | 一覧の単位は、今の `main` に残っているテストの関数（pytest・unittest。parametrize は収集数を件数にした 1 行）と、bash のテストの場面の群（ファイルの中で、重さと「迷い」が同じ場面をまとめる）にする。子の表が 1 つの関数の parametrize のケースで分類・重さ・迷いを分けているとき（例: `test_review_records.py::test_invalid_records_are_rejected` の「S（高・中）」、`test_review_findings.py::test_invalid_documents_name_the_problem` の「S 中 4 / 迷い 2」、`test_process.py::test_supervisor_launch_paths_preserve_stdin_and_exit` の D と S）は、分類・重さ・迷いが同じケースの群ごとに行を分け、件数はその群のケースの数にする | (a) 子の棚卸しの表の行をそのまま使う、(b) ファイルごと、(c) 分けた関数を、いちばん重いケースの段に 1 行で置く、(d) 迷いのケースが 1 つでもあれば関数ごと迷いの段に置く | (a) 表の行の単位は子ごとに違い（関数、parametrize のケース、説明文の群）、#243 などの後の変更で今のテストと合わない行がある。行数を行に割り当てられない。(b) 重さの順に並べられない。(c) は迷いのケースを先頭から外し、(d) は高の守りを先頭に出す。件数の目標まで 64 件しかなく、ケースの段の違いが目標に届く位置を動かすので、表が分けたとおりに分ける（brainstorming の builder check の問い 1 への判断） | Issue の受け入れ（テストまたはテストの群ごとに） |
 | D-236-9 | 分類・防ぐ損害・重さ・「迷い」は、6 つの子の Spec の棚卸しの表と、レビュー修正の記録（同じ Spec の後の節と、`pr24x-...-review-fixes-design.md`）から取る。表で「消す」なのに残っているテストは、戻した記録の理由を使う。表に無いテスト（子の後の PR が足した・変えたもの）と、記録が見つからないものは、`AGENTS.md` の「テストの採用基準」で #236 が判定し、一覧で「#236 の判定」と分かるようにする | 全てのテストを #236 が分類し直す | #228 の決定（議論し直さない）。分類の根拠は子の棚卸し。#236 の判定は、子の表で決まらないものに限る | #228 の「利用者の決定」 |
 | D-236-10 | 表に重さが書かれていない S・F∩S・迷いは、#228 の「守りの重さ」（高: 秘密情報の漏れ・データの消失・誤った対象への破壊的な操作・未検証のマージ。中: 誤った結果の報告・記録の取り違え。低: 作業の結果を変えないもの）で #236 が決め、「重さは #236 の判定」と分かるようにする。表の重さに幅がある（「中-低」「高・中」）のにケースを分けていないものは、重い方にする | (a) 重さの無い行を別の群にする、(b) 幅は軽い方にする | (a) 並べ替えに重さが要る。定義は #228 にある。(b) 軽い方にすると、重い方の守りを含むテストが先に消える位置に来る。#228 の決定 6（気付けない損害を防ぐテストを数のために消さない）に近い側にした | #228 の「守りの重さ」 |
-| D-236-11 | 計測の対象の全ての行を、一覧のどれか 1 行にだけ割り当てる（下の「一覧の作り方」の割り当て）。テストの関数の行はその行に（ケースの群に分けた関数は、並べ順でその関数の最後の群に）、ファイルの準備（import・補助・fixture）の行はそのファイルの最後の行に、補助のファイル（`conftest.py`・偽の CLI・fixture のデータ）はそれを使うテストの最後の行に、bash のファイルの 1 件と準備の行はそのファイルの最後の群に付ける。使うテストが無い補助は一覧の先頭に置く | (a) テストの関数の行だけを数え、準備は別に示す、(b) 準備をテストの数で按分する | 上から消したときの累計が、実際にそこまで消したときに消せる行数（準備はそれを使う最後のテストを消したときに消せる）の下限になる。(a) は全てを消しても合計に届かない。(b) は消しても残る準備を消せるように見せる。合計は計測の行数と一致する | Issue の受け入れ（上から消したときの累計） |
+| D-236-11 | 計測の対象の全ての行を、一覧のどれか 1 行にだけ割り当てる（下の「一覧の作り方」の割り当て）。テストの関数の行はその行に（ケースの群に分けた関数は、並べ順でその関数の最後の群に）、ファイルの準備（import・補助・fixture）の行はそのファイルの最後の行に（ほかのテストのモジュールが import・パスで取り込むモジュールは、取り込む側も含めた最後の行に）、補助のファイル（`conftest.py`・偽の CLI・fixture のデータ）はそれを使うテストの最後の行に、bash のファイルの 1 件と準備の行はそのファイルの最後の群に付ける。使うテストが無い補助は一覧の先頭に置く | (a) テストの関数の行だけを数え、準備は別に示す、(b) 準備をテストの数で按分する | 上から消したときの累計が、実際にそこまで消したときに消せる行数（準備はそれを使う最後のテストを消したときに消せる）の下限になる。(a) は全てを消しても合計に届かない。(b) は消しても残る準備を消せるように見せる。合計は計測の行数と一致する | Issue の受け入れ（上から消したときの累計） |
 | D-236-12 | 並べ順: 使うテストが無い補助 → 「迷い」（重さの低い順） → 低 → 中 → 高。同じ段の中は、領域（#230・#231・#232・#233・#234・#235・`integration` の順）、ファイルのパス、正しく通る例を後ろ（D-236-20）、ファイルの中の位置の順 | 同じ段の中を行数の多い順にする | Issue の並べ順（迷いを先頭に、続けて重さの低い順）。同じ段の中は、ファイルごとにまとまり、利用者がファイルを見ながら選べる順にした | Issue の受け入れ |
 | D-236-13 | `tools/agent_runner/tests/adapters/dsh/ptc_tool_results.json`（14 行）は、#243 が DSH のテストを消した後に残った、使われていない fixture である（`git grep ptc_tool_results` は `docs/` だけ）。この子では消さず、一覧の先頭に「使うテストが無い補助」として載せる | この子で消す | `agent-runner-tests` の領域のファイルで、Issue の「変えないもの」に当たる | Issue の「変えないもの」 |
-| D-236-14 | 一覧の全体（関数・場面の群ごと）はこの Spec の「残ったテストの一覧」に置き、#228 のコメントには、計測の結果、子ごとの内訳、段ごと（迷い・低・中・高）の累計、領域 × 段の群の一覧（件数・行数・防ぐ損害・重さ・迷い・累計）、「迷い」の行の全て、持ち越し候補、全体の一覧へのリンクを書く | 全体の一覧を #228 のコメント（複数）に写す | 一覧は 900 行ほどで、GitHub のコメントの上限（65,536 字）に収まらない。PR でレビューされる 1 か所に置き、版を Git で追える。#228 のコメントは、群の一覧で判断でき、行ごとの詳細はリンクで読める | Issue の受け入れ（テストまたはテストの群ごとに） |
+| D-236-14 | 一覧の全体（関数・場面の群ごと）はこの Spec の「残ったテストの一覧」に置き、#228 のコメントには、計測の結果、子ごとの内訳、段ごと（迷い・低・中・高）の累計、領域 × 段の群の一覧（件数・行数・防ぐ損害・重さ・迷い・累計）、「迷い」の行の全て、持ち越し候補、全体の一覧へのリンクを書く | 全体の一覧を #228 のコメント（複数）に写す | 一覧は約 970 行で、GitHub のコメントの上限（65,536 字）に収まらない。PR でレビューされる 1 か所に置き、版を Git で追える。#228 のコメントは、群の一覧で判断でき、行ごとの詳細はリンクで読める | Issue の受け入れ（テストまたはテストの群ごとに） |
 | D-236-15 | #228 へのコメントは PR を作った後（ループの前）に、PR の head の計測で投稿する。ループの修正で一覧が変わったら、コメントを直す。マージの後に `main` で測り直し、最終の値を #228 と #236 に書く | マージの後にだけ投稿する | Issue は「一覧を出したら completed で close」の順で、`finalize.py` はマージと同時に #236 を閉じる。投稿の後にループの修正があっても、同じコメントを直せば古い一覧が残らない | Issue の受け入れ |
 | D-236-16 | 子が申し送った、基準のテストも検出しない守り（#230 の `runner.py:604` など、#232 の `agent_tmp.py:39`、#235 の `new-world.sh:185` など）と、消したままの S の例（#232 のサイクル 3 の 5 件）は、この子ではテストを足さず・戻さず、#228 のコメントに「持ち越し候補（テストを足す・戻す候補）」として書く | この子でテストを足す・戻す | 領域のテストは Issue の「変えないもの」。足すのは新しい要求で、件数も増える。#230 は「テストを足すかは #236 で決める」と申し送ったので、この表で決めた | Issue の「変えないもの」 |
 | D-236-17 | 行数のための準備のコードの共通化（#230 の D-230-11: git の repository の写し、Devin の export のよく似たテスト）は、この子では行わず、行数を減らす別の手段として #228 のコメントに書く | この子で共通化する | 領域のテストを変える（Issue の「変えないもの」）。残す S のテストの準備を変えるので、どこまで行うかは利用者が決める | Issue の「変えないもの」 |
-| D-236-18 | 分類の取り出しは、6 つの領域ごとに 1 つ、読むだけのサブエージェントが決まった JSON の形で書き、controller が検査のスクリプト（関数・場面の網羅、値の形、Spec の行の実在）で確かめ、各領域から抜き出した行を Spec と照らし合わせる。`integration` の補助は controller が扱う | controller が全て読む | 子の Spec は合わせて約 930KB、残っているテストの関数は 891 ある。領域は互いに独立で、並行で読める。形と網羅は機械で、中身は抜き出しで確かめる | issue-to-pr の委任（推奨案で進める） |
+| D-236-18 | 分類の取り出しは、6 つの領域ごとに 1 つ、読むだけのサブエージェントが決まった JSON の形で書き、controller が検査のスクリプト（関数・場面の網羅、値の形、Spec の行の実在）で確かめ、各領域から抜き出した行を Spec と照らし合わせる。`integration` の補助は controller が扱う | controller が全て読む | 子の Spec は合わせて約 930KB、残っているテストの関数は着手時に 891（載せ直しの後は 892）ある。領域は互いに独立で、並行で読める。形と網羅は機械で、中身は抜き出しで確かめる | issue-to-pr の委任（推奨案で進める） |
 | D-236-19 | 予約は、ループの `finish` の後（ループのエラーで `finish` まで進めないときは止まった時点）に、結果と再開の方法を #236 に書いてから解放する | PR の作成の直後に解放する | issue-to-pr の `--merge` の手順 | issue-to-pr |
 | D-236-20 | 拒否のテストの対として残した「正しく通る例」（`AGENTS.md` の D: 拒否を確かめるテストには、正しく通る例を少なくとも 1 件残す）は、重さを対の守りのいちばん重いものにそろえ、同じファイル・同じ段の中で、ほかの行の後に置く | (a) 正しく通る例そのものの損害で重さを決める（多くは低）、(b) 対のテストを指す項目を JSON に持たせ、対の最後の行の直後に置く | (a) 上から消すと、正しく通る例が対の拒否のテストより先に消え、D の規則があるので実際にはそこまで消せない。件数の累計が実際に消せる数より多く見える（brainstorming の builder check の問い 2）。(b) 対は同じモジュールの守りなので、同じファイル・同じ段の後ろに置けば足りる。依存の処理を検査と並べ替えに足さずに済む | `AGENTS.md` の「テストの採用基準」の D |
-| D-236-21 | 作業中に `main` へマージされた PR #258（`tools/agent_runner/tests/adapters/devin/test_adapter.py` で 2 件を消して 2 件を足した）と PR #256（`.agents/skills/review-fix-planning/tests/test_finalize.py` で 1 件を消して 2 件を足した）に合わせて、push の前の branch を `0959610` に載せ直し、索引を作り直して、変わった 7 件の関数だけを分類し直した（足した 4 件は表に無いので、#239・#241 の Spec を引いて #236 が判定した） | 着手時の `bdbe02b` のまま一覧を出す | 一覧と計測は、マージされる状態の数を示す。消えたテスト（PR #256 の 1 件は #232 の表で消す扱いのまま残っていたもの）を一覧に残さない。commit は push の前で、載せ直しても誰の作業も壊さない | Issue の受け入れ（計測はコミット済みの状態） |
+| D-236-21 | 作業中に `main` へマージされた PR #258（`tools/agent_runner/tests/adapters/devin/test_adapter.py` で関数 2 つ（収集 4 件）を消して関数 2 つ（収集 3 件）を足した）と PR #256（`.agents/skills/review-fix-planning/tests/test_finalize.py` で関数 1 つ（収集 1 件）を消して関数 2 つ（収集 2 件）を足した）に合わせて、push の前の branch を `0959610` に載せ直し、索引を作り直して、変わった 7 つの関数だけを分類し直した（足した 4 件は表に無いので、#239・#241 の Spec を引いて #236 が判定した） | 着手時の `bdbe02b` のまま一覧を出す | 一覧と計測は、マージされる状態の数を示す。消えたテスト（PR #256 の 1 件は #232 の表で消す扱いのまま残っていたもの）を一覧に残さない。commit は push の前で、載せ直しても誰の作業も壊さない | Issue の受け入れ（計測はコミット済みの状態） |
 
 ## 受け入れ条件との対応
 
@@ -158,9 +158,9 @@
 
 1. 行は、関数（件数はその収集数）、関数のケースの群（件数はその群のケースの数）、bash の場面の群（件数 0）、使うテストが無い補助（件数 0）である
 2. 段と並べ順: 使うテストが無い補助 → 迷い → 低 → 中 → 高（D-236-12）。迷いの中は重さの低い順。同じ段・領域・ファイルの中では、正しく通る例（`pair_positive`）をほかの行の後に置き、その中はファイルの中の位置の順
-3. 行数の割り当て（D-236-11）: 関数は自分の行の範囲（ケースの群に分けた関数は、並べ順でその関数の最後の群に付ける）、bash の群は自分の `ranges`。ファイルの準備の行と bash のファイルの 1 件は、並べ順でそのファイルの最後の行に付ける。補助のファイルは、使うテストの最後の行に付ける。使うテストは次で決める
+3. 行数の割り当て（D-236-11）: 関数は自分の行の範囲（ケースの群に分けた関数は、並べ順でその関数の最後の群に付ける）、bash の群は自分の `ranges`。ファイルの準備の行と bash のファイルの 1 件は、並べ順でそのファイルの最後の行に付ける（ほかのテストのモジュールがコメントでない行の import かファイル名で取り込むモジュールの準備は、取り込む側も含めた最後の行に付ける）。補助のファイルは、使うテストの最後の行に付ける。使うテストは次で決める
    - `conftest.py`: 同じディレクトリとその下のテストのモジュール（ルートの `conftest.py` は pytest の `testpaths` の全て）
-   - 偽の CLI・補助のモジュール・fixture のデータ: 1 つ上のディレクトリとその下のテストのうち、ファイル名（拡張子を除く名前）を含むもの。含むものが無ければ「使うテストが無い補助」
+   - 偽の CLI・補助のモジュール・fixture のデータ: 同じディレクトリとその下のテストのうち、ファイル名（拡張子を除く名前）を含むもの。無ければ 1 つ上のディレクトリとその下で探す。それでも無ければ「使うテストが無い補助」
    - `tools/test_support/plugin.py`・`texts.py`: `tools.test_support.plugin`・`tools.test_support.texts` を読み込むテストのモジュール。`__init__.py` はその両方
    - `tests/scripts/test-superpowers-python.bash`: `tests/scripts` の Python のテスト（件数の 1 件も付ける）
 4. 累計: 上から順に、件数と行数（付けた分を含む）を足す。合計が計測の件数・行数と一致することを確かめる。残りが目標以下になる最初の行を、件数・行数それぞれに印を付ける
@@ -170,7 +170,7 @@
 
 ## 棚卸しの表の確認（#228 の完了の条件 4）
 
-6 つの子の Spec のすべてに、棚卸しの表（テストごとの分類と理由）がある。見出しの行は `grep -n -E '^#{2,3} .*(棚卸し|迷いの一覧)'` で確かめた（`e7f18fe`）。
+6 つの子の Spec のすべてに、棚卸しの表（テストごとの分類と理由）がある。見出しの行は `grep -n -E '^#{2,3} .*(棚卸し|迷いの一覧)'` で確かめた（`76943b9`。6 つの Spec は `bdbe02b` から変わっていない）。
 
 | 子 | Spec | 棚卸しの節（行） | 迷いの一覧 |
 | --- | --- | --- | --- |
@@ -185,15 +185,15 @@
 
 ## 計測の結果（この PR の後）
 
-#228 の「計測」の 4 つのコマンドを、この PR の head（`a723ab4`。`origin/main` の `0959610` に載せ直した後の、コミット済みの状態）で実行した（出力は `PARENT_ROOT/tmp/agents/issue-236.15yls_nc/verify/measure.txt`）。
+#228 の「計測」の 4 つのコマンドを、この PR でコードを変えた最後の commit（`a723ab4`。`origin/main` の `0959610` に載せ直した後の、コミット済みの状態）で実行した（出力は `PARENT_ROOT/tmp/agents/issue-236.15yls_nc/verify/measure.txt`）。この後の commit は Spec・Plan だけで、計測の値は変わらない（最後の head での計測は Plan の「完了」に書く）。
 
 | 指標 | 基準値（`7d44355`） | この PR の後 | 比 | 目標（1/3 以下） | 届いたか |
 | --- | --- | --- | --- | --- | --- |
 | 件数 | 3,646 | 1,279（1,224 + 33 + 22） | 35.1% | 1,215 以下 | 届かない（64 件多い） |
 | 行数 | 45,024 | 28,499 | 63.3% | 15,008 以下 | 届かない（13,491 行多い） |
 
-- 着手時（`bdbe02b`）の 1,279 件・28,470 行との差は、この PR の `tools/test_support/` の 7 行減と、着手の後にマージされた PR #258（`tools/agent_runner/tests/adapters/devin/test_adapter.py` で 2 件を消して 2 件を足し、+9 行）・PR #256（`.agents/skills/review-fix-planning/tests/test_finalize.py` で 1 件を消して 2 件を足し、+27 行）による
-- この PR はテストを消さないので、件数は変わらない
+- 着手時（`bdbe02b`）の 1,279 件・28,470 行との差は、この PR の `tools/test_support/` の 7 行減と、着手の後にマージされた PR #258（`tools/agent_runner/tests/adapters/devin/test_adapter.py` で関数 2 つ（収集 4 件）を消して関数 2 つ（収集 3 件）を足し、+9 行）・PR #256（`.agents/skills/review-fix-planning/tests/test_finalize.py` で関数 1 つ（収集 1 件）を消して関数 2 つ（収集 2 件）を足し、+27 行）による
+- この PR は件数を変えない。合計の件数が着手時と同じなのは、PR #258 の 1 件減と PR #256 の 1 件増が打ち消し合うため（領域ごとの増減は下の表）
 
 ### 子ごとの内訳（この PR の後）
 
@@ -213,7 +213,7 @@
 
 ## 残ったテストの一覧
 
-「一覧の作り方」のとおり、6 つの子の棚卸しの表（とレビュー修正の記録）から、この PR の head のテストを 967 行に分けた。上から消したときの累計の件数・行数の最後は、計測の値（1,279 件・28,499 行）と一致する。行数の累計は、準備の行と補助のファイルをそれを使う最後の行に付けた下限である（D-236-11）。
+「一覧の作り方」のとおり、6 つの子の棚卸しの表（とレビュー修正の記録）から、この PR の head のテストを 967 行に分けた。上から消したときの累計の件数・行数の最後は、計測の値（1,279 件・28,499 行）と一致する。行数の累計は、準備の行と補助のファイルをそれを使う最後の行に付けた下限である（D-236-11。ほかのテストのモジュールが取り込むモジュールの準備は、取り込む側も含めた最後の行に付けた）。
 
 ### 段ごとの累計
 
@@ -222,12 +222,14 @@
 | 使うテストが無い補助 | 1 | 0 | 14 | 0 | 14 | 1,279 | 28,485 |
 | 迷い | 45 | 55 | 600 | 55 | 614 | 1,224 | 27,885 |
 | 低 | 60 | 68 | 827 | 123 | 1,441 | 1,156 | 27,058 |
-| 中 | 428 | 570 | 8,544 | 693 | 9,985 | 586 | 18,514 |
-| 高 | 433 | 586 | 18,514 | 1,279 | 28,499 | 0 | 0 |
+| 中 | 428 | 570 | 7,757 | 693 | 9,198 | 586 | 19,301 |
+| 高 | 433 | 586 | 19,301 | 1,279 | 28,499 | 0 | 0 |
 
 - 件数が目標（1,215 件以下）に届くのは、上から 55 行目（段は「低」）まで消したとき（累計 64 件・678 行、残り 1,215 件・27,821 行）
-- 行数が目標（15,008 行以下）に届くのは、上から 602 行目（段は「高」）まで消したとき（累計 784 件・13,511 行、残り 495 件・14,988 行）
+- 行数が目標（15,008 行以下）に届くのは、上から 614 行目（段は「高」）まで消したとき（累計 799 件・13,538 行、残り 480 件・14,961 行）
 - 根拠の内訳: 子の表のとおり 850 行、表の分類で重さだけ #236 が決めたもの 107 行、表に無く #236 が判定したもの 9 行、使うテストが無い補助 1 行
+
+- 付けた行（準備 10,844 行、補助のファイル 1,133 行、ケースの群に分けた関数 757 行）は合わせて 12,734 行で、計測の行数の 44.7% を占める。「高」の段の 19,301 行のうちでは 11,191 行（58.0%）。テストの関数を消すだけでは、この分は「高」まで消さないと減らない
 
 ### 領域 × 段の群
 
@@ -250,15 +252,15 @@
 | 15 | 低 | `review-helper-tests` | 36 | 44 | 605 | 統計・時間枠・抜粋の誤り（採用の帰属、能動時間、実行記録の統計、再試行回数）。作業の結果は変えない | 123 | 1,423 | 1,156 | 27,076 |
 | 16 | 低 | `devcontainer-tests` | 1 | 0 | 3 | 固定した版でない ctx7 CLI を受け入れる（動くので気付けないが、作業の結果は変わらない） | 123 | 1,426 | 1,156 | 27,073 |
 | 17 | 低 | `script-tests` | 2 | 0 | 15 | uv sync の失敗を成功と報告する、fetch の前の古い upstream/main を黙って取り出す（作業の結果への影響が小さい誤り） | 123 | 1,441 | 1,156 | 27,058 |
-| 18 | 中 | `agent-runner-tests` | 148 | 194 | 2,586 | 失敗や途中の応答を成功と報告する、記録を取り違える、取り消し後に fallback を起動するなど誤った結果の報告 | 317 | 4,027 | 962 | 24,472 |
-| 19 | 中 | `pr-review-tests` | 55 | 86 | 1,430 | 診断・実行記録・判断記録・候補一覧の誤保存や上書き、誤った原因・状態の報告、回収の手掛かりの喪失。 | 403 | 5,457 | 876 | 23,042 |
-| 20 | 中 | `review-helper-tests` | 141 | 204 | 2,483 | 誤った結果の報告・記録の取り違え（別 PR・別 head・別 base の記録、判定漏れ、サイクルの上書き、失敗を成功と報告） | 607 | 7,940 | 672 | 20,559 |
-| 21 | 中 | `skill-tests` | 47 | 52 | 664 | モデル名・監視結果の誤帰属や誤報、起動失敗の完了扱い、担当・オプションの取り違え、引き継ぎ記録の欠落、凍結履歴の喪失を防ぐ。 | 659 | 8,604 | 620 | 19,895 |
-| 22 | 中 | `devcontainer-tests` | 24 | 25 | 920 | 誤ったディレクトリへの書き込み、tier・設定・session 記録の取り違え、共有登録の消失、失敗の見落とし、スキル同期の誤表示 | 684 | 9,524 | 595 | 18,975 |
-| 23 | 中 | `script-tests` | 13 | 9 | 461 | 別の checkout・親の選択、スキルのリンクと .pi の食い違い、前提欠落での途中状態、失敗を成功と報告、指示ファイル・過去文書の改変 | 693 | 9,985 | 586 | 18,514 |
-| 24 | 高 | `agent-runner-tests` | 41 | 46 | 2,533 | 秘密情報の漏れ、孤児・別プロセスへの signal、実リポジトリへの git 書き込み、checkout の変更の見逃し、権限の広がり | 739 | 12,518 | 540 | 15,981 |
-| 25 | 高 | `pr-review-tests` | 140 | 199 | 5,811 | 利用者ファイル・worktree・共有 Git の誤削除・変更、別 PR・HEAD のレビュー流用による未検証のマージ、秘密の漏れ、ロック競合、権限・書込範囲の拡大。 | 938 | 18,329 | 341（行数が目標に届く） | 10,170 |
-| 26 | 高 | `review-helper-tests` | 83 | 147 | 3,815 | 未検証のマージ、別リポジトリや tmp・reviews の外・追跡対象への書き込み、信頼境界・sandbox・環境の隔離の破れ、レビュー結果の消失、トークンの漏れ | 1,085 | 22,144 | 194 | 6,355 |
+| 18 | 中 | `agent-runner-tests` | 148 | 194 | 2,636 | 失敗や途中の応答を成功と報告する、記録を取り違える、取り消し後に fallback を起動するなど誤った結果の報告 | 317 | 4,077 | 962 | 24,422 |
+| 19 | 中 | `pr-review-tests` | 55 | 86 | 1,430 | 診断・実行記録・判断記録・候補一覧の誤保存や上書き、誤った原因・状態の報告、回収の手掛かりの喪失。 | 403 | 5,507 | 876 | 22,992 |
+| 20 | 中 | `review-helper-tests` | 141 | 204 | 1,646 | 誤った結果の報告・記録の取り違え（別 PR・別 head・別 base の記録、判定漏れ、サイクルの上書き、失敗を成功と報告） | 607 | 7,153 | 672 | 21,346 |
+| 21 | 中 | `skill-tests` | 47 | 52 | 664 | モデル名・監視結果の誤帰属や誤報、起動失敗の完了扱い、担当・オプションの取り違え、引き継ぎ記録の欠落、凍結履歴の喪失を防ぐ。 | 659 | 7,817 | 620 | 20,682 |
+| 22 | 中 | `devcontainer-tests` | 24 | 25 | 920 | 誤ったディレクトリへの書き込み、tier・設定・session 記録の取り違え、共有登録の消失、失敗の見落とし、スキル同期の誤表示 | 684 | 8,737 | 595 | 19,762 |
+| 23 | 中 | `script-tests` | 13 | 9 | 461 | 別の checkout・親の選択、スキルのリンクと .pi の食い違い、前提欠落での途中状態、失敗を成功と報告、指示ファイル・過去文書の改変 | 693 | 9,198 | 586 | 19,301 |
+| 24 | 高 | `agent-runner-tests` | 41 | 46 | 2,483 | 秘密情報の漏れ、孤児・別プロセスへの signal、実リポジトリへの git 書き込み、checkout の変更の見逃し、権限の広がり | 739 | 11,681 | 540 | 16,818 |
+| 25 | 高 | `pr-review-tests` | 140 | 199 | 5,811 | 利用者ファイル・worktree・共有 Git の誤削除・変更、別 PR・HEAD のレビュー流用による未検証のマージ、秘密の漏れ、ロック競合、権限・書込範囲の拡大。 | 938 | 17,492 | 341 | 11,007（行数が目標に届く） |
+| 26 | 高 | `review-helper-tests` | 83 | 147 | 4,652 | 未検証のマージ、別リポジトリや tmp・reviews の外・追跡対象への書き込み、信頼境界・sandbox・環境の隔離の破れ、レビュー結果の消失、トークンの漏れ | 1,085 | 22,144 | 194 | 6,355 |
 | 27 | 高 | `skill-tests` | 107 | 136 | 3,397 | 未保存ファイル・ロック・branch の消失、担当外変更や別リポジトリの取り込み、実プロセスの誤停止・誤報、資格情報の漏れを防ぐ。 | 1,221 | 25,541 | 58 | 2,958 |
 | 28 | 高 | `devcontainer-tests` | 25 | 25 | 1,453 | 秘密情報・認証の漏れや消失（拒否前の保存済みの鍵の上書きを含む）、誤った対象の削除・操作（削除範囲・GIT_*・HOME・buni・gitleaks の検証）、サンドボックスと権限の境界 | 1,246 | 26,994 | 33 | 1,505 |
 | 29 | 高 | `script-tests` | 37 | 33 | 1,505 | 秘密情報の漏れ（資格情報・鍵・gitleaks・ignore）、利用者のファイルの上書き・symlink 先への書き込み、別のリポジトリへの push、確認用コピーの上書き | 1,279 | 28,499 | 0 | 0 |
@@ -266,7 +268,7 @@
 
 ### 全ての行
 
-段（迷いは重さごと）とファイルの順に並べる。「行数」の括弧は、その行に付けた準備・補助のファイルの行数。「根拠」の「表」は子の棚卸しの表（とレビュー修正の記録）、「表・重さは #236」は重さだけを #236 が決めたもの、「#236 の判定」は表に無く #236 が判定したもの。
+段（迷いは重さごと）とファイルの順に並べる。「行数」の括弧は、その行に付けた行数で、「準備」はファイルの準備（bash は場面の外の行と、ファイルの 1 件）、「関数」はケースの群に分けた関数の行（並べ順で最後の群に付けるので、前の群の行数は 0 になり、累計の行数が横ばいになる）、`ディレクトリ/ファイル` は補助のファイルである。補助のファイルは使う側の最後の行に付けるので、領域ごとに行数を足しても「子ごとの内訳」とは一致しない（`integration` の 77 行のうち、`tools/test_support/` の 58 行は使う側の最後の `skill-tests` の行に、ルートの `conftest.py` の 19 行は pytest の最後の `devcontainer-tests` の行に付く）。「根拠」の「表」は子の棚卸しの表（とレビュー修正の記録）、「表・重さは #236」は重さだけを #236 が決めたもの、「#236 の判定」は表に無く #236 が判定したもの。
 
 #### 使うテストが無い補助
 
@@ -516,7 +518,7 @@
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 55 | `test_literal_environ_parses_proc_and_skips_malformed_entries` | 1 | 22（準備 10 を含む） | 起動時の環境（/proc/self/environ）を返す。外すと許可した変数に locale の強制の値・起動後の値が黙って渡る | 表 | 64 | 678（件数が目標に届く） |
+| 55 | `test_literal_environ_parses_proc_and_skips_malformed_entries` | 1 | 22（準備 10 を含む） | 起動時の環境（/proc/self/environ）を返す。外すと許可した変数に locale の強制の値・起動後の値が黙って渡る | 表 | 64（件数が目標に届く） | 678 |
 
 `tools/agent_runner/tests/test_process.py`（`agent-runner-tests`）
 
@@ -646,7 +648,7 @@
 | 119 | `test_explicit_assistant_error_is_auth_diagnostic` | 1 | 5 | error の項目を持つ assistant のイベントを失敗の経路（診断）にし、認証待ちに分類する | 表 | 139 | 1,529 |
 | 120 | `test_later_unfinished_turn_invalidates_earlier_success` | 1 | 3 | 成功の result の後に次の未完了のターンが続けば失敗にする。外れると前の成功を再利用して成功と報告する | 表 | 140 | 1,532 |
 | 121 | `test_truncated_event_after_success_invalidates_completion` | 1 | 8 | 成功の result の後の途中で切れた行（先頭に空白のある {）を壊れたイベントとして残し成功を無効にする | 表 | 141 | 1,540 |
-| 122 | `test_collect_success_extracts_identity_and_json_payload`（正しく通る例） | 1 | 156（`conftest.py` 33・準備 108 を含む） | 失敗・未完了を成功にしない拒否の群の対の正例（何でも失敗にする実装を通さない）。取り違えは記録の取り違え | 表 | 142 | 1,696 |
+| 122 | `test_collect_success_extracts_identity_and_json_payload`（正しく通る例） | 1 | 156（`claude_code/conftest.py` 33・準備 108 を含む） | 失敗・未完了を成功にしない拒否の群の対の正例（何でも失敗にする実装を通さない）。取り違えは記録の取り違え | 表 | 142 | 1,696 |
 
 `tools/agent_runner/tests/adapters/codex/test_codex.py`（`agent-runner-tests`）
 
@@ -672,703 +674,703 @@
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 138 | `test_reconnect_requires_fresh_completion_and_clean_process_exit` | 2 | 83（準備 63 を含む） | 伏せ字処理で成功 payload・identity の数・真偽値が null に変わらない。再接続後の turn.failed を成功にしない | 表 | 166 | 2,035 |
+| 138 | `test_reconnect_requires_fresh_completion_and_clean_process_exit` | 2 | 133（`codex/fake_cli.py` 50・準備 63 を含む） | 伏せ字処理で成功 payload・identity の数・真偽値が null に変わらない。再接続後の turn.failed を成功にしない | 表 | 166 | 2,085 |
 
 `tools/agent_runner/tests/adapters/cursor/test_cursor.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 139 | `test_prepare_reads_prompt_from_stdin_and_trusts_worktree` | 1 | 8 | 依頼文を stdin から外しても起動は成功し、担当は依頼の無いまま JSON の回答を返せる（もっともらしい誤った成功） | 表 | 167 | 2,043 |
-| 140 | `test_collect_reading_skill_backup_does_not_record_unread_skill` | 1 | 35 | 読んだファイルが SKILL.md でなければ（SKILL.md.bak）、親ディレクトリ名の skill の版として記録しない | 表 | 168 | 2,078 |
-| 141 | `test_collect_skill_version_stays_unknown_when_read_limit_is_exceeded` | 1 | 7 | CLI が上限超過を報告した読み込みは、内容が今のファイルと一致しても版を記録しない | 表 | 169 | 2,085 |
-| 142 | `test_collect_unobserved_identity_is_not_copied_from_settings` | 1 | 9 | init の無い出力で identity を設定から補わず全て null にする。補うと要求したモデルが動いたと記録する | 表 | 170 | 2,094 |
-| 143 | `test_collect_later_corruption_or_failure_cannot_reuse_success` | 6 | 14 | 成功の result の後の壊れた行・失敗の result・error・文字列の is_error で、先行の成功を再利用しない。外すと古い payload で黙って成功する | 表 | 176 | 2,108 |
-| 144 | `test_collect_invalid_outer_json_cannot_be_replaced_by_nested_object` | 1 | 5 | 壊れた外側の JSON から内側の object を取り出さない。次の「{」を探す変更をすると誤った payload で黙って成功する | 表 | 177 | 2,113 |
-| 145 | `test_collect_failure_diagnostics_override_plausible_result` | 2 | 8 | 成功の result（終了コード 0）でも stderr の認証・trust の診断があれば成功にしない。外すと偽の成功になる | 表 | 179 | 2,121 |
-| 146 | `test_later_response_requires_its_own_result` の `False-later0`・`False-later1` | 2 | 0 | 成功の result の後の assistant の応答・新しい init は、新しい result が出るまで成功にしない | 表 | 181 | 2,121 |
-| 147 | `test_collect_success_builds_receipt_and_identity`（正しく通る例） | 1 | 31 | 後の壊れた行・失敗の result・error・診断で成功にしない拒否の群の対の正例（何でも拒否する実装を通さない） | 表 | 182 | 2,152 |
-| 148 | `test_collect_nested_json_result_returns_outer_object`（正しく通る例） | 1 | 13 | 散文に包んだ JSON の外側の object を返す正例（入れ子の断片を拾う拒否の対） | 表 | 183 | 2,165 |
-| 149 | `test_collect_skill_versions_from_successful_read_completion`（正しく通る例） | 1 | 35 | readToolCall の完了から skill の版を記録する正例（版を記録しない拒否の群の対） | 表 | 184 | 2,200 |
-| 150 | `test_later_response_requires_its_own_result` の `True-later1`（正しく通る例） | 1 | 30（関数 30 を含む） | 新しい init の後の新しい result なら、その payload と最後の init の identity を採用する正例 | 表 | 185 | 2,230 |
+| 139 | `test_prepare_reads_prompt_from_stdin_and_trusts_worktree` | 1 | 8 | 依頼文を stdin から外しても起動は成功し、担当は依頼の無いまま JSON の回答を返せる（もっともらしい誤った成功） | 表 | 167 | 2,093 |
+| 140 | `test_collect_reading_skill_backup_does_not_record_unread_skill` | 1 | 35 | 読んだファイルが SKILL.md でなければ（SKILL.md.bak）、親ディレクトリ名の skill の版として記録しない | 表 | 168 | 2,128 |
+| 141 | `test_collect_skill_version_stays_unknown_when_read_limit_is_exceeded` | 1 | 7 | CLI が上限超過を報告した読み込みは、内容が今のファイルと一致しても版を記録しない | 表 | 169 | 2,135 |
+| 142 | `test_collect_unobserved_identity_is_not_copied_from_settings` | 1 | 9 | init の無い出力で identity を設定から補わず全て null にする。補うと要求したモデルが動いたと記録する | 表 | 170 | 2,144 |
+| 143 | `test_collect_later_corruption_or_failure_cannot_reuse_success` | 6 | 14 | 成功の result の後の壊れた行・失敗の result・error・文字列の is_error で、先行の成功を再利用しない。外すと古い payload で黙って成功する | 表 | 176 | 2,158 |
+| 144 | `test_collect_invalid_outer_json_cannot_be_replaced_by_nested_object` | 1 | 5 | 壊れた外側の JSON から内側の object を取り出さない。次の「{」を探す変更をすると誤った payload で黙って成功する | 表 | 177 | 2,163 |
+| 145 | `test_collect_failure_diagnostics_override_plausible_result` | 2 | 8 | 成功の result（終了コード 0）でも stderr の認証・trust の診断があれば成功にしない。外すと偽の成功になる | 表 | 179 | 2,171 |
+| 146 | `test_later_response_requires_its_own_result` の `False-later0`・`False-later1` | 2 | 0 | 成功の result の後の assistant の応答・新しい init は、新しい result が出るまで成功にしない | 表 | 181 | 2,171 |
+| 147 | `test_collect_success_builds_receipt_and_identity`（正しく通る例） | 1 | 31 | 後の壊れた行・失敗の result・error・診断で成功にしない拒否の群の対の正例（何でも拒否する実装を通さない） | 表 | 182 | 2,202 |
+| 148 | `test_collect_nested_json_result_returns_outer_object`（正しく通る例） | 1 | 13 | 散文に包んだ JSON の外側の object を返す正例（入れ子の断片を拾う拒否の対） | 表 | 183 | 2,215 |
+| 149 | `test_collect_skill_versions_from_successful_read_completion`（正しく通る例） | 1 | 35 | readToolCall の完了から skill の版を記録する正例（版を記録しない拒否の群の対） | 表 | 184 | 2,250 |
+| 150 | `test_later_response_requires_its_own_result` の `True-later1`（正しく通る例） | 1 | 30（関数 30 を含む） | 新しい init の後の新しい result なら、その payload と最後の init の identity を採用する正例 | 表 | 185 | 2,280 |
 
 `tools/agent_runner/tests/adapters/devin/test_adapter.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 151 | `test_quoted_diagnostics_in_model_messages_are_answer_data` の `answer` | 1 | 29（関数 29 を含む） | 引用した診断の形の行が回答の本文や後ろにあっても、正しい回答で終わる出力を success にする。外れると正しいレビューが認証待ちで捨てられる | #236 の判定 | 186 | 2,259 |
-| 152 | `test_export_error_step_authentication_overrides_answer` | 1 | 13 | export の error の step の認証の失敗を、標準出力が回答で終わっていても優先して awaiting_authentication にする。外れると失敗を成功と報告する | #236 の判定 | 187 | 2,272 |
-| 153 | `test_prepare_appends_agent_args` | 1 | 4 | agent.args が argv の末尾に付く。落ちたり前に回ると設定した制限が黙って効かず権限が広がりうる | 表 | 188 | 2,276 |
-| 154 | `test_blank_stdout_fails_even_with_export` | 1 | 3 | export に正しい最終メッセージがあっても stdout が空なら成功にしない。外れると途切れた実行を成功と報告する | 表 | 189 | 2,279 |
-| 155 | `test_missing_export_fails` | 1 | 4 | export が無ければ stdout にもっともらしい JSON があっても成功にしない。壊れると最終でないメッセージを成功として返しうる | 表 | 190 | 2,283 |
-| 156 | `test_skill_tool_call_path_alone_does_not_prove_read` | 1 | 21 | ATIF の tool call の引数に SKILL.md のパスがあるだけでは skill の版を記録しない | 表 | 191 | 2,304 |
-| 157 | `test_prepare_includes_requested_skills_and_configured_source` | 1 | 15 | role.skills と設定 source の SKILL.md の絶対パスをプロンプトのファイルに書く。落ちると指定の skill が使われない | 表 | 192 | 2,319 |
-| 158 | `test_identity_never_copies_requested_configuration` | 1 | 11 | export に agent・session_id が無いとき identity を要求の provider・effort・model で埋めない（記録の取り違え） | 表 | 193 | 2,330 |
-| 159 | `test_diagnostics_override_plausible_success` | 3 | 14 | stdout と export にもっともらしい成功があっても stderr の認証・承認の診断を優先し payload を返さない。外れると止まった実行を成功と報告する | 表 | 196 | 2,344 |
-| 160 | `test_truncated_later_stdout_cannot_reuse_completion` | 2 | 6 | 回答の後に JSON らしい行（完全でも途中で切れていても）が続く stdout を成功にしない。外れると前の回答で成功にする | 表 | 198 | 2,350 |
-| 161 | `test_truncated_later_export_cannot_reuse_completion` | 1 | 7 | 完全な ATIF の JSON の後に切れた記録が続く export を json.loads で丸ごと拒否して成功にしない | 表 | 199 | 2,357 |
-| 162 | `test_latest_empty_agent_message_cannot_reuse_earlier_answer` | 1 | 8 | 最後の agent の step のメッセージが空なら前の step の回答を使わない（最後の step だけを最終メッセージにする） | 表 | 200 | 2,365 |
-| 163 | `test_incomplete_or_failed_export_does_not_reuse_prior_answer` | 1 | 13 | 前に回答の step がある export の最後に user の step が続くとき、前の回答を使わない。外れると終わっていない実行を成功にする | 表 | 201 | 2,378 |
-| 164 | `test_invalid_final_json_does_not_return_nested_fragment` | 2 | 8 | 最終の回答が配列や途中で切れた object のとき、中の入れ子の object を拾って成功にしない | 表 | 203 | 2,386 |
-| 165 | `test_tool_run_stdout_not_ending_with_final_answer_fails` | 1 | 16 | 回答の行の後ろに文字が続く（stdout の最後の JSON が回答そのものでない）とき成功にしない | 表 | 204 | 2,402 |
-| 166 | `test_tool_run_final_step_calling_tool_fails` | 1 | 8 | 最後の agent の step がまだ tool call を続けているなら、そのメッセージを最終の回答にしない | 表 | 205 | 2,410 |
-| 167 | `test_collect_success_extracts_identity`（正しく通る例） | 1 | 9 | stdout・export の不整合や診断を成功にしない拒否の群の対の正例（何でも失敗にする実装を通さない） | 表 | 206 | 2,419 |
-| 168 | `test_collect_success_text_shape`（正しく通る例） | 1 | 7 | text の役割で成功にする正例。stdout・export の不整合を成功にしない拒否の群の対（何でも失敗にする実装を通さない） | 表 | 207 | 2,426 |
-| 169 | `test_plain_progress_after_json_does_not_invalidate_completion`（正しく通る例） | 1 | 6 | 回答の後の普通の進捗の行は許す正例。_plain_tail の拒否の群（後ろに JSON らしい行が続く stdout を成功にしない）の対 | 表 | 208 | 2,432 |
-| 170 | `test_tool_run_stdout_ending_with_final_answer_succeeds`（正しく通る例） | 1 | 9 | tool を使う途中のメッセージが連結され最後がフェンスの回答の stdout と export で成功にする正例（#185・#186） | 表 | 209 | 2,441 |
+| 151 | `test_quoted_diagnostics_in_model_messages_are_answer_data` の `answer` | 1 | 29（関数 29 を含む） | 引用した診断の形の行が回答の本文や後ろにあっても、正しい回答で終わる出力を success にする。外れると正しいレビューが認証待ちで捨てられる | #236 の判定 | 186 | 2,309 |
+| 152 | `test_export_error_step_authentication_overrides_answer` | 1 | 13 | export の error の step の認証の失敗を、標準出力が回答で終わっていても優先して awaiting_authentication にする。外れると失敗を成功と報告する | #236 の判定 | 187 | 2,322 |
+| 153 | `test_prepare_appends_agent_args` | 1 | 4 | agent.args が argv の末尾に付く。落ちたり前に回ると設定した制限が黙って効かず権限が広がりうる | 表 | 188 | 2,326 |
+| 154 | `test_blank_stdout_fails_even_with_export` | 1 | 3 | export に正しい最終メッセージがあっても stdout が空なら成功にしない。外れると途切れた実行を成功と報告する | 表 | 189 | 2,329 |
+| 155 | `test_missing_export_fails` | 1 | 4 | export が無ければ stdout にもっともらしい JSON があっても成功にしない。壊れると最終でないメッセージを成功として返しうる | 表 | 190 | 2,333 |
+| 156 | `test_skill_tool_call_path_alone_does_not_prove_read` | 1 | 21 | ATIF の tool call の引数に SKILL.md のパスがあるだけでは skill の版を記録しない | 表 | 191 | 2,354 |
+| 157 | `test_prepare_includes_requested_skills_and_configured_source` | 1 | 15 | role.skills と設定 source の SKILL.md の絶対パスをプロンプトのファイルに書く。落ちると指定の skill が使われない | 表 | 192 | 2,369 |
+| 158 | `test_identity_never_copies_requested_configuration` | 1 | 11 | export に agent・session_id が無いとき identity を要求の provider・effort・model で埋めない（記録の取り違え） | 表 | 193 | 2,380 |
+| 159 | `test_diagnostics_override_plausible_success` | 3 | 14 | stdout と export にもっともらしい成功があっても stderr の認証・承認の診断を優先し payload を返さない。外れると止まった実行を成功と報告する | 表 | 196 | 2,394 |
+| 160 | `test_truncated_later_stdout_cannot_reuse_completion` | 2 | 6 | 回答の後に JSON らしい行（完全でも途中で切れていても）が続く stdout を成功にしない。外れると前の回答で成功にする | 表 | 198 | 2,400 |
+| 161 | `test_truncated_later_export_cannot_reuse_completion` | 1 | 7 | 完全な ATIF の JSON の後に切れた記録が続く export を json.loads で丸ごと拒否して成功にしない | 表 | 199 | 2,407 |
+| 162 | `test_latest_empty_agent_message_cannot_reuse_earlier_answer` | 1 | 8 | 最後の agent の step のメッセージが空なら前の step の回答を使わない（最後の step だけを最終メッセージにする） | 表 | 200 | 2,415 |
+| 163 | `test_incomplete_or_failed_export_does_not_reuse_prior_answer` | 1 | 13 | 前に回答の step がある export の最後に user の step が続くとき、前の回答を使わない。外れると終わっていない実行を成功にする | 表 | 201 | 2,428 |
+| 164 | `test_invalid_final_json_does_not_return_nested_fragment` | 2 | 8 | 最終の回答が配列や途中で切れた object のとき、中の入れ子の object を拾って成功にしない | 表 | 203 | 2,436 |
+| 165 | `test_tool_run_stdout_not_ending_with_final_answer_fails` | 1 | 16 | 回答の行の後ろに文字が続く（stdout の最後の JSON が回答そのものでない）とき成功にしない | 表 | 204 | 2,452 |
+| 166 | `test_tool_run_final_step_calling_tool_fails` | 1 | 8 | 最後の agent の step がまだ tool call を続けているなら、そのメッセージを最終の回答にしない | 表 | 205 | 2,460 |
+| 167 | `test_collect_success_extracts_identity`（正しく通る例） | 1 | 9 | stdout・export の不整合や診断を成功にしない拒否の群の対の正例（何でも失敗にする実装を通さない） | 表 | 206 | 2,469 |
+| 168 | `test_collect_success_text_shape`（正しく通る例） | 1 | 7 | text の役割で成功にする正例。stdout・export の不整合を成功にしない拒否の群の対（何でも失敗にする実装を通さない） | 表 | 207 | 2,476 |
+| 169 | `test_plain_progress_after_json_does_not_invalidate_completion`（正しく通る例） | 1 | 6 | 回答の後の普通の進捗の行は許す正例。_plain_tail の拒否の群（後ろに JSON らしい行が続く stdout を成功にしない）の対 | 表 | 208 | 2,482 |
+| 170 | `test_tool_run_stdout_ending_with_final_answer_succeeds`（正しく通る例） | 1 | 9 | tool を使う途中のメッセージが連結され最後がフェンスの回答の stdout と export で成功にする正例（#185・#186） | 表 | 209 | 2,491 |
 
 `tools/agent_runner/tests/adapters/pi/test_adapter.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 171 | `test_prepare_maps_skill_sources_and_args` | 1 | 10 | agent.skill_sources を順に --skill に渡し、agent.args を末尾に付ける。落ちると設定した skill や引数が黙って効かない | 表 | 210 | 2,451 |
-| 172 | `test_exit_zero_without_agent_end_is_response_failed` | 1 | 3 | agent_end の無いストリームを成功にしない（Pi は失敗でも終了コード 0 を返すことがある） | 表 | 211 | 2,454 |
-| 173 | `test_aborted_stop_reason_is_interrupted` | 1 | 6 | stopReason の aborted を interrupted にする。response_failed に取り違えると取り消し後に fallback の実行が始まる | 表 | 212 | 2,460 |
-| 174 | `test_unknown_stop_reason_is_response_failed` | 1 | 6 | 正常でない stopReason（length など切れた回答）を成功にしない | 表 | 213 | 2,466 |
-| 175 | `test_text_shape_returns_concatenated_text` | 1 | 6 | text の役割で最後の assistant の text をすべてつなぐ。一部だけ返すと欠けた回答を成功として返す | 表 | 214 | 2,472 |
-| 176 | `test_only_completed_matching_full_read_is_hashed` の `mentioned`・`failed`・`partial` ほか 1 件 | 4 | 0 | 完了の無い開始・失敗した完了・範囲指定の read・内容の不一致では版を記録しない。外れると読んでいない・一部しか読んでいない版を記録する | 表 | 218 | 2,472 |
-| 177 | `test_prepare_applies_role_skills` | 1 | 11 | role.skills と設定 source の SKILL.md の絶対パスを stdin に足す。落ちると指定の skill が使われず別の版を読む | 表 | 219 | 2,483 |
-| 178 | `test_final_lifecycle_dominates_earlier_turn` | 4 | 10 | 最後の agent_end とその後の settlement だけが完了を決める（前の成功・先に出た settlement を使わない） | 表 | 223 | 2,493 |
-| 179 | `test_diagnostics_override_plausible_answer` | 2 | 8 | もっともらしい回答があっても stderr と error イベントの認証・承認の診断を優先する。外れると止まった実行を成功と報告する | 表 | 225 | 2,501 |
-| 180 | `test_missing_identity_is_not_filled_from_config` | 1 | 9 | assistant に model・provider・thinkingLevel と session が無いとき identity を設定で埋めない（記録の取り違え） | 表 | 226 | 2,510 |
-| 181 | `test_empty_skill_requires_observed_text_content` | 1 | 12 | read の完了の result に text の content が無ければ、空の SKILL.md でも版を記録しない。外れると未観測の空ファイルの版を記録する | 表 | 227 | 2,522 |
-| 182 | `test_trailing_broken_event_cannot_reuse_success` | 3 | 11 | 完了の後の壊れた行で前の回答を使わない | 表 | 230 | 2,533 |
-| 183 | `test_new_session_without_completion_cannot_reuse_old_payload` | 1 | 5 | 完了の後に新しい session が始まり完了していなければ前の回答を使わず失敗にする。外れると別のセッションの前の回答で成功にする | 表 | 231 | 2,538 |
-| 184 | `test_collect_success_extracts_identity_and_payload`（正しく通る例） | 1 | 10 | 異常なストリームを成功にしない拒否の群の対の正例（何でも失敗にする実装を通さない）。identity を最後の agent_end と session の id から取る | 表 | 232 | 2,548 |
-| 185 | `test_only_completed_matching_full_read_is_hashed` の `complete`（正しく通る例） | 1 | 17（関数 17 を含む） | 同じ toolCallId の read の開始と成功した完了が対で、範囲指定が無く全文が今のファイルと一致するときだけ版を記録する正例 | 表 | 233 | 2,565 |
-| 186 | `test_plain_progress_after_completion_is_harmless`（正しく通る例） | 1 | 4 | 完了の後の普通の進捗の行は許す正例（壊れた行で前の回答を使わない拒否の対） | 表 | 234 | 2,569 |
+| 171 | `test_prepare_maps_skill_sources_and_args` | 1 | 10 | agent.skill_sources を順に --skill に渡し、agent.args を末尾に付ける。落ちると設定した skill や引数が黙って効かない | 表 | 210 | 2,501 |
+| 172 | `test_exit_zero_without_agent_end_is_response_failed` | 1 | 3 | agent_end の無いストリームを成功にしない（Pi は失敗でも終了コード 0 を返すことがある） | 表 | 211 | 2,504 |
+| 173 | `test_aborted_stop_reason_is_interrupted` | 1 | 6 | stopReason の aborted を interrupted にする。response_failed に取り違えると取り消し後に fallback の実行が始まる | 表 | 212 | 2,510 |
+| 174 | `test_unknown_stop_reason_is_response_failed` | 1 | 6 | 正常でない stopReason（length など切れた回答）を成功にしない | 表 | 213 | 2,516 |
+| 175 | `test_text_shape_returns_concatenated_text` | 1 | 6 | text の役割で最後の assistant の text をすべてつなぐ。一部だけ返すと欠けた回答を成功として返す | 表 | 214 | 2,522 |
+| 176 | `test_only_completed_matching_full_read_is_hashed` の `mentioned`・`failed`・`partial` ほか 1 件 | 4 | 0 | 完了の無い開始・失敗した完了・範囲指定の read・内容の不一致では版を記録しない。外れると読んでいない・一部しか読んでいない版を記録する | 表 | 218 | 2,522 |
+| 177 | `test_prepare_applies_role_skills` | 1 | 11 | role.skills と設定 source の SKILL.md の絶対パスを stdin に足す。落ちると指定の skill が使われず別の版を読む | 表 | 219 | 2,533 |
+| 178 | `test_final_lifecycle_dominates_earlier_turn` | 4 | 10 | 最後の agent_end とその後の settlement だけが完了を決める（前の成功・先に出た settlement を使わない） | 表 | 223 | 2,543 |
+| 179 | `test_diagnostics_override_plausible_answer` | 2 | 8 | もっともらしい回答があっても stderr と error イベントの認証・承認の診断を優先する。外れると止まった実行を成功と報告する | 表 | 225 | 2,551 |
+| 180 | `test_missing_identity_is_not_filled_from_config` | 1 | 9 | assistant に model・provider・thinkingLevel と session が無いとき identity を設定で埋めない（記録の取り違え） | 表 | 226 | 2,560 |
+| 181 | `test_empty_skill_requires_observed_text_content` | 1 | 12 | read の完了の result に text の content が無ければ、空の SKILL.md でも版を記録しない。外れると未観測の空ファイルの版を記録する | 表 | 227 | 2,572 |
+| 182 | `test_trailing_broken_event_cannot_reuse_success` | 3 | 11 | 完了の後の壊れた行で前の回答を使わない | 表 | 230 | 2,583 |
+| 183 | `test_new_session_without_completion_cannot_reuse_old_payload` | 1 | 5 | 完了の後に新しい session が始まり完了していなければ前の回答を使わず失敗にする。外れると別のセッションの前の回答で成功にする | 表 | 231 | 2,588 |
+| 184 | `test_collect_success_extracts_identity_and_payload`（正しく通る例） | 1 | 10 | 異常なストリームを成功にしない拒否の群の対の正例（何でも失敗にする実装を通さない）。identity を最後の agent_end と session の id から取る | 表 | 232 | 2,598 |
+| 185 | `test_only_completed_matching_full_read_is_hashed` の `complete`（正しく通る例） | 1 | 17（関数 17 を含む） | 同じ toolCallId の read の開始と成功した完了が対で、範囲指定が無く全文が今のファイルと一致するときだけ版を記録する正例 | 表 | 233 | 2,615 |
+| 186 | `test_plain_progress_after_completion_is_harmless`（正しく通る例） | 1 | 4 | 完了の後の普通の進捗の行は許す正例（壊れた行で前の回答を使わない拒否の対） | 表 | 234 | 2,619 |
 
 `tools/agent_runner/tests/adapters/test_parser_regressions.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 187 | `test_codex_unicode_session_metadata_cannot_hide_mismatch` | 1 | 8 | session_meta の照合を LF だけで分ける。splitlines に戻ると別の session の rollout を受け入れ、レビューの記録が別のモデルのものになる | 表 | 235 | 2,577 |
-| 188 | `test_invalid_fence_cannot_salvage_inner_json` | 4 | 5 | 閉じフェンスの無い回答の最初の object を payload にしない。前の候補の値を使い回すと壊れた最終回答が下書きの値で success になる | 表 | 239 | 2,582 |
-| 189 | `test_devin_fence_failure_in_either_channel_is_read_only` | 1 | 40 | 最終の ATIF の回答が閉じフェンスを欠くとき成功にしない。collect がファイルを書き換えず外部コマンドを起動しないことも確かめる | 表 | 240 | 2,622 |
-| 190 | `test_codex_recovery_requires_new_complete_message_and_terminal_success` | 1 | 7 | turn.failed の後に新しい message と turn.completed が来ても失敗のままにする。外すと失敗した turn の後の回答が成功になる | 表 | 241 | 2,629 |
-| 191 | `test_codex_recovery_does_not_clear_other_diagnostic_channels` | 1 | 15 | 回復しても、stdout の JSON でない行の認証・承認の診断を消さない | 表 | 242 | 2,644 |
-| 192 | `test_codex_unicode_rollout_cannot_hide_corrupt_lf_record` | 1 | 10 | rollout の破損した記録で失敗にする（rollout を LF だけで分け、区切り文字で破損を隠さない） | 表 | 243 | 2,654 |
-| 193 | `test_fenced_json_with_nested_code_backticks_is_data`（正しく通る例） | 1 | 8 | pi のフェンスの JSON の解析の正例。JSON の文字列中の ``` を閉じ fence と誤らない（閉じ fence の拒否の対） | 表 | 244 | 2,662 |
-| 194 | `test_codex_fresh_completed_message_recovers_error`（正しく通る例） | 1 | 121（準備 105 を含む） | codex の再試行の回復（pending_errors.clear()）の正例。新しい完了した message の後は先の error から回復する | 表 | 245 | 2,783 |
+| 187 | `test_codex_unicode_session_metadata_cannot_hide_mismatch` | 1 | 8 | session_meta の照合を LF だけで分ける。splitlines に戻ると別の session の rollout を受け入れ、レビューの記録が別のモデルのものになる | 表 | 235 | 2,627 |
+| 188 | `test_invalid_fence_cannot_salvage_inner_json` | 4 | 5 | 閉じフェンスの無い回答の最初の object を payload にしない。前の候補の値を使い回すと壊れた最終回答が下書きの値で success になる | 表 | 239 | 2,632 |
+| 189 | `test_devin_fence_failure_in_either_channel_is_read_only` | 1 | 40 | 最終の ATIF の回答が閉じフェンスを欠くとき成功にしない。collect がファイルを書き換えず外部コマンドを起動しないことも確かめる | 表 | 240 | 2,672 |
+| 190 | `test_codex_recovery_requires_new_complete_message_and_terminal_success` | 1 | 7 | turn.failed の後に新しい message と turn.completed が来ても失敗のままにする。外すと失敗した turn の後の回答が成功になる | 表 | 241 | 2,679 |
+| 191 | `test_codex_recovery_does_not_clear_other_diagnostic_channels` | 1 | 15 | 回復しても、stdout の JSON でない行の認証・承認の診断を消さない | 表 | 242 | 2,694 |
+| 192 | `test_codex_unicode_rollout_cannot_hide_corrupt_lf_record` | 1 | 10 | rollout の破損した記録で失敗にする（rollout を LF だけで分け、区切り文字で破損を隠さない） | 表 | 243 | 2,704 |
+| 193 | `test_fenced_json_with_nested_code_backticks_is_data`（正しく通る例） | 1 | 8 | pi のフェンスの JSON の解析の正例。JSON の文字列中の ``` を閉じ fence と誤らない（閉じ fence の拒否の対） | 表 | 244 | 2,712 |
+| 194 | `test_codex_fresh_completed_message_recovers_error`（正しく通る例） | 1 | 121（準備 105 を含む） | codex の再試行の回復（pending_errors.clear()）の正例。新しい完了した message の後は先の error から回復する | 表 | 245 | 2,833 |
 
 `tools/agent_runner/tests/test_checkout_policy.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 195 | `test_batch_reports_parallel_checkout_edit` | 1 | 18 | 他のセッションが登録済みの checkout に並行して加えた変更を outside_changes・checkout_audit に残す。落とすと見逃す | #236 の判定 | 246 | 2,801 |
+| 195 | `test_batch_reports_parallel_checkout_edit` | 1 | 18 | 他のセッションが登録済みの checkout に並行して加えた変更を outside_changes・checkout_audit に残す。落とすと見逃す | #236 の判定 | 246 | 2,851 |
 
 `tools/agent_runner/tests/test_cli.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 196 | `test_explicit_missing_and_auto_broken_personal_are_errors` | 1 | 13 | 自動で探した個人設定の場所が壊れた symlink のとき config_io にする。無いと個人設定が黙って無視され雛形だけで run が進む | 表 | 247 | 2,814 |
-| 197 | `test_run_exit_codes_and_atomic_result` の `partial_success-1` | 1 | 0 | 成功していない batch（partial_success・failed）を終了コード 0 にしない。0 だと呼び出し側が失敗を成功として扱う | 表 | 248 | 2,814 |
-| 198 | `test_cli_overlay_assignment_priority_preserves_fallback` | 1 | 46 | --assign が無視されると、選んだ担当（self など）でなく個人設定・雛形の担当が黙って起動する（有料の担当が動く） | 表 | 249 | 2,860 |
-| 199 | `test_sigint_saves_interrupted_batch_and_restores_handler` | 1 | 58 | SIGINT で共有の cancel を立て結果を保存し終了コード 130 を返す。無いと Ctrl-C で担当が止まらず、利用者は止めたつもりでも動き続ける | 表 | 250 | 2,918 |
-| 200 | `test_after_run_gets_the_result_path_and_never_changes_the_exit_code` の `3-failed` | 1 | 0 | 非 0 で終わった後処理を success と報告しない。壊れると review の後処理（finalize-parent・attach-runner）の失敗が成功と報告される | 表 | 251 | 2,918 |
-| 201 | `test_after_run_internal_error_is_reported_without_changing_the_exit_code` | 1 | 12 | 後処理の監督で例外が出ても、終了コードを変えず response_failed・停止未確認として報告する | 表 | 252 | 2,930 |
-| 202 | `test_after_run_is_not_started_after_an_interrupted_run` | 1 | 11 | SIGINT で中断した run では後処理（finalize-parent・attach-runner）を起動しない。外れると利用者の停止の後にも後処理が走る | 表・重さは #236 | 253 | 2,941 |
-| 203 | `test_invalid_write_exceptions_are_rejected_before_any_output` の `dash-separate-token` | 1 | 0 | 別の引数に書いた -x の argparse の誤りで CLI が止まり出力先を作らない。error() が戻ると誤ったオプションを無視して既定値で run が進む | 表 | 254 | 2,941 |
-| 204 | `test_run_exit_codes_and_atomic_result` の `success-0`（正しく通る例） | 1 | 54（関数 54 を含む） | [partial_success-1] の拒否の正例（何でも 1 にする実装で通らないように）。成功の run は終了コード 0 | 表 | 255 | 2,995 |
-| 205 | `test_after_run_gets_the_result_path_and_never_changes_the_exit_code` の `0-success`（正しく通る例） | 1 | 31（関数 31 を含む） | [3-failed] の失敗の報告の正例。成功した後処理を成功と報告し、終了コードと result.json の state を変えない | 表 | 256 | 3,026 |
-| 206 | `test_invalid_write_exceptions_are_rejected_before_any_output` の `valid`（正しく通る例） | 1 | 203（関数 25・準備 178 を含む） | [dash-separate-token] の拒否の正例（正しい値なら同じ呼び出しが成功する） | 表 | 257 | 3,229 |
+| 196 | `test_explicit_missing_and_auto_broken_personal_are_errors` | 1 | 13 | 自動で探した個人設定の場所が壊れた symlink のとき config_io にする。無いと個人設定が黙って無視され雛形だけで run が進む | 表 | 247 | 2,864 |
+| 197 | `test_run_exit_codes_and_atomic_result` の `partial_success-1` | 1 | 0 | 成功していない batch（partial_success・failed）を終了コード 0 にしない。0 だと呼び出し側が失敗を成功として扱う | 表 | 248 | 2,864 |
+| 198 | `test_cli_overlay_assignment_priority_preserves_fallback` | 1 | 46 | --assign が無視されると、選んだ担当（self など）でなく個人設定・雛形の担当が黙って起動する（有料の担当が動く） | 表 | 249 | 2,910 |
+| 199 | `test_sigint_saves_interrupted_batch_and_restores_handler` | 1 | 58 | SIGINT で共有の cancel を立て結果を保存し終了コード 130 を返す。無いと Ctrl-C で担当が止まらず、利用者は止めたつもりでも動き続ける | 表 | 250 | 2,968 |
+| 200 | `test_after_run_gets_the_result_path_and_never_changes_the_exit_code` の `3-failed` | 1 | 0 | 非 0 で終わった後処理を success と報告しない。壊れると review の後処理（finalize-parent・attach-runner）の失敗が成功と報告される | 表 | 251 | 2,968 |
+| 201 | `test_after_run_internal_error_is_reported_without_changing_the_exit_code` | 1 | 12 | 後処理の監督で例外が出ても、終了コードを変えず response_failed・停止未確認として報告する | 表 | 252 | 2,980 |
+| 202 | `test_after_run_is_not_started_after_an_interrupted_run` | 1 | 11 | SIGINT で中断した run では後処理（finalize-parent・attach-runner）を起動しない。外れると利用者の停止の後にも後処理が走る | 表・重さは #236 | 253 | 2,991 |
+| 203 | `test_invalid_write_exceptions_are_rejected_before_any_output` の `dash-separate-token` | 1 | 0 | 別の引数に書いた -x の argparse の誤りで CLI が止まり出力先を作らない。error() が戻ると誤ったオプションを無視して既定値で run が進む | 表 | 254 | 2,991 |
+| 204 | `test_run_exit_codes_and_atomic_result` の `success-0`（正しく通る例） | 1 | 54（関数 54 を含む） | [partial_success-1] の拒否の正例（何でも 1 にする実装で通らないように）。成功の run は終了コード 0 | 表 | 255 | 3,045 |
+| 205 | `test_after_run_gets_the_result_path_and_never_changes_the_exit_code` の `0-success`（正しく通る例） | 1 | 31（関数 31 を含む） | [3-failed] の失敗の報告の正例。成功した後処理を成功と報告し、終了コードと result.json の state を変えない | 表 | 256 | 3,076 |
+| 206 | `test_invalid_write_exceptions_are_rejected_before_any_output` の `valid`（正しく通る例） | 1 | 203（関数 25・準備 178 を含む） | [dash-separate-token] の拒否の正例（正しい値なら同じ呼び出しが成功する） | 表 | 257 | 3,279 |
 
 `tools/agent_runner/tests/test_config.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 207 | `test_recursive_overlay_replaces_arrays_and_preserves_other_fields` | 1 | 24 | 個人設定の table を再帰的に統合し配列は置き換える。壊れると利用者が選んだのと別の担当・モデル・期限で run が進む | 表 | 258 | 3,253 |
-| 208 | `test_assignment_override_is_last_and_keeps_explicit_fallback` | 1 | 10 | --assign が個人設定の後に効き、agents だけ置き換えて明示の fallback を残す。外れると --assign が黙って無視される | 表 | 259 | 3,263 |
-| 209 | `test_config_errors_are_categorized_without_input_or_traceback_leaks` | 1 | 18 | 未知のキーを拒否する（extra=forbid）。外れると綴りを誤ったキーが黙って無視され、書いた設定と違う設定で run が進む | 表 | 260 | 3,281 |
-| 210 | `test_references_must_resolve` | 1 | 10 | 最終形の割り当てで未定義の role を拒否する。外れると個人設定の役割名の誤記が黙って通る | 表 | 261 | 3,291 |
-| 211 | `test_duplicate_models_are_rejected_across_all_candidates` | 1 | 10 | 同じ role の agents と fallback の全候補で同じモデルの重複を拒否する。外れると重複したモデルの設定が黙って通る | 表 | 262 | 3,301 |
-| 212 | `test_diversity_constraint_checks_fallback_candidates` | 1 | 5 | exclude_same_model_as の 2 つの role の候補（fallback を含む）に同じモデルがあれば拒否する。外れると制約が黙って破られる | 表 | 263 | 3,306 |
-| 213 | `test_personal_path_precedence` | 5 | 22 | 個人設定の場所の優先順（明示・~ の展開・XDG・既定）を分岐ごとに確かめる。誤ると意図と違う個人設定を読む | 表 | 268 | 3,328 |
-| 214 | `test_nested_or_malformed_depth_is_rejected` | 1 | 7 | runner の担当（AGENT_RUNNER_DEPTH=1）からの入れ子の run を nested_invocation で拒否する | 表 | 269 | 3,335 |
-| 215 | `test_receipt_rejects_non_json_payloads` | 2 | 9 | 担当の回答の NaN・Infinity・1e400 を payload にしない。外れると不正な結果を success と報告し、保存した記録の値が黙って null に変わる | 表 | 271 | 3,344 |
-| 216 | `test_diversity_constraint_accepts_disjoint_candidates`（正しく通る例） | 1 | 8 | test_diversity_constraint_checks_fallback_candidates の拒否の正例（重ならない候補は通す） | 表 | 272 | 3,352 |
-| 217 | `test_top_level_depth_is_allowed`（正しく通る例） | 1 | 103（準備 97 を含む） | 入れ子の拒否（AGENT_RUNNER_DEPTH=1）の正例。未設定なら最上位として通す | 表 | 273 | 3,455 |
+| 207 | `test_recursive_overlay_replaces_arrays_and_preserves_other_fields` | 1 | 24 | 個人設定の table を再帰的に統合し配列は置き換える。壊れると利用者が選んだのと別の担当・モデル・期限で run が進む | 表 | 258 | 3,303 |
+| 208 | `test_assignment_override_is_last_and_keeps_explicit_fallback` | 1 | 10 | --assign が個人設定の後に効き、agents だけ置き換えて明示の fallback を残す。外れると --assign が黙って無視される | 表 | 259 | 3,313 |
+| 209 | `test_config_errors_are_categorized_without_input_or_traceback_leaks` | 1 | 18 | 未知のキーを拒否する（extra=forbid）。外れると綴りを誤ったキーが黙って無視され、書いた設定と違う設定で run が進む | 表 | 260 | 3,331 |
+| 210 | `test_references_must_resolve` | 1 | 10 | 最終形の割り当てで未定義の role を拒否する。外れると個人設定の役割名の誤記が黙って通る | 表 | 261 | 3,341 |
+| 211 | `test_duplicate_models_are_rejected_across_all_candidates` | 1 | 10 | 同じ role の agents と fallback の全候補で同じモデルの重複を拒否する。外れると重複したモデルの設定が黙って通る | 表 | 262 | 3,351 |
+| 212 | `test_diversity_constraint_checks_fallback_candidates` | 1 | 5 | exclude_same_model_as の 2 つの role の候補（fallback を含む）に同じモデルがあれば拒否する。外れると制約が黙って破られる | 表 | 263 | 3,356 |
+| 213 | `test_personal_path_precedence` | 5 | 22 | 個人設定の場所の優先順（明示・~ の展開・XDG・既定）を分岐ごとに確かめる。誤ると意図と違う個人設定を読む | 表 | 268 | 3,378 |
+| 214 | `test_nested_or_malformed_depth_is_rejected` | 1 | 7 | runner の担当（AGENT_RUNNER_DEPTH=1）からの入れ子の run を nested_invocation で拒否する | 表 | 269 | 3,385 |
+| 215 | `test_receipt_rejects_non_json_payloads` | 2 | 9 | 担当の回答の NaN・Infinity・1e400 を payload にしない。外れると不正な結果を success と報告し、保存した記録の値が黙って null に変わる | 表 | 271 | 3,394 |
+| 216 | `test_diversity_constraint_accepts_disjoint_candidates`（正しく通る例） | 1 | 8 | test_diversity_constraint_checks_fallback_candidates の拒否の正例（重ならない候補は通す） | 表 | 272 | 3,402 |
+| 217 | `test_top_level_depth_is_allowed`（正しく通る例） | 1 | 103（準備 97 を含む） | 入れ子の拒否（AGENT_RUNNER_DEPTH=1）の正例。未設定なら最上位として通す | 表 | 273 | 3,505 |
 
 `tools/agent_runner/tests/test_models.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 218 | `test_saved_v1_result_keeps_its_stop_state_without_dropping_observations` | 2 | 58（準備 38 を含む） | 空の旧欄を拒否すると停止済みの run が結果なしで資源が回収されず、記録のある観測を受け付けると黙って捨てる | #236 の判定 | 275 | 3,513 |
+| 218 | `test_saved_v1_result_keeps_its_stop_state_without_dropping_observations` | 2 | 58（準備 38 を含む） | 空の旧欄を拒否すると停止済みの run が結果なしで資源が回収されず、記録のある観測を受け付けると黙って捨てる | #236 の判定 | 275 | 3,563 |
 
 `tools/agent_runner/tests/test_process.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 219 | `test_abnormal_exit_returns_response_failed` | 2 | 6 | CLI の非 0 の終了と signal による終了を、response_failed と実測の終了コードで返す | 表 | 277 | 3,519 |
-| 220 | `test_control_eof_never_uses_successful_helper_exit` | 1 | 12 | 制御の報告が無いまま EOF になったとき、監督プロセスの終了コード 0 を成功にしない（exit 0 を成功としない） | 表 | 278 | 3,531 |
-| 221 | `test_supervisor_launch_paths_preserve_stdin_and_exit` の `posix_spawn` | 1 | 0 | 終了コード 7 → response_failed と stdin の受け渡し。既定の起動（posix_spawnp）側は代表 2 件と同じ守り | 表・重さは #236 | 279 | 3,531 |
-| 222 | `test_supervisor_launch_paths_preserve_stdin_and_exit` の `popen` | 1 | 9（関数 9 を含む） | Popen の起動の分岐で stdin が届き、非 0 の終了を response_failed と実測の終了コードで返す。壊れるとその build で失敗した CLI を成功と報告しうる | 表 | 280 | 3,540 |
-| 223 | `test_command_does_not_inherit_private_control_socket` | 1 | 13 | 担当の CLI に監督プロセスの制御ソケットを継承させない（制御ソケットの漏れ） | 表 | 281 | 3,553 |
-| 224 | `test_already_cancelled_does_not_spawn` | 1 | 18 | 取り消し済みの event では何も起動しない。外すと後処理（記録の保存など）が起動し、止められるまで途中まで実行される | 表 | 282 | 3,571 |
+| 219 | `test_abnormal_exit_returns_response_failed` | 2 | 6 | CLI の非 0 の終了と signal による終了を、response_failed と実測の終了コードで返す | 表 | 277 | 3,569 |
+| 220 | `test_control_eof_never_uses_successful_helper_exit` | 1 | 12 | 制御の報告が無いまま EOF になったとき、監督プロセスの終了コード 0 を成功にしない（exit 0 を成功としない） | 表 | 278 | 3,581 |
+| 221 | `test_supervisor_launch_paths_preserve_stdin_and_exit` の `posix_spawn` | 1 | 0 | 終了コード 7 → response_failed と stdin の受け渡し。既定の起動（posix_spawnp）側は代表 2 件と同じ守り | 表・重さは #236 | 279 | 3,581 |
+| 222 | `test_supervisor_launch_paths_preserve_stdin_and_exit` の `popen` | 1 | 9（関数 9 を含む） | Popen の起動の分岐で stdin が届き、非 0 の終了を response_failed と実測の終了コードで返す。壊れるとその build で失敗した CLI を成功と報告しうる | 表 | 280 | 3,590 |
+| 223 | `test_command_does_not_inherit_private_control_socket` | 1 | 13 | 担当の CLI に監督プロセスの制御ソケットを継承させない（制御ソケットの漏れ） | 表 | 281 | 3,603 |
+| 224 | `test_already_cancelled_does_not_spawn` | 1 | 18 | 取り消し済みの event では何も起動しない。外すと後処理（記録の保存など）が起動し、止められるまで途中まで実行される | 表 | 282 | 3,621 |
 
 `tools/agent_runner/tests/test_review_regressions.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 225 | `test_one_fallback_cannot_fill_two_parallel_role_slots` | 1 | 15 | 1 つの fallback は役割の 1 つの枠しか埋めない。外れると同じ担当が同じ役割で 2 回使われ独立したレビューの数を偽る | 表 | 283 | 3,586 |
-| 226 | `test_nonregular_receipt_is_rejected_before_adapter_reads_it` | 1 | 5 | 保持物があるときの response_failed への置き換えを success だけにする。外れると中断も置き換わり fallback が起動する | 表・重さは #236 | 284 | 3,591 |
+| 225 | `test_one_fallback_cannot_fill_two_parallel_role_slots` | 1 | 15 | 1 つの fallback は役割の 1 つの枠しか埋めない。外れると同じ担当が同じ役割で 2 回使われ独立したレビューの数を偽る | 表 | 283 | 3,636 |
+| 226 | `test_nonregular_receipt_is_rejected_before_adapter_reads_it` | 1 | 5 | 保持物があるときの response_failed への置き換えを success だけにする。外れると中断も置き換わり fallback が起動する | 表・重さは #236 | 284 | 3,641 |
 
 `tools/agent_runner/tests/test_runner.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 227 | `test_exit_zero_is_not_a_substitute_for_valid_receipt` の `options0-invalid_result`・`options1-invalid_result`・`options2-invalid_result` ほか 2 件 | 5 | 24（関数 24 を含む） | exit 0 を成功の代わりにしない。CLI が正しい結果を出していないのに success と報告する（誤った結果の報告） | 表 | 289 | 3,615 |
-| 228 | `test_text_receipt_requires_nonblank_text` の ` \n -invalid_result` | 1 | 0 | text の役割の受領の形の検査。空白だけの文を成功にしない（空の回答を成功と報告する） | 表 | 290 | 3,615 |
-| 229 | `test_adapter_success_cannot_bypass_missing_receipt` | 1 | 9 | adapter が success と分類しても受領が無ければ missing_result にする。外れると受領の無い試行を success と報告する | 表 | 291 | 3,624 |
-| 230 | `test_partial_success_and_independent_worktrees` | 1 | 13 | 同じ役割の担当の一部だけが成功したら batch を partial_success にする。外れると失敗を含む batch を success・failed と取り違えて報告する | 表 | 292 | 3,637 |
-| 231 | `test_only_explicit_fallback_is_tried_in_order` | 1 | 11 | 明示した fallback だけを書いた順に試す。外れると別の担当・別の順で実行した結果を返す | 表 | 293 | 3,648 |
-| 232 | `test_payload_check_refusal_is_invalid_result_and_tries_fallback` の `returns-false` | 1 | 0 | payload_check が False を返したら拒否する（True だけを受け入れる厳密な判定）。緩めると拒否した payload を成功として返す | 表・重さは #236 | 294 | 3,648 |
-| 233 | `test_payload_check_refusal_is_invalid_result_and_tries_fallback` の `raises` | 1 | 31（関数 31 を含む） | payload_check が例外を出したら invalid_result にして次の fallback へ進み、例外の文と拒否した payload を結果に出さない | 表 | 295 | 3,679 |
-| 234 | `test_self_has_no_process_or_worktree` | 1 | 6 | self の担当は process・worktree を作らず、全て self の batch を success でなく self にする。誤ると review-verify の指示が渡らない | 表 | 296 | 3,685 |
-| 235 | `test_role_deadline_covers_fallback_attempts` | 1 | 73 | 役割の期限が worktree の準備と全ての fallback に共通で、残りの時間だけを各試行に渡す。外れると期限を超えて実行し続ける | 表 | 297 | 3,758 |
-| 236 | `test_workflow_preserves_literal_environment` の `posix_spawn-adapter` | 1 | 51（関数 51 を含む） | adapter が LaunchSpec.env で足す値（空の値・改行を含む値を含む）が実行の環境に入る（環境の隔離） | 表 | 298 | 3,809 |
-| 237 | `test_cancel_during_run_prevents_fallback` | 1 | 15 | 実行中に取り消したら interrupted にして fallback を起動しない。外れると利用者が止めた後に別の担当が起動する | 表 | 299 | 3,824 |
-| 238 | `test_preexisting_cancel_launches_nothing` | 1 | 13 | 実行前に取り消し済みなら何も起動せず worktree も作らない。外れると取り消した後に起動する（費用と副作用） | 表 | 300 | 3,837 |
-| 239 | `test_unconfirmed_stop_blocks_success_and_fallback` | 1 | 16 | 準備の停止を確認できないとき成功と報告せず別の担当も起動しない。外れると生き残った処理が書き続ける間に並行して動く | 表 | 301 | 3,853 |
-| 240 | `test_concurrency_bounds_whole_assignments` | 1 | 16 | concurrency が担当（fallback を含む）単位の同時実行の上限になる。外れると上限を超えて同時に起動する | 表 | 302 | 3,869 |
-| 241 | `test_outside_change_to_already_dirty_file_is_warning_only` | 1 | 13 | 担当が元の checkout の既に dirty なファイルを変えたら outside_changes に出す。外れると作業範囲の外の変更を報告しない | 表 | 303 | 3,882 |
-| 242 | `test_nested_invocation_and_invalid_inputs_fail_closed` | 1 | 9 | AGENT_RUNNER_DEPTH=1 の中からの run_workflow を nested_invocation で拒否する。外れると runner の担当から入れ子に起動する | 表 | 304 | 3,891 |
-| 243 | `test_invalid_write_exceptions_are_rejected_before_any_output` の `a\u2028b`・`a\x00b` | 2 | 22（関数 22 を含む） | write_exceptions の 1 行の検査を出力の前に行う。改行・制御文字で作業範囲の行を増やし指示を書き換える注入を防ぐ | 表 | 306 | 3,913 |
-| 244 | `test_existing_or_symlink_output_is_never_reused` | 1 | 11 | output_dir が既にある・壊れた symlink のときは再利用せず RunnerError。外れると前の実行の成果物を上書き・混在させる | 表 | 307 | 3,924 |
-| 245 | `test_default_artifact_directory_is_unique` | 1 | 8 | 既定の成果物の置き場所が /tmp の一意のディレクトリ。外れると保持物がリポジトリ内など一時領域の外に置かれ、実行どうしで記録が混ざる | 表 | 308 | 3,932 |
-| 246 | `test_invalid_mutated_config_does_not_emit_serializer_values` | 1 | 8 | 不正に書き換えた設定の再検証で pydantic の警告（不正な値をそのまま stderr に出す）を出さない。外れると設定の値が漏れる | 表 | 309 | 3,940 |
-| 247 | `test_invalid_observed_identity_does_not_emit_serializer_values` | 1 | 10 | adapter が観測した不正な型の identity でも serializer の警告を出さない。外れると CLI の出力の値（秘密を含み得る）が漏れる | 表 | 310 | 3,950 |
-| 248 | `test_receipt_created_before_launch_is_never_reused` | 1 | 9 | 起動前に作られた受領は使わず invalid_result にする。外れると古い・前もって置かれた受領を success と報告する | 表 | 311 | 3,959 |
-| 249 | `test_checkout_preparation_is_supervised` の `late_cancel` | 1 | 0 | worktree の準備が失敗した・停止を確かめられないときは担当を起動しない。外れると不完全な checkout で動いた結果を返す | 表 | 312 | 3,959 |
-| 250 | `test_cancel_at_preparation_completion_retains_log_paths` | 1 | 50 | 準備が終わった時点で取り消されたら担当を起動せず、ログのパスを準備のログのままにする。外れると存在しない stdout.log を記録する | 表 | 313 | 4,009 |
-| 251 | `test_unsafe_devin_export_is_retained_reported_and_never_collected` の `fifo` | 1 | 0 | FIFO などの特殊ファイルを伏せ字にできたと見なして収集に回さず、sensitive_paths に載せる | 表 | 314 | 4,009 |
-| 252 | `test_text_receipt_requires_nonblank_text` の `answer-success`（正しく通る例） | 1 | 12（関数 12 を含む） | text の形の拒否の群で残す正例。空でない文の回答を success にする（何でも拒否する実装を通さない） | 表 | 315 | 4,021 |
+| 227 | `test_exit_zero_is_not_a_substitute_for_valid_receipt` の `options0-invalid_result`・`options1-invalid_result`・`options2-invalid_result` ほか 2 件 | 5 | 24（関数 24 を含む） | exit 0 を成功の代わりにしない。CLI が正しい結果を出していないのに success と報告する（誤った結果の報告） | 表 | 289 | 3,665 |
+| 228 | `test_text_receipt_requires_nonblank_text` の ` \n -invalid_result` | 1 | 0 | text の役割の受領の形の検査。空白だけの文を成功にしない（空の回答を成功と報告する） | 表 | 290 | 3,665 |
+| 229 | `test_adapter_success_cannot_bypass_missing_receipt` | 1 | 9 | adapter が success と分類しても受領が無ければ missing_result にする。外れると受領の無い試行を success と報告する | 表 | 291 | 3,674 |
+| 230 | `test_partial_success_and_independent_worktrees` | 1 | 13 | 同じ役割の担当の一部だけが成功したら batch を partial_success にする。外れると失敗を含む batch を success・failed と取り違えて報告する | 表 | 292 | 3,687 |
+| 231 | `test_only_explicit_fallback_is_tried_in_order` | 1 | 11 | 明示した fallback だけを書いた順に試す。外れると別の担当・別の順で実行した結果を返す | 表 | 293 | 3,698 |
+| 232 | `test_payload_check_refusal_is_invalid_result_and_tries_fallback` の `returns-false` | 1 | 0 | payload_check が False を返したら拒否する（True だけを受け入れる厳密な判定）。緩めると拒否した payload を成功として返す | 表・重さは #236 | 294 | 3,698 |
+| 233 | `test_payload_check_refusal_is_invalid_result_and_tries_fallback` の `raises` | 1 | 31（関数 31 を含む） | payload_check が例外を出したら invalid_result にして次の fallback へ進み、例外の文と拒否した payload を結果に出さない | 表 | 295 | 3,729 |
+| 234 | `test_self_has_no_process_or_worktree` | 1 | 6 | self の担当は process・worktree を作らず、全て self の batch を success でなく self にする。誤ると review-verify の指示が渡らない | 表 | 296 | 3,735 |
+| 235 | `test_role_deadline_covers_fallback_attempts` | 1 | 73 | 役割の期限が worktree の準備と全ての fallback に共通で、残りの時間だけを各試行に渡す。外れると期限を超えて実行し続ける | 表 | 297 | 3,808 |
+| 236 | `test_workflow_preserves_literal_environment` の `posix_spawn-adapter` | 1 | 51（関数 51 を含む） | adapter が LaunchSpec.env で足す値（空の値・改行を含む値を含む）が実行の環境に入る（環境の隔離） | 表 | 298 | 3,859 |
+| 237 | `test_cancel_during_run_prevents_fallback` | 1 | 15 | 実行中に取り消したら interrupted にして fallback を起動しない。外れると利用者が止めた後に別の担当が起動する | 表 | 299 | 3,874 |
+| 238 | `test_preexisting_cancel_launches_nothing` | 1 | 13 | 実行前に取り消し済みなら何も起動せず worktree も作らない。外れると取り消した後に起動する（費用と副作用） | 表 | 300 | 3,887 |
+| 239 | `test_unconfirmed_stop_blocks_success_and_fallback` | 1 | 16 | 準備の停止を確認できないとき成功と報告せず別の担当も起動しない。外れると生き残った処理が書き続ける間に並行して動く | 表 | 301 | 3,903 |
+| 240 | `test_concurrency_bounds_whole_assignments` | 1 | 16 | concurrency が担当（fallback を含む）単位の同時実行の上限になる。外れると上限を超えて同時に起動する | 表 | 302 | 3,919 |
+| 241 | `test_outside_change_to_already_dirty_file_is_warning_only` | 1 | 13 | 担当が元の checkout の既に dirty なファイルを変えたら outside_changes に出す。外れると作業範囲の外の変更を報告しない | 表 | 303 | 3,932 |
+| 242 | `test_nested_invocation_and_invalid_inputs_fail_closed` | 1 | 9 | AGENT_RUNNER_DEPTH=1 の中からの run_workflow を nested_invocation で拒否する。外れると runner の担当から入れ子に起動する | 表 | 304 | 3,941 |
+| 243 | `test_invalid_write_exceptions_are_rejected_before_any_output` の `a\u2028b`・`a\x00b` | 2 | 22（関数 22 を含む） | write_exceptions の 1 行の検査を出力の前に行う。改行・制御文字で作業範囲の行を増やし指示を書き換える注入を防ぐ | 表 | 306 | 3,963 |
+| 244 | `test_existing_or_symlink_output_is_never_reused` | 1 | 11 | output_dir が既にある・壊れた symlink のときは再利用せず RunnerError。外れると前の実行の成果物を上書き・混在させる | 表 | 307 | 3,974 |
+| 245 | `test_default_artifact_directory_is_unique` | 1 | 8 | 既定の成果物の置き場所が /tmp の一意のディレクトリ。外れると保持物がリポジトリ内など一時領域の外に置かれ、実行どうしで記録が混ざる | 表 | 308 | 3,982 |
+| 246 | `test_invalid_mutated_config_does_not_emit_serializer_values` | 1 | 8 | 不正に書き換えた設定の再検証で pydantic の警告（不正な値をそのまま stderr に出す）を出さない。外れると設定の値が漏れる | 表 | 309 | 3,990 |
+| 247 | `test_invalid_observed_identity_does_not_emit_serializer_values` | 1 | 10 | adapter が観測した不正な型の identity でも serializer の警告を出さない。外れると CLI の出力の値（秘密を含み得る）が漏れる | 表 | 310 | 4,000 |
+| 248 | `test_receipt_created_before_launch_is_never_reused` | 1 | 9 | 起動前に作られた受領は使わず invalid_result にする。外れると古い・前もって置かれた受領を success と報告する | 表 | 311 | 4,009 |
+| 249 | `test_checkout_preparation_is_supervised` の `late_cancel` | 1 | 0 | worktree の準備が失敗した・停止を確かめられないときは担当を起動しない。外れると不完全な checkout で動いた結果を返す | 表 | 312 | 4,009 |
+| 250 | `test_cancel_at_preparation_completion_retains_log_paths` | 1 | 50 | 準備が終わった時点で取り消されたら担当を起動せず、ログのパスを準備のログのままにする。外れると存在しない stdout.log を記録する | 表 | 313 | 4,059 |
+| 251 | `test_unsafe_devin_export_is_retained_reported_and_never_collected` の `fifo` | 1 | 0 | FIFO などの特殊ファイルを伏せ字にできたと見なして収集に回さず、sensitive_paths に載せる | 表 | 314 | 4,059 |
+| 252 | `test_text_receipt_requires_nonblank_text` の `answer-success`（正しく通る例） | 1 | 12（関数 12 を含む） | text の形の拒否の群で残す正例。空でない文の回答を success にする（何でも拒否する実装を通さない） | 表 | 315 | 4,071 |
 
 `tools/agent_runner/tests/test_workspace.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 253 | `test_resolve_revision_pins_commit_not_branch` | 1 | 6 | 指定の revision を変わらない commit ID に解決する。無視する・別の commit を返すと別の base で作業した結果を返す | 表 | 316 | 4,027 |
-| 254 | `test_audit_diagnoses_unavailable_baseline` の `locked-checkout_missing-True-False` | 1 | 0 | 理由を付けてロックした worktree を locked=false として記録しない。人が prune・削除してよいかの判断材料を誤る | 表 | 317 | 4,027 |
+| 253 | `test_resolve_revision_pins_commit_not_branch` | 1 | 6 | 指定の revision を変わらない commit ID に解決する。無視する・別の commit を返すと別の base で作業した結果を返す | 表 | 316 | 4,077 |
+| 254 | `test_audit_diagnoses_unavailable_baseline` の `locked-checkout_missing-True-False` | 1 | 0 | 理由を付けてロックした worktree を locked=false として記録しない。人が prune・削除してよいかの判断材料を誤る | 表 | 317 | 4,077 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_loop_check_options.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 255 | `test_check_options_reports_the_options_start_would_record` | 1 | 21 | 前検査と start の担当・設定が食い違い、別の担当で気付かず実行する。 | 表 | 318 | 4,048 |
+| 255 | `test_check_options_reports_the_options_start_would_record` | 1 | 21 | 前検査と start の担当・設定が食い違い、別の担当で気付かず実行する。 | 表 | 318 | 4,098 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_loop_diagnostics.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 256 | `test_cause_uses_only_failure_channels` | 4 | 35 | モデル本文を実際の失敗として分類し、誤った原因を永続診断に保存する。 | 表 | 322 | 4,083 |
-| 257 | `test_response_extraction_is_decided_from_the_end_state` | 4 | 31 | runner や adapter の終了状態と食い違う応答抽出失敗を永続診断に保存し、復旧判断を誤らせる。 | 表 | 326 | 4,114 |
-| 258 | `test_reported_failures_are_not_response_extraction` | 2 | 27 | pi が報告した提供元の失敗を応答抽出失敗と誤記録する。 | 表 | 328 | 4,141 |
-| 259 | `test_recovered_failures_do_not_decide_the_cause` | 4 | 60 | 回復した一時的エラーを最終原因として保存する。 | 表 | 332 | 4,201 |
-| 260 | `test_unobservable_logs_are_not_response_extraction` | 1 | 13 | 部分取得のログだけで応答抽出失敗と誤判定し、復旧判断を誤らせる。 | 表 | 333 | 4,214 |
-| 261 | `test_final_pi_failure_survives_a_long_history` | 2 | 39 | 長い履歴で最後の失敗を見失い、誤原因を保存する（実発生 #237 の再発）。 | 表 | 335 | 4,253 |
-| 262 | `test_model_prose_stdout_never_decides_the_cause` | 4 | 55 | Devin のコード例やモデル本文を実失敗として扱い、誤原因を保存する。 | 表 | 339 | 4,308 |
-| 263 | `test_keep_diagnostic_covers_only_reviewers_with_a_failure` | 3 | 49 | 失敗した試行の診断を保存し忘れ、ログ回収後に根拠を失う。 | 表 | 342 | 4,357 |
-| 264 | `test_different_failures_leave_distinct_causes_after_cleanup` | 1 | 38 | ログ回収後に別々の失敗を同じ原因として記録する。 | 表 | 343 | 4,395 |
-| 265 | `test_review_reads_stdout_by_the_reviewer_runtime` | 1 | 11 | レビュアーの runtime を取り違え、失敗の原因を誤記録する。 | 表 | 344 | 4,406 |
-| 266 | `test_rerun_keeps_a_diagnostic_for_each_request` | 1 | 16 | 再実行が最初の失敗記録を上書きして調査履歴を失う。 | 表 | 345 | 4,422 |
-| 267 | `test_all_failed_review_returns_the_diagnostics_to_the_controller` | 1 | 34 | 全員失敗時に診断の保存先や保存失敗を司令塔へ返さず、残存資源と原因を見失う。 | 表 | 346 | 4,456 |
+| 256 | `test_cause_uses_only_failure_channels` | 4 | 35 | モデル本文を実際の失敗として分類し、誤った原因を永続診断に保存する。 | 表 | 322 | 4,133 |
+| 257 | `test_response_extraction_is_decided_from_the_end_state` | 4 | 31 | runner や adapter の終了状態と食い違う応答抽出失敗を永続診断に保存し、復旧判断を誤らせる。 | 表 | 326 | 4,164 |
+| 258 | `test_reported_failures_are_not_response_extraction` | 2 | 27 | pi が報告した提供元の失敗を応答抽出失敗と誤記録する。 | 表 | 328 | 4,191 |
+| 259 | `test_recovered_failures_do_not_decide_the_cause` | 4 | 60 | 回復した一時的エラーを最終原因として保存する。 | 表 | 332 | 4,251 |
+| 260 | `test_unobservable_logs_are_not_response_extraction` | 1 | 13 | 部分取得のログだけで応答抽出失敗と誤判定し、復旧判断を誤らせる。 | 表 | 333 | 4,264 |
+| 261 | `test_final_pi_failure_survives_a_long_history` | 2 | 39 | 長い履歴で最後の失敗を見失い、誤原因を保存する（実発生 #237 の再発）。 | 表 | 335 | 4,303 |
+| 262 | `test_model_prose_stdout_never_decides_the_cause` | 4 | 55 | Devin のコード例やモデル本文を実失敗として扱い、誤原因を保存する。 | 表 | 339 | 4,358 |
+| 263 | `test_keep_diagnostic_covers_only_reviewers_with_a_failure` | 3 | 49 | 失敗した試行の診断を保存し忘れ、ログ回収後に根拠を失う。 | 表 | 342 | 4,407 |
+| 264 | `test_different_failures_leave_distinct_causes_after_cleanup` | 1 | 38 | ログ回収後に別々の失敗を同じ原因として記録する。 | 表 | 343 | 4,445 |
+| 265 | `test_review_reads_stdout_by_the_reviewer_runtime` | 1 | 11 | レビュアーの runtime を取り違え、失敗の原因を誤記録する。 | 表 | 344 | 4,456 |
+| 266 | `test_rerun_keeps_a_diagnostic_for_each_request` | 1 | 16 | 再実行が最初の失敗記録を上書きして調査履歴を失う。 | 表 | 345 | 4,472 |
+| 267 | `test_all_failed_review_returns_the_diagnostics_to_the_controller` | 1 | 34 | 全員失敗時に診断の保存先や保存失敗を司令塔へ返さず、残存資源と原因を見失う。 | 表 | 346 | 4,506 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_loop_review.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 268 | `test_reviewers_receive_the_previous_round_when_the_head_moved` | 1 | 41 | 前回の判断履歴をレビュアーへ渡さず、同じ指摘を取り違える。 | 表 | 347 | 4,497 |
-| 269 | `test_cycle_end_reads_the_roles_json_that_run_roles_writes` | 1 | 57 | 実際の担当と違う担当を判断の記録に保存する。 | 表 | 348 | 4,554 |
-| 270 | `test_failed_cleanup_paths_are_reported` | 1 | 19 | 回収できなかったパスを報告せず、残存資源を見失う。 | 表 | 349 | 4,573 |
-| 271 | `test_reviewer_rejected_after_runner_success_is_rerun_once` | 1 | 30 | 保存に失敗した担当を未実施のまま指摘なし扱いにする。 | 表 | 350 | 4,603 |
+| 268 | `test_reviewers_receive_the_previous_round_when_the_head_moved` | 1 | 41 | 前回の判断履歴をレビュアーへ渡さず、同じ指摘を取り違える。 | 表 | 347 | 4,547 |
+| 269 | `test_cycle_end_reads_the_roles_json_that_run_roles_writes` | 1 | 57 | 実際の担当と違う担当を判断の記録に保存する。 | 表 | 348 | 4,604 |
+| 270 | `test_failed_cleanup_paths_are_reported` | 1 | 19 | 回収できなかったパスを報告せず、残存資源を見失う。 | 表 | 349 | 4,623 |
+| 271 | `test_reviewer_rejected_after_runner_success_is_rerun_once` | 1 | 30 | 保存に失敗した担当を未実施のまま指摘なし扱いにする。 | 表 | 350 | 4,653 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_loop_state.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 272 | `test_start_accepts_fix_assignments_that_run_roles_accepts` | 2 | 23 | 有効な設定を誤った担当に置き換えて起動する。 | 表 | 352 | 4,626 |
-| 273 | `test_start_records_options_and_effective_assignments` | 1 | 25 | CLI が担当指定を渡さず、run.json と計画に別の担当を記録する。 | 表 | 353 | 4,651 |
-| 274 | `test_inherited_skip_changed_without_evidence_is_rejected` | 1 | 37 | 引き継いだ判断を根拠なしに変更し、判断履歴を誤記録する。 | 表 | 354 | 4,688 |
+| 272 | `test_start_accepts_fix_assignments_that_run_roles_accepts` | 2 | 23 | 有効な設定を誤った担当に置き換えて起動する。 | 表 | 352 | 4,676 |
+| 273 | `test_start_records_options_and_effective_assignments` | 1 | 25 | CLI が担当指定を渡さず、run.json と計画に別の担当を記録する。 | 表 | 353 | 4,701 |
+| 274 | `test_inherited_skip_changed_without_evidence_is_rejected` | 1 | 37 | 引き継いだ判断を根拠なしに変更し、判断履歴を誤記録する。 | 表 | 354 | 4,738 |
 
 `.agents/skills/pr-review/tests/test_port_routing.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 275 | `test_ref_delete_failure_keeps_a_retryable_session` | 1 | 17 | ref の削除に失敗した後、所有 session と回収の手掛かりを失う。 | 表 | 355 | 4,705 |
-| 276 | `test_failed_shallow_create_can_be_inspected_then_abandoned` | 1 | 27 | 浅い checkout の create 失敗後に、所有 session と回収の手掛かりを失う。 | 表 | 356 | 4,732 |
+| 275 | `test_ref_delete_failure_keeps_a_retryable_session` | 1 | 17 | ref の削除に失敗した後、所有 session と回収の手掛かりを失う。 | 表 | 355 | 4,755 |
+| 276 | `test_failed_shallow_create_can_be_inspected_then_abandoned` | 1 | 27 | 浅い checkout の create 失敗後に、所有 session と回収の手掛かりを失う。 | 表 | 356 | 4,782 |
 
 `.agents/skills/pr-review/tests/test_pr_review_workspace.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 277 | `test_create_reports_legacy_review_without_adopting_it` | 1 | 18 | 旧配置のレビューを別リポジトリの前回結果として黙って採用・移動する。 | 表 | 357 | 4,750 |
-| 278 | `test_save_with_findings_saves_the_review_and_the_candidates` | 1 | 11 | レビューと候補一覧の対の保存が崩れ、不完全なレビュー成果を正式保存する。 | 表 | 358 | 4,761 |
-| 279 | `test_save_with_invalid_findings_saves_nothing` | 5 | 24 | 不整合な候補一覧（別 HEAD・別 PR・別 review_file・本文と不一致・Markdown 由来）を正式保存する。 | 表 | 363 | 4,785 |
-| 280 | `test_save_with_findings_restores_the_candidates_when_the_review_copy_fails` | 1 | 21 | 本文の保存失敗時に既存の候補一覧を元に戻さず、古い・不完全な成果を正式保存したままにする。 | 表 | 364 | 4,806 |
-| 281 | `test_save_with_findings_removes_new_candidates_when_the_review_copy_fails` | 1 | 18 | 本文の保存失敗時に新しく作った候補一覧を消さず、本文の無い候補一覧を正式保存したままにする。 | 表・重さは #236 | 365 | 4,824 |
-| 282 | `test_findings_destination_must_stay_under_the_review_findings_directory` | 5 | 16 | 候補一覧の書込先が findings・reviews・該当 repository の外へ出て、別 PR・HEAD の候補一覧などを正式保存する。 | 表 | 370 | 4,840 |
-| 283 | `test_save_without_findings_removes_the_stale_candidates_of_the_same_head` | 1 | 18 | 同じ HEAD を本文だけで保存し直したとき、古い候補一覧を残して review-verify に読ませる。 | 表 | 371 | 4,858 |
-| 284 | `test_findings_draft_cannot_escape_the_session_via_symlink` | 1 | 11 | 候補一覧の draft が symlink で session 外のファイルを指しても保存し、別の候補一覧を正式保存する。 | 表 | 372 | 4,869 |
-| 285 | `test_findings_paths_require_repository_identity` | 2 | 8 | repository を持たない旧配置の候補一覧パスを書込先にし、別 PR・HEAD の候補一覧などを正式保存する。 | 表 | 374 | 4,877 |
+| 277 | `test_create_reports_legacy_review_without_adopting_it` | 1 | 18 | 旧配置のレビューを別リポジトリの前回結果として黙って採用・移動する。 | 表 | 357 | 4,800 |
+| 278 | `test_save_with_findings_saves_the_review_and_the_candidates` | 1 | 11 | レビューと候補一覧の対の保存が崩れ、不完全なレビュー成果を正式保存する。 | 表 | 358 | 4,811 |
+| 279 | `test_save_with_invalid_findings_saves_nothing` | 5 | 24 | 不整合な候補一覧（別 HEAD・別 PR・別 review_file・本文と不一致・Markdown 由来）を正式保存する。 | 表 | 363 | 4,835 |
+| 280 | `test_save_with_findings_restores_the_candidates_when_the_review_copy_fails` | 1 | 21 | 本文の保存失敗時に既存の候補一覧を元に戻さず、古い・不完全な成果を正式保存したままにする。 | 表 | 364 | 4,856 |
+| 281 | `test_save_with_findings_removes_new_candidates_when_the_review_copy_fails` | 1 | 18 | 本文の保存失敗時に新しく作った候補一覧を消さず、本文の無い候補一覧を正式保存したままにする。 | 表・重さは #236 | 365 | 4,874 |
+| 282 | `test_findings_destination_must_stay_under_the_review_findings_directory` | 5 | 16 | 候補一覧の書込先が findings・reviews・該当 repository の外へ出て、別 PR・HEAD の候補一覧などを正式保存する。 | 表 | 370 | 4,890 |
+| 283 | `test_save_without_findings_removes_the_stale_candidates_of_the_same_head` | 1 | 18 | 同じ HEAD を本文だけで保存し直したとき、古い候補一覧を残して review-verify に読ませる。 | 表 | 371 | 4,908 |
+| 284 | `test_findings_draft_cannot_escape_the_session_via_symlink` | 1 | 11 | 候補一覧の draft が symlink で session 外のファイルを指しても保存し、別の候補一覧を正式保存する。 | 表 | 372 | 4,919 |
+| 285 | `test_findings_paths_require_repository_identity` | 2 | 8 | repository を持たない旧配置の候補一覧パスを書込先にし、別 PR・HEAD の候補一覧などを正式保存する。 | 表 | 374 | 4,927 |
 
 `.agents/skills/pr-review/tests/test_review_run.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 286 | `test_complete_saves_zero_findings_with_provenance` | 1 | 25 | 指摘 0 件の完了で、来歴・状態を誤って報告または上書きする。 | 表 | 375 | 4,902 |
-| 287 | `test_complete_preserves_failure_as_failed_result` | 5 | 49 | complete の失敗（binding・reviewer・coverage・destination・head）を成功と報告する、または記録を上書きする。 | 表 | 380 | 4,951 |
-| 288 | `test_prepare_nonrunner_marks_unobserved_identity_unknown` | 1 | 20 | runner でない起動で、観測していない識別（provider・effort・cli_version）を unknown と記録せず誤報告する。 | 表 | 381 | 4,971 |
-| 289 | `test_complete_reports_saved_but_uncleaned_result_as_failure` | 1 | 24 | 保存済みで回収に失敗した結果を成功と報告し、記録を誤る。 | 表 | 382 | 4,995 |
-| 290 | `test_prepare_base_fetch_failure_returns_correlated_retained_paths` | 1 | 20 | base fetch 失敗時に、残存パスを要求と対応させて返さず、失敗の状態を誤って報告する。 | 表 | 383 | 5,015 |
-| 291 | `test_prepare_pi_requires_both_current_environment_identifiers` | 1 | 9 | pi の環境識別子（PI_MODEL・PI_PROVIDER）の片方だけで、実行記録の識別を誤って記録する。 | 表 | 384 | 5,024 |
-| 292 | `test_success_record_matches_saved_outputs_and_candidates` | 1 | 56 | 実行記録の成功が保存した出力・候補と食い違い、識別・状態を誤って報告する。 | 表 | 385 | 5,080 |
-| 293 | `test_second_review_records_update_mode_and_previous_digest` | 1 | 13 | 2 回目のレビューの mode と前回レビューの digest を誤記録する。 | 表 | 386 | 5,093 |
-| 294 | `test_prepare_without_request_records_null_request` | 1 | 6 | request なしの実行で、存在しない run の来歴（inputs.request・run_id）を誤って記録する。 | 表・重さは #236 | 387 | 5,099 |
-| 295 | `test_prepare_alone_leaves_started_record_like_a_killed_run` | 1 | 11 | prepare だけで kill された実行が started の記録を残さず、状態を誤って報告する。 | 表 | 388 | 5,110 |
-| 296 | `test_prepare_failure_before_resolve_writes_no_record` | 1 | 7 | model 不明で resolve より前に失敗した実行の、ghost の started 記録を残す。 | 表・重さは #236 | 389 | 5,117 |
-| 297 | `test_prepare_failure_after_resolve_records_prepare` | 1 | 21 | resolve 後の prepare 失敗を、失敗段階（prepare）つきで記録せず誤って報告する。 | 表 | 390 | 5,138 |
-| 298 | `test_prepare_failure_is_kept_when_the_model_later_calls_fail` | 1 | 27 | prepare で記録済みの失敗原因・段階を、後続の fail が上書きする。 | 表・重さは #236 | 391 | 5,165 |
-| 299 | `test_fail_request_returns_without_blocking_and_preserves_failure_record` | 2 | 36 | 不正な request の fail で、準備済みの実行記録や失敗の記録を上書きする。 | 表 | 393 | 5,201 |
-| 300 | `test_model_fail_records_review` | 1 | 29 | モデルの fail を review 段階の失敗として記録せず、状態・失敗を誤って報告する。 | 表 | 394 | 5,230 |
-| 301 | `test_save_failure_records_save` | 1 | 14 | save 段階の失敗を記録せず、状態・失敗を誤って報告する。 | 表 | 395 | 5,244 |
-| 302 | `test_record_update_failure_does_not_change_the_review_result` | 1 | 17 | 実行記録の更新失敗がレビュー結果を失敗に変え、結果を誤って報告する。 | 表 | 396 | 5,261 |
-| 303 | `test_attach_runner_writes_the_runner_block_once_and_keeps_provenance` | 1 | 35 | runner の観測値を二重に書く、または来歴を上書きする。 | 表 | 397 | 5,296 |
-| 304 | `test_attach_runner_rejects_conflicting_values_without_writing` | 1 | 17 | 矛盾する runner の観測値で、実行記録を上書きして誤る。 | 表 | 398 | 5,313 |
-| 305 | `test_attach_runner_reports_attempts_without_a_record` | 1 | 19 | 実行記録の無い試行を報告せず、または別の記録に付ける。 | 表 | 399 | 5,332 |
-| 306 | `test_attach_runner_marks_a_timed_out_attempt_on_the_started_record` | 1 | 13 | タイムアウトした試行の状態を started 記録に付けず、状態を誤って報告する。 | 表 | 400 | 5,345 |
-| 307 | `test_record_outputs_failure_after_save_keeps_the_review_result` | 1 | 15 | outputs_document の失敗時に、出力を特定できない実行記録を success と誤記録する。 | 表・重さは #236 | 401 | 5,360 |
-| 308 | `test_prepare_returns_skip_decisions_through_ordinary_comments` | 1 | 70 | 共有 parser を通さず、以前受理した skip の判断を黙って捨て、記録を取り違える。 | 表 | 402 | 5,430 |
-| 309 | `test_prepare_create_failure_reports_owned_session_retained_paths` | 1 | 27 | session.json の作成前に失敗しても、登録済みの worktree を残存パスに報告せず、失敗を誤って報告する。 | 表 | 403 | 5,457 |
+| 286 | `test_complete_saves_zero_findings_with_provenance` | 1 | 25 | 指摘 0 件の完了で、来歴・状態を誤って報告または上書きする。 | 表 | 375 | 4,952 |
+| 287 | `test_complete_preserves_failure_as_failed_result` | 5 | 49 | complete の失敗（binding・reviewer・coverage・destination・head）を成功と報告する、または記録を上書きする。 | 表 | 380 | 5,001 |
+| 288 | `test_prepare_nonrunner_marks_unobserved_identity_unknown` | 1 | 20 | runner でない起動で、観測していない識別（provider・effort・cli_version）を unknown と記録せず誤報告する。 | 表 | 381 | 5,021 |
+| 289 | `test_complete_reports_saved_but_uncleaned_result_as_failure` | 1 | 24 | 保存済みで回収に失敗した結果を成功と報告し、記録を誤る。 | 表 | 382 | 5,045 |
+| 290 | `test_prepare_base_fetch_failure_returns_correlated_retained_paths` | 1 | 20 | base fetch 失敗時に、残存パスを要求と対応させて返さず、失敗の状態を誤って報告する。 | 表 | 383 | 5,065 |
+| 291 | `test_prepare_pi_requires_both_current_environment_identifiers` | 1 | 9 | pi の環境識別子（PI_MODEL・PI_PROVIDER）の片方だけで、実行記録の識別を誤って記録する。 | 表 | 384 | 5,074 |
+| 292 | `test_success_record_matches_saved_outputs_and_candidates` | 1 | 56 | 実行記録の成功が保存した出力・候補と食い違い、識別・状態を誤って報告する。 | 表 | 385 | 5,130 |
+| 293 | `test_second_review_records_update_mode_and_previous_digest` | 1 | 13 | 2 回目のレビューの mode と前回レビューの digest を誤記録する。 | 表 | 386 | 5,143 |
+| 294 | `test_prepare_without_request_records_null_request` | 1 | 6 | request なしの実行で、存在しない run の来歴（inputs.request・run_id）を誤って記録する。 | 表・重さは #236 | 387 | 5,149 |
+| 295 | `test_prepare_alone_leaves_started_record_like_a_killed_run` | 1 | 11 | prepare だけで kill された実行が started の記録を残さず、状態を誤って報告する。 | 表 | 388 | 5,160 |
+| 296 | `test_prepare_failure_before_resolve_writes_no_record` | 1 | 7 | model 不明で resolve より前に失敗した実行の、ghost の started 記録を残す。 | 表・重さは #236 | 389 | 5,167 |
+| 297 | `test_prepare_failure_after_resolve_records_prepare` | 1 | 21 | resolve 後の prepare 失敗を、失敗段階（prepare）つきで記録せず誤って報告する。 | 表 | 390 | 5,188 |
+| 298 | `test_prepare_failure_is_kept_when_the_model_later_calls_fail` | 1 | 27 | prepare で記録済みの失敗原因・段階を、後続の fail が上書きする。 | 表・重さは #236 | 391 | 5,215 |
+| 299 | `test_fail_request_returns_without_blocking_and_preserves_failure_record` | 2 | 36 | 不正な request の fail で、準備済みの実行記録や失敗の記録を上書きする。 | 表 | 393 | 5,251 |
+| 300 | `test_model_fail_records_review` | 1 | 29 | モデルの fail を review 段階の失敗として記録せず、状態・失敗を誤って報告する。 | 表 | 394 | 5,280 |
+| 301 | `test_save_failure_records_save` | 1 | 14 | save 段階の失敗を記録せず、状態・失敗を誤って報告する。 | 表 | 395 | 5,294 |
+| 302 | `test_record_update_failure_does_not_change_the_review_result` | 1 | 17 | 実行記録の更新失敗がレビュー結果を失敗に変え、結果を誤って報告する。 | 表 | 396 | 5,311 |
+| 303 | `test_attach_runner_writes_the_runner_block_once_and_keeps_provenance` | 1 | 35 | runner の観測値を二重に書く、または来歴を上書きする。 | 表 | 397 | 5,346 |
+| 304 | `test_attach_runner_rejects_conflicting_values_without_writing` | 1 | 17 | 矛盾する runner の観測値で、実行記録を上書きして誤る。 | 表 | 398 | 5,363 |
+| 305 | `test_attach_runner_reports_attempts_without_a_record` | 1 | 19 | 実行記録の無い試行を報告せず、または別の記録に付ける。 | 表 | 399 | 5,382 |
+| 306 | `test_attach_runner_marks_a_timed_out_attempt_on_the_started_record` | 1 | 13 | タイムアウトした試行の状態を started 記録に付けず、状態を誤って報告する。 | 表 | 400 | 5,395 |
+| 307 | `test_record_outputs_failure_after_save_keeps_the_review_result` | 1 | 15 | outputs_document の失敗時に、出力を特定できない実行記録を success と誤記録する。 | 表・重さは #236 | 401 | 5,410 |
+| 308 | `test_prepare_returns_skip_decisions_through_ordinary_comments` | 1 | 70 | 共有 parser を通さず、以前受理した skip の判断を黙って捨て、記録を取り違える。 | 表 | 402 | 5,480 |
+| 309 | `test_prepare_create_failure_reports_owned_session_retained_paths` | 1 | 27 | session.json の作成前に失敗しても、登録済みの worktree を残存パスに報告せず、失敗を誤って報告する。 | 表 | 403 | 5,507 |
 
 `.agents/scripts/tests/test_agent_tmp.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 310 | `test_cli_root_from_every_cwd` | 1 | 17 | cwd によって親と違う場所に記録を残す（別の場所に記録） | 表 | 404 | 5,474 |
+| 310 | `test_cli_root_from_every_cwd` | 1 | 17 | cwd によって親と違う場所に記録を残す（別の場所に記録） | 表 | 404 | 5,524 |
 
 `.agents/scripts/tests/test_review_findings.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 311 | `test_v2_input_and_accuracy_cannot_claim_different_sessions` | 1 | 5 | 入力と accuracy が別セッションを名乗る取り違えを黙って通す | 表 | 405 | 5,479 |
-| 312 | `test_v2_source_must_resolve_to_an_input_file` | 1 | 5 | 出所の参照先が入力ファイルに解決しない取り違えを黙って通す | 表 | 406 | 5,484 |
-| 313 | `test_statement_candidates_section_is_required_only_for_fix_check` | 1 | 7 | fix_check の条件判定の節が無くても通る（判定漏れ） | 表 | 407 | 5,491 |
-| 314 | `test_check_statement_judgments_accepts_a_complete_judgment` | 1 | 3 | 判定漏れ・別 head の一覧・不整合の見落としを防ぐ群のうち、完全な判定を通す側 | 表 | 408 | 5,494 |
-| 315 | `test_check_statement_judgments_reports_an_unjudged_candidate` | 1 | 6 | 候補の判定漏れを見落として通す | 表 | 409 | 5,500 |
-| 316 | `test_check_statement_judgments_reports_unknown_and_repeated_ids` | 1 | 6 | 知らない ID・重複した ID の判定を見落として通す（不整合の見落とし） | 表 | 410 | 5,506 |
-| 317 | `test_check_statement_judgments_reports_a_different_to` | 1 | 4 | 別の head（to）で作った候補一覧で判定を通す | 表 | 411 | 5,510 |
-| 318 | `test_check_statement_judgments_reports_a_different_from` | 1 | 4 | 別の base（from）で作った候補一覧で判定を通す（別の範囲の一覧との取り違え） | 表 | 412 | 5,514 |
-| 319 | `test_check_statement_judgments_requires_inconsistent_sites_in_findings` | 1 | 5 | 条件の不整合の箇所を findings に書かないまま通す（不整合の見落とし） | 表 | 413 | 5,519 |
-| 320 | `test_cli_validate_checks_the_fix_check_against_its_candidates` | 1 | 12 | CLI が候補一覧との突き合わせを呼ばず、判定漏れを通す | 表 | 414 | 5,531 |
-| 321 | `test_invalid_documents_name_the_problem` の `candidates-mutate-findings[0].failure_scenario: required`・`verified-mutate-findings[0].reproduction: required when verdict is`・`fix_check-mutate-fix_check: required when mode is fix_check` ほか 1 件 | 4 | 18（関数 18 を含む） | failure_scenario・reproduction・fix_check の必須欄の欠落、fix_check.to の取り違えを通す | 表 | 418 | 5,549 |
-| 322 | `test_unverified_verdict_requires_missing_checks` | 1 | 6 | unverified の理由（missing_checks）の欠落を通す | 表 | 419 | 5,555 |
-| 323 | `test_duplicate_ids_are_rejected` | 1 | 4 | 指摘 ID の重複で記録を取り違える | 表 | 420 | 5,559 |
-| 324 | `test_control_characters_are_rejected_in_text` | 1 | 4 | 制御文字の混入（偽装）を通す | 表 | 421 | 5,563 |
-| 325 | `test_parse_review_markdown_reads_active_findings_and_unverified_candidates` | 1 | 13 | コードブロック内の見出し・決定済みの節を数え、指摘を取り違える | 表 | 422 | 5,576 |
-| 326 | `test_candidates_from_markdown_is_a_valid_markdown_source_document` | 1 | 16 | Markdown から作る候補の変換結果を取り違える | 表 | 423 | 5,592 |
-| 327 | `test_check_pair_names_each_mismatch` | 5 | 16 | Markdown と JSON の指摘の欠落・余分・severity 差・位置の移動・未確認候補の欠落を見逃す | 表 | 428 | 5,608 |
-| 328 | `test_provenance_stats_does_not_apply_other_pr_or_head_decisions` | 1 | 17 | 別の PR・head の採否を適用し、採用を取り違える | 表 | 429 | 5,625 |
-| 329 | `test_v2_model_identity_cannot_contain_a_line_break` | 1 | 6 | model への改行で識別子を偽装する | 表 | 430 | 5,631 |
-| 330 | `test_cli_from_markdown_and_check_pair` | 1 | 30 | check-pair の不一致が終了コード 65 にならず、取り違えが通る | 表 | 431 | 5,661 |
-| 331 | `test_review_run_rejects_inconsistent_fields` | 4 | 16 | success に outputs 無し・started に finished_at・by_severity の合計違い・時刻の逆転の記録を通す | 表 | 435 | 5,677 |
-| 332 | `test_from_markdown_refuses_findings_it_cannot_read` | 5 | 24 | 読めない指摘を黙って落とす（最終レビュー I-1 の再発防止） | 表 | 440 | 5,701 |
-| 333 | `test_check_pair_refuses_unverified_candidates_it_cannot_read` | 1 | 8 | 読めない未確認候補を取りこぼして通す | 表 | 441 | 5,709 |
-| 334 | `test_statement_candidates_lists_documents_naming_the_enclosing_state` | 1 | 21 | 修正で変わった条件を述べる文書を候補から落とす（見落とし） | 表 | 442 | 5,730 |
-| 335 | `test_statement_candidates_handles_deleted_files` | 1 | 8 | 削除したファイルの候補を黙って落とす | 表 | 443 | 5,738 |
-| 336 | `test_cli_statement_candidates_writes_the_file` | 1 | 16 | 候補の出力ファイルを書かない | 表 | 444 | 5,754 |
-| 337 | `test_cli_statement_candidates_rejects_an_unknown_revision` | 1 | 15 | 失敗したとき、既存の出力を上書きする | 表 | 445 | 5,769 |
-| 338 | `test_statement_candidates_handles_non_ascii_paths` | 1 | 9 | 日本語パスの候補を黙って落とす、または誤ったパスにする | 表 | 446 | 5,778 |
-| 339 | `test_statement_candidates_lists_documents_for_a_template_only_change` | 1 | 21 | テンプレートだけの変更で文書を見落とす（実際に起きた見落とし、Issue #620・#555） | 表 | 447 | 5,799 |
-| 340 | `test_statement_candidates_reads_kebab_case_names` | 1 | 23 | kebab-case の名前を語として読まず、文書を見落とす（実際に起きた見落とし、Issue #620・#555） | 表 | 448 | 5,822 |
-| 341 | `test_fix_evidence_requires_every_claim_and_changed_file` | 2 | 6 | 主張・変更ファイルの判定漏れを通す | 表 | 450 | 5,828 |
-| 342 | `test_fix_evidence_rejects_duplicate_judgments` | 1 | 6 | 同じ主張への判定の重複を通す | 表 | 451 | 5,834 |
-| 343 | `test_fix_evidence_rejects_malformed_execution` | 2 | 6 | 別 head の証拠・assumed の実行を証拠として通す | 表 | 453 | 5,840 |
-| 344 | `test_artifact_claim_requires_executed_generated_evidence` | 3 | 6 | static・exit_code≠0・artifact なしの証拠で、生成物の主張を holds と記録する | 表 | 456 | 5,846 |
-| 345 | `test_unchecked_evidence_requires_remaining_coverage` | 1 | 8 | 未確認の証拠を remaining に書かないまま通す | 表 | 457 | 5,854 |
-| 346 | `test_failed_evidence_requires_confirmed_finding` | 1 | 8 | 違反した証拠を confirmed の指摘にしないまま通す | 表 | 458 | 5,862 |
-| 347 | `test_evidence_inventory_cannot_omit_a_fix_or_reuse_a_claim_id` | 1 | 9 | fix の主張漏れ・claim ID の再利用を通す | 表 | 459 | 5,871 |
-| 348 | `test_v2_fix_check_requires_evidence_without_breaking_legacy` | 1 | 14 | v2 の fix_check で fix_evidence を求めず、証拠なしで通す | 表 | 460 | 5,885 |
-| 349 | `test_claim_inventory_lists_all_changed_paths_including_rename_and_deletion` | 1 | 36 | 改名・削除したパスを検査対象から落とす | 表 | 461 | 5,921 |
-| 350 | `test_v2_document_accepts_observed_identity_and_real_activities`（正しく通る例） | 3 | 4 | 対の守り: v2 の取り違え・偽装の拒否が、正しい v2 の文書を拒否しない | 表・重さは #236 | 464 | 5,925 |
-| 351 | `test_valid_documents_pass`（正しく通る例） | 5 | 4 | 対の守り: 文書の検証が、正しい v1 の文書を拒否しない（拒否側は欠落・取り違え） | 表・重さは #236 | 469 | 5,929 |
-| 352 | `test_failure_scenario_is_optional_for_documentation_findings`（正しく通る例） | 1 | 6 | 対の守り: failure_scenario 必須の検査が、文書の指摘まで拒否しない | 表・重さは #236 | 470 | 5,935 |
-| 353 | `test_check_pair_accepts_a_matching_pair`（正しく通る例） | 1 | 2 | 対の守り: Markdown と JSON の組の検査が、一致する組を拒否しない | 表・重さは #236 | 471 | 5,937 |
-| 354 | `test_review_run_accepts_each_status`（正しく通る例） | 5 | 6 | 対の守り: 実行記録の検査が、正しい状態の記録を拒否しない（拒否側は矛盾した記録） | 表・重さは #236 | 476 | 5,943 |
-| 355 | `test_from_markdown_still_reads_coverage_subsections_and_matching_summaries`（正しく通る例） | 1 | 10 | 対の守り: 読めない指摘の拒否が、Coverage の小節・一致する Summary の Markdown まで拒否しない | 表・重さは #236 | 477 | 5,953 |
-| 356 | `test_from_markdown_reads_an_unverified_section_that_says_none`（正しく通る例） | 2 | 14 | 対の守り: 読めない未確認候補の拒否が、「なし」と書いた未確認の節を拒否しない | 表・重さは #236 | 479 | 5,967 |
-| 357 | `test_fix_evidence_accepts_executed_artifact_and_deleted_file`（正しく通る例） | 1 | 839（準備 837 を含む） | 対の守り: fix の証拠の検査が、実行した生成物・削除したファイルの正しい証拠を拒否しない | 表・重さは #236 | 480 | 6,806 |
+| 311 | `test_v2_input_and_accuracy_cannot_claim_different_sessions` | 1 | 5 | 入力と accuracy が別セッションを名乗る取り違えを黙って通す | 表 | 405 | 5,529 |
+| 312 | `test_v2_source_must_resolve_to_an_input_file` | 1 | 5 | 出所の参照先が入力ファイルに解決しない取り違えを黙って通す | 表 | 406 | 5,534 |
+| 313 | `test_statement_candidates_section_is_required_only_for_fix_check` | 1 | 7 | fix_check の条件判定の節が無くても通る（判定漏れ） | 表 | 407 | 5,541 |
+| 314 | `test_check_statement_judgments_accepts_a_complete_judgment` | 1 | 3 | 判定漏れ・別 head の一覧・不整合の見落としを防ぐ群のうち、完全な判定を通す側 | 表 | 408 | 5,544 |
+| 315 | `test_check_statement_judgments_reports_an_unjudged_candidate` | 1 | 6 | 候補の判定漏れを見落として通す | 表 | 409 | 5,550 |
+| 316 | `test_check_statement_judgments_reports_unknown_and_repeated_ids` | 1 | 6 | 知らない ID・重複した ID の判定を見落として通す（不整合の見落とし） | 表 | 410 | 5,556 |
+| 317 | `test_check_statement_judgments_reports_a_different_to` | 1 | 4 | 別の head（to）で作った候補一覧で判定を通す | 表 | 411 | 5,560 |
+| 318 | `test_check_statement_judgments_reports_a_different_from` | 1 | 4 | 別の base（from）で作った候補一覧で判定を通す（別の範囲の一覧との取り違え） | 表 | 412 | 5,564 |
+| 319 | `test_check_statement_judgments_requires_inconsistent_sites_in_findings` | 1 | 5 | 条件の不整合の箇所を findings に書かないまま通す（不整合の見落とし） | 表 | 413 | 5,569 |
+| 320 | `test_cli_validate_checks_the_fix_check_against_its_candidates` | 1 | 12 | CLI が候補一覧との突き合わせを呼ばず、判定漏れを通す | 表 | 414 | 5,581 |
+| 321 | `test_invalid_documents_name_the_problem` の `candidates-mutate-findings[0].failure_scenario: required`・`verified-mutate-findings[0].reproduction: required when verdict is`・`fix_check-mutate-fix_check: required when mode is fix_check` ほか 1 件 | 4 | 18（関数 18 を含む） | failure_scenario・reproduction・fix_check の必須欄の欠落、fix_check.to の取り違えを通す | 表 | 418 | 5,599 |
+| 322 | `test_unverified_verdict_requires_missing_checks` | 1 | 6 | unverified の理由（missing_checks）の欠落を通す | 表 | 419 | 5,605 |
+| 323 | `test_duplicate_ids_are_rejected` | 1 | 4 | 指摘 ID の重複で記録を取り違える | 表 | 420 | 5,609 |
+| 324 | `test_control_characters_are_rejected_in_text` | 1 | 4 | 制御文字の混入（偽装）を通す | 表 | 421 | 5,613 |
+| 325 | `test_parse_review_markdown_reads_active_findings_and_unverified_candidates` | 1 | 13 | コードブロック内の見出し・決定済みの節を数え、指摘を取り違える | 表 | 422 | 5,626 |
+| 326 | `test_candidates_from_markdown_is_a_valid_markdown_source_document` | 1 | 16 | Markdown から作る候補の変換結果を取り違える | 表 | 423 | 5,642 |
+| 327 | `test_check_pair_names_each_mismatch` | 5 | 16 | Markdown と JSON の指摘の欠落・余分・severity 差・位置の移動・未確認候補の欠落を見逃す | 表 | 428 | 5,658 |
+| 328 | `test_provenance_stats_does_not_apply_other_pr_or_head_decisions` | 1 | 17 | 別の PR・head の採否を適用し、採用を取り違える | 表 | 429 | 5,675 |
+| 329 | `test_v2_model_identity_cannot_contain_a_line_break` | 1 | 6 | model への改行で識別子を偽装する | 表 | 430 | 5,681 |
+| 330 | `test_cli_from_markdown_and_check_pair` | 1 | 30 | check-pair の不一致が終了コード 65 にならず、取り違えが通る | 表 | 431 | 5,711 |
+| 331 | `test_review_run_rejects_inconsistent_fields` | 4 | 16 | success に outputs 無し・started に finished_at・by_severity の合計違い・時刻の逆転の記録を通す | 表 | 435 | 5,727 |
+| 332 | `test_from_markdown_refuses_findings_it_cannot_read` | 5 | 24 | 読めない指摘を黙って落とす（最終レビュー I-1 の再発防止） | 表 | 440 | 5,751 |
+| 333 | `test_check_pair_refuses_unverified_candidates_it_cannot_read` | 1 | 8 | 読めない未確認候補を取りこぼして通す | 表 | 441 | 5,759 |
+| 334 | `test_statement_candidates_lists_documents_naming_the_enclosing_state` | 1 | 21 | 修正で変わった条件を述べる文書を候補から落とす（見落とし） | 表 | 442 | 5,780 |
+| 335 | `test_statement_candidates_handles_deleted_files` | 1 | 8 | 削除したファイルの候補を黙って落とす | 表 | 443 | 5,788 |
+| 336 | `test_cli_statement_candidates_writes_the_file` | 1 | 16 | 候補の出力ファイルを書かない | 表 | 444 | 5,804 |
+| 337 | `test_cli_statement_candidates_rejects_an_unknown_revision` | 1 | 15 | 失敗したとき、既存の出力を上書きする | 表 | 445 | 5,819 |
+| 338 | `test_statement_candidates_handles_non_ascii_paths` | 1 | 9 | 日本語パスの候補を黙って落とす、または誤ったパスにする | 表 | 446 | 5,828 |
+| 339 | `test_statement_candidates_lists_documents_for_a_template_only_change` | 1 | 21 | テンプレートだけの変更で文書を見落とす（実際に起きた見落とし、Issue #620・#555） | 表 | 447 | 5,849 |
+| 340 | `test_statement_candidates_reads_kebab_case_names` | 1 | 23 | kebab-case の名前を語として読まず、文書を見落とす（実際に起きた見落とし、Issue #620・#555） | 表 | 448 | 5,872 |
+| 341 | `test_fix_evidence_requires_every_claim_and_changed_file` | 2 | 6 | 主張・変更ファイルの判定漏れを通す | 表 | 450 | 5,878 |
+| 342 | `test_fix_evidence_rejects_duplicate_judgments` | 1 | 6 | 同じ主張への判定の重複を通す | 表 | 451 | 5,884 |
+| 343 | `test_fix_evidence_rejects_malformed_execution` | 2 | 6 | 別 head の証拠・assumed の実行を証拠として通す | 表 | 453 | 5,890 |
+| 344 | `test_artifact_claim_requires_executed_generated_evidence` | 3 | 6 | static・exit_code≠0・artifact なしの証拠で、生成物の主張を holds と記録する | 表 | 456 | 5,896 |
+| 345 | `test_unchecked_evidence_requires_remaining_coverage` | 1 | 8 | 未確認の証拠を remaining に書かないまま通す | 表 | 457 | 5,904 |
+| 346 | `test_failed_evidence_requires_confirmed_finding` | 1 | 8 | 違反した証拠を confirmed の指摘にしないまま通す | 表 | 458 | 5,912 |
+| 347 | `test_evidence_inventory_cannot_omit_a_fix_or_reuse_a_claim_id` | 1 | 9 | fix の主張漏れ・claim ID の再利用を通す | 表 | 459 | 5,921 |
+| 348 | `test_v2_fix_check_requires_evidence_without_breaking_legacy` | 1 | 14 | v2 の fix_check で fix_evidence を求めず、証拠なしで通す | 表 | 460 | 5,935 |
+| 349 | `test_claim_inventory_lists_all_changed_paths_including_rename_and_deletion` | 1 | 36 | 改名・削除したパスを検査対象から落とす | 表 | 461 | 5,971 |
+| 350 | `test_v2_document_accepts_observed_identity_and_real_activities`（正しく通る例） | 3 | 4 | 対の守り: v2 の取り違え・偽装の拒否が、正しい v2 の文書を拒否しない | 表・重さは #236 | 464 | 5,975 |
+| 351 | `test_valid_documents_pass`（正しく通る例） | 5 | 4 | 対の守り: 文書の検証が、正しい v1 の文書を拒否しない（拒否側は欠落・取り違え） | 表・重さは #236 | 469 | 5,979 |
+| 352 | `test_failure_scenario_is_optional_for_documentation_findings`（正しく通る例） | 1 | 6 | 対の守り: failure_scenario 必須の検査が、文書の指摘まで拒否しない | 表・重さは #236 | 470 | 5,985 |
+| 353 | `test_check_pair_accepts_a_matching_pair`（正しく通る例） | 1 | 2 | 対の守り: Markdown と JSON の組の検査が、一致する組を拒否しない | 表・重さは #236 | 471 | 5,987 |
+| 354 | `test_review_run_accepts_each_status`（正しく通る例） | 5 | 6 | 対の守り: 実行記録の検査が、正しい状態の記録を拒否しない（拒否側は矛盾した記録） | 表・重さは #236 | 476 | 5,993 |
+| 355 | `test_from_markdown_still_reads_coverage_subsections_and_matching_summaries`（正しく通る例） | 1 | 10 | 対の守り: 読めない指摘の拒否が、Coverage の小節・一致する Summary の Markdown まで拒否しない | 表・重さは #236 | 477 | 6,003 |
+| 356 | `test_from_markdown_reads_an_unverified_section_that_says_none`（正しく通る例） | 2 | 14 | 対の守り: 読めない未確認候補の拒否が、「なし」と書いた未確認の節を拒否しない | 表・重さは #236 | 479 | 6,017 |
+| 357 | `test_fix_evidence_accepts_executed_artifact_and_deleted_file`（正しく通る例） | 1 | 2 | 対の守り: fix の証拠の検査が、実行した生成物・削除したファイルの正しい証拠を拒否しない | 表・重さは #236 | 480 | 6,019 |
 
 `.agents/scripts/tests/test_review_records.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 358 | `test_invalid_records_are_rejected` の `agent-id-not-derived-from-model`・`rerun-disagrees-with-heads`・`changed-without-previous-state` ほか 9 件 | 12 | 0 | 決定記録の整合（agent_id・rerun と head・skip・changed・d1・重複 ID・source・fix・マーカー）を欠く記録を通す | 表 | 492 | 6,806 |
-| 359 | `test_agent_id_for_follows_the_marker_rule` | 2 | 9 | 計画者の同一性（1 サイクル 1 計画者）の基準になる agent_id の導出を誤る | 表 | 494 | 6,815 |
-| 360 | `test_fold_keeps_the_latest_state_merged_sources_and_planner_models` | 1 | 30 | 状態の取り違え（最新の状態・source の統合・計画者の履歴） | 表 | 495 | 6,845 |
-| 361 | `test_fold_orders_one_round_by_time_and_then_comment_id` | 1 | 11 | 古い記録で新しい状態を上書きする | 表 | 496 | 6,856 |
-| 362 | `test_fold_keeps_split_decisions_apart` | 1 | 8 | 分割した decision の判断を取り違える | 表 | 497 | 6,864 |
-| 363 | `test_fold_rejects_records_of_another_pull_request` | 1 | 8 | 別の PR の記録を混ぜる | 表 | 498 | 6,872 |
-| 364 | `test_check_against_rejects_inconsistent_rounds` | 7 | 6 | 記録済みの new・state 変更・サイクル番号の飛び・別 PR・前の fix の脱落・skip 参照の付け替えを通す | 表 | 505 | 6,878 |
-| 365 | `test_check_against_keeps_one_planner_per_round` | 1 | 13 | 1 サイクル 1 計画者を守らず、記録を上書きする | 表 | 506 | 6,891 |
-| 366 | `test_check_against_refuses_to_update_a_round_after_a_later_one` | 1 | 6 | 後のサイクルがあるのに古いサイクルの記録を更新し、上書きする | 表 | 507 | 6,897 |
-| 367 | `test_check_against_rejects_finishing_with_an_earlier_hold` | 1 | 13 | 前の hold を残したまま完了と報告する | 表 | 508 | 6,910 |
-| 368 | `test_check_against_keeps_a_reference_with_the_part_that_holds_it` | 1 | 13 | 分割後の参照を、別の指摘を保つ部分から切り離して付け替える（記録の取り違え） | 表 | 509 | 6,923 |
-| 369 | `test_stopped_round_requires_a_concrete_allowed_category` | 6 | 8 | 区分（permission・environment・external）や具体的な理由の無い停止を記録しても気付けない | 表 | 515 | 6,931 |
-| 370 | `test_comments_from_api_accepts_slurped_pages_and_flat_arrays` | 1 | 7 | gh の応答の形を読み違え、記録が 0 件になる | 表 | 516 | 6,938 |
-| 371 | `test_collect_records_accepts_explicit_trusted_login` | 1 | 7 | CONTRIBUTOR の投稿を読まず、記録が消える（#169） | 表 | 517 | 6,945 |
-| 372 | `test_trusted_login_keeps_association_trust` | 1 | 8 | trusted_login を指定すると権限による信頼を保たず、記録を読み落とす | 表 | 518 | 6,953 |
-| 373 | `test_collect_records_names_every_broken_comment` | 1 | 12 | 壊れた記録のコメントを黙って飛ばし、記録を失う | 表 | 519 | 6,965 |
-| 374 | `test_read_state_lists_ignored_comments_and_checks_the_pull_request` | 1 | 10 | 無視したコメントを一覧に出さず、別の PR の記録を読む | 表 | 520 | 6,975 |
-| 375 | `test_updating_the_same_round_excludes_its_own_comment` | 1 | 9 | 更新時に自分のコメントを除かず、「記録済み」と拒否する／重複する | 表 | 521 | 6,984 |
-| 376 | `test_cli_fold_prints_the_current_state` | 1 | 15 | CLI の入出力のつなぎを誤り、現在の状態を出さない | 表 | 522 | 6,999 |
-| 377 | `test_cli_fold_reports_records_of_another_pull_request` | 1 | 7 | --repo/--pr の配線が切れ、別 PR の記録を混ぜる | 表 | 523 | 7,006 |
-| 378 | `test_cli_fold_exits_65_on_a_broken_record` | 1 | 8 | 壊れた記録を成功（終了 0）と報告する | 表 | 524 | 7,014 |
-| 379 | `test_cli_fold_uses_explicit_trusted_login` | 2 | 17 | --trusted-login の配線が切れ、信頼する投稿者を取り違える | 表 | 526 | 7,031 |
-| 380 | `test_cli_validate_uses_explicit_trusted_login` | 1 | 9 | validate の --trusted-login の配線が切れる | 表 | 527 | 7,040 |
-| 381 | `test_cli_validate_checks_the_record_against_earlier_comments` | 1 | 22 | 更新時の前のコメントとの照合と --exclude-comment を誤る | 表 | 528 | 7,062 |
-| 382 | `test_check_against_accepts_the_next_round`（正しく通る例） | 1 | 2 | 対の守り: サイクルの整合の検査が、正しい次のサイクルを拒否しない（拒否側は記録の上書き・脱落） | 表・重さは #236 | 529 | 7,064 |
+| 358 | `test_invalid_records_are_rejected` の `agent-id-not-derived-from-model`・`rerun-disagrees-with-heads`・`changed-without-previous-state` ほか 9 件 | 12 | 0 | 決定記録の整合（agent_id・rerun と head・skip・changed・d1・重複 ID・source・fix・マーカー）を欠く記録を通す | 表 | 492 | 6,019 |
+| 359 | `test_agent_id_for_follows_the_marker_rule` | 2 | 9 | 計画者の同一性（1 サイクル 1 計画者）の基準になる agent_id の導出を誤る | 表 | 494 | 6,028 |
+| 360 | `test_fold_keeps_the_latest_state_merged_sources_and_planner_models` | 1 | 30 | 状態の取り違え（最新の状態・source の統合・計画者の履歴） | 表 | 495 | 6,058 |
+| 361 | `test_fold_orders_one_round_by_time_and_then_comment_id` | 1 | 11 | 古い記録で新しい状態を上書きする | 表 | 496 | 6,069 |
+| 362 | `test_fold_keeps_split_decisions_apart` | 1 | 8 | 分割した decision の判断を取り違える | 表 | 497 | 6,077 |
+| 363 | `test_fold_rejects_records_of_another_pull_request` | 1 | 8 | 別の PR の記録を混ぜる | 表 | 498 | 6,085 |
+| 364 | `test_check_against_rejects_inconsistent_rounds` | 7 | 6 | 記録済みの new・state 変更・サイクル番号の飛び・別 PR・前の fix の脱落・skip 参照の付け替えを通す | 表 | 505 | 6,091 |
+| 365 | `test_check_against_keeps_one_planner_per_round` | 1 | 13 | 1 サイクル 1 計画者を守らず、記録を上書きする | 表 | 506 | 6,104 |
+| 366 | `test_check_against_refuses_to_update_a_round_after_a_later_one` | 1 | 6 | 後のサイクルがあるのに古いサイクルの記録を更新し、上書きする | 表 | 507 | 6,110 |
+| 367 | `test_check_against_rejects_finishing_with_an_earlier_hold` | 1 | 13 | 前の hold を残したまま完了と報告する | 表 | 508 | 6,123 |
+| 368 | `test_check_against_keeps_a_reference_with_the_part_that_holds_it` | 1 | 13 | 分割後の参照を、別の指摘を保つ部分から切り離して付け替える（記録の取り違え） | 表 | 509 | 6,136 |
+| 369 | `test_stopped_round_requires_a_concrete_allowed_category` | 6 | 8 | 区分（permission・environment・external）や具体的な理由の無い停止を記録しても気付けない | 表 | 515 | 6,144 |
+| 370 | `test_comments_from_api_accepts_slurped_pages_and_flat_arrays` | 1 | 7 | gh の応答の形を読み違え、記録が 0 件になる | 表 | 516 | 6,151 |
+| 371 | `test_collect_records_accepts_explicit_trusted_login` | 1 | 7 | CONTRIBUTOR の投稿を読まず、記録が消える（#169） | 表 | 517 | 6,158 |
+| 372 | `test_trusted_login_keeps_association_trust` | 1 | 8 | trusted_login を指定すると権限による信頼を保たず、記録を読み落とす | 表 | 518 | 6,166 |
+| 373 | `test_collect_records_names_every_broken_comment` | 1 | 12 | 壊れた記録のコメントを黙って飛ばし、記録を失う | 表 | 519 | 6,178 |
+| 374 | `test_read_state_lists_ignored_comments_and_checks_the_pull_request` | 1 | 10 | 無視したコメントを一覧に出さず、別の PR の記録を読む | 表 | 520 | 6,188 |
+| 375 | `test_updating_the_same_round_excludes_its_own_comment` | 1 | 9 | 更新時に自分のコメントを除かず、「記録済み」と拒否する／重複する | 表 | 521 | 6,197 |
+| 376 | `test_cli_fold_prints_the_current_state` | 1 | 15 | CLI の入出力のつなぎを誤り、現在の状態を出さない | 表 | 522 | 6,212 |
+| 377 | `test_cli_fold_reports_records_of_another_pull_request` | 1 | 7 | --repo/--pr の配線が切れ、別 PR の記録を混ぜる | 表 | 523 | 6,219 |
+| 378 | `test_cli_fold_exits_65_on_a_broken_record` | 1 | 8 | 壊れた記録を成功（終了 0）と報告する | 表 | 524 | 6,227 |
+| 379 | `test_cli_fold_uses_explicit_trusted_login` | 2 | 17 | --trusted-login の配線が切れ、信頼する投稿者を取り違える | 表 | 526 | 6,244 |
+| 380 | `test_cli_validate_uses_explicit_trusted_login` | 1 | 9 | validate の --trusted-login の配線が切れる | 表 | 527 | 6,253 |
+| 381 | `test_cli_validate_checks_the_record_against_earlier_comments` | 1 | 22 | 更新時の前のコメントとの照合と --exclude-comment を誤る | 表 | 528 | 6,275 |
+| 382 | `test_check_against_accepts_the_next_round`（正しく通る例） | 1 | 2 | 対の守り: サイクルの整合の検査が、正しい次のサイクルを拒否しない（拒否側は記録の上書き・脱落） | 表・重さは #236 | 529 | 6,277 |
 
 `.agents/scripts/tests/test_review_target.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 383 | `test_resolve_fork_and_upstream_use_separate_directories_and_remotes` | 1 | 12 | fork と上流のディレクトリ・remote を取り違える | 表 | 530 | 7,076 |
-| 384 | `test_find_review_directory_does_not_cross_repositories` | 1 | 11 | fork と上流で番号が同じでも、別リポジトリのレビューを選ぶ | 表 | 531 | 7,087 |
-| 385 | `test_find_review_directory_lists_multiple_candidates` | 1 | 10 | 複数候補のとき、止まらずに任意の 1 件を選ぶ | 表 | 532 | 7,097 |
-| 386 | `test_find_review_directory_ignores_symlinks_and_other_names` | 1 | 12 | symlink 先の別ディレクトリを使う | 表 | 533 | 7,109 |
-| 387 | `test_legacy_fork_checkout_directory_is_ambiguous` | 1 | 13 | 旧配置の fork checkout で、fork と上流を推測で選ぶ | 表 | 534 | 7,122 |
-| 388 | `test_legacy_fork_checkout_directory_rejects_findings_of_another_repository` | 1 | 9 | 旧配置で別リポジトリの findings を受け入れ、別の PR のレビューを使う | 表 | 535 | 7,131 |
-| 389 | `test_pr_option_must_match_path` | 1 | 17 | --pr とパスの不一致を通し、別 PR のレビューを使う（正例つき） | 表 | 536 | 7,148 |
-| 390 | `test_checkout_layout_must_match_target_root` | 1 | 20 | 別の checkout を対象にする（正例つき） | 表 | 537 | 7,168 |
-| 391 | `test_find_review_directory_rejects_name_mismatch` | 1 | 8 | ディレクトリ名と head branch の不一致を通し、古い branch 名のレビューを使う | 表 | 538 | 7,176 |
-| 392 | `test_find_review_directory_rejects_findings_for_another_pr` | 1 | 9 | 別 PR の findings を受け入れる | 表 | 539 | 7,185 |
-| 393 | `test_fetch_pull_head_separates_fork_and_upstream` | 1 | 12 | fork と上流の保存先 ref を取り違える | 表 | 540 | 7,197 |
-| 394 | `test_find_review_directory_by_number`（正しく通る例） | 1 | 8 | 対の守り: 番号でレビュー dir を探せる（拒否側は別リポジトリ・別 PR・symlink の取り違え） | 表 | 541 | 7,205 |
-| 395 | `test_find_review_directory_from_findings_json`（正しく通る例） | 1 | 10 | 対の守り: findings から PR を識別できる（拒否側は別 PR の findings） | 表 | 542 | 7,215 |
+| 383 | `test_resolve_fork_and_upstream_use_separate_directories_and_remotes` | 1 | 12 | fork と上流のディレクトリ・remote を取り違える | 表 | 530 | 6,289 |
+| 384 | `test_find_review_directory_does_not_cross_repositories` | 1 | 11 | fork と上流で番号が同じでも、別リポジトリのレビューを選ぶ | 表 | 531 | 6,300 |
+| 385 | `test_find_review_directory_lists_multiple_candidates` | 1 | 10 | 複数候補のとき、止まらずに任意の 1 件を選ぶ | 表 | 532 | 6,310 |
+| 386 | `test_find_review_directory_ignores_symlinks_and_other_names` | 1 | 12 | symlink 先の別ディレクトリを使う | 表 | 533 | 6,322 |
+| 387 | `test_legacy_fork_checkout_directory_is_ambiguous` | 1 | 13 | 旧配置の fork checkout で、fork と上流を推測で選ぶ | 表 | 534 | 6,335 |
+| 388 | `test_legacy_fork_checkout_directory_rejects_findings_of_another_repository` | 1 | 9 | 旧配置で別リポジトリの findings を受け入れ、別の PR のレビューを使う | 表 | 535 | 6,344 |
+| 389 | `test_pr_option_must_match_path` | 1 | 17 | --pr とパスの不一致を通し、別 PR のレビューを使う（正例つき） | 表 | 536 | 6,361 |
+| 390 | `test_checkout_layout_must_match_target_root` | 1 | 20 | 別の checkout を対象にする（正例つき） | 表 | 537 | 6,381 |
+| 391 | `test_find_review_directory_rejects_name_mismatch` | 1 | 8 | ディレクトリ名と head branch の不一致を通し、古い branch 名のレビューを使う | 表 | 538 | 6,389 |
+| 392 | `test_find_review_directory_rejects_findings_for_another_pr` | 1 | 9 | 別 PR の findings を受け入れる | 表 | 539 | 6,398 |
+| 393 | `test_fetch_pull_head_separates_fork_and_upstream` | 1 | 12 | fork と上流の保存先 ref を取り違える | 表 | 540 | 6,410 |
+| 394 | `test_find_review_directory_by_number`（正しく通る例） | 1 | 8 | 対の守り: 番号でレビュー dir を探せる（拒否側は別リポジトリ・別 PR・symlink の取り違え） | 表 | 541 | 6,418 |
+| 395 | `test_find_review_directory_from_findings_json`（正しく通る例） | 1 | 10 | 対の守り: findings から PR を識別できる（拒否側は別 PR の findings） | 表 | 542 | 6,428 |
 
 `.agents/skills/review-fix-planning/tests/test_finalize.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 396 | `test_public_ci_still_running_waits_and_the_rerun_finalizes` | 1 | 14 | CI が実行中のときの待機と、待機後の再実行での完了を誤る | 表 | 543 | 7,229 |
-| 397 | `test_wait_after_post_reruns_by_updating_the_same_comment` | 1 | 15 | 再実行で状況コメントを重複投稿する | 表 | 544 | 7,244 |
-| 398 | `test_already_merged_with_this_record_posted_only_resumes_issue_updates` | 1 | 5 | マージ済みの再実行で、Issue 更新を再開しない | 表 | 545 | 7,249 |
-| 399 | `test_merged_without_this_no_fix_record_is_stopped_but_merged` | 2 | 16 | この記録なしでマージ済みの PR を、完了または未マージと取り違えて報告する | 表 | 547 | 7,265 |
-| 400 | `test_manual_merge_after_a_stop_before_posting_is_not_no_fix_needed` | 1 | 16 | 停止後の手動マージを no_fix_needed の完了と報告する | 表 | 548 | 7,281 |
-| 401 | `test_issue_update_failure_is_reported_after_real_merge` | 1 | 6 | マージ後の Issue 更新の失敗を成功と報告する | 表 | 549 | 7,287 |
-| 402 | `test_cli_saves_and_reports_actual_result` | 1 | 13 | 結果ファイルと報告が食い違う | 表 | 550 | 7,300 |
-| 403 | `test_cli_exits_one_and_saves_the_result_when_stopped` | 1 | 13 | 停止時の終了コード 1 と結果の保存を誤り、停止を成功と扱う | 表 | 551 | 7,313 |
-| 404 | `test_post_operation_save_failure_preserves_observed_effects_in_stdout` | 1 | 19 | 結果の保存に失敗したとき、マージ済みの事実を出力に残さない | 表 | 552 | 7,332 |
-| 405 | `test_conflict_with_earlier_records_is_environment_and_names_the_decision` | 1 | 11 | 過去の記録と衝突したまま記録を書く | 表 | 553 | 7,343 |
-| 406 | `test_login_failure_is_external_and_does_not_post_or_merge` | 2 | 14 | 認証済みの login を取れないまま投稿・マージする | 表 | 555 | 7,357 |
-| 407 | `test_merged_with_another_head_keeps_the_merge` | 1 | 17 | 別の head でマージ済みの PR を未マージと報告し、マージ済みの事実を失う | 表 | 556 | 7,374 |
-| 408 | `test_manual_merge_with_another_head_after_posting_keeps_the_merge` | 1 | 8 | 投稿後に別の head で手動マージされたのに、マージ済みの事実を失う（#207） | 表 | 557 | 7,382 |
-| 409 | `test_manual_merge_before_posting_keeps_the_merge` | 1 | 9 | 投稿前の手動マージを未マージと報告し、マージ済みの事実を失う（#207） | 表 | 558 | 7,391 |
-| 410 | `test_failed_confirmation_after_the_merge_is_unconfirmed_and_the_rerun_recovers` | 1 | 13 | マージ後の確認の失敗を未マージと言い、再実行で完了しない | 表 | 559 | 7,404 |
-| 411 | `test_failed_merge_request_is_unconfirmed_and_the_rerun_recovers` | 1 | 10 | マージ要求の失敗を未マージと断定し、再実行で完了しない | 表 | 560 | 7,414 |
+| 396 | `test_public_ci_still_running_waits_and_the_rerun_finalizes` | 1 | 14 | CI が実行中のときの待機と、待機後の再実行での完了を誤る | 表 | 543 | 6,442 |
+| 397 | `test_wait_after_post_reruns_by_updating_the_same_comment` | 1 | 15 | 再実行で状況コメントを重複投稿する | 表 | 544 | 6,457 |
+| 398 | `test_already_merged_with_this_record_posted_only_resumes_issue_updates` | 1 | 5 | マージ済みの再実行で、Issue 更新を再開しない | 表 | 545 | 6,462 |
+| 399 | `test_merged_without_this_no_fix_record_is_stopped_but_merged` | 2 | 16 | この記録なしでマージ済みの PR を、完了または未マージと取り違えて報告する | 表 | 547 | 6,478 |
+| 400 | `test_manual_merge_after_a_stop_before_posting_is_not_no_fix_needed` | 1 | 16 | 停止後の手動マージを no_fix_needed の完了と報告する | 表 | 548 | 6,494 |
+| 401 | `test_issue_update_failure_is_reported_after_real_merge` | 1 | 6 | マージ後の Issue 更新の失敗を成功と報告する | 表 | 549 | 6,500 |
+| 402 | `test_cli_saves_and_reports_actual_result` | 1 | 13 | 結果ファイルと報告が食い違う | 表 | 550 | 6,513 |
+| 403 | `test_cli_exits_one_and_saves_the_result_when_stopped` | 1 | 13 | 停止時の終了コード 1 と結果の保存を誤り、停止を成功と扱う | 表 | 551 | 6,526 |
+| 404 | `test_post_operation_save_failure_preserves_observed_effects_in_stdout` | 1 | 19 | 結果の保存に失敗したとき、マージ済みの事実を出力に残さない | 表 | 552 | 6,545 |
+| 405 | `test_conflict_with_earlier_records_is_environment_and_names_the_decision` | 1 | 11 | 過去の記録と衝突したまま記録を書く | 表 | 553 | 6,556 |
+| 406 | `test_login_failure_is_external_and_does_not_post_or_merge` | 2 | 14 | 認証済みの login を取れないまま投稿・マージする | 表 | 555 | 6,570 |
+| 407 | `test_merged_with_another_head_keeps_the_merge` | 1 | 17 | 別の head でマージ済みの PR を未マージと報告し、マージ済みの事実を失う | 表 | 556 | 6,587 |
+| 408 | `test_manual_merge_with_another_head_after_posting_keeps_the_merge` | 1 | 8 | 投稿後に別の head で手動マージされたのに、マージ済みの事実を失う（#207） | 表 | 557 | 6,595 |
+| 409 | `test_manual_merge_before_posting_keeps_the_merge` | 1 | 9 | 投稿前の手動マージを未マージと報告し、マージ済みの事実を失う（#207） | 表 | 558 | 6,604 |
+| 410 | `test_failed_confirmation_after_the_merge_is_unconfirmed_and_the_rerun_recovers` | 1 | 13 | マージ後の確認の失敗を未マージと言い、再実行で完了しない | 表 | 559 | 6,617 |
+| 411 | `test_failed_merge_request_is_unconfirmed_and_the_rerun_recovers` | 1 | 10 | マージ要求の失敗を未マージと断定し、再実行で完了しない | 表 | 560 | 6,627 |
 
 `.agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 412 | `test_fix_initial_planning_does_not_confuse_pr_branch_metadata_with_head_validation` | 1 | 4 | PR の branch の情報と HEAD の検証を取り違える | 表 | 561 | 7,418 |
+| 412 | `test_fix_initial_planning_does_not_confuse_pr_branch_metadata_with_head_validation` | 1 | 4 | PR の branch の情報と HEAD の検証を取り違える | 表 | 561 | 6,631 |
 
 `.agents/skills/review-fix-planning/tests/test_run_roles.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 413 | `test_single_call_uses_both_review_roles_and_retains_self_instructions` | 2 | 39 | 1 回枠の予約・記録・accept の拒否を誤る | 表 | 563 | 7,457 |
-| 414 | `test_verified_input_mismatch_never_consumes_the_only_review` | 2 | 13 | 別 PR・別 HEAD の verified を受けて、1 回だけの枠を消費する | 表 | 565 | 7,470 |
-| 415 | `test_second_review_is_refused_even_when_all_assignments_are_self` | 1 | 5 | 1 回枠の再予約を許し、記録を上書きする | 表 | 566 | 7,475 |
-| 416 | `test_binding_mismatch_is_rejected_before_reservation` | 1 | 5 | planning と PR の不一致のまま枠を予約する | 表 | 567 | 7,480 |
-| 417 | `test_review_assignment_that_cannot_run_the_helpers_stops_before_reserving_the_review` | 1 | 29 | helper を動かせない担当（codex の fallback）で、戻せない 1 回枠を消費する（#731） | 表 | 568 | 7,509 |
-| 418 | `test_unconfirmed_stop_blocks_fix_check_accept_and_keeps_budget` | 1 | 16 | 停止未確認のまま fix-check を成功と報告する | 表 | 569 | 7,525 |
+| 413 | `test_single_call_uses_both_review_roles_and_retains_self_instructions` | 2 | 39 | 1 回枠の予約・記録・accept の拒否を誤る | 表 | 563 | 6,670 |
+| 414 | `test_verified_input_mismatch_never_consumes_the_only_review` | 2 | 13 | 別 PR・別 HEAD の verified を受けて、1 回だけの枠を消費する | 表 | 565 | 6,683 |
+| 415 | `test_second_review_is_refused_even_when_all_assignments_are_self` | 1 | 5 | 1 回枠の再予約を許し、記録を上書きする | 表 | 566 | 6,688 |
+| 416 | `test_binding_mismatch_is_rejected_before_reservation` | 1 | 5 | planning と PR の不一致のまま枠を予約する | 表 | 567 | 6,693 |
+| 417 | `test_review_assignment_that_cannot_run_the_helpers_stops_before_reserving_the_review` | 1 | 29 | helper を動かせない担当（codex の fallback）で、戻せない 1 回枠を消費する（#731） | 表 | 568 | 6,722 |
+| 418 | `test_unconfirmed_stop_blocks_fix_check_accept_and_keeps_budget` | 1 | 16 | 停止未確認のまま fix-check を成功と報告する | 表 | 569 | 6,738 |
 
 `.agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 419 | `test_record_less_body_rejects_round_markers_and_records_blocks` | 2 | 14 | 記録なしの本文から round マーカー・記録ブロックを偽造できる | 表 | 571 | 7,539 |
-| 420 | `test_find_own_comment_ignores_other_agents_and_rejects_duplicates` | 1 | 10 | 別担当のコメントを書き換える | 表 | 572 | 7,549 |
-| 421 | `test_find_own_comment_matches_the_marker_as_a_whole_first_line` | 1 | 12 | 引用した marker のコメントを自分のものとして書き換える | 表 | 573 | 7,561 |
-| 422 | `test_find_round_comment_matches_both_marker_lines_exactly` | 1 | 14 | 別サイクルの記録のコメントを上書きする | 表 | 574 | 7,575 |
-| 423 | `test_comments_are_read_from_every_slurped_page` | 1 | 8 | 全ページを読まず、既存コメントを見落として重複する | 表 | 575 | 7,583 |
-| 424 | `test_login_failure_stops_before_any_comment_write` | 2 | 7 | login が不明なままコメントを書き込む | 表 | 577 | 7,590 |
-| 425 | `test_records_post_updates_the_same_round_after_the_push` | 1 | 7 | push 後に同じサイクルのコメントを重複させる | 表 | 578 | 7,597 |
-| 426 | `test_records_post_reads_prior_round_written_by_own_contributor_login` | 1 | 9 | 自分の login が CONTRIBUTOR で書いた前のサイクルを読まず、履歴を失う（#169） | 表 | 579 | 7,606 |
-| 427 | `test_records_post_rejects_a_record_for_another_pull_request` | 1 | 4 | 別 PR の記録を投稿する | 表 | 580 | 7,610 |
-| 428 | `test_records_post_requires_the_pull_request_head` | 2 | 9 | 古い HEAD の記録を投稿する | 表 | 582 | 7,619 |
-| 429 | `test_records_post_stops_when_a_later_round_exists` | 1 | 4 | 後のサイクルがあるのに、古いサイクルを上書きする | 表 | 583 | 7,623 |
-| 430 | `test_records_post_rejects_no_fix_needed_with_pending_decisions` | 1 | 4 | 保留を残したまま no_fix_needed の完了と記録する | 表 | 584 | 7,627 |
-| 431 | `test_records_post_stops_on_duplicate_round_comments` | 1 | 4 | サイクルのコメントが重複しているのに、どちらかを書き換える | 表 | 585 | 7,631 |
+| 419 | `test_record_less_body_rejects_round_markers_and_records_blocks` | 2 | 14 | 記録なしの本文から round マーカー・記録ブロックを偽造できる | 表 | 571 | 6,752 |
+| 420 | `test_find_own_comment_ignores_other_agents_and_rejects_duplicates` | 1 | 10 | 別担当のコメントを書き換える | 表 | 572 | 6,762 |
+| 421 | `test_find_own_comment_matches_the_marker_as_a_whole_first_line` | 1 | 12 | 引用した marker のコメントを自分のものとして書き換える | 表 | 573 | 6,774 |
+| 422 | `test_find_round_comment_matches_both_marker_lines_exactly` | 1 | 14 | 別サイクルの記録のコメントを上書きする | 表 | 574 | 6,788 |
+| 423 | `test_comments_are_read_from_every_slurped_page` | 1 | 8 | 全ページを読まず、既存コメントを見落として重複する | 表 | 575 | 6,796 |
+| 424 | `test_login_failure_stops_before_any_comment_write` | 2 | 7 | login が不明なままコメントを書き込む | 表 | 577 | 6,803 |
+| 425 | `test_records_post_updates_the_same_round_after_the_push` | 1 | 7 | push 後に同じサイクルのコメントを重複させる | 表 | 578 | 6,810 |
+| 426 | `test_records_post_reads_prior_round_written_by_own_contributor_login` | 1 | 9 | 自分の login が CONTRIBUTOR で書いた前のサイクルを読まず、履歴を失う（#169） | 表 | 579 | 6,819 |
+| 427 | `test_records_post_rejects_a_record_for_another_pull_request` | 1 | 4 | 別 PR の記録を投稿する | 表 | 580 | 6,823 |
+| 428 | `test_records_post_requires_the_pull_request_head` | 2 | 9 | 古い HEAD の記録を投稿する | 表 | 582 | 6,832 |
+| 429 | `test_records_post_stops_when_a_later_round_exists` | 1 | 4 | 後のサイクルがあるのに、古いサイクルを上書きする | 表 | 583 | 6,836 |
+| 430 | `test_records_post_rejects_no_fix_needed_with_pending_decisions` | 1 | 4 | 保留を残したまま no_fix_needed の完了と記録する | 表 | 584 | 6,840 |
+| 431 | `test_records_post_stops_on_duplicate_round_comments` | 1 | 4 | サイクルのコメントが重複しているのに、どちらかを書き換える | 表 | 585 | 6,844 |
 
 `.agents/skills/review-verify/tests/test_dispatch.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 432 | `test_external_runs_only_fix_check_and_preserves_observed_identity` | 2 | 23 | 失敗を成功と報告する。観測した identity を記録しない | 表 | 587 | 7,654 |
-| 433 | `test_self_fix_check_asks_for_no_write_exceptions` | 1 | 21 | self に書込み例外を与える | 表 | 588 | 7,675 |
-| 434 | `test_writing_fix_check_role_is_rejected_before_launch` | 1 | 8 | 書込み可の役割を fix-check に使い、例外なしで書込み担当が走り得る | 表 | 589 | 7,683 |
-| 435 | `test_unobserved_identity_is_unknown_not_requested` | 1 | 14 | 要求したモデルを観測値と偽って記録する（記録の取り違え） | 表 | 590 | 7,697 |
-| 436 | `test_mutable_revision_is_rejected_before_output` | 1 | 8 | 動く参照（HEAD）を許し、別 commit を検証して成功と報告する | 表 | 591 | 7,705 |
-| 437 | `test_explicit_fallback_keeps_the_actual_agent_and_observed_identity` | 1 | 22 | fallback 時に実際の担当を記録しない | 表 | 592 | 7,727 |
-| 438 | `test_observed_hash_conflicting_with_the_dispatched_skill_is_unknown` | 1 | 14 | 適用した skill と食い違う観測値を採用する | 表 | 593 | 7,741 |
-| 439 | `test_accept_rejects_a_missing_or_malformed_trusted_pr_before_output` | 2 | 20 | 凍結した PR が読めないとき payload へ fallback する、bool を番号と誤認する | 表 | 595 | 7,761 |
-| 440 | `test_accept_rejects_a_primary_skill_not_applied_by_dispatch_before_creating_output` | 2 | 26 | 適用していない skill の記録を受理する | 表 | 597 | 7,787 |
-| 441 | `test_accept_does_not_attribute_a_disappeared_checkout_to_content_changes` | 1 | 22 | 消えた checkout の監査不能を「内容変更」と取り違える | 表 | 598 | 7,809 |
-| 442 | `test_fix_check_environment_preflight_does_not_launch` | 1 | 35 | 移動した checkout で main が environment と報告せず、担当を起動する | 表 | 599 | 7,844 |
-| 443 | `test_dispatch_main_exits_1_and_names_outside_changes` | 1 | 11 | 外部書込みで終了コード 0 を返し、汚染された結果を成功と扱う | 表 | 600 | 7,855 |
-| 444 | `test_accept_rejects_malformed_checkout_diagnostics` | 1 | 10 | 改ざん・欠落した監査欄を、無変更と読む | 表 | 601 | 7,865 |
-| 445 | `test_main_exits_1_for_a_failed_run` | 1 | 8 | 失敗した実行を成功（終了 0）と報告する | 表 | 602 | 7,873 |
-| 446 | `test_main_names_the_invalid_request_field_without_its_value` | 1 | 8 | 不正な入力値を stderr に漏らす | 表 | 603 | 7,881 |
-| 447 | `test_accept_checks_changes_since_dispatch_even_with_an_invalid_payload` | 1 | 10 | payload が不正なとき、起動後の変更の検出を飛ばす | 表 | 604 | 7,891 |
-| 448 | `test_initial_snapshot_cannot_silently_skip_an_unreadable_subdirectory` | 1 | 11 | 読めない subdir を飛ばした不完全な snapshot で、変更を見落とす | 表 | 605 | 7,902 |
-| 449 | `test_observed_hash_matching_the_dispatched_skill_is_kept`（正しく通る例） | 1 | 15 | 対の守り: 適用した skill と一致する観測値は残す（拒否側は食い違う観測値の採用） | 表 | 606 | 7,917 |
-| 450 | `test_accept_keeps_the_applied_skill_when_identity_was_not_observed`（正しく通る例） | 1 | 23 | 対の守り: 未観測の identity でも適用した skill の記録は受理する（拒否側は適用外の skill） | 表 | 607 | 7,940 |
+| 432 | `test_external_runs_only_fix_check_and_preserves_observed_identity` | 2 | 23 | 失敗を成功と報告する。観測した identity を記録しない | 表 | 587 | 6,867 |
+| 433 | `test_self_fix_check_asks_for_no_write_exceptions` | 1 | 21 | self に書込み例外を与える | 表 | 588 | 6,888 |
+| 434 | `test_writing_fix_check_role_is_rejected_before_launch` | 1 | 8 | 書込み可の役割を fix-check に使い、例外なしで書込み担当が走り得る | 表 | 589 | 6,896 |
+| 435 | `test_unobserved_identity_is_unknown_not_requested` | 1 | 14 | 要求したモデルを観測値と偽って記録する（記録の取り違え） | 表 | 590 | 6,910 |
+| 436 | `test_mutable_revision_is_rejected_before_output` | 1 | 8 | 動く参照（HEAD）を許し、別 commit を検証して成功と報告する | 表 | 591 | 6,918 |
+| 437 | `test_explicit_fallback_keeps_the_actual_agent_and_observed_identity` | 1 | 22 | fallback 時に実際の担当を記録しない | 表 | 592 | 6,940 |
+| 438 | `test_observed_hash_conflicting_with_the_dispatched_skill_is_unknown` | 1 | 14 | 適用した skill と食い違う観測値を採用する | 表 | 593 | 6,954 |
+| 439 | `test_accept_rejects_a_missing_or_malformed_trusted_pr_before_output` | 2 | 20 | 凍結した PR が読めないとき payload へ fallback する、bool を番号と誤認する | 表 | 595 | 6,974 |
+| 440 | `test_accept_rejects_a_primary_skill_not_applied_by_dispatch_before_creating_output` | 2 | 26 | 適用していない skill の記録を受理する | 表 | 597 | 7,000 |
+| 441 | `test_accept_does_not_attribute_a_disappeared_checkout_to_content_changes` | 1 | 22 | 消えた checkout の監査不能を「内容変更」と取り違える | 表 | 598 | 7,022 |
+| 442 | `test_fix_check_environment_preflight_does_not_launch` | 1 | 35 | 移動した checkout で main が environment と報告せず、担当を起動する | 表 | 599 | 7,057 |
+| 443 | `test_dispatch_main_exits_1_and_names_outside_changes` | 1 | 11 | 外部書込みで終了コード 0 を返し、汚染された結果を成功と扱う | 表 | 600 | 7,068 |
+| 444 | `test_accept_rejects_malformed_checkout_diagnostics` | 1 | 10 | 改ざん・欠落した監査欄を、無変更と読む | 表 | 601 | 7,078 |
+| 445 | `test_main_exits_1_for_a_failed_run` | 1 | 8 | 失敗した実行を成功（終了 0）と報告する | 表 | 602 | 7,086 |
+| 446 | `test_main_names_the_invalid_request_field_without_its_value` | 1 | 8 | 不正な入力値を stderr に漏らす | 表 | 603 | 7,094 |
+| 447 | `test_accept_checks_changes_since_dispatch_even_with_an_invalid_payload` | 1 | 10 | payload が不正なとき、起動後の変更の検出を飛ばす | 表 | 604 | 7,104 |
+| 448 | `test_initial_snapshot_cannot_silently_skip_an_unreadable_subdirectory` | 1 | 11 | 読めない subdir を飛ばした不完全な snapshot で、変更を見落とす | 表 | 605 | 7,115 |
+| 449 | `test_observed_hash_matching_the_dispatched_skill_is_kept`（正しく通る例） | 1 | 15 | 対の守り: 適用した skill と一致する観測値は残す（拒否側は食い違う観測値の採用） | 表 | 606 | 7,130 |
+| 450 | `test_accept_keeps_the_applied_skill_when_identity_was_not_observed`（正しく通る例） | 1 | 23 | 対の守り: 未観測の identity でも適用した skill の記録は受理する（拒否側は適用外の skill） | 表 | 607 | 7,153 |
 
 `.agents/skills/agent-handoff/tests/test_agent_handoff_skill_contract.py`（`skill-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 451 | `test_schema_documents_the_authored_fields` | 1 | 4 | 引き継ぎ schema から decisions・out_of_scope・verification・landing が消え、決定や境界が無言で落ちる | 表 | 608 | 7,944 |
-| 452 | `test_schema_maps_review_fix_planning_hold_to_deferred` | 1 | 4 | Hold を Skip 等へ写し、未解決のレビュー指摘が延期記録から黙って消える | 表 | 609 | 7,948 |
+| 451 | `test_schema_documents_the_authored_fields` | 1 | 4 | 引き継ぎ schema から decisions・out_of_scope・verification・landing が消え、決定や境界が無言で落ちる | 表 | 608 | 7,157 |
+| 452 | `test_schema_maps_review_fix_planning_hold_to_deferred` | 1 | 4 | Hold を Skip 等へ写し、未解決のレビュー指摘が延期記録から黙って消える | 表 | 609 | 7,161 |
 
 `.agents/skills/issue-to-pr/tests/test_implement_task.py`（`skill-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 453 | `test_check_implement_replaces_primary` | 1 | 9 | --implement が別の担当を選び、もっともらしい結果で誤担当の作業を採用する | 表 | 610 | 7,957 |
-| 454 | `test_check_rejects_invalid_assignment` | 1 | 25 | 複数の一次担当を受け入れ、意図しない担当を起動・採用する | 表 | 611 | 7,982 |
-| 455 | `test_check_reads_the_real_template` | 1 | 10 | 雛形の既定 self が変わり、--implement 無しで有料 runner を黙って起動する | 表 | 612 | 7,992 |
-| 456 | `test_exit_code_for_verdicts` | 1 | 3 | rejected・failed・retry を 0 で返し、呼び出し元が失敗を成功として進める | 表 | 613 | 7,995 |
+| 453 | `test_check_implement_replaces_primary` | 1 | 9 | --implement が別の担当を選び、もっともらしい結果で誤担当の作業を採用する | 表 | 610 | 7,170 |
+| 454 | `test_check_rejects_invalid_assignment` | 1 | 25 | 複数の一次担当を受け入れ、意図しない担当を起動・採用する | 表 | 611 | 7,195 |
+| 455 | `test_check_reads_the_real_template` | 1 | 10 | 雛形の既定 self が変わり、--implement 無しで有料 runner を黙って起動する | 表 | 612 | 7,205 |
+| 456 | `test_exit_code_for_verdicts` | 1 | 3 | rejected・failed・retry を 0 で返し、呼び出し元が失敗を成功として進める | 表 | 613 | 7,208 |
 
 `.agents/skills/issue-to-pr/tests/test_implement_task_run.py`（`skill-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 457 | `test_blocked_asks_for_retry` | 1 | 7 | 作業不能（BLOCKED）の報告を成功・無変更と誤判定して先へ進む | 表 | 614 | 8,002 |
-| 458 | `test_non_ascii_paths_and_prompt_round_trip` | 1 | 12 | prompt の内容が静かに欠落・変形し、担当が別の作業をしても許可範囲内なら気付けない | 表 | 615 | 8,014 |
-| 459 | `test_cli_accept_and_cleanup_exit_codes` | 1 | 9 | accept が拒否しても CLI が 0 を返し、呼び出し元が取り込み成功として続ける | 表 | 616 | 8,023 |
+| 457 | `test_blocked_asks_for_retry` | 1 | 7 | 作業不能（BLOCKED）の報告を成功・無変更と誤判定して先へ進む | 表 | 614 | 7,215 |
+| 458 | `test_non_ascii_paths_and_prompt_round_trip` | 1 | 12 | prompt の内容が静かに欠落・変形し、担当が別の作業をしても許可範囲内なら気付けない | 表 | 615 | 7,227 |
+| 459 | `test_cli_accept_and_cleanup_exit_codes` | 1 | 9 | accept が拒否しても CLI が 0 を返し、呼び出し元が取り込み成功として続ける | 表 | 616 | 7,236 |
 
 `.agents/skills/issue-to-pr/tests/test_resolve_issue.py`（`skill-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 460 | `test_merge_arguments_are_passed_in_the_written_order` | 2 | 22 | 値の順序や担当指定を入れ替え、利用者と違う回数・担当でレビュー修正が進む | 表 | 618 | 8,045 |
-| 461 | `test_template_and_config_become_absolute_from_the_starting_directory` | 1 | 15 | 後段の cwd で相対パスを解決し、別設定を読んで違う担当を起動する | 表 | 619 | 8,060 |
-| 462 | `test_implement_is_returned_without_changing_git` | 2 | 17 | 明示した --implement を別担当・self に取り違え、誤った担当を起動・採用する | 表 | 621 | 8,077 |
-| 463 | `test_rejects_malformed_implement_before_looking_up_issue` | 1 | 12 | 二重の --implement から一方を黙って採り、意図しない担当を起動する | 表 | 622 | 8,089 |
-| 464 | `test_implement_is_returned_separately_from_loop_args` | 1 | 15 | --assign implement= を Plan Task の担当へ混ぜ、別担当が実装する | 表 | 623 | 8,104 |
+| 460 | `test_merge_arguments_are_passed_in_the_written_order` | 2 | 22 | 値の順序や担当指定を入れ替え、利用者と違う回数・担当でレビュー修正が進む | 表 | 618 | 7,258 |
+| 461 | `test_template_and_config_become_absolute_from_the_starting_directory` | 1 | 15 | 後段の cwd で相対パスを解決し、別設定を読んで違う担当を起動する | 表 | 619 | 7,273 |
+| 462 | `test_implement_is_returned_without_changing_git` | 2 | 17 | 明示した --implement を別担当・self に取り違え、誤った担当を起動・採用する | 表 | 621 | 7,290 |
+| 463 | `test_rejects_malformed_implement_before_looking_up_issue` | 1 | 12 | 二重の --implement から一方を黙って採り、意図しない担当を起動する | 表 | 622 | 7,302 |
+| 464 | `test_implement_is_returned_separately_from_loop_args` | 1 | 15 | --assign implement= を Plan Task の担当へ混ぜ、別担当が実装する | 表 | 623 | 7,317 |
 
 `.agents/skills/monitoring-long-tasks/tests/test_task_watch_core.py`（`skill-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 465 | `test_exit_is_completed_only_with_zero_and_declared_result` | 1 | 6 | exit 0 でも宣言済み結果が無い、または非 0 なのに completed と記録し、未完了を成功と報告する | 表 | 624 | 8,110 |
-| 466 | `test_safety_failure_precedes_deadline_and_other_reasons` | 1 | 6 | 安全失敗を期限超過などへ置き換え、失敗の種類が最終記録から失われる | 表 | 625 | 8,116 |
-| 467 | `test_deadline_stops_even_while_progressing` | 1 | 4 | 進捗があるだけで期限を無視し、宣言した上限を越えて対象が動き続ける | 表 | 626 | 8,120 |
-| 468 | `test_repeated_failure_stops_at_the_declared_count` | 1 | 5 | 同じ失敗が所定回数に達しても続行し、失敗を繰り返す対象が期限まで動き続ける | 表 | 627 | 8,125 |
-| 469 | `test_no_progress_applies_only_before_research_deadline` | 1 | 8 | 無進捗を見逃して続行するか予約時間に誤って停止し、期限・保存の判断を誤る | 表 | 628 | 8,133 |
-| 470 | `test_safety_failure_recorded_before_exit_is_not_completed` | 1 | 6 | 終了コードと結果だけを見て、記録済みの安全失敗を成功と報告する | 表 | 629 | 8,139 |
-| 471 | `test_policy_rejects_reserve_that_leaves_no_investigation_time` | 1 | 5 | 予約時間が期限以上の指定を通し、調査不足の成果を completed と記録する | 表 | 630 | 8,144 |
-| 472 | `test_progress_reader_counts_only_new_items_and_complete_lines` | 1 | 24 | heartbeat・重複・未完了行を新しい進捗と数え、無進捗の対象を進捗ありとして走らせ続ける | 表 | 631 | 8,168 |
-| 473 | `test_failures_are_counted_per_signature_and_first_safety_is_kept` | 1 | 22 | 署名別の失敗回数の混同による誤停止・停止漏れと、安全失敗の先頭記録の喪失 | 表 | 632 | 8,190 |
+| 465 | `test_exit_is_completed_only_with_zero_and_declared_result` | 1 | 6 | exit 0 でも宣言済み結果が無い、または非 0 なのに completed と記録し、未完了を成功と報告する | 表 | 624 | 7,323 |
+| 466 | `test_safety_failure_precedes_deadline_and_other_reasons` | 1 | 6 | 安全失敗を期限超過などへ置き換え、失敗の種類が最終記録から失われる | 表 | 625 | 7,329 |
+| 467 | `test_deadline_stops_even_while_progressing` | 1 | 4 | 進捗があるだけで期限を無視し、宣言した上限を越えて対象が動き続ける | 表 | 626 | 7,333 |
+| 468 | `test_repeated_failure_stops_at_the_declared_count` | 1 | 5 | 同じ失敗が所定回数に達しても続行し、失敗を繰り返す対象が期限まで動き続ける | 表 | 627 | 7,338 |
+| 469 | `test_no_progress_applies_only_before_research_deadline` | 1 | 8 | 無進捗を見逃して続行するか予約時間に誤って停止し、期限・保存の判断を誤る | 表 | 628 | 7,346 |
+| 470 | `test_safety_failure_recorded_before_exit_is_not_completed` | 1 | 6 | 終了コードと結果だけを見て、記録済みの安全失敗を成功と報告する | 表 | 629 | 7,352 |
+| 471 | `test_policy_rejects_reserve_that_leaves_no_investigation_time` | 1 | 5 | 予約時間が期限以上の指定を通し、調査不足の成果を completed と記録する | 表 | 630 | 7,357 |
+| 472 | `test_progress_reader_counts_only_new_items_and_complete_lines` | 1 | 24 | heartbeat・重複・未完了行を新しい進捗と数え、無進捗の対象を進捗ありとして走らせ続ける | 表 | 631 | 7,381 |
+| 473 | `test_failures_are_counted_per_signature_and_first_safety_is_kept` | 1 | 22 | 署名別の失敗回数の混同による誤停止・停止漏れと、安全失敗の先頭記録の喪失 | 表 | 632 | 7,403 |
 
 `.agents/skills/monitoring-long-tasks/tests/test_task_watch_process.py`（`skill-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 474 | `test_heartbeat_only_worker_is_stopped_for_no_progress` | 1 | 10 | heartbeat を実進捗と誤認して worker が走り続ける。停止の確認は実 PID の生存で見る | 表 | 633 | 8,200 |
-| 475 | `test_launch_failure_is_reported_as_incomplete` | 1 | 23 | 起動できない CLI を completed と最終報告し、何も実行していないのに成功が残る | 表 | 634 | 8,223 |
+| 474 | `test_heartbeat_only_worker_is_stopped_for_no_progress` | 1 | 10 | heartbeat を実進捗と誤認して worker が走り続ける。停止の確認は実 PID の生存で見る | 表 | 633 | 7,413 |
+| 475 | `test_launch_failure_is_reported_as_incomplete` | 1 | 23 | 起動できない CLI を completed と最終報告し、何も実行していないのに成功が残る | 表 | 634 | 7,436 |
 
 `.agents/skills/pi-model-name/tests/test_pi_model_name_contract.py`（`skill-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 476 | `test_strict_fails_closed_without_runtime` | 1 | 5 | runtime 不明なのに履歴から正式なモデル名を推測し、レビュー担当を誤帰属する | 表 | 635 | 8,228 |
-| 477 | `test_history_allowed_only_with_flag` | 1 | 15 | 明示 flag なしで履歴を正式なモデル名として返し、古いモデルを現在の担当として記録する | 表 | 636 | 8,243 |
-| 478 | `test_history_does_not_fall_back_from_unreadable_explicit_file` | 1 | 8 | 明示したファイルが読めない時に環境側へ無言で fallback し、別 session のモデルを正式に表示する | 表 | 637 | 8,251 |
-| 479 | `test_history_invalid_utf8_does_not_supply_a_model` | 1 | 6 | 壊れた session を読み飛ばしてモデルを推測し、誤帰属する | 表 | 638 | 8,257 |
-| 480 | `test_runtime_and_selected_conflict_suppresses_text_answer` | 1 | 6 | runtime と選択済みモデルが食い違っても、テキストにモデル名を出して誤った担当を記録する | 表 | 639 | 8,263 |
-| 481 | `test_newer_observed_identity_conflicts` | 2 | 11 | 新しい observed の provider/model の不一致を見逃し、実際に応答したモデルを誤帰属する | 表 | 641 | 8,274 |
-| 482 | `test_observed_before_model_switch_is_warning` | 1 | 14 | 古い observed を現在のモデルとして採用し、切替後の担当モデルを取り違える | 表 | 642 | 8,288 |
-| 483 | `test_crosscheck_ignores_abandoned_branch` | 1 | 14 | 放棄された session 分岐のモデルを採用し、現在の会話と別のモデルを担当として記録する | 表 | 643 | 8,302 |
-| 484 | `test_explicit_session_file_precedes_env_sources` | 1 | 9 | 明示ファイルより環境変数を優先し、異なる session のモデルを採用する | 表 | 644 | 8,311 |
-| 485 | `test_pi_session_file_precedes_subagent_session` | 1 | 6 | 親 runtime の session より子の session を優先し、子のモデルを親の担当として記録する | 表 | 645 | 8,317 |
-| 486 | `test_wrong_session_id_does_not_overrule_runtime_env` | 1 | 14 | session ID が違うファイルを runtime の照合に使い、別実行のモデルで偽の衝突・偽の一致を生む | 表 | 646 | 8,331 |
-| 487 | `test_unreadable_session_paths_follow_source_policy` | 1 | 8 | 明示パスが読めないのに暗黙ソースへ fallback し、別 session を照合済みとして扱う | 表 | 647 | 8,339 |
-| 488 | `test_crosschecked_text_modes` | 3 | 13 | --model・--provider・--session の値を取り違え、誤った担当を人がそのまま記録する | 表 | 650 | 8,352 |
-| 489 | `test_json_without_session_path_reports_unchecked` | 1 | 9 | session が無いのに照合済みのように見せ、未検証のモデルを正式に記録する | 表 | 651 | 8,361 |
-| 490 | `test_runtime_env_stays_required_with_explicit_session_file` | 1 | 5 | runtime が無いのに明示 session file の履歴を正式なモデル名として返し、古いモデルを記録する | 表 | 652 | 8,366 |
-| 491 | `test_prints_runtime_model`（正しく通る例） | 1 | 4 | fail-closed 拒否の正例。違う provider/model 名を表示するとレビュー記録を誤帰属する | 表 | 653 | 8,370 |
-| 492 | `test_history_prefers_explicit_file_over_runtime_file`（正しく通る例） | 1 | 15 | 明示 session と別のファイルから取得し、別の実行のモデルを現在の担当として記録する。fallback 拒否の正例 | 表 | 654 | 8,385 |
-| 493 | `test_session_crosscheck_reports_matching_selected_and_observed`（正しく通る例） | 1 | 149（準備 133 を含む） | 照合の衝突判定テスト群の正例。全て conflict と返す実装で、照合済みデータの記録が欠落する | 表 | 655 | 8,534 |
+| 476 | `test_strict_fails_closed_without_runtime` | 1 | 5 | runtime 不明なのに履歴から正式なモデル名を推測し、レビュー担当を誤帰属する | 表 | 635 | 7,441 |
+| 477 | `test_history_allowed_only_with_flag` | 1 | 15 | 明示 flag なしで履歴を正式なモデル名として返し、古いモデルを現在の担当として記録する | 表 | 636 | 7,456 |
+| 478 | `test_history_does_not_fall_back_from_unreadable_explicit_file` | 1 | 8 | 明示したファイルが読めない時に環境側へ無言で fallback し、別 session のモデルを正式に表示する | 表 | 637 | 7,464 |
+| 479 | `test_history_invalid_utf8_does_not_supply_a_model` | 1 | 6 | 壊れた session を読み飛ばしてモデルを推測し、誤帰属する | 表 | 638 | 7,470 |
+| 480 | `test_runtime_and_selected_conflict_suppresses_text_answer` | 1 | 6 | runtime と選択済みモデルが食い違っても、テキストにモデル名を出して誤った担当を記録する | 表 | 639 | 7,476 |
+| 481 | `test_newer_observed_identity_conflicts` | 2 | 11 | 新しい observed の provider/model の不一致を見逃し、実際に応答したモデルを誤帰属する | 表 | 641 | 7,487 |
+| 482 | `test_observed_before_model_switch_is_warning` | 1 | 14 | 古い observed を現在のモデルとして採用し、切替後の担当モデルを取り違える | 表 | 642 | 7,501 |
+| 483 | `test_crosscheck_ignores_abandoned_branch` | 1 | 14 | 放棄された session 分岐のモデルを採用し、現在の会話と別のモデルを担当として記録する | 表 | 643 | 7,515 |
+| 484 | `test_explicit_session_file_precedes_env_sources` | 1 | 9 | 明示ファイルより環境変数を優先し、異なる session のモデルを採用する | 表 | 644 | 7,524 |
+| 485 | `test_pi_session_file_precedes_subagent_session` | 1 | 6 | 親 runtime の session より子の session を優先し、子のモデルを親の担当として記録する | 表 | 645 | 7,530 |
+| 486 | `test_wrong_session_id_does_not_overrule_runtime_env` | 1 | 14 | session ID が違うファイルを runtime の照合に使い、別実行のモデルで偽の衝突・偽の一致を生む | 表 | 646 | 7,544 |
+| 487 | `test_unreadable_session_paths_follow_source_policy` | 1 | 8 | 明示パスが読めないのに暗黙ソースへ fallback し、別 session を照合済みとして扱う | 表 | 647 | 7,552 |
+| 488 | `test_crosschecked_text_modes` | 3 | 13 | --model・--provider・--session の値を取り違え、誤った担当を人がそのまま記録する | 表 | 650 | 7,565 |
+| 489 | `test_json_without_session_path_reports_unchecked` | 1 | 9 | session が無いのに照合済みのように見せ、未検証のモデルを正式に記録する | 表 | 651 | 7,574 |
+| 490 | `test_runtime_env_stays_required_with_explicit_session_file` | 1 | 5 | runtime が無いのに明示 session file の履歴を正式なモデル名として返し、古いモデルを記録する | 表 | 652 | 7,579 |
+| 491 | `test_prints_runtime_model`（正しく通る例） | 1 | 4 | fail-closed 拒否の正例。違う provider/model 名を表示するとレビュー記録を誤帰属する | 表 | 653 | 7,583 |
+| 492 | `test_history_prefers_explicit_file_over_runtime_file`（正しく通る例） | 1 | 15 | 明示 session と別のファイルから取得し、別の実行のモデルを現在の担当として記録する。fallback 拒否の正例 | 表 | 654 | 7,598 |
+| 493 | `test_session_crosscheck_reports_matching_selected_and_observed`（正しく通る例） | 1 | 149（準備 133 を含む） | 照合の衝突判定テスト群の正例。全て conflict と返す実装で、照合済みデータの記録が欠落する | 表 | 655 | 7,747 |
 
 `.agents/skills/repo-cleanup-after-merge/tests/test_detached_update.py`（`skill-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 494 | `test_final_status_from_linked_project_reports_main_not_dirty_caller` | 1 | 29 | caller の dirty 状態を main の状態として報告し、後続の片付け判断を誤る | 表・重さは #236 | 656 | 8,563 |
-| 495 | `test_checkout_lock_failure_stops_before_subsequent_branch_deletion` | 1 | 14 | checkout が index.lock で失敗した後、旧 HEAD のまま branch 削除へ進む | 表・重さは #236 | 657 | 8,577 |
+| 494 | `test_final_status_from_linked_project_reports_main_not_dirty_caller` | 1 | 29 | caller の dirty 状態を main の状態として報告し、後続の片付け判断を誤る | 表・重さは #236 | 656 | 7,776 |
+| 495 | `test_checkout_lock_failure_stops_before_subsequent_branch_deletion` | 1 | 14 | checkout が index.lock で失敗した後、旧 HEAD のまま branch 削除へ進む | 表・重さは #236 | 657 | 7,790 |
 
 `.agents/skills/stale-git-lock-recovery/tests/test_stale_git_lock_recovery_contract.py`（`skill-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 496 | `test_rm_failure_reports_error_without_json` | 1 | 12 | 削除に失敗したのに JSON で成功を返し、残るロックを解消済みと誤報する | 表・重さは #236 | 658 | 8,589 |
+| 496 | `test_rm_failure_reports_error_without_json` | 1 | 12 | 削除に失敗したのに JSON で成功を返し、残るロックを解消済みと誤報する | 表・重さは #236 | 658 | 7,802 |
 
 `tests/skills/test_skill_packages.py`（`skill-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 497 | `SkillPackageTests::test_provenance_license_and_document_coverage` | 1 | 15 | 凍結した取り込み履歴（出所・改変・出力対応・帰属）が空になっても通常の処理は止まらず、記録を失う | 表・重さは #236 | 659 | 8,604 |
+| 497 | `SkillPackageTests::test_provenance_license_and_document_coverage` | 1 | 15 | 凍結した取り込み履歴（出所・改変・出力対応・帰属）が空になっても通常の処理は止まらず、記録を失う | 表・重さは #236 | 659 | 7,817 |
 
 `.devcontainer/test-cleanup-workspace.bash`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 498 | 1. dry-run は表示するだけで消さない | 0 | 14 | dry-run が削除してしまい、確認のつもりで /tmp のレビュー用 worktree を消す（誤った対象の削除） | 表 | 659 | 8,618 |
+| 498 | 1. dry-run は表示するだけで消さない | 0 | 14 | dry-run が削除してしまい、確認のつもりで /tmp のレビュー用 worktree を消す（誤った対象の削除） | 表 | 659 | 7,831 |
 
 `.devcontainer/test-herdr-migration.bash`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 499 | test_session_cwd_repair・multi_workspace ①② | 0 | 118 | session.json の cwd 修復が壊れ、復元先や再開情報が静かに変わる、稼働中の保存と競合する、複数 workspace が収束する | 表 | 659 | 8,736 |
+| 499 | test_session_cwd_repair・multi_workspace ①② | 0 | 118 | session.json の cwd 修復が壊れ、復元先や再開情報が静かに変わる、稼働中の保存と競合する、複数 workspace が収束する | 表 | 659 | 7,949 |
 
 `.devcontainer/test-initialize-mounts.bash`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 500 | 1. mounts と initialize.bash が同じ集合 | 0 | 4 | initialize.bash が作らない mount の対象を Docker が root 所有で作り、以降の書き込みが権限で失敗する | 表 | 659 | 8,740 |
+| 500 | 1. mounts と initialize.bash が同じ集合 | 0 | 4 | initialize.bash が作らない mount の対象を Docker が root 所有で作り、以降の書き込みが権限で失敗する | 表 | 659 | 7,953 |
 
 `.devcontainer/test-install-beforehand.bash`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 501 | agent-runner の個人設定の配置と雛形の変更の反映 | 1 | 47（準備 9 を含む） | 利用者が書いた agent-runner の個人設定を上書きする、雛形の変更が個人設定を置いた後に効かなくなる（#167） | 表 | 660 | 8,787 |
+| 501 | agent-runner の個人設定の配置と雛形の変更の反映 | 1 | 47（準備 9 を含む） | 利用者が書いた agent-runner の個人設定を上書きする、雛形の変更が個人設定を置いた後に効かなくなる（#167） | 表 | 660 | 8,000 |
 
 `.devcontainer/test-install-ctx7.bash`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 502 | 固定した版の導入と ctx7 を --version だけで呼ぶこと | 1 | 45（準備 42 を含む） | ctx7 setup などを呼び、共有の ~/.claude・~/.codex に MCP 設定とスキルを書く（導入は成功して気付けない） | 表 | 661 | 8,832 |
+| 502 | 固定した版の導入と ctx7 を --version だけで呼ぶこと | 1 | 45（準備 42 を含む） | ctx7 setup などを呼び、共有の ~/.claude・~/.codex に MCP 設定とスキルを書く（導入は成功して気付けない） | 表 | 661 | 8,045 |
 
 `.devcontainer/test-install-resoloop.bash`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 503 | 2. fork のビルドから最新の公開版へ戻す | 0 | 6 | fork のビルドから最新の公開版へ戻せず、「常に最新」（#45）が黙って崩れる | 表 | 661 | 8,838 |
-| 504 | 1. 未導入からの導入（正例）（正しく通る例） | 1 | 60（準備 56 を含む） | 対の守り: fork のビルドが残り「常に最新」が黙って崩れる。導入の基本経路の正例 | 表 | 662 | 8,898 |
+| 503 | 2. fork のビルドから最新の公開版へ戻す | 0 | 6 | fork のビルドから最新の公開版へ戻せず、「常に最新」（#45）が黙って崩れる | 表 | 661 | 8,051 |
+| 504 | 1. 未導入からの導入（正例）（正しく通る例） | 1 | 60（準備 56 を含む） | 対の守り: fork のビルドが残り「常に最新」が黙って崩れる。導入の基本経路の正例 | 表 | 662 | 8,111 |
 
 `.devcontainer/test-pi-superagents.bash`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 505 | bind 先・argv の一致・ランチャーごとの設定・退避世代・settings 不変（#2・#7・#13・#22・#26） | 0 | 186 | tier の bind 先の取り違え、別ランチャーの設定を重ねる、退避世代の上書き、共有 settings.json の書き換え、argv の食い違い | 表 | 662 | 9,084 |
+| 505 | bind 先・argv の一致・ランチャーごとの設定・退避世代・settings 不変（#2・#7・#13・#22・#26） | 0 | 186 | tier の bind 先の取り違え、別ランチャーの設定を重ねる、退避世代の上書き、共有 settings.json の書き換え、argv の食い違い | 表 | 662 | 8,297 |
 
 `.devcontainer/test-report-resoloop-skills.bash`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 506 | プロジェクトごとのスキル同期の状態の表示 | 1 | 50（準備 12 を含む） | 同梱スキルの更新が必要なことを「最新」と読み違えて表示する、差分や失敗で 0 以外になり postCreate が止まる | 表 | 663 | 9,134 |
+| 506 | プロジェクトごとのスキル同期の状態の表示 | 1 | 50（準備 12 を含む） | 同梱スキルの更新が必要なことを「最新」と読み違えて表示する、差分や失敗で 0 以外になり postCreate が止まる | 表 | 663 | 8,347 |
 
 `.devcontainer/test-run-tests.bash`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 507 | 1. 失敗があれば 1 を返す | 0 | 6 | 失敗した bash テストがあっても 0 を返し、壊れたテストを見逃す（失敗を成功と報告する） | 表 | 663 | 9,140 |
-| 508 | 4. 既定の対象は両方の入口を含み lib を含まない | 0 | 6 | tests/scripts か .devcontainer が既定の一覧から落ち、そのテストが 1 本も走らないまま PASS と報告する | 表・重さは #236 | 663 | 9,146 |
-| 509 | 2. すべて通れば 0（正例）（正しく通る例） | 0 | 2 | 対の守り: 失敗を成功と報告する。何でも失敗にする実装を防ぐ正例 | 表 | 663 | 9,148 |
+| 507 | 1. 失敗があれば 1 を返す | 0 | 6 | 失敗した bash テストがあっても 0 を返し、壊れたテストを見逃す（失敗を成功と報告する） | 表 | 663 | 8,353 |
+| 508 | 4. 既定の対象は両方の入口を含み lib を含まない | 0 | 6 | tests/scripts か .devcontainer が既定の一覧から落ち、そのテストが 1 本も走らないまま PASS と報告する | 表・重さは #236 | 663 | 8,359 |
+| 509 | 2. すべて通れば 0（正例）（正しく通る例） | 0 | 2 | 対の守り: 失敗を成功と報告する。何でも失敗にする実装を防ぐ正例 | 表 | 663 | 8,361 |
 
 `tools/devenv_migration/tests/test_pi_provider_setup.py`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 510 | `test_setup_targets_the_same_agent_directory_as_pi` | 4 | 15 | 引用した ~/ をそのまま書く、cwd 変更後に相対パスを解くと、別ディレクトリの models.json・auth.json を書く | 表 | 667 | 9,163 |
-| 511 | `test_agent_dir_matches_the_directory_pi_selects` | 4 | 21 | --agent-dir が Pi の選ぶ設定ディレクトリと食い違い、別の settings・models・auth を読み書きする | 表 | 671 | 9,184 |
-| 512 | `test_provider_setup_uses_lexical_path_before_validation_or_writes` | 1 | 17 | alias/.. のまま実体の検査をすり抜け、別ディレクトリの models・auth を書く（誤ったディレクトリへの書き込み） | 表 | 672 | 9,201 |
-| 513 | `test_setup_pins_resolved_directory_for_its_followup_pi_commands` | 1 | 14 | 後続の Pi 呼び出しが生の相対パスを再解釈し、別ディレクトリを更新する（誤ったディレクトリへの更新） | 表・重さは #236 | 673 | 9,215 |
-| 514 | `test_launcher_pins_same_directory_before_executing_pi` | 1 | 20 | ランチャーが正規化前の生のパスを Pi の process tree に渡し、別ディレクトリを使う | 表 | 674 | 9,235 |
+| 510 | `test_setup_targets_the_same_agent_directory_as_pi` | 4 | 15 | 引用した ~/ をそのまま書く、cwd 変更後に相対パスを解くと、別ディレクトリの models.json・auth.json を書く | 表 | 667 | 8,376 |
+| 511 | `test_agent_dir_matches_the_directory_pi_selects` | 4 | 21 | --agent-dir が Pi の選ぶ設定ディレクトリと食い違い、別の settings・models・auth を読み書きする | 表 | 671 | 8,397 |
+| 512 | `test_provider_setup_uses_lexical_path_before_validation_or_writes` | 1 | 17 | alias/.. のまま実体の検査をすり抜け、別ディレクトリの models・auth を書く（誤ったディレクトリへの書き込み） | 表 | 672 | 8,414 |
+| 513 | `test_setup_pins_resolved_directory_for_its_followup_pi_commands` | 1 | 14 | 後続の Pi 呼び出しが生の相対パスを再解釈し、別ディレクトリを更新する（誤ったディレクトリへの更新） | 表・重さは #236 | 673 | 8,428 |
+| 514 | `test_launcher_pins_same_directory_before_executing_pi` | 1 | 20 | ランチャーが正規化前の生のパスを Pi の process tree に渡し、別ディレクトリを使う | 表 | 674 | 8,448 |
 
 `tools/devenv_migration/tests/test_pi_shared_packages.py`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 515 | `test_rebuild_preserves_shared_packages` | 1 | 100（準備 49 を含む） | rebuild が共有 ~/.pi の他リポジトリの登録（context7-pi）や利用者の packages・extensions・theme を黙って消す | 表 | 675 | 9,335 |
+| 515 | `test_rebuild_preserves_shared_packages` | 1 | 100（準備 49 を含む） | rebuild が共有 ~/.pi の他リポジトリの登録（context7-pi）や利用者の packages・extensions・theme を黙って消す | 表 | 675 | 8,548 |
 
 `tools/devenv_migration/tests/test_pi_vertex_launchers.py`（`devcontainer-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 516 | `test_launch_reaches_pi_without_adc_preserving_args_cwd_environment_and_exit` | 1 | 17 | 引数の引用・cwd・HOME・終了コードが崩れ、Pi に別の入力で届く（黙って別の入力になる） | 表 | 676 | 9,352 |
-| 517 | `test_linked_auth_reaches_parent_and_child_without_changing_host_state` | 2 | 42 | symlink・hardlink の auth を正規化せず、共有の auth を書き換える（共有データの破壊） | 表 | 678 | 9,394 |
-| 518 | `test_missing_any_used_vertex_model_stops_before_pi_and_auth_reads` | 1 | 16 | catalog に無いモデルで Pi のあいまい一致に落ち、別のモデルで動く（誤った結果） | 表 | 679 | 9,410 |
-| 519 | `test_native_vertex_sdk_receives_saved_or_explicit_adc_path` | 3 | 92 | 保存済み・明示の ADC パスを SDK に渡さない、明示の指定を上書きして別の資格情報で動く（誤った結果） | 表 | 682 | 9,502 |
-| 520 | `test_relative_agent_dir_stays_fixed_when_a_child_changes_cwd` | 1 | 12 | 相対の agent dir が子の cwd で別の場所に解け、auth の overlay を外れる（秘密・認証の取り違え） | 表 | 683 | 9,514 |
-| 521 | `test_catalog_with_only_used_vertex_models_reaches_pi`（正しく通る例） | 1 | 10 | 対の守り: catalog に無いモデルで Pi が別のモデルで動く（誤った結果）。何でも拒否する実装を防ぐ正例 | 表 | 684 | 9,524 |
+| 516 | `test_launch_reaches_pi_without_adc_preserving_args_cwd_environment_and_exit` | 1 | 17 | 引数の引用・cwd・HOME・終了コードが崩れ、Pi に別の入力で届く（黙って別の入力になる） | 表 | 676 | 8,565 |
+| 517 | `test_linked_auth_reaches_parent_and_child_without_changing_host_state` | 2 | 42 | symlink・hardlink の auth を正規化せず、共有の auth を書き換える（共有データの破壊） | 表 | 678 | 8,607 |
+| 518 | `test_missing_any_used_vertex_model_stops_before_pi_and_auth_reads` | 1 | 16 | catalog に無いモデルで Pi のあいまい一致に落ち、別のモデルで動く（誤った結果） | 表 | 679 | 8,623 |
+| 519 | `test_native_vertex_sdk_receives_saved_or_explicit_adc_path` | 3 | 92 | 保存済み・明示の ADC パスを SDK に渡さない、明示の指定を上書きして別の資格情報で動く（誤った結果） | 表 | 682 | 8,715 |
+| 520 | `test_relative_agent_dir_stays_fixed_when_a_child_changes_cwd` | 1 | 12 | 相対の agent dir が子の cwd で別の場所に解け、auth の overlay を外れる（秘密・認証の取り違え） | 表 | 683 | 8,727 |
+| 521 | `test_catalog_with_only_used_vertex_models_reaches_pi`（正しく通る例） | 1 | 10 | 対の守り: catalog に無いモデルで Pi が別のモデルで動く（誤った結果）。何でも拒否する実装を防ぐ正例 | 表 | 684 | 8,737 |
 
 `tests/scripts/test-blender-system-python.bash`（`script-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 522 | Blender の終了コードの伝搬 | 1 | 19（準備 12 を含む） | wrapper が Blender の終了コードを捨て、Blender の失敗を成功と報告する（resoloop は 0 以外で BLENDER_FAILED） | 表 | 685 | 9,543 |
+| 522 | Blender の終了コードの伝搬 | 1 | 19（準備 12 を含む） | wrapper が Blender の終了コードを捨て、Blender の失敗を成功と報告する（resoloop は 0 以外で BLENDER_FAILED） | 表 | 685 | 8,756 |
 
 `tests/scripts/test-check-layout.bash`（`script-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 523 | 場面 3〜8・10〜12（配置の逸脱） | 0 | 155 | 配置の逸脱を通す: 宙吊りの追跡 symlink・追跡中なのに ignore・スキルのリンクの不一致・共有の指示や設定を読まないプロジェクト | 表 | 685 | 9,698 |
+| 523 | 場面 3〜8・10〜12（配置の逸脱） | 0 | 155 | 配置の逸脱を通す: 宙吊りの追跡 symlink・追跡中なのに ignore・スキルのリンクの不一致・共有の指示や設定を読まないプロジェクト | 表 | 685 | 8,911 |
 
 `tests/scripts/test-gitignore.bash`（`script-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 524 | 一覧 3（ignore してはならない共通ツール・文書） | 0 | 8 | ignore が広がり、共通ツール・雛形・文書が追跡から漏れて、リポジトリに残らない（gitignore の範囲） | 表・重さは #236 | 685 | 9,706 |
+| 524 | 一覧 3（ignore してはならない共通ツール・文書） | 0 | 8 | ignore が広がり、共通ツール・雛形・文書が追跡から漏れて、リポジトリに残らない（gitignore の範囲） | 表・重さは #236 | 685 | 8,919 |
 
 `tests/scripts/test-instructions.bash`（`script-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 525 | CLAUDE.md の読み込み指定とペルソナ節の SHA | 1 | 19（準備 10 を含む） | CLAUDE.md が @AGENTS.md を読み込まず規約・安全ルールが読まれない、利用者所有のペルソナ節が書き換わる | 表・重さは #236 | 686 | 9,725 |
+| 525 | CLAUDE.md の読み込み指定とペルソナ節の SHA | 1 | 19（準備 10 を含む） | CLAUDE.md が @AGENTS.md を読み込まず規約・安全ルールが読まれない、利用者所有のペルソナ節が書き換わる | 表・重さは #236 | 686 | 8,938 |
 
 `tests/scripts/test-new-world.bash`（`script-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 526 | 場面 4・5・16・17・19（途中状態・食い違い） | 0 | 34 | --apply の繰り返しでの変更、前提欠落での途中状態、別の指示を読む .pi を残す、AGENTS.md が無いのに成功と報告する | 表 | 686 | 9,759 |
+| 526 | 場面 4・5・16・17・19（途中状態・食い違い） | 0 | 34 | --apply の繰り返しでの変更、前提欠落での途中状態、別の指示を読む .pi を残す、AGENTS.md が無いのに成功と報告する | 表 | 686 | 8,972 |
 
 `tests/scripts/test-resoloop-fork.bash`（`script-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 527 | 場面 1 の後半・3・4 の一部・8 の一部・9・10 | 0 | 45 | 外側の repo を checkout と誤認、origin 以外のブランチを選ぶ、失敗（外部コマンド・版の不一致・main が動かない）を成功と報告する | 表 | 686 | 9,804 |
+| 527 | 場面 1 の後半・3・4 の一部・8 の一部・9・10 | 0 | 45 | 外側の repo を checkout と誤認、origin 以外のブランチを選ぶ、失敗（外部コマンド・版の不一致・main が動かない）を成功と報告する | 表 | 686 | 9,017 |
 
 `tests/scripts/test-resoloop-meshy.bash`（`script-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 528 | 場面 1〜3（別のリポジトリを自分の checkout と扱わない） | 1 | 60（準備 40 を含む） | origin の違う checkout や外側のリポジトリの checkout を、自分の checkout として扱う（別のリポジトリを選ぶ） | 表 | 687 | 9,864 |
+| 528 | 場面 1〜3（別のリポジトリを自分の checkout と扱わない） | 1 | 60（準備 40 を含む） | origin の違う checkout や外側のリポジトリの checkout を、自分の checkout として扱う（別のリポジトリを選ぶ） | 表 | 687 | 9,077 |
 
 `tests/scripts/test_superpowers_context.py`（`script-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 529 | `ContextTests::test_missing_unsupported_or_foreign_parent_origin_has_actionable_error` | 1 | 10 | origin が無い・GitHub 以外・別のリポジトリの親を受け入れ、別のリポジトリを PARENT_ROOT に選ぶ | 表 | 688 | 9,874 |
-| 530 | `ContextTests::test_linked_parent_requires_explicit_main_parent` | 1 | 7 | linked worktree を暗黙の親に選ぶ（main checkout の明示を求めない） | 表 | 689 | 9,881 |
-| 531 | `ContextTests::test_explicit_roots_must_be_absolute_checkout_roots` | 1 | 7 | 相対パスや checkout 内のサブディレクトリを root に選ぶ（checkout の外を選ぶ） | 表 | 690 | 9,888 |
-| 532 | `ContextTests::test_invalid_repository_inputs_fail_clearly` | 1 | 4 | github.com.evil など他のホストの URL を GitHub と誤認する | 表 | 691 | 9,892 |
+| 529 | `ContextTests::test_missing_unsupported_or_foreign_parent_origin_has_actionable_error` | 1 | 10 | origin が無い・GitHub 以外・別のリポジトリの親を受け入れ、別のリポジトリを PARENT_ROOT に選ぶ | 表 | 688 | 9,087 |
+| 530 | `ContextTests::test_linked_parent_requires_explicit_main_parent` | 1 | 7 | linked worktree を暗黙の親に選ぶ（main checkout の明示を求めない） | 表 | 689 | 9,094 |
+| 531 | `ContextTests::test_explicit_roots_must_be_absolute_checkout_roots` | 1 | 7 | 相対パスや checkout 内のサブディレクトリを root に選ぶ（checkout の外を選ぶ） | 表 | 690 | 9,101 |
+| 532 | `ContextTests::test_invalid_repository_inputs_fail_clearly` | 1 | 4 | github.com.evil など他のホストの URL を GitHub と誤認する | 表 | 691 | 9,105 |
 
 `tests/scripts/test_superpowers_lifecycle.py`（`script-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 533 | `LifecycleInstructionTests::test_imported_documents_are_unchanged_since_import` | 1 | 86（`superpowers-imported-documents.sha256.json` 24・準備 56 を含む） | 取り込んだ過去文書（凍結した履歴）が書き換わっても気付けない（記録の上書き） | 表・重さは #236 | 692 | 9,978 |
+| 533 | `LifecycleInstructionTests::test_imported_documents_are_unchanged_since_import` | 1 | 86（`fixtures/superpowers-imported-documents.sha256.json` 24・準備 56 を含む） | 取り込んだ過去文書（凍結した履歴）が書き換わっても気付けない（記録の上書き） | 表・重さは #236 | 692 | 9,191 |
 
 `tests/scripts/test_superpowers_review_copy.py`（`script-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 534 | `ReviewCopyTests::test_uncommitted_worktree_or_index_changes_are_rejected` | 1 | 7 | 未コミットの版をコピーして、利用者が確認した版と食い違う | 表 | 693 | 9,985 |
+| 534 | `ReviewCopyTests::test_uncommitted_worktree_or_index_changes_are_rejected` | 1 | 7 | 未コミットの版をコピーして、利用者が確認した版と食い違う | 表 | 693 | 9,198 |
 
 #### 高
 
@@ -1377,410 +1379,410 @@
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 535 | `test_prepare_passes_prompt_over_stdin_with_read_only_sandbox` | 1 | 9 | 読み取りのロールを -s read-only で起動する権限のフラグ。外れると読み取りの担当が書き込める権限で動く | 表 | 694 | 9,994 |
-| 536 | `test_prepare_write_role_uses_workspace_write_effort_and_args` | 1 | 110（準備 102 を含む） | 書き込みのロールの sandbox を workspace-write（worktree と /tmp だけに書ける）に固定する権限のフラグ | 表 | 695 | 10,104 |
+| 535 | `test_prepare_passes_prompt_over_stdin_with_read_only_sandbox` | 1 | 9 | 読み取りのロールを -s read-only で起動する権限のフラグ。外れると読み取りの担当が書き込める権限で動く | 表 | 694 | 9,207 |
+| 536 | `test_prepare_write_role_uses_workspace_write_effort_and_args` | 1 | 110（準備 102 を含む） | 書き込みのロールの sandbox を workspace-write（worktree と /tmp だけに書ける）に固定する権限のフラグ | 表 | 695 | 9,317 |
 
 `tools/agent_runner/tests/adapters/cursor/test_cursor.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 537 | `test_prepare_write_role_forces_and_effort_uses_bracket` | 1 | 132（準備 126 を含む） | 書き込みのロールに --sandbox を付けず、利用者の sandbox.mode に従わせる権限のフラグ（#201） | 表 | 696 | 10,236 |
+| 537 | `test_prepare_write_role_forces_and_effort_uses_bracket` | 1 | 132（準備 126 を含む） | 書き込みのロールに --sandbox を付けず、利用者の sandbox.mode に従わせる権限のフラグ（#201） | 表 | 696 | 9,449 |
 
 `tools/agent_runner/tests/adapters/devin/test_adapter.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 538 | `test_prepare_writes_prompt_file_and_maps_flags` | 1 | 13 | --export に attempt の export.json（runner が伏せ字にする場所）を渡す。ずれると継いだ秘密を含む export が残る | 表 | 697 | 10,249 |
-| 539 | `test_retained_export_with_secrets_is_redacted_before_collection` | 1 | 398（`fake_cli.py` 50・`conftest.py` 59・`fake_cli.py` 34・準備 195 を含む） | adapter が export を書かせる場所と runner が伏せ字にする場所の一致。ずれると継いだ秘密を含む export が attempt に残る | 表 | 698 | 10,647 |
+| 538 | `test_prepare_writes_prompt_file_and_maps_flags` | 1 | 13 | --export に attempt の export.json（runner が伏せ字にする場所）を渡す。ずれると継いだ秘密を含む export が残る | 表 | 697 | 9,462 |
+| 539 | `test_retained_export_with_secrets_is_redacted_before_collection` | 1 | 348（`devin/conftest.py` 59・`devin/fake_cli.py` 34・準備 195 を含む） | adapter が export を書かせる場所と runner が伏せ字にする場所の一致。ずれると継いだ秘密を含む export が attempt に残る | 表 | 698 | 9,810 |
 
 `tools/agent_runner/tests/adapters/pi/test_adapter.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 540 | `test_prepare_builds_launcher_argv` | 1 | 143（`conftest.py` 35・準備 98 を含む） | --no-approve・--no-session・--provider の固定。外れると設定・拡張の読み込み、伏せ字の無い記録、別の provider への資格情報とプロンプトの送信が黙って起きる | 表 | 699 | 10,790 |
+| 540 | `test_prepare_builds_launcher_argv` | 1 | 143（`pi/conftest.py` 35・準備 98 を含む） | --no-approve・--no-session・--provider の固定。外れると設定・拡張の読み込み、伏せ字の無い記録、別の provider への資格情報とプロンプトの送信が黙って起きる | 表 | 699 | 9,953 |
 
 `tools/agent_runner/tests/test_checkout_policy.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 541 | `test_unavailable_registration_blocks_work_without_launch_or_repair` | 1 | 40（準備 23 を含む） | 起動前に監査できない登録（移動・消失した worktree）があれば担当を起動せず止め、登録を回収（repair・prune）しない | #236 の判定 | 700 | 10,830 |
+| 541 | `test_unavailable_registration_blocks_work_without_launch_or_repair` | 1 | 40（準備 23 を含む） | 起動前に監査できない登録（移動・消失した worktree）があれば担当を起動せず止め、登録を回収（repair・prune）しない | #236 の判定 | 700 | 9,993 |
 
 `tools/agent_runner/tests/test_git_isolation.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 542 | `test_fixture_git_stays_in_its_temporary_repository` | 1 | 11 | GIT_DIR を受け継いだ別の pytest で動く内側の確認。外れるとテストの git が実リポジトリの設定・index・ブランチを書き換える | 表 | 701 | 10,841 |
-| 543 | `test_inherited_git_dir_of_a_linked_worktree_does_not_reach_fixture_git` | 1 | 59（準備 34 を含む） | rebase --exec が export する GIT_DIR を受け継いでも、fixture の git が実リポジトリの設定・index・ブランチを書き換えない（#166） | 表 | 702 | 10,900 |
+| 542 | `test_fixture_git_stays_in_its_temporary_repository` | 1 | 11 | GIT_DIR を受け継いだ別の pytest で動く内側の確認。外れるとテストの git が実リポジトリの設定・index・ブランチを書き換える | 表 | 701 | 10,004 |
+| 543 | `test_inherited_git_dir_of_a_linked_worktree_does_not_reach_fixture_git` | 1 | 59（準備 34 を含む） | rebase --exec が export する GIT_DIR を受け継いでも、fixture の git が実リポジトリの設定・index・ブランチを書き換えない（#166） | 表 | 702 | 10,063 |
 
 `tools/agent_runner/tests/test_process.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 544 | `test_stdin_quotes_multiline_cwd_and_environment_are_literal` | 1 | 24 | cwd が外れると担当が親の checkout で作業して書き込む。シェルを通すとプロンプトが黙って変わる | 表 | 703 | 10,924 |
-| 545 | `test_process_has_independent_session` | 1 | 7 | 独立した session で起動しないと、停止の signal が controller の process group に届く | 表 | 704 | 10,931 |
-| 546 | `test_secrets_split_across_reads_are_redacted_on_both_pipes` | 1 | 18 | pipe の読み取りごとに伏せ字にすると、読み取りの境界をまたいだ秘密がログに残る（秘密情報の漏れ） | 表 | 705 | 10,949 |
-| 547 | `test_immediate_exit_before_ownership_observation_stops_children` | 1 | 55 | CLI が追跡の前に終わって回収されても、監督プロセスを識別の anchor にして同じ group の孤児を見つけて止める | 表 | 706 | 11,004 |
-| 548 | `test_leader_exit_stops_observed_descendants` | 1 | 32 | leader が正常に終わっても、観測済みの子孫（setsid で group を離れ SIGTERM を無視する子）を TERM → KILL で止める | 表 | 707 | 11,036 |
-| 549 | `test_coroutine_cancellation_stops_leader_and_escaped_descendant` | 1 | 34 | coroutine が取り消されても finally の停止を飛ばさず leader と離れた子孫を止める。外すと担当の process が残る | 表 | 708 | 11,070 |
-| 550 | `test_unconfirmed_stop_is_reported` | 1 | 9 | 停止の確認を exit=0 から推測せず、独立した信号で確かめる（未確認の停止の process の層の代表） | 表 | 709 | 11,079 |
-| 551 | `test_repeated_cancellation_during_launch_still_stops_process` | 1 | 43 | 起動の完了の途中で 2 回取り消されても PID を失わず、起動した process を止める。外すと起動した担当が管理されず残る | 表 | 710 | 11,122 |
-| 552 | `test_non_utf8_descendant_name_does_not_escape_tracking` | 1 | 26 | /proc の comm は任意の bytes で ')' も含みうる。stat 全体を decode すると生きた子孫が追跡から漏れて止まらない | 表 | 711 | 11,148 |
-| 553 | `test_reused_leader_group_is_not_signaled` | 1 | 15 | leader の PID・PGID が別の process に再利用されたら、その group を自分のものとみなさず signal を送らない。外すと無関係な process を止める | 表 | 712 | 11,163 |
-| 554 | `test_reused_descendant_identity_is_not_overwritten` | 1 | 16 | 本物の group の中でも、記録した子孫の PID が再利用されたら識別を上書きせず、その子も取り込まず停止を未確認とする | 表 | 713 | 11,179 |
-| 555 | `test_group_after_leader_exit_requires_identity_anchor` の `False` | 1 | 0 | anchor が無ければ孤児を取り込まず、未知の process の不確かさを停止の確認に残す。外すと無関係な process を止める・確かめられない停止を確認済みと報告する | 表 | 714 | 11,179 |
-| 556 | `test_group_after_leader_exit_requires_identity_anchor` の `True`（正しく通る例） | 1 | 166（関数 21・準備 145 を含む） | 観測済みの group member（識別が一致）が anchor なら、leader の終了後の新しい孤児を取り込む正例（取り込みの正しく通る例） | 表 | 715 | 11,345 |
+| 544 | `test_stdin_quotes_multiline_cwd_and_environment_are_literal` | 1 | 24 | cwd が外れると担当が親の checkout で作業して書き込む。シェルを通すとプロンプトが黙って変わる | 表 | 703 | 10,087 |
+| 545 | `test_process_has_independent_session` | 1 | 7 | 独立した session で起動しないと、停止の signal が controller の process group に届く | 表 | 704 | 10,094 |
+| 546 | `test_secrets_split_across_reads_are_redacted_on_both_pipes` | 1 | 18 | pipe の読み取りごとに伏せ字にすると、読み取りの境界をまたいだ秘密がログに残る（秘密情報の漏れ） | 表 | 705 | 10,112 |
+| 547 | `test_immediate_exit_before_ownership_observation_stops_children` | 1 | 55 | CLI が追跡の前に終わって回収されても、監督プロセスを識別の anchor にして同じ group の孤児を見つけて止める | 表 | 706 | 10,167 |
+| 548 | `test_leader_exit_stops_observed_descendants` | 1 | 32 | leader が正常に終わっても、観測済みの子孫（setsid で group を離れ SIGTERM を無視する子）を TERM → KILL で止める | 表 | 707 | 10,199 |
+| 549 | `test_coroutine_cancellation_stops_leader_and_escaped_descendant` | 1 | 34 | coroutine が取り消されても finally の停止を飛ばさず leader と離れた子孫を止める。外すと担当の process が残る | 表 | 708 | 10,233 |
+| 550 | `test_unconfirmed_stop_is_reported` | 1 | 9 | 停止の確認を exit=0 から推測せず、独立した信号で確かめる（未確認の停止の process の層の代表） | 表 | 709 | 10,242 |
+| 551 | `test_repeated_cancellation_during_launch_still_stops_process` | 1 | 43 | 起動の完了の途中で 2 回取り消されても PID を失わず、起動した process を止める。外すと起動した担当が管理されず残る | 表 | 710 | 10,285 |
+| 552 | `test_non_utf8_descendant_name_does_not_escape_tracking` | 1 | 26 | /proc の comm は任意の bytes で ')' も含みうる。stat 全体を decode すると生きた子孫が追跡から漏れて止まらない | 表 | 711 | 10,311 |
+| 553 | `test_reused_leader_group_is_not_signaled` | 1 | 15 | leader の PID・PGID が別の process に再利用されたら、その group を自分のものとみなさず signal を送らない。外すと無関係な process を止める | 表 | 712 | 10,326 |
+| 554 | `test_reused_descendant_identity_is_not_overwritten` | 1 | 16 | 本物の group の中でも、記録した子孫の PID が再利用されたら識別を上書きせず、その子も取り込まず停止を未確認とする | 表 | 713 | 10,342 |
+| 555 | `test_group_after_leader_exit_requires_identity_anchor` の `False` | 1 | 0 | anchor が無ければ孤児を取り込まず、未知の process の不確かさを停止の確認に残す。外すと無関係な process を止める・確かめられない停止を確認済みと報告する | 表 | 714 | 10,342 |
+| 556 | `test_group_after_leader_exit_requires_identity_anchor` の `True`（正しく通る例） | 1 | 21（関数 21 を含む） | 観測済みの group member（識別が一致）が anchor なら、leader の終了後の新しい孤児を取り込む正例（取り込みの正しく通る例） | 表 | 715 | 10,363 |
 
 `tools/agent_runner/tests/test_review_regressions.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 557 | `test_retained_receipts_are_scrubbed_even_when_invalid` | 1 | 21 | 停止を確認した試行の receipt.json を、壊れた JSON でも伏せ字にする。外れると保持する受領に秘密情報が漏れる | 表 | 716 | 11,366 |
-| 558 | `test_unconfirmed_stop_does_not_read_or_rewrite_live_receipt` | 1 | 30 | 停止を確認できないときは受領を読まず書き換えず sensitive_paths に出す。外れると生きた書き手の操作で秘密を結果に写す | 表 | 717 | 11,396 |
-| 559 | `test_exec_only_secrets_are_scrubbed_from_command_output` | 1 | 133（準備 121 を含む） | 起動時の環境にだけある秘密の値も、許可して子に渡したら stdout から伏せる。外れると保持するログに秘密が漏れる | 表 | 718 | 11,529 |
+| 557 | `test_retained_receipts_are_scrubbed_even_when_invalid` | 1 | 21 | 停止を確認した試行の receipt.json を、壊れた JSON でも伏せ字にする。外れると保持する受領に秘密情報が漏れる | 表 | 716 | 10,384 |
+| 558 | `test_unconfirmed_stop_does_not_read_or_rewrite_live_receipt` | 1 | 30 | 停止を確認できないときは受領を読まず書き換えず sensitive_paths に出す。外れると生きた書き手の操作で秘密を結果に写す | 表 | 717 | 10,414 |
+| 559 | `test_exec_only_secrets_are_scrubbed_from_command_output` | 1 | 133（準備 121 を含む） | 起動時の環境にだけある秘密の値も、許可して子に渡したら stdout から伏せる。外れると保持するログに秘密が漏れる | 表 | 718 | 10,547 |
 
 `tools/agent_runner/tests/test_runner.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 560 | `test_only_allowlisted_environment_and_redacted_results` | 1 | 34 | 許可リストの変数だけを子に渡し（GIT_* は除く）、結果・ログから秘密の値を伏せる。外れると資格情報が渡り秘密が残る | 表 | 719 | 11,563 |
-| 561 | `test_checkout_preparation_is_supervised` の `cancel` | 1 | 106（関数 106 を含む） | worktree の準備（post-checkout hook と SIGTERM を無視する子）を監督する。外れると準備のログに秘密が漏れ、準備が終わらないまま担当が起動する | 表 | 720 | 11,669 |
-| 562 | `test_devin_retained_export_is_redacted_after_nonzero_exit` | 1 | 20 | 非 0 終了の後も、Devin が attempt に残す export.json の継いだ秘密を伏せ字にする。外れると秘密が残る | 表 | 721 | 11,689 |
-| 563 | `test_unconfirmed_stop_never_reads_or_rewrites_devin_export` | 1 | 55 | 停止未確認の試行の export.json・receipt.json を読まず書き換えず sensitive_paths に出す。外れると秘密が残る | 表 | 722 | 11,744 |
-| 564 | `test_unsafe_devin_export_is_retained_reported_and_never_collected` の `symlink` | 1 | 32（関数 32 を含む） | export.json が symlink なら辿らず書き換えず sensitive_paths に出す。外れると attempt の外のファイルを上書きする | 表 | 723 | 11,776 |
-| 565 | `test_devin_export_redaction_fault_never_reaches_collection` | 1 | 388（準備 360 を含む） | export.json を伏せ字にできなかったら収集に回さず sensitive_paths に出す。外れると秘密の残る記録が payload・identity に写る | 表 | 724 | 12,164 |
+| 560 | `test_only_allowlisted_environment_and_redacted_results` | 1 | 34 | 許可リストの変数だけを子に渡し（GIT_* は除く）、結果・ログから秘密の値を伏せる。外れると資格情報が渡り秘密が残る | 表 | 719 | 10,581 |
+| 561 | `test_checkout_preparation_is_supervised` の `cancel` | 1 | 106（関数 106 を含む） | worktree の準備（post-checkout hook と SIGTERM を無視する子）を監督する。外れると準備のログに秘密が漏れ、準備が終わらないまま担当が起動する | 表 | 720 | 10,687 |
+| 562 | `test_devin_retained_export_is_redacted_after_nonzero_exit` | 1 | 20 | 非 0 終了の後も、Devin が attempt に残す export.json の継いだ秘密を伏せ字にする。外れると秘密が残る | 表 | 721 | 10,707 |
+| 563 | `test_unconfirmed_stop_never_reads_or_rewrites_devin_export` | 1 | 55 | 停止未確認の試行の export.json・receipt.json を読まず書き換えず sensitive_paths に出す。外れると秘密が残る | 表 | 722 | 10,762 |
+| 564 | `test_unsafe_devin_export_is_retained_reported_and_never_collected` の `symlink` | 1 | 32（関数 32 を含む） | export.json が symlink なら辿らず書き換えず sensitive_paths に出す。外れると attempt の外のファイルを上書きする | 表 | 723 | 10,794 |
+| 565 | `test_devin_export_redaction_fault_never_reaches_collection` | 1 | 533（準備 145・準備 360 を含む） | export.json を伏せ字にできなかったら収集に回さず sensitive_paths に出す。外れると秘密の残る記録が payload・identity に写る | 表 | 724 | 11,327 |
 
 `tools/agent_runner/tests/test_workspace.py`（`agent-runner-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 566 | `test_audit_detects_existing_dirty_content_edits` | 2 | 20 | checkout の監査: 既に dirty なファイルの内容の編集と untracked の symlink の参照先の変更を検出する | 表 | 726 | 12,184 |
-| 567 | `test_audit_detects_checkout_mutations` | 4 | 20 | 指紋の入力（untracked の一覧・mode・index の blob・commit）を 1 つずつ確かめる。外れるとその種類の変更を黙って見逃す | 表 | 730 | 12,204 |
-| 568 | `test_repair_of_moved_main_and_linked_worktree_preserves_all_resources` | 1 | 30 | 監査は観察だけで、消えた登録を自動で回収（prune・repair・remove）しない。外れると worktree の資源を失う | 表 | 731 | 12,234 |
-| 569 | `test_audit_detects_submodule_dirty_content` | 1 | 14 | 初期化済みの submodule の作業ファイルの変更を、親の checkout の監査で検出する | 表 | 732 | 12,248 |
-| 570 | `test_audit_diagnoses_unavailable_baseline` の `missing-checkout_missing-False-True` | 1 | 53（関数 53 を含む） | 開始前に監査できない登録を unavailable_before の finding として返し起動前に止める。外すと基準の無い checkout の変化を確かめないまま担当を起動する | 表 | 733 | 12,301 |
-| 571 | `test_audit_distinguishes_changes_from_unavailability` | 2 | 36 | 担当が消した checkout を unavailable_after として報告する（外すと変化なしになる）。開始時に監査できなかった基準は後で直っても遡って証明しない | 表 | 735 | 12,337 |
-| 572 | `test_registration_list_failure_still_stops_snapshot` | 1 | 7 | worktree の登録の一覧が読めないとき空の基準を返さず WorkspaceError で止める。外れると以後の監査が何も報告しない | 表 | 736 | 12,344 |
-| 573 | `test_async_preparation_uses_pinned_commit_and_safe_environment` | 1 | 32 | worktree の準備が固定した commit を使い、外から渡された GIT_DIR を無視する（#230 の S の例 GIT_* の無視） | 表 | 737 | 12,376 |
-| 574 | `test_git_preparation_stops_term_resistant_child_of_exited_hook` | 1 | 35 | checkout の hook（post-checkout）が残した SIGTERM を無視する子を、準備の監督が止める。外れると孤児が残る | 表 | 738 | 12,411 |
-| 575 | `test_git_common_dir_ignores_ambient_git_routing` | 1 | 107（`conftest.py` 26・準備 72 を含む） | 外から渡された GIT_DIR が別のリポジトリを指しても、指定の checkout の値を返す（#230 の S の例 GIT_DIR の無視） | 表 | 739 | 12,518 |
+| 566 | `test_audit_detects_existing_dirty_content_edits` | 2 | 20 | checkout の監査: 既に dirty なファイルの内容の編集と untracked の symlink の参照先の変更を検出する | 表 | 726 | 11,347 |
+| 567 | `test_audit_detects_checkout_mutations` | 4 | 20 | 指紋の入力（untracked の一覧・mode・index の blob・commit）を 1 つずつ確かめる。外れるとその種類の変更を黙って見逃す | 表 | 730 | 11,367 |
+| 568 | `test_repair_of_moved_main_and_linked_worktree_preserves_all_resources` | 1 | 30 | 監査は観察だけで、消えた登録を自動で回収（prune・repair・remove）しない。外れると worktree の資源を失う | 表 | 731 | 11,397 |
+| 569 | `test_audit_detects_submodule_dirty_content` | 1 | 14 | 初期化済みの submodule の作業ファイルの変更を、親の checkout の監査で検出する | 表 | 732 | 11,411 |
+| 570 | `test_audit_diagnoses_unavailable_baseline` の `missing-checkout_missing-False-True` | 1 | 53（関数 53 を含む） | 開始前に監査できない登録を unavailable_before の finding として返し起動前に止める。外すと基準の無い checkout の変化を確かめないまま担当を起動する | 表 | 733 | 11,464 |
+| 571 | `test_audit_distinguishes_changes_from_unavailability` | 2 | 36 | 担当が消した checkout を unavailable_after として報告する（外すと変化なしになる）。開始時に監査できなかった基準は後で直っても遡って証明しない | 表 | 735 | 11,500 |
+| 572 | `test_registration_list_failure_still_stops_snapshot` | 1 | 7 | worktree の登録の一覧が読めないとき空の基準を返さず WorkspaceError で止める。外れると以後の監査が何も報告しない | 表 | 736 | 11,507 |
+| 573 | `test_async_preparation_uses_pinned_commit_and_safe_environment` | 1 | 32 | worktree の準備が固定した commit を使い、外から渡された GIT_DIR を無視する（#230 の S の例 GIT_* の無視） | 表 | 737 | 11,539 |
+| 574 | `test_git_preparation_stops_term_resistant_child_of_exited_hook` | 1 | 35 | checkout の hook（post-checkout）が残した SIGTERM を無視する子を、準備の監督が止める。外れると孤児が残る | 表 | 738 | 11,574 |
+| 575 | `test_git_common_dir_ignores_ambient_git_routing` | 1 | 107（`tests/conftest.py` 26・準備 72 を含む） | 外から渡された GIT_DIR が別のリポジトリを指しても、指定の checkout の値を返す（#230 の S の例 GIT_DIR の無視） | 表 | 739 | 11,681 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_loop_check_options.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 576 | `test_check_options_has_no_external_side_effects` | 1 | 43（準備 35 を含む） | 設定の事前検査が PR・GitHub・run・ロックへ副作用を残し、後続処理や他 run を妨げる。 | 表 | 740 | 12,561 |
+| 576 | `test_check_options_has_no_external_side_effects` | 1 | 43（準備 35 を含む） | 設定の事前検査が PR・GitHub・run・ロックへ副作用を残し、後続処理や他 run を妨げる。 | 表 | 740 | 11,724 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_loop_diagnostics.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 577 | `test_logs_are_read_only_when_safe` | 6 | 40 | sensitive・symlink・出力外・生存中のログを読み、秘密や別ファイルに触れる。 | 表 | 746 | 12,601 |
-| 578 | `test_secret_in_logs_never_reaches_the_records` | 1 | 28 | ログ中の秘密情報が永続記録や CLI の JSON 出力へ漏れる。 | 表 | 747 | 12,629 |
-| 579 | `test_unsaved_diagnostic_keeps_the_output_and_tells_the_controller` | 1 | 214（準備 193 を含む） | 診断の保存失敗時に唯一のログを削除し、原因調査不能にする。 | 表 | 748 | 12,843 |
+| 577 | `test_logs_are_read_only_when_safe` | 6 | 40 | sensitive・symlink・出力外・生存中のログを読み、秘密や別ファイルに触れる。 | 表 | 746 | 11,764 |
+| 578 | `test_secret_in_logs_never_reaches_the_records` | 1 | 28 | ログ中の秘密情報が永続記録や CLI の JSON 出力へ漏れる。 | 表 | 747 | 11,792 |
+| 579 | `test_unsaved_diagnostic_keeps_the_output_and_tells_the_controller` | 1 | 214（準備 193 を含む） | 診断の保存失敗時に唯一のログを削除し、原因調査不能にする。 | 表 | 748 | 12,006 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_loop_herdr_pane.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 580 | `test_start_succeeds_when_herdr_hangs` | 1 | 50（準備 32 を含む） | Herdr が応答しないとき start が止まり、レビュー作業を進められない（#231 が hang を S と明記）。 | 表 | 749 | 12,893 |
+| 580 | `test_start_succeeds_when_herdr_hangs` | 1 | 50（準備 32 を含む） | Herdr が応答しないとき start が止まり、レビュー作業を進められない（#231 が hang を S と明記）。 | 表 | 749 | 12,056 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_loop_review.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 581 | `test_verify_reviewer_rejects_each_broken_condition` | 11 | 26 | 失敗した runner、別 run・担当・PR・HEAD の成果、未停止の担当、改ざんされた成果を受理し、計画・マージへ進む。 | 表 | 760 | 12,919 |
-| 582 | `test_after_run_result_is_reloaded_before_reviewer_validation` | 1 | 40 | after_run が却下した結果を古い成功値で受け付け、失敗したレビューで計画へ進む。 | 表 | 761 | 12,959 |
-| 583 | `test_review_executes_after_run_against_saved_result` | 1 | 19 | 設定された後処理を省き、検査を経ない runner 成果を成功として使う。 | 表 | 762 | 12,978 |
-| 584 | `test_reuse_counts_only_pairs_for_the_current_head` | 1 | 18 | 古い HEAD のレビューを現 HEAD に流用して未検証の変更をマージする。 | 表 | 763 | 12,996 |
-| 585 | `test_review_refuses_when_the_head_moved_after_cycle_begin` | 1 | 12 | 古い HEAD のレビューを現 HEAD に流用して未検証の変更をマージする。 | 表 | 764 | 13,008 |
-| 586 | `test_review_records_partial_failure_and_cleans_owned_worktrees` | 1 | 23 | 失敗したレビュアーを指摘なしとして扱う、または所有 worktree を残す・誤削除する。 | 表 | 765 | 13,031 |
-| 587 | `test_review_with_no_accepted_reviewer_fails_with_code_6` | 1 | 18 | 受理したレビューが 0 件でも計画へ進む。 | 表 | 766 | 13,049 |
-| 588 | `test_unconfirmed_stop_holds_the_lock_until_operator_recovery` | 1 | 47 | 生存中かもしれないレビュアーの資源を消す、または停止未確認のまま再起動して競合させる。 | 表 | 767 | 13,096 |
-| 589 | `test_interrupted_review_without_result_is_not_rerun` | 1 | 32 | 生存中かもしれないレビュアーの資源を消す、または停止未確認のまま再起動して競合させる。 | 表 | 768 | 13,128 |
-| 590 | `test_resume_after_review_continues_from_status` | 1 | 14 | 再開時にレビューの保存結果を無視して段階を飛ばす。 | 表 | 769 | 13,142 |
-| 591 | `test_next_commands_never_carry_placeholders_and_recover_rejects_them` | 1 | 26 | 書きかけの停止確認を事実として受理し、生存プロセスの資源とロックを解放する。 | 表 | 770 | 13,168 |
-| 592 | `test_recover_keeps_files_that_may_hold_secrets` | 1 | 20 | 回収時に秘密情報が残りうる receipt を消し、必要な調査記録を失う。 | 表 | 771 | 13,188 |
-| 593 | `test_verify_reviewer_rejects_artifacts_that_do_not_belong_to_this_head` | 2 | 31 | payload が正しくても、本文や候補一覧が別 PR・HEAD のものを採用する。 | 表 | 773 | 13,219 |
-| 594 | `test_missing_output_parent_does_not_hide_registered_worktrees` | 1 | 38 | 親ディレクトリが消えても登録済み worktree を見落とし、ロックを解放・誤削除する。 | 表 | 774 | 13,257 |
-| 595 | `test_missing_output_checks_fail_closed` | 1 | 40 | git 登録確認が失敗した状態を空とみなして資源を削除する。 | 表 | 775 | 13,297 |
-| 596 | `test_cleanup_output_removes_only_its_own_prefix` | 2 | 24 | 別の出力ディレクトリ（loop が作った名前以外）を削除する。 | 表 | 777 | 13,321 |
-| 597 | `test_cleanup_without_force_keeps_only_a_written_worktree` | 2 | 33 | レビュアーが書いた worktree の変更を消す。 | 表 | 779 | 13,354 |
-| 598 | `test_rerun_is_not_started_while_another_attempt_is_unconfirmed` | 1 | 31 | 未停止の試行と同時に再実行し、同じ成果や資源へ競合書き込みする。 | 表 | 780 | 13,385 |
-| 599 | `test_request_is_kept_only_from_a_regular_file` | 1 | 25 | 未停止の書き手や symlink をたどって別のファイルを読み取り、保存対象を誤る。 | 表 | 781 | 13,410 |
-| 600 | `test_write_exceptions_name_the_target_checkout_git` | 1 | 26 | runner に別 checkout の Git 書き込み権限を渡す。 | 表 | 782 | 13,436 |
-| 601 | `test_unconfirmed_after_run_keeps_outputs_and_lock_until_the_operator_confirms` | 1 | 53 | 生存中かもしれない after_run の出力を消し、ロックを解放する。 | 表 | 783 | 13,489 |
-| 602 | `test_review_after_an_interrupted_after_run_holds_the_run` | 1 | 22 | 中断した after_run を再起動し、既存の子プロセスや出力と競合する。 | 表 | 784 | 13,511（行数が目標に届く） |
-| 603 | `test_unconfirmed_attempt_holds_the_run_instead_of_planning` | 2 | 78 | レビュアーの停止を確認しないまま計画を始め、資源を消す。 | 表 | 786 | 13,589 |
-| 604 | `test_verify_reviewer_accepts_a_complete_payload_and_records_hashes`（正しく通る例） | 1 | 13 | 正例: 正しい成果を拒否する実装を許さない。対の拒否は、別 run・担当・PR・HEAD・未停止・改ざんの成果を受理して計画・マージへ進む損害を防ぐ。 | 表・重さは #236 | 787 | 13,602 |
-| 605 | `test_missing_parent_with_no_registration_is_removed`（正しく通る例） | 1 | 337（準備 323 を含む） | 正例: 拒否だけで回収が進まない実装を許さない。対の拒否は、登録確認の失敗を空とみなす誤削除と、登録済み worktree の見落としを防ぐ。 | 表・重さは #236 | 788 | 13,939 |
+| 581 | `test_verify_reviewer_rejects_each_broken_condition` | 11 | 26 | 失敗した runner、別 run・担当・PR・HEAD の成果、未停止の担当、改ざんされた成果を受理し、計画・マージへ進む。 | 表 | 760 | 12,082 |
+| 582 | `test_after_run_result_is_reloaded_before_reviewer_validation` | 1 | 40 | after_run が却下した結果を古い成功値で受け付け、失敗したレビューで計画へ進む。 | 表 | 761 | 12,122 |
+| 583 | `test_review_executes_after_run_against_saved_result` | 1 | 19 | 設定された後処理を省き、検査を経ない runner 成果を成功として使う。 | 表 | 762 | 12,141 |
+| 584 | `test_reuse_counts_only_pairs_for_the_current_head` | 1 | 18 | 古い HEAD のレビューを現 HEAD に流用して未検証の変更をマージする。 | 表 | 763 | 12,159 |
+| 585 | `test_review_refuses_when_the_head_moved_after_cycle_begin` | 1 | 12 | 古い HEAD のレビューを現 HEAD に流用して未検証の変更をマージする。 | 表 | 764 | 12,171 |
+| 586 | `test_review_records_partial_failure_and_cleans_owned_worktrees` | 1 | 23 | 失敗したレビュアーを指摘なしとして扱う、または所有 worktree を残す・誤削除する。 | 表 | 765 | 12,194 |
+| 587 | `test_review_with_no_accepted_reviewer_fails_with_code_6` | 1 | 18 | 受理したレビューが 0 件でも計画へ進む。 | 表 | 766 | 12,212 |
+| 588 | `test_unconfirmed_stop_holds_the_lock_until_operator_recovery` | 1 | 47 | 生存中かもしれないレビュアーの資源を消す、または停止未確認のまま再起動して競合させる。 | 表 | 767 | 12,259 |
+| 589 | `test_interrupted_review_without_result_is_not_rerun` | 1 | 32 | 生存中かもしれないレビュアーの資源を消す、または停止未確認のまま再起動して競合させる。 | 表 | 768 | 12,291 |
+| 590 | `test_resume_after_review_continues_from_status` | 1 | 14 | 再開時にレビューの保存結果を無視して段階を飛ばす。 | 表 | 769 | 12,305 |
+| 591 | `test_next_commands_never_carry_placeholders_and_recover_rejects_them` | 1 | 26 | 書きかけの停止確認を事実として受理し、生存プロセスの資源とロックを解放する。 | 表 | 770 | 12,331 |
+| 592 | `test_recover_keeps_files_that_may_hold_secrets` | 1 | 20 | 回収時に秘密情報が残りうる receipt を消し、必要な調査記録を失う。 | 表 | 771 | 12,351 |
+| 593 | `test_verify_reviewer_rejects_artifacts_that_do_not_belong_to_this_head` | 2 | 31 | payload が正しくても、本文や候補一覧が別 PR・HEAD のものを採用する。 | 表 | 773 | 12,382 |
+| 594 | `test_missing_output_parent_does_not_hide_registered_worktrees` | 1 | 38 | 親ディレクトリが消えても登録済み worktree を見落とし、ロックを解放・誤削除する。 | 表 | 774 | 12,420 |
+| 595 | `test_missing_output_checks_fail_closed` | 1 | 40 | git 登録確認が失敗した状態を空とみなして資源を削除する。 | 表 | 775 | 12,460 |
+| 596 | `test_cleanup_output_removes_only_its_own_prefix` | 2 | 24 | 別の出力ディレクトリ（loop が作った名前以外）を削除する。 | 表 | 777 | 12,484 |
+| 597 | `test_cleanup_without_force_keeps_only_a_written_worktree` | 2 | 33 | レビュアーが書いた worktree の変更を消す。 | 表 | 779 | 12,517 |
+| 598 | `test_rerun_is_not_started_while_another_attempt_is_unconfirmed` | 1 | 31 | 未停止の試行と同時に再実行し、同じ成果や資源へ競合書き込みする。 | 表 | 780 | 12,548 |
+| 599 | `test_request_is_kept_only_from_a_regular_file` | 1 | 25 | 未停止の書き手や symlink をたどって別のファイルを読み取り、保存対象を誤る。 | 表 | 781 | 12,573 |
+| 600 | `test_write_exceptions_name_the_target_checkout_git` | 1 | 26 | runner に別 checkout の Git 書き込み権限を渡す。 | 表 | 782 | 12,599 |
+| 601 | `test_unconfirmed_after_run_keeps_outputs_and_lock_until_the_operator_confirms` | 1 | 53 | 生存中かもしれない after_run の出力を消し、ロックを解放する。 | 表 | 783 | 12,652 |
+| 602 | `test_review_after_an_interrupted_after_run_holds_the_run` | 1 | 22 | 中断した after_run を再起動し、既存の子プロセスや出力と競合する。 | 表 | 784 | 12,674 |
+| 603 | `test_unconfirmed_attempt_holds_the_run_instead_of_planning` | 2 | 78 | レビュアーの停止を確認しないまま計画を始め、資源を消す。 | 表 | 786 | 12,752 |
+| 604 | `test_verify_reviewer_accepts_a_complete_payload_and_records_hashes`（正しく通る例） | 1 | 13 | 正例: 正しい成果を拒否する実装を許さない。対の拒否は、別 run・担当・PR・HEAD・未停止・改ざんの成果を受理して計画・マージへ進む損害を防ぐ。 | 表・重さは #236 | 787 | 12,765 |
+| 605 | `test_missing_parent_with_no_registration_is_removed`（正しく通る例） | 1 | 337（準備 323 を含む） | 正例: 拒否だけで回収が進まない実装を許さない。対の拒否は、登録確認の失敗を空とみなす誤削除と、登録済み worktree の見落としを防ぐ。 | 表・重さは #236 | 788 | 13,102 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_loop_reviewer_protocol.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 606 | `test_literal_reviewer_completes_the_real_helper_within_the_declared_exceptions` | 1 | 272（準備 242 を含む） | read-only runner の書き込み範囲が広がる、または別 PR・HEAD の成果が混入する（実 helper 経路で検出）。 | 表 | 789 | 14,211 |
+| 606 | `test_literal_reviewer_completes_the_real_helper_within_the_declared_exceptions` | 1 | 272（準備 242 を含む） | read-only runner の書き込み範囲が広がる、または別 PR・HEAD の成果が混入する（実 helper 経路で検出）。 | 表 | 789 | 13,374 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_loop_state.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 607 | `test_second_start_is_refused_while_the_first_run_holds_the_lock` | 1 | 11 | 同じ PR の同時書き込み、または別 run のロック解放による競合。 | 表 | 790 | 14,222 |
-| 608 | `test_out_of_order_calls_are_refused` | 1 | 8 | レビューや判断記録の前にサイクルを完了し、未検証の PR を成功扱いする。 | 表 | 791 | 14,230 |
-| 609 | `test_cycle_end_before_the_record_is_posted_keeps_the_cycle_open` | 1 | 20 | レビューや判断記録の前にサイクルを完了し、未検証の PR を成功扱いする。 | 表 | 792 | 14,250 |
-| 610 | `test_record_for_another_head_is_not_taken_as_this_cycle` | 1 | 11 | 別 HEAD の判断や push を現サイクルのものとして採用する。 | 表 | 793 | 14,261 |
-| 611 | `test_fixes_pushed_requires_the_pr_head_to_be_the_pushed_commit` | 1 | 13 | 別 HEAD の判断や push を現サイクルのものとして採用する。 | 表 | 794 | 14,274 |
-| 612 | `test_no_fix_needed_needs_a_merged_finalize_result_at_the_same_head` | 1 | 23 | 未マージまたは別 HEAD のマージを検証済みとして完了報告する。 | 表 | 795 | 14,297 |
-| 613 | `test_finalize_stopped_ends_the_run_as_stopped_and_not_merged` | 1 | 24 | finalize の停止をマージ成功として報告する。 | 表 | 796 | 14,321 |
-| 614 | `test_finalize_stopped_keeps_the_real_merge` | 3 | 54 | finalize が停止しても、実際のマージを未マージとして誤報告する。 | 表 | 799 | 14,375 |
-| 615 | `test_finalize_merged_but_pr_not_merged_is_a_mismatch_when_stopped` | 1 | 18 | 未マージまたは別 HEAD のマージを検証済みとして完了報告する。 | 表 | 800 | 14,393 |
-| 616 | `test_cycle_limit_ends_with_fixes_pushed` | 1 | 17 | サイクル上限後に追加レビューなしで次へ進み、未検証のままマージする。 | 表 | 801 | 14,410 |
-| 617 | `test_finish_releases_only_its_own_lock` | 1 | 13 | 同じ PR の同時書き込み、または別 run のロック解放による競合。 | 表 | 802 | 14,423 |
-| 618 | `test_abort_after_a_finalize_merge_keeps_the_merge` | 1 | 36 | finalize 後に cycle-end が停止しても、abort でマージ済みを false と記録する。 | 表 | 803 | 14,459 |
-| 619 | `test_abort_records_the_merge_state_it_observed` | 4 | 39 | PR の実状態、finalize の最後の観測、未確認 null を混同してマージ状態を誤報告する。 | 表 | 807 | 14,498 |
-| 620 | `test_finalize_result_is_only_for_abort_and_must_be_a_finalize_result` | 1 | 24 | 不正な finalize 結果で run を上書きし、マージ状態を誤記録する。 | 表 | 808 | 14,522 |
-| 621 | `test_cli_finish_abort_passes_the_finalize_result` | 1 | 16 | CLI が --finalize-result を渡さず、PR 不可読時に観測済みのマージを null と記録する。 | 表 | 809 | 14,538 |
-| 622 | `test_status_returns_the_next_command_after_a_restart` | 1 | 11 | 再開時に誤った段階へ進み、レビューや判断を飛ばす。 | 表 | 810 | 14,549 |
-| 623 | `test_record_from_an_earlier_run_for_the_same_head_is_not_taken` | 1 | 23 | 同じ HEAD の古い run の判断を新 run の判断として流用する。 | 表 | 811 | 14,572 |
-| 624 | `test_a_differently_cased_pr_url_shares_the_lock` | 1 | 16 | URL の大文字小文字違いで同じ PR に二重ロックを作り、同時書き込みする。 | 表 | 812 | 14,588 |
-| 625 | `test_records_need_the_authenticated_login` | 1 | 26 | login を得られないまま投稿者の絞り込みを緩め、他人の判断記録を採用する。 | 表 | 813 | 14,614 |
-| 626 | `test_cycle_end_reads_the_authenticated_users_record` | 1 | 16 | 他人のコメントを認証済み利用者の判断として採用する。 | 表 | 814 | 14,630 |
-| 627 | `test_cycle_end_accepts_a_spec_commit_merge` | 1 | 119（準備 92 を含む） | 検証 HEAD の上に Spec commit を載せた PR のマージを、別 commit と誤照合する。 | 表 | 815 | 14,749 |
+| 607 | `test_second_start_is_refused_while_the_first_run_holds_the_lock` | 1 | 11 | 同じ PR の同時書き込み、または別 run のロック解放による競合。 | 表 | 790 | 13,385 |
+| 608 | `test_out_of_order_calls_are_refused` | 1 | 8 | レビューや判断記録の前にサイクルを完了し、未検証の PR を成功扱いする。 | 表 | 791 | 13,393 |
+| 609 | `test_cycle_end_before_the_record_is_posted_keeps_the_cycle_open` | 1 | 20 | レビューや判断記録の前にサイクルを完了し、未検証の PR を成功扱いする。 | 表 | 792 | 13,413 |
+| 610 | `test_record_for_another_head_is_not_taken_as_this_cycle` | 1 | 11 | 別 HEAD の判断や push を現サイクルのものとして採用する。 | 表 | 793 | 13,424 |
+| 611 | `test_fixes_pushed_requires_the_pr_head_to_be_the_pushed_commit` | 1 | 13 | 別 HEAD の判断や push を現サイクルのものとして採用する。 | 表 | 794 | 13,437 |
+| 612 | `test_no_fix_needed_needs_a_merged_finalize_result_at_the_same_head` | 1 | 23 | 未マージまたは別 HEAD のマージを検証済みとして完了報告する。 | 表 | 795 | 13,460 |
+| 613 | `test_finalize_stopped_ends_the_run_as_stopped_and_not_merged` | 1 | 24 | finalize の停止をマージ成功として報告する。 | 表 | 796 | 13,484 |
+| 614 | `test_finalize_stopped_keeps_the_real_merge` | 3 | 54 | finalize が停止しても、実際のマージを未マージとして誤報告する。 | 表 | 799 | 13,538（行数が目標に届く） |
+| 615 | `test_finalize_merged_but_pr_not_merged_is_a_mismatch_when_stopped` | 1 | 18 | 未マージまたは別 HEAD のマージを検証済みとして完了報告する。 | 表 | 800 | 13,556 |
+| 616 | `test_cycle_limit_ends_with_fixes_pushed` | 1 | 17 | サイクル上限後に追加レビューなしで次へ進み、未検証のままマージする。 | 表 | 801 | 13,573 |
+| 617 | `test_finish_releases_only_its_own_lock` | 1 | 13 | 同じ PR の同時書き込み、または別 run のロック解放による競合。 | 表 | 802 | 13,586 |
+| 618 | `test_abort_after_a_finalize_merge_keeps_the_merge` | 1 | 36 | finalize 後に cycle-end が停止しても、abort でマージ済みを false と記録する。 | 表 | 803 | 13,622 |
+| 619 | `test_abort_records_the_merge_state_it_observed` | 4 | 39 | PR の実状態、finalize の最後の観測、未確認 null を混同してマージ状態を誤報告する。 | 表 | 807 | 13,661 |
+| 620 | `test_finalize_result_is_only_for_abort_and_must_be_a_finalize_result` | 1 | 24 | 不正な finalize 結果で run を上書きし、マージ状態を誤記録する。 | 表 | 808 | 13,685 |
+| 621 | `test_cli_finish_abort_passes_the_finalize_result` | 1 | 16 | CLI が --finalize-result を渡さず、PR 不可読時に観測済みのマージを null と記録する。 | 表 | 809 | 13,701 |
+| 622 | `test_status_returns_the_next_command_after_a_restart` | 1 | 11 | 再開時に誤った段階へ進み、レビューや判断を飛ばす。 | 表 | 810 | 13,712 |
+| 623 | `test_record_from_an_earlier_run_for_the_same_head_is_not_taken` | 1 | 23 | 同じ HEAD の古い run の判断を新 run の判断として流用する。 | 表 | 811 | 13,735 |
+| 624 | `test_a_differently_cased_pr_url_shares_the_lock` | 1 | 16 | URL の大文字小文字違いで同じ PR に二重ロックを作り、同時書き込みする。 | 表 | 812 | 13,751 |
+| 625 | `test_records_need_the_authenticated_login` | 1 | 26 | login を得られないまま投稿者の絞り込みを緩め、他人の判断記録を採用する。 | 表 | 813 | 13,777 |
+| 626 | `test_cycle_end_reads_the_authenticated_users_record` | 1 | 16 | 他人のコメントを認証済み利用者の判断として採用する。 | 表 | 814 | 13,793 |
+| 627 | `test_cycle_end_accepts_a_spec_commit_merge` | 1 | 119（準備 92 を含む） | 検証 HEAD の上に Spec commit を載せた PR のマージを、別 commit と誤照合する。 | 表 | 815 | 13,912 |
 
 `.agents/skills/pr-review-fix-loop/tests/test_pr_review_fix_loop_skill_contract.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 628 | `test_loop_skill_runs_only_when_explicitly_invoked` | 1 | 660（`conftest.py` 642・準備 16 を含む） | disable-model-invocation の権限境界が外れ、明示依頼なしに push・マージまで進む。 | 表 | 816 | 15,409 |
+| 628 | `test_loop_skill_runs_only_when_explicitly_invoked` | 1 | 660（`tests/conftest.py` 642・準備 16 を含む） | disable-model-invocation の権限境界が外れ、明示依頼なしに push・マージまで進む。 | 表 | 816 | 14,572 |
 
 `.agents/skills/pr-review/tests/test_port_routing.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 629 | `test_upstream_full_diff_pair_save_cleanup_preserves_shared_refs` | 1 | 26 | upstream PR の全差分レビューで、PR・HEAD・commit・base・保存先を取り違える、または共有 ref を変更する。 | 表 | 817 | 15,435 |
-| 630 | `test_moving_live_head_keeps_drafts_then_fresh_session_continues` | 1 | 21 | PR の HEAD が動いたのに保存を通し、PR・HEAD・commit・base・保存先を取り違える、または共有 ref を変更する。 | 表 | 818 | 15,456 |
-| 631 | `test_external_checkout_requires_explicit_source_and_matching_remote` | 1 | 14 | 明示指定のない・remote の合わない外部 checkout を対象に、他の Git や利用者所有ファイルを操作・削除する。 | 表 | 819 | 15,470 |
-| 632 | `test_target_rejects_unvalidated_input_without_creating_session` | 5 | 17 | 未検証の target 入力（remote・sha・number・url・repository）を通し、PR・HEAD・保存先を取り違える。 | 表 | 824 | 15,487 |
-| 633 | `test_explicit_commit_has_separate_pair_and_validates_worktree_head` | 1 | 11 | 指定 commit のレビューを別 pair にせず、または worktree の HEAD 変更後も保存し、commit・保存先を取り違える。 | 表 | 825 | 15,498 |
-| 634 | `test_shallow_recovery_refuses_unowned_git_or_user_data` | 8 | 250（準備 199 を含む） | 浅い checkout の回収で、所有していない Git・他の worktree・利用者データを操作・削除する。 | 表 | 833 | 15,748 |
+| 629 | `test_upstream_full_diff_pair_save_cleanup_preserves_shared_refs` | 1 | 26 | upstream PR の全差分レビューで、PR・HEAD・commit・base・保存先を取り違える、または共有 ref を変更する。 | 表 | 817 | 14,598 |
+| 630 | `test_moving_live_head_keeps_drafts_then_fresh_session_continues` | 1 | 21 | PR の HEAD が動いたのに保存を通し、PR・HEAD・commit・base・保存先を取り違える、または共有 ref を変更する。 | 表 | 818 | 14,619 |
+| 631 | `test_external_checkout_requires_explicit_source_and_matching_remote` | 1 | 14 | 明示指定のない・remote の合わない外部 checkout を対象に、他の Git や利用者所有ファイルを操作・削除する。 | 表 | 819 | 14,633 |
+| 632 | `test_target_rejects_unvalidated_input_without_creating_session` | 5 | 17 | 未検証の target 入力（remote・sha・number・url・repository）を通し、PR・HEAD・保存先を取り違える。 | 表 | 824 | 14,650 |
+| 633 | `test_explicit_commit_has_separate_pair_and_validates_worktree_head` | 1 | 11 | 指定 commit のレビューを別 pair にせず、または worktree の HEAD 変更後も保存し、commit・保存先を取り違える。 | 表 | 825 | 14,661 |
+| 634 | `test_shallow_recovery_refuses_unowned_git_or_user_data` | 8 | 250（準備 199 を含む） | 浅い checkout の回収で、所有していない Git・他の worktree・利用者データを操作・削除する。 | 表 | 833 | 14,911 |
 
 `.agents/skills/pr-review/tests/test_pr_review_workspace.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 635 | `test_resolve_codex_model_name_uses_latest_turn_context` | 1 | 8 | Codex の最新の turn のモデルを取り違え、もっともらしい誤レビューを保存する。 | 表 | 834 | 15,756 |
-| 636 | `test_resolve_codex_model_name_fails_closed` | 3 | 32 | Codex のモデル名が不正・非一意・rollout 破損でも受理し、識別を取り違えた誤レビューを保存する。 | 表 | 837 | 15,788 |
-| 637 | `test_resolve_codex_model_name_rejects_malformed_completed_record` | 1 | 13 | 完了済みの rollout 行が壊れていても受理し、モデルの識別を取り違えた誤レビューを保存する。 | 表 | 838 | 15,801 |
-| 638 | `test_resolve_runtime_model_name_fails_closed_outside_codex` | 2 | 13 | ../ や先頭空白を含むモデル名が通り、別の保存先へ書いて利用者ファイル・別 worktree・共有 Git を変更する。 | 表 | 840 | 15,814 |
-| 639 | `test_resolve_runtime_model_name_rejects_codex_override` | 1 | 10 | Codex の実モデルと違う明示名で上書きし、識別を取り違えた誤レビューを保存する。 | 表 | 841 | 15,824 |
-| 640 | `test_destination_fingerprint_distinguishes_symlink_entries` | 1 | 16 | 保存先の symlink を実体と区別できず、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 842 | 15,840 |
-| 641 | `test_snapshot_existing_review_copies_regular_file` | 1 | 12 | 既存レビューの写しが誤り、モデル・PR・HEAD・保存先の識別を取り違えた誤レビューを保存する。 | 表 | 843 | 15,852 |
-| 642 | `test_snapshot_existing_review_rejects_non_regular` | 3 | 21 | ディレクトリ・symlink・FIFO の保存先を通常ファイルとして扱い、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 846 | 15,873 |
-| 643 | `test_snapshot_existing_review_rejects_source_race` | 1 | 25 | 読み取り中に差し替わった既存レビューを受理し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 847 | 15,898 |
-| 644 | `test_atomic_copy_replaces_internal_destination_symlink_entry` | 1 | 19 | 保存先 symlink の指す別ファイルを上書きし、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 848 | 15,917 |
-| 645 | `test_safe_destination_rejects_symlink_escape` | 1 | 10 | symlink 経由で保存先が reviews の外へ出て、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 849 | 15,927 |
-| 646 | `test_snapshot_does_not_refresh_index` | 1 | 14 | レビュー前後の snapshot が Git の index を更新し、利用者の共有 Git を変更する。 | 表 | 850 | 15,941 |
-| 647 | `test_snapshot_preserves_existing_index_lock` | 1 | 10 | レビューの snapshot が利用者の index.lock を変更・削除する。 | 表 | 851 | 15,951 |
-| 648 | `test_snapshot_reports_changes_excluding_reviews` | 4 | 35 | checkout の変更を検出する snapshot が欠け、利用者ファイル・別 worktree・共有 Git の変更を見逃す。 | 表 | 855 | 15,986 |
-| 649 | `test_save_rejects_unknown_model_source` | 1 | 9 | state の model_source が未知でも save し、モデルの識別を取り違えた誤レビューを保存する。 | 表 | 856 | 15,995 |
-| 650 | `test_create_pins_model_and_artifact_paths` | 1 | 36 | create がモデル・PR・HEAD・保存先を固定せず、識別を取り違えた誤レビューを保存する。 | 表 | 857 | 16,031 |
-| 651 | `test_create_pins_existing_review_snapshot` | 1 | 29 | 既存レビューの写しを固定せず、モデル・PR・HEAD・保存先の識別を取り違えた誤レビューを保存する。 | 表 | 858 | 16,060 |
-| 652 | `test_load_state_rejects_tampered_previous_review` | 1 | 15 | 改ざんされた前回レビューの参照を受理し、識別を取り違えた誤レビューを保存する。 | 表 | 859 | 16,075 |
-| 653 | `test_fork_and_upstream_reviews_are_saved_and_rereviewed_independently` | 1 | 34 | fork と upstream の同番号 PR のレビューが同じ保存先・前回レビューに混ざり、一方が他方を上書きする。 | 表・重さは #236 | 860 | 16,109 |
-| 654 | `test_create_rejects_invalid_pr_repository` | 2 | 9 | 不正な PR repository（../resoloop・usaturn/..）を受理し、保存先の識別を取り違えた誤レビューを保存する。 | 表 | 862 | 16,118 |
-| 655 | `test_version6_session_is_kept_by_verify_save_and_cleanup` | 1 | 23 | 旧 state（repository 不明）を無視して verify・save・cleanup が進み、別 PR の worktree を削除・レビューを上書きする。 | 表 | 863 | 16,141 |
-| 656 | `test_load_state_rejects_non_canonical_pr_repository` | 2 | 12 | 正規形でない PR repository の state を受理し、保存先の識別を取り違えた誤レビューを保存する。 | 表 | 865 | 16,153 |
-| 657 | `test_save_rejects_rewritten_pr_repository` | 1 | 15 | 書き換えられた PR repository で save し、別 repository の保存先へ誤レビューを保存する。 | 表 | 866 | 16,168 |
-| 658 | `test_review_artifact_paths_reject_invalid_branch` | 2 | 4 | 不正な branch 名（先頭 /・正規化後に空）で保存先を作り、誤った branch の保存先へレビューを保存する。 | 表・重さは #236 | 868 | 16,172 |
-| 659 | `test_review_artifact_paths_reject_invalid_pr_number` | 2 | 10 | 不正な PR 番号（bool・0）で保存先を作り、誤った PR の保存先へレビューを保存する。 | 表・重さは #236 | 870 | 16,182 |
-| 660 | `test_save_uses_only_pinned_paths` | 1 | 9 | save が固定した以外のパスへ書き、識別を取り違えた誤レビューを保存する。 | 表 | 871 | 16,191 |
-| 661 | `test_save_rejects_changed_pinned_destination` | 1 | 13 | 固定後に変わった保存先へ save して他者のレビューを上書きし、識別を取り違えた誤レビューを保存する。 | 表 | 872 | 16,204 |
-| 662 | `test_first_session_wins_same_destination` | 1 | 27 | 後から始めたセッションが先に保存したレビューを無断で上書きする。 | 表 | 873 | 16,231 |
-| 663 | `test_save_rejects_changed_runtime_model` | 1 | 8 | save までにモデルが変わっても受理し、別モデルの名前で誤レビューを保存する。 | 表 | 874 | 16,239 |
-| 664 | `test_save_rejects_tampered_destination` | 1 | 9 | 改ざんされた state の保存先で save し、別の保存先に誤レビューを保存する。 | 表 | 875 | 16,248 |
-| 665 | `test_save_waits_for_repository_review_lock` | 1 | 24 | save が保存ロックを待たず競合し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 876 | 16,272 |
-| 666 | `test_cleanup_removes_session_after_successful_save` | 1 | 15 | 保存済み session の回収が誤り、保存したレビューや利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 877 | 16,287 |
-| 667 | `test_cleanup_refuses_before_save` | 1 | 13 | 保存前の cleanup を通して未保存レビューの worktree を削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 878 | 16,300 |
-| 668 | `test_cleanup_refuses_when_destination_diverges_from_draft` | 1 | 15 | 保存先が draft と食い違っても session を回収し、手編集のレビューなど利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 879 | 16,315 |
-| 669 | `test_cleanup_keeps_other_worktrees_and_main_checkout` | 1 | 16 | cleanup が他の worktree や本体 checkout に及び、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 880 | 16,331 |
-| 670 | `test_cleanup_refuses_when_session_path_is_not_its_worktree` | 1 | 16 | session のパスが自分の worktree でないのに削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 881 | 16,347 |
-| 671 | `test_cleanup_refuses_worktree_of_another_repository` | 1 | 15 | 別 repository の worktree を自分のものとして回収し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 882 | 16,362 |
-| 672 | `test_cleanup_waits_for_repository_review_lock` | 1 | 24 | cleanup が保存ロックを待たず競合し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 883 | 16,386 |
-| 673 | `test_create_rejects_unsafe_attempt_id` | 1 | 11 | ../ を含む attempt id を受理し、session の外へ書いて利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 884 | 16,397 |
-| 674 | `test_create_rejects_reused_attempt_id` | 1 | 14 | 使用済みの attempt id で create し、既存の session や worktree を巻き込んで利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 885 | 16,411 |
-| 675 | `test_create_records_its_phases_in_the_journal` | 1 | 29 | create の journal が段階を記録せず、未終了の試行を回収可能と誤判定して worktree を削除する。 | 表 | 886 | 16,440 |
-| 676 | `test_killed_create_reports_its_last_phase_and_leftovers` | 1 | 29 | kill された create の最終段階と残存物を報告せず、未終了の試行を回収可能と誤判定して worktree を削除する。 | 表 | 887 | 16,469 |
-| 677 | `test_terminated_create_records_the_signal` | 1 | 20 | 終了させられた create の記録が無く、未終了の試行を回収可能と誤判定して worktree を削除する。 | 表 | 888 | 16,489 |
-| 678 | `test_inspect_refuses_an_attempt_id_shared_by_two_sessions` | 1 | 15 | 同じ attempt id の 2 session を区別せず、未終了の試行を回収可能と誤判定して worktree を削除する。 | 表 | 889 | 16,504 |
-| 679 | `test_abandon_clears_an_attempt_killed_while_waiting_for_the_lock` | 1 | 34 | ロック待ちで kill された試行を abandon する際に、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 890 | 16,538 |
-| 680 | `test_abandon_waits_for_a_checkout_that_outlives_create` | 1 | 23 | create より長く生きる checkout を待たずに abandon し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 891 | 16,561 |
-| 681 | `test_abandon_keeps_a_worktree_locked_for_another_reason` | 1 | 11 | 利用者が別の理由で lock した worktree を abandon で削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 892 | 16,572 |
-| 682 | `test_abandon_refuses_while_the_attempt_is_running` | 1 | 11 | 実行中の試行を abandon で回収し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 893 | 16,583 |
-| 683 | `test_abandon_keeps_a_session_with_files_it_did_not_create` | 3 | 23 | helper が作っていないファイル・ディレクトリを含む session を abandon で削除する（利用者ファイル・別 worktree・共有 Git）。 | 表 | 896 | 16,606 |
-| 684 | `test_legacy_inspect_reports_but_abandon_preserves_an_unowned_repo_directory` | 1 | 13 | 旧 checkout 方式の attempt で、所有していない repo/ を abandon で削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 897 | 16,619 |
-| 685 | `test_abandon_refuses_another_repository` | 1 | 10 | 別 repository の試行を abandon し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 898 | 16,629 |
-| 686 | `test_inspect_and_abandon_refuse_another_pr_repository` | 1 | 14 | 同じ checkout を共有する別 PR repository（fork・upstream）の試行を abandon し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 899 | 16,643 |
-| 687 | `test_abandon_keeps_a_journal_without_pr_repository` | 1 | 13 | 所属 PR が分からない旧 journal の session を推測して削除する。 | 表 | 900 | 16,656 |
-| 688 | `test_abandon_touches_only_its_own_attempt` | 1 | 17 | abandon が自分以外の試行・他モデルのレビュー・利用者ファイルに及び、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 901 | 16,673 |
-| 689 | `test_abandon_waits_for_the_repository_review_lock` | 1 | 28 | abandon が保存ロックを待たず、同時の save・cleanup と削除が競合する。 | 表・重さは #236 | 902 | 16,701 |
-| 690 | `test_abandon_clears_records_left_by_an_interrupted_worktree_add` | 1 | 22 | 中断した worktree add の管理レコードの回収が他の worktree に及び、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 903 | 16,723 |
-| 691 | `test_abandon_refuses_records_of_another_worktree` | 1 | 17 | 別 worktree の管理レコードを自分のものとして abandon で削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 904 | 16,740 |
-| 692 | `test_a_repeated_signal_does_not_cut_the_end_record` | 1 | 28 | シグナルの重複で終了記録が欠け、未終了の試行を回収可能と誤判定して worktree を削除する。 | 表 | 905 | 16,768 |
-| 693 | `test_sessions_keep_the_open_pr_when_fork_and_upstream_share_number_branch_and_head` | 1 | 34 | fork と upstream が同番号・同 branch・同 HEAD のとき、開いている PR の session を回収可能と誤判定して削除する。 | 表 | 906 | 16,802 |
-| 694 | `test_sessions_keep_a_version6_session` | 1 | 17 | 旧 state（repository 不明）の session を回収可能とみなし、別 PR の worktree を削除・レビューを上書きする。 | 表 | 907 | 16,819 |
-| 695 | `test_sessions_keep_when_gh_fails` | 2 | 21 | gh の失敗（PR 不明・gh なし）で PR の状態が不明な session を、回収可能と誤判定して worktree を削除する。 | 表 | 909 | 16,840 |
-| 696 | `test_sessions_keep_when_gh_reports_another_number` | 1 | 11 | gh が別番号の PR を返してもその状態で session を削除可能と誤判定する。 | 表 | 910 | 16,851 |
-| 697 | `test_sessions_keep_a_session_without_state` | 2 | 20 | state の無い session を回収可能と誤判定して worktree を削除する。 | 表 | 912 | 16,871 |
-| 698 | `test_sessions_keep_a_locked_worktree` | 1 | 12 | lock された worktree を回収可能と誤判定して削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 913 | 16,883 |
-| 699 | `test_cleanup_keeps_v7_session_when_saved_candidates_are_missing` | 1 | 10 | 保存した候補一覧が無い v7 session を回収し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 914 | 16,893 |
-| 700 | `test_save_allows_another_review_destination_to_change`（正しく通る例） | 1 | 585（準備 572 を含む） | 正例: 自分の保存先以外の変化で誤って拒否しない。対の拒否は、保存先の変更・改ざん・先行 session の上書きを見逃す損害を防ぐ。 | 表・重さは #236 | 915 | 17,478 |
+| 635 | `test_resolve_codex_model_name_uses_latest_turn_context` | 1 | 8 | Codex の最新の turn のモデルを取り違え、もっともらしい誤レビューを保存する。 | 表 | 834 | 14,919 |
+| 636 | `test_resolve_codex_model_name_fails_closed` | 3 | 32 | Codex のモデル名が不正・非一意・rollout 破損でも受理し、識別を取り違えた誤レビューを保存する。 | 表 | 837 | 14,951 |
+| 637 | `test_resolve_codex_model_name_rejects_malformed_completed_record` | 1 | 13 | 完了済みの rollout 行が壊れていても受理し、モデルの識別を取り違えた誤レビューを保存する。 | 表 | 838 | 14,964 |
+| 638 | `test_resolve_runtime_model_name_fails_closed_outside_codex` | 2 | 13 | ../ や先頭空白を含むモデル名が通り、別の保存先へ書いて利用者ファイル・別 worktree・共有 Git を変更する。 | 表 | 840 | 14,977 |
+| 639 | `test_resolve_runtime_model_name_rejects_codex_override` | 1 | 10 | Codex の実モデルと違う明示名で上書きし、識別を取り違えた誤レビューを保存する。 | 表 | 841 | 14,987 |
+| 640 | `test_destination_fingerprint_distinguishes_symlink_entries` | 1 | 16 | 保存先の symlink を実体と区別できず、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 842 | 15,003 |
+| 641 | `test_snapshot_existing_review_copies_regular_file` | 1 | 12 | 既存レビューの写しが誤り、モデル・PR・HEAD・保存先の識別を取り違えた誤レビューを保存する。 | 表 | 843 | 15,015 |
+| 642 | `test_snapshot_existing_review_rejects_non_regular` | 3 | 21 | ディレクトリ・symlink・FIFO の保存先を通常ファイルとして扱い、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 846 | 15,036 |
+| 643 | `test_snapshot_existing_review_rejects_source_race` | 1 | 25 | 読み取り中に差し替わった既存レビューを受理し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 847 | 15,061 |
+| 644 | `test_atomic_copy_replaces_internal_destination_symlink_entry` | 1 | 19 | 保存先 symlink の指す別ファイルを上書きし、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 848 | 15,080 |
+| 645 | `test_safe_destination_rejects_symlink_escape` | 1 | 10 | symlink 経由で保存先が reviews の外へ出て、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 849 | 15,090 |
+| 646 | `test_snapshot_does_not_refresh_index` | 1 | 14 | レビュー前後の snapshot が Git の index を更新し、利用者の共有 Git を変更する。 | 表 | 850 | 15,104 |
+| 647 | `test_snapshot_preserves_existing_index_lock` | 1 | 10 | レビューの snapshot が利用者の index.lock を変更・削除する。 | 表 | 851 | 15,114 |
+| 648 | `test_snapshot_reports_changes_excluding_reviews` | 4 | 35 | checkout の変更を検出する snapshot が欠け、利用者ファイル・別 worktree・共有 Git の変更を見逃す。 | 表 | 855 | 15,149 |
+| 649 | `test_save_rejects_unknown_model_source` | 1 | 9 | state の model_source が未知でも save し、モデルの識別を取り違えた誤レビューを保存する。 | 表 | 856 | 15,158 |
+| 650 | `test_create_pins_model_and_artifact_paths` | 1 | 36 | create がモデル・PR・HEAD・保存先を固定せず、識別を取り違えた誤レビューを保存する。 | 表 | 857 | 15,194 |
+| 651 | `test_create_pins_existing_review_snapshot` | 1 | 29 | 既存レビューの写しを固定せず、モデル・PR・HEAD・保存先の識別を取り違えた誤レビューを保存する。 | 表 | 858 | 15,223 |
+| 652 | `test_load_state_rejects_tampered_previous_review` | 1 | 15 | 改ざんされた前回レビューの参照を受理し、識別を取り違えた誤レビューを保存する。 | 表 | 859 | 15,238 |
+| 653 | `test_fork_and_upstream_reviews_are_saved_and_rereviewed_independently` | 1 | 34 | fork と upstream の同番号 PR のレビューが同じ保存先・前回レビューに混ざり、一方が他方を上書きする。 | 表・重さは #236 | 860 | 15,272 |
+| 654 | `test_create_rejects_invalid_pr_repository` | 2 | 9 | 不正な PR repository（../resoloop・usaturn/..）を受理し、保存先の識別を取り違えた誤レビューを保存する。 | 表 | 862 | 15,281 |
+| 655 | `test_version6_session_is_kept_by_verify_save_and_cleanup` | 1 | 23 | 旧 state（repository 不明）を無視して verify・save・cleanup が進み、別 PR の worktree を削除・レビューを上書きする。 | 表 | 863 | 15,304 |
+| 656 | `test_load_state_rejects_non_canonical_pr_repository` | 2 | 12 | 正規形でない PR repository の state を受理し、保存先の識別を取り違えた誤レビューを保存する。 | 表 | 865 | 15,316 |
+| 657 | `test_save_rejects_rewritten_pr_repository` | 1 | 15 | 書き換えられた PR repository で save し、別 repository の保存先へ誤レビューを保存する。 | 表 | 866 | 15,331 |
+| 658 | `test_review_artifact_paths_reject_invalid_branch` | 2 | 4 | 不正な branch 名（先頭 /・正規化後に空）で保存先を作り、誤った branch の保存先へレビューを保存する。 | 表・重さは #236 | 868 | 15,335 |
+| 659 | `test_review_artifact_paths_reject_invalid_pr_number` | 2 | 10 | 不正な PR 番号（bool・0）で保存先を作り、誤った PR の保存先へレビューを保存する。 | 表・重さは #236 | 870 | 15,345 |
+| 660 | `test_save_uses_only_pinned_paths` | 1 | 9 | save が固定した以外のパスへ書き、識別を取り違えた誤レビューを保存する。 | 表 | 871 | 15,354 |
+| 661 | `test_save_rejects_changed_pinned_destination` | 1 | 13 | 固定後に変わった保存先へ save して他者のレビューを上書きし、識別を取り違えた誤レビューを保存する。 | 表 | 872 | 15,367 |
+| 662 | `test_first_session_wins_same_destination` | 1 | 27 | 後から始めたセッションが先に保存したレビューを無断で上書きする。 | 表 | 873 | 15,394 |
+| 663 | `test_save_rejects_changed_runtime_model` | 1 | 8 | save までにモデルが変わっても受理し、別モデルの名前で誤レビューを保存する。 | 表 | 874 | 15,402 |
+| 664 | `test_save_rejects_tampered_destination` | 1 | 9 | 改ざんされた state の保存先で save し、別の保存先に誤レビューを保存する。 | 表 | 875 | 15,411 |
+| 665 | `test_save_waits_for_repository_review_lock` | 1 | 24 | save が保存ロックを待たず競合し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 876 | 15,435 |
+| 666 | `test_cleanup_removes_session_after_successful_save` | 1 | 15 | 保存済み session の回収が誤り、保存したレビューや利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 877 | 15,450 |
+| 667 | `test_cleanup_refuses_before_save` | 1 | 13 | 保存前の cleanup を通して未保存レビューの worktree を削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 878 | 15,463 |
+| 668 | `test_cleanup_refuses_when_destination_diverges_from_draft` | 1 | 15 | 保存先が draft と食い違っても session を回収し、手編集のレビューなど利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 879 | 15,478 |
+| 669 | `test_cleanup_keeps_other_worktrees_and_main_checkout` | 1 | 16 | cleanup が他の worktree や本体 checkout に及び、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 880 | 15,494 |
+| 670 | `test_cleanup_refuses_when_session_path_is_not_its_worktree` | 1 | 16 | session のパスが自分の worktree でないのに削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 881 | 15,510 |
+| 671 | `test_cleanup_refuses_worktree_of_another_repository` | 1 | 15 | 別 repository の worktree を自分のものとして回収し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 882 | 15,525 |
+| 672 | `test_cleanup_waits_for_repository_review_lock` | 1 | 24 | cleanup が保存ロックを待たず競合し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 883 | 15,549 |
+| 673 | `test_create_rejects_unsafe_attempt_id` | 1 | 11 | ../ を含む attempt id を受理し、session の外へ書いて利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 884 | 15,560 |
+| 674 | `test_create_rejects_reused_attempt_id` | 1 | 14 | 使用済みの attempt id で create し、既存の session や worktree を巻き込んで利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 885 | 15,574 |
+| 675 | `test_create_records_its_phases_in_the_journal` | 1 | 29 | create の journal が段階を記録せず、未終了の試行を回収可能と誤判定して worktree を削除する。 | 表 | 886 | 15,603 |
+| 676 | `test_killed_create_reports_its_last_phase_and_leftovers` | 1 | 29 | kill された create の最終段階と残存物を報告せず、未終了の試行を回収可能と誤判定して worktree を削除する。 | 表 | 887 | 15,632 |
+| 677 | `test_terminated_create_records_the_signal` | 1 | 20 | 終了させられた create の記録が無く、未終了の試行を回収可能と誤判定して worktree を削除する。 | 表 | 888 | 15,652 |
+| 678 | `test_inspect_refuses_an_attempt_id_shared_by_two_sessions` | 1 | 15 | 同じ attempt id の 2 session を区別せず、未終了の試行を回収可能と誤判定して worktree を削除する。 | 表 | 889 | 15,667 |
+| 679 | `test_abandon_clears_an_attempt_killed_while_waiting_for_the_lock` | 1 | 34 | ロック待ちで kill された試行を abandon する際に、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 890 | 15,701 |
+| 680 | `test_abandon_waits_for_a_checkout_that_outlives_create` | 1 | 23 | create より長く生きる checkout を待たずに abandon し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 891 | 15,724 |
+| 681 | `test_abandon_keeps_a_worktree_locked_for_another_reason` | 1 | 11 | 利用者が別の理由で lock した worktree を abandon で削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 892 | 15,735 |
+| 682 | `test_abandon_refuses_while_the_attempt_is_running` | 1 | 11 | 実行中の試行を abandon で回収し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 893 | 15,746 |
+| 683 | `test_abandon_keeps_a_session_with_files_it_did_not_create` | 3 | 23 | helper が作っていないファイル・ディレクトリを含む session を abandon で削除する（利用者ファイル・別 worktree・共有 Git）。 | 表 | 896 | 15,769 |
+| 684 | `test_legacy_inspect_reports_but_abandon_preserves_an_unowned_repo_directory` | 1 | 13 | 旧 checkout 方式の attempt で、所有していない repo/ を abandon で削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 897 | 15,782 |
+| 685 | `test_abandon_refuses_another_repository` | 1 | 10 | 別 repository の試行を abandon し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 898 | 15,792 |
+| 686 | `test_inspect_and_abandon_refuse_another_pr_repository` | 1 | 14 | 同じ checkout を共有する別 PR repository（fork・upstream）の試行を abandon し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 899 | 15,806 |
+| 687 | `test_abandon_keeps_a_journal_without_pr_repository` | 1 | 13 | 所属 PR が分からない旧 journal の session を推測して削除する。 | 表 | 900 | 15,819 |
+| 688 | `test_abandon_touches_only_its_own_attempt` | 1 | 17 | abandon が自分以外の試行・他モデルのレビュー・利用者ファイルに及び、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 901 | 15,836 |
+| 689 | `test_abandon_waits_for_the_repository_review_lock` | 1 | 28 | abandon が保存ロックを待たず、同時の save・cleanup と削除が競合する。 | 表・重さは #236 | 902 | 15,864 |
+| 690 | `test_abandon_clears_records_left_by_an_interrupted_worktree_add` | 1 | 22 | 中断した worktree add の管理レコードの回収が他の worktree に及び、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 903 | 15,886 |
+| 691 | `test_abandon_refuses_records_of_another_worktree` | 1 | 17 | 別 worktree の管理レコードを自分のものとして abandon で削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 904 | 15,903 |
+| 692 | `test_a_repeated_signal_does_not_cut_the_end_record` | 1 | 28 | シグナルの重複で終了記録が欠け、未終了の試行を回収可能と誤判定して worktree を削除する。 | 表 | 905 | 15,931 |
+| 693 | `test_sessions_keep_the_open_pr_when_fork_and_upstream_share_number_branch_and_head` | 1 | 34 | fork と upstream が同番号・同 branch・同 HEAD のとき、開いている PR の session を回収可能と誤判定して削除する。 | 表 | 906 | 15,965 |
+| 694 | `test_sessions_keep_a_version6_session` | 1 | 17 | 旧 state（repository 不明）の session を回収可能とみなし、別 PR の worktree を削除・レビューを上書きする。 | 表 | 907 | 15,982 |
+| 695 | `test_sessions_keep_when_gh_fails` | 2 | 21 | gh の失敗（PR 不明・gh なし）で PR の状態が不明な session を、回収可能と誤判定して worktree を削除する。 | 表 | 909 | 16,003 |
+| 696 | `test_sessions_keep_when_gh_reports_another_number` | 1 | 11 | gh が別番号の PR を返してもその状態で session を削除可能と誤判定する。 | 表 | 910 | 16,014 |
+| 697 | `test_sessions_keep_a_session_without_state` | 2 | 20 | state の無い session を回収可能と誤判定して worktree を削除する。 | 表 | 912 | 16,034 |
+| 698 | `test_sessions_keep_a_locked_worktree` | 1 | 12 | lock された worktree を回収可能と誤判定して削除し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 913 | 16,046 |
+| 699 | `test_cleanup_keeps_v7_session_when_saved_candidates_are_missing` | 1 | 10 | 保存した候補一覧が無い v7 session を回収し、利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 表 | 914 | 16,056 |
+| 700 | `test_save_allows_another_review_destination_to_change`（正しく通る例） | 1 | 585（準備 572 を含む） | 正例: 自分の保存先以外の変化で誤って拒否しない。対の拒否は、保存先の変更・改ざん・先行 session の上書きを見逃す損害を防ぐ。 | 表・重さは #236 | 915 | 16,641 |
 
 `.agents/skills/pr-review/tests/test_review_run.py`（`pr-review-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 701 | `test_complete_rejects_changed_draft_before_writing_anywhere` | 1 | 16 | state の draft を利用者ファイルへ差し替えても complete が書き込み、保護範囲外を変更する。 | 表 | 916 | 17,494 |
-| 702 | `test_prepare_binds_request_and_local_records` | 1 | 18 | request・ローカルの判断記録・PR・HEAD・base の結び付けを誤り、誤った対象をレビュー・保存する。 | 表 | 917 | 17,512 |
-| 703 | `test_prepare_preserves_shared_refs_and_other_worktree_base_refs` | 2 | 46 | base fetch や prepare・complete が共有 ref・他 worktree の base ref を変更し、利用者の Git ref を変える。 | 表 | 919 | 17,558 |
-| 704 | `test_prepare_failure_after_base_fetch_keeps_shared_refs_unchanged` | 1 | 21 | base fetch の後に merge-base が失敗する経路でも共有 ref を変更し、利用者の Git ref を変える。 | 表・重さは #236 | 920 | 17,579 |
-| 705 | `test_prepare_refuses_external_pr_without_explicit_checkout` | 1 | 8 | 明示した checkout なしで外部 PR の checkout を探索・clone し、誤った対象をレビュー・保存する。 | 表 | 921 | 17,587 |
-| 706 | `test_prepare_parallel_sessions_pin_their_own_base` | 1 | 25 | 並行 session が互いの base を上書きし、誤った base でレビュー・保存する。 | 表 | 922 | 17,612 |
-| 707 | `test_prepare_rejects_wrong_request_workdir_and_shape` | 2 | 11 | work_dir や result_shape の誤った request を受理し、誤った対象をレビュー・保存する。 | 表 | 924 | 17,623 |
-| 708 | `test_refused_complete_records_complete_and_a_retry_succeeds` | 1 | 26 | 拒否された complete の失敗記録・再試行の成功が崩れ、誤った対象をレビュー・保存する、または利用者の Git ref・ファイルを変える。 | 表 | 925 | 17,649 |
-| 709 | `test_symlinked_review_directory_refuses_to_start` | 1 | 15 | symlink の reviews ディレクトリ経由で、保護範囲外へ書く。 | 表 | 926 | 17,664 |
-| 710 | `test_attach_runner_skips_files_outside_the_record_layout` | 1 | 25 | symlink 階層・形式違い・別 PR 番号の記録を書き先にし、保護範囲外へ書く。 | 表 | 927 | 17,689 |
-| 711 | `test_helper_write_exceptions_grant_git_data_only_where_the_helper_writes_it` | 4 | 59 | 固定した書込許可範囲を広げ、writes=false の担当が利用者 Git を変更できる。 | 表 | 931 | 17,748 |
-| 712 | `test_complete_returns_actual_compare_and_delete_outcome` | 3 | 25 | 既に無い ref や他 session が付け替えた ref を、deleted など実際と違う結果でもっともらしく誤報告する。 | 表 | 934 | 17,773 |
-| 713 | `test_upstream_runner_uses_validated_upstream_remote` | 1 | 55 | 検証済みの upstream remote でなく origin を使い、誤った対象をレビュー・保存する。 | 表 | 935 | 17,828 |
-| 714 | `test_complete_refuses_skill_changed_after_prepare` | 1 | 17 | prepare の後に SKILL.md が変わっても complete が保存し、変更された指示で作ったレビューを公開する。 | 表 | 936 | 17,845 |
-| 715 | `test_ordinary_depth_one_checkout_reviews_whole_pr_without_shared_history_changes` | 2 | 484（`conftest.py` 23・準備 399 を含む） | 浅い checkout の共有履歴（shallow 境界・ref・FETCH_HEAD）を変更する、または PR の一部の差分だけをレビューする。 | 表 | 938 | 18,329 |
+| 701 | `test_complete_rejects_changed_draft_before_writing_anywhere` | 1 | 16 | state の draft を利用者ファイルへ差し替えても complete が書き込み、保護範囲外を変更する。 | 表 | 916 | 16,657 |
+| 702 | `test_prepare_binds_request_and_local_records` | 1 | 18 | request・ローカルの判断記録・PR・HEAD・base の結び付けを誤り、誤った対象をレビュー・保存する。 | 表 | 917 | 16,675 |
+| 703 | `test_prepare_preserves_shared_refs_and_other_worktree_base_refs` | 2 | 46 | base fetch や prepare・complete が共有 ref・他 worktree の base ref を変更し、利用者の Git ref を変える。 | 表 | 919 | 16,721 |
+| 704 | `test_prepare_failure_after_base_fetch_keeps_shared_refs_unchanged` | 1 | 21 | base fetch の後に merge-base が失敗する経路でも共有 ref を変更し、利用者の Git ref を変える。 | 表・重さは #236 | 920 | 16,742 |
+| 705 | `test_prepare_refuses_external_pr_without_explicit_checkout` | 1 | 8 | 明示した checkout なしで外部 PR の checkout を探索・clone し、誤った対象をレビュー・保存する。 | 表 | 921 | 16,750 |
+| 706 | `test_prepare_parallel_sessions_pin_their_own_base` | 1 | 25 | 並行 session が互いの base を上書きし、誤った base でレビュー・保存する。 | 表 | 922 | 16,775 |
+| 707 | `test_prepare_rejects_wrong_request_workdir_and_shape` | 2 | 11 | work_dir や result_shape の誤った request を受理し、誤った対象をレビュー・保存する。 | 表 | 924 | 16,786 |
+| 708 | `test_refused_complete_records_complete_and_a_retry_succeeds` | 1 | 26 | 拒否された complete の失敗記録・再試行の成功が崩れ、誤った対象をレビュー・保存する、または利用者の Git ref・ファイルを変える。 | 表 | 925 | 16,812 |
+| 709 | `test_symlinked_review_directory_refuses_to_start` | 1 | 15 | symlink の reviews ディレクトリ経由で、保護範囲外へ書く。 | 表 | 926 | 16,827 |
+| 710 | `test_attach_runner_skips_files_outside_the_record_layout` | 1 | 25 | symlink 階層・形式違い・別 PR 番号の記録を書き先にし、保護範囲外へ書く。 | 表 | 927 | 16,852 |
+| 711 | `test_helper_write_exceptions_grant_git_data_only_where_the_helper_writes_it` | 4 | 59 | 固定した書込許可範囲を広げ、writes=false の担当が利用者 Git を変更できる。 | 表 | 931 | 16,911 |
+| 712 | `test_complete_returns_actual_compare_and_delete_outcome` | 3 | 25 | 既に無い ref や他 session が付け替えた ref を、deleted など実際と違う結果でもっともらしく誤報告する。 | 表 | 934 | 16,936 |
+| 713 | `test_upstream_runner_uses_validated_upstream_remote` | 1 | 55 | 検証済みの upstream remote でなく origin を使い、誤った対象をレビュー・保存する。 | 表 | 935 | 16,991 |
+| 714 | `test_complete_refuses_skill_changed_after_prepare` | 1 | 17 | prepare の後に SKILL.md が変わっても complete が保存し、変更された指示で作ったレビューを公開する。 | 表 | 936 | 17,008 |
+| 715 | `test_ordinary_depth_one_checkout_reviews_whole_pr_without_shared_history_changes` | 2 | 484（`tests/conftest.py` 23・準備 399 を含む） | 浅い checkout の共有履歴（shallow 境界・ref・FETCH_HEAD）を変更する、または PR の一部の差分だけをレビューする。 | 表 | 938 | 17,492 |
 
 `.agents/scripts/tests/test_agent_tmp.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 716 | `test_make_session_dir_rejects_invalid_topic` | 3 | 7 | topic で tmp/agents の外（../ や / 入り、隠し dir）に作成してしまう | 表 | 941 | 18,336 |
-| 717 | `test_make_session_dir_refuses_when_tmp_is_not_ignored` | 1 | 6 | git の無視の外に作ると、スクラッチの記録が git に入る（記録が git に入る範囲） | 表・重さは #236 | 942 | 18,342 |
-| 718 | `test_make_session_dir_refuses_symlink_into_unignored_directory` | 1 | 14 | symlink 先が追跡対象（無視されない）ディレクトリでも、そこへ書き込む | 表 | 943 | 18,356 |
-| 719 | `test_make_session_dir_creates_unique_dirs_under_tmp_agents`（正しく通る例） | 1 | 12 | 対の守り: 正しい topic では一意な dir を作れる（拒否側は tmp/agents の外・追跡対象への作成） | 表・重さは #236 | 944 | 18,368 |
-| 720 | `test_cli_mkdir_from_worktree_copy_writes_parent_tmp`（正しく通る例） | 1 | 122（準備 107 を含む） | 対の守り: worktree の写しからでも親の tmp に作れる（拒否側は tmp 外・追跡対象への書き込み） | 表・重さは #236 | 945 | 18,490 |
+| 716 | `test_make_session_dir_rejects_invalid_topic` | 3 | 7 | topic で tmp/agents の外（../ や / 入り、隠し dir）に作成してしまう | 表 | 941 | 17,499 |
+| 717 | `test_make_session_dir_refuses_when_tmp_is_not_ignored` | 1 | 6 | git の無視の外に作ると、スクラッチの記録が git に入る（記録が git に入る範囲） | 表・重さは #236 | 942 | 17,505 |
+| 718 | `test_make_session_dir_refuses_symlink_into_unignored_directory` | 1 | 14 | symlink 先が追跡対象（無視されない）ディレクトリでも、そこへ書き込む | 表 | 943 | 17,519 |
+| 719 | `test_make_session_dir_creates_unique_dirs_under_tmp_agents`（正しく通る例） | 1 | 12 | 対の守り: 正しい topic では一意な dir を作れる（拒否側は tmp/agents の外・追跡対象への作成） | 表・重さは #236 | 944 | 17,531 |
+| 720 | `test_cli_mkdir_from_worktree_copy_writes_parent_tmp`（正しく通る例） | 1 | 122（準備 107 を含む） | 対の守り: worktree の写しからでも親の tmp に作れる（拒否側は tmp 外・追跡対象への書き込み） | 表・重さは #236 | 945 | 17,653 |
 
 `.agents/scripts/tests/test_review_records.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 721 | `test_invalid_records_are_rejected` の `empty-seats`・`no-rerun-seat` | 2 | 5（関数 5 を含む） | 再レビューしていない記録（空の seats、再実行したレビュアー無し）を通し、未検証のマージに進む | 表 | 947 | 18,495 |
-| 722 | `test_collect_records_reads_trusted_round_status_comments_only` | 1 | 32 | 信頼できない投稿者の状況コメントを記録として読み、記録を偽造される（信頼境界） | 表 | 948 | 18,527 |
-| 723 | `test_collect_records_does_not_trust_other_or_empty_logins` | 3 | 16 | 他人・author 無し・空同士の一致で信頼し、偽の記録を読む | 表 | 951 | 18,543 |
-| 724 | `test_collect_records_rejects_markers_that_disagree_with_the_record` | 1 | 10 | マーカーと記録が食い違うコメントを、別の計画者の記録として読む | 表 | 952 | 18,553 |
-| 725 | `test_round_records_pass_validation`（正しく通る例） | 1 | 3 | 対の守り: 記録の検査が正しい 2 つの記録を拒否しない（拒否側は再レビューなしの記録での未検証マージ） | 表・重さは #236 | 953 | 18,556 |
-| 726 | `test_stopped_round_preserves_category_and_pending_decisions`（正しく通る例） | 1 | 495（準備 485 を含む） | 対の守り: 停止サイクルの空の seats と具体的な stop_reason を許す（拒否側は再レビューなしの記録） | 表・重さは #236 | 954 | 19,051 |
+| 721 | `test_invalid_records_are_rejected` の `empty-seats`・`no-rerun-seat` | 2 | 5（関数 5 を含む） | 再レビューしていない記録（空の seats、再実行したレビュアー無し）を通し、未検証のマージに進む | 表 | 947 | 17,658 |
+| 722 | `test_collect_records_reads_trusted_round_status_comments_only` | 1 | 32 | 信頼できない投稿者の状況コメントを記録として読み、記録を偽造される（信頼境界） | 表 | 948 | 17,690 |
+| 723 | `test_collect_records_does_not_trust_other_or_empty_logins` | 3 | 16 | 他人・author 無し・空同士の一致で信頼し、偽の記録を読む | 表 | 951 | 17,706 |
+| 724 | `test_collect_records_rejects_markers_that_disagree_with_the_record` | 1 | 10 | マーカーと記録が食い違うコメントを、別の計画者の記録として読む | 表 | 952 | 17,716 |
+| 725 | `test_round_records_pass_validation`（正しく通る例） | 1 | 3 | 対の守り: 記録の検査が正しい 2 つの記録を拒否しない（拒否側は再レビューなしの記録での未検証マージ） | 表・重さは #236 | 953 | 17,719 |
+| 726 | `test_stopped_round_preserves_category_and_pending_decisions`（正しく通る例） | 1 | 495（準備 485 を含む） | 対の守り: 停止サイクルの空の seats と具体的な stop_reason を許す（拒否側は再レビューなしの記録） | 表・重さは #236 | 954 | 18,214 |
 
 `.agents/scripts/tests/test_review_target.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 727 | `test_validate_repository_rejects_unsafe_names` | 3 | 5 | owner/repo の名前（.. や ../x、多段）で reviews/ の外へ書き込む | 表 | 957 | 19,056 |
-| 728 | `test_resolve_stops_without_checkout_and_does_not_clone` | 1 | 10 | checkout が無いとき勝手に clone し、作業ツリーを変える | 表 | 958 | 19,066 |
-| 729 | `test_require_parent_root_needs_ignored_reviews` | 1 | 10 | reviews/ を無視していない親を許し、レビュー結果が git に入る（記録が git に入る範囲） | 表・重さは #236 | 959 | 19,076 |
-| 730 | `test_require_parent_root_rejects_linked_worktree` | 1 | 9 | linked worktree を親にし、worktree の削除でレビュー結果を失う | 表 | 960 | 19,085 |
-| 731 | `test_fetch_pull_head_preserves_tracking_refs_tags_and_fetch_head` | 2 | 25 | 利用者の ref・tag・FETCH_HEAD を壊す。head が動いたときに拒否しない | 表 | 962 | 19,110 |
-| 732 | `test_resolve_number_uses_parent_origin`（正しく通る例） | 1 | 246（準備 234 を含む） | 対の守り: 番号だけの指定で親の origin を使える（拒否側は勝手な clone・別リポジトリの選択） | 表・重さは #236 | 963 | 19,356 |
+| 727 | `test_validate_repository_rejects_unsafe_names` | 3 | 5 | owner/repo の名前（.. や ../x、多段）で reviews/ の外へ書き込む | 表 | 957 | 18,219 |
+| 728 | `test_resolve_stops_without_checkout_and_does_not_clone` | 1 | 10 | checkout が無いとき勝手に clone し、作業ツリーを変える | 表 | 958 | 18,229 |
+| 729 | `test_require_parent_root_needs_ignored_reviews` | 1 | 10 | reviews/ を無視していない親を許し、レビュー結果が git に入る（記録が git に入る範囲） | 表・重さは #236 | 959 | 18,239 |
+| 730 | `test_require_parent_root_rejects_linked_worktree` | 1 | 9 | linked worktree を親にし、worktree の削除でレビュー結果を失う | 表 | 960 | 18,248 |
+| 731 | `test_fetch_pull_head_preserves_tracking_refs_tags_and_fetch_head` | 2 | 25 | 利用者の ref・tag・FETCH_HEAD を壊す。head が動いたときに拒否しない | 表 | 962 | 18,273 |
+| 732 | `test_resolve_number_uses_parent_origin`（正しく通る例） | 1 | 246（準備 234 を含む） | 対の守り: 番号だけの指定で親の origin を使える（拒否側は勝手な clone・別リポジトリの選択） | 表・重さは #236 | 963 | 18,519 |
 
 `.agents/skills/review-fix-planning/tests/test_finalize.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 733 | `test_no_fix_result_requires_post_merge_confirmation_and_issue_update` | 1 | 13 | マージ方式・--match-head-commit・Issue close の順序を誤り、未確認のままマージ・close する | 表 | 964 | 19,369 |
-| 734 | `test_missing_or_wrong_verification_stops_before_network` | 4 | 16 | 検証の記録が未検証・コマンド 0 件・失敗・base 不明でも最終化し、未検証のままマージする | 表 | 968 | 19,385 |
-| 735 | `test_invalid_pr_state_does_not_post_or_merge` | 2 | 11 | head が動いた PR・draft の PR に投稿・マージする | 表 | 970 | 19,396 |
-| 736 | `test_public_ci_failure_or_absence_stops_without_waiting` | 3 | 10 | 公開 PR の CI が失敗・ERROR・不在でも、未検証のままマージする | 表 | 973 | 19,406 |
-| 737 | `test_create_reso_world_ci_is_not_required_but_resoloop_ci_is` | 1 | 13 | 公開 PR を CI の確認なしでマージする | 表 | 974 | 19,419 |
-| 738 | `test_repository_outside_the_merge_scope_stops_before_network` | 1 | 10 | マージしてよい範囲の外のリポジトリの PR をマージする | 表 | 975 | 19,429 |
-| 739 | `test_comment_rejection_cannot_be_bypassed_with_manual_post` | 1 | 6 | 記録を投稿できないまま（手動投稿で迂回して）マージする | 表 | 976 | 19,435 |
-| 740 | `test_moving_head_after_post_is_not_merged` | 1 | 5 | 投稿後に動いた別の head をマージする | 表 | 977 | 19,440 |
-| 741 | `test_merge_command_success_without_merged_state_is_not_completion` | 1 | 5 | マージのコマンドが成功でも merged 状態が未確認のまま、完了と報告する | 表 | 978 | 19,445 |
-| 742 | `test_posted_record_counts_only_from_a_writer_or_the_authenticated_user` | 3 | 15 | 書き込み権限も認証もない投稿者の記録を、投稿済みの記録として採用する | 表 | 981 | 19,460 |
-| 743 | `test_gh_failure_detail_is_kept_without_tokens_or_stop_reason` | 1 | 16 | gh の失敗の出力のトークンの形の文字列を伏せない、または stop_reason に gh の出力を入れ、判断の記録に漏らす | #236 の判定 | 982 | 19,476 |
-| 744 | `test_unusable_result_path_stops_before_gh` | 1 | 22 | 結果ファイルの symlink で、別セッションの結果を上書きする | 表 | 983 | 19,498 |
-| 745 | `test_foreign_or_malformed_closing_issue_is_never_closed` | 1 | 6 | 別リポジトリや不正な形の Issue を close する | 表 | 984 | 19,504 |
-| 746 | `test_spec_commit_compare_must_be_one_spec_file_on_the_reviewed_head` | 7 | 7 | 検証した head の上の Spec 1 ファイルでない commit を、Spec の commit として未検証のままマージする | 表 | 991 | 19,511 |
-| 747 | `test_spec_commit_compare_failure_after_the_push_waits_and_the_rerun_merges` | 1 | 14 | 比較の失敗でも未検証のままマージする、または待たず停止して、修正不要の PR をマージできない | #236 の判定 | 992 | 19,525 |
-| 748 | `test_spec_commit_requires_the_identical_record_already_posted` | 3 | 15 | 同一の記録が投稿されていないのに、Spec の commit をマージする | 表 | 995 | 19,540 |
-| 749 | `test_invalid_spec_commit_stops_before_network` | 1 | 13 | 他リポジトリの PR に Spec の commit を使ってマージする | 表 | 996 | 19,553 |
-| 750 | `test_spec_commit_merged_with_a_changed_diff_is_not_completed` | 1 | 7 | マージ済みでも diff を確かめず、Spec の commit の変更を完了と報告する | 表 | 997 | 19,560 |
-| 751 | `test_base_moved_after_verification_is_not_merged_until_the_new_base_is_verified` | 2 | 18 | 検証後に進んだ base へ、新しい base を検証せずにマージする | 表 | 999 | 19,578 |
-| 752 | `test_base_moved_after_posting_is_not_merged_and_the_rerun_updates_the_comment` | 1 | 15 | 投稿後に進んだ base へマージする。再実行でコメントを更新しない | 表 | 1,000 | 19,593 |
-| 753 | `test_unreadable_base_tip_stops_without_merging` | 2 | 15 | base の先端を別ブランチの応答で読む、要求失敗のままでも、base を確かめずにマージする | 表 | 1,002 | 19,608 |
-| 754 | `test_retargeted_base_is_compared_with_the_new_base_branch` | 1 | 9 | 付け替え後の base ではなく元の base で照合してマージする | 表 | 1,003 | 19,617 |
-| 755 | `test_merge_commit_parent_must_be_the_verified_base` | 2 | 21 | 検証した base と違う親で作られたマージ（#206）を、検証済みと報告する | 表 | 1,005 | 19,638 |
-| 756 | `test_only_a_record_verified_on_the_merge_commit_completes_the_issue_update` | 1 | 19 | 同じ記録の再実行で、merge commit を検証していないのに Issue を閉じる | 表 | 1,006 | 19,657 |
-| 757 | `test_manual_merge_on_a_moved_base_is_merged_but_not_completed` | 1 | 9 | base が進んだ後の手動マージでも Issue を閉じる | 表 | 1,007 | 19,666 |
-| 758 | `test_unreadable_merge_commit_is_merged_but_not_completed` | 3 | 21 | merge commit を読めない（欠落・要求失敗・不一致）のに Issue を閉じる | 表 | 1,010 | 19,687 |
-| 759 | `test_spec_commit_merges_the_spec_head_after_the_record_was_posted`（正しく通る例） | 1 | 462（準備 449 を含む） | 対の守り: Spec の commit を --match-head-commit にしてマージできる（拒否側は未検証の commit のマージ） | 表 | 1,011 | 20,149 |
+| 733 | `test_no_fix_result_requires_post_merge_confirmation_and_issue_update` | 1 | 13 | マージ方式・--match-head-commit・Issue close の順序を誤り、未確認のままマージ・close する | 表 | 964 | 18,532 |
+| 734 | `test_missing_or_wrong_verification_stops_before_network` | 4 | 16 | 検証の記録が未検証・コマンド 0 件・失敗・base 不明でも最終化し、未検証のままマージする | 表 | 968 | 18,548 |
+| 735 | `test_invalid_pr_state_does_not_post_or_merge` | 2 | 11 | head が動いた PR・draft の PR に投稿・マージする | 表 | 970 | 18,559 |
+| 736 | `test_public_ci_failure_or_absence_stops_without_waiting` | 3 | 10 | 公開 PR の CI が失敗・ERROR・不在でも、未検証のままマージする | 表 | 973 | 18,569 |
+| 737 | `test_create_reso_world_ci_is_not_required_but_resoloop_ci_is` | 1 | 13 | 公開 PR を CI の確認なしでマージする | 表 | 974 | 18,582 |
+| 738 | `test_repository_outside_the_merge_scope_stops_before_network` | 1 | 10 | マージしてよい範囲の外のリポジトリの PR をマージする | 表 | 975 | 18,592 |
+| 739 | `test_comment_rejection_cannot_be_bypassed_with_manual_post` | 1 | 6 | 記録を投稿できないまま（手動投稿で迂回して）マージする | 表 | 976 | 18,598 |
+| 740 | `test_moving_head_after_post_is_not_merged` | 1 | 5 | 投稿後に動いた別の head をマージする | 表 | 977 | 18,603 |
+| 741 | `test_merge_command_success_without_merged_state_is_not_completion` | 1 | 5 | マージのコマンドが成功でも merged 状態が未確認のまま、完了と報告する | 表 | 978 | 18,608 |
+| 742 | `test_posted_record_counts_only_from_a_writer_or_the_authenticated_user` | 3 | 15 | 書き込み権限も認証もない投稿者の記録を、投稿済みの記録として採用する | 表 | 981 | 18,623 |
+| 743 | `test_gh_failure_detail_is_kept_without_tokens_or_stop_reason` | 1 | 16 | gh の失敗の出力のトークンの形の文字列を伏せない、または stop_reason に gh の出力を入れ、判断の記録に漏らす | #236 の判定 | 982 | 18,639 |
+| 744 | `test_unusable_result_path_stops_before_gh` | 1 | 22 | 結果ファイルの symlink で、別セッションの結果を上書きする | 表 | 983 | 18,661 |
+| 745 | `test_foreign_or_malformed_closing_issue_is_never_closed` | 1 | 6 | 別リポジトリや不正な形の Issue を close する | 表 | 984 | 18,667 |
+| 746 | `test_spec_commit_compare_must_be_one_spec_file_on_the_reviewed_head` | 7 | 7 | 検証した head の上の Spec 1 ファイルでない commit を、Spec の commit として未検証のままマージする | 表 | 991 | 18,674 |
+| 747 | `test_spec_commit_compare_failure_after_the_push_waits_and_the_rerun_merges` | 1 | 14 | 比較の失敗でも未検証のままマージする、または待たず停止して、修正不要の PR をマージできない | #236 の判定 | 992 | 18,688 |
+| 748 | `test_spec_commit_requires_the_identical_record_already_posted` | 3 | 15 | 同一の記録が投稿されていないのに、Spec の commit をマージする | 表 | 995 | 18,703 |
+| 749 | `test_invalid_spec_commit_stops_before_network` | 1 | 13 | 他リポジトリの PR に Spec の commit を使ってマージする | 表 | 996 | 18,716 |
+| 750 | `test_spec_commit_merged_with_a_changed_diff_is_not_completed` | 1 | 7 | マージ済みでも diff を確かめず、Spec の commit の変更を完了と報告する | 表 | 997 | 18,723 |
+| 751 | `test_base_moved_after_verification_is_not_merged_until_the_new_base_is_verified` | 2 | 18 | 検証後に進んだ base へ、新しい base を検証せずにマージする | 表 | 999 | 18,741 |
+| 752 | `test_base_moved_after_posting_is_not_merged_and_the_rerun_updates_the_comment` | 1 | 15 | 投稿後に進んだ base へマージする。再実行でコメントを更新しない | 表 | 1,000 | 18,756 |
+| 753 | `test_unreadable_base_tip_stops_without_merging` | 2 | 15 | base の先端を別ブランチの応答で読む、要求失敗のままでも、base を確かめずにマージする | 表 | 1,002 | 18,771 |
+| 754 | `test_retargeted_base_is_compared_with_the_new_base_branch` | 1 | 9 | 付け替え後の base ではなく元の base で照合してマージする | 表 | 1,003 | 18,780 |
+| 755 | `test_merge_commit_parent_must_be_the_verified_base` | 2 | 21 | 検証した base と違う親で作られたマージ（#206）を、検証済みと報告する | 表 | 1,005 | 18,801 |
+| 756 | `test_only_a_record_verified_on_the_merge_commit_completes_the_issue_update` | 1 | 19 | 同じ記録の再実行で、merge commit を検証していないのに Issue を閉じる | 表 | 1,006 | 18,820 |
+| 757 | `test_manual_merge_on_a_moved_base_is_merged_but_not_completed` | 1 | 9 | base が進んだ後の手動マージでも Issue を閉じる | 表 | 1,007 | 18,829 |
+| 758 | `test_unreadable_merge_commit_is_merged_but_not_completed` | 3 | 21 | merge commit を読めない（欠落・要求失敗・不一致）のに Issue を閉じる | 表 | 1,010 | 18,850 |
+| 759 | `test_spec_commit_merges_the_spec_head_after_the_record_was_posted`（正しく通る例） | 1 | 462（準備 449 を含む） | 対の守り: Spec の commit を --match-head-commit にしてマージできる（拒否側は未検証の commit のマージ） | 表 | 1,011 | 19,312 |
 
 `.agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 760 | `test_fix_context_stops_before_later_mutation` | 5 | 21 | 親・base・文書 branch・HEAD の曖昧さや helper の欠落のまま進み、誤った対象を破壊する | 表 | 1,016 | 20,170 |
-| 761 | `test_fix_context_verifies_known_repository_worktree_membership` | 3 | 11 | 既知リポジトリの worktree の所属を確かめず、別の checkout を対象にする | 表 | 1,019 | 20,181 |
-| 762 | `test_status_snippet_revalidates_before_comment_mutation` | 2 | 32 | コメント変更の直前に再検証せず、誤った対象のコメントを変更する | 表 | 1,021 | 20,213 |
-| 763 | `test_fix_context_validates_effective_push_destinations` | 3 | 18 | 誤った push 先（分割・単一の取り違え・fallback）を通す | 表 | 1,024 | 20,231 |
-| 764 | `test_fix_context_uses_real_parent_helper_from_external_cwd`（正しく通る例） | 3 | 131（準備 124 を含む） | 対の守り: 外部 cwd・3 シェルで親の helper を正しく呼べる（拒否側は誤った対象への破壊操作） | 表 | 1,027 | 20,362 |
+| 760 | `test_fix_context_stops_before_later_mutation` | 5 | 21 | 親・base・文書 branch・HEAD の曖昧さや helper の欠落のまま進み、誤った対象を破壊する | 表 | 1,016 | 19,333 |
+| 761 | `test_fix_context_verifies_known_repository_worktree_membership` | 3 | 11 | 既知リポジトリの worktree の所属を確かめず、別の checkout を対象にする | 表 | 1,019 | 19,344 |
+| 762 | `test_status_snippet_revalidates_before_comment_mutation` | 2 | 32 | コメント変更の直前に再検証せず、誤った対象のコメントを変更する | 表 | 1,021 | 19,376 |
+| 763 | `test_fix_context_validates_effective_push_destinations` | 3 | 18 | 誤った push 先（分割・単一の取り違え・fallback）を通す | 表 | 1,024 | 19,394 |
+| 764 | `test_fix_context_uses_real_parent_helper_from_external_cwd`（正しく通る例） | 3 | 131（準備 124 を含む） | 対の守り: 外部 cwd・3 シェルで親の helper を正しく呼べる（拒否側は誤った対象への破壊操作） | 表 | 1,027 | 19,525 |
 
 `.agents/skills/review-fix-planning/tests/test_run_roles.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 765 | `test_external_review_roles_list_their_write_exceptions_with_the_role` | 1 | 23 | 外部担当への書き込み例外の範囲（sandbox の境界）が過大になる | 表 | 1,028 | 20,385 |
-| 766 | `test_only_the_externally_assigned_role_lists_exceptions` | 2 | 9 | self の役割にも書き込み例外を付ける（sandbox の境界） | 表 | 1,030 | 20,394 |
-| 767 | `test_self_review_never_grants_a_shallow_checkout_git_under_ambient_git_routing` | 1 | 29 | 環境の GIT_DIR で浅い checkout を完全と誤判定し、writes=false の担当に利用者の Git の書き込みを許可する | #236 の判定 | 1,031 | 20,423 |
-| 768 | `test_existing_lock_does_not_start_or_erase_another_call` | 1 | 7 | 他の呼び出しのロックを消す、または競合して起動する（競合の防止） | 表 | 1,032 | 20,430 |
-| 769 | `test_invalid_writable_review_role_never_consumes_budget` | 1 | 278（準備 272 を含む） | 書き込み可（writes=true）のレビューの役割を拒否せず、書き込めるレビュアーが起動し得る | 表 | 1,033 | 20,708 |
+| 765 | `test_external_review_roles_list_their_write_exceptions_with_the_role` | 1 | 23 | 外部担当への書き込み例外の範囲（sandbox の境界）が過大になる | 表 | 1,028 | 19,548 |
+| 766 | `test_only_the_externally_assigned_role_lists_exceptions` | 2 | 9 | self の役割にも書き込み例外を付ける（sandbox の境界） | 表 | 1,030 | 19,557 |
+| 767 | `test_self_review_never_grants_a_shallow_checkout_git_under_ambient_git_routing` | 1 | 29 | 環境の GIT_DIR で浅い checkout を完全と誤判定し、writes=false の担当に利用者の Git の書き込みを許可する | #236 の判定 | 1,031 | 19,586 |
+| 768 | `test_existing_lock_does_not_start_or_erase_another_call` | 1 | 7 | 他の呼び出しのロックを消す、または競合して起動する（競合の防止） | 表 | 1,032 | 19,593 |
+| 769 | `test_invalid_writable_review_role_never_consumes_budget` | 1 | 278（準備 272 を含む） | 書き込み可（writes=true）のレビューの役割を拒否せず、書き込めるレビュアーが起動し得る | 表 | 1,033 | 19,871 |
 
 `.agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 770 | `test_only_trusted_authors_are_matched` | 6 | 18 | 信頼しない投稿者のコメントを書き換える | 表 | 1,039 | 20,726 |
-| 771 | `test_upsert_stops_when_gh_resolves_a_different_repository` | 1 | 14 | gh が別リポジトリの PR を解決しても、そこへコメントを書き込む | 表 | 1,040 | 20,740 |
-| 772 | `test_record_less_upsert_updates_own_login_comment_and_ignores_untrusted` | 1 | 22 | 信頼しない同マーカーのコメントを更新する。自分の login のコメントを更新できない（正しく通る例を含む） | 表 | 1,041 | 20,762 |
-| 773 | `test_authenticated_login_strips_newline_and_rejects_blank` | 1 | 9 | 信頼する投稿者を gh の認証先で決めず、PR の作者などで別の利用者を信頼する | 表・重さは #236 | 1,042 | 20,771 |
-| 774 | `test_records_post_creates_a_new_comment_for_the_next_round` | 1 | 18 | 次のサイクルで前のサイクルの記録を上書きし、記録を失う | 表 | 1,043 | 20,789 |
-| 775 | `test_records_post_updates_own_contributor_round_comment_and_ignores_forged_ones` | 1 | 15 | 偽造されたサイクルのコメントを、更新・照合に使う | 表 | 1,044 | 20,804 |
-| 776 | `test_records_post_does_not_read_rounds_of_other_contributors` | 1 | 10 | 他人が書いたサイクルの記録を、履歴に使う | 表 | 1,045 | 20,814 |
-| 777 | `test_records_post_stops_when_another_agent_recorded_the_round` | 1 | 5 | 他担当が記録したサイクルの記録を上書きする | 表 | 1,046 | 20,819 |
-| 778 | `test_records_post_creates_a_round_comment`（正しく通る例） | 1 | 322（準備 309 を含む） | 対の守り: 記録付き投稿の正しい形で投稿できる（拒否側は他担当の記録の上書き・別 PR・古い HEAD） | 表・重さは #236 | 1,047 | 21,141 |
+| 770 | `test_only_trusted_authors_are_matched` | 6 | 18 | 信頼しない投稿者のコメントを書き換える | 表 | 1,039 | 19,889 |
+| 771 | `test_upsert_stops_when_gh_resolves_a_different_repository` | 1 | 14 | gh が別リポジトリの PR を解決しても、そこへコメントを書き込む | 表 | 1,040 | 19,903 |
+| 772 | `test_record_less_upsert_updates_own_login_comment_and_ignores_untrusted` | 1 | 22 | 信頼しない同マーカーのコメントを更新する。自分の login のコメントを更新できない（正しく通る例を含む） | 表 | 1,041 | 19,925 |
+| 773 | `test_authenticated_login_strips_newline_and_rejects_blank` | 1 | 9 | 信頼する投稿者を gh の認証先で決めず、PR の作者などで別の利用者を信頼する | 表・重さは #236 | 1,042 | 19,934 |
+| 774 | `test_records_post_creates_a_new_comment_for_the_next_round` | 1 | 18 | 次のサイクルで前のサイクルの記録を上書きし、記録を失う | 表 | 1,043 | 19,952 |
+| 775 | `test_records_post_updates_own_contributor_round_comment_and_ignores_forged_ones` | 1 | 15 | 偽造されたサイクルのコメントを、更新・照合に使う | 表 | 1,044 | 19,967 |
+| 776 | `test_records_post_does_not_read_rounds_of_other_contributors` | 1 | 10 | 他人が書いたサイクルの記録を、履歴に使う | 表 | 1,045 | 19,977 |
+| 777 | `test_records_post_stops_when_another_agent_recorded_the_round` | 1 | 5 | 他担当が記録したサイクルの記録を上書きする | 表 | 1,046 | 19,982 |
+| 778 | `test_records_post_creates_a_round_comment`（正しく通る例） | 1 | 322（準備 309 を含む） | 対の守り: 記録付き投稿の正しい形で投稿できる（拒否側は他担当の記録の上書き・別 PR・古い HEAD） | 表・重さは #236 | 1,047 | 20,304 |
 
 `.agents/skills/review-verify/tests/test_dispatch.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
-| 779 | `test_external_fix_check_request_lists_its_write_exceptions` | 1 | 17 | 外部担当に与える書込み許可の範囲（サンドボックスの境界）が過大になる | 表 | 1,048 | 21,158 |
-| 780 | `test_accept_rejects_a_different_pr_without_changing_outputs` | 2 | 23 | 別 PR の結果で保存先を上書きする（記録の上書き） | 表 | 1,050 | 21,181 |
-| 781 | `test_accept_uses_the_frozen_pr_after_the_original_verified_file_changes` | 2 | 20 | 可変な元ファイルの書き換えで、対象 PR を差し替えられる | 表 | 1,052 | 21,201 |
-| 782 | `test_accept_rejects_a_payload_that_differs_from_the_tool_output` | 6 | 25 | ツール出力と異なる payload（key・terms・candidates・fix_ids・形・判定）を受理する | 表 | 1,058 | 21,226 |
-| 783 | `test_accept_rejects_outside_changes_and_dispatch_exits_1_for_them` | 1 | 11 | 呼び出し元 repository への外部書込みを受理する | 表 | 1,059 | 21,237 |
-| 784 | `test_accept_rejects_an_unconfirmed_stop` | 1 | 7 | 停止が確認できない実行の結果を受理する | 表 | 1,060 | 21,244 |
-| 785 | `test_accept_rejects_a_failed_run` | 1 | 4 | 失敗した実行の結果を受理する | 表 | 1,061 | 21,248 |
-| 786 | `test_review_directory_changes_are_rejected_before_publishing` | 5 | 53 | 保存先の改ざん（gitignore 内の作成・外の上書き・削除・chmod・symlink）を、公開前に拒否しない | 表 | 1,066 | 21,301 |
-| 787 | `test_symlink_verified_directory_is_rejected_without_writing_referent` | 1 | 10 | verified が symlink のとき、その参照先へ書き込む | 表 | 1,067 | 21,311 |
-| 788 | `test_accept_rejects_a_late_verified_directory_symlink` | 1 | 7 | 起動後に verified が symlink になっても、参照先へ書き込む | 表 | 1,068 | 21,318 |
-| 789 | `test_unusable_review_directory_is_rejected_before_launch_or_any_state_change` | 2 | 31 | 保存できない保存先で 1800 秒の担当を起動し、状態を変える（#177） | 表 | 1,070 | 21,349 |
-| 790 | `test_unavailable_review_audit_never_means_unchanged` | 1 | 26 | 監査不能を無変更と扱い、内容を stderr に出す | 表 | 1,071 | 21,375 |
-| 791 | `test_initial_ancestor_symlink_rejects_without_launch_or_any_state_change` | 1 | 16 | 祖先が symlink のまま担当を起動し、状態を変える | 表 | 1,072 | 21,391 |
-| 792 | `test_ancestor_replaced_after_dispatch_is_not_unchanged_or_accepted` | 1 | 11 | 起動後に祖先を差し替えても、無変更と扱い受理する | 表 | 1,073 | 21,402 |
-| 793 | `test_accept_rechecks_destination_after_validation_before_creating_any_output` | 3 | 37 | 検証中の保存先の差し替え・既存結果の上書きを防がない（記録の上書き） | 表 | 1,076 | 21,439 |
-| 794 | `test_accept_saves_the_tool_output_unchanged_with_the_observed_verifier`（正しく通る例） | 1 | 24 | 受理の正例: ツール出力を無改変で保存し、観測した verifier を記録する（対の拒否は別 PR・外部書込み等） | 表 | 1,077 | 21,463 |
-| 795 | `test_accept_allows_candidates_and_terms_the_verifier_appended`（正しく通る例） | 1 | 16 | 対の守り: verifier が追記した候補・語は許す（拒否側はツール出力と異なる payload の受理） | 表・重さは #236 | 1,078 | 21,479 |
-| 796 | `test_unchanged_existing_results_and_temporary_probe_outputs_are_allowed`（正しく通る例） | 1 | 516（準備 503 を含む） | 対の守り: 変更なしの既存の結果と一時の probe 出力は許す（拒否側は保存先の改ざん） | 表・重さは #236 | 1,079 | 21,995 |
+| 779 | `test_external_fix_check_request_lists_its_write_exceptions` | 1 | 17 | 外部担当に与える書込み許可の範囲（サンドボックスの境界）が過大になる | 表 | 1,048 | 20,321 |
+| 780 | `test_accept_rejects_a_different_pr_without_changing_outputs` | 2 | 23 | 別 PR の結果で保存先を上書きする（記録の上書き） | 表 | 1,050 | 20,344 |
+| 781 | `test_accept_uses_the_frozen_pr_after_the_original_verified_file_changes` | 2 | 20 | 可変な元ファイルの書き換えで、対象 PR を差し替えられる | 表 | 1,052 | 20,364 |
+| 782 | `test_accept_rejects_a_payload_that_differs_from_the_tool_output` | 6 | 25 | ツール出力と異なる payload（key・terms・candidates・fix_ids・形・判定）を受理する | 表 | 1,058 | 20,389 |
+| 783 | `test_accept_rejects_outside_changes_and_dispatch_exits_1_for_them` | 1 | 11 | 呼び出し元 repository への外部書込みを受理する | 表 | 1,059 | 20,400 |
+| 784 | `test_accept_rejects_an_unconfirmed_stop` | 1 | 7 | 停止が確認できない実行の結果を受理する | 表 | 1,060 | 20,407 |
+| 785 | `test_accept_rejects_a_failed_run` | 1 | 4 | 失敗した実行の結果を受理する | 表 | 1,061 | 20,411 |
+| 786 | `test_review_directory_changes_are_rejected_before_publishing` | 5 | 53 | 保存先の改ざん（gitignore 内の作成・外の上書き・削除・chmod・symlink）を、公開前に拒否しない | 表 | 1,066 | 20,464 |
+| 787 | `test_symlink_verified_directory_is_rejected_without_writing_referent` | 1 | 10 | verified が symlink のとき、その参照先へ書き込む | 表 | 1,067 | 20,474 |
+| 788 | `test_accept_rejects_a_late_verified_directory_symlink` | 1 | 7 | 起動後に verified が symlink になっても、参照先へ書き込む | 表 | 1,068 | 20,481 |
+| 789 | `test_unusable_review_directory_is_rejected_before_launch_or_any_state_change` | 2 | 31 | 保存できない保存先で 1800 秒の担当を起動し、状態を変える（#177） | 表 | 1,070 | 20,512 |
+| 790 | `test_unavailable_review_audit_never_means_unchanged` | 1 | 26 | 監査不能を無変更と扱い、内容を stderr に出す | 表 | 1,071 | 20,538 |
+| 791 | `test_initial_ancestor_symlink_rejects_without_launch_or_any_state_change` | 1 | 16 | 祖先が symlink のまま担当を起動し、状態を変える | 表 | 1,072 | 20,554 |
+| 792 | `test_ancestor_replaced_after_dispatch_is_not_unchanged_or_accepted` | 1 | 11 | 起動後に祖先を差し替えても、無変更と扱い受理する | 表 | 1,073 | 20,565 |
+| 793 | `test_accept_rechecks_destination_after_validation_before_creating_any_output` | 3 | 37 | 検証中の保存先の差し替え・既存結果の上書きを防がない（記録の上書き） | 表 | 1,076 | 20,602 |
+| 794 | `test_accept_saves_the_tool_output_unchanged_with_the_observed_verifier`（正しく通る例） | 1 | 24 | 受理の正例: ツール出力を無改変で保存し、観測した verifier を記録する（対の拒否は別 PR・外部書込み等） | 表 | 1,077 | 20,626 |
+| 795 | `test_accept_allows_candidates_and_terms_the_verifier_appended`（正しく通る例） | 1 | 16 | 対の守り: verifier が追記した候補・語は許す（拒否側はツール出力と異なる payload の受理） | 表・重さは #236 | 1,078 | 20,642 |
+| 796 | `test_unchanged_existing_results_and_temporary_probe_outputs_are_allowed`（正しく通る例） | 1 | 1,353（準備 837・準備 503 を含む） | 対の守り: 変更なしの既存の結果と一時の probe 出力は許す（拒否側は保存先の改ざん） | 表・重さは #236 | 1,079 | 21,995 |
 
 `.agents/skills/review-verify/tests/test_evaluation.py`（`review-helper-tests`）
 
 | 順 | テスト | 件数 | 行数 | 防ぐ損害 | 根拠 | 累計の件数 | 累計の行数 |
 | ---: | --- | ---: | ---: | --- | --- | ---: | ---: |
 | 797 | `test_documented_fixture_isolates_subprocesses_from_host_git_state` の `git-dir`・`home-hooks`・`xdg-signing` ほか 2 件 | 5 | 0 | ホストの Git の index 書き換え・フック・署名・シェル起動ファイルが評価の子に混入する | 表 | 1,084 | 21,995 |
-| 798 | `test_documented_fixture_isolates_subprocesses_from_host_git_state` の `clean`（正しく通る例） | 1 | 149（関数 98・`conftest.py` 33・準備 18 を含む） | 対の守り: 隔離を外さない通常経路が動く（拒否側はホストの Git・フック・署名・シェル起動ファイルの混入） | 表・重さは #236 | 1,085 | 22,144 |
+| 798 | `test_documented_fixture_isolates_subprocesses_from_host_git_state` の `clean`（正しく通る例） | 1 | 149（関数 98・`tests/conftest.py` 33・準備 18 を含む） | 対の守り: 隔離を外さない通常経路が動く（拒否側はホストの Git・フック・署名・シェル起動ファイルの混入） | 表・重さは #236 | 1,085 | 22,144 |
 
 `.agents/skills/agent-handoff/tests/test_agent_handoff_skill_contract.py`（`skill-tests`）
 
@@ -1819,7 +1821,7 @@
 | 819 | `test_cleanup_retains_dirty_worktree` | 1 | 11 | 未 commit・未追跡の作業物を cleanup が消してデータを失う | 表 | 1,110 | 22,486 |
 | 820 | `test_cleanup_retains_unstopped_or_sensitive_attempt` | 2 | 18 | 停止未確認や秘匿情報のある担当領域を消し、実行中の作業・調査用データを失う | 表 | 1,112 | 22,504 |
 | 821 | `test_accept_fast_forwards_agent_commit`（正しく通る例） | 1 | 13 | 監査した SHA だけを ff 取り込みする正常例。拒否テスト群が『何でも拒否』の実装で通るのを防ぐ | 表 | 1,113 | 22,517 |
-| 822 | `test_cleanup_removes_worktree_and_run_dir`（正しく通る例） | 1 | 329（準備 258・`__init__.py` 11・`plugin.py` 31・`texts.py` 16 を含む） | cleanup 保持テスト群の正例。無いと『何も消さない』実装で通り、正常な領域の撤去が壊れても気付けない | 表 | 1,114 | 22,846 |
+| 822 | `test_cleanup_removes_worktree_and_run_dir`（正しく通る例） | 1 | 329（準備 258・`test_support/__init__.py` 11・`test_support/plugin.py` 31・`test_support/texts.py` 16 を含む） | cleanup 保持テスト群の正例。無いと『何も消さない』実装で通り、正常な領域の撤去が壊れても気付けない | 表 | 1,114 | 22,846 |
 
 `.agents/skills/issue-to-pr/tests/test_resolve_issue.py`（`skill-tests`）
 
@@ -1857,7 +1859,7 @@
 | 842 | `test_stop_refuses_unrelated_and_caller_pids` | 1 | 30 | stale・再利用・caller の PID に signal を送り、無関係のプロセスを破壊する | 表 | 1,140 | 23,311 |
 | 843 | `test_relative_state_dir_round_trip` | 1 | 18 | 相対 state path を別の cwd 基準で解決し、別 watch の状態を読んだり対象を止めたりする | 表 | 1,141 | 23,329 |
 | 844 | `test_existing_state_is_not_overwritten` | 1 | 9 | 誤った引数が既存の state directory を上書きし、監視記録を失う | 表 | 1,142 | 23,338 |
-| 845 | `test_operator_stop_confirms_and_reports_operator`（正しく通る例） | 1 | 222（`fake_worker.py` 91・準備 113 を含む） | PID 検証の拒否テストの正例。operator 停止で watcher の退出を確かめて確認済みと記録し、虚偽の停止確認を防ぐ | 表 | 1,143 | 23,560 |
+| 845 | `test_operator_stop_confirms_and_reports_operator`（正しく通る例） | 1 | 222（`tests/fake_worker.py` 91・準備 113 を含む） | PID 検証の拒否テストの正例。operator 停止で watcher の退出を確かめて確認済みと記録し、虚偽の停止確認を防ぐ | 表 | 1,143 | 23,560 |
 
 `.agents/skills/repo-cleanup-after-merge/tests/test_detached_update.py`（`skill-tests`）
 
@@ -2099,11 +2101,11 @@
 | 964 | `ReviewCopyTests::test_existing_destination_kinds_are_never_replaced` | 1 | 16 | symlink・ディレクトリ・FIFO・注記付きの既存の entry を差し替える | 表 | 1,275 | 28,270 |
 | 965 | `ReviewCopyTests::test_empty_required_roots_are_rejected_before_context_fallback` | 1 | 17 | 空の root が cwd の fallback で解決され、別の対象へ公開される | 表 | 1,276 | 28,287 |
 | 966 | `ReviewCopyTests::test_destination_must_be_ignored_and_inside_the_parent_checkout` | 1 | 16 | ignore されていない場所や、symlink で親の checkout の外へ公開する | 表 | 1,277 | 28,303 |
-| 967 | `ReviewCopyTests::test_creates_exact_committed_bytes_and_reports_metadata`（正しく通る例） | 2 | 196（`test-superpowers-python.bash` 6・準備 186 を含む） | 正例（拒否の対）: コミット済みの版と同じ内容のコピーを作る。何でも拒否する実装を通さない。対は非置換・symlink 先への書き込みの防止 | 表・重さは #236 | 1,279 | 28,499 |
+| 967 | `ReviewCopyTests::test_creates_exact_committed_bytes_and_reports_metadata`（正しく通る例） | 2 | 196（`scripts/test-superpowers-python.bash` 6・準備 186 を含む） | 正例（拒否の対）: コミット済みの版と同じ内容のコピーを作る。何でも拒否する実装を通さない。対は非置換・symlink 先への書き込みの防止 | 表・重さは #236 | 1,279 | 28,499 |
 
 ## 持ち越し候補（この子の範囲外）
 
-子の申し送り（#230・#232・#234・#235 の完了のコメントと Spec）のうち、この子で行わないもの。行番号は申し送りの時点のもので、その後の変更（#243 など）で位置が変わっているものがある。#236 では、印を付けたもの（確かめた）のほかは確かめていない。
+子の申し送り（#230・#232・#235 の完了のコメント、#228 のコメントにある #234 の完了の報告 https://github.com/usaturn/create-reso-world/issues/228#issuecomment-6347755362 、各 Spec）のうち、この子で行わないもの。行番号は申し送りの時点のもので、その後の変更（#243 など）で位置が変わっているものがある。#236 では、印を付けたもの（確かめた）のほかは確かめていない。
 
 ### テストを足す・戻す候補（D-236-16）
 
@@ -2113,6 +2115,7 @@
 | #230 | `hooks.py:49` の `secrets=()`（後処理のログを伏せ字にしない）、`runner.py:126` の `follow_symlinks=True`、`cli.py:144` の cancel（CLI から後処理への受け渡し）を、基準のテストも検出しない |
 | #230 | `process.py:77`（anchored の条件）・`process.py:94`（子孫の探索）・`process.py:284`（終了時の stdin の close）に、基準にも決定的なテストが無い |
 | #230 | 代表が別のファイルにある D の 63 行は、位置引数・戻り値の受け渡しの差し替えなどの形の変異を試していない（未確認） |
+| #230 | 上の `runner.py`・`hooks.py`・`process.py` の 3 行は例である。基準のテストも検出しない変異は、初回の監査の `survived` が 457 個、値の変異が 137 個、受け渡しの引数の変異が 16 個ある。記録は `PARENT_ROOT/tmp/agents/issue-230.fuotebjq/audit/` の `res/main-v1.jsonl`・`c1/res/phaseB.jsonl`・`c1/res/kwargB.jsonl`（コミットしない記録で、片付けると失われる） |
 | #232 | `review_findings.py` の守りの唯一の例を消したままの 5 件（PR #246 のサイクル 3 の Low。利用者の指示で直さずにマージした）: `test_v2_timing_distinguishes_unknown_zero_and_waiting_overrun`、`test_provenance_stats_separates_skill_revisions`、`test_provenance_stats_keeps_stage_separate_from_generic_runner_role`、`test_statement_candidates_joins_excerpts_of_distant_terms_in_one_long_line`、`test_statement_candidates_ignores_documents_under_excluded_directories` |
 | #232 | 変異の走査は単一行の `if`/`elif` と `review_findings.py` の証拠の検査の複合条件だけで、ほかの複合条件と、`if` でない文・式は網羅していない |
 | #232 | `agent_tmp.py:39`（申し送りの時点）: cwd が main checkout の `.git` のときだけ、別の検査が拒否しない（基準のテストも検出しない） |
@@ -2124,17 +2127,26 @@
 | 出どころ | 内容 |
 | --- | --- |
 | #230 の D-230-11 | 行数のための準備のコードの共通化（git の repository の写し、Devin の export のよく似たテスト）。残す S のテストの準備を変える |
-| この子の一覧 | 「ファイルの準備」と補助のファイル（`conftest.py` など）が、残った行の多くを占める（「残ったテストの一覧」の段ごとの累計） |
+| この子の一覧 | ファイルの準備・補助のファイル・ケースの群に分けた関数の行が 12,734 行（計測の行数の 44.7%）、「高」の段では 11,191 行（58.0%）を占める（「残ったテストの一覧」の「段ごとの累計」の下の注記）。テストの関数を消すだけでは、この分は「高」まで消さないと減らない |
 
 ### 使われていないもの・古い記述（ほかの子の領域）
 
 | 出どころ | 内容 |
 | --- | --- |
-| #236（確かめた） | `tools/agent_runner/tests/adapters/dsh/ptc_tool_results.json`（14 行）: #243 が DSH のテストを消した後に残った、使われていない fixture（`git grep ptc_tool_results` は `docs/` だけ）。一覧の 1 行目（D-236-13） |
-| #235（確かめた） | `.gitleaks.toml` の 5 行目のコメントと 2 つ目の allowlist の description、`.devcontainer/install_gitleaks.bash:4`、`tests/scripts/test_meshy.py:20` のコメントが、消した `tests/scripts/test-ci.bash` を参照している（説明の文だけ） |
+| #236（確かめた。`PARENT_ROOT/tmp/agents/issue-236.15yls_nc/verify/unused-support.txt`） | `tools/agent_runner/tests/adapters/dsh/ptc_tool_results.json`（14 行）: #243 が DSH のテストを消した後に残った、使われていない fixture（`git grep ptc_tool_results` は `docs/` だけ）。一覧の 1 行目（D-236-13） |
+| #235（確かめた。`PARENT_ROOT/tmp/agents/issue-236.15yls_nc/verify/test-ci-refs.txt`） | `.gitleaks.toml` の 5 行目のコメントと 2 つ目の allowlist の description、`.devcontainer/install_gitleaks.bash:4`、`tests/scripts/test_meshy.py:20` のコメントが、消した `tests/scripts/test-ci.bash` を参照している（説明の文だけ） |
 | #230 | `tools/agent_runner/tests/conftest.py` の `supervisor_bootstrap` の引数 `startup` は、消したテストだけが使っていた（D-230-10） |
 | #230 | `test_checkout_policy.py` の ruff の F811（`test_runner.py` から import した fixture の `repository` を引数の名前で使う形）は基準からある |
 | #230 | #230 の Spec の棚卸しの表の 4 行（811・910・911・912 行）の行番号は実在しない行を指す（`skills.py:79-81`、`adapters/__init__.py:58-66`・`83-93` が正しい） |
+| #230 | #230 の Spec の棚卸しの表の理由は 90 字で切ってある（全文は `PARENT_ROOT/tmp/agents/issue-230.fuotebjq/audit/final-inventory.json`。コミットしない）。この子の一覧の `agent-runner-tests` の「防ぐ損害」は全文から写した |
+| #236 の分類の担当の観察（確かめていない） | 縮約で消したケース用の分岐が `.agents/skills/pr-review-fix-loop/tests/test_loop_review.py` などに残っている。`test_create_records_its_phases_in_the_journal` は、#231 の表の注記（固定の phase 名・順序の写しは F、残すなら絞る）どおりには絞られていない |
+
+### これから削るときの進め方（子の申し送り）
+
+| 出どころ | 内容 |
+| --- | --- |
+| #235 | D・L・F と判定する前に、守る条件の部分を 1 つ外した変異と、F とした確認の 1 つずつの見直し（F∩S かどうか）で確かめると、S の最後の代表を消す手戻りを避けられる（#232・#235 では、その指摘がサイクルごとに続いた） |
+| #230 | 変異の監査の道具（PID 名前空間での実行、子の Python も含めたテストごとの coverage、テスト 1 件 30 秒の上限）は `PARENT_ROOT/tmp/agents/issue-230.fuotebjq/audit/bin/` にある（コミットしない） |
 
 ## 検証
 

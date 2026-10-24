@@ -79,7 +79,7 @@
 
 **Interfaces:**
 - Consumes: 索引 `…/data/index-<Spec・Plan の commit>.json`（テストのファイルは `bdbe02b` と同じ）、依頼のファイル `…/data/tasks/<area>.json`（関数の一覧とケースの ID・bash のテスト・読む Spec・棚卸しの後の commit）、検査 `…/bin/validate_classify.py`
-- Produces: Spec の「分類（Task 3）」の形の JSON。Task 3 が読む
+- Produces: Spec の「分類（Task 2）」の形の JSON。Task 3 が読む
 
 テストの要否: 書かない（リポジトリを変えない）。代わりの検証は Step 2・3。
 
@@ -138,7 +138,7 @@
 
 ## 実行方式
 
-`superpowers:subagent-driven-development`。Task 2 は 6 つの独立した読むだけの作業（子の Spec は合わせて約 930KB、関数は 891）で、文脈を依頼のファイルで渡しきれる（issue-to-pr の表: `self` が true で、Task が独立し、同期の委譲を使える）。
+`superpowers:subagent-driven-development`。Task 2 は 6 つの独立した読むだけの作業（子の Spec は合わせて約 930KB、関数は着手時に 891、載せ直しの後は 892）で、文脈を依頼のファイルで渡しきれる（issue-to-pr の表: `self` が true で、Task が独立し、同期の委譲を使える）。
 
 - Task 1 は実装の担当（sonnet）に依頼し、Task のレビュー（sonnet）を行う
 - Task 2 の 6 つは、互いに別のファイル（リポジトリの外）だけを書き、commit も git の書き込みもしないので、並行で依頼する（SDD の「並行で依頼しない」は同じファイルの競合を避けるためで、ここには当たらない。ledger に Ruling として書く）。担当は sonnet、レビューは領域ごとに sonnet
