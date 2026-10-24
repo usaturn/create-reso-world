@@ -1,9 +1,10 @@
 #!/bin/bash
 # ProtoFlux 用の Flux-SDK（NuGet の Papaltine.FluxSDK、コマンド flux-sdk）を、ResoLoop が検証している版で導入する。
-# postCreate が呼び、失敗しても postCreate は警告して続ける。再導入や、別の版から戻すときも実行する。
+# postCreate が呼び、失敗しても postCreate は警告して続ける。未導入のときに入れる・別の版から戻すときも実行する。
 # 仕様: docs/superpowers/specs/2026-10-24-create-reso-world-issue251-252-flux-sdk-postcreate-design.md D-2〜D-5
 # ResoLoop と違い版を固定する。ResoLoop が検証しているのは 1.9 系で、NuGet の最新（1.10 系）は resoloop doctor が
-# 警告する。ResoLoop が案内する版を変えたら FLUX_SDK_VERSION を合わせる。update は未導入なら導入し、
+# 警告する。ResoLoop が検証する系列を変えたら（doctor の flux-sdk が outside tested series の warning になる）、
+# ResoLoop が案内する版に FLUX_SDK_VERSION を合わせる。update は未導入なら導入し、
 # --allow-downgrade で別の版からも戻す。NuGet に届かなくても、同じ版が導入済みなら警告してその版のまま続ける。
 set -euo pipefail
 

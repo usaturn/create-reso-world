@@ -266,7 +266,8 @@ CLI が動作しない場合は `postCreateCommand` を失敗とし、成功扱�
 postCreate は、ProtoFlux のグラフを作る・配備するための flux-sdk（NuGet の `Papaltine.FluxSDK`、コマンドは `flux-sdk`）を
 `.devcontainer/install_flux_sdk.bash` で導入する。`flux-sdk` は `~/.dotnet/tools` に入り、`remoteEnv` の PATH で使える。
 NuGet に届かないなどで導入できなくても、postCreate は `[install_beforehand] WARN: Installing the ProtoFlux SDK (flux-sdk) failed; continuing. ...` を出して続ける。
-同じ版が導入済みなら、更新できなかったことを警告して、その版のまま使う。入れ直すとき・別の版から戻すときも同じスクリプトを実行する。
+同じ版が導入済みなら、更新できなかったことを警告して、その版のまま使う。未導入のときに入れる・別の版から戻すときも同じスクリプトを実行する。
+同じ版が導入済みなら何もしないので、導入済みの flux-sdk が動かないときは、`dotnet tool uninstall --global Papaltine.FluxSDK` で外してから実行する。
 
 ```bash
 bash .devcontainer/install_flux_sdk.bash
@@ -274,11 +275,11 @@ resoloop flux status
 resoloop doctor --json
 ```
 
-- 版は ResoLoop と違って固定し、スクリプトの `FLUX_SDK_VERSION` に書く（2026-10-24 時点は 1.9.0）。ResoLoop が検証しているのは 1.9 系で、NuGet の最新（1.10 系）は外れる。ResoLoop が案内する版（`resoloop doctor` の `flux-sdk` の suggestion）が変わったら、`FLUX_SDK_VERSION` を合わせる
+- 版は ResoLoop と違って固定し、スクリプトの `FLUX_SDK_VERSION` に書く（2026-10-24 時点は 1.9.0）。ResoLoop が検証しているのは 1.9 系で、NuGet の最新（1.10 系）は外れる。ResoLoop が検証する系列を変えると、`resoloop doctor` の `flux-sdk` が `Flux-SDK <導入した版> is outside tested series <系列>.x.` の warning になる。そのときは、ResoLoop が案内する版（flux-sdk が無いときの `resoloop doctor` と `FLUX_SDK_NOT_FOUND` の suggestion に出る版）に `FLUX_SDK_VERSION` を合わせる
 - 手で入れるときは `dotnet tool update --global Papaltine.FluxSDK --version <版> --allow-downgrade` を使う（`update` は未導入なら導入し、`--allow-downgrade` で新しい版からも戻す）。パッケージ ID を省いた `dotnet tool update --global` は、終了コード 1 で止まる
 - `resoloop doctor` の `flux-sdk` の確認が見るのは、`flux-sdk` を起動して版を読めるかと、その版が ResoLoop の検証した系列（1.9 系）に入っているかだけで、Resonite 本体の版との組み合わせは見ない。Resonite の版との既知の非互換は、配備（`resoloop flux deploy-manifest`）のときに `FLUX_RUNTIME_NODE_INCOMPATIBLE` で分かる
 - グラフを作る・配備するには、Resonite 本体の managed data をコンテナから読めることも要る。Resonite は Windows ホスト側にあり、既定のコンテナには mount しない。読める場所を用意し、環境変数 `RESONITE_MANAGED_DATA_PATH` で指す。flux-sdk の実行ファイルが PATH の `flux-sdk` と違う名前・場所にあるときは `RESOLOOP_FLUX_EXECUTABLE` で指す
-- 導入できた確認は、`resoloop flux status` が成功すること（managed data が無くても成功する）。ProtoFlux の作業の準備ができた確認は、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が warning でないこと
+- 導入できた確認は、`resoloop flux status --json` の `available` が true で、`version` が `FLUX_SDK_VERSION` の版で始まること。managed data が無くても成功するが、版が違っても成功するので、版まで見る。ProtoFlux の作業の準備ができた確認は、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が warning でないこと
 - グラフの作り方と配備は、プロジェクトの `resonite-flux` スキルを参照する
 
 ### Resonite の写真フォルダ（任意）
