@@ -66,7 +66,7 @@
 
 **テストの要否:** 既存の S のテストの前提を直すだけで、新しいテストは書かない（Spec D3）。確かめは、Issue の再現コマンドを変更の前後で実行して比べる。
 
-- [ ] **Step 1: 変更前の失敗を確かめる**
+- [x] **Step 1: 変更前の失敗を確かめる**
 
 Run（worktree のルートで）:
 
@@ -78,27 +78,27 @@ uv run --locked pytest -q -p no:cacheprovider --basetemp "$T/t1-inside-before" \
 
 Expected: `1 failed`（`assert [] == [...]`）。
 
-- [ ] **Step 2: `git_unavailable` の準備に gitfile を足す**
+- [x] **Step 2: `git_unavailable` の準備に gitfile を足す**
 
 `gitdir.rename(moved_gitdir)` の直後に、`gitdir.write_text(f"gitdir: {tmp_path / 'absent-gitdir'}\n", encoding="utf-8")` を足す。直前のコメント（2〜3 行）に、`.git` が無いだけだと外側のリポジトリを見つけること（#238）と、`git_output` が `GIT_*` を除くので `GIT_CEILING_DIRECTORIES` では止められないことを書く。
 
-- [ ] **Step 3: 後始末で gitfile を消す**
+- [x] **Step 3: 後始末で gitfile を消す**
 
 `finally` の `elif failure == "git_unavailable":` で、`moved_gitdir.rename(gitdir)` の前に `gitdir.unlink()` を足す。
 
-- [ ] **Step 4: 作業ツリーの中と外で実行する**
+- [x] **Step 4: 作業ツリーの中と外で実行する**
 
 Run: Step 1 のコマンドを basetemp `"$T/t1-inside-after"` で実行し、続けて `--basetemp "$(mktemp -d)/t"` で実行する。
 
 Expected: どちらも `1 passed`。
 
-- [ ] **Step 5: pr-review-fix-loop のテストと静的検査**
+- [x] **Step 5: pr-review-fix-loop のテストと静的検査**
 
 Run: `uv run --locked pytest -q .agents/skills/pr-review-fix-loop`、`uvx ruff check .agents/skills/pr-review-fix-loop/tests/test_loop_review.py`、`git diff --check`
 
 Expected: すべて終了コード 0。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .agents/skills/pr-review-fix-loop/tests/test_loop_review.py
@@ -116,25 +116,25 @@ git commit -m "test: make the git_unavailable loop test independent of basetemp 
 
 **テストの要否:** 新しいテストは書かない。変異・前後の写し・作業ツリーの中での全体の実行は、一時的な確認としてコミットしない（`AGENTS.md` の「テストの採用基準」）。
 
-- [ ] **Step 1: 外側のリポジトリを変えないことを確かめる（受け入れ条件 2）**
+- [x] **Step 1: 外側のリポジトリを変えないことを確かめる（受け入れ条件 2）**
 
 親の checkout の写しを、実行の前と後に同じ方法で取る: `git -C /workspaces/reso-world rev-parse HEAD`、`for-each-ref`、`worktree list --porcelain`、`--no-optional-locks status --porcelain`、`stash list`。間で、Task 1 の Step 1 のコマンドを basetemp `"$T/t2-inside-snapshot"` で実行する。
 
 Expected: テストは `1 passed`。写しの差が無い。差があれば、並行する別のセッションによるものかを確かめて記録する。
 
-- [ ] **Step 2: 守る性質を変異で確かめる（受け入れ条件 4）**
+- [x] **Step 2: 守る性質を変異で確かめる（受け入れ条件 4）**
 
 `T1` を `git archive` で `/tmp` の `mktemp -d` に展開し、そのコピーの `.agents/skills/pr-review-fix-loop/scripts/loop.py` の `cleanup_output` で、`except LoopError:` の本体（`resource.state = "retained"` から `return [str(parent)]` までの 3 行）を `registrations = []` に置き換える（1 か所だけであることを確かめる）。コピーで、basetemp を使い捨ての外側のリポジトリの中と `mktemp -d` の下にして、対象のテストを実行する。
 
 Expected: どちらも `1 failed`。変異を入れないコピーでは、どちらも `1 passed`（対照）。
 
-- [ ] **Step 3: 作業ツリーの中でテスト全体を実行する**
+- [x] **Step 3: 作業ツリーの中でテスト全体を実行する**
 
 Run: worktree で `uv run --locked pytest -q --basetemp <使い捨ての外側のリポジトリ>/bt-after tests/skills .agents/skills .agents/scripts tools`
 
 Expected: 全部通る。変更前（`bdbe02b`、`scan-before-inside-outer.log`）に落ちたのが対象の 1 件だけであることと比べる。ほかに落ちるものがあれば、実行予算の候補 (1) で扱う。
 
-- [ ] **Step 4: 記録して commit する**
+- [x] **Step 4: 記録して commit する**
 
 Spec の「経路表」に観測した結果を書き、この Plan に「完了」の節（Task 別の所要時間、各確認のコマンド・終了コード・ログのパス）を足す。
 
@@ -145,3 +145,11 @@ git commit -m "docs: record issue 238 verification"
 ```
 
 最後の commit の後、issue-to-pr の 5 章のとおり、README の「テスト」の 3 つの入口で全体を検証し、`finalize.py` の `--checks-file` の形の記録をセッションディレクトリに作る。この記録は Spec・Plan に書かず、PR 本文に書く（記録の commit の後に検証するため）。
+
+## 完了
+
+- Task 1: `9e97f11`（2026-10-24T16:05Z〜16:06Z）。作業ツリーの中の basetemp で 1 failed → 1 passed、`mktemp -d` の下で 1 passed。`uv run --locked pytest -q .agents/skills/pr-review-fix-loop` は 114 passed、`uvx ruff check`（ruff 0.17.2）と `git diff --check` は終了コード 0
+- Task 2: 16:06Z〜16:16Z。Step 1〜3 の結果は Spec の経路表のとおり。どれも Expected と一致した
+- Ruling: SDD の ledger を、worktree の中（`sdd-workspace` の `.superpowers/sdd/`）ではなく、`/workspaces/reso-world/tmp/agents/issue-238.webd39ls/sdd-ledger.md` に置いた。`AGENTS.md` の「worktree の中に、コミットしないファイルを作らない」に従った
+- Ruling: push の前に、worktree と branch の名前を `issue-238-loop-test-git-ceiling` から `issue-238-loop-test-git-unavailable` に変えた。修正が `GIT_CEILING_DIRECTORIES` を使わないため。移動で `.venv` の shebang が旧パスを指して pytest を起動できなかったので（信頼性の失敗 1 回。ledger に記録）、`.venv` を作り直した
+- 所要時間（着手 2026-10-24T15:47Z から、この記録まで）: 約 29 分。内訳は、入力・競合の確認 3 分、原因と案の検証 8 分（ベースラインの検証と並行）、Spec・Plan 7 分（変更前の全体の実行と並行）、Task 1 が 1 分、Task 2 が 10 分（全体の実行を含む）

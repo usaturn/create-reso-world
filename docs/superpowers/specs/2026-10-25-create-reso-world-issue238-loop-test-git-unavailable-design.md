@@ -56,10 +56,12 @@
 
 ## 経路表
 
-| 経路 | 判定 | 観測する結果 | 確かめる方法 |
+観測した結果は、Task 1 の commit `9e97f11` に対するものである（変更前は `7a72d9e`・`bdbe02b` で、コードは同じ）。
+
+| 経路 | 判定 | 観測した結果 | 確かめた方法 |
 | --- | --- | --- | --- |
-| 対象のテスト | 修正する | 作業ツリーの中で、変更前は 1 failed、変更後は 1 passed。外では変更前後とも 1 passed | Issue の再現コマンドを、`tmp/agents/` の下と `mktemp -d` の下で実行する |
-| 守る性質（Git の照合の失敗で回収済みにしない） | 修正する（保つ） | 変異を入れたコピーで、内・外とも 1 failed | 使い捨てのコピーで、`cleanup_output` の `except LoopError` を「登録なし」に変える |
-| 親の checkout | 既に満たす | 実行の前後で HEAD・refs・worktree・status・stash が同じ | 前後の写しを比べる |
-| pr-review-fix-loop のほかのテスト | 既に満たす（確かめる） | 外側のリポジトリの中の basetemp で、変更前は対象の 1 件だけが落ち、変更後は全部通る | 使い捨ての外側のリポジトリの中に basetemp を置いて、テスト全体を実行する |
+| 対象のテスト | 修正した | 作業ツリーの中（`tmp/agents/` の下の basetemp）: 変更前は 1 failed（`assert [] == [...]`）、変更後は 1 passed。`mktemp -d` の下: 変更後も 1 passed。後始末の後、fixture の `.git` はディレクトリに戻る | Issue の再現コマンド |
+| 守る性質（Git の照合の失敗で回収済みにしない） | 保った | 対照（変更なし）は内・外とも 1 passed。変異（`cleanup_output` の `except LoopError` の本体を `registrations = []` に置き換える）は、内・外とも 1 failed（`assert [] == [...]`） | `9e97f11` を `git archive` で作業ツリーの外の独立したリポジトリに展開したコピー。内は使い捨ての外側のリポジトリの中の basetemp |
+| 親の checkout | 既に満たす | 対象のテストを `tmp/agents/` の下の basetemp で実行した前後で、HEAD・refs・worktree・status・stash・`.git/config` の写しに差が無い | 前後の写しの比較 |
+| テスト全体（pr-review-fix-loop を含む） | 既に満たす | 使い捨ての外側のリポジトリの中の basetemp で、変更前は 1 failed（対象だけ）・1223 passed、変更後は 1224 passed。外側のリポジトリは、basetemp のディレクトリが増えたほかは変わらない | `uv run --locked pytest --basetemp <外側のリポジトリ>/… tests/skills .agents/skills .agents/scripts tools` |
 | `loop.py`・`git_environment()`・ほかのスキルのテスト | 対象外 | — | 「対象外」の理由 |
