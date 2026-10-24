@@ -449,7 +449,9 @@ def test_export_error_fields_override_answer(
     context: AdapterContext, failure: dict[str, object]
 ) -> None:
     export = _export()
-    cast(list[object], export["steps"]).append(failure)
+    # Before the final answer, so stdout still ends with it and only the
+    # step's error fields can fail the run (#259).
+    cast(list[object], export["steps"]).insert(-1, failure)
     outcome = _collect(context, '{"ok": true}', export=export)
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
 
