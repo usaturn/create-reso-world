@@ -737,6 +737,10 @@ def test_missing_output_checks_fail_closed(loop: Any, env: Any, tmp_path: Path, 
         parent.symlink_to(tmp_path / "absent-target", target_is_directory=True)
     else:
         gitdir.rename(moved_gitdir)
+        # .git が無いだけだと、tmp_path が別の作業ツリーの中にあるとき git が上の階層のリポジトリを見つけて
+        # 成功する（#238）。git_output は GIT_* を除くので、GIT_CEILING_DIRECTORIES では止められない。
+        # 存在しない gitdir を指す gitfile を置くと、git はこの階層で失敗する
+        gitdir.write_text(f"gitdir: {tmp_path / 'absent-gitdir'}\n", encoding="utf-8")
     resource = loop.Resource(path=str(parent), cycle=1, state="created")
     run.resources.append(resource)
     try:
@@ -750,6 +754,7 @@ def test_missing_output_checks_fail_closed(loop: Any, env: Any, tmp_path: Path, 
         if failure == "inaccessible":
             ancestor.chmod(0o755)
         elif failure == "git_unavailable":
+            gitdir.unlink()
             moved_gitdir.rename(gitdir)
 
 
