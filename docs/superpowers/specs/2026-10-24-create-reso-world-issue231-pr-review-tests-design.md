@@ -41,16 +41,16 @@
 
 ## 棚卸しの表
 
-関数単位で 269 件、parametrize を展開すると 514 件。着手時の `pytest --collect-only` と AST に対して、全件が表に 1 回だけ現れることを確認した。表の「縮約」は削除する case と残す代表を実装時に照合する。
+関数単位で 269 件、parametrize を展開すると 514 件。着手時の `pytest --collect-only` と AST に対して、全件が表に 1 回だけ現れることを確認した。表の件数は着手時の収集数で、「縮約」は残した代表を指す。
 
-| ファイル / テスト関数 | 展開前の件数 | 分類 | 理由 | 対応・残す代表 |
+| ファイル / テスト関数 | 収集件数 | 分類 | 理由 | 対応・残す代表 |
 | --- | ---: | --- | --- | --- |
-| `test_loop_check_options.py::test_check_options_accepts_the_template_and_reports_effective_assignments` | 1 | 迷い | 固定された既定値・担当一覧は F。PR・GitHub・run・ロックに触れない部分は、高: 前検査で副作用を残すことを防ぐ S。 | 縮約: 既定値の完全一致は外し、正常終了と assert_untouched を残す。 |
+| `test_loop_check_options.py::test_check_options_accepts_the_template_and_reports_effective_assignments` | 1 | S | 高: 設定の事前検査が PR・GitHub・run・ロックへ副作用を残して後続処理や他 run を妨げる損害を防ぐ。固定の既定値照合は削除済み。 | 縮約: 既定値の完全一致は外し、正常終了と assert_untouched を残す。 最終名: test_check_options_has_no_external_side_effects。 |
 | `test_loop_check_options.py::test_check_options_does_not_accept_fresh_review` | 1 | L | argparse が usage と終了コード 2 で拒否する。 | 消す |
 | `test_loop_check_options.py::test_check_options_does_not_touch_herdr` | 1 | L | 誤ったペイン名は Herdr 上で見え、start の warning にも出る。 | 消す |
 | `test_loop_check_options.py::test_check_options_reads_the_personal_config_when_not_given` | 1 | L | 設定の不備は start または runner が終了コードと理由を出す。 | 消す |
 | `test_loop_check_options.py::test_check_options_rejects_a_codex_reviewer_in_the_personal_config` | 1 | L | 設定の不備は start または runner が終了コードと理由を出す。 | 消す |
-| `test_loop_check_options.py::test_check_options_rejects_what_start_rejects_with_the_same_reason` | 10 | D | 無効設定の検出は start・run_roles の終了コード 2 と明示理由で気付く。前検査の副作用は正常例の assert_untouched で代表して確認する。 | 消す: 10 ケースは同じ設定拒否経路。 |
+| `test_loop_check_options.py::test_check_options_rejects_what_start_rejects_with_the_same_reason` | 10 | L | 無効な設定は start と run_roles が終了コード 2 と具体的な理由で止める。事前検査の副作用は test_check_options_has_no_external_side_effects が確認する。 | 消す: 10 ケースは同じ設定拒否経路。 |
 | `test_loop_check_options.py::test_check_options_reports_the_options_start_would_record` | 1 | S | 中: 前検査と start の担当・設定が食い違うと、別の担当で気付かず実行する。 | 残す |
 | `test_loop_diagnostics.py::test_all_failed_review_returns_the_diagnostics_to_the_controller` | 2 | S | 中: 全員失敗時に診断の保存先や保存失敗を司令塔へ返さず、残存資源と原因を見失う損害を防ぐ。 | 縮約: id=saved を残す。unsaved は unsaved_diagnostic_keeps_the_output_and_tells_the_controller で代表。 |
 | `test_loop_diagnostics.py::test_cause_uses_only_failure_channels` | 16 | S | 中: モデル本文を実際の失敗として分類し、誤った原因を永続診断に保存する損害を防ぐ。 | 縮約: id=tool-output-is-data,error-event,traceback-line-number-is-not-a-status,bracketed-diagnostic を残す。他は同じ出所/優先順位の重複。 |
@@ -58,7 +58,7 @@
 | `test_loop_diagnostics.py::test_final_pi_failure_survives_a_long_history` | 3 | S | 中: 長い履歴で最後の失敗を見失い、誤原因を保存する実発生 #237 の再発を防ぐ。 | 縮約: id=history-line-over-1-mib,history-line-over-the-limit を残す。final-message-without-agent-end は同じ末尾イベント。 |
 | `test_loop_diagnostics.py::test_keep_diagnostic_covers_only_reviewers_with_a_failure` | 3 | S | 中: 失敗した試行の診断を保存し忘れ、ログ回収後に根拠を失う損害を防ぐ。 | 残す: id=accepted,failed-fallback,rejected を残す。成功の不保存と失敗の保存を対で確認するため。 |
 | `test_loop_diagnostics.py::test_large_log_is_read_from_the_tail` | 2 | D | 長いログの末尾確認は final_pi_failure_survives_a_long_history で代表する。 | 消す |
-| `test_loop_diagnostics.py::test_logs_are_read_only_when_safe` | 8 | S | 高: sensitive・symlink・出力外・生存中のログを読んで秘密や別ファイルに触れる損害を防ぐ。 | 縮約: case=readable,sensitive,outside_output,symlink,fifo を残す。not_recorded/not_stopped/missing は同じ読み取り拒否の重複。 |
+| `test_loop_diagnostics.py::test_logs_are_read_only_when_safe` | 8 | S | 高: sensitive・symlink・出力外・生存中のログを読んで秘密や別ファイルに触れる損害を防ぐ。 | 縮約: case=readable,sensitive,outside_output,symlink,fifo,not_stopped を残す。not_recorded/missing は同じ読み取り拒否の重複。 |
 | `test_loop_diagnostics.py::test_model_prose_stdout_never_decides_the_cause` | 8 | S | 中: Devin のコード例やモデル本文を実失敗として扱い、誤原因を保存する損害を防ぐ。 | 縮約: id=devin-fenced-example,devin-stderr,cursor-cli-line,unknown-runtime を残す。ほかは同じ stdout/stderr 境界の重複。 |
 | `test_loop_diagnostics.py::test_recovered_failures_do_not_decide_the_cause` | 7 | S | 中: 回復した一時的エラーを最終原因として保存する損害を防ぐ。 | 縮約: id=claude-retry-overloaded,claude-retries-exhausted,pi-retry-recovered,pi-retries-exhausted-without-agent-end を残す。残りは同じ回復/失敗経路。 |
 | `test_loop_diagnostics.py::test_reported_failures_are_not_response_extraction` | 4 | S | 中: pi が報告した提供元の失敗を応答抽出失敗と誤記録する損害を防ぐ。 | 縮約: id=failed-message,nothing-reported を残す。agent_end 内の類似例は重複。 |
@@ -66,21 +66,21 @@
 | `test_loop_diagnostics.py::test_response_extraction_is_decided_from_the_end_state` | 6 | S | 中: CLI の失敗を応答抽出失敗と誤分類し、復旧判断を誤らせる損害を防ぐ。 | 縮約: 値 (exit_code=0,state=response_failed,reported=None,sensitive=False,stopped=True,cause=response_extraction) と (exit_code=1,state=response_failed,reported=None,sensitive=False,stopped=True,cause=unknown) を残す。 |
 | `test_loop_diagnostics.py::test_review_reads_stdout_by_the_reviewer_runtime` | 1 | S | 中: レビュアーの runtime を取り違え、失敗の原因を誤記録する損害を防ぐ。 | 残す |
 | `test_loop_diagnostics.py::test_secret_in_logs_never_reaches_the_records` | 1 | S | 高: ログ中の秘密情報が永続記録や CLI の JSON 出力へ漏れる損害を防ぐ。 | 残す |
-| `test_loop_diagnostics.py::test_unobservable_logs_are_not_response_extraction` | 5 | D | 読めないログの分類は logs_are_read_only_when_safe と response_extraction_is_decided_from_the_end_state で代表する。 | 縮約: change=partial のみ残す。partial は末尾切り出しに失敗報告が隠れる固有条件。 |
+| `test_loop_diagnostics.py::test_unobservable_logs_are_not_response_extraction` | 5 | S | 中: 部分取得のログだけで応答抽出失敗と誤判定し、復旧判断を誤らせる損害を防ぐ。末尾切り出しは通常の読取不能と別条件。 | 縮約: change=partial のみ残す。partial は末尾切り出しに失敗報告が隠れる固有条件。 |
 | `test_loop_diagnostics.py::test_unobserved_values_are_listed` | 1 | D | 未観測の原因を unknown とする守りは unobservable_logs_are_not_response_extraction と重複。 | 消す |
 | `test_loop_diagnostics.py::test_unsaved_diagnostic_keeps_the_output_and_tells_the_controller` | 1 | S | 高: 診断の保存失敗時に唯一のログを削除し、原因調査不能にする損害を防ぐ。 | 残す |
 | `test_loop_herdr_pane.py::test_run_record_without_herdr_pane_still_loads` | 1 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: ファイル削除後も conftest.py の autouse no_herdr は維持。 |
 | `test_loop_herdr_pane.py::test_start_failure_does_not_call_herdr` | 1 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: ファイル削除後も conftest.py の autouse no_herdr は維持。 |
 | `test_loop_herdr_pane.py::test_start_renames_the_current_pane_once` | 3 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: ファイル削除後も conftest.py の autouse no_herdr は維持。 |
 | `test_loop_herdr_pane.py::test_start_skips_herdr_outside_a_pane` | 6 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: ファイル削除後も conftest.py の autouse no_herdr は維持。 |
-| `test_loop_herdr_pane.py::test_start_succeeds_when_herdr_fails` | 3 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: ファイル削除後も conftest.py の autouse no_herdr は維持。 |
+| `test_loop_herdr_pane.py::test_start_succeeds_when_herdr_fails` | 3 | S | 高: Herdr が応答しなくても start が停止し、レビュー作業を進められる。Issue #231 が hang を S と明記。 | 縮約: hang の 1 ケースだけ残す。pane 名と通常失敗の表示は L。 最終名: test_start_succeeds_when_herdr_hangs。 |
 | `test_loop_review.py::test_after_run_result_is_reloaded_before_reviewer_validation` | 2 | S | 高: after_run が却下した結果を古い成功値で受け付け、失敗したレビューで計画へ進む損害を防ぐ。 | 縮約: change=payload_failed を残す。payload_unchanged は成功の重複。 |
 | `test_loop_review.py::test_cleanup_output_removes_only_its_own_prefix` | 2 | S | 高: 別の出力ディレクトリを削除する損害を防ぐ。 | 残す: own=True/False の両方を残す。拒否と正常回収を対で検査。 |
 | `test_loop_review.py::test_cleanup_without_force_keeps_only_a_written_worktree` | 2 | S | 高: レビュアーが書いた worktree の変更を消す損害を防ぐ。 | 残す: write=True/False の両方を残す。 |
 | `test_loop_review.py::test_cycle_end_reads_the_roles_json_that_run_roles_writes` | 1 | S | 中: 実際の担当と違う担当を判断の記録に保存する損害を防ぐ。単なる解析失敗部分は L。 | 残す |
 | `test_loop_review.py::test_cycle_record_without_the_rerun_fields_loads` | 1 | L | 旧 schema の読み込みが壊れれば Pydantic/解析エラーで明示される。 | 消す |
 | `test_loop_review.py::test_failed_cleanup_paths_are_reported` | 1 | S | 中: 回収できなかったパスを報告せず、残存資源を見失う損害を防ぐ。 | 残す |
-| `test_loop_review.py::test_interrupted_rerun_is_not_relaunched` | 1 | D | HEAD 移動と中断後の再起動拒否は初回 review の同じガードの代表テストで確認する。 | 消す |
+| `test_loop_review.py::test_interrupted_rerun_is_not_relaunched` | 1 | D | 初回と再実行は同じ _review_batch の中断後再起動拒否を通る。test_interrupted_review_without_result_is_not_rerun が代表。 | 消す |
 | `test_loop_review.py::test_interrupted_review_without_result_is_not_rerun` | 1 | S | 高: 生存中かもしれないレビュアーの資源を消す、または停止未確認のまま再起動して競合させる損害を防ぐ。 | 残す |
 | `test_loop_review.py::test_missing_output_checks_fail_closed` | 6 | S | 高: git 登録確認が失敗した状態を空とみなして資源を削除する損害を防ぐ。 | 縮約: entrypoint=audit,failure=git_unavailable を残す。他 5 組合せは同じ失敗時停止の重複。 |
 | `test_loop_review.py::test_missing_output_parent_does_not_hide_registered_worktrees` | 4 | S | 高: 親ディレクトリが消えても登録済み worktree を見落としてロックを解放・誤削除する損害を防ぐ。 | 縮約: entrypoint=cleanup,locked=True を残す。audit と unlocked は同じ登録確認の重複。 |
@@ -89,7 +89,7 @@
 | `test_loop_review.py::test_recover_keeps_files_that_may_hold_secrets` | 1 | S | 高: 回収時に秘密情報が残りうる receipt を消し、必要な調査記録を失う損害を防ぐ。 | 残す |
 | `test_loop_review.py::test_request_is_kept_only_from_a_regular_file` | 1 | S | 高: 未停止の書き手や symlink をたどって別のファイルを読み取り、保存対象を誤る損害を防ぐ。 | 残す: symlink/missing/not-stopped の拒否と通常ファイルの受理を残す。 |
 | `test_loop_review.py::test_rerun_is_not_started_while_another_attempt_is_unconfirmed` | 1 | S | 高: 未停止の試行と同時に再実行し、同じ成果や資源へ競合書き込みする損害を防ぐ。 | 残す |
-| `test_loop_review.py::test_rerun_refuses_when_the_head_moved` | 1 | D | HEAD 移動と中断後の再起動拒否は初回 review の同じガードの代表テストで確認する。 | 消す |
+| `test_loop_review.py::test_rerun_refuses_when_the_head_moved` | 1 | D | 初回と再実行は review の同じ HEAD 照合を通る。test_review_refuses_when_the_head_moved_after_cycle_begin が代表。 | 消す |
 | `test_loop_review.py::test_rerun_that_fails_again_continues_with_the_accepted_reviewers` | 1 | D | 部分失敗を rejected として扱う守りは review_records_partial_failure_and_cleans_owned_worktrees が代表する。 | 消す |
 | `test_loop_review.py::test_resume_after_review_continues_from_status` | 1 | S | 高: 再開時にレビューの保存結果を無視して段階を飛ばす損害を防ぐ。 | 残す |
 | `test_loop_review.py::test_reuse_counts_only_pairs_for_the_current_head` | 1 | S | 高: 古い HEAD のレビューを現 HEAD に流用して未検証の変更をマージする損害を防ぐ。 | 残す |
@@ -104,17 +104,17 @@
 | `test_loop_review.py::test_runner_level_failure_is_not_rerun` | 1 | L | runner の失敗と再起動は状態・ログ・起動回数に明示される。 | 消す |
 | `test_loop_review.py::test_runner_refusing_before_launch_can_be_retried` | 1 | L | 起動前の runner 拒否は code 5 と理由が表示される。 | 消す |
 | `test_loop_review.py::test_status_after_every_reviewer_failed_points_to_abort` | 1 | D | 全レビュアー失敗時の停止は review_with_no_accepted_reviewer_fails_with_code_6 が代表する。 | 消す |
-| `test_loop_review.py::test_two_cycles_reuse_the_pre_push_review_and_end_merged` | 1 | D | HEAD 別の再利用、判断、マージ、ロック解放は各守りの代表テストに分解済み。大きな統合シナリオの重複。 | 消す |
+| `test_loop_review.py::test_two_cycles_reuse_the_pre_push_review_and_end_merged` | 1 | D | HEAD 移動は test_review_refuses_when_the_head_moved_after_cycle_begin、前回レビュー採用は test_reuse_counts_only_pairs_for_the_current_head、マージ状態は test_finalize_stopped_keeps_the_real_merge、ロック解放は test_finish_releases_only_its_own_lock に分けて確認する。 | 消す |
 | `test_loop_review.py::test_unconfirmed_after_run_keeps_outputs_and_lock_until_the_operator_confirms` | 4 | S | 高: 生存中かもしれない after_run の出力を消し、ロックを解放する損害を防ぐ。 | 縮約: entry=recover,case=unconfirmed を残す。interrupted は次の専用テスト、finish_abort は同じ資源ガード。 |
 | `test_loop_review.py::test_unconfirmed_attempt_holds_the_run_instead_of_planning` | 3 | S | 高: レビュアーの停止を確認しないまま計画を始め、資源を消す損害を防ぐ。 | 縮約: id=first-alpha,rerun-beta を残す。first-beta は担当を替えただけの重複。 |
 | `test_loop_review.py::test_unconfirmed_stop_holds_the_lock_until_operator_recovery` | 1 | S | 高: 生存中かもしれないレビュアーの資源を消す、または停止未確認のまま再起動して競合させる損害を防ぐ。 | 残す |
 | `test_loop_review.py::test_verify_reviewer_accepts_a_complete_payload_and_records_hashes` | 1 | S | 中: 正しい成果も拒否する実装や、採用した成果のハッシュ・担当を誤記録する損害を防ぐ。拒否テストの正例。 | 残す |
 | `test_loop_review.py::test_verify_reviewer_rejects_artifacts_that_do_not_belong_to_this_head` | 3 | S | 高: payload は正しくても本文や候補一覧が別 PR・HEAD の場合に採用する損害を防ぐ。 | 縮約: case=other_pr_document,stale_body を残す。symlink_inside_dir は verify_reviewer_rejects_each_broken_condition の review_symlink で代表。 |
-| `test_loop_review.py::test_verify_reviewer_rejects_each_broken_condition` | 12 | S | 高: 別 run・担当・PR・HEAD の成果、未停止の担当、改ざんされた成果を受け付けて計画・マージへ進む損害を防ぐ。 | 縮約: case=stop_unconfirmed,payload_failed,request_mismatch,other_pr,reviewed_head_mismatch,review_outside_dir,review_symlink,pair_mismatch,active_count_mismatch を残す。outer_failed/actual_agent_mismatch/findings_invalid は代表の重複または後段で明示エラー。 |
+| `test_loop_review.py::test_verify_reviewer_rejects_each_broken_condition` | 12 | S | 高: 別 run・担当・PR・HEAD の成果、未停止の担当、改ざんされた成果を受け付けて計画・マージへ進む損害を防ぐ。 | 縮約: case=stop_unconfirmed,payload_failed,request_mismatch,actual_agent_mismatch,other_pr,reviewed_head_mismatch,review_outside_dir,review_symlink,pair_mismatch,active_count_mismatch を残す。outer_failed/findings_invalid は後段の明示エラー。 |
 | `test_loop_review.py::test_write_exceptions_name_the_target_checkout_git` | 1 | S | 高: runner に別 checkout の Git 書き込み権限を渡す損害を防ぐ。 | 残す |
 | `test_loop_reviewer_protocol.py::test_literal_reviewer_completes_the_real_helper_within_the_declared_exceptions` | 1 | S | 高: read-only runner の書き込み範囲が広がる、または別 PR・HEAD の成果が混入する損害を実 helper 経路で検出する。 | 残す |
 | `test_loop_state.py::test_a_differently_cased_pr_url_shares_the_lock` | 1 | S | 高: URL の大文字小文字違いで同じ PR に二重ロックを作り、同時書き込みする損害を防ぐ。 | 残す |
-| `test_loop_state.py::test_a_failed_lock_write_leaves_no_lock` | 1 | D | 失敗したロック書込後の競合・解放はロック所有者の代表テストで確認する。残留した場合も lock_held として明示される。 | 消す |
+| `test_loop_state.py::test_a_failed_lock_write_leaves_no_lock` | 1 | L | ロック書込が失敗して残留しても、次の start は lock_held と所有者を明示して止まる。成功・競合の守りは test_second_start_is_refused_while_the_first_run_holds_the_lock と test_finish_releases_only_its_own_lock が確認する。 | 消す |
 | `test_loop_state.py::test_abort_after_a_finalize_merge_keeps_the_merge` | 2 | S | 高: finalize 後に cycle-end が停止しても、abort でマージ済みを false と記録する損害を防ぐ。 | 縮約: id=pr-unreadable を残す。pr-read は abort_records_the_merge_state_it_observed と重複。 |
 | `test_loop_state.py::test_abort_needs_a_classified_reason` | 1 | L | 理由の書式違反は finish が引数エラーとして明示する。 | 消す |
 | `test_loop_state.py::test_abort_records_the_merge_state_it_observed` | 10 | S | 高: PR の実状態、finalize の最後の観測、未確認 null を混同してマージ状態を誤報告する損害を防ぐ。 | 縮約: id=merged-finalize-false、unreadable、open-finalize-true を残す。他 7 件は同じ優先順位の重複。 |
@@ -148,30 +148,30 @@
 | `test_loop_state.py::test_start_rejects_an_unknown_role_and_inspect_self` | 1 | L | closed PR・無効な担当は start、run_roles、runner が理由付き非 0 終了で検出する。 | 消す |
 | `test_loop_state.py::test_start_rejects_fix_assignments_that_run_roles_refuses` | 6 | L | closed PR・無効な担当は start、run_roles、runner が理由付き非 0 終了で検出する。 | 消す |
 | `test_loop_state.py::test_status_returns_the_next_command_after_a_restart` | 1 | S | 高: 再開時に誤った段階へ進み、レビューや判断を飛ばす損害を防ぐ。 | 残す |
-| `test_loop_state.py::test_stopped_record_ends_the_run_and_finish_releases_the_lock` | 1 | D | 停止結果の保存とロック解放は別の finalize/abort/所有者テストで代表する。 | 消す |
+| `test_loop_state.py::test_stopped_record_ends_the_run_and_finish_releases_the_lock` | 1 | D | 停止結果の保存は test_abort_records_the_merge_state_it_observed、ロック解放は test_finish_releases_only_its_own_lock が代表。 | 消す |
 | `test_pr_review_fix_loop_skill_contract.py::test_loop_skill_runs_only_when_explicitly_invoked` | 1 | F∩S | 高: disable-model-invocation の権限境界が外れると、明示依頼なしに push・マージまで進む。 | 残す |
 | `test_port_routing.py::test_explicit_commit_has_separate_pair_and_validates_worktree_head` | 1 | S | 防ぐ損害（高）: PR・HEAD・commit・base・保存先を取り違える、または共有 ref を変更する。 | 残す |
 | `test_port_routing.py::test_external_checkout_requires_explicit_source_and_matching_remote` | 1 | S | 防ぐ損害（高）: 他の Git や利用者所有ファイルを対象として操作・削除する。 | 残す |
 | `test_port_routing.py::test_failed_shallow_create_can_be_inspected_then_abandoned` | 1 | S | 防ぐ損害（中）: 失敗後の所有セッションと回収手掛かりを失う。 | 残す |
-| `test_port_routing.py::test_fork_and_upstream_same_number_are_independent` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_port_routing.py::test_fork_and_upstream_same_number_are_independent` | 1 | D | 同番号の fork/upstream を別の保存先にする守りは test_fork_and_upstream_reviews_are_saved_and_rereviewed_independently が保存内容と片方だけの再レビューまで検証する。version 8 の target 経由の pair 保存先・共有 ref は test_upstream_full_diff_pair_save_cleanup_preserves_shared_refs が受け持つ。repository-qualified path の生成は両入口で同じ review_artifact_paths / findings_artifact_paths を使う。 | 消す |
 | `test_port_routing.py::test_moving_live_head_keeps_drafts_then_fresh_session_continues` | 1 | S | 防ぐ損害（高）: PR・HEAD・commit・base・保存先を取り違える、または共有 ref を変更する。 | 残す |
 | `test_port_routing.py::test_ref_delete_failure_keeps_a_retryable_session` | 1 | S | 防ぐ損害（中）: 失敗後の所有セッションと回収手掛かりを失う。 | 残す |
-| `test_port_routing.py::test_shallow_recovery_refuses_unowned_git_or_user_data` | 9 | S | 防ぐ損害（高）: 他の Git や利用者所有ファイルを対象として操作・削除する。 | 縮約: 代表: journal-owner, git-symlink, foreign-worktree, repo-notes。journal-kind/worktree/parent と replacement/git-replacement は同じ所有権検査の D。 |
-| `test_port_routing.py::test_target_rejects_unvalidated_input_without_creating_session` | 7 | S | 防ぐ損害（高）: PR・HEAD・commit・base・保存先を取り違える、または共有 ref を変更する。 | 縮約: 代表: remote, sha, url, repository。missing/null は明示エラー L、number は PR 識別検査と D。 |
+| `test_port_routing.py::test_shallow_recovery_refuses_unowned_git_or_user_data` | 9 | S | 防ぐ損害（高）: 他の Git や利用者所有ファイルを対象として操作・削除する。 | 縮約: replacement のみ削除。journal-owner と同じ repo inode の条件を通る D。journal-kind/worktree/parent、git-replacement は別条件なので保持。 |
+| `test_port_routing.py::test_target_rejects_unvalidated_input_without_creating_session` | 7 | S | 防ぐ損害（高）: PR・HEAD・commit・base・保存先を取り違える、または共有 ref を変更する。 | 縮約: remote, sha, number, url, repository。bool の PR number は識別取り違えを防ぐ独立条件なので保持。 |
 | `test_port_routing.py::test_upstream_full_diff_pair_save_cleanup_preserves_shared_refs` | 1 | S | 防ぐ損害（高）: PR・HEAD・commit・base・保存先を取り違える、または共有 ref を変更する。 | 残す |
 | `test_pr_review_workspace.py::test_a_repeated_signal_does_not_cut_the_end_record` | 1 | S | 防ぐ損害（高）: 未終了 PR や実行中の試行を回収可能と誤判定して worktree を削除する。 | 残す |
 | `test_pr_review_workspace.py::test_abandon_clears_an_attempt_killed_while_waiting_for_the_lock` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_abandon_clears_records_left_by_an_interrupted_worktree_add` | 3 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 縮約: 代表: HEAD。ほかの破損形は同じ管理レコード回収の D。 |
-| `test_pr_review_workspace.py::test_abandon_keeps_a_journal_without_pr_repository` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_abandon_keeps_a_journal_without_pr_repository` | 1 | S | 防ぐ損害（高）: 所属 PR が分からない旧 journal の session を推測して削除しない。 | 残す |
 | `test_pr_review_workspace.py::test_abandon_keeps_a_session_with_files_it_did_not_create` | 3 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 縮約: 代表: notes.txt と review-backup/opus-5.md。nested/ は同じ利用者所有 entry の D。 |
 | `test_pr_review_workspace.py::test_abandon_keeps_a_worktree_locked_for_another_reason` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_abandon_refuses_another_repository` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_abandon_refuses_records_of_another_worktree` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_abandon_refuses_while_the_attempt_is_running` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
-| `test_pr_review_workspace.py::test_abandon_removes_a_worktree_left_initializing` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_abandon_removes_a_worktree_left_initializing` | 1 | L | initializing lock のある正しい owned worktree を git worktree remove --force --force で回収できる正常受理。二重 --force が欠けると git が lock を理由に非 0 で失敗し、誤削除や成功の誤報告は残らない。利用者が付けた別理由の lock は test_abandon_keeps_a_worktree_locked_for_another_reason が保持し、creator 生存の拒否は test_abandon_refuses_while_the_attempt_is_running が代表する。 | 消す |
 | `test_pr_review_workspace.py::test_abandon_touches_only_its_own_attempt` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_abandon_waits_for_a_checkout_that_outlives_create` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
-| `test_pr_review_workspace.py::test_abandon_waits_for_the_repository_review_lock` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_abandon_waits_for_the_repository_review_lock` | 1 | S | abandon 自身の review_save_lock が削除競合を防ぐ。save/cleanup の lock とは別の入口。 | 残す |
 | `test_pr_review_workspace.py::test_atomic_copy_replaces_internal_destination_symlink_entry` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_cleanup_fails_closed_when_rerun` | 1 | L | 気付ける経路: WorkspaceError、OS エラー、または明示的な非 0 終了として通常実行時に現れる。 | 消す |
 | `test_pr_review_workspace.py::test_cleanup_keeps_other_worktrees_and_main_checkout` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
@@ -182,10 +182,10 @@
 | `test_pr_review_workspace.py::test_cleanup_refuses_when_session_path_is_not_its_worktree` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_cleanup_refuses_worktree_of_another_repository` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_cleanup_removes_session_after_successful_save` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
-| `test_pr_review_workspace.py::test_cleanup_removes_worktree_holding_verification_artifacts` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_cleanup_removes_worktree_holding_verification_artifacts` | 1 | L | 保存済み review worktree の編集・untracked build がある場合にも git worktree remove --force が通る正常受理。--force が失われると git が明示的非 0 で失敗し、後段の worktree.exists 確認も失敗を報告する。削除対象の所有権と他 worktree の保持は test_cleanup_refuses_when_session_path_is_not_its_worktree / test_cleanup_refuses_worktree_of_another_repository / test_cleanup_keeps_other_worktrees_and_main_checkout に残す。 | 消す |
 | `test_pr_review_workspace.py::test_cleanup_waits_for_repository_review_lock` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
-| `test_pr_review_workspace.py::test_create_destination_replaces_unsafe_directory_characters` | 7 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_create_destination_uses_hash_pr_number_and_sanitized_branch` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_create_destination_replaces_unsafe_directory_characters` | 7 | D | 文字ごとの置換は normalize_head_branch の同じ _UNSAFE_DIRECTORY_CHARS.sub を通る組合せで、slash を含む正常 branch は test_create_pins_model_and_artifact_paths が代表。別処理である rstrip と正規化後の空名拒否は test_review_artifact_paths_reject_invalid_branch[...] が代表として残り、先頭 / の拒否も同じ関数に残す。 | 消す |
+| `test_pr_review_workspace.py::test_create_destination_uses_hash_pr_number_and_sanitized_branch` | 1 | D | #<PR番号>-<slash を置換した branch> と model の保存先を test_create_pins_model_and_artifact_paths が同じ review_directory_name / review_artifact_paths 経由で検証する。explicit model の正常経路も test_create_pins_explicit_model_outside_codex に残る。 | 消す |
 | `test_pr_review_workspace.py::test_create_does_not_fsync_session_files` | 1 | L | 気付ける経路: 長いロック待ち・処理時間として通常利用時に明白になる。 | 消す |
 | `test_pr_review_workspace.py::test_create_normalizes_pr_repository_case` | 1 | 迷い | 旧 create API の caller はリポジトリ内で見つからないが、互換記述があり外部 caller を否定できない。削除判断を保留。 | 残す |
 | `test_pr_review_workspace.py::test_create_outlives_a_reader_that_closed_its_stderr` | 1 | L | 気付ける経路: BrokenPipeError と非 0 終了で helper が停止する。 | 消す |
@@ -194,25 +194,25 @@
 | `test_pr_review_workspace.py::test_create_pins_existing_review_snapshot` | 1 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 残す |
 | `test_pr_review_workspace.py::test_create_pins_explicit_model_outside_codex` | 1 | 迷い | 旧 create API の caller はリポジトリ内で見つからないが、互換記述があり外部 caller を否定できない。削除判断を保留。 | 残す |
 | `test_pr_review_workspace.py::test_create_pins_model_and_artifact_paths` | 1 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 残す |
-| `test_pr_review_workspace.py::test_create_pins_slash_model_name_as_hyphenated_filename` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_create_pins_slash_model_name_as_hyphenated_filename` | 1 | L | create が受け取る provider/model の slash 置換は受理する表記の互換性。置換が行われないと validate_model_name の _MODEL_FILENAME.fullmatch が safe filename の WorkspaceError で停止し、保存されず通常利用で分かる。ファイル名の境界とモデル上書きの拒否は test_resolve_runtime_model_name_fails_closed_outside_codex / test_resolve_runtime_model_name_rejects_codex_override に残す。 | 消す |
 | `test_pr_review_workspace.py::test_create_records_its_phases_in_the_journal` | 1 | S | 防ぐ損害（高）: 未終了 PR や実行中の試行を回収可能と誤判定して worktree を削除する。 | 残す: 固定の phase 名・順序の写しは F。残す場合は中断時の所有情報と回収判断に効く項目に絞る。 |
-| `test_pr_review_workspace.py::test_create_rejects_invalid_pr_repository` | 8 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 縮約: 代表: ../resoloop。残りの文法変種は同じ検証の D/L。 |
+| `test_pr_review_workspace.py::test_create_rejects_invalid_pr_repository` | 8 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 縮約: ../resoloop と usaturn/..。owner の文法と repo 名が .. の拒否は別条件。 |
 | `test_pr_review_workspace.py::test_create_rejects_reused_attempt_id` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_create_rejects_unsafe_attempt_id` | 5 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 縮約: 代表: ../escape。その他の文字列変種は同じ範囲検査の D/L。 |
-| `test_pr_review_workspace.py::test_create_reports_legacy_review_without_adopting_it` | 1 | S | 防ぐ損害（中）: 旧配置のレビューを別リポジトリの前回レビューとして黙って採用・移動しない。互換 API は残す。 | 残す: 旧 create は非テスト caller を確認できないが、現行文書が他 caller 向け互換と記す。返却値だけの撤去は行わない。 |
+| `test_pr_review_workspace.py::test_create_reports_legacy_review_without_adopting_it` | 1 | S | 防ぐ損害（中）: 旧配置のレビューを別リポジトリの前回結果として黙って採用・移動しない。互換 API は残す。 | 残す |
 | `test_pr_review_workspace.py::test_create_requires_explicit_model_outside_codex` | 1 | L | 気付ける経路: 必須入力・ファイルの欠落を WorkspaceError で報告して停止する。 | 消す |
-| `test_pr_review_workspace.py::test_create_returns_the_pinned_findings_draft` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_create_returns_the_pinned_findings_draft` | 1 | D | findings_draft の返却パスは test_save_with_findings_saves_the_review_and_the_candidates の write_findings_pair が実際に書き、その draft と正式候補の bytes が一致するまで検証する。別の場所を返すと save は別途 findings_artifact_paths で導いた draft を発見できず、正常 pair 保存の代表が失敗する。 | 消す |
 | `test_pr_review_workspace.py::test_destination_fingerprint_distinguishes_symlink_entries` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
-| `test_pr_review_workspace.py::test_findings_destination_must_stay_under_the_review_findings_directory` | 5 | S | 防ぐ損害（中）: 別 PR・HEAD の候補一覧、古い候補一覧、または不完全なレビュー成果を正式保存する。 | 縮約: 代表: ../ 正規化脱出、別 repository。ほかの場所/拡張子は同じ境界または明示エラー。 |
+| `test_pr_review_workspace.py::test_findings_destination_must_stay_under_the_review_findings_directory` | 5 | S | 防ぐ損害（中）: 別 PR・HEAD の候補一覧、古い候補一覧、または不完全なレビュー成果を正式保存する。 | 残す: 5 case 全保持。正規化・findings 名・拡張子・reviews root・別 repo の拒否はそれぞれ書込先の独立条件。 |
 | `test_pr_review_workspace.py::test_findings_draft_cannot_escape_the_session_via_symlink` | 1 | S | 防ぐ損害（中）: 別 PR・HEAD の候補一覧、古い候補一覧、または不完全なレビュー成果を正式保存する。 | 残す |
-| `test_pr_review_workspace.py::test_findings_paths_require_repository_identity` | 2 | S | 防ぐ損害（中）: 別 PR・HEAD の候補一覧、古い候補一覧、または不完全なレビュー成果を正式保存する。 | 縮約: 代表: paths。destination は同じ repository 必須条件の D。 |
-| `test_pr_review_workspace.py::test_first_session_wins_same_destination` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_fork_and_upstream_reviews_are_saved_and_rereviewed_independently` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_findings_paths_require_repository_identity` | 2 | S | 防ぐ損害（中）: 別 PR・HEAD の候補一覧、古い候補一覧、または不完全なレビュー成果を正式保存する。 | 残す: paths と destination を保持。生成側と安全な保存先判定側が repository 必須条件を別々に持つ。 |
+| `test_pr_review_workspace.py::test_first_session_wins_same_destination` | 1 | S | 防ぐ損害（高）: 後から始めたセッションが先に保存したレビューを無断で上書きしない。#231 が明示する優先の守り。 | 残す |
+| `test_pr_review_workspace.py::test_fork_and_upstream_reviews_are_saved_and_rereviewed_independently` | 1 | S | fork/upstream の保存先と前回レビュー選択を分離する。port の二件保存だけのテストを D として削除し、この保存・再レビューの代表を残す。 | 残す |
 | `test_pr_review_workspace.py::test_inspect_and_abandon_refuse_another_pr_repository` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_inspect_ignores_a_cut_off_journal_line` | 1 | L | 気付ける経路: WorkspaceError、OS エラー、または明示的な非 0 終了として通常実行時に現れる。 | 消す |
 | `test_pr_review_workspace.py::test_inspect_refuses_an_attempt_id_shared_by_two_sessions` | 1 | S | 防ぐ損害（高）: 未終了 PR や実行中の試行を回収可能と誤判定して worktree を削除する。 | 残す |
-| `test_pr_review_workspace.py::test_inspect_reports_a_completed_attempt` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_inspect_reports_an_unknown_attempt_as_absent` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_inspect_reports_a_completed_attempt` | 1 | D | attempt_report の終端判定は completed 専用分岐でなく TERMINAL_PHASES への membership。終端の status/last_phase は test_terminated_create_records_the_signal、非終端・未停止と worktree の残存情報は test_killed_create_reports_its_last_phase_and_leftovers が代表。completed journal の生成は test_create_records_its_phases_in_the_journal、完成済み session の inspect entries 読取は test_legacy_inspect_reports_but_abandon_preserves_an_unowned_repo_directory が代表。返却した補助パスを破壊的な操作の許可には使わず、abandon は固定した session/worktree を別途検証する。 | 消す |
+| `test_pr_review_workspace.py::test_inspect_reports_an_unknown_attempt_as_absent` | 1 | D | 未知の attempt に対する absent と session_dir=None の経路は test_abandon_clears_an_attempt_killed_while_waiting_for_the_lock が、回収後の inspect absent と abandon 拒否で代表する。候補を取り違える危険は test_inspect_refuses_an_attempt_id_shared_by_two_sessions が拒否する。legacy ディレクトリの fixture は read-only の inspect にしか渡さず、削除経路の追加条件ではない。 | 消す |
 | `test_pr_review_workspace.py::test_killed_create_reports_its_last_phase_and_leftovers` | 1 | S | 防ぐ損害（高）: 未終了 PR や実行中の試行を回収可能と誤判定して worktree を削除する。 | 残す |
 | `test_pr_review_workspace.py::test_legacy_inspect_reports_but_abandon_preserves_an_unowned_repo_directory` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_load_state_rejects_non_canonical_pr_repository` | 5 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 縮約: 代表: Usaturn/resoloop, missing。型違いは同じ検証の D。 |
@@ -221,23 +221,23 @@
 | `test_pr_review_workspace.py::test_resolve_codex_model_name_fails_closed` | 6 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 縮約: 代表: unsafe-model, non-unique-rollout, invalid-json。missing-thread/rollout/context は明示エラー L。 |
 | `test_pr_review_workspace.py::test_resolve_codex_model_name_ignores_unterminated_partial_tail` | 1 | L | 気付ける経路: WorkspaceError、OS エラー、または明示的な非 0 終了として通常実行時に現れる。 | 消す |
 | `test_pr_review_workspace.py::test_resolve_codex_model_name_rejects_malformed_completed_record` | 1 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 残す |
-| `test_pr_review_workspace.py::test_resolve_codex_model_name_replaces_slash_with_hyphen` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_resolve_codex_model_name_replaces_whitespace_with_hyphen` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_resolve_codex_model_name_replaces_slash_with_hyphen` | 1 | L | Codex model 内の slash 置換は受理する表記の互換性。置換が行われないと validate_model_name の _MODEL_FILENAME.fullmatch が safe filename の WorkspaceError で停止し、保存されず通常利用で分かる。ファイル名の境界とモデル上書きの拒否は test_resolve_runtime_model_name_fails_closed_outside_codex / test_resolve_runtime_model_name_rejects_codex_override に残す。 | 消す |
+| `test_pr_review_workspace.py::test_resolve_codex_model_name_replaces_whitespace_with_hyphen` | 1 | L | Codex model 内の空白置換は受理する表記の互換性。置換が行われないと validate_model_name の _MODEL_FILENAME.fullmatch が safe filename の WorkspaceError で停止し、保存されず通常利用で分かる。ファイル名の境界とモデル上書きの拒否は test_resolve_runtime_model_name_fails_closed_outside_codex / test_resolve_runtime_model_name_rejects_codex_override に残す。 | 消す |
 | `test_pr_review_workspace.py::test_resolve_codex_model_name_skips_records_outside_expected_schema` | 5 | L | 気付ける経路: WorkspaceError、OS エラー、または明示的な非 0 終了として通常実行時に現れる。 | 消す |
 | `test_pr_review_workspace.py::test_resolve_codex_model_name_uses_latest_turn_context` | 1 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 残す |
-| `test_pr_review_workspace.py::test_resolve_runtime_model_name_accepts_slash_equivalent_explicit_in_codex` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_resolve_runtime_model_name_fails_closed_outside_codex` | 5 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 縮約: 代表: ../evil。None は明示エラー L、ほかの不正モデル名は D。 |
+| `test_pr_review_workspace.py::test_resolve_runtime_model_name_accepts_slash_equivalent_explicit_in_codex` | 1 | L | Codex の正規化済み runtime model と、それと同じ明示名の正常受理。等価名を誤って拒否すると explicit model does not match の WorkspaceError で通常実行が止まる。異なる runtime model を採用する危険の拒否は test_resolve_runtime_model_name_rejects_codex_override に残っている。 | 消す |
+| `test_pr_review_workspace.py::test_resolve_runtime_model_name_fails_closed_outside_codex` | 5 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 縮約: ../evil と先頭空白 Composer を保持。先頭空白が黙って - へ変換され別保存先になることを防ぐ条件は regex とは別。 |
 | `test_pr_review_workspace.py::test_resolve_runtime_model_name_rejects_codex_override` | 1 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 残す |
-| `test_pr_review_workspace.py::test_resolve_runtime_model_name_replaces_slash_with_hyphen` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_resolve_runtime_model_name_replaces_whitespace_with_hyphen` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_resolve_runtime_model_name_uses_explicit_name_outside_codex` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_review_artifact_paths_preserve_exact_model_name` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_review_artifact_paths_reject_invalid_branch` | 5 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_review_artifact_paths_reject_invalid_pr_number` | 4 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_resolve_runtime_model_name_replaces_slash_with_hyphen` | 1 | L | 明示 model 内の slash 置換は受理する表記の互換性。置換が行われないと validate_model_name の _MODEL_FILENAME.fullmatch が safe filename の WorkspaceError で停止し、保存されず通常利用で分かる。ファイル名の境界とモデル上書きの拒否は test_resolve_runtime_model_name_fails_closed_outside_codex / test_resolve_runtime_model_name_rejects_codex_override に残す。 | 消す |
+| `test_pr_review_workspace.py::test_resolve_runtime_model_name_replaces_whitespace_with_hyphen` | 1 | L | 明示 model 内の空白置換は受理する表記の互換性。置換が行われないと validate_model_name の _MODEL_FILENAME.fullmatch が safe filename の WorkspaceError で停止し、保存されず通常利用で分かる。ファイル名の境界とモデル上書きの拒否は test_resolve_runtime_model_name_fails_closed_outside_codex / test_resolve_runtime_model_name_rejects_codex_override に残す。 | 消す |
+| `test_pr_review_workspace.py::test_resolve_runtime_model_name_uses_explicit_name_outside_codex` | 1 | D | resolve_runtime_model_name の正常な explicit 分岐を create 経由で通り、同じ opus-5 と model_source=explicit を返却値と state の両方で確認する test_create_pins_explicit_model_outside_codex に統合できる。 | 消す |
+| `test_pr_review_workspace.py::test_review_artifact_paths_preserve_exact_model_name` | 1 | D | 同じ fix/herdr-session-cwd、PR #4、gpt-5.6-sol の draft 名と repository-qualified destination を test_create_pins_model_and_artifact_paths が create の返却値と state の整合まで検証する。 | 消す |
+| `test_pr_review_workspace.py::test_review_artifact_paths_reject_invalid_branch` | 5 | S | 先頭 / の拒否と、正規化後に空になる branch の拒否は別の条件。誤った branch の保存先を生成させない代表を残す。 | 縮約 |
+| `test_pr_review_workspace.py::test_review_artifact_paths_reject_invalid_pr_number` | 4 | S | PR number の型と正数の条件に代表が無かったため bool True と 0 を残す。誤った PR の保存先を生成しない。 | 縮約 |
 | `test_pr_review_workspace.py::test_safe_destination_rejects_symlink_escape` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
-| `test_pr_review_workspace.py::test_save_allows_another_review_destination_to_change` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_save_allows_unrelated_main_changes` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_pr_review_workspace.py::test_save_allows_untracked_reviews_directory_to_appear` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_save_allows_another_review_destination_to_change` | 1 | S | 防ぐ損害（中）: 自分の保存先以外の変化で作業全体を誤って拒否しない正例。 | 残す |
+| `test_pr_review_workspace.py::test_save_allows_unrelated_main_changes` | 1 | L | 保存対象外の README と scratch を変えても save が通る正常受理の検査。誤って checkout 全体の差分を拒否するようになると save が WorkspaceError で止まり、通常利用で分かる。この削除テスト自体には README や scratch の内容を保持した assert がなく、利用者の変更消失を守る検査ではない。利用者の状態保持は test_cleanup_keeps_other_worktrees_and_main_checkout / test_abandon_touches_only_its_own_attempt / test_prepare_preserves_shared_refs_and_other_worktree_base_refs に残す。 | 消す |
+| `test_pr_review_workspace.py::test_save_allows_untracked_reviews_directory_to_appear` | 1 | D | snapshot の reviews 除外と、保存対象だけを destination_fingerprint で追う守りの正常例。test_save_allows_another_review_destination_to_change も create 後に別 model の untracked gemini レビューを作って保存に成功し、別 model の本文を保つことを検証する。reviews ディレクトリ自体が未追跡かどうかは同じ reviews 除外の組合せ。 | 消す |
 | `test_pr_review_workspace.py::test_save_parser_rejects_caller_selected_paths` | 1 | L | 気付ける経路: argparse が非 0 終了とエラーメッセージを返す。 | 消す |
 | `test_pr_review_workspace.py::test_save_parser_takes_findings_as_a_flag_without_a_path` | 1 | L | 気付ける経路: argparse が非 0 終了とエラーメッセージを返す。 | 消す |
 | `test_pr_review_workspace.py::test_save_rejects_changed_pinned_destination` | 1 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 残す |
@@ -249,7 +249,7 @@
 | `test_pr_review_workspace.py::test_save_uses_only_pinned_paths` | 1 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 残す |
 | `test_pr_review_workspace.py::test_save_uses_pinned_explicit_model_without_codex_metadata` | 1 | 迷い | 旧 create API の caller はリポジトリ内で見つからないが、互換記述があり外部 caller を否定できない。削除判断を保留。 | 残す |
 | `test_pr_review_workspace.py::test_save_waits_for_repository_review_lock` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
-| `test_pr_review_workspace.py::test_save_with_findings_removes_new_candidates_when_the_review_copy_fails` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_save_with_findings_removes_new_candidates_when_the_review_copy_fails` | 1 | S | 候補が未作成だった場合の unlink による rollback。既存候補の write_bytes による復元とは別の分岐。 | 残す |
 | `test_pr_review_workspace.py::test_save_with_findings_requires_the_draft` | 1 | L | 気付ける経路: 必須入力・ファイルの欠落を WorkspaceError で報告して停止する。 | 消す |
 | `test_pr_review_workspace.py::test_save_with_findings_restores_the_candidates_when_the_review_copy_fails` | 1 | S | 防ぐ損害（中）: 別 PR・HEAD の候補一覧、古い候補一覧、または不完全なレビュー成果を正式保存する。 | 残す |
 | `test_pr_review_workspace.py::test_save_with_findings_saves_the_review_and_the_candidates` | 1 | S | 防ぐ損害（中）: 別 PR・HEAD の候補一覧、古い候補一覧、または不完全なレビュー成果を正式保存する。 | 残す |
@@ -260,13 +260,13 @@
 | `test_pr_review_workspace.py::test_sessions_keep_a_version6_session` | 1 | F∩S | 防ぐ損害（高）: 旧 state の repository 不明を無視すると、別 PR の worktree を削除・レビューを上書きする。 | 残す |
 | `test_pr_review_workspace.py::test_sessions_keep_the_open_pr_when_fork_and_upstream_share_number_branch_and_head` | 3 | S | 防ぐ損害（高）: 未終了 PR や実行中の試行を回収可能と誤判定して worktree を削除する。 | 縮約: 代表: fork=MERGED, upstream=OPEN。逆向きと CLOSED は同じ repo 別照会の D。 |
 | `test_pr_review_workspace.py::test_sessions_keep_when_gh_fails` | 2 | S | 防ぐ損害（高）: 未終了 PR や実行中の試行を回収可能と誤判定して worktree を削除する。 | 残す |
-| `test_pr_review_workspace.py::test_sessions_keep_when_gh_reports_another_number` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_sessions_keep_when_gh_reports_another_number` | 1 | S | 防ぐ損害（高）: gh が別番号の PR を返してもその状態で session を削除可能と誤判定しない。 | 残す |
 | `test_pr_review_workspace.py::test_snapshot_does_not_refresh_index` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_snapshot_existing_review_copies_regular_file` | 1 | S | 防ぐ損害（高）: モデル・PR・HEAD・保存先の識別を取り違え、もっともらしい誤レビューを保存する。 | 残す |
 | `test_pr_review_workspace.py::test_snapshot_existing_review_rejects_non_regular` | 3 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_snapshot_existing_review_rejects_source_race` | 1 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_snapshot_existing_review_reports_missing` | 1 | L | 気付ける経路: 必須入力・ファイルの欠落を WorkspaceError で報告して停止する。 | 消す |
-| `test_pr_review_workspace.py::test_snapshot_preserves_existing_index_lock` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_pr_review_workspace.py::test_snapshot_preserves_existing_index_lock` | 1 | S | 防ぐ損害（高）: レビューの snapshot が利用者の index.lock を変更・削除しない。#231 が明示する Git の守り。 | 残す |
 | `test_pr_review_workspace.py::test_snapshot_reports_changes_excluding_reviews` | 4 | S | 防ぐ損害（高）: 利用者ファイル・別 worktree・共有 Git を削除または変更する。 | 残す |
 | `test_pr_review_workspace.py::test_terminated_create_records_the_signal` | 1 | S | 防ぐ損害（高）: 未終了 PR や実行中の試行を回収可能と誤判定して worktree を削除する。 | 残す |
 | `test_pr_review_workspace.py::test_version6_session_is_kept_by_verify_save_and_cleanup` | 1 | F∩S | 防ぐ損害（高）: 旧 state の repository 不明を無視すると、別 PR の worktree を削除・レビューを上書きする。 | 残す |
@@ -276,28 +276,28 @@
 | `test_review_run.py::test_attach_runner_reports_attempts_without_a_record` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
 | `test_review_run.py::test_attach_runner_skips_files_outside_the_record_layout` | 1 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_attach_runner_writes_the_runner_block_once_and_keeps_provenance` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
-| `test_review_run.py::test_cleanup_failure_records_cleanup_with_saved_outputs` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_review_run.py::test_complete_preserves_failure_as_failed_result` | 9 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 縮約: 代表: binding, destination, head, coverage。missing/invalid/api はエラーが明白、reviewer/coverage_kind は別の入力形の D。 |
+| `test_review_run.py::test_cleanup_failure_records_cleanup_with_saved_outputs` | 1 | D | 同じ cleanup failure の setup を持つ test_complete_reports_saved_but_uncleaned_result_as_failure に、削除テストの record.status/failed_at/reason と保存済み review digest の assert を移している。結果の failed、保存済み pair、保持した session と実行記録を一回の setup でまとめて検査する。 | 消す: cleanup failure の代表 test_complete_reports_saved_but_uncleaned_result_as_failure へ記録の status/failed_at/reason と出力 digest の assert を統合。 |
+| `test_review_run.py::test_complete_preserves_failure_as_failed_result` | 9 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 縮約: binding, reviewer, coverage, destination, head。reviewer immutable 条件は request binding と別なので保持。 |
 | `test_review_run.py::test_complete_refuses_skill_changed_after_prepare` | 1 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_complete_rejects_changed_draft_before_writing_anywhere` | 1 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_complete_reports_saved_but_uncleaned_result_as_failure` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
-| `test_review_run.py::test_complete_returns_actual_compare_and_delete_outcome` | 3 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 縮約: 代表: deleted, repinned。missing は同じ compare-and-delete の D。 |
+| `test_review_run.py::test_complete_returns_actual_compare_and_delete_outcome` | 3 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す: deleted・missing・repinned の3結果を全て保持。missing は current is None の独立条件であり、既に無い ref を repinned や deleted ともっともらしく誤報告することを防ぐ。レビュー Important 1 で D 判断を訂正し、ref を事前削除する setup も復元。 |
 | `test_review_run.py::test_complete_saves_zero_findings_with_provenance` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
 | `test_review_run.py::test_fail_request_returns_without_blocking_and_preserves_failure_record` | 12 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 縮約: 代表: state_kind=prepared × kind=regular/fifo。ほかは同じ記録保護の D、FIFO の待ちは timeout で分かる L。 |
 | `test_review_run.py::test_helper_write_exceptions_grant_git_data_only_where_the_helper_writes_it` | 4 | F∩S | 防ぐ損害（高）: 固定した書込許可範囲を広げると、writes=false の担当が利用者 Git を変更できる。 | 残す: 4 組合せを維持。親/別 checkout と shallow/通常で許可すべき Git 書込先が実際に異なる。 |
 | `test_review_run.py::test_model_fail_records_review` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
 | `test_review_run.py::test_ordinary_depth_one_checkout_reviews_whole_pr_without_shared_history_changes` | 3 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 縮約: 代表: head, unpushed。explicit は同じ完全差分取得の D。 |
-| `test_review_run.py::test_other_runtime_request_path_acceptance_is_unchanged` | 2 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_review_run.py::test_other_runtime_request_path_acceptance_is_unchanged` | 2 | L | relative request path と同じ実体を指す symlink の受理。read_request が受理しなくなると prepare が例外または failed の非 0 で止まり、通常利用で分かる。同じファイルを複数パスで検査する組合せでもある。別 work_dir や shape の入力を誤採用する危険は test_prepare_rejects_wrong_request_workdir_and_shape、入力改変は test_complete_preserves_failure_as_failed_result[binding] に残す。 | 消す |
 | `test_review_run.py::test_payloads_without_a_record_still_name_the_run_record_key` | 1 | L | 気付ける経路: 呼び出し側が欠落キーを解析すると例外になる。 | 消す |
 | `test_review_run.py::test_prepare_alone_leaves_started_record_like_a_killed_run` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
 | `test_review_run.py::test_prepare_base_fetch_failure_returns_correlated_retained_paths` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
 | `test_review_run.py::test_prepare_binds_request_and_local_records` | 1 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_prepare_create_failure_reports_owned_session_retained_paths` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
 | `test_review_run.py::test_prepare_fails_without_observed_model` | 1 | L | 気付ける経路: 必須入力・ファイルの欠落を WorkspaceError で報告して停止する。 | 消す |
-| `test_review_run.py::test_prepare_failure_after_base_fetch_keeps_shared_refs_unchanged` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_review_run.py::test_prepare_failure_after_base_fetch_keeps_shared_refs_unchanged` | 1 | S | base fetch の後、merge-base が失敗する経路でも共有 ref を変えない。成功経路の代表と失敗後の守りは区別する。 | 残す |
 | `test_review_run.py::test_prepare_failure_after_resolve_records_prepare` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
-| `test_review_run.py::test_prepare_failure_before_resolve_writes_no_record` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_review_run.py::test_prepare_failure_is_kept_when_the_model_later_calls_fail` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_review_run.py::test_prepare_failure_before_resolve_writes_no_record` | 1 | S | model が不明で observed_model が resolve より前に失敗する際、実行記録を作らない副作用境界。失敗の WorkspaceError 自体が明白でも、ghost の started 記録が残れば損害は通常利用で分からない。test_prepare_refuses_external_pr_without_explicit_checkout の no-record は後段 resolve の失敗なので、この失敗段階の代表にはならず元関数を復元する。 | 残す: model が不明で observed_model が resolve より前に失敗する際、実行記録を作らない副作用境界。失敗の WorkspaceError 自体が明白でも、ghost の started 記録が残れば損害は通常利用で分からない。test_prepare_refuses_external_pr_without_explicit_checkout の no-record は後段 resolve の失敗なので、この失敗段階の代表にはならず元関数を復元する。 |
+| `test_review_run.py::test_prepare_failure_is_kept_when_the_model_later_calls_fail` | 1 | S | prepare で記録済みの失敗原因・段階を、後続 fail が上書きすることを防ぐ。 | 残す |
 | `test_review_run.py::test_prepare_nonrunner_marks_unobserved_identity_unknown` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
 | `test_review_run.py::test_prepare_parallel_sessions_pin_their_own_base` | 1 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_prepare_pi_requires_both_current_environment_identifiers` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
@@ -305,8 +305,8 @@
 | `test_review_run.py::test_prepare_refuses_external_pr_without_explicit_checkout` | 1 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_prepare_rejects_wrong_request_workdir_and_shape` | 2 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_prepare_returns_skip_decisions_through_ordinary_comments` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
-| `test_review_run.py::test_prepare_without_request_records_null_request` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
-| `test_review_run.py::test_record_outputs_failure_after_save_keeps_the_review_result` | 1 | D | 同じ守りの代表テストが別にあるため重複。 | 消す |
+| `test_review_run.py::test_prepare_without_request_records_null_request` | 1 | S | request=None のときの inputs.request=None と実行記録 reviewer.provenance.run_id=unknown は独立した記録の守り。残した test_prepare_nonrunner_marks_unobserved_identity_unknown は返却 binding と candidates 側の provider/effort/cli_version を検査するが、record の no-request 分岐は検査しない。存在しない run の来歴を記録することを防ぐため元関数を復元する。 | 残す: request=None のときの inputs.request=None と実行記録 reviewer.provenance.run_id=unknown は独立した記録の守り。残した test_prepare_nonrunner_marks_unobserved_identity_unknown は返却 binding と candidates 側の provider/effort/cli_version を検査するが、record の no-request 分岐は検査しない。存在しない run の来歴を記録することを防ぐため元関数を復元する。 |
+| `test_review_run.py::test_record_outputs_failure_after_save_keeps_the_review_result` | 1 | S | outputs_document 失敗時に、出力を特定できない実行記録を success と誤記録することを防ぎ、保存済み pair と cleanup の成功結果を維持する。record.update 例外とは別の分岐。 | 残す |
 | `test_review_run.py::test_record_update_failure_does_not_change_the_review_result` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
 | `test_review_run.py::test_refused_complete_records_complete_and_a_retry_succeeds` | 1 | S | 防ぐ損害（高）: 誤った対象をレビュー・保存する、保護範囲外へ書く、または利用者の Git ref・ファイルを変える。 | 残す |
 | `test_review_run.py::test_save_failure_records_save` | 1 | S | 防ぐ損害（中）: 実行記録やレビュー結果の識別・状態・失敗を誤って報告または上書きする。 | 残す |
@@ -325,8 +325,43 @@
 
 ### 守りを壊す確認
 
-未実施。代表と変更点、実行したテスト、失敗した観測結果を、実施後に記録する。
+同じ commit `d706f3b` の使い捨て worktree を `/tmp` の `mktemp -d` に作り、各行の実装側の判定を 1 か所だけ変更した。各ケースでまず通常版の代表テストが 1 件通ることを確認し、次に変異版の同じテストを実行した。テストの変更は commit せず、使い捨て worktree は毎回削除した。
+
+| 壊した守り | 一時変更したファイル | 代表テスト | 観測結果 |
+| --- | --- | --- | --- |
+| `loop-unconfirmed-log` | `loop.py` | `test_loop_diagnostics.py::test_logs_are_read_only_when_safe[not_stopped]` | 検出（1 passed → 1 failed） |
+| `loop-actual-reviewer` | `loop.py` | `test_loop_review.py::test_verify_reviewer_rejects_each_broken_condition[actual_agent_mismatch]` | 検出（1 passed → 1 failed） |
+| `loop-herdr-hang` | `loop.py` | `test_loop_herdr_pane.py::test_start_succeeds_when_herdr_hangs` | 検出（1 passed → 1 failed） |
+| `loop-after-run-reload` | `loop.py` | `test_loop_review.py::test_after_run_result_is_reloaded_before_reviewer_validation[payload_failed]` | 検出（1 passed → 1 failed） |
+| `loop-stale-review-body` | `loop.py` | `test_loop_review.py::test_verify_reviewer_rejects_artifacts_that_do_not_belong_to_this_head[stale_body]` | 検出（1 passed → 1 failed） |
+| `loop-preflight-side-effect` | `loop.py` | `test_loop_check_options.py::test_check_options_has_no_external_side_effects` | 検出（1 passed → 1 failed） |
+| `loop-registered-worktree` | `loop.py` | `test_loop_review.py::test_missing_output_parent_does_not_hide_registered_worktrees[True-cleanup]` | 検出（1 passed → 1 failed） |
+| `loop-unconfirmed-after-run` | `loop.py` | `test_loop_review.py::test_unconfirmed_after_run_keeps_outputs_and_lock_until_the_operator_confirms[unconfirmed-recover]` | 検出（1 passed → 1 failed） |
+| `loop-unconfirmed-reviewer` | `loop.py` | `test_loop_review.py::test_unconfirmed_attempt_holds_the_run_instead_of_planning[first-alpha]` | 検出（1 passed → 1 failed） |
+| `loop-real-merge-state` | `loop.py` | `test_loop_state.py::test_finalize_stopped_keeps_the_real_merge[null]` | 検出（1 passed → 1 failed） |
+| `loop-authenticated-login` | `loop.py` | `test_loop_state.py::test_records_need_the_authenticated_login[blank]` | 検出（1 passed → 1 failed） |
+| `review-missing-ref-outcome` | `pr_review_workspace.py` | `test_review_run.py::test_complete_returns_actual_compare_and_delete_outcome[missing]` | 検出（1 passed → 1 failed） |
+| `review-ambiguous-codex-rollout` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_resolve_codex_model_name_fails_closed[non-unique-rollout-exactly one]` | 検出（1 passed → 1 failed） |
+| `review-unsafe-explicit-model` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_resolve_runtime_model_name_fails_closed_outside_codex[../evil-safe filename]` | 検出（1 passed → 1 failed） |
+| `review-invalid-attempt-id` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_create_rejects_unsafe_attempt_id[../escape]` | 検出（1 passed → 1 failed） |
+| `review-noncanonical-state-repo` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_load_state_rejects_non_canonical_pr_repository[Usaturn/resoloop]` | 検出（1 passed → 1 failed） |
+| `review-invalid-pr-number` | `review_target.py` | `test_pr_review_workspace.py::test_review_artifact_paths_reject_invalid_pr_number[True]` | 検出（1 passed → 1 failed） |
+| `review-empty-normalized-branch` | `review_target.py` | `test_pr_review_workspace.py::test_review_artifact_paths_reject_invalid_branch[...]` | 検出（1 passed → 1 failed） |
+| `review-fork-upstream-session` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_sessions_keep_the_open_pr_when_fork_and_upstream_share_number_branch_and_head[MERGED-OPEN]` | 検出（1 passed → 1 failed） |
+| `review-abandon-user-file` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_abandon_keeps_a_session_with_files_it_did_not_create[notes.txt-unexpected entry]` | 検出（1 passed → 1 failed） |
+| `review-target-base-remote` | `pr_review_workspace.py` | `test_port_routing.py::test_target_rejects_unvalidated_input_without_creating_session[remote]` | 検出（1 passed → 1 failed） |
+| `review-invalid-repository-name` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_create_rejects_invalid_pr_repository[usaturn/..]` | 検出（1 passed → 1 failed） |
+| `review-owned-history-foreign-worktree` | `pr_review_workspace.py` | `test_port_routing.py::test_shallow_recovery_refuses_unowned_git_or_user_data[foreign-worktree-owns another worktree]` | 検出（1 passed → 1 failed） |
+| `review-shallow-owned-history` | `pr_review_workspace.py` | `test_review_run.py::test_ordinary_depth_one_checkout_reviews_whole_pr_without_shared_history_changes[head]` | 検出（1 passed → 1 failed） |
+| `review-interrupted-worktree-record` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_abandon_clears_records_left_by_an_interrupted_worktree_add` | 検出（1 passed → 1 failed） |
+| `review-first-session-wins` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_first_session_wins_same_destination` | 検出（1 passed → 1 failed） |
+| `review-gh-pr-number` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_sessions_keep_when_gh_reports_another_number` | 検出（1 passed → 1 failed） |
+| `review-existing-index-lock` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_snapshot_preserves_existing_index_lock` | 未検出（1 passed → 1 passed） |
+| `review-no-optional-locks-index` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_snapshot_does_not_refresh_index` | 検出（1 passed → 1 failed） |
+| `review-delete-index-lock` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_snapshot_preserves_existing_index_lock` | 検出（1 passed → 1 failed） |
+
+`review-existing-index-lock` は `--no-optional-locks` を外しても、既存 lock がある fixture では Git が index を更新せず、この 1 件だけでは検出しなかった。同じ変更は `review-no-optional-locks-index` の `test_snapshot_does_not_refresh_index` で失敗し、既存 lock 自体の削除は `review-delete-index-lock` の `test_snapshot_preserves_existing_index_lock` で失敗した。二つの代表が別々の危険を検出することを確認した。
 
 ### 計測・検証の記録
 
-前値: 514 件（`uv run --locked pytest --collect-only -q .agents/skills/pr-review .agents/skills/pr-review-fix-loop`）、8,830 行（`git ls-files -z -- .agents/skills/pr-review/tests .agents/skills/pr-review-fix-loop/tests | xargs -0 cat | wc -l`）。後値と検証ログは、実施後に記録する。
+指定の計測コマンドによる前後: **514 → 289 件**（225 件、43.8% 削減）、**8,830 → 7,295 行**（1,535 行、17.4% 削減）。前値は着手時の `origin/main`、後値はテスト変更をコミットした `fdc525c` で測定した。正式な文書 commit はテスト収集対象を変えない。最終 HEAD の検証結果はセッションの記録と PR 本文に記載する。

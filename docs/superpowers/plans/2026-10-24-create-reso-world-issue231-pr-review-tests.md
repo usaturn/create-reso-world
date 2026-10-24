@@ -55,10 +55,10 @@ Task 1 と Task 2 は異なるディレクトリを担当するが、F/L/S/D の
 
 **テストの要否:** S・F∩S の既存テストを残し、同じ守りの D の代表と正例を保つため必要。新しい固定値・L のテストは書かない。消すテストの確認は pytest の実行と静的解析で代える。
 
-- [ ] **Step 1:** Spec の loop 側の全関数と parametrize の分類を読み、削除する L・D と残す S の代表を確定する。`test_pr_review_fix_loop_skill_contract.py` の権限の守りを残す。
-- [ ] **Step 2:** `test_loop_herdr_pane.py` などの L を削除し、同じ守りの重なりを代表へ縮める。`conftest.py` の `no_herdr` は残し、消したテストだけが使う fixture/import だけを消す。
-- [ ] **Step 3:** `uv run --locked pytest .agents/skills/pr-review-fix-loop` と `uv run ruff check .agents/skills/pr-review-fix-loop/tests` を実行し、終了コード 0 を確認する。`git diff --check` と差分で境界を確認する。
-- [ ] **Step 4:** 明示した loop のテストファイルだけ stage し、`test: reduce pr-review-fix-loop coverage to safety guards` で commit する。
+- [x] **Step 1:** Spec の loop 側の全関数と parametrize の分類を読み、削除する L・D と残す S の代表を確定する。`test_pr_review_fix_loop_skill_contract.py` の権限の守りを残す。
+- [x] **Step 2:** `test_loop_herdr_pane.py` などの L を削除し、同じ守りの重なりを代表へ縮める。`conftest.py` の `no_herdr` は残し、消したテストだけが使う fixture/import だけを消す。
+- [x] **Step 3:** `uv run --locked pytest .agents/skills/pr-review-fix-loop` と `uv run ruff check .agents/skills/pr-review-fix-loop/tests` を実行し、終了コード 0 を確認する。`git diff --check` と差分で境界を確認する。
+- [x] **Step 4:** 明示した loop のテストファイルだけ stage し、`test: reduce pr-review-fix-loop coverage to safety guards` で commit する。
 
 ### Task 2: pr-review のテストを整理する
 
@@ -68,10 +68,10 @@ Task 1 と Task 2 は異なるディレクトリを担当するが、F/L/S/D の
 
 **テストの要否:** 誤った PR、HEAD、保存先、Git の共有状態、利用者ファイルの削除を防ぐ S と、書込許可の F∩S の既存テストが必要。F/L/D の余りは消し、通常実行、静的解析、参照先の確認で代える。
 
-- [ ] **Step 1:** Spec の pr-review 側の分類と、旧 API の非テスト呼び出し元を照合する。`repo-cleanup-after-merge` が使う `sessions` と version 7 の読取のテストを残す。
-- [ ] **Step 2:** F/L/D の余りとその専用 helper/import を消し、parametrize を守りごとの代表へ縮める。拒否を残した守りには正常例も残す。API と JSON の変更はしない。
-- [ ] **Step 3:** `uv run --locked pytest .agents/skills/pr-review` と `uv run ruff check .agents/skills/pr-review/tests` を実行し、終了コード 0 を確認する。`git diff --check` と差分で境界を確認する。
-- [ ] **Step 4:** 明示した pr-review のテストファイルだけ stage し、`test: reduce pr-review coverage to safety guards` で commit する。
+- [x] **Step 1:** Spec の pr-review 側の分類と、旧 API の非テスト呼び出し元を照合する。`repo-cleanup-after-merge` が使う `sessions` と version 7 の読取のテストを残す。
+- [x] **Step 2:** F/L/D の余りとその専用 helper/import を消し、parametrize を守りごとの代表へ縮める。拒否を残した守りには正常例も残す。API と JSON の変更はしない。
+- [x] **Step 3:** `uv run --locked pytest .agents/skills/pr-review` と `uv run ruff check .agents/skills/pr-review/tests` を実行し、終了コード 0 を確認する。`git diff --check` と差分で境界を確認する。
+- [x] **Step 4:** 明示した pr-review のテストファイルだけ stage し、`test: reduce pr-review coverage to safety guards` で commit する。
 
 ### Task 3: 守りの確認、統合検証、計測と公開準備
 
@@ -81,9 +81,9 @@ Task 1 と Task 2 は異なるディレクトリを担当するが、F/L/S/D の
 
 **テストの要否:** 追加テストは不要。残す S の実効性は既存テストを使い捨てのコード変異へ当てて確認する。全体は指定のコマンドで実行する。
 
-- [ ] **Step 1:** 棚卸し表と収集一覧を突き合わせ、全テストの分類が一度ずつあり、残す拒否には正例があることを確認する。Task 間で同じ守りを消していないか確かめる。
-- [ ] **Step 2:** 高い守りで D の代表へ絞った経路を、`/tmp` の `mktemp -d` に作った使い捨てコピーで 1 か所ずつ壊し、残した代表テストが失敗することを確かめる。失敗した変異、対象テスト、観測結果を Spec に記録する。検出しない守りは代表を戻すか「迷い」として残す。
-- [ ] **Step 3:** `uv run --locked pytest .agents/skills/pr-review .agents/skills/pr-review-fix-loop`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh` を実行し、実ログ・終了コードを保存する。`git diff --check` と `uv run ruff check` の対象を確認する。
+- [x] **Step 1:** 棚卸し表と収集一覧を突き合わせ、全テストの分類が一度ずつあり、残す拒否には正例があることを確認する。Task 間で同じ守りを消していないか確かめる。
+- [x] **Step 2:** 高い守りで D の代表へ絞った経路を、`/tmp` の `mktemp -d` に作った使い捨てコピーで 1 か所ずつ壊し、残した代表テストが失敗することを確かめる。失敗した変異、対象テスト、観測結果を Spec に記録する。検出しない守りは代表を戻すか「迷い」として残す。
+- [x] **Step 3:** `uv run --locked pytest .agents/skills/pr-review .agents/skills/pr-review-fix-loop`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh` を実行し、実ログ・終了コードを保存する。`git diff --check` と `uv run ruff check` の対象を確認する。
 - [ ] **Step 4:** テスト変更の commit 済み状態で件数・行数を再計測し、Spec・Plan に前後と守りの確認結果を記録して commit する。最後の文書 commit の HEAD と clean な作業ツリーで必要な検証を再実行し、`finalize.py --checks-file` 用の記録をセッションディレクトリに作る。文書 commit がテストの収集対象を変えていないことを `git diff` で確かめる。
 - [ ] **Step 5:** Issue の状態・競合を再確認し、`scripts/scan-before-push.sh` が検査した SHA を push する。`gh pr create --repo usaturn/create-reso-world --base main --head feat/issue-231-pr-review-tests` で `Closes #231` の PR を作る。`--merge` のループは親 checkout のスキルで開始する。
 
@@ -97,4 +97,11 @@ Task 1 と Task 2 は異なるディレクトリを担当するが、F/L/S/D の
 
 ## 完了
 
-未実施。Task 別の所要時間、最終 HEAD、検証結果、前後計測、レビューと PR の結果を記録する。
+検証・公開準備中。Task 1 は約 9.7 分（初回約 7.2 分、レビュー後の復元約 2.5 分）、Task 2 は約 31.8 分（初回約 15.3 分、missing ref 復元約 8.0 分、S 監査と復元約 8.5 分）。Task 3 はここまで約 38 分（08:14–08:52 UTC。棚卸し・変異確認が約 24 分、統合検証が約 14 分）。Task 2 の最後の 8.5 分は Task 3 と並行しており、全体の所要時間へ二重計上しない。
+
+- Task 1 の最終結果: 234 → 108 件、4,381 → 3,535 行。Task 別レビューと再レビューで Herdr の停止不能、未停止ログの読取、実際のレビュアー ID の照合を独立した S として残した。
+- Task 2 の最終結果: 280 → 181 件、4,449 → 3,760 行。missing ref、request の無い記録の来歴、resolver 前の ghost 記録を独立した S として残した。Task 別レビューと再レビューで確認した。
+- 統合の計測: 514 → 289 件（225 件、43.8% 削減）、269 → 197 関数、8,830 → 7,295 行（1,535 行、17.4% 削減）。269 関数と 514 収集件数を棚卸し表と突合し、未対応・重複・削除済み関数の誤記は 0 件。
+- 高い守りの確認: `/tmp` の使い捨て worktree で 30 か所を 1 つずつ変更し、29 件は代表テストが失敗した。残る 1 件は既存 lock の fixture だけでは検出しなかったが、同じ実装変更を別の代表が検出し、lock 削除の変異は lock 保存の代表が検出した。Spec に全件の結果を記録した。
+- テスト変更後の commit `fdc525c` で領域 pytest は **289 passed / exit 0**、全体 pytest は **1,501 passed / exit 0**、bash は **23 tests / exit 0**、配置検査と `git diff --check` は **exit 0**。Ruff は project 環境に無かったため、合意済みの代替 `uvx ruff check .agents/skills/pr-review/tests .agents/skills/pr-review-fix-loop/tests` を実行し **exit 0**。実ログは `tmp/agents/issue-231.qhu0z91i/` の `combined-domain-final.log`、`full-pytest-final-code.log`、`bash-suite-final.log`、`check-layout-final.log`、`ruff-final2.log`。
+- 最終 HEAD、領域・全体・bash・配置・lint の結果、公開とレビュー修正ループの結果は、終了時のセッション記録と PR 本文に記載する。
