@@ -97,11 +97,11 @@ Task 1 と Task 2 は異なるディレクトリを担当するが、F/L/S/D の
 
 ## 完了
 
-検証・公開準備中。Task 1 は約 9.7 分（初回約 7.2 分、レビュー後の復元約 2.5 分）、Task 2 は約 31.8 分（初回約 15.3 分、missing ref 復元約 8.0 分、S 監査と復元約 8.5 分）。Task 3 はここまで約 38 分（08:14–08:52 UTC。棚卸し・変異確認が約 24 分、統合検証が約 14 分）。Task 2 の最後の 8.5 分は Task 3 と並行しており、全体の所要時間へ二重計上しない。
+検証・公開準備中。Task 1 は約 9.7 分（初回約 7.2 分、レビュー後の復元約 2.5 分）、Task 2 は約 31.8 分（初回約 15.3 分、missing ref 復元約 8.0 分、S 監査と復元約 8.5 分）。Task 3 はここまで約 53 分（08:14–09:07 UTC。棚卸し・変異確認が約 24 分、統合検証が約 18 分、独立レビューと修正が約 11 分）。Task 2 の最後の 8.5 分は Task 3 と並行しており、全体の所要時間へ二重計上しない。公開以降の内訳は PR 本文に記す。
 
-- Task 1 の最終結果: 234 → 108 件、4,381 → 3,535 行。Task 別レビューと再レビューで Herdr の停止不能、未停止ログの読取、実際のレビュアー ID の照合を独立した S として残した。
+- Task 1 の最終結果: 234 → 110 件、4,381 → 3,539 行。Task 別レビューと再レビューで Herdr の応答停止、未停止ログの読取、実際のレビュアー ID の照合を独立した S として残した。統合後の独立レビューで外側の runner 失敗と adapter の成功報告を別の S と確認し、各 1 ケースを復元した。
 - Task 2 の最終結果: 280 → 181 件、4,449 → 3,760 行。missing ref、request の無い記録の来歴、resolver 前の ghost 記録を独立した S として残した。Task 別レビューと再レビューで確認した。
-- 統合の計測: 514 → 289 件（225 件、43.8% 削減）、269 → 197 関数、8,830 → 7,295 行（1,535 行、17.4% 削減）。269 関数と 514 収集件数を棚卸し表と突合し、未対応・重複・削除済み関数の誤記は 0 件。
-- 高い守りの確認: `/tmp` の使い捨て worktree で 30 か所を 1 つずつ変更し、29 件は代表テストが失敗した。残る 1 件は既存 lock の fixture だけでは検出しなかったが、同じ実装変更を別の代表が検出し、lock 削除の変異は lock 保存の代表が検出した。Spec に全件の結果を記録した。
-- テスト変更後の commit `fdc525c` で領域 pytest は **289 passed / exit 0**、全体 pytest は **1,501 passed / exit 0**、bash は **23 tests / exit 0**、配置検査と `git diff --check` は **exit 0**。Ruff は project 環境に無かったため、合意済みの代替 `uvx ruff check .agents/skills/pr-review/tests .agents/skills/pr-review-fix-loop/tests` を実行し **exit 0**。実ログは `tmp/agents/issue-231.qhu0z91i/` の `combined-domain-final.log`、`full-pytest-final-code.log`、`bash-suite-final.log`、`check-layout-final.log`、`ruff-final2.log`。
+- 統合の計測: 514 → 291 件（223 件、43.4% 削減）、269 → 197 関数、8,830 → 7,299 行（1,531 行、17.3% 削減）。269 関数と 514 収集件数を棚卸し表と突合し、未対応・重複・削除済み関数の誤記は 0 件。
+- 高い守りの確認: `/tmp` の使い捨て worktree で 32 か所を 1 つずつ変更し、31 件は代表テストが失敗した。残る 1 件は既存 lock の fixture だけでは検出しなかったが、同じ実装変更を別の代表が検出し、lock 削除の変異は lock 保存の代表が検出した。独立レビューで戻した 2 ケースも通常版では通り、対応する判定を外した版で各 1 件失敗した。Spec に全件の結果を記録した。
+- 最初のテスト変更後の commit `fdc525c` で領域 pytest は **289 passed / exit 0**、全体 pytest は **1,501 passed / exit 0**、bash は **23 tests / exit 0**、配置検査と `git diff --check` は **exit 0**。Ruff は project 環境に無かったため、合意済みの代替 `uvx ruff check .agents/skills/pr-review/tests .agents/skills/pr-review-fix-loop/tests` を実行し **exit 0**。実ログは `tmp/agents/issue-231.qhu0z91i/` の `combined-domain-final.log`、`full-pytest-final-code.log`、`bash-suite-final.log`、`check-layout-final.log`、`ruff-final2.log`。レビュー後のテスト commit `a28ad4e` で領域 pytest は **291 passed / exit 0**（`combined-domain-post-review.log`）、対象 2 ケースと Ruff も **exit 0**。文書 commit 後の全体検証を続ける。
 - 最終 HEAD、領域・全体・bash・配置・lint の結果、公開とレビュー修正ループの結果は、終了時のセッション記録と PR 本文に記載する。

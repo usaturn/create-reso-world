@@ -63,16 +63,16 @@
 | `test_loop_diagnostics.py::test_recovered_failures_do_not_decide_the_cause` | 7 | S | 中: 回復した一時的エラーを最終原因として保存する損害を防ぐ。 | 縮約: id=claude-retry-overloaded,claude-retries-exhausted,pi-retry-recovered,pi-retries-exhausted-without-agent-end を残す。残りは同じ回復/失敗経路。 |
 | `test_loop_diagnostics.py::test_reported_failures_are_not_response_extraction` | 4 | S | 中: pi が報告した提供元の失敗を応答抽出失敗と誤記録する損害を防ぐ。 | 縮約: id=failed-message,nothing-reported を残す。agent_end 内の類似例は重複。 |
 | `test_loop_diagnostics.py::test_rerun_keeps_a_diagnostic_for_each_request` | 1 | S | 中: 再実行が最初の失敗記録を上書きして調査履歴を失う損害を防ぐ。 | 残す |
-| `test_loop_diagnostics.py::test_response_extraction_is_decided_from_the_end_state` | 6 | S | 中: CLI の失敗を応答抽出失敗と誤分類し、復旧判断を誤らせる損害を防ぐ。 | 縮約: 値 (exit_code=0,state=response_failed,reported=None,sensitive=False,stopped=True,cause=response_extraction) と (exit_code=1,state=response_failed,reported=None,sensitive=False,stopped=True,cause=unknown) を残す。 |
+| `test_loop_diagnostics.py::test_response_extraction_is_decided_from_the_end_state` | 6 | S | 中: runner や adapter の終了状態と食い違う応答抽出失敗を永続診断に保存し、復旧判断を誤らせる損害を防ぐ。 | 縮約: 値 (0,response_failed,None,False,True,response_extraction)、(0,missing_result,success,False,True,unknown)、(1,response_failed,None,False,True,unknown) を残す。adapter が成功を報告した missing_result は独立条件。 |
 | `test_loop_diagnostics.py::test_review_reads_stdout_by_the_reviewer_runtime` | 1 | S | 中: レビュアーの runtime を取り違え、失敗の原因を誤記録する損害を防ぐ。 | 残す |
 | `test_loop_diagnostics.py::test_secret_in_logs_never_reaches_the_records` | 1 | S | 高: ログ中の秘密情報が永続記録や CLI の JSON 出力へ漏れる損害を防ぐ。 | 残す |
 | `test_loop_diagnostics.py::test_unobservable_logs_are_not_response_extraction` | 5 | S | 中: 部分取得のログだけで応答抽出失敗と誤判定し、復旧判断を誤らせる損害を防ぐ。末尾切り出しは通常の読取不能と別条件。 | 縮約: change=partial のみ残す。partial は末尾切り出しに失敗報告が隠れる固有条件。 |
 | `test_loop_diagnostics.py::test_unobserved_values_are_listed` | 1 | D | 未観測の原因を unknown とする守りは unobservable_logs_are_not_response_extraction と重複。 | 消す |
 | `test_loop_diagnostics.py::test_unsaved_diagnostic_keeps_the_output_and_tells_the_controller` | 1 | S | 高: 診断の保存失敗時に唯一のログを削除し、原因調査不能にする損害を防ぐ。 | 残す |
-| `test_loop_herdr_pane.py::test_run_record_without_herdr_pane_still_loads` | 1 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: ファイル削除後も conftest.py の autouse no_herdr は維持。 |
-| `test_loop_herdr_pane.py::test_start_failure_does_not_call_herdr` | 1 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: ファイル削除後も conftest.py の autouse no_herdr は維持。 |
-| `test_loop_herdr_pane.py::test_start_renames_the_current_pane_once` | 3 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: ファイル削除後も conftest.py の autouse no_herdr は維持。 |
-| `test_loop_herdr_pane.py::test_start_skips_herdr_outside_a_pane` | 6 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: ファイル削除後も conftest.py の autouse no_herdr は維持。 |
+| `test_loop_herdr_pane.py::test_run_record_without_herdr_pane_still_loads` | 1 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: 対象ケース削除後も conftest.py の autouse no_herdr は維持。 |
+| `test_loop_herdr_pane.py::test_start_failure_does_not_call_herdr` | 1 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: 対象ケース削除後も conftest.py の autouse no_herdr は維持。 |
+| `test_loop_herdr_pane.py::test_start_renames_the_current_pane_once` | 3 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: 対象ケース削除後も conftest.py の autouse no_herdr は維持。 |
+| `test_loop_herdr_pane.py::test_start_skips_herdr_outside_a_pane` | 6 | L | ペイン名の異常は UI または warning、古い記録の読込失敗は解析エラーとして直ちに分かる。 | 消す: 対象ケース削除後も conftest.py の autouse no_herdr は維持。 |
 | `test_loop_herdr_pane.py::test_start_succeeds_when_herdr_fails` | 3 | S | 高: Herdr が応答しなくても start が停止し、レビュー作業を進められる。Issue #231 が hang を S と明記。 | 縮約: hang の 1 ケースだけ残す。pane 名と通常失敗の表示は L。 最終名: test_start_succeeds_when_herdr_hangs。 |
 | `test_loop_review.py::test_after_run_result_is_reloaded_before_reviewer_validation` | 2 | S | 高: after_run が却下した結果を古い成功値で受け付け、失敗したレビューで計画へ進む損害を防ぐ。 | 縮約: change=payload_failed を残す。payload_unchanged は成功の重複。 |
 | `test_loop_review.py::test_cleanup_output_removes_only_its_own_prefix` | 2 | S | 高: 別の出力ディレクトリを削除する損害を防ぐ。 | 残す: own=True/False の両方を残す。拒否と正常回収を対で検査。 |
@@ -110,7 +110,7 @@
 | `test_loop_review.py::test_unconfirmed_stop_holds_the_lock_until_operator_recovery` | 1 | S | 高: 生存中かもしれないレビュアーの資源を消す、または停止未確認のまま再起動して競合させる損害を防ぐ。 | 残す |
 | `test_loop_review.py::test_verify_reviewer_accepts_a_complete_payload_and_records_hashes` | 1 | S | 中: 正しい成果も拒否する実装や、採用した成果のハッシュ・担当を誤記録する損害を防ぐ。拒否テストの正例。 | 残す |
 | `test_loop_review.py::test_verify_reviewer_rejects_artifacts_that_do_not_belong_to_this_head` | 3 | S | 高: payload は正しくても本文や候補一覧が別 PR・HEAD の場合に採用する損害を防ぐ。 | 縮約: case=other_pr_document,stale_body を残す。symlink_inside_dir は verify_reviewer_rejects_each_broken_condition の review_symlink で代表。 |
-| `test_loop_review.py::test_verify_reviewer_rejects_each_broken_condition` | 12 | S | 高: 別 run・担当・PR・HEAD の成果、未停止の担当、改ざんされた成果を受け付けて計画・マージへ進む損害を防ぐ。 | 縮約: case=stop_unconfirmed,payload_failed,request_mismatch,actual_agent_mismatch,other_pr,reviewed_head_mismatch,review_outside_dir,review_symlink,pair_mismatch,active_count_mismatch を残す。outer_failed/findings_invalid は後段の明示エラー。 |
+| `test_loop_review.py::test_verify_reviewer_rejects_each_broken_condition` | 12 | S | 高: runner が失敗しても正常な payload・成果だけで受理する、または別 run・担当・PR・HEAD の成果、未停止の担当、改ざんされた成果を受け付けて計画・マージへ進む損害を防ぐ。 | 縮約: case=outer_failed,stop_unconfirmed,payload_failed,request_mismatch,actual_agent_mismatch,other_pr,reviewed_head_mismatch,review_outside_dir,review_symlink,pair_mismatch,active_count_mismatch を残す。outer_failed は外側の Result.state だけが timed_out の独立条件。findings_invalid は後段の明示エラー。 |
 | `test_loop_review.py::test_write_exceptions_name_the_target_checkout_git` | 1 | S | 高: runner に別 checkout の Git 書き込み権限を渡す損害を防ぐ。 | 残す |
 | `test_loop_reviewer_protocol.py::test_literal_reviewer_completes_the_real_helper_within_the_declared_exceptions` | 1 | S | 高: read-only runner の書き込み範囲が広がる、または別 PR・HEAD の成果が混入する損害を実 helper 経路で検出する。 | 残す |
 | `test_loop_state.py::test_a_differently_cased_pr_url_shares_the_lock` | 1 | S | 高: URL の大文字小文字違いで同じ PR に二重ロックを作り、同時書き込みする損害を防ぐ。 | 残す |
@@ -325,7 +325,7 @@
 
 ### 守りを壊す確認
 
-同じ commit `d706f3b` の使い捨て worktree を `/tmp` の `mktemp -d` に作り、各行の実装側の判定を 1 か所だけ変更した。各ケースでまず通常版の代表テストが 1 件通ることを確認し、次に変異版の同じテストを実行した。テストの変更は commit せず、使い捨て worktree は毎回削除した。
+最初の 30 件は commit `d706f3b`、追加の 2 件はレビュー後の commit `a28ad4e` の使い捨て worktree を `/tmp` の `mktemp -d` に作り、各行の実装側の判定を 1 か所だけ変更した。通常版と変異版で同じテストを実行し、追加 2 件は parametrize の関数全体を実行した。変異した実装は commit せず、使い捨て worktree は削除した。
 
 | 壊した守り | 一時変更したファイル | 代表テスト | 観測結果 |
 | --- | --- | --- | --- |
@@ -340,6 +340,8 @@
 | `loop-unconfirmed-reviewer` | `loop.py` | `test_loop_review.py::test_unconfirmed_attempt_holds_the_run_instead_of_planning[first-alpha]` | 検出（1 passed → 1 failed） |
 | `loop-real-merge-state` | `loop.py` | `test_loop_state.py::test_finalize_stopped_keeps_the_real_merge[null]` | 検出（1 passed → 1 failed） |
 | `loop-authenticated-login` | `loop.py` | `test_loop_state.py::test_records_need_the_authenticated_login[blank]` | 検出（1 passed → 1 failed） |
+| `loop-outer-runner-state` | `loop.py` | `test_loop_review.py::test_verify_reviewer_rejects_each_broken_condition[outer_failed]` | 検出（11 passed → 1 failed、10 passed） |
+| `loop-reported-success` | `loop.py` | `test_loop_diagnostics.py::test_response_extraction_is_decided_from_the_end_state[0-missing_result-success-False-True-unknown]` | 検出（3 passed → 1 failed、2 passed） |
 | `review-missing-ref-outcome` | `pr_review_workspace.py` | `test_review_run.py::test_complete_returns_actual_compare_and_delete_outcome[missing]` | 検出（1 passed → 1 failed） |
 | `review-ambiguous-codex-rollout` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_resolve_codex_model_name_fails_closed[non-unique-rollout-exactly one]` | 検出（1 passed → 1 failed） |
 | `review-unsafe-explicit-model` | `pr_review_workspace.py` | `test_pr_review_workspace.py::test_resolve_runtime_model_name_fails_closed_outside_codex[../evil-safe filename]` | 検出（1 passed → 1 failed） |
@@ -364,4 +366,4 @@
 
 ### 計測・検証の記録
 
-指定の計測コマンドによる前後: **514 → 289 件**（225 件、43.8% 削減）、**8,830 → 7,295 行**（1,535 行、17.4% 削減）。前値は着手時の `origin/main`、後値はテスト変更をコミットした `fdc525c` で測定した。正式な文書 commit はテスト収集対象を変えない。最終 HEAD の検証結果はセッションの記録と PR 本文に記載する。
+指定の計測コマンドによる前後: **514 → 291 件**（223 件、43.4% 削減）、**8,830 → 7,299 行**（1,531 行、17.3% 削減）。前値は着手時の `origin/main`、後値はレビューで見つかった 2 件の S を復元した `a28ad4e` で測定した。正式な文書 commit はテスト収集対象を変えない。最終 HEAD の検証結果はセッションの記録と PR 本文に記載する。
