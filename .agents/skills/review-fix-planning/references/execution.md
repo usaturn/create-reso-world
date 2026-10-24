@@ -181,7 +181,7 @@ uv run --project "$TOPLEVEL" --locked python \
     4. 同じ判断の記録・本文で `finalize.py` を再実行する（`--spec-commit` を付けた実行なら、同じ commit を付ける）。helper は投稿もマージもせず、照合が通れば関連 Issue を更新して `no_fix_needed` を返す
     5. 検証が失敗したら、`finalize.py` を再実行しない（関連 Issue を閉じない）。補足のコメントに失敗したコマンドと終了コードを書き、利用者に報告する（base を直す変更は別の PR で行う）
 - 状況の本文の不備・PR 上の過去の記録との食い違いは `environment:`、`gh`・API の失敗は `external:`、範囲外は `permission:` で返る
-- `gh` の失敗で止まったとき（`gh`・API の失敗の `external:`、比較の `wait_for: compare`、`merge_parent` の merge commit の取得の失敗）は、結果の `error_detail` に、`gh` の標準エラー（無ければ標準出力）か、応答を使えなかった理由の要点が入る（1 行・500 文字まで、GitHub のトークンの形は `[REDACTED]`）。停止の報告に書き、判断の記録の `stop_reason` には写さない（`stop_reason` は helper の文のまま）
+- `gh` の失敗で止まったとき（`gh`・API の失敗の `external:`、比較の `wait_for: compare`、`merge_parent` の merge commit の取得の失敗）は、結果の `error_detail` に、`gh` の標準エラー（無ければ標準出力）か、応答を使えなかった理由の要点が入る（1 行・500 文字まで、GitHub のトークンの形は `[REDACTED]`）。利用者への報告に書き、PR のコメント（判断の記録の `stop_reason`・状況の本文・補足）には写さない（`stop_reason` は helper の文のまま。ネットワークの失敗では、プロキシのアドレスなど環境の情報が入りうる）
 - マージの後の Issue の更新の失敗も `stopped` だが、マージ済みであることを隠さずに報告し、同じ head・同じ記録で再実行して復旧する
 - `merged: null` の `stopped` を未マージと報告しない。`gh pr view <PR> --repo <repo> --json state,mergedAt,headRefOid` で読み直した状態を報告に書き、原因（`stop_reason`）を直してから同じ記録・本文・検証の記録で再実行する。再実行は最初に PR の状態を読み直し、同じ head でマージ済みで、このサイクルの記録が投稿済みなら Issue の更新だけを続けて完了する。open なら今までどおり照合してからマージする。GitHub に問い合わせる前の停止（`environment:`・`permission:`）は、入力を直さなければ同じ理由で止まる
 - 終了コード 2 は入力・結果ファイルの障害。操作の後の保存の失敗では、標準出力の JSON に実際の `merged`・`issues` が残るので、終了コード 2 だけから「何もしていない」と推測しない

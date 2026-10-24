@@ -198,3 +198,11 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools
 - 既存のテストが `error_detail` のキーで壊れたら、テストの期待値ではなく、キーを足す経路（3 か所だけ）を見直す
 - ループの `_read_finalize` が新しいキーを拒否したら（確認では拒否しない）、止まって原因を Spec の確認した事実に足す
 - README の入口の失敗がこの変更と無関係なら、`origin/main` の同じコマンドで再現するかを確かめ、再現すれば既存の失敗として PR 本文に書く
+
+## 完了（実装の段）
+
+- Task 1（`4e4f152`）: `finalize.py` と `test_finalize.py`。`test_finalize.py` 66 passed。新しい 2 件は、マスクを外す・`wait_for` を外す・汎用の経路の `error_detail` を外す変異をそれぞれ検出した（一時的な写しで確認）。Review Focus の (a) マージ済みの PR の比較の失敗、(b) JSON でない比較の応答は、一時的なスクリプトで確かめた（`/workspaces/reso-world/tmp/agents/issue-241.ftivqlbo/repro-after.log`）
+- Task 2（`4602346`）: 手順書 3 ファイル。Plan に無い変更として、execution.md 3.2 節の手順 4 にも `wait_for: compare` を添えた（3.2 節が `wait_for: head` を書いているため）
+- 最後のブランチ全体のレビュー（新しい文脈のサブエージェント、Opus）: Critical・Important なし、Minor 3 件。3 件とも受け入れ条件 4 と公開の PR への情報の載せ方に関わるので Important として扱い、文書を直した（Spec の D-241-3・D-241-6 に記録）。直したのは「最終化の停止」の要約の削除と利用者の指示の範囲、`error_detail` を書く先（利用者への報告だけ）
+- 検証（`4602346`）: README の「テスト」の入口 3 つがどれも終了コード 0（`run-tests.bash` 23 件 PASS、`check-layout.sh` PASS、`pytest` 1225 passed）。文書の修正の後に同じ入口で検証し直す
+- 能動時間（ledger の開始から実装の段の終わりまで）: 約 16 分。ledger の開始前の準備（Issue の確認・競合の確認・worktree の作成）は約 10 分

@@ -65,10 +65,11 @@ create-reso-world の PR の結論 2 では、Spec の commit（S）を push し
 
 - `references/execution.md`
   - 3.3 節: `--spec-commit` で、PR の head が S になった後に比較の API の呼び出しが失敗したら `wait_for: compare` で止まること。応答の形が違えば `environment:` で待たないこと
-  - 3.4 節: `wait_for` の待ち方に `compare` を足す（`mergeable`・`head` と同じく、少し間を置いて同じ入力で再実行する）。`error_detail`（`gh` の失敗で止まったときの要点。1 行・500 文字まで・トークンの形を伏せる）は停止の報告に書き、判断の記録の `stop_reason` には写さないこと
-- review-fix-planning の SKILL.md の結論 2 の手順 7: 結果に `error_detail` があれば、停止の報告に書くこと（`stop_reason` には写さない）
+  - 3.2 節の手順 4: 比較の確認に、取得できなければ `wait_for: compare` を添える（`wait_for: head` と並べる）
+  - 3.4 節: `wait_for` の待ち方に `compare` を足す（`mergeable`・`head` と同じく、少し間を置いて同じ入力で再実行する）。`error_detail`（`gh` の失敗で止まったときの要点。1 行・500 文字まで・トークンの形を伏せる）は利用者への報告に書き、PR のコメント（判断の記録の `stop_reason`・状況の本文・補足）には写さないこと（ネットワークの失敗では環境の情報が入りうる）
+- review-fix-planning の SKILL.md の結論 2 の手順 7: 結果に `error_detail` があれば利用者への報告に書き、PR のコメントには写さないこと
 - pr-review-fix-loop の SKILL.md
-  - 「最終化の停止」: 計画の中の finalize.py の再実行は、review-fix-planning の結論 2 の手順 7 のとおり（`wait_for` と `base_moved` だけ。ほかの `stopped` は結論 3 にして `cycle-end` に渡す）と書く。`--round-dir` の記録・本文・検証の記録での再実行は、run が `stopped` で終わった後に、同じ HEAD のまま原因（一時的な API の失敗など）が解消したときの回復で、利用者の指示で行うと書く。例示の「mergeable の計算中」は `wait_for` なので外す。`merged`・`base_moved`・`merge_parent` の扱いは変えない
+  - 「最終化の停止」: 計画の中の finalize.py の再実行と止まった後の結論は、review-fix-planning の結論 2 の手順 7 のとおりにすると書く（手順 7 の分岐を写して要約しない）。`base_moved` の再実行は計画の中の文に置く。run が `stopped` で終わった後の再実行（原因が解消したときの `--round-dir` での再実行、`merged: null`・`merge_parent` の読めないときの再実行、merge commit での再検証の後の再実行）は、どれも利用者の指示で行うと書く。例示の「mergeable の計算中」は `wait_for` なので外す。`merged`・`merge_parent` の扱いの中身は変えない
   - 「最終報告」: finalize の結果に `error_detail` があれば書く
 
 ### 4. テスト
@@ -108,6 +109,7 @@ create-reso-world の PR の結論 2 では、Spec の commit（S）を push し
 - **D-241-3 `gh` の応答の要点は `stop_reason` ではなく、結果の `error_detail` に残す**
   - 選択: 結果に `error_detail` を足す。`stop_reason` は helper の決まった文のまま
   - 別案: Issue の対応の候補 2 の文言どおり、`stop_reason` に足す
+  - `error_detail` を書く先は利用者への報告だけにし、PR のコメント（判断の記録・状況の本文・補足）には写さない。最初の版は「停止の報告に書く」だけで、公開の状況の本文に載せてよいかが曖昧だった（最後のブランチ全体のレビューの Minor 3。public の PR に環境の情報が載りうるので Important として扱った）
   - 理由: `stop_reason` は結論 3 の判断の記録に写され、PR のコメントに載る（usaturn/resoloop の PR は public）。記録の検査は `stop_reason` に制御文字・`<!--`・`-->` を禁じるので、`gh` の出力をそのまま足すと投稿が拒否されうる。結果ファイルとループの `planning.finalize.result` には `error_detail` がそのまま残るので、一時的な遅れか本当の失敗かを後から区別できる。Issue の目的（`gh` の応答を残す）は満たす
 - **D-241-4 `error_detail` は 1 行・500 文字にまとめ、トークンの形を伏せる**
   - 選択: 空白をまとめ、印字できない文字を除き、GitHub のトークンの形を `[REDACTED]` に置き換えてから、500 文字に切る
@@ -120,6 +122,7 @@ create-reso-world の PR の結論 2 では、Spec の commit（S）を push し
 - **D-241-6 計画の中の再実行は手順 7 だけにし、run の後の回復は利用者の指示で行う**
   - 選択: pr-review-fix-loop の「最終化の停止」を、計画の中の再実行は手順 7 のとおり（`wait_for`・`base_moved`）、`--round-dir` での再実行は run が `stopped` で終わった後の回復で利用者の指示で行う、と書き直す。手順 7 の「それ以外の `stopped` は結論 3」は変えない
   - 別案: (a) 手順 7 に、`gh` の失敗の `external:` は原因の解消を読み取りで確かめて 1 回だけ再実行してよい、を足す、(b) 「最終化の停止」をそのままにする
+  - 最初の版は「最終化の停止」の括弧書きで手順 7 の分岐を要約し、CI の失敗の結論 1 への切り替えが抜けていた。また「利用者の指示で」が、後に続く `merged: null`・`merge_parent` の再実行にかかるかが曖昧だった。最後のブランチ全体のレビュー（Minor 1・2。受け入れ条件 4 に関わるので Important として扱った）で分かったので、要約をやめ、run の後の再実行のすべてにかかるように直した
   - 理由: PR #240 の事象は D-241-1 で `wait_for` になり、手順 7 の待ち方で扱える。(a) は、あらゆる `external:` の停止に「原因が解消した」の判断を求め、何を確かめれば足りるかを停止ごとに決めることになる。run が終わるとロックは解放され、run の結果も確定するので、司令塔が自分の判断でループの外から再実行すると、別の run との競合や、run の記録と PR の状態の食い違いが起きうる。`merge_parent` の完了（「利用者の指示で」）とも同じ扱いになる。(b) は Issue の食い違いを残す
 - **D-241-7 テストは 2 件（置き換え 1・追加 1）**
   - 選択: 設計 4 のとおり。比較の失敗の既存のテストを、Issue の再現の操作の順（失敗 → 待つ → 戻る → 再実行でマージ）に置き換え、トークンを伏せることを 1 件で確かめる。文書の変更は、文言を照合するテストを作らず、`git diff` の確認と最後のブランチ全体のレビューで確かめる
