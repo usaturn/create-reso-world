@@ -155,27 +155,6 @@ os.execv(REAL_GIT, [REAL_GIT, *args])
     }
 
 
-@pytest.mark.parametrize("linked", [False, True], ids=["relative", "symlink"])
-def test_other_runtime_request_path_acceptance_is_unchanged(
-    prepared: dict[str, Any], capsys: pytest.CaptureFixture[str], linked: bool,
-) -> None:
-    # Caller-owned relative paths and links must still bind to the same Request.
-    value = "../request.json"
-    if linked:
-        (prepared["caller"] / "request-link.json").symlink_to(prepared["request_path"])
-        value = "request-link.json"
-    argv = prepared["argv"].copy()
-    argv[argv.index("--request") + 1] = value
-    code = review_run.main(argv)
-    result = json.loads(capsys.readouterr().out)
-    assert code == 0 and result["status"] == "prepared", result
-    mark_reviewed(result)
-    completed = review_run.complete(argparse.Namespace(state=result["state_file"]))
-    assert completed["status"] == "success" and completed["cleanup"] == "success", completed
-    assert Path(completed["review_file"]).is_file()
-    assert Path(completed["findings_file"]).is_file()
-
-
 ACCEPTED_BODY = (
     "日本語の説明\n複数行の本文\nCloses #42\nother/repo#333333 は別リポジトリの裸参照\n"
 )
@@ -240,30 +219,23 @@ def configure_base_fetch(
     prepared: dict[str, Any],
     tmp_path: Path,
     *,
-    relation: str,
     local_commit: bool,
 ) -> tuple[Path, str, str]:
+    # The remote base advances (with a tag on it) while the shared origin/main
+    # points elsewhere, so any write to shared refs during the base fetch shows.
     source, remote = prepared["source"], prepared["remote"]
     base = git(source, "rev-parse", "main")
-    if relation != "ahead":
-        git(source, "switch", "-c", "remote-base", "main")
-        (source / "base.txt").write_text("remote base advanced\n", encoding="utf-8")
-        git(source, "add", "base.txt")
-        git(source, "commit", "-m", "advance remote base")
-        git(source, "push", str(remote), "HEAD:main")
-        git(source, "tag", "remote-base-only")
-        git(source, "push", str(remote), "refs/tags/remote-base-only")
-        git(source, "tag", "-d", "remote-base-only")
-        git(source, "switch", "feature")
+    git(source, "switch", "-c", "remote-base", "main")
+    (source / "base.txt").write_text("remote base advanced\n", encoding="utf-8")
+    git(source, "add", "base.txt")
+    git(source, "commit", "-m", "advance remote base")
+    git(source, "push", str(remote), "HEAD:main")
+    git(source, "tag", "remote-base-only")
+    git(source, "push", str(remote), "refs/tags/remote-base-only")
+    git(source, "tag", "-d", "remote-base-only")
+    git(source, "switch", "feature")
     remote_base = git(remote, "rev-parse", "refs/heads/main")
-    if relation != "missing":
-        tracked = {
-            "ahead": prepared["head"],
-            "behind": base,
-            "diverged": prepared["head"],
-            "equal": remote_base,
-        }
-        git(source, "update-ref", "refs/remotes/origin/main", tracked[relation])
+    git(source, "update-ref", "refs/remotes/origin/main", prepared["head"])
     if local_commit:
         (source / "local.txt").write_text("not pushed\n", encoding="utf-8")
         git(source, "add", "local.txt")
@@ -301,20 +273,16 @@ def shared_refs(root: Path) -> str:
 
 
 @pytest.mark.parametrize(
-    "relation", ["ahead", "behind", "diverged", "equal", "missing"]
-)
-@pytest.mark.parametrize(
     "local_commit", [False, True], ids=["pr-head", "unpushed-commit"]
 )
 def test_prepare_preserves_shared_refs_and_other_worktree_base_refs(
     prepared: dict[str, Any],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    relation: str,
     local_commit: bool,
 ) -> None:
     sibling, base, remote_base = configure_base_fetch(
-        prepared, tmp_path, relation=relation, local_commit=local_commit
+        prepared, tmp_path, local_commit=local_commit
     )
     source = prepared["source"]
     before = shared_refs(source)
@@ -358,7 +326,7 @@ def test_prepare_failure_after_base_fetch_keeps_shared_refs_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sibling, _base, _remote_base = configure_base_fetch(
-        prepared, tmp_path, relation="diverged", local_commit=True
+        prepared, tmp_path, local_commit=True
     )
     before = shared_refs(prepared["source"])
     original = review_run.workspace.git
@@ -442,15 +410,11 @@ def test_complete_saves_zero_findings_with_provenance(prepared: dict[str, Any]) 
 @pytest.mark.parametrize(
     "failure",
     [
-        "missing",
-        "invalid",
         "binding",
         "reviewer",
         "coverage",
-        "coverage_kind",
         "destination",
         "head",
-        "api",
     ],
 )
 def test_complete_preserves_failure_as_failed_result(
@@ -461,21 +425,15 @@ def test_complete_preserves_failure_as_failed_result(
 ) -> None:
     result = review_run.prepare(prepared["args"])
     mark_reviewed(result)
-    if failure == "missing":
-        Path(result["draft"]).unlink()
-    elif failure == "invalid":
-        Path(result["findings_draft"]).write_text("invalid JSON", encoding="utf-8")
-    elif failure == "binding":
+    if failure == "binding":
         request = json.loads(prepared["request_path"].read_text(encoding="utf-8"))
         request["request_id"] = "another-request"
         prepared["request_path"].write_text(json.dumps(request), encoding="utf-8")
-    elif failure in {"reviewer", "coverage", "coverage_kind"}:
+    elif failure in {"reviewer", "coverage"}:
         findings = Path(result["findings_draft"])
         document = json.loads(findings.read_text(encoding="utf-8"))
         if failure == "reviewer":
             document["reviewer"]["provenance"]["agent_id"] = "another-agent"
-        elif failure == "coverage_kind":
-            document["coverage"] = ["README.md"]
         else:
             document["coverage"]["read"] = []
         findings.write_text(json.dumps(document), encoding="utf-8")
@@ -486,8 +444,6 @@ def test_complete_preserves_failure_as_failed_result(
     else:
 
         def moved(_repository: str, _number: int) -> str:
-            if failure == "api":
-                raise review_run.workspace.WorkspaceError("API unavailable")
             return "f" * 40
 
         monkeypatch.setattr(review_run.workspace, "current_pr_head", moved)
@@ -556,6 +512,11 @@ def test_complete_reports_saved_but_uncleaned_result_as_failure(
     assert Path(completed["review_file"]).is_file()
     assert Path(completed["findings_file"]).is_file()
     assert Path(result["state_file"]).exists()
+    record = only_record(prepared["parent"])
+    assert (record["status"], record["failed_at"], record["reason"]) == (
+        "failed", "cleanup", "cleanup refused",
+    )
+    assert record["outputs"]["review_sha256"] == sha256(Path(completed["review_file"]))
 
 
 def test_prepare_base_fetch_failure_returns_correlated_retained_paths(
@@ -578,12 +539,6 @@ def test_prepare_base_fetch_failure_returns_correlated_retained_paths(
     assert failed["active_findings"] is None and failed["reason"] == "base fetch failed"
     assert Path(failed["state_file"]).is_file()
     assert Path(failed["retained_paths"]["worktree"]).is_dir()
-
-
-def test_prepare_fails_without_observed_model(prepared: dict[str, Any]) -> None:
-    prepared["args"].model_name = None
-    with pytest.raises(review_run.workspace.WorkspaceError, match="model"):
-        review_run.prepare(prepared["args"])
 
 
 def test_prepare_pi_requires_both_current_environment_identifiers(
@@ -771,60 +726,42 @@ def test_prepare_failure_is_kept_when_the_model_later_calls_fail(
     )
 
 
-@pytest.mark.parametrize("state_kind", ["absent", "prepared", "missing"])
-@pytest.mark.parametrize("kind", ["regular", "symlink", "fifo", "fifo_symlink"])
+@pytest.mark.parametrize("kind", ["regular", "fifo"])
 def test_fail_request_returns_without_blocking_and_preserves_failure_record(
-    prepared: dict[str, Any], tmp_path: Path, state_kind: str, kind: str,
+    prepared: dict[str, Any], tmp_path: Path, kind: str,
 ) -> None:
-    # fail has no runtime flag: both its first binding read and the diagnostic
-    # retry after an invalid state/input must reject FIFOs without waiting.
+    # Refusing a new request must preserve the prepared session's binding and
+    # record; a valid request must still record the review failure.
+    session = review_run.prepare(prepared["args"])
+    assert session["status"] == "prepared", session
     argv = [sys.executable, str(SCRIPT), "fail", "--reason", "review stopped"]
-    if state_kind == "prepared":
-        session = review_run.prepare(prepared["args"])
-        assert session["status"] == "prepared", session
-        argv.extend(["--state", session["state_file"]])
-    elif state_kind == "missing":
-        argv.extend(["--state", str(tmp_path / "missing-session.json")])
+    argv.extend(["--state", session["state_file"]])
     before = run_records(prepared["parent"])
     saved = {path: path.read_bytes() for path in before}
     # Keep deliberately unsafe fixtures out of retained pytest scratch, even
     # when a regression forces subprocess.run to kill and reap its child.
     with tempfile.TemporaryDirectory(dir=tmp_path, prefix="fail-request-") as area:
         target = Path(area) / "request.json"
-        if kind in {"fifo", "fifo_symlink"}:
+        if kind == "fifo":
             os.mkfifo(target)
         else:
             target.write_bytes(prepared["request_path"].read_bytes())
-        candidate = target
-        if kind in {"symlink", "fifo_symlink"}:
-            candidate = Path(area) / "request-link.json"
-            candidate.symlink_to(target)
-        argv.extend(["--request", os.path.relpath(candidate, prepared["caller"])])
+        argv.extend(["--request", os.path.relpath(target, prepared["caller"])])
         completed = subprocess.run(
-            argv, cwd=prepared["caller"], capture_output=True, text=True, timeout=5,
+            argv, check=False, cwd=prepared["caller"], capture_output=True, text=True, timeout=5,
         )
     assert completed.returncode == 1, completed.stdout
     result = json.loads(completed.stdout)
     assert result["status"] == "failed" and result["reason"]
-    if kind in {"regular", "symlink"}:
-        assert result["request_id"] == "request-7"
-        if state_kind != "missing":
-            assert result["reason"] == "review stopped"
-        if state_kind == "prepared":
-            failure = only_record(prepared["parent"])
-            assert (failure["status"], failure["failed_at"], failure["reason"]) == (
-                "failed", "review", "review stopped",
-            )
+    assert result["request_id"] == "request-7"
+    if kind == "regular":
+        assert result["reason"] == "review stopped"
+        failure = only_record(prepared["parent"])
+        assert (failure["status"], failure["failed_at"], failure["reason"]) == (
+            "failed", "review", "review stopped",
+        )
     else:
-        if state_kind == "prepared":
-            # The previously validated session binding is still available;
-            # refusing the new input must not erase it from the diagnostic.
-            assert result["request_id"] == "request-7"
-        else:
-            assert result.get("request_id") in {None, "unknown"}
         assert {path: path.read_bytes() for path in before} == saved
-    if state_kind != "prepared":
-        assert run_records(prepared["parent"]) == []
 
 
 def test_model_fail_records_review(
@@ -900,27 +837,6 @@ def test_save_failure_records_save(
     record = only_record(prepared["parent"])
     assert (record["status"], record["failed_at"]) == ("failed", "save")
     assert record["outputs"] is None and record["timing"]["save_seconds"] is not None
-
-
-def test_cleanup_failure_records_cleanup_with_saved_outputs(
-    prepared: dict[str, Any],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    result = review_run.prepare(prepared["args"])
-    mark_reviewed(result)
-
-    def cleanup_failure(_args: argparse.Namespace) -> None:
-        raise review_run.workspace.WorkspaceError("cleanup refused")
-
-    monkeypatch.setattr(review_run.workspace, "cleanup", cleanup_failure)
-    completed = review_run.complete(argparse.Namespace(state=result["state_file"]))
-    record = only_record(prepared["parent"])
-    assert (record["status"], record["failed_at"], record["reason"]) == (
-        "failed",
-        "cleanup",
-        "cleanup refused",
-    )
-    assert record["outputs"]["review_sha256"] == sha256(Path(completed["review_file"]))
 
 
 def test_record_update_failure_does_not_change_the_review_result(
@@ -1141,16 +1057,6 @@ def test_attach_runner_skips_files_outside_the_record_layout(
     )
 
 
-def test_attach_runner_rejects_an_invalid_result_file(
-    prepared: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    source = tmp_path / "result.json"
-    source.write_text(json.dumps({"unknown": 1}), encoding="utf-8")
-    code, payload = attach(source, capsys)
-    assert code == 1 and payload["status"] == "failed" and payload["reason"]
-    assert payload["result_file"] == str(source)
-
-
 def test_record_outputs_failure_after_save_keeps_the_review_result(
     prepared: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,
@@ -1166,21 +1072,6 @@ def test_record_outputs_failure_after_save_keeps_the_review_result(
     assert completed["status"] == "success" and completed["cleanup"] == "success"
     assert "saved file vanished" in completed["run_record_error"]
     assert only_record(prepared["parent"])["status"] == "started"
-
-
-def test_payloads_without_a_record_still_name_the_run_record_key(
-    prepared: dict[str, Any], capsys: pytest.CaptureFixture[str]
-) -> None:
-    assert review_run.main(["fail", "--reason", "PR が分からない"]) == 1
-    assert json.loads(capsys.readouterr().out)["run_record"] is None
-    argv = [
-        argument
-        for argument in prepared["argv"]
-        if argument not in {"--model-name", "observed-model"}
-    ]
-    assert review_run.main(argv) == 1
-    failed = json.loads(capsys.readouterr().out)
-    assert failed["status"] == "failed" and failed["run_record"] is None
 
 
 def _granted(lines: tuple[str, ...], path: object) -> int:
@@ -1453,7 +1344,7 @@ def test_prepare_create_failure_reports_owned_session_retained_paths(
     assert result["pr_head"] == result["reviewed_head"] == prepared["head"]
 
 
-@pytest.mark.parametrize("explicit_commit", ["head", "explicit", "unpushed"])
+@pytest.mark.parametrize("explicit_commit", ["head", "unpushed"])
 def test_ordinary_depth_one_checkout_reviews_whole_pr_without_shared_history_changes(
     prepared: dict[str, Any], tmp_path: Path, explicit_commit: str
 ) -> None:

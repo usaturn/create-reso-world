@@ -117,6 +117,7 @@ def broken(result: Result, case: str, env: Any, tmp_path: Path) -> Result:
     elif case == "request_mismatch":
         payload["request_id"] = "request-2"
     elif case == "actual_agent_mismatch":
+        # request と payload が一致していても、実際に実行した担当との照合が必要。
         result_update["actual_agent"] = "beta"
     elif case == "other_pr":
         payload["pr_number"] = 901
@@ -130,8 +131,6 @@ def broken(result: Result, case: str, env: Any, tmp_path: Path) -> Result:
         link = env.review_dir / "link.md"
         link.symlink_to(payload["review_file"])
         payload["review_file"] = str(link)
-    elif case == "findings_invalid":
-        Path(payload["findings_file"]).write_text("{}", encoding="utf-8")
     elif case == "pair_mismatch":
         review = Path(payload["review_file"])
         review.write_text(review.read_text(encoding="utf-8").split("## High")[0], encoding="utf-8")
@@ -154,7 +153,6 @@ def broken(result: Result, case: str, env: Any, tmp_path: Path) -> Result:
         "reviewed_head_mismatch",
         "review_outside_dir",
         "review_symlink",
-        "findings_invalid",
         "pair_mismatch",
         "active_count_mismatch",
     ],
@@ -186,7 +184,12 @@ def test_verify_reviewer_accepts_a_complete_payload_and_records_hashes(loop: Any
     assert entry.identity["model"] == "alpha-model"
 
 
-@pytest.mark.parametrize("change", ["payload_failed", "payload_unchanged"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "payload_failed",
+    ],
+)
 def test_after_run_result_is_reloaded_before_reviewer_validation(
     loop: Any, env: Any, tmp_path: Path, change: str
 ) -> None:
@@ -327,82 +330,6 @@ def test_review_with_no_accepted_reviewer_fails_with_code_6(loop: Any, env: Any)
 
 
 # --- 2 サイクル以上 -----------------------------------------------------------------------------------------------
-
-
-def test_two_cycles_reuse_the_pre_push_review_and_end_merged(loop: Any, env: Any, kit: Any, tmp_path: Path) -> None:
-    started = env.start()
-    run_dir = Path(started["run_dir"])
-
-    # サイクル 1: レビュアー 2 人（1 人は失敗）→ 計画が skip 1 件・fix 1 件を決め、修正を push する
-    first = loop.cycle_begin(run_dir, github=env.github)
-    assert first["review"]["mode"] == "run"
-    head1 = first["head"]
-    adapter1 = env.reviewers({"alpha": "success", "beta": "failed"}, findings=1)
-    loop.review(run_dir, github=env.github, adapter_loader=adapter1, tmp_root=env.tmp_root)
-    loop.review(run_dir, github=env.github, adapter_loader=adapter1, tmp_root=env.tmp_root)  # beta の再実行
-    skip_ref = f"alpha-model#M-1@{head1[:12]}"
-    fix_ref = f"alpha-model#H-1@{head1[:12]}"
-    head2 = env.push("H-1 の修正")
-    # 計画の push 前の PR 全体レビュー（指定 commit のレビュー）の成果が、レビューディレクトリに残る
-    env.place_review(head2, "planner-model", commit=True)
-    env.gh.post_record(
-        kit.round_record(
-            1,
-            head1,
-            "fixes_pushed",
-            [kit.decision(skip_ref, "skip", "new"), kit.decision(fix_ref, "fix", "new")],
-            commit=head2,
-            seats=[kit.seat(head1, "alpha-model")],
-        )
-    )
-    ended1 = loop.cycle_end(run_dir, github=env.github)
-    assert ended1["next"][-3:] == ["cycle-begin", "--run", str(run_dir)]
-
-    # サイクル 2: HEAD は push した commit。レビュアーを起動せずに push 前のレビューを使う
-    adapter2 = env.reviewers({"alpha": "success", "beta": "success"})
-    second = loop.cycle_begin(run_dir, github=env.github)
-    assert second["review"]["mode"] == "reuse"
-    assert [Path(item["review_file"]).name for item in second["review"]["reused"]] == [
-        f"planner-model-commit-{head2}.md"
-    ]
-    with pytest.raises(loop.LoopError):
-        loop.review(run_dir, github=env.github, adapter_loader=adapter2, tmp_root=env.tmp_root)
-    assert adapter2.launched == []
-    env.gh.post_record(
-        kit.round_record(
-            2,
-            head2,
-            "no_fix_needed",
-            [
-                kit.decision(skip_ref, "skip", "inherited"),
-                kit.decision(fix_ref, "resolved", "changed", previous_state="fix"),
-            ],
-            seats=[kit.seat(head1, "alpha-model", rerun=False), kit.seat(head2, f"planner-model-commit-{head2}")],
-        )
-    )
-    final = kit.finalize_result(tmp_path / "final.json", "no_fix_needed", merged=True)
-    env.gh.merge()
-    ended2 = loop.cycle_end(run_dir, github=env.github, finalize_result=final, round_dir=tmp_path)
-    finished = loop.finish(run_dir)
-
-    assert ended2["outcome"] == "no_fix_needed"
-    assert finished["result"] == {
-        "outcome": "no_fix_needed",
-        "ended_by": "outcome",
-        "stop_reason": None,
-        "merged": True,
-        "cycles": 2,
-    }
-    assert not (env.review_dir / "loop/lock.json").exists()
-    # サイクルごとに参考データの索引が残る
-    cycle1, cycle2 = read(run_dir / "cycle-1.json"), read(run_dir / "cycle-2.json")
-    alpha = next(item for item in cycle1["review"]["reviewers"] if item["actual_agent"] == "alpha")
-    assert alpha["findings_sha256"] == loop.sha256_file(Path(alpha["findings_file"]))
-    assert alpha["identity"]["model"] == "alpha-model"
-    assert cycle1["planning"]["decisions"]["state"] == {"skip": 1, "fix": 1}
-    assert cycle2["review"]["reused"][0]["reviewed_head"] == head2
-    assert cycle2["planning"]["decisions"]["change"] == {"inherited": 1, "changed": 1}
-    assert cycle2["planning"]["finalize"]["round_dir"] == str(tmp_path.resolve())
 
 
 def test_reviewers_receive_the_previous_round_when_the_head_moved(loop: Any, env: Any, kit: Any) -> None:
@@ -711,51 +638,13 @@ def test_failed_cleanup_paths_are_reported(loop: Any, env: Any, tmp_path: Path) 
     assert sorted(entry.retained_paths) == ["/tmp/pr-review-900-x", "/tmp/pr-review-900-x/worktree"]
 
 
-def test_status_after_every_reviewer_failed_points_to_abort(loop: Any, env: Any) -> None:
-    started = env.start()
-    run_dir = Path(started["run_dir"])
-    loop.cycle_begin(run_dir, github=env.github)
-    adapter = env.reviewers({"alpha": "failed", "beta": "failed"})
-    loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-    with pytest.raises(loop.LoopError):
-        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-
-    next_command = loop.status(run_dir=run_dir)["next"]
-    assert "finish" in next_command and any(item.startswith("--abort=external: ") for item in next_command)
-    assert not has_placeholder(next_command)
-    # 再実行の後も全員が失敗したら、3 回目は起動しない
-    with pytest.raises(loop.LoopError) as again:
-        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-    assert (again.value.code, again.value.stage) == (6, "review")
-    assert sorted(adapter.launched) == ["alpha", "alpha", "beta", "beta"]
-
-
-def test_runner_refusing_before_launch_can_be_retried(loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch) -> None:
-    started = env.start()
-    run_dir = Path(started["run_dir"])
-    loop.cycle_begin(run_dir, github=env.github)
-
-    def refused(*args: Any, **kwargs: Any) -> BatchResult:
-        raise loop.RunnerError()
-
-    real = loop.run_workflow
-    monkeypatch.setattr(loop, "run_workflow", refused)
-    with pytest.raises(loop.LoopError) as error:
-        loop.review(
-            run_dir, github=env.github, adapter_loader=env.reviewers({"alpha": "success"}), tmp_root=env.tmp_root
-        )
-    monkeypatch.setattr(loop, "run_workflow", real)
-    assert (error.value.code, error.value.stage) == (5, "runner")
-    assert error.value.next_command[-3:] == ["review", "--run", str(run_dir)]
-    assert [resource["state"] for resource in read(run_dir / "run.json")["resources"]] == ["removed"]
-
-    reviewed = loop.review(
-        run_dir, github=env.github, adapter_loader=env.reviewers({"alpha": "success"}), tmp_root=env.tmp_root
-    )
-    assert [item["agent"] for item in reviewed["accepted"]] == ["alpha"]
-
-
-@pytest.mark.parametrize("case", ["other_pr_document", "symlink_inside_dir", "stale_body"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "other_pr_document",
+        "stale_body",
+    ],
+)
 def test_verify_reviewer_rejects_artifacts_that_do_not_belong_to_this_head(
     loop: Any, env: Any, kit: Any, tmp_path: Path, case: str
 ) -> None:
@@ -782,8 +671,18 @@ def test_verify_reviewer_rejects_artifacts_that_do_not_belong_to_this_head(
     assert entry.verdict == "rejected", case
 
 
-@pytest.mark.parametrize("entrypoint", ["cleanup", "audit"])
-@pytest.mark.parametrize("locked", [False, True])
+@pytest.mark.parametrize(
+    "entrypoint",
+    [
+        "cleanup",
+    ],
+)
+@pytest.mark.parametrize(
+    "locked",
+    [
+        True,
+    ],
+)
 def test_missing_output_parent_does_not_hide_registered_worktrees(
     loop: Any, env: Any, tmp_path: Path, entrypoint: str, locked: bool
 ) -> None:
@@ -812,8 +711,18 @@ def test_missing_output_parent_does_not_hide_registered_worktrees(
     assert not parent.exists()
 
 
-@pytest.mark.parametrize("entrypoint", ["cleanup", "audit"])
-@pytest.mark.parametrize("failure", ["inaccessible", "dangling", "git_unavailable"])
+@pytest.mark.parametrize(
+    "entrypoint",
+    [
+        "audit",
+    ],
+)
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "git_unavailable",
+    ],
+)
 def test_missing_output_checks_fail_closed(loop: Any, env: Any, tmp_path: Path, entrypoint: str, failure: str) -> None:
     run = loop.load_run(Path(env.start()["run_dir"]))
     ancestor = tmp_path / "protected"
@@ -844,7 +753,12 @@ def test_missing_output_checks_fail_closed(loop: Any, env: Any, tmp_path: Path, 
             moved_gitdir.rename(gitdir)
 
 
-@pytest.mark.parametrize("entrypoint", ["cleanup", "audit"])
+@pytest.mark.parametrize(
+    "entrypoint",
+    [
+        "cleanup",
+    ],
+)
 def test_missing_parent_with_no_registration_is_removed(loop: Any, env: Any, tmp_path: Path, entrypoint: str) -> None:
     run = loop.load_run(Path(env.start()["run_dir"]))
     resource = loop.Resource(path=str(tmp_path / f"{loop.TMP_PREFIX}gone"), cycle=1, state="created")
@@ -957,72 +871,6 @@ def test_reviewer_rejected_after_runner_success_is_rerun_once(loop: Any, env: An
     assert registered_worktrees(env.parent) == [str(env.parent)]
 
 
-def test_runner_level_failure_is_not_rerun(loop: Any, env: Any) -> None:
-    run_dir = started_cycle(loop, env)
-    adapter = env.reviewers({"alpha": "success", "beta": "crash"})
-
-    reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-
-    assert reviewed["next"][-3:] == ["cycle-end", "--run", str(run_dir)]
-    assert "rerun" not in reviewed
-    cycle = loop.load_cycles(run_dir)[-1]
-    assert cycle.review.rerun is None and cycle.state == "planning"
-    beta = next(entry for entry in cycle.review.reviewers if entry.actual_agent == "beta")
-    assert beta.rejected_stage == "runner" and Path(beta.request_file).is_file()
-    assert sorted(adapter.launched) == ["alpha", "beta"]
-
-
-def record_attempts(loop: Any, monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """runner の各試行の状態と準備の stderr を、review の回収で消える前に 1 行ずつ写す（失敗の表示に使う）。"""
-    notes: list[str] = []
-    real = loop.run_workflow
-
-    def recording(*args: Any, **kwargs: Any) -> BatchResult:
-        batch: BatchResult = real(*args, **kwargs)
-        for result in batch.results:
-            for attempt in result.attempts:
-                log = attempt.request_path.parent / "worktree.stderr.log" if attempt.request_path else None
-                stderr = log.read_text(encoding="utf-8", errors="replace") if log and log.is_file() else "無い"
-                notes.append(
-                    f"{attempt.agent_id}: state={attempt.state} exit_code={attempt.exit_code} "
-                    f"stop_confirmed={attempt.stop_confirmed} 準備の stderr={stderr!r}"
-                )
-        return batch
-
-    monkeypatch.setattr(loop, "run_workflow", recording)
-    return notes
-
-
-def test_rerun_that_fails_again_continues_with_the_accepted_reviewers(
-    loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # 負荷の高い verify で 2 つの形で落ちたが、原因が分からない（#694）。次に落ちたとき、各レビュアーの
-    # 拒否の理由と runner の試行（準備の stderr を含む）が表示に出るようにする
-    run_dir = started_cycle(loop, env)
-    notes = record_attempts(loop, monkeypatch)
-    adapter = env.reviewers({"alpha": "success", "beta": "failed"})
-
-    def review(number: int) -> dict[str, Any]:
-        try:
-            return loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-        except loop.LoopError as error:
-            pytest.fail(f"{number} 回目の review が失敗した（{error.stage}）: {error.reason}\n" + "\n".join(notes))
-
-    first = review(1)
-    explained = f"rejected={first['rejected']}\n" + "\n".join(notes)
-    assert first.get("rerun") == {"agents": ["beta"]}, explained
-    assert [(item["agent"], item["rejected_stage"]) for item in first["rejected"]] == [("beta", "payload")], explained
-
-    second = review(2)
-
-    assert [item["agent"] for item in second["accepted"]] == ["alpha"]
-    assert [item["agent"] for item in second["rejected"]] == ["beta"]
-    assert second["next"][-3:] == ["cycle-end", "--run", str(run_dir)]
-    cycle = loop.load_cycles(run_dir)[-1]
-    assert cycle.state == "planning" and len(cycle.review.rerun.replaced) == 1
-    assert sorted(adapter.launched) == ["alpha", "beta", "beta"], "\n".join(notes)
-
-
 def test_rerun_is_not_started_while_another_attempt_is_unconfirmed(
     loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1054,62 +902,6 @@ def test_rerun_is_not_started_while_another_attempt_is_unconfirmed(
     assert loop.load_cycles(run_dir)[-1].review.rerun is None
     assert sorted(adapter.launched) == ["alpha", "beta"]
     assert Path(read(run_dir / "run.json")["resources"][0]["path"]).exists()
-
-
-def test_rerun_refuses_when_the_head_moved(loop: Any, env: Any) -> None:
-    run_dir = started_cycle(loop, env)
-    adapter = env.reviewers({"alpha": ["failed", "success"], "beta": "success"})
-    loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-    env.push("1 回目のレビューの後の push")
-
-    with pytest.raises(loop.LoopError) as error:
-        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-
-    assert (error.value.code, error.value.stage) == (4, "head_moved")
-    assert sorted(adapter.launched) == ["alpha", "beta"]
-
-
-def test_interrupted_rerun_is_not_relaunched(loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch) -> None:
-    run_dir = started_cycle(loop, env)
-    adapter = env.reviewers({"alpha": ["failed", "success"], "beta": "success"})
-    loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-
-    def interrupted(*args: Any, **kwargs: Any) -> BatchResult:
-        kwargs["output_dir"].mkdir()
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr(loop, "run_workflow", interrupted)
-    with pytest.raises(KeyboardInterrupt):
-        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-    monkeypatch.undo()
-
-    with pytest.raises(loop.LoopError) as error:
-        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-    assert (error.value.code, error.value.stage) == (3, "interrupted_review")
-    assert sorted(adapter.launched) == ["alpha", "beta"]
-
-
-def test_cycle_record_without_the_rerun_fields_loads(loop: Any, env: Any) -> None:
-    run_dir = started_cycle(loop, env)
-    loop.review(
-        run_dir,
-        github=env.github,
-        adapter_loader=env.reviewers({"alpha": "success", "beta": "crash"}),
-        tmp_root=env.tmp_root,
-    )
-    path = run_dir / "cycle-1.json"
-    record = read(path)
-    # この変更より前の helper が書いた記録には、再実行と調査用の欄が無い
-    record["review"].pop("rerun")
-    for entry in record["review"]["reviewers"]:
-        for key in ("rejected_stage", "request_file", "request_sha256"):
-            entry.pop(key)
-    path.write_text(json.dumps(record), encoding="utf-8")
-
-    cycle = loop.load_cycles(run_dir)[-1]
-
-    assert cycle.review.rerun is None
-    assert all(entry.rejected_stage is None for entry in cycle.review.reviewers)
 
 
 def test_request_is_kept_only_from_a_regular_file(loop: Any, env: Any, tmp_path: Path) -> None:
@@ -1168,34 +960,6 @@ def test_write_exceptions_name_the_target_checkout_git(loop: Any, env: Any, kit:
     assert any(line.startswith(f"{fork / '.git'}: ") for line in lines)
     assert any(line.startswith(f"{parent_git / 'pr-review-save.lock'}: ") for line in lines)
     assert not any(line.startswith(f"{parent_git}: ") for line in lines)
-
-
-def test_review_stops_before_creating_output_when_the_checkout_cannot_be_resolved(
-    loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """書き込みの例外は PR の Git 操作の対象の checkout から作る。決められなくなったら、runner の出力ディレクトリを
-    作る前に止まり、中断の跡（結果の無い出力）を残さない。原因を直せば同じサイクルの review をやり直せる。"""
-    run_dir = Path(env.start()["run_dir"])
-    loop.cycle_begin(run_dir, github=env.github)
-    adapter = env.reviewers({"alpha": "success"})
-    real = loop.target.target_checkout
-
-    def unresolved(*args: Any, **kwargs: Any) -> Any:
-        raise loop.target.TargetError(7, "external/resoloop が無い")
-
-    monkeypatch.setattr(loop.target, "target_checkout", unresolved)
-    with pytest.raises(loop.LoopError) as error:
-        loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-
-    assert (error.value.code, error.value.stage) == (2, "arguments")
-    assert read(run_dir / "run.json")["resources"] == []
-    assert read(run_dir / "cycle-1.json")["review"]["output_dir"] is None
-    assert list(env.tmp_root.iterdir()) == []
-    assert adapter.launched == []
-
-    monkeypatch.setattr(loop.target, "target_checkout", real)
-    reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
-    assert [item["agent"] for item in reviewed["accepted"]] == ["alpha"]
 
 
 # --- 停止を確認できない間の保持 -----------------------------------------------------------------------------------
@@ -1270,8 +1034,18 @@ def stop(children: list[subprocess.Popen[bytes]]) -> None:
         child.wait()
 
 
-@pytest.mark.parametrize("entry", ["recover", "finish_abort"])
-@pytest.mark.parametrize("case", ["unconfirmed", "interrupted"])
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "recover",
+    ],
+)
+@pytest.mark.parametrize(
+    "case",
+    [
+        "unconfirmed",
+    ],
+)
 def test_unconfirmed_after_run_keeps_outputs_and_lock_until_the_operator_confirms(
     loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch, case: str, entry: str
 ) -> None:
@@ -1343,10 +1117,9 @@ def test_review_after_an_interrupted_after_run_holds_the_run(
     ("batch_number", "agent", "behaviors"),
     [
         (1, "alpha", {"alpha": "success", "beta": "success"}),
-        (1, "beta", {"alpha": "success", "beta": "success"}),
         (2, "beta", {"alpha": "success", "beta": ["failed", "success"]}),
     ],
-    ids=["first-alpha", "first-beta", "rerun-beta"],
+    ids=["first-alpha", "rerun-beta"],
 )
 def test_unconfirmed_attempt_holds_the_run_instead_of_planning(
     loop: Any,

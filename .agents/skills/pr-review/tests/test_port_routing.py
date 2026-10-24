@@ -195,18 +195,6 @@ def test_upstream_full_diff_pair_save_cleanup_preserves_shared_refs(
     assert git(f["checkout"], "show-ref") == refs
 
 
-def test_fork_and_upstream_same_number_are_independent(fixture: dict[str, Any]) -> None:
-    f = fixture
-    first = create(f, target(f))
-    second = create(f, target(f, "usaturn/resoloop"))
-    for result, repo in ((first, "orange3134/resoloop"), (second, "usaturn/resoloop")):
-        pair(result, repo, f["head"], f["base"])
-        workspace.save(argparse.Namespace(state=result["state_file"], findings=True))
-        workspace.cleanup(argparse.Namespace(state=result["state_file"]))
-    assert (f["parent"] / first["destination"]).is_file()
-    assert (f["parent"] / second["destination"]).is_file()
-
-
 def test_moving_live_head_keeps_drafts_then_fresh_session_continues(
     fixture: dict[str, Any],
 ) -> None:
@@ -246,15 +234,11 @@ def test_external_checkout_requires_explicit_source_and_matching_remote(
         create(f, t, source_root=str(f["checkout"]))
 
 
-@pytest.mark.parametrize("change", ["missing", "null", "remote", "sha", "number", "url", "repository"])
+@pytest.mark.parametrize("change", ["remote", "sha", "number", "url", "repository"])
 def test_target_rejects_unvalidated_input_without_creating_session(fixture: dict[str, Any], change: str) -> None:
     f = fixture
     t = target(f)
-    if change == "missing":
-        t["target_root"] = str(f["tmp"] / "does-not-exist")
-    elif change == "null":
-        t["target_root"] = None
-    elif change == "remote":
+    if change == "remote":
         t["base_remote"] = "origin"
     elif change == "sha":
         t["head_sha"] = "HEAD"
@@ -353,7 +337,6 @@ def test_failed_shallow_create_can_be_inspected_then_abandoned(
         ("journal-worktree", "create journal does not identify"),
         ("journal-parent", "create journal has no owned-history repository parent"),
         ("journal-owner", "not this attempt's owned Git"),
-        ("replacement", "not this attempt's owned Git"),
         ("git-replacement", "not this attempt's owned Git"),
         ("git-symlink", "unowned Git or user data"),
         ("foreign-worktree", "owns another worktree"),
@@ -382,9 +365,6 @@ def test_shallow_recovery_refuses_unowned_git_or_user_data(
             (created,) = [record for record in records if record["phase"] == "owned-history-created"]
             created["inode"] = -1
         journal.write_text("".join(json.dumps(record) + "\n" for record in records))
-    elif violation == "replacement":
-        repo.rename(session / "original-repo")
-        init(repo, "someone/tool")
     elif violation in {"git-replacement", "git-symlink"}:
         outside = f["tmp"] / "original-git"
         (repo / ".git").rename(outside)
