@@ -151,4 +151,15 @@ Expected: どれも終了コード 0（ワールドの行は対象外）。
 
 ## 完了
 
-（実装後に記入する）
+- Task 1: `2cc1db7`（2026-10-24T19:15Z）。差分は Expected どおり 2 行の追加だけ
+- Task 2: `2cc72e7`（19:16Z）。段落の末尾への 1 文の追記だけで、手順 4 の ignore 対象の一覧と「削除しない」の文は変わらない
+- Task 3: Step 1 は 7.0.0・7.0.1 とも終了コード 0、一時リポジトリの `git status --short --ignored` と `find . -name .superpowers` の出力は空（`/workspaces/reso-world/tmp/agents/issue-132.5u7egjt7/sdd-outfile-check.log`）。Step 2 は Expected どおり。Step 3 は `2cc72e7` で `run-tests.bash`（23 件 PASS）・`check-layout.sh`・`uv run pytest tests/skills .agents/skills .agents/scripts tools`（1224 passed）がどれも終了コード 0。最後の commit の後の検証は、`--merge` の検証の記録（Step 4）と PR 本文に書く
+- ブランチ全体のレビュー（新しいコンテキストの Opus のサブエージェント、19:21Z〜19:29Z）: Critical・Important は無く、マージしてよいの判定。Minor 6 件
+  - Ruling: 指摘 1（`task-start`・`task-done` を使わないときの BASE の控え方と、テストが通ったときだけ完了の行を書く条件が無い）を Important に上げて直した（`7bd0605`）。今回の変更が `task-done` のゲートを外したのに代わりを書いておらず、再開のときに未検証の Task を完了扱いで飛ばしうるため。Task 1 の Step 2 の文に 1 文を足した形になる
+  - Ruling: 指摘 5・6（Spec の根拠の書き方の誤り、D1 に失う機能との比較が無い）は記録の誤りなので Spec を直した
+  - 持ち越し（Minor）: 指摘 2（1 つの `sdd/` を 2 つ目の Plan に使うと前の ledger を上書きしうる）、指摘 3（出力先のファイル名をスクリプトの既定に合わせると書いていない。この Plan の Task 3 の `review.diff` も固定名）、指摘 4（repo-cleanup-after-merge に足した 1 文の列挙が、出力先を渡さない `task-brief`・`review-package` を含まず、「次の原則」との間に入って流れが切れる）
+  - 範囲外のまま: SDD の Finish で `sdd/` を消すと runner への依頼の記録が失われうること、Codex で superpowers 5.1.3 と 7.0.1 が併存していること（どちらも変更前からの状況）
+- 未確認: SDD の実装サブエージェントが worktree の外の `sdd/` に報告を書く経路は、この run（executing-plans）でも PR #190・#224・#257 でも実行していない
+- Ruling: この run の作業領域は、この変更の規則どおり `/workspaces/reso-world/tmp/agents/issue-132.5u7egjt7/sdd/` に置いた（ledger・brief・review package）
+- Ruling: `superpowers:test-driven-development` は読み込まなかった。変更は文書だけで、`AGENTS.md` の「テストの採用基準」と Spec D6 によりテストを書かないため
+- 所要時間（着手 2026-10-24T19:10Z から修正の commit まで）: 約 30 分。内訳は、入力・競合・スクリプトの確認 10 分、Spec・Plan 5 分、Task 1・2 が 2 分、Task 3 とブランチ全体のレビューが並行して約 18 分（テストの実行 約 20 分を含む）、修正 1 分
