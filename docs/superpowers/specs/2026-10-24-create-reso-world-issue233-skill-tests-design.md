@@ -372,7 +372,7 @@
 | `test_stop_refuses_unrelated_and_caller_pids` | S | 残す | stale・再利用・caller の PID に signal を送ると無関係のプロセスを破壊する（高）。3 ケースは同じ identity 検証の代表群。通常の停止陽性例は `test_operator_stop_confirms_and_reports_operator`。 |
 | `test_operator_stop_confirms_and_reports_operator` | S | 残す | operator 停止の通知だけで終了せず、実際に watcher が退出して確認済みと記録することを確かめる。虚偽の停止確認を防ぐ（高）。 |
 | `test_relative_state_dir_round_trip` | S | 残す | 相対 state path を別の cwd 基準で解決すると、別 watch の状態を読んだり対象を止めたりする（高）。status・stop の対象が同じ絶対パスになることを確かめる。 |
-| `test_status_of_finished_run_reports_final_and_dead_processes` | L | 消す | 終了済みを生存中と返す誤りは controller の待機・状態確認が終わらないという明らかな異常になる。正常完了の記録自体は `test_progressing_worker_completes_without_stop` が確かめる。 |
+| `test_status_of_finished_run_reports_final_and_dead_processes` | L | 消す | 終了済みを生存中と返す誤りは controller の待機・状態確認が終わらないという明らかな異常になる。正常完了の実プロセス例は `test_item_written_right_after_finalize_request_is_within_grace` が確かめる。 |
 | `test_launch_failure_is_reported_as_incomplete` | S | 残す | 起動できない CLI を `completed` と最終報告すると、何も実行していないのに成功が残る（中）。 |
 | `test_invalid_arguments_exit_2_without_creating_state` | S（L 混在） | 残す。ただし既存 state 保護に絞る | 誤った引数が既存の state directory を上書きすると監視記録を失う（高）。新規 state 不作成と終了コードだけは argparse/pydantic の L なので削る。 |
 
@@ -453,3 +453,54 @@
 - `simplify-in-subagent` の `$ARGUMENTS` は文面の固定値でも操作範囲の保護なので F∩S。削除対象の F と混同しない。
 - `test_policy_rejects_values_outside_the_declared_ranges` と `test_invalid_arguments_exit_2_without_creating_state` は S と L が同じ関数に混在する。残す場合は、前者は予約時間の境界、後者は既存 state を上書きしない断言に絞る。
 - この表は関数単位の一次監査。削除実装時は D の代表の残存と、F∩S の固定値が防ぐ損害を Spec とテストのコメントに明記する。
+
+## 実装後の照合と計測
+
+棚卸し表は変更前の関数名と判断を残した。縮約したテストの現行名は次のとおり。旧名のテストを削除しても、各行で述べた S または F∩S の観測を残している。
+
+| 変更前の名前 | 実装後の名前・残した観測 |
+| --- | --- |
+| `test_check_implement_replaces_primary_and_keeps_fallback` | `test_check_implement_replaces_primary`：指定した一次担当の採用 |
+| `test_blocked_and_needs_context_ask_for_retry` | `test_blocked_asks_for_retry`：BLOCKED の再試行判定 |
+| `test_clear_refuses_force_and_unknown_options` | `test_clear_refuses_force`：保持者検査を迂回する強制削除の拒否 |
+| `test_usage_errors_change_nothing` | `test_force_is_refused_without_changing_files`：強制更新の拒否と HEAD・利用者ファイルの保全 |
+| `test_frontmatter_is_valid_for_every_runtime` | `test_allowed_tools_preserves_permission_type`：権限解釈に使う `allowed-tools` の型 |
+| `test_policy_rejects_values_outside_the_declared_ranges` | `test_policy_rejects_reserve_that_leaves_no_investigation_time`：調査時間が無くなる予約枠の拒否と正常例 |
+| `test_invalid_arguments_exit_2_without_creating_state` | `test_existing_state_is_not_overwritten`：既存の監視記録の保全。新規実行の正常例は他の process テストに残る |
+| `test_history_invalid_utf8_fails_without_traceback` | `test_history_invalid_utf8_does_not_supply_a_model`：壊れた履歴をモデル名として採用しない |
+
+実装コードと公開インターフェースは変更していない。削除したテスト専用の `fake_worker.py` の 7 モードだけを取り除いた。ワールド保護の処理とテストは、旧 checkout を使う手順が残るため維持した。拒否だけで通るテストが残らないよう、repo 解決、変更の取り込み、ロック解除、ff merge、detached 更新、監視の停止、モデル照合の正常例を確認した。変更ファイルは許可範囲のテスト・補助コードと本 Spec・Plan だけである。
+
+| 指標 | 変更前 | 変更後 | 差分 |
+| --- | ---: | ---: | ---: |
+| #233 指定領域の pytest 収集件数 | 471 | 217 | 254 減（53.9%） |
+| 同領域の Git 追跡テストファイルの行数 | 5,906 | 4,031 | 1,875 行減（31.7%） |
+
+収集件数は Issue に記載された対象列挙で `uv run --locked pytest --collect-only -q`、行数は同じ領域の `git ls-files -z -- .../tests | xargs -0 cat | wc -l` で、テスト変更をコミットした状態から計測した。基準の領域テストは 470 passed、1 skipped。変更後の領域テストは 217 passed、終了コード 0（124.15 秒）。件数の削減を理由に S のテストは削除していない。
+
+高リスクの代表について、`/tmp` の一意な使い捨てコピーで処理または操作範囲のガードだけを変えた。元の worktree の実装コードとスキル本文には変異を入れていない。各行の左は変更前のテスト終了コード、右は変異後の終了コードである。
+
+| 残した代表テスト | 一時的に壊した条件 | 結果 |
+| --- | --- | --- |
+| `test_rejects_input_before_looking_up_issue` | resolver の対応リポジトリに対象外の上流を追加 | 0 → 1。対象外 URL で `gh` を呼び、拒否テストが失敗 |
+| `test_fast_forwards_and_restores_every_conflicting_file` | ff merge の復元処理を空にする | 0 → 1。成功報告でも利用者ファイルの内容が変わったことを検出 |
+| `test_updates_to_detached_origin_main_without_changing_local_refs` | detached 更新を local `main` の強制 checkout に変更 | 0 → 1。3 ケースとも local ref の移動を検出 |
+| `test_clear_removes_only_the_symlink_lock_not_its_target` | ロック symlink の参照先まで削除 | 0 → 1。参照先の利用者ファイルの消失を検出 |
+| `test_unstoppable_worker_is_held_and_left_running` | プロセス終了の確認関数を常に真にする | 0 → 1。生存中なのに `stopped` と報告したことを検出 |
+| `test_interpolation_is_limited_to_the_target_line` | スキルの bash コードブロックへ `$ARGUMENTS` を追加 | 0 → 1。操作対象外の引数展開を検出 |
+
+各変異の前後の pytest ログは、ローカルの `PARENT_ROOT/tmp/agents/issue-233.i98txoe1/mutation-<対象>-{before,after}.log` に保存した。対象は `issue`、`ff`、`cleanup`、`lock`、`watch`、`simplify`。一時コピーは各確認の後に削除した。
+
+## 統合検証
+
+Task 1 は 54 件、Task 2 は 83 件、Task 3 は 80 件のテストを残し、各 Task の担当領域で実行した。Task ごとのレビューで修正必須の指摘はなく、ブランチ全体の読み取り専用レビューも指摘 0 件だった。検証は 2026-10-24 に `feat/issue-233-skill-tests` のテスト変更コミット `cd653bb6308cfec1ab81af9642df0e1b6bd95c93` のツリーで実行した。本 Spec の結果追記はテスト後に行った。
+
+| 検証コマンド | 観測結果 |
+| --- | --- |
+| #233 指定領域の `uv run --locked pytest` | 217 passed、124.15 秒、終了コード 0 |
+| `uv run pytest tests/skills .agents/skills .agents/scripts tools` | 1,472 passed、699.30 秒、終了コード 0 |
+| `bash .devcontainer/run-tests.bash` | 23 test(s) PASS、終了コード 0 |
+| `bash scripts/check-layout.sh` | `PASS: check-layout`、終了コード 0 |
+| `git diff --check` と変更範囲の確認 | 出力なし、終了コード 0。対象外の追跡ファイル変更なし |
+
+実行ログはローカルの `PARENT_ROOT/tmp/agents/issue-233.i98txoe1/` に、順に `area-test.log`、`readme-pytest-pre.log`、`readme-bash-pre.log`、`readme-layout-pre.log` として保存した。ブランチ全体のレビューは同じ場所の `final-branch-review.md`。本書の結果追記をコミットした後、公開する HEAD で README の 3 入口を再実行し、HEAD と終了コードをセッションの検証記録に残す。
