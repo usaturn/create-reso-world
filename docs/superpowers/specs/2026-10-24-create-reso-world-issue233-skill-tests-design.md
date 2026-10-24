@@ -1,6 +1,6 @@
 # Issue #233: スキルと tests/skills のテスト削減設計
 
-> 状態: draft。管理先: `usaturn/create-reso-world`。対象 Issue: https://github.com/usaturn/create-reso-world/issues/233 。対象ブランチ: `feat/issue-233-skill-tests`。
+> 状態: completed。管理先: `usaturn/create-reso-world`。対象 Issue: https://github.com/usaturn/create-reso-world/issues/233 。対象 PR: https://github.com/usaturn/create-reso-world/pull/254 。対象ブランチ: `feat/issue-233-skill-tests`。検証したコード HEAD: `b73019e0409327f154f2f57945fc72cae2476efe`。
 >
 > 実行許可: 利用者の「`$issue-to-pr #233 --merge`」（2026-10-24）。これは実装、検証、commit、push、PR 作成、および指定されたレビュー修正ループで条件を満たした場合のマージの許可であり、本書の内容承認を意味しない。
 
@@ -119,7 +119,7 @@
 | テスト関数・ケース | 分類 | 判断 | 具体的な理由・D の代表 |
 | --- | --- | --- | --- |
 | `test_resolves_supported_forms_without_changing_git`：3 リポジトリの代表 | F∩S・高 | 残す | 許可する owner/repo の固定値と、`#N` の origin による選択が誤ると別リポジトリで branch/PR を作る。正常な URL・短縮形・origin を各 1 件残す。 |
-| `test_resolves_supported_forms_without_changing_git`：表記・空白の追加 6 ケース | D | 消す | 同じリポジトリ解決と read-only の守り。代表は上行の 3 リポジトリ例。 |
+| `test_resolves_supported_forms_without_changing_git`：表記・空白の追加 6 ケース | D。ただし非既定 origin の `#N` は S | 非既定 origin を 1 件残す | 明示 URL・`repo#N` と番号だけの入力は別の分岐。非既定 origin でも番号から正しい repository を選ぶ代表が必要。残りの表記違いは D。PR #254 のレビューで訂正した。 |
 | `test_accepts_repo_casing_only_in_response_url` | L | 消す | 大文字小文字だけの違いを誤拒否した場合、Issue 取得が明示的に止まる。 |
 | `test_rejects_input_before_looking_up_issue`：対象外 repo・上流 repo・偽 GitHub host | F∩S・高 | 残す | 許可外のリポジトリやホストを先に拒否しないと、別対象の Issue を使って作業を進め得る。上流 `orange3134/resoloop` と偽 host を代表にする。 |
 | `test_rejects_input_before_looking_up_issue`：複数 Issue・追加語 | D | 消す | 複数の参照を黙って選ぶ守りは `test_rejects_malformed_arguments_before_looking_up_issue` の `#41 #42 --merge` が代表。 |
@@ -141,7 +141,7 @@
 | `test_origin_with_credentials_stops_without_printing_them`：GitLab URL | D | 消す | 同じ URL 認証情報の伏せ字処理。代表は上行の GitHub URL。 |
 | `test_number_outside_a_checkout_stops` | L | 消す | checkout 外では `git remote get-url` が明示的に失敗する。 |
 | `test_rejects_mismatched_or_closed_response`：closed・別番号・別 repo・別 host | S・高 | 残す | GitHub 応答の状態や対象を信用すると、閉じた Issue・別 Issue・別リポジトリで作業を始め得る。各違う判定条件を 1 件残す。 |
-| `test_rejects_mismatched_or_closed_response`：URL の他の表記違い | D | 消す | URL が指定先と一致するかの同じ守り。代表は上行の番号・repo・host 不一致。 |
+| `test_rejects_mismatched_or_closed_response`：URL の他の表記違い | D。ただし OPEN の PR 応答は S | OPEN の `/pull/42` を 1 件残す | 番号・repo・host の不一致は `/issues/` と `/pull/` の区別を守らない。OPEN の PR を Issue として受け付けると誤対象の作業が始まる。MERGED の PR 応答は CLOSED と同じ状態拒否で D。PR #254 のレビューで訂正した。 |
 | `test_rejects_malformed_response` | L | 消す | JSON 形式・型・状態名の異常は解析エラーとして明示的に止まる。 |
 | `test_reports_gh_failure_without_trying_another_repository` | S・高 | 残す | 404 後に別 repo を推測して再検索すると、もっともらしい別 Issue を選んでしまう。 |
 | `test_resolve_then_implement_check` | D | 消す | `--implement` の受け渡しは `test_implement_is_returned_without_changing_git`、担当の検査と既定 `self` は `test_check_implement_replaces_primary_and_keeps_fallback` と `test_check_reads_the_real_template` が代表。 |
@@ -321,12 +321,12 @@
 
 | テスト関数 | 分類 | 扱い | 具体的な理由・代表 |
 | --- | --- | --- | --- |
-| `test_skill_frontmatter.py::test_frontmatter_is_valid_for_every_runtime` | F∩S | 残す。ただし権限に関係しない名前・説明文の形は削る | `allowed-tools` の型が変わると実行権限の解釈が黙って変わり、意図外のツールを使いうる（高）。権限値の固定だけを残す。全 skill の parametrize は 1 行。 |
+| `test_skill_frontmatter.py::test_frontmatter_is_valid_for_every_runtime` | F∩S と L の混在 | 権限の型は残し、全 skill の走査を 1 テストへ縮める | `allowed-tools` の型が変わると実行権限の解釈が黙って変わり、意図外のツールを使いうる（高）。権限のない 22 スキルの独立した pytest ケースは frontmatter の解析だけで L。#233 の 1 ループの指定に合わせる。 |
 | `test_skill_frontmatter.py::test_every_skill_directory_has_a_skill_file` | L | 消す | `SKILL.md` が無ければ当該スキルを使う最初の操作でファイル不在が分かる。 |
 | `test_skill_packages.py::test_references_and_links_resolve` | L | 消す | リンク先が無ければ開く際にファイル不在として明らかになる。 |
 | `test_skill_packages.py::test_execution_guidance_guards_cover_positive_and_negative_fixtures` | S | 残す | 検出器が誤って無条件に偽を返すと、禁止した Blender MCP・他エンジンへの誘導を見逃す。外部の処理経路へ作業を出す損害を防ぐ（高）。許容文の例もあり、何でも拒否する検出器は通らない。 |
 | `test_skill_packages.py::test_no_positive_execution_guidance_in_skills_or_shared_references` | F∩S | 残す | スキル本文・参照文書に実行可能な Blender MCP・他エンジンへの誘導が混じると、定めた ResoLoop の操作範囲外へ作業を出しうる（高）。固定するのは文面全体ではなく危険な操作の有無。 |
-| `test_skill_packages.py::test_provenance_license_and_document_coverage` | F∩S | 残す。ただし存在・一般的な形式の確認は削る | 取り込んだ資料の source commit・帰属・対象の一覧は凍結した取り込み履歴。誤った由来をそれらしく記録する損害を防ぐ（中）。出力パスの存在は L。 |
+| `test_skill_packages.py::test_provenance_license_and_document_coverage` | F∩S | 残す。各文書の出所・改変・出力対応の非空も残す | 取り込んだ資料の source commit・帰属・対象の一覧に加え、文書別の `source_paths`・`modifications`・`output_paths` は凍結した取り込み履歴。空のままでも通常の実行は止まらず、履歴を失う。出力ファイルの存在確認は L。PR #254 のレビューで訂正した。 |
 
 #### `monitoring-long-tasks/tests/test_task_watch_core.py`
 
@@ -473,10 +473,10 @@
 
 | 指標 | 変更前 | 変更後 | 差分 |
 | --- | ---: | ---: | ---: |
-| #233 指定領域の pytest 収集件数 | 471 | 217 | 254 減（53.9%） |
-| 同領域の Git 追跡テストファイルの行数 | 5,906 | 4,031 | 1,875 行減（31.7%） |
+| #233 指定領域の pytest 収集件数 | 471 | 194 | 277 減（58.8%） |
+| 同領域の Git 追跡テストファイルの行数 | 5,906 | 4,043 | 1,863 行減（31.5%） |
 
-収集件数は Issue に記載された対象列挙で `uv run --locked pytest --collect-only -q`、行数は同じ領域の `git ls-files -z -- .../tests | xargs -0 cat | wc -l` で、テスト変更をコミットした状態から計測した。基準の領域テストは 470 passed、1 skipped。変更後の領域テストは 217 passed、終了コード 0（124.15 秒）。件数の削減を理由に S のテストは削除していない。
+収集件数は Issue に記載された対象列挙で `uv run --locked pytest --collect-only -q`、行数は同じ領域の `git ls-files -z -- .../tests | xargs -0 cat | wc -l` で、修正コミット `b73019e` のツリーから計測した。基準の領域テストは 470 passed、1 skipped。最終の領域テストは 194 passed、終了コード 0（76.35 秒）。レビュー前は 217 件・4,031 行・217 passed であり、追加した安全上の代表 2 件と frontmatter の 1 件への縮約を後で反映した。件数の削減を理由に S のテストは削除していない。
 
 高リスクの代表について、`/tmp` の一意な使い捨てコピーで処理または操作範囲のガードだけを変えた。元の worktree の実装コードとスキル本文には変異を入れていない。各行の左は変更前のテスト終了コード、右は変異後の終了コードである。
 
@@ -491,7 +491,7 @@
 
 各変異の前後の pytest ログは、ローカルの `PARENT_ROOT/tmp/agents/issue-233.i98txoe1/mutation-<対象>-{before,after}.log` に保存した。対象は `issue`、`ff`、`cleanup`、`lock`、`watch`、`simplify`。一時コピーは各確認の後に削除した。
 
-## 統合検証
+## 初回の統合検証（レビュー前）
 
 Task 1 は 54 件、Task 2 は 83 件、Task 3 は 80 件のテストを残し、各 Task の担当領域で実行した。Task ごとのレビューで修正必須の指摘はなく、ブランチ全体の読み取り専用レビューも指摘 0 件だった。検証は 2026-10-24 に `feat/issue-233-skill-tests` のテスト変更コミット `cd653bb6308cfec1ab81af9642df0e1b6bd95c93` のツリーで実行した。本 Spec の結果追記はテスト後に行った。
 
@@ -503,4 +503,67 @@ Task 1 は 54 件、Task 2 は 83 件、Task 3 は 80 件のテストを残し�
 | `bash scripts/check-layout.sh` | `PASS: check-layout`、終了コード 0 |
 | `git diff --check` と変更範囲の確認 | 出力なし、終了コード 0。対象外の追跡ファイル変更なし |
 
-実行ログはローカルの `PARENT_ROOT/tmp/agents/issue-233.i98txoe1/` に、順に `area-test.log`、`readme-pytest-pre.log`、`readme-bash-pre.log`、`readme-layout-pre.log` として保存した。ブランチ全体のレビューは同じ場所の `final-branch-review.md`。本書の結果追記をコミットした後、公開する HEAD で README の 3 入口を再実行し、HEAD と終了コードをセッションの検証記録に残す。
+実行ログはローカルの `PARENT_ROOT/tmp/agents/issue-233.i98txoe1/` に、順に `area-test.log`、`readme-pytest-pre.log`、`readme-bash-pre.log`、`readme-layout-pre.log` として保存した。ブランチ全体のレビューは同じ場所の `final-branch-review.md`。その後の公開前の検証と PR レビュー修正の結果は次節に記録する。
+
+## PR #254 のレビュー修正（サイクル 1、修正して push）
+
+対象は PR #254 の `2e517c6a6389eadbd8c2e77581f3cbb3f1f082c7`。利用者の `$issue-to-pr #233 --merge` により review-fix-planning の完遂と、条件を満たす場合のマージを実行する。採否と修正の内容を利用者が承認した扱いにはしない。planner は GPT-6（codex）。レビューの判断の記録は今回が 1 回目で、過去の判断の引き継ぎは 0 件。
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | 今回の再実行 | 指摘 |
+| --- | --- | --- | --- | --- | ---: |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `2e517c6a6389` | はい | 3 |
+| `SWE-2-Max.md` | SWE-2 Max | devin | `2e517c6a6389` | はい | 0 |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | `2e517c6a6389` | はい | 1 |
+| `Grok-4.7.md` | Grok 4.7 | cursor | `2e517c6a6389` | はい | 0 |
+
+確認済みの一覧は `PARENT_ROOT/reviews/usaturn/create-reso-world/#254-feat-issue-233-skill-tests/verified/2e517c6a6389.json`。4 件 confirmed、解消済み 0、対応する 4、対応しない 0、未確認 0。確認担当は隔離したコミット済みツリーを用い、変異を含む比較と現在のテストの検出範囲を記録した。既存の実装自体は正常に動き、PR が削除したテストの守りを戻す。
+
+| 指摘の参照 | 分類と理由 | 修正方針と検証 |
+| --- | --- | --- |
+| `deepseek-deepseek-v4.1-flash#H-1@2e517c6a6389` | 対応する（c）。OPEN の PR を Issue として受理すると、別の対象に branch と PR を作る。`gh issue view` が OPEN の PR に `/pull/N` を返す通常の入力で再現でき、拒否の回帰ガードを削除していた | `test_rejects_mismatched_or_closed_response` に OPEN・`/pull/42` を 1 件戻す。正常な OPEN・`/issues/42` と対にし、URL ガードを外した一時コピーで追加ケースが失敗することを確かめる。MERGED は既存の CLOSED の状態拒否と重複し、明示 PR URL は応答側で止まるので独立した S として増やさない |
+| `gpt-6.1-sol#M-1@2e517c6a6389` | 対応する（c）。`#N` のリポジトリは checkout の origin に依存する。固定 repo への回帰が残存テストを通り、別のリポジトリを選ぶ | `test_resolves_supported_forms_without_changing_git` に非既定 origin の `#42` を 1 件足す。正しい repo と `gh --repo` を観測し、origin の結果を無視する一時変異で失敗することを確かめる |
+| `gpt-6.1-sol#L-1@2e517c6a6389` | 対応する（c）。凍結した取り込み履歴の文書別の出所・改変・出力対応が JSON のまま空になっても通常の処理は止まらず、記録を失う。F∩S の回帰ガードを削除していた | `test_provenance_license_and_document_coverage` の各文書で `source_paths`・`modifications`・`output_paths` の非空を戻す。各フィールドを空にする使い捨てコピーで失敗し、正常値で通ることを確かめる。ファイル実在の L は戻さない |
+| `gpt-6.1-sol#L-2@2e517c6a6389` | 対応する（d）。Issue #233 がこのテストの全件 parametrization をループ 1 件に縮めることを具体例として指定し、26 件中 22 件が権限の断言に到達していなかった | 全 SKILL.md の走査を 1 テスト内のループにし、`allowed-tools` がある 4 件では権限型を守る。現行スキルで通ることと収集件数が 1 件になることを確かめる |
+
+今回が PR #254 の最初のレビュー修正であり、「同じ条件の再発と設計の見直し」の 3 つのきっかけはいずれも該当しない。実装の仕様変更は不要。選択案はテストの独立した S と F∩S の代表を戻すこと。全削除ケースの復元は D・L を増やすので採用しない。
+
+### 守る条件と影響経路
+
+4 件に共通する原因は、テストの縮約時に異なる境界の判定を同じ代表が守ると扱ったこと。以下の「既に満たす」は現行実装が条件を満たすという意味で、修正後のテストが検出できることは別に確かめる。計画時の実行証拠は未実施とする。
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| Issue の `#N` は PR を受け付けない | `resolve_issue.py` の番号入力から `fetch_issue` の応答 URL 照合 | 既に満たす | OPEN の `/issues/42` は成功、OPEN の `/pull/42` は拒否。拒否前にファイル・Git ref は変わらない | `test_resolves_supported_forms_without_changing_git` と追加する OPEN PR 応答ケース。URL 判定の一時変異 | `b73019e` で両側を含む 26 passed。変異で PR 応答ケースだけ失敗。拒否テストは status・ref の前後を照合 |
+| Issue の `#N` は PR を受け付けない | 明示 PR URL の入力 parser、MERGED の PR 応答 | 対象外 | parser のみ緩んでも応答 URL で拒否。MERGED は状態で拒否 | 既存の独立確認 `verify-resolver-findings.md` | 重複の理由を確認済み。新しいテストは追加しない |
+| `#N` は origin の repo を選ぶ | `resolve_target` の origin 読取から `gh --repo` と結果 payload | 修正する | 非既定 origin の `#42` がその repo の Issue に解決される | 非既定 origin を 1 ケース加え、固定 repo 変異との対照 | `b73019e` で 26 passed。変異で非既定 origin のケースだけ失敗。正常側で偽 gh の `--repo` と payload を照合 |
+| `#N` は origin の repo を選ぶ | 明示 Issue URL と `repo#N` | 既に満たす | 入力で指定した repo を選ぶ | 既存の正常例 | `b73019e` の関連 26 passed に既存の両ケースを含む。今回の変更は番号入力の追加のみ |
+| 文書別の取り込み履歴を失わない | `blender-skills-sources.json` の各 documents を読む `test_provenance_license_and_document_coverage` | 修正する | 3 フィールドの空値を別々に検出し、正常な記録は通す | 同テストと使い捨てコピーの 3 空値 | `b73019e` の関連 26 passed、各空値の変異は 1 failed・2 passed |
+| 文書別の取り込み履歴を失わない | source commit・LICENSE・文書名集合の既存確認 | 既に満たす | 共通の凍結履歴は維持する | 同テスト | `b73019e` の関連 26 passed。これらの assertion は変更していない |
+| 権限解釈の型を守り、L の独立ケースを残さない | `test_skill_frontmatter.py` の frontmatter 読取から `allowed-tools` 型判定 | 修正する | pytest は 1 件を収集し、権限指定のあるスキルを走査して文字列型を確認 | pytest collect-only と対象テストの実行 | `b73019e` の対象テスト成功。frontmatter の収集 1 件、list 型への変異は 1 failed |
+
+修正の担当はループ既定の `claude-opus`（implement）、修正後の自己レビューと fix-check は各 `self`。担当は runner が用意する worktree のみを編集し、既存の PR の head に取り込む。修正後は関連テスト、領域の pytest、README の 3 入口、`git diff --check`、必要な代表の一時変異、Gitleaks を行う。自己レビューは `run_roles.py --phase self-review` を 1 回だけ実行し、PR 全体の差分、修正条件の反証、追加テストの検出力を確かめる。工程の記録は `verified/2e517c6a6389.planning.json` に保存する。結果、実際の検証と所要時間は実行後に追記する。
+
+### 修正コミットと検証の経過
+
+`claude-opus-5-5`（claude-code）の runner 担当は 2026-10-24 08:48:13–08:51:06 UTC に、隔離 worktree で 3 テストファイルのみを変更し、`b8989df521330b90ae383ee09c441e27df789760` を作成した。runner は終了コード 0、`stop_confirmed=true`、`outside_changes=[]`。controller は親 commit と 3 ファイルの差分を照合し、PR の作業ブランチに cherry-pick して `b73019e` を作成した。runner の worktree は停止確認後に Git の登録から外した。実装担当の実測経過は 211.62 秒。
+
+| 修正後に守る条件 | 対照した入力・状態 | 観測結果 |
+| --- | --- | --- |
+| OPEN の PR 応答を Issue として扱わない | OPEN・`/issues/42`、OPEN・`/pull/42`。後者を通す URL 判定の一時変異 | 正常側は通過、PR は拒否。変異側は追加テストだけ失敗（1 failed、21 passed） |
+| `#N` の repo は origin から選ぶ | 既定 origin と `git@github.com:usaturn/resoloop.git`。後者を既定 repo に固定する一時変異 | 正常側は両 repo を選択。変異側は追加テストだけ失敗（1 failed、21 passed） |
+| 文書別の凍結履歴を失わない | 正常な 13 文書、1 文書の `source_paths=[]`・`modifications=""`・`output_paths=[]` を別々に設定 | 正常値は通過。各空値はそのテストが失敗（それぞれ 1 failed、2 passed） |
+| 権限型を 1 件の走査で守る | 現行のスキル一覧、権限指定のある 1 スキルを list 型に変える一時変異 | 収集 1 件で正常値は成功、変異では 1 failed |
+
+一時変異は runner の一意な `/tmp` のコピーだけで行い、削除を確認した。`b73019e` の作業ブランチで修正対象の 3 ファイルは `26 passed`、指定領域は `194 passed`（76.35 秒）、収集も 194 件、追跡テストファイルは 4,043 行。README の全体 pytest は `1,449 passed`（472.70 秒）、bash 入口は 23 件成功、配置検査は `PASS: check-layout`。3 入口とも終了コード 0。ログは `PARENT_ROOT/tmp/agents/review-fix-planning-pr254.h0tjq985/readme-{pytest,bash,layout}.log`。`git diff --check` は出力なし、終了コード 0。自己レビュー前の Gitleaks は `origin/main..b73019e` の 8 commit を走査し、検出なし、終了コード 0。初回の 217 件・4,031 行はレビュー前の値であり、最終値と区別する。
+
+### 修正後の自己レビューと追加の判断
+
+`run_roles.py --phase self-review` を 1 回だけ実行し、割り当ての `self-review=self`・`fix-check=self` を使った。`self-review` は `gpt-6-sol`（codex）による PR 全体の非対話レビューで、`ad89c150..b73019e` の 19 変更ファイルと関連処理を読み、終了・保存・cleanup がすべて成功した。レビューは 1 件の Info を記録し、Critical/High/Medium/Low は 0。実測経過は 483.66 秒。保存先は `PARENT_ROOT/reviews/usaturn/create-reso-world/#254-feat-issue-233-skill-tests/gpt-6-sol-commit-b73019e0409327f154f2f57945fc72cae2476efe.md` と対応する `findings/` の候補一覧。
+
+| 自己レビューの指摘 | 分類と理由 | 対応と検証 |
+| --- | --- | --- |
+| `gpt-6-sol-commit-b73019e0409327f154f2f57945fc72cae2476efe#I-1@b73019e04093` | 対応する（d）。Issue #233 は最終の収集件数・行数・テスト結果を Spec と Issue に記すよう名指ししている。コミット済み Spec と公開中の PR 本文にはレビュー前の数値が残っていた | 本 Spec の主計測表を 194 件・4,043 行・削減 277 件／1,863 行へ更新し、初回検証を「レビュー前」と明示した。最終の領域 194 passed、README 全体 1,449 passed は `b73019e` の実行ログと照合した。PR 本文と Issue の進捗報告も公開時の確定値に更新する |
+
+fix-check は修正前 `2e517c6` と修正後 `b73019e` の 4 主張を、コミット済みの差分・正常例・6 件の使い捨て変異で照合した。新規指摘 0、4 主張すべて `holds`、変更 3 ファイルすべて `passed`、`coverage.remaining=[]`。v2 の形式検査は終了コード 0。実測確認は 380.891 秒、後片付け込み約 409 秒。結果は同レビューディレクトリの `verified/b73019e04093.fix-check.json`、要約と文書候補 sidecar に保存した。自己レビュー後に直したのは計測の文書と PR 本文のみで、2 回目の自己レビューは実施しない。
+
+このサイクルの判断は、初回レビューの 4 件と自己レビューの 1 件をすべて「対応する」とし、解消済み・対応しない・未確認は 0 件。変更対象はテスト 3 ファイルと本 Spec、外部の実装 API は変えていない。最終の Spec は `completed` として同じ PR のブランチへ 1 commit だけ追加し、検査付きで push する。PR 本文・Issue コメント・判断の記録の投稿と次のレビューサイクルは、その後の工程として実行する。
