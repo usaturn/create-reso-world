@@ -373,7 +373,7 @@
 
 - 対象: `4b834563549aa366c6d42b4e8c54008f8da1fee7`。4 レビュアーの 7 件を、同 HEAD のコミット済み内容と隔離コピーで確認した。確認済み一覧: `reviews/usaturn/create-reso-world/#255-feat-issue-231-pr-review-tests/verified/4b834563549a.json`。7 件 confirmed、未確認 0 件。
 - 分類: 解消済み 0 件、対応する 7 件、対応しない 0 件。実行許可は利用者の `$issue-to-pr #231 --merge`。`M-1`・`L-1` の欠けた S は誤った担当・診断・マージ状態をもっともらしく保存し得る。残りは Issue #231 が明示する D・専用補助・計測と Plan の成果物を満たすため対応する。
-- 計画・判断担当: `gpt-6-sol`（Codex）。修正担当: `claude-opus-5-5`（`run_roles.py` の implement、担当 `claude-opus`）。自己レビューと修正確認の担当は `self`、1 回を予定する。
+- 計画・判断担当: `gpt-6-sol`（Codex）。修正担当: `claude-opus-5-5`（`run_roles.py` の implement、担当 `claude-opus`）。自己レビューと修正確認は `self` の 1 回の枠で実施した。
 
 | レビューファイル | モデル / ランタイム | レビュー HEAD | 再実行 | 推奨 |
 | --- | --- | --- | --- | --- |
@@ -404,18 +404,37 @@
 | マージ状態は実際に読めた PR を優先する | `finish --abort` の PR open と finalize 無し | 修正する | merged false と null を区別 | open の代表と false→null 変異 | `702a177` のテストで、通常版通過・false→null 変異で失敗。 |
 | 秘密の残る保持物がある試行を誤診しない | `diagnose_attempt` → `classify_cause` → 原因記録 | 修正する | 非ログ receipt があれば unknown、空なら response_extraction | 負例・正例と条件除去変異 | `702a177` のテストで、通常版通過・条件除去で負例が失敗。 |
 | 共有 Git ref と別 worktree を変えない | `configure_base_fetch` → `prepare` → `complete`、失敗後の回収 | 修正する | PR head・未 push commit の両方で共有 ref が不変 | diverged の代表、tag fetch と update-ref の変異 | `702a177` で通常版 2 件通過、両変異で 2 件失敗。 |
-| #231 の成果を確認できる | テスト収集・追跡行数 → Spec・Issue・Plan | 修正する | 数値・実施状態が一致 | 指定コマンド、Issue コメント、Plan 差分 | 自己レビュー修正後は 288 件・7,302 行。Plan の実施済み工程を更新した。Issue コメントは push 後に投稿する。 |
+| #231 の成果を確認できる | テスト収集・追跡行数 → Spec・Issue・Plan | 修正する | 数値・実施状態が一致 | 指定コマンド、Issue コメント、Plan 差分 | commit `5684107` で 288 件・7,302 行を再計測。Plan の実施済み工程を更新し、[Issue コメント](https://github.com/usaturn/create-reso-world/issues/231#issuecomment-6383271701)へ同じ値を投稿して読み直した。 |
 
 失敗時の状態確認は、テスト内の fake GitHub・bare remote の実状態と loop が記録した merged を対にしている。変異は隔離コピーだけに入れ、対象 PR の本体実装は変更していない。共有 ref の `--refmap=` を外す変異はこの fixture のどの relation でも検出せず、代表を縮めて失った検出力ではない。tag fetch と共有 ref 更新の変異は縮約後の 2 例がともに検出した。
 
-自己レビュー前の修正では領域 `287 passed`、全体 `1,499 passed`、bash `23 tests`、配置と Ruff が通過した。実行ログは `tmp/agents/issue-231.qhu0z91i/` の `full-pytest-cycle1.log`、`bash-cycle1.log`、`layout-cycle1.log`、`ruff-cycle1.log`。`run_roles.py` の担当は `stop_confirmed=true`・コミット `702a177` を返したが、別タスクの worktree が並行して変更・削除された監査通知により runner 自体は終了コード 1 だった。担当のコミットは指定した 4 テストファイルだけで、専用 worktree に `7924043` として取り込んだ。別タスクの worktree は変更していない。Issue への計測反映は push 後に行う。
+自己レビュー前の修正では領域 `287 passed`、全体 `1,499 passed`、bash `23 tests`、配置と Ruff が通過した。実行ログは `tmp/agents/issue-231.qhu0z91i/` の `full-pytest-cycle1.log`、`bash-cycle1.log`、`layout-cycle1.log`、`ruff-cycle1.log`。`run_roles.py` の担当は `stop_confirmed=true`・コミット `702a177` を返したが、別タスクの worktree が並行して変更・削除された監査通知により runner 自体は終了コード 1 だった。担当のコミットは指定した 4 テストファイルだけで、専用 worktree に `7924043` として取り込んだ。別タスクの worktree は変更していない。Issue への計測は push 後に反映した。
 
 ### 自己レビューで見つかった独立条件
 
-`run_roles.py --phase self-review` の 1 回の枠から、PR 全体の自己レビュー（509.1 秒）と修正の確認（722.8 秒）を実行した。自己レビューは `gpt-6-sol-commit-5c3aeac6109857f623d8c50cc51e85c2ac239eeb.md` に Medium 1 件を保存し、修正確認は `verified/5c3aeac61098.fix-check.json` に元の 7 件の検証を保存した。修正確認ではコードと Plan の 6 件は確認済みで、Issue への計測コメント 1 件は push 後の外部工程として未完了。新しい指摘は 0 件だった。
+`run_roles.py --phase self-review` の 1 回の枠から、PR 全体の自己レビュー（509.1 秒）と修正の確認（722.8 秒）を実行した。自己レビューは `gpt-6-sol-commit-5c3aeac6109857f623d8c50cc51e85c2ac239eeb.md` に Medium 1 件を保存し、修正確認は `verified/5c3aeac61098.fix-check.json` に元の 7 件の検証を保存した。修正確認の時点でコードと Plan の 6 件は確認済み、Issue の計測コメントは push 前のため保留だった。コメント投稿後に内容を読み直して完了した。修正確認に新しい指摘は 0 件だった。
 
 自己レビューの `M-1` は、着手時の `test_abandon_keeps_a_session_with_files_it_did_not_create` から `review-backup/nested/` を消した判断の誤りである。`require_abandonable_entries` はトップレベルの entry とバックアップ内の entry を別々に走査し、後者はファイル以外も拒否する。ディレクトリを読み飛ばす変異では、残した通常ファイル 2 ケースは通過し、復元したディレクトリケースだけが失敗して、実際に利用者のディレクトリが削除された。データ消失を見逃すため「対応する」。正常版の拒否・保存と変異版の削除を対にして確認した。トップレベルのディレクトリやバックアップ内の通常ファイルでは、この種類の欠落を検出できない。
 
 この指摘はサイクル 1 で直した CLI・診断・マージ状態・共有 ref とは別の条件で、最初のテスト削減で生じた。今回の修正が生んだ回帰でも、同じ条件の 2 回目でもないため設計の見直しのきっかけには当たらない。旧 3 ケースをすべて戻し、独立した 3 条件をそれぞれ 1 件で検査する。自己レビューの 2 回目は行わない。復元後の対象 3 件と領域 288 件は通過した。自己レビューで見つけたディレクトリ条件は、初回の 32 か所の変異とは別に検査した。
 
 自己レビュー後の最終内容では、指定領域 `288 passed`（`domain-self-review-fix.log`）、全体 `1,500 passed`（`full-pytest-self-review-fix.log`）、bash `23 tests`（`bash-self-review-fix.log`）、配置検査と Ruff は通過（`layout-self-review-fix.log`、`ruff-self-review-fix.log`）。いずれも `tmp/agents/issue-231.qhu0z91i/` に保存した。自己レビュー後の追加修正について 2 回目の自己レビューは行っていない。最終の差分はテスト 1 ケースと Spec・Plan だけで、実装コードは変えていない。
+
+判断の記録を付けた[サイクル 1 の PR コメント](https://github.com/usaturn/create-reso-world/pull/255#issuecomment-6383278694)は `fixes_pushed`、commit `5684107de3b4c26e55e6282fab12d609ed4aa92c` に対応する。4 人の最初のレビュー、自己レビュー、修正確認の役割・所要時間・採否をコメントと `verified/4b834563549a.planning.json` に保存した。
+
+## PR #255 レビュー修正サイクル 2
+
+対象 HEAD は `5684107de3b4c26e55e6282fab12d609ed4aa92c`。4 レビュアーの再レビューは全員受理され、活動中の指摘と未確認候補は 0 件。結果は同じレビューファイルの Review history と `findings/*-5684107de3b4.json`、確認済み一覧 `verified/5684107de3b4.json` に保存した。前サイクルの 8 件はすべて現行 HEAD で解消を確認し、新しい指摘はない。設計の見直し、追加の実装、自己レビューの 2 回目は不要と判断した。
+
+| レビューファイル | モデル / ランタイム | HEAD | 推奨 | 確認時間 |
+| --- | --- | --- | --- | ---: |
+| `gpt-6.1-sol.md` | `gpt-6.1-sol` / pi | `5684107de3b4` | Approve | 1,020.7 秒 |
+| `SWE-2-Max.md` | `SWE-2 Max` / devin | `5684107de3b4` | Approve | 633.6 秒 |
+| `deepseek-deepseek-v4.1-flash.md` | `deepseek/deepseek-v4.1-flash` / pi | `5684107de3b4` | Approve | 886.2 秒 |
+| `Grok-4.7.md` | `Grok 4.7` / cursor | `5684107de3b4` | Approve | 1,054.5 秒 |
+
+解消の根拠は、CLI `assign`・`finalize-result` の代表、非ログの `sensitive_paths`、マージ状態の `false`、バックアップ内ディレクトリの拒否、共有 ref の 2 経路、未使用補助の参照 0 件、Plan Task 3 の実施状態、Issue コメントの数値である。4 レビュアーは PR 全体と前サイクルの 3 commit を照合し、必要な代表と一部の変異を実行した。確認済み一覧では新しい候補 0、未確認の範囲 0。初回の変異表を全件再実行していないが、実装コードは変わらず、関連する S の代表と修正範囲の変異を再確認したため、初回の証拠を引き継ぐ。
+
+検証中に `main` が `ecfe0216de6ba9a5e8516852a614760c6d8bbd93` へ進んだため、PR HEAD にその commit を一時 worktree で merge した。競合は無く、そこで全体 pytest `1,224 passed`（`cycle2-merge-full.log`）、bash `23 tests`（`cycle2-merge-bash.log`）、配置と Ruff（`cycle2-merge-layout.log`、`cycle2-merge-ruff.log`）、`git diff --cached --check` が通過した。対象領域の収集は 288 件のまま。一時 worktree は検証後に登録を外して削除した。ログと `finalize.py` 用の HEAD・base・実行コマンド・終了コードは `tmp/agents/issue-231.qhu0z91i/` に置いた。
+
+Plan Task 4 Step 5 は、commit `5684107` の時点では push・投稿前だったため未チェックで保存した。その後の push・Issue コメント・サイクル 1 の PR コメントは実施済みで、この Spec に記録した。修正不要の最終化では検証した HEAD に Spec の記録だけを 1 commit 載せ、PR の判断記録と base を再照合してからマージする。
