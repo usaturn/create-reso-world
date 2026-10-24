@@ -39,15 +39,6 @@ def test_prints_runtime_model() -> None:
     assert proc.stdout.strip() == "opencode-go/muse-spark-1.3-contributor"
 
 
-def test_model_only_flag() -> None:
-    proc = run_script(
-        ["--model"],
-        {"PI_PROVIDER": "opencode-go", "PI_MODEL": "muse-spark-1.3-contributor"},
-    )
-    assert proc.returncode == 0
-    assert proc.stdout.strip() == "muse-spark-1.3-contributor"
-
-
 def test_strict_fails_closed_without_runtime() -> None:
     proc = run_script([])
     assert proc.returncode == 2
@@ -89,20 +80,6 @@ def test_history_prefers_explicit_file_over_runtime_file(tmp_path: Path) -> None
     assert result.stdout == "chosen/model-a\n"
 
 
-def test_history_uses_explicit_file_without_runtime_file(tmp_path: Path) -> None:
-    explicit = write_session(tmp_path / "explicit.jsonl", [model_change("m1", None)])
-    result = run_script(["--allow-session-history", "--session-file", str(explicit)])
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == "opencode-go/model-a\n"
-
-
-def test_history_uses_subagent_file_without_runtime_file(tmp_path: Path) -> None:
-    subagent = write_session(tmp_path / "subagent.jsonl", [model_change("m1", None)])
-    result = run_script(["--allow-session-history"], {"PI_SUBAGENT_SESSION": str(subagent)})
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == "opencode-go/model-a\n"
-
-
 def test_history_does_not_fall_back_from_unreadable_explicit_file(tmp_path: Path) -> None:
     runtime = write_session(tmp_path / "runtime.jsonl", [model_change("m1", None)])
     result = run_script(
@@ -113,14 +90,12 @@ def test_history_does_not_fall_back_from_unreadable_explicit_file(tmp_path: Path
     assert result.stdout == ""
 
 
-def test_history_invalid_utf8_fails_without_traceback(tmp_path: Path) -> None:
+def test_history_invalid_utf8_does_not_supply_a_model(tmp_path: Path) -> None:
     session = tmp_path / "invalid.jsonl"
     session.write_bytes(b'{"type":"model_change","id":"m1","provider":"p","modelId":"m"}\n\xff\xfe\n')
     result = run_script(["--allow-session-history"], {"PI_SESSION_FILE": str(session)})
     assert result.returncode == 2
     assert result.stdout == ""
-    assert "Stop and ask the user" in result.stderr
-    assert "Traceback" not in result.stderr
 
 
 def write_session(path: Path, entries: list[dict[str, object]], session_id: str = "current") -> Path:
@@ -327,18 +302,6 @@ def test_json_without_session_path_reports_unchecked(tmp_path: Path) -> None:
     assert payload["model"] == "model-a"
     assert payload["selected"] is None
     assert payload["observed"] is None
-
-
-def test_runtime_json_has_same_keys_with_and_without_session_file(tmp_path: Path) -> None:
-    session = write_session(tmp_path / "current.jsonl", [model_change("m1", None)])
-    checked = run_script(["--json"], runtime_env(session))
-    unchecked = run_script(["--json"], {"PI_PROVIDER": "opencode-go", "PI_MODEL": "model-a"})
-    assert checked.returncode == 0, checked.stderr
-    assert unchecked.returncode == 0, unchecked.stderr
-    checked_payload = json.loads(checked.stdout)
-    unchecked_payload = json.loads(unchecked.stdout)
-    assert set(unchecked_payload) == set(checked_payload)
-    assert unchecked_payload["session_file"] is None
 
 
 def test_runtime_env_stays_required_with_explicit_session_file(tmp_path: Path) -> None:

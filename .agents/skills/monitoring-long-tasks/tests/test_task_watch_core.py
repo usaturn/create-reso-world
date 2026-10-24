@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib.util
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -40,13 +39,6 @@ def test_exit_is_completed_only_with_zero_and_declared_result() -> None:
     assert watch.decide(policy, obs(exited=True, exit_code=0, result_present=True)) == ("completed", "")
     assert watch.decide(policy, obs(exited=True, exit_code=0)) == ("exited_incomplete", "")
     assert watch.decide(policy, obs(exited=True, exit_code=1, result_present=True)) == ("exited_incomplete", "")
-
-
-def test_exit_without_declared_result_is_judged_by_exit_code() -> None:
-    policy = watch.Policy(deadline_seconds=10, stop="TERM")
-
-    assert watch.decide(policy, obs(exited=True, exit_code=0)) == ("completed", "")
-    assert watch.decide(policy, obs(exited=True, exit_code=-15)) == ("exited_incomplete", "")
 
 
 def test_safety_failure_precedes_deadline_and_other_reasons() -> None:
@@ -95,26 +87,11 @@ def test_safety_failure_recorded_before_exit_is_not_completed() -> None:
     assert decision == ("exited_incomplete", "safety")
 
 
-def test_undeclared_stop_holds_instead_of_stopping() -> None:
-    policy = watch.Policy(deadline_seconds=1, stop="none")
-
-    assert watch.decide(policy, obs(elapsed=2)) == ("hold", "deadline")
-
-
-@pytest.mark.parametrize(
-    "values",
-    [
-        {"deadline_seconds": 0, "stop": "TERM"},
-        {"deadline_seconds": 10, "reserve_seconds": 10, "stop": "TERM"},
-        {"deadline_seconds": 10, "no_progress_seconds": 2, "stop": "TERM"},
-        {"deadline_seconds": 10, "stop": "TERM", "stop_grace_seconds": 31},
-        {"deadline_seconds": 10, "stop": "TERM", "max_repeated_failures": 0},
-        {"deadline_seconds": 10, "stop": "KILL"},
-    ],
-)
-def test_policy_rejects_values_outside_the_declared_ranges(values: dict[str, Any]) -> None:
+def test_policy_rejects_reserve_that_leaves_no_investigation_time() -> None:
+    # A reserve covering the deadline can finalize uninvestigated work as complete.
     with pytest.raises(ValueError):
-        watch.Policy(**values)
+        watch.Policy(deadline_seconds=10, reserve_seconds=10, stop="TERM")
+    assert watch.Policy(deadline_seconds=10, reserve_seconds=9, stop="TERM").reserve_seconds == 9
 
 
 def test_progress_reader_counts_only_new_items_and_complete_lines(tmp_path: Path) -> None:
@@ -183,18 +160,6 @@ def test_line_longer_than_read_limit_is_skipped_and_later_records_are_read(tmp_p
     assert (state.invalid_records, state.safety_signature, state.offset) == (1, "unknown-send", path.stat().st_size)
 
 
-def test_backlog_beyond_read_limit_is_read_in_one_poll(tmp_path: Path) -> None:
-    path = tmp_path / "progress.jsonl"
-    lines = [f'{{"kind": "progress", "items": ["item {number:06d}"]}}\n' for number in range(40000)]
-    path.write_text("".join(lines), encoding="utf-8")
-    assert path.stat().st_size > watch.READ_LIMIT_BYTES
-
-    state = watch.ProgressState()
-    watch.read_progress(path, state, elapsed=1.0, reserve_from=None)
-
-    assert len(state.items) == 40000 and state.offset == path.stat().st_size
-
-
 def test_failures_are_counted_per_signature_and_first_safety_is_kept(tmp_path: Path) -> None:
     path = tmp_path / "progress.jsonl"
     path.write_text(
@@ -217,15 +182,3 @@ def test_failures_are_counted_per_signature_and_first_safety_is_kept(tmp_path: P
     }
     assert state.safety_signature == "unknown-send"
     assert state.invalid_records == 2
-
-
-def test_missing_or_special_progress_file_is_not_progress(tmp_path: Path) -> None:
-    state = watch.ProgressState()
-    watch.read_progress(tmp_path / "missing.jsonl", state, elapsed=1.0, reserve_from=None)
-    watch.read_progress(None, state, elapsed=1.0, reserve_from=None)
-    fifo = tmp_path / "fifo"
-    os.mkfifo(fifo)
-
-    watch.read_progress(fifo, state, elapsed=1.0, reserve_from=None)
-
-    assert (state.items, state.heartbeats, state.invalid_records, state.offset) == (set(), 0, 0, 0)

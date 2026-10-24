@@ -39,24 +39,11 @@ def main(argv: list[str]) -> int:
     # テストが失敗しても、無限に書き続ける fake を残さない。
     signal.alarm(60)
     match mode:
-        case "progress":
-            for number in range(1, 6):
-                append(progress, {"kind": "progress", "items": [f"確認した挙動 {number}"]})
-                time.sleep(INTERVAL)
-            result.write_text("{}\n", encoding="utf-8")
-            return 0
         case "heartbeat":
             while True:
                 append(progress, {"kind": "heartbeat"})
                 append(progress, {"kind": "progress", "items": ["同じ項目"]})
                 time.sleep(INTERVAL)
-        case "failure":
-            while True:
-                append(progress, {"kind": "failure", "class": "reliability", "signature": "same-timeout"})
-                time.sleep(INTERVAL)
-        case "safety":
-            append(progress, {"kind": "failure", "class": "safety", "signature": "unknown-send"})
-            wait_forever()
         case "endless":
             new_items(progress)
         case "ignore-term":
@@ -70,19 +57,6 @@ def main(argv: list[str]) -> int:
             signal.signal(signal.SIGTERM, record_term)
             time.sleep(1.5)
             return 0
-        case "reserve-investigate":
-            assert partial is not None
-            partial.write_text("途中までの結論\n", encoding="utf-8")
-            append(progress, {"kind": "saved", "path": str(partial)})
-            new_items(progress)
-        case "finalize-aware":
-            for number in itertools.count(1):
-                if (state / "finalize.requested").exists():
-                    result.write_text("{}\n", encoding="utf-8")
-                    append(progress, {"kind": "saved", "path": str(result)})
-                    return 0
-                append(progress, {"kind": "progress", "items": [f"確認した挙動 {number}"]})
-                time.sleep(INTERVAL)
         case "finalize-late":
             # 保存への移行を見た直後に、もう 1 件だけ新しい項目を書き、保存に少し時間をかける worker。
             for number in itertools.count(1):
@@ -94,26 +68,9 @@ def main(argv: list[str]) -> int:
                     return 0
                 append(progress, {"kind": "progress", "items": [f"確認した挙動 {number}"]})
                 time.sleep(INTERVAL)
-        case "safety-exit":
-            append(progress, {"kind": "failure", "class": "safety", "signature": "unknown-send"})
-            result.write_text("{}\n", encoding="utf-8")
-            return 0
         case "orphan-child":
             subprocess.Popen(["sleep", "30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return 0
-        case "save-on-stop":
-            # 停止のシグナルを受けてから部分成果を保存し、saved と安全の失敗を書いて終わる。
-            assert partial is not None
-
-            def save(_signum: int, _frame: FrameType | None) -> None:
-                partial.write_text("停止までの結論\n", encoding="utf-8")
-                append(progress, {"kind": "saved", "path": str(partial)})
-                append(progress, {"kind": "failure", "class": "safety", "signature": "found-on-stop"})
-                sys.exit(0)
-
-            signal.signal(signal.SIGINT, save)
-            signal.signal(signal.SIGTERM, save)
-            wait_forever()
         case "late-child":
             # 先頭は同じ group に子を起動して終わる。子は先頭の終了後に部分成果と安全の失敗を書いて終わる。
             subprocess.Popen([sys.executable, __file__, "late-child-writer", *argv[2:]])

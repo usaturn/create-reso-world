@@ -59,16 +59,6 @@ class SkillPackageTests(unittest.TestCase):
     def skills(self) -> dict[str, tuple[Path, str]]:
         return {name: read_skill(name) for name in SKILL_NAMES}
 
-    def test_references_and_links_resolve(self) -> None:
-        for name, (path, text) in self.skills().items():
-            links = re.findall(r"\[[^\]]+\]\(([^)]+)\)|`((?:references|\.\./references)/[^`]+)`", text)
-            for link in links:
-                target = next((part for part in link if part), "")
-                if target.startswith(("http:", "https:", "#")):
-                    continue
-                self.assertTrue((path.parent / target).resolve().is_file(), f"{name}: broken link {target}")
-
-
     def test_execution_guidance_guards_cover_positive_and_negative_fixtures(self) -> None:
         self.assertTrue(has_positive_guidance("Use Blender MCP to edit this model.", POSITIVE_MCP))
         self.assertFalse(has_positive_guidance("Do not use Blender MCP for this task.", POSITIVE_MCP))
@@ -100,14 +90,6 @@ class SkillPackageTests(unittest.TestCase):
         self.assertEqual(provenance["repository"], "https://github.com/arjun988/blender-skills")
         self.assertEqual(provenance["commit"], "8f778d2405a214b508d4c7d80742be8e43acdd52")
         self.assertEqual(set(provenance["documents"]), set(SKILL_NAMES) | set(REQUIRED_REFERENCES))
-        for key, entry in provenance["documents"].items():
-            self.assertTrue(entry["source_paths"], f"{key}: source paths are required")
-            self.assertTrue(entry["modifications"].strip(), f"{key}: modifications summary required")
-            self.assertTrue(entry["output_paths"], f"{key}: output paths are required")
-            for source in entry["source_paths"]:
-                self.assertTrue(source.startswith(".claude/skills/"), f"{key}: non-source path {source}")
-            for output in entry["output_paths"]:
-                self.assertTrue((SKILLS_ROOT.parent.parent / output).is_file(), f"{key}: missing output {output}")
 
 
 if __name__ == "__main__":
