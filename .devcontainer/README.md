@@ -31,6 +31,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | Meshy CLI | `install_meshy.bash`（公式 npm `meshy-cli@0.4.0`、無認証 version / help） | — | — | — | — |
 | Context7 CLI（ctx7） | `install_ctx7.bash`（npm の `ctx7` を `CTX7_CLI_VERSION` に固定して入れ、`ctx7 --version` を確かめる。「Context7 CLI（ctx7）」の節） | — | — | — | — |
 | Gitleaks | `install_gitleaks.bash`（release の tar.gz を固定した SHA-256 で確かめて `~/.local/bin` に置く。版は CI の gitleaks ジョブと同じ） | — | — | — | — |
+| flux-sdk（ProtoFlux） | `install_flux_sdk.bash`（NuGet の `Papaltine.FluxSDK` を `FLUX_SDK_VERSION` に固定して入れ、`flux-sdk --version` を確かめる。失敗しても postCreate は警告して続ける。「ProtoFlux 用の flux-sdk」の節） | — | — | — | — |
 | gh | Dev Container Feature（github-cli） | `~/.config/gh` | `~/.config/gh` | — | — |
 | gcloud / glab / bun | 未導入（参照だけ残す） | `~/.config/gcloud`、`~/.config/glab-cli` | `~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | — |
 | Resonite の写真フォルダ（任意） | WSL で Windows の Pictures/Resonite へのリンクを 1 回作る（「Resonite ワールド開発ツール」の節） | `~/.local/share/create-reso-world/resonite-screenshots`（読み取り専用） | `~/.local/share/create-reso-world/resonite-screenshots` | — | — |
@@ -246,7 +247,7 @@ GPU（CUDA）と open3d の表示機能は対象外とする。
 （`.wslconfig` の `networkingMode=mirrored`）でホストの localhost を共有するか、
 `resoloop discover` で ResoniteLink の告知を確かめ、`--url ws://<ホスト>:<ポート>` または
 環境変数 `RESONITE_LINK_URL` で接続先を指定する。
-ProtoFlux 用の flux-sdk は既定のセットアップでは導入しない。必要になったときの導入手順は「ProtoFlux 用の flux-sdk（必要なときだけ）」にある。
+ProtoFlux 用の flux-sdk は、postCreate が `.devcontainer/install_flux_sdk.bash` で、ResoLoop が検証している版を導入する。版・失敗したとき・確認方法は「ProtoFlux 用の flux-sdk」にある。
 
 導入を確認するにはコンテナ内で次を実行する。
 
@@ -260,19 +261,24 @@ bash scripts/resoloop-fork.sh status
 ResoLoop の公式要件には Windows 10/11 が記載されている。Linux で
 CLI が動作しない場合は `postCreateCommand` を失敗とし、成功扱いにはしない。
 
-### ProtoFlux 用の flux-sdk（必要なときだけ）
+### ProtoFlux 用の flux-sdk
 
-postCreate は flux-sdk を導入しない。ProtoFlux のグラフを作る・配備するときだけ、次の手順で入れる。ProtoFlux を使わない作業には要らない。
+postCreate は、ProtoFlux のグラフを作る・配備するための flux-sdk（NuGet の `Papaltine.FluxSDK`、コマンドは `flux-sdk`）を
+`.devcontainer/install_flux_sdk.bash` で導入する。`flux-sdk` は `~/.dotnet/tools` に入り、`remoteEnv` の PATH で使える。
+NuGet に届かないなどで導入できなくても、postCreate は `[install_beforehand] WARN: Installing the ProtoFlux SDK (flux-sdk) failed; continuing. ...` を出して続ける。
+同じ版が導入済みなら、更新できなかったことを警告して、その版のまま使う。入れ直すとき・別の版から戻すときも同じスクリプトを実行する。
 
 ```bash
-dotnet tool install --global Papaltine.FluxSDK --version 1.9.0   # 更新は dotnet tool update --global
+bash .devcontainer/install_flux_sdk.bash
 resoloop flux status
 resoloop doctor --json
 ```
 
-- 版は `resoloop flux status` と `resoloop doctor` が案内する版に合わせる（2026-10-24 時点は 1.9.0）。flux-sdk は Resonite 本体の版との組み合わせで互換が変わり、未検証の組は `resoloop doctor` が警告する
-- Resonite 本体の managed data をコンテナから読めることが前提である。Resonite は Windows ホスト側にあり、既定のコンテナには mount しない。読める場所を用意し、環境変数 `RESONITE_MANAGED_DATA_PATH` で指す。flux-sdk の実行ファイルが `flux-sdk` と違う名前・場所にあるときは `RESOLOOP_FLUX_EXECUTABLE` で指す
-- 導入できた確認は、`resoloop flux status` が成功し、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が warning でなくなること
+- 版は ResoLoop と違って固定し、スクリプトの `FLUX_SDK_VERSION` に書く（2026-10-24 時点は 1.9.0）。ResoLoop が検証しているのは 1.9 系で、NuGet の最新（1.10 系）は外れる。ResoLoop が案内する版（`resoloop doctor` の `flux-sdk` の suggestion）が変わったら、`FLUX_SDK_VERSION` を合わせる
+- 手で入れるときは `dotnet tool update --global Papaltine.FluxSDK --version <版> --allow-downgrade` を使う（`update` は未導入なら導入し、`--allow-downgrade` で新しい版からも戻す）。パッケージ ID を省いた `dotnet tool update --global` は、終了コード 1 で止まる
+- `resoloop doctor` の `flux-sdk` の確認が見るのは、`flux-sdk` を起動して版を読めるかと、その版が ResoLoop の検証した系列（1.9 系）に入っているかだけで、Resonite 本体の版との組み合わせは見ない。Resonite の版との既知の非互換は、配備（`resoloop flux deploy-manifest`）のときに `FLUX_RUNTIME_NODE_INCOMPATIBLE` で分かる
+- グラフを作る・配備するには、Resonite 本体の managed data をコンテナから読めることも要る。Resonite は Windows ホスト側にあり、既定のコンテナには mount しない。読める場所を用意し、環境変数 `RESONITE_MANAGED_DATA_PATH` で指す。flux-sdk の実行ファイルが PATH の `flux-sdk` と違う名前・場所にあるときは `RESOLOOP_FLUX_EXECUTABLE` で指す
+- 導入できた確認は、`resoloop flux status` が成功すること（managed data が無くても成功する）。ProtoFlux の作業の準備ができた確認は、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が warning でないこと
 - グラフの作り方と配備は、プロジェクトの `resonite-flux` スキルを参照する
 
 ### Resonite の写真フォルダ（任意）

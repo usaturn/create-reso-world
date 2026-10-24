@@ -191,6 +191,9 @@ bash .devcontainer/install_resoloop.bash
 版が上がると、各プロジェクトの同梱スキル（`resonite-*`）にも更新が出る。postCreate と `scripts/check-layout.sh` は更新の有無を
 表示するだけなので、`resoloop skills sync --check` で差分を見てから `--update` する（`AGENTS.md` の「プロジェクト運用」）。
 
+ProtoFlux 用の flux-sdk も postCreate で導入するが、ResoLoop と違って、ResoLoop が検証している版に固定する
+（`.devcontainer/install_flux_sdk.bash`。版と確認方法は `.devcontainer/README.md` の「ProtoFlux 用の flux-sdk」）。
+
 上流に未取り込みの修正を一時的に使うときは、`bash scripts/resoloop-fork.sh install <fork のブランチ>` で fork（usaturn/resoloop）の
 ビルドを導入する。次の rebuild か、上の 1 行で最新の公開版に戻る。fork の checkout は `external/resoloop`（git の追跡対象外）に置く。
 fork の使い方と上流への PR の流れは `docs/resoloop-fork-workflow.md` にある。

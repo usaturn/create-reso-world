@@ -100,7 +100,7 @@
 Dev Containers: Rebuild Container を実行した後、コンテナの中で次を確かめる。
 
 1. `bash .devcontainer/verify-resonite-tooling.bash` が 0 で終わる。`dotnet --list-sdks` に `10.0.201` がある。
-2. postCreate の ResoLoop の導入が通っている: `resoloop --version` が NuGet の最新の公開版を返し、`bash scripts/resoloop-fork.sh status` の `installed version` が `NuGet release` である。postCreate の出力に、各プロジェクトの `resoloop skills sync --check` の結果がある。fork へ push する `bash scripts/resoloop-fork.sh sync` を初めて使うときは、GitHub への push の認証が通ることを確かめる。
+2. postCreate の ResoLoop の導入が通っている: `resoloop --version` が NuGet の最新の公開版を返し、`bash scripts/resoloop-fork.sh status` の `installed version` が `NuGet release` である。postCreate の出力に、各プロジェクトの `resoloop skills sync --check` の結果がある。`dotnet tool list --global` に `papaltine.fluxsdk 1.9.0` があり、`resoloop doctor --json` の `flux-sdk` が `pass` である（postCreate の出力に flux-sdk の WARN が無い）。fork へ push する `bash scripts/resoloop-fork.sh sync` を初めて使うときは、GitHub への push の認証が通ることを確かめる。
 3. VS Code のターミナルと、エージェントが起動するプロセスの PATH に `/home/vscode/.local/bin`・`/home/vscode/bin`・`/home/vscode/.dotnet/tools` がある（`remoteEnv.PATH`）。
 4. ホストに `~/.config/create-reso-world` が mode 700 で作られ、コンテナに mount されている。`env` を置いた場合は、新しいシェルでその変数が export されている。
 5. `bash scripts/check-layout.sh`、`bash .devcontainer/run-tests.bash`、各プロジェクトの `uv run pytest` が通る。
