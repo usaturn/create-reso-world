@@ -871,27 +871,6 @@ def test_reviewer_rejected_after_runner_success_is_rerun_once(loop: Any, env: An
     assert registered_worktrees(env.parent) == [str(env.parent)]
 
 
-def record_attempts(loop: Any, monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """runner の各試行の状態と準備の stderr を、review の回収で消える前に 1 行ずつ写す（失敗の表示に使う）。"""
-    notes: list[str] = []
-    real = loop.run_workflow
-
-    def recording(*args: Any, **kwargs: Any) -> BatchResult:
-        batch: BatchResult = real(*args, **kwargs)
-        for result in batch.results:
-            for attempt in result.attempts:
-                log = attempt.request_path.parent / "worktree.stderr.log" if attempt.request_path else None
-                stderr = log.read_text(encoding="utf-8", errors="replace") if log and log.is_file() else "無い"
-                notes.append(
-                    f"{attempt.agent_id}: state={attempt.state} exit_code={attempt.exit_code} "
-                    f"stop_confirmed={attempt.stop_confirmed} 準備の stderr={stderr!r}"
-                )
-        return batch
-
-    monkeypatch.setattr(loop, "run_workflow", recording)
-    return notes
-
-
 def test_rerun_is_not_started_while_another_attempt_is_unconfirmed(
     loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:

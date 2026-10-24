@@ -139,6 +139,8 @@ def test_cause_uses_only_failure_channels(loop: Any, tmp_path: Path, stdout: str
         (0, "response_failed", None, False, True, "response_extraction"),
         (0, "missing_result", "success", False, True, "unknown"),
         (1, "response_failed", None, False, True, "unknown"),
+        # ログは読めても、秘密の残る保持物（receipt）がある試行は取り出しの失敗と推測しない
+        (0, "response_failed", None, True, True, "unknown"),
     ],
 )
 def test_response_extraction_is_decided_from_the_end_state(

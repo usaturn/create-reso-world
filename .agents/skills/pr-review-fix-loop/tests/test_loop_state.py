@@ -76,8 +76,19 @@ def test_start_accepts_fix_assignments_that_run_roles_accepts(
     assert {role: value["agents"] for role, value in started["assignments"]["fix"].items()} == expected
 
 
-def test_start_records_options_and_effective_assignments(loop: Any, env: Any, kit: Any) -> None:
-    started = env.start(assign=["inspect=beta,alpha", "implement=beta"], max_cycles=2)
+def test_start_records_options_and_effective_assignments(
+    loop: Any, env: Any, kit: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # CLI の --assign が dispatch で落ちないことを確かめる。保存と計画への引き渡しは実 helper を使い、
+    # GitHub と親 checkout の探索だけ隔離する。
+    monkeypatch.setattr(loop, "GitHub", lambda: env.github)
+    monkeypatch.setattr(loop.target, "default_parent_root", lambda: env.parent)
+    arguments = ["start", f"#{kit.number}", "--controller-model", "test-planner", "--controller-runtime", "pi"]
+    arguments += ["--max-cycles", "2", "--assign", "inspect=beta,alpha", "--assign", "implement=beta"]
+    arguments += ["--template", str(env.template)]
+    assert loop.main(arguments) == 0
+    started = json.loads(capsys.readouterr().out)
+    env.run_dirs.append(Path(started["run_dir"]))
 
     run = json.loads((Path(started["run_dir"]) / "run.json").read_text(encoding="utf-8"))
     assert run["schema"] == "pr-review-fix-loop/v1"
@@ -88,7 +99,7 @@ def test_start_records_options_and_effective_assignments(loop: Any, env: Any, ki
     assert planning["run_roles_options"] == ["--template", str(env.template), "--assign", "implement=beta"]
     assert run["assignments"]["review"]["inspect"]["agents"] == ["beta", "alpha"]
     assert run["assignments"]["fix"]["implement"]["agents"] == ["beta"]
-    assert run["tool_commit"] == kit.git(env.parent, "rev-parse", "HEAD")
+    assert run["tool_commit"] == kit.git(Path(run["tool_root"]), "rev-parse", "HEAD")
     assert started["next"][-3:] == ["cycle-begin", "--run", started["run_dir"]]
 
 
@@ -247,10 +258,11 @@ def test_finalize_stopped_ends_the_run_as_stopped_and_not_merged(
     # true は、finalize が別の head のマージを観測して止まった結果（Review Focus 1 をループの最後まで通す経路）。
     # true_merge_parent は、finalize がマージの後の merge commit の照合で止まった結果（#206）。PR は検証した HEAD でマージ済み
     [
+        (False, True),
         (None, False),
         (True, False),
     ],
-    ids=["null", "true_merge_parent"],
+    ids=["false", "null", "true_merge_parent"],
 )
 def test_finalize_stopped_keeps_the_real_merge(
     loop: Any,
@@ -395,6 +407,8 @@ ABSENT = "absent"
 @pytest.mark.parametrize(
     ("pr", "reported", "expected"),
     [
+        # PR を読めたら、その状態。マージしていない run の abort は false で、未確認（null）にしない
+        pytest.param("open", ABSENT, False, id="open"),
         pytest.param("merged", False, True, id="merged-finalize-false"),
         pytest.param("unreadable", ABSENT, None, id="unreadable"),
         pytest.param("open", True, None, id="open-finalize-true"),
@@ -455,6 +469,24 @@ def test_finalize_result_is_only_for_abort_and_must_be_a_finalize_result(
     assert (run["state"], run["result"]) == ("running", None)
     assert (env.review_dir / "loop/lock.json").exists()
     assert env.gh.calls[calls:] == []
+
+
+def test_cli_finish_abort_passes_the_finalize_result(
+    loop: Any, env: Any, kit: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    env.start()
+    run_dir = env.run_dirs[-1]
+    env.gh.merge()
+    # PR を読めないので、merged が true になるのは渡したファイルを使ったときだけ
+    env.gh.pull_status = 1
+    result = kit.finalize_result(tmp_path / "final.json", "no_fix_needed", merged=True)
+    monkeypatch.setattr(loop, "GitHub", lambda: env.github)
+    capsys.readouterr()
+
+    arguments = ["finish", "--run", str(run_dir), "--abort", "external: GitHub の読み取りが失敗した"]
+    assert loop.main([*arguments, "--finalize-result", str(result)]) == 0
+
+    assert json.loads(capsys.readouterr().out)["result"]["merged"] is True
 
 
 def test_status_returns_the_next_command_after_a_restart(loop: Any, env: Any, kit: Any) -> None:

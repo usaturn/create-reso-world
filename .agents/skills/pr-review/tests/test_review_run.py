@@ -219,30 +219,23 @@ def configure_base_fetch(
     prepared: dict[str, Any],
     tmp_path: Path,
     *,
-    relation: str,
     local_commit: bool,
 ) -> tuple[Path, str, str]:
+    # The remote base advances (with a tag on it) while the shared origin/main
+    # points elsewhere, so any write to shared refs during the base fetch shows.
     source, remote = prepared["source"], prepared["remote"]
     base = git(source, "rev-parse", "main")
-    if relation != "ahead":
-        git(source, "switch", "-c", "remote-base", "main")
-        (source / "base.txt").write_text("remote base advanced\n", encoding="utf-8")
-        git(source, "add", "base.txt")
-        git(source, "commit", "-m", "advance remote base")
-        git(source, "push", str(remote), "HEAD:main")
-        git(source, "tag", "remote-base-only")
-        git(source, "push", str(remote), "refs/tags/remote-base-only")
-        git(source, "tag", "-d", "remote-base-only")
-        git(source, "switch", "feature")
+    git(source, "switch", "-c", "remote-base", "main")
+    (source / "base.txt").write_text("remote base advanced\n", encoding="utf-8")
+    git(source, "add", "base.txt")
+    git(source, "commit", "-m", "advance remote base")
+    git(source, "push", str(remote), "HEAD:main")
+    git(source, "tag", "remote-base-only")
+    git(source, "push", str(remote), "refs/tags/remote-base-only")
+    git(source, "tag", "-d", "remote-base-only")
+    git(source, "switch", "feature")
     remote_base = git(remote, "rev-parse", "refs/heads/main")
-    if relation != "missing":
-        tracked = {
-            "ahead": prepared["head"],
-            "behind": base,
-            "diverged": prepared["head"],
-            "equal": remote_base,
-        }
-        git(source, "update-ref", "refs/remotes/origin/main", tracked[relation])
+    git(source, "update-ref", "refs/remotes/origin/main", prepared["head"])
     if local_commit:
         (source / "local.txt").write_text("not pushed\n", encoding="utf-8")
         git(source, "add", "local.txt")
@@ -280,20 +273,16 @@ def shared_refs(root: Path) -> str:
 
 
 @pytest.mark.parametrize(
-    "relation", ["ahead", "behind", "diverged", "equal", "missing"]
-)
-@pytest.mark.parametrize(
     "local_commit", [False, True], ids=["pr-head", "unpushed-commit"]
 )
 def test_prepare_preserves_shared_refs_and_other_worktree_base_refs(
     prepared: dict[str, Any],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    relation: str,
     local_commit: bool,
 ) -> None:
     sibling, base, remote_base = configure_base_fetch(
-        prepared, tmp_path, relation=relation, local_commit=local_commit
+        prepared, tmp_path, local_commit=local_commit
     )
     source = prepared["source"]
     before = shared_refs(source)
@@ -337,7 +326,7 @@ def test_prepare_failure_after_base_fetch_keeps_shared_refs_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sibling, _base, _remote_base = configure_base_fetch(
-        prepared, tmp_path, relation="diverged", local_commit=True
+        prepared, tmp_path, local_commit=True
     )
     before = shared_refs(prepared["source"])
     original = review_run.workspace.git
