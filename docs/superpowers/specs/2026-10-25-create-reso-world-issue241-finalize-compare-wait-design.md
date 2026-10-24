@@ -3,7 +3,7 @@
 ## 管理・実行許可
 
 - 文書管理・コード対象: `usaturn/create-reso-world`。対象 Issue: https://github.com/usaturn/create-reso-world/issues/241（親 Issue・ボード・先行 Issue・コメントは無い。関連: PR #240（この事象）、#196・PR #203（`wait_for: head`）、#206・#207（`finalize.py` の照合と `merged` の 3 値））
-- 状態: draft
+- 状態: completed（PR #256 の review-fix-planning の結論 2 で、マージの前に completed にした。内容の承認（`approved`）ではない）
 - 関連 Plan: `docs/superpowers/plans/2026-10-25-create-reso-world-issue241-finalize-compare-wait.md`
 - DOC_ROOT・CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-241-finalize-compare-wait`（branch `fix/issue-241-finalize-compare-wait`）。PARENT_ROOT: `/workspaces/reso-world`
 - 実行許可: 2026-10-25（JST）、利用者が次のとおり指示した
@@ -137,3 +137,26 @@ create-reso-world の PR の結論 2 では、Spec の commit（S）を push し
 
 - 比較の API が待っても戻らない（権限の変更、GitHub の長い障害など）ときは、手順 7 の期限を過ぎてから結論 3 になる。それまでの待ち時間は短くならない
 - `error_detail` は `gh` の出力の先頭 500 文字で、長い出力（`GH_DEBUG` を付けた実行など）は途中で切れる
+
+## PR #256 レビュー修正サイクル 1
+
+- 対象 HEAD: `e16206d5792b2dc95107a154684a63494b660d2d`。実行許可は利用者の `/issue-to-pr #241 --merge` で、PR 修正ループ（run `6fa97d6738c84d96906839e9685f9502`）の中で review-fix-planning の完遂として行った。planner は `claude-opus-5-5`（claude-code）。サイクルは 1（PR に前の記録は無い）
+- 4 レビュアーとも受け付けられ（却下 0・残した資源 0）、現行 HEAD を再レビューした。指摘（active findings・Unverified candidates）はどれも 0 件
+
+| レビューファイル | モデル / ランタイム | レビュー HEAD | 再実行 | 推奨 |
+| --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | `gpt-6.1-sol` / pi | `e16206d5792b` | はい | Approve |
+| `SWE-2-Max.md` | `SWE-2 Max` / devin | `e16206d5792b` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | `deepseek/deepseek-v4.1-flash` / pi | `e16206d5792b` | はい | Approve |
+| `Grok-4.7.md` | `Grok 4.7` / cursor | `e16206d5792b` | はい | Approve |
+
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#256-fix-issue-241-finalize-compare-wait/verified/e16206d5792b.json`（review-verify の mode cycle。候補 0 件、confirmed・not_reproduced・unverified とも 0 件、`coverage.remaining` なし）。工程の記録は同じ場所の `e16206d5792b.planning.json`（状況コメントの投稿の後に作る）
+- 分類: 解消済み 0 件、対応する 0 件、対応しない 0 件。対応する項目が無いので、守る条件と影響経路の表と設計の見直しは無い
+- レビュアーが宣言していた未実施の範囲は、次のとおり閉じた
+  - 本物の `gh` と GitHub の比較の API: 変更した分岐は runner が返す終了コードと標準エラーだけで決まる。偽の gh で失敗・成功の両側、マージ済み、JSON の不正、形の違いを 4 レビュアーが実行した。push の直後の遅れの事実は Issue #241 の記録（PR #240）にある
+  - リポジトリ全体の一括検証: 下の検証で実行した
+  - ruff（実行環境に無い）: `uvx ruff format --line-length 120 --check` と `uvx ruff check --line-length 120` を `finalize.py`・`test_finalize.py` に実行し、format は差分なし、check は base にもある `read_object` の TRY004 だけだった。両ファイルは `4e4f152` から `e16206d` まで変わっていない
+- 結論: 2（修正不要としてマージする）。修正が無いので `run_roles.py` は実行していない（割り当ては implement `claude-opus`、self-review・fix-check `self` だが、使っていない）。自己レビューは 0 回
+- 検証（head だけ）: issue-to-pr が HEAD `e16206d` で記録した検証。`bash .devcontainer/run-tests.bash` 0（23 PASS）、`bash scripts/check-layout.sh` 0、`uv run pytest tests/skills .agents/skills .agents/scripts tools` 0（1225 passed）。検証の前後で作業ツリーは clean。ログは `/workspaces/reso-world/tmp/agents/issue-241.ftivqlbo/verify-2/`。このときの base は `bdbe02b1bfdc8e884dfb836fc1083cd0cf3ae858`（HEAD の祖先）
+- base の前進（このサイクルのやり直し 1 回目）: 状況コメントの投稿の直前（2026-10-24T16:59Z）に、main が `6b6fd9aedb11d6dcfea6e91f3ac1d50bee9feaf8`（PR #258 のマージ。agent_runner の devin 関連で、この PR と同じファイルを変えない）に進んでいた。投稿・push をせずに、`/tmp` の `mktemp` の隔離 worktree で head に `6b6fd9a` を merge した一時的なツリー（`8992caa`。競合なし、push しない）を作り、同じ 3 つを実行した: `bash .devcontainer/run-tests.bash` 0（23 PASS）、`bash scripts/check-layout.sh` 0、`uv run pytest tests/skills .agents/skills .agents/scripts tools` 0（1224 passed）。検証の前後で作業ツリーは clean。ログは `/workspaces/reso-world/tmp/agents/pr-256-review-fix.bx94e3uz/verify-merge-1/`。検証の後に隔離 worktree を消した。検証の記録の `base` は `6b6fd9a`、`commands` はこの実行
+- この Spec の commit の後、PR の head がまだ `e16206d` のうちに記録付きの状況コメントを投稿し、base を確かめ直してから検査付きの push をして、`finalize.py --spec-commit` でマージする
