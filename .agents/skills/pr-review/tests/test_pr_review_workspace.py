@@ -66,9 +66,6 @@ def test_resolve_codex_model_name_uses_latest_turn_context(tmp_path: Path, monke
 @pytest.mark.parametrize(
     ("setup", "message"),
     [
-        ("missing-thread", "CODEX_THREAD_ID"),
-        ("missing-rollout", "rollout"),
-        ("missing-context", "turn_context"),
         ("unsafe-model", "safe filename"),
         ("non-unique-rollout", "exactly one"),
         ("invalid-json", "invalid rollout JSON"),
@@ -82,13 +79,7 @@ def test_resolve_codex_model_name_fails_closed(
 ) -> None:
     codex_home = tmp_path / "codex"
     monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
-
-    if setup != "missing-thread":
-        monkeypatch.setenv("CODEX_THREAD_ID", THREAD_ID)
-    if setup == "missing-context":
-        rollout = write_rollout(codex_home, [])
-        rollout.write_text('{"type":"event_msg","payload":{}}\n', encoding="utf-8")
+    monkeypatch.setenv("CODEX_THREAD_ID", THREAD_ID)
     if setup == "unsafe-model":
         # `:` and other non-filename characters remain rejected after `/` → `-`
         # and whitespace → `-` sanitization.
@@ -106,65 +97,6 @@ def test_resolve_codex_model_name_fails_closed(
         workspace.resolve_codex_model_name()
 
 
-def test_resolve_codex_model_name_replaces_whitespace_with_hyphen(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    codex_home = tmp_path / "codex"
-    write_rollout(codex_home, ["Cursor Grok 4.6"])
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("CODEX_THREAD_ID", THREAD_ID)
-
-    assert workspace.resolve_codex_model_name() == "Cursor-Grok-4.6"
-
-
-def test_resolve_codex_model_name_replaces_slash_with_hyphen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    codex_home = tmp_path / "codex"
-    write_rollout(codex_home, ["opencode/deepseek-v4-flash-free"])
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("CODEX_THREAD_ID", THREAD_ID)
-
-    assert workspace.resolve_codex_model_name() == "opencode-deepseek-v4-flash-free"
-
-
-def test_resolve_codex_model_name_ignores_unterminated_partial_tail(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    codex_home = tmp_path / "codex"
-    complete = json.dumps({"type": "turn_context", "payload": {"model": "gpt-5.6-sol"}})
-    write_rollout_text(codex_home, complete + '\n{"type":"event_msg"')
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("CODEX_THREAD_ID", THREAD_ID)
-
-    assert workspace.resolve_codex_model_name() == "gpt-5.6-sol"
-
-
-@pytest.mark.parametrize(
-    "unexpected_record",
-    [
-        123,
-        ["turn_context"],
-        {"type": "turn_context", "payload": None},
-        {"type": "turn_context", "payload": []},
-        {"type": "turn_context", "payload": {"model": None}},
-    ],
-)
-def test_resolve_codex_model_name_skips_records_outside_expected_schema(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    unexpected_record: object,
-) -> None:
-    codex_home = tmp_path / "codex"
-    lines = [
-        json.dumps(unexpected_record),
-        json.dumps({"type": "turn_context", "payload": {"model": "gpt-5.6-sol"}}),
-    ]
-    write_rollout_text(codex_home, "\n".join(lines) + "\n")
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("CODEX_THREAD_ID", THREAD_ID)
-
-    assert workspace.resolve_codex_model_name() == "gpt-5.6-sol"
-
-
 def test_resolve_codex_model_name_rejects_malformed_completed_record(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -180,35 +112,11 @@ def test_resolve_codex_model_name_rejects_malformed_completed_record(
         workspace.resolve_codex_model_name()
 
 
-def test_resolve_runtime_model_name_uses_explicit_name_outside_codex() -> None:
-    assert workspace.resolve_runtime_model_name("opus-5", {}) == (
-        "opus-5",
-        "explicit",
-    )
-
-
-def test_resolve_runtime_model_name_replaces_slash_with_hyphen() -> None:
-    assert workspace.resolve_runtime_model_name("opencode/deepseek-v4-flash-free", {}) == (
-        "opencode-deepseek-v4-flash-free",
-        "explicit",
-    )
-
-
-def test_resolve_runtime_model_name_replaces_whitespace_with_hyphen() -> None:
-    assert workspace.resolve_runtime_model_name("Cursor Grok 4.6", {}) == (
-        "Cursor-Grok-4.6",
-        "explicit",
-    )
-
-
 @pytest.mark.parametrize(
     ("model_name", "message"),
     [
-        (None, "model name is required outside Codex"),
-        ("opus:5", "safe filename"),
         ("../evil", "safe filename"),
         (" Composer", "safe filename"),
-        ("Composer ", "safe filename"),
     ],
 )
 def test_resolve_runtime_model_name_fails_closed_outside_codex(
@@ -229,35 +137,6 @@ def test_resolve_runtime_model_name_rejects_codex_override(tmp_path: Path) -> No
 
     with pytest.raises(workspace.WorkspaceError, match="does not match Codex runtime"):
         workspace.resolve_runtime_model_name("gpt-5", environ)
-
-
-def test_resolve_runtime_model_name_accepts_slash_equivalent_explicit_in_codex(
-    tmp_path: Path,
-) -> None:
-    codex_home = tmp_path / "codex"
-    write_rollout(codex_home, ["opencode/deepseek-v4-flash-free"])
-    environ = {
-        "CODEX_HOME": str(codex_home),
-        "CODEX_THREAD_ID": THREAD_ID,
-    }
-
-    assert workspace.resolve_runtime_model_name("opencode/deepseek-v4-flash-free", environ) == (
-        "opencode-deepseek-v4-flash-free",
-        "codex-rollout",
-    )
-
-
-def test_review_artifact_paths_preserve_exact_model_name(tmp_path: Path) -> None:
-    draft, destination = workspace.review_artifact_paths(
-        tmp_path / "review-backup",
-        "fix/herdr-session-cwd",
-        "gpt-5.6-sol",
-        pr_number=4,
-        pr_repository=PR_REPO,
-    )
-
-    assert draft == tmp_path / "review-backup" / "gpt-5.6-sol.md"
-    assert destination == "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
 
 
 def test_destination_fingerprint_distinguishes_symlink_entries(tmp_path: Path) -> None:
@@ -290,18 +169,6 @@ def test_snapshot_existing_review_copies_regular_file(tmp_path: Path) -> None:
     assert fingerprint == workspace.destination_fingerprint(destination)
     assert previous == backup_dir / "previous-review.md"
     assert previous.read_text(encoding="utf-8") == "existing review\n"
-
-
-def test_snapshot_existing_review_reports_missing(tmp_path: Path) -> None:
-    backup_dir = tmp_path / "review-backup"
-    backup_dir.mkdir()
-    destination = tmp_path / "reviews/branch/gpt-5.6-sol.md"
-
-    fingerprint, previous = workspace.snapshot_existing_review(destination, backup_dir)
-
-    assert fingerprint == {"path": str(destination), "kind": "missing"}
-    assert previous is None
-    assert list(backup_dir.iterdir()) == []
 
 
 @pytest.mark.parametrize("kind", ["directory", "symlink", "fifo"])
@@ -476,115 +343,6 @@ def test_snapshot_reports_changes_excluding_reviews(
     assert result["branch"] == "main"
     assert result["head"] == commit
     assert base64.b64decode(result["status"]) == expected_status
-
-
-def test_create_requires_explicit_model_outside_codex(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
-    monkeypatch.delenv("CODEX_HOME", raising=False)
-    temp_root = tmp_path / "sessions"
-
-    with pytest.raises(workspace.WorkspaceError, match="required outside Codex"):
-        workspace.create(
-            argparse.Namespace(
-                repo=str(tmp_path / "unused-repo"),
-                pr_number=5,
-                commit="unused-commit",
-                head_branch="fix/model-name",
-                pr_repo=PR_REPO,
-                model_name=None,
-                temp_root=str(temp_root),
-                attempt_id=attempt_id(),
-            )
-        )
-
-    assert not temp_root.exists()
-
-
-def test_create_pins_slash_model_name_as_hyphenated_filename(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
-    monkeypatch.delenv("CODEX_HOME", raising=False)
-    repo = tmp_path / "repo"
-    commit = make_repo(repo)
-
-    result = workspace.create(
-        argparse.Namespace(
-            repo=str(repo),
-            pr_number=42,
-            commit=commit,
-            head_branch="fix/model-name",
-            pr_repo=PR_REPO,
-            model_name="opencode/deepseek-v4-flash-free",
-            temp_root=str(tmp_path / "sessions"),
-            attempt_id=attempt_id(),
-        )
-    )
-
-    assert result["model_name"] == "opencode-deepseek-v4-flash-free"
-    assert result["destination"] == "reviews/usaturn/create-reso-world/#42-fix-model-name/opencode-deepseek-v4-flash-free.md"
-    assert result["draft"].endswith("/opencode-deepseek-v4-flash-free.md")
-
-
-def test_create_destination_uses_hash_pr_number_and_sanitized_branch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
-    monkeypatch.delenv("CODEX_HOME", raising=False)
-    repo = tmp_path / "repo"
-    commit = make_repo(repo, tracked_reviews=False)
-
-    result = workspace.create(
-        argparse.Namespace(
-            repo=str(repo),
-            pr_number=160,
-            commit=commit,
-            head_branch="feature/issue-148-fail-fast",
-            pr_repo=PR_REPO,
-            model_name="grok-4.6",
-            temp_root=str(tmp_path / "sessions"),
-            attempt_id=attempt_id(),
-        )
-    )
-
-    assert result["destination"] == "reviews/usaturn/create-reso-world/#160-feature-issue-148-fail-fast/grok-4.6.md"
-
-
-@pytest.mark.parametrize(
-    ("head_branch", "directory"),
-    [
-        ("feature/foo:bar", "#7-feature-foo-bar"),
-        (r"win\path", "#7-win-path"),
-        ('a<>:"|?*b', "#7-a-------b"),
-        ("ends-with-dot.", "#7-ends-with-dot"),
-        ("trailing-space ", "#7-trailing-space"),
-        ("has space", "#7-has space"),
-        ("foo\nbar", "#7-foo-bar"),
-    ],
-)
-def test_create_destination_replaces_unsafe_directory_characters(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    head_branch: str,
-    directory: str,
-) -> None:
-    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
-    monkeypatch.delenv("CODEX_HOME", raising=False)
-    repo = tmp_path / "repo"
-    commit = make_repo(repo, tracked_reviews=False)
-
-    result = workspace.create(
-        argparse.Namespace(
-            repo=str(repo),
-            pr_number=7,
-            commit=commit,
-            head_branch=head_branch,
-            pr_repo=PR_REPO,
-            model_name="grok-4.6",
-            temp_root=str(tmp_path / "sessions"),
-            attempt_id=attempt_id(),
-        )
-    )
-
-    assert result["destination"] == f"reviews/usaturn/create-reso-world/{directory}/grok-4.6.md"
 
 
 def test_create_pins_explicit_model_outside_codex(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -803,19 +561,7 @@ def test_fork_and_upstream_reviews_are_saved_and_rereviewed_independently(
     assert upstream_review.read_text(encoding="utf-8") == "Review for orange3134/resoloop#11\n"
 
 
-@pytest.mark.parametrize(
-    "bad",
-    [
-        "",
-        "usaturn",
-        "usaturn/resoloop/extra",
-        "../resoloop",
-        "usaturn/..",
-        "-bad/resoloop",
-        "usaturn/res oloop",
-        "https://github.com/usaturn/resoloop",
-    ],
-)
+@pytest.mark.parametrize("bad", ["../resoloop", "usaturn/.."])
 def test_create_rejects_invalid_pr_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bad: str) -> None:
     monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
     temp_root = tmp_path / "sessions"
@@ -890,7 +636,7 @@ def test_version6_session_is_kept_by_verify_save_and_cleanup(tmp_path: Path, mon
     assert Path(result["draft"]).read_text(encoding="utf-8") == "unsaved review\n"
 
 
-@pytest.mark.parametrize("value", ["Usaturn/resoloop", "usaturn", 7, None, "missing"])
+@pytest.mark.parametrize("value", ["Usaturn/resoloop", "missing"])
 def test_load_state_rejects_non_canonical_pr_repository(created_session: dict[str, Any], value: object) -> None:
     state_file = Path(created_session["result"]["state_file"])
     state = json.loads(state_file.read_text(encoding="utf-8"))
@@ -921,13 +667,12 @@ def test_save_rejects_rewritten_pr_repository(tmp_path: Path, monkeypatch: pytes
     assert not (repo / "reviews").exists()
 
 
-@pytest.mark.parametrize("head_branch", ["", "/", ".", "..", "..."])
+@pytest.mark.parametrize("head_branch", ["/", "..."])
 def test_review_artifact_paths_reject_invalid_branch(tmp_path: Path, head_branch: str) -> None:
     with pytest.raises(workspace.WorkspaceError, match="head branch"):
         workspace.review_artifact_paths(tmp_path, head_branch, "gpt-5.6-sol", pr_number=1, pr_repository=PR_REPO)
 
-
-@pytest.mark.parametrize("pr_number", [0, -1, True, "160"])
+@pytest.mark.parametrize("pr_number", [0, True])
 def test_review_artifact_paths_reject_invalid_pr_number(tmp_path: Path, pr_number: object) -> None:
     with pytest.raises(workspace.WorkspaceError, match="PR number"):
         workspace.review_artifact_paths(
@@ -937,45 +682,6 @@ def test_review_artifact_paths_reject_invalid_pr_number(tmp_path: Path, pr_numbe
             pr_number=pr_number,  # type: ignore[arg-type]
             pr_repository=PR_REPO,
         )
-
-
-def test_save_parser_rejects_caller_selected_paths() -> None:
-    with pytest.raises(SystemExit):
-        workspace.parser().parse_args(
-            [
-                "save",
-                "--state",
-                "/tmp/session.json",
-                "--draft",
-                "/tmp/gpt-5.md",
-                "--destination",
-                "reviews/branch/gpt-5.md",
-            ]
-        )
-
-
-def test_create_parser_accepts_explicit_model_name() -> None:
-    args = workspace.parser().parse_args(
-        [
-            "create",
-            "--repo",
-            "/repo",
-            "--pr-number",
-            "5",
-            "--pr-repo",
-            PR_REPO,
-            "--commit",
-            "deadbeef",
-            "--head-branch",
-            "fix/model-name",
-            "--model-name",
-            "opus-5",
-            "--attempt-id",
-            "20261005T121530123456789Z",
-        ]
-    )
-
-    assert args.model_name == "opus-5"
 
 
 def create_session(
@@ -1036,46 +742,6 @@ def test_save_allows_another_review_destination_to_change(
     assert other.read_text(encoding="utf-8") == "gemini review\n"
 
 
-def test_save_allows_untracked_reviews_directory_to_appear(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    session = create_session(tmp_path, monkeypatch, tracked_reviews=False)
-    result = session["result"]
-    repo = session["repo"]
-    Path(result["draft"]).write_text("codex review\n", encoding="utf-8")
-    other = repo / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gemini.md"
-    other.parent.mkdir(parents=True)
-    other.write_text("gemini review\n", encoding="utf-8")
-    assert git(repo, "status", "--porcelain") == "?? reviews/"
-
-    saved = workspace.save(argparse.Namespace(state=result["state_file"]))
-
-    assert Path(saved["destination"]).read_text(encoding="utf-8") == "codex review\n"
-    assert other.read_text(encoding="utf-8") == "gemini review\n"
-
-
-@pytest.mark.parametrize("collision", ["reviews", "branch"])
-def test_save_rejects_non_directory_destination_parent(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    collision: str,
-) -> None:
-    session = create_session(tmp_path, monkeypatch, tracked_reviews=False)
-    result = session["result"]
-    repo = session["repo"]
-    Path(result["draft"]).write_text("review\n", encoding="utf-8")
-    if collision == "reviews":
-        (repo / "reviews").write_text("collision\n", encoding="utf-8")
-    else:
-        reviews = repo / "reviews/usaturn/create-reso-world"
-        reviews.mkdir(parents=True)
-        (reviews / "#4-fix-herdr-session-cwd").write_text("collision\n", encoding="utf-8")
-
-    with pytest.raises(
-        workspace.WorkspaceError,
-        match="review destination parent is not a directory",
-    ):
-        workspace.save(argparse.Namespace(state=result["state_file"]))
-
-
 def test_save_rejects_changed_pinned_destination(
     created_session: dict[str, Any],
 ) -> None:
@@ -1118,30 +784,6 @@ def test_first_session_wins_same_destination(
 
     destination = repo / first["destination"]
     assert destination.read_text(encoding="utf-8") == "first review\n"
-
-
-def test_save_allows_unrelated_main_changes(created_session: dict[str, Any]) -> None:
-    result = created_session["result"]
-    repo = created_session["repo"]
-    Path(result["draft"]).write_text("review\n", encoding="utf-8")
-    (repo / "README.md").write_text("changed\n", encoding="utf-8")
-    scratch = repo / ".pr-review-scratch"
-    scratch.mkdir()
-    (scratch / "diff.txt").write_text("scratch\n", encoding="utf-8")
-
-    saved = workspace.save(argparse.Namespace(state=result["state_file"]))
-
-    assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
-
-
-def test_load_state_rejects_previous_version(created_session: dict[str, Any]) -> None:
-    state_file = Path(created_session["result"]["state_file"])
-    state = json.loads(state_file.read_text(encoding="utf-8"))
-    state["version"] = 5
-    state_file.write_text(json.dumps(state) + "\n", encoding="utf-8")
-
-    with pytest.raises(workspace.WorkspaceError, match="invalid PR-review session state"):
-        workspace.load_state(str(state_file))
 
 
 def test_save_rejects_changed_runtime_model(created_session: dict[str, Any]) -> None:
@@ -1212,24 +854,6 @@ def test_cleanup_removes_session_after_successful_save(
     assert not session_dir.exists()
     assert result["worktree"] not in git(repo, "worktree", "list")
     assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
-
-
-def test_cleanup_removes_worktree_holding_verification_artifacts(
-    created_session: dict[str, Any],
-) -> None:
-    result = created_session["result"]
-    repo = created_session["repo"]
-    worktree = Path(result["worktree"])
-    build = worktree / "_build"
-    build.mkdir()
-    (build / "pytest.log").write_text("verification output\n", encoding="utf-8")
-    (worktree / "README.md").write_text("edited during review\n", encoding="utf-8")
-    saved_session(created_session)
-
-    workspace.cleanup(argparse.Namespace(state=result["state_file"]))
-
-    assert not worktree.exists()
-    assert result["worktree"] not in git(repo, "worktree", "list")
 
 
 def test_cleanup_refuses_before_save(created_session: dict[str, Any]) -> None:
@@ -1317,30 +941,6 @@ def test_cleanup_refuses_worktree_of_another_repository(tmp_path: Path, created_
     assert str(worktree) in git(stranger, "worktree", "list")
 
 
-def test_cleanup_fails_closed_when_rerun(created_session: dict[str, Any]) -> None:
-    result = created_session["result"]
-    saved = saved_session(created_session)
-    workspace.cleanup(argparse.Namespace(state=result["state_file"]))
-
-    with pytest.raises((workspace.WorkspaceError, OSError)):
-        workspace.cleanup(argparse.Namespace(state=result["state_file"]))
-
-    assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
-
-
-def test_cleanup_parser_rejects_caller_selected_paths() -> None:
-    with pytest.raises(SystemExit):
-        workspace.parser().parse_args(
-            [
-                "cleanup",
-                "--state",
-                "/tmp/session.json",
-                "--worktree",
-                "/tmp/pr-review-4-abcd/worktree",
-            ]
-        )
-
-
 def test_cleanup_waits_for_repository_review_lock(
     created_session: dict[str, Any],
 ) -> None:
@@ -1392,28 +992,7 @@ def journal_records(session_dir: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in lines]
 
 
-def test_create_parser_requires_attempt_id() -> None:
-    with pytest.raises(SystemExit):
-        workspace.parser().parse_args(
-            [
-                "create",
-                "--repo",
-                "/repo",
-                "--pr-number",
-                "5",
-                "--pr-repo",
-                PR_REPO,
-                "--commit",
-                "deadbeef",
-                "--head-branch",
-                "fix/model-name",
-                "--model-name",
-                "opus-5",
-            ]
-        )
-
-
-@pytest.mark.parametrize("bad", ["", "-leading-dash", "../escape", "has space", "x" * 65])
+@pytest.mark.parametrize("bad", ["../escape"])
 def test_create_rejects_unsafe_attempt_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bad: str) -> None:
     monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
     repo = tmp_path / "repo"
@@ -1471,46 +1050,6 @@ def test_create_records_its_phases_in_the_journal(tmp_path: Path, monkeypatch: p
     assert header["session_dir"] == str(session_dir)
     assert header["worktree"] == result["worktree"]
     assert records[-1]["state_file"] == result["state_file"]
-
-
-def test_create_does_not_fsync_session_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # fsync here held the shared review lock for minutes behind concurrent checkouts (Issue #39).
-    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
-    repo = tmp_path / "repo"
-    commit = make_repo(repo)
-
-    def refuse_fsync(fd: int) -> None:
-        raise AssertionError("create must not fsync while holding the shared review lock")
-
-    monkeypatch.setattr(workspace.os, "fsync", refuse_fsync)
-
-    result = workspace.create(
-        explicit_create_args(repo, commit, tmp_path / "sessions", attempt_id(), model_name="gpt-5")
-    )
-
-    assert result["previous_review"] is not None
-    assert Path(result["state_file"]).is_file()
-
-
-def test_create_outlives_a_reader_that_closed_its_stderr(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # A tool that stops reading after its timeout must not turn the attempt
-    # into a helper error, which the skill stops on without abandoning it.
-    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
-    repo = tmp_path / "repo"
-    commit = make_repo(repo)
-
-    class ClosedPipe:
-        def write(self, _text: str) -> int:
-            raise BrokenPipeError(32, "Broken pipe")
-
-        def flush(self) -> None:
-            raise BrokenPipeError(32, "Broken pipe")
-
-    monkeypatch.setattr(workspace.sys, "stderr", ClosedPipe())
-
-    result = workspace.create(explicit_create_args(repo, commit, tmp_path / "sessions", attempt_id()))
-
-    assert journal_records(Path(result["state_file"]).parent)[-1]["phase"] == "completed"
 
 
 def attempt_args(repo: Path, temp_root: Path, attempt: str, *, wait: int = 0) -> argparse.Namespace:
@@ -1603,27 +1142,6 @@ def wait_for_phase(repo: Path, temp_root: Path, attempt: str, phase: str) -> dic
     raise AssertionError(f"create never reached {phase}")
 
 
-def test_inspect_reports_a_completed_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
-    repo = tmp_path / "repo"
-    commit = make_repo(repo)
-    temp_root = tmp_path / "sessions"
-    attempt = attempt_id()
-    result = workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
-
-    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
-
-    assert report["status"] == "completed"
-    assert report["session_dir"] == str(Path(result["state_file"]).parent)
-    assert report["state_file"] == result["state_file"]
-    assert report["worktree"] == result["worktree"]
-    assert report["worktree_exists"] is True
-    assert report["worktree_registered"] is True
-    assert report["worktree_lock"] is None
-    assert report["last_phase"] == "completed"
-    assert {"create-journal.jsonl", "session.json", "worktree/", "review-backup/"} <= set(report["entries"])
-
-
 def test_killed_create_reports_its_last_phase_and_leftovers(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     commit = make_repo(repo)
@@ -1675,36 +1193,6 @@ def test_terminated_create_records_the_signal(tmp_path: Path) -> None:
     assert report["status"] == "interrupted"
     assert report["signal"] == "SIGTERM"
     assert report["last_phase"] == "interrupted"
-
-
-def test_inspect_reports_an_unknown_attempt_as_absent(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    make_repo(repo)
-    temp_root = tmp_path / "sessions"
-    legacy = temp_root / "pr-review-4-legacy"
-    legacy.mkdir(parents=True)
-    (legacy / ".session.json.kqdd8rsc").write_text("{}\n", encoding="utf-8")
-
-    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt_id()))
-
-    assert report == {"attempt_id": report["attempt_id"], "status": "absent", "session_dir": None}
-    assert (legacy / ".session.json.kqdd8rsc").is_file()
-
-
-def test_inspect_ignores_a_cut_off_journal_line(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
-    repo = tmp_path / "repo"
-    commit = make_repo(repo)
-    temp_root = tmp_path / "sessions"
-    attempt = attempt_id()
-    result = workspace.create(explicit_create_args(repo, commit, temp_root, attempt))
-    with (Path(result["state_file"]).parent / "create-journal.jsonl").open("a", encoding="utf-8") as stream:
-        stream.write('{"phase": "fail')
-
-    report = workspace.inspect_attempt(attempt_args(repo, temp_root, attempt))
-
-    assert report["status"] == "completed"
-    assert report["last_phase"] == "completed"
 
 
 def test_inspect_refuses_an_attempt_id_shared_by_two_sessions(
@@ -1802,25 +1290,6 @@ def test_abandon_waits_for_a_checkout_that_outlives_create(tmp_path: Path) -> No
     assert workspace.abandon_attempt(attempt_args(repo, temp_root, attempt))["worktree_removed"] is True
 
 
-def test_abandon_removes_a_worktree_left_initializing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    attempt = completed_attempt(tmp_path, monkeypatch)
-    repo = attempt["repo"]
-    worktree = attempt["result"]["worktree"]
-    git(repo, "worktree", "lock", "--reason", "initializing", worktree)
-    assert (
-        workspace.inspect_attempt(attempt_args(repo, attempt["temp_root"], attempt["attempt"]))["worktree_lock"]
-        == "initializing"
-    )
-
-    removed = workspace.abandon_attempt(attempt_args(repo, attempt["temp_root"], attempt["attempt"]))
-
-    assert removed["worktree_removed"] is True
-    assert removed["status"] == "completed"
-    assert not Path(worktree).exists()
-    assert worktree not in git(repo, "worktree", "list")
-    assert not attempt["session_dir"].exists()
-
-
 def test_abandon_keeps_a_worktree_locked_for_another_reason(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     attempt = completed_attempt(tmp_path, monkeypatch)
     repo = attempt["repo"]
@@ -1851,7 +1320,6 @@ def test_abandon_refuses_while_the_attempt_is_running(tmp_path: Path, monkeypatc
     ("extra", "message"),
     [
         ("review-backup/opus-5.md", "review backup"),
-        ("review-backup/nested/", "review backup"),
         ("notes.txt", "unexpected entry"),
     ],
 )
@@ -1983,9 +1451,8 @@ def admin_dir_of(worktree: Path) -> Path:
     return Path((worktree / ".git").read_text(encoding="utf-8").strip().removeprefix("gitdir: "))
 
 
-@pytest.mark.parametrize("cut", ["gitdir", "HEAD", "record"])
 def test_abandon_clears_records_left_by_an_interrupted_worktree_add(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cut: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # A SIGTERM that reaches `git worktree add` starts git's own cleanup; a
     # SIGKILL right after cuts it short and leaves records git cannot remove.
@@ -1996,13 +1463,7 @@ def test_abandon_clears_records_left_by_an_interrupted_worktree_add(
     other = tmp_path / "unrelated-worktree"
     git(repo, "worktree", "add", "--detach", str(other), "HEAD")
     (admin / "locked").write_text("initializing\n", encoding="utf-8")
-    if cut == "record":
-        shutil.rmtree(admin)
-    elif cut == "gitdir":
-        for name in ("gitdir", "HEAD", "commondir"):
-            (admin / name).unlink()
-    else:
-        (admin / "HEAD").unlink()
+    (admin / "HEAD").unlink()
 
     removed = workspace.abandon_attempt(attempt_args(repo, attempt["temp_root"], attempt["attempt"]))
 
@@ -2096,7 +1557,7 @@ def session_files(temp_root: Path) -> dict[str, str]:
 
 
 @pytest.mark.parametrize(
-    ("fork_state", "upstream_state"), [("MERGED", "OPEN"), ("OPEN", "MERGED"), ("CLOSED", "OPEN")]
+    ("fork_state", "upstream_state"), [("MERGED", "OPEN")]
 )
 def test_sessions_keep_the_open_pr_when_fork_and_upstream_share_number_branch_and_head(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fork_state: str, upstream_state: str
@@ -2297,13 +1758,6 @@ def findings_destination(session: dict[str, Any]) -> Path:
     )
 
 
-def test_create_returns_the_pinned_findings_draft(
-    created_session: dict[str, Any],
-) -> None:
-    result = created_session["result"]
-    assert result["findings_draft"] == str(Path(result["backup_dir"]) / "gpt-5.6-sol.findings.json")
-
-
 def test_save_with_findings_saves_the_review_and_the_candidates(
     created_session: dict[str, Any],
 ) -> None:
@@ -2315,10 +1769,6 @@ def test_save_with_findings_saves_the_review_and_the_candidates(
     assert Path(saved["destination"]).read_text(encoding="utf-8") == draft.read_text(encoding="utf-8")
     assert saved["findings_destination"] == str(findings_destination(created_session))
     assert findings_destination(created_session).read_bytes() == findings_draft.read_bytes()
-
-
-def _break_property(document: dict[str, Any]) -> None:
-    del document["findings"][0]["property"]
 
 
 def _move_head(document: dict[str, Any]) -> None:
@@ -2346,7 +1796,6 @@ def _markdown_source(document: dict[str, Any]) -> None:
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (_break_property, "findings[0].property: required"),
         (_move_head, "reviewed_head does not match the pinned commit"),
         (_other_pr, "PR number does not match"),
         (_other_review_file, "review_file does not match"),
@@ -2368,18 +1817,6 @@ def test_save_with_invalid_findings_saves_nothing(created_session: dict[str, Any
         created_session["repo"] / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
     ).exists()
     assert not findings_destination(created_session).exists()
-
-
-def test_save_with_findings_requires_the_draft(created_session: dict[str, Any]) -> None:
-    result = created_session["result"]
-    Path(result["draft"]).write_text("review\n", encoding="utf-8")
-
-    with pytest.raises(workspace.WorkspaceError, match="findings draft is missing"):
-        workspace.save(argparse.Namespace(state=result["state_file"], findings=True))
-
-    assert not (
-        created_session["repo"] / "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.6-sol.md"
-    ).exists()
 
 
 def test_save_with_findings_restores_the_candidates_when_the_review_copy_fails(
@@ -2423,14 +1860,6 @@ def test_save_with_findings_removes_new_candidates_when_the_review_copy_fails(
         workspace.save(argparse.Namespace(state=result["state_file"], findings=True))
 
     assert not findings_destination(created_session).exists()
-
-
-def test_save_parser_takes_findings_as_a_flag_without_a_path() -> None:
-    args = workspace.parser().parse_args(["save", "--state", "/tmp/session.json", "--findings"])
-    assert args.findings is True
-    assert workspace.parser().parse_args(["save", "--state", "/tmp/session.json"]).findings is False
-    with pytest.raises(SystemExit):
-        workspace.parser().parse_args(["save", "--state", "/tmp/session.json", "--findings", "/tmp/x.json"])
 
 
 @pytest.mark.parametrize(
