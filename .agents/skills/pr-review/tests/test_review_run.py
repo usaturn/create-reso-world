@@ -655,6 +655,14 @@ def test_second_review_records_update_mode_and_previous_digest(
     assert len(run_records(prepared["parent"])) == 2
 
 
+def test_prepare_without_request_records_null_request(prepared: dict[str, Any]) -> None:
+    prepared["args"].request = None
+    result = review_run.prepare(prepared["args"])
+    document = json.loads(Path(result["run_record"]).read_text(encoding="utf-8"))
+    assert document["inputs"]["request"] is None
+    assert document["reviewer"]["provenance"]["run_id"] == "unknown"
+
+
 def test_prepare_alone_leaves_started_record_like_a_killed_run(
     prepared: dict[str, Any],
 ) -> None:
@@ -666,6 +674,15 @@ def test_prepare_alone_leaves_started_record_like_a_killed_run(
         record["timing"]["finished_at"] is None
         and record["timing"]["total_seconds"] is None
     )
+
+
+def test_prepare_failure_before_resolve_writes_no_record(
+    prepared: dict[str, Any],
+) -> None:
+    prepared["args"].model_name = None
+    with pytest.raises(review_run.workspace.WorkspaceError, match="model"):
+        review_run.prepare(prepared["args"])
+    assert run_records(prepared["parent"]) == []
 
 
 def test_prepare_failure_after_resolve_records_prepare(
