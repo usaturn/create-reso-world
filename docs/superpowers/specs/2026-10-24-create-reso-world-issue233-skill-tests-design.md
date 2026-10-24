@@ -1,6 +1,6 @@
 # Issue #233: スキルと tests/skills のテスト削減設計
 
-> 状態: completed。管理先: `usaturn/create-reso-world`。対象 Issue: https://github.com/usaturn/create-reso-world/issues/233 。対象 PR: https://github.com/usaturn/create-reso-world/pull/254 。対象ブランチ: `feat/issue-233-skill-tests`。検証したコード HEAD: `b73019e0409327f154f2f57945fc72cae2476efe`。
+> 状態: draft（レビュー修正サイクル 2 の対応を記録）。管理先: `usaturn/create-reso-world`。対象 Issue: https://github.com/usaturn/create-reso-world/issues/233 。対象 PR: https://github.com/usaturn/create-reso-world/pull/254 。対象ブランチ: `feat/issue-233-skill-tests`。サイクル 2 のレビュー対象 HEAD: `af0349e28d3e0f713cb541ff4298a44075aa80fd`。修正後のコード HEAD: `f4db3dc4d188dfbdd0f88a8c16e2880c770f70ae`。
 >
 > 実行許可: 利用者の「`$issue-to-pr #233 --merge`」（2026-10-24）。これは実装、検証、commit、push、PR 作成、および指定されたレビュー修正ループで条件を満たした場合のマージの許可であり、本書の内容承認を意味しない。
 
@@ -275,7 +275,7 @@
 | `test_existing_main_is_retained_without_ref_or_reflog_updates` | S | 維持 | 既存 main の commit / reflog を動かすと利用者が持つ履歴を失う。 |
 | `test_main_held_by_another_worktree_does_not_block_or_mutate_that_tree` | S | 維持 | 別 worktree の main と未保存・ignored 内容を更新元として扱う事故を防ぐ。 |
 | `test_invocation_from_linked_project_targets_main_root_not_callers_feature` | S | 維持 | linked project からの実行で呼び出し元 feature の HEAD / refs を動かす事故を防ぐ。 |
-| `test_branch_deletion_from_linked_project_uses_updated_main_head` | L | 削除 | 古い HEAD を基準にしたときは merged branch の削除を Git が拒否し、明示エラーになる。別 worktree の保護は直前のテストが担う。 |
+| `test_branch_deletion_from_linked_project_uses_updated_main_head` | L | 削除 | 古い HEAD を基準にしたときは merged branch の削除を Git が拒否し、明示エラーになる。別 worktree の保護は直前のテストが担う。ただし手順 8 の拒否テストと対になる実際の削除成功はサイクル 2 の代表テストで補う。 |
 | `test_branch_deletion_refuses_a_branch_not_merged_into_origin_main` | S | 維持 | 未マージ branch を `-D` で消して利用者の commit を失う危険を防ぐ。 |
 | `test_final_status_from_linked_project_reports_main_not_dirty_caller` | S | 維持 | caller の dirty 状態を main の状態として報告すると、後続の片付け判断を誤る。 |
 | `test_unclean_or_unreadable_main_tree_stops_before_checkout_and_branch_deletion` | S | 維持 | main の dirty / 読取失敗を無視した checkout と branch 削除によるデータ・履歴損失を防ぐ。 |
@@ -289,7 +289,7 @@
 | `test_tracked_world_deletion_stops_without_mutating_any_local_state` | S（迷い） | 維持 | 5 領域に追跡ファイルが残る旧 HEAD を更新すると clean なファイルも削除される。経路の撤去可否は未確定。 |
 | `test_world_source_rename_outside_protected_roots_is_treated_as_deletion` | S（迷い） | 維持 | rename 検出が旧パスの削除を隠すと追跡中のワールド source を失う。経路の撤去可否は未確定。 |
 | `test_deleted_path_diff_error_stops_before_checkout_or_branch_deletion` | S（迷い） | 維持 | 削除パス照会の失敗を空集合として扱うと、保護領域の追跡ファイルを削除し得る。経路の撤去可否は未確定。 |
-| `test_protected_world_source_modification_still_allows_normal_update` | L | 削除 | 削除のない変更を過剰に拒否しても、更新の明示エラーとして分かる。通常更新の正常例は先頭のテストにある。 |
+| `test_protected_world_source_modification_still_allows_normal_update` | L | 削除 | 削除のない変更を過剰に拒否しても、更新の明示エラーとして分かる。通常更新の正常例は先頭のテストにあるが、保護領域の削除拒否と対になる同領域の変更成功はサイクル 2 の代表テストで補う。 |
 
 #### ワールド保護経路の撤去判断
 
@@ -473,10 +473,10 @@
 
 | 指標 | 変更前 | 変更後 | 差分 |
 | --- | ---: | ---: | ---: |
-| #233 指定領域の pytest 収集件数 | 471 | 194 | 277 減（58.8%） |
-| 同領域の Git 追跡テストファイルの行数 | 5,906 | 4,043 | 1,863 行減（31.5%） |
+| #233 指定領域の pytest 収集件数 | 471 | 195 | 276 減（58.6%） |
+| 同領域の Git 追跡テストファイルの行数 | 5,906 | 4,087 | 1,819 行減（30.8%） |
 
-収集件数は Issue に記載された対象列挙で `uv run --locked pytest --collect-only -q`、行数は同じ領域の `git ls-files -z -- .../tests | xargs -0 cat | wc -l` で、修正コミット `b73019e` のツリーから計測した。基準の領域テストは 470 passed、1 skipped。最終の領域テストは 194 passed、終了コード 0（76.35 秒）。レビュー前は 217 件・4,031 行・217 passed であり、追加した安全上の代表 2 件と frontmatter の 1 件への縮約を後で反映した。件数の削減を理由に S のテストは削除していない。
+収集件数は Issue に記載された対象列挙で `uv run --locked pytest --collect-only -q`、行数は同じ領域の `git ls-files -z -- .../tests | xargs -0 cat | wc -l` で、修正コミット `f4db3dc` のツリーから計測した。基準の領域テストは 470 passed、1 skipped。最終の領域テストは 195 passed、終了コード 0（90.85 秒）。レビュー前は 217 件・4,031 行・217 passed、サイクル 1 後は 194 件・4,043 行・194 passed だった。サイクル 2 で拒否テストと対になる正常例 1 件・44 行を加えた。件数の削減を理由に S のテストは削除していない。
 
 高リスクの代表について、`/tmp` の一意な使い捨てコピーで処理または操作範囲のガードだけを変えた。元の worktree の実装コードとスキル本文には変異を入れていない。各行の左は変更前のテスト終了コード、右は変異後の終了コードである。
 
@@ -554,7 +554,7 @@ Task 1 は 54 件、Task 2 は 83 件、Task 3 は 80 件のテストを残し�
 | 文書別の凍結履歴を失わない | 正常な 13 文書、1 文書の `source_paths=[]`・`modifications=""`・`output_paths=[]` を別々に設定 | 正常値は通過。各空値はそのテストが失敗（それぞれ 1 failed、2 passed） |
 | 権限型を 1 件の走査で守る | 現行のスキル一覧、権限指定のある 1 スキルを list 型に変える一時変異 | 収集 1 件で正常値は成功、変異では 1 failed |
 
-一時変異は runner の一意な `/tmp` のコピーだけで行い、削除を確認した。`b73019e` の作業ブランチで修正対象の 3 ファイルは `26 passed`、指定領域は `194 passed`（76.35 秒）、収集も 194 件、追跡テストファイルは 4,043 行。README の全体 pytest は `1,449 passed`（472.70 秒）、bash 入口は 23 件成功、配置検査は `PASS: check-layout`。3 入口とも終了コード 0。ログは `PARENT_ROOT/tmp/agents/review-fix-planning-pr254.h0tjq985/readme-{pytest,bash,layout}.log`。`git diff --check` は出力なし、終了コード 0。自己レビュー前の Gitleaks は `origin/main..b73019e` の 8 commit を走査し、検出なし、終了コード 0。初回の 217 件・4,031 行はレビュー前の値であり、最終値と区別する。
+一時変異は runner の一意な `/tmp` のコピーだけで行い、削除を確認した。サイクル 1 の `b73019e` の作業ブランチで修正対象の 3 ファイルは `26 passed`、指定領域は `194 passed`（76.35 秒）、収集も 194 件、追跡テストファイルは 4,043 行。README の全体 pytest は `1,449 passed`（472.70 秒）、bash 入口は 23 件成功、配置検査は `PASS: check-layout`。3 入口とも終了コード 0。ログは `PARENT_ROOT/tmp/agents/review-fix-planning-pr254.h0tjq985/readme-{pytest,bash,layout}.log`。`git diff --check` は出力なし、終了コード 0。自己レビュー前の Gitleaks は `origin/main..b73019e` の 8 commit を走査し、検出なし、終了コード 0。これらはサイクル 1 時点の値であり、サイクル 2 後の最終値とは区別する。
 
 ### 修正後の自己レビューと追加の判断
 
@@ -567,3 +567,38 @@ Task 1 は 54 件、Task 2 は 83 件、Task 3 は 80 件のテストを残し�
 fix-check は修正前 `2e517c6` と修正後 `b73019e` の 4 主張を、コミット済みの差分・正常例・6 件の使い捨て変異で照合した。新規指摘 0、4 主張すべて `holds`、変更 3 ファイルすべて `passed`、`coverage.remaining=[]`。v2 の形式検査は終了コード 0。実測確認は 380.891 秒、後片付け込み約 409 秒。結果は同レビューディレクトリの `verified/b73019e04093.fix-check.json`、要約と文書候補 sidecar に保存した。自己レビュー後に直したのは計測の文書と PR 本文のみで、2 回目の自己レビューは実施しない。
 
 このサイクルの判断は、初回レビューの 4 件と自己レビューの 1 件をすべて「対応する」とし、解消済み・対応しない・未確認は 0 件。変更対象はテスト 3 ファイルと本 Spec、外部の実装 API は変えていない。最終の Spec は `completed` として同じ PR のブランチへ 1 commit だけ追加し、検査付きで push する。PR 本文・Issue コメント・判断の記録の投稿と次のレビューサイクルは、その後の工程として実行する。
+
+## PR #254 のレビュー修正（サイクル 2）
+
+対象は公開済み HEAD `af0349e28d3e0f713cb541ff4298a44075aa80fd`。初回の 5 判断は、コミット済みのテスト修正、Spec の計測更新、PR 本文と Issue コメントを照合し、このサイクルで解消済みとして引き継ぐ。再実行したレビュアーは `gpt-6.1-sol`（pi、指摘 0）、`SWE-2 Max`（devin、0）、`deepseek/deepseek-v4.1-flash`（pi、1）、`Grok 4.7 256K Extra High`（cursor、0）の 4 件で、いずれもこの HEAD のレビューとして受理された。前回の指摘が再発したという報告はない。
+
+| 新規指摘 | 判断 | 現行 HEAD の事実と理由 | 採用する修正 |
+| --- | --- | --- | --- |
+| `deepseek-deepseek-v4.1-flash#L-1@af0349e28d3e` | 対応する（d） | `AGENTS.md` は、拒否テストに正しく通る例を少なくとも 1 件残すよう明示する。手順 7 の一般更新成功例は保護領域を更新せず、手順 8 の再確認テストは抽出したコマンドの後にテスト自身が branch を削除する。保護領域の更新と手順 8 の実際の成功経路を、それぞれ過剰拒否する一時変異でも現行 24 テストがすべて通る。旧テスト 2 件を削除した後の代表が足りない | `.agents/skills/repo-cleanup-after-merge/tests/test_detached_update.py` に、保護領域の追跡ファイルを削除せず更新し、手順 7 の成功に続けて手順 8 の bash ブロックでマージ済み候補を削除する正常例を 1 件追加する。対象の更新、候補だけの削除、他の ref と利用者ファイルの保持を確かめる。正常例を同じ条件の拒否テストと対にする |
+
+旧 `test_protected_world_source_modification_still_allows_normal_update` と `test_branch_deletion_from_linked_project_uses_updated_main_head` をそれぞれ単独で戻す案は採らない。両方は個別の成功確認として L に分類して削除したが、残った S の拒否テストの正常側を確かめるために必要な部分を 1 件にまとめる。件数目標を理由に削るものではない。実装コード、手順本文、公開 API は変更しない。同じ守る条件が前回修正で再発したものでも、その修正が生んだ回帰でもないため、設計全体の見直しのきっかけには該当しない。
+
+### 守る条件と影響経路
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| 保護領域の追跡ファイルは、削除が無い更新なら通す | `repo-cleanup-after-merge` 手順 7 の削除パス照会から detached checkout | 現行の実装は満たす、テストの正常例が不足 | world の source の変更が更新先に入る。cache とハードリンク先、local refs は保持 | 現行 SKILL.md の bash ブロックを実行する追加テストと、過剰拒否の一時変異 | 追加前は正常・過剰拒否とも 24 passed。追加後は 25 passed、過剰拒否で 1 failed・24 passed |
+| マージ済み候補だけを削除する | 手順 7 の成功後、手順 8 の `git branch -d` | 現行の実装は満たす、テストの正常例が不足 | マージ済み候補が消え、ほかの branch・linked worktree の HEAD は変わらない | 同じ追加テストで手順 8 の bash ブロックを実行し、拒否だけの一時変異で失敗することを確認 | 追加前は正常・過剰拒否とも 24 passed。追加後は 25 passed、削除を飛ばす変異で追加テストが失敗 |
+
+対応作業はこの代表テスト 1 件の追加のみ。テストは S の拒否経路が何でも止める実装になっても通らないために必要な正常例で、`AGENTS.md` の D の条件を満たす。実装担当はループ既定の `claude-opus`。追加テスト、同モジュール全体、#233 指定領域、README の 3 入口、4 つの変異、`git diff --check`、Gitleaks で検証した。自己レビューと fix-check は `run_roles.py --phase self-review` の 1 回で行い、PR 全体を確認した。最終の収集件数・追跡テスト行数、工程時間、確認結果は後述する。
+
+確認済み一覧は `PARENT_ROOT/reviews/usaturn/create-reso-world/#254-feat-issue-233-skill-tests/verified/af0349e28d3e.json`。静的なテスト構成と、HEAD の隔離コピーでの正常入力・変異を照合し、新規 1 件 confirmed、未確認 0 件。確認担当の所要は 386 秒（一覧に記録した保存までの時間は 367 秒）で、隔離 worktree は片付けた。候補一覧の `coverage.remaining` にある広域の 3 入口はこのサイクルで実行し、前回の変異・fix-check と Gitleaks の結果はサイクル 1 の記録を確認した。PR の判断の記録と親 #228 の採用条件も前のサイクルから引き継いだ。
+
+担当の初回試行は、隔離 worktree で指定の 1 ファイルだけを変更し、`b44bb58c13f2002e209f6a2f4b81645d2cfd1f1d` を作成した。テスト 25 passed、変異 4 件の検出、`stop_confirmed=true` だったが、実行中に別の一時 worktree 5 件の登録が消えたことを runner の `outside_changes` が検出し、`run_roles.py` は終了コード 1 とした。このコミットを直接取り込まず、割り当て済みの同じ担当に 1 回だけ再検証させた。再試行の `outside_changes=[]`、`checkout_audit=[]`、25 passed、停止確認済みで、`c400d4d283bef42b06b93ff453a81bdaacbb5315` を作成した。両コミットはツリーが同じで、再試行のコミットを作業ブランチへ cherry-pick した `f4db3dc4d188dfbdd0f88a8c16e2880c770f70ae` ともツリーが一致する。両 runner worktree は停止と clean を確かめてから登録解除した。初回の実測 323.47 秒、再試行 111.34 秒。
+
+追加した `test_protected_world_update_from_linked_project_deletes_only_merged_branch` は、`worlds/source.py` を削除せず更新し、linked project から実際の手順 7・8 を実行する。戻り値 0、main checkout の新しい detached HEAD、更新内容、`merged-feature` のみの削除、ほかの ref と linked HEAD・cache・ハードリンク先の保持を観測する。正常側は 25 passed。runner の使い捨てコピーでは、保護領域の変更をすべて拒否する変異は追加テストだけ 1 failed、削除判定を `D` から `DM` に広げる変異は 2 failed、手順 8 を caller cwd で実行する変異とマージ済み branch の削除を飛ばす変異はいずれも追加テストが失敗した。fix-check の独立した全モジュール実行でも追加テストは 4 変異すべてで失敗し、各結果は順に 1 failed・24 passed、2 failed・23 passed、2 failed・23 passed、3 failed・22 passed だった。後二者では既存の拒否テストも失敗した。runner の変異は一意な `/tmp` のコピーで実施し、削除を確認した。ほかの 4 保護 root は既存の削除拒否の parametrize が守る。上流 branch の prune 後の成功経路は明示的なエラーになる L のため戻していない。
+
+### 修正後の検証と自己レビュー
+
+`f4db3dc` の対象モジュールは 25 passed（9.35 秒）。#233 指定領域は収集 195 件、195 passed（90.85 秒）で、追跡テストファイルは 4,087 行。README の全体 pytest は 1,450 passed（492.99 秒）、bash 入口は `PASS: 23 test(s)`、配置検査は `PASS: check-layout`。いずれも終了コード 0。`git diff --check` も終了コード 0。ログは `PARENT_ROOT/tmp/agents/review-fix-pr254-r2.zgdtcmkf/` に保存した。自己レビュー前の Gitleaks は `origin/main..f4db3dc` の 10 commit を走査し、検出なし、終了コード 0。サイクル 1 の計測値（194 件・4,043 行・全体 1,449 passed）を本サイクルの最終値と混同しないよう主計測表と公開報告を更新する。
+
+`run_roles.py --phase self-review` を 1 回だけ実行し、割り当ての `self-review=self` と `fix-check=self` を使った。`gpt-6-sol`（codex）の自己レビューは、`ad89c150..f4db3dc` の PR 全体と関連箇所を確認して保存・cleanup に成功した。Info 1 件 `gpt-6-sol-commit-f4db3dc4d188dfbdd0f88a8c16e2880c770f70ae#I-1@f4db3dc4d188` は、コミット済み Spec と公開本文に残るサイクル 1 の計測値を指摘した。修正後の 195 件・4,087 行・全体 1,450 passed を本書の主計測表へ反映し、PR 本文と Issue への報告もこの値に改める。ほかにコードの指摘は 0 件で、自己レビューの実測は 225.82 秒。保存先は `PARENT_ROOT/reviews/usaturn/create-reso-world/#254-feat-issue-233-skill-tests/gpt-6-sol-commit-f4db3dc4d188dfbdd0f88a8c16e2880c770f70ae.md`。
+
+独立した fix-check は `af0349e..f4db3dc` の主張 3 件をすべて `holds`、変更テストファイル 1 件を `passed` とし、未確認は 0 件。確認時間は 304.26 秒。追加テストが 4 変異を検出した一方、コミット済み Spec の旧説明を `fix-check#V-1@f4db3dc4d188` として confirmed にした。旧説明は、先頭の一般更新テストが保護領域更新の拒否テストと対になるように読めるが、そのテストは `incoming.txt` だけを更新する。本書の棚卸し行で、保護領域の更新成功を今回の代表テストが担うことを明記した。保存先は `PARENT_ROOT/reviews/usaturn/create-reso-world/#254-feat-issue-233-skill-tests/verified/f4db3dc4d188.fix-check.json` と対応する候補一覧・要約。両担当とも隔離 worktree と一時生成物を片付け、停止中の処理や残存パスはない。
+
+このサイクルで新たに判断した 3 件は、レビュアーの L-1 をテスト追加、自己レビューの Info と fix-check の V-1 を本書の更新と公開報告で対応する。前サイクルの 5 件は現行 HEAD でも解消済み。今回の修正はテスト 1 件と本書だけであり、実装コード・スキル手順・公開 API は変更していない。文書だけの修正後に自己レビューの枠を再実行しない。
