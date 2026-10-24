@@ -5,7 +5,7 @@ set -u
 # postCreate の出力は、途中でコンテナが止まると残らない。どのステップまで進んだかを
 # 後から追えるよう、各ステップの開始を必ず1行で出し、失敗は ERROR 行を残して
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
-# （同梱スキルの状態の表示と workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
+# （flux-sdk の導入、同梱スキルの状態の表示と workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
 readonly STEP_TOTAL=29
 STEP_NUMBER=0
@@ -115,6 +115,13 @@ fi
 step "Verifying the Resonite development toolchain"
 if ! bash .devcontainer/verify-resonite-tooling.bash; then
     fail "Resonite development toolchain verification failed."
+fi
+
+step "Installing the ProtoFlux SDK (flux-sdk)"
+# ResoLoop が検証している版に固定して入れる。版と導入後の確認は install_flux_sdk.bash にある（#251）。
+# ProtoFlux を使わない作業には要らず、後から同じスクリプトで入れ直せるので、NuGet に届かないなどで失敗しても続ける
+if ! bash .devcontainer/install_flux_sdk.bash; then
+    warn "Installing the ProtoFlux SDK (flux-sdk) failed; continuing. Retry with: bash .devcontainer/install_flux_sdk.bash"
 fi
 
 step "Reporting the bundled ResoLoop skills of each project"

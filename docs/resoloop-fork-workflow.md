@@ -106,4 +106,4 @@ bash scripts/resoloop-fork.sh status
 
 ## 対象外
 
-flux-sdk は、fork のビルドの運用には含めない。ProtoFlux を使うときの導入と確認は `.devcontainer/README.md` の「ProtoFlux 用の flux-sdk（必要なときだけ）」に従う。
+flux-sdk は、fork のビルドの運用には含めない。postCreate が導入し、版と確認は `.devcontainer/README.md` の「ProtoFlux 用の flux-sdk」に従う。
