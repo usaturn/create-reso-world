@@ -123,7 +123,8 @@ git commit -m "docs: record issue 259 verification"
 ## 完了
 
 - Task 1: `0ec4843`（2026-10-24T19:12Z）。`uv run --locked pytest -q -p no:cacheprovider tools/agent_runner/tests/adapters/devin` は 29 passed（`task1-devin.log`）、`uvx ruff check` と `git diff --check` は終了コード 0
-- Task 2: 19:12Z〜19:15Z。Step 1・2 の結果は Spec の経路表のとおりで、どれも Expected と一致した（`mutation-t1/`）
+- Task 2: 19:12Z〜19:13Z（`977fe96`）。Step 1・2 の結果は Spec の経路表のとおりで、どれも Expected と一致した（`mutation-t1/`）
+- ブランチ全体のレビュー（新しいコンテキストの Opus のサブエージェント、19:14Z〜19:38Z）: Critical・Important は無く、Ready to merge。レビュアーも `977fe96` のコピーで変異を確かめ、`is_error`・`error` をそれぞれ外すと別々のパラメータだけが失敗し、両方を外すと 2 件とも失敗した。Minor 1 件は、この節の時刻と所要時間の記録の誤りなので、公開の前に直した
 - Ruling: SDD の ledger を、worktree の中（`sdd-workspace` の `.superpowers/sdd/`）ではなく、`/workspaces/reso-world/tmp/agents/issue-259.lr_064lf/sdd-ledger.md` に置いた。`AGENTS.md` の「worktree の中に、コミットしないファイルを作らない」に従った
-- ログ: `/workspaces/reso-world/tmp/agents/issue-259.lr_064lf/`（`baseline-adapters.log`、`mutation-before/`、`task1-devin.log`、`mutation-t1/`）
-- 所要時間（着手 2026-10-24T19:05Z ごろから Task 2 の記録まで）: 約 10 分。内訳は、入力・競合の確認と原因・案の検証 5 分、Spec・Plan 3 分、Task 1 が 1 分、Task 2 が 2 分
+- ログ: `/workspaces/reso-world/tmp/agents/issue-259.lr_064lf/`（`baseline-adapters.log`、`mutation-before/`、`task1-devin.log`、`mutation-t1/`、レビューの入力 `review-dcdc0d9..977fe96.diff`）
+- 所要時間（着手 2026-10-24T19:05Z ごろから Task 2 の記録まで）: 約 8 分。内訳は、入力・競合の確認 4 分、原因と案の検証 1 分、Spec・Plan 2 分、Task 1 と Task 2 で 1 分。続くブランチ全体のレビューと記録の訂正に約 25 分
