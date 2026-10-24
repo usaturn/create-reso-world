@@ -118,6 +118,8 @@
 
 ### Task 5: 公開（push・PR・#228 と #236 へのコメント）
 
+テストの要否: 書かない（外部への書き込みだけ）。確かめは、push の前の検査（Step 2）と、投稿したコメントの読み戻し（Step 4）。
+
 - [ ] **Step 1:** 予約 ref が保存した SHA のままで、#236 が open、#236 の open の PR が無いことを確かめ直す
 - [ ] **Step 2:** `SHA="$(bash "$PARENT_ROOT/scripts/scan-before-push.sh" -C <worktree>)" && [ -n "$SHA" ] && git -C <worktree> push origin "${SHA:?}:refs/heads/feat/issue-236-test-integration"`
 - [ ] **Step 3:** `gh pr create --repo usaturn/create-reso-world --base main --head feat/issue-236-test-integration`（draft にしない）。本文は `Closes #236`、変更の概要、Spec の決定と理由、実行方式と理由、検証と結果、計測と一覧の要約、持ち越し候補、作業時間と Task ごとの内訳
@@ -125,11 +127,15 @@
 
 ### Task 6: PR 修正ループ（`--merge`）
 
+テストの要否: 書かない。修正が要るときは review-fix-planning の手順と `AGENTS.md` の「テストの採用基準」に従う。
+
 - [ ] **Step 1:** `herdr-agent-task set "PR #<番号> レビュー・マージ"`。`PARENT_ROOT/.agents/skills/pr-review-fix-loop/SKILL.md` をファイルとして読む
 - [ ] **Step 2:** `uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/.agents/skills/pr-review-fix-loop/scripts/loop.py" start "<PR の URL>" --controller-model claude-opus-5-5 --controller-runtime claude-code`（ループ用のオプションは無い）
 - [ ] **Step 3:** 以降は pr-review-fix-loop の SKILL.md のとおり。修正で一覧が変わったら、#228 のコメントを直す（Spec の D-236-15）。1 サイクル目で修正不要かつ HEAD が Task 4 の記録と同じなら、その検証の記録を `--checks-file` に使う
 
 ### Task 7: 終わり
+
+テストの要否: 書かない。確かめは、`main` での計測（Step 1）と予約の ref が無いこと（Step 2）。
 
 - [ ] **Step 1:** マージされたら、`main` で #228 の「計測」を実行し、値が PR の head と同じことを確かめる（違えば #228 に補足する）。#236 に結果（マージ commit・計測・#228 のコメント・ループの結果）を書く
 - [ ] **Step 2:** 予約を `git push --force-with-lease=refs/heads/agent-claims/issue-236:4163db8351cc360b9f18381522e6518b881f072c origin :refs/heads/agent-claims/issue-236` で解放し、ref が無いことを確かめる
