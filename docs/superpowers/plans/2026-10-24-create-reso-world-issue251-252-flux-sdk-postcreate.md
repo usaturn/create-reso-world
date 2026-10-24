@@ -167,4 +167,37 @@
 
 ## 完了
 
-（実装の後に、所要時間・検証の結果・レビューの結果を書く）
+### 所要時間（PR の作成まで。UTC）
+
+- 合計: 約 25 分（着手 05:20 ごろ〜レビュー修正の commit 05:42。最初のコマンドの時刻は記録していない。worktree の作成は 05:24）
+- 調査・Spec・Plan: 約 11 分（〜05:30。NuGet の版、ResoLoop の `doctor`・`flux status`・非互換の検出、一時 HOME での `dotnet tool update` の挙動）
+- Task 1: 約 2 分（〜05:32）。Task 2: 約 1 分（〜05:33）
+- ブランチ全体のレビュー: 約 6 分（サブエージェント、opus）。指摘の確認と修正: 約 3 分（〜05:42）
+
+### Plan からの変更（ledger の Ruling）
+
+- `STEP_TOTAL` は 29→30 にせず 29 のまま。`d33f01d`（#243）がステップを 1 つ外したときに 29 のまま残り（ステップは 28）、今回の追加でステップが 29 になって一致した
+- ledger は `sdd-workspace` の worktree の中（`.superpowers/sdd/`）ではなく、セッションディレクトリの `sdd/progress.md` に置いた（AGENTS.md の「コミットしないファイルの置き場所」）
+- shellcheck はこの環境に無いので省いた（`bash -n` と実際の実行で代えた）
+
+### 検証（Task 1 の Step 3〜7。一時 HOME、実際の NuGet）
+
+| 場面 | 結果 |
+| --- | --- |
+| 初回 | 終了コード 0、`installed flux-sdk 1.9.0.`、一覧に `papaltine.fluxsdk 1.9.0 flux-sdk` |
+| 2 回目 | 終了コード 0、`unchanged` |
+| 1.10.0 からの戻し | 終了コード 0、`is installed (was 1.10.0).` |
+| NuGet に届かない・導入済み | 終了コード 0、`WARN: updating Papaltine.FluxSDK failed (is NuGet reachable?); keeping 1.9.0.` |
+| NuGet に届かない・未導入 | 終了コード 1、`installing Papaltine.FluxSDK 1.9.0 from NuGet failed (is NuGet reachable?).` |
+| postCreate のステップ（失敗する偽物に差し替え） | `[install_beforehand] WARN: Installing the ProtoFlux SDK (flux-sdk) failed; continuing. ...` を出して次へ進み、終了コード 0 |
+
+全体の検証（`run-tests.bash`・`check-layout.sh`・pytest）は、この記録の commit の後に実行し、結果を PR 本文とセッションディレクトリの `verification.md` に書く。
+
+### ブランチ全体のレビュー
+
+Critical 0・Important 0・Minor 5。Minor のうち 3 件（版を合わせるきっかけを `doctor` の suggestion と書いていた、同じスクリプトで「入れ直せる」と書いていた、`resoloop flux status` の成功だけで導入を確かめられると書いていた）は、今回書いた文書が実際の挙動と食い違うので Important に上げて直した（`7b4cb98`）。実際の挙動で確かめた: `flux status` は 1.10.0 でも終了コード 0、系列の外は `doctor` が `outside tested series 1.9.x` の warning、uninstall してから実行し直すと導入される。1 件（`STEP_TOTAL` の Plan との食い違い）は上の「Plan からの変更」に書いた。残る 1 件は持ち越し: `install_beforehand.bash` の workspace cleanup のコメント「（唯一の意図的なベストエフォート）」が以前から不正確（同梱スキルの表示も続行する）
+
+### 未確認
+
+- 実際の rebuild での導入・再実行（利用者が `docs/integration.md` の「Rebuild 後に確かめること」の 2 で確かめ、#251 に記録する）
+- managed data のある環境での `resoloop flux status`・`resoloop doctor` の `resonite-managed-data`
