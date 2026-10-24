@@ -94,11 +94,13 @@ def assert_rejected(result: subprocess.CompletedProcess[str]) -> None:
 
 
 @pytest.mark.parametrize(
-    ("argument", "repo"),
+    ("argument", "origin", "repo"),
     [
-        ("https://github.com/usaturn/resoloop/issues/42", "usaturn/resoloop"),
-        ("usaturn/resoloop-meshy#42", "usaturn/resoloop-meshy"),
-        ("#42", "usaturn/create-reso-world"),
+        ("https://github.com/usaturn/resoloop/issues/42", None, "usaturn/resoloop"),
+        ("usaturn/resoloop-meshy#42", None, "usaturn/resoloop-meshy"),
+        ("#42", None, "usaturn/create-reso-world"),
+        # #N は origin のリポジトリを使う。既定のリポジトリに決め打ちすると、別のリポジトリで作業を始める
+        ("#42", "git@github.com:usaturn/resoloop.git", "usaturn/resoloop"),
     ],
 )
 def test_resolves_supported_forms_without_changing_git(
@@ -106,8 +108,11 @@ def test_resolves_supported_forms_without_changing_git(
     gh_stub: Path,
     monkeypatch: pytest.MonkeyPatch,
     argument: str,
+    origin: str | None,
     repo: str,
 ) -> None:
+    if origin:
+        subprocess.run(["git", "remote", "set-url", "origin", origin], cwd=checkout, check=True)
     set_response(monkeypatch, repo)
     before = subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout)
     result = resolve(checkout, argument)
@@ -270,6 +275,8 @@ def test_origin_with_credentials_stops_without_printing_them(
     ("state", "number", "url"),
     [
         ("CLOSED", 42, None),
+        # gh issue view は PR 番号にも /pull/N の応答を返す。PR を Issue として扱わない
+        ("OPEN", 42, "https://github.com/usaturn/create-reso-world/pull/42"),
         ("OPEN", 99, None),
         ("OPEN", 42, "https://github.com/usaturn/resoloop/issues/42"),
         ("OPEN", 42, "https://github.com.evil.test/usaturn/create-reso-world/issues/42"),

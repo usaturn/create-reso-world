@@ -4,11 +4,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
 import yaml
 
 SKILLS_ROOT = Path(__file__).resolve().parents[2] / ".agents" / "skills"
-SKILL_FILES = sorted(SKILLS_ROOT.glob("*/SKILL.md"))
 
 
 def frontmatter(path: Path) -> dict[str, object]:
@@ -20,8 +18,10 @@ def frontmatter(path: Path) -> dict[str, object]:
     return data
 
 
-@pytest.mark.parametrize("path", SKILL_FILES, ids=lambda p: p.parent.name)
-def test_allowed_tools_preserves_permission_type(path: Path) -> None:
-    data = frontmatter(path)
-    if "allowed-tools" in data:
-        assert isinstance(data["allowed-tools"], str), f"{path.parent.name}: allowed-tools must be a comma-separated string"
+def test_allowed_tools_preserves_permission_type() -> None:
+    skill_files = sorted(SKILLS_ROOT.glob("*/SKILL.md"))
+    assert skill_files, f"{SKILLS_ROOT}: no SKILL.md found"
+    for path in skill_files:
+        data = frontmatter(path)
+        if "allowed-tools" in data:
+            assert isinstance(data["allowed-tools"], str), f"{path.parent.name}: allowed-tools must be a comma-separated string"

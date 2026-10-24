@@ -81,7 +81,8 @@ class SkillPackageTests(unittest.TestCase):
             self.assertFalse(has_positive_guidance(text, POSITIVE_OTHER_ENGINE), f"{label}: other-engine guidance")
 
     def test_provenance_license_and_document_coverage(self) -> None:
-        # The source SHA and MIT attribution freeze the reviewed import provenance.
+        # The source SHA, MIT attribution and each document's records freeze the reviewed
+        # import provenance; losing a record would not fail anything else.
         references = SKILLS_ROOT / "references"
         license_text = (references / "blender-skills-LICENSE.txt").read_text(encoding="utf-8")
         for required in ("MIT License", "Copyright (c) 2026 blender-skills contributors", "WITHOUT WARRANTY OF ANY KIND"):
@@ -90,6 +91,10 @@ class SkillPackageTests(unittest.TestCase):
         self.assertEqual(provenance["repository"], "https://github.com/arjun988/blender-skills")
         self.assertEqual(provenance["commit"], "8f778d2405a214b508d4c7d80742be8e43acdd52")
         self.assertEqual(set(provenance["documents"]), set(SKILL_NAMES) | set(REQUIRED_REFERENCES))
+        for key, entry in provenance["documents"].items():
+            self.assertTrue(entry["source_paths"], f"{key}: source paths are required")
+            self.assertTrue(entry["modifications"].strip(), f"{key}: modifications summary required")
+            self.assertTrue(entry["output_paths"], f"{key}: output paths are required")
 
 
 if __name__ == "__main__":
