@@ -1,6 +1,6 @@
 # Issue #265: AGENTS.md の SDD の作業領域の手順を補う
 
-- 状態: draft
+- 状態: completed（PR #267 のサイクル 1 で修正不要と判断した。末尾の「PR #267 のレビュー修正（サイクル 1）」）
 - 文書管理リポジトリ: `usaturn/create-reso-world`（`docs/superpowers/`）
 - 対象: `usaturn/create-reso-world` / [Issue #265](https://github.com/usaturn/create-reso-world/issues/265)
 - 検証したコードの HEAD: `origin/main` `115f7c3065c422e121c5617289f0181d39f85773`（2026-10-25T02:00Z ごろの着手時）
@@ -59,3 +59,28 @@
 | D6 | テストを書かない | 手順の文言や手順の実行を確かめるテストを足す | 変更は規則の文書だけで、文書の文言を写すテストは `AGENTS.md` の「テストの採用基準」の F（Issue の「検証」も同じ）。`sdd/` が無いときの失敗は終了コード 1 と `No such file or directory` で現れる（L）。代わりに、`AGENTS.md` に書いた手順のコマンドを一時リポジトリで実行し（受け入れ条件 1〜3）、README の「テスト」と `git diff` の確認を行う | `AGENTS.md` の「テストの採用基準」 |
 | D7 | `--merge` のループは `check-options` の結果のままにする。サイクルの上限 3 は利用者の指定。雛形 `.devcontainer/agent-runner.toml`、`--config` なし、inspect は `claude-opus`・`devin-swe`・`pi-deepseek`・`cursor-grok47`、修正は `claude-opus`、自己レビューと fix-check は `self` で、どれも雛形と個人設定の既定の適用 | ループ用のオプションを足す | 利用者が書いたループ用のオプションは `--max-cycles 3` だけで、ほかは足さない | 委任: `/issue-to-pr #265 --merge --max-cycles 3`。`check-options` は終了コード 0 |
 | D8 | Plan の Task の担当は `self` にする | 別の担当に依頼する | `implement_task.py check` は `agents: [self]`、`fallback: []`、`self: true`。雛形と個人設定の既定の適用で、利用者は `--implement` を書いていない | 委任: `/issue-to-pr #265 --merge --max-cycles 3`。`check` は終了コード 0 |
+
+## PR #267 のレビュー修正（サイクル 1）
+
+- 実行許可: 利用者の `/issue-to-pr #265 --merge --max-cycles 3` による PR 修正ループ（run `e199dded1c01465884bb198ba7b4570c`）の計画。review-fix-planning の完遂（修正不要なら `finalize.py` でマージし、関連 Issue を更新する）
+- planner: claude-opus-5-5（claude-code）。サイクル 1、判断の対象の HEAD は `2fba571374c4999513d1869866df822edf13fdab`
+- 入力: `reviews/usaturn/create-reso-world/#267-fix-issue-265-sdd-workspace-steps/` の 4 つのレビューファイルと `findings/*-2fba571374c4.json`（どれも `validate`・`check-pair` が 0）。確認済みの一覧 `verified/2fba571374c4.json`（review-verify、mode cycle）は confirmed 0・not_reproduced 0・unverified 0
+
+| レビューファイル | モデル / ランタイム | レビュー HEAD | 今回再実行 | 推奨 |
+| --- | --- | --- | --- | --- |
+| `claude-opus-5-5.md` | claude-opus-5-5 / claude-code | `2fba571374c4` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max / devin | `2fba571374c4` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash / pi | `2fba571374c4` | はい | Approve |
+| `Grok-4.7.md` | Grok 4.7 / cursor | `2fba571374c4` | はい | Approve |
+
+### 指摘の分類（解消済み 0 / 対応する 0 / 対応しない 0）
+
+4 人のレビュアーとも、指摘・未確認の候補は 0 件だった。前のサイクルの判断の記録は無い。「対応する」が無いので、「守る条件と影響経路」の表と設計の見直しは無い。
+
+レビュアーが判断しなかった範囲は、確認済みの一覧で閉じた（Devin の 7.0.1 のスクリプトの実体、README の一括検証、空白・相対パス、同名の Plan、条件を述べる文書）。実装サブエージェントのある SDD を、実際のエージェントが新しい項目で最後まで進める挙動は、本物の担当を起動する確認になるので未確認のまま残る（executing-plans は、この Issue の issue-to-pr の run が新しい規則どおりに進めた）。
+
+### 結論と検証
+
+- 結論: 2（修正不要でマージ）
+- 自己レビュー: 未実施（修正が無いため。`run_roles.py` は実行していない）
+- 検証（検証の記録の `base` は下の先端）: base `main` の先端は、レビューの間に PR #266 のマージで `14a774b45953580f4a248b572d7542e02b4851b9` に進み、head の祖先ではなかった。head `2fba571` にその先端を一時の隔離 worktree で merge したツリー（`cd4ebc0`、競合なし。push しない）で、`bash .devcontainer/run-tests.bash` 0（23 test(s) PASS）、`bash scripts/check-layout.sh` 0、`uv run pytest tests/skills .agents/skills .agents/scripts tools` 0（1225 passed）、手順の確認 `verify-sdd-steps.bash` 0（7.0.0・7.0.1 とも ALL PASS）。検証の前後で、そのツリーに未 commit の変更は無かった。head だけのツリーでも、issue-to-pr の最後の検証で同じ 4 つが 0 だった
