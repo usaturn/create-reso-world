@@ -90,6 +90,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
 
 6. **worktree を作る前に**次を調べる。どれかあれば、新しい作業を作らずに状態を報告して止まる。古い予約も、作った人が分からない既存の worktree・branch も使い回さない。
    - 同じ Issue の open PR（`TARGET_REPO` と、文書専用の PR を出す場合は create-reso-world。linked Issue、本文、branch を見る。最初のページだけで判定しない）
+   - 同じ Issue のマージ済みの PR があり（探し方は open PR と同じ）、本文・コメントから、PR にする作業が残っていないと分かる（残りがマージの後の確認だけ、など）。その PR の URL と残りの確認を報告する
    - create-reso-world の `refs/heads/agent-claims/issue-N`、コメントに記録された未解放の担当
    - `TARGET_ROOT`（と文書用の worktree を作る場合は `PARENT_ROOT`）の既存の worktree、ローカル・remote の branch（`issue-N` を番号の境界で照合し、N=58 と N=580 を混同しない）
    - 未完了の先行 Issue・必要な未マージ PR
@@ -198,7 +199,12 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 
   どれかを push する前に、公開する worktree をすべて検査する。`TARGET_REPO` が create-reso-world なら、文書の worktree はコードの worktree と同じなので、`DOC_SHA` の 2 行を除く。SHA が空だと refspec が branch の削除になるので、呼び出しを分けるときも `:?` を外さない。検査の後に commit を足したら、検査からやり直す。CI の修正などの再 push も同じ形で行う。
 - push の後に `gh pr create --repo "$TARGET_REPO" --base main --head <branch>` で PR を作る。SHA を指定した push では upstream が設定されないので、`--head` を省かない。既存の PR が見つかったら重複して作らない。`--merge` のときは draft にしない（`finalize.py` は draft を拒否する）。
-- PR 本文: Issue が `TARGET_REPO` にあれば `Closes #N`、別のリポジトリにあれば `Refs <Issue の URL>`（マージで別のリポジトリの Issue を閉じない）。変更概要、**Spec の決定と理由、実行方式と理由**、実行した検証と結果、作業時間と主要 Task 別の内訳を書く。未実行の確認を成功と書かない。
+- PR 本文の Issue の指定は次のとおり（`Closes` はマージの時に Issue を completed で閉じ、マージの後の確認や調整役の close を待たない）。
+  - Issue が `TARGET_REPO` と別のリポジトリにある: `Refs <Issue の URL>`（マージで別のリポジトリの Issue を閉じない）
+  - Issue が `TARGET_REPO` にあり、マージの後でなければ確かめられない項目（rebuild、実機、`resoloop` の導入など）が受け入れ条件・検証に残る: `Refs #N`
+  - Issue が `TARGET_REPO` にあるボードの子（2 章の 7）: `Refs #N`。close と親の更新は、マージの後に調整役が行う
+  - 上のどれにも当たらない: `Closes #N`
+- PR 本文には、変更概要、**Spec の決定と理由、実行方式と理由**、実行した検証と結果、作業時間と主要 Task 別の内訳も書く。未実行の確認を成功と書かない。
 - `TARGET_REPO` が create-reso-world でなければ、続けて、上で push した文書用の branch から create-reso-world に Spec・Plan だけの PR を作る。本文は `Refs <Issue の URL>` とコードの PR の URL。コードの PR の本文にも文書の PR の URL を足す。
 - CI は 2 章の表のとおり。public のリポジトリは PR の checks が green になってから完了とする。失敗したら直すか、直せなければ止まる。`--merge` のときは、PR の作成後に CI を待たずにループへ進む（マージの前に `finalize.py` が CI の成功を確かめ、実行中なら `wait_for: ci` で待つ。PR の変更による失敗は、review-fix-planning が致命的な指摘として直す）。
 - `--merge` のときのループの `finalize.py` によるマージを除き、マージ・タグ・リリース・デプロイ・プロビジョニングは行わない。admin マージ・auto-merge・force push・branch の削除は、どの場合もしない。
@@ -233,7 +239,7 @@ PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文�
 
 ## 停止時の報告
 
-不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が usaturn/resoloop-meshy、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
+不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が usaturn/resoloop-meshy、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、マージ済みの PR で PR にする作業が残っていない Issue、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
 
 検査で止まったら、どの worktree も push せず、PR を作らない。`AGENTS.md` の「push の前の秘密情報の検査」の条件を満たす検出なら、その commit を直し、検証（`--merge` のときは検証の記録も）と、公開するすべての worktree の検査をやり直して続ける。条件を満たさない検出では止まり、回避しない。gitleaks は自分で導入せず、`bash "$PARENT_ROOT/.devcontainer/install_gitleaks.bash"` での導入を次の操作として報告する。検査が全部通った後の push や PR の作成が失敗して一部だけ公開されたら、公開済みの branch・PR を報告し、取り消さない。
 
