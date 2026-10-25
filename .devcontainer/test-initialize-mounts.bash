@@ -15,7 +15,7 @@ source "$root/.devcontainer/mounts.bash"
 if ! out="$(mounts_compare "$config" "$init")"; then fail "mounts and initialize.bash differ:
 $out"; fi
 
-# 2. mounts は認証情報・設定などの永続領域と、任意の Resonite の写真フォルダ（読み取り専用）の 14 個。
+# 2. mounts は認証情報・設定などの永続領域と、任意の Resonite の写真フォルダ（読み取り専用）の 15 個。
 #    mount の増減はホストの永続領域と秘密情報の露出に関わるため、固定値で守る。1 の相互比較だけでは、
 #    devcontainer.json と initialize.bash を同時に誤って変えたときに検出できない（Issue #36 C1）
 expected='.claude
@@ -28,6 +28,7 @@ expected='.claude
 .config/gh
 .config/glab-cli
 .cursor
+.gemini/antigravity-cli
 .local/share/create-reso-world/resonite-screenshots
 .local/share/cursor-agent
 .local/share/devin
