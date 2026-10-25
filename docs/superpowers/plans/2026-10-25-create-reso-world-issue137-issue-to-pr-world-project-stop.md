@@ -17,7 +17,7 @@
 - 変えるのは `.agents/skills/issue-to-pr/`（`scripts/resolve_issue.py`、`tests/test_resolve_issue.py`、`SKILL.md`、`evals/scenarios.json`、`evals/validation.md`）と、この Spec・Plan だけ（Spec の「対象外」）
 - 停止は、`git check-ignore -q .` の終了コード 0 と、0・1 以外（確かめられない）。1 だけが続ける（Spec D1・D2）
 - 追加するテストは 1 件だけ（Spec D6）。文言・frontmatter の照合テストは書かない
-- 本物のモデルを起動するのは Task 3 の 9 回だけ（Spec D7）
+- 本物のモデルを起動するのは Task 3 の 9 回だけ（Spec D7）。実装中に、(a)〜(j) の対照の 3 回を足した（Task 3 の Step 4 の Ruling）
 - 変更は `/workspaces/reso-world/.worktrees/issue-137-world-project-stop`（branch `fix/issue-137-world-project-stop`）で行う。ログ・ledger・評価の材料は `/workspaces/reso-world/tmp/agents/issue-137.p0ogh8cd/` に置く
 - 指示文は簡潔に書く
 
@@ -177,6 +177,8 @@ Expected: 比較で (wa)・(wb) とも 3/3
 
 scenarios.json の context と (a)〜(j) の prompt・今の期待で、1 つの指示文にする。共通の状況に、このセッションのモデル ID（`claude-opus-5-5`）、`PARENT_ROOT`・cwd・`SKILL_DIR`、`PARENT_ROOT` に pr-review-fix-loop と review-fix-planning があること、agent-runner の雛形の `workflows.issue` の `implement` が `self` で個人設定に workflows の節が無いことを足す。ルートの `AGENTS.md` と比較の `SKILL.md` を Read で 1 回ずつ読ませ、3 回起動する。
 Expected: (a)〜(j) とも今の期待どおり 3/3
+
+Ruling（実装中）: 比較で (i) が 1/3（条件付きで止まる）に分かれたので、同じ指示文を対照の `SKILL.md` でも 3 回取り、今回の変更が原因かを切り分ける。
 
 - [ ] **Step 5: validation.md に #137 の節を足し、commit する**
 
