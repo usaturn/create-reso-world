@@ -138,6 +138,14 @@ if ! sudo locale-gen; then
     fail "locale-gen failed."
 fi
 
+step "Installing Antigravity CLI"
+if ! (
+    set -o pipefail
+    curl -fsSL https://antigravity.google/cli/install.sh | bash
+); then
+    fail "Antigravity CLI installation failed."
+fi
+
 step "Installing Claude Code"
 if ! (
     set -o pipefail
