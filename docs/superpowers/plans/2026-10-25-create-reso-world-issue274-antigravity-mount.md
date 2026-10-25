@@ -80,16 +80,16 @@
 
 **テストの要否:** テストを足さない。test-initialize-mounts.bash の固定の一覧は mount の露出を守る既存の F∩S の値で、意図した mount の追加に合わせて値を更新するだけ（Spec の D-274-7）。確かめは test-initialize-mounts.bash と check-layout.sh の実行で行う。
 
-- [ ] **Step 1: devcontainer.json を直す** — 14 行の source と target の末尾の `/` を外し、Global Constraints の 1 行目のとおりにする
-- [ ] **Step 2: 固定の一覧を直す** — test-initialize-mounts.bash の 2 のコメントの「14 個」を「15 個」にし、`expected` の `.cursor` の次の行に `.gemini/antigravity-cli` を足す
-- [ ] **Step 3: 実行する** — worktree のルートで次を実行し、ログを `/workspaces/reso-world/tmp/agents/issue-274.nc182s8l/task1.log` に書く。期待: `grep` は 0 件（終了コード 1）、test-initialize-mounts.bash は `PASS: mounts agree with initialize.bash, which keeps ~/.claude.json` で終了コード 0
+- [x] **Step 1: devcontainer.json を直す** — 14 行の source と target の末尾の `/` を外し、Global Constraints の 1 行目のとおりにする
+- [x] **Step 2: 固定の一覧を直す** — test-initialize-mounts.bash の 2 のコメントの「14 個」を「15 個」にし、`expected` の `.cursor` の次の行に `.gemini/antigravity-cli` を足す
+- [x] **Step 3: 実行する** — worktree のルートで次を実行し、ログを `/workspaces/reso-world/tmp/agents/issue-274.nc182s8l/task1.log` に書く。期待: `grep` は 0 件（終了コード 1）、test-initialize-mounts.bash は `PASS: mounts agree with initialize.bash, which keeps ~/.claude.json` で終了コード 0
 
 ```bash
 grep -nE '"source=[^"]*/,|target=[^,"]*/,' .devcontainer/devcontainer.json
 bash .devcontainer/test-initialize-mounts.bash
 ```
 
-- [ ] **Step 4: commit して check-layout を実行する** — commit の後に `bash scripts/check-layout.sh` を実行し、`FAIL` が無く終了コード 0 であることを確かめる（check-layout は index から取り出して比べるため、commit の後に実行する）。ログは同じファイルに追記する
+- [x] **Step 4: commit して check-layout を実行する** — commit の後に `bash scripts/check-layout.sh` を実行し、`FAIL` が無く終了コード 0 であることを確かめる（check-layout は index から取り出して比べるため、commit の後に実行する）。ログは同じファイルに追記する
 
 ```bash
 git add .devcontainer/devcontainer.json .devcontainer/test-initialize-mounts.bash
@@ -109,21 +109,21 @@ git commit -m "fix(devcontainer): align the Antigravity CLI mount with initializ
 
 **テストの要否:** テストを足さない。README の表は F、書き込み可能にする一覧の漏れと `update()` の項目は普段の利用で現れる（L）。実行権限も L（Spec の D-274-7）。確かめは Step 4 の一時的な実行で行う。
 
-- [ ] **Step 1: install_beforehand.bash の一覧に足す** — `"${HOME}/.cursor"; do` を `"${HOME}/.cursor" \`、`"${HOME}/.gemini" \`、`"${HOME}/.gemini/antigravity-cli"; do` の 3 行にする
-- [ ] **Step 2: README の表に行を足す** — Devin の行の次に次の行を足す
+- [x] **Step 1: install_beforehand.bash の一覧に足す** — `"${HOME}/.cursor"; do` を `"${HOME}/.cursor" \`、`"${HOME}/.gemini" \`、`"${HOME}/.gemini/antigravity-cli"; do` の 3 行にする
+- [x] **Step 2: README の表に行を足す** — Devin の行の次に次の行を足す
 
 ```markdown
 | Antigravity CLI | installer（`antigravity.google/cli/install.sh`） | `~/.gemini/antigravity-cli` | `~/.gemini/antigravity-cli` | `agd`（alias） | `agy update` |
 ```
 
-- [ ] **Step 3: `update()` と実行権限を直す** — `zshrc.txt` の `    agy update` を `    update_if_present agy agy update` にする。`git update-index --chmod=+x` と `chmod +x` で 2 つのスクリプトを 100755 にする
-- [ ] **Step 4: 確かめる** — 次を実行し、ログを `/workspaces/reso-world/tmp/agents/issue-274.nc182s8l/task2.log` に書く
+- [x] **Step 3: `update()` と実行権限を直す** — `zshrc.txt` の `    agy update` を `    update_if_present agy agy update` にする。`git update-index --chmod=+x` と `chmod +x` で 2 つのスクリプトを 100755 にする
+- [x] **Step 4: 確かめる** — 次を実行し、ログを `/workspaces/reso-world/tmp/agents/issue-274.nc182s8l/task2.log` に書く
   - `bash -n .devcontainer/install_beforehand.bash` が終了コード 0
   - `sed -n '/^for dir in \\$/,/; do$/p' .devcontainer/install_beforehand.bash` の出力の末尾 3 行が `.cursor`・`.gemini`・`.gemini/antigravity-cli` の順で、`.gemini/antigravity-cli` の行が `; do` で終わる
   - README の表の Antigravity CLI の行の `|` が 7 個（列が 6 個）で、他の行と同じ
   - `update()` の一時的な確かめ: `zshrc.txt` から `update_if_present` の関数を取り出し、zsh で `PATH` に偽の `agy`（引数を表示するだけ）を置いた場合と置かない場合に `update_if_present agy agy update` を実行する。期待: 置いた場合は偽の `agy` が `update` を受け取る、置かない場合は `update: agy not found; skipped: agy update` を stderr に出して終了コード 0。偽の `agy` は `mktemp -d` のディレクトリに置き、確かめた後に消す
   - `git ls-files -s .devcontainer/initialize.bash .devcontainer/install_beforehand.bash` がどちらも 100755
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add .devcontainer/install_beforehand.bash .devcontainer/README.md .devcontainer/zshrc.txt .devcontainer/initialize.bash
@@ -134,7 +134,33 @@ git commit -m "fix(devcontainer): list the Antigravity CLI directories, tool row
 
 **担当:** このセッション（統合担当）。**テストの要否:** 新しいテストは書かない。README の「テスト」の入口と最終レビューで確かめる。
 
-- [ ] **Step 1: 条件ごとの照合** — 上の「要件と Task の対応」の各行について、差分・ログの該当箇所を挙げる。共有する条件として、`.gemini/antigravity-cli` が 5 か所で同じ値であることを `grep -rn 'antigravity' .devcontainer/` で確かめる
-- [ ] **Step 2: 最終レビュー** — 新しいレビュアー（サブエージェント 1 つ）にブランチ全体（`origin/main...HEAD`）を渡し、Spec・Plan との一致、テストの採用基準、Review Focus を確かめさせる。Critical・Important を直したら、関係する検証をやり直してから Step 1 からやり直す
-- [ ] **Step 3: 記録** — 下に「完了」の節を足し、所要時間と主要 Task 別の内訳、Task 1・2 の検証の結果、レビューの結果を書いて commit する。これを最後の commit にする（`--merge` の検証の記録は最後の commit の後に作る）
+- [x] **Step 1: 条件ごとの照合** — 上の「要件と Task の対応」の各行について、差分・ログの該当箇所を挙げる。共有する条件として、`.gemini/antigravity-cli` が 5 か所で同じ値であることを `grep -rn 'antigravity' .devcontainer/` で確かめる
+- [x] **Step 2: 最終レビュー** — 新しいレビュアー（サブエージェント 1 つ）にブランチ全体（`origin/main...HEAD`）を渡し、Spec・Plan との一致、テストの採用基準、Review Focus を確かめさせる。Critical・Important を直したら、関係する検証をやり直してから Step 1 からやり直す
+- [x] **Step 3: 記録** — 下に「完了」の節を足し、所要時間と主要 Task 別の内訳、Task 1・2 の検証の結果、レビューの結果を書いて commit する。これを最後の commit にする（`--merge` の検証の記録は最後の commit の後に作る）
 - [ ] **Step 4: README の「テスト」** — 最後の commit の後に、worktree のルートで `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` を実行する。終了コード・ログの完全パス・検証した HEAD・`git status --porcelain` が空だったことを `/workspaces/reso-world/tmp/agents/issue-274.nc182s8l/` に記録し、`finalize.py` の `--checks-file` の形のファイルも作る。結果は PR の本文に書く（この Plan には書かない。書くと HEAD が変わる）
+
+## 完了
+
+実装と最終レビューは完了した。README の「テスト」（Task 3 の Step 4）はこの記録の commit の後に実行し、結果は PR の本文に書く。状態は `draft` のまま（内容の承認は記録しない）。
+
+- 所要時間（2026-10-25 UTC、worktree の作成 09:01:29Z〜この記録 約 09:14Z、約 13 分。それより前の Issue・競合の確認は数分で、時刻は記録していない）
+  - 準備（worktree、対象のファイルの調査、main の失敗の再現）・Spec（`b6b2d9b`、〜09:03:48Z）: 約 2 分
+  - Plan（`b8f888a`、〜09:04:54Z）: 約 1 分
+  - Task 1（`168d3a8`、〜09:05:23Z）: 1 分未満
+  - Task 2（`9149bc4`、〜09:05:48Z）: 1 分未満
+  - Task 3 の最終レビュー（opus のサブエージェント 1 回、09:06Z〜09:12Z ごろ。並行して `run-tests.bash` を先行して実行）と記録: 約 8 分
+- 実行方式: inline（`superpowers:executing-plans`）。SDD の ledger は worktree の外の `/workspaces/reso-world/tmp/agents/issue-274.nc182s8l/sdd/2026-10-25-create-reso-world-issue274-antigravity-mount/progress.md` に置いた
+- 条件ごとの照合（Task 3 の Step 1）
+  - 受け入れ条件 1: Task 1 の commit の後に、test-initialize-mounts.bash は `PASS`、check-layout.sh は終了コード 0（`ok: mounts match .devcontainer/initialize.bash`）。`9149bc4` で `run-tests.bash` を先行して実行し、終了コード 0（`PASS: 23 test(s)`）。最後の commit の後の実行は Task 3 の Step 4。ログは `/workspaces/reso-world/tmp/agents/issue-274.nc182s8l/task1.log`・`precheck-run-tests.log`
+  - 受け入れ条件 2: 末尾が `/` の source・target を探す `grep` は 0 件（終了コード 1）
+  - 受け入れ条件 3: devcontainer.json だけを直した時点で、test-initialize-mounts.bash は `FAIL: unexpected mounts:` で落ちた（固定の一覧の守りが mount の追加を検出することの確認）。一覧に `.gemini/antigravity-cli` を足し、コメントを「15 個」にした後に `PASS`
+  - 受け入れ条件 4: 一覧の末尾 3 行は `.cursor`・`.gemini`・`.gemini/antigravity-cli; do`。`bash -n` は終了コード 0。test-install-beforehand.bash は `PASS`。ログは `/workspaces/reso-world/tmp/agents/issue-274.nc182s8l/task2.log`
+  - 受け入れ条件 5: README の表の 16 行（見出し・区切りを含む）は、どれも `|` が 7 個。行の値は #272（`763914e`）の installer の URL・`agd`・`agy update` と、Task 1 の mount に一致する（最終レビューも確かめた）
+  - 受け入れ条件 6: zsh で `update_if_present` だけを取り出し、偽の `agy` を `PATH` に置いた場合は `fake agy got: update`、置かない場合は `update: agy not found; skipped: agy update` を出して終了コード 0
+  - 受け入れ条件 7: `git ls-files -s` で 2 つのスクリプトは 100755
+  - 受け入れ条件 8: Task 3 の Step 4（PR の本文）
+  - 共有する条件: `.gemini/antigravity-cli` は devcontainer.json・initialize.bash・test-initialize-mounts.bash・install_beforehand.bash・README の表の 5 か所で同じ値（`grep -rn antigravity .devcontainer/`）
+- 最終レビュー: Ready to merge: Yes（Critical 0、Important 0、Minor 1）。レビュアーは、clean な `9149bc4` で check-layout.sh・test-initialize-mounts.bash が 0、一時ディレクトリに clone した `9149bc4` で `run-tests.bash` が `PASS: 23 test(s)` になることを独立に確かめ、Review Focus の 5 点、README の行の値、D-274-5・D-274-6 の範囲を確かめた
+  - Minor（直していない。持ち越し候補）: `install_beforehand.bash` の `STEP_TOTAL=29` が、#272 が `step "Installing Antigravity CLI"` を足した後の実際のステップ数 30 と合わず、最後のステップが `[30/29]` と表示される。表示だけの食い違いで、postCreate の動作は変わらない
+  - 判断を見送った項目のうち、base から既にあった食い違い: `.devcontainer/README.md` の「mount と `initialize.bash` の列は `.devcontainer/test-readme.bash` が突き合わせる」と、`install_beforehand.bash` の「test-initialize-mounts.bash が devcontainer.json の mounts と突き合わせる」は、どちらも今のテストの実装と合っていない（今回のブランチとは関係しない）
+- エージェントの判断（ledger の `Ruling:`）: 無い。Plan からの逸脱は無かった
