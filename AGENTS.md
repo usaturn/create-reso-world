@@ -88,7 +88,7 @@
 | 用途 | 置き場所 |
 | --- | --- |
 | セッション後も参照し得るスクラッチ・検証ログ・下書き | `tmp/agents/<topic>.XXXXXX/`（`uv run --no-project python .agents/scripts/agent_tmp.py mkdir <topic>` で作る。`<topic>` は `issue-123` のような英小文字の短い名前） |
-| superpowers の subagent-driven-development・executing-plans の作業領域（ledger・Task の brief・報告・review package） | `tmp/agents/<topic>.XXXXXX/sdd/`（使い方は「SDD 実行運用」） |
+| superpowers の subagent-driven-development・executing-plans の作業領域（ledger・Task の brief・報告・review package） | `tmp/agents/<topic>.XXXXXX/sdd/<plan>/`（使い方は「SDD 実行運用」） |
 | エージェント間の引き継ぎ | `tmp/docs_draft/claude_handoffs/`（agent-handoff スキル） |
 | Spec・Plan の確認用コピー | `tmp/superpowers-review/`（`scripts/superpowers-review-copy.sh`）と、`docs_draft/superpowers/specs/`・`docs_draft/superpowers/plan/`（「Spec・Plan の保存と公開」のとおり両方に置く）。正式な Spec・Plan は今までどおり `DOC_ROOT` の `docs/superpowers/` にコミットする |
 | ユーザから作成を依頼された文書 | `docs_draft/` |
@@ -177,7 +177,7 @@ rm / rmdir の削除対象にシェル変数を使う場合は、各変数に `$
 ### SDD 実行運用
 
 - Plan に「実行予算」の節を設け、Issue 全体の能動時間の予算、phase の目安、worker の期限・予約枠・無進捗の打ち切り、失敗の種類ごとの再試行の上限、checkpoint の時点、縮小・切り出し・方法変更の候補を書く。適用範囲、時間の数え方、ledger の置き場所と片付け、checkpoint での判断は `.agents/execution-budget.md` に従う
-- superpowers の subagent-driven-development・executing-plans の作業領域は、スキルの言う `.superpowers/sdd/<plan>/` ではなく、実行予算の ledger と同じセッションディレクトリの `sdd/`（`tmp/agents/<topic>.XXXXXX/sdd/`）に置く。`sdd-workspace`・`task-start`・`task-done` は作業領域を worktree に作るので使わない。`task-brief` は 3 つ目、`review-package` は 4 つ目の引数に `sdd/` の下の出力先を渡す。BASE は Task の開始時に `git rev-parse HEAD` で控え、ledger（`sdd/progress.md`）の完了の行は、テストが通ったときだけ `task-done` と同じ書式で手で書く
+- superpowers の subagent-driven-development・executing-plans の作業領域は、スキルの言う `.superpowers/sdd/<plan>/` ではなく、実行予算の ledger と同じセッションディレクトリの `sdd/<plan>/`（`tmp/agents/<topic>.XXXXXX/sdd/<plan>/`。`<plan>` は Plan のファイル名から `.md` を除いた名前）にし、最初に `mkdir -p` で作る。`sdd-workspace`・`task-start`・`task-done` は作業領域を worktree に作るので使わない。`task-brief` は 3 つ目、`review-package` は 4 つ目の引数に、作業領域の下のスクリプトの既定の名前（`task-<N>-brief.md`・`review-<base7>..<head7>.diff`）を渡す。BASE は Task の開始時に `git rev-parse HEAD` で控える。ledger（`progress.md`）の完了の行は手で書き、SDD は Task のレビューが clean か、上限で残りを parked にしたときにスキルの書式で、executing-plans は Task のテストが通ったときだけ `task-done` と同じ書式で書く
 - 実装サブエージェントはテスト、lint、回帰を同期実行し、完了を待ってからターンを終える。monitoring-long-tasks の監視ルールは controller が長時間タスクを監視するためのものであり、実装サブエージェント内部の待ちをバックグラウンド化する根拠にしない
 - controller は monitoring-long-tasks の終了条件が成立するまでターンを保持し、stall ポーリングを担当する。完了通知は harness の終了コード付きプロセス終了通知を指し、成果物やサブエージェントの結果通知とは区別する。これは対象停止の判定材料であり、対象の実行中にターンを終える根拠にしない。ただし monitoring-long-tasks の「事前宣言した打ち切り」の対象に限り、宣言した条件で止めてよく、停止確認不能のときは対象・停止状態・残存パスを報告してターンを終えてよい
 - 各担当は着手から成果提出までの所要時間と主要 Task 別の内訳を作業報告に記録する
