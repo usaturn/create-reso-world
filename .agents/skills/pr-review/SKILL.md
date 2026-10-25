@@ -58,7 +58,8 @@ PR head の照合は、prepare（fetch した head と解決時の head、worktr
 - 再レビューは自動でしない（0 回）。prepare を呼び直さない。新しい HEAD のレビューは、対話では利用者が改めて依頼し、非対話では呼び出し元が新しい prepare から始める
 - prepare の後にレビューせずに止めるとき（依頼の HEAD と違うなど）は、draft を書いておらず、停止を確認できない補助 worker がいなければ `fail --state "$STATE_FILE" --reason "$REASON" --abandon` にする。helper が作った worktree・固定した PR の ref・セッションを消して `cleanup: success` を返し、消せなければ `cleanup: failed` と `retained_paths` を返す
 - prepare の失敗と complete の拒否で残った試行は、レビュアーは消さない
-- 残った試行は、利用者が消すよう指示したときに `pr_review_workspace.py abandon --session-dir <session_dir> --attempt-id <attempt_id>` で消す。helper は、作った処理が終わっていて、helper が書いたもの（journal・state・worktree・所有 Git・既存レビューの写し・prepare のままの候補の雛形）しか無い試行だけを消す。未保存の draft（本文の draft、または雛形から変わった候補の draft）があれば拒否する。draft ごと消す `--discard-draft` は、利用者がその試行を draft ごと消すよう指示したときだけ付ける
+- 残った試行は、利用者が消すよう指示したときに `pr_review_workspace.py abandon --session-dir <session_dir> --attempt-id <attempt_id>` で消す。helper は、作った処理が終わっていて、helper が書いたもの（journal・state・worktree・所有 Git・既存レビューの写し・prepare のままの候補の雛形）しか無い試行だけを消す。未保存の draft（本文の draft、または雛形から変わった候補の draft）があれば拒否する
+- 未保存の draft がある試行は、draft があることを伝えたうえで利用者が消すよう指示したときに、`--discard-draft` を付けて draft ごと消す。レビュアーが自分の判断で付けない
 - 報告には、拒否した照合と理由（HEAD なら helper の理由にある固定した head と観測した head、保存先なら別の保存で変わったこと）、本文と候補の draft の完全パスと有無、試行を消したか残したか、`attempt_id` と `session_dir`、次の操作（新しい HEAD のレビューの始め方と、残した試行は `abandon` で消せること）を書く
 
 ## 確認観点
