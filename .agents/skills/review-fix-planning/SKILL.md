@@ -152,14 +152,14 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 2. PR の head を取得して SHA を照合し、checkout 済みの worktree を調べる。fork からの PR でも `pull/<N>/head` で取れる。
 
    ```bash
-   REPO_MAIN="$MAIN_ROOT"
+   REPO_MAIN="${MAIN_ROOT:?}"
    FIX_WT="$PARENT_ROOT/.worktrees/$(printf '%s' "$PR_REPO" | tr / -)-pr${PR_NUMBER}-review-fix"
    git -C "$REPO_MAIN" fetch "$PR_REMOTE" "pull/$PR_NUMBER/head"
    test "$(git -C "$REPO_MAIN" rev-parse FETCH_HEAD)" = "$HEAD_SHA" || {
      printf 'PR head differs from gh pr view headRefOid; re-read the PR before creating the worktree\n' >&2
      exit 66
    }
-   git -C "$REPO_MAIN" worktree list --porcelain
+   git -C "${REPO_MAIN:?}" worktree list --porcelain
    ```
 
 3. `branch refs/heads/$HEAD_BRANCH` を持つ worktree の有無で、次のどれかにする。
