@@ -50,8 +50,9 @@ dispatch の終了コードは次のとおり。出力の JSON 行は `state`・
   ```
 
   - 終了コード 0: 受け取った。保存した 2 つのパス（`statement_candidates` と `fix_check`）を JSON で 1 行出力する。要約の `.fix-check.md` は helper が書かないので、呼び出し側が受け取った一覧から書く。
-  - 終了コード 1: 受け取らない。helper は正式な成果物を追加保存せず、理由を stderr に 1 行出す。保存先が起動前と違う場合は、不正な payload でも、その検査より先に拒否し、変更した相対パスをエスケープして列挙する。外部担当や他セッションが書いたファイルは自動削除・復元しない。列挙されたファイルを以前の成功した保存とは見なさず、この run の結果として使用しない。これは観測時点での受け取りの検査であり、検査と保存の間の悪意ある同時変更を防ぐ sandbox や変更の復元を保証しない。
+  - 終了コード 1: 受け取らない。helper は正式な成果物を追加保存せず、理由を stderr に 1 行出す。保存先が起動前と違う場合は、不正な payload でも、その検査より先に拒否し、変更した相対パスをエスケープして列挙する。外部担当や他セッションが書いたファイルは自動削除・復元しない。列挙されたファイルを以前の成功した保存とは見なさず、この run の結果として使用しない。これは観測時点での受け取りの検査であり、検査と保存の間の悪意ある同時変更を防ぐ sandbox や変更の復元を保証しない。保存の途中で I/O のエラー（`OSError`）が起きたときも 1 で、helper は自分が置いたものを置く前に戻し、保存先全体が dispatch 時と同じことを確かめてから終わる。原因を直してから同じ `--run-dir` でやり直せる（外部の担当を起動し直さない）。
   - 終了コード 2: `dispatch.json` が読めない、固定済みの `verified.pr` が欠落・不正、またはレビューディレクトリが無い。
+  - 終了コード 3: 保存の途中の I/O のエラーの後、保存先を dispatch 時の状態に戻せなかった、または戻したことを確かめられなかった。dispatch 時と違う相対パスをエスケープして列挙する。以前の一覧は不整合なことがある。回復の仕方は「保存する結果」。
   - 受け取らない条件: 結果が `success` でない（`self` を含む。self は司令塔が自分で確認して validate する）、どれかの attempt の `stop_confirmed` が真でない、開始前から登録されていた checkout に変更がある（`outside_changes`）、保存先が起動前と異なる（dispatch 後の変更も再検査）・監査できない・保存入口・その祖先・`verified` がリンク、最後の payload が `verified` と `inventory` の 2 つの object だけでない、payload の `verified.pr` の repository または number が `dispatch.json` の `verified.pr` と違う、`inventory` が道具の出力と合わない、`inventory.fix_ids` が request の `fix_ids` と違う、validate に通らない。
   - 対象 PR は dispatch 時に保存した `verified.pr` を基準に照合し、元の `verified_file` を再読込して変更しない。固定済み PR の欠落・不正と、結果の PR の不一致は、`verified/` や成果物を作る前に拒否する。
   - `inventory` は、道具（`statement-candidates`）の出力をそのまま含み、担当が見つけた語・候補を後ろに足しただけのものだけを受け取る。道具の候補・変更ファイル・主張を消したり書き換えたりしたものは受け取らない。
@@ -115,4 +116,15 @@ dispatch の終了コードは次のとおり。出力の JSON 行は `state`・
 
 ## 保存する結果
 
-新規の `review-findings/v2` は共通の項目に加え、`fix_check={from,to,fix_ids}`、`statement_candidates={file,judgments}`、`fix_evidence={claims,files}` を必須にする。外部 payload は正確に `{"verified": object, "inventory": object}`。accept は sidecar → fix-check JSON の順で保存し、2件同時の一括置換を保証しない。同じ to の再試行では既存結果を置き換える。self は両方を同じ一時保存ディレクトリに置いて validate 成功後に保存する。要約は [共通の保存・報告](../SKILL.md#保存と報告)の順序で呼び出し側が書く。
+新規の `review-findings/v2` は共通の項目に加え、`fix_check={from,to,fix_ids}`、`statement_candidates={file,judgments}`、`fix_evidence={claims,files}` を必須にする。外部 payload は正確に `{"verified": object, "inventory": object}`。accept は sidecar → fix-check JSON の順で保存し、2件同時の一括置換を保証しない（置き換えの間に読む読み手は、新しい sidecar と古い fix-check JSON の組を見ることがある）。同じ to の再試行では既存結果を置き換える。self は両方を同じ一時保存ディレクトリに置いて validate 成功後に保存する。要約は [共通の保存・報告](../SKILL.md#保存と報告)の順序で呼び出し側が書く。
+
+accept は、置き換える前の同名のファイルを一時ディレクトリ `verified/.accept-*/` に `<名前>.previous` として写してから置き換える。保存の途中で例外が上がったら、この accept が置いたものだけを置く前に戻す。戻すのは、置いたときの inode と内容のままのファイルだけで、他者が置き換え・書き換えたものは戻さない。
+
+| 失敗した時点 | 初回の保存（同じ名前の結果が無い） | 既存の結果の更新 |
+| --- | --- | --- |
+| 置き換えの前（`verified/`・一時ファイル・写しの作成、sidecar の置き換え） | 作った `verified/` と一時ディレクトリを消す | 既存の 2 件は変わらない。一時ディレクトリを消す |
+| fix-check JSON の置き換え | 置いた sidecar を消し、作った `verified/` と一時ディレクトリを消す | 置いた sidecar を写しで戻し、一時ディレクトリを消す |
+
+- 戻した後に、保存先全体を dispatch 時の snapshot と照合する。同じなら終了コード 1 で、原因を直してから同じ `--run-dir` で accept をやり直す
+- 戻す操作が失敗した、他者が変えていたので戻さなかった、照合できなかったときは終了コード 3 で、戻さなかったファイルの写しは一時ディレクトリに残る。列挙したパスに他者の変更が無ければ、この run が置いたファイルを写しで置き換え（写しが無ければ消し）、一時ディレクトリと dispatch 時に無かった `verified/` を消すと、同じ `--run-dir` でやり直せる（戻しきれていなければ accept が拒否する）。他者の変更があれば、その run は使わずに dispatch し直す
+- 保証するのは、保存の処理の中で上がった例外だけである。突然死（kill・電源断）では、一時ディレクトリや、新しい sidecar と古い fix-check JSON の組が残ることがあり、同じ run の accept は保存先の照合で拒否される（写しから手で戻す）。最後の観測の後に他者が保存先を変えた場合（2 回目の照合から置き換えまで、戻す前の確認から戻すまで）と、電源断に対する永続性（fsync しない）も保証しない
