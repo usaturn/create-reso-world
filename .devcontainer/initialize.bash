@@ -26,6 +26,7 @@ mkdir -p \
   "${HOME}/.config/cursor" \
   "${HOME}/.config/glab-cli" \
   "${HOME}/.config/gcloud" \
+  "${HOME}/.gemini/antigravity-cli" \
   "${HOME}/.config/create-reso-world" \
   "${HOME}/.local/share/create-reso-world/resonite-screenshots"
 

@@ -67,6 +67,7 @@ alias curo="agent --model claude-opus-5-5-xhigh --yolo"
 alias dev="devin --model swe-2-max --permission-mode dangerous"
 alias devs="devin --model gpt-6-1-sol-xhigh --permission-mode dangerous"
 alias devo="devin --model claude-opus-5-5-xhigh --permission-mode dangerous"
+alias agd="agy --dangerously-skip-permissions"
 
 # プロバイダ切替ランチャー（ccdd / ccddg / ccdu）共通の env -u リスト。
 # 親シェルで export された主要な認証材料・プロバイダ切替・モデルピン留系の値が
@@ -418,6 +419,7 @@ function update(){
     update_if_present agent agent update
     update_if_present devin devin update
     update_if_present devin devin plugins update superpowers
+    agy update
 }
 
 
