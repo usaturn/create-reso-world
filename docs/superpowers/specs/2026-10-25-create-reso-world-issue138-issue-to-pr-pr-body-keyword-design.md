@@ -34,7 +34,7 @@ issue-to-pr は、Issue が実装の対象と同じリポジトリにあれば P
 4. 5 章の「`--merge` のとき」の結果の表の `no_fix_needed` に、`Refs #N` にした Issue は `finalize.py` が閉じないので、開いたままであることとその理由（残りの確認、ボードの子の調整役の close）を書くことを足す
 5. 2 章の 6 の止まる条件に、同じ Issue のマージ済みの PR があり、本文・コメントから PR にする作業が残っていないと分かる（残りがマージの後の確認だけ、など）場合を足す。その PR の URL と残りの確認を報告する。「停止時の報告」の停止条件にも足す
 
-`.agents/skills/issue-to-pr/evals/`: `scenarios.json` に (pa)〜(pd) を足し、`validation.md` に評価の結果を書く。
+`.agents/skills/issue-to-pr/evals/`: `scenarios.json` に (pa)〜(pe) を足し、`validation.md` に評価の結果を書く。
 
 ## 対象外
 
@@ -50,7 +50,7 @@ issue-to-pr は、Issue が実装の対象と同じリポジトリにあれば P
    - (pa) 同じリポジトリの Issue で、受け入れ条件・検証に rebuild の後の確認が残る: `Refs #N`、確認の項目を PR 本文・最終報告・Issue のコメントに書く
    - (pb) ボードの子: `Refs #N`、close と親の更新は調整役
    - (pc) 同じリポジトリの通常の Issue（`.devcontainer/` のスクリプトを直すが、受け入れ条件はこの run のテストで確かめられる）: `Closes #N`
-2. (pd) `--merge` で、rebuild の後の確認が残る Issue のループが `no_fix_needed` でマージまで終わったとき、Issue を開いたまま残し、最終報告と Issue のコメントに残りの確認を書く（比較の版で 3/3）
+2. (pd) `--merge` で、rebuild の後の確認が残る Issue のループが `no_fix_needed` でマージまで終わったとき、Issue を開いたまま残し、最終報告と Issue のコメントに残りの確認を書く。(pe) 別のリポジトリが実装の対象で、マージの後の確認が残る Issue は、`Refs <Issue の URL>` のまま（`Refs #N` にしない）で、確認の項目を書く（どちらも比較の版で 3/3）
 3. PR #136 の (a)〜(j) の結果が変わらない（Issue の受け入れ条件 2）。(a)〜(h)・(j) は今の `evals/scenarios.json` の期待どおり 3/3。(i) は変更の内容 5 で、期待どおり 3/3 を目指す（今の版では分かれる。着手時の確認 6）
 
 ## 決定記録
@@ -65,6 +65,6 @@ issue-to-pr は、Issue が実装の対象と同じリポジトリにあれば P
 | D6 | 2 章の 6 に、マージ済みの PR があり PR にする作業が残っていない Issue で止まる条件を足す（変更の内容 5） | (a) 変えずに、別の Issue にする。(b) helper がマージ済みの PR を API で探して止める | D1 で、マージ済みの `Refs` の PR が残した open の Issue が普通になる（着手時の確認 6）。司令塔のセッションや利用者がその Issue で issue-to-pr を起動すると、今の文面では worktree を作ってから残りを整理しうる。(a) はこの PR が増やす場面を残す。(b) は、残りが確認だけかを本文とコメントから判断する必要があり、helper では決められない | 委任: 推奨案での決定。PR #266 の作業が、この Issue で扱うために #138 に記録した |
 | D7 | `finalize.py`・pr-review-fix-loop・review-fix-planning・`planning-parallel-issues` は変えない | merge commit の照合で止まったときの扱い（3.5 節の既知の制限）も、この Issue で直す | 着手時の確認 3〜5 のとおり、今の挙動と文面で `Refs` を扱え、照合で止まったときの自動の close は pr-review-fix-loop の最終報告が既に扱う。Issue の反映先は `.agents/skills/issue-to-pr/SKILL.md` だけ | 委任: Issue の反映先 |
 | D8 | pytest のテストは書かない | 文面の照合テスト | 変更は `SKILL.md` の文面だけで、コードを変えない。文面の照合は `AGENTS.md` の F に当たる。振る舞いは行動比較で確かめる | `AGENTS.md` の「テストの採用基準」 |
-| D9 | 行動比較は、Claude Code の Agent ツールで起動した新しいサブエージェント（model `sonnet`）で、1 回の起動で 1 回答。(pa)〜(pd) は対照（`origin/main` の `c1fdc56` の `SKILL.md`）と比較（変更後）で各 3 回。(a)〜(j) は PR #266 の評価と同じ指示文（ファイルのパスだけ変える）で、比較の版で 3 回。(a)〜(h)・(j) のどれかが外れたら、切り分けのために対照でも 3 回取る | (a)〜(j) も最初から対照と比較で取る。回数を増やす | Issue の直し方の案と受け入れ条件のとおり。(a)〜(j) の今の版の結果は `validation.md` の #137 の節に記録済みで、`c1fdc56` の後の変更は 2 章の 6 に触れていない。本物のモデルを起動する確認なので、回数は Plan に書いた分に限る（`AGENTS.md` の「エージェント運用」） | 委任: 推奨案での決定 |
+| D9 | 行動比較は、Claude Code の Agent ツールで起動した新しいサブエージェント（model `sonnet`）で、1 回の起動で 1 回答。(pa)〜(pe) は対照（`origin/main` の `c1fdc56` の `SKILL.md`）と比較（変更後）で各 3 回。(a)〜(j) は PR #266 の評価と同じ指示文（ファイルのパスだけ変える）で、比較の版で 3 回。(a)〜(h)・(j) のどれかが外れたら、切り分けのために対照でも 3 回取る | (a)〜(j) も最初から対照と比較で取る。回数を増やす | Issue の直し方の案と受け入れ条件のとおり。(a)〜(j) の今の版の結果は `validation.md` の #137 の節に記録済みで、その評価の後の `SKILL.md` の変更（`7da85d7`）は 2 章の 6 に触れていない。本物のモデルを起動する確認なので、回数は Plan に書いた分に限る（`AGENTS.md` の「エージェント運用」） | 委任: 推奨案での決定 |
 | D10 | `--merge` のループは `check-options` の結果のままにする。サイクルの上限 3 は利用者の指定。雛形 `/workspaces/reso-world/.devcontainer/agent-runner.toml`、`config` は null、`assign` は空。inspect は `claude-opus`・`devin-swe`・`pi-deepseek`・`cursor-grok47`、修正の implement は `claude-opus`、self-review と fix-check は `self`（fallback はどれも空）で、どれも雛形と個人設定の既定の適用 | ループ用のオプションを足す | 利用者が書いたループ用のオプションは `--max-cycles 3` だけで、ほかは足さない | 委任: `/issue-to-pr #138 --merge --max-cycles 3`。`check-options` は終了コード 0 |
 | D11 | Plan の Task の担当は `self` にする | 別の担当に依頼する | `implement_task.py check` は `agents: [self]`、`fallback: []`、`self: true`（雛形 `/workspaces/reso-world/.devcontainer/agent-runner.toml`、個人設定 `/home/vscode/.config/agent-runner/config.toml`）。雛形の既定の適用で、利用者は `--implement` を書いていない | 委任: `/issue-to-pr #138 --merge --max-cycles 3`。`check` は終了コード 0 |
