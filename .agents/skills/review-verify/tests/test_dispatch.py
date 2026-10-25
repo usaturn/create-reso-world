@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import errno
 import hashlib
 import importlib.util
 import json
@@ -524,7 +525,9 @@ class PayloadAdapter(ReceiptAdapter):
         )
 
 
-def run_external(dispatch: Any, scenario: Scenario, tmp_path: Path, payload: Any, **adapter_args: Any) -> Path:
+def run_external(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, payload: Any, output: str = "run", **adapter_args: Any
+) -> Path:
     """偽の adapter で実際に dispatch し、dispatch.json のある保存先を返す。"""
     if isinstance(payload.get("verified"), dict):
         # 担当は渡された skill をそのまま一覧に書く。
@@ -533,7 +536,7 @@ def run_external(dispatch: Any, scenario: Scenario, tmp_path: Path, payload: Any
     result = dispatch.dispatch(
         config("probe"),
         scenario.request,
-        tmp_path / "run",
+        tmp_path / output,
         adapter_loader=loader_for(PayloadAdapter(payload, **adapter_args)),
     )
     return Path(result["batch"]["artifact_dir"])
@@ -770,6 +773,82 @@ def test_accept_allows_candidates_and_terms_the_verifier_appended(
     assert accept(dispatch, run_dir) == 0
     sidecar = scenario.review_dir / "verified" / f"{scenario.fix[:12]}.statement-candidates.json"
     assert [c["id"] for c in json.loads(sidecar.read_text(encoding="utf-8"))["candidates"]] == ["S-1", "S-2"]
+
+
+def claim_renamed(scenario: Scenario, claim_id: str) -> dict[str, Any]:
+    """主張の ID だけを変えた、別の有効な結果。本体と sidecar の両方が変わる。"""
+    payload = scenario.payload()
+    payload["inventory"]["claims"][0]["id"] = claim_id
+    payload["verified"]["fix_evidence"]["claims"][0]["id"] = claim_id
+    return payload
+
+
+def fail_replacing(
+    monkeypatch: pytest.MonkeyPatch, target: Path, before_failing: Callable[[], object] = lambda: None
+) -> None:
+    """target への os.replace を 1 回だけ EIO で失敗させる。ほかの呼び出しと 2 回目からは本物を使う。
+
+    monkeypatch.undo() は autouse の Git の環境の隔離も外すので、受け取り直しは回数で本物に戻す。
+    """
+    real = os.replace
+    failed = False
+
+    def replace(source: Any, destination: Any, **options: Any) -> None:
+        nonlocal failed
+        if not failed and Path(destination) == target:
+            failed = True
+            before_failing()
+            raise OSError(errno.EIO, "injected")
+        real(source, destination, **options)
+
+    monkeypatch.setattr(os, "replace", replace)
+
+
+def test_failed_save_keeps_the_previous_pair_and_the_same_run_can_be_accepted_again(
+    dispatch: Any,
+    scenario: Scenario,
+    tmp_path: Path,
+    findings_helpers: Any,
+    managed_state: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """2 件目の置き換えが失敗しても以前の組を壊さず、外部の担当を起動し直さずに受け取り直せる（#178）。"""
+    assert accept(dispatch, run_external(dispatch, scenario, tmp_path, scenario.payload())) == 0
+    body = scenario.review_dir / "verified" / f"{scenario.fix[:12]}.fix-check.json"
+    before = managed_state(scenario.review_dir)
+    run_dir = run_external(dispatch, scenario, tmp_path, claim_renamed(scenario, "C-2"), output="run-2")
+    fail_replacing(monkeypatch, body)
+    assert accept(dispatch, run_dir) == 1
+    assert managed_state(scenario.review_dir) == before
+    assert findings_helpers.review_findings.main(["validate", str(body)]) == 0
+    assert accept(dispatch, run_dir) == 0
+    assert json.loads(body.read_text(encoding="utf-8"))["fix_evidence"]["claims"][0]["id"] == "C-2"
+    assert findings_helpers.review_findings.main(["validate", str(body)]) == 0
+
+
+def test_failed_save_does_not_restore_over_a_file_another_writer_changed(
+    dispatch: Any,
+    scenario: Scenario,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """他者がその場で書き換えた sidecar を以前の写しで戻さず、写しを残して終了コード 3 で知らせる（#178）。"""
+    assert accept(dispatch, run_external(dispatch, scenario, tmp_path, scenario.payload())) == 0
+    verified_dir = scenario.review_dir / "verified"
+    stem = scenario.fix[:12]
+    sidecar = verified_dir / f"{stem}.statement-candidates.json"
+    body = verified_dir / f"{stem}.fix-check.json"
+    previous_sidecar, previous_body = sidecar.read_bytes(), body.read_bytes()
+    run_dir = run_external(dispatch, scenario, tmp_path, claim_renamed(scenario, "C-2"), output="run-2")
+    # 置いた sidecar を、同じ inode のままその場で書き換える。
+    fail_replacing(monkeypatch, body, lambda: sidecar.write_bytes(b"another writer\n"))
+    capsys.readouterr()
+    assert accept(dispatch, run_dir) == 3
+    assert sidecar.read_bytes() == b"another writer\n"
+    assert body.read_bytes() == previous_body
+    assert len([path for path in verified_dir.glob(".accept-*/*") if path.read_bytes() == previous_sidecar]) == 1
+    assert f"verified/{stem}.statement-candidates.json" in capsys.readouterr().err
 
 
 def test_accept_does_not_attribute_a_disappeared_checkout_to_content_changes(

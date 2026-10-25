@@ -7,6 +7,8 @@ self は入力を返すだけで、司令塔が実際に確認して validate �
 from __future__ import annotations
 
 import argparse
+import contextlib
+import errno
 import hashlib
 import importlib.util
 import json
@@ -511,6 +513,93 @@ def check_inventory(findings: Any, data: FixInput, inventory: Mapping[str, Any])
         raise AcceptError("inventory fix_ids differ from the request fix_ids")
 
 
+def placed_here(path: Path, placed: os.stat_result, digest: str) -> bool:
+    """path が、置いたときの inode と内容のままか。他者の置き換え・書き換えと、観測の失敗は False。"""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as stream:
+            current = os.fstat(stream.fileno())
+            if (current.st_dev, current.st_ino) != (placed.st_dev, placed.st_ino):
+                return False
+            content = hashlib.sha256()
+            while chunk := stream.read(65536):
+                content.update(chunk)
+            return content.hexdigest() == digest
+    except OSError:
+        return False
+
+
+def publish(verified_dir: Path, files: list[tuple[str, bytes]]) -> None:
+    """files を順に verified_dir へ置き換える。例外では、この呼び出しが置いたものだけを置く前に戻して上げ直す。
+
+    置き換える前の同名のエントリは一時ディレクトリへ写し、戻すときにその写しを元の名前へ移す。
+    戻すのは置いたときの inode と内容のままのパスだけで、他者が置き換え・書き換えたものには触れない。
+    戻さなかった写しがあれば一時ディレクトリごと残す。突然死と、最後の観測の後の競合は扱わない。
+    """
+    created = False
+    work: Path | None = None
+    placed: list[tuple[Path, os.stat_result, str, Path | None]] = []
+    try:
+        try:
+            verified_dir.mkdir()
+            created = True
+        except FileExistsError:
+            pass
+        work = Path(tempfile.mkdtemp(prefix=".accept-", dir=verified_dir))
+        staged: list[tuple[Path, Path, Path | None]] = []
+        for name, data in files:
+            target = verified_dir / name
+            (work / name).write_bytes(data)
+            try:
+                os.lstat(target)
+            except FileNotFoundError:
+                previous = None
+            else:
+                previous = work / f"{name}.previous"
+                shutil.copy2(target, previous, follow_symlinks=False)
+            staged.append((work / name, target, previous))
+        for (source, target, previous), (_, data) in zip(staged, files, strict=True):
+            info = os.lstat(source)
+            os.replace(source, target)
+            placed.append((target, info, hashlib.sha256(data).hexdigest(), previous))
+    except BaseException:
+        keep = False
+        for target, info, digest, previous in reversed(placed):
+            try:
+                if not placed_here(target, info, digest):
+                    keep = keep or previous is not None
+                elif previous is None:
+                    os.unlink(target)
+                else:
+                    os.replace(previous, target)
+            except OSError:
+                keep = keep or previous is not None
+        if work is not None and not keep:
+            shutil.rmtree(work, ignore_errors=True)
+        if created and not keep:
+            with contextlib.suppress(OSError):
+                verified_dir.rmdir()
+        raise
+    shutil.rmtree(work, ignore_errors=True)
+
+
+def save_failure(root: Path, before: dict[str, str], error: OSError) -> AcceptError:
+    """保存の失敗を、戻した後の保存先全体の照合で分ける。例外の文（パスを含む）は出さない。"""
+    code = errno.errorcode.get(error.errno) if error.errno is not None else None
+    cause = f"{type(error).__name__} {code}" if code else type(error).__name__
+    changes = review_changes(root, before)
+    if changes:
+        return AcceptError(
+            f"saving failed ({cause}); these paths differ from the state at dispatch: "
+            + json.dumps(changes, ensure_ascii=True),
+            3,
+        )
+    return AcceptError(
+        f"saving failed ({cause}); review_dir is back to its state at dispatch, "
+        "so accept can be retried with the same --run-dir"
+    )
+
+
 def accept(run_dir: Path) -> dict[str, str]:
     """外部担当の結果を検査し、通ったものだけ ``<review_dir>/verified/`` へ保存する。"""
     saved = read_dispatch(run_dir)
@@ -557,19 +646,18 @@ def accept(run_dir: Path) -> dict[str, str]:
     # 検査中の変更も、一時ファイルを作る前に起動時の全 snapshot と照合する。
     require_unchanged_review(review_dir, cast(dict[str, str], before))
     verified_dir = review_dir / "verified"
-    verified_dir.mkdir(exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix=".accept-", dir=verified_dir))
+    sidecar = f"{stem}.statement-candidates.json"
+    target = f"{stem}.fix-check.json"
+    contents = [
+        (name, (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+        for name, value in ((sidecar, inventory), (target, document))
+    ]
     try:
-        sidecar = work / f"{stem}.statement-candidates.json"
-        target = work / f"{stem}.fix-check.json"
-        sidecar.write_text(json.dumps(inventory, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        target.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         # sidecar を先に置き、fix-check が候補ファイルを欠いた状態で見えないようにする。
-        os.replace(sidecar, verified_dir / sidecar.name)
-        os.replace(target, verified_dir / target.name)
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
-    return {"statement_candidates": str(verified_dir / sidecar.name), "fix_check": str(verified_dir / target.name)}
+        publish(verified_dir, contents)
+    except OSError as error:
+        raise save_failure(review_dir, cast(dict[str, str], before), error) from None
+    return {"statement_candidates": str(verified_dir / sidecar), "fix_check": str(verified_dir / target)}
 
 
 def main(argv: list[str] | None = None, *, adapter_loader: Callable[[str], Adapter] = load_adapter) -> int:
