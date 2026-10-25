@@ -14,7 +14,7 @@
 
 ## 着手時の確認
 
-1. superpowers の版は、Claude Code が 7.0.0、Codex・pi・Devin が 7.0.1。`task-brief`・`review-package`・`task-done` は 4 つとも同じ内容（`cmp` で一致）だった
+1. superpowers の版は、Claude Code が 7.0.0、Codex・pi・Devin が 7.0.1。`task-brief`・`review-package`・`task-done` は、Claude Code・Codex・pi・Devin の 4 か所とも同じ内容（`cmp` で一致）だった
 2. `task-brief PLAN N [OUTFILE]` と `review-package PLAN BASE HEAD [OUTFILE]` は、OUTFILE の親ディレクトリを作らずに `> "$out"` で書く（`task-brief` の 36 行目、`review-package` の 50 行目）。`agent_tmp.py mkdir` はセッションディレクトリだけを作るので、今の手順では最初の `task-brief` が終了コード 1 で止まる（Issue の背景 1、V-2）
 3. スクリプトの既定の出力先は、`sdd-workspace` が決める `.superpowers/sdd/<plan>/`（`<plan>` は `basename PLAN .md`）の下の `task-<N>-brief.md` と `review-<base7>..<head7>.diff`（`git rev-parse --short`）。review package は範囲ごとの名前なので、修正後の再レビューで前のものを上書きしない
 4. 完了の行の書式と条件は、7.0.0・7.0.1 とも次のとおり
