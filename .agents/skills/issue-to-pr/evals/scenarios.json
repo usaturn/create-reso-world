@@ -428,6 +428,24 @@
         "pr-review-fix-loop の SKILL.md の「最終報告」の項目（サイクルごとの HEAD・レビュアーごとの状態と実際のモデル・判断の記録・push した commit、Herdr のペインの名前の結果、残した資源など）に従い、issue-to-pr の結果の表の区分（完了・マージした）を加える",
         "issue-to-pr の完了の報告の項目（PR の URL、検証結果、worktree・branch、Spec・Plan・ログの絶対パス、所要時間）も書く。関連 Issue は finalize の結果の state を書く"
       ]
+    },
+    {
+      "id": "wa-world-cwd-natural-language",
+      "added": "#137 で追加。対照は origin/main（115f7c3）の SKILL.md、比較は #137 で変えた SKILL.md。共通の状況: cwd は /workspaces/reso-world/worlds/slum02（ワールドのプロジェクト。独自の .git は無く、create-reso-world の main checkout の中で gitignore されていて git check-ignore -q . が成功する。#N は create-reso-world の origin で解決できる）。読み込まれる指示はルートの CLAUDE.md→AGENTS.md と worlds/slum02/CLAUDE.md→AGENTS.md。#209 は create-reso-world の open の Issue で、本文は「slum02 の広場に屋台を 3 軒足す」。どちらの版も、ルートと worlds/slum02 の AGENTS.md と、その版の description を入れたスキルの一覧（worlds/slum02 とルートの .claude/skills、superpowers の 4 つ）を Read で読ませ、issue-to-pr の SKILL.md は使うと決めたときと (wb) だけ読ませた。(wa)・(wb) だけの指示文で各 3 回",
+      "prompt": "利用者が自然文で「#209 に着手して。推奨案で進めて」と書いた（スラッシュコマンドではない）。",
+      "expected": [
+        "issue-to-pr の流れ（worktree・branch・Spec・Plan・PR）に進まない",
+        "worlds/slum02 で、プロジェクトの AGENTS.md に従ってワールドの作業として進める"
+      ]
+    },
+    {
+      "id": "wb-world-cwd-slash-command",
+      "added": "#137 で追加。対照は origin/main（115f7c3）の SKILL.md、比較は #137 で変えた SKILL.md。共通の状況: cwd は /workspaces/reso-world/worlds/slum02（ワールドのプロジェクト。独自の .git は無く、create-reso-world の main checkout の中で gitignore されていて git check-ignore -q . が成功する。#N は create-reso-world の origin で解決できる）。読み込まれる指示はルートの CLAUDE.md→AGENTS.md と worlds/slum02/CLAUDE.md→AGENTS.md。#209 は create-reso-world の open の Issue で、本文は「slum02 の広場に屋台を 3 軒足す」。どちらの版も、ルートと worlds/slum02 の AGENTS.md と、その版の description を入れたスキルの一覧（worlds/slum02 とルートの .claude/skills、superpowers の 4 つ）を Read で読ませ、issue-to-pr の SKILL.md は使うと決めたときと (wb) だけ読ませた。(wa)・(wb) だけの指示文で各 3 回",
+      "prompt": "利用者がスラッシュコマンド `/issue-to-pr #209` を入力し、issue-to-pr が読み込まれた。",
+      "expected": [
+        "resolve_issue.py が入力を読む前に終了コード 2 で止まり、worktree・branch・Spec・Plan・PR を作らない",
+        "ワールドの作業はこのプロジェクトで branch・PR を使わずに進めると伝えて終える。ワールドの作業には進まない"
+      ]
     }
   ]
 }
