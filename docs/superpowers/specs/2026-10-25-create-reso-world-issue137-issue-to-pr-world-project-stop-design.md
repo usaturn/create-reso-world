@@ -1,6 +1,6 @@
 # Issue #137: issue-to-pr をワールドのプロジェクトの作業で止める
 
-- 状態: draft
+- 状態: completed（PR #266 のサイクル 1 で修正不要と判断した。末尾の「PR #266 のレビュー修正（サイクル 1）」）
 - 文書管理リポジトリ: `usaturn/create-reso-world`（`docs/superpowers/`）
 - 対象: `usaturn/create-reso-world` / [Issue #137](https://github.com/usaturn/create-reso-world/issues/137)
 - 検証したコードの HEAD: `origin/main` `115f7c3065c422e121c5617289f0181d39f85773`（2026-10-25T01:30Z の着手時）
@@ -57,3 +57,32 @@
 | D7 | 行動比較は、Claude Code の Agent ツールで起動した新しいサブエージェント（model `sonnet`）で、1 回の起動で 1 回答。cwd がワールドの 2 場面を、対照（`origin/main` の `SKILL.md`）と比較（変更後）で各 3 回。(a)〜(j) は比較の版で 3 回。実装中に、比較で (i) が分かれたので、原因を切り分けるために対照でも (a)〜(j) を 3 回取った（Plan の Task 3 の Ruling） | (a)〜(j) も対照と比較で取る。回数を増やす | Issue の直し方の案 3 と受け入れ条件のとおり。(a)〜(j) の対照の結果は `validation.md` に記録済みで、変わらないことは比較の版だけで確かめられる。本物のモデルを起動する確認なので、回数は Plan に書いた分に限る（`AGENTS.md` の「エージェント運用」） | 委任: 推奨案での決定 |
 | D8 | `--merge` のループは `check-options` の結果のままにする。サイクルの上限 3 は利用者の指定。雛形 `.devcontainer/agent-runner.toml`、`--config` なし、inspect は `claude-opus`・`devin-swe`・`pi-deepseek`・`cursor-grok47`、修正は `claude-opus`、自己レビューと fix-check は `self` で、どれも雛形と個人設定の既定の適用 | ループ用のオプションを足す | 利用者が書いたループ用のオプションは `--max-cycles 3` だけで、ほかは足さない | 委任: `/issue-to-pr #137 --merge --max-cycles 3`。`check-options` は終了コード 0 |
 | D9 | Plan の Task の担当は `self` にする | 別の担当に依頼する | `implement_task.py check` は `agents: [self]`、`fallback: []`、`self: true`。雛形と個人設定の既定の適用で、利用者は `--implement` を書いていない | 委任: `/issue-to-pr #137 --merge --max-cycles 3`。`check` は終了コード 0 |
+
+## PR #266 のレビュー修正（サイクル 1）
+
+- 実行許可: 利用者の `/issue-to-pr #137 --merge --max-cycles 3` による PR 修正ループ（run `aa32b65649624450b2a4efbc088b93a4`）の計画。review-fix-planning の完遂（修正不要なら `finalize.py` でマージし、関連 Issue を更新する）
+- planner: claude-opus-5-5（claude-code）。サイクル 1、判断の対象の HEAD は `7da85d797b3f91d79a5f4d0d2d184a5a1ad0438f`
+- 入力: `reviews/usaturn/create-reso-world/#266-fix-issue-137-world-project-stop/` の 4 つのレビューファイルと `findings/*-7da85d797b3f.json`（どれも `validate`・`check-pair` が 0）。確認済みの一覧 `verified/7da85d797b3f.json`（review-verify、mode cycle）は confirmed 2・not_reproduced 0・unverified 0
+
+| レビューファイル | モデル / ランタイム | レビュー HEAD | 今回再実行 | 推奨 |
+| --- | --- | --- | --- | --- |
+| `claude-opus-5-5.md` | claude-opus-5-5 / claude-code | `7da85d797b3f` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max / devin | `7da85d797b3f` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash / pi | `7da85d797b3f` | はい | Approve |
+| `Grok-4.7.md` | Grok 4.7 / cursor | `7da85d797b3f` | はい | Approve |
+
+loop は 4 人とも受け付け、却下は 0、残した資源は 0。
+
+### 指摘の分類（解消済み 0 / 対応する 0 / 対応しない 2）
+
+| 指摘 | 内容 | 区分 | 根拠 |
+| --- | --- | --- | --- |
+| `claude-opus-5-5#L-1@7da85d797b3f`（Low） | 受け入れ条件 2 の (i) を満たしたと確かめられないまま、`Closes #137` で Issue を閉じる | 対応しない | 記録の事実は確認した（V-1）。受け入れ条件 2 を対照と比べて変わらないと読むか、今の期待どおりと読むかの仕様の判断で、(i) の分かれは base の対照でも同じように出ており、差分は (i) に関わる 2 章の 6 に触れていない。マージしても誤った操作・結果は起きない。(i) は別 Issue の候補にする（持ち越し） |
+| `deepseek-deepseek-v4.1-flash#I-1@7da85d797b3f`（Info） | Plan の Task 2 Step 1 の description の括弧書きと節の位置が、`7da85d7` で直した SKILL.md に追随していない | 対応しない | 食い違いは確認した（V-2）。Plan は経緯の記録で、完了した Plan の手順を再実行する前提ではない（`docs/superpowers/README.md`）。変更は validation.md の「最後の全体レビューの指摘の修正」と、この Spec の変更の内容 3 に記録している |
+
+### 結論と検証
+
+- 結論: 2 修正不要でマージ
+- 検証: PR を作る前に、`7da85d7` で作業ツリーが clean な状態で実行した記録を使った（issue-to-pr の 5 章の「検証の記録の再利用」。同じ HEAD、未 commit の変更なし、終了コードはすべて 0、ログあり）。`bash .devcontainer/run-tests.bash` 0（23 test(s) PASS）、`bash scripts/check-layout.sh` 0、`uv run pytest tests/skills .agents/skills .agents/scripts tools -q -p no:cacheprovider` 0（1225 passed）。base `main` の先端は `115f7c3065c422e121c5617289f0181d39f85773` のままで、head の祖先（merge の検証は不要）
+- 自己レビュー: 未実施（修正が無いため。`run_roles.py` は実行していない）
+- planner の確認: PR の変更ファイルの全文、4 人のレビューの実行した確認（helper の停止と継続の経路、`git check-ignore` の実測）、条件を述べる箇所の照合でも、致命的な欠陥は見つからなかった
