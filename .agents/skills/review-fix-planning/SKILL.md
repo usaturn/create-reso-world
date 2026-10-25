@@ -84,7 +84,7 @@ PY
    ```bash
    REPRO_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/review-fix-planning.XXXXXX")"
    WT="$REPRO_ROOT/worktree"
-   git -C "$MAIN_ROOT" worktree add --detach "$WT" "$REVIEWED_HEAD"
+   git -C "${MAIN_ROOT:?}" worktree add --detach "$WT" "$REVIEWED_HEAD"
    test "$(git -C "$WT" rev-parse HEAD)" = "$(git -C "$MAIN_ROOT" rev-parse "$REVIEWED_HEAD^{commit}")"
    ```
 
@@ -163,7 +163,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
    ```
 
 3. `branch refs/heads/$HEAD_BRANCH` を持つ worktree の有無で、次のどれかにする。
-   - どこでも checkout されておらず、ローカルブランチも無い: `git -C "$REPO_MAIN" worktree add -b "$HEAD_BRANCH" "$FIX_WT" "$HEAD_SHA"`
+   - どこでも checkout されておらず、ローカルブランチも無い: `git -C "${REPO_MAIN:?}" worktree add -b "$HEAD_BRANCH" "$FIX_WT" "$HEAD_SHA"`
    - ローカルブランチはあるが checkout されていない: `git -C "$REPO_MAIN" merge-base --is-ancestor "$HEAD_BRANCH" "$HEAD_SHA"` が成功するときだけ、`git -C "${REPO_MAIN:?}" worktree add "$FIX_WT" "$HEAD_BRANCH"` の後に `git -C "${FIX_WT:?}" merge --ff-only "$HEAD_SHA"`
    - 別の worktree で checkout されている: その worktree の `git status --porcelain` が空で、HEAD が `$HEAD_SHA` なら、それを `FIX_WT` として使う（片付けの対象にしない）
    - それ以外（ローカルブランチが PR に無いコミットを持つ、未コミットの変更がある、`FIX_WT` のパスが既にある）は、触らずに結論 3 にする
