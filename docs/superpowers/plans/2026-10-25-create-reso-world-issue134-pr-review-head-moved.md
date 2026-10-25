@@ -220,4 +220,45 @@ git commit -m "docs(pr-review): 保存しなかったときの再レビューと
 
 ## 完了
 
-（実装の後に、所要時間と主要 Task 別の内訳、振る舞いの比較の結果、検証の結果を書く）
+### 所要時間
+
+着手（04:23Z ごろ）から PR の作成の前まで、主要 Task 別の内訳は次のとおり（2026-10-25、UTC）。
+
+| 区間 | 時刻 | 内容 |
+| --- | --- | --- |
+| 準備・調査・設計 | 04:23〜04:45 | 入力と競合の確認、worktree、基準のテスト（バックグラウンド）、helper とテストの読み込み、推奨案の決定 |
+| Spec・Plan | 04:45〜04:54 | Spec・Plan（`d6d3719`）、builder check（バックグラウンド） |
+| Task 1 | 04:54〜05:05 | テスト（RED）、helper の実装（GREEN）、一時的な検証、pr-review のテスト全体（`1ec5d72`） |
+| Task 2 | 05:05〜05:20 | 文書（`fdadb8c`）、振る舞いの比較（変更前 3 回・変更後 3 回）、文書の修正（`afa814e`）、先行の検証 |
+| 統合の確認 | 05:20〜05:35 | 取り直しの比較 3 回、ブランチ全体のレビュー（05:08 に起動）、指摘の付け直しと文書の修正、この記録 |
+
+### 実行の記録
+
+- 基準（`c1fdc56`）: `bash .devcontainer/run-tests.bash` 0（23 件 PASS）、`bash scripts/check-layout.sh` 0、`uv run pytest tests/skills .agents/skills .agents/scripts tools` 0（1225 passed）
+- Task 1: 新しいテストは RED（`KeyError: 'attempt_id'` 7 件、`--abandon` の argparse の拒否 2 件）→ GREEN（9 passed）。pr-review のテスト全体は 1 回目に `test_ordinary_depth_one_checkout_reviews_whole_pr_without_shared_history_changes[head]` が失敗した。実行中に Task 2 の SKILL.md を編集し、complete の skill の SHA-256 の照合（`loaded review skill changed during review`）が外れたためで、編集をしない再実行で 183 passed（終了コード 0）
+- 一時的な検証（Step 6、`/workspaces/reso-world/tmp/agents/issue-134.zmji0mac/verify/`）: 6 passed。prepare の中の HEAD の不一致（worktree の後）は理由に 2 つの head が入り、`abandon --session-dir` で消え ref は `deleted`。fetch の不一致は ref が新しい head を指すので `repinned` で残る。complete の HEAD の不一致は理由に 2 つの head が入り、保存先が無く、`abandon` は拒否して `--discard-draft` で消える。新しい head の prepare → complete は `success`。version 7 の試行は今の指定と `--session-dir` の両方で消える。`--session-dir` と `--repo` の組み合わせは終了コード 2
+- 先行の検証（`9905a1f`）: README の「テスト」の 3 つがすべて終了コード 0（23 件 PASS、PASS、1234 passed）
+
+### 振る舞いの比較（Spec の D10）
+
+Agent ツールの新しいサブエージェント（model `sonnet`、読み取りだけ）に、同じ問い（`/workspaces/reso-world/tmp/agents/issue-134.zmji0mac/eval/prompt.md`）を版ごとに 3 回答えさせた。
+
+| 版 | 場面 A（complete で HEAD の不一致） | 場面 B（prepare の後に依頼の HEAD と違う） | 場面 C（利用者が draft のある試行の片付けを指示） |
+| --- | --- | --- | --- |
+| 変更前（`c1fdc56`） | 3/3 が helper を呼ばない。次の操作は「スキルに無い」 | 3/3 が `fail --state` だけで、試行が残る | 3/3 が片付ける経路が無いとして何もしない |
+| 変更後（`fdadb8c`） | 3/3 が期待どおり（2 つの head・draft の完全パスと有無・`attempt_id`・`session_dir`・次の操作） | 3/3 が `fail … --abandon` | 3/3 が `--discard-draft` を付けずに `abandon` し、拒否されたら重ねて確認する。SKILL.md の「draft ごと消すよう指示したとき」が Spec の D7 より狭かった |
+| 変更後（`afa814e`） | 3/3 が期待どおり | 3/3 が `fail … --abandon` | 3/3 が `abandon … --discard-draft`（場面 A の報告で draft を伝え済みのため） |
+
+本物のモデルの起動は、Plan の上限の 9 回（変更前 3 回、変更後 3 回、文書を 1 回直した後の 3 回）だった。
+
+### ブランチ全体のレビュー
+
+Agent ツールの新しいサブエージェント（model `opus`、読み取りだけ）に `c1fdc56..9905a1f` を依頼した。結論は「マージしてよい」で、Critical・Important は無く Minor が 6 件。レビュアーは、守りを 1 つずつ外す変異（雛形の SHA-256 の比較、`--discard-draft` 無しの draft の拒否、`retained_paths` の上書き、試行 ID の照合）の 4 通りで、新しいテストが失敗することを確かめた。
+
+- 直した 2 件（効果で Important に付け直した）: SKILL.md の `abandon` の条件に、Spec の D3 の「worktree が他の理由でロックされていない」と「停止を確認できない補助 worker がいない」を足し、「作った処理」を「prepare の中の create」にした（受け入れ条件 3）。非対話では helper の結果の JSON が報告で、JSON の外に書き足さないことを足した（非対話の結果を回収できなくなるのを防ぐ）。文書の変更なので、テストは書かず `git diff` で確かめた
+- 持ち越した 4 件（Minor）: 結果に `attempt_id` の無い古い試行の指定方法（`create-journal.jsonl` の 1 行目）が文書に無い。`--session-dir` の経路が保存ロックの中で試行 ID を照合し直さない（セッション名は 8 桁の乱数で、同じパスを作り直せない）。`--state` なしの `fail --abandon` で元の理由が置き換わる（誤った使い方で、エラーとして見える）。time-budget.md の S15 が HEAD 以外の拒否でも「2 つの head」と読める
+
+### 持ち越し候補
+
+- repo-cleanup-after-merge で、PR が終わった version 8 の試行を `abandon --session-dir` で片付けること（今は version 8 を消さない）
+- 上の Minor 4 件
