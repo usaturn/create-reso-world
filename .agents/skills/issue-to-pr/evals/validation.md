@@ -304,3 +304,50 @@ PR #216 の 1 回目のレビュー（gpt-6.1-sol の M-1）で、review-fix-pla
 - 止めすぎる方向の評価。ワールドの雛形・ツール（`templates/world-project/`・`scripts/new-world.sh`）の Issue で `worlds/` に触れるものを、誤って止めないかは、2 章の 4 の例の文だけで支えている
 - `GIT_DIR` が export された環境（フック・`rebase --exec` の中）では、cwd が作業ツリーのルートとみなされ、helper の停止を通り抜ける（全体レビューで再現。対話のセッションでは起きにくいので直していない）
 - 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない
+
+## PR 本文の Issue の指定と、マージ済みの PR での停止（#138）
+
+実施日: 2026-10-25（#138）。5 章の PR 本文の Issue の指定を、同じリポジトリの Issue でもマージの後の確認が残るものとボードの子は `Refs #N` にする対応にし、2 章の 6 に、マージ済みの PR で PR にする作業が残っていない Issue で止まる条件を足した版を評価した。
+
+### 評価方法と範囲
+
+- ランタイムは Claude Code。Agent ツールで起動した新しいサブエージェント（model `sonnet`。記録のモデルは `claude-sonnet-5-5`）に、1 回の起動で 1 回答させた。どの版も、セッションディレクトリの意味の無い名前のディレクトリに同じファイル名で置き、`AGENTS.md` と一緒に Read で 1 回ずつ読ませた。どの回もツールの呼び出しは Read の 2 回だった
+- (pa)〜(pe): [scenarios.json](scenarios.json) の (pa)〜(pe) を 1 つの指示文にまとめた。共通の状況は #137 の (a)〜(j) と同じものに、`finalize.py` はマージの後に `closingIssuesReferences`（`Closes #N` などで GitHub が結び付けた Issue）だけを閉じることと、`planning-parallel-issues` の後続の子の着手条件（先行の子の `state_reason=completed`）と調整役を足した。対照（`origin/main` の `c1fdc56`）、比較（`02e1bcb`）、REFACTOR の後（`db6c107`）で各 3 回。対照の 3 回の結果を読んでから比較の文面を書いた
+- (a)〜(j): #137 の評価と同じ指示文（ファイルのパスだけを変えた）で、比較の版で 3 回。期待は今の scenarios.json のもの。対照は #137 の節の結果を使った（その後の `SKILL.md` の変更 `7da85d7` は 2 章の 6 に触れていない）
+- 全回答を controller のエージェント（評価を起動した Claude Code のセッション）が読んで判定した。文言の出現では採点していない。意図の回答であり、PR の作成やコメントを実行したことの証明にはならない
+
+### 結果
+
+| シナリオ | 期待 | 対照（3 回） | 比較 `02e1bcb`（3 回） | REFACTOR の後 `db6c107`（3 回） |
+| --- | --- | --- | --- | --- |
+| (pa) rebuild の後の確認が残る Issue | `Refs #220`、確認の項目を PR 本文・最終報告・run の最後の Issue のコメントに書く、閉じない | 3/3。3 回とも「文面どおりなら `Closes`。規定が無いので私の判断」と明記して `Refs` にし、コメントも自分の判断で書いた | 指定は 3/3。Issue のコメントは 0/3（「ボードの子でない Issue へのコメントは SKILL.md に規定が無い」） | 3/3 |
+| (pb) ボードの子 | `Refs #46`、close と親の更新は調整役、結果を書いてから予約を解放 | 0/3。3 回とも `Closes #46`（「後続の子の着手条件は completed の close なので、マージで閉じる必要がある。`Refs` だと後続が止まる」） | 3/3 | 3/3 |
+| (pc) `.devcontainer/` を直すが確認はこの run で済む Issue | `Closes #221`、マージの後の確認を作らない | 3/3 | 3/3 | 3/3 |
+| (pd) `--merge` で `no_fix_needed` | `Refs #222`、`finalize.py` も run も閉じない、最終報告に open と確認の項目、ループの終了の後にコメント | 3/3（(pa) と同じく自分の判断） | 指定・open・最終報告は 3/3。コメントは 0/3 | 3/3 |
+| (pe) 別のリポジトリが実装の対象で、マージの後の確認が残る | 両方の PR で `Refs <Issue の URL>`（`Refs #223` にしない）、確認の項目を書く | 3/3 | 指定は 3/3。コメントは 0/3 | 3/3。3 回とも resoloop 側でなく create-reso-world の #223 にコメントすると明記 |
+
+| シナリオ | #137 の節（対照 `115f7c3`・比較、各 3 回） | 比較 `02e1bcb`（3 回） |
+| --- | --- | --- |
+| (a)〜(h)・(j) | 3/3（(h) は対照で 2/3） | 3/3 |
+| (i) マージ済みの PR（`Refs`）があり、Issue が open | 対照 2/3・比較 1/3（どちらも条件付きで止まる） | 3/3。3 回とも 2 章の 6 の新しい条件で worktree の前に止まり、#212 の URL と残りの確認を報告した |
+
+対照で外れたのは (pb) だけだった。(pa)・(pd)・(pe) は対照でも期待どおりだったが、3 回とも文面の規則（同じリポジトリなら `Closes`）から外れる判断で、実際の PR #253（`--merge` の run、2026-10-24）は、rebuild の確認を「未確認」に挙げたまま `Closes #251` にしてマージした。評価の問いは Issue の指定とその理由を直接聞くので、実際の run より気付きやすい。対応の表にボードの子だけを足すと、例外を並べた表が rebuild の Issue を `Closes` に寄せるので、マージの後の確認の条件も表に入れた。
+
+### REFACTOR
+
+比較の版では、規則を明示した 3 つの場面で、対照が自分の判断で書いていた Issue のコメントを 3 回とも書かなくなった。5 章に「マージの後でなければ確かめられない項目が残るときは、Issue の指定に関係なく、その項目を PR 本文と最終報告に書き、run の最後（`--merge` のときはループの終了の後）に、PR の URL とその項目を Issue へコメントする」を足し（`db6c107`）、(pa)〜(pe) だけを 3 回取り直した。
+
+比較の 3 回のうち 2 回は、`--merge` の結果の表の `no_fix_needed` の「関連 Issue は、finalize の結果に含まれる、更新後に観測した state を書く」が `Refs` の Issue に当てはまらないと指摘した。3 回とも Issue を読み直して open と書いていて振る舞いは外れていないので、表は変えていない。
+
+REFACTOR の後に (a)〜(j) は取り直していない。足した 1 文は、マージの後でなければ確かめられない項目が残るときだけに効き、(a)〜(j) の期待の場面にその項目は無い。
+
+### 実行した検証
+
+- README の「テスト」の 3 つ（`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`）を、文面を変える前（`5008e94`）に実行し、どれも終了コード 0（23 PASS、1225 passed）。変更の後の結果は PR 本文に書く
+- `scenarios.json` が JSON として読め、id が重複しない（50 場面）
+
+### 行っていない確認
+
+- 実際の Issue（rebuild の後の確認が残る Issue、ボードの子）で issue-to-pr を起動して PR まで通すこと。この評価は意図の回答だけ
+- (pd) で、ループが `no_fix_needed` 以外（`stopped`・エラー）で終わったときのコメント
+- 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない

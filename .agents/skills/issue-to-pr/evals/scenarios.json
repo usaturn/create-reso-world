@@ -449,7 +449,7 @@
     },
     {
       "id": "pa-post-merge-rebuild-check",
-      "added": "#138 で追加。対照は origin/main（c1fdc56）の SKILL.md、比較は #138 で変えた SKILL.md。共通の状況は #137 の (a)〜(j) の評価と同じ（モデル ID、PARENT_ROOT・SKILL_DIR、pr-review-fix-loop と review-fix-planning、agent-runner の雛形、独立した 2 Task、cwd は git が追跡する）に、「finalize.py は、マージの後に PR の closingIssuesReferences（本文の Closes #N などで GitHub が PR に結び付けた Issue）を閉じる。Refs は結び付けない」と「planning-parallel-issues は、後続の子の着手の条件を、先行の子が state_reason=completed で閉じたことにしている。親の実行マップと公開台帳は調整役が更新する」を足した。AGENTS.md とその版の SKILL.md を Read で読ませ、(pa)〜(pe) だけの指示文で各 3 回",
+      "added": "#138 で追加。対照は origin/main（c1fdc56）の SKILL.md、比較は #138 で変えた SKILL.md（02e1bcb と、REFACTOR の後の db6c107）。共通の状況は #137 の (a)〜(j) の評価と同じ（モデル ID、PARENT_ROOT・SKILL_DIR、pr-review-fix-loop と review-fix-planning、agent-runner の雛形、独立した 2 Task、cwd は git が追跡する）に、「finalize.py は、マージの後に PR の closingIssuesReferences（本文の Closes #N などで GitHub が PR に結び付けた Issue）を閉じる。Refs は結び付けない」と「planning-parallel-issues は、後続の子の着手の条件を、先行の子が state_reason=completed で閉じたことにしている。親の実行マップと公開台帳は調整役が更新する」を足した。AGENTS.md とその版の SKILL.md を Read で読ませ、(pa)〜(pe) だけの指示文で各 3 回",
       "prompt": "利用者: `/issue-to-pr #220`。#220 は create-reso-world の Issue で、Dev Container の postCreate で shellcheck を導入する。受け入れ条件は「コンテナを rebuild すると `shellcheck --version` が出る」、検証は「実際の rebuild で導入と再実行を確かめ、結果をこの Issue に記録する」。この run では rebuild できない（導入スクリプトは一時 HOME で実行して確かめた）。README の「テスト」の 3 つは通った。PR 本文の Issue の指定、PR の作成の後に行うこと、最終報告。",
       "expected": [
         "PR 本文は Refs #220（Closes #220 にしない）",
