@@ -48,7 +48,12 @@ elif options.get('export_fifo'):
     os.mkfifo(_export_file)
 elif options.get('devin_export') is not None:
     _export_file.write_text(options['devin_export'].replace('$TOKEN', token), encoding='utf-8')
+while sum(os.path.exists(path) for path in options.get('peers', ())) < options.get('quorum', 0):
+    time.sleep(0.01)
 time.sleep(options.get('sleep', 0))
+if options.get('marker'):
+    with open(options['marker'], 'a') as marker:
+        marker.write(' ' + str(time.monotonic()))
 print(os.environ.get('SERVICE_TOKEN', 'no-token'))
 print(os.environ.get('Extra_Password', 'no-password'), file=sys.stderr)
 payload = options.get('payload', {'prompt': request['prompt'], 'depth': os.environ.get('AGENT_RUNNER_DEPTH'),
@@ -545,7 +550,12 @@ def test_unconfirmed_stop_blocks_success_and_fallback(repository: Path, monkeypa
 
 
 def test_concurrency_bounds_whole_assignments(repository: Path, tmp_path: Path) -> None:
+    # Order, not start gaps: worktree creation and startup stretch on a loaded host (#264).
+    # Each fake CLI ends only once two have started, so a serial runner times out; a slot
+    # frees only after its CLI recorded its end. The sleep only gives an unbounded third
+    # assignment time to start while two still run.
     markers = {name: tmp_path / name for name in ("a", "b", "c")}
+    peers = [str(path) for path in markers.values()]
     batch = run_workflow(
         configuration(["a", "b", "c"]),
         "audit",
@@ -553,13 +563,15 @@ def test_concurrency_bounds_whole_assignments(repository: Path, tmp_path: Path) 
         repository,
         concurrency=2,
         adapter_loader=lambda _: FakeAdapter(
-            {name: {"sleep": 0.25, "marker": str(path)} for name, path in markers.items()}
+            {name: {"peers": peers, "quorum": 2, "sleep": 0.25, "marker": str(path)} for name, path in markers.items()}
         ),
     )
     assert batch.state == "success"
-    starts = sorted(float(path.read_text()) for path in markers.values())
-    assert starts[1] - starts[0] < 0.2
-    assert starts[2] - starts[0] >= 0.23
+    (first_start, first_end), (second_start, second_end), (third_start, _) = sorted(
+        tuple(map(float, path.read_text().split())) for path in markers.values()
+    )
+    assert second_start < first_end
+    assert third_start > min(first_end, second_end)
 
 
 def test_outside_change_to_already_dirty_file_is_warning_only(repository: Path) -> None:
