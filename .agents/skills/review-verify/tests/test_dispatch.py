@@ -784,10 +784,16 @@ def claim_renamed(scenario: Scenario, claim_id: str) -> dict[str, Any]:
 
 
 def fail_replacing(
-    monkeypatch: pytest.MonkeyPatch, target: Path, before_failing: Callable[[], object] = lambda: None
+    monkeypatch: pytest.MonkeyPatch,
+    target: Path,
+    before_failing: Callable[[], object] = lambda: None,
+    *,
+    error: BaseException | None = None,
+    renamed: bool = False,
 ) -> None:
-    """target への os.replace を 1 回だけ EIO で失敗させる。ほかの呼び出しと 2 回目からは本物を使う。
+    """target への os.replace を 1 回だけ失敗させる。ほかの呼び出しと 2 回目からは本物を使う。
 
+    既定は置き換えずに EIO を上げる。renamed では置き換えた後に上げる（rename の後に届くシグナルと同じ）。
     monkeypatch.undo() は autouse の Git の環境の隔離も外すので、受け取り直しは回数で本物に戻す。
     """
     real = os.replace
@@ -798,7 +804,9 @@ def fail_replacing(
         if not failed and Path(destination) == target:
             failed = True
             before_failing()
-            raise OSError(errno.EIO, "injected")
+            if renamed:
+                real(source, destination, **options)
+            raise error if error is not None else OSError(errno.EIO, "injected")
         real(source, destination, **options)
 
     monkeypatch.setattr(os, "replace", replace)
@@ -849,6 +857,20 @@ def test_failed_save_does_not_restore_over_a_file_another_writer_changed(
     assert body.read_bytes() == previous_body
     assert len([path for path in verified_dir.glob(".accept-*/*") if path.read_bytes() == previous_sidecar]) == 1
     assert f"verified/{stem}.statement-candidates.json" in capsys.readouterr().err
+
+
+def test_an_interrupt_after_a_rename_is_undone(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, managed_state: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """置き換えが済んだ後に届いた例外（Ctrl-C など）でも、置いたものを戻し、以前の写しを消さない（#178）。"""
+    assert accept(dispatch, run_external(dispatch, scenario, tmp_path, scenario.payload())) == 0
+    sidecar = scenario.review_dir / "verified" / f"{scenario.fix[:12]}.statement-candidates.json"
+    before = managed_state(scenario.review_dir)
+    run_dir = run_external(dispatch, scenario, tmp_path, claim_renamed(scenario, "C-2"), output="run-2")
+    fail_replacing(monkeypatch, sidecar, error=KeyboardInterrupt(), renamed=True)
+    with pytest.raises(KeyboardInterrupt):
+        accept(dispatch, run_dir)
+    assert managed_state(scenario.review_dir) == before
 
 
 def test_accept_does_not_attribute_a_disappeared_checkout_to_content_changes(

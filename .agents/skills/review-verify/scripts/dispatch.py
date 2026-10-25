@@ -535,10 +535,11 @@ def publish(verified_dir: Path, files: list[tuple[str, bytes]]) -> None:
     置き換える前の同名のエントリは一時ディレクトリへ写し、戻すときにその写しを元の名前へ移す。
     戻すのは置いたときの inode と内容のままのパスだけで、他者が置き換え・書き換えたものには触れない。
     戻さなかった写しがあれば一時ディレクトリごと残す。突然死と、最後の観測の後の競合は扱わない。
+    verified_dir や一時ディレクトリを作った直後に届く例外では、空のディレクトリが残ることがある。
     """
     created = False
     work: Path | None = None
-    placed: list[tuple[Path, os.stat_result, str, Path | None]] = []
+    placed: list[tuple[Path, Path, os.stat_result, str, Path | None]] = []
     try:
         try:
             verified_dir.mkdir()
@@ -559,13 +560,15 @@ def publish(verified_dir: Path, files: list[tuple[str, bytes]]) -> None:
                 shutil.copy2(target, previous, follow_symlinks=False)
             staged.append((work / name, target, previous))
         for (source, target, previous), (_, data) in zip(staged, files, strict=True):
-            info = os.lstat(source)
+            # rename が済んだ後に届く例外（Ctrl-C など）でも戻せるよう、置く前に記録する。
+            placed.append((source, target, os.lstat(source), hashlib.sha256(data).hexdigest(), previous))
             os.replace(source, target)
-            placed.append((target, info, hashlib.sha256(data).hexdigest(), previous))
     except BaseException:
         keep = False
-        for target, info, digest, previous in reversed(placed):
+        for source, target, info, digest, previous in reversed(placed):
             try:
+                if os.path.lexists(source):
+                    continue  # 一時ファイルが残っているので、置き換えは起きていない
                 if not placed_here(target, info, digest):
                     keep = keep or previous is not None
                 elif previous is None:
@@ -595,8 +598,8 @@ def save_failure(root: Path, before: dict[str, str], error: OSError) -> AcceptEr
             3,
         )
     return AcceptError(
-        f"saving failed ({cause}); review_dir is back to its state at dispatch, "
-        "so accept can be retried with the same --run-dir"
+        f"saving failed ({cause}); review_dir is back to its state at dispatch. Fix the cause without changing "
+        "anything under review_dir and retry accept with the same --run-dir; otherwise dispatch again"
     )
 
 
