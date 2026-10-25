@@ -3,7 +3,7 @@
 ## 管理・実行許可
 
 - 文書管理・コード対象: `usaturn/create-reso-world`。対象 Issue: https://github.com/usaturn/create-reso-world/issues/274（ラベル `bug`。親 Issue・依存・コメントは無い。関連: PR #272、#36。この Issue で止まっている PR: #269、#270、#271、#273）
-- 状態: `draft`。内容の承認は記録しない
+- 状態: completed（PR #275 のサイクル 1 で修正不要と判断した。末尾の「PR #275 のレビュー修正（サイクル 1）」）。内容の承認は記録しない
 - 関連 Plan: `docs/superpowers/plans/2026-10-25-create-reso-world-issue274-antigravity-mount.md`
 - DOC_ROOT・CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-274-antigravity-mount`（branch `fix/issue-274-antigravity-mount`）。PARENT_ROOT: `/workspaces/reso-world`
 - 基準: `origin/main` の `08255ca`
@@ -102,3 +102,27 @@ PR #272（`763914e`、Enable Antigravity CLI）で足した Antigravity CLI の 
 ## 実装者に任せること
 
 - README の表の「導入方法」の文面の細部（他の行の書き方に合わせる）
+
+## PR #275 のレビュー修正（サイクル 1）
+
+- 実行許可: 利用者の `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/274 --merge`。issue-to-pr の 5 章のとおり PR 修正ループ（run `2a550453c71a49fb9ce91499e22e9ddf`）を回し、review-fix-planning の完遂で判断した。結論 2 のマージと関連 Issue の更新は `finalize.py` が行う
+- planner: `claude-opus-5-5`（claude-code）。サイクル 1（判断の記録の round 1）で、前のサイクルの記録は無い
+- 対象: PR の head `4c56f21a68044a10f3212e3d4350c2d37f81f84e`（merge-base は `08255ca`）
+- 入力: `reviews/usaturn/create-reso-world/#275-fix-issue-274-antigravity-mount/` の 4 レビューファイルと `findings/*-4c56f21a6804.json`。候補 JSON は 4 件とも `validate`・`check-pair` を通った
+- 確認済みの一覧: `verified/4c56f21a6804.json`（review-verify の mode cycle。確認担当は planner 自身）。confirmed 0・not_reproduced 0・unverified 0。レビュアーが再実行しなかった README の「テスト」の入口は PR の作成の前の記録（`/workspaces/reso-world/tmp/agents/issue-274.nc182s8l/verify/`）で、sudo chown の経路は Grok 4.7 の再現で閉じた。残る範囲は rebuild の後の確認だけで、Issue #274 で利用者が行うと明記されている（上の「未確認として残るもの」）
+
+| レビューファイル | モデル | ランタイム | 担当 | レビュー HEAD | 今回再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| `claude-opus-5-5.md` | claude-opus-5-5 | claude-code | claude-opus | `4c56f21a6804` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | devin-swe | `4c56f21a6804` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | pi-deepseek | `4c56f21a6804` | はい | Needs manual verification（rebuild の後の確認が利用者に残るため） |
+| `Grok-4.7.md` | Grok 4.7 256K Extra High（レビューファイルの表記は Grok 4.7） | cursor | cursor-grok47 | `4c56f21a6804` | はい | Approve |
+
+- 指摘の振り分け: 解消済み 0 / 対応する 0 / 対応しない 0（4 人とも active の指摘・未検証の候補が 0 件）
+  - 「対応する」項目が無いので、守る条件と影響経路の表は作らない
+  - レビュアーが指摘にしなかった観測（`install_beforehand.bash` の `STEP_TOTAL=29` と 30 ステップの表示ずれ、README と `install_beforehand.bash` のテストの説明の食い違い）は、どれも base `08255ca` にあり、PR の変更が持ち込んだものではない。PR 本文の持ち越し候補に書いてある
+- planner の確認: PR の変更ファイル（`.devcontainer/` の 6 ファイル、この Spec、Plan）と、関連する処理（`mounts.bash` の `mounts_compare`、`check-layout.sh` の `check_mounts`、`test-install-beforehand.bash`、`test-readme.bash`、`ensure_user_writable_dir`、`update_if_present`）を読んだ。PR の欠陥は見つからなかった
+- 結論: 2 修正不要としてマージする
+- 検証: base `main` の先端は PR の作成の後も `08255caa1acb076111326f2a961c1ec19c64a993` のままで、head の祖先なので、head だけのツリーで検証した。issue-to-pr の 5 章の「検証の記録の再利用」の条件（サイクル 1 で修正不要、同じ HEAD、検証のときに未 commit の変更が無い、すべての終了コードが 0、ログが残っている）を満たすので、PR の作成の前の記録を使う。`4c56f21` で `bash .devcontainer/run-tests.bash` は終了コード 0（PASS: 23 test(s)）、`bash scripts/check-layout.sh` は 0（PASS: check-layout）、`uv run pytest tests/skills .agents/skills .agents/scripts tools` は 0（1225 passed）
+- 自己レビュー: 修正が無い（結論 2）ので行っていない。`run_roles.py` も実行していない
+- 所要時間: レビュー 09:24Z〜09:39Z（約 15 分）、確認済みの一覧と計画 09:39Z〜09:52Z ごろ（約 13 分）
