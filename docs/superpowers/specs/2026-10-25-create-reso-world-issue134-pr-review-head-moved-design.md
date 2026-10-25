@@ -31,6 +31,7 @@ Issue の本文は PR #182 より前の手順（`create` → HEAD の照合 3 �
 4. PR 修正ループのレビュアーへの依頼は、prepare の reviewed_head がサイクルの HEAD と違えば、レビューせずに `fail` で終えるよう指示している（`loop.py` の依頼文の 3）。`fail --state` は実行記録を `failed`（review）にするだけで、セッション（worktree・候補の雛形・固定した ref）は残る。PR #190 のレビューで残った試行（Issue のコメント）も、片付ける経路が無いまま残っている
 5. ループは、レビュアーが返した HEAD がサイクルの HEAD と違う成果を受け付けない（`rejected_stage: head`）。サイクルの途中で PR の HEAD が動いたら `head_moved` で run を止め、新しい run を始める（pr-review-fix-loop の SKILL.md）
 6. 非対話のレビュアーは補助委譲をしない。対話のレビュアーの補助委譲は、停止と停止確認の手段を確かめられたランタイムだけで起動でき、今はどのランタイムも条件を満たさない（`.agents/monitoring-runtimes.md` の「PR レビュー委譲の起動可否」）
+7. この Spec の builder check（Agent ツールのサブエージェント、model `sonnet`、読み取りだけ）は「計画に要る未決の点は無い」と返した。前提として挙げた 4 点（PR の番号はセッションのディレクトリ名と journal で照合する、`--discard-draft` は利用者の明示の指示だけ、fetch の不一致の試行では ref が新しい head を指すので `repinned` で残す、理由の文頭 `PR head changed` を保つ）は、D3・D4・D7 と変更の内容 6・9 のとおり
 
 ## 変更の内容
 
