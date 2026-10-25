@@ -3,7 +3,7 @@
 ## 管理・実行許可
 
 - 文書管理・コード対象: `usaturn/create-reso-world`。対象 Issue: https://github.com/usaturn/create-reso-world/issues/264（ラベル `bug`。親 Issue・依存・コメントは無い。関連: #218、#223、PR #263）
-- 状態: draft。内容の承認は記録しない
+- 状態: completed（PR #268 のサイクル 1 で修正不要と判断した。末尾の「PR #268 のレビュー修正（サイクル 1）」）。内容の承認は記録しない
 - 関連 Plan: `docs/superpowers/plans/2026-10-25-create-reso-world-issue264-concurrency-test-overlap.md`
 - DOC_ROOT・CODE_ROOT: `/workspaces/reso-world/.worktrees/issue-264-concurrency-test-overlap`（branch `fix/issue-264-concurrency-test-overlap`）。PARENT_ROOT: `/workspaces/reso-world`
 - 基準: `origin/main` の `115f7c3`
@@ -109,3 +109,26 @@
 ## 実装者に任せること
 
 - option の名前、待つ間隔、コメントの文面（周りのテストの説明に合わせる）
+
+## PR #268 のレビュー修正（サイクル 1）
+
+- 実行許可: 利用者の `/issue-to-pr #264 --merge --max-cycles 3`。issue-to-pr の 5 章のとおり PR 修正ループ（run `5765e6d474874d2094b06fc895b7f3af`）を回し、review-fix-planning の完遂で判断した。結論 2 のマージと関連 Issue の更新は `finalize.py` が行う
+- planner: `claude-opus-5-5`（claude-code）。サイクル 1（判断の記録の round 1）で、前のサイクルの記録は無い
+- 対象: PR の head `3a6eb6d375c85865e3be0917bc7b5882081c7f14`（merge-base は `115f7c3`）
+- 入力: `reviews/usaturn/create-reso-world/#268-fix-issue-264-concurrency-test-overlap/` の 4 レビューファイルと `findings/*-3a6eb6d375c8.json`。候補 JSON は 4 件とも `validate`・`check-pair` を通った
+- 確認済みの一覧: `verified/3a6eb6d375c8.json`（review-verify の mode cycle。確認担当は planner 自身）。confirmed 0・not_reproduced 0・unverified 0。レビュアーが再実行しなかった負荷の検証と README の「テスト」の入口は、PR の作成の前の記録（`/workspaces/reso-world/tmp/agents/issue-264.1kdw7dgt/`）で閉じ、未確認の範囲は無い
+
+| レビューファイル | モデル | ランタイム | 担当 | レビュー HEAD | 今回再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| `claude-opus-5-5.md` | claude-opus-5-5 | claude-code | claude-opus | `3a6eb6d375c8` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | devin-swe | `3a6eb6d375c8` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | pi-deepseek | `3a6eb6d375c8` | はい | Approve |
+| `Grok-4.7.md` | Grok 4.7 256K Extra High（レビューファイルの表記は Grok 4.7） | cursor | cursor-grok47 | `3a6eb6d375c8` | はい | Approve |
+
+- 指摘の振り分け: 解消済み 0 / 対応する 0 / 対応しない 0（4 人とも active の指摘・未検証の候補が 0 件）
+  - 「対応する」項目が無いので、守る条件と影響経路の表は作らない
+- planner の確認: PR の変更ファイル（`test_runner.py` の `_SCRIPT` と `test_concurrency_bounds_whole_assignments`、この Spec、Plan）と、`peers`・`quorum`・`marker` を使う箇所（`marker` を使う他の 3 つのテスト）、関連する処理（`runner.py` の `async with semaphore` が `attempt()` を囲むこと、`process.py` の `execute()` が supervisor の子の終了の通知を受けてから返ること）を読んだ。PR の欠陥は見つからなかった
+- 結論: 2 修正不要としてマージする
+- 検証: base `main` の先端は、PR の作成の後に PR #266（`14a774b`）と PR #267（`b579ba6`）のマージで進んでいた。head `3a6eb6d` に先端 `b579ba603d371bd9887a618f53022f9b1a3b9c90` を一時の隔離 worktree で merge したツリー（競合なし。push しない）で、`bash .devcontainer/run-tests.bash` は終了コード 0（PASS: 23 test(s)）、`bash scripts/check-layout.sh` は 0、`uv run pytest tests/skills .agents/skills .agents/scripts tools` は 0（1225 passed）。検証した base は `b579ba603d371bd9887a618f53022f9b1a3b9c90`。1 回目は `14a774b` を merge したツリーで同じ 3 つが 0（1225 passed）だったが、その間に base が進んだのでやり直した（結論 2 のやり直しの 1 回目）。head だけのツリー（未 commit の変更なし）でも 3 つとも 0（PR の作成の前の記録。pytest は 1224 passed）
+- 自己レビュー: 修正が無い（結論 2）ので行っていない。`run_roles.py` も実行していない
+- 所要時間: レビュー 02:45Z〜03:04Z（約 19 分）、確認済みの一覧と計画・merge したツリーの検証 03:05Z〜03:25Z ごろ（約 20 分。base の前進によるやり直しを含む）
