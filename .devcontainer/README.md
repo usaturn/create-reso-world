@@ -28,6 +28,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | pi | `npm install -g` で本体、`pi install` で拡張。ランチャー 11 本を `~/.local/bin` に置く | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`、`curo`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`、`devs`、`devo`（alias） | `devin update`、`devin plugins update superpowers` |
+| Antigravity CLI | installer（`antigravity.google/cli/install.sh`） | `~/.gemini/antigravity-cli` | `~/.gemini/antigravity-cli` | `agd`（alias） | `agy update` |
 | Meshy CLI | `install_meshy.bash`（公式 npm `meshy-cli@0.4.0`、無認証 version / help） | — | — | — | — |
 | Context7 CLI（ctx7） | `install_ctx7.bash`（npm の `ctx7` を `CTX7_CLI_VERSION` に固定して入れ、`ctx7 --version` を確かめる。「Context7 CLI（ctx7）」の節） | — | — | — | — |
 | Gitleaks | `install_gitleaks.bash`（release の tar.gz を固定した SHA-256 で確かめて `~/.local/bin` に置く。版は CI の gitleaks ジョブと同じ） | — | — | — | — |

@@ -419,7 +419,7 @@ function update(){
     update_if_present agent agent update
     update_if_present devin devin update
     update_if_present devin devin plugins update superpowers
-    agy update
+    update_if_present agy agy update
 }
 
 

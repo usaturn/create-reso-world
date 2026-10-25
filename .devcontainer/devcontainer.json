@@ -11,7 +11,7 @@
 		"source=${localEnv:HOME}/.config/devin,target=/home/vscode/.config/devin,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.local/share/cursor-agent,target=/home/vscode/.local/share/cursor-agent,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached",
-		"source=${localEnv:HOME}/.gemini/antigravity-cli/,target=/home/vscode/.gemini/antigravity-cli/,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/.gemini/antigravity-cli,target=/home/vscode/.gemini/antigravity-cli,type=bind,consistency=cached",
 		"source=${localEnv:HOME}/.cursor,target=/home/vscode/.cursor,type=bind,consistency=cached",
 		// Cursor CLI の認証情報（~/.config/cursor/auth.json）。ログアウトはファイルを消すため、ファイルではなくディレクトリを mount する
 		"source=${localEnv:HOME}/.config/cursor,target=/home/vscode/.config/cursor,type=bind,consistency=cached",

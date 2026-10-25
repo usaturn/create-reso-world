@@ -67,7 +67,9 @@ for dir in \
     "${HOME}/.codex" \
     "${HOME}/.claude" \
     "${HOME}/.pi" \
-    "${HOME}/.cursor"; do
+    "${HOME}/.cursor" \
+    "${HOME}/.gemini" \
+    "${HOME}/.gemini/antigravity-cli"; do
     if ! ensure_user_writable_dir "$dir"; then
         fail "Failed to prepare writable directory: ${dir}"
     fi
