@@ -128,3 +128,17 @@ Expected: どれも終了コード 0（ワールドの行は対象外）。
 - [ ] **Step 4: 検証の記録を作る（`--merge`）**
 
 最後の commit の後の HEAD、そのときの `git status --porcelain` が空だったこと、各コマンドの argv・終了コード・ログの完全パスを `/workspaces/reso-world/tmp/agents/issue-265.e91podil/` に記録し、`finalize.py` の `--checks-file` の形のファイルも作る（review-fix-planning の `references/execution.md` の 3 章）。
+
+## 完了
+
+- Task 1: `5cd06f5`（2026-10-25T02:04Z）。差分は Expected どおり、表の 1 行と「SDD 実行運用」の 1 項目の置き換えだけ
+- Task 2: Step 1 は 7.0.0・7.0.1 とも `ALL PASS`（`/workspaces/reso-world/tmp/agents/issue-265.e91podil/verify-sdd-steps.log`）。対照の `mkdir -p` なしの `task-brief` は終了コード 1（`No such file or directory`）、手順どおりのコマンドはどれも終了コード 0。2 つの review package が別のファイルとして残り、2 つ目の Plan の後も 1 つ目の Plan の brief・ledger・review package の sha256 は変わらず、一時リポジトリの `git status --porcelain --ignored` と `find . -name .superpowers` は空。Step 2 は Expected どおり。Step 3 は `5cd06f5` で `run-tests.bash`（23 件 PASS）・`check-layout.sh`・`uv run pytest tests/skills .agents/skills .agents/scripts tools`（1224 passed）がどれも終了コード 0。最後の commit の後の検証は、`--merge` の検証の記録（Step 4）と PR 本文に書く
+- ブランチ全体のレビュー（新しいコンテキストの Opus のサブエージェント、02:05Z〜02:12Z）: Critical・Important は無く、マージしてよいの判定。Minor 5 件
+  - Ruling: 指摘 2（項目から `tmp/agents/<topic>.XXXXXX/` の完全なパスが消えた）を Important に上げて直した（`61b7d9a`）。旧文の括弧書きを消した退行で、項目だけを読むと worktree の中の相対パスに作りうるため
+  - Ruling: 推奨（Spec の着手時の確認 1 の「4 つとも」がどの 4 か所か分からない）は記録の誤りなので Spec を直した（`61b7d9a`）
+  - 持ち越し（Minor）: 指摘 1（テストを書かない Task で、executing-plans の「テストが通ったとき」が何を指すか書いていない。変更前から同じ）、指摘 3（PR #262 の平置きの `sdd/progress.md` で進行中の run が、マージの後に新しい規則を読むと完了済みの Task をやり直しうる。PR 本文に注意を書く）、指摘 4（「SDD は」の SDD が、節名・`sdd/` の両スキルに共通の意味とずれる）、指摘 5（「ledger（`progress.md`）」をセッション直下と読む余地）
+  - 範囲外のまま: レビュアーの「Declined to judge」の 9 件（ledger に Ruling として記録）
+- Ruling: Task 1 の完了の行の tests に、Plan の Step 3 の `git diff`（目視）ではなく `git diff --check` を使った。終了コードで判定できるコマンドにするため
+- Ruling: この run の作業領域は、この変更の規則どおり `/workspaces/reso-world/tmp/agents/issue-265.e91podil/sdd/2026-10-25-create-reso-world-issue265-sdd-workspace-steps/` に置いた（ledger・brief・review package）
+- Ruling: `superpowers:test-driven-development` は読み込まなかった。変更は文書だけで、`AGENTS.md` の「テストの採用基準」と Spec D6 によりテストを書かないため。修正は一時の確認（commit しない grep）の RED→GREEN で確かめた
+- 所要時間（着手 2026-10-25T02:00Z ごろから修正の commit まで）: 約 26 分。内訳は、入力・競合・スクリプトの確認 8 分、Spec・Plan 6 分、Task 1 が 1 分、Task 2 とブランチ全体のレビューが並行して約 21 分（README のテストの実行 約 20 分を含む）、修正 1 分
