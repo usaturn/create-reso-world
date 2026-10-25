@@ -83,7 +83,7 @@ T1・T2 で確かめない入力・失敗のうち、利用者に効きやすい
 
 **テストの要否:** T1・T2 を足す（Spec の D-178-6。T1 は以前に受け取った結果の保護と受け取り直しの経路、T2 は他者の変更を戻して消さないことの代表で、どちらも S）。初回の保存などは Step 6 の一時的な確認（L）。
 
-- [ ] **Step 1: 補助とテストを書く**
+- [x] **Step 1: 補助とテストを書く**
 
 `run_external` に `output: str = "run"` を足し、`tmp_path / output` を dispatch の出力先にする（既存の呼び出しは変えない）。
 
@@ -132,33 +132,33 @@ def test_failed_save_does_not_restore_over_a_file_another_writer_changed(
 
 docstring は周りのテストに合わせ、守ること（#178）を 1 行で書く。
 
-- [ ] **Step 2: 落ちることを確かめる**
+- [x] **Step 2: 落ちることを確かめる**
 
 Run: `uv run --locked pytest .agents/skills/review-verify/tests/test_dispatch.py -q -k "failed_save"`
 Expected: 2 件とも FAIL（今の accept は `OSError` を捕まえないので、`accept()` から `OSError` が上がる）。補助（`claim_renamed` の B、2 回目の dispatch）の誤りで落ちていないこと: 失敗の行が `accept(dispatch, second)` で、例外が注入した `OSError` であることを読む。Contingency 1・2 の判断はここで行う
 
-- [ ] **Step 3: `placed_here`・`publish` と accept の変更を実装する**
+- [x] **Step 3: `placed_here`・`publish` と accept の変更を実装する**
 
 `dispatch.py` に Interfaces のとおり実装する。`accept` の 2 回目の `require_unchanged_review` の後を、2 件の bytes を作って `publish(review_dir / "verified", [(sidecar の名前, bytes), (本体の名前, bytes)])` を呼ぶ形にし、今のコメント（sidecar を先に置く理由）を残す。`OSError` の理由の文は Spec の設計 2 のとおり（例: `saving failed (OSError EIO); review_dir is back to its state at dispatch, so accept can be retried with the same --run-dir`、`saving failed (OSError EIO); these paths differ from the state at dispatch: [...]`）。`publish` の docstring に、保証しない範囲（突然死・最後の観測の後の競合）を 1 行で書く
 
-- [ ] **Step 4: テストを通す**
+- [x] **Step 4: テストを通す**
 
 Run: `uv run --locked pytest .agents/skills/review-verify/tests/test_dispatch.py -q -k "failed_save"` の後、`uv run --locked pytest .agents/skills/review-verify -q`
 Expected: 2 passed、その後 68 passed（基準 66 + 2）
 
-- [ ] **Step 5: 静的検査**
+- [x] **Step 5: 静的検査**
 
 Run: `uvx ruff check --output-format concise .agents/skills/review-verify/scripts/dispatch.py .agents/skills/review-verify/tests/test_dispatch.py`（出力を基準の `ruff-baseline.txt` と行番号を除いて比べる）、`git diff --check`
 Expected: 新しい指摘が無い。`git diff --check` は終了コード 0
 
-- [ ] **Step 6: 一時的な確認（コミットしない）**
+- [x] **Step 6: 一時的な確認（コミットしない）**
 
 `/workspaces/reso-world/tmp/agents/issue-178.3y9w1y18/probe_accept_io.py` に、`test_dispatch.py` をパスで読み込んで fixture（`dispatch`・`scenario`・`findings_helpers`・autouse の Git の隔離・`outside_runner`）を使う pytest のファイルを書き、Review Focus の 1〜5 を確かめる。状態は `dispatch.snapshot_review` と bytes で比べる。
 
 Run: `uv run --locked --project /workspaces/reso-world/.worktrees/issue-178-accept-io-recovery pytest -c /workspaces/reso-world/.worktrees/issue-178-accept-io-recovery/pyproject.toml --rootdir /workspaces/reso-world/.worktrees/issue-178-accept-io-recovery /workspaces/reso-world/tmp/agents/issue-178.3y9w1y18/probe_accept_io.py -q`（worktree を cwd にする）
 Expected: 5 件とも PASS。ログを `probe-accept-io.log` に残す
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add .agents/skills/review-verify/scripts/dispatch.py .agents/skills/review-verify/tests/test_dispatch.py
@@ -175,16 +175,16 @@ git commit -m "fix(review-verify): restore the previous pair when accept cannot 
 
 **テストの要否:** 書かない（文書の文面の一致のテストは F）。差分を読んで、Spec の設計 2・3・4 と Task 1 の実装に一致することを確かめる。
 
-- [ ] **Step 1: 文書を直す**
+- [x] **Step 1: 文書を直す**
   - 終了コード 1: 保存の途中の `OSError` でも 1 になり、helper は自分が置いたものを置く前に戻し、保存先全体が dispatch 時と同じことを確かめてから終わる。原因を直してから同じ `--run-dir` でやり直せる（外部の担当を起動し直さない）
   - 終了コード 3（新しい項目）: 保存の途中の `OSError` の後、dispatch 時の状態に戻せなかった・確かめられなかった。違うパスをエスケープして列挙する。以前の一覧は不整合なことがあり、以前のファイルの写しは `verified/.accept-*/<名前>.previous` に残る。回復の仕方は Spec の設計 3 の「終了コード 3 のとき」
   - 「保存する結果」: 2 件同時の一括置換を保証しないことは残し、Spec の設計 3 の表（初回の保存と既存の結果の更新）と、設計 4 の保証する範囲・保証しない範囲（突然死・最後の観測の後の他者の変更・切り替えの間の読み手・永続性）を書く。戻すのは置いたときの inode と内容のままのものだけであることも書く
-- [ ] **Step 2: 照合する**
+- [x] **Step 2: 照合する**
 
 Run: `git diff -- .agents/skills/review-verify/references/fix-check.md`、`git diff --check`
 Expected: 書いた終了コード・戻し方・写しの場所が `dispatch.py` の実装と一致する。ほかの節（照合・停止確認の条件）の文を変えていない
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .agents/skills/review-verify/references/fix-check.md
@@ -195,7 +195,37 @@ git commit -m "docs(review-verify): describe accept recovery after I/O errors (#
 
 **テストの要否:** 新しいテストは書かない。README の「テスト」の入口と最終レビューで確かめる。
 
-- [ ] **Step 1: 条件ごとの照合** — 上の「要件と Task の対応」の各行について、差分・ログの該当箇所を挙げる。写しで戻したファイルの観測値が dispatch 時と同じになること（共有する条件）は、T1 の `managed_state` の一致で確かめたことを書く
-- [ ] **Step 2: 最終レビュー** — 新しいレビュアー（サブエージェント 1 つ）にブランチ全体（`origin/main...HEAD`）を渡し、Spec・Plan との一致、テストの採用基準、Review Focus、戻す対象の識別（他者の変更を戻さないこと）の正しさを確かめさせる。Critical・Important を直したら、関係する検証をやり直してから Step 1 からやり直す
-- [ ] **Step 3: 記録** — 下に「完了」の節を足し、所要時間と主要 Task 別の内訳、Task 1 の検証と一時的な確認の結果、レビューの結果を書いて commit する。これを最後の commit にする（`--merge` の検証の記録は最後の commit の後に作る）
+- [x] **Step 1: 条件ごとの照合** — 上の「要件と Task の対応」の各行について、差分・ログの該当箇所を挙げる。写しで戻したファイルの観測値が dispatch 時と同じになること（共有する条件）は、T1 の `managed_state` の一致で確かめたことを書く
+- [x] **Step 2: 最終レビュー** — 新しいレビュアー（サブエージェント 1 つ）にブランチ全体（`origin/main...HEAD`）を渡し、Spec・Plan との一致、テストの採用基準、Review Focus、戻す対象の識別（他者の変更を戻さないこと）の正しさを確かめさせる。Critical・Important を直したら、関係する検証をやり直してから Step 1 からやり直す
+- [x] **Step 3: 記録** — 下に「完了」の節を足し、所要時間と主要 Task 別の内訳、Task 1 の検証と一時的な確認の結果、レビューの結果を書いて commit する。これを最後の commit にする（`--merge` の検証の記録は最後の commit の後に作る）
 - [ ] **Step 4: README の「テスト」** — 最後の commit の後に、worktree のルートで `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` を実行する。終了コード・ログの完全パス・検証した HEAD・`git status --porcelain` が空だったことを `/workspaces/reso-world/tmp/agents/issue-178.3y9w1y18/` に記録し、`finalize.py` の `--checks-file` の形のファイルも作る。結果は PR の本文に書く（この Plan には書かない。書くと HEAD が変わる）
+
+## 完了
+
+実装・最終レビュー・その修正は完了した。README の「テスト」（Task 3 の Step 4）はこの記録の commit の後に実行し、結果は PR の本文に書く。状態は `draft` のまま（内容の承認は記録しない）。
+
+- 所要時間（2026-10-25 UTC。worktree の作成 04:24:44Z〜この記録 約 05:20Z、約 55 分。それより前の Issue・競合の確認は数分で、時刻は記録していない）
+  - 準備（対象のコード・呼び出し側・文書の調査）と Spec（`e4208fb`、〜04:41:15Z）: 約 16 分
+  - Plan（`c4da1b1`、〜04:44:12Z）: 約 3 分
+  - Task 1（`d688026`、〜04:48:39Z。一時的な確認と変異の確認は〜04:50Z）: 約 6 分
+  - Task 2（`2244006`、〜04:50:45Z）: 約 1 分
+  - 最終レビュー（opus のサブエージェント 1 回、04:52Z〜05:09Z ごろ）: 約 17 分。待つ間に、PR 修正ループの手順を読み、検証の記録のスクリプトを用意した
+  - 最終レビューの修正（`f40dd1d`・`11bd7a0`、〜05:14:01Z）と、変異・一時的な確認のやり直し: 約 6 分
+  - 記録: 約 5 分
+- 実行方式: inline（`superpowers:executing-plans`）。SDD の ledger は worktree の外の `/workspaces/reso-world/tmp/agents/issue-178.3y9w1y18/sdd/2026-10-25-create-reso-world-issue178-accept-io-recovery/progress.md` に置き、`sdd-workspace`・`task-start`・`task-done` は使わなかった（`AGENTS.md` の SDD 実行運用）
+- 条件ごとの照合（Task 3 の Step 1）
+  - A-1: T1（`test_failed_save_keeps_the_previous_pair_and_the_same_run_can_be_accepted_again`）が、2 件目の置き換えの EIO の後に終了コード 1、`managed_state(review_dir)` が accept の前と同じ、A の本体の `validate` が 0 であることを確かめる
+  - A-2: T1 の受け取り直しが 0 で、B が `validate` を通る。初回の保存は一時的な確認（終了コード 1、`verified/` が無い、受け取り直しで 0）。fix-check.md に、時点ごとの表と、終了コード 1・3 の回復の仕方
+  - A-3: T1・T2・T3 が、保存先全体か各ファイルの bytes を確かめる
+  - A-4: `git diff origin/main` の `dispatch.py` の削除行は保存の部分だけで、2 回目の `require_unchanged_review` より前は変わらない。既存の 66 件は変えずに通る。T2 で他者の内容が残る。一時的な確認で、同じ内容・別の inode の置き換えも戻さない
+  - A-5: fix-check.md の「保存する結果」に、保証する範囲（保存の処理の中の例外）と保証しない範囲（突然死・最後の観測の後の競合・切り替えの間の読み手・永続性）、`OSError` 以外の例外の扱い
+  - 共有する条件（写しで戻したファイルの観測値）: T1 の `managed_state` の一致（mode と bytes）で確かめた。最終レビューも、sidecar を 0o440 にして戻した後の snapshot の一致を確かめた
+- Task 1 の検証: RED は 2 件とも、accept から注入した `OSError` が上がって落ちた（`task1-red.log`）。GREEN は 2 passed、`.agents/skills/review-verify` は 68 passed。`uvx ruff check`（0.17.2）は基準（`c1fdc56`）と同じ 11 件で、新しい指摘は無い。`git diff --check` は 0
+- 最終レビューの修正の後: `.agents/skills/review-verify` は 69 passed（`final-suite-head.log`、HEAD `11bd7a0`）。ruff の新しい指摘は無い
+- 変異の確認（コミットしない。`mutations2.log`）: inode-only・drop-kept-copy・always-exit-1・no-post-check は T2、no-lexists-skip は T1、record-after-rename・oserror-only は T3、no-undo は 3 件とも落ちる。確かめた後に `git checkout` で戻し、worktree に差分は残っていない
+- 一時的な確認（コミットしない。`probe_accept_io.py`・`probe-accept-io-final.log`）: 8 passed。Review Focus の 1〜5（4 は最終レビューの M-2 を受けて、同じ内容・別の inode の版にした）、本体の rename の後の `OSError`（終了コード 1 で両方戻る）、`review_dir` の中の権限を直すと受け取り直しが拒否されること、成功の後に一時ディレクトリが残らないこと
+- 最終レビュー: Ready to merge: With fixes（Critical 0、Important 1、Minor 2）
+  - I-1（Important、直した）: rename が済んだ後に届く例外（Ctrl-C のシグナル、成功した後に失敗を返すファイルシステム）では、置いた記録が無いので戻さず、以前の sidecar の唯一の写しも消えた。置く前に記録し、一時ファイルが残っていれば置き換えは起きていないと判断する形にして、T3（`test_an_interrupt_after_a_rename_is_undone`）を足した（RED→GREEN）
+  - M-1（Minor を Important に格上げして直した）: `verified/` の権限など `review_dir` の中を変えて原因を直すと、受け取り直しは拒否される。Spec の設計 3 が「権限」を例に挙げていたので、fix-check.md・stderr の文・Spec を条件付きにした。文言なのでテストは足さず、一時的な確認で条件を確かめた
+  - M-2（Minor、持ち越し）: `placed_here` の inode の照合を確かめるテストが無い。現行のコードは正しく（同じ内容・別の inode で戻さないことを一時的な確認で確かめた）、守る場面は同じ run の accept の並行（競合の範囲）なので直さない
+- エージェントの判断（ledger の `Ruling:` の要点）: 最終レビューが範囲外として挙げた項目（突然死・永続性・最後の観測の後の競合・切り替えの間の読み手・呼び出し側・保存より前の traceback・一時ディレクトリの中への同じ利用者の書き込み・置き換える名前のディレクトリなど・snapshot が観測しない属性・無視できる幅）はどれも直さない。`verified/`・一時ディレクトリを作った直後に届く例外で空のディレクトリが残る幅は、直さずに文書に書いた
