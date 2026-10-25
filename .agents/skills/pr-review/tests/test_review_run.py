@@ -1406,3 +1406,78 @@ def test_ordinary_depth_one_checkout_reviews_whole_pr_without_shared_history_cha
         shared_refs(shallow) == refs
         and fetch_head.read_text() == "user-owned fetch head\n"
     )
+
+
+# --- 保存しなかった試行の片付け（Issue #134） ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["scaffold", "markdown", "findings", "no_digest", "other_attempt", "discard", "discard_extra"],
+)
+def test_abandon_session_dir_removes_only_what_prepare_left(
+    prepared: dict[str, Any], capsys: pytest.CaptureFixture[str], case: str
+) -> None:
+    # Abandoning by directory must not lose an unsaved review or another reviewer's attempt. The guard lives in
+    # pr_review_workspace.py, but prepare writes the scaffold digest it compares, so the attempt comes from prepare.
+    result = review_run.prepare(prepared["args"])
+    assert result["status"] == "prepared", result
+    session, attempt = Path(result["state_file"]).parent, result["attempt_id"]
+    if case == "markdown":
+        Path(result["draft"]).write_text("書きかけのレビュー\n", encoding="utf-8")
+    elif case == "findings":
+        findings = Path(result["findings_draft"])
+        document = json.loads(findings.read_text(encoding="utf-8"))
+        document["coverage"]["read"] = ["README.md の前半"]
+        findings.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
+    elif case == "no_digest":
+        state_path = Path(result["state_file"])
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        del state["run_context"]["findings_scaffold"]
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+    elif case == "other_attempt":
+        attempt = "f" * 32
+    elif case.startswith("discard"):
+        mark_reviewed(result)
+        if case == "discard_extra":
+            (session / "review-backup/notes.txt").write_text("利用者のメモ\n", encoding="utf-8")
+    kept = {path: path.read_bytes() for path in (session / "review-backup").iterdir()}
+    argv = ["abandon", "--session-dir", str(session), "--attempt-id", attempt]
+    if case.startswith("discard"):
+        argv.append("--discard-draft")
+    code = review_run.workspace.main(argv)
+    worktrees = git(prepared["source"], "worktree", "list", "--porcelain")
+    ref = git(prepared["source"], "for-each-ref", "refs/pr-review/repos/example/syncer/7")
+    if case in {"scaffold", "discard"}:
+        assert code == 0
+        assert json.loads(capsys.readouterr().out)["pr_ref_status"] == "deleted"
+        assert not session.exists()
+        assert str(session / "worktree") not in worktrees and ref == ""
+    else:
+        assert code == 2
+        assert session.is_dir() and str(session / "worktree") in worktrees and ref != ""
+        assert {path: path.read_bytes() for path in kept} == kept
+
+
+@pytest.mark.parametrize("drafted", [False, True])
+def test_fail_abandon_reports_what_it_removed_or_kept(
+    prepared: dict[str, Any], capsys: pytest.CaptureFixture[str], drafted: bool
+) -> None:
+    # A payload that disagrees with the disk drops a kept attempt from the caller's report, or reports a removed one.
+    result = review_run.prepare(prepared["args"])
+    assert result["status"] == "prepared", result
+    session = Path(result["state_file"]).parent
+    if drafted:
+        Path(result["draft"]).write_text("書きかけのレビュー\n", encoding="utf-8")
+    code = review_run.main(
+        ["fail", "--state", result["state_file"], "--reason", "PR の HEAD が依頼と違う", "--abandon"]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 1 and payload["status"] == "failed"
+    assert only_record(prepared["parent"])["failed_at"] == "review"
+    if drafted:
+        assert payload["cleanup"] == "failed" and payload["cleanup_details"]["error"]
+        assert payload["retained_paths"]["session_dir"] == str(session) and session.is_dir()
+    else:
+        assert payload["cleanup"] == "success" and payload["retained_paths"] is None
+        assert payload["cleanup_details"]["session_dir"] == str(session) and not session.exists()

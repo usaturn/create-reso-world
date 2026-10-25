@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -326,6 +327,8 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     workspace.artifact_model(model_name, args.review_commit)
     # 記録の名前にセッションの接尾辞を使うので、セッションの名前を先に決めて create に渡す
     session_name, suffix = record.new_session_name(int(target["number"]))
+    # 試行 ID は呼び出し元だけが知る。残った試行を abandon で指定するときの証拠になる（#134）
+    attempt_id = uuid.uuid4().hex
     temp_root = (
         Path(args.temp_root).resolve()
         if args.temp_root
@@ -373,6 +376,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
                 source_root=args.source_root,
                 temp_root=str(temp_root),
                 session_dir=str(temp_root / session_name),
+                attempt_id=attempt_id,
             )
         )
     except FAILURES as error:
@@ -400,6 +404,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             "pr_head": target["head_sha"],
             "reviewed_head": args.review_commit or target["head_sha"],
             "retained_paths": retained,
+            "attempt_id": attempt_id if retained is not None else None,
             **binding,
             "status": "failed",
             "reason": str(error),
@@ -425,6 +430,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             "reviewer": reviewer,
             "skill": skill,
             "run_record": record.record_relative(target, started_at, model_name, suffix),
+            "attempt_id": attempt_id,
         }
         state["run_context"] = context
         workspace.write_json(state_file, state)
@@ -491,9 +497,15 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             "records": record.records_input(decision_state),
             "diff": record.diff_input(worktree, str(base), state["commit"]),
         }
+        findings_draft = Path(session["findings_draft"])
+        workspace.write_json(findings_draft, document)
+        # abandon は、この digest と同じ雛形だけを helper のものとして消す。digest の前に止まれば雛形を残す
+        context["findings_scaffold"] = {
+            "name": findings_draft.name,
+            "sha256": workspace.file_digest(findings_draft),
+        }
         context["prepared_monotonic"] = time.monotonic()
         workspace.write_json(state_file, state)
-        workspace.write_json(Path(session["findings_draft"]), document)
     except (OSError, ValueError, RuntimeError) as error:
         return {
             **result_fields(state),
@@ -504,6 +516,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             "pr_number": target["number"],
             "pr_head": session["pr_head"],
             "reviewed_head": session["reviewed_head"],
+            "attempt_id": attempt_id,
             "state_file": str(state_file),
             "retained_paths": retained_paths(
                 {
@@ -528,6 +541,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
         **session,
         **binding,
         "status": "prepared",
+        "attempt_id": attempt_id,
         "repository": target["repository"],
         "pr_number": target["number"],
         "pr_url": target["url"],
@@ -569,6 +583,7 @@ def result_fields(state: dict[str, Any] | None = None) -> dict[str, Any]:
         "pr_number": (state or {}).get("pr_number"),
         "pr_head": (state or {}).get("pr_head"),
         "reviewed_head": (state or {}).get("commit"),
+        "attempt_id": context.get("attempt_id"),
         "review_file": None,
         "findings_file": None,
         "active_findings": None,
@@ -788,6 +803,11 @@ def parser() -> argparse.ArgumentParser:
     failure.add_argument("--state")
     failure.add_argument("--request")
     failure.add_argument("--reason", required=True)
+    failure.add_argument(
+        "--abandon",
+        action="store_true",
+        help="記録の後に、未保存の draft が無ければ prepare が作った試行を消す（--state が要る）",
+    )
     runner = commands.add_parser(
         "attach-runner", help="ランナーの result.json の観測値を実行記録に結び付ける"
     )
@@ -818,6 +838,19 @@ def fail_review(parent: Path, state: Mapping[str, Any], reason: str) -> dict[str
     return record_fields(path, error or located)
 
 
+def abandon_stopped(state_file: str) -> dict[str, Any]:
+    """fail --abandon: 止めた試行を abandon と同じ条件で消す。消せなければ残し、理由を返す（#134）。"""
+    try:
+        session_dir = Path(state_file).resolve(strict=True).parent
+        attempt_id = workspace.journal_attempt(session_dir / workspace.JOURNAL_NAME)
+        if attempt_id is None:
+            raise workspace.WorkspaceError("create journal names no attempt; keep the session")
+        details = workspace.abandon_session_dir(session_dir, attempt_id)
+    except FAILURES as error:
+        return {"cleanup": "failed", "cleanup_details": {"error": str(error)}}
+    return {"cleanup": "success", "cleanup_details": details, "retained_paths": None}
+
+
 def attach_runner(result_path: Path) -> dict[str, Any]:
     """書き先は親の main worktree の reviews/ の実行記録だけ。worker が返したパスは使わない。"""
     try:
@@ -844,11 +877,15 @@ def main(argv: list[str] | None = None) -> int:
         if getattr(args, "state", None):
             parent, state = workspace.load_state(args.state)
         if args.command == "fail":
+            if args.abandon and state is None:
+                raise workspace.WorkspaceError("fail --abandon requires --state")
             result = {**result_fields(state), "status": "failed", "reason": args.reason}
             if args.request:
                 result.update(request_binding(args.request))
             if parent is not None and state is not None:
                 result.update(fail_review(parent, state, args.reason))
+                if args.abandon:
+                    result.update(abandon_stopped(args.state))
         else:
             result = args.handler(args)
     except FAILURES as error:
@@ -862,7 +899,8 @@ def main(argv: list[str] | None = None) -> int:
             result["state_file"] = args.state
         if parent is not None and state is not None:
             result.update(record_fields(*locate_record(parent, state)))
-    if result["status"] == "failed" and state is not None:
+    # fail --abandon で消した試行のパスを、残したものとして返さない
+    if result["status"] == "failed" and state is not None and result.get("cleanup") != "success":
         result["retained_paths"] = retained_paths(state)
     result.setdefault("run_record", None)
     print(json.dumps(result, ensure_ascii=False, indent=2))
