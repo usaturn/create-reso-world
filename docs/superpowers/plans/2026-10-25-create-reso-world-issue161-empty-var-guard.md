@@ -128,3 +128,34 @@ Expected: それぞれ終了コード 0。失敗したら `c1fdc56` のベース
 - 文書から写した形の実行で期待と違う結果が出たら: `printf '%s\n'` でシェルの展開を確かめ、原因を Spec に書く。直せなければ停止する
 - 競合（同じ Issue の PR・予約）が見つかったら: push・PR をせずに停止する
 - push の前の検査で検出したら: `AGENTS.md` の「push の前の秘密情報の検査」に従う
+
+## 完了
+
+状態は draft のまま（内容の承認は無い）。Task 1・2 を完了し、公開（Task 3）と PR 修正ループ（Task 4）に進む。
+
+- Task 1: `2707500`（2 ファイル、14 行追加・12 行削除）。編集の前の確かめは 12 の形とも新しい形が無く失敗し、編集の後は 106 件が通った。`git diff --check` は終了コード 0
+- Task 2: 3 つの確かめ（文書の形の実行・`finalize.py`・変えないもの）は Spec の「検証の結果」のとおり。全体レビュー（Opus、約 18 分）は Critical 0・Important 0・Minor 4 で、Ready to merge は Yes
+  - Minor 1 は Important に付け直して直した（`8627f97`）。「付ける」は 11 の呼び出しになった。確かめに足した形（S10）は修正の前に失敗し、修正の後は 115 件が通った
+  - Minor 2 は Spec の理由を直し、Minor 3 は変えず、Minor 4 は持ち越し候補にした（下の「判断の記録」）
+
+### 判断の記録（Rulings）
+
+- Task 1: Task 2 の Step 1 の script を Task 1 の編集の前に書いて実行し、失敗するのを確かめてから編集した（TDD の順）。誤りの影響は無い（同じ script・同じ検証で、順が入れ替わるだけ）
+- Final: Minor 1（`worktree add "$FIX_WT" "$HEAD_BRANCH"` の `REPO_MAIN`）を Important に付け直して直した。この PR が足した規則の対象そのもので、Spec の「止まる」が事実と違ったため。誤りの影響は小さい（`${REPO_MAIN:?}` を 1 か所足しただけで、値があるときの挙動は変わらない）
+- Final: Minor 2 は、Spec の S2 の行の理由を「push の前の共通 context の再実行を飛ばしたときの二重の守り」に直した。SKILL.md の規則の文は広げない。規則の文は、push の先を決める呼び出しも「書き込みの対象の PR を変数で指定」として読める。誤りの影響は、規則の文の読み方の幅が残ること
+- Final: Minor 3（`rm -rf -- "$REPRO_ROOT"`）は変えない（Spec の決定記録のとおり）。誤りの影響は、`AGENTS.md` の「削除」の規則との不一致が残ること
+- Final: レビューの Declined to judge（他のスキル、evals の期待値、テストを書かないこと、fetch、報告用の `gh pr view`、実際の GitHub での空のセレクタ、`GH_REPO`、Task 2 の Step 6 以降、写しでの `test_run_roles.py` の 3 件）は変えない。どれも Spec の範囲外か、Spec・Plan で決めたとおりである。写しの 3 件は `.git` の無い写しによるもので、base の写しでも同じだった。README のテストは Task 3 で実際の worktree で実行する
+
+### 持ち越し候補
+
+- 共通 context の再実行で `CODE_ROOT` を渡し忘れると、既知の経路の既定で `MAIN_ROOT` が親の checkout になり、`git -C "${MAIN_ROOT:?}" cherry-pick` などが親の detached HEAD を動かす（全体レビューの Minor 4。レビュアーが再現した）。空の値とは別の既存の経路で、push の前の再実行（`HEAD_REPO`・`HEAD_BRANCH` 付き）が止めるので remote には書き込まれない
+- `.agents/skills/review-fix-planning/evals/evals.json` の結論 2 の期待値は、#155 の前の手順（`gh pr merge` を手で実行する）のまま
+
+### 実行予算と時間
+
+目安 300 分に対し、05:23Z の時点で約 58 分。
+
+- 着手の確認・worktree の作成・ベースラインの検証・調査と再現（04:25〜04:46）: 約 21 分（ベースラインは並行）
+- Spec・Plan（04:46〜04:51）: 約 5 分
+- Task 1（04:51〜04:56）: 約 5 分（確かめの script を含む）
+- Task 2（04:56〜05:23）: 約 27 分（全体レビュー 04:57〜05:16 の約 19 分、Minor 1 の修正と記録 約 7 分）

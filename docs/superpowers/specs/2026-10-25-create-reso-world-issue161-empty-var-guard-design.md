@@ -90,3 +90,24 @@ Issue は結論 2 の手順 8 の `gh pr merge` を対象にしていたが、#1
 2. **`finalize.py`**: 起動を記録して失敗を返す runner を渡し、記録の `pr.number`（空・0・null）、`pr.repository`（空）、`reviewed_head`（空）、`--spec-commit ""` のそれぞれで、`gh` を起動せずに `stopped` になる。正しい記録では `gh pr view` を起動する（対照）
 3. **変えないもの**: 「調べた呼び出し」の「変えない」の git の行が、空の値で止まるか同じリポジトリを対象にする（一時リポジトリでの再現）
 4. `README.md` の「テスト」のコマンド（ワールドの行を除く）と `git diff --check` が終了コード 0
+
+## 検証の結果
+
+2026-10-25、`2707500`（Task 1）と `8627f97`（全体レビューの後の修正）で確かめた。bash 5.3.9・zsh 5.9・git 2.55.0・gh 2.101.0・gitleaks 8.30.1。script とログはセッションディレクトリ `/workspaces/reso-world/tmp/agents/issue-161.4te9xs1z/repro/` にある（コミットしない）。
+
+| 確かめ | 結果 |
+|---|---|
+| 1. 文書の形の実行（`verify-doc-forms.bash`） | 編集の前は、新しい形が文書に無いので失敗した（最初の 12 の形と、レビューの後に足した `worktree add` の形のそれぞれ）。編集の後は 115 件すべて通った（文書の照合 13、git の 9 つの形 × bash・`zsh -f` × A〜D、`gh` の 3 つの形 × bash・`zsh -f` × 5 つの変数の状態） |
+| A・B（新しい形・未設定／空文字列） | どれも起動の前に止まった。bash は `<VAR>: parameter null or not set`（終了コード 127。push は `$()` の中で止まるので 1）、zsh は `<VAR>: parameter not set`（1）。checkout・ブランチ・index・worktree・origin の状態は変わらず、偽の `gh` は起動されなかった（番号か `--repo` の片方だけが空のときも） |
+| C（旧い形・未設定） | 「調べた呼び出し」の「空のとき」のとおり書き換えた。親の checkout の detached HEAD が PR の head へ動いた（`merge --ff-only`）。別の worktree では、HEAD が index の内容ごと作り直され（`commit --amend`）、PR の head へ動き（`reset --keep`）、変更が捨てられ（`restore`）、担当の commit が載り（`cherry-pick`）、index に Spec が載った（`add`）。別のリポジトリでは同じ名前のブランチが消え（`branch -D`）、worktree ができた（`worktree add`）。積んだ checkout の HEAD が PR の head ブランチに push された。偽の `gh` は空のセレクタ・空の `--repo` で起動された |
+| D（値あり） | git の 9 つの形は、新旧で終了コード 0・同じ状態。`gh pr view`・`gh pr comment` は新旧で同じ引数、`gh pr edit` は新しい形が番号と `--repo` を付けて起動した |
+| 2. `finalize.py`（`finalize-empty-values.py`） | 記録の `pr.number` が空・0・null、`pr.repository` が空、`reviewed_head` が空のとき `environment: 状況記録が不正で最終化を開始できない`、`--spec-commit ""` のとき `environment: --spec-commit が完全なcommit SHA（小文字の16進数40桁か64桁）ではない` で、どれも `gh` を 0 回起動して `stopped`（`merged: null`）。正しい記録では、最初に `gh pr view 900 --repo usaturn/create-reso-world ...` を起動した |
+| 3. 変えないもの（`git-empty-vars.bash` の後半） | 別のリポジトリでの `worktree add`（commit を指定した 4 つの形）・`worktree remove --force`・空の refspec の `fetch`、空の値の `merge --ff-only`・`branch -D`・`reset --keep` は終了コード 1・128 で止まり、別のリポジトリのブランチは残った。`rm -rf -- ''` は終了コード 0 で何も消さなかった。同じリポジトリでも、`worktree add -b x <path> ''`・`worktree add <path> ''` は `invalid reference` で止まった |
+| 4. `git diff --check`・`README.md` の「テスト」 | `git diff --check` は終了コード 0。README のテストは最後の commit の後に実行するので、結果は PR 本文と、セッションディレクトリの `verification/record.md` に書く |
+
+全体レビュー（新しい文脈のサブエージェント、Opus、`c1fdc56..2707500`）は Critical 0・Important 0・Minor 4 で、Ready to merge は Yes。Review Focus の 5 件はどれも確かめられ、レビュアーの再実行でも 106 件が通った。
+
+- Minor 1（`worktree add "$FIX_WT" "$HEAD_BRANCH"` は、`REPO_MAIN` が空で、cwd が同じ名前のブランチを持つ別のリポジトリだと止まらない）: この PR が足した規則の対象そのもので、この Spec の「止まる」も事実と違ったので、Important に付け直して直した（`8627f97`。「調べた呼び出し」に行を足した）
+- Minor 2（S2 の理由が、push の前の共通 context の再実行による照合を書き落としていた）: 「調べた呼び出し」の理由を直した。規則の文は変えない
+- Minor 3（`rm -rf -- "$REPRO_ROOT"` が `AGENTS.md` の「削除」に合わない）: 決定記録のとおり変えない
+- Minor 4（共通 context の再実行で `CODE_ROOT` を渡し忘れると、`MAIN_ROOT` が親の checkout になり、`cherry-pick` などが親の detached HEAD を動かす）: 空の値とは別の既存の経路なので、この PR では直さず、持ち越し候補にする
