@@ -1,6 +1,6 @@
 ---
 name: issue-to-pr
-description: "Issue の URL・#番号を指定して『着手して』『実装して PR まで』『推奨案で進めて』と依頼されたときに使う。PR の番号・URL、PR レビュー・レビュー指摘の修正計画、ボードの親 Issue からの子の選択には使わない。ワールドのプロジェクト（`worlds/<name>/` と従来位置）を cwd にしているときや、Issue がワールドの作業のときも使わない（そのプロジェクトで branch・PR を使わずに進める）。"
+description: "Issue の URL・#番号を指定して『着手して』『実装して PR まで』『推奨案で進めて』と依頼されたときに使う。PR の番号・URL、PR レビュー・レビュー指摘の修正計画、ボードの親 Issue からの子の選択には使わない。ワールドのプロジェクト（`worlds/<name>/` と従来位置）を cwd にしているときや、Issue がワールドの作業のときも使わない（そのプロジェクトを cwd にして、その `AGENTS.md` に従って進める）。"
 argument-hint: "<Issue> [--implement AGENT] [--merge [--max-cycles N] [--assign ROLE=AGENT[,AGENT]]... [--template PATH] [--config PATH]]"
 ---
 
@@ -52,7 +52,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
    git -C "$PARENT_ROOT" remote get-url origin
    ```
 
-3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`、`#12 --merge --max-cycles 2 途中で止めずに` なら `#12 --merge --max-cycles 2`）。語を足したり並べ替えたりしない。現在の checkout を cwd として、読み取り専用の helper を実行する。
+3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`、`#12 --merge --max-cycles 2 途中で止めずに` なら `#12 --merge --max-cycles 2`）。語を足したり並べ替えたりしない。読み取り専用の helper を、起動したときの cwd のまま（checkout のルートへ `cd` せずに）実行する。
 
    ```bash
    uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" -- "$INPUT"
@@ -100,14 +100,14 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
    worktree を作る直前と、push・PR の作成の前に、Issue の状態と競合を調べ直す。新しい競合や close があれば止まり、この run で作った worktree・branch と他者の作業を区別して報告する。
 7. ボードの子（GitHub の親 Issue があり、子か親の本文にボードのキーがある）は **`planning-parallel-issues` 必須**。予約・先行条件・成果の公開・所有権の再確認・解放はそちらに従い、このスキルに写さない。親からの子の選択は担当外。
 
+`gh issue`・`gh pr` には毎回 `--repo` を付ける。`gh api` は `--repo` を受け付けないので、`repos/<owner>/<repo>/...` の完全な endpoint で対象を固定し、一覧は `--paginate` で取る。
+
 ### ワールドの作業で止まったとき
 
-worktree・branch・Spec・Plan・PR を作らない（ワールドのプロジェクトは git の追跡対象外で worktree に実体が無く、`Closes #N` の PR をマージすると、ワールドの作業が済まないまま Issue が閉じる）。ワールドの作業は、そのプロジェクトを cwd にし、プロジェクトの `AGENTS.md` に従って branch・PR を使わずに進める（`AGENTS.md` の「プロジェクト運用」）。リポジトリのファイルを変える作業なら、checkout のルートで起動し直す。
+worktree・branch・Spec・Plan・PR を作らない（ワールドのプロジェクトは create-reso-world の git の追跡対象外で worktree に実体が無く、`Closes #N` の PR をマージすると、ワールドの作業が済まないまま Issue が閉じる）。ワールドの作業は、そのプロジェクトを cwd にし、プロジェクトの `AGENTS.md` に従って進める（独自の `.git` を持たないプロジェクトでは branch・PR を使わない。`AGENTS.md` の「プロジェクト運用」）。リポジトリのファイルを変える作業は、checkout のルートで起動し直す。両方を含む Issue は、ワールドの作業とリポジトリの変更に分けるよう伝える。
 
 - 利用者が明示して起動した run（`/issue-to-pr`、Pi の `/skill:issue-to-pr`・`/sp-brainstorm`）: 理由と進め方を伝えて終える。ワールドの作業には進まない
 - モデルが自分の判断でこのスキルを選んだ run: このスキルを離れる。cwd がその Issue のワールドのプロジェクトなら、ワールドの作業として進める。そうでなければ進め方を伝えて終える
-
-`gh issue`・`gh pr` には毎回 `--repo` を付ける。`gh api` は `--repo` を受け付けないので、`repos/<owner>/<repo>/...` の完全な endpoint で対象を固定し、一覧は `--paginate` で取る。
 
 ## 3. Herdr と作業場所
 
