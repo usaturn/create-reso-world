@@ -1,6 +1,6 @@
 ---
 name: issue-to-pr
-description: "Issue の URL・#番号を指定して『着手して』『実装して PR まで』『推奨案で進めて』と依頼されたときに使う。PR の番号・URL、PR レビュー・レビュー指摘の修正計画、ボードの親 Issue からの子の選択には使わない。"
+description: "Issue の URL・#番号を指定して『着手して』『実装して PR まで』『推奨案で進めて』と依頼されたときに使う。PR の番号・URL、PR レビュー・レビュー指摘の修正計画、ボードの親 Issue からの子の選択には使わない。ワールドのプロジェクト（`worlds/<name>/` と従来位置）を cwd にしているときや、Issue がワールドの作業のときも使わない（そのプロジェクトを cwd にして、その `AGENTS.md` に従って進める）。"
 argument-hint: "<Issue> [--implement AGENT] [--merge [--max-cycles N] [--assign ROLE=AGENT[,AGENT]]... [--template PATH] [--config PATH]]"
 ---
 
@@ -52,7 +52,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
    git -C "$PARENT_ROOT" remote get-url origin
    ```
 
-3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`、`#12 --merge --max-cycles 2 途中で止めずに` なら `#12 --merge --max-cycles 2`）。語を足したり並べ替えたりしない。現在の checkout を cwd として、読み取り専用の helper を実行する。
+3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`、`#12 --merge --max-cycles 2 途中で止めずに` なら `#12 --merge --max-cycles 2`）。語を足したり並べ替えたりしない。読み取り専用の helper を、起動したときの cwd のまま（checkout のルートへ `cd` せずに）実行する。
 
    ```bash
    uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" -- "$INPUT"
@@ -60,6 +60,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
 
    - 受け付ける表記: `https://github.com/<owner>/<repo>/issues/N`、`<owner>/<repo>#N`、`#N`（**現在の checkout の origin** で解決する。番号からリポジトリを推測しない）。対象は usaturn/create-reso-world・usaturn/resoloop・usaturn/resoloop-meshy だけ
    - 成功: 終了コード 0、`repo`・`number`・`url`・`title`・`body`・`merge`・`implement` の JSON。`merge` は `--merge` が無ければ `null`、あれば `{"loop_args": [...]}`（利用者が書いた順のループ用のオプション。パスは絶対パス）。`implement` は `--implement` の値か `null`。**最初に `repo` と `title` を利用者に表示する。** 失敗: 終了コード 2 と stderr の理由。副作用に進まずに止まる
+   - cwd が git の追跡しないディレクトリ（ワールドのプロジェクトなど）の中にあると（`git check-ignore -q .` が成功する）、helper は入力を読む前に終了コード 2 で止まる。下の「ワールドの作業で止まったとき」に従う
    - helper は入力の検証と Issue の確認だけで、競合・予約・承認を確かめた証拠にはならない
    - `merge` が `null` でなければ、続けて `PARENT_ROOT` の `loop.py` で、ループ用のオプションと agent-runner の設定を検査する。`loop_args` の要素を順に、それぞれ 1 つの引数として渡す（空なら引数なし）。
 
@@ -78,7 +79,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
 
      終了コード 0 なら、出力の `assignment`（`agents`・`fallback`）と `self` を Spec の決定記録に写す（雛形の既定の `self` は既定の適用と書き、利用者の指定と書かない）。終了コード 2 なら `reason` を利用者に伝えて止まる（設定に無い agent、`agents` が 2 つ以上、`implement` の役割の `writes = false` など）。worktree・Herdr・予約のどれにも触れない。
 
-4. 本文、全ページのコメント、依存関係を読む。本文が利用者の承認・判断を求めていて、決定の記録が無ければ、推奨案での委任で代えずに止まる。
+4. 本文、全ページのコメント、依存関係を読む。本文が利用者の承認・判断を求めていて、決定の記録が無ければ、推奨案での委任で代えずに止まる。Issue がワールドのプロジェクト（`worlds/<name>/` と従来位置）の中身を変える作業を含むときも止まり、下の「ワールドの作業で止まったとき」に従う（雛形の `templates/world-project/` や `scripts/new-world.sh` など、追跡するファイルの変更は当たらない）。
 5. 実装の対象 `TARGET_REPO` を決める。既定は helper の `repo`。本文が実装の対象を明記していれば（「実装の対象: usaturn/resoloop」など）それに従う。3 つの外なら止まる。`merge` があり、`TARGET_REPO` が usaturn/resoloop-meshy なら止まる（ループが `CODE_ROOT` なしで checkout を決められず、`finalize.py` がマージしてよい範囲の外）。`--merge` を外して指示し直せることを伝える。`TARGET_REPO` の行で checkout（`TARGET_ROOT`）と remote を確かめる。checkout が無い・remote が違うときは「無いとき」の案内をして止まる。checkout を探したり clone したりしない。
 
    | `TARGET_REPO` | `TARGET_ROOT` | 確かめる remote | 無いとき | 検証の入口 | CI |
@@ -100,6 +101,13 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
 7. ボードの子（GitHub の親 Issue があり、子か親の本文にボードのキーがある）は **`planning-parallel-issues` 必須**。予約・先行条件・成果の公開・所有権の再確認・解放はそちらに従い、このスキルに写さない。親からの子の選択は担当外。
 
 `gh issue`・`gh pr` には毎回 `--repo` を付ける。`gh api` は `--repo` を受け付けないので、`repos/<owner>/<repo>/...` の完全な endpoint で対象を固定し、一覧は `--paginate` で取る。
+
+### ワールドの作業で止まったとき
+
+worktree・branch・Spec・Plan・PR を作らない（ワールドのプロジェクトは create-reso-world の git の追跡対象外で worktree に実体が無く、`Closes #N` の PR をマージすると、ワールドの作業が済まないまま Issue が閉じる）。ワールドの作業は、そのプロジェクトを cwd にし、プロジェクトの `AGENTS.md` に従って進める（独自の `.git` を持たないプロジェクトでは branch・PR を使わない。`AGENTS.md` の「プロジェクト運用」）。リポジトリのファイルを変える作業は、checkout のルートで起動し直す。両方を含む Issue は、ワールドの作業とリポジトリの変更に分けるよう伝える。
+
+- 利用者が明示して起動した run（`/issue-to-pr`、Pi の `/skill:issue-to-pr`・`/sp-brainstorm`）: 理由と進め方を伝えて終える。ワールドの作業には進まない
+- モデルが自分の判断でこのスキルを選んだ run: このスキルを離れる。cwd がその Issue のワールドのプロジェクトなら、ワールドの作業として進める。そうでなければ進め方を伝えて終える
 
 ## 3. Herdr と作業場所
 
@@ -225,7 +233,7 @@ PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文�
 
 ## 停止時の報告
 
-不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、`--merge` で `TARGET_REPO` が usaturn/resoloop-meshy、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
+不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が usaturn/resoloop-meshy、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
 
 検査で止まったら、どの worktree も push せず、PR を作らない。`AGENTS.md` の「push の前の秘密情報の検査」の条件を満たす検出なら、その commit を直し、検証（`--merge` のときは検証の記録も）と、公開するすべての worktree の検査をやり直して続ける。条件を満たさない検出では止まり、回避しない。gitleaks は自分で導入せず、`bash "$PARENT_ROOT/.devcontainer/install_gitleaks.bash"` での導入を次の操作として報告する。検査が全部通った後の push や PR の作成が失敗して一部だけ公開されたら、公開済みの branch・PR を報告し、取り消さない。
 

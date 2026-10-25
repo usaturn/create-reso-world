@@ -150,6 +150,19 @@ def unchanged(checkout: Path, before: bytes) -> bool:
     )
 
 
+def test_refuses_to_start_from_a_directory_git_does_not_track(checkout: Path, gh_stub: Path) -> None:
+    """ワールドのプロジェクトは git の追跡対象外で worktree に実体が無い。進むと Spec・Plan だけの PR ができ、
+    その Closes #N でワールドの作業が済まないまま Issue が閉じる（#137）。下の階層からでも Issue を読む前に止まる。"""
+    (checkout / ".gitignore").write_text("worlds/\n", encoding="utf-8")
+    below_world = checkout / "worlds" / "slum02" / "tests"
+    below_world.mkdir(parents=True)
+    before = subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout)
+    result = resolve(below_world, "#42 --merge")
+    assert_rejected(result)
+    assert not gh_stub.exists()
+    assert unchanged(checkout, before)
+
+
 @pytest.mark.parametrize(
     ("argument", "loop_args"),
     [

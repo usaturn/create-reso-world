@@ -1,4 +1,7 @@
-"""Resolve an open GitHub Issue and the issue-to-pr options (--implement, --merge and the loop options) without modifying Git or GitHub state."""
+"""Resolve an open GitHub Issue and the issue-to-pr options (--implement, --merge and the loop options) without modifying Git or GitHub state.
+
+Refuses to start from a directory Git does not track, such as a world project under worlds/.
+"""
 
 from __future__ import annotations
 
@@ -46,6 +49,24 @@ def run_readonly(*args: str, cwd: Path | None = None) -> str:
     if result.returncode:
         raise ValueError(f"{args[0]} の読み取りに失敗: {result.stderr.strip()}")
     return result.stdout.strip()
+
+
+def require_tracked_cwd(cwd: Path) -> None:
+    """cwd が git の追跡しないディレクトリ（ワールドのプロジェクトなど）の中なら止める。
+
+    ワールドのプロジェクトは worktree に実体が無く、進むと Spec・Plan だけの PR の Closes #N で、
+    ワールドの作業が済まないまま Issue が閉じる（#137）。確かめられないときも止める。
+    """
+    result = subprocess.run(("git", "check-ignore", "-q", "."), cwd=cwd, capture_output=True, text=True, timeout=60)
+    if result.returncode == 1:
+        return
+    if result.returncode == 0:
+        raise ValueError(
+            f"cwd（{cwd}）は git が追跡しないディレクトリ（ワールドのプロジェクトなど）の中にあります。"
+            "ワールドの作業は、そのプロジェクトで branch・PR を使わずに進めます（AGENTS.md の「プロジェクト運用」）。"
+            "リポジトリのファイルを変える作業は、checkout のルートで起動し直してください"
+        )
+    raise ValueError(f"cwd（{cwd}）を git が追跡するかを確かめられません: {result.stderr.strip()}")
 
 
 class ParsedInput(NamedTuple):
@@ -197,6 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
+        require_tracked_cwd(Path.cwd())
         parsed = parse_input(args.input, Path.cwd())
         payload = {
             **fetch_issue(*resolve_target(parsed.reference, Path.cwd())),
