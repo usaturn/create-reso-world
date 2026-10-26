@@ -84,7 +84,7 @@ PY
    ```bash
    REPRO_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/review-fix-planning.XXXXXX")"
    WT="$REPRO_ROOT/worktree"
-   git -C "$MAIN_ROOT" worktree add --detach "$WT" "$REVIEWED_HEAD"
+   git -C "${MAIN_ROOT:?}" worktree add --detach "$WT" "$REVIEWED_HEAD"
    test "$(git -C "$WT" rev-parse HEAD)" = "$(git -C "$MAIN_ROOT" rev-parse "$REVIEWED_HEAD^{commit}")"
    ```
 
@@ -142,6 +142,8 @@ PR_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r .base_remote)
 HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 ```
 
+書き込みの対象の PR・リポジトリ・checkout を変数で指定し、その変数が空だと別の対象を書き換える呼び出しは、変数を `${VAR:?}` で書く。`gh` は空の番号で cwd のブランチの PR を、空の `--repo` で cwd のリポジトリを、`git -C ""` は cwd の checkout を対象にするので、呼び出しを分けるときも `:?` を外さない。
+
 ## 専用の worktree
 
 完遂では、自己レビューの役割（`run_roles.py`）の外で `pr-review` スキルを使わず、PR の head ブランチを checkout した専用の worktree で、修正・Spec のコミット（PR が create-reso-world のとき）・push を行う。計画のみと、実装後だけの依頼では作らない。
@@ -150,23 +152,23 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 2. PR の head を取得して SHA を照合し、checkout 済みの worktree を調べる。fork からの PR でも `pull/<N>/head` で取れる。
 
    ```bash
-   REPO_MAIN="$MAIN_ROOT"
+   REPO_MAIN="${MAIN_ROOT:?}"
    FIX_WT="$PARENT_ROOT/.worktrees/$(printf '%s' "$PR_REPO" | tr / -)-pr${PR_NUMBER}-review-fix"
    git -C "$REPO_MAIN" fetch "$PR_REMOTE" "pull/$PR_NUMBER/head"
    test "$(git -C "$REPO_MAIN" rev-parse FETCH_HEAD)" = "$HEAD_SHA" || {
      printf 'PR head differs from gh pr view headRefOid; re-read the PR before creating the worktree\n' >&2
      exit 66
    }
-   git -C "$REPO_MAIN" worktree list --porcelain
+   git -C "${REPO_MAIN:?}" worktree list --porcelain
    ```
 
 3. `branch refs/heads/$HEAD_BRANCH` を持つ worktree の有無で、次のどれかにする。
-   - どこでも checkout されておらず、ローカルブランチも無い: `git -C "$REPO_MAIN" worktree add -b "$HEAD_BRANCH" "$FIX_WT" "$HEAD_SHA"`
-   - ローカルブランチはあるが checkout されていない: `git -C "$REPO_MAIN" merge-base --is-ancestor "$HEAD_BRANCH" "$HEAD_SHA"` が成功するときだけ、`git -C "$REPO_MAIN" worktree add "$FIX_WT" "$HEAD_BRANCH"` の後に `git -C "$FIX_WT" merge --ff-only "$HEAD_SHA"`
+   - どこでも checkout されておらず、ローカルブランチも無い: `git -C "${REPO_MAIN:?}" worktree add -b "$HEAD_BRANCH" "$FIX_WT" "$HEAD_SHA"`
+   - ローカルブランチはあるが checkout されていない: `git -C "$REPO_MAIN" merge-base --is-ancestor "$HEAD_BRANCH" "$HEAD_SHA"` が成功するときだけ、`git -C "${REPO_MAIN:?}" worktree add "$FIX_WT" "$HEAD_BRANCH"` の後に `git -C "${FIX_WT:?}" merge --ff-only "$HEAD_SHA"`
    - 別の worktree で checkout されている: その worktree の `git status --porcelain` が空で、HEAD が `$HEAD_SHA` なら、それを `FIX_WT` として使う（片付けの対象にしない）
    - それ以外（ローカルブランチが PR に無いコミットを持つ、未コミットの変更がある、`FIX_WT` のパスが既にある）は、触らずに結論 3 にする
 4. `CODE_ROOT="$FIX_WT"` とし、`HEAD_REPO`（`headRepositoryOwner` と `headRepository` の owner/name）と `HEAD_BRANCH` を設定して共通 context を再実行する。返る `MAIN_ROOT` は `FIX_WT` であり、以後の commit・push はそこで行う。
-5. **片付け:** 結論 1 の push 後、結論 2 のマージ後、結論 3 の停止時（未コミットの変更が無いとき）に、このセッションが作った worktree を `git -C "$REPO_MAIN" worktree remove "$FIX_WT"` で外す（`--force` を付けない。失敗したら残して報告する）。このセッションが手順 3 の `-b` で作ったローカルブランチは、先端が push またはマージした head の SHA か、作成時の head の SHA（結論 3 でコミットを残さなかったとき）と同じことを確かめてから `git -C "$REPO_MAIN" branch -D "$HEAD_BRANCH"` で消す。残すと、PR の head が rebase された後の完遂が手順 3（PR に無いコミット）で止まる。
+5. **片付け:** 結論 1 の push 後、結論 2 のマージ後、結論 3 の停止時（未コミットの変更が無いとき）に、このセッションが作った worktree を `git -C "$REPO_MAIN" worktree remove "$FIX_WT"` で外す（`--force` を付けない。失敗したら残して報告する）。このセッションが手順 3 の `-b` で作ったローカルブランチは、先端が push またはマージした head の SHA か、作成時の head の SHA（結論 3 でコミットを残さなかったとき）と同じことを確かめてから `git -C "${REPO_MAIN:?}" branch -D "$HEAD_BRANCH"` で消す。残すと、PR の head が rebase された後の完遂が手順 3（PR に無いコミット）で止まる。
 
 ## 守る条件と影響経路
 
@@ -223,7 +225,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 ## 三択の結論
 
-完遂では、手順 1–6 の後に次のどれか 1 つを完了させる。結論 1・2 では、「対応しない」とした指摘のうち実在する制約（直さないが事実として起こるもの）が PR の説明の保証と食い違うなら、PR の説明の既知の制限に条件と回避方法を書き足す（`gh pr edit --body-file`）。同じ論点が次のレビューで繰り返し挙がるのを防ぐためである。どの結論でも、PR が open で判断の記録を読めた場合は、記録付きで状況を投稿する（下記「作業終了前の PR 投稿」。記録の結果は結論 1 が `fixes_pushed`、結論 2 が `no_fix_needed`、結論 3 が `stopped`）。ただし下記「マージしてよい範囲」の外のリポジトリでは、commit / push まで行ったターンだけ投稿が必須である。
+完遂では、手順 1–6 の後に次のどれか 1 つを完了させる。結論 1・2 では、「対応しない」とした指摘のうち実在する制約（直さないが事実として起こるもの）が PR の説明の保証と食い違うなら、PR の説明の既知の制限に条件と回避方法を書き足す（`gh pr edit "${PR_NUMBER:?}" --repo "${PR_REPO:?}" --body-file <file>`）。同じ論点が次のレビューで繰り返し挙がるのを防ぐためである。どの結論でも、PR が open で判断の記録を読めた場合は、記録付きで状況を投稿する（下記「作業終了前の PR 投稿」。記録の結果は結論 1 が `fixes_pushed`、結論 2 が `no_fix_needed`、結論 3 が `stopped`）。ただし下記「マージしてよい範囲」の外のリポジトリでは、commit / push まで行ったターンだけ投稿が必須である。
 
 ### 結論 1: 修正して push する
 
@@ -254,7 +256,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 6. Spec に結果を書いて `completed` にし、コミットする。PR が create-reso-world のものなら Spec は PR の head に載るので、次の順で進める。確認していないコミットをマージに含めないため、**実装後** の手順 5 の「reject されたら rebase または merge」はここでは使わない
    - commit の前に、`gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` が検証した `HEAD_SHA` と一致することを確かめる
    - commit の後、`git -C "$MAIN_ROOT" rev-parse HEAD` を Spec のコミット（`SPEC_COMMIT`）として記録し、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA` と一致し、`git -C "$MAIN_ROOT" diff --name-only HEAD^ HEAD` が Spec の 1 ファイルだけであることを確かめる
-   - 状況コメントの投稿の直前と push の直前に、手順 2 と同じく base を取り直し、先端が検証の記録の `base` と同じことを確かめる。違えば、投稿・push をせずに手順 2〜5 を新しい先端でやり直し、Spec を直して、Spec のファイルだけを `git -C "$MAIN_ROOT" add -- <Spec>` してから、`git -C "$MAIN_ROOT" commit --amend --no-edit` で Spec のコミットを作り直す（push していないので書き換えてよい）。作り直したら、上の commit の後の確認からやり直す。手順 3 で結論 1 に切り替えるときは、Spec のコミットを結論 3 の「書き始めた Spec の扱い」の「push していない」の項の方法で取り消してから進める
+   - 状況コメントの投稿の直前と push の直前に、手順 2 と同じく base を取り直し、先端が検証の記録の `base` と同じことを確かめる。違えば、投稿・push をせずに手順 2〜5 を新しい先端でやり直し、Spec を直して、Spec のファイルだけを `git -C "${MAIN_ROOT:?}" add -- <Spec>` してから、`git -C "${MAIN_ROOT:?}" commit --amend --no-edit` で Spec のコミットを作り直す（push していないので書き換えてよい）。作り直したら、上の commit の後の確認からやり直す。手順 3 で結論 1 に切り替えるときは、Spec のコミットを結論 3 の「書き始めた Spec の扱い」の「push していない」の項の方法で取り消してから進める
    - PR の head がまだ `HEAD_SHA` のうちに、状況コメントを記録付きで投稿する（「作業終了前の PR 投稿」。記録付きの投稿は、PR の head が記録の `reviewed_head` と同じときだけ通る）
    - **実装後** の手順 5 の head の確認と共通 context の再実行の後、同じ手順 5 の検査付きの push で push する（fast-forward だけ。`--force` を付けない。検査で止まったら push せずに結論 3 にする。状況コメントは投稿済みなので、`AGENTS.md` の直し方は使わない）
    - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head か作業ツリーが変わった）。Spec のコミットは下記「結論 3」の「書き始めた Spec の扱い」に従う（取り消してよい条件を満たさなければ、取り消さずに残して報告する）
@@ -285,8 +287,8 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 - create-reso-world の PR で、変更が Spec だけではない（head ブランチに Spec だけではないコミットがあるか、Spec 以外の未コミットの変更がある。このセッションの修正か他の作業かを問わない）、または下の取り消してよい条件を満たさない: 何も取り消さずに残す。報告に、ブランチ名（未コミットの変更があれば worktree のパスも）と、`git -C "$MAIN_ROOT" status --short`・`git -C "$MAIN_ROOT" log --oneline "$HEAD_SHA"..HEAD` の結果を書き、それを push するか捨てるまで次の完遂は「専用の worktree」の手順 3 で止まることを書く
 - create-reso-world の PR で、変更が Spec だけ: 分類の結果と停止理由を報告に書き、次の条件を満たすときだけ取り消す
   - 結論 2 の手順 6 で Spec を push した後（マージなどで止まった）: 取り消すものは無い。先端は push した head で、片付けの対象になる
-  - 結論 2 の手順 6 で Spec をコミットし、push していない: 手順 6 の commit 後の確認が通っていて、取り消す直前にも `git -C "$MAIN_ROOT" rev-parse HEAD` が記録した Spec のコミット、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA`、`git -C "$MAIN_ROOT" status --porcelain` が空のときだけ、`git -C "$MAIN_ROOT" reset --keep "$HEAD_SHA"` で取り消す
-  - コミットしていない: `git -C "$MAIN_ROOT" rev-parse HEAD` が `HEAD_SHA` で、`git -C "$MAIN_ROOT" status --porcelain` に Spec のファイルしか出ないときだけ取り消す。追跡済みか `git add` 済みなら `git -C "$MAIN_ROOT" restore --staged --worktree -- <Spec>` で戻し、追跡されていない新規のファイルは消す
+  - 結論 2 の手順 6 で Spec をコミットし、push していない: 手順 6 の commit 後の確認が通っていて、取り消す直前にも `git -C "$MAIN_ROOT" rev-parse HEAD` が記録した Spec のコミット、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA`、`git -C "$MAIN_ROOT" status --porcelain` が空のときだけ、`git -C "${MAIN_ROOT:?}" reset --keep "$HEAD_SHA"` で取り消す
+  - コミットしていない: `git -C "$MAIN_ROOT" rev-parse HEAD` が `HEAD_SHA` で、`git -C "$MAIN_ROOT" status --porcelain` に Spec のファイルしか出ないときだけ取り消す。追跡済みか `git add` 済みなら `git -C "${MAIN_ROOT:?}" restore --staged --worktree -- <Spec>` で戻し、追跡されていない新規のファイルは消す
   - 取り消した後、`git -C "$MAIN_ROOT" rev-parse HEAD` が `HEAD_SHA` で `git -C "$MAIN_ROOT" status --porcelain` が空であることを確かめる。そうなれば head ブランチは「専用の worktree」の片付けの対象になる。そうならなければ、上の「残す」と同じく報告する
 
 ### 修正後の自己レビュー
@@ -348,11 +350,11 @@ Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の�
 5. そのブランチを **既存 PR** へ push する。ルート `AGENTS.md` の「push の前の秘密情報の検査」に従い、検査した SHA を push する（`<base>` は PR の `baseRefName`）。検出や検査の失敗で止まったら push しない。`AGENTS.md` の「push の前の秘密情報の検査」の条件を満たす検出なら（完遂の結論 1 では、自己レビューした commit とその祖先は条件を満たさない）、その commit を直して手順 1 からやり直す。それ以外は停止して報告する（完遂では結論 3）:
 
    ```bash
-   SHA="$(bash "$TOPLEVEL/scripts/scan-before-push.sh" -C "$MAIN_ROOT" --base "$PR_REMOTE/<base>")" && [ -n "$SHA" ] \
-     && git -C "$MAIN_ROOT" push "$HEAD_REMOTE" "${SHA:?}:refs/heads/$HEAD_BRANCH"
+   SHA="$(bash "$TOPLEVEL/scripts/scan-before-push.sh" -C "${MAIN_ROOT:?}" --base "$PR_REMOTE/<base>")" && [ -n "$SHA" ] \
+     && git -C "${MAIN_ROOT:?}" push "$HEAD_REMOTE" "${SHA:?}:refs/heads/$HEAD_BRANCH"
    ```
 
-   push の成功を確認する。reject されたら rebase または merge し、手順 1・2 を再走してから再度 push する。新しい PR を開かない。`finishing-a-development-branch` のメニューを出さない。対象リポジトリにかかわらず、すべての push の前に `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRepository,headRepositoryOwner,headRefName` で PR の head リポジトリとブランチを確かめ、その確認結果を `HEAD_REPO`・`HEAD_BRANCH` に設定して共通 context を再実行し、返された `HEAD_REMOTE` へ push する。fork からの PR では base と head が別のリポジトリである。該当する remote が 1 つに決まらなければ推測せず停止する。
+   push の成功を確認する。reject されたら rebase または merge し、手順 1・2 を再走してから再度 push する。新しい PR を開かない。`finishing-a-development-branch` のメニューを出さない。対象リポジトリにかかわらず、すべての push の前に `gh pr view "${PR_NUMBER:?}" --repo "${PR_REPO:?}" --json headRepository,headRepositoryOwner,headRefName` で PR の head リポジトリとブランチを確かめ、その確認結果を `HEAD_REPO`・`HEAD_BRANCH` に設定して共通 context を再実行し、返された `HEAD_REMOTE` へ push する。fork からの PR では base と head が別のリポジトリである。該当する remote が 1 つに決まらなければ推測せず停止する。
 6. 完了報告の前に **作業終了前の PR 投稿** を実行する。
 
 レビュー対象ブランチに open な PR が無いなら、作らず停止して報告する。ユーザが作れと言うまで作らない。コメントの投稿もしない。
@@ -572,7 +574,7 @@ EOF
 - 2 回目の自己レビューを始めようとしている（`run_roles.py --phase self-review` を 2 回呼ぶ、工程の記録に `pre_push_review` を手で書き足す）
 - self-review・fix-check に codex の担当を割り当てようとしている
 - 範囲外のリポジトリ、draft の PR をマージしようとしている
-- `--match-head-commit` を付けずにマージしようとしている、修正不要のマージを `finalize.py` を使わずに行おうとしている
+- `--match-head-commit` を付けずに、または値が空のまま（`--match-head-commit ""` は head を照合しない）マージしようとしている、修正不要のマージを `finalize.py` を使わずに行おうとしている
 - 検証し直さずに、検証の記録の `base` を新しい先端に書き換えようとしている
 - 記録付きの投稿が拒否されたのに、記録なしで投稿しようとしている
 - 完遂で、自己レビューの役割（`run_roles.py`）の外で `pr-review` スキルを呼ぼうとしている、または `superpowers:brainstorming` を呼ぼうとしている

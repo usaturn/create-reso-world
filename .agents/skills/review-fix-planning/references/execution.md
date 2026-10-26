@@ -42,7 +42,7 @@ uv run --project "$TOPLEVEL" --locked python \
 ```
 
 - 割り当てが `self` なら外部を起動しない。`<artifact_dir>/roles.json`（`artifact_dir` は `--output-dir` と同じパス）の `self_prompts.implement` を司令塔が自分で実行する
-- 外部の担当なら、停止の確認（各 attempt の `stop_confirmed`）の後に、実際の Request・Result の role・agent・commit・work_dir を照合し、その commit の差分だけを確かめてから `MAIN_ROOT` に取り込む（runner の worktree は同じ Git を使うので、`git -C "$MAIN_ROOT" cherry-pick <commit>` で取り込める）。応答の `success` を、テストの合格や commit の成功とみなさない
+- 外部の担当なら、停止の確認（各 attempt の `stop_confirmed`）の後に、実際の Request・Result の role・agent・commit・work_dir を照合し、その commit の差分だけを確かめてから `MAIN_ROOT` に取り込む（runner の worktree は同じ Git を使うので、`git -C "${MAIN_ROOT:?}" cherry-pick <commit>` で取り込める）。応答の `success` を、テストの合格や commit の成功とみなさない
 - 取り込んだ後は、SKILL.md の「実装後」の手順 1〜3 を司令塔が行う。既存の PR の head ブランチ以外のブランチ・PR を作らない
 - 終了コード: 0 は回収した（`self` を含む）、1 は失敗・停止未確認・領域の変更、2 は入力・設定・起動の誤り（理由は標準エラー出力）
 - 起動の前の checkout の監査で止まったとき（終了コード 1、標準出力の `category` が `environment`）は、`checkout_audit` に挙がったパスと状態を報告し、結論 3（環境）にする。worktree の登録を勝手に消したり直したりしない
@@ -169,7 +169,7 @@ uv run --project "$TOPLEVEL" --locked python \
 - `base_moved`（`ref`・`verified`・`current`）があれば、検証した後に base が進んだ停止である。待っても解消しないので、次の順で再実行する
   1. `current` を head（`HEAD_SHA`）に merge したツリーで、SKILL.md の結論 2 の手順 2 と同じ検証を通す
   2. 検証の記録を、`base` を `current`、`commands` をその実行にして作り直す。検証し直さずに `base` だけを書き換えない
-  3. create-reso-world の PR（`--spec-commit`）では、PR の head が Spec の commit になっていて状況コメントを直せない。補足のコメントを `gh pr comment <PR> --repo <repo> --body-file <file>` で新しく投稿する。1 行目は `補足（review-fix-planning、<MODEL_NAME>）:` とし、状況コメントのサイクル、base が `verified` から `current` へ進んだこと、merge したツリーで実行したコマンドと終了コードを書く。判断の記録・マーカー（`<!--`）を含めない。補足は状況コメントの代わりではなく、記録付きの投稿が拒否されたときの代わりにも使わない。push 済みの Spec は直さない。それ以外の PR では、本文の検証の状況を新しい検証に直す（helper が同じサイクルのコメントを更新する）
+  3. create-reso-world の PR（`--spec-commit`）では、PR の head が Spec の commit になっていて状況コメントを直せない。補足のコメントを `gh pr comment "${PR_NUMBER:?}" --repo "${PR_REPO:?}" --body-file <file>` で新しく投稿する。1 行目は `補足（review-fix-planning、<MODEL_NAME>）:` とし、状況コメントのサイクル、base が `verified` から `current` へ進んだこと、merge したツリーで実行したコマンドと終了コードを書く。判断の記録・マーカー（`<!--`）を含めない。補足は状況コメントの代わりではなく、記録付きの投稿が拒否されたときの代わりにも使わない。push 済みの Spec は直さない。それ以外の PR では、本文の検証の状況を新しい検証に直す（helper が同じサイクルのコメントを更新する）
   4. 同じ判断の記録で `finalize.py` を再実行する。やり直しの回数の上限は SKILL.md の結論 2 のとおり
 - `merge_parent`（`verified`・`merge_commit`・`first_parent`。読めなかった値は null）があれば、マージの後の照合で止まった（3.3 節）。PR はマージ済み（`merged: true`）で、helper は関連 Issue を更新していない（`Closes` による GitHub の自動の close は 3.5 節）。どちらの場合も、補足のコメントを上の `base_moved` の 3 と同じ形（`gh pr comment`、1 行目は `補足（review-fix-planning、<MODEL_NAME>）:`、判断の記録・マーカーを含めない）で投稿してから、結論 3 にする。補足に書くのは、状況コメントのサイクル、`merge_parent` の 3 つの値（読めなかった値は読めなかったこと）、関連 Issue を更新していないことと、下の次の手順である。finalize に渡した記録・本文・検証の記録とセッションディレクトリは消さずに残し、完全パスを報告する
   - `first_parent` が null（読めない）: 照合できていない。原因が解消してから、同じ記録・本文・検証の記録で再実行すると、読み直して照合する
