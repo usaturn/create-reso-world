@@ -72,14 +72,19 @@
 ## 統合・公開のチェックリスト（調整役）
 
 - [x] Task review の spec/quality を確認し、Task 1 を完了として記録する。
-- [ ] 全検証: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`。ワールドは対象外。
-- [ ] 全体の branch review と SDD の作業領域 cleanup を行う。
+- [x] 全検証: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`。ワールドは対象外。
+- [x] 全体の branch review と SDD の作業領域 cleanup を行う。
 - [ ] 最後の記録 commit 後の HEAD・clean status・全検証 3 コマンドの argv/終了コード/ログを checks とともに保持する。
 - [ ] Issue の状態・競合を再確認し、Gitleaks 検査済み SHA を push、main 向け PR を作る。決定・方式・検証・所要時間・残る rebuild/実機確認を記す。
 - [ ] 最大 3 サイクルのループを実行する。マージは `finalize.py` のみ。ループ完了後に Issue に PR と残る確認をコメントし、結果を報告する。
+
+公開直前の最終検証・公開・ループの上記 3 項目は、この後の HEAD を動かさないためセッションの検証記録と PR/Issue コメントに結果を残す。ここで未実施の工程を実施済みにはしない。
 
 ## 実行記録
 
 - Task 1: `4ebc121..0da2775`、実装担当の検証は一時 RED→GREEN、WSL 有無×写真リンク有無の 4 ケース・再実行・旧値削除・利用者 sentinel 保持、構文/差分/既存個別チェック、Dev Container 全 23 scripts が成功。Task レビューは spec compliant / quality approved、指摘なし。
 - `/mnt` 下の一時領域作成は権限不足で実行できず、再試行・回避なし。パス判定自体を削除した差分と、別の任意パスでの無条件出力を確認したが、`/mnt` で実行済みとはしない。Step 4 の事前指定どおり実行不能として記録。
 - 実装担当: 約 6 分 52 秒、Task レビュー: 約 3 分（概算）。rebuild/実機 apply は未実施。ログは `/workspaces/reso-world/tmp/agents/issue-277.h3wm65x_/`。
+- 統合検証（clean HEAD `ff3dc1bf5d0f5949891658665830f3120164979e`）: `bash .devcontainer/run-tests.bash` は 23 scripts、`bash scripts/check-layout.sh` は PASS、`uv run pytest tests/skills .agents/skills .agents/scripts tools` は 1237 passed（478.66 秒）。全て終了コード 0、`integration-{devcontainer,layout,pytest}.log` に保存。
+- 最終 branch review（`5b2c535..ff3dc1b`）: Critical/Important/Minor 0、Ready to merge Yes。所要約 5 分。対象外とした rebuild/実機、権限不足の `/mnt`、別リポジトリ内の変換実装の再検証は Spec の範囲と一致している。追加裁定・parked・deferred はなし。
+- Task 完了を記録後、上の検証・レビューの要約を残し SDD の作業領域だけを削除。検証ログはループへの引き継ぎに必要なのでセッションに保持。最終レビュー後の本変更はこの記録のみで、設定・コード・手順の変更はない。最後の記録 commit 後に再び全検証を行う。
