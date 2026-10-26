@@ -31,6 +31,7 @@ SKILL.md の結論 1 の手順 1 で、「対応する」項目を設定の担�
 `prompt.implement` は、それだけで作業できるように書く。
 
 - 「対応する」項目ごとの原指摘の参照、致命的である理由、守る条件と影響経路の表、Spec の修正方針、担当するファイル、作業に入らない範囲
+- 要件対応から、担当が守る条件と関係する除外範囲、共有前提（入力の解釈・状態の読取／書込・操作順・外部仕様）。共有条件ごとの統合担当（名前または役割）、その担当が確かめる内容・検証方法と、実装担当が返すべき観測結果・対象版・実行証拠。共有条件が無ければその旨
 - 実行する検証のコマンドと、テストを足すかどうかの理由（`AGENTS.md`「テストの採用基準」を定義元として参照させる）
 - 作業は runner が用意した worktree（`Request.work_dir`）の中だけで行い、ほかの worktree・未コミットの変更を使わない。入れ子の担当の起動、予約 ref・Issue・PR の更新、push、マージをしない
 - 結果の JSON に、行った操作、作った commit、実行した検証の argv・HEAD・終了コード、終わらなかったこと、残したパスを書く。測れない識別情報は `unknown` にする
@@ -43,7 +44,7 @@ uv run --project "$TOPLEVEL" --locked python \
 
 - 割り当てが `self` なら外部を起動しない。`<artifact_dir>/roles.json`（`artifact_dir` は `--output-dir` と同じパス）の `self_prompts.implement` を司令塔が自分で実行する
 - 外部の担当なら、停止の確認（各 attempt の `stop_confirmed`）の後に、実際の Request・Result の role・agent・commit・work_dir を照合し、その commit の差分だけを確かめてから `MAIN_ROOT` に取り込む（runner の worktree は同じ Git を使うので、`git -C "${MAIN_ROOT:?}" cherry-pick <commit>` で取り込める）。応答の `success` を、テストの合格や commit の成功とみなさない
-- 取り込んだ後は、SKILL.md の「実装後」の手順 1〜3 を司令塔が行う。既存の PR の head ブランチ以外のブランチ・PR を作らない
+- 取り込んだ後は、SKILL.md の「実装後」の手順 1〜3 を司令塔が行う。要件対応と経路表を照合し、共有条件は統合担当の確認結果と証拠で確かめる。担当別のテスト成功だけを共有保証の完了に読み替えない。既存の PR の head ブランチ以外のブランチ・PR を作らない
 - 終了コード: 0 は回収した（`self` を含む）、1 は失敗・停止未確認・領域の変更、2 は入力・設定・起動の誤り（理由は標準エラー出力）
 - 起動の前の checkout の監査で止まったとき（終了コード 1、標準出力の `category` が `environment`）は、`checkout_audit` に挙がったパスと状態を報告し、結論 3（環境）にする。worktree の登録を勝手に消したり直したりしない
 
