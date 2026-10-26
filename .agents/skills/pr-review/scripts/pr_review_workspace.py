@@ -413,6 +413,7 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
         pr_repository=repository,
         pr_number=number,
         commit=commit,
+        pr_head=head,
         head_branch=target["head_ref"],
         model_name=model_name,
         main_root=str(source),
@@ -486,8 +487,9 @@ def create_from_target(args: argparse.Namespace, target_value: str) -> dict[str,
             require_created_worktree(worktree, commit)
             if snapshot(checkout) != before:
                 raise WorkspaceError("creating the review worktree changed the target checkout")
-            if current_pr_head(repository, number) != head:
-                raise WorkspaceError("PR head changed after fetch; resolve again without saving")
+            current = current_pr_head(repository, number)
+            if current != head:
+                raise WorkspaceError(f"PR head changed after fetch ({head[:12]} -> {current[:12]}); stop without reviewing")
             state_file = session_dir / "session.json"
             journal.record("lock-wait")
             with review_save_lock(parent):
@@ -820,8 +822,11 @@ def verify_state(state: dict[str, Any], destination: Path) -> None:
     if "pr_head" in state:
         if git(Path(state["worktree"]), "rev-parse", "HEAD") != state["commit"]:
             raise WorkspaceError("review worktree no longer matches the pinned commit")
-        if current_pr_head(state["pr_repo"], state["pr_number"]) != state["pr_head"]:
-            raise WorkspaceError("PR head changed during review; resolve again without saving")
+        current = current_pr_head(state["pr_repo"], state["pr_number"])
+        if current != state["pr_head"]:
+            raise WorkspaceError(
+                f"PR head changed during review ({state['pr_head'][:12]} -> {current[:12]}); stop without saving"
+            )
 
 
 @contextmanager
@@ -1593,8 +1598,17 @@ def finished_creator(journal: Path) -> Generator[None]:
         yield
 
 
-def require_abandonable_entries(session_dir: Path, *, owned_repo: Path | None = None) -> None:
-    """Keep the session when it holds anything create itself did not write."""
+def require_abandonable_entries(
+    session_dir: Path,
+    *,
+    owned_repo: Path | None = None,
+    scaffold: tuple[str, str] | None = None,
+    drafts: frozenset[str] = frozenset(),
+) -> None:
+    """Keep the session when it holds anything the helper did not write, or an unsaved draft not in drafts.
+
+    scaffold is prepare's findings scaffold (name, sha256): it is the helper's only while unchanged.
+    """
     for child in session_dir.iterdir():
         name = child.name
         if child.is_symlink():
@@ -1610,11 +1624,16 @@ def require_abandonable_entries(session_dir: Path, *, owned_repo: Path | None = 
     if not backup_dir.is_dir():
         return
     for child in backup_dir.iterdir():
-        snapshot_file = child.name == "previous-review.md" or child.name.startswith(".previous-review.md.")
-        if child.is_symlink() or not child.is_file() or not snapshot_file:
+        if child.is_symlink() or not child.is_file():
             raise WorkspaceError(
                 f"review backup holds a file other than the helper's snapshot; keep the session: {child}"
             )
+        name = child.name
+        if name == "previous-review.md" or name.startswith(".previous-review.md.") or name in drafts:
+            continue
+        if scaffold is not None and name == scaffold[0] and file_digest(child) == scaffold[1]:
+            continue
+        raise WorkspaceError(f"review backup holds an unsaved draft or another file; keep the session: {child}")
 
 
 def read_link(path: Path) -> str:
@@ -1691,30 +1710,136 @@ def remove_attempt_worktree(repo: Path, worktree: Path) -> bool:
     return removed
 
 
-def abandon_attempt(args: argparse.Namespace) -> dict[str, Any]:
-    attempt_id = validate_attempt_id(args.attempt_id)
-    pr_repository = normalize_pr_repository(args.pr_repo)
-    repo = require_main_checkout(args.repo)
-    with review_save_lock(repo):
-        session_dir = locate_attempt(repo, args.temp_root, pr_repository, args.pr_number, attempt_id)
-        if session_dir is None:
-            raise WorkspaceError(
-                f"no create attempt {attempt_id} for PR {pr_repository}#{args.pr_number}; nothing to abandon"
-            )
-        with finished_creator(session_dir / JOURNAL_NAME):
-            status = attempt_report(repo, session_dir, attempt_id, running=False)["status"]
-            owned_repo = owned_attempt_repository(repo, session_dir)
-            require_abandonable_entries(session_dir, owned_repo=owned_repo)
-            worktree = session_dir / "worktree"
-            removed = remove_attempt_worktree(repo, worktree)
-            shutil.rmtree(session_dir)
+def read_session_state(session_dir: Path) -> dict[str, Any] | None:
+    """Read session.json only as evidence for abandon; an unreadable state allows nothing extra."""
+    path = session_dir / "session.json"
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return cast(dict[str, Any], value) if isinstance(value, dict) else None
+
+
+def session_drafts(state: Mapping[str, Any] | None) -> tuple[tuple[str, str] | None, frozenset[str]]:
+    """Return prepare's findings scaffold (name, sha256) and the names of this session's two drafts."""
+    if state is None:
+        return None, frozenset()
+    try:
+        backup = Path(str(state["backup_dir"]))
+        identity = {
+            "pr_number": state["pr_number"],
+            "repository": session_repository(state),
+            "review_commit": state.get("review_commit"),
+        }
+        draft, _ = review_artifact_paths(backup, state["head_branch"], state["model_name"], **identity)
+        findings, _ = findings_artifact_paths(
+            backup, state["head_branch"], state["model_name"], commit=str(state["commit"]), **identity
+        )
+    except (KeyError, TypeError, ValueError, WorkspaceError):
+        return None, frozenset()
+    context = state.get("run_context")
+    scaffold = context.get("findings_scaffold") if isinstance(context, dict) else None
+    if (
+        isinstance(scaffold, dict)
+        and scaffold.get("name") == findings.name
+        and re.fullmatch(r"[0-9a-f]{64}", str(scaffold.get("sha256"))) is not None
+    ):
+        return (findings.name, str(scaffold["sha256"])), frozenset({draft.name, findings.name})
+    return None, frozenset({draft.name, findings.name})
+
+
+def release_attempt_ref(repo: Path, header: Mapping[str, Any], state: Mapping[str, Any] | None) -> dict[str, str]:
+    """Compare-and-delete the PR ref a version 8 checkout attempt pinned; an owned Git goes with the session."""
+    if header.get("target_kind") != "checkout":
+        return {}
+    pr_ref = pinned_review_ref(header["pr_number"], header["pr_repository"])
+    expected = next(
+        (
+            str(value)
+            for value in ((state or {}).get("pr_head"), header.get("pr_head"))
+            if re.fullmatch(r"[0-9a-f]{40}", str(value)) is not None
+        ),
+        None,
+    )
+    if expected is None:
+        return {"pr_ref": pr_ref, "pr_ref_status": "kept"}
+    return {"pr_ref": pr_ref, "pr_ref_status": delete_pinned_ref(repo, pr_ref, expected)}
+
+
+def attempt_lock_root(repo: Path, header: Mapping[str, Any]) -> Path:
+    """Version 8 saves and cleans up under the parent checkout's lock, so abandon takes the same one."""
+    parent = header.get("parent_root")
+    if parent is None:
+        return repo
+    return cast(Path, _target_call("require_parent_root", Path(str(parent))))
+
+
+def abandon_located(repo: Path, session_dir: Path, attempt_id: str, *, discard_draft: bool) -> dict[str, Any]:
+    """Under the save lock, remove an ended attempt that holds nothing unsaved (with discard_draft, its drafts too)."""
+    with finished_creator(session_dir / JOURNAL_NAME):
+        header = read_journal(session_dir / JOURNAL_NAME)[0]
+        status = attempt_report(repo, session_dir, attempt_id, running=False)["status"]
+        owned_repo = owned_attempt_repository(repo, session_dir)
+        state = read_session_state(session_dir)
+        scaffold, drafts = session_drafts(state)
+        require_abandonable_entries(
+            session_dir, owned_repo=owned_repo, scaffold=scaffold, drafts=drafts if discard_draft else frozenset()
+        )
+        worktree = session_dir / "worktree"
+        removed = remove_attempt_worktree(repo, worktree)
+        ref_details = release_attempt_ref(repo, header, state)
+        shutil.rmtree(session_dir)
     return {
         "attempt_id": attempt_id,
         "session_dir": str(session_dir),
         "status": status,
         "worktree": str(worktree),
         "worktree_removed": removed,
+        **ref_details,
     }
+
+
+def abandon_session_dir(session_dir: Path, attempt_id: str, *, discard_draft: bool = False) -> dict[str, Any]:
+    """Abandon the attempt in session_dir; only its creator's caller knows the attempt id (#134)."""
+    attempt_id = validate_attempt_id(attempt_id)
+    session_dir = Path(os.path.abspath(session_dir))
+    journal = session_dir / JOURNAL_NAME
+    if session_dir.is_symlink() or not session_dir.is_dir() or journal_attempt(journal) != attempt_id:
+        raise WorkspaceError(f"{session_dir} does not hold create attempt {attempt_id}; keep it")
+    header = read_journal(journal)[0]
+    number = header.get("pr_number")
+    if (
+        header.get("session_dir") != str(session_dir)
+        or header.get("worktree") != str(session_dir / "worktree")
+        or type(number) is not int
+        or not session_dir.name.startswith(f"pr-review-{number}-")
+    ):
+        raise WorkspaceError("create journal does not match this session directory")
+    normalize_pr_repository(str(header.get("pr_repository")))
+    repo = require_main_checkout(str(header.get("main_root")))
+    with review_save_lock(attempt_lock_root(repo, header)):
+        return abandon_located(repo, session_dir, attempt_id, discard_draft=discard_draft)
+
+
+def abandon_attempt(args: argparse.Namespace) -> dict[str, Any]:
+    attempt_id = validate_attempt_id(args.attempt_id)
+    discard_draft = bool(getattr(args, "discard_draft", False))
+    session_dir_value = getattr(args, "session_dir", None)
+    if session_dir_value is not None:
+        return abandon_session_dir(Path(session_dir_value), attempt_id, discard_draft=discard_draft)
+    pr_repository = normalize_pr_repository(args.pr_repo)
+    repo = require_main_checkout(args.repo)
+    session_dir = locate_attempt(repo, args.temp_root, pr_repository, args.pr_number, attempt_id)
+    if session_dir is None:
+        raise WorkspaceError(
+            f"no create attempt {attempt_id} for PR {pr_repository}#{args.pr_number}; nothing to abandon"
+        )
+    with review_save_lock(attempt_lock_root(repo, read_journal(session_dir / JOURNAL_NAME)[0])):
+        if locate_attempt(repo, args.temp_root, pr_repository, args.pr_number, attempt_id) != session_dir:
+            raise WorkspaceError(f"create attempt {attempt_id} changed while waiting for the review lock; keep it")
+        return abandon_located(repo, session_dir, attempt_id, discard_draft=discard_draft)
 
 
 PR_STATES = {"OPEN", "CLOSED", "MERGED"}
@@ -1846,6 +1971,15 @@ class WorkspaceParser(argparse.ArgumentParser):
             ):
                 if getattr(parsed, name) is None:
                     self.error(f"--{name.replace('_', '-')} is required without --target")
+        if parsed.command == "abandon":
+            located = ("repo", "pr_repo", "pr_number", "temp_root")
+            if parsed.session_dir is not None:
+                if any(getattr(parsed, name) is not None for name in located):
+                    self.error("--session-dir cannot be combined with --repo, --pr-repo, --pr-number or --temp-root")
+            else:
+                for name in located[:3]:
+                    if getattr(parsed, name) is None:
+                        self.error(f"--{name.replace('_', '-')} is required without --session-dir")
         return parsed
 
 
@@ -1888,9 +2022,15 @@ def parser() -> argparse.ArgumentParser:
 
     abandon_parser = commands.add_parser(
         "abandon",
-        help="remove what an interrupted create attempt left when it holds no unsaved review",
+        help="remove an ended create attempt that holds no unsaved review (--discard-draft: its drafts too)",
     )
-    add_attempt_arguments(abandon_parser)
+    abandon_parser.add_argument("--repo")
+    abandon_parser.add_argument("--pr-repo")
+    abandon_parser.add_argument("--pr-number", type=positive_integer)
+    abandon_parser.add_argument("--attempt-id", required=True)
+    abandon_parser.add_argument("--temp-root")
+    abandon_parser.add_argument("--session-dir")
+    abandon_parser.add_argument("--discard-draft", action="store_true")
     abandon_parser.set_defaults(handler=abandon_attempt)
 
     sessions_parser = commands.add_parser(

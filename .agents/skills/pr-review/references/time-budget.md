@@ -74,7 +74,7 @@ RESEARCH_DEADLINE_EPOCH=$((REVIEW_DEADLINE_EPOCH - REVIEW_FINALIZE_SECONDS))
 - 残った候補は未検証として整理し、取得済み根拠の範囲で保存へ進む。
 - 停止要求を送っただけで停止完了とは扱わない。実行中の委譲が WT を使っている場合は削除しない。
 - 停止確認は最大30秒を目安に1回。確認不能なら打ち切り、WTを使うworkerのためcomplete/cleanupを呼ばずfailで残存ID・停止状態・WT/セッション/draftの完全パスを返す。既に保存した限定結果は残すが、停止未確認をcleanup成功にしない。後続の依存作業を起動せず、無期限待機や手動の強制削除もしない。
-- 既存の保存拒否条件（HEAD 不一致、destination 変更など）は予算より優先する。拒否時は上書きせず、エラーと保存前 draft の場所を報告する。
+- 既存の保存拒否条件（HEAD 不一致、destination 変更など）は予算より優先する。拒否時は上書きせず、SKILL.md の「保存しなかったとき」のとおり報告する。予算が残っていても再レビューしない。
 - 停止機能が実際には使えなかった場合は例外終了として記録し、時間制御成功とは扱わない。
 
 ## 未検証結果
@@ -152,7 +152,7 @@ Merge recommendation の判定順は次に固定する。
 | S12 | 次回 H-1 の継続または解消を確認 | 同じ ID で active または Resolved へ。新規指摘と ID 衝突なし |
 | S13 | 検証済み High と未検証候補がある | Request changes。High なしで重要な未検証があれば Needs manual verification |
 | S14 | 補助委譲が中断したが本体の必要範囲確認は完了 | 他の条件を満たせば Approve 可。停止だけで判定を悪化させない |
-| S15 | 保存前 HEAD 変更 / API 失敗 / destination 変更 | 履歴追記・上書き・cleanup をしない。既存の拒否条件を維持 |
+| S15 | complete で HEAD 変更 / API 失敗 / destination 変更 | 保存・履歴追記・上書き・cleanup をしない。予算が残っていても再レビューしない。draft のある試行を残し、2 つの head・draft の完全パス・次の操作を報告 |
 | S16 | 親 20 分、子 10 分が親の区間内で並行 | 総時間 20 分。30 分にしない |
 | S17 | tool_use/result が同時記録、コマンド elapsed なし | ツール実時間は不明。0 秒やモデル時間 100% としない |
 | S18 | 単一モデル呼び出し中に期限超過し、復帰時は 48 分 | 復帰後に新規調査せず保存へ。48 分以上の実測を記録し予算未達 |
@@ -160,3 +160,5 @@ Merge recommendation の判定順は次に固定する。
 | S20 | 一括検証または実装担当が生存したまま無進捗 | PR レビュー例外を適用しない。通常の監視規約に従う |
 | S21 | 明示予算 20 分、途中でターンを跨ぐ | 開始 15 分で調査終了、20 分全体。起点をリセットしない |
 | S22 | JSONL の末尾未完、turn_duration 欠損、時刻逆転 | 解析限界を明示。推測で時刻や分類を補わない |
+| S23 | prepare の後、依頼の HEAD と違うのでレビューせずに止める | `fail --abandon`。`cleanup: success` で `retained_paths` は null。draft を書いていれば消さずに残す |
+| S24 | prepare が HEAD の変化で失敗 | prepare を再実行しない。試行を消さず、`attempt_id`・`session_dir` と次の操作を報告 |

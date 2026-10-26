@@ -19,7 +19,7 @@ PR 全体の差分を隔離 worktree で読み、検証した指摘を助言と�
 
 - アプリケーションのコード・テストを変更しない。レビュー対象 `$WT` 内にログ・キャッシュ・再現スクリプトを残さない。保存が済むまでは本文と候補は helper が返した draft だけへ書く。
 - 重い一括検証（`bash .devcontainer/run-tests.bash`、リポジトリ・ワールド全体の `uv run pytest`、`scripts/resoloop-fork.sh test`）を再実行しない。関連 pytest、個別スクリプト、REPL、最小再現はよい。このレビューの規則は `AGENTS.md` の通常の完了前検証より優先する。
-- `git clean`、強制 checkout/reset、既存 worktree の再利用をしない。セッション・pinned ref の削除は helper の cleanup だけ。拒否を手動削除で代行しない。
+- `git clean`、強制 checkout/reset、既存 worktree の再利用をしない。セッション・pinned ref の削除は helper の cleanup と abandon（「保存しなかったとき」）だけ。拒否を手動削除で代行しない。
 - 保存先は create-reso-world の親 main checkout（`PARENT_ROOT`）の `reviews/<owner>/<repo>/#<PR>-<branch>/`。小文字の owner/repo は PR base 側であり、fork/head 側ではない。PR 番号は親 origin、URL はその repo を使い、別 repo の同じ番号を探さない。Git 操作先の `target_root` と保存先を混同しない。
 - 読んだ skill の実体がある checkout を `TOPLEVEL` とし、その版の helper を `uv run --project "$TOPLEVEL" --locked python` で呼ぶ。対象 repo・cwd・親 main の古い skill から配置元を推測しない。外部 repo は明示された main checkout の絶対パス `CODE_ROOT` を `--source-root` に渡し、一致 remote が 1 件でなければ停止する。checkout の探索・clone はしない。ResoLoop は既知の `external/resoloop` と origin/upstream を検査し、上流 PR の取得には helper が返す `base_remote=upstream` を使う。
 - 自モデルの既存レビューは `previous_review` の snapshot だけを読む。ライブ destination、他モデルのレビュー本文は、完了後も含め、重複確認・重点観点・反証を含むどんな目的でも読まない。親の旧配置・旧配置の `public/reviews/`・PR に同梱された reviews も同じ。
@@ -33,7 +33,7 @@ PR 全体の差分を隔離 worktree で読み、検証した指摘を助言と�
 - 非対話は質問せず、確認不足・モデル未取得・成果欠落を failed と理由付きで返す。認証や権限を迂回しない。本文は日本語。**非対話では挨拶・開始宣言・進捗説明・完了説明を含む途中の自然言語メッセージを一切出さない**。ツールだけで作業し、phaseの記録はdraftへ書く。最後に1回だけcomplete/failのJSON payloadを返す（Devinは以下のJSONコードフェンスに載せる）。
 - 必要な追加スクラッチは、親 main の `agent_tmp.py mkdir pr-review-scratch-<PR>` で作る。具体的な手順は [evidence.md](references/evidence.md) の 1.2 節に従う。セッション名 `pr-review-<PR>-*` を追加スクラッチに流用せず、session.json を複製しない。根拠を本文へ移し、不要と確認した自身の scratch だけを空値ガード付きで削除する。残す場合は完全パスを報告する（[AGENTS.md](../../../AGENTS.md)の保存場所を参照）。
 - 補助委譲は time-budget の起動・期限・停止条件を全部満たす場合だけ最大1件。Pi の同期 subagent ではバックグラウンド起動・期限付き待機・停止確認を満たせないため省略する。非対話 worker からの再委譲は禁止。停止を確認できない worker が WT を使用中なら complete / cleanup を呼ばず、失敗・停止状態・残存パスを返す。
-- helper は他の fetch・gh 等と同じツール呼び出しにまとめず、timeout は未指定または600秒以上（上限が短い runtime はその上限）。期限は phase 境界で判断し、実行中の helper を短い timeout で切らない。失敗・中断時に prepare をそのまま再実行せず、返された run_record・state・残存パスと理由を報告する。旧 create の inspect/abandon は互換 API であり、新入口の失敗を手動 Git・保存・削除で代行しない。
+- helper は他の fetch・gh 等と同じツール呼び出しにまとめず、timeout は未指定または600秒以上（上限が短い runtime はその上限）。期限は phase 境界で判断し、実行中の helper を短い timeout で切らない。失敗・中断時は prepare をそのまま再実行せず、「保存しなかったとき」に従う。新入口の失敗を手動 Git・保存・削除で代行しない。
 
 ## ランタイムごとの違い
 
@@ -49,7 +49,18 @@ PR 全体の差分を隔離 worktree で読み、検証した指摘を助言と�
 2. **要件・全体差分・精読**: 精読の前に、PR 本文（`gh pr view <PR> --repo <PRのrepo> --json body,closingIssuesReferences`）、PR が閉じる・参照する Issue の本文とコメント（`gh issue view <N> --repo <Issueのrepo> --json body,comments`）、それらが参照するリポジトリ内の仕様・設計文書、対象の `AGENTS.md`（テストの方針と規約）から、今回の受け入れ条件と対象外を数行に整理する。仕様・設計文書と `AGENTS.md` は base の版（`git -C "$WT" show <base>:<path>`）で読み、PR が書き換えた記述は PR 本文と同じく主張として扱う。PR が閉じる Issue は全条件を、参照するだけの Issue は PR 本文が満たすと述べた条件を、今回の受け入れ条件にする。閉じる Issue でも、PR 本文が一部だけを扱うと明示していれば、その範囲にする。PR のコメント・レビューは要件の出所にしない（他のレビューが含まれうる）。続けて prepare の `diff_command` をそのまま実行し、変更ファイルは全文、関連コード・依存・テストも WT で読む。規模は固定 diff の `git diff --numstat <base>..<reviewed_head>` と変更ファイル数で判断し、binary / 不明を0にしない。停止手段が使えない runtime は委譲を省略する。
 3. **既存指摘・判断・前回修正**: snapshot があれば active/Pending/Decided/history/Resolvedを読む。prepare の records（`--records-comments` でも渡せる）に skip があれば新しい根拠が無い同じ問題を Decided に置く。recordsは新候補を探す情報源にはしない。前回の修正の起点は最後のサイクルの reviewed_head、無ければsnapshotの最終history HEAD。現在の reviewed commitの祖先なら `git -C "$WT" log --first-parent --no-merges <起点>..<reviewed_head>` の範囲を重点確認する。起点不明・祖先でない場合はcoverageへ理由を書き、範囲を推測しない。
 4. **候補・draft**: 以下の検証プロトコルで反証・実行・分類を行う。本文のhistoryへ今回の時刻・reviewed commitの12桁・Modeを1行追記する。Modeは指定commitでも `Initial` / `Update` のみとし、指定commitは保存名・候補JSON・coverageで区別する。coverage / 未検証 / pendingを誤魔化さない。prepareが作った候補JSONの固定項目は触らず、coverage・findings・unverified_candidatesへ同じ内容を書く。
-5. **complete・結果**: [入口](references/noninteractive.md)の complete を1回呼ぶ。同じv2 provenance / timingを本文と候補へ記録し、既存helperでpair検査・lock内のHEAD/fingerprint検査・両成果保存・cleanupを行う。候補JSONを保存できなければ、Markdownのみへfallbackせずfailedにする。status=success と両成果・cleanup成功を確認してJSON結果をそのまま返す。失敗なら理由と保存前state/draft/WTを報告し、手動保存・削除をしない。保存後の本文を直接追記しない。
+5. **complete・結果**: [入口](references/noninteractive.md)の complete を1回呼ぶ。同じv2 provenance / timingを本文と候補へ記録し、既存helperでpair検査・lock内のHEAD/fingerprint検査・両成果保存・cleanupを行う。候補JSONを保存できなければ、Markdownのみへfallbackせずfailedにする。status=success と両成果・cleanup成功を確認してJSON結果をそのまま返す。失敗なら「保存しなかったとき」に従い、手動保存・削除をしない。保存後の本文を直接追記しない。
+
+## 保存しなかったとき
+
+PR head の照合は、prepare（fetch した head と解決時の head、worktree を作った後の API の head）と complete（保存ロックの中で worktree の commit・API の head・保存先）で行う。差分は固定した commit から作るので、レビューの途中では照合しない。
+
+- 再レビューは自動でしない（0 回）。prepare を呼び直さない。新しい HEAD のレビューは、対話では利用者が改めて依頼し、非対話では呼び出し元が新しい prepare から始める
+- prepare の後にレビューせずに止めるとき（依頼の HEAD と違うなど）は、draft を書いておらず、停止を確認できない補助 worker がいなければ `fail --state "$STATE_FILE" --reason "$REASON" --abandon` にする。helper が作った worktree・固定した PR の ref・セッションを消して `cleanup: success` を返し、消せなければ `cleanup: failed` と `retained_paths` を返す
+- prepare の失敗と complete の拒否で残った試行は、レビュアーは消さない
+- 残った試行は、利用者が消すよう指示し、停止を確認できない補助 worker がいないときに、`pr_review_workspace.py abandon --session-dir <session_dir> --attempt-id <attempt_id>` で消す。helper は、prepare の中の create が終わっていて、worktree が他の理由でロックされておらず、helper が書いたもの（journal・state・worktree・所有 Git・既存レビューの写し・prepare のままの候補の雛形）しか無い試行だけを消す。未保存の draft（本文の draft、または雛形から変わった候補の draft）があれば拒否する
+- 未保存の draft がある試行は、draft があることを伝えたうえで利用者が消すよう指示したときに、`--discard-draft` を付けて draft ごと消す。レビュアーが自分の判断で付けない
+- 報告には、拒否した照合と理由（HEAD なら helper の理由にある固定した head と観測した head、保存先なら別の保存で変わったこと）、本文と候補の draft の完全パスと有無、試行を消したか残したか、`attempt_id` と `session_dir`、次の操作（新しい HEAD のレビューの始め方と、残した試行は `abandon` で消せること）を書く。非対話では、helper が返した結果の JSON がこの報告で、JSON の外に書き足さない
 
 ## 確認観点
 

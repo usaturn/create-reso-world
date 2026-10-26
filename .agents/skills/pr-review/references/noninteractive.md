@@ -38,7 +38,7 @@ uv run --project "$TOPLEVEL" --locked python "$RUN_HELPER" prepare \
 
 Codexはmodel-nameを省き、Piも現在envから読むときは省く。通常headならreview-commitを省く。非runnerならrequestを省く。source-rootやrecords-commentsも省略できる。既存の `pr_review_workspace.py create --target` / legacy呼び方は他callerの互換のため残すが、このskillの別手順にはしない。
 
-成功は exit0・`status: prepared`。返されたstate_file / worktree / draft / findings_draft / previous_review / destination / reviewer / reviewed_head / pr_head / base / records / diff_commandをそのまま使う。モデル名・パス・対象を作り直さない。prepare は resolve、照合済み base remote/commit object 確認、PR head fetch、API head照合、fresh detached worktree、destination snapshot、merge-base、v2候補scaffoldを作る。merge-base用のbase fetchは、そのfresh worktreeの専用refに固定し、共有の追跡ref・tag・FETCH_HEADを更新しない。専用refは既存helperのworktree cleanupで一緒に消える。対象 checkout が shallow の場合は、照合済み remote からセッション内の所有 Git repository へ完全な履歴を直接取得する。指定された未 push commit の object は元 checkout から取得する。元の shallow boundary・共有 ref・FETCH_HEAD は変えず、complete が保存・cleanup まで行う。
+成功は exit0・`status: prepared`。返されたstate_file / worktree / draft / findings_draft / previous_review / destination / reviewer / reviewed_head / pr_head / base / records / diff_command / attempt_idをそのまま使う。モデル名・パス・対象を作り直さない。prepare は resolve、照合済み base remote/commit object 確認、PR head fetch、API head照合、fresh detached worktree、destination snapshot、merge-base、v2候補scaffoldを作る。merge-base用のbase fetchは、そのfresh worktreeの専用refに固定し、共有の追跡ref・tag・FETCH_HEADを更新しない。専用refは既存helperのworktree cleanupで一緒に消える。対象 checkout が shallow の場合は、照合済み remote からセッション内の所有 Git repository へ完全な履歴を直接取得する。指定された未 push commit の object は元 checkout から取得する。元の shallow boundary・共有 ref・FETCH_HEAD は変えず、complete が保存・cleanup まで行う。
 
 - 本体・参照の変数はprepareの値に対応する。WT=worktree、BASE=base、REVIEWED_HEAD=reviewed_head、PR_HEAD=pr_head、PREVIOUS_REVIEW=previous_review（nullなら空）。呼び出しを跨いでシェル変数が残るとは仮定しない。
 - `diff_command` は `git -C <WT> diff --find-renames <base>..<reviewed_head>`。全体を読み、変更ファイルは全文を読む。指定commitにliveのgh pr diffを混ぜない。
@@ -73,13 +73,14 @@ completeはrequestのbytes/hashとbinding、読んだ主要skillのhash、候補
 | schema_version | 1 |
 | status | success。fail/検査拒否/cleanup失敗はfailed |
 | run_id/request_id/agent_id/role | 実Requestの値。非runnerで取得不能ならunknown |
+| attempt_id | prepareが作った試行ID。残った試行を `pr_review_workspace.py abandon --session-dir` で指定するときに使う。この欄の無い古いセッションはnull |
 | repository/pr_number | PR base側repoと番号 |
 | pr_head/reviewed_head | resolve時のPR headと実レビュー対象のfullSHA。指定commitなら違うことがある |
 | review_file/findings_file | 保存された成果2件の完全パス。helperが決定しpair検査済み |
 | active_findings | active件数。successかつ0で初めて「検査済み成果の指摘0」と扱う |
-| cleanup | success。削除拒否はfailed、未実施はnot_attempted |
-| cleanup_details | helperの削除結果。pr_ref_status=repinnedなら後続セッションのrefを残した理由と完全名を報告。deleted/missingも区別する |
-| retained_paths | failed時の残存確認先worktree/draft/session/pr_ref。途中cleanup済みを含み得る。成功ならnull。削除済みWTを成果参照にしない |
+| cleanup | success。削除拒否はfailed、未実施はnot_attempted。fail --abandonでは試行を消せたらsuccess |
+| cleanup_details | helperの削除結果。pr_ref_status=repinnedなら後続セッションのrefを残した理由と完全名を報告。deleted/missingも区別する。keptは試行のheadが分からずrefを残した。fail --abandonで消せなければerrorに理由 |
+| retained_paths | failed時の残存確認先worktree/draft/session/pr_ref。途中cleanup済みを含み得る。成功とfail --abandonで消したときはnull。削除済みWTを成果参照にしない |
 | reason | successはnull、failedは具体的理由 |
 | reviewer/timing | 保存成果と同じ実行情報・時刻 |
 | save_seconds/cleanup_seconds/total_seconds | 実測。未実施を実測0にしない |
@@ -94,7 +95,7 @@ uv run --project "$TOPLEVEL" --locked python "$RUN_HELPER" fail \
   --request "$REQUEST" --reason "$REASON"
 ```
 
-stateがある場合は `--state "$STATE_FILE"` を追加する。非runnerならrequestを省く。理由は観測した不足/失敗を具体的に書く。失敗後に通常headへfallbackしたり、別modelで保存したりしない。
+stateがある場合は `--state "$STATE_FILE"` を追加する。非runnerならrequestを省く。理由は観測した不足/失敗を具体的に書く。失敗後に通常headへfallbackしたり、別modelで保存したりしない。prepareの後にレビューせずに止めるときは、SKILL.mdの「保存しなかったとき」の条件で `--abandon` も付ける。helperは記録の後に試行を消し、結果を `cleanup`・`cleanup_details`・`retained_paths` に返す。
 
 ## callerが結果を回収するとき
 
@@ -119,4 +120,4 @@ runnerの `result.json` の各試行を、run_id/request_id/agent_id/roleが `re
 - 一致する記録の無い試行（PRが決まる前の失敗など）は `unmatched` にIDとstateを並べるだけ
 - 雛形の workflow `review` は、runnerの後処理（`after_run`）でこのコマンドを呼ぶ。個人設定で止めた直接 caller と Python API の caller は、run の後に attach-runner を呼ぶ。after_run の失敗は runner の終了コードを変えないので、summary の after_run と更新後の payload を必ず確認する
 
-停止条件: API/認証失敗、model未観測、wrong repo、commit object無し、moving PR head、worktree commit変更、request変更、skill変更、destination変更、成果欠落/不整合、cleanup拒否。いずれも利用者への確認待ちにせずfailedで終了する。
+停止条件: API/認証失敗、model未観測、wrong repo、commit object無し、moving PR head、worktree commit変更、request変更、skill変更、destination変更、成果欠落/不整合、cleanup拒否。いずれも利用者への確認待ちにせずfailedで終了する。moving PR headでも自動でレビューし直さない。
