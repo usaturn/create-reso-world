@@ -176,11 +176,23 @@ rm / rmdir の削除対象にシェル変数を使う場合は、各変数に `$
 
 ### SDD 実行運用
 
+この節では controller（司令塔）・ledger（進捗記録）・brief（依頼書）という用語を使う。
+
 - Plan に「実行予算」の節を設け、Issue 全体の能動時間の予算、phase の目安、worker の期限・予約枠・無進捗の打ち切り、失敗の種類ごとの再試行の上限、checkpoint の時点、縮小・切り出し・方法変更の候補を書く。適用範囲、時間の数え方、ledger の置き場所と片付け、checkpoint での判断は `.agents/execution-budget.md` に従う
 - superpowers の subagent-driven-development・executing-plans の作業領域は、スキルの言う `.superpowers/sdd/<plan>/` ではなく、実行予算の ledger と同じセッションディレクトリの `sdd/<plan>/`（`tmp/agents/<topic>.XXXXXX/sdd/<plan>/`。`<plan>` は Plan のファイル名から `.md` を除いた名前）にし、最初に `mkdir -p` で作る。`sdd-workspace`・`task-start`・`task-done` は作業領域を worktree に作るので使わない。`task-brief` は 3 つ目、`review-package` は 4 つ目の引数に、作業領域の下のスクリプトの既定の名前（`task-<N>-brief.md`・`review-<base7>..<head7>.diff`）を渡す。BASE は Task の開始時に `git rev-parse HEAD` で控える。ledger（`progress.md`）の完了の行は手で書き、SDD は Task のレビューが clean か、上限で残りを parked にしたときにスキルの書式で、executing-plans は Task のテストが通ったときだけ `task-done` と同じ書式で書く
 - 実装サブエージェントはテスト、lint、回帰を同期実行し、完了を待ってからターンを終える。monitoring-long-tasks の監視ルールは controller が長時間タスクを監視するためのものであり、実装サブエージェント内部の待ちをバックグラウンド化する根拠にしない
 - controller は monitoring-long-tasks の終了条件が成立するまでターンを保持し、stall ポーリングを担当する。完了通知は harness の終了コード付きプロセス終了通知を指し、成果物やサブエージェントの結果通知とは区別する。これは対象停止の判定材料であり、対象の実行中にターンを終える根拠にしない。ただし monitoring-long-tasks の「事前宣言した打ち切り」の対象に限り、宣言した条件で止めてよく、停止確認不能のときは対象・停止状態・残存パスを報告してターンを終えてよい
 - 各担当は着手から成果提出までの所要時間と主要 Task 別の内訳を作業報告に記録する
+
+以下の追加規則は Claude Code・pi の subagent-driven-development・executing-plans で新しく作成する Plan に適用する。既存の Spec・Plan には遡及適用せず、review-fix-planning の指摘の採否基準も変更しない。
+
+- Plan に失敗・行き詰まり時の代替策（contingency）と切り替える条件を記す。実行予算の縮小・切り出し・方法変更や停止条件と整合させる
+- Plan の受け入れ基準には、動作環境、実入力、防御範囲の 3 点を記す。実入力は対象に応じて複数行・非 ASCII 等の実際の形を示し、防御範囲は対象条件と対象外の反例・設定を明記する。テストの要否は「テストの採用基準」に従い、不要な場合は代わりの検証を書く
+- controller は同じ受け入れ基準の本文を実装担当・タスクレビュー担当双方の brief に写す。指定文言は文字列の一致だけでなく実入力・実出力との意味を照合し、指摘された文言自体の妥当性もレビュー対象にする。意味を保つ表記の差は Plan の条件に照らして判断する
+- 範囲外または Plan と矛盾するレビュー指摘は、controller が修正前に採用・不採用・保留を裁定し、理由とともに ledger に記録する。指摘に合わせてレビュー後に採否基準を変更しない
+- 採用したレビュー指摘は原文のまま修正担当へ渡す。controller による要約・言い換えや修正手段の付け足しで置き換えず、裁定理由などの補足は原文と分けて記す
+- 実装担当は Task 単位の検証、controller は全体の end-to-end 検証を担当し、Plan に手順と担当を記す。最終レビューの追加の再現実行は、具体的な不具合の疑いを確認する場合に限る。pi のレビュー子は読み取り専用を保ち、必要な再現は controller が同期実行する
+- 新しい Plan は実行前にユーザへ提示して確認を得る。提示・確認を省略できるのは issue-to-pr の作業に限り、「Spec・Plan の保存と公開」に従って draft のままコミットし、実行許可と内容の承認を区別する
 
 ## 環境
 
