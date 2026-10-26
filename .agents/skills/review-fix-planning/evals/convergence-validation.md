@@ -125,3 +125,39 @@ Spec の条件「バッチの read/write」「不正入力で書き込みなし�
 - 証拠が経路表で揃ってから push し、PR にレビュー状況・判断・結果を投稿。duplicate 指定と即 push は受けない。
 
 経過時間: 未計測（測定手段なし。実行証拠を作らない）
+
+
+# Issue #189: 要件照合・委任確認の限定評価
+
+## 対象・変更前の確認
+
+- 対象は review-fix-planning の本文、共通参照1章、implement の引き渡し。初回実装の Spec → Plan → Task の照合は維持する。
+- 基準は `5b2c535`。実装開始時の `3fcdae8` と基準との間で、今回の5ファイルに差分が無いことを `git diff --exit-code` で確認した（exit 0）。
+- 変更前の確認は 2026-10-27、pi-superagents の `sp-research`、`sessionMode=lineage-only`、同じ回答に2ケース、各1回。読み取り専用の子が返した回答を controller が要約・引用して保存した。子の所要時間は未計測。正確なモデル識別子はこの要約からは確認できない。
+- 以下は保存された要約に基づく観測であり、未観測の失敗を補わない。コマンド実行・修正・公開を伴わない判断シナリオである。
+
+### ケースの要約と観測
+
+| ケース | 与えた状況 | 変更前の観測 |
+|---|---|---|
+| A: 要件照合と共有条件 | directory importer の CLI/interactive 両入口で未対応 URI を無変更で拒否、network URL は除外。既存 Spec が保証し、Plan は別 worker だが parser 状態を共有。CLI の致命的な状態変更は確認済み。残り15分、interactive worker の local tests は green、修正は staged という架空の状況 | 現行 committed HEAD の確認 → 分類 → 経路表 → 再発判定 → 方針の順を挙げ、要件対応の作成を経路表より前の独立した段として挙げなかった。保証の記録と Plan 修正は後段の Spec 内容に挙げた。共有状態・操作順は統合担当が確認するとした |
+| B: 縮小への委任 | 同じ PR で local 入力の field loss が再発。承認済み Spec は local と symlink を保証。完遂依頼で縮小委任は無い。保証維持は1時間、symlink を外すと5分、残り10分、2回のレビューによる費用・収束圧力。明示委任あり・計画のみの場合も対比 | 「Narrowing is not allowed without explicit delegation.」「Maintain the approved local+symlink guarantee and choose a structural fix.」と回答。無断縮小の行動失敗は観測していない |
+
+A では「The integration owner — not either entry worker — owns the shared parser state/order check.」と回答しており、統合担当の必要性も変更前から提案済みである。子は共通参照の全文を読み、1章を自発的に参照したため、旧 SKILL が指定する2・3章だけを読む経路との厳密な対照ではない。架空の staged 変更を実際の worktree の停止条件と混同する回答もあり、補助設定の影響を排除できない。
+
+改善対象は、分類後かつ経路表・方針より前の要件対応、その必須読取経路、implement への引き渡し、保証縮小の選択前の委任確認を明示的につなぐことである。保証維持・統合担当を初めて獲得した、無断縮小を再現して防いだ、収束率が改善した、とは主張しない。
+
+## 変更後の行動確認と限界
+
+実装担当の提出時点では未実施。controller が同一2ケースを変更後の新しい子で1回確認し、回答・結果・限界をここへ追記する。実装担当から別 agent・モデル CLI は起動していない。追加した eval 26/27 のケース単独の行動評価、独立反復、別モデル横断、実運用のレビュー修正回数・費用・退行の測定は未実施であり、構造確認や pytest の成功で代用しない。
+
+
+## 構造・実行検証（実装担当）
+
+- 参照経路を机上で確認: SKILL 手順4の分類 → 共通参照1章の要件対応 → 経路表 → 手順5の方針選択。要件対応は Spec の必須内容とし、implement の prompt に条件・除外範囲・共有前提・統合担当の確認・必要な証拠を渡す。保証縮小は設計見直し手順3で選択前に委任を確認する。委任外の完遂は保証維持、計画のみは既存の承認手順へ進む。
+- JSON 解析・ID/name の一意性: 27件、旧25件は変更せず2件だけ追加。変更対象 Markdown 4ファイルの相対リンク26件はすべて実在。`git diff --check` は exit 0。
+- 変更は指定5ファイルだけ。frontmatter、RoleInput の5キーと表、共通参照2・3章、execution 2章以降は未変更。過去の評価記録は元のバイト列を維持したまま本節を追記した。新しい帳票・helper・schema・pytest は作っていない。
+- `uv run --no-project python /home/vscode/.pi/agent/npm/node_modules/@howaboua/pi-skill-skill-creator/skills/skill-creator/scripts/skill-efficiency-check.py .agents/skills/review-fix-planning`: exit 0、Issues none。`description may not clearly say when to use the skill` の warning 1件。description は未変更。
+- 指定の関連検査 `uv run pytest tests/skills .agents/skills` は1回実施し、**697 passed / 412.20秒 / exit 0**（2026-10-27 02:51:09〜02:58:03 +09:00）。
+- 全体の Python 検査も `uv run pytest -rs` で同期実行し、**1237 passed / 422.45秒 / exit 0**（02:59:12〜03:06:15 +09:00）。pyproject.toml の testpaths は README の非ワールド pytest と同じ4ディレクトリ。失敗・skip・pytest の warning は無し。
+- 上の検査は開始時 HEAD `3fcdae8` に今回の作業差分を加えた版で実施した。最終の評価記録・Spec/Plan 更新後の clean HEAD での非ワールド3コマンド、変更後の行動確認とブランチ全体レビューは controller の担当であり、ここで実施済みとはしていない。
