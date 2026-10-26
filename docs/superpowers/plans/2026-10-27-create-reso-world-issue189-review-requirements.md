@@ -52,18 +52,21 @@ SDD、1 Task、同期のsp-implementer、task review、その後branch review。
 
 **テストの要否:** pytest追加なし（F/L）。文書の行動確認・参照の実在・JSON解析・diff・既存検査で代える。
 
-- [ ] Step 1: 変更前シナリオの回答要約 `SESSION/baseline.md` を読む。保証縮小の行動失敗は未観測と保ち、前提条件の順序不足と既存の読取経路を確認する。
-- [ ] Step 2: 共通参照1章にreview-fixでの入力と対応先を追加し、初回実装のTask割当を維持する。SKILL手順4で分類→要件対応→経路表→方針の順に接続し、要件対応を既存Specの必須内容へ含める。
-- [ ] Step 3: 設計見直し手順3に保証を狭める案の選択前の委任確認と根拠記録を置く。範囲外の完遂は元の保証維持、計画のみは既存承認手順。開示だけでは許可にならない。
-- [ ] Step 4: execution1章のpromptに条件・除外範囲・共有前提・統合担当の確認と必要な証拠を追加する。RoleInput、helper、frontmatterは変更しない。
-- [ ] Step 5: evalsへ2ケース追加、validationへ変更前の限界と構造確認を追記する。controllerが同じケースを変更後の新しい子で1回確認し、結果を記録する（実装子は別agentを起動しない）。
-- [ ] Step 6: 変更対象のMarkdown相対リンク先の実在、JSON/ID一意性、`git diff --check`、`uv run --no-project python /home/vscode/.pi/agent/npm/node_modules/@howaboua/pi-skill-skill-creator/skills/skill-creator/scripts/skill-efficiency-check.py .agents/skills/review-fix-planning` を確認する。フル検査はcontrollerが最終記録後に同期で実施する。`uv run pytest tests/skills .agents/skills` を実装子で1回通す。
-- [ ] Step 7: 許可した5ファイルだけstageして `docs: connect review-fix requirement and delegation checks` でcommit。自己確認、コマンド・結果・所要時間をreportへ記す。Planの完了チェックはcontrollerが行う。
+- [x] Step 1: 変更前シナリオの回答要約 `SESSION/baseline.md` を読む。保証縮小の行動失敗は未観測と保ち、前提条件の順序不足と既存の読取経路を確認する。
+- [x] Step 2: 共通参照1章にreview-fixでの入力と対応先を追加し、初回実装のTask割当を維持する。SKILL手順4で分類→要件対応→経路表→方針の順に接続し、要件対応を既存Specの必須内容へ含める。
+- [x] Step 3: 設計見直し手順3に保証を狭める案の選択前の委任確認と根拠記録を置く。範囲外の完遂は元の保証維持、計画のみは既存承認手順。開示だけでは許可にならない。
+- [x] Step 4: execution1章のpromptに条件・除外範囲・共有前提・統合担当の確認と必要な証拠を追加する。RoleInput、helper、frontmatterは変更しない。
+- [x] Step 5: evalsへ2ケース追加、validationへ変更前の限界と構造確認を追記する。controllerが同じケースを変更後の新しい子で1回確認し、結果を記録する（実装子は別agentを起動しない）。
+- [x] Step 6: 変更対象のMarkdown相対リンク先の実在、JSON/ID一意性、`git diff --check`、`uv run --no-project python /home/vscode/.pi/agent/npm/node_modules/@howaboua/pi-skill-skill-creator/skills/skill-creator/scripts/skill-efficiency-check.py .agents/skills/review-fix-planning` を確認する。フル検査はcontrollerが最終記録後に同期で実施する。`uv run pytest tests/skills .agents/skills` を実装子で1回通す。
+- [x] Step 7: 許可した5ファイルだけstageして `docs: connect review-fix requirement and delegation checks` でcommit。自己確認、コマンド・結果・所要時間をreportへ記す。Planの完了チェックはcontrollerが行う。
 
 ## 統合・公開
 
 controllerが変更後行動確認、task review、SpecとPlanの全条件照合、branch reviewを実施。SDD領域を片付けてfinishingスキルで既に指定済みのPR作成へ進む。最終commit後、clean HEADでREADME非ワールド3コマンド、diff・参照を検証し、HEAD・base・argv・終了コード・ログをSESSIONへ残す。Issueの競合を再確認しGitleaks検査付きpush、PRを作成（Closes #189）。親checkoutのloop.pyに利用者が指定した `--max-cycles 3` だけ渡しレビュー・修正・finalizeを実施する。モデル不明、ツール・API障害、競合は所定の停止条件で報告し迂回しない。
 
-## 完了記録
+## 実装・検証記録
 
-未実施。
+- Task 1 commit: `627402a`。指定5ファイルのみ、実装22分48秒（うち関連pytest6分54秒、全体pytest7分03秒）。関連697件／全体1237件が成功、diff・参照・JSON・checker成功。未変更descriptionのwarning1件は維持。
+- 変更後の限定シナリオは同一2ケースを1回、54.4秒。保証維持・委任境界・共有担当を提案したが、Aは分類前に要件照合を置く順序不一致があった。全面的GREEN・改善効果・運用収束は未実証と評価文書に記録。
+- task review: 仕様適合、品質Approved、Critical/Importantなし。順序不一致と既存warningは検証の限界として記録した。最終HEADのREADME3検証とbranch review、公開・ループの結果はセッションのログ・PRコメントで記録し、未実施を成功と書かない。
+- 文書の実装上のC1〜C5はTask 1と構造照合で対応。モデルの完全遵守や運用改善の効果は保証しない。
