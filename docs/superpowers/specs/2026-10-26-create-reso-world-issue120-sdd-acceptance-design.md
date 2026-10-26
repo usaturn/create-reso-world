@@ -4,7 +4,7 @@
 
 - 文書管理・対象: `usaturn/create-reso-world`
 - Issue: https://github.com/usaturn/create-reso-world/issues/120
-- 状態: `draft`（内容の承認は未取得）
+- 状態: `completed`（実行許可による実施。内容を `approved` にしたものではない）
 - 開始 HEAD: `5b2c535`
 - 実行許可: 利用者の `issue-to-pr #120 --merge --max-cycles 3`。通常の設計判断、実装、検証、commit・push・PR 作成を委任。マージは PR 修正ループの `finalize.py` に限る。
 - 確認用コピー・追加承認待ちは issue-to-pr の手順に従い省略する。
@@ -50,3 +50,30 @@
 ## 検証と限界
 
 文書の固定文言テストは F なので追加しない。writing-skills の変更前/後比較で、同じ小さな Issue の Plan と双方の brief、範囲外指摘・実出力差への判断を観測する。行動比較は Pi の子で行うため、Claude Code の実運用や全入力を実証するものではない。7 項目の文書照合と既存規則の不変確認、`git diff --check`、README のワールド以外の全検証を行う。マージ後でなければ確認できない受け入れ項目は無い。
+
+## PR #281 レビュー選別・最終化前の結果（サイクル1）
+
+- 対象: https://github.com/usaturn/create-reso-world/pull/281、レビューHEAD `2928a904ed238a7207a6676bded8181c7d9e2221`。planner: `openai-codex/gpt-6.1-sol`（pi）。実行許可は冒頭の `--merge --max-cycles 3`、review-fix-planning の完遂に従う。
+- 対象の現行Specはこのファイル1件。新しいround別文書は作らず更新した。Planは元のTask実施記録として保持する。
+
+| レビューファイル | モデル | runtime | HEAD | 再実行 | 推奨 |
+| --- | --- | --- | --- | --- | --- |
+| claude-opus-5-5.md | claude-opus-5-5 | claude-code | 2928a904ed23 | true | Approve |
+| SWE-2-Max.md | SWE-2 Max | devin | 2928a904ed23 | true | Approve |
+| deepseek-deepseek-v4.1-flash.md | deepseek/deepseek-v4.1-flash | pi | 2928a904ed23 | true | Approve |
+
+全3件の入力を受け付け、却下・古い世代・前の判断は無い。review-verify による確認済み一覧は `reviews/usaturn/create-reso-world/#281-feat-issue-120-sdd-acceptance/verified/2928a904ed23.json`、工程の記録は同stemの `.planning.json`。
+
+| 指摘 | 分類 | 現行HEADでの根拠と理由 |
+| --- | --- | --- |
+| claude-opus-5-5#L-1@2928a904ed23 | 対応しない | `AGENTS.md:191` は指定文言と実入力・実出力の意味照合を求めるが、Planの指定した条件そのものと受け入れ基準の意図の照合を明示していない。Specの規則3との静的な差異は確認した。実在の構成・利用経路で致命的な誤結果・損害・停止につながる根拠は確認されず、列挙・表現の不足としてreview-fix-planningの採用条件を満たさない。ラベルや多数決は根拠にしない。 |
+
+解消済み0／対応する0／対応しない1。条件・照合基準の明確さに留保があるため、「7項目のあらゆる意図が明文で充足」とは保証しない。回避はタスクレビューでPlan/Specの意図も併読して指定条件自体を照合すること。具体的な致命的影響の根拠または利用者の名指しがあれば再判定する。PR説明にも制限を残す。採否基準は変えず、非致命的な追記修正はしない。対応する項目が無いため影響経路の修正表・設計の見直しは不要。
+
+結論は2（追加修正不要、最終化へ進む）。規約の実装修正0、run_rolesによる修正・自己レビュー・fix-checkは未実施（各0回。不要な工程を成功とは記録しない）。既定割当てはD7のとおり。review-verifyの確認は候補の真偽確認で、修正後の自己レビューではない。
+
+検証: 最後の実装・記録commit後のclean HEAD `2928a90` でREADMEの3検証（bash23、layout、pytest1237）とdiff検査はすべて終了0。baseが `5b2c535` から `a0ada37ddf7d82c6a06650ddf5ddbe6ce139c944` へ進んだため、同HEADにこのbaseを競合なくmergeした隔離ツリーでも3検証を実行し、bash23・layout・pytest1237がすべて終了0だった。一時mergeはpushせず、検証worktreeは削除済み。記録は `/workspaces/reso-world/tmp/agents/review-fix-planning-pr281.yxm4937h/checks.json` と `merge-verification.json`、実ログは同ディレクトリ `merge-check-1..3.log`。元のHEADの証拠は `/workspaces/reso-world/tmp/agents/issue-120.frs5sdx4/verification.json`。
+
+未実施・限界: 指定条件自体を指摘する新規の行動比較、Claude Code実運用・統計的保証は未確認。元の比較の全文コピーの省略はPlanの結果どおり保持する。review-verifyが未読とした移植元はcontrollerが `e80433a` の差分を取得済み。変更ファイル全文・関連規則・既存テスト採用基準は読み終えており、確認済み一覧の未再実行範囲を未確認の致命的指摘とは扱わない。
+
+所要時間: ループ開始18:34 UTC、3レビュー終了18:44、候補確認18:45〜18:50、base統合検証18:53〜18:59。能動時間はIssue予算内。マージ・Issue更新が済んだとはここでは記録せず、最終化の結果と状況コメントで確認する。
