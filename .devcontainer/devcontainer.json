@@ -53,7 +53,7 @@
 		"--security-opt",
 		"apparmor=unconfined",
 		"--network=host",
-		// initialize.bash が書く。写真フォルダがリンクのときだけ RESOLOOP_SCREENSHOTS_DIR を渡す
+		// initialize.bash が RESOLOOP_TEXTURE_TRANSFER=data を常に書く。写真フォルダがリンクのときだけ RESOLOOP_SCREENSHOTS_DIR も渡す
 		"--env-file",
 		"${localWorkspaceFolder}/.devcontainer/resonite-screenshots.env"
 	],

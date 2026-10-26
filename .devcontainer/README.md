@@ -287,8 +287,9 @@ resoloop doctor --json
 
 Resonite は写真を Windows の Pictures の `Resonite` フォルダに保存する。そのままではコンテナの `resoloop capture` が写真を読めず、
 `CAPTURE_EXPORT_DIR_UNREACHABLE` で止まる。WSL 側にリンクを 1 回作ると、コンテナの
-`~/.local/share/create-reso-world/resonite-screenshots` に読み取り専用でマウントされる。あわせて `initialize.bash` が
+`~/.local/share/create-reso-world/resonite-screenshots` に読み取り専用でマウントされる。リンクがあるときだけ `initialize.bash` が
 `.devcontainer/resonite-screenshots.env` に `RESOLOOP_SCREENSHOTS_DIR` を書き、`runArgs` の `--env-file` でコンテナに渡す。
+この生成ファイルは毎回作り直し、写真リンクの有無によらず `RESOLOOP_TEXTURE_TRANSFER=data` も書く（次の節）。
 
 1. Windows の PowerShell で Pictures の場所を調べる。OneDrive にリダイレクトされていれば、その場所が表示される
 
@@ -310,16 +311,50 @@ Resonite は写真を Windows の Pictures の `Resonite` フォルダに保存�
 リンク先が無くなると、`initialize.bash` がリンク先を表示して止まる。`/mnt/c` が見えるか（WSL の automount）とフォルダがあるかを
 確かめるか、リンクを消して空のディレクトリに戻す。リンクを作った・消した後は、どちらも rebuild が要る。
 
-### Windows の Resonite へのテクスチャ取り込み（WSL）
+### Windows の Resonite へのテクスチャ取り込み
 
-Windows の Resonite は、コンテナのパス（`/workspaces/...`）を開けない。そのままだと `resoloop apply` のテクスチャ取り込みが
-`ASSET_IMPORT_FAILED` か `REQUEST_TIMEOUT` で止まる（usaturn/resoloop#12）。WSL のときは、`initialize.bash` が
-`.devcontainer/resonite-screenshots.env` に `RESOLOOP_HOST_PATH_MAP`（`/workspaces/<フォルダ名>=\\wsl.localhost\<ディストリビューション名>\<リポジトリの WSL パス>`）を書き、
-`--env-file` でコンテナに渡す。設定は不要で、rebuild で反映される。
+Windows の Resonite は、コンテナのパス（`/workspaces/...`）を開けない。ファイルのパスを渡す方式では、`resoloop apply` の
+テクスチャ取り込みが `ASSET_IMPORT_FAILED` か `REQUEST_TIMEOUT` で止まる。
+[fork の PR #22](https://github.com/usaturn/resoloop/pull/22) でマージ済みの `textureTransfer=data` は、CLI 側で画像を復号し、
+RGBA 8 bit の画素を送るため、Resonite からコンテナのパスを開く必要がない。
 
-- `hostPathMap` を読めるのは、usaturn/resoloop の PR #16 を含む ResoLoop だけ。上流にマージされるまでは、公開版では無視される。
-  それまでは `scripts/resoloop-fork.sh install origin/main` で fork のビルドを入れる
-- WSL 以外（`WSL_DISTRO_NAME` が空）と、Windows 側のドライブ上（`/mnt/...`）のリポジトリでは書かない
+`initialize.bash` は WSL の有無や checkout の場所（`/mnt/...` を含む）によらず、
+`.devcontainer/resonite-screenshots.env` に `RESOLOOP_TEXTURE_TRANSFER=data` を書く。
+`devcontainer.json` の `runArgs` の `--env-file` がコンテナの作成時に読み込むため、既存環境には rebuild が要る。
+生成ファイルは毎回作り直し、古い自動生成値は残さない。`RESOLOOP_HOST_PATH_MAP` と UNC パスは生成しない。
+
+**環境変数があるだけでは CLI の対応確認にならない。** postCreate は従来どおり NuGet の最新の公開版を版固定せず導入する。
+公開版にはこの機能がまだ入っていない場合があり、未対応の CLI は環境変数を無視する。次の順で確認する。
+
+1. ホストで Dev Containers: Rebuild Container を実行する。
+2. rebuild 後のコンテナで次を実行し、環境変数が `data` で、ヘルプに `--texture-transfer` があることを確かめる。
+
+   ```bash
+   printenv RESOLOOP_TEXTURE_TRANSFER
+   resoloop apply --help
+   ```
+
+3. 公開版が未対応なら、リポジトリのルートで fork のビルドを一時導入し、もう一度ヘルプを確かめる。
+
+   ```bash
+   bash scripts/resoloop-fork.sh install origin/main
+   resoloop apply --help
+   ```
+
+   機能が公開版に入るまでは rebuild 後にこの導入が必要になる。次の rebuild、または
+   `bash .devcontainer/install_resoloop.bash` で最新の公開版に戻る。fork の取得・導入の詳細は
+   [ResoLoop の fork 運用](../docs/resoloop-fork-workflow.md) を参照する。
+
+対応する CLI の設定の優先順位は、CLI > 環境変数 > プロジェクト設定（`.resoloop.json`）> ユーザー設定（`~/.resoloop/config.json`）。
+コンテナでは環境変数がプロジェクトの `textureTransfer` より優先される。Resonite が画像ファイルを読める構成でファイル転送を使うときは、
+`resoloop apply` に `--texture-transfer file` を付けて明示指定する。
+
+`data` は audio の転送を変えず、audio は引き続きファイルのパスで取り込む。WebP・HDR は非対応で、16 bit PNG は 8 bit に変換される。
+対応形式・制限と fork での実機検証の記録は [テクスチャの転送方式](https://github.com/usaturn/resoloop/blob/main/docs/TEXTURE-TRANSFER.md) にある。
+本変更では rebuild や実機の apply を再検証していないため、反映後の確認は利用者が行う。
+
+以前 `~/.config/create-reso-world/env` などに手動で足した `RESOLOOP_HOST_PATH_MAP` は自動では変更しない。
+不要な旧設定は、利用者が内容を確認して必要に応じて削除する。生成 env や利用者の env を手で書き換える作業はセットアップでは行わない。
 
 ## Meshy CLI と生成物の受け渡し
 

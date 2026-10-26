@@ -55,7 +55,7 @@ docs_draft/
 .env
 .env.*
 .secrets/
-# initialize.bash が書く、コンテナに渡す環境変数（Resonite の写真フォルダ）
+# initialize.bash が書く、コンテナに渡す環境変数（テクスチャの画素転送、任意の Resonite の写真フォルダ）
 /.devcontainer/resonite-screenshots.env
 
 ## Node（npx などが作る）
