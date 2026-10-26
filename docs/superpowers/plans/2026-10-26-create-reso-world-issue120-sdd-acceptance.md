@@ -65,11 +65,24 @@
 
 **テストの要否:** 文書固定値は F のため追加しない。controller が writing-skills の行動比較を変更前後各1回行う。実装担当は文書照合・`git diff --check`・`bash scripts/check-layout.sh` を同期実行し、既存全 suite は controller が変更後に1回実行する。
 
-- [ ] **Step 1:** controller が同じ小さな Issue シナリオを固定し、変更前の規則で Plan・双方の brief・実出力差/範囲外指摘への判断を fresh context の子に生成させる。原文と観測を親 session に保存する。
-- [ ] **Step 2:** 実装担当が7項目をSDD節へ追加する。contingency、3点の受け入れ基準（テストは採用基準に従う）、brief共通基準と指定文言の意味照合、範囲外指摘の事前裁定、原文転送、具体的疑いに限定した最終再現（Piはcontroller実行）とend-to-endの担当分割、Plan提示とissue-to-pr限定省略。用語は初出で controller（司令塔）・ledger（進捗記録）・brief（依頼書）と説明し、既存規則を保つ。
-- [ ] **Step 3:** 実装担当が7項目・対象外・既存5項目を照合し、`git diff --check` と `bash scripts/check-layout.sh` を実行、`docs(agents): align SDD acceptance criteria and review adjudication` として AGENTS.md のみ commit、詳細レポートを指定パスに保存する。
-- [ ] **Step 4:** controller が同じシナリオを変更後の規則・fresh context で実行し、基準節・双方のbriefの一致・裁定/原文転送・意味を保つ差異対応を前後比較する。タスクレビューと最終全体レビュー、READMEの3検証、要件照合を行い、結果をこのPlanへ追記する。
+- [x] **Step 1:** controller が同じ小さな Issue シナリオを固定し、変更前の規則で Plan・双方の brief・実出力差/範囲外指摘への判断を fresh context の子に生成させる。原文と観測を親 session に保存する。
+- [x] **Step 2:** 実装担当が7項目をSDD節へ追加する。contingency、3点の受け入れ基準（テストは採用基準に従う）、brief共通基準と指定文言の意味照合、範囲外指摘の事前裁定、原文転送、具体的疑いに限定した最終再現（Piはcontroller実行）とend-to-endの担当分割、Plan提示とissue-to-pr限定省略。用語は初出で controller（司令塔）・ledger（進捗記録）・brief（依頼書）と説明し、既存規則を保つ。
+- [x] **Step 3:** 実装担当が7項目・対象外・既存5項目を照合し、`git diff --check` と `bash scripts/check-layout.sh` を実行、`docs(agents): align SDD acceptance criteria and review adjudication` として AGENTS.md のみ commit、詳細レポートを指定パスに保存する。
+- [x] **Step 4:** controller が同じシナリオを変更後の規則・fresh context で実行し、基準節・双方のbriefの一致・裁定/原文転送・意味を保つ差異対応を前後比較する。タスクレビューと要件照合を行い、結果をこのPlanへ追記する。最終全体レビューとREADMEの3検証は、次節の統合・公開で行う。
 
 ## 統合・公開
 
 controller がTask完了を記録し、最後のcommit後のcleanなHEADでREADMEの3コマンドを実行、argv・終了コード・ログをsessionのchecks-fileへ保存する。変更前はbash23・pytest1237・layout成功。秘密検査を通った同じSHAのみpushし、`Closes #120` のPRをmain向けに作る。`--merge --max-cycles 3` の既定割当てを使うループへ進み、最終結果とIssue状態を確認する。公開前にIssue/競合を再確認。private CIは確認しない。
+
+## Task の結果（2026-10-26）
+
+- Task 1: `d3e6e1a..112d998`。実装 `8c5647c`、要件照合による修正 `112d998`。タスクレビューは spec適合・品質Approved、修正後の限定レビューはI1〜I6全てADDRESSED、新しい問題なし。
+- 初版に残った欠落: 最初のREDでの意味保持/意味変更の分岐、基準節と実装前テストの時点、レビュアー限定資料の禁止、修正手段の付加禁止、レビュアーの流れ単位の分割、提示する3点。Specの既存要件との照合で修正し、新しい要求は足していない。
+- 観測ログ: `/workspaces/reso-world/tmp/agents/issue-120.frs5sdx4/` の `scenario.md`、`behavior-before.md`、`behavior-after.md`、`behavior-after-fix.md`、`integration-findings.md`、`task-1-report.md`。
+- 前比較（fresh sp-research、1回）ではレビュー担当だけへのSpec追加を許し、指摘原文へ具体的な修正手段を付け足した。初回の後比較では両briefへ同じ基準を全文記載し、レビュー担当限定資料を拒否したが、修正手段の付加は残った。
+- 修正後に同一シナリオの後比較を追加1回実施し、原文への修正手段付加をしないことと、範囲外指摘を作業に混ぜないことを観測した。この標本ではbriefの本文コピーを「§1.2をそのまま貼る」という参照で省略したため、最終標本だけで全文コピーまで実行したとは扱わない。文書の全文コピー要求は明示したまま維持する。前後全体の完全合格や統計的な効果は主張しない。
+- contingency と範囲外指摘の理由付き裁定は変更前にも現れた。これらを新規の改善実績には数えない。
+- 実装担当のfocused検証: 文書照合・`git diff --check`・`bash scripts/check-layout.sh` は各修正後に終了0。固定文言テストや実装コードは追加していない。
+- controllerがTask内と全体工程の境界を整理した（Step4の全体レビュー・全suiteを統合・公開へ移動）。実施する検証や受け入れ条件は削減していない。
+- 作業時間（18:21 UTCまで）: 開始から約50分。調査・設計・baseline約23分、前後の行動比較合計約16分、実装担当約7分、タスク/限定レビュー約4分（丸めたcontroller壁時計内訳）。子の実測は初回4分17秒、修正2分49秒。
+- 最終全体レビュー、最後のcommit後の全suiteと秘密検査、PR/ループはこの後に実施する。最終HEAD・コマンドargv・終了コード・ログは同sessionの `checks.json` とPR本文・ループ記録を参照する。未実行の結果をここでは成功としない。
