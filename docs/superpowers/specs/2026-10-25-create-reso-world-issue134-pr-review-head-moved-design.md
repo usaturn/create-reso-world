@@ -1,6 +1,6 @@
 # Issue #134: pr-review で保存しなかった試行の再レビューと片付けを決める
 
-- 状態: draft
+- 状態: completed
 - 文書管理リポジトリ: `usaturn/create-reso-world`（`docs/superpowers/`）
 - 対象: `usaturn/create-reso-world` / [Issue #134](https://github.com/usaturn/create-reso-world/issues/134)
 - 検証したコードの HEAD: `origin/main` `c1fdc560696ab3ce3392b07ece3089989bf25902`（2026-10-25T04:23Z ごろの着手時）
@@ -89,3 +89,54 @@ Issue の本文は PR #182 より前の手順（`create` → HEAD の照合 3 �
 | D10 | SKILL.md と参照文書の変更は、`superpowers:writing-skills` に従い、変更前（`origin/main`）と変更後で振る舞いを比べる。Claude Code の Agent ツールの新しいサブエージェント（model `sonnet`）に、3 つの場面（complete で HEAD の不一致、prepare の後に依頼の HEAD と違う、残った試行の片付けを頼まれた）をまとめた 1 つの問いを渡し、版ごとに 3 回答えさせる。結果は Plan の「完了」と PR 本文に書く | (a) 場面ごとに別の起動にする。(b) 比較を省き、文面の確認だけにする | 判断の手順は文面の書き方で外れやすく、固定文言のテストでは代えられない（issue-to-pr の 4 章の 5）。本物のモデルを起動する確認なので、回数と対象を Plan に書いた 6 回に限る（`AGENTS.md` の「エージェント運用」）。(a) は回数が 3 倍になる | 委任: 推奨案での決定 |
 | D11 | `--merge` のループは `check-options` の結果のままにする。サイクルの上限 3 は利用者の指定。雛形 `.devcontainer/agent-runner.toml`、`--config` なし、inspect は `claude-opus`・`devin-swe`・`pi-deepseek`・`cursor-grok47`、修正は `claude-opus`、自己レビューと fix-check は `self` で、どれも雛形と個人設定の既定の適用 | ループ用のオプションを足す | 利用者が書いたループ用のオプションは `--max-cycles 3` だけで、ほかは足さない | 委任: `/issue-to-pr #134 --merge --max-cycles 3`。`check-options` は終了コード 0 |
 | D12 | Plan の Task の担当は `self` にする | 別の担当に依頼する | `implement_task.py check` は `agents: [self]`、`fallback: []`、`self: true`。雛形と個人設定の既定の適用で、利用者は `--implement` を書いていない | 委任: `/issue-to-pr #134 --merge --max-cycles 3`。`check` は終了コード 0 |
+
+## PR #273 のレビュー判断（2026-10-26、判断の記録のサイクル 2）
+
+- 実行許可: 利用者の `/skill:pr-review-fix-loop #273`。レビュー修正と、修正不要の場合の最終化まで。内容の承認を受けたという意味ではない
+- planner: `openai-codex/gpt-6.1-sol`（pi）。loop run `b617949b576b46a4a26c4a546ac17b68` の第 1 サイクル、`review.mode: reuse`
+- 対象 HEAD: `2ca6c02d1124e0eb919a3acbb3c86aa16713f5d4`。全レビューの HEAD と一致し、変更 8 ファイルの全文・関連処理・テスト・Issue #134 を確認した。既存の clean な head worktree を再利用し、確認の前後で HEAD と未コミット変更なしを照合した
+- 前判断: [サイクル 1 の状況コメント](https://github.com/usaturn/create-reso-world/pull/273#issuecomment-6394785178)。base `08255caa1acb` の mount 不一致による停止だった。採否の新しい根拠は無いため、3 件の `skip` を `inherited` として引き継ぐ
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#273-fix-issue-134-pr-review-head-moved/verified/2ca6c02d1124.json`（mode cycle、3 件 confirmed）。PR・HEAD・4 入力との一致、および候補の validate/check-pair を確認した。確認結果と採否は別であり、再現する 3 件を解消済みにはしていない
+- 工程の記録: 同ディレクトリの `verified/2ca6c02d1124.planning.json`。既存の活動履歴を残し、今回の判断時間を追記する
+
+### レビュアーの構成
+
+全件 Initial、対象は `2ca6c02d1124`、Merge recommendation は Approve。現行 HEAD の既存成果を再利用し、この run ではレビュアーを起動していない。判断の記録の `rerun: true` は file_head が現行 HEAD と一致することを表す。
+
+| ファイル | モデル | ランタイム | 成果の実担当 | 今回の扱い |
+| --- | --- | --- | --- | --- |
+| `claude-opus-5-5.md` | `claude-opus-5-5` | claude-code | claude-opus | reuse |
+| `SWE-2-Max.md` | `SWE-2 Max` | devin | devin-swe | reuse |
+| `deepseek-deepseek-v4.1-flash.md` | `deepseek/deepseek-v4.1-flash` | pi | pi-deepseek | reuse |
+| `Grok-4.7.md` | `Grok 4.7` | cursor | cursor-grok47 | reuse |
+
+入力から除外したレビュアーは無い。読み取り調査の sp-recon に helper 2 ファイル・テスト・関連経路の確認を委譲した。shell の無い子が確認できなかった clean/HEAD の前提は planner が前後で照合した。新しい致命的な欠陥は見つからなかった。
+
+### 全指摘の分類
+
+解消済み 0 / 対応する 0 / 対応しない 3。重大度は全件 Low だが、ラベルや賛否の数を採否の理由にしていない。
+
+| 判断 ID | 区分 | 根拠・発生条件・見直す条件 |
+| --- | --- | --- |
+| `claude-opus-5-5#L-1@2ca6c02d1124` | 対応しない（引き継ぎ） | V-1 で再現済み。`review_run.py:841-851,888` は渡された state の journal の ID で削除する。自分の prepare の値でなく別試行の state を渡す必要があり、正式手順の「返されたパスをそのまま使う」に反する。PR 本文に条件と回避方法が記載済み。state を探索・再開する手順が入るか、この取り違えが実際に起きたら見直す |
+| `Grok-4.7#L-1@2ca6c02d1124` | 対応しない（引き継ぎ） | V-2 で再現済み。`pr_review_workspace.py:1632,1788` の既存の写し名の許可により、モデル名が previous-review に正規化されると draft を消す。そのモデル名を返す実在の runtime は無く、写しと draft の衝突も base からある。PR 本文に制限を記載済み。そのモデル名の runtime、または helper 以外が同接頭辞のファイルを置く手順が入ったら見直す |
+| `deepseek-deepseek-v4.1-flash#L-1@2ca6c02d1124` | 対応しない（引き継ぎ） | V-3 で再現済み。`review_run.py:564-573` の retained_paths に候補 draft と次の操作の独立した欄は無いが、session_dir・attempt_id・理由を返し、候補 draft は session_dir 内に残る。非対話は JSON だけを返し次の操作は呼び出し元が決める（D8）。その欄を直接必要とする呼び出し元ができたら見直す |
+
+設計の見直し: なし（対応する指摘が無い）。保証を追加したり、上記の既知の制約を未解消のまま「直した」とは扱わない。
+
+### 検証と結論
+
+結論 2（追加修正不要で最終化）。実装変更・テスト追加はしない。既存の 2 テストは、未保存 draft の削除防止と片付け結果の誤報告防止という S の損害を確かめる。prepare が書いた雛形との接続を確かめるため test_review_run.py に置いた理由は D9 のとおり。配置を workspace 側へ移す提案は非致命的な保守上の論点であり、今回の対応には加えない。
+
+| 検証対象 | 実行時刻（JST） | コマンドと結果 |
+| --- | --- | --- |
+| PR HEAD `2ca6c02d1124`（clean） | 15:33〜15:40 | `bash .devcontainer/run-tests.bash` 0（23 PASS）、`bash scripts/check-layout.sh` 0、`uv run pytest tests/skills .agents/skills` 0（694 passed） |
+| HEAD に base `7b9380075e9bae9617f5a6a441aafc3ddffedf14` を merge した一時ツリー `5d0540f1273d09abba4c4b7a1ce36cbe6e65e1f6` | 15:41〜15:50 | 同じ 3 コマンドが全て 0（23 PASS、layout PASS、694 passed）。競合なし。一時 worktree は登録解除後に回収済み |
+| base 前進後: HEAD に base `f0a346e729b5a3395bcfd1813f1ff576ce3809f6` を merge した一時ツリー `f9166a77166c29ecb2baa04c75cc44cb102fdf56` | 15:55〜16:03 | 同じ 3 コマンドが全て 0（23 PASS、layout PASS、694 passed）。競合なし。一時 worktree は回収済み。最終化の検証記録はこの base を使う（やり直し 1 回目） |
+| レビュー入力 | 15:51 | 4 候補 JSON と確認済み一覧・工程記録の validate、4 review/candidate の check-pair が全て 0 |
+
+前回停止した mount 不一致は最新 base との組み合わせでは起きなかった。今回の検証ログは planner のセッションディレクトリ `tmp/agents/review-fix-planning-pr273.0dukfkeo/` に置き、結果を本節と状況コメント・loop の記録に保存後に回収する。実 PR の HEAD を動かす検証は外部状態を変えるため実施せず、既存のローカル fixture の証拠を採用した。コードは前回と同じ HEAD なので、その分岐の証拠の前提は変わっていない。
+
+修正・自己レビュー・fix-check の担当: 起動なし。`run_roles.py` は呼んでおらず、修正後の自己レビューは 0 回（結論 2）。今回の読み取り調査を自己レビュー完了の代わりにはしない。
+
+所要時間（最終化前の時点）: 準備・既存成果とコードの確認 約 7 分、head 検証 約 8 分、base 結合ツリー検証 約 9 分、base 前進後の再検証 約 8 分、判断と記録 約 6 分。総時間と最終化の結果は状況コメント・loop の記録・完了報告に残す。
