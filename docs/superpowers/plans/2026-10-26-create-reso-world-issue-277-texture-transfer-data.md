@@ -63,17 +63,23 @@
 
 **テストの要否:** 新規の常設テストは不要。env の欠落は apply の明示エラーで気付ける L、文言・設定の照合は F。既存の S/F∩S のテストは変更しない。一時動作検証で red/green を記録する。
 
-- [ ] **Step 1: 一時検証で変更前の欠落を確認する。** セッションディレクトリ配下に検証スクリプトと一時 HOME を作り、initializer のコピーを実行する。WSL なしで `RESOLOOP_TEXTURE_TRANSFER=data` が無いことを失敗として観測する。リポジトリ内の生成 env を触らない。
-- [ ] **Step 2: 生成処理を切り替える。** 既存の truncation と写真リンクの分岐を残し、`repo_root`/WSL/UNC のブロックを無条件の `printf 'RESOLOOP_TEXTURE_TRANSFER=data\n' >> "$env_file"` に置換する。コメントを更新する。`.devcontainer/devcontainer.json` と `.gitignore` は関連コメントだけを整える。
-- [ ] **Step 3: README を更新する。** Spec 条件 4–6 を説明し、fork のマージ済み機能へのリンクを使う。rebuild 後に `printenv RESOLOOP_TEXTURE_TRANSFER` と `resoloop apply --help` で確認する。公開版未対応なら `bash scripts/resoloop-fork.sh install origin/main`、公開版に戻る操作は `bash .devcontainer/install_resoloop.bash`。`--texture-transfer file`、env がプロジェクト設定より優先、audio/形式の制限、旧手動設定は利用者が必要に応じ削除することを記す。実物の生成 env や利用者の env を編集しない。
-- [ ] **Step 4: 一時検証と既存検証を行う。** WSL 有無、`/mnt` 配下相当のコピー、写真リンク有無、古い env の再生成、2 回目の実行と利用者 sentinel の保持を確認。`/mnt` の検証場所は一意の使い捨て領域に限り、権限不足なら実行不能を報告する。`bash -n .devcontainer/initialize.bash`、`bash .devcontainer/test-initialize-mounts.bash`、`bash .devcontainer/test-readme.bash`、`git diff --check` を実行。ログはセッション配下へ置く。レビュー用 report にコマンド・終了コード・red/green と時間を記録。
-- [ ] **Step 5: 差分を自己レビューし commit する。** 対象 4 ファイルだけを stage し、`git commit -m "fix: default container texture transfer to pixel data"`。Plan のチェック更新は調整役が行う。公開操作やサブエージェント起動は行わない。
+- [x] **Step 1: 一時検証で変更前の欠落を確認する。** セッションディレクトリ配下に検証スクリプトと一時 HOME を作り、initializer のコピーを実行する。WSL なしで `RESOLOOP_TEXTURE_TRANSFER=data` が無いことを失敗として観測する。リポジトリ内の生成 env を触らない。
+- [x] **Step 2: 生成処理を切り替える。** 既存の truncation と写真リンクの分岐を残し、`repo_root`/WSL/UNC のブロックを無条件の `printf 'RESOLOOP_TEXTURE_TRANSFER=data\n' >> "$env_file"` に置換する。コメントを更新する。`.devcontainer/devcontainer.json` と `.gitignore` は関連コメントだけを整える。
+- [x] **Step 3: README を更新する。** Spec 条件 4–6 を説明し、fork のマージ済み機能へのリンクを使う。rebuild 後に `printenv RESOLOOP_TEXTURE_TRANSFER` と `resoloop apply --help` で確認する。公開版未対応なら `bash scripts/resoloop-fork.sh install origin/main`、公開版に戻る操作は `bash .devcontainer/install_resoloop.bash`。`--texture-transfer file`、env がプロジェクト設定より優先、audio/形式の制限、旧手動設定は利用者が必要に応じ削除することを記す。実物の生成 env や利用者の env を編集しない。
+- [x] **Step 4: 一時検証と既存検証を行う。** WSL 有無、`/mnt` 配下相当のコピー、写真リンク有無、古い env の再生成、2 回目の実行と利用者 sentinel の保持を確認。`/mnt` の検証場所は一意の使い捨て領域に限り、権限不足なら実行不能を報告する。`bash -n .devcontainer/initialize.bash`、`bash .devcontainer/test-initialize-mounts.bash`、`bash .devcontainer/test-readme.bash`、`git diff --check` を実行。ログはセッション配下へ置く。レビュー用 report にコマンド・終了コード・red/green と時間を記録。
+- [x] **Step 5: 差分を自己レビューし commit する。** 対象 4 ファイルだけを stage し、`git commit -m "fix: default container texture transfer to pixel data"`。Plan のチェック更新は調整役が行う。公開操作やサブエージェント起動は行わない。
 
 ## 統合・公開のチェックリスト（調整役）
 
-- [ ] Task review の spec/quality を確認し、Task 1 を完了として記録する。
+- [x] Task review の spec/quality を確認し、Task 1 を完了として記録する。
 - [ ] 全検証: `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`。ワールドは対象外。
 - [ ] 全体の branch review と SDD の作業領域 cleanup を行う。
 - [ ] 最後の記録 commit 後の HEAD・clean status・全検証 3 コマンドの argv/終了コード/ログを checks とともに保持する。
 - [ ] Issue の状態・競合を再確認し、Gitleaks 検査済み SHA を push、main 向け PR を作る。決定・方式・検証・所要時間・残る rebuild/実機確認を記す。
 - [ ] 最大 3 サイクルのループを実行する。マージは `finalize.py` のみ。ループ完了後に Issue に PR と残る確認をコメントし、結果を報告する。
+
+## 実行記録
+
+- Task 1: `4ebc121..0da2775`、実装担当の検証は一時 RED→GREEN、WSL 有無×写真リンク有無の 4 ケース・再実行・旧値削除・利用者 sentinel 保持、構文/差分/既存個別チェック、Dev Container 全 23 scripts が成功。Task レビューは spec compliant / quality approved、指摘なし。
+- `/mnt` 下の一時領域作成は権限不足で実行できず、再試行・回避なし。パス判定自体を削除した差分と、別の任意パスでの無条件出力を確認したが、`/mnt` で実行済みとはしない。Step 4 の事前指定どおり実行不能として記録。
+- 実装担当: 約 6 分 52 秒、Task レビュー: 約 3 分（概算）。rebuild/実機 apply は未実施。ログは `/workspaces/reso-world/tmp/agents/issue-277.h3wm65x_/`。
