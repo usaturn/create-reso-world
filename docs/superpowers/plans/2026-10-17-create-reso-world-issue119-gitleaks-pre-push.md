@@ -183,16 +183,16 @@ git commit -m "docs: require the Gitleaks scan before every push (#119)"
 
 ### Task 4: 実環境での確認と PR
 
-- [ ] **Step 1: 3 つのリポジトリで検査する**
+- [x] **Step 1: 3 つのリポジトリで検査する**
 
 Run: `bash scripts/scan-before-push.sh`（この worktree）、`bash scripts/scan-before-push.sh -C <PARENT_ROOT>/external/resoloop`、`bash scripts/scan-before-push.sh -C <PARENT_ROOT>/external/resoloop-meshy`
 Expected: どれも終了コード 0 で SHA を 1 行出す。resoloop・resoloop-meshy では既定の規則を使った旨を表示する
 
-- [ ] **Step 2: 実行記録を書いて commit する**
+- [x] **Step 2: 実行記録を書いて commit する**
 
 検証の結果と所要時間を Plan の末尾の「実行記録」に書く。状態は draft のままにする（completed は、マージと rebuild の後の確認の後で別に記録する）。
 
-- [ ] **Step 3: 検査付きで push して PR を作る**
+- [x] **Step 3: 検査付きで push して PR を作る**
 
 `SHA="$(bash scripts/scan-before-push.sh)" && [ -n "$SHA" ] && git push origin "$SHA:refs/heads/feat/issue-119-gitleaks-pre-push"`。PR の本文に `Refs #119`、検証の結果、移植元との違い（Spec D-11）、利用者に頼むこと（rebuild の後の `gitleaks version` と、3 つのリポジトリの worktree での検査）を書く
 
@@ -209,6 +209,8 @@ Expected: どれも終了コード 0 で SHA を 1 行出す。resoloop・resolo
 - 範囲外の発見: `gitleaks dir` で作業ツリーを走査すると、`main` にある `tests/scripts/test_meshy.py:20`（テスト用の偽の値 `KEY`）が generic-api-key に当たる。push 済みの履歴なので、この検査（未 push の commit だけ）では止まらない。履歴の全体を走査するときにどう扱われるかは確かめていない
 
 ## マージ後の完了記録（2026-10-26 UTC）
+
+Task 4 の Step 1 は以下の実測、Step 2 はこの完了記録の commit、Step 3 は既存の PR #133 の公開・マージに基づいて完了とした。今回の完了記録を公開する PR は別であり、この時点では未作成。Task 1〜3 の過去の未チェック表示は書き換えず、当時の実行記録と PR #133 を実施の根拠とする。
 
 ### 実行許可と完了の範囲
 
