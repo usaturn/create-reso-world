@@ -3,7 +3,7 @@
 ## 管理と実行許可
 
 - 文書管理・対象: `usaturn/create-reso-world`、Issue #277
-- 状態: `draft`（実行許可であり、内容の承認ではない）
+- 状態: `completed`（リポジトリ変更の実装・検証・レビューを完了。内容の承認を意味しない。rebuild・実機の反映確認は下記のとおり未実施）
 - 利用者の指示: `issue-to-pr #277 --merge --max-cycles 3`
 - 許可: 通常の設計判断を推奨案で決め、検証・commit・push・PR 作成後、最大 3 サイクルの PR 修正ループを実行する。マージはループの `finalize.py` のみ。
 - 調査した基準: `origin/main` = `5b2c535d4da20387958b66f0ab71d361b039f5cc`
@@ -48,3 +48,34 @@ fork の resoloop#22 は `textureTransfer=data` で画像を CLI 側で復号し
 一時 HOME にコピーした initializer を使い、WSL 有無・古い生成値・写真リンク有無と再実行を確認する。利用者所有 env の sentinel を保持する。常設テストは増やさない。構文検査、既存 initializer/README テスト、README のルート向け全検証 3 コマンド、差分確認を行う。
 
 マージ後はホストから rebuild し、コンテナで `RESOLOOP_TEXTURE_TRANSFER=data` と対応 CLI のヘルプを確認する。公開版未対応なら fork を導入する。実ワールドへの新規画像の apply と diff は、そのワールドを cwd にして利用者が行う。本 run では追跡外ワールドを触らない。
+
+## PR #279 レビュー修正ループ・サイクル 1 の結果
+
+- 対象: `usaturn/create-reso-world` PR #279、レビュー HEAD `4893251ab41537b06abab313e816438714fc43da`、base `5b2c535d4da20387958b66f0ab71d361b039f5cc`。
+- planner: `openai-codex/gpt-6.1-sol`、runtime `pi`。実行許可は冒頭の `--merge --max-cycles 3`。
+- 結論: **2 修正不要**。全指摘の一覧は空。解消済み 0 / 対応する 0 / 対応しない 0、確認待ちの候補 0。票数ではなく、現行のコミット済み変更・関連処理・テスト・仕様と照合して判断した。
+
+| レビューファイル | モデル | runtime | HEAD | 再実行 | recommendation | 実測秒数 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `claude-opus-5-5.md` | `claude-opus-5-5` | `claude-code` | `4893251ab415` | はい（Initial） | Approve | 300.87 |
+| `SWE-2-Max.md` | `SWE-2 Max` | `devin` | `4893251ab415` | はい（Initial） | Approve | 384.49 |
+| `deepseek-deepseek-v4.1-flash.md` | `deepseek/deepseek-v4.1-flash` | `pi` | `4893251ab415` | はい（Initial） | Approve | 497.14 |
+
+保存先は `/workspaces/reso-world/reviews/usaturn/create-reso-world/#279-fix-issue-277-texture-transfer-data/`。3 名とも runner の受け取りは accepted、失敗・再試行・retained はない。前サイクルの判断もない。候補 JSON と本文の一致は `review_findings.py validate` / `check-pair` で 3 組とも成功した。
+
+### 確認の範囲と根拠
+
+変更 6 ファイルを全文読み、initializer・env-file の呼出元・mount の helper とテスト・公開版/fork の導入経路を照合した。補助調査は `sp-research` が約 332 秒で読取を完了し、shell/write が無いため helper の検査・保存は planner が実行した。読み取り対象が clean なレビュー HEAD の committed blob と一致することを再確認した。指摘が無いため追加の再現テストやテスト追加はない。
+
+確認済み一覧は `verified/4893251ab415.json`、要約は同 stem の `.md`、工程の記録は `verified/4893251ab415.planning.json`（最終化の後に記録）に保存する。読み取れなかった変更ファイルはない。`/mnt` の直接実行、rebuild/Docker/実機 apply、fork の build/install と将来の公開版対応は未実施・未確認として一覧の coverage.remaining に保持し、欠陥や成功に読み替えない。これらは既定の除外範囲・事前に記した contingency と一致する。
+
+### 検証の再利用と最終化の前提
+
+PR 作成直前に、レビュー HEAD の未コミット変更が無い状態で実行した全検証を再利用する（issue-to-pr の 1 サイクル目・同一 HEAD の条件）。以下は全て終了コード 0、実行前後とも clean。`origin/main` を再取得し、base が上記 SHA のまま head の祖先であることを確認した。base の一時 merge は不要。
+
+- `bash .devcontainer/run-tests.bash`: 23 scripts PASS、62.36 秒。
+- `bash scripts/check-layout.sh`: PASS、0.48 秒。
+- `uv run pytest tests/skills .agents/skills .agents/scripts tools`: 1237 passed、408.71 秒。
+- 記録と実ログ: `/workspaces/reso-world/tmp/agents/issue-277.h3wm65x_/verification.json`、`checks.json`、`final-{devcontainer,layout,pytest}.log`。
+
+修正担当の設定は `claude-opus`、self-review / fix-check は `self` だが、修正不要なので `run_roles.py` は実行せず、修正後の自己レビューは **0 回（未実施）**。反証・PR 全体・検出力の修正後レビューも該当なし。設計の見直し・新しい裁定・parked・deferred はない。追加コード変更はせず、この Spec だけの子 commit を検査付きで push して `finalize.py` へ渡す。マージ結果と関連 Issue の状態は Spec に先取りせず、PR/Issue コメントと最終報告に記録する。
