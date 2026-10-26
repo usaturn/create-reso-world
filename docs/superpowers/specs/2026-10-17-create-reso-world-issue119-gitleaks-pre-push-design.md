@@ -7,7 +7,7 @@
 - 検証した基準 HEAD
   - 移植先: `cd602e63e04e51616cd5043dd46b0cbefd8fc60e`（create-reso-world の `origin/main`）。Issue の比較基準 `71607d9` から進んだのは #126（文書だけ）
   - 移植元: `49c2e93e836154b13e2d30ec39ac8c7b0843fc56`（usaturn/agent-workspace の `main`）。Issue の比較基準 `d3f4151` からの 5 commit は `.devcontainer/install_beforehand.bash` と `.agents/skills/repository-ownership/SKILL.md` を変えていない
-- 状態: draft
+- 状態: completed
 - 関連 Plan: `docs/superpowers/plans/2026-10-17-create-reso-world-issue119-gitleaks-pre-push.md`
 - レビュー修正: `docs/superpowers/specs/2026-10-17-create-reso-world-pr133-gitleaks-pre-push-review-fixes-design.md`（マージ commit の読み方を `remerge` に変え、F-5・D-5・D-6・D-10・D-11 を更新した）
 - 実行許可: 2026-10-17 21:11 JST、利用者が「#119 に着手せよ。専用 worktree を作成し、途中で止めずに推奨案で PR を出せ。」と指示した。推奨案での実装、専用の worktree、commit、push、create-reso-world への PR の作成まで許可されている。マージと rebuild は利用者が行う。下の判断は、確認を取らずに決めたエージェントの判断である
@@ -166,3 +166,51 @@ PR の本文は `Refs #119` にし、マージで #119 を自動で close しな
 - `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills`
 - 今のコンテナで `bash .devcontainer/install_gitleaks.bash` を実際に実行する（release から取得し、SHA-256 を確かめて置く）
 - この PR の push 自体を `scan-before-push.sh` で検査する
+
+## マージ後の完了記録（2026-10-26 UTC）
+
+### 実行許可と完了の範囲
+
+- PR #133 は `8c4463714677685c3dad1921e59c0c8719716aa4` でマージ済み。
+- 利用者は残っていた環境確認・文書更新・Issue close の一覧を受けて「残作業を実行してください。」と指示した。今回の継続作業はこの実行許可に基づく。状態の `completed` は実装と残っていた環境確認の完了を表し、`approved` への変更でも、新しい設計承認の推定でもない。
+- 当初の rebuild 後の確認に代えて、Issue コメントで明示的に許可された `bash .devcontainer/install_gitleaks.bash` を現在の Dev Container で実行する方法を採用した。以下は controller が実行した記録であり、文書担当はログを確認した。rebuild・bootstrap を試したとは扱わない。
+
+### 現在の Dev Container への導入
+
+- 実行: `bash /workspaces/reso-world/.devcontainer/install_gitleaks.bash`（終了コード 0）。release archive `gitleaks_8.30.1_linux_x64.tar.gz` を取得し、installer に固定された SHA-256 の検証を通して `/home/vscode/.local/bin/gitleaks` に導入した。
+- 実行: `gitleaks version`（終了コード 0、標準出力 `8.30.1`）。既存バイナリの版を推測したのではなく、導入後の実測である。
+
+### 3 リポジトリの実 worktree での検査
+
+既存の `origin/main` の履歴から選んだ linked worktree を対象に、`bash /workspaces/reso-world/scripts/scan-before-push.sh -C <対象 worktree>` を実行した。resoloop にのみ `--base upstream/main` を付け、ほかは既定の `origin/main` を使った。3 件とも終了コード 0、標準出力は表の HEAD SHA だけの 1 行で、対象の作業ツリーは clean だった。
+
+| リポジトリ・対象 worktree（絶対パス） | HEAD SHA | base ref / SHA | 検査範囲 |
+| --- | --- | --- | --- |
+| create-reso-world: `/workspaces/reso-world/.worktrees/issue-119-post-merge` | `ac01ef40a503ab709d19eb1d8d881e936f787467` | `origin/main` / `ac01ef40a503ab709d19eb1d8d881e936f787467` | `ac01ef40a503ab709d19eb1d8d881e936f787467..ac01ef40a503ab709d19eb1d8d881e936f787467` |
+| resoloop: `/workspaces/reso-world/external/resoloop/.worktrees/issue-119-post-merge` | `ff77b91d1f17c7dba861416d82f1a6c8929f2805` | `upstream/main` / `a7be2dd4a5e4df9f152c8908e51a853d3af6bb74` | `a7be2dd4a5e4df9f152c8908e51a853d3af6bb74..ff77b91d1f17c7dba861416d82f1a6c8929f2805` |
+| resoloop-meshy: `/workspaces/reso-world/external/resoloop-meshy/.worktrees/issue-119-post-merge` | `1b64663595e5cc024dad08acec0cfff5416e1a95` | `origin/main` / `1b64663595e5cc024dad08acec0cfff5416e1a95` | `1b64663595e5cc024dad08acec0cfff5416e1a95..1b64663595e5cc024dad08acec0cfff5416e1a95` |
+
+resoloop・resoloop-meshy は base に `.gitleaks.toml` が無く、既定の規則を使った旨を標準エラーに表示した。3 件とも Gitleaks の実測は `0 commits scanned`・`0 bytes`。resoloop の範囲は `rev-list` ではマージ commit 1 件だが、Gitleaks が 1 件分の差分を走査したとは報告しない。これらは実際の配置・base 選択・終了コード・SHA 出力を確かめた運用経路の確認であり、外部リポジトリの空でない差分に対する新しい検出テストではない。検出動作は別途、既存の `tests/scripts/test-scan-before-push.bash` を実行して確認した。
+
+### 回帰確認と証跡
+
+- 初回の `bash .devcontainer/run-tests.bash .devcontainer/test-install-gitleaks.bash tests/scripts/test-scan-before-push.bash tests/scripts/test-ci.bash` は終了コード 1。導入と scanner の 2 suite は PASS で、唯一の失敗は `tests/scripts/test-ci.bash: No such file or directory`。同ファイルは #235（`da5ee518a56f8bf6bc387b38eb33b1b5b6b5b82c`）で意図して削除済みであり、古い検証対象の指定を訂正した。初回成功とも、今回の実装による回帰とも扱わない。
+- 訂正後の現行 Bash suite は `PASS: 23 test(s)`、標準エラーは空。既存の導入・scanner の suite を含む。layout 検査は `PASS: check-layout`。これは controller 提供の現時点の baseline であり、この文書 commit 後の全体検証や、今後の pytest の成功を先取りした記録ではない。
+- 証跡ディレクトリ: `/workspaces/reso-world/tmp/agents/issue-119-post-merge.fuw652fp/`。実行 argv・cwd・終了コード・完了時刻・所要秒数・HEAD/base は同ディレクトリの `environment-checks.json`、標準出力・標準エラーは下表に記録されている（ローカルの証跡で、リポジトリには含めない）。
+
+| 確認 | 上記ディレクトリ内のログ |
+| --- | --- |
+| 実導入 | `install-gitleaks.stdout.log` / `install-gitleaks.stderr.log` |
+| 実測の版 | `gitleaks-version.stdout.log` / `gitleaks-version.stderr.log` |
+| create-reso-world | `scan-create-reso-world.stdout.log` / `scan-create-reso-world.stderr.log` |
+| resoloop | `scan-resoloop.stdout.log` / `scan-resoloop.stderr.log` |
+| resoloop-meshy | `scan-resoloop-meshy.stdout.log` / `scan-resoloop-meshy.stderr.log` |
+| 初回の古い対象指定 | `baseline-gitleaks.stdout.log` / `baseline-gitleaks.stderr.log` |
+| 訂正後の 23 Bash suite | `baseline-current.stdout.log` / `baseline-current.stderr.log` |
+| layout | `baseline-layout.log` |
+
+### 文書更新と残る公開手順
+
+ソース・設定・トークンの fixture・外部リポジトリのコードは変更せず、秘密情報・資格情報の値や検査の回避・除外設定も追加していない。文書の固定値の記録は F に当たるため新しい恒久テストは作らず、変更 Markdown・参照先・`git diff --check` を確認する。過去の実行記録と Task のチェックボックスはこの追記では変更しない。
+
+この文書更新はローカル commit の段階で、公開未実施。controller がレビュー後のチェックボックス更新・現行の全体検証・完了記録の PR 作成と利用者指定の `--merge` ループ・Issue #119 の更新と close を担当する。これらの完了や、新しい PR URL はこの記録では主張しない。
