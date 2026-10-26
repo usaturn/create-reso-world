@@ -111,10 +111,22 @@ Issue の「実装の前に確かめること」を、Core の復号と adapter 
 | D-6 | 変更前の確認の深さ | ヘッダーだけを読む（形式と HDR の判定） | plan で全部を復号する | 大きな画像の全部の復号を plan と apply で 2 回しない。本体が壊れていても、asset の取り込みは Slot・Component の変更より先なのでワールドは変わらない | 委任 |
 | D-7 | HDR | `data` では `ASSET_TEXTURE_UNDECODABLE` で止める | 8 bit に落として送る、`ImportTexture2DRawDataHDR` で送る | 黙って階調を落とさない。HDR の生データ送信は対象外（必要なら別 Issue） | 委任 |
 | D-8 | audio | `data` でもファイルで取り込み、plan で `ASSET_AUDIO_FILE_TRANSFER` を警告 | audio も止める | Issue の仕様の案のとおり。同じ PC の Resonite なら audio は今までどおり取り込める | 委任（推奨案） |
-| D-9 | `colorProfile` | 実機の比較で決める（「実機での確認」の 1 の決め方） | 推測で `sRGB` に固定 | ResoniteLink の公開物に既定の扱いの説明が無く、上流の規約が推測を禁じている | どの値も一致しなければ停止 |
-| D-10 | EXIF の向き | 実機の比較で決める（Resonite が反映するなら CLI でも反映） | 常に無視、常に反映 | `file` と `data` で同じ見た目にするため | 委任 |
+| D-9 | `colorProfile` | 実機の比較で決める（「実機での確認」の 1 の決め方）。結果: 未指定・`sRGB`・`Linear` が同じ asset URL になり、どれも `file` と同じ見た目だったので、決め方のとおり明示の `sRGB` を採用（`TextureDecoder.RawColorProfile`） | 推測で `sRGB` に固定 | ResoniteLink の公開物に既定の扱いの説明が無く、上流の規約が推測を禁じている | どの値も一致しなければ停止 |
+| D-10 | EXIF の向き | 実機の比較で決める（Resonite が反映するなら CLI でも反映）。結果: Resonite の `file` は向きを反映しなかったので、`data` も反映しない（Plan の Task 6 は行わない） | 常に無視、常に反映 | `file` と `data` で同じ見た目にするため | 委任 |
 | D-11 | `file` の失敗の案内 | `REQUEST_TIMEOUT` とパスが見つからない `ASSET_IMPORT_FAILED` に `--texture-transfer data` の案内を足す | 新しいエラーコードに置き換える | 既存のエラーコードを使う利用者・スキルの挙動を変えない | 委任 |
 | D-12 | 実機の確認の方法 | コミットしない試験用のプログラムで、`file`（橋渡しのパス）と `data` を並べて撮影し、区画の画素を比べる | opt-in の統合テストを足す、目視だけ | 上流の環境で再現できない橋渡しのパスを持ち込まない。画素を数値で比べる | 委任 |
 | D-13 | 実装の担当と方式 | このセッションが `superpowers:executing-plans` で順に実装する | subagent-driven-development | `implement_task.py check` の `self` が true（雛形の既定の適用）。同じファイル（WorldService・Program）への逐次の変更で、途中に利用者の操作を要る実機の確認がある | 委任 |
 | D-14 | `--merge` とループ | `--merge` のとおり、PR の作成後にループを回し、修正不要なら fork の main にマージする。ループのオプションは無し（`check-options` の結果: サイクルの上限 3、レビュアー claude-opus・devin-swe・pi-deepseek、修正の担当 claude-opus、いずれも既定の適用） | PR まで（利用者が一度選び、取り消した） | 利用者の明示の指示（「やっぱりマージしてください」） | ループの停止・エラーで停止 |
 | D-15 | 受け入れの確認で使う CLI | worktree のビルドを `dotnet` で直接実行する | `scripts/resoloop-fork.sh install` で global に導入 | 利用者の global の `resoloop`（他のワールドの作業で使う）を差し替えない | 委任 |
+
+## 結果（2026-10-26、実装の branch の `58dde57` まで）
+
+- 実装: 設定（`77be05b`）、復号（`122d819`）、adapter（`47b4025`）、`colorProfile` の確定（`d370994`）、WorldService への組み込み（`8a945bd`）、文書（`5970041`）、受け入れの記録（`42b5fbd`）、最後のレビューの修正（`58dde57`: `data` の取り込みの失敗に asset の情報と `--timeout` の案内を足し、重複したテストを削除）。Plan の Task 6（EXIF）は D-10 の結果で行わない
+- 検証: `58dde57` で `dotnet test ResoLoop.slnx --nologo` が終了コード 0（RLoop.Tests 530/530、RLoop.IntegrationTests 22/22）、検証の前後の作業ツリーは clean
+- 実機での確認（詳細は usaturn/resoloop の `docs/TEXTURE-TRANSFER.md`）:
+  1. 色: カラー・アルファ・ノーマルマップ・データ用・パレット・グレースケールで、`data` と `file` の差は撮影のノイズと同じ。`colorProfile` は 3 値とも同じ asset になった
+  2. 形式: EXIF の向きは `file` でも反映されない。16 bit の PNG は 8 bit への丸めの差だけ。`data` の asset は WebP で保存されるが、拡大したノイズの画像でも劣化は見られない
+  3. 大きさ: 2048² は `data` 2.7 秒（`file` 0.74 秒）、4096² は 12.4 秒（5.8 秒）。既定の 30 秒に収まる
+  4. 保存と再読込: 実際の bundle（mesh 10、texture 14）を `data` で apply し diff 0 件。保存して開き直した後も diff 0 件で、URL は `resdb:///….webp` に移った
+- 受け入れ: `file` は従来どおり `REQUEST_TIMEOUT` で止まり、ワールドを変えず、`--texture-transfer data` の案内が先頭に出た
+- 範囲外の既存の挙動: 開き直した直後の apply が、state の connection ID と、開き直したワールドでの接続の connection ID が偶然同じ（ResoniteLink はワールドごとに 0 から数える）ため `STABLE_COMPONENT_AMBIGUOUS`（変更なし）で 1 回止まった。マージの後に再調査し、必要なら Issue にする

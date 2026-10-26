@@ -344,3 +344,12 @@ Expected: 全件 PASS（ベースラインは RLoop.Tests 521 件・IntegrationT
 - [ ] Spec・Plan に結果を追記して文書の worktree でコミット
 - [ ] push の前の検査（コードと文書の両方）→ push → PR（fork: `Closes #21`。実機の確認がマージ前に済んでいなければ `Refs #21`）、文書 PR（create-reso-world: `Refs https://github.com/usaturn/resoloop/issues/21`）
 - [ ] `--merge` のループ（PARENT_ROOT の `loop.py start`）
+
+## 実行の記録（2026-10-26）
+
+- 実行方式: `superpowers:executing-plans`（このセッション）。作業領域と ledger は `tmp/agents/issue-21.paqvzxic/sdd/2026-10-26-usaturn-resoloop-issue-21-texture-transfer-data/progress.md`
+- Task 1〜5・7・8 を完了。Task 6 は Task 4 の結果（Resonite の `file` は EXIF の向きを反映しない）で行わない
+- 判断（ledger の Ruling）: `TestPng.Encode` はフィルタのバイトを自分で入れる／HDR は Radiance のシグネチャで判定する（`ImageInfo` は HDR を 8 bit と報告する）／`RawColorProfile = "sRGB"`／撮影は JPEG（Resonite の書き出しが JPEG）／停止のテストに先行する正常な画像を足す（確認を外しても通ってしまったため。変異で失敗を確認）／保存と再読込は利用者の選んだ手順でやり直した／connection ID の一致による停止は範囲外
+- 最後のブランチ全体のレビュー（別のコンテキストの Opus）: Critical 0、Important 1、Minor 5、判定は「修正すれば可」
+  - 直した: Important 1（`data` の取り込みの失敗に asset の情報が無く、`REQUEST_TIMEOUT` に `--timeout` の案内が無い）。修正の前後を実機（`--timeout 1` の 4096²）で確かめ、文書に大きな画像の注意を足した。Minor 3（テストの重複）は、create-reso-world のテストの採用基準（D・L）に合わせて、`SwitchingToDataDoesNotReimportUnchangedTextures` を削除し、復号のテストを HDR の拒否だけにした
+  - 直さない（致命的でないため）: Minor 1（`file` の案内の後に既存の「再試行」の案内が残る）、Minor 2（`data` でも audio の失敗に案内が無い。plan の警告はある）、Minor 4（2^30 を超える画像の理由が `unknown-format` になる）、Minor 5（connection ID の件を機能の文書に記録している）
