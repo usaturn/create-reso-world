@@ -57,11 +57,11 @@ Task 1 がすべての文言変更と3例の照合を担当。統合担当（con
 - 防御範囲: 一律のテスト追加要求と必要なテストの抑止を避ける文言、外部対象の方針、既存形式を守る。モデルの実際の遵守率、外部方針の内容、既存テスト整理は対象外。
 - 新しい固定文言・見出しテストおよび有料モデル評価は追加しない。Issue指定の構造・参照・意味照合を採用する。
 
-- [ ] **Step 1:** 変更前の2テンプレートと観点・セルフチェックを読み、3例で現状が一律要求に読める箇所を報告へ記録する。
-- [ ] **Step 2:** 「推奨対応」から無条件のテスト要求を除き、`Test suggestions` に対象リポジトリ方針、create-reso-worldの参照、不要時の「なし」と任意の代替検証を明示する。必要なセルフチェックも整合させる。
-- [ ] **Step 3:** 3例の判断を照合し、S/F∩Sの必要な守り・拒否に対応する正例を妨げずDの網羅を求めないことを確認する。分類はスキルへ複製しない。
-- [ ] **Step 4:** `git diff --check`、相対参照先・見出しとラベルの前後比較、`uv run pytest tests/skills .agents/skills/pr-review .agents/scripts/tests/test_review_findings.py -q` を同期実行する。前後比較は一時的な確認に留め、固定文言テストをコミットしない。
-- [ ] **Step 5:** 自己レビュー後に対象ファイルだけcommit（`docs: align review test suggestions with repository policy`）し、所要時間・3例・検証ログと終了コードをTask reportへ記録する。Planのチェックはcontrollerが行う。push/PR/他エージェント起動はしない。
+- [x] **Step 1:** 変更前の2テンプレートと観点・セルフチェックを読み、3例で現状が一律要求に読める箇所を報告へ記録する。
+- [x] **Step 2:** 「推奨対応」から無条件のテスト要求を除き、`Test suggestions` に対象リポジトリ方針、create-reso-worldの参照、不要時の「なし」と任意の代替検証を明示する。必要なセルフチェックも整合させる。
+- [x] **Step 3:** 3例の判断を照合し、S/F∩Sの必要な守り・拒否に対応する正例を妨げずDの網羅を求めないことを確認する。分類はスキルへ複製しない。
+- [x] **Step 4:** `git diff --check`、相対参照先・見出しとラベルの前後比較、`uv run pytest tests/skills .agents/skills/pr-review .agents/scripts/tests/test_review_findings.py -q` を同期実行する。前後比較は一時的な確認に留め、固定文言テストをコミットしない。
+- [x] **Step 5:** 自己レビュー後に対象ファイルだけcommit（`docs: align review test suggestions with repository policy`）し、所要時間・3例・検証ログと終了コードをTask reportへ記録する。Planのチェックはcontrollerが行う。push/PR/他エージェント起動はしない。
 
 ## Controller integration
 
