@@ -297,7 +297,7 @@ flux-sdk の自動探索はコンテナの中（SDK の配置先と Linux の St
 
 | 状態 | 見え方 |
 | --- | --- |
-| DLL を用意していない | `resoloop doctor` の `resonite-managed-data` が `warning` で、`Not explicitly configured; Flux-SDK auto-discovery failed: at FluxSDK.CLI.Main.main(String[] args) in /workspace/Flux-SDK/src/FluxSDK.CLI/Main.fs:line 32` と出る。これは SDK のエラーの最後の行だけなので、足りない DLL は下の「元のエラーを確かめる」の方法で読む |
+| 指す先を設定していない（DLL を用意していないときを含む） | `resoloop doctor` の `resonite-managed-data` が `warning` で、`Not explicitly configured; Flux-SDK auto-discovery failed: at FluxSDK.CLI.Main.main(String[] args) in /workspace/Flux-SDK/src/FluxSDK.CLI/Main.fs:line 32` と出る。自動探索は共有のフォルダを見ないので、DLL をコピーしてあっても、`--library-path`・`RESONITE_MANAGED_DATA_PATH`・`.resoloop.json` で版のフォルダを指していなければこの文になる。これは SDK のエラーの最後の行だけなので、足りない DLL は下の「元のエラーを確かめる」の方法で読む |
 | 指したフォルダの DLL が足りない | `Configured path failed the Flux-SDK check/build probe: <指したフォルダ>. at FluxSDK.CLI.Main.main(...)` の `warning` になる。読み方は同じ |
 | 準備ができた | 版のフォルダを指したとき、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が `pass` で、非空のグラフの `resoloop flux check`・`resoloop flux build` が終了コード 0 で、`.brson` ができる |
 
@@ -317,17 +317,22 @@ doctor の `resonite-managed-data` は、空のモジュールで DLL を読み�
 
 2. WSL のターミナル（コンテナの外）で、そのフォルダの `*.dll` を新しい版のフォルダへコピーし、SHA-256 で照合する。
    `C:\Program Files (x86)\...` のような空白・括弧を含むパスも、単一引用符の中にそのまま書く。
-   フォルダの中身全体はコピーしない。Resonite の更新中はコピーしない。既にある版のフォルダへ上書きして版を混ぜない（`mkdir` が止まる）
+   フォルダの中身全体はコピーしない。Resonite の更新中はコピーしない。既にある版のフォルダへ上書きして版を混ぜない。
+   各行を `&&` でつないでいるので、どこかで失敗すると以降は実行されず、`copied and verified` は出ない。
+   照合の一覧はコピー元で作るので、コピー先に欠けた DLL も見つかる
 
    ```bash
    src="$(wslpath -u '<FrooxEngine.dll のあるフォルダ>')"
    dest="$HOME/.local/share/create-reso-world/resonite-managed-data/<Resonite の版>"
-   mkdir -p "$HOME/.local/share/create-reso-world/resonite-managed-data"
-   mkdir "$dest"
-   cp -p -- "$src"/*.dll "$dest"/
-   (cd "$dest" && sha256sum -- *.dll > SHA256SUMS)
-   (cd "$src" && sha256sum --quiet -c "$dest/SHA256SUMS") && echo 'copied and verified'
+   mkdir -p "$HOME/.local/share/create-reso-world/resonite-managed-data" &&
+     mkdir "$dest" &&
+     cp -p -- "$src"/*.dll "$dest"/ &&
+     (cd "$src" && sha256sum -- *.dll) > "$dest/SHA256SUMS" &&
+     (cd "$dest" && sha256sum --quiet -c SHA256SUMS) &&
+     echo 'copied and verified'
    ```
+
+   `mkdir` が `File exists` で止まったら、その版のフォルダは既にある。中身がその版のものか確かめられなければ、WSL 側でそのフォルダを消してからやり直す
 
    SDK が求める DLL は、エラーに出る 11 個（`FrooxEngine.dll` など）が最低限で、それだけで足りるとは限らない。同じフォルダの `*.dll` をまとめてコピーし、
    足りないものは 4 の check・build と「元のエラーを確かめる」で分かる。
