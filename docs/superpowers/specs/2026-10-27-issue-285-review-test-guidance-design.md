@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: draft
+- 状態: completed（内容の承認は未取得。実行許可に基づく完了記録）
 - 対象: usaturn/create-reso-world #285
 - 指示: `issue-to-pr #285 --merge --max-cycles 3`
 - 許可: 通常の設計判断を推奨案で決め、検証・commit・push・PR 作成と、指定されたレビュー修正ループによるマージまで実行する。内容承認を意味しない。
@@ -42,3 +42,30 @@
 - 対象の現行版: c9cdc8ba30fe9fe14751f91cd08f5a54b16fac37。
 - Issue の全コメントは0件、依存なし、親なし。関連 #228/#229 は closed。既存PR・担当予約・同番号のbranch/worktreeなしを着手前に確認。
 - 初期検証: shell 23件、pytest 1237件、check-layout はすべて終了コード0。ログは親 checkout の `tmp/agents/issue-285.xk_yzd1u/baseline-*.log`。
+
+## PR #286 サイクル1の確認・結論
+
+- 検証対象: `6d2fd8d3cf3b85ad468d1f6006b836b763137639`、base `c9cdc8ba30fe9fe14751f91cd08f5a54b16fac37`。
+- planner: `gpt-6.1-sol` / pi（PI_PROVIDER=openai-codex、PI_MODELの実測値）。実行許可: 上記の `--merge --max-cycles 3` による完遂。
+- 結論2: 修正不要。解消済み0 / 対応する0 / 対応しない1。現行HEADの全変更ファイル、関連する形式と分類基準、全指摘を確認した。票数や重大度だけで採否を決めていない。
+
+| レビューファイル | モデル | runtime | HEAD | 再実行 | 判定 |
+| --- | --- | --- | --- | --- | --- |
+| claude-opus-5-5.md | claude-opus-5-5 | claude-code | 6d2fd8d3cf3b | true | Approve |
+| SWE-2-Max.md | SWE-2 Max | devin | 6d2fd8d3cf3b | true | Approve |
+| deepseek-deepseek-v4.1-flash.md | deepseek/deepseek-v4.1-flash | pi | 6d2fd8d3cf3b | true | Approve |
+
+### 全指摘の採否
+
+`deepseek-deepseek-v4.1-flash#I-1@6d2fd8d3cf3b`: **対応しない**。SpecとPlanの名前にリポジトリ語がなく、`docs/superpowers/README.md:8` の命名規約と不一致なのは事実。両ファイルのコミット済み内容とtreeで確認した。本文に対象リポジトリとIssueがあり、同README:10の内容による文書照合はできる。主要処理の停止、誤った対象への操作、データ損失、秘密露出に至る条件はなく、review-fix-planningの致命的な指摘だけを直す基準では改名しない。実害のある誤選択経路が確認されるか、利用者が改名を名指しで依頼した場合に見直す。
+
+### 要件と証拠の対応
+
+- 一律要求を除去し、必要なテストは対象側の方針で提案できる。Task `0625048` の3行変更と、文書追随漏れ・静的解析・失敗の成功報告の3例をAGENTS.mdと照合。前2例はテストなし＋代替検証、最後は代表の挙動テストと正常側の正例を維持できる。
+- 観点→推奨対応→Test suggestions→セルフチェックの共通条件はcontrollerが統合確認した。分類の複製なし。git objectでbase/headの見出し・ラベルが同一、相対リンクが実在することを再確認した。
+- 検証済みHEADとbaseは上記のとおり。検証前後ともclean、全終了コード0。`bash .devcontainer/run-tests.bash` は23件、`bash scripts/check-layout.sh` はPASS、`uv run pytest tests/skills .agents/skills .agents/scripts tools` は1237件、`git diff --check` は成功。関連検証298件・skill-efficiency-checkも成功。
+- 最終pytestでは親checkout由来のVIRTUAL_ENVをuvが無視する警告が1件あったが、worktree側の環境で全件成功。モデル遵守率・外部適用の実測は要求外で未実施、保証しない。
+- ログ・checks-fileは `/workspaces/reso-world/tmp/agents/issue-285.xk_yzd1u/`。同一HEAD・clean・各exit 0・ログ残存の条件を確認し、issue-to-prの検証再利用規則を適用した。baseを再取得し、先端が検証済みHEADの祖先で同じSHAであることを確認した。
+- 確認済み一覧: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#286-fix-issue-285-review-test-guidance/verified/6d2fd8d3cf3b.json`。工程の記録は同ディレクトリの `6d2fd8d3cf3b.planning.json` にサイクル終了時に保存する。未確認の候補・必要な検証の欠落なし。
+- 対応する指摘がないため修正方針・影響経路表の新設、run_rolesによる実装・自己レビュー・fix-checkは行わない（呼出し0回）。指定の既定割当を別の担当に置換していない。Piのcycle補助委譲は期限付き停止条件を満たせないため省略。
+- SDDのTaskレビュー・全体レビューとも修正指摘なし、SDD作業領域は証拠をセッション直下に保存後に削除した。実装1350秒、Taskレビュー約2分、全体レビュー計測区間121秒、最終全検証674秒。PRループのレビューは並行で各271.39秒・285.75秒・412.53秒。plannerの時間とコメントURL、push・マージ・Issue更新の結果はサイクル記録と最終報告に残す。
