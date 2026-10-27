@@ -103,6 +103,7 @@ Dev Containers: Rebuild Container を実行した後、コンテナの中で次�
 2. postCreate の ResoLoop の導入が通っている: `resoloop --version` が NuGet の最新の公開版を返し、`bash scripts/resoloop-fork.sh status` の `installed version` が `NuGet release` である。postCreate の出力に、各プロジェクトの `resoloop skills sync --check` の結果がある。`dotnet tool list --global` に `papaltine.fluxsdk 1.9.0` があり、`resoloop doctor --json` の `flux-sdk` が `pass` である（postCreate の出力に flux-sdk の WARN が無い）。fork へ push する `bash scripts/resoloop-fork.sh sync` を初めて使うときは、GitHub への push の認証が通ることを確かめる。
 3. VS Code のターミナルと、エージェントが起動するプロセスの PATH に `/home/vscode/.local/bin`・`/home/vscode/bin`・`/home/vscode/.dotnet/tools` がある（`remoteEnv.PATH`）。
 4. ホストに `~/.config/create-reso-world` が mode 700 で作られ、コンテナに mount されている。`env` を置いた場合は、新しいシェルでその変数が export されている。
+   （任意、ProtoFlux を使うとき）ホストに `~/.local/share/create-reso-world/resonite-managed-data` が実ディレクトリで作られ、コンテナで `findmnt -no OPTIONS /home/vscode/.local/share/create-reso-world/resonite-managed-data` が `ro` で始まる。DLL を用意したら、`.devcontainer/README.md` の「Resonite の managed data（ProtoFlux、任意）」の手順で doctor と check・build を確かめる。
 5. `bash scripts/check-layout.sh`、`bash .devcontainer/run-tests.bash`、各プロジェクトの `uv run pytest` が通る。
 6. Devin で simplify-in-subagent を呼んだとき、サブエージェントが edit と exec のツールを持つ。
 7. GitHub Actions の CI（devcontainer-tests、layout、skill-tests、gitleaks）がすべて成功する。PR の時点では、アカウントの課金の設定によりジョブが開始されず、GitHub 上では確かめられていない。

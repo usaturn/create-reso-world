@@ -36,6 +36,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | gh | Dev Container Feature（github-cli） | `~/.config/gh` | `~/.config/gh` | — | — |
 | gcloud / glab / bun | 未導入（参照だけ残す） | `~/.config/gcloud`、`~/.config/glab-cli` | `~/.config/gcloud`、`~/.config/glab-cli` | `genv`（gcloud）、`buni`（bun） | — |
 | Resonite の写真フォルダ（任意） | WSL で Windows の Pictures/Resonite へのリンクを 1 回作る（「Resonite ワールド開発ツール」の節） | `~/.local/share/create-reso-world/resonite-screenshots`（読み取り専用） | `~/.local/share/create-reso-world/resonite-screenshots` | — | — |
+| Resonite の managed data（任意、ProtoFlux） | 利用者が Windows の Resonite の DLL を WSL 側の版ごとのフォルダへコピーする（「Resonite の managed data（ProtoFlux、任意）」の節） | `~/.local/share/create-reso-world/resonite-managed-data`（読み取り専用） | `~/.local/share/create-reso-world/resonite-managed-data`（リンク・ファイルなら止まる） | — | — |
 | 秘密情報 | — | `~/.config/create-reso-world` | `~/.config/create-reso-world`（mode 700） | env ファイルがあれば読み込む | — |
 <!-- tool-table:end -->
 
@@ -279,9 +280,106 @@ resoloop doctor --json
 - 版は ResoLoop と違って固定し、スクリプトの `FLUX_SDK_VERSION` に書く（2026-10-24 時点は 1.9.0）。ResoLoop が検証しているのは 1.9 系で、NuGet の最新（1.10 系）は外れる。ResoLoop が検証する系列を変えると、`resoloop doctor` の `flux-sdk` が `Flux-SDK <導入した版> is outside tested series <系列>.x.` の warning になる。そのときは、ResoLoop が案内する版（flux-sdk が無いときの `resoloop doctor` と `FLUX_SDK_NOT_FOUND` の suggestion に出る版）に `FLUX_SDK_VERSION` を合わせる
 - 手で入れるときは `dotnet tool update --global Papaltine.FluxSDK --version <版> --allow-downgrade` を使う（`update` は未導入なら導入し、`--allow-downgrade` で新しい版からも戻す）。パッケージ ID を省いた `dotnet tool update --global` は、終了コード 1 で止まる
 - `resoloop doctor` の `flux-sdk` の確認が見るのは、`flux-sdk` を起動して版を読めるかと、その版が ResoLoop の検証した系列（1.9 系）に入っているかだけで、Resonite 本体の版との組み合わせは見ない。Resonite の版との既知の非互換は、配備（`resoloop flux deploy-manifest`）のときに `FLUX_RUNTIME_NODE_INCOMPATIBLE` で分かる
-- グラフを作る・配備するには、Resonite 本体の managed data をコンテナから読めることも要る。Resonite は Windows ホスト側にあり、既定のコンテナには mount しない。読める場所を用意し、環境変数 `RESONITE_MANAGED_DATA_PATH` で指す。flux-sdk の実行ファイルが PATH の `flux-sdk` と違う名前・場所にあるときは `RESOLOOP_FLUX_EXECUTABLE` で指す
-- 導入できた確認は、`resoloop flux status --json` の `available` が true で、`version` が `FLUX_SDK_VERSION` の版で始まること。managed data が無くても成功するが、版が違っても成功するので、版まで見る。ProtoFlux の作業の準備ができた確認は、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が warning でないこと
+- グラフを作る・配備するには、Resonite 本体の managed data（DLL）をコンテナから読めることも要る。Resonite は Windows ホスト側にあるので、利用者が DLL を WSL 側の専用のフォルダへ版ごとにコピーし、コンテナはそのフォルダを読み取り専用で mount する。使う版のフォルダは `--library-path` か環境変数 `RESONITE_MANAGED_DATA_PATH` で指す。手順は「Resonite の managed data（ProtoFlux、任意）」の節にある。flux-sdk の実行ファイルが PATH の `flux-sdk` と違う名前・場所にあるときは `RESOLOOP_FLUX_EXECUTABLE` で指す
+- 導入できた確認は、`resoloop flux status --json` の `available` が true で、`version` が `FLUX_SDK_VERSION` の版で始まること。managed data が無くても成功するが、版が違っても成功するので、版まで見る。ProtoFlux の作業の準備ができた確認は、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が `pass` で、非空のグラフの `resoloop flux check`・`resoloop flux build` が成功すること（「Resonite の managed data（ProtoFlux、任意）」の節）
 - グラフの作り方と配備は、プロジェクトの `resonite-flux` スキルを参照する
+
+### Resonite の managed data（ProtoFlux、任意）
+
+flux-sdk のグラフの check・build・配備は、Resonite 本体の managed DLL（`FrooxEngine.dll`・`ProtoFlux.Core.dll` など）を読む。
+flux-sdk の自動探索はコンテナの中（SDK の配置先と Linux の Steam の配置先）しか見ないので、Windows ホストの Resonite の DLL は見つからない。
+利用者が DLL を WSL 側の専用のフォルダへ版ごとにコピーし、使う版のフォルダを指す。
+
+`initialize.bash` は WSL 側に `~/.local/share/create-reso-world/resonite-managed-data` を空の実ディレクトリで作り、
+`devcontainer.json` がコンテナの同じパスに読み取り専用で mount する。DLL を用意していなくてもコンテナは起動する。
+このフォルダをリンクやファイルにすると、`initialize.bash` が理由を表示して止まる（リンクを mount すると、リンク先のフォルダ全体がコンテナから見えるため）。
+`initialize.bash` は DLL を探さず、どの版を使うかも決めない（`RESONITE_MANAGED_DATA_PATH` を設定しない）。DLL はリポジトリやイメージに入れない。
+
+| 状態 | 見え方 |
+| --- | --- |
+| DLL を用意していない | `resoloop doctor` の `resonite-managed-data` が `warning` で、`Not explicitly configured; Flux-SDK auto-discovery failed: at FluxSDK.CLI.Main.main(String[] args) in /workspace/Flux-SDK/src/FluxSDK.CLI/Main.fs:line 32` と出る。これは SDK のエラーの最後の行だけなので、足りない DLL は下の「元のエラーを確かめる」の方法で読む |
+| 指したフォルダの DLL が足りない | `Configured path failed the Flux-SDK check/build probe: <指したフォルダ>. at FluxSDK.CLI.Main.main(...)` の `warning` になる。読み方は同じ |
+| 準備ができた | 版のフォルダを指したとき、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が `pass` で、非空のグラフの `resoloop flux check`・`resoloop flux build` が終了コード 0 で、`.brson` ができる |
+
+doctor の `resonite-managed-data` は、空のモジュールで DLL を読み込めるか（`flux-sdk build --stop-after-resolve`）だけを見る。
+グラフを作れる確認には check と build を使う。配備とワールドでの動作は、この確認に含まれない。
+
+1. Windows で DLL のフォルダを確かめる。Resonite を起動したまま、PowerShell で実行中の Resonite の場所を調べ、
+   そのインストール先の中で `FrooxEngine.dll` を探す。`FrooxEngine.dll` があるフォルダを使う。
+   `Resonite_Data\Managed` などの場所を決め打ちしない。候補が複数あれば、実行中の Resonite のインストール先にあるものを選ぶ
+
+   ```powershell
+   Get-Process -Name '*Resonite*' | Select-Object Id, ProcessName, Path
+   Get-ChildItem -LiteralPath '<インストール先>' -Filter FrooxEngine.dll -File -Recurse | Select-Object FullName
+   ```
+
+   Resonite の版も控える（Resonite の画面か、コンテナの `resoloop status` が表示する `Resonite <版>`）。
+
+2. WSL のターミナル（コンテナの外）で、そのフォルダの `*.dll` を新しい版のフォルダへコピーし、SHA-256 で照合する。
+   `C:\Program Files (x86)\...` のような空白・括弧を含むパスも、単一引用符の中にそのまま書く。
+   フォルダの中身全体はコピーしない。Resonite の更新中はコピーしない。既にある版のフォルダへ上書きして版を混ぜない（`mkdir` が止まる）
+
+   ```bash
+   src="$(wslpath -u '<FrooxEngine.dll のあるフォルダ>')"
+   dest="$HOME/.local/share/create-reso-world/resonite-managed-data/<Resonite の版>"
+   mkdir -p "$HOME/.local/share/create-reso-world/resonite-managed-data"
+   mkdir "$dest"
+   cp -p -- "$src"/*.dll "$dest"/
+   (cd "$dest" && sha256sum -- *.dll > SHA256SUMS)
+   (cd "$src" && sha256sum --quiet -c "$dest/SHA256SUMS") && echo 'copied and verified'
+   ```
+
+   SDK が求める DLL は、エラーに出る 11 個（`FrooxEngine.dll` など）が最低限で、それだけで足りるとは限らない。同じフォルダの `*.dll` をまとめてコピーし、
+   足りないものは 4 の check・build と「元のエラーを確かめる」で分かる。
+
+3. `devcontainer.json` にこの mount が入った後（#283）、最初の 1 回だけ Dev Container を rebuild する。mount 済みのフォルダの下に版を足すときは rebuild は要らない
+4. コンテナで、読み取り専用で mount されていること、DLL が読めること、doctor と非空のグラフの check・build が通ることを確かめる。
+   `findmnt` の出力は `ro` で始まる。グラフは `resoloop init` の雛形の `flux/Main.pg`・`protograph.toml` と同じものを一時ディレクトリに書く
+
+   ```bash
+   lib=/home/vscode/.local/share/create-reso-world/resonite-managed-data/<Resonite の版>
+   findmnt -no OPTIONS /home/vscode/.local/share/create-reso-world/resonite-managed-data
+   ls -l "$lib/FrooxEngine.dll"
+   resoloop doctor --library-path "$lib" --json \
+     | jq '.data.checks[] | select(.name == "flux-sdk" or .name == "resonite-managed-data")'
+
+   probe="$(mktemp -d)"
+   printf '%s\n' 'module Main' 'where {' '    "Hello from resoloop!"->display' '}' > "$probe/Main.pg"
+   printf '%s\n' 'name = "managed-data-probe"' 'version = "0.1.0"' '' '[build.dev]' 'optimization_preset = "dev"' '' '[dependencies]' > "$probe/protograph.toml"
+   resoloop flux check "$probe/Main.pg" --project "$probe" --library-path "$lib" --json > "$probe/check.json" 2> "$probe/check.error.json"; echo "check exit=$?"
+   resoloop flux build "$probe/Main.pg" --project "$probe" --out "$probe/Main.brson" --library-path "$lib" --json > "$probe/build.json" 2> "$probe/build.error.json"; echo "build exit=$?"
+   ls -l "$probe/Main.brson"
+   ```
+
+5. 指す先を保存する。設定の優先順位は `--library-path` > 環境変数 `RESONITE_MANAGED_DATA_PATH` > 作業ディレクトリから上へ探した `.resoloop.json` の
+   `resoniteManagedDataPath` > `~/.resoloop/config.json`。ワールドのプロジェクトでは、プロジェクトの `.resoloop.json` に
+   `"resoniteManagedDataPath": "/home/vscode/.local/share/create-reso-world/resonite-managed-data/<Resonite の版>"` を足す。
+   `--project` を渡しても `.resoloop.json` を探す場所は変わらないので、プロジェクトのディレクトリで実行する。
+   `~/.resoloop/config.json` は mount していないので rebuild で消える。古い `RESONITE_MANAGED_DATA_PATH` がシェルに残っていると、そちらが優先される
+6. Resonite を更新したら、新しい版のフォルダへ 1・2 のとおりコピーし、4 で確かめてから、5 の指す先を切り替える。使わなくなった版のフォルダは WSL 側で消す
+
+#### 元のエラーを確かめる
+
+doctor の `resonite-managed-data` のメッセージは、SDK の出力の最後の行（例外のスタックの最後の行）だけになることがある。
+`resoloop flux check` を `--json` で実行すると、失敗したときの JSON は stderr に出て、`error.context.stderr` に SDK の元のエラーが残る。
+4 の `probe` で実行した後なら、次で読める。
+
+```bash
+jq -r '.error.context.stderr' "$probe/check.error.json"
+```
+
+DLL が見つからないときは、見つからない DLL と、探したフォルダが出る。`--library-path` で指したフォルダは、探したフォルダの先頭に出る。
+
+```text
+Unhandled exception. System.Exception:
+When loading the Froox engine DLL's I couldn't find the following:
+- FrooxEngine.dll
+（略）
+ These were the directories I searched in:
+- /home/vscode/.local/share/create-reso-world/resonite-managed-data/<Resonite の版>
+- /home/vscode/.dotnet/tools/.store/papaltine.fluxsdk/1.9.0/papaltine.fluxsdk/1.9.0/tools/net10.0/any
+（略）
+```
 
 ### Resonite の写真フォルダ（任意）
 
