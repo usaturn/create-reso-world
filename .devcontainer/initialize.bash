@@ -14,6 +14,15 @@ if [ -L "$screenshots" ] && [ ! -d "$screenshots" ]; then
   exit 1
 fi
 
+# Resonite の managed data（任意、#283）。ProtoFlux の flux-sdk が読む DLL を、利用者が版ごとのフォルダにコピーして置き、
+# コンテナから読み取り専用で読む。リンクを mount するとリンク先（Windows の Resonite のフォルダなど）がそのまま見えるので、
+# 実ディレクトリだけを受け付ける。無ければ下の mkdir が空のディレクトリを作る。中身には触れない
+managed_data="${HOME}/.local/share/create-reso-world/resonite-managed-data"
+if [ -L "$managed_data" ] || { [ -e "$managed_data" ] && [ ! -d "$managed_data" ]; }; then
+  echo "initialize: ${managed_data} must be a real directory, not a link or a file; copy the Resonite DLLs into a version folder under it instead (see .devcontainer/README.md)" >&2
+  exit 1
+fi
+
 mkdir -p \
   "${HOME}/.codex" \
   "${HOME}/.claude" \
@@ -28,7 +37,8 @@ mkdir -p \
   "${HOME}/.config/gcloud" \
   "${HOME}/.gemini/antigravity-cli" \
   "${HOME}/.config/create-reso-world" \
-  "${HOME}/.local/share/create-reso-world/resonite-screenshots"
+  "${HOME}/.local/share/create-reso-world/resonite-screenshots" \
+  "${HOME}/.local/share/create-reso-world/resonite-managed-data"
 
 if [ -d "${HOME}/.claude.json" ]; then
   echo "initialize: ~/.claude.json is a directory; remove it (Docker created it because the file did not exist) and rebuild" >&2
