@@ -187,4 +187,9 @@
 
 ## 完了
 
-（Task 3 の後に記入する）
+- Task 1（`58388d0`）: テストを先に直し `FAIL: unexpected mounts:` を確認してから実装し、`test-initialize-mounts.bash` と check-layout が PASS。変異（managed data の `readonly` を外す／リンクの検査を外す／`-L` だけを外す）はどれもテストが失敗。壊れたリンク・ファイルの共有元は、mkdir と env ファイルの生成の前に終了コード 1
+- Task 2（`39d64f3`）: README の手順 4 と `error.context.stderr` の読み方を、DLL が無いこのコンテナでそのまま実行し、書いた出力と一致（doctor の `flux-sdk` は `pass`・`resonite-managed-data` は `warning`、check・build は終了コード 9、stderr に不足 DLL と探したフォルダ）。裁定: 計画に無かった「指したフォルダの DLL が足りない」の行を、実測した doctor の文に合わせて表に足した
+- Task 3: パスの表記の一致と変更範囲（7 ファイル）を確認。`39d64f3` で検証の入口をすべて実行し、Dev Container のテスト 23 本 PASS（91 秒）、check-layout PASS、pytest 1237 passed（504 秒）、前後とも clean
+- ブランチ全体のレビュー（新しいサブエージェント、読み取り専用、約 6 分）: Critical 0、Important 1、Minor 4、「修正すれば」。Important 1（README のコピーの手順で `mkdir` が失敗しても続きが実行され、版が混ざったまま `copied and verified` と出る）を、一時 HOME で再現してから `&&` でつなぐ形に直し（`fe287a7`）、照合の一覧をコピー元で作る向きに変えた（Minor 1 を同じ修正に含めた）。Minor 2（表の行名）は、DLL をコピー済みでも指す先が無ければ同じ文が出て、受け入れ条件 1 に関わるので Important に上げて直した。Minor 3（リンクを消す手順の案内）・Minor 4（283 行の指し方の列挙に `.resoloop.json` が無い）は先送り
+- 最後の検証は、この「完了」を commit した HEAD で行い、記録をセッションディレクトリ（`tmp/agents/issue-283.*/`）と PR 本文に残す
+- 所要時間（JST）: 調査・Spec・Plan 〜11:00（予算の ledger の開始は 10:56:55。その前の数分は Issue・コメント・競合の確認）、Task 1 11:01〜11:02、Task 2 11:02〜11:04、Task 3 の検証とレビュー 11:04〜11:13、レビュー修正 11:13〜11:15
