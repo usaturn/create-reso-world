@@ -3,7 +3,7 @@
 ## 管理と実行許可
 
 - 文書管理・対象: `usaturn/create-reso-world`、Issue #283
-- 状態: `draft`
+- 状態: `completed`（リポジトリの変更の実装・検証・レビューを完了。内容の承認を意味しない。rebuild・実 DLL での確認は下記のとおり未実施）
 - 利用者の指示: `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/283 --merge`。実行中に追加で「コメントも確認してください」「https://github.com/usaturn/resoloop 上流にPRすることが必要かどうかも検討して。」
 - 許可: 通常の設計判断を推奨案で決め、検証・commit・push・PR 作成の後、PR 修正ループを回す。マージはループの `finalize.py` だけが行う。実行の指示は実行許可であり、内容の承認（`approved`）ではない。
 - 調査した基準: `origin/main` = `a204b51f1e05cf0668be1c0724cf93f107ee8436`。ResoLoop は導入済みの 0.2.0 と、その公開の commit `orange3134/resoloop@a7be2dd`（`external/resoloop` の `upstream/main`）を読んだ。
@@ -74,3 +74,44 @@ Dev Container に flux-sdk は入るが、ProtoFlux のグラフの check・buil
 - `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools`（README の「テスト」のうち、ワールドの行を除く）
 - 足したテストが守りを確かめていることを、一時的な変異（`readonly` を外す、リンクの検査を外す）で確かめる。変異はコミットしない
 - README の手順のうち、この container で実行できるもの（DLL が無いときの doctor・`flux check --json` の `error.context.stderr`、`findmnt` の `ro` の読み方）は実測済み。DLL がある状態の doctor・check・build と、rebuild 後の mount は、マージの後に利用者が確かめる
+
+## 実装とブランチ全体のレビュー（PR 作成前）
+
+- 実装: Task 1 `58388d0`（mount・`initialize.bash`・テスト）、Task 2 `39d64f3`（README・`docs/integration.md`）、レビュー修正 `fe287a7`、Plan の記録 `44e8c46`。経過と裁定は Plan の「完了」にある
+- ブランチ全体のレビュー（新しいサブエージェント、読み取り専用）: Critical 0、Important 1、Minor 4。README のコピーの手順が `mkdir` の失敗後も続いて版が混ざったまま `copied and verified` と出る問題（Important 1）を再現してから `&&` でつなぐ形に直し、照合の一覧をコピー元で作る向きにした（Minor 1）。表の行名（Minor 2）は Important に上げて直した。リンクを消す案内（Minor 3）と、ProtoFlux の節の指し方の列挙の `.resoloop.json`（Minor 4）は先送り
+
+## PR #284 レビュー修正ループ・サイクル 1 の結果
+
+- 対象: `usaturn/create-reso-world` PR #284、レビュー HEAD `44e8c46d4d1659ab0907602490f42b7798eb8b3a`、base `a204b51f1e05cf0668be1c0724cf93f107ee8436`
+- planner: `claude-opus-5-5`、runtime `claude-code`。実行許可は冒頭の `/issue-to-pr ... --merge`（ループの既定: サイクルの上限 3）
+- 結論: **2 修正不要**。全指摘 1 件 = 解消済み 0 / 対応する 0 / 対応しない 1。票数ではなく、現行のコミット済みの変更・関連処理・テスト・仕様と照合して判断した
+
+| レビューファイル | モデル | runtime | HEAD | 再実行 | recommendation | 実測秒数 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `claude-opus-5-5.md` | `claude-opus-5-5` | `claude-code` | `44e8c46d4d16` | はい（Initial） | Approve | 392.75 |
+| `SWE-2-Max.md` | `SWE-2 Max` | `devin` | `44e8c46d4d16` | はい（Initial） | Approve | 390.21 |
+| `deepseek-deepseek-v4.1-flash.md` | `deepseek/deepseek-v4.1-flash` | `pi` | `44e8c46d4d16` | はい（Initial） | Approve | 786.95 |
+
+保存先は `/workspaces/reso-world/reviews/usaturn/create-reso-world/#284-feat-issue-283-resonite-managed-data/`。3 名とも runner の受け取りは accepted で、失敗・再実行・retained は無い。前のサイクルの判断は無い。
+
+### 指摘の振り分け
+
+| 指摘 | 区分 | 根拠 |
+| --- | --- | --- |
+| `SWE-2-Max#L-1@44e8c46d4d16`（Low。共有元をリンク・ファイルにして止まったとき、メッセージと README に消し方の案内が無い） | 対応しない | 確認済みの一覧の V-1 で再現した（リンクの下に版のフォルダを作っても止まり続け、リンクを消すと通る）。ただし、文書化した手順（実ディレクトリへのコピー）から外れてリンクを作ったときだけ起き、`initialize.bash` は終了コード 1 で `must be a real directory, not a link or a file` と理由を示して止まる。データの消失・秘密情報の露出・誤った成功にはならず、致命的の条件に当たらない。PR 作成前のレビューの Minor 3 と同じ論点で、先送りの判断と一致する |
+
+要件対応: 修正が無いので、Spec の条件 1〜8 と Issue の受け入れ条件の対応は「条件と除外範囲」の表のまま変わらない。共有する前提（パスの表記、ResoLoop 0.2.0 の挙動）は Plan の Task 3 で照合済み。
+
+### 確認の範囲と根拠
+
+全指摘・PR の変更 7 ファイル・関連処理（`.devcontainer/mounts.bash`、`scripts/check-layout.sh` の mount の検査、`.devcontainer/test-readme.bash`）を、コミット済みの内容で読んだ。確認済みの一覧は review-verify（mode cycle）で作り、`verified/44e8c46d4d16.json`・`.md` に保存した（confirmed 1、not_reproduced 0、unverified 0、確認 85 秒）。V-1 は、PR head を照合した隔離 worktree で、共有元がリンク・ファイル・壊れたリンクのとき止まり、実ディレクトリのとき通ることを実行で確かめた。`coverage.remaining` は rebuild・Docker の実 mount と、実 DLL・Windows 側の手順で、どちらもマージの後に利用者が確かめる項目（条件 8）。
+
+### 検証の再利用と最終化の前提
+
+issue-to-pr の `--merge` の規則（1 サイクル目で修正不要、サイクルの HEAD が PR 作成前に検証した HEAD と同じ）により、PR 作成前の検証を `finalize.py` の検証の記録に使う。検証の前後とも未 commit の変更は無く、すべて終了コード 0。`origin/main` を取り直し、base が上記 SHA のまま head の祖先であることを確かめた（base との一時的な merge は不要）。
+
+- `bash .devcontainer/run-tests.bash`: 23 本 PASS、83 秒
+- `bash scripts/check-layout.sh`: PASS
+- `uv run pytest tests/skills .agents/skills .agents/scripts tools`: 1237 passed、465 秒
+- 記録と実ログ: `/workspaces/reso-world/tmp/agents/issue-283.zm8muatb/verify-44e8c46/verification.json`、`/workspaces/reso-world/tmp/agents/issue-283.zm8muatb/checks.json`、同じディレクトリの `devcontainer.log`・`layout.log`・`pytest.log`
+- 自己レビュー: 結論 2 のため未実施（修正していない）
