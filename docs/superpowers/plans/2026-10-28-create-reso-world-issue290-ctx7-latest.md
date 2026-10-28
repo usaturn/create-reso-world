@@ -43,7 +43,7 @@
   - 対象外（検査しない）: 導入した版が npm の latest と一致するか
 - 受け入れの確認:
   1. 既存コンテナで `bash .devcontainer/install_ctx7.bash` を実行すると 0.8.0 から最新（確認時は 0.8.2）に入れ替わり、`ctx7 --version` が最新を示す
-  2. `rg CTX7_CLI_VERSION -g '!docs/superpowers/**'` が空
+  2. `git grep -n CTX7_CLI_VERSION -- ':!docs/superpowers'` が空（`rg` は既定で隠しディレクトリを検索しないので使わない）
   3. `npm install -g` の失敗、PATH に `ctx7` が無い、PATH の前のほうに別の `ctx7` がある、のいずれも `[install_ctx7] ERROR: ...` を出して非 0 で終わり、成功のメッセージを出さない
   4. `bash .devcontainer/test-install-ctx7.bash` と `bash .devcontainer/run-tests.bash` が通る
   5. `.devcontainer/README.md` の「動作確認」のコマンドが通る（`ctx7 setup` を実行していない）
@@ -57,7 +57,7 @@
 | PATH の前のほうの別の `ctx7` の拒否 | Task 1 | 非 0、ERROR 行、成功のメッセージ無し | `test-install-ctx7.bash` |
 | 拒否・停止の残り（npm の失敗、PATH に無い、`--version` の失敗、名前の前方一致、symlink の位置） | Task 2（統合） | 非 0、ERROR 行、成功のメッセージ無し／正しい形は 0 | 一時的な実行（コミットしない） |
 | 0.8.0 から最新への入れ替え、動作確認 | Task 2（統合） | `ctx7 --version`、`ctx7 library`・`ctx7 docs` の終了コード | 実機での実行 |
-| 文書の更新、`CTX7_CLI_VERSION` の除去 | Task 2 | `rg` の結果、`git diff` | `rg`・`git diff`・`run-tests.bash`・`check-layout.sh` |
+| 文書の更新、`CTX7_CLI_VERSION` の除去 | Task 2 | `git grep`・`rg` の結果、`git diff` | `git grep`・`rg`・`git diff`・`run-tests.bash`・`check-layout.sh` |
 | Rebuild での確認 | — | — | マージの後（PR 本文・Issue のコメントに残す） |
 
 共有する条件: 「拒否のときに成功のメッセージを出さない」と「`ctx7` を `--version` 以外で呼ばない」は、Task 1 の実装と Task 2 の文書（トラブルシュートの ERROR の文言）の両方に関わる。Task 2 で、文書の ERROR の例が Task 1 の実際のメッセージと合うことを確かめる。
@@ -171,7 +171,7 @@ Spec の「設計」の 3 のとおり。`.devcontainer/README.md` の「更新�
 
 - [ ] **Step 2: 参照の確認**
 
-Run: `rg -n CTX7_CLI_VERSION -g '!docs/superpowers/**' .; rg -n '固定した版|pinned' .devcontainer/README.md README.md .agents/skills/find-docs/SKILL.md .devcontainer/install_beforehand.bash .devcontainer/install_ctx7.bash | rg -i 'ctx7|context7'`
+Run: `git grep -n CTX7_CLI_VERSION -- ':!docs/superpowers'; rg -n '固定した版|pinned' .devcontainer/README.md README.md .agents/skills/find-docs/SKILL.md .devcontainer/install_beforehand.bash .devcontainer/install_ctx7.bash | rg -i 'ctx7|context7'`
 Expected: どちらも出力なし（1 つ目の終了コード 1）
 
 - [ ] **Step 3: 停止の経路の一時的な確認（コミットしない）**
@@ -214,3 +214,17 @@ Expected: すべて終了コード 0。`run-tests.bash` は `PASS: <N> test(s)`
 git add .devcontainer/install_beforehand.bash .devcontainer/README.md README.md .agents/skills/find-docs/SKILL.md
 git commit -m "docs: ctx7 を npm の最新版で導入する運用に合わせる (#290)"
 ```
+
+## 実施の記録
+
+- 実行方式: `superpowers:executing-plans`（inline、claude-opus-5-5）。作業領域と ledger は `PARENT_ROOT` の `tmp/agents/issue-290.izc14zd1/sdd/2026-10-28-create-reso-world-issue290-ctx7-latest/progress.md`（コミットしない）
+- Task 1（`9362b5a`）: RED は、変更前のインストーラが偽の `ctx7` の版（9.9.9）を固定の 0.8.0 と比べて止まる失敗だった（Plan の Expected の文言と違うが、版の固定が残っていることによる正しい RED）。GREEN の後、一時的な変異（PATH の判定を消す、`ctx7@0.8.0` に戻す、`ctx7 setup` を呼ぶ）をテストが検出することを確かめた
+- Task 2（`6f06794`）: 停止の経路の一時的な確認（npm の失敗、何も置かない、`--version` の失敗・空、`ctx7-other`、別の `ctx7` が先 → 非 0・成功の行なし・別の `ctx7` は呼ばれない。npm の root が symlink 経由・通常 → 0）。実機で 0.8.0 → 0.8.2（npm の latest）、`ctx7 library`・`ctx7 docs` は終了コード 0。Plan の Step 5 と Step 6 は、`--merge` の検証の記録のために commit を先にした
+- 受け入れ確認 2: `git grep -n CTX7_CLI_VERSION <rev> -- ':!docs/superpowers'` が base（`640fae1`）で 13 件、HEAD で 0 件。最初に Plan に書いた `rg` のコマンドは隠しディレクトリを検索せず、変更の前でも空になる誤りだった（最終レビューの指摘）ので、`git grep` に直した
+- 最終レビュー（新しい文脈の Opus）: Critical 0・Important 0・Minor 5、マージ可。Minor のうち検証のコマンドの誤りだけを直し、残りは見送った
+  - 拒否の例が、別の `ctx7` を呼ばないことまでは確かめていない（判定の前に `--version` を呼ぶ形に壊れても通る）。呼ばれるのは `--version` だけで、その後に拒否されるので S に当たらない
+  - `.devcontainer/README.md` の「動作確認」のコメントが `dist/index.js` を決め打ちしている
+  - トラブルシュートの表に `--version printed nothing.` の行が無い（「導入」の節には含まれる）
+  - `ctx7 --version` の出力が複数行だと、空白の除去で版の表示がつながる（0.8.2 は 1 行）
+- 持ち越し候補: 上流に壊れた版が出ると、postCreate の後続の手順も止まる。一時的に版を指定する手段か、警告して続ける形を、起きたときに別の Issue で検討する
+- マージの後の確認: Rebuild で同じ結果になる（postCreate のログに導入した版が出る）

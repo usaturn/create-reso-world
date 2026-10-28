@@ -76,7 +76,7 @@ ResoLoop と同じく、セットアップ（postCreate）と明示的な再実�
 受け入れの確認:
 
 1. 既存コンテナで `bash .devcontainer/install_ctx7.bash` を実行すると 0.8.0 から最新（確認時は 0.8.2）に入れ替わり、`ctx7 --version` が最新を示す
-2. リポジトリの `docs/superpowers/` の外に `CTX7_CLI_VERSION` が残っていない（`rg CTX7_CLI_VERSION -g '!docs/superpowers/**'` が空）
+2. リポジトリの `docs/superpowers/` の外に `CTX7_CLI_VERSION` が残っていない（`git grep -n CTX7_CLI_VERSION -- ':!docs/superpowers'` が空。`rg` は既定で `.devcontainer/`・`.agents/` のような隠しディレクトリを検索せず、変更の前でも空になるので使わない）
 3. `npm install -g` の失敗、PATH に `ctx7` が無い、PATH の前のほうに別の `ctx7` がある、のいずれも `[install_ctx7] ERROR: ...` を出して非 0 で終わり、成功のメッセージを出さない
 4. `bash .devcontainer/test-install-ctx7.bash` と `bash .devcontainer/run-tests.bash` が通る
 5. `.devcontainer/README.md` の「動作確認」のコマンドが通る（`ctx7 library react ...`・`ctx7 docs /react/react ...`。`ctx7 setup` を実行していない）
@@ -89,7 +89,7 @@ AGENTS.md の「テストの採用基準」と Issue の「テストの要否」
 - S（書く）: PATH の前のほうの別の `ctx7` を黙って使わないこと、`ctx7` を `--version` 以外で呼ばないこと（`ctx7 setup` が共有の場所へ書き込んでも、導入は成功するので気付けない）。`test-install-ctx7.bash` で代表の 1 件ずつを確かめ、正しく通る例を 1 件残す
 - `ctx7@latest` の要求は、偽の npm で実行した引数を確かめる（実行の結果の照合で、F ではない）。版の固定に戻ると、エラーにならずに古い版のまま残るので、正しく通る例の実行で一緒に確かめる
 - 書かない: 版の文字列を写す F のテスト。`npm install -g` の失敗、PATH に無い、`--version` の失敗で止まる経路（非 0 の終了と postCreate の失敗として現れる L）。この 3 つは一時的な実行で確かめ、コミットしない
-- 文書の更新は、`rg` による参照の確認と `git diff` で確かめる
+- 文書の更新は、`git grep`・`rg`（ファイルを明示）による参照の確認と `git diff` で確かめる
 
 ## 決定記録
 
@@ -101,7 +101,7 @@ AGENTS.md の「テストの採用基準」と Issue の「テストの要否」
 | `--version` の失敗と空の出力 | 止める | ログに残すだけで続ける | 新しい版が Node.js の版などで動かないことを、postCreate の失敗として早く出す（Issue の「リスクと扱い」）。成功のメッセージに版を出す前提も守る | 推奨案の委任 |
 | 以前の版の表示 | 出さない（導入した版だけ） | ResoLoop のように `(was X)` を出す | 以前の版を知るには導入の前に PATH 上の未確認の `ctx7` を実行することになる。Issue は導入した版のログだけを求める | 推奨案の委任 |
 | テストの範囲 | 正しく通る例 1 件と、PATH の前のほうの別の `ctx7` の拒否 1 件 | 3 つの停止条件をすべてテストにする | Issue の「テストの要否」と AGENTS.md の基準。npm の失敗・PATH に無いは L | 推奨案の委任 |
-| 受け入れ条件 2 の範囲 | `docs/superpowers/` を除いて `rg` が空 | リポジトリ全体で空にする（#162 の Spec・Plan を書き換える） | #162 の Spec・Plan は完了した記録で、書き換えない（AGENTS.md「完了した文書も削除しない」）。この Issue の Spec・Plan も変更の対象として変数名を書く。Issue の意図（コードと運用の文書に固定の版が残らない）は保たれる | 推奨案の委任。意味の変更ではなく、記録を守るための範囲の明示 |
+| 受け入れ条件 2 の範囲 | `docs/superpowers/` を除いて `git grep` が空 | リポジトリ全体で空にする（#162 の Spec・Plan を書き換える） | #162 の Spec・Plan は完了した記録で、書き換えない（AGENTS.md「完了した文書も削除しない」）。この Issue の Spec・Plan も変更の対象として変数名を書く。Issue の意図（コードと運用の文書に固定の版が残らない）は保たれる | 推奨案の委任。意味の変更ではなく、記録を守るための範囲の明示 |
 | `docs/maatlog-poc-porting.md` の 7 行目 | 変えない | 「最新版で入れる」に直す | #162 の時点の変更を記した移植の記録で、Issue の変更範囲に無い | 推奨案の委任 |
 | `find-docs` の SKILL.md の検証 | 文言の差し替えだけなので、`writing-skills` の無し/ありの比較はしない | 比較を行う | スキルの新設ではなく、前提の説明と理由の 2 か所の更新。手順（`Update available` に従わない、自分で `npm install` しない）は変えない | 推奨案の委任 |
 | 実行方式 | `superpowers:executing-plans`（inline） | `superpowers:subagent-driven-development` | `implement_task.py check` の `self` が true（雛形の既定の適用）。変更は 1 つのスクリプトとそのテスト、文書の数か所で、Task が少なく逐次で済む | 推奨案の委任 |
