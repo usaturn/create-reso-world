@@ -4,7 +4,7 @@
 
 - 文書管理: usaturn/create-reso-world
 - 対象: usaturn/create-reso-world #290（https://github.com/usaturn/create-reso-world/issues/290）
-- 状態: draft（内容の承認は未取得）
+- 状態: completed（内容の承認は未取得。実行許可に基づく完了記録。PR #294 の修正ループのサイクル 1 は結論 2（修正不要）。マージと Issue の更新の結果は状況コメントと完了報告にある）
 - 指示: `/issue-to-pr #290 --assign inspect=pi-gpt,devin-swe,pi-deepseek --merge`
 - 許可: 通常の設計判断を推奨案で決め、検証・commit・push・PR 作成と、PR 修正ループ（`finalize.py`）によるマージまで行う。実行の許可であり、内容の承認ではない
 - 設計時の base: `origin/main` の `640fae1e185b7e48421a5033e481ac7f7f57bc4b`
@@ -108,3 +108,35 @@ AGENTS.md の「テストの採用基準」と Issue の「テストの要否」
 | PR の Issue の指定 | `Refs #290` | `Closes #290` | 受け入れ条件 6（Rebuild）がマージの後でなければ確かめられない | issue-to-pr の規則 |
 | ループの設定 | `check-options` の結果のとおり。`--assign inspect=pi-gpt,devin-swe,pi-deepseek` は利用者の指定。サイクルの上限 3、`fix` の担当（`implement`: claude-opus、`self-review`・`fix-check`: self）、雛形 `.devcontainer/agent-runner.toml` は既定の適用 | — | 利用者が書いたものだけを渡す | issue-to-pr の規則 |
 | Plan の Task の担当 | `self`（`implement_task.py check` の `assignment` は `agents: ["self"]`、`fallback: []`。雛形の既定の適用で、`--implement` の指定なし） | — | 利用者の指定が無い | issue-to-pr の規則 |
+
+## PR #294 の修正ループ（review-fix-planning）
+
+### サイクル 1（HEAD `73b59c4d8aa7ce502fb50fccc8686f55b8ac5cef`）
+
+- 実行許可: `/issue-to-pr #290 --assign inspect=pi-gpt,devin-swe,pi-deepseek --merge`（修正不要と確かめたら、`finalize.py` によるマージと関連 Issue の更新まで行う）
+- planner: claude-opus-5-5（claude-code）。ループの run は `/workspaces/reso-world/reviews/usaturn/create-reso-world/#294-fix-issue-290-ctx7-latest/loop/2e7e2c04d6f14538b5b597563da83cfd`
+- 入力: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#294-fix-issue-290-ctx7-latest/`。確認済みの一覧は同じディレクトリの `verified/73b59c4d8aa7.json`（review-verify、mode cycle）
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `73b59c4d8aa7` | はい | Approve |
+| `SWE-2-Max.md` | SWE-2 Max | devin | `73b59c4d8aa7` | はい | Approve |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | `73b59c4d8aa7` | はい | Approve |
+
+分類: 解消済み 0 / 対応する 0 / 対応しない 1
+
+| 指摘 | 区分 | 根拠 |
+| --- | --- | --- |
+| `deepseek-deepseek-v4.1-flash#L-1@73b59c4d8aa7`（受け入れ条件 2 の範囲を `docs/superpowers/` の外に限定し、`docs/superpowers/` に `CTX7_CLI_VERSION` が 16 件残る） | 対応しない | 事実は確かめた（確認済みの一覧 V-1）。コードと運用の文書には 0 件で、実行時の影響は無く致命的ではない。残るのは #162 の完了した Spec・Plan（11 件）とこの Issue の Spec・Plan（5 件）で、完了した記録は書き換えない（AGENTS.md「完了した文書も削除しない」）。範囲の決め方は仕様の是非で、「決定記録」の「受け入れ条件 2 の範囲」に理由を残している。見直すのは、利用者が Issue #290 の条件 2 を `docs/superpowers/` を含むリポジトリ全体と明示したとき |
+
+要件対応: この Spec の「受け入れ基準」と PR 本文の約束（受け入れ条件 1〜5 の確認、6 はマージ後）を、確認済みの一覧の coverage と照合した。修正が無いので、共有条件の統合担当と影響経路の表は不要。
+
+結論: 2（修正不要としてマージする）。自己レビューは修正が無いので行っていない。
+
+検証: 修正が無く、issue-to-pr で記録した同じ HEAD の検証を再利用した（`--merge` の検証の記録の再利用の条件: 同じ HEAD、未 commit の変更なし、すべて終了コード 0、ログが残っている）。base は `origin/main` の `640fae1e185b7e48421a5033e481ac7f7f57bc4b`（HEAD の祖先）で、マージした一時的なツリーでの検証は要らない。
+
+| コマンド | 終了コード | 結果 |
+| --- | --- | --- |
+| `bash .devcontainer/run-tests.bash` | 0 | `PASS: 24 test(s)` |
+| `bash scripts/check-layout.sh` | 0 | `PASS: check-layout` |
+| `uv run pytest tests/skills .agents/skills .agents/scripts tools` | 0 | `1237 passed` |
