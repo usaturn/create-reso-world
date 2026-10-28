@@ -142,7 +142,7 @@ HOST・PORT の形が不正なときは、使い方を表示して 64 で止ま�
 | --- | --- | --- |
 | `openssl`・`curl`・`git` | システムの CA バンドル（`ca-certificates`）。curl・git は `CURL_CA_BUNDLE`・`GIT_SSL_CAINFO`・`http.sslCAInfo` などで別のファイルを使える | rebuild するか、`sudo apt-get update && sudo apt-get install -y ca-certificates`。別のファイルを指定していれば外す |
 | `python` | `uv run` が使う Python の `ssl`（システムの OpenSSL と CA バンドル） | 上と同じ。`SSL_CERT_FILE` を指定していれば外す |
-| `node` | Node.js の同梱 CA（`NODE_EXTRA_CA_CERTS` で足したものを含む）。Node.js は Dev Container の Node の Feature（LTS）が入れる | rebuild する。修正版は 22.23.4・24.22.1・26.12.1 以上 |
+| `node` | Node.js の同梱 CA（`NODE_EXTRA_CA_CERTS` で足したものを含む）。Node.js は Dev Container の Node の Feature（`"version": "24"`。24 系の最新）が入れる | rebuild する。修正版は 22.23.4・24.22.1・26.12.1 以上 |
 | `uv` | uv の同梱 CA（webpki-roots）。`SSL_CERT_FILE`・`UV_NATIVE_TLS` などの環境変数は反映し、設定ファイル（`uv.toml`）の TLS の指定は反映しない | rebuild するか `uv self update`。修正版は 0.13.5 以上 |
 
 確認スクリプトの外の、同梱 CA を持ち得るツールの点検の結果は Issue #291 のコメントにある。2026-10-28 の点検では、どれも修正版以上か、

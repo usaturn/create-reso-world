@@ -28,10 +28,13 @@ openssl x509 -req -in leaf.csr -CA ca.pem -CAkey ca.key -out valid.pem -days 2 -
 openssl x509 -req -in leaf.csr -CA ca.pem -CAkey ca.key -out expired.pem \
   -not_before 20200101000000Z -not_after 20200102000000Z -extfile leaf.ext 2>/dev/null
 
-# 証明書を出す HTTPS サーバを空いているポートで起動し、そのポートを port に入れる（後片付けのためサブシェルで呼ばない）
+# 証明書を出す HTTPS サーバを空いているポートで起動し、そのポートを port に入れる（後片付けのためサブシェルで呼ばない）。
+# ログは起動ごとに別の名前で先に作る（リダイレクトはバックグラウンドの子で行われ、sed が先に読むと無い。同じ名前だと前のサーバの
+# ACCEPT 行を読む）
 start_server() {
-  local cert="$1" log="$tmp/$1.log" i
+  local cert="$1" log="$tmp/server-${#servers[@]}.log" i
   port=''
+  : >"$log"
   openssl s_server -accept 127.0.0.1:0 -cert "$cert" -key leaf.key -www >"$log" 2>&1 &
   servers+=("$!")
   for i in $(seq 50); do
@@ -77,8 +80,9 @@ expect_count() {
   [ "$got" = "$want" ] || fail "$target: expected $want line(s) of $verdict, got $got"
 }
 
-# 信頼させない（正例）: 発行者を信頼しない検証エラーだけなので、0 で終わる
-run "localhost:$valid_port"
+# 信頼させない（正例）: 発行者を信頼しない検証エラーだけなので、0 で終わる。環境変数で足した uv の index は
+# 対象より先に問い合わせられ、別のホストの結果で判定してしまうので、混ぜずに対象だけへ接続すること
+run "localhost:$valid_port" UV_EXTRA_INDEX_URL="https://localhost:$closed_port/simple/"
 [ "$rc" -eq 0 ] || fail "an untrusted issuer must exit 0, got $rc"
 expect_count "localhost:$valid_port" 信頼していない 6
 

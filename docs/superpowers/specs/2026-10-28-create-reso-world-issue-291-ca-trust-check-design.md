@@ -44,7 +44,7 @@
 | `git` | `git ls-remote https://HOST:PORT/`（`GIT_TRACE_CURL` で HTTP 応答を記録） | git の設定（既定はシステムの CA バンドル） |
 | `python` | `uv run --no-project python -I` の `urllib.request` と `ssl.create_default_context()` | リポジトリのツールが使う Python の `ssl`（システムの OpenSSL） |
 | `node` | `node -e` の `fetch()` | Node.js の同梱 CA（`NODE_EXTRA_CA_CERTS` などの設定を含む） |
-| `uv` | `uv -vv pip compile` で確認用ホストを index にする（`--no-config --no-cache`、再試行 0） | uv の同梱 CA（webpki-roots）。`SSL_CERT_FILE`・`UV_NATIVE_TLS` などの環境変数は反映する |
+| `uv` | `uv -vv pip compile` で確認用ホストを index にする（`--no-config --no-cache`、再試行 0。index を足す環境変数 `UV_INDEX`・`UV_EXTRA_INDEX_URL` などは外す） | uv の同梱 CA（webpki-roots）。`SSL_CERT_FILE`・`UV_NATIVE_TLS` などの環境変数は反映する |
 
 判定の規則（クライアントとホストの組ごと）。拒否を示す証拠だけで「信頼していない」とし、それ以外の失敗はすべて「判定不能」に倒す。
 
@@ -82,7 +82,7 @@ Issue の方針 5 の対象（uv・Codex CLI・cursor-agent・devin・gemini（A
 | 対照ホスト（正常に接続できるホスト） | 置かない | 各クライアントで対照ホストへの接続の成功を前提にする | 何も検証できないクライアントは、普段の利用で接続に失敗して気付く。危ない側（信頼している）は HTTP 応答で必ず捕まえる。外部への依存を増やさない | 推奨案の委任 |
 | 判定の優先 | 成立の証拠を拒否の証拠より優先する | 拒否の証拠を優先する | プロキシの CONNECT の応答などで両方が出たとき、非 0 の側に倒す | 推奨案の委任 |
 | Python の実行 | `uv run --no-project python -I` | `python3` | AGENTS.md の「Python は uv 必須」に合わせ、リポジトリのツールが実際に使う Python（着手時は `/usr/bin/python3`）を確かめる | 推奨案の委任 |
-| uv の接続 | `uv -vv pip compile --no-config --no-cache` で確認用ホストを index にし、`UV_HTTP_RETRIES=0` | `uv pip install --dry-run`、利用者の uv の設定ファイルを読む | 環境（venv）を作らずに済み、`-vv` で応答の受信を区別できる。設定ファイルの別 index が混ざらないよう `--no-config` にする。設定ファイルの TLS の指定は反映しないが、環境変数は反映する | 推奨案の委任 |
+| uv の接続 | `uv -vv pip compile --no-config --no-cache` で確認用ホストを index にし、`UV_HTTP_RETRIES=0` | `uv pip install --dry-run`、利用者の uv の設定ファイルを読む | 環境（venv）を作らずに済み、`-vv` で応答の受信を区別できる。設定ファイルと環境変数の別 index が混ざらないよう、`--no-config` にし、index を足す環境変数（`UV_INDEX`・`UV_DEFAULT_INDEX`・`UV_INDEX_URL`・`UV_EXTRA_INDEX_URL`・`UV_FIND_LINKS`・`UV_TORCH_BACKEND`・`UV_NO_INDEX`・`UV_OFFLINE`）を外す（extra の index は対象より先に問い合わせられ、その結果で対象を判定してしまう。最終レビューの指摘）。設定ファイルの TLS の指定は反映しないが、TLS の環境変数は反映する | 推奨案の委任 |
 | 終了コード | 0（すべて信頼していない）・1（信頼している）・2（判定不能）・64（使い方の誤り） | 非 0 を 1 つにまとめる | 次の行動（更新か再実行か）が違う。使い方の誤りは `herdr-agent-task.bash` と同じ 64 | 推奨案の委任 |
 | `ca-certificates` の更新 | `apt-get install -y ca-certificates` を独立の step で `apt update` の直後に実行 | Issue 案の `--only-upgrade`、基本パッケージの一覧に足す | `--only-upgrade` はパッケージが無いと何もせず 0 で終わる。独立の step にすると postCreate のログで更新を追え、後の step の HTTPS の導入も新しいトラストストアで検証される | 推奨案の委任。上げられなければ postCreate を失敗させる（Issue の受け入れ条件） |
 | ホスト側の案内の置き場所 | `.devcontainer/README.md` の新しい節。ルートの README からは参照だけ | ルートの README に全文 | ツールとトラストストアの対応と同じ場所にまとめる。ルートの README は起動の手順に 1 行足すだけにする | Issue が置き場所を実装時の判断に委ねている |
