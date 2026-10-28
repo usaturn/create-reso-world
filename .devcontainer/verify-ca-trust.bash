@@ -127,10 +127,11 @@ probe() {
     uv)
         # 確認用ホストだけを index にする。-vv の記録で応答の受信を確かめる。設定ファイルと環境変数の別の index を混ぜない
         # （extra の index は対象より先に問い合わせられる。UV_CONFIG_FILE は --no-config でも読まれる）
+        # 出力の行頭を照合するので、FORCE_COLOR などの環境変数があっても色の制御文字を付けさせない
         run_probe env -u UV_CONFIG_FILE -u UV_INDEX -u UV_DEFAULT_INDEX -u UV_INDEX_URL -u UV_EXTRA_INDEX_URL \
             -u UV_FIND_LINKS -u UV_TORCH_BACKEND -u UV_NO_INDEX -u UV_OFFLINE \
             UV_HTTP_RETRIES=0 UV_HTTP_TIMEOUT="$CLIENT_TIMEOUT" \
-            uv -vv pip compile requirements.in --no-config --no-cache --index-url "https://${host}:${port}/simple/"
+            uv --color never -vv pip compile requirements.in --no-config --no-cache --index-url "https://${host}:${port}/simple/"
         ;;
     esac
 }
