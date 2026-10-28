@@ -205,8 +205,8 @@ if ! bash .devcontainer/install_meshy.bash; then
     fail "Meshy CLI installation or verification failed."
 fi
 
-step "Installing the pinned Context7 CLI (ctx7)"
-# find-docs スキルが使う。版の固定と導入後の確認は install_ctx7.bash にある（#162）
+step "Installing the latest Context7 CLI (ctx7)"
+# find-docs スキルが使う。最新版の導入と導入後の確認は install_ctx7.bash にある（#162・#290）
 if ! bash .devcontainer/install_ctx7.bash; then
     fail "Context7 CLI installation failed."
 fi

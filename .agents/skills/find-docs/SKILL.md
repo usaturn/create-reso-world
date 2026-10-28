@@ -23,7 +23,7 @@ Retrieve current documentation and code examples for any library using the Conte
 
 ## Prerequisite: use only the installed `ctx7`
 
-The Dev Container setup installs `ctx7` at the version pinned as `CTX7_CLI_VERSION` in `.devcontainer/install_ctx7.bash`. First check that it is on PATH:
+The Dev Container setup installs the latest `ctx7` from npm with `.devcontainer/install_ctx7.bash`. First check that it is on PATH:
 
 ```bash
 command -v ctx7
@@ -31,7 +31,7 @@ command -v ctx7
 
 - If this prints nothing (exit code 1), stop. Tell the user that `ctx7` is missing and that Rebuild Container, or `bash .devcontainer/install_ctx7.bash`, installs it (see "Context7 CLI（ctx7）" in `.devcontainer/README.md`). Do not run `npm install` yourself
 - Do not switch to `npx ctx7`, a Context7 MCP server, the claude.ai Context7 connector, or the Pi Context7 extension (`resolve-library-id`, `query-docs`, `/c7-docs`). This repository uses Context7 only through `ctx7` in this skill
-- If `ctx7` prints `Update available` or suggests `ctx7 upgrade` or `npm install -g ctx7@latest`, do not follow it. The version changes only through a PR that updates `CTX7_CLI_VERSION`
+- If `ctx7` prints `Update available` or suggests `ctx7 upgrade` or `npm install -g ctx7@latest`, do not follow it. The user updates `ctx7` by rerunning `bash .devcontainer/install_ctx7.bash` or rebuilding the container
 - Do not run `ctx7 setup` or `ctx7 remove`. They write MCP settings and skills to the shared `~/.claude`, `~/.codex`, and similar locations
 
 A subagent without a shell (Bash or similar) cannot run `ctx7`. Ask the parent agent, or a worker with a shell, to fetch the documentation, passing the library name and the question. If that is not possible, say in the result that the documentation could not be fetched; do not silently answer from training data.
