@@ -1,5 +1,5 @@
 #!/bin/bash
-# postCreate（.devcontainer/install_beforehand.bash）の agent-runner の個人設定の配置を検査する。仕様 7.1 節
+# postCreate（.devcontainer/install_beforehand.bash）の agent-runner の個人設定の配置（仕様 7.1 節）と、ca-certificates の更新（#291）を検査する
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 installer="$root/.devcontainer/install_beforehand.bash"
@@ -44,4 +44,24 @@ assert all(merged.roles[name].deadline_seconds == role.deadline_seconds + 1 for 
 assert all(merged.agents[name].model == f"{agent.model}-changed" for name, agent in base.agents.items())
 PY
 
-printf 'PASS: postCreate preserves the agent-runner personal config\n'
+# ca-certificates は更新した索引の最新版へ上げ、apt-get が失敗したら失敗を返す（#291）。成功として返すと、
+# 古いトラストストアのまま postCreate が進む。偽の sudo・apt-get で実行し、実際のパッケージには触れない
+upgrade_function="$(sed -n '/^upgrade_ca_certificates() {$/,/^}$/p' "$installer")"
+[ -n "$upgrade_function" ] || fail 'no upgrade_ca_certificates in install_beforehand.bash'
+mkdir -p "$tmp/bin"
+printf '#!/bin/bash\nexec "$@"\n' > "$tmp/bin/sudo"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "$FAKE_APT_LOG"\nexit "$FAKE_APT_EXIT"\n' > "$tmp/bin/apt-get"
+chmod +x "$tmp/bin/sudo" "$tmp/bin/apt-get"
+upgrade() {
+  env PATH="$tmp/bin:$PATH" FAKE_APT_LOG="$tmp/apt.log" FAKE_APT_EXIT="$1" \
+    bash -c "$upgrade_function"$'\n''upgrade_ca_certificates'
+}
+if upgrade 100; then
+  fail 'upgrade_ca_certificates returned success although apt-get failed'
+fi
+: > "$tmp/apt.log"
+upgrade 0 || fail 'upgrade_ca_certificates failed although apt-get succeeded'
+grep -qE '(^| )install( |$)' "$tmp/apt.log" && grep -qE '(^| )ca-certificates( |$)' "$tmp/apt.log" \
+  || fail "upgrade_ca_certificates did not install ca-certificates: $(cat "$tmp/apt.log")"
+
+printf 'PASS: postCreate preserves the agent-runner personal config and upgrades ca-certificates\n'

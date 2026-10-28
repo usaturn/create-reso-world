@@ -7,7 +7,7 @@ set -u
 # 打ち切る（2026-09-13 のリビルド中断インシデント）。継続してよい処理
 # （flux-sdk の導入、同梱スキルの状態の表示と workspace cleanup）だけを明示的に続行させるため、スクリプト全体には set -e を
 # 付けない。
-readonly STEP_TOTAL=29
+readonly STEP_TOTAL=31
 STEP_NUMBER=0
 
 step() {
@@ -101,6 +101,18 @@ if ! sudo perl -pi -e 's@http://archive\.ubuntu\.com@https://archive.ubuntu.com@
 fi
 if ! sudo apt update; then
     fail "apt update failed."
+fi
+
+step "Upgrading ca-certificates to the latest release"
+# トラストストアの修正（eMudhra の中間CA の侵害、#291）は ca-certificates の更新で届く。タグを固定していないベースイメージでも、
+# 古いイメージのキャッシュから作ると古いままなので、更新した索引の最新版へ上げる（入っていなければ入れる。--only-upgrade は
+# 入っていないと何もせずに成功する）。後の step の HTTPS による導入も、新しいトラストストアで検証される。
+# 確かめるのは .devcontainer/verify-ca-trust.bash（外部へ接続するので postCreate では実行しない）
+upgrade_ca_certificates() {
+    sudo apt-get install -y ca-certificates
+}
+if ! upgrade_ca_certificates; then
+    fail "Upgrading ca-certificates failed."
 fi
 
 step "Installing the base packages"

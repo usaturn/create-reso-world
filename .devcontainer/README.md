@@ -85,6 +85,8 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
    - Claude Code の alias（`ccd`・`ccdo`・`ccds`）とプロバイダ関数を含むシェル設定の配置
      （「Claude Code の起動と更新」）
    - Grok Build は導入しない。`PI_DISTILL_*` と `PI_EXTENSIONS_LOCALE` を export しない
+   - `ca-certificates` を、更新した索引の最新版へ上げる。上げられなければ postCreate が失敗する
+     （「トラストストアの確認（eMudhra 中間CA の侵害）」）
 4. rebuild では変わらないものを反映する。
    - ランチャー別の tier: `--if-absent` を付けずに `zsh scripts/setup_pi_superagents.zsh` を実行する。
      変更のある設定はバックアップされる（「pi-superagents のランチャー別 model tier」）
@@ -94,9 +96,12 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
      （「組み込み MCP と廃止した拡張」）
    - `~/.pi/agent/models.json` に残る `deepinfra-distill` は自動では消さない。不要なら定義を確かめてから削除する
 5. 確かめる項目と、rebuild 前の状態の記録は、ルートの `README.md` の「対象外」が案内する移植の記録にある。
+6. トラストストアを確かめる。`bash .devcontainer/verify-ca-trust.bash` が終了コード 0 で終わり、すべての行が「信頼していない」であること。
+   「信頼している」「判定不能」の読み方は「トラストストアの確認（eMudhra 中間CA の侵害）」にある。ツールを更新した後も同じように確かめる
 
 rebuild しない場合は、3 の代わりに次を行う。
 
+- `ca-certificates`: `sudo apt-get update && sudo apt-get install -y ca-certificates` の後に、6 の確認を行う
 - pi の旧拡張の撤去と共有拡張の導入: 「pi の旧拡張・MCP 設定の移行」の手動コマンド
 - 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除。
   2 で `env` から消した `MAAS_ANTHROPIC_TOKEN` も、使用中のシェルでは `unset MAAS_ANTHROPIC_TOKEN` で外す
@@ -105,6 +110,63 @@ rebuild しない場合は、3 の代わりに次を行う。
   `zsh scripts/setup_pi_superagents.zsh` が更新する
 - Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映。古い `~/.zshrc` に残る
   `ccda`（`claude-alibaba`）の関数と、`update()` の Grok Build の行も削除する
+
+## トラストストアの確認（eMudhra 中間CA の侵害）
+
+2026-10-20 に eMudhra の中間CA 8 件の秘密鍵が侵害された（Issue #291、確認サイト <https://emudhra.we-have-a-problem.com/>）。
+ブラウザと OS は失効情報で対応済みだが、失効情報を読まないクライアントは、修正版へ更新するまで侵害された中間CA を信頼し続ける。
+コンテナのクライアントはそれぞれ別のトラストストアで HTTPS を検証するので、rebuild の後とツールの更新の後に次を実行して確かめる。
+
+```bash
+bash .devcontainer/verify-ca-trust.bash                   # 確認サイトの 4 つのホスト（ポート 443）× 6 つのクライアント
+bash .devcontainer/verify-ca-trust.bash HOST[:PORT] ...   # ホストを指定する
+```
+
+外部の確認用ホストへ接続するので、postCreate と `run-tests.bash` には入れていない（オフラインや障害のときに開発を止めないため）。
+postCreate は `ca-certificates` を、更新した索引の最新版へ上げる。上げられなければ postCreate が失敗する。
+
+結果は、クライアントとホストの組ごとに 1 行（クライアント、`HOST:PORT`、判定、根拠）で表示し、最後に要約を出す。
+
+| 判定 | 意味 | 終了コード | すること |
+| --- | --- | --- | --- |
+| 信頼していない | 発行者を信頼しないことを示す検証エラーで拒否した。OpenSSL の検証コード 2・19・20・21・23・27・28、Node.js の `CERT_REVOKED`・`UNABLE_TO_GET_ISSUER_CERT_LOCALLY` など、uv の `UnknownIssuer`・`Revoked`・`CertDistrusted` | すべてこれなら 0 | 何もしない |
+| 信頼している | TLS が成立した（HTTP の応答を受け取った。対象が返したリダイレクト（3xx）も含む。リダイレクト先には接続しない） | 1 つでもあれば 1 | 下の表でそのクライアントを更新し、もう一度実行する |
+| 判定不能 | 上のどちらでもない。接続できない、名前解決の失敗、タイムアウト、コマンドが無い、期限切れや名前の不一致など信頼の欠如を示さない検証エラー | 信頼している が無く、これがあれば 2 | 安全とはみなさない。ネットワークと確認用ホストの状態（確認サイト）を確かめて、もう一度実行する |
+
+HOST・PORT の形が不正なときは、使い方を表示して 64 で止まる。プロキシを経由すると、プロキシの応答を TLS の成立と取り違えて
+「信頼している」になることがある（非 0 の側に倒れる）。git の `url.<base>.insteadOf` や curl の `--connect-to`・`--resolve`
+で接続先を書き換えている環境では、そのクライアントの確認の対象が、指定したホストから書き換えた先に変わる。
+
+クライアントごとのトラストストアと、「信頼している」になったときの更新:
+
+| 表示 | トラストストア | 更新 |
+| --- | --- | --- |
+| `openssl`・`curl`・`git` | システムの CA バンドル（`ca-certificates`）。curl・git は `CURL_CA_BUNDLE`・`GIT_SSL_CAINFO`・`http.sslCAInfo` などで別のファイルを使える | rebuild するか、`sudo apt-get update && sudo apt-get install -y ca-certificates`。別のファイルを指定していれば外す |
+| `python` | `uv run` が使う Python の `ssl`（システムの OpenSSL と CA バンドル） | 上と同じ。`SSL_CERT_FILE` を指定していれば外す |
+| `node` | Node.js の同梱 CA（`NODE_EXTRA_CA_CERTS` で足したものを含む）。Node.js は Dev Container の Node の Feature（`"version": "24"`。24 系の最新）が入れる | rebuild する。修正版は 22.23.4・24.22.1・26.12.1 以上 |
+| `uv` | uv の同梱 CA（webpki-roots）。`SSL_CERT_FILE`・`UV_NATIVE_TLS` などの環境変数は反映し、設定ファイル（`uv.toml`）の TLS の指定は反映しない。確認では `UV_CONFIG_FILE` と index を足す環境変数は外す | rebuild するか `uv self update`。修正版は 0.13.5 以上 |
+
+確認スクリプトの外の、同梱 CA を持ち得るツールの点検の結果は Issue #291 のコメントにある。2026-10-28 の点検では、どれも修正版以上か、
+Linux のシステムの CA バンドルを使っていた。版が上がったときは次を確かめる。
+
+- Claude Code・Codex CLI: postCreate が最新を入れる。Claude Code の修正版は 2.1.303 以上。Codex CLI は確認サイトに修正版の記載が無く、
+  Issue #291 で 0.164.0 が確認用ホストへの接続を TLS の段階で止めることを確かめた
+- cursor-agent: 同梱の Node.js（`~/.local/share/cursor-agent/versions/<版>/node`）を使う。その `node --version` が上の Node.js の修正版以上であること
+- devin・agy（Antigravity CLI）・gitleaks: Linux ではシステムの CA バンドルを使う（devin は rustls-platform-verifier、agy と gitleaks は Go の `crypto/x509`）
+- Blender（apt のパッケージ）: システムの Python と OpenSSL を使う
+- GitHub CLI: Dev Container の Feature が入れる。修正版は 2.102.1 以上
+
+### ホスト側の更新
+
+コンテナの外は、このスクリプトでは確かめられない。利用者が次を最新にする。修正版は確認サイトの「Who has patched?」の一覧に従う。
+
+- Windows 11: Windows Update（ルート証明書の自動更新で、侵害された証明書が信頼されなくなる）
+- ブラウザ: 最新にする。確認サイトの表の各行のリンクが、警告なしに開けたら未修正
+- WSL2 の Gentoo: `emerge --sync` の後に `emerge --oneshot app-misc/ca-certificates`（20260816.3.125 以上）
+- Docker（Docker Engine・CLI は 29.9.2 以上、Docker Desktop を使っていれば 4.96.2 以上）、Git for Windows（2.56.0.3 以上）、
+  Visual Studio Code（1.143.1 以上）
+- Slack・Discord など Electron のアプリ: 修正済みの Electron（42.11.16・43.8.1・44.9.1 以上）で作られた版へ更新する。
+  OS やブラウザの更新だけでは直らない
 
 ## テストの実行
 
@@ -118,6 +180,7 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools  # スキル・.
 ```
 
 テストは一時ディレクトリの `HOME` と、モックの resoloop・dotnet・Blender を使うので、実環境を変えない。
+`test-verify-ca-trust.bash` は実際の openssl・curl・git・uv・node を、`127.0.0.1` で起動した `openssl s_server` に接続させる（外部へは接続しない）。
 一時リポジトリを作るテストは、`set -euo pipefail` の直後で外から渡された `GIT_*` を除く（linked worktree の
 `git rebase --exec` は `GIT_DIR` を export するので、残すと実リポジトリを書き換える）。1 本だけ直接実行しても効く。
 新しく足すテストも、`tests/scripts/test-resoloop-meshy.bash` の冒頭のように、自分で `GIT_CONFIG_*` などを export するより前に
