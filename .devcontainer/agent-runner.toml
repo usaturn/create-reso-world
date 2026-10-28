@@ -126,7 +126,7 @@ after_run = [[
 
 # 指定が無いときの既定構成。その回の --assign inspect=... または個人設定で選び直せる。
 [workflows.review.assignments.inspect]
-agents = ["claude-opus", "devin-swe", "pi-deepseek"]
+agents = ["pi-gpt", "devin-swe", "pi-deepseek"]
 
 # review-fix-planning の run_roles.py が使う担当（#116 のボードの D-13）。self は司令塔が自分で実行する。
 # self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
