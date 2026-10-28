@@ -100,7 +100,12 @@
    ```bash
    bash .devcontainer/verify-resonite-tooling.bash
    bash scripts/resoloop-fork.sh status
+   bash .devcontainer/verify-ca-trust.bash
    ```
+
+   `verify-ca-trust.bash` は、侵害された eMudhra の中間CA を各クライアントが信頼していないかを、外部の確認用ホストへの接続で確かめる（Issue #291）。
+   判定の読み方と、ホスト側（Windows・WSL2・ブラウザ・Electron のアプリ）の更新は、`.devcontainer/README.md` の
+   「トラストストアの確認（eMudhra 中間CA の侵害）」にある。
 
 コンテナの resoloop から Windows ホストの ResoniteLink に届くことが前提である（WSL2 の mirrored networking など）。
 導入するツールの一覧、mount、ResoniteLink への接続は `.devcontainer/README.md` にまとめてある。
