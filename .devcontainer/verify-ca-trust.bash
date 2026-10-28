@@ -2,7 +2,8 @@
 # eMudhra の中間CA の秘密鍵の侵害（2026-10-20）に対して、この環境の主なクライアントが侵害された中間CA を信頼していないかを、
 # 確認用ホストへ接続して確かめる。外部へ接続するので postCreate と run-tests.bash には入れず、rebuild の後とツールの更新の後に手で実行する。
 # 拒否と成立のどちらも出力にある証拠だけで判定し、証拠の無い失敗（接続できない・期限切れなど）は「判定不能」にする
-# （ネットワーク障害や確認用ホストの変化を、安全と報告しない）。
+# （ネットワーク障害や確認用ホストの変化を、安全と報告しない）。証拠は対象のホストとの接続と、その応答だけから取る。
+# リダイレクトは追わずに対象の 3xx を成立に数え、設定の別の index やリダイレクト先など、別のホストでの拒否を対象の判定にしない。
 # 仕様: docs/superpowers/specs/2026-10-28-create-reso-world-issue-291-ca-trust-check-design.md（#291）
 set -uo pipefail
 
@@ -17,12 +18,17 @@ readonly DEFAULT_TARGETS=(
     dv-g3b-aaa-noct-emudhra.we-have-a-problem.com:443
 )
 
-# 1 行目に http <状態>・verify <検証コード> <理由>・error <名前> <理由> のどれかを出す。HOST・PORT・タイムアウトは引数で受け取る
+# 1 行目に http <状態>・verify <検証コード> <理由>・error <名前> <理由> のどれかを出す。HOST・PORT・タイムアウトは引数で受け取る。
+# リダイレクトは追わず、対象が返した 3xx を HTTPError として受け取る（プロキシの環境変数は反映する）
 readonly PYTHON_PROBE='
 import ssl, sys, urllib.error, urllib.request
 host, port, timeout = sys.argv[1], sys.argv[2], float(sys.argv[3])
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+opener = urllib.request.build_opener(NoRedirect, urllib.request.HTTPSHandler(context=ssl.create_default_context()))
 try:
-    with urllib.request.urlopen(f"https://{host}:{port}/", timeout=timeout, context=ssl.create_default_context()) as response:
+    with opener.open(f"https://{host}:{port}/", timeout=timeout) as response:
         print("http", response.status)
 except urllib.error.HTTPError as error:
     print("http", error.code)
@@ -39,7 +45,7 @@ except Exception as error:
 '
 readonly NODE_PROBE='
 const [host, port, timeout] = process.argv.slice(1);
-fetch(`https://${host}:${port}/`, { signal: AbortSignal.timeout(Number(timeout) * 1000) })
+fetch(`https://${host}:${port}/`, { redirect: "manual", signal: AbortSignal.timeout(Number(timeout) * 1000) })
   .then((response) => console.log(`http ${response.status}`))
   .catch((error) => {
     const cause = error.cause ?? error;
@@ -103,10 +109,12 @@ probe() {
             -verify_return_error -brief
         ;;
     curl)
-        run_probe curl -sS -o /dev/null -w '%{http_code}' --max-time "$CLIENT_TIMEOUT" "https://${host}:${port}/"
+        # 利用者の .curlrc の --location を打ち消し、リダイレクトを追わない
+        run_probe curl -sS -o /dev/null -w '%{http_code}' --no-location --max-time "$CLIENT_TIMEOUT" "https://${host}:${port}/"
         ;;
     git)
-        # HTTP の応答ヘッダを受け取ったこと（TLS の成立）を GIT_TRACE_CURL の記録で確かめる
+        # HTTP の応答ヘッダを受け取ったこと（TLS の成立）を GIT_TRACE_CURL の記録で確かめる。git はリダイレクトを追うが、
+        # 最初の応答ヘッダは対象のもの（対象が拒否されればヘッダは無い）
         run_probe env GIT_TERMINAL_PROMPT=0 GIT_TRACE_CURL=1 GIT_TRACE_CURL_NO_DATA=1 \
             git ls-remote "https://${host}:${port}/"
         ;;
@@ -118,9 +126,10 @@ probe() {
         ;;
     uv)
         # 確認用ホストだけを index にする。-vv の記録で応答の受信を確かめる。設定ファイルと環境変数の別の index を混ぜない
-        # （extra の index は対象より先に問い合わせられ、その結果で対象を判定してしまう）
-        run_probe env -u UV_INDEX -u UV_DEFAULT_INDEX -u UV_INDEX_URL -u UV_EXTRA_INDEX_URL -u UV_FIND_LINKS \
-            -u UV_TORCH_BACKEND -u UV_NO_INDEX -u UV_OFFLINE UV_HTTP_RETRIES=0 UV_HTTP_TIMEOUT="$CLIENT_TIMEOUT" \
+        # （extra の index は対象より先に問い合わせられる。UV_CONFIG_FILE は --no-config でも読まれる）
+        run_probe env -u UV_CONFIG_FILE -u UV_INDEX -u UV_DEFAULT_INDEX -u UV_INDEX_URL -u UV_EXTRA_INDEX_URL \
+            -u UV_FIND_LINKS -u UV_TORCH_BACKEND -u UV_NO_INDEX -u UV_OFFLINE \
+            UV_HTTP_RETRIES=0 UV_HTTP_TIMEOUT="$CLIENT_TIMEOUT" \
             uv -vv pip compile requirements.in --no-config --no-cache --index-url "https://${host}:${port}/simple/"
         ;;
     esac
@@ -153,9 +162,33 @@ summary_line() {
     printf '%s' "${line:0:200}"
 }
 
+# uv の出力の最後の Failed to fetch の行（error: か cause:）の URL を 1 行目に、その行に続く cause: の行にある
+# 発行者を信頼しない拒否の文言を 2 行目に出す（無ければ空行）
+uv_fetch_failure() {
+    awk '
+        /^(error:|[[:space:]]+cause:) Failed to fetch: / {
+            url = $0
+            sub(/^.*Failed to fetch: `?/, "", url)
+            sub(/`?[[:space:]]*$/, "", url)
+            rejection = ""
+            in_causes = 1
+            next
+        }
+        in_causes && /^[[:space:]]+cause:/ {
+            if (rejection == "" && match($0, /invalid peer certificate: (UnknownIssuer|Revoked|Other\(OtherError\(CertDistrusted\)\))[[:space:]]*$/)) {
+                rejection = substr($0, RSTART, RLENGTH)
+                sub(/[[:space:]]+$/, "", rejection)
+            }
+            next
+        }
+        { in_causes = 0 }
+        END { print url; print rejection }
+    ' <<<"$probe_out"
+}
+
 # probe の結果を verdict（判定）と detail（根拠）にする。成立の証拠を拒否の証拠より優先し、どちらも無ければ判定不能
 classify() {
-    local client="$1" marker='' code='' reason=''
+    local client="$1" host="$2" port="$3" marker='' code='' reason='' url='' rejection=''
     verdict='判定不能'
     detail=''
     case "$client" in
@@ -203,20 +236,31 @@ classify() {
         detail="$(summary_line '^(verify|error) ')"
         ;;
     uv)
-        marker="$(grep -oE 'Received response for .* with status [0-9]{3}' <<<"$probe_out" | head -n 1)"
+        # 対象が返した HTTP の応答を成立の証拠にする。uv はリダイレクトを自分で追うので、3xx の受信の記録も数える
+        # （リダイレクト先での失敗も、元の URL の Failed to fetch として出る）
+        marker="$(sed -nE -e 's/.*Received response for .* with status ([0-9]{3}).*/\1/p' \
+            -e 's/.*Received HTTP ([0-9]{3}) .*Redirecting to .*/\1/p' <<<"$probe_out" | head -n 1)"
         if [ -n "$marker" ]; then
             verdict='信頼している'
-            detail="HTTP ${marker##* } の応答を受け取った"
+            detail="HTTP ${marker} の応答を受け取った"
             return
         fi
-        marker="$(grep -oE 'invalid peer certificate: (UnknownIssuer|Revoked|Other\(OtherError\(CertDistrusted\)\))[[:space:]]*$' \
-            <<<"$probe_out" | head -n 1)"
-        if [ -n "$marker" ]; then
-            verdict='信頼していない'
-            detail="${marker%"${marker##*[![:space:]]}"}"
-            return
+        # 拒否は、最後に失敗した URL が対象の index のときだけ数える（ポート 443 は uv が URL から省く）。
+        # 設定の別の index など、別のホストでの拒否を対象の判定にしない
+        { IFS= read -r url; IFS= read -r rejection; } <<<"$(uv_fetch_failure)"
+        if [ "$url" = "https://${host,,}:${port}/simple/verify-ca-trust-probe/" ] \
+            || { [ "$port" -eq 443 ] && [ "$url" = "https://${host,,}/simple/verify-ca-trust-probe/" ]; }; then
+            if [ -n "$rejection" ]; then
+                verdict='信頼していない'
+                detail="$rejection"
+                return
+            fi
+            detail="$(summary_line 'invalid peer certificate:|cause:|^error:')"
+        elif [ -n "$url" ]; then
+            detail="対象ではない URL での失敗: ${url}"
+        else
+            detail="$(summary_line 'invalid peer certificate:|cause:|^error:')"
         fi
-        detail="$(summary_line 'invalid peer certificate:|cause:|^error:')"
         ;;
     esac
     if [ -n "$code" ]; then
@@ -249,7 +293,7 @@ for target in "${targets[@]}"; do
             detail="${command_name} が見つからない"
         else
             probe "$client" "$host" "$port"
-            classify "$client"
+            classify "$client" "$host" "$port"
             if [ "$verdict" = '判定不能' ] && { [ "$probe_rc" -eq 124 ] || [ "$probe_rc" -eq 137 ]; }; then
                 detail="${OUTER_TIMEOUT} 秒でタイムアウトした"
             fi

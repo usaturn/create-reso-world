@@ -130,11 +130,12 @@ postCreate は `ca-certificates` を、更新した索引の最新版へ上げ�
 | 判定 | 意味 | 終了コード | すること |
 | --- | --- | --- | --- |
 | 信頼していない | 発行者を信頼しないことを示す検証エラーで拒否した。OpenSSL の検証コード 2・19・20・21・23・27・28、Node.js の `CERT_REVOKED`・`UNABLE_TO_GET_ISSUER_CERT_LOCALLY` など、uv の `UnknownIssuer`・`Revoked`・`CertDistrusted` | すべてこれなら 0 | 何もしない |
-| 信頼している | TLS が成立した（HTTP の応答を受け取った） | 1 つでもあれば 1 | 下の表でそのクライアントを更新し、もう一度実行する |
+| 信頼している | TLS が成立した（HTTP の応答を受け取った。対象が返したリダイレクト（3xx）も含む。リダイレクト先には接続しない） | 1 つでもあれば 1 | 下の表でそのクライアントを更新し、もう一度実行する |
 | 判定不能 | 上のどちらでもない。接続できない、名前解決の失敗、タイムアウト、コマンドが無い、期限切れや名前の不一致など信頼の欠如を示さない検証エラー | 信頼している が無く、これがあれば 2 | 安全とはみなさない。ネットワークと確認用ホストの状態（確認サイト）を確かめて、もう一度実行する |
 
 HOST・PORT の形が不正なときは、使い方を表示して 64 で止まる。プロキシを経由すると、プロキシの応答を TLS の成立と取り違えて
-「信頼している」になることがある（非 0 の側に倒れる）。
+「信頼している」になることがある（非 0 の側に倒れる）。git の `url.<base>.insteadOf` や curl の `--connect-to`・`--resolve`
+で接続先を書き換えている環境では、そのクライアントの確認の対象が、指定したホストから書き換えた先に変わる。
 
 クライアントごとのトラストストアと、「信頼している」になったときの更新:
 
@@ -143,7 +144,7 @@ HOST・PORT の形が不正なときは、使い方を表示して 64 で止ま�
 | `openssl`・`curl`・`git` | システムの CA バンドル（`ca-certificates`）。curl・git は `CURL_CA_BUNDLE`・`GIT_SSL_CAINFO`・`http.sslCAInfo` などで別のファイルを使える | rebuild するか、`sudo apt-get update && sudo apt-get install -y ca-certificates`。別のファイルを指定していれば外す |
 | `python` | `uv run` が使う Python の `ssl`（システムの OpenSSL と CA バンドル） | 上と同じ。`SSL_CERT_FILE` を指定していれば外す |
 | `node` | Node.js の同梱 CA（`NODE_EXTRA_CA_CERTS` で足したものを含む）。Node.js は Dev Container の Node の Feature（`"version": "24"`。24 系の最新）が入れる | rebuild する。修正版は 22.23.4・24.22.1・26.12.1 以上 |
-| `uv` | uv の同梱 CA（webpki-roots）。`SSL_CERT_FILE`・`UV_NATIVE_TLS` などの環境変数は反映し、設定ファイル（`uv.toml`）の TLS の指定は反映しない | rebuild するか `uv self update`。修正版は 0.13.5 以上 |
+| `uv` | uv の同梱 CA（webpki-roots）。`SSL_CERT_FILE`・`UV_NATIVE_TLS` などの環境変数は反映し、設定ファイル（`uv.toml`）の TLS の指定は反映しない。確認では `UV_CONFIG_FILE` と index を足す環境変数は外す | rebuild するか `uv self update`。修正版は 0.13.5 以上 |
 
 確認スクリプトの外の、同梱 CA を持ち得るツールの点検の結果は Issue #291 のコメントにある。2026-10-28 の点検では、どれも修正版以上か、
 Linux のシステムの CA バンドルを使っていた。版が上がったときは次を確かめる。
