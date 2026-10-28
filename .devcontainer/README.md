@@ -30,7 +30,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`、`devs`、`devo`（alias） | `devin update`、`devin plugins update superpowers` |
 | Antigravity CLI | installer（`antigravity.google/cli/install.sh`） | `~/.gemini/antigravity-cli` | `~/.gemini/antigravity-cli` | `agd`（alias） | `agy update` |
 | Meshy CLI | `install_meshy.bash`（公式 npm `meshy-cli@0.4.0`、無認証 version / help） | — | — | — | — |
-| Context7 CLI（ctx7） | `install_ctx7.bash`（npm の `ctx7` を `CTX7_CLI_VERSION` に固定して入れ、`ctx7 --version` を確かめる。「Context7 CLI（ctx7）」の節） | — | — | — | — |
+| Context7 CLI（ctx7） | `install_ctx7.bash`（npm の `ctx7@latest` を入れ、PATH 上の `ctx7` の実体が npm のグローバルの `ctx7` であることを確かめる。「Context7 CLI（ctx7）」の節） | — | — | — | — |
 | Gitleaks | `install_gitleaks.bash`（release の tar.gz を固定した SHA-256 で確かめて `~/.local/bin` に置く。版は CI の gitleaks ジョブと同じ） | — | — | — | — |
 | flux-sdk（ProtoFlux） | `install_flux_sdk.bash`（NuGet の `Papaltine.FluxSDK` を `FLUX_SDK_VERSION` に固定して入れ、`flux-sdk --version` を確かめる。失敗しても postCreate は警告して続ける。「ProtoFlux 用の flux-sdk」の節） | — | — | — | — |
 | gh | Dev Container Feature（github-cli） | `~/.config/gh` | `~/.config/gh` | — | — |
@@ -79,7 +79,7 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 3. Dev Containers: Rebuild Container を実行する。postCreate が次を行う。
    - Plannotator は導入・保持する。context7-pi は導入しないが、共有の `~/.pi` の登録は消さない。
      pi の旧拡張の撤去は自動では行わない（「pi の旧拡張・MCP 設定の移行」）
-   - Context7 CLI（`ctx7`）を固定した版で導入する（「Context7 CLI（ctx7）」）
+   - Context7 CLI（`ctx7`）を npm の最新版で導入する（「Context7 CLI（ctx7）」）
    - 11 本の pi ランチャーと共通ヘルパの配置。ヘルパは pi を `--tui-mode regular` で起動する
      （「pi の TUI モードと Herdr のスクロール履歴」）
    - Claude Code の alias（`ccd`・`ccdo`・`ccds`）とプロバイダ関数を含むシェル設定の配置
@@ -545,19 +545,22 @@ Context7 のドキュメントの取得は、`ctx7` CLI と `find-docs` スキ�
 
 ### 導入
 
-- postCreate は `bash .devcontainer/install_ctx7.bash` で、`ctx7` を `CTX7_CLI_VERSION` の版に固定して `npm install -g` し、PATH 上の `ctx7 --version` が一致することを確かめる。導入の失敗・PATH に無い・版の不一致は、postCreate の失敗として止まる。版は `install_ctx7.bash` にだけ書く
+- postCreate は `bash .devcontainer/install_ctx7.bash` で、`npm install -g ctx7@latest` を実行する。版は固定しない（#290）。「最新」は、postCreate かこのスクリプトを実行した時点の npm の最新版を指す
 - 実体は npm のグローバルの `node_modules`（`$(npm root -g)/ctx7`）に入る。`~/.npm/_npx` の一時展開物は使わない
+- 導入の後に、PATH 上の `ctx7`（`command -v ctx7`）の実体が `$(npm root -g)/ctx7/` の下にあることを確かめる。版の一致では判定しない。確かめた後に `ctx7 --version` を実行し、導入した版を `[install_ctx7] Context7 CLI <版> installed at <パス>.` と表示する
+- 導入の失敗・PATH に無い・PATH の前のほうに別の `ctx7` がある・`ctx7 --version` の失敗は、`[install_ctx7] ERROR: ...` を出して postCreate の失敗として止まる
 - `ctx7 setup` は実行しない。ctx7 0.8.0 の `ctx7 setup` は、`~/.claude`・`~/.claude.json`・`~/.codex/config.toml`・`~/.codex/AGENTS.md`・`~/.agents/skills` などに MCP 設定やスキルを書き込む。その多くはホストから bind mount した共有の場所で、ホストや他のコンテナにも影響する。生成するスキルは `find-docs` とも重複する
 - zsh の `update` では更新しない
 
 ### 更新
 
-1. `npm view ctx7 version engines` で新しい版と、必要な Node.js の版を確かめる
-2. `.devcontainer/install_ctx7.bash` の `CTX7_CLI_VERSION` を変える
-3. `bash .devcontainer/install_ctx7.bash` を実行して入れ替える（Rebuild Container でもよい）。PATH 上の `ctx7` は、入れ替えるまで古い版のままである
-4. 下の「動作確認」が通ることを確かめ、PR で取り込む
+`bash .devcontainer/install_ctx7.bash` を実行すると、npm の最新版に入れ替わる（Rebuild Container でもよい）。版を上げるための PR は要らない。入れ替えた後に、下の「動作確認」を行う。
 
-`ctx7` は新しい版があると、対話的な端末で `Update available` と表示し、`ctx7 upgrade` や `npm install -g ctx7@latest` を勧める。この案内には従わず、上の手順で版を変える。
+- コンテナの起動時や定期的には更新しない。PATH 上の `ctx7` は、このスクリプトか Rebuild を実行するまで、前に入れた版のままである
+- 新しい版で必要な Node.js の版が上がる（`npm view ctx7 engines`）、CLI の出力や引数が変わるなどで動かなくなったときは、このスクリプトか postCreate の失敗、または `find-docs` の不調として現れる。導入した版はスクリプトの最後の行に出る
+- コンテナごとの版は、導入した時期で変わり得る。再現性が要るときは `ctx7 --version` を記録する
+
+`ctx7` は新しい版があると、対話的な端末で `Update available` と表示し、`ctx7 upgrade` や `npm install -g ctx7@latest` を勧める。この案内には従わず、`bash .devcontainer/install_ctx7.bash` で更新する。導入の後に、PATH 上の `ctx7` の実体を確かめるためである。
 
 ### MCP と Pi の拡張からの移行
 
@@ -619,7 +622,7 @@ printf '{"type":"get_commands"}\n' | pi --mode rpc --no-session --no-mcp --offli
 ```bash
 command -v ctx7
 readlink -f "$(command -v ctx7)"   # $(npm root -g)/ctx7/dist/index.js（~/.npm/_npx ではない）
-ctx7 --version                     # install_ctx7.bash の CTX7_CLI_VERSION と一致する
+ctx7 --version                     # install_ctx7.bash が最後に表示した版と一致する
 if [ -n "${CONTEXT7_API_KEY:-}" ]; then echo "CONTEXT7_API_KEY: set"; else echo "CONTEXT7_API_KEY: not set"; fi
 ctx7 library react "How to clean up useEffect with async operations"
 ctx7 docs /react/react "useEffect cleanup"
@@ -632,10 +635,11 @@ ctx7 docs /react/react "useEffect cleanup"
 | 症状 | 対応 |
 |---|---|
 | `ctx7: command not found` | Rebuild Container するか、`bash .devcontainer/install_ctx7.bash` を実行する。`npx ctx7` で代えない |
-| postCreate が `[install_ctx7] ERROR: ... is version ...` で止まる | `command -v ctx7` で、PATH の前のほうに別の `ctx7` が無いかを確かめる |
+| postCreate が `[install_ctx7] ERROR: ... is not the npm global ctx7 ...` で止まる | PATH の前のほうに別の `ctx7` がある。`readlink -f "$(command -v ctx7)"` が `$(npm root -g)/ctx7/` の下に無いことを確かめ、PATH の前のほうの `ctx7` を外すか PATH の順を直す |
+| postCreate が `[install_ctx7] ERROR: ... --version failed.` で止まる | 入れた最新版が動いていない。`npm view ctx7 engines` と `node --version` で、必要な Node.js の版を確かめる |
 | `⚠ Library has been redirected` と出て終了コード 1 | 表示された新しい ID でやり直す（例: `/facebook/react` → `/react/react`） |
 | `Monthly quota reached`・`quota exceeded` | `CONTEXT7_API_KEY` を設定するか、`ctx7 login` を実行する |
-| `Update available` と表示される | 従わない。「更新」の手順で版を変える |
+| `Update available` と表示される | 従わない。`bash .devcontainer/install_ctx7.bash` で更新する（「更新」） |
 | `context7` が MCP の一覧に残る、`Failed to reconnect` になる | 古い設定を読んでいる。親の checkout を `origin/main` に更新し、エージェントを起動し直す。リポジトリの外の設定（「MCP と Pi の拡張からの移行」の表）も確かめる |
 | このリポジトリの Pi に `resolve-library-id`・`/c7-docs` が出る | project trust を確かめる。`.pi/settings.json` の項目が空配列になっていないかを確かめる |
 

@@ -117,7 +117,7 @@
 
 初回や設定の変更後に、次の点に注意する。
 
-- Context7: どのエージェントも MCP ではなく、`find-docs` スキルから Context7 CLI（`ctx7`。postCreate が固定した版で入れる）を使う。
+- Context7: どのエージェントも MCP ではなく、`find-docs` スキルから Context7 CLI（`ctx7`。postCreate が npm の最新版を入れる）を使う。
   導入・更新・認証と、リポジトリの外に残る Context7 の設定の扱いは `.devcontainer/README.md` の「Context7 CLI（ctx7）」にある。
 - Devin: `.claude/skills` の symlink 経由で同じスキルが見えても、一覧には 1 回だけ表示される（`.devin/config.json` は置かない）。
 - Cursor: スキルの一部が見えない。詳細は `.devcontainer/README.md` の「エージェントの読み込みの制約」。
