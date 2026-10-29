@@ -131,3 +131,91 @@
 - 役割と回数: implement は `claude-opus`（agent-runner、claude-code）を 2 回（`a33445e`: request `6bcc5a81c29d48079489489584266e1b`・237 秒、`81df319`: request `383cbb50937646189a39f100b38e8974`・208 秒）。自己レビューは `run_roles.py` の 1 回（self-review・fix-check とも `self`）
 - 未確認の事項: Windows（`--git-dir` の引数の引用、Job Object）と異なる libc は実行環境が無い。push 後の公開 Windows CI で確かめる
 - 工程の記録: `verified/e3a4df87a7af.planning.json`。確認済みの一覧: `verified/e3a4df87a7af.json`
+
+## 5. サイクル 3（pr-review-fix-loop run `77bfb553d059477c837de87ffcb04182`、HEAD `81df319`）
+
+- 実行許可: 利用者が `/pr-review-fix-loop https://github.com/usaturn/resoloop/pull/26 --fresh-review --assign inspect=pi-gpt,claude-opus,devin-swe,pigod` を指定した。ループの各サイクルで review-fix-planning の完遂（修正・push・修正不要ならマージと関連 Issue の更新）を行う
+- planner: `claude-opus-5-5`（claude-code）。判断の記録のサイクル: 3。現行 HEAD: `81df3196b9fdc18a46b5dcc481496e48cbe57d45`
+- 確認済みの一覧: `verified/81df3196b9fd.json`（confirmed 2）
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| gpt-6.1-sol.md | gpt-6.1-sol | pi（pi-gpt） | 81df3196b9fd | はい | Approve |
+| claude-opus-5-5.md | claude-opus-5-5 | claude-code（claude-opus） | 81df3196b9fd | はい | Approve |
+| SWE-2-Max.md | SWE-2 Max | devin（devin-swe） | 81df3196b9fd | はい | Approve |
+| deepseek-v4.1-flash.md | deepseek-v4.1-flash | pi（pigod） | 81df3196b9fd | はい | Approve |
+| claude-opus-5-5-commit-81df3196b9fdc18a46b5dcc481496e48cbe57d45.md | claude-opus-5-5 | claude-code | 81df3196b9fd | はい（前のサイクルの自己レビュー） | Approve |
+| deepseek-deepseek-v4.1-flash.md | deepseek/deepseek-v4.1-flash | pi | e3a4df87a7af | いいえ（古いレビュアー。指摘 0） | Approve |
+
+loop の判定: 4 人とも accepted、rejected 0。
+
+### 全指摘と分類
+
+| 判断 ID | 指摘 | 区分 | 根拠 |
+| --- | --- | --- | --- |
+| gpt-6.1-sol#M-1@81df3196b9fd | data に読み取り専用の外のファイルへの hardlink があると、Remove が外のファイルの mode を 444 → 644 に変える | **対応する** | 下記 5.1 |
+| claude-opus-5-5#M-1@e3a4df87a7af | safe.bareRepository=explicit（前のサイクルの fix） | 解消済み | 81df319 で explicit の Plugin 43 件と 5 種の ref が成功（前のサイクルの検証と fix-check）。claude-opus-5-5・SWE-2-Max・deepseek-v4.1-flash・gpt-6.1-sol もこの HEAD で解消を確かめた |
+| claude-opus-5-5#U-1@e3a4df87a7af | /proc 走査の回収の競合（前のサイクルの fix） | 解消済み | 81df319 で負荷の下の 9669 回で失敗 0（前のサイクルの検証）。gpt-6.1-sol も 1513 回で失敗 0 |
+| SWE-2-Max#M-1・claude-opus-5-5#L-1・#L-2・claude-opus-5-5-commit-81df…#L-1 | 前のサイクルの skip 4 件 | 対応しない（引き継ぎ） | 新しい根拠なし（4 人のレビュアーも Decided に置いた） |
+
+### 5.1 gpt-6.1-sol#M-1: 削除で木の外のファイルの属性を変えない
+
+- 致命的である理由: plugin の data は plugin のコマンドが書く可変の領域で、`git clone <ローカルの repository>`（Git の object を hardlink する。object は読み取り専用）や `cp -l`・キャッシュの hardlink で、外のファイルと inode を共有しうる。その状態で Remove すると、エラーにならずに外のファイル（別の repository の object など）の読み取り専用を外す。設計 5 章の「外の成果物・他pluginには触れない」と受け入れ基準の「管理領域と外部リンク先を操作しない」を破る、誤った対象への了承の無い変更である。(a) 再現した誤動作
+- 守る条件: 削除（`PluginPathPolicy.DeleteTree`）は、削除する木の外のファイルの内容と属性を変えない。属性を変えてよいのは、削除する木の中だけに名前を持つ entry（ディレクトリと、リンク数が 1 のファイル）だけである
+- 原因: e3a4df8 が Windows の読み取り専用の Git object を消すために、DeleteTree で OS を問わずすべての非リンクの entry の ReadOnly を解除するようにした。hardlink は `FileInfo.LinkTarget` で検出されず、ファイルの属性の変更は inode を共有するすべての名前に及ぶ
+- 修正方針:
+  - ファイル: Linux（Windows 以外）では属性を変えずに削除する（unlink に必要なのは親ディレクトリの書き込み権限だけ）。Windows で読み取り専用のファイルは、リンク数を確かめ、1 なら従来どおり ReadOnly を解除して削除する（e3a4df8 で公開 Windows CI を通した経路）。2 以上なら属性を変えずに名前だけを消す（`SetFileInformationByHandle` の `FileDispositionInfoEx` に DELETE・POSIX_SEMANTICS・IGNORE_READONLY_ATTRIBUTE）。それが使えない環境では、属性を変えずに失敗させる（`PLUGIN_REMOVE_REFUSED` などの既存の失敗の扱い）
+  - ディレクトリ: 従来どおり ReadOnly を解除してよい（ディレクトリは hardlink にならず、非リンクのディレクトリはこの木だけの entry）
+- 採らない案: 全 OS で属性の解除をやめる（Windows の読み取り専用の Git object・ディレクトリを消せなくなり、e3a4df8 の CI の失敗に戻る）。Windows で全ての読み取り専用ファイルを `FileDispositionInfoEx` で消す（CI で通した経路を置き換え、古い OS・NTFS 以外で後片付けが失敗する）。Windows の共有された読み取り専用ファイルで削除を拒否する（Remove が使えなくなる。木の途中で止まると部分的な削除が残る）。解除の後に属性を戻す（名前を消した後に戻す手段が Windows で複雑で、失敗すると外の属性が変わったまま残る）
+- テスト: 足す（S）。外の属性が変わる損害はエラーにならない（「テストの採用基準」の S）。既存の S テスト `PluginManifestTests.PortablePathsDeleteOnlyTheSelectedTree`（「read-only cleanup must not mutate external link targets」）に、外の読み取り専用ファイルを木の中へ hardlink する入力を足し、削除の後に外の bytes と属性が変わらないことを確かめる。所有する読み取り専用ファイル・読み取り専用のディレクトリが消える既存の対照は残す（同じ守りの代表 1 件。別のテストを作らない）。hardlink は Linux が `link(2)`、Windows が `CreateHardLinkW` で作り、Windows は公開 CI で実行される
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| 削除は木の外の内容・属性を変えない | `DeleteTree` のファイル（Linux） | 修正する | 外の読み取り専用ファイルへの hardlink を消しても外の mode が変わらず、所有する読み取り専用ファイルは消える | 拡張した `PortablePathsDeleteOnlyTheSelectedTree`、Remove の一時テスト（5 種の入力と `git clone` のローカル repository） | `cc925fb`: 読み取り専用 hardlink は 444 → 444 で plugin は削除、`git clone` したローカル repository の object の mode（444）も不変、ほかの 4 種も不変。拡張したテストは成功し、修正前の DeleteTree（`81df319`）では `PluginManifestTests.cs:241` の属性の assertion で失敗（Expected ReadOnly、Actual Normal） |
+| 同上 | `DeleteTree` のファイル（Windows、リンク数 1） | 既に満たす（変えない） | 従来どおり ReadOnly を解除して消す | 公開 Windows CI の既存の削除のテスト | push 後の公開 Windows CI で確かめる（ローカルは Linux だけ）。`cc925fb` の差分ではリンク数 1 の経路は e3a4df8 と同じ `SetAttributes` と `Delete` |
+| 同上 | `DeleteTree` のファイル（Windows、リンク数 2 以上） | 修正する | 外の属性を変えずに名前だけを消す。使えなければ属性を変えずに失敗 | 拡張した `PortablePathsDeleteOnlyTheSelectedTree`（公開 Windows CI） | push 後の公開 Windows CI で確かめる。`cc925fb` は `GetFileInformationByHandle` の `nNumberOfLinks` が 2 以上のとき `FileDispositionInfoEx`（0x1・0x2・0x10）で消し、失敗は属性を変えずに `IOException` |
+| 同上 | `DeleteTree` のディレクトリ（ReadOnly の解除） | 既に満たす（変えない） | 読み取り専用のディレクトリを含む木が消える。ディレクトリは hardlink にならない | 既存の `PortablePathsDeleteOnlyTheSelectedTree`（木の根を ReadOnly にしている） | `cc925fb`: 同じテストが成功（木の根と所有する読み取り専用ファイルが消える） |
+| 同上 | `DeleteTree` のリンク（symlink・junction） | 既に満たす（変えない） | リンク自体だけを消し、参照先の bytes・属性は変わらない | 既存の `PortablePathsDeleteOnlyTheSelectedTree` | `cc925fb`: 同じテストが成功（symlink の参照先の bytes・属性は不変） |
+| 同上 | 呼出元 `PluginInstaller.Remove`（`PluginInstaller.cs:127`） | 修正する（DeleteTree の修正で） | data・package の hardlink の外の属性が変わらず、plugin は消える | Remove の一時テスト | `cc925fb`: 上の 6 種の入力で plugin が削除され、外は不変 |
+| 同上 | 呼出元 InstallCore の clone の削除（`:82`）・staging の後片付け（`:109`） | 既に満たす | clone は `--no-local`（hardlink を作らない）、package と data はこの操作が作った名前だけ。修正後も挙動は同じ | Plugin の全テスト | `cc925fb`: RLoop.Tests 全体 573 件成功（実装担当の Plugin 43 件も成功） |
+| 同上 | テストの後片付け（各テストの `Dispose`） | 対象外 | テストの fixture だけを消す。PR の保証の対象ではない | ― | 対象外（理由のとおり） |
+| 同上 | mount の扱い | 対象外 | 設計 4 章が「filesystem の mount はリンクと同一視しない」と決めている。hardlink とは別の原因 | ― | 対象外（設計の決定） |
+
+要件対応: 設計 5 章「dataを含め削除するが…外の成果物・他pluginには触れない」と 6 章の防御範囲「管理領域と外部リンク先を操作しない」を、修正後の DeleteTree の全 OS の経路で満たす。共有条件の統合担当は planner で、Linux はローカルの検証、Windows は push 後の公開 CI で確かめる。「失敗時の検証」: Windows の「使えなければ属性を変えずに失敗」は失敗時の扱いなので、その経路は拡張した S テストで外の属性が変わらないことを状態で比べる（Linux では通らない経路で、Windows CI で確かめる）。
+
+#### 実行した検証（サイクル 3）
+
+| 対象版 | コマンド | 結果 |
+| --- | --- | --- |
+| `cc925fb`（実装担当） | テストだけを変えた RED（`--filter FullyQualifiedName~PortablePathsDeleteOnlyTheSelectedTree`） | 修正前の本体で失敗（`PluginManifestTests.cs:241`、Expected ReadOnly・Actual Normal） |
+| `cc925fb`（実装担当） | build / 同じテストの GREEN / Plugin のテスト / `git diff --check` | 警告 0・エラー 0 / 成功 / 43 件成功 / 出力なし |
+| `cc925fb`（planner） | Remove の一時テスト（読み取り専用 hardlink・書き込み可能 hardlink・読み取り専用の複製・symlink・所有する読み取り専用ファイル・`git clone` のローカル repository） | 6 種とも plugin は削除され、外の bytes・mode は不変（修正前は読み取り専用 hardlink だけ 444 → 644） |
+| `81df319` の本体＋`cc925fb` のテスト（planner、ガードを外した対照） | `--filter FullyQualifiedName~PortablePathsDeleteOnlyTheSelectedTree` | 失敗 1（属性の assertion）。拡張したテストは修正の対象の欠陥を検出する |
+| `cc925fb`（planner） | `dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --no-build`（既定の配置） | 573 件成功 |
+| `cc925fb` | `bash scripts/scan-before-push.sh -C <worktree> --base origin/feat/plugin-v2` | 検出なし |
+| Windows の経路 | ― | 未確認。push 後の公開 Windows CI で、拡張したテスト（リンク数 2 の経路）と既存の削除（リンク数 1 の経路）を確かめる |
+
+### 自己レビュー（サイクル 3、1 回）
+
+`run_roles.py --phase self-review` の 1 回の呼び出しで、self-review と fix-check を同時に動かした（どちらも `self`、`--template` は loop の `run_roles_options`）。自己レビューの後の修正は無く、再レビューはしていない。
+
+| 役割 | 担当 | 結果 |
+| --- | --- | --- |
+| self-review（観点 2） | 司令塔のサブエージェント（claude-opus-5-5）が pr-review の非対話の入口で実行。18:07:07Z〜18:22:11Z（904 秒） | 固定の全体差分 `a7be2dd..cc925fb`。Low 1 件（下）、Critical・High・Medium 0。前のサイクルの skip 4 件は Decided。Merge recommendation は Needs manual verification（Windows の経路が未実行のため）。保存: `claude-opus-5-5-commit-cc925fb7051079e1732d675a0dad372eb8a3c5a7.md` |
+| fix-check（観点 1・3） | 司令塔。18:06:19Z〜18:14:00Z（461 秒） | 主張 4 件すべて holds、変更ファイル 2 件 passed、文書の候補 0、新しい問題 0。保存: `verified/cc925fb70510.fix-check.json` |
+
+| 指摘 | 判定 | 根拠 |
+| --- | --- | --- |
+| claude-opus-5-5-commit-cc925fb7051079e1732d675a0dad372eb8a3c5a7#L-1@cc925fb70510: Windows で、木の中の読み取り専用ファイルのパスが 260 文字以上だと、`DeleteReadOnlyFile` が `\\?\` の無いパスを `CreateFileW` に渡して開けず、削除が `PLUGIN_PATH_UNSAFE` で止まる（81df319 では `File.SetAttributes`・`File.Delete` で消せた） | 対応しない | Windows の実行環境が無く再現できない（自己レビューも【確認推奨】で未実行）。コードと Win32 の仕様からは起こると読めるが、失敗は明示のエラーで止まり、木の外のファイルは変わらない。発生条件は既定の Windows（長いパスが無効）で 260 文字以上のパスに読み取り専用ファイルがある場合に限られる（Git URL の導入の後片付けは、利用者の Git の `core.longpaths=true` も要る）。致命的な結果（秘密の露出・データの消失・誤った対象への操作）に当たらない。再現できない指摘は根拠を付けて対応しないとする規則に従う。PR 本文の既知の制限に書いた。直すなら `CreateFileW` に渡すパスを `\\?\`（UNC は `\\?\UNC\`）付きのフルパスにする |
+
+対応しないとしたので、「同じ条件の再発と設計の見直し」のきっかけ 3（この回の修正が原因の致命的な指摘）には当たらない。
+
+### 結論（サイクル 3）
+
+- 結論: **1 修正して push**（`cc925fb7051079e1732d675a0dad372eb8a3c5a7` を既存 PR の head へ fast-forward で push する）
+- 対応する 1 件（gpt-6.1-sol#M-1）を直した。前のサイクルの fix 2 件は解消済み。対応しない 5 件（前のサイクルの 4 件の引き継ぎと、自己レビューの L-1）は PR 本文の「未実行・制限」に書いた
+- 役割と回数: implement は `claude-opus`（request `457f73c98b4047459e760e39a9af913a`、422 秒）。自己レビューは `run_roles.py` の 1 回
+- 未確認の事項: Windows の経路（リンク数 2 以上の `FileDispositionInfoEx`、長いパス）。push 後の公開 Windows CI で、拡張したテストと既存の削除を確かめる
+- 工程の記録: `verified/81df3196b9fd.planning.json`。確認済みの一覧: `verified/81df3196b9fd.json`
