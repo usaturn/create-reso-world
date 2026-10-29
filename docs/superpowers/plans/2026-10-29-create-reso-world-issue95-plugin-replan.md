@@ -230,4 +230,5 @@ git -C /workspaces/reso-world push --force-with-lease="refs/heads/agent-claims/i
 - 実行開始 02:55 UTC。内容承認は上記 SHA、選択方式は直列SDD。Task 1 の下書き担当は約13分、ローカル構造検証は18子/18辺・履歴保護・所有分離で成功。
 - Task 1 レビューで証拠確認専用の #110〜#112 に fork 内PRを指示する矛盾を検出。担当が修正し、限定再レビューで指摘2件（反映手順・レビュー資料不足）とも解消、新しい重大な問題なし。Task 1 は review clean。
 - Task 2: 親 #95 の自分の予約を取得して所有を照合した。Gitleaks は未公開4コミットを検査して検出なし、検査した `fa43a14ad0519bae36d310e593d8b4fe6326b2c5` を通常pushし、文書PR [#296](https://github.com/usaturn/create-reso-world/pull/296) を作成した。GitHubから取得したSpec/Planは同コミットのバイト列と一致。
-- Task 3〜4 は未完了。予約を保持して継続する。本体実装・マージ・fork側push・上流投稿は未実施。文書の公開はボード完成の報告ではない。
+- Task 3: 基盤 [#297](https://github.com/usaturn/create-reso-world/issues/297) とCLI統合 [#298](https://github.com/usaturn/create-reso-world/issues/298) を作成し、親#95へ追加。13件のactive本文を更新し、#104だけを理由付きnot_plannedで閉じた。11辺追加・13辺削除後、18子/18辺と全本文・状態の一致を実APIで確認した。歴史4完了子と#104本文、#90の管理外知見は保持。
+- Task 4 は未完了。予約を保持して継続する。本体実装・マージ・fork側push・上流投稿は未実施。文書の公開・本文更新だけではボード完成と報告しない。
