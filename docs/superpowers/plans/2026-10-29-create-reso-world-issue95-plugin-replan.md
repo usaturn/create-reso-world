@@ -224,3 +224,9 @@ git -C /workspaces/reso-world push --force-with-lease="refs/heads/agent-claims/i
 - Step scan/type consistency: Task間の入力はboard.json・claim.json・公開台帳の同じキー/idを使用し、新規Issueの番号や未確定APIを仮定しない。Review Focusの5件は各Taskの事前/事後ゲートへ対応。恒久テスト・機能の実装コードは追加しない。
 - 調整役がPlan中のJSONを実際に解析し、active13子/16辺、historical5子/2辺、循環なし、現在の16子とrepo/idの対応を検証した。作成時snapshotとの差分は追加11辺・削除13辺で、更新後は18子/18辺。実行時は最新から再計算し、固定数に合わせて未知の関係を消さない。
 - 現在はPlan作成・Specの承認記録だけ。Task 1〜4は未実行、Issue・ref・push・PRの書き込みは未実施。文書はローカルコミットのみなら**公開未実施**と報告する。
+
+## 実行記録（2026-10-29 UTC）
+
+- 実行開始 02:55 UTC。内容承認は上記 SHA、選択方式は直列SDD。Task 1 の下書き担当は約13分、ローカル構造検証は18子/18辺・履歴保護・所有分離で成功。
+- Task 1 レビューで証拠確認専用の #110〜#112 に fork 内PRを指示する矛盾を検出。担当が修正し、限定再レビューで指摘2件（反映手順・レビュー資料不足）とも解消、新しい重大な問題なし。Task 1 は review clean。
+- Task 2〜4 は継続中。現段階で本体実装・外部の Issue/ref/push/PR 操作は未実施。ボードが完成したという報告ではない。
