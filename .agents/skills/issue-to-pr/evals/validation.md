@@ -351,3 +351,36 @@ REFACTOR の後に (a)〜(j) は取り直していない。足した 1 文は、
 - 実際の Issue（rebuild の後の確認が残る Issue、ボードの子）で issue-to-pr を起動して PR まで通すこと。この評価は意図の回答だけ
 - (pd) で、ループが `no_fix_needed` 以外（`stopped`・エラー）で終わったときのコメント
 - 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない
+
+## 明示 base の一貫した受け渡し（#300）
+
+実施日: 2026-10-29。旧版 `5dc093c` の resolver と変更前の手順を対照に、Linux Dev Container / uv / Git で実行手順を比較した。モデルの回答・遵守率の比較ではない。
+
+### 方法と観測
+
+- 変更前に保存した実際の `resolve_issue.py` と SKILL.md の Bash ブロックを実行。`#42 --base 統合/プラグイン` は終了コード 2（未知の `--base`）で停止した。旧版の非 main 要求で停止する規則はこの観測と整合する。
+- 旧版の通常入口の worktree コマンドも、名前のスロットだけ置換して別途実行。main と統合 branch に異なる履歴を用意し、worktree は main の SHA になった。これは旧手順が要求を無視して PR を作った証拠ではなく、開始点が main 固定であることの観測。
+- 新版では同じ入力を、SKILL.md から取り出した Bash ブロックで実行。取得 JSON の完全 ref / SHA を worktree の開始点、差分、実 scanner の範囲、SHA 指定 push、偽 gh の PR 作成・読み戻しまで維持した。文言の一致では判定していない。
+- Git の objects・fetch・worktree・diff・push は実処理。origin の URL 表示だけを GitHub の対象名に置き換え、通信はローカル bare repository に限定した。gh と Gitleaks は偽物で、Gitleaks の受け取った commit 範囲を実 Git で列挙した。scanner と版の定義元は更新済みの偽 PARENT_ROOT に配置した。
+
+| 場面 | 新手順の観測 |
+| --- | --- |
+| 未指定 main | worktree の親、diff、scan の範囲、PR base が同じ main / SHA |
+| Issue 前の等号形式・非 ASCII 統合 branch・`--merge` | 統合 SHA からコードを作成。`merge.loop_args` に base は混入しない |
+| 外部コードと文書 | コードは統合 branch、別 repository の文書は create-reso-world / main。両 scan 後に初めて push |
+| handoff 要求と明示 main の矛盾 | worktree・scan・push に進まない |
+| scan・push 後、PR 前の base 移動 | PR を作らず停止。既に公開した branch とローカル worktree を保持 |
+| 作成直後の実 PR base が不一致 | 読み戻した値と URL を保存して停止。公開済み branch・PR を取り消さない |
+| finalize の代表正常例 | 実 PR base `feat/plugin-v2` の先端 SHA を照合してマージ。既存の stale base/head・merge 第1親の拒否も維持 |
+
+### 実行した検証
+
+- `uv run --locked pytest -q .agents/skills/issue-to-pr .agents/skills/review-fix-planning/tests/test_finalize.py`: 140 passed。
+- `uv run --locked pytest -q`: 1254 passed。永続テストは誤った対象への公開・記録の取り違えを防ぐ S のみ。
+- 一時的な変異確認: worktree / scan / PR の main 固定、required-base の転送除去、実 PR base 照合除去を、実行テストがそれぞれ検出（5/5）。
+- skill-efficiency-check: 構造上の問題なし。日本語 description の入口判定の警告と references 不在の提案は、既存 description を変える根拠にしなかった。リンク先の実在と全 6 Bash ブロックの `bash -n` も確認。
+- 比較ログ: `tmp/agents/issue-300.vmbh4kha/task-3-procedure-comparison.log`。RED・GREEN・全体検証・変異確認は同ディレクトリの `task-3-*.log`。
+
+### 限界
+
+Issue の指示に従い、有料モデル・サブエージェントの試験起動はしていない。親/handoff の意味の読み取り、曖昧さの判断、各ランタイムでの自然言語手順の遵守は未評価。実 GitHub の書き込み・実 Gitleaks による秘密情報検出・実 CI・実 merge もこの比較の対象外であり、既存の担当 helper のテストや実運用の guard を代替しない。base の同時更新を一括ロックする保証はなく、観測した移動で以後の操作を停止する。
