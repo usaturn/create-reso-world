@@ -163,6 +163,13 @@
 - PR base `feat/plugin-v2` が別SHAへ進んだ、他者予約、Issue close、未知の編集があれば停止し他者の状態を変更しない。マージで解消しない。
 - Plannotator unavailableは承認ではない。利用者の設計委任を記録し、Planの提示・確認はAGENTS.mdとruntimeの通常text承認経路を維持する。
 
+## 確認待ちの記録（2026-10-29 UTC）
+
+- Spec `5353ba718fc19b678f6a32fa4354030e8c27f02c` とPlan `5797dff20f219a7edf5145b55026ef24c3963c2d` を指定Plannotatorへ送信したが、両方とも約600秒でreview-result timeout / unavailable。承認結果はない。
+- 利用者の推奨判断・再実装・PR作成の実行委任は保持。AGENTS.mdの新Plan提示後の確認は未完了なので、通常のtext確認を待つ。Task1〜5の実装/公開完了は未達。コードworktreeはbaseのままclean。
+- 基準コードの検証: `dotnet test ResoLoop.slnx --nologo` 終了0、unit 530件・integration-test assemblyのoffline 22件。live実機・Windows・新プラグインのテストは未実行。ログ: `/workspaces/reso-world/tmp/agents/issue-297.beqzdh2p/baseline-test.log`。
+- この追記は確認結果と停止状態だけで、5797dffの実装計画を変えない。文書だけのdraft PRで公開し、再開時は同じ文書/コードbranchを再利用する。既存の作業を重複作成しない。
+
 ## 実装前自己点検
 
 Spec→Taskの対応を上表で照合済み。型名/constructor/lock ownership/固定上限/recipe namespaceを揃えた。各S guardの担当と正常対照を特定し、F/L文言テストを排除。共有前提と操作順の統合責任はTask4/controller。コードのテスト成功は現時点では基準branchのみであり、新機能の成功は未確認。
