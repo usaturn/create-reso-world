@@ -2,7 +2,7 @@
 
 ## 管理・許可
 
-- 状態: **draft**（PR #26 のレビュー修正サイクル1は外部障害で停止。元の設計内容の承認履歴は下記のとおり維持）。文書管理: `usaturn/create-reso-world`。コード対象: `usaturn/resoloop`。
+- 状態: **approved**（設計内容の承認は維持。PR #26 のレビュー修正の記録は、サイクル1が9章、サイクル2からが [2026-10-30-usaturn-resoloop-pr26-plugin-core-review-fixes-design.md](2026-10-30-usaturn-resoloop-pr26-plugin-core-review-fixes-design.md)）。文書管理: `usaturn/create-reso-world`。コード対象: `usaturn/resoloop`。
 - Issue: https://github.com/usaturn/create-reso-world/issues/297 （親 #95、`resoloop-plugins-board` / `plugin-core-refresh`）。
 - 実行許可: 利用者の「では #297 の Spec 作成、Plan 作成して、実装し PR を出して」、続く「旧仕様を一部参考しても良いですが、徹底してより良い案を検討して、実装してください。必要であれば、0から実装し直してください。負担が増えても構いません。また、途中で止めずに推奨案で実装まで進めてください。」。通常の判断・再実装を委任されている。内容承認を推測しない。指定された Plannotator の Spec/Plan レビューは実施する。
 - 今回は通常の Superpowers を使う。main 限定の `issue-to-pr` と自動マージループは使わない。前の `--merge` run は停止済みであり、今回の終点は PR 作成。マージ・上流投稿の許可はない。
