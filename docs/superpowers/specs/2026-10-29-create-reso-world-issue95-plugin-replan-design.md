@@ -4,7 +4,7 @@
 
 - 文書管理: `usaturn/create-reso-world`。対象ボード: https://github.com/usaturn/create-reso-world/issues/95
 - 実装対象: `usaturn/resoloop`。上流: `orange3134/resoloop`。Meshy の後続対象: `usaturn/resoloop-meshy`
-- 状態: **approved**。2026-10-29 UTC、コミット `d009286968a21c916bafb39b2308ebaa09d40c4c` を示した確認依頼に、利用者が「OK」と回答した。この内容承認は実装・公開の実行許可とは区別する。
+- 状態: **completed**（親設計・ボード更新・PR #296 のレビュー判断まで。プラグイン機能と子の計画・実装は未完了）。2026-10-29 UTC、コミット `d009286968a21c916bafb39b2308ebaa09d40c4c` を示した確認依頼に、利用者が「OK」と回答した。この内容承認は実装・公開の実行許可とは区別する。PR レビューの記録は第9章。
 - 利用者の指示: 古くなったプラグイン Issue 群を、最新上流を基準に計画し直す。既存 fork・履歴を残し、新しい上流起点ブランチを使う提案に「基本的にOK」、既存案の仕様・作成・配布・導入方法を説明した後に「OKです。作業を続行してください」。これは調査・再計画の続行許可であり、未提示の設計の承認、本体の実装・push・PR・マージの許可にはしない。
 - 今回の区切り: 設計の保存、独立した builder check、ローカルコミット、確認用コピーの提示。承認後に `writing-plans` で計画し、既存ボードの更新へ進む。本セッションでは GitHub の Issue 本文・状態・依存関係は変更しない。
 - この新規文書を作る理由: 利用者が最新上流からの再設計を明示したため。旧 #97 の completed な設計・計画は当時の実装記録として残し、本書を親 #95 の再計画の定義元にする。旧文書を書き換えて現在の実装と見せかけない。
@@ -222,3 +222,62 @@ Linux の本 Dev Container、.NET は上流 `global.json` に従う。Windows �
 - コード調査担当は raw argv・接続前の分岐・同梱スキルの記録・レシピ resolver の問題を確認した。提案に含まれた4機能の縮小と古い予約名リストへの評価は、そのまま採用せず調整役が実コード・旧文書と照合した。
 - builder check の初回依頼はロール指定不足で NEEDS_CONTEXT。`Review scope: task` と受け入れ基準を付けた再依頼で文書全体を確認し、「nothing important left」。コードのテストを実行したという意味ではない。
 - 調査・設計・独立確認は 2026-10-28 18:59〜19:21 UTC（約22分）。以降は文書の保存・確認コピー・引き継ぎの整備。
+
+## 9. PR #296 のレビュー判断（2026-10-29 UTC）
+
+### 対象・許可・結論
+
+- 対象: https://github.com/usaturn/create-reso-world/pull/296 。判断対象 HEAD は `c87c34b605da88ceecab18fa783cfca2d01dc35b`、検証した base は `6733fc25d945d5b1b7c0ea9dc831d516453d7843`（HEAD の祖先）。差分は本書と同テーマ Plan の2文書だけ。
+- 実行許可: 利用者による `pr-review-fix-loop #296 --assign inspect=claude-opus,devin-swe,pigod` の明示起動。今回の文書 PR のレビュー判断・必要な修正・検証・通常 push・修正不要の場合の最終化を含む。以前の設計・ボード作業に対するマージ禁止は当時の範囲であり、この別の明示指示と区別する。子の計画・本体実装・fork への push・上流投稿には広げない。
+- planner: `openai-codex/gpt-6-astra`（pi）。サイクル1、loop run `f1ebb608a04c460b8530604624c1641b`。
+- 結論: **2 修正不要**。5出典を4判断にまとめ、解消済み0・対応する0・対応しない4（出典数では5）。事実としての文書の不足と、現行構成で到達する致命的な欠陥を区別した。以下は採否・検証の完了記録であり、push・マージ・Issue更新の実施結果はPRの状況コメントと完了報告に残す。
+- 同テーマの既存Specは本書だけであるため本書を更新した。承認済みのD-1〜D-6・所有範囲・Planの操作は変更していない。過去の状態表現は当時の記録として残す。
+
+### レビュアーと確認成果
+
+レビュー保存先は `reviews/usaturn/create-reso-world/#296-docs-resoloop-plugins-replan/`。全員 `accepted`、失敗・入力除外なし。全ファイルの最終レビューHEADは `c87c34b605da`、modeはInitial、このサイクルで再実行済み。
+
+| ファイル | 実担当 / モデル | runtime | active指摘 | Merge recommendation |
+| --- | --- | --- | --- | --- |
+| `claude-opus-5-5.md` | claude-opus / claude-opus-5-5 | claude-code | 2 | Approve |
+| `SWE-2-Max.md` | devin-swe / SWE-2 Max | devin | 0 | Approve |
+| `deepseek-v4.1-flash.md` | pigod / deepseek-v4.1-flash | pi | 3 | Approve |
+
+確認済み一覧: 同保存先の `verified/c87c34b605da.json` と `.md`。工程記録: `verified/c87c34b605da.planning.json`。判断に重大度・票数・Approveの数は使っていない。補助のsp-researchはGit/GitHub実行・保存ツール不足でNEEDS_CONTEXTを返し、成果を判定に使わず司令塔が静的確認を実施した。
+
+### 全指摘の採否
+
+各参照の検出HEADは `c87c34b605da`。
+
+| 出典 | 分類 | 確認した事実・理由 | 見直す条件 |
+| --- | --- | --- | --- |
+| `claude-opus-5-5#L-1` | 対応しない | 上流 `a7be2dd` に `ApplyDocument.cs` はなく、`ApplyDocument.Load` は `ApplyWorkflow.cs:28` にある。#100本文にも誤記がある。ただしPlanの編集範囲節と#100は、記載外の編集を親調整役の裁定・子Spec/Plan更新で解決する手順を既に持つ。本PRは実装を許可せず、ファイル一覧の誤りだけから無許可編集・主要処理の停止とは判定しない。 | #100の子設計で実ファイルの範囲を確定するとき、または誤記による具体的な誤操作・実装停止が確認されたとき。 |
+| `claude-opus-5-5#L-2`、`deepseek-v4.1-flash#M-1` | 対応しない（同一判断） | D-2はGitルート内部の非ルート導入元の扱いを明記していない。ただし漏えいは、将来の実装が全コピーへフォールバックする仮定に依存する。現基準にPlugins実装はなく、D-2はGit確認失敗時の全コピーを禁止し、旧コードの無条件移植も禁止している。子#297の独立設計・検証・実装許可を省かず、現時点では設計の選択として扱う。実際の漏えいを再現したという意味ではない。 | #297で非ルートのコピー/拒否規則を決めるとき、または到達可能な秘密混入の実挙動が確認されたとき。 |
+| `deepseek-v4.1-flash#L-1` | 対応しない | 予算節に独立した無進捗打切り値はなく、引用された続行指示だけでは30分の決め手は分からない。一方、親#95のコメント `6487878180` は再開前に追加30分程度を提示し、`6488017101` はその上限での再開を記録する。引用1行だけから無許可延長だったとは断定しない。completedな過去Planの記録であり再実行指示ではない（`docs/superpowers/README.md`）。このマージで予算延長の操作は起こらない。 | 新しい実行計画として再利用する場合、または無許可実行の具体的な新証拠が出た場合。 |
+| `deepseek-v4.1-flash#I-1` | 対応しない | 本書には設計時点の未公開/未作成の語が残るが、後続Planの完了節と親IssueはF#297/I#298の公開を記録する。最新Issue・依存を読み直す開始ゲートがあり、設計の履歴を現在の作成手順と見なさない。現在時点を読みやすくする説明の問題で、主要動作を誤らせる欠陥ではない。 | 本書単独を最新ボードの操作手順として公開する場合、または重複作成の実経路が確認された場合。 |
+
+「対応する」がないため修正方針・修正経路表・設計見直しの対象はない。直さない論点を直したことにはせず、子の着手前に必要な設計判断として区別する。
+
+### 要件との対応・検証結果
+
+共有する前提は、ボード完成と本体機能完成を混同しないこと。統合担当は今回のplannerで、PRの約束とSpec/Plan、GitHub状態、復元データを照合した。
+
+| PRの約束・制限 | 観測結果・根拠 | 今回の扱い |
+| --- | --- | --- |
+| 文書のみ、4機能は将来の実装対象 | HEADの全変更2文書を全文確認。機能コード・テスト差分なし。各子に独立したSpec/Plan・許可が必要。 | 実装修正なし。機能完了や実機成功を報告しない。 |
+| 18子・18依存、#104のみnot_planned、旧完了履歴維持 | GitHubから全18子・18parent・blocked_byを読み直し、Plan JSONのactive13子/16辺・historical5子/2辺と照合。歴史4件はcompleted、#104はnot_planned。 | 構造・状態は一致。過去の操作順序を現在値で遡及証明しない。 |
+| activeの子は未計画・未実装 | 全13active本文のplanning/implementationがnot-started、Issueはopen。#100は先行F待ちで、記載外の変更は親裁定を要する。 | 所有表の誤記を未承認のコード編集権限として使わない。 |
+| 公開4資料を復元可能 | #95のmanifest `6488294559` にある4コメントだけからbase64を復元し、全SHA-256・byte数、handoff JSON解析、Spec/Planと固定commit `fc8edddd2519b953051b95dbe2a00aac4aac90a7` のバイト一致を確認。 | 復元元は固定版のまま保持。本章追加後の文書と固定版を混同しない。 |
+| 承認記録と履歴を維持 | Specの承認SHAからの差分を確認。Planの承認SHA・実行方式変更の明示指示・終了記録を全文確認。 | 今回は状態・レビュー記録のみ追記。新たな内容承認を捏造しない。 |
+
+実行した検証（いずれも終了コード0）:
+
+- `git diff --check 6733fc25d945d5b1b7c0ea9dc831d516453d7843...HEAD`（専用worktree、判断対象HEAD）。
+- 一時検証 `uv run --project /workspaces/reso-world --locked python <SESSION>/check-docs.py <専用worktree>`。Plan JSON解析/DAG、全子のrepo/id/parent/先行集合/状態、公開4資料の復元を上表のとおり確認。SESSIONは `tmp/agents/pr296-review-fix.gnja3lxl/`。恒久テストではなく、結果を本章へ転記後に回収する。
+- 候補3組を `review_findings.py validate` / `check-pair`、確認済み一覧を同validate、判断を `review_records.py validate` で検査。
+- `bash scripts/scan-before-push.sh -C /workspaces/reso-world/.worktrees/resoloop-plugins-replan --base origin/main`。判断対象HEADまで8commit、検出なし。最終push前にもその時点のcommitを再検査する。
+- `git ls-tree` / `git show` で上流 `a7be2dd` の `ApplyWorkflow.cs`、`BundleAnalysis.cs` と同表の他の既存ファイルを確認。親#95全コメントの本文・時点を照合し、親予約refは0件。
+
+文書・固定一覧の一致だけを恒久テストにするのはF/Lに当たるため追加しない。機能コードがなく、dotnet build/test・Windows実機・Resonite接続は対象外。過去の1113検査の全実行履歴や操作途中の順序を再現したとはしない。
+
+修正の実装・修正後自己レビュー・fix-checkは未実施（修正対象0件、`run_roles.py`呼出し0回）。設定の割り当てはimplement=claude-opus、self-review=self、fix-check=selfだが、実行済み担当として記録しない。レビュー工程は05:52:20〜06:11:37 UTC（約19分17秒）、判断・独立確認は06:11 UTC以降。最終の所要時間はloop記録と状況コメントに記録する。
