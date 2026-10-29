@@ -135,7 +135,7 @@ symlink/junction は `LinkTarget` を含む .NET の実ファイル情報で検�
 
 ### Git
 
-Git は `ProcessStartInfo.ArgumentList` / `UseShellExecute=false`、stdout/stderrを並行回収して実行。全子呼出しで GIT_DIR/WORK_TREE/INDEX_FILE/OBJECT_DIRECTORY/ALTERNATE_OBJECT_DIRECTORIES/CONFIG_COUNT/CONFIG_PARAMETERS等の repository・config 注入を除去する。原則 GIT_* を除き、認証/transportに必要な `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_ASKPASS`, `GIT_SSL_CAINFO`, `GIT_SSL_CAPATH`, `GIT_PROXY_COMMAND` のみ明示的に保持。HOMEを差し替えず、通常のglobal/system credential helperは維持。promptは無効。core.fsmonitor=false、core.hooksPathを空ディレクトリ、外部protocol helperのextは無効。ローカルのshell/global設定を変更しない。
+Git は `ProcessStartInfo.ArgumentList` / `UseShellExecute=false` で引数列・子環境を構成し、stdout/stderrを並行回収して実行する。実.NET10 APIでは親の先行終了後に `Process.Kill(entireProcessTree)` だけで子孫停止を保証できなかったため、承認済みPlanのAPI前提差分へのcontingencyに従い、同じ引数列・環境を消費するprivate native launch境界（Linux process group / Windows Job Object）で既存の停止要件を維持する。追加ランチャー/NuGet依存・public API・安全範囲の変更はない。全子呼出しで GIT_DIR/WORK_TREE/INDEX_FILE/OBJECT_DIRECTORY/ALTERNATE_OBJECT_DIRECTORIES/CONFIG_COUNT/CONFIG_PARAMETERS等の repository・config 注入を除去する。原則 GIT_* を除き、認証/transportに必要な `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_ASKPASS`, `GIT_SSL_CAINFO`, `GIT_SSL_CAPATH`, `GIT_PROXY_COMMAND` のみ明示的に保持。HOMEを差し替えず、通常のglobal/system credential helperは維持。promptは無効。core.fsmonitor=false、core.hooksPathを空ディレクトリ、外部protocol helperのextは無効。ローカルのshell/global設定を変更しない。
 
 Git判定に失敗したら全コピーしない。Gitなし/破損した.git/アクセス失敗等と、Git外のディレクトリを区別する。祖先の.git markerとGitの応答を併用し、Git管理が疑われるのに確認できない入力は拒否。bare sourceはローカルディレクトリ導入では拒否する。
 
@@ -182,3 +182,42 @@ removeは名前/confirmedを先に検証し、同じlock内で管理親とplugin
 コードはGitleaks検査したSHAをfork feature branchへpushし、base `feat/plugin-v2` のfork内PRを1件作る。base branchはまだremoteにないため、既に上流公開済みの基準SHAを同名branchへ新規公開する。既存branchが出現したら同一SHAを確認し、違えば止まる。fork/mainの更新・force push・マージはしない。
 
 文書はcreate-reso-worldのmain宛て文書専用PRにする。互いのPRとIssueをRefsで参照し、Issueは閉じない。publicのコードPRのCIを確認する。子のSpec/API/Plan/handoff pairを遠隔の内容から復元しhashを照合して成果を公開し、自分の予約をexpected-SHA leaseで解放する。親の台帳は調整役に任せる。#110〜#112を実装前に閉じず、今回も取り込み待ちとして証拠のみ示す。
+
+## 8. 実装結果（2026-10-29 UTC）
+
+実装とレビューは完了。コードPR [usaturn/resoloop#26](https://github.com/usaturn/resoloop/pull/26)（base `feat/plugin-v2`、HEAD `0015074caac91105dfc538f845a3614a73a3ca91`）、文書PR [create-reso-world#299](https://github.com/usaturn/create-reso-world/pull/299)。取り込み・マージ・上流投稿は未実施。公開CI/復元/予約解放の最終記録は同じPlanとIssue #297を参照する。
+
+調整役の最終Linux検証はbuild exit0（警告0/エラー0）、Plugin43件、全体573 unit＋22 offline integration-assembly件成功、失敗/skipなし。Gitleaksはコード7commit検査・検出なしで、その検査SHAだけをpushした。Task1〜4のspec/quality review、最終全branch review、最終修正の限定reviewに未解決指摘なし。固定一覧/文言/source-stringテスト追加なし。
+
+最終APIは本書第3章どおり。実利用はOpenVerified leaseを保持し、同じlease中に管理APIへ再入しない。Task4のdeterministic staged-identity検証用internal constructorだけをprivate実装補助として追加し、public APIは増やしていない。Task3のnative spawnは同じshell-less引数/環境と120秒停止要件を満たすための実API前提修正で、承認SHAを変更/捏造しない。
+
+### 条件と実行証拠
+
+| 条件 | 実行した代表証拠 |
+| --- | --- |
+| #110 alias/ignore、Git外nested/非root、環境注入/秘密非保存 | GitSourceClassificationFailsClosed、GitIgnoresInjectedRepositoryState、GitSecretsNeverReachErrorsOrMetadata、InstallVerifyRemovePreservesUnrelatedData |
+| #111 管理親linkの外部削除拒否 | UnsafeParentsNeverDeleteTargets、外部導入物/dataのbytes不変と復旧後成功 |
+| #112 package根link拒否、追加/欠落/変更検出 | VerifyEntirePackageBeforeUse、PLUGIN_MODIFIEDと正常復旧 |
+| record脱出/集合/hash/identity/版/衝突 | UntrustedRecordNeverReadsOutside、RecordIdentityAndDuplicatePropertiesFailClosed、LoadingOnePluginStillValidatesTheWholeRegistry |
+| 8MiB record/200MiB packageの実効上限 | 有効な巨大JSON/一致hashのfixture。上限を個別に外すmutationでassertion失敗を確認 |
+| checkout/hook/filter非実行、確定blob/commit | ExportPinsBlobsWithoutExecution、独立SHA/実行mode、GitInstallPublishesOnlyVerifiedPackageAndPinnedRecord |
+| 120秒、親先行終了後の子孫停止 | GitFailuresAndTimeoutNeverBecomeSuccessfulCopies、所有子の停止を実観測 |
+| staging identity、失敗時既存保護、限定削除 | CommitUsesStagedIdentity、FailedInstallKeepsExistingInstallation、InstallVerifyRemovePreservesUnrelatedData |
+| lease中の実Install/Remove拒否と解放後成功 | UsageLeaseOwnsProjectLock、LeaseAndMutationSerialize |
+
+Windows/case-insensitive filesystem/別libc/実認証/Resonite/Blenderはローカル未実行。Linux native ABIは本Dev Container（glibc2.43、x86_64）で実確認、Windowsは定義/layout/制御フローの静的確認のみ。公開CIのWindows結果を後記し、それ以外の未実行環境を確認済みにしない。
+
+### 調整役の裁定（記録順）
+
+| 裁定 | 誤った場合の負担 |
+| --- | --- |
+| manifest v1の意味を維持し安全基盤を責務別に再実装 | 互換性修正/再実装 |
+| Git内非rootとGit外nested repositoryを拒否 | 利用者はrootかclean exportを用意 |
+| OpenVerifiedは利用完了までproject-wide lease | 呼出側は保持/Disposeと再入回避が必要 |
+| 同一SHAの以前のbaselineを再利用 | 環境差は後続focused/buildで検出 |
+| 実装/レビューへ同じSpec・制約・受け入れ条件を配布 | bounded inputが少し増える |
+| 特殊fileのcopy拒否をdata削除へ適用しない指摘を採用 | 誤りなら限定削除の修正が必要。無視すると部分削除 |
+| 親先行終了で子孫が残る停止漏れを採用 | 無視すると失敗報告後も子が継続 |
+| 追加launcherでなく同じmodule内のprivate native containmentを許可 | native相互運用の保守/修正。別libc/Windows実機は未確認 |
+| Planが予定する狭いinternal staged-identity seamを許可 | internalなテスト結合の保守 |
+| 最終3Minor（@path、上限テスト識別力、case能力）を1回で修正 | bounded fix/re-review/全検証の追加時間 |

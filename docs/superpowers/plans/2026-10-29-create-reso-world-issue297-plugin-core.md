@@ -174,6 +174,16 @@
 
 受け入れ基準（Linux/.NET 10、一時Git/ファイル環境で秘密漏えい・範囲外操作・データ喪失・競合を防御）、対象外（CLI結線・Windows実機・Resonite/Blender）とSpec `5353ba718fc19b678f6a32fa4354030e8c27f02c` / Plan `5797dff20f219a7edf5145b55026ef24c3963c2d` の確認用コピーを提示した後、利用者が「ノンストップでPRまで作成してください。」と応答した。提示版の内容確認および実装〜PR作成の実行許可として記録し、同じPlan/branch/worktreeでTask1から再開する。現行 `3e16ad4` の追加は停止記録だけ。承認SHAは上記内容commitに保持する。マージはしない。
 
+## 実装完了・公開処理（2026-10-29 UTC）
+
+- Task1 complete: `a7be2dd..2d83538`、Task2 complete: `2d83538..dd08ff7`、Task3 complete: `dd08ff7..08430b8`、Task4 complete: `08430b8..bbf3df8`。全task reviewでspec/quality承認。Task1/3はそれぞれ1回の修正サイクルで解消。
+- 最終全branch review（17files/3470追加行）はCritical/Importantなし。3Minorを1回のfix wave `bbf3df8..0015074` で全対応し、限定再reviewで全件ADDRESSED、新規問題なし。残る保留指摘なし。
+- 最終コードHEAD `0015074caac91105dfc538f845a3614a73a3ca91`。調整役が `dotnet build ResoLoop.slnx --nologo`（警告0/エラー0）、`dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --nologo --filter FullyQualifiedName~Plugin`（43件）、`dotnet test ResoLoop.slnx --no-build --nologo`（573unit+22offline）を同期再実行、すべてexit0。live opt-in/接続URLを子環境で除去。diff --check/clean status確認済み。
+- 証拠ログ: SESSION/controller-build.log、controller-plugin-tests.log、controller-full-tests.log。全受け入れ条件の対応表はSpec第8章、各担当の詳細はSDD/task-1〜4-report.mdとfinal-fix-report.md。
+- API表記差: 公開signature不変。予定されたnarrow internal stagedPackageReady seamを必要性と意味のあるRED後に採用。Git起動は実.NET10の親先行終了の不足を再現し、同じshellless引数・環境を保持するprivate native包含境界を裁定。追加launcher/NuGet/publicAPI/安全範囲の変更なし。これはcontingencyによるAPI前提修正で、元の内容承認SHAを保持する。
+- コードPR: https://github.com/usaturn/resoloop/pull/26 （base feat/plugin-v2）。既に上流公開済みa7be2ddを不存在確認後にGitHubのcreate-refで新規公開し、異なるtipを上書きしていない。Gitleaksは7commit検査・検出なし、検査した0015074だけfeature branchへpush。文書PR299を更新する。main/merge/upstream/releaseは未実施。
+- Windows/case-insensitive filesystem/別libc/実機/実認証はローカル未実行。実在する公開Windows CI、4資料の最終遠隔復元、予約解放・終了記録は処理中。Task5の公開完了は以下の最終記録で確定する。
+
 ## 実装前自己点検
 
 Spec→Taskの対応を上表で照合済み。型名/constructor/lock ownership/固定上限/recipe namespaceを揃えた。各S guardの担当と正常対照を特定し、F/L文言テストを排除。共有前提と操作順の統合責任はTask4/controller。コードのテスト成功は現時点では基準branchのみであり、新機能の成功は未確認。
