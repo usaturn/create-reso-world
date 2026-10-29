@@ -12,7 +12,7 @@
 
 ## 管理・実行許可
 
-- 状態: **draft**。対象 https://github.com/usaturn/create-reso-world/issues/297 。文書はcreate-reso-world、コードはusaturn/resoloop。
+- 状態: **approved**。対象 https://github.com/usaturn/create-reso-world/issues/297 。文書はcreate-reso-world、コードはusaturn/resoloop。
 - 利用者のSpec/Plan作成・実装・PR依頼と「必要であれば、0から実装し直してください。負担が増えても構いません。また、途中で止めずに推奨案で実装まで進めてください。」により、通常の設計判断と実装を委任。内容承認は別記録。SpecのPlannotatorは応答待ちtimeoutでunavailable、承認済み扱いしない。Planも指定review bridgeへ送る。
 - 実行方式: SDD、Task順次実行、タスクごとにsp-implementerと読み取り専用sp-review、最後に全体レビュー。sessionMode=lineage-only。共有worktreeへの書き込み担当は常に1人。モデル指定はroleの設定に従い、勝手なoverrideをしない。
 - CODE_ROOT: `/workspaces/reso-world/external/resoloop/.worktrees/create-reso-world-issue-297-plugin-core`、branch `feat/create-reso-world-issue-297-plugin-core`、base `a7be2dd4a5e4df9f152c8908e51a853d3af6bb74`。
@@ -169,6 +169,10 @@
 - 利用者の推奨判断・再実装・PR作成の実行委任は保持。AGENTS.mdの新Plan提示後の確認は未完了なので、通常のtext確認を待つ。Task1〜5の実装/公開完了は未達。コードworktreeはbaseのままclean。
 - 基準コードの検証: `dotnet test ResoLoop.slnx --nologo` 終了0、unit 530件・integration-test assemblyのoffline 22件。live実機・Windows・新プラグインのテストは未実行。ログ: `/workspaces/reso-world/tmp/agents/issue-297.beqzdh2p/baseline-test.log`。
 - この追記は確認結果と停止状態だけで、5797dffの実装計画を変えない。文書だけのdraft PRで公開し、再開時は同じ文書/コードbranchを再利用する。既存の作業を重複作成しない。
+
+## 内容確認と実装再開（2026-10-29 08:43 UTC）
+
+受け入れ基準（Linux/.NET 10、一時Git/ファイル環境で秘密漏えい・範囲外操作・データ喪失・競合を防御）、対象外（CLI結線・Windows実機・Resonite/Blender）とSpec `5353ba718fc19b678f6a32fa4354030e8c27f02c` / Plan `5797dff20f219a7edf5145b55026ef24c3963c2d` の確認用コピーを提示した後、利用者が「ノンストップでPRまで作成してください。」と応答した。提示版の内容確認および実装〜PR作成の実行許可として記録し、同じPlan/branch/worktreeでTask1から再開する。現行 `3e16ad4` の追加は停止記録だけ。承認SHAは上記内容commitに保持する。マージはしない。
 
 ## 実装前自己点検
 
