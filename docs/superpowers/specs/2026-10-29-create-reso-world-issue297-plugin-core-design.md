@@ -2,7 +2,7 @@
 
 ## 管理・許可
 
-- 状態: **approved**。文書管理: `usaturn/create-reso-world`。コード対象: `usaturn/resoloop`。
+- 状態: **draft**（PR #26 のレビュー修正サイクル1は外部障害で停止。元の設計内容の承認履歴は下記のとおり維持）。文書管理: `usaturn/create-reso-world`。コード対象: `usaturn/resoloop`。
 - Issue: https://github.com/usaturn/create-reso-world/issues/297 （親 #95、`resoloop-plugins-board` / `plugin-core-refresh`）。
 - 実行許可: 利用者の「では #297 の Spec 作成、Plan 作成して、実装し PR を出して」、続く「旧仕様を一部参考しても良いですが、徹底してより良い案を検討して、実装してください。必要であれば、0から実装し直してください。負担が増えても構いません。また、途中で止めずに推奨案で実装まで進めてください。」。通常の判断・再実装を委任されている。内容承認を推測しない。指定された Plannotator の Spec/Plan レビューは実施する。
 - 今回は通常の Superpowers を使う。main 限定の `issue-to-pr` と自動マージループは使わない。前の `--merge` run は停止済みであり、今回の終点は PR 作成。マージ・上流投稿の許可はない。
@@ -229,3 +229,43 @@ Windows/case-insensitive filesystem/別libc/実認証/Resonite/Blenderはロー�
 | 追加launcherでなく同じmodule内のprivate native containmentを許可 | native相互運用の保守/修正。別libc/Windows実機は未確認 |
 | Planが予定する狭いinternal staged-identity seamを許可 | internalなテスト結合の保守 |
 | 最終3Minor（@path、上限テスト識別力、case能力）を1回で修正 | bounded fix/re-review/全検証の追加時間 |
+
+## 9. PR #26 レビュー修正サイクル1（2026-10-29、停止）
+
+- 結論: **3 停止・未完了**。検証用の書き込み可能な補助担当が、モデル提供元の安全判定により応答を拒否され、再現結果・確認済み一覧の保存前に中断した。自動的なモデル切替や依頼の言い換えによる回避は行わない。
+- 今回の実行許可: 利用者が `review-fix-planning` を明示指定し、`https://github.com/usaturn/resoloop/pull/26` を渡した。既定の完遂経路で、その既存PRの指摘の確認・必要な修正を扱う。元のIssue実装や別PRへ範囲を広げない。
+- planner: `openai-codex/gpt-6-astra`、runtime `pi`（bash の `PI_PROVIDER` / `PI_MODEL` で確認）。対象HEAD: `e3a4df87a7afce735cee412a22efb73200904f20`。base: `feat/plugin-v2`。判断記録の前サイクルは0件。
+- 入力: `reviews/usaturn/resoloop/#26-feat-create-reso-world-issue-297-plugin-core/`。直下レビュー3件、findings3件、runs3件を確認。既存レビューの各HEADは専用refの現行HEADと一致し、祖先照合も成功。
+
+| レビューファイル | モデル | runtime | HEAD | 今回のHEADで再実行 | 推奨 |
+| --- | --- | --- | --- | --- | --- |
+| SWE-2-Max.md | SWE-2 Max | devin | e3a4df87a7af | はい | Approve |
+| claude-opus-5-5.md | claude-opus-5-5 | claude-code | e3a4df87a7af | はい | Approve |
+| deepseek-deepseek-v4.1-flash.md | deepseek/deepseek-v4.1-flash | pi | e3a4df87a7af | はい | Approve |
+
+Opusのruns記録には保存段階のHTTP 503失敗が残るが、存在するMarkdownとfindingsの対応検査は成功している。成果物を入力から除外していない。推奨や票数を採否の根拠にしない。
+
+### 全指摘と未完了の確認
+
+外部障害のため3区分の確定前で停止した。解消済み0・対応する0・対応しない0・検証未完了5であり、「修正不要」を意味しない。
+
+| 出典（すべて検出HEAD e3a4df87a7af） | 指摘 | 今回の状態・足りない確認 |
+| --- | --- | --- |
+| SWE-2-Max#M-1 | host付きfile URIがprojectとの重なり拒否を通過する | unverified。Git単体のhost解釈は補助確認したが、Install本体の隔離再現と全状態比較は未完了 |
+| claude-opus-5-5#M-1 | safe.bareRepository=explicitでGit URL導入がref不存在として失敗する | unverified。bare探索と失敗の変換を読んだが、当サイクルの実行再現は未完了 |
+| claude-opus-5-5#L-1 | ignoreされたnested repositoryも拒否する | unverified。走査順序を読んだが、実行確認と要件照合を完了していない |
+| claude-opus-5-5#L-2 | SSHの端末入力が120秒待った後に失敗する | unverified。端末切離しのないprocess group起動を読んだが、当サイクルのPTY再現は未実施 |
+| claude-opus-5-5#U-1 | /proc読取中のプロセス終了によるESRCHがGit成功を失敗へ変える可能性 | unverified。OS単体の前提だけ確認。本体のC#経路への伝播は未確認 |
+
+### 要件対応と次のゲート
+
+本書第4章および既存Plan `docs/superpowers/plans/2026-10-29-create-reso-world-issue297-plugin-core.md` が定める安全なsource判定・Git対象の固定・非対話化・停止確認と照合する必要がある。今回Plan全文と全変更ファイル・関連テストの確認は完了していない。統合担当はplannerであり、分類の確定後に原因ごとの影響経路、拒否側と正常側、管理領域・外部共有先の状態を比較する検証をまとめる。採用項目・修正方針・設計見直しの要否は未確定で、保証の縮小やコード変更はしていない。
+
+### 実行結果と担当
+
+- 読み取り専用の `sp-debug`（実測 `openai-codex/gpt-6-astra`）は入力・コードの照合と限定的なOS/Git単体診断を実施。報告の実測302秒（初期照合112秒、追加確認190秒）。隔離再現・保存は権限制約により実施しなかった。
+- 書き込み可能な `sp-implementer`（観測モデル `gpt-6.1-sol`）に、コード修正ではなく隔離再現とverified一覧保存だけを委譲した。約185秒で提供元の安全判定によるエラー終了。harnessの終了コード0は検証成功を意味しない。PR HEADを展開したCoreと補助probeのビルドは終了0・警告0・エラー0だったが、指摘の本体再現結果・verified成果物は無い。
+- `run_roles.py --phase implement` / `--phase self-review` は未起動。自己レビュー0回、予約枠未消費。確認済み一覧と工程の記録は未作成。テスト成功や修正完了を主張しない。
+- コードworktreeは既存の `external/resoloop/.worktrees/create-reso-world-issue-297-plugin-core` をclean/HEAD一致で再利用し、変更していない。文書worktreeも既存の `docs/issue-297-plugin-core` を再利用。
+- 当セッションの隔離worktreeは停止確認後に登録を外し、親スクラッチも削除済み。既存のworktreeは削除しない。
+- コードcommit/push・マージ・Issue更新なし。この停止記録のみを文書ブランチへローカルcommitし、公開未実施とする。提供元側で実行可否が解決するまで再開しない。
