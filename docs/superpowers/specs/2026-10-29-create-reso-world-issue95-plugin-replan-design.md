@@ -4,12 +4,12 @@
 
 - 文書管理: `usaturn/create-reso-world`。対象ボード: https://github.com/usaturn/create-reso-world/issues/95
 - 実装対象: `usaturn/resoloop`。上流: `orange3134/resoloop`。Meshy の後続対象: `usaturn/resoloop-meshy`
-- 状態: **draft**。この文書のコミット済み内容の承認はまだない。
+- 状態: **approved**。2026-10-29 UTC、コミット `d009286968a21c916bafb39b2308ebaa09d40c4c` を示した確認依頼に、利用者が「OK」と回答した。この内容承認は実装・公開の実行許可とは区別する。
 - 利用者の指示: 古くなったプラグイン Issue 群を、最新上流を基準に計画し直す。既存 fork・履歴を残し、新しい上流起点ブランチを使う提案に「基本的にOK」、既存案の仕様・作成・配布・導入方法を説明した後に「OKです。作業を続行してください」。これは調査・再計画の続行許可であり、未提示の設計の承認、本体の実装・push・PR・マージの許可にはしない。
 - 今回の区切り: 設計の保存、独立した builder check、ローカルコミット、確認用コピーの提示。承認後に `writing-plans` で計画し、既存ボードの更新へ進む。本セッションでは GitHub の Issue 本文・状態・依存関係は変更しない。
 - この新規文書を作る理由: 利用者が最新上流からの再設計を明示したため。旧 #97 の completed な設計・計画は当時の実装記録として残し、本書を親 #95 の再計画の定義元にする。旧文書を書き換えて現在の実装と見せかけない。
 - 旧基盤の記録: [#97](https://github.com/usaturn/create-reso-world/issues/97)、[usaturn/resoloop#20](https://github.com/usaturn/resoloop/pull/20)、`2026-10-16-create-reso-world-issue97-resoloop-plugin-core-design.md`。当時の制限は `2026-10-16-usaturn-resoloop-pr20-plugin-core-review-fixes-design.md`。
-- Plan: 未作成。設計承認後に作成する。
+- Plan: `../plans/2026-10-29-create-reso-world-issue95-plugin-replan.md`（ボード更新の実行計画。作成時点では draft、内容承認・実行許可は別途確認する）。
 
 ### 基準と作業場所
 
@@ -68,7 +68,7 @@ Meshy は機構の一部ではなく後続の利用例とする。汎用機構�
 | 最新上流の新ブランチへ必要な設計・コードだけを移す | 差分をプラグインに限定でき、過去の履歴も保てる | **採用**。利用者がこの進め方を了承。過去のコミットは参考にし、無条件に cherry-pick しない |
 | 本体は変更せずラッパーだけ作る／`plugin run` のみに縮小する | 本体への影響が小さい | 既存案の直接コマンド、skills sync、レシピ、doctor の統合を満たさないため不採用 |
 
-以下の具体的な仕様はエージェントの提案であり、方式への了承を各詳細への承認として扱わない。
+以下の具体的な仕様は設計時のエージェント提案を含む。方式への了承だけから承認を推測せず、上記のコミット済み内容への「OK」を承認根拠として記録した。
 
 ## 4. 作者・配布・導入の仕様
 
@@ -209,7 +209,7 @@ Linux の本 Dev Container、.NET は上流 `global.json` に従う。Windows �
 5. 実装は別の許可後に、上流起点の feature branch／各 Task の worktree で行う。fork main に独自実装を蓄積する運用へ戻さない。新規コードは秘密情報検査後にだけ push する。
 6. 上流への投稿文は #105 で利用者に提示し、投稿の確認を取る。設計承認から投稿の許可を推測しない。コードの統合先・PR の構成はその Plan と実行許可で固定する。
 
-### このセッションの成果状態
+### 初回設計セッションの成果状態（2026-10-28 UTC）
 
 - 新しい上流起点の branch/worktree: 作成済み、コード無変更。
 - 設計: draft。独立した sp-review の builder check は「nothing important left」。文書以外を変更せず、ローカルコミットとコピーの照合後に提示する。
