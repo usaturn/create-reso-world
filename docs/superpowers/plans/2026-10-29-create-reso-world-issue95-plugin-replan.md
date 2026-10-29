@@ -13,9 +13,9 @@
 ## 管理・承認・今回の範囲
 
 - 文書・ボード: `usaturn/create-reso-world`、親 https://github.com/usaturn/create-reso-world/issues/95、database id `5871216931`、board key `resoloop-plugins-board`。
-- 状態: **draft**。Spec の「OK」を、この Plan や公開操作の承認に流用しない。
-- Plan 承認後、利用者から以下の実行範囲を明示的に確認して着手する: Issue の作成・本文/状態/依存の更新、親の予約 ref の作成と条件付き削除、文書ブランチの通常 push、同テーマの文書専用 PR 1件の作成または再利用。マージ、本体実装、fork 側への push、上流投稿は含めない。
-- 推奨実行方法: **Native / executing-plans**。全 Task が GitHub の同じ台帳・予約に依存し、外部への書き込みは調整役に一元化するため。subagent-driven を選ぶ場合も子は読み取り・下書きだけに限定し、GitHub 操作は調整役が行う。
+- 状態: **approved**。内容承認の対象は `3a4fc1b8213555ea88502265592cefa7b8ae01dc`。そのPlanの確認依頼と公開範囲の提示、実行方式の説明を受けて、利用者が「提案どおりにサブエージェント方式でお願いします。」と指示した（2026-10-29 UTC）。Spec の承認だけから推測したものではない。
+- 実行許可: 上記の「提案どおり」の対象は、確認依頼で示した Issue の作成・本文/状態/依存の更新、親の予約 ref の作成と条件付き削除、文書ブランチの通常 push、同テーマの文書専用 PR 1件の作成または再利用まで。マージ、本体実装、fork 側への push、上流投稿は含めない。
+- 選択された実行方法: **直列 subagent-driven-development**（`/sp-implement subagents` 相当）。利用者の明示選択に従いNative推奨から切り替えた。各Taskを新しい担当へ依頼し、子は読み取り・下書き・検証を行う。予約ref・GitHub書込み・push・PRは調整役が実行する。Taskごとのレビューと最後の全体レビューを行い、並列実行はしない。これは指定された実行方式の反映であり、設計・操作対象を広げる変更ではない。
 - 独立サブシステムである F・#98・#99・#100・I・#101 等を、この親 Plan で一括実装しない。各子は先行の実コード/API が対象ブランチで利用可能になってから独立した Spec・Plan を作る。
 - `PARENT_ROOT=/workspaces/reso-world`、`DOC_ROOT=/workspaces/reso-world/.worktrees/resoloop-plugins-replan`、文書 branch `docs/resoloop-plugins-replan`。
 - コードの将来の統合先は `usaturn/resoloop:feat/plugin-v2`。現状はローカルだけで、worktree は `/workspaces/reso-world/external/resoloop/.worktrees/plugin-v2`、HEAD は `a7be2dd4a5e4df9f152c8908e51a853d3af6bb74`。
@@ -127,7 +127,7 @@ F は検証済みパッケージ/記録/予約名入力を持つ registry API、
 親 #95 の**ボード更新 run**の能動時間を90分とする。過去の設計約26分と今回の Plan 作成は別記録、子のコード実装はこの予算に含めない。Task 1=20分、Task 2=15分、Task 3=35分、Task 4=20分を目安とする。
 
 - 実行開始時に SESSION/budget.jsonl を `issue_budget.py start --budget-minutes 90` で開始。各 Task 境界・50%・100%・失敗直後に show と checkpoint を記録。利用者待ちは await-user/resume で除く。
-- controller が foreground で gh を順次実行する。外部書き込み・git push を timeout で途中停止する worker は起動しない。実行担当の子は使わない。Task 4 では独立した sp-review を1回だけ、読取専用で起動する（`Review scope: task`、確定スナップショットと同じ受け入れ基準を渡す）。残り20分未満では起動せず partial で持ち越す。目安10分・報告整理5分を確保する。pi の同期 subagent は途中監視・強制停止ができないので、期限付き停止を実装したと主張せず戻るまで待つ。予算超過なら返却後に追加作業を止める。
+- controller が foreground で gh を順次実行する。外部書き込み・git push を timeout で途中停止する worker は起動しない。直列SDDでは各Taskの読取・下書き担当 sp-implementer を1件ずつ（計4件）、Taskレビュー sp-review を各1件（計4件）、最終全体レビューを1件予定する。修正はSDDの修正サイクル上限と全体90分の双方に従う。レビューには同じ受け入れ基準・brief・証拠差分を渡す。単一担当は目安5分、報告整理を含め残り10分未満なら新しい担当を起動せずpartialにする。pi の同期 subagent は途中監視・強制停止ができないので、期限付き停止を実装したと主張せず戻るまで待つ。予算超過なら返却後に追加作業を止める。
 - 同じ reliability 失敗の再試行は1回まで。ただし作成・更新の応答が不明なら、再試行前に既存結果を読み戻す。安全の失敗・権限拒否の回避・予約所有喪失は全体停止、同じ操作を別手段で通さない。
 - 100%で停止し、残りを partial と記録して自分の予約を解放する。文書公開だけ済み・relation未完了などの状態を隠さない。予算延長・追加Issue・設計縮小は自分で決めない。
 - 完了時は要約を Plan/PR/handoff に転記して ledger の end を記録。watch が無いこと、または全対象停止を確かめて、自分の SESSION だけを `${SESSION:?}` ガード付きで削除。引継ぎ時は SESSION と ledger を残す。
@@ -203,7 +203,7 @@ SHA="$(bash scripts/scan-before-push.sh -C /workspaces/reso-world/.worktrees/res
 
 **Interfaces:** Consumes: Task 3の更新結果。Produces: 照合済みボード、公開から復元した4成果物、条件付き解放の証拠、未実装を明示した最終報告。
 
-- [ ] **Step 1:** #95・18子の本文/全コメント/全parent/全blocked_by/全Sub Issuesを再取得し、board.jsonから生成した集合と照合する。DAG・所有ファイル・公開台帳・本文・historical状態も確認する。Expected: 18子、active16辺とhistorical2辺、#104だけ新たにnot_planned、他の子は未実装、#105がMeshyを待たない。未知の差分があればoperationalにしない。続けて読取専用の sp-review へ、同じ受け入れ基準・公開前後のsnapshot・差分・承認済みSpec/Planを渡し、誤対象・履歴消失・未実装の成功扱いがないか1回確認してもらう。レビュー子はテスト/API変更をしない。範囲外指摘は修正前に調整役が裁定する。
+- [ ] **Step 1:** #95・18子の本文/全コメント/全parent/全blocked_by/全Sub Issuesを再取得し、board.jsonから生成した集合と照合する。DAG・所有ファイル・公開台帳・本文・historical状態も確認する。Expected: 18子、active16辺とhistorical2辺、#104だけ新たにnot_planned、他の子は未実装、#105がMeshyを待たない。未知の差分があればoperationalにしない。Taskレビューと最終レビューでは、読取専用の sp-review へ同じ受け入れ基準・brief・公開前後のsnapshot・差分・担当報告を渡し、誤対象・履歴消失・未実装の成功扱いがないか確認してもらう。レビュー子はテスト/API変更をしない。範囲外指摘は修正前に調整役が裁定する。
 - [ ] **Step 2:** agent-handoffで今回のrunの`.handoff.md`とschema-version-2`.handoff.json`を作る。Spec承認SHA、Plan承認SHA、現行文書commitとPR、実装未着手、code HEAD、許可/禁止、next actionを一致させる。子ごとの未作成のSpec/Planを存在することにしない。
 - [ ] **Step 3:** Spec/Plan/handoff pairの正確な中身と、role/path/SHA-256/byte数/encoding/part順/文書commit/承認SHA/出所URLを持つmanifestを#95のコメントへ公開する。handoffには「この公開回復確認と自分のclaim解放はまだpending、子実装は許可なし」と書き、成功を先取りしない。canonical Spec/Planは文書PRのコミットと同一バイトにする。
 - [ ] **Step 4:** 空のrestore/へGitHubの公開物だけから4ファイルを復元し、全hash/byte数・JSON解析・相互参照・承認/実行許可の意味・実在するcheckoutを確認する。Expected: mismatchなし。ローカル原本をコピーして復元成功としない。
