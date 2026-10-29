@@ -261,6 +261,68 @@ scan_env=(PATH="$tmp/failing:$PATH")
 scan
 expect_stop 'a gitleaks that fails' 'status 3'
 
+# S: main への取り違えは成功したまま範囲と設定を変える。実際の非 main の履歴を使い、
+# scan が Gitleaks へ渡した範囲・設定・属性の基準を観測する（秘密情報の検出自体は上の実 Gitleaks で確認）。
+mkdir -p "$tmp/observing" "$tmp/observation"
+cat > "$tmp/observing/gitleaks" <<'FAKE'
+#!/bin/bash
+set -euo pipefail
+[ "$1" = version ] && { printf '%s\n' "$SCAN_TEST_VERSION"; exit 0; }
+printf '%s\n' "$@" > "$SCAN_TEST_OBSERVATION/args"
+printf '%s\n' "${GIT_ATTR_SOURCE-}" > "$SCAN_TEST_OBSERVATION/attributes"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --config) cp "$2" "$SCAN_TEST_OBSERVATION/config.toml"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+if [ -n "${SCAN_TEST_MOVE_TO-}" ]; then
+  git -C "$SCAN_TEST_REMOTE" update-ref "$SCAN_TEST_REF" "$SCAN_TEST_MOVE_TO"
+fi
+FAKE
+chmod +x "$tmp/observing/gitleaks"
+
+new_repo "$tmp/default.toml"
+integration_branch='feat/統合-v2'
+git -C "$repo" switch -qc "$integration_branch"
+commit_file .gitleaks.toml $'title = "integration rules"\n[extend]\nuseDefault = true'
+commit_file integration.txt 'only on the integration branch'
+integration_sha="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" push -q origin "HEAD:refs/heads/$integration_branch"
+git -C "$repo" switch -q feature
+git -C "$repo" merge -q --ff-only "$integration_branch"
+commit_file notes.txt 'only on the feature branch'
+feature_sha="$(git -C "$repo" rev-parse HEAD)"
+scan_env=(PATH="$tmp/observing:$PATH" SCAN_TEST_VERSION="$pinned" SCAN_TEST_OBSERVATION="$tmp/observation")
+scan --base "origin/$integration_branch" --expected-base-sha "$integration_sha"
+expect_success 'a pinned non-main base'
+grep -qxF -- "--log-opts=--no-color --no-ext-diff --no-textconv --diff-merges=remerge $integration_sha..$feature_sha" "$tmp/observation/args" \
+  || fail 'the scan used a range other than the pinned integration base..HEAD'
+[ "$(cat "$tmp/observation/attributes")" = "$integration_sha" ] || fail 'the scan used attributes from another base'
+git -C "$repo" show "$integration_sha:.gitleaks.toml" > "$tmp/integration.toml"
+cmp -s "$tmp/integration.toml" "$tmp/observation/config.toml" || fail 'the scan used a config from another base'
+
+# S: 捕捉した SHA を確認しないと、scan 開始前に進んだ base を正しい基準として成功してしまう。
+git -C "$repo" switch -q "$integration_branch"
+commit_file advanced.txt 'base advanced after capture'
+advanced_base_sha="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" push -q origin "HEAD:refs/heads/$integration_branch"
+git -C "$repo" switch -q feature
+scan_env=(PATH="$tmp/observing:$PATH" SCAN_TEST_VERSION="$pinned" SCAN_TEST_OBSERVATION="$tmp/observation")
+scan --base "origin/$integration_branch" --expected-base-sha "$integration_sha"
+expect_failure 'a base that moved after capture and before the scan'
+
+# S: 開始時だけの確認では、検査中に動いた remote を見逃して古い基準の検査を成功と報告する。
+# remote に次の commit だけを用意し、Gitleaks の実行時に同じ heads ref を進める。
+origin_dir="$repo/../origin.git"
+next_base_sha="$(git -C "$origin_dir" commit-tree "$advanced_base_sha^{tree}" -p "$advanced_base_sha" -m 'advance during scan')"
+scan_env=(PATH="$tmp/observing:$PATH" SCAN_TEST_VERSION="$pinned" SCAN_TEST_OBSERVATION="$tmp/observation"
+  SCAN_TEST_REMOTE="$origin_dir" SCAN_TEST_REF="refs/heads/$integration_branch" SCAN_TEST_MOVE_TO="$next_base_sha")
+scan --base "origin/$integration_branch" --expected-base-sha "$advanced_base_sha"
+expect_failure 'a base that moved during the scan'
+[ "$(git -C "$origin_dir" rev-parse "refs/heads/$integration_branch")" = "$next_base_sha" ] \
+  || fail 'the base did not move during the scan'
+
 # --- 成功する ---
 new_repo
 commit_file notes.txt hello
