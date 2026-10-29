@@ -185,11 +185,19 @@ removeは名前/confirmedを先に検証し、同じlock内で管理親とplugin
 
 ## 8. 実装結果（2026-10-29 UTC）
 
-実装とレビューは完了。コードPR [usaturn/resoloop#26](https://github.com/usaturn/resoloop/pull/26)（base `feat/plugin-v2`、HEAD `0015074caac91105dfc538f845a3614a73a3ca91`）、文書PR [create-reso-world#299](https://github.com/usaturn/create-reso-world/pull/299)。取り込み・マージ・上流投稿は未実施。公開CI/復元/予約解放の最終記録は同じPlanとIssue #297を参照する。
+実装とレビューは完了。コードPR [usaturn/resoloop#26](https://github.com/usaturn/resoloop/pull/26)（base `feat/plugin-v2`、HEAD `e3a4df87a7afce735cee412a22efb73200904f20`）、文書PR [create-reso-world#299](https://github.com/usaturn/create-reso-world/pull/299)。取り込み・マージ・上流投稿は未実施。公開CI/復元/予約解放の最終記録は同じPlanとIssue #297を参照する。
 
-調整役の最終Linux検証はbuild exit0（警告0/エラー0）、Plugin43件、全体573 unit＋22 offline integration-assembly件成功、失敗/skipなし。Gitleaksはコード7commit検査・検出なしで、その検査SHAだけをpushした。Task1〜4のspec/quality review、最終全branch review、最終修正の限定reviewに未解決指摘なし。固定一覧/文言/source-stringテスト追加なし。
+調整役の最終Linux検証はbuild exit0（警告0/エラー0）、Plugin43件、全体573 unit＋22 offline integration-assembly件成功、失敗/skipなし。Gitleaksはコード8commit検査・検出なしで、その検査SHAだけをpushした。Task1〜4のspec/quality review、最終全branch review、最終修正の限定reviewに未解決指摘なし。固定一覧/文言/source-stringテスト追加なし。
 
 最終APIは本書第3章どおり。実利用はOpenVerified leaseを保持し、同じlease中に管理APIへ再入しない。Task4のdeterministic staged-identity検証用internal constructorだけをprivate実装補助として追加し、public APIは増やしていない。Task3のnative spawnは同じshell-less引数/環境と120秒停止要件を満たすための実API前提修正で、承認SHAを変更/捏造しない。
+
+### 公開Windows CIで判明した削除の追加修正
+
+初回公開CI `40873464005` はBuild成功、unit566成功/7失敗、offline22成功。Gitのread-only object/packを削除できず、productionのclone清掃とfixture teardownで失敗した。新しい実環境の証拠として既存Task1/4の範囲だけを再開し、`e3a4df8` で所有ツリーの非linkエントリだけReadOnlyを解除して削除、子link先の属性/bytesを変更しないことを既存Sテストで実行確認した。公開API/所有範囲の変更なし。これは最終review指摘の2回目の修正waveではない。
+
+追加修正のtask reviewはspec/quality承認、未解決指摘なし。調整役が最終e3a4df8でRelease build（警告/エラー0）とRelease full suite（573+22、失敗/skip0）を再実行。ログはSESSION/controller-final-build.log、controller-final-tests.log。公開Windows再実行 `40875568882` はBuild成功、unit572成功/1失敗、offline22成功。Plugin失敗はなくなったが、所有外の既存CheckpointFiles同時読取テストがsharing IOExceptionで失敗したため、全CIは未成功。所有外の推測修正や成功扱いはせず、Plan/Issueに残す。
+
+裁定の追加: (11) 新しい公開CI失敗を既存の削除/fixture所有範囲で修正することを許可。誤った場合の負担は追加の検証/CI時間で、範囲・削除境界・未確認状態の報告は縮小しない。(12) 次のCIで判明した所有外CheckpointFiles失敗は変更せず未達として引き渡す。誤った場合の負担は全CI成功が別途確認まで保留になること。
 
 ### 条件と実行証拠
 
