@@ -13,7 +13,7 @@
 ## 管理・承認・今回の範囲
 
 - 文書・ボード: `usaturn/create-reso-world`、親 https://github.com/usaturn/create-reso-world/issues/95、database id `5871216931`、board key `resoloop-plugins-board`。
-- 状態: **approved**。内容承認の対象は `3a4fc1b8213555ea88502265592cefa7b8ae01dc`。そのPlanの確認依頼と公開範囲の提示、実行方式の説明を受けて、利用者が「提案どおりにサブエージェント方式でお願いします。」と指示した（2026-10-29 UTC）。Spec の承認だけから推測したものではない。
+- 状態: **completed**（ボード更新のみ。機能実装完了ではない。結果は末尾）。内容承認の対象は `3a4fc1b8213555ea88502265592cefa7b8ae01dc`。そのPlanの確認依頼と公開範囲の提示、実行方式の説明を受けて、利用者が「提案どおりにサブエージェント方式でお願いします。」と指示した（2026-10-29 UTC）。Spec の承認だけから推測したものではない。
 - 実行許可: 上記の「提案どおり」の対象は、確認依頼で示した Issue の作成・本文/状態/依存の更新、親の予約 ref の作成と条件付き削除、文書ブランチの通常 push、同テーマの文書専用 PR 1件の作成または再利用まで。マージ、本体実装、fork 側への push、上流投稿は含めない。
 - 選択された実行方法: **直列 subagent-driven-development**（`/sp-implement subagents` 相当）。利用者の明示選択に従いNative推奨から切り替えた。各Taskを新しい担当へ依頼し、子は読み取り・下書き・検証を行う。予約ref・GitHub書込み・push・PRは調整役が実行する。Taskごとのレビューと最後の全体レビューを行い、並列実行はしない。これは指定された実行方式の反映であり、設計・操作対象を広げる変更ではない。
 - 独立サブシステムである F・#98・#99・#100・I・#101 等を、この親 Plan で一括実装しない。各子は先行の実コード/API が対象ブランチで利用可能になってから独立した Spec・Plan を作る。
@@ -152,13 +152,13 @@ F は検証済みパッケージ/記録/予約名入力を持つ registry API、
 
 **Interfaces:** Consumes: 承認済み Spec と上記直接先行 JSON。Produces: 各キーの `(repository,number,id,node_id,url)`、保存した本文/updated_at、許可された差分、F/Iが未採番の下書き、循環のない board.json。
 
-- [ ] **Step 1:** PARENT_ROOT/DOC_ROOT と remotes、git status/worktrees、Spec/Plan の承認 SHA と実行許可を確認。origin/main と upstream/main を fetch し、旧コードと同じならその事実を記録する。変更があれば contingency を適用。
-- [ ] **Step 2:** #95 の本文・全コメント・全子、全子の本文/全コメント/blocked_by、関係PR、全 claims を `gh api --paginate --slurp` で保存する。外部子の #18 は `repos/usaturn/resoloop/issues/18` を使う。ページごとに取得できていることを記録する。
-- [ ] **Step 3:** repo/default branch/permissions、rulesets、main protection、Actions を再取得。Issue/content書込みが必要。プラン上使えないことを明示する403だけは非適用の証拠として扱い、不明な403/404は停止。claim対象のworkflow制限も確認する。
-- [ ] **Step 4:** 全 Issue 一覧から stable key の重複/既存F/Iを確認。parent台帳・最新本文・native parent の3点で管理対象を確定し、board.jsonへ実IDを入れる。F/I は見つからない時だけ number/idを未確定にする。
-- [ ] **Step 5:** 親の map/ledger marker を再利用し、古い基準・所有表・開始手順等のボード運用部分を承認済み仕様へ更新する下書きを作る。古い利用者決定・関連リンク・コメントは残し、変更理由と後継仕様を追加する。#90は既存 child marker 内だけを更新し、元の本文・知見はバイト単位で保持する。その他の子は既存の親/キーを根拠に managed child marker を設け、無関係な追記は外へ残す。
-- [ ] **Step 6:** 下書きには「親bodyの7必須節」「子bodyの目的/範囲・禁止/先行・入力/API/受け入れ/検証/成果物/状態・反映先」を満たす。開始手順は `.agents/skills/planning-parallel-issues/references/issue-board.md` の全文7段を日本語で埋め込み、対象repo/絶対checkout/文書保存先/子のclaim/復元/未実装を明記する。`N` は選択した子番号というパラメータとして定義し、F/Iの未採番リンクを公開しない。
-- [ ] **Step 7:** Pythonの一時的な検査で、全キーの一意性・先行参照・DAG・active/historical辺数・repo/idの対応・許可/禁止範囲の非重複・管理外本文の同一性を確認する。Expected: active13子/16辺＋historical5子/2辺、F/Iを除くID解決済み、未知の関係なし。異なる実データは固定数へ強引に合わせず停止する。
+- [x] **Step 1:** PARENT_ROOT/DOC_ROOT と remotes、git status/worktrees、Spec/Plan の承認 SHA と実行許可を確認。origin/main と upstream/main を fetch し、旧コードと同じならその事実を記録する。変更があれば contingency を適用。
+- [x] **Step 2:** #95 の本文・全コメント・全子、全子の本文/全コメント/blocked_by、関係PR、全 claims を `gh api --paginate --slurp` で保存する。外部子の #18 は `repos/usaturn/resoloop/issues/18` を使う。ページごとに取得できていることを記録する。
+- [x] **Step 3:** repo/default branch/permissions、rulesets、main protection、Actions を再取得。Issue/content書込みが必要。プラン上使えないことを明示する403だけは非適用の証拠として扱い、不明な403/404は停止。claim対象のworkflow制限も確認する。
+- [x] **Step 4:** 全 Issue 一覧から stable key の重複/既存F/Iを確認。parent台帳・最新本文・native parent の3点で管理対象を確定し、board.jsonへ実IDを入れる。F/I は見つからない時だけ number/idを未確定にする。
+- [x] **Step 5:** 親の map/ledger marker を再利用し、古い基準・所有表・開始手順等のボード運用部分を承認済み仕様へ更新する下書きを作る。古い利用者決定・関連リンク・コメントは残し、変更理由と後継仕様を追加する。#90は既存 child marker 内だけを更新し、元の本文・知見はバイト単位で保持する。その他の子は既存の親/キーを根拠に managed child marker を設け、無関係な追記は外へ残す。
+- [x] **Step 6:** 下書きには「親bodyの7必須節」「子bodyの目的/範囲・禁止/先行・入力/API/受け入れ/検証/成果物/状態・反映先」を満たす。開始手順は `.agents/skills/planning-parallel-issues/references/issue-board.md` の全文7段を日本語で埋め込み、対象repo/絶対checkout/文書保存先/子のclaim/復元/未実装を明記する。`N` は選択した子番号というパラメータとして定義し、F/Iの未採番リンクを公開しない。
+- [x] **Step 7:** Pythonの一時的な検査で、全キーの一意性・先行参照・DAG・active/historical辺数・repo/idの対応・許可/禁止範囲の非重複・管理外本文の同一性を確認する。Expected: active13子/16辺＋historical5子/2辺、F/Iを除くID解決済み、未知の関係なし。異なる実データは固定数へ強引に合わせず停止する。
 
 ### Task 2: 親の予約と文書 PR の公開
 
@@ -168,16 +168,16 @@ F は検証済みパッケージ/記録/予約名入力を持つ registry API、
 
 **Interfaces:** Consumes: Task 1の権限・下書きと実行許可。Produces: 不変の claim SHA、own ref、承認済み/現行文書のcommit URL、文書PR番号/URL。
 
-- [ ] **Step 1:** 最新 main の commit/tree、session UUID、UTC時刻から一意な空コミットを `POST /repos/usaturn/create-reso-world/git/commits` で作る。返却SHAを claim.json に保存してから、`POST .../git/refs` で `refs/heads/agent-claims/issue-95` を新規作成する。既存refは更新しない。応答不明時は GET して保存SHAと同じ場合だけ取得済みとする。
-- [ ] **Step 2:** refのSHAを再確認し、親に所有者/session/ref/SHA/目的のコメントを追加する。別の子claimが新たに見つかったら、その子を巻き込む更新を始めず停止・解放へ進む。
-- [ ] **Step 3:** Spec の承認SHAを保持し、Plan の承認SHAと公開操作の許可を metadata として記録してコミットする。`git diff --check` と変更がdocsだけであることを確認する。内容変更を承認記録に混ぜない。
-- [ ] **Step 4:** 文書branchを通常pushする。PARENT_ROOTで次を実行し、検査SHA以外を送らない。
+- [x] **Step 1:** 最新 main の commit/tree、session UUID、UTC時刻から一意な空コミットを `POST /repos/usaturn/create-reso-world/git/commits` で作る。返却SHAを claim.json に保存してから、`POST .../git/refs` で `refs/heads/agent-claims/issue-95` を新規作成する。既存refは更新しない。応答不明時は GET して保存SHAと同じ場合だけ取得済みとする。
+- [x] **Step 2:** refのSHAを再確認し、親に所有者/session/ref/SHA/目的のコメントを追加する。別の子claimが新たに見つかったら、その子を巻き込む更新を始めず停止・解放へ進む。
+- [x] **Step 3:** Spec の承認SHAを保持し、Plan の承認SHAと公開操作の許可を metadata として記録してコミットする。`git diff --check` と変更がdocsだけであることを確認する。内容変更を承認記録に混ぜない。
+- [x] **Step 4:** 文書branchを通常pushする。PARENT_ROOTで次を実行し、検査SHA以外を送らない。
 
 ```bash
 SHA="$(bash scripts/scan-before-push.sh -C /workspaces/reso-world/.worktrees/resoloop-plugins-replan --base origin/main)" && [ -n "$SHA" ] && git -C /workspaces/reso-world/.worktrees/resoloop-plugins-replan push origin "${SHA:?}:refs/heads/docs/resoloop-plugins-replan"
 ```
 
-- [ ] **Step 5:** 同じ head/base の既存PRを調べ、なければ `gh pr create --repo usaturn/create-reso-world --base main --head docs/resoloop-plugins-replan` で文書専用PRを1件作る。本文はファイルから渡し、`Refs #95`、Spec/Planの承認と未実装、検証結果、今回のIssue操作範囲を書く。既存PRがあれば再利用。マージしない。lost response時は再検索してから判断する。
+- [x] **Step 5:** 同じ head/base の既存PRを調べ、なければ `gh pr create --repo usaturn/create-reso-world --base main --head docs/resoloop-plugins-replan` で文書専用PRを1件作る。本文はファイルから渡し、`Refs #95`、Spec/Planの承認と未実装、検証結果、今回のIssue操作範囲を書く。既存PRがあれば再利用。マージしない。lost response時は再検索してから判断する。
 
 ### Task 3: 子 Issue・親本文・native relation の更新
 
@@ -187,13 +187,13 @@ SHA="$(bash scripts/scan-before-push.sh -C /workspaces/reso-world/.worktrees/res
 
 **Interfaces:** Consumes: own claim、公開文書、下書き。Produces: F/Iの実ID入り台帳、更新済み18子、期待したnative relation、操作ごとの成功/未実施記録。
 
-- [ ] **Step 1:** claim・最新本文・updated_atを再照合。親の管理範囲に board: updating と今回の文書PR・承認済みSpec・操作台帳を追加して公開し、読み戻す。下書き作成後の無関係な編集を消さない。
-- [ ] **Step 2:** F/Iの既存同キーを全ページから再確認し、未作成の場合だけ `POST .../issues`（JSONのtitle/body）で作る。初期本文から親#95・stable key・未実装・先行ゲートを示す。各作成の応答を保存し、**その都度**親台帳へ number/id/node_id/url を追記してGETで確認してから次のIssueへ進む。
-- [ ] **Step 3:** F/Iの現在parentをGET。読めるIssueの `No parent issue found` だけは未所属と判断し、`POST .../issues/95/sub_issues` に database idを渡す。既に#95なら追加しない。未知のparentはreparentしない。今回のPlanは既存子の親変更・削除を要求しない。
-- [ ] **Step 4:** 実IDを埋めた親・子の本文を更新する。#98〜#100からProgram.cs権限を外してIへ移し、#110〜#112はFの結果確認に限定する。#90の元本文・#103の利用者所有部分の禁止は維持する。子をnot-startedにする前に、有効な新成果物/進行中の証拠がないことを確認する。
-- [ ] **Step 5:** #104に上流基準で対象がないこと・再導入しないこと・Specの参照を記録し、`state=closed,state_reason=not_planned` にする。他のopen子は閉じず、従来4完了子は編集しない。#104の本文・既存2依存・親関係は履歴として残す。
-- [ ] **Step 6:** board.jsonから現行とのrelation差分を生成し、管理する辺に限り追加→読み戻し→旧辺削除の順に更新する。`POST .../issues/N/dependencies/blocked_by` は `issue_id`、DELETE の末尾も predecessorのdatabase id。Issue番号やnode_idを代入しない。#103の外部#18依存削除をcreate-reso-world#18に向けない。
-- [ ] **Step 7:** 各子変更・relation変更ごとに親台帳へ成功/未実施を反映して読み戻す。エラー・不明応答ではexact relationを再取得し、重複したPOST/DELETEを盲目的に繰り返さない。全件反映前は board: incomplete/updating を維持する。
+- [x] **Step 1:** claim・最新本文・updated_atを再照合。親の管理範囲に board: updating と今回の文書PR・承認済みSpec・操作台帳を追加して公開し、読み戻す。下書き作成後の無関係な編集を消さない。
+- [x] **Step 2:** F/Iの既存同キーを全ページから再確認し、未作成の場合だけ `POST .../issues`（JSONのtitle/body）で作る。初期本文から親#95・stable key・未実装・先行ゲートを示す。各作成の応答を保存し、**その都度**親台帳へ number/id/node_id/url を追記してGETで確認してから次のIssueへ進む。
+- [x] **Step 3:** F/Iの現在parentをGET。読めるIssueの `No parent issue found` だけは未所属と判断し、`POST .../issues/95/sub_issues` に database idを渡す。既に#95なら追加しない。未知のparentはreparentしない。今回のPlanは既存子の親変更・削除を要求しない。
+- [x] **Step 4:** 実IDを埋めた親・子の本文を更新する。#98〜#100からProgram.cs権限を外してIへ移し、#110〜#112はFの結果確認に限定する。#90の元本文・#103の利用者所有部分の禁止は維持する。子をnot-startedにする前に、有効な新成果物/進行中の証拠がないことを確認する。
+- [x] **Step 5:** #104に上流基準で対象がないこと・再導入しないこと・Specの参照を記録し、`state=closed,state_reason=not_planned` にする。他のopen子は閉じず、従来4完了子は編集しない。#104の本文・既存2依存・親関係は履歴として残す。
+- [x] **Step 6:** board.jsonから現行とのrelation差分を生成し、管理する辺に限り追加→読み戻し→旧辺削除の順に更新する。`POST .../issues/N/dependencies/blocked_by` は `issue_id`、DELETE の末尾も predecessorのdatabase id。Issue番号やnode_idを代入しない。#103の外部#18依存削除をcreate-reso-world#18に向けない。
+- [x] **Step 7:** 各子変更・relation変更ごとに親台帳へ成功/未実施を反映して読み戻す。エラー・不明応答ではexact relationを再取得し、重複したPOST/DELETEを盲目的に繰り返さない。全件反映前は board: incomplete/updating を維持する。
 
 ### Task 4: 全体照合・成果物の復元確認・解放
 
@@ -203,18 +203,18 @@ SHA="$(bash scripts/scan-before-push.sh -C /workspaces/reso-world/.worktrees/res
 
 **Interfaces:** Consumes: Task 3の更新結果。Produces: 照合済みボード、公開から復元した4成果物、条件付き解放の証拠、未実装を明示した最終報告。
 
-- [ ] **Step 1:** #95・18子の本文/全コメント/全parent/全blocked_by/全Sub Issuesを再取得し、board.jsonから生成した集合と照合する。DAG・所有ファイル・公開台帳・本文・historical状態も確認する。Expected: 18子、active16辺とhistorical2辺、#104だけ新たにnot_planned、他の子は未実装、#105がMeshyを待たない。未知の差分があればoperationalにしない。Taskレビューと最終レビューでは、読取専用の sp-review へ同じ受け入れ基準・brief・公開前後のsnapshot・差分・担当報告を渡し、誤対象・履歴消失・未実装の成功扱いがないか確認してもらう。レビュー子はテスト/API変更をしない。範囲外指摘は修正前に調整役が裁定する。
-- [ ] **Step 2:** agent-handoffで今回のrunの`.handoff.md`とschema-version-2`.handoff.json`を作る。Spec承認SHA、Plan承認SHA、現行文書commitとPR、実装未着手、code HEAD、許可/禁止、next actionを一致させる。子ごとの未作成のSpec/Planを存在することにしない。
-- [ ] **Step 3:** Spec/Plan/handoff pairの正確な中身と、role/path/SHA-256/byte数/encoding/part順/文書commit/承認SHA/出所URLを持つmanifestを#95のコメントへ公開する。handoffには「この公開回復確認と自分のclaim解放はまだpending、子実装は許可なし」と書き、成功を先取りしない。canonical Spec/Planは文書PRのコミットと同一バイトにする。
-- [ ] **Step 4:** 空のrestore/へGitHubの公開物だけから4ファイルを復元し、全hash/byte数・JSON解析・相互参照・承認/実行許可の意味・実在するcheckoutを確認する。Expected: mismatchなし。ローカル原本をコピーして復元成功としない。
-- [ ] **Step 5:** 親に照合結果・復元manifest・board更新完了と子のnot-startedを記録する。pending解除の実績は、固定した成果物を書き換えず別の完了コメントに残す。claimが保存SHAであることを確認し、次の形式で解放してGETでref不在を確かめる。
+- [x] **Step 1:** #95・18子の本文/全コメント/全parent/全blocked_by/全Sub Issuesを再取得し、board.jsonから生成した集合と照合する。DAG・所有ファイル・公開台帳・本文・historical状態も確認する。Expected: 18子、active16辺とhistorical2辺、#104だけ新たにnot_planned、他の子は未実装、#105がMeshyを待たない。未知の差分があればoperationalにしない。Taskレビューと最終レビューでは、読取専用の sp-review へ同じ受け入れ基準・brief・公開前後のsnapshot・差分・担当報告を渡し、誤対象・履歴消失・未実装の成功扱いがないか確認してもらう。レビュー子はテスト/API変更をしない。範囲外指摘は修正前に調整役が裁定する。
+- [x] **Step 2:** agent-handoffで今回のrunの`.handoff.md`とschema-version-2`.handoff.json`を作る。Spec承認SHA、Plan承認SHA、現行文書commitとPR、実装未着手、code HEAD、許可/禁止、next actionを一致させる。子ごとの未作成のSpec/Planを存在することにしない。
+- [x] **Step 3:** Spec/Plan/handoff pairの正確な中身と、role/path/SHA-256/byte数/encoding/part順/文書commit/承認SHA/出所URLを持つmanifestを#95のコメントへ公開する。handoffには「この公開回復確認と自分のclaim解放はまだpending、子実装は許可なし」と書き、成功を先取りしない。canonical Spec/Planは文書PRのコミットと同一バイトにする。
+- [x] **Step 4:** 空のrestore/へGitHubの公開物だけから4ファイルを復元し、全hash/byte数・JSON解析・相互参照・承認/実行許可の意味・実在するcheckoutを確認する。Expected: mismatchなし。ローカル原本をコピーして復元成功としない。
+- [x] **Step 5:** 親に照合結果・復元manifest・board更新完了と子のnot-startedを記録する。pending解除の実績は、固定した成果物を書き換えず別の完了コメントに残す。claimが保存SHAであることを確認し、次の形式で解放してGETでref不在を確かめる。
 
 ```bash
 git -C /workspaces/reso-world push --force-with-lease="refs/heads/agent-claims/issue-95:${CLAIM_SHA:?}" origin :refs/heads/agent-claims/issue-95
 ```
 
-- [ ] **Step 6:** 解放済み・検証結果・所要時間・PR番号をPlanの実行記録に追記し、このボード更新Planだけをcompletedにする。文書差分検査・秘密情報検査をやり直して同じ文書branchを通常pushする。原文復元manifestは公開したcommitに固定して残し、完了追記だけの新commitと混同しない。push失敗なら公開残作業を報告し、完了を先取りしない。
-- [ ] **Step 7:** git statusで文書とコードworktree、親・共有checkoutの既存状態が保たれたことを確認し、ledger要約とhandoffを保存してセッション作業物を片付ける。次の子の着手は別の依頼で行い、今回は選択・実装へ進まない。
+- [x] **Step 6:** 解放済み・検証結果・所要時間・PR番号をPlanの実行記録に追記し、このボード更新Planだけをcompletedにする。文書差分検査・秘密情報検査をやり直して同じ文書branchを通常pushする。原文復元manifestは公開したcommitに固定して残し、完了追記だけの新commitと混同しない。push失敗なら公開残作業を報告し、完了を先取りしない。
+- [x] **Step 7:** git statusで文書とコードworktree、親・共有checkoutの既存状態が保たれたことを確認し、ledger要約とhandoffを保存してセッション作業物を片付ける。次の子の着手は別の依頼で行い、今回は選択・実装へ進まない。
 
 ## 作成時点の検証・自己点検（実行結果ではない）
 
@@ -233,3 +233,17 @@ git -C /workspaces/reso-world push --force-with-lease="refs/heads/agent-claims/i
 - Task 3: 基盤 [#297](https://github.com/usaturn/create-reso-world/issues/297) とCLI統合 [#298](https://github.com/usaturn/create-reso-world/issues/298) を作成し、親#95へ追加。13件のactive本文を更新し、#104だけを理由付きnot_plannedで閉じた。11辺追加・13辺削除後、18子/18辺と全本文・状態の一致を実APIで確認した。歴史4完了子と#104本文、#90の管理外知見は保持。
 - Task 3 レビューで、#104コメントの未解決リンクと操作途中のGET/着手確認/削除前ゲート不足を検出。担当が一回限りの操作補助を修正してオフライン検証し、調整役は既存コメントだけを修正してGET確認した。04:17 UTCの現状態照合は全active本文・コメント・依存で成功。ただし過去に不足した操作順序を遡って検証済みとはしない。
 - **中断・未完了**: 修正後の限定再レビュー、Task 4の遠隔復元・最終全体レビューは残る。能動予算90分の残りが10分未満となり、新担当を起動しない条件に従って部分成果を引き継ぐ。ボードは incomplete であり、Planをcompletedにしない。自分の親予約だけを引き継ぎ公開後に条件付き解放する。本体実装・マージ・fork側push・上流投稿は未実施。再開には残作業の追加予算の確認を要する。
+
+### 続行と完了（追加30分、2026-10-29 UTC）
+
+- 利用者の「1 作業を続行してください。」により追加30分を上限に再開した。新しい親予約で既存更新を再実行せず、Task3 fix1の4指摘を限定再レビューし全件ADDRESSED、新breakageなし。Task3はreview clean。
+- Task4担当はfresh snapshotの18子・18parent・18辺・45コメント・19本文・#90保護を1113項目で照合。公開コメントから4成果物を独立復元し全hash/byte/schema/approval一致。Task4レビューはApproved。
+- 最終全体レビューはCritical/Important/Minorいずれもなし。機能実動作・過去の操作順序・レビュー後の終了操作はそのレビューだけで保証せず、調整役が後続の実結果を確認した。全Issue一覧でF/Iが各1件、同テーマheadのPRが#296だけであることも調整役が確認した。
+- 最終固定版4成果物を公開し、GitHubから再復元して全hash/byte/JSONを照合した。manifest: https://github.com/usaturn/create-reso-world/issues/95#issuecomment-6488294559 。固定版は`fc8edddd2519b953051b95dbe2a00aac4aac90a7`を基準とし、当時pendingの終了処理は別の完了コメントで記録する。
+- 04:53 UTC、新しい自分の予約を保存SHA付きleaseで条件付き解放し、refの不在を確認した。親のボードは構成・復元・レビュー検証済み、activeの子13件はすべてplanning/implementationともnot-started。本体コード、fork main、ワールドは未変更。PR296は未マージ。
+- この変更は承認済み設計・計画の内容を変えず、完了・実績のmetadataだけを更新する。所定の秘密情報検査を通した同じSHAを文書branchへ通常pushし、PR296を再利用する。Task1〜4の実作業は完了、次の子の選択/実装へは進まない。
+
+### 調整役の判断
+
+- 利用者の明示選択を受けNative推奨から直列SDDへ変更した。設計と操作範囲は不変。誤った選択ならレビュー時間・費用が増える。
+- 予約ref・Issue更新・push・PRは調整役に集約し、子はpayload準備と読取検証を担当した。SESSION成果物も差分としてレビューした。誤った分担なら調整役の統合作業が増える。
