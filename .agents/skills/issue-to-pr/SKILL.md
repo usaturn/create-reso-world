@@ -115,7 +115,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
 
    worktree を作る直前と、push・PR の作成の前に、Issue の状態と競合を調べ直す。新しい競合や close があれば止まり、この run で作った worktree・branch と他者の作業を区別して報告する。
 
-   **base の確定:** 競合を確認した後、worktree の前に `REQUIRED_BASES` を Bash 配列で用意する。要求が無ければ `REQUIRED_BASES=()`、あれば根拠とともに確認した各 branch を 1 要素ずつ入れる。Issue の repository でなく `TARGET_REPO` / `TARGET_ROOT` を使う。次の helper は objects だけを取得し、remote-tracking ref や FETCH_HEAD を更新しない。成功時の JSON（`repo`・`remote`・`branch`・`ref`・`sha`）を保存する。終了コード 2 は副作用の前に停止し、理由を伝える。
+   **base の確定:** 競合を確認した後、worktree の前に、根拠とともに確認した親 Issue・handoff の要求 base を `$SESSION/required-bases.txt` に 1 行に 1 つの branch で書く（`printf '%s\n' <branch>... > "$SESSION/required-bases.txt"`）。要求が無ければ空のファイルにする（`: > "$SESSION/required-bases.txt"`）。シェルの配列や変数で渡さない（別の呼び出しのシェルには残らず、bash では未定義の配列が黙って空になる）。capture は同じシェルでも別シェルでもこのファイルから読み、無い・読めないときは worktree の前に止まる。Issue の repository でなく `TARGET_REPO` / `TARGET_ROOT` を使う。次の helper は objects だけを取得し、remote-tracking ref や FETCH_HEAD を更新しない。成功時の JSON（`repo`・`remote`・`branch`・`ref`・`sha`）を保存する。終了コード 2 は副作用の前に停止し、理由を伝える。
 
    <!-- base-workflow:capture -->
    ```bash
@@ -128,7 +128,8 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
      explicit_base="$(jq -r .base "$SESSION/issue.json")" || exit 2
      base_args+=(--base "$explicit_base")
    fi
-   for required in "${REQUIRED_BASES[@]}"; do base_args+=(--required-base "$required"); done
+   required_bases="$(cat "$SESSION/required-bases.txt")" || exit 2
+   while IFS= read -r required; do [ -z "$required" ] || base_args+=(--required-base "$required"); done <<< "$required_bases"
    uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
      --checkout "$TARGET_ROOT" --repo "$TARGET_REPO" "${base_args[@]}" > "$SESSION/code-base.json" || exit 2
    CODE_BASE_BRANCH="$(jq -r .branch "$SESSION/code-base.json")" || exit 2

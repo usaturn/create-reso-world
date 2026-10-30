@@ -69,7 +69,8 @@ class Workflow:
                    CODE_PR_BODY=str(self.session / "body.md"),
                    DOC_PR_BODY=str(self.session / "body.md"))
         chunks = [step("input"),
-                  'REQUIRED_BASES=(); if [ -n "$REQUIRED" ]; then REQUIRED_BASES+=("$REQUIRED"); fi',
+                  # The requirement reaches capture only through SESSION, never a shell array.
+                  'if [ -n "$REQUIRED" ]; then printf "%s\\n" "$REQUIRED"; fi > "$SESSION/required-bases.txt"',
                   step("capture"), step("worktree"),
                   'printf "new implementation\\n" > "$CODE_ROOT/change"',
                   'git -C "$CODE_ROOT" add change; git -C "$CODE_ROOT" commit -qm implementation',
