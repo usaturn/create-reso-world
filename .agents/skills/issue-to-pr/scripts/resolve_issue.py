@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shlex
 import subprocess
 import sys
 from pathlib import Path
 from typing import NamedTuple
+
+from git_env import git_environment
 
 # AGENTS.md の「リポジトリ境界」の表のうち、issue-to-pr が branch と PR を作ってよいリポジトリ。
 # 上流の orange3134/resoloop は docs/resoloop-fork-workflow.md の流れで扱うので含めない
@@ -43,11 +44,6 @@ NUMBER = re.compile(r"#([1-9][0-9]*)")
 ORIGIN_URL = re.compile(
     r"(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)([A-Za-z0-9-]+/[A-Za-z0-9._-]+?)(?:\.git)?/?"
 )
-
-
-def git_environment() -> dict[str, str]:
-    """Inherited Git directory/config overrides must not redirect a verified checkout."""
-    return {name: value for name, value in os.environ.items() if not name.startswith("GIT_")}
 
 
 def run_readonly(*args: str, cwd: Path | None = None) -> str:

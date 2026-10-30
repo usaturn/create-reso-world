@@ -13,14 +13,16 @@ import subprocess
 import sys
 from pathlib import Path
 
-from resolve_issue import ORIGIN_URL, git_environment, require_tracked_cwd, supported, validate_branch
+from git_env import git_environment
+from resolve_issue import ORIGIN_URL, require_tracked_cwd, supported, validate_branch
 
 SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
 
-def git(checkout: Path, *args: str) -> str:
+def git(checkout: Path, *args: str, transport_auth: bool = False) -> str:
+    """Local reads drop every inherited GIT_*; only origin transport keeps its authentication."""
     result = subprocess.run(
-        ["git", *args], cwd=checkout, env=git_environment(),
+        ["git", *args], cwd=checkout, env=git_environment(transport_auth=transport_auth),
         capture_output=True, text=True, timeout=60,
     )
     if result.returncode:
@@ -39,7 +41,7 @@ def require_origin(checkout: Path, repo: str) -> None:
 
 
 def remote_sha(checkout: Path, ref: str) -> str:
-    response = git(checkout, "ls-remote", "--exit-code", "--refs", "origin", ref)
+    response = git(checkout, "ls-remote", "--exit-code", "--refs", "origin", ref, transport_auth=True)
     lines = response.splitlines()
     if len(lines) != 1:
         raise ValueError("origin の base ref を一意に確定できません")
@@ -71,7 +73,7 @@ def resolve_base(
         raise ValueError("origin の base が捕捉した SHA から移動しました")
     # Explicit source + empty refmap prevents repository fetch configuration from
     # updating any local head or remote-tracking ref. Do not write FETCH_HEAD.
-    git(checkout, "fetch", "--no-tags", "--no-write-fetch-head", "--refmap=", "origin", ref)
+    git(checkout, "fetch", "--no-tags", "--no-write-fetch-head", "--refmap=", "origin", ref, transport_auth=True)
     if remote_sha(checkout, ref) != sha:
         raise ValueError("origin の base が取得中に移動しました")
     if git(checkout, "cat-file", "-t", sha) != "commit":
