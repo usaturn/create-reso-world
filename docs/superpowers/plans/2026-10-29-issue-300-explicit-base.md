@@ -85,8 +85,8 @@ SDD: SESSION の `sdd/2026-10-29-issue-300-explicit-base/`。再生成キャッ�
 ## 統合・公開（controller）
 
 - [x] Task ごとのレビュー後、Spec→Task→証拠を条件単位で照合。最後の whole-branch review と必要な1回の修正。
-- [ ] README の3入口: `bash .devcontainer/run-tests.bash`; `bash scripts/check-layout.sh`; `uv run --locked pytest tests/skills .agents/skills .agents/scripts tools`。最後の commit の clean HEAD と各 argv / exit / log、finalize checks-file を SESSION に記録。
-- [ ] Issue / 競合を再確認し、親 checkout の scan-before-push.sh が返す SHA だけを push。PR は main 宛て、Closes #300。Spec/Plan はこの PR に含める。
+- [x] README の3入口: `bash .devcontainer/run-tests.bash`; `bash scripts/check-layout.sh`; `uv run --locked pytest tests/skills .agents/skills .agents/scripts tools`。最後の commit の clean HEAD と各 argv / exit / log、finalize checks-file を SESSION に記録。
+- [x] Issue / 競合を再確認し、親 checkout の scan-before-push.sh が返す SHA だけを push。PR は main 宛て、Closes #300。Spec/Plan はこの PR に含める。
 - [ ] 親 checkout のループを指定 inspect で実行し、finalize 以外では merge しない。private Actions は待たない。結果・関連 Issue の観測 state・時間・残存資源を報告。
 
 ## 実行記録（2026-10-30、公開前）
@@ -95,4 +95,26 @@ Task 1 `c8a681d`（約13分）・Task 2 `e3e6a36`（約15分）・Task 3 `50d6d2
 
 最終修正の証拠: 誤送信先に実refが届くREDを確認後、代表Sテストを追加。focused13・covering141・全pytest1255がexit0。strict modeの別シェル境界、GIT_*の読取/書込境界、runner用保存先分離、非default branchのCloses説明を修正し、重複したallowlistケースは削除した。条件別の根拠はSpecの実行記録に記す。
 
-引き継ぎ後のレビュー・修正は約57分経過時点で完了。元の予算記録の約492分は中断区間未分類であり、実連続作業時間とは扱わない。追加240分のledgerはSESSION/budget-continuation.jsonl。最後の文書commit後のREADME3入口・checks-file保存、push・PR・指定ループはこれから実行する。文書はdraftのまま、内容承認ではなく実行許可に基づく。公開未実施。
+引き継ぎ後のレビュー・修正は約57分経過時点で完了。元の予算記録の約492分は中断区間未分類であり、実連続作業時間とは扱わない。追加240分のledgerはSESSION/budget-continuation.jsonl。ここまでは公開前の記録。文書はdraftのまま、内容承認ではなく実行許可に基づく。
+
+## PR #301 の進捗・第1サイクルの修正
+
+`dbfa04ed299919b0511f246dd4a3ced8e6b0aabe` の clean HEAD で README3入口（24 scripts PASS / layout PASS / 1255 passed）・diff check が成功。親scannerが返した同SHAをpushし、https://github.com/usaturn/create-reso-world/pull/301 を作成済み。baseはmain、未マージ。`907057843bcf4fc8948eba3b8d627918` の指定ループは第1サイクルの計画中。accepted2名、claude-opusはawaiting_approvalでrejectedだが保存成果を事実確認に使った。
+
+追加Taskは既存の実行許可に含まれるレビュー修正であり、上記3 Taskのやり直しではない。採否・守る条件の設計・全影響経路・原指摘の対応は既存Specの「PR #301 レビュー修正・第1サイクル」を基準にする。対応するのは環境処理の認証保持とbash/zsh互換性の2件（出典3件）。main移動時の安全停止、記録項目の列挙、旧evalの期待は修正しない。
+
+### Task 4: 第1サイクルの環境処理修正
+
+**担当:** run_roles.py の implement=claude-opus、controllerが統合。既存のPR用worktreeへ検証済みcommitだけを取り込む。
+**Files:** issue-to-prのSKILL.md、resolve_issue.py/resolve_base.pyと必要な同一責務のhelper。文書の結果はcontrollerが更新する。
+**テスト要否:** 認証停止とshell非互換はLなので恒久テスト追加なし。既存の対象取り違え/誤送信防止Sテストを維持し、必要なら代表例のみ更新。拒否の守りを変更したときは一時的なガード除去対照も実行する。定数・文言のFテストや重複は作らない。
+
+- [ ] 採用指摘の原文と同じ受け入れ基準・影響経路を担当へ渡す。担当はrunnerのworktreeだけを変更し、push/Issue/PR操作や再委譲をしない。
+- [ ] 関連テスト、ローカルSSH/askpassの認証保持、bash/zshの実手順、別シェル再開、GIT_CONFIG_COUNTの誤送信防止と正常対照を同期実行。実行したargv/対象HEAD/exit/観測を報告。
+- [ ] controllerが差分と共有条件を照合、README3入口、親scannerを実行。
+- [ ] run_roles.pyの自己レビュー/fix-checkを1回実行、指摘を採否基準で裁定。必要な修正後は検証のみを再実行。
+- [ ] Specの結果・PRの既知の制限を実測と一致させ、検査済みSHAを既存PRへpush。記録付きコメント、cycle-end、次サイクルまたは明示的障害で終了。
+
+受け入れ基準は上記の共通本文を保ち、今回の同じ境界に対してbashとzsh、remote認証の有無を追加観測する。防御範囲を広げたり、既存の対象・base・mergeガードを狭めたりしない。実入力は従来どおり main と非ASCII統合branch、外部コードと文書の別base、GIT_CONFIG_COUNTによる別送信先。実サービスへの試験書込み・有料モデルのテストは使わない。
+
+追加予算は既存240分枠内。第1サイクルの確認まで約120分消費、残り約120分。実装目安20分、統合/自己レビュー25分、次の指定レビュー45分、最終化/余裕30分。runnerの期限・停止規則は変更しない。主要条件を満たせないまま予算に達したら検証済みとせずhandoffする。
