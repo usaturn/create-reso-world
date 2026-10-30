@@ -117,6 +117,7 @@ F の所有ファイル（`SemanticVersion.cs`・`PluginNames.cs`・`PluginError
 | `RESOLOOP_PLUGIN_HOST_VERSION` | 本体の版（`resoloop --version` と同じ文字列） |
 | `PYTHONPYCACHEPREFIX` | `<data>/.cache/python`（Python のバイトコードを package に書かせない） |
 | `UV_PROJECT_ENVIRONMENT` | `<data>/.venv`（`uv run` の仮想環境を package に作らせない） |
+| `PWD`（Linux） | 子の cwd（プロジェクトのルート）。親の値は本体の cwd を指すので置き換える。make の `$(PWD)` などが別の場所を対象にしないため（最終レビューの指摘で追加） |
 
 ResoniteLink の URL は渡さない。プラグインは呼び戻しで本体を使い、本体は cwd（プロジェクトのルート）と引き継いだ環境から従来どおり設定を解決する。`uv run` が lock の無い package に `uv.lock` を書く問題は、作者が lock を同梱し `uv run --frozen` か `--locked` を使う規則として #101 の文書に書く（本体は `UV_FROZEN` 等を設定しない。4 章 D7）。
 
@@ -126,7 +127,7 @@ ResoniteLink の URL は渡さない。プラグインは呼び戻しで本体�
 
 ### 3.5 終了・期限・キャンセル
 
-**閉じ込め**: Linux は `posix_spawn` の `POSIX_SPAWN_SETPGROUP` で子を新しいプロセスグループの先頭にし、親の fd は 0〜2 以外を閉じる（`closefrom(3)`、lock のファイルを子へ渡さない）。終了の検出は `waitid(WEXITED|WNOWAIT)` で先頭の PID を確保したまま行う。Windows は `CREATE_SUSPENDED` で作り、`KILL_ON_JOB_CLOSE` の Job に入れてから再開する。継承するハンドルは `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` で標準入出力だけに限る。コンソールを引き継ぐため `CREATE_NO_WINDOW` は使わない（子孫のコンソールの窓を出さない）。F の `PluginGit` の閉じ込めと同じ方式を、#98 の所有ファイルの中に持つ（4 章 D3）。
+**閉じ込め**: Linux は `posix_spawn` の `POSIX_SPAWN_SETPGROUP` で子を新しいプロセスグループの先頭にし、`POSIX_SPAWN_SETSIGDEF` で SIGPIPE を既定に戻し（.NET の本体が無視している状態が exec を越えて残ると、シェルのパイプの書き手が EPIPE で回り続ける）、`POSIX_SPAWN_SETSIGMASK` で止めているシグナルを空にし、親の fd は 0〜2 以外を閉じる（`closefrom(3)`、lock のファイルを子へ渡さない）。終了の検出は `waitid(WEXITED|WNOWAIT)` で先頭の PID を確保したまま行う。Windows は `CREATE_SUSPENDED` で作り、`KILL_ON_JOB_CLOSE` の Job に入れてから再開する。継承するハンドルは `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` で標準入出力だけに限る。コンソールを引き継ぐため `CREATE_NO_WINDOW` は使わない（子孫のコンソールの窓を出さない）。F の `PluginGit` の閉じ込めと同じ方式を、#98 の所有ファイルの中に持つ（4 章 D3）。
 
 **停止**: 次のどの終わり方でも、最後にグループ（Job）全体を強制終了し（Linux `kill(-pgid, SIGKILL)`、Windows `TerminateJobObject`）、5 秒以内に先頭の終了とグループの全員（Job の active process）が居なくなったことを確かめてから戻る。確かめられなければ `PLUGIN_COMMAND_STOP_FAILED`（終了コード 7。context に `plugin`・`command`・Linux は `processGroup`）。
 
@@ -286,8 +287,7 @@ Linux（この Dev Container、`global.json` の .NET 10.0.201）で build と�
 
 | 守り | テスト | 通る例 |
 | --- | --- | --- |
-| 生 argv の変形・シェル解釈、cwd・プロジェクト・data の取り違え、子の失敗の終了コードを成功にする | `RawArgumentsReachTheChildUnchanged`: 実入力の argv・cwd・`RESOLOOP_PLUGIN_*` を子が記録し、本体が子の終了コード 3 を返す | 同じテストが通る例 |
-| 組み込みの乗っ取り | `BuiltinNamesNeverReachPlugins`: `import`・`IMPORT` を宣言したプラグイン（旧版で導入された想定）があっても、`Parse` は組み込みとして `null` を返し、プラグインのプログラムは動かない | 同じプロジェクトの別名のコマンドは `Parse` がプラグインの呼び出しとして返す |
+| 生 argv の変形・シェル解釈、cwd・`PWD`・プロジェクト・data の取り違え、子の失敗の終了コードを成功にする | `RawArgumentsReachTheChildUnchanged`: 実入力の argv・cwd・`PWD`（Linux）・`RESOLOOP_PLUGIN_*` を子が記録し、本体が子の終了コード 3 を返す | 同じテストが通る例 |
 | 期限切れを成功にする、子孫が残る | `TimedOutCommandsFailAndStopTheirProcessTree`（runner）: 子が孫を起動して止まらない。期限 5 秒で `PLUGIN_COMMAND_TIMEOUT`、子・孫とも動いていない | 先頭の通常終了の戻り値（下の行） |
 | キャンセルを成功にする、実行中に package が消される | `CommandsHoldTheLeaseAndCancellationNeverSucceeds`（dispatch）: 実行中の remove は `PLUGIN_PROJECT_BUSY`、キャンセルで `PLUGIN_COMMAND_CANCELLED`、子・孫とも動いていない | 終わった後の remove の成功 |
 | 先頭の終了後に子孫が残る | `NormalExitStopsLeftoverDescendants`: 子が孫を残して 7 で終わる。本体は 7 を返し、孫は動いていない | 戻り値 7 |
@@ -299,7 +299,8 @@ Linux（この Dev Container、`global.json` の .NET 10.0.201）で build と�
 - Ctrl+C・SIGTERM からキャンセルへの変換（`PosixSignalRegistration`）は、I の結線後に実際のシグナルで確かめる（テストの host にシグナルを送らない）
 - `PYTHONPYCACHEPREFIX`・`UV_PROJECT_ENVIRONMENT` の値（壊れると次回の照合が `PLUGIN_MODIFIED` で止まる。L）。一時の確認で値を見る
 - 未知名の `UNKNOWN_COMMAND`、`--project` の誤り、doctor のプラグイン無しの空の一覧（エラー・出力の変化として気付ける。L）。一時の確認で見る
-- catalog の名前の一覧そのもの（F）。漏れは I の結線で気付ける（3.2）
+- 組み込みの乗っ取り（L・D）: `Parse` の分岐が壊れても、F の実行時の照合（`BuiltinCommandCatalog.Reservations` による `PLUGIN_NAME_CONFLICT`）か `UNKNOWN_COMMAND` で表に出る。catalog の名前の漏れは I の「catalog に無い先頭名は接続前に `UNKNOWN_COMMAND`」で表に出る。当初の `BuiltinNamesNeverReachPlugins` は、残る検出力が固定の一覧（F）だけという最終レビューの指摘で削除した
+- SIGPIPE の既定化（壊れると `PLUGIN_COMMAND_TIMEOUT` で表に出る。L）。一時の確認で、子の `SigIgn` とシェルのパイプの終了を見た
 - ツールの確認の期限切れ（実行の期限切れと同じ閉じ込め。D）
 - 検証の入口: worktree で `dotnet build ResoLoop.slnx --nologo` と `dotnet test ResoLoop.slnx --no-build --nologo`、PR の公開 CI（Windows）
 
@@ -330,3 +331,12 @@ Linux（この Dev Container、`global.json` の .NET 10.0.201）で build と�
 - **#101**: 3 章と 6 章を利用者・作者向けの文書にする。Windows の `.exe` だけ（`./` は書かれたとおり）、PATH の絶対パスだけ、OS をまたぐ書き方、`uv run --project ${pluginRoot}`、stdin、常駐プロセス、終了コードの重なり
 - **#105**: 閉じ込めのコードの共通化（D3）を上流 PR の前の整理候補にする
 - **#99**: `reservations` には `BuiltinCommandCatalog.Reservations` を渡す（コマンド・同梱スキル・組み込みレシピを含む。#99 が同梱スキルを重ねて足しても同じ集合）
+
+## 9. 実装とレビューの記録
+
+- コード: usaturn/resoloop `feat/create-reso-world-issue-98-plugin-commands`、base `0143618`。Task 1〜4 と最終レビューの修正（`ace96d7`）
+- 検証（Linux、Dev Container、.NET 10.0.201）: `dotnet build ResoLoop.slnx --nologo` は警告・エラー 0。`dotnet test ResoLoop.slnx --no-build --nologo` は RLoop.Tests 589・RLoop.IntegrationTests 22 がすべて成功。一時の結線（I を模した console）で、未知名・`--project=`・組み込みの素通し・プロジェクト設定の期限 2 秒・data の下の環境・JSON をそのまま出す・子の終了コード・パイプと端末の stdin・SIGPIPE・`PWD`・プラグイン無しの doctor を確かめた。Windows は PR の公開 CI で確かめる
+- base `dd0b40f` のときの全体テストの 1 回目に、変更範囲外の `CaptureTests.WaitsForCompletedNewFileAndPreservesOldPhotos` が共有違反で 1 件失敗した（単体の再実行 8 回はすべて成功、2 回目の全体は成功）。既存の時間依存の競合と判断し、所有範囲の外なので変えていない
+- 最終レビュー（新しいレビュアー、Opus）: Critical 0、Important 2（SIGPIPE、STOP_FAILED の `processGroup`）を修正。Minor の `PWD` は取り違えに気付けない損害なので Important として修正。テストの書きすぎの指摘で `BuiltinNamesNeverReachPlugins` を削除
+- 見送った Minor（持ち越し候補）: 期限切れの提案文が manifest の `timeoutSeconds` の場合も `commandTimeoutSeconds` を案内する、Windows で `.cmd`・`.bat` しか無いツールを doctor が「見つからない」と示す、ツール確認がパイプの EOF を待つため出力を握る子孫を残すツールは 30 秒で `timed-out` になる、`Exited` の失敗（waitid の ECHILD 等）がグループの停止の後に `RLoopException` でない例外として出る、#101 の文書で「doctor は package のコードを実行しない」と書かない（`versionArgs` でインタープリタに式を渡せる）
+
