@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: draft（実行許可と設計内容の承認は別）
+- 状態: completed（内容の承認は未取得。実行許可に基づく完了記録。PR #301 のレビュー修正は、判断の記録の 1・2 回目（第 1 サイクル）と 3 回目（新しいループのサイクル 1）がどちらも結論 1（修正して push）。以後のサイクルとマージ・Issue の更新の結果は状況コメントと完了報告にある）
 - 対象: usaturn/create-reso-world #300
 - 利用者の指示: `/skill:issue-to-pr #300 --assign inspect=claude-opus,devin-swe,pigod --merge`
 - 許可範囲: 推奨案による設計・実装・検証・commit・push・PR、指定したレビュー修正ループの finalize によるマージ。
@@ -173,3 +173,127 @@ PR: https://github.com/usaturn/create-reso-world/pull/301 。レビュー対象�
 **検証:** issue-to-pr のテスト・finalize のテスト・scan の既存テスト、bash/zsh の一時プローブ（正例・負例）、README の 3 入口（`bash .devcontainer/run-tests.bash`・`bash scripts/check-layout.sh`・`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools`）、`git diff --check`、親の scanner の検査。自己レビューの 2 回目はしない（この修正は再レビューしていない）。
 
 **結論と再レビューの扱い:** 結論 1（修正して push）。M-1 は設定の implement（claude-opus、runner の success、562.5 秒、`stop_confirmed: true`）が `8a34576` で直し、controller が tree の一致を確かめて `7c8a16a` として取り込んだ。clean HEAD `7c8a16a` で README の 3 入口（24 scripts PASS / layout PASS / 1255 passed）と diff check が exit 0（2026-10-30 07:46:03–07:53:30 UTC、`tmp/agents/review-fix-planning-pr301.kwgmhiu8/controller-verification-2.json`）。scan の既存テストは担当の確認と README の入口で PASS。M-1 の修正は再レビューしていない（自己レビューは 1 回まで）。このサイクルの修正は完了とし、文書全体は issue-to-pr の規則のとおり draft のままにする。
+
+## PR #301 レビュー修正・新しいループのサイクル 1（判断の記録の 3 回目、2026-10-30）
+
+### 入力・実行許可・採否
+
+PR: https://github.com/usaturn/create-reso-world/pull/301 。レビュー対象は `110abe2ac727ff6b28a9b16cd429260f39feb334`（2 回目の記録で push した head）、base は `5dc093cc2ed6855fb15353d70c1e8bb3b12d2151`。loop run は `2d0a950866124a7a90a2a02bf889fe0c`（利用者の再開の指示による新しい run。オプションは元の `--assign inspect=claude-opus,devin-swe,pigod` だけ）。planner は claude-opus-5-5 / claude-code（司令塔）。実装は設定の `claude-opus`、自己レビューと fix-check は `self`、fallback は空。実行許可は元の `--merge` の指示と、2026-10-30T07:17Z の再開の指示（予算 240 分の追加を含む）で、設計内容の承認とは扱わない。
+
+| レビューファイル | モデル / runtime | HEAD / 再実行 | Merge recommendation | loop の判定 |
+|---|---|---|---|---|
+| claude-opus-5-5.md | claude-opus-5-5 / claude-code | 110abe2ac727 / true（Update） | Approve | accepted（active 1） |
+| deepseek-v4.1-flash.md | deepseek-v4.1-flash / pi | 110abe2ac727 / true（Update） | Approve | accepted（active 1） |
+| SWE-2-Max.md | SWE 2 Max / devin | 110abe2ac727 / true（Update） | Approve | accepted（active 0） |
+| claude-opus-5-5-commit-6649f98c6736a32dea8378e3db2996d210363ded.md | claude-opus-5-5 / claude-code | 6649f98c6736 / false | Needs manual verification | 2 回目の修正後の自己レビュー。古いレビュアーとして扱い、未判断の指摘は無い |
+
+前の判断は 6 件（対応する 3・対応しない 3）。新しい指摘 2 件と合わせ、現行 HEAD の事実と採否基準で分類した。解消済み 3、対応する 2、対応しない 3。
+
+| 出典 | 区分 | 根拠・見直す条件 |
+|---|---|---|
+| deepseek-v4.1-flash#M-1@dbfa04ed2999、SWE-2-Max#L-1@dbfa04ed2999 | 解消済み | `d7590a9`・`6649f98` で、remote 通信は認証の 4 変数を保持。fix-check（6649f98）と、deepseek・SWE 2 Max の 110abe2 のレビューの Resolved で確認 |
+| claude-opus-5-5#H-1@dbfa04ed2999 | 解消済み | `d7590a9` で 7 つのブロックを bash/zsh 共通の書き方にした。15 プローブ（6649f98）と claude-opus の 110abe2 のレビューの Resolved で確認 |
+| claude-opus-5-5-commit-6649f98c6736a32dea8378e3db2996d210363ded#M-1@6649f98c6736 | 解消済み | `7c8a16a` で scan の SHA を `SESSION` のファイルから読む。110abe2 の SKILL.md の publish・pr のブロックと、controller の一時プローブ（7c8a16a）で確認。保存ファイルが無いときの停止が errexit に頼る点は、claude-opus-5-5#M-2 で扱う |
+| claude-opus-5-5#M-2@110abe2ac727 | 対応する | (a) Claude Code の Bash ツールは `… && eval '<コマンド>' … && …` で実行するので、ブロックの `set -e` が効かない。手順どおりに進めると、base の移動・SHA の欠落・実 PR の base の不一致を検出しても PR を作り、成功の終了コードを返す。controller がこのセッションの Bash ツールで errexit が効かないことを確かめ、レビュアーが同じ包み方で PR の作成まで進むことを再現した |
+| deepseek-v4.1-flash#M-2@110abe2ac727 | 対応する | (a) 親 Issue・handoff が main を要求する通常の run で `--base` を省くと、worktree の作成前に止まる（正しい入力の拒否）。Issue #300 は main 以外の要求で引数が無いときだけ止まり、`--base` 未指定の main 経路を維持すると定める。現行 HEAD の `resolve_base.py` の判定とレビュアーの再現で確認 |
+| claude-opus-5-5#M-1@dbfa04ed2999 | 対応しない（引き継ぎ） | main の前進でも捕捉した base SHA との差を検出して公開を止めるのは選択済みの安全設計。claude-opus の Decided に新しい根拠は無い。利用者が base の移動時の方針の変更を明示したときに見直す |
+| claude-opus-5-5#L-1@dbfa04ed2999、SWE-2-Max#I-1@dbfa04ed2999 | 対応しない（引き継ぎ） | 確定した base の 4 項目の明示列挙の漏れだけで、主要な誤動作を示さない。両者の Decided に新しい根拠は無い |
+| deepseek-v4.1-flash#L-1@dbfa04ed2999、claude-opus-5-5#I-1@dbfa04ed2999 | 対応しない（引き継ぎ） | 旧 eval の期待の不一致は主要な手順を止めない。両者の Decided に新しい根拠は無い |
+
+### 要件との対応
+
+| PR・Issue の約束 | 今回の修正方針 | 観測する結果 | 検証方法 |
+|---|---|---|---|
+| base が移動した場合に、未検証の組み合わせを成功扱いしない。実 PR の base/head の不一致で止まる | claude-opus-5-5#M-2: 停止を errexit に頼らず、ブロックの各コマンドで明示する | errexit の効かない包み方でも、base の移動・実 PR の不一致で PR を作らない、または作成後に非 0 で止まる | ハーネスを errexit の効かない包み方にした既存の S のテスト、一時プローブ |
+| `--base` 未指定時の既存の main 経路を維持し、main 以外の指定が必要なのに引数が無い場合だけ止まる | deepseek-v4.1-flash#M-2: 要求が main なら既定の main で進む | 要求 main・`--base` なしで終了コード 0、main 以外の要求・食い違いは終了コード 2 | 一時の実行、既存の S のテスト |
+| 親 Issue・handoff の要求と明示引数が食い違う、または main 以外の要求で引数が無い場合は止まり、黙って main に向けない | 自己レビューの M-1: 要求 base を `SESSION` のファイルから capture に渡し、無ければ止まる | 別の呼び出しで capture を実行しても、main 以外の要求・`--base` 無しで終了コード 2 | ファイルで要求を渡すハーネスの既存の S のテスト、別プロセスの一時プローブ |
+| 既存の検査・停止条件・テストの方針（S に限定） | 新しいテスト関数を足さない。既存のハーネスの包み方だけを変える | 変更前の SKILL.md で既存の S のテストが失敗し、変更後に通る | 担当と controller の確認 |
+
+共有条件（7 つのブロックの停止と、base JSON → 検査 → 正しい送信先・PR の流れ）の統合担当は controller。担当別のテストの成功だけで済ませず、errexit の効かない包み方で、停止点ごとの負例と正例を確かめる。
+
+### 対応する 2 件の修正方針
+
+#### claude-opus-5-5#M-2@110abe2ac727: ブロックの停止が errexit に頼っている
+
+**きっかけ:** 1（同じ守る条件の 2 回目）と 2（修正が生んだ回帰）。「失敗・base の移動は後続の公開を止める」は、`350d78a`（再開したシェルの fail-fast）と第 1 サイクルの表（「明示的な失敗伝播と strict mode」で「既に満たす」）が扱った条件で、`d7590a9` は最初のブロックに `set -euo pipefail` を足し、`7c8a16a`（M-1）は `[ -n "$CODE_SHA" ]` の停止を足した。どれも errexit が効くことを前提にしていた。Claude Code の Bash ツールはコマンドを `zsh -c "source <snapshot> … && eval '<コマンド>' < /dev/null && pwd -P >| …"` で実行するので、`&&` の並びの途中の `eval` の中では `set -e` が無視される（このセッションの Bash ツールで `set -euo pipefail; false; echo …` が最後まで進むことを確かめた）。テストと一時プローブは、ブロックを errexit の効く `bash -c`・`zsh -c` で直接実行していたので、この経路を通っていなかった。
+
+**守る条件:** SKILL.md の 7 つの実行ブロックは、errexit が効かない包み方（Claude Code の `… && eval '<ブロック>' … && …`）で実行されても、helper・値の読み込み・検査・照合・外部への書き込みの失敗で止まり、その後の外部への書き込み（worktree の作成・push・PR の作成）と成功の終了コードに進まない。`set -euo pipefail` は errexit が効く環境での二重の守りとして残すが、停止の根拠にしない。
+
+| 守る条件 | 経路 | 判定 | 変更前の挙動 | 確かめる assertion | 確かめる方法 |
+|---|---|---|---|---|---|
+| helper・値の取得の失敗で止まる | 最初のブロックの `PARENT_ROOT` の導出、input の `resolve_issue.py`、capture の `resolve_base.py`（コードと文書）と `jq -r` の読み込み、各ブロックの `git_env.py` | 修正する | errexit 任せ。Claude Code では失敗の後も続き、空の値で後続へ進みうる | errexit の効かない包み方で helper を失敗させると非 0 で止まり、後続のファイル・worktree が作られない | 一時プローブ |
+| base の再確認の失敗で止まる | worktree・diff・publish（scan の前、文書と コードの各 push の前）・pr（作成の前と後）の `recheck_bases` | 修正する | errexit 任せ。Claude Code では base が動いても worktree の作成・push・PR の作成へ進む | errexit の効かない包み方で base を動かすと、非 0 で止まり、push・PR の作成が無い | 既存の `test_resumed_shell_stops_before_pr_creation_when_base_moved` を、errexit の効かない包み方のハーネスで実行 |
+| scan の失敗・SHA の欠落で止まる | publish の `CODE_SHA`・`DOC_SHA` の取得・`[ -n ]`・保存、pr の読み込み・`[ -n ]` | 修正する | errexit 任せ（push は `${CODE_SHA:?}` が止める） | 保存ファイルが無い・空なら PR を作らずに非 0 | 一時プローブ |
+| 実 PR の照合の不一致で止まる | pr の `gh pr view` と `jq -e`（コードと文書） | 修正する | errexit 任せ。Claude Code では `false` を出して終了コード 0 | 実 PR の base の不一致で非 0 | 既存の `test_created_pr_retarget_is_not_reported_as_matching` を、errexit の効かない包み方のハーネスで実行 |
+| 外部への書き込み自体の失敗で止まる | `git worktree add`・`git push`・`gh pr create`・URL と JSON の保存 | 修正する | ブロックの最後のコマンドなら終了コードが残るが、途中のものは後続へ進む | 失敗で非 0、後続の書き込みが無い | 読解と一時プローブ |
+| 正常系は変わらない | 7 つのブロック全体 | 既に満たす（維持） | errexit の効く環境で、正しい base・SHA の worktree・diff・scan・push・PR | errexit の効く包み方と効かない包み方の両方で、同じ base・SHA・PR になる | 既存の通し手順テスト（`test_documented_flow_pins_worktree_diff_scan_and_pr`・`test_publish_cannot_inherit_a_different_push_target`）を新しい包み方で |
+| 既存の独立した境界 | `scripts/scan-before-push.sh`（`bash <ファイル>` で実行され errexit が効く）、finalize・runner、base の移動の設計 | 対象外 | ― | ― | 変更しない |
+
+**比べた直し方:**
+
+1. 点の修正: レビュアーが挙げた停止点（`recheck_bases`・`[ -n ]`・`jq -e`）だけに明示の停止を付ける。helper・値の読み込み・書き込みの失敗は errexit 任せのまま残る
+2. 条件をまとめて保つ（推奨）: 7 つのブロックの、失敗が後続を無効にするすべてのコマンドに明示の停止（`|| exit 2`）を付け、停止を errexit に頼らないことを SKILL.md の規則に書く。テストのハーネスは、ブロックを errexit の効かない包み方（Claude Code と同じ `&& eval`）で実行し、既存の S のテストと通し手順が、明示の停止だけで成り立つことを確かめる
+3. 構造の作り直し: 各ブロックを helper のスクリプト（`bash <ファイル>`）や `bash -euo pipefail` の子プロセスに移す。errexit は確実に効くが、ブロック間で変数・関数を共有する今の手順を、全ブロックの入出力をファイルにする形へ作り直すことになり、この PR の範囲と危険を大きく広げる
+4. 保証を狭める: Claude Code を対象外にする。主要なランタイムなので選ばない
+
+**テストの方針:** 停止の失敗は、気付かないまま PR を作って成功を返す S である。新しいテスト関数は足さず、既存のハーネスがブロックを errexit の効かない包み方で実行するように変え、既存の S のテスト（base の移動・作成後の base の不一致・push 先の注入・要求 base の転送）と通し手順で守る。変更前の SKILL.md と新しいハーネスの組み合わせで、それらが失敗することを確かめる。
+
+#### deepseek-v4.1-flash#M-2@110abe2ac727: 親・handoff が main を要求すると、既定の main でも止まる
+
+**きっかけ:** 無し（required base の判定は `c8a681d`・`50d6d24` の実装で、レビュー修正は触れていない）。
+
+**守る条件:** 親 Issue・handoff の要求が main で、利用者が `--base` を書かないときは、既定の main を要求と一致するものとして扱う。main 以外の要求で `--base` が無いとき、要求と `--base` が食い違うときは、外部への書き込みの前に止まる（Issue #300 の受け入れ条件）。
+
+| 守る条件 | 経路 | 判定 | 変更前の挙動 | 確かめる assertion | 確かめる方法 |
+|---|---|---|---|---|---|
+| 要求が main で `--base` が無ければ、既定の main で進む | `resolve_base.py` の required base の判定 | 修正する | 終了コード 2「要求された base を --base で明示してください」 | 終了コード 0、main の SHA | 一時の実行（ローカルの bare remote） |
+| main 以外の要求で `--base` が無ければ止まる | 同上 | 既に満たす（維持） | 終了コード 2 | 終了コード 2 | 既存の S のテスト（`test_rejects_wrong_target_and_required_base`） |
+| 要求と `--base` が食い違えば止まる | 同上 | 既に満たす（維持） | 終了コード 2 | 終了コード 2 | 既存の S のテストと一時の実行 |
+| 手順の説明が実装と一致する | SKILL.md の `--base` の節（「一致する要求でも `--base` の明示が必要」） | 修正する | 実装の厳しい判定をそのまま書いている | Issue と Spec（「別 base を要求する場合は明示指定を必須」）に一致 | 読解 |
+
+**テストの方針:** main の要求を拒否してしまう誤りはメッセージ付きの非 0 の終了で気付ける L なので、恒久のテストは足さない。main 以外の要求を通してしまう誤り（S）は、既存の S のテストが守る。修正後に同じ入力で、main の要求は通り、main 以外の要求と食い違いは止まることを一時の実行で確かめる。
+
+**検証:** issue-to-pr のテスト・finalize のテスト・scan の既存テスト、errexit の効かない包み方での一時プローブ（停止点ごとの負例と正例）、README の 3 入口、`git diff --check`、親の scanner の検査。修正の後に、このサイクルの自己レビュー（予約の 1 回）と fix-check を行う。
+
+### 実装・検証の結果
+
+- 実装（対応する 2 件）: 設定の implement（claude-opus、runner の success、1037.8 秒、stop_confirmed）が `c492123` を作り、controller が tree の一致を確かめて `9035299` として取り込んだ。7 つのブロックの、失敗が後続を無効にするコマンド（helper の取得・`GIT_*` の除去・値の読み込み・`recheck_bases`・scan と SHA の保存・worktree の作成・diff・push・PR の作成と照合）に `|| exit 2` を付け、capture の `base_explicit`・`base` を変数に読んでから使う形にし、2 章の 3 に「停止は errexit に頼らない」規則を書いた。ハーネスは各ブロックを `true && eval '<ブロック>' < /dev/null && true || exit $?` で実行する。`resolve_base.py` の判定は `branch != required` にした（要求 main は既定の main と一致する）
+- 担当の確認: 新しいハーネスと変更前の SKILL.md の組み合わせで、既存の S のテスト 2 件（再開後の base の移動・作成後の base の不一致）が失敗し、新しい版で通過。Claude Code と同じ zsh の包み方と bash の包み方の一時プローブ 23 件が通過（変更前の版では 18 件が失敗し、文書の push の失敗の後もコードの push と PR の作成に進む経路も再現）
+- controller の確認: Claude Code と同じ zsh の包み方で各ブロックを実行する一時プローブで、正例（同じリポジトリ・外部の対象）、base の移動と保存ファイルの欠落（PR を作らずに終了コード 2）、作成後の base の不一致（終了コード 2）、要求 base の 5 通りが期待どおり。clean HEAD `9035299` で README の 3 入口（24 scripts PASS / layout PASS / 1255 passed）と diff check が exit 0、親 scanner は 15 commit を検査して検出なし
+
+### 自己レビュー・修正の確認
+
+- `run_roles.py --phase self-review` の 1 回（予約は `verified/110abe2ac727.planning.json` の `pre_push_review`）。self-review と fix-check はどちらも司令塔の担当で、司令塔がサブエージェント 2 つに同時に任せた（1 回と数える）
+- self-review（観点 2、PR 全体）: `claude-opus-5-5-commit-90352999fdfecfd7e4409e90fe67f3af07f11d60.md`（925 秒）。active は Medium 1 件（M-1）。Merge recommendation は Needs manual verification（Claude Code 以外のランタイムの包み方は確かめられない）
+- fix-check（観点 1・3）: `verified/90352999fdfe.fix-check.json`（1013 秒）。主張 14 件 holds、変更ファイル 3 件 passed、文書の候補 206 件（inconsistent 0）、新しい指摘 0。Claude Code と同じ包み方の 34 プローブで、修正前の版との差（PR の作成・push・worktree の作成に進むかどうか）を確かめた
+
+#### claude-opus-5-5-commit-90352999fdfecfd7e4409e90fe67f3af07f11d60#M-1@90352999fdfe: 要求 base がシェルの配列だけを出所にしている
+
+**区分:** 対応する。(a) 呼び出しごとに `/bin/bash -c` で新しいシェルになる pi で、2 章の 6 の記述どおりに `REQUIRED_BASES` を capture と別の呼び出しで用意すると、bash（5.3）は `set -u` でも未定義の配列の `"${A[@]}"` を空として展開し、要求の照合が `resolve_base.py` に渡らない。main 以外の要求で `--base` が無くても capture が終了コード 0 で main を捕捉し、以後の worktree・差分・scan・PR が main を基準にする（手順のとおりに使うと誤った対象への操作）。自己レビューの担当が、別の呼び出しの bash で再現した（zsh は `set -u` で終了コード 1）。
+
+**きっかけ:** 3（自己レビューでの再発）。2 回目の記録の M-1 で「ブロックに渡す値は `SESSION` のファイルを出所にする」とし、このサイクルの claude-opus-5-5#M-2 で「停止を errexit に頼らず明示する」とした条件が、capture に外から渡す要求 base の配列で破れていた。どちらの表も、ブロックの外（エージェントの手順）から渡す配列を経路に含めていなかった。
+
+**守る条件:** 親 Issue・handoff の要求 base は、capture が `SESSION` のファイルから読む。ファイルが無い・読めないときは、外部への書き込みの前に明示の停止で止まる。要求が無いことも空のファイルで明示する。シェルの配列の有無や `set -u` に頼らない。
+
+| 守る条件 | 経路 | 判定 | 変更前の挙動 | 確かめる assertion | 確かめる方法 |
+|---|---|---|---|---|---|
+| 要求 base を `SESSION` のファイルから渡す | 2 章の 6 の要求の記録 → capture の `--required-base` | 修正する | シェルの配列だけ。別の呼び出しでは bash で黙って空になり main を捕捉 | 要求を書いたファイルから capture が `--required-base` を渡し、main 以外の要求で `--base` が無ければ終了コード 2 | 既存の `test_required_handoff_is_not_lost_before_worktree_creation`（ハーネスはファイルで要求を渡す）。一時プローブ（ファイルを書いた呼び出しと別の呼び出しで capture を実行、bash/zsh） |
+| 要求の記録が無ければ止まる | capture の読み込み | 修正する | 配列が無くても bash では続く | ファイルが無いと非 0 で止まり、`code-base.json`・worktree が作られない | 一時プローブ（bash/zsh、Claude Code と同じ包み方） |
+| 要求が無い run は main で進む | 空のファイル | 既に満たす（形を変えて維持） | `REQUIRED_BASES=()` | 空のファイルで main を捕捉し、通し手順が今までどおり動く | 既存の通し手順テスト |
+| ほかの外部から渡す値 | `SKILL_DIR`・`SESSION`・`TARGET_ROOT` などのスカラー | 既に満たす（変えない） | 未定義のスカラーは `set -u` の展開エラーになり、包み方に関係なく bash・zsh とも止まる（展開エラーは errexit の無視の対象外。bash の例外は配列の `"${A[@]}"` だけ） | 未定義なら非 0 | 自己レビューの担当のプローブ（bash 127・zsh 1） |
+
+**比べた直し方:**
+
+1. 点の修正: capture の先頭で配列が定義されていることを確かめて止める（`typeset -p REQUIRED_BASES >/dev/null 2>&1 || exit 2`）。値の出所はシェルの状態のまま残る
+2. 条件を 1 か所で保つ（推奨）: 要求を `SESSION/required-bases.txt`（1 行に 1 つの branch、要求が無ければ空のファイル）に書き、capture がそこから読む。読めなければ `|| exit 2`。2 章の 6 の「要求値と根拠を記録する」とも合い、2 回目の記録の「値は `SESSION` のファイルを出所にする」と同じ形になる
+3. 保証を狭める: 同じ呼び出しで実行することだけを書く。エージェントの手順の遵守に頼るので選ばない
+
+**テストの方針:** 要求が黙って消える誤りは S。新しいテスト関数は足さず、ハーネスが要求をファイルで渡すように変えて、既存の S のテスト（要求 base の転送）がファイルの経路を通るようにする。変更前の SKILL.md と新しいハーネスの組み合わせで、そのテストが失敗することを確かめる。記録が無いときの停止は、メッセージ付きの非 0 の終了で気付ける L なので、一時プローブで確かめる。
+
+この修正は再レビューしない（自己レビューは 1 回まで）。
+
+**自己レビューの M-1 の修正と検証:** 設定の implement（claude-opus、runner の success、384.9 秒、stop_confirmed）が `34fcf8a` で直し、controller が tree の一致を確かめて `4148496` として取り込んだ。2 章の 6 は要求 base を `$SESSION/required-bases.txt` に 1 行に 1 つ書き（要求が無ければ空のファイル）、capture は `cat … || exit 2` で読んで空行を飛ばす。担当の確認では、新しいハーネスと変更前の SKILL.md の組み合わせで要求 base の転送の既存テストが失敗し（要求が消えて main を捕捉し、push まで進む）、新しい版で通過。controller の一時プローブでは、要求のファイルを書いたプロセスと別のプロセスの capture（bash/zsh、Claude Code と同じ包み方）が、main 以外の要求・`--base` 無しで終了コード 2（worktree なし）、ファイルが無いと終了コード 2、空のファイルと要求 main で main を捕捉した。clean HEAD `4148496` で README の 3 入口（24 scripts PASS / layout PASS / 1255 passed）と diff check が exit 0（2026-10-30 09:38:46–09:48:09 UTC、`tmp/agents/review-fix-planning-pr301.kwgmhiu8/controller-verification-4.json`）。
+
+### 結論
+
+結論 1（修正して push）。対応する 3 件（claude-opus-5-5#M-2・deepseek-v4.1-flash#M-2・自己レビューの M-1）を直し、解消済み 3 件と対応しない 3 件を記録した。自己レビュー後の修正（M-1）は再レビューしていない。確かめていないこと: Pi・Codex・Devin・Cursor の各ランタイムがブロックをどう包むか（このセッションからは観測できない）、非 0 のブロックの後にエージェントが次へ進まないこと（モデルの行動）、実 GitHub・実サービスの認証。

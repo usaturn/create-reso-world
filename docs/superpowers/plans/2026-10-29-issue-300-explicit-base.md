@@ -124,3 +124,7 @@ Task 1 `c8a681d`（約13分）・Task 2 `e3e6a36`（約15分）・Task 3 `50d6d2
 前任の controller（pi）は、予約した自己レビューの prepare を `--model-name` の誤りで開始前に失敗させ、ループは stopped で終了した（Task 4 の 1〜3 項目めは `d7590a9`・`6649f98` と controller の検証で完了済み）。利用者は 2026-10-30T07:17Z に、同じ枠のまま引き継いだ controller（claude-opus-5-5 / claude-code）が自己レビューを 1 回だけ行うこと、致命的な指摘は直して検証だけを通すこと、push の後に新しいループで次のサイクルへ進むこと、予算 240 分の追加を明示した。新しい ledger は `SESSION/budget-continuation-2.jsonl`（前の残り約 43.8 分と追加の 240 分の計 282.5 分）。
 
 自己レビュー（437 秒）は M-1（別シェルの再開で scan の SHA を読み戻せず、PR の作成後に照合の前で止まる）を出し、Spec の「自己レビュー（再開）と M-1 の設計の見直し」で対応すると裁定した（きっかけ 1）。設定の implement（claude-opus）が `8a34576` で修正し、controller が独立に確かめた（`7c8a16a` として取り込んだ clean HEAD で README の 3 入口（24 scripts PASS / layout PASS / 1255 passed）と diff check が exit 0、新しい bash/zsh から保存ファイルだけで再開する一時プローブの正例・負例 10 件が通過）。M-1 の修正は再レビューしていない（自己レビューは 1 回まで）。push・状況コメント・新しいループの結果は PR のコメントに記録する。
+
+### 新しいループのサイクル 1（判断の記録の 3 回目、2026-10-30）
+
+loop run `2d0a950866124a7a90a2a02bf889fe0c`。3 人のレビュアーが `110abe2` を Approve し、active は claude-opus と deepseek の Medium 各 1 件だった。controller は 2 件を対応すると裁定し（Claude Code の Bash ツールでブロックの errexit が効かない、要求 main で `--base` 無しが止まる）、設定の implement（claude-opus）が `c492123`（取り込み後 `9035299`）で直した。予約の 1 回の自己レビューと fix-check（どちらも司令塔の担当で、サブエージェントに任せた）は、fix-check が新しい指摘 0、自己レビューが Medium 1 件（要求 base の配列が別シェルで消える）。それも対応すると裁定し、`34fcf8a`（取り込み後 `4148496`）で直した（再レビューはしない）。採否・守る条件・検証の詳細は Spec の同名の節にある。
