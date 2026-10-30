@@ -37,7 +37,7 @@ Spec 5 章の本文をそのまま実装担当・レビュー担当に渡す。
 
 ## Review Focus
 
-- `.agents` か `.agents/skills` そのものがリンク（利用者が共有ディレクトリへ向けた場合）: 書き込みも読み取りもせず `unsafe-path-conflict` で止まる（Task 1 の計画で、プロジェクトのルートから配布先までの全階層を確かめる）
+- `.agents` か `.agents/skills` そのものがリンク（利用者が共有ディレクトリへ向けた場合）: 書き込みも読み取りもせずに止まる。実装では、計画の前に記録のパスのリンクの確認が働き、`PLUGIN_PATH_UNSAFE` の例外になる（配布先ごとの `unsafe-path-conflict` は、`.agents/skills/<skill>` より下のリンクで出る）
 - manifest の `skills[].path` と実ファイルの大小文字が違う（Windows で通った manifest）: `files` を大小文字を無視した接頭辞で選び、配るファイルが 0 件にならない（Task 1 の Step 3 の規則）
 - 記録ファイルが壊れている・リンク・ディレクトリ: 空として扱わず、何も書かずに止まる（Task 1 の Step 3。不正な記録が例外になるだけの経路は L なのでテストしない）
 - 照合に失敗したプラグイン（`PLUGIN_MODIFIED`）がある: 同梱を含めて何も書かない（F の `OpenVerified` の例外を計画の前にそのまま返す）
@@ -57,7 +57,7 @@ Spec 5 章の本文をそのまま実装担当・レビュー担当に渡す。
 **Interfaces:**
 - Consumes（F、変えない）: `PluginRegistry(string projectRoot, string resoloopVersion, PluginNameReservations reservations)`、`PluginRegistry.ProjectRoot`、`PluginRegistry.OpenVerified() -> PluginReadLease`、`PluginReadLease.Plugins: IReadOnlyList<InstalledPlugin>`、`InstalledPlugin(Name, InstallDirectory, PackageDirectory, DataDirectory, Manifest, Record)`、`PluginManifest.Skills: IReadOnlyList<PluginSkill(Name, Path)>`、`PluginInstallRecord.Files: IReadOnlyDictionary<string,string>`（序数順）、`PluginNameReservations(commands, skills, recipes)` と `Commands`/`Skills`/`Recipes`、`PluginPathPolicy.EnsureNoLinks(path, code, allowMissing)`・`ValidateRelativePath(relative, code)`・`Combine(root, relative, code)`、`PluginJson.Read(path, maximumBytes, code)`・`PluginJson.FindDuplicateProperties(element, path, errors)`、`PluginNames.IsValid(name)`、`PluginErrors.Create(code, message, ...)`
 - Produces（Spec 3 章の公開 API）:
-  - `public sealed record PluginSkillFileStatus(string Plugin, string Skill, string Path, string Status, string PackageHash, string? InstalledHash, string? RecordedHash, string? RecordedPlugin)`（`Path` は `.agents/skills/` からの相対、`/` 区切り）
+  - `public sealed record PluginSkillFileStatus(string Plugin, string Skill, string Path, string Status, string PackageHash, string? InstalledHash, string? RecordedHash, string? RecordedPlugin)`（`Path` は builder check の反映後、プロジェクトのルートからの相対 `.agents/skills/…`、`/` 区切り）
   - `public sealed record PluginSkillRetainedFile(string Plugin, string Path, string RecordedHash)`
   - `public sealed record PluginSkillSyncResult(string Mode, bool Synchronized, IReadOnlyList<string> Updated, IReadOnlyList<PluginSkillFileStatus> Files, IReadOnlyList<PluginSkillRetainedFile> Retained)`
   - `public static class PluginSkillManager { public const string RecordRelativePath = ".agents/skills/.resoloop-plugins.json"; internal static PluginSkillPlan? Open(string targetDirectory, string resoloopVersion, PluginNameReservations reservations); }`
