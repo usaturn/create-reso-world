@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`。内容承認を得たという記録ではない。
+- 状態: `completed`（実装・PRサイクル確認の完了。人の内容承認を得たという記録ではない）。当初はissue-to-prの実行許可でdraftとして保存した。
 - Issue: https://github.com/usaturn/create-reso-world/issues/100 （親 #95、キー `plugin-recipes`）。
 - 利用者の明示入力: `https://github.com/usaturn/create-reso-world/issues/100 --base feat/plugin-v2 --assign inspect=pi-gpt,claude-opus,devin-swe,pi-deepseek --merge`（`/skill:issue-to-pr`）。通常判断は推奨案で決め、実装・検証・commit・push・PR・指定ループを実行する許可。マージはループの finalize.py のみ。文書 PR はマージしない。
 - コード対象: `usaturn/resoloop`、現行の継続run捕捉 ref `origin / refs/heads/feat/plugin-v2`、SHA `454b54cd961e078dac2a71fe1270529ebff11cd2`。旧runの捕捉値は下の停止記録と旧sessionに保存する。
@@ -108,6 +108,25 @@ base移動の停止理由・旧/新SHA・既存資料の保存方針を提示し
 独立全体レビューはCritical0、Important1（cwd fallback拒否テストの検出力）、Minor2。Importantは正常な別project/lease解放済みのcwdを用意し、誤ったfallback実装を一時的に入れると新Sテストが失敗、元の実装で成功する対照を確認した。Minorのうちbuiltin-onlyの追加恒久テストはL/既存SとのDに当たるため、規約違反としてImportantへ再分類し、恒久テストを削除して一時CLI検証へ移した。恒久追加は4件。全体レビュー後の修正はテストのみ、1回のfix passで終了、再レビューはしていない。
 
 既知のMinor: compilerは不正な修飾名でもproject/version解決が先になるため、project外等ではUIX_RECIPE_NOT_FOUNDよりproject/versionエラーを先に返すことがある。誤ったレシピ/worldを選ぶ問題ではないため、このrunでは直さず記録する。CLIのlist/describe/export結線、実機UIX、補助prototypeの自動取り込み/再帰展開の拡張は本Issueで実装済みとはしない。後続#298は公開APIを消費する。
+
+## PR #28 サイクル1の判断（マージ前）
+
+- planner: `gpt-6.1-sol` / pi。明示の `--merge` によるissue-to-pr→review-fix-planning完遂の実行許可。コードHEAD250b39f、base454b54c。既存のこのSpec/Planを再利用し、別テーマ文書は作らない。
+- loop run: `b8a7df2059ad44ab983f3f581d7ff5b4`、レビュー待ち1424.724秒。コードPR https://github.com/usaturn/resoloop/pull/28 、文書PR https://github.com/usaturn/create-reso-world/pull/303 。
+
+| レビューファイル | model/runtime | 対象HEAD | 今回実行 | 推奨 |
+| --- | --- | --- | --- | --- |
+| gpt-6.1-sol.md | gpt-6.1-sol / pi | 250b39fc91c6 | はい | Approve |
+| SWE-2-Max.md | SWE-2 Max / devin | 250b39fc91c6 | はい | Approve |
+| deepseek-deepseek-v4.1-flash.md | deepseek/deepseek-v4.1-flash / pi | 250b39fc91c6 | はい | Approve |
+
+`claude-opus`はrunner response_failed/exit1、原因rate_limit、停止確認済み。成果がなく入力にせず、指摘0とは数えない。loopは受理3件/不採用1件、retainedなし、next=cycle-endなので計画を続行する。
+
+全入力の指摘/未確認候補0、前サイクル判断0。分類: 解消済み0/対応する0/対応しない0。確認済み一覧は `reviews/usaturn/resoloop/#28-feat-create-reso-world-issue-100-plugin-recipes/verified/250b39fc91c6.json`。3候補JSONはvalidate/check-pair一致。PRの変更4ファイル全文・関連処理とtests/文書を対象版で照合し、主入力/namespace/検証とlease/既存利用の条件に未確認はない。共有条件の統合確認はcontrollerが同じclean HEADの最終583+22/build0警告/実CLI5caseの保存証拠と照合した。CLI結線・実機・ローカルWindowsは元の対象外であり未実行を成功としない。
+
+公開Windows CI `41064879634` のwindows jobはSUCCESS（13:42:15Z完了）。base先端454b54cはレビューHEADの祖先のまま。コード変更/自己レビュー/run_roles呼出は不要で0回、検証記録checks.jsonの再利用条件（同HEAD・clean・全exit0・ログ存続）を満たす。再発/設計見直しは該当なし。結論2: 追加修正不要、同記録をfinalize.pyへ渡してCI/HEAD/base/merge第1親を最終照合する。マージ・Issue更新をこの記録で実施済みとはしない。結果はPR状況コメントとloop終了記録に残す。
+
+工程の記録は同verified directoryの250b39fc91c6.planning.jsonへ、状況投稿後に実際のcomment_idを反映する。記録の採否だけで実行完了としない。
 
 ## 公開・終了
 
