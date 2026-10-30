@@ -63,7 +63,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
 
 3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`、`#12 --merge --max-cycles 2 途中で止めずに` なら `#12 --merge --max-cycles 2`）。語を足したり並べ替えたりしない。読み取り専用の helper を、起動したときの cwd のまま（checkout のルートへ `cd` せずに）実行する。
 
-   `SESSION` は `PARENT_ROOT/tmp/agents/` の、この run のセッションディレクトリ（`agent_tmp.py mkdir issue-N`）にする。以降の Bash ブロックは配列・変数・関数を共有する。別シェルに移るときは、最初に `set -euo pipefail` を実行してから保存 JSON から同じ値を読み戻し、関数を定義し直す。各ブロックは先頭で helper と同じ規則（`scripts/git_env.py`）により継承した `GIT_*` を除去し（remote の認証に使う transport の設定 `TRANSPORT_AUTH` は残す）、検証・worktree・diff・scan・push・PR 作成で同じ Git 環境を使う。ブロックは bash と zsh のどちらでもそのまま実行できる。先頭から最上位のコマンド列として実行し、`if` の条件や `&&` / `||` の一部に包んで fail-fast を無効化しない。base の取得をやり直して SHA を差し替えない。引数は引用と Bash 配列で渡し、`eval` しない。
+   `SESSION` は `PARENT_ROOT/tmp/agents/` の、この run のセッションディレクトリ（`agent_tmp.py mkdir issue-N`）にする。以降の Bash ブロックは配列・変数・関数を共有する。別シェルに移るときは、最初に `set -euo pipefail` を実行してから保存 JSON から同じ値を読み戻し、関数を定義し直す。publish が scan で決める SHA は `SESSION` のファイル（`code-sha.txt`・`docs-sha.txt`）に保存し、`pr` ブロックは同じシェルでも別シェルでも先頭でそこから読む（無い・空なら PR を作る前に止まる）。各ブロックは先頭で helper と同じ規則（`scripts/git_env.py`）により継承した `GIT_*` を除去し（remote の認証に使う transport の設定 `TRANSPORT_AUTH` は残す）、検証・worktree・diff・scan・push・PR 作成で同じ Git 環境を使う。ブロックは bash と zsh のどちらでもそのまま実行できる。先頭から最上位のコマンド列として実行し、`if` の条件や `&&` / `||` の一部に包んで fail-fast を無効化しない。base の取得をやり直して SHA を差し替えない。引数は引用と Bash 配列で渡し、`eval` しない。
 
    <!-- base-workflow:input -->
    ```bash
@@ -274,9 +274,11 @@ fi
   recheck_bases
   CODE_SHA="$(bash "$SCAN" -C "$CODE_ROOT" --base "origin/$CODE_BASE_BRANCH" --expected-base-sha "$CODE_BASE_SHA")"
   [ -n "$CODE_SHA" ]
+  printf '%s\n' "$CODE_SHA" > "$SESSION/code-sha.txt"
   if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
     DOC_SHA="$(bash "$SCAN" -C "$DOC_ROOT" --base origin/main --expected-base-sha "$DOC_BASE_SHA")"
     [ -n "$DOC_SHA" ]
+    printf '%s\n' "$DOC_SHA" > "$SESSION/docs-sha.txt"
     recheck_bases
     git -C "$DOC_ROOT" push origin "${DOC_SHA:?}:refs/heads/${DOC_BRANCH:?}"
   fi
@@ -291,6 +293,12 @@ fi
   set -euo pipefail
   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")"
   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env"; done <<< "$git_unset"
+  CODE_SHA="$(cat "$SESSION/code-sha.txt")"
+  [ -n "$CODE_SHA" ]
+  if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
+    DOC_SHA="$(cat "$SESSION/docs-sha.txt")"
+    [ -n "$DOC_SHA" ]
+  fi
   recheck_bases
   CODE_PR_URL="$(gh pr create --repo "$TARGET_REPO" --base "$CODE_BASE_BRANCH" --head "$CODE_BRANCH" \
     --title "$PR_TITLE" --body-file "$CODE_PR_BODY")"

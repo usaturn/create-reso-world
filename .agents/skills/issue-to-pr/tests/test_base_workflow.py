@@ -64,11 +64,13 @@ class Workflow:
                   '  printf "draft design\\n" > "$DOC_ROOT/design.md"',
                   '  git -C "$DOC_ROOT" add design.md; git -C "$DOC_ROOT" commit -qm design',
                   'fi', procedure("diff"), before_publish, procedure("publish"), before_pr,
-                  # Resume in a fresh shell with values/functions, not shell options.
-                  # The documented block must supply its own failure propagation.
-                  'declare -p CODE_BASE_BRANCH CODE_BASE_SHA CODE_SHA > "$SESSION/resume.bash"',
+                  # Resume in a fresh shell with only the base values (saved as JSON
+                  # by capture) and the function, not shell options. The documented
+                  # block must supply its own failure propagation, and the scanned
+                  # SHAs must come from the files the documented publish block writes.
+                  'declare -p CODE_BASE_BRANCH CODE_BASE_SHA > "$SESSION/resume.bash"',
                   'if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then',
-                  '  declare -p DOC_BASE_SHA DOC_SHA >> "$SESSION/resume.bash"',
+                  '  declare -p DOC_BASE_SHA >> "$SESSION/resume.bash"',
                   'fi', 'declare -f recheck_bases >> "$SESSION/resume.bash"',
                   'bash -c ' + shlex.quote('source "$SESSION/resume.bash"\n' + procedure("pr"))]
         result = subprocess.run(["bash", "-c", "\n".join(chunks)], cwd=self.target,
