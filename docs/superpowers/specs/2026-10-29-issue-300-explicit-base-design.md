@@ -112,11 +112,11 @@ PR: https://github.com/usaturn/create-reso-world/pull/301 。レビュー対象�
 
 | 守る条件 | 経路 | 判定 | 変更前の挙動 | 比較する結果・検証 | 実行結果・証拠 |
 |---|---|---|---|---|---|
-| 正しい checkout/config の選択 | resolve_issue の Git 読取、require_tracked_cwd、branch検証、resolve_base のローカル読取 | 既に満たす・維持 | GIT_* を除去 | 既存 S の異なる GIT_DIR/CONFIG と正常対照、秘密を stderr に出さない | dbfa04e の既存関連検証は成功。修正後は未実施 |
-| remote 認証を保つ | resolve_base の ls-remote/fetch、前後の recheck | 修正する | 認証変数も消えて通信停止 | ローカル fake SSH/askpass の同じ入力で直接 Git と helper の成功を比較、注入された対象上書きは拒否 | dbfa04e のローカルSSHで停止を再現。修正後は未実施 |
-| shell 非互換で開始不能にしない | PARENT_ROOT導出、input、capture、worktree、diff、publish、pr の7境界 | 修正する | bash のみの間接展開 | bash/zsh で同じ main/非ASCII統合branchと外部文書分離の通し手順、別シェル再開も含める | dbfa04e の bash成功/zsh停止を確認。修正後は未実施 |
-| 検査と書込の対象を一致させる | scan subprocess、code/docs の push、gh PR作成/読戻し | 修正する・既存安全性維持 | 全 GIT_* を消すため誤送信は防ぐが認証を失う | 既存の GIT_CONFIG_COUNT 誤送信先注入 S テストと正常対照。正しいref/PRのみ、誤送信先ref無し | dbfa04e の S テスト通過。修正後は未実施 |
-| base移動・失敗は後続公開を止める | fresh shell の recheck、scan前/中、PR前/後 | 既に満たす・維持 | 明示的な失敗伝播と strict mode | 既存の状態/副作用検証、固定base/SHAが変わらず未公開が保持される | dbfa04e のmain移動2経路はexit2/未公開。修正後は未実施 |
+| 正しい checkout/config の選択 | resolve_issue の Git 読取、require_tracked_cwd、branch検証、resolve_base のローカル読取 | 既に満たす・維持 | GIT_* を除去 | 既存 S の異なる GIT_DIR/CONFIG と正常対照、秘密を stderr に出さない | dbfa04e の既存関連検証は成功。6649f98 でも関連テストと全 pytest 1255 passed が成功し、fix-check で維持を確認 |
+| remote 認証を保つ | resolve_base の ls-remote/fetch、前後の recheck | 修正する | 認証変数も消えて通信停止 | ローカル fake SSH/askpass の同じ入力で直接 Git と helper の成功を比較、注入された対象上書きは拒否 | dbfa04e のローカルSSHで停止を再現。6649f98 でローカル SSH の upload-pack/receive-pack と、実 Git の offline askpass の正負の対照が成功（`controller-probes.log`・`fix-check-evidence/`） |
+| shell 非互換で開始不能にしない | PARENT_ROOT導出、input、capture、worktree、diff、publish、pr の7境界 | 修正する | bash のみの間接展開 | bash/zsh で同じ main/非ASCII統合branchと外部文書分離の通し手順、別シェル再開も含める | dbfa04e の bash成功/zsh停止を確認。6649f98 で bash/zsh と相互の再開を含む 15 プローブが成功。ただし再開時の scan の SHA の受け渡しの漏れを、自己レビューの M-1 で確認した（次節） |
+| 検査と書込の対象を一致させる | scan subprocess、code/docs の push、gh PR作成/読戻し | 修正する・既存安全性維持 | 全 GIT_* を消すため誤送信は防ぐが認証を失う | 既存の GIT_CONFIG_COUNT 誤送信先注入 S テストと正常対照。正しいref/PRのみ、誤送信先ref無し | dbfa04e の S テスト通過。6649f98 で代表 S テスト（transport の設定の注入）と正常対照が成功し、代表ガードを外した変異で誤った SHA を検出 |
+| base移動・失敗は後続公開を止める | fresh shell の recheck、scan前/中、PR前/後 | 既に満たす・維持 | 明示的な失敗伝播と strict mode | 既存の状態/副作用検証、固定base/SHAが変わらず未公開が保持される | dbfa04e のmain移動2経路はexit2/未公開。6649f98 でも同じ 2 経路が exit 2・未公開（プローブ） |
 | 既存の独立した境界を保つ | review_target.git_environment、runnerの子、finalize | 対象外・変更しない | remoteのみ認証保持、runnerは独立した隔離 | これらの責務・既存ガードを今回のissue手順へ拡大変更しない | 読解で境界を確認 |
 
 共有条件の統合担当は controller。担当別テストの成功だけで済ませず、base JSON→検査→正しい送信先/PR の観測と既存ガードの維持を照合する。採用した原指摘の本文は改変せず実装担当へ渡す。文書2件とbase移動の仕様は実装修正に含めない。
@@ -127,4 +127,49 @@ PR: https://github.com/usaturn/create-reso-world/pull/301 。レビュー対象�
 - zsh互換性と認証失敗は L（明示エラー）なので恒久テストを増やさず、一時的な実手順実行で確認する。環境隔離の S は既存の代表例を再利用し、守りが変わる場合だけその例を更新する。新しい文言・allowlistの固定値照合や重複テストは追加しない。
 - 関連検証: issue-to-pr tests と finalize tests、scan の既存テスト、bash/zsh の通し手順、diff check。共通の環境処理を変更するなら、対象上書きを防ぐガードを1箇所だけ外した隔離対照で、その守りの負例が失敗することを確かめる。
 - controller の統合確認後、README3入口と親 scanner の検査を通し、設定の自己レビュー/fix-checkを1回だけ行う。自己レビューの範囲はPR全体。新しい致命的指摘は採否を先に決め、必要な修正・検証を行い、再レビューは増やさない。
-- 修正の実行・自己レビュー・fix-check・公開はまだ未実施。結果はこの節を更新し、途中の修正を先にpushしない。追加240分のledgerを継続し、予算超過時は未完了として引き継ぐ。
+- 途中の修正を先に push しない。追加 240 分の ledger を継続し、予算超過時は未完了として引き継ぐ。
+
+### 修正・検証の結果
+
+- 実装: 設定の implement（claude-opus、runner の success、約 1003 秒）が `d7590a9`・`6649f98` を作り、controller が成果の tree の一致を確かめて取り込んだ。継承した `GIT_*` の方針を `scripts/git_env.py` にまとめ、ローカルの Git は全部除き、remote との通信とシェルのブロックは認証の 4 変数（`GIT_ASKPASS`・`GIT_SSH`・`GIT_SSH_COMMAND`・`GIT_TERMINAL_PROMPT`）を残す。7 つのブロックは bash と zsh で同じに動く書き方にした
+- 検証: clean HEAD `6649f98` で README の 3 入口（24 scripts PASS / layout PASS / 1255 passed）と diff check が exit 0（2026-10-30 06:02:29–06:09:39 UTC）。controller の 15 プローブ（bash/zsh、相互の再開、main・非 ASCII の統合 branch、コードと文書の分離、偽 SSH、push 先の注入の防止、main の移動での停止）が成功。親 scanner も同じ HEAD で成功
+- 修正の確認（fix-check、controller の openai-codex/gpt-6-astra、1069 秒）: 7 主張 holds、7 ファイル passed、文書の候補 250 件を判定、新しい指摘 0（`verified/6649f98c6736.fix-check.json`）
+- 自己レビュー: 予約の後、controller の prepare の `--model-name` の誤りで開始前に失敗し、このサイクルは一度 `stopped` で記録した（PR のコメント 6516711526、loop run `907057843bcf4fc8948eba3b8d627918` は stopped で終了）。利用者の明示の指示で再開した結果は次節
+
+### 自己レビュー（再開）と M-1 の設計の見直し
+
+予約済みの自己レビューは、前任の司令塔（pi）が prepare の `--model-name` を誤ったため開始前に失敗した（試行・成果なし）。利用者は 2026-10-30T07:17Z に、予約済みの枠のまま、引き継いだ司令塔 claude-opus-5-5 / claude-code が PR 全体の自己レビューを 1 回だけ行うこと、致命的な指摘は直して検証だけを通し、push 後に新しいループで次のサイクルへ進むことを明示し、予算 240 分の追加を許可した。`run_roles.py` の 2 回目の呼び出しや予約の削除はしていない。
+
+自己レビューは `reviews/usaturn/create-reso-world/#301-feat-issue-300-explicit-base/claude-opus-5-5-commit-6649f98c6736a32dea8378e3db2996d210363ded.md` に保存した（依頼の予算 20 分・保存 5 分のうち 437 秒）。active は Medium 1 件（M-1）。テストの一部・eval・Spec・Plan の全文を予算内に読めなかったため、Merge recommendation は Needs manual verification。修正の確認（fix-check）は前任が完了済みで、7 主張 holds・7 ファイル passed・新しい指摘 0。
+
+| 出典 | 区分 | 根拠・見直す条件 |
+|---|---|---|
+| claude-opus-5-5-commit-6649f98c6736a32dea8378e3db2996d210363ded#M-1@6649f98c6736 | 対応する | (a) Claude Code・pi は各ツール呼び出しが別のシェルなので、5 章の publish → Issue の再確認 → pr を手順どおりに進めると pr は新しいシェルで動く。文書の読み戻しの規則（保存 JSON）では `CODE_SHA`・`DOC_SHA` を得られず、`gh pr create` の後に照合の前で止まり、`--merge` のループへ進めない（主要な処理の停止）。現行 HEAD で bash・zsh の両方で再現した |
+
+**きっかけ:** 1（同じ守る条件の 2 回目）。別シェルでの再開は、`350d78a`（再開時に base の守りを保つ、Task 3 のレビュー修正）と第 1 サイクルの V-2（7 つのブロックの bash/zsh と別シェル再開）で直した条件である。M-1 はその表で漏れた隣の経路（scan の SHA の受け渡し）。`350d78a` はテストのハーネスに、SKILL.md に無い `declare -p … CODE_SHA` の持ち越しを足しており、文書の再開の経路を通っていなかった。
+
+**守る条件:** 7 つのブロックが後のブロックへ渡す値は、シェルの状態ではなく `SESSION` のファイルを出所にする。別シェルで再開しても、保存したファイルから同じ値を得て、外部への書き込み（worktree・push・PR 作成）の前後の照合を同じ値で行う。出所が無い・空のときは、外部への書き込みの前に止まる。以前の修正（`350d78a`・V-2）は、base の値（JSON に保存済み）と fail-fast と構文だけを経路に含め、publish が決める scan の SHA の出所を含めていなかった。
+
+| 守る条件 | 経路（値: 書く所 → 読む所） | 判定 | 変更前の挙動 | 確かめる assertion | 確かめる方法 | 実行結果・証拠 |
+|---|---|---|---|---|---|---|
+| scan の SHA を PR の照合へ渡す | `CODE_SHA`: publish の scan → pr の `gh pr view` の照合 | 修正する | シェル変数だけ。別シェルでは未定義で、PR の作成後に `set -u` で止まる | 新しいシェルで保存ファイルだけから再開して終了コード 0。`code-pr.json` の `headRefOid` が scan の SHA（push した SHA）と一致 | bash/zsh の一時プローブ。ハーネスから `CODE_SHA` の持ち越しを外した既存テスト | `7c8a16a`（担当の `8a34576` と同じ tree）。controller の一時プローブで、新しい bash/zsh から保存ファイルだけで再開した正例が終了コード 0、`headRefOid` が `code-sha.txt`・push した branch・HEAD と一致。担当の確認では、旧 SKILL.md と新しいハーネスの組み合わせで既存テスト 3 件が `CODE_SHA: unbound variable` で失敗し、新しい SKILL.md では通過 |
+| 同上（文書） | `DOC_SHA`: publish の文書の scan → pr の文書の PR の照合（外部の対象） | 修正する | 同上 | 文書の PR の `headRefOid` が文書の scan の SHA と一致 | 外部の対象の既存テスト（ハーネスから `DOC_SHA` の持ち越しを外す） | 外部の対象の正例（bash/zsh）で、文書の PR の `headRefOid` が `docs-sha.txt` と一致し、pr create はコードと文書の 2 回（controller の一時プローブ。担当のプローブでは準備・publish・pr を 3 つの新しいシェルで実行） |
+| 出所が無いときは外部への書き込みの前に止まる | pr ブロックの開始時の読み込み | 修正する | 未定義のまま `gh pr create` まで進み、作成後に止まる | 保存ファイルが無い・空なら非 0 で止まり、`gh pr create` が呼ばれない | bash/zsh の一時プローブ（ファイルを置かない負例と、置いた正例） | `code-sha.txt` が無い・空、外部の対象で `docs-sha.txt` が無いとき、bash/zsh とも非 0 で止まり、pr create は 0 回、`code-pr-url.txt` は作られない（controller 6 件、担当 12 件の負例） |
+| base の値の受け渡し | `CODE_BASE_BRANCH`・`CODE_BASE_SHA`（capture → worktree・diff・publish・pr・`recheck_bases`）、`DOC_BASE_SHA` | 既に満たす | `code-base.json`・`docs-base.json` に保存し、文書の規則で読み戻す | 再開後の base の移動で PR を作らない。正しい base で PR を作る | 既存の `test_resumed_shell_stops_before_pr_creation_when_base_moved`・`test_documented_flow_pins_worktree_diff_scan_and_pr` | `7c8a16a` の全 pytest（1255 passed）に含めて通過。ハーネスは base の値と関数だけを持ち越す |
+| Issue の入力の受け渡し | `issue.json`（input → capture） | 既に満たす | ファイルに保存 | 同上の通し手順 | 既存テスト | `7c8a16a` の全 pytest（1255 passed）の通し手順で通過 |
+| PR の URL | `code-pr-url.txt`・`docs-pr-url.txt`（pr の中） | 既に満たす | 作成の直後に保存 | 作成後の base の不一致を一致と報告しない | 既存の `test_created_pr_retarget_is_not_reported_as_matching` | `7c8a16a` の全 pytest（1255 passed）に含めて通過 |
+| 関数の定義し直し | `recheck_bases`（capture で定義 → 後続で呼ぶ） | 既に満たす | 文書の規則で、capture の関数の定義だけを実行し直す | 再開した pr で base の移動を検出して止まる | 既存の再開テスト | controller の一時プローブで、capture のブロックから取り出した `recheck_bases` の定義だけを新しい bash/zsh で実行し直して通過。既存の再開テストも全 pytest で通過 |
+| `PARENT_ROOT` | 最初のブロックの導出 | 既に満たす | 同じ導出の再実行で同じ値になる | ― | 読解 | 読解で確認 |
+| 既存の独立した境界 | scanner・finalize・runner、base の移動の設計、記録項目の列挙、旧 eval | 対象外 | ― | ― | ― | 変更しない |
+
+**比べた直し方:**
+
+1. 点の修正: publish に `CODE_SHA`・`DOC_SHA` の保存を足し、2 章の 3 の読み戻しの対象に加える。再開時の読み戻しはエージェントに任せたままになる
+2. 条件を 1 か所で保つ（推奨）: publish が scan の SHA を `SESSION` のファイルに書き、pr ブロックは開始時にそのファイルから読む。同じシェルでも別シェルでも値の出所は同じファイルになり、出所が無ければ外部への書き込みの前に止まる。base の値は既に JSON が出所で、文書の規則で読み戻せる
+3. 保証を狭める: publish と pr を同じシェルで続けて実行することを必須にする。Claude Code・pi は呼び出しごとに別のシェルで、既存の SKILL.md が別シェルの再開を約束しているため選ばない（利用者の指示もこの変更を委任していない）
+
+**テストの方針:** M-1 は止まるときにメッセージ付きの非 0 の終了で現れる L なので、恒久のテストは足さない。既存のハーネスの `declare -p` から `CODE_SHA`・`DOC_SHA` を外し、既存の S のテストが文書の再開の経路を通るようにする（新しいテスト関数は足さない）。出所が無い負例と正例は一時プローブで確かめる。
+
+**検証:** issue-to-pr のテスト・finalize のテスト・scan の既存テスト、bash/zsh の一時プローブ（正例・負例）、README の 3 入口（`bash .devcontainer/run-tests.bash`・`bash scripts/check-layout.sh`・`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools`）、`git diff --check`、親の scanner の検査。自己レビューの 2 回目はしない（この修正は再レビューしていない）。
+
+**結論と再レビューの扱い:** 結論 1（修正して push）。M-1 は設定の implement（claude-opus、runner の success、562.5 秒、`stop_confirmed: true`）が `8a34576` で直し、controller が tree の一致を確かめて `7c8a16a` として取り込んだ。clean HEAD `7c8a16a` で README の 3 入口（24 scripts PASS / layout PASS / 1255 passed）と diff check が exit 0（2026-10-30 07:46:03–07:53:30 UTC、`tmp/agents/review-fix-planning-pr301.kwgmhiu8/controller-verification-2.json`）。scan の既存テストは担当の確認と README の入口で PASS。M-1 の修正は再レビューしていない（自己レビューは 1 回まで）。このサイクルの修正は完了とし、文書全体は issue-to-pr の規則のとおり draft のままにする。

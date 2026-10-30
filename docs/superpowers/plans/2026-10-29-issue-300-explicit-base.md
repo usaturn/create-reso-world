@@ -109,12 +109,18 @@ Task 1 `c8a681d`（約13分）・Task 2 `e3e6a36`（約15分）・Task 3 `50d6d2
 **Files:** issue-to-prのSKILL.md、resolve_issue.py/resolve_base.pyと必要な同一責務のhelper。文書の結果はcontrollerが更新する。
 **テスト要否:** 認証停止とshell非互換はLなので恒久テスト追加なし。既存の対象取り違え/誤送信防止Sテストを維持し、必要なら代表例のみ更新。拒否の守りを変更したときは一時的なガード除去対照も実行する。定数・文言のFテストや重複は作らない。
 
-- [ ] 採用指摘の原文と同じ受け入れ基準・影響経路を担当へ渡す。担当はrunnerのworktreeだけを変更し、push/Issue/PR操作や再委譲をしない。
-- [ ] 関連テスト、ローカルSSH/askpassの認証保持、bash/zshの実手順、別シェル再開、GIT_CONFIG_COUNTの誤送信防止と正常対照を同期実行。実行したargv/対象HEAD/exit/観測を報告。
-- [ ] controllerが差分と共有条件を照合、README3入口、親scannerを実行。
-- [ ] run_roles.pyの自己レビュー/fix-checkを1回実行、指摘を採否基準で裁定。必要な修正後は検証のみを再実行。
+- [x] 採用指摘の原文と同じ受け入れ基準・影響経路を担当へ渡す。担当はrunnerのworktreeだけを変更し、push/Issue/PR操作や再委譲をしない。
+- [x] 関連テスト、ローカルSSH/askpassの認証保持、bash/zshの実手順、別シェル再開、GIT_CONFIG_COUNTの誤送信防止と正常対照を同期実行。実行したargv/対象HEAD/exit/観測を報告。
+- [x] controllerが差分と共有条件を照合、README3入口、親scannerを実行。
+- [x] run_roles.pyの自己レビュー/fix-checkを1回実行、指摘を採否基準で裁定。必要な修正後は検証のみを再実行。
 - [ ] Specの結果・PRの既知の制限を実測と一致させ、検査済みSHAを既存PRへpush。記録付きコメント、cycle-end、次サイクルまたは明示的障害で終了。
 
 受け入れ基準は上記の共通本文を保ち、今回の同じ境界に対してbashとzsh、remote認証の有無を追加観測する。防御範囲を広げたり、既存の対象・base・mergeガードを狭めたりしない。実入力は従来どおり main と非ASCII統合branch、外部コードと文書の別base、GIT_CONFIG_COUNTによる別送信先。実サービスへの試験書込み・有料モデルのテストは使わない。
 
 追加予算は既存240分枠内。第1サイクルの確認まで約120分消費、残り約120分。実装目安20分、統合/自己レビュー25分、次の指定レビュー45分、最終化/余裕30分。runnerの期限・停止規則は変更しない。主要条件を満たせないまま予算に達したら検証済みとせずhandoffする。
+
+### 自己レビューの再開と M-1（2026-10-30）
+
+前任の controller（pi）は、予約した自己レビューの prepare を `--model-name` の誤りで開始前に失敗させ、ループは stopped で終了した（Task 4 の 1〜3 項目めは `d7590a9`・`6649f98` と controller の検証で完了済み）。利用者は 2026-10-30T07:17Z に、同じ枠のまま引き継いだ controller（claude-opus-5-5 / claude-code）が自己レビューを 1 回だけ行うこと、致命的な指摘は直して検証だけを通すこと、push の後に新しいループで次のサイクルへ進むこと、予算 240 分の追加を明示した。新しい ledger は `SESSION/budget-continuation-2.jsonl`（前の残り約 43.8 分と追加の 240 分の計 282.5 分）。
+
+自己レビュー（437 秒）は M-1（別シェルの再開で scan の SHA を読み戻せず、PR の作成後に照合の前で止まる）を出し、Spec の「自己レビュー（再開）と M-1 の設計の見直し」で対応すると裁定した（きっかけ 1）。設定の implement（claude-opus）が `8a34576` で修正し、controller が独立に確かめた（`7c8a16a` として取り込んだ clean HEAD で README の 3 入口（24 scripts PASS / layout PASS / 1255 passed）と diff check が exit 0、新しい bash/zsh から保存ファイルだけで再開する一時プローブの正例・負例 10 件が通過）。M-1 の修正は再レビューしていない（自己レビューは 1 回まで）。push・状況コメント・新しいループの結果は PR のコメントに記録する。
