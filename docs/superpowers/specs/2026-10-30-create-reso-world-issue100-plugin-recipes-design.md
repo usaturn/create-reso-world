@@ -29,7 +29,8 @@
 - `UixRecipe Describe(string name)` と `string Read(string name)`。名前は `<plugin-name>:<recipe-name>` の完全一致のみ。未導入なら `PLUGIN_NOT_INSTALLED`（対象名を示す）、導入済みだがレシピなしなら `UIX_RECIPE_NOT_FOUND`。裸名・case fallback は探索しない。
 - `static PluginRecipeResolver ForDocument(string mainInputPath, string resoloopVersion, PluginNameReservations reservations)`。主入力の絶対パスのディレクトリから `PluginRegistry.FindProjectRoot(null, directory)` を使う。include や cwd から探索しない。
 - 初回プラグイン利用で `OpenVerified()` を呼び、全 JSON/metadata の読取完了まで lease を保持する。読み取った JSON は instance 内に保持し、Dispose で lease を解放。以降にファイルを無検証で読み直さない。公開 metadata/一覧は読み取り専用。失敗時にも lease を解放する。
-- package path と JSON/prototype 検証は F の既存検証を再利用。JSON は実行しない。manifest metadata と JSON の対応を変更せず、export は同じ JSON を返す。
+- package path と JSON/prototype 検証は F の既存検証を再利用。JSON は実行しない。manifest metadata と JSON の対応を変更せず、Read/export は UTF-8 で読んだ元のテキスト（BOMは除去）を返す。再シリアライズしない。`UixRecipe.Name` は常に修飾済み名とし、一覧の項目をそのまま Describe/Read/Export へ渡せる。
+- 例外は compiler/UixRecipes でもコードを変えずに伝える。project無しは `PLUGIN_PROJECT_NOT_FOUND`、未導入は `PLUGIN_NOT_INSTALLED`、不整合は F のコードのまま。構文不正な修飾名と resolver 未指定の修飾名は `UIX_RECIPE_NOT_FOUND` とし、cwd探索しない。単なるエラーコード照合の恒久テストは不要。
 
 ### UixRecipes 合成 API
 
@@ -46,7 +47,7 @@
 
 既存 `Compile(string path)` を維持し、`Compile(string path, string resoloopVersion, PluginNameReservations reservations)` を追加する。任意プロジェクト resolver の注入は受け付けず、必ず主入力から探索する。
 
-- Compile 開始時に主入力を絶対パスへ固定し、instance の Context が resolver factory を持つ。include の merge によってこの入力は変えない。
+- Compile 開始時に主入力を絶対パスへ固定し、instance の Context が resolver factory を持つ。include の merge によってこの入力は変えない。Compile が Context/resolver を所有し、成功・例外いずれでも呼び出し終了前に Dispose する。返す Result に lease を持ち越さない。
 - `$recipe` の修飾名が実際に展開される場合だけ resolver を作る。組み込みだけの Compile では project/version/plugin area の読取をしない。ワールド外の従来利用、壊れたプラグインがあるプロジェクトでの組み込み利用を保つ。
 - 既存1引数版の version は、CLI entry assembly（assembly名 `resoloop`）の informational version（`+` の後を除外）、なければ同 assembly の3桁 versionを使う。Core の既定版1.0.0を ResoLoop版として使わない。非CLIホストがプラグインを使う場合は明示版 overload を使用する。版不明は `PLUGIN_INCOMPATIBLE_VERSION` で停止し、推測しない。可変 global は作らない。
 - 自動文脈の reservations は空の immutable snapshot。これは読み取り専用レシピ消費であり、#98/#298 の導入/コマンド予約 catalog を所有しない。修飾名は組み込みの裸名と衝突しないため Recipes に裸の Catalog 名を渡さない。選択プロジェクトを扱う CLI は registry の実 reservations を渡せる。
@@ -73,6 +74,18 @@
 防御範囲: 主入力のproject取り違え、bare名の暗黙探索、別pluginの同ローカル名、既存exportの上書き、不整合・未導入のままの展開、組み込み利用の回帰。package/link/hash/lock安全性は既存Fの守りを再実装/網羅しない。悪意ある同一ユーザの同時差替え、runtime UIX動作、CLI統合は本Issueの完了主張に含めない。
 
 S テストのみを代表例で追加し、拒否には正しく通る例を残す。S: namespace/key取り違え、main/include/cwd取り違え、無検証read、export上書き。単なる文言・存在・構文・一覧固定値F/Lは追加しない。既存テストと dotnet build/test、差分確認、実CLI offline validateで補う。
+
+## builder check の決定
+
+読み取り専用の builder check で提示された5点は、raw text保持・metadataの修飾済みName・エラーコード透過・Compile内のfinally解放・不正名/null resolverのnot-foundという上記のエージェント判断で確定した。仕様の意味・編集範囲・実行許可は変更していない。最初の sp-review dispatch は必要なコードレビュー形式を欠くとして NEEDS_CONTEXT で終了し、設計調査の sp-research で builder check を行った。人の内容承認として記録しない。
+
+## 停止記録（2026-10-30）
+
+実装前の `recheck_bases` が終了コード2で停止した。`origin/refs/heads/feat/plugin-v2` は捕捉 `dd0b40fb216b0c9fbd82da44903195a885104015` から `454b54cd961e078dac2a71fe1270529ebff11cd2` に進んだ（resoloop#27、2026-10-30T13:02:12Z merge）。新SHAをbaseとして採用せず、実装・push・PR・ループは未実施。コードworktreeは旧baseのcleanなまま。
+
+移動差分は BundledSkillManager.cs、PluginSkillManager.cs、ProjectInitializer.cs、PluginSkillSyncTests.cs の4ファイル（618追加/14削除）。レシピの直接所有ファイルは変わっていないが、共有スキル資源/初期化との統合検証は必要であり、旧版の成功を新版へ流用しない。旧baseの `dotnet test ResoLoop.slnx --nologo` は終了0、573 unit +22 offline成功（live opt-in/URLをchild環境から除去）。新版は未検証。
+
+このdraft Spec/Planは部分成果としてローカルcommitし、公開未実施。Issueへの復元資料公開はGit ref/PRの公開とは区別する。再開にはbase移動を踏まえた新baseの捕捉・既存worktree/文書の再利用を明示する継続指示が必要。自動で旧捕捉値を書き換えない。
 
 ## 公開・終了
 
