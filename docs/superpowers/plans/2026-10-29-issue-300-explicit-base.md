@@ -42,34 +42,34 @@ SDD: SESSION の `sdd/2026-10-29-issue-300-explicit-base/`。再生成キャッ�
 **Files:** Modify `.agents/skills/issue-to-pr/scripts/resolve_issue.py`; Create `.agents/skills/issue-to-pr/scripts/resolve_base.py`; Modify `.agents/skills/issue-to-pr/tests/test_resolve_issue.py`; Create `.agents/skills/issue-to-pr/tests/test_resolve_base.py`.
 **Interfaces:** resolve_issue 出力 `base: str`（main 既定）, `base_explicit: bool`。resolve_base CLI `--checkout ROOT --repo OWNER/REPO [--base BRANCH] [--required-base BRANCH ...] [--expected-sha SHA]`; success JSON `{repo,remote,branch,ref,sha}`、failure exit 2 / stderr。`remote=origin`。枝の文字列検証は共通関数にしてよい。
 
-- [ ] S テストを先に追加。`test_base_selection_preserves_explicit_input` は main と明示入力を実 resolver で通し、既存 merge/implement に混ざらないことを確認（単なる argparse エラーテストは不要）。
-- [ ] `test_resolve_exact_origin_branch` はローカル bare remote と偽 git（remote get-url の応答だけを対応する GitHub URL にし、他は実 Git へ渡す）を用い、main と非 ASCII の統合 branch の実 Git SHA を独立に比較。`test_rejects_wrong_target_and_required_base` は origin / push URL 不一致と required の未指定・矛盾で取得前に止まることを、正常対照とともに確認。
-- [ ] `test_base_cannot_select_other_ref_or_revision` は tag のみ・不存在・危険な ref を branch として扱わず変更が残らないことを確認。`test_base_movement_rejected` は取得後に remote を進め、expected SHA で拒否、保持されるローカル feature を確認。環境 GIT_* の取り違えは実装 module の代表 S テストで検証。
-- [ ] RED を記録してから最小実装。--branch が @{-1} を展開するため、literal refs/heads の規則と branch の規則を照合する。checkout root・追跡対象・repo allowlist・origin fetch/push URL・完全一致 remote ref・commit の照合を行う。Git エラーに認証情報を含む URL をそのまま表示しない。
-- [ ] `uv run --locked pytest -q .agents/skills/issue-to-pr/tests/test_resolve_issue.py .agents/skills/issue-to-pr/tests/test_resolve_base.py` と `git diff --check` を実行。環境隔離は既存 conftest を尊重。ログは SESSION に置く。
-- [ ] 明示ファイルを stage して `feat: resolve explicit issue base from verified origin` で commit。
+- [x] S テストを先に追加。`test_base_selection_preserves_explicit_input` は main と明示入力を実 resolver で通し、既存 merge/implement に混ざらないことを確認（単なる argparse エラーテストは不要）。
+- [x] `test_resolve_exact_origin_branch` はローカル bare remote と偽 git（remote get-url の応答だけを対応する GitHub URL にし、他は実 Git へ渡す）を用い、main と非 ASCII の統合 branch の実 Git SHA を独立に比較。`test_rejects_wrong_target_and_required_base` は origin / push URL 不一致と required の未指定・矛盾で取得前に止まることを、正常対照とともに確認。
+- [x] `test_base_cannot_select_other_ref_or_revision` は tag のみ・不存在・危険な ref を branch として扱わず変更が残らないことを確認。`test_base_movement_rejected` は取得後に remote を進め、expected SHA で拒否、保持されるローカル feature を確認。環境 GIT_* の取り違えは実装 module の代表 S テストで検証。
+- [x] RED を記録してから最小実装。--branch が @{-1} を展開するため、literal refs/heads の規則と branch の規則を照合する。checkout root・追跡対象・repo allowlist・origin fetch/push URL・完全一致 remote ref・commit の照合を行う。Git エラーに認証情報を含む URL をそのまま表示しない。
+- [x] `uv run --locked pytest -q .agents/skills/issue-to-pr/tests/test_resolve_issue.py .agents/skills/issue-to-pr/tests/test_resolve_base.py` と `git diff --check` を実行。環境隔離は既存 conftest を尊重。ログは SESSION に置く。
+- [x] 明示ファイルを stage して `feat: resolve explicit issue base from verified origin` で commit。
 
 ### Task 2: scan の base SHA pin
 
 **Files:** Modify `scripts/scan-before-push.sh`, `tests/scripts/test-scan-before-push.bash`.
 **Interfaces:** `bash scripts/scan-before-push.sh [-C ROOT] [--base origin/BRANCH] [--expected-base-sha SHA]`。指定時は fetch した SHA と一致し、検査後も remote の同じ refs/heads を確認。未指定の既存挙動は維持。
 
-- [ ] S の代表テストを追加し RED。安定した非 main branch で実 Git 履歴と偽 Gitleaks を使い、範囲と設定が main でないことを確認。捕捉後に base が動いたケースと検査中に動くケースで標準出力 SHA が空、成功にならないことを確認（異なる操作順の guard）。
-- [ ] 最小実装。expected SHA は完全 SHA、文字列のまま revision として解釈しない。既存の範囲・base 設定・除外禁止・版チェックを保持。remote / branch を option として解釈しない。
-- [ ] `bash tests/scripts/test-scan-before-push.bash`、`bash -n scripts/scan-before-push.sh`、`git diff --check`。ログを SESSION に保存。
-- [ ] `fix: bind pre-push secret scan to expected base SHA` で commit。
+- [x] S の代表テストを追加し RED。安定した非 main branch で実 Git 履歴と偽 Gitleaks を使い、範囲と設定が main でないことを確認。捕捉後に base が動いたケースと検査中に動くケースで標準出力 SHA が空、成功にならないことを確認（異なる操作順の guard）。
+- [x] 最小実装。expected SHA は完全 SHA、文字列のまま revision として解釈しない。既存の範囲・base 設定・除外禁止・版チェックを保持。remote / branch を option として解釈しない。
+- [x] `bash tests/scripts/test-scan-before-push.bash`、`bash -n scripts/scan-before-push.sh`、`git diff --check`。ログを SESSION に保存。
+- [x] `fix: bind pre-push secret scan to expected base SHA` で commit。
 
 ### Task 3: スキル手順・通し検証・merge 照合
 
 **Files:** Modify `.agents/skills/issue-to-pr/SKILL.md`, `.agents/skills/issue-to-pr/evals/validation.md`; Create `.agents/skills/issue-to-pr/tests/test_base_workflow.py`; Modify 必要な代表例のみ `.agents/skills/review-fix-planning/tests/test_finalize.py`。呼出手順の同じ入口を示す現行ファイルに限り最小の例修正を許可（履歴 Spec/Plan は変えない）。
 **Interfaces:** Task 1/2 の CLI と JSON。スキルに実行可能なシェルブロックを置き、テストはそれを取り出して実行する（ソースの文言照合ではない）。入力変数は quoted 引数と Bash array で扱い eval しない。
 
-- [ ] writing-skills / skill-creator を読む。旧手順（追加ガイダンス無し）のシナリオを実行して停止または main 固定になる証拠を SESSION に残す。有料モデルによる行動比較ではなく、実行手順の比較として報告する。
-- [ ] 統合 S テストの RED。main と異なる統合 branch、別 repository の文書 main を用意し、branch 元・diff・scan の範囲・PR argv が一致することを実 Git と偽 gh / Gitleaks で観測する。危険例・base 移動で公開が進まないことも、担当 helper の既存 S テストと重複しない境界で確認する。
-- [ ] 最小限の SKILL.md 更新。オプション、出力、required base の判断と根拠、取得結果保存、worktree/diff/scan/PR の値、再確認の順、PR 作成後の照合と公開済み資源保持、外部文書 main 分離、実 PR base の検証記録と finalize 連携、停止報告を一貫させる。Issue resolver に loop_args として --base を渡さない。
-- [ ] finalize の代表正常テストを main と異なる実 PR base に変えて、同じ branch と SHA が merge guard を通ることを確認。既存 stale base/head/第1親の拒否ケースを再実行し、守りの重複テストを追加しない。
-- [ ] 新手順で同じシナリオを通す。evals/validation.md に旧/新の観測・限界を記録。skill-efficiency-check は警告を理由なく全体改稿する根拠にしない。
-- [ ] `uv run --locked pytest -q .agents/skills/issue-to-pr .agents/skills/review-fix-planning/tests/test_finalize.py`、skill の参照確認、`git diff --check`。`feat: carry pinned base through issue-to-pr workflow` で commit。
+- [x] writing-skills / skill-creator を読む。旧手順（追加ガイダンス無し）のシナリオを実行して停止または main 固定になる証拠を SESSION に残す。有料モデルによる行動比較ではなく、実行手順の比較として報告する。
+- [x] 統合 S テストの RED。main と異なる統合 branch、別 repository の文書 main を用意し、branch 元・diff・scan の範囲・PR argv が一致することを実 Git と偽 gh / Gitleaks で観測する。危険例・base 移動で公開が進まないことも、担当 helper の既存 S テストと重複しない境界で確認する。
+- [x] 最小限の SKILL.md 更新。オプション、出力、required base の判断と根拠、取得結果保存、worktree/diff/scan/PR の値、再確認の順、PR 作成後の照合と公開済み資源保持、外部文書 main 分離、実 PR base の検証記録と finalize 連携、停止報告を一貫させる。Issue resolver に loop_args として --base を渡さない。
+- [x] finalize の代表正常テストを main と異なる実 PR base に変えて、同じ branch と SHA が merge guard を通ることを確認。既存 stale base/head/第1親の拒否ケースを再実行し、守りの重複テストを追加しない。
+- [x] 新手順で同じシナリオを通す。evals/validation.md に旧/新の観測・限界を記録。skill-efficiency-check は警告を理由なく全体改稿する根拠にしない。
+- [x] `uv run --locked pytest -q .agents/skills/issue-to-pr .agents/skills/review-fix-planning/tests/test_finalize.py`、skill の参照確認、`git diff --check`。`feat: carry pinned base through issue-to-pr workflow` で commit。
 
 ## 実行予算
 
@@ -84,7 +84,15 @@ SDD: SESSION の `sdd/2026-10-29-issue-300-explicit-base/`。再生成キャッ�
 
 ## 統合・公開（controller）
 
-- [ ] Task ごとのレビュー後、Spec→Task→証拠を条件単位で照合。最後の whole-branch review と必要な1回の修正。
+- [x] Task ごとのレビュー後、Spec→Task→証拠を条件単位で照合。最後の whole-branch review と必要な1回の修正。
 - [ ] README の3入口: `bash .devcontainer/run-tests.bash`; `bash scripts/check-layout.sh`; `uv run --locked pytest tests/skills .agents/skills .agents/scripts tools`。最後の commit の clean HEAD と各 argv / exit / log、finalize checks-file を SESSION に記録。
 - [ ] Issue / 競合を再確認し、親 checkout の scan-before-push.sh が返す SHA だけを push。PR は main 宛て、Closes #300。Spec/Plan はこの PR に含める。
 - [ ] 親 checkout のループを指定 inspect で実行し、finalize 以外では merge しない。private Actions は待たない。結果・関連 Issue の観測 state・時間・残存資源を報告。
+
+## 実行記録（2026-10-30、公開前）
+
+Task 1 `c8a681d`（約13分）・Task 2 `e3e6a36`（約15分）・Task 3 `50d6d24`（約27分）を実装。Task 3 のレビュー欠落から再開し、`350d78a`（修正約13.4分）で別シェルの停止条件を修正、限定再レビュー合格。全体レビューの指摘4件は1回の修正 `e3fb308`（約12分）で対応し、限定再レビューで全件対応・新規不具合なし。各レビューは読み取り専用。
+
+最終修正の証拠: 誤送信先に実refが届くREDを確認後、代表Sテストを追加。focused13・covering141・全pytest1255がexit0。strict modeの別シェル境界、GIT_*の読取/書込境界、runner用保存先分離、非default branchのCloses説明を修正し、重複したallowlistケースは削除した。条件別の根拠はSpecの実行記録に記す。
+
+引き継ぎ後のレビュー・修正は約57分経過時点で完了。元の予算記録の約492分は中断区間未分類であり、実連続作業時間とは扱わない。追加240分のledgerはSESSION/budget-continuation.jsonl。最後の文書commit後のREADME3入口・checks-file保存、push・PR・指定ループはこれから実行する。文書はdraftのまま、内容承認ではなく実行許可に基づく。公開未実施。

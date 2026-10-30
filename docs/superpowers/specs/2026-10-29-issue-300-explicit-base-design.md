@@ -65,3 +65,13 @@ main 以外への PR の `Closes` は GitHub が default branch へのマージ�
 ## 検証
 
 恒久テストは S の対象取り違え・未検証公開・秘密検査範囲に限る。単なる argparse / 文言 / 一覧の固定照合は追加しない。既存正常対照と安全テストを再利用する。README の非ワールド検証3入口、diff check、最後のブランチ全体レビューを行う。
+
+## 実行記録（2026-10-30、公開前）
+
+- 実装: `c8a681d`（入力/base helper）、`e3e6a36`（scan pin）、`50d6d24`（手順統合）。Task 3 のレビューで別シェルのfail-fast欠落を実Git/偽CLIで再現し、`350d78a`で修正・限定再レビュー合格。
+- 全体レビュー: `5dc093c..350d78a`。4件を`e3fb308`で1回の修正にまとめ、限定再レビューですべて対応済み、新規不具合なし。GIT_*を除いたhelperと継承するpushの環境差は、ローカルbareの誤送信先refで再現した。各手順の隔離環境を一致させ、代表Sテストでコード/文書両方の正しい送信先・PR照合と誤送信なしを観測。
+- 保存/再開: 実手順を新しいBashで実行し、正常系成功・base移動時停止・公開済み資源保持を確認。runner用IMPLEMENT_SESSIONとrun全体のSESSIONの参照/削除範囲を構造確認。文言の固定テストは追加していない。
+- 入力/対象: 実Gitのmain/非ASCII統合branchと独立したSHA/内容を比較。origin不一致・required base矛盾・別ref・移動・GIT_*による取り違えを拒否する既存Sテストと正常対照が通過。allowlistを確認できていなかった重複ケースは削除。
+- 検査/公開: 実Git範囲と偽Gitleaksの記録、実行手順からの偽gh PR作成・読取で同じbase/SHAを確認。外部コードの統合branchと文書mainを独立に観測。scan前/scan中/PR前の移動と作成後base不一致の停止を確認。finalize代表正常例を非mainに変更し、既存拒否ガードを再実行。
+- 最終修正のcovering141・全pytest1255はexit0。記録は親checkoutの`tmp/agents/issue-300.vmbh4kha/`内のtask/branch report・ログ。最後の文書commit後のREADME3入口はcontrollerが続けて実行し、HEAD/argv/exit/logとchecks-fileを保存する。push/PR/指定ループは未実施で、内容承認は記録しない。
+- 本run自身は開始時のmain向けissue-to-pr手順を維持し、親checkoutのscanner/loopを使用する。開発した新手順をこのrunの公開に遡及適用しない。公開未実施。
