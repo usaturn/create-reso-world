@@ -102,6 +102,7 @@ public static class ProjectInitializer
 ```
 
 - `PluginSkillFileStatus.Path`・`PluginSkillRetainedFile.Path`・`Updated`・例外の context のパスは、プロジェクトのルートからの `/` 区切りの相対（`.agents/skills/alpha-guide/SKILL.md`）。
+- 例外（I へ渡すもの）: `SKILL_SYNC_CONFLICT`・`INIT_FILE_EXISTS`（既存。プラグインの項目があれば context に `pluginConflicts`）、`PLUGIN_SKILL_RECORD_INVALID`（記録が読めない、`ValidationFailed`）、`PLUGIN_SKILL_RECORD_TOO_LARGE`（書き込む記録が読み込みの上限 8 MiB を超える、`ValidationFailed`。PR #27 のレビュー修正で追加）、`PLUGIN_SKILL_WRITE_FAILED`（`OperationFailed`）、F の `PLUGIN_*`（`PLUGIN_MODIFIED`・`PLUGIN_NAME_CONFLICT`・`PLUGIN_PATH_UNSAFE` など）。
 - `resoloopVersion` は I が渡す本体の版（`PluginRegistry` の互換判定に使う）。`reservations` は I が #98 の catalog から作る予約名。スキル名には同梱名を必ず足す。
 - 新設の 2 つは、プラグインが参加しないとき（2 章の条件）、既存の関数と同じ結果・同じ生成物・`Plugins = null` を返す。
 - 新設の `Sync` の `Synchronized` は同梱とプラグインの両方が同期済みのとき真。`Updated` は同梱・プラグインのファイル・両方の記録のうち書いたものすべて（書いた順）。`Plugins.Updated` はそのうちプラグインのファイルと記録だけ。`Mode` は `check`・`update`。
@@ -139,7 +140,7 @@ lease 内の各プラグインの各 `skills[]`（名前 `S`、パス `P`）に�
 }
 ```
 
-- UTF-8（BOM なし）、インデント付き、LF、末尾の改行。キーは序数順。最大 8 MiB。
+- UTF-8（BOM なし）、インデント付き、LF、末尾の改行。キーは序数順。最大 8 MiB（読み込みも書き込みも。PR #27 のレビュー修正で、書き込む前に計画の段階で確かめ、超えるなら `PLUGIN_SKILL_RECORD_TOO_LARGE`（`ValidationFailed`）で同梱を含めて何も書かずに止まるようにした。項目が変わらなければ記録を書き直さない。[レビュー修正の Spec](2026-10-30-usaturn-resoloop-pr27-plugin-skills-review-fixes-design.md)）。
 - 読むときは、リンクを拒否し（`PLUGIN_PATH_UNSAFE`）、F の bounded JSON reader で UTF-8・重複プロパティを検査し、`schemaVersion == 1`、未知のプロパティなし、キーが移植可能な相対パスで 2 要素以上かつ先頭がスキル名の規則に合い、大小文字を無視して重複しない、`plugin` が名前の規則に合う、`sha256` が小文字 64 桁であることを確かめる。違えば `PLUGIN_SKILL_RECORD_INVALID`（`ValidationFailed`）で何も書かずに止まる。壊れた記録を空として扱わない。
 - 書くのは、新しい内容が既存と違い、かつ項目が 1 つ以上あるときだけ。プラグイン無しや宣言が無いときに空の記録を作らない。
 
@@ -199,7 +200,7 @@ lease 内の各プラグインの各 `skills[]`（名前 `S`、パス `P`）に�
 - 全体の検証（最終 HEAD `371a34e9f76bb8e1a276fb7a074ed1be37153086`、`CODE_ROOT`、作業ツリーは clean、base `dd0b40fb216b0c9fbd82da44903195a885104015`）: `dotnet build ResoLoop.slnx --nologo` 警告 0・エラー 0、`dotnet test ResoLoop.slnx --nologo --no-build` unit 578 件（既存 573＋新設 5）・offline integration 22 件、失敗/skip 0。`82d5fd8` でも同じ結果。Windows は未実行（公開 CI で確かめる）。
 - 最終レビュー（会話の文脈を持たないサブエージェント、Opus）: Critical・Important なし、「Ready to merge: Yes（Minor は任意）」。Minor 8 件の採否:
   - 直した（文書の正確さ）: 公開 API の doc コメントのパスの説明（builder check の反映漏れ）、`.agents` 等がリンクのときの実際の例外・Linux の rename の挙動を「既知の制限」に追記、Plan の Review Focus と Interfaces の記述、6 章の通る例の文言。
-  - 持ち越し（データの損害が無く、エラーの診断・見た目の改善だけ）: リンクのときの例外にパスを付ける、`PLUGIN_SKILL_WRITE_FAILED` の context に同梱・記録の書き込み済みのパスを含める、記録の書き込み前の 8 MiB の確認、記録の日本語のキーのエスケープ、init で `update-available` のときの suggestion、テストのアサーションの追加・整理。
+  - 持ち越し（データの損害が無く、エラーの診断・見た目の改善だけ）: リンクのときの例外にパスを付ける、`PLUGIN_SKILL_WRITE_FAILED` の context に同梱・記録の書き込み済みのパスを含める、記録の書き込み前の 8 MiB の確認（PR #27 のサイクル 1 で、レビュアーが制限内の入力で到達できると再現したため直した）、記録の日本語のキーのエスケープ、init で `update-available` のときの suggestion、テストのアサーションの追加・整理。
 
 ## 7. 公開・引き渡し
 
