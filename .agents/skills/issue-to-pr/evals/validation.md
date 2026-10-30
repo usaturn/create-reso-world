@@ -395,3 +395,14 @@ Issue の指示に従い、有料モデル・サブエージェントの試験�
 - 修正後は、別 Bash でも base 移動を検出したら PR を作らず停止し、公開済み branch と worktree を保持。実 PR の base 不一致でも URL と読取結果を残して停止。正常対照は PR 作成・照合まで完了した。
 - 一時的な直接呼出確認では、`recheck_bases` を条件式に置き、呼出側の errexit に依存せず失敗を返すことを観測した（変更前: exit 0 で 1 failed、変更後: exit 2 で 1 passed）。同じ守りの恒久テストは重複追加していない。
 - `uv run --locked pytest -q .agents/skills/issue-to-pr .agents/skills/review-fix-planning/tests/test_finalize.py`: 140 passed。RED / GREEN / focused の証拠は `tmp/agents/issue-300.vmbh4kha/task-3-fix-1-*.log`。自然言語の遵守率・実 GitHub・実 Gitleaks・CI は引き続き評価対象外。
+
+
+### 検証と公開の Git 環境、保存先の分離（最終レビュー修正）
+
+実施日: 2026-10-30。最終レビューの受理済み 4 件だけを修正した。自然言語の遵守率ではなく、既存の実行手順を比較した。
+
+- S の回帰テストを先に追加。コードの非 ASCII 統合 branch と文書 main を捕捉した後、publish の直前に `GIT_CONFIG_COUNT` で別のローカル bare repository を `remote.origin.pushurl` に指定した。変更前は検証が通り、コード・文書の両 branch を意図しない bare repository へ送ったため、送信先が空であるべきという期待に失敗した（1 failed）。後段の PR 作成の失敗では、既に起きた誤送信を防げなかった。
+- 変更後は各 Bash ブロックで helper と同じく継承した `GIT_*` を除去する。同じ入力で意図しない送信先は空のまま、検証した両 repository にそれぞれの HEAD が届き、PR の読取 SHA も一致した。既存の main 正常対照、base 移動・実 PR base 不一致の停止も維持した。
+- run 全体の `SESSION` と実装担当用の `IMPLEMENT_SESSION` を区別し、runner の後片付けで base JSON・検証記録の保存先を再定義・削除しない手順にした。`Closes` の自動 close は default branch へのマージ時だけ働くと明記し、既存の `Refs` / `Closes` の選択基準は変更していない。これらの説明には固定文言テストを追加せず、変数の参照・後片付けの範囲・説明の条件を確認した。
+- origin 不一致でも拒否されてしまう対象外 repository の重複ケースを削除した。fetch/push URL と required base の拒否、および正常対照は維持した。
+- covering: `uv run --locked pytest -q .agents/skills/issue-to-pr .agents/skills/review-fix-planning/tests/test_finalize.py`（一時領域は `--basetemp` で SESSION 配下に指定）: **141 passed**。RED / GREEN / covering のログは `tmp/agents/issue-300.vmbh4kha/branch-fix-*.log`。通信はすべてローカルで、実 GitHub・実 Gitleaks・CI・有料モデルの評価は行っていない。

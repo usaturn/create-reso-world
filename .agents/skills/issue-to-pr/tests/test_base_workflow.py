@@ -45,7 +45,9 @@ class Workflow:
     docs: Path
     repo: str
 
-    def run(self, argument: str, *, required: str = "", before_pr: str = "") -> subprocess.CompletedProcess[str]:
+    def run(
+        self, argument: str, *, required: str = "", before_publish: str = "", before_pr: str = "",
+    ) -> subprocess.CompletedProcess[str]:
         env = dict(os.environ, INPUT=argument, REQUIRED=required, TARGET_REPO=self.repo,
                    TARGET_ROOT=str(self.target), PARENT_ROOT=str(self.parent),
                    SKILL_DIR=str(SKILL), SESSION=str(self.session), CODE_ROOT=str(self.code),
@@ -61,7 +63,7 @@ class Workflow:
                   'if [ "$DOC_ROOT" != "$CODE_ROOT" ]; then',
                   '  printf "draft design\\n" > "$DOC_ROOT/design.md"',
                   '  git -C "$DOC_ROOT" add design.md; git -C "$DOC_ROOT" commit -qm design',
-                  'fi', procedure("diff"), procedure("publish"), before_pr,
+                  'fi', procedure("diff"), before_publish, procedure("publish"), before_pr,
                   # Resume in a fresh shell with values/functions, not shell options.
                   # The documented block must supply its own failure propagation.
                   'declare -p CODE_BASE_BRANCH CODE_BASE_SHA CODE_SHA > "$SESSION/resume.bash"',
@@ -109,6 +111,10 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fi
         git(seed, "push", "-q", "origin", "--all")
         subprocess.run(["git", "clone", "-q", "--single-branch", "--branch", "main",
                         str(remote), str(checkout)], check=True)
+        # The documented shell drops GIT_* just like the resolver. Keep commit
+        # identity in the fixture repository, not in the isolated environment.
+        git(checkout, "config", "user.name", "Workflow test")
+        git(checkout, "config", "user.email", "workflow@example.test")
         pairs.append((remote, seed, checkout, repo))
     # Deployed commands deliberately use the parent's scanner, not a script
     # from the feature branch. Supply the new scanner and its version source.
@@ -261,3 +267,22 @@ def test_created_pr_retarget_is_not_reported_as_matching(workflow: Workflow, mon
     assert actual["baseRefName"] == INTEGRATION
     assert workflow.code.exists()
     assert git(workflow.remote, "rev-parse", "refs/heads/feat/issue-42-change") == git(workflow.code, "rev-parse", "HEAD")
+
+
+@pytest.mark.parametrize("workflow", [True], indirect=True)
+def test_publish_cannot_inherit_a_different_push_target(workflow: Workflow, tmp_path: Path) -> None:
+    """Dropping publish-time Git isolation leaks scanned commits to an unverified pushurl."""
+    unintended = tmp_path / "unintended.git"
+    subprocess.run(["git", "init", "--bare", "-q", "--initial-branch=main", str(unintended)], check=True)
+    # A resumed publishing shell can inherit overrides after the base was pinned.
+    injected = ("export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=remote.origin.pushurl "
+                f"GIT_CONFIG_VALUE_0={shlex.quote(str(unintended))}")
+    result = workflow.run(f"#42 --base={INTEGRATION}", before_publish=injected)
+    assert git(unintended, "for-each-ref", "--format=%(refname)") == "", result.stderr
+    assert result.returncode == 0, result.stderr
+    code_sha = git(workflow.code, "rev-parse", "HEAD")
+    doc_sha = git(workflow.docs, "rev-parse", "HEAD")
+    assert git(workflow.remote, "rev-parse", "refs/heads/feat/issue-42-change") == code_sha
+    assert git(workflow.parent, "ls-remote", "origin", "refs/heads/docs/issue-42-change").split()[0] == doc_sha
+    assert json.loads((workflow.session / "code-pr.json").read_text())["headRefOid"] == code_sha
+    assert json.loads((workflow.session / "docs-pr.json").read_text())["headRefOid"] == doc_sha

@@ -170,8 +170,6 @@ def test_rejects_wrong_target_and_required_base(repository: Repository, monkeypa
     ):
         rejected(resolve(repository, *args))
         assert not repository.fetch_log.exists()
-    rejected(resolve(repository, repo="orange3134/resoloop"))
-    assert not repository.fetch_log.exists()
     assert snapshot(repository.root) == before
     result = resolve(repository, "--base", INTEGRATION, "--required-base", INTEGRATION,
                      "--required-base", INTEGRATION)

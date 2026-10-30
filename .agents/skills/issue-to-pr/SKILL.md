@@ -54,17 +54,19 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
 2. スキルの実ディレクトリを `SKILL_DIR` とし、create-reso-world の main checkout `PARENT_ROOT` を求めて、`origin` が usaturn/create-reso-world であることを確かめる。
 
    ```bash
+   for git_env in "${!GIT_@}"; do unset "$git_env"; done
    PARENT_ROOT=$(dirname "$(git -C "$SKILL_DIR" rev-parse --path-format=absolute --git-common-dir)")
    git -C "$PARENT_ROOT" remote get-url origin
    ```
 
 3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`、`#12 --merge --max-cycles 2 途中で止めずに` なら `#12 --merge --max-cycles 2`）。語を足したり並べ替えたりしない。読み取り専用の helper を、起動したときの cwd のまま（checkout のルートへ `cd` せずに）実行する。
 
-   `SESSION` は `PARENT_ROOT/tmp/agents/` の、この run のセッションディレクトリ（`agent_tmp.py mkdir issue-N`）にする。以降の Bash ブロックは配列・変数・関数を共有する。別シェルに移るときは、最初に `set -euo pipefail` を実行してから保存 JSON から同じ値を読み戻し、関数を定義し直す。各ブロックは先頭から最上位のコマンド列として実行し、`if` の条件や `&&` / `||` の一部に包んで fail-fast を無効化しない。base の取得をやり直して SHA を差し替えない。引数は引用と Bash 配列で渡し、`eval` しない。
+   `SESSION` は `PARENT_ROOT/tmp/agents/` の、この run のセッションディレクトリ（`agent_tmp.py mkdir issue-N`）にする。以降の Bash ブロックは配列・変数・関数を共有する。別シェルに移るときは、最初に `set -euo pipefail` を実行してから保存 JSON から同じ値を読み戻し、関数を定義し直す。各ブロックは helper と同じく継承した `GIT_*` を除去し、検証・worktree・diff・scan・push・PR 作成で同じ Git 環境を使う。先頭から最上位のコマンド列として実行し、`if` の条件や `&&` / `||` の一部に包んで fail-fast を無効化しない。base の取得をやり直して SHA を差し替えない。引数は引用と Bash 配列で渡し、`eval` しない。
 
    <!-- base-workflow:input -->
    ```bash
    set -euo pipefail
+   for git_env in "${!GIT_@}"; do unset "$git_env"; done
    uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" -- "$INPUT" > "$SESSION/issue.json"
    ```
 
@@ -114,6 +116,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
    <!-- base-workflow:capture -->
    ```bash
    set -euo pipefail
+   for git_env in "${!GIT_@}"; do unset "$git_env"; done
    base_args=()
    if [ "$(jq -r .base_explicit "$SESSION/issue.json")" = true ]; then
      base_args+=(--base "$(jq -r .base "$SESSION/issue.json")")
@@ -173,6 +176,7 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 <!-- base-workflow:worktree -->
 ```bash
 set -euo pipefail
+for git_env in "${!GIT_@}"; do unset "$git_env"; done
 recheck_bases
 git -C "$TARGET_ROOT" worktree add -b "$CODE_BRANCH" "$CODE_ROOT" "$CODE_BASE_SHA"
 if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
@@ -202,8 +206,8 @@ fi
 
 `superpowers:subagent-driven-development` を読み、Task を実装するサブエージェントの代わりに、`implement_task.py` で runner の担当に Task を 1 つずつ順に依頼する（並行しない）。runner の担当は入れ子に agent を起動できないので、Plan 全体を 1 回で渡さない。
 
-1. **出力先:** `uv run --no-project python "$PARENT_ROOT/.agents/scripts/agent_tmp.py" mkdir issue-<N>-implement` で作ったセッションディレクトリ（`SESSION`）の下の、存在しないパス（例: `$SESSION/task-2-attempt-1`）を依頼ごとの `RUN_DIR` にする。ログは後で参照するため、AGENTS.md の「コミットしないファイルの置き場所」に従う
-2. **依頼の JSON（`REQUEST_JSON`）:** 次の 6 項目だけを書き、`$SESSION` の下にファイルで置く。
+1. **出力先:** `uv run --no-project python "$PARENT_ROOT/.agents/scripts/agent_tmp.py" mkdir issue-<N>-implement` で作った実装担当用のセッションディレクトリ（`IMPLEMENT_SESSION`）の下の、存在しないパス（例: `$IMPLEMENT_SESSION/task-2-attempt-1`）を依頼ごとの `RUN_DIR` にする。run 全体の `SESSION` は再定義せず、base JSON・検証記録を保持する。ログは後で参照するため、AGENTS.md の「コミットしないファイルの置き場所」に従う
+2. **依頼の JSON（`REQUEST_JSON`）:** 次の 6 項目だけを書き、`$IMPLEMENT_SESSION` の下にファイルで置く。
    - `repository`: feature worktree（`TARGET_ROOT/.worktrees/<名前>`）の root の絶対パス。`revision`: その HEAD の完全な SHA（未 commit の変更を残さない）
    - `task`: 1 行の Task 名。`allowed_files`: Plan のその Task の担当ファイル（root からの相対パス。`/` で終わればディレクトリ）
    - `commit_message`: Plan の commit の手順のメッセージ（担当が commit できなかったときに helper が使う）
@@ -231,7 +235,7 @@ fi
    2. `implement_task.py cleanup --run-dir "$RUN_DIR"` を実行する。時点は、`importable` は `accept` の後（取り込めなかった場合も）、`no_changes`・`retry`・`rejected` は ledger に書いた直後、止まるとき（`failed`、上限に達した `retry`・`rejected`）は停止の報告の前。停止を確認した試行の worktree の登録を外し（force しない）、何も残らなければ `RUN_DIR` を消す
    3. 終了コード 1 は、残したもの（`retained`。停止を確認できない試行、`sensitive_paths` のある試行など）があることを示す。それだけでは止まらない。完全パスを ledger に書き、最終報告（止まるときは停止の報告）に含める。force・`rm -rf` で消さない
 
-   `run` が終了コード 2（`status: error`）で終わったときは `task.json` が無く、`cleanup` を使えない。`RUN_DIR` が存在すれば、その完全パスを停止の報告に書く。`reason` が `checkout_audit` なら、`checkout_audit` に並んだ登録（消えた worktree など）を報告して止まる。他の作業の領域でありうるので、自分で prune・削除しない。セッションディレクトリは、すべての依頼の `cleanup` の後に空になったときだけ `rmdir` で消す。中身が残っていれば消さずに完全パスを報告する（`rm -rf` で消すと runner の worktree の登録だけが残り、runner を使う入口が起動の前の監査で止まる）
+   `run` が終了コード 2（`status: error`）で終わったときは `task.json` が無く、`cleanup` を使えない。`RUN_DIR` が存在すれば、その完全パスを停止の報告に書く。`reason` が `checkout_audit` なら、`checkout_audit` に並んだ登録（消えた worktree など）を報告して止まる。他の作業の領域でありうるので、自分で prune・削除しない。`IMPLEMENT_SESSION` は、すべての依頼の `cleanup` の後に空になったときだけ `rmdir` で消す。run 全体の `SESSION` はこの後片付けの対象にしない。中身が残っていれば消さずに完全パスを報告する（`rm -rf` で消すと runner の worktree の登録だけが残り、runner を使う入口が起動の前の監査で止まる）
 
 失敗を理由に、このセッションが `self` で実装を引き取らない（`tools/agent_runner/interfaces.rst` の「失敗を理由に別モデルへ暗黙に切り替えない」と同じ）。止まった Task の後の Task・最後の全体レビュー・PR には進まない。担当を変えるかは利用者が決める。すべての Task を取り込めたときの最後の全体レビューと PR は、`self` のときと同じ。PR 本文には、5 章の項目に加えて、割り当て（雛形・個人設定・`--implement` のどれで決まったか）、runner が観測した agent・モデル、Task ごとの依頼の回数と所要時間を書く。
 
@@ -245,6 +249,7 @@ fi
   <!-- base-workflow:diff -->
   ```bash
   set -euo pipefail
+  for git_env in "${!GIT_@}"; do unset "$git_env"; done
   recheck_bases
   git -C "$CODE_ROOT" diff "$CODE_BASE_SHA...HEAD" -- > "$SESSION/code.diff"
   if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
@@ -257,6 +262,7 @@ fi
   <!-- base-workflow:publish -->
   ```bash
   set -euo pipefail
+  for git_env in "${!GIT_@}"; do unset "$git_env"; done
   SCAN="$PARENT_ROOT/scripts/scan-before-push.sh"
   recheck_bases
   CODE_SHA="$(bash "$SCAN" -C "$CODE_ROOT" --base "origin/$CODE_BASE_BRANCH" --expected-base-sha "$CODE_BASE_SHA")"
@@ -276,6 +282,7 @@ fi
   <!-- base-workflow:pr -->
   ```bash
   set -euo pipefail
+  for git_env in "${!GIT_@}"; do unset "$git_env"; done
   recheck_bases
   CODE_PR_URL="$(gh pr create --repo "$TARGET_REPO" --base "$CODE_BASE_BRANCH" --head "$CODE_BRANCH" \
     --title "$PR_TITLE" --body-file "$CODE_PR_BODY")"
@@ -296,7 +303,7 @@ fi
   ```
 
   不一致・base 移動ならループ・完了報告へ進まない。公開済みの branch・PR は自動 close・削除・base 変更で取り消さず、URL・実 base と捕捉値・残した資源を停止報告に書く。
-- PR 本文の Issue の指定は次のとおり（`Closes` はマージの時に Issue を completed で閉じ、マージの後の確認や調整役の close を待たない）。
+- PR 本文の Issue の指定は次のとおり。`Closes` による Issue の自動 close は、PR が対象 repository の default branch にマージされたときだけ働き、マージの後の確認や調整役の close を待たない。非 default branch 向けの PR は `Closes` を書いてもそのマージでは Issue が自動 close されないため、完了報告では実際に観測した Issue の state を書く。以下の `Refs` / `Closes` の選択基準は変えない。
   - Issue が `TARGET_REPO` と別のリポジトリにある: `Refs <Issue の URL>`（マージで別のリポジトリの Issue を閉じない）
   - Issue が `TARGET_REPO` にあり、マージの後でなければ確かめられない項目（rebuild、実機、`resoloop` の導入など）が受け入れ条件・検証に残る: `Refs #N`
   - Issue が `TARGET_REPO` にあるボードの子（2 章の 7）: `Refs #N`。close と親の更新は、マージの後に調整役が行う
