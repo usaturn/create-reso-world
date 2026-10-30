@@ -91,6 +91,24 @@ S テストのみを代表例で追加し、拒否には正しく通る例を残
 
 base移動の停止理由・旧/新SHA・既存資料の保存方針を提示した後、利用者は「一旦停止したことは了解します。作業を再開してください。」と明示した。この既知の移動を受け入れた継続指示として、既存のcleanな2worktree/資料を再利用し、別session `issue-100-resume.0nu9othi` に新baseを捕捉した。旧JSONは変更していない。自分の予約は同じSHAで引き続き保持し、他者の作業は再利用しない。コードworktreeは新baseへff-only更新した。新しい別のbase移動も同様に停止対象である。設計意味/編集境界/PRとmergeの権限は当初指示のまま、内容承認は推測せずdraftを維持する。
 
+## 実装・統合検証（2026-10-30）
+
+コードHEAD `250b39fc91c6f09b96ddb1297c108aba9290256e`、新base454b54c、clean treeで検証した。Task1 e43810b、Task2 6bb45af、レビューのテスト修正250b39f。変更は許可4ファイルだけ（新規resolver、新規tests、UixRecipes、ApplyDocumentCompiler）。Catalog本体・Program・ApplyWorkflow・既存Pluginsは不変。
+
+| 条件 | 実行証拠 |
+| --- | --- |
+| namespace/list/describe/raw read/export保護 | Task1 RED（APIなし）→focused2 GREEN、全581unit+22offline。別plugin同名/日本語metadata/export sentinelを実入力で確認 |
+| main/include/cwd/キー/lease | Task2 RED（overloadなし）→focused新5/既存併合22 GREEN。同projectの反復Compile、失敗後の次Compileも成功 |
+| 本体host版/接続前拒否 | 実CLI offline validateの正常0、改変6(PLUGIN_MODIFIED)、未導入5(PLUGIN_NOT_INSTALLED)。主入力/include/cwdは別directory、対応版は[0.2.0,0.3.0) |
+| builtin利用 | project外/改変plugin projectの実CLI validateとも0。既存ControlRecipeTests/AgentEfficiencyTests/ObservationRecipeTestsを最終suiteで確認 |
+| 最終HEAD | dotnet build ResoLoop.slnx --nologo: exit0/警告0/エラー0。dotnet test ResoLoop.slnx --nologo: exit0、583unit+22offline、失敗/skip0。実CLI5caseを再実行、clean status |
+
+ログ/検証記録: `/workspaces/reso-world/tmp/agents/issue-100-resume.0nu9othi/` の final-build.log、final-tests.log、final-cli-smoke.log、verification.json、checks.json。
+
+独立全体レビューはCritical0、Important1（cwd fallback拒否テストの検出力）、Minor2。Importantは正常な別project/lease解放済みのcwdを用意し、誤ったfallback実装を一時的に入れると新Sテストが失敗、元の実装で成功する対照を確認した。Minorのうちbuiltin-onlyの追加恒久テストはL/既存SとのDに当たるため、規約違反としてImportantへ再分類し、恒久テストを削除して一時CLI検証へ移した。恒久追加は4件。全体レビュー後の修正はテストのみ、1回のfix passで終了、再レビューはしていない。
+
+既知のMinor: compilerは不正な修飾名でもproject/version解決が先になるため、project外等ではUIX_RECIPE_NOT_FOUNDよりproject/versionエラーを先に返すことがある。誤ったレシピ/worldを選ぶ問題ではないため、このrunでは直さず記録する。CLIのlist/describe/export結線、実機UIX、補助prototypeの自動取り込み/再帰展開の拡張は本Issueで実装済みとはしない。後続#298は公開APIを消費する。
+
 ## 公開・終了
 
 コード PR は `feat/plugin-v2` 宛て、文書専用 PR は create-reso-world/main 宛てで相互リンク。両方 `Refs https://github.com/usaturn/create-reso-world/issues/100`。子Issueのcloseと親更新は調整役に残す。全未push commitを親のscan-before-push.shで検査し、捕捉baseが移動したら差し替えず停止する。PR後は指定レビュー修正ループのみでコード変更/mergeを行う。

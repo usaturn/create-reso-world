@@ -32,7 +32,7 @@
 ## Review Focus
 
 - レシピ利用失敗後に lease が残って次の利用を拒否しないこと（Task2の代表テスト）。
-- 組み込みのみの入力がproject無し/壊れたpluginでも従来どおり展開すること（Task2）。
+- 組み込みのみの入力がproject無し/壊れたpluginでも従来どおり展開すること（Task2の一時CLI検証。Lのため恒久追加なし）。
 - 同じローカルレシピ名の別pluginを一覧から説明/読取/exportまで取り違えないこと（Task1）。
 - 修飾名にresolverを渡さないAPIがcwdのpluginへfallbackしないこと（Task1）。
 - CLI entry versionとCore既定versionを取り違えないこと（Task2の実CLI offline validate、非CLIは明示版）。
@@ -89,10 +89,10 @@
 
 - [ ] `MainInputWinsOverIncludeAndWorkingDirectory` を先に書く。2worldの同名pluginのJSON内容を別値とし、mainが他worldのincludeを使用、cwdも他world。明示版Compileはmainの値/固定仕様keyに一致し、再Compileも同一結果。cwd変更が必要なら既存非並列test collectionを使用し必ずfinallyで復旧する。
 - [ ] `MissingPluginAndFailedExpansionReleaseLease` を先に書く。正しく使える例の後に未導入名/parameter不正を拒否し、同プロジェクトの次の正常Compile成功。未導入をbuiltin/bare名で代用しない。
-- [ ] `BuiltinsDoNotRequireAProjectOrHealthyPlugins` を先に書く。組み込みbuttonの既存キーがproject無しとmodified plugin projectで一致する。既存UixRecipeTestsの大半と重複させず、遅延resolver境界だけ確認。
+- [x] 組み込みbuttonのproject無し/modified plugin利用は一時CLI validateで確認する。最終レビューでLと判定し新規恒久テストは削除した。キー不変の既存Sテストは維持する。
 - [ ] RED: focused PluginRecipeTests実行、既存compilerの名前解決/キーが期待と異なり失敗することを観測。
 - [ ] 最小実装: `CompileCore`で固定main path、using Contextとfactory。default host版はCLI entry assembly名resoloopから取得し、不明ならfail closed。明示版overloadはtest/library用。組み込み時はversion/projectを解決しない。
-- [ ] GREEN: focused testsと既存UixRecipeTests、`git diff --check`。実CLI offline validate用fixtureをsession内に独立構成して成功とmodified/missing拒否を確かめる。ライブopt-in/URLはchild環境から除去する。
+- [x] GREEN: focused testsと実在するControlRecipeTests/AgentEfficiencyTests（計画時のUixRecipeTests表記を訂正）、`git diff --check`。実CLI offline validate用fixtureをsession内に独立構成して成功とmodified/missing拒否を確認。ライブopt-in/URLはchild環境から除去した。
 - [ ] 明示stage、commit `feat: compile plugin recipes in the main input project`。
 - [ ] controllerが `dotnet build ResoLoop.slnx --nologo`、`dotnet test ResoLoop.slnx --nologo` を同期実行し全ログ/終了コードを確認。最後のcommit後のHEAD/clean status/argv/exit/log/code baseをchecks記録に保存する。public Windows CIはPR後のfinalizeが確認する。
 - [ ] 捕捉baseからの全差分、Spec/Plan/同じ受け入れ基準/ledgerを独立全体レビューへ渡す。Review scope branch、upstream reviewer templateを必ず含める。Important/Criticalは1回のfix passでRED→GREEN、minorは記録する。
@@ -111,6 +111,14 @@
 
 利用者が停止理由を了解した上で「作業を再開してください」と明示した。Specの再開許可に従い、現在はdraft / planning: in-progress / implementation: not-started。別session `/workspaces/reso-world/tmp/agents/issue-100-resume.0nu9othi/` にbaseを捕捉し、既存code worktreeを454b54cへff-only更新。旧停止時の記述は当時の履歴であり、新runを停止中とするものではない。予算は旧ledgerを引き継ぎ、SDDも同じ旧session下に作る。新baseでbaseline再検証してからTask1を開始する。以後の別の移動は再び停止対象。
 
+## Task実行と最終検証の記録
+
+- Task1 e43810b: RED(API未実装)→focused2 GREEN→full581unit+22offline。Task2 6bb45af: RED(overload未実装)→focused5/既存併合22 GREEN、実CLI正常0/改変6/未導入5。
+- 全体レビュー1回: Importantのtest偽陽性を採用。cwdに正常な別projectを用意してleaseを持たずにAPIを呼ぶ形へ変更し、誤ったimplicit fallbackの一時変異で1件失敗→正しい実装でGREEN。L-only builtinテストの追加は規約上Importantと裁定し削除、一時CLI2caseへ移した。250b39fはtestsのみのfix pass。再レビューなし。
+- 最終clean HEAD250b39fで build0warnings/0errors、full583unit+22offline、CLI5case成功。ログ/checks/argv/clean/baseはresume session verification.json/checks.json。最終全体レビューの原文は同sessionのbranch-review.md。
+- Minor保留: malformed修飾名に対するproject/version診断の順序。範囲外のCLI結線/実機/敵対同一ユーザ完全防御/補助prototype自動取り込み拡張は実装主張なし。
+- Task1/2の実装・オフライン検証は完了。公開・CI・指定loopはこの記録時点では未実行。Spec/Planの内容承認はなくdraftを維持する。
+
 ## 自己照合
 
-Spec全条件は上記表に対応。型名/シグネチャを照合しTask2はTask1のAPIのみ利用。共有条件はmain path・package snapshot・lease lifetime・host versionでcontrollerが統合確認する。恒久テストはSのみ。F/Lはbuild/既存検査/実CLI/差分で代える。現時点で実装・新テスト・公開・マージは未実行。
+Spec全条件は上記表に対応。型名/シグネチャを照合しTask2はTask1のAPIのみ利用。共有条件はmain path・package snapshot・lease lifetime・host versionでcontrollerが統合確認する。恒久テストはSのみ。F/Lはbuild/既存検査/実CLI/差分で代える。計画時の未実行状態と、上記のTask実行結果を区別する。公開・マージの結果はPR/loopの記録で確認する。
