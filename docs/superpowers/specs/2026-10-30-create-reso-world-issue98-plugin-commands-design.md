@@ -2,7 +2,7 @@
 
 ## 管理
 
-- 状態: `draft`（内容の承認は無い。下の実行許可は内容の承認ではない）
+- 状態: `completed`（実装と PR #29 のレビュー修正判断を完了。内容の承認は無く、実行許可を承認とは扱わない）
 - Issue: [usaturn/create-reso-world#98](https://github.com/usaturn/create-reso-world/issues/98)（親 [#95](https://github.com/usaturn/create-reso-world/issues/95)、ボードのキー `resoloop-plugins-board`、子のキー `plugin-commands`）
 - 実装の対象: `usaturn/resoloop`。base は `feat/plugin-v2`。最初に捕捉したのは `dd0b40fb216b0c9fbd82da44903195a885104015`（F #297 の PR usaturn/resoloop#26 のマージ）。文書の base は create-reso-world `main` の `acd288c3e81a6c108136e37815e718a0fe088195`
 - base の変更: 実行の中断中（2026-10-30、利用上限）に `feat/plugin-v2` が `0143618cdf455324c07d5fd093b394bea47ad02b`（#99 の PR usaturn/resoloop#27、#100 の PR usaturn/resoloop#28 のマージ）に進んだ。issue-to-pr の停止条件に当たるので利用者に確認し、「新しい base で続ける」の選択を受けた。未 push のブランチを `0143618` に rebase し（衝突なし、共有するファイルなし）、build・テスト・一時の確認をやり直した。設計の内容は変えていない
@@ -339,4 +339,53 @@ Linux（この Dev Container、`global.json` の .NET 10.0.201）で build と�
 - base `dd0b40f` のときの全体テストの 1 回目に、変更範囲外の `CaptureTests.WaitsForCompletedNewFileAndPreservesOldPhotos` が共有違反で 1 件失敗した（単体の再実行 8 回はすべて成功、2 回目の全体は成功）。既存の時間依存の競合と判断し、所有範囲の外なので変えていない
 - 最終レビュー（新しいレビュアー、Opus）: Critical 0、Important 2（SIGPIPE、STOP_FAILED の `processGroup`）を修正。Minor の `PWD` は取り違えに気付けない損害なので Important として修正。テストの書きすぎの指摘で `BuiltinNamesNeverReachPlugins` を削除
 - 見送った Minor（持ち越し候補）: 期限切れの提案文が manifest の `timeoutSeconds` の場合も `commandTimeoutSeconds` を案内する、Windows で `.cmd`・`.bat` しか無いツールを doctor が「見つからない」と示す、ツール確認がパイプの EOF を待つため出力を握る子孫を残すツールは 30 秒で `timed-out` になる、`Exited` の失敗（waitid の ECHILD 等）がグループの停止の後に `RLoopException` でない例外として出る、#101 の文書で「doctor は package のコードを実行しない」と書かない（`versionArgs` でインタープリタに式を渡せる）
+
+## 10. PR #29 レビュー修正判断（2026-10-30、サイクル 1）
+
+### 対象と実行許可
+
+- 対象: [usaturn/resoloop#29](https://github.com/usaturn/resoloop/pull/29)、HEAD `8bdcdadc98c0a24fcbe235858fed46c7a1fbeb85`、base `feat/plugin-v2` の `0143618cdf455324c07d5fd093b394bea47ad02b`。base は HEAD の祖先で、一時 merge は不要。
+- 追加の実行許可: 利用者が `pr-review-fix-loop` と上記 PR URL を明示した。レビュー・現行 HEAD で確認した致命的指摘の修正・push・状況投稿・修正不要時のマージと関連 Issue の更新を委任した。管理節の当初の issue-to-pr の実行許可とは別であり、設計内容への承認は推測しない。
+- planner: `gpt-6.1-sol`（runtime `pi`、provider `openai-codex`、effort `xhigh`）。loop run ID `666a4616974248dab673b3428f15caa4`。前の判断の記録は無い。
+- 既存のこの Spec と同じテーマの Plan を基準に更新した。レビュー回ごとの別 Spec・Plan は作成しない。
+
+### レビュアーの構成と全指摘の分類
+
+入力は親 checkout の `reviews/usaturn/resoloop/#29-feat-create-reso-world-issue-98-plugin-commands/`。全員の対象 HEAD は上記 HEAD で、Review history は `Initial`、このサイクルで再実行した。候補 JSON は本文との `check-pair` と形式検査を通過した。
+
+| レビューファイル | 実際の担当 | モデル | runtime | HEAD | Merge recommendation | 所要秒 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | `pi-gpt` | `gpt-6.1-sol` | `pi` | `8bdcdadc98c0` | Approve | 1068.934241 |
+| `SWE-2-Max.md` | `devin-swe` | `SWE-2 Max` | `devin` | `8bdcdadc98c0` | Approve | 1192.232373 |
+| `deepseek-deepseek-v4.1-flash.md` | `pi-deepseek` | `deepseek/deepseek-v4.1-flash` | `pi` | `8bdcdadc98c0` | Approve | 857.512825 |
+
+全指摘一覧は空（active・Unverified candidates ともに各 0 件）。解消済み 0、対応する 0、対応しない 0。引き継ぐ判断、入力から外したレビュー、loop が rejected にした担当は無い。司令塔の追加確認でも PR が持ち込んだ致命的な欠陥は確認していない。承認票の多さではなく、変更 10 ファイルの全文・関連経路・検証結果を根拠に判断した。
+
+### 要件と検証の対応
+
+統合担当は planner。既存 Spec 3・5・6・8 章、Plan の受け入れ基準・完了節、Issue #98 の現行ボードと PR 本文の保証・制限を照合した。共有条件は、生 argv の受渡し、予約名の一致、停止と lease 解放の順序である。
+
+| 要件・共有条件 | 今回の方針 | 観測結果・証拠 |
+| --- | --- | --- |
+| 生 argv をシェル解釈せず保持し、cwd・PWD・環境・終了値を取り違えない | 修正しない | `RawArgumentsReachTheChildUnchanged` は空文字・日本語・改行・本体オプション・シェル文字・末尾バックスラッシュを実子で比較し成功。子の終了コード 3 を保持。 |
+| 組み込み優先、接続前解決、install/dispatch/doctor の予約名を一致させる | 修正しない | `Parse` → `BuiltinCommandCatalog` と `Reservations` → registry の経路、関連する既存テストを確認。`Program.cs` 結線は I #298 で、この PR の保証を最終 CLI の動作へ広げない。 |
+| 通常終了・期限・キャンセルのいずれでも子孫を止め、実行中は lease を保持する | 修正しない | `NormalExitStopsLeftoverDescendants`、`TimedOutCommandsFailAndStopTheirProcessTree`、`CommandsHoldTheLeaseAndCancellationNeverSucceeds` が成功。戻り値 7、TIMEOUT/CANCELLED、子孫の非実行、実行中 remove の拒否と終了後 remove を確認。 |
+| 実行ファイルを誤選択せず、実行データを data に向ける | 修正しない | `ProgramsResolveOnlyFromAbsolutePathOrThePackage` が拒否側と package 実行側で成功。`PluginRuntimeEnvironment` の一回だけの置換・古い接頭辞の除去・data 配下の Python/uv 環境を精読し、同じ HEAD のレビュアーの実行記録とも照合。 |
+| required ツール不足・失敗を pass にせず、プラグイン無しの既存 doctor を維持する | 修正しない | `RequiredToolProblemsAreNeverPassing` が pass/fail/fail/warning の両側で成功。空の一覧、30 秒期限・出力上限・停止の経路を精読。公開 API の一時ドライバによる検証はレビュアーの実行記録を参照し、司令塔の実行とは区別。 |
+
+### 実行した検証と未実施
+
+- Linux Dev Container、PR HEAD と一致し未コミット変更の無い既存コード worktree で、`dotnet test tests/RLoop.Tests/RLoop.Tests.csproj --nologo --filter 'FullyQualifiedName~Plugin'` を実行。2026-10-30 19:06:52–19:09:24Z、終了コード 0、59 件成功（今回追加の 6 件を含む）。ビルドも成功。
+- `gh pr checks 29 --repo usaturn/resoloop`: 対象 HEAD の公開 Windows CI は pass（run `41095598277`）。Windows のローカル実行の成功とはしない。
+- base を再取得し、API の `feat/plugin-v2` の先端と取得した `0143618cdf455324c07d5fd093b394bea47ad02b` が一致し、HEAD の祖先であることを確認した。関連テストはその base を含む HEAD のツリーで実行した。
+- `gpt-6.1-sol` の標準フィクスチャの失敗はレビュー用スクラッチが親 Git の下にあったための導入準備の拒否。今回の標準配置での 59 件成功により、その未完了を解消した。他のレビュアーは同じ HEAD の新規 6 件を成功させている。
+- 関連経路の read-only recon は registry/manifest/lease/config/既存 Program 分岐を調べた。clean の確認は司令塔が調査前後に実施した。結線順序・期限トークン・`--project` の構文・doctor の終了値の確認事項は、既存 Spec と PR の後続への引き渡しに一致し、新しい指摘には数えない。
+- Windows 実機の手動確認、I #298 の結線後の最終 CLI、Resonite/Blender 実機は未実施であり対象外。SIGPIPE・実シグナル・pipe/pty・出力上限の実行証拠は同じ HEAD のレビュアーの記録を参照する。重い全体スイートは再実行せず、既存の実装時の Linux 結果と公開 CI を区別して参照した。
+- Plan に残る旧 `BuiltinNamesNeverReachPlugins` の表・件数は、同 Plan の完了節と Spec 5 章に削除の裁定がある。現在の S の代表テストは 6 件。固定値・重複テストは追加せず、コード・テストの変更は不要とした。
+
+### 結論と工程
+
+結論 2（修正不要として最終化する）。対応する指摘が無く、設計の見直しのきっかけも無い。修正用の経路表・失敗ガードの対照検証は対象が無い。コードを直していないため `run_roles.py` の実装・self-review・fix-check は未実施、自己レビューの呼び出しは 0 回である。初回の 3 レビュアーを「修正後の自己レビュー」として数え直さない。設定は implement=`claude-opus`、self-review/fix-check=`self` のまま変更していない。
+
+確認済みの一覧は同レビューディレクトリの `verified/8bdcdadc98c0.json`・`.md`、工程の記録は `verified/8bdcdadc98c0.planning.json`。判断の記録は PR の `review-fix-planning（gpt-6.1-sol）` サイクル 1 コメントに保存する。最終のマージ・Issue 更新とコメント URL は、Spec の追加コミットを作らず同コメント・loop 記録・完了報告に残す。
 
