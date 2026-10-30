@@ -416,4 +416,5 @@ Run: `dotnet build ResoLoop.slnx --nologo` → 警告・エラー 0、`dotnet te
 - Task 1〜4 は実装した（`d86b79c`・`6702a3f`・`84d098d`・`c0c7cbc`、base `0143618` へ rebase した後の SHA）。最終レビューの修正は `ace96d7`
 - Task 5: 全体の build は警告・エラー 0、RLoop.Tests 589・IntegrationTests 22 がすべて成功。一時の確認の結果は Spec の 9 章
 - 計画からの変更（ledger の Ruling）: `PluginProcess.Start` に context の引数を足した、`UnixNative` を `PluginProcess` の入れ子にした、`ProgramsResolveOnlyFromAbsolutePathOrThePackage` を probe の apphost の写しと 2 種類の相対の PATH で検出力のある形にした（変異で確認）、`RunAsync` は `PluginRegistry.FindProjectRoot` で `StartDirectory` から探す、base の移動（利用者の選択で rebase）、最終レビューで `BuiltinNamesNeverReachPlugins` を削除し `PWD` の確認を `RawArgumentsReachTheChildUnchanged` に足した
-- 能動時間: 着手 12:30Z〜PR まで（中断 13:27Z〜14:41Z を除く）。内訳は PR 本文に書く
+- Windows CI: 1 回目（`ace96d7`）はテストの前提（ドライブをまたぐ相対パス）の誤りで 1 件失敗し、`8bdcdad` で直して 2 回目は全工程が成功（run 41095598277）。PR: usaturn/resoloop#29、文書 #304
+- 能動時間: 約 2 時間（着手 12:30Z〜CI 成功 17:10Z から、利用上限の中断 13:27〜14:41Z と利用者への確認 14:46〜16:32Z を除く）。内訳は PR 本文に書く
