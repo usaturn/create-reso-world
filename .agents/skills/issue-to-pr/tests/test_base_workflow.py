@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -52,7 +53,7 @@ class Workflow:
                    DOC_BRANCH="docs/issue-42-change", PR_TITLE="変更の実装",
                    CODE_PR_BODY=str(self.session / "body.md"),
                    DOC_PR_BODY=str(self.session / "body.md"))
-        chunks = ["set -euo pipefail", procedure("input"),
+        chunks = [procedure("input"),
                   'REQUIRED_BASES=(); if [ -n "$REQUIRED" ]; then REQUIRED_BASES+=("$REQUIRED"); fi',
                   procedure("capture"), procedure("worktree"),
                   'printf "new implementation\\n" > "$CODE_ROOT/change"',
@@ -60,7 +61,14 @@ class Workflow:
                   'if [ "$DOC_ROOT" != "$CODE_ROOT" ]; then',
                   '  printf "draft design\\n" > "$DOC_ROOT/design.md"',
                   '  git -C "$DOC_ROOT" add design.md; git -C "$DOC_ROOT" commit -qm design',
-                  'fi', procedure("diff"), procedure("publish"), before_pr, procedure("pr")]
+                  'fi', procedure("diff"), procedure("publish"), before_pr,
+                  # Resume in a fresh shell with values/functions, not shell options.
+                  # The documented block must supply its own failure propagation.
+                  'declare -p CODE_BASE_BRANCH CODE_BASE_SHA CODE_SHA > "$SESSION/resume.bash"',
+                  'if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then',
+                  '  declare -p DOC_BASE_SHA DOC_SHA >> "$SESSION/resume.bash"',
+                  'fi', 'declare -f recheck_bases >> "$SESSION/resume.bash"',
+                  'bash -c ' + shlex.quote('source "$SESSION/resume.bash"\n' + procedure("pr"))]
         result = subprocess.run(["bash", "-c", "\n".join(chunks)], cwd=self.target,
                                 env=env, text=True, capture_output=True)
         (self.session / "stdout.log").write_text(result.stdout)
@@ -232,8 +240,8 @@ def test_required_handoff_is_not_lost_before_worktree_creation(workflow: Workflo
     assert git(workflow.remote, "branch", "--list", "feat/issue-42-change") == ""
 
 
-def test_movement_after_scan_and_push_stops_before_pr_creation(workflow: Workflow) -> None:
-    """A pin checked only by the scanner goes stale between push and PR create."""
+def test_resumed_shell_stops_before_pr_creation_when_base_moved(workflow: Workflow) -> None:
+    """Losing fail-fast on shell restart must not create a PR after a stale-base check fails."""
     moved = git(workflow.remote, "rev-parse", f"refs/heads/{INTEGRATION}")
     result = workflow.run("#42", before_pr=f'git -C "{workflow.remote}" update-ref refs/heads/main {moved}')
     assert result.returncode != 0

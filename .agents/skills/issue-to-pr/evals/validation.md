@@ -384,3 +384,14 @@ REFACTOR の後に (a)〜(j) は取り直していない。足した 1 文は、
 ### 限界
 
 Issue の指示に従い、有料モデル・サブエージェントの試験起動はしていない。親/handoff の意味の読み取り、曖昧さの判断、各ランタイムでの自然言語手順の遵守は未評価。実 GitHub の書き込み・実 Gitleaks による秘密情報検出・実 CI・実 merge もこの比較の対象外であり、既存の担当 helper のテストや実運用の guard を代替しない。base の同時更新を一括ロックする保証はなく、観測した移動で以後の操作を停止する。
+
+
+### 別シェル再開時の停止保証（Task 3 修正 1）
+
+実施日: 2026-10-30。レビューで指摘された、変数・関数だけを復元した別 Bash で fail-fast が失われる経路を、同じローカル環境で実行した。有料モデルによる評価ではない。
+
+- 既存の通しテストからテスト独自の strict mode を除去し、PR ブロックを、捕捉済みの値と `recheck_bases` だけを引き継いだ新しい Bash で実行するよう変更した。変更前の手順では、base 移動と実 PR の base 不一致の 2 件が終了コード 0 になり、停止の期待に失敗（2 failed, 3 passed）。正常対照の main / 外部コード統合 branch は維持した。
+- 各実行ブロック自身が `set -euo pipefail` を設定し、再開時も値・関数の復元より先に設定する手順を明記した。`recheck_bases` は code / docs の helper の失敗を明示的に返し、末尾の条件分岐で失敗を隠さない。
+- 修正後は、別 Bash でも base 移動を検出したら PR を作らず停止し、公開済み branch と worktree を保持。実 PR の base 不一致でも URL と読取結果を残して停止。正常対照は PR 作成・照合まで完了した。
+- 一時的な直接呼出確認では、`recheck_bases` を条件式に置き、呼出側の errexit に依存せず失敗を返すことを観測した（変更前: exit 0 で 1 failed、変更後: exit 2 で 1 passed）。同じ守りの恒久テストは重複追加していない。
+- `uv run --locked pytest -q .agents/skills/issue-to-pr .agents/skills/review-fix-planning/tests/test_finalize.py`: 140 passed。RED / GREEN / focused の証拠は `tmp/agents/issue-300.vmbh4kha/task-3-fix-1-*.log`。自然言語の遵守率・実 GitHub・実 Gitleaks・CI は引き続き評価対象外。
