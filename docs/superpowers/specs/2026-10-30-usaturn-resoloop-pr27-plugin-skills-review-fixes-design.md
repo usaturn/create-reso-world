@@ -2,7 +2,7 @@
 
 ## 管理・許可
 
-- 状態: **completed**（サイクル 1 の結論 1。次のサイクルで更新することがある）
+- 状態: **completed**（サイクル 2 の結論 2。修正不要としてマージに進む）
 - 対象 PR: https://github.com/usaturn/resoloop/pull/27 （base `feat/plugin-v2`、head ブランチ `feat/create-reso-world-issue-99-plugin-skills`）。Issue: https://github.com/usaturn/create-reso-world/issues/99
 - 元の設計: [Issue #99 の Spec](2026-10-30-create-reso-world-issue99-plugin-skills-design.md)、[Plan](../plans/2026-10-30-create-reso-world-issue99-plugin-skills.md)
 - 実行許可: 利用者の `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/99 --base feat/plugin-v2 --assign inspect=pi-gpt,claude-opus,devin-swe,pi-deepseek --merge`。issue-to-pr の `--merge` により PR 修正ループ（pr-review-fix-loop）で review-fix-planning の完遂を行う（致命的な指摘だけを直す、三択の結論、修正後の自己レビューは 1 回）。マージはループの `finalize.py` だけが行う
@@ -27,7 +27,7 @@
 | 判断 ID | 出典 | 区分 | 根拠 |
 | --- | --- | --- | --- |
 | `gpt-6.1-sol#M-1@371a34e9f76b` | gpt-6.1-sol | 対応する | 致命的: installer が受け付ける制限内のパッケージ（日本語の長いパスの 8500 件、導入記録 7,982,027 バイト）や、取り外したプラグインの項目が積み重なった記録で、配布記録が 8 MiB を超える。update は成功を返して読めない記録を保存し、以後そのプロジェクトのプラグイン対応の sync（check・update・init）が `PLUGIN_SKILL_RECORD_INVALID` で止まり続ける（主要な処理の停止）。手で記録を消すと所有・編集保護の記録を失う。(a) レビュアーが再現し、現行 HEAD の `WriteRecord` に大きさの検査が無いことを確認 |
-| `claude-opus-5-5#L-1@371a34e9f76b` | claude-opus-5-5 | 対応しない | 致命的でない: Linux で綴りの大小だけを変えた改名でも、古い綴りのファイルは上書きも削除もされない。記録を失った後、そのファイルは「記録の無いファイル」として扱われ、同じパスを別の内容で配ろうとすると `untracked-conflict` で止まる（安全側）。損害は `Retained` の報告から漏れることだけ。見直す条件: 大小文字を無視した照合で利用者の内容を上書きする経路が見つかったとき、または `Retained` を掃除・削除に使う機能を足すとき |
+| `claude-opus-5-5#L-1@371a34e9f76b` | claude-opus-5-5 | 対応しない | 致命的でない: Linux で綴りの大小だけを変えた改名でも、古い綴りのファイルは上書きも削除もされない。記録を失った後、同じパスを別の内容で配ろうとすると（大小文字を無視した照合で新しい綴りの記録に当たるため）`modified-conflict` で止まる（安全側。サイクル 2 の review-verify の実測。サイクル 1 の判断の記録の理由に書いた `untracked-conflict` は誤りで、止まって上書きしない結論は変わらない）。損害は `Retained` の報告から漏れることだけ。見直す条件: 大小文字を無視した照合で利用者の内容を上書きする経路が見つかったとき、または `Retained` を掃除・削除に使う機能を足すとき |
 
 解消済み: なし。
 
@@ -116,3 +116,32 @@
 ### PR の説明の既知の制限に足すもの
 
 - Linux（大小文字を区別するファイルシステム）で、プラグインの版の間にファイル名・ディレクトリ名の大小だけを変えると、旧い綴りの配布済みファイルの記録が消え、`Retained` にも出ない。ファイル自体は上書き・削除されない。後の版が旧い綴りに戻して内容を変えると、未編集でも `modified-conflict` で止まる。回避: 旧い綴りのファイルを片付けて（必要なら退避して）から `skills sync --update` を実行する
+
+## サイクル 2（reviewed_head `4d7016ad8cf42402b7a0e0cbb1f944cc31819172`）
+
+### レビュアーの構成
+
+ループの `cycle-begin` は `reuse`（現在の HEAD の修正後の自己レビューがあるため、レビュアーを起動しない）。
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | 再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `claude-opus-5-5-commit-4d7016ad8cf42402b7a0e0cbb1f944cc31819172` | claude-opus-5-5 | claude-code | `4d7016ad8cf4` | はい | Approve |
+| `gpt-6.1-sol`・`claude-opus-5-5`・`SWE-2-Max`・`deepseek-deepseek-v4.1-flash` | （サイクル 1 の表） | — | `371a34e9f76b` | いいえ（古いレビュアー。指摘は判断済み） | Approve |
+
+前のサイクルの判断: 3 件（fix 1・skip 2）。確認済みの一覧（review-verify、636 秒）: `verified/4d7016ad8cf4.json`（M-1 not_reproduced、L-1 confirmed）。
+
+### 判断
+
+| 判断 ID | 区分 | 根拠 |
+| --- | --- | --- |
+| `gpt-6.1-sol#M-1@371a34e9f76b` | 解消済み（前は対応する） | `4d7016a` で、サイクル 1 で再現した全入力（installer の 9990 ファイル、詰めた記録 60000 項目、init、所有の移転だけ、日本語のキー）が書き込みの前に `PLUGIN_SKILL_RECORD_TOO_LARGE` で止まり、同梱を含めて何も書かない。上限ちょうど（8,388,608 バイト）は書けて次回読め、1 バイト超は拒否。項目が変わらない update は書き直さない（review-verify・fix-check・テスト `OversizedRecordsAreRefusedBeforeAnyWrite`） |
+| `claude-opus-5-5-commit-4d7016ad8cf42402b7a0e0cbb1f944cc31819172#L-1@4d7016ad8cf4` | 対応しない（引き継ぎ） | サイクル 1 の判断のまま。review-verify が再現したが、記録に無い新しい根拠（別の利用経路・結果）は無い。ファイルの上書き・消失は無く、止まるのは `modified-conflict` のエラーで見える |
+
+解消済み 1 / 対応する 0 / 対応しない 1。実装と食い違う記述（`PluginSkillManager.cs` の記録を消さない旨のコメント、元の Spec の記録を消さない旨、PR 本文の概要）は、大小だけの改名の場合を除けば正しく、その場合は PR の説明と本書の既知の制限に書いた。致命的でないので直さない（コメントを直すには新しい commit とレビューが要る）。
+
+### 結論 2 の検証と最終化
+
+- 検証（`4d7016a`、修正用の worktree、作業ツリーは clean）: `dotnet build ResoLoop.slnx --nologo` 警告 0・エラー 0、`dotnet test ResoLoop.slnx --nologo --no-build` unit 579 件・integration 22 件成功（サイクル 1 の最後の検証と同じ HEAD。以後 commit は無い）
+- base: `origin/feat/plugin-v2` の先端は `dd0b40fb216b0c9fbd82da44903195a885104015` で head の祖先。head 単独のツリーで検証した
+- マージしてよい範囲: usaturn/resoloop の open で draft でない PR
+- 最終化は `finalize.py`（`--spec-commit` 無し）が、状況の投稿・公開 CI（windows）の成功・base の先端の確認の後にマージする。結果は状況コメントと完了報告に書く
