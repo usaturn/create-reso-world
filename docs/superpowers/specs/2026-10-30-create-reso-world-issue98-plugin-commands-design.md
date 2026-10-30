@@ -4,7 +4,8 @@
 
 - 状態: `draft`（内容の承認は無い。下の実行許可は内容の承認ではない）
 - Issue: [usaturn/create-reso-world#98](https://github.com/usaturn/create-reso-world/issues/98)（親 [#95](https://github.com/usaturn/create-reso-world/issues/95)、ボードのキー `resoloop-plugins-board`、子のキー `plugin-commands`）
-- 実装の対象: `usaturn/resoloop`。base は `feat/plugin-v2` の `dd0b40fb216b0c9fbd82da44903195a885104015`（F #297 の PR usaturn/resoloop#26 のマージ）。文書の base は create-reso-world `main` の `acd288c3e81a6c108136e37815e718a0fe088195`
+- 実装の対象: `usaturn/resoloop`。base は `feat/plugin-v2`。最初に捕捉したのは `dd0b40fb216b0c9fbd82da44903195a885104015`（F #297 の PR usaturn/resoloop#26 のマージ）。文書の base は create-reso-world `main` の `acd288c3e81a6c108136e37815e718a0fe088195`
+- base の変更: 実行の中断中（2026-10-30、利用上限）に `feat/plugin-v2` が `0143618cdf455324c07d5fd093b394bea47ad02b`（#99 の PR usaturn/resoloop#27、#100 の PR usaturn/resoloop#28 のマージ）に進んだ。issue-to-pr の停止条件に当たるので利用者に確認し、「新しい base で続ける」の選択を受けた。未 push のブランチを `0143618` に rebase し（衝突なし、共有するファイルなし）、build・テスト・一時の確認をやり直した。設計の内容は変えていない
 - 実行許可: 利用者の `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/98 --base feat/plugin-v2`。issue-to-pr の規定により、通常の設計判断を推奨案で決め、Spec・Plan・実装・検証・commit・push・PR 作成まで進める。`--merge` が無いのでマージ・ループはしない。上流への投稿・fork main の更新・リリース・グローバル導入はしない
 - 予約: create-reso-world `refs/heads/agent-claims/issue-98` / `3e57bf9a2be48e979c16f67f4dfd16de3af0806c`（session `a8430e79-1c8f-4a68-82bb-75724b138d3d`、[着手記録](https://github.com/usaturn/create-reso-world/issues/98#issuecomment-6523005163)）
 - 先行の確認: F #297 は `state_reason=completed`。PR #26 の head `cc925fb` と merge `dd0b40f` が base の祖先であることを確認した

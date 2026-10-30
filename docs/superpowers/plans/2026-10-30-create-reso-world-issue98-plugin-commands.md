@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - 変えてよいファイルは Spec 1 章の表の 9 つ（とそのディレクトリ）だけ。F の所有ファイル・`Program.cs`・`CommandLine.cs`・csproj・#99/#100 のコードは変えない。変更が要ると分かったら止まり、親 #95 の調整役の裁定を求める
-- 作業ルート: `/workspaces/reso-world/external/resoloop/.worktrees/create-reso-world-issue-98-plugin-commands`（branch `feat/create-reso-world-issue-98-plugin-commands`、base `dd0b40fb216b0c9fbd82da44903195a885104015`）
+- 作業ルート: `/workspaces/reso-world/external/resoloop/.worktrees/create-reso-world-issue-98-plugin-commands`（branch `feat/create-reso-world-issue-98-plugin-commands`、base は最初 `dd0b40fb216b0c9fbd82da44903195a885104015`。中断中に `feat/plugin-v2` が進んだので、利用者の選択により `0143618cdf455324c07d5fd093b394bea47ad02b` に rebase した。Spec の「管理」）
 - 環境変数の名前: `RESOLOOP_PLUGIN_NAME`・`RESOLOOP_PLUGIN_COMMAND`・`RESOLOOP_PLUGIN_ROOT`・`RESOLOOP_PLUGIN_DATA`・`RESOLOOP_PLUGIN_PROJECT_ROOT`・`RESOLOOP_PLUGIN_HOST_ARGV`（JSON 配列）・`RESOLOOP_PLUGIN_HOST_VERSION`、`PYTHONPYCACHEPREFIX=<data>/.cache/python`、`UV_PROJECT_ENVIRONMENT=<data>/.venv`。親の `RESOLOOP_PLUGIN_*` はすべて除く
 - エラーコードと終了コード: `INVALID_ARGUMENT` 2、`UNKNOWN_COMMAND` 2、`PLUGIN_COMMAND_START_FAILED` 9、`PLUGIN_COMMAND_TIMEOUT` 8、`PLUGIN_COMMAND_CANCELLED` 7、`PLUGIN_COMMAND_STOP_FAILED` 7。context の鍵は `plugin`・`command`・`program`・`timeoutSeconds`・`processGroup`
 - 停止の確認は 5 秒、ツール確認の期限は 1 回 30 秒、ツール確認の出力は stdout・stderr それぞれ最大 64 KiB、版の文字列は最大 200 文字
