@@ -125,6 +125,8 @@ def test_resolves_supported_forms_without_changing_git(
         "body": "Keep unrelated work intact.",
         "merge": None,
         "implement": None,
+        "base": "main",
+        "base_explicit": False,
     }
     assert subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout) == before
     assert subprocess.check_output(["git", "for-each-ref"], cwd=checkout) == b""
@@ -326,3 +328,39 @@ def test_implement_is_returned_separately_from_loop_args(
     payload = json.loads(result.stdout)
     assert payload["implement"] == implement
     assert payload["merge"] == merge
+
+
+@pytest.mark.parametrize(
+    ("argument", "base", "explicit"),
+    [
+        ("#42", "main", False),
+        ("#42 --base main", "main", True),
+        (
+            "#42 --base feat/plugin-v2 --implement self --merge --max-cycles 2",
+            "feat/plugin-v2", True,
+        ),
+        (
+            "--base=統合/プラグイン #42 --implement self --merge --max-cycles 2",
+            "統合/プラグイン", True,
+        ),
+    ],
+)
+def test_base_selection_preserves_explicit_input(
+    checkout: Path, gh_stub: Path, argument: str, base: str, explicit: bool
+) -> None:
+    """Dropping --base or mixing it into merge/implement silently starts from the wrong history."""
+    result = resolve(checkout, argument)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["base"] == base
+    assert payload["base_explicit"] is explicit
+    assert payload["implement"] == ("self" if "--implement" in argument else None)
+    assert payload["merge"] == (
+        {"loop_args": ["--max-cycles", "2"]} if "--merge" in argument else None
+    )
+
+
+def test_conflicting_base_does_not_silently_choose_one(checkout: Path, gh_stub: Path) -> None:
+    """Silently accepting the last of two bases could overwrite work against a different history."""
+    assert_rejected(resolve(checkout, "#42 --base main --base feat/plugin-v2"))
+    assert not gh_stub.exists()

@@ -351,3 +351,58 @@ REFACTOR の後に (a)〜(j) は取り直していない。足した 1 文は、
 - 実際の Issue（rebuild の後の確認が残る Issue、ボードの子）で issue-to-pr を起動して PR まで通すこと。この評価は意図の回答だけ
 - (pd) で、ループが `no_fix_needed` 以外（`stopped`・エラー）で終わったときのコメント
 - 行動比較は Claude Code（sonnet）だけで行った。Pi・Codex・Cursor・Devin での扱いは評価していない
+
+## 明示 base の一貫した受け渡し（#300）
+
+実施日: 2026-10-29。旧版 `5dc093c` の resolver と変更前の手順を対照に、Linux Dev Container / uv / Git で実行手順を比較した。モデルの回答・遵守率の比較ではない。
+
+### 方法と観測
+
+- 変更前に保存した実際の `resolve_issue.py` と SKILL.md の Bash ブロックを実行。`#42 --base 統合/プラグイン` は終了コード 2（未知の `--base`）で停止した。旧版の非 main 要求で停止する規則はこの観測と整合する。
+- 旧版の通常入口の worktree コマンドも、名前のスロットだけ置換して別途実行。main と統合 branch に異なる履歴を用意し、worktree は main の SHA になった。これは旧手順が要求を無視して PR を作った証拠ではなく、開始点が main 固定であることの観測。
+- 新版では同じ入力を、SKILL.md から取り出した Bash ブロックで実行。取得 JSON の完全 ref / SHA を worktree の開始点、差分、実 scanner の範囲、SHA 指定 push、偽 gh の PR 作成・読み戻しまで維持した。文言の一致では判定していない。
+- Git の objects・fetch・worktree・diff・push は実処理。origin の URL 表示だけを GitHub の対象名に置き換え、通信はローカル bare repository に限定した。gh と Gitleaks は偽物で、Gitleaks の受け取った commit 範囲を実 Git で列挙した。scanner と版の定義元は更新済みの偽 PARENT_ROOT に配置した。
+
+| 場面 | 新手順の観測 |
+| --- | --- |
+| 未指定 main | worktree の親、diff、scan の範囲、PR base が同じ main / SHA |
+| Issue 前の等号形式・非 ASCII 統合 branch・`--merge` | 統合 SHA からコードを作成。`merge.loop_args` に base は混入しない |
+| 外部コードと文書 | コードは統合 branch、別 repository の文書は create-reso-world / main。両 scan 後に初めて push |
+| handoff 要求と明示 main の矛盾 | worktree・scan・push に進まない |
+| scan・push 後、PR 前の base 移動 | PR を作らず停止。既に公開した branch とローカル worktree を保持 |
+| 作成直後の実 PR base が不一致 | 読み戻した値と URL を保存して停止。公開済み branch・PR を取り消さない |
+| finalize の代表正常例 | 実 PR base `feat/plugin-v2` の先端 SHA を照合してマージ。既存の stale base/head・merge 第1親の拒否も維持 |
+
+### 実行した検証
+
+- `uv run --locked pytest -q .agents/skills/issue-to-pr .agents/skills/review-fix-planning/tests/test_finalize.py`: 140 passed。
+- `uv run --locked pytest -q`: 1254 passed。永続テストは誤った対象への公開・記録の取り違えを防ぐ S のみ。
+- 一時的な変異確認: worktree / scan / PR の main 固定、required-base の転送除去、実 PR base 照合除去を、実行テストがそれぞれ検出（5/5）。
+- skill-efficiency-check: 構造上の問題なし。日本語 description の入口判定の警告と references 不在の提案は、既存 description を変える根拠にしなかった。リンク先の実在と全 6 Bash ブロックの `bash -n` も確認。
+- 比較ログ: `tmp/agents/issue-300.vmbh4kha/task-3-procedure-comparison.log`。RED・GREEN・全体検証・変異確認は同ディレクトリの `task-3-*.log`。
+
+### 限界
+
+Issue の指示に従い、有料モデル・サブエージェントの試験起動はしていない。親/handoff の意味の読み取り、曖昧さの判断、各ランタイムでの自然言語手順の遵守は未評価。実 GitHub の書き込み・実 Gitleaks による秘密情報検出・実 CI・実 merge もこの比較の対象外であり、既存の担当 helper のテストや実運用の guard を代替しない。base の同時更新を一括ロックする保証はなく、観測した移動で以後の操作を停止する。
+
+
+### 別シェル再開時の停止保証（Task 3 修正 1）
+
+実施日: 2026-10-30。レビューで指摘された、変数・関数だけを復元した別 Bash で fail-fast が失われる経路を、同じローカル環境で実行した。有料モデルによる評価ではない。
+
+- 既存の通しテストからテスト独自の strict mode を除去し、PR ブロックを、捕捉済みの値と `recheck_bases` だけを引き継いだ新しい Bash で実行するよう変更した。変更前の手順では、base 移動と実 PR の base 不一致の 2 件が終了コード 0 になり、停止の期待に失敗（2 failed, 3 passed）。正常対照の main / 外部コード統合 branch は維持した。
+- 各実行ブロック自身が `set -euo pipefail` を設定し、再開時も値・関数の復元より先に設定する手順を明記した。`recheck_bases` は code / docs の helper の失敗を明示的に返し、末尾の条件分岐で失敗を隠さない。
+- 修正後は、別 Bash でも base 移動を検出したら PR を作らず停止し、公開済み branch と worktree を保持。実 PR の base 不一致でも URL と読取結果を残して停止。正常対照は PR 作成・照合まで完了した。
+- 一時的な直接呼出確認では、`recheck_bases` を条件式に置き、呼出側の errexit に依存せず失敗を返すことを観測した（変更前: exit 0 で 1 failed、変更後: exit 2 で 1 passed）。同じ守りの恒久テストは重複追加していない。
+- `uv run --locked pytest -q .agents/skills/issue-to-pr .agents/skills/review-fix-planning/tests/test_finalize.py`: 140 passed。RED / GREEN / focused の証拠は `tmp/agents/issue-300.vmbh4kha/task-3-fix-1-*.log`。自然言語の遵守率・実 GitHub・実 Gitleaks・CI は引き続き評価対象外。
+
+
+### 検証と公開の Git 環境、保存先の分離（最終レビュー修正）
+
+実施日: 2026-10-30。最終レビューの受理済み 4 件だけを修正した。自然言語の遵守率ではなく、既存の実行手順を比較した。
+
+- S の回帰テストを先に追加。コードの非 ASCII 統合 branch と文書 main を捕捉した後、publish の直前に `GIT_CONFIG_COUNT` で別のローカル bare repository を `remote.origin.pushurl` に指定した。変更前は検証が通り、コード・文書の両 branch を意図しない bare repository へ送ったため、送信先が空であるべきという期待に失敗した（1 failed）。後段の PR 作成の失敗では、既に起きた誤送信を防げなかった。
+- 変更後は各 Bash ブロックで helper と同じく継承した `GIT_*` を除去する。同じ入力で意図しない送信先は空のまま、検証した両 repository にそれぞれの HEAD が届き、PR の読取 SHA も一致した。既存の main 正常対照、base 移動・実 PR base 不一致の停止も維持した。
+- run 全体の `SESSION` と実装担当用の `IMPLEMENT_SESSION` を区別し、runner の後片付けで base JSON・検証記録の保存先を再定義・削除しない手順にした。`Closes` の自動 close は default branch へのマージ時だけ働くと明記し、既存の `Refs` / `Closes` の選択基準は変更していない。これらの説明には固定文言テストを追加せず、変数の参照・後片付けの範囲・説明の条件を確認した。
+- origin 不一致でも拒否されてしまう対象外 repository の重複ケースを削除した。fetch/push URL と required base の拒否、および正常対照は維持した。
+- covering: `uv run --locked pytest -q .agents/skills/issue-to-pr .agents/skills/review-fix-planning/tests/test_finalize.py`（一時領域は `--basetemp` で SESSION 配下に指定）: **141 passed**。RED / GREEN / covering のログは `tmp/agents/issue-300.vmbh4kha/branch-fix-*.log`。通信はすべてローカルで、実 GitHub・実 Gitleaks・CI・有料モデルの評価は行っていない。

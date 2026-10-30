@@ -1,4 +1,4 @@
-"""Resolve an open GitHub Issue and the issue-to-pr options (--implement, --merge and the loop options) without modifying Git or GitHub state.
+"""Resolve an open GitHub Issue and the issue-to-pr options (--base, --implement, --merge and the loop options) without modifying Git or GitHub state.
 
 Refuses to start from a directory Git does not track, such as a world project under worlds/.
 """
@@ -13,6 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import NamedTuple
+
+from git_env import git_environment
 
 # AGENTS.md の「リポジトリ境界」の表のうち、issue-to-pr が branch と PR を作ってよいリポジトリ。
 # 上流の orange3134/resoloop は docs/resoloop-fork-workflow.md の流れで扱うので含めない
@@ -45,9 +47,14 @@ ORIGIN_URL = re.compile(
 
 
 def run_readonly(*args: str, cwd: Path | None = None) -> str:
-    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=60)
+    result = subprocess.run(
+        args, cwd=cwd, capture_output=True, text=True, timeout=60,
+        env=git_environment() if args[0] == "git" else None,
+    )
     if result.returncode:
-        raise ValueError(f"{args[0]} の読み取りに失敗: {result.stderr.strip()}")
+        # Git transport errors can echo credential-bearing URLs. Never forward them.
+        detail = "" if args[0] == "git" else f": {result.stderr.strip()}"
+        raise ValueError(f"{args[0]} の読み取りに失敗{detail}")
     return result.stdout.strip()
 
 
@@ -57,7 +64,10 @@ def require_tracked_cwd(cwd: Path) -> None:
     ワールドのプロジェクトは worktree に実体が無く、進むと Spec・Plan だけの PR の Closes #N で、
     ワールドの作業が済まないまま Issue が閉じる（#137）。確かめられないときも止める。
     """
-    result = subprocess.run(("git", "check-ignore", "-q", "."), cwd=cwd, capture_output=True, text=True, timeout=60)
+    result = subprocess.run(
+        ("git", "check-ignore", "-q", "."), cwd=cwd, capture_output=True, text=True, timeout=60,
+        env=git_environment(),
+    )
     if result.returncode == 1:
         return
     if result.returncode == 0:
@@ -66,13 +76,25 @@ def require_tracked_cwd(cwd: Path) -> None:
             "ワールドの作業は、そのプロジェクトで branch・PR を使わずに進めます（AGENTS.md の「プロジェクト運用」）。"
             "リポジトリのファイルを変える作業は、checkout のルートで起動し直してください"
         )
-    raise ValueError(f"cwd（{cwd}）を git が追跡するかを確かめられません: {result.stderr.strip()}")
+    raise ValueError(f"cwd（{cwd}）を git が追跡するかを確かめられません")
+
+
+def validate_branch(branch: str, cwd: Path) -> str:
+    """Check both literal heads-ref and porcelain rules; never expand @{-1}."""
+    if not branch or CONTROL_CHARACTER.search(branch):
+        raise ValueError("base の branch 名が不正です")
+    run_readonly("git", "check-ref-format", f"refs/heads/{branch}", cwd=cwd)
+    if run_readonly("git", "check-ref-format", "--branch", branch, cwd=cwd) != branch:
+        raise ValueError("base は literal branch 名で指定してください")
+    return branch
 
 
 class ParsedInput(NamedTuple):
     reference: str
     loop_args: list[str] | None
     implement: str | None
+    base: str
+    base_explicit: bool
 
 
 def loop_value(name: str, value: str, cwd: Path) -> str:
@@ -94,9 +116,9 @@ def loop_value(name: str, value: str, cwd: Path) -> str:
 
 
 def parse_input(text: str, cwd: Path) -> ParsedInput:
-    """利用者が書いた引数の文字列を、Issue の参照・ループ用のオプションの列・--implement の値に分ける。
+    """利用者の引数を Issue・ループ・実装担当・base（明示指定の有無を含む）に分ける。
 
-    --implement と --merge は Issue の参照の前でも後でもよく、1 回だけ書ける。値は次の語か --opt=value の形で書く。
+    --base・--implement と --merge は Issue の参照の前でも後でもよく、1 回だけ書ける。値は次の語か --opt=value の形で書く。
     ループ用のオプションは --merge と一緒のときだけ受け付け、書いた順のまま返す（--opt=value は 2 語に分け、
     パスは cwd を基準に絶対パスにする）。--merge が無ければ loop_args は None。
     """
@@ -108,6 +130,7 @@ def parse_input(text: str, cwd: Path) -> ParsedInput:
     merge = 0
     loop_args: list[str] = []
     implement: list[str] = []
+    bases: list[str] = []
     index = 0
     while index < len(words):
         word = words[index]
@@ -123,13 +146,18 @@ def parse_input(text: str, cwd: Path) -> ParsedInput:
                 raise ValueError(f"--merge は値を取りません: {word}")
             merge += 1
             continue
-        if name != "--implement" and name not in LOOP_OPTIONS:
+        if name not in {"--implement", "--base"} and name not in LOOP_OPTIONS:
             raise ValueError(f"未知のオプションです: {word}")
         if not separator:
             if index == len(words) or words[index].startswith("-"):
                 raise ValueError(f"{name} の値がありません")
             value = words[index]
             index += 1
+        if name == "--base":
+            if not value:
+                raise ValueError("--base の値が空です")
+            bases.append(validate_branch(value, cwd))
+            continue
         if name == "--implement":
             if IMPLEMENT_VALUE.fullmatch(value) is None:
                 raise ValueError(
@@ -142,13 +170,18 @@ def parse_input(text: str, cwd: Path) -> ParsedInput:
         loop_args += [name, loop_value(name, value, cwd)]
     if merge > 1:
         raise ValueError("--merge は 1 回だけ指定してください")
+    if len(bases) > 1:
+        raise ValueError("--base は 1 回だけ指定してください")
     if len(implement) > 1:
         raise ValueError("--implement は 1 回だけ指定してください")
     if loop_args and not merge:
         raise ValueError(f"{loop_args[0]} などのループ用のオプションは、--merge と一緒のときだけ指定できます")
     if len(references) != 1:
         raise ValueError(f"Issue を 1 つだけ指定してください（指定された語: {references or 'なし'}）")
-    return ParsedInput(references[0], loop_args if merge else None, implement[0] if implement else None)
+    return ParsedInput(
+        references[0], loop_args if merge else None, implement[0] if implement else None,
+        bases[0] if bases else "main", bool(bases),
+    )
 
 
 def supported(repo: str) -> str:
@@ -212,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "input",
         help="利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを書かれたまま切り出した"
-        "文字列（後ろに続く自然文は含めない）。オプションは --implement AGENT、--merge と、--merge と一緒のときの"
+        "文字列（後ろに続く自然文は含めない）。オプションは --base BRANCH、--implement AGENT、--merge と、--merge と一緒のときの"
         "ループ用のオプション（--max-cycles・--assign・--template・--config）。"
         "- で始まりうるので、前に -- を置いて渡す",
     )
@@ -224,6 +257,8 @@ def main(argv: list[str] | None = None) -> int:
             **fetch_issue(*resolve_target(parsed.reference, Path.cwd())),
             "merge": None if parsed.loop_args is None else {"loop_args": parsed.loop_args},
             "implement": parsed.implement,
+            "base": parsed.base,
+            "base_explicit": parsed.base_explicit,
         }
     except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
         print(f"issue-to-pr: {exc}", file=sys.stderr)

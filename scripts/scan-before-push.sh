@@ -4,10 +4,11 @@
 #   SHA="$(bash scripts/scan-before-push.sh)" && [ -n "$SHA" ] && git push origin "${SHA:?}:refs/heads/<branch>"
 # （zsh は "$SHA:r..." の :r を修飾子として展開するので、${SHA:?} と波括弧で書く。
 #   SHA が空だと refspec が branch の削除になるので、呼び出しを分けるときも :? を外さない）
-# 使い方: scripts/scan-before-push.sh [-C <dir>] [--base <remote>/<branch>]
+# 使い方: scripts/scan-before-push.sh [-C <dir>] [--base <remote>/<branch>] [--expected-base-sha <SHA>]
 #   -C      検査する checkout（既定は現在のディレクトリ）。そのルートで検査する
 #   --base  未 push とみなす範囲の基準（既定は origin/main）。fetch してから <base>..HEAD を検査する。
 #           設定は base の .gitleaks.toml を使い、base に無ければ Gitleaks の既定の規則だけを使う
+#   --expected-base-sha  事前に捕捉した完全な base SHA。fetch 後と検査後の remote の SHA が一致しなければ止まる
 # 作業ツリーの設定（.gitleaks.toml・.gitattributes）、環境変数（GITLEAKS_*）、.gitleaksignore、inline の gitleaks:allow、
 # git の色・textconv の設定では検査を緩められない。
 # マージ commit は、親を自動でマージした結果との差分として検査する（マージで足した内容は検出し、base から取り込んだだけの
@@ -21,15 +22,20 @@ say() { printf 'scan-before-push: %s\n' "$1" >&2; }
 die() { say "$1"; exit 1; }
 usage() {
   say "$1"
-  printf 'usage: scripts/scan-before-push.sh [-C <dir>] [--base <remote>/<branch>]\n' >&2
+  printf 'usage: scripts/scan-before-push.sh [-C <dir>] [--base <remote>/<branch>] [--expected-base-sha <SHA>]\n' >&2
   exit 2
 }
 
-dir=. base=origin/main
+dir=. base=origin/main expected_base_sha=
 while [ $# -gt 0 ]; do
   case "$1" in
     -C) [ $# -ge 2 ] || usage '-C needs a directory'; dir="$2"; shift 2 ;;
     --base) [ $# -ge 2 ] || usage '--base needs <remote>/<branch>'; base="$2"; shift 2 ;;
+    --expected-base-sha)
+      [ $# -ge 2 ] || usage '--expected-base-sha needs a full SHA'
+      [[ "$2" =~ ^([[:xdigit:]]{40}|[[:xdigit:]]{64})$ ]] || usage '--expected-base-sha needs a full SHA'
+      expected_base_sha="${2,,}"
+      shift 2 ;;
     *) usage "unknown argument: $1" ;;
   esac
 done
@@ -37,6 +43,8 @@ case "$base" in
   ?*/?*) remote="${base%%/*}" branch="${base#*/}" ;;
   *) usage "--base must be <remote>/<branch>: $base" ;;
 esac
+git check-ref-format "refs/heads/$branch" >/dev/null || usage "invalid base branch: $branch"
+git check-ref-format "refs/remotes/$remote/$branch" >/dev/null || usage "invalid base remote/ref: $base"
 
 # GITLEAKS_CONFIG・GITLEAKS_CONFIG_TOML などで設定を差し替えさせない
 for name in $(compgen -e); do
@@ -57,9 +65,12 @@ cd "$top"
 if [ -e .gitleaksignore ] || [ -L .gitleaksignore ]; then
   die "$top/.gitleaksignore exists; the scan does not use ignore files. Do not push; report it to the user"
 fi
-git remote get-url "$remote" >/dev/null 2>&1 || die "no remote '$remote' in $top"
-git fetch --quiet --no-tags "$remote" "+refs/heads/$branch:refs/remotes/$remote/$branch" >&2 || die "fetching $base failed"
+git remote get-url -- "$remote" >/dev/null 2>&1 || die "no remote '$remote' in $top"
+git fetch --quiet --no-tags -- "$remote" "+refs/heads/$branch:refs/remotes/$remote/$branch" >&2 || die "fetching $base failed"
 base_sha="$(git rev-parse --verify --quiet "refs/remotes/$remote/$branch^{commit}")" || die "cannot resolve $base"
+if [ -n "$expected_base_sha" ] && [ "$base_sha" != "$expected_base_sha" ]; then
+  die "$base moved: expected $expected_base_sha, fetched $base_sha. Do not push"
+fi
 head_sha="$(git rev-parse --verify --quiet 'HEAD^{commit}')" || die 'cannot resolve HEAD'
 # --diff-merges=remerge は octopus マージの中身を出さない（警告を標準出力に出すだけで、gitleaks は検出 0 件で終わる）
 octopus="$(git rev-list --min-parents=3 "$base_sha..$head_sha")" || die "cannot list the commits in $base..HEAD"
@@ -89,5 +100,12 @@ GIT_ATTR_SOURCE="$base_sha" gitleaks git --no-banner --no-color --redact --verbo
 [ "$status" -eq 0 ] || die "gitleaks exited with status $status (leaks found or the scan failed). Do not push"
 if grep -Eq '^[^ ]+ (ERR|FTL) ' "$scan_dir/log"; then
   die 'gitleaks reported an error although it exited with 0. Do not push'
+fi
+if [ -n "$expected_base_sha" ]; then
+  # remote-tracking ref は検査中の remote の更新を反映しない。同じ heads ref を remote で再確認する。
+  observed_base="$(git ls-remote --exit-code --refs -- "$remote" "refs/heads/$branch")" \
+    || die "cannot recheck $base after the scan. Do not push"
+  [ "$observed_base" = "$expected_base_sha"$'\t'"refs/heads/$branch" ] \
+    || die "$base moved during the scan; expected $expected_base_sha. Do not push"
 fi
 printf '%s\n' "$head_sha"

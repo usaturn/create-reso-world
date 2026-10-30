@@ -247,8 +247,12 @@ class FakeGh:
 
 def test_no_fix_result_requires_post_merge_confirmation_and_issue_update() -> None:
     gh = FakeGh()
+    # 実 PR の統合 base を照合する。main 固定に戻すと、未検証の対象をマージしかねない。
+    gh.view["baseRefName"] = "feat/plugin-v2"
+    gh.tips = {"feat/plugin-v2": BASE}
     result = mod.finalize(record(), "## マージ前の状況\n検証済み。追加修正なし。最終化を開始。", checks(), runner=gh)
     assert result["outcome"] == "no_fix_needed" and result["issues"] == [901]
+    assert gh.branch_requests() and set(gh.branch_requests()) == {f"repos/{REPO}/branches/feat/plugin-v2"}
     post, merge, issue = gh.writes()
     assert "POST" in post
     assert merge[merge.index("--match-head-commit") + 1] == HEAD

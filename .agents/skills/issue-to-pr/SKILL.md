@@ -1,7 +1,7 @@
 ---
 name: issue-to-pr
 description: "Issue の URL・#番号を指定して『着手して』『実装して PR まで』『推奨案で進めて』と依頼されたときに使う。PR の番号・URL、PR レビュー・レビュー指摘の修正計画、ボードの親 Issue からの子の選択には使わない。ワールドのプロジェクト（`worlds/<name>/` と従来位置）を cwd にしているときや、Issue がワールドの作業のときも使わない（そのプロジェクトを cwd にして、その `AGENTS.md` に従って進める）。"
-argument-hint: "<Issue> [--implement AGENT] [--merge [--max-cycles N] [--assign ROLE=AGENT[,AGENT]]... [--template PATH] [--config PATH]]"
+argument-hint: "<Issue> [--base BRANCH] [--implement AGENT] [--merge [--max-cycles N] [--assign ROLE=AGENT[,AGENT]]... [--template PATH] [--config PATH]]"
 ---
 
 # Issue to PR
@@ -20,7 +20,13 @@ argument-hint: "<Issue> [--implement AGENT] [--merge [--max-cycles N] [--assign 
 
 一度明示入口から開始した run では、工程ごとに次のコマンド入力を求めず、各スキルを読んで最後まで続ける。ランタイムの明示された承認・ツール制限は迂回しない。
 
-**オプションは `--implement`・`--merge`・ループ用のオプション（`--merge` と一緒のときだけ）を受け付ける。** ほかのオプション（`--hold-action`・`--fresh-review` を含む）は、2 章の helper が理由を出して終了コード 2 で止まる。そのまま止まって理由を伝える。オプションを外して続けない。
+**オプションは `--base`・`--implement`・`--merge`・ループ用のオプション（`--merge` と一緒のときだけ）を受け付ける。** ほかのオプション（`--hold-action`・`--fresh-review` を含む）は、2 章の helper が理由を出して終了コード 2 で止まる。そのまま止まって理由を伝える。オプションを外して続けない。
+
+### `--base`
+
+`--base BRANCH`（`--base=BRANCH` も同じ）はコードの PR の向き先。Issue の前後どちらでも 1 回だけ指定できる。未指定は `main`。対象 repository の `origin` に存在する branch 名だけを受け付ける（例: `#42 --base feat/plugin-v2`）。revision 式、tag、完全 ref、別 remote は使わない。base branch の新設・reset・force push で代えない。
+
+親 Issue・handoff の現行の統合/base 指示を全文から確認し、要求値と根拠の URL/パスを記録する。複数の要求が異なる・意味が曖昧なら停止。`main` 以外の要求では `--base` での明示が必要で、未指定の `main` をその要求に合うものと推測しない。要求が `main` なら、`--base` が無くても既定の `main` で進める。2 章で取得した repository / origin / 完全 heads ref / SHA を以後固定する。外部コードの文書用 base は別の create-reso-world / origin / main。
 
 ### `--implement`
 
@@ -48,18 +54,28 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
 2. スキルの実ディレクトリを `SKILL_DIR` とし、create-reso-world の main checkout `PARENT_ROOT` を求めて、`origin` が usaturn/create-reso-world であることを確かめる。
 
    ```bash
-   PARENT_ROOT=$(dirname "$(git -C "$SKILL_DIR" rev-parse --path-format=absolute --git-common-dir)")
-   git -C "$PARENT_ROOT" remote get-url origin
+   set -euo pipefail
+   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+   git_common_dir="$(git -C "$SKILL_DIR" rev-parse --path-format=absolute --git-common-dir)" || exit 2
+   PARENT_ROOT="$(dirname "$git_common_dir")" || exit 2
+   git -C "$PARENT_ROOT" remote get-url origin || exit 2
    ```
 
 3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`、`#12 --merge --max-cycles 2 途中で止めずに` なら `#12 --merge --max-cycles 2`）。語を足したり並べ替えたりしない。読み取り専用の helper を、起動したときの cwd のまま（checkout のルートへ `cd` せずに）実行する。
 
+   `SESSION` は `PARENT_ROOT/tmp/agents/` の、この run のセッションディレクトリ（`agent_tmp.py mkdir issue-N`）にする。以降の Bash ブロックは配列・変数・関数を共有する。別シェルに移るときは、最初に `set -euo pipefail` を実行し、保存 JSON から同じ値を読み戻し（読み込みの失敗は `|| exit 2` で止める）、関数を定義し直す。publish が scan で決める SHA は `SESSION` のファイル（`code-sha.txt`・`docs-sha.txt`）に保存し、`pr` ブロックは同じシェルでも別シェルでも先頭でそこから読む（無い・空なら PR を作る前に止まる）。各ブロックは先頭で helper と同じ規則（`scripts/git_env.py`）により継承した `GIT_*` を除去し（remote の認証に使う transport の設定 `TRANSPORT_AUTH` は残す）、検証・worktree・diff・scan・push・PR 作成で同じ Git 環境を使う。ブロックは bash と zsh のどちらでもそのまま実行できる。**停止は errexit に頼らない。** ランタイムがブロックを `&&` の並びの中の `eval` で実行すると（Claude Code の Bash ツール）`set -e` は効かないので、失敗すると後続が無効になるコマンド（helper と値の読み込み、`recheck_bases`、`[ -n … ]`、`jq -e`、worktree の作成、push、PR の作成と保存）に `|| exit 2` を付けている。`set -euo pipefail` は errexit が効くシェルでの二重の守りとして残す。ブロックは先頭から最上位のコマンド列として実行し、`|| exit 2` を外したり、`if` の条件や `&&` / `||` の一部に包んだりしない。終了コードが 0 でないブロックの後は、次のブロックへ進まない。base の取得をやり直して SHA を差し替えない。引数は引用と Bash 配列で渡し、`eval` しない。
+
+   <!-- base-workflow:input -->
    ```bash
-   uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" -- "$INPUT"
+   set -euo pipefail
+   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+   uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" -- "$INPUT" > "$SESSION/issue.json" || exit 2
    ```
 
    - 受け付ける表記: `https://github.com/<owner>/<repo>/issues/N`、`<owner>/<repo>#N`、`#N`（**現在の checkout の origin** で解決する。番号からリポジトリを推測しない）。対象は usaturn/create-reso-world・usaturn/resoloop・usaturn/resoloop-meshy だけ
-   - 成功: 終了コード 0、`repo`・`number`・`url`・`title`・`body`・`merge`・`implement` の JSON。`merge` は `--merge` が無ければ `null`、あれば `{"loop_args": [...]}`（利用者が書いた順のループ用のオプション。パスは絶対パス）。`implement` は `--implement` の値か `null`。**最初に `repo` と `title` を利用者に表示する。** 失敗: 終了コード 2 と stderr の理由。副作用に進まずに止まる
+   - 成功: 終了コード 0、`repo`・`number`・`url`・`title`・`body`・`merge`・`implement`・`base`・`base_explicit` の JSON。`merge` は `--merge` が無ければ `null`、あれば `{"loop_args": [...]}`（利用者が書いた順のループ用のオプション。パスは絶対パス）。`implement` は `--implement` の値か `null`。`base` は branch 名（未指定は `main`）、`base_explicit` は利用者が指定したかの真偽値。`--base` は `merge.loop_args` には含めず、ループにも渡さない。**最初に `repo` と `title` を利用者に表示する。** 失敗: 終了コード 2 と stderr の理由。副作用に進まずに止まる
    - cwd が git の追跡しないディレクトリ（ワールドのプロジェクトなど）の中にあると（`git check-ignore -q .` が成功する）、helper は入力を読む前に終了コード 2 で止まる。下の「ワールドの作業で止まったとき」に従う
    - helper は入力の検証と Issue の確認だけで、競合・予約・承認を確かめた証拠にはならない
    - `merge` が `null` でなければ、続けて `PARENT_ROOT` の `loop.py` で、ループ用のオプションと agent-runner の設定を検査する。`loop_args` の要素を順に、それぞれ 1 つの引数として渡す（空なら引数なし）。
@@ -94,11 +110,49 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
    - create-reso-world の `refs/heads/agent-claims/issue-N`、コメントに記録された未解放の担当
    - `TARGET_ROOT`（と文書用の worktree を作る場合は `PARENT_ROOT`）の既存の worktree、ローカル・remote の branch（`issue-N` を番号の境界で照合し、N=58 と N=580 を混同しない）
    - 未完了の先行 Issue・必要な未マージ PR
-   - 親 Issue か handoff が、`main` 以外（統合用の branch など）を PR の向き先に指定している。この版は未対応なので、黙って `main` に向けない
 
    既存の open PR で止まるときは、その PR の URL と base（`gh pr view <PR> --repo <repo> --json url,baseRefName`）を報告し、レビューは `/pr-review <PR の URL>`、指摘の修正の計画は `review-fix-planning` で行えると伝える。案内には PR の URL を使う（番号だけでは、別のリポジトリの PR を cwd の origin の PR として解決する）。`--merge` があっても、既存の PR をループに乗せない（`loop.py start` を実行しない）。ループで続けるかは利用者が決め、続けるなら `/pr-review-fix-loop <PR の URL>` で行える。
 
    worktree を作る直前と、push・PR の作成の前に、Issue の状態と競合を調べ直す。新しい競合や close があれば止まり、この run で作った worktree・branch と他者の作業を区別して報告する。
+
+   **base の確定:** 競合を確認した後、worktree の前に、根拠とともに確認した親 Issue・handoff の要求 base を `$SESSION/required-bases.txt` に 1 行に 1 つの branch で書く（`printf '%s\n' <branch>... > "$SESSION/required-bases.txt"`）。要求が無ければ空のファイルにする（`: > "$SESSION/required-bases.txt"`）。シェルの配列や変数で渡さない（別の呼び出しのシェルには残らず、bash では未定義の配列が黙って空になる）。capture は同じシェルでも別シェルでもこのファイルから読み、無い・読めないときは worktree の前に止まる。Issue の repository でなく `TARGET_REPO` / `TARGET_ROOT` を使う。次の helper は objects だけを取得し、remote-tracking ref や FETCH_HEAD を更新しない。成功時の JSON（`repo`・`remote`・`branch`・`ref`・`sha`）を保存する。終了コード 2 は副作用の前に停止し、理由を伝える。
+
+   <!-- base-workflow:capture -->
+   ```bash
+   set -euo pipefail
+   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+   base_args=()
+   base_explicit="$(jq -r .base_explicit "$SESSION/issue.json")" || exit 2
+   if [ "$base_explicit" = true ]; then
+     explicit_base="$(jq -r .base "$SESSION/issue.json")" || exit 2
+     base_args+=(--base "$explicit_base")
+   fi
+   required_bases="$(cat "$SESSION/required-bases.txt")" || exit 2
+   while IFS= read -r required; do [ -z "$required" ] || base_args+=(--required-base "$required"); done <<< "$required_bases"
+   uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+     --checkout "$TARGET_ROOT" --repo "$TARGET_REPO" "${base_args[@]}" > "$SESSION/code-base.json" || exit 2
+   CODE_BASE_BRANCH="$(jq -r .branch "$SESSION/code-base.json")" || exit 2
+   CODE_BASE_SHA="$(jq -r .sha "$SESSION/code-base.json")" || exit 2
+   if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
+     uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+       --checkout "$PARENT_ROOT" --repo usaturn/create-reso-world > "$SESSION/docs-base.json" || exit 2
+     DOC_BASE_SHA="$(jq -r .sha "$SESSION/docs-base.json")" || exit 2
+   fi
+   recheck_bases() {
+     uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+       --checkout "$TARGET_ROOT" --repo "$TARGET_REPO" --base "$CODE_BASE_BRANCH" \
+       --expected-sha "$CODE_BASE_SHA" > "$SESSION/code-base-recheck.json" || return
+     if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
+       uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+         --checkout "$PARENT_ROOT" --repo usaturn/create-reso-world --base main \
+         --expected-sha "$DOC_BASE_SHA" > "$SESSION/docs-base-recheck.json" || return
+     fi
+   }
+   ```
+
+   `recheck_bases` は origin の対象と完全 ref の先端を捕捉した SHA に照合する。worktree の直前、差分の確認、scan の前、全 scan 後の各 push の直前、各 PR 作成の直前と作成後に実行する。移動を観測したら新 SHA を採用せず停止し、旧/新 SHA・差分・必要な再検証を報告する。複数 repository を一括ロックする保証はない。
+
 7. ボードの子（GitHub の親 Issue があり、子か親の本文にボードのキーがある）は **`planning-parallel-issues` 必須**。予約・先行条件・成果の公開・所有権の再確認・解放はそちらに従い、このスキルに写さない。親からの子の選択は担当外。
 
 `gh issue`・`gh pr` には毎回 `--repo` を付ける。`gh api` は `--repo` を受け付けないので、`repos/<owner>/<repo>/...` の完全な endpoint で対象を固定し、一覧は `--paginate` で取る。
@@ -121,11 +175,23 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 
 現在の pane が分からない・rename が失敗したときは、別の pane を推測せず、rename を省いて続け、最終報告に書く。
 
-**必須:** `superpowers:using-git-worktrees` に従い、status・worktree 一覧・ignore を確かめて、**`TARGET_ROOT` の最新の `origin/main`** から `TARGET_ROOT/.worktrees/<名前>` に新しい worktree を作る（`git -C "$TARGET_ROOT" fetch origin` の後、`git -C "$TARGET_ROOT" worktree add -b <branch> .worktrees/<名前> origin/main`）。
+**必須:** `superpowers:using-git-worktrees` に従い、status・worktree 一覧・ignore を確かめる。名前と未使用の branch を下の規則で決め、コードの絶対パスを `CODE_ROOT`、branch を `CODE_BRANCH` にする。文書を分離する場合はその絶対パスを `DOC_ROOT`、branch を `DOC_BRANCH` にし、分離しない場合は `DOC_ROOT="$CODE_ROOT"`。再確認後、捕捉した SHA から新しい worktree を作る（未更新の `origin/<branch>` を開始点にしない）。
 
 - 名前は `issue-N-<要約>`、branch は `feat/issue-N-<要約>` か `fix/issue-N-<要約>`。Issue が `TARGET_REPO` と別のリポジトリにあるときは、名前と branch の `issue-N` の前にそのリポジトリ名を付ける（create-reso-world の #203 を resoloop で実装するなら `create-reso-world-issue-203-<要約>`）
-- `TARGET_REPO` が create-reso-world でなければ、Spec・Plan 用に `PARENT_ROOT/.worktrees/<名前>` にも、branch `docs/<名前>` の worktree を `origin/main` から作る（Issue が create-reso-world の外にあるときは、`<名前>` の先頭にそのリポジトリ名を付ける）
+- `TARGET_REPO` が create-reso-world でなければ、Spec・Plan 用に `PARENT_ROOT/.worktrees/<名前>` にも、branch `docs/<名前>` の worktree を文書用に捕捉した main の SHA から作る（Issue が create-reso-world の外にあるときは、`<名前>` の先頭にそのリポジトリ名を付ける）
 - main checkout（detached HEAD）では編集しない
+
+<!-- base-workflow:worktree -->
+```bash
+set -euo pipefail
+git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+recheck_bases || exit 2
+git -C "$TARGET_ROOT" worktree add -b "$CODE_BRANCH" "$CODE_ROOT" "$CODE_BASE_SHA" || exit 2
+if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
+  git -C "$PARENT_ROOT" worktree add -b "$DOC_BRANCH" "$DOC_ROOT" "$DOC_BASE_SHA" || exit 2
+fi
+```
 
 以降、create-reso-world の Spec・Plan を置く checkout を `DOC_ROOT` と呼ぶ（`TARGET_REPO` が create-reso-world なら実装の worktree、ほかは文書用の worktree）。
 
@@ -149,8 +215,8 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 
 `superpowers:subagent-driven-development` を読み、Task を実装するサブエージェントの代わりに、`implement_task.py` で runner の担当に Task を 1 つずつ順に依頼する（並行しない）。runner の担当は入れ子に agent を起動できないので、Plan 全体を 1 回で渡さない。
 
-1. **出力先:** `uv run --no-project python "$PARENT_ROOT/.agents/scripts/agent_tmp.py" mkdir issue-<N>-implement` で作ったセッションディレクトリ（`SESSION`）の下の、存在しないパス（例: `$SESSION/task-2-attempt-1`）を依頼ごとの `RUN_DIR` にする。ログは後で参照するため、AGENTS.md の「コミットしないファイルの置き場所」に従う
-2. **依頼の JSON（`REQUEST_JSON`）:** 次の 6 項目だけを書き、`$SESSION` の下にファイルで置く。
+1. **出力先:** `uv run --no-project python "$PARENT_ROOT/.agents/scripts/agent_tmp.py" mkdir issue-<N>-implement` で作った実装担当用のセッションディレクトリ（`IMPLEMENT_SESSION`）の下の、存在しないパス（例: `$IMPLEMENT_SESSION/task-2-attempt-1`）を依頼ごとの `RUN_DIR` にする。run 全体の `SESSION` は再定義せず、base JSON・検証記録を保持する。ログは後で参照するため、AGENTS.md の「コミットしないファイルの置き場所」に従う
+2. **依頼の JSON（`REQUEST_JSON`）:** 次の 6 項目だけを書き、`$IMPLEMENT_SESSION` の下にファイルで置く。
    - `repository`: feature worktree（`TARGET_ROOT/.worktrees/<名前>`）の root の絶対パス。`revision`: その HEAD の完全な SHA（未 commit の変更を残さない）
    - `task`: 1 行の Task 名。`allowed_files`: Plan のその Task の担当ファイル（root からの相対パス。`/` で終わればディレクトリ）
    - `commit_message`: Plan の commit の手順のメッセージ（担当が commit できなかったときに helper が使う）
@@ -178,35 +244,93 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
    2. `implement_task.py cleanup --run-dir "$RUN_DIR"` を実行する。時点は、`importable` は `accept` の後（取り込めなかった場合も）、`no_changes`・`retry`・`rejected` は ledger に書いた直後、止まるとき（`failed`、上限に達した `retry`・`rejected`）は停止の報告の前。停止を確認した試行の worktree の登録を外し（force しない）、何も残らなければ `RUN_DIR` を消す
    3. 終了コード 1 は、残したもの（`retained`。停止を確認できない試行、`sensitive_paths` のある試行など）があることを示す。それだけでは止まらない。完全パスを ledger に書き、最終報告（止まるときは停止の報告）に含める。force・`rm -rf` で消さない
 
-   `run` が終了コード 2（`status: error`）で終わったときは `task.json` が無く、`cleanup` を使えない。`RUN_DIR` が存在すれば、その完全パスを停止の報告に書く。`reason` が `checkout_audit` なら、`checkout_audit` に並んだ登録（消えた worktree など）を報告して止まる。他の作業の領域でありうるので、自分で prune・削除しない。セッションディレクトリは、すべての依頼の `cleanup` の後に空になったときだけ `rmdir` で消す。中身が残っていれば消さずに完全パスを報告する（`rm -rf` で消すと runner の worktree の登録だけが残り、runner を使う入口が起動の前の監査で止まる）
+   `run` が終了コード 2（`status: error`）で終わったときは `task.json` が無く、`cleanup` を使えない。`RUN_DIR` が存在すれば、その完全パスを停止の報告に書く。`reason` が `checkout_audit` なら、`checkout_audit` に並んだ登録（消えた worktree など）を報告して止まる。他の作業の領域でありうるので、自分で prune・削除しない。`IMPLEMENT_SESSION` は、すべての依頼の `cleanup` の後に空になったときだけ `rmdir` で消す。run 全体の `SESSION` はこの後片付けの対象にしない。中身が残っていれば消さずに完全パスを報告する（`rm -rf` で消すと runner の worktree の登録だけが残り、runner を使う入口が起動の前の監査で止まる）
 
 失敗を理由に、このセッションが `self` で実装を引き取らない（`tools/agent_runner/interfaces.rst` の「失敗を理由に別モデルへ暗黙に切り替えない」と同じ）。止まった Task の後の Task・最後の全体レビュー・PR には進まない。担当を変えるかは利用者が決める。すべての Task を取り込めたときの最後の全体レビューと PR は、`self` のときと同じ。PR 本文には、5 章の項目に加えて、割り当て（雛形・個人設定・`--implement` のどれで決まったか）、runner が観測した agent・モデル、Task ごとの依頼の回数と所要時間を書く。
 
 ## 5. 検証・PR・完了
 
 - **`verification-before-completion` と `finishing-a-development-branch` 必須。** 終了方法は PR の作成を選び、改めて選択肢を尋ねない。検証は 2 章の表の入口で行う。長時間の検証・子・CI は `monitoring-long-tasks` 必須で、終了を待ち、終了コードと実ログを確かめる。
-- `--merge` のときは、最後の commit の後に検証し、検証した HEAD、そのときの `git status --porcelain` が空だったこと、各コマンドの argv と終了コード、ログの完全パスを `PARENT_ROOT/tmp/agents/` のセッションディレクトリに記録する。同じ場所に、`finalize.py` の `--checks-file` の形のファイルも作る（形は review-fix-planning の `references/execution.md` の 3 章のとおり）。ループで再利用する条件になる（下の「`--merge` のとき: PR の作成後のループ」の 5）
+- `--merge` のときは、最後の commit の後に検証し、検証した HEAD、そのときの `git status --porcelain` が空だったこと、各コマンドの argv と終了コード、ログの完全パスを `PARENT_ROOT/tmp/agents/` のセッションディレクトリに記録する。実 PR 作成後の照合でも同じ base であることを確認し、検証したツリーが含むコード base の完全 SHA（`CODE_BASE_SHA`）を `base` に記録する。PR の `baseRefOid` や文書 main の SHA で代えない。同じ場所に、`finalize.py` の `--checks-file` の形のファイルも作る（形は review-fix-planning の `references/execution.md` の 3 章のとおり）。ループで再利用する条件になる（下の「`--merge` のとき: PR の作成後のループ」の 5）
 - 統合確認では [要件・原因・検証の対応](../review-fix-planning/references/convergence.md) の「3. 検証と閉じ方」を読む。Spec→Plan→Task→実行証拠を条件単位で照合し、判定の両側・意味のある操作順・検証の独立した根拠・最後の修正で影響した経路を確認する。要件の欠落や未確認をテスト件数や別版のレビューで埋めず、必要な証拠が揃ってから公開する。
-- worktree で明示したパスだけを stage・commit する。push は `finishing-a-development-branch` の `git push -u` ではなく、`AGENTS.md` の「push の前の秘密情報の検査」の形で、次の順に行う。検査のスクリプトは、どの対象でも `PARENT_ROOT` のものを使う（外部の checkout には無く、作業中の branch のものはその branch が書き換えられる）。
+- 差分は捕捉した base から確認する。後続のレビューにも repository / ref / SHA と差分の根拠を渡し、`origin/main` 固定に戻さない。
 
+  <!-- base-workflow:diff -->
   ```bash
-  SCAN="$PARENT_ROOT/scripts/scan-before-push.sh"
-  CODE_SHA="$(bash "$SCAN" -C <コードの worktree>)" && [ -n "$CODE_SHA" ] \
-    && DOC_SHA="$(bash "$SCAN" -C <文書の worktree>)" && [ -n "$DOC_SHA" ] \
-    && git -C <文書の worktree> push origin "${DOC_SHA:?}:refs/heads/docs/<名前>" \
-    && git -C <コードの worktree> push origin "${CODE_SHA:?}:refs/heads/<branch>"
+  set -euo pipefail
+  git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+  while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+  recheck_bases || exit 2
+  git -C "$CODE_ROOT" diff "$CODE_BASE_SHA...HEAD" -- > "$SESSION/code.diff" || exit 2
+  if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
+    git -C "$DOC_ROOT" diff "$DOC_BASE_SHA...HEAD" -- > "$SESSION/docs.diff" || exit 2
+  fi
   ```
 
-  どれかを push する前に、公開する worktree をすべて検査する。`TARGET_REPO` が create-reso-world なら、文書の worktree はコードの worktree と同じなので、`DOC_SHA` の 2 行を除く。SHA が空だと refspec が branch の削除になるので、呼び出しを分けるときも `:?` を外さない。検査の後に commit を足したら、検査からやり直す。CI の修正などの再 push も同じ形で行う。
-- push の後に `gh pr create --repo "$TARGET_REPO" --base main --head <branch>` で PR を作る。SHA を指定した push では upstream が設定されないので、`--head` を省かない。既存の PR が見つかったら重複して作らない。`--merge` のときは draft にしない（`finalize.py` は draft を拒否する）。
-- PR 本文の Issue の指定は次のとおり（`Closes` はマージの時に Issue を completed で閉じ、マージの後の確認や調整役の close を待たない）。
+- worktree で明示したパスだけを stage・commit する。push は `finishing-a-development-branch` の `git push -u` でなく次の順。どれかを push する前に全 worktree を検査する。スクリプトは `PARENT_ROOT` のものを使う（外部 checkout には無く、feature のものは書き換えられる）。その版が `--expected-base-sha` 未対応なら停止し、親の更新が必要と報告する。別版で回避しない。検査後に commit を足したら検査からやり直す。CI 修正等の再 push も同じ形。
+
+  <!-- base-workflow:publish -->
+  ```bash
+  set -euo pipefail
+  git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+  while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+  SCAN="$PARENT_ROOT/scripts/scan-before-push.sh"
+  recheck_bases || exit 2
+  CODE_SHA="$(bash "$SCAN" -C "$CODE_ROOT" --base "origin/$CODE_BASE_BRANCH" --expected-base-sha "$CODE_BASE_SHA")" || exit 2
+  [ -n "$CODE_SHA" ] || exit 2
+  printf '%s\n' "$CODE_SHA" > "$SESSION/code-sha.txt" || exit 2
+  if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
+    DOC_SHA="$(bash "$SCAN" -C "$DOC_ROOT" --base origin/main --expected-base-sha "$DOC_BASE_SHA")" || exit 2
+    [ -n "$DOC_SHA" ] || exit 2
+    printf '%s\n' "$DOC_SHA" > "$SESSION/docs-sha.txt" || exit 2
+    recheck_bases || exit 2
+    git -C "$DOC_ROOT" push origin "${DOC_SHA:?}:refs/heads/${DOC_BRANCH:?}" || exit 2
+  fi
+  recheck_bases || exit 2
+  git -C "$CODE_ROOT" push origin "${CODE_SHA:?}:refs/heads/${CODE_BRANCH:?}" || exit 2
+  ```
+
+- Issue の状態・競合も再確認してから PR を作る。`PR_TITLE`、コード/文書の本文ファイル `CODE_PR_BODY` / `DOC_PR_BODY` を用意する。SHA push では upstream が無いので `--head` を省かない。既存 PR があれば重複作成しない。`--merge` でも draft にしない。作成直後に URL を保存し、実 PR の base 名と head SHA を照合してから次へ進む。
+
+  <!-- base-workflow:pr -->
+  ```bash
+  set -euo pipefail
+  git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+  while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+  CODE_SHA="$(cat "$SESSION/code-sha.txt")" || exit 2
+  [ -n "$CODE_SHA" ] || exit 2
+  if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
+    DOC_SHA="$(cat "$SESSION/docs-sha.txt")" || exit 2
+    [ -n "$DOC_SHA" ] || exit 2
+  fi
+  recheck_bases || exit 2
+  CODE_PR_URL="$(gh pr create --repo "$TARGET_REPO" --base "$CODE_BASE_BRANCH" --head "$CODE_BRANCH" \
+    --title "$PR_TITLE" --body-file "$CODE_PR_BODY")" || exit 2
+  printf '%s\n' "$CODE_PR_URL" > "$SESSION/code-pr-url.txt" || exit 2
+  gh pr view "$CODE_PR_URL" --repo "$TARGET_REPO" --json url,baseRefName,headRefOid > "$SESSION/code-pr.json" || exit 2
+  jq -e --arg base "$CODE_BASE_BRANCH" --arg head "$CODE_SHA" --arg url "$CODE_PR_URL" \
+    '.baseRefName == $base and .headRefOid == $head and .url == $url' "$SESSION/code-pr.json" || exit 2
+  recheck_bases || exit 2
+  if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
+    DOC_PR_URL="$(gh pr create --repo usaturn/create-reso-world --base main --head "$DOC_BRANCH" \
+      --title "$PR_TITLE" --body-file "$DOC_PR_BODY")" || exit 2
+    printf '%s\n' "$DOC_PR_URL" > "$SESSION/docs-pr-url.txt" || exit 2
+    gh pr view "$DOC_PR_URL" --repo usaturn/create-reso-world --json url,baseRefName,headRefOid > "$SESSION/docs-pr.json" || exit 2
+    jq -e --arg head "$DOC_SHA" --arg url "$DOC_PR_URL" \
+      '.baseRefName == "main" and .headRefOid == $head and .url == $url' "$SESSION/docs-pr.json" || exit 2
+    recheck_bases || exit 2
+  fi
+  ```
+
+  不一致・base 移動ならループ・完了報告へ進まない。公開済みの branch・PR は自動 close・削除・base 変更で取り消さず、URL・実 base と捕捉値・残した資源を停止報告に書く。
+- PR 本文の Issue の指定は次のとおり。`Closes` による Issue の自動 close は、PR が対象 repository の default branch にマージされたときだけ働き、マージの後の確認や調整役の close を待たない。非 default branch 向けの PR は `Closes` を書いてもそのマージでは Issue が自動 close されないため、完了報告では実際に観測した Issue の state を書く。以下の `Refs` / `Closes` の選択基準は変えない。
   - Issue が `TARGET_REPO` と別のリポジトリにある: `Refs <Issue の URL>`（マージで別のリポジトリの Issue を閉じない）
   - Issue が `TARGET_REPO` にあり、マージの後でなければ確かめられない項目（rebuild、実機、`resoloop` の導入など）が受け入れ条件・検証に残る: `Refs #N`
   - Issue が `TARGET_REPO` にあるボードの子（2 章の 7）: `Refs #N`。close と親の更新は、マージの後に調整役が行う
   - 上のどれにも当たらない: `Closes #N`
 - マージの後でなければ確かめられない項目が残るときは、Issue の指定に関係なく、その項目を PR 本文と最終報告に書き、run の最後（`--merge` のときはループの終了の後）に、PR の URL とその項目を Issue へコメントする
 - PR 本文には、変更概要、**Spec の決定と理由、実行方式と理由**、実行した検証と結果、作業時間と主要 Task 別の内訳も書く。未実行の確認を成功と書かない。
-- `TARGET_REPO` が create-reso-world でなければ、続けて、上で push した文書用の branch から create-reso-world に Spec・Plan だけの PR を作る。本文は `Refs <Issue の URL>` とコードの PR の URL。コードの PR の本文にも文書の PR の URL を足す。
+- `TARGET_REPO` が create-reso-world でなければ、上の文書用 PR は Spec・Plan だけを含める。本文は `Refs <Issue の URL>` とコードの PR の URL。コードの PR の本文にも文書の PR の URL を足す。
 - CI は 2 章の表のとおり。public のリポジトリは PR の checks が green になってから完了とする。失敗したら直すか、直せなければ止まる。`--merge` のときは、PR の作成後に CI を待たずにループへ進む（マージの前に `finalize.py` が CI の成功を確かめ、実行中なら `wait_for: ci` で待つ。PR の変更による失敗は、review-fix-planning が致命的な指摘として直す）。
 - `--merge` のときのループの `finalize.py` によるマージを除き、マージ・タグ・リリース・デプロイ・プロビジョニングは行わない。admin マージ・auto-merge・force push・branch の削除は、どの場合もしない。
 - ボードの子の成果の公開・予約の解放は `planning-parallel-issues` に従う。自分の所有物だけを扱う。`--merge` のときは、PR の作成の直後には解放しない。ループの `finish` の後（ループのエラーで `finish` まで進めないときは、止まった時点）に、結果と再開の方法を子 Issue に書いてから解放する。
@@ -228,7 +352,7 @@ PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文�
    ```
 
 4. 以降は pr-review-fix-loop の SKILL.md 全体（守ること・起動の注意・サイクル・終わり方・止まったとき・監視・最終報告）に従う。起動のコマンドは上の 3 のとおり
-5. **検証の記録の再利用:** 1 サイクル目で修正不要となり、サイクルの HEAD が上で記録した HEAD と同じなら、その記録を review-fix-planning の結論 2 の手順 1 の検証の記録（`finalize.py` の `--checks-file`）に使ってよい。条件は、同じ HEAD、検証のときに未 commit の変更が無い、すべての終了コードが 0、ログが残っていること。どれかを確かめられなければ、計画の中で検証し直す。記録の形と base の扱い（結論 2 の手順 2）は review-fix-planning のとおりにし、base が進んでいたときの merge の検証は省かない
+5. **検証の記録の再利用:** 1 サイクル目で修正不要となり、サイクルの HEAD が上で記録した HEAD と同じなら、その記録を review-fix-planning の結論 2 の手順 1 の検証の記録（`finalize.py` の `--checks-file`）に使ってよい。条件は、同じ HEAD、検証のときに未 commit の変更が無い、すべての終了コードが 0、ログが残っていること。どれかを確かめられなければ、計画の中で検証し直す。記録の形と base の扱い（結論 2 の手順 2）は review-fix-planning のとおりにし、実 PR の `baseRefName` を使い、base が進んでいたときの merge の検証は省かない。捕捉済み SHA を無検証で新値に書き換えず、既存の HEAD・base・merge 第1親・CI の guard を保つ
 6. **終了:** pr-review-fix-loop の SKILL.md の「最終報告」の項目と、5 章の完了の報告の項目を書き、ループの結果で次の区分を加える。ループの段階の所要時間も書く
 
    | ループの結果 | 報告 | マージ |
@@ -240,7 +364,7 @@ PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文�
 
 ## 停止時の報告
 
-不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が usaturn/resoloop-meshy、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、マージ済みの PR で PR にする作業が残っていない Issue、未完了の依存、Issue の明示の承認要求、`main` 以外の向き先の指定、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
+不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が usaturn/resoloop-meshy、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、マージ済みの PR で PR にする作業が残っていない Issue、未完了の依存、Issue の明示の承認要求、要求 base の未指定・矛盾・曖昧さ、base の不存在・不一致・捕捉後の移動、実 PR の base/head の不一致、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
 
 検査で止まったら、どの worktree も push せず、PR を作らない。`AGENTS.md` の「push の前の秘密情報の検査」の条件を満たす検出なら、その commit を直し、検証（`--merge` のときは検証の記録も）と、公開するすべての worktree の検査をやり直して続ける。条件を満たさない検出では止まり、回避しない。gitleaks は自分で導入せず、`bash "$PARENT_ROOT/.devcontainer/install_gitleaks.bash"` での導入を次の操作として報告する。検査が全部通った後の push や PR の作成が失敗して一部だけ公開されたら、公開済みの branch・PR を報告し、取り消さない。
 
@@ -248,6 +372,6 @@ PR を作った後（`TARGET_REPO` が create-reso-world でなければ、文�
 
 ## ランタイムごとの違い
 
-- **Claude Code:** `/issue-to-pr <Issue> [--implement AGENT] [--merge [ループ用のオプション]]`。スラッシュコマンドの引数（`ARGUMENTS`）から、2 章の規則で `INPUT` を切り出す。モデルが自分の判断で Skill ツールからこのスキルを呼ぶときは、利用者のメッセージから同じ規則で `INPUT` を切り出して args に渡す。利用者が書いた `--merge`・ループ用のオプションは書かれたとおりに含め、書かれていないものは足さない（自然文の「マージまで」は `--merge` ではない）。pr-review-fix-loop は Skill ツールで起動せず、5 章のとおりファイルとして読む。
-- **Pi:** `/skill:issue-to-pr` の引数から、2 章の規則で `INPUT` を切り出す。`/sp-brainstorm` から入るときは、Issue の URL を最初に書き、`--implement`・`--merge`・ループ用のオプションはその直後に続ける（`/sp-brainstorm <Issue URL> [--implement AGENT] [--merge [ループ用のオプション]] issue-to-pr を使い、…`）。1 章の入口を案内するときも、利用者が書いた `--implement`・`--merge`・ループ用のオプションだけを含める。
+- **Claude Code:** `/issue-to-pr <Issue> [--base BRANCH] [--implement AGENT] [--merge [ループ用のオプション]]`。スラッシュコマンドの引数（`ARGUMENTS`）から、2 章の規則で `INPUT` を切り出す。モデルが自分の判断で Skill ツールからこのスキルを呼ぶときは、利用者のメッセージから同じ規則で `INPUT` を切り出して args に渡す。利用者が書いた `--base`・`--implement`・`--merge`・ループ用のオプションは書かれたとおりに含め、書かれていないものは足さない（自然文の「マージまで」は `--merge` ではない）。pr-review-fix-loop は Skill ツールで起動せず、5 章のとおりファイルとして読む。
+- **Pi:** `/skill:issue-to-pr` の引数から、2 章の規則で `INPUT` を切り出す。`/sp-brainstorm` から入るときは、Issue の URL を最初に書き、`--base`・`--implement`・`--merge`・ループ用のオプションはその直後に続ける（`/sp-brainstorm <Issue URL> [--base BRANCH] [--implement AGENT] [--merge [ループ用のオプション]] issue-to-pr を使い、…`）。1 章の入口を案内するときも、利用者が書いた `--base`・`--implement`・`--merge`・ループ用のオプションだけを含める。
 - **`--controller-model`・`--controller-runtime`（5 章のループ）:** `--controller-runtime` は Claude Code なら `claude-code`、Pi なら `pi`。`--controller-model` は、現在提示されている正確なモデル ID（Pi は pi-model-name のスキルで `PI_PROVIDER` と `PI_MODEL` を確かめる。pr-review-fix-loop の「ランタイムごとの違い」）。
