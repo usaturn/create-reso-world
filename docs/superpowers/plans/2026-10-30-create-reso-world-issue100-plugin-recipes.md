@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- コード: usaturn/resoloop `origin / refs/heads/feat/plugin-v2`、捕捉 SHA `dd0b40fb216b0c9fbd82da44903195a885104015`。
+- コード: usaturn/resoloop `origin / refs/heads/feat/plugin-v2`、現行の継続run捕捉 SHA `454b54cd961e078dac2a71fe1270529ebff11cd2`。旧捕捉の停止記録は保存する。
 - 文書: create-reso-world `origin / refs/heads/main`、捕捉 SHA `acd288c3e81a6c108136e37815e718a0fe088195`。
 - 非default baseをmainへ読み替えない。捕捉後の移動は停止し、新SHAを採用しない。
 - 変更は resolver新規、UixRecipes（Catalog除外）、ApplyDocumentCompiler、PluginRecipeTests、recipes fixture のみ。ApplyWorkflow/Program/CommandLine/既存Plugins/他子所有は変更禁止。
@@ -106,6 +106,10 @@
 旧baseのbaseline `dotnet test ResoLoop.slnx --nologo` は終了0、573unit+22offline成功。ログ `/workspaces/reso-world/tmp/agents/issue-100.yvd477qx/baseline-tests.log`。新baseのテスト成功を意味しない。移動差分は同sessionの `base-movement.diff` / `base-movement-stat.txt`。計画のTask完了は一つも記録しない。
 
 再開時は利用者の明示継続許可後に現在のref/競合/新規claimを確認し、既存文書・未変更code worktreeを再利用する手順と新baseを確定する。旧runの捕捉JSONを書き換えて再開しない。新base全体のbaseline、共有資源との整合確認、必要なSpec/Plan再照合を行ってからTask1へ進む。
+
+## 再開記録（2026-10-30）
+
+利用者が停止理由を了解した上で「作業を再開してください」と明示した。Specの再開許可に従い、現在はdraft / planning: in-progress / implementation: not-started。別session `/workspaces/reso-world/tmp/agents/issue-100-resume.0nu9othi/` にbaseを捕捉し、既存code worktreeを454b54cへff-only更新。旧停止時の記述は当時の履歴であり、新runを停止中とするものではない。予算は旧ledgerを引き継ぎ、SDDも同じ旧session下に作る。新baseでbaseline再検証してからTask1を開始する。以後の別の移動は再び停止対象。
 
 ## 自己照合
 

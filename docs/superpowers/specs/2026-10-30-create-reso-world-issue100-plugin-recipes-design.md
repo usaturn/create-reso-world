@@ -5,7 +5,7 @@
 - 状態: `draft`。内容承認を得たという記録ではない。
 - Issue: https://github.com/usaturn/create-reso-world/issues/100 （親 #95、キー `plugin-recipes`）。
 - 利用者の明示入力: `https://github.com/usaturn/create-reso-world/issues/100 --base feat/plugin-v2 --assign inspect=pi-gpt,claude-opus,devin-swe,pi-deepseek --merge`（`/skill:issue-to-pr`）。通常判断は推奨案で決め、実装・検証・commit・push・PR・指定ループを実行する許可。マージはループの finalize.py のみ。文書 PR はマージしない。
-- コード対象: `usaturn/resoloop`、捕捉 ref `origin / refs/heads/feat/plugin-v2`、SHA `dd0b40fb216b0c9fbd82da44903195a885104015`。
+- コード対象: `usaturn/resoloop`、現行の継続run捕捉 ref `origin / refs/heads/feat/plugin-v2`、SHA `454b54cd961e078dac2a71fe1270529ebff11cd2`。旧runの捕捉値は下の停止記録と旧sessionに保存する。
 - 文書対象: `usaturn/create-reso-world`、捕捉 `origin / refs/heads/main`、SHA `acd288c3e81a6c108136e37815e718a0fe088195`。
 - 根拠: 親 #95 現行本文と https://github.com/usaturn/create-reso-world/issues/297#issuecomment-6521059117 。#297 は completed、コード PR resoloop#26 の head/merge が捕捉 base の祖先であり、公開 Spec/API・Plan が文書 main に存在する。旧 #97 の完了は実装入力にしない。
 - issue helper/担当検査: 指定 base 明示。実装は既定 `self`、fallback なし。ループ inspect は利用者指定4担当、上限3サイクルは既定。fix implement=`claude-opus`、self-review/fix-check=`self` は設定の適用であり利用者指定とはしない。
@@ -86,6 +86,10 @@ S テストのみを代表例で追加し、拒否には正しく通る例を残
 移動差分は BundledSkillManager.cs、PluginSkillManager.cs、ProjectInitializer.cs、PluginSkillSyncTests.cs の4ファイル（618追加/14削除）。レシピの直接所有ファイルは変わっていないが、共有スキル資源/初期化との統合検証は必要であり、旧版の成功を新版へ流用しない。旧baseの `dotnet test ResoLoop.slnx --nologo` は終了0、573 unit +22 offline成功（live opt-in/URLをchild環境から除去）。新版は未検証。
 
 このdraft Spec/Planは部分成果としてローカルcommitし、公開未実施。Issueへの復元資料公開はGit ref/PRの公開とは区別する。再開にはbase移動を踏まえた新baseの捕捉・既存worktree/文書の再利用を明示する継続指示が必要。自動で旧捕捉値を書き換えない。
+
+## 再開許可（2026-10-30）
+
+base移動の停止理由・旧/新SHA・既存資料の保存方針を提示した後、利用者は「一旦停止したことは了解します。作業を再開してください。」と明示した。この既知の移動を受け入れた継続指示として、既存のcleanな2worktree/資料を再利用し、別session `issue-100-resume.0nu9othi` に新baseを捕捉した。旧JSONは変更していない。自分の予約は同じSHAで引き続き保持し、他者の作業は再利用しない。コードworktreeは新baseへff-only更新した。新しい別のbase移動も同様に停止対象である。設計意味/編集境界/PRとmergeの権限は当初指示のまま、内容承認は推測せずdraftを維持する。
 
 ## 公開・終了
 
