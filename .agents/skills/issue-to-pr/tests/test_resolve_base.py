@@ -231,15 +231,22 @@ def test_inherited_git_environment_cannot_redirect_checkout(
 ) -> None:
     """GIT_DIR/config injection must not make a validated checkout read another repository's origin/base."""
     expected = git(repository.remote, "rev-parse", "refs/heads/main")
+    # ls-remote/fetch keep the transport authentication names; an insteadOf left in
+    # that environment would read another history's main while origin still verifies.
+    wrong = tmp_path / "wrong.git"
+    subprocess.run(["git", "init", "--bare", "--quiet", "--initial-branch=main", str(wrong)], check=True)
+    git(repository.seed, "push", "--quiet", str(wrong), f"{INTEGRATION}:refs/heads/main")
     foreign_before = git(repository.seed, "for-each-ref")
     before = snapshot(repository.root)
     with monkeypatch.context() as patch:
         patch.setenv("GIT_DIR", str(repository.seed / ".git"))
         patch.setenv("GIT_WORK_TREE", str(repository.seed))
         patch.setenv("GIT_INDEX_FILE", str(tmp_path / "foreign-index"))
-        patch.setenv("GIT_CONFIG_COUNT", "1")
+        patch.setenv("GIT_CONFIG_COUNT", "2")
         patch.setenv("GIT_CONFIG_KEY_0", "remote.origin.url")
-        patch.setenv("GIT_CONFIG_VALUE_0", str(tmp_path / "wrong.git"))
+        patch.setenv("GIT_CONFIG_VALUE_0", str(wrong))
+        patch.setenv("GIT_CONFIG_KEY_1", f"url.{wrong}.insteadOf")
+        patch.setenv("GIT_CONFIG_VALUE_1", str(repository.remote))
         result = resolve(repository)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["sha"] == expected
