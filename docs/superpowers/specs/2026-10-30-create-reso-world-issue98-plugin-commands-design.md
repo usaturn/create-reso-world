@@ -78,10 +78,10 @@ F の所有ファイル（`SemanticVersion.cs`・`PluginNames.cs`・`PluginError
 
 ### 3.3 プロジェクト・プラグインの解決
 
-`PluginCommandDispatch.RunAsync(invocation, resoloopVersion, cancellationToken)` は次の順に進める。ResoniteLink の発見・接続はしない。
+`PluginCommandDispatch.RunAsync(invocation, context, cancellationToken)` は次の順に進める。`context`（`PluginDispatchContext`）は本体の版・開始ディレクトリ・環境・呼び戻しの argv を持ち、CLI は `PluginDispatchContext.Current(版)`（cwd・プロセスの環境・3.4 の呼び戻しの argv）を渡す。テストは明示した値を渡す。ResoniteLink の発見・接続はしない。
 
-1. `new PluginRegistry(invocation.Project, resoloopVersion, BuiltinCommandCatalog.Reservations)`。`--project` が無くプロジェクトが見つからない（`PLUGIN_PROJECT_NOT_FOUND`）ときは `UNKNOWN_COMMAND` にする（プロジェクトの外の打ち間違いを、従来どおり未知のコマンドとして示す）。`--project` があるときの F のエラーはそのまま返す
-2. 期限を決める: manifest の `timeoutSeconds`、無ければ `ConfigResolver.Resolve(プロジェクトのルート, 空の CLI 値)` の `CommandTimeoutSeconds`
+1. `new PluginRegistry(invocation.Project を context.StartDirectory から解決した絶対パス, context.ResoloopVersion, BuiltinCommandCatalog.Reservations)`。`--project` が無ければ `context.StartDirectory` から上へ探す。`--project` が無くプロジェクトが見つからない（`PLUGIN_PROJECT_NOT_FOUND`）ときは `UNKNOWN_COMMAND` にする（プロジェクトの外の打ち間違いを、従来どおり未知のコマンドとして示す）。`--project` があるときの F のエラーはそのまま返す
+2. 期限を決める: manifest の `timeoutSeconds`、無ければ `ConfigResolver.Resolve(プロジェクトのルート, 空の CLI 値, context.Environment の値)` の `CommandTimeoutSeconds`
 3. `using var lease = registry.OpenVerified()`。照合の失敗・`PLUGIN_PROJECT_BUSY` は F のエラーのまま返す
 4. `lease.Plugins` の全コマンドから、名前が候補と大小文字を区別せずに一致するものを探す（F の照合で大小文字を無視した一意性が保証される）。無ければ `UNKNOWN_COMMAND`
 5. `PluginCommandRunner.RunAsync` で実行し、子の終了コードを返す。lease は、子と子孫の停止を確かめて `RunAsync` が戻るまで持つ
@@ -95,7 +95,8 @@ F の所有ファイル（`SemanticVersion.cs`・`PluginNames.cs`・`PluginError
 - `./相対パス`: `PluginPathPolicy.Combine(PackageDirectory, 相対パス)` で package の中に限る（リンクは F の照合で拒否済み）。通常ファイルであること
 - それ以外の名前: 親の環境の `PATH` のうち**絶対パスの要素だけ**を順に探す。相対・空の要素（cwd・プロジェクトの中を指し得る）は使わない
 - Linux: 実行権限（`euidaccess(X_OK)`）のある通常ファイル
-- Windows: 名前が `.exe` で終わらなければ `.exe` を付けて探し、`.exe` だけを起動する。`.cmd`・`.bat` は `CreateProcess` が暗黙に `cmd.exe` を通してシェル解釈が入るため起動しない。PATHEXT は使わない
+- Windows: `.exe` だけを起動する。PATH で探す名前は `.exe` で終わらなければ `.exe` を付けて探す。`./相対パス` は付け足さず、書かれたとおりのパスが `.exe` で終わらなければ起動しない（F の導入時の検査が書かれたとおりのファイルを求めるため、付け足すと package に 2 つのファイルが要る）。`.cmd`・`.bat` は `CreateProcess` が暗黙に `cmd.exe` を通してシェル解釈が入るため、PATH でも package でも起動しない。PATHEXT は使わない
+- manifest に OS ごとの指定は無い（D-1）。1 つの manifest で両方の OS に対応するプラグインは、PATH のインタープリタ（`uv`・`python`・`dotnet` 等）と `${pluginRoot}` の引数で書く。`./相対パス` の実行ファイルは OS ごとのプラグインになる
 - 見つからない・起動できない・未対応の OS は `PLUGIN_COMMAND_START_FAILED`（終了コード 9）。context に `plugin`・`command`・`program`
 
 **argv** は `[実行ファイル, manifest の args を展開したもの..., 利用者の引数...]`。manifest の `args` の `${pluginRoot}` を package の絶対パス、`${pluginData}` を data の絶対パスに文字列として置き換える（F の検証で、それ以外の `${...}` は無い）。利用者の引数は置き換えない。Linux は `posix_spawn` に argv 配列で渡す。Windows は CRT の規則（F の `QuoteWindowsArgument` と同じ規則）で 1 つずつ引用した命令行と、明示した実行ファイル名を `CreateProcessW` に渡す。NUL を含む引数は `PLUGIN_COMMAND_START_FAILED`。
@@ -111,7 +112,7 @@ F の所有ファイル（`SemanticVersion.cs`・`PluginNames.cs`・`PluginError
 | `RESOLOOP_PLUGIN_ROOT` | package の絶対パス（`${pluginRoot}` と同じ） |
 | `RESOLOOP_PLUGIN_DATA` | data の絶対パス（`${pluginData}` と同じ） |
 | `RESOLOOP_PLUGIN_PROJECT_ROOT` | プロジェクトのルートの絶対パス（cwd と同じ） |
-| `RESOLOOP_PLUGIN_HOST_ARGV` | 本体を呼び戻す argv の先頭部分の JSON 配列（例 `["/home/u/.dotnet/tools/resoloop"]`、`dotnet resoloop.dll` で動いているときは `["/usr/share/dotnet/dotnet","/path/resoloop.dll"]`）。プラグインはこの後ろに引数を足して起動する |
+| `RESOLOOP_PLUGIN_HOST_ARGV` | 本体を呼び戻す argv の先頭部分の JSON 配列（例 `["/home/u/.dotnet/tools/resoloop"]`、`dotnet resoloop.dll` で動いているときは `["/usr/share/dotnet/dotnet","/path/resoloop.dll"]`）。プラグインはこの後ろに引数を足して起動する。CLI の `PluginDispatchContext.Current` は `Environment.ProcessPath` の名前が `dotnet` なら `[ProcessPath, 入口のアセンブリのパス]`、それ以外は `[ProcessPath]` にし、`ProcessPath` が無い・`dotnet` で入口のアセンブリのパスが無いときは空にする（決められない）。空なら runner が `PLUGIN_COMMAND_START_FAILED` で止まる。本体を別のプロセスに組み込む呼出元は、`Current` を使わず明示の値を渡す |
 | `RESOLOOP_PLUGIN_HOST_VERSION` | 本体の版（`resoloop --version` と同じ文字列） |
 | `PYTHONPYCACHEPREFIX` | `<data>/.cache/python`（Python のバイトコードを package に書かせない） |
 | `UV_PROJECT_ENVIRONMENT` | `<data>/.venv`（`uv run` の仮想環境を package に作らせない） |
@@ -169,7 +170,13 @@ public sealed record PluginInvocation(string? Project, string Command, IReadOnly
 public static class PluginCommandDispatch
 {
     public static PluginInvocation? Parse(IReadOnlyList<string> args);
-    public static Task<int> RunAsync(PluginInvocation invocation, string resoloopVersion, CancellationToken cancellationToken);
+    public static Task<int> RunAsync(PluginInvocation invocation, PluginDispatchContext context, CancellationToken cancellationToken);
+}
+
+public sealed record PluginDispatchContext(string ResoloopVersion, string StartDirectory,
+    IReadOnlyDictionary<string, string?> Environment, IReadOnlyList<string> HostArgv)
+{
+    public static PluginDispatchContext Current(string resoloopVersion);   // cwd・プロセスの環境・呼び戻しの argv
 }
 
 public static class BuiltinCommandCatalog
@@ -219,7 +226,7 @@ public static class PluginToolProbe
 if (PluginCommandDispatch.Parse(args) is { } invocation)
 {
     using var output = new OutputWriter(json: false, brief: false);   // --json はプラグインの引数
-    try { return await PluginCommandDispatch.RunAsync(invocation, ProductVersion(), userCancellation.Token); }
+    try { return await PluginCommandDispatch.RunAsync(invocation, PluginDispatchContext.Current(ProductVersion()), userCancellation.Token); }
     catch (RLoopException ex) { output.Error(ex); return ex.ExitCode; }
 }
 ```
@@ -250,7 +257,7 @@ if (PluginCommandDispatch.Parse(args) is { } invocation)
 - **D4 先頭の通常終了の後の子孫**: 選択 = グループ（Job）に残る子孫も止めてから戻る。別案 = 残す（常駐プロセスを許す）。理由 = lease を外した後に package を使い続けるプロセスを残さない。F と Windows の Job の挙動にも揃う。常駐プロセスを起動する用途は対象外にし、文書に書く。停止条件 = なし
 - **D5 標準入力**: 選択 = 端末なら空、リダイレクトならそのまま。別案 = 常に引き継ぐ（Linux で端末の読み取りが止まり期限まで待つ）、常に空（パイプでデータを渡せない）、子を端末の前面にする（`tcsetpgrp` の後始末とシグナルの扱いが複雑）。理由 = 待ち続けを防ぎ、非対話の利用とパイプを両立する。OS で挙動を揃える。停止条件 = なし
 - **D6 呼び戻しと環境変数の名前**: 選択 = `RESOLOOP_PLUGIN_` 接頭辞の変数、呼び戻しは JSON 配列の `RESOLOOP_PLUGIN_HOST_ARGV`、親の同じ接頭辞の値は除く。別案 = `RESOLOOP_PROJECT` 等の短い名前（既存の設定用の `RESOLOOP_*` と紛れ、将来の設定と衝突し得る）、実行ファイルのパス 1 つだけ（`dotnet resoloop.dll` の起動を表せない）。理由 = 衝突せず、どの起動方法でも正確に呼び戻せる。Python は `json.loads` で読める。停止条件 = なし
-- **D7 package を変えないための環境**: 選択 = `PYTHONPYCACHEPREFIX` と `UV_PROJECT_ENVIRONMENT` を data の下に向ける。`UV_FROZEN`・`UV_LOCKED` は設定せず、lock の同梱と `--frozen`/`--locked` の利用を作者の規則にする。別案 = `UV_FROZEN=1`（プラグインが別の uv のプロジェクト・スクリプトを扱うときの挙動まで変え、PEP 723 のスクリプトの扱いを確かめていない）、何も設定しない（D-4 の「Python キャッシュや uv 環境は data/ に向け」に反する）。理由 = D-4 の範囲を満たし、ほかの挙動を変えない。作者が lock を同梱しないと、初回の `uv run` が `package/uv.lock` を書き、次回の照合が `PLUGIN_MODIFIED` で止まる（気付ける）。停止条件 = なし
+- **D7 package を変えないための環境**: 選択 = `PYTHONPYCACHEPREFIX` と `UV_PROJECT_ENVIRONMENT` を data の下に向ける。`UV_FROZEN`・`UV_LOCKED` は設定せず、lock の同梱と `--frozen`/`--locked` の利用を作者の規則にする。別案 = `UV_FROZEN=1`（プラグインが別の uv のプロジェクト・スクリプトを扱うときの挙動まで変え、PEP 723 のスクリプトの扱いを確かめていない）、何も設定しない（D-4 の「Python キャッシュや uv 環境は data/ に向け」に反する）。理由 = D-4 の範囲を満たし、ほかの挙動を変えない。作者が lock を同梱しないと、初回の `uv run` が `package/uv.lock` を書き、次回の照合が `PLUGIN_MODIFIED` で止まる（気付ける）。`UV_PROJECT_ENVIRONMENT` は子孫のすべての uv に効くので、子の cwd（プロジェクトのルート）にある `pyproject.toml`（create-reso-world のワールドにはある）を `--project` 無しの `uv run` が見つけると、その依存をプラグインの `data/.venv` に入れる（ワールドの `.venv` は変えない）。このためプラグインは `uv run --project ${pluginRoot}` で自分のプロジェクトを明示し、ワールドの uv を意図して使うときはその子プロセスの環境から `UV_PROJECT_ENVIRONMENT` を外す規則を #101・#102 に渡す（builder check の指摘）。停止条件 = なし
 - **D8 ResoniteLink の URL**: 選択 = 渡さない。別案 = 設定済みの URL を変数で渡す（呼び戻しと同じ設定を二重に持つ。発見はしない）。理由 = 呼び戻しは cwd と環境から同じ設定を解決するので不要。D-4 は「渡す場合も発見・接続しない」で、渡すことを求めていない。停止条件 = なし
 - **D9 期限と設定の解決**: 選択 = manifest の `timeoutSeconds`、無ければプロジェクトのルートから解決した `commandTimeoutSeconds`。本体の `--command-timeout` は受け付けない（本体の指定は `--project` だけ）。別案 = cwd から解決する（`--project` で別のプロジェクトを選んだときに食い違う）。理由 = 選んだプロジェクトの設定に揃える。停止条件 = なし
 - **D10 本体のエラーの形式**: 選択 = プラグインの呼び出しでは本体のエラーを text で stderr に出す。別案 = 引数に `--json` があれば JSON（プラグインの引数を本体が解釈することになる）。理由 = D-4 の「プラグイン名より後は解釈しない」。停止条件 = なし
@@ -280,14 +287,15 @@ Linux（この Dev Container、`global.json` の .NET 10.0.201）で build と�
 | --- | --- | --- |
 | 生 argv の変形・シェル解釈、cwd・プロジェクト・data の取り違え、子の失敗の終了コードを成功にする | `RawArgumentsReachTheChildUnchanged`: 実入力の argv・cwd・`RESOLOOP_PLUGIN_*` を子が記録し、本体が子の終了コード 3 を返す | 同じテストが通る例 |
 | 組み込みの乗っ取り | `BuiltinNamesNeverReachPlugins`: `import`・`IMPORT` を宣言したプラグイン（旧版で導入された想定）があっても、`Parse` は組み込みとして `null` を返し、プラグインのプログラムは動かない | 同じプロジェクトの別名のコマンドは `Parse` がプラグインの呼び出しとして返す |
-| 期限切れを成功にする、子孫が残る、実行中に package が消される | `TimedOutCommandsFailAndStopTheirProcessTree`: 子が孫を起動して止まらない。期限 2 秒で `PLUGIN_COMMAND_TIMEOUT`、子・孫とも動いていない。実行中の remove は `PLUGIN_PROJECT_BUSY`、終わった後は成功 | 終わった後の remove の成功 |
+| 期限切れを成功にする、子孫が残る | `TimedOutCommandsFailAndStopTheirProcessTree`（runner）: 子が孫を起動して止まらない。期限 5 秒で `PLUGIN_COMMAND_TIMEOUT`、子・孫とも動いていない | 先頭の通常終了の戻り値（下の行） |
+| キャンセルを成功にする、実行中に package が消される | `CommandsHoldTheLeaseAndCancellationNeverSucceeds`（dispatch）: 実行中の remove は `PLUGIN_PROJECT_BUSY`、キャンセルで `PLUGIN_COMMAND_CANCELLED`、子・孫とも動いていない | 終わった後の remove の成功 |
 | 先頭の終了後に子孫が残る | `NormalExitStopsLeftoverDescendants`: 子が孫を残して 7 で終わる。本体は 7 を返し、孫は動いていない | 戻り値 7 |
 | cwd・プロジェクトの中の同名のプログラム、Windows の `.cmd` を実行する | `ProgramsResolveOnlyFromAbsolutePathOrThePackage`: PATH の相対の要素にあるプログラム（Linux）、`.cmd`（Windows）は `PLUGIN_COMMAND_START_FAILED` で、目印のファイルが作られない | `dotnet`（絶対パスの PATH）は起動する |
 | required のツールの不足・失敗を準備完了にする | `RequiredToolProblemsAreNeverPassing`: 無い required は `fail`、0 以外で終わる required は `fail`、無い optional は `warning` | `dotnet --version` の required は `pass` |
 
 ### テストにしない項目（L・F・D）と代わりの検証
 
-- キャンセル（`PLUGIN_COMMAND_CANCELLED`）は期限切れと同じ停止の経路（D）。Ctrl+C の手動の確認は I の結線後
+- Ctrl+C・SIGTERM からキャンセルへの変換（`PosixSignalRegistration`）は、I の結線後に実際のシグナルで確かめる（テストの host にシグナルを送らない）
 - `PYTHONPYCACHEPREFIX`・`UV_PROJECT_ENVIRONMENT` の値（壊れると次回の照合が `PLUGIN_MODIFIED` で止まる。L）。一時の確認で値を見る
 - 未知名の `UNKNOWN_COMMAND`、`--project` の誤り、doctor のプラグイン無しの空の一覧（エラー・出力の変化として気付ける。L）。一時の確認で見る
 - catalog の名前の一覧そのもの（F）。漏れは I の結線で気付ける（3.2）
@@ -304,10 +312,20 @@ Linux（この Dev Container、`global.json` の .NET 10.0.201）で build と�
 - 同じプロジェクトのプラグインのコマンドは同時に 1 つだけ（F の lease が排他）。プラグインから本体の doctor・init・skills sync・プラグインのレシピ・別のプラグインのコマンドを呼び戻すと `PLUGIN_PROJECT_BUSY` になる。プラグインを使わない組み込み（`blender`・`validate`・`apply` で組み込みのレシピだけを使う場合など）は呼び戻せる
 - `PluginGit` と同じ閉じ込めのコードが 2 か所にある（D3）
 
-## 7. 引き渡し
+## 7. builder check
+
+2026-10-30 に新しいサブエージェント（general-purpose）が Spec と対象のコードを読み、計画の前に要る問いを 3 つ返した。どれも利用者の判断を要さず、エージェントの判断で Spec に反映した。
+
+| 問い | 区分 | 反映 |
+| --- | --- | --- |
+| 呼び戻しの argv を決められないのはどんなときか | 自分で決められる | 3.4 の `RESOLOOP_PLUGIN_HOST_ARGV` の行に `Current` の規則を書いた。テストは `PluginDispatchContext` で明示の値を渡す |
+| `UV_PROJECT_ENVIRONMENT` が子孫のすべての uv に効くのは意図どおりか | 承認済みの D-4 で決まっている | D7 に影響と、`uv run --project ${pluginRoot}` の規則を足し、#101・#102 に渡す |
+| Windows の `.exe` の規則を `./` にも適用するか | 自分で決められる | 3.4 に、`./` は書かれたとおりで `.exe` を求め、裸の名前だけ補うと書いた |
+
+## 8. 引き渡し
 
 - **I #298**: 3.7 の結線、`Parse` が `null` で先頭の位置引数が catalog に無いときの接続前の `UNKNOWN_COMMAND`、install・list・remove・#99 の init・sync に `BuiltinCommandCatalog.Reservations` を渡す、doctor の check の後ろに `PluginDoctorChecks.RunAsync` の結果を足す（`--project` の受け方は I が決める）、help への一覧（任意）
-- **#102**: 3.4 の環境変数と argv、3.5 の終わり方とエラーコード、6 章の制限。呼び戻しは `RESOLOOP_PLUGIN_HOST_ARGV` の後ろに引数を足す。uv は lock を同梱して `--frozen` か `--locked`
-- **#101**: 3 章と 6 章を利用者・作者向けの文書にする。Windows の `.exe` だけ、PATH の絶対パスだけ、stdin、常駐プロセス、終了コードの重なり
+- **#102**: 3.4 の環境変数と argv、3.5 の終わり方とエラーコード、6 章の制限。呼び戻しは `RESOLOOP_PLUGIN_HOST_ARGV` の後ろに引数を足す。uv は `uv run --project ${pluginRoot}` で自分のプロジェクトを明示し、lock を同梱して `--frozen` か `--locked`。両 OS で動かすなら `./` の実行ファイルではなく PATH の `uv` と `${pluginRoot}` で書く
+- **#101**: 3 章と 6 章を利用者・作者向けの文書にする。Windows の `.exe` だけ（`./` は書かれたとおり）、PATH の絶対パスだけ、OS をまたぐ書き方、`uv run --project ${pluginRoot}`、stdin、常駐プロセス、終了コードの重なり
 - **#105**: 閉じ込めのコードの共通化（D3）を上流 PR の前の整理候補にする
 - **#99**: `reservations` には `BuiltinCommandCatalog.Reservations` を渡す（コマンド・同梱スキル・組み込みレシピを含む。#99 が同梱スキルを重ねて足しても同じ集合）
