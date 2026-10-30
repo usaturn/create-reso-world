@@ -26,7 +26,7 @@ argument-hint: "<Issue> [--base BRANCH] [--implement AGENT] [--merge [--max-cycl
 
 `--base BRANCH`（`--base=BRANCH` も同じ）はコードの PR の向き先。Issue の前後どちらでも 1 回だけ指定できる。未指定は `main`。対象 repository の `origin` に存在する branch 名だけを受け付ける（例: `#42 --base feat/plugin-v2`）。revision 式、tag、完全 ref、別 remote は使わない。base branch の新設・reset・force push で代えない。
 
-親 Issue・handoff の現行の統合/base 指示を全文から確認し、要求値と根拠の URL/パスを記録する。複数の要求が異なる・意味が曖昧なら停止。一致する要求でも `--base` の明示が必要で、未指定の `main` を要求に合うものと推測しない。2 章で取得した repository / origin / 完全 heads ref / SHA を以後固定する。外部コードの文書用 base は別の create-reso-world / origin / main。
+親 Issue・handoff の現行の統合/base 指示を全文から確認し、要求値と根拠の URL/パスを記録する。複数の要求が異なる・意味が曖昧なら停止。`main` 以外の要求では `--base` での明示が必要で、未指定の `main` をその要求に合うものと推測しない。要求が `main` なら、`--base` が無くても既定の `main` で進める。2 章で取得した repository / origin / 完全 heads ref / SHA を以後固定する。外部コードの文書用 base は別の create-reso-world / origin / main。
 
 ### `--implement`
 
@@ -55,22 +55,23 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
 
    ```bash
    set -euo pipefail
-   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")"
-   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env"; done <<< "$git_unset"
-   PARENT_ROOT=$(dirname "$(git -C "$SKILL_DIR" rev-parse --path-format=absolute --git-common-dir)")
-   git -C "$PARENT_ROOT" remote get-url origin
+   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+   git_common_dir="$(git -C "$SKILL_DIR" rev-parse --path-format=absolute --git-common-dir)" || exit 2
+   PARENT_ROOT="$(dirname "$git_common_dir")" || exit 2
+   git -C "$PARENT_ROOT" remote get-url origin || exit 2
    ```
 
 3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`、`#12 --merge --max-cycles 2 途中で止めずに` なら `#12 --merge --max-cycles 2`）。語を足したり並べ替えたりしない。読み取り専用の helper を、起動したときの cwd のまま（checkout のルートへ `cd` せずに）実行する。
 
-   `SESSION` は `PARENT_ROOT/tmp/agents/` の、この run のセッションディレクトリ（`agent_tmp.py mkdir issue-N`）にする。以降の Bash ブロックは配列・変数・関数を共有する。別シェルに移るときは、最初に `set -euo pipefail` を実行してから保存 JSON から同じ値を読み戻し、関数を定義し直す。publish が scan で決める SHA は `SESSION` のファイル（`code-sha.txt`・`docs-sha.txt`）に保存し、`pr` ブロックは同じシェルでも別シェルでも先頭でそこから読む（無い・空なら PR を作る前に止まる）。各ブロックは先頭で helper と同じ規則（`scripts/git_env.py`）により継承した `GIT_*` を除去し（remote の認証に使う transport の設定 `TRANSPORT_AUTH` は残す）、検証・worktree・diff・scan・push・PR 作成で同じ Git 環境を使う。ブロックは bash と zsh のどちらでもそのまま実行できる。先頭から最上位のコマンド列として実行し、`if` の条件や `&&` / `||` の一部に包んで fail-fast を無効化しない。base の取得をやり直して SHA を差し替えない。引数は引用と Bash 配列で渡し、`eval` しない。
+   `SESSION` は `PARENT_ROOT/tmp/agents/` の、この run のセッションディレクトリ（`agent_tmp.py mkdir issue-N`）にする。以降の Bash ブロックは配列・変数・関数を共有する。別シェルに移るときは、最初に `set -euo pipefail` を実行し、保存 JSON から同じ値を読み戻し（読み込みの失敗は `|| exit 2` で止める）、関数を定義し直す。publish が scan で決める SHA は `SESSION` のファイル（`code-sha.txt`・`docs-sha.txt`）に保存し、`pr` ブロックは同じシェルでも別シェルでも先頭でそこから読む（無い・空なら PR を作る前に止まる）。各ブロックは先頭で helper と同じ規則（`scripts/git_env.py`）により継承した `GIT_*` を除去し（remote の認証に使う transport の設定 `TRANSPORT_AUTH` は残す）、検証・worktree・diff・scan・push・PR 作成で同じ Git 環境を使う。ブロックは bash と zsh のどちらでもそのまま実行できる。**停止は errexit に頼らない。** ランタイムがブロックを `&&` の並びの中の `eval` で実行すると（Claude Code の Bash ツール）`set -e` は効かないので、失敗すると後続が無効になるコマンド（helper と値の読み込み、`recheck_bases`、`[ -n … ]`、`jq -e`、worktree の作成、push、PR の作成と保存）に `|| exit 2` を付けている。`set -euo pipefail` は errexit が効くシェルでの二重の守りとして残す。ブロックは先頭から最上位のコマンド列として実行し、`|| exit 2` を外したり、`if` の条件や `&&` / `||` の一部に包んだりしない。終了コードが 0 でないブロックの後は、次のブロックへ進まない。base の取得をやり直して SHA を差し替えない。引数は引用と Bash 配列で渡し、`eval` しない。
 
    <!-- base-workflow:input -->
    ```bash
    set -euo pipefail
-   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")"
-   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env"; done <<< "$git_unset"
-   uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" -- "$INPUT" > "$SESSION/issue.json"
+   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+   uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" -- "$INPUT" > "$SESSION/issue.json" || exit 2
    ```
 
    - 受け付ける表記: `https://github.com/<owner>/<repo>/issues/N`、`<owner>/<repo>#N`、`#N`（**現在の checkout の origin** で解決する。番号からリポジトリを推測しない）。対象は usaturn/create-reso-world・usaturn/resoloop・usaturn/resoloop-meshy だけ
@@ -119,21 +120,23 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
    <!-- base-workflow:capture -->
    ```bash
    set -euo pipefail
-   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")"
-   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env"; done <<< "$git_unset"
+   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
    base_args=()
-   if [ "$(jq -r .base_explicit "$SESSION/issue.json")" = true ]; then
-     base_args+=(--base "$(jq -r .base "$SESSION/issue.json")")
+   base_explicit="$(jq -r .base_explicit "$SESSION/issue.json")" || exit 2
+   if [ "$base_explicit" = true ]; then
+     explicit_base="$(jq -r .base "$SESSION/issue.json")" || exit 2
+     base_args+=(--base "$explicit_base")
    fi
    for required in "${REQUIRED_BASES[@]}"; do base_args+=(--required-base "$required"); done
    uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
-     --checkout "$TARGET_ROOT" --repo "$TARGET_REPO" "${base_args[@]}" > "$SESSION/code-base.json"
-   CODE_BASE_BRANCH="$(jq -r .branch "$SESSION/code-base.json")"
-   CODE_BASE_SHA="$(jq -r .sha "$SESSION/code-base.json")"
+     --checkout "$TARGET_ROOT" --repo "$TARGET_REPO" "${base_args[@]}" > "$SESSION/code-base.json" || exit 2
+   CODE_BASE_BRANCH="$(jq -r .branch "$SESSION/code-base.json")" || exit 2
+   CODE_BASE_SHA="$(jq -r .sha "$SESSION/code-base.json")" || exit 2
    if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
      uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
-       --checkout "$PARENT_ROOT" --repo usaturn/create-reso-world > "$SESSION/docs-base.json"
-     DOC_BASE_SHA="$(jq -r .sha "$SESSION/docs-base.json")"
+       --checkout "$PARENT_ROOT" --repo usaturn/create-reso-world > "$SESSION/docs-base.json" || exit 2
+     DOC_BASE_SHA="$(jq -r .sha "$SESSION/docs-base.json")" || exit 2
    fi
    recheck_bases() {
      uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
@@ -180,12 +183,12 @@ herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 <!-- base-workflow:worktree -->
 ```bash
 set -euo pipefail
-git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")"
-while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env"; done <<< "$git_unset"
-recheck_bases
-git -C "$TARGET_ROOT" worktree add -b "$CODE_BRANCH" "$CODE_ROOT" "$CODE_BASE_SHA"
+git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+recheck_bases || exit 2
+git -C "$TARGET_ROOT" worktree add -b "$CODE_BRANCH" "$CODE_ROOT" "$CODE_BASE_SHA" || exit 2
 if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
-  git -C "$PARENT_ROOT" worktree add -b "$DOC_BRANCH" "$DOC_ROOT" "$DOC_BASE_SHA"
+  git -C "$PARENT_ROOT" worktree add -b "$DOC_BRANCH" "$DOC_ROOT" "$DOC_BASE_SHA" || exit 2
 fi
 ```
 
@@ -254,12 +257,12 @@ fi
   <!-- base-workflow:diff -->
   ```bash
   set -euo pipefail
-  git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")"
-  while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env"; done <<< "$git_unset"
-  recheck_bases
-  git -C "$CODE_ROOT" diff "$CODE_BASE_SHA...HEAD" -- > "$SESSION/code.diff"
+  git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+  while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+  recheck_bases || exit 2
+  git -C "$CODE_ROOT" diff "$CODE_BASE_SHA...HEAD" -- > "$SESSION/code.diff" || exit 2
   if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
-    git -C "$DOC_ROOT" diff "$DOC_BASE_SHA...HEAD" -- > "$SESSION/docs.diff"
+    git -C "$DOC_ROOT" diff "$DOC_BASE_SHA...HEAD" -- > "$SESSION/docs.diff" || exit 2
   fi
   ```
 
@@ -268,22 +271,22 @@ fi
   <!-- base-workflow:publish -->
   ```bash
   set -euo pipefail
-  git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")"
-  while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env"; done <<< "$git_unset"
+  git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+  while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
   SCAN="$PARENT_ROOT/scripts/scan-before-push.sh"
-  recheck_bases
-  CODE_SHA="$(bash "$SCAN" -C "$CODE_ROOT" --base "origin/$CODE_BASE_BRANCH" --expected-base-sha "$CODE_BASE_SHA")"
-  [ -n "$CODE_SHA" ]
-  printf '%s\n' "$CODE_SHA" > "$SESSION/code-sha.txt"
+  recheck_bases || exit 2
+  CODE_SHA="$(bash "$SCAN" -C "$CODE_ROOT" --base "origin/$CODE_BASE_BRANCH" --expected-base-sha "$CODE_BASE_SHA")" || exit 2
+  [ -n "$CODE_SHA" ] || exit 2
+  printf '%s\n' "$CODE_SHA" > "$SESSION/code-sha.txt" || exit 2
   if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
-    DOC_SHA="$(bash "$SCAN" -C "$DOC_ROOT" --base origin/main --expected-base-sha "$DOC_BASE_SHA")"
-    [ -n "$DOC_SHA" ]
-    printf '%s\n' "$DOC_SHA" > "$SESSION/docs-sha.txt"
-    recheck_bases
-    git -C "$DOC_ROOT" push origin "${DOC_SHA:?}:refs/heads/${DOC_BRANCH:?}"
+    DOC_SHA="$(bash "$SCAN" -C "$DOC_ROOT" --base origin/main --expected-base-sha "$DOC_BASE_SHA")" || exit 2
+    [ -n "$DOC_SHA" ] || exit 2
+    printf '%s\n' "$DOC_SHA" > "$SESSION/docs-sha.txt" || exit 2
+    recheck_bases || exit 2
+    git -C "$DOC_ROOT" push origin "${DOC_SHA:?}:refs/heads/${DOC_BRANCH:?}" || exit 2
   fi
-  recheck_bases
-  git -C "$CODE_ROOT" push origin "${CODE_SHA:?}:refs/heads/${CODE_BRANCH:?}"
+  recheck_bases || exit 2
+  git -C "$CODE_ROOT" push origin "${CODE_SHA:?}:refs/heads/${CODE_BRANCH:?}" || exit 2
   ```
 
 - Issue の状態・競合も再確認してから PR を作る。`PR_TITLE`、コード/文書の本文ファイル `CODE_PR_BODY` / `DOC_PR_BODY` を用意する。SHA push では upstream が無いので `--head` を省かない。既存 PR があれば重複作成しない。`--merge` でも draft にしない。作成直後に URL を保存し、実 PR の base 名と head SHA を照合してから次へ進む。
@@ -291,30 +294,30 @@ fi
   <!-- base-workflow:pr -->
   ```bash
   set -euo pipefail
-  git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")"
-  while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env"; done <<< "$git_unset"
-  CODE_SHA="$(cat "$SESSION/code-sha.txt")"
-  [ -n "$CODE_SHA" ]
+  git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+  while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+  CODE_SHA="$(cat "$SESSION/code-sha.txt")" || exit 2
+  [ -n "$CODE_SHA" ] || exit 2
   if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
-    DOC_SHA="$(cat "$SESSION/docs-sha.txt")"
-    [ -n "$DOC_SHA" ]
+    DOC_SHA="$(cat "$SESSION/docs-sha.txt")" || exit 2
+    [ -n "$DOC_SHA" ] || exit 2
   fi
-  recheck_bases
+  recheck_bases || exit 2
   CODE_PR_URL="$(gh pr create --repo "$TARGET_REPO" --base "$CODE_BASE_BRANCH" --head "$CODE_BRANCH" \
-    --title "$PR_TITLE" --body-file "$CODE_PR_BODY")"
-  printf '%s\n' "$CODE_PR_URL" > "$SESSION/code-pr-url.txt"
-  gh pr view "$CODE_PR_URL" --repo "$TARGET_REPO" --json url,baseRefName,headRefOid > "$SESSION/code-pr.json"
+    --title "$PR_TITLE" --body-file "$CODE_PR_BODY")" || exit 2
+  printf '%s\n' "$CODE_PR_URL" > "$SESSION/code-pr-url.txt" || exit 2
+  gh pr view "$CODE_PR_URL" --repo "$TARGET_REPO" --json url,baseRefName,headRefOid > "$SESSION/code-pr.json" || exit 2
   jq -e --arg base "$CODE_BASE_BRANCH" --arg head "$CODE_SHA" --arg url "$CODE_PR_URL" \
-    '.baseRefName == $base and .headRefOid == $head and .url == $url' "$SESSION/code-pr.json"
-  recheck_bases
+    '.baseRefName == $base and .headRefOid == $head and .url == $url' "$SESSION/code-pr.json" || exit 2
+  recheck_bases || exit 2
   if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then
     DOC_PR_URL="$(gh pr create --repo usaturn/create-reso-world --base main --head "$DOC_BRANCH" \
-      --title "$PR_TITLE" --body-file "$DOC_PR_BODY")"
-    printf '%s\n' "$DOC_PR_URL" > "$SESSION/docs-pr-url.txt"
-    gh pr view "$DOC_PR_URL" --repo usaturn/create-reso-world --json url,baseRefName,headRefOid > "$SESSION/docs-pr.json"
+      --title "$PR_TITLE" --body-file "$DOC_PR_BODY")" || exit 2
+    printf '%s\n' "$DOC_PR_URL" > "$SESSION/docs-pr-url.txt" || exit 2
+    gh pr view "$DOC_PR_URL" --repo usaturn/create-reso-world --json url,baseRefName,headRefOid > "$SESSION/docs-pr.json" || exit 2
     jq -e --arg head "$DOC_SHA" --arg url "$DOC_PR_URL" \
-      '.baseRefName == "main" and .headRefOid == $head and .url == $url' "$SESSION/docs-pr.json"
-    recheck_bases
+      '.baseRefName == "main" and .headRefOid == $head and .url == $url' "$SESSION/docs-pr.json" || exit 2
+    recheck_bases || exit 2
   fi
   ```
 

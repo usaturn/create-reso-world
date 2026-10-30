@@ -62,7 +62,9 @@ def resolve_base(
     branch = validate_branch(base if base is not None else "main", checkout)
     for required in required_bases:
         validate_branch(required, checkout)
-        if base is None or branch != required:
+        # Without --base the branch is the default main: a main requirement matches it, any other
+        # requirement needs an explicit --base, and a differing --base contradicts the requirement.
+        if branch != required:
             raise ValueError("要求された base を --base で明示してください（未指定または矛盾）")
     if expected_sha is not None and SHA.fullmatch(expected_sha) is None:
         raise ValueError("--expected-sha は完全な commit SHA を指定してください")

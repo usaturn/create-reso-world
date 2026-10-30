@@ -35,6 +35,19 @@ def procedure(name: str) -> str:
     return textwrap.dedent(match[1])
 
 
+def as_runtime(command: str, setup: str = "true") -> str:
+    """Claude Code's Bash tool runs ``source <snapshot> && eval '<command>' < /dev/null && pwd -P …``.
+
+    errexit is ignored inside that ``eval``, so a block stops only where it says so explicitly.
+    """
+    return f"{setup} && eval {shlex.quote(command)} < /dev/null && true"
+
+
+def step(name: str) -> str:
+    # The agent does not run the next block after one returns non-zero.
+    return as_runtime(procedure(name)) + " || exit $?"
+
+
 @dataclass
 class Workflow:
     parent: Path
@@ -55,15 +68,15 @@ class Workflow:
                    DOC_BRANCH="docs/issue-42-change", PR_TITLE="変更の実装",
                    CODE_PR_BODY=str(self.session / "body.md"),
                    DOC_PR_BODY=str(self.session / "body.md"))
-        chunks = [procedure("input"),
+        chunks = [step("input"),
                   'REQUIRED_BASES=(); if [ -n "$REQUIRED" ]; then REQUIRED_BASES+=("$REQUIRED"); fi',
-                  procedure("capture"), procedure("worktree"),
+                  step("capture"), step("worktree"),
                   'printf "new implementation\\n" > "$CODE_ROOT/change"',
                   'git -C "$CODE_ROOT" add change; git -C "$CODE_ROOT" commit -qm implementation',
                   'if [ "$DOC_ROOT" != "$CODE_ROOT" ]; then',
                   '  printf "draft design\\n" > "$DOC_ROOT/design.md"',
                   '  git -C "$DOC_ROOT" add design.md; git -C "$DOC_ROOT" commit -qm design',
-                  'fi', procedure("diff"), before_publish, procedure("publish"), before_pr,
+                  'fi', step("diff"), before_publish, step("publish"), before_pr,
                   # Resume in a fresh shell with only the base values (saved as JSON
                   # by capture) and the function, not shell options. The documented
                   # block must supply its own failure propagation, and the scanned
@@ -72,7 +85,7 @@ class Workflow:
                   'if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then',
                   '  declare -p DOC_BASE_SHA >> "$SESSION/resume.bash"',
                   'fi', 'declare -f recheck_bases >> "$SESSION/resume.bash"',
-                  'bash -c ' + shlex.quote('source "$SESSION/resume.bash"\n' + procedure("pr"))]
+                  'bash -c ' + shlex.quote(as_runtime(procedure("pr"), 'source "$SESSION/resume.bash"'))]
         result = subprocess.run(["bash", "-c", "\n".join(chunks)], cwd=self.target,
                                 env=env, text=True, capture_output=True)
         (self.session / "stdout.log").write_text(result.stdout)
