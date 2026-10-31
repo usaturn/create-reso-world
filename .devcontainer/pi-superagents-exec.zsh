@@ -233,7 +233,8 @@ try {
     // actual invocation. Keep the original argv untouched for bwrap/Pi.
     const {parseArgs} = await load('dist/cli/args.js');
     const {provider, model: parentModel, thinking} = parseArgs(args);
-    const parent = `${provider}/${parentModel}`;
+    const parent = {model: `${provider}/${parentModel}`, thinking};
+    const {findExactModelReferenceMatch} = await load('dist/core/model-resolver.js');
     const {ModelConfig} = await load('dist/core/model-config.js');
     const {composeModelProvider} = await load('dist/core/provider-composer.js');
     const {withRemoteCatalog, withPersonalizedCatalog} = await load('dist/core/remote-catalog-provider.js');
@@ -257,7 +258,7 @@ try {
     const store = fs.existsSync(storeFile) ? readJson(storeFile) : {};
     const builtins = new Map(builtinProviders().map(p => [p.id, p]));
     const providers = new Map();
-    for (const tier of [{model: parent, thinking}, ...Object.values(tiers)]) {
+    for (const tier of [parent, ...Object.values(tiers)]) {
         if (typeof tier?.model !== 'string' || typeof tier.thinking !== 'string') throw new Error();
         const slash = tier.model.indexOf('/');
         if (slash <= 0) throw new Error();
@@ -279,7 +280,13 @@ try {
             }
             providers.set(id, config.getProvider(id) ? composeModelProvider(id, base, config) : base);
         }
-        const model = providers.get(id)?.getModels().find(m => m.id === modelId && m.provider === id);
+        const models = providers.get(id)?.getModels().filter(m => m.provider === id) ?? [];
+        // Parent CLI references may be bare IDs (including slashes) or provider/id.
+        // Native exact lookup handles both without fuzzy fallback or auth checks.
+        // Tier config keeps its existing literal provider/id matching.
+        const model = tier === parent
+            ? findExactModelReferenceMatch(modelId, models)
+            : models.find(m => m.id === modelId);
         if (!model || !getSupportedThinkingLevels(model).includes(tier.thinking)) throw new Error();
     }
 } catch {
