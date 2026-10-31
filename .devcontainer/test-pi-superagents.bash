@@ -159,10 +159,15 @@ mapfile -t LAUNCHERS < <(find "$CONFIG_DIR" -maxdepth 1 -name '*.json' -printf '
 # 元ファイルを直接叩く。ヘルパの探索がリポジトリ相対で解決できることも同時に見る。
 run_launcher() {
     local home="$1" launcher="$2"; shift 2
-    env HOME="$home" \
+    local pi_path="$PATH"
+    case "$launcher" in
+        pigt|pidid) model_home "$launcher" >/dev/null; pi_path="${MODEL_SHIM}/bin:${PATH}" ;;
+    esac
+    env HOME="$home" PATH="$pi_path" \
         PI_CODING_AGENT_DIR="${home}/.pi/agent" \
         COMMANDCODE_API_KEY="dummy-for-dry-run" \
         OPENCODE_API_KEY="dummy-for-dry-run" \
+        DEEPINFRA_TOKEN="dummy-for-dry-run" \
         PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
         zsh "${REPO_ROOT}/.devcontainer/${launcher}" "$@"
 }
@@ -243,7 +248,7 @@ SETUP="${REPO_ROOT}/scripts/setup_pi_superagents.zsh"
 
 run_setup() {
     local home="$1"; shift
-    env HOME="$home" zsh "$SETUP" "$@"
+    env HOME="$home" PATH="${MODEL_SHIM}/bin:${PATH}" zsh "$SETUP" "$@"
 }
 
 # 固定時刻の date shim。PATH の先頭に載せて setup_pi_superagents.zsh から見える
@@ -267,7 +272,7 @@ DATE_SHIM_EOF
 # date shim を PATH に載せて setup を実行する。
 run_setup_shim() {
     local home="$1"; shift
-    env HOME="$home" PATH="${DATE_SHIM_DIR}:${PATH}" zsh "$SETUP" "$@"
+    env HOME="$home" PATH="${DATE_SHIM_DIR}:${MODEL_SHIM}/bin:${PATH}" zsh "$SETUP" "$@"
 }
 
 # 防ぐ損害: 利用者が編集した config を退避せず上書きする、同一秒の退避で前の世代を上書きする、のどちらも
@@ -309,10 +314,12 @@ test_setup_if_absent_preserves_user_edits() {
     home="${TEST_ROOT}/setup-if-absent"
     mkdir -p "$home"
     run_setup "$home" >/dev/null
-    config="${home}/.pi/agent/extensions/subagent.d/piccd/config.json"
+    config="${home}/.pi/agent/extensions/subagent.d/pidid/config.json"
+    mkdir -p "${config%/*}"
     printf '{"superagents":{"modelTiers":{"cheap":{"model":"x/y","thinking":"max"}}}}\n' > "$config"
     printf '# stale helper\n' > "${home}/.local/bin/pi-superagents-exec.zsh"
-    run_setup "$home" --if-absent >/dev/null
+    env HOME="$home" PATH="${MODEL_SHIM}/bin:${PATH}" DEEPINFRA_TOKEN="dummy-for-setup" \
+        zsh "${REPO_ROOT}/scripts/setup_pi.zsh" >/dev/null
     grep -q '"x/y"' "$config" || fail "--if-absent must not overwrite an existing config"
     cmp -s "$HELPER" "${home}/.local/bin/pi-superagents-exec.zsh" \
         || fail "--if-absent must refresh the helper while preserving configs"
@@ -426,6 +433,141 @@ test_install_registers_and_verifies_superagents() {
     assert_contains "$out" "npm:@teelicht/pi-superagents" "must name the missing extension"
 }
 
+
+# Only the external TUI/network and mount boundary are fake. Native Pi metadata
+# readers/composition remain real, with a private bundled catalog we can damage.
+MODEL_SHIM="${TEST_ROOT}/model-shim"
+make_model_shim() {
+    local package native
+    native="$(realpath "$(command -v pi)")"
+    native="${native%/dist/bundle/cli.js}"
+    package="${MODEL_SHIM}/package"
+    mkdir -p "${MODEL_SHIM}/bin" "${package}/node_modules"
+    cp -a "${native}/dist" "${native}/package.json" "$package/"
+    cp -as "${native}/node_modules/." "${package}/node_modules/"
+    rm -rf -- "${package:?}/node_modules/@earendil-works/pi-ai"
+    cp -a "${native}/node_modules/@earendil-works/pi-ai" "${package}/node_modules/@earendil-works/pi-ai"
+    printf '#!/bin/sh\nif [ "${1:-}" = list ]; then echo "npm:@teelicht/pi-superagents"; exit 0; fi\nprintf "%%s\\n" "$@"\n' > "${package}/dist/bundle/cli.js"
+    chmod +x "${package}/dist/bundle/cli.js"
+    ln -s "${package}/dist/bundle/cli.js" "${MODEL_SHIM}/bin/pi"
+    printf '#!/bin/sh\nwhile [ "$1" != -- ]; do shift; done\nshift\nexec "$@"\n' > "${MODEL_SHIM}/bin/bwrap"
+    chmod +x "${MODEL_SHIM}/bin/bwrap"
+}
+
+model_home() {
+    local launcher="$1" home
+    home="$(make_home "$launcher" with-config)"
+    # Native catalog is grouped by API, not provider ID. Terra is deliberately
+    # cache-only: preflight must use the newer saved public catalog as Pi does.
+    node - "$MODEL_SHIM" "$home" "$launcher" <<'JS'
+const fs = require('node:fs');
+const [shim, home, launcher] = process.argv.slice(2);
+const data = `${shim}/package/node_modules/@earendil-works/pi-ai/dist/providers/data`;
+const catalog = JSON.parse(fs.readFileSync(`${data}/openai-codex.json`));
+const template = catalog['openai-codex-responses']['chat:gpt-6-luna'];
+fs.writeFileSync(`${home}/.pi/agent/models-store.json`, JSON.stringify({
+    'openai-codex': { lastModified: 9999999999999, models: [
+        {...template, id: 'gpt-6.1-terra', name: 'Synthetic Terra'}] }
+}));
+const model = launcher === 'pigt' ? 'openai-codex/gpt-6-luna' : 'deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731';
+fs.writeFileSync(`${home}/.pi/agent/extensions/subagent.d/${launcher}/config.json`, JSON.stringify({
+    superagents: {modelTiers: Object.fromEntries(['cheap', 'balanced', 'max'].map(tier =>
+        [tier, {model, thinking: 'low'}]))}
+}));
+JS
+    cp "${REPO_ROOT}/.devcontainer/pi-models.json" "${home}/.pi/agent/models.json"
+    # Independent registered custom model; never resolve its credential command.
+    node - "${home}/.pi/agent/models.json" <<'JS'
+const fs = require('node:fs');
+const file = process.argv[2], data = JSON.parse(fs.readFileSync(file));
+const p = data.providers.deepinfra;
+p.apiKey = '!this-command-must-never-run';
+p.models.push({...p.models[0], id: 'deepseek-ai/DeepSeek-V4.1-Flash-1017', thinkingLevelMap: {high: 'high', max: null}});
+fs.writeFileSync(file, JSON.stringify(data));
+JS
+    printf '%s' "$home"
+}
+
+run_model_helper() {
+    local home="$1" launcher="$2"; shift 2
+    env HOME="$home" PATH="${MODEL_SHIM}/bin:${PATH}" PI_SUPERAGENTS_LAUNCHER_DRY_RUN=0 \
+        "${ZSH_BIN}" -c 'source "$1"; shift; pi_superagents_exec "$@"' _ "$HELPER" "$launcher" "$@"
+}
+
+# S: accepting an unresolved child model lets Pi silently pick/fuzzily match
+# another model even though the parent exists. One denial and one valid launch.
+test_missing_child_catalog_model_stops_before_pi() {
+    local home out status catalog saved
+    home="$(model_home pigt)"
+    out="$(run_model_helper "$home" pigt --provider openai-codex --model gpt-6.1-terra --thinking xhigh)"
+    assert_contains "$out" gpt-6.1-terra "valid cached parent and bundled child must reach Pi"
+    catalog="${MODEL_SHIM}/package/node_modules/@earendil-works/pi-ai/dist/providers/data/openai-codex.json"
+    saved="$(<"$catalog")"
+    node - "$catalog" <<'JS'
+const fs = require('node:fs'), file = process.argv[2];
+const data = JSON.parse(fs.readFileSync(file));
+delete data['openai-codex-responses']['chat:gpt-6-luna'];
+fs.writeFileSync(file, JSON.stringify(data));
+JS
+    set +e
+    out="$(run_model_helper "$home" pigt --provider openai-codex --model gpt-6.1-terra --thinking xhigh 2>&1)"
+    status=$?
+    set -e
+    printf '%s' "$saved" > "$catalog"
+    assert_eq "$status" 1 "missing child catalog model must not reach Pi"
+}
+
+# S: checking only edited tiers or falling back on an old provider model starts
+# the wrong parent; retain explicit resolvable user tier edits in the valid case.
+test_missing_custom_parent_stops_before_pi() {
+    local home out status
+    home="$(model_home pidid)"
+    out="$(run_model_helper "$home" pidid --provider deepinfra --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --thinking high)"
+    assert_contains "$out" deepseek-ai/DeepSeek-V4.1-Flash-1017 "valid custom parent with edited tiers must reach Pi"
+    node - "${home}/.pi/agent/models.json" <<'JS'
+const fs = require('node:fs'), file = process.argv[2], data = JSON.parse(fs.readFileSync(file));
+data.providers.deepinfra.models = data.providers.deepinfra.models.filter(m => m.id !== 'deepseek-ai/DeepSeek-V4.1-Flash-1017');
+fs.writeFileSync(file, JSON.stringify(data));
+JS
+    set +e
+    out="$(run_model_helper "$home" pidid --provider deepinfra --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --thinking high 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" 1 "missing custom parent must not reach Pi"
+}
+
+# S: invalid thinking gets clamped, silently changing the tier; unreadable or
+# malformed metadata must not be treated as a successful check.
+test_unverifiable_or_unsupported_tiers_stop_before_pi() {
+    local home out status config
+    home="$(model_home pidid)"
+    config="${home}/.pi/agent/extensions/subagent.d/pidid/config.json"
+    out="$(run_model_helper "$home" pidid --provider deepinfra --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --thinking high)"
+    assert_contains "$out" deepseek-ai/DeepSeek-V4.1-Flash-1017 "supported edited tier thinking must reach Pi"
+    node - "$config" <<'JS'
+const fs = require('node:fs'), file = process.argv[2], data = JSON.parse(fs.readFileSync(file));
+data.superagents.modelTiers.max = {model: 'deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017', thinking: 'max'};
+fs.writeFileSync(file, JSON.stringify(data));
+JS
+    set +e
+    out="$(run_model_helper "$home" pidid --provider deepinfra --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --thinking high 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" 1 "unsupported tier thinking must not be clamped by Pi"
+    home="$(model_home pidid)"
+    printf '{"synthetic-private":' > "${home}/.pi/agent/models.json"
+    set +e
+    out="$(run_model_helper "$home" pidid --provider deepinfra --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --thinking high 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" 1 "unverifiable models must not reach Pi"
+    case "$out" in *synthetic-private*) fail "parser details must not leak config contents";; esac
+}
+
+make_model_shim
+test_missing_child_catalog_model_stops_before_pi
+test_missing_custom_parent_stops_before_pi
+test_unverifiable_or_unsupported_tiers_stop_before_pi
 test_bind_target_ignores_pi_coding_agent_dir
 test_missing_config_fails_closed
 test_missing_bwrap_fails_closed

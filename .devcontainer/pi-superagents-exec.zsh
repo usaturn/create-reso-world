@@ -205,9 +205,107 @@ try {
 ' "$1"
 }
 
+
+# New launch paths validate exact parent/child metadata without asking Pi for
+# available models (which resolves auth). Native parsers/composition keep JSONC,
+# custom overrides, catalog freshness and supported thinking aligned with Pi.
+pi_launcher_require_models() {
+    local launcher="$1" provider_="" model_="" thinking_=""
+    shift
+    while (( $# > 1 )); do
+        case "$1" in
+            --provider) [[ -n "${provider_}" ]] || provider_="$2" ;;
+            --model) [[ -n "${model_}" ]] || model_="$2" ;;
+            --thinking) [[ -n "${thinking_}" ]] || thinking_="$2" ;;
+        esac
+        shift
+    done
+    local REPLY
+    pi_agent_directory
+    if ! node --input-type=module - "$(command -v pi)" "${REPLY}" \
+        "${HOME}/.pi/agent/extensions/subagent.d/${launcher}/config.json" \
+        "${provider_}/${model_}" "${thinking_}" <<'JS'
+import fs from 'node:fs';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+try {
+    const [pi, agentDir, tierFile, parent, thinking] = process.argv.slice(2);
+    let packageDir = path.dirname(fs.realpathSync(pi));
+    while (!fs.existsSync(path.join(packageDir, 'dist/core/model-config.js'))) {
+        const next = path.dirname(packageDir);
+        if (next === packageDir) throw new Error();
+        packageDir = next;
+    }
+    const load = file => import(pathToFileURL(path.join(packageDir, file)).href);
+    const {ModelConfig} = await load('dist/core/model-config.js');
+    const {composeModelProvider} = await load('dist/core/provider-composer.js');
+    const {withRemoteCatalog, withPersonalizedCatalog} = await load('dist/core/remote-catalog-provider.js');
+    const ai = 'node_modules/@earendil-works/pi-ai/dist/';
+    const {builtinProviders, getBuiltinModelDataGeneratedAt} = await load(`${ai}providers/all.js`);
+    const {getSupportedThinkingLevels} = await load(`${ai}models.js`);
+    const readJson = file => {
+        if (!fs.statSync(file).isFile()) throw new Error();
+        return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+    };
+    const modelsFile = path.join(agentDir, 'models.json');
+    if (fs.existsSync(modelsFile) && !fs.statSync(modelsFile).isFile()) throw new Error();
+    const config = await ModelConfig.load(modelsFile);
+    if (config.getError()) throw new Error();
+    const tiers = readJson(tierFile)?.superagents?.modelTiers;
+    if (!tiers || Array.isArray(tiers) || typeof tiers !== 'object') throw new Error();
+    for (const required of ['cheap', 'balanced', 'max']) {
+        if (!Object.hasOwn(tiers, required)) throw new Error();
+    }
+    const storeFile = path.join(agentDir, 'models-store.json');
+    const store = fs.existsSync(storeFile) ? readJson(storeFile) : {};
+    const builtins = new Map(builtinProviders().map(p => [p.id, p]));
+    const providers = new Map();
+    for (const tier of [{model: parent, thinking}, ...Object.values(tiers)]) {
+        if (typeof tier?.model !== 'string' || typeof tier.thinking !== 'string') throw new Error();
+        const slash = tier.model.indexOf('/');
+        if (slash <= 0) throw new Error();
+        const id = tier.model.slice(0, slash), modelId = tier.model.slice(slash + 1);
+        if (!providers.has(id)) {
+            let base = builtins.get(id);
+            if (!base && !config.getProvider(id)) throw new Error();
+            // Restore only public saved metadata. Never use FileModelsStore
+            // (locks/writes), refresh auth, or call a provider availability API.
+            if (base && id !== 'radius') {
+                const wrap = id === 'openrouter' ? withPersonalizedCatalog : withRemoteCatalog;
+                const generated = getBuiltinModelDataGeneratedAt();
+                base = id === 'openrouter'
+                    ? wrap(base, () => {throw new Error();}, undefined, generated)
+                    : wrap(base, undefined, generated);
+                await base.refreshModels({stored: store[id], allowNetwork: false,
+                    signal: new AbortController().signal,
+                    publish: async ({update}) => {update?.(); return true;}});
+            }
+            providers.set(id, config.getProvider(id) ? composeModelProvider(id, base, config) : base);
+        }
+        const model = providers.get(id)?.getModels().find(m => m.id === modelId && m.provider === id);
+        if (!model || !getSupportedThinkingLevels(model).includes(tier.thinking)) throw new Error();
+    }
+} catch {
+    // Parser/composition errors may contain user-owned secrets. Do not echo them.
+    process.exit(1);
+}
+JS
+    then
+        print -ru2 -- "[${launcher}] ERROR: model catalog / models.json / tier config を解決できません。起動を中止します。"
+        print -ru2 -- "Pi の更新: pi update --models（必要なら Pi 本体も更新）"
+        print -ru2 -- "provider の配置: zsh scripts/setup_pi.zsh"
+        print -ru2 -- "tier の配置・確認: zsh scripts/setup_pi_superagents.zsh --if-absent"
+        return 1
+    fi
+}
+
 pi_superagents_exec() {
     local launcher="$1"
     shift
+
+    case "${launcher}" in
+        pigt|pidid) pi_launcher_require_models "${launcher}" "$@" || return 1 ;;
+    esac
 
     local shared_dir="${HOME}/.pi/agent/extensions/subagent"
     local launcher_dir="${HOME}/.pi/agent/extensions/subagent.d/${launcher}"
