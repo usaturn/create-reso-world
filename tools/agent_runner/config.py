@@ -8,7 +8,7 @@ from typing import cast
 
 from pydantic import ValidationError
 
-from tools.agent_runner.models import Config
+from tools.agent_runner.models import Agent, Config
 
 _CATEGORIES = frozenset(
     {
@@ -123,6 +123,11 @@ def _validation_category(error: ValidationError) -> str:
     return "invalid_value"
 
 
+def _model_identities(agent: Agent) -> set[str]:
+    """Keys supplement model names; neither replaces the other for duplicate checks."""
+    return {value for value in (agent.model, agent.model_key) if value is not None}
+
+
 def _validate_references(config: Config) -> None:
     for workflow in config.workflows.values():
         models_by_role: dict[str, set[str]] = {}
@@ -136,9 +141,10 @@ def _validate_references(config: Config) -> None:
                 agent = config.agents.get(agent_name)
                 if agent is None:
                     raise ConfigError("invalid_reference")
-                if agent.model in models:
+                identities = _model_identities(agent)
+                if identities & models:
                     raise ConfigError("duplicate_model")
-                models.add(agent.model)
+                models.update(identities)
             models_by_role[role] = models
         for role, other in workflow.exclude_same_model_as.items():
             if role not in models_by_role or other not in models_by_role:
