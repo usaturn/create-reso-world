@@ -1,0 +1,38 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+
+typeset -a PI_SUPERAGENTS_HELPER_CANDIDATES=(
+    "${0:A:h}/pi-superagents-exec.zsh"
+    "${HOME}/.local/bin/pi-superagents-exec.zsh"
+)
+typeset PI_SUPERAGENTS_HELPER=""
+for _candidate in "${PI_SUPERAGENTS_HELPER_CANDIDATES[@]}"; do
+    if [[ -f "${_candidate}" ]]; then
+        PI_SUPERAGENTS_HELPER="${_candidate}"
+        break
+    fi
+done
+unset _candidate
+if [[ -z "${PI_SUPERAGENTS_HELPER}" ]]; then
+    print -ru2 -- "[${0:t}] ERROR: pi-superagents-exec.zsh が見つかりません。"
+    print -ru2 -- ""
+    print -ru2 -- "リポジトリのルートで setup スクリプトを一度実行してください:"
+    print -ru2 -- ""
+    print -ru2 -- "  zsh scripts/setup_pi_superagents.zsh"
+    exit 1
+fi
+source "${PI_SUPERAGENTS_HELPER}"
+
+if [[ -z "${DEEPINFRA_TOKEN:-}" ]]; then
+    print -ru2 -- "[pidid] ERROR: DEEPINFRA_TOKEN is not set."
+    print -ru2 -- "トークンを設定し、zsh scripts/setup_pi.zsh を実行してください。"
+    exit 1
+fi
+
+pi_superagents_exec pidid \
+    --provider deepinfra \
+    --model deepseek-ai/DeepSeek-V4.1-Flash-1017 \
+    --models deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017 \
+    --thinking high \
+    "$@" || exit 1

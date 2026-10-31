@@ -1,4 +1,5 @@
 # 非対話のエージェントのランナー（tools/agent_runner）の雛形。資格情報の値は書かない。
+# 命名: [agent の命名と同一モデルの比較](README.md#agent-catalog-names)
 # 個人設定 ~/.config/agent-runner/config.toml はこの雛形に重ねて読む。install_beforehand.bash は、個人設定が無いときに
 # agent-runner-personal.toml を置き、この雛形は写さない。
 # 仕様は tools/agent_runner/interfaces.rst。agent の定義（[agents.*]）は adapter と一緒に #150・#151 が、
@@ -31,15 +32,16 @@ writes = false
 deadline_seconds = 2700
 result_shape = "json"
 
-[agents.pi-deepseek]
+[agents.pi_commandcode_deepseek4-flash_max]
 runtime = "pi"
 command = ["piccd"]
 model = "deepseek/deepseek-v4.1-flash"
+model_key = "deepseek-v4.1-flash"
 provider = "commandcode"
 effort = "max"
 env = ["HOME", "PATH", "COMMANDCODE_API_KEY"]
 
-[agents.pi-gpt]
+[agents.pi_openai-codex_gpt6-sol_max]
 runtime = "pi"
 command = ["pigs"]
 model = "gpt-6.1-sol"
@@ -47,7 +49,7 @@ provider = "openai-codex"
 effort = "max"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
 
-[agents.pixg]
+[agents.pi_xai_grok4_xhigh]
 runtime = "pi"
 command = ["pixg"]
 model = "grok-4.7"
@@ -55,15 +57,16 @@ provider = "xai"
 effort = "xhigh"
 env = ["HOME", "PATH"]
 
-[agents.pigod]
+[agents.pi_opencode-go_deepseek4-flash_max]
 runtime = "pi"
 command = ["pigod"]
 model = "deepseek-v4.1-flash"
+model_key = "deepseek-v4.1-flash"
 provider = "opencode-go"
 effort = "max"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
 
-[agents.pi-go-glmf]
+[agents.pi_opencode-go_glm5-flash_max]
 runtime = "pi"
 command = ["pi"]
 model = "glm-5.3-flash"
@@ -71,7 +74,7 @@ provider = "opencode-go"
 effort = "max"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
 
-[agents.pi-gemf]
+[agents.pi_google-vertex_gemini3-flash_high]
 runtime = "pi"
 command = ["pigemf"]
 model = "gemini-3.8-flash"
@@ -79,13 +82,13 @@ provider = "google-vertex"
 effort = "high"
 env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"]
 
-[agents.claude-opus]
+[agents.claude-code_opus_default]
 runtime = "claude-code"
 command = ["claude"]
 model = "opus"
 env = ["HOME", "PATH"]
 
-[agents.codex]
+[agents.codex_openai_gpt6-sol_default]
 runtime = "codex"
 command = ["codex", "exec"]
 model = "gpt-6.1-sol"
@@ -94,7 +97,7 @@ approval = "noninteractive"
 skill_sources = [".agents/skills", ".codex/skills"]
 env = ["HOME", "PATH"]
 
-[agents.cursor]
+[agents.cursor_auto_default]
 runtime = "cursor"
 command = ["agent"]
 model = "auto"
@@ -102,7 +105,7 @@ approval = "noninteractive"
 skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
 env = ["HOME", "PATH"]
 
-[agents.cursor-grok47]
+[agents.cursor_grok4_xhigh]
 runtime = "cursor"
 command = ["agent"]
 model = "grok-4.7-xhigh"
@@ -110,11 +113,50 @@ approval = "noninteractive"
 skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
 env = ["HOME", "PATH"]
 
-[agents.devin-swe]
+[agents.devin_swe2-max_default]
 runtime = "devin"
 command = ["devin"]
 model = "swe-2-max"
 env = ["HOME", "PATH"]
+
+[agents.pi_openai-codex_gpt6-terra_xhigh]
+runtime = "pi"
+command = ["pigt"]
+model = "gpt-6.1-terra"
+provider = "openai-codex"
+effort = "xhigh"
+env = ["HOME", "PATH"]
+
+[agents.pi_openai-codex_gpt6-astra_xhigh]
+runtime = "pi"
+command = ["piga"]
+model = "gpt-6-astra"
+provider = "openai-codex"
+effort = "xhigh"
+env = ["HOME", "PATH"]
+
+[agents.claude-code_sonnet_default]
+runtime = "claude-code"
+command = ["claude"]
+model = "sonnet"
+env = ["HOME", "PATH"]
+
+[agents.pi_google-vertex_gemini4-argon_high]
+runtime = "pi"
+command = ["pigema"]
+model = "gemini-4-argon"
+provider = "google-vertex"
+effort = "high"
+env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"]
+
+[agents.pi_deepinfra_deepseek4-flash_high]
+runtime = "pi"
+command = ["pidid"]
+model = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+model_key = "deepseek-v4.1-flash"
+provider = "deepinfra"
+effort = "high"
+env = ["HOME", "PATH", "DEEPINFRA_TOKEN"]
 
 # after_run はレビュー結果に runner の実行記録を付ける。
 # 個人設定は書き換えない。after_run = [] で無効にした caller は attach-runner を明示実行する。
@@ -126,12 +168,12 @@ after_run = [[
 
 # 指定が無いときの既定構成。その回の --assign inspect=... または個人設定で選び直せる。
 [workflows.review.assignments.inspect]
-agents = ["pi-gpt", "devin-swe", "pi-deepseek"]
+agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2-max_default", "pi_commandcode_deepseek4-flash_max"]
 
 # review-fix-planning の run_roles.py が使う担当（#116 のボードの D-13）。self は司令塔が自分で実行する。
 # self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
 [workflows.fix.assignments.implement]
-agents = ["claude-opus"]
+agents = ["claude-code_opus_default"]
 
 [workflows.fix.assignments.self-review]
 agents = ["self"]

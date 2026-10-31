@@ -44,6 +44,12 @@ python3 "${0:A:h}/../.devcontainer/pi-provider-setup.py" \
 
 echo "models.json JSON validation: OK"
 
+# Launchers live outside the shared ~/.pi mount. Refresh the launcher/helper,
+# but keep every user-owned tier config, including explicit pidid edits.
+mkdir -p "${HOME}/.local/bin"
+install -m 0755 "${0:A:h}/../.devcontainer/pidid" "${HOME}/.local/bin/pidid"
+zsh "${0:A:h}/setup_pi_superagents.zsh" --if-absent
+
 #
 # 6. Result
 #

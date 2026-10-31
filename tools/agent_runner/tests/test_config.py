@@ -153,12 +153,30 @@ def test_reserved_self_cannot_hide_a_real_agent_definition(template: Path, tmp_p
 @pytest.mark.parametrize(
     "overlay",
     [
-        '[agents.second]\nmodel = "model-one"\nprovider = "different-provider"\n',
+        '[agents.second]\nmodel = "model-one"\nprovider = "different-provider"\nmodel_key = "second-key"\n',
+        '[agents.first]\nmodel_key = "first-key"\n'
+        '[agents.second]\nmodel = "model-one"\nmodel_key = "second-key"\n',
     ],
 )
 def test_duplicate_models_are_rejected_across_all_candidates(template: Path, tmp_path: Path, overlay: str) -> None:
     with pytest.raises(ConfigError) as raised:
         load_config(template, personal_config(tmp_path, overlay))
+    assert raised.value.category == "duplicate_model"
+
+
+# Ignoring shared keys silently schedules the same underlying model through provider aliases.
+def test_model_identity_key_rejects_provider_aliases(template: Path, tmp_path: Path) -> None:
+    providers = '[agents.first]\nprovider = "provider-one"\n[agents.second]\nprovider = "provider-two"\n'
+    config = load_config(template, personal_config(tmp_path, providers))
+    assert config.agents["first"].model == "model-one"
+    assert config.agents["second"].model == "model-two"
+
+    aliases = (
+        '[agents.first]\nprovider = "provider-one"\nmodel_key = "shared-model"\n'
+        '[agents.second]\nprovider = "provider-two"\nmodel_key = "shared-model"\n'
+    )
+    with pytest.raises(ConfigError) as raised:
+        load_config(template, personal_config(tmp_path, aliases))
     assert raised.value.category == "duplicate_model"
 
 
