@@ -210,26 +210,18 @@ try {
 # available models (which resolves auth). Native parsers/composition keep JSONC,
 # custom overrides, catalog freshness and supported thinking aligned with Pi.
 pi_launcher_require_models() {
-    local launcher="$1" provider_="" model_="" thinking_=""
+    local launcher="$1"
     shift
-    while (( $# > 1 )); do
-        case "$1" in
-            --provider) [[ -n "${provider_}" ]] || provider_="$2" ;;
-            --model) [[ -n "${model_}" ]] || model_="$2" ;;
-            --thinking) [[ -n "${thinking_}" ]] || thinking_="$2" ;;
-        esac
-        shift
-    done
     local REPLY
     pi_agent_directory
     if ! node --input-type=module - "$(command -v pi)" "${REPLY}" \
         "${HOME}/.pi/agent/extensions/subagent.d/${launcher}/config.json" \
-        "${provider_}/${model_}" "${thinking_}" <<'JS'
+        "$@" <<'JS'
 import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 try {
-    const [pi, agentDir, tierFile, parent, thinking] = process.argv.slice(2);
+    const [pi, agentDir, tierFile, ...args] = process.argv.slice(2);
     let packageDir = path.dirname(fs.realpathSync(pi));
     while (!fs.existsSync(path.join(packageDir, 'dist/core/model-config.js'))) {
         const next = path.dirname(packageDir);
@@ -237,6 +229,11 @@ try {
         packageDir = next;
     }
     const load = file => import(pathToFileURL(path.join(packageDir, file)).href);
+    // Use Pi's parser so repeated options, consumed values and -- match the
+    // actual invocation. Keep the original argv untouched for bwrap/Pi.
+    const {parseArgs} = await load('dist/cli/args.js');
+    const {provider, model: parentModel, thinking} = parseArgs(args);
+    const parent = `${provider}/${parentModel}`;
     const {ModelConfig} = await load('dist/core/model-config.js');
     const {composeModelProvider} = await load('dist/core/provider-composer.js');
     const {withRemoteCatalog, withPersonalizedCatalog} = await load('dist/core/remote-catalog-provider.js');

@@ -536,6 +536,27 @@ JS
     assert_eq "$status" 1 "missing custom parent must not reach Pi"
 }
 
+# S: checking launcher defaults instead of the effective CLI options lets an
+# unsupported parent thinking level silently clamp. A valid final override must
+# still launch; option-looking values/messages must not become parent options.
+test_effective_parent_options_are_checked() {
+    local home out status prompt
+    home="$(model_home pidid)"
+    set +e
+    out="$(run_model_helper "$home" pidid --provider deepinfra \
+        --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --thinking high --thinking max 2>&1)"
+    status=$?
+    set -e
+    assert_eq "$status" 1 "effective unsupported parent thinking must not reach Pi"
+
+    prompt=$'確認依頼\n日本語と spaces を欠落させず扱ってください。'
+    out="$(run_model_helper "$home" pidid --provider missing-provider --model missing-model \
+        --thinking max --provider deepinfra --model deepseek-ai/DeepSeek-V4.1-Flash-1017 \
+        --thinking high --system-prompt --thinking -- "$prompt" \
+        --provider missing-provider --model missing-model --thinking max)"
+    assert_contains "$out" "$prompt" "valid final parent options must reach Pi with the prompt"
+}
+
 # S: invalid thinking gets clamped, silently changing the tier; unreadable or
 # malformed metadata must not be treated as a successful check.
 test_unverifiable_or_unsupported_tiers_stop_before_pi() {
@@ -565,6 +586,7 @@ JS
 }
 
 make_model_shim
+test_effective_parent_options_are_checked
 test_missing_child_catalog_model_stops_before_pi
 test_missing_custom_parent_stops_before_pi
 test_unverifiable_or_unsupported_tiers_stop_before_pi
