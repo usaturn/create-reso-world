@@ -90,7 +90,7 @@ ledger は `/workspaces/reso-world/tmp/agents/issue-305.fq1ezuqt/budget.jsonl`�
 
 ## Task 3: agent 雛形・現在の案内と移行
 
-**Files:** Modify `.devcontainer/agent-runner.toml`, `.devcontainer/README.md`, `tools/agent_runner/interfaces.rst`, `.agents/skills/review-fix-planning/SKILL.md`, `.agents/skills/review-fix-planning/references/execution.md`。他の現在使う旧名参照が見つかったら凍結記録かを判定して報告する。
+**Files:** Modify `.devcontainer/agent-runner.toml`, `.devcontainer/README.md`, `tools/agent_runner/interfaces.rst`, `.agents/skills/review-fix-planning/SKILL.md`, `.agents/skills/review-fix-planning/references/execution.md`, `.agents/skills/pr-review-fix-loop/SKILL.md`（runtime制限の括弧内agent例だけ）。他の現在使う旧名参照が見つかったら凍結記録かを判定して報告する。
 
 **Interfaces:** Task1 の任意model_keyとTask2の配置済起動経路を消費。設定の11改名・5追加・3DeepSeek共通キー・割り当てを Spec 表の値で出力する。
 
