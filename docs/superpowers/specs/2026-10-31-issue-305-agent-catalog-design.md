@@ -96,6 +96,20 @@ README に命名・比較・追加 agent・認証・ランチャー・tier・新
 | 実装方式 | SDD で独立3 Taskを逐次委譲、統合は司令塔 | 全部 inline | runner、起動経路、割り当て・文書の境界を分離 | implement check は既定 self |
 | PR後のループ | check-options の既定適用 | モデル独自のassign/config補完 | 利用者が書いた順の引数だけを渡す | max_cycles=3、既定assignはセッション記録参照 |
 
+## 実装・検証の記録（PR 作成前）
+
+- Task1: `3c6ed753`。model_key の和集合比較を追加。Task review は仕様適合・品質 Approved。
+- Task2: `2d844ecf` と `cbe4a9cf`。前提検査が実効 CLI 引数と一致しない指摘を fake で再現し、native parseArgs の利用で修正。再レビュー PASS。
+- Task3: `18b73c0b`・`a70e10a8`・`9c4881dd`。model 必須を任意と誤記した説明を実装に合わせて修正、再レビュー CLEAN。
+- 最終全体レビュー: 正常な provider/model の二重修飾による誤拒否1件を指摘。`e5d666aa` で native exact resolver を使う修正、一時8プローブと covering shell suite が成功、指定の1回の scoped re-review は PASS。恒久テストは追加せず L を一時確認した。
+- 有料実機確認は許可された8担当を一度ずつ起動し全件成功。Terra=`gpt-6.1-terra`/xhigh、Astra=`gpt-6-astra`/xhigh、Sonnet=`claude-sonnet-5-5`、Argon=`gemini-4-argon`/high、DeepInfra=`deepseek-ai/DeepSeek-V4.1-Flash-1017`/high。既存3担当も Sol/max、SWE-2 Max、CommandCode DeepSeek/max を観測した。
+- 全8件で改行入り日本語の正確な echo、停止、ツール未使用、想定外の書き込み無し、保持ログ内の実環境秘密値の非出力を確認。専用 attempt worktree は全件登録解除済み。実HOMEのsetupや個人設定の移行は実施していない。公開 models/tier とセッション内ランチャーだけをプロセス内 namespace に重ねた。PRの無い疎通試験では保存後のレビュー添付のみ isolated config の after_run=[] で止め、既定設定は不変更。
+- 実機の対象 HEAD は `9c4881dd`。その後の変更は親 exact reference 検査のみ。既定の親モデル・認証・env・tier・runner は不変更であり、裸ID/修飾IDのfake対照と既存安全suiteを現行版で通した。有料確認は追加せず、既定経路の実機証拠を引き継ぐ。
+- 実装担当は既定 `self` の適用、fallback=[]。loop check-options の既定の max_cycles=3、assign={}、template=`/workspaces/reso-world/.devcontainer/agent-runner.toml`、config=null（標準の個人設定を読み込む）。有効な割り当ては review.inspect=[claude-opus,devin-swe,pi-deepseek]、fix.implement=[pi-gpt]、self-review/fix-check=[self]。利用者がこれらを指定したのではなく、既存設定を読み込んだ結果である。
+- 最終の正式検証は記録追記のコミット後に司令塔が実行し、HEAD/clean/base/argv/終了コード/ログをセッションの検証記録に保存する。PR・ループはまだ未実施であり、ここでは成功扱いにしない。
+- 所要時間: 最初の調査約24分、Task1は report の計測、Task2は約19分＋修正153秒、Task3は約7分＋狭い修正。正確な主要時点と全体予算はセッションの budget.jsonl・Task report に保持する。
+- 証拠: `/workspaces/reso-world/tmp/agents/issue-305.fq1ezuqt/` の `live/verified.json`、`live/summary.json`、`sdd/2026-10-31-issue-305-agent-catalog/*report.md` と各ログ。公開未実施。
+
 ## 検証・受け入れ基準
 
 動作環境は Dev Container。個人設定なしと変更前雛形の写しを重ねた環境で check/list が成功する。既存11 agent の起動値を意味比較し、model_key 以外の差がない。新5 agent が起動経路・認証手順を持ち、pigt/pidid を隔離HOMEで新規・既存環境に配置して既存値を保持できる。

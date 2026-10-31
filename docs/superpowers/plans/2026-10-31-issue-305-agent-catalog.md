@@ -116,6 +116,14 @@ ledger は `/workspaces/reso-world/tmp/agents/issue-305.fq1ezuqt/budget.jsonl`�
 - [ ] 親のloop.py startをユーザーが指定した空のloop_argsで起動。controllerモデルはpi-model-nameでPI_PROVIDER/PI_MODEL両方を確認。親の旧雛形・現在の個人設定を使う（引数を足して設定を取り替えない）。finalize以外でmergeしない。
 - [ ] run結果/関連Issueの観測state/文書とログと資源/時間を報告、Herdrタスクをcompleted。マージ後の個人設定手動移行が必要であることは明記。worktree/branchを勝手に削除しない。
 
+## 実行記録
+
+- Task1/2/3 実装と各 Task review が完了。共通の受け入れ本文を実装・レビューの brief に渡した。Task2 の実効引数不一致と Task3 の必須model説明をそれぞれ1回の修正・再レビューで解消。
+- 最終全体レビューは `acd288c3..9c4881dd`。provider/model の正常入力誤拒否を1回の最終fix wave `e5d666aa` で修正、scoped re-review PASS。範囲外の保留指摘はない。
+- 司令塔が許可された8件の実機試験を実行し、期待モデル・入力の保持・停止・ツール未使用・書き込み無しを確認した。後続は公開メタデータの親exact照合だけの修正で、fake対照と安全suiteにより実機証拠の前提不変更を確認した。試行worktreeは全て削除済み、共有のfeature worktreeは保持する。
+- 最終記録追記後の正式検証と検証ファイル作成、scan/push/PR/指定ループは後続。Specの状態はdraftのままで、完了や承認は推測しない。記録は `/workspaces/reso-world/tmp/agents/issue-305.fq1ezuqt/` に保持し、公開前後の検証結果をPR/ループの記録に残す。
+- 現環境の個人設定は旧名参照のみのため、マージ後には文書の手動移行が必要。実機試験では隔離configを使い、PR後のループには親の標準設定をそのまま渡す。
+
 ## contingency（代替策）
 
 - 実出力やカタログschemaが想定と違えば、初回REDの証拠を残し、同じモデル・認証・停止保証を保つ最小修正にする。保証を弱める変更はしない。
