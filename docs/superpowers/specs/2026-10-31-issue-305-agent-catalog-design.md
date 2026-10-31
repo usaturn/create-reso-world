@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`。内容の承認は受けていない。
+- 状態: `completed`。実装・検証とPRレビューの採否判断が完了。内容の承認は受けていない。push・マージ・Issue更新の実施結果はPRコメントと最終報告に残す。
 - 対象: usaturn/create-reso-world、Issue https://github.com/usaturn/create-reso-world/issues/305
 - 利用者指示: `/skill:issue-to-pr` に続く `https://github.com/usaturn/create-reso-world/issues/305 --merge`。
 - 実行許可: 通常判断を推奨案で決め、Spec/Plan のコミット、実装、検証、push、PR 作成、指定されたレビューループへ継続する。マージは同ループの finalize.py のみ。
@@ -109,6 +109,49 @@ README に命名・比較・追加 agent・認証・ランチャー・tier・新
 - 最終の正式検証は記録追記のコミット後に司令塔が実行し、HEAD/clean/base/argv/終了コード/ログをセッションの検証記録に保存する。PR・ループはまだ未実施であり、ここでは成功扱いにしない。
 - 所要時間: 最初の調査約24分、Task1は report の計測、Task2は約19分＋修正153秒、Task3は約7分＋狭い修正。正確な主要時点と全体予算はセッションの budget.jsonl・Task report に保持する。
 - 証拠: `/workspaces/reso-world/tmp/agents/issue-305.fq1ezuqt/` の `live/verified.json`、`live/summary.json`、`sdd/2026-10-31-issue-305-agent-catalog/*report.md` と各ログ。公開未実施。
+
+## PR #306 review-fix-planning サイクル1
+
+### 実行許可・レビュアーの構成
+
+利用者の明示した `--merge` による完遂。planner=`openai-codex/gpt-6.1-sol`、runtime=pi、provider=openai-codex、effort=xhigh。レビュー対象は `a8684272cb7c84303bb759c19268bb65c6de2ed6`、baseは `acd288c3e81a6c108136e37815e718a0fe088195`。
+
+| ファイル | モデル | runtime | HEAD | 再実行 | 推奨 |
+| --- | --- | --- | --- | --- | --- |
+| claude-opus-5-5.md | claude-opus-5-5 | claude-code | a8684272cb7c | true（Initial） | Approve |
+| SWE-2-Max.md | SWE-2 Max | devin | a8684272cb7c | true（Initial） | Approve |
+| deepseek-deepseek-v4.1-flash.md | deepseek/deepseek-v4.1-flash | pi | a8684272cb7c | true（Initial） | Approve |
+
+全3レビュアーをloopがaccepted、rejected/retained/outside_changesは無し。前回判断は無し。修正/自己レビューの設定は既存個人設定込みでimplement=pi-gpt、self-review/fix-check=self。今回の対応する指摘は0件のため、run_rolesは実行せず、自己レビュー呼出しは0回。設定の担当を実際に起動したことにはしない。
+
+### 全指摘の分類
+
+解消済み0 / 対応する0 / 対応しない2。重大度の表記やApproveの人数ではなく、現行HEADの挙動と致命的な影響の有無で判断した。
+
+| 指摘 | 分類 | 根拠と見直す条件 |
+| --- | --- | --- |
+| SWE-2-Max#L-1@a8684272cb7c | 対応しない | コミット済みテストのrun_setupでMODEL_SHIMがstrict Pi shimを隠すことを再現。fake setupの同じ非list呼出しは前置あり0、strictのみ64。しかし現行setupはlistのみを呼び、settingsとバックアップのバイト/名前比較は維持される。将来の補助sentinel検出力の制限であり、現行の主要処理・設定保護の致命的な誤動作はない。現行非list操作による無断変更を見逃す再現か、利用者の名指し依頼が出たら見直す。 |
+| deepseek-deepseek-v4.1-flash#L-1@a8684272cb7c | 対応しない | pigt/pididともexact ID=0、`:high`接尾/pattern=1を再現。exact ID＋独立--thinkingによる主要な既定/runner経路は動き、同じモデル/effortを指定できる。事前のexact fail-closed設計の限定的互換性・設計の是非であり、主要処理停止・無断変更・データ損失・秘密露出は確認されない。正式な接尾/pattern対応の依頼か、既定/runner/exact指定でも止まる新証拠が出たら見直す。 |
+
+### 要件・共有条件・検証の対応
+
+| 既存Spec/Planの条件 | 今回の扱い | 共有条件の統合担当・実行根拠 |
+| --- | --- | --- |
+| 同一モデルの和集合判定・既存11設定保持 | 変更なし、既に満たす | 司令塔。現行HEADのrunner276、全体1257、semantic比較/check-list4回が全成功。 |
+| 起動前提・親/子のexactモデルとthinking | 変更なし、既に満たす | 司令塔。許可8実機の観測値/停止と最後のfake対照を照合。今回の隔離実行でもexactの正常側と接尾/patternの拒否側を確認。 |
+| 設定・バックアップ・有効tier編集保持 | 変更なし、既に満たす | 司令塔。新規/既存setup実行で内容/mode/バックアップ/編集を保持。strict shimの隠れは別の将来検出力で、現在の設定保持assertionは残る。 |
+| 正式な受理モデル表記の範囲 | 限定的な制約を開示 | 既定経路の保証を新たに狭める変更ではない。事前Specのexact検査のまま、--modelの接尾/pattern拒否と回避方法をPR本文に明記。 |
+
+今回コードを修正する項目はないので修正経路表・設計の見直しは該当なし。全変更ファイルの全文、関連caller/test、全指摘を現行のコミット済み内容で確認した。挙動再現は照合済みdetached worktreeとfake Pi/bwrap・一時HOMEで行い、終了後にworktree登録と一時領域を回収した。実環境設定・資格情報・追加有料モデルは使っていない。
+
+### 結論・証拠
+
+結論2（修正不要として最終化へ進む）。実在する2制約はPR本文の「既知の制限（PRレビュー・サイクル1）」に全件の条件と回避方法を開示した。未確認の指摘はない。修正後自己レビューは該当なし。
+
+- 確認済み一覧: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#306-feat-issue-305-agent-catalog/verified/a8684272cb7c.json` と同stemのMarkdown。confirmed2、unverified0、coverage.remaining空。確認所要695秒、待ち内訳は未計測。
+- 工程の記録: 同 `verified/a8684272cb7c.planning.json`。判断の記録はPR306のサイクル1コメントへhelperで投稿する。投稿URLはSpecコミット後に得るためここへ推測で書かない。
+- 実装前からの検証記録 `/workspaces/reso-world/tmp/agents/issue-305.fq1ezuqt/verification.json` と `checks.json` を再利用。全9コマンドexit0、対象HEADは上記a8684272、検証前後clean、全ログ実在。base先端を再取得して同じacd288c3でheadの祖先と確認したため、mergeした一時ツリーでの再検証は不要。
+- 検証したツリーはreviewed headそのもの。Spec-onlyの直接の子1コミットだけを載せる。マージ・Issue更新はfinalize.pyが別途照合して行う。実施済みと先に記録しない。
 
 ## 検証・受け入れ基準
 
