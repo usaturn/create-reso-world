@@ -14,7 +14,8 @@ TOML の ``schema_version = 1`` と以下の三層を使う。
 ``agents.<agent_id>``
   ``runtime``: claude-code / devin / pi / codex / cursor。
   ``command``: 空でない argv 配列。シェル文字列・alias ではなく実行可能なコマンド。
-  ``model``: 空でないモデル値。
+  ``model``: 任意の空でないモデル値。省略時は null。
+  ``model_key``: 任意の空でない共通モデル識別子。省略時は null。
   ``provider`` / ``effort``: 任意の文字列。
   ``approval``: noninteractive のみ（既定）。
   ``skill_sources``: スキルの読み込み元の配列（既定は空）。
@@ -43,9 +44,13 @@ TOML の ``schema_version = 1`` と以下の三層を使う。
   CLI が result.json を保存した後に順に起動する argv の配列（既定は空）。
   各要素は空でない argv の配列で、先頭は空白だけでない文字列。詳細は「後処理」の節。
 
-同じ役割の agents と fallback の全候補で ``model`` 値が重複すると拒否する。
-command や provider が違っても同じモデル値なら重複とする。
-比較はモデル文字列の完全一致。別名が同じモデルを指すかまでは解決しない。
+各 agent の比較集合は、``model`` があれば ``{model}`` 、``model_key`` もあれば
+``{model, model_key}`` とする。キーだけなら ``{model_key}`` 、どちらも無ければ空集合とする。
+同じ役割の agents と fallback の全候補間、および ``exclude_same_model_as`` で指定した
+役割間で集合に共通要素があれば、起動前に ``duplicate_model`` で拒否する。
+command や provider が違っても同じ ``model`` なら重複とし、キーが片方だけ、または互いに異なっても回避できない。
+キーはモデル値に追加して比較し、置き換えない。文字列は完全一致で比較し、自動で正規化しない。
+キーの無い異なるモデル値を同じモデルとは推測しない。
 ``self`` は予約名で、agent として定義できない。
 
 上書きの優先順位は、雛形 < 個人設定 < CLI/API の割り当て。

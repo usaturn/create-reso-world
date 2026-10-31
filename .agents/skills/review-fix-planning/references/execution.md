@@ -10,7 +10,7 @@ review-fix-planning の完遂で、修正の実装・修正後の自己レビュ
 SESSION="$(uv run --no-project python "$TOPLEVEL/.agents/scripts/agent_tmp.py" mkdir "review-fix-planning-pr$PR_NUMBER")"
 ```
 
-agent-runner の設定は、雛形（`$TOPLEVEL/.devcontainer/agent-runner.toml`）→ 個人設定 → 明示した `--assign` の順に重なる。雛形の既定は、`implement` が `claude-opus`、`self-review`・`fix-check` が `self` である。PR 修正ループ（#156 で入る）から呼ばれたときは、ループが返す `planning.run_roles_options`（`--template`・`--config`・`--assign`）をそのまま付ける。存在しない担当や、投影できない設定を `self` に黙って置き換えない。
+agent-runner の設定は、雛形（`$TOPLEVEL/.devcontainer/agent-runner.toml`）→ 個人設定 → 明示した `--assign` の順に重なる。雛形の既定は、`implement` が `claude-code_opus_default`、`self-review`・`fix-check` が `self` である。PR 修正ループ（#156 で入る）から呼ばれたときは、ループが返す `planning.run_roles_options`（`--template`・`--config`・`--assign`）をそのまま付ける。存在しない担当や、投影できない設定を `self` に黙って置き換えない。
 
 `run_roles.py` は、すべての担当の終了と停止の確認まで戻らない同期のコマンドで、役割の期限は最大 90 分（implement）になる。`.agents/monitoring-runtimes.md` の「agent-runner の同期実行と停止確認」のとおりに待つ（Claude Code ではバックグラウンドで起動して終了の通知を待つ）。途中で止めるときは、`run_roles.py` のプロセスに SIGINT を送って runner に担当を止めさせ、いきなり SIGKILL しない（自己レビューの枠は止めても戻らない）。
 
