@@ -835,8 +835,8 @@ Sol / OpenCode Go DeepSeek の `OPENCODE_API_KEY` と、review の後処理の `
 追加 agent の env は `HOME` / `PATH`、DeepInfra ではさらに `DEEPINFRA_TOKEN`、Argon では既存 Vertex と同じ
 `GOOGLE_APPLICATION_CREDENTIALS` / `GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` を引き継ぐ。
 
-同一モデルの判定は、agent ごとの比較集合で行う。model があれば `{model}`、model_key もあれば `{model, model_key}` とする。
-キーだけなら `{model_key}`、どちらも無ければ空集合とする。同じ役割の `agents` / `fallback` の全候補間、または `exclude_same_model_as` で指定した役割間に共通要素があれば、
+同一モデルの判定は、agent ごとの比較集合で行う。`model` は空でない値が必須で、省略・null は不可。`model_key` のみ任意である。
+比較集合は `{model}` とし、`model_key` もあれば `{model, model_key}` とする。同じ役割の `agents` / `fallback` の全候補間、または `exclude_same_model_as` で指定した役割間に共通要素があれば、
 起動前に `duplicate_model` で拒否する。キーは model の比較を置き換えないため、同じ model ならキーが片方だけ、
 または互いに異なっても重複になる。文字列は完全一致で、自動正規化や未知の別名の推測はしない。
 CommandCode / OpenCode Go / DeepInfra の 3 DeepSeek agent には `model_key = "deepseek-v4.1-flash"` を付け、

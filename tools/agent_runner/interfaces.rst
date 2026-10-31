@@ -14,7 +14,7 @@ TOML の ``schema_version = 1`` と以下の三層を使う。
 ``agents.<agent_id>``
   ``runtime``: claude-code / devin / pi / codex / cursor。
   ``command``: 空でない argv 配列。シェル文字列・alias ではなく実行可能なコマンド。
-  ``model``: 任意の空でないモデル値。省略時は null。
+  ``model``: 必須の空でないモデル値。省略・null は不可。
   ``model_key``: 任意の空でない共通モデル識別子。省略時は null。
   ``provider`` / ``effort``: 任意の文字列。
   ``approval``: noninteractive のみ（既定）。
@@ -44,8 +44,7 @@ TOML の ``schema_version = 1`` と以下の三層を使う。
   CLI が result.json を保存した後に順に起動する argv の配列（既定は空）。
   各要素は空でない argv の配列で、先頭は空白だけでない文字列。詳細は「後処理」の節。
 
-各 agent の比較集合は、``model`` があれば ``{model}`` 、``model_key`` もあれば
-``{model, model_key}`` とする。キーだけなら ``{model_key}`` 、どちらも無ければ空集合とする。
+各 agent の比較集合は、必須の ``model`` による ``{model}`` とし、任意の ``model_key`` もあれば ``{model, model_key}`` とする。
 同じ役割の agents と fallback の全候補間、および ``exclude_same_model_as`` で指定した
 役割間で集合に共通要素があれば、起動前に ``duplicate_model`` で拒否する。
 command や provider が違っても同じ ``model`` なら重複とし、キーが片方だけ、または互いに異なっても回避できない。
