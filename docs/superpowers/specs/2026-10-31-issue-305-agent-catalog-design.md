@@ -60,7 +60,7 @@ review.inspect は従来の3担当の新名、fix.implement は `claude-code_opu
 - pidid は PI_CODING_AGENT_DIR の既存解釈を再利用し、DeepInfra provider と exact model の登録、認証、専用 tier 設定の前提が不足したら起動しない。親と全 tier は上表の DeepInfra model/high。別モデルに切り替えない。
 - ローカルに存在しない upstream tier-guard 拡張は参照しない。必要な fail-closed 検査はローカルのヘルパ／ランチャーに限定して実装する。pigt も、使用する親子のモデルカタログ不足を検出し更新手順を案内する。
 - モデル確認は公開メタデータのみを読み、キー解決や外部認証問い合わせを起こさない。Pi の bundled/保存済みカタログと models.json の実際の読み方を確認して実装する。既存ランチャーの挙動は変えない。
-- pidid のユーザー所有 tier 編集は保持する。全 tier の有効なモデルと thinking を確認し、必要なモデルが解決できない場合に停止する。個人設定の内容を黙って雛形に戻さない。
+- pidid のユーザー所有 tier 編集は保持する。上記モデル/high は初期設定であり、利用者が明示編集した有効な tier はその値で起動してよい。全 tier のモデルと thinking が解決できなければ停止し、個人設定の内容を黙って雛形に戻したり別モデルを推測したりしない（builder check の確認点に対する通常判断）。
 - install_beforehand.bash と setup_pi_superagents.zsh に両ランチャーを登録。新規 models.json は雛形から、既存はそのまま。
 - setup_pi.zsh の既存 provider 更新 helper、他 provider 保持、バックアップ、mode、パス解釈を維持し、pidid・共通ヘルパ・未配置 tier を配置する。明示 setup 以外で利用者環境を更新しない。
 
