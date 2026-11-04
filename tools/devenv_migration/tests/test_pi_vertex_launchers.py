@@ -22,6 +22,8 @@ import pytest
 DEVCONTAINER = Path(__file__).resolve().parents[3] / ".devcontainer"
 # 3 つのランチャーは名前とモデルだけが違う。検査は pigemf を代表にし、同時起動の検査と sandbox の設定だけが全部を使う。
 LAUNCHERS = ("pigemf", "pigemp", "pigema")
+# ヘルパは起動前に cheap / balanced / max の model がそろっているかを確かめる（#307）。準備はそろった tier を置く。
+TIERS = {tier: {"model": f"distinct/{tier}", "thinking": "high"} for tier in ("cheap", "balanced", "max")}
 LAUNCHER = "pigemf"
 
 
@@ -35,7 +37,7 @@ def sandbox(tmp_path: Path) -> tuple[Path, Path, Path]:
     for launcher in LAUNCHERS:
         config = home / f".pi/agent/extensions/subagent.d/{launcher}/config.json"
         config.parent.mkdir(parents=True)
-        config.write_text('{"superagents":{"modelTiers":{}}}\n')
+        config.write_text(json.dumps({"superagents": {"modelTiers": TIERS}}) + "\n")
     # Match the installed npm Pi layout, including the bundled metadata format.
     real_pi = shutil.which("pi")
     assert real_pi is not None
@@ -284,7 +286,7 @@ def test_real_namespace_masks_auth_for_parent_and_child_preserving_saved_files(
     shared.parent.mkdir(parents=True, exist_ok=True)
     shared.write_text('{"superagents":{"modelTiers":{"shared":"must not be used"}}}')
     config = home / f".pi/agent/extensions/subagent.d/{launcher}/config.json"
-    config.write_text('{"superagents":{"modelTiers":{"cheap":{"model":"distinct/tier","thinking":"high"}}}}')
+    config.write_text(json.dumps({"superagents": {"modelTiers": TIERS}}))
     before = {path: path.read_bytes() for path in home.rglob("*") if path.is_file()}
     before.update({path: path.read_bytes() for path in directory.rglob("*") if path.is_file()})
     _real_namespace_probe(sandbox)
@@ -305,7 +307,7 @@ def test_real_namespace_masks_auth_for_parent_and_child_preserving_saved_files(
         assert observed["other_auth_preserved"] == stored_auth
         assert observed["readonly"] is True
         assert observed["cloud_key_present"] is False
-        assert observed["tiers"] == {"cheap": {"model": "distinct/tier", "thinking": "high"}}
+        assert observed["tiers"] == TIERS
     assert {path: path.read_bytes() for path in before} == before
     if not stored_auth:
         assert json.loads(auth.read_text()) == {}
