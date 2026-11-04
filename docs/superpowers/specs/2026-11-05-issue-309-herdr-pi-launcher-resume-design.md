@@ -6,6 +6,7 @@
 - Issue: https://github.com/usaturn/create-reso-world/issues/309（#307 の持ち越し。PR #308 で範囲外とした 1 点目）
 - 実行許可: 利用者の指示 `/issue-to-pr #309 --merge`。issue-to-pr スキルにより、通常の設計判断を推奨案で決め、検証・commit・push・PR の作成まで続ける。`--merge` により、PR の作成後に pr-review-fix-loop を回し、修正不要と確かめられたら `finalize.py` がマージと Issue の更新を行う
 - この文書の commit は実行許可の記録であり、内容の承認（`approved`）ではない
+- base の移動: 2026-11-05 19:18Z、push の前の確認で main が `9cc638c9` から `2d4f275a`（PR #302・#303 のマージ。`docs/superpowers/` の Markdown 7 ファイルの追加だけ）へ進んでいたので停止した。利用者の指示「修正不要でマージをしていい」で、branch を `2d4f275a` に載せ直し（rebase。重なるファイルは無い）、検証の入口をやり直して続けた
 
 ## 目的
 
