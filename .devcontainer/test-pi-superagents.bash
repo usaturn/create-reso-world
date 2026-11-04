@@ -209,13 +209,15 @@ pi_args_of() {
 }
 
 # 防ぐ損害: 各ランチャーが別ランチャーの tier 設定を重ねても起動は成功し、モデル割当（費用・能力）が黙って変わる。
-# 各ランチャーは自分の tier 設定を共有ディレクトリへ重ねて Pi を起動する。
-# bind 元・重ね先は --bind の直後の 2 要素で見る（部分一致だと重ね先が bind 元の
-# 部分文字列に化けて通るため）。
+# Herdr の復元は Pi に渡した名前（PI_SUPERAGENTS_LAUNCHER）のランチャーで再開するので、名前を取り違えても
+# 復元した Pi の tier の model が黙って変わる（#309）。
+# 各ランチャーは自分の tier 設定を共有ディレクトリへ重ね、自分の名前を渡して Pi を起動する。
+# bind 元・重ね先は --bind の直後の 2 要素、名前は --setenv PI_SUPERAGENTS_LAUNCHER の直後の要素で見る
+# （部分一致だと重ね先が bind 元の部分文字列に化けて通るため）。
 test_launchers_wrap_pi_with_their_own_config() {
     local launcher home out
     local -a argv
-    local i bind_at
+    local i bind_at name_at
     for launcher in "${LAUNCHERS[@]}"; do
         home="$(make_home "$launcher" with-config)"
         write_oauth_auth "$home"
@@ -234,6 +236,15 @@ test_launchers_wrap_pi_with_their_own_config() {
             "${home}/.pi/agent/extensions/subagent.d/${launcher}" "${launcher} bind src"
         assert_eq "${argv[$((bind_at + 2))]}" \
             "${home}/.pi/agent/extensions/subagent" "${launcher} bind dst"
+        name_at=""
+        for i in "${!argv[@]}"; do
+            if [ "${argv[$i]}" = "--setenv" ] && [ "${argv[$((i + 1))]:-}" = "PI_SUPERAGENTS_LAUNCHER" ]; then
+                name_at="$((i + 2))"
+                break
+            fi
+        done
+        [ -n "$name_at" ] || fail "${launcher} must pass its name to Pi via --setenv PI_SUPERAGENTS_LAUNCHER"
+        assert_eq "${argv[$name_at]:-}" "$launcher" "${launcher} name passed to Pi"
     done
 }
 

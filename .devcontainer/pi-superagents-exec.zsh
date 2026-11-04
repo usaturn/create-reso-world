@@ -396,8 +396,11 @@ pi_superagents_exec() {
         args_+=(--ro-bind-data 3 "${auth_file:A}")
     fi
 
+    # Herdr の復元で、このランチャーから再開させるための名前（#309）。~/.pi/agent/extensions/herdr-launcher-resume.ts
+    # が読み、Herdr に「<ランチャー> --session <セッションファイル>」を再開コマンドとして報告する。
     args_+=(
         --bind "${launcher_dir}" "${shared_dir}"
+        --setenv PI_SUPERAGENTS_LAUNCHER "${launcher}"
         --
         # Pi 1.0.0 の fullscreen 既定を避け、Herdr の通常のスクロール履歴を残す。
         pi --tui-mode regular "$@"

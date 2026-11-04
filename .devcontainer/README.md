@@ -915,9 +915,10 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
 - `.devcontainer/pigemf`・`pigemp`・`pigema` → `~/.local/bin/`。同様に毎回上書き
 - `.devcontainer/pi-superagents/<launcher>.json` → `~/.pi/agent/extensions/subagent.d/<launcher>/config.json`、
   `.devcontainer/pi-superagents-exec.zsh` → `~/.local/bin/pi-superagents-exec.zsh`、
-  共有の bind 先 `~/.pi/agent/extensions/subagent/config.json` の停止用の設定。
-  `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 3 種を配置する
-  （詳細は後述の「pi-superagents のランチャー別 model tier」を参照）
+  共有の bind 先 `~/.pi/agent/extensions/subagent/config.json` の停止用の設定、
+  `.devcontainer/pi-herdr-launcher-resume.ts` → `~/.pi/agent/extensions/herdr-launcher-resume.ts`。
+  `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 4 種を配置する
+  （詳細は後述の「pi-superagents のランチャー別 model tier」と「Herdr の復元とランチャー」を参照）
 
 `~/.local/bin` への PATH は `zshrc.txt` が通すため、別途の設定は不要である。
 
@@ -1464,7 +1465,8 @@ Dev Container の初期化／リビルドでは `install_beforehand.bash` が全
 zsh scripts/setup_pi_superagents.zsh --if-absent
 ```
 
-`--if-absent` は既存のランチャー別 tier 設定を保持するが、共通ヘルパは毎回
+`--if-absent` は既存のランチャー別 tier 設定を保持するが、共通ヘルパと
+Herdr の復元用の Pi の拡張（「Herdr の復元とランチャー」）は毎回
 更新する。各 provider の setup スクリプトが配置するラッパーも同じヘルパを使う。
 この指定はラッパーの既定値なので、追加引数に `--tui-mode fullscreen` を指定した
 場合はその指定が優先される。素の `pi` の既定モードには影響しない。
@@ -1531,7 +1533,7 @@ Path: /home/vscode/.pi/agent/extensions/subagent/config.json
 
 このキーは消さない。消すと、ランチャーを通さない Pi が再び同梱の既定 model の子を動かす。ランチャーの中では bwrap がランチャーのディレクトリを重ねるので、この設定は見えない。setup は通常と `--if-absent`（rebuild）のどちらでも、キーの無い既存の `config.json` を `config.json.bak.YYYYMMDD-HHMMSS` へ退避してから置き換え、キーのある設定（拡張が `superagents` を書き足したものを含む）は残す。既存の環境では、rebuild するか、リポジトリのルートで `zsh scripts/setup_pi_superagents.zsh --if-absent` を一度実行する。setup はランチャーの外のシェルで実行する。ランチャーの中（ランチャーで起動した Pi の bash ツールを含む）では共有の bind 先にランチャーの設定が重なって見えるので、setup は何も書かずに止まる。
 
-Herdr の復元の後に上のメッセージが出たら、復元された Pi を終了し、使っていたランチャーでセッションを開き直す。
+ランチャーから起動した Pi は、Herdr の復元でもランチャーで再開する（次の「Herdr の復元とランチャー」）。素の `pi` や、拡張を置く前に起動した Pi が復元されて上のメッセージが出たら、復元された Pi を終了し、使っていたランチャーでセッションを開き直す。
 
 ```bash
 pigs --session ~/.pi/agent/sessions/<cwd のディレクトリ>/<セッションファイル>.jsonl
@@ -1547,8 +1549,18 @@ pigs -c   # 同じディレクトリの最新のセッションでよいとき
 
 次は扱っていない（#307 の持ち越し）。
 
-- Herdr の復元を、ランチャーを通した再開にすること。Herdr の Pi 連携は再開コマンドを報告しないので、復元は Pi を直接起動する
 - 子 Pi が tier の model を解決できない（catalog に無い、資格情報が無いなど）ときに、別の model へ切り替わるのを最初の要求の前に止めること。`pigt`・`pidid` の起動前の検査（前述）のほかは確かめない
+
+#### Herdr の復元とランチャー
+
+ランチャーから起動した Pi のペインは、Herdr がサーバーの再起動の後にセッションを復元するとき、同じランチャーで再開する（#309）。共通ヘルパが bwrap に `--setenv PI_SUPERAGENTS_LAUNCHER <ランチャー>` を渡し、`setup_pi_superagents.zsh` が置く Pi の拡張 `~/.pi/agent/extensions/herdr-launcher-resume.ts`（リポジトリの `.devcontainer/pi-herdr-launcher-resume.ts`）が、セッションを始めるたびに再開コマンド `<ランチャー> --session <セッションファイル>` を Herdr へ報告する。Herdr は復元のとき、ペインの対話シェルにこのコマンドを入力して実行する。
+
+- `/new`・`/resume` などでセッションを切り替えると、報告し直す。Herdr は保存した再開コマンドをセッションの切り替えでは消さないので、報告し直さないと前のセッションが開く
+- 報告は、Herdr の Pi 連携（`herdr-agent-state.ts`。managed by herdr なので変えない）と同じ source `herdr:pi` で行う。Herdr は、状態を報告してペインを持っている source からしか再開コマンドを受け付けない
+- 対象外: 素の `pi`、pi-superagents の子 Pi（TUI でない）、Herdr の外で起動した Pi、`--no-session` の Pi。ランチャーに付けた追加の引数（`--model` など）は再開で再現しない
+- 確かめ方: `~/.config/herdr/session.json` の Pi のペインの `agent_resume.argv` が `["pigs", "--session", "<セッションファイル>"]` の形になっている（Pi を終了すると消える）
+
+既存の環境では、ランチャーの外のシェルで、リポジトリのルートで `zsh scripts/setup_pi_superagents.zsh --if-absent` を実行し、ランチャーの Pi を起動し直す。起動し直すまでの Pi は、今までどおり Pi そのもので再開される。この仕組みは Herdr 0.9.5 で確かめた振る舞い（`docs/superpowers/specs/2026-11-05-issue-309-herdr-pi-launcher-resume-design.md`）に頼る。Herdr の更新の後に復元で上の停止のメッセージが出るようになったら、`agent_resume` を確かめる。
 
 #### Superpowers スキルの探索パス
 

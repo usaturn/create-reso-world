@@ -12,6 +12,7 @@ set -euo pipefail
 #                                                  pi-superagents を止める停止用の設定（#307）
 #   ~/.pi/agent/extensions/subagent.d/<launcher>/  ランチャー別の config.json
 #   ~/.local/bin/pi-superagents-exec.zsh           ランチャー共通ヘルパ
+#   ~/.pi/agent/extensions/herdr-launcher-resume.ts  Herdr の復元でランチャーから再開させる Pi の拡張（#309）
 #
 # リポジトリの .devcontainer/pi-superagents/<launcher>.json が正。tier 表を
 # 変更したときは、このスクリプトを実行して実環境へ反映する。
@@ -28,6 +29,7 @@ set -euo pipefail
 readonly REPO_ROOT="${0:A:h}/.."
 readonly SOURCE_DIR="${REPO_ROOT}/.devcontainer/pi-superagents"
 readonly HELPER_SOURCE="${REPO_ROOT}/.devcontainer/pi-superagents-exec.zsh"
+readonly RESUME_EXTENSION_SOURCE="${REPO_ROOT}/.devcontainer/pi-herdr-launcher-resume.ts"
 
 #
 # bind 先は必ず HOME から組み立てる。pi-superagents は os.homedir() を直接
@@ -142,6 +144,10 @@ fs.writeFileSync(process.argv[1], JSON.stringify({[process.argv[2]]: process.arg
 
 install -m 0644 "${HELPER_SOURCE}" "${BIN_DIR}/pi-superagents-exec.zsh"
 print -r -- "helper: ${BIN_DIR}/pi-superagents-exec.zsh"
+
+# ヘルパと同じく毎回更新する（--if-absent でも）。ヘルパが渡すランチャー名を読む拡張なので、両者の版をそろえる。
+install -m 0644 "${RESUME_EXTENSION_SOURCE}" "${EXT_DIR}/herdr-launcher-resume.ts"
+print -r -- "extension: ${EXT_DIR}/herdr-launcher-resume.ts"
 
 typeset launcher source dest
 for launcher in "${LAUNCHERS[@]}"; do
