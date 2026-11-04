@@ -1,5 +1,6 @@
 {
   "superagents": {
+    "extensions": ["~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"],
     "modelTiers": {
       "cheap": {"model": "deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017", "thinking": "high"},
       "balanced": {"model": "deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017", "thinking": "high"},

@@ -27,16 +27,20 @@ assert_contains() {
     esac
 }
 
+# 子 Pi の model の照合の拡張（#310）。tier 設定はこの文字列で挙げ、ヘルパは HOME の下のこのパスに在ることを求める。
+MODEL_GUARD_ENTRY='~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts'
+
 # ランチャー用の一時 HOME を作る。config を置くかどうかを引数で選ぶ。
-# config はヘルパの起動前の検査を通るよう cheap / balanced / max をそろえる（cheap は文字列の形）。
+# config はヘルパの起動前の検査を通るよう cheap / balanced / max をそろえ（cheap は文字列の形）、照合の拡張を挙げる。
 make_home() {
     local name="$1" with_config="$2"
     local home="${TEST_ROOT}/${name}"
     mkdir -p "${home}/.pi/agent/extensions/subagent"
     if [ "$with_config" = "with-config" ]; then
         mkdir -p "${home}/.pi/agent/extensions/subagent.d/${name}"
+        printf '// model guard placeholder\n' > "${home}/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"
         printf '%s\n' \
-            '{"superagents":{"modelTiers":{"cheap":"test/cheap","balanced":{"model":"test/balanced","thinking":"high"},"max":{"model":"test/max"}}}}' \
+            "{\"superagents\":{\"extensions\":[\"${MODEL_GUARD_ENTRY}\"],\"modelTiers\":{\"cheap\":\"test/cheap\",\"balanced\":{\"model\":\"test/balanced\",\"thinking\":\"high\"},\"max\":{\"model\":\"test/max\"}}}}" \
             > "${home}/.pi/agent/extensions/subagent.d/${name}/config.json"
     fi
     printf '%s' "$home"
@@ -101,7 +105,8 @@ test_incomplete_tiers_fail_closed() {
     out="$(run_helper "$home" pigs)"
     assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "complete tiers must reach bwrap"
 
-    printf '%s\n' '{"superagents":{"modelTiers":{"cheap":{"model":"test/cheap"},"max":{"model":"test/max"}}}}' > "$config"
+    # 照合の拡張は挙げたままにして、tier の検査で止まることを見る。
+    printf '%s\n' "{\"superagents\":{\"extensions\":[\"${MODEL_GUARD_ENTRY}\"],\"modelTiers\":{\"cheap\":{\"model\":\"test/cheap\"},\"max\":{\"model\":\"test/max\"}}}}" > "$config"
     set +e
     out="$(run_helper "$home" pigs 2>"${TEST_ROOT}/tiers.err")"
     status=$?
@@ -111,13 +116,54 @@ test_incomplete_tiers_fail_closed() {
     assert_contains "$(<"${TEST_ROOT}/tiers.err")" "[pigs]" "must name the launcher"
     assert_contains "$(<"${TEST_ROOT}/tiers.err")" "$config" "must name the config"
 
-    printf '%s\n' '{"superagents":{"modelTiers":{"cheap":"test/cheap","balanced":{"model":"glm-5.3-flash"},"max":"test/max"}}}' > "$config"
+    printf '%s\n' "{\"superagents\":{\"extensions\":[\"${MODEL_GUARD_ENTRY}\"],\"modelTiers\":{\"cheap\":\"test/cheap\",\"balanced\":{\"model\":\"glm-5.3-flash\"},\"max\":\"test/max\"}}}" > "$config"
     set +e
     out="$(run_helper "$home" pigs 2>/dev/null)"
     status=$?
     set -e
     assert_eq "$status" "1" "a tier model without provider must exit 1"
     assert_eq "$out" "" "a tier model without provider must not reach bwrap"
+}
+
+# 防ぐ損害: pi-superagents は tier 設定の superagents.extensions に挙げた拡張だけを子 Pi に読み込ませる。照合の拡張を
+# 挙げていない設定（--if-absent で残った既存の設定など）や、拡張のファイルが無い環境で起動すると、子は tier の model を
+# 使えないときに黙って別の model に要求を送る（#310）。代表はヘルパ。各ランチャーは同じヘルパを使う。
+# 通る例: BOM 付きで superagents に他のキーがあり、照合の拡張を絶対パスで挙げた設定。
+test_missing_model_guard_fails_closed() {
+    local home config guard status out
+    home="$(make_home pigl with-config)"
+    config="${home}/.pi/agent/extensions/subagent.d/pigl/config.json"
+    guard="${home}/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"
+    printf '\xef\xbb\xbf{"superagents":{"makeSuperpowersSkillsOptInOnly":true,"extensions":["%s"],"modelTiers":{"cheap":"test/cheap","balanced":"test/balanced","max":"test/max"}}}\n' \
+        "$guard" > "$config"
+    out="$(run_helper "$home" pigl)"
+    assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "a config that loads the guard must reach bwrap"
+
+    # #310 より前の設定（extensions が無い）と、別の拡張だけを挙げた設定（agent-workspace の setup が置き換えた設定）。
+    local unguarded
+    for unguarded in \
+        '{"superagents":{"modelTiers":{"cheap":"test/cheap","balanced":"test/balanced","max":"test/max"}}}' \
+        '{"superagents":{"extensions":["~/.pi/agent/extensions/subagent.d/pi-superagents-tier-guard.ts"],"modelTiers":{"cheap":"test/cheap","balanced":"test/balanced","max":"test/max"}}}'; do
+        printf '%s\n' "$unguarded" > "$config"
+        set +e
+        out="$(run_helper "$home" pigl 2>"${TEST_ROOT}/guard.err")"
+        status=$?
+        set -e
+        assert_eq "$status" "1" "a config without the guard must exit 1 (${unguarded})"
+        assert_eq "$out" "" "a config without the guard must not reach bwrap (${unguarded})"
+        assert_contains "$(<"${TEST_ROOT}/guard.err")" "[pigl]" "must name the launcher"
+        assert_contains "$(<"${TEST_ROOT}/guard.err")" "$config" "must name the config"
+        assert_contains "$(<"${TEST_ROOT}/guard.err")" "setup_pi_superagents.zsh" "must point at the setup script"
+    done
+
+    printf '%s\n' "{\"superagents\":{\"extensions\":[\"${MODEL_GUARD_ENTRY}\"],\"modelTiers\":{\"cheap\":\"test/cheap\",\"balanced\":\"test/balanced\",\"max\":\"test/max\"}}}" > "$config"
+    rm -f -- "${guard:?}"
+    set +e
+    out="$(run_helper "$home" pigl 2>/dev/null)"
+    status=$?
+    set -e
+    assert_eq "$status" "1" "a missing guard file must exit 1"
+    assert_eq "$out" "" "a missing guard file must not reach bwrap"
 }
 
 # 防ぐ損害: bwrap が無いのに止まらないと、サンドボックス（mount namespace による分離）無しで Pi が起動する。
@@ -591,7 +637,8 @@ fs.writeFileSync(`${home}/.pi/agent/models-store.json`, JSON.stringify({
 }));
 const model = launcher === 'pigt' ? 'openai-codex/gpt-6-luna' : 'deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731';
 fs.writeFileSync(`${home}/.pi/agent/extensions/subagent.d/${launcher}/config.json`, JSON.stringify({
-    superagents: {modelTiers: Object.fromEntries(['cheap', 'balanced', 'max'].map(tier =>
+    superagents: {extensions: ['~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts'],
+        modelTiers: Object.fromEntries(['cheap', 'balanced', 'max'].map(tier =>
         [tier, {model, thinking: 'low'}]))}
 }));
 JS
@@ -713,6 +760,7 @@ test_unverifiable_or_unsupported_tiers_stop_before_pi
 test_bind_target_ignores_pi_coding_agent_dir
 test_missing_config_fails_closed
 test_incomplete_tiers_fail_closed
+test_missing_model_guard_fails_closed
 test_missing_bwrap_fails_closed
 test_actual_and_dry_run_argv_match
 test_launchers_wrap_pi_with_their_own_config
