@@ -356,6 +356,57 @@ test_setup_if_absent_preserves_user_edits() {
         || fail "--if-absent must refresh the helper while preserving configs"
 }
 
+# 防ぐ損害: ランチャーを通さない Pi（素の pi、Herdr の復元による再開）は bwrap の mount が無く、共有の bind 先を読む。
+# そこに停止用の設定が無いと、pi-superagents は同梱の既定 model（opencode-go/glm-5.3-flash など）の子を黙って
+# 動かす（#307）。既存の共有設定を退避せずに置き換えると利用者の設定を失う。rebuild の経路（--if-absent）を代表にする。
+# 通る例: 停止用のキーが残る設定（拡張の移行処理が書き足したもの）は置き換えない。ランチャーの設定は止めない。
+SHARED_GUARD_KEY=launcherRequired_doNotRemove_restartPiViaLauncher
+test_setup_guards_shared_bind_target() {
+    local home shared ext out
+    local -a backups
+    home="${TEST_ROOT}/setup-shared-guard"
+    shared="${home}/.pi/agent/extensions/subagent"
+    mkdir -p "$shared"
+    printf '%s\n' '{"superagents":{"modelTiers":{"balanced":{"model":"opencode-go/glm-5.3-flash","thinking":"high"}}}}' \
+        > "${shared}/config.json"
+    cp "${shared}/config.json" "${TEST_ROOT}/shared-original.json"
+    run_setup "$home" --if-absent >/dev/null
+    mapfile -t backups < <(find "$shared" -name 'config.json.bak.*')
+    assert_eq "${#backups[@]}" "1" "the existing shared config must be backed up once"
+    cmp -s "${backups[0]}" "${TEST_ROOT}/shared-original.json" || fail "the backup must keep the original bytes"
+    node -e 'process.exit(Object.hasOwn(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")), process.argv[2]) ? 0 : 1)' \
+        "${shared}/config.json" "$SHARED_GUARD_KEY" || fail "the shared config must carry the guard key"
+
+    # 拡張の移行処理は読み込みのたびに superagents を書き足す。その代わりに書き足してから setup をやり直す。
+    node -e 'const fs = require("node:fs"), f = process.argv[1], c = JSON.parse(fs.readFileSync(f, "utf8"));
+c.superagents = {makeSuperpowersSkillsOptInOnly: true}; fs.writeFileSync(f, JSON.stringify(c, null, 2) + "\n");' \
+        "${shared}/config.json"
+    cp "${shared}/config.json" "${TEST_ROOT}/shared-migrated.json"
+    run_setup "$home" --if-absent >/dev/null
+    assert_eq "$(find "$shared" -name 'config.json.bak.*' | wc -l)" "1" "a guarded shared config must not be backed up again"
+    cmp -s "${shared}/config.json" "${TEST_ROOT}/shared-migrated.json" || fail "a guarded shared config must be kept as is"
+
+    # 停止の効き目は、導入済みの拡張の設定の読み込みで確かめる。Node は node_modules の下の .ts の型除去を
+    # 拒むので、src を一時の場所へ複製して読む。拡張が無い環境（postCreate の前）だけ省く。
+    ext="${HOME}/.pi/agent/npm/node_modules/@teelicht/pi-superagents"
+    if [ ! -f "${ext}/src/extension/config-store.ts" ]; then
+        printf 'SKIP: pi-superagents is not installed at %s; guard effect not checked\n' "$ext" >&2
+        return 0
+    fi
+    mkdir -p "${TEST_ROOT}/superagents-copy"
+    cp -r "${ext}/src" "${ext}/default-config.json" "${ext}/package.json" "${TEST_ROOT}/superagents-copy/"
+    out="$(node --input-type=module - "${TEST_ROOT}/superagents-copy" "$shared" \
+        "${home}/.pi/agent/extensions/subagent.d/pigs" 2>/dev/null <<'JS'
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+const [ext, ...dirs] = process.argv.slice(2);
+const {loadRuntimeConfigState} = await import(pathToFileURL(path.join(ext, 'src/extension/config-store.ts')).href);
+console.log(dirs.map(dir => loadRuntimeConfigState(ext, dir, []).blocked).join(' '));
+JS
+)" || fail "the installed pi-superagents config loader must be readable"
+    assert_eq "$out" "true false" "the guard must disable pi-superagents, the launcher config must not"
+}
+
 # 防ぐ損害: setup が共有の settings.json（書式・CRLF・世代バックアップ）を書き換えると、共有の設定が黙って壊れる。
 # 通常と --if-absent の 2 通りで、書式を含めて既存のバイト列を比較し、無いときに作らないことも見る。
 test_setup_leaves_user_settings_untouched() {
@@ -630,6 +681,7 @@ test_launchers_wrap_pi_with_their_own_config
 test_only_vertex_launchers_overlay_auth
 test_setup_preserves_prior_generation_on_name_collision
 test_setup_if_absent_preserves_user_edits
+test_setup_guards_shared_bind_target
 test_setup_leaves_user_settings_untouched
 test_install_registers_and_verifies_superagents
 printf 'OK test-pi-superagents\n'
