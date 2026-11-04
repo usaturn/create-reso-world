@@ -90,7 +90,7 @@ executing-plans（self）。Task が 2 つで、Task 2 の実機の確認がこ�
 - Produces: `export default function (pi)`。`pi.on("session_start", (event, ctx) => void)` を登録する。`event.reason: string`、`ctx.mode: string`、`ctx.sessionManager.getSessionFile(): string | undefined`、`ctx.sessionManager.getSessionId(): string | undefined` を使う。環境変数は工場関数の呼び出しのときに読む
 - テストの要否: 書く（S）。Spec の D5 の 2 件。防ぐ損害をテストのコメントに書く
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
 `.devcontainer/test-pi-herdr-launcher-resume.bash`: `mktemp -d` の一時ディレクトリに Node の ES モジュールのテストを書き出し、`node` で実行する。テストは偽の Herdr（`net.createServer` を一時ディレクトリの `herdr.sock` で listen。1 行の JSON を受けるたびに記録し、`agent_session_path` が「拒否するパス」なら `{"id":…,"error":{"code":"resume_not_accepted","message":"…"}}`、それ以外は `{"id":…,"result":{"type":"ok"}}` を返す）を立て、`process.env` に `HERDR_ENV=1`・`HERDR_SOCKET_PATH`・`HERDR_PANE_ID=w9:p9`・`PI_SUPERAGENTS_LAUNCHER=pigs` を入れてから拡張を import し、偽の `pi`（`on(name, fn)` で handler を保持）で工場関数を呼ぶ。
 
@@ -102,25 +102,25 @@ executing-plans（self）。Task が 2 つで、Task 2 の実機の確認がこ�
   - 新パスの最初の要求の `seq` が、それより前のすべての要求の `seq` より大きい
 - `test_non_tui_pi_does_not_report`（防ぐ損害: 子 Pi は親の `HERDR_PANE_ID` を継承するので、報告すると子のセッションが親のペインの再開先になり、復元で別のセッションが黙って開く）: 別のパスで `session_start({reason: "startup"}, {mode: "json", …})`、1 秒待って、そのパスの要求が 0 件
 
-- [ ] **Step 2: テストを実行して失敗を確かめる**
+- [x] **Step 2: テストを実行して失敗を確かめる**
 
 Run: `bash .devcontainer/test-pi-herdr-launcher-resume.bash`
 Expected: FAIL（拡張のファイルが無いので import に失敗する）
 
-- [ ] **Step 3: `.devcontainer/pi-herdr-launcher-resume.ts` を実装する**
+- [x] **Step 3: `.devcontainer/pi-herdr-launcher-resume.ts` を実装する**
 
 Global Constraints の値どおりに書く。冒頭のコメントに、目的（#309）、Herdr の連携の横に置く理由、`source: "herdr:pi"`・`seq`・`session_start_source`・世代番号が要る理由（Spec の事実 2〜6・10）を短く書く。送信は Herdr の連携と同じく `net.createConnection` で接続し、応答の 1 行を JSON として読んで `error.code` を見る。`session_start` の handler は送信を待たずに戻る。
 
-- [ ] **Step 4: テストを実行して通ることを確かめる**
+- [x] **Step 4: テストを実行して通ることを確かめる**
 
 Run: `bash .devcontainer/test-pi-herdr-launcher-resume.bash`
 Expected: `OK test-pi-herdr-launcher-resume`、終了コード 0
 
-- [ ] **Step 5: テストの効きを確かめる（コミットしない一時の変異）**
+- [x] **Step 5: テストの効きを確かめる（コミットしない一時の変異）**
 
 拡張の世代番号の確認を外す、`ctx.mode` の確認を外す、の 2 つをそれぞれ一時的に入れてテストが FAIL になることを確かめ、元に戻す（`git diff` が空になることを確かめる）。あわせて、同じ偽のソケットを使う一時のスクリプト（scratchpad に置き、コミットしない）で、L として書かない次の 4 つを確かめて記録する: `PI_SUPERAGENTS_LAUNCHER` が無い・`PI/../x` のように素のコマンド名でないと報告しない、`getSessionFile()` が `undefined` だと報告しない、パスにアポストロフィを含むと `resume_argv` が `["pigs", "--session", <ID>]` になる、ソケットが無くても例外が出ない。
 
-- [ ] **Step 6: commit**
+- [x] **Step 6: commit**
 
 ```bash
 git add .devcontainer/pi-herdr-launcher-resume.ts .devcontainer/test-pi-herdr-launcher-resume.bash
@@ -139,35 +139,35 @@ git commit -m "feat: report launcher resume command to Herdr from Pi"
 - Consumes: Task 1 の拡張のファイル `.devcontainer/pi-herdr-launcher-resume.ts` と環境変数 `PI_SUPERAGENTS_LAUNCHER`
 - テストの要否: ランチャー名の受け渡しは書く（S。既存の全ランチャーのテストに足す）。配置・README は書かない（L・F。Spec の D5）。代わりに一時 HOME の setup の実行と実機の確認
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
 `test_launchers_wrap_pi_with_their_own_config` の各ランチャーの繰り返しで、argv の中から `--setenv` の次が `PI_SUPERAGENTS_LAUNCHER` の位置を探し、その次の要素が `${launcher}` と等しいことを確かめる（無ければ `"${launcher} must pass its name to Pi via --setenv PI_SUPERAGENTS_LAUNCHER"` で fail）。防ぐ損害のコメントに「別のランチャーの名前で再開されると、復元した Pi の tier の model が黙って変わる」を足す。
 
-- [ ] **Step 2: テストを実行して失敗を確かめる**
+- [x] **Step 2: テストを実行して失敗を確かめる**
 
 Run: `bash .devcontainer/test-pi-superagents.bash`
 Expected: FAIL（`must pass its name`）
 
-- [ ] **Step 3: ヘルパと setup を変える**
+- [x] **Step 3: ヘルパと setup を変える**
 
 - `pi_superagents_exec`: `args_` の `--bind` の前に `--setenv PI_SUPERAGENTS_LAUNCHER "${launcher}"` を足す。冒頭のコメントに、Herdr の復元のための名前であること（#309）を 1〜2 行で書く
 - `setup_pi_superagents.zsh`: ヘルパの `install` の後に `install -m 0644 "${REPO_ROOT}/.devcontainer/pi-herdr-launcher-resume.ts" "${EXT_DIR}/herdr-launcher-resume.ts"` と表示 `extension: <パス>` を足す。冒頭の配置先の一覧にも 1 行足す
 
-- [ ] **Step 4: テストを実行して通ることを確かめる**
+- [x] **Step 4: テストを実行して通ることを確かめる**
 
 Run: `bash .devcontainer/test-pi-superagents.bash`
 Expected: `OK test-pi-superagents`、終了コード 0
 
-- [ ] **Step 5: 配置を一時 HOME で確かめる**
+- [x] **Step 5: 配置を一時 HOME で確かめる**
 
 Run: `tmp="$(mktemp -d)"; env HOME="$tmp" zsh scripts/setup_pi_superagents.zsh --if-absent && cmp .devcontainer/pi-herdr-launcher-resume.ts "$tmp/.pi/agent/extensions/herdr-launcher-resume.ts"; echo "exit=$?"; rm -rf -- "${tmp:?}"`
 Expected: `extension:` の表示、`exit=0`
 
-- [ ] **Step 6: README を書き換える**
+- [x] **Step 6: README を書き換える**
 
 「ランチャーを通さない Pi と同梱の既定 model」の「Herdr の復元の後に上のメッセージが出たら…」の段落の前に、ランチャーで再開する仕組み（ヘルパが名前を渡し、拡張が `<ランチャー> --session <セッションファイル>` を報告する。`/new` などで切り替えると報告し直す。素の `pi`・子 Pi は対象外）と、既存の環境での反映（ランチャーの外のシェルで `zsh scripts/setup_pi_superagents.zsh --if-absent` を実行し、ランチャーの Pi を起動し直す。起動し直すまでの Pi は今までどおり Pi で再開される）を書く。上のメッセージの段落は「拡張の配置の前に起動した Pi や素の `pi` が復元されたとき」に書き換える。「次は扱っていない」の 1 点目を消し、利用者がランチャーに付けた追加の引数は再開で再現しないことを書く。「pi の TUI モードと Herdr のスクロール履歴」の段落の setup の説明にも、拡張を毎回更新することを足す。
 
-- [ ] **Step 7: 実機で確かめる（テスト用 Herdr セッション）**
+- [x] **Step 7: 実機で確かめる（テスト用 Herdr セッション）**
 
 名前付きのセッション（`herdr --session <名前> server`。呼び出しは `HERDR_*` を外した `env -u …` で行う）のペインで、worktree のランチャーを `zsh <worktree>/.devcontainer/pigs --session-dir <一時ディレクトリ> -e <worktree>/.devcontainer/pi-herdr-launcher-resume.ts` で起動し、次を記録する。既定のセッションのペインに触れない。終わったらセッションを止めて消す（`herdr session stop` / `herdr session delete`）。
 
@@ -175,7 +175,7 @@ Expected: `extension:` の表示、`exit=0`
 2. `/new` の後: `agent_resume.argv[2]` と `agent_session.value` が新しいパス
 3. サーバーの再起動の後: ペインに `pigs --session <新しいパス>` が入力され、Pi が起動する（`agent` が `pi`）
 
-- [ ] **Step 8: commit**
+- [x] **Step 8: commit**
 
 ```bash
 git add .devcontainer/pi-superagents-exec.zsh .devcontainer/test-pi-superagents.bash scripts/setup_pi_superagents.zsh .devcontainer/README.md
@@ -194,4 +194,11 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools
 
 ## 完了
 
-（実行後に記録する）
+- 実行: executing-plans（self、claude-opus-5-5）。開始 2026-11-05 18:15Z（JST 03:15）
+- 所要時間（PR の作成まで）: 調査（テスト用 Herdr セッションでの実機の観測）・Spec 約 25 分、Plan 約 3 分、Task 1 約 3 分、Task 2（実機の確認を含む）約 4 分、検証の入口（pytest 約 10 分）とブランチ全体のレビュー（並行）約 14 分、修正 1 回約 4 分
+- 計画と違えたこと: `--setenv` を `--bind` の前ではなく後に置いた（既存の `test_bind_target_ignores_pi_coding_agent_dir` が bind 先を argv の 8 番目に固定しているため。ledger の Ruling）
+- 実機の確認（テスト用セッション。確認後に stop・delete）: (1) 起動の 1 秒以内に `agent_resume.argv` が `["pigs", "--session", <空白を含むパス>]`、`agent_session` と同じパス、状態は idle (2) `/new` の 6 秒以内に新しいパスへ更新 (3) サーバーの再起動で、ペインに `pigs --session '<パス>'` が入力され、Pi 1.5.0 が起動
+- ブランチ全体のレビュー（opus のサブエージェント）: With fixes、Critical・Important なし。Minor 6 件のうち、旧セッションの報告を届いた順で判定していたテスト（負荷で誤って失敗し得る）を `seq` で判定する形に直し、L に当たるアサーション（`method`・`source`・`agent`・`seq` が整数であること）を削った。修正の後も、世代番号の確認を外す・TUI の確認を外すの 2 つの変異でテストが失敗することを確かめた
+- 持ち越した Minor: 新しいセッションの報告が届かないと前の再開コマンドが残る（Spec の「残るリスク」に記録）、C1 制御文字（U+0080〜U+009F）を除外していない、README と setup のコメントの「Herdr の復元による再開」の表現と Herdr の更新の後の切り分けの案内（後者は Spec の「残るリスク」に記録）、新しいテストのファイルに実行権限が無い（`run-tests.bash` は `bash` で起動するので動作には影響しない）
+- 検証: PR の前の最後の commit で、検証の入口の 3 コマンドを実行する（結果は PR 本文とセッションディレクトリの記録）
+- ループ（pr-review-fix-loop）の結果は PR のコメントに残す

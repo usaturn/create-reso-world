@@ -80,29 +80,25 @@ async function test_reports_launcher_resume_and_follows_session_switch() {
     handlers.session_start({ reason: "new" }, context("tui", newFile, "new"));
     await sleep(9000);
 
-    const first = received.findIndex((request) => request.params?.agent_session_path === newFile);
-    if (first < 0) fail("the new session must be reported");
-    const request = received[first];
-    const params = request.params;
-    if (request.method !== "pane.report_agent_session") fail(`method: ${request.method}`);
-    if (params.source !== "herdr:pi") fail(`source: ${params.source}`);
-    if (params.agent !== "pi") fail(`agent: ${params.agent}`);
+    // method・source・agent・seq の有無が壊れると Herdr が拒否するか保存せず、復元で #308 の停止のメッセージが出て
+    // 気付けるので確かめない。黙って別のペイン・セッションを再開先にする項目だけを確かめる
+    const [first] = requestsFor(newFile);
+    if (!first) fail("the new session must be reported");
+    const params = first.params;
     if (params.pane_id !== "w9:p9") fail(`pane_id: ${params.pane_id}`);
     if (params.session_start_source !== "new") fail(`session_start_source: ${params.session_start_source}`);
     if (JSON.stringify(params.resume_argv) !== JSON.stringify(["pigs", "--session", newFile])) {
         fail(`resume_argv: ${JSON.stringify(params.resume_argv)}`);
     }
-    if (!Number.isSafeInteger(params.seq)) fail(`seq: ${params.seq}`);
 
     const old = requestsFor(oldFile);
     if (old.length === 0) fail("the startup session must be reported");
     if (old[0].params.session_start_source !== "startup") fail(`startup session_start_source: ${old[0].params.session_start_source}`);
     if (old[0].params.resume_argv?.[2] !== oldFile) fail(`startup resume_argv: ${JSON.stringify(old[0].params.resume_argv)}`);
-    if (received.slice(first + 1).some((later) => later.params?.agent_session_path === oldFile)) {
-        fail("a retry for the previous session must not arrive after the new session is reported");
-    }
-    if (received.slice(0, first).some((earlier) => earlier.params.seq >= params.seq)) {
-        fail("the new session must be reported with a larger seq than every earlier report");
+    // Herdr は seq の大きい報告だけを受け付けるので、届いた順ではなく seq で判定する。前のセッションの報告が
+    // 新しいセッションの報告より大きい seq を持つと、Herdr はそれを受け付けて再開先を前のセッションに戻す
+    if (old.some((request) => request.params.seq > params.seq)) {
+        fail("a report for the previous session must not carry a larger seq than the new session's report");
     }
 }
 
