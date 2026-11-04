@@ -199,4 +199,10 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools
 
 ## 完了
 
-（実装の後に、所要時間・検証の結果・ループの結果を書く）
+- 実行: executing-plans（self、claude-opus-5-5）。開始 2026-11-04 14:07Z
+- 所要時間（PR の作成まで）: 調査・Spec・Plan 約 15 分、Task 1 約 2 分、Task 2 約 3 分、Task 3 約 3 分、全体の検証とブランチ全体のレビュー約 12 分、修正 1 回（レビューの Critical 1 件・README 1 件・pytest の準備）約 10 分
+- ブランチ全体のレビュー（opus のサブエージェント）: With fixes。Critical 1 件（ランチャーの中で setup を実行すると、停止用の設定がランチャーの設定を置き換え、成功と表示される）を `test_setup_refuses_inside_a_launcher` の RED→GREEN で修正。README の表示の場面の記述（Minor）を、素の `pi` を使う手順で毎回エラーが出て停止用のキーを消されかねないため Important に格上げして修正
+- 持ち越した Minor: ヘルパの BOM の正規表現が `﻿` でなく文字そのもの（消えても止まる側に倒れる）、`test_incomplete_tiers_fail_closed` の stderr の文面の確認は L（既存のテストに書き方を揃えた）、テストのコメントと Spec の「移行処理は読み込みのたびに書き足す」は「変更があるときだけ」が正しい（結論は変わらない）
+- 計画と違えたこと: 全体の pytest で、Task 1 の検査が `tools/devenv_migration/tests/` の準備（tier が空・cheap だけ）を止めた（19 件）。contingency のとおり、準備をそろった tier に直した（テストの意味は変えない）
+- 検証: PR の前の最後の commit で、検証の入口の 3 コマンドを実行する（結果は PR 本文とセッションディレクトリの記録）
+- ループ（pr-review-fix-loop）の結果は PR のコメントに残す
