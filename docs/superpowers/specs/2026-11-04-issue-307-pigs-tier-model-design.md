@@ -2,8 +2,9 @@
 
 ## 管理
 
-- 状態: draft
+- 状態: completed（PR #308 の pr-review-fix-loop のサイクル 1 で修正不要と判断。下の「PR #308 のレビューの判断」）
 - Issue: https://github.com/usaturn/create-reso-world/issues/307
+- PR: https://github.com/usaturn/create-reso-world/pull/308
 - 実行許可: 利用者の指示 `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/307 --merge`。issue-to-pr スキルにより、通常の設計判断を推奨案で決め、検証・commit・push・PR の作成まで続ける。`--merge` により、PR の作成後に pr-review-fix-loop を回し、修正不要と確かめられたら `finalize.py` がマージと Issue の更新を行う
 - この文書の commit は実行許可の記録であり、内容の承認（`approved`）ではない
 
@@ -121,3 +122,43 @@ pigt・pidid の起動前の検査（catalog と thinking の照合）はその�
   - 対象: ランチャーを通さない Pi が共有の bind 先を読む経路（素の `pi`、Herdr の復元）、ランチャーの設定の tier の欠け
   - 対象外: 子 Pi が設定した model を解決できないときの切り替え（pigt・pidid の起動前の検査を除く）、Herdr の復元の再開コマンド、`PI_CODING_AGENT_DIR` だけを変えた起動（拡張は `os.homedir()` を見るので変わらない）
   - 反例として通すもの: tier が揃ったリポジトリの設定でのランチャーの起動、文字列の形の tier、停止用のキーを持つ既存の共有設定（拡張が書き足したもの）
+
+## PR #308 のレビューの判断（サイクル 1）
+
+- 実行許可: issue-to-pr の `--merge`（利用者の指示 `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/307 --merge`）による pr-review-fix-loop と review-fix-planning の完遂。修正不要なら `finalize.py` がマージと Issue の更新を行う
+- planner: claude-opus-5-5（claude-code）。サイクル 1、レビュー対象の HEAD `d9c3944f130faffe018a58b831879c6b4f3d032e`、base `8c1d1cd3c28f3961ab8c4de659e72e2526507410`
+- 結論: 2（修正不要としてマージ）。修正・自己レビュー（`run_roles.py`）は行っていない
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `claude-opus-5-5.md` | claude-opus-5-5 | claude-code | `d9c3944f130f` | はい | Approve（指摘 0） |
+| `SWE-2-Max.md` | SWE-2 Max | devin | `d9c3944f130f` | はい | Approve（指摘 0） |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | `d9c3944f130f` | はい | Approve（Info 1） |
+
+確認済みの一覧: `reviews/usaturn/create-reso-world/#308-fix-issue-307-pigs-tier-model/verified/d9c3944f130f.json`（review-verify の mode cycle。confirmed 1 / not_reproduced 0 / unverified 0）
+
+### 指摘の分類（解消済み 0 / 対応する 0 / 対応しない 2）
+
+| 判断 ID | 出典 | 区分 | 根拠 |
+| --- | --- | --- | --- |
+| `deepseek-deepseek-v4.1-flash#I-1@d9c3944f130f` | deepseek I-1（確認済みの V-1） | 対応しない | `.devcontainer/README.md:1151-1152` の「tier の不足には `--if-absent`」では、既存の設定の tier の欠けは直らない（隔離 worktree で再現）。ただし止まる側に倒れ、ランチャーのエラーが `--if-absent` なしの setup を案内し、そのとおりにすれば直る。黙った切り替え・データの消失・誤った結果は起きないので致命的ではない。文言は #305 からで、pigt・pidid では base でも同じ |
+| `planner#S-1@d9c3944f130f` | 自己確認 | 対応しない | `.devcontainer/README.md:1305` の「`--if-absent` は共有 config ... を保持」は、停止用のキーが無ければ退避して置き換えるこの PR の挙動と合わない。置き換えは #307 の目的どおりの挙動で、退避が残り、新しい節と setup の表示にも出るので、致命的ではない |
+
+### 要件と検証の対応
+
+この PR の約束（Spec の設計 A・B・C と受け入れ基準）は、3 人のレビュアーが現行の HEAD で実行して確かめ（停止用の設定で `blocked: true`、tier の欠けの停止、ランチャーの中の setup の停止、13 個の設定の通過）、review-verify も候補の範囲で確かめた。修正が無いので、新しい経路の表は作らない。共有条件（停止用のキーの文字列、`make_home` の準備）は Plan の Task 3 で照合済み。
+
+### 検証
+
+- 同じ HEAD `d9c3944f` の検証の記録を再利用した（サイクル 1 で修正不要、同じ HEAD、検証の前後とも `git status --porcelain` は空、終了コードはすべて 0、ログあり）。base は `8c1d1cd3` のまま進んでおらず、head の祖先なので head だけのツリーで足りる
+  - `bash .devcontainer/run-tests.bash`: exit 0（24 test(s) PASS）
+  - `bash scripts/check-layout.sh`: exit 0
+  - `uv run pytest tests/skills .agents/skills .agents/scripts tools`: exit 0（1257 passed）
+
+### 持ち越し（#307 の残り）
+
+- Herdr の復元をランチャーを通した再開にすること（Herdr の Pi 連携が `resume_argv` を報告しない）
+- 子 Pi が tier の model を解決できないときの切り替えを最初の要求の前に止めること
+- 未確認: 素の `pi` の実起動での停止の表示と Herdr の復元の実機の経路（マージの後に確かめる）、共有の `~/.pi` を使う別のリポジトリ（agent-workspace）の setup との相互作用
