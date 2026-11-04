@@ -2,8 +2,9 @@
 
 ## 管理
 
-- 状態: draft
+- 状態: completed（PR #312 の pr-review-fix-loop のサイクル 1 で修正不要と判断。下の「PR #312 のレビューの判断」）
 - Issue: https://github.com/usaturn/create-reso-world/issues/310（#307 の持ち越し。PR #308 で範囲外とした 2 点目）
+- PR: https://github.com/usaturn/create-reso-world/pull/312
 - 実行許可: 利用者の指示 `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/310 --merge`。issue-to-pr スキルにより、通常の設計判断を推奨案で決め、検証・commit・push・PR の作成まで続ける。`--merge` により、PR の作成後に pr-review-fix-loop を回し、修正不要と確かめられたら `finalize.py` がマージと Issue の更新を行う
 - 許可された範囲: create-reso-world の `.devcontainer/`・`scripts/setup_pi_superagents.zsh`・`.devcontainer/README.md`・テスト・この Spec と Plan の変更。pi-superagents・Pi 本体は変えない（Issue の範囲外）
 - この文書の commit は実行許可の記録であり、内容の承認（`approved`）ではない
@@ -149,6 +150,27 @@ base `edd4ffd6` から `5d123b3c` までを、新しいサブエージェント�
 - Minor: 照合の拡張のファイルが無い場合のテストは L に当たり書きすぎ → 採用。テストから外した（ヘルパの検査は、早く分かりやすく止めるために残す）
 - Minor: ヘルパの BOM を外す正規表現が見えない U+FEFF の文字になっている → 採用。追加した箇所を `﻿` にした（既存の `pi_launcher_require_tiers` の同じ書き方は範囲外として変えない）
 - 見送りの判断: `superagents.extensions` の相対パスの解決基準の違い（運用で使わず、ずれても起動の拒否か pi-superagents のエラーになる）、「素の pi で `pi --list-models`」の案内が子の環境と違う provider があること（確かめ方の入口として残す）、子の中での `session_start` の再発火（print モードの子では起きない）。どれも変えない
+
+## PR #312 のレビューの判断
+
+- 実行許可: `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/310 --merge` による pr-review-fix-loop（run `b9b5e104991e4c0e835ffee8bb190965`）の中で、review-fix-planning を完遂として行った
+- サイクル: 1。planner: `claude-opus-5-5`（claude-code）。前のサイクルの判断: なし
+- レビューディレクトリ: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#312-fix-issue-310-pi-tier-model-guard/`。確認済みの一覧: `verified/1e680eb3329e.json`（review-verify の mode cycle。confirmed 2 / not_reproduced 0 / unverified 0）。工程の記録: `verified/1e680eb3329e.planning.json`
+- 修正と自己レビューの担当（ループの割り当て）: implement `claude-code_opus_default`、self-review `self`、fix-check `self`。対応する項目が無いので `run_roles.py` は呼んでいない（自己レビューの回数 0）
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| Grok-4.7.md | Grok 4.7 | cursor | 1e680eb3329e | はい（Initial） | Approve（Medium 1） |
+| SWE-2-Max.md | SWE-2 Max | devin | 1e680eb3329e | はい（Initial） | Approve（Low 1） |
+| deepseek-deepseek-v4.1-flash.md | deepseek/deepseek-v4.1-flash | pi | 1e680eb3329e | はい（Initial） | Approve（指摘 0） |
+
+分類: 解消済み 0 / 対応する 0 / 対応しない 2
+
+- 対応しない `Grok-4.7#M-1@1e680eb3329e`: 正確な ID が Pi の知っている provider 名で始まる（commandcode の `meta/muse-spark-1.3-contributor` など）のに provider 名を付けずに渡すと、Pi は要求どおりに解決するが照合が止める。隔離 worktree と実際の Pi（`env -i`・偽 provider）で再現した（確認済みの一覧の V-1）。止まり方は終了コード 1・要求 0 件・理由付きで、別の model へは送らない。このリポジトリの tier 設定は provider から書くので当たらず、上書きでも provider から書けば通る。同じ規則が、名指しの provider が使えないときに同じ ID 文字列を持つ別の provider へ黙って切り替わるのを止めている（D2）ので変えない。致命的ではない。README の「正確な ID か `provider/id` で指定する」の不足は、PR 本文の既知の制限に条件と回避方法を書いた
+- 対応しない `SWE-2-Max#L-1@1e680eb3329e`: provider の ID に `/` を含む、glob の文字を含む正確な ID、thinking の level でない接尾辞（`:HIGH`・打ち間違い）で、Pi は要求どおりに解決するが照合が止める。同じく再現した（V-2）。止まり方は V-1 と同じで別の model へは送らず、このリポジトリの 13 の tier 設定はどれにも当たらない。致命的ではない。条件と回避方法を PR 本文の既知の制限に書いた
+- 要件対応: 受け入れ基準 1〜7 は、Spec の実入力（provider から書いた tier の `model` と小文字の level）では満たしたまま。対応しない 2 件は実入力の外で、止まる側（要求を送らない側）に寄っているので、基準 1 と 3 の守り（別の model への要求を止める、理由を出す）を弱めない
+- 結論: 2（修正不要）。検証は、PR の作成の前の最後の検証の記録を使った（同じ HEAD `1e680eb3329e4ea2679e09eb402814a603bb3ff0`、実行の前後とも作業ツリーが clean、`bash .devcontainer/run-tests.bash`・`bash scripts/check-layout.sh`・`uv run pytest tests/skills .agents/skills .agents/scripts tools` の終了コードがすべて 0、ログは `/workspaces/reso-world/tmp/agents/issue-310._0ihrq92/verify-1e680eb3/`）。取り直した base の先端 `edd4ffd622efcc72b7a79d48201d3e07959f8de8` は検証の記録の base と同じで head の祖先なので、一時的な merge での検証は要らない
+- 自己レビュー: 対応するコードの修正が無いので行っていない
 
 ## マージの後でなければ確かめられない項目
 
