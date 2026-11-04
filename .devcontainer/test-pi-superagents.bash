@@ -126,8 +126,9 @@ test_incomplete_tiers_fail_closed() {
 }
 
 # 防ぐ損害: pi-superagents は tier 設定の superagents.extensions に挙げた拡張だけを子 Pi に読み込ませる。照合の拡張を
-# 挙げていない設定（--if-absent で残った既存の設定など）や、拡張のファイルが無い環境で起動すると、子は tier の model を
-# 使えないときに黙って別の model に要求を送る（#310）。代表はヘルパ。各ランチャーは同じヘルパを使う。
+# 挙げていない設定（--if-absent で残った既存の設定など）で起動すると、子は tier の model を使えないときに黙って別の
+# model に要求を送る（#310）。代表はヘルパ。各ランチャーは同じヘルパを使う。拡張のファイルが無いだけの場合は、
+# pi-superagents が子の起動をエラーで拒むので気付ける（L）。ここでは確かめない。
 # 通る例: BOM 付きで superagents に他のキーがあり、照合の拡張を絶対パスで挙げた設定。
 test_missing_model_guard_fails_closed() {
     local home config guard status out
@@ -155,15 +156,6 @@ test_missing_model_guard_fails_closed() {
         assert_contains "$(<"${TEST_ROOT}/guard.err")" "$config" "must name the config"
         assert_contains "$(<"${TEST_ROOT}/guard.err")" "setup_pi_superagents.zsh" "must point at the setup script"
     done
-
-    printf '%s\n' "{\"superagents\":{\"extensions\":[\"${MODEL_GUARD_ENTRY}\"],\"modelTiers\":{\"cheap\":\"test/cheap\",\"balanced\":\"test/balanced\",\"max\":\"test/max\"}}}" > "$config"
-    rm -f -- "${guard:?}"
-    set +e
-    out="$(run_helper "$home" pigl 2>/dev/null)"
-    status=$?
-    set -e
-    assert_eq "$status" "1" "a missing guard file must exit 1"
-    assert_eq "$out" "" "a missing guard file must not reach bwrap"
 }
 
 # 防ぐ損害: bwrap が無いのに止まらないと、サンドボックス（mount namespace による分離）無しで Pi が起動する。

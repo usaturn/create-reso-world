@@ -6,6 +6,8 @@
  * provider が使えないと、同じ ID を持つ別の provider の model が選ばれることもある。ランチャーの起動前の検査
  * （pi-superagents-exec.zsh）は資格情報を解決しないので、これらを見られない。この拡張は子 Pi の中で、Pi が最初の
  * 要求に使う model（ctx.model）を --models と照合する。資格情報を解決し直さないので、key のコマンドの実行は増えない。
+ * 既存のセッションを引き継ぐ子（fork・再開）では、Pi は --models を使わずにセッションの model を使う。これも tier と違う
+ * model なので止め、資格情報の問題と取り違えないよう理由を分けて出す。
  *
  * pi-superagents は子 Pi を --no-extensions で起動し、tier 設定の superagents.extensions に挙げた拡張だけを
  * 読み込ませる。リポジトリの tier 設定（.devcontainer/pi-superagents/<launcher>.json）がこのファイルを挙げ、
@@ -65,6 +67,29 @@ function matches(pattern: string, model: ModelRef, providers: ReadonlySet<string
     return same(model.id, text);
 }
 
+const UNRESOLVED = [
+    "理由: 要求された model と、Pi がこの子で使う model が一致しません。Pi は --models を資格情報のある model の中からだけ解決し、解決できないと警告だけを出して別の model を選びます。",
+    "主な原因: 子 Pi の環境にその provider の資格情報が無い（未ログイン、環境変数の違い）、model ID の誤り、Pi の model catalog が古い。",
+    "確かめ方: ランチャーの外の素の pi で pi --list-models <provider> を実行すると、使える model を確かめられます。",
+];
+// 既存のセッションを引き継ぐ子（pi-superagents の fork、lineage-only の再開）では、Pi は --models で model を決めず、
+// セッションの model を復元する（復元できなければ設定の既定を使う）。資格情報の問題ではないので、理由を分けて出す。
+const CONTINUED = [
+    "理由: この子は既存のセッションを引き継いでいます（pi-superagents の fork、または前の実行の再開）。Pi は既存のセッションでは --models を使わず、セッションの model を使います（復元できなければ設定の既定の model）。",
+    "主な原因: fork（--fork）の子は親のセッションの model を引き継ぐので、tier の model が親の model と違うと止まります。再開では、前の実行の後に tier の model を変えると止まります。",
+    "対処: tier の model で動かすには fork を使わずに実行し直します。親と同じ model でよければ、その tier の model を親の model に合わせます。",
+];
+
+// 既存のセッションにメッセージがあるか。理由の選び分けだけに使い、読めなければ false にする（止めることは変えない）。
+function continuesSession(ctx: any): boolean {
+    try {
+        const branch: unknown = ctx.sessionManager?.getBranch?.();
+        return Array.isArray(branch) && branch.some((entry) => (entry as { type?: unknown } | undefined)?.type === "message");
+    } catch {
+        return false;
+    }
+}
+
 // 止める理由を返す（照合が通れば undefined）。ctx の値はそれぞれ 1 回だけ読む。
 function stopReasons(ctx: any, patterns: readonly string[]): string[] | undefined {
     const current: unknown = ctx.model;
@@ -74,17 +99,14 @@ function stopReasons(ctx: any, patterns: readonly string[]): string[] | undefine
         return ["Pi の API（ctx.modelRegistry.getAll）から、Pi の知っている model を読めません。", UPDATE_HINT];
     }
     if (current === undefined || current === null) {
-        return ["Pi が選んだ model: なし", "理由: Pi は使える model を選べませんでした。"];
+        return ["Pi が選んだ model: なし", ...UNRESOLVED];
     }
     if (!isModelRef(current)) {
         return ["Pi の API（ctx.model）から、Pi が選んだ model を読めません。", UPDATE_HINT];
     }
     const providers = new Set(all.map((model) => model.provider.toLowerCase()));
     if (patterns.some((pattern) => matches(pattern, current, providers))) return undefined;
-    return [
-        `Pi が選んだ model: ${label(current)}`,
-        "理由: 要求された model と、Pi がこの子で使う model が一致しません。Pi は --models を資格情報のある model の中からだけ解決し、解決できないと警告だけを出して別の model を選びます。",
-    ];
+    return [`Pi が選んだ model: ${label(current)}`, ...(continuesSession(ctx) ? CONTINUED : UNRESOLVED)];
 }
 
 function stop(patterns: readonly string[], reasons: readonly string[]): never {
@@ -92,8 +114,6 @@ function stop(patterns: readonly string[], reasons: readonly string[]): never {
         `${PREFIX} ERROR: 子 Pi が、要求された model と違う model で要求を送ろうとしています。最初の要求の前に終了します。`,
         `  要求された model（--models）: ${patterns.join(",")}`,
         ...reasons.map((reason) => `  ${reason}`),
-        "  主な原因: 子 Pi の環境にその provider の資格情報が無い（未ログイン、環境変数の違い）、model ID の誤り、Pi の model catalog が古い。",
-        "  確かめ方: ランチャーの外の素の pi で pi --list-models <provider> を実行すると、使える model を確かめられます。",
     ];
     process.stderr.write(lines.map((line) => `${line}\n`).join(""));
     process.exit(1);

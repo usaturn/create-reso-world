@@ -28,6 +28,9 @@ Pi 本体（`/usr/local/share/nvm/versions/node/v24.22.1/lib/node_modules/@earen
 9. Pi の拡張の自動探索は `~/.pi/agent/extensions/*.ts` と、`index.ts`（または manifest）を持つサブディレクトリだけを読む（`dist/core/extensions/loader.js` の `discoverExtensionsInDir`）。`~/.pi/agent/extensions/subagent.d/*.ts` は親の Pi に読み込まれない
 10. usaturn/agent-workspace の setup が置いたと見られる `~/.pi/agent/extensions/subagent.d/pi-superagents-tier-guard.ts` がある（同リポジトリの #765・#773）。共有の `~/.pi` の `subagent.d/pigt/config.json` は 2026-11-04 22:40 に、この拡張を `superagents.extensions` に挙げた内容へ置き換わっていた。この拡張は `ctx.scopedModels` に名指しの model があるかを見るので、bare のパターンが部分一致で別の model に解決された場合（事実 2）は通す。この拡張を Pi 1.5.0 で試し、事実 3 の要求を送る前に止めることを確かめた
 11. このリポジトリの 13 のランチャーの tier 設定（`.devcontainer/pi-superagents/<launcher>.json`）は `superagents.extensions` を持たない。`setup_pi_superagents.zsh --if-absent`（rebuild の経路）は既存のランチャー別の設定を置き換えない
+12. （全体レビューで判明）既存のセッションにメッセージがあると、Pi は `--models` で model を決めず、セッションの `model_change` の model を復元する。復元した model に資格情報が無ければ、設定の既定の model を使う（`dist/main.js` の `!hasExistingSession`、`dist/core/sdk.js`）。pi-superagents の fork の子（`--fork`。`createBranchedSession` で親のセッションを分岐する）は、親の model を引き継ぎ、tier の `--models` は効かない。照合の前は、fork の子は黙って親の model で動いていた
+13. tier を使う同梱の agent（`sp-implementer`・`sp-review`・`sp-debug`・`sp-research`・`sp-recon`）の既定の session-mode は `lineage-only` で、子のセッションはヘッダーだけ（メッセージなし）で始まるので、`--models` で model が決まる（`seedLineageOnlySessionFile`）。`resumeSession` による再開は、前の実行のメッセージを持つ。この環境の親のセッションの記録では、fork の子は 4 件、lineage-only は 1,140 件だった
+14. 拡張の `ctx.sessionManager` は `getBranch()` を持つ（`ReadonlySessionManager`）。`buildSessionContext()` は持たない
 
 ## 決定記録
 
@@ -54,6 +57,14 @@ Pi 本体（`/usr/local/share/nvm/versions/node/v24.22.1/lib/node_modules/@earen
   - thinking も照合する: Issue の範囲は model。Pi は対応しない thinking を下げるが（事実 8）、`pigt`・`pidid` は起動前に thinking の対応を確かめている（#305）。範囲外とし、持ち越し候補に書く
 - 選択理由: 照合する値を「最初の要求に使う model」にすると、フォールバックも部分一致も同じ規則で捉えられる。provider を名指ししたパターンは provider まで一致させるので、同じ ID を持つ別の provider（OpenRouter の `openai/...` など）への切り替えも止まる
 - 委任指示: issue-to-pr の推奨案での委任
+
+### D2a. 既存のセッションを引き継ぐ子（fork・再開）の扱い（全体レビューで追加）
+
+- 選択した案: 既存のセッションを引き継ぐ子も、新しい子と同じく `ctx.model` を `--models` と照合し、違えば止める。止めるときは、`ctx.sessionManager.getBranch()` に `message` があれば、資格情報の理由ではなく「既存のセッションを引き継いでいるので Pi は `--models` を使わずセッションの model を使う」という理由と、対処（fork を使わずに実行し直す、tier の model を親に合わせる）を出す。`getBranch()` を読めなければ資格情報の理由を出す（止めることは変えない）
+- 検討した別案: 既存のセッションでは照合しない（対象外にする）。fork の子は今までどおり親の model で動く。復元した model に資格情報が無く設定の既定に切り替わる場合（事実 12）も見逃す
+- 選択理由: Issue の要件は「要求した model と解決した model を照合し、違えば止める」で、fork の子が tier と違う親の model で黙って動くのは、#305・#307・#310 で止めてきた「利用者が tier に選んでいない model で子が動く」と同じ種類の問題になる。tier を使う同梱の agent の既定（lineage-only）は新しいセッションで始まるので（事実 13）、止まるのは明示した fork と、tier を変えた後の再開だけで、どちらも理由と対処を出す。fork の使用は記録で 4 件と少ない
+- 対価: fork を使う実行は、tier の model が親の model と違う tier の子で止まる（今までは親の model で動いていた）
+- 委任指示: issue-to-pr の推奨案での委任（全体レビューの Important の指摘「扱いを明示的に決めて書く」への対応）
 
 ### D3. 止めたときの出力と記録
 
@@ -85,12 +96,14 @@ Pi 本体（`/usr/local/share/nvm/versions/node/v24.22.1/lib/node_modules/@earen
 - 書く:
   - 照合の拡張（実際の Pi・偽の provider・ローカルの偽のサーバー、`env -i` で資格情報を持ち込まない）: 名指しの provider に資格情報が無く、Pi が同じ ID を持つ別の provider の model を選ぶとき、終了コード 1 で、偽のサーバーへの要求が 0 件で、stderr に要求された model と選ばれた model が出ること。通る例として、要求どおりに解決できる model では偽のサーバーに要求が届くこと。壊れると、子が黙って別の model・別の provider に要求を送る（S）。Pi の更新で `session_start` の前に要求を送るようになったときも、このテストが気付く
   - 照合の拡張の例外の経路: `ctx` の読み取りが資格情報らしい文字列を含む例外を投げても、stderr にその文字列が出ず、終了コード 1 で止まること。壊れると、秘密が `run-history.jsonl` などの実行記録に残る（S）
-  - ランチャーの起動前の検査: tier はそろっているが `superagents.extensions` に照合の拡張が無い設定では、bwrap に進まず終了コード 1 になること。通る例は既存のテスト（テスト用の設定に照合の拡張を足す）。壊れると、照合が無いまま子が動く（S）
+  - ランチャーの起動前の検査: tier はそろっているが `superagents.extensions` に照合の拡張が無い設定（キーが無い設定と、別の拡張だけを挙げた設定）では、bwrap に進まず終了コード 1 になること。通る例は BOM 付き・他のキーあり・絶対パスで挙げた設定。壊れると、照合が無いまま子が動く（S）
 - 書かない:
   - setup が照合の拡張を置くこと・リポジトリの tier 設定が挙げること（F。欠けるとランチャーの起動前の検査が止める＝ L）
+  - 照合の拡張のファイルが無いときにランチャーが止まること（L。ランチャーの検査が壊れても、pi-superagents が子の起動を `Extension path ... does not exist` のエラーで拒む）。全体レビューの指摘で、一度書いたテストから外した
+  - 既存のセッションを引き継ぐ子で理由を出し分けること（止めること自体は新しい子と同じ規則で、理由の文言は止まった後に見えるので L）。一時的なテストで確かめた
   - glob・bare のパターン・thinking の接尾辞の個別の規則（同じ守りの組み合わせ＝ D）
   - Pi の API を読めないときに止まること（全ての子が止まるので気付ける＝ L）
-- 既存のテストの調整: tier の欠けを確かめるテスト（`test_incomplete_tiers_fail_closed`）の設定にも照合の拡張を足し、照合の検査ではなく tier の検査で止まることを確かめ続ける
+- 既存のテストの調整: tier の欠けを確かめるテスト（`test_incomplete_tiers_fail_closed`）の設定にも照合の拡張を足し、照合の検査ではなく tier の検査で止まることを確かめ続ける。ランチャーを起動する Python のテスト（`tools/devenv_migration/tests/test_pi_vertex_launchers.py`・`test_pi_provider_setup.py`）の準備にも、照合の拡張の記載とファイルを足す（新しい起動前の検査が、準備の足りない設定を止めたため）
 - 委任指示: issue-to-pr の推奨案での委任
 
 ### D7. 実行方式
@@ -108,7 +121,7 @@ Pi 本体（`/usr/local/share/nvm/versions/node/v24.22.1/lib/node_modules/@earen
 
 ## 受け入れ基準
 
-1. ランチャーの tier 設定で起動した子 Pi が、`--models` の model と違う model を選ぶとき（資格情報が無い、ID の誤り、同じ ID の別の provider、部分一致）、最初の要求の前に終了コード 1 で終わる。pi-superagents の実行記録（`run-history.jsonl` の error、`meta.json` の error、親の結果）に、照合の拡張の出力が残る
+1. ランチャーの tier 設定で起動した子 Pi が、`--models` の model と違う model を選ぶとき（資格情報が無い、ID の誤り、同じ ID の別の provider、部分一致、既存のセッションの model の引き継ぎ）、最初の要求の前に終了コード 1 で終わる。pi-superagents の実行記録（`run-history.jsonl` の error、`meta.json` の error、親の結果）に、照合の拡張の出力が残る
 2. 要求どおりの model に解決できる子 Pi は、今までどおり動く
 3. 止めたときの出力は、要求された model・Pi が選んだ model・理由を含み、例外の内容・資格情報・タスクの本文を含まない
 4. 13 のランチャーのリポジトリの tier 設定が照合の拡張を挙げ、`setup_pi_superagents.zsh` が通常と `--if-absent` のどちらでも照合の拡張を置く
@@ -120,13 +133,22 @@ Pi 本体（`/usr/local/share/nvm/versions/node/v24.22.1/lib/node_modules/@earen
 
 - 動作環境: Dev Container（Ubuntu 26.04 LTS）、Pi 1.5.0、pi-superagents 1.14.4、Node.js 24、zsh、bwrap。子 Pi は pi-superagents が `--mode json -p` で起動する
 - 実入力: 子 Pi の argv の `--models` は、tier 設定の `model` と `thinking` から pi-superagents が作る 1 件（`openai-codex/gpt-6.1-sol:xhigh`、`deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017:high`、`commandcode/meta/muse-spark-1.3-contributor:max` のように、ID が `/` を含むものがある）。ランチャーの tier 設定は利用者が編集しうる JSON（BOM、`superagents` の他のキー、拡張が書き足すキーを含む）
-- 防御範囲: 対象はランチャーから起動した Pi の pi-superagents の子で、`--models` を渡されたもの。対象外は、`--models` の無い子（tier を使わない agent）、`--model` で起動した Pi、thinking の違い（事実 8）、要求の時点で起きる資格情報のエラー（事実 7。別の model には切り替わらない）、ランチャーを通さない Pi（#307 の停止用の設定が pi-superagents を止める）、agent-workspace の setup が共有の `~/.pi` のランチャー別の設定を置き換えること
+- 防御範囲: 対象はランチャーから起動した Pi の pi-superagents の子で、`--models` を渡されたもの（既存のセッションを引き継ぐ fork・再開の子を含む。D2a）。対象外は、`--models` の無い子（tier を使わない agent）、`--model` で起動した Pi、thinking の違い（事実 8）、要求の時点で起きる資格情報のエラー（事実 7。別の model には切り替わらない）、ランチャーを通さない Pi（#307 の停止用の設定が pi-superagents を止める）、agent-workspace の setup が共有の `~/.pi` のランチャー別の設定を置き換えること
 
 ## 対象外
 
 - pi-superagents・Pi 本体の変更（Issue の範囲外）
 - thinking の照合（持ち越し候補。Pi は対応しない thinking を黙って下げる。事実 8）
 - 共有の `~/.pi` を agent-workspace と使い合うときの、ランチャー別の設定の取り合い（agent-workspace の setup が置き換えた設定は、このリポジトリのランチャーが D4 の検査で止め、setup の実行を案内する）
+
+## 全体レビューの判断
+
+base `edd4ffd6` から `5d123b3c` までを、新しいサブエージェント（Opus、読み取りだけ）がレビューした（判定 With fixes）。
+
+- Important: 既存のセッションを引き継ぐ子（fork）を、資格情報の問題という誤った理由で止める。扱いが Spec・README に無い → 採用。D2a のとおり止めることを明示し、理由と対処を出し分け、README に書いた
+- Minor: 照合の拡張のファイルが無い場合のテストは L に当たり書きすぎ → 採用。テストから外した（ヘルパの検査は、早く分かりやすく止めるために残す）
+- Minor: ヘルパの BOM を外す正規表現が見えない U+FEFF の文字になっている → 採用。追加した箇所を `﻿` にした（既存の `pi_launcher_require_tiers` の同じ書き方は範囲外として変えない）
+- 見送りの判断: `superagents.extensions` の相対パスの解決基準の違い（運用で使わず、ずれても起動の拒否か pi-superagents のエラーになる）、「素の pi で `pi --list-models`」の案内が子の環境と違う provider があること（確かめ方の入口として残す）、子の中での `session_start` の再発火（print モードの子では起きない）。どれも変えない
 
 ## マージの後でなければ確かめられない項目
 

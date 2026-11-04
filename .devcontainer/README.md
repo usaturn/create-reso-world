@@ -1561,7 +1561,7 @@ Pi は、子 Pi に渡された `--models <provider>/<id>:<thinking>` を、資�
 
 各ランチャーの tier 設定は、`superagents.extensions` に `~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts` を挙げる。pi-superagents は子 Pi を `--no-extensions` で起動し、ここに挙げた拡張だけを読み込ませる。この拡張（リポジトリの `.devcontainer/pi-superagents-model-guard.ts`。`setup_pi_superagents.zsh` が通常と `--if-absent` のどちらでも置き直す）は、子 Pi の `session_start` で、Pi が最初の要求に使う model を `--models` と照合する。
 
-- 一致の規則: 末尾の `:<thinking>` を外す。最初の `/` の前が Pi の知っている provider なら provider と ID の両方を比べ（`deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` の ID は `deepseek-ai/DeepSeek-V4.1-Flash-1017`）、それ以外はパターン全体を ID と比べる。大文字小文字は区別しない。glob は一致しないものとする
+- 一致の規則: 末尾の `:<thinking>` を外す。最初の `/` の前が Pi の知っている provider なら provider と ID の両方を比べ（`deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` の ID は `deepseek-ai/DeepSeek-V4.1-Flash-1017`）、それ以外はパターン全体を ID と比べる。大文字小文字は区別しない。glob は一致しないものとする。Pi は部分一致でも model を選ぶ（`sol` が `gpt-6.1-sol` になるなど）が、照合は部分一致を認めないので、subagent ツールで model を短い名前で上書きした子も止まる。上書きするときは正確な ID か `provider/id` で指定する
 - 一致しない、Pi が model を選べない、Pi の API から読めない、照合の途中で例外が起きた場合は、要求を送る前に終了コード 1 で終わる。資格情報を解決し直さないので、key のコマンドの実行は増えない
 - 拡張は `subagent.d/` の直下にあり、Pi の自動探索の対象外なので、親の Pi（ランチャーで起動した TUI）には読み込まれない
 
@@ -1576,6 +1576,8 @@ Warning: No models match pattern "openai/gpt-5.6-sol:high"
 ```
 
 止まったら、ランチャーの外の素の `pi` で `pi --list-models <provider>` を実行し、tier の model が使えるかを確かめる。資格情報が無ければログイン・環境変数の設定（各ランチャーの節）を行い、ID の誤りなら tier 設定を直し、catalog が古ければ `pi update --models` を実行する。別の model で続けたいときは、tier 設定を利用者が編集する。
+
+既存のセッションを引き継ぐ子（pi-superagents の fork（`--fork`）や、前の実行の再開）では、Pi は `--models` を使わずにセッションの model を使う（復元できなければ設定の既定の model）。fork の子は親の model を引き継ぐので、tier の model が親の model と違うと照合で止まり、理由に「既存のセッションを引き継いでいます」と出る。照合の前は、fork の子は黙って親の model で動いていた。tier の model で動かすには fork を使わずに実行し直す。親と同じ model でよければ、その tier の model を親の model に合わせる。tier を使う同梱の agent の既定（lineage-only）は新しいセッションで始まるので、`--models` で照合される。
 
 ランチャーは起動の前に、tier 設定が照合の拡張を挙げていること（`~` は `HOME` で展開する。絶対パスでもよい）と、拡張のファイルが在ることを確かめ、無ければ起動せずに案内を出す。rebuild（`--if-absent`）は既存のランチャー別の設定を置き換えないので、#310 より前からの環境では、ランチャーの外のシェルで、リポジトリのルートで次を一度実行してから、ランチャーを起動し直す。既存のランチャー別の設定は `config.json.bak.YYYYMMDD-HHMMSS` へ退避される。
 

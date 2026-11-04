@@ -24,6 +24,9 @@ DEVCONTAINER = Path(__file__).resolve().parents[3] / ".devcontainer"
 LAUNCHERS = ("pigemf", "pigemp", "pigema")
 # ヘルパは起動前に cheap / balanced / max の model がそろっているかを確かめる（#307）。準備はそろった tier を置く。
 TIERS = {tier: {"model": f"distinct/{tier}", "thinking": "high"} for tier in ("cheap", "balanced", "max")}
+# ヘルパは起動前に、tier 設定が子 Pi の model の照合の拡張を挙げ、そのファイルが在ることも確かめる（#310）。
+MODEL_GUARD = ".pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"
+SUPERAGENTS = {"extensions": [f"~/{MODEL_GUARD}"], "modelTiers": TIERS}
 LAUNCHER = "pigemf"
 
 
@@ -37,7 +40,8 @@ def sandbox(tmp_path: Path) -> tuple[Path, Path, Path]:
     for launcher in LAUNCHERS:
         config = home / f".pi/agent/extensions/subagent.d/{launcher}/config.json"
         config.parent.mkdir(parents=True)
-        config.write_text(json.dumps({"superagents": {"modelTiers": TIERS}}) + "\n")
+        config.write_text(json.dumps({"superagents": SUPERAGENTS}) + "\n")
+    (home / MODEL_GUARD).write_text("// model guard placeholder\n")
     # Match the installed npm Pi layout, including the bundled metadata format.
     real_pi = shutil.which("pi")
     assert real_pi is not None
@@ -286,7 +290,7 @@ def test_real_namespace_masks_auth_for_parent_and_child_preserving_saved_files(
     shared.parent.mkdir(parents=True, exist_ok=True)
     shared.write_text('{"superagents":{"modelTiers":{"shared":"must not be used"}}}')
     config = home / f".pi/agent/extensions/subagent.d/{launcher}/config.json"
-    config.write_text(json.dumps({"superagents": {"modelTiers": TIERS}}))
+    config.write_text(json.dumps({"superagents": SUPERAGENTS}))
     before = {path: path.read_bytes() for path in home.rglob("*") if path.is_file()}
     before.update({path: path.read_bytes() for path in directory.rglob("*") if path.is_file()})
     _real_namespace_probe(sandbox)

@@ -347,7 +347,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 try {
     const [file, home, guard] = process.argv.slice(1);
-    const extensions = JSON.parse(fs.readFileSync(file, "utf8").replace(/^﻿/, ""))?.superagents?.extensions;
+    const extensions = JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, ""))?.superagents?.extensions;
     const expand = (entry) => entry === "~" ? home : entry.startsWith("~/") ? path.join(home, entry.slice(2)) : entry;
     process.exit(Array.isArray(extensions) &&
         extensions.some((entry) => typeof entry === "string" && path.resolve(expand(entry)) === path.resolve(guard)) ? 0 : 1);
