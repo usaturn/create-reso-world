@@ -2,8 +2,9 @@
 
 ## 管理
 
-- 状態: draft
+- 状態: completed（PR #311 の pr-review-fix-loop のサイクル 1 で修正不要と判断。下の「PR #311 のレビューの判断」）
 - Issue: https://github.com/usaturn/create-reso-world/issues/309（#307 の持ち越し。PR #308 で範囲外とした 1 点目）
+- PR: https://github.com/usaturn/create-reso-world/pull/311
 - 実行許可: 利用者の指示 `/issue-to-pr #309 --merge`。issue-to-pr スキルにより、通常の設計判断を推奨案で決め、検証・commit・push・PR の作成まで続ける。`--merge` により、PR の作成後に pr-review-fix-loop を回し、修正不要と確かめられたら `finalize.py` がマージと Issue の更新を行う
 - この文書の commit は実行許可の記録であり、内容の承認（`approved`）ではない
 - base の移動: 2026-11-04 19:18Z、push の前の確認で main が `9cc638c9` から `2d4f275a`（PR #302・#303 のマージ。`docs/superpowers/` の Markdown 7 ファイルの追加だけ）へ進んでいたので停止した。利用者の指示「修正不要でマージをしていい」で、branch を `2d4f275a` に載せ直し（rebase。重なるファイルは無い）、検証の入口をやり直して続けた
@@ -113,3 +114,43 @@ Issue の「確かめた事実」に加えて、名前付きのテスト用セ�
 - 事実 2〜6・10 は Herdr 0.9.5 の観測で、公開された仕様ではない。Herdr の更新で連携が自分で `resume_argv`（`pi --session`）を報告するようになり、その `seq` が拡張より大きいと、再開は Pi そのものに戻る（#308 の停止のメッセージで気付ける）
 - 事実 4（状態の報告とセッションの報告の `seq` を別に比べる）が Herdr の更新で変わると、拡張の大きい `seq` のために、ランチャーの Pi のサイドバーの working / idle が更新されなくなる。そのときは `~/.pi/agent/extensions/herdr-launcher-resume.ts` を外して確かめる
 - セッションを切り替えた後の報告が届かない（Herdr が約 18 秒応答しない、`resume_not_accepted` 以外で拒否する、パスも ID も `resume_argv` の検証を通らない）と、前のセッションの再開コマンドが残る。拡張の大きい `seq` のために連携のパスの報告も捨てられるので、復元では前のセッションがランチャーで開く（この変更の前は、同じ場合に `pi --session <今のパス>` が開いた）。前の会話が画面に出るので気付け、`/resume` で開き直せる。起きるのは稀なので受け入れる（PR のブランチ全体のレビューの Minor）
+
+## PR #311 のレビューの判断（サイクル 1）
+
+- 実行許可: issue-to-pr の `--merge`（利用者の指示 `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/309 --merge`）による pr-review-fix-loop と review-fix-planning の完遂。修正不要なら `finalize.py` がマージと Issue の更新を行う
+- planner: claude-opus-5-5（claude-code）。サイクル 1、レビュー対象の HEAD `793ee8942c542e213f309be8993ef351bf372840`、base `500a43ba47a2a926f11a3c6379ab4a4932484f3f`
+- 結論: 2（修正不要としてマージ）。修正・自己レビュー（`run_roles.py`）は行っていない
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `Grok-4.7.md` | Grok 4.7 | cursor | `793ee8942c54` | はい | Approve（指摘 0） |
+| `SWE-2-Max.md` | SWE-2 Max | devin | `793ee8942c54` | はい | Approve（指摘 0） |
+| `deepseek-deepseek-v4.1-flash.md` | deepseek/deepseek-v4.1-flash | pi | `793ee8942c54` | はい | Approve（Low 1・Info 1） |
+
+確認済みの一覧: `reviews/usaturn/create-reso-world/#311-fix-issue-309-herdr-pi-resume/verified/793ee8942c54.json`（review-verify の mode cycle。confirmed 2 / not_reproduced 0 / unverified 0）
+
+### 指摘の分類（解消済み 0 / 対応する 0 / 対応しない 2）
+
+| 判断 ID | 出典 | 区分 | 根拠 |
+| --- | --- | --- | --- |
+| `deepseek-deepseek-v4.1-flash#L-1@793ee8942c54` | deepseek L-1（確認済みの V-1） | 対応しない | setup は拡張を `~/.pi/agent/extensions/` にだけ置き、Pi と Herdr の Pi 連携は `$PI_CODING_AGENT_DIR/extensions/` を使うので、`PI_CODING_AGENT_DIR` を既定以外（HOME の外の絶対パス、`~/custom-agent`、相対の別の値）にすると拡張が読まれない（隔離 worktree と一時 HOME で 7 通りの値を実行して再現）。その構成では復元が変更前と同じく Pi そのものになり、#308 の停止のメッセージが出る。黙った model やセッションの切り替え・データの消失・誤った対象の操作は起きず、致命的ではない。この Dev Container の既定では `PI_CODING_AGENT_DIR` を設定しない。条件と回避方法を PR 本文の既知の制限に書いた |
+| `deepseek-deepseek-v4.1-flash#I-1@793ee8942c54` | deepseek I-1（確認済みの V-2） | 対応しない | `.devcontainer/README.md:1523`（#307 の経緯の段落）と setup の停止のメッセージは、Herdr の復元を一律にランチャーを通さない例に挙げる。直後の段落と「Herdr の復元とランチャー」が今の条件を述べ、停止のメッセージの案内（ランチャーで起動し直す）も正しいので、文書の古さだけで致命的ではない |
+
+### 要件と検証の対応
+
+この PR の約束（D1〜D6 と受け入れ基準）は、3 人のレビュアーが現行の HEAD で関連するテストと変種（TUI でない Pi・環境変数の欠け・アポストロフィを含むパス・ソケットの不通・`invalid_resume_argv`）を実行して確かめ、review-verify も候補の範囲で確かめた。修正が無いので、新しい経路の表は作らない。共有条件（環境変数の名前 `PI_SUPERAGENTS_LAUNCHER`、拡張のファイルの名前）は Plan の Task 2 の実機の確認で照合済み。
+
+### 検証
+
+- 同じ HEAD `793ee894` の検証の記録を再利用した（サイクル 1 で修正不要、同じ HEAD、検証の前後とも `git status --porcelain` は空、終了コードはすべて 0、ログあり）。base は `500a43ba` のまま進んでおらず、head の祖先なので head だけのツリーで足りる
+  - `bash .devcontainer/run-tests.bash`: exit 0（25 test(s) PASS）
+  - `bash scripts/check-layout.sh`: exit 0
+  - `uv run pytest tests/skills .agents/skills .agents/scripts tools`: exit 0（1257 passed）
+
+### 持ち越し
+
+- 非既定の `PI_CODING_AGENT_DIR` で拡張を置く場所（L-1）。直すなら、setup が拡張だけを解決した `PI_CODING_AGENT_DIR` の `extensions/` にも置く
+- Plan の「完了」に記録した Minor（C1 制御文字、README の古い表現、テストのファイルの実行権限など）
+- 未確認: 既定の Herdr セッションでのサーバーの再起動を伴う復元（マージの後に確かめる。PR 本文の「マージの後に確かめる項目」）
