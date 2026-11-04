@@ -13,6 +13,9 @@ set -euo pipefail
 #   ~/.pi/agent/extensions/subagent.d/<launcher>/  ランチャー別の config.json
 #   ~/.local/bin/pi-superagents-exec.zsh           ランチャー共通ヘルパ
 #   ~/.pi/agent/extensions/herdr-launcher-resume.ts  Herdr の復元でランチャーから再開させる Pi の拡張（#309）
+#   ~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts
+#                                                  子 Pi が tier と違う model で要求を送る前に止める Pi の拡張（#310）。
+#                                                  ランチャー別の config.json の superagents.extensions が挙げる
 #
 # リポジトリの .devcontainer/pi-superagents/<launcher>.json が正。tier 表を
 # 変更したときは、このスクリプトを実行して実環境へ反映する。
@@ -30,6 +33,7 @@ readonly REPO_ROOT="${0:A:h}/.."
 readonly SOURCE_DIR="${REPO_ROOT}/.devcontainer/pi-superagents"
 readonly HELPER_SOURCE="${REPO_ROOT}/.devcontainer/pi-superagents-exec.zsh"
 readonly RESUME_EXTENSION_SOURCE="${REPO_ROOT}/.devcontainer/pi-herdr-launcher-resume.ts"
+readonly MODEL_GUARD_SOURCE="${REPO_ROOT}/.devcontainer/pi-superagents-model-guard.ts"
 
 #
 # bind 先は必ず HOME から組み立てる。pi-superagents は os.homedir() を直接
@@ -148,6 +152,12 @@ print -r -- "helper: ${BIN_DIR}/pi-superagents-exec.zsh"
 # ヘルパと同じく毎回更新する（--if-absent でも）。ヘルパが渡すランチャー名を読む拡張なので、両者の版をそろえる。
 install -m 0644 "${RESUME_EXTENSION_SOURCE}" "${EXT_DIR}/herdr-launcher-resume.ts"
 print -r -- "extension: ${EXT_DIR}/herdr-launcher-resume.ts"
+
+# ヘルパと同じく毎回更新する（--if-absent でも）。ヘルパが起動前に在ることを求め、--if-absent で残る既存の設定も挙げうる。
+# subagent.d/ の直下のファイルは Pi の自動探索の対象外なので、親の Pi には読み込まれない。
+mkdir -p "${LAUNCHER_ROOT}"
+install -m 0644 "${MODEL_GUARD_SOURCE}" "${LAUNCHER_ROOT}/pi-superagents-model-guard.ts"
+print -r -- "extension: ${LAUNCHER_ROOT}/pi-superagents-model-guard.ts"
 
 typeset launcher source dest
 for launcher in "${LAUNCHERS[@]}"; do

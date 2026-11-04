@@ -1,5 +1,6 @@
 {
   "superagents": {
+    "extensions": ["~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"],
     "modelTiers": {
       "cheap": { "model": "google-vertex/gemini-3.8-flash", "thinking": "high" },
       "balanced": { "model": "google-vertex/gemini-3.8-flash", "thinking": "high" },

@@ -344,7 +344,11 @@ def test_launcher_pins_same_directory_before_executing_pi(tmp_path: Path) -> Non
     config = home / ".pi/agent/extensions/subagent.d/pigo/config.json"
     config.parent.mkdir(parents=True)
     # ヘルパは起動前に cheap / balanced / max の model がそろっているかを確かめる（#307）。
-    config.write_text(json.dumps({"superagents": {"modelTiers": {t: f"test/{t}" for t in ("cheap", "balanced", "max")}}}))
+    # 子 Pi の model の照合の拡張を挙げ、そのファイルも置く（#310）。
+    guard = home / ".pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"
+    guard.write_text("// model guard placeholder\n")
+    config.write_text(json.dumps({"superagents": {"extensions": [str(guard)],
+        "modelTiers": {t: f"test/{t}" for t in ("cheap", "balanced", "max")}}}))
     (tmp_path / "agent").mkdir()
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()

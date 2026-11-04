@@ -916,9 +916,10 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
 - `.devcontainer/pi-superagents/<launcher>.json` → `~/.pi/agent/extensions/subagent.d/<launcher>/config.json`、
   `.devcontainer/pi-superagents-exec.zsh` → `~/.local/bin/pi-superagents-exec.zsh`、
   共有の bind 先 `~/.pi/agent/extensions/subagent/config.json` の停止用の設定、
-  `.devcontainer/pi-herdr-launcher-resume.ts` → `~/.pi/agent/extensions/herdr-launcher-resume.ts`。
-  `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 4 種を配置する
-  （詳細は後述の「pi-superagents のランチャー別 model tier」と「Herdr の復元とランチャー」を参照）
+  `.devcontainer/pi-herdr-launcher-resume.ts` → `~/.pi/agent/extensions/herdr-launcher-resume.ts`、
+  `.devcontainer/pi-superagents-model-guard.ts` → `~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts`。
+  `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 5 種を配置する
+  （詳細は後述の「pi-superagents のランチャー別 model tier」「子 Pi の model の照合」「Herdr の復元とランチャー」を参照）
 
 `~/.local/bin` への PATH は `zshrc.txt` が通すため、別途の設定は不要である。
 
@@ -1090,9 +1091,10 @@ OAuth 情報は `~/.pi/agent/auth.json` に保存される。`~/.pi` は Dev Con
 `pigs` の `cheap` tier の子 Pi は OpenCode Go の `deepseek-v4.1-flash` を
 使う。子 Pi が使う OpenCode Go の資格情報は `setup_pi_opencode_go.zsh` が
 `auth.json` に書いた api_key または `OPENCODE_API_KEY` で解決され、`pixg` と
-同じく起動前の確認は行わない。`auth.json` に資格情報が無い環境では `cheap`
-tier の子 Pi が provider 認証エラーになるため、必要なら `OPENCODE_API_KEY` を
-設定して `zsh scripts/setup_pi_opencode_go.zsh` を実行する。
+同じく起動前の確認は行わない。資格情報が無い環境では、`cheap` tier の子 Pi は
+後述の「子 Pi の model の照合」で、要求を送る前に止まる（照合が無いと、Pi は警告だけを出して
+別の model に要求を送る）。必要なら `OPENCODE_API_KEY` を設定して
+`zsh scripts/setup_pi_opencode_go.zsh` を実行する。
 
 GPT-6.1 Sol のため Pi 0.99.1 以上が必要（GPT-6 Astra / Luna もこの版に含まれる）。利用前に `pi --version` を確認し、
 ログイン後に各モデルが `openai-codex` 行にあることを確認する。
@@ -1145,7 +1147,10 @@ Pi 本体が古い場合は `pi update` も行う。単なる catalog 更新は 
 読み込むのは bundled catalog、保存済み `models-store.json`、`models.json` と tier 設定のメタデータだけで、
 認証コマンド・availability API・ネットワーク更新は実行しない。
 親または子の exact ID が無い、thinking が未対応、設定が不正・読み取れない場合は、別モデルへ切り替えず停止する。
-利用者が明示編集した、解決可能で thinking も対応する tier は受け入れる。新しい tier-guard 拡張は追加しない。
+利用者が明示編集した、解決可能で thinking も対応する tier は受け入れる。
+この起動前の検査は認証を解決しないので、子 Pi が実行時に資格情報を解決できずに別の model へ切り替わることは見られない。
+それは全ランチャーで、子 Pi の中の照合（後述の「子 Pi の model の照合」。#310）が最初の要求の前に止める。
+起動前の検査（子を起動する前に catalog・thinking の不足を案内する）と、子 Pi の中の照合（資格情報を解決した後の Pi の選択を見る）は、互いに代わらない。
 
 この検査には npm で導入した Pi の内部モジュール配置が必要である。配置や API が非互換になっても推測して起動せず停止する。
 その場合は Pi 本体とリポジトリのヘルパを対応する版へ更新し、`setup_pi_superagents.zsh --if-absent` で配置し直す。
@@ -1514,7 +1519,7 @@ tier を変更するときは、リポジトリの `.devcontainer/pi-superagents
 zsh scripts/setup_pi_superagents.zsh
 ```
 
-`bwrap` が無い、ランチャー用の設定が無い、または設定の `cheap` / `balanced` / `max` に model（`provider/model` の形）がそろっていない場合、ランチャーは起動せずに案内を出す。共有設定や同梱の既定 model へ暗黙にフォールバックすると tier が警告なく混線するため。
+`bwrap` が無い、ランチャー用の設定が無い、または設定の `cheap` / `balanced` / `max` に model（`provider/model` の形）がそろっていない場合、ランチャーは起動せずに案内を出す。共有設定や同梱の既定 model へ暗黙にフォールバックすると tier が警告なく混線するため。設定の `superagents.extensions` が子 Pi の model の照合を挙げていない、または照合の拡張が無い場合も、同じく起動しない（後述の「子 Pi の model の照合」）。
 
 #### ランチャーを通さない Pi と同梱の既定 model
 
@@ -1546,10 +1551,49 @@ pigs -c   # 同じディレクトリの最新のセッションでよいとき
 - 親の model: 親のセッションのファイルの `model_change`（再開では増えない）
 - Herdr の復元の時刻: `~/.config/herdr/herdr-server.log` の `session restore evaluated`
 - 同じ親セッションの中で、cheap tier の子が `minimax-m3`、balanced tier の子が `glm-5.3-flash` になっていれば、ランチャーの設定ではなく同梱の既定を読んでいる
+- 子 Pi の model の照合で止まった子: 上の `run-history.jsonl` の error、`meta.json` の `error`、親の結果に、`[pi-superagents-model-guard]` で始まる出力が残る（次の「子 Pi の model の照合」）
 
-次は扱っていない（#307 の持ち越し）。
+子 Pi が tier の model を解決できない（catalog に無い、資格情報が無いなど）ときに別の model へ切り替わるのは、次の「子 Pi の model の照合」が最初の要求の前に止める（#307 の持ち越し。#310）。
 
-- 子 Pi が tier の model を解決できない（catalog に無い、資格情報が無いなど）ときに、別の model へ切り替わるのを最初の要求の前に止めること。`pigt`・`pidid` の起動前の検査（前述）のほかは確かめない
+#### 子 Pi の model の照合
+
+Pi は、子 Pi に渡された `--models <provider>/<id>:<thinking>` を、資格情報のある（使える）model の中からだけ解決する。解決できないと `Warning: No models match pattern "..."` を出すだけで、既定の選び方で別の model を選び、そのまま要求を送って成功として終わる。2026-11-04 には、max tier の子が `openai/gpt-5.6-sol`（この環境に `openai` の資格情報は無い）を要求され、実際には `gpt-6.1-sol` で動いた。親のシェルにある別の provider の資格情報（`GOOGLE_CLOUD_API_KEY` など）も、黙ってフォールバック先になる（#310）。
+
+各ランチャーの tier 設定は、`superagents.extensions` に `~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts` を挙げる。pi-superagents は子 Pi を `--no-extensions` で起動し、ここに挙げた拡張だけを読み込ませる。この拡張（リポジトリの `.devcontainer/pi-superagents-model-guard.ts`。`setup_pi_superagents.zsh` が通常と `--if-absent` のどちらでも置き直す）は、子 Pi の `session_start` で、Pi が最初の要求に使う model を `--models` と照合する。
+
+- 一致の規則: 末尾の `:<thinking>` を外す。最初の `/` の前が Pi の知っている provider なら provider と ID の両方を比べ（`deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` の ID は `deepseek-ai/DeepSeek-V4.1-Flash-1017`）、それ以外はパターン全体を ID と比べる。大文字小文字は区別しない。glob は一致しないものとする。Pi は部分一致でも model を選ぶ（`sol` が `gpt-6.1-sol` になるなど）が、照合は部分一致を認めないので、subagent ツールで model を短い名前で上書きした子も止まる。上書きするときは正確な ID か `provider/id` で指定する
+- 一致しない、Pi が model を選べない、Pi の API から読めない、照合の途中で例外が起きた場合は、要求を送る前に終了コード 1 で終わる。資格情報を解決し直さないので、key のコマンドの実行は増えない
+- 拡張は `subagent.d/` の直下にあり、Pi の自動探索の対象外なので、親の Pi（ランチャーで起動した TUI）には読み込まれない
+
+止まると、子の stderr に次のように出る（例）。pi-superagents はこれを子のエラーとして、`~/.pi/agent/run-history.jsonl` の error、`subagent-artifacts/<runId>_<agent>_<n>_meta.json` の `error`、親のセッションの subagent の結果に残す。例外の内容・資格情報・タスクの本文は出さない。
+
+```text
+Warning: No models match pattern "openai/gpt-5.6-sol:high"
+[pi-superagents-model-guard] ERROR: 子 Pi が、要求された model と違う model で要求を送ろうとしています。最初の要求の前に終了します。
+  要求された model（--models）: openai/gpt-5.6-sol:high
+  Pi が選んだ model: openai-codex/gpt-6.1-sol
+  理由: 要求された model と、Pi がこの子で使う model が一致しません。（略）
+```
+
+止まったら、ランチャーの外の素の `pi` で `pi --list-models <provider>` を実行し、tier の model が使えるかを確かめる。資格情報が無ければログイン・環境変数の設定（各ランチャーの節）を行い、ID の誤りなら tier 設定を直し、catalog が古ければ `pi update --models` を実行する。別の model で続けたいときは、tier 設定を利用者が編集する。
+
+既存のセッションを引き継ぐ子（pi-superagents の fork（`--fork`）や、前の実行の再開）では、Pi は `--models` を使わずにセッションの model を使う（復元できなければ設定の既定の model）。fork の子は親の model を引き継ぐので、tier の model が親の model と違うと照合で止まり、理由に「既存のセッションを引き継いでいます」と出る。照合の前は、fork の子は黙って親の model で動いていた。tier の model で動かすには fork を使わずに実行し直す。親と同じ model でよければ、その tier の model を親の model に合わせる。tier を使う同梱の agent の既定（lineage-only）は新しいセッションで始まるので、`--models` で照合される。
+
+ランチャーは起動の前に、tier 設定が照合の拡張を挙げていること（`~` は `HOME` で展開する。絶対パスでもよい）と、拡張のファイルが在ることを確かめ、無ければ起動せずに案内を出す。rebuild（`--if-absent`）は既存のランチャー別の設定を置き換えないので、#310 より前からの環境では、ランチャーの外のシェルで、リポジトリのルートで次を一度実行してから、ランチャーを起動し直す。既存のランチャー別の設定は `config.json.bak.YYYYMMDD-HHMMSS` へ退避される。
+
+```bash
+zsh scripts/setup_pi_superagents.zsh
+```
+
+tier を編集していて置き換えたくない場合は、`zsh scripts/setup_pi_superagents.zsh --if-absent` で拡張を置き、その設定の `superagents.extensions` に `~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts` を足す。
+
+usaturn/agent-workspace の setup は、同じ共有の `~/.pi` に別の拡張 `~/.pi/agent/extensions/subagent.d/pi-superagents-tier-guard.ts` を置き、ランチャー別の設定をそれを挙げる内容に置き換えることがある。このリポジトリの拡張は別のファイルで、互いに上書きしない。agent-workspace が置き換えた設定では、このリポジトリのランチャーが起動を止めるので、上の setup を実行し直す。
+
+対象外:
+
+- `--models` を渡されない子（tier を使わない agent）。照合しない
+- thinking の違い。Pi は model が対応しない thinking を黙って下げる（`max` を要求して `high` になるなど）。`pigt`・`pidid` は起動前に thinking の対応を確かめる（前述）
+- 要求の時点で起きる資格情報のエラー（`auth.json`・`models.json` の key のコマンドの失敗など）。Pi は別の model に切り替えずにエラーで終わるので、今までどおり子のエラーとして返る
 
 #### Herdr の復元とランチャー
 

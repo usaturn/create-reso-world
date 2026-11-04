@@ -335,6 +335,44 @@ try {
     fi
 }
 
+# 子 Pi の model の照合（#310）。pi-superagents は子 Pi を --no-extensions で起動し、tier 設定の superagents.extensions に
+# 挙げた拡張だけを読み込ませる。照合の拡張（setup_pi_superagents.zsh が置く pi-superagents-model-guard.ts）を挙げていない
+# 設定（--if-absent で残った既存の設定など）や、拡張のファイルが無い環境では、子 Pi は tier の model を使えないときに
+# 警告だけを出して別の model に要求を送る。起動前に確かめて止める。拡張と同じく ~ は HOME で展開する。設定の中身は出さない。
+pi_launcher_require_model_guard() {
+    local launcher="$1" config="$2"
+    local guard="${HOME}/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"
+    if [[ -f "${guard}" ]] && node -e '
+const fs = require("node:fs");
+const path = require("node:path");
+try {
+    const [file, home, guard] = process.argv.slice(1);
+    const extensions = JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, ""))?.superagents?.extensions;
+    const expand = (entry) => entry === "~" ? home : entry.startsWith("~/") ? path.join(home, entry.slice(2)) : entry;
+    process.exit(Array.isArray(extensions) &&
+        extensions.some((entry) => typeof entry === "string" && path.resolve(expand(entry)) === path.resolve(guard)) ? 0 : 1);
+} catch {
+    process.exit(1);
+}
+' "${config}" "${HOME}" "${guard}" >/dev/null 2>&1; then
+        return 0
+    fi
+    print -ru2 -- "[${launcher}] ERROR: pi-superagents の tier 設定が子 Pi の model の照合を読み込ませていないか、照合の拡張がありません:"
+    print -ru2 -- "  設定: ${config}"
+    print -ru2 -- "  照合の拡張: ${guard}"
+    print -ru2 -- ""
+    print -ru2 -- "照合が無いと、子 Pi は tier の model を使えないとき、警告だけを出して別の model に要求を送るため、起動を中止します。"
+    print -ru2 -- "リポジトリのルートで次を実行してください（照合の拡張を置き、ランチャー別の設定は退避してから置き換えます）:"
+    print -ru2 -- ""
+    print -ru2 -- "  zsh scripts/setup_pi_superagents.zsh"
+    print -ru2 -- ""
+    print -ru2 -- "tier を編集していて置き換えたくない場合は、setup を --if-absent で実行して照合の拡張を置き、"
+    print -ru2 -- "設定の superagents.extensions に次を足してください:"
+    print -ru2 -- ""
+    print -ru2 -- "  ~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"
+    return 1
+}
+
 pi_superagents_exec() {
     local launcher="$1"
     shift
@@ -367,6 +405,7 @@ pi_superagents_exec() {
     fi
 
     pi_launcher_require_tiers "${launcher}" "${config}" || return 1
+    pi_launcher_require_model_guard "${launcher}" "${config}" || return 1
 
     # 注: zsh では $@ は特殊配列 argv に他ならないため、ローカル変数を argv と
     # 名付けると位置パラメータを影(shadow)にしてしまう。args_ などの別名で

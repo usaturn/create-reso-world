@@ -1,5 +1,6 @@
 {
   "superagents": {
+    "extensions": ["~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"],
     "modelTiers": {
       "cheap": { "model": "opencode-go/muse-spark-1.3-contributor", "thinking": "max" },
       "balanced": { "model": "opencode-go/muse-spark-1.3-contributor", "thinking": "max" },
