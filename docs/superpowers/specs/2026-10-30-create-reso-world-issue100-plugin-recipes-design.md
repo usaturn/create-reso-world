@@ -1,0 +1,135 @@
+# #100 プラグイン UIX レシピ設計
+
+## 管理・実行許可
+
+- 状態: `completed`（実装・PRサイクル確認の完了。人の内容承認を得たという記録ではない）。当初はissue-to-prの実行許可でdraftとして保存した。
+- Issue: https://github.com/usaturn/create-reso-world/issues/100 （親 #95、キー `plugin-recipes`）。
+- 利用者の明示入力: `https://github.com/usaturn/create-reso-world/issues/100 --base feat/plugin-v2 --assign inspect=pi-gpt,claude-opus,devin-swe,pi-deepseek --merge`（`/skill:issue-to-pr`）。通常判断は推奨案で決め、実装・検証・commit・push・PR・指定ループを実行する許可。マージはループの finalize.py のみ。文書 PR はマージしない。
+- コード対象: `usaturn/resoloop`、現行の継続run捕捉 ref `origin / refs/heads/feat/plugin-v2`、SHA `454b54cd961e078dac2a71fe1270529ebff11cd2`。旧runの捕捉値は下の停止記録と旧sessionに保存する。
+- 文書対象: `usaturn/create-reso-world`、捕捉 `origin / refs/heads/main`、SHA `acd288c3e81a6c108136e37815e718a0fe088195`。
+- 根拠: 親 #95 現行本文と https://github.com/usaturn/create-reso-world/issues/297#issuecomment-6521059117 。#297 は completed、コード PR resoloop#26 の head/merge が捕捉 base の祖先であり、公開 Spec/API・Plan が文書 main に存在する。旧 #97 の完了は実装入力にしない。
+- issue helper/担当検査: 指定 base 明示。実装は既定 `self`、fallback なし。ループ inspect は利用者指定4担当、上限3サイクルは既定。fix implement=`claude-opus`、self-review/fix-check=`self` は設定の適用であり利用者指定とはしない。
+
+## 目的・境界
+
+プロジェクトに導入したレシピを、読み取り専用 API の一覧・説明・読取・新規ファイルへの export と宣言 `$recipe` から利用する。組み込みの Catalog・既存名・生成キーを維持する。CLI の list/describe/export 結線は後続 #298 の所有で、本 Issue はその消費可能な API を渡す。
+
+変更を許すファイルは、新規 `src/RLoop.Core/Plugins/PluginRecipeResolver.cs`、`src/RLoop.Core/UixRecipes.cs`（Catalog 除外）、`src/RLoop.Core/ApplyDocumentCompiler.cs`、`tests/RLoop.Tests/PluginRecipeTests.cs`、`tests/fixtures/plugins/recipes/` に限定する。`ApplyDocument.cs` は捕捉版に存在せず、その型は `ApplyWorkflow.cs` にある。Compile 内で主入力を保持すれば変更不要なので、親コメント6489576253が指摘する編集権限の拡張は行わない。
+
+既存 Plugins ファイル、Program.cs/CommandLine.cs、ApplyWorkflow.cs、同梱スキル、他子所有コード、ワールド、親 checkout、reviews/、fork main は変更しない。実行フック・署名・sandbox・悪意ある同一ユーザへの完全防御は追加しない。
+
+## 方針・インターフェース
+
+### 読み取り専用 resolver
+
+`RLoop.Core.Plugins.PluginRecipeResolver : IDisposable` を新設する。
+
+- `PluginRecipeResolver(PluginRegistry registry)`。選択済みプロジェクト/version/reservations は呼び出し側が既存 F API で与える。`string ProjectRoot { get; }`。
+- `IReadOnlyList<UixRecipe> Catalog { get; }` はプラグインの修飾済み名だけを ordinal 順で返す。
+- `UixRecipe Describe(string name)` と `string Read(string name)`。名前は `<plugin-name>:<recipe-name>` の完全一致のみ。未導入なら `PLUGIN_NOT_INSTALLED`（対象名を示す）、導入済みだがレシピなしなら `UIX_RECIPE_NOT_FOUND`。裸名・case fallback は探索しない。
+- `static PluginRecipeResolver ForDocument(string mainInputPath, string resoloopVersion, PluginNameReservations reservations)`。主入力の絶対パスのディレクトリから `PluginRegistry.FindProjectRoot(null, directory)` を使う。include や cwd から探索しない。
+- 初回プラグイン利用で `OpenVerified()` を呼び、全 JSON/metadata の読取完了まで lease を保持する。読み取った JSON は instance 内に保持し、Dispose で lease を解放。以降にファイルを無検証で読み直さない。公開 metadata/一覧は読み取り専用。失敗時にも lease を解放する。
+- package path と JSON/prototype 検証は F の既存検証を再利用。JSON は実行しない。manifest metadata と JSON の対応を変更せず、Read/export は UTF-8 で読んだ元のテキスト（BOMは除去）を返す。再シリアライズしない。`UixRecipe.Name` は常に修飾済み名とし、一覧の項目をそのまま Describe/Read/Export へ渡せる。
+- 例外は compiler/UixRecipes でもコードを変えずに伝える。project無しは `PLUGIN_PROJECT_NOT_FOUND`、未導入は `PLUGIN_NOT_INSTALLED`、不整合は F のコードのまま。構文不正な修飾名と resolver 未指定の修飾名は `UIX_RECIPE_NOT_FOUND` とし、cwd探索しない。単なるエラーコード照合の恒久テストは不要。
+
+### UixRecipes 合成 API
+
+既存メソッドを維持し、次の overload/API を追加する（Catalog 本体は不変）。
+
+- `IReadOnlyList<UixRecipe> List(PluginRecipeResolver? resolver = null)` は組み込み順の後へプラグインを ordinal 順で加える。
+- `UixRecipe Describe(string name, PluginRecipeResolver? resolver)`。
+- `string Read(string name, PluginRecipeResolver? resolver)`。
+- `string Export(string name, string output, PluginRecipeResolver? resolver)`。
+
+裸名は組み込みだけ、修飾名は指定 resolver だけ。resolver なしで修飾名を使っても cwd で勝手に探索しない。export は検証/読取後、既存の FileMode.CreateNew で新規ファイルだけに書く。既存出力を破壊しない。
+
+### コンパイラの文脈
+
+既存 `Compile(string path)` を維持し、`Compile(string path, string resoloopVersion, PluginNameReservations reservations)` を追加する。任意プロジェクト resolver の注入は受け付けず、必ず主入力から探索する。
+
+- Compile 開始時に主入力を絶対パスへ固定し、instance の Context が resolver factory を持つ。include の merge によってこの入力は変えない。Compile が Context/resolver を所有し、成功・例外いずれでも呼び出し終了前に Dispose する。返す Result に lease を持ち越さない。
+- `$recipe` の修飾名が実際に展開される場合だけ resolver を作る。組み込みだけの Compile では project/version/plugin area の読取をしない。ワールド外の従来利用、壊れたプラグインがあるプロジェクトでの組み込み利用を保つ。
+- 既存1引数版の version は、CLI entry assembly（assembly名 `resoloop`）の informational version（`+` の後を除外）、なければ同 assembly の3桁 versionを使う。Core の既定版1.0.0を ResoLoop版として使わない。非CLIホストがプラグインを使う場合は明示版 overload を使用する。版不明は `PLUGIN_INCOMPATIBLE_VERSION` で停止し、推測しない。可変 global は作らない。
+- 自動文脈の reservations は空の immutable snapshot。これは読み取り専用レシピ消費であり、#98/#298 の導入/コマンド予約 catalog を所有しない。修飾名は組み込みの裸名と衝突しないため Recipes に裸の Catalog 名を渡さない。選択プロジェクトを扱う CLI は registry の実 reservations を渡せる。
+- プラグイン生成キー基点: `uix-plugin--<plugin-name>--<recipe-name>--<caller-key>`。既存の `uix-<builtin-name>--<caller-key>` は変えない。manifest 名規則は既存 PluginNames を使い連続 `--` を認めない。caller key の既存規則は維持する。
+- parameter 照合・override の caller 所有・展開制限・重複キー検査は既存経路を使う。同じ入力/導入状態は同じ出力。未導入・不整合・非対応版は Compile 時に例外となりワールド操作より先に止まる。
+
+## 決定記録
+
+| 選択した案 | 検討した別案 | 選択理由 | 委任指示または停止条件 |
+| --- | --- | --- | --- |
+| instance resolver + verified lease | Catalog に混合、可変 static | プロジェクト間を隔離し既存組み込みを不変にする | issue-to-pr の推奨判断委任 |
+| Compile 内で主入力固定、遅延解決 | Load への注入、cwd/include 起点 | 所有範囲内で default CLI Load を支え、別ワールドを選ばない | ApplyWorkflow.cs が必要になれば親裁定前に停止 |
+| CLI entry 版、非CLIは明示版 | Core version、固定0.2.0 | 実ホストの ResoLoop 版との整合を守り将来版を固定しない | 版を特定できない plugin 利用は停止 |
+| 名前空間付きレシピ、Recipes空予約 | builtin裸名を予約 | 同じローカル名の別pluginを区別できる | F APIを変更しない |
+| APIまで、CLI結線は#298 | Program.csを直接変更 | 親の所有境界と4機能の統合順序を守る | CLI結線完了とは報告しない |
+| inline / executing-plans | Taskごと別実装子 | 2 Task が同じ tests と resolver API を逐次変更するため | 最後の独立全体レビューは必須 |
+
+## 受け入れ基準・検証
+
+動作環境: 本 Linux Dev Container、global.json に従う .NET 10。Windows は公開CIの結果を区別して記録。Resonite/Blender/実認証は使わない。
+
+実入力: 一時プロジェクト「主 ワールド」と「別 ワールド」、主入力が別プロジェクト内JSONをincludeし、cwdも別ワールドの形。`aa-plugin:sample-card` と `bb-plugin:sample-card`、`$with.key=panel_1`、複数行/日本語を含むレシピ・metadataを使う。expected key は仕様文字列から直接記す。
+
+防御範囲: 主入力のproject取り違え、bare名の暗黙探索、別pluginの同ローカル名、既存exportの上書き、不整合・未導入のままの展開、組み込み利用の回帰。package/link/hash/lock安全性は既存Fの守りを再実装/網羅しない。悪意ある同一ユーザの同時差替え、runtime UIX動作、CLI統合は本Issueの完了主張に含めない。
+
+S テストのみを代表例で追加し、拒否には正しく通る例を残す。S: namespace/key取り違え、main/include/cwd取り違え、無検証read、export上書き。単なる文言・存在・構文・一覧固定値F/Lは追加しない。既存テストと dotnet build/test、差分確認、実CLI offline validateで補う。
+
+## builder check の決定
+
+読み取り専用の builder check で提示された5点は、raw text保持・metadataの修飾済みName・エラーコード透過・Compile内のfinally解放・不正名/null resolverのnot-foundという上記のエージェント判断で確定した。仕様の意味・編集範囲・実行許可は変更していない。最初の sp-review dispatch は必要なコードレビュー形式を欠くとして NEEDS_CONTEXT で終了し、設計調査の sp-research で builder check を行った。人の内容承認として記録しない。
+
+## 停止記録（2026-10-30）
+
+実装前の `recheck_bases` が終了コード2で停止した。`origin/refs/heads/feat/plugin-v2` は捕捉 `dd0b40fb216b0c9fbd82da44903195a885104015` から `454b54cd961e078dac2a71fe1270529ebff11cd2` に進んだ（resoloop#27、2026-10-30T13:02:12Z merge）。新SHAをbaseとして採用せず、実装・push・PR・ループは未実施。コードworktreeは旧baseのcleanなまま。
+
+移動差分は BundledSkillManager.cs、PluginSkillManager.cs、ProjectInitializer.cs、PluginSkillSyncTests.cs の4ファイル（618追加/14削除）。レシピの直接所有ファイルは変わっていないが、共有スキル資源/初期化との統合検証は必要であり、旧版の成功を新版へ流用しない。旧baseの `dotnet test ResoLoop.slnx --nologo` は終了0、573 unit +22 offline成功（live opt-in/URLをchild環境から除去）。新版は未検証。
+
+このdraft Spec/Planは部分成果としてローカルcommitし、公開未実施。Issueへの復元資料公開はGit ref/PRの公開とは区別する。再開にはbase移動を踏まえた新baseの捕捉・既存worktree/文書の再利用を明示する継続指示が必要。自動で旧捕捉値を書き換えない。
+
+## 再開許可（2026-10-30）
+
+base移動の停止理由・旧/新SHA・既存資料の保存方針を提示した後、利用者は「一旦停止したことは了解します。作業を再開してください。」と明示した。この既知の移動を受け入れた継続指示として、既存のcleanな2worktree/資料を再利用し、別session `issue-100-resume.0nu9othi` に新baseを捕捉した。旧JSONは変更していない。自分の予約は同じSHAで引き続き保持し、他者の作業は再利用しない。コードworktreeは新baseへff-only更新した。新しい別のbase移動も同様に停止対象である。設計意味/編集境界/PRとmergeの権限は当初指示のまま、内容承認は推測せずdraftを維持する。
+
+## 実装・統合検証（2026-10-30）
+
+コードHEAD `250b39fc91c6f09b96ddb1297c108aba9290256e`、新base454b54c、clean treeで検証した。Task1 e43810b、Task2 6bb45af、レビューのテスト修正250b39f。変更は許可4ファイルだけ（新規resolver、新規tests、UixRecipes、ApplyDocumentCompiler）。Catalog本体・Program・ApplyWorkflow・既存Pluginsは不変。
+
+| 条件 | 実行証拠 |
+| --- | --- |
+| namespace/list/describe/raw read/export保護 | Task1 RED（APIなし）→focused2 GREEN、全581unit+22offline。別plugin同名/日本語metadata/export sentinelを実入力で確認 |
+| main/include/cwd/キー/lease | Task2 RED（overloadなし）→focused新5/既存併合22 GREEN。同projectの反復Compile、失敗後の次Compileも成功 |
+| 本体host版/接続前拒否 | 実CLI offline validateの正常0、改変6(PLUGIN_MODIFIED)、未導入5(PLUGIN_NOT_INSTALLED)。主入力/include/cwdは別directory、対応版は[0.2.0,0.3.0) |
+| builtin利用 | project外/改変plugin projectの実CLI validateとも0。既存ControlRecipeTests/AgentEfficiencyTests/ObservationRecipeTestsを最終suiteで確認 |
+| 最終HEAD | dotnet build ResoLoop.slnx --nologo: exit0/警告0/エラー0。dotnet test ResoLoop.slnx --nologo: exit0、583unit+22offline、失敗/skip0。実CLI5caseを再実行、clean status |
+
+ログ/検証記録: `/workspaces/reso-world/tmp/agents/issue-100-resume.0nu9othi/` の final-build.log、final-tests.log、final-cli-smoke.log、verification.json、checks.json。
+
+独立全体レビューはCritical0、Important1（cwd fallback拒否テストの検出力）、Minor2。Importantは正常な別project/lease解放済みのcwdを用意し、誤ったfallback実装を一時的に入れると新Sテストが失敗、元の実装で成功する対照を確認した。Minorのうちbuiltin-onlyの追加恒久テストはL/既存SとのDに当たるため、規約違反としてImportantへ再分類し、恒久テストを削除して一時CLI検証へ移した。恒久追加は4件。全体レビュー後の修正はテストのみ、1回のfix passで終了、再レビューはしていない。
+
+既知のMinor: compilerは不正な修飾名でもproject/version解決が先になるため、project外等ではUIX_RECIPE_NOT_FOUNDよりproject/versionエラーを先に返すことがある。誤ったレシピ/worldを選ぶ問題ではないため、このrunでは直さず記録する。CLIのlist/describe/export結線、実機UIX、補助prototypeの自動取り込み/再帰展開の拡張は本Issueで実装済みとはしない。後続#298は公開APIを消費する。
+
+## PR #28 サイクル1の判断（マージ前）
+
+- planner: `gpt-6.1-sol` / pi。明示の `--merge` によるissue-to-pr→review-fix-planning完遂の実行許可。コードHEAD250b39f、base454b54c。既存のこのSpec/Planを再利用し、別テーマ文書は作らない。
+- loop run: `b8a7df2059ad44ab983f3f581d7ff5b4`、レビュー待ち1424.724秒。コードPR https://github.com/usaturn/resoloop/pull/28 、文書PR https://github.com/usaturn/create-reso-world/pull/303 。
+
+| レビューファイル | model/runtime | 対象HEAD | 今回実行 | 推奨 |
+| --- | --- | --- | --- | --- |
+| gpt-6.1-sol.md | gpt-6.1-sol / pi | 250b39fc91c6 | はい | Approve |
+| SWE-2-Max.md | SWE-2 Max / devin | 250b39fc91c6 | はい | Approve |
+| deepseek-deepseek-v4.1-flash.md | deepseek/deepseek-v4.1-flash / pi | 250b39fc91c6 | はい | Approve |
+
+`claude-opus`はrunner response_failed/exit1、原因rate_limit、停止確認済み。成果がなく入力にせず、指摘0とは数えない。loopは受理3件/不採用1件、retainedなし、next=cycle-endなので計画を続行する。
+
+全入力の指摘/未確認候補0、前サイクル判断0。分類: 解消済み0/対応する0/対応しない0。確認済み一覧は `reviews/usaturn/resoloop/#28-feat-create-reso-world-issue-100-plugin-recipes/verified/250b39fc91c6.json`。3候補JSONはvalidate/check-pair一致。PRの変更4ファイル全文・関連処理とtests/文書を対象版で照合し、主入力/namespace/検証とlease/既存利用の条件に未確認はない。共有条件の統合確認はcontrollerが同じclean HEADの最終583+22/build0警告/実CLI5caseの保存証拠と照合した。CLI結線・実機・ローカルWindowsは元の対象外であり未実行を成功としない。
+
+公開Windows CI `41064879634` のwindows jobはSUCCESS（13:42:15Z完了）。base先端454b54cはレビューHEADの祖先のまま。コード変更/自己レビュー/run_roles呼出は不要で0回、検証記録checks.jsonの再利用条件（同HEAD・clean・全exit0・ログ存続）を満たす。再発/設計見直しは該当なし。結論2: 追加修正不要、同記録をfinalize.pyへ渡してCI/HEAD/base/merge第1親を最終照合する。マージ・Issue更新をこの記録で実施済みとはしない。結果はPR状況コメントとloop終了記録に残す。
+
+工程の記録は同verified directoryの250b39fc91c6.planning.jsonへ、状況投稿後に実際のcomment_idを反映する。記録の採否だけで実行完了としない。
+
+## 公開・終了
+
+コード PR は `feat/plugin-v2` 宛て、文書専用 PR は create-reso-world/main 宛てで相互リンク。両方 `Refs https://github.com/usaturn/create-reso-world/issues/100`。子Issueのcloseと親更新は調整役に残す。全未push commitを親のscan-before-push.shで検査し、捕捉baseが移動したら差し替えず停止する。PR後は指定レビュー修正ループのみでコード変更/mergeを行う。
+
+handoff pair・復元manifestの正確な内容を公開し、遠隔から新規directoryへ復元してhash/bytes/JSONを検証する。子の実状態・結果・再開方法のコメント後、自分の予約SHAだけをexpected leaseで解放する。検証・公開・マージの実績は後から追記し、現時点では未実行とする。
