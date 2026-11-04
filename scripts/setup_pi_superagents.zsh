@@ -8,7 +8,8 @@ set -euo pipefail
 # 冪等なセットアップスクリプト
 #
 # 作成するもの:
-#   ~/.pi/agent/extensions/subagent/               bwrap の bind 先（空のまま）
+#   ~/.pi/agent/extensions/subagent/config.json    bwrap の bind 先。ランチャーを通さない Pi で
+#                                                  pi-superagents を止める停止用の設定（#307）
 #   ~/.pi/agent/extensions/subagent.d/<launcher>/  ランチャー別の config.json
 #   ~/.local/bin/pi-superagents-exec.zsh           ランチャー共通ヘルパ
 #
@@ -19,7 +20,9 @@ set -euo pipefail
 #
 # 使い方:
 #   zsh scripts/setup_pi_superagents.zsh              置き直す（既存はバックアップ）
-#   zsh scripts/setup_pi_superagents.zsh --if-absent  無いものだけ置く
+#   zsh scripts/setup_pi_superagents.zsh --if-absent  ランチャー別の config は無いものだけ置く
+#
+# 共有の bind 先の停止用の設定は、どちらの使い方でも揃える（停止用のキーが無ければ退避して置き換える）。
 #
 
 readonly REPO_ROOT="${0:A:h}/.."
@@ -38,6 +41,16 @@ readonly BIN_DIR="${HOME}/.local/bin"
 
 readonly LAUNCHERS=(pigo pigod piccg piccd piga pigt pidid pigs pigl pixg pigemf pigemp pigema)
 
+#
+# ランチャーを通さない Pi（素の pi、Herdr の復元による再開）は bwrap の mount が無く、共有の bind 先の
+# config.json を読む。pi-superagents は tier ごとに設定を同梱の既定（default-config.json）の上に重ねるので、
+# 設定が無い・tier が欠けると、利用者が選んでいない同梱の既定 model（1.14.4 の balanced は
+# opencode-go/glm-5.3-flash）の子に要求を送る（#307）。未知のトップレベルのキーは拡張の検証で
+# エラーになり、拡張は subagent ツールを止めて、キーの名前を表示する。
+#
+readonly GUARD_KEY="launcherRequired_doNotRemove_restartPiViaLauncher"
+readonly GUARD_NOTE="このキーは、ランチャー（pigs など）を通さずに起動した Pi で pi-superagents を止めるための目印です。ランチャーを通さない Pi（素の pi、Herdr の復元による再開）は、この共有の bind 先を読み、欠けた tier を pi-superagents に同梱の既定 model（利用者が選んでいない model）で埋めて子に要求を送ります。このキーを消さず、Pi を終了してランチャーから起動し直してください（例: pigs --session <セッションファイル>）。詳細は create-reso-world の .devcontainer/README.md の「ランチャーを通さない Pi と同梱の既定 model」にあります。"
+
 typeset if_absent=0
 if [[ "${1:-}" == "--if-absent" ]]; then
     if_absent=1
@@ -55,7 +68,77 @@ if ! command -v bwrap >/dev/null 2>&1; then
     exit 1
 fi
 
+#
+# ランチャーの中（bwrap の mount がある状態）では、共有の bind 先にランチャーのディレクトリが重なって見える。
+# そこへ停止用の設定を書くと、ランチャーの設定を置き換えたうえ、本物の共有の bind 先は守られないまま
+# 成功と表示してしまう。何も書かずに止める。
+#
+typeset launcher_dir
+for launcher_dir in "${LAUNCHER_ROOT}"/*(N/); do
+    if [[ "${SHARED_DIR}" -ef "${launcher_dir}" ]]; then
+        print -ru2 -- "ERROR: ランチャー（${launcher_dir:t}）の中で実行されています。共有の bind 先に、そのランチャーの設定が重なって見えます。"
+        print -ru2 -- ""
+        print -ru2 -- "Pi を終了するか別の端末を開き、ランチャーを通さないシェルで実行し直してください:"
+        print -ru2 -- ""
+        print -ru2 -- "  zsh scripts/setup_pi_superagents.zsh"
+        exit 1
+    fi
+done
+unset launcher_dir
+
 mkdir -p "${SHARED_DIR}" "${BIN_DIR}"
+
+# 退避名の基本形は従来どおり <file>.bak.YYYYMMDD-HHMMSS。同一秒に再実行して基本名が既に存在する場合は、
+# 既存世代を上書きしないよう .1, .2, … と空いている名前まで連番を増やす。退避先のパスを REPLY に入れる。
+backup_existing() {
+    local file="$1" base backup i=0
+    base="${file}.bak.$(date +%Y%m%d-%H%M%S)"
+    backup="${base}"
+    while [[ -e "${backup}" ]]; do
+        i=$(( i + 1 ))
+        backup="${base}.${i}"
+    done
+    cp "${file}" "${backup}" || return 1
+    REPLY="${backup}"
+}
+
+# 共有の bind 先に停止用の設定を揃える。停止用のキーを持つ JSON のオブジェクトなら、拡張の移行処理が
+# 書き足した内容ごと残す（拡張と同じく BOM は外さずに読む）。それ以外は退避してから置き換える。
+ensure_shared_guard() {
+    local config="${SHARED_DIR}/config.json" tmp REPLY
+    if [[ -L "${config}" || ( -e "${config}" && ! -f "${config}" ) ]]; then
+        print -ru2 -- "ERROR: ${config} が通常のファイルではないため、触らずに中止します。"
+        print -ru2 -- "別の場所へ移してから、もう一度このスクリプトを実行してください。"
+        return 1
+    fi
+    if [[ -f "${config}" ]] && node -e '
+const fs = require("node:fs");
+try {
+    const config = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    process.exit(config && typeof config === "object" && !Array.isArray(config) && Object.hasOwn(config, process.argv[2]) ? 0 : 1);
+} catch {
+    process.exit(1);
+}
+' "${config}" "${GUARD_KEY}" >/dev/null 2>&1; then
+        print -r -- "shared: 停止用の設定を保持しました"
+        return 0
+    fi
+    if [[ -f "${config}" ]]; then
+        backup_existing "${config}" || return 1
+        print -r -- "shared: 既存の設定を ${REPLY:t} へ退避しました"
+    fi
+    tmp="$(mktemp "${SHARED_DIR}/.config.json.XXXXXX")" || return 1
+    if ! node -e '
+const fs = require("node:fs");
+fs.writeFileSync(process.argv[1], JSON.stringify({[process.argv[2]]: process.argv[3]}, null, 2) + "\n");
+' "${tmp}" "${GUARD_KEY}" "${GUARD_NOTE}"; then
+        rm -f -- "${tmp:?}"
+        return 1
+    fi
+    chmod 0644 "${tmp}"
+    mv -f -- "${tmp}" "${config}"
+    print -r -- "shared: ${config} に停止用の設定を置きました（ランチャーを通さない Pi では pi-superagents が止まります）"
+}
 
 install -m 0644 "${HELPER_SOURCE}" "${BIN_DIR}/pi-superagents-exec.zsh"
 print -r -- "helper: ${BIN_DIR}/pi-superagents-exec.zsh"
@@ -81,24 +164,15 @@ for launcher in "${LAUNCHERS[@]}"; do
             print -r -- "${launcher}: 変更なし"
             continue
         fi
-        # 退避名の基本形は従来どおり <dest>.bak.YYYYMMDD-HHMMSS。同一秒に再実行
-        # して基本名が既に存在する場合は、既存世代を上書きしないよう .1, .2, …
-        # と空いている名前まで連番を増やす。
-        typeset base backup i=0
-        base="${dest}.bak.$(date +%Y%m%d-%H%M%S)"
-        backup="${base}"
-        while [[ -e "${backup}" ]]; do
-            i=$(( i + 1 ))
-            backup="${base}.${i}"
-        done
-        cp "${dest}" "${backup}"
-        print -r -- "${launcher}: 既存の設定を ${backup:t} へ退避しました"
+        backup_existing "${dest}"
+        print -r -- "${launcher}: 既存の設定を ${REPLY:t} へ退避しました"
     fi
 
     install -m 0644 "${source}" "${dest}"
     print -r -- "${launcher}: ${dest} を配置しました"
 done
 
+ensure_shared_guard
 print -r -- "shared bind target: ${SHARED_DIR}"
 
 if command -v pi >/dev/null 2>&1; then

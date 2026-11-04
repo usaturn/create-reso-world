@@ -914,8 +914,9 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
 - `.devcontainer/pixg` → `~/.local/bin/pixg`。同様に毎回上書き
 - `.devcontainer/pigemf`・`pigemp`・`pigema` → `~/.local/bin/`。同様に毎回上書き
 - `.devcontainer/pi-superagents/<launcher>.json` → `~/.pi/agent/extensions/subagent.d/<launcher>/config.json`、
-  `.devcontainer/pi-superagents-exec.zsh` → `~/.local/bin/pi-superagents-exec.zsh`。
-  `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 2 種を配置する
+  `.devcontainer/pi-superagents-exec.zsh` → `~/.local/bin/pi-superagents-exec.zsh`、
+  共有の bind 先 `~/.pi/agent/extensions/subagent/config.json` の停止用の設定。
+  `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 3 種を配置する
   （詳細は後述の「pi-superagents のランチャー別 model tier」を参照）
 
 `~/.local/bin` への PATH は `zshrc.txt` が通すため、別途の設定は不要である。
@@ -1480,7 +1481,7 @@ zsh scripts/setup_pi_superagents.zsh --if-absent
 
 `HOME` は変えないので git / ssh の設定の見え方には影響せず、共有ファイルを書き換えないので複数のランチャーを同時に起動しても設定が混線しない。子 Pi は namespace を継承するため、親子で同じ tier を見る。
 
-ただし `bwrap` は `no_new_privs` を立てるため、ランチャー配下では `sudo` / `su` が使えない。sudo が要る作業は、ランチャーを通さない素の `pi` か別のターミナルで行う。
+ただし `bwrap` は `no_new_privs` を立てるため、ランチャー配下では `sudo` / `su` が使えない。sudo が要る作業は、ランチャーを通さない素の `pi` か別のターミナルで行う。素の `pi` では pi-superagents が止まり、起動時にその旨が表示される（後述の「ランチャーを通さない Pi と同梱の既定 model」）。
 
 | launcher | cheap | balanced | max |
 |---|---|---|---|
@@ -1511,7 +1512,43 @@ tier を変更するときは、リポジトリの `.devcontainer/pi-superagents
 zsh scripts/setup_pi_superagents.zsh
 ```
 
-`bwrap` が無い、またはランチャー用の設定が無い場合、ランチャーは起動せずに案内を出す。共有設定へ暗黙にフォールバックすると tier が警告なく混線するため。
+`bwrap` が無い、ランチャー用の設定が無い、または設定の `cheap` / `balanced` / `max` に model（`provider/model` の形）がそろっていない場合、ランチャーは起動せずに案内を出す。共有設定や同梱の既定 model へ暗黙にフォールバックすると tier が警告なく混線するため。
+
+#### ランチャーを通さない Pi と同梱の既定 model
+
+pi-superagents は tier ごとに、設定の上書きを拡張に同梱の既定（`default-config.json`）の上に重ねる。設定が無い、または tier が欠けると、その tier は警告なく同梱の既定 model になる。1.14.4 の既定は cheap が `opencode-go/minimax-m3`、balanced が `opencode-go/glm-5.3-flash`（`high`）、max が `openai/gpt-5.6-sol`（`high`）で、どれもこのリポジトリのランチャーが選んだ model ではない。
+
+ランチャーを通さずに起動した Pi（素の `pi`、Herdr の復元による再開）には bwrap の mount が無く、拡張は共有の bind 先 `~/.pi/agent/extensions/subagent/config.json` を読む。2026-11-04 には、PC が落ちた後に Herdr がセッションを復元し（`[session] resume_agents_on_restore` は既定で有効）、Pi のペインを `pigs` ではなく Pi で直接再開した。親は再開したセッションの model（`openai-codex/gpt-6.1-sol`）を引き継ぐので pigs に見えたが、共有の bind 先には拡張が書いた同梱の既定の写しがあり、`sp-implementer`（balanced）の子が `opencode-go/glm-5.3-flash` で動いた（#307）。
+
+`setup_pi_superagents.zsh` は、共有の bind 先に停止用の設定を置く。トップレベルに `launcherRequired_doNotRemove_restartPiViaLauncher` というキーを持ち、拡張はこれを未知のキーとして扱って subagent ツールを止める。ランチャーを通さない Pi では、起動時と subagent を使おうとしたときに、次のように表示される。止まるのは pi-superagents の機能だけで、素の `pi` のほかの使い方（project trust の承認、sudo が要る作業など）には影響しない。
+
+```text
+pi-superagents is disabled because config.json needs attention.
+Path: /home/vscode/.pi/agent/extensions/subagent/config.json
+
+- launcherRequired_doNotRemove_restartPiViaLauncher: is not a supported config key.
+```
+
+このキーは消さない。消すと、ランチャーを通さない Pi が再び同梱の既定 model の子を動かす。ランチャーの中では bwrap がランチャーのディレクトリを重ねるので、この設定は見えない。setup は通常と `--if-absent`（rebuild）のどちらでも、キーの無い既存の `config.json` を `config.json.bak.YYYYMMDD-HHMMSS` へ退避してから置き換え、キーのある設定（拡張が `superagents` を書き足したものを含む）は残す。既存の環境では、rebuild するか、リポジトリのルートで `zsh scripts/setup_pi_superagents.zsh --if-absent` を一度実行する。setup はランチャーの外のシェルで実行する。ランチャーの中（ランチャーで起動した Pi の bash ツールを含む）では共有の bind 先にランチャーの設定が重なって見えるので、setup は何も書かずに止まる。
+
+Herdr の復元の後に上のメッセージが出たら、復元された Pi を終了し、使っていたランチャーでセッションを開き直す。
+
+```bash
+pigs --session ~/.pi/agent/sessions/<cwd のディレクトリ>/<セッションファイル>.jsonl
+pigs -c   # 同じディレクトリの最新のセッションでよいとき
+```
+
+子が意図しない model で動いた疑いがあるときは、次の記録で確かめる。どれもローカルのファイルで、外部へ送らない。
+
+- 子の model と thinking: `~/.pi/agent/run-history.jsonl`（`agent`・`model`・`thinking`）、`~/.pi/agent/sessions/<cwd のディレクトリ>/subagent-artifacts/<runId>_<agent>_<n>_meta.json`、親のセッションのファイルの subagent の結果（`details.results[].model`）
+- 親の model: 親のセッションのファイルの `model_change`（再開では増えない）
+- Herdr の復元の時刻: `~/.config/herdr/herdr-server.log` の `session restore evaluated`
+- 同じ親セッションの中で、cheap tier の子が `minimax-m3`、balanced tier の子が `glm-5.3-flash` になっていれば、ランチャーの設定ではなく同梱の既定を読んでいる
+
+次は扱っていない（#307 の持ち越し）。
+
+- Herdr の復元を、ランチャーを通した再開にすること。Herdr の Pi 連携は再開コマンドを報告しないので、復元は Pi を直接起動する
+- 子 Pi が tier の model を解決できない（catalog に無い、資格情報が無いなど）ときに、別の model へ切り替わるのを最初の要求の前に止めること。`pigt`・`pidid` の起動前の検査（前述）のほかは確かめない
 
 #### Superpowers スキルの探索パス
 

@@ -303,6 +303,38 @@ JS
     fi
 }
 
+# pi-superagents は tier ごとに、ランチャーの設定を同梱の既定（default-config.json）の上に重ねる。
+# 欠けた tier は警告なく同梱の既定 model（1.14.4 の balanced は opencode-go/glm-5.3-flash）になり、
+# 利用者が選んでいない provider へ子の要求が送られる（#307）。全ランチャーで、cheap / balanced / max の
+# model が provider/model の形でそろっているかを起動前に確かめる。値は拡張と同じく文字列か {model}。
+# thinking は欠けても model が変わらないので見ない。設定の中身はエラーに出さない。
+pi_launcher_require_tiers() {
+    local launcher="$1" config="$2"
+    if ! node -e '
+const fs = require("node:fs");
+try {
+    const tiers = JSON.parse(fs.readFileSync(process.argv[1], "utf8").replace(/^﻿/, ""))?.superagents?.modelTiers;
+    if (!tiers || typeof tiers !== "object" || Array.isArray(tiers)) throw new Error();
+    for (const name of ["cheap", "balanced", "max"]) {
+        const tier = Object.hasOwn(tiers, name) ? tiers[name] : undefined;
+        const model = typeof tier === "string" ? tier : tier?.model;
+        if (typeof model !== "string" || !/^[^/]+\/./.test(model)) throw new Error();
+    }
+} catch {
+    process.exit(1);
+}
+' "${config}" >/dev/null 2>&1; then
+        print -ru2 -- "[${launcher}] ERROR: pi-superagents の tier 設定に cheap / balanced / max の model（provider/model の形）がそろっていません:"
+        print -ru2 -- "  ${config}"
+        print -ru2 -- ""
+        print -ru2 -- "欠けた tier は pi-superagents に同梱の既定 model（利用者が選んでいない model）に切り替わるため、起動を中止します。"
+        print -ru2 -- "リポジトリの .devcontainer/pi-superagents/${launcher}.json に合わせて補うか、リポジトリのルートで次を実行してください（既存の設定は退避されます）:"
+        print -ru2 -- ""
+        print -ru2 -- "  zsh scripts/setup_pi_superagents.zsh"
+        return 1
+    fi
+}
+
 pi_superagents_exec() {
     local launcher="$1"
     shift
@@ -333,6 +365,8 @@ pi_superagents_exec() {
         print -ru2 -- "  zsh scripts/setup_pi_superagents.zsh"
         return 1
     fi
+
+    pi_launcher_require_tiers "${launcher}" "${config}" || return 1
 
     # 注: zsh では $@ は特殊配列 argv に他ならないため、ローカル変数を argv と
     # 名付けると位置パラメータを影(shadow)にしてしまう。args_ などの別名で

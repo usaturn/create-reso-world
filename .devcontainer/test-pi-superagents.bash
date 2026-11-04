@@ -28,13 +28,15 @@ assert_contains() {
 }
 
 # ランチャー用の一時 HOME を作る。config を置くかどうかを引数で選ぶ。
+# config はヘルパの起動前の検査を通るよう cheap / balanced / max をそろえる（cheap は文字列の形）。
 make_home() {
     local name="$1" with_config="$2"
     local home="${TEST_ROOT}/${name}"
     mkdir -p "${home}/.pi/agent/extensions/subagent"
     if [ "$with_config" = "with-config" ]; then
         mkdir -p "${home}/.pi/agent/extensions/subagent.d/${name}"
-        printf '{"superagents":{"modelTiers":{}}}\n' \
+        printf '%s\n' \
+            '{"superagents":{"modelTiers":{"cheap":"test/cheap","balanced":{"model":"test/balanced","thinking":"high"},"max":{"model":"test/max"}}}}' \
             > "${home}/.pi/agent/extensions/subagent.d/${name}/config.json"
     fi
     printf '%s' "$home"
@@ -87,6 +89,35 @@ test_missing_config_fails_closed() {
     assert_eq "$status" "1" "missing config must exit 1"
     assert_contains "$out" "setup_pi_superagents.zsh" "must point at the setup script"
     assert_contains "$out" "pigod" "must name the launcher"
+}
+
+# 防ぐ損害: pi-superagents は欠けた tier を同梱の既定 model（1.14.4 の balanced は opencode-go/glm-5.3-flash）で埋める。
+# 検査が tier の欠けや provider の無い model を通すと、利用者が選んでいない provider へ子の要求が黙って送られる（#307）。
+# 代表はヘルパ。各ランチャーは同じヘルパを使う。そろった設定（make_home。cheap は文字列の形）は通す。
+test_incomplete_tiers_fail_closed() {
+    local home config status out
+    home="$(make_home pigs with-config)"
+    config="${home}/.pi/agent/extensions/subagent.d/pigs/config.json"
+    out="$(run_helper "$home" pigs)"
+    assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "complete tiers must reach bwrap"
+
+    printf '%s\n' '{"superagents":{"modelTiers":{"cheap":{"model":"test/cheap"},"max":{"model":"test/max"}}}}' > "$config"
+    set +e
+    out="$(run_helper "$home" pigs 2>"${TEST_ROOT}/tiers.err")"
+    status=$?
+    set -e
+    assert_eq "$status" "1" "missing balanced tier must exit 1"
+    assert_eq "$out" "" "missing balanced tier must not reach bwrap"
+    assert_contains "$(<"${TEST_ROOT}/tiers.err")" "[pigs]" "must name the launcher"
+    assert_contains "$(<"${TEST_ROOT}/tiers.err")" "$config" "must name the config"
+
+    printf '%s\n' '{"superagents":{"modelTiers":{"cheap":"test/cheap","balanced":{"model":"glm-5.3-flash"},"max":"test/max"}}}' > "$config"
+    set +e
+    out="$(run_helper "$home" pigs 2>/dev/null)"
+    status=$?
+    set -e
+    assert_eq "$status" "1" "a tier model without provider must exit 1"
+    assert_eq "$out" "" "a tier model without provider must not reach bwrap"
 }
 
 # 防ぐ損害: bwrap が無いのに止まらないと、サンドボックス（mount namespace による分離）無しで Pi が起動する。
@@ -323,6 +354,84 @@ test_setup_if_absent_preserves_user_edits() {
     grep -q '"x/y"' "$config" || fail "--if-absent must not overwrite an existing config"
     cmp -s "$HELPER" "${home}/.local/bin/pi-superagents-exec.zsh" \
         || fail "--if-absent must refresh the helper while preserving configs"
+}
+
+# 防ぐ損害: ランチャーを通さない Pi（素の pi、Herdr の復元による再開）は bwrap の mount が無く、共有の bind 先を読む。
+# そこに停止用の設定が無いと、pi-superagents は同梱の既定 model（opencode-go/glm-5.3-flash など）の子を黙って
+# 動かす（#307）。既存の共有設定を退避せずに置き換えると利用者の設定を失う。rebuild の経路（--if-absent）を代表にする。
+# 通る例: 停止用のキーが残る設定（拡張の移行処理が書き足したもの）は置き換えない。ランチャーの設定は止めない。
+SHARED_GUARD_KEY=launcherRequired_doNotRemove_restartPiViaLauncher
+test_setup_guards_shared_bind_target() {
+    local home shared ext out
+    local -a backups
+    home="${TEST_ROOT}/setup-shared-guard"
+    shared="${home}/.pi/agent/extensions/subagent"
+    mkdir -p "$shared"
+    printf '%s\n' '{"superagents":{"modelTiers":{"balanced":{"model":"opencode-go/glm-5.3-flash","thinking":"high"}}}}' \
+        > "${shared}/config.json"
+    cp "${shared}/config.json" "${TEST_ROOT}/shared-original.json"
+    run_setup "$home" --if-absent >/dev/null
+    mapfile -t backups < <(find "$shared" -name 'config.json.bak.*')
+    assert_eq "${#backups[@]}" "1" "the existing shared config must be backed up once"
+    cmp -s "${backups[0]}" "${TEST_ROOT}/shared-original.json" || fail "the backup must keep the original bytes"
+    node -e 'process.exit(Object.hasOwn(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")), process.argv[2]) ? 0 : 1)' \
+        "${shared}/config.json" "$SHARED_GUARD_KEY" || fail "the shared config must carry the guard key"
+
+    # 拡張の移行処理は読み込みのたびに superagents を書き足す。その代わりに書き足してから setup をやり直す。
+    node -e 'const fs = require("node:fs"), f = process.argv[1], c = JSON.parse(fs.readFileSync(f, "utf8"));
+c.superagents = {makeSuperpowersSkillsOptInOnly: true}; fs.writeFileSync(f, JSON.stringify(c, null, 2) + "\n");' \
+        "${shared}/config.json"
+    cp "${shared}/config.json" "${TEST_ROOT}/shared-migrated.json"
+    run_setup "$home" --if-absent >/dev/null
+    assert_eq "$(find "$shared" -name 'config.json.bak.*' | wc -l)" "1" "a guarded shared config must not be backed up again"
+    cmp -s "${shared}/config.json" "${TEST_ROOT}/shared-migrated.json" || fail "a guarded shared config must be kept as is"
+
+    # 停止の効き目は、導入済みの拡張の設定の読み込みで確かめる。Node は node_modules の下の .ts の型除去を
+    # 拒むので、src を一時の場所へ複製して読む。拡張が無い環境（postCreate の前）だけ省く。
+    ext="${HOME}/.pi/agent/npm/node_modules/@teelicht/pi-superagents"
+    if [ ! -f "${ext}/src/extension/config-store.ts" ]; then
+        printf 'SKIP: pi-superagents is not installed at %s; guard effect not checked\n' "$ext" >&2
+        return 0
+    fi
+    mkdir -p "${TEST_ROOT}/superagents-copy"
+    cp -r "${ext}/src" "${ext}/default-config.json" "${ext}/package.json" "${TEST_ROOT}/superagents-copy/"
+    out="$(node --input-type=module - "${TEST_ROOT}/superagents-copy" "$shared" \
+        "${home}/.pi/agent/extensions/subagent.d/pigs" 2>/dev/null <<'JS'
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+const [ext, ...dirs] = process.argv.slice(2);
+const {loadRuntimeConfigState} = await import(pathToFileURL(path.join(ext, 'src/extension/config-store.ts')).href);
+console.log(dirs.map(dir => loadRuntimeConfigState(ext, dir, []).blocked).join(' '));
+JS
+)" || fail "the installed pi-superagents config loader must be readable"
+    assert_eq "$out" "true false" "the guard must disable pi-superagents, the launcher config must not"
+}
+
+# 防ぐ損害: ランチャーの中では bwrap が共有の bind 先にランチャーのディレクトリを重ねる。そこで setup を実行すると、
+# 停止用の設定がランチャーの設定を置き換え、本物の共有の bind 先は守られないまま成功と表示される（#307 のレビュー）。
+# 本物の bwrap で同じ mount を作り、何も書かずに止まることを見る。外での実行（通る例）は上のテストが見る。
+test_setup_refuses_inside_a_launcher() {
+    local home shared launcher_dir status real_bwrap
+    home="${TEST_ROOT}/setup-inside-launcher"
+    mkdir -p "$home"
+    run_setup "$home" >/dev/null
+    shared="${home}/.pi/agent/extensions/subagent"
+    launcher_dir="${home}/.pi/agent/extensions/subagent.d/pigs"
+    # MODEL_SHIM の bwrap は mount をしない偽物なので、本物を絶対パスで使う。
+    real_bwrap="$(command -v bwrap)" || real_bwrap=""
+    if [ -z "$real_bwrap" ] || ! "$real_bwrap" --dev-bind / / --bind "$launcher_dir" "$shared" -- true 2>/dev/null; then
+        printf 'SKIP: bwrap cannot create the launcher mount here; inside-launcher refusal not checked\n' >&2
+        return 0
+    fi
+    cp -a "$home" "${TEST_ROOT}/setup-inside-launcher.before"
+    set +e
+    env HOME="$home" PATH="${MODEL_SHIM}/bin:${PATH}" \
+        "$real_bwrap" --dev-bind / / --bind "$launcher_dir" "$shared" -- zsh "$SETUP" --if-absent >/dev/null 2>&1
+    status=$?
+    set -e
+    [ "$status" -ne 0 ] || fail "setup inside a launcher mount must fail"
+    diff -r "${TEST_ROOT}/setup-inside-launcher.before" "$home" >/dev/null \
+        || fail "setup inside a launcher mount must not write anything"
 }
 
 # 防ぐ損害: setup が共有の settings.json（書式・CRLF・世代バックアップ）を書き換えると、共有の設定が黙って壊れる。
@@ -592,12 +701,15 @@ test_missing_custom_parent_stops_before_pi
 test_unverifiable_or_unsupported_tiers_stop_before_pi
 test_bind_target_ignores_pi_coding_agent_dir
 test_missing_config_fails_closed
+test_incomplete_tiers_fail_closed
 test_missing_bwrap_fails_closed
 test_actual_and_dry_run_argv_match
 test_launchers_wrap_pi_with_their_own_config
 test_only_vertex_launchers_overlay_auth
 test_setup_preserves_prior_generation_on_name_collision
 test_setup_if_absent_preserves_user_edits
+test_setup_guards_shared_bind_target
+test_setup_refuses_inside_a_launcher
 test_setup_leaves_user_settings_untouched
 test_install_registers_and_verifies_superagents
 printf 'OK test-pi-superagents\n'
