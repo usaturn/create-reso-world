@@ -68,6 +68,24 @@ if ! command -v bwrap >/dev/null 2>&1; then
     exit 1
 fi
 
+#
+# ランチャーの中（bwrap の mount がある状態）では、共有の bind 先にランチャーのディレクトリが重なって見える。
+# そこへ停止用の設定を書くと、ランチャーの設定を置き換えたうえ、本物の共有の bind 先は守られないまま
+# 成功と表示してしまう。何も書かずに止める。
+#
+typeset launcher_dir
+for launcher_dir in "${LAUNCHER_ROOT}"/*(N/); do
+    if [[ "${SHARED_DIR}" -ef "${launcher_dir}" ]]; then
+        print -ru2 -- "ERROR: ランチャー（${launcher_dir:t}）の中で実行されています。共有の bind 先に、そのランチャーの設定が重なって見えます。"
+        print -ru2 -- ""
+        print -ru2 -- "Pi を終了するか別の端末を開き、ランチャーを通さないシェルで実行し直してください:"
+        print -ru2 -- ""
+        print -ru2 -- "  zsh scripts/setup_pi_superagents.zsh"
+        exit 1
+    fi
+done
+unset launcher_dir
+
 mkdir -p "${SHARED_DIR}" "${BIN_DIR}"
 
 # 退避名の基本形は従来どおり <file>.bak.YYYYMMDD-HHMMSS。同一秒に再実行して基本名が既に存在する場合は、

@@ -407,6 +407,33 @@ JS
     assert_eq "$out" "true false" "the guard must disable pi-superagents, the launcher config must not"
 }
 
+# 防ぐ損害: ランチャーの中では bwrap が共有の bind 先にランチャーのディレクトリを重ねる。そこで setup を実行すると、
+# 停止用の設定がランチャーの設定を置き換え、本物の共有の bind 先は守られないまま成功と表示される（#307 のレビュー）。
+# 本物の bwrap で同じ mount を作り、何も書かずに止まることを見る。外での実行（通る例）は上のテストが見る。
+test_setup_refuses_inside_a_launcher() {
+    local home shared launcher_dir status real_bwrap
+    home="${TEST_ROOT}/setup-inside-launcher"
+    mkdir -p "$home"
+    run_setup "$home" >/dev/null
+    shared="${home}/.pi/agent/extensions/subagent"
+    launcher_dir="${home}/.pi/agent/extensions/subagent.d/pigs"
+    # MODEL_SHIM の bwrap は mount をしない偽物なので、本物を絶対パスで使う。
+    real_bwrap="$(command -v bwrap)" || real_bwrap=""
+    if [ -z "$real_bwrap" ] || ! "$real_bwrap" --dev-bind / / --bind "$launcher_dir" "$shared" -- true 2>/dev/null; then
+        printf 'SKIP: bwrap cannot create the launcher mount here; inside-launcher refusal not checked\n' >&2
+        return 0
+    fi
+    cp -a "$home" "${TEST_ROOT}/setup-inside-launcher.before"
+    set +e
+    env HOME="$home" PATH="${MODEL_SHIM}/bin:${PATH}" \
+        "$real_bwrap" --dev-bind / / --bind "$launcher_dir" "$shared" -- zsh "$SETUP" --if-absent >/dev/null 2>&1
+    status=$?
+    set -e
+    [ "$status" -ne 0 ] || fail "setup inside a launcher mount must fail"
+    diff -r "${TEST_ROOT}/setup-inside-launcher.before" "$home" >/dev/null \
+        || fail "setup inside a launcher mount must not write anything"
+}
+
 # 防ぐ損害: setup が共有の settings.json（書式・CRLF・世代バックアップ）を書き換えると、共有の設定が黙って壊れる。
 # 通常と --if-absent の 2 通りで、書式を含めて既存のバイト列を比較し、無いときに作らないことも見る。
 test_setup_leaves_user_settings_untouched() {
@@ -682,6 +709,7 @@ test_only_vertex_launchers_overlay_auth
 test_setup_preserves_prior_generation_on_name_collision
 test_setup_if_absent_preserves_user_edits
 test_setup_guards_shared_bind_target
+test_setup_refuses_inside_a_launcher
 test_setup_leaves_user_settings_untouched
 test_install_registers_and_verifies_superagents
 printf 'OK test-pi-superagents\n'

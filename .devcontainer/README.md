@@ -1481,7 +1481,7 @@ zsh scripts/setup_pi_superagents.zsh --if-absent
 
 `HOME` は変えないので git / ssh の設定の見え方には影響せず、共有ファイルを書き換えないので複数のランチャーを同時に起動しても設定が混線しない。子 Pi は namespace を継承するため、親子で同じ tier を見る。
 
-ただし `bwrap` は `no_new_privs` を立てるため、ランチャー配下では `sudo` / `su` が使えない。sudo が要る作業は、ランチャーを通さない素の `pi` か別のターミナルで行う。
+ただし `bwrap` は `no_new_privs` を立てるため、ランチャー配下では `sudo` / `su` が使えない。sudo が要る作業は、ランチャーを通さない素の `pi` か別のターミナルで行う。素の `pi` では pi-superagents が止まり、起動時にその旨が表示される（後述の「ランチャーを通さない Pi と同梱の既定 model」）。
 
 | launcher | cheap | balanced | max |
 |---|---|---|---|
@@ -1520,7 +1520,7 @@ pi-superagents は tier ごとに、設定の上書きを拡張に同梱の既�
 
 ランチャーを通さずに起動した Pi（素の `pi`、Herdr の復元による再開）には bwrap の mount が無く、拡張は共有の bind 先 `~/.pi/agent/extensions/subagent/config.json` を読む。2026-11-04 には、PC が落ちた後に Herdr がセッションを復元し（`[session] resume_agents_on_restore` は既定で有効）、Pi のペインを `pigs` ではなく Pi で直接再開した。親は再開したセッションの model（`openai-codex/gpt-6.1-sol`）を引き継ぐので pigs に見えたが、共有の bind 先には拡張が書いた同梱の既定の写しがあり、`sp-implementer`（balanced）の子が `opencode-go/glm-5.3-flash` で動いた（#307）。
 
-`setup_pi_superagents.zsh` は、共有の bind 先に停止用の設定を置く。トップレベルに `launcherRequired_doNotRemove_restartPiViaLauncher` というキーを持ち、拡張はこれを未知のキーとして扱って subagent ツールを止める。ランチャーを通さない Pi で subagent を使おうとすると、次のように表示される。
+`setup_pi_superagents.zsh` は、共有の bind 先に停止用の設定を置く。トップレベルに `launcherRequired_doNotRemove_restartPiViaLauncher` というキーを持ち、拡張はこれを未知のキーとして扱って subagent ツールを止める。ランチャーを通さない Pi では、起動時と subagent を使おうとしたときに、次のように表示される。止まるのは pi-superagents の機能だけで、素の `pi` のほかの使い方（project trust の承認、sudo が要る作業など）には影響しない。
 
 ```text
 pi-superagents is disabled because config.json needs attention.
@@ -1529,7 +1529,7 @@ Path: /home/vscode/.pi/agent/extensions/subagent/config.json
 - launcherRequired_doNotRemove_restartPiViaLauncher: is not a supported config key.
 ```
 
-このキーは消さない。消すと、ランチャーを通さない Pi が再び同梱の既定 model の子を動かす。ランチャーの中では bwrap がランチャーのディレクトリを重ねるので、この設定は見えない。setup は通常と `--if-absent`（rebuild）のどちらでも、キーの無い既存の `config.json` を `config.json.bak.YYYYMMDD-HHMMSS` へ退避してから置き換え、キーのある設定（拡張が `superagents` を書き足したものを含む）は残す。既存の環境では、rebuild するか、リポジトリのルートで `zsh scripts/setup_pi_superagents.zsh --if-absent` を一度実行する。
+このキーは消さない。消すと、ランチャーを通さない Pi が再び同梱の既定 model の子を動かす。ランチャーの中では bwrap がランチャーのディレクトリを重ねるので、この設定は見えない。setup は通常と `--if-absent`（rebuild）のどちらでも、キーの無い既存の `config.json` を `config.json.bak.YYYYMMDD-HHMMSS` へ退避してから置き換え、キーのある設定（拡張が `superagents` を書き足したものを含む）は残す。既存の環境では、rebuild するか、リポジトリのルートで `zsh scripts/setup_pi_superagents.zsh --if-absent` を一度実行する。setup はランチャーの外のシェルで実行する。ランチャーの中（ランチャーで起動した Pi の bash ツールを含む）では共有の bind 先にランチャーの設定が重なって見えるので、setup は何も書かずに止まる。
 
 Herdr の復元の後に上のメッセージが出たら、復元された Pi を終了し、使っていたランチャーでセッションを開き直す。
 
