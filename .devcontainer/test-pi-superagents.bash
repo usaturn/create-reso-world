@@ -28,13 +28,15 @@ assert_contains() {
 }
 
 # ランチャー用の一時 HOME を作る。config を置くかどうかを引数で選ぶ。
+# config はヘルパの起動前の検査を通るよう cheap / balanced / max をそろえる（cheap は文字列の形）。
 make_home() {
     local name="$1" with_config="$2"
     local home="${TEST_ROOT}/${name}"
     mkdir -p "${home}/.pi/agent/extensions/subagent"
     if [ "$with_config" = "with-config" ]; then
         mkdir -p "${home}/.pi/agent/extensions/subagent.d/${name}"
-        printf '{"superagents":{"modelTiers":{}}}\n' \
+        printf '%s\n' \
+            '{"superagents":{"modelTiers":{"cheap":"test/cheap","balanced":{"model":"test/balanced","thinking":"high"},"max":{"model":"test/max"}}}}' \
             > "${home}/.pi/agent/extensions/subagent.d/${name}/config.json"
     fi
     printf '%s' "$home"
@@ -87,6 +89,35 @@ test_missing_config_fails_closed() {
     assert_eq "$status" "1" "missing config must exit 1"
     assert_contains "$out" "setup_pi_superagents.zsh" "must point at the setup script"
     assert_contains "$out" "pigod" "must name the launcher"
+}
+
+# 防ぐ損害: pi-superagents は欠けた tier を同梱の既定 model（1.14.4 の balanced は opencode-go/glm-5.3-flash）で埋める。
+# 検査が tier の欠けや provider の無い model を通すと、利用者が選んでいない provider へ子の要求が黙って送られる（#307）。
+# 代表はヘルパ。各ランチャーは同じヘルパを使う。そろった設定（make_home。cheap は文字列の形）は通す。
+test_incomplete_tiers_fail_closed() {
+    local home config status out
+    home="$(make_home pigs with-config)"
+    config="${home}/.pi/agent/extensions/subagent.d/pigs/config.json"
+    out="$(run_helper "$home" pigs)"
+    assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "complete tiers must reach bwrap"
+
+    printf '%s\n' '{"superagents":{"modelTiers":{"cheap":{"model":"test/cheap"},"max":{"model":"test/max"}}}}' > "$config"
+    set +e
+    out="$(run_helper "$home" pigs 2>"${TEST_ROOT}/tiers.err")"
+    status=$?
+    set -e
+    assert_eq "$status" "1" "missing balanced tier must exit 1"
+    assert_eq "$out" "" "missing balanced tier must not reach bwrap"
+    assert_contains "$(<"${TEST_ROOT}/tiers.err")" "[pigs]" "must name the launcher"
+    assert_contains "$(<"${TEST_ROOT}/tiers.err")" "$config" "must name the config"
+
+    printf '%s\n' '{"superagents":{"modelTiers":{"cheap":"test/cheap","balanced":{"model":"glm-5.3-flash"},"max":"test/max"}}}' > "$config"
+    set +e
+    out="$(run_helper "$home" pigs 2>/dev/null)"
+    status=$?
+    set -e
+    assert_eq "$status" "1" "a tier model without provider must exit 1"
+    assert_eq "$out" "" "a tier model without provider must not reach bwrap"
 }
 
 # 防ぐ損害: bwrap が無いのに止まらないと、サンドボックス（mount namespace による分離）無しで Pi が起動する。
@@ -592,6 +623,7 @@ test_missing_custom_parent_stops_before_pi
 test_unverifiable_or_unsupported_tiers_stop_before_pi
 test_bind_target_ignores_pi_coding_agent_dir
 test_missing_config_fails_closed
+test_incomplete_tiers_fail_closed
 test_missing_bwrap_fails_closed
 test_actual_and_dry_run_argv_match
 test_launchers_wrap_pi_with_their_own_config
