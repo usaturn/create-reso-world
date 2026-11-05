@@ -10,7 +10,9 @@ set -euo pipefail
 # 作成するもの:
 #   ~/.pi/agent/extensions/subagent/config.json    bwrap の bind 先。ランチャーを通さない Pi で
 #                                                  pi-superagents を止める停止用の設定（#307）
-#   ~/.pi/agent/extensions/subagent.d/<launcher>/  ランチャー別の config.json
+#   ~/.pi/agent/extensions/subagent.d/create-reso-world/<launcher>/
+#                                                  ランチャー別の config.json（#313。旧位置の subagent.d/<launcher>/ は
+#                                                  共有の ~/.pi で usaturn/agent-workspace の setup も書くので、読まず、書かない）
 #   ~/.local/bin/pi-superagents-exec.zsh           ランチャー共通ヘルパ
 #   ~/.pi/agent/extensions/herdr-launcher-resume.ts  Herdr の復元でランチャーから再開させる Pi の拡張（#309）
 #   ~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts
@@ -42,7 +44,9 @@ readonly MODEL_GUARD_SOURCE="${REPO_ROOT}/.devcontainer/pi-superagents-model-gua
 #
 readonly EXT_DIR="${HOME}/.pi/agent/extensions"
 readonly SHARED_DIR="${EXT_DIR}/subagent"
-readonly LAUNCHER_ROOT="${EXT_DIR}/subagent.d"
+readonly SUBAGENT_D="${EXT_DIR}/subagent.d"
+# 共通ヘルパの pi_launcher_dir と同じ場所。
+readonly LAUNCHER_ROOT="${SUBAGENT_D}/create-reso-world"
 readonly BIN_DIR="${HOME}/.local/bin"
 
 readonly LAUNCHERS=(pigo pigod piccg piccd piga pigt pidid pigs pigl pixg pigemf pigemp pigema)
@@ -77,10 +81,11 @@ fi
 #
 # ランチャーの中（bwrap の mount がある状態）では、共有の bind 先にランチャーのディレクトリが重なって見える。
 # そこへ停止用の設定を書くと、ランチャーの設定を置き換えたうえ、本物の共有の bind 先は守られないまま
-# 成功と表示してしまう。何も書かずに止める。
+# 成功と表示してしまう。何も書かずに止める。旧位置（subagent.d/<launcher>/）も見る。更新の前にランチャーから
+# 起動した Pi と、usaturn/agent-workspace のランチャーは旧位置を重ねている（#313）。
 #
 typeset launcher_dir
-for launcher_dir in "${LAUNCHER_ROOT}"/*(N/); do
+for launcher_dir in "${LAUNCHER_ROOT}"/*(N/) "${SUBAGENT_D}"/*(N/); do
     if [[ "${SHARED_DIR}" -ef "${launcher_dir}" ]]; then
         print -ru2 -- "ERROR: ランチャー（${launcher_dir:t}）の中で実行されています。共有の bind 先に、そのランチャーの設定が重なって見えます。"
         print -ru2 -- ""
@@ -155,11 +160,11 @@ print -r -- "extension: ${EXT_DIR}/herdr-launcher-resume.ts"
 
 # ヘルパと同じく毎回更新する（--if-absent でも）。ヘルパが起動前に在ることを求め、--if-absent で残る既存の設定も挙げうる。
 # subagent.d/ の直下のファイルは Pi の自動探索の対象外なので、親の Pi には読み込まれない。
-mkdir -p "${LAUNCHER_ROOT}"
-install -m 0644 "${MODEL_GUARD_SOURCE}" "${LAUNCHER_ROOT}/pi-superagents-model-guard.ts"
-print -r -- "extension: ${LAUNCHER_ROOT}/pi-superagents-model-guard.ts"
+mkdir -p "${SUBAGENT_D}"
+install -m 0644 "${MODEL_GUARD_SOURCE}" "${SUBAGENT_D}/pi-superagents-model-guard.ts"
+print -r -- "extension: ${SUBAGENT_D}/pi-superagents-model-guard.ts"
 
-typeset launcher source dest
+typeset launcher source dest legacy_seen=0
 for launcher in "${LAUNCHERS[@]}"; do
     source="${SOURCE_DIR}/${launcher}.json"
     dest="${LAUNCHER_ROOT}/${launcher}/config.json"
@@ -182,11 +187,17 @@ for launcher in "${LAUNCHERS[@]}"; do
         fi
         backup_existing "${dest}"
         print -r -- "${launcher}: 既存の設定を ${REPLY:t} へ退避しました"
+    elif [[ -f "${SUBAGENT_D}/${launcher}/config.json" ]]; then
+        legacy_seen=1
     fi
 
     install -m 0644 "${source}" "${dest}"
     print -r -- "${launcher}: ${dest} を配置しました"
 done
+
+if (( legacy_seen )); then
+    print -r -- "注: ランチャー別の設定は ${LAUNCHER_ROOT}/<launcher>/config.json に置きます（#313）。旧位置の ${SUBAGENT_D}/<launcher>/config.json は、共有の ~/.pi で usaturn/agent-workspace の setup も書くので、読まず、変更もしません。旧位置で tier を編集していた場合は、新しい位置に写してください。"
+fi
 
 ensure_shared_guard
 print -r -- "shared bind target: ${SHARED_DIR}"

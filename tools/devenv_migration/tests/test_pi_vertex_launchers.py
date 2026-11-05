@@ -38,7 +38,7 @@ def sandbox(tmp_path: Path) -> tuple[Path, Path, Path]:
     bin_dir.mkdir()
     cwd.mkdir()
     for launcher in LAUNCHERS:
-        config = home / f".pi/agent/extensions/subagent.d/{launcher}/config.json"
+        config = home / f".pi/agent/extensions/subagent.d/create-reso-world/{launcher}/config.json"
         config.parent.mkdir(parents=True)
         config.write_text(json.dumps({"superagents": SUPERAGENTS}) + "\n")
     (home / MODEL_GUARD).write_text("// model guard placeholder\n")
@@ -289,7 +289,7 @@ def test_real_namespace_masks_auth_for_parent_and_child_preserving_saved_files(
     shared = home / ".pi/agent/extensions/subagent/config.json"
     shared.parent.mkdir(parents=True, exist_ok=True)
     shared.write_text('{"superagents":{"modelTiers":{"shared":"must not be used"}}}')
-    config = home / f".pi/agent/extensions/subagent.d/{launcher}/config.json"
+    config = home / f".pi/agent/extensions/subagent.d/create-reso-world/{launcher}/config.json"
     config.write_text(json.dumps({"superagents": SUPERAGENTS}))
     before = {path: path.read_bytes() for path in home.rglob("*") if path.is_file()}
     before.update({path: path.read_bytes() for path in directory.rglob("*") if path.is_file()})

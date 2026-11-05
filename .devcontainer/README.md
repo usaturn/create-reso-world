@@ -913,7 +913,7 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
 - `.devcontainer/pidid` → `~/.local/bin/pidid`。同様に毎回上書き
 - `.devcontainer/pixg` → `~/.local/bin/pixg`。同様に毎回上書き
 - `.devcontainer/pigemf`・`pigemp`・`pigema` → `~/.local/bin/`。同様に毎回上書き
-- `.devcontainer/pi-superagents/<launcher>.json` → `~/.pi/agent/extensions/subagent.d/<launcher>/config.json`、
+- `.devcontainer/pi-superagents/<launcher>.json` → `~/.pi/agent/extensions/subagent.d/create-reso-world/<launcher>/config.json`、
   `.devcontainer/pi-superagents-exec.zsh` → `~/.local/bin/pi-superagents-exec.zsh`、
   共有の bind 先 `~/.pi/agent/extensions/subagent/config.json` の停止用の設定、
   `.devcontainer/pi-herdr-launcher-resume.ts` → `~/.pi/agent/extensions/herdr-launcher-resume.ts`、
@@ -966,7 +966,7 @@ env -u PLANNOTATOR_PORT PLANNOTATOR_REMOTE=0 pi
 
 画面が出ないときは、pi-superagents の `usePlannotator` が `false` に上書きされて
 いないか確認する。ランチャー利用時は、共通設定に加え、実際に使う
-`~/.pi/agent/extensions/subagent.d/<launcher>/config.json` も確認する。
+`~/.pi/agent/extensions/subagent.d/create-reso-world/<launcher>/config.json` も確認する。
 変更する場合は必要なキーだけを調整し、既存の model tier や他の設定は残す。
 
 このリポジトリは `--network=host` を使うため、移植元の remote mode（`0.0.0.0` に bind）を
@@ -1483,10 +1483,14 @@ Herdr の復元用の Pi の拡張（「Herdr の復元とランチャー」）�
 そのためランチャーは、自分専用の設定ディレクトリを `bwrap` の mount namespace でこの共有パスへ重ねて Pi を起動する。
 
 ```
-~/.pi/agent/extensions/subagent.d/pigo/config.json  →  ~/.pi/agent/extensions/subagent/config.json
+~/.pi/agent/extensions/subagent.d/create-reso-world/pigo/config.json  →  ~/.pi/agent/extensions/subagent/config.json
 ```
 
 `HOME` は変えないので git / ssh の設定の見え方には影響せず、共有ファイルを書き換えないので複数のランチャーを同時に起動しても設定が混線しない。子 Pi は namespace を継承するため、親子で同じ tier を見る。
+
+ランチャー別の設定を `subagent.d/create-reso-world/` の下に置くのは、`~/.pi` を usaturn/agent-workspace の Dev Container と共有し、同じ名前のランチャーの設定を agent-workspace の setup が `subagent.d/<launcher>/config.json` に書くためである（#313）。このリポジトリのランチャーと setup は `subagent.d/<launcher>/`（旧位置）を読まず、書かず、退避も削除もしないので、どちらの setup を最後に実行しても、このリポジトリのランチャーはこのリポジトリの tier 設定で動く。
+
+#313 より前からの環境では、新しい位置に設定が無いので、ランチャーは起動せずに setup の実行を案内する。ランチャーの外のシェルで、リポジトリのルートで `zsh scripts/setup_pi_superagents.zsh` を一度実行する（rebuild の `--if-absent` でもよい）。新しい位置に設定が無ければ、どちらの使い方でもリポジトリの tier 設定が置かれる。旧位置の内容は写さないので、旧位置で tier を編集していた場合は、新しい位置の `config.json` に写す（setup は、旧位置に設定があると、その旨を 1 回表示する）。
 
 ただし `bwrap` は `no_new_privs` を立てるため、ランチャー配下では `sudo` / `su` が使えない。sudo が要る作業は、ランチャーを通さない素の `pi` か別のターミナルで行う。素の `pi` では pi-superagents が止まり、起動時にその旨が表示される（後述の「ランチャーを通さない Pi と同梱の既定 model」）。
 
@@ -1587,7 +1591,7 @@ zsh scripts/setup_pi_superagents.zsh
 
 tier を編集していて置き換えたくない場合は、`zsh scripts/setup_pi_superagents.zsh --if-absent` で拡張を置き、その設定の `superagents.extensions` に `~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts` を足す。
 
-usaturn/agent-workspace の setup は、同じ共有の `~/.pi` に別の拡張 `~/.pi/agent/extensions/subagent.d/pi-superagents-tier-guard.ts` を置き、ランチャー別の設定をそれを挙げる内容に置き換えることがある。このリポジトリの拡張は別のファイルで、互いに上書きしない。agent-workspace が置き換えた設定では、このリポジトリのランチャーが起動を止めるので、上の setup を実行し直す。
+usaturn/agent-workspace の setup は、同じ共有の `~/.pi` に別の拡張 `~/.pi/agent/extensions/subagent.d/pi-superagents-tier-guard.ts` を置き、旧位置のランチャー別の設定（`subagent.d/<launcher>/config.json`）をそれを挙げる内容に置き換える。このリポジトリの拡張は別のファイルで、互いに上書きしない。このリポジトリのランチャーは `subagent.d/create-reso-world/<launcher>/` の設定を読むので（前述の「pi-superagents のランチャー別 model tier」。#313）、agent-workspace の setup を実行しても止まらない。
 
 対象外:
 
