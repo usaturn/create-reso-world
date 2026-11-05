@@ -128,6 +128,16 @@
 - 旧位置の設定の削除・自動の移行（D3）
 - 利用者の環境での setup の実行と、実際の資格情報での確認（マージの後の利用者の確認）
 
+## 全体レビューの判断
+
+base `2fa03f19` から `24ec12a4` までを、新しいサブエージェント（Opus、読み取りだけ）がレビューした（判定 With fixes。Critical・Important は 0、Minor 4。「直さずにマージしても安全」）。受け入れ基準 1〜7 と Review Focus 1〜5 は満たす（一時 HOME の最小再現を含む）、8 はレビューの時点では検証の途中だったので確かめられない、とされた（8 はその後の検証で満たした）。Minor は executing-plans の規則と、致命的な指摘だけを直す方針により直さず、持ち越し候補にする。
+
+- Minor 1: `pigt`・`pidid` は、新しい位置に設定が無い移行の直後に、設定の有無の検査より前に model の起動前の検査が走るので、「設定が見つかりません」ではなく「model catalog / models.json / tier config を解決できません」と出る。終了コード 1 で、案内の 3 行目に `zsh scripts/setup_pi_superagents.zsh --if-absent` も出るので、受け入れ基準 4 は満たす。直さない（移行の手順は README と Issue のコメントで、setup を先に実行するよう伝える）
+- Minor 2: provider の setup（`setup_pi_opencode_go.zsh`・`setup_pi_commandcode_goat.zsh`）はヘルパだけを新しくし、ランチャー別の設定を置かない。#310 の前からある形で、ランチャーは「設定が見つかりません」と setup の案内で止まる（L）。直さない
+- Minor 3: `.devcontainer/README.md` の「子 Pi の model の照合」の、#310 より前からの環境の移行の段落は、#313 の移行（新しい位置に設定が無ければ `--if-absent` でも置かれる）と併せて読むと分かりにくい。誤りではないので直さない
+- Minor 4: `.devcontainer/test-pi-superagents.bash` の `model_home` の JS は、`LAUNCHER_CONFIG_ROOT` を使わずに新しい位置を書く。場所を変えればテストが失敗するので気付ける（L）。直さない
+- レビュアーが判断の対象外にしたもの（旧位置で tier を編集していた利用者への注意が 1 回だけであること、旧位置を重ねた中での拒否をテストにしないこと、更新の前に起動した Pi のセッション、`docs/maatlog-poc-porting.md` の R-8）は、どれも Spec の D3・D8・D6 で決めたとおりで、変えない
+
 ## マージの後でなければ確かめられない項目
 
 - 利用者の環境で、ランチャーの外のシェルで `zsh scripts/setup_pi_superagents.zsh`（または rebuild）を実行し、新しい位置に 13 の設定が置かれ、旧位置が変わらないこと。その後に使っているランチャー（`pigt` など）が起動前の検査を通って起動すること
