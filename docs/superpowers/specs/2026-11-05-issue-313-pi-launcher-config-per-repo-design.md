@@ -2,8 +2,9 @@
 
 ## 管理
 
-- 状態: draft
+- 状態: completed（PR #314 の pr-review-fix-loop のサイクル 1 で修正不要と判断。下の「PR #314 のレビューの判断」）
 - Issue: https://github.com/usaturn/create-reso-world/issues/313（PR #312・#310 の持ち越し）
+- PR: https://github.com/usaturn/create-reso-world/pull/314
 - 実行許可: 利用者の指示 `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/313 --merge`。issue-to-pr スキルにより、通常の設計判断を推奨案で決め、検証・commit・push・PR の作成まで続ける。`--merge` により、PR の作成後に pr-review-fix-loop を回し、修正不要と確かめられたら `finalize.py` がマージと Issue の更新を行う
 - 許可された範囲: create-reso-world の `.devcontainer/`（ヘルパ・README・テスト）・`scripts/setup_pi_superagents.zsh` と、ランチャー別の設定の場所を表示する setup（`scripts/setup_pi_commandcode_goat.zsh`・`scripts/setup_pi_opencode_go.zsh`）・`tools/devenv_migration/tests/`・この Spec と Plan の変更。usaturn/agent-workspace のリポジトリは変えない（Issue の範囲外）。利用者の `~/.pi` は変えない（setup の実行は、マージの後の利用者の確認）
 - この文書の commit は実行許可の記録であり、内容の承認（`approved`）ではない
@@ -137,6 +138,26 @@ base `2fa03f19` から `24ec12a4` までを、新しいサブエージェント�
 - Minor 3: `.devcontainer/README.md` の「子 Pi の model の照合」の、#310 より前からの環境の移行の段落は、#313 の移行（新しい位置に設定が無ければ `--if-absent` でも置かれる）と併せて読むと分かりにくい。誤りではないので直さない
 - Minor 4: `.devcontainer/test-pi-superagents.bash` の `model_home` の JS は、`LAUNCHER_CONFIG_ROOT` を使わずに新しい位置を書く。場所を変えればテストが失敗するので気付ける（L）。直さない
 - レビュアーが判断の対象外にしたもの（旧位置で tier を編集していた利用者への注意が 1 回だけであること、旧位置を重ねた中での拒否をテストにしないこと、更新の前に起動した Pi のセッション、`docs/maatlog-poc-porting.md` の R-8）は、どれも Spec の D3・D8・D6 で決めたとおりで、変えない
+
+## PR #314 のレビューの判断
+
+- 実行許可: `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/313 --merge` による pr-review-fix-loop（run `65c650f425a74e09a0b1bf4a5fa6ee6c`）の中で、review-fix-planning を完遂として行った
+- サイクル: 1。planner: `claude-opus-5-5`（claude-code）。前のサイクルの判断: なし
+- レビューディレクトリ: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#314-fix-issue-313-pi-launcher-config-dir/`。確認済みの一覧: `verified/58230128112e.json`（review-verify の mode cycle。confirmed 0 / not_reproduced 0 / unverified 0。coverage.remaining は、利用者の実際の共有 `~/.pi` と資格情報での setup・ランチャーの起動）。工程の記録: `verified/58230128112e.planning.json`
+- 修正と自己レビューの担当（ループの割り当て）: implement `claude-code_opus_default`、self-review `self`、fix-check `self`。対応する項目が無いので `run_roles.py` は呼んでいない（自己レビューの回数 0）
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| Grok-4.7.md | Grok 4.7 | cursor | 58230128112e | はい（Initial） | Approve（指摘 0） |
+| SWE-2-Max.md | SWE-2 Max | devin | 58230128112e | はい（Initial） | Approve（指摘 0） |
+| deepseek-deepseek-v4.1-flash.md | deepseek/deepseek-v4.1-flash | pi | 58230128112e | はい（Initial） | Approve（指摘 0） |
+
+分類: 解消済み 0 / 対応する 0 / 対応しない 0
+
+- 3 人とも、一時 HOME と本物の bwrap で、新しい位置への配置、旧位置を書き換えないこと、往復が無いこと、新旧どちらを重ねた中でも setup が止まることを実行して確かめ、指摘は 0 件だった。`pigt`・`pidid` の移行の直後の案内の順（全体レビューの Minor 1）は、3 人とも既知の制限として欠陥にしなかった
+- 要件対応: 受け入れ基準 1〜8 は、レビュアーの実行と下の検証で満たしたまま。修正が無いので、経路表と自己レビューは無い
+- 結論: 2（修正不要）。検証は、PR の作成の前の最後の検証の記録を使った（同じ HEAD `58230128112eeec7f109593efe3ab73421a306c9`、実行の前後とも作業ツリーが clean、`bash .devcontainer/run-tests.bash`・`bash scripts/check-layout.sh`・`uv run pytest tests/skills .agents/skills .agents/scripts tools`（1257 passed）の終了コードがすべて 0、ログは `/workspaces/reso-world/tmp/agents/issue-313.wb3fdh4n/verify-58230128/`）。取り直した base の先端 `2fa03f195f76b0fcc87f0cab0f7d5e333637659c` は検証の記録の base と同じで head の祖先なので、一時的な merge での検証は要らない
+- 自己レビュー: 対応するコードの修正が無いので行っていない
 
 ## マージの後でなければ確かめられない項目
 
