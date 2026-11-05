@@ -4,7 +4,8 @@
 # pi-superagents は設定を os.homedir()/.pi/agent/extensions/subagent/config.json
 # から読む。このパスは拡張のソースに直接書かれており、環境変数による override が
 # 無い。そこで bwrap の mount namespace を使い、ランチャー固有のディレクトリを
-# その共有パスへプロセスツリー単位で重ねる。
+# その共有パスへプロセスツリー単位で重ねる。ランチャー固有のディレクトリは
+# ~/.pi/agent/extensions/subagent.d/create-reso-world/<launcher>/（pi_launcher_dir。#313）。
 #
 #   - HOME を変えないので git / ssh の設定の見え方には影響しない
 #   - 共有ファイルをコピー・上書きしないので、同時起動でも競合しない
@@ -36,6 +37,14 @@ pi_agent_directory() {
         agent_dir="${HOME}/${agent_dir#'~/'}"
     fi
     REPLY="${agent_dir:a}"
+}
+
+# ランチャー別の設定のディレクトリを REPLY に入れる（#313）。共有の ~/.pi を usaturn/agent-workspace と使い合い、
+# 同じ名前のランチャーの設定を agent-workspace の setup が subagent.d/<launcher>/ に書くので、このリポジトリの分は
+# subagent.d/create-reso-world/<launcher>/ に置く（setup_pi_superagents.zsh の LAUNCHER_ROOT と同じ場所）。
+# bind 元と起動前の検査はすべてここから組み立て、検査した設定と子 Pi に重ねる設定がずれないようにする。
+pi_launcher_dir() {
+    REPLY="${HOME}/.pi/agent/extensions/subagent.d/create-reso-world/$1"
 }
 
 pi_openai_codex_require_oauth() {
@@ -212,10 +221,12 @@ try {
 pi_launcher_require_models() {
     local launcher="$1"
     shift
-    local REPLY
+    local REPLY agent_dir
     pi_agent_directory
-    if ! node --input-type=module - "$(command -v pi)" "${REPLY}" \
-        "${HOME}/.pi/agent/extensions/subagent.d/${launcher}/config.json" \
+    agent_dir="${REPLY}"
+    pi_launcher_dir "${launcher}"
+    if ! node --input-type=module - "$(command -v pi)" "${agent_dir}" \
+        "${REPLY}/config.json" \
         "$@" <<'JS'
 import fs from 'node:fs';
 import path from 'node:path';
@@ -381,8 +392,10 @@ pi_superagents_exec() {
         pigt|pidid) pi_launcher_require_models "${launcher}" "$@" || return 1 ;;
     esac
 
+    local REPLY
+    pi_launcher_dir "${launcher}"
     local shared_dir="${HOME}/.pi/agent/extensions/subagent"
-    local launcher_dir="${HOME}/.pi/agent/extensions/subagent.d/${launcher}"
+    local launcher_dir="${REPLY}"
     local config="${launcher_dir}/config.json"
 
     if ! command -v bwrap >/dev/null 2>&1; then
@@ -411,7 +424,6 @@ pi_superagents_exec() {
     # 名付けると位置パラメータを影(shadow)にしてしまう。args_ などの別名で
     # 宣言して、pi への引数引き継ぎ(下の "$@")が空にならないようにする。
     # Pin the interpreted directory for every native consumer and child cwd.
-    local REPLY
     pi_agent_directory
     export PI_CODING_AGENT_DIR="${REPLY}"
 

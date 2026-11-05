@@ -341,7 +341,7 @@ def test_launcher_pins_same_directory_before_executing_pi(tmp_path: Path) -> Non
     # Break: prechecks normalize a path but the process tree still receives its raw spelling.
     _symlink_parent(tmp_path)
     home = tmp_path / "home"
-    config = home / ".pi/agent/extensions/subagent.d/pigo/config.json"
+    config = home / ".pi/agent/extensions/subagent.d/create-reso-world/pigo/config.json"
     config.parent.mkdir(parents=True)
     # ヘルパは起動前に cheap / balanced / max の model がそろっているかを確かめる（#307）。
     # 子 Pi の model の照合の拡張を挙げ、そのファイルも置く（#310）。

@@ -30,6 +30,10 @@ assert_contains() {
 # 子 Pi の model の照合の拡張（#310）。tier 設定はこの文字列で挙げ、ヘルパは HOME の下のこのパスに在ることを求める。
 MODEL_GUARD_ENTRY='~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts'
 
+# このリポジトリのランチャー別の設定の場所（HOME からの相対。#313）。旧位置 subagent.d/<launcher>/ は、共有の ~/.pi で
+# usaturn/agent-workspace の setup が書くので、ヘルパも setup も使わない。
+LAUNCHER_CONFIG_ROOT='.pi/agent/extensions/subagent.d/create-reso-world'
+
 # ランチャー用の一時 HOME を作る。config を置くかどうかを引数で選ぶ。
 # config はヘルパの起動前の検査を通るよう cheap / balanced / max をそろえ（cheap は文字列の形）、照合の拡張を挙げる。
 make_home() {
@@ -37,11 +41,11 @@ make_home() {
     local home="${TEST_ROOT}/${name}"
     mkdir -p "${home}/.pi/agent/extensions/subagent"
     if [ "$with_config" = "with-config" ]; then
-        mkdir -p "${home}/.pi/agent/extensions/subagent.d/${name}"
+        mkdir -p "${home}/${LAUNCHER_CONFIG_ROOT}/${name}"
         printf '// model guard placeholder\n' > "${home}/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"
         printf '%s\n' \
             "{\"superagents\":{\"extensions\":[\"${MODEL_GUARD_ENTRY}\"],\"modelTiers\":{\"cheap\":\"test/cheap\",\"balanced\":{\"model\":\"test/balanced\",\"thinking\":\"high\"},\"max\":{\"model\":\"test/max\"}}}}" \
-            > "${home}/.pi/agent/extensions/subagent.d/${name}/config.json"
+            > "${home}/${LAUNCHER_CONFIG_ROOT}/${name}/config.json"
     fi
     printf '%s' "$home"
 }
@@ -101,7 +105,7 @@ test_missing_config_fails_closed() {
 test_incomplete_tiers_fail_closed() {
     local home config status out
     home="$(make_home pigs with-config)"
-    config="${home}/.pi/agent/extensions/subagent.d/pigs/config.json"
+    config="${home}/${LAUNCHER_CONFIG_ROOT}/pigs/config.json"
     out="$(run_helper "$home" pigs)"
     assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "complete tiers must reach bwrap"
 
@@ -133,7 +137,7 @@ test_incomplete_tiers_fail_closed() {
 test_missing_model_guard_fails_closed() {
     local home config guard status out
     home="$(make_home pigl with-config)"
-    config="${home}/.pi/agent/extensions/subagent.d/pigl/config.json"
+    config="${home}/${LAUNCHER_CONFIG_ROOT}/pigl/config.json"
     guard="${home}/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"
     printf '\xef\xbb\xbf{"superagents":{"makeSuperpowersSkillsOptInOnly":true,"extensions":["%s"],"modelTiers":{"cheap":"test/cheap","balanced":"test/balanced","max":"test/max"}}}\n' \
         "$guard" > "$config"
@@ -271,7 +275,7 @@ test_launchers_wrap_pi_with_their_own_config() {
         done
         [ -n "$bind_at" ] || fail "${launcher} must pass --bind to bwrap"
         assert_eq "${argv[$((bind_at + 1))]}" \
-            "${home}/.pi/agent/extensions/subagent.d/${launcher}" "${launcher} bind src"
+            "${home}/${LAUNCHER_CONFIG_ROOT}/${launcher}" "${launcher} bind src"
         assert_eq "${argv[$((bind_at + 2))]}" \
             "${home}/.pi/agent/extensions/subagent" "${launcher} bind dst"
         name_at=""
@@ -367,7 +371,7 @@ test_setup_preserves_prior_generation_on_name_collision() {
     home="${TEST_ROOT}/setup-collision"
     mkdir -p "$home"
     run_setup_shim "$home" >/dev/null
-    dir="${home}/.pi/agent/extensions/subagent.d/pigo"
+    dir="${home}/${LAUNCHER_CONFIG_ROOT}/pigo"
     config="${dir}/config.json"
     gen1='{"superagents":{"modelTiers":{"gen":"one"}}}'
     gen2='{"superagents":{"modelTiers":{"gen":"two"}}}'
@@ -394,7 +398,7 @@ test_setup_if_absent_preserves_user_edits() {
     home="${TEST_ROOT}/setup-if-absent"
     mkdir -p "$home"
     run_setup "$home" >/dev/null
-    config="${home}/.pi/agent/extensions/subagent.d/pidid/config.json"
+    config="${home}/${LAUNCHER_CONFIG_ROOT}/pidid/config.json"
     mkdir -p "${config%/*}"
     printf '{"superagents":{"modelTiers":{"cheap":{"model":"x/y","thinking":"max"}}}}\n' > "$config"
     printf '# stale helper\n' > "${home}/.local/bin/pi-superagents-exec.zsh"
@@ -445,7 +449,7 @@ c.superagents = {makeSuperpowersSkillsOptInOnly: true}; fs.writeFileSync(f, JSON
     mkdir -p "${TEST_ROOT}/superagents-copy"
     cp -r "${ext}/src" "${ext}/default-config.json" "${ext}/package.json" "${TEST_ROOT}/superagents-copy/"
     out="$(node --input-type=module - "${TEST_ROOT}/superagents-copy" "$shared" \
-        "${home}/.pi/agent/extensions/subagent.d/pigs" 2>/dev/null <<'JS'
+        "${home}/${LAUNCHER_CONFIG_ROOT}/pigs" 2>/dev/null <<'JS'
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 const [ext, ...dirs] = process.argv.slice(2);
@@ -465,7 +469,7 @@ test_setup_refuses_inside_a_launcher() {
     mkdir -p "$home"
     run_setup "$home" >/dev/null
     shared="${home}/.pi/agent/extensions/subagent"
-    launcher_dir="${home}/.pi/agent/extensions/subagent.d/pigs"
+    launcher_dir="${home}/${LAUNCHER_CONFIG_ROOT}/pigs"
     # MODEL_SHIM の bwrap は mount をしない偽物なので、本物を絶対パスで使う。
     real_bwrap="$(command -v bwrap)" || real_bwrap=""
     if [ -z "$real_bwrap" ] || ! "$real_bwrap" --dev-bind / / --bind "$launcher_dir" "$shared" -- true 2>/dev/null; then
@@ -525,6 +529,27 @@ PI_EOF
         [ "$(find "$dir" -maxdepth 1 -name 'settings.json*' | wc -l)" = "$(find "$snapshot" -name 'settings.json*' | wc -l)" ] \
             || fail "setup changed settings file names: ${mode}"
     done
+}
+
+# 防ぐ損害: 共有の ~/.pi では、usaturn/agent-workspace の setup が subagent.d/<launcher>/ に自分のランチャーの設定を書く。
+# このリポジトリの setup がそこを書き換えると、エラーにならずに agent-workspace の設定が置き換わり、2 つの setup の
+# 往復が戻る（#313）。通常の実行（置き換える方）を代表にする。通る例: 新しい位置にリポジトリの設定が置かれる。
+test_setup_leaves_legacy_launcher_configs_untouched() {
+    local home legacy
+    home="${TEST_ROOT}/setup-legacy"
+    legacy="${home}/.pi/agent/extensions/subagent.d/pigt"
+    mkdir -p "$legacy"
+    # agent-workspace の setup が置く形: tier はこのリポジトリと同じで、挙げる拡張だけが違う。
+    node -e 'const fs = require("node:fs"), c = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+c.superagents.extensions = ["~/.pi/agent/extensions/subagent.d/pi-superagents-tier-guard.ts"];
+fs.writeFileSync(process.argv[2], JSON.stringify(c, null, 2) + "\n");' "${CONFIG_DIR}/pigt.json" "${legacy}/config.json"
+    cp "${legacy}/config.json" "${TEST_ROOT}/legacy-original.json"
+    run_setup "$home" >/dev/null
+    cmp -s "${TEST_ROOT}/legacy-original.json" "${legacy}/config.json" \
+        || fail "setup must not rewrite the legacy launcher config"
+    assert_eq "$(find "$legacy" -name 'config.json.bak*' | wc -l)" "0" "setup must not back up the legacy launcher config"
+    cmp -s "${CONFIG_DIR}/pigt.json" "${home}/${LAUNCHER_CONFIG_ROOT}/pigt/config.json" \
+        || fail "setup must place the repository config in the per-repository directory"
 }
 
 INSTALL_SCRIPT="${REPO_ROOT}/.devcontainer/install_beforehand.bash"
@@ -628,7 +653,7 @@ fs.writeFileSync(`${home}/.pi/agent/models-store.json`, JSON.stringify({
         {...template, id: 'gpt-6.1-terra', name: 'Synthetic Terra'}] }
 }));
 const model = launcher === 'pigt' ? 'openai-codex/gpt-6-luna' : 'deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731';
-fs.writeFileSync(`${home}/.pi/agent/extensions/subagent.d/${launcher}/config.json`, JSON.stringify({
+fs.writeFileSync(`${home}/.pi/agent/extensions/subagent.d/create-reso-world/${launcher}/config.json`, JSON.stringify({
     superagents: {extensions: ['~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts'],
         modelTiers: Object.fromEntries(['cheap', 'balanced', 'max'].map(tier =>
         [tier, {model, thinking: 'low'}]))}
@@ -721,7 +746,7 @@ test_effective_parent_options_are_checked() {
 test_unverifiable_or_unsupported_tiers_stop_before_pi() {
     local home out status config
     home="$(model_home pidid)"
-    config="${home}/.pi/agent/extensions/subagent.d/pidid/config.json"
+    config="${home}/${LAUNCHER_CONFIG_ROOT}/pidid/config.json"
     out="$(run_model_helper "$home" pidid --provider deepinfra --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --thinking high)"
     assert_contains "$out" deepseek-ai/DeepSeek-V4.1-Flash-1017 "supported edited tier thinking must reach Pi"
     node - "$config" <<'JS'
@@ -762,5 +787,6 @@ test_setup_if_absent_preserves_user_edits
 test_setup_guards_shared_bind_target
 test_setup_refuses_inside_a_launcher
 test_setup_leaves_user_settings_untouched
+test_setup_leaves_legacy_launcher_configs_untouched
 test_install_registers_and_verifies_superagents
 printf 'OK test-pi-superagents\n'
