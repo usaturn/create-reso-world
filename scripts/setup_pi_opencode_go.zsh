@@ -310,7 +310,7 @@ print "which binds the launcher's own model tier config into Pi."
 print "The tier config for each launcher lives at:"
 print
 for _i in {1..${#LAUNCHER_NAMES}}; do
-    print "  ~/.pi/agent/extensions/subagent.d/${LAUNCHER_NAMES[_i]}/config.json"
+    print "  ~/.pi/agent/extensions/subagent.d/create-reso-world/${LAUNCHER_NAMES[_i]}/config.json"
 done
 print
 print "Each launcher passes the following arguments to Pi:"

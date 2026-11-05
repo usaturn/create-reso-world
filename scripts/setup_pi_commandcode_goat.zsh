@@ -354,8 +354,8 @@ print "Each launcher starts Pi via the pi-superagents 'bwrap' wrapper,"
 print "which binds the launcher's own model tier config into Pi."
 print "The tier config for each launcher lives at:"
 print
-print "  ~/.pi/agent/extensions/subagent.d/piccg/config.json"
-print "  ~/.pi/agent/extensions/subagent.d/piccd/config.json"
+print "  ~/.pi/agent/extensions/subagent.d/create-reso-world/piccg/config.json"
+print "  ~/.pi/agent/extensions/subagent.d/create-reso-world/piccd/config.json"
 print
 print "piccg passes the following arguments to Pi:"
 print
