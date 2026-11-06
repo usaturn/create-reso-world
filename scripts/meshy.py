@@ -73,7 +73,9 @@ def parser():
         help="remesh only: triangle (default) or quad.",
     )
     plan.add_argument(
-        "--model", default="latest", help="Not used by remesh (also --pbr and --texture-resolution)."
+        "--model",
+        default="latest",
+        help="Not used by remesh (also --pbr and --texture-resolution).",
     )
     plan.add_argument("--texture", type=boolean)
     plan.add_argument("--pbr", type=boolean, default=True)
