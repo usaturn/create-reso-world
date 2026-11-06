@@ -13,7 +13,7 @@
 - 状態: approved
 - 内容確認・実行許可: 利用者が `23d4c2ca4e10c36c8fff7340e5481dd0bdf6c5a9` の確認コピーとtiming.md記録方式を提示した質問に「実装して」と回答。まず本共通基盤Planを実装する許可として記録する。後続Emission移行、公開・親への採用・外部操作は許可に含めない。
 - 草稿の確認状態: writing-plans の最終自己点検を実施済み。実装進捗は各Taskのチェックと末尾の記録で管理する。
-- 実行状態: **安全の失敗により全体停止**。Task4の初期テストでfake Git wrapperを抜け、GitHubへの無許可のHTTPS pushを試行した。認証エラーで失敗した記録があり、成功した公開は確認されていない。Task4の修正済みという報告だけで再開せず、隔離の確認方針と利用者の再開指示を待つ。
+- 実行状態: Task4テストの実HTTPS push試行で一度全体停止した。原因説明後、利用者から「問題ありません。作業引き継ぎ書を作成してください。」との確認と引き継ぎ依頼を受領。現在はその依頼に従い実装を再開せず引き継ぐ。既存の共通基盤Planの実行許可は維持し、次に継続を依頼されたら同じ事象の承認を再質問せず、Task4のfake/通信隔離確認・controller検証・Taskレビューから続ける。Task4は未完了、Task5は未着手のまま。実push等の外部操作を新しく許可する発言とは扱わない。
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/emission-repo-management`
 - PARENT_ROOT: `/workspaces/reso-world`
 - ブランチ: `docs/emission-repo-management`。基準コード `28ef59b17a94191663597c927e66791425a3a864`。着手時に実際の BASE を別途記録する。
