@@ -13,7 +13,7 @@
 - 状態: approved
 - 内容確認・実行許可: 利用者が `23d4c2ca4e10c36c8fff7340e5481dd0bdf6c5a9` の確認コピーとtiming.md記録方式を提示した質問に「実装して」と回答。まず本共通基盤Planを実装する許可として記録する。後続Emission移行、公開・親への採用・外部操作は許可に含めない。
 - 草稿の確認状態: writing-plans の最終自己点検を実施済み。実装進捗は各Taskのチェックと末尾の記録で管理する。
-- 実行状態: 引き継ぎ後、独立したnetwork namespace隔離下のcontroller検証とTaskレビューを経てTask4完了。Task5担当の報告で、失敗したpytestの診断出力へ継承環境中の資格情報らしき値が出たという新しい安全上の問題を把握し、再び全体停止した。Task5コードはcommit済みだがcontroller検証・独立レビューは未実施で、完了とはしない。前回事象への利用者確認はこの新しい問題への確認とは扱わず、継続前に利用者の指示と環境・診断出力の隔離確認が必要。公開・親への採用・後続移行・実機操作は引き続き対象外。
+- 実行状態: Task5の新しい診断露出の可能性を説明した後、利用者から「再開してください。」を受領。独立した通信遮断・最小環境・子のDAC権限dropを確認してcontroller検証を行い、Task5レビューの指摘1件を修正し限定再レビューが完了した。Tasks1–5のTaskゲートは通過し、最終branch review・最終全suite・SDD作業領域の整理・finishingは未実施。過去の安全停止記録は下記に保持し、露出の撤回・資格情報の網羅監査を完了と主張しない。公開・親への採用・後続移行・実機操作は引き続き対象外。
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/emission-repo-management`
 - PARENT_ROOT: `/workspaces/reso-world`
 - ブランチ: `docs/emission-repo-management`。基準コード `28ef59b17a94191663597c927e66791425a3a864`。着手時に実際の BASE を別途記録する。
@@ -169,15 +169,15 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 
 **テスト:** S。cleanupが他repo/worktreeを削除しないことと、利用側までidentityが保たれる一連の経路。文書の名前一覧や見出し一致だけのFは増やさない。
 
-- [ ] **Step 1:** `test_managed_cleanup_resolves_only_registered_common_dir` をREDにする。既存の手順抽出方式で対象判定のshellを実行し、マージ済みの対象fixtureだけを候補にする。同じoriginの別clone・未マージ・親のworktreeは残る。正しい対象の正例も持つ。
+- [x] **Step 1:** `test_managed_cleanup_resolves_only_registered_common_dir` をREDにする。既存の手順抽出方式で対象判定のshellを実行し、マージ済みの対象fixtureだけを候補にする。同じoriginの別clone・未マージ・親のworktreeは残る。正しい対象の正例も持つ。
   ```python
   assert cleanup_target == registered_checkout
   assert unrelated_worktree.exists()
   assert unmerged_branch_still_exists
   ```
-- [ ] **Step 2:** `uv run pytest .agents/skills/repo-cleanup-after-merge/tests -q` でREDを確認する。
-- [ ] **Step 3:** 各skillを同じresolverへつなぐ。cleanupのparent更新/fork syncを通常toolから呼ばない。AGENTSは台帳を参照する共通規則にし、未知repoの既存review-fix例外を残す。共通運用文書に登録の採用、取得、repo-owned検証、CI照合、手動merge、新規tool追加、失敗stagingの扱いを書く。CI disabled は実設定の Actions=false を、required は実際のPR checksをcontrollerが読取確認する。registry成功だけで未知repoのCIを免除せず、ローカルcheckはネットワーク確認済みと表示しない。
-- [ ] **Step 4:** Task1–5の対象suiteと `uv run pytest` を同期実行。cloneはfake、一時Gitのみ。読取CLIは親への台帳採用前は未採用/不在として止まることを実行し、候補台帳を採用済みとして見せない。`git diff --check` とGit差分を確認する。
+- [x] **Step 2:** `uv run pytest .agents/skills/repo-cleanup-after-merge/tests -q` でREDを確認する。
+- [x] **Step 3:** 各skillを同じresolverへつなぐ。cleanupのparent更新/fork syncを通常toolから呼ばない。AGENTSは台帳を参照する共通規則にし、未知repoの既存review-fix例外を残す。共通運用文書に登録の採用、取得、repo-owned検証、CI照合、手動merge、新規tool追加、失敗stagingの扱いを書く。CI disabled は実設定の Actions=false を、required は実際のPR checksをcontrollerが読取確認する。registry成功だけで未知repoのCIを免除せず、ローカルcheckはネットワーク確認済みと表示しない。
+- [x] **Step 4:** Task1–5の対象suiteと `uv run pytest` を同期実行。cloneはfake、一時Gitのみ。読取CLIは親への台帳採用前は未採用/不在として止まることを実行し、候補台帳を採用済みとして見せない。`git diff --check` とGit差分を確認する。
 - [ ] **Step 5:** commit・Taskレビュー後、SDDの全体レビュー（Review scope: branch）。指摘処理後の全suiteと状態を確認し、正式規則として利用するには親への採用が必要と報告する。push/PR/mergeは許可なく行わない。finishingは全体レビューと所定cleanup後だけ。
 
 ## contingency（代替策）
@@ -198,7 +198,8 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 - Task4完了: `392062b..b444df4`。引き継ぎ後にfakeを静的点検し、独立した`unshare -rn`（別namespace、DOWN loのみ、routeなし）を必須としてcontroller対象suite168件/45subtestsが成功（236.32秒、exit0）。Taskレビューは仕様適合・品質Approved、Critical/Important/Minorなし。差分外のPython最低版と事前スキル読込もcontrollerがpyproject/元担当sessionで照合した。通常環境の全Git設定や資格情報の網羅監査を主張せず、以後の検証も同じ独立通信隔離を維持する。
 - Task4の初回停止記録（当時）: 実装担当が `b444df49` に7ファイルをコミットしたが、controllerの検証と独立レビューは未実施。初期テストの2ケースで `git -C <fixture-doc-worktree> push origin ...` がfakeを抜け、`usaturn/create-reso-world` への実HTTPS transportを試みて認証エラーとなった。担当はfake修正後にテストを継続し、全体1307件（最終fixture修正前）と対象168件/45subtests（修正後）の成功を報告したが、安全の失敗を成功扱いせず、controllerは報告受領後に全体停止した。実送信内容や資格情報使用の網羅確認はしていない。報告・失敗ログはSESSIONの `sdd/2026-11-06-external-tools-framework/task-4-report.md` 等に保持する。Task4の実装からコミットまで44分29秒、子終了まで約46分55秒。
 - Task5は未完了: 担当が`877c3ffa`へ9ファイルをコミットし、core対象137件/45subtests成功を報告した。全体suiteは1306成功・1失敗・1skipで、失敗はnamespace rootのDAC権限に影響される既存stale-lockのpermission検査と報告された。限定した権限drop比較では当該1件成功だが、現行tree全体の成功ではない。さらに、初回対象suiteの失敗診断が継承環境の資格情報らしき値をharness出力へ含めたとの報告を受けた。ローカルログ30行は担当が伏せ字化したが、元のharness履歴が残る可能性がある。値の再掲・資格情報元の調査・実通信確認は行わない。担当はfixtureの最小環境化と後続検証の`env -i`を追加したが、controllerの検証・独立レビューはなく、安全上の問題を成功扱いせず停止した。詳細はSESSIONの`task-5-report.md`。担当15:07:16Z→15:54:35Z（2839.743秒）、controller停止観測15:54:57Z。
-- Task5レビュー、最終全体レビュー、最終統合確認、公開・親への採用は未実施。既知のTask1/3のMinor2件も最終レビュー待ちのまま保持する。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
+- Task5再開・Taskレビュー完了: 利用者の今回の再開指示を受け、静的隔離確認後にcontrollerが全設定済みtestpathsと追加contextをまとめて実行し、1330成功・1skip・45subtests成功（806.31秒、exit0）を確認した。変更していないchmod検査も子のDAC権限drop下で成功。CLIは未採用親にregistry_missingで停止した。独立TaskレビューのImportant1件（計画のみの文書commit/コメントが修正用worktreeを要求する矛盾）を077c8c33で修正し、対象44件と一時RED/GREEN成功、限定再レビューは残件0。恒久テストの追加なし。詳細はSESSIONのtask-5-report.md追記とresume-task5-20261106T160923Z/controller-validation.md。承認参照は維持する。
+- 最終全体レビュー、修正後の最終全suite、SDD整理、公開・親への採用は未実施。既知のTask1/3のMinor2件と既存validator警告のMinorも最終レビュー待ちのまま保持する。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
 
 ## Plan 自己点検の記録
 
