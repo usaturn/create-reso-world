@@ -180,6 +180,12 @@ def clone_tool(registry: Registry, key: str) -> CloneResult:
                     raise ExternalToolsError("invalid_target", "Existing target is not a real checkout directory.")
                 target_fd = directories.child(destination_fd, destination)
                 resolve_managed_target(registry, spec.repository, operation="review-workspace")
+                # status can omit edited assume-unchanged/skip-worktree entries.
+                # Accept only ordinary cached (H) entries; do not clear user flags
+                # or refresh their index just to make the checkout inspectable.
+                entries = _checked(directories, target_fd, "ls-files", "-v", "-z")
+                if any(entry[:1] != b"H" for entry in entries.split(b"\0") if entry):
+                    raise ExternalToolsError("unverifiable_index", "Index flags prevent complete checkout verification.")
                 dirty = _checked(directories, target_fd, "status", "--porcelain=v1", "--untracked-files=all", "--ignored")
                 if dirty:
                     raise ExternalToolsError("dirty_checkout", "Existing checkout contains changes or local residue.")

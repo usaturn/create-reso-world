@@ -87,6 +87,32 @@ def test_existing_target_is_never_changed(workspace, tmp_path, monkeypatch):
     assert transport.calls == []
 
 
+def test_hidden_tracked_change_is_not_reported_present(workspace, monkeypatch, capsys):
+    # S: trusting empty status alone silently reports an assume-unchanged edit as
+    # present/success. Refusal must preserve the user's file, index flags and refs.
+    module = clone_module()
+    transport = Transport(module, workspace, monkeypatch)
+    from tools.external_tools.cli import main
+
+    args = ["--parent-root", str(workspace.parent), "clone", "emission-editor"]
+    assert main(args) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "present"
+    tracked = workspace.registered / ".gitignore"
+    git(workspace.registered, "update-index", "--assume-unchanged", ".gitignore")
+    changed = "材質の変更\n元値を保持する\n".encode("utf-8")
+    tracked.write_bytes(changed)
+    assert git(workspace.registered, "status", "--porcelain=v1", "--untracked-files=all") == ""
+    before = snapshot(workspace)
+
+    code = main(args)
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "blocked"
+    assert code != 0 and result["reason_code"] and result["staging"] is None
+    assert tracked.read_bytes() == changed
+    assert snapshot(workspace) == before
+    assert transport.calls == []
+
+
 def test_concurrent_clone_has_one_publisher(workspace, tmp_path, monkeypatch):
     # Removing nonblocking per-key flock would allow two writers/transports.
     module = clone_module()
