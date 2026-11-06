@@ -2,8 +2,9 @@
 
 ## 管理
 
-- 状態: draft
+- 状態: completed（PR #316 の pr-review-fix-loop のサイクル 1 で修正不要と判断。下の「PR #316 のレビューの判断」）
 - Issue: https://github.com/usaturn/create-reso-world/issues/315（#103 で wrapper を撤去するまでのつなぎ）
+- PR: https://github.com/usaturn/create-reso-world/pull/316
 - 実行許可: 利用者の指示 `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/315 --merge`。issue-to-pr スキルにより、通常の設計判断を推奨案で決め、検証・commit・push・PR の作成まで続ける。`--merge` により、PR の作成後に pr-review-fix-loop を回し、修正不要と確かめられたら `finalize.py` がマージと Issue の更新を行う
 - 作業中の利用者の追加指示（2026-11-07）: 「テストを作りすぎないようにしてください。このラッパーはいずれ削除することになります。」、続けて「1回であれば課金するテストを許可する。」
 - 許可された範囲: create-reso-world の `scripts/meshy.py`・`scripts/meshy_workflow.py`・`scripts/meshy_cli_guard.mjs`・`tests/scripts/test_meshy.py`・`docs/meshy-resoloop.md`・`.agents/skills/meshy-resoloop/SKILL.md`・この Spec と Plan の変更。Meshy の有料の API の送信は 1 件だけ（D9）。実機確認の一時プロジェクトは `tmp/agents/` のセッションディレクトリに置き、ワールドのプロジェクトは変えない
@@ -168,6 +169,27 @@ API で生成した Meshy のモデルを、Meshy 側で remesh してから、r
 | 4. 送信前の確認のテストの parametrize が、正しい経路を 3 回繰り返す（D） | 直した。1 関数の中で 3 つの異常を順に返す形にし、正しい経路は 1 回にした。変異で 3 つの条件のどれを消しても失敗することを確かめた |
 | 5. attach の拒否の組み合わせへの remesh の追加は D | 直した。受け入れの組み合わせだけに remesh を足した |
 | 6. テストの download が、偽の CLI の同じ応答のため元の task ID で行われる | 直さない。download の resource が `remesh` であることと、元の operation が変わらないことは確かめている。実 API では remesh の task ID で取得した |
+
+## PR #316 のレビューの判断
+
+- 実行許可: `/issue-to-pr https://github.com/usaturn/create-reso-world/issues/315 --merge` による pr-review-fix-loop（run `e3a50053e7034f8d8fcaef3bf19f1d1b`）の中で、review-fix-planning を完遂として行った
+- サイクル: 1。planner: `claude-opus-5-5`（claude-code）。前のサイクルの判断: なし
+- レビューディレクトリ: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#316-feat-issue-315-meshy-remesh/`。確認済みの一覧: `verified/3124fc811779.json`（review-verify の mode cycle。confirmed 0 / not_reproduced 0 / unverified 0。coverage.remaining は、期限切れの元の task に対する実 API の応答と `topology=quad` の見た目）。工程の記録: `verified/3124fc811779.planning.json`
+- 修正と自己レビューの担当（ループの割り当て）: implement `claude-code_opus_default`、self-review `self`、fix-check `self`。対応する項目が無いので `run_roles.py` は呼んでいない（自己レビューの回数 0）
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| Grok-4.7.md | Grok 4.7 | cursor | 3124fc811779 | はい（Initial） | Approve（指摘 0） |
+| SWE-2-Max.md | SWE-2 Max | devin | 3124fc811779 | はい（Initial） | Approve（指摘 0） |
+| deepseek-deepseek-v4.1-flash.md | deepseek/deepseek-v4.1-flash | pi | 3124fc811779 | はい（Initial） | Approve（指摘 0） |
+
+分類: 解消済み 0 / 対応する 0 / 対応しない 0
+
+- 3 人とも、偽の CLI と実エントリの fixture で、plan の境界値と拒否、送信前の確認（status・type・ID・resource・result が null の envelope）、request の書き換えの拒否、`thumbnail` が operation.json と `source/` を変えないこと、journal のガードを実行して確かめ、指摘は 0 件だった
+- 確認済みの一覧の作成で、レビュアーが見送った実 API の remesh の task の attach を、HEAD `3124fc81` の wrapper で読み取りの GET だけで確かめた（type・resource とも `remesh` で照合を通る。課金なし）
+- 要件対応: 受け入れ基準は、レビュアーの実行と下の検証で満たしたまま。修正が無いので、経路表と自己レビューは無い
+- 結論: 2（修正不要）。検証は、PR の作成の前の最後の検証の記録を使った（同じ HEAD `3124fc8117796b79181004879a925d863a341d98`、実行の前後とも作業ツリーが clean、`bash .devcontainer/run-tests.bash`・`bash scripts/check-layout.sh`・`uv run pytest tests/skills .agents/skills .agents/scripts tools`（1257 passed）・`uv run --project . --locked pytest tests/scripts`（258 passed）の終了コードがすべて 0、ログは `/workspaces/reso-world/tmp/agents/issue-315.cciobdzw/verify-final/`）。取り直した base の先端 `28ef59b17a94191663597c927e66791425a3a864` は検証の記録の base と同じで head の祖先なので、一時的な merge での検証は要らない
+- 自己レビュー: 対応するコードの修正が無いので行っていない
 
 ## 対象外
 
