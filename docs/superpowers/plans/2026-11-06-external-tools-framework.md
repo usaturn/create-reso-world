@@ -105,7 +105,7 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 
 **テスト:** S。別clone/GIT環境/URL書換えによる誤対象、親へのfallback、既存例外経路の喪失を防ぐ。import経路の検査は既存実行テスト/一時smokeで代える。
 
-- [ ] **Step 1:** `test_managed_target_uses_registered_common_dir` を RED にする。同 origin の別cloneを拒否し、登録元のlinked worktreeは許可されたoperationで通す。`test_git_environment_cannot_redirect_identity` は一時の別repoを指す GIT環境を与えても元対象を返す。実push先の不一致は既存 `select_push_remote` 相当の守りとして代表1件を置く。
+- [x] **Step 1:** `test_managed_target_uses_registered_common_dir` を RED にする。同 origin の別cloneを拒否し、登録元のlinked worktreeは許可されたoperationで通す。`test_git_environment_cannot_redirect_identity` は一時の別repoを指す GIT環境を与えても元対象を返す。実push先の不一致は既存 `select_push_remote` 相当の守りとして代表1件を置く。
   ```python
   resolved = resolve_managed_target(workspace.registry, workspace.repository, operation="review-workspace")
   repair = resolve_managed_target(workspace.registry, workspace.repository, operation="review-fix", code_root=workspace.linked)
@@ -115,10 +115,10 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
       resolve_managed_target(workspace.registry, workspace.repository, operation="review-fix", code_root=workspace.other_clone)
   assert snapshot_after == snapshot_before  # fixture内のHEAD/refs/index/作業ファイルを前後比較
   ```
-- [ ] **Step 2:** `uv run pytest tools/external_tools/tests/test_identity.py tools/external_tools/tests/test_cli.py tests/scripts/test_superpowers_context.py .agents/scripts/tests/test_review_target.py -q` を実行し、REDを確認する。
-- [ ] **Step 3:** registered分岐を document/fork の既存分岐と未知repo明示CODE_ROOTの間へ接続。既存 fork の origin/upstream 再照合を managed tool に誤適用しない。実origin/全pushurlの照合・資格情報を伏せた診断を共有する。CLIの list/show/check はネットワークも変更も行わず、missing/mismatch は非0で理由を返す。
-- [ ] **Step 4:** helperの直接実行は、自分のファイル位置から同じ親worktreeの package を読み込む。既存 `sys.modules['tools']` や cwd/PYTHONPATH 由来の別packageを再利用せず、必要ならファイル位置固定の専用package名でロードする。コピーfixtureにも実際の共通packageを配置する。`test_context_cannot_load_foreign_tools_package` を既存contextテストへ追加し、偽packageの対象すり替えが起きず正しいtargetを返すことをSで確認する。上記suiteと `.agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py`、`.agents/skills/pr-review-fix-loop/tests/test_loop_reviewer_protocol.py` を GREEN にする。
-- [ ] **Step 5:** commit・Taskレビュー。未登録明示CODE_ROOTの正例、fork上流base、review-copyの親/文書だけの検証が保持された証拠を報告する。
+- [x] **Step 2:** `uv run pytest tools/external_tools/tests/test_identity.py tools/external_tools/tests/test_cli.py tests/scripts/test_superpowers_context.py .agents/scripts/tests/test_review_target.py -q` を実行し、REDを確認する。
+- [x] **Step 3:** registered分岐を document/fork の既存分岐と未知repo明示CODE_ROOTの間へ接続。既存 fork の origin/upstream 再照合を managed tool に誤適用しない。実origin/全pushurlの照合・資格情報を伏せた診断を共有する。CLIの list/show/check はネットワークも変更も行わず、missing/mismatch は非0で理由を返す。
+- [x] **Step 4:** helperの直接実行は、自分のファイル位置から同じ親worktreeの package を読み込む。既存 `sys.modules['tools']` や cwd/PYTHONPATH 由来の別packageを再利用せず、必要ならファイル位置固定の専用package名でロードする。コピーfixtureにも実際の共通packageを配置する。`test_context_cannot_load_foreign_tools_package` を既存contextテストへ追加し、偽packageの対象すり替えが起きず正しいtargetを返すことをSで確認する。上記suiteと `.agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py`、`.agents/skills/pr-review-fix-loop/tests/test_loop_reviewer_protocol.py` を GREEN にする。
+- [x] **Step 5:** commit・Taskレビュー。未登録明示CODE_ROOTの正例、fork上流base、review-copyの親/文書だけの検証が保持された証拠を報告する。
 
 ### Task 3: 1件限定・排他・非置換の取得
 
@@ -191,7 +191,8 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 
 各Taskの実行結果・所要時間・レビュー裁定はSESSION `/workspaces/reso-world/tmp/agents/external-tools-impl.19cduyzx` に保存する。
 
-- Task1完了: `bfe1bc6..a1c37a67`。台帳と採用済みblob・配置境界を実装。レビューの親子symlink/Git replaceとcontrollerのexternal外配置の指摘を修正し、限定再レビューはImportant残件0。Task suite19件をcontrollerも再実行、担当の全体suite1276件成功。初回実装1043秒・修正742秒（同期検証含む）。重複テスト1件のMinorはledgerへ記録し全体レビューで再確認する。Task2–5は未実施。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
+- Task1完了: `bfe1bc6..a1c37a67`。台帳と採用済みblob・配置境界を実装。レビューの親子symlink/Git replaceとcontrollerのexternal外配置の指摘を修正し、限定再レビューはImportant残件0。Task suite19件をcontrollerも再実行、担当の全体suite1276件成功。初回実装1043秒・修正742秒（同期検証含む）。重複テスト1件のMinorはledgerへ記録し全体レビューで再確認する。
+- Task2完了: `9b78d8b..07269475`。共有identity・読取CLI・11キー互換contextとコピーfixtureを実装。コピーした.gitで別rootを許す指摘を修正し、限定再レビューは残件0。担当は関連89件（51subtests）/全体1289件、controllerは関連78件と修正後identity10件を再実行し成功。初回1353秒・修正862秒（同期検証含む）。Task3–5は未実施。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
 
 ## Plan 自己点検の記録
 
