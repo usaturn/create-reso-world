@@ -21,7 +21,7 @@
 - 元の operation は読むだけで、ロックもファイルの書き込みもしない
 - `text` / `image` / `refine` の既存の挙動を変えない
 - テストは Spec の D8 の 3 関数と `ATTACH_KINDS` の 1 組み合わせだけ（利用者の指示「テストを作りすぎない」）
-- Meshy の有料の API は送信しない（Spec の D9）。偽の CLI だけを使う
+- テストは偽の CLI だけを使う。有料の API の送信は、利用者の追加指示（課金 1 回）による実機確認の 1 件だけ（Spec の D9）
 
 ## Review Focus
 
@@ -195,7 +195,13 @@ git commit -m "docs: describe the Meshy remesh and thumbnail steps"
 
 - [ ] **Step 3: 実 GLB の convert（Spec の D10）**
 
-セッションディレクトリに一時プロジェクトを作り、kind `remesh`・resource `remesh`・`downloads` が completed（key `model.glb`）の operation の `source/` に `tmp/Meshy_Ornate_Silver_Monocle.glb` を写して `convert --operation <name> --height 0.05 --parent <任意の selector> --allow-culling-change` を実行する。終了コード 0 と report の `triangles` を記録する。期限 30 分
+当初は remesh 前の GLB を使う代替の確認だったが、Spec の D9 の変更（課金 1 回の実機確認）で remesh 後の実 GLB を取得できたので、その GLB で `convert --height 1.3 --parent 'path:["Root","GeneratedProps"]' --allow-culling-change` を実行した。終了コード 0 と report の `triangles` を記録する。期限 30 分
+
+## 実行の記録（2026-11-07）
+
+- Task 1〜3 は Plan どおり。Task 2 の実装の後、Task 4 の前に、利用者の追加指示で実機確認（Spec の D9）を行った
+- 最終レビューの指摘 4・5 で、Task 1 のテストを減らした（Spec の D8 と「全体レビューの判断」）。テストの件数は 142
+- ledger: `tmp/agents/issue-315.cciobdzw/sdd/2026-11-07-issue-315-meshy-remesh/progress.md`
 
 - [ ] **Step 4: 全テストと静的な確認**
 
