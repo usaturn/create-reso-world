@@ -1124,10 +1124,33 @@ ATTACH_KINDS = [
     ("refine", "text-to-3d-refine", "text-to-3d"),
     ("image", "image-to-3d", "image-to-3d"),
 ]
+# The rejection guards are kind-independent; remesh only pins its expected type.
+ACCEPTED_ATTACH_KINDS = [*ATTACH_KINDS, ("remesh", "remesh", "remesh")]
 PREVIEW = "distinct-preview-task"
+SOURCE_TASK = "source-image-task"
+
+
+def succeeded_image(world, name="src"):
+    """A succeeded image operation, made without any CLI call."""
+    (world.project / "input.png").write_bytes(b"local image")
+    world.run("plan", "--operation", name, "--kind", "image", "--image", "input.png")
+    operation = world.manifest(name)
+    operation["task"] = {"task_id": SOURCE_TASK, "status": "SUCCEEDED", "progress": 100}
+    operation["stage"] = "succeeded"
+    world.manifest_path(name).write_text(json.dumps(operation))
+
+
+def plan_remesh(world):
+    world.run(
+        "plan", "--operation", "asset", "--kind", "remesh", "--source-operation", "src"
+    )
 
 
 def plan_attach(world, kind):
+    if kind == "remesh":
+        succeeded_image(world)
+        plan_remesh(world)
+        return
     extra = {
         "text": ["--prompt", "stone"],
         "refine": ["--preview-task-id", PREVIEW],
@@ -1170,7 +1193,7 @@ def project_snapshot(project):
 
 
 # Catch rejecting a valid official task of any supported operation kind.
-@pytest.mark.parametrize("kind,task_type,resource", ATTACH_KINDS)
+@pytest.mark.parametrize("kind,task_type,resource", ACCEPTED_ATTACH_KINDS)
 def test_attach_accepts_matching_official_task(world, kind, task_type, resource):
     plan_attach(world, kind)
     world.reply(
@@ -1258,6 +1281,99 @@ def test_attach_rejection_preserves_entire_project(
         [resource, "get", task_id]
     ]
     assert sum("create" in call["args"] for call in world.calls()) == 0
+
+
+# Catch a paid remesh of an unverified source task, or any write to the source
+# operation during the remesh plan, submit and download.
+def test_remesh_checks_source_task_and_never_changes_source_operation(world):
+    succeeded_image(world)
+    source = world.manifest_path("src").parent
+    before = project_snapshot(source)
+    plan_remesh(world)
+    image_task = {
+        "task_id": SOURCE_TASK,
+        "status": "SUCCEEDED",
+        "type": "image-to-3d",
+        "resource": "image-to-3d",
+    }
+    anomalies = [
+        {"status": "FAILED"},
+        {"type": "text-to-3d-preview"},
+        {"task_id": "different-returned-task"},
+    ]
+    for anomaly in anomalies:
+        world.reply(result={"task": {**image_task, **anomaly}})
+        world.submit(ok=False)
+        assert world.manifest()["stage"] == "planned", anomaly
+        assert all("create" not in call["args"] for call in world.calls()), anomaly
+    world.reply(result={"task": image_task})
+    world.submit()
+    get, create = (call["args"][7:] for call in world.calls()[-2:])
+    assert get == ["image-to-3d", "get", SOURCE_TASK]
+    assert create[:2] == ["remesh", "create"] and "--model-url" not in create
+    assert json.loads(create[create.index("--data") + 1]) == {
+        "input_task_id": SOURCE_TASK,
+        "target_polycount": 30000,
+        "topology": "triangle",
+        "target_formats": ["glb"],
+    }
+    entry = {
+        "key": "model.glb",
+        "path": str(world.manifest_path().parent / "source/generated.glb"),
+        "status": "written",
+    }
+    world.reply(result={"downloads": {"state": "completed", "files": [entry]}})
+    world.run("download", "--operation", "asset")
+    assert world.manifest()["stage"] == "downloaded"
+    assert world.calls()[-1]["args"][7:10] == ["download", "--resource", "remesh"]
+    assert project_snapshot(source) == before
+
+
+# Catch a saved remesh request sending a local model file (or any other option).
+def test_edited_remesh_request_cannot_send_local_model(world):
+    succeeded_image(world)
+    plan_remesh(world)
+    operation = world.manifest()
+    operation["request"]["payload"]["model_url"] = str(world.project / "input.png")
+    world.manifest_path().write_text(json.dumps(operation))
+    world.submit(ok=False)
+    assert world.calls() == []
+
+
+# Catch a thumbnail fetch replacing the completed download record or source/,
+# or fetching every asset (the large GLB) instead of the thumbnail.
+def test_thumbnail_keeps_completed_download_and_fetches_only_thumbnail(world):
+    world.plan()
+    world.submit()
+    world.reply(result={"task": {"task_id": TASK, "status": "SUCCEEDED"}})
+    world.run("status", "--operation", "asset")
+    operation = world.manifest_path().parent
+    entry = {
+        "key": "model.glb",
+        "path": str(operation / "source/generated.glb"),
+        "status": "written",
+    }
+    world.reply(result={"downloads": {"state": "completed", "files": [entry]}})
+    world.run("download", "--operation", "asset")
+    manifest = world.manifest_path().read_bytes()
+    source = project_snapshot(operation / "source")
+    thumbnails = operation / "thumbnail"
+    world.env["FAKE_DOWNLOAD_FILES"] = json.dumps({"thumbnail.png": "png-fixture"})
+    thumbnail = {
+        "key": "thumbnail.primary",
+        "path": str(thumbnails / "thumbnail.png"),
+        "status": "written",
+    }
+    world.reply(result={"downloads": {"state": "completed", "files": [thumbnail]}})
+    proc = world.run("thumbnail", "--operation", "asset")
+    assert json.loads(proc.stdout)["thumbnail"]["path"] == thumbnail["path"]
+    assert world.manifest_path().read_bytes() == manifest
+    assert project_snapshot(operation / "source") == source
+    args = world.calls()[-1]["args"][7:]
+    assert args[:5] == ["download", "--resource", "text-to-3d", "--task-id", TASK]
+    assert args[args.index("--asset") + 1] == "thumbnail.primary"
+    assert "--all" not in args
+    assert args[args.index("--output-dir") + 1] == str(thumbnails)
 
 
 # Catch a fixed download subprocess deadline blocking retries of the same task.

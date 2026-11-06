@@ -57,7 +57,7 @@ function journalBytes(path, data) {
       record.cli_version !== "0.4.0" || typeof record.operation_id !== "string" ||
       !segment.test(record.operation_id) ||
       !states.has(record.state) ||
-      !["text-to-3d", "image-to-3d"].includes(record.resource) ||
+      !["text-to-3d", "image-to-3d", "remesh"].includes(record.resource) ||
       !digest.test(record.credential_fingerprint) || !digest.test(record.payload_fingerprint) ||
       (record.task_id !== null && (typeof record.task_id !== "string" || !segment.test(record.task_id)))) {
     refuse();

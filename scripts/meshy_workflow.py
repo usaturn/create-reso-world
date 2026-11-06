@@ -17,7 +17,11 @@ from contextlib import contextmanager
 from pathlib import Path
 
 CLI_TIMEOUT_SECONDS = 120
-RESOURCES = ("text-to-3d", "image-to-3d")
+RESOURCES = ("text-to-3d", "image-to-3d", "remesh")
+KINDS = {"text", "image", "refine", "remesh"}
+REMESH_POLYCOUNT_RANGE = (100, 300_000)
+REMESH_POLYCOUNT_DEFAULT = 30_000
+REMESH_TOPOLOGIES = ("triangle", "quad")
 STATUSES = {"PENDING", "IN_PROGRESS", "SUCCEEDED", "FAILED", "CANCELED"}
 SEGMENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
 
@@ -133,7 +137,7 @@ def load_operation(project: Path, name: str) -> dict:
             not isinstance(operation, dict)
             or operation.get("schema_version") != 1
             or operation.get("resource") not in RESOURCES
-            or operation.get("kind") not in {"text", "image", "refine"}
+            or operation.get("kind") not in KINDS
             or not isinstance(operation.get("request"), dict)
             or not isinstance(operation.get("task"), dict)
             or not isinstance(operation.get("downloads"), dict)
@@ -303,7 +307,79 @@ def _call(project, args, env, timeout=None):
     return _cli(project, args, env, CLI_TIMEOUT_SECONDS if timeout is None else timeout)
 
 
+def _resource(kind):
+    return {"image": "image-to-3d", "remesh": "remesh"}.get(kind, "text-to-3d")
+
+
+def _remesh_request(project, args):
+    if (
+        not args.source_operation
+        or args.prompt
+        or args.image
+        or args.preview_task_id
+        or args.texture is not None
+    ):
+        raise WorkflowError("remesh_requires_source_operation")
+    # Read only: no lock and no write, so the source record stays as it is.
+    source = load_operation(project, args.source_operation)
+    task_id = _task_id(source["task"].get("task_id"))
+    if (
+        source["kind"] != "image"
+        or not task_id
+        or source["task"].get("status") != "SUCCEEDED"
+    ):
+        raise WorkflowError("successful_image_operation_required")
+    polycount = args.target_polycount
+    if polycount is None:
+        polycount = REMESH_POLYCOUNT_DEFAULT
+    if not REMESH_POLYCOUNT_RANGE[0] <= polycount <= REMESH_POLYCOUNT_RANGE[1]:
+        raise WorkflowError("invalid_target_polycount")
+    return {
+        "payload": {
+            "input_task_id": task_id,
+            "target_polycount": polycount,
+            "topology": args.topology or "triangle",
+            "target_formats": ["glb"],
+        },
+        "source_operation": args.source_operation,
+    }
+
+
 def plan(project, args):
+    kind = args.kind
+    if kind == "remesh":
+        request = _remesh_request(project, args)
+    elif (args.source_operation, args.target_polycount, args.topology) != (None,) * 3:
+        raise WorkflowError("remesh_options_require_remesh_kind")
+    else:
+        request = _generation_request(project, args)
+    if _contains_secret(json.dumps(request)):
+        raise WorkflowError("secret_in_plan")
+    operation = {
+        "schema_version": 1,
+        "operation_id": str(uuid.uuid4()),
+        "kind": kind,
+        "resource": _resource(kind),
+        "request": request,
+        "stage": "planned",
+        "task": {"task_id": None, "status": None, "progress": None},
+        "downloads": {"state": "not_requested", "files": []},
+    }
+    target = safe_path(
+        project, operation_dir(project, args.operation) / "operation.json"
+    )
+    try:
+        fd = os.open(
+            target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600
+        )
+    except FileExistsError:
+        raise WorkflowError("operation_already_exists") from None
+    os.close(fd)
+    save_operation(project, args.operation, operation)
+    return operation
+
+
+def _generation_request(project, args):
     kind = args.kind
     model = args.model
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", model):
@@ -355,30 +431,7 @@ def plan(project, args):
                 texture_resolution=args.texture_resolution,
                 remove_lighting=True,
             )
-    if _contains_secret(json.dumps(request)):
-        raise WorkflowError("secret_in_plan")
-    operation = {
-        "schema_version": 1,
-        "operation_id": str(uuid.uuid4()),
-        "kind": kind,
-        "resource": "image-to-3d" if kind == "image" else "text-to-3d",
-        "request": request,
-        "stage": "planned",
-        "task": {"task_id": None, "status": None, "progress": None},
-        "downloads": {"state": "not_requested", "files": []},
-    }
-    target = safe_path(
-        project, operation_dir(project, args.operation) / "operation.json"
-    )
-    try:
-        fd = os.open(
-            target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600
-        )
-    except FileExistsError:
-        raise WorkflowError("operation_already_exists") from None
-    os.close(fd)
-    save_operation(project, args.operation, operation)
-    return operation
+    return request
 
 
 def _record_task(operation, result, expected=None):
@@ -399,9 +452,36 @@ def _record_task(operation, result, expected=None):
         operation["stage"] = "submitted"
 
 
+def _validate_remesh_request(operation):
+    """Only the reviewed fields: model_url would upload a local file."""
+    request = operation["request"]
+    payload = request.get("payload")
+    if (
+        set(request) != {"payload", "source_operation"}
+        or not isinstance(payload, dict)
+        or set(payload)
+        != {"input_task_id", "target_polycount", "topology", "target_formats"}
+        or operation["resource"] != "remesh"
+        or not _task_id(payload["input_task_id"])
+        or type(payload["target_polycount"]) is not int
+        or not REMESH_POLYCOUNT_RANGE[0]
+        <= payload["target_polycount"]
+        <= REMESH_POLYCOUNT_RANGE[1]
+        or payload["topology"] not in REMESH_TOPOLOGIES
+        or payload["target_formats"] != ["glb"]
+        or not isinstance(request["source_operation"], str)
+        or not SEGMENT.fullmatch(request["source_operation"])
+        or _contains_secret(json.dumps(request))
+    ):
+        raise WorkflowError("invalid_request")
+
+
 def _validate_request(operation):
     """A saved plan is not an arbitrary JSON passthrough surface."""
     kind = operation["kind"]
+    if kind == "remesh":
+        _validate_remesh_request(operation)
+        return
     request = operation["request"]
     payload = request.get("payload")
     if not isinstance(payload, dict) or _contains_secret(json.dumps(request)):
@@ -460,18 +540,33 @@ def _validate_request(operation):
             and payload.get("texture_resolution") in ("2k", "4k", "8k")
             and payload.get("remove_lighting") is True
         )
-    resource = "image-to-3d" if kind == "image" else "text-to-3d"
     model = payload.get("ai_model")
     if (
         not valid
         or set(payload) != allowed
-        or operation["resource"] != resource
+        or operation["resource"] != _resource(kind)
         or set(request) != ({"payload", "image"} if kind == "image" else {"payload"})
         or payload.get("target_formats") != ["glb"]
         or not isinstance(model, str)
         or not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", model)
     ):
         raise WorkflowError("invalid_request")
+
+
+def _require_successful_task(project, env, expected, code):
+    """GET the input task before a paid POST; never create on any doubt."""
+    resource, task_id, task_type = expected
+    envelope, ok = _call(project, [resource, "get", task_id], env)
+    view = envelope["result"].get("task", {})
+    if (
+        not ok
+        or not isinstance(view, dict)
+        or _task(envelope["result"])["task_id"] != task_id
+        or view.get("status") != "SUCCEEDED"
+        or view.get("type") != task_type
+        or view.get("resource") != resource
+    ):
+        raise WorkflowError(code)
 
 
 def submit(project, name, operation, env, confirmed):
@@ -505,18 +600,19 @@ def submit(project, name, operation, env, confirmed):
             raise WorkflowError("input_image_changed")
         args += ["--image-url", str(image)]
     if operation["kind"] == "refine":
-        preview_id = request["payload"]["preview_task_id"]
-        envelope, ok = _call(project, ["text-to-3d", "get", preview_id], env)
-        view = envelope["result"].get("task", {})
-        if (
-            not ok
-            or not isinstance(view, dict)
-            or _task(envelope["result"])["task_id"] != preview_id
-            or view.get("status") != "SUCCEEDED"
-            or view.get("type") != "text-to-3d-preview"
-            or view.get("resource") != "text-to-3d"
-        ):
-            raise WorkflowError("successful_text_preview_required")
+        _require_successful_task(
+            project,
+            env,
+            ("text-to-3d", request["payload"]["preview_task_id"], "text-to-3d-preview"),
+            "successful_text_preview_required",
+        )
+    if operation["kind"] == "remesh":
+        _require_successful_task(
+            project,
+            env,
+            ("image-to-3d", request["payload"]["input_task_id"], "image-to-3d"),
+            "successful_image_task_required",
+        )
     operation["stage"] = "submitting"
     save_operation(project, name, operation)
     try:
@@ -569,6 +665,7 @@ def query(project, name, operation, env, verb, task_id=None, timeout=600):
             "text": "text-to-3d-preview",
             "refine": "text-to-3d-refine",
             "image": "image-to-3d",
+            "remesh": "remesh",
         }[operation["kind"]]
         # Attach kind/resource guard: known status/wait may still be partial.
         if (
@@ -724,6 +821,46 @@ def download(project, name, operation, env, timeout=None):
     return operation
 
 
+def thumbnail(project, name, operation, env, timeout=None):
+    """Fetch thumbnail.primary only; operation.json is never written."""
+    task_id = _task_id(operation["task"].get("task_id"))
+    if not task_id or operation["task"].get("status") != "SUCCEEDED":
+        raise WorkflowError("successful_existing_task_required")
+    target = _safe_tree(project, operation_dir(project, name) / "thumbnail")
+    _mkdir(project, target)
+    envelope, ok = _call(
+        project,
+        [
+            "download",
+            "--resource",
+            operation["resource"],
+            "--task-id",
+            task_id,
+            "--asset",
+            "thumbnail.primary",
+            "--overwrite",
+            "--output-dir",
+            str(target),
+        ],
+        env,
+        timeout,
+    )
+    manifest = envelope["result"].get("downloads")
+    if not isinstance(manifest, dict):
+        raise WorkflowError("thumbnail_download_failed")
+    files, invalid = _download_files(project, target, manifest.get("files"))
+    if (
+        not ok
+        or invalid
+        or manifest.get("state") != "completed"
+        or len(files) != 1
+        or files[0].get("key") != "thumbnail.primary"
+        or files[0]["status"] not in {"written", "skipped"}
+    ):
+        raise WorkflowError("thumbnail_download_failed")
+    return {"thumbnail": {key: files[0][key] for key in ("path", "bytes", "sha256")}}
+
+
 def execute(args):
     project = validate_project(Path(args.project))
     if args.command != "plan":
@@ -760,6 +897,8 @@ def execute(args):
             return download(
                 project, args.operation, operation, env, getattr(args, "timeout", None)
             )
+        if args.command == "thumbnail":
+            return thumbnail(project, args.operation, operation, env, args.timeout)
         return query(
             project,
             args.operation,

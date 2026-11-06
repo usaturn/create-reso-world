@@ -12,6 +12,7 @@ description: "Use when Meshy で小物を生成、画像から 3D 化、Meshy �
 3. キーは有無だけを確認する。値を求めたり表示・保存したりしない。未設定なら手順の zsh 非表示入力を利用者が行い、そのシェルからエージェントを再起動する。既存の Herdr / VS Code プロセスには後から継承されない。
 4. 課金前に local fixture と help で操作を確認する。生成対象、operation 名、送信件数、予算上限、モデル、texture / PBR / 解像度、画像の外部送信を明示した許可を得る。text preview と refine は別 operation・別送信で計2件。再生成は追加許可。キーがあるだけでは許可にならない。
 5. `plan`（offline）→保存した request の確認→許可範囲内で `submit --confirm-paid`（一度）→`status` / `wait`→`download`。image はプロジェクト内の local file だけ。`balance` も自動で呼ばず、利用者の明示指示で実行する。wrapper を迂回した create / 認証操作は禁止。
+   三角形数を減らすときは、成功した image operation のサムネイルを `thumbnail` で確かめてから `--kind remesh`（別の課金1件、生成から3日以内）。手順の Remesh の節に従い、ローカルで減らして再ベイクしない。
 6. 完全な download manifest の GLB だけを `convert`（offline）へ渡す。既存出力を上書きしない。元 GLB、個別 mesh・階層・texture を残し、変換 report の bounds / 三角形数 / 素材を確認する。
 7. exporter は source culling を保持しないため convert は既定拒否。利用者がこの損失だけを承認した場合に限り `--allow-culling-change`。素材ごとの `material_culling` / `warnings` を読む。透明・transmission・rig・animation・非対応 shader の検査は解除されない。
 8. Windows へ bundle 一式を渡す。URL、parent、ownership、共有 state 一つを確認して `diff`→変更内容の承認→`apply`。再 diff→承認済み再 apply / `test` と実機表示で受け入れる。未検証の live 操作を自動実行せず、所有外の編集・prune / adopt は行わない。
