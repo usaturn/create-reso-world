@@ -52,10 +52,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 payload = {**asdict(spec), "path": str(path), "registry_commit": commit}
                 code = 0
             elif args.command == "clone":
-                # Task3 supplies clone_tool. Until then refuse explicitly; never
-                # import a missing module eagerly or pretend a clone succeeded.
-                payload = asdict(CloneResult("blocked", path, None, "clone_unsupported", commit))
-                code = 1
+                from .clone import clone_tool
+
+                result = clone_tool(registry, args.key)
+                payload = asdict(result)
+                code = 0 if result.status in {"cloned", "present"} else 1
             else:
                 try:
                     target = resolve_managed_target(registry, spec.repository, operation="review-workspace")
