@@ -23,9 +23,76 @@ git の操作はほぼ全て取り消せる。取り消せないのは次の 2 �
 
 - `usaturn/create-reso-world`（このリポジトリ）の PR: リポジトリのルート（`git rev-parse --show-toplevel`）が root である
 - `usaturn/resoloop` または `orange3134/resoloop` の PR: fork の checkout `external/resoloop`（リポジトリのルート基準）が root である。Git コマンドは `git -C external/resoloop ...`、`gh` 呼び出しには PR が属するリポジトリに合わせて `--repo usaturn/resoloop` か `--repo orange3134/resoloop` を付けて実行する。checkout が無い、または `origin` が `usaturn/resoloop`、`upstream` が `orange3134/resoloop` でない場合は、`scripts/resoloop-fork.sh clone` を案内して停止する
+- 採用済み台帳の通常ツール: 下の「通常ツールの対象照合」を実行し、返された常設 checkout だけを root にする。同じ origin の別 clone や親 checkout に切り替えない
 - それ以外: 推測せず停止する
 
 両方にまたがる整理は、リポジトリごとにこの手順を回す。pr-review の `session.json` の `destination` は相対パス。version 7 は `main_root`、version 8 は `parent_root` に結合して正式保存先を得る。version 8 の `target_root` は Git 操作先であり、保存先ではない。新規レビューは全リポジトリとも create-reso-world の親 checkout の `reviews/<owner>/<repo>/#<PR>-<branch>/` に保存する。旧配置は移さない。
+
+### 通常ツールの対象照合
+
+読んだ skill の source checkout を `TOOL_ROOT`、常設親を `PARENT_ROOT`、整理対象 PR の base repository を `PR_REPO` として事前に設定する。`CODE_ROOT` を指定するなら登録済み常設 checkout の絶対パスだけ。登録は削除の許可ではない。[共通運用](../../../docs/external-tools-workflow.md)を読み、整理の依頼と対象 repo 自身の `AGENTS.md`・`README.md` を確認する。
+
+```bash
+set -euo pipefail
+: "${TOOL_ROOT:?skill の source checkout}" "${PARENT_ROOT:?常設親}" "${PR_REPO:?整理対象 repository}"
+# 後続の git -C も、呼出元の GIT_DIR 等に向けない。
+for git_env in "${!GIT_@}"; do unset "$git_env"; done
+managed_cleanup_context() {
+  uv run --no-project python -c '
+import json
+from pathlib import Path
+import sys
+sys.path.insert(0, sys.argv[1])
+from tools.external_tools.registry import load_active_registry
+from tools.external_tools.identity import resolve_managed_target
+from tools.external_tools.models import ExternalToolsError
+try:
+    registry = load_active_registry(Path(sys.argv[2]))
+    if registry is None:
+        raise ExternalToolsError("registry_missing", "Permanent parent has no adopted registry.")
+    target = resolve_managed_target(registry, sys.argv[3], operation=sys.argv[4],
+                                    code_root=Path(sys.argv[5]) if sys.argv[5] else None)
+    print(json.dumps({"checkout": str(target.checkout), "common_dir": str(target.common_dir),
+                      "base_remote": target.base_remote, "base_branch": target.spec.base_branch,
+                      "registry_commit": target.registry_commit}))
+except ExternalToolsError as error:
+    print(f"cleanup: {error.reason_code}: {error}", file=sys.stderr)
+    sys.exit(66)
+' "$TOOL_ROOT" "$PARENT_ROOT" "$PR_REPO" "$1" "$2"
+}
+CLEANUP_CONTEXT=$(managed_cleanup_context cleanup "${CODE_ROOT:-}") || exit 66
+CLEANUP_ROOT=$(printf '%s' "$CLEANUP_CONTEXT" | jq -er .checkout)
+CLEANUP_COMMON_DIR=$(printf '%s' "$CLEANUP_CONTEXT" | jq -er .common_dir)
+CLEANUP_BASE_REMOTE=$(printf '%s' "$CLEANUP_CONTEXT" | jq -er .base_remote)
+CLEANUP_BASE_BRANCH=$(printf '%s' "$CLEANUP_CONTEXT" | jq -er .base_branch)
+CLEANUP_BASE="refs/remotes/$CLEANUP_BASE_REMOTE/$CLEANUP_BASE_BRANCH"
+```
+
+各呼び出しで対象照合を再実行する。手順 1–6 の Git は `git -C "$CLEANUP_ROOT" ...`（または同じシェルで `cd -- "$CLEANUP_ROOT"` 後）、gh は必ず `--repo "$PR_REPO"` を付ける。sessions の `--repo` も `CLEANUP_ROOT`。手順 2 の fetch は照合済みの `CLEANUP_BASE_REMOTE` だけに限定する（`--all` にしない）。base は台帳の literal ref `CLEANUP_BASE` を使い、`origin/main` に固定しない。
+
+通常ツールでは手順 7（親の更新）と 10（fork sync）を実行しない。常設 checkout の HEAD・ローカル base branch とそれを保持する worktree は変更せず残す。手順 8 の Git 操作先は `CLEANUP_ROOT`、取り込みの再確認先は `CLEANUP_BASE` とする。手順 9 の基準も `CLEANUP_BASE` とし、remote の base / HEAD を候補から除外する。リモート削除は従来どおり別の明示確認が必要。手順 11 は `git -C "$CLEANUP_ROOT"` で報告し、親が更新されたとは書かない。
+
+### 通常ツールの削除候補の照合
+
+手順 1 の対象外を除き、手順 2 の fetch 後、手順 3 で branch の候補を調べる際に実行する。直前の対象照合と同じシェルで、候補 worktree の絶対パス `CLEANUP_CANDIDATE` と対応する `PR_NUMBER` を設定する。これは候補の判定だけであり、成功後も所有・clean・ignored ファイルの手順 4 と、手順 5 の削除条件を省かない。
+
+```bash
+: "${CLEANUP_ROOT:?対象照合を先に実行する}" "${CLEANUP_CANDIDATE:?候補 worktree の絶対パス}" "${PR_NUMBER:?対応 PR}"
+CANDIDATE_CONTEXT=$(managed_cleanup_context base-read "$CLEANUP_CANDIDATE") || exit 66
+test "$(printf '%s' "$CANDIDATE_CONTEXT" | jq -er .common_dir)" = "$CLEANUP_COMMON_DIR" || exit 66
+test "$(printf '%s' "$CANDIDATE_CONTEXT" | jq -er .registry_commit)" = "$(printf '%s' "$CLEANUP_CONTEXT" | jq -er .registry_commit)" || exit 66
+CLEANUP_CANDIDATE=$(printf '%s' "$CANDIDATE_CONTEXT" | jq -er .checkout)
+test "$CLEANUP_CANDIDATE" != "$CLEANUP_ROOT" || exit 66
+CLEANUP_BRANCH=$(git -C "$CLEANUP_CANDIDATE" symbolic-ref --short HEAD) || exit 66
+test "$CLEANUP_BRANCH" != "$CLEANUP_BASE_BRANCH" || exit 66
+git -C "$CLEANUP_ROOT" merge-base --is-ancestor "refs/heads/$CLEANUP_BRANCH" "$CLEANUP_BASE" || exit 66
+CLEANUP_PR=$(gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,headRefName,headRefOid) || exit 66
+CLEANUP_HEAD=$(git -C "$CLEANUP_CANDIDATE" rev-parse HEAD) || exit 66
+printf '%s' "$CLEANUP_PR" | jq -e --arg branch "$CLEANUP_BRANCH" --arg head "$CLEANUP_HEAD" \
+  '.state == "MERGED" and .headRefName == $branch and .headRefOid == $head' >/dev/null || exit 66
+```
+
+拒否された候補は削除せず理由を報告する。共通 Git ディレクトリが違う・未マージ・PR 対応不明なら、親の worktree や同 origin の別 clone が clean でも残す。通常ツールの登録だけで pr-review の session や失敗 clone の staging の削除を許可しない。
 
 ### fork の経路（`external/resoloop`）だけの手順
 

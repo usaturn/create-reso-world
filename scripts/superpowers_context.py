@@ -6,12 +6,16 @@ Operation profiles deliberately distinguish review sources from repair worktrees
 from __future__ import annotations
 
 import argparse
+import functools
+import importlib
+import importlib.util
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -37,6 +41,27 @@ class ForkPrerequisiteError(ContextError):
     """The known ResoLoop fork is absent or incorrectly configured."""
 
     exit_code = 65
+
+
+@functools.cache
+def _external_tools():
+    """Load only the common package adjacent to this helper, under a private name.
+
+    A caller may already have a different ``tools`` package in sys.modules, or
+    supply one through cwd/PYTHONPATH. Neither can select our identity provider.
+    """
+    path = Path(__file__).resolve().parents[1] / "tools/external_tools"
+    name = f"_superpowers_external_tools_{uuid.uuid4().hex}"
+    spec = importlib.util.spec_from_file_location(
+        name, path / "__init__.py", submodule_search_locations=[str(path)])
+    if spec is None or spec.loader is None:
+        raise ContextError("cannot load the adjacent external-tools package")
+    package = importlib.util.module_from_spec(spec)
+    sys.modules[name] = package
+    spec.loader.exec_module(package)
+    importlib.import_module(f"{name}.registry")
+    importlib.import_module(f"{name}.identity")
+    return package
 
 
 def _identifier(owner: str, repository: str) -> str:
@@ -222,6 +247,12 @@ def resolve_context(
             raise ContextError("review-copy validates parent/doc roots only; omit code/head arguments")
         return context
 
+    tools = _external_tools()
+    try:
+        registry = tools.registry.load_active_registry(parent.root)
+    except tools.models.ExternalToolsError as error:
+        raise ContextError(f"external-tools: {error.reason_code}: {error}") from None
+    managed = None
     expected = None
     if repository == DOCUMENT_REPOSITORY:
         expected, base_remote = parent, "origin"
@@ -236,8 +267,18 @@ def resolve_context(
         except ContextError as exc:
             raise ForkPrerequisiteError(f"ResoLoop fork validation failed: {exc}; run scripts/resoloop-fork.sh clone first") from exc
         base_remote = "origin" if repository == FORK_REPOSITORY else "upstream"
+    elif registry is not None and registry.find_repository(repository) is not None:
+        try:
+            managed = tools.identity.resolve_managed_target(
+                registry, repository, operation=operation,
+                code_root=Path(code_root) if code_root else None)
+        except tools.models.ExternalToolsError as error:
+            raise ContextError(f"external-tools: {error.reason_code}: {error}") from None
+        base_remote = managed.base_remote
 
-    if code_root:
+    if managed:
+        code = inspect_checkout(managed.checkout, label="CODE_ROOT")
+    elif code_root:
         code = inspect_checkout(code_root, label="CODE_ROOT")
     elif expected:
         code = expected
@@ -264,7 +305,7 @@ def resolve_context(
                 f"CODE_ROOT origin/upstream do not identify the expected ResoLoop fork: {code.root}; "
                 "check the repair worktree's effective remote configuration"
             )
-    else:
+    elif managed is None:
         base_remote = select_remote(code, repository)
     context.update(code_root=str(code.root), base_remote=base_remote, code_branch=code.branch, code_head=code.head)
 

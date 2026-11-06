@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+
+from tools.external_tools.tests.conftest import Workspace, isolated_git, workspace  # noqa: F401
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "resolve_issue.py"
 
@@ -363,4 +366,30 @@ def test_base_selection_preserves_explicit_input(
 def test_conflicting_base_does_not_silently_choose_one(checkout: Path, gh_stub: Path) -> None:
     """Silently accepting the last of two bases could overwrite work against a different history."""
     assert_rejected(resolve(checkout, "#42 --base main --base feat/plugin-v2"))
+    assert not gh_stub.exists()
+
+
+# Reuse the shared adopted-parent fixture; no registration in the real parent.
+def test_managed_merge_stops_before_github_call(
+    workspace: Workspace, gh_stub: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S: accepting --merge on the manual profile must never reach GitHub or start reservations."""
+    root = Path(__file__).resolve().parents[4]
+    deployed = workspace.parent / ".agents/skills/issue-to-pr/scripts"
+    shutil.copytree(SCRIPT.parent, deployed, ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(root / "tools/external_tools", workspace.parent / "tools/external_tools",
+                    ignore=shutil.ignore_patterns("tests", "__pycache__"))
+    set_response(monkeypatch, workspace.repository)
+
+    def call(argument: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([sys.executable, str(deployed / "resolve_issue.py"),
+                               "--parent-root", str(workspace.parent), "--", argument],
+                              cwd=workspace.registered, capture_output=True, text=True)
+
+    positive = call("#42")
+    assert positive.returncode == 0, positive.stderr
+    assert json.loads(positive.stdout)["repo"] == workspace.repository
+    gh_stub.unlink()
+    rejected = call("#42 --merge")
+    assert_rejected(rejected)
     assert not gh_stub.exists()

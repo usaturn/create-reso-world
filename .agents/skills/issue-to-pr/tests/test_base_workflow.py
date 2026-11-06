@@ -63,12 +63,12 @@ class Workflow:
     ) -> subprocess.CompletedProcess[str]:
         env = dict(os.environ, INPUT=argument, REQUIRED=required, TARGET_REPO=self.repo,
                    TARGET_ROOT=str(self.target), PARENT_ROOT=str(self.parent),
-                   SKILL_DIR=str(SKILL), SESSION=str(self.session), CODE_ROOT=str(self.code),
+                   SKILL_DIR=str(self.parent / ".agents/skills/issue-to-pr"), SESSION=str(self.session), CODE_ROOT=str(self.code),
                    DOC_ROOT=str(self.docs), CODE_BRANCH="feat/issue-42-change",
                    DOC_BRANCH="docs/issue-42-change", PR_TITLE="変更の実装",
                    CODE_PR_BODY=str(self.session / "body.md"),
                    DOC_PR_BODY=str(self.session / "body.md"))
-        chunks = [step("input"),
+        chunks = [step("input"), step("target"),
                   # The requirement reaches capture only through SESSION, never a shell array.
                   'if [ -n "$REQUIRED" ]; then printf "%s\\n" "$REQUIRED"; fi > "$SESSION/required-bases.txt"',
                   step("capture"), step("worktree"),
@@ -97,6 +97,7 @@ class Workflow:
 @pytest.fixture
 def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> Workflow:
     external = getattr(request, "param", False)
+    managed = external == "managed"
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
@@ -104,14 +105,15 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fi
     for role in ("AUTHOR", "COMMITTER"):
         monkeypatch.setenv(f"GIT_{role}_NAME", "Workflow test")
         monkeypatch.setenv(f"GIT_{role}_EMAIL", "workflow@example.test")
-    parent = tmp_path / "parent"
+    parent = tmp_path / "parent with spaces"
     session = tmp_path / "session"
     session.mkdir()
     (session / "body.md").write_text("複数行の本文\nRefs #42\n")
     pairs: list[tuple[Path, Path, Path, str]] = []
     repositories = [("docs", parent, "usaturn/create-reso-world")]
     if external:
-        repositories.append(("code", parent / "external/resoloop", "usaturn/resoloop"))
+        repositories.append(("code", parent / ("external/other-tool" if managed else "external/resoloop"),
+                             "sample-owner/other-tool" if managed else "usaturn/resoloop"))
     for name, checkout, repo in repositories:
         remote, seed = tmp_path / f"{name}.git", tmp_path / f"{name}-seed"
         subprocess.run(["git", "init", "--bare", "-q", "--initial-branch=main", str(remote)], check=True)
@@ -123,6 +125,9 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fi
         (seed / "integration-only").write_text("統合の履歴\nsecond line\n")
         git(seed, "add", "integration-only")
         git(seed, "commit", "-qm", "integration")
+        if managed and name == "code":
+            git(seed, "branch", "development")
+            git(seed, "branch", "release", "main")
         git(seed, "remote", "add", "origin", str(remote))
         git(seed, "push", "-q", "origin", "--all")
         subprocess.run(["git", "clone", "-q", "--single-branch", "--branch", "main",
@@ -131,11 +136,32 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fi
         # identity in the fixture repository, not in the isolated environment.
         git(checkout, "config", "user.name", "Workflow test")
         git(checkout, "config", "user.email", "workflow@example.test")
+        if repo == "usaturn/resoloop":
+            git(checkout, "remote", "add", "upstream", "https://github.com/orange3134/resoloop.git")
         pairs.append((remote, seed, checkout, repo))
+    # Use a deployed helper/package anchored to this fixture parent, never the real registry.
+    deployed = parent / ".agents/skills/issue-to-pr"
+    shutil.copytree(SKILL / "scripts", deployed / "scripts",
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(ROOT / "tools/external_tools", parent / "tools/external_tools",
+                    ignore=shutil.ignore_patterns("tests", "__pycache__"))
+    if managed:
+        from tools.external_tools.tests.conftest import ADOPTED, OTHER
+
+        (parent / "external-tools.toml").write_bytes(ADOPTED + OTHER)
+        git(parent, "add", "external-tools.toml")
+        git(parent, "commit", "-qm", "adopt tools")
+        git(parent, "push", "-q", "origin", "HEAD:refs/heads/main")
+        git(parent, "update-ref", "refs/remotes/origin/main", "HEAD")
+        git(parent, "checkout", "--detach", "-q")
+    # Identity is real; only transport is redirected to the fixture bare repos.
+    for _, _, checkout, repo in pairs:
+        git(checkout, "remote", "set-url", "origin", f"https://github.com/{repo}.git")
     # Deployed commands deliberately use the parent's scanner, not a script
     # from the feature branch. Supply the new scanner and its version source.
     (parent / "scripts").mkdir()
     (parent / ".devcontainer").mkdir()
+    shutil.copyfile(ROOT / "scripts/superpowers_context.py", parent / "scripts/superpowers_context.py")
     shutil.copyfile(ROOT / "scripts/scan-before-push.sh", parent / "scripts/scan-before-push.sh")
     shutil.copyfile(ROOT / ".devcontainer/install_gitleaks.bash", parent / ".devcontainer/install_gitleaks.bash")
     version = re.search(r'^readonly GITLEAKS_VERSION="([^"]+)"',
@@ -149,16 +175,27 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fi
     wrapper.write_text(
         f"#!{sys.executable}\nimport json, os, pathlib, subprocess, sys\n"
         f"real = {real_git!r}\nurls = {urls!r}\n"
+        f"transports = { {str(checkout): str(remote) for remote, _, checkout, _ in pairs}!r}\n"
         "args = sys.argv[1:]\n"
         "if 'push' in args and os.environ.get('SESSION'):\n"
         "    session = pathlib.Path(os.environ['SESSION'])\n"
         "    scans = (session / 'scans.jsonl').read_text().splitlines()\n"
         "    with (session / 'pushes.jsonl').open('a') as f:\n"
         "        f.write(json.dumps(dict(argv=args, scans=len(scans))) + '\\n')\n"
-        "if args[:2] == ['remote', 'get-url']:\n"
+        "if 'get-url' in args and 'remote' in args:\n"
         "    p = subprocess.run([real, *args], text=True, capture_output=True)\n"
         "    print(urls.get(p.stdout.strip(), p.stdout.strip()))\n"
         "    sys.exit(p.returncode)\n"
+        "transport = next((i for i, a in enumerate(args) if a in ('ls-remote', 'fetch', 'push')), None)\n"
+        "if transport is not None:\n"
+        "    common = subprocess.check_output([real, *args[:transport], 'rev-parse', '--path-format=absolute', '--git-common-dir'], text=True).strip()\n"
+        "    remote = transports.get(str(pathlib.Path(common).parent))\n"
+        "    if not remote: sys.exit('unmapped transport refused by fixture')\n"
+        "    if 'origin' not in args: sys.exit('unexpected transport refused by fixture')\n"
+        "    direction = ['--push'] if args[transport] == 'push' else []\n"
+        "    destination = subprocess.check_output([real, *args[:transport], 'remote', 'get-url', *direction, 'origin'], text=True).strip()\n"
+        "    if destination not in (remote, urls[remote]): sys.exit('unexpected effective destination refused by fixture')\n"
+        "    args[args.index('origin')] = remote\n"
         "os.execv(real, [real, *args])\n"
     )
     gh = bin_dir / "gh"
@@ -168,7 +205,7 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fi
         "with (session / 'gh.jsonl').open('a') as f: f.write(json.dumps(args) + '\\n')\n"
         "repo = args[args.index('--repo') + 1]\n"
         "if args[:2] == ['issue', 'view']:\n"
-        "    print(json.dumps(dict(number=42, title='実装', body='本文\\nsecond line', state='OPEN',\n"
+        "    print(json.dumps(dict(number=42, title='実装', body='材質の変更\\n元値を保持する', state='OPEN',\n"
         "                          url=f'https://github.com/{repo}/issues/42')))\n"
         "elif args[:2] == ['pr', 'create']:\n"
         "    base = args[args.index('--base') + 1]\n"
@@ -302,3 +339,27 @@ def test_publish_cannot_inherit_a_different_push_target(workflow: Workflow, tmp_
     assert git(workflow.parent, "ls-remote", "origin", "refs/heads/docs/issue-42-change").split()[0] == doc_sha
     assert json.loads((workflow.session / "code-pr.json").read_text())["headRefOid"] == code_sha
     assert json.loads((workflow.session / "docs-pr.json").read_text())["headRefOid"] == doc_sha
+
+
+@pytest.mark.parametrize("workflow", ["managed"], indirect=True)
+@pytest.mark.parametrize("base_explicit", [False, True])
+def test_registered_tool_flows_to_issue_and_base(workflow: Workflow, base_explicit: bool) -> None:
+    """S: registration-only routing must not silently publish another repo or hardcoded main."""
+    argument = "#42 --base release" if base_explicit else "#42"
+    expected_branch = "release" if base_explicit else "development"
+    expected_sha = git(workflow.remote, "rev-parse", f"refs/heads/{expected_branch}")
+    result = workflow.run(argument)
+    assert result.returncode == 0, result.stderr
+    issue = json.loads((workflow.session / "issue.json").read_text())
+    assert issue["repo"] == "sample-owner/other-tool"
+    assert issue["body"] == "材質の変更\n元値を保持する"
+    assert issue["base"] == expected_branch
+    captured_base = json.loads((workflow.session / "code-base.json").read_text())
+    assert captured_base["repo"] == "sample-owner/other-tool"
+    assert captured_base["branch"] == expected_branch
+    assert captured_base["sha"] == expected_sha
+    assert git(workflow.code, "rev-parse", "HEAD^") == expected_sha
+    calls = [json.loads(line) for line in (workflow.session / "gh.jsonl").read_text().splitlines()]
+    creates = [call for call in calls if call[:2] == ["pr", "create"]]
+    assert [(call[call.index("--repo") + 1], call[call.index("--base") + 1]) for call in creates] == [
+        ("sample-owner/other-tool", expected_branch), ("usaturn/create-reso-world", "main")]

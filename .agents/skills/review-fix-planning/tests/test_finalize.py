@@ -359,10 +359,10 @@ def test_create_reso_world_ci_is_not_required_but_resoloop_ci_is() -> None:
     assert mod.finalize(public_record(), "状況", checks(), runner=public)["outcome"] == "no_fix_needed"
 
 
-@pytest.mark.parametrize("repo", ["usaturn/resoloop-meshy"])
+@pytest.mark.parametrize("repo", ["sample-owner/other-tool"])
 def test_repository_outside_the_merge_scope_stops_before_network(repo: str) -> None:
     # マージは取り消せない。SKILL.mdの範囲（create-reso-worldとresoloop）をこのhelperでも守る。
-    # resoloop-meshyはCIの表にあるが、範囲の外なのでCIを見る前に止まる
+    # 通常ツールを登録してもマージ権限は増えない。CIの判定・ネットワークより先に拒否する
     gh = FakeGh(repo=repo)
     value = record()
     value["pr"]["repository"] = repo

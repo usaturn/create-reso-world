@@ -57,7 +57,13 @@ def bash_shell():
 
 @pytest.fixture
 def git_context(tmp_path):
-    env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null")
+    # Fixture diagnostics must never print the agent's inherited credentials;
+    # Git selectors/config and the real user HOME must not reach temporary repos.
+    home = tmp_path / "isolated home"
+    home.mkdir()
+    env = {"PATH": os.environ["PATH"], "HOME": str(home),
+           "XDG_CONFIG_HOME": str(home / ".config"), "UV_OFFLINE": "1",
+           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
     def git(path, *args):
         return subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", *args],
                               cwd=path, env=env, check=True, text=True, capture_output=True).stdout.strip()
@@ -73,6 +79,8 @@ def git_context(tmp_path):
     helper = REPO_ROOT / "scripts/superpowers_context.py"
     (parent / "scripts").mkdir()
     shutil.copy2(helper, parent / "scripts/superpowers_context.py")
+    shutil.copytree(REPO_ROOT / "tools/external_tools", parent / "tools/external_tools",
+                    ignore=shutil.ignore_patterns("tests", "__pycache__"))
     code = repo("code", {"base": "git@github.com:other/repository.git",
                          "origin": "ssh://git@github.com/contributor/repository.git"})
     doc = tmp_path / "docs"
@@ -84,7 +92,7 @@ def run_fix_context(git_context, context_shell, *, cwd=None, **variables):
     parent, code, doc, git, env = git_context
     # The real instruction block is the resolver; no test-side URL/root logic.
     blocks = re.findall(r"```bash\n(.*?)```", read(AGENTS_SKILL), re.DOTALL)
-    matches = [block for block in blocks if "--operation review-fix" in block
+    matches = [block for block in blocks if "CONTEXT_PARENT=" in block
                and '--pr "$PR_NUMBER"' not in block]
     assert len(matches) == 1, "skill must have one unambiguous context preflight block"
     script = matches[0]

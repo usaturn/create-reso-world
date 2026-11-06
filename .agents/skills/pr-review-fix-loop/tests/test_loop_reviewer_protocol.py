@@ -167,6 +167,7 @@ def protocol(env: Any, kit: Any, tmp_path: Path) -> Protocol:
     (parent / "tools").mkdir()
     shutil.copyfile(REPO_ROOT / "tools/__init__.py", parent / "tools/__init__.py")
     _copy_tree(REPO_ROOT / "tools/agent_runner", parent / "tools/agent_runner")
+    _copy_tree(REPO_ROOT / "tools/external_tools", parent / "tools/external_tools")
     # 実際の親と同じく、helper の bytecode・スクラッチ・仮想環境は Git に無視される
     with (parent / ".gitignore").open("a", encoding="utf-8") as stream:
         stream.write("__pycache__/\ntmp\n.venv/\n")

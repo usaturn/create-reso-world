@@ -6,17 +6,21 @@ Refuses to start from a directory Git does not track, such as a world project un
 from __future__ import annotations
 
 import argparse
+import functools
+import importlib
+import importlib.util
 import json
 import re
 import shlex
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import NamedTuple
 
 from git_env import git_environment
 
-# AGENTS.md の「リポジトリ境界」の表のうち、issue-to-pr が branch と PR を作ってよいリポジトリ。
+# 既存の特殊経路。通常ツールは、この固定値でなく採用済み台帳と共通 identity で検証する。
 # 上流の orange3134/resoloop は docs/resoloop-fork-workflow.md の流れで扱うので含めない
 SUPPORTED_REPOSITORIES = ("usaturn/create-reso-world", "usaturn/resoloop", "usaturn/resoloop-meshy")
 # ループ用のオプション。名前・値・意味は pr-review-fix-loop の start と同じで、--merge と一緒のときだけ受け付ける。
@@ -184,19 +188,48 @@ def parse_input(text: str, cwd: Path) -> ParsedInput:
     )
 
 
-def supported(repo: str) -> str:
+@functools.cache
+def external_tools():
+    """Load the adjacent shared package, never a cwd/PYTHONPATH namesake."""
+    path = Path(__file__).resolve().parents[4] / "tools/external_tools"
+    name = f"_issue_external_tools_{uuid.uuid4().hex}"
+    spec = importlib.util.spec_from_file_location(
+        name, path / "__init__.py", submodule_search_locations=[str(path)])
+    if spec is None or spec.loader is None:
+        raise ValueError("共通 external-tools を読み込めません")
+    package = importlib.util.module_from_spec(spec)
+    sys.modules[name] = package
+    spec.loader.exec_module(package)
+    importlib.import_module(f"{name}.registry")
+    importlib.import_module(f"{name}.identity")
+    return package
+
+
+def managed_target(repo: str, *, parent_root: Path | None = None, code_root: Path | None = None):
+    """Use only the adopted parent and registered common-dir; never discover a nearby repo."""
+    tools = external_tools()
+    if parent_root is None:
+        helper_root = Path(__file__).resolve().parents[4]
+        common = run_readonly("git", "rev-parse", "--path-format=absolute", "--git-common-dir", cwd=helper_root)
+        parent_root = Path(common).resolve().parent
+    registry = tools.registry.load_active_registry(parent_root)
+    if registry is None or registry.find_repository(repo.casefold()) is None:
+        raise ValueError("issue-to-pr の対象は既存 parent / fork / meshy と採用済み台帳の通常ツールだけです")
+    return tools.identity.resolve_managed_target(
+        registry, repo, operation="base-read", code_root=code_root)
+
+
+def supported(repo: str, *, parent_root: Path | None = None) -> str:
     for candidate in SUPPORTED_REPOSITORIES:
         if candidate == repo.casefold():
             return candidate
-    raise ValueError(
-        f"{repo} は issue-to-pr の対象外です（対象は {'、'.join(SUPPORTED_REPOSITORIES)}。AGENTS.md の「リポジトリ境界」）"
-    )
+    return managed_target(repo, parent_root=parent_root).spec.repository
 
 
-def resolve_target(reference: str, cwd: Path) -> tuple[str, int]:
+def resolve_target(reference: str, cwd: Path, *, parent_root: Path | None = None) -> tuple[str, int]:
     for pattern in (ISSUE_URL, REPO_REF):
         if match := pattern.fullmatch(reference):
-            return supported(match[1]), int(match[2])
+            return supported(match[1], parent_root=parent_root), int(match[2])
     if match := NUMBER.fullmatch(reference):
         try:
             origin = run_readonly("git", "remote", "get-url", "origin", cwd=cwd)
@@ -206,7 +239,7 @@ def resolve_target(reference: str, cwd: Path) -> tuple[str, int]:
             # URL に埋め込まれた認証情報（user:token@）を報告に出さない
             shown = re.sub(r"(?<=://)[^/@]*@", "***@", origin)
             raise ValueError(f"現在の checkout の origin が GitHub のリポジトリではありません: {shown}")
-        return supported(origin_match[1]), int(match[1])
+        return supported(origin_match[1], parent_root=parent_root), int(match[1])
     raise ValueError(
         "https://github.com/<owner>/<repo>/issues/N、<owner>/<repo>#N、現在の checkout の #N の"
         "いずれかを指定してください（PR は対象外）"
@@ -249,15 +282,21 @@ def main(argv: list[str] | None = None) -> int:
         "ループ用のオプション（--max-cycles・--assign・--template・--config）。"
         "- で始まりうるので、前に -- を置いて渡す",
     )
+    parser.add_argument("--parent-root", type=Path, help="検証する常設 create-reso-world 親 checkout")
     args = parser.parse_args(argv)
     try:
         require_tracked_cwd(Path.cwd())
         parsed = parse_input(args.input, Path.cwd())
+        repo, number = resolve_target(parsed.reference, Path.cwd(), parent_root=args.parent_root)
+        target = None if repo in SUPPORTED_REPOSITORIES else managed_target(repo, parent_root=args.parent_root)
+        if target is not None and parsed.loop_args is not None:
+            raise ValueError("登録済み通常ツールは手動マージです。--merge は使えません")
+        base = parsed.base if parsed.base_explicit or target is None else target.spec.base_branch
         payload = {
-            **fetch_issue(*resolve_target(parsed.reference, Path.cwd())),
+            **fetch_issue(repo, number),
             "merge": None if parsed.loop_args is None else {"loop_args": parsed.loop_args},
             "implement": parsed.implement,
-            "base": parsed.base,
+            "base": base,
             "base_explicit": parsed.base_explicit,
         }
     except (ValueError, OSError, subprocess.TimeoutExpired) as exc:

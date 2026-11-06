@@ -6,6 +6,7 @@ and accepting a same-URL clone in place of a known repository's repair worktree.
 from __future__ import annotations
 
 import json
+import shutil
 import os
 from pathlib import Path
 import subprocess
@@ -114,6 +115,56 @@ class ContextTests(unittest.TestCase):
         for secret in ("demo-user", "do-not-log-credential", "do%2Dnot%2Dlog%2Dcredential"):
             self.assertNotIn(secret, result.stderr)
         self.assertNotIn("Traceback", result.stderr)
+
+    def adopt_managed(self):
+        repository = "usaturn/resonite-emission-editor"
+        managed = self.checkout("parent/external/emission-editor", {"origin": f"https://github.com/{repository}.git"})
+        self.linked_checkouts.append(managed)
+        (self.parent / "external-tools.toml").write_text(
+            'schema_version = 1\n[tools.emission-editor]\n'
+            f'repository = "{repository}"\npath = "external/emission-editor"\n'
+            'base_branch = "main"\nci = "disabled"\n', encoding="utf-8")
+        self.git(self.parent, "add", "external-tools.toml")
+        self.git(self.parent, "commit", "-m", "adopt tool")
+        self.git(self.parent, "update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git(self.parent, "checkout", "--detach")
+        return repository, managed
+
+    def test_registered_context_preserves_legacy_json_and_fix_route(self):
+        # S: the registered route must not fall through to an arbitrary explicit root.
+        repository, managed = self.adopt_managed()
+        value = self.good(repo=repository)
+        self.assertEqual((value["code_root"], value["base_remote"]), (str(managed), "origin"))
+        linked = self.linked(managed, "managed-fix")
+        value = self.good(operation="review-fix", repo=repository, code_root=linked)
+        self.assertEqual(value["code_root"], str(linked))
+
+    def test_context_cannot_load_foreign_tools_package(self):
+        # S: trusting sys.modules/PYTHONPATH/cwd could substitute a plausible wrong target.
+        repository, managed = self.adopt_managed()
+        copied = self.root / "helper checkout"
+        (copied / "scripts").mkdir(parents=True)
+        shutil.copy2(HELPER, copied / "scripts/superpowers_context.py")
+        shutil.copytree(ROOT / "tools/external_tools", copied / "tools/external_tools",
+                        ignore=shutil.ignore_patterns("tests", "__pycache__"))
+        foreign = self.root / "foreign"
+        (foreign / "tools/external_tools").mkdir(parents=True)
+        (foreign / "tools/__init__.py").write_text("", encoding="utf-8")
+        (foreign / "tools/external_tools/__init__.py").write_text("", encoding="utf-8")
+        (foreign / "tools/external_tools/registry.py").write_text(
+            "def load_active_registry(*a, **k): return None\n", encoding="utf-8")
+        args = [sys.executable, "-c",
+                "import runpy, tools.external_tools.registry; "
+                "runpy.run_path(__import__('sys').argv.pop(1), run_name='__main__')",
+                str(copied / "scripts/superpowers_context.py"),
+                "--operation", "review-workspace", "--repo", repository,
+                "--parent-root", str(self.parent)]
+        before = self.snapshot()
+        result = subprocess.run(args, cwd=foreign, env=self.env | {"PYTHONPATH": str(foreign)},
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["code_root"], str(managed))
+        self.assertEqual(self.snapshot(), before)
 
     def test_parent_origin_rejection_does_not_disclose_url_credentials(self):
         for url in (

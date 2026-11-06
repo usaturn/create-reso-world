@@ -52,7 +52,7 @@ PR_URL=$(printf '%s' "$REVIEW_CONTEXT" | jq -r .url)
 
 - 番号は親 origin の PR、URL はその base repository の PR。新配置 `PARENT_ROOT/reviews/<owner>/<repo>/#<PR>-<branch>/` だけを探す。別 repo の同じ番号や外部 checkout の旧配置を自動選択しない。
 - 旧配置（親の `reviews/#<PR>-*`、各 checkout の `reviews/`）は明示したパスでだけ使う。fork と上流の両 PR を含む旧配置では PR URL を `REVIEW_PATH_PR` に添える。移動・自動コピーはしない。
-- その他の repo は明示された main checkout の絶対パス `CODE_ROOT` と一致 remote 1 件が必要。既知の ResoLoop 経路は origin/upstream を照合し、上流 PR は `base_remote=upstream`。checkout の探索・clone はしない。
+- 採用済み台帳の通常ツールは helper の共通 `review-workspace` resolver で登録済み常設 checkout を選ぶ。`CODE_ROOT` を渡す場合もその常設 checkout に限る。修正段階の linked worktree をレビュー入力の解決に渡さない。未登録 repo は従来どおり明示された main checkout の絶対パス `CODE_ROOT` と一致 remote 1 件が必要。既知の ResoLoop 経路は origin/upstream を照合し、上流 PR は `base_remote=upstream`。checkout の探索・clone はしない。
 - 候補無し・複数・repository/番号/branch の不一致・API 失敗は、その理由を報告して停止する。ディレクトリ名・祖先関係から別 PR を推測しない。
 
 ## 手順
@@ -62,7 +62,7 @@ PR_URL=$(printf '%s' "$REVIEW_CONTEXT" | jq -r .url)
 それ以外は、各項目をランタイムの plan / todo 機能のタスクにしてから開始する（Claude Code では TodoWrite、Codex では `update_plan`）。完遂では「三択の結論」の各段もタスクにする。
 
 1. **範囲を固定する** — 解決したレビューディレクトリ配下の全ファイルを読む。各ファイル冒頭の「対象 HEAD」を記録する。複数世代が混在するのが普通である。レビュー成果物は gitignore 対象で未コミットのことがある（本リポジトリの `reviews/` がそうである）が、指定ディレクトリ内であれば Git の追跡状態にかかわらず正規の入力である。レビュアーのファイルは直下の `<model>.md` で、`findings/`（候補一覧）・`verified/`（確認済みの一覧・工程の記録）・`runs/`（実行記録）はレビュアーではない。続けて PR の判断の記録を読み、このサイクルの番号と前の判断を決める（[round-records.md](references/round-records.md) 1 章。読むのは書き込み権限のある投稿者と認証済み利用者自身の記録だけ）。記録を読めないときは判断を引き継げないので、完遂では結論 3、計画のみでは停止して報告する。
-2. **現行 HEAD を特定する** — 引数解決で照合した `PR_REPO`・`PR_NUMBER`・`PR_URL`・`REVIEW_DIR` を使い、ルート `AGENTS.md` の「リポジトリ境界」と下記「共通 context の確認」を後続の Git 操作より前に実行する。保存先は `PARENT_ROOT/reviews/`、Git 操作先は context の `MAIN_ROOT`（code_root）であり、同じとは限らない。修正用の明示 worktree は同じ Git repository（git-common-dir）の場合に使える。その他の repo は明示された絶対パス `CODE_ROOT` と一致 remote 1 件が必要で、推測しない。ResoLoop の不備は `scripts/resoloop-fork.sh clone` を案内して停止する。PR の状態・draft・base・head・本文・関連 Issue を `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,body,closingIssuesReferences` で読み、引数解決の repository/番号と一致することを確認する。helper は照合した `PR_REMOTE`（base_remote、上流 PR は upstream）から PR head を固定する。下の共通 API を、読んだ skill の `REVIEW_TOOL_ROOT` の project で実行する:
+2. **現行 HEAD を特定する** — 引数解決で照合した `PR_REPO`・`PR_NUMBER`・`PR_URL`・`REVIEW_DIR` を使い、ルート `AGENTS.md` の「リポジトリ境界」と下記「共通 context の確認」を後続の Git 操作より前に実行する。保存先は `PARENT_ROOT/reviews/`、Git 操作先は context の `MAIN_ROOT`（code_root）であり、同じとは限らない。初期調査・修正元の取得では `CONTEXT_OPERATION=review-workspace` とし、常設 checkout を解決する。専用の worktree を作った後、または既に明示された修正用 worktree を使うときは `CONTEXT_OPERATION=review-fix` にする。登録済み通常ツールの review-fix は、登録先と同じ common-dir の名前付き branch の linked worktree に限る。未登録 repo の承認済み review-fix は従来どおり明示された絶対パス `CODE_ROOT` と一致 remote 1 件が必要で、推測しない。ResoLoop の不備は `scripts/resoloop-fork.sh clone` を案内して停止する。PR の状態・draft・base・head・本文・関連 Issue を `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,body,closingIssuesReferences` で読み、引数解決の repository/番号と一致することを確認する。helper は照合した `PR_REMOTE`（base_remote、上流 PR は upstream）から PR head を固定する。下の共通 API を、読んだ skill の `REVIEW_TOOL_ROOT` の project で実行する:
 
    ```bash
    PR_REF=$(uv run --project "$REVIEW_TOOL_ROOT" --locked python - "$REVIEW_TOOL_ROOT" "$MAIN_ROOT" "$PR_REPO" "$PR_NUMBER" "$HEAD_SHA" "$PR_REMOTE" <<'PY'
@@ -112,9 +112,14 @@ PY
 
 ## 共通 context の確認
 
-`PARENT_ROOT` は create-reso-world の main checkout。省略できるのはその main checkout 内の cwd だけで、linked・外部 cwd では明示する。`DOC_ROOT` は文書のコミット先として別に指定し、`DOC_BRANCH` に予定の文書ブランチ名を入れる。初期調査で文書先が未確定なら両方とも空でよいが、**Spec の書込・commit 前には両方を確定して再実行する**。`CODE_ROOT` は既知経路では省略できるが、修正用 worktree は明示する。既知経路の別 clone は origin URL が同じでも拒否する。
+`PARENT_ROOT` は create-reso-world の main checkout。省略できるのはその main checkout 内の cwd だけで、linked・外部 cwd では明示する。`DOC_ROOT` は文書のコミット先として別に指定し、`DOC_BRANCH` に予定の文書ブランチ名を入れる。初期調査で文書先が未確定なら両方とも空でよいが、**Spec の書込・commit 前には両方を確定して再実行する**。`CODE_ROOT` は既知経路・採用済み通常ツールの初期調査（review-workspace）では省略できるが、修正用 worktree は明示する。既知経路の別 clone と、通常ツールの登録先と別 common-dir の clone は origin URL が同じでも拒否する。base/CI は採用済み台帳を使い、検証・編集範囲・実行許可は対象 repo の `AGENTS.md` と `README.md` に従う。[共通運用](../../../docs/external-tools-workflow.md) の CI 実設定照合と手動マージの境界を守る。
 
-以下を手順 2 と、文書書込・commit、実装、fetch・push、コメント投稿の直前に再実行し、失敗したら後続操作を行わない。API で PR の head リポジトリとブランチを確認した後の push 前には `HEAD_REPO` と `HEAD_BRANCH` を両方設定して再実行する。取得先の `base_remote` と push 先の `head_remote` を流用しない。`HEAD_REPO` が空の初期調査では head の両引数を CLI に渡さない（`HEAD_BRANCH` は PR の表示用メタデータとして保持できる）。helper 不在は配置元と不足パスを報告して停止し、`CODE_ROOT` 側へフォールバックしない。
+以下を手順 2 と、文書書込・commit、実装、fetch・push、コメント投稿の直前に再実行し、失敗したら後続操作を行わない。操作の対象に応じて `CONTEXT_OPERATION` を設定する。
+
+- **初期調査・文書・計画のみの操作:** `CONTEXT_OPERATION=review-workspace` を維持し、`CODE_ROOT` は常設 checkout とする。Spec の書込・commit は検証済み `DOC_ROOT` で行い、そのためだけにコード側の修正用 worktree を要求しない。計画のみのコメント投稿も review-workspace で再照合する。`HEAD_REPO` は空にして head の両引数を CLI に渡さない（`HEAD_BRANCH` は PR の表示用メタデータとして保持できる）。
+- **対象 PR のコード変更・反映:** 修正用 worktree の確定後は `CONTEXT_OPERATION=review-fix` とする。実装・コードの commit・push と、その修正結果のコメント投稿の前は必ず review-fix で再照合し、常設 checkout へ fallback しない。API で PR の head リポジトリとブランチを確認した後のコード push 前には `HEAD_REPO` と `HEAD_BRANCH` を両方設定して再実行する。
+
+取得先の `base_remote` と push 先の `head_remote` を流用しない。helper 不在は配置元と不足パスを報告して停止し、`CODE_ROOT` 側へフォールバックしない。
 
 ```bash
 CONTEXT_PARENT="${PARENT_ROOT:-}"
@@ -129,7 +134,7 @@ if [[ ! -f "$CONTEXT_HELPER" ]]; then
   printf 'Missing context helper %s; set PARENT_ROOT to the create-reso-world main checkout containing scripts/superpowers_context.py\n' "$CONTEXT_HELPER" >&2
   exit 66
 fi
-CONTEXT_JSON=$(uv run --no-project python "$CONTEXT_HELPER" --operation review-fix \
+CONTEXT_JSON=$(uv run --no-project python "$CONTEXT_HELPER" --operation "${CONTEXT_OPERATION:-review-fix}" \
   --parent-root "$CONTEXT_PARENT" --doc-root "${DOC_ROOT:-}" --code-root "${CODE_ROOT:-}" \
   --repo "$PR_REPO" --doc-branch "${DOC_BRANCH:-}" \
   --head-repo "${HEAD_REPO:-}" --head-branch "${HEAD_REPO:+${HEAD_BRANCH:-}}") || exit 66
@@ -167,7 +172,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
    - ローカルブランチはあるが checkout されていない: `git -C "$REPO_MAIN" merge-base --is-ancestor "$HEAD_BRANCH" "$HEAD_SHA"` が成功するときだけ、`git -C "${REPO_MAIN:?}" worktree add "$FIX_WT" "$HEAD_BRANCH"` の後に `git -C "${FIX_WT:?}" merge --ff-only "$HEAD_SHA"`
    - 別の worktree で checkout されている: その worktree の `git status --porcelain` が空で、HEAD が `$HEAD_SHA` なら、それを `FIX_WT` として使う（片付けの対象にしない）
    - それ以外（ローカルブランチが PR に無いコミットを持つ、未コミットの変更がある、`FIX_WT` のパスが既にある）は、触らずに結論 3 にする
-4. `CODE_ROOT="$FIX_WT"` とし、`HEAD_REPO`（`headRepositoryOwner` と `headRepository` の owner/name）と `HEAD_BRANCH` を設定して共通 context を再実行する。返る `MAIN_ROOT` は `FIX_WT` であり、以後の commit・push はそこで行う。
+4. `CODE_ROOT="$FIX_WT"`・`CONTEXT_OPERATION=review-fix` とし、`HEAD_REPO`（`headRepositoryOwner` と `headRepository` の owner/name）と `HEAD_BRANCH` を設定して共通 context を再実行する。返る `MAIN_ROOT` は `FIX_WT` であり、以後の commit・push はそこで行う。
 5. **片付け:** 結論 1 の push 後、結論 2 のマージ後、結論 3 の停止時（未コミットの変更が無いとき）に、このセッションが作った worktree を `git -C "$REPO_MAIN" worktree remove "$FIX_WT"` で外す（`--force` を付けない。失敗したら残して報告する）。このセッションが手順 3 の `-b` で作ったローカルブランチは、先端が push またはマージした head の SHA か、作成時の head の SHA（結論 3 でコミットを残さなかったとき）と同じことを確かめてから `git -C "${REPO_MAIN:?}" branch -D "$HEAD_BRANCH"` で消す。残すと、PR の head が rebase された後の完遂が手順 3（PR に無いコミット）で止まる。
 
 ## 守る条件と影響経路
@@ -270,7 +275,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 **base が進んだときのやり直し:** 手順 6 の再確認と手順 7 の `base_moved` によるやり直しは、このサイクルで合わせて 3 回まで。超えたら結論 3 にする（停止理由は `external: 検証の間に base が進み続けた`）。検証し直さずに、検証の記録の `base` だけを新しい先端に書き換えない。`finalize.py` が最後に base を確かめてから GitHub がマージを処理するまでの間の前進は止められない。helper はマージの後に merge commit の最初の親で見つけて止まる（[execution.md](references/execution.md) 3.4 節の `merge_parent`、3.5 節）。この停止はやり直しの回数に数えない。
 
-**マージしてよい範囲:** `usaturn/create-reso-world` と `usaturn/resoloop` の、open で draft でない PR だけ。それ以外（上流の `orange3134/resoloop` など）は、修正不要と判定してもマージせず結論 3 にする。範囲外のリポジトリへのコメント投稿は、commit / push まで行ったターンだけ必須である。
+**マージしてよい範囲:** `usaturn/create-reso-world` と `usaturn/resoloop` の、open で draft でない PR だけ。それ以外（上流の `orange3134/resoloop` や、採用済み台帳の通常ツールを含む）は、修正不要と判定してもマージせず結論 3 にする。通常ツールは CI 実設定・PR checks の読取照合を報告し、手動マージ待ちとする。登録によって `finalize.py` の許可範囲を広げない。範囲外のリポジトリへのコメント投稿は、commit / push まで行ったターンだけ必須である。
 
 ### 結論 3: 停止する
 
@@ -346,6 +351,7 @@ Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の�
 2. **変更の種類に応じた検証** を続けて通す。
    - 環境の変更（ルートの `.devcontainer/`・`scripts/`・`tests/`・`templates/`・`.agents/`・設定ファイルなど）: `bash .devcontainer/run-tests.bash` と `bash scripts/check-layout.sh`。スキル（`.agents/skills/`・`tests/skills/`）を変えた場合は `uv run pytest tests/skills .agents/skills` も
    - ワールドのプロジェクトの変更: そのプロジェクトのディレクトリで `uv run pytest`
+   - 登録済み通常ツールの変更: その repo の `AGENTS.md` / `README.md` のテスト・lint・ビルド。親の一括検証を外部コードの検証の代わりにしない。CI は採用済み `ci=disabled` と実際の Actions=false、または `ci=required` と実際の PR checks の成功を controller が照合する（共通運用）。未知 repo へ免除を流用しない
    - resoloop fork（`external/resoloop`）の変更: 変更したプロジェクトに関連する `dotnet test`
 3. 失敗したら直す。commit しない。
 4. commit・push の前に [要件・原因・検証の対応](references/convergence.md) の「3. 検証と閉じ方」を読み、経路表の観測結果・対象版・実行証拠、判定の両側・操作順・独立した根拠を照合する。最後の修正で影響した経路の証拠が不足していれば、必要な修正・検証と表の更新を終えるまで公開しない。承認済み Spec の反映だけの依頼でもこの照合は行うが、採否の選別や自己レビューをやり直す手順は追加しない。共通 context を再実行し、`git -C "$MAIN_ROOT" fetch "$PR_REMOTE"` で取得する。取得後に `gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefOid` でレビュー対象 PR の実際の先端も再確認する。手順 1・2 が通ったら、レビュー対象ブランチ（既存 PR の head）へ commit する。`main` ではない。新しい `*-review-fixes` ブランチでもない。
@@ -414,13 +420,13 @@ resoloop の上流への PR も同じ規則が fork の経路で成立する: `P
 ```
 
 ```bash
-# コメント投稿の直前にも、宣言済みの親から共通 context を再照合する
+# コメント投稿の直前にも共通 context を再照合する（計画のみは review-workspace、修正結果は review-fix）
 CONTEXT_HELPER="${PARENT_ROOT:-}/scripts/superpowers_context.py"
 if [[ ! -f "$CONTEXT_HELPER" ]]; then
   printf 'Missing context helper %s; set PARENT_ROOT to the create-reso-world main checkout containing scripts/superpowers_context.py\n' "$CONTEXT_HELPER" >&2
   exit 66
 fi
-CONTEXT_JSON=$(uv run --no-project python "$CONTEXT_HELPER" --operation review-fix \
+CONTEXT_JSON=$(uv run --no-project python "$CONTEXT_HELPER" --operation "${CONTEXT_OPERATION:-review-fix}" \
   --parent-root "${PARENT_ROOT:-}" --doc-root "${DOC_ROOT:-}" --code-root "${CODE_ROOT:-}" \
   --repo "$PR_REPO" --doc-branch "${DOC_BRANCH:-}" \
   --head-repo "${HEAD_REPO:-}" --head-branch "${HEAD_REPO:+${HEAD_BRANCH:-}}") || exit 66

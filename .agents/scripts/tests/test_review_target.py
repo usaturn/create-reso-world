@@ -246,6 +246,23 @@ def test_resolve_uses_explicit_code_root(tmp_path: Path) -> None:
     assert result["review_dir"] == str(parent / "reviews" / "usaturn" / "resoloop-meshy" / "#2-y")
 
 
+def test_registered_target_checkout_uses_adopted_route(tmp_path: Path) -> None:
+    # S: forgetting the managed branch would select an unrelated explicit checkout.
+    parent = make_parent(tmp_path)
+    repository = "usaturn/resonite-emission-editor"
+    managed = make_checkout(parent / "external/emission-editor", {"origin": url(repository)})
+    (parent / "external-tools.toml").write_text(
+        'schema_version = 1\n[tools.emission-editor]\n'
+        f'repository = "{repository}"\npath = "external/emission-editor"\n'
+        'base_branch = "main"\nci = "disabled"\n', encoding="utf-8")
+    git(parent, "add", "external-tools.toml")
+    git(parent, "commit", "-m", "adopt tool")
+    git(parent, "update-ref", "refs/remotes/origin/main", "HEAD")
+    git(parent, "checkout", "--detach")
+    checkout = target.target_checkout(parent, repository)
+    assert checkout.root == managed and checkout.remote == "origin"
+
+
 def test_require_parent_root_needs_ignored_reviews(tmp_path: Path) -> None:
     parent = make_repo(tmp_path / "parent")
     (parent / "README.md").write_text("x\n", encoding="utf-8")
