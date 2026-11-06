@@ -31,6 +31,18 @@ def _checkout(root: Path) -> tuple[Path, Path, Path]:
         raise ExternalToolsError("invalid_checkout", "Cannot inspect the named checkout root.") from None
     if path != top:
         raise ExternalToolsError("invalid_checkout", "Target must be the checkout root, not a subdirectory.")
+    if git_dir != common:
+        # A copied .git file borrows a genuine worktree's common dir and branch.
+        # Its administrative backlink must name this root, not another worktree.
+        try:
+            backlink = Path(os.fsdecode((git_dir / "gitdir").read_bytes()).removesuffix("\n"))
+            if not backlink.is_absolute():
+                backlink = git_dir / backlink
+            registered_root = backlink.parent.resolve(strict=True)
+        except (OSError, ValueError, RuntimeError):
+            raise ExternalToolsError("invalid_worktree", "Cannot validate the linked worktree registration.") from None
+        if backlink.name != ".git" or registered_root != path:
+            raise ExternalToolsError("invalid_worktree", "Checkout root does not match the linked worktree registration.")
     _text(path, "rev-parse", "--verify", "HEAD^{commit}")
     return path, git_dir, common
 

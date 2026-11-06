@@ -49,6 +49,31 @@ def test_managed_target_uses_registered_common_dir(workspace):
     assert snapshot(workspace) == before
 
 
+def test_linked_checkout_requires_its_registered_root(workspace, tmp_path: Path):
+    # S: accepting a copied .git file lets an unrelated directory borrow the real
+    # linked worktree's index/HEAD. Common-dir and branch equality cannot catch it.
+    from tools.external_tools.identity import resolve_managed_target
+
+    decoy = tmp_path / "unrelated directory"
+    decoy.mkdir()
+    (decoy / ".git").write_bytes((workspace.linked / ".git").read_bytes())
+    (decoy / "user.txt").write_text("keep unrelated data\n", encoding="utf-8")
+    (workspace.linked / "staged.txt").write_text("材質の変更\n元値を保持する", encoding="utf-8")
+    git(workspace.linked, "add", "staged.txt")
+    before = snapshot(workspace)
+    decoy_before = {path.name: path.read_bytes() for path in decoy.iterdir()}
+
+    genuine = resolve_managed_target(
+        workspace.registry, workspace.repository, operation="review-fix", code_root=workspace.linked)
+    assert genuine.checkout == workspace.linked
+    with pytest.raises(ExternalToolsError):
+        resolve_managed_target(
+            workspace.registry, workspace.repository, operation="review-fix", code_root=decoy)
+
+    assert snapshot(workspace) == before
+    assert {path.name: path.read_bytes() for path in decoy.iterdir()} == decoy_before
+
+
 def test_git_environment_cannot_redirect_identity(workspace, monkeypatch):
     # Removing isolated Git reads silently returns the foreign repo's common dir.
     from tools.external_tools.identity import resolve_managed_target
