@@ -46,7 +46,8 @@ uv run --project "$TOOL_ROOT" --locked python \
 - `--fresh-review`: 現在の HEAD のレビューの成果があっても、レビュアーを起動する。
 - `--hold-action` は無い。移植元（usaturn/agent-workspace）のループにはあるが、このリポジトリの review-fix-planning には判断保留（Hold）が無いので受け付けない。付いていれば `start` が終了コード 2 で拒否する。外して続けず、理由を伝えて、外して始めてよいかを利用者に尋ねる。
 - `check-options`: `start` と同じオプション（`--fresh-review` を除く）と agent-runner の設定だけを、`start` と同じ関数で検査する。PR・ロック・run・GitHub・Herdr に触れず、記録を書かない。成功の出力の `options`・`assignments` は `start` が `run.json` に保存するものと同じで、`next` は null。issue-to-pr の `--merge` は、worktree を作る前にこれを呼ぶ。終了コード 2 なら `reason` を利用者に伝えて止まる。
-- 扱う PR は、Git 操作の対象の checkout を `CODE_ROOT` なしで決められるものだけ（create-reso-world と、`external/resoloop` の usaturn/resoloop・orange3134/resoloop）。それ以外（usaturn/resoloop-meshy など）は `start` が終了コード 2（`arguments`）で止める。マージは review-fix-planning の「マージしてよい範囲」のまま。
+- 扱う PR は、共通 `review-workspace` resolver が `CODE_ROOT` なしで確定できる対象だけ。既存 parent / fork の特殊経路と、常設親の採用済み台帳の通常ツールを使う。通常ツールは台帳不在・未登録・checkout 不在・不一致なら、費用のかかる起動前に停止し、探索・clone や親への fallback はしない。未登録 repo の明示 `CODE_ROOT` レビュー・承認済み review-fix は個別スキルの経路であり、この CLI へ引数を追加しない。
+- 通常ツールもレビュー保存先・既存 CLI は同じ。検証は対象 repo の `AGENTS.md` / `README.md`、CI は採用済み台帳と [共通運用](../../../docs/external-tools-workflow.md) の実設定照合に従う。登録は外部操作の許可ではない。マージは review-fix-planning の既存許可範囲のままで、通常ツールを自動マージしない。修正不要でも手動マージ待ちとして停止する。
 - 終了コード 3（`lock_held`）は、別の run がこの PR を使っていることを示す。`next`（`status`）で持ち主を確かめ、利用者に報告して止まる。古く見えても消さない。
 - `warnings` に未 commit の変更があるときは、レビュアーが作業ツリーのスキルと helper（未 commit の変更を含む）を読むことを利用者に伝える。
 - Herdr のペインの中（`HERDR_ENV=1` で `HERDR_PANE_ID` がある）で起動すると、`start` は run を始めた後で、現在のペインの名前を `PR#<番号>` に変える。結果は出力と `run.json` の `herdr_pane` にある。`herdr` を自分で呼ばない。名前を変えられなくても run は続き、理由が `warnings` に入るので、利用者に伝える。

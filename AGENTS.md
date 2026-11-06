@@ -139,7 +139,12 @@ rm / rmdir の削除対象にシェル変数を使う場合は、各変数に `$
 | usaturn/create-reso-world（このリポジトリの origin） | `git rev-parse --show-toplevel` | `origin` の URL が一致すること |
 | usaturn/resoloop または orange3134/resoloop | `<toplevel>/external/resoloop` | `origin` が usaturn/resoloop、`upstream` が orange3134/resoloop であること。checkout が無ければ `scripts/resoloop-fork.sh clone` を案内して停止する |
 | usaturn/resoloop-meshy | `<PARENT_ROOT>/external/resoloop-meshy` | `origin` が usaturn/resoloop-meshy であること。checkout が無ければ `bash scripts/resoloop-meshy.sh clone` を案内して停止する。実装は作業ルートの `.worktrees/<topic>` の worktree で行う。`pr-review`・`review-fix-planning` には作業ルートを `CODE_ROOT` として明示する。手順は `docs/resoloop-meshy-workflow.md` |
-| それ以外 | ユーザの依頼または確認済みの引き継ぎで明示された checkout の絶対パス（`CODE_ROOT`） | その checkout 自身のルートであり、remote のうち 1 つだけが対象の owner/repo と一致すること。この経路を持つのは `pr-review`（レビュー）と `review-fix-planning`（修正計画と、その PR の承認済み実装修正）で、既存の承認済み PR 修正経路は維持する。一般的な外部コード実装は非対応であり、実行経路が未定義の外部実装の handoff は blocked（not ready）として記録する。remote が無いローカル専用の checkout との PR 連携は非対応のため扱えない（明示指示があっても resolver は remote 0 件で停止する）。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。checkout の探索・clone はしない |
+| 採用済み `external-tools.toml` の通常ツール | 台帳の `path`（常設親 `PARENT_ROOT` 基準） | 共通 resolver で repository・common-dir・remote と実送信先を照合する。レビューと cleanup は常設 checkout、実装と review-fix は同 common-dir の名前付き branch の明示 linked worktree。手順は `docs/external-tools-workflow.md`。不在・不一致・候補複数では停止し、別 clone や親へ切り替えない |
+| それ以外（未登録 repo） | ユーザの依頼または確認済みの引き継ぎで明示された checkout の絶対パス（`CODE_ROOT`） | その checkout 自身のルートであり、remote のうち 1 つだけが対象の owner/repo と一致すること。この経路を持つのは `pr-review`（レビュー）と `review-fix-planning`（修正計画と、その PR の承認済み実装修正）で、既存の承認済み PR 修正経路は維持する。一般的な外部コード実装は非対応であり、実行経路が未定義の外部実装の handoff は blocked（not ready）として記録する。remote が無いローカル専用の checkout との PR 連携は非対応のため扱えない（明示指示があっても resolver は remote 0 件で停止する）。明示が無い・一致しない・候補が複数ある場合は推測せず停止する。checkout の探索・clone はしない |
+
+通常ツールの一覧はスキルへ転記せず台帳で管理し、検証コマンド・編集範囲・実行条件は対象 repo の `AGENTS.md` と `README.md` を読む。運用台帳は検証済み常設親の detached HEAD の blob（ローカル `origin/main` の祖先）だけから読む。候補の parse・feature branch・親の未コミット変更を採用にしない。台帳の無い旧親は既存経路だけを保持し、壊れた台帳は空として扱わない。
+
+登録は「この機構が扱える対象」を定義するだけであり、repo 作成・clone・実装・push・PR・マージ・release・実機操作の許可ではない。各依頼・workflow で別に確認する。通常ツールは `managed-tool-v1`（手動マージ）とし、既存 parent / fork のマージ経路へ追加しない。未登録 repo の明示 `CODE_ROOT` による PR review-fix の例外は、新規実装・任意 setup/release への許可に広げない。
 
 ## push の前の秘密情報の検査
 
@@ -160,6 +165,7 @@ rm / rmdir の削除対象にシェル変数を使う場合は、各変数に `$
 ## GitHub Actions
 
 - 料金の問題でプライベートの usaturn/create-reso-world の CI は使わず停止しているため、CI の確認は不要。パブリックの CI は停止していない為、確認すること
+- 登録済み通常ツールの CI は採用済み台帳の `ci` と実状態を controller が読取照合する。`disabled` は Actions permissions の `enabled=false`、`required` は実際の PR checks の成功を確認する。不一致・不在・取得失敗は停止する。registry/check のローカル成功をネットワーク確認済みと表示せず、未知 repo の CI を免除しない。詳細は `docs/external-tools-workflow.md`。
 - テストを作っても CI（GitHub Actions のワークフローなど）は作らない。テストはローカルで実行し、結果を報告する。新しいリポジトリを作ったら、その場で Actions を無効にする（`gh api -X PUT repos/<owner>/<repo>/actions/permissions -F enabled=false`）
 
 ## ResoLoop の版管理

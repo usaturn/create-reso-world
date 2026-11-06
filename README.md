@@ -12,6 +12,8 @@
 ├── .agents/skills/            共有スキルの正本（.claude/skills/ はここへの symlink）
 ├── .devcontainer/             Dev Container の設定、導入スクリプト、テスト（詳細は .devcontainer/README.md）
 ├── scripts/                   new-world.sh（プロジェクトの作成）、resoloop-fork.sh（fork の運用）、meshy.py（生成・変換）、check-layout.sh（レイアウト検査）
+├── tools/external_tools/      登録済み外部ツールの共通 resolver・取得 CLI
+├── external-tools.toml        通常ツールの登録候補（運用には常設親への採用が必要）
 ├── templates/world-project/   プロジェクトの雛形
 ├── docs/                      設計と計画（docs/superpowers/）、fork の運用、統合手順、pi と Claude Code の設定の移植の記録
 ├── tests/                     スクリプトのテスト（tests/scripts/）とスキルのテスト（tests/skills/）
@@ -202,6 +204,24 @@ ProtoFlux 用の flux-sdk も postCreate で導入するが、ResoLoop と違っ
 上流に未取り込みの修正を一時的に使うときは、`bash scripts/resoloop-fork.sh install <fork のブランチ>` で fork（usaturn/resoloop）の
 ビルドを導入する。次の rebuild か、上の 1 行で最新の公開版に戻る。fork の checkout は `external/resoloop`（git の追跡対象外）に置く。
 fork の使い方と上流への PR の流れは `docs/resoloop-fork-workflow.md` にある。
+
+## 登録済み外部ツール
+
+通常ツールは `external-tools.toml` と共通 CLI で管理する。登録の採用・取得・repo 自身の規約での検証・CI の実設定照合・
+手動マージ・失敗 staging の扱いは [docs/external-tools-workflow.md](docs/external-tools-workflow.md) にある。
+通常のツール追加は台帳と対象 repo の `AGENTS.md` / `README.md` で行い、個別の取得スクリプトやスキル内の一覧は増やさない。
+
+共通機構を含む source checkout での読取例:
+
+```bash
+uv run --no-project python -m tools.external_tools list
+uv run --no-project python -m tools.external_tools show emission-editor
+uv run --no-project python -m tools.external_tools check emission-editor
+```
+
+運用に使うのは常設親の detached HEAD に採用された blob だけ。**この branch に候補があるだけでは採用済みではない。**
+親への採用前は不在・未採用として停止する。check の成功もローカル identity の確認だけで、GitHub 作成・公開・CI 設定・
+実機準備の完了を示さない。登録自体は clone・実装・公開等の実行許可ではなく、通常ツールのマージは手動で行う。
 
 ## Meshy から小物を取り込む
 
