@@ -13,6 +13,7 @@
 - 状態: approved
 - 内容確認・実行許可: 利用者が `23d4c2ca4e10c36c8fff7340e5481dd0bdf6c5a9` の確認コピーとtiming.md記録方式を提示した質問に「実装して」と回答。まず本共通基盤Planを実装する許可として記録する。後続Emission移行、公開・親への採用・外部操作は許可に含めない。
 - 草稿の確認状態: writing-plans の最終自己点検を実施済み。実装進捗は各Taskのチェックと末尾の記録で管理する。
+- 実行状態: **安全の失敗により全体停止**。Task4の初期テストでfake Git wrapperを抜け、GitHubへの無許可のHTTPS pushを試行した。認証エラーで失敗した記録があり、成功した公開は確認されていない。Task4の修正済みという報告だけで再開せず、隔離の確認方針と利用者の再開指示を待つ。
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/emission-repo-management`
 - PARENT_ROOT: `/workspaces/reso-world`
 - ブランチ: `docs/emission-repo-management`。基準コード `28ef59b17a94191663597c927e66791425a3a864`。着手時に実際の BASE を別途記録する。
@@ -193,7 +194,9 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 
 - Task1完了: `bfe1bc6..a1c37a67`。台帳と採用済みblob・配置境界を実装。レビューの親子symlink/Git replaceとcontrollerのexternal外配置の指摘を修正し、限定再レビューはImportant残件0。Task suite19件をcontrollerも再実行、担当の全体suite1276件成功。初回実装1043秒・修正742秒（同期検証含む）。重複テスト1件のMinorはledgerへ記録し全体レビューで再確認する。
 - Task2完了: `9b78d8b..07269475`。共有identity・読取CLI・11キー互換contextとコピーfixtureを実装。コピーした.gitで別rootを許す指摘を修正し、限定再レビューは残件0。担当は関連89件（51subtests）/全体1289件、controllerは関連78件と修正後identity10件を再実行し成功。初回1353秒・修正862秒（同期検証含む）。
-- Task3完了: `86eafbbe..898fa8c4`。flock・fd保持・非置換renameによる1件取得とstaging保持、CLIを実装。statusが隠すtracked変更の誤成功を修正し、限定再レビューは残件0。担当Task suite45件/全体1303件、controller clone14件が成功。初回23分25秒・修正15分39秒（同期検証含む）。inode再照合テストの重複Minorは全体レビューに引き継ぐ。Task4–5は未実施。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
+- Task3完了: `86eafbbe..898fa8c4`。flock・fd保持・非置換renameによる1件取得とstaging保持、CLIを実装。statusが隠すtracked変更の誤成功を修正し、限定再レビューは残件0。担当Task suite45件/全体1303件、controller clone14件が成功。初回23分25秒・修正15分39秒（同期検証含む）。inode再照合テストの重複Minorは全体レビューに引き継ぐ。
+- Task4は未完了: 実装担当が `b444df49` に7ファイルをコミットしたが、controllerの検証と独立レビューは未実施。初期テストの2ケースで `git -C <fixture-doc-worktree> push origin ...` がfakeを抜け、`usaturn/create-reso-world` への実HTTPS transportを試みて認証エラーとなった。担当はfake修正後にテストを継続し、全体1307件（最終fixture修正前）と対象168件/45subtests（修正後）の成功を報告したが、安全の失敗を成功扱いせず、controllerは報告受領後に全体停止した。実送信内容や資格情報使用の網羅確認はしていない。報告・失敗ログはSESSIONの `sdd/2026-11-06-external-tools-framework/task-4-report.md` 等に保持する。Task4の実装からコミットまで44分29秒、子終了まで約46分55秒。
+- Task5、最終全体レビュー、統合確認、公開・親への採用は未実施。Task4を完了にせず、既知のMinor2件も最終レビュー待ちのまま保持する。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
 
 ## Plan 自己点検の記録
 
