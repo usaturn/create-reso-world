@@ -84,7 +84,7 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 
 **テスト:** S。登録先のすり替え・範囲外操作・候補による昇格を防ぐ。TOML構文・Pythonバージョンの値だけの F/L テストは追加しない。
 
-- [ ] **Step 1:** `workspace` fixture を作り、`test_active_registry_ignores_unadopted_candidate`、`test_registry_rejects_escaping_or_overlapping_target` を RED にする。前者は採用commitのtoolだけを返し、候補追加を返さない。後者は `../outside`、祖先symlinkから外への脱出、`external/one` とその子の重複、既存fork予約先、lock名の範囲を脱出する `../key` の拒否を、その守りの代表として扱い、正しい別2項目も通す。
+- [x] **Step 1:** `workspace` fixture を作り、`test_active_registry_ignores_unadopted_candidate`、`test_registry_rejects_escaping_or_overlapping_target` を RED にする。前者は採用commitのtoolだけを返し、候補追加を返さない。後者は `../outside`、祖先symlinkから外への脱出、`external/one` とその子の重複、既存fork予約先、lock名の範囲を脱出する `../key` の拒否を、その守りの代表として扱い、正しい別2項目も通す。
   ```python
   active = load_active_registry(workspace.parent)
   assert active is not None and active.commit == workspace.adopted_sha
@@ -92,10 +92,10 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
   parsed = parse_registry(two_valid_entries, parent_root=workspace.parent, commit=workspace.adopted_sha)
   assert parsed.find_repository("sample-owner/other-tool").relative_path == "external/other-tool"
   ```
-- [ ] **Step 2:** `uv run pytest tools/external_tools/tests/test_registry.py -q` を実行し、未実装の守りで失敗することを確認する。
-- [ ] **Step 3:** parse/load/find を実装。repoの大小文字正規化、pathの予約範囲/重複、親の origin と common-dir、採用blobの読取を行う。既存 `external/resoloop` / `external/resoloop-meshy` と親自身は台帳から上書きできない。候補schemaのparseは可能だが操作用loaderは親HEADだけ。
-- [ ] **Step 4:** 同テストを GREEN にし、`uv run python -c 'import sys; assert sys.version_info >= (3,14)'`、TOML実parseと `git diff --check` を確認する。親pyproject/lockは既に3.14対応なので理由なく更新しない。
-- [ ] **Step 5:** 対象ファイルだけをcommit。Taskレビューを受け、controller が完了を記録する。
+- [x] **Step 2:** `uv run pytest tools/external_tools/tests/test_registry.py -q` を実行し、未実装の守りで失敗することを確認する。
+- [x] **Step 3:** parse/load/find を実装。repoの大小文字正規化、pathの予約範囲/重複、親の origin と common-dir、採用blobの読取を行う。既存 `external/resoloop` / `external/resoloop-meshy` と親自身は台帳から上書きできない。候補schemaのparseは可能だが操作用loaderは親HEADだけ。
+- [x] **Step 4:** 同テストを GREEN にし、`uv run python -c 'import sys; assert sys.version_info >= (3,14)'`、TOML実parseと `git diff --check` を確認する。親pyproject/lockは既に3.14対応なので理由なく更新しない。
+- [x] **Step 5:** 対象ファイルだけをcommit。Taskレビューを受け、controller が完了を記録する。
 
 ### Task 2: 共通 identity・読取CLI・既存 context との接続
 
@@ -189,7 +189,9 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 
 ## 完了の証拠と後続ゲート
 
-各Taskの実行結果・所要時間・レビュー裁定はSESSIONへ、要約を本Planへ追記する。記録は未実施。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
+各Taskの実行結果・所要時間・レビュー裁定はSESSION `/workspaces/reso-world/tmp/agents/external-tools-impl.19cduyzx` に保存する。
+
+- Task1完了: `bfe1bc6..a1c37a67`。台帳と採用済みblob・配置境界を実装。レビューの親子symlink/Git replaceとcontrollerのexternal外配置の指摘を修正し、限定再レビューはImportant残件0。Task suite19件をcontrollerも再実行、担当の全体suite1276件成功。初回実装1043秒・修正742秒（同期検証含む）。重複テスト1件のMinorはledgerへ記録し全体レビューで再確認する。Task2–5は未実施。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
 
 ## Plan 自己点検の記録
 
