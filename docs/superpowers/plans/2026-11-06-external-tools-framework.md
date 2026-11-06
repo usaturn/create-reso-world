@@ -128,17 +128,17 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 
 **テスト:** S。利用者所有部分の上書き、競合、失敗を成功とする報告を防ぐ。ネットワークは内部adapterをfake化し、本物のclone・認証を使わない。
 
-- [ ] **Step 1:** `test_existing_target_is_never_changed`、`test_concurrent_clone_has_one_publisher`、`test_publish_refuses_new_destination` を RED にする。sentinel bytes/既存Git snapshotを保持し、正しい空き先では1件だけ取得が完了する。同じ配置テストで、検査後に祖先を外へのsymlinkへ差し替えても外側のsentinelと最終位置へ書き込まないことを確認する。途中Git失敗の代表はstatus=failedとstaging保持を検査する。
+- [x] **Step 1:** `test_existing_target_is_never_changed`、`test_concurrent_clone_has_one_publisher`、`test_publish_refuses_new_destination` を RED にする。sentinel bytes/既存Git snapshotを保持し、正しい空き先では1件だけ取得が完了する。同じ配置テストで、検査後に祖先を外へのsymlinkへ差し替えても外側のsentinelと最終位置へ書き込まないことを確認する。途中Git失敗の代表はstatus=failedとstaging保持を検査する。
   ```python
   assert sentinel.read_bytes() == before
   assert fake_remote_calls == [authorized_repository]
   assert successful_publishers == 1
   assert failed_result.status == "failed"
   ```
-- [ ] **Step 2:** `uv run pytest tools/external_tools/tests/test_clone.py -q` を同期実行し、REDを確認する。
-- [ ] **Step 3:** 親common-dir内の `.git/external-tools/locks/<key>.lock` を O_NOFOLLOW と非待機flockで開き、競合はBUSYで返す。検証済みexternal内の一意stagingにinit→origin追加→指定branch取得→detached checkout。local mainを作らず、Git checkout hookを無効化する。各repoのsetupは実行しない。lockの祖先とstaging/配置先の祖先も検証し、範囲外symlinkや差替えを通さない。保持したdirectory fdに対する配置と直前の再照合で、検査済みパスのすり替えを防ぐ。親registry commitと送り先を取得前・配置直前に再確認する。
-- [ ] **Step 4:** 配置は Linux `renameat2(RENAME_NOREPLACE)` の小さい内部wrapperで行う。未対応/既存destは停止し、上書きする `os.rename` やcopyへのfallbackはしない。stagingと最終先は同一filesystemに置く。自身の失敗領域も自動削除せず返す。テストをGREENにし、CLIの取得対象省略・既存dirtyで書込が進まないことを代表のfake経路で確認する。
-- [ ] **Step 5:** commit・Taskレビュー。HOMEはワンショット隔離だけ、rm変数には`:?`を付ける。実repoの取得はこのTaskで実行しない。
+- [x] **Step 2:** `uv run pytest tools/external_tools/tests/test_clone.py -q` を同期実行し、REDを確認する。
+- [x] **Step 3:** 親common-dir内の `.git/external-tools/locks/<key>.lock` を O_NOFOLLOW と非待機flockで開き、競合はBUSYで返す。検証済みexternal内の一意stagingにinit→origin追加→指定branch取得→detached checkout。local mainを作らず、Git checkout hookを無効化する。各repoのsetupは実行しない。lockの祖先とstaging/配置先の祖先も検証し、範囲外symlinkや差替えを通さない。保持したdirectory fdに対する配置と直前の再照合で、検査済みパスのすり替えを防ぐ。親registry commitと送り先を取得前・配置直前に再確認する。
+- [x] **Step 4:** 配置は Linux `renameat2(RENAME_NOREPLACE)` の小さい内部wrapperで行う。未対応/既存destは停止し、上書きする `os.rename` やcopyへのfallbackはしない。stagingと最終先は同一filesystemに置く。自身の失敗領域も自動削除せず返す。テストをGREENにし、CLIの取得対象省略・既存dirtyで書込が進まないことを代表のfake経路で確認する。
+- [x] **Step 5:** commit・Taskレビュー。HOMEはワンショット隔離だけ、rm変数には`:?`を付ける。実repoの取得はこのTaskで実行しない。
 
 ### Task 4: Issue→PR の対象解決と手動マージprofile
 
@@ -192,7 +192,8 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 各Taskの実行結果・所要時間・レビュー裁定はSESSION `/workspaces/reso-world/tmp/agents/external-tools-impl.19cduyzx` に保存する。
 
 - Task1完了: `bfe1bc6..a1c37a67`。台帳と採用済みblob・配置境界を実装。レビューの親子symlink/Git replaceとcontrollerのexternal外配置の指摘を修正し、限定再レビューはImportant残件0。Task suite19件をcontrollerも再実行、担当の全体suite1276件成功。初回実装1043秒・修正742秒（同期検証含む）。重複テスト1件のMinorはledgerへ記録し全体レビューで再確認する。
-- Task2完了: `9b78d8b..07269475`。共有identity・読取CLI・11キー互換contextとコピーfixtureを実装。コピーした.gitで別rootを許す指摘を修正し、限定再レビューは残件0。担当は関連89件（51subtests）/全体1289件、controllerは関連78件と修正後identity10件を再実行し成功。初回1353秒・修正862秒（同期検証含む）。Task3–5は未実施。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
+- Task2完了: `9b78d8b..07269475`。共有identity・読取CLI・11キー互換contextとコピーfixtureを実装。コピーした.gitで別rootを許す指摘を修正し、限定再レビューは残件0。担当は関連89件（51subtests）/全体1289件、controllerは関連78件と修正後identity10件を再実行し成功。初回1353秒・修正862秒（同期検証含む）。
+- Task3完了: `86eafbbe..898fa8c4`。flock・fd保持・非置換renameによる1件取得とstaging保持、CLIを実装。statusが隠すtracked変更の誤成功を修正し、限定再レビューは残件0。担当Task suite45件/全体1303件、controller clone14件が成功。初回23分25秒・修正15分39秒（同期検証含む）。inode再照合テストの重複Minorは全体レビューに引き継ぐ。Task4–5は未実施。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
 
 ## Plan 自己点検の記録
 
