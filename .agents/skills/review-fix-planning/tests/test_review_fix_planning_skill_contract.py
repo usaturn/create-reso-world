@@ -73,6 +73,8 @@ def git_context(tmp_path):
     helper = REPO_ROOT / "scripts/superpowers_context.py"
     (parent / "scripts").mkdir()
     shutil.copy2(helper, parent / "scripts/superpowers_context.py")
+    shutil.copytree(REPO_ROOT / "tools/external_tools", parent / "tools/external_tools",
+                    ignore=shutil.ignore_patterns("tests", "__pycache__"))
     code = repo("code", {"base": "git@github.com:other/repository.git",
                          "origin": "ssh://git@github.com/contributor/repository.git"})
     doc = tmp_path / "docs"
