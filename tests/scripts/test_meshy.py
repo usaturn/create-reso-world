@@ -1123,11 +1123,33 @@ ATTACH_KINDS = [
     ("text", "text-to-3d-preview", "text-to-3d"),
     ("refine", "text-to-3d-refine", "text-to-3d"),
     ("image", "image-to-3d", "image-to-3d"),
+    ("remesh", "remesh", "remesh"),
 ]
 PREVIEW = "distinct-preview-task"
+SOURCE_TASK = "source-image-task"
+
+
+def succeeded_image(world, name="src"):
+    """A succeeded image operation, made without any CLI call."""
+    (world.project / "input.png").write_bytes(b"local image")
+    world.run("plan", "--operation", name, "--kind", "image", "--image", "input.png")
+    operation = world.manifest(name)
+    operation["task"] = {"task_id": SOURCE_TASK, "status": "SUCCEEDED", "progress": 100}
+    operation["stage"] = "succeeded"
+    world.manifest_path(name).write_text(json.dumps(operation))
+
+
+def plan_remesh(world):
+    world.run(
+        "plan", "--operation", "asset", "--kind", "remesh", "--source-operation", "src"
+    )
 
 
 def plan_attach(world, kind):
+    if kind == "remesh":
+        succeeded_image(world)
+        plan_remesh(world)
+        return
     extra = {
         "text": ["--prompt", "stone"],
         "refine": ["--preview-task-id", PREVIEW],
@@ -1258,6 +1280,65 @@ def test_attach_rejection_preserves_entire_project(
         [resource, "get", task_id]
     ]
     assert sum("create" in call["args"] for call in world.calls()) == 0
+
+
+# Catch a paid remesh of an unverified source task, or any write to the source
+# operation during the remesh plan, submit and download.
+@pytest.mark.parametrize("anomaly", ["status", "type", "id"])
+def test_remesh_checks_source_task_and_never_changes_source_operation(world, anomaly):
+    succeeded_image(world)
+    source = world.manifest_path("src").parent
+    before = project_snapshot(source)
+    plan_remesh(world)
+    image_task = {
+        "task_id": SOURCE_TASK,
+        "status": "SUCCEEDED",
+        "type": "image-to-3d",
+        "resource": "image-to-3d",
+    }
+    bad = dict(image_task)
+    if anomaly == "status":
+        bad["status"] = "FAILED"
+    elif anomaly == "type":
+        bad["type"] = "text-to-3d-preview"
+    else:
+        bad["task_id"] = "different-returned-task"
+    world.reply(result={"task": bad})
+    world.submit(ok=False)
+    assert world.manifest()["stage"] == "planned"
+    assert all("create" not in call["args"] for call in world.calls())
+    world.reply(result={"task": image_task})
+    world.submit()
+    get, create = (call["args"][7:] for call in world.calls()[-2:])
+    assert get == ["image-to-3d", "get", SOURCE_TASK]
+    assert create[:2] == ["remesh", "create"] and "--model-url" not in create
+    assert json.loads(create[create.index("--data") + 1]) == {
+        "input_task_id": SOURCE_TASK,
+        "target_polycount": 30000,
+        "topology": "triangle",
+        "target_formats": ["glb"],
+    }
+    entry = {
+        "key": "model.glb",
+        "path": str(world.manifest_path().parent / "source/generated.glb"),
+        "status": "written",
+    }
+    world.reply(result={"downloads": {"state": "completed", "files": [entry]}})
+    world.run("download", "--operation", "asset")
+    assert world.manifest()["stage"] == "downloaded"
+    assert world.calls()[-1]["args"][7:10] == ["download", "--resource", "remesh"]
+    assert project_snapshot(source) == before
+
+
+# Catch a saved remesh request sending a local model file (or any other option).
+def test_edited_remesh_request_cannot_send_local_model(world):
+    succeeded_image(world)
+    plan_remesh(world)
+    operation = world.manifest()
+    operation["request"]["payload"]["model_url"] = str(world.project / "input.png")
+    world.manifest_path().write_text(json.dumps(operation))
+    world.submit(ok=False)
+    assert world.calls() == []
 
 
 # Catch a fixed download subprocess deadline blocking retries of the same task.

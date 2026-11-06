@@ -8,7 +8,15 @@ import sys
 from pathlib import Path
 
 from meshy_conversion import convert_operation
-from meshy_workflow import RESOURCES, WorkflowError, execute, redact
+from meshy_workflow import (
+    REMESH_POLYCOUNT_DEFAULT,
+    REMESH_POLYCOUNT_RANGE,
+    REMESH_TOPOLOGIES,
+    RESOURCES,
+    WorkflowError,
+    execute,
+    redact,
+)
 
 
 class Parser(argparse.ArgumentParser):
@@ -43,11 +51,30 @@ def parser():
         "plan", help="Create a new offline operation; never overwrite."
     )
     plan.add_argument("--operation", required=True)
-    plan.add_argument("--kind", required=True, choices=("text", "image", "refine"))
+    plan.add_argument(
+        "--kind", required=True, choices=("text", "image", "refine", "remesh")
+    )
     plan.add_argument("--prompt")
     plan.add_argument("--image")
     plan.add_argument("--preview-task-id")
-    plan.add_argument("--model", default="latest")
+    plan.add_argument(
+        "--source-operation",
+        help="remesh only: a succeeded image operation (read, never changed).",
+    )
+    plan.add_argument(
+        "--target-polycount",
+        type=int,
+        help=f"remesh only: {REMESH_POLYCOUNT_RANGE[0]}-{REMESH_POLYCOUNT_RANGE[1]} "
+        f"faces (default {REMESH_POLYCOUNT_DEFAULT}).",
+    )
+    plan.add_argument(
+        "--topology",
+        choices=REMESH_TOPOLOGIES,
+        help="remesh only: triangle (default) or quad.",
+    )
+    plan.add_argument(
+        "--model", default="latest", help="Not used by remesh (also --pbr and --texture-resolution)."
+    )
     plan.add_argument("--texture", type=boolean)
     plan.add_argument("--pbr", type=boolean, default=True)
     plan.add_argument("--texture-resolution", choices=("2k", "4k", "8k"), default="2k")
