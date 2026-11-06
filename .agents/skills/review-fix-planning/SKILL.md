@@ -114,7 +114,12 @@ PY
 
 `PARENT_ROOT` は create-reso-world の main checkout。省略できるのはその main checkout 内の cwd だけで、linked・外部 cwd では明示する。`DOC_ROOT` は文書のコミット先として別に指定し、`DOC_BRANCH` に予定の文書ブランチ名を入れる。初期調査で文書先が未確定なら両方とも空でよいが、**Spec の書込・commit 前には両方を確定して再実行する**。`CODE_ROOT` は既知経路・採用済み通常ツールの初期調査（review-workspace）では省略できるが、修正用 worktree は明示する。既知経路の別 clone と、通常ツールの登録先と別 common-dir の clone は origin URL が同じでも拒否する。base/CI は採用済み台帳を使い、検証・編集範囲・実行許可は対象 repo の `AGENTS.md` と `README.md` に従う。[共通運用](../../../docs/external-tools-workflow.md) の CI 実設定照合と手動マージの境界を守る。
 
-以下を手順 2 と、文書書込・commit、実装、fetch・push、コメント投稿の直前に再実行し、失敗したら後続操作を行わない。初期調査は上記の `CONTEXT_OPERATION=review-workspace`、修正用 worktree の確定後は `CONTEXT_OPERATION=review-fix` を設定する。実装・commit・push・コメント投稿の前は必ず review-fix で再照合し、常設 checkout へ fallback しない。API で PR の head リポジトリとブランチを確認した後の push 前には `HEAD_REPO` と `HEAD_BRANCH` を両方設定して再実行する。取得先の `base_remote` と push 先の `head_remote` を流用しない。`HEAD_REPO` が空の初期調査では head の両引数を CLI に渡さない（`HEAD_BRANCH` は PR の表示用メタデータとして保持できる）。helper 不在は配置元と不足パスを報告して停止し、`CODE_ROOT` 側へフォールバックしない。
+以下を手順 2 と、文書書込・commit、実装、fetch・push、コメント投稿の直前に再実行し、失敗したら後続操作を行わない。操作の対象に応じて `CONTEXT_OPERATION` を設定する。
+
+- **初期調査・文書・計画のみの操作:** `CONTEXT_OPERATION=review-workspace` を維持し、`CODE_ROOT` は常設 checkout とする。Spec の書込・commit は検証済み `DOC_ROOT` で行い、そのためだけにコード側の修正用 worktree を要求しない。計画のみのコメント投稿も review-workspace で再照合する。`HEAD_REPO` は空にして head の両引数を CLI に渡さない（`HEAD_BRANCH` は PR の表示用メタデータとして保持できる）。
+- **対象 PR のコード変更・反映:** 修正用 worktree の確定後は `CONTEXT_OPERATION=review-fix` とする。実装・コードの commit・push と、その修正結果のコメント投稿の前は必ず review-fix で再照合し、常設 checkout へ fallback しない。API で PR の head リポジトリとブランチを確認した後のコード push 前には `HEAD_REPO` と `HEAD_BRANCH` を両方設定して再実行する。
+
+取得先の `base_remote` と push 先の `head_remote` を流用しない。helper 不在は配置元と不足パスを報告して停止し、`CODE_ROOT` 側へフォールバックしない。
 
 ```bash
 CONTEXT_PARENT="${PARENT_ROOT:-}"
@@ -415,13 +420,13 @@ resoloop の上流への PR も同じ規則が fork の経路で成立する: `P
 ```
 
 ```bash
-# コメント投稿の直前にも、宣言済みの親から共通 context を再照合する
+# コメント投稿の直前にも共通 context を再照合する（計画のみは review-workspace、修正結果は review-fix）
 CONTEXT_HELPER="${PARENT_ROOT:-}/scripts/superpowers_context.py"
 if [[ ! -f "$CONTEXT_HELPER" ]]; then
   printf 'Missing context helper %s; set PARENT_ROOT to the create-reso-world main checkout containing scripts/superpowers_context.py\n' "$CONTEXT_HELPER" >&2
   exit 66
 fi
-CONTEXT_JSON=$(uv run --no-project python "$CONTEXT_HELPER" --operation review-fix \
+CONTEXT_JSON=$(uv run --no-project python "$CONTEXT_HELPER" --operation "${CONTEXT_OPERATION:-review-fix}" \
   --parent-root "${PARENT_ROOT:-}" --doc-root "${DOC_ROOT:-}" --code-root "${CODE_ROOT:-}" \
   --repo "$PR_REPO" --doc-branch "${DOC_BRANCH:-}" \
   --head-repo "${HEAD_REPO:-}" --head-branch "${HEAD_REPO:+${HEAD_BRANCH:-}}") || exit 66
