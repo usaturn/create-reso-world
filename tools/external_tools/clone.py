@@ -64,10 +64,11 @@ class _Directories:
                 raise ExternalToolsError("path_changed", "A checked path was replaced or moved; no publication was attempted.")
 
 
-def _run(args: Sequence[str], *, directory_fd: int) -> subprocess.CompletedProcess[bytes]:
+def _run(args: Sequence[str], *, directory_fd: int, git_directory_fd: int) -> subprocess.CompletedProcess[bytes]:
     """Internal process boundary (the sole test seam); never accept a CLI executable.
 
-    The child inherits the held cwd descriptor, not a possibly swapped pathname.
+    The child inherits both the held cwd and Git directory descriptors, never
+    resolving the replaceable .git name, including during initialization.
     Keep user transport configuration visible for destination checks, but discard
     inherited Git selectors/config injection/traces. No optional index refreshes,
     templates, hooks, or fsmonitor programs are needed for acquisition.
@@ -76,15 +77,15 @@ def _run(args: Sequence[str], *, directory_fd: int) -> subprocess.CompletedProce
     env["GIT_TERMINAL_PROMPT"] = "0"
     return subprocess.run(
         ["git", "--no-replace-objects", "--no-optional-locks", "-c", "core.hooksPath=/dev/null",
-         "-c", "core.fsmonitor=false", "--git-dir=.git", "--work-tree=.", *args],
-        cwd=f"/proc/self/fd/{directory_fd}", pass_fds=(directory_fd,), env=env, capture_output=True,
+         "-c", "core.fsmonitor=false", f"--git-dir=/proc/self/fd/{git_directory_fd}", "--work-tree=.", *args],
+        cwd=f"/proc/self/fd/{directory_fd}", pass_fds=(directory_fd, git_directory_fd), env=env, capture_output=True,
     )
 
 
-def _checked(directories: _Directories, fd: int, *args: str) -> bytes:
+def _checked(directories: _Directories, fd: int, git_fd: int, *args: str) -> bytes:
     directories.check()
     try:
-        result = _run(args, directory_fd=fd)
+        result = _run(args, directory_fd=fd, git_directory_fd=git_fd)
     except OSError:
         raise ExternalToolsError("git_failed", "Cannot run Git for the selected tool; staging was retained.") from None
     directories.check()
@@ -102,13 +103,13 @@ def _active(registry: Registry, directories: _Directories) -> None:
     directories.check()
 
 
-def _transport(directories: _Directories, fd: int, spec: ToolSpec) -> None:
-    raw = _checked(directories, fd, "config", "--null", "--get-all", "remote.origin.url")
+def _transport(directories: _Directories, fd: int, git_fd: int, spec: ToolSpec) -> None:
+    raw = _checked(directories, fd, git_fd, "config", "--null", "--get-all", "remote.origin.url")
     urls = raw.decode("utf-8", errors="replace").removesuffix("\x00").split("\x00")
     if len(urls) != 1:
         raise ExternalToolsError("remote_mismatch", "Acquisition requires exactly one origin URL.")
     for flags in ((), ("--push",)):
-        urls.extend(_checked(directories, fd, "remote", "get-url", *flags, "--all", "origin").decode("utf-8", errors="replace").splitlines())
+        urls.extend(_checked(directories, fd, git_fd, "remote", "get-url", *flags, "--all", "origin").decode("utf-8", errors="replace").splitlines())
     try:
         valid = all(_github_repository(url) == spec.repository for url in urls)
     except ExternalToolsError:
@@ -180,13 +181,14 @@ def clone_tool(registry: Registry, key: str) -> CloneResult:
                     raise ExternalToolsError("invalid_target", "Existing target is not a real checkout directory.")
                 target_fd = directories.child(destination_fd, destination)
                 resolve_managed_target(registry, spec.repository, operation="review-workspace")
+                target_git_fd = directories.child(target_fd, ".git")
                 # status can omit edited assume-unchanged/skip-worktree entries.
                 # Accept only ordinary cached (H) entries; do not clear user flags
                 # or refresh their index just to make the checkout inspectable.
-                entries = _checked(directories, target_fd, "ls-files", "-v", "-z")
+                entries = _checked(directories, target_fd, target_git_fd, "ls-files", "-v", "-z")
                 if any(entry[:1] != b"H" for entry in entries.split(b"\0") if entry):
                     raise ExternalToolsError("unverifiable_index", "Index flags prevent complete checkout verification.")
-                dirty = _checked(directories, target_fd, "status", "--porcelain=v1", "--untracked-files=all", "--ignored")
+                dirty = _checked(directories, target_fd, target_git_fd, "status", "--porcelain=v1", "--untracked-files=all", "--ignored")
                 if dirty:
                     raise ExternalToolsError("dirty_checkout", "Existing checkout contains changes or local residue.")
                 _active(registry, directories)
@@ -197,17 +199,17 @@ def clone_tool(registry: Registry, key: str) -> CloneResult:
             os.mkdir(stage_name, mode=0o700, dir_fd=destination_fd)
             staging = path.parent / stage_name
             stage_fd = directories.child(destination_fd, stage_name)
-            _checked(directories, stage_fd, "init", "--template=", "--initial-branch=external-tools-unborn", ".")
-            directories.child(stage_fd, ".git")
-            _checked(directories, stage_fd, "remote", "add", "origin", f"https://github.com/{spec.repository}.git")
+            stage_git_fd = directories.child(stage_fd, ".git", create=True)
+            _checked(directories, stage_fd, stage_git_fd, "init", "--template=", "--initial-branch=external-tools-unborn", ".")
+            _checked(directories, stage_fd, stage_git_fd, "remote", "add", "origin", f"https://github.com/{spec.repository}.git")
             _active(registry, directories)
-            _transport(directories, stage_fd, spec)
+            _transport(directories, stage_fd, stage_git_fd, spec)
             ref = f"refs/remotes/origin/{spec.base_branch}"
-            _checked(directories, stage_fd, "fetch", "--no-recurse-submodules", "--no-tags", "origin", f"refs/heads/{spec.base_branch}:{ref}")
-            _checked(directories, stage_fd, "checkout", "--detach", ref, "--")
-            head = _checked(directories, stage_fd, "rev-parse", "--verify", "HEAD^{commit}")
-            fetched = _checked(directories, stage_fd, "rev-parse", "--verify", f"{ref}^{{commit}}")
-            if head != fetched or _checked(directories, stage_fd, "status", "--porcelain=v1", "--untracked-files=all", "--ignored"):
+            _checked(directories, stage_fd, stage_git_fd, "fetch", "--no-recurse-submodules", "--no-tags", "origin", f"refs/heads/{spec.base_branch}:{ref}")
+            _checked(directories, stage_fd, stage_git_fd, "checkout", "--detach", ref, "--")
+            head = _checked(directories, stage_fd, stage_git_fd, "rev-parse", "--verify", "HEAD^{commit}")
+            fetched = _checked(directories, stage_fd, stage_git_fd, "rev-parse", "--verify", f"{ref}^{{commit}}")
+            if head != fetched or _checked(directories, stage_fd, stage_git_fd, "status", "--porcelain=v1", "--untracked-files=all", "--ignored"):
                 raise ExternalToolsError("incomplete_checkout", "Fetched checkout did not verify cleanly; staging was retained.")
             # Reconfirm both authority and effective destinations immediately before
             # publication. Only the kernel decides whether destination is still free.

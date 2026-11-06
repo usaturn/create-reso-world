@@ -42,7 +42,7 @@ class Transport:
         self.fail_fetch = False
         monkeypatch.setattr(module, "_run", self.run)
 
-    def run(self, args, *, directory_fd):
+    def run(self, args, *, directory_fd, git_directory_fd):
         root = Path(os.readlink(f"/proc/self/fd/{directory_fd}"))
         self.before(args, root)
         if args[0] == "fetch":
@@ -56,7 +56,7 @@ class Transport:
                 git(root, "update-ref", args[-1].split(":", 1)[1], git(self.seed, "rev-parse", "HEAD"))
                 result = subprocess.CompletedProcess(args, 0, b"", b"")
         else:
-            result = self.real(args, directory_fd=directory_fd)
+            result = self.real(args, directory_fd=directory_fd, git_directory_fd=git_directory_fd)
         self.after(args, root)
         return result
 
@@ -141,7 +141,7 @@ def test_concurrent_clone_has_one_publisher(workspace, tmp_path, monkeypatch):
     assert module.clone_tool(registry, "emission-editor").status == "present"
 
 
-@pytest.mark.parametrize("race", ["new-destination", "ancestor-swap", "staging-swap"])
+@pytest.mark.parametrize("race", ["new-destination", "ancestor-swap"])
 def test_publish_refuses_new_destination(workspace, tmp_path, monkeypatch, race):
     # Replacing no-replace rename/fd revalidation with ordinary rename or path access
     # overwrites a new destination or follows an ancestor swapped out after inspection.
@@ -161,12 +161,9 @@ def test_publish_refuses_new_destination(workspace, tmp_path, monkeypatch, race)
         if race == "new-destination":
             # Even an empty directory must not be replaced (ordinary rename would).
             workspace.registered.mkdir()
-        elif race == "ancestor-swap":
+        else:
             (workspace.parent / "external").rename(saved)
             (workspace.parent / "external").symlink_to(outside, target_is_directory=True)
-        else:
-            root.rename(root.with_name("preserved staging"))
-            root.symlink_to(outside, target_is_directory=True)
 
     transport.after = race_at_checkout
     result = module.clone_tool(registry, "emission-editor")
@@ -176,10 +173,37 @@ def test_publish_refuses_new_destination(workspace, tmp_path, monkeypatch, race)
     assert sorted(path.name for path in outside.iterdir()) == ["sentinel"]
     if race == "new-destination":
         assert list(workspace.registered.iterdir()) == []
-    elif race == "ancestor-swap":
-        assert not (saved / "emission-editor").exists()
     else:
-        assert not workspace.registered.exists()
+        assert not (saved / "emission-editor").exists()
+
+
+def test_replaced_git_directory_cannot_modify_foreign_repository(workspace, tmp_path, monkeypatch):
+    # S: using a re-resolved .git name lets remote add mutate a foreign repository
+    # before the post-command inode check blocks publication. Keep Git writes real.
+    module = clone_module()
+    transport = Transport(module, workspace, monkeypatch)
+    registry = workspace.registry
+    vacate(workspace, tmp_path)
+    foreign = workspace.other_clone / ".git"
+    git(workspace.other_clone, "remote", "remove", "origin")
+    before = {path.relative_to(foreign): path.read_bytes()
+              for path in foreign.rglob("*") if path.is_file()}
+
+    def replace_git_directory(args, root):
+        if args[:2] == ("remote", "add"):
+            (root / ".git").rename(root / "retained git directory")
+            (root / ".git").symlink_to(foreign, target_is_directory=True)
+
+    transport.before = replace_git_directory
+    result = module.clone_tool(registry, "emission-editor")
+
+    assert {path.relative_to(foreign): path.read_bytes()
+            for path in foreign.rglob("*") if path.is_file()} == before
+    assert result.status == "blocked" and result.reason_code == "path_changed"
+    assert result.staging is not None
+    assert (result.staging / "retained git directory").is_dir()
+    assert not workspace.registered.exists()
+    assert transport.calls == []
 
 
 def test_failed_fetch_retains_staging_evidence(workspace, tmp_path, monkeypatch):

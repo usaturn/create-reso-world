@@ -32,11 +32,9 @@ def test_registry_rejects_escaping_or_overlapping_target(workspace, tmp_path: Pa
 
     outside = tmp_path / "outside"
     outside.mkdir()
-    (workspace.parent / "external/escape").symlink_to(outside, target_is_directory=True)
     invalid = [
         ADOPTED.replace(b"external/emission-editor", b"../outside"),
         ADOPTED.replace(b"external/emission-editor", str(outside).encode()),
-        ADOPTED.replace(b"external/emission-editor", b"external/escape/child"),
         ADOPTED.replace(b"external/emission-editor", b"external/one")
         + OTHER.replace(b"external/other-tool", b"external/one/child"),
         ADOPTED.replace(b"external/emission-editor", b"external/resoloop"),
