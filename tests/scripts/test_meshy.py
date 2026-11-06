@@ -1341,6 +1341,42 @@ def test_edited_remesh_request_cannot_send_local_model(world):
     assert world.calls() == []
 
 
+# Catch a thumbnail fetch replacing the completed download record or source/,
+# or fetching every asset (the large GLB) instead of the thumbnail.
+def test_thumbnail_keeps_completed_download_and_fetches_only_thumbnail(world):
+    world.plan()
+    world.submit()
+    world.reply(result={"task": {"task_id": TASK, "status": "SUCCEEDED"}})
+    world.run("status", "--operation", "asset")
+    operation = world.manifest_path().parent
+    entry = {
+        "key": "model.glb",
+        "path": str(operation / "source/generated.glb"),
+        "status": "written",
+    }
+    world.reply(result={"downloads": {"state": "completed", "files": [entry]}})
+    world.run("download", "--operation", "asset")
+    manifest = world.manifest_path().read_bytes()
+    source = project_snapshot(operation / "source")
+    thumbnails = operation / "thumbnail"
+    world.env["FAKE_DOWNLOAD_FILES"] = json.dumps({"thumbnail.png": "png-fixture"})
+    thumbnail = {
+        "key": "thumbnail.primary",
+        "path": str(thumbnails / "thumbnail.png"),
+        "status": "written",
+    }
+    world.reply(result={"downloads": {"state": "completed", "files": [thumbnail]}})
+    proc = world.run("thumbnail", "--operation", "asset")
+    assert json.loads(proc.stdout)["thumbnail"]["path"] == thumbnail["path"]
+    assert world.manifest_path().read_bytes() == manifest
+    assert project_snapshot(operation / "source") == source
+    args = world.calls()[-1]["args"][7:]
+    assert args[:5] == ["download", "--resource", "text-to-3d", "--task-id", TASK]
+    assert args[args.index("--asset") + 1] == "thumbnail.primary"
+    assert "--all" not in args
+    assert args[args.index("--output-dir") + 1] == str(thumbnails)
+
+
 # Catch a fixed download subprocess deadline blocking retries of the same task.
 def test_download_timeout_can_be_extended_without_another_create(world):
     world.plan()

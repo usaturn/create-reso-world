@@ -89,6 +89,13 @@ def parser():
             command.add_argument("--timeout", type=seconds, default=None)
         if verb == "attach":
             command.add_argument("--task-id", required=True)
+    thumbnail = commands.add_parser(
+        "thumbnail",
+        help="Download only thumbnail.primary of a succeeded task into thumbnail/; "
+        "never changes operation.json.",
+    )
+    thumbnail.add_argument("--operation", required=True)
+    thumbnail.add_argument("--timeout", type=seconds, default=None)
     conversion = commands.add_parser(
         "convert", help="Convert a downloaded GLB offline; never apply or overwrite."
     )

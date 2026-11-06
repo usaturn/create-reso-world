@@ -821,6 +821,46 @@ def download(project, name, operation, env, timeout=None):
     return operation
 
 
+def thumbnail(project, name, operation, env, timeout=None):
+    """Fetch thumbnail.primary only; operation.json is never written."""
+    task_id = _task_id(operation["task"].get("task_id"))
+    if not task_id or operation["task"].get("status") != "SUCCEEDED":
+        raise WorkflowError("successful_existing_task_required")
+    target = _safe_tree(project, operation_dir(project, name) / "thumbnail")
+    _mkdir(project, target)
+    envelope, ok = _call(
+        project,
+        [
+            "download",
+            "--resource",
+            operation["resource"],
+            "--task-id",
+            task_id,
+            "--asset",
+            "thumbnail.primary",
+            "--overwrite",
+            "--output-dir",
+            str(target),
+        ],
+        env,
+        timeout,
+    )
+    manifest = envelope["result"].get("downloads")
+    if not isinstance(manifest, dict):
+        raise WorkflowError("thumbnail_download_failed")
+    files, invalid = _download_files(project, target, manifest.get("files"))
+    if (
+        not ok
+        or invalid
+        or manifest.get("state") != "completed"
+        or len(files) != 1
+        or files[0].get("key") != "thumbnail.primary"
+        or files[0]["status"] not in {"written", "skipped"}
+    ):
+        raise WorkflowError("thumbnail_download_failed")
+    return {"thumbnail": {key: files[0][key] for key in ("path", "bytes", "sha256")}}
+
+
 def execute(args):
     project = validate_project(Path(args.project))
     if args.command != "plan":
@@ -857,6 +897,8 @@ def execute(args):
             return download(
                 project, args.operation, operation, env, getattr(args, "timeout", None)
             )
+        if args.command == "thumbnail":
+            return thumbnail(project, args.operation, operation, env, args.timeout)
         return query(
             project,
             args.operation,
