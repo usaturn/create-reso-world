@@ -10,12 +10,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-06-emission-editor-repository-management-design.md`、現行保存版 `c654fafaa9eb7cdb6d2136c31f8239f44bb5c7a9`。利用者は参照版 `b8c9b4253a5cd3431c9e2e6320649c2de14c15d8` と最低 Python 3.14 への明示変更を承認した。
 
-- 状態: draft
-- 草稿の確認状態: writing-plans の最終自己点検（仕様網羅・手順・型・Review Focus・分量）を実施し、下記に記録。Plan 内容の確認・実行許可は未受領で、全 Task は未実施。
+- 状態: approved
+- 内容確認・実行許可: 利用者が `23d4c2ca4e10c36c8fff7340e5481dd0bdf6c5a9` の確認コピーとtiming.md記録方式を提示した質問に「実装して」と回答。まず本共通基盤Planを実装する許可として記録する。後続Emission移行、公開・親への採用・外部操作は許可に含めない。
+- 草稿の確認状態: writing-plans の最終自己点検を実施済み。実装進捗は各Taskのチェックと末尾の記録で管理する。
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/emission-repo-management`
 - PARENT_ROOT: `/workspaces/reso-world`
 - ブランチ: `docs/emission-repo-management`。基準コード `28ef59b17a94191663597c927e66791425a3a864`。着手時に実際の BASE を別途記録する。
-- Issue / PR: なし。実行方式は選択済みの subagents/TDD/per-task review/lineage-only。Plan の確認・実行許可は未受領。
+- Issue / PR: なし。実行方式は選択済みの subagents/TDD/per-task review/lineage-only。実行許可は上記の本Plan範囲のみ。
 - 後続: `2026-11-06-emission-editor-onboarding.md`。本 Plan は新 GitHub repo の作成・ソース移行を行わず、それだけでも検証できる成果物を作る。
 - 公開: ローカルの文書コミットのみ。push / PR / merge は別許可。公開未実施。
 
@@ -51,7 +52,7 @@
 
 利用者の「時間制限なし」を維持し、能動時間の上限と共有実装・テストを殺す外側 timeout は設けない。目安は Task1–3 各45–90分、Task4–5 各60–120分だが許可上限ではない。各 Task 境界・失敗直後・能動60分ごとに、成果/残作業/方法を checkpoint する。有限予算がないので50%/100%の閾値は使わない。
 
-既存 `issue_budget.py` は正の有限分数が前提で無制限を表現できない。`inf` や架空の上限を渡さず、SESSION の `timing.md` に開始/終了/利用者待ち・再開を UTC で記録し、能動時間を集計する方式を提案する。これは `.agents/execution-budget.md` の JSONL helper 使用からの今回限定の例外であり、時間上限なしという指示だけで承認済みと扱わない。Plan 確認時に記録方式も確認し、未確認なら実装開始を blocked とする。同 helper の拡張は本 Plan に混ぜない。
+既存 `issue_budget.py` は正の有限分数が前提で無制限を表現できない。`inf` や架空の上限を渡さず、SESSION の `timing.md` に開始/終了/利用者待ち・再開を UTC で記録し、能動時間を集計する方式を提案する。これは `.agents/execution-budget.md` の JSONL helper 使用からの今回限定の例外であり、時間上限なしという指示だけで承認済みと扱わない。利用者は確認質問に「実装して」と回答し、この記録方式を含む本Planの実行を許可した。同 helper の拡張は本 Plan に混ぜない。
 
 SESSION は `agent_tmp.py mkdir external-tools-impl` で作る親の一意領域。SDD は `SESSION/sdd/2026-11-06-external-tools-framework/` を mkdir して使用する。各担当は主要作業別の実測時間を報告する。子の時間を全体に二重加算しない。
 
@@ -200,4 +201,4 @@ controllerがSpecと既存helper/fixtureを照合した（実装・テスト実�
 4. Review Focus: 5項目をTask1/2/3/4/5のSへ対応付けた。helperが別のpackageを選ぶ問題は単なるimport失敗ではなく対象すり替えのSとしてTask2で確認する。F/Lの恒久テストは追加しない。
 5. 分量: 関数本体を計画へ書かず、境界と署名・代表assertに限定した。実装Task/レビューは全件未実施。
 
-確認待ち: Plan内容・実行許可、および無制限時のtiming.md記録例外。Specの既承認事項を再選択しない。
+内容確認・実行許可とtiming.md記録例外は上記のとおり受領。承認参照SHAは23d4c2ca4e10c36c8fff7340e5481dd0bdf6c5a9のまま保持する。公開・親への採用・後続移行は別ゲート。
