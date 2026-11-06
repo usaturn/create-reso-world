@@ -87,6 +87,7 @@ wrapper の redact / journal guard は安全策であり、prompt やファイ�
 - 送信件数と予算上限（credits または通貨単位）、モデル、texture / PBR / 解像度。`latest` の実際のモデル・料金は変わり得るため送信前に公式料金を確認する。
 - 形状確認後の refine を含むか、何を満たしたら次へ進めるか。text preview と refine は**別の課金操作で計2件**。やり直しは追加件数として再承認する。
 - 画像の外部送信の許可。生成結果の利用条件・権利も確認する。
+- remesh（下の「Remesh」）は生成とは**別の課金操作で1件**。生成の承認に含めず、対象の operation・`target_polycount`・`topology` を示して承認を得る。
 
 wrapper は予算・承認内容を自動で検証しない。`--confirm-paid` は実行ゲートであって承認記録の代わりではない。
 承認済み件数・予算を超える自動反復は禁止。残高の read-only 照会も、利用者の明示指示がある場合だけ行う。
@@ -138,12 +139,46 @@ meshy_op wait --operation image-vessel --timeout 600
 meshy_op download --operation image-vessel
 ```
 
+## Remesh: 三角形数を減らす
+
+生成直後のモデルは三角形数が多い（image の例で 100 万〜250 万超）。VR ワールドに複数体を並べる・後で Blender で部品に分けるときは、
+ローカルで減らして再ベイクする代わりに、Meshy 側で remesh してから remesh 後の GLB だけを取得する。
+
+- 元にできるのは、成功済み（`SUCCEEDED`）の **image** operation だけ。text / refine、成功していない operation、`model_url`（ローカルのファイルが送られる）は使えない
+- remesh は別の operation として保存する。元の operation は読むだけで書き換えず、元の GLB は取得しない
+- submit は、有料の POST の前に `image-to-3d get` で元の task の成功・type・ID を確かめる。それ以外は他の kind と同じ（`--confirm-paid` が必須、一度だけ送信、`submitting` / `unknown` で再送しない）
+- `--target-polycount` は面の数で 100〜300000（既定 30000）。形によって目標からずれるので、convert の report の `triangles` で確かめる。`--topology` は `triangle`（既定）か `quad`（リグ・細分化向け）。`target_formats` は `["glb"]` に固定し、`decimation_mode` などは指定できない
+- 目安: 複数体を並べ、後で部品に分ける人型は 1 体 20000〜40000 三角形（既定の 30000 で始める）
+- 公表値では 1 件 5 credits（料金は変わり得るので送信前に公式料金を確かめる）
+
+**保持期間:** Enterprise 以外の契約では、API で生成したモデルは最大 3 日で Meshy から削除される。生成から 3 日以内に、サムネイルの確認・remesh・ダウンロードまでを終える。
+期限を過ぎた元の task は remesh できない見込みで、送信前の確認（`image-to-3d get`）が失敗して止まる（実際の応答は未確認）。そのときは生成し直す（追加の課金として承認を得る）。
+
+```bash
+# 1. 元の image operation のサムネイルだけを取得して確認する（GLB は取得しない。operation.json は変わらない）
+meshy_op thumbnail --operation image-vessel
+# content/generated/meshy/image-vessel/thumbnail/thumbnail.png を確認
+
+# 2. remesh を plan し、request と 1 件の課金を承認する
+meshy_op plan --operation image-vessel-remesh --kind remesh --source-operation image-vessel \
+  --target-polycount 30000 --topology triangle
+meshy_op submit --operation image-vessel-remesh --confirm-paid
+meshy_op wait --operation image-vessel-remesh --timeout 600
+meshy_op download --operation image-vessel-remesh --timeout 600
+# 3. convert の report の triangles を確かめる（convert の節を参照）
+```
+
+`thumbnail` は、成功済みの task がある operation（kind は問わない）で使える。保存先は `thumbnail/` で、`source/` と完了した download の記録には触れない。
+2026-11-07 に実 API で、Web アプリで生成した image task（テクスチャ付き、人型の座像）を attach した operation から `target_polycount 30000`・`triangle` で remesh し、
+30781 三角形の GLB（ベースカラー・metallic/roughness・法線のテクスチャ付き）を取得して convert が通ることを確かめた。
+
 ## 状態・journal と再開
 
 | 保存先（project 基準） | 内容 |
 | --- | --- |
 | `content/generated/meshy/<operation>/operation.json` | operation UUID、request、stage、task ID / status、downloads、conversion |
 | `content/generated/meshy/<operation>/source/` | CLI が報告した取得ファイル（GLB 名は固定しない） |
+| `content/generated/meshy/<operation>/thumbnail/` | `thumbnail` で取得したサムネイル（operation.json には記録しない） |
 | `.resoloop/meshy-cli/operations/` | 公式 CLI の operation journal / locks |
 | `content/generated/meshy/<operation>/converted/` | 編集用 blend / images、変換 report、bundle |
 | Windows で明示する `.resoloop/state/<ownership>.json` | ResoLoop の ownership と適用結果。Meshy の journal とは別 |
@@ -159,6 +194,7 @@ manifest 内の image / download / conversion は絶対パスを持つため、�
 ```bash
 meshy_op list --resource text-to-3d
 meshy_op list --resource image-to-3d
+meshy_op list --resource remesh
 # 同じ operation の送信と確定できた task ID だけを紐付ける
 meshy_op attach --operation vessel-refine --task-id CONFIRMED_TASK_ID
 meshy_op status --operation vessel-refine
@@ -167,7 +203,7 @@ meshy_op download --operation vessel-refine
 ```
 
 attach は GET で返された ID、task の type / resource が operation と一致することを保存前に確認する。
-text は `text-to-3d-preview`、refine は `text-to-3d-refine`、image は `image-to-3d` が必要。
+text は `text-to-3d-preview`、refine は `text-to-3d-refine`、image は `image-to-3d`、remesh は `remesh` が必要。
 refine に plan の `preview_task_id` 自体を紐付けることも拒否する。これは人間による送信内容の照合を代替しない。
 
 partial / failed download は成功扱いにしない。同じ成功 task の `download` は再実行できる（source 内へ再取得する）。
@@ -313,6 +349,7 @@ Issue #85 は 2026-10-11 に Blender 5.0.1 / 導入済み ResoLoop `0.1.0-previe
 任意の一致名、共有素材の全ユーザー一致、両順序の不一致、複数 UV、UV 不在、利用先不明、既存の空指定、normal graph / image の拒否条件は実 bpy で確認した。これらの version は実測記録であって固定する要件ではない。導入済み fork での結果を上流公開版や以後の最新 ResoLoop での検証と読み替えない。
 
 **NOT verified（未検証）:** 標準コンテナ rebuild、実キーによる API 認証・残高、課金を伴う text / image generation、Windows PowerShell 7.3 以上での実行・native 引数受け渡し、Windows での texture 付き表示・同じ state の無変更再適用 / 収束。
+remesh は上の 1 件（`triangle`）だけを実 API で確かめた。`quad` の見た目、期限切れの元の task に対する応答、wrapper の image 生成から続けた remesh は未検証。
 未承認の API / live 操作を smoke test の名目で行わない。PR は **`Refs #50`** とし、実機受入前に Issue を自動 close しない。
 
 参照: [Meshy Text to 3D](https://docs.meshy.ai/en/api/text-to-3d)、[Image to 3D](https://docs.meshy.ai/en/api/image-to-3d)、[ResoLoop](https://github.com/orange3134/resoloop)。
