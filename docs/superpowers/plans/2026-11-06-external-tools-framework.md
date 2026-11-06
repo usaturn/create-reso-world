@@ -13,7 +13,7 @@
 - 状態: approved
 - 内容確認・実行許可: 利用者が `23d4c2ca4e10c36c8fff7340e5481dd0bdf6c5a9` の確認コピーとtiming.md記録方式を提示した質問に「実装して」と回答。まず本共通基盤Planを実装する許可として記録する。後続Emission移行、公開・親への採用・外部操作は許可に含めない。
 - 草稿の確認状態: writing-plans の最終自己点検を実施済み。実装進捗は各Taskのチェックと末尾の記録で管理する。
-- 実行状態: Task4の初回事象と利用者の確認を保持したまま、引き継ぎ後の継続指示で再開した。独立したnetwork namespace隔離下のcontroller検証とTaskレビューを経てTask4完了、Task5へ進む。前回の確認を実push等の外部操作の許可とは扱わず、公開・親への採用・後続移行・実機操作は引き続き対象外。
+- 実行状態: 引き継ぎ後、独立したnetwork namespace隔離下のcontroller検証とTaskレビューを経てTask4完了。Task5担当の報告で、失敗したpytestの診断出力へ継承環境中の資格情報らしき値が出たという新しい安全上の問題を把握し、再び全体停止した。Task5コードはcommit済みだがcontroller検証・独立レビューは未実施で、完了とはしない。前回事象への利用者確認はこの新しい問題への確認とは扱わず、継続前に利用者の指示と環境・診断出力の隔離確認が必要。公開・親への採用・後続移行・実機操作は引き続き対象外。
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/emission-repo-management`
 - PARENT_ROOT: `/workspaces/reso-world`
 - ブランチ: `docs/emission-repo-management`。基準コード `28ef59b17a94191663597c927e66791425a3a864`。着手時に実際の BASE を別途記録する。
@@ -197,7 +197,8 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 - Task3完了: `86eafbbe..898fa8c4`。flock・fd保持・非置換renameによる1件取得とstaging保持、CLIを実装。statusが隠すtracked変更の誤成功を修正し、限定再レビューは残件0。担当Task suite45件/全体1303件、controller clone14件が成功。初回23分25秒・修正15分39秒（同期検証含む）。inode再照合テストの重複Minorは全体レビューに引き継ぐ。
 - Task4完了: `392062b..b444df4`。引き継ぎ後にfakeを静的点検し、独立した`unshare -rn`（別namespace、DOWN loのみ、routeなし）を必須としてcontroller対象suite168件/45subtestsが成功（236.32秒、exit0）。Taskレビューは仕様適合・品質Approved、Critical/Important/Minorなし。差分外のPython最低版と事前スキル読込もcontrollerがpyproject/元担当sessionで照合した。通常環境の全Git設定や資格情報の網羅監査を主張せず、以後の検証も同じ独立通信隔離を維持する。
 - Task4の初回停止記録（当時）: 実装担当が `b444df49` に7ファイルをコミットしたが、controllerの検証と独立レビューは未実施。初期テストの2ケースで `git -C <fixture-doc-worktree> push origin ...` がfakeを抜け、`usaturn/create-reso-world` への実HTTPS transportを試みて認証エラーとなった。担当はfake修正後にテストを継続し、全体1307件（最終fixture修正前）と対象168件/45subtests（修正後）の成功を報告したが、安全の失敗を成功扱いせず、controllerは報告受領後に全体停止した。実送信内容や資格情報使用の網羅確認はしていない。報告・失敗ログはSESSIONの `sdd/2026-11-06-external-tools-framework/task-4-report.md` 等に保持する。Task4の実装からコミットまで44分29秒、子終了まで約46分55秒。
-- Task5、最終全体レビュー、統合確認、公開・親への採用は未実施。既知のTask1/3のMinor2件も最終レビュー待ちのまま保持する。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
+- Task5は未完了: 担当が`877c3ffa`へ9ファイルをコミットし、core対象137件/45subtests成功を報告した。全体suiteは1306成功・1失敗・1skipで、失敗はnamespace rootのDAC権限に影響される既存stale-lockのpermission検査と報告された。限定した権限drop比較では当該1件成功だが、現行tree全体の成功ではない。さらに、初回対象suiteの失敗診断が継承環境の資格情報らしき値をharness出力へ含めたとの報告を受けた。ローカルログ30行は担当が伏せ字化したが、元のharness履歴が残る可能性がある。値の再掲・資格情報元の調査・実通信確認は行わない。担当はfixtureの最小環境化と後続検証の`env -i`を追加したが、controllerの検証・独立レビューはなく、安全上の問題を成功扱いせず停止した。詳細はSESSIONの`task-5-report.md`。担当15:07:16Z→15:54:35Z（2839.743秒）、controller停止観測15:54:57Z。
+- Task5レビュー、最終全体レビュー、最終統合確認、公開・親への採用は未実施。既知のTask1/3のMinor2件も最終レビュー待ちのまま保持する。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
 
 ## Plan 自己点検の記録
 
