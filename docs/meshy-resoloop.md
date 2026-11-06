@@ -152,7 +152,8 @@ meshy_op download --operation image-vessel
 - 公表値では 1 件 5 credits（料金は変わり得るので送信前に公式料金を確かめる）
 
 **保持期間:** Enterprise 以外の契約では、API で生成したモデルは最大 3 日で Meshy から削除される。生成から 3 日以内に、サムネイルの確認・remesh・ダウンロードまでを終える。
-期限を過ぎた元の task は remesh できない見込みで、送信前の確認（`image-to-3d get`）が失敗して止まる（実際の応答は未確認）。そのときは生成し直す（追加の課金として承認を得る）。
+期限を過ぎた元の task は remesh できない見込みで、送信前の確認（`image-to-3d get`）が失敗して止まる（実際の応答は未確認。CLI が API のエラーを結果なしで返すので、`successful_image_task_required` ではなく `cli_output_or_spawn_failed` で止まり得る）。
+生成から 3 日を過ぎた operation でこれらのエラーが出たら、生成し直す（追加の課金として承認を得る）。
 
 ```bash
 # 1. 元の image operation のサムネイルだけを取得して確認する（GLB は取得しない。operation.json は変わらない）
@@ -169,8 +170,8 @@ meshy_op download --operation image-vessel-remesh --timeout 600
 ```
 
 `thumbnail` は、成功済みの task がある operation（kind は問わない）で使える。保存先は `thumbnail/` で、`source/` と完了した download の記録には触れない。
-2026-11-07 に実 API で、Web アプリで生成した image task（テクスチャ付き、人型の座像）を attach した operation から `target_polycount 30000`・`triangle` で remesh し、
-30781 三角形の GLB（ベースカラー・metallic/roughness・法線のテクスチャ付き）を取得して convert が通ることを確かめた。
+2026-11-07 に実 API で、wrapper の外で生成し `list --resource image-to-3d` で見つけた image task（テクスチャ付き、人型の座像。`consumed_credits` は 0、期限は作成から約 3 日）を
+attach した operation から `target_polycount 30000`・`triangle` で remesh し、30781 三角形の GLB（ベースカラー・metallic/roughness・法線のテクスチャ付き）を取得して convert が通ることを確かめた。
 
 ## 状態・journal と再開
 

@@ -1123,8 +1123,9 @@ ATTACH_KINDS = [
     ("text", "text-to-3d-preview", "text-to-3d"),
     ("refine", "text-to-3d-refine", "text-to-3d"),
     ("image", "image-to-3d", "image-to-3d"),
-    ("remesh", "remesh", "remesh"),
 ]
+# The rejection guards are kind-independent; remesh only pins its expected type.
+ACCEPTED_ATTACH_KINDS = [*ATTACH_KINDS, ("remesh", "remesh", "remesh")]
 PREVIEW = "distinct-preview-task"
 SOURCE_TASK = "source-image-task"
 
@@ -1192,7 +1193,7 @@ def project_snapshot(project):
 
 
 # Catch rejecting a valid official task of any supported operation kind.
-@pytest.mark.parametrize("kind,task_type,resource", ATTACH_KINDS)
+@pytest.mark.parametrize("kind,task_type,resource", ACCEPTED_ATTACH_KINDS)
 def test_attach_accepts_matching_official_task(world, kind, task_type, resource):
     plan_attach(world, kind)
     world.reply(
@@ -1284,8 +1285,7 @@ def test_attach_rejection_preserves_entire_project(
 
 # Catch a paid remesh of an unverified source task, or any write to the source
 # operation during the remesh plan, submit and download.
-@pytest.mark.parametrize("anomaly", ["status", "type", "id"])
-def test_remesh_checks_source_task_and_never_changes_source_operation(world, anomaly):
+def test_remesh_checks_source_task_and_never_changes_source_operation(world):
     succeeded_image(world)
     source = world.manifest_path("src").parent
     before = project_snapshot(source)
@@ -1296,17 +1296,16 @@ def test_remesh_checks_source_task_and_never_changes_source_operation(world, ano
         "type": "image-to-3d",
         "resource": "image-to-3d",
     }
-    bad = dict(image_task)
-    if anomaly == "status":
-        bad["status"] = "FAILED"
-    elif anomaly == "type":
-        bad["type"] = "text-to-3d-preview"
-    else:
-        bad["task_id"] = "different-returned-task"
-    world.reply(result={"task": bad})
-    world.submit(ok=False)
-    assert world.manifest()["stage"] == "planned"
-    assert all("create" not in call["args"] for call in world.calls())
+    anomalies = [
+        {"status": "FAILED"},
+        {"type": "text-to-3d-preview"},
+        {"task_id": "different-returned-task"},
+    ]
+    for anomaly in anomalies:
+        world.reply(result={"task": {**image_task, **anomaly}})
+        world.submit(ok=False)
+        assert world.manifest()["stage"] == "planned", anomaly
+        assert all("create" not in call["args"] for call in world.calls()), anomaly
     world.reply(result={"task": image_task})
     world.submit()
     get, create = (call["args"][7:] for call in world.calls()[-2:])
