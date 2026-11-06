@@ -13,7 +13,7 @@
 - 状態: approved
 - 内容確認・実行許可: 利用者が `23d4c2ca4e10c36c8fff7340e5481dd0bdf6c5a9` の確認コピーとtiming.md記録方式を提示した質問に「実装して」と回答。まず本共通基盤Planを実装する許可として記録する。後続Emission移行、公開・親への採用・外部操作は許可に含めない。
 - 草稿の確認状態: writing-plans の最終自己点検を実施済み。実装進捗は各Taskのチェックと末尾の記録で管理する。
-- 実行状態: Task4テストの実HTTPS push試行で一度全体停止した。原因説明後、利用者から「問題ありません。作業引き継ぎ書を作成してください。」との確認と引き継ぎ依頼を受領。現在はその依頼に従い実装を再開せず引き継ぐ。既存の共通基盤Planの実行許可は維持し、次に継続を依頼されたら同じ事象の承認を再質問せず、Task4のfake/通信隔離確認・controller検証・Taskレビューから続ける。Task4は未完了、Task5は未着手のまま。実push等の外部操作を新しく許可する発言とは扱わない。
+- 実行状態: Task4の初回事象と利用者の確認を保持したまま、引き継ぎ後の継続指示で再開した。独立したnetwork namespace隔離下のcontroller検証とTaskレビューを経てTask4完了、Task5へ進む。前回の確認を実push等の外部操作の許可とは扱わず、公開・親への採用・後続移行・実機操作は引き続き対象外。
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/emission-repo-management`
 - PARENT_ROOT: `/workspaces/reso-world`
 - ブランチ: `docs/emission-repo-management`。基準コード `28ef59b17a94191663597c927e66791425a3a864`。着手時に実際の BASE を別途記録する。
@@ -149,17 +149,17 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 
 **テスト:** S。別repo/baseへのPR、未対応mergeの進行、CI免除の波及を防ぐ。既存のshell手順実行テストはFではないので意味を保つ。
 
-- [ ] **Step 1:** 別名toolをfixture台帳だけに追加した `test_registered_tool_flows_to_issue_and_base` と `test_managed_merge_stops_before_github_call` をREDにする。fake Issue本文は複数行の日本語。base未指定では第2toolの `development` を選び、明示 `--base release` は `release` を選ぶ。同じ代表経路で既定baseをmain固定にしないことを検査する。正しいnon-mergeはtool repo/refへ届き、merge拒否ではfake呼出しが空になる。
+- [x] **Step 1:** 別名toolをfixture台帳だけに追加した `test_registered_tool_flows_to_issue_and_base` と `test_managed_merge_stops_before_github_call` をREDにする。fake Issue本文は複数行の日本語。base未指定では第2toolの `development` を選び、明示 `--base release` は `release` を選ぶ。同じ代表経路で既定baseをmain固定にしないことを検査する。正しいnon-mergeはtool repo/refへ届き、merge拒否ではfake呼出しが空になる。
   ```python
   assert resolved_repo == registered_repo
   assert captured_base["repo"] == registered_repo
   assert captured_base["branch"] == ("release" if base_explicit else "development")
   assert github_calls_for_rejected_merge == []
   ```
-- [ ] **Step 2:** `uv run pytest .agents/skills/issue-to-pr/tests .agents/skills/review-fix-planning/tests/test_finalize.py -q` でREDを確認する。
-- [ ] **Step 3:** lexical入力検証→repo解決→profile検査→Issue読取の順で接続。`#N` はcwd自身のoriginで解決する既存条件を維持。`base_explicit=False` の main仮値は通常toolの台帳baseへ置換し、`resolve_base` への直接の base=None も同じ規則にする。既存3repoの既定mainと required-base の矛盾拒否は保持する。base-readでも常設/common-dir/送信先を検査し、既存のrefを更新しないbase取得とSHA再確認を緩めない。finalizeはmanaged手動profileをネットワーク前に拒否し、未知repoのCI必須既定も維持する。
-- [ ] **Step 4:** SKILLの固定対象表を共通target結果とrepo側規則の読取へ置換し、コードrepoと文書repoのbase・PRを区別する。変更前にwriting-skills/skill-creatorの該当手順を読む。恒久テストはSのみ。shellブロックの実行テストと上記suiteをGREENにする。
-- [ ] **Step 5:** commit・Taskレビュー。登録だけで権限が増えないこと、既存parent/fork/meshyの動作を報告する。
+- [x] **Step 2:** `uv run pytest .agents/skills/issue-to-pr/tests .agents/skills/review-fix-planning/tests/test_finalize.py -q` でREDを確認する。
+- [x] **Step 3:** lexical入力検証→repo解決→profile検査→Issue読取の順で接続。`#N` はcwd自身のoriginで解決する既存条件を維持。`base_explicit=False` の main仮値は通常toolの台帳baseへ置換し、`resolve_base` への直接の base=None も同じ規則にする。既存3repoの既定mainと required-base の矛盾拒否は保持する。base-readでも常設/common-dir/送信先を検査し、既存のrefを更新しないbase取得とSHA再確認を緩めない。finalizeはmanaged手動profileをネットワーク前に拒否し、未知repoのCI必須既定も維持する。
+- [x] **Step 4:** SKILLの固定対象表を共通target結果とrepo側規則の読取へ置換し、コードrepoと文書repoのbase・PRを区別する。変更前にwriting-skills/skill-creatorの該当手順を読む。恒久テストはSのみ。shellブロックの実行テストと上記suiteをGREENにする。
+- [x] **Step 5:** commit・Taskレビュー。登録だけで権限が増えないこと、既存parent/fork/meshyの動作を報告する。
 
 ### Task 5: レビュー・cleanup・共通規約まで接続して統合確認
 
@@ -195,8 +195,9 @@ CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/
 - Task1完了: `bfe1bc6..a1c37a67`。台帳と採用済みblob・配置境界を実装。レビューの親子symlink/Git replaceとcontrollerのexternal外配置の指摘を修正し、限定再レビューはImportant残件0。Task suite19件をcontrollerも再実行、担当の全体suite1276件成功。初回実装1043秒・修正742秒（同期検証含む）。重複テスト1件のMinorはledgerへ記録し全体レビューで再確認する。
 - Task2完了: `9b78d8b..07269475`。共有identity・読取CLI・11キー互換contextとコピーfixtureを実装。コピーした.gitで別rootを許す指摘を修正し、限定再レビューは残件0。担当は関連89件（51subtests）/全体1289件、controllerは関連78件と修正後identity10件を再実行し成功。初回1353秒・修正862秒（同期検証含む）。
 - Task3完了: `86eafbbe..898fa8c4`。flock・fd保持・非置換renameによる1件取得とstaging保持、CLIを実装。statusが隠すtracked変更の誤成功を修正し、限定再レビューは残件0。担当Task suite45件/全体1303件、controller clone14件が成功。初回23分25秒・修正15分39秒（同期検証含む）。inode再照合テストの重複Minorは全体レビューに引き継ぐ。
-- Task4は未完了: 実装担当が `b444df49` に7ファイルをコミットしたが、controllerの検証と独立レビューは未実施。初期テストの2ケースで `git -C <fixture-doc-worktree> push origin ...` がfakeを抜け、`usaturn/create-reso-world` への実HTTPS transportを試みて認証エラーとなった。担当はfake修正後にテストを継続し、全体1307件（最終fixture修正前）と対象168件/45subtests（修正後）の成功を報告したが、安全の失敗を成功扱いせず、controllerは報告受領後に全体停止した。実送信内容や資格情報使用の網羅確認はしていない。報告・失敗ログはSESSIONの `sdd/2026-11-06-external-tools-framework/task-4-report.md` 等に保持する。Task4の実装からコミットまで44分29秒、子終了まで約46分55秒。
-- Task5、最終全体レビュー、統合確認、公開・親への採用は未実施。Task4を完了にせず、既知のMinor2件も最終レビュー待ちのまま保持する。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
+- Task4完了: `392062b..b444df4`。引き継ぎ後にfakeを静的点検し、独立した`unshare -rn`（別namespace、DOWN loのみ、routeなし）を必須としてcontroller対象suite168件/45subtestsが成功（236.32秒、exit0）。Taskレビューは仕様適合・品質Approved、Critical/Important/Minorなし。差分外のPython最低版と事前スキル読込もcontrollerがpyproject/元担当sessionで照合した。通常環境の全Git設定や資格情報の網羅監査を主張せず、以後の検証も同じ独立通信隔離を維持する。
+- Task4の初回停止記録（当時）: 実装担当が `b444df49` に7ファイルをコミットしたが、controllerの検証と独立レビューは未実施。初期テストの2ケースで `git -C <fixture-doc-worktree> push origin ...` がfakeを抜け、`usaturn/create-reso-world` への実HTTPS transportを試みて認証エラーとなった。担当はfake修正後にテストを継続し、全体1307件（最終fixture修正前）と対象168件/45subtests（修正後）の成功を報告したが、安全の失敗を成功扱いせず、controllerは報告受領後に全体停止した。実送信内容や資格情報使用の網羅確認はしていない。報告・失敗ログはSESSIONの `sdd/2026-11-06-external-tools-framework/task-4-report.md` 等に保持する。Task4の実装からコミットまで44分29秒、子終了まで約46分55秒。
+- Task5、最終全体レビュー、統合確認、公開・親への採用は未実施。既知のTask1/3のMinor2件も最終レビュー待ちのまま保持する。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
 
 ## Plan 自己点検の記録
 
