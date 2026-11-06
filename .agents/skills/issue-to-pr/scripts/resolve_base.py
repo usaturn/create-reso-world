@@ -14,7 +14,9 @@ import sys
 from pathlib import Path
 
 from git_env import git_environment
-from resolve_issue import ORIGIN_URL, require_tracked_cwd, supported, validate_branch
+from resolve_issue import (
+    ORIGIN_URL, SUPPORTED_REPOSITORIES, managed_target, require_tracked_cwd, supported, validate_branch,
+)
 
 SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
@@ -59,11 +61,12 @@ def resolve_base(
     require_tracked_cwd(checkout)
     if Path(git(checkout, "rev-parse", "--show-toplevel")).resolve() != checkout:
         raise ValueError("--checkout は作業対象の checkout root を指定してください")
-    branch = validate_branch(base if base is not None else "main", checkout)
+    target = None if repo in SUPPORTED_REPOSITORIES else managed_target(repo, code_root=checkout)
+    default_base = target.spec.base_branch if target is not None else "main"
+    branch = validate_branch(base if base is not None else default_base, checkout)
     for required in required_bases:
         validate_branch(required, checkout)
-        # Without --base the branch is the default main: a main requirement matches it, any other
-        # requirement needs an explicit --base, and a differing --base contradicts the requirement.
+        # A requirement must match the selected (registered or legacy) default or explicit base.
         if branch != required:
             raise ValueError("要求された base を --base で明示してください（未指定または矛盾）")
     if expected_sha is not None and SHA.fullmatch(expected_sha) is None:

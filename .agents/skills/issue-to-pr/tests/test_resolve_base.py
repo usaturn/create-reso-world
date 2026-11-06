@@ -16,6 +16,8 @@ from pathlib import Path
 
 import pytest
 
+from tools.external_tools.tests.conftest import Workspace, isolated_git, workspace  # noqa: F401
+
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "resolve_base.py"
 REPO = "usaturn/create-reso-world"
 INTEGRATION = "統合/プラグイン"
@@ -265,3 +267,44 @@ def test_remote_failure_does_not_expose_credentials(repository: Repository, monk
     assert not repository.fetch_log.exists()
     monkeypatch.delenv("BASE_REMOTE_ERROR")
     assert resolve(repository).returncode == 0
+
+
+def test_managed_base_read_requires_registered_common_dir(
+    workspace: Workspace, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S: a same-URL clone must not provide a plausible base from unrelated local history."""
+    root = Path(__file__).resolve().parents[4]
+    deployed = workspace.parent / ".agents/skills/issue-to-pr/scripts"
+    shutil.copytree(SCRIPT.parent, deployed, ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(root / "tools/external_tools", workspace.parent / "tools/external_tools",
+                    ignore=shutil.ignore_patterns("tests", "__pycache__"))
+    sha = git(workspace.registered, "rev-parse", "HEAD")
+    calls = tmp_path / "transport.log"
+    bin_dir = tmp_path / "base-bin"
+    bin_dir.mkdir()
+    real_git = shutil.which("git")
+    wrapper = bin_dir / "git"
+    wrapper.write_text(
+        f"#!{sys.executable}\nimport pathlib, os, sys\n"
+        f"real = {real_git!r}\nargs = sys.argv[1:]\n"
+        "if any(a in ('ls-remote', 'fetch', 'push') for a in args):\n"
+        "    if args[0] not in ('ls-remote', 'fetch'): sys.exit(64)\n"
+        f"    with pathlib.Path({str(calls)!r}).open('a') as f: f.write(args[0] + '\\n')\n"
+        "    if args[0] == 'ls-remote':\n"
+        f"        print({sha!r} + '\\t' + args[-1])\n"
+        "    sys.exit(0)\n"
+        "os.execv(real, [real, *args])\n")
+    wrapper.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+    def call(checkout: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([sys.executable, str(deployed / "resolve_base.py"),
+                               "--checkout", str(checkout), "--repo", workspace.repository],
+                              capture_output=True, text=True)
+
+    rejected(call(workspace.other_clone))
+    assert not calls.exists()
+    result = call(workspace.linked)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["sha"] == sha
+    assert calls.read_text().splitlines() == ["ls-remote", "fetch", "ls-remote"]
