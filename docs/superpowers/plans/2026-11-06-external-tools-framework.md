@@ -11,7 +11,7 @@
 **Spec:** `docs/superpowers/specs/2026-11-06-emission-editor-repository-management-design.md`、現行保存版 `c654fafaa9eb7cdb6d2136c31f8239f44bb5c7a9`。利用者は参照版 `b8c9b4253a5cd3431c9e2e6320649c2de14c15d8` と最低 Python 3.14 への明示変更を承認した。
 
 - 状態: draft
-- 草稿の確認状態: 初稿作成まで。利用者の引き継ぎ指示により停止し、writing-plans の最終自己点検（仕様網羅・手順・型・Review Focus・分量）は未完了。実行用に提示・承認された計画ではない。
+- 草稿の確認状態: writing-plans の最終自己点検（仕様網羅・手順・型・Review Focus・分量）を実施し、下記に記録。Plan 内容の確認・実行許可は未受領で、全 Task は未実施。
 - DOC_ROOT / CODE_ROOT: `/workspaces/reso-world/.worktrees/emission-repo-management`
 - PARENT_ROOT: `/workspaces/reso-world`
 - ブランチ: `docs/emission-repo-management`。基準コード `28ef59b17a94191663597c927e66791425a3a864`。着手時に実際の BASE を別途記録する。
@@ -42,8 +42,8 @@
 ## 受け入れ基準
 
 - **動作環境:** 既存 Dev Container、Python 3.14 以上、uv、Git。親の pyproject は既に >=3.14。Linux の排他・非置換 rename を使い、未対応環境では既存物を変更せず停止する。
-- **実入力:** `emission-editor` / `usaturn/resonite-emission-editor` / `external/emission-editor` / base `main` / CI `disabled`。一時 fixture では別名・別 owner の第2ツール、日本語・複数行を含む Issue 本文、空白を含む親パスを使う。
-- **防御範囲:** 台帳は `schema_version=1` と `tools.<key>`、各項目は `repository,path,base_branch,ci` のみ。ci は `required|disabled`。通常ツール profile は manual merge。absolute / `..` / 重複・親子重複 / 予約済み既存 repo との衝突 / 祖先 symlink 脱出を拒否する。資格情報付き URL・曖昧 remote・異なる実送信先を拒否する。
+- **実入力:** `emission-editor` / `usaturn/resonite-emission-editor` / `external/emission-editor` / base `main` / CI `disabled`。一時 fixture では第2ツール `sample-owner/other-tool` / `external/other-tool` / base `development` / CI `required`、Issue 本文 `材質の変更\n元値を保持する`、空白を含む親パスを使う。
+- **防御範囲:** 台帳は `schema_version=1` と `tools.<key>`、各項目は `repository,path,base_branch,ci` のみ。keyは `[a-z0-9](?:[a-z0-9-]*[a-z0-9])?`、repositoryは既存GitHub parserと同じowner/repo形式、base_branchは展開しないliteral heads refとして `git check-ref-format` で検証する。ci は `required|disabled`。通常ツール profile は manual merge。absolute / `..` / 重複・親子重複 / 予約済み既存 repo との衝突 / 祖先 symlink 脱出を拒否する。資格情報付き URL・曖昧 remote・異なる実送信先を拒否する。
 - **保持する反例:** 既存 ResoLoop fork の upstream PR と、未登録 repo の明示 CODE_ROOT PR review-fix は引き続き通る。未登録 repo の新規実装、任意 setup/release、親への fallback は通らない。
 - **成功の範囲:** fake/local Git で登録から各利用側まで動くこと。repo 登録や check の成功を、GitHub 作成・公開・CI設定・実機準備の完了にしない。
 
@@ -51,7 +51,7 @@
 
 利用者の「時間制限なし」を維持し、能動時間の上限と共有実装・テストを殺す外側 timeout は設けない。目安は Task1–3 各45–90分、Task4–5 各60–120分だが許可上限ではない。各 Task 境界・失敗直後・能動60分ごとに、成果/残作業/方法を checkpoint する。有限予算がないので50%/100%の閾値は使わない。
 
-既存 `issue_budget.py` は正の有限分数が前提で無制限を表現できない。`inf` や架空の上限を渡さず、今回だけの明示的な無制限運用として SESSION の `timing.md` に開始/終了/利用者待ち・再開を UTC で記録し、能動時間を集計する。同 helper の拡張は本 Plan に混ぜない。この運用を Plan 確認時に合わせて提示する。
+既存 `issue_budget.py` は正の有限分数が前提で無制限を表現できない。`inf` や架空の上限を渡さず、SESSION の `timing.md` に開始/終了/利用者待ち・再開を UTC で記録し、能動時間を集計する方式を提案する。これは `.agents/execution-budget.md` の JSONL helper 使用からの今回限定の例外であり、時間上限なしという指示だけで承認済みと扱わない。Plan 確認時に記録方式も確認し、未確認なら実装開始を blocked とする。同 helper の拡張は本 Plan に混ぜない。
 
 SESSION は `agent_tmp.py mkdir external-tools-impl` で作る親の一意領域。SDD は `SESSION/sdd/2026-11-06-external-tools-framework/` を mkdir して使用する。各担当は主要作業別の実測時間を報告する。子の時間を全体に二重加算しない。
 
@@ -62,16 +62,18 @@ Task は1→2→3→4→5。Task3と4には一部独立性があるが、このp
 ## ファイル構成と共通インターフェース
 
 新規 `tools/external_tools/`:
-- `models.py`: 不変の `ToolSpec(key, repository, relative_path, base_branch, ci)`、`Registry(parent_root, commit, entries)`、`ManagedTarget(spec, checkout, common_dir, base_remote, registry_commit)`、`CheckResult` / `CloneResult`。
+- `models.py`: frozen dataclass `ToolSpec(key: str, repository: str, relative_path: str, base_branch: str, ci: Literal["required", "disabled"])`、`Registry(parent_root: Path, commit: str, entries: tuple[ToolSpec, ...])`、`ManagedTarget(spec: ToolSpec, checkout: Path, common_dir: Path, base_remote: str, registry_commit: str)`。`CheckResult(status: Literal["ready", "missing", "mismatch", "blocked"], path: Path, common_dir: Path | None, reason_code: str | None, registry_commit: str)`、`CloneResult(status: Literal["cloned", "present", "blocked", "failed"], path: Path, staging: Path | None, reason_code: str | None, registry_commit: str)`。`ExternalToolsError(ValueError)` は秘密を含まない `reason_code: str` と説明だけを持つ。
 - `registry.py`: `parse_registry(data: bytes, *, parent_root: Path, commit: str) -> Registry`、`load_active_registry(parent_root: Path) -> Registry | None`、`Registry.find_repository(repository: str) -> ToolSpec | None`。
-- `identity.py`: GIT環境を隔離した読取 Git、URL/checkout/実送信先の照合、`resolve_managed_target(registry: Registry, repository: str, *, operation: str, code_root: Path | None = None) -> ManagedTarget`。
+- `identity.py`: GIT環境を隔離した読取 Git、URL/checkout/実送信先の照合、`resolve_managed_target(registry: Registry, repository: str, *, operation: str, code_root: Path | None = None) -> ManagedTarget`、`validate_transport_destination(target: ManagedTarget, *, direction: Literal["fetch", "push"]) -> None`。後者もローカル設定の検査だけで通信しない。context script を逆importせず、循環依存を作らない。
 - `cli.py` / `__main__.py`: `main(argv: Sequence[str] | None = None) -> int`、list/show/check/clone。引数で任意 executable / registry を実操作へ注入できるようにしない。
 - `clone.py`: `clone_tool(registry: Registry, key: str) -> CloneResult`。test seam は内部の subprocess adapter のみ。
-- `tests/`: 守りを実装するモジュールごとの S。`conftest.py` は一時親・台帳commit・登録済みclone・別clone・linked worktreeを作る `workspace` fixture を提供する。既存 fixture を再利用できる所は再利用する。
+- `tests/`: 守りを実装するモジュールごとの S。`conftest.py` の `workspace` は `parent: Path`、`registry: Registry`、`adopted_sha: str`、`registered: Path`、`linked: Path`、`other_clone: Path`、`repository: str` を持つ fixture。一時親の origin/main と detached HEAD に採用 commit を置き、候補変更は別 branch に置く。transport は fake、ローカル Git の fixture 作成だけを実行する。既存 fixture を再利用できる所は再利用する。
 
-通常 profile は `managed-tool-v1`。operation は `implement, review-workspace, review-fix, base-read, cleanup` を区別する。`review-workspace` は常設 checkout、`review-fix` / `implement` / `base-read` は同 common-dir の適切な root を許す。cleanup の target は常設 checkout とし、削除候補自体の所有・PR マージ確認は既存 cleanup の条件を追加で課す。
+通常 profile は `managed-tool-v1`。operation は `implement, review-workspace, review-fix, base-read, cleanup` を区別する。managed toolの `review-workspace` / `cleanup` は常設 checkout、`review-fix` / `implement` は同common-dirの名前付きbranchのlinked worktree、`base-read` は同common-dirの常設checkoutまたはlinked worktreeのrootだけを許す。削除候補自体の所有・PR マージ確認は既存 cleanup の条件を追加で課す。既存parent/fork/未登録明示CODE_ROOTのoperation条件は変更しない。
 
-台帳がまだ無い旧親は managed entry なしとして既存経路だけを保持する。壊れた/読めない台帳を empty として握り潰さない。CLI は台帳不在を明示エラーにする。運用台帳は親の HEAD の blob から読む。親の採用 checkout の detached/identity を確認し、作業ツリーの変更や feature worktree の候補を取り込まない。
+台帳がまだ無い旧親は managed entry なしとして既存経路だけを保持する。壊れた/読めない台帳を empty として握り潰さない。CLI は台帳不在を明示エラーにする。運用台帳は検証済み常設親の detached HEAD の blob から読み、その HEAD がローカル origin/main の祖先であることを確認する（読取時は fetch しない）。親の作業ツリー、feature branch/worktree、外部 repo の台帳候補を操作に使わない。候補parseは読取検証専用で、clone等は active registry を再読込して commit/内容の一致を要求する。
+
+CLI の成功終了は list/show=0、check は ready だけ0、clone は cloned/present だけ0。その他の状態は非0かつ上記 status/reason_code をJSONで返す。Path はJSONで文字列化する。context helper は `ExternalToolsError` を exit66へ変換し、既存の入力64/fork65/11キーを保持する。
 
 ### Task 1: 採用済み台帳の読み込みと配置境界
 
@@ -81,11 +83,13 @@ Task は1→2→3→4→5。Task3と4には一部独立性があるが、このp
 
 **テスト:** S。登録先のすり替え・範囲外操作・候補による昇格を防ぐ。TOML構文・Pythonバージョンの値だけの F/L テストは追加しない。
 
-- [ ] **Step 1:** `workspace` fixture を作り、`test_active_registry_ignores_unadopted_candidate`、`test_registry_rejects_escaping_or_overlapping_target` を RED にする。前者は採用commitのtoolだけを返し、候補追加を返さない。後者は代表の範囲外・親子重複と、正しい別2項目の正例を持つ。
+- [ ] **Step 1:** `workspace` fixture を作り、`test_active_registry_ignores_unadopted_candidate`、`test_registry_rejects_escaping_or_overlapping_target` を RED にする。前者は採用commitのtoolだけを返し、候補追加を返さない。後者は `../outside`、祖先symlinkから外への脱出、`external/one` とその子の重複、既存fork予約先、lock名の範囲を脱出する `../key` の拒否を、その守りの代表として扱い、正しい別2項目も通す。
   ```python
-  assert active.commit == adopted_sha
-  assert active.find_repository(proposed_repo) is None
-  assert parsed.find_repository(second_repo).relative_path == second_relative
+  active = load_active_registry(workspace.parent)
+  assert active is not None and active.commit == workspace.adopted_sha
+  assert active.find_repository("sample-owner/unadopted") is None
+  parsed = parse_registry(two_valid_entries, parent_root=workspace.parent, commit=workspace.adopted_sha)
+  assert parsed.find_repository("sample-owner/other-tool").relative_path == "external/other-tool"
   ```
 - [ ] **Step 2:** `uv run pytest tools/external_tools/tests/test_registry.py -q` を実行し、未実装の守りで失敗することを確認する。
 - [ ] **Step 3:** parse/load/find を実装。repoの大小文字正規化、pathの予約範囲/重複、親の origin と common-dir、採用blobの読取を行う。既存 `external/resoloop` / `external/resoloop-meshy` と親自身は台帳から上書きできない。候補schemaのparseは可能だが操作用loaderは親HEADだけ。
@@ -102,14 +106,17 @@ Task は1→2→3→4→5。Task3と4には一部独立性があるが、このp
 
 - [ ] **Step 1:** `test_managed_target_uses_registered_common_dir` を RED にする。同 origin の別cloneを拒否し、登録元のlinked worktreeは許可されたoperationで通す。`test_git_environment_cannot_redirect_identity` は一時の別repoを指す GIT環境を与えても元対象を返す。実push先の不一致は既存 `select_push_remote` 相当の守りとして代表1件を置く。
   ```python
-  assert resolved.checkout == registered_root
-  assert repair.common_dir == registered_common
-  assert wrong_clone_was_refused
-  assert snapshot_after == snapshot_before  # 読取でGitを変えない
+  resolved = resolve_managed_target(workspace.registry, workspace.repository, operation="review-workspace")
+  repair = resolve_managed_target(workspace.registry, workspace.repository, operation="review-fix", code_root=workspace.linked)
+  assert resolved.checkout == workspace.registered
+  assert repair.common_dir == resolved.common_dir
+  with pytest.raises(ExternalToolsError):
+      resolve_managed_target(workspace.registry, workspace.repository, operation="review-fix", code_root=workspace.other_clone)
+  assert snapshot_after == snapshot_before  # fixture内のHEAD/refs/index/作業ファイルを前後比較
   ```
 - [ ] **Step 2:** `uv run pytest tools/external_tools/tests/test_identity.py tools/external_tools/tests/test_cli.py tests/scripts/test_superpowers_context.py .agents/scripts/tests/test_review_target.py -q` を実行し、REDを確認する。
 - [ ] **Step 3:** registered分岐を document/fork の既存分岐と未知repo明示CODE_ROOTの間へ接続。既存 fork の origin/upstream 再照合を managed tool に誤適用しない。実origin/全pushurlの照合・資格情報を伏せた診断を共有する。CLIの list/show/check はネットワークも変更も行わず、missing/mismatch は非0で理由を返す。
-- [ ] **Step 4:** helperの直接実行は、自分のファイル位置から同じ親worktreeの `tools` を読み込み、cwd/PYTHONPATHから別packageを選ばせない。コピーfixtureにも実際の共通packageを配置する（単一ファイルだけで動く古い仮定を黙って残さない）。上記suiteと該当2 fixtureの既存suiteを GREEN にする。
+- [ ] **Step 4:** helperの直接実行は、自分のファイル位置から同じ親worktreeの package を読み込む。既存 `sys.modules['tools']` や cwd/PYTHONPATH 由来の別packageを再利用せず、必要ならファイル位置固定の専用package名でロードする。コピーfixtureにも実際の共通packageを配置する。`test_context_cannot_load_foreign_tools_package` を既存contextテストへ追加し、偽packageの対象すり替えが起きず正しいtargetを返すことをSで確認する。上記suiteと `.agents/skills/review-fix-planning/tests/test_review_fix_planning_skill_contract.py`、`.agents/skills/pr-review-fix-loop/tests/test_loop_reviewer_protocol.py` を GREEN にする。
 - [ ] **Step 5:** commit・Taskレビュー。未登録明示CODE_ROOTの正例、fork上流base、review-copyの親/文書だけの検証が保持された証拠を報告する。
 
 ### Task 3: 1件限定・排他・非置換の取得
@@ -120,7 +127,7 @@ Task は1→2→3→4→5。Task3と4には一部独立性があるが、このp
 
 **テスト:** S。利用者所有部分の上書き、競合、失敗を成功とする報告を防ぐ。ネットワークは内部adapterをfake化し、本物のclone・認証を使わない。
 
-- [ ] **Step 1:** `test_existing_target_is_never_changed`、`test_concurrent_clone_has_one_publisher`、`test_publish_refuses_new_destination` を RED にする。sentinel bytes/既存Git snapshotを保持し、正しい空き先では1件だけ取得が完了する。途中Git失敗の代表はstatus=failedとstaging保持を検査する。
+- [ ] **Step 1:** `test_existing_target_is_never_changed`、`test_concurrent_clone_has_one_publisher`、`test_publish_refuses_new_destination` を RED にする。sentinel bytes/既存Git snapshotを保持し、正しい空き先では1件だけ取得が完了する。同じ配置テストで、検査後に祖先を外へのsymlinkへ差し替えても外側のsentinelと最終位置へ書き込まないことを確認する。途中Git失敗の代表はstatus=failedとstaging保持を検査する。
   ```python
   assert sentinel.read_bytes() == before
   assert fake_remote_calls == [authorized_repository]
@@ -128,7 +135,7 @@ Task は1→2→3→4→5。Task3と4には一部独立性があるが、このp
   assert failed_result.status == "failed"
   ```
 - [ ] **Step 2:** `uv run pytest tools/external_tools/tests/test_clone.py -q` を同期実行し、REDを確認する。
-- [ ] **Step 3:** 親common-dir内の `.git/external-tools/locks/<key>.lock` を O_NOFOLLOW と非待機flockで開き、競合はBUSYで返す。検証済みexternal内の一意stagingにinit→origin追加→指定branch取得→detached checkout。local mainを作らず、Git checkout hookを無効化する。各repoのsetupは実行しない。親registry commitと送り先を配置直前に再確認する。
+- [ ] **Step 3:** 親common-dir内の `.git/external-tools/locks/<key>.lock` を O_NOFOLLOW と非待機flockで開き、競合はBUSYで返す。検証済みexternal内の一意stagingにinit→origin追加→指定branch取得→detached checkout。local mainを作らず、Git checkout hookを無効化する。各repoのsetupは実行しない。lockの祖先とstaging/配置先の祖先も検証し、範囲外symlinkや差替えを通さない。保持したdirectory fdに対する配置と直前の再照合で、検査済みパスのすり替えを防ぐ。親registry commitと送り先を取得前・配置直前に再確認する。
 - [ ] **Step 4:** 配置は Linux `renameat2(RENAME_NOREPLACE)` の小さい内部wrapperで行う。未対応/既存destは停止し、上書きする `os.rename` やcopyへのfallbackはしない。stagingと最終先は同一filesystemに置く。自身の失敗領域も自動削除せず返す。テストをGREENにし、CLIの取得対象省略・既存dirtyで書込が進まないことを代表のfake経路で確認する。
 - [ ] **Step 5:** commit・Taskレビュー。HOMEはワンショット隔離だけ、rm変数には`:?`を付ける。実repoの取得はこのTaskで実行しない。
 
@@ -136,19 +143,19 @@ Task は1→2→3→4→5。Task3と4には一部独立性があるが、このp
 
 **Files:** Modify `.agents/skills/issue-to-pr/scripts/{resolve_issue,resolve_base}.py`, `.agents/skills/issue-to-pr/SKILL.md`, 同testsの `test_resolve_issue.py`, `test_resolve_base.py`, `test_base_workflow.py`。Modify `.agents/skills/review-fix-planning/scripts/finalize.py` と `tests/test_finalize.py` は managed-tool拒否に必要な箇所のみ。
 
-**Interfaces:** Consumes Task2のregistry/target。`supported(repo: str, *, parent_root: Path | None = None) -> str` は旧1引数呼出しも保持。`resolve_base(...)` のbase固定/再確認とJSONは保持する。通常toolの `--merge` はgh照会/予約/書込前に拒否する。
+**Interfaces:** Consumes Task2のregistry/target。`supported(repo: str, *, parent_root: Path | None = None) -> str` と `resolve_target(reference: str, cwd: Path, *, parent_root: Path | None = None) -> tuple[str, int]` は旧呼出しも保持。`resolve_base(checkout: Path, repo: str, base: str | None, required_bases: list[str], expected_sha: str | None) -> dict[str, str]` の署名・JSONを保持。検証済み環境から親を渡し、未知repoの探索をしない。通常toolの `--merge` はgh照会/予約/書込前に拒否する。
 
 **テスト:** S。別repo/baseへのPR、未対応mergeの進行、CI免除の波及を防ぐ。既存のshell手順実行テストはFではないので意味を保つ。
 
-- [ ] **Step 1:** 別名toolをfixture台帳だけに追加した `test_registered_tool_flows_to_issue_and_base` と `test_managed_merge_stops_before_github_call` をREDにする。fake Issue本文は複数行の日本語。正しいnon-mergeはtool repo/refへ届き、merge拒否ではfake呼出しが空になる。
+- [ ] **Step 1:** 別名toolをfixture台帳だけに追加した `test_registered_tool_flows_to_issue_and_base` と `test_managed_merge_stops_before_github_call` をREDにする。fake Issue本文は複数行の日本語。base未指定では第2toolの `development` を選び、明示 `--base release` は `release` を選ぶ。同じ代表経路で既定baseをmain固定にしないことを検査する。正しいnon-mergeはtool repo/refへ届き、merge拒否ではfake呼出しが空になる。
   ```python
   assert resolved_repo == registered_repo
   assert captured_base["repo"] == registered_repo
-  assert captured_base["branch"] == requested_branch
+  assert captured_base["branch"] == ("release" if base_explicit else "development")
   assert github_calls_for_rejected_merge == []
   ```
 - [ ] **Step 2:** `uv run pytest .agents/skills/issue-to-pr/tests .agents/skills/review-fix-planning/tests/test_finalize.py -q` でREDを確認する。
-- [ ] **Step 3:** lexical入力検証→repo解決→profile検査→Issue読取の順で接続。`#N` はcwd自身のoriginで解決する既存条件を維持。base-readでも常設/common-dir/送信先を検査し、既存のrefを更新しないbase取得とSHA再確認を緩めない。finalizeはmanaged手動profileをネットワーク前に拒否し、未知repoのCI必須既定も維持する。
+- [ ] **Step 3:** lexical入力検証→repo解決→profile検査→Issue読取の順で接続。`#N` はcwd自身のoriginで解決する既存条件を維持。`base_explicit=False` の main仮値は通常toolの台帳baseへ置換し、`resolve_base` への直接の base=None も同じ規則にする。既存3repoの既定mainと required-base の矛盾拒否は保持する。base-readでも常設/common-dir/送信先を検査し、既存のrefを更新しないbase取得とSHA再確認を緩めない。finalizeはmanaged手動profileをネットワーク前に拒否し、未知repoのCI必須既定も維持する。
 - [ ] **Step 4:** SKILLの固定対象表を共通target結果とrepo側規則の読取へ置換し、コードrepoと文書repoのbase・PRを区別する。変更前にwriting-skills/skill-creatorの該当手順を読む。恒久テストはSのみ。shellブロックの実行テストと上記suiteをGREENにする。
 - [ ] **Step 5:** commit・Taskレビュー。登録だけで権限が増えないこと、既存parent/fork/meshyの動作を報告する。
 
@@ -167,7 +174,7 @@ Task は1→2→3→4→5。Task3と4には一部独立性があるが、このp
   assert unmerged_branch_still_exists
   ```
 - [ ] **Step 2:** `uv run pytest .agents/skills/repo-cleanup-after-merge/tests -q` でREDを確認する。
-- [ ] **Step 3:** 各skillを同じresolverへつなぐ。cleanupのparent更新/fork syncを通常toolから呼ばない。AGENTSは台帳を参照する共通規則にし、未知repoの既存review-fix例外を残す。共通運用文書に登録の採用、取得、repo-owned検証、CI照合、手動merge、新規tool追加、失敗stagingの扱いを書く。
+- [ ] **Step 3:** 各skillを同じresolverへつなぐ。cleanupのparent更新/fork syncを通常toolから呼ばない。AGENTSは台帳を参照する共通規則にし、未知repoの既存review-fix例外を残す。共通運用文書に登録の採用、取得、repo-owned検証、CI照合、手動merge、新規tool追加、失敗stagingの扱いを書く。CI disabled は実設定の Actions=false を、required は実際のPR checksをcontrollerが読取確認する。registry成功だけで未知repoのCIを免除せず、ローカルcheckはネットワーク確認済みと表示しない。
 - [ ] **Step 4:** Task1–5の対象suiteと `uv run pytest` を同期実行。cloneはfake、一時Gitのみ。読取CLIは親への台帳採用前は未採用/不在として止まることを実行し、候補台帳を採用済みとして見せない。`git diff --check` とGit差分を確認する。
 - [ ] **Step 5:** commit・Taskレビュー後、SDDの全体レビュー（Review scope: branch）。指摘処理後の全suiteと状態を確認し、正式規則として利用するには親への採用が必要と報告する。push/PR/mergeは許可なく行わない。finishingは全体レビューと所定cleanup後だけ。
 
@@ -183,6 +190,14 @@ Task は1→2→3→4→5。Task3と4には一部独立性があるが、このp
 
 各Taskの実行結果・所要時間・レビュー裁定はSESSIONへ、要約を本Planへ追記する。記録は未実施。完了しても公開や親への採用は別の事実である。後続のEmission Planは、親へ共通基盤と登録が採用されたcommitを確認するまで実装を開始しない。
 
-## Plan 自己点検（未完了）
+## Plan 自己点検の記録
 
-初期対応表は Spec5.1=Task1、5.2=Task2、5.3=Task3、5.4=Task4–5、5.5=Task5。公開/実機移行は後続Planへ分離した。型/operation/fixtureの具体性、11キー互換、base/CI/mergeの境界、無制限予算の記録方式、Review FocusとSの対応を次の担当が再点検する。自己点検完了や実行準備完了とは報告しない。
+controllerがSpecと既存helper/fixtureを照合した（実装・テスト実行ではない）。
+
+1. 仕様網羅: Spec5.1→Task1、5.2→Task2、5.3→Task3、5.4→Task4–5、5.5→Task5。Spec4/6/7の公開・移行は後続Plan、Spec8の共通基盤条件は本Planの受け入れ基準へ対応する。
+2. 手順: 採用台帳と候補parse、読取とclone、通常profileと既存例外を分離。既定baseがmain以外の登録と明示指定の差をTask4へ追加した。
+3. 型: dataclassのfield/status、contextの11キー、fixture、resolve_target/resolve_baseの引数を具体化。scriptとpackageの循環importを禁止した。
+4. Review Focus: 5項目をTask1/2/3/4/5のSへ対応付けた。helperが別のpackageを選ぶ問題は単なるimport失敗ではなく対象すり替えのSとしてTask2で確認する。F/Lの恒久テストは追加しない。
+5. 分量: 関数本体を計画へ書かず、境界と署名・代表assertに限定した。実装Task/レビューは全件未実施。
+
+確認待ち: Plan内容・実行許可、および無制限時のtiming.md記録例外。Specの既承認事項を再選択しない。

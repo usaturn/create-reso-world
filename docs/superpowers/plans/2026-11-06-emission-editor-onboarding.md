@@ -11,7 +11,7 @@
 **Spec:** `docs/superpowers/specs/2026-11-06-emission-editor-repository-management-design.md`、現行保存版 `c654fafaa9eb7cdb6d2136c31f8239f44bb5c7a9`。承認の参照版は `b8c9b4253a5cd3431c9e2e6320649c2de14c15d8` と利用者の最低Python3.14への明示変更。
 
 - 状態: draft
-- 草稿の確認状態: 初稿作成まで。利用者の引き継ぎ指示により停止し、writing-plans の最終自己点検は未完了。型・Sの対応・context分離の範囲・正確なoffline build呼出しを確定してから利用者に計画確認を求める。
+- 草稿の確認状態: writing-plans の最終自己点検を実施し、下記に記録。型・Sの対応・最小context分離・offline build呼出しを具体化した。Planは未承認・全Task未実施で、実行許可を補うものではない。
 - 先行Plan: `docs/superpowers/plans/2026-11-06-external-tools-framework.md`。共通基盤と台帳が親へ採用されるまで本Planの実装開始はblocked。
 - 文書作業先: 作成時 `/workspaces/reso-world/.worktrees/emission-repo-management`。実行時も create-reso-world の検証済み文書worktreeを DOC_ROOT として記録する。親の追跡ファイルを直接編集しない。
 - 元コード: `/workspaces/reso-world/worlds/tools`（Git追跡外、移動・変更しない）。
@@ -48,9 +48,11 @@
 
 ## 実行予算・作業領域・監視
 
-時間上限なしを維持する。目安は監査60–90分、GitHub bootstrap15–30分、抽出/最小分離90–180分、検証/公開準備60–120分で、許可上限ではない。各Task/外部操作の境界、失敗直後、能動60分ごとにcheckpoint。利用者待ちは除外して `SESSION/timing.md` に記録する。有限値しか扱わないissue_budget.pyへinfや架空の上限を渡さず、拡張も今回行わない。この無制限運用は先行Planと同じ確認対象とする。
+時間上限なしを維持する。目安は監査60–90分、GitHub bootstrap15–30分、抽出/最小分離90–180分、検証/公開準備60–120分で、許可上限ではない。各Task/外部操作の境界、失敗直後、能動60分ごとにcheckpoint。利用者待ちは除外して `SESSION/timing.md` に記録する方式を提案する。有限値しか扱わないissue_budget.pyへinfや架空の上限を渡さず、拡張も今回行わない。JSONL helperに代わる今回限定の記録例外は先行Planと合わせて確認し、未確認なら実装開始をblockedとする。
 
 `agent_tmp.py mkdir emission-onboarding` の一意SESSIONに `audit.json`、権利判断、raw receipts、SDD `sdd/2026-11-06-emission-editor-onboarding/` を置く。worktreeに未コミットの証拠を作らない。公開しない資料はGit追跡外で保持する。Task2/5の不可逆な外部操作はcontrollerが集中管理するためinline、コード実装はsp-implementer、Taskレビューはreadonly sp-review。レビュー子はテストしない。
+
+Taskは1→2→3→4→5。Task1監査とTask2/5の外部操作は依存とcontrollerの許可確認を要し、並列writerへ分割しない。同じ受け入れ基準を実装担当・レビュー担当双方へ渡す。チェックはcontrollerが更新する。
 
 worker絶対期限/外側timeoutはなし。監視・同期待ち・10分進捗/2回無変化stall報告はmonitoring-long-tasksに従う。信頼性失敗の同条件retryは1回まで、安全の失敗は全体停止。通信断でrepo作成/push結果が不明なら再実行せず読み取り照合する。
 
@@ -62,7 +64,7 @@ worker絶対期限/外側timeoutはなし。監視・同期待ち・10分進捗/
 
 templateは `content/emission-editor/registry.json`。生成済み `panel.json`、runtime-*、primary-*、旧fixtures、全 `.resoloop` / artifacts / tmp / `.brson` は公開しない。
 
-PGの最小active-ui集合はrootの `Session,Generation,DropGuard,BeginRow,RowValue,RowPresentation.pg` と `current/Selection.pg`, `current/RowView.pg`。別bootstrapの `SessionIdentity.pg`、開発途中の `current/{RowPreview,RowCommand,Commit,BeginRow,CommitProofProbe}.pg` と `staged-s6/{Session,Selection,RowPresentation}.pg` も監査候補に含め、採用する場合は `bootstrap|candidate|proof` と分類し、active-uiに昇格しない。これらの未完了な開発ソースを黙って落として移行完了にしない。影になったroot Selection/RowViewやその他の実験PGは、依存/権利監査で必要性が確定しない限り除外する。
+PGの最小active-ui集合はrootの `Session,Generation,DropGuard,BeginRow,RowValue,RowPresentation.pg` と `current/Selection.pg`, `current/RowView.pg`。別bootstrapの `SessionIdentity.pg`、開発途中の `current/{RowPreview,RowCommand,Commit,BeginRow,CommitProofProbe}.pg` と `staged-s6/{Session,Selection,RowPresentation}.pg` も監査候補に含め、採用する場合は `bootstrap|candidate|proof` と分類し、active-uiに昇格しない。これらの未完了な開発ソースを黙って落として移行完了にしない。`current/{ConflictProof,GuardProof,InputDriverProbe,ReadbackProof,RequestProof}.pg` もproof候補としてauditに必ず採否を記録する。影になったroot Selection/RowViewやその他の実験PGは、依存/権利監査で必要性が確定しない限り除外する。全PGを列挙して分類し、名前を列挙したことだけでincludeにしない。
 
 監査結果 `audit.json` の項目は `sourceRelative,destinationRelative,sha256,kind,decision,reason,provenance,transform`。kind=`python|test|template|pg-active|pg-bootstrap|pg-candidate|pg-proof`、decision=`include|exclude|hold`。絶対path/実session/個人情報は非公開の別記録へ分け、公開版source一覧に入れない。未知の必要依存はhold、採用manifestを変更するなら理由を記録してレビューする。
 
@@ -96,22 +98,35 @@ PGの最小active-ui集合はrootの `Session,Generation,DropGuard,BeginRow,RowV
 
 ### Task 3: 公開コピーの最小分離と同等のSをRED/GREEN
 
-**Files:** 新CODE_ROOTに上記Python/template/PGのinclude項目、`scripts/emission_editor/context.py`、`pyproject.toml`, `uv.lock`, `.gitignore`, `README.md`, `AGENTS.md`, 選択済みLICENSE/必要な帰属文書。Testsは `test_emission_{registry,publish,retention,guard_supplement,claim_recovery,claim_journal,position}.py` と選別した `test_emission_recovery.py`、新 `test_emission_context.py`。
+**Files:** 新CODE_ROOTに上記Python/template/PGのinclude項目、`scripts/emission_editor/context.py`、`pyproject.toml`, `uv.lock`, `.gitignore`, `README.md`, `AGENTS.md`, 選択済みLICENSE/必要な帰属文書。Testsは `test_emission_{registry,publish,retention,guard_supplement,claim_recovery,claim_journal,position}.py` と選別した `test_emission_recovery.py`、新 `test_emission_context.py` と共通fakeを置く `tests/conftest.py`。保全baselineは一時fixture内だけで生成し、旧41件のbaselineや空baselineを公開用の既定値にしない。
 
-**Interfaces:** `ProjectContext`（frozen dataclass）に `project_root, source_root, registry_template, world_state, flux_state, preservation_baseline` のPathと `url,owner,root_name` のstrを持たせる。`validate_context(context: ProjectContext) -> None` が必要path・所有境界・明示URLを検査する。`ResoloopReadPort` / `ResoloopPanelPort` は新コピーでcontextを明示必須とし、`UIPanelPort`は同じcontextを使う。`render_registry(plan, *, template: Path)`、`native_source_path(name, *, source_root: Path)`、`session_manifest(..., source_root: Path)` へresource依存を明示する。algorithm/PGの振る舞いは変えない。
+**Interfaces:** `context.py` の frozen dataclass `ProjectContext` は `project_root, source_root, registry_template, world_state, flux_state, preservation_baseline: Path` と `url, owner, root_name: str`（いずれもdefaultなし）。`validate_context(context: ProjectContext) -> None` は既存root、source/template/baselineの存在とroot内配置、world/flux stateの別pathと既存祖先のroot内配置、明示ws/wss URLを検査する。所有値は既存の `tools-emission-editor` / `ResoLoop_Test_EmissionEditor` だけを許可し、今回一般化しない。baselineは明示された非空のpath→SHA-256 mappingで、対象も新root内に限る。現在sessionの承認やlive readinessを証明するAPIではない。
+
+- `ResoloopReadPort(context: ProjectContext, *, evidence: Path)` は上の検査とevidenceのroot内・未使用確認後にだけ記録領域を作る。state/flux_state/baselineはcontextから設定し、旧URL/stateをdefaultで補わない。`.context` を保持する。
+- `ResoloopPanelPort(read: ReadPort, capture: RegistrationCapture, retained_declaration: dict | None = None)` と `UIPanelPort` のconstructorは維持する。実装が利用するreadには `.context` が必須で、同じcontextを引き継ぐ。fakesも `.context` を持たせる。
+- `render_registry(plan: RegistryPlan, *, template: Path) -> dict`、`render_panel(registry: RegistryPlan, *, template: Path) -> dict`、`native_source_path(name: str, *, source_root: Path) -> Path`、`session_manifest(registry: RegistryPlan, *, world_state: Path, deploy_state: Path, source_directory: Path, source_root: Path) -> dict`。呼出し元すべてへ明示引数を通す。`render` CLI は `--template PATH` を必須にする。
+- `publish_registry(plan: RegistryPlan, port: PanelPort) -> PublishResult` は変更しない。結果fieldは `success, ready: bool` と `generation, error: str`。capture/planの `.complete` は事前観測の完全性で、登録成功とは別。
+
+algorithm/PGの振る舞いは変更しない。managed DLLは既存どおり `RESONITE_MANAGED_DATA_PATH` を明示し、fakeのstageテストでは一時libraryディレクトリをsetenvする。新live runnerやcontextの永続保存・自動採取は作らない。
 
 **テスト:** S。省略したcontextから旧sessionへの書込や、resource/baselineの取り違え、凍結sourceの上書き、移行時の元値消失を防ぐ。単なるimport失敗はLなのでsmokeで代える。
 
 - [ ] **Step 1:** includeファイルを新worktreeへ非置換コピーし、hashを監査値と照合する。live入口・旧captureをコピーしない。全変更は新コピー内だけ。
-- [ ] **Step 2:** `test_missing_context_never_starts_transport`、`test_explicit_fake_context_preserves_private_targets` をREDにする。context省略時にsubprocess呼出し0、正しい一時contextではfake登録が成功し完全値/私有Target/WriteBack=falseが保持される。
+- [ ] **Step 2:** `test_live_cli_refuses_before_transport` と `test_context_refuses_resources_outside_new_root` をREDにする。live registerは既存CLIの必須引数を揃えてもtransport/evidence作成前に拒否し、contextが範囲外baselineを指す場合も通信・書込0。有効な一時contextではfake登録の正例を既存Sと共有する。
   ```python
-  assert calls_without_context == []
-  assert fake_context_result.completed
-  assert material_after == material_before
-  assert preserved_record_after == preserved_record_before
+  assert live_exit != 0
+  assert transport_calls == [] and not rejected_evidence.exists()
+  with pytest.raises(ValueError):
+      validate_context(outside_baseline_context)
+  validate_context(fake_context)  # 新root内の非空baselineと作者作成resource
+  result = publish_registry(plan, fake_panel_port)
+  assert result.success and result.ready
+  assert fake_panel_port.avatar_writes == []
+  assert fake_panel_port.old_recovery == {"baseline": "preserve", "candidate": "preserve"}
   ```
-- [ ] **Step 3:** context/resource注入だけを実装する。旧59125のURL・state・絶対baselineをdefaultとして補わない。`__main__` の `load_capture` 等の純粋処理は保持するが、live register入口は公開版で有効化しない（native切替計画が未承認と示して、transport前に停止）。新live runner・自動resumeは作らない。
-- [ ] **Step 4:** 既存 `test_compiler_sibling_output_stays_in_isolated_tree`、`test_main_registration_isolates_compiler_and_keeps_failed_ui_closed`、`test_native_current_reader_cannot_write_back_to_registered_material`、claimの拒否/正例・journal、`test_stage_retains_existing_records_without_replaying_values_or_foreign_scope` を新contextのfakeでGREENにする。実値由来のfixture文字列は同じ意味の作者作成データへ置換する。履歴専用テストを成功扱いして移さない。
+  `fake_context` は新root内にsource/template、作者作成の保全対象1件以上とその実hashを持つbaseline、専用world/flux state、明示URL/所有値を準備する。拒否だけで何でも止める実装を合格にしない。
+- [ ] **Step 3:** 上記署名のcontext/resource注入だけを新コピーに実装する。旧59125のURL・state・絶対baselineをdefaultとして補わない。`__main__` の `load_capture` 等の純粋処理は保持するが、live register入口は公開版で有効化せず、native切替計画が未承認と示してconstructor/transport前に停止する。`ResoloopPanelPort.render_declaration` / `UIPanelPort.stage` はread.contextを使う。直接のrender呼出し・`port.render_declaration = render_panel` の旧monkeypatch・session_manifest呼出しとfake Readにも引数を通し、cwdへfallbackしない。
+- [ ] **Step 4:** 既存 `test_compiler_sibling_output_stays_in_isolated_tree`、`test_main_registration_isolates_compiler_and_keeps_failed_ui_closed`、`test_native_current_reader_cannot_write_back_to_registered_material`、claimの拒否/正例・journal、`test_stage_retains_existing_records_without_replaying_values_or_foreign_scope` を新contextのfakeでGREENにする。実値由来のfixture文字列は同じ意味の作者作成データへ置換する。`test_recovery_generator_keeps_one_driver_and_is_idempotent` と `test_guarded_transport_stops_cleanup_writes_after_disconnect` は旧artifact内の実行scriptに依存するため元に保持し、対応する守りが新コピーにも必要ならsafety-mapに代替を記す。59125固定を検査する `test_main_transport_rejects_legacy_checkpoint_before_recording` は新contextの境界拒否/正例へ対応付ける。既存Sを黙って削除して移行完了にしない。
 - [ ] **Step 5:** `uv lock` / `uv sync --locked` 後、新rootで `uv run pytest`、構文/import、`git diff --check`。source選択の意味、失敗後停止と保全を維持したことを確認しcommit・Taskレビュー。実機確認済みとは表示しない。
 
 ### Task 4: 独立したオフライン検証と公開treeの確定
@@ -122,11 +137,16 @@ PGの最小active-ui集合はrootの `Session,Generation,DropGuard,BeginRow,RowV
 
 **テスト:** 既存Sを再実行。新しい文書/固定PG一覧のFテストは書かない。作者と生成物の分離はTask3のSで代表し、別層に重複させない。
 
-- [ ] **Step 1:** 新Git treeから一時領域へ展開し、元world/tmpを渡さず、`uv sync --locked` の後 `unshare -rn uv run --no-sync pytest`。ユーザHOMEはexportで変更せず、必要ならワンショット隔離。依存取得時のネットワークとテスト中のworld呼出し0を区別する。
-- [ ] **Step 2:** PGはコピー内の一意なcompiler作業領域で `resoloop flux check SOURCE --library-path MANAGED_DATA`、続いて `resoloop flux build` を実行する。実行時にインストール済みhelpでbuildの出力指定を確認し、source隣への旧binary上書きを避ける。承認済みmanifestがある場合だけ `flux validate-manifest ... --json` をオフラインで行う。doctor/discover/deployはしない。
+- [ ] **Step 1:** 新Git treeからSESSION内の一意な一時領域へ展開し、元world/tmpを渡さず、`uv sync --locked` の後 `unshare -rn uv run --no-sync pytest`。PYTHONPATH/PYTHONHOMEを渡さず、全project moduleの `__file__` が展開root配下であることを一時smokeで確認する。ユーザHOMEはexportで変更せず、必要ならワンショット隔離。依存取得時のネットワークとテスト中のworld呼出し0を区別する。
+- [ ] **Step 2:** `RESONITE_MANAGED_DATA_PATH` の既存ディレクトリを明示した MANAGED_DATA として使い、不明/不在ならbuildをblockedとする（doctor/discoverを代用しない）。auditのinclude PGを相対配置ごと一意なcompiler作業領域へコピーする。SOURCEはそのコピーの絶対path、BUILD_ROOTは同領域、OUTPUTは同領域内の未使用な `<相対source>.brson` とし、親を作ってから次を各sourceで実行する。
+  ```bash
+  resoloop flux check "$SOURCE" --project "$BUILD_ROOT" --library-path "$MANAGED_DATA" --json
+  resoloop flux build "$SOURCE" --project "$BUILD_ROOT" --out "$OUTPUT" --library-path "$MANAGED_DATA" --json
+  ```
+  各exit0と診断/出力path・実ファイルを確認する。sourceを別領域へ置くのでcompilerがsource隣へ出力しても作者側を変更しない。2026-11-06の導入版0.2.0のhelpで positional FILE.pg / --project / --out / --library-path / --json を確認済み。版は固定せず、実行時もhelpと版を記録する。採用したschema-v1 manifestがある場合だけコピーに `resoloop flux validate-manifest "$MANIFEST" --json` を行う。doctor/discover/deploy/watchは実行しない。
 - [ ] **Step 3:** auditとgit tree/全commitを人が照合し、除外対象・権利・日本語fixture・未反映candidate表示を再確認する。旧worldで保全検査を再実行。元資料/新tree/PG出力が変わったらTask3へ戻り、scan済みSHAは破棄する。
 - [ ] **Step 4:** READMEに開発中・live入口非対応・正式文書は親・実機切替別gateを記載する。AGENTSは親安全規則、Python>=3.14、uv、clone/コード/文書/レビューの境界を定義する。永続する絶対個人パスや実sessionを記載しない。
-- [ ] **Step 5:** 最終code commitを固定し、Taskレビューとその後のSDD全体レビューを行う。未解決Importantを黙って残さず、native未実施とソース移行の検証を分ける。
+- [ ] **Step 5:** 最終code commitを固定してTaskレビューを受ける。Task1–4で採用した全変更がtask review済みか確認し、未解決Importantを黙って残さず、native未実施とソース移行の検証を分ける。SDDの最終全体レビューはTask5の外部操作と記録を含む全Task終了後に行う。
 
 ### Task 5: controllerによる秘密情報検査・初回source push・PR
 
@@ -140,7 +160,7 @@ PGの最小active-ui集合はrootの `Session,Generation,DropGuard,BeginRow,RowV
 - [ ] **Step 2:** 親の `scan-before-push.sh -C CODE_ROOT --base origin/main --expected-base-sha BOOTSTRAP_SHA` を実行し、成功時の非空SHAとレビュー済みSHAを照合する。検出/未知の失敗ならpushしない。除外設定で回避せず、偽値の修正は共通規約の条件をすべて満たす場合だけ。
 - [ ] **Step 3:** 許可された場合だけ、そのSHAを `origin` の `refs/heads/feat/initial-source-import` へpushする。`${SHA:?}` で空値を拒否する。結果不明ならGET/ls-remoteで照合し、同じpushを盲目的に繰り返さない。
 - [ ] **Step 4:** PR作成の許可がある場合だけ、対象repo/base/headを明示してcode PRを作成し、実head SHAとbaseを確認する。Actions無効・CI未使用・native未実施を記す。自動マージしない。
-- [ ] **Step 5:** コード/文書の所在、レビュー・ローカル検査・公開・PR・merge・実機切替を別状態で報告し、handoffを残す。文書側のpush/PRも別許可/scanが必要。全レビューと所定cleanup後のみfinishingへ進む。
+- [ ] **Step 5:** コード/文書の所在、レビュー・ローカル検査・公開・PR・merge・実機切替を別状態で記録する。全Task終了後のSDD全体レビューを `Review scope: branch` で依頼し、Task1–5の証跡とcode diffを対象にする。指摘でcode SHAが変われば再検証・再scanと更新pushの許可確認が必要。文書側のpush/PRも別許可/scanが必要。全体レビューと所定cleanup後のみfinishingへ進み、handoffを残す。
 
 ## contingency（代替策）
 
@@ -150,6 +170,14 @@ PGの最小active-ui集合はrootの `Session,Generation,DropGuard,BeginRow,RowV
 - buildのCLI形状が前提と違えば、意味を保った出力隔離の呼出しだけを修正して記録する。旧sourceや判定・受け入れ基準は緩めない。
 - オフライン移行が通ってもnativeは開始しない。現在のS4/r3失敗・短いDrivegate未実施・S5以降の未完了を保持する。
 
-## Plan 自己点検と完了記録（未完了）
+## Plan 自己点検と完了記録
 
-初期対応表は Spec4=Task1/3/4、Spec6=Task2/5、Spec7=旧資料保持とnative別gate、Spec8=各Task検証。共通基盤は先行Planへ分離した。次の担当はresource/contextの最小変更がSpec内に収まるか、候補PGの採否と型/fixture/検証コマンドを自己点検する。個別取得scriptは作らず、権利/ライセンス/外部操作の未許可を勝手に埋めない。Taskはすべて未実施。
+controllerがSpecと作者ソース/既存Sを照合し、子には不足する署名・呼出し元・PG選択の事実調査だけを依頼した。CLIはcontrollerがContext7のResoLoop一次資料と導入版helpを照合した。build/tests/実機確認ではない。
+
+1. 仕様網羅: Spec4→Task1/3/4、6→Task2/5、7→旧資料保持とnative別gate、8→各Taskの検証。Spec5の共通基盤は先行Planへ分離した。
+2. 手順: source採否を監査で決め、未反映PGをactiveにしない。旧baselineを持ち込まず一時fakeでSを検証する。buildの入力・出力をともに隔離し、必要なmanaged DLL不在はblockedとした。
+3. 型: 存在しなかった `.completed` を `PublishResult.success/ready` に訂正。context/renderer/manifestの署名とcall-site、fake Readのcontext/library、非空baselineの用意を具体化した。owner/rootの一般化・新live runnerは行わない。
+4. Review Focus: 1→Task3のtransport前拒否、2→Task1のS対応とTask3の既存S、3→Task1の分類とTask3–4のsource検証、4→Task3のcompiler隔離SとTask4の旧保全、5→Task2/5のactual receiptと段階別記録。外部操作にfakeの成功を代用せず、F/Lの恒久テストを増やさない。
+5. 分量: 最小分離のインターフェースと代表assertに限定し、実装本体は書いていない。sourceの実採否・由来・ライセンスはTask1、外部操作は別許可で決める。
+
+全Task未実施。Plan内容/記録例外/実行許可が未確認であり、先行基盤の親への採用・ライセンス・repo作成/push/PRの各gateも残る。
