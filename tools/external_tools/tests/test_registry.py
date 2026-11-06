@@ -163,3 +163,53 @@ def test_parent_origin_rejects_unsafe_or_ambiguous_destination(workspace, gate):
         load_active_registry(root)
     assert secret not in str(caught.value)
     assert secret not in caught.value.reason_code
+
+
+def test_registry_rejects_lexical_parent_overlap_through_symlink(workspace):
+    # S: resolving the child elsewhere must not let a parent's removal erase another tool's path.
+    from tools.external_tools.models import ExternalToolsError
+    from tools.external_tools.registry import parse_registry
+
+    external = workspace.parent / "external"
+    (external / "a").mkdir()
+    (external / "b").mkdir()
+    (external / "a/child").symlink_to(external / "b", target_is_directory=True)
+    data = ADOPTED.replace(b"external/emission-editor", b"external/a")
+    overlapping = data + OTHER.replace(b"external/other-tool", b"external/a/child")
+    with pytest.raises(ExternalToolsError):
+        parse_registry(overlapping, parent_root=workspace.parent, commit=workspace.adopted_sha)
+    independent = data + OTHER.replace(b"external/other-tool", b"external/b")
+    parsed = parse_registry(independent, parent_root=workspace.parent, commit=workspace.adopted_sha)
+    assert parsed.find_repository("sample-owner/other-tool").relative_path == "external/b"
+
+
+def test_active_registry_ignores_replacement_blob(workspace):
+    # S: local refs/replace must not promote candidate contents while reporting the adopted SHA.
+    from tools.external_tools.registry import load_active_registry
+
+    root = workspace.parent
+    adopted_blob = git(root, "rev-parse", f"{workspace.adopted_sha}:external-tools.toml")
+    candidate_blob = git(root, "rev-parse", "candidate:external-tools.toml")
+    git(root, "replace", adopted_blob, candidate_blob)
+    active = load_active_registry(root)
+    assert active is not None and active.commit == workspace.adopted_sha
+    assert active.find_repository("sample-owner/unadopted") is None
+    assert active.find_repository(workspace.repository).relative_path == "external/emission-editor"
+
+
+@pytest.mark.parametrize("target", [
+    ".git/control", "external/tool/.worktrees/repair", "external/redirect/tool",
+])
+def test_registry_restricts_targets_to_external_checkouts(workspace, target):
+    # S: lexical placement, resolved placement and worktree internals are separate unsafe boundaries.
+    from tools.external_tools.models import ExternalToolsError
+    from tools.external_tools.registry import parse_registry
+
+    documents = workspace.parent / "documents"
+    documents.mkdir()
+    (workspace.parent / "external/redirect").symlink_to(documents, target_is_directory=True)
+    data = ADOPTED.replace(b"external/emission-editor", target.encode())
+    with pytest.raises(ExternalToolsError):
+        parse_registry(data, parent_root=workspace.parent, commit=workspace.adopted_sha)
+    parsed = parse_registry(ADOPTED + OTHER, parent_root=workspace.parent, commit=workspace.adopted_sha)
+    assert parsed.find_repository("sample-owner/other-tool").relative_path == "external/other-tool"

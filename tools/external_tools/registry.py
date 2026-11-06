@@ -29,8 +29,9 @@ def _git(root: Path, *args: str, allowed: tuple[int, ...] = (0,)) -> subprocess.
     # Never let an inherited GIT_DIR, worktree selector, config injection or trace
     # redirect inspection or disclose the locally inspected data.
     env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    # Ignore refs/replace so an adopted SHA cannot mask substituted blobs or ancestry.
     try:
-        result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, env=env)
+        result = subprocess.run(["git", "--no-replace-objects", "-C", str(root), *args], capture_output=True, env=env)
     except OSError:
         raise ExternalToolsError("git_inspection_failed", "Cannot inspect the named checkout with Git.") from None
     if result.returncode not in allowed:
@@ -69,17 +70,23 @@ def _overlaps(left: Path, right: Path) -> bool:
     return left.is_relative_to(right) or right.is_relative_to(left)
 
 
-def _target_path(value: str, parent: Path, previous: list[Path]) -> str:
+def _target_path(value: str, parent: Path, previous: list[tuple[Path, Path]]) -> str:
     path = Path(value)
     if not value or path.is_absolute() or ".." in path.parts or "\x00" in value:
         raise ExternalToolsError("unsafe_path", "Tool paths must stay relative to the parent checkout.")
+    if len(path.parts) < 2 or path.parts[0] != "external" or {".git", ".worktrees"}.intersection(path.parts):
+        raise ExternalToolsError("unsafe_path", "Tool paths must name checkouts under external/, outside Git/worktree internals.")
+    lexical = parent / path
+    external = parent / "external"
     try:
-        target = (parent / path).resolve()
+        target = lexical.resolve()
         reserved = [(parent / name).resolve() for name in _RESERVED_PATHS]
     except (OSError, ValueError, RuntimeError):
         raise ExternalToolsError("unsafe_path", "Cannot safely resolve the tool path.") from None
-    if target == parent or not target.is_relative_to(parent):
-        raise ExternalToolsError("unsafe_path", "Tool path escapes or replaces the parent checkout.")
+    if target == external or not target.is_relative_to(external):
+        raise ExternalToolsError("unsafe_path", "Tool path must resolve to a checkout under external/.")
+    if {".git", ".worktrees"}.intersection(target.relative_to(external).parts):
+        raise ExternalToolsError("unsafe_path", "Tool path resolves inside Git/worktree internals.")
     # Check lexical and resolved reservations: even an alias cannot claim an
     # existing special route, nor can symlinks make that route available to claim.
     if any(
@@ -87,9 +94,12 @@ def _target_path(value: str, parent: Path, previous: list[Path]) -> str:
         for name, resolved in zip(_RESERVED_PATHS, reserved)
     ):
         raise ExternalToolsError("reserved_path", "Tool path overlaps an existing special repository route.")
-    if any(_overlaps(target, other) for other in previous):
+    if any(
+        _overlaps(lexical, other_lexical) or _overlaps(target, other_target)
+        for other_lexical, other_target in previous
+    ):
         raise ExternalToolsError("overlapping_path", "Tool paths must not duplicate or contain each other.")
-    previous.append(target)
+    previous.append((lexical, target))
     return path.as_posix()
 
 
@@ -111,7 +121,7 @@ def parse_registry(data: bytes, *, parent_root: Path, commit: str) -> Registry:
         raise ExternalToolsError("invalid_parent", "Cannot resolve the parent checkout.") from None
     entries: list[ToolSpec] = []
     repositories: set[str] = set()
-    targets: list[Path] = []
+    targets: list[tuple[Path, Path]] = []
     for key, fields in document["tools"].items():
         if not _KEY.fullmatch(key):
             raise ExternalToolsError("invalid_key", "Tool keys must be lowercase alphanumeric names with internal hyphens only.")
