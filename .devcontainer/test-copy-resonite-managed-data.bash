@@ -111,4 +111,60 @@ for kind in corrupt missing changed added; do
 $out" ;; esac
 done
 
-printf 'PASS: copy-resonite-managed-data refuses unsafe targets and unverified copies\n'
+# 7〜11 は latest の付け替え（#331）。壊れても終了コード 0 のまま、古い版・照合していない版の DLL をコンテナが使う、
+# 利用者が置いたものを上書きする損害が気付かれずに残る（S）
+lnk() { readlink -- "$1/$share/latest" 2>/dev/null || printf '<none>'; }
+
+# 7. 照合に成功した最新の版だけを latest が相対リンクで指す。sort -V で古い版（文字列では新しい）と、
+#    SHA256SUMS の無い（中断した）新しい版のフォルダでは変わらない
+h="$tmp/h7"; mkdir "$h"
+run "$h" '' --source "$src" --version 2025.9.1.1
+[ "$rc" -eq 0 ] && [ "$(lnk "$h")" = 2025.9.1.1 ] || fail "first copy did not create latest -> 2025.9.1.1 ($rc, $(lnk "$h")):
+$out"
+mkdir "$h/$share/2026.1.1.1"
+run "$h" '' --source "$src" --version 2025.11.3.1234
+[ "$rc" -eq 0 ] && [ "$(lnk "$h")" = 2025.11.3.1234 ] || fail "newer verified copy did not move latest ($rc, $(lnk "$h")):
+$out"
+run "$h" '' --source "$src" --version 2025.9.9.9
+[ "$rc" -eq 0 ] && [ -f "$h/$share/2025.9.9.9/SHA256SUMS" ] || fail "older copy failed ($rc):
+$out"
+[ "$(lnk "$h")" = 2025.11.3.1234 ] || fail "older copy moved latest to $(lnk "$h")"
+
+# 8. 照合に失敗したコピーでは latest が変わらない
+run "$h" "$tmp/bin-corrupt" --source "$src" --version 2027.1.1.1
+expect_refused "corrupt copy with latest"
+[ "$(lnk "$h")" = 2025.11.3.1234 ] || fail "failed copy moved latest to $(lnk "$h")"
+
+# 9. latest が symlink でなければ、版のフォルダを作らずに止まり、何も変えない
+h="$tmp/h9"; mkdir -p "$h/$share/latest"
+printf 'user data\n' > "$h/$share/latest/keep"
+before="$(snapshot "$h")"
+run "$h" '' --source "$src" --version "$version"
+expect_refused "latest is a directory"
+[ "$(snapshot "$h")" = "$before" ] || fail "latest directory case changed files"
+
+# 10. 版の名前に latest を使えない。何も作らない
+h="$tmp/h10"; mkdir "$h"
+for v in latest LATEST; do
+  run "$h" '' --source "$src" --version "$v"
+  expect_refused "version '$v'"
+done
+[ -z "$(find "$h" -mindepth 1 -print -quit)" ] || fail "version latest created files: $(find "$h" -mindepth 1)"
+
+# 11. --relink-latest は既存の版を照合し直し、通ったときだけ latest を付け替える
+h="$tmp/h11"; mkdir "$h"
+run "$h" '' --source "$src" --version 2025.11.3.1234
+[ "$rc" -eq 0 ] || fail "relink setup copy failed:
+$out"
+rm -- "$h/$share/latest"
+run "$h" '' --relink-latest --version 2025.11.3.1234
+[ "$rc" -eq 0 ] && [ "$(lnk "$h")" = 2025.11.3.1234 ] || fail "relink of a verified version failed ($rc, $(lnk "$h")):
+$out"
+cp -a -- "$h/$share/2025.11.3.1234" "$h/$share/2026.2.1.1"
+printf x >> "$h/$share/2026.2.1.1/FrooxEngine.dll"
+run "$h" '' --relink-latest --version 2026.2.1.1
+[ "$rc" -ne 0 ] || fail "relink of a modified version exited 0:
+$out"
+[ "$(lnk "$h")" = 2025.11.3.1234 ] || fail "relink of a modified version moved latest to $(lnk "$h")"
+
+printf 'PASS: copy-resonite-managed-data refuses unsafe targets and unverified copies, and moves latest only to the newest verified version\n'
