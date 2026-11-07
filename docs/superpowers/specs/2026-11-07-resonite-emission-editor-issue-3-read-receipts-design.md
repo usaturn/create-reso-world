@@ -1,6 +1,7 @@
 # Issue #3: 読み取り証跡の採取基盤を再構築する
 
-- 状態: draft
+- 状態: completed
+- 完了範囲: raw receipt基盤のみ。内容承認は未記録であり、Issue続行workflowの実行許可と区別する。S4/Drivegate/full preflightは未完了。
 - 文書管理: usaturn/create-reso-world
 - 対象: usaturn/resonite-emission-editor / https://github.com/usaturn/resonite-emission-editor/issues/3
 - CODE_ROOT: /workspaces/create-reso-world/external/emission-editor/.worktrees/issue-3-resume
@@ -45,3 +46,9 @@
 ## 実行上の制約
 subagentは複数回no outputで、指定した報告ファイルも未生成。調査はcontroller実施。実装に入る際も利用不能ならexecuting-plansのfallbackを明示し、独立レビュー未実施を隠さない。
 world接続・書込み、CLI入口有効化、S4/S5/S6b以降への遷移はこの補足の実行範囲外。
+
+## 実行結果
+コードは007ed5e3355c2711e5a8b153a36075d79c8c3c75で実装済み。初期実装はcontroller、採用指摘の修正はsp-implementer、Task/限定再レビュー/最終全体レビューはsp-reviewが担当した。sp-reconのno outputを全roleの利用不能とみなした初期判断は、reviewerの正常応答後に訂正した。
+偽CLIのS/F∩Sテスト12件を追加し、全suite52passed。compileallとdiff検査成功。Taskレビューのdiscover URL記録不整合1件を、実行引数と要求の対応のRED/GREENで修正し、限定再レビューADDRESSED。最終全体レビューはCritical/Important/Minor0。新collectorを実機では使っていない。
+CLI互換性はインストール済0.2.0のhelpと、明示したforkのProgram.cs107–133のglobal option処理を照合した構文上の根拠。新collectorの実機動作成功とは報告しない。
+対象worldの確認はこの実装前の別read-only調査で完了しているが、その古い時刻窓を後続preflightへ継ぎ足さない。実機の残gate、独立した二重読み、封印資料、native試験は今後の準備に残す。
