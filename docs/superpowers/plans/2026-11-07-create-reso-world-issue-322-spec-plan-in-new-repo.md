@@ -27,7 +27,7 @@
 
 - 宣言が `AGENTS.md` の作業ツリーにだけあり未コミット → 宣言なしとして扱う（Task 1 の宣言なしの拒否で、コミットした状態だけを読む実装を使う）
 - `AGENTS.md` が無いリポジトリ・`HEAD` が読めない → 例外にせず「宣言なし」（Task 1 の宣言なしのケースは `AGENTS.md` 自体を持たない checkout で確かめる）
-- `--doc-repo` を大文字・`.git` 付きで渡す → 既存の `parse_repository` で正規化し、小文字の origin と照合する（Task 1 の正常系で大文字混じりを渡す）
+- `--doc-repo` を大文字混じりで渡す → 既存の `parse_repository` で小文字にし、小文字の origin と照合する（Task 1 の正常系で大文字混じりを渡す）。`.git` 付きは取り除かれず止まる（全体レビューの M-2、持ち越し）
 - issue-to-pr の別シェルの `pr` ブロックで `DOC_REPO` が未定義 → `target.json` から読み戻す（Task 2 のテストは既存の再開の仕組みで `pr` を別シェルで実行する）
 - review-fix-planning の nounset（zsh・bash の `set -u`）で `DOC_REPO` が未定義 → `${DOC_REPO:-}` で既定に落ちる（Task 3 の既存の context テストが nounset の zsh で実行する）
 
@@ -312,3 +312,12 @@ git commit -m "docs: record issue 322 verification"
 ```
 
 テストの要否: 要らない（検証の実行と記録）。
+
+## 完了
+
+- Task 1〜4 は ledger のとおり完了した。Task 3 は Task 2 のテストの実行中に検証が終わったので、先にコミットした
+- 全体レビューの後の修正で、Plan と違う形になったもの（Spec の「実装の確認」に理由）:
+  - Task 1: `--doc-repo` を `--doc-root` なしで渡したときは無視する（終了コード 64 の確認は L なので除いた）。拒否のケースは、重複を除いて「作業ツリーにだけある宣言」「origin の食い違い」「usaturn/resoloop-meshy」「create-reso-world の `DOC_ROOT`」の 4 つにした
+  - Task 2: 条件は `DOC_REPO` でなく、context の正規化した名前を比べた `DOCS_SEPARATE` にした。テストの `TARGET_REPO` は `Sample-Owner/Other-Tool`
+- push の前に `main` が `163717cd`（#332・#333）に進んだので、いったん止まり、利用者の指示で rebase した。重なるファイルは `AGENTS.md` だけで節が別のため、競合は無かった。全体の検証は rebase 後の HEAD でやり直した
+- 全体の検証の結果は PR の本文に書く

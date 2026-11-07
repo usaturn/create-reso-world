@@ -2,9 +2,9 @@
 
 - 文書管理リポジトリ: usaturn/create-reso-world（この子の実装の対象も create-reso-world）
 - Issue: [#322](https://github.com/usaturn/create-reso-world/issues/322)（ボード [#320](https://github.com/usaturn/create-reso-world/issues/320) `new-dev-procedures-board` の子 `spec-plan-in-new-repo`）
-- 基準: `main` の `afa86e0967ec71135a37365fd15933e819acf6e1`（Issue の調査時点の `4aa1ca04` から、範囲外の #327 だけが進んだ）
+- 基準: `main` の `afa86e0967ec71135a37365fd15933e819acf6e1` で設計・実装した（Issue の調査時点の `4aa1ca04` から、範囲外の #327 だけが進んだ）。push の前に `main` が `163717cd7aa92fe62cd866c37c70a7f6d7d18f1f`（#332・#333）に進んだので、利用者の指示で `163717cd` に rebase した
 - 状態: draft
-- 実行許可: 利用者の指示 `/issue-to-pr #322 --merge`。issue-to-pr スキルにより、推奨案で Spec・Plan・実装・検証・PR まで進め、PR 修正ループで修正不要と確かめられたらループの `finalize.py` がマージする。これは実行の許可であり、内容の承認（`approved`）ではない
+- 実行許可: 利用者の指示 `/issue-to-pr #322 --merge`。issue-to-pr スキルにより、推奨案で Spec・Plan・実装・検証・PR まで進め、PR 修正ループで修正不要と確かめられたらループの `finalize.py` がマージする。これは実行の許可であり、内容の承認（`approved`）ではない。push の前に base が動いて止まった後、利用者の指示「rebase して、そのまま PR を出してください」で、`163717cd` への rebase と、検証のやり直し・PR・ループへの継続を許可された
 - 作成: Claude Code（Opus 5.5、`claude-opus-5-5`）。決定はすべてエージェントの判断で、利用者の承認ではない
 - Plan: `docs/superpowers/plans/2026-11-07-create-reso-world-issue-322-spec-plan-in-new-repo.md`
 
@@ -67,7 +67,7 @@ create-reso-world 自身は、今までどおりの経路（自分の `docs/supe
   1. 指定したリポジトリが ResoLoop 本体・usaturn/resoloop-meshy でない
   2. `DOC_ROOT` の `origin` があり、指定したリポジトリを指す
   3. `DOC_ROOT` の `HEAD` の `AGENTS.md` に宣言がある
-- `--doc-repo` を `--doc-root` なしで渡すと、終了コード 64 で止まる
+- `--doc-repo` を `--doc-root` なしで渡したときは、照合するものが無いので無視する（review-fix-planning の context のブロックは、`DOC_ROOT` が決まる前に、前の出力の `document_repository` を渡して再実行するため。全体レビューの I-1）
 
 共通 context の JSON に `document_repository` を足す。Spec・Plan をコミットするリポジトリを表す。
 
@@ -82,9 +82,9 @@ create-reso-world 自身は、今までどおりの経路（自分の `docs/supe
 
 ### issue-to-pr
 
-- 2 章の 5 の対象の解決で得た `document_repository` を `DOC_REPO` にする。文書用の worktree・base・diff・scan・push・PR を作る条件を、`TARGET_REPO` が create-reso-world でないことから、`DOC_REPO` が `TARGET_REPO` と違うことに変える
-- `DOC_REPO` が `TARGET_REPO` と同じ（create-reso-world 自身と、宣言のある登録済みの通常ツール）なら、`DOC_ROOT="$CODE_ROOT"` とし、Spec・Plan をコードと同じ PR に入れる。文書専用の PR を出さない
-- 別シェルの `pr` ブロックは、`DOC_REPO` を `$SESSION/target.json` から読み戻す
+- 2 章の 5 の対象の解決で得た context の `document_repository` と `repository`（どちらも helper が小文字にした名前）を比べ、違うかを `DOCS_SEPARATE` にする。文書用の worktree・base・diff・scan・push・PR を作る条件を、`TARGET_REPO` が create-reso-world でないことから、`DOCS_SEPARATE` が `false` でないことに変える。利用者や Issue の本文の綴り（大文字を含む `TARGET_REPO`）では比べない（全体レビューの I-2）
+- `DOCS_SEPARATE` が `false`（create-reso-world 自身と、宣言のある登録済みの通常ツール）なら、`DOC_ROOT="$CODE_ROOT"` とし、Spec・Plan をコードと同じ PR に入れる。文書専用の PR を出さない
+- 別シェルの `pr` ブロックは、`DOCS_SEPARATE` を `$SESSION/target.json` から決め直す
 - issue-to-pr が扱う対象は変えない（宣言のあるワールドのリポジトリは「リポジトリ境界」の未登録の repo なので、今までどおり issue-to-pr の対象外）
 
 ### review-fix-planning
@@ -112,7 +112,7 @@ create-reso-world 自身は、今までどおりの経路（自分の `docs/supe
 | D4 | 補助の入力 | 任意の `--doc-repo`（省略時は create-reso-world） | `DOC_ROOT` の origin から自動で決める | 呼び出す側が文書を置くリポジトリを明示し、別の checkout を渡した誤りを origin の照合で止められる。省略時の挙動が今と同じ | 同上 |
 | D5 | 期待する置き場所の出力 | 共通 context の JSON に `document_repository` を足し、`DOC_ROOT` を渡したときは一致を求める | エージェントが `AGENTS.md` を読んで決める | issue-to-pr の手順のシェルが同じ規則で分岐でき、置き場所の取り違えを補助が止める | 同上 |
 | D6 | `PARENT_ROOT`・`DOC_ROOT`・`CODE_ROOT` | `PARENT_ROOT` と確認用コピーの置き場所は変えない。`DOC_ROOT` は対象のリポジトリの worktree（普通は `CODE_ROOT`） | 確認用コピーを対象のリポジトリに置く | 利用者が読む場所が 1 か所のまま。対象のリポジトリの作業ツリーにコミットしないファイルを作らない（「コミットしないファイルの置き場所」） | 同上 |
-| D7 | issue-to-pr の経路 | `DOC_REPO` が `TARGET_REPO` と同じなら Spec・Plan をコードの PR に入れ、文書専用の PR を出さない | 宣言のある repo でも create-reso-world に文書専用の PR を出す | 利用者の決定（6 点目）のとおり、そのリポジトリにコミットする | 同上 |
+| D7 | issue-to-pr の経路 | context の `document_repository` が `repository` と同じ（`DOCS_SEPARATE` が `false`）なら Spec・Plan をコードの PR に入れ、文書専用の PR を出さない | 宣言のある repo でも create-reso-world に文書専用の PR を出す | 利用者の決定（6 点目）のとおり、そのリポジトリにコミットする | 同上 |
 | D8 | review-fix-planning の経路 | Spec を PR の head に載せる条件を `DOC_REPO == PR_REPO` に広げる。マージしてよい範囲・`finalize.py` は変えない | 宣言のある repo の結論 2 で Spec だけを push する経路を新しく作る | 宣言のある repo は手動マージで結論 2 に進まないので、新しい経路は要らない。create-reso-world の PR と同じ規則で足りる | 同上 |
 | D9 | 公開・承認・状態の規則 | 対象のリポジトリにもそのまま適用する（`draft` でコミット、承認はコミットの SHA に結び付ける、issue-to-pr では確認用コピーを作らない） | 対象のリポジトリだけ別の規則にする | 同じ規則で、置き場所だけが変わる方が誤りにくい | 同上 |
 | D10 | 対象のリポジトリに置く説明 | 宣言の行と、create-reso-world の `docs/superpowers/README.md` へのリンクの 1 文だけ | 同じ説明を対象のリポジトリにも複製する | 複製すると食い違う。create-reso-world は公開なので、リンクは単独の clone からも辿れる | 同上 |
@@ -132,9 +132,9 @@ create-reso-world 自身は、今までどおりの経路（自分の `docs/supe
 - 動作環境: この Dev Container（Python 3.14、uv、Git）。テストは一時の Git リポジトリと偽の remote（URL だけ、または一時の bare リポジトリ）で行い、実在の GitHub に書き込まない
 - 実入力: `AGENTS.md` は日本語を含む複数行の UTF-8。宣言はその中の 1 行。リポジトリは `https://github.com/<owner>/<repo>.git`・`git@github.com:<owner>/<repo>.git` の形の origin
 - 防御範囲:
-  - 拒否（終了コード 66、文書を置かない）: `--doc-repo` に usaturn/resoloop・usaturn/resoloop-meshy を指定した（宣言があっても）、宣言が無い、origin が無い、origin が `--doc-repo` と違う、`review-fix` で `--doc-repo` が `--repo` と違う、宣言のあるリポジトリのコードに create-reso-world の `DOC_ROOT` を渡した
+  - 拒否（終了コード 66、文書を置かない）: `--doc-repo` に usaturn/resoloop・usaturn/resoloop-meshy を指定した（宣言があっても）、宣言が無い（作業ツリーにだけある宣言を含む）、origin が無い、origin が `--doc-repo` と違う、`review-fix` で `--doc-repo` が `--repo` と違う、宣言のあるリポジトリのコードに create-reso-world の `DOC_ROOT` を渡した
   - 正常（正しく通る例）: 宣言のあるリポジトリの checkout を `DOC_ROOT` に `--doc-repo` 付きで渡す（`review-copy`・`review-fix`）。create-reso-world の文書は、今の呼び出し方でコピーできる（既存のテスト）
-  - issue-to-pr: 宣言のある登録済みの通常ツールでは、文書用の worktree と create-reso-world の PR を作らず、PR は対象のリポジトリの 1 つだけ。宣言の無いツール・ResoLoop では今までどおり 2 つ（既存のテスト）
+  - issue-to-pr: 宣言のある登録済みの通常ツールでは、`TARGET_REPO` の綴りに大文字が混じっていても、文書用の worktree と create-reso-world の PR を作らず、PR は対象のリポジトリの 1 つだけ。宣言の無いツール・ResoLoop では今までどおり 2 つ（既存のテスト）
 - ResoLoop の fork・上流の照合の既存のテストが、変えずに通る
 - `AGENTS.md`・`docs/superpowers/README.md`・`docs/external-tools-workflow.md`・4 つのスキルの記述が、改めた規則で食い違わない
 
@@ -148,3 +148,23 @@ Issue の「検証」のとおり。
 - `bash scripts/check-layout.sh`
 - `git diff --check`
 - 確認用コピーの実行（一時のリポジトリで、宣言のあるリポジトリの文書を `--doc-repo` 付きでコピーする）。コミットしない確かめとして行う
+
+## 実装の確認
+
+実装は Plan の Task 1〜4（inline、`superpowers:executing-plans`）。ledger は `tmp/agents/issue-322.8ncdx5jc/sdd/2026-11-07-create-reso-world-issue-322-spec-plan-in-new-repo/progress.md`（`PARENT_ROOT` 基準。コミットしない）。
+
+| 条件 | 観測した結果 | 方法 |
+| --- | --- | --- |
+| 宣言・除外・origin の照合で止まる | 作業ツリーにだけある宣言、origin の食い違い、usaturn/resoloop-meshy で終了コード 66。宣言のあるリポジトリの checkout は `review-copy`・`review-fix` で通る（大文字を混ぜた `--doc-repo` も通る） | `tests/scripts/test_superpowers_context.py` の `test_own_documents_route_requires_declaration_origin_and_matching_code`。宣言・除外・不一致・origin・`document_repository` の計算・作業ツリーを読む実装の各変異で FAIL を確認 |
+| `document_repository` と一致の要求 | 宣言のあるリポジトリのコードに create-reso-world の `DOC_ROOT` を渡すと 66。宣言の無いリポジトリと create-reso-world は `usaturn/create-reso-world` | 同上 |
+| 確認用コピー | 一時のリポジトリで、`--doc-repo` 付きは `created` で内容が一致し、外すと終了コード 1（`--doc-root origin`） | コミットしない確かめ（`superpowers-review-copy.sh` を実行） |
+| issue-to-pr で文書を分けない | 宣言のある通常ツール（`TARGET_REPO=Sample-Owner/Other-Tool`）で、PR は対象のリポジトリの 1 つだけ、文書用 worktree なし、scan はコードの worktree だけ。宣言の無いツール・ResoLoop は今までどおり 2 つ | `.agents/skills/issue-to-pr/tests/test_base_workflow.py`。大文字の綴りは修正前に RED |
+| review-fix-planning の context の再実行 | `DOC_ROOT` が空のまま 2 回実行して、2 回目も終了コード 0 | コミットしない再現（修正前は `DOC_ROOT is required` で 66） |
+| 記述がそろう | 範囲内のファイルに旧規則の文言が無い | Plan の Task 4 の Step 2 の `grep`、`bash scripts/check-layout.sh` |
+
+全体レビュー（新しいサブエージェント 1 つ、Opus）の指摘と扱い:
+
+- 対応した: I-1（上の再実行）、I-2（大文字の綴り）、M-4（書き直した `AGENTS.md` の行の「正本」）、M-5（planning-parallel-issues の checkout の扱いを issue-to-pr に合わせた）、M-6（テストの書きすぎ。L の終了コード 64 の確認と、D の重複 3 件を除いた）、M-7（作業ツリーにだけある宣言を拒否する S のケースを足した）
+- 持ち越し（壊れても止まるだけ、または起きる見込みが低い）: M-1（issue-to-pr は宣言を常設 checkout の `HEAD` から読み、`CODE_BASE_SHA` からは読まない）、M-2（`--doc-repo` の `.git` は取り除かれず、紛らわしい診断で止まる）、M-3（宣言したリポジトリの `DOC_ROOT` は origin が対象を指す checkout に限る）
+
+全体の検証（Plan の Task 5 の Step 1）は、`163717cd` に rebase して、この記録をコミットした後の HEAD で実行し、コマンド・終了コード・ログのパスを PR の本文と `tmp/agents/issue-322.8ncdx5jc/verify-final/` に残す。
