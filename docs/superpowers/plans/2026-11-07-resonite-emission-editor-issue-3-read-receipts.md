@@ -75,6 +75,6 @@ argv制限→ReadRequest/偽CLIの未起動、保存不変→排他的directory/
 - TaskレビューI1: discoverの要求URLを変更してもargv照合を通る不整合を採用。sp-implementerの回帰はRED1failed/11passed→GREEN12passed、全体52passed。controllerも同HEADで52passed/0.98s、compileall/diff検査成功。
 - 限定再レビューはI1/仕様不整合ともADDRESSED、最終branchレビューはCritical/Important/Minor0。実機への操作0。
 - sp-reconはno outputで初期調査/実装はcontrollerへ切替。sp-review/sp-implementerは正常に結果を返したため、その後の修正・レビューは委譲した。初期の全role利用不能との推定は訂正済み。
-- 最終の証拠・レビューと裁定は ${session}/ に保存。SDD作業領域の必要な報告を同sessionのreview-recordsへ移してから、完了したplanの作業領域だけを削除する。
+- 最終の証拠・レビューと裁定は /workspaces/create-reso-world/tmp/agents/emission-issue-3-rebuild.czcbepii/ に保存。SDD作業領域の必要な報告を同sessionのreview-recordsへ移してから、完了したplanの作業領域だけを削除する。
 - 裁定: raw基盤のみを切り出す（後続API調整の可能性）。一時的なrecon障害は親で処理（独立reviewの欠如リスクは後続reviewで解消）。role正常応答後は委譲へ戻す（再失敗時は成功扱いしない）。native全gateは後続必須（未検証world動作のリスク）、全証跡改変への認証は別設計（出所保証不足）、既存Editor/state/world/旧資料は対象外（既存native欠陥は未検証）。Issue#3をこのPRで閉じない。
 - 実測の担当内訳: scoped fix141秒、最終review約5分（担当の概算）。controller能動時間と公開結果は予算ledgerと最終報告へ記録する。
