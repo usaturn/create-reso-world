@@ -44,7 +44,7 @@ function ConvertTo-BashQuoted([string]$Text) {
 if ($InstallPath -and $ManagedPath) {
   Stop-Find 'Pass -InstallPath or -ManagedPath, not both.' 2
 }
-if ($ResoniteVersion -and ($ResoniteVersion -cnotmatch '^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$')) {
+if ($ResoniteVersion -and ($ResoniteVersion -cnotmatch '^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}\z')) {
   Stop-Find "Invalid -ResoniteVersion '$ResoniteVersion': use 1-64 letters, digits, '.', '_', '+' or '-', starting with a letter or digit." 2
 }
 
@@ -103,7 +103,7 @@ if ($ManagedPath) {
   $managed = $dirs[0]
 }
 
-$dllCount = @(Get-ChildItem -LiteralPath $managed -Filter '*.dll' -File | Where-Object { $_.Name -like '*.dll' }).Count
+$dllCount = @(Get-ChildItem -LiteralPath $managed -Filter '*.dll' -File | Where-Object { $_.Name -clike '*.dll' }).Count
 $fileVersion = (Get-Item -LiteralPath (Join-Path $managed 'FrooxEngine.dll')).VersionInfo.FileVersion
 if (-not $fileVersion) { $fileVersion = '(none)' }
 if ($ResoniteVersion) { $versionArg = ConvertTo-BashQuoted $ResoniteVersion } else { $versionArg = "'<Resonite version>'" }
