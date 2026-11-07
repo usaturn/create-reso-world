@@ -3,7 +3,7 @@
 - 文書管理リポジトリ: usaturn/create-reso-world（この子の実装の対象も create-reso-world）
 - Issue: [#322](https://github.com/usaturn/create-reso-world/issues/322)（ボード [#320](https://github.com/usaturn/create-reso-world/issues/320) `new-dev-procedures-board` の子 `spec-plan-in-new-repo`）
 - 基準: `main` の `afa86e0967ec71135a37365fd15933e819acf6e1` で設計・実装した（Issue の調査時点の `4aa1ca04` から、範囲外の #327 だけが進んだ）。push の前に `main` が `163717cd7aa92fe62cd866c37c70a7f6d7d18f1f`（#332・#333）に進んだので、利用者の指示で `163717cd` に rebase した
-- 状態: draft
+- 状態: completed（PR #335 の PR 修正ループのサイクル 1 で修正不要と判定。内容の承認（`approved`）は記録していない）
 - 実行許可: 利用者の指示 `/issue-to-pr #322 --merge`。issue-to-pr スキルにより、推奨案で Spec・Plan・実装・検証・PR まで進め、PR 修正ループで修正不要と確かめられたらループの `finalize.py` がマージする。これは実行の許可であり、内容の承認（`approved`）ではない。push の前に base が動いて止まった後、利用者の指示「rebase して、そのまま PR を出してください」で、`163717cd` への rebase と、検証のやり直し・PR・ループへの継続を許可された
 - 作成: Claude Code（Opus 5.5、`claude-opus-5-5`）。決定はすべてエージェントの判断で、利用者の承認ではない
 - Plan: `docs/superpowers/plans/2026-11-07-create-reso-world-issue-322-spec-plan-in-new-repo.md`
@@ -168,3 +168,21 @@ Issue の「検証」のとおり。
 - 持ち越し（壊れても止まるだけ、または起きる見込みが低い）: M-1（issue-to-pr は宣言を常設 checkout の `HEAD` から読み、`CODE_BASE_SHA` からは読まない）、M-2（`--doc-repo` の `.git` は取り除かれず、紛らわしい診断で止まる）、M-3（宣言したリポジトリの `DOC_ROOT` は origin が対象を指す checkout に限る）
 
 全体の検証（Plan の Task 5 の Step 1）は、`163717cd` に rebase して、この記録をコミットした後の HEAD で実行し、コマンド・終了コード・ログのパスを PR の本文と `tmp/agents/issue-322.8ncdx5jc/verify-final/` に残す。
+
+## PR 修正ループ（PR #335、サイクル 1）
+
+- PR: https://github.com/usaturn/create-reso-world/pull/335（head `824766652f4906c4a565dbdbead14012e251cd13`、base `main` の `163717cd7aa92fe62cd866c37c70a7f6d7d18f1f`）
+- 実行許可: `/issue-to-pr #322 --merge` と、再開の指示「rebase して、そのまま PR を出してください」。review-fix-planning の完遂として、修正不要ならマージと関連 Issue の更新まで行う
+- planner: claude-opus-5-5（Claude Code）。loop の run: `reviews/usaturn/create-reso-world/#335-feat-issue-322-spec-plan-in-new-repo/loop/fe950b9dbee14bf5a97392b5d2092e9e/`
+- 結論: 2 修正不要（判断の記録は `no_fix_needed`）。修正と自己レビューは無い
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | 再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol` | gpt-6.1-sol | pi | `824766652f49` | はい | Approve |
+| `SWE-2-Max` | SWE-2 Max | devin | `824766652f49` | はい | Approve |
+
+- `pi_commandcode_deepseek4-flash_max` は runner の期限切れ（`timed_out`、終了コード -15）で受け付けられなかった。指摘 0 件ではなく失敗として扱い、入力に含めていない
+- 指摘: 2 人とも 0 件（`findings/` の候補も 0 件）。確認済みの一覧（`verified/`）は、確かめる候補が無いので作っていない
+- 要件との照合: PR の約束は Spec の「受け入れ基準」と同じで、「実装の確認」の表のとおり確かめた。このサイクルで変えたコードは無い
+- 検証: issue-to-pr が記録した検証を使った（同じ HEAD `824766652f49`、作業ツリーは clean、base `163717cd` は head の祖先で、サイクル中も先端は変わっていない）。`bash tests/scripts/test-superpowers-python.bash`・`uv run --project . --locked pytest tests/skills .agents/skills .agents/scripts tools -q`（1309 passed）・`bash .devcontainer/run-tests.bash`・`bash scripts/check-layout.sh`・`git diff --check 163717cd...HEAD` がいずれも終了コード 0。ログは `tmp/agents/issue-322.8ncdx5jc/verify-final/`（`PARENT_ROOT` 基準）
+- PR 本文: 決定 D11 の説明に書いた自動で閉じるキーワードの文字列を、GitHub が close の指定として読んでいた（`closingIssuesReferences` に #322）。ボードの子は参照だけにする方針なので、その文を言い換えて本文を直し、close の対象が無くなったことを確かめた
