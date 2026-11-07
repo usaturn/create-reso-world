@@ -347,7 +347,7 @@ resoloop doctor --json
 - 版は ResoLoop と違って固定し、スクリプトの `FLUX_SDK_VERSION` に書く（2026-10-24 時点は 1.9.0）。ResoLoop が検証しているのは 1.9 系で、NuGet の最新（1.10 系）は外れる。ResoLoop が検証する系列を変えると、`resoloop doctor` の `flux-sdk` が `Flux-SDK <導入した版> is outside tested series <系列>.x.` の warning になる。そのときは、ResoLoop が案内する版（flux-sdk が無いときの `resoloop doctor` と `FLUX_SDK_NOT_FOUND` の suggestion に出る版）に `FLUX_SDK_VERSION` を合わせる
 - 手で入れるときは `dotnet tool update --global Papaltine.FluxSDK --version <版> --allow-downgrade` を使う（`update` は未導入なら導入し、`--allow-downgrade` で新しい版からも戻す）。パッケージ ID を省いた `dotnet tool update --global` は、終了コード 1 で止まる
 - `resoloop doctor` の `flux-sdk` の確認が見るのは、`flux-sdk` を起動して版を読めるかと、その版が ResoLoop の検証した系列（1.9 系）に入っているかだけで、Resonite 本体の版との組み合わせは見ない。Resonite の版との既知の非互換は、配備（`resoloop flux deploy-manifest`）のときに `FLUX_RUNTIME_NODE_INCOMPATIBLE` で分かる
-- グラフを作る・配備するには、Resonite 本体の managed data（DLL）をコンテナから読めることも要る。Resonite は Windows ホスト側にあるので、利用者が DLL を WSL 側の専用のフォルダへ版ごとにコピーし、コンテナはそのフォルダを読み取り専用で mount する。使う版のフォルダは `--library-path` か環境変数 `RESONITE_MANAGED_DATA_PATH` で指す。手順は「Resonite の managed data（ProtoFlux、任意）」の節にある。flux-sdk の実行ファイルが PATH の `flux-sdk` と違う名前・場所にあるときは `RESOLOOP_FLUX_EXECUTABLE` で指す
+- グラフを作る・配備するには、Resonite 本体の managed data（DLL）をコンテナから読めることも要る。Resonite は Windows ホスト側にあるので、利用者が DLL を WSL 側の専用のフォルダへ版ごとにコピーし、コンテナはそのフォルダを読み取り専用で mount する。コピーのスクリプトが照合した最新の版へ `latest` のリンクを付け替え、`devcontainer.json` の環境変数 `RESONITE_MANAGED_DATA_PATH` が `latest` を指す。手順は「Resonite の managed data（ProtoFlux、任意）」の節にある。flux-sdk の実行ファイルが PATH の `flux-sdk` と違う名前・場所にあるときは `RESOLOOP_FLUX_EXECUTABLE` で指す
 - 導入できた確認は、`resoloop flux status --json` の `available` が true で、`version` が `FLUX_SDK_VERSION` の版で始まること。managed data が無くても成功するが、版が違っても成功するので、版まで見る。ProtoFlux の作業の準備ができた確認は、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が `pass` で、非空のグラフの `resoloop flux check`・`resoloop flux build` が成功すること（「Resonite の managed data（ProtoFlux、任意）」の節）
 - グラフの作り方と配備は、プロジェクトの `resonite-flux` スキルを参照する
 
@@ -355,24 +355,28 @@ resoloop doctor --json
 
 flux-sdk のグラフの check・build・配備は、Resonite 本体の managed DLL（`FrooxEngine.dll`・`ProtoFlux.Core.dll` など）を読む。
 flux-sdk の自動探索はコンテナの中（SDK の配置先と Linux の Steam の配置先）しか見ないので、Windows ホストの Resonite の DLL は見つからない。
-利用者が DLL を WSL 側の専用のフォルダへ版ごとにコピーし、使う版のフォルダを指す。
+利用者が DLL を WSL 側の専用のフォルダへ版ごとにコピーする。コピーのスクリプトが、照合した最新の版へ共有のフォルダの直下の `latest` のリンクを付け替え、
+コンテナは `devcontainer.json` の `containerEnv` の `RESONITE_MANAGED_DATA_PATH=/home/vscode/.local/share/create-reso-world/resonite-managed-data/latest` で常にそれを指す（#331）。
+Resonite を更新したら新しい版をコピーするだけで、コンテナの指す先が切り替わる（rebuild は要らない）。
 
 `initialize.bash` は WSL 側に `~/.local/share/create-reso-world/resonite-managed-data` を空の実ディレクトリで作り、
 `devcontainer.json` がコンテナの同じパスに読み取り専用で mount する。DLL を用意していなくてもコンテナは起動する。
 このフォルダをリンクやファイルにすると、`initialize.bash` が理由を表示して止まる（リンクを mount すると、リンク先のフォルダ全体がコンテナから見えるため）。
-`initialize.bash` は DLL を探さず、どの版を使うかも決めない（`RESONITE_MANAGED_DATA_PATH` を設定しない）。DLL はリポジトリやイメージに入れない。
+`initialize.bash` は DLL を探さず、どの版を使うかも決めない（フォルダの中の `latest` のリンクは確かめない）。DLL はリポジトリやイメージに入れない。
+`latest` を手で作ったり書き換えたりしない（書くのはコピーのスクリプトだけで、指す先は直下の照合済みの版の名前に限る）。
 
 | 状態 | 見え方 |
 | --- | --- |
-| 指す先を設定していない（DLL を用意していないときを含む） | `resoloop doctor` の `resonite-managed-data` が `warning` で、`Not explicitly configured; Flux-SDK auto-discovery failed: at FluxSDK.CLI.Main.main(String[] args) in /workspace/Flux-SDK/src/FluxSDK.CLI/Main.fs:line 32` と出る。自動探索は共有のフォルダを見ないので、DLL をコピーしてあっても、`--library-path`・`RESONITE_MANAGED_DATA_PATH`・`.resoloop.json` で版のフォルダを指していなければこの文になる。これは SDK のエラーの最後の行だけなので、足りない DLL は下の「元のエラーを確かめる」の方法で読む |
-| 指したフォルダの DLL が足りない | `Configured path failed the Flux-SDK check/build probe: <指したフォルダ>. at FluxSDK.CLI.Main.main(...)` の `warning` になる。読み方は同じ |
-| 準備ができた | 版のフォルダを指したとき、`resoloop doctor` の `flux-sdk`・`resonite-managed-data` が `pass` で、非空のグラフの `resoloop flux check`・`resoloop flux build` が終了コード 0 で、`.brson` ができる |
+| DLL をまだコピーしていない（`latest` が無い） | 環境変数が `latest` を指すので、`resoloop doctor` の `resonite-managed-data` が `warning` で、`Configured path failed the Flux-SDK check/build probe: /home/vscode/.local/share/create-reso-world/resonite-managed-data/latest. at FluxSDK.CLI.Main.main(String[] args) in /workspace/Flux-SDK/src/FluxSDK.CLI/Main.fs:line 32` と出る（suggestion は `Correct RESONITE_MANAGED_DATA_PATH or omit it to retry Flux-SDK auto-discovery.`）。ProtoFlux を使わないなら、このままでよい。コピー済みの版があるのに `latest` が無いときは、2 の `--relink-latest` で作る |
+| 環境変数が無い（この変更の前に作ったコンテナで、rebuild していない） | `Not explicitly configured; Flux-SDK auto-discovery failed: at FluxSDK.CLI.Main.main(...)` の `warning` になる。自動探索は共有のフォルダを見ないので、DLL をコピーしてあってもこの文になる。rebuild するか、`--library-path` で指す |
+| 指したフォルダの DLL が足りない | `Configured path failed the Flux-SDK check/build probe: <指したフォルダ>. at FluxSDK.CLI.Main.main(...)` の `warning` になる。どちらも SDK のエラーの最後の行だけなので、足りない DLL は下の「元のエラーを確かめる」の方法で読む |
+| 準備ができた | `resoloop doctor` の `flux-sdk`・`resonite-managed-data` が `pass` で、非空のグラフの `resoloop flux check`・`resoloop flux build` が終了コード 0 で、`.brson` ができる |
 
 doctor の `resonite-managed-data` は、空のモジュールで DLL を読み込めるか（`flux-sdk build --stop-after-resolve`）だけを見る。
 グラフを作れる確認には check と build を使う。配備とワールドでの動作は、この確認に含まれない。
 
 準備は、Windows → WSL（コンテナの外）→ Dev Container の順に、利用者が手で進める。初回と Resonite の更新時に実行し、起動時の自動実行や常駐の監視はしない。
-1・2 のスクリプトは、設定ファイル・シェルの設定・`RESONITE_MANAGED_DATA_PATH`・Windows 側のファイルや設定を変えない。
+1・2 のスクリプトは、設定ファイル・シェルの設定・`RESONITE_MANAGED_DATA_PATH`・Windows 側のファイルや設定を変えない。2 が変えるのは、共有のフォルダの下の版のフォルダと `latest` のリンクだけ。
 2 の成功（コピーと SHA-256 の照合）、4 の成功（SDK の doctor・check・build）、ワールドでの動作の確認は別のもので、前の段階の成功は後の段階の成功を意味しない。
 
 1. Windows で DLL のフォルダを確かめる（`find-resonite-managed-data.ps1`。読むだけ）。Windows PowerShell 5.1 か PowerShell 7 で、Resonite を起動したまま実行する。
@@ -412,19 +416,35 @@ doctor の `resonite-managed-data` は、空のモジュールで DLL を読み�
    - コピー元の直下の `*.dll` だけを、新しく作る `~/.local/share/create-reso-world/resonite-managed-data/<版>/` へコピーする。サブフォルダや DLL 以外のファイルはコピーしない
    - コピー元で作った SHA-256 の一覧でコピー先を照合し、欠けた DLL・内容の違う DLL・コピー中のコピー元の変化（DLL の追加・削除・内容の変更。Resonite の更新）を見つける。
      全部通ったときだけ、一覧を版のフォルダの `SHA256SUMS` に置き、`copied and verified` と、コンテナから指すパスを表示して終了コード 0 で終わる
-   - 既にある版のフォルダ（リンクを含む）には上書きせず、止まる。版の文字列に `/` などがある、共有のフォルダがリンク・ファイルであるときも止まる
+   - 照合が通った後、その版が照合済みの版（`SHA256SUMS` のある版のフォルダ）のうち `sort -V` で最も新しいときだけ、共有のフォルダの直下の `latest` を
+     相対リンク（`latest -> <版>`）に付け替えて `latest -> <版>` と表示する。一時名のリンクを `mv -T` で置き換えるので、`latest` は常に前の版か新しい版の
+     どちらかを指す。古い版を後からコピーしても `latest` は戻らず、`latest was not changed: <最新の版> is newer than <版>` と表示して終了コード 0 で終わる。
+     照合に失敗した・中断した版（`SHA256SUMS` が無い）は数えない
+   - 既にある版のフォルダ（リンクを含む）には上書きせず、止まる。版の文字列に `/` などがある、版の名前が `latest`（大文字・小文字によらない）、
+     共有のフォルダがリンク・ファイルであるときも止まる。`latest` がリンク以外（実ディレクトリ・ファイル）なら、版のフォルダを作る前に止まり、上書きしない
    - 失敗したら成功の文を出さずに終了コード 1 で終わり、作った版のフォルダを消さずに残して、そのパスと再試行の前に確かめることを表示する。
      Resonite の更新が終わっていること、コピー元が正しいことを確かめ、残ったフォルダの中身を確かめて自分で消してから、もう一度実行する
+
+   既にコピーした版（#331 の前にコピーした版など）に `latest` を作るときは、`--source` を付けずに `--relink-latest` で実行する。
+   版のフォルダを `SHA256SUMS` で照合し直し（一覧に無いファイル・通常のファイル以外があっても止まる）、通ったら上と同じ規則で `latest` だけを付け替える。
+   版のフォルダの中身は変えない
+
+   ```bash
+   bash ~/create-reso-world/.devcontainer/copy-resonite-managed-data.bash --relink-latest --version '2026.11.6.1136'
+   ```
 
    SDK が求める DLL は、エラーに出る 11 個（`FrooxEngine.dll` など）が最低限で、それだけで足りるとは限らない。同じフォルダの `*.dll` をまとめてコピーし、
    足りないものは 4 の check・build と「元のエラーを確かめる」で分かる。
 
-3. `devcontainer.json` にこの mount が入った後（#283）、最初の 1 回だけ Dev Container を rebuild する。mount 済みのフォルダの下に版を足すときは rebuild は要らない
-4. コンテナで、読み取り専用で mount されていること、DLL が読めること、doctor と非空のグラフの check・build が通ることを確かめる。
+3. `devcontainer.json` にこの mount（#283）と環境変数（#331）が入った後、最初の 1 回だけ Dev Container を rebuild する。
+   mount 済みのフォルダの下に版を足して `latest` を付け替えるときは rebuild は要らない
+4. コンテナで、環境変数が `latest` を指していること、読み取り専用で mount されていること、DLL が読めること、doctor と非空のグラフの check・build が通ることを確かめる。
    `findmnt` の出力は `ro` で始まる。グラフは `resoloop init` の雛形の `flux/Main.pg`・`protograph.toml` と同じものを一時ディレクトリに書く
 
    ```bash
-   lib=/home/vscode/.local/share/create-reso-world/resonite-managed-data/<Resonite の版>
+   printenv RESONITE_MANAGED_DATA_PATH
+   lib="$RESONITE_MANAGED_DATA_PATH"
+   readlink "$lib"
    findmnt -no OPTIONS /home/vscode/.local/share/create-reso-world/resonite-managed-data
    ls -l "$lib/FrooxEngine.dll"
    resoloop doctor --library-path "$lib" --json \
@@ -438,12 +458,14 @@ doctor の `resonite-managed-data` は、空のモジュールで DLL を読み�
    ls -l "$probe/Main.brson"
    ```
 
-5. 指す先を保存する。設定の優先順位は `--library-path` > 環境変数 `RESONITE_MANAGED_DATA_PATH` > 作業ディレクトリから上へ探した `.resoloop.json` の
-   `resoniteManagedDataPath` > `~/.resoloop/config.json`。ワールドのプロジェクトでは、プロジェクトの `.resoloop.json` に
-   `"resoniteManagedDataPath": "/home/vscode/.local/share/create-reso-world/resonite-managed-data/<Resonite の版>"` を足す。
-   `--project` を渡しても `.resoloop.json` を探す場所は変わらないので、プロジェクトのディレクトリで実行する。
-   `~/.resoloop/config.json` は mount していないので rebuild で消える。古い `RESONITE_MANAGED_DATA_PATH` がシェルに残っていると、そちらが優先される
-6. Resonite を更新したら、新しい版のフォルダへ 1・2 のとおりコピーし、4 で確かめてから、5 の指す先を切り替える。使わなくなった版のフォルダは WSL 側で消す
+5. 指す先は保存しなくてよい（環境変数が `latest` を指す）。設定の優先順位は `--library-path` > 環境変数 `RESONITE_MANAGED_DATA_PATH` >
+   作業ディレクトリから上へ探した `.resoloop.json` の `resoniteManagedDataPath` > `~/.resoloop/config.json`。
+   環境変数がコンテナの全体に設定されているので、プロジェクトの `.resoloop.json` の `resoniteManagedDataPath` は効かない。
+   特定の版に固定したいときは、コマンドごとに `--library-path /home/vscode/.local/share/create-reso-world/resonite-managed-data/<Resonite の版>` を渡す。
+   シェルで `RESONITE_MANAGED_DATA_PATH` を別の値に export すると、そのシェルではそちらが使われる
+6. Resonite を更新したら、新しい版のフォルダへ 1・2 のとおりコピーする。`latest` が新しい版に切り替わるので、4 で確かめる。
+   使わなくなった版のフォルダは WSL 側で消してよいが、`latest` が指す版（`readlink ~/.local/share/create-reso-world/resonite-managed-data/latest`）は消さない
+   （消すと `latest` が壊れ、doctor が状態の表の 1 行目と同じ `warning` になる。そのときは残っている版に `--relink-latest` を実行する）
 
 #### 元のエラーを確かめる
 

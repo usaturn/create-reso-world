@@ -37,7 +37,10 @@
         // host network なので Plannotator は loopback に限定する。PLANNOTATOR_PORT と forwardPorts は
         // 設定しない。WSL の mirrored モードでは VS Code が転送するポートを Linux 側から bind できない
         // ため、Plannotator のローカルモードの既定（空いているランダムなポート）を使う（README の「Plannotator のブラウザーレビュー」）
-        "PLANNOTATOR_REMOTE": "0"
+        "PLANNOTATOR_REMOTE": "0",
+        // ProtoFlux の flux-sdk が読む Resonite の managed data（#331）。WSL の copy-resonite-managed-data.bash が、
+        // 照合した最新の版へ latest を付け替える。版を固定するときは --library-path を使う（README の「Resonite の managed data（ProtoFlux、任意）」）
+        "RESONITE_MANAGED_DATA_PATH": "/home/vscode/.local/share/create-reso-world/resonite-managed-data/latest"
     },
     "remoteEnv": {
         // ユーザ単位で導入するツール（claude・uv など、herdr の補助スクリプト、dotnet tool）。mounts と同じく
