@@ -97,7 +97,7 @@ class ContextTests(unittest.TestCase):
         value = json.loads(result.stdout)
         self.assertEqual(set(value), {"parent_root", "tool_root", "doc_root", "code_root", "repository",
                                      "base_remote", "head_remote", "document_branch", "document_head",
-                                     "code_branch", "code_head"})
+                                     "code_branch", "code_head", "document_repository"})
         self.assertEqual(value["tool_root"], str(self.parent))
         return value
 
@@ -115,6 +115,21 @@ class ContextTests(unittest.TestCase):
         for secret in ("demo-user", "do-not-log-credential", "do%2Dnot%2Dlog%2Dcredential"):
             self.assertNotIn(secret, result.stderr)
         self.assertNotIn("Traceback", result.stderr)
+
+    def own_documents(self, name, origin, *, declared=True):
+        """A new repository's checkout. Only a committed AGENTS.md line declares its own Spec/Plan."""
+        path = self.checkout(name, {"origin": origin} if origin else {})
+        self.linked_checkouts.append(path)
+        if declared:
+            self.declare(path)
+        return path
+
+    def declare(self, path):
+        (path / "AGENTS.md").write_text(
+            "# 新しいツール\n\n## Spec・Plan\n\n<!-- superpowers-documents: this-repository -->\n"
+            "Spec・Plan はこのリポジトリの docs/superpowers/ にコミットする。\n", encoding="utf-8")
+        self.git(path, "add", "AGENTS.md")
+        self.git(path, "commit", "-m", "declare own documents")
 
     def adopt_managed(self):
         repository = "usaturn/resonite-emission-editor"
@@ -349,6 +364,38 @@ class ContextTests(unittest.TestCase):
         self.bad("DOC_ROOT", doc_root=linked / "external")
         self.bad("DOC_ROOT origin", doc_root=self.external)
         self.bad("DOC_ROOT", code=64, operation="review-fix", doc_branch="docs/topic")
+
+    def test_own_documents_route_requires_declaration_origin_and_matching_code(self):
+        # S: accepting a wrong checkout commits Spec/Plan into another repository and ships them in its PR silently.
+        tool = self.own_documents("parent/external/new-tool", "https://github.com/usaturn/new-tool.git")
+        value = self.good(operation="review-copy", doc_root=tool, doc_repo="Usaturn/New-Tool")
+        self.assertEqual((value["doc_root"], value["document_repository"]), (str(tool), "usaturn/new-tool"))
+        value = self.good(operation="review-fix", repo="usaturn/new-tool", code_root=tool,
+                          doc_root=tool, doc_repo="usaturn/new-tool")
+        self.assertEqual(value["document_repository"], "usaturn/new-tool")
+        self.assertEqual(self.good(repo="usaturn/new-tool", code_root=tool)["document_repository"], "usaturn/new-tool")
+        self.assertEqual(self.good()["document_repository"], SELF)
+
+        undeclared = self.own_documents("undeclared", "https://github.com/usaturn/plain-tool.git", declared=False)
+        originless = self.own_documents("originless", None)
+        self.declare(self.fork)
+        meshy = self.own_documents("meshy", "git@github.com:usaturn/resoloop-meshy.git")
+        other = self.own_documents("other-tool", "https://github.com/usaturn/other-tool.git")
+        docs = self.linked(self.parent, "docs-wt", "docs/topic")
+        for label, needle, kwargs in (
+            ("undeclared", "does not declare", dict(doc_root=undeclared, doc_repo="usaturn/plain-tool")),
+            ("originless", "DOC_ROOT origin", dict(doc_root=originless, doc_repo="usaturn/new-tool")),
+            ("other origin", "DOC_ROOT origin", dict(doc_root=tool, doc_repo="usaturn/other-tool")),
+            ("fork", "cannot hold Spec/Plan", dict(doc_root=self.fork, doc_repo="usaturn/resoloop")),
+            ("meshy", "cannot hold Spec/Plan", dict(doc_root=meshy, doc_repo="usaturn/resoloop-meshy")),
+        ):
+            with self.subTest(label):
+                self.bad(needle, operation="review-copy", **kwargs)
+        for label, kwargs in (("create-reso-world docs", dict(doc_root=docs)),
+                              ("another repository", dict(doc_root=other, doc_repo="usaturn/other-tool"))):
+            with self.subTest(label):
+                self.bad("belong in", operation="review-fix", repo="usaturn/new-tool", code_root=tool, **kwargs)
+        self.bad("DOC_ROOT", code=64, doc_repo="usaturn/new-tool")
 
     def test_base_and_head_remote_are_independent_and_head_branch_must_match(self):
         self.git(self.external, "remote", "rename", "origin", "base")

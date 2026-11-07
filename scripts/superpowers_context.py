@@ -2,6 +2,8 @@
 
 No discovery beyond the current checkout, network access, or Git mutation.
 Operation profiles deliberately distinguish review sources from repair worktrees.
+Spec/Plan live in create-reso-world unless the code repository declares its own
+(``DOCUMENTS_MARKER`` in its committed AGENTS.md; docs/superpowers/README.md).
 """
 from __future__ import annotations
 
@@ -23,6 +25,10 @@ DOCUMENT_REPOSITORY = "usaturn/create-reso-world"
 FORK_REPOSITORY = "usaturn/resoloop"
 UPSTREAM_REPOSITORY = "orange3134/resoloop"
 OPERATIONS = ("review-workspace", "review-fix", "review-copy")
+# A new repository commits this AGENTS.md line to keep its own Spec/Plan.
+DOCUMENTS_MARKER = "<!-- superpowers-documents: this-repository -->"
+# Repositories with special routes keep their Spec/Plan in create-reso-world even if declared.
+SHARED_DOCUMENT_REPOSITORIES = (FORK_REPOSITORY, UPSTREAM_REPOSITORY, "usaturn/resoloop-meshy")
 
 
 class ContextError(ValueError):
@@ -175,6 +181,38 @@ def _require_origin(checkout: Checkout, label: str) -> None:
         raise ContextError(f"{label} origin is not {DOCUMENT_REPOSITORY}: {checkout.root} ({reason}); use a verified create-reso-world checkout")
 
 
+def declares_own_documents(checkout: Checkout) -> bool:
+    """True when HEAD's committed AGENTS.md has the DOCUMENTS_MARKER line (worktree edits do not count)."""
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    result = subprocess.run(["git", "-C", str(checkout.root), "cat-file", "blob", "HEAD:AGENTS.md"],
+                            capture_output=True, env=env)
+    if result.returncode:
+        return False
+    return any(line.strip() == DOCUMENTS_MARKER
+               for line in result.stdout.decode("utf-8", errors="replace").splitlines())
+
+
+def _document_repository(checkout: Checkout, repository: str) -> str:
+    """Where Spec/Plan for work on *repository* are committed."""
+    if repository == DOCUMENT_REPOSITORY or repository in SHARED_DOCUMENT_REPOSITORIES:
+        return DOCUMENT_REPOSITORY
+    return repository if declares_own_documents(checkout) else DOCUMENT_REPOSITORY
+
+
+def _require_own_documents(checkout: Checkout, repository: str) -> None:
+    if repository in SHARED_DOCUMENT_REPOSITORIES:
+        raise ContextError(
+            f"DOC_ROOT cannot hold Spec/Plan for {repository}: it keeps them in {DOCUMENT_REPOSITORY}; "
+            "omit --doc-repo and use a create-reso-world DOC_ROOT")
+    if _remote_repository(checkout, "origin") != repository:
+        reason = "missing origin" if "origin" not in checkout.remotes else "unsupported URL or different repository"
+        raise ContextError(f"DOC_ROOT origin is not {repository}: {checkout.root} ({reason}); use a checkout of {repository}")
+    if not declares_own_documents(checkout):
+        raise ContextError(
+            f"DOC_ROOT {checkout.root} does not declare its own Spec/Plan: HEAD:AGENTS.md has no line "
+            f"{DOCUMENTS_MARKER}; keep the documents in {DOCUMENT_REPOSITORY}")
+
+
 def select_remote(checkout: Checkout, repository: str, *, label: str = "CODE_ROOT") -> str:
     """Require exactly one remote *name*, not merely one distinct URL."""
     matches = [name for name in checkout.remotes if _remote_repository(checkout, name) == repository]
@@ -209,12 +247,13 @@ def resolve_context(
     operation: str, *, parent_root: str | Path | None = None, doc_root: str | Path | None = None,
     code_root: str | Path | None = None, repo: str = DOCUMENT_REPOSITORY,
     doc_branch: str | None = None, head_repo: str | None = None, head_branch: str | None = None,
-    cwd: str | Path | None = None,
+    cwd: str | Path | None = None, doc_repo: str | None = None,
 ) -> dict[str, str | None]:
     """Resolve verified parent/tool, document and code identities without mutation."""
     if operation not in OPERATIONS:
         raise ContextError(f"unsupported operation: {operation}")
     repository = parse_repository(repo)
+    documents_for = parse_repository(doc_repo) if doc_repo else DOCUMENT_REPOSITORY
     if not parent_root:
         current = Path(cwd) if cwd else Path.cwd()
         try:
@@ -227,15 +266,18 @@ def resolve_context(
     document = None
     if doc_root:
         document = inspect_checkout(doc_root, label="DOC_ROOT")
-        _require_origin(document, "DOC_ROOT")
+        if documents_for == DOCUMENT_REPOSITORY:
+            _require_origin(document, "DOC_ROOT")
+        else:
+            _require_own_documents(document, documents_for)
         if doc_branch and document.branch != doc_branch:
             raise ContextError(f"DOC_ROOT branch is {document.branch!r}, not requested {doc_branch!r}: {document.root}")
-    elif doc_branch or operation == "review-copy":
-        raise InputError("DOC_ROOT is required; name the create-reso-world document branch checkout explicitly")
+    elif doc_branch or doc_repo or operation == "review-copy":
+        raise InputError("DOC_ROOT is required; name the document branch checkout explicitly")
 
     context: dict[str, str | None] = dict.fromkeys((
         "parent_root", "tool_root", "doc_root", "code_root", "repository", "base_remote",
-        "head_remote", "document_branch", "document_head", "code_branch", "code_head",
+        "head_remote", "document_branch", "document_head", "code_branch", "code_head", "document_repository",
     ))
     context.update(parent_root=str(parent.root), tool_root=str(parent.root), repository=repository)
     if document:
@@ -245,6 +287,7 @@ def resolve_context(
     if operation == "review-copy":
         if code_root or head_repo or head_branch:
             raise ContextError("review-copy validates parent/doc roots only; omit code/head arguments")
+        context["document_repository"] = documents_for
         return context
 
     tools = _external_tools()
@@ -308,6 +351,12 @@ def resolve_context(
     elif managed is None:
         base_remote = select_remote(code, repository)
     context.update(code_root=str(code.root), base_remote=base_remote, code_branch=code.branch, code_head=code.head)
+    expected_documents = _document_repository(code, repository)
+    if document and documents_for != expected_documents:
+        raise ContextError(
+            f"DOC_ROOT holds Spec/Plan for {documents_for}, but Spec/Plan for {repository} belong in "
+            f"{expected_documents}; pass --doc-repo {expected_documents} with a checkout of it")
+    context["document_repository"] = expected_documents
 
     if head_repo or head_branch:
         if operation != "review-fix":
@@ -321,7 +370,7 @@ def resolve_context(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--operation", choices=OPERATIONS)
-    for option in ("parent-root", "doc-root", "code-root", "doc-branch", "head-repo", "head-branch"):
+    for option in ("parent-root", "doc-root", "code-root", "doc-branch", "doc-repo", "head-repo", "head-branch"):
         parser.add_argument(f"--{option}")
     parser.add_argument("--repo", default=DOCUMENT_REPOSITORY)
     args = parser.parse_args(argv)

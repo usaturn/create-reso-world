@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Publish an immutable, non-replacing review copy of a committed document.
 
-Reads the exact blob of a committed Spec/Plan from DOC_ROOT and publishes it in
+Reads the exact blob of a committed Spec/Plan from DOC_ROOT (a create-reso-world
+checkout, or with --doc-repo a checkout of a repository that declares its own
+Spec/Plan) and publishes it in
 the parent checkout's ignored `tmp/superpowers-review/` directory.  Publication
 never replaces an existing entry: a completed temporary file in the destination
 directory is published with `os.link`, which fails when the destination name is
@@ -12,7 +14,8 @@ rejected with a migration message before any filesystem access.
 
 使い方:
     scripts/superpowers-review-copy.sh --doc-root DOC_ROOT --parent-root PARENT_ROOT \
-        --path docs/superpowers/{specs,plans}/NAME.md --name TOPIC-spec.md [--commit REV]
+        --path docs/superpowers/{specs,plans}/NAME.md --name TOPIC-spec.md [--commit REV] \
+        [--doc-repo OWNER/REPO]
 
 Root/remote validation is delegated to the adjacent shared module
 `superpowers_context.py` (operation `review-copy`).
@@ -185,7 +188,8 @@ def publish(staged: Path, dest: Path, dest_rel: str, content: bytes, name: str) 
 
 def run(args: argparse.Namespace) -> int:
     try:
-        context = resolve_context("review-copy", parent_root=args.parent_root, doc_root=args.doc_root)
+        context = resolve_context("review-copy", parent_root=args.parent_root, doc_root=args.doc_root,
+                                  doc_repo=args.doc_repo)
     except ContextError as exc:
         # Keep this entrypoint's flag-shaped diagnostics for root validation.
         message = str(exc).replace("PARENT_ROOT", "--parent-root").replace("DOC_ROOT", "--doc-root")
@@ -241,7 +245,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Publish an immutable, non-replacing review copy of a committed document")
     parser.add_argument("--doc-root", required=True,
-                        help="DOC_ROOT: the create-reso-world checkout that commits the document")
+                        help="DOC_ROOT: the checkout that commits the document (create-reso-world, "
+                             "or the --doc-repo repository)")
     parser.add_argument("--parent-root", required=True,
                         help="PARENT_ROOT: the create-reso-world main checkout the user reads")
     parser.add_argument("--path", required=True,
@@ -249,6 +254,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--name", required=True,
                         help="review copy file name ending in -spec.md or -plan.md")
     parser.add_argument("--commit", default="HEAD", help="document revision to copy (default: HEAD)")
+    parser.add_argument("--doc-repo",
+                        help="OWNER/REPO of DOC_ROOT when it is a repository that declares its own Spec/Plan "
+                             "(default: usaturn/create-reso-world)")
     parser.add_argument("--replace-from", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.replace_from is not None:
