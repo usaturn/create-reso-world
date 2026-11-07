@@ -16,7 +16,7 @@
 ## 受け入れ基準・環境・防御範囲
 Python3.14/uv/Linux、標準ライブラリ、ResoLoop0.2.0、実機doctorで確認する現在のDLLとFlux SDK。port/session/実IDをソースへ固定しない。通常の実機利用の単独動作・二人操作・保存再読込をこの短い試験で証明したとはしない。
 
-入力はnative colorXの完全RGBA/profile（HDR、alpha非1、Linear/sRGB）、bool、非ASCIIを含むraw JSON。値比較でboolと整数、欠落とnull、型違いを同一視しない。模擬値のprofile変更で元のdictまで変える共有参照を作らない。
+入力はnative colorXの完全RGBA/profile（HDR、alpha非1、Linear/sRGB）、bool、非ASCIIを含むraw JSON。値比較でboolと整数、未観測memberの欠落と既知null、型違いを同一視しない。CLI0.2.0はpresentなreference MemberValueのnullable targetIdをnull時に省略するので、その完全なkind/id付きreferenceレコードだけは既知nullとして正規化する。member自体の欠落/unknown kind/idや非null要求はこの規則で補わない（現在runの実ObjectWrite/GlobalReference/DriveProxyと同梱Models/Mapper/OutputWriterで根拠を照合）。模擬値のprofile変更で元のdictまで変える共有参照を作らない。
 
 防御対象: 他のパネル/実アバター/既存syntheticを試験write/deleteの対象にしない、古いsession/stateを使わない、生成物や利用者ファイルの上書き、失敗を成功とすること、完全色値の損失、Drive下のOnWrittenをOnFailの成功と誤認すること、未検証/改変したpackageからの実行。
 対象外: 他利用者との不可分な排他、悪意ある管理者による全rawの整合的な書換えの認証、現在のパネルの修復、駆動の解除による既存対象への強制write。complete/executionPermissionと、個別の試験の判定・実行許可を分ける。
