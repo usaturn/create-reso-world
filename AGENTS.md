@@ -5,7 +5,7 @@
 
 ## リポジトリ概要
 
-[resoloop](https://github.com/orange3134/resoloop) と Blender で Resonite 上に 3D モデルやワールドを作成する開発環境。Dev Container の定義と共通の規約・スキル・雛形を管理する。ワールドのプロジェクトはローカルの作業物で git の追跡対象外であり、`worlds/` の直下に作る（issue #57）。追跡解除した従来位置の `MyResoniteProject/`、`akichi/`、`slum02/`、`slum03/` もローカルの作業物として残る。resoloop のプラグイン（Meshy 用の usaturn/resoloop-meshy）は、別のリポジトリとして `external/resoloop-meshy` に checkout して開発する（「リポジトリ境界」）。
+Resonite 向けのワールド・ツールの作成、Blender などを使ったモデルの作成、VR 環境に関するツールやモデルの開発を行う開発環境。どれも基本的に Resonite が関与する（例: Resonite 側からツールやモデルを取り込んで変換する）。主に [resoloop](https://github.com/orange3134/resoloop) と Blender を使い、Dev Container の定義と共通の規約・スキル・雛形を管理する。新しく開発を始めるときの入口は `docs/new-development.md` である。ワールドのプロジェクトはローカルの作業物で git の追跡対象外であり、`worlds/` の直下に作る（issue #57）。追跡解除した従来位置の `MyResoniteProject/`、`akichi/`、`slum02/`、`slum03/` もローカルの作業物として残る。resoloop のプラグイン（Meshy 用の usaturn/resoloop-meshy）は、別のリポジトリとして `external/resoloop-meshy` に checkout して開発する（「リポジトリ境界」）。
 
 ## 基本方針
 
