@@ -77,3 +77,11 @@
 - 動作環境: Bash は WSL2 の Linux（コンテナの外）の bash 4 以上と GNU coreutils。テストはこの Dev Container（Ubuntu 26.04）の bash で実行する。PowerShell は Windows 11 の Windows PowerShell 5.1 と PowerShell 7。このコンテナでは Linux 版の pwsh 7 で偽のインストール先に対して確かめ、Windows の実機・実 DLL では確かめない（未検証として報告する）
 - 実入力: コピー元 `…/Program Files (x86)/Steam/steamapps/common/リゾナイト テスト/` のような空白・括弧・日本語を含むパス、版 `2025.11.3.1234` のような文字列、`FrooxEngine.dll` を含む複数の `*.dll`、DLL 以外のファイル、サブフォルダの DLL
 - 防御範囲: 対象は、版の文字列による脱出（`../x`・`a/b`・`.`・`..`・空）、共有先の symlink、版のフォルダの既存（実ディレクトリ・symlink・壊れた symlink）、コピーの欠落・内容の不一致・コピー中のコピー元の変化、PowerShell の候補 0・複数。対象外は、`$HOME` や `~/.local` 自体が symlink である配置（利用者の HOME の構成として受け入れる）、スクリプトの実行中に他のプロセスが共有先を書き換える競合、Windows の実行ポリシー・署名、実 DLL での SDK の check/build
+
+## 実装の結果（2026-11-07）
+
+- 実行方式: `superpowers:executing-plans` で inline（Plan の「実行方式」）
+- Bash: `.devcontainer/test-copy-resonite-managed-data.bash` が PASS。一時的な改変（`mkdir -p`、ハッシュの照合・コピー元の変化の検出・版の検証・共有先のリンクの拒否を外す）の 5 つはすべてテストが FAIL で検出した。コピー先のファイル一覧の照合を外す改変は検出しない（欠落と内容の違いはハッシュの照合が見つけ、一覧の照合は対象外とした外部からの追加への重ねの守りのため、テストを足さない）
+- shellcheck（`uv tool run --from shellcheck-py shellcheck`）: 2 ファイルで警告なし
+- PowerShell: このコンテナに一時的に導入した Linux 版 pwsh 7.6.9 で、構文解析、ASCII のみ、偽のインストール先（空白・括弧・日本語・`'` を含む）に対する候補 1・2・0、`-ManagedPath`、`-ManagedPath` に DLL が無い、版の誤り（`../x`・末尾の改行）、`-InstallPath` と `-ManagedPath` の同時指定、偽の `Resonite` プロセス 1 つ・2 つのフォルダを確かめた。表示した WSL のコマンドを偽の `wslpath` と一時 HOME で bash に渡し、コピーと照合が通ることも確かめた。Windows PowerShell 5.1・Windows 11 の実機・実 DLL では確かめていない（未検証）
+- 全体のレビュー（Claude Code のサブエージェント、読むだけ）: 致命的な指摘なし。軽微な指摘のうち、PowerShell の版の検証の `$` を `\z` にする、DLL の数を大文字小文字を区別して数える、の 2 つを採用して修正した。コピー先の一覧の照合とコピー元が共有先の内側の拒否のテストの追加は、上の理由で採用しない
