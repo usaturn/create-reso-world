@@ -164,7 +164,8 @@ rm / rmdir の削除対象にシェル変数を使う場合は、各変数に `$
 
 ## GitHub Actions
 
-- 料金の問題でプライベートの usaturn/create-reso-world の CI は使わず停止しているため、CI の確認は不要。パブリックの CI は停止していない為、確認すること
+- usaturn/create-reso-world は公開リポジトリだが、GitHub Actions は無効（`enabled=false`）のままにし、CI の確認は不要。同じ検査をローカルで実行するので、有効にしても時間がかかるだけである。プライベートで開発したい場合もあるので、CI は基本的に無効にする。`.github/workflows/ci.yml` は残してあるが動かない
+- Actions が有効な公開リポジトリ（usaturn/resoloop など）の作業では、CI を確認する
 - 登録済み通常ツールの CI は採用済み台帳の `ci` と実状態を controller が読取照合する。`disabled` は Actions permissions の `enabled=false`、`required` は実際の PR checks の成功を確認する。不一致・不在・取得失敗は停止する。registry/check のローカル成功をネットワーク確認済みと表示せず、未知 repo の CI を免除しない。詳細は `docs/external-tools-workflow.md`。
 - テストを作っても CI（GitHub Actions のワークフローなど）は作らない。テストはローカルで実行し、結果を報告する。新しいリポジトリを作ったら、その場で Actions を無効にする（`gh api -X PUT repos/<owner>/<repo>/actions/permissions -F enabled=false`）
 

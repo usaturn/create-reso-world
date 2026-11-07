@@ -242,8 +242,9 @@ postCreate は Meshy CLI の導入と無認証の version / help 確認だけを
 ## 変更の流れ
 
 - 変更は作業ブランチで行い、`main` へは PR で入れる。並行作業には `.worktrees/` 配下の worktree を使う（git の追跡対象外）。
-- PR を出す前に、下の「テスト」をすべて通す。CI（`.github/workflows/ci.yml`）も push と PR のたびに同じ検査を行う。
-- 設計と実装計画は、対象のリポジトリにかかわらず `docs/superpowers/` に置く。運用は `docs/superpowers/README.md` にある。ローカルの下書きは `docs_draft/`（git の追跡対象外）に置く。
+- PR を出す前に、下の「テスト」をすべて通す。このリポジトリは公開しているが GitHub Actions を無効にしているので、CI（`.github/workflows/ci.yml`）は動かず、ローカルの実行だけが検査になる（`AGENTS.md` の「GitHub Actions」）。
+- push の前に `scripts/scan-before-push.sh` で秘密情報を検査する（`AGENTS.md` の「push の前の秘密情報の検査」）。
+- 設計と実装計画（Spec・Plan）の置き場所は `AGENTS.md` の「Spec・Plan の保存と公開」に、運用は `docs/superpowers/README.md` にある。ローカルの下書きは `docs_draft/`（git の追跡対象外）に置く。
 
 ## テスト
 
