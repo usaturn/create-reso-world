@@ -83,7 +83,7 @@ class Workflow:
                   # block must supply its own failure propagation, and the scanned
                   # SHAs must come from the files the documented publish block writes.
                   'declare -p CODE_BASE_BRANCH CODE_BASE_SHA > "$SESSION/resume.bash"',
-                  'if [ "$DOC_REPO" != "$TARGET_REPO" ]; then',
+                  'if [ "$DOCS_SEPARATE" != false ]; then',
                   '  declare -p DOC_BASE_SHA >> "$SESSION/resume.bash"',
                   'fi', 'declare -f recheck_bases >> "$SESSION/resume.bash"',
                   'bash -c ' + shlex.quote(as_runtime(procedure("pr"), 'source "$SESSION/resume.bash"'))]
@@ -374,13 +374,15 @@ def test_registered_tool_flows_to_issue_and_base(workflow: Workflow, base_explic
 @pytest.mark.parametrize("workflow", ["managed-own-docs"], indirect=True)
 def test_declared_tool_keeps_documents_in_its_own_pr(workflow: Workflow) -> None:
     """S: separating documents would silently ship a declared repository's Spec/Plan in a create-reso-world PR."""
+    # An Issue body may spell the target with capitals; GitHub, the resolver and gh accept it.
+    workflow.repo = "Sample-Owner/Other-Tool"
     result = workflow.run("#42")
     assert result.returncode == 0, result.stderr
     target = json.loads((workflow.session / "target.json").read_text())
     assert target["document_repository"] == "sample-owner/other-tool"
     calls = [json.loads(line) for line in (workflow.session / "gh.jsonl").read_text().splitlines()]
     creates = [call for call in calls if call[:2] == ["pr", "create"]]
-    assert [call[call.index("--repo") + 1] for call in creates] == ["sample-owner/other-tool"]
+    assert [call[call.index("--repo") + 1] for call in creates] == ["Sample-Owner/Other-Tool"]
     assert not (workflow.parent / ".worktrees/issue-42-change").exists()
     scans = [json.loads(line) for line in (workflow.session / "scans.jsonl").read_text().splitlines()]
     assert [scan["cwd"] for scan in scans] == [str(workflow.code)]

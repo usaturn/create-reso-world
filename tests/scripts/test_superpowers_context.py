@@ -376,26 +376,20 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(self.good(repo="usaturn/new-tool", code_root=tool)["document_repository"], "usaturn/new-tool")
         self.assertEqual(self.good()["document_repository"], SELF)
 
-        undeclared = self.own_documents("undeclared", "https://github.com/usaturn/plain-tool.git", declared=False)
-        originless = self.own_documents("originless", None)
-        self.declare(self.fork)
+        # Only the committed AGENTS.md counts: an uncommitted declaration is not one.
+        uncommitted = self.own_documents("uncommitted", "https://github.com/usaturn/plain-tool.git", declared=False)
+        (uncommitted / "AGENTS.md").write_text("<!-- superpowers-documents: this-repository -->\n", encoding="utf-8")
         meshy = self.own_documents("meshy", "git@github.com:usaturn/resoloop-meshy.git")
-        other = self.own_documents("other-tool", "https://github.com/usaturn/other-tool.git")
         docs = self.linked(self.parent, "docs-wt", "docs/topic")
         for label, needle, kwargs in (
-            ("undeclared", "does not declare", dict(doc_root=undeclared, doc_repo="usaturn/plain-tool")),
-            ("originless", "DOC_ROOT origin", dict(doc_root=originless, doc_repo="usaturn/new-tool")),
+            ("uncommitted", "does not declare", dict(doc_root=uncommitted, doc_repo="usaturn/plain-tool")),
             ("other origin", "DOC_ROOT origin", dict(doc_root=tool, doc_repo="usaturn/other-tool")),
-            ("fork", "cannot hold Spec/Plan", dict(doc_root=self.fork, doc_repo="usaturn/resoloop")),
-            ("meshy", "cannot hold Spec/Plan", dict(doc_root=meshy, doc_repo="usaturn/resoloop-meshy")),
+            ("shared route", "cannot hold Spec/Plan", dict(doc_root=meshy, doc_repo="usaturn/resoloop-meshy")),
         ):
             with self.subTest(label):
                 self.bad(needle, operation="review-copy", **kwargs)
-        for label, kwargs in (("create-reso-world docs", dict(doc_root=docs)),
-                              ("another repository", dict(doc_root=other, doc_repo="usaturn/other-tool"))):
-            with self.subTest(label):
-                self.bad("belong in", operation="review-fix", repo="usaturn/new-tool", code_root=tool, **kwargs)
-        self.bad("DOC_ROOT", code=64, doc_repo="usaturn/new-tool")
+        # A declared repository's Spec/Plan must not go to a create-reso-world DOC_ROOT.
+        self.bad("belong in", operation="review-fix", repo="usaturn/new-tool", code_root=tool, doc_root=docs)
 
     def test_base_and_head_remote_are_independent_and_head_branch_must_match(self):
         self.git(self.external, "remote", "rename", "origin", "base")

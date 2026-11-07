@@ -272,7 +272,8 @@ def resolve_context(
             _require_own_documents(document, documents_for)
         if doc_branch and document.branch != doc_branch:
             raise ContextError(f"DOC_ROOT branch is {document.branch!r}, not requested {doc_branch!r}: {document.root}")
-    elif doc_branch or doc_repo or operation == "review-copy":
+    elif doc_branch or operation == "review-copy":
+        # --doc-repo alone is ignored: a context block re-runs with its earlier output before DOC_ROOT is chosen.
         raise InputError("DOC_ROOT is required; name the document branch checkout explicitly")
 
     context: dict[str, str | None] = dict.fromkeys((
