@@ -40,7 +40,7 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 ## 実行予算
 今回の不足前提/最初のnative gateに180能動分。ledgerはPARENT_ROOT/tmp/agents/emission-native-gate.oq3olakn/budget.jsonl。budget開始前17:46:16–17:48:54の準備約2分38秒は別記し、既存の過去予算はリセットしない。
 準備15、package/判定実装55、検証/レビュー30、fresh preflight/native60、保存/公開20分を目安。元Task4/5/6全完了までの保証時間ではない。
-30能動分ごと・Task境界・50%/100%・失敗直後にcheckpoint。worker目安30分、保存予約5分、無進捗10分でcontroller確認（共有writer/検証をkillしない）。reviewerは元Planの12分枠内、最大2回（Task1と最終/実機前の全範囲確認）、採用修正確認が必要なら同じ担当に範囲限定。
+30能動分ごと・Task境界・50%/100%・失敗直後にcheckpoint。worker目安30分、保存予約5分、無進捗10分でcontroller確認（共有writer/検証をkillしない）。reviewerは各12分枠内、Task1・全差分/実機前・native結果の3段階を同じ1名で担当する。採用修正確認が必要なら同じ担当に範囲限定。PR後の追加ループは起動しない。
 同じ信頼性失敗の再試行1回、安全失敗は全停止。予算不足は同じbranchに保全してhandoffし、小タスクごとにPRを増やさない。
 
 ## contingency（代替策）
@@ -48,13 +48,15 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 
 ### Task 1: 専用3PGと隔離package/封印を実装する
 **Files:** 新規 flux/emission-editor/drivegate/{DriveGateProbe,ColorDrive,BoolDrive}.pg、scripts/emission_editor/drivegate_package.py、tests/test_emission_drivegate_package.py、READMEの範囲説明。
-**Interfaces:** fixture_declaration(token) -> dict。prepare_package(destination: Path, token: str, *, library_path: Path) -> dict はcopy上でcheck/build/manifest検証し全過程exit0後のみsealを返す。verify_package(path: Path) -> dict は全入力/生成SDK record/manifestの完全file-setとhashを照合。Source PGの原本は変更しない。生成manifestのworld/Flux stateは試行専用で初回不在。
+**Interfaces:** fixture_declaration(token) -> dict。prepare_package(destination: Path, token: str, *, library_path: Path) -> dict はcopy上でcheck/build/manifest検証し全過程exit0後のみsealを返す。verify_package(path: Path) -> dict は全入力/生成SDK record/manifestの完全file-setとhashを照合。Source PGの原本は変更しない。生成manifestのworld/Flux stateは試行専用で初回不在。実装結果のv2は別のsibling実行領域を作り、全manifestが実行領域だけを指す。verify_execution(package_path, execution_path)はfresh実行領域の全file-set/hashを封印物と照合する。Git clean/HEADの前後照合でcodeCommitの出所を確認する。
 **テスト:** S（元ソース/既存出力/利用者ファイルの上書き、範囲外参照、sealの改変/不足/未知追加、失敗成功化を防止）。fake resoloopを実subprocessで動かしsidecarを書かせる。PGの型/構文はLなので実check/build、PG固定文字列テストは追加しない。
-- [ ] 生成物がprivate fieldのみ・3module別親/別state・外部target無しである正例と、既存directory/source/link/失敗/改変のS回帰を先にREDにする。
-- [ ] SpecのCommand0–6に沿って3PGを最小実装。Captureは一度、hostのみ、helperはeventless。完全native色を使い、mutable書込の結果とreadbackとDoneを記録。
-- [ ] package生成/コピー/SDK check/build/3manifest検証/封印を実装する。sourceディレクトリの全3PG/sidecar不変を実fake compilerで確認。
-- [ ] 対象pytest→全suite→実SDK check/build→manifest検証→compile→diffを同期実行し、ログ/elapsedをsessionへ保存する。
-- [ ] 明示したファイルだけcommit。claude-code_opus_defaultでTask品質と仕様のレビュー。必要修正は同じ担当でRED/GREENし、指摘原文と裁定を保存する。
+- [x] 生成物がprivate fieldのみ・3module別親/別state・外部target無しである正例と、既存directory/source/link/失敗/改変のS回帰を先にREDにする。
+- [x] SpecのCommand0–6に沿って3PGを最小実装。Captureは一度、hostのみ、helperはeventless。完全native色を使い、mutable書込の結果とreadbackとDoneを記録。
+- [x] package生成/コピー/SDK check/build/3manifest検証/封印を実装する。sourceディレクトリの全3PG/sidecar不変を実fake compilerで確認。
+- [x] 対象pytest→全suite→実SDK check/build→manifest検証→compile→diffを同期実行し、ログ/elapsedをsessionへ保存する。
+- [x] 明示したファイルだけcommit。claude-code_opus_defaultでTask品質と仕様のレビュー。必要修正は同じ担当でRED/GREENし、指摘原文と裁定を保存する。
+
+実行記録: 8882ae5で3PG/package初版、3908f34で実行copyの分離とclean provenanceを修正。全71passed、実SDK43artifact/211DLL hash、コピー再build後も封印/原PG不変。Task1レビューF1–F3採用→限定再レビュー全addressed、PASS/PASS。raw/read_receiptsと既存PGは未変更。native成功/実機writeは0。詳細はSESSION/task1-fix1と同SDD/task-1-report.md。レビュー/修正は実装約15分＋修正約8分、レビュー128.581秒/限定78.535秒（controller能動内）。
 
 ### Task 2: 既存rawを使う意味/phase/範囲の照合を実装する
 **Files:** scripts/emission_editor/drivegate_evidence.py、tests/test_emission_drivegate_evidence.py、必要なpackage最小補足。
