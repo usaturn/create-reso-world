@@ -1,6 +1,6 @@
 # Issue #321 現状と食い違う記述の修正と、新規開発の入口の文書
 
-- 状態: draft
+- 状態: completed
 - 対象: usaturn/create-reso-world の `main`（基準 `4aa1ca04e51ec4bfe75873455e5465248edf2b81`）
 - Issue: [#321](https://github.com/usaturn/create-reso-world/issues/321)（ボード [#320](https://github.com/usaturn/create-reso-world/issues/320) `new-dev-procedures-board` の子 `facts-and-entry`）
 - 作成: Claude Code（Opus 5.5）。planning-parallel-issues の手順で、利用者の依頼「#320 着手」による。下の「決めたこと」はエージェントの判断であり、利用者の承認ではない
@@ -221,3 +221,40 @@ grep（`プライベート|private|料金の問題|ci\.yml`、`docs/superpowers`
 | `README.md` の「対象外」 | 公開済み。LICENSE は未選定 |
 | `README.md` 冒頭、`AGENTS.md` の「リポジトリ概要」 | 新しい対象の説明と入口の文書への案内 |
 | `README.md` の「構成」 | 実在するパスと照合して書き直した（`meshy.py` の行は 1 文字も変えていない） |
+
+## レビュー修正 サイクル 1（2026-11-07）
+
+PR #332 の head `794c30267c49ec50232ce73fce7e0a7df796ee41` に対する review-fix-planning（pr-review-fix-loop の 1 サイクル目）の結果である。実行許可は利用者の `/pr-review-fix-loop #332` の起動で、内容の承認（`approved`）ではない。
+
+### 結論
+
+結論 2（修正不要としてマージ）。「対応する」は 0 件、分類は解消済み 0 / 対応する 0 / 対応しない 0（指摘が 0 件）。
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation | 指摘 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol` | gpt-6.1-sol | pi | `794c30267c49` | はい | Approve | 0 件 |
+| `SWE-2-Max` | SWE-2 Max | devin | `794c30267c49` | はい | Approve | 0 件 |
+
+`pi_commandcode_deepseek4-flash_max`（deepseek）は、runner の期限切れ（`timed_out`、終了コード -15）で結果を受け付けられなかった。指摘 0 件ではなく失敗として扱い、レビュアーの構成と判断の入力には含めない。診断は `reviews/usaturn/create-reso-world/#332-docs-issue-321-facts-and-entry/loop/8b5106349a8b4a31a798fa781b89bc72/cycle-1/diagnostics/` にある。
+
+planner は Claude Code の claude-sonnet-5-5（司令塔が自分で判断した。修正・自己レビュー・修正の確認の担当は起動していない）。サイクルの番号は 1（PR に前の判断の記録は無い）。
+
+### 確認した内容
+
+- 2 人のレビューファイル（指摘 0 件）の全文と、PR の説明・Issue #321 の受け入れ条件を読んだ
+- PR の変更 7 ファイルのうち、`.devcontainer/README.md`・`AGENTS.md`・`README.md`・`docs/new-development.md`・`tests/scripts/test-agent-config.bash` の差分を全文確認した。base `afa86e09` から head までで、変更は範囲内の 7 ファイルだけ
+- `docs/new-development.md` の相対リンク先 4 文書と、`README.md`「構成」に挙げたディレクトリ・ファイルの実在を確かめた
+- `gh api repos/usaturn/create-reso-world/actions/permissions` は `{"enabled":false}`
+- 確認済みの一覧（`verified/`）は作っていない。指摘が 0 件で、結論 1 の自己レビュー・修正の確認を行わないため
+
+### 検証（head `794c30267c49`、worktree `.worktrees/issue-321-facts-and-entry`）
+
+| コマンド | 結果 |
+| --- | --- |
+| `git diff --check afa86e09 HEAD` | 出力なし（終了コード 0） |
+| `bash scripts/check-layout.sh` | `PASS: check-layout`（終了コード 0） |
+| `bash tests/scripts/test-agent-config.bash` | `PASS: MCP headers use env references`（終了コード 0） |
+
+base（`origin/main` の先端 `afa86e0967ec71135a37365fd15933e819acf6e1`）は head の祖先で、head にそのまま含まれる。文書だけの変更で、テストは足していない。
