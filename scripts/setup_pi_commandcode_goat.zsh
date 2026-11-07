@@ -24,11 +24,11 @@ set -euo pipefail
 # 2 本が providers.commandcode を全置換し合い、片方だけ実行した時点で
 # 他方のモデルが models.json から消える。
 #
-# Running this script is NOT required after a container rebuild:
-# ~/.pi is bind mounted and .devcontainer/install_beforehand.bash
-# places piccg and piccd. Use it when the host side ~/.pi has to be
-# rebuilt from scratch, or when the model definition in the repository
-# changed and the existing models.json needs to converge on it.
+# Command Code GOAT is not deployed by postCreate while the subscription
+# is inactive. After re-subscribing, run this script to enable piccg/piccd
+# manually, and rerun it after every container rebuild: ~/.pi is bind
+# mounted, but ~/.local/bin is not. Also use it when rebuilding ~/.pi
+# from scratch or applying updated model definitions from the repository.
 #
 
 readonly PROVIDER="commandcode"
@@ -59,8 +59,8 @@ export PI_CODING_AGENT_DIR="${PI_DIR}"
 readonly MODELS_JSON="${PI_DIR}/models.json"
 
 #
-# The model definition and the launchers are kept in the repository so
-# that install_beforehand.bash and this script cannot drift apart.
+# The model definition and launchers remain in the repository for manual
+# re-enablement. postCreate only seeds models.json when it is absent.
 #
 readonly DEVCONTAINER_DIR="${0:A:h}/../.devcontainer"
 readonly MODELS_SOURCE="${DEVCONTAINER_DIR}/pi-models.json"
@@ -182,9 +182,9 @@ log "models.json: ${PROVIDER} definition applied."
 # ----------------------------------------------------------------------
 # 3. Install ~/.local/bin/piccg and ~/.local/bin/piccd
 #
-# The launchers are copied verbatim from .devcontainer/, which are the
-# same files .devcontainer/install_beforehand.bash places on rebuild.
-# Generating them here instead would let the two drift apart.
+# This manual setup copies the launchers verbatim from .devcontainer/.
+# install_beforehand.bash no longer places them on rebuild.
+# Keep the repository sources as the only launcher definitions.
 #
 # ~/.local/bin is already added to PATH by .devcontainer/zshrc.txt, so
 # this script does not touch ~/.zshrc.
