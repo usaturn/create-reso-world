@@ -371,35 +371,50 @@ flux-sdk の自動探索はコンテナの中（SDK の配置先と Linux の St
 doctor の `resonite-managed-data` は、空のモジュールで DLL を読み込めるか（`flux-sdk build --stop-after-resolve`）だけを見る。
 グラフを作れる確認には check と build を使う。配備とワールドでの動作は、この確認に含まれない。
 
-1. Windows で DLL のフォルダを確かめる。Resonite を起動したまま、PowerShell で実行中の Resonite の場所を調べ、
-   そのインストール先の中で `FrooxEngine.dll` を探す。`FrooxEngine.dll` があるフォルダを使う。
-   `Resonite_Data\Managed` などの場所を決め打ちしない。候補が複数あれば、実行中の Resonite のインストール先にあるものを選ぶ
+準備は、Windows → WSL（コンテナの外）→ Dev Container の順に、利用者が手で進める。初回と Resonite の更新時に実行し、起動時の自動実行や常駐の監視はしない。
+1・2 のスクリプトは、設定ファイル・シェルの設定・`RESONITE_MANAGED_DATA_PATH`・Windows 側のファイルや設定を変えない。
+2 の成功（コピーと SHA-256 の照合）、4 の成功（SDK の doctor・check・build）、ワールドでの動作の確認は別のもので、前の段階の成功は後の段階の成功を意味しない。
+
+1. Windows で DLL のフォルダを確かめる（`find-resonite-managed-data.ps1`。読むだけ）。Windows PowerShell 5.1 か PowerShell 7 で、Resonite を起動したまま実行する。
+   使うのは `Get-Process`・`Get-ChildItem`・`Get-Item`・`Test-Path` だけで、管理者の権限は要らない。
+   実行ポリシーの設定は変えず、`-ExecutionPolicy Bypass` でこの 1 回だけ実行する。スクリプトは WSL の checkout を `\\wsl.localhost\<ディストリビューション名>\…` で開いて指す
+   （PowerShell 7 なら `powershell` を `pwsh` にする）
 
    ```powershell
-   Get-Process -Name '*Resonite*' | Select-Object Id, ProcessName, Path
-   Get-ChildItem -LiteralPath '<インストール先>' -Filter FrooxEngine.dll -File -Recurse | Select-Object FullName
+   powershell -NoProfile -ExecutionPolicy Bypass -File '\\wsl.localhost\<ディストリビューション名>\home\<ユーザ>\<checkout>\.devcontainer\find-resonite-managed-data.ps1' -ResoniteVersion '<Resonite の版>'
    ```
 
-   Resonite の版も控える（Resonite の画面か、コンテナの `resoloop status` が表示する `Resonite <版>`）。
+   - 実行中の Resonite（名前が `Resonite` で始まるプロセス）の実行ファイルのフォルダをインストール先とし、その中で `FrooxEngine.dll` のあるフォルダを探す。
+     `Resonite_Data\Managed` などの場所は決め打ちしない
+   - 1 つに決まると、コピー元のフォルダ、DLL の数、`FrooxEngine.dll` のファイル版、2 で WSL に貼るコマンドを表示して終了コード 0 で終わる。
+     ファイル版は参考で、Resonite の版ではない
+   - 候補が複数・0 のとき（プロセスのフォルダが 2 つ以上、`Path` を読めない Resonite のプロセスがある、`FrooxEngine.dll` のあるフォルダが 2 つ以上、読めないフォルダがある）は、どれも選ばずに候補を表示して終了コード 1 で止まる。
+     使っているものを確かめて、インストール先を `-InstallPath '<インストール先>'`、または `FrooxEngine.dll` のあるフォルダを `-ManagedPath '<フォルダ>'` で指定し直す。
+     Resonite を起動していないときも `-InstallPath` か `-ManagedPath` で指定できる。空白・括弧・日本語を含むパスも、単一引用符の中にそのまま書く（`'` は `''` と 2 つ重ねる）
 
-2. WSL のターミナル（コンテナの外）で、そのフォルダの `*.dll` を新しい版のフォルダへコピーし、SHA-256 で照合する。
-   `C:\Program Files (x86)\...` のような空白・括弧を含むパスも、単一引用符の中にそのまま書く。
-   フォルダの中身全体はコピーしない。Resonite の更新中はコピーしない。既にある版のフォルダへ上書きして版を混ぜない。
-   各行を `&&` でつないでいるので、どこかで失敗すると以降は実行されず、`copied and verified` は出ない。
-   照合の一覧はコピー元で作るので、コピー先に欠けた DLL も見つかる
+     ```powershell
+     ... -File '…\find-resonite-managed-data.ps1' -ManagedPath 'C:\Program Files (x86)\Steam\steamapps\common\Resonite' -ResoniteVersion '<Resonite の版>'
+     ... -File '…\find-resonite-managed-data.ps1' -InstallPath 'D:\ゲーム\Steam Library (2)\steamapps\common\Resonite'
+     ```
+
+   - Resonite の版は、Resonite の画面か、コンテナの `resoloop status` が表示する `Resonite <版>` で利用者が確かめ、`-ResoniteVersion` に渡す（省くと表示するコマンドの版が `<Resonite version>` のままになるので、書き換える）。
+     版に使えるのは英数字と `.`・`_`・`+`・`-` で、先頭は英数字
+
+2. WSL のターミナル（コンテナの外）で、1 が表示したコマンドの `<checkout>` を create-reso-world の checkout の WSL のパスに書き換えて実行する（`copy-resonite-managed-data.bash`）。
+   bash と GNU coreutils（`sha256sum`・`realpath`・`cp`・`find`）と `wslpath` を使う。Resonite の更新中はコピーしない
 
    ```bash
-   src="$(wslpath -u '<FrooxEngine.dll のあるフォルダ>')"
-   dest="$HOME/.local/share/create-reso-world/resonite-managed-data/<Resonite の版>"
-   mkdir -p "$HOME/.local/share/create-reso-world/resonite-managed-data" &&
-     mkdir "$dest" &&
-     cp -p -- "$src"/*.dll "$dest"/ &&
-     (cd "$src" && sha256sum -- *.dll) > "$dest/SHA256SUMS" &&
-     (cd "$dest" && sha256sum --quiet -c SHA256SUMS) &&
-     echo 'copied and verified'
+   bash ~/create-reso-world/.devcontainer/copy-resonite-managed-data.bash \
+     --source "$(wslpath -u 'C:\Program Files (x86)\Steam\steamapps\common\リゾナイト (テスト)\Resonite')" \
+     --version '2025.11.3.1234'
    ```
 
-   `mkdir` が `File exists` で止まったら、その版のフォルダは既にある。中身がその版のものか確かめられなければ、WSL 側でそのフォルダを消してからやり直す
+   - コピー元の直下の `*.dll` だけを、新しく作る `~/.local/share/create-reso-world/resonite-managed-data/<版>/` へコピーする。サブフォルダや DLL 以外のファイルはコピーしない
+   - コピー元で作った SHA-256 の一覧でコピー先を照合し、欠けた DLL・内容の違う DLL・コピー中のコピー元の変化（DLL の追加・削除・内容の変更。Resonite の更新）を見つける。
+     全部通ったときだけ、一覧を版のフォルダの `SHA256SUMS` に置き、`copied and verified` と、コンテナから指すパスを表示して終了コード 0 で終わる
+   - 既にある版のフォルダ（リンクを含む）には上書きせず、止まる。版の文字列に `/` などがある、共有のフォルダがリンク・ファイルであるときも止まる
+   - 失敗したら成功の文を出さずに終了コード 1 で終わり、作った版のフォルダを消さずに残して、そのパスと再試行の前に確かめることを表示する。
+     Resonite の更新が終わっていること、コピー元が正しいことを確かめ、残ったフォルダの中身を確かめて自分で消してから、もう一度実行する
 
    SDK が求める DLL は、エラーに出る 11 個（`FrooxEngine.dll` など）が最低限で、それだけで足りるとは限らない。同じフォルダの `*.dll` をまとめてコピーし、
    足りないものは 4 の check・build と「元のエラーを確かめる」で分かる。
