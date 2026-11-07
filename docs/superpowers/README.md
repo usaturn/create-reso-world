@@ -4,10 +4,33 @@
 
 ## 保存先
 
-- 対象のリポジトリにかかわらず、Spec・Plan はこのリポジトリ（`usaturn/create-reso-world`）の `docs/superpowers/` にコミットする。ResoLoop や無関係なリポジトリの作業でも、そちらには置かない
+- Spec・Plan は、原則としてこのリポジトリ（`usaturn/create-reso-world`）の `docs/superpowers/` にコミットする。このリポジトリ自身、ResoLoop 本体、usaturn/resoloop-meshy、既存の別リポジトリ（usaturn/resonite-emission-editor・usaturn/reso-world-Halloween・usaturn/reso-world-sensoji・usaturn/reso-workshop）、宣言の無いリポジトリ、独自のリポジトリを持たないワールドの作業は、どれもここに置く
+- 新規開発の手順・スキルで新しく作ったツール・ワールド・ResoLoop プラグインのリポジトリは、下の宣言をコミットし、Spec・Plan をそのリポジトリの `docs/superpowers/specs/`・`plans/` にコミットする。このリポジトリには置かず、二重管理しない
 - Spec は `specs/YYYY-MM-DD-<topic>-design.md`、Plan は `plans/YYYY-MM-DD-<topic>.md` とする。Issue・PR に関する文書の `<topic>` には、リポジトリを表す語と番号を含める（例: `usaturn-resoloop-pr9-list-shrink-review-fixes`）
 - 同じテーマのレビュー修正は、新しいファイルを作らずに既存の文書を更新する。過去の版は Git の履歴で追う
 - 更新する前に、対象リポジトリ・Issue/PR・テーマ・正本のパスで現行の Spec/Plan を探す。ファイル名の basename や日付だけでは照合しない。複数の候補があって後継の指定や明示パスで確定できないときは、進めずに確認する。回ごとの新規文書（roundN）は既定で作らない。本当に新しい文書は、独立承認されたアーキテクチャ再設計など明示的な理由があるときだけで、その理由を文書の冒頭に記録する
+
+### 宣言したリポジトリ
+
+新しいリポジトリは、自分の `AGENTS.md` に次の 1 行を置いてコミットする。補助（`scripts/superpowers_context.py`）は、checkout の `HEAD` のコミット済みの `AGENTS.md` に、前後の空白を除いてこの文字列と一致する行があるかで見分ける。作業ツリーと index の変更は見ない。
+
+```markdown
+<!-- superpowers-documents: this-repository -->
+```
+
+- 規則はこの文書にだけ定める。対象のリポジトリには複製せず、`AGENTS.md` に宣言の行と、この文書へのリンクの 1 文だけを置く。新規開発の手順と雛形は、次の例を写す
+
+  ```markdown
+  ## Spec・Plan
+
+  <!-- superpowers-documents: this-repository -->
+  superpowers で作る Spec・Plan は、このリポジトリの `docs/superpowers/specs/`・`plans/` にコミットする。保存・状態・公開の規則は [create-reso-world の docs/superpowers/README.md](https://github.com/usaturn/create-reso-world/blob/main/docs/superpowers/README.md) に従う。
+  ```
+
+- usaturn/resoloop・orange3134/resoloop・usaturn/resoloop-meshy は、宣言があっても補助が拒否し、Spec・Plan をこのリポジトリに置く。既存の別リポジトリには宣言を足さない
+- 共通 context の出力の `document_repository` が、作業の対象のリポジトリの Spec・Plan を置くリポジトリを示す。宣言したリポジトリの checkout を `DOC_ROOT` に渡すときは `--doc-repo <owner>/<repo>` を付ける。補助は、origin がそのリポジトリを指し、宣言があり、`document_repository` と一致することを確かめ、違えば止まる
+- 作業先: `PARENT_ROOT` はこのリポジトリの親 checkout のまま（確認用コピーの置き場所も同じ）。`DOC_ROOT` は宣言したリポジトリの作業用の worktree で、普通は `CODE_ROOT` と同じ
+- 状態・承認・公開・確認用コピーの規則は、宣言したリポジトリにもそのまま適用する
 
 ## 状態
 
@@ -40,11 +63,19 @@ bash scripts/superpowers-review-copy.sh --doc-root "$DOC_ROOT" --parent-root "$P
 - コピーは既存の entry を決して差し替えない。同じ名前で再コピーすると、内容が同一なら `unchanged` と表示して書き換えず、異なれば別名を案内して拒否する
 - 正本が変わったら `...-r2-spec.md`・`...-r2-plan.md` のような別名で新しいコピーを公開する。旧コピーとユーザの注記は残る。ユーザが編集したコピーは差し替えず、差分を正本へ反映してからコピーし直す
 - コピーの作成は共通 context 検証（operation `review-copy`）を通る。親 checkout（`PARENT_ROOT`）と文書 checkout（`DOC_ROOT`）だけを照合し、コード側の cwd（`CODE_ROOT`）は親やコピー元に使わない
+- 宣言したリポジトリの文書は、`--doc-repo` を付けてコピーする。コピー先は同じ `PARENT_ROOT` の `tmp/superpowers-review/` である
+
+  ```bash
+  bash scripts/superpowers-review-copy.sh --doc-root "$DOC_ROOT" --parent-root "$PARENT_ROOT" \
+    --doc-repo usaturn/example-tool \
+    --path docs/superpowers/specs/2026-11-07-example-design.md --name example-tool-issue3-spec.md
+  ```
 
 ## 公開
 
 - このリポジトリ自身の変更に伴う文書は、その作業の PR に含める
-- 他のリポジトリの変更に伴う文書は、このリポジトリの文書用ブランチから、テーマごとに 1 つの文書専用 PR で公開する。コード側の PR とは相互に参照する
+- 宣言したリポジトリの文書は、そのリポジトリのコードと同じ PR に含め、文書専用の PR を出さない
+- Spec・Plan をここに置く他のリポジトリの変更に伴う文書は、このリポジトリの文書用ブランチから、テーマごとに 1 つの文書専用 PR で公開する。コード側の PR とは相互に参照する
 - push・PR 作成・マージは、ユーザまたは使っているワークフローの明示指示があるときだけ行う。ローカルのコミットだけのときは「公開未実施」と報告する
 
 ## 履歴と現行仕様

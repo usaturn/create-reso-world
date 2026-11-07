@@ -71,15 +71,17 @@ Resonite 向けのワールド・ツールの作成、Blender などを使った
 
 ### Spec・Plan の保存と公開
 
-- どのリポジトリの作業でも、Spec・Plan の正本は `usaturn/create-reso-world` の `docs/superpowers/` に保存してコミットする。ResoLoop や無関係なリポジトリの作業でも、対象リポジトリには置かず、二重管理もしない。運用の要点は `docs/superpowers/README.md` にある
+- Spec・Plan は、原則として `usaturn/create-reso-world` の `docs/superpowers/` に保存してコミットする。create-reso-world 自身、ResoLoop 本体（usaturn/resoloop・orange3134/resoloop）、usaturn/resoloop-meshy、既存の別リポジトリ（usaturn/resonite-emission-editor・usaturn/reso-world-Halloween・usaturn/reso-world-sensoji・usaturn/reso-workshop）、宣言の無いリポジトリ、独自のリポジトリを持たないワールドの作業は、どれもこの原則に従い、対象のリポジトリには置かない
+- 例外として、新規開発の手順・スキルで新しく作ったツール・ワールド・ResoLoop プラグインのリポジトリは、自分の `AGENTS.md` に宣言の行（`<!-- superpowers-documents: this-repository -->`）をコミットし、Spec・Plan をそのリポジトリの `docs/superpowers/specs/`・`plans/` にコミットする。create-reso-world には置かない。宣言の形と見分け方は `docs/superpowers/README.md` の「保存先」に定める。既存の別リポジトリには宣言を足さない。ResoLoop 本体と usaturn/resoloop-meshy は、宣言があっても補助（`scripts/superpowers_context.py`）が拒否する
+- どちらの場合も、Spec・Plan は 1 つのリポジトリにだけ置き、二重管理しない。運用の要点は `docs/superpowers/README.md` にある
 - スキル superpowers で作成する Spec・Plan は、作業時に必ず作成している worktree のブランチにコミットし、ユーザ確認用で main の `docs_draft/superpowers/specs/` `docs_draft/superpowers/plan/` にコピーする
-- 作業先は 3 つを区別する。`PARENT_ROOT` はユーザが確認用ファイルを読む create-reso-world の親 checkout（`uv run --no-project python .agents/scripts/agent_tmp.py root` が出力するディレクトリ）、`DOC_ROOT` は正本をコミットする create-reso-world の checkout または worktree、`CODE_ROOT` はユーザの依頼または確認済みの引き継ぎで明示された、コード対象の checkout の絶対パスである。コード対象の cwd の `git rev-parse --show-toplevel` を、`DOC_ROOT` や `PARENT_ROOT` とみなさない
-- 文書を create-reso-world に集めることは、他のリポジトリのコード変更・clone・push・PR 作成の許可ではない。対象 checkout の `AGENTS.md` 等も守る
+- 作業先は 3 つを区別する。`PARENT_ROOT` はユーザが確認用ファイルを読む create-reso-world の親 checkout（`uv run --no-project python .agents/scripts/agent_tmp.py root` が出力するディレクトリ）、`DOC_ROOT` は Spec・Plan をコミットする checkout または worktree（create-reso-world のもの。宣言したリポジトリでは、そのリポジトリの作業用の worktree で、普通は `CODE_ROOT` と同じ）、`CODE_ROOT` はユーザの依頼または確認済みの引き継ぎで明示された、コード対象の checkout の絶対パスである。コード対象の cwd の `git rev-parse --show-toplevel` を、`DOC_ROOT` や `PARENT_ROOT` とみなさない
+- 文書の置き場所の規則は、他のリポジトリのコード変更・clone・push・PR 作成の許可ではない。対象 checkout の `AGENTS.md` 等も守る
 - 正式な Spec・Plan は、承認前でも `draft` のまま `DOC_ROOT` の作業ブランチにコミットする。状態は `draft`・`approved`・`completed`・`superseded`・`cancelled` で書き、コミットしただけで `approved` にしない。完了した文書も削除しない
 - 同じテーマのレビュー修正は既存の文書を更新し、過去の版は Git の履歴に残す。更新前には対象リポジトリ・Issue/PR・テーマ・正本のパスで現行の Spec/Plan を探し、複数の候補があって確定できないときは進めずに確認する。回ごとの新規文書（roundN）は既定で作らない。承認は内容のコミット SHA に結び付け、承認後の状態・記録追記だけの変更は再承認を求めない。実質的な設計・計画の変更は再承認を必要とする（記録した実行許可がその変更を明示的に含む場合を除く）。例外で進める場合は許可された変更内容を記録し、一般的な継続指示だけで変更の承認を推測しない
-- ユーザに Spec・Plan の確認を依頼する前に、コミット済みの版を `scripts/superpowers-review-copy.sh` で `PARENT_ROOT` の `tmp/superpowers-review/` へコピーし、コピー先・文書のコミット SHA・正本のパスを示す。ファイル名は内容が分かる短い名前に `-spec.md` か `-plan.md` を付け、関連する Issue・PR があれば `<repo>-pr<N>-` のように番号を含める。番号を発明しない。コピーは既存の entry を決して差し替えない。正本が変わったら `...-r2-spec.md` のような別名で新しいコピーを公開し、旧コピーとユーザの注記は残す
-- issue-to-pr スキルで進める作業は、ユーザに確認を求めないので確認用のコピーを作らない。Spec・Plan は `draft` のままコミットし、その作業の PR（他のリポジトリの作業では文書専用の PR）で公開する。ユーザの実行指示は実行許可として記録し、内容の承認（`approved`）にしない
-- 公開: create-reso-world 自身の変更に伴う文書は、その作業の PR に含める。他のリポジトリの変更に伴う文書は、create-reso-world の文書用ブランチから、テーマごとに 1 つの文書専用 PR で公開する。コミット・push・PR 作成・マージは別の段階であり、ユーザまたは使っているワークフローの明示指示があるときだけ行う。ローカルのコミットだけのときは、報告と handoff に「公開未実施」と書く
+- ユーザに Spec・Plan の確認を依頼する前に、コミット済みの版を `scripts/superpowers-review-copy.sh` で `PARENT_ROOT` の `tmp/superpowers-review/` へコピーし（宣言したリポジトリの文書は `--doc-repo <owner>/<repo>` を付ける。コピー先は同じ）、コピー先・文書のコミット SHA・正本のパスを示す。ファイル名は内容が分かる短い名前に `-spec.md` か `-plan.md` を付け、関連する Issue・PR があれば `<repo>-pr<N>-` のように番号を含める。番号を発明しない。コピーは既存の entry を決して差し替えない。正本が変わったら `...-r2-spec.md` のような別名で新しいコピーを公開し、旧コピーとユーザの注記は残す
+- issue-to-pr スキルで進める作業は、ユーザに確認を求めないので確認用のコピーを作らない。Spec・Plan は `draft` のままコミットし、その作業の PR（Spec・Plan を create-reso-world に置く他のリポジトリの作業では文書専用の PR）で公開する。ユーザの実行指示は実行許可として記録し、内容の承認（`approved`）にしない
+- 公開: create-reso-world 自身の変更に伴う文書と、宣言したリポジトリの文書は、その作業の PR（コードと同じ PR）に含め、文書専用の PR を出さない。Spec・Plan を create-reso-world に置く他のリポジトリの変更に伴う文書は、create-reso-world の文書用ブランチから、テーマごとに 1 つの文書専用 PR で公開する。コミット・push・PR 作成・マージは別の段階であり、ユーザまたは使っているワークフローの明示指示があるときだけ行う。ローカルのコミットだけのときは、報告と handoff に「公開未実施」と書く
 
 ### コミットしないファイルの置き場所
 

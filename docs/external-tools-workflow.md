@@ -6,7 +6,8 @@
 
 **登録は対象の定義だけである。** repo 作成・clone・実装・push・PR・マージ・release・実機操作は、利用者の指示と
 各ワークフローで別に許可を確認する。共通基盤は Dev Container、Python 3.14 以上、uv、Git を前提にする。
-Spec・Plan は外部 repo へ移さず、create-reso-world の `docs/superpowers/` にコミットする。
+Spec・Plan は、`AGENTS.md` で宣言した新しいリポジトリではそのリポジトリに、それ以外（既存の通常ツールを含む）は
+create-reso-world の `docs/superpowers/` にコミットする（`docs/superpowers/README.md` の「保存先」）。
 
 ## 台帳候補の検証と採用
 
