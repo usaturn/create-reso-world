@@ -10,13 +10,14 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-06-emission-editor-repository-management-design.md`、現行保存版 `c654fafaa9eb7cdb6d2136c31f8239f44bb5c7a9`。承認の参照版は `b8c9b4253a5cd3431c9e2e6320649c2de14c15d8` と利用者の最低Python3.14への明示変更。
 
-- 状態: draft
-- 草稿の確認状態: writing-plans の最終自己点検を実施し、下記に記録。型・Sの対応・最小context分離・offline build呼出しを具体化した。Planは未承認・全Task未実施で、実行許可を補うものではない。
-- 先行Plan: `docs/superpowers/plans/2026-11-06-external-tools-framework.md`。共通基盤と台帳が親へ採用されるまで本Planの実装開始はblocked。
-- 文書作業先: 作成時 `/workspaces/reso-world/.worktrees/emission-repo-management`。実行時も create-reso-world の検証済み文書worktreeを DOC_ROOT として記録する。親の追跡ファイルを直接編集しない。
+- 状態: completed
+- 内容の事前承認は無い。実行は利用者の個別指示による。この状態は移行作業が終わった記録であり、設計を事後に承認したという意味ではない。
+- 草稿の確認状態: writing-plans の最終自己点検を実施し、下記に記録。型・Sの対応・最小context分離・offline build呼出しを具体化した。作成時点では Plan は未承認・全 Task 未実施で、その自己点検は実行許可ではなかった。
+- 先行Plan: `docs/superpowers/plans/2026-11-06-external-tools-framework.md`。共通基盤と台帳は #317 で親へ採用済み。
+- 文書作業先: 作成時 `/workspaces/reso-world/.worktrees/emission-repo-management`。結果追記は `/workspaces/reso-world/.worktrees/emission-onboarding-record`。親の追跡ファイルは直接編集しない。
 - 元コード: `/workspaces/reso-world/worlds/tools`（Git追跡外、移動・変更しない）。
-- 新repo: `usaturn/resonite-emission-editor`、予定常設root `/workspaces/reso-world/external/emission-editor`。現時点では未作成。
-- Issue / PR: なし。Plan確認・実行許可、ライセンス、repo作成、push/PRは未受領。公開未実施。
+- 新repo: `usaturn/resonite-emission-editor`。常設 root は `/workspaces/reso-world/external/emission-editor` で、detached HEAD は merge commit `a8d7d4068b681de82cb79feb6215bc39743faccd`。
+- Issue / PR: create-reso-world #318。コード PR は usaturn/resonite-emission-editor#1 で MERGED。実機切替と、未公開のツール機能 Spec/Plan の公開は未実施。
 
 ## Global Constraints
 
@@ -180,4 +181,16 @@ controllerがSpecと作者ソース/既存Sを照合し、子には不足する�
 4. Review Focus: 1→Task3のtransport前拒否、2→Task1のS対応とTask3の既存S、3→Task1の分類とTask3–4のsource検証、4→Task3のcompiler隔離SとTask4の旧保全、5→Task2/5のactual receiptと段階別記録。外部操作にfakeの成功を代用せず、F/Lの恒久テストを増やさない。
 5. 分量: 最小分離のインターフェースと代表assertに限定し、実装本体は書いていない。sourceの実採否・由来・ライセンスはTask1、外部操作は別許可で決める。
 
-全Task未実施。Plan内容/記録例外/実行許可が未確認であり、先行基盤の親への採用・ライセンス・repo作成/push/PRの各gateも残る。
+上の自己点検は、作成時点の記録である。実行結果は次のとおりで、各状態は別である。
+
+## 実行記録
+
+- ライセンス: BSD 2-Clause。表示は `Copyright (c) 2026 usaturn`。
+- 公開 repo: `usaturn/resonite-emission-editor`、id `R_kgDOVl5t4g`、PUBLIC。Actions は `enabled=false`。`main` の branch protection は無く、ruleset は 0 件。
+- コード: `696995a249c316dea809873b64c88a60b4791dc8` のあと、レビューで直した `b4b4ff0f9b964787cb0f9142563ffd991eebaea8`。merge commit `a8d7d4068b681de82cb79feb6215bc39743faccd` の tree は `b4b4ff0` と同じ `dd03ed492c19a59948d3e98f4f9be91c54da238c`。
+- レビュー: `f8136f76..696995a` の branch review で Critical は無く、Important が 2 件。保全ハッシュの root 解決と、root 外 state / 同一 state パスのテストを `b4b4ff0` で直した。その差分の再レビューでは 2 件とも解消し、新しい Critical / Important は無かった。Minor は保留。`isolate_manifest` は削除していない。
+- push: scan の印字 SHA だけを `feat/initial-source-import` へ送った。`696995a` と `b4b4ff0` は別々の scan と push。検出はどちらも無し。
+- PR: https://github.com/usaturn/resonite-emission-editor/pull/1 は利用者が merge した。merge commit は `a8d7d4068b681de82cb79feb6215bc39743faccd`。
+- 常設 checkout: detached の `a8d7d4068b681de82cb79feb6215bc39743faccd`。登録照合は `ready`。
+- 検証: 2026-11-07 に、その checkout で `uv sync --locked` のあと `uv run --offline pytest` は 40 passed。同じ commit の archive から隔離したコピーで、ProtoFlux 22 件の check と build はすべて exit 0 で、出力 `.brson` は作業領域だけ。checkout の追跡ファイルは変わっていない。doctor、discover、deploy、watch はしていない。
+- 未実施: 実機切替。未公開のツール機能 Spec/Plan の公開。この文書の merge は、この記録の PR を作っただけでは行わない。
