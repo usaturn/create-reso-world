@@ -185,3 +185,39 @@ builder check（別のサブエージェントが、この Spec だけで計画�
 - `docs/new-world-development.md`・`docs/new-tool-development.md`・`docs/new-plugin-development.md` と、入口の文書の 3 つの節の本文
 - Spec・Plan の置き場所の規則（#322）
 - スキル（`.agents/skills/`）の中の食い違い（D4 のとおり #320 にコメント）
+
+## 実装の確認（2026-11-07）
+
+実装は issue-to-pr（利用者の指示 `/issue-to-pr #321 --merge`）で行った。planning のブランチ `docs/issue-321-facts-and-entry`（Spec・Plan のコミット済み、claim は解放済み）をそのまま使い、`origin/main` の `afa86e09`（PR #327 を含む）に rebase してから Plan の Task 1〜4 を実施した。`.devcontainer/README.md` の 177・193 行目は PR #327 の後も同じ位置で、重ならなかった。
+
+| コマンド | 結果 |
+| --- | --- |
+| `git diff --check` | 出力なし |
+| `bash scripts/check-layout.sh` | `PASS: check-layout`（終了コード 0） |
+| `bash tests/scripts/test-agent-config.bash` | `PASS: MCP headers use env references` |
+| `gh api repos/usaturn/create-reso-world/actions/permissions` | `{"enabled":false,...}`（無効のまま） |
+| `git diff --name-only origin/main...HEAD` | `.devcontainer/README.md`、`AGENTS.md`、`README.md`、`docs/new-development.md`、Spec、Plan、`tests/scripts/test-agent-config.bash` の 7 つだけ |
+| `AGENTS.md` の hunk | 「リポジトリ概要」と「GitHub Actions」の 2 つだけ |
+| 相対リンクの実在確認（`README.md`・`docs/new-development.md`） | すべて実在 |
+| まだ無い `docs/new-*-development.md` へのリンク | なし |
+
+grep（`プライベート|private|料金の問題|ci\.yml`、`docs/superpowers`・`reviews` を除く）の残りの一致:
+
+| 一致 | 分類 |
+| --- | --- |
+| `AGENTS.md:167`、`README.md:17`・`253`、`.devcontainer/README.md:177`・`193` | 直した後の文。「`ci.yml` は動かない」と、「プライベートで開発したい場合もある」という方針の説明 |
+| `.agents/skills/issue-to-pr/evals/scenarios.json:56` | 非公開を前提にした食い違いだが範囲外（D4）。#320 にコメント |
+| `docs/maatlog-poc-porting.md:162`、`scripts/resoloop-meshy.sh:75` | 事実（`ci.yml` の記録、usaturn/resoloop-meshy が private） |
+| そのほか（`.gitignore`、`docs/integration.md` の `private/`、スキルの文面・テストの `private` の識別子など） | 別の意味の `private` |
+
+表の各行と直した文の対応:
+
+| 食い違い | 直した場所 |
+| --- | --- |
+| `AGENTS.md` 167 行目 | 2 行に分けた（create-reso-world は Actions 無効、有効な公開リポジトリでは CI を確認） |
+| `README.md` の「変更の流れ」 | CI は動かず、ローカルの実行だけが検査になると書いた |
+| `.devcontainer/README.md` 177 行目、193〜194 行目（D2） | 動かないことを書いた |
+| `test-agent-config.bash` 13 行目 | 公開済みで Actions 無効と書いた |
+| `README.md` の「対象外」 | 公開済み。LICENSE は未選定 |
+| `README.md` 冒頭、`AGENTS.md` の「リポジトリ概要」 | 新しい対象の説明と入口の文書への案内 |
+| `README.md` の「構成」 | 実在するパスと照合して書き直した（`meshy.py` の行は 1 文字も変えていない） |
