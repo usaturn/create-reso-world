@@ -102,8 +102,9 @@ optional and worth including when it is true.
   - `spec` (required): path to the design/spec that holds the reasoning, or `null` /
     `none` when there is no spec — then say why, the same way `landing.pr` does.
   - `plan`, `ledger`, `sdd_workspace`, `session_jsonl`, `plan_files`: when they exist.
-  - `doc_root`: the create-reso-world checkout where the spec and plan are committed
-    (`DOC_ROOT`). Specs and plans for every repository live there.
+  - `doc_root`: the checkout where the spec and plan are committed (`DOC_ROOT`):
+    create-reso-world, or the target repository when its committed `AGENTS.md`
+    declares that it keeps its own (root `AGENTS.md`, "Spec・Plan の保存と公開").
   - `document_commit`: the full SHA of the current/restore commit that holds the
     spec and plan, and `document_published`: the remote ref it was pushed to, or
     `null` when it is a local commit only (say "公開未実施" in Markdown).

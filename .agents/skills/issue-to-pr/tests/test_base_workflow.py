@@ -83,7 +83,7 @@ class Workflow:
                   # block must supply its own failure propagation, and the scanned
                   # SHAs must come from the files the documented publish block writes.
                   'declare -p CODE_BASE_BRANCH CODE_BASE_SHA > "$SESSION/resume.bash"',
-                  'if [ "$TARGET_REPO" != usaturn/create-reso-world ]; then',
+                  'if [ "$DOCS_SEPARATE" != false ]; then',
                   '  declare -p DOC_BASE_SHA >> "$SESSION/resume.bash"',
                   'fi', 'declare -f recheck_bases >> "$SESSION/resume.bash"',
                   'bash -c ' + shlex.quote(as_runtime(procedure("pr"), 'source "$SESSION/resume.bash"'))]
@@ -97,7 +97,9 @@ class Workflow:
 @pytest.fixture
 def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> Workflow:
     external = getattr(request, "param", False)
-    managed = external == "managed"
+    managed = external in ("managed", "managed-own-docs")
+    # The tool's own committed AGENTS.md declares that it keeps its Spec/Plan.
+    own_docs = external == "managed-own-docs"
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
@@ -120,6 +122,10 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fi
         subprocess.run(["git", "init", "-q", "--initial-branch=main", str(seed)], check=True)
         (seed / "content").write_text(f"{name} main\n")
         git(seed, "add", "content")
+        if own_docs and name == "code":
+            (seed / "AGENTS.md").write_text(
+                "# ツール\n\n<!-- superpowers-documents: this-repository -->\nSpec・Plan はここに置く。\n")
+            git(seed, "add", "AGENTS.md")
         git(seed, "commit", "-qm", "main")
         git(seed, "switch", "-qc", INTEGRATION)
         (seed / "integration-only").write_text("統合の履歴\nsecond line\n")
@@ -240,7 +246,7 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fi
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     remote, seed, target, repo = pairs[-1]
     code = target / ".worktrees/issue-42-change"
-    docs = parent / ".worktrees/issue-42-change" if external else code
+    docs = parent / ".worktrees/issue-42-change" if external and not own_docs else code
     return Workflow(parent, target, remote, session, code, docs, repo)
 
 
@@ -363,3 +369,21 @@ def test_registered_tool_flows_to_issue_and_base(workflow: Workflow, base_explic
     creates = [call for call in calls if call[:2] == ["pr", "create"]]
     assert [(call[call.index("--repo") + 1], call[call.index("--base") + 1]) for call in creates] == [
         ("sample-owner/other-tool", expected_branch), ("usaturn/create-reso-world", "main")]
+
+
+@pytest.mark.parametrize("workflow", ["managed-own-docs"], indirect=True)
+def test_declared_tool_keeps_documents_in_its_own_pr(workflow: Workflow) -> None:
+    """S: separating documents would silently ship a declared repository's Spec/Plan in a create-reso-world PR."""
+    # An Issue body may spell the target with capitals; GitHub, the resolver and gh accept it.
+    workflow.repo = "Sample-Owner/Other-Tool"
+    result = workflow.run("#42")
+    assert result.returncode == 0, result.stderr
+    target = json.loads((workflow.session / "target.json").read_text())
+    assert target["document_repository"] == "sample-owner/other-tool"
+    calls = [json.loads(line) for line in (workflow.session / "gh.jsonl").read_text().splitlines()]
+    creates = [call for call in calls if call[:2] == ["pr", "create"]]
+    assert [call[call.index("--repo") + 1] for call in creates] == ["Sample-Owner/Other-Tool"]
+    assert not (workflow.parent / ".worktrees/issue-42-change").exists()
+    scans = [json.loads(line) for line in (workflow.session / "scans.jsonl").read_text().splitlines()]
+    assert [scan["cwd"] for scan in scans] == [str(workflow.code)]
+    assert not (workflow.session / "docs-pr.json").exists()

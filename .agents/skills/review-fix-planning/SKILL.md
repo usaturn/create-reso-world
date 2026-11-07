@@ -112,7 +112,7 @@ PY
 
 ## 共通 context の確認
 
-`PARENT_ROOT` は create-reso-world の main checkout。省略できるのはその main checkout 内の cwd だけで、linked・外部 cwd では明示する。`DOC_ROOT` は文書のコミット先として別に指定し、`DOC_BRANCH` に予定の文書ブランチ名を入れる。初期調査で文書先が未確定なら両方とも空でよいが、**Spec の書込・commit 前には両方を確定して再実行する**。`CODE_ROOT` は既知経路・採用済み通常ツールの初期調査（review-workspace）では省略できるが、修正用 worktree は明示する。既知経路の別 clone と、通常ツールの登録先と別 common-dir の clone は origin URL が同じでも拒否する。base/CI は採用済み台帳を使い、検証・編集範囲・実行許可は対象 repo の `AGENTS.md` と `README.md` に従う。[共通運用](../../../docs/external-tools-workflow.md) の CI 実設定照合と手動マージの境界を守る。
+`PARENT_ROOT` は create-reso-world の main checkout。省略できるのはその main checkout 内の cwd だけで、linked・外部 cwd では明示する。`DOC_ROOT` は文書のコミット先として別に指定し、`DOC_BRANCH` に予定の文書ブランチ名を入れる。`DOC_REPO` は Spec を置くリポジトリで、下のブロックが出力の `document_repository` から読む（`PR_REPO` が `AGENTS.md` で宣言したリポジトリならそれ、ほかは create-reso-world。ルート `AGENTS.md` の「Spec・Plan の保存と公開」）。`DOC_ROOT` は `DOC_REPO` の checkout にし、違えば helper が止まる。初期調査で文書先が未確定なら両方とも空でよいが、**Spec の書込・commit 前には両方を確定して再実行する**。`CODE_ROOT` は既知経路・採用済み通常ツールの初期調査（review-workspace）では省略できるが、修正用 worktree は明示する。既知経路の別 clone と、通常ツールの登録先と別 common-dir の clone は origin URL が同じでも拒否する。base/CI は採用済み台帳を使い、検証・編集範囲・実行許可は対象 repo の `AGENTS.md` と `README.md` に従う。[共通運用](../../../docs/external-tools-workflow.md) の CI 実設定照合と手動マージの境界を守る。
 
 以下を手順 2 と、文書書込・commit、実装、fetch・push、コメント投稿の直前に再実行し、失敗したら後続操作を行わない。操作の対象に応じて `CONTEXT_OPERATION` を設定する。
 
@@ -136,13 +136,14 @@ if [[ ! -f "$CONTEXT_HELPER" ]]; then
 fi
 CONTEXT_JSON=$(uv run --no-project python "$CONTEXT_HELPER" --operation "${CONTEXT_OPERATION:-review-fix}" \
   --parent-root "$CONTEXT_PARENT" --doc-root "${DOC_ROOT:-}" --code-root "${CODE_ROOT:-}" \
-  --repo "$PR_REPO" --doc-branch "${DOC_BRANCH:-}" \
+  --repo "$PR_REPO" --doc-branch "${DOC_BRANCH:-}" --doc-repo "${DOC_REPO:-}" \
   --head-repo "${HEAD_REPO:-}" --head-branch "${HEAD_REPO:+${HEAD_BRANCH:-}}") || exit 66
 PARENT_ROOT=$(printf '%s' "$CONTEXT_JSON" | jq -r .parent_root)
 TOPLEVEL=$(printf '%s' "$CONTEXT_JSON" | jq -r .tool_root)
 MAIN_ROOT=$(printf '%s' "$CONTEXT_JSON" | jq -r .code_root)
 CODE_ROOT="$MAIN_ROOT"
 DOC_ROOT=$(printf '%s' "$CONTEXT_JSON" | jq -r '.doc_root // empty')
+DOC_REPO=$(printf '%s' "$CONTEXT_JSON" | jq -r .document_repository)
 PR_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r .base_remote)
 HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 ```
@@ -151,7 +152,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 ## 専用の worktree
 
-完遂では、自己レビューの役割（`run_roles.py`）の外で `pr-review` スキルを使わず、PR の head ブランチを checkout した専用の worktree で、修正・Spec のコミット（PR が create-reso-world のとき）・push を行う。計画のみと、実装後だけの依頼では作らない。
+完遂では、自己レビューの役割（`run_roles.py`）の外で `pr-review` スキルを使わず、PR の head ブランチを checkout した専用の worktree で、修正・Spec のコミット（`DOC_REPO` が `PR_REPO` のとき）・push を行う。計画のみと、実装後だけの依頼では作らない。
 
 1. 手順 2 の共通 context（`HEAD_REPO` 無し）で得た `MAIN_ROOT`・`PR_REMOTE` と、手順 2 の `gh pr view` の結果を使う。`HEAD_BRANCH` は `headRefName`、`HEAD_SHA` は `headRefOid` である。
 2. PR の head を取得して SHA を照合し、checkout 済みの worktree を調べる。fork からの PR でも `pull/<N>/head` で取れる。
@@ -268,7 +269,7 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
    - **実装後** の手順 5 の head の確認と共通 context の再実行の後、同じ手順 5 の検査付きの push で push する（fast-forward だけ。`--force` を付けない。検査で止まったら push せずに結論 3 にする。状況コメントは投稿済みなので、`AGENTS.md` の直し方は使わない）
    - 一致しない、または push が reject されたら、rebase も merge もせず結論 3 にする（停止理由: 検証中に PR の head か作業ツリーが変わった）。Spec のコミットは下記「結論 3」の「書き始めた Spec の扱い」に従う（取り消してよい条件を満たさなければ、取り消さずに残して報告する）
 
-   PR が create-reso-world 以外のものなら、Spec は文書用ブランチにコミットし（「Spec のコミットと確認用コピー」）、状況の投稿は次の `finalize.py` が行う
+   PR が create-reso-world 以外のもの（マージしてよい範囲では usaturn/resoloop。`DOC_REPO` は create-reso-world）なら、Spec は文書用ブランチにコミットし（「Spec のコミットと確認用コピー」）、状況の投稿は次の `finalize.py` が行う。`AGENTS.md` で宣言したリポジトリはマージしてよい範囲の外なので、手順 4 で結論 3 になり、この手順に来ない
 7. 共通 context を再実行してから、`finalize.py` で最終化する。create-reso-world の PR では `--spec-commit "$SPEC_COMMIT"` を付ける（helper は投稿せず、投稿済みの記録、Spec の commit が検証した HEAD の上の Spec 1 ファイルだけであること、PR の head を確かめてから、その commit をマージする）。それ以外の PR では付けない（helper が投稿し、CI を確かめ、検証した head をマージする）。どちらでも helper は、投稿の前（`--spec-commit` が無いとき）とマージの直前に、PR の base ブランチの今の先端が検証の記録の `base` と同じことを確かめる。終了コード 0 で結果の `outcome` が `no_fix_needed` のときだけ、マージと closing Issue の更新が終わった。`wait_for` 付きの `stopped` は、`monitoring-long-tasks` で期限を決めて待ち、同じ入力で再実行する。`base_moved` 付きの `stopped`（検証した後に base が進んだ）は待っても解消しないので、[execution.md](references/execution.md) 3.4 節のとおり新しい先端で検証し直し、検証の記録を作り直してから再実行する。`merge_parent` 付きの `stopped`（マージの後に、merge commit の最初の親が検証の記録の `base` と違う・読めない）はマージ済みで、helper は関連 Issue を更新していない。どちらの場合も、[execution.md](references/execution.md) 3.4 節のとおり補足のコメントを投稿して結論 3 にする。読めないだけなら、原因が解消してから同じ入力で再実行すると読み直す。最初の親が違えば、待っても再実行しても解消しないので、再検証せずに止まる（merge commit のツリーでの再検証と再実行は、利用者の指示で別に行う）。PR の変更が原因の CI の失敗は致命的な指摘として結論 1 に切り替える。それ以外の `stopped` は結論 3 にする（`merged: true` ならマージ済み、`merged: null` ならマージ済みかを確かめられていないことを分けて報告する。`null` を未マージと書かず、[execution.md](references/execution.md) 3.4 節のとおり状態を読み直す）。結果に `error_detail`（`gh` の失敗の要点）があれば利用者への報告に書き、PR のコメント（判断の記録・状況の本文）には写さない（[execution.md](references/execution.md) 3.4 節）
 8. PR の本文・タイトルで参照しているだけの Issue に、マージの結果と残りの作業をコメントする。本文のチェック項目のうち、この PR で完了したことが明らかなものは、本文を取り直してから `[x]` にする（`finalize.py` は closing Issue だけを扱う）
 9. 工程の記録を更新し（[round-records.md](references/round-records.md) 7 章）、「専用の worktree」を片付ける
@@ -290,9 +291,9 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 **書き始めた Spec の扱い:** 結論 3 では、Spec だけのコミットや Spec の変更を PR の head ブランチに残さない。残すと、次の完遂が「専用の worktree」の手順 3（PR に無いコミット、未コミットの変更）で止まり続ける。再利用した他の worktree では、持ち主の commit・push で draft の Spec が PR に入る。ただし、自分の Spec の変更だと取り消す直前に確かめられないものは取り消さない（worktree の持ち主や別のセッションの作業かもしれない）。報告に使う `git` の結果は、「専用の worktree」の片付けより前に集める。
 
-- PR が create-reso-world 以外（`DOC_ROOT` は文書用ブランチ）: Spec を `draft` のまま文書用ブランチにコミットし、停止理由を書く
-- create-reso-world の PR で、変更が Spec だけではない（head ブランチに Spec だけではないコミットがあるか、Spec 以外の未コミットの変更がある。このセッションの修正か他の作業かを問わない）、または下の取り消してよい条件を満たさない: 何も取り消さずに残す。報告に、ブランチ名（未コミットの変更があれば worktree のパスも）と、`git -C "$MAIN_ROOT" status --short`・`git -C "$MAIN_ROOT" log --oneline "$HEAD_SHA"..HEAD` の結果を書き、それを push するか捨てるまで次の完遂は「専用の worktree」の手順 3 で止まることを書く
-- create-reso-world の PR で、変更が Spec だけ: 分類の結果と停止理由を報告に書き、次の条件を満たすときだけ取り消す
+- `DOC_REPO` が create-reso-world で、PR が create-reso-world 以外（`DOC_ROOT` は文書用ブランチ）: Spec を `draft` のまま文書用ブランチにコミットし、停止理由を書く
+- `DOC_REPO` が `PR_REPO` の PR（create-reso-world と、`AGENTS.md` で宣言したリポジトリ。Spec を PR の head に載せる）で、変更が Spec だけではない（head ブランチに Spec だけではないコミットがあるか、Spec 以外の未コミットの変更がある。このセッションの修正か他の作業かを問わない）、または下の取り消してよい条件を満たさない: 何も取り消さずに残す。報告に、ブランチ名（未コミットの変更があれば worktree のパスも）と、`git -C "$MAIN_ROOT" status --short`・`git -C "$MAIN_ROOT" log --oneline "$HEAD_SHA"..HEAD` の結果を書き、それを push するか捨てるまで次の完遂は「専用の worktree」の手順 3 で止まることを書く
+- `DOC_REPO` が `PR_REPO` の PR で、変更が Spec だけ: 分類の結果と停止理由を報告に書き、次の条件を満たすときだけ取り消す
   - 結論 2 の手順 6 で Spec を push した後（マージなどで止まった）: 取り消すものは無い。先端は push した head で、片付けの対象になる
   - 結論 2 の手順 6 で Spec をコミットし、push していない: 手順 6 の commit 後の確認が通っていて、取り消す直前にも `git -C "$MAIN_ROOT" rev-parse HEAD` が記録した Spec のコミット、`git -C "$MAIN_ROOT" rev-parse HEAD^` が `HEAD_SHA`、`git -C "$MAIN_ROOT" status --porcelain` が空のときだけ、`git -C "${MAIN_ROOT:?}" reset --keep "$HEAD_SHA"` で取り消す
   - コミットしていない: `git -C "$MAIN_ROOT" rev-parse HEAD` が `HEAD_SHA` で、`git -C "$MAIN_ROOT" status --porcelain` に Spec のファイルしか出ないときだけ取り消す。追跡済みか `git add` 済みなら `git -C "${MAIN_ROOT:?}" restore --staged --worktree -- <Spec>` で戻し、追跡されていない新規のファイルは消す
@@ -324,20 +325,20 @@ HEAD_REMOTE=$(printf '%s' "$CONTEXT_JSON" | jq -r '.head_remote // empty')
 
 ## Spec のコミットと確認用コピー
 
-Spec の正本は create-reso-world の `DOC_ROOT`（ルート `AGENTS.md` の定義）にだけ置く。`MAIN_ROOT` が別のリポジトリでも、そちらへ置かない。`DOC_ROOT` は `$TOPLEVEL` と同じとは限らない。`$TOPLEVEL` は、スキル helper と `scripts/superpowers-review-copy.sh` の配置元としてだけ使う。
+Spec は `DOC_REPO`（共通 context の `document_repository`）の `DOC_ROOT` にだけ置く（ルート `AGENTS.md` の「Spec・Plan の保存と公開」）。`DOC_REPO` が create-reso-world なら、`MAIN_ROOT` が別のリポジトリでも、そちらへ置かない。`DOC_ROOT` は `$TOPLEVEL` と同じとは限らない。`$TOPLEVEL` は、スキル helper と `scripts/superpowers-review-copy.sh` の配置元としてだけ使う。
 
-1. **`DOC_ROOT` を確定してコミットする** — Spec を書く前に、コミット先のブランチの checkout を `DOC_ROOT` として確定する。コミット先は、`PR_REPO` が `usaturn/create-reso-world` ならレビュー対象ブランチ（実装を載せるブランチ）、それ以外なら create-reso-world の文書用ブランチ（テーマごとに 1 本。例 `docs/usaturn-resoloop-pr9-list-shrink`）である。既存の文書用ブランチがあれば再利用し、レビュー回ごとに作らない。`DOC_ROOT` を特定できない場合は推測せず停止する。Spec の作成・更新は `$DOC_ROOT` で行い、提示の前に `draft` のまま `$DOC_ROOT` でコミットする。
+1. **`DOC_ROOT` を確定してコミットする** — Spec を書く前に、コミット先のブランチの checkout を `DOC_ROOT` として確定する。コミット先は、`DOC_REPO` が `PR_REPO`（create-reso-world と、`AGENTS.md` で宣言したリポジトリ）ならレビュー対象ブランチ（実装を載せるブランチ）、それ以外なら create-reso-world の文書用ブランチ（テーマごとに 1 本。例 `docs/usaturn-resoloop-pr9-list-shrink`）である。既存の文書用ブランチがあれば再利用し、レビュー回ごとに作らない。`DOC_ROOT` を特定できない場合は推測せず停止する。Spec の作成・更新は `$DOC_ROOT` で行い、提示の前に `draft` のまま `$DOC_ROOT` でコミットする。
 2. **確認用コピーを作る** — `PARENT_ROOT`（ユーザが読む create-reso-world の親 checkout）を確かめてから、次を `$TOPLEVEL` で実行する。名前は `<repo>-pr<N>-<topic>-spec.md` の形にする。既存のコピーは決して差し替えない。同じ名前での再コピーは、内容が同一なら `unchanged`、異なれば別名を案内して拒否される。正本が変わったら `...-r2-spec.md` のような別名で新しいコピーを公開する。旧コピーとユーザの注記は残る。スクリプトが拒否したら、worktree のパスだけを代わりに示さず、失敗を報告して止まる。
 
    ```bash
-   bash scripts/superpowers-review-copy.sh --doc-root "$DOC_ROOT" --parent-root "$PARENT_ROOT" \
+   bash scripts/superpowers-review-copy.sh --doc-root "$DOC_ROOT" --parent-root "$PARENT_ROOT" --doc-repo "$DOC_REPO" \
      --path docs/superpowers/specs/<file> --name <repo>-pr<N>-<topic>-spec.md
    ```
 
 3. **提示する** — コピー先（`tmp/superpowers-review/...`）、文書コミットの SHA、正本のパスを示して承認を求める。承認はその SHA の版に結び付ける。
-4. **公開する** — `PR_REPO` が create-reso-world なら、Spec は実装と同じ PR に載る。それ以外では、**実装後** の push の後で、同じテーマの文書専用 PR があれば文書用ブランチを push してそこへ反映する。文書専用 PR はコード修正の第二の PR ではない。文書専用 PR が無ければ push も PR の作成もせず、文書のコミット SHA を報告し、「公開未実施」と書いて作成の指示を求める。
+4. **公開する** — `DOC_REPO` が `PR_REPO` なら、Spec は実装と同じ PR に載り、文書専用 PR を出さない。それ以外では、**実装後** の push の後で、同じテーマの文書専用 PR があれば文書用ブランチを push してそこへ反映する。文書専用 PR はコード修正の第二の PR ではない。文書専用 PR が無ければ push も PR の作成もせず、文書のコミット SHA を報告し、「公開未実施」と書いて作成の指示を求める。
 
-**完遂では** 手順 2・3（確認用コピーと提示）を省き、承認を待たない。Spec は 1 回だけコミットする。結論 1 では自己レビュー後の修正と検証が終わってから push の前に、結論 2 ではマージの前に、結論・検証の結果・自己レビューの結果を書いて状態を `completed` にする。push・マージ・Issue 更新の結果は Spec に追記せず、状況コメントと完了報告に書く（記録だけのコミットを PR に足さないため）。結論 3 で止まったときは、「三択の結論」の結論 3 の「書き始めた Spec の扱い」に従う（create-reso-world の PR で修正が無ければ、Spec を head ブランチにコミットしない）。PR が create-reso-world のものなら、手順 1 の `DOC_ROOT` は専用の worktree である。手順 4 の公開の規則は変わらない。
+**完遂では** 手順 2・3（確認用コピーと提示）を省き、承認を待たない。Spec は 1 回だけコミットする。結論 1 では自己レビュー後の修正と検証が終わってから push の前に、結論 2 ではマージの前に、結論・検証の結果・自己レビューの結果を書いて状態を `completed` にする。push・マージ・Issue 更新の結果は Spec に追記せず、状況コメントと完了報告に書く（記録だけのコミットを PR に足さないため）。結論 3 で止まったときは、「三択の結論」の結論 3 の「書き始めた Spec の扱い」に従う（`DOC_REPO` が `PR_REPO` の PR で修正が無ければ、Spec を head ブランチにコミットしない）。`DOC_REPO` が `PR_REPO` なら、手順 1 の `DOC_ROOT` は専用の worktree である。手順 4 の公開の規則は変わらない。
 
 ## 実装後
 
@@ -414,7 +415,7 @@ resoloop の上流への PR も同じ規則が fork の経路で成立する: `P
 - 結論: 1 修正して push | 2 修正不要でマージ | 3 停止（理由） | 計画のみ（承認待ち）
 - 自己レビュー: `run_roles.py` の 1 回の担当（self-review・fix-check）と観点ごとの結果（自己レビュー後の修正は再レビューしていない） | 未実施
 - このターン: 計画のみ | push 済み | マージ前の最終報告 | 途中停止
-- Spec: `<path>` @ `<文書コミット SHA>`（create-reso-world。PR に載っていればその URL。push していなければローカルにしか無い（公開未実施））または未作成
+- Spec: `<path>` @ `<文書コミット SHA>`（`DOC_REPO` のリポジトリ。PR に載っていればその URL。push していなければローカルにしか無い（公開未実施））または未作成
 - commit / push: `<sha>` またはしていない
 - 次: 承認待ち | マージ | 完了 | 停止理由
 ```
@@ -428,7 +429,7 @@ if [[ ! -f "$CONTEXT_HELPER" ]]; then
 fi
 CONTEXT_JSON=$(uv run --no-project python "$CONTEXT_HELPER" --operation "${CONTEXT_OPERATION:-review-fix}" \
   --parent-root "${PARENT_ROOT:-}" --doc-root "${DOC_ROOT:-}" --code-root "${CODE_ROOT:-}" \
-  --repo "$PR_REPO" --doc-branch "${DOC_BRANCH:-}" \
+  --repo "$PR_REPO" --doc-branch "${DOC_BRANCH:-}" --doc-repo "${DOC_REPO:-}" \
   --head-repo "${HEAD_REPO:-}" --head-branch "${HEAD_REPO:+${HEAD_BRANCH:-}}") || exit 66
 TOPLEVEL=$(printf '%s' "$CONTEXT_JSON" | jq -r .tool_root)
 HELPER="$TOPLEVEL/.agents/skills/review-fix-planning/scripts/upsert_pr_comment.py"
@@ -488,7 +489,7 @@ EOF
 
 `superpowers:brainstorming` は bounded / spike 経路では Spec 不要と書いているが、**このスキルではユーザ指示が優先し、3 経路すべてで Spec を書く。** 完遂でも書く。
 
-- 配置: `$DOC_ROOT/docs/superpowers/specs/`（create-reso-world の checkout。ルート `AGENTS.md` の規定）。常にこのリポジトリ側に置き、`MAIN_ROOT` が `external/resoloop` や他のリポジトリの checkout のときも、そちらへ置かない
+- 配置: `$DOC_ROOT/docs/superpowers/specs/`（`DOC_REPO` の checkout。ルート `AGENTS.md` の「Spec・Plan の保存と公開」）。`DOC_REPO` が create-reso-world なら、`MAIN_ROOT` が `external/resoloop` や他のリポジトリの checkout のときも、そちらへ置かない
 - 命名: `YYYY-MM-DD-<topic>-review-fixes-design.md`
 - 必須の中身:
   - 全指摘の一覧と 3 区分の振り分け（1 件も落とさない）
