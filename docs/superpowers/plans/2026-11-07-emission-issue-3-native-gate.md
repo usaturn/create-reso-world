@@ -59,13 +59,15 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 実行記録: 8882ae5で3PG/package初版、3908f34で実行copyの分離とclean provenanceを修正。全71passed、実SDK43artifact/211DLL hash、コピー再build後も封印/原PG不変。Task1レビューF1–F3採用→限定再レビュー全addressed、PASS/PASS。raw/read_receiptsと既存PGは未変更。native成功/実機writeは0。詳細はSESSION/task1-fix1と同SDD/task-1-report.md。レビュー/修正は実装約15分＋修正約8分、レビュー128.581秒/限定78.535秒（controller能動内）。
 
 ### Task 2: 既存rawを使う意味/phase/範囲の照合を実装する
-**Files:** scripts/emission_editor/drivegate_evidence.py、tests/test_emission_drivegate_evidence.py、必要なpackage最小補足。
+**Files:** scripts/emission_editor/drivegate_evidence.py、tests/test_emission_drivegate_evidence.py、固定diff採取のdrivegate_capture.py、stage/SDK結合のdrivegate_runtime.pyと各代表Sテスト、必要なpackage最小補足。一般的なmutationランナーは作らない。
 **Interfaces:** raw receiptをload_readで検証し、sealed package/宣言/SDK record/現在typed観測に対してsession/時刻窓/別採取/全subtree/全結線/全memberを照合。native phase verdictは正常phaseと拒否phaseの正確な結果/対象値/Done/保全を照合。missingはinconclusive、completeとexecutionPermissionを安易にtrueにしない。任意CLIや旧state再生の入口を作らない。
 **テスト:** S。bool/int/profile/alpha差、同receipt別path、別session/時刻・不足subtree/結線・別削除root/改変宣言と期待値・phase抜け/失敗を成功化しない代表正負例。模擬profile負例のdict共有はここで修正し、独立な入力を使う。
-- [ ] それぞれの損害の代表S正負例をRED→GREEN。L/F/Dの追加なし。
-- [ ] Task1のSDK生成recordの実形状から対応を実装し、独立に組み立てたraw入力/期待値で検証する。simulatedはnative成功にしない。
-- [ ] 全suite/静的検証、変更経路の安全確認。controllerがpackageとvalidator共通のID/型/順序を統合確認。
-- [ ] 同じbranchにcommitし、指定Claude1名の全差分/実機前レビューで確認。レビュー不能ならwriteしない。
+- [x] それぞれの損害の代表S正負例をRED→GREEN。L/F/Dの追加なし。
+- [x] Task1のSDK生成recordの実形状から対応を実装し、独立に組み立てたraw入力/期待値で検証する。simulatedはnative成功にしない。
+- [x] 全suite/静的検証、変更経路の安全確認。controllerがpackageとvalidator共通のID/型/順序を統合確認。
+- [x] 同じbranchにcommitし、指定Claude1名の全差分/実機前レビューで確認。レビュー不能ならwriteしない。
+
+実行記録: c46cef7まで。全104passed/compile/diff成功。実SDKの全3graphを封印済parseに結び、独立typed BoolDrive/所有graphで正例・実参照逸脱等の負例を確認。T2-R1（実宣言のcapture/restoreが観測不能）とT2-R2（未使用の弱いdiff API/2重複テスト）を採用し修正、唯一のClaudeで限定確認PASS/PASS。実行copy分離とclean provenanceはTask1で確認済み。現在使える新packageはSESSION/task2-fix1/sdk-observable、codeCommit=c46cef7、43ファイル/211DLL、正確なsibling executionRoot。過去sdk-finalは宣言変更により不適格であり、変更せず履歴として残す。present nullと欠落、保全専用opaque値とprivate target意味、SDKの正確なpersistant-ID表記とnative persistentの関係はSpecの実装記録に従う。native再capture拒否は未実施であり、6phase比較が代わりに証明しない。
 
 ### Task 3: fresh preflightと短いDrivegateを逐次実行する
 **Files:** 生成物/実raw/ログ/stateはSESSION以下だけ（commitしない）、Spec/Planの結果追記。
@@ -76,6 +78,16 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 - [ ] Specの0–6を順に実行し、各native outcome/readback/Doneと本体保全を照合。helperはfresh所有/subtree再確認後に1つずつ除去、解除後正例を確認。
 - [ ] 初回不一致/切断で停止、修復や期待変更なし。成功時のみ元値/保全/静止と全所有を再確認してfixture1rootをcleanup、不在と本体詳細diff0/保全を確認。
 - [ ] 結果レビュー、実測/未確認/残存パスを記録。短いgateだけでS4やTask4/6を完了にしない。
+
+#### Task3 今回の停止（未完了）
+
+最初の新規読取20:05:20UTCから、指定16070へ読取11件とprivate作成diff1件を実行した。doctor/同session/211DLL一致、完全panel1025Slot/2011Componentとsynthetic19Slot/21Componentの別プロセス保持を確認。20:16:36UTCのdiffは17期待に対し18creates（標準AI_GeneratedContent.Sourceが未宣言）となり、意味の照合FAILで停止した。native write=0。after bracket等を継ぎ足してfull preflightにしない。
+
+installed GeneratedContentMetadata.csがrootの自動markerを、installed WorldService.csが現在のrecovery文面を定義する。古いfork checkoutの文面差を、installed source自体の不一致と表現しない。原因説明は封印済み期待値を変える許可ではない。残りはmarker等のinstalled正規化の明示的な取り扱い、独立baselineレビュー/panel詳細diff/完全Root保全/全bracket、new sealed inputs/fullfresh preflight、native全phase/再capture/cleanupと結果レビュー。本試行の再開や旧state復元はしない。Task1/2のcleanレビューや104テストで未完了を埋めない。
+
+指定Claudeによる停止結果の確認は実測77.575秒/exit0/stopped、停止妥当・native_permission=false・baseline未承認。不正確だったworker報告のinstalled source差という表現は、古いfork checkoutとの差に訂正した。歴史的ILと現在binaryのhash bindingは未確認のまま残す。コードの新規修正・native再試行は行わない。
+
+この統合検査が未解消のためpush/PRは行わず、コード1branch・文書1branchをローカル保全する（公開未実施）。同テーマの新規PRを進捗単位で増やさない。実行予算はリセットせず、停止結果の指定Claude確認とhandoffを行う。
 
 ### Task 4: 元Planの残りへ接続し、同一PRで公開する
 **Files:** 元PlanのTask4/5/6に必要な変更だけ（判明時に本書へ具体的範囲/検証を追記）、同じbranch、README、Spec/Plan。
