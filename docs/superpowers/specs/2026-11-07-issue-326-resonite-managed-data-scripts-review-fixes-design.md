@@ -2,7 +2,7 @@
 
 ## 管理
 
-- 状態: completed（結論 1: 修正して push）
+- 状態: completed（サイクル 1 は結論 1: 修正して push、サイクル 2 は結論 2: 修正不要としてマージ）
 - PR: https://github.com/usaturn/create-reso-world/pull/327（head `feat/issue-326-resonite-managed-data-scripts`、base `main`）
 - 元の Spec: `docs/superpowers/specs/2026-11-07-issue-326-resonite-managed-data-scripts-design.md`、Plan: `docs/superpowers/plans/2026-11-07-issue-326-resonite-managed-data-scripts.md`
 - 実行許可: 利用者の指示 `/issue-to-pr #326 --merge`。issue-to-pr が PR の作成後に pr-review-fix-loop を回し、その中で review-fix-planning を完遂で行う（その PR の承認済み実装修正と、修正不要のときのマージ・Issue の更新）
@@ -88,3 +88,13 @@
 
 - 未確認: Windows PowerShell 5.1・Windows 11 の実機・実際の Resonite のプロセス（元の PR と同じく、マージの後に利用者が確かめる）
 - 工程の記録: `reviews/usaturn/create-reso-world/#327-feat-issue-326-resonite-managed-data-scripts/verified/5e5b6eeab5f6.planning.json`
+
+## サイクル 2（HEAD `eb7986630352d3e9f68417353533564051e7a806`）
+
+- レビュアーの構成: gpt-6.1-sol（pi）・SWE-2 Max（devin）は eb7986630352 を Update で再レビューし、どちらも active 0 件・Unverified candidates なし・Approve。pi_commandcode_deepseek4-flash_max は今回も runner の timed_out で結果なし（入力にしていない）
+- 確認済みの一覧: `verified/eb7986630352.json`（指摘 0 件）
+- 判断: サイクル 1 の fix 2 件（`gpt-6.1-sol#M-2@5e5b6eeab5f6`・`gpt-6.1-sol#M-1@5e5b6eeab5f6`）は解消（resolved）。両レビュアーが eb7986630352 で、DLL の追加・ディレクトリの追加で終了コード 1、Path が null・空・プロパティ無し・取得例外の混在で終了コード 1、正常例は 0 を実行で確かめた。eb79866 は 3f7d4f2 に Spec を足しただけ。サイクル 1 の skip 4 件は新しい根拠が無く引き継ぐ
+- 結論: 2（修正不要としてマージ）
+- 検証（eb7986630352、作業ツリーに未 commit の変更なし、base 4aa1ca04e51ec4bfe75873455e5465248edf2b81 は head の祖先）: `bash .devcontainer/run-tests.bash` 0（27 PASS）、`bash scripts/check-layout.sh` 0
+- 未確認: Windows PowerShell 5.1・Windows 11 の実機・実際の Resonite のプロセス（マージの後に利用者が確かめる）
+- 運用の記録: サイクル 2 の最初のレビュー起動は、サイクル 1 の review-fix-planning のセッションディレクトリを `rm -rf` で消したときに実装担当の runner の worktree の登録が残り、起動の前の監査で止まった（何も起動していない）。登録を照合し、HEAD・index を `refs/agent-recovery/checkout-recovery.xy8nidsq` と `tmp/agents/checkout-recovery.xy8nidsq/` に保存してから、その 1 件だけを `git worktree remove` で外し、レビューをやり直した
