@@ -1,22 +1,30 @@
 # create-reso-world
 
-[resoloop](https://github.com/orange3134/resoloop) と Blender で Resonite のワールドを作るための開発環境（Dev Container）。
+Resonite 向けのワールド・ツールの作成、Blender などを使ったモデルの作成、VR 環境に関するツールやモデルの開発のための開発環境（Dev Container）。
+どれも基本的に Resonite が関与する（例: Resonite 側からツールやモデルを取り込んで変換する）。主に [resoloop](https://github.com/orange3134/resoloop) と Blender を使う。
 コーディングエージェント（Claude Code、Codex、pi、Cursor、Devin）で作業する前提で、共通の規約とスキルをリポジトリに置いている。
 ワールドのプロジェクトはローカルの作業物であり、このリポジトリでは追跡しない（issue #57）。
+新しく開発を始めるときは、[docs/new-development.md](docs/new-development.md) から開発の種類ごとの手順に進む。
 
 ## 構成
 
 ```
 .
-├── AGENTS.md                  共通規約の正本（CLAUDE.md は @AGENTS.md を読み込む）
-├── .agents/skills/            共有スキルの正本（.claude/skills/ はここへの symlink）
+├── AGENTS.md                  共通規約（CLAUDE.md は @AGENTS.md を読み込む）
+├── .agents/                   共有スキル（skills/。.claude/skills/ はここへの symlink）、補助スクリプト（scripts/）、監視・実行予算・レビューの手引き
+├── .pi/                       pi の設定（プロジェクトを trust すると読まれる。下の「エージェントで作業する」）
 ├── .devcontainer/             Dev Container の設定、導入スクリプト、テスト（詳細は .devcontainer/README.md）
+├── .github/workflows/ci.yml   CI の定義（GitHub Actions を無効にしているので動かない。下の「変更の流れ」）
 ├── scripts/                   new-world.sh（プロジェクトの作成）、resoloop-fork.sh（fork の運用）、meshy.py（生成・変換）、check-layout.sh（レイアウト検査）
-├── tools/external_tools/      登録済み外部ツールの共通 resolver・取得 CLI
+│                              resoloop-meshy.sh（Meshy プラグインの checkout）、scan-before-push.sh（push の前の秘密情報の検査）、
+│                              superpowers-review-copy.sh（Spec・Plan の確認用コピー）、setup_pi*.zsh（pi の設定）
+├── tools/                     external_tools（登録済み外部ツールの共通 resolver・取得 CLI）、agent_runner（別のエージェントの非対話の起動と結果の回収）、
+│                              devenv_migration（pi の設定の移行のテスト）、test_support（共有のテストの fixture）
 ├── external-tools.toml        通常ツールの登録候補（運用には常設親への採用が必要）
 ├── templates/world-project/   プロジェクトの雛形
-├── docs/                      設計と計画（docs/superpowers/）、fork の運用、統合手順、pi と Claude Code の設定の移植の記録
-├── tests/                     スクリプトのテスト（tests/scripts/）とスキルのテスト（tests/skills/）
+├── docs/                      新規開発の入口（new-development.md）、設計と計画（superpowers/）、fork・Meshy プラグイン・外部ツールの運用、
+│                              Meshy の素材、AR 広告と agent-runner の手引き、統合手順、ワールドの記録（worlds/）、設定の移植の記録
+├── tests/                     スクリプトのテスト（tests/scripts/）、スキルのテスト（tests/skills/）、テストの fixture（tests/fixtures/）
 └── worlds/<name>/             ワールドのプロジェクト（resoloop のプロジェクト。ローカル専用で git の追跡対象外）
 ```
 
@@ -242,8 +250,9 @@ postCreate は Meshy CLI の導入と無認証の version / help 確認だけを
 ## 変更の流れ
 
 - 変更は作業ブランチで行い、`main` へは PR で入れる。並行作業には `.worktrees/` 配下の worktree を使う（git の追跡対象外）。
-- PR を出す前に、下の「テスト」をすべて通す。CI（`.github/workflows/ci.yml`）も push と PR のたびに同じ検査を行う。
-- 設計と実装計画は、対象のリポジトリにかかわらず `docs/superpowers/` に置く。運用は `docs/superpowers/README.md` にある。ローカルの下書きは `docs_draft/`（git の追跡対象外）に置く。
+- PR を出す前に、下の「テスト」をすべて通す。このリポジトリは公開しているが GitHub Actions を無効にしているので、CI（`.github/workflows/ci.yml`）は動かず、ローカルの実行だけが検査になる（`AGENTS.md` の「GitHub Actions」）。
+- push の前に `scripts/scan-before-push.sh` で秘密情報を検査する（`AGENTS.md` の「push の前の秘密情報の検査」）。
+- 設計と実装計画（Spec・Plan）の置き場所は `AGENTS.md` の「Spec・Plan の保存と公開」に、運用は `docs/superpowers/README.md` にある。ローカルの下書きは `docs_draft/`（git の追跡対象外）に置く。
 
 ## テスト
 
@@ -256,6 +265,6 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools  # スキル・.
 
 ## 対象外
 
-リポジトリの公開と LICENSE の選定、Git LFS、Rebuild を伴う確認の自動化は対象外である。
+LICENSE の選定、Git LFS、Rebuild を伴う確認の自動化は対象外である。リポジトリは公開済みだが、LICENSE はまだ選んでいない。
 Rebuild 後の確認は、ユーザが `docs/integration.md` の手順で行う。pi と Claude Code の設定の移植（Issue #17）で確かめる項目と
 記録は、`docs/` にある移植の比較表（Issue #22）の「rebuild での確認」にある。

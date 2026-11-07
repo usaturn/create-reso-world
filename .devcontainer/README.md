@@ -174,7 +174,7 @@ Linux のシステムの CA バンドルを使っていた。版が上がった�
 
 ## テストの実行
 
-リポジトリのルートで次を実行する。CI（`.github/workflows/ci.yml`）も同じコマンドを実行する（skill-tests のジョブは pytest の `tools` を除く）。
+リポジトリのルートで次を実行する。`.github/workflows/ci.yml` も同じコマンドを定義している（下のコメントのジョブ名はこのファイルのもの。skill-tests のジョブは pytest の `tools` を除く）が、create-reso-world は GitHub Actions を無効にしているので動かない。検査はここでの実行だけである。
 
 ```bash
 bash .devcontainer/run-tests.bash                                # .devcontainer/test-*.bash と tests/scripts/*.bash（CI の devcontainer-tests）
@@ -190,8 +190,8 @@ uv run pytest tests/skills .agents/skills .agents/scripts tools  # スキル・.
 新しく足すテストも、`tests/scripts/test-resoloop-meshy.bash` の冒頭のように、自分で `GIT_CONFIG_*` などを export するより前に
 同じ 1 行を置く（後に置くと、その隔離の設定まで消える）。
 1 本だけ実行するときは `bash .devcontainer/run-tests.bash <テストのパス>` のように渡す。
-CI の gitleaks ジョブは `.gitleaks.toml`（既定の規則に、resoloop の識別子と偽のトークンの除外を足したもの）で
-秘密情報の混入を検査する。private の CI は止めているので、push の前に手元で `scripts/scan-before-push.sh` を実行する
+`ci.yml` の gitleaks ジョブは `.gitleaks.toml`（既定の規則に、resoloop の識別子と偽のトークンの除外を足したもの）で
+秘密情報の混入を検査するが、Actions を無効にしているので動かない。push の前に手元で `scripts/scan-before-push.sh` を実行する
 （ルートの `AGENTS.md` の「push の前の秘密情報の検査」）。この Gitleaks は postCreate が `install_gitleaks.bash` で入れる。
 rebuild せずに入れるときも `bash .devcontainer/install_gitleaks.bash` を実行する。`tests/scripts/test-scan-before-push.bash` も
 この gitleaks を使い、無ければ失敗する。CI では Blender によるワールドのビルドは行わない。
