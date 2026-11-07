@@ -168,4 +168,10 @@ Expected: `PASS: ...`、終了コード 0。`uv tool run --from shellcheck-py sh
 
 ## 完了
 
-（実行の結果を書く）
+- Task 1（4086d4e）: テストの 7〜11 を足して RED（`FAIL: first copy did not create latest -> 2025.9.1.1`）を確かめ、実装後に `bash .devcontainer/test-copy-resonite-managed-data.bash` が PASS、shellcheck が終了コード 0
+- Task 2（b2e6c5e）: `bash scripts/check-layout.sh` と `bash .devcontainer/run-tests.bash`（27 件）が終了コード 0
+- 事前の確認: 相対リンクの `latest` 経由で `resoloop doctor` の `resonite-managed-data` が `pass`、`flux check`・`flux build` が終了コード 0（Spec の事実 2）
+- 最後のブランチ全体のレビュー（独立したレビュアー）: 確信度の高い指摘なし。参考の 2 点（`SHA256SUMS` の書き込み途中の中断は #326 からの既存の挙動で範囲外、テストの冒頭のコメントの表記）は直さない
+- contingency は使わなかった
+- 所要時間（PR の作成まで）: 約 15 分（準備・Spec・Plan 5 分、Task 1 5 分、Task 2 とレビュー 5 分）
+- マージの後に利用者が確かめること: rebuild 後のコンテナで `RESONITE_MANAGED_DATA_PATH` が設定され、WSL で `--relink-latest --version 2026.11.6.1136` を実行した後に doctor の `resonite-managed-data` が `pass`、`flux check`・`flux build` が通ること
