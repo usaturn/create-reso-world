@@ -90,3 +90,15 @@ SWE-2 Max の指摘は 0 件。修正後の自己レビューの指摘（下の�
 - 確認済みの一覧: `reviews/usaturn/resoloop/#31-feat-create-reso-world-issue-298-cli-integration/verified/c18f17822dc7.json`
 - 修正の確認: 同 `verified/edf710c97767.fix-check.json`
 - 工程の記録: 同 `verified/c18f17822dc7.planning.json`（自己レビューの予約 `pre_push_review` 1 件）
+
+## サイクル 2（HEAD `edf710c97767699fe4cd4b49e7a3c282435d5205`）
+
+- 状態: `completed`（結論 2。マージ・Issue の更新の結果は状況コメントと完了報告に書く）
+- レビュー: loop の `cycle-begin` が `reuse`（同じ HEAD の修正後の自己レビュー `claude-opus-5-5-commit-edf710c….md` を再利用。レビュアーは起動していない）。`gpt-6.1-sol`・`SWE-2-Max` は古い HEAD（c18f17822dc7）で、判断済みの指摘は引き継ぎで扱った
+- 確認済みの一覧: `verified/edf710c97767.json`（V-1 = M-1 は not_reproduced、V-2 = L-1 は confirmed）
+- 判断: `gpt-6.1-sol#M-1@c18f17822dc7` は解消済み（`fix` → `resolved`。edf710c の実 CLI で前置の 4 種・前置なし・`--project .` 前置の未知名がすべて接続 0 回・終了コード 2、`--json schema list` は接続 0 回・終了コード 0）。`…#L-1@edf710c97767` は対応しない（引き継ぎ。致命的ではない）。解消済み 1 / 対応する 0 / 対応しない 1
+- 結論: 2（修正不要としてマージ）。マージしてよい範囲（usaturn/resoloop の open で draft でない PR）
+- 検証（HEAD edf710c、git status は前後とも空、base `feat/plugin-v2` の先端 `d76c7baa` は head の祖先なので head のツリーで検証）:
+  - `dotnet build ResoLoop.slnx`: 終了コード 0（警告 0・エラー 0）
+  - `dotnet test ResoLoop.slnx --no-build`: 終了コード 0（RLoop.Tests 592 件・IntegrationTests 22 件が成功）
+- 自己レビュー: このサイクルでは行っていない（修正が無い）
