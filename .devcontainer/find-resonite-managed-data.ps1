@@ -67,16 +67,18 @@ if ($ManagedPath) {
     if ($processes.Count -eq 0) {
       Stop-Find 'Resonite is not running. Start Resonite, or pass -InstallPath <install folder>.' 1
     }
-    $installs = @(
-      $processes |
-        ForEach-Object { try { $_.Path } catch { $null } } |
-        Where-Object { $_ } |
-        ForEach-Object { Split-Path -Parent $_ } |
-        Sort-Object -Unique
-    )
-    if ($installs.Count -eq 0) {
-      Stop-Find 'Found a Resonite process but could not read its path. Pass -InstallPath <install folder>.' 1
+    # If any Resonite process hides its path, the one you use may be that one: do not pick another
+    $paths = @()
+    $unreadable = 0
+    foreach ($process in $processes) {
+      $path = $null
+      try { $path = $process.Path } catch { $path = $null }
+      if ($path) { $paths += [string]$path } else { $unreadable++ }
     }
+    if ($unreadable -gt 0) {
+      Stop-Find "Could not read the path of $unreadable Resonite process(es), so the one you use is unknown. Pass -InstallPath <install folder> (or -ManagedPath)." 1
+    }
+    $installs = @($paths | ForEach-Object { Split-Path -Parent $_ } | Sort-Object -Unique)
     if ($installs.Count -gt 1) {
       $list = ($installs | ForEach-Object { "  $_" }) -join [Environment]::NewLine
       Stop-Find ("Resonite processes run from more than one folder. Pass -InstallPath with the one you use:" + [Environment]::NewLine + $list) 1

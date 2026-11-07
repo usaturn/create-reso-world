@@ -92,6 +92,10 @@ while IFS= read -r -d '' path; do
 done < <(find "$real_src" -mindepth 1 -maxdepth 1 -name '*.dll' -print0 | LC_ALL=C sort -z)
 [ "${#names[@]}" -gt 0 ] || die "no *.dll directly under $real_src"
 
+# コピー元の直下の *.dll の名前の一覧。コピーの後に作り直して、追加・削除を見つける
+list_names() { find "$real_src" -mindepth 1 -maxdepth 1 -name '*.dll' -printf '%f\0' | LC_ALL=C sort -z; }
+printf '%s\0' "${names[@]}" > "$work/names-before"
+
 list_hashes() { (cd -- "$real_src" && sha256sum -- "${names[@]}"); }
 list_hashes > "$work/before" || die "cannot read the DLLs in $real_src"
 
@@ -107,7 +111,10 @@ for name in "${names[@]}"; do
   cp -p -- "$real_src/$name" "$dest/$name" || die "copy failed: $name"
 done
 
-# コピーの間にコピー元が変わっていないこと（Resonite の更新中など）
+# コピーの間にコピー元の DLL の名前の集合と内容が変わっていないこと（Resonite の更新中など）
+list_names > "$work/names-after" || die "cannot list the DLLs in $real_src after copying"
+cmp -s -- "$work/names-before" "$work/names-after" ||
+  die 'DLLs were added to or removed from the source while copying (is Resonite updating?)'
 list_hashes > "$work/after" || die "cannot read the DLLs in $real_src after copying"
 cmp -s -- "$work/before" "$work/after" || die 'the source changed while copying (is Resonite updating?)'
 # コピー先の内容がコピー元の一覧と一致し、一覧に無いファイルも欠けたファイルも無いこと

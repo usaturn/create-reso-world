@@ -87,7 +87,7 @@ run "$h" '' --source "$src" --version "$version"
 expect_refused "dangling version symlink"
 [ ! -e "$tmp/outside5/target" ] || fail "created the symlink target"
 
-# 6. コピーで内容が壊れる・1 件が欠ける・コピー中にコピー元が変わると、成功と報告せず、照合の一覧を置かず、
+# 6. コピーで内容が壊れる・1 件が欠ける・コピー中にコピー元が変わる・コピー中にコピー元へ DLL が増えると、成功と報告せず、照合の一覧を置かず、
 #    作った版のフォルダを消さずに残したパスを示す
 fake_cp() {  # fake_cp <名前> <cp の後に実行する処理（$dst はコピー先、$src_file はコピー元）>
   mkdir -p "$tmp/bin-$1"
@@ -98,9 +98,10 @@ fake_cp() {  # fake_cp <名前> <cp の後に実行する処理（$dst はコピ
 fake_cp corrupt "\"$real_cp\" \"\$@\" || exit; case \"\$dst\" in */FrooxEngine.dll) printf x >> \"\$dst\" ;; esac"
 fake_cp missing "case \"\$dst\" in */ProtoFlux.Core.dll) exit 0 ;; esac; exec \"$real_cp\" \"\$@\""
 fake_cp changed "\"$real_cp\" \"\$@\" || exit; case \"\$src_file\" in */FrooxEngine.dll) printf x >> \"\$src_file\" ;; esac"
-for kind in corrupt missing changed; do
-  [ "$kind" != changed ] || { cp -a -- "$tmp/win" "$tmp/win-changed"; }
-  s="$src"; [ "$kind" != changed ] || s="$tmp/win-changed/${src#"$tmp/win/"}"
+fake_cp added "\"$real_cp\" \"\$@\" || exit; case \"\$src_file\" in */FrooxEngine.dll) printf new > \"\${src_file%/*}/Added.dll\" ;; esac"
+for kind in corrupt missing changed added; do
+  s="$src"
+  case "$kind" in changed | added) cp -a -- "$tmp/win" "$tmp/win-$kind"; s="$tmp/win-$kind/${src#"$tmp/win/"}" ;; esac
   h="$tmp/h6-$kind"; mkdir "$h"
   run "$h" "$tmp/bin-$kind" --source "$s" --version "$version"
   expect_refused "$kind copy"
