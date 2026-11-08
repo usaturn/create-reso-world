@@ -157,6 +157,14 @@ Task2b-f完了記録: code`8f5d431`→`40a76fd`、128passed/6.48s/compileall/dif
 
 現在の実機call/write/resourceは0。新native readerと初期値検査の実装完了を、create-onlyの全metadata/所有認証、最初のanchor、create/deploy/helper削除/最終cleanupの回復制御、新package/全preflight/実機0–6/Issue全体の完了とは扱わない。原証拠・失敗した構文/fixture試行・原IL/receipt・レビュー・裁定はPARENT_ROOT/tmp/agents/emission-native-reader.azz5cvq_へ保持する。公開未実施。
 
+### Task2b-g: created-only graph / stage と最終stage0の初期値照合（着手）
+
+module未配備のfixtureはdeployed native graphとは別のCreatedStageで扱う。seal.normalizedFixtureとcurrent6DLL modelのslot schema、ValueField<int/bool/colorX>/ObjectRoot/AI_GeneratedContentのGetSyncMember・ComponentBase初期化から完全期待を作る。観測から使うのは宣言/stateへ一対一に結んだ実IDだけで、stable metadata/default/初期private値を観測へ合わせない。空roleを一般native graphへ解禁せず、CreatedStage専用branchで完全照合する。初回probe anchorはこのcreated scopeに元probe layout/BSONを加えた新しいNativeDeployedStageで認証する。
+
+環境/共通受け入れ基準は維持。実入力はprivate完全RGBA/sRGB・bool・全slot/component/member、余分/欠落metadata、重複member ID、未知値/型、誤親・外部参照。防御範囲はcreated-onlyを既存パネル/異なる宣言/部分apply/未知metadataと取り違えること。既存のreceipt/session/protected/diff検査を使い、CreatedStageの正例と異常metadata/alias/初期値拒否を代表Sで確かめる。さらにdeferred INITIAL-F2をnative final stage0で同じ初期値APIへ接続し、legacy generic offlineは維持する。重複F/L/Dは増やさず同期suite/compile/diff/必要な一時入力で確認する。
+
+current installed CLIのMapSlot/Inspect/AddPathsとnative schemaをsource根拠へ結び、readonly IL採取は新規session出力へ行う。指定Claude Read/Grep/Globのみのsource/実装レビュー1回（720秒）、採用修正の限定再確認のみ。create/deploy/delete実行controller、完全preflight、新HEAD package、実機試験は別の残作業であり、この型/照合の成功を実機write許可とは扱わない。今回の実行委任内で保護・比較の境界を具体化し、新たな確認待ちは作らない。
+
 ## Task 3: preflight・native Drivegate・回復/再試行
 
 **Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。
