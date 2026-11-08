@@ -87,6 +87,14 @@ Task2b-a完了記録: code `b0383cd`（入口）→`206fb44`（F1/F2修正）→
 
 この部分の完了とTask2b全体の完了を混同しない。全layout/default/alias照合、runtime join、Root診断化・自動回復controllerは未実装。新package/実機preflight/native0–6/再capture拒否/復元cleanup/元工程は未実施。接続/書込0、公開未実施。
 
+### Task2b-b: native defaults・alias・全layout照合
+
+既存Task2bの次の小区切り。current SDKの全操作を基準に、slot/component/memberの全件とprivate/internal参照を照合してからruntime意味検査へ接続する。BSONのruntime意味検査を保持し、3D metadataをnative期待へ写さない。未知defaultは成功にせず、exact native DLLのIL根拠を追加採取する。
+
+委譲枠は、指定ClaudeのRead/Grep/Globだけの未解決defaults/SyncType/alias調査1回と実装レビュー1回。採用修正の限定再確認は必要箇所だけ別記する。1run720秒、fallbackなし、個人設定無変更、実tool/終了/停止/outside_changesを確認する。controllerは同期で待ち、IL解析と代表Sテスト・実SDK入力検証を実施する。未知の挙動が残れば範囲と根拠不足を記録して追加の採取へ進む。
+
+テストはSのみ。全layoutの余分なslot/component/member、誤った既定値/型、private portと内部member aliasの取り違え、別native DLL/default根拠の混入による誤成功を代表正負例で防ぐ。固定文言や全組合せのテストは作らない。read-only IL採取・構造検査・suite/compile/diffと実オフライン3moduleによる検証を行う。Root診断/回復controllerやnative/fullIssue成功はこの小区切りだけで完了にしない。
+
 ## Task 3: preflight・native Drivegate・回復/再試行
 
 **Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。
