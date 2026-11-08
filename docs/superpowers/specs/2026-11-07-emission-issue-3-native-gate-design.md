@@ -78,7 +78,7 @@ Task2b-bの比較モデルは、exact native DLLのGetSyncMember/NameOverride/ge
 
 実IDはHost内のaliasであり永続RefIDではない。slotを親・完全Name・PG source-span Tag、componentを所有slot・型・VariableName、member/list elementを所有と名前/位置から対応付ける。実同期要素のIDと対応表を一対一に検証し、未送信memberのIDも重複を拒否する。同名兄弟は順番だけで割り当てず、曖昧なら未知としてsource調査へ進める。全slot/component/memberと全reference target/type、完全slot metadata/defaultに一致してから、検証済みdefaultだけを除いたruntime graphをBSON意味検査へ渡す。passive metadataは全構造で検証するため、無条件に無視しない。
 
-pure比較の入力資料自体は呼出側が認証し、native段階では元layout/BSON receiptと同じpackage/current DLL/所有state/private fieldを`assess_native_owned_graph`で結ぶ。現在のRoot診断化・自動回復/retry controllerは別の未完了作業であり、新照合器だけで全Task2bや実機成功にしない。
+pure比較の入力資料自体は呼出側が認証し、native段階では元layout/BSON receiptと同じpackage/current DLL/所有state/private fieldを`assess_native_owned_graph`で結ぶ。Root診断化と自動回復/retry controllerは新照合器とは別の作業である。Root診断はTask2b-cで接続したが、mutation-aware controllerは未完了であり、どちらも全Task2bや実機成功として扱わない。
 
 Task2b-cでは作成前のRoot比較と最終cleanupを分離する。Root全値差分は診断として保持し、明示した保護対象の厳密な比較、session、所有、diff、SDK、完全なprivate値の検証を維持する。RootのID/完全な構造を確認し、最終cleanupでは所有fixtureの消失と、操作前からある所有外slot/componentの不消失を検証する。所有外の値変化と追加は診断であり、Root全値一致を再導入しない。所有外の消失を観測した場合、原因を当該操作と断定せず、delete-set保全を立証できないものとして調査する。非Rootの所有安定親に対する従来の厳密削除比較は保持する。
 
@@ -109,9 +109,10 @@ raw/実session/state/brson/個人絶対パスはlocal-only。コード/必要な
 | 制限付き再確認/新package | 42.784秒/exit0/stopped、実tools=Glob/Grep/Read、使用Read7/Grep1、MCPなし。新505packageは43files/211DLL/3実SDKparse、stateなし。 |
 | Task2b-a offline入力 | `b0383cd..49db2fa`。115passed/compile/diff、実installed SDK全3moduleの操作生成（bool19/color31/probe219）。F1の`..`越境とF2のbuild環境/response-file影響を再現して修正し、指定Claudeの限定再確認で解決、追加regressionなし。接続/書込0、全layout/default/alias比較とcontroller自動回復は未完了。 |
 | Task2b-b native全構造照合 | `417fe08..9d803c1`。120passed/compile/diff、35closed type/6DLLの独立model、全layout/default/member alias/runtime subsetとreceipt/所有結合。指定Claudeのsource429.036秒/実装237.491秒/採用F1限定22.674秒で解決。3SDK入力のoffline materialization合格であり、実機観測や新HEAD packageではない。Root/retry controllerは未完了、接続/書込0。 |
+| Task2b-c Root診断/cleanup境界 | `d2fa633`、121passed/compile/diff。作成前/Root最終cleanupの全値一致を診断へ分離し、明示保護と祖先・所有外消失拒否を保持。16070の新7読取/7exit0/1attemptでRoot4226issueを診断として残し、contextのみ合格。producer/保護範囲/fullpreflight/native段階は未検証、write0。指定Claude135.531秒/PASS、Read/Grep/Globのみ/MCPなし/停止確認済み。local読取driverの交互失敗時の生存性F1LowはLとしてskip。mutation-aware controllerは次の未完了作業。 |
 | 03:21の旧Root試行 | 6読取/全CLIexit0、Root各8953Slot/17977Component、診断1415slot metadata/2792typed member差分。旧全値一致gateでfailed、03:21:09.468067UTCに停止。after session未採取、world write0。 |
 | 旧停止の結果レビュー | 113.439秒/exit0/stopped、実tools=Glob/Grep/Read、当時条件で停止ACCURATE。現在はRoot一致blockingと再試行禁止を本Issueの新方針で解除する。 |
 
 旧Rootの原因がanimation/他利用者/編集とは断定しない。埋込panel/synthetic一致は専用読取やbaseline承認の代わりにしない。過去のdriver hash不足を遡及補完しない。診断件数はcomponent非member属性を網羅する採否基準ではない。
 
-保存先はPARENT_ROOTの`tmp/agents/emission-native-live.enko3n41`、`emission-native-next.gk7mchty`、`emission-native-finish.nkermyxf`と既存ledger。旧原review/raw/seal/停止裁定は改変しない。今回の文書改訂そのものはgate実装の修正・native再試行の実行・Issue完了を意味しない。
+保存先はPARENT_ROOTの`tmp/agents/emission-native-live.enko3n41`、`emission-native-next.gk7mchty`、`emission-native-finish.nkermyxf`と既存ledger。旧原review/raw/seal/停止裁定は改変しない。当初の方針文書改訂そのものはgate実装の修正・native再試行の実行・Issue完了ではなかった。後続の実装・読取診断は上表とPlanの各Task完了記録で区別する。Task2b-cの原証拠はPARENT_ROOT/tmp/agents/emission-native-controller.0wmzw5erに保持し、mutation/native段階とIssue全体は未完了。

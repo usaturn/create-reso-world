@@ -73,7 +73,7 @@ Specの「現在有効な作業方針」「受け入れ基準・環境・防御�
 
 **Files:** controllerの試行/観測手順、`tools/drivegate-native-layout/`、`drivegate_native.py`、必要な`drivegate_evidence.py`/`drivegate_runtime.py`/対応Sテスト、README、試行brief。
 **テスト:** S。正当なRoot時点差分でprivate操作を誤拒否しない正例と、誤対象write/delete・Before上書き・timeout後の二重適用・未知metadataの成功化を防ぐ代表例。スクリプト文言や全組合せF/L/Dは追加しない。同期suite/compile/diff、隔離copyの実SDK検証を行う。
-- [ ] 旧`check_fresh_root.py`の全Root compare_subtree失敗によるassert終了を現行実行手順へ転用しない。Root差分は診断、明示対象のsession/所有/write-set等は別に判定する。
+- [x] 旧`check_fresh_root.py`を再利用せず、`assess_precreate_scope.reviewed_parent`とRoot最終cleanupの全値一致を診断へ分離。明示した保護subtree/親の経路、session/所有/write-set等は別に判定する。Task2b-cの実機読取診断は成功、完全preflightではない。
 - [ ] 読取/検査/接続失敗を自動回復・再試行する。mutationの適用済み/未適用/部分適用/不明を区別し、実体/Done/所有/終了確認後に継続する。任意コマンドの汎用再送APIは作らない。
 - [x] Task2b-a: exact installed SDKの純粋な操作生成APIを、封印PGの隔離コピーで実行する内部exporter/receiptを追加する。全AddSlot/AddComponentと記号private bindingを生成し、入力・exporter・SDK/native DLL inventory・終了コード・原出力を保存する。既存ファイルの上書き、失敗の成功化、seal外PG/別DLLの混入を代表Sテストで防ぎ、実SDKは3moduleをオフライン実行する。新規native接続なし。
 - [x] 新しいnative専用経路でruntime-only SDK graphとnative全layoutの接続を修正する。passive metadataの全field/default/reference/slotをcurrent producerと独立native modelから検証し、3D-only BSON metadataやpersistant-IDを誤解釈しない。`assess_native_owned_graph`/`NativeDeployedStage`を使い、旧BSON-only経路を現在のnative controllerへ転用しない。実機照合の成功はTask3で確認する。
@@ -85,7 +85,7 @@ Task2b-a完了記録: code `b0383cd`（入口）→`206fb44`（F1/F2修正）→
 
 指定Claudeの実装レビュー211.189秒/exit0/stoppedはF1越境とF2build出所を指摘。F1/F2採用、F3timeoutはLかつ検証への外側timeout禁止によりskip。限定再確認57.787秒はF1解決とF2/R1残りを指摘、実MSBuildでresponse-fileの影響を再現し修正。最後の限定再確認60.983秒/exit0/stoppedはR1解決/新regressionなし/限定した説明は正確とした。4runとも実model claude-opus-5-5、Read/Grep/Globだけ、MCPなし、outside_changes=[]。原指摘・裁定・各失敗試行は保存する。READMEだけの最終表記修正に追加モデルreviewは行わない。
 
-この部分の完了とTask2b全体の完了を混同しない。全layout/default/alias照合、runtime join、Root診断化・自動回復controllerは未実装。新package/実機preflight/native0–6/再capture拒否/復元cleanup/元工程は未実施。接続/書込0、公開未実施。
+この部分の完了とTask2b全体の完了を混同しない。Task2b-a完了時点では全layout/default/alias照合、runtime join、Root診断化・自動回復controllerは未実装だった。現在の状態は後続のTask2b-b/c完了記録を基準とする。新package/実機preflight/native0–6/再capture拒否/復元cleanup/元工程は未実施。接続/書込0、公開未実施。
 
 ### Task2b-b: native defaults・alias・全layout照合
 
@@ -99,7 +99,7 @@ Task2b-b完了記録: code `417fe08`→`9d803c1`、全120passed/6.19s、compilea
 
 指定Claudeのsource調査429.036秒、実装レビュー237.491秒、採用F1の限定再確認22.674秒はすべてexit0/停止確認済み/outside_changes=[]、実model claude-opus-5-5、Read/Grep/Globだけ/MCPなし。F1は、明示送信されたEnabled=falseをdefault名だけでruntime比較から除ける潜在的な誤成功を実際にREDで再現し、未送信条件で修正した。最後の限定再確認はF1解決/新regressionなし。F2はsource defectではなくcoverage-onlyで、既存guardのD/Lテストは増やさず、隔離fake-CLIで元receipt→所有→全layout/runtime joinの正例と元layout-byte改変の拒否を一時検証した。初回のPATH変更による正当なbuild-context拒否と、IL/schemaの失敗試行も保持する。原結果・裁定・ログはPARENT_ROOT/tmp/agents/emission-native-layout.asdk5_j0。
 
-全Task2bは未完了。Root診断化・実際の自動回復/retry controller、新HEAD package/driver hash/preflight/native0–6/別再capture拒否/復元cleanup/元工程は未実施。新経路の旧`id_maps`引数は参照せず、native対応表は全構造から導出する。接続/書込0、公開未実施。
+全Task2bは未完了。Task2b-b完了時点ではRoot診断化・実際の自動回復/retry controller、新HEAD package/driver hash/preflight/native0–6/別再capture拒否/復元cleanup/元工程は未実施だった。Root診断と固定読取の後続結果はTask2b-cに記録する。新経路の旧`id_maps`引数は参照せず、native対応表は全構造から導出する。接続/書込0、公開未実施。
 
 ### Task2b-c: Root診断化・cleanup境界と固定読取の回復
 
@@ -108,6 +108,12 @@ Task2b-b完了記録: code `417fe08`→`9d803c1`、全120passed/6.19s、compilea
 テストは既存のprecreate/cleanupの代表Sテストへ、動いているRootの正例と保護対象の破損/誤削除の拒否を組み込む。新しい固定文言/L/Dテストは増やさない。suite/compileall/diffを同期実行し、固定読取controllerは隔離fake CLIと新しい実機診断資料で確認する。失敗したraw/attemptを上書きせず、読取失敗はbackoff・新試行、同じ失敗の反復はsource調査へ戻す。mutationの回復は次の未完了項目として区別する。
 
 この区切りは指定ClaudeのRead/Grep/Glob限定の実装・結果レビュー1回（720秒、fallbackなし）を使い、採用修正が必要な場合だけ限定再確認を別記する。実tool/MCP/exit/停止/outside_changesを確認する。現在の利用者申告は16070/前面である。実機診断だけで全Task2b/native/Issue完了にせず、currentHEAD package封印/完全preflight/mutation-aware controller/元工程を残す。
+
+Task2b-c完了記録: code`d2fa633`、121passed/compileall/diff。旧2経路のRoot値変化によるREDを実際に再現し、明示保護subtree/祖先・bool/int・所有外の消失拒否を保持して修正した。作成前とRoot最終cleanupへ接続し、非Root所有親の厳密比較は保持する。local-only固定読取controllerの実fake CLIで、原失敗記録を保持した新試行の成功と、同一失敗反復からsource調査への切替を確認した。永久のL/F/Dテストは追加していない。
+
+16070の新しい実機診断は06:16:28.172229–06:16:55.176519UTC、7読取/7exit0/1attempt。両Root8953slots/17977components、追加/消失0、全Root比較4226issueは診断として残し、Root contextは合格。native-session field/discoveryの局所整合のみであり、producer source/明示保護対象の意味/完全preflight/native0–6は未検証、world write0。driver/code hashを新試行へ結び、旧raw/seal/Beforeは未変更。全Task2bは未完了で、mutationの適用状況/Done/所有/終了/checkpointを確認するfixed-phase controllerが次である。
+
+指定Claudeの実装・結果レビュー135.531秒/exit0/停止確認済み/outside_changes=[]はPASS、実modelclaude-opus-5-5、公開Read/Grep/Glob、使用Read15/Grep8/Glob1、MCPなし。唯一のF1Lowはlocal-only読取driverの交互failure signatureで終了しない可能性であり、偽成功/書込はなく実1attemptへ影響なし。Lの生存性だけの指摘としてskip、永久テスト/外側timeout/追加reviewは不要と裁定した。レビューworktreeはclean/停止確認後に削除。原指摘・裁定・全raw・fake/RED/GREENはPARENT_ROOT/tmp/agents/emission-native-controller.0wmzw5erに保存。公開未実施。
 
 ## Task 3: preflight・native Drivegate・回復/再試行
 
