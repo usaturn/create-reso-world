@@ -12,6 +12,9 @@ HELPER="$REPO_ROOT/.agents/skills/pr-review/scripts/pr_review_workspace.py"
 T="$TEST_ROOT/current"
 R="$TEST_ROOT/main"
 mkdir -p "$T" "$TEST_ROOT/home"
+# 利用者の HOME・環境変数に左右されないよう、このスクリプトの間は一時 HOME を使う（子プロセスの git・helper も同じ）
+export HOME="$TEST_ROOT/home"
+unset WORKSPACE_CLEANUP_PR_REVIEW_HELPER WORKSPACE_CLEANUP_TMP_ROOT WORKSPACE_CLEANUP_MIN_AGE_DAYS WORKSPACE_CLEANUP_DRY_RUN
 git init -q -b main "$R"
 printf 'x\n' > "$R/README.md"
 git -C "$R" add README.md
@@ -86,6 +89,19 @@ output="$(cd "$CWD_TRAP" && HOME="$TEST_ROOT/home" WORKSPACE_CLEANUP_TMP_ROOT="$
 [ ! -e "$TEST_ROOT/trap-ran" ] || fail "helper was taken from the cwd
 $output"
 grep -q "^keep (pr-review helper unavailable: ): $S2" <<<"$output" || fail "no unavailable keep line
+$output"
+
+# 1d. ~/bin のコピーから実行したときは、1 つ上（$HOME）の .agents/skills/ にある同名のコードを
+#     helper として実行せず、pr-review を保持する。24 時間ごとの無人の定期実行がこの形で動く
+mkdir -p "$TEST_ROOT/home/bin" "$TEST_ROOT/home/.agents/skills/pr-review/scripts"
+cp "$SCRIPT" "$TEST_ROOT/home/bin/cleanup-workspace.bash"
+printf 'import pathlib\npathlib.Path(%s).touch()\nraise SystemExit(0)\n' "'$TEST_ROOT/home-trap-ran'" \
+    > "$TEST_ROOT/home/.agents/skills/pr-review/scripts/pr_review_workspace.py"
+output="$(HOME="$TEST_ROOT/home" WORKSPACE_CLEANUP_TMP_ROOT="$T" WORKSPACE_CLEANUP_MIN_AGE_DAYS=0 \
+    WORKSPACE_CLEANUP_DRY_RUN=1 bash "$TEST_ROOT/home/bin/cleanup-workspace.bash")"
+[ ! -e "$TEST_ROOT/home-trap-ran" ] || fail "helper was taken from the parent of the copied script
+$output"
+grep -q "^keep (pr-review helper unavailable: ): $S2" <<<"$output" || fail "no unavailable keep line for the copy
 $output"
 
 # 2. 設定の既定値: 変数を渡さなければ /tmp、1 日、dry-run なし。

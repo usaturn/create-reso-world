@@ -1,7 +1,7 @@
 ---
 name: repo-cleanup-after-merge
 description: Use when ユーザーが、PR がマージされた後のローカルリポジトリの片付けを依頼する場合。マージ済み branch の削除、使い終わった worktree の整理、レビュー用の使い捨て worktree の残骸の掃除、作業ツリーの origin/main への追従が対象。未マージの作業のリベース、コンフリクト解消、リリース作業には使用しない。例:「PR が全て Merge されたことを確認して branch, worktree を整理してローカルを更新して」「マージ済みのブランチを消して」「worktree を掃除して」「origin/main に追従して」「リポジトリを整理して」
-allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(git *), Bash(gh *), Bash(ls *), Bash(diff *), Bash(mktemp *), Bash(cmp *), Bash(find *), Bash(cp *), Bash(rm *), Bash(uv run --no-project python -c *), Bash(uv run --no-project python *pr_review_workspace.py sessions *), Bash(uv run --no-project python *pr_review_workspace.py reap-check *), Bash(uv run --no-project python *pr_review_workspace.py cleanup *), Bash(bash scripts/resoloop-fork.sh sync)
+allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(git *), Bash(gh *), Bash(ls *), Bash(diff *), Bash(mktemp *), Bash(cmp *), Bash(find *), Bash(cp *), Bash(rm *), Bash(uv run --no-project python -c *), Bash(uv run --no-project python *pr_review_workspace.py sessions *), Bash(uv run --no-project python *pr_review_workspace.py reap-check *), Bash(uv run --no-project python *pr_review_workspace.py cleanup --strict-reap *), Bash(bash scripts/resoloop-fork.sh sync)
 ---
 
 # マージ後のリポジトリ整理
@@ -207,7 +207,7 @@ clean とするのは、2 つの終了コードがどちらも 0 で、1 つ目�
 - 終了コード 0（`status: "retired"`）: worktree・残骸・自セッションの ref の処理まで済んでいる。このセッションを下の通常の worktree 削除と手順 6 に回さない
 - 終了コード 1: 退役しない。stdout の JSON（`status: "retained"`）の `reason`・`retirement`（`saved` か `failed`）・`stop_confirmation_needed`・`retained_paths` を控え、worktree ごと保持して手順 11 で報告する
 - 終了コード 2: 引数の誤り、または状態を読めない。stderr の `error: ...` を控え、同じく保持して手順 11 で報告する
-- `run_context` を持つセッションと version 8 のセッションは、helper が拒否しても、通常の worktree 削除や手順 6 へ迂回しない。`run_context` の無い version 7 のセッションだけは、拒否されたときに限り、下の今までの経路（手順 4 の clean の確認、`git worktree remove`、手順 6）を使える
+- `run_context` を持つセッションと version 8 のセッションは、helper が拒否しても、通常の worktree 削除や手順 6 へ迂回しない。`run_context` の無い version 7 のセッションだけは、終了コード 1 で拒否されたときに限り（終了コード 2 は状態を読めず `run_context` の有無も判定できないので、保持する）、下の今までの経路（手順 4 の clean の確認、`git worktree remove`、手順 6）を使える
 - `--force` は付けない。helper を使わずに pr-review のディレクトリを `rm -rf` しない
 
 拒否の `stop_confirmation_needed` が `true`（停止の確認だけが足りない失敗セッション）のときに限り、担当のプロセスと子孫の停止を実際に確かめた人が、その確認内容を空白だけでない理由にして `--operator-confirmed-stopped "$CONFIRMED_STOP_REASON"` を付け、`cleanup --strict-reap --allow-failed` を実行できる。年齢・PID が無いこと・モデルの `fail` は確認の代わりにならない。エージェントが理由を作らず、利用者が確認して指示したときだけ実行する。

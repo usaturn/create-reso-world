@@ -11,10 +11,10 @@
 #     終了コード 0 以外（保存していない本文、dirty な worktree、session.json が無い
 #     ディレクトリなど）はすべて保持して理由を報告する。`--operator-confirmed-stopped`
 #     は使わない（人の確認の代わりにしない）
-#   - helper は WORKSPACE_CLEANUP_PR_REVIEW_HELPER、無ければこのスクリプトの実体の
-#     1 つ上のディレクトリの .agents/skills/pr-review/scripts/pr_review_workspace.py。
-#     通常ファイルとして見つからなければ（~/bin のコピーから実行した場合など）、
-#     pr-review のディレクトリはすべて保持する
+#   - helper は WORKSPACE_CLEANUP_PR_REVIEW_HELPER、無ければ、このスクリプトの実体が
+#     <root>/.devcontainer/ にあるときだけ <root>/.agents/skills/pr-review/scripts/
+#     pr_review_workspace.py。通常ファイルとして見つからなければ（~/bin のコピーから
+#     実行した場合など）、pr-review のディレクトリはすべて保持する
 #   - loose な pr-review-* ファイル（pr-review-<PR>-diff.patch など）は出所と内容を確かめられない
 #     ので削除せず、保護したものとして報告する
 #   - /tmp/review-fix-planning.XXXXXX の残骸（review-fix-planning スキルが mktemp で
@@ -62,6 +62,12 @@ resolve_pr_review_helper() {
         self="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null)" || self=""
     fi
     if [ -z "$self" ] || [ ! -f "$self" ]; then
+        printf '%s' ''
+        return 0
+    fi
+    # <root>/.devcontainer/ にある実体だけが相対で探せる。~/bin のコピーなどの 1 つ上は
+    # $HOME などの無関係な場所になり、そこの同名のコードを無人で実行してしまうため探さない
+    if [ "$(basename -- "$(dirname -- "$self")")" != ".devcontainer" ]; then
         printf '%s' ''
         return 0
     fi

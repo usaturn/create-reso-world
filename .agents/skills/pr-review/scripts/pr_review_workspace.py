@@ -1469,7 +1469,7 @@ def _require_clean_worktree(worktree: Path, target: Path, state: Mapping[str, An
         raise WorkspaceError("session worktree is not at the pinned commit")
     if git(worktree, "branch", "--show-current"):
         raise WorkspaceError("session worktree is not detached")
-    if git(worktree, "status", "--porcelain", "--untracked-files=all"):
+    if git(worktree, "--no-optional-locks", "status", "--porcelain", "--untracked-files=all"):
         raise WorkspaceError("session worktree has changes or untracked files")
     ignored = str(git(worktree, "ls-files", "--others", "--ignored", "--exclude-standard", "--directory"))
     if not _cache_only(ignored):
@@ -1478,7 +1478,7 @@ def _require_clean_worktree(worktree: Path, target: Path, state: Mapping[str, An
         if line[:1].islower() or line[:1] == "S":
             raise WorkspaceError("session worktree has skip-worktree or assume-unchanged entries")
     script = (
-        "set -e; git status --porcelain --untracked-files=all; "
+        "set -e; git --no-optional-locks status --porcelain --untracked-files=all; "
         "ignored=$(git ls-files --others --ignored --exclude-standard --directory); "
         "printf '%s\\n' \"$ignored\" | sed -e '/^$/d' -e 's/^/IGNORED /'"
     )

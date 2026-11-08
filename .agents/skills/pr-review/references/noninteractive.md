@@ -60,9 +60,10 @@ helper は、resolveの後の実行ごとに、親の `reviews/<owner>/<repo>/#<
 
 定期掃除（`.devcontainer/cleanup-workspace.bash`）と repo-cleanup-after-merge は、どちらも `pr_review_workspace.py reap-check --allow-failed` → `cleanup --strict-reap --allow-failed` でセッションを退役させる。
 
-- 失敗セッションの停止の証拠は、`attach-runner` が実行記録の `runner` 欄に書いた `stop_confirmed` である。`attach-runner` を省いた失敗セッションは、停止を確認できず保持される
-- 未保存の draft・編集した候補・`previous-review.md`・未知のファイルがあるセッションは保持する
-- 保持するときは終了コード 1 と `status: "retained"` の JSON（`reason`・`retirement`・`stop_confirmation_needed`・`retained_paths`）を返す。定期掃除は `--operator-confirmed-stopped` を使わない
+- 定期掃除が helper を見つけられるのは、リポジトリの `.devcontainer/cleanup-workspace.bash` から実行したときだけである。24 時間ごとに動く `~/bin` のコピーは helper を見つけられず、pr-review のセッションをすべて保持して報告するだけになる
+- 失敗セッションの停止の証拠は、`attach-runner` が実行記録の `runner` 欄に書いた `stop_confirmed: true` で、かつ `attempt.state` が `self` 以外であることである。`attach-runner` を省いた失敗セッションは、停止を確認できず保持される
+- 失敗セッションは、未保存の draft・編集した候補・`previous-review.md`・未知のファイルがあれば保持する。保存済みのセッションは、再レビュー（`previous-review.md` が destination と一致するもの）も含めて退役できる
+- 保持するときは終了コード 1 と `status: "retained"` の JSON（`reason`・`retirement`・`stop_confirmation_needed`・`retained_paths`）を返す。状態を読めない、または引数の誤りは終了コード 2 と stderr の `error: ...` で、何も変えない。定期掃除は `--operator-confirmed-stopped` を使わない
 
 ## complete
 

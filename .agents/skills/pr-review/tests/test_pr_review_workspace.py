@@ -1880,7 +1880,7 @@ def test_strict_reap_retires_a_saved_session(created_session: dict[str, Any], ca
     assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
 
 
-@pytest.mark.parametrize("kind", ["untracked", "ignored", "locked", "session-entry", "creator-running"])
+@pytest.mark.parametrize("kind", ["untracked", "ignored", "skip-worktree", "locked", "session-entry", "creator-running"])
 def test_strict_reap_keeps_a_saved_session_it_cannot_account_for(
     created_session: dict[str, Any], capsys: pytest.CaptureFixture[str], kind: str
 ) -> None:
@@ -1903,6 +1903,8 @@ def test_strict_reap_keeps_a_saved_session_it_cannot_account_for(
         (worktree / "notes.log").write_text("log\n", encoding="utf-8")
         (worktree / "__pycache__").mkdir()
         (worktree / "__pycache__" / "a.pyc").write_bytes(b"x")
+    elif kind == "skip-worktree":
+        git(worktree, "update-index", "--skip-worktree", "README.md")
     elif kind == "locked":
         git(repo, "worktree", "lock", "--reason", "利用者", str(worktree))
     elif kind == "session-entry":
@@ -2016,7 +2018,7 @@ def test_failed_session_without_stop_evidence_needs_an_operator_reason(
     assert not session_dir.exists()
 
 
-@pytest.mark.parametrize("work", ["draft", "candidates", "previous-review", "unknown"])
+@pytest.mark.parametrize("work", ["draft", "candidates", "previous-review"])
 def test_allow_failed_keeps_a_failed_session_with_work(
     prepared: dict[str, Any], capsys: pytest.CaptureFixture[str], work: str
 ) -> None:
@@ -2033,8 +2035,6 @@ def test_allow_failed_keeps_a_failed_session_with_work(
         document = json.loads(findings.read_text(encoding="utf-8"))
         document["coverage"]["read"].append({"path": "README.md", "reason": "読んだ"})
         findings.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
-    elif work == "unknown":
-        (session_dir / "review-backup" / "notes.txt").write_text("memo\n", encoding="utf-8")
     assert _REVIEW_RUN_TESTS.review_run.main(["fail", "--state", state_file, "--reason", "止めた"]) == 1
     capsys.readouterr()
 
