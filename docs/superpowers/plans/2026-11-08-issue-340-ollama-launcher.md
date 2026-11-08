@@ -279,4 +279,32 @@ SDD の作業領域は `PARENT_ROOT/tmp/agents/issue-340.exiarxw6/sdd/2026-11-08
 
 ## 完了
 
-（実行後に記録する）
+状態は `draft` のまま（issue-to-pr の run。内容の承認ではない）。検証の結果は、最後の commit の後に実行して PR 本文に書く。
+
+### 実行の経緯
+
+| 対象 | 担当・依頼の回数 | commit | レビュー |
+| --- | --- | --- | --- |
+| Task 1 | `claude-code_sonnet_default`（観測したモデル `claude-sonnet-5-5`）。2 回（1 回目は `rejected`、2 回目に取り込み） | `b8808e86` | Spec ✅・Approved（Minor 3 件は持ち越し） |
+| Task 2 | 同じ担当。1 回＋レビューの指摘の修正 1 回 | `96e03a7c`、`c19b460a` | Important 1 件 → 修正 1 回目で解消 |
+| ブランチ全体のレビュー | 同じ担当に修正を 1 回依頼 | `4a474c60` | With fixes（Important 1 件・Minor 3 件）→ 再レビューで解消。新しい Minor 1 件は持ち越し |
+| Task 3 | 司令塔 | なし | — |
+
+- Task 1 の 1 回目は、runner の実行中に別のセッションが別の worktree（`.worktrees/tools-photo-offset-docs`）に commit したため `outside_changes` で `rejected` になった。担当の変更は許可した 2 ファイルだけだったので、上限内で 1 回だけ依頼し直した
+- Task 1 の Step 7 の弱いガードへの変異では、テストは `ccdol must fail when OLLAMA_API_KEY is blank` で止まった（偽の claude が 0 で終わるので、Plan が書いた `must not start claude` より先の文で止まる）。どちらの文でも合格とする裁定を事前に記録した
+- Task 2 のレビューで、「秘密情報」節が `MESHY_API_KEY` 以外のトークンを env ファイルに置くよう定めたままだと `OLLAMA_API_KEY` の案内と食い違うと分かった。Task 2 の Step 4 の範囲の制限を裁定で広げ、「秘密情報」節の例外の文と「API トークン」節の冒頭も直した（Spec の決定記録「キーの置き場所の案内」に反映）
+- ブランチ全体のレビューで、起動例の `export OLLAMA_API_KEY="..."` が key を端末と pane のスクロールバックに残すと分かった。`MESHY_API_KEY` と同じ非表示入力（`read -rs`）にした（同上）。あわせて、「API トークン」節の冒頭の読み違い、prompt caching の因果の説明、第三者プロバイダの表の前置き（Ollama の採否の記録先）を直した
+
+### Task 3（統合の確認）
+
+- Step 1: README の値と関数の値（URL、認証の変数、4 つの tier の model ID、effort、出力上限、MCP、省略フラグ、終了コード 1）は一致した（Task 2 のレビューとブランチ全体のレビューで照合）
+- Step 2: 偽の claude で、`ccdol -p $'line one\nline two  with  spaces' --model sonnet` の argv は `--model opus --dangerously-skip-permissions -p <1 つの引数> --model sonnet` だった。親シェルの `OLLAMA_API_KEY` は変わらず、子には残らなかった
+- Step 4: 実 API の `-p` を 1 回（やり直しなし）。成功（4 turns）。stream-json の部分メッセージ（`thinking_delta`・`text_delta`）、thinking のブロック、Read・Bash・Agent の結果を受けた継続、サブエージェントの中の Read を確かめた。応答の model は `deepseek-v4.1-flash:1017`（`[1m]` は送られていない）。標準エラーに `unrecognized_model` の通知が 1 行出た
+- Step 5: 対話の `/status` は `Auth token: ANTHROPIC_AUTH_TOKEN`、`Anthropic base URL: https://ollama.com`、`Model: opus (deepseek-v4.1-flash:1017[1m])` だった
+
+### 持ち越し（マージの後に再調査する候補）
+
+- 既存の `ccdd`・`ccddg` の `${DEEPINFRA_TOKEN:?…}` と、`ccdu` の `:-` の連鎖は、空白だけの値を通す（この Issue の範囲の外。`ccdol` と同じ種類の損害のおそれ）
+- `ccdol` のガードの `[[:space:]]` は NBSP（U+00A0）・BOM（U+FEFF）を除かない（Spec の入力の範囲の外。Claude Code 側の判定も未確認）
+- README の起動例のコードフェンスが `bash` のまま（例は zsh の構文。`ccdol` は zsh の関数）
+- README の文言の小さな点（「変数ごとに読まれるので」の主語、Ollama の連携の手順の文、長い行の改行の位置）
