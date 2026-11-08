@@ -23,7 +23,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 <!-- tool-table:start -->
 | ツール | 導入方法 | mount | initialize.bash の mkdir | zshrc の関数 | update() の項目 |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`、`ccdo`、`ccds`（alias）、`ccdd`、`ccddg`、`ccdu` | `claude update` |
+| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`、`ccdo`、`ccds`（alias）、`ccdd`、`ccddg`、`ccdu`、`ccdol` | `claude update` |
 | Codex | `npm install -g @openai/codex@latest` | `~/.codex` | `~/.codex` | `cod` | `npm install -g @openai/codex@latest` |
 | pi | `npm install -g` で本体、`pi install` で拡張。通常ランチャー 11 本を `~/.local/bin` に置く。Command Code の 2 本は再契約時の手動配置 | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`、`curo`（alias） | `agent update` |
@@ -49,6 +49,7 @@ Grok Build（`grok`）は導入しない。Claude Code を Alibaba Cloud 経由�
 ## 秘密情報
 
 Meshy の `MESHY_API_KEY` は例外で、env / credentials ファイルへ保存せず、利用者が zsh で非表示入力して環境変数だけで渡す。手順は [Meshy → ResoLoop](../docs/meshy-resoloop.md)。
+Ollama Cloud の `OLLAMA_API_KEY` も例外で、ホストの env ファイルには書かず、使うシェルで export する。手順は「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」。
 
 それ以外の API トークンなどの秘密情報は、ホストの `~/.config/create-reso-world/env` に置き、リポジトリには置かない。
 このディレクトリは Dev Container に bind mount され（`initialize.bash` がホスト側に mode 700 で作る）、
@@ -763,18 +764,23 @@ Command Code GOAT の `piccg`・`piccd` は契約停止中のため通常導入�
 
 第三者プロバイダのランチャーは次の対応で起動する。比較基準と採否は
 [Claude Code 移植の Spec](../docs/superpowers/specs/2026-10-04-issue-21-claude-code-design.md)
-に記録している。実プロバイダへの接続検証は別途行う。
+に記録している（Ollama Cloud の採否は
+[ccdol の Spec](../docs/superpowers/specs/2026-11-08-issue-340-ollama-launcher-design.md)
+にある）。実プロバイダへの接続検証は別途行う。
 
 | 通常名 / 短い起動名 | 接続先 | 既定モデル（opus） | fable の割り当て | 認証に使う変数 |
 | --- | --- | --- | --- | --- |
 | `claude-deepinfra` / `ccdd` | DeepInfra | `deepseek-ai/DeepSeek-V4.1-Flash` | `zai-org/GLM-5.3` | `DEEPINFRA_TOKEN` |
 | `claude-deepinfra-glm` / `ccddg` | DeepInfra | `zai-org/GLM-5.3-Flash` | `deepseek-ai/DeepSeek-V4.1-Flash` | `DEEPINFRA_TOKEN` |
 | `claude-opencode-union` / `ccdu` | OpenCode Go | `union-alpha`（`--model union-alpha` で起動） | `union-alpha` | 下記の OpenCode キー |
+| `claude-ollama` / `ccdol` | Ollama Cloud（`https://ollama.com`） | `deepseek-v4.1-flash:1017[1m]` | `deepseek-v4.1-flash:1017[1m]` | `OLLAMA_API_KEY` |
 
 DeepInfra の sonnet は `deepseek-ai/DeepSeek-V4-Flash-0731`、haiku は
 `openai/gpt-oss-20b`。OpenCode のモデル割り当てとサブエージェントは `union-alpha` を使う。
 OpenCode のキーは `OPENCODE_GO_CLAUDE_API_KEY`、`OPENCODE_API_KEY`、
 `OPENCODE_GO_API_KEY` の順に、最初の空でない値を使う。キーがなければ起動を止める。
+Ollama Cloud は 4 つの tier（fable・opus・sonnet・haiku）すべてに同じモデルを割り当てる。
+詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある。
 
 短い起動名だけが `--dangerously-skip-permissions` を付ける。
 通常名は権限確認を省略せず起動する。追加の `--model` などは既定引数の後へ渡す。
@@ -783,12 +789,102 @@ OpenCode のキーは `OPENCODE_GO_CLAUDE_API_KEY`、`OPENCODE_API_KEY`、
 
 既存コンテナでは、rebuild によって `.devcontainer/zshrc.txt` の更新を反映できる。
 rebuild 前に反映する場合は、同ファイルの Claude alias・`cc_launcher_unsets`・
-3 つのプロバイダ関数を既存の `~/.zshrc` の対応箇所に反映し、新しい zsh を開く。
+4 つのプロバイダ関数を既存の `~/.zshrc` の対応箇所に反映し、新しい zsh を開く。
 Claude CLI 自体の更新は `claude update` を使う。`feature-dev` と `ccdu` は引き続き利用できる。
 
 onboarding の書き換えスクリプトは導入・自動実行しない。`~/.claude.json` はファイルの
 bind mount なので、移植元の一時ファイルから rename する方式はそのまま使えない。
 初回設定は通常の Claude Code の手順で行い、個人の `.claude/settings.local.json` は移植しない。
+
+### Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）
+
+`claude-ollama` / `ccdol` は、Claude Code の接続先を Ollama Cloud の Anthropic 互換 API に
+切り替えて起動する（#340、移植元は usaturn/agent-workspace#852）。ローカルの Ollama は使わず、
+`https://ollama.com` に直接つなぐ。`ccdol` だけが `--dangerously-skip-permissions` を付ける。
+後ろに書いた引数（`-p` やプロンプト）はそのまま `claude` に渡す。
+
+| 項目 | 値 |
+| --- | --- |
+| 接続先（`ANTHROPIC_BASE_URL`） | `https://ollama.com` |
+| 認証 | `ANTHROPIC_AUTH_TOKEN` に `OLLAMA_API_KEY` を入れる（Bearer 認証。cloud endpoint は `x-api-key` だけでは受け付けない。`ANTHROPIC_API_KEY` は子に渡さない） |
+| model ID | `deepseek-v4.1-flash:1017[1m]`（fable・opus・sonnet・haiku の 4 つの tier すべて） |
+| effort（`CLAUDE_CODE_EFFORT_LEVEL`） | `max` |
+| 出力上限（`CLAUDE_CODE_MAX_OUTPUT_TOKENS`） | 65,536 |
+| claude.ai の MCP コネクタ（`ENABLE_CLAUDEAI_MCP_SERVERS`） | `false` |
+| API キーの作成 | `https://ollama.com/settings/keys` |
+
+model ID は版を固定した `:1017` を使う。無印の `deepseek-v4.1-flash` は別の digest を指しうる。
+`:cloud`・`:1017-cloud` は Ollama の CLI・アプリ向けの名前なので、直接接続では使わない。
+
+#### 起動
+
+```bash
+read -rs 'OLLAMA_API_KEY?Ollama API key (非表示): ' && export OLLAMA_API_KEY
+ccdol
+```
+
+入力値は画面に表示されず、コマンド履歴にも値が残らない。
+端末の表示や pane のスクロールバックに値が残らないようにするため、キーをコマンドラインに直接書かない。
+
+既存のコンテナは rebuild するか、「Claude Code の起動と更新」の手順で `~/.zshrc` に反映する。
+`OLLAMA_API_KEY` が未設定・空・空白だけ（NBSP・BOM などの Unicode の空白を含む）で、
+英数字を 1 文字も含まないときは、キーの値を表示せずにエラーを出し、`claude` を起動しない（終了コード 1）。
+Claude Code は `ANTHROPIC_AUTH_TOKEN` を trim（Unicode の空白も除く）して空なら、
+保存済みの claude.ai の OAuth トークンを接続先へ送るため、起動の前に止めている。
+
+#### 接続先の確認
+
+起動したら `/status` で次を確かめる。
+
+- `Anthropic base URL: https://ollama.com`
+- `Model: opus (deepseek-v4.1-flash:1017[1m])`
+- `Auth token: ANTHROPIC_AUTH_TOKEN`
+
+`~/.claude/settings.json` やプロジェクトの `.claude/settings.json`・`.claude/settings.local.json` の
+`env` に `ANTHROPIC_BASE_URL`・`ANTHROPIC_AUTH_TOKEN`・`ANTHROPIC_DEFAULT_*_MODEL` などがあると、
+シェルの値より優先される。`/status` が上と違うときは、まずそこを確かめる。
+
+#### 1M のコンテキスト
+
+このモデルのコンテキスト長は 1,048,576 である。Claude Code は知らないモデル名を 200K と見なすため、
+4 つの tier すべてに `[1m]` を付けている。`[1m]` は 1M のコンテキストとして扱う印で、
+Ollama へ送る model ID からは外れる。`/status`・`/context`・起動画面のモデル名に付く `[1m]` はこの印である。
+変数ごとに読まれるので、どれか 1 つでも外すと、その tier だけ 200K になる。
+
+- `/context` は 1M を分母にする（例: `37k/1m tokens`）
+- 自動の compact は、会話が 1M に近づいたときに起きる
+- prompt caching が効かないので、毎回会話の全体を処理し直す。
+  長くなるほど 1 回ごとの処理量（利用枠・待ち時間）が増える。
+  早めに compact したいときは、`CLAUDE_CODE_AUTO_COMPACT_WINDOW` を前に付けて起動する
+  （例: `CLAUDE_CODE_AUTO_COMPACT_WINDOW=300000 ccdol`）
+
+#### effort と出力上限
+
+- effort は `max` で起動する。Ollama は、モデルのメタデータにある名前（このモデルは
+  `low`・`high`・`max`）ならそのまま適用し、無い名前はモデルの既定（`high`）にする。
+  `/effort` で `medium`・`xhigh` などに変えると、`high` として扱われる
+- 出力上限 65,536 は運用上の上限で、サービスの最大値ではない（移植元が実 API で受け付けられると確かめた値）。
+  指定しないと Claude Code は 32,000 を送るが、`max` では thinking も上限に数えるため、
+  長い出力が途中で切れうる
+
+#### 対応していない機能
+
+Ollama の Anthropic 互換 API は、次に対応していない。
+
+- `/v1/messages/count_tokens`。Claude Code は 404 を受けて推定に切り替えるので、
+  `/context` などのトークン数は推定値になる
+- prompt caching（`cache_control`）。拒否されないが、効かない
+- `tool_choice`、`metadata`、Batches API、citations、PDF の `document` ブロック、
+  URL で指定した画像（Base64 は使える）、ストリーミング中の `error` イベント
+  （エラーは HTTP のステータスで返る）
+- thinking の `budget_tokens`（受け付けるが、上限として効かない）
+
+Ollama の Claude Code 連携の手順は、WebSearch などのサーバー側のツールや細かいツールの制御に
+完全には対応していないとしている。
+
+`-p` で起動すると、標準エラーに
+`[claude-code:unrecognized_model] {"model":"deepseek-v4.1-flash:1017[1m]",...}` が 1 行出る。
+知らないモデル名を使ったことの通知で、応答は成功する。
 
 ## 非対話エージェントのランナー（agent-runner）
 
@@ -1522,7 +1618,7 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
 Meshy の `MESHY_API_KEY` はここには含めない。ファイルを作らない非表示入力の手順は「Meshy CLI と生成物の受け渡し」にある。
 
 次の変数は、「秘密情報」の節の `~/.config/create-reso-world/env` に書けばシェルの起動時に
-export される。書かない場合は、必要なときに手動で export する。
+export される（`OLLAMA_API_KEY` は書かない。下の項目）。書かない場合は、必要なときに手動で export する。
 
 - `OPENCODE_API_KEY` は `pigo`・`pigod` と、`pigs`・`pixg` の OpenCode Go の tier の
   子 Pi の実行には不要である。bind mount した `auth.json` に資格情報が残るため、pi はそこから読む
@@ -1539,6 +1635,12 @@ export される。書かない場合は、必要なときに手動で export �
   `pidid` は未設定・空値なら起動を止める。`auth.json` のログインだけではこの確認を通らない。
   Claude Code の `ccdd`・`ccddg`（通常名は `claude-deepinfra`・`claude-deepinfra-glm`）も
   この変数を使い、無ければ起動を止める
+- `OLLAMA_API_KEY` は Claude Code の `ccdol`・`claude-ollama` だけが読む。
+  「秘密情報」の env ファイルには書かず、使うシェルで export する。
+  子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ccdd`・`ccddg`・`ccdu` の子には渡さない。
+  未設定・空・空白だけ（Unicode の空白を含む）で英数字を 1 文字も含まないなら、値を表示せずにエラーを出して起動を止める。
+  キーは `https://ollama.com/settings/keys` で作る。
+  詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある
 - `COMMANDCODE_API_KEY` は契約停止中のため通常利用には不要で、常時 export は推奨しない。
   再契約し、手動 setup で `piccg`・`piccd` を再有効化するときだけ使う。
   `models.json` の `apiKey` が環境変数を参照し、未設定なら両ランチャーは起動を止める。
