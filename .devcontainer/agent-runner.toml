@@ -113,10 +113,20 @@ approval = "noninteractive"
 skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
 env = ["HOME", "PATH"]
 
-[agents.devin_swe2-max_default]
+# SWE-2 は tier（medium・high・max）を --model の UID で選ぶ。tier は effort の軸なので、名の effort の段に置く。
+# 2 つは同じ model_key なので同じモデルとして扱い、同じ役割に並べられない。
+[agents.devin_swe2_max]
 runtime = "devin"
 command = ["devin"]
 model = "swe-2-max"
+model_key = "swe-2"
+env = ["HOME", "PATH"]
+
+[agents.devin_swe2_medium]
+runtime = "devin"
+command = ["devin"]
+model = "swe-2-medium"
+model_key = "swe-2"
 env = ["HOME", "PATH"]
 
 [agents.pi_openai-codex_gpt6-terra_xhigh]
@@ -169,7 +179,7 @@ after_run = [[
 # 指定が無いときの既定構成。Command Code GOAT は契約終了のため既定から外す（#337）。
 # その回の --assign inspect=... または個人設定で選び直せる。
 [workflows.review.assignments.inspect]
-agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2-max_default", "pi_opencode-go_deepseek4-flash_max"]
+agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]
 
 # review-fix-planning の run_roles.py が使う担当（#116 のボードの D-13）。self は司令塔が自分で実行する。
 # self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
