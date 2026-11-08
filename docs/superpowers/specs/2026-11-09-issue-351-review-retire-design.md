@@ -55,7 +55,7 @@ pr_review_workspace.py cleanup    --state <session.json> [--strict-reap] [--allo
 | 終了コード | 意味 | 出力 |
 | --- | --- | --- |
 | 0 | `reap-check`: 退役できる。`cleanup --strict-reap`: 退役した | stdout に 1 行の JSON。`status`（`eligible` / `retired`）、`retirement`（`saved` / `failed`）、`stop_evidence`、`session_dir`、`state_file`、`worktree`、`retained_paths: null`。`cleanup` は今の `destination`・`pr_ref`・`pr_ref_status` も返す |
-| 1 | 状態は読めたが退役できない。何も変えない | stdout に 1 行の JSON。`status: "retained"`、`reason`、`retirement`（判定できた分類。できなければ null）、`stop_confirmation_needed`（拒否の理由が停止の確認だけのとき true）、`retained_paths`（`state_file`・`session_dir`・`worktree`） |
+| 1 | 状態は読めたが退役できない。何も変えない | stdout に 1 行の JSON。`status: "retained"`、`reason`、`retirement`（`saved` か `failed`。`--allow-failed` で失敗の判定に進んだものは、実行記録を結び付けられなくても `failed`。Task 4 のレビューの後に実装に合わせて変更）、`stop_confirmation_needed`（拒否の理由が停止の確認だけのとき true）、`retained_paths`（`state_file`・`session_dir`・`worktree`） |
 | 2 | 引数の誤り、または状態を PR レビューのセッションとして読めない（`load_state` の失敗、version 6 以前を含む）。何も変えない | stderr に `error: ...`（今の形） |
 
 `retained_paths` は review_run.py の慣習（失敗時に残したもの、成功時は null）に合わせる。
