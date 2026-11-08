@@ -4,7 +4,7 @@ set -euo pipefail
 
 #
 # pi-superagents のランチャー別設定を適用する共通ヘルパ。
-# install_beforehand.bash は本体と一緒に ~/.local/bin へ配置する。
+# setup_pi_commandcode_goat.zsh が本体と一緒に ~/.local/bin へ手動配置する。
 # リポジトリから直接実行する場合は .devcontainer/ 側を使う。
 #
 typeset -a PI_SUPERAGENTS_HELPER_CANDIDATES=(
@@ -40,9 +40,8 @@ readonly MODELS_JSON="${PI_DIR}/models.json"
 #
 # commandcode は pi の built-in provider ではないため、provider 定義は
 # models.json（bind mount した ~/.pi 側）にしか無い。
-# install_beforehand.bash は models.json を「無い場合のみ」配置する一方、
-# このランチャは毎回上書きで配置されるため、既存の models.json を持つ
-# 環境では「piccg はあるが provider は無い」状態になりうる。その場合 pi は
+# 契約停止中のため自動配置せず、再契約時の手動 setup で配置する。
+# 既存の models.json に provider が無いまま残存ランチャを使うと、pi は
 # `Unknown provider "commandcode"` で落ちるので、先に案内して終了する。
 #
 # 判定できないとき（python3 が無い、models.json が読めない・壊れている）は

@@ -25,7 +25,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | --- | --- | --- | --- | --- | --- |
 | Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`、`ccdo`、`ccds`（alias）、`ccdd`、`ccddg`、`ccdu` | `claude update` |
 | Codex | `npm install -g @openai/codex@latest` | `~/.codex` | `~/.codex` | `cod` | `npm install -g @openai/codex@latest` |
-| pi | `npm install -g` で本体、`pi install` で拡張。ランチャー 13 本を `~/.local/bin` に置く | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
+| pi | `npm install -g` で本体、`pi install` で拡張。通常ランチャー 11 本を `~/.local/bin` に置く。Command Code の 2 本は再契約時の手動配置 | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`、`curo`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`、`devs`、`devo`（alias） | `devin update`、`devin plugins update superpowers` |
 | Antigravity CLI | installer（`antigravity.google/cli/install.sh`） | `~/.gemini/antigravity-cli` | `~/.gemini/antigravity-cli` | `agd`（alias） | `agy update` |
@@ -61,9 +61,10 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 ```
 
 書式は `KEY=VALUE` の 1 行 1 変数である（zsh が読むので、空白や記号を含む値は引用符で囲む）。
-対象は `DEEPINFRA_TOKEN`、`COMMANDCODE_API_KEY`、`OPENCODE_API_KEY`、`CONTEXT7_API_KEY`、
+通常の対象は `DEEPINFRA_TOKEN`、`OPENCODE_API_KEY`、`CONTEXT7_API_KEY`、
 `GOOGLE_DEV_KNOWLEDGE_API_KEY` などで、書き換えたら新しいシェルを開く。
 変数ごとの用途と、無いときの挙動は「API トークン」の節にある。
+`COMMANDCODE_API_KEY` は契約停止中のため通常利用には不要で、再契約して手動で再有効化するときだけ使う。
 
 撤去した `ccda` が使っていた `MAAS_ANTHROPIC_TOKEN` は、もう使わない。`env` に残っていれば削除する。
 プロバイダ切替ランチャー（`ccdd` など）はこの変数を子プロセスから外さないため、残すと子プロセスにも渡る。
@@ -76,11 +77,13 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 1. ホストの作業ツリーを最新の `origin/main` に追従させる。rebuild は作業ツリーの `.devcontainer/` を使う。
 2. ホストの `~/.config/create-reso-world/env` を見直す。`MAAS_ANTHROPIC_TOKEN` を削除し、
    Google Developer Knowledge の MCP を使う場合は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す（「API トークン」）。
+   不要な `COMMANDCODE_API_KEY` の解除と agent-runner の割当は「Command Code GOAT の契約終了後の移行」に従う。
 3. Dev Containers: Rebuild Container を実行する。postCreate が次を行う。
    - Plannotator は導入・保持する。context7-pi は導入しないが、共有の `~/.pi` の登録は消さない。
      pi の旧拡張の撤去は自動では行わない（「pi の旧拡張・MCP 設定の移行」）
    - Context7 CLI（`ctx7`）を npm の最新版で導入する（「Context7 CLI（ctx7）」）
-   - 13 本の pi ランチャーと共通ヘルパの配置。ヘルパは pi を `--tui-mode regular` で起動する
+   - 通常の 11 本の pi ランチャーと共通ヘルパの配置。Command Code の `piccg`・`piccd` は配置しない。
+     ヘルパは pi を `--tui-mode regular` で起動する
      （「pi の TUI モードと Herdr のスクロール履歴」）
    - Claude Code の alias（`ccd`・`ccdo`・`ccds`）とプロバイダ関数を含むシェル設定の配置
      （「Claude Code の起動と更新」）
@@ -109,7 +112,7 @@ rebuild しない場合は、3 の代わりに次を行う。
 - pi の旧拡張の撤去と共有拡張の導入: 「pi の旧拡張・MCP 設定の移行」の手動コマンド
 - 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除。
   2 で `env` から消した `MAAS_ANTHROPIC_TOKEN` も、使用中のシェルでは `unset MAAS_ANTHROPIC_TOKEN` で外す
-- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜21 の `install -m 0755` で 13 本を置き直す。
+- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜19 の `install -m 0755` で通常の 11 本を置き直す。
   同じ節の 8 の `models.json` のコピーは既存の定義を上書きするので行わない。共通ヘルパは、4 で実行する
   `zsh scripts/setup_pi_superagents.zsh --if-absent` が更新する
 - Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映。古い `~/.zshrc` に残る
@@ -734,19 +737,20 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 8. `mkdir -p ~/.pi/agent && cp .devcontainer/pi-models.json ~/.pi/agent/models.json`
 9. `mkdir -p ~/.local/bin && install -m 0755 .devcontainer/pigo ~/.local/bin/pigo`
 10. `install -m 0755 .devcontainer/pigod ~/.local/bin/pigod`
-11. `install -m 0755 .devcontainer/piccg ~/.local/bin/piccg`
-12. `install -m 0755 .devcontainer/piccd ~/.local/bin/piccd`
-13. `install -m 0755 .devcontainer/piga ~/.local/bin/piga`
-14. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
-15. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
-16. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
-17. `install -m 0755 .devcontainer/pigemf ~/.local/bin/pigemf`
-18. `install -m 0755 .devcontainer/pigemp ~/.local/bin/pigemp`
-19. `install -m 0755 .devcontainer/pigema ~/.local/bin/pigema`
-20. `install -m 0755 .devcontainer/pigt ~/.local/bin/pigt`
-21. `install -m 0755 .devcontainer/pidid ~/.local/bin/pidid`
-22. `zsh scripts/setup_pi_superagents.zsh --if-absent`
-23. `bash .devcontainer/install_ctx7.bash`
+11. `install -m 0755 .devcontainer/piga ~/.local/bin/piga`
+12. `install -m 0755 .devcontainer/pigs ~/.local/bin/pigs`
+13. `install -m 0755 .devcontainer/pigl ~/.local/bin/pigl`
+14. `install -m 0755 .devcontainer/pixg ~/.local/bin/pixg`
+15. `install -m 0755 .devcontainer/pigemf ~/.local/bin/pigemf`
+16. `install -m 0755 .devcontainer/pigemp ~/.local/bin/pigemp`
+17. `install -m 0755 .devcontainer/pigema ~/.local/bin/pigema`
+18. `install -m 0755 .devcontainer/pigt ~/.local/bin/pigt`
+19. `install -m 0755 .devcontainer/pidid ~/.local/bin/pidid`
+20. `zsh scripts/setup_pi_superagents.zsh --if-absent`
+21. `bash .devcontainer/install_ctx7.bash`
+
+Command Code GOAT の `piccg`・`piccd` は契約停止中のため通常導入から外している。
+再契約時は「Command Code GOAT の契約終了後の移行」の手動 setup を使う。
 
 プラグインの有効化は `.claude/settings.json` の `extraKnownMarketplaces` と
 `enabledPlugins` で行う。設定の反映には Claude Code の再起動が必要である。
@@ -854,10 +858,12 @@ provider 未指定ならその段を省略する。model は系列・メジャ�
 | `cursor-grok47` | `cursor_grok4_xhigh` |
 
 既定の `review.inspect` は
-`pi_openai-codex_gpt6-sol_max,devin_swe2-max_default,pi_commandcode_deepseek4-flash_max`、
+`pi_openai-codex_gpt6-sol_max,devin_swe2-max_default,pi_opencode-go_deepseek4-flash_max`、
 `fix.implement` は `claude-code_opus_default`。`fix.self-review`・`fix.fix-check`・`issue.implement` は `self` のままである。
 Sol の runner の effort は `max` を維持する（`pigs` 単独の既定 `xhigh` とは異なる）。
 Sol / OpenCode Go DeepSeek の `OPENCODE_API_KEY` と、review の後処理の `uv --project .` も維持する。
+#337 で既定の第三担当を Command Code から OpenCode Go に置換した。上の #305 の旧名対応表は当時の変更記録であり、
+Command Code の agent 定義自体は再契約後の明示的な `--assign` 用に残している。
 
 追加する 5 agent は次のとおり。資格情報の実値は設定・ログへ書かない。
 
@@ -882,7 +888,7 @@ provider ごとに異なる model ID でも同じ役割には混在させない�
 ### 旧担当からの個人設定の移行
 
 #243 で DSH 担当を撤去した。個人設定 `~/.config/agent-runner/config.toml` に `runtime = "dsh"` の agent 定義があれば削除し、
-担当と fallback の参照を `pi_commandcode_deepseek4-flash_max` など残る担当へ手で変更する。`workflows.review.after_run` を上書きしている場合は、
+担当と fallback の参照を `pi_opencode-go_deepseek4-flash_max` など利用可能な担当へ手で変更する。`workflows.review.after_run` を上書きしている場合は、
 `finalize-parent` を外し、`attach-runner` を残す。個人設定は自動更新しない。
 
 #305 の命名変更も自動移行・旧名 alias は用意しない。対象の個人設定は上記の場所の解決規則で確認し、
@@ -898,6 +904,31 @@ provider ごとに異なる model ID でも同じ役割には混在させない�
 編集後は、リポジトリのルートで上記の `check` と `list` を実行する。
 この環境の既存個人設定は旧名の参照だけを持つため、マージ後に利用者による移行が必要であり、本変更では触らない。
 マージ前の PR 修正ループは、親 checkout の旧雛形と既存設定をそのまま使い、`--config` / `--assign` を勝手に補わない。
+
+### Command Code GOAT の契約終了後の移行
+
+#337 で Command Code GOAT を既定のレビューと通常のランチャー配置から外した。
+個人設定・キー・共有 `~/.pi` は自動で変更しない。利用者が次を確認する。
+
+1. 個人設定の `review.inspect` に上書きが無ければ、新しい雛形の 3 人を継承する。
+   上書きがある場合だけ、バックアップして該当する `agents` / `fallback` の Command Code 参照を見直す。
+   現在の推奨先は `pi_opencode-go_deepseek4-flash_max`。Command Code / OpenCode Go / DeepInfra の
+   DeepSeek を同じ役割に併記すると `duplicate_model` になるため、追加でなく置換する。
+   `check` / `list` と `load_config()` などで実効割当を確認する。設定検査の成功は契約・認証の有効性を意味しない。
+2. 不要な `COMMANDCODE_API_KEY` の代入・export を `~/.zshrc` から外す。
+   ホストのシェル設定や `~/.config/create-reso-world/env` にも残っていれば見直し、他のキーは変更しない。
+   既存シェルには値が残るので `unset COMMANDCODE_API_KEY` で外し、新しいシェルでも
+   `test "${COMMANDCODE_API_KEY+x}" != x` が成功することを確認する。値を表示する `env` や `echo` は使わず、
+   秘密値を Issue・PR・ログへ書かない。有効なキーの失効は人間がプロバイダの管理画面で行う。
+3. 既存の `~/.local/bin/piccg`・`piccd` の削除は任意。次の Rebuild からは配置されない。
+   共有 `~/.pi` のモデル定義・認証情報・tier はそのまま残す。
+
+再契約し、有効なキーを用意して使う場合だけ、リポジトリのルートで
+`zsh scripts/setup_pi_commandcode_goat.zsh` を実行する。provider と両ランチャーを配置し、
+既存の他 provider と tier は保持する。tier が欠けていれば
+`zsh scripts/setup_pi_superagents.zsh --if-absent` で補う。
+`~/.local/bin` は bind mount 外なので、再有効化後も Rebuild のたびに Command Code の setup を再実行する。
+runner では `pi_commandcode_deepseek4-flash_max` を `--assign` で明示して選ぶ。再契約しても既定の割当は変わらない。
 
 ## pi の旧拡張・MCP 設定の移行
 
@@ -932,8 +963,9 @@ pi install --approve npm:@plannotator/pi-extension
 `~/.pi` は `devcontainer.json` で bind mount している。認証情報
 （`~/.pi/agent/auth.json`）とモデル定義（`~/.pi/agent/models.json`）が
 ホスト側に残るため、リビルド後に `scripts/setup_pi.zsh`、
-`scripts/setup_pi_opencode_go.zsh`、`scripts/setup_pi_commandcode_goat.zsh`
-を実行し直す必要はない。
+`scripts/setup_pi_opencode_go.zsh` を実行し直す必要はない。
+契約停止中の `piccg`・`piccd` は自動配置しないため、再有効化して使う場合は
+`scripts/setup_pi_commandcode_goat.zsh` をリビルド後にも再実行する。
 
 `install_beforehand.bash` は次のものを配置する。挙動が異なるのは、
 models.json だけが bind mount の内側で、他が外側にあるためである。
@@ -944,8 +976,6 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
 - `.devcontainer/pigo` → `~/.local/bin/pigo`。`~/.local/bin` は bind mount の
   対象外でリビルドのたびに失われるため、毎回上書きで配置する
 - `.devcontainer/pigod` → `~/.local/bin/pigod`。pigo と同じ理由で毎回上書き
-- `.devcontainer/piccg` → `~/.local/bin/piccg`。pigo と同じ理由で毎回上書き
-- `.devcontainer/piccd` → `~/.local/bin/piccd`。pigo と同じ理由で毎回上書き
 - `.devcontainer/piga`・`pigt`・`pigs`・`pigl` → `~/.local/bin/`。同様に毎回上書き
 - `.devcontainer/pidid` → `~/.local/bin/pidid`。同様に毎回上書き
 - `.devcontainer/pixg` → `~/.local/bin/pixg`。同様に毎回上書き
@@ -955,9 +985,11 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
   共有の bind 先 `~/.pi/agent/extensions/subagent/config.json` の停止用の設定、
   `.devcontainer/pi-herdr-launcher-resume.ts` → `~/.pi/agent/extensions/herdr-launcher-resume.ts`、
   `.devcontainer/pi-superagents-model-guard.ts` → `~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts`。
-  `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 5 種を配置する
+  `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 5 種を配置する。
+  tier は手動再有効化用の `piccg`・`piccd` を含む 13 本分を維持する（実行ファイルの通常配置は 11 本）
   （詳細は後述の「pi-superagents のランチャー別 model tier」「子 Pi の model の照合」「Herdr の復元とランチャー」を参照）
 
+`piccg`・`piccd` の実行ファイルは上の通常配置に含めず、再契約時の手動 setup だけで配置する。
 `~/.local/bin` への PATH は `zshrc.txt` が通すため、別途の設定は不要である。
 
 ### Plannotator のブラウザーレビュー
@@ -1075,6 +1107,9 @@ ID と表示名が一致しないモデルなので注意する。カタログ�
 受け付けない（`50` や `100` を送ると 400 になる）。許容値は不正値を送ったときに
 エンドポイント自身が返す検証エラーで確認できる。
 
+Command Code GOAT は契約停止中であり、以下の定義・ランチャーは再契約用に残している。
+通常の起動・レビューでは使わず、再有効化の入口は「Command Code GOAT の契約終了後の移行」を参照する。
+
 `piccg` は Muse Spark 1.3 を Command Code GOAT 経由
 （`commandcode` プロバイダ、既定モデル `meta/muse-spark-1.3`）で
 起動するラッパーである。`meta/muse-spark-1.3-contributor` も定義済みで、
@@ -1096,12 +1131,11 @@ ID と表示名が一致しないモデルなので注意する。カタログ�
 丸めは不要である。画像入力には対応せず `input` は `["text"]` としている
 （画像は別モデル `deepseek/deepseek-v4-flash-vision-exp` が担う）。
 
-既存の `~/.pi/agent/models.json` がある環境では、初回だけ
-`zsh scripts/setup_pi_commandcode_goat.zsh` を実行して `commandcode`
-プロバイダを反映する必要がある。`install_beforehand.bash` は `piccg` と
-`piccd` を毎回配置する一方 models.json は既存ファイルを上書きしないため、
-この一度の実行を省くと `piccg` が pi の `Unknown provider "commandcode"` で
-落ちる（`piccg` 自身がこれを検出して setup スクリプトの実行を案内する）。
+再契約時は `zsh scripts/setup_pi_commandcode_goat.zsh` で `commandcode`
+プロバイダと `piccg`・`piccd` を配置する。`install_beforehand.bash` は両ランチャーを配置せず、
+既存 models.json も上書きしない。provider が無いまま残存ランチャーを起動すると
+`Unknown provider "commandcode"` になるため、`piccg` 自身が setup の実行を案内する。
+再有効化後も Rebuild のたびにこの setup を再実行する。
 
 `piccd` は provider の有無だけでなくモデルの有無も見る。commandcode の
 プロバイダ定義はあるが DeepSeek のモデル定義だけが無い環境（piccg を一度
@@ -1418,8 +1452,9 @@ pi remove npm:pi-lens
 ### setup スクリプトを使う場面
 
 `scripts/setup_pi.zsh`（deepinfra）、`scripts/setup_pi_opencode_go.zsh`
-（opencode-go）、`scripts/setup_pi_commandcode_goat.zsh`（commandcode）は、
-リビルドのたびに実行するものではない。次の場面で使う。
+（opencode-go）は、リビルドのたびに実行するものではない。
+`scripts/setup_pi_commandcode_goat.zsh`（commandcode）は契約停止中の再有効化用であり、
+再契約後の初回と、その後のリビルドのたびにも実行する。共通して次の場面でも使う。
 
 - API キーをローテーションしたとき（`setup_pi_opencode_go.zsh` が
   `auth.json` を書き換える。commandcode は環境変数参照なので
@@ -1441,7 +1476,8 @@ I/O 障害では途中まで書いたファイルを置かず非0で終わるが
 `setup_pi_opencode_go.zsh` は `.devcontainer/pigo` と `.devcontainer/pigod` を、
 `setup_pi_commandcode_goat.zsh` は
 `.devcontainer/piccg` と `.devcontainer/piccd` をそのまま配置するため、
-実行してもランチャの内容は `install_beforehand.bash` の配置結果と一致する。
+配置元のソースと同じ内容になる。`pigo`・`pigod` は `install_beforehand.bash` も配置するが、
+`piccg`・`piccd` はこの手動 setup だけが配置する。
 この2本は互換な共通ヘルパも一緒に更新し、既存のランチャー別 tier 設定は変更しない。
 `setup_pi.zsh` は `.devcontainer/pidid` も配置し、`setup_pi_superagents.zsh --if-absent` で
 共通ヘルパと欠けている tier を配置する。既存 tier は保持する。
@@ -1473,11 +1509,11 @@ export される。書かない場合は、必要なときに手動で export �
   `pidid` は未設定・空値なら起動を止める。`auth.json` のログインだけではこの確認を通らない。
   Claude Code の `ccdd`・`ccddg`（通常名は `claude-deepinfra`・`claude-deepinfra-glm`）も
   この変数を使い、無ければ起動を止める
-- `COMMANDCODE_API_KEY` は `DEEPINFRA_TOKEN` と同じ方式である。`models.json`
-  の `apiKey` が `$COMMANDCODE_API_KEY` を参照するため、`piccg` と `piccd` を
-  使うシェルで export しておく必要がある。未設定のまま実行すると
-  ランチャがエラーメッセージを出して終了する。キーは
-  `https://commandcode.ai/settings/keys` で作成する
+- `COMMANDCODE_API_KEY` は契約停止中のため通常利用には不要で、常時 export は推奨しない。
+  再契約し、手動 setup で `piccg`・`piccd` を再有効化するときだけ使う。
+  `models.json` の `apiKey` が環境変数を参照し、未設定なら両ランチャーは起動を止める。
+  再契約時のキー作成先は `https://commandcode.ai/settings/keys`。
+  不要な export の解除は「Command Code GOAT の契約終了後の移行」に従い、値はログに出さない
 - `GOOGLE_DEV_KNOWLEDGE_API_KEY` は Google Developer Knowledge の MCP サーバーが使う。
   pi は `.pi/mcp.json`、Claude Code は `.mcp.json` のヘッダーでこの変数を参照する。
   無い場合の pi の挙動は「組み込み MCP と廃止した拡張」にある
@@ -1490,15 +1526,16 @@ Pi 1.0.0 から、対話 TUI の既定モードは `fullscreen` になった。�
 代替画面を使って会話履歴を Pi 内で管理するため、Herdr の通常のスクロール履歴に
 過去の出力が残らず、コピーモードでさかのぼれない。
 
-このリポジトリが管理する `pigo`・`pigod`・`piccg`・`piccd`・`piga`・`pigt`・`pidid`・
-`pigs`・`pigl`・`pixg`・`pigemf`・`pigemp`・`pigema` は、共通ヘルパ `pi-superagents-exec.zsh` から
+通常配置の `pigo`・`pigod`・`piga`・`pigt`・`pidid`・`pigs`・`pigl`・`pixg`・
+`pigemf`・`pigemp`・`pigema` の 11 本と、再契約時に手動配置する `piccg`・`piccd` の 2 本は、
+共通ヘルパ `pi-superagents-exec.zsh` から
 `pi --tui-mode regular` を起動する。regular は通常画面と端末のスクロール履歴を
 使うため、画面高を超えた出力も Herdr のコピーモードで読める。
 ユーザー／プロジェクトの `settings.json` は書き換えず、起動引数で指定する。
 provider・model・thinking・認証確認・ランチャー別設定の分離は従来どおりで、
 `--resume`・`--session`・メッセージなどの追加引数もそのまま転送する。
 
-Dev Container の初期化／リビルドでは `install_beforehand.bash` が全ラッパーを
+Dev Container の初期化／リビルドでは `install_beforehand.bash` が通常の 11 本のラッパーを
 配置し、`setup_pi_superagents.zsh --if-absent` が共通ヘルパを更新する。
 リビルドしない既存環境では、更新済みの親リポジトリのルートで次を実行し、
 ラッパーを起動し直す。
@@ -1535,8 +1572,8 @@ Herdr の復元用の Pi の拡張（「Herdr の復元とランチャー」）�
 |---|---|---|---|
 | `pigo` | `opencode-go/muse-spark-1.3-contributor` | `opencode-go/muse-spark-1.3-contributor` | `opencode-go/deepseek-v4.1-flash` |
 | `pigod` | `opencode-go/muse-spark-1.3-contributor` | `opencode-go/deepseek-v4.1-flash` | `opencode-go/deepseek-v4.1-flash` |
-| `piccg` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` |
-| `piccd` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` | `commandcode/deepseek/deepseek-v4.1-flash` |
+| `piccg`（契約停止中・手動配置） | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` |
+| `piccd`（契約停止中・手動配置） | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` | `commandcode/deepseek/deepseek-v4.1-flash` |
 | `piga` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6-astra` |
 | `pigt` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-terra` |
 | `pidid` | `deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` | `deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` | `deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` |
