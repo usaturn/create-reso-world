@@ -103,6 +103,15 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 
 新505fb7bpackageは未作成で旧74c0eabpackageを現版へ転用しない。前面化/他編集停止の明示は受領済み。今回の実機は5読取で停止、world writes0、baseline未承認、Task3/4未完了、公開未実施。
 
+#### 2026-11-08 operator待ちの解消・制限付き再確認
+
+利用者の直前の具体案への続行指示により、前項のoperator待ちを解消する。通常の許可確認を挟まず同じ範囲で進め、安全/未知/不一致停止や元Task依存は維持する。Specの同名再開節をcontroller/reviewer双方の制約にする。これは過去の範囲外書込の否認・仕様承認SHAの発明・条件の緩和ではない。
+- [ ] 実CLI help/公式docs/adapterでRead/Grep/Globのみの引数構築、空MCP/strict/deny、skills無効を確認する。実runのinit tools/tool-useも検査する。終了専用EndConversationは非書込の終了操作だけとして許容する。
+- [ ] 同じClaude1名で505fb7b修正の限定再確認を行う。通常のテスト・hash・数値集計はcontrollerが担当し、子はRead/Grep/Globだけを使い、計時もrunnerの値を採用する。
+- [ ] 制限確認/再確認を通過した場合だけ、新しいclean505fb7bpackage/実SDK/封印照合を行い、Task3を新しい全fresh試行として進める。過去window・旧state/sealを継ぎ足さない。
+
+テスト追加なし（L/FのCLI flag文字列テストは追加しない）。代わりに実help/公式仕様、adapterのargv構築、実init tool一覧とtool-useの構造照合、既存108passedと同版の証跡、全package/現在hash/実SDK検証を使う。記録はPARENT_ROOT/tmp/agents/emission-native-finish.nkermyxf。時間上限は設けず過去所要時間を保持、レビューworkerの720秒枠・同期終了確認は維持する。
+
 ### Task 3: fresh preflightと短いDrivegateを逐次実行する
 **Files:** 生成物/実raw/ログ/stateはSESSION以下だけ（commitしない）、Spec/Planの結果追記。
 **テスト:** 新規テストなし。Task1/2のSを再利用し、実SDK/nativeの実出力と詳細diffを検証する。nativeの拒否機構と成功継続は実測でのみ確定する。

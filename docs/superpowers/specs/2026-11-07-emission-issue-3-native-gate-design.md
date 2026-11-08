@@ -88,5 +88,13 @@ installed OutputWriter/ModelMapperはAllowNamedFloatingPointLiteralsを指定し
 
 505fb7bの新packageは未作成。74c0eabの旧v3packageは改変せず保全するが、現コードの実行入力として使わない。現在の前面化確認は受領済みであり、未回答と扱わない。Task3/4以降、独立baselineと全native phase/再capture/復元/cleanupは未完了。実機書込0、公開未実施。
 
+## 2026-11-08 停止解消と読取専用ツールによる再開
+
+利用者は、同じClaudeを読取/検索専用に制限して再確認し、新しいpreflightから再開するという直前の問いに対し、「許可を求めずに、とにかくタスクを終わらせるようにしてください」と指示した。この具体的な再開案への実行指示として、前項のoperator待ちを解消し、通常の確認を求めず同じ範囲の完了へ進める。過去の実行範囲違反をなかったことにせず、既存の未知/不一致停止、全preflight、独立baseline、private所有/復元/cleanup、元Task依存順序を維持する。未確認の実UI・二人・保存再読込を成功扱いにしない。
+
+レビューの再開は同じclaude-code_opus_defaultだけとし、個人設定を変更せず、そのrunの引数でbuilt-in toolsをRead/Grep/Globだけに絞る。MCPは空の明示設定とstrictモード/denyで除外し、skills/commandsも無効にする。実CLI help/公式仕様とadapterの引数構築を確認し、起動前に制限引数、起動後に実際のinit tool一覧と全tool-useを照合する。終了専用EndConversationがCLI仕様で残る場合は非書込の終了操作としてのみ許容する。Bash/Write/Edit/NotebookEdit/委譲/外部MCPを公開・使用したrunは採用しない。これはtool利用の機械的な制限であり、OS全体のsandbox保証とは呼ばない。
+
+制限確認済みの再確認後だけ、clean505fb7bの新しい封印入力と実SDK証跡を作り、停止済み02:21windowと別の完全fresh preflightへ進める。旧74package/stateは転用しない。新しい重大な安全上の境界や実質的な仕様変更が必要なら安全条件を優先し、既存条件を勝手に緩めない。
+
 ## 記録・公開
 採取/実session/絶対の個人パス/state/brsonはlocal-only。コードrepoへはPG/生成処理/安全判定とSテスト、READMEだけを追跡する。文書はこのSpec/Planと既存レビュー記録を1つの文書PRへまとめる。新しい小タスク別PRやPR後の自動レビューループを作らない。部分PRはRefs #3、Issueはopen維持。通常ツールのマージは手動限定。
