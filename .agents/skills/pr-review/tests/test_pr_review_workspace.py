@@ -1948,3 +1948,100 @@ def test_strict_cleanup_rechecks_under_the_save_lock(
     assert workspace.main(["cleanup", "--strict-reap", "--state", state_file]) == 1
     capsys.readouterr()
     assert (session_dir / "review-backup" / "late.md").is_file()
+
+
+# --- 停止を確認できた失敗セッションの退役（--allow-failed） ---------------------------------------------------------
+
+_REVIEW_RUN_SPEC = importlib.util.spec_from_file_location(
+    "pr_review_run_tests_for_retire", Path(__file__).with_name("test_review_run.py")
+)
+assert _REVIEW_RUN_SPEC is not None and _REVIEW_RUN_SPEC.loader is not None
+_REVIEW_RUN_TESTS = importlib.util.module_from_spec(_REVIEW_RUN_SPEC)
+_REVIEW_RUN_SPEC.loader.exec_module(_REVIEW_RUN_TESTS)
+prepared = _REVIEW_RUN_TESTS.prepared
+
+
+def _failed_session(prepared: dict[str, Any], capsys: pytest.CaptureFixture[str]) -> dict[str, Any]:
+    result = _REVIEW_RUN_TESTS.review_run.prepare(prepared["args"])
+    assert _REVIEW_RUN_TESTS.review_run.main(["fail", "--state", result["state_file"], "--reason", "止めた"]) == 1
+    capsys.readouterr()
+    return result
+
+
+def test_allow_failed_retires_a_stopped_failed_session_and_keeps_its_run_record(
+    prepared: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 正しく通る例: 停止を確認できた失敗セッションだけを退役し、実行記録は残す。
+    result = _failed_session(prepared, capsys)
+    state_file = result["state_file"]
+    session_dir = Path(state_file).parent
+    source = _REVIEW_RUN_TESTS.batch_result(tmp_path / "result.json", state="timed_out")
+    assert _REVIEW_RUN_TESTS.review_run.main(["attach-runner", "--result", str(source)]) == 0
+    capsys.readouterr()
+
+    assert workspace.main(["reap-check", "--state", state_file]) == 1
+    capsys.readouterr()
+    assert workspace.main(["reap-check", "--allow-failed", "--state", state_file]) == 0
+    checked = json.loads(capsys.readouterr().out)
+    assert checked["retirement"] == "failed"
+    assert checked["stop_evidence"]["source"] == "runner" and checked["stop_evidence"]["stop_confirmed"] is True
+    assert workspace.main(["cleanup", "--strict-reap", "--allow-failed", "--state", state_file]) == 0
+    retired = json.loads(capsys.readouterr().out)
+    assert retired["state_file"] == state_file
+
+    record = Path(result["run_record"])
+    assert not session_dir.exists()
+    assert (record if record.is_absolute() else prepared["parent"] / record).is_file()
+    assert result["worktree"] not in git(prepared["source"], "worktree", "list")
+
+
+def test_failed_session_without_stop_evidence_needs_an_operator_reason(
+    prepared: dict[str, Any], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 停止の証拠が無ければ消さない。利用者の日本語の理由は、そのまま証拠として出力に入る。
+    result = _failed_session(prepared, capsys)
+    state_file = result["state_file"]
+    session_dir = Path(state_file).parent
+    assert workspace.main(["cleanup", "--strict-reap", "--allow-failed", "--state", state_file]) == 1
+    kept = json.loads(capsys.readouterr().out)
+    assert kept["retirement"] == "failed" and kept["stop_confirmation_needed"] is True and session_dir.is_dir()
+
+    reason = "ps で担当と子孫のプロセスが無いことを確認した"
+    assert (
+        workspace.main(
+            ["cleanup", "--strict-reap", "--allow-failed", "--operator-confirmed-stopped", reason, "--state", state_file]
+        )
+        == 0
+    )
+    assert json.loads(capsys.readouterr().out)["stop_evidence"] == {"source": "operator", "reason": reason}
+    assert not session_dir.exists()
+
+
+@pytest.mark.parametrize("work", ["draft", "candidates", "previous-review", "unknown"])
+def test_allow_failed_keeps_a_failed_session_with_work(
+    prepared: dict[str, Any], capsys: pytest.CaptureFixture[str], work: str
+) -> None:
+    # 利用者の理由があっても、未保存の成果・未知のファイルのあるセッションは消さない。
+    if work == "previous-review":
+        _REVIEW_RUN_TESTS.completed_review(prepared)
+    result = _REVIEW_RUN_TESTS.review_run.prepare(prepared["args"])
+    state_file = result["state_file"]
+    session_dir = Path(state_file).parent
+    if work == "draft":
+        Path(result["draft"]).write_text("途中の本文\n", encoding="utf-8")
+    elif work == "candidates":
+        findings = Path(result["findings_draft"])
+        document = json.loads(findings.read_text(encoding="utf-8"))
+        document["coverage"]["read"].append({"path": "README.md", "reason": "読んだ"})
+        findings.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
+    elif work == "unknown":
+        (session_dir / "review-backup" / "notes.txt").write_text("memo\n", encoding="utf-8")
+    assert _REVIEW_RUN_TESTS.review_run.main(["fail", "--state", state_file, "--reason", "止めた"]) == 1
+    capsys.readouterr()
+
+    code = workspace.main(
+        ["cleanup", "--strict-reap", "--allow-failed", "--operator-confirmed-stopped", "確認済み", "--state", state_file]
+    )
+    kept = json.loads(capsys.readouterr().out)
+    assert code == 1 and kept["stop_confirmation_needed"] is False and session_dir.is_dir()
+    assert kept["retirement"] == "failed" and kept["reason"], kept
