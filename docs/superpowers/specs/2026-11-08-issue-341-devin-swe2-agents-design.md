@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（issue-to-pr の実行許可で進める。内容の承認ではない）
+- 状態: `completed`（issue-to-pr の実行許可で進め、PR #343 の修正ループのサイクル 1 で修正不要を確かめた。内容の承認ではない）
 - Issue: https://github.com/usaturn/create-reso-world/issues/341（取り込み元は usaturn/agent-workspace#858、移植元は PR #859・マージコミット `b7bd40743b76716801be184cb4401efb9b664256`）
 - 利用者の指示（Claude Code の `/issue-to-pr`）: `https://github.com/usaturn/create-reso-world/issues/341 --merge --implement claude-code_sonnet_default --assign implement=claude-code_sonnet_default --assign inspect=pi_openai-codex_gpt6-sol_max`
   - 1 回目の指示（`--assign inspect=pi_openai-codex_gpt6-sol_xhigh`）は、agent 名が設定に無く `check-options` が `invalid_reference` で止まった。worktree 等は作らずに止め、利用者が名前を直して指示し直した
@@ -63,3 +63,29 @@ Devin の agent 名を、ほかの agent と同じ命名規則に揃える。今
 - 個人設定の自動の書き換え、旧名の alias
 - 過去のレビュー・実行記録・`docs/superpowers/` の Spec・Plan の書き換え
 - 本物の Devin を起動する確認（`devin models list` の読み取りだけ行う）
+
+## PR #343: review-fix-planning の確認と結論（2026-11-08）
+
+- 実行許可: 利用者の `/issue-to-pr … --merge --implement claude-code_sonnet_default --assign implement=claude-code_sonnet_default --assign inspect=pi_openai-codex_gpt6-sol_max`。issue-to-pr の `--merge` により、PR 修正ループ（pr-review-fix-loop、run `10cf479bfbd7430991ed2a4afe660676`）の中で review-fix-planning を完遂する（致命的な指摘だけを直す、三択の結論、修正後の自己レビューは 1 回まで）。マージはループの `finalize.py` だけが行う
+- planner: `claude-opus-5-5`（claude-code、司令塔が自分で行う）。サイクル 1、対象 HEAD `f8699bc6c932466e56d1ac9d96852c9c88dedae9`、base `main` / `25b7b5a020e5f67d74807534e1b3390a54c9c5b1`（HEAD の祖先。merge したツリーは要らない）
+- 結論: **2・修正不要**。コードの修正は無い
+
+### レビュアーの構成
+
+| レビューファイル | モデル / runtime | 担当 | 対象 HEAD | このサイクルで再実行 | 推奨 |
+| --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol / pi | `pi_openai-codex_gpt6-sol_max`（利用者の `--assign inspect=`） | `f8699bc6c932` | はい（Initial） | Approve、指摘 0 件 |
+
+修正・自己レビュー・修正の確認の担当（`run_roles.py` の割り当て）は implement = `claude-code_sonnet_default`（利用者の指定）、self-review・fix-check = `self`。コードの修正が無いので `run_roles.py` は 0 回、自己レビューも 0 回。
+
+### 分類
+
+- 解消済み 0 / 対応する 0 / 対応しない 1
+- `planner#S-1@f8699bc6c932`（自己確認）— 対応しない。README の #305 の移行の節（`.devcontainer/README.md:902`）は旧名対応表を使うよう案内し、表の `devin-swe` の行（`:854`）は今は無い `devin_swe2-max_default` を指す。表どおりに書き換えても、同じ節が指示する `check` が `invalid_reference` で止まり、設定が黙って壊れることは無い。入口の「既存環境の更新」の手順 4 と「Devin の agent 名の変更（#341）」の節が `devin-swe` の移行先を `devin_swe2_max` と案内しており、#305 の表は Issue の対応内容 4 で当時の記録として残すと決めている。見直す条件: #305 の節だけを読んで移行し `invalid_reference` で止まったという報告があったとき、または #305 の移行の節を改訂するとき
+
+### 確認の範囲と検証
+
+- 全体差分（4 ファイル、+361/-5）、変更ファイル 4 つの全文（README はコミット済みの内容をサブエージェントに全文読ませた）、関連する `tools/agent_runner/config.py`（table の統合と同一モデルの比較）を確認した
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#343-feat-issue-341-devin-swe2-agents/verified/f8699bc6c932.json`（候補 0、残り 0。CLI の `check`・`list` と `duplicate_model` を隔離した worktree で確かめ、`devin models list` を取り直した）
+- 検証の記録（`finalize.py` の `--checks-file`）は、issue-to-pr が最後の commit の後に未コミットの変更の無い同じ HEAD で実行したものを使う（issue-to-pr の 5 章の再利用の条件を満たす）: `python -m tools.agent_runner check` 0・`list` 0、`bash .devcontainer/run-tests.bash` 0（27 PASS）、`bash scripts/check-layout.sh` 0、`uv run pytest tests/skills .agents/skills .agents/scripts tools` 0（1309 passed）。2 つを同じ役割に並べた一時設定の `check` は期待どおり 2（`duplicate_model`）。ログは親 checkout の `tmp/agents/issue-341.8ff800qg/final-checks/`
+- マージ後でなければ確かめられない項目は無い（rebuild・実機・個人設定の移行は要らない）
