@@ -115,7 +115,7 @@ Task2b-c完了記録: code`d2fa633`、121passed/compileall/diff。旧2経路のR
 
 指定Claudeの実装・結果レビュー135.531秒/exit0/停止確認済み/outside_changes=[]はPASS、実modelclaude-opus-5-5、公開Read/Grep/Glob、使用Read15/Grep8/Glob1、MCPなし。唯一のF1Lowはlocal-only読取driverの交互failure signatureで終了しない可能性であり、偽成功/書込はなく実1attemptへ影響なし。Lの生存性だけの指摘としてskip、永久テスト/外側timeout/追加reviewは不要と裁定した。レビューworktreeはclean/停止確認後に削除。原指摘・裁定・全raw・fake/RED/GREENはPARENT_ROOT/tmp/agents/emission-native-controller.0wmzw5erに保存。公開未実施。
 
-### Task2b-d: private Commandの適用確認と逐次再試行（着手）
+### Task2b-d: private Commandの適用確認と逐次再試行（この部分のみ完了）
 
 まずmutable Commandの固定1–6と独立した再capture拒否要求に区切る。任意argvやwriter callbackを受け取らず、検証済みNativeDeployedStageからprivate Command componentだけを導出して`component set … Value N`を同期実行する。元baselineから期待を生成し、完全field/Before/Done、session/fixture/型/所有/SDK、helper役割を再検証する。実機readerは現在の新しいNativeDeployedStageを返す読み取り専用の依存として分離する。
 
@@ -124,6 +124,14 @@ Task2b-c完了記録: code`d2fa633`、121passed/compileall/diff。旧2経路のR
 受け入れ基準は共通基準を維持し、実入力は完全HDR/Linear・sRGB/alpha、boolと非ASCII context。防御対象はtimeout後の重複write、部分captureのBefore上書き、別session/私有field/元baselineへの切替、同時writer、旧receiptの再利用。対象外はcreate/deploy/helper削除/最終cleanupの実行制御とfullpreflightそのもの。これらは次のTask2b作業として残し、Command部分だけでfull mutation controller完了にしない。
 
 SテストはCLIの失敗後に適用済みなら一度しか送らない正例、未適用からの再試行、部分適用/別context/同時writer/クラッシュ不明時の誤送信拒否を代表例で実行する。文言/一覧/F/L/Dテストは増やさない。既存suite/compile/diffとfake CLIで検証し、実機成功とは呼ばない。指定ClaudeのRead/Grep/Globだけの実装レビュー1回（720秒、fallbackなし）、採用修正の限定再確認のみを使用する。元raw/seal/Beforeは不変。実装・レビュー後に新HEAD packageと実機reader/残り制御を結ぶ。
+
+Task2b-d完了記録: code`d96327a`→`bf020f8`。Command1–6/独立再captureの内部実行処理、execution単位のwriter lock、元baseline descriptor/state binding、launch intent/process group終了/raw/新観測と別attemptを実装した。元のphase期待は`phase_expectations`に分離し、A/B/C/Before/bool/完全色/OnWritten/OnFailは変更しない。既存121passedを引継時に再確認し、4件の代表Sテスト追加後125passed/6.40s、compileall/diff exit0。fake CLIは実プロセスとして起動するが、native検証の依存はstubであり、実機統合やnative成功の証拠ではない。
+
+指定Claudeの実装レビュー190.448秒/exit0/停止確認済み/outside_changes=[]、実modelclaude-opus-5-5、Read/Grep/Globのみ/MCPなし、PASS_WITH_ISSUES。F1Lowの書込直後読取失敗に再観測が不足する点は、unconfirmed read回数と未適用write回数を分けて修正した。一時fake検証で修正前は2観測でsource-investigation、修正後は3観測でapplied、いずれもCLI1回。Lのみなので永久テストは増やさない。F2Lowは実行CLIのPATH解決先/実versionを封印cliVersion/SDK/sourceと照合するfullpreflightが後続で必須とREADMEへ明記して対応。Command API単体にCLI binary inventoryの認証があるとは扱わない。F3Infoのraw hash追加はoptionalでskip、stage descriptor/state fingerprintと記載する。F4Infoの各phase期待treeを封印宣言/元baselineから導出する点は、未実装の実機readerで守る。
+
+同じ指定Claudeの限定再確認40.631秒/exit0/停止確認済み/outside_changes=[]、Read/Grep/Globのみ/MCPなしはCLOSED、F1解決/F2文書による対応完了、新regressionなし。原raw/review/rulings/fake検証はPARENT_ROOT/tmp/agents/emission-mutation-controller.pp7lz4c2へ保存。既存の全Root診断/SDK/raw/seal/Beforeは不変。
+
+**残作業:** 全Task2bは未完了。新しいNativeDeployedStageの実機reader、create/deploy/helper削除/最終cleanupの適用済み/未適用/部分適用/不明と回復、currentdriver/source-producer/保護意味baseline/fullpreflight、新HEAD package、実機0–6/別再capture拒否/復元cleanupと元工程を次に実装する。今回の実機call/write/resourceは0。公開未実施、通常の許可待ちではない。
 
 ## Task 3: preflight・native Drivegate・回復/再試行
 
