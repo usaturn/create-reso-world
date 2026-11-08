@@ -71,12 +71,15 @@ Specの「現在有効な作業方針」「受け入れ基準・環境・防御�
 
 ## Task 2b: 新ルールを実行側へ反映しSDK layout接続を完成する（未実装）
 
-**Files:** controllerの試行/観測手順、必要な`drivegate_evidence.py`/`drivegate_runtime.py`/対応Sテスト、README、試行brief。
+**Files:** controllerの試行/観測手順、`tools/drivegate-native-layout/`、`drivegate_native.py`、必要な`drivegate_evidence.py`/`drivegate_runtime.py`/対応Sテスト、README、試行brief。
 **テスト:** S。正当なRoot時点差分でprivate操作を誤拒否しない正例と、誤対象write/delete・Before上書き・timeout後の二重適用・未知metadataの成功化を防ぐ代表例。スクリプト文言や全組合せF/L/Dは追加しない。同期suite/compile/diff、隔離copyの実SDK検証を行う。
 - [ ] 旧`check_fresh_root.py`の全Root compare_subtree失敗によるassert終了を現行実行手順へ転用しない。Root差分は診断、明示対象のsession/所有/write-set等は別に判定する。
 - [ ] 読取/検査/接続失敗を自動回復・再試行する。mutationの適用済み/未適用/部分適用/不明を区別し、実体/Done/所有/終了確認後に継続する。任意コマンドの汎用再送APIは作らない。
+- [ ] Task2b-a: exact installed SDKの純粋な操作生成APIを、封印PGの隔離コピーで実行する内部exporter/receiptを追加する。全AddSlot/AddComponentと記号private bindingを生成し、入力・exporter・SDK/native DLL inventory・終了コード・原出力を保存する。既存ファイルの上書き、失敗の成功化、seal外PG/別DLLの混入を代表Sテストで防ぎ、実SDKは3moduleをオフライン実行する。新規native接続なし。
 - [ ] runtime-only SDK graphとnative全layoutの接続を修正する。passive metadataの全field/default/reference/slotをcurrent producerから検証し、3D-only BSON metadataやpersistant-IDを誤解釈しない。非runtime全除外で解決しない。
 - [ ] current driver/code hashを実行前に記録し、同じ要件の指定レビュー/必要修正後、新code HEADのpackage/executionを再封印する。資料/READMEのみの変更でも旧sealのcodeCommitを黙って書換えない。
+
+Task2b-aの委譲枠: 指定ClaudeのRead/Grep/Globだけのsource調査1回（248.817秒/exit0/停止確認済み、outside_changesなし）と、実装後の同じ受け入れ基準のレビュー1回。採用した不具合修正の再確認は別途記録する。source調査はnative全layoutの比較器とruntime-onlyの件数不一致を確認し、BSONのmodule名/位置/3D-only metadataとnative生成物の相違を具体化した。最初のローカルF#試作は、linkを初期化せずBoolDriveの19操作を生成できた。native defaults/aliasの未確認は残し、Task2b完了とはしない。記録はPARENT_ROOT/tmp/agents/emission-sdk-join.p7zq2tov。
 
 ## Task 3: preflight・native Drivegate・回復/再試行
 

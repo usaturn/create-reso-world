@@ -70,6 +70,10 @@ v3の`normalizedFixture`はinstalled ResoLoop0.2.0の自動markerを入力宣言
 
 native SDKの全layoutとruntime graphを区別する。`_sdk_graph`のruntime-only出力へ全native componentをそのまま渡す接続の懸念は未修正である。正確なheadless producerからpassive metadata/field/default/参照/slotを照合し、BSONの3D専用`Meta: Comments`/`Meta: Packing`や`persistant-ID`をnative member identityへ誤写像しない。必要な修正・レビューを追加確認なしに進める。
 
+Task2bのlayout照合入力は、3D用BSONから手作業で推測せず、同じinstalled SDKの`Build.moduleCompiler`と`Link.batchAddProtoGraphNodes`でオフライン生成する全AddSlot/AddComponent操作を基準とする。`Link.initialize`・`linkInterface`・Query・Loaderは呼ばず、接続先の引数も設けない。封印したPGの隔離コピー、exporterソース、SDK/native DLL全inventory、実終了コード・原出力・生成物を試行ごとに結ぶ。既存packageやPGの隣に生成物を作らない。生成した操作のprivate portは外部実IDでなく記号で表し、適用しない。未知の操作、外部参照、欠落・改変した資料を成功にしない。
+
+このオフライン入力の成功はlayout比較・native default/alias解決・実機成功ではない。未送信memberの既定値は現行native DLLから独立に根拠をそろえる。BSONとnativeでnode位置・slot名・metadataの差が実際にあるため、3D情報の丸写しは採用しない。次に全配置/metadata/型/参照の照合を既存runtime照合へ接続し、controllerのRoot診断化・再試行も完成させる。
+
 preflightは現在の前面化/URL/他編集停止の適用性、discover、別doctor、native session/対象所有、明示した保護対象、private色/型/実参照、panel/fixture詳細diffと新root不在、sealed inputs/SDK全結線を確認する。前面化/他編集停止は受領済みであり、反する事実がないのに未回答として再確認しない。Root全体の完全一致は要求しない。新たな値変化やcontext変更は自動再採取/再planで扱う。
 
 現在の保全基準は元機能仕様と意味・型・実参照を照合し、指定Claudeに独立レビューさせて実行前に記録する。担当が保護範囲を見直した理由も同じbriefへ渡し、利用者への再確認をgateにしない。旧G0/固定件数の復元、観測の丸写しだけによる適合判定、旧state採用や保存パネルへの宣言適用はしない。
