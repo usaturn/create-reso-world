@@ -827,8 +827,9 @@ ccdol
 端末の表示や pane のスクロールバックに値が残らないようにするため、キーをコマンドラインに直接書かない。
 
 既存のコンテナは rebuild するか、「Claude Code の起動と更新」の手順で `~/.zshrc` に反映する。
-`OLLAMA_API_KEY` が未設定・空・空白だけなら、キーの値を表示せずにエラーを出し、
-`claude` を起動しない（終了コード 1）。Claude Code は `ANTHROPIC_AUTH_TOKEN` が空か空白だけだと、
+`OLLAMA_API_KEY` が未設定・空・空白だけ（NBSP・BOM などの Unicode の空白を含む）で、
+英数字を 1 文字も含まないときは、キーの値を表示せずにエラーを出し、`claude` を起動しない（終了コード 1）。
+Claude Code は `ANTHROPIC_AUTH_TOKEN` を trim（Unicode の空白も除く）して空なら、
 保存済みの claude.ai の OAuth トークンを接続先へ送るため、起動の前に止めている。
 
 #### 接続先の確認
@@ -1607,7 +1608,7 @@ export される（`OLLAMA_API_KEY` は書かない。下の項目）。書か�
 - `OLLAMA_API_KEY` は Claude Code の `ccdol`・`claude-ollama` だけが読む。
   「秘密情報」の env ファイルには書かず、使うシェルで export する。
   子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ccdd`・`ccddg`・`ccdu` の子には渡さない。
-  未設定・空・空白だけなら、値を表示せずにエラーを出して起動を止める。
+  未設定・空・空白だけ（Unicode の空白を含む）で英数字を 1 文字も含まないなら、値を表示せずにエラーを出して起動を止める。
   キーは `https://ollama.com/settings/keys` で作る。
   詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある
 - `COMMANDCODE_API_KEY` は契約停止中のため通常利用には不要で、常時 export は推奨しない。

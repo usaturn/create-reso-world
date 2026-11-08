@@ -172,10 +172,12 @@ function claude-ollama ccdol () {
   local model='deepseek-v4.1-flash:1017[1m]'
   local -a opts
   [[ $funcstack[1] == ccdol ]] && opts=(--dangerously-skip-permissions)
-  # Claude Code は ANTHROPIC_AUTH_TOKEN が空か空白だけだと、保存済みの claude.ai の
-  # OAuth トークンを接続先へ送る。空白を除いて空なら claude を起動しない（値は表示しない）。
-  if [[ -z ${${OLLAMA_API_KEY:-}//[[:space:]]/} ]]; then
-    print -u2 -- "${funcstack[1]}: OLLAMA_API_KEY is not set or empty; create a key at https://ollama.com/settings/keys and export it in this shell"
+  # Claude Code は ANTHROPIC_AUTH_TOKEN を trim して空なら未設定とみなし、保存済みの claude.ai の
+  # OAuth トークンを接続先へ送る。trim は NBSP・BOM などの Unicode の空白も除くので、zsh の
+  # [[:space:]]（ロケール依存）では足りない。ASCII の英数字を 1 文字も含まなければ起動しない
+  # （[A-Za-z0-9] は文字コードで比べるのでロケールに依らない。値は表示しない）。
+  if [[ ${OLLAMA_API_KEY:-} != *[A-Za-z0-9]* ]]; then
+    print -u2 -- "${funcstack[1]}: OLLAMA_API_KEY is not set, empty, or has no letters or digits; create a key at https://ollama.com/settings/keys and export it in this shell"
     return 1
   fi
 

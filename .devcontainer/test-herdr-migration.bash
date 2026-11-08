@@ -440,8 +440,9 @@ PY
 # S: ccdol は OLLAMA_API_KEY が無いとき、子 claude を起動せずに失敗する。
 # Claude Code は ANTHROPIC_AUTH_TOKEN が空か空白だけだと、保存済みの claude.ai の OAuth トークンを
 # 接続先へ送る。このガードが外れても起動は成功し、claude.ai の認証情報が ollama.com に送られる。
-# 入力は空白だけの 1 件にする。空だけを止める書き方（[[ -z ... ]]・${X:?}）は空白を通すので、
-# この 1 件で空・未設定を止め損ねる誤りも分かる。正しい key で起動する例は送り先のテストにある。
+# 入力は ASCII の空白・NBSP（U+00A0）・BOM（U+FEFF）だけの 1 件にする。Claude Code は trim で
+# これらを除いて空とみなす。空だけを止める書き方（[[ -z ... ]]）も、空白（[[:space:]]）だけを除く書き方も
+# NBSP・BOM を通すので、この 1 件でどちらの誤りも分かる。正しい key で起動する例は送り先のテストにある。
 test_ollama_launcher_requires_key() {
     local test_home="${TEST_ROOT}/home-ollama-key"
     make_stub_home "$test_home"
@@ -453,7 +454,7 @@ test_ollama_launcher_requires_key() {
     local rc=0
     run_zshrc_code "$test_home" \
         'source "$ZSHRC_TEMPLATE" >/dev/null 2>&1; ccdol probe' \
-        HERDR_TEST_CLAUDE_DUMP="$log" OLLAMA_API_KEY=' ' 2>/dev/null || rc=$?
+        HERDR_TEST_CLAUDE_DUMP="$log" OLLAMA_API_KEY=$' \xc2\xa0\xef\xbb\xbf' 2>/dev/null || rc=$?
     [ "$rc" -ne 0 ] || fail 'ccdol must fail when OLLAMA_API_KEY is blank'
     [ ! -s "$log" ] || fail 'ccdol must not start claude when OLLAMA_API_KEY is blank'
 }
