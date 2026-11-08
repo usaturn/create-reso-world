@@ -193,7 +193,15 @@ Task2b-hの接続/投影の追記（全Hは未完了）: code`bbcdda3`の`Native
 
 実結果の追記: code`e56019b`、135passed/compileall/diff。r4では12個のsource-spanを持つnative module rootをCLI宣言投影だけの境界として明示し、panel527/synthetic40の全no-opがsourceから事前構成した完全期待planへ一致した（warning8/0もsourceから構成）。新10読取/diff CLI呼出は全exit0、前後discover/typed field/producerと同一bracket内diffが合格し、投影外graphを含む全panel1025slot/2011component・synthetic19/21は両新Rootで元snapshotへ完全一致した。結果はstructural-preservation-subset-onlyで、意味適合/指定レビュー/fullpreflight/native成功/実行許可はfalse。r3のsourceファイル名のローカル準備エラーも保持した。今回全体は30CLI読み取り/diff試行（28exit0/2exit6）、world write/resource0で、内部native protocol呼出数とは区別する。
 
-残りは、意味baselineの確認・独立レビュー、固定lifecycle writer・created collector/初回anchor・current package/absolute CLI/env/configSources/toolchain/fullpreflightの接続、未使用の指定H実装/preflightレビュー1回と実機0–6/元工程である。今回の準備は旧application stateの探索・復元ではなく、読取専用の新しい宣言key→実ID mapであり、apply/adoptへ使わない。今回のsource/投影の根拠と失敗はPARENT_ROOT/tmp/agents/emission-scope-current.id39o3vsへ保持する。公開未実施。
+残りは、意味baselineの確認・独立レビュー、固定lifecycle writer・created collector/初回anchor・current package/absolute CLI/env/configSources/toolchain/fullpreflightの接続、未使用の指定H実装/preflightレビュー1回と実機0–6/元工程である（collector/初回anchorの後続の読取API実装は次の追記を参照）。今回の準備は旧application stateの探索・復元ではなく、読取専用の新しい宣言key→実ID mapであり、apply/adoptへ使わない。今回のsource/投影の根拠と失敗はPARENT_ROOT/tmp/agents/emission-scope-current.id39o3vsへ保持する。公開未実施。
+
+Task2b-hのbootstrap読取接続（全Hは未完了）: code`1835cef`で`drivegate_bootstrap`を追加。`collect_created_stage`は元precreateの原証跡と現在state/独立した完全no-op期待planから、固定discover/session/2Root/fixture/全保護diffを採取し、初期構造・全IDの作成前Root不在・Root内実体を検証する。`collect_probe_anchor`は元CreatedStageから最初のprobe-only stageを作り、元安定構造/ID・元layout/BSON/current DLL・全private初期値と、追加probe IDの配備前Root不在を検証する。writer/processによる作成所有の証明や実機適用は含めない。`assess_precreate_history`は許可runtime pathの生成後に元precreateを再検証する別APIであり、fresh-only入口の制限は弱めない。
+
+NativeSessionEvidenceをstageへ保持し、証跡付きstageは同じbracket/Root readへ結んで再検証する。deployed readerも証跡付きanchorのときに新discover/2Rootを採取する。旧offlineの証跡省略APIは維持しており、writer/fullpreflightへの必須接続は未完了。元baseline/Before/phase期待・保護root/CLI投影境界は変更しない。
+
+新S2件、既存precreate/readerの代表Sへ接続し137passed/compileall/diff。実fake CLI processで原receiptとcreated model/保護diff/source sessionを検証するが、precreate/package/library認証はstub、probe接続はmodule認証もstubであり、完全native統合ではない。before RootのID予約だけを無効にした一時pluginで、借用member IDの拒否が消えるbehavioral failureを実測した。state変更の追加D検査は一時testに限定。保存実Rootから全members/277737IDをoffline列挙した事実をfreshnessへ格上げしない。今回の実機call/write/resource/model runは0、指定H実装/preflightレビュー1回は未使用。
+
+次は固定lifecycle writerの適用済み/未適用/部分適用/不明分類、同一writer/journal、current package/driver/toolchain/fullpreflightと意味baselineをそろえ、指定レビューする。collector APIの存在だけでwriterや初回実fixtureが存在すると扱わない。失敗試行・感度検査・suiteはPARENT_ROOT/tmp/agents/emission-lifecycle-next.b0he7q1_に保持。公開未実施。
 
 ## Task 3: preflight・native Drivegate・回復/再試行
 
