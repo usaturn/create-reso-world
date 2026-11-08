@@ -50,15 +50,15 @@
 **Interfaces:**
 - Produces: agent 名 `devin_swe2_max`・`devin_swe2_medium` と `model_key = "swe-2"`。Task 2 の README と Task 3 の検証がこの名前と値を使う
 
-- [ ] **Step 1: `[agents.devin_swe2-max_default]` の節を、コメント付きの 2 つの節に置き換える**
+- [x] **Step 1: `[agents.devin_swe2-max_default]` の節を、コメント付きの 2 つの節に置き換える**
 
   同じ位置に、まず `#` のコメントを 2 行ほど書く: SWE-2 は tier（medium・high・max）を `--model` の UID で選ぶ。tier は effort の軸なので、名の effort の段に置く。2 つは同じ `model_key` なので同じモデルとして扱い、同じ役割に並べられない。続けて `[agents.devin_swe2_max]`、`[agents.devin_swe2_medium]` を Global Constraints の値で書く（キーの順は `runtime`・`command`・`model`・`model_key`・`env`）。
 
-- [ ] **Step 2: 既定の inspect の 2 人目を `devin_swe2_max` に直す**
+- [x] **Step 2: 既定の inspect の 2 人目を `devin_swe2_max` に直す**
 
   `agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]`。上のコメントは変えない。
 
-- [ ] **Step 3: 雛形を読み込んで確かめる**
+- [x] **Step 3: 雛形を読み込んで確かめる**
 
   Run:
   ```bash
@@ -74,12 +74,12 @@
   ```
   Expected: 1 行目が `['devin_swe2_max', 'devin_swe2_medium']`、2 行目が `swe-2-max`・`swe-2-medium` とどちらも `swe-2`、3 行目が Global Constraints の 3 人。`git grep` は何も出さず終了コード 1。
 
-- [ ] **Step 4: 既存の設定のテストを実行する**
+- [x] **Step 4: 既存の設定のテストを実行する**
 
   Run: `uv run --project /workspaces/reso-world --locked pytest tools/agent_runner/tests/test_config.py -q`
   Expected: すべて passed。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```bash
   git add .devcontainer/agent-runner.toml
@@ -99,7 +99,7 @@
 **Interfaces:**
 - Consumes: Task 1 の agent 名と `model_key = "swe-2"`
 
-- [ ] **Step 1: 命名規則の段落を一般化する**
+- [x] **Step 1: 命名規則の段落を一般化する**
 
   今の「model は系列・メジャー版・tier の小文字で表し、…effort 未指定は `default` とする。」を次の内容にする。段落の形は保つ。
   - tier はモデルの種類（`sol`・`flash` など）を指す
@@ -109,18 +109,18 @@
 
   その後の「この規則は雛形の名前にだけ適用し、…改名しない。」の文は残す。
 
-- [ ] **Step 2: 既定の `review.inspect` の記述を直す**
+- [x] **Step 2: 既定の `review.inspect` の記述を直す**
 
   `` `pi_openai-codex_gpt6-sol_max,devin_swe2-max_default,pi_opencode-go_deepseek4-flash_max` `` の 2 人目を `devin_swe2_max` にする。ほかの文は変えない。#305 の表（846-858 行）は変えない。
 
-- [ ] **Step 3: `model_key` の段落に SWE-2 を足す**
+- [x] **Step 3: `model_key` の段落に SWE-2 を足す**
 
   DeepSeek の文の後に、次の内容を足す。
   - SWE-2 の `devin_swe2_max`・`devin_swe2_medium` にも同じ `model_key = "swe-2"` を付けている
   - `devin_swe2_medium`（SWE-2 Medium）は既定のどの割り当てにも入っておらず、`--assign` か個人設定で選べる
   - 2 つは同じ `model_key` なので、同じ役割に並べると `duplicate_model` で拒否される
 
-- [ ] **Step 4: 移行の節を足す**
+- [x] **Step 4: 移行の節を足す**
 
   見出しは `### Devin の agent 名の変更（#341）`。次の内容を書く。
   - #341 で `devin_swe2-max_default` を `devin_swe2_max` に改名し、`devin_swe2_medium` を足した。#305 の表は当時の変更記録なので書き換えない。#305 より前の `devin-swe` も、今の名前は `devin_swe2_max`
@@ -129,7 +129,7 @@
   - 編集後は、リポジトリのルートで上の `check` と `list` を実行する
   - この環境の個人設定には Devin の名前が無いので、移行は要らない
 
-- [ ] **Step 5: 差分を確かめる**
+- [x] **Step 5: 差分を確かめる**
 
   Run:
   ```bash
@@ -138,7 +138,7 @@
   ```
   Expected: 削除行（`-`）は Step 1〜3 の段落の行だけで、#305 の表の行は含まない。`git grep` が出す行は、#305 の表の 1 行と新しい節の中の旧名だけ。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
   ```bash
   git add .devcontainer/README.md
@@ -154,28 +154,28 @@
 **Interfaces:**
 - Consumes: Task 1 の雛形、Task 2 の README
 
-- [ ] **Step 1: 雛形単独と実際の個人設定で `check`・`list` を実行する（R1・R2・R3）**
+- [x] **Step 1: 雛形単独と実際の個人設定で `check`・`list` を実行する（R1・R2・R3）**
 
   Run（worktree のルート）: `uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner check` と `list` を、`AGENT_RUNNER_CONFIG` を付けない実際の解決（個人設定あり）と、`schema_version = 1` だけの一時設定を `AGENT_RUNNER_CONFIG` で指した場合の両方で実行する。
   Expected: どれも終了コード 0。`list` に `devin_swe2_max`・`devin_swe2_medium` があり、`devin_swe2-max_default` が無い。`load_config` の実効の inspect が Global Constraints の 3 人。
 
-- [ ] **Step 2: 同一モデルの判定を確かめる（R4、Review Focus 3・4）**
+- [x] **Step 2: 同一モデルの判定を確かめる（R4、Review Focus 3・4）**
 
   一時的な個人設定 3 つを `AGENT_RUNNER_CONFIG` で指して `check` を実行する。
   - `[workflows.review.assignments.inspect]` に `agents = ["devin_swe2_max", "devin_swe2_medium"]` — Expected: 終了コード 0 以外、reason が `duplicate_model`
   - `agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_medium"]` — Expected: 終了コード 0
   - 同じ役割で `agents = ["devin_swe2_max"]`、`fallback = ["devin_swe2_medium"]` — Expected: `duplicate_model`
 
-- [ ] **Step 3: README に書いた移行の挙動を確かめる（R5、Review Focus 1・2）**
+- [x] **Step 3: README に書いた移行の挙動を確かめる（R5、Review Focus 1・2）**
 
   - 旧名 `[agents.devin_swe2-max_default]` の完全な定義（`runtime = "devin"`、`command = ["devin"]`、`model = "swe-2-max"`、`env = ["HOME", "PATH"]`）と、`agents = ["devin_swe2-max_default", "devin_swe2_medium"]` — Expected: 終了コード 0（拒否されない）
   - 定義を持たず `agents = ["devin_swe2-max_default"]` だけ — Expected: `invalid_reference`
 
-- [ ] **Step 4: README の記述と雛形・実際の挙動を照合する（R6）**
+- [x] **Step 4: README の記述と雛形・実際の挙動を照合する（R6）**
 
   Task 2 の各段落を、Task 1 の雛形と Step 1〜3 の結果と照合する。名前・`model_key`・既定の構成・拒否される／されない条件が一致すること。
 
-- [ ] **Step 5: 全体の検証（R7）と範囲の確認**
+- [x] **Step 5: 全体の検証（R7）と範囲の確認**
 
   Run（同期）:
   ```bash
@@ -187,7 +187,7 @@
   ```
   Expected: 3 つの検証が終了コード 0。変更ファイルは雛形・README・この Spec・Plan だけ。`git grep` は何も出さない。
 
-- [ ] **Step 6: 最後の全体レビュー**
+- [x] **Step 6: 最後の全体レビュー**
 
   固定 base からの差分を、新しい読み取り専用のレビュアー（サブエージェント）に、受け入れ基準と同じ本文を付けて渡す。Critical・Important の指摘は runner の担当に修正を依頼する（1 回まで）。
 
@@ -230,3 +230,22 @@
 - runner の担当が `nested_invocation` などで検証できなかったと報告したら、司令塔が Task 3 で同じ検証を行い、担当に回避させない（`AGENT_RUNNER_DEPTH` を外さない）
 - base の移動を観測したら、旧/新 SHA と必要な再検証を報告して止まり、捕捉した値を置き換えない
 - 本物の Devin・有料のモデルを起動して確かめることはしない（`devin models list` の読み取りだけ）
+
+## 実装・全体レビューの記録
+
+2026-11-08（UTC）。担当の割り当ては利用者の `--implement claude-code_sonnet_default`（`fallback` は空）。runner が観測した担当のモデルはどの依頼も `claude-sonnet-5-5`（Claude Code 2.1.319）。
+
+| 依頼 | 結果 | 担当の所要時間 |
+| --- | --- | --- |
+| Task 1・1 回目 | `rejected`（`outside_changes`: 並行する #340 のセッションが自分の worktree に commit した）。取り込まず | 24 秒 |
+| Task 1・2 回目 | `importable` → 取り込み `605b3a6c`。Task のレビュー（sonnet）: Spec ✅・Approved | 23 秒 |
+| Task 2・1 回目 | `rejected`（`outside_changes`: #340 の worktree と、#340 の runner の作業用 worktree）。取り込まず | 22 秒 |
+| Task 2・2 回目 | `importable` → 取り込み `f636284f`。Task のレビュー（sonnet）: Spec ✅・Approved | 25 秒 |
+| 全体レビューの修正 | `importable` → 取り込み `538b799e`。範囲を絞った再レビュー（sonnet）: 採用した指摘はすべて対応済み、新しい問題なし | 44 秒 |
+
+- 同じ失敗（並行するセッションとの `outside_changes`）が 2 回で上限に達したので、方法を変えた（ledger の checkpoint: change-method）。runner の監査と同じ指紋（`tools.agent_runner.workspace.snapshot_checkouts`）が 2 分間変わらず、ほかのセッションの runner の作業用 worktree が無いのを確かめてから依頼し、取り込みもほかのセッションの runner が無いときにだけ行った。監査・`AGENT_RUNNER_DEPTH`・担当・依頼の内容は変えていない
+- Task 3（司令塔）: `check`・`list` は実際の個人設定・空の一時設定とも終了コード 0。同じ役割に 2 つ（`agents`、`agents`/`fallback`）は `duplicate_model`、Medium とほかのモデルは受け入れ、`load_config` に `inspect=devin_swe2_medium` を渡すと受け入れ。旧名の完全な定義＋Medium は止まらず、旧名の参照だけは `invalid_reference`、旧名の節に `env` だけの上書きは `invalid_type`
+- 全体の検証（修正前の HEAD `f636284f`、clean）: `bash .devcontainer/run-tests.bash` 0（27 PASS）、`bash scripts/check-layout.sh` 0、`uv run pytest tests/skills .agents/skills .agents/scripts tools` 0（1309 passed）。最後の commit の後に clean な HEAD で同じ 3 つをやり直す（Step 7）
+- 最後の全体レビュー（opus）: With fixes。Important 1（移行の節の失敗の仕方を個人設定の形ごとに書き分ける）と Minor 1・3・4、任意の 2 件を採用し、Minor 2（tier・slug・実効値の言い換え）は、Issue の対応内容 3 がその文言で規則を指定しているため不採用
+- 新しいテストは書いていない（Spec の決定記録「テスト」）
+- 所要時間（UTC）: 準備・Spec・Plan 08:33〜08:39（約 6 分）、Task 1 08:39〜08:46（約 7 分、依頼し直しを含む）、Task 2 08:46〜08:56（約 10 分、依頼し直しと待ちを含む）、Task 3 の確認・全体の検証・全体レビュー 08:53〜09:15（約 22 分、pytest 17 分と並行）、修正と再レビュー 09:15〜09:19（約 4 分）
