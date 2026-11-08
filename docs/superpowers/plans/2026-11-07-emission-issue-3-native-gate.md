@@ -203,6 +203,12 @@ NativeSessionEvidenceをstageへ保持し、証跡付きstageは同じbracket/Ro
 
 次は固定lifecycle writerの適用済み/未適用/部分適用/不明分類、同一writer/journal、current package/driver/toolchain/fullpreflightと意味baselineをそろえ、指定レビューする。collector APIの存在だけでwriterや初回実fixtureが存在すると扱わない。失敗試行・感度検査・suiteはPARENT_ROOT/tmp/agents/emission-lifecycle-next.b0he7q1_に保持。公開未実施。
 
+Task2b-hの固定create/最初のprobe writer接続（全Hは未完了）: code`95c3fcf`の`run_create`/`run_deploy_probe`を内部APIとして追加し、Commandのprocess/intent/raw/group-stop処理を共有した。同じexecution journal/writer lock/run-Nで重複writerを防ぎ、元CreationScope/CreatedStage binding、停止済み固定process、出力world/deploy state snapshot、fresh native transitionへ結ぶ。CLI非0でも適用済みなら再送せず、完全未適用だけ別attemptへretry、partial/unknownは再観測/source調査へ返す。state/rawは新規保存・fsync、旧Before/seal/verdictは変更しない。
+
+CreationScopeは必須source topology/discover/2完全Rootを伴い、両Rootの不在/保護と、全作成ID・probe追加IDの元/直前Root不在を確認する。probeでは元CreatedStage/全layout/BSON/宣言初期値/安定IDを維持し、固定probe manifest以外は配備しない。新S5件、142passed/compileall/diff。real fake CLI processだが、precreate/package/libraryはtest seam、probe module compiler/runtimeもstub。最新Root member予約だけを無効にすると不正借用を適用済みとする実fault-injection failureを確認した（旧実装REDとは区別）。共通lock/不明Command launch/並行state/元binding/source必須のD接続は一時test2件だけにした。
+
+current driver/fresh precreate読取、helper配備/削除/復元cleanup、全writer/fullpreflightのsource必須接続、absolute CLI/限定env/configSources/currentHEAD package/指定Hレビュー1回と実native0–6/元工程は残作業。実state bytes差異はsource/journalへ戻り、盲目的採用はしない。今回real CLI/native/write/resource/model0。新しい実fixture/anchor/fullpreflight成功はない。原証拠はPARENT_ROOT/tmp/agents/emission-lifecycle-writer.kgt4g41tに保持、公開未実施。
+
 ## Task 3: preflight・native Drivegate・回復/再試行
 
 **Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。

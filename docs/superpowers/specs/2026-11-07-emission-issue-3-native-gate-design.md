@@ -114,6 +114,14 @@ ID指定inspectはfixture名からの相対path、Root inspectはRootからのpa
 
 この変更は読取/構造接続であり、適用したprocessの所有記録、固定lifecycle writer・current fullpreflight・指定レビュー・実機fixtureの作成/anchor採取は未完了である。今回の実機呼出/write/resource/model runは0。指定H実装/preflightレビュー1回は未使用のまま、全体がそろってから実施する。原証拠はPARENT_ROOT/tmp/agents/emission-lifecycle-next.b0he7q1_に保持する。公開未実施。
 
+固定lifecycleの最初の2操作として、code`95c3fcf`で`drivegate_lifecycle.run_create`と`run_deploy_probe`を接続した。Commandと同じexecution journal/lock/run-N/intent/processgroup停止確認を使い、共通のprocess保存処理を抽出した。raw/state出力は新attemptへ保存・fsyncする。元CreationScope（PrecreateScope+必須NativeSessionEvidence）と元CreatedStageのbindingはimmutableにし、CLI非0でも、新しい完全native transition・自分の停止済みfixed process・出力stateが一致すれば適用済みとして再送しない。未適用だけ別attemptへ再試行し、partial/unknownは再観測後にsource調査へ返す。読取stage・既存stateだけの所有認定は拒否する。
+
+作成前の両完全Rootでは新fixture不在と全保護を検査する。作成時の全ID、probeの追加IDについて、元precreateと直前両Rootの要素IDからの借用を拒否する。probeの全構造/BSON/宣言初期値/元安定IDは既存bootstrap transitionを通し、world stateと任意に生成されたdeploy stateのprocess出力記録も照合する。Flux stateのSessionIdをnative identityにせず、現在値からBefore/既定値を作らない。実配備でstate serialization差が出た場合は原因/source/journalを確認する。
+
+新S5件と既存Commandの代表Sで、fake processのlost-ack作成/probe配備、再呼出時の無送信、未適用retry、帰属不明/partial/state差異拒否を確認し142passed/compileall/diff。元precreate/package/library認証はseam、probeではmodule compiler/runtimeもstubで、native統合成功ではない。直前Rootのforeign member ID予約だけを外す一時pluginでは、借用を適用済みと誤認して失敗する感度検査を実測した。これは新guardのfault injectionであり、旧実装のREDとはしない。共通lock/旧Command不明launch/並行state/元binding差替え/source省略の追加接続はDを避け一時testだけにした。
+
+これはcreate/最初のprobeの内部writer部分であり、current driver/fresh precreate collector、helper配備/削除/復元cleanup、全writer/fullpreflightの必須source接続、absolute CLI/env/configSources/current package/指定レビューは未完了。実機call/write/resource/model runは0、指定H実装/preflightレビュー1回は未使用。実fixture/最初の実anchorを作成済みとはしない。原証拠はPARENT_ROOT/tmp/agents/emission-lifecycle-writer.kgt4g41t、公開未実施。
+
 source/実機read/SDK inventoryの原証拠はPARENT_ROOT/tmp/agents/emission-created-controller.2e7fvii_。現在の7readは診断とsource準備のdataであり、複数保護対象/detailed diff/fullpreflight/native成功は未完了である。
 
 ## レビュー・工程・公開
