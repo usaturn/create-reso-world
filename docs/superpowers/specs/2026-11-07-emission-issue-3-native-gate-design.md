@@ -104,6 +104,7 @@ raw/実session/state/brson/個人絶対パスはlocal-only。コード/必要な
 | reviewer範囲逸脱 | 固定/tmp計時fileの作成/削除を自己申告、当時停止。既存内容/上書き/漏洩は不明。同じClaudeのtool制限で解消済み。 |
 | 制限付き再確認/新package | 42.784秒/exit0/stopped、実tools=Glob/Grep/Read、使用Read7/Grep1、MCPなし。新505packageは43files/211DLL/3実SDKparse、stateなし。 |
 | Task2b-a offline入力 | `b0383cd..49db2fa`。115passed/compile/diff、実installed SDK全3moduleの操作生成（bool19/color31/probe219）。F1の`..`越境とF2のbuild環境/response-file影響を再現して修正し、指定Claudeの限定再確認で解決、追加regressionなし。接続/書込0、全layout/default/alias比較とcontroller自動回復は未完了。 |
+| Task2b-b native全構造照合 | `417fe08..9d803c1`。120passed/compile/diff、35closed type/6DLLの独立model、全layout/default/member alias/runtime subsetとreceipt/所有結合。指定Claudeのsource429.036秒/実装237.491秒/採用F1限定22.674秒で解決。3SDK入力のoffline materialization合格であり、実機観測や新HEAD packageではない。Root/retry controllerは未完了、接続/書込0。 |
 | 03:21の旧Root試行 | 6読取/全CLIexit0、Root各8953Slot/17977Component、診断1415slot metadata/2792typed member差分。旧全値一致gateでfailed、03:21:09.468067UTCに停止。after session未採取、world write0。 |
 | 旧停止の結果レビュー | 113.439秒/exit0/stopped、実tools=Glob/Grep/Read、当時条件で停止ACCURATE。現在はRoot一致blockingと再試行禁止を本Issueの新方針で解除する。 |
 

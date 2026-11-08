@@ -76,7 +76,7 @@ Specの「現在有効な作業方針」「受け入れ基準・環境・防御�
 - [ ] 旧`check_fresh_root.py`の全Root compare_subtree失敗によるassert終了を現行実行手順へ転用しない。Root差分は診断、明示対象のsession/所有/write-set等は別に判定する。
 - [ ] 読取/検査/接続失敗を自動回復・再試行する。mutationの適用済み/未適用/部分適用/不明を区別し、実体/Done/所有/終了確認後に継続する。任意コマンドの汎用再送APIは作らない。
 - [x] Task2b-a: exact installed SDKの純粋な操作生成APIを、封印PGの隔離コピーで実行する内部exporter/receiptを追加する。全AddSlot/AddComponentと記号private bindingを生成し、入力・exporter・SDK/native DLL inventory・終了コード・原出力を保存する。既存ファイルの上書き、失敗の成功化、seal外PG/別DLLの混入を代表Sテストで防ぎ、実SDKは3moduleをオフライン実行する。新規native接続なし。
-- [ ] runtime-only SDK graphとnative全layoutの接続を修正する。passive metadataの全field/default/reference/slotをcurrent producerから検証し、3D-only BSON metadataやpersistant-IDを誤解釈しない。非runtime全除外で解決しない。
+- [x] 新しいnative専用経路でruntime-only SDK graphとnative全layoutの接続を修正する。passive metadataの全field/default/reference/slotをcurrent producerと独立native modelから検証し、3D-only BSON metadataやpersistant-IDを誤解釈しない。`assess_native_owned_graph`/`NativeDeployedStage`を使い、旧BSON-only経路を現在のnative controllerへ転用しない。実機照合の成功はTask3で確認する。
 - [ ] current driver/code hashを実行前に記録し、同じ要件の指定レビュー/必要修正後、新code HEADのpackage/executionを再封印する。資料/READMEのみの変更でも旧sealのcodeCommitを黙って書換えない。
 
 Task2b-aの委譲枠: 指定ClaudeのRead/Grep/Globだけのsource調査1回（248.817秒/exit0/停止確認済み、outside_changesなし）と、実装後の同じ受け入れ基準のレビュー1回。採用した不具合修正の再確認は別途記録する。source調査はnative全layoutの比較器とruntime-onlyの件数不一致を確認し、BSONのmodule名/位置/3D-only metadataとnative生成物の相違を具体化した。最初のローカルF#試作は、linkを初期化せずBoolDriveの19操作を生成できた。native defaults/aliasの未確認は残し、Task2b完了とはしない。記録はPARENT_ROOT/tmp/agents/emission-sdk-join.p7zq2tov。
@@ -94,6 +94,12 @@ Task2b-a完了記録: code `b0383cd`（入口）→`206fb44`（F1/F2修正）→
 委譲枠は、指定ClaudeのRead/Grep/Globだけの未解決defaults/SyncType/alias調査1回と実装レビュー1回。採用修正の限定再確認は必要箇所だけ別記する。1run720秒、fallbackなし、個人設定無変更、実tool/終了/停止/outside_changesを確認する。controllerは同期で待ち、IL解析と代表Sテスト・実SDK入力検証を実施する。未知の挙動が残れば範囲と根拠不足を記録して追加の採取へ進む。
 
 テストはSのみ。全layoutの余分なslot/component/member、誤った既定値/型、private portと内部member aliasの取り違え、別native DLL/default根拠の混入による誤成功を代表正負例で防ぐ。固定文言や全組合せのテストは作らない。read-only IL採取・構造検査・suite/compile/diffと実オフライン3moduleによる検証を行う。Root診断/回復controllerやnative/fullIssue成功はこの小区切りだけで完了にしない。
+
+Task2b-b完了記録: code `417fe08`→`9d803c1`、全120passed/6.19s、compileall/diff exit0。exact native ILの追加採取と35closed typeのgeneric宣言型を含むschema抽出、6関連DLLへのmodel binding、全slot/component/member/default/reference/alias照合、検証済み未送信defaultだけを除くruntime projection、元layout/BSON receiptと所有private fieldを結ぶnative stageを追加した。3つの保存済みSDK入力（19/31/219操作）をオフラインのmodel materializationへ適用して全照合を検証したが、実観測nativeやcurrentHEAD live packageの証拠ではない。旧505seal/rawは不変。
+
+指定Claudeのsource調査429.036秒、実装レビュー237.491秒、採用F1の限定再確認22.674秒はすべてexit0/停止確認済み/outside_changes=[]、実model claude-opus-5-5、Read/Grep/Globだけ/MCPなし。F1は、明示送信されたEnabled=falseをdefault名だけでruntime比較から除ける潜在的な誤成功を実際にREDで再現し、未送信条件で修正した。最後の限定再確認はF1解決/新regressionなし。F2はsource defectではなくcoverage-onlyで、既存guardのD/Lテストは増やさず、隔離fake-CLIで元receipt→所有→全layout/runtime joinの正例と元layout-byte改変の拒否を一時検証した。初回のPATH変更による正当なbuild-context拒否と、IL/schemaの失敗試行も保持する。原結果・裁定・ログはPARENT_ROOT/tmp/agents/emission-native-layout.asdk5_j0。
+
+全Task2bは未完了。Root診断化・実際の自動回復/retry controller、新HEAD package/driver hash/preflight/native0–6/別再capture拒否/復元cleanup/元工程は未実施。新経路の旧`id_maps`引数は参照せず、native対応表は全構造から導出する。接続/書込0、公開未実施。
 
 ## Task 3: preflight・native Drivegate・回復/再試行
 
