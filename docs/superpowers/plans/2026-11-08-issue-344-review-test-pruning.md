@@ -19,7 +19,7 @@
 - 新しいテスト関数・入力ケース・削除検査テストを追加しない。Spec #12の既存assert移管のみ行う。
 - 動作コード・SKILL.md・AGENTS.md・bashテスト・ローカルワールド・CIを変えない。
 - 第1段階だけを `Refs #344` のPRにする。残る4領域の完了やIssue全体の89件棚卸しを主張しない。
-- 基準 repository/ref/SHA: usaturn/create-reso-world / origin / refs/heads/main / c871b718f64233ce4d21cf0468d978516f0562d0。
+- 現在の基準 repository/ref/SHA: usaturn/create-reso-world / origin / refs/heads/main / 776673b57d848f304e369a4da8e73471ea56f6ad。当初の基準c871b718f64233ce4d21cf0468d978516f0562d0は履歴・初回検証記録として保持。利用者「main 取り込んで再レビューして」による明示的な再開。
 - 実装担当は pi_opencode-go_deepseek4-flash_max、fallback無し。失敗を理由にcontrollerが実装を引き取らない。
 
 ## Review Focus
@@ -92,7 +92,7 @@
 全体能動時間300分。準備・監査30分、実装とTask review30分、統合回帰・公開40分、レビュー修正ループ180分（既定3サイクル×レビュー最大45分+計画修正15分）、予備20分。
 
 - 一次担当の役割期限90分（runner管理）。予約枠0、無進捗による独自停止は設定せず同期終了を待つ。レビュー期限45分はrunner管理。
-- 調査sp-reconは1回、Task reviewer1回、全体reviewer1回。実装1依頼を基本とし、context不足/rejectedの同じ失敗は再試行1回まで。レビュー修正はSDD上限と全体予算の小さい方まで。runner failedは停止。実モデルによるテストsmokeは行わない。
+- 調査sp-reconは1回、Task reviewer1回、全体reviewer1回。利用者の追加指示「main 取り込んで再レビューして」により、統合後の全体レビューをもう1回行う。実装1依頼を基本とし、context不足/rejectedの同じ失敗は再試行1回まで。レビュー修正はSDD上限と全体予算の小さい方まで。runner failedは停止。実モデルによるテストsmokeは行わない。
 - 各phase境界・予算50%/100%・worker失敗直後にcheckpoint。100%・安全失敗は停止。
 - ledger: `/workspaces/reso-world/tmp/agents/issue-344.utaqtap6/budget.jsonl`。
 - SDD領域: 同じsessionの `sdd/2026-11-08-issue-344-review-test-pruning/`。ログはworktreeへ置かない。
@@ -108,4 +108,8 @@
 
 実装は利用者指定のrunner担当（観測opencode-go/deepseek-v4.1-flash、effort=max）。1回目3261.66秒は他worktreeのoutside_changesでrejected・未取込（因果は未確定）、2回目374.44秒をacceptしcommit fb7f66db254fc259bcca9a049f9dd3270451df81を取り込んだ。両試行は停止確認済み・cleanupのretained=[]。初回のテスト結果は採用したfeatureの検証には使わない。
 
-最後の文書commit後の全体pytest/bash/layout検証と、ブランチ全体レビュー・公開はこの記録の後に行う。最終HEADの証拠は /workspaces/reso-world/tmp/agents/issue-344.utaqtap6/ とPR本文に保存し、未実行の確認を成功としない。状態draftは実行許可と内容承認を区別するため維持。
+初回最終HEADの全体pytest1297 passed/873.29秒、bash27本PASS、layout/diff checkも成功し、全体レビュー指摘0だったが、公開前のbase移動で停止した。公開未実施。
+
+利用者「main 取り込んで再レビューして」により既存featureへmain `776673b57d848f304e369a4da8e73471ea56f6ad` を競合無しで取り込んだ（merge commit `b104ea8c63cfa450a0d45e6b7b2f45fcc5a4f68c`）。実装のやり直しは不要。今回の文書commit後、新HEADで収集・対象と全体pytest・bash/layout/diff checkを実行し、追加の全体レビューを1回行う。検証は実行後にresume-verification-record.json / resume-checks.jsonへ記録する。基準JSONはresume-code-base.jsonであり、初回記録と混ぜない。
+
+証拠は /workspaces/reso-world/tmp/agents/issue-344.utaqtap6/ とPR本文に保存し、未実行の確認を成功としない。状態draftは実行許可と内容承認を区別するため維持。

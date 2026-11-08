@@ -7,7 +7,9 @@
 - 実行許可: 利用者の明示 `/skill:issue-to-pr` と引数
   `#344 --implement pi_opencode-go_deepseek4-flash_max --merge --assign inspect=devin_swe2_max,pi_openai-codex_gpt6-sol_max,cursor_grok4_xhigh --assign implement=pi_opencode-go_deepseek4-flash_max`。
 - 許可は通常判断、検証、commit、push、PR、修正ループ経由のマージまで。設計の内容承認ではない。
-- 基準: usaturn/create-reso-world / origin / refs/heads/main / `c871b718f64233ce4d21cf0468d978516f0562d0`。
+- 当初の基準: usaturn/create-reso-world / origin / refs/heads/main / `c871b718f64233ce4d21cf0468d978516f0562d0`。
+- 再開の実行許可: 利用者「main 取り込んで再レビューして」。停止後のmain取り込み・新しい組み合わせの検証・追加レビュー1回を許可する。元の公開・ループ指示と対象範囲は維持し、内容承認とは扱わない。
+- 再開時の基準: 同repository / origin / refs/heads/main / `776673b57d848f304e369a4da8e73471ea56f6ad`（`resume-code-base.json`）。当初の捕捉・検証記録は上書きせず保持する。
 - 親 Issue・コメント・依存 API・既存 PR・予約 ref・branch/worktree を確認。親、コメント、先行依存、同じ Issue の既存 PR・予約は無し。既定 base main と異なる要求は無し。
 
 ## 目的と公開単位
@@ -100,3 +102,10 @@ Issue は5領域を1 PRずつ進めると指定している。この文書とPR�
 - Task reviewer: 仕様準拠・品質Approved、Critical/Important/Minor指摘0。対象コードの後段ガードと保持代表を静的照合した。
 - 最終HEADでの全体pytest・bash・layout、ブランチ全体レビュー・公開はこの記録の後で行う。証拠は /workspaces/reso-world/tmp/agents/issue-344.utaqtap6/ とPR本文へ残す。未実施の確認を成功とはしない。
 - 残る4領域は未着手。このPRのマージでIssue #344全体を完了とはしない。
+
+## main取り込みと再レビューの再開記録
+
+- 初回公開前、mainがPR #342のマージにより11commits進み、resolve_baseのexpected-sha照合がexit2で停止。初回の全体pytestは1297 passed/873.29秒、bash27本PASS、layout/diff check成功だったが、公開せずに停止した。
+- 利用者の追加指示に従いmainの新SHAを別の記録へ捕捉し、既存featureへ `git merge --no-ff` で取り込んだ。取り込みcommitは `b104ea8c63cfa450a0d45e6b7b2f45fcc5a4f68c`。競合無し。取り込んだ変更はIssue340の6ファイルで、このPR固有の新baseからの差分は同じテスト2つとSpec/Planだけ。
+- 元のテスト縮約コードを作り直さず、追加ケースも削除もしない。新HEADの全体pytest・bash・layout・収集とブランチ全体の再レビューを実施し、証拠を同じセッションのresume-*へ保存する。過去の成功は新しい組み合わせの保証へ流用しない。
+- baseが再び動けば、今回も捕捉値を黙って差し替えず停止する。
