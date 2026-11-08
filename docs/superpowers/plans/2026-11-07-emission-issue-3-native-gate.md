@@ -179,6 +179,8 @@ create/deploy-probe/deploy-color/deploy-bool/remove-color/remove-bool/cleanupの
 
 実機準備と並行できるreadonly source/保護意味baseline/identity producer/実CLI・SDK選択の調査は、指定Claude Read/Grep/Glob限定1回（720秒）。実装/実行前のsource・protected semantic preflight・固定driverのレビュー1回と、採用修正の限定再確認だけを使用する。全runtime/controller/code/CLI/SDKの実hashを実行前に記録し、残コード後の新cleanHEAD packageへ結ぶ。初期値codec callchain、現在のnative session producer、明示保護対象/detailed diff/全SDK結線を未知のまま合格にしない。時間制限なしだが30分checkpointと継承予算は維持し、checkpointだけを理由に作業全体を終了しない。
 
+Task2b-h準備記録（実装未完了）: 予定したreadonly source調査1回は502.452秒/exit0/停止確認済み/outside_changes=[]、実claude-opus-5-5、Read/Grep/Globのみ/MCPなしで完了。原payloadは今回session/context-source/result.json。actor実装/preflightレビュー1回はまだ未使用である。08:17の新7read/7exit0ではpanel1025/2011とsynthetic19/21を2Root間で保持したが、原結果はdiagnostic-only/fullpreflight等falseのまま。後続の10DLL ILでWorldSessionID.ComputeとperWorld Host.World/Port告知を採取し、CLI/SDK inventoryでは関連21DLLすべて一致した。これらはsource準備の事実であり、複数保護root、cleanup path、lifecycle、newpackage/fullpreflight/native0–6の完了ではない。Specのsource/保護節と今回reportに、未実装の接続条件を具体化した。時点差分だけを理由に許可待ちへ戻さない。
+
 ## Task 3: preflight・native Drivegate・回復/再試行
 
 **Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。
