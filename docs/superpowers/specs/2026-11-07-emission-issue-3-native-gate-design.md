@@ -72,5 +72,13 @@ Task3前提修正は、installed ResoLoop0.2.0のGeneratedContentMetadataとWorl
 
 今回のワールド接続/読取/撮影/書込は0。前面化明示待ちでTask3は未完了、baseline未承認、nativePermission=false。full Root保全・panel詳細diff・fresh identity bracket・現在の競合/前面化確認・意味baselineレビュー・native全phase/再capture/cleanup・S4以降を省略しない。コード/文書ともローカルcommitのみ、公開未実施。
 
+## 2026-11-08 fresh Root採取と保全専用carrierの補足
+
+利用者が現在の対象ワールドの前面化と他編集の停止を明示したため、16070へ完全に新しい読取preflightを開始した。discover→別doctor→現在hierarchy→そこから導出したnative session member→Root深さ64の5件を採取。現session/doctorは一致したが、02:21:30UTCのRoot自己照合はinconclusiveで停止し、それ以後のworld callは行わない。Rootの構造は8953Slot/17977Componentで完全だが、既存照合が保全できないleafが835件あった。342件はSystem.Singleの名前付き非有限値、489件はcolorXのsRGBAlpha、各2件はArray_float3/Array_floatQ。これは新旧値不一致やnative成功ではなく、比較器が完全な実wire表現を未対応としていることを示す。panel再採取/詳細diff/after bracketは未採取、書込0、baseline未承認。
+
+installed OutputWriter/ModelMapperはAllowNamedFloatingPointLiteralsを指定し、Single/DoubleのInfinity・-Infinity・NaNをJSON文字列にする。ResoniteLink.colorXのProfileは文字列carrier、float3/floatQ配列は既知クラスのvaluesと継承IDを含むJSONであり、MapMemberのGetType().Name付きの既知fallbackで採取される。この既知表現だけを**保全比較専用**に扱う。完全なRGBA/profile文字列、名前付き非有限値の区別、配列の全軸/全要素/内外ID/全payloadを厳密比較し、欠落・未知kind・不完全形状を許可しない。bool/intの区別は維持する。private target/writerの有限値/Linear・sRGBという意味判定は変更せず、新carrierをprivate書込へ許可しない。Rootからの除外・未知値の無視・実アバターの変更は行わない。
+
+この意味を保つ最小修正とS回帰・指定Claude確認は既存の型/保全前提準備の委任範囲とする。停止windowを継ぎ足したり、失敗をPASSへ書き換えたりしない。新しい準備の確認後も全fresh preflight・baselineレビューが必要である。根拠はPARENT_ROOT/tmp/agents/emission-native-live.enko3n41の原raw・root-unhandled-summary.json・schema-receipt.jsonとSHA/MVID付きschema-il.logに残す。
+
 ## 記録・公開
 採取/実session/絶対の個人パス/state/brsonはlocal-only。コードrepoへはPG/生成処理/安全判定とSテスト、READMEだけを追跡する。文書はこのSpec/Planと既存レビュー記録を1つの文書PRへまとめる。新しい小タスク別PRやPR後の自動レビューループを作らない。部分PRはRefs #3、Issueはopen維持。通常ツールのマージは手動限定。

@@ -85,6 +85,16 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 
 今回のnativeアクセスは0。16070指定は前面化明示ではないため、Task3は現在のワールドの前面化と他編集の停止の明示待ち。fullpreflight/baselineレビュー/phase/recapture/cleanup/Task4以降は未完了。公開未実施。
 
+#### Task2/3 接続部のRoot carrier保全修正（2026-11-08）
+
+**Files:** drivegate_evidence.py・対応Sテスト・README。PG/raw/runtime・private writer意味判定は変更しない。
+**範囲:** Spec「2026-11-08 fresh Root採取と保全専用carrierの補足」と既存受け入れ基準の同文をcontroller/reviewer共通briefにする。名前付き非有限値、完全RGBA/profile文字列carrier、既知float3/floatQ配列の全payloadを保全専用で照合する。未知kind/欠落を補わず、Rootの除外やprivate書込許可へ広げない。
+**テスト:** S。変更された非有限値/profile/配列軸・要素・IDを黙って保全済みとする損害と、opaque値をprivate書込に許可する損害を防ぐ代表正負例だけを追加。CLI構文・固定文言のF/Lテストや組合せ網羅は追加しない。
+**検証:** RED→GREEN、全suite/compile/diff、停止済みRoot原rawを使ったオフラインの形状/保全可能性確認、指定Claudeによる修正範囲と停止記録の確認、新しいclean HEADからの新seal/実SDK検証。原raw/停止判定を変更せず、自己照合を独立baselineへ読み替えない。
+- [ ] 2つの代表SテストをRED→GREENにし、全suite/compile/diff後に同じcode branchへcommitする。
+- [ ] 同じ要件で唯一の指定Claudeにレビューし、原指摘と裁定を残す。
+- [ ] 新code HEADの新package/executionと実SDKを準備・再照合する。停止windowのworld callは再開しない。
+
 ### Task 3: fresh preflightと短いDrivegateを逐次実行する
 **Files:** 生成物/実raw/ログ/stateはSESSION以下だけ（commitしない）、Spec/Planの結果追記。
 **テスト:** 新規テストなし。Task1/2のSを再利用し、実SDK/nativeの実出力と詳細diffを検証する。nativeの拒否機構と成功継続は実測でのみ確定する。
