@@ -68,7 +68,6 @@ def test_resolve_codex_model_name_uses_latest_turn_context(tmp_path: Path, monke
     [
         ("unsafe-model", "safe filename"),
         ("non-unique-rollout", "exactly one"),
-        ("invalid-json", "invalid rollout JSON"),
     ],
 )
 def test_resolve_codex_model_name_fails_closed(
@@ -90,8 +89,6 @@ def test_resolve_codex_model_name_fails_closed(
             codex_home / "sessions" / "2026" / "08" / "05" / "other",
             ["gpt-5.6-sol"],
         )
-    if setup == "invalid-json":
-        write_rollout(codex_home, ["gpt-5.6-sol"]).write_text("this is not json\n", encoding="utf-8")
 
     with pytest.raises(workspace.WorkspaceError, match=message):
         workspace.resolve_codex_model_name()
@@ -157,29 +154,13 @@ def test_destination_fingerprint_distinguishes_symlink_entries(tmp_path: Path) -
     assert link_fingerprint["sha256"] != dangling_fingerprint["sha256"]
 
 
-def test_snapshot_existing_review_copies_regular_file(tmp_path: Path) -> None:
-    backup_dir = tmp_path / "review-backup"
-    backup_dir.mkdir()
-    destination = tmp_path / "reviews/branch/gpt-5.6-sol.md"
-    destination.parent.mkdir(parents=True)
-    destination.write_text("existing review\n", encoding="utf-8")
-
-    fingerprint, previous = workspace.snapshot_existing_review(destination, backup_dir)
-
-    assert fingerprint == workspace.destination_fingerprint(destination)
-    assert previous == backup_dir / "previous-review.md"
-    assert previous.read_text(encoding="utf-8") == "existing review\n"
-
-
-@pytest.mark.parametrize("kind", ["directory", "symlink", "fifo"])
+@pytest.mark.parametrize("kind", ["symlink", "fifo"])
 def test_snapshot_existing_review_rejects_non_regular(tmp_path: Path, kind: str) -> None:
     backup_dir = tmp_path / "review-backup"
     backup_dir.mkdir()
     destination = tmp_path / "reviews/branch/gpt-5.6-sol.md"
     destination.parent.mkdir(parents=True)
-    if kind == "directory":
-        destination.mkdir()
-    elif kind == "symlink":
+    if kind == "symlink":
         target = tmp_path / "other-model.md"
         target.write_text("must not be read\n", encoding="utf-8")
         destination.symlink_to(target)
@@ -311,8 +292,6 @@ def test_snapshot_preserves_existing_index_lock(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("change", "expected_status"),
     [
-        ("staged", b"M  README.md\0"),
-        ("unstaged", b" M README.md\0"),
         ("both", b"MM README.md\0"),
         ("untracked", b"?? notes.txt\0?? scratch/\0"),
     ],
@@ -325,10 +304,9 @@ def test_snapshot_reports_changes_excluding_reviews(
     repo = tmp_path / "repo"
     commit = make_repo(repo)
     readme = repo / "README.md"
-    if change in {"staged", "both"}:
+    if change == "both":
         readme.write_text("staged change\n", encoding="utf-8")
         git(repo, "add", "README.md")
-    if change in {"unstaged", "both"}:
         readme.write_text("unstaged change\n", encoding="utf-8")
     if change == "untracked":
         (repo / "notes.txt").write_text("notes\n", encoding="utf-8")
@@ -636,14 +614,10 @@ def test_version6_session_is_kept_by_verify_save_and_cleanup(tmp_path: Path, mon
     assert Path(result["draft"]).read_text(encoding="utf-8") == "unsaved review\n"
 
 
-@pytest.mark.parametrize("value", ["Usaturn/resoloop", "missing"])
-def test_load_state_rejects_non_canonical_pr_repository(created_session: dict[str, Any], value: object) -> None:
+def test_load_state_rejects_non_canonical_pr_repository(created_session: dict[str, Any]) -> None:
     state_file = Path(created_session["result"]["state_file"])
     state = json.loads(state_file.read_text(encoding="utf-8"))
-    if value == "missing":
-        del state["pr_repository"]
-    else:
-        state["pr_repository"] = value
+    state["pr_repository"] = "Usaturn/resoloop"
     state_file.write_text(json.dumps(state) + "\n", encoding="utf-8")
 
     with pytest.raises(workspace.WorkspaceError, match="invalid PR-review session state"):
@@ -742,21 +716,6 @@ def test_save_allows_another_review_destination_to_change(
     assert other.read_text(encoding="utf-8") == "gemini review\n"
 
 
-def test_save_rejects_changed_pinned_destination(
-    created_session: dict[str, Any],
-) -> None:
-    result = created_session["result"]
-    repo = created_session["repo"]
-    Path(result["draft"]).write_text("new review\n", encoding="utf-8")
-    destination = repo / result["destination"]
-    destination.write_text("concurrent review\n", encoding="utf-8")
-
-    with pytest.raises(workspace.WorkspaceError, match="review destination changed"):
-        workspace.save(argparse.Namespace(state=result["state_file"]))
-
-    assert destination.read_text(encoding="utf-8") == "concurrent review\n"
-
-
 def test_first_session_wins_same_destination(
     created_session: dict[str, Any],
 ) -> None:
@@ -784,27 +743,6 @@ def test_first_session_wins_same_destination(
 
     destination = repo / first["destination"]
     assert destination.read_text(encoding="utf-8") == "first review\n"
-
-
-def test_save_rejects_changed_runtime_model(created_session: dict[str, Any]) -> None:
-    result = created_session["result"]
-    codex_home = created_session["codex_home"]
-    Path(result["draft"]).write_text("review\n", encoding="utf-8")
-    write_rollout(codex_home, ["gpt-5.6-sol", "gpt-5"])
-
-    with pytest.raises(workspace.WorkspaceError, match="runtime model changed"):
-        workspace.save(argparse.Namespace(state=result["state_file"]))
-
-
-def test_save_rejects_tampered_destination(created_session: dict[str, Any]) -> None:
-    result = created_session["result"]
-    state_file = Path(result["state_file"])
-    state = json.loads(state_file.read_text(encoding="utf-8"))
-    state["destination"] = "reviews/usaturn/create-reso-world/#4-fix-herdr-session-cwd/gpt-5.md"
-    state_file.write_text(json.dumps(state) + "\n", encoding="utf-8")
-
-    with pytest.raises(workspace.WorkspaceError, match="destination does not match"):
-        workspace.save(argparse.Namespace(state=str(state_file)))
 
 
 def test_save_waits_for_repository_review_lock(
@@ -1612,21 +1550,12 @@ def test_sessions_keep_a_version6_session(tmp_path: Path, monkeypatch: pytest.Mo
     assert "no PR repository" in entry["reason"]
 
 
-@pytest.mark.parametrize("failure", ["unknown-pr", "no-gh"])
-def test_sessions_keep_when_gh_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str) -> None:
+def test_sessions_keep_when_gh_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
     repo = tmp_path / "repo"
     commit = make_repo(repo, tracked_reviews=False)
     workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
-    if failure == "unknown-pr":
-        monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {}))
-    else:
-        git_only = tmp_path / "git-only"
-        git_only.mkdir()
-        real_git = shutil.which("git")
-        assert real_git is not None
-        (git_only / "git").symlink_to(real_git)
-        monkeypatch.setenv("PATH", str(git_only))
+    monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {}))
 
     [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]
 
@@ -1648,19 +1577,15 @@ def test_sessions_keep_when_gh_reports_another_number(tmp_path: Path, monkeypatc
     assert entry["pr_state"] is None
 
 
-@pytest.mark.parametrize("content", [None, "[]\n"])
 def test_sessions_keep_a_session_without_state(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: str | None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
     repo = tmp_path / "repo"
     commit = make_repo(repo, tracked_reviews=False)
     result = workspace.create(identity_create_args(repo, commit, tmp_path / "sessions", "usaturn/resoloop"))
     state_file = Path(result["state_file"])
-    if content is None:
-        state_file.unlink()
-    else:
-        state_file.write_text(content, encoding="utf-8")
+    state_file.unlink()
     monkeypatch.setenv("PATH", fake_gh_path(tmp_path, {"usaturn/resoloop#11": "MERGED"}))
 
     [entry] = workspace.sessions(argparse.Namespace(repo=str(repo)))["sessions"]

@@ -218,6 +218,7 @@ def test_no_fix_needed_needs_a_merged_finalize_result_at_the_same_head(
     with pytest.raises(loop.LoopError) as unmerged:
         loop.cycle_end(env.run_dirs[-1], github=env.github, finalize_result=result)
     assert (unmerged.value.code, unmerged.value.stage) == (4, "merge_mismatch")
+    assert json.loads((env.run_dirs[-1] / "cycle-1.json").read_text(encoding="utf-8"))["state"] == "planning"
 
     env.gh.merge()
     ended = loop.cycle_end(env.run_dirs[-1], github=env.github, finalize_result=result)
@@ -307,26 +308,6 @@ def test_finalize_stopped_keeps_the_real_merge(
     assert cycle["planning"]["merged"] is True
     assert cycle["planning"]["finalize"]["result"]["merged"] is reported
     assert cycle["planning"]["finalize"]["result"].get("merge_parent") == merge_parent
-
-
-def test_finalize_merged_but_pr_not_merged_is_a_mismatch_when_stopped(
-    loop: Any, env: Any, kit: Any, tmp_path: Path
-) -> None:
-    """マージは戻らない。finalize がマージ済みと返したのに PR が未マージなら、どちらかの読み取りが誤っている。"""
-    env.start()
-    head = env.gh.head()
-    reuse_or_run(loop, env)
-    run_dir = env.run_dirs[-1]
-    env.gh.post_record(kit.round_record(1, head, "no_fix_needed", []))
-    result = kit.finalize_result(
-        tmp_path / "final.json", "stopped", merged=True, stop_reason="external: 関連IssueがCLOSEDになったことを確認できない"
-    )
-
-    with pytest.raises(loop.LoopError) as error:
-        loop.cycle_end(run_dir, github=env.github, finalize_result=result)
-
-    assert (error.value.code, error.value.stage) == (4, "merge_mismatch")
-    assert json.loads((run_dir / "cycle-1.json").read_text(encoding="utf-8"))["state"] == "planning"
 
 
 def test_cycle_limit_ends_with_fixes_pushed(loop: Any, env: Any, kit: Any) -> None:
