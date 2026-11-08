@@ -3,20 +3,27 @@
 # .devcontainer/cleanup-workspace.bash
 #
 # ディスクを圧迫する使い捨て debris を安全に掃除する。
-#   - /tmp/pr-review-* の残骸（pr-review スキルが `worktree` サブディレクトリに
-#     git worktree を作る。save 成功時には worktree・session state を
-#     自動削除するが、異常終了や cleanup 失敗時には残るため掃除は必要。
-#     残骸の大半は「登録されたままの worktree」で、単純な rm -rf は git 側の
-#     worktree 登録と不整合を起こすため使えない。なお loose なセッション状態
-#     ファイルは pr-review 側の削除対象に含まれないため、ディレクトリの有無と
-#     独立に片付ける）
+#   - /tmp/pr-review-* のセッション: このスクリプトは削除も git worktree remove もしない。
+#     symlink・使用中・MIN_AGE_DAYS 未満を除いた後、pr-review スキルの helper
+#     （pr_review_workspace.py）に判定と退役を任せる。
+#       1. `reap-check --allow-failed --state <dir>/session.json` が終了コード 0 のときだけ
+#       2. `cleanup --strict-reap --allow-failed --state <dir>/session.json` で退役する
+#     終了コード 0 以外（保存していない本文、dirty な worktree、session.json が無い
+#     ディレクトリなど）はすべて保持して理由を報告する。`--operator-confirmed-stopped`
+#     は使わない（人の確認の代わりにしない）
+#   - helper は WORKSPACE_CLEANUP_PR_REVIEW_HELPER、無ければ、このスクリプトの実体が
+#     <root>/.devcontainer/ にあるときだけ <root>/.agents/skills/pr-review/scripts/
+#     pr_review_workspace.py。通常ファイルとして見つからなければ（~/bin のコピーから
+#     実行した場合など）、pr-review のディレクトリはすべて保持する
+#   - loose な pr-review-* ファイル（pr-review-<PR>-diff.patch など）は出所と内容を確かめられない
+#     ので削除せず、保護したものとして報告する
 #   - /tmp/review-fix-planning.XXXXXX の残骸（review-fix-planning スキルが mktemp で
 #     作る隔離 worktree。スキルは手順 3 の検証直後に自分で worktree remove と親削除を
-#     行うが、異常終了時には残るため本スクリプトが安全網として pr-review と同じ
-#     安全条件で掃除する。公式 mktemp のドット区切り（review-fix-planning.*）のみ対象。
+#     行うが、異常終了時には残るため本スクリプトが安全網として掃除する。
+#     公式 mktemp のドット区切り（review-fix-planning.*）のみ対象。
 #     ハイフン区切りの歴史的残骸（-wt / -head.txt 等）は対象外で手動対応）
 #
-# 安全条件（すべて AND で判断する）:
+# review-fix-planning の安全条件（すべて AND で判断する）:
 #   - 未コミット変更のある git 作業ツリーを含むものは削除しない
 #   - 使用中（プロセスの cwd）と判定できるものは削除しない
 #   - 経過日数のみを削除条件にしない
@@ -27,21 +34,13 @@
 #     --force 無しでは `working trees containing submodules cannot be moved or
 #     removed` で失敗するため。--force は dirty も消すので、status --porcelain が
 #     取得できて空のときにだけ呼ぶ。status 失敗は判定不能として残す。
-#     撤去後に残った親ディレクトリ（session.json 等）を削除する
-#   - loose なセッション状態ファイル（pr-review-<PR>-*.patch / *session.env /
-#     pr-review-<PR>.diff 等、/tmp 直下に置かれるもの）は、ディレクトリの
-#     削除有無とは無関係に、実行のたびに独立したパスで TMP_ROOT 全体を
-#     走査して片付ける（ディレクトリ削除に従属させると、ディレクトリを
-#     自分で消す pr-review の残したファイルが二度と片付かないため）。同じ PR 番号の
-#     pr-review-<PR>-* ディレクトリが他に 1 つも残っていない場合に限り、
-#     ディレクトリと同じ MIN_AGE_DAYS を満たすものだけ削除する。1 つでも
-#     残っていれば、他インスタンスがまだ参照し得るため一切触らない
+#     撤去後に残った親ディレクトリを削除する
 #
 # 環境変数（既定値はコンテナの実運用、テストでは差し替える）:
 #   WORKSPACE_CLEANUP_TMP_ROOT       pr-review-* / review-fix-planning.* を探すルート（既定 /tmp）
 #   WORKSPACE_CLEANUP_MIN_AGE_DAYS   最終更新からの最小経過日数。0 以下で無効化（既定 1）
-#   WORKSPACE_CLEANUP_DRY_RUN        1 で実際には削除・git worktree remove をせず
-#                                  対象だけ表示する（既定 0）
+#   WORKSPACE_CLEANUP_DRY_RUN        1 で実際には退役・削除をせず対象だけ表示する（既定 0）
+#   WORKSPACE_CLEANUP_PR_REVIEW_HELPER  pr_review_workspace.py の場所（既定は上記）
 
 set -u
 
@@ -49,10 +48,33 @@ readonly TMP_ROOT="${WORKSPACE_CLEANUP_TMP_ROOT:-/tmp}"
 readonly MIN_AGE_DAYS="${WORKSPACE_CLEANUP_MIN_AGE_DAYS:-1}"
 readonly DRY_RUN="${WORKSPACE_CLEANUP_DRY_RUN:-0}"
 
-# cleanup_pr_review_dirs が削除した（dry-run では削除するとみなした）ディレクトリ。
-# loose ファイルの掃除は「同じ PR 番号のディレクトリがもう残っていないか」で
-# 判断するため、dry-run でも実行と同じ結論になるようここに記録する。
-REMOVED_PR_DIRS=()
+# pr-review の helper の場所。スクリプトの位置が解決できなければ空のパスになり、
+# 通常ファイルでないので pr-review を保持する（止まらない）。
+resolve_pr_review_helper() {
+    if [ -n "${WORKSPACE_CLEANUP_PR_REVIEW_HELPER:-}" ]; then
+        printf '%s' "$WORKSPACE_CLEANUP_PR_REVIEW_HELPER"
+        return 0
+    fi
+    local self root
+    # BASH_SOURCE[0] が空（stdin から起動など）だと readlink -f が cwd を返すので、先に弾く
+    self=""
+    if [ -n "${BASH_SOURCE[0]:-}" ]; then
+        self="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null)" || self=""
+    fi
+    if [ -z "$self" ] || [ ! -f "$self" ]; then
+        printf '%s' ''
+        return 0
+    fi
+    # <root>/.devcontainer/ にある実体だけが相対で探せる。~/bin のコピーなどの 1 つ上は
+    # $HOME などの無関係な場所になり、そこの同名のコードを無人で実行してしまうため探さない
+    if [ "$(basename -- "$(dirname -- "$self")")" != ".devcontainer" ]; then
+        printf '%s' ''
+        return 0
+    fi
+    root="$(dirname -- "$(dirname -- "$self")")"
+    printf '%s' "${root}/.agents/skills/pr-review/scripts/pr_review_workspace.py"
+}
+PR_REVIEW_HELPER="$(resolve_pr_review_helper)"
 
 # $1 配下に実行中プロセスの cwd があれば真を返す（現在使用中の判定）。
 path_is_in_use() {
@@ -77,18 +99,6 @@ dir_is_old_enough() {
     fi
     local threshold=$((MIN_AGE_DAYS - 1))
     [ -n "$(find "$dir" -maxdepth 0 -mtime "+${threshold}" 2>/dev/null)" ]
-}
-
-# $1（basename）から PR 番号を取り出して stdout に出す。
-# `pr-review-<数字>` の直後が 行末・`-`・`.` のいずれかであるものだけを受け付ける。
-# 取り出せなければ 1 を返す（安全側: 対象外にする）。
-pr_number_of() {
-    local base="$1"
-    if [[ "$base" =~ ^pr-review-([0-9]+)([-.].*)?$ ]]; then
-        printf '%s' "${BASH_REMATCH[1]}"
-        return 0
-    fi
-    return 1
 }
 
 # $1（絶対パス、実パス化済み）が自分自身のリポジトリの
@@ -171,96 +181,92 @@ resolve_git_worktrees_inside() {
     return 0
 }
 
-# $1 が REMOVED_PR_DIRS に含まれていれば真を返す。
-_is_removed_pr_dir() {
-    local needle="$1" item
-    for item in ${REMOVED_PR_DIRS[@]+"${REMOVED_PR_DIRS[@]}"}; do
-        [ "$item" = "$needle" ] && return 0
-    done
-    return 1
+# helper の出力（stdout と stderr）を 1 行にする。
+one_line() {
+    local text="$1"
+    text="${text//$'\n'/ }"
+    printf '%s' "$text"
 }
 
-# $1 が残りの引数のいずれかと一致すれば真を返す。
-_contains() {
-    local needle="$1" item
-    shift
-    for item in "$@"; do
-        [ "$item" = "$needle" ] && return 0
+# /tmp/pr-review-* のセッションを helper 経由でだけ退役させる。
+cleanup_pr_review_dirs() {
+    local dir out rc retired=0 kept=0
+    local helper_ok=0
+    [ -f "$PR_REVIEW_HELPER" ] && helper_ok=1
+
+    for dir in "${TMP_ROOT}"/pr-review-*; do
+        [ -d "$dir" ] || continue
+
+        if [ -L "$dir" ]; then
+            echo "keep (symlink): ${dir}"
+            kept=$((kept + 1))
+            continue
+        fi
+        if path_is_in_use "$dir"; then
+            echo "keep (in use by a running process): ${dir}"
+            kept=$((kept + 1))
+            continue
+        fi
+        if ! dir_is_old_enough "$dir"; then
+            echo "keep (younger than ${MIN_AGE_DAYS}d): ${dir}"
+            kept=$((kept + 1))
+            continue
+        fi
+        if [ "$helper_ok" != 1 ]; then
+            echo "keep (pr-review helper unavailable: ${PR_REVIEW_HELPER}): ${dir}"
+            kept=$((kept + 1))
+            continue
+        fi
+        if [ ! -f "${dir}/session.json" ]; then
+            echo "keep (no session.json): ${dir}"
+            kept=$((kept + 1))
+            continue
+        fi
+
+        out="$(python3 "$PR_REVIEW_HELPER" reap-check --allow-failed --state "${dir}/session.json" 2>&1)"
+        rc=$?
+        if [ "$rc" -ne 0 ]; then
+            echo "keep (reap-check exit ${rc}): ${dir}: $(one_line "$out")"
+            kept=$((kept + 1))
+            continue
+        fi
+        if [ "$DRY_RUN" = "1" ]; then
+            echo "dry-run: would retire pr-review session: ${dir}: $(one_line "$out")"
+            retired=$((retired + 1))
+            continue
+        fi
+
+        out="$(python3 "$PR_REVIEW_HELPER" cleanup --strict-reap --allow-failed --state "${dir}/session.json" 2>&1)"
+        rc=$?
+        if [ "$rc" -eq 0 ]; then
+            echo "retired pr-review session: ${dir}: $(one_line "$out")"
+            retired=$((retired + 1))
+        else
+            echo "keep (cleanup exit ${rc}): ${dir}: $(one_line "$out")"
+            kept=$((kept + 1))
+        fi
     done
-    return 1
+
+    echo "pr-review cleanup: retired=${retired} kept=${kept}"
 }
 
-# ディレクトリ削除とは独立に、TMP_ROOT 直下の loose なセッション状態ファイル
-# （pr-review-<PR>-diff.patch、pr-review-<PR>-session.env、pr-review-<PR>.diff 等）
-# を片付ける。
-#
-# pr-review スキルは save 成功時に自身の worktree・セッション
-# ディレクトリを削除する。そのため「ディレクトリを削除したとき」を契機にすると
-# loose ファイルには二度と掃除が来ない。ディレクトリの有無と独立に走らせる。
-#
-# 安全条件は従来どおり:
-#   - 同じ PR 番号のディレクトリが 1 つでも残っていれば触れない
-#     （そのインスタンスがまだ参照しているかもしれないため）
-#   - MIN_AGE_DAYS を満たすものだけ削除する
-#
-# dry-run と live の乖離について: REMOVED_PR_DIRS は「削除した（dry-run では
-# 削除するとみなした）」ディレクトリを記録するが、dry-run は
-# `git worktree remove --force` / `rm -rf` を実際には実行しないため、それらが
-# 実運用で失敗し得るケース（ロック・権限・レース等）を検知できない。
-# そのため乖離が起きるとすれば常に dry-run が過剰報告する方向にのみ起きる:
-# live で実削除が失敗すればディレクトリは物理的に残り、このディレクトリは
-# REMOVED_PR_DIRS に入らないため surviving 判定で「まだ残っている」と扱われ、
-# 同じ PR の loose ファイルは保護される。dry-run が「消せる」と報告した loose
-# ファイルを live が誤って消してしまう方向には乖離しない。
+# TMP_ROOT 直下の loose な pr-review-* ファイルは出所と内容を確かめられないので、
+# 削除せず報告だけする。
 cleanup_orphaned_pr_session_files() {
-    local entry base pr removed=0
-    local -a surviving=()
-
-    # まだ生き残っている PR 番号を集める。cleanup_pr_review_dirs が削除した
-    # （dry-run では削除するとみなした）ディレクトリは生存扱いにしない。
-    for entry in "${TMP_ROOT}"/pr-review-*; do
-        [ -d "$entry" ] || continue
-        _is_removed_pr_dir "$entry" && continue
-        base="$(basename "$entry")"
-        pr="$(pr_number_of "$base")" || continue
-        surviving+=("$pr")
-    done
-
+    local entry protected=0
     for entry in "${TMP_ROOT}"/pr-review-*; do
         [ -f "$entry" ] || continue
-        base="$(basename "$entry")"
-        pr="$(pr_number_of "$base")" || continue
-        if _contains "$pr" ${surviving[@]+"${surviving[@]}"}; then
-            continue
-        fi
-        dir_is_old_enough "$entry" || continue
-
-        if [ "$DRY_RUN" = "1" ]; then
-            echo "dry-run: would remove orphaned session file: ${entry}"
-            removed=$((removed + 1))
-            continue
-        fi
-        if rm -f -- "$entry"; then
-            echo "removed orphaned session file: ${entry}"
-            removed=$((removed + 1))
-        else
-            echo "failed to remove orphaned session file: ${entry}" >&2
-        fi
+        echo "protected loose pr-review file (unverifiable provenance): ${entry}"
+        protected=$((protected + 1))
     done
-
-    echo "orphaned session file cleanup: removed=${removed}"
+    echo "orphaned session file cleanup: protected=${protected}"
 }
 
-# $1: ログ用 kind（pr-review / review-fix-planning）
-# $2: 削除したディレクトリを追記する配列名。空なら記録しない
-# $3...: 呼び出し側が未クォート glob を展開して渡したパス
+# review-fix-planning.* の残骸を掃除する。
+# $1...: 呼び出し側が未クォート glob を展開して渡したパス
 cleanup_tmp_dirs() {
-    local kind="$1"
-    local acc_name="$2"
-    shift 2
+    local kind="review-fix-planning"
     local removed=0 skipped=0 dir
-    local -a _cleanup_tmp_dirs_unused=()
-    local -n _removed_acc="${acc_name:-_cleanup_tmp_dirs_unused}"
 
     for dir in "$@"; do
         [ -d "$dir" ] || continue
@@ -286,14 +292,12 @@ cleanup_tmp_dirs() {
         if [ "$DRY_RUN" = "1" ]; then
             echo "dry-run: would remove ${kind} debris: ${dir}"
             removed=$((removed + 1))
-            _removed_acc+=("$dir")
             continue
         fi
 
         if rm -rf -- "$dir"; then
             echo "removed ${kind} debris: ${dir}"
             removed=$((removed + 1))
-            _removed_acc+=("$dir")
         else
             echo "failed to remove: ${dir}" >&2
             skipped=$((skipped + 1))
@@ -303,12 +307,8 @@ cleanup_tmp_dirs() {
     echo "${kind} cleanup: removed=${removed} skipped=${skipped}"
 }
 
-cleanup_pr_review_dirs() {
-    cleanup_tmp_dirs "pr-review" REMOVED_PR_DIRS "${TMP_ROOT}"/pr-review-*
-}
-
 cleanup_review_fix_planning_dirs() {
-    cleanup_tmp_dirs "review-fix-planning" "" "${TMP_ROOT}"/review-fix-planning.*
+    cleanup_tmp_dirs "${TMP_ROOT}"/review-fix-planning.*
 }
 
 main() {

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import fcntl
 import functools
 import hashlib
@@ -33,6 +34,17 @@ class WorkspaceError(RuntimeError):
     """Report a safety invariant violation without changing repository state."""
 
 
+class RetirementRefused(WorkspaceError):
+    """The session was read but must not be retired; nothing was changed (exit code 1)."""
+
+    def __init__(
+        self, message: str, *, retirement: str | None = None, stop_confirmation_needed: bool = False
+    ) -> None:
+        super().__init__(message)
+        self.retirement = retirement
+        self.stop_confirmation_needed = stop_confirmation_needed
+
+
 class CreateInterrupted(BaseException):
     """Stop create on a termination signal so its journal records how it ended."""
 
@@ -51,6 +63,8 @@ ATTEMPT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 PR_OWNER = re.compile(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?")
 PR_NAME = re.compile(r"[a-z0-9_.-]+")
 JOURNAL_NAME = "create-journal.jsonl"
+# Regenerable caches that repo-cleanup-after-merge also treats as disposable.
+REGENERABLE_CACHE_DIRS = frozenset({".venv", ".uv-cache", ".pytest_cache", ".ruff_cache", "__pycache__", "node_modules"})
 TERMINAL_PHASES = ("completed", "failed", "interrupted")
 # Tool timeouts and closing terminals send these before any SIGKILL.
 INTERRUPT_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
@@ -1384,7 +1398,11 @@ def require_saved_review(draft: Path, destination: Path) -> None:
         )
 
 
-def cleanup(args: argparse.Namespace) -> dict[str, str]:
+def cleanup(args: argparse.Namespace) -> dict[str, Any]:
+    strict_reap = bool(getattr(args, "strict_reap", False))
+    allow_failed, operator_reason = retirement_options(args, strict=strict_reap)
+    if strict_reap:
+        return strict_cleanup(args, allow_failed=allow_failed, operator_reason=operator_reason)
     repo, state = load_state(args.state)
     session_dir = Path(args.state).resolve(strict=True).parent
     worktree = Path(state["worktree"]).resolve(strict=True)
@@ -1411,8 +1429,301 @@ def cleanup(args: argparse.Namespace) -> dict[str, str]:
     return {
         **ref_details,
         "destination": str(destination),
+        "retained_paths": None,
+        "retirement": "saved",
+        "session_dir": str(session_dir),
+        "stop_evidence": None,
+        "worktree": str(worktree),
+    }
+
+
+def retirement_options(args: argparse.Namespace, *, strict: bool) -> tuple[bool, str | None]:
+    """Return (allow_failed, operator_reason); refuse option combinations that could widen a retirement."""
+    allow_failed = bool(getattr(args, "allow_failed", False))
+    reason = getattr(args, "operator_confirmed_stopped", None)
+    if allow_failed and not strict:
+        raise WorkspaceError("--allow-failed needs --strict-reap")
+    if reason is not None and not allow_failed:
+        raise WorkspaceError("--operator-confirmed-stopped needs --allow-failed")
+    if reason is not None and not reason.strip():
+        raise WorkspaceError("--operator-confirmed-stopped needs a reason")
+    return allow_failed, reason
+
+
+def _cache_only(listing: str, *, prefix: str = "") -> bool:
+    for line in listing.splitlines():
+        entry = line.removeprefix(prefix) if prefix else line
+        if entry.rstrip("/").rsplit("/", 1)[-1] not in REGENERABLE_CACHE_DIRS:
+            return False
+    return True
+
+
+def _require_clean_worktree(worktree: Path, target: Path, state: Mapping[str, Any]) -> None:
+    registration = worktree_registration(target, worktree)
+    if registration is None:
+        raise WorkspaceError("session worktree is not registered with its repository")
+    if "locked" in registration or "prunable" in registration:
+        raise WorkspaceError("session worktree is locked or prunable; keep it for the user")
+    require_session_worktree(worktree, target)
+    if git(worktree, "rev-parse", "HEAD") != state["commit"]:
+        raise WorkspaceError("session worktree is not at the pinned commit")
+    if git(worktree, "branch", "--show-current"):
+        raise WorkspaceError("session worktree is not detached")
+    if git(worktree, "--no-optional-locks", "status", "--porcelain", "--untracked-files=all"):
+        raise WorkspaceError("session worktree has changes or untracked files")
+    ignored = str(git(worktree, "ls-files", "--others", "--ignored", "--exclude-standard", "--directory"))
+    if not _cache_only(ignored):
+        raise WorkspaceError("session worktree has ignored files other than regenerable caches")
+    for line in str(git(worktree, "ls-files", "-v")).splitlines():
+        if line[:1].islower() or line[:1] == "S":
+            raise WorkspaceError("session worktree has skip-worktree or assume-unchanged entries")
+    script = (
+        "set -e; git --no-optional-locks status --porcelain --untracked-files=all; "
+        "ignored=$(git ls-files --others --ignored --exclude-standard --directory); "
+        "printf '%s\\n' \"$ignored\" | sed -e '/^$/d' -e 's/^/IGNORED /'"
+    )
+    submodules = str(git(worktree, "submodule", "foreach", "--quiet", "--recursive", script))
+    for line in submodules.splitlines():
+        if not line.startswith("IGNORED ") or not _cache_only(line, prefix="IGNORED "):
+            raise WorkspaceError("a submodule of the session worktree has changes or files other than caches")
+
+
+def _require_known_entries(session_dir: Path, state: Mapping[str, Any]) -> None:
+    expected = {"session.json", "review-backup", "worktree"}
+    journal = session_dir / JOURNAL_NAME
+    if journal.is_symlink() or os.path.lexists(journal):
+        if journal.is_symlink() or not journal.is_file():
+            raise WorkspaceError("create journal is not a regular file")
+        expected.add(JOURNAL_NAME)
+    if state.get("target_kind") == "owned-history":
+        expected.add("repo")
+    found = {child.name for child in session_dir.iterdir()}
+    if found != expected:
+        extra = sorted(found - expected) + [f"missing {name}" for name in sorted(expected - found)]
+        raise WorkspaceError(f"session directory has unknown or missing entries: {', '.join(extra)}")
+    for name in ("review-backup", "worktree"):
+        child = session_dir / name
+        if child.is_symlink() or not child.is_dir():
+            raise WorkspaceError(f"session {name} is not a directory")
+
+
+def _require_known_backup(session_dir: Path, state: Mapping[str, Any]) -> None:
+    backup = session_dir / "review-backup"
+    names = {child.name for child in backup.iterdir()}
+    _, drafts = session_drafts(state)
+    allowed = set(drafts)
+    if Path(state["draft"]).resolve(strict=False) != (backup / Path(state["draft"]).name).resolve(strict=False):
+        raise WorkspaceError("review draft is not inside the session review-backup")
+    required = {Path(state["draft"]).name}
+    previous = state["previous_review"]
+    if previous is not None:
+        allowed.add("previous-review.md")
+        required.add("previous-review.md")
+    if not required.issubset(names) or not names.issubset(allowed):
+        raise WorkspaceError("review-backup holds unknown or missing files")
+    for name in names:
+        if (backup / name).is_symlink() or not (backup / name).is_file():
+            raise WorkspaceError(f"review-backup/{name} is not a regular file")
+    if previous is not None:
+        fingerprint = state["destination_fingerprint"]
+        if fingerprint.get("kind") != "file" or file_digest(backup / "previous-review.md") != fingerprint.get("sha256"):
+            raise WorkspaceError("previous review snapshot does not match the destination it was taken from")
+
+
+def bound_run_record(parent: Path, state: Mapping[str, Any], session_dir: Path) -> dict[str, Any]:
+    """Return the run record this session's run_context points at, or refuse when it is not bound to the session."""
+    context = state.get("run_context")
+    if not isinstance(context, dict):
+        raise RetirementRefused("session has no run context", retirement=None)
+    try:
+        repository = session_repository(state)
+        stamp = str(context["started_at"]).replace("-", "").replace(":", "")
+        suffix = session_dir.name.rsplit("-", 1)[1]
+        directory = review_directory_name(int(state["pr_number"]), str(state["head_branch"]))
+        expected = f"{reviews_prefix(repository)}/{directory}/runs/{stamp}-{state['model_name']}-{suffix}.json"
+        if context.get("run_record") != expected:
+            raise WorkspaceError("run record path does not match the session")
+        relative = PurePosixPath(expected)
+        require_repository_layout(parent, relative, repository, length=6)
+        path = parent / Path(*relative.parts)
+        if path.is_symlink() or not path.is_file():
+            raise WorkspaceError("run record is not a regular file")
+        document = load_review_findings().validate_document(json.loads(path.read_text(encoding="utf-8")))
+        reviewer = {key: value for key, value in dict(context["reviewer"]).items() if key != "review_file"}
+        timing = document.get("timing")
+        bound = (
+            document.get("kind") == "review_run"
+            and document.get("pr") == {"repository": repository, "number": state["pr_number"]}
+            and document.get("reviewed_head") == state["commit"]
+            and document.get("pr_head") == state.get("pr_head")
+            and document.get("reviewer") == reviewer
+            and isinstance(timing, dict)
+            and timing.get("started_at") == context["started_at"]
+        )
+        if not bound:
+            raise WorkspaceError("run record does not match the session")
+    except RetirementRefused:
+        raise
+    except Exception as error:  # noqa: BLE001 - validate_document raises its own error type
+        raise RetirementRefused(f"run record is not bound to the session: {error}", retirement=None) from error
+    return document
+
+
+def failed_stop_evidence(document: Mapping[str, Any], reason: str | None) -> dict[str, Any]:
+    """Return how the run is known to have stopped, or refuse when neither the runner nor the operator says so."""
+    if reason is not None:
+        return {"source": "operator", "reason": reason}
+    runner = document.get("runner")
+    attempt = runner.get("attempt") if isinstance(runner, dict) else None
+    if not isinstance(attempt, dict) or attempt.get("stop_confirmed") is not True or attempt.get("state") == "self":
+        raise RetirementRefused(
+            "the run is not confirmed to have stopped", retirement="failed", stop_confirmation_needed=True
+        )
+    return {
+        "source": "runner",
+        "run_record_status": document.get("status"),
+        "state": attempt.get("state"),
+        "exit_code": attempt.get("exit_code"),
+        "elapsed_seconds": attempt.get("elapsed_seconds"),
+        "stop_confirmed": True,
+    }
+
+
+def _require_failed_backup(session_dir: Path, state: Mapping[str, Any]) -> None:
+    if state["previous_review"] is not None:
+        raise WorkspaceError("a failed session with a previous review snapshot is kept")
+    backup = session_dir / "review-backup"
+    names = {child.name for child in backup.iterdir()}
+    if not names:
+        return
+    scaffold = state["run_context"].get("findings_scaffold")
+    if not isinstance(scaffold, dict) or names != {scaffold.get("name")}:
+        raise WorkspaceError("review-backup holds a draft or unknown files; keep the unsaved work")
+    path = backup / str(scaffold["name"])
+    if path.is_symlink() or not path.is_file() or file_digest(path) != scaffold.get("sha256"):
+        raise WorkspaceError("review-backup holds a candidate draft that changed from its scaffold")
+
+
+def validate_reapable_session(
+    state_value: str,
+    *,
+    allow_failed: bool = False,
+    operator_reason: str | None = None,
+    creator_held: bool = False,
+) -> tuple[Path, dict[str, Any], dict[str, Any]]:
+    """Return (lock_root, state, {"retirement", "stop_evidence"}) or refuse to retire the session.
+
+    A state that cannot be read raises WorkspaceError; any refusal after that is RetirementRefused.
+    creator_held says the caller already holds the create journal lock.
+    """
+    lock_root, state = load_state(state_value)
+    retirement = "saved"
+    stop_evidence: dict[str, Any] | None = None
+    try:
+        state_file = Path(state_value)
+        session_dir = Path(state_value).resolve(strict=True).parent
+        document: dict[str, Any] | None = None
+        if state_file.is_symlink() or state_file.parent.is_symlink() or not state_file.is_file():
+            raise WorkspaceError("session path goes through a symlink")
+        if re.fullmatch(rf"pr-review-{state['pr_number']}-[a-z0-9_]{{8}}", session_dir.name) is None:
+            raise WorkspaceError("session directory name is not a pr-review-<PR>-<id> name")
+        _require_known_entries(session_dir, state)
+        journal = session_dir / JOURNAL_NAME
+        if journal.exists() and not creator_held and creator_running(journal):
+            raise WorkspaceError("create attempt is still running")
+        if state.get("target_kind") == "owned-history":
+            owned_attempt_repository(session_dir / "repo", session_dir)
+        target = session_target(state)
+        worktree = Path(state["worktree"]).resolve(strict=True)
+        _require_clean_worktree(worktree, target, state)
+        try:
+            draft = Path(state["draft"]).resolve(strict=False)
+            destination = safe_destination(lock_root, state["destination"], repository=session_repository(state))
+            require_saved_review(draft, destination)
+            require_saved_findings(lock_root, state)
+            _require_known_backup(session_dir, state)
+        except (WorkspaceError, OSError, ValueError, KeyError, TypeError):
+            if not (allow_failed and isinstance(state.get("run_context"), dict)):
+                raise
+            retirement = "failed"
+            document = bound_run_record(lock_root, state, session_dir)
+            if document.get("status") == "success":
+                retirement = "saved"
+                raise
+            runner = document.get("runner")
+            attempt = runner.get("attempt") if isinstance(runner, dict) else None
+            if document.get("status") == "started" and isinstance(attempt, dict) and attempt.get("state") == "success":
+                raise WorkspaceError("the runner reports success and the run record does not retract it") from None
+            _require_failed_backup(session_dir, state)
+    except RetirementRefused as error:
+        if error.retirement is None and retirement == "failed":
+            error.retirement = retirement
+        raise
+    except (WorkspaceError, OSError, ValueError, KeyError, TypeError) as error:
+        raise RetirementRefused(str(error), retirement=retirement) from error
+    if retirement == "failed" and document is not None:
+        stop_evidence = failed_stop_evidence(document, operator_reason)
+    return lock_root, state, {"retirement": retirement, "stop_evidence": stop_evidence}
+
+
+def _reap_paths(state_value: str) -> dict[str, str]:
+    state_file = Path(state_value).absolute()
+    return {
+        "state_file": str(state_file),
+        "session_dir": str(state_file.parent),
+        "worktree": str(state_file.parent / "worktree"),
+    }
+
+
+def check_reap_candidate(args: argparse.Namespace) -> dict[str, Any]:
+    allow_failed, operator_reason = retirement_options(args, strict=True)
+    _, _, verdict = validate_reapable_session(
+        args.state, allow_failed=allow_failed, operator_reason=operator_reason
+    )
+    paths = _reap_paths(args.state)
+    return {"status": "eligible", **verdict, **paths, "retained_paths": None}
+
+
+def strict_cleanup(args: argparse.Namespace, *, allow_failed: bool, operator_reason: str | None) -> dict[str, Any]:
+    """Retire a session only after the same check passes twice, the second time under the save lock."""
+    options = {"allow_failed": allow_failed, "operator_reason": operator_reason}
+    lock_root, _, verdict = validate_reapable_session(args.state, **options)
+    session_dir = Path(args.state).resolve(strict=True).parent
+    journal = session_dir / JOURNAL_NAME
+    ref_details: dict[str, str] = {}
+    with review_save_lock(lock_root), contextlib.ExitStack() as held:
+        held_journal = False
+        if journal.exists():
+            try:
+                held.enter_context(finished_creator(journal))
+            except (WorkspaceError, OSError) as error:
+                raise RetirementRefused(str(error), retirement=verdict["retirement"]) from error
+            held_journal = True
+        locked_root, state, verdict = validate_reapable_session(args.state, creator_held=held_journal, **options)
+        if locked_root != lock_root:
+            raise RetirementRefused("session repository changed while retiring it", retirement=verdict["retirement"])
+        target = session_target(state)
+        worktree = Path(state["worktree"]).resolve(strict=True)
+        destination = safe_destination(lock_root, state["destination"], repository=session_repository(state))
+        if state["version"] == STATE_VERSION_TARGET:
+            pr_ref = pinned_review_ref(state["pr_number"], session_repository(state))
+            ref_details = {
+                "pr_ref": pr_ref,
+                "pr_ref_status": delete_pinned_ref(target, pr_ref, state["pr_head"]),
+            }
+        git(target, "worktree", "remove", "--force", str(worktree))
+        if worktree.exists():
+            raise WorkspaceError(f"git did not remove the review worktree: {worktree}")
+        shutil.rmtree(session_dir)
+    return {
+        **ref_details,
+        **verdict,
+        "status": "retired",
+        "state_file": str(Path(args.state).absolute()),
+        "destination": str(destination),
         "session_dir": str(session_dir),
         "worktree": str(worktree),
+        "retained_paths": None,
     }
 
 
@@ -2013,7 +2324,16 @@ def parser() -> argparse.ArgumentParser:
 
     cleanup_parser = commands.add_parser("cleanup", help="remove the session worktree once the review is saved")
     cleanup_parser.add_argument("--state", required=True)
+    cleanup_parser.add_argument("--strict-reap", action="store_true")
+    cleanup_parser.add_argument("--allow-failed", action="store_true")
+    cleanup_parser.add_argument("--operator-confirmed-stopped", metavar="REASON")
     cleanup_parser.set_defaults(handler=cleanup)
+
+    reap_parser = commands.add_parser("reap-check", help="check, without changing anything, that a session can be retired")
+    reap_parser.add_argument("--state", required=True)
+    reap_parser.add_argument("--allow-failed", action="store_true")
+    reap_parser.add_argument("--operator-confirmed-stopped", metavar="REASON")
+    reap_parser.set_defaults(handler=check_reap_candidate)
 
     inspect_parser = commands.add_parser("inspect", help="report how a create attempt ended and what it left")
     add_attempt_arguments(inspect_parser)
@@ -2054,6 +2374,16 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print(f"interrupted: {args.command} interrupted by SIGINT", file=sys.stderr)
         return 128 + signal.SIGINT
+    except RetirementRefused as error:
+        refused = {
+            "status": "retained",
+            "reason": str(error),
+            "retirement": error.retirement,
+            "stop_confirmation_needed": error.stop_confirmation_needed,
+            "retained_paths": _reap_paths(args.state),
+        }
+        print(json.dumps(refused, ensure_ascii=False, sort_keys=True))
+        return 1
     except (WorkspaceError, OSError, ValueError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
