@@ -133,7 +133,7 @@ Task2b-d完了記録: code`d96327a`→`bf020f8`。Command1–6/独立再capture�
 
 **残作業:** 全Task2bは未完了。新しいNativeDeployedStageの実機reader、create/deploy/helper削除/最終cleanupの適用済み/未適用/部分適用/不明と回復、currentdriver/source-producer/保護意味baseline/fullpreflight、新HEAD package、実機0–6/別再capture拒否/復元cleanupと元工程を次に実装する。今回の実機call/write/resourceは0。公開未実施、通常の許可待ちではない。
 
-### Task2b-e: deployed native readerの接続（着手）
+### Task2b-e: deployed native readerの接続（この部分のみ完了）
 
 Command controllerが要求する新しいNativeDeployedStageを実際の固定読取で採取する。元anchorの独立検証を先に行い、session-before/fixture/protected/diff/session-afterを別receiptへ保存する。期待treeは元anchorの安定構造・metadata・IDを保持し、module部分だけは元layout receipt/current DLL modelから構成する。型/IDを固定したprivate Valueだけを現在値の観測として取り出す。これはBeforeやphase成功期待の採用ではなく、適用済み/未適用/部分適用の分類入力である。phase期待は元baselineだけから生成し、未知kind/default/余分なmetadataは受理しない。
 
@@ -143,13 +143,19 @@ Sテストは、正当なprivate現在値を取得しながら元anchorを変更
 
 Task2b-e実装レビュー: code`d38ba66`、127passed/6.59s/compileall/diff。指定Claude190.474秒/exit0/停止確認済み/outside_changes=[]、実modelclaude-opus-5-5、Read/Grep/Globのみ/MCPなし、PASS。Sテスト2件、pure scope/native bool modelは実処理、collector境界はstubのため実CLI/native統合成功ではない。I2Infoの未使用FAKE_DIFF_DATA設定は無害な任意整理としてskip。I1Infoの読取結果を初回baselineへ流用しない条件は、次の初期値照合で具体化する。実機call/write0。
 
-### Task2b-f: 初回baselineを封印宣言の初期値へ結ぶ（着手）
+### Task2b-f: 初回baselineを封印宣言の初期値へ結ぶ（Command入口のみ完了）
 
 readerの現在値と初回baselineを同じNativeDeployedStageで表していても、Command実行前には封印した全private initialFieldsとの一致を別途検証する。全11fieldの型/完全値を照合し、Command/Done/Capturedだけの未使用判定で任意のTarget/Beforeを採用しない。元のpure phase比較APIの意味は変えず、実行controllerのbaseline入口へこの検査を接続する。
 
 色4成分入力のprofileは推測せず、現current DLLのILを新規採取した。CLI ValueCodec.ColorXはLink.colorXをinitobjしRGBAのみ設定、FrooxEngine.ResoniteLinkTypeMapper.ToEngineはProfile null時にenum1を使い、Renderite.Shared.ColorProfile.sRGB=1である。native型の単なるconstructor既定値からの推測ではない。CLI0.2.0/current6DLL modelに解釈を結び、異なる版/DLLは新しいsource調査へ返す。初回採取/r2の原IL・hash/MVID/実restore/build/runはPARENT_ROOT/tmp/agents/emission-native-reader.azz5cvq_に保存、world call0。
 
 共通受け入れ基準/環境/防御範囲に加え、実入力はBeforeColor/ColorAfter=[0,0,0,1]/sRGB、ColorTarget=[4.25,.5,1.125,.3125]/sRGBと各bool/int。防ぐのは観測済み任意値を新しいBefore/Targetの基準へ採用する誤成功である。Sの代表正例と完全色/型/Before差異の拒否を初期値比較モジュールで検証し、controller既存Sへ接続する。F/L/Dを追加しない。suite/compile/diff同期、同じ指定ClaudeのRead/Grep/Glob限定source/実装レビュー1回（720秒）と必要な採用修正の限定確認だけを行う。create-only全metadata/初回anchor/配備削除制御/実機preflightは残作業であり、これだけで実機書込に進まない。
+
+Task2b-f完了記録: code`8f5d431`→`40a76fd`、128passed/6.48s/compileall/diff exit0。`compare_initial_fields`を認証済みnative baselineの直後に接続し、初期11fieldの完全値・型・profileとsealed initialFieldsを照合する。元のpure phase比較は維持。新S1件、controller既存Sの初期値とbaseline差替えのfingerprintを更新し、D/Lの追加なし。
+
+指定Claudeのsource/実装レビュー219.400秒はPASS_WITH_ISSUES、読取結果を任意の初回baselineへ採用しない条件I1はCommand入口でCLOSED。F1Lowのfingerprintテストの緩いregexを既存Sの中で具体的な`command-baseline-binding-changed`へ修正。F2Lowは次のfinal native stage0判定に同じ初期値照合またはcontroller journalとの一致を結ぶ未実装義務としてdeferred（旧generic offlineの意味は維持）。F3InfoはREADMEのsource根拠を採取したValueCodec/engine mapperに限定し、initialFieldsからcodecまでの呼出経路/実CLI同一性をfullpreflightに残すと明記した。限定再確認27.240秒はclosed/新regressionなし。3run（reader190.474秒を含む）とも実claude-opus-5-5/CLI2.1.319、Read/Grep/Globのみ/MCPなし/exit0/停止確認済み/outside_changes=[]。
+
+現在の実機call/write/resourceは0。新native readerと初期値検査の実装完了を、create-onlyの全metadata/所有認証、最初のanchor、create/deploy/helper削除/最終cleanupの回復制御、新package/全preflight/実機0–6/Issue全体の完了とは扱わない。原証拠・失敗した構文/fixture試行・原IL/receipt・レビュー・裁定はPARENT_ROOT/tmp/agents/emission-native-reader.azz5cvq_へ保持する。公開未実施。
 
 ## Task 3: preflight・native Drivegate・回復/再試行
 
