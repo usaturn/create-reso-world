@@ -8,7 +8,7 @@
 - 基準: `origin/main` の `690001b64ade22e91dfe54a9ad84a12c5d63931a`
 - 内容の承認: なし。実行許可: 2026-11-08T16:24Z の利用者の指示 `/issue-to-pr #350 --implement claude-code_sonnet_default --merge --assign implement=claude-code_sonnet_default --assign inspect=pi_openai-codex_gpt6-sol_max`（範囲は Spec の「管理」と「実行の決定記録」）
 
-**Goal:** runner の checkout 監査で、依頼された checkout と main worktree だけを「保護する」対象にし、ほかの checkout の内容の変化・登録ごとの回収は `unprotected_changes` として報告するだけにする。
+**Goal:** runner の checkout 監査で、依頼された checkout だけを「保護する」対象にし、ほかの checkout（main worktree を含む）の内容の変化・登録ごとの回収・監査不能は `unprotected_changes` として報告するだけにする（Spec の R8。Task 1・2 は R8 の前の設計で実装し、Task 2A で R8 に合わせる）。
 
 **Architecture:** `tools/agent_runner/workspace.py` が保護集合と `removed` の分類と `blocks_acceptance` を持ち、runner がその判定で `outside_changes` と `unprotected_changes` を分ける。利用側（`dispatch`・`run_roles`・ループ）は `outside_changes` だけで拒否し、`unprotected_changes` を出力・記録に足す。`dispatch` と `run_roles` は、修正を持つ worktree 以外を `repository` に渡されたら起動前に止める。
 
@@ -22,7 +22,8 @@
 - `tools/agent_runner/adapters/**`・`checkout_policy.py`・`config.py` の `dsh_removed`・`.devcontainer/install_beforehand.bash`・`issue-to-pr/scripts/implement_task.py` を変えない
 - `BatchResult._legacy_unrelated_audit` を残す
 - 古い記録: `protected` の無い `CheckoutAudit` は `protected=True`、`unprotected_changes` の無い `BatchResult` は `[]`
-- `blocks_acceptance(finding)` は `finding.protected or finding.kind in ("unavailable_before", "unavailable_after")`
+- `blocks_acceptance(finding)` は `finding.protected`（Spec の R8。Task 1 の時点の `finding.protected or finding.kind in ("unavailable_before", "unavailable_after")` を Task 2A で置き換える）
+- 保護する checkout は依頼された checkout だけ。特定できない（`_toplevel` が `None`、どの登録とも実パスが一致しない）ときは全登録を保護する。起動前の preflight（`require_auditable_checkouts`）は保護する checkout の監査不能と登録の一覧の失敗でだけ止まる（R8）
 - テストは偽の adapter と一時的な Git だけを使う。実 API・実 PR・有料の runner を起動しない
 - テストは `AGENTS.md` の「テストの採用基準」の S だけをコミットする（Spec の「テスト」の表）
 - 所有ファイルは #350 の「変更してよい」と、Spec の決定 D3 の `references/fix-check.md` に限る。Task 6 の 4 ファイルは、coordinator の承認があるときだけ編集する
@@ -32,7 +33,7 @@
 
 1. パスに改行・非 ASCII を含む checkout（`対象 checkout\n改行`）を依頼に渡したとき、保護する側に分類される（Task 1 の parametrize のパスに含める）
 2. symlink 経由で依頼の checkout を渡したとき、保護する側に分類される（Task 1 の symlink のテスト）
-3. 実行後に `git worktree list` が失敗したとき、消えた checkout を `removed` にせず止める（Task 1 の一覧失敗のテスト）
+3. 依頼された checkout の実パスがどの登録とも一致しないとき、全登録を保護して止める。依頼された checkout 自身が監査できないとき、有料の起動をしない（Task 2A の一致しない target・preflight のテスト。R8 の前の「一覧失敗で removed にしない」は、ほかの checkout が報告だけになったので守りの対象から外した）
 4. 変更前に保存した `dispatch.json`（`protected` の無い観測）を accept したとき、受け取らない（Task 3 の古い記録のテスト）
 5. self-review で誤った checkout を渡したとき、1 回枠を消費せずに止まる（Task 4 のテストで `activities == []` を確かめる）
 
@@ -41,8 +42,8 @@
 - 動作環境: Dev Container（Ubuntu 26.04）、リポジトリのルートを cwd にした `uv run pytest`。HOME・`GIT_*` はテストの既存の隔離（`tools.test_support.plugin` の `outside_runner` など）に従う
 - 実入力: 改行・非 ASCII を含む checkout のパス、symlink 経由のパス、bare repository、`git worktree remove --force` による回収、`shutil.rmtree` による登録を残した消失、`protected` の無い古い `checkout_audit`、`unprotected_changes` の無い古い `dispatch.json`
 - 防御範囲:
-  - 対象（止める）: 保護する checkout（依頼された checkout と main worktree）の `content_changed`・`removed`・`unavailable_*`、全 checkout の `unavailable_*`、`protected` の無い古い観測、HEAD が `to`／`revision` でない `repository`
-  - 対象外（止めない・報告だけ）: 保護しない checkout の `content_changed` と `removed`。実行中に登録された checkout（runner の試行を含む）は監査しない。Gitignored の資源・symlink の参照先は今までどおり範囲外
+  - 対象（止める）: 保護する checkout（依頼された checkout。特定できなければ全登録）の `content_changed`・`removed`・`unavailable_*`（起動前は有料の起動の前に止める）、起動時に登録を一覧できないこと、`protected` の無い古い観測、HEAD が `to`／`revision` でない `repository`
+  - 対象外（止めない・報告だけ）: 保護しない checkout（main worktree を含む）の `content_changed`・`removed`・`unavailable_*`（R8）。実行中に登録された checkout（runner の試行を含む）は監査しない。Gitignored の資源・symlink の参照先は今までどおり範囲外
 - 実行して確かめる S の条件は、各 Task の Step 1 で実装前にテストにする。S でない条件（出力の項目の有無、古い `dispatch.json` で `KeyError` にならないこと）は、統合確認の一時的な確認で確かめる
 
 ## ファイルの構成
@@ -54,7 +55,8 @@
 | `tools/agent_runner/tests/test_workspace.py` | 分類の S のテスト | 1 |
 | `tools/agent_runner/runner.py` | `outside_changes`/`unprotected_changes` の分割 | 2 |
 | `tools/agent_runner/tests/test_checkout_policy.py` | 既存の隣の checkout のテストの期待値 | 2 |
-| `tools/agent_runner/interfaces.rst`・`runtimes/cursor.rst` | 監査の説明 | 2 |
+| `tools/agent_runner/interfaces.rst`・`runtimes/cursor.rst` | 監査の説明 | 2・2A |
+| `tools/agent_runner/workspace.py`・`models.py`（docstring）・`checkout_policy.py`（docstring）・`tests/test_workspace.py`・`tests/test_checkout_policy.py` | 保護を依頼された checkout だけにする（R8） | 2A |
 | `.agents/skills/review-verify/scripts/dispatch.py`・`references/fix-check.md`・`tests/test_dispatch.py` | accept の判定、HEAD の検査、出力 | 3 |
 | `.agents/skills/review-fix-planning/scripts/run_roles.py`・`references/execution.md`・`tests/test_run_roles.py` | HEAD の検査、出力 | 4 |
 | `.agents/skills/pr-review-fix-loop/scripts/loop.py` | 記録と出力の `unprotected_changes` | 5 |
@@ -76,9 +78,8 @@
 
 | Spec の条件 | Task | 観測する結果 | 検証 |
 | --- | --- | --- | --- |
-| 保護する checkout（対象・main worktree）の変化・消失・監査不能で止める | 1・2 | `protected=True` の観測が `outside_changes` に入る | Task 1 の parametrize・symlink・bare のテスト、Task 2 の `test_checkout_policy.py` |
-| 保護しない checkout の `content_changed`・`removed` は止めない | 1・2・3 | `unprotected_changes` に入り、dispatch の終了コード 0、accept が受け取る | Task 2 の既存テストの期待値、Task 3 の通る例 |
-| 全 checkout の監査不能で止める（一覧の失敗を含む） | 1 | `unavailable_after` のまま `blocks_acceptance` が真 | Task 1 の一覧失敗のテスト、既存の `test_audit_diagnoses_unavailable_baseline` |
+| 保護する checkout（依頼された checkout。特定できなければ全登録）の変化・消失・監査不能で止める | 1・2・2A | `protected=True` の観測が `outside_changes` に入る。起動前の監査不能は起動しない | Task 1 の parametrize・symlink・bare のテスト、Task 2A の一致しない target・preflight のテスト |
+| 保護しない checkout（main worktree を含む）の変化・回収・監査不能は止めない（R8） | 1・2・2A・3 | `unprotected_changes` に入り、起動し、dispatch の終了コード 0、accept が受け取る | Task 2A の parametrize・`test_checkout_policy.py`、Task 3 の通る例 |
 | 古い記録を安全側に読む | 1・3 | `protected` 無しは `True`、`unprotected_changes` 無しは `[]` | Task 3 の古い記録のテスト、統合確認の一時的な確認 |
 | HEAD が `to`／`revision` でない `repository` を起動前に拒否 | 3・4 | 終了コード 2、出力先・予約を作らない | Task 3・4 のテスト |
 | 起動前の preflight を残す | 2（変えない） | `require_auditable_checkouts`・`require_auditable_workflow` が残る | 統合確認の `git diff` と既存テスト |
@@ -270,6 +271,127 @@ git add tools/agent_runner/runner.py tools/agent_runner/tests/test_checkout_poli
 git commit -m "fix(agent-runner): report other sessions' checkouts apart from outside_changes (#350)"
 ```
 
+### Task 2A: 保護を依頼された checkout だけにする（Spec の R8）
+
+テスト: 要（S）。依頼された checkout の変化・監査不能を受け取る損害と、ほかの checkout（main worktree を含む）のせいで起動・受け取りを止めて並列作業を妨げる損害を防ぐ。Task 1・2 の後、Task 3 の前に行う。
+
+**Files:**
+- Modify: `tools/agent_runner/workspace.py`（モジュールの docstring、`blocks_acceptance`、`snapshot_checkouts`、`require_auditable_checkouts`）
+- Modify: `tools/agent_runner/models.py`（`CheckoutAudit.protected`・`BatchResult.outside_changes`・`unprotected_changes` の docstring だけ）
+- Modify: `tools/agent_runner/checkout_policy.py`（モジュールと `require_auditable_workflow` の docstring だけ。コードは変えない）
+- Modify: `tools/agent_runner/tests/test_workspace.py`、`tools/agent_runner/tests/test_checkout_policy.py`
+- Modify: `tools/agent_runner/interfaces.rst`（Task 2 で書いた監査の段落）、`tools/agent_runner/runtimes/cursor.rst`（Task 2 で直した 1 文）
+
+**Interfaces:**
+- Consumes: Task 1 の `CheckoutSnapshot.protected`・`common_dir`、`audit_checkouts`、Task 2 の runner の分割（変えない）
+- Produces:
+  - `workspace.blocks_acceptance(finding: CheckoutAudit) -> bool` は `finding.protected` を返す
+  - `snapshot_checkouts(repository)` の `protected` は、実パスが `_toplevel(repository)` と同じ登録だけ。`_toplevel` が `None`、またはどの登録とも一致しないときは全登録。保護集合を全レコードから先に決めてから指紋を取り、開始前の失敗の `CheckoutAudit.protected` が保護集合と一致するようにする
+  - `require_auditable_checkouts(repository)` は、保護する checkout の指紋が `None` のときだけ `CheckoutAuditError` を投げる（findings は保護する checkout の失敗だけ）。保護しない checkout の失敗は snapshot に残して返す。`snapshot_checkouts` の `WorkspaceError` は今までどおり `CheckoutAuditError` にする
+
+- [ ] **Step 1: テストを直す・足す・消す**
+
+`test_workspace.py`:
+
+- `test_audit_protects_only_the_target_and_the_main_worktree` を `test_audit_protects_only_the_target` に改名し、parametrize を次にする。最後の assert は `assert workspace.blocks_acceptance(finding) is protected`。上のコメントを「Only the checkout given to the run may block it; the main worktree and other sessions' checkouts are reported only, even when they vanish (Spec R8).」にする
+
+```python
+        ("target", "change", "content_changed", True),
+        ("main", "change", "content_changed", False),
+        ("other", "remove", "removed", False),
+        ("other", "vanish", "unavailable_after", False),
+```
+
+- 足す: `test_unmatched_target_protects_every_checkout(repository, tmp_path, monkeypatch)`: `other = create_worktree(repository, "HEAD", tmp_path / "other session")`、`monkeypatch.setattr(workspace, "_toplevel", lambda _: str(tmp_path / "unregistered"))`、`before = snapshot_checkouts(other)`、`(other / "tracked.txt").write_text("changed\n")`、`[finding] = workspace.audit_checkouts(before)`、`(finding.path, finding.protected) == (str(other), True)`、`workspace.blocks_acceptance(finding)` が真
+- 消す: `test_unlisted_registrations_keep_a_vanished_checkout_unauditable`（ほかの checkout の `removed` と `unavailable_after` はどちらも報告だけになり、受け取りの判定に関わらない）
+- `test_audit_diagnoses_unavailable_baseline`: `diagnostics` の dump の期待値（`"protected": False` を含む）はそのまま。その後を次にする（`try`/`finally` の chmod の戻しは残す）
+
+```python
+        assert not any(workspace.blocks_acceptance(item) for item in diagnostics)
+        snapshot = workspace.require_auditable_checkouts(repository)
+        assert snapshot[str(external)] is None and snapshot.failures[str(external)] == diagnostics[0]
+        with pytest.raises(workspace.CheckoutAuditError) as caught:
+            workspace.require_auditable_checkouts(external)
+        assert caught.value.findings and all(item.protected for item in caught.value.findings)
+        assert "SECRET" not in str(caught.value) and "SECRET" not in repr(caught.value.findings)
+        assert changed_checkouts(before) == [str(external)]
+```
+
+`test_checkout_policy.py`:
+
+- モジュールの docstring を「The requested checkout shares one preflight and post-execution audit boundary; other registrations are reported only (Spec R8). Fake writes model another session's activity.」の趣旨に直す
+- `test_unavailable_registration_blocks_work_without_launch_or_repair` を `test_unavailable_neighbor_is_reported_and_unavailable_target_blocks_launch` に改名し、次にする
+  - `neighbor = workspace.create_worktree(repository, "HEAD", tmp_path / "neighbor")`、`neighbor.rename(tmp_path / "moved")`
+  - `snapshot = require_auditable_workflow(configuration(), "audit", repository, adapter_loader=no_launch)` が例外を投げず、`snapshot[str(neighbor)] is None`
+  - `batch = run_workflow(configuration(), "audit", "respond", repository, output_dir=tmp_path / "run", adapter_loader=lambda _: FakeAdapter())` が `state == "success"`、`outside_changes == []`、`unprotected_changes == [str(neighbor)]`、`[(item.path, item.kind, item.protected) for item in batch.checkout_audit] == [(str(neighbor), "unavailable_before", False)]`
+  - `pytest.raises(workspace.CheckoutAuditError)` で `require_auditable_workflow(configuration(), "audit", neighbor, adapter_loader=no_launch)`、`pytest.raises(RunnerError)` で `run_workflow(configuration(), "audit", "respond", neighbor, output_dir=tmp_path / "blocked", adapter_loader=no_launch)`、`not (tmp_path / "blocked").exists()`
+  - 最後に `str(neighbor) in git(repository, "worktree", "list", "--porcelain")`（登録を repair・prune しない）
+
+- [ ] **Step 2: 失敗を確かめる**
+
+Run: `uv run pytest tools/agent_runner/tests/test_workspace.py tools/agent_runner/tests/test_checkout_policy.py -q`
+Expected: `test_audit_protects_only_the_target` の `main`・`vanish` の行、`test_unmatched_target_protects_every_checkout`、`test_audit_diagnoses_unavailable_baseline`、`test_unavailable_neighbor_is_reported_and_unavailable_target_blocks_launch` が FAIL。ほかは PASS
+
+- [ ] **Step 3: `workspace.py`・`models.py`・`checkout_policy.py` を直す**
+
+Produces のとおりにする。docstring は「保護するのは依頼された checkout だけ（特定できなければ全登録）。main worktree とほかの checkout の変化・回収・監査不能は報告だけ。`blocks_acceptance` は `protected`」の趣旨にする。`audit_checkouts`・`_registered`・`_toplevel` と runner は変えない。
+
+- [ ] **Step 4: 成功を確かめる**
+
+Run: `uv run pytest tools/agent_runner/tests/test_workspace.py tools/agent_runner/tests/test_runner.py tools/agent_runner/tests/test_checkout_policy.py tools/agent_runner/tests/test_models.py -q`
+Expected: すべて PASS
+
+- [ ] **Step 5: `interfaces.rst` と `cursor.rst` を直す**
+
+`interfaces.rst` の「期限と保持」の監査の段落（Task 2 で置いた「監査は開始前から…」から「監査は他セッションの登録を自動で回収しない。」まで）を次にする。`BatchResult` の項目と注記（Task 2）はそのまま。
+
+```rst
+監査は開始前から登録されていた checkout の HEAD・index・tracked ファイル・
+非 ignored untracked ファイルの内容を比較する。initialized submodule も含む。
+Gitignored 資源、symlink の参照先、Git 外の任意のディレクトリ、実行中に登録された
+checkout（runner の試行を含む）は監査範囲外。
+外部セッションによる変更と委譲先による変更の因果までは断定しない。
+
+runner は、渡された repository の checkout（対象）だけを保護する。main worktree
+（``git worktree list`` の先頭）も、対象でなければ保護しない。対象を特定できない
+（bare repository、``--show-toplevel`` が取れない、どの登録とも実パスが一致しない）ときは、
+登録されたすべての checkout を保護する。
+checkout_audit は観測ごとに path / kind / reason / locked / prunable / protected を返す。
+kind は次のどれか。
+
+- unavailable_before: 開始前から監査できない
+- unavailable_after: 終了後に読めず、登録は残っている（または登録を一覧できない）
+- content_changed: 内容が変わった
+- removed: 終了後に読めず、登録も無くなった（``git worktree remove`` などで回収された）
+
+outside_changes は保護する checkout の観測のパス、unprotected_changes は保護しない
+checkout の観測（内容の変化・回収・監査不能）のパスである。後者の多くは、ほかのセッションが
+自分の worktree や親の checkout を変えた・回収したものである。どちらも警告として返し、
+runner の処理自体は止めない。issue-to-pr・review-verify・review-fix-planning の受け取り入口は
+outside_changes があれば拒否し、unprotected_changes は理由にしない。
+判定は ``workspace.blocks_acceptance`` の 1 か所にある。
+protected の無い古い checkout_audit は保護として読み、unprotected_changes の無い古い結果は
+空として読む（古い outside_changes は全件なので、読み直しても受け取りを止める側になる）。
+起動前は共通の ``require_auditable_workflow`` と runner が登録を確認し、保護する checkout を
+監査できないとき、または登録を一覧できないときだけ、予約・外部担当の起動より前に止める。
+保護しない checkout を監査できなくても起動し、unavailable_before として unprotected_changes に報告する。
+消えた登録の所有者の照合・個別 repair / remove は、リポジトリルートの
+``docs/agent-runner-checkout-recovery.md`` に記載する。
+監査は他セッションの登録を自動で回収しない。
+```
+
+`cursor.rst` の Task 2 で直した 1 文を「ほかの checkout の変更は runner が事後に報告するだけで（対象の変更と監査不能は ``outside_changes`` 、main worktree を含むそれ以外の checkout の内容の変化・回収・監査不能は ``unprotected_changes`` ）、任意のパスへの書き込みは防がない。」にする。
+
+- [ ] **Step 6: 文書の構造を確かめて Commit**
+
+Run: `bash scripts/check-layout.sh`
+Expected: 終了コード 0
+
+```bash
+git add tools/agent_runner/workspace.py tools/agent_runner/models.py tools/agent_runner/checkout_policy.py tools/agent_runner/tests/test_workspace.py tools/agent_runner/tests/test_checkout_policy.py tools/agent_runner/interfaces.rst tools/agent_runner/runtimes/cursor.rst
+git commit -m "fix(agent-runner): protect only the requested checkout and report the rest (#350)"
+```
+
 ### Task 3: review-verify の dispatch
 
 テスト: 要（S）。古い記録を保護しない側に読む損害と、修正の worktree を保護できない損害を防ぐ。通る例を 1 件置く。
@@ -280,12 +402,12 @@ git commit -m "fix(agent-runner): report other sessions' checkouts apart from ou
 - Test: `.agents/skills/review-verify/tests/test_dispatch.py`
 
 **Interfaces:**
-- Consumes: Task 1 の `blocks_acceptance`、Task 2 の `BatchResult.unprotected_changes`
-- Produces: `dispatch` の出力の JSON 行に `unprotected_changes`。`REPOSITORY_NOT_AT_TO` は `"repository must be the checkout whose HEAD is to: the worktree holding the fixes, which the runner protects together with the main worktree"`
+- Consumes: Task 2A の `blocks_acceptance`（`finding.protected`）、Task 2 の `BatchResult.unprotected_changes`
+- Produces: `dispatch` の出力の JSON 行に `unprotected_changes`。`REPOSITORY_NOT_AT_TO` は `"repository must be the checkout whose HEAD is to: the worktree holding the fixes, which is the only checkout the runner protects"`
 
 - [ ] **Step 1: 失敗するテストを書く**
 
-`test_dispatch.py` に 3 件を足す。補助関数（`run_external`・`accept`・`written`・`main_argv`・`loader_for`・`PayloadAdapter`・`config`・`git`）は既存のものを使う。
+`test_dispatch.py` に 3 件を足し、`test_accept_does_not_attribute_a_disappeared_checkout_to_content_changes` と `test_fix_check_environment_preflight_does_not_launch` を消す（Spec の R8。ほかの checkout の消失・監査不能は報告だけになる。通る例は下の `another_sessions_worktree` が代表し、依頼された checkout の監査不能で起動しない守りは Task 2A の `test_checkout_policy.py` にある）。補助関数（`run_external`・`accept`・`written`・`main_argv`・`loader_for`・`PayloadAdapter`・`config`・`git`）は既存のものを使う。
 
 - `test_accept_counts_an_old_record_without_protection_as_blocking(dispatch, scenario, tmp_path)`: `run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload())`、`dispatch.json` の `batch.checkout_audit` を `[{"path": str(tmp_path / "other session"), "kind": "content_changed", "reason": "content_changed", "locked": False, "prunable": False}]` に書き換える。`accept(dispatch, run_dir) == 1`、`written(scenario.review_dir) == []`
 - `test_another_sessions_worktree_does_not_block_accept(dispatch, scenario, tmp_path, capsys)`: `other = create_worktree(scenario.root, "HEAD", tmp_path / "other session")`。`PayloadAdapter` を継承し、`collect` で `(other / "tool.py").write_text("another session\n")` してから親の `collect` を返す adapter を使う。payload の `verified.skill` は `run_external` と同じく `dispatch.SKILL` の sha256 にする。`dispatch.main(main_argv(tmp_path, scenario.request, "probe"), adapter_loader=...)` が 0、出力の `outside_changes == []`、`unprotected_changes == [str(other)]`、`accept(dispatch, tmp_path / "main-run") == 0`
@@ -298,7 +420,7 @@ Expected: `another_sessions_worktree` と `head_is_not_to` が FAIL。`old_recor
 
 - [ ] **Step 3: `dispatch.py` を直す**
 
-Spec の「設計」の `dispatch.py` のとおり。`head` の取得は `from`/`to` の解決と同じ `try` の中に置き、`WorkspaceError` は今の `"repository/from/to cannot be resolved"` のままにする。`check_batch` の docstring に「保護しない checkout の内容の変化・登録ごとの回収は理由にしない。判定は runner と同じ `blocks_acceptance`」を書く。
+Spec の「設計」の `dispatch.py` のとおり（`check_batch` の監査不能の検査も `blocks_acceptance` が真の観測だけにする。R8）。`head` の取得は `from`/`to` の解決と同じ `try` の中に置き、`WorkspaceError` は今の `"repository/from/to cannot be resolved"` のままにする。`check_batch` の docstring に「保護しない checkout の内容の変化・登録ごとの回収は理由にしない。判定は runner と同じ `blocks_acceptance`」を書く。
 
 - [ ] **Step 4: 成功を確かめる**
 
@@ -307,9 +429,9 @@ Expected: すべて PASS
 
 - [ ] **Step 5: `references/fix-check.md` を直す**
 
-- 9 行目の `repository` の行: 「`to` を HEAD に持つ checkout（修正を commit した worktree）の絶対パス。from も読める同じ repository のもの。HEAD が `to` でなければ dispatch は起動の前に終了コード 2 で止まる。runner はこの checkout と main worktree を保護する」
-- 36 行目の出力の項目に `unprotected_changes` を足し、「`outside_changes` は runner が保護する checkout（request の `repository` の checkout と main worktree）の変化・削除と、監査できない登録。`unprotected_changes` はそれ以外の checkout の内容の変化と登録ごとの回収（多くはほかのセッションの worktree）で、終了コードにも受け取りにも影響しない（`tools/agent_runner/interfaces.rst`）」を足す
-- 56 行目の「開始前から登録されていた checkout に変更がある（`outside_changes`）」を「runner が保護する checkout が変わった・消えた、または開始前から登録されていた checkout を監査できない（`outside_changes`・`checkout_audit`。`unprotected_changes` は理由にしない）」にする
+- 9 行目の `repository` の行: 「`to` を HEAD に持つ checkout（修正を commit した worktree）の絶対パス。from も読める同じ repository のもの。HEAD が `to` でなければ dispatch は起動の前に終了コード 2 で止まる。runner が保護するのはこの checkout だけ（main worktree を含むほかの checkout の変化・回収・監査不能は `unprotected_changes` に報告するだけ）」
+- 36 行目の出力の項目に `unprotected_changes` を足し、「`outside_changes` は runner が保護する checkout（request の `repository` の checkout）の変化・削除・監査不能。`unprotected_changes` はそれ以外の checkout（main worktree を含む）の内容の変化・登録ごとの回収・監査不能（多くはほかのセッションの worktree や親の checkout）で、終了コードにも受け取りにも影響しない（`tools/agent_runner/interfaces.rst`）」を足す
+- 56 行目の「開始前から登録されていた checkout に変更がある（`outside_changes`）」を「runner が保護する checkout が変わった・消えた・監査できない（`outside_changes`・`checkout_audit` の `protected` な観測。`unprotected_changes` は理由にしない）」にする
 
 - [ ] **Step 6: Commit**
 
@@ -329,7 +451,7 @@ git commit -m "fix(review-verify): accept fix-checks despite other sessions' wor
 
 **Interfaces:**
 - Consumes: Task 2 の `BatchResult.unprotected_changes`
-- Produces: `run_roles` の出力の JSON に `unprotected_changes`。HEAD の誤りは `RoleInputError("repository must be the checkout whose HEAD is revision: the worktree holding the fixes, which the runner protects together with the main worktree")`
+- Produces: `run_roles` の出力の JSON に `unprotected_changes`。HEAD の誤りは `RoleInputError("repository must be the checkout whose HEAD is revision: the worktree holding the fixes, which is the only checkout the runner protects")`
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -360,7 +482,7 @@ Expected: すべて PASS
 
 - [ ] **Step 5: `execution.md` を直す**
 
-25 行目と 65 行目の `repository` の値に「（HEAD が `revision` と同じ checkout。違えば `run_roles` は起動・予約の前に終了コード 2 で止まる。runner はこの checkout と main worktree を保護するので、親の main worktree を渡さない）」を足す。`run_roles` の出力の項目を挙げる文があれば `unprotected_changes` を足し、「ほかの checkout の変化・回収（`unprotected_changes`）は終了コードに影響しない」を書く。
+25 行目と 65 行目の `repository` の値に「（HEAD が `revision` と同じ checkout。違えば `run_roles` は起動・予約の前に終了コード 2 で止まる。runner が保護するのはこの checkout だけで、ほかの checkout（親の main worktree を含む）の変化・回収・監査不能は `unprotected_changes` に報告するだけ）」を足す。`run_roles` の出力の項目を挙げる文があれば `unprotected_changes` を足し、「ほかの checkout の変化・回収（`unprotected_changes`）は終了コードに影響しない」を書く。
 
 - [ ] **Step 6: Commit**
 
@@ -404,6 +526,8 @@ git commit -m "fix(pr-review-fix-loop): record other sessions' checkouts apart f
 
 テスト: 不要（文書の文言は F）。代わりに `git diff` で変えた文だけであることを確かめる。
 
+R8 の後に行う場合は、下の文面の「対象と main worktree」を「対象（依頼された checkout）」に、「監査できない登録」を「対象の監査不能」に読み替える。
+
 **前提:** #349 の実行マップで該当ファイルが #350 の所有に移っている、または #349 の所有の移動の提案（planning のセッションが投稿したコメント）に coordinator（利用者、または利用者が指名したセッション）の承認がある。実装担当は返事を待たない。どちらも無ければこの Task は行わず、PR の本文の「残る食い違い」に下の 4 か所を書き、#349 に「承認が無いので #350 では直さなかった」とコメントする。一部だけ承認されたときは、承認されたファイルだけを直す。
 
 **Files（承認されたものだけ）:**
@@ -440,10 +564,12 @@ git commit -m "fix(pr-review-fix-loop): record other sessions' checkouts apart f
 
 issue-to-pr の run（2026-11-08T16:24Z〜）では、`implement_task.py check` が `self: false` を返したので、subagent-driven-development の形で、Task 1〜5 を 1 つずつ順に `implement_task.py run` で runner の担当 `claude-code_sonnet_default` に依頼する（並行しない）。依頼ごとの `RUN_DIR` は `implement_task.py` 用のセッションディレクトリの下に作り、ledger は `tmp/agents/issue-350.7f5d70sx/sdd/2026-11-09-issue-350-checkout-audit/progress.md` に置く。Task のレビューはこのセッションのサブエージェント（Agent ツール）が、Task の brief と同じ受け入れ基準を受け取って行う。指摘の修正も同じ担当に新しい依頼として出す。最後にブランチ全体のレビューを 1 回行う。Task 6 は行わない（Spec の R4）。
 
+2026-11-08T17:16Z に Task 3 の依頼が `failed`（`response_failed`）で止まった後、利用者の指示で設計を変え（Spec の R8）、run を再開した（R9）。Task 2A を Task 3 の前に足し、Task 3 は同じ担当に依頼し直す。依頼には「バックグラウンドのコマンドを使わない（同期で実行し、最後の応答を結果の JSON にする）」を足す。
+
 ## 実行予算
 
 - 全体の能動時間: 390 分。根拠: 実装の 150 分（Task 5 件、移植元のコードとテストがあり、AW #756 の 4 commit の差分は約 500 行）に、`--merge` のループの 225 分（サイクルの上限 3 ×（レビューの期限 45 分＋計画・修正 30 分））と予備 15 分を足した
-- phase の目安: 準備 15 分、Task 1〜2 で 45 分、Task 3〜5 で 50 分、統合確認 25 分、PR 15 分、ループ 225 分（1 サイクルで修正不要なら 75 分）
+- phase の目安: 準備 15 分、Task 1〜2 で 45 分、Task 2A で 20 分（R8 で追加。予算の範囲で吸収する）、Task 3〜5 で 50 分、統合確認 25 分、PR 15 分、ループ 225 分（1 サイクルで修正不要なら 75 分）
 - worker: 各 Task の runner の担当は `implement` の役割の期限 90 分（runner が強制する）、予約枠 1。統合確認の `uv run pytest tools .agents/skills/pr-review/tests` は絶対期限 20 分
 - 再試行の上限: 同じ失敗（同じ signature）の再試行は 1 回まで。安全の失敗（所有ファイル以外の編集、実リポジトリ・実 HOME への書き込み、有料の runner の起動）は再試行せず全体停止
 - checkpoint: Task 2 の後（API の確定）、予算の 50%（75 分）と 100%、worker の失敗の直後
