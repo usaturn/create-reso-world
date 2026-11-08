@@ -3,10 +3,10 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 - 状態: draft
-- 文書管理リポジトリ: usaturn/create-reso-world（`DOC_ROOT` は `.worktrees/issue-350-checkout-audit`、ブランチ `docs/issue-350-checkout-audit`）
+- 文書管理リポジトリ: usaturn/create-reso-world（`DOC_ROOT` は実装の worktree `.worktrees/issue-350-checkout-audit-impl`、ブランチ `feat/issue-350-checkout-audit`。planning の版 `8e6a8eeb` は `.worktrees/issue-350-checkout-audit` で作った）
 - 対象: [#350](https://github.com/usaturn/create-reso-world/issues/350)（親 [#349](https://github.com/usaturn/create-reso-world/issues/349)、key `checkout-audit`）
 - 基準: `origin/main` の `690001b64ade22e91dfe54a9ad84a12c5d63931a`
-- 内容の承認: なし。実行許可: なし（実装は、handoff を確認した別の実行タスクが、利用者の実行指示を得てから行う）
+- 内容の承認: なし。実行許可: 2026-11-08T16:24Z の利用者の指示 `/issue-to-pr #350 --implement claude-code_sonnet_default --merge --assign implement=claude-code_sonnet_default --assign inspect=pi_openai-codex_gpt6-sol_max`（範囲は Spec の「管理」と「実行の決定記録」）
 
 **Goal:** runner の checkout 監査で、依頼された checkout と main worktree だけを「保護する」対象にし、ほかの checkout の内容の変化・登録ごとの回収は `unprotected_changes` として報告するだけにする。
 
@@ -65,6 +65,26 @@
 1. 実装の worktree を最新の `origin/main` から作る（例 `.worktrees/issue-350-checkout-audit`、ブランチは実行タスクが決める）。このブランチの Spec・Plan の commit が無いホストでは、#350 の manifest から 2 ファイルを復元して sha256 を照らし、最初の commit にする
 2. `origin/main` が基準 `690001b6` から進んでいれば、所有ファイルの差分を `git diff 690001b6 origin/main -- <所有ファイル>` で確かめ、Plan の行番号・前提が変わっていないかを照らす。変わっていれば contingency に従う
 3. #349 の Publication ledger と #350 の全コメントを読み、所有の移動の提案（Task 6）への coordinator の判断を確かめる
+
+確認の結果（2026-11-08T16:24Z、issue-to-pr の run）:
+
+1. `.worktrees/issue-350-checkout-audit-impl`（ブランチ `feat/issue-350-checkout-audit`）を `690001b6` から作り、`8e6a8eeb` を fast-forward で取り込んだ。#350 の manifest から復元した 4 ファイルの sha256・バイト数は宣言値と一致し、Spec・Plan は `8e6a8eeb` の blob と同じだった
+2. `origin/main` は `690001b6` のまま。行番号・前提は変わらない
+3. #349 の所有の移動の提案（issuecomment-6723859987）に返事は無く、実行マップの #350 の行も変わっていない。Task 6 は行わない（Spec の R4）
+
+### 要件照合（Spec の条件 → Task → 観測 → 検証）
+
+| Spec の条件 | Task | 観測する結果 | 検証 |
+| --- | --- | --- | --- |
+| 保護する checkout（対象・main worktree）の変化・消失・監査不能で止める | 1・2 | `protected=True` の観測が `outside_changes` に入る | Task 1 の parametrize・symlink・bare のテスト、Task 2 の `test_checkout_policy.py` |
+| 保護しない checkout の `content_changed`・`removed` は止めない | 1・2・3 | `unprotected_changes` に入り、dispatch の終了コード 0、accept が受け取る | Task 2 の既存テストの期待値、Task 3 の通る例 |
+| 全 checkout の監査不能で止める（一覧の失敗を含む） | 1 | `unavailable_after` のまま `blocks_acceptance` が真 | Task 1 の一覧失敗のテスト、既存の `test_audit_diagnoses_unavailable_baseline` |
+| 古い記録を安全側に読む | 1・3 | `protected` 無しは `True`、`unprotected_changes` 無しは `[]` | Task 3 の古い記録のテスト、統合確認の一時的な確認 |
+| HEAD が `to`／`revision` でない `repository` を起動前に拒否 | 3・4 | 終了コード 2、出力先・予約を作らない | Task 3・4 のテスト |
+| 起動前の preflight を残す | 2（変えない） | `require_auditable_checkouts`・`require_auditable_workflow` が残る | 統合確認の `git diff` と既存テスト |
+| 利用側が同じ判定を使う（共有条件） | 統合確認（controller） | runner の `outside_changes` と dispatch の accept が同じ `blocks_acceptance` を使い、`run_roles`・ループは `outside_changes` だけで判定する | 統合確認の手動確認と全体レビュー |
+
+共有する条件は「受け取りを止める判定」（`blocks_acceptance`）と「古い記録の読み方」で、統合確認で controller が runner・dispatch・run_roles・loop を通して確かめる。
 
 ---
 
@@ -418,17 +438,19 @@ git commit -m "fix(pr-review-fix-loop): record other sessions' checkouts apart f
 
 実行タスクが決める。推奨は superpowers:subagent-driven-development（Task 1〜2 の API を Task 3〜5 が使い、受け取りの判定を誤ると気付けない損害になるので、Task ごとに独立したレビューを挟む）。issue-to-pr で実行する場合は、そのスキルの手順に従う。
 
+issue-to-pr の run（2026-11-08T16:24Z〜）では、`implement_task.py check` が `self: false` を返したので、subagent-driven-development の形で、Task 1〜5 を 1 つずつ順に `implement_task.py run` で runner の担当 `claude-code_sonnet_default` に依頼する（並行しない）。依頼ごとの `RUN_DIR` は `implement_task.py` 用のセッションディレクトリの下に作り、ledger は `tmp/agents/issue-350.7f5d70sx/sdd/2026-11-09-issue-350-checkout-audit/progress.md` に置く。Task のレビューはこのセッションのサブエージェント（Agent ツール）が、Task の brief と同じ受け入れ基準を受け取って行う。指摘の修正も同じ担当に新しい依頼として出す。最後にブランチ全体のレビューを 1 回行う。Task 6 は行わない（Spec の R4）。
+
 ## 実行予算
 
-- 全体の能動時間: 150 分。根拠: Task 5 件＋条件付きの文書の Task 1 件、移植元のコードとテストがあり、AW #756 の 4 commit の差分は約 500 行
-- phase の目安: 準備 10 分、Task 1〜2 で 45 分、Task 3〜5 で 50 分、Task 6 で 10 分、統合確認 25 分、PR 10 分
-- worker: 各 Task の実装担当の絶対期限 30 分、予約枠 1、出力が 10 分増えなければ無進捗として打ち切る。統合確認の `uv run pytest tools .agents/skills/pr-review/tests` は絶対期限 20 分
+- 全体の能動時間: 390 分。根拠: 実装の 150 分（Task 5 件、移植元のコードとテストがあり、AW #756 の 4 commit の差分は約 500 行）に、`--merge` のループの 225 分（サイクルの上限 3 ×（レビューの期限 45 分＋計画・修正 30 分））と予備 15 分を足した
+- phase の目安: 準備 15 分、Task 1〜2 で 45 分、Task 3〜5 で 50 分、統合確認 25 分、PR 15 分、ループ 225 分（1 サイクルで修正不要なら 75 分）
+- worker: 各 Task の runner の担当は `implement` の役割の期限 90 分（runner が強制する）、予約枠 1。統合確認の `uv run pytest tools .agents/skills/pr-review/tests` は絶対期限 20 分
 - 再試行の上限: 同じ失敗（同じ signature）の再試行は 1 回まで。安全の失敗（所有ファイル以外の編集、実リポジトリ・実 HOME への書き込み、有料の runner の起動）は再試行せず全体停止
 - checkpoint: Task 2 の後（API の確定）、予算の 50%（75 分）と 100%、worker の失敗の直後
 - 縮小・切り出し・方法変更の候補:
   - 縮小: Task 6 を行わず、PR の本文に残る食い違いとして書く
   - 切り出し: Task 5（ループの記録）を後続の `loop-reconcile`（#356）に回す提案を #349 にコメントする（利用者の許可が要る）
-  - 方法変更: subagent-driven-development の worker が同じ失敗を繰り返したら、controller が executing-plans で直接行う
+  - 方法変更: subagent-driven-development の worker が同じ失敗を繰り返したら、controller が executing-plans で直接行う。ただし issue-to-pr の run で runner の担当に依頼しているときは、失敗を理由にこのセッションが実装を引き取らない（issue-to-pr の 4 章）。止まって報告し、担当を変えるかは利用者が決める
 
 ## contingency（代替策）
 

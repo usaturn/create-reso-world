@@ -2,13 +2,13 @@
 
 ## 管理
 
-- 文書管理リポジトリ: usaturn/create-reso-world（`DOC_ROOT` は `.worktrees/issue-350-checkout-audit`、ブランチ `docs/issue-350-checkout-audit`）
+- 文書管理リポジトリ: usaturn/create-reso-world（`DOC_ROOT` は実装の worktree `.worktrees/issue-350-checkout-audit-impl`、ブランチ `feat/issue-350-checkout-audit`。planning の版 `8e6a8eeb` は `.worktrees/issue-350-checkout-audit`（ブランチ `docs/issue-350-checkout-audit`）で作り、実装のブランチに fast-forward で取り込んだ）
 - 対象: usaturn/create-reso-world、[#350](https://github.com/usaturn/create-reso-world/issues/350)（親 [#349](https://github.com/usaturn/create-reso-world/issues/349) のボードの key `checkout-audit`）
 - 検証したコードの HEAD: `origin/main` の `690001b64ade22e91dfe54a9ad84a12c5d63931a`
 - 移植元: usaturn/agent-workspace `0eea76aa` の #756（`f8eebecc`・`a6775eaa`・`ae606ed3`・`396bdca6`）
 - 状態: draft
 - 内容の承認: なし
-- 実行許可: なし。利用者の指示「#349 着手」は、親の開始手順による planning（Spec → Plan → handoff）の指示であり、実装・PR・マージの許可ではない
+- 実行許可: 2026-11-08T16:24Z の利用者の指示 `/issue-to-pr #350 --implement claude-code_sonnet_default --merge --assign implement=claude-code_sonnet_default --assign inspect=pi_openai-codex_gpt6-sol_max`。許可された範囲は、この Spec・Plan の実装、検証、commit、push、`main` 向けの PR 1 つの作成、PR 修正ループ（pr-review-fix-loop）、ループの `finalize.py` によるマージ（修正不要のときだけ）。内容の承認ではないので、状態は `draft` のまま。planning の時点の利用者の指示「#349 着手」は planning（Spec → Plan → handoff）だけの指示だった
 - 関連する文書: Plan `docs/superpowers/plans/2026-11-09-issue-350-checkout-audit.md`、#187 の Spec `docs/superpowers/specs/2026-10-20-issue-187-checkout-audit-spec.md`、#243 の Spec `docs/superpowers/specs/2026-10-23-create-reso-world-issue243-remove-dsh-design.md`
 
 ## 意図と理由
@@ -201,3 +201,17 @@ main worktree（`PARENT_ROOT`）を保護するので、実行中に別のセッ
 | D10 | 実行中に親の checkout（main worktree）が動いて受け取りが止まる制限は変えず、`interfaces.rst` に注意を書く | main worktree の HEAD の移動を保護の対象から外す | 今の挙動から変わらない既存の制限で、Issue が main worktree の保護を明記している。main worktree への誤った書き込みを止める守りを弱めない |
 | D11 | ループの記録の項目のテストはコミットしない | AW のテストを移植する | `result_file` に BatchResult 全体が残るので記録は消えず、S に当たらない（builder check の指摘） |
 | D12 | HEAD の検査は `run_roles` の全 phase（implement・self-review）に掛け、テストは self-review の 1 件にする | phase ごとにテストする | 検査は phase の分岐より前の 1 か所にある（D）。self-review は 1 回枠の予約もあるので、予約を消費しないことも同じテストで確かめられる |
+
+## 実行の決定記録（issue-to-pr の run。エージェントの判断。利用者の承認ではない）
+
+2026-11-08T16:24Z からの run（Claude Code / Opus 5.5、session `820ddf33-cf9c-4fd8-8f60-1c496bed5001`）で決めたこと。設計（D1〜D12）は変えない。
+
+| ID | 選択した案 | 検討した別案 | 選択理由 | 委任指示または停止条件 |
+| --- | --- | --- | --- | --- |
+| R1 | Plan の Task の実装担当は `claude-code_sonnet_default`（`fallback` なし。`implement_task.py check` の結果 `self: false`） | 雛形の既定 `self` | 利用者の指定 `--implement claude-code_sonnet_default` | 利用者の指示。担当の `failed`、再試行の上限に達した `retry`・`rejected` では止まり、このセッションが実装を引き取らない |
+| R2 | ループの担当は、レビュー修正の `implement` が `claude-code_sonnet_default`、レビューの `inspect` が `pi_openai-codex_gpt6-sol_max`。サイクルの上限 3 と雛形 `.devcontainer/agent-runner.toml` は既定の適用（`self-review`・`fix-check` は `self`） | 個人設定の既定のまま | 利用者の指定 `--assign implement=claude-code_sonnet_default --assign inspect=pi_openai-codex_gpt6-sol_max`（`loop.py check-options` が終了コード 0） | 利用者の指示。ループの停止・エラーでは止まる |
+| R3 | 実行方式は、`superpowers:subagent-driven-development` の形で、各 Task を `implement_task.py run` で runner の担当に 1 つずつ順に依頼する。Task のレビューはこのセッションのサブエージェントが行う | このセッションが実装する（executing-plans） | issue-to-pr の 4 章の表（`self` が false） | issue-to-pr の手順 |
+| R4 | Task 6（範囲外の 4 ファイル）は行わない。PR の本文に「残る食い違い」として書き、#349 にコメントする | 承認を待つ／黙って直す | #349 の所有の移動の提案（issuecomment-6723859987）に、着手時（2026-11-08T16:24Z）の時点で coordinator の返事が無く、実行マップも変わっていない。Plan の Task 6 の前提のとおり返事を待たない | D4・Plan の Task 6 |
+| R5 | 実装のブランチは `feat/issue-350-checkout-audit`（worktree `.worktrees/issue-350-checkout-audit-impl`）を `main` の `690001b6` から作り、planning の commit `8e6a8eeb` を fast-forward で取り込む。planning の worktree・ブランチ `docs/issue-350-checkout-audit` は消さずに残す | planning のブランチ `docs/issue-350-checkout-audit` で実装を続ける | issue-to-pr の名前の規則（`feat/issue-N-<要約>`）と、捕捉した base の SHA から新しい worktree を作る手順。commit をそのまま取り込むので、公開した manifest の版（`8e6a8eeb`）と同じ内容が PR に入る | issue-to-pr の 3 章 |
+| R6 | PR の Issue の指定は `Refs #350`。close と親 #349 の更新はマージの後に coordinator が行う | `Closes #350` | ボードの子（issue-to-pr の 5 章）で、#350 の本文も `Closes` を禁じている | issue-to-pr の 5 章 |
+| R7 | 実装の claim `refs/heads/agent-claims/issue-350`（`8f0e0941c6ed30efa495a43997fec4067b16040c`）を取り、ループの `finish` の後に結果を #350 に書いてから解放する | claim を取らない | `planning-parallel-issues` と handoff の「受け手は新しい claim を取る」 | `planning-parallel-issues` |
