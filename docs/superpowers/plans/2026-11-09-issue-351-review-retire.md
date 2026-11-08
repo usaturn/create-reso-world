@@ -302,4 +302,17 @@ git commit -m "docs: retire pr-review sessions through the helper in repo cleanu
 
 ## 完了
 
-（実行後に、Task ごとの依頼の回数・所要時間・検証の結果を書く）
+- 実装の担当: runner の `claude-code_sonnet_default`（観測したモデル `claude-sonnet-5-5`）。割り当ては利用者の `--implement` による。controller は `claude-opus-5-5`
+- Task ごとの依頼（runner の所要時間）:
+
+| Task | 依頼の回数 | 所要時間 | 結果 |
+| --- | --- | --- | --- |
+| 1 strict な退役（saved） | 1 | 411 秒 | Approved（Minor 1〜4 を Task 2 に取り込み） |
+| 2 失敗の退役（`--allow-failed`） | 2（実装・修正 1 回） | 371 秒・734 秒 | 修正 1 回で全指摘解消。保存済みの判定を先にするよう Spec を変更 |
+| 3 定期掃除 | 2（実装・修正 1 回） | 63 秒・51 秒 | 修正 1 回で全指摘解消（cwd 由来の helper を実行しない） |
+| 4 文書 | 1 | 67 秒 | Approved |
+| 最後の全体レビューの修正 | 1 | 474 秒 | 全指摘解消（`~/bin` のコピーが `$HOME/.agents` の helper を実行しない、読み取り専用の status、権限の絞り込み、文書、テストの隔離） |
+
+- Spec の変更（レビューの裁定）: 「分類」2（`--allow-failed` でも saved の条件を満たせば `saved`）と、出力の `retirement` の値（`saved` か `failed`）
+- 検証の結果は PR 本文と、`PARENT_ROOT/tmp/agents/issue-351.naa05k3c/` の検証の記録に書く
+- 持ち越し: Spec の「既知の制約と持ち越し」のとおり（`~/bin` のコピーからの退役、worktree の無い失敗セッション）
