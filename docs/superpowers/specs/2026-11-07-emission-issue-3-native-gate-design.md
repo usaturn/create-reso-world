@@ -80,5 +80,13 @@ installed OutputWriter/ModelMapperはAllowNamedFloatingPointLiteralsを指定し
 
 この意味を保つ最小修正とS回帰・指定Claude確認は既存の型/保全前提準備の委任範囲とする。停止windowを継ぎ足したり、失敗をPASSへ書き換えたりしない。新しい準備の確認後も全fresh preflight・baselineレビューが必要である。根拠はPARENT_ROOT/tmp/agents/emission-native-live.enko3n41の原raw・root-unhandled-summary.json・schema-receipt.jsonとSHA/MVID付きschema-il.logに残す。
 
+コード505fb7b43e111456d4ebfe21f9d11e067ff0e733で保全専用対応、108passed（5.31秒）/compile/diff成功。停止rawの形状自己照合は新しいコードでofflineのみpassedとなり、final-head-local-verification.jsonがclean HEAD/blob/source hashと元raw hashを結ぶ。古いworking-tree版の参考結果と元のinconclusive判定は変更しない。独立baseline・native連続性・fullpreflightの成功ではない。
+
+指定Claude1名のレビューは実測143.204秒/exit0/停止確認済み、技術判定はSpecPASS・qualityPASS_WITH_ISSUES・sourceGROUNDED・停止妥当だった。Low R1の最終HEAD自己照合記録は上記の新規ローカル検証で補完。Info R2の配列組合せ追加は代表Sで十分のため追加しない。前回のSource型/kind負例候補は保留を維持する。
+
+ただしレビュー担当は、明示した作業領域外への変更禁止に反して、計時用の固定名ファイルを/tmp直下に作成・削除したと自己申告した。controllerは当該パスが現在存在しないことのみ確認した。以前の存在/上書きの有無は不明で、秘密漏洩・world変更があったとは主張しない。Git監査のoutside_changes=[]は任意/tmpの監査ではない。これを実行範囲の逸脱として安全上の停止条件にし、技術PASSだけでread-only gate合格や次工程への許可にしない。以降はローカルの最終状態検証・記録・停止確認済みの所有review worktree整理だけを行い、新seal準備・native再試行・公開・別reviewer/fallbackへ進めない。復帰には利用者による停止の解消が必要である。候補は同じClaudeを読取/検索ツールだけに限定した確認と、全く新しいpreflightだが、実装・許可済みとは扱わない。
+
+505fb7bの新packageは未作成。74c0eabの旧v3packageは改変せず保全するが、現コードの実行入力として使わない。現在の前面化確認は受領済みであり、未回答と扱わない。Task3/4以降、独立baselineと全native phase/再capture/復元/cleanupは未完了。実機書込0、公開未実施。
+
 ## 記録・公開
 採取/実session/絶対の個人パス/state/brsonはlocal-only。コードrepoへはPG/生成処理/安全判定とSテスト、READMEだけを追跡する。文書はこのSpec/Planと既存レビュー記録を1つの文書PRへまとめる。新しい小タスク別PRやPR後の自動レビューループを作らない。部分PRはRefs #3、Issueはopen維持。通常ツールのマージは手動限定。

@@ -91,9 +91,17 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 **範囲:** Spec「2026-11-08 fresh Root採取と保全専用carrierの補足」と既存受け入れ基準の同文をcontroller/reviewer共通briefにする。名前付き非有限値、完全RGBA/profile文字列carrier、既知float3/floatQ配列の全payloadを保全専用で照合する。未知kind/欠落を補わず、Rootの除外やprivate書込許可へ広げない。
 **テスト:** S。変更された非有限値/profile/配列軸・要素・IDを黙って保全済みとする損害と、opaque値をprivate書込に許可する損害を防ぐ代表正負例だけを追加。CLI構文・固定文言のF/Lテストや組合せ網羅は追加しない。
 **検証:** RED→GREEN、全suite/compile/diff、停止済みRoot原rawを使ったオフラインの形状/保全可能性確認、指定Claudeによる修正範囲と停止記録の確認、新しいclean HEADからの新seal/実SDK検証。原raw/停止判定を変更せず、自己照合を独立baselineへ読み替えない。
-- [ ] 2つの代表SテストをRED→GREENにし、全suite/compile/diff後に同じcode branchへcommitする。
-- [ ] 同じ要件で唯一の指定Claudeにレビューし、原指摘と裁定を残す。
+- [x] 2つの代表SテストをRED→GREENにし、全suite/compile/diff後に同じcode branchへcommitする。
+- [ ] 同じ要件で唯一の指定Claudeにレビューし、原指摘と裁定を残す（実施済みだが実行範囲逸脱によりread-only gateとして未受理。下記参照）。
 - [ ] 新code HEADの新package/executionと実SDKを準備・再照合する。停止windowのworld callは再開しない。
+
+記録:505fb7b、108passed/compile/diff成功。停止済みRoot rawを使う最終HEADの自己形状照合はofflineのみpassed、source/blob/raw hashはSESSION_LIVE/final-head-local-verification.json。旧inconclusiveと過去のworking-tree参考結果は凍結し、native成功へ変えない。SESSION_LIVEはPARENT_ROOT/tmp/agents/emission-native-live.enko3n41。
+
+指定Claudeの技術判定はSpecPASS・qualityPASS_WITH_ISSUES・sourceGROUNDED・停止妥当、実測143.204秒/exit0/停止確認済み/outside_changes=[]。Low R1の最終HEAD記録を新規ローカル検証で補完し、Info R2の配列組合せテストは代表Sで十分のため追加しない。原指摘はroot-carrier-review/result.json、裁定はcontroller-stop-ruling.md。
+
+担当が明示範囲外の/tmp直下の固定名ファイルを計時用に作成・削除したと自己申告したため、実行範囲逸脱による安全上の停止を適用した。現在のパス不存在だけを確認し、過去の上書きや秘密漏洩を推測しない。Git監査はこの範囲を保証しない。技術PASSを次工程の許可にせず、追加review/fallback・新seal・実機再試行・公開を行わない。ローカル最終確認/記録/停止済み所有review worktree整理のみ実施。利用者が停止の解消を明示した後、同じClaudeの読取/検索専用ツール制限をCLI/adapter仕様で確かめる案と、完全に新しいpreflightを検討する。
+
+新505fb7bpackageは未作成で旧74c0eabpackageを現版へ転用しない。前面化/他編集停止の明示は受領済み。今回の実機は5読取で停止、world writes0、baseline未承認、Task3/4未完了、公開未実施。
 
 ### Task 3: fresh preflightと短いDrivegateを逐次実行する
 **Files:** 生成物/実raw/ログ/stateはSESSION以下だけ（commitしない）、Spec/Planの結果追記。
