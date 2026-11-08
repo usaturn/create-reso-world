@@ -49,6 +49,7 @@ Grok Build（`grok`）は導入しない。Claude Code を Alibaba Cloud 経由�
 ## 秘密情報
 
 Meshy の `MESHY_API_KEY` は例外で、env / credentials ファイルへ保存せず、利用者が zsh で非表示入力して環境変数だけで渡す。手順は [Meshy → ResoLoop](../docs/meshy-resoloop.md)。
+Ollama Cloud の `OLLAMA_API_KEY` も例外で、ホストの env ファイルには書かず、使うシェルで export する。手順は「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」。
 
 それ以外の API トークンなどの秘密情報は、ホストの `~/.config/create-reso-world/env` に置き、リポジトリには置かない。
 このディレクトリは Dev Container に bind mount され（`initialize.bash` がホスト側に mode 700 で作る）、
@@ -1579,7 +1580,7 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
 
 Meshy の `MESHY_API_KEY` はここには含めない。ファイルを作らない非表示入力の手順は「Meshy CLI と生成物の受け渡し」にある。
 
-次の変数は、「秘密情報」の節の `~/.config/create-reso-world/env` に書けばシェルの起動時に
+次の変数は、`OLLAMA_API_KEY` を除いて、「秘密情報」の節の `~/.config/create-reso-world/env` に書けばシェルの起動時に
 export される。書かない場合は、必要なときに手動で export する。
 
 - `OPENCODE_API_KEY` は `pigo`・`pigod` と、`pigs`・`pixg` の OpenCode Go の tier の
