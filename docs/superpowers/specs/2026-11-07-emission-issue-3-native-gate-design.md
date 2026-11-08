@@ -96,5 +96,19 @@ installed OutputWriter/ModelMapperはAllowNamedFloatingPointLiteralsを指定し
 
 制限確認済みの再確認後だけ、clean505fb7bの新しい封印入力と実SDK証跡を作り、停止済み02:21windowと別の完全fresh preflightへ進める。旧74package/stateは転用しない。新しい重大な安全上の境界や実質的な仕様変更が必要なら安全条件を優先し、既存条件を勝手に緩めない。
 
+## 2026-11-08 制限確認の完了とRoot値不一致による停止
+
+前項の具体的な再開指示に基づき、実CLI help・公式仕様・adapterを確認してrun単位の制限を適用した。限定再確認は同じ指定Claude（実model claude-opus-5-5）、42.784秒/exit0/停止確認済み/outside_changes=[]。実initの公開toolsはGlob/Grep/Read、使用はRead7/Grep1、MCP=[]で制限に適合した。SpecPASS・qualityPASS_WITH_ISSUES・旧R1ADDRESSEDを受理し、前回のoperator待ちを解消済みとする。これはOS sandboxの保証ではなく、個人設定は変更していない。
+
+clean505fb7bの新package/executionを別途作成し、43files/211DLL、3実SDKcheck/build/manifest/parseと現在のbytes前後照合を通過した。prepare_new_package.pyのpath/argv/SHA、source/blob/raw hashをnew-package-receipt.jsonへ記録し、以前のdriver記録Infoを新規準備について補完した。元108passedと同じコード版であり、変更のないテストを重複実行していない。旧74packageや停止済みraw/sealは変更していない。
+
+その後の全く新しい読取試行は6call（discover・doctor・現在hierarchy・native session-before・Root-before・Root-after）、全CLIexit0だった。両Rootの8953Slot/17977Componentは完全かつ対応済みの形状で、IDの追加/削除はないが、Rootの完全保全比較は実際の値の不一致でfailedとなった。最終読取終了03:21:08.025158UTCの後、03:21:09.468067UTCに停止を記録した。診断用の投影ではslot metadata1415件、typed member2792件が変化し、既存アバター/利用者の位置・回転等を含む。原因がアニメーション/他利用者/編集であるとはsnapshotだけで断定しない。診断投影はcomponent-levelの全属性の一覧ではなく、採否には完全compare_subtreeの結果を用いる。
+
+session-afterは停止により未採取。panel/syntheticsの埋込subtreeはこの2Root間で一致したが、専用の別読取・詳細diff・独立意味baseline・Root保全やfullpreflight合格ではない。不一致後のworld call0、fixture/state/module作成とnative write0。phase/再capture/復元/cleanup・S4以降は未完了である。Root/アバター/変化fieldを除外したり、許容差を付けたり、静かなframeが得られるまで再採取して通さない。
+
+指定Claudeの停止結果レビューは113.439秒/exit0/停止確認済み/outside_changes=[]、実公開toolsはGlob/Grep/Read、使用Glob3/Read14/Grep3、MCP=[]で適合した。停止ACCURATE・preservationFAILED・fullpreflight=false・nativePermission=false・baselineNOTAPPROVEDを受理。F1のRoot一致条件はblockingのまま、F2/F3は未採取bracket/埋込比較の限定を明記、F4は次の実行前のdriver/code hash採取をInfoとして保持し今回へ遡及補完しない。F5の診断範囲の限定を維持する。F6のnative SDK metadata/runtimeスコープ接続の懸念は別のsource準備メモで、配備結果ではなく、今回レビュー/修正していない。Rootだけが残る条件とはしない。
+
+現在の観測値変化と全値一致条件は両立しておらず、条件を満たす環境または動的状態と不変保護値を区別する具体的な仕様判断がないまま実機を進めない。一般的な完了/続行指示から、実質的な保護範囲変更の承認を推測しない。通常の許可確認を繰り返さず、今回は未完了の停止結果を保全する。根拠・原review・tool-policy proof・raw・各Infoの裁定はPARENT_ROOT/tmp/agents/emission-native-finish.nkermyxfのfinal-rulings.md・root-stop-review/・root-check/・native-sdk-frame-gap.mdにある。コード変更/追加テストなし、文書はdraft、公開未実施。
+
 ## 記録・公開
 採取/実session/絶対の個人パス/state/brsonはlocal-only。コードrepoへはPG/生成処理/安全判定とSテスト、READMEだけを追跡する。文書はこのSpec/Planと既存レビュー記録を1つの文書PRへまとめる。新しい小タスク別PRやPR後の自動レビューループを作らない。部分PRはRefs #3、Issueはopen維持。通常ツールのマージは手動限定。

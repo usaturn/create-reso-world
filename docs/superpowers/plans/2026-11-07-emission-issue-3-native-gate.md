@@ -92,8 +92,8 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 **テスト:** S。変更された非有限値/profile/配列軸・要素・IDを黙って保全済みとする損害と、opaque値をprivate書込に許可する損害を防ぐ代表正負例だけを追加。CLI構文・固定文言のF/Lテストや組合せ網羅は追加しない。
 **検証:** RED→GREEN、全suite/compile/diff、停止済みRoot原rawを使ったオフラインの形状/保全可能性確認、指定Claudeによる修正範囲と停止記録の確認、新しいclean HEADからの新seal/実SDK検証。原raw/停止判定を変更せず、自己照合を独立baselineへ読み替えない。
 - [x] 2つの代表SテストをRED→GREENにし、全suite/compile/diff後に同じcode branchへcommitする。
-- [ ] 同じ要件で唯一の指定Claudeにレビューし、原指摘と裁定を残す（実施済みだが実行範囲逸脱によりread-only gateとして未受理。下記参照）。
-- [ ] 新code HEADの新package/executionと実SDKを準備・再照合する。停止windowのworld callは再開しない。
+- [x] 同じ要件で唯一の指定Claudeにレビューし、原指摘と裁定を残す（最初は範囲逸脱で未受理。その後の具体的な再開指示とtool制限付き再確認で解消。下記参照）。
+- [x] 新code HEADの新package/executionと実SDKを準備・再照合する。停止windowのworld callは再開しない。
 
 記録:505fb7b、108passed/compile/diff成功。停止済みRoot rawを使う最終HEADの自己形状照合はofflineのみpassed、source/blob/raw hashはSESSION_LIVE/final-head-local-verification.json。旧inconclusiveと過去のworking-tree参考結果は凍結し、native成功へ変えない。SESSION_LIVEはPARENT_ROOT/tmp/agents/emission-native-live.enko3n41。
 
@@ -106,21 +106,21 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 #### 2026-11-08 operator待ちの解消・制限付き再確認
 
 利用者の直前の具体案への続行指示により、前項のoperator待ちを解消する。通常の許可確認を挟まず同じ範囲で進め、安全/未知/不一致停止や元Task依存は維持する。Specの同名再開節をcontroller/reviewer双方の制約にする。これは過去の範囲外書込の否認・仕様承認SHAの発明・条件の緩和ではない。
-- [ ] 実CLI help/公式docs/adapterでRead/Grep/Globのみの引数構築、空MCP/strict/deny、skills無効を確認する。実runのinit tools/tool-useも検査する。終了専用EndConversationは非書込の終了操作だけとして許容する。
-- [ ] 同じClaude1名で505fb7b修正の限定再確認を行う。通常のテスト・hash・数値集計はcontrollerが担当し、子はRead/Grep/Globだけを使い、計時もrunnerの値を採用する。
-- [ ] 制限確認/再確認を通過した場合だけ、新しいclean505fb7bpackage/実SDK/封印照合を行い、Task3を新しい全fresh試行として進める。過去window・旧state/sealを継ぎ足さない。
+- [x] 実CLI help/公式docs/adapterでRead/Grep/Globのみの引数構築、空MCP/strict/deny、skills無効を確認する。実runのinit tools/tool-useも検査する。終了専用EndConversationは非書込の終了操作だけとして許容する。
+- [x] 同じClaude1名で505fb7b修正の限定再確認を行う。通常のテスト・hash・数値集計はcontrollerが担当し、子はRead/Grep/Globだけを使い、計時もrunnerの値を採用する。
+- [x] 制限確認/再確認を通過した場合だけ、新しいclean505fb7bpackage/実SDK/封印照合を行い、Task3を新しい全fresh試行として進める。過去window・旧state/sealを継ぎ足さない。
 
 テスト追加なし（L/FのCLI flag文字列テストは追加しない）。代わりに実help/公式仕様、adapterのargv構築、実init tool一覧とtool-useの構造照合、既存108passedと同版の証跡、全package/現在hash/実SDK検証を使う。記録はPARENT_ROOT/tmp/agents/emission-native-finish.nkermyxf。時間上限は設けず過去所要時間を保持、レビューworkerの720秒枠・同期終了確認は維持する。
 
 ### Task 3: fresh preflightと短いDrivegateを逐次実行する
 **Files:** 生成物/実raw/ログ/stateはSESSION以下だけ（commitしない）、Spec/Planの結果追記。
 **テスト:** 新規テストなし。Task1/2のSを再利用し、実SDK/nativeの実出力と詳細diffを検証する。nativeの拒否機構と成功継続は実測でのみ確定する。
-- [ ] 現在の前面化/16070/競合/現在sessionを確認、新試行のdiscover→別doctorから全fresh preflightを開始。
+- [x] 現在の前面化/16070/競合/現在sessionを確認、新試行のdiscover→別doctorから全fresh preflightを開始（開始のみ。Root値不一致で停止し、fullpreflight未完了）。
 - [ ] 現在の全保護状態/controls/完全色/型/実参照から新しい保全基準を準備し、元Specと意味を照合して封印/指定Claude確認。旧G0復元や観測を丸写ししただけの適合判定はしない。panel/fixture詳細diff・root不在/新規作成だけの予定diff・seal・全raw gateをそろえる。
 - [ ] 新fixtureだけapplyし、3moduleを別親/別stateに逐次deploy。各直前の範囲/入力と各直後の全結線/出力/対象を確認する。
 - [ ] Specの0–6を順に実行し、各native outcome/readback/Doneと本体保全を照合。helperはfresh所有/subtree再確認後に1つずつ除去、解除後正例を確認。
 - [ ] 初回不一致/切断で停止、修復や期待変更なし。成功時のみ元値/保全/静止と全所有を再確認してfixture1rootをcleanup、不在と本体詳細diff0/保全を確認。
-- [ ] 結果レビュー、実測/未確認/残存パスを記録。短いgateだけでS4やTask4/6を完了にしない。
+- [x] 結果レビュー、実測/未確認/残存パスを記録。短いgateだけでS4やTask4/6を完了にしない（今回の停止結果レビューのみ。native成功/cleanup未実施）。
 
 #### Task3 今回の停止（未完了）
 
@@ -131,6 +131,16 @@ installed GeneratedContentMetadata.csがrootの自動markerを、installed World
 指定Claudeによる停止結果の確認は実測77.575秒/exit0/stopped、停止妥当・native_permission=false・baseline未承認。不正確だったworker報告のinstalled source差という表現は、古いfork checkoutとの差に訂正した。歴史的ILと現在binaryのhash bindingは未確認のまま残す。コードの新規修正・native再試行は行わない。
 
 この統合検査が未解消のためpush/PRは行わず、コード1branch・文書1branchをローカル保全する（公開未実施）。同テーマの新規PRを進捗単位で増やさない。実行予算はリセットせず、停止結果の指定Claude確認とhandoffを行う。
+
+#### 2026-11-08 新packageとRoot値不一致停止の実測
+
+制限付き再確認42.784秒/exit0/stopped、実公開tools Glob/Grep/Read・使用Read7/Grep1・MCP=[]でtool-policy適合。SpecPASS・qualityPASS_WITH_ISSUES・R1ADDRESSEDを受理し、以前のoperator待ちは解消済み。新しい505package/executionは43files/211DLL、3実SDKcheck/build/manifest/parse成功、driver/argv/SHAとsource/blob/raw hash記録、前後characterization不変、state不在。旧74packageは凍結のまま。108passedは同じcode505の既存証跡を再利用し、変更なしのsuite再実行/新規F/Lテストは追加していない。
+
+新規6読取は全CLIexit0。Root-before/afterは各8953Slot/17977Componentの完全形状で、追加/削除なしだが完全保全比較は値不一致failed。最終read終了03:21:08.025158UTC後、03:21:09.468067UTCに停止を記録した。診断にはslot metadata1415/typed member2792の変化があり既存アバター/利用者の姿勢等を含むが、原因は断定しない。after session未採取、埋込panel/synthetic一致は専用読取/詳細diff/fullRoot/baselineを代替しない。以後world call0、fixture/state/module/nativewrite0。元phase/recapture/復元/cleanupとTask4は未完了。
+
+指定Claudeによる停止結果レビュー113.439秒/exit0/stopped、公開tools Glob/Grep/Read・使用Glob3/Read14/Grep3・MCP=[]で適合、停止ACCURATE/preservationFAILED/fullpreflightfalse/nativepermissionfalse/baselineNOTAPPROVED。F1blockingを維持し、F2/F3の未採取/埋込比較の限定、F4の次回実行前driver/code hash採取Info、F5の診断投影範囲の限定を記録した。診断を採用条件へ格上げしない。F6のnative SDK metadata/runtimeスコープ接続懸念は別sourceメモで未レビュー/未修正、今回配備の発見ではない。
+
+現在の値変化を除外/許容差/再採取で通さず、全値一致条件を満たす環境または具体的な保護モデルの判断がない限り実機はnot ready。一般的な続行指示を実質変更の承認とみなさない。通常の許可確認は繰り返さず、今回は未完了と根拠を保全する。コード/原raw/seal無変更、draftの記録追記だけ、公開未実施。根拠はPARENT_ROOT/tmp/agents/emission-native-finish.nkermyxf（new-package-receipt.json、restricted-review/tool-policy-proof.json、root-check/、root-stop-review/、final-rulings.md、native-sdk-frame-gap.md）。
 
 ### Task 4: 元Planの残りへ接続し、同一PRで公開する
 **Files:** 元PlanのTask4/5/6に必要な変更だけ（判明時に本書へ具体的範囲/検証を追記）、同じbranch、README、Spec/Plan。
