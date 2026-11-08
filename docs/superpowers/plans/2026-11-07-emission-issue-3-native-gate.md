@@ -191,7 +191,9 @@ Task2b-hの接続/投影の追記（全Hは未完了）: code`bbcdda3`の`Native
 
 次の読取専用完全宣言による詳細diffは、JSON node制限（実12189/既定10000）、sourceに従う別入力での上限20000設定後はnative graphの同名兄弟84件により、それぞれexit6で拒否された。元失敗・入力・plan・rawを上書きしない。本Issueの明示委任で、CLI宣言投影と厳密raw保全を分ける`diff_omitted_roots`を追加した。対象は明示したgraph subtreeだけで、保護root全体/範囲外/重複境界を拒否する。残った全key/state/ID/親/path/no-op planは必須で、境界もstage間で不変。投影外graphを含む全保護rootは従来の厳密値・型・metadata比較とID集合へ残し、保護範囲を縮めない。空境界なら従来の全件coverageを維持する。S1件を追加し、旧coverage関数のみを戻した実behavioral REDと修正後135passed/compileall/diffを確認した。これはCLIが表現できないgraphを無条件に無視する変更ではなく、全値保全を継続するための区別である。
 
-残りは、更新した明示投影の新しい詳細diff/意味baselineの準備、固定lifecycle writer・created collector/初回anchor・current package/absolute CLI/env/configSources/toolchain/fullpreflightの接続、未使用の指定H実装/preflightレビュー1回と実機0–6/元工程である。今回の準備は旧application stateの探索・復元ではなく、読取専用の新しい宣言key→実ID mapであり、apply/adoptへ使わない。今回のsource/投影の根拠と失敗はPARENT_ROOT/tmp/agents/emission-scope-current.id39o3vsへ保持する。公開未実施。
+実結果の追記: code`e56019b`、135passed/compileall/diff。r4では12個のsource-spanを持つnative module rootをCLI宣言投影だけの境界として明示し、panel527/synthetic40の全no-opがsourceから事前構成した完全期待planへ一致した（warning8/0もsourceから構成）。新10読取/diff CLI呼出は全exit0、前後discover/typed field/producerと同一bracket内diffが合格し、投影外graphを含む全panel1025slot/2011component・synthetic19/21は両新Rootで元snapshotへ完全一致した。結果はstructural-preservation-subset-onlyで、意味適合/指定レビュー/fullpreflight/native成功/実行許可はfalse。r3のsourceファイル名のローカル準備エラーも保持した。今回全体は30CLI読み取り/diff試行（28exit0/2exit6）、world write/resource0で、内部native protocol呼出数とは区別する。
+
+残りは、意味baselineの確認・独立レビュー、固定lifecycle writer・created collector/初回anchor・current package/absolute CLI/env/configSources/toolchain/fullpreflightの接続、未使用の指定H実装/preflightレビュー1回と実機0–6/元工程である。今回の準備は旧application stateの探索・復元ではなく、読取専用の新しい宣言key→実ID mapであり、apply/adoptへ使わない。今回のsource/投影の根拠と失敗はPARENT_ROOT/tmp/agents/emission-scope-current.id39o3vsへ保持する。公開未実施。
 
 ## Task 3: preflight・native Drivegate・回復/再試行
 
