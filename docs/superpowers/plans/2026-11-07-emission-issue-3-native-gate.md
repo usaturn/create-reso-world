@@ -1,11 +1,11 @@
 # Emission Editor — 最小実用版への短縮計画（Issue #3）
 
-- 状態: draft。A案の受け入れ基準・動作環境・防御範囲を提示し、実装前に利用者の選択を得る。
+- 状態: approved。提示したA案の受け入れ基準・動作環境・防御範囲について利用者が「1」を選択した。承認内容commitは`19870487d00f411f57a0687424d0156207643927`。
 - 対象: `usaturn/resonite-emission-editor#3`。
 - 文書管理: `usaturn/create-reso-world`。同じ文書branchを使う。
 - Spec: `../specs/2026-11-07-emission-issue-3-native-gate-design.md`。
 - 実装先: `external/emission-editor/.worktrees/issue-3-native-gate`、`feat/issue-3-native-gate`、検討時HEAD `95c3fcf34c7762b23e2b7bf1dd1e9ca445c2f05c`。
-- 実行許可の区別: 利用者は仕様見直しと安全確認等の工程削減を許可した。A案（単独パネルを維持、単独利用に保証を限定）の内容承認は未記録。本改訂では文書だけを変更し、コード・実機を変更しない。
+- 実行許可: 仕様見直し・工程削減の許可に続き、利用者が「1（単独パネルを維持して、この短縮案で進める）」を選択した。A案で実装・実機確認へ進む。内容承認は上記commitへ結び付け、公開許可とは区別する。
 - 旧Planの詳細・完了記録はcommit `f9c536616efbffb228547dcbcfb3fcf2952560f4` の同じパスに保存済み。旧FAIL/未検証を成功へ変更しない。
 
 ## ゴール
