@@ -141,6 +141,16 @@ Command controllerが要求する新しいNativeDeployedStageを実際の固定�
 
 Sテストは、正当なprivate現在値を取得しながら元anchorを変更しない例と、型/metadata/参照/保護/receipt不一致の代表的拒否を実実装へ入力する。重複の層/組合せ、固定文言やLだけの永久テストは追加しない。fake CLIの固定5読取と既存native全構造検査への接続を検証し、実機成功とは呼ばない。同期suite/compile/diff、指定ClaudeのRead/Grep/Glob限定実装レビュー1回（720秒）と採用修正の限定再確認だけを行う。作業全体の時間制限なし/既存予算記録/30分checkpointを維持する。
 
+Task2b-e実装レビュー: code`d38ba66`、127passed/6.59s/compileall/diff。指定Claude190.474秒/exit0/停止確認済み/outside_changes=[]、実modelclaude-opus-5-5、Read/Grep/Globのみ/MCPなし、PASS。Sテスト2件、pure scope/native bool modelは実処理、collector境界はstubのため実CLI/native統合成功ではない。I2Infoの未使用FAKE_DIFF_DATA設定は無害な任意整理としてskip。I1Infoの読取結果を初回baselineへ流用しない条件は、次の初期値照合で具体化する。実機call/write0。
+
+### Task2b-f: 初回baselineを封印宣言の初期値へ結ぶ（着手）
+
+readerの現在値と初回baselineを同じNativeDeployedStageで表していても、Command実行前には封印した全private initialFieldsとの一致を別途検証する。全11fieldの型/完全値を照合し、Command/Done/Capturedだけの未使用判定で任意のTarget/Beforeを採用しない。元のpure phase比較APIの意味は変えず、実行controllerのbaseline入口へこの検査を接続する。
+
+色4成分入力のprofileは推測せず、現current DLLのILを新規採取した。CLI ValueCodec.ColorXはLink.colorXをinitobjしRGBAのみ設定、FrooxEngine.ResoniteLinkTypeMapper.ToEngineはProfile null時にenum1を使い、Renderite.Shared.ColorProfile.sRGB=1である。native型の単なるconstructor既定値からの推測ではない。CLI0.2.0/current6DLL modelに解釈を結び、異なる版/DLLは新しいsource調査へ返す。初回採取/r2の原IL・hash/MVID/実restore/build/runはPARENT_ROOT/tmp/agents/emission-native-reader.azz5cvq_に保存、world call0。
+
+共通受け入れ基準/環境/防御範囲に加え、実入力はBeforeColor/ColorAfter=[0,0,0,1]/sRGB、ColorTarget=[4.25,.5,1.125,.3125]/sRGBと各bool/int。防ぐのは観測済み任意値を新しいBefore/Targetの基準へ採用する誤成功である。Sの代表正例と完全色/型/Before差異の拒否を初期値比較モジュールで検証し、controller既存Sへ接続する。F/L/Dを追加しない。suite/compile/diff同期、同じ指定ClaudeのRead/Grep/Glob限定source/実装レビュー1回（720秒）と必要な採用修正の限定確認だけを行う。create-only全metadata/初回anchor/配備削除制御/実機preflightは残作業であり、これだけで実機書込に進まない。
+
 ## Task 3: preflight・native Drivegate・回復/再試行
 
 **Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。
