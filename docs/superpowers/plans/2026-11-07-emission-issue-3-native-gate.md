@@ -187,6 +187,12 @@ Task2b-hのAPI接続記録（全Hは未完了）: code`6883b93`で複数保護�
 
 今回の実機call/write/resourceと新モデルrunは0。指定ClaudeのH実装/preflightレビュー1回はまだ未使用であり、本変更はそのレビュー前の部分実装である。次は現在の意味baseline/読取専用state/全planとproducer topology/discovery、固定create/deploy/remove/cleanupの適用確認・同一writer制御、初回anchor/currentHEAD package/driver/toolchain/fullpreflightを接続し、まとめて指定レビューする。native0–6と元工程・Issueは未完了。記録はPARENT_ROOT/tmp/agents/emission-lifecycle.f5r0mdyb。公開未実施。
 
+Task2b-hの接続/投影の追記（全Hは未完了）: code`bbcdda3`の`NativeSessionEvidence`は両側の唯一port一致discover、typed session bracket、2回以上の完全inspectとsource由来のproducer topologyを結ぶ。新S2件、134passed/compileall/diff。新16070の8読取はこの検査だけ合格し、panel/syntheticは全値を保持した。active Drive/独立transport/sealed既存graph/fullpreflight/native成功とは呼ばない。解決済みILは現在のDLL/source/output hashへ再結合しただけで、旧採取のflagsを変更していない。
+
+次の読取専用完全宣言による詳細diffは、JSON node制限（実12189/既定10000）、sourceに従う別入力での上限20000設定後はnative graphの同名兄弟84件により、それぞれexit6で拒否された。元失敗・入力・plan・rawを上書きしない。本Issueの明示委任で、CLI宣言投影と厳密raw保全を分ける`diff_omitted_roots`を追加した。対象は明示したgraph subtreeだけで、保護root全体/範囲外/重複境界を拒否する。残った全key/state/ID/親/path/no-op planは必須で、境界もstage間で不変。投影外graphを含む全保護rootは従来の厳密値・型・metadata比較とID集合へ残し、保護範囲を縮めない。空境界なら従来の全件coverageを維持する。S1件を追加し、旧coverage関数のみを戻した実behavioral REDと修正後135passed/compileall/diffを確認した。これはCLIが表現できないgraphを無条件に無視する変更ではなく、全値保全を継続するための区別である。
+
+残りは、更新した明示投影の新しい詳細diff/意味baselineの準備、固定lifecycle writer・created collector/初回anchor・current package/absolute CLI/env/configSources/toolchain/fullpreflightの接続、未使用の指定H実装/preflightレビュー1回と実機0–6/元工程である。今回の準備は旧application stateの探索・復元ではなく、読取専用の新しい宣言key→実ID mapであり、apply/adoptへ使わない。今回のsource/投影の根拠と失敗はPARENT_ROOT/tmp/agents/emission-scope-current.id39o3vsへ保持する。公開未実施。
+
 ## Task 3: preflight・native Drivegate・回復/再試行
 
 **Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。
