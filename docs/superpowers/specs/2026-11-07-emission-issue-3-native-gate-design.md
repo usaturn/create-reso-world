@@ -66,5 +66,11 @@ Task3前提修正は、installed ResoLoop0.2.0のGeneratedContentMetadataとWorl
 
 この補足は、既に具体的に委任されたinstalled正規化・封印入力・意味/範囲照合の不足修正に限る。旧本体PG、A/B/C/OnWritten/OnFail、実UIや依存順序、既存対象へのwrite禁止は変えない。内容はdraftのまま、承認SHAは発明しない。唯一の指定Claudeが同じ受け入れ基準で実装差分と前提を確認した後に新sealを作る。
 
+実行記録: コード74c0eab95536e581b7a3a8e95ba31bbed6031d60、全106passed（5.41秒）、compile/diff成功。新規S2件のREDを確認し、既存のdeployed/phase/cleanup経路も同じ正規化へ統合した。唯一のClaudeの実測205.587秒/exit0/停止確認済み/outside_changesなし、SpecPASS・qualityPASS_WITH_ISSUES、Critical/Importantなし。LowのR1は、封印/実SDKparseの前後で現在のCLI/SDK/entrypoint/関連sourceを再hashし、新sealのhashと結ぶcontroller記録で条件を満たした。LowのR2（Source型/kind拒否の追加テスト候補）は実装自体の欠陥ではなく、次の同領域変更または最終レビューへ保留する。
+
+新しいcurrent IL記録は前後SHA/MVIDと結び、211native DLLが旧sealと一致、外部SDKのPacking/ResoniteLinkも同じ採取済みbytesであることを確認した。過去ILのbindingは証明したとしない。adapter由来の実native型と安定keyの実観測照合は、次のfresh preflight/state確認でもfail-closedに保つ。新しいv3 packageは43ファイル/211DLL、実SDK3PGのcheck/build/manifestとsealed parseすべて成功、stateなし、実行コピー不変。記録は`/workspaces/create-reso-world/tmp/agents/emission-native-next.gk7mchty/`の`package-characterization-binding.json`・`normalization-review/result.json`・`review-rulings.md`。`verify_ready_inputs.py`でオフライン再照合済み。
+
+今回のワールド接続/読取/撮影/書込は0。前面化明示待ちでTask3は未完了、baseline未承認、nativePermission=false。full Root保全・panel詳細diff・fresh identity bracket・現在の競合/前面化確認・意味baselineレビュー・native全phase/再capture/cleanup・S4以降を省略しない。コード/文書ともローカルcommitのみ、公開未実施。
+
 ## 記録・公開
 採取/実session/絶対の個人パス/state/brsonはlocal-only。コードrepoへはPG/生成処理/安全判定とSテスト、READMEだけを追跡する。文書はこのSpec/Planと既存レビュー記録を1つの文書PRへまとめる。新しい小タスク別PRやPR後の自動レビューループを作らない。部分PRはRefs #3、Issueはopen維持。通常ツールのマージは手動限定。

@@ -75,9 +75,15 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 **範囲:** Specの「2026-11-08 再開時の正規化補足」と既存受け入れ基準をそのまま適用する。input宣言へ自動metadataを重複記述せず、v3 sealに正規化期待モデルを保持する。precreate/配備後所有照合に一貫して使用し、markerはtyped Sourceと正確なkey/親/型を検証、private ValueFieldへ混入させない。
 **テスト:** S（metadataの欠落/改変や余分なComponentを見逃した範囲許可を防止）。代表正負例だけ追加し、既存全subtree/偽CLIテストと統合する。CLI版拒否は、未対応の正規化を黙って許可する損害を防ぐS。文書/固定文言/ファイル一覧だけのFテストは追加しない。
 **代わりの検証:** 全pytest、compile/diff、現在assembly前後hash付きIL再採取、sole-Claudeの修正範囲確認、新しいclean HEADから実SDK3PG/package/parse検証。過去失敗/旧sealは変更せず、修正後の成功やnative許可へ読み替えない。
-- [ ] source-groundedな正例と欠落/改変/余分なmetadata拒否をRED→GREENにする。
-- [ ] 全suite/compile/diff後にcommitし、同じ受け入れ基準・原文の要件を唯一のclaude-code_opus_defaultへ渡して確認する。
-- [ ] 新規IL証跡と新package/executionを準備し、nativePermission=falseのまま残る前面化/fullpreflight条件を明示する。
+- [x] source-groundedな正例と欠落/改変/余分なmetadata拒否をRED→GREENにする。
+- [x] 全suite/compile/diff後にcommitし、同じ受け入れ基準・原文の要件を唯一のclaude-code_opus_defaultへ渡して確認する。
+- [x] 新規IL証跡と新package/executionを準備し、nativePermission=falseのまま残る前面化/fullpreflight条件を明示する。
+
+記録:74c0eab、106passed/compile/diff成功。roleツール2呼出しが無出力/レポートなしだったため、これ以上再試行せずcontrollerがinlineでこの限定修正を実装した。レビューは指定Claude1名だけ、実測205.587秒/exit0/停止確認済み/outside_changes=[]、SpecPASS・qualityPASS_WITH_ISSUES。R1Lowの実行物hash結合条件は、新package/実SDK3parseの前後hashと新sealSHAを結ぶcontroller記録で満たした。R2LowのSource型/kind負例追加候補は、実装の拒否が存在するため次の同領域変更/最終レビューまで保留。追加レビューループは実行していない。
+
+新v3 package/executionはSESSION_NEXT/sdk-normalizedとそのsibling、43files/211DLL、全3実SDKcheck/build/manifest/parse成功。SESSION_NEXTはPARENT_ROOT/tmp/agents/emission-native-next.gk7mchty。current-binding-receipt.json・sdk-external-binding.json・package-characterization-binding.jsonで現在のbytesを結び、verify_ready_inputs.pyで再照合した。歴史的ILのhash bindingを遡って主張しない。現在のsource/IL characterizationは適切だが、adapter由来の実型/plan安定keyは次のfresh実観測でも厳密比較する。
+
+今回のnativeアクセスは0。16070指定は前面化明示ではないため、Task3は現在のワールドの前面化と他編集の停止の明示待ち。fullpreflight/baselineレビュー/phase/recapture/cleanup/Task4以降は未完了。公開未実施。
 
 ### Task 3: fresh preflightと短いDrivegateを逐次実行する
 **Files:** 生成物/実raw/ログ/stateはSESSION以下だけ（commitしない）、Spec/Planの結果追記。
