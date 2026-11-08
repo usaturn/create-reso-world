@@ -1859,3 +1859,92 @@ def test_findings_paths_require_repository_identity(tmp_path: Path, operation: s
             workspace.findings_artifact_paths(tmp_path, "feature", "model", pr_number=4, commit="a" * 40)
         else:
             workspace.safe_findings_destination(tmp_path, "reviews/#4-feature/findings/model-aaaaaaaaaaaa.json")
+
+
+def test_strict_reap_retires_a_saved_session(created_session: dict[str, Any], capsys: pytest.CaptureFixture[str]) -> None:
+    # 正しく通る例: 保存済みで余分な物の無いセッションだけを退役し、保存した本文は消さない。
+    result = created_session["result"]
+    repo = created_session["repo"]
+    state_file = result["state_file"]
+    session_dir = Path(state_file).parent
+    saved = saved_session(created_session)
+
+    assert workspace.main(["reap-check", "--state", state_file]) == 0
+    checked = json.loads(capsys.readouterr().out)
+    assert (checked["status"], checked["retirement"], checked["retained_paths"]) == ("eligible", "saved", None)
+    assert workspace.main(["cleanup", "--strict-reap", "--state", state_file]) == 0
+    retired = json.loads(capsys.readouterr().out)
+
+    assert retired["status"] == "retired" and retired["stop_evidence"] is None
+    assert not session_dir.exists() and result["worktree"] not in git(repo, "worktree", "list")
+    assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
+
+
+@pytest.mark.parametrize("kind", ["untracked", "ignored", "locked", "session-entry", "creator-running"])
+def test_strict_reap_keeps_a_saved_session_it_cannot_account_for(
+    created_session: dict[str, Any], capsys: pytest.CaptureFixture[str], kind: str
+) -> None:
+    # 利用者の作業・作成中のセッション・未知の項目を、保存済みという理由だけで消さない。
+    result = created_session["result"]
+    repo = created_session["repo"]
+    state_file = result["state_file"]
+    worktree = Path(result["worktree"])
+    session_dir = Path(state_file).parent
+    saved_session(created_session)
+    journal_stream = None
+    if kind == "untracked":
+        (worktree / "notes.txt").write_text("memo\n", encoding="utf-8")
+    elif kind == "ignored":
+        exclude = Path(git(repo, "rev-parse", "--git-common-dir"))
+        exclude = (repo / exclude if not exclude.is_absolute() else exclude) / "info" / "exclude"
+        exclude.parent.mkdir(exist_ok=True)
+        with exclude.open("a", encoding="utf-8") as stream:
+            stream.write("*.log\n__pycache__/\n")
+        (worktree / "notes.log").write_text("log\n", encoding="utf-8")
+        (worktree / "__pycache__").mkdir()
+        (worktree / "__pycache__" / "a.pyc").write_bytes(b"x")
+    elif kind == "locked":
+        git(repo, "worktree", "lock", "--reason", "利用者", str(worktree))
+    elif kind == "session-entry":
+        (session_dir / ".session.json.tmp").write_text("{", encoding="utf-8")
+    else:
+        journal_stream = open(session_dir / "create-journal.jsonl", "rb")  # noqa: SIM115
+        fcntl.flock(journal_stream.fileno(), fcntl.LOCK_EX)
+
+    try:
+        assert workspace.main(["reap-check", "--state", state_file]) == 1
+        kept = json.loads(capsys.readouterr().out)
+        assert kept["status"] == "retained" and kept["reason"]
+        assert kept["retained_paths"]["session_dir"] == str(session_dir)
+        assert workspace.main(["cleanup", "--strict-reap", "--state", state_file]) == 1
+        capsys.readouterr()
+        assert session_dir.is_dir() and worktree.is_dir()
+        if kind == "ignored":
+            (worktree / "notes.log").unlink()
+            assert workspace.main(["reap-check", "--state", state_file]) == 0
+    finally:
+        if journal_stream is not None:
+            journal_stream.close()
+
+
+def test_strict_cleanup_rechecks_under_the_save_lock(
+    created_session: dict[str, Any], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # ロックの外の判定の後に増えた物を、ロックの中の再判定で見つけて消さない。
+    result = created_session["result"]
+    state_file = result["state_file"]
+    session_dir = Path(state_file).parent
+    saved_session(created_session)
+    original = workspace.review_save_lock
+
+    @contextlib.contextmanager
+    def late_writer(repo: Path):  # noqa: ANN202
+        with original(repo):
+            (session_dir / "review-backup" / "late.md").write_text("late\n", encoding="utf-8")
+            yield
+
+    monkeypatch.setattr(workspace, "review_save_lock", late_writer)
+
+    assert workspace.main(["cleanup", "--strict-reap", "--state", state_file]) == 1
+    capsys.readouterr()
+    assert (session_dir / "review-backup" / "late.md").is_file()
