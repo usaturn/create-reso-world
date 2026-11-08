@@ -302,9 +302,12 @@ SDD の作業領域は `PARENT_ROOT/tmp/agents/issue-340.exiarxw6/sdd/2026-11-08
 - Step 4: 実 API の `-p` を 1 回（やり直しなし）。成功（4 turns）。stream-json の部分メッセージ（`thinking_delta`・`text_delta`）、thinking のブロック、Read・Bash・Agent の結果を受けた継続、サブエージェントの中の Read を確かめた。応答の model は `deepseek-v4.1-flash:1017`（`[1m]` は送られていない）。標準エラーに `unrecognized_model` の通知が 1 行出た
 - Step 5: 対話の `/status` は `Auth token: ANTHROPIC_AUTH_TOKEN`、`Anthropic base URL: https://ollama.com`、`Model: opus (deepseek-v4.1-flash:1017[1m])` だった
 
+### PR #342 のレビュー修正
+
+- PR の 1 回目のレビュー（gpt-6.1-sol の M-1）で、ガードの `[[:space:]]` が NBSP・BOM・U+202F（C ロケールでは U+3000・U+2028 も）を除かず、Claude Code が trim で空とみなすキーで claude を起動すると分かった。ガードを `[[ ${OLLAMA_API_KEY:-} != *[A-Za-z0-9]* ]]`（ASCII の英数字を 1 文字も含まなければ起動しない）に、テストの入力を `$' \xc2\xa0\xef\xbb\xbf'` に変えた（`0665a44d`）。上の Task 1 のガード・テストの入力・エラー文は、実行したときの版である。経緯は `docs/superpowers/specs/2026-11-08-issue-340-ollama-launcher-review-fixes-design.md`
+
 ### 持ち越し（マージの後に再調査する候補）
 
 - 既存の `ccdd`・`ccddg` の `${DEEPINFRA_TOKEN:?…}` と、`ccdu` の `:-` の連鎖は、空白だけの値を通す（この Issue の範囲の外。`ccdol` と同じ種類の損害のおそれ）
-- `ccdol` のガードの `[[:space:]]` は NBSP（U+00A0）・BOM（U+FEFF）を除かない（Spec の入力の範囲の外。Claude Code 側の判定も未確認）
 - README の起動例のコードフェンスが `bash` のまま（例は zsh の構文。`ccdol` は zsh の関数）
 - README の文言の小さな点（「変数ごとに読まれるので」の主語、Ollama の連携の手順の文、長い行の改行の位置）

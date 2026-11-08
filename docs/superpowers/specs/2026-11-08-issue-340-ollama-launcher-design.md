@@ -26,7 +26,7 @@ Dev Container の Claude Code から、Ollama Cloud の Anthropic 互換 API（`
 | 項目 | 選択した案 | 検討した別案 | 選択理由 | 委任指示または停止条件 |
 | --- | --- | --- | --- | --- |
 | ランチャーの形 | `zshrc.txt` に `function claude-ollama ccdol ()` を `ccdd` と同じ形で足す。`ccdol` だけが `--dangerously-skip-permissions` を付け、`claude --model opus "${opts[@]}" "$@"` で起動する | 実行ファイル化して agent-runner に登録する（移植元 #860） | Issue が指定し、#860 は対象外と明記している。既存の 3 関数と同じ形にすると、共通の unset と既存テストの形がそのまま使える | Issue の指定のとおり。推奨案で決定 |
-| キーの検査 | `[[ -z ${${OLLAMA_API_KEY:-}//[[:space:]]/} ]]` で、空白を除いて空なら値を出さない固定文のエラーを標準エラーに出して `return 1`。`claude` を起動しない | `${OLLAMA_API_KEY:?...}`、`[[ -z $OLLAMA_API_KEY ]]` | 後の 2 つは空白だけの値を通す。Claude Code は `ANTHROPIC_AUTH_TOKEN` が空か空白だけだと保存済みの claude.ai の OAuth トークンを接続先へ送るので、空白も止める必要がある（Issue） | Issue の指定のとおり |
+| キーの検査 | `[[ ${OLLAMA_API_KEY:-} != *[A-Za-z0-9]* ]]`（ASCII の英数字を 1 文字も含まない）なら、値を出さない固定文のエラーを標準エラーに出して `return 1`。`claude` を起動しない | `${OLLAMA_API_KEY:?...}`、`[[ -z $OLLAMA_API_KEY ]]`、空白（`[[:space:]]`）を除いて空かを見る判定 | Claude Code は `ANTHROPIC_AUTH_TOKEN` を trim して空なら未設定とみなし、保存済みの claude.ai の OAuth トークンを接続先へ送る。trim は NBSP・BOM などの Unicode の空白も除くので、空だけ・`[[:space:]]`（ロケール依存）だけを見る判定では足りない（Issue。PR #342 のレビュー修正で、当初の `[[:space:]]` の判定から変えた。経緯は `2026-11-08-issue-340-ollama-launcher-review-fixes-design.md`） | Issue の指定のとおり |
 | 認証の経路 | `ANTHROPIC_AUTH_TOKEN="$OLLAMA_API_KEY"`（Bearer）。`ANTHROPIC_API_KEY` は共通の unset で外したままにする | `ANTHROPIC_API_KEY`（`x-api-key`） | cloud endpoint は `x-api-key` だけでは受け付けない（Issue・移植元） | Issue の指定のとおり |
 | モデルと実行時の設定 | 4 つの tier すべてに `deepseek-v4.1-flash:1017[1m]`、`CLAUDE_CODE_EFFORT_LEVEL=max`、`CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536`、`ENABLE_CLAUDEAI_MCP_SERVERS=false` | 無印の `deepseek-v4.1-flash`、`:cloud`・`:1017-cloud`、`[1m]` を一部の tier だけに付ける | 版を固定し、直接接続で使える名前にする。`[1m]` は変数ごとに読まれるので 4 つすべてに付ける（Issue） | Issue の指定のとおり |
 | 認証情報の漏れの防止 | `cc_launcher_unsets` と `expected_unsets` の両方に `OLLAMA_API_KEY` を足す（既存の F∩S の更新）。`zshrc.txt` とテストのコメントのランチャー名も 4 つにする | 共通の一覧に足さず、`ccdol` だけで扱う | 足さないと `ccdd`・`ccddg`・`ccdu` の子に Ollama の key が渡る。既存の完全一致の照合が、一覧の追加漏れも捕まえる | Issue の指定のとおり |
@@ -44,7 +44,7 @@ Dev Container の Claude Code から、Ollama Cloud の Anthropic 互換 API（`
 Issue の「受け入れ条件・検証」を、そのまま本 run の条件にする。
 
 1. `OLLAMA_API_KEY` を export したシェルで `ccdol` を起動すると、`/status` が `Anthropic base URL: https://ollama.com`、`Model: opus (deepseek-v4.1-flash:1017[1m])`、`Auth token: ANTHROPIC_AUTH_TOKEN` を示す
-2. `OLLAMA_API_KEY` が未設定・空・空白だけのとき、key の値を表示せずに非 0 で止まり、`claude` を起動しない
+2. `OLLAMA_API_KEY` が未設定・空・空白だけ（NBSP・BOM などの Unicode の空白を含む。Claude Code が trim して空とみなす値）のとき、key の値を表示せずに非 0 で止まり、`claude` を起動しない
 3. 親シェルの `ANTHROPIC_*`・各プロバイダの key（`OLLAMA_API_KEY` を含む）が、`ccdol`・`ccdd`・`ccddg`・`ccdu` の子に届かない。`OLLAMA_API_KEY` は `ccdol` の `ANTHROPIC_AUTH_TOKEN` に入れた分以外では子に残らない
 4. 空白・改行を含むプロンプトや `-p` などの追加引数が、分割・欠落せずに `claude` に渡る
 5. README の文言・model ID・環境変数の一覧を写すだけのテストを足さない（`expected_unsets` は既存の F∩S として更新する）
@@ -53,7 +53,7 @@ Issue の「受け入れ条件・検証」を、そのまま本 run の条件に
 
 防御範囲:
 
-- 対象: `ccdol`・`claude-ollama` の送り先・認証の経路・省略フラグ・MCP の無効化、`OLLAMA_API_KEY` の空白だけの値での起動の停止、4 つのランチャーの子への親シェルの認証情報の漏れ
+- 対象: `ccdol`・`claude-ollama` の送り先・認証の経路・省略フラグ・MCP の無効化、`OLLAMA_API_KEY` の空白だけ（Unicode の空白を含む）の値での起動の停止、4 つのランチャーの子への親シェルの認証情報の漏れ
 - 対象外の反例として、正しい key（テストの偽の値）では `ccdol` が `claude` を起動し、`ANTHROPIC_AUTH_TOKEN` に key が入ること（送り先のテスト）。`claude-ollama` は省略フラグを付けないこと
 - 対象外: `.claude/settings.json`・`~/.claude/settings.json` での接続先の切り替え、Ollama の CLI・ローカルの daemon・`ollama launch claude`、agent-runner への登録、Pi 向けのランチャー、`settings.json` の `env` がシェルの値より優先される挙動そのもの（README で案内するだけ）、1M に近い長さの会話の確認
 
