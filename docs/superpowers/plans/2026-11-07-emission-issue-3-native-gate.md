@@ -133,6 +133,14 @@ Task2b-d完了記録: code`d96327a`→`bf020f8`。Command1–6/独立再capture�
 
 **残作業:** 全Task2bは未完了。新しいNativeDeployedStageの実機reader、create/deploy/helper削除/最終cleanupの適用済み/未適用/部分適用/不明と回復、currentdriver/source-producer/保護意味baseline/fullpreflight、新HEAD package、実機0–6/別再capture拒否/復元cleanupと元工程を次に実装する。今回の実機call/write/resourceは0。公開未実施、通常の許可待ちではない。
 
+### Task2b-e: deployed native readerの接続（着手）
+
+Command controllerが要求する新しいNativeDeployedStageを実際の固定読取で採取する。元anchorの独立検証を先に行い、session-before/fixture/protected/diff/session-afterを別receiptへ保存する。期待treeは元anchorの安定構造・metadata・IDを保持し、module部分だけは元layout receipt/current DLL modelから構成する。型/IDを固定したprivate Valueだけを現在値の観測として取り出す。これはBeforeやphase成功期待の採用ではなく、適用済み/未適用/部分適用の分類入力である。phase期待は元baselineだけから生成し、未知kind/default/余分なmetadataは受理しない。
+
+受け入れ基準は共通基準と元機能要件を維持。環境はcurrent SDK/native DLL/Python3.14/uv。入力は非ASCII session、完全HDR/alpha/profile、bool、元値と異なる部分適用、helper有/無。防御範囲はanchor/保護対象/所有/receipt/diff/current layout/型/Beforeの取り違えと観測丸写しによる誤成功。create-onlyの認証、create/deploy/delete実行制御と完全preflightそのものは別の残作業である。
+
+Sテストは、正当なprivate現在値を取得しながら元anchorを変更しない例と、型/metadata/参照/保護/receipt不一致の代表的拒否を実実装へ入力する。重複の層/組合せ、固定文言やLだけの永久テストは追加しない。fake CLIの固定5読取と既存native全構造検査への接続を検証し、実機成功とは呼ばない。同期suite/compile/diff、指定ClaudeのRead/Grep/Glob限定実装レビュー1回（720秒）と採用修正の限定再確認だけを行う。作業全体の時間制限なし/既存予算記録/30分checkpointを維持する。
+
 ## Task 3: preflight・native Drivegate・回復/再試行
 
 **Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。
