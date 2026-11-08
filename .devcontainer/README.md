@@ -764,7 +764,9 @@ Command Code GOAT の `piccg`・`piccd` は契約停止中のため通常導入�
 
 第三者プロバイダのランチャーは次の対応で起動する。比較基準と採否は
 [Claude Code 移植の Spec](../docs/superpowers/specs/2026-10-04-issue-21-claude-code-design.md)
-に記録している。実プロバイダへの接続検証は別途行う。
+に記録している（Ollama Cloud の採否は
+[ccdol の Spec](../docs/superpowers/specs/2026-11-08-issue-340-ollama-launcher-design.md)
+にある）。実プロバイダへの接続検証は別途行う。
 
 | 通常名 / 短い起動名 | 接続先 | 既定モデル（opus） | fable の割り当て | 認証に使う変数 |
 | --- | --- | --- | --- | --- |
@@ -817,9 +819,12 @@ model ID は版を固定した `:1017` を使う。無印の `deepseek-v4.1-flas
 #### 起動
 
 ```bash
-export OLLAMA_API_KEY="..."
+read -rs 'OLLAMA_API_KEY?Ollama API key (非表示): ' && export OLLAMA_API_KEY
 ccdol
 ```
+
+入力値は画面に表示されず、コマンド履歴にも値が残らない。
+端末の表示や pane のスクロールバックに値が残らないようにするため、キーをコマンドラインに直接書かない。
 
 既存のコンテナは rebuild するか、「Claude Code の起動と更新」の手順で `~/.zshrc` に反映する。
 `OLLAMA_API_KEY` が未設定・空・空白だけなら、キーの値を表示せずにエラーを出し、
@@ -847,7 +852,8 @@ Ollama へ送る model ID からは外れる。`/status`・`/context`・起動�
 
 - `/context` は 1M を分母にする（例: `37k/1m tokens`）
 - 自動の compact は、会話が 1M に近づいたときに起きる
-- prompt caching が効かないので、会話が長くなるほど毎回の入力が大きくなる。
+- prompt caching が効かないので、毎回会話の全体を処理し直す。
+  長くなるほど 1 回ごとの処理量（利用枠・待ち時間）が増える。
   早めに compact したいときは、`CLAUDE_CODE_AUTO_COMPACT_WINDOW` を前に付けて起動する
   （例: `CLAUDE_CODE_AUTO_COMPACT_WINDOW=300000 ccdol`）
 
@@ -1580,8 +1586,8 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
 
 Meshy の `MESHY_API_KEY` はここには含めない。ファイルを作らない非表示入力の手順は「Meshy CLI と生成物の受け渡し」にある。
 
-次の変数は、`OLLAMA_API_KEY` を除いて、「秘密情報」の節の `~/.config/create-reso-world/env` に書けばシェルの起動時に
-export される。書かない場合は、必要なときに手動で export する。
+次の変数は、「秘密情報」の節の `~/.config/create-reso-world/env` に書けばシェルの起動時に
+export される（`OLLAMA_API_KEY` は書かない。下の項目）。書かない場合は、必要なときに手動で export する。
 
 - `OPENCODE_API_KEY` は `pigo`・`pigod` と、`pigs`・`pixg` の OpenCode Go の tier の
   子 Pi の実行には不要である。bind mount した `auth.json` に資格情報が残るため、pi はそこから読む
