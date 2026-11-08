@@ -56,6 +56,14 @@ helper は、resolveの後の実行ごとに、親の `reviews/<owner>/<repo>/#<
 - completeは `success` か `failed`（`complete`・`save`・`cleanup`）、`fail --state` は `failed`（`review`）にする。強制終了・タイムアウトでは `started` のまま残る
 - prepare・complete・failの返却JSONは `run_record`（記録の完全パス、無ければnull）を持つ。作成後の更新に失敗したときだけ `run_record_error` を足し、レビューのstatusは変えない
 
+## セッションの退役
+
+定期掃除（`.devcontainer/cleanup-workspace.bash`）と repo-cleanup-after-merge は、どちらも `pr_review_workspace.py reap-check --allow-failed` → `cleanup --strict-reap --allow-failed` でセッションを退役させる。
+
+- 失敗セッションの停止の証拠は、`attach-runner` が実行記録の `runner` 欄に書いた `stop_confirmed` である。`attach-runner` を省いた失敗セッションは、停止を確認できず保持される
+- 未保存の draft・編集した候補・`previous-review.md`・未知のファイルがあるセッションは保持する
+- 保持するときは終了コード 1 と `status: "retained"` の JSON（`reason`・`retirement`・`stop_confirmation_needed`・`retained_paths`）を返す。定期掃除は `--operator-confirmed-stopped` を使わない
+
 ## complete
 
 ```bash

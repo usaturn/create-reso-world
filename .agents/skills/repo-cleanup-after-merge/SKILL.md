@@ -1,7 +1,7 @@
 ---
 name: repo-cleanup-after-merge
 description: Use when ユーザーが、PR がマージされた後のローカルリポジトリの片付けを依頼する場合。マージ済み branch の削除、使い終わった worktree の整理、レビュー用の使い捨て worktree の残骸の掃除、作業ツリーの origin/main への追従が対象。未マージの作業のリベース、コンフリクト解消、リリース作業には使用しない。例:「PR が全て Merge されたことを確認して branch, worktree を整理してローカルを更新して」「マージ済みのブランチを消して」「worktree を掃除して」「origin/main に追従して」「リポジトリを整理して」
-allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(git *), Bash(gh *), Bash(ls *), Bash(diff *), Bash(mktemp *), Bash(cmp *), Bash(find *), Bash(cp *), Bash(rm *), Bash(uv run --no-project python -c *), Bash(uv run --no-project python *pr_review_workspace.py sessions *), Bash(bash scripts/resoloop-fork.sh sync)
+allowed-tools: Read, Grep, Glob, AskUserQuestion, Bash(git *), Bash(gh *), Bash(ls *), Bash(diff *), Bash(mktemp *), Bash(cmp *), Bash(find *), Bash(cp *), Bash(rm *), Bash(uv run --no-project python -c *), Bash(uv run --no-project python *pr_review_workspace.py sessions *), Bash(uv run --no-project python *pr_review_workspace.py reap-check *), Bash(uv run --no-project python *pr_review_workspace.py cleanup *), Bash(bash scripts/resoloop-fork.sh sync)
 ---
 
 # マージ後のリポジトリ整理
@@ -197,12 +197,29 @@ clean とするのは、2 つの終了コードがどちらも 0 で、1 つ目�
 
 ### 5. worktree を削除する
 
+#### pr-review のセッションは helper で退役させる
+
+手順 1 の `sessions` が `removable: true` を返し、手順 1 のオープン PR の対象外にも当たらない `/tmp/pr-review-*` のセッション（version 7・8 とも）は、先に helper の `reap-check` → `cleanup --strict-reap` で退役させる。`STATE_FILE` は候補ディレクトリ直下の `session.json` の絶対パスである。リポジトリのルートで、次の順に実行する。
+
+1. `uv run --no-project python .agents/skills/pr-review/scripts/pr_review_workspace.py reap-check --allow-failed --state "$STATE_FILE"`
+2. 1 の終了コードが 0（`status: "eligible"`）のときだけ、`uv run --no-project python .agents/skills/pr-review/scripts/pr_review_workspace.py cleanup --strict-reap --allow-failed --state "$STATE_FILE"`
+
+- 終了コード 0（`status: "retired"`）: worktree・残骸・自セッションの ref の処理まで済んでいる。このセッションを下の通常の worktree 削除と手順 6 に回さない
+- 終了コード 1: 退役しない。stdout の JSON（`status: "retained"`）の `reason`・`retirement`（`saved` か `failed`）・`stop_confirmation_needed`・`retained_paths` を控え、worktree ごと保持して手順 11 で報告する
+- 終了コード 2: 引数の誤り、または状態を読めない。stderr の `error: ...` を控え、同じく保持して手順 11 で報告する
+- `run_context` を持つセッションと version 8 のセッションは、helper が拒否しても、通常の worktree 削除や手順 6 へ迂回しない。`run_context` の無い version 7 のセッションだけは、拒否されたときに限り、下の今までの経路（手順 4 の clean の確認、`git worktree remove`、手順 6）を使える
+- `--force` は付けない。helper を使わずに pr-review のディレクトリを `rm -rf` しない
+
+拒否の `stop_confirmation_needed` が `true`（停止の確認だけが足りない失敗セッション）のときに限り、担当のプロセスと子孫の停止を実際に確かめた人が、その確認内容を空白だけでない理由にして `--operator-confirmed-stopped "$CONFIRMED_STOP_REASON"` を付け、`cleanup --strict-reap --allow-failed` を実行できる。年齢・PID が無いこと・モデルの `fail` は確認の代わりにならない。エージェントが理由を作らず、利用者が確認して指示したときだけ実行する。
+
+#### 通常の worktree 削除
+
 削除してよいのは、手順 4 で clean を確認し、ignore 対象が再生成できるキャッシュだけだった次の worktree に限る。
 
 - 手順 3 でマージ済みと判定した branch を checkout している worktree
-- 手順 1 の `sessions` が `removable: true` を返し、session.json が version 7 で、手順 1 のオープン PR の対象外にも当たらない `/tmp/pr-review-*` の worktree
+- 手順 1 の `sessions` が `removable: true` を返し、session.json が version 7 で `run_context` を持たず、手順 1 のオープン PR の対象外にも当たらず、上の helper が退役させなかった `/tmp/pr-review-*` の worktree
 
-version 8 の session（`target_kind=checkout`・`bundle` とも）と `.staging/` は、この手順で削除しない。`removable: true` でも保存 pair・停止・所有の確認を省略できない。旧版の親側の確定手順は撤去済みなので、現行のレビュー helper で対応と所有を確認できない過去の session は、完全パスと理由を報告して保持する。
+version 8 の session（`target_kind=checkout`・`bundle` とも）と `.staging/` は、helper の `cleanup --strict-reap` 以外の方法では削除しない。`removable: true` でも保存 pair・停止・所有の確認を省略できない。現行の helper で対応と所有を確認できない過去の session は、完全パスと理由を報告して保持する。
 
 それ以外の worktree は削除せず、手順 11 で報告する。手順 1 で対象外にしたもの（オープン PR に対応するもの、`prunable`・`locked` のもの）のほかに、branch を checkout していない detached な worktree（PR 修正ループなど、別の run が作ったもの。上の `/tmp/pr-review-*` は除く）も対象外である。HEAD が `origin/main` から到達可能で clean でも、所有者が使っている作業場所かどうかは Git から分からない。`/tmp/pr-review-*` の worktree も detached だが、親の `session.json` に固定された所属リポジトリと PR 番号で、helper が PR の終了を確かめられるので、上の条件で選ぶ。
 
@@ -220,7 +237,7 @@ worktree 本体の削除と、手順 6 の残骸削除は **別の判断**であ
 
 `git worktree remove` は作業ツリーだけを消す。親ディレクトリに残る `session.json` や `review-backup/` は **git 管理外**であり、`git status` にも `git worktree list` にも現れない。
 
-この手順は、`worktree/` が無くなった残骸ディレクトリだけに適用する。手順 1・5 で残した worktree を含むディレクトリは消さない。
+この手順は、`worktree/` が無くなった残骸ディレクトリだけに適用する。手順 1・5 で残した worktree を含むディレクトリは消さない。helper が拒否したセッションと、`session.json` に `run_context` を持つセッションは、worktree が無くても対象にしない。worktree を外してからこの手順で消す迂回をしない。停止未確認の失敗セッションを、年齢や PID の不在を根拠に即時に消さない。
 
 残骸の `session.json` を版ごとに読む。version 7 は `main_root` + `destination` が正式保存先で、`pr_repository` と PR 番号も照合する。version 8 は `parent_root` + `destination` が本文で、候補の相対パスは helper の `findings_artifact_paths` が state の repository・PR 番号・model・commit から返す値を使い、同じ `parent_root` に結合する。`pr_repo` と PR 番号も照合する。候補パスを state の架空の欄から読んだり、手で命名したりしない。`target_root`（checkout または所有 bundle repository）へ保存先を結合しない。branch 名の変換で推測しない。
 
@@ -370,6 +387,8 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 
 手順 1 で控えた `prunable`・`locked` な worktree と、`sessions` が `removable: false` を返した `/tmp/pr-review-*`（`reason` を添える）と、手順 4・5 で削除しなかった worktree は、パスと理由（`prunable` や `locked` の行の内容、`git -C` の終了コード、branch を持たない別 run の worktree であること）を添えて、所有者の確認が要るものとして報告する。移動済みの worktree は、所有者が移動先を確かめて `git worktree repair <移動先>` を個別に行う。本体が無い登録は、所有する run の停止と対応を確かめた所有者が、対象を限定して回収を判断する。このスキルでは repair も回収も行わない。
 
+手順 5 で helper が退役させたセッションは、退役済みとして報告する。helper が拒否したセッション（終了コード 1・2）は、ディレクトリのパスと `reason`（終了コード 2 は stderr の `error: ...`）、`retirement`、`stop_confirmation_needed`、`retained_paths` を添えて、所有者の確認が要るものとして報告する。`stop_confirmation_needed: true` のものは、担当と子孫の停止を確かめた人の確認が要ると明記する。
+
 ## Red Flags: 手を止めてワークフローに戻る
 
 - 「Merge 済みなので役目は終えている」を根拠に git 管理外ファイルを消そうとしている
@@ -383,6 +402,7 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 - 「時間が無い」「手早く」と言われたので確認を飛ばそうとしている
 - `git worktree remove` の前に `status --short --ignored` を見ていない
 - `/tmp/pr-review-*` の session を、番号・branch・commit の一致や、片方のリポジトリの PR 一覧に無いことを根拠に、終了した PR のものとみなそうとしている
+- helper が拒否した pr-review のセッションを、`git worktree remove` で worktree を外してから手順 6 で消そうとしている。`--operator-confirmed-stopped` の理由をエージェントが作ろうとしている
 
 **いずれかに該当したら、削除を中止して手順 1・4・5・6・9 のいずれかに戻る。**
 
@@ -399,6 +419,7 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 | 「HEAD が `origin/main` から到達可能で clean なので、detached な worktree を消しても失うものは無い」 | 追跡内容は失わなくても、別の run が使っている作業場所と登録を奪う。branch を持たない worktree の所有者は Git から分からない。例外は、helper の `sessions` が PR の終了を確かめた（`removable: true`）`/tmp/pr-review-*` だけである |
 | 「一括 prune は危ないので、消してよい登録だけを `git worktree remove` で個別に消せばよい」 | 存在しないパスへの `remove` も、prune と同じく登録を消す。どの登録を消すかは所有者が照合して決める。片付けの手順では決めない |
 | 「番号も branch も head も同じ PR がマージ済みなので、このレビューの session も終わっている」 | fork と上流は同じ checkout を使い、番号・branch・head が重なり得る。session に固定された所属リポジトリで PR の状態を確かめた `removable: true` だけが候補である |
+| 「失敗セッションの担当は、年齢も PID も見えないので止まっているはず」 | 年齢・PID が無いことは停止の確認ではない。`reap-check` が `stop_confirmation_needed: true` で拒否したら保持し、停止を実際に確かめた人の理由がある場合だけ `--operator-confirmed-stopped` で実行する |
 | 「消した後で問題があれば言ってもらえばいい」 | `rm -rf` に取り消しは無い。削除の前だけが確認である |
 | 「マージ済み branch の削除は cleanup の一環」 | ローカルはそうである。リモートは他人が見る共有物であり、外向きの操作である |
 | 「手早くと言われた」 | 照合は数秒で終わる。失ったレビューの再生成はそれより桁違いに高い |
@@ -413,6 +434,8 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 - `prunable`・`locked` な worktree と、branch を checkout していない別 run の worktree（手順 5 の `/tmp/pr-review-*` を除く）を `git worktree remove` しない。
 - ユーザー確認なしに `git push`（`--delete` を含む）や `scripts/resoloop-fork.sh sync` を実行しない。
 - Open PR が残っている branch と worktree を削除しない。detached な pr-review worktree も含む。
+- pr-review のセッションは helper の `cleanup --strict-reap` で退役させる。拒否されたセッション（`run_context` を持つものと version 8 を含む）は、worktree の削除と手順 6 に回さず保持する。
+- `--operator-confirmed-stopped` の理由を、エージェントが作らない。
 - gitignore 対象のファイルは、再生成できるキャッシュを除き、正本と照合するかユーザーの確認を得るまで削除しない（`reviews/`、`docs_draft/`、`tmp/`、`external/` など。worktree ごと消す場合も同じ）。
 - コンフリクト解消、rebase、リリース作業は行わない。
 
