@@ -96,7 +96,7 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
      「pi-superagents のランチャー別 model tier」）
    - #305 の Terra / DeepInfra の追加: 「Terra / DeepInfra ランチャーの既存環境への追加」に従う。
      既存の `models.json` は rebuild でも更新されない
-   - agent-runner の旧名参照: 「旧担当からの個人設定の移行」に従って手動で更新する。rebuild による設定消失を移行の代わりにしない
+   - agent-runner の旧名参照: 「旧担当からの個人設定の移行」に従って手動で更新する。Devin の改名（#341）は「Devin の agent 名の変更（#341）」に従う。rebuild による設定消失を移行の代わりにしない
    - pi の project trust: まだ承認していなければ、リポジトリのルートで素の `pi` を起動して承認する。
      承認の後に `.pi/settings.json`・`.pi/mcp.json`・`.pi/APPEND_SYSTEM.md`（pi 固有の指示）と
      プロジェクトのスキル（`.agents/skills`）が読まれる
@@ -838,7 +838,12 @@ runner が `outside_changes` として事後に報告する。`~/.cursor/cli-con
 
 雛形の agent ID は `<runtime>_<provider>_<model>_<effort>` とする。段内の区切りは `-`、
 provider 未指定ならその段を省略する。model は系列・メジャー版・tier の小文字で表し、
-マイナー版・日付・ベンダー接頭辞は省く。effort 未指定は `default` とする。
+マイナー版・日付・ベンダー接頭辞は省く。tier はモデルの種類（`sol`・`flash` など）を指す。
+slug に含まれる effort の軸の tier（Devin の `swe-2-max` の `max`、Cursor の `grok-4.7-xhigh` の `xhigh`）は
+model の段に入れず、effort の段に置く。effort は設定値を使い、設定値が無ければ model の値（slug）に含まれる
+実効の effort を使い、どちらも無ければ `default` とする。
+例えば `devin_swe2_max` は Devin / SWE-2 / max（`model = "swe-2-max"` の slug の実効値）を表し、
+既存の `cursor_grok4_xhigh`（`model = "grok-4.7-xhigh"`）も同じ規則である。
 この規則は雛形の名前にだけ適用し、個人設定の名前は強制しない。ランチャーの実行ファイル名や実際の model ID は改名しない。
 
 #305 で既存 11 agent の名前と参照を次のように変更した。起動設定は維持し、DeepSeek の 2 agent にだけ共通キーを追加した。
@@ -858,7 +863,7 @@ provider 未指定ならその段を省略する。model は系列・メジャ�
 | `cursor-grok47` | `cursor_grok4_xhigh` |
 
 既定の `review.inspect` は
-`pi_openai-codex_gpt6-sol_max,devin_swe2-max_default,pi_opencode-go_deepseek4-flash_max`、
+`pi_openai-codex_gpt6-sol_max,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`、
 `fix.implement` は `claude-code_opus_default`。`fix.self-review`・`fix.fix-check`・`issue.implement` は `self` のままである。
 Sol の runner の effort は `max` を維持する（`pigs` 単独の既定 `xhigh` とは異なる）。
 Sol / OpenCode Go DeepSeek の `OPENCODE_API_KEY` と、review の後処理の `uv --project .` も維持する。
@@ -884,6 +889,9 @@ Command Code の agent 定義自体は再契約後の明示的な `--assign` 用
 または互いに異なっても重複になる。文字列は完全一致で、自動正規化や未知の別名の推測はしない。
 CommandCode / OpenCode Go / DeepInfra の 3 DeepSeek agent には `model_key = "deepseek-v4.1-flash"` を付け、
 provider ごとに異なる model ID でも同じ役割には混在させない。キー無しで異なる model の設定は受け入れる。
+SWE-2 の `devin_swe2_max`・`devin_swe2_medium` にも同じ `model_key = "swe-2"` を付けている。
+`devin_swe2_medium`（SWE-2 Medium）は既定のどの割り当てにも入っておらず、`--assign` か個人設定で選べる。
+2 つは同じ `model_key` なので、同じ役割に並べると `duplicate_model` で拒否される。
 
 ### 旧担当からの個人設定の移行
 
@@ -929,6 +937,28 @@ provider ごとに異なる model ID でも同じ役割には混在させない�
 `zsh scripts/setup_pi_superagents.zsh --if-absent` で補う。
 `~/.local/bin` は bind mount 外なので、再有効化後も Rebuild のたびに Command Code の setup を再実行する。
 runner では `pi_commandcode_deepseek4-flash_max` を `--assign` で明示して選ぶ。再契約しても既定の割当は変わらない。
+
+### Devin の agent 名の変更（#341）
+
+#341 で `devin_swe2-max_default` を `devin_swe2_max` に改名し、`devin_swe2_medium` を足した。
+上の #305 の表は当時の変更記録なので書き換えない。#305 より前の `devin-swe` も、今の名前は `devin_swe2_max` である。
+
+自動の移行も旧名の alias も用意しない。個人設定（非対話エージェントのランナー（agent-runner）の個人設定の場所の規則で確かめる）を
+バックアップしてから、次の両方を同じ編集で行う。
+
+- workflow の `agents` と `fallback` の旧名（`devin-swe`・`devin_swe2-max_default`）を `devin_swe2_max` に変える
+- 旧名の `[agents.*]` の節を消す。独自の上書きがあれば `[agents.devin_swe2_max]` に移してから消す。
+  table が統合されるので、移した節は雛形の `model_key = "swe-2"` を継承する
+
+移行しないときの挙動は、個人設定の書き方で変わる。
+
+- 旧名を参照するだけの設定: 雛形から旧定義が無くなるので `invalid_reference` で止まる
+- 旧名の節に一部のキーだけを書いた上書き（`env` だけなど）: `runtime` などが欠けるので `invalid_type` で止まる
+- 旧名の節が完全な定義: 独自の agent として読み込まれるので止まらない。
+  雛形の `model_key` を継承しないため、`devin_swe2_medium` と同じ役割に並べても拒否されない
+
+編集後は、リポジトリのルートで上記の `check` と `list` を実行する。
+旧名を書いていない個人設定（rebuild で置かれる `agent-runner-personal.toml` を含む）は移行が要らない。
 
 ## pi の旧拡張・MCP 設定の移行
 
