@@ -1989,9 +1989,8 @@ def test_allow_failed_retires_a_stopped_failed_session_and_keeps_its_run_record(
     retired = json.loads(capsys.readouterr().out)
     assert retired["state_file"] == state_file
 
-    record = Path(result["run_record"])
     assert not session_dir.exists()
-    assert (record if record.is_absolute() else prepared["parent"] / record).is_file()
+    assert Path(result["run_record"]).is_file()
     assert result["worktree"] not in git(prepared["source"], "worktree", "list")
 
 
@@ -2045,3 +2044,49 @@ def test_allow_failed_keeps_a_failed_session_with_work(
     kept = json.loads(capsys.readouterr().out)
     assert code == 1 and kept["stop_confirmation_needed"] is False and session_dir.is_dir()
     assert kept["retirement"] == "failed" and kept["reason"], kept
+
+
+def test_allow_failed_retires_a_saved_session_whose_cleanup_failed_as_saved(
+    prepared: dict[str, Any], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 保存した後に cleanup だけが失敗し、記録が failed（cleanup）で残ったセッションは、停止の証拠を求めず saved として退役する。
+    review_run = _REVIEW_RUN_TESTS.review_run
+    result = review_run.prepare(prepared["args"])
+    _REVIEW_RUN_TESTS.mark_reviewed(result)
+    state_file = result["state_file"]
+
+    def cleanup_failure(_args: argparse.Namespace) -> None:
+        raise review_run.workspace.WorkspaceError("cleanup refused")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(review_run.workspace, "cleanup", cleanup_failure)
+        assert review_run.complete(argparse.Namespace(state=state_file))["status"] == "failed"
+    capsys.readouterr()
+
+    assert workspace.main(["reap-check", "--allow-failed", "--state", state_file]) == 0
+    checked = json.loads(capsys.readouterr().out)
+    assert checked["retirement"] == "saved" and checked["stop_evidence"] is None
+    assert workspace.main(["cleanup", "--strict-reap", "--allow-failed", "--state", state_file]) == 0
+    capsys.readouterr()
+    assert not Path(state_file).parent.exists() and Path(result["run_record"]).is_file()
+
+
+def test_allow_failed_keeps_a_session_whose_run_record_is_not_its_own(
+    prepared: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # run_context.run_record を別の記録に向けても、停止確認済みの他の記録で退役してはならない。
+    other = _failed_session(prepared, capsys)
+    source = _REVIEW_RUN_TESTS.batch_result(tmp_path / "result.json", state="timed_out")
+    assert _REVIEW_RUN_TESTS.review_run.main(["attach-runner", "--result", str(source)]) == 0
+    capsys.readouterr()
+    result = _failed_session(prepared, capsys)
+    state_path = Path(result["state_file"])
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["run_context"]["run_record"] = other["run_record"]
+    state_path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+
+    code = workspace.main(
+        ["cleanup", "--strict-reap", "--allow-failed", "--operator-confirmed-stopped", "確認済み", "--state", str(state_path)]
+    )
+    kept = json.loads(capsys.readouterr().out)
+    assert code == 1 and kept["stop_confirmation_needed"] is False and state_path.parent.is_dir()

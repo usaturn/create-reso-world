@@ -1623,15 +1623,6 @@ def validate_reapable_session(
         state_file = Path(state_value)
         session_dir = Path(state_value).resolve(strict=True).parent
         document: dict[str, Any] | None = None
-        if allow_failed and isinstance(state.get("run_context"), dict):
-            document = bound_run_record(lock_root, state, session_dir)
-            runner = document.get("runner")
-            attempt = runner.get("attempt") if isinstance(runner, dict) else None
-            runner_state = attempt.get("state") if isinstance(attempt, dict) else None
-            if document.get("status") != "success":
-                retirement = "failed"
-                if document.get("status") == "started" and runner_state == "success":
-                    raise WorkspaceError("the runner reports success and the run record does not retract it")
         if state_file.is_symlink() or state_file.parent.is_symlink() or not state_file.is_file():
             raise WorkspaceError("session path goes through a symlink")
         if re.fullmatch(rf"pr-review-{state['pr_number']}-[a-z0-9_]{{8}}", session_dir.name) is None:
@@ -1645,13 +1636,24 @@ def validate_reapable_session(
         target = session_target(state)
         worktree = Path(state["worktree"]).resolve(strict=True)
         _require_clean_worktree(worktree, target, state)
-        if retirement == "saved":
+        try:
             draft = Path(state["draft"]).resolve(strict=False)
             destination = safe_destination(lock_root, state["destination"], repository=session_repository(state))
             require_saved_review(draft, destination)
             require_saved_findings(lock_root, state)
             _require_known_backup(session_dir, state)
-        else:
+        except (WorkspaceError, OSError, ValueError, KeyError, TypeError):
+            if not (allow_failed and isinstance(state.get("run_context"), dict)):
+                raise
+            retirement = "failed"
+            document = bound_run_record(lock_root, state, session_dir)
+            if document.get("status") == "success":
+                retirement = "saved"
+                raise
+            runner = document.get("runner")
+            attempt = runner.get("attempt") if isinstance(runner, dict) else None
+            if document.get("status") == "started" and isinstance(attempt, dict) and attempt.get("state") == "success":
+                raise WorkspaceError("the runner reports success and the run record does not retract it") from None
             _require_failed_backup(session_dir, state)
     except RetirementRefused as error:
         if error.retirement is None and retirement == "failed":
@@ -1659,8 +1661,7 @@ def validate_reapable_session(
         raise
     except (WorkspaceError, OSError, ValueError, KeyError, TypeError) as error:
         raise RetirementRefused(str(error), retirement=retirement) from error
-    if retirement == "failed":
-        assert document is not None
+    if retirement == "failed" and document is not None:
         stop_evidence = failed_stop_evidence(document, operator_reason)
     return lock_root, state, {"retirement": retirement, "stop_evidence": stop_evidence}
 
