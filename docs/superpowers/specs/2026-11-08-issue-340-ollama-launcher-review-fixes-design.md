@@ -66,3 +66,20 @@
 - 正しいキーが通ること: この run の実 API の確認に使った実際の `OLLAMA_API_KEY` が ASCII の英数字を含む（新しいガードを通る）ことを、値を出さずに真偽だけで確かめた
 - 未確認の事項: 保存済みの OAuth が選ばれる段階の実行（実資格情報・実通信を使わない。静的な読み取りとレビュアーの抽出実行に依る）
 - 結論: 1（修正して push する）
+
+## サイクル 2（HEAD `4b64f565f8734665887185fc68816d3faf23f5e1`）
+
+- サイクル 1 の状況コメント: https://github.com/usaturn/create-reso-world/pull/342#issuecomment-6721575693（`fixes_pushed`、commit `4b64f565`）
+- レビュアーの構成:
+
+  | レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+  | --- | --- | --- | --- | --- | --- |
+  | `gpt-6.1-sol.md` | gpt-6.1-sol | pi（`pi_openai-codex_gpt6-sol_max`） | `4b64f565f873`（Update） | はい | Approve |
+  | `claude-opus-5-5-commit-0665a44d….md` | claude-opus-5-5 | claude-code（self） | `0665a44da69e` | いいえ（サイクル 1 の自己レビュー） | Approve |
+
+- 確認済みの一覧: `verified/4b64f565f873.json`（confirmed 0。自己レビューの I-1 は現行 HEAD で not_reproduced）
+- 判断: `gpt-6.1-sol#M-1@23bebef05099` は解消済み（`fix` → `resolved`）。`.devcontainer/zshrc.txt:175-183` が ASCII の英数字を含まない値を `env` と claude の起動より前に拒否する。planner の偽の HOME の確認（3 つのロケール）とレビュアーの確認（4 つのロケール・296 ケース、旧ガード・空だけのガード・ガード無しの対照はテストが失敗）で確かめた。`fix-check#V-1`・`fix-check#V-2` の `skip` は引き継ぐ（新しい根拠なし。V-1 はレビュアーも Decided findings として扱った）。新しい指摘は 0 件。分類: 解消済み 1 / 対応する 0 / 対応しない 0（新規）
+- 検証（結論 2 の手順 1・2）:
+  - PR head `4b64f565` の feature worktree（clean）: `bash .devcontainer/run-tests.bash` 0（27 本 PASS）、`bash scripts/check-layout.sh` 0
+  - base の先端 `c871b718f64233ce4d21cf0468d978516f0562d0`（#343 のマージ。head の祖先ではない）を head に merge した隔離 worktree の一時的なツリー（push しない）: `bash .devcontainer/run-tests.bash` 0（27 本 PASS）、`bash scripts/check-layout.sh` 0。検証の記録の `base` はこの SHA
+- 結論: 2（修正不要としてマージする）。マージは `finalize.py --spec-commit` で行う
