@@ -48,7 +48,7 @@
 | Spec条件 | 担当 | 観測結果 / 検証 |
 | --- | --- | --- |
 | 棚卸し12項目と保護の維持 | Task 1 / Task reviewer | 変更前後の関数・ケース・assertを表に照合。Dの代表と正例を読む |
-| 収集数は削除分だけ減る | 統合担当controller | 全体1309→1297、対象297→285。nodeidの追加0・削除12を一時ログで確認 |
+| 収集数は削除分だけ減る | 統合担当controller | 全体1309→1297、対象297→285。新規入力0・削除12を一時ログで確認（単一ケース化によるnodeidのsuffix除去は同じ入力へ対応付ける） |
 | 動作コード等を変更しない | Task 1 / controller | captured baseからのgit diffとallowed_filesの照合 |
 | pytest/bash/layout成功 | Task 1は対象回帰、controllerは全体 | ログ、HEAD、clean状態、argv、終了コードを保存 |
 | 公開単位と実際のIssue状態 | controller | Refs、PR/base/head、ループ結果、Issue stateを読む |
@@ -67,12 +67,12 @@
 
 **テスト要否:** 新規テスト不要（削除の検査はF、Issueも新規追加を禁止）。代わりに既存の正例/負例と対象全体を実行する。Spec #12のcycle.state=planning assertは代表へ移す。
 
-- [ ] **Step 1:** Specの全12行と保持代表を読む。assert・ガードに未解消の疑義があれば勝手に削らず報告する。
-- [ ] **Step 2:** Spec #1/#2/#3/#9/#12の5関数を削除。#4/#5/#6/#7/#8/#10/#11の7ケースを削除し、不要なparametrize/引数/分岐だけを片付ける。
-- [ ] **Step 3:** #12固有の未保存assertを `test_no_fix_needed_needs_a_merged_finalize_result_at_the_same_head` の未マージ拒否直後へ移す。以後の正常マージ対照も残す。
-- [ ] **Step 4:** 孤立したimport/helper/fixtureがあるか確認し、削除候補のみが使っていたものだけ片付ける。S/F∩S/他利用helperを削らない。
-- [ ] **Step 5:** `uv run --locked pytest .agents/skills/pr-review/tests .agents/skills/pr-review-fix-loop/tests -q` を同期実行し成功を確認。`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools --collect-only -q` で1297、対象285を照合。`git diff --check` を実行。
-- [ ] **Step 6:** 明示2パスだけstageして `test: prune redundant review workflow cases for issue 344` でcommit。自己確認と件数・所要時間・ログを報告。
+- [x] **Step 1:** Specの全12行と保持代表を読む。assert・ガードに未解消の疑義があれば勝手に削らず報告する。
+- [x] **Step 2:** Spec #1/#2/#3/#9/#12の5関数を削除。#4/#5/#6/#7/#8/#10/#11の7ケースを削除し、不要なparametrize/引数/分岐だけを片付ける。
+- [x] **Step 3:** #12固有の未保存assertを `test_no_fix_needed_needs_a_merged_finalize_result_at_the_same_head` の未マージ拒否直後へ移す。以後の正常マージ対照も残す。
+- [x] **Step 4:** 孤立したimport/helper/fixtureがあるか確認し、削除候補のみが使っていたものだけ片付ける。S/F∩S/他利用helperを削らない。
+- [x] **Step 5:** `uv run --locked pytest .agents/skills/pr-review/tests .agents/skills/pr-review-fix-loop/tests -q` を同期実行し成功を確認。`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools --collect-only -q` で1297、対象285を照合。`git diff --check` を実行。
+- [x] **Step 6:** 明示2パスだけstageして `test: prune redundant review workflow cases for issue 344` でcommit。自己確認と件数・所要時間・ログを報告。
 
 ## 統合確認・公開（controller）
 
@@ -104,4 +104,8 @@
 
 ## 完了記録
 
-実装・検証・公開結果は後で追記する。現在は変更前297 passed / 全体1309 collectedのみ確認済み。
+実装とTaskレビューを完了。変更前297 passed/443.49s・全体1309 collected、取り込み後285 passed/253.52s・全体1297 collected（すべてexit0）。候補12件を表どおり削除し、cycle.state assertは代表へ移管。raw nodeidは15削除/3追加だが、3件は同じ入力のparametrize suffix除去であり新しいケースは無い。Taskレビューは仕様準拠・品質Approved、指摘0。
+
+実装は利用者指定のrunner担当（観測opencode-go/deepseek-v4.1-flash、effort=max）。1回目3261.66秒は他worktreeのoutside_changesでrejected・未取込（因果は未確定）、2回目374.44秒をacceptしcommit fb7f66db254fc259bcca9a049f9dd3270451df81を取り込んだ。両試行は停止確認済み・cleanupのretained=[]。初回のテスト結果は採用したfeatureの検証には使わない。
+
+最後の文書commit後の全体pytest/bash/layout検証と、ブランチ全体レビュー・公開はこの記録の後に行う。最終HEADの証拠は /workspaces/reso-world/tmp/agents/issue-344.utaqtap6/ とPR本文に保存し、未実行の確認を成功としない。状態draftは実行許可と内容承認を区別するため維持。

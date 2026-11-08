@@ -88,3 +88,15 @@ Issue は5領域を1 PRずつ進めると指定している。この文書とPR�
 - ログ: `/workspaces/reso-world/tmp/agents/issue-344.utaqtap6/baseline-collection.log`、
   `/workspaces/reso-world/tmp/agents/issue-344.utaqtap6/baseline-review-tests.log`。
 - 調査担当: sp-recon。読み取り監査約14分。報告用writeが子に無いため、返却した表をcontrollerがこの文書へ記録した。
+
+## 実装・対象検証の記録
+
+- 棚卸し表の12件はすべて表どおり削除/縮約。#12のplanning保持assertを残す代表へ移管した。他のS/F∩S・曖昧な候補は維持した。
+- 変更ファイルはテスト2つとこのSpec/Planのみ。動作コードとSKILL.mdは不変。新規テスト関数・入力は無い。
+- 指定担当の観測identity: opencode-go/deepseek-v4.1-flash、effort=max。1回目3261.66秒は他worktree変更の観測でrejected（未取込、因果は断定しない）。2回目374.44秒をacceptした。両試行stop_confirmed=true、cleanup retained=[]。
+- 取込commit: fb7f66db254fc259bcca9a049f9dd3270451df81。
+- controller取込後:285 passed in253.52s（exit0）、全体1297 collected in0.63s（exit0）。297→285/1309→1297で差分12。
+- raw nodeidは15削除/3追加。3件は単一ケース化した既存入力のsuffix除去で、Usaturn/resoloop・unknown-pr・状態欠落の同じ入力を保持している。
+- Task reviewer: 仕様準拠・品質Approved、Critical/Important/Minor指摘0。対象コードの後段ガードと保持代表を静的照合した。
+- 最終HEADでの全体pytest・bash・layout、ブランチ全体レビュー・公開はこの記録の後で行う。証拠は /workspaces/reso-world/tmp/agents/issue-344.utaqtap6/ とPR本文へ残す。未実施の確認を成功とはしない。
+- 残る4領域は未着手。このPRのマージでIssue #344全体を完了とはしない。
