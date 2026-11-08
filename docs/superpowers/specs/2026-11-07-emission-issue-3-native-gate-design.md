@@ -74,7 +74,7 @@ Task2bのlayout照合入力は、3D用BSONから手作業で推測せず、同�
 
 このオフライン入力の成功はlayout比較・native default/alias解決・実機成功ではない。未送信memberの既定値は現行native DLLから独立に根拠をそろえる。BSONとnativeでnode位置・slot名・metadataの差が実際にあるため、3D情報の丸写しは採用しない。次に全配置/metadata/型/参照の照合を既存runtime照合へ接続し、controllerのRoot診断化・再試行も完成させる。
 
-preflightは現在の前面化/URL/他編集停止の適用性、discover、別doctor、native session/対象所有、明示した保護対象、private色/型/実参照、panel/fixture詳細diffと新root不在、sealed inputs/SDK全結線を確認する。前面化/他編集停止は受領済みであり、反する事実がないのに未回答として再確認しない。Root全体の完全一致は要求しない。新たな値変化やcontext変更は自動再採取/再planで扱う。
+preflightは現在の前面化/URL/他編集停止の適用性、discover、別doctor、native session/対象所有、明示した保護対象、private色/型/実参照、panel/fixture詳細diffと新root不在、sealed inputs/SDK全結線を確認する。今回の引き継ぎ開始時、利用者はport16070と「現在は背面、必要なら前面化を依頼する」を明示した。前面化についてはこの最新の申告を優先し、実機操作に必要な時点で依頼する。他編集停止の既存申告は、反する事実がないのに未回答へ戻さない。Root全体の完全一致は要求しない。新たな値変化やcontext変更は自動再採取/再planで扱う。
 
 現在の保全基準は元機能仕様と意味・型・実参照を照合し、指定Claudeに独立レビューさせて実行前に記録する。担当が保護範囲を見直した理由も同じbriefへ渡し、利用者への再確認をgateにしない。旧G0/固定件数の復元、観測の丸写しだけによる適合判定、旧state採用や保存パネルへの宣言適用はしない。
 
@@ -97,6 +97,7 @@ raw/実session/state/brson/個人絶対パスはlocal-only。コード/必要な
 | Root carrier | `505fb7b`、108passed/compile/diff、835leafの未対応を保全専用で修正。旧02:21のinconclusiveは不変。 |
 | reviewer範囲逸脱 | 固定/tmp計時fileの作成/削除を自己申告、当時停止。既存内容/上書き/漏洩は不明。同じClaudeのtool制限で解消済み。 |
 | 制限付き再確認/新package | 42.784秒/exit0/stopped、実tools=Glob/Grep/Read、使用Read7/Grep1、MCPなし。新505packageは43files/211DLL/3実SDKparse、stateなし。 |
+| Task2b-a offline入力 | `b0383cd..49db2fa`。115passed/compile/diff、実installed SDK全3moduleの操作生成（bool19/color31/probe219）。F1の`..`越境とF2のbuild環境/response-file影響を再現して修正し、指定Claudeの限定再確認で解決、追加regressionなし。接続/書込0、全layout/default/alias比較とcontroller自動回復は未完了。 |
 | 03:21の旧Root試行 | 6読取/全CLIexit0、Root各8953Slot/17977Component、診断1415slot metadata/2792typed member差分。旧全値一致gateでfailed、03:21:09.468067UTCに停止。after session未採取、world write0。 |
 | 旧停止の結果レビュー | 113.439秒/exit0/stopped、実tools=Glob/Grep/Read、当時条件で停止ACCURATE。現在はRoot一致blockingと再試行禁止を本Issueの新方針で解除する。 |
 
