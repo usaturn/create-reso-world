@@ -68,11 +68,17 @@ Probeはhost-only FireOnValueChange<int>1入口、毎frame処理なし、Command
 
 v3の`normalizedFixture`はinstalled ResoLoop0.2.0の自動markerを入力宣言とは別に表す。key=`drivegate-root/component:FrooxEngine.AI_GeneratedContent:0`、plan型=`FrooxEngine.AI_GeneratedContent`、state/native型=`[FrooxEngine]FrooxEngine.AI_GeneratedContent`、Source=`[resoloop 0.2.0]`。入力へ重複追加せず、markerをwriterのValueFieldへ混ぜない。CLI変更や未知componentは調査・モデル更新・新封印・再試行で扱い、無条件に無視しない。
 
-native SDKの全layoutとruntime graphを区別する。`_sdk_graph`のruntime-only出力へ全native componentをそのまま渡す接続の懸念は未修正である。正確なheadless producerからpassive metadata/field/default/参照/slotを照合し、BSONの3D専用`Meta: Comments`/`Meta: Packing`や`persistant-ID`をnative member identityへ誤写像しない。必要な修正・レビューを追加確認なしに進める。
+native SDKの全layoutとruntime graphを区別する。従来の`assess_owned_graph`が`_sdk_graph`のruntime-only出力へ全native componentを渡す経路は旧オフライン検査用として区別し、現在のnative controllerへ転用しない。新しい`assess_native_owned_graph`/`NativeDeployedStage`は全layoutを検証してからruntime subsetへ接続する。BSONの3D専用`Meta: Comments`/`Meta: Packing`や`persistant-ID`をnative member identityへ誤写像しない。新経路の実装と独立レビューはTask2b-bで行い、実機成功は別に実測する。
 
 Task2bのlayout照合入力は、3D用BSONから手作業で推測せず、同じinstalled SDKの`Build.moduleCompiler`と`Link.batchAddProtoGraphNodes`でオフライン生成する全AddSlot/AddComponent操作を基準とする。`Link.initialize`・`linkInterface`・Query・Loaderは呼ばず、接続先の引数も設けない。封印したPGの隔離コピー、exporterソース、SDK/native DLL全inventory、実終了コード・原出力・生成物を試行ごとに結ぶ。既存packageやPGの隣に生成物を作らない。生成した操作のprivate portは外部実IDでなく記号で表し、適用しない。未知の操作、外部参照、欠落・改変した資料を成功にしない。
 
-このオフライン入力の成功はlayout比較・native default/alias解決・実機成功ではない。未送信memberの既定値は現行native DLLから独立に根拠をそろえる。BSONとnativeでnode位置・slot名・metadataの差が実際にあるため、3D情報の丸写しは採用しない。次に全配置/metadata/型/参照の照合を既存runtime照合へ接続し、controllerのRoot診断化・再試行も完成させる。
+このオフライン入力の成功はlayout比較・native default/alias解決・実機成功ではない。BSONとnativeでnode位置・slot名・metadataの差が実際にあるため、3D情報の丸写しは採用しない。
+
+Task2b-bの比較モデルは、exact native DLLのGetSyncMember/NameOverride/generic型、ComponentBase/WorkerInitializerの初期化、Slot.Initialize、SyncField/Coder.Default、ProxyとSyncRefListのconstructorを根拠にする。比較モデルを6つの関連DLLのhashへ結び、異なるDLLでは古いdefault表を流用しない。これは導入版の固定ではなく、更新時にsource調査とモデル更新へ自動的に進めるための拒否条件である。Field_TypeはSystem.Typeのfieldでvalueがencoded型文字列、Field_stringのnullはnullのままというCLI/nativeの変換を扱う。
+
+実IDはHost内のaliasであり永続RefIDではない。slotを親・完全Name・PG source-span Tag、componentを所有slot・型・VariableName、member/list elementを所有と名前/位置から対応付ける。実同期要素のIDと対応表を一対一に検証し、未送信memberのIDも重複を拒否する。同名兄弟は順番だけで割り当てず、曖昧なら未知としてsource調査へ進める。全slot/component/memberと全reference target/type、完全slot metadata/defaultに一致してから、検証済みdefaultだけを除いたruntime graphをBSON意味検査へ渡す。passive metadataは全構造で検証するため、無条件に無視しない。
+
+pure比較の入力資料自体は呼出側が認証し、native段階では元layout/BSON receiptと同じpackage/current DLL/所有state/private fieldを`assess_native_owned_graph`で結ぶ。現在のRoot診断化・自動回復/retry controllerは別の未完了作業であり、新照合器だけで全Task2bや実機成功にしない。
 
 preflightは現在の前面化/URL/他編集停止の適用性、discover、別doctor、native session/対象所有、明示した保護対象、private色/型/実参照、panel/fixture詳細diffと新root不在、sealed inputs/SDK全結線を確認する。今回の引き継ぎ開始時、利用者はport16070と「現在は背面、必要なら前面化を依頼する」を明示した。前面化についてはこの最新の申告を優先し、実機操作に必要な時点で依頼する。他編集停止の既存申告は、反する事実がないのに未回答へ戻さない。Root全体の完全一致は要求しない。新たな値変化やcontext変更は自動再採取/再planで扱う。
 
