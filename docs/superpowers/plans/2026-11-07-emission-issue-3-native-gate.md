@@ -115,6 +115,16 @@ Task2b-c完了記録: code`d2fa633`、121passed/compileall/diff。旧2経路のR
 
 指定Claudeの実装・結果レビュー135.531秒/exit0/停止確認済み/outside_changes=[]はPASS、実modelclaude-opus-5-5、公開Read/Grep/Glob、使用Read15/Grep8/Glob1、MCPなし。唯一のF1Lowはlocal-only読取driverの交互failure signatureで終了しない可能性であり、偽成功/書込はなく実1attemptへ影響なし。Lの生存性だけの指摘としてskip、永久テスト/外側timeout/追加reviewは不要と裁定した。レビューworktreeはclean/停止確認後に削除。原指摘・裁定・全raw・fake/RED/GREENはPARENT_ROOT/tmp/agents/emission-native-controller.0wmzw5erに保存。公開未実施。
 
+### Task2b-d: private Commandの適用確認と逐次再試行（着手）
+
+まずmutable Commandの固定1–6と独立した再capture拒否要求に区切る。任意argvやwriter callbackを受け取らず、検証済みNativeDeployedStageからprivate Command componentだけを導出して`component set … Value N`を同期実行する。元baselineから期待を生成し、完全field/Before/Done、session/fixture/型/所有/SDK、helper役割を再検証する。実機readerは現在の新しいNativeDeployedStageを返す読み取り専用の依存として分離する。
+
+適用済みなら再送せず先へ進み、元checkpointと完全一致する未適用なら新attemptへ再試行する。Commandだけ変わった部分適用や未知状態は再観測し、反復時はsource調査へ返す（Issue全体停止や追加許可待ちではない）。executionごとの排他とprocess終了確認、launch前intent/実終了コード/raw、新attempt別記録、元baselineのfingerprintを保持する。クラッシュ後のprocess不明は再送しない。
+
+受け入れ基準は共通基準を維持し、実入力は完全HDR/Linear・sRGB/alpha、boolと非ASCII context。防御対象はtimeout後の重複write、部分captureのBefore上書き、別session/私有field/元baselineへの切替、同時writer、旧receiptの再利用。対象外はcreate/deploy/helper削除/最終cleanupの実行制御とfullpreflightそのもの。これらは次のTask2b作業として残し、Command部分だけでfull mutation controller完了にしない。
+
+SテストはCLIの失敗後に適用済みなら一度しか送らない正例、未適用からの再試行、部分適用/別context/同時writer/クラッシュ不明時の誤送信拒否を代表例で実行する。文言/一覧/F/L/Dテストは増やさない。既存suite/compile/diffとfake CLIで検証し、実機成功とは呼ばない。指定ClaudeのRead/Grep/Globだけの実装レビュー1回（720秒、fallbackなし）、採用修正の限定再確認のみを使用する。元raw/seal/Beforeは不変。実装・レビュー後に新HEAD packageと実機reader/残り制御を結ぶ。
+
 ## Task 3: preflight・native Drivegate・回復/再試行
 
 **Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。
