@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: draft
+- 状態: completed（Issue #344の第1PR単位のみ。内容承認を記録したものではない）
 - 対象: https://github.com/usaturn/create-reso-world/issues/344
 - 実行許可: 利用者の明示 `/skill:issue-to-pr` と引数
   `#344 --implement pi_opencode-go_deepseek4-flash_max --merge --assign inspect=devin_swe2_max,pi_openai-codex_gpt6-sol_max,cursor_grok4_xhigh --assign implement=pi_opencode-go_deepseek4-flash_max`。
@@ -109,3 +109,24 @@ Issue は5領域を1 PRずつ進めると指定している。この文書とPR�
 - 利用者の追加指示に従いmainの新SHAを別の記録へ捕捉し、既存featureへ `git merge --no-ff` で取り込んだ。取り込みcommitは `b104ea8c63cfa450a0d45e6b7b2f45fcc5a4f68c`。競合無し。取り込んだ変更はIssue340の6ファイルで、このPR固有の新baseからの差分は同じテスト2つとSpec/Planだけ。
 - 元のテスト縮約コードを作り直さず、追加ケースも削除もしない。新HEADの全体pytest・bash・layout・収集とブランチ全体の再レビューを実施し、証拠を同じセッションのresume-*へ保存する。過去の成功は新しい組み合わせの保証へ流用しない。
 - baseが再び動けば、今回も捕捉値を黙って差し替えず停止する。
+
+## PR #348 レビュー修正ループ・サイクル1の判断
+
+- planner: openai-codex/gpt-6.1-sol（pi）。実行許可は元の明示issue-to-pr --mergeと、main取り込み・再レビューの追加指示。
+- 対象HEAD: `e80fbf50b89530fa404faec87890cf2457cafb65`。検証済みbase: `776673b57d848f304e369a4da8e73471ea56f6ad`。両者を取り込んだclean HEADで検証を終えた。
+- 初回PRレビューで、3名すべてを受け付け、rejected=[]、outside_changes=[]、retained=[]。前の判断の記録は無くサイクル番号1。全レビューファイル・候補一覧を照合し、指摘・Unverified candidatesとも0件。
+
+| レビューファイル | モデル | ランタイム | レビューHEAD | Mode | このサイクルで実行 | 結果 |
+| --- | --- | --- | --- | --- | --- | --- |
+| SWE-2-Max.md | SWE-2 Max | devin | `e80fbf50b895` | Initial | はい | 指摘0・理由付きApprove |
+| gpt-6.1-sol.md | gpt-6.1-sol | pi | `e80fbf50b895` | Initial | はい | 指摘0・理由付きApprove |
+| Grok-4.7.md | Grok 4.7 | cursor | `e80fbf50b895` | Initial | はい | 指摘0・理由付きApprove |
+
+- 読み取り対象から外したレビューファイルは無し。各Merge recommendationは理由付きの原文なので、判断記録の列挙値へ勝手に短縮せずnullと原文noteで保存する。
+- 全指摘の分類: 解消済み0 / 対応する0 / 対応しない0。未確認候補0。件数0だけでなく、PR変更4ファイル全文、保存先fingerprint/pin、モデル/状態の読取、snapshot/session、cycle_endと残る代表・正常対照を確認した。独立した安全ガードの欠落は認めなかった。
+- レビュアーが行わなかった全体pytest・収集・bash/layoutは、同じHEADのcontrollerの実行記録で確認済み。対象285 passed/331.72秒、全体1297 passed/718.25秒、全体1297 collected、bash27本PASS/112.28秒、layout/diff check成功、すべてexit0。検証前後のstatusは空。古いbaseの成功は流用しない。
+- 確認済み一覧: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#348-fix-issue-344-review-test-pruning/verified/e80fbf50b895.json`。工程記録の保存先: 同じverifiedの `e80fbf50b895.planning.json`。両方の形式をhelperで検査する。
+- 要件対応: 棚卸し12候補と保持代表→テスト差分・全ケースの収集を照合、S/F∩Sと正常対照→ソース・代表テストを照合、実装コード等の不変→新baseからの差分を照合、全検証→resume-verification-record.jsonにHEAD/base/argv/exit/logを記録、公開単位→Refs #344と残る4領域を照合。共有条件の統合はcontrollerが行った。
+- 結論2: 修正不要。修正に関する設計選択・設計見直しのきっかけ・変更する経路は無い。指摘を作って不要なテストを追加する案は採用しない。
+- run_rolesによる修正・自己レビュー・fix-checkは未実施（不要）。割当はimplement=pi_opencode-go_deepseek4-flash_max、self-review=self、fix-check=selfのまま。自己レビュー枠は未消費。3名の観測所要時間はSWE446.686秒・gpt512.720秒・Grok958.720秒で、並行時間を足し合わせて能動時間としない。
+- このSpecの完了は第1PR単位の要件確認と最終化準備を示す。push・マージ・Issue更新はこの記録時点では未実施で、結果はPR状況コメントとloop/finalizeの記録へ残す。Issue全体の残る4領域は未完了のまま。
