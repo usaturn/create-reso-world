@@ -1,151 +1,114 @@
 # Issue #3 native Drivegate 実行計画
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development for implementation tasks; controller executes live verification sequentially. Steps use checkbox syntax.
+- 状態: draft。内容承認SHAは発明しない。
+- 対象: `usaturn/resonite-emission-editor#3`。同じコード/文書branchで継続する。
+- Spec: `../specs/2026-11-07-emission-issue-3-native-gate-design.md`。
+- 実行許可: 利用者が2026-11-08に具体的に指示した、Root全値一致不要・不一致時の自動再試行・本Issue作業全体での保護範囲変更の追加確認不要を適用する。セッション限定ではない。
+- 機能の元Spec/Planと完了条件は維持し、検証/再試行/確認手続きは本Specの現在有効な作業方針へ更新する。旧停止規則を別資料から再導入しない。
 
-**Goal:** 欠けている短いDrivegateの実行物と照合を整え、元Task4/5/6の未完了を順番に減らす。
-**Architecture:** 既存raw基盤→隔離package/SDK生成物の封印→意味/範囲/phase gate→fresh preflight→controllerの逐次実機。
-**Tech Stack:** Python3.14/uv、標準ライブラリ、ResoLoop0.2.0、Flux SDKと現行DLL、ProtoGraph。
-**Spec:** ../specs/2026-11-07-emission-issue-3-native-gate-design.md
+## Goal / Architecture / Environment
 
-- 状態: draft（現在の具体的な不足を示した後の利用者の全面的な実行委任により実行、承認SHAは発明しない）。
-- 本計画はraw基盤のcompleted Planを再開せず、元open PlanのS4 native前提の具体化を記録する。同じテーマの追加修正は本書を更新する。
-- code base743f1f9 / docs base0d58ac7。ブランチはSpec記載。旧保全文書worktreeを変更しない。
-- 実装担当は検査済みissue assignment selfを既定とし、bounded sp-implementerへTask別委譲。レビューはclaude-code_opus_defaultのみ（inspect/self-review/fix-checkに委譲する場合も同じ、fallbackなし）。
-- 最新の具体的な実行委任は不足する試験準備と既存範囲の実機write/cleanupも含むが、必須gate・安全失敗時の停止・手動mergeは維持する。
+欠けている短いDrivegateの実行物と照合を整え、元Task4/5/6を順番に進める。既存raw基盤→隔離package/SDK封印→意味/範囲/phase判定→現在contextのpreflight→controllerの逐次実機と自動回復/再試行。
 
-## Global Constraints
-- Python3.14/uv/標準ライブラリ。PR4 read_receipts.pyは再利用し、raw基盤を再実装しない。
-- 旧tmp/worlds/tools、旧state/session、古いrun/IDを探索・復元・再生しない。
-- 新しいlinked worktreeで実装し、常設/親HEAD・既存文書worktree・元PGと既存証跡を変更しない。
-- 新fixtureのprivate ValueFieldだけが試験write/delete対象。実アバター/保存パネル/既存syntheticへ書かない。
-- sealされた原本とdeploy用copyを分け、compilerの全経路のsidecarを隔離する。
-- mutation担当/検証を外側timeoutで止めない。最初の実機不一致/切断/安全失敗で停止、自動修復なし。
-- 短いgateをS4全体や実UI/Task6の成功としない。S4→S5→S6b→S6→S7の依存順を維持。
-- コードPR1本＋必要な同テーマ文書PR1本へ集約、手動merge、Issue3 open。実session/state/brsonをcommitしない。
+Dev Container、Python3.14/uv/標準ライブラリ、実行時のResoLoop/Flux SDK/native DLL。現在の16070の適用性を確認する。作業ルートは既存の名前付きlinked worktree。PR4 raw基盤・既存の本体PGを不必要に再実装せず、汎用的な任意mutationランナーを作らない。
 
-## 受け入れ基準・防御範囲・動作環境
-Specの同名節と「専用fixtureとnative手順」「package・保全・preflight」を各担当/レビューbriefへ同文で渡す。
-動作環境はDev Container、Python3.14以上、現在のSDK/DLLを明示したcheck/buildと16070（実行時に現在確認）。
-実入力はnative HDR/alpha非1/LinearとsRGBの完全色、bool、非ASCII raw JSON。別processの再採取は異transportの独立検証と呼ばない。
-防御対象は誤対象write/delete・履歴/利用者ファイルの上書き・改変/失敗の受理・完全色/型の欠落。対象外は全証跡の整合的な悪意ある書換えの認証・厳密な複数利用者排他。
-必須検証: code repoでuv sync --locked、uv run pytest、変更PGすべての実check/build/manifest検証、Python compile、git diff --check。旧52passedは不変raw基盤の根拠として再利用し、新コード/PG/実機結果へ流用しない。
+## Global Constraints — 現在有効
 
-## Review Focus
-1. helperを削除する際に別module/保存パネル/ユーザ所有部分を対象にしない。
-2. mutable入力のOnWritten/OnFailと、CLI exit0やValueCopyのhookを取り違えない。
-3. 前面化・session・seal・詳細diff・全subtreeのどれかが欠けたままwriteへ進まない。
-4. bool/int・欠落/null・完全colorXのprofile/alpha差を見逃さない。
-5. 元PG/封印物の隣へcompiler sidecarを出さず、同じphaseや古いstateで復元記録を上書きしない。
+- Root全体の値の完全一致をpreflight/復元/cleanupの条件にしない。全Rootを採取した場合のpayloadは残し、姿勢等の時点差分は診断とする。
+- 不一致、切断、検査失敗ではIssue全体を停止せず、原因調査・修正・新観測・自動再試行へ進む。失敗した試行は失敗として残す。
+- 保護対象や比較の実質変更は、本Issueでは追加確認なし。理由・対象・新検証をSpec/ledgerと担当briefへ記録して実行する。これを承認待ちへ戻さない。
+- 対象操作のsession/ID/親/型/所有/write-set/delete-set、完全色/型/private Before/readback/Done、seal/SDK/全結線の検証は維持する。既存パネル/実アバター/登録済みsynthetic/materialを短いgateのwrite/delete先にしない。
+- write/deploy/削除の再試行は適用状況を先に読み戻し、適用済みなら重複実行しない。部分適用は所有範囲内で回復・再plan。不明なmutationの盲目的な再送と同時writerは禁止するが、確認・回復作業自体は自動継続する。
+- current試行の検証可能なcheckpointと、別session/帰属不明の旧stateの再生を区別する。新試行のtoken/state/logは分け、原raw/verdict/seal/Beforeを上書きしない。
+- 唯一のレビュアーは`claude-code_opus_default`、Read/Grep/Globのみ、MCP/commands無効、実tool一覧/使用を検査。逸脱runを不採用にして制限を修正・自動再確認する。別model/fallback/自己レビューへ置換しない。
+- 短いgateをS4全体/実UI/二人/save-reload成功にせず、S4→S5→S6b→S6→S7を維持する。未検証の成功報告や未完了を隠す公開をしない。
+- コード1branch/必要な同テーマ文書1branch、Issue3 open、手動merge。個人設定、親/常設checkout、凍結した旧履歴は変更しない。
 
-## 実行予算
-当初は今回の不足前提/最初のnative gateに180能動分。2026-11-08再開時、利用者が時間制限なしを明示したため、この上限は解除するが過去の所要時間は保持する。元ledgerはPARENT_ROOT/tmp/agents/emission-native-gate.oq3olakn/budget.jsonl（endまで記録済み、約169.1能動分）。budget開始前17:46:16–17:48:54の準備約2分38秒は別記し、既存の過去予算はリセットしない。今回の着手は01:49:55UTC、続行記録はPARENT_ROOT/tmp/agents/emission-native-next.gk7mchty/continuation.jsonl。30分checkpointとTask別所要時間は引き続き記録し、安全停止は解除しない。
-準備15、package/判定実装55、検証/レビュー30、fresh preflight/native60、保存/公開20分を目安。元Task4/5/6全完了までの保証時間ではない。
-30能動分ごと・Task境界・50%/100%・失敗直後にcheckpoint。worker目安30分、保存予約5分、無進捗10分でcontroller確認（共有writer/検証をkillしない）。reviewerは各12分枠内、Task1・全差分/実機前・native結果の3段階を同じ1名で担当する。採用修正確認が必要なら同じ担当に範囲限定。PR後の追加ループは起動しない。
-同じ信頼性失敗の再試行1回、安全失敗は全停止。予算不足は同じbranchに保全してhandoffし、小タスクごとにPRを増やさない。
+## 共通の受け入れ基準・防御範囲
 
-## contingency（代替策）
-最初のREDで実API/SDK出力の前提差が判明したら、仕様の意味を保つ最小修正をledgerに残す。mutable writerの期待OnFailやboolの性質が実機で成立しなければ、期待値/本体PGを変えて通さず停止。資料が欠けている場合はoldtmpを復元せず必要な新規資料を本branchで準備。full gateに時間が足りなければ封印packageとS回帰を保全して次の担当へ渡し、native成功とはしない。
+Specの「現在有効な作業方針」「受け入れ基準・環境・防御範囲」「自動再試行と回復」「専用fixtureとnative手順」を実装担当/レビュアー双方のbriefへ同じ内容で渡す。旧briefの全値一致/初回停止/追加確認待ちは使わない。
 
-### Task 1: 専用3PGと隔離package/封印を実装する
-**Files:** 新規 flux/emission-editor/drivegate/{DriveGateProbe,ColorDrive,BoolDrive}.pg、scripts/emission_editor/drivegate_package.py、tests/test_emission_drivegate_package.py、READMEの範囲説明。
-**Interfaces:** fixture_declaration(token) -> dict。prepare_package(destination: Path, token: str, *, library_path: Path) -> dict はcopy上でcheck/build/manifest検証し全過程exit0後のみsealを返す。verify_package(path: Path) -> dict は全入力/生成SDK record/manifestの完全file-setとhashを照合。Source PGの原本は変更しない。生成manifestのworld/Flux stateは試行専用で初回不在。実装結果のv2は別のsibling実行領域を作り、全manifestが実行領域だけを指す。verify_execution(package_path, execution_path)はfresh実行領域の全file-set/hashを封印物と照合する。Git clean/HEADの前後照合でcodeCommitの出所を確認する。
-**テスト:** S（元ソース/既存出力/利用者ファイルの上書き、範囲外参照、sealの改変/不足/未知追加、失敗成功化を防止）。fake resoloopを実subprocessで動かしsidecarを書かせる。PGの型/構文はLなので実check/build、PG固定文字列テストは追加しない。
-- [x] 生成物がprivate fieldのみ・3module別親/別state・外部target無しである正例と、既存directory/source/link/失敗/改変のS回帰を先にREDにする。
-- [x] SpecのCommand0–6に沿って3PGを最小実装。Captureは一度、hostのみ、helperはeventless。完全native色を使い、mutable書込の結果とreadbackとDoneを記録。
-- [x] package生成/コピー/SDK check/build/3manifest検証/封印を実装する。sourceディレクトリの全3PG/sidecar不変を実fake compilerで確認。
-- [x] 対象pytest→全suite→実SDK check/build→manifest検証→compile→diffを同期実行し、ログ/elapsedをsessionへ保存する。
-- [x] 明示したファイルだけcommit。claude-code_opus_defaultでTask品質と仕様のレビュー。必要修正は同じ担当でRED/GREENし、指摘原文と裁定を保存する。
+実入力はnative HDR/alpha非1/Linear・sRGB完全色、bool、非ASCII JSON。bool/int、欠落/null、未知kind、opaque保全とprivate意味を区別する。Root全値差分と、操作対象・明示した保護対象の検証を混同しない。別プロセス再採取を異transport独立検証と呼ばない。
 
-実行記録: 8882ae5で3PG/package初版、3908f34で実行copyの分離とclean provenanceを修正。全71passed、実SDK43artifact/211DLL hash、コピー再build後も封印/原PG不変。Task1レビューF1–F3採用→限定再レビュー全addressed、PASS/PASS。raw/read_receiptsと既存PGは未変更。native成功/実機writeは0。詳細はSESSION/task1-fix1と同SDD/task-1-report.md。レビュー/修正は実装約15分＋修正約8分、レビュー128.581秒/限定78.535秒（controller能動内）。
+誤対象write/delete、重複mutation、Beforeや証拠の上書き、完全色/型損失、失敗の成功化を防ぐ。全rawの整合的な悪意ある改ざん認証や、他利用者との厳密な排他は対象外。
 
-### Task 2: 既存rawを使う意味/phase/範囲の照合を実装する
-**Files:** scripts/emission_editor/drivegate_evidence.py、tests/test_emission_drivegate_evidence.py、固定diff採取のdrivegate_capture.py、stage/SDK結合のdrivegate_runtime.pyと各代表Sテスト、必要なpackage最小補足。一般的なmutationランナーは作らない。
-**Interfaces:** raw receiptをload_readで検証し、sealed package/宣言/SDK record/現在typed観測に対してsession/時刻窓/別採取/全subtree/全結線/全memberを照合。native phase verdictは正常phaseと拒否phaseの正確な結果/対象値/Done/保全を照合。missingはinconclusive、completeとexecutionPermissionを安易にtrueにしない。任意CLIや旧state再生の入口を作らない。
-**テスト:** S。bool/int/profile/alpha差、同receipt別path、別session/時刻・不足subtree/結線・別削除root/改変宣言と期待値・phase抜け/失敗を成功化しない代表正負例。模擬profile負例のdict共有はここで修正し、独立な入力を使う。
-- [x] それぞれの損害の代表S正負例をRED→GREEN。L/F/Dの追加なし。
-- [x] Task1のSDK生成recordの実形状から対応を実装し、独立に組み立てたraw入力/期待値で検証する。simulatedはnative成功にしない。
-- [x] 全suite/静的検証、変更経路の安全確認。controllerがpackageとvalidator共通のID/型/順序を統合確認。
-- [x] 同じbranchにcommitし、指定Claude1名の全差分/実機前レビューで確認。レビュー不能ならwriteしない。
+## 実行予算・自動再試行・contingency
 
-実行記録: c46cef7まで。全104passed/compile/diff成功。実SDKの全3graphを封印済parseに結び、独立typed BoolDrive/所有graphで正例・実参照逸脱等の負例を確認。T2-R1（実宣言のcapture/restoreが観測不能）とT2-R2（未使用の弱いdiff API/2重複テスト）を採用し修正、唯一のClaudeで限定確認PASS/PASS。実行copy分離とclean provenanceはTask1で確認済み。現在使える新packageはSESSION/task2-fix1/sdk-observable、codeCommit=c46cef7、43ファイル/211DLL、正確なsibling executionRoot。過去sdk-finalは宣言変更により不適格であり、変更せず履歴として残す。present nullと欠落、保全専用opaque値とprivate target意味、SDKの正確なpersistant-ID表記とnative persistentの関係はSpecの実装記録に従う。native再capture拒否は未実施であり、6phase比較が代わりに証明しない。
+利用者の時間制限なしを維持し、過去の169.09能動分/158秒の予算前作業と各continuation記録をリセットしない。Task境界・30能動分・失敗後にcheckpointし、所要時間と実質進捗を残す。検証/共有writerを外側timeoutで強制終了しない。読取専用reviewは720秒枠と終了確認を用いる。
 
-#### Task2/3 接続部のinstalled正規化修正（2026-11-08）
+旧「同じ失敗は再試行1回」「安全失敗ならIssue全停止」「不一致なら利用者の判断待ち」は、本Issueの進行規則として使わない。失敗を記録し、現在状況を読み直し、必要な制限・資料・実装を自動修正して再試行する。同じsignatureが続けば同一手順の高速反復でなく調査/方法変更へ切り替え、作業全体を通常の許可待ちにしない。対象外への危険操作は送らず、その必要条件の回復を続ける。
 
-**Files:** drivegate_package.py・drivegate_runtime.pyと対応Sテスト、README。本体PG/raw基盤には触らない。
-**範囲:** Specの「2026-11-08 再開時の正規化補足」と既存受け入れ基準をそのまま適用する。input宣言へ自動metadataを重複記述せず、v3 sealに正規化期待モデルを保持する。precreate/配備後所有照合に一貫して使用し、markerはtyped Sourceと正確なkey/親/型を検証、private ValueFieldへ混入させない。
-**テスト:** S（metadataの欠落/改変や余分なComponentを見逃した範囲許可を防止）。代表正負例だけ追加し、既存全subtree/偽CLIテストと統合する。CLI版拒否は、未対応の正規化を黙って許可する損害を防ぐS。文書/固定文言/ファイル一覧だけのFテストは追加しない。
-**代わりの検証:** 全pytest、compile/diff、現在assembly前後hash付きIL再採取、sole-Claudeの修正範囲確認、新しいclean HEADから実SDK3PG/package/parse検証。過去失敗/旧sealは変更せず、修正後の成功やnative許可へ読み替えない。
-- [x] source-groundedな正例と欠落/改変/余分なmetadata拒否をRED→GREENにする。
-- [x] 全suite/compile/diff後にcommitし、同じ受け入れ基準・原文の要件を唯一のclaude-code_opus_defaultへ渡して確認する。
-- [x] 新規IL証跡と新package/executionを準備し、nativePermission=falseのまま残る前面化/fullpreflight条件を明示する。
+一時読取失敗はbackoff後に再採取。state/session変更はdiscover/doctor/対象解決から更新する。mutatingコマンドのtimeoutは適用状況/Done/プロセス終了を先に確認する。所有範囲内の回復で継続できなければ、元Beforeを保全し安全に片付けた後、新しいfixture/token/state/封印入力で再試行する。新SDK/型/default差はsource根拠を調査して照合器を修正し、新しい入力/試行へ結ぶ。A/B/CやOnFailを実測に合わせて成功へ変更しない。
 
-記録:74c0eab、106passed/compile/diff成功。roleツール2呼出しが無出力/レポートなしだったため、これ以上再試行せずcontrollerがinlineでこの限定修正を実装した。レビューは指定Claude1名だけ、実測205.587秒/exit0/停止確認済み/outside_changes=[]、SpecPASS・qualityPASS_WITH_ISSUES。R1Lowの実行物hash結合条件は、新package/実SDK3parseの前後hashと新sealSHAを結ぶcontroller記録で満たした。R2LowのSource型/kind負例追加候補は、実装の拒否が存在するため次の同領域変更/最終レビューまで保留。追加レビューループは実行していない。
+## Task 0: 今回のIssue限定ルールを全作業文書へ反映する
 
-新v3 package/executionはSESSION_NEXT/sdk-normalizedとそのsibling、43files/211DLL、全3実SDKcheck/build/manifest/parse成功。SESSION_NEXTはPARENT_ROOT/tmp/agents/emission-native-next.gk7mchty。current-binding-receipt.json・sdk-external-binding.json・package-characterization-binding.jsonで現在のbytesを結び、verify_ready_inputs.pyで再照合した。歴史的ILのhash bindingを遡って主張しない。現在のsource/IL characterizationは適切だが、adapter由来の実型/plan安定keyは次のfresh実観測でも厳密比較する。
+**Files:** 本Spec/Plan、create-reso-world作業worktreeのAGENTS.md、コードworktreeのAGENTS.md/README.md/元機能Spec/Plan、共通ledger、新current handoffとbrief。
+**テスト:** 不要（F/Lの文言・一覧テストは作らない）。代わりに対象限定の全文検索、旧規則との矛盾確認、参照先実在/JSON解析、git diff --checkと差分レビュー。原raw/review/sealを変更しない。
+- [x] 最新指示は「今回のIssue作業全体」と記録し、session限定という旧表現を現行規則に残さない。
+- [x] Root全値一致不要、自動回復/再試行、保護範囲変更の追加確認不要を定義する。
+- [x] 現在参照されるAGENTS/README/元機能文書/ledger/handoff/briefの旧規則を置換または履歴として明確に失効させる。
+- [x] 指定Claudeで文書だけの矛盾チェックを1回実施し、必要な文書修正とローカル検証/commitを行う。nativeはこの文書改訂では実行しない。
 
-今回のnativeアクセスは0。16070指定は前面化明示ではないため、Task3は現在のワールドの前面化と他編集の停止の明示待ち。fullpreflight/baselineレビュー/phase/recapture/cleanup/Task4以降は未完了。公開未実施。
+検証記録: 指定Claude（実model claude-opus-5-5）の文書限定レビューは58.605秒/exit0/停止確認済み、PASS。実公開tools=Glob/Grep/Read、使用Read9/Grep2、MCPなし、outside_changesなし。I1Infoの旧ledger見出しをhistoricalへ明確化。I2Infoの常駐helper/Modによる単独動作要件の変更は、今回の保護範囲/再試行の3変更とは別の機能要件なので維持する。追加レビュー循環/固定文言テストなし。原指摘とtool-policy proofは今回のセッション領域へ保存。機能実装やnative試行を実施済みとはしない。
 
-#### Task2/3 接続部のRoot carrier保全修正（2026-11-08）
+## Task 1: 専用3PGと隔離package/封印
 
-**Files:** drivegate_evidence.py・対応Sテスト・README。PG/raw/runtime・private writer意味判定は変更しない。
-**範囲:** Spec「2026-11-08 fresh Root採取と保全専用carrierの補足」と既存受け入れ基準の同文をcontroller/reviewer共通briefにする。名前付き非有限値、完全RGBA/profile文字列carrier、既知float3/floatQ配列の全payloadを保全専用で照合する。未知kind/欠落を補わず、Rootの除外やprivate書込許可へ広げない。
-**テスト:** S。変更された非有限値/profile/配列軸・要素・IDを黙って保全済みとする損害と、opaque値をprivate書込に許可する損害を防ぐ代表正負例だけを追加。CLI構文・固定文言のF/Lテストや組合せ網羅は追加しない。
-**検証:** RED→GREEN、全suite/compile/diff、停止済みRoot原rawを使ったオフラインの形状/保全可能性確認、指定Claudeによる修正範囲と停止記録の確認、新しいclean HEADからの新seal/実SDK検証。原raw/停止判定を変更せず、自己照合を独立baselineへ読み替えない。
-- [x] 2つの代表SテストをRED→GREENにし、全suite/compile/diff後に同じcode branchへcommitする。
-- [x] 同じ要件で唯一の指定Claudeにレビューし、原指摘と裁定を残す（最初は範囲逸脱で未受理。その後の具体的な再開指示とtool制限付き再確認で解消。下記参照）。
-- [x] 新code HEADの新package/executionと実SDKを準備・再照合する。停止windowのworld callは再開しない。
+**Files:** `flux/emission-editor/drivegate/{DriveGateProbe,ColorDrive,BoolDrive}.pg`、`drivegate_package.py`、対応tests、README。
+**テスト:** S。元ソース/既存ファイルの上書き、範囲外参照、seal改変/不足、失敗成功化を代表正負例と実fake compilerで防ぐ。PGの構文/型は実check/build、固定文字列Fテストなし。
+- [x] private fieldだけのfixture/別親/別stateと3PGを実装。
+- [x] 実行copyを封印先から分離し、check/build/3manifest/全file-set/hash/clean HEAD provenanceを検証。
+- [x] Taskレビュー/採用修正/限定再確認。`8882ae5..3908f34`、71passed、実SDK/原PG不変確認済み。
 
-記録:505fb7b、108passed/compile/diff成功。停止済みRoot rawを使う最終HEADの自己形状照合はofflineのみpassed、source/blob/raw hashはSESSION_LIVE/final-head-local-verification.json。旧inconclusiveと過去のworking-tree参考結果は凍結し、native成功へ変えない。SESSION_LIVEはPARENT_ROOT/tmp/agents/emission-native-live.enko3n41。
+## Task 2: raw意味/phase/範囲照合と既知正規化
 
-指定Claudeの技術判定はSpecPASS・qualityPASS_WITH_ISSUES・sourceGROUNDED・停止妥当、実測143.204秒/exit0/停止確認済み/outside_changes=[]。Low R1の最終HEAD記録を新規ローカル検証で補完し、Info R2の配列組合せテストは代表Sで十分のため追加しない。原指摘はroot-carrier-review/result.json、裁定はcontroller-stop-ruling.md。
+**Files:** `drivegate_evidence.py`、`drivegate_runtime.py`、`drivegate_capture.py`、必要なpackage補足と対応tests。
+**テスト:** S。bool/int/完全色/欠落null/receipt再利用/別session/誤削除/不完全結線/Before漏れ等を代表正負例で防ぐ。F/L/Dテストを増やさない。
+- [x] 基本照合とstage結合、実SDKparse、独立typed BoolDriveのoffline検証。`c46cef7`まで104passed、指定レビュー修正済み。
+- [x] installed AI markerをv3 normalizedFixtureへ表現。`74c0eab`、106passed、前後SHA/MVID source根拠、指定レビュー。
+- [x] Rootの名前付き非有限値/完全profile/既知配列の保全専用対応。`505fb7b`、108passed/compile/diff。private writer意味は無変更。
+- [x] 同じClaudeを実Read/Grep/Globだけへ制限して再確認。42.784秒/exit0/stopped、技術SpecPASS/qualityPASS_WITH_ISSUES。
+- [x] clean505の新package43files/211DLL/3実SDKcheck-build-manifest-parse。旧packageは履歴保持。
 
-担当が明示範囲外の/tmp直下の固定名ファイルを計時用に作成・削除したと自己申告したため、実行範囲逸脱による安全上の停止を適用した。現在のパス不存在だけを確認し、過去の上書きや秘密漏洩を推測しない。Git監査はこの範囲を保証しない。技術PASSを次工程の許可にせず、追加review/fallback・新seal・実機再試行・公開を行わない。ローカル最終確認/記録/停止済み所有review worktree整理のみ実施。利用者が停止の解消を明示した後、同じClaudeの読取/検索専用ツール制限をCLI/adapter仕様で確かめる案と、完全に新しいpreflightを検討する。
+## Task 2b: 新ルールを実行側へ反映しSDK layout接続を完成する（未実装）
 
-新505fb7bpackageは未作成で旧74c0eabpackageを現版へ転用しない。前面化/他編集停止の明示は受領済み。今回の実機は5読取で停止、world writes0、baseline未承認、Task3/4未完了、公開未実施。
+**Files:** controllerの試行/観測手順、必要な`drivegate_evidence.py`/`drivegate_runtime.py`/対応Sテスト、README、試行brief。
+**テスト:** S。正当なRoot時点差分でprivate操作を誤拒否しない正例と、誤対象write/delete・Before上書き・timeout後の二重適用・未知metadataの成功化を防ぐ代表例。スクリプト文言や全組合せF/L/Dは追加しない。同期suite/compile/diff、隔離copyの実SDK検証を行う。
+- [ ] 旧`check_fresh_root.py`の全Root compare_subtree失敗によるassert終了を現行実行手順へ転用しない。Root差分は診断、明示対象のsession/所有/write-set等は別に判定する。
+- [ ] 読取/検査/接続失敗を自動回復・再試行する。mutationの適用済み/未適用/部分適用/不明を区別し、実体/Done/所有/終了確認後に継続する。任意コマンドの汎用再送APIは作らない。
+- [ ] runtime-only SDK graphとnative全layoutの接続を修正する。passive metadataの全field/default/reference/slotをcurrent producerから検証し、3D-only BSON metadataやpersistant-IDを誤解釈しない。非runtime全除外で解決しない。
+- [ ] current driver/code hashを実行前に記録し、同じ要件の指定レビュー/必要修正後、新code HEADのpackage/executionを再封印する。資料/READMEのみの変更でも旧sealのcodeCommitを黙って書換えない。
 
-#### 2026-11-08 operator待ちの解消・制限付き再確認
+## Task 3: preflight・native Drivegate・回復/再試行
 
-利用者の直前の具体案への続行指示により、前項のoperator待ちを解消する。通常の許可確認を挟まず同じ範囲で進め、安全/未知/不一致停止や元Task依存は維持する。Specの同名再開節をcontroller/reviewer双方の制約にする。これは過去の範囲外書込の否認・仕様承認SHAの発明・条件の緩和ではない。
-- [x] 実CLI help/公式docs/adapterでRead/Grep/Globのみの引数構築、空MCP/strict/deny、skills無効を確認する。実runのinit tools/tool-useも検査する。終了専用EndConversationは非書込の終了操作だけとして許容する。
-- [x] 同じClaude1名で505fb7b修正の限定再確認を行う。通常のテスト・hash・数値集計はcontrollerが担当し、子はRead/Grep/Globだけを使い、計時もrunnerの値を採用する。
-- [x] 制限確認/再確認を通過した場合だけ、新しいclean505fb7bpackage/実SDK/封印照合を行い、Task3を新しい全fresh試行として進める。過去window・旧state/sealを継ぎ足さない。
+**Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。
+**テスト:** Task1/2/2bのSを再利用。native成功/拒否は実測で確認し、新規文言テストなし。
+- [x] 旧読取preflightとRoot差分の実採取を実施（当時基準で停止、native未実行）。
+- [ ] current context/doctor/session/所有/明示保護対象/controls/完全色/型/実参照を確認。Root全値一致は要求せず、値変化・接続差は自動再採取/再planする。
+- [ ] panel/fixture詳細diff、新root不在/作成予定write-set、sealed inputs、全SDK結線をそろえる。保護範囲の調整は理由を記録して担当判断で行い、追加確認待ちを作らない。
+- [ ] 元機能仕様に照らして現在の意味baselineを準備・記録し、指定Claudeへ同じ現行方針で独立レビューを依頼する。観測の丸写しを適合判定にしない。
+- [ ] 新fixtureだけapply、3moduleを別親/別stateへ逐次deploy。失敗時も現在の適用/所有/プロセスを確かめて回復・自動再試行する。
+- [ ] Spec0–6/別再capture拒否、native outcome/readback/Done、helper所有/不在、Before完全復元を実測する。不一致は原結果を保存し、原因修正・回復・再試行へ進む。
+- [ ] 所有fixtureをcleanupし、対象不在/明示保護対象/write-setを検証する。Root姿勢の完全静止は要求しない。削除が適用済みなら再削除せず不在確認で完了する。
+- [ ] 最終成功結果を指定レビューし、実測/未確認/残存path/各retryを記録する。
 
-テスト追加なし（L/FのCLI flag文字列テストは追加しない）。代わりに実help/公式仕様、adapterのargv構築、実init tool一覧とtool-useの構造照合、既存108passedと同版の証跡、全package/現在hash/実SDK検証を使う。記録はPARENT_ROOT/tmp/agents/emission-native-finish.nkermyxf。時間上限は設けず過去所要時間を保持、レビューworkerの720秒枠・同期終了確認は維持する。
+## Task 4: 元Plan残り・同一テーマでの公開
 
-### Task 3: fresh preflightと短いDrivegateを逐次実行する
-**Files:** 生成物/実raw/ログ/stateはSESSION以下だけ（commitしない）、Spec/Planの結果追記。
-**テスト:** 新規テストなし。Task1/2のSを再利用し、実SDK/nativeの実出力と詳細diffを検証する。nativeの拒否機構と成功継続は実測でのみ確定する。
-- [x] 現在の前面化/16070/競合/現在sessionを確認、新試行のdiscover→別doctorから全fresh preflightを開始（開始のみ。Root値不一致で停止し、fullpreflight未完了）。
-- [ ] 現在の全保護状態/controls/完全色/型/実参照から新しい保全基準を準備し、元Specと意味を照合して封印/指定Claude確認。旧G0復元や観測を丸写ししただけの適合判定はしない。panel/fixture詳細diff・root不在/新規作成だけの予定diff・seal・全raw gateをそろえる。
-- [ ] 新fixtureだけapplyし、3moduleを別親/別stateに逐次deploy。各直前の範囲/入力と各直後の全結線/出力/対象を確認する。
-- [ ] Specの0–6を順に実行し、各native outcome/readback/Doneと本体保全を照合。helperはfresh所有/subtree再確認後に1つずつ除去、解除後正例を確認。
-- [ ] 初回不一致/切断で停止、修復や期待変更なし。成功時のみ元値/保全/静止と全所有を再確認してfixture1rootをcleanup、不在と本体詳細diff0/保全を確認。
-- [x] 結果レビュー、実測/未確認/残存パスを記録。短いgateだけでS4やTask4/6を完了にしない（今回の停止結果レビューのみ。native成功/cleanup未実施）。
+**Files:** 元Task4/5/6の必要変更、README、同じSpec/Plan。必要な保護/比較の変更は本Issueの委任内で具体化する。
+**テスト:** 変更ごとにS/L/F/D判定しSだけ追加。実UI/二人/save-reloadを模擬で代用しない。
+- [ ] Task3成功/結果レビュー/復元cleanup後にS4残りの全条件を準備・検証。
+- [ ] S4→S5→S6b→S6→S7と元Task4実UI/Task6を進める。技術的に必要な参加/操作と、不要になった保護範囲の許可確認を区別する。
+- [ ] 最終検証/指定レビュー/秘密情報検査→検査済みSHA push→コードPR1本/必要な同テーマ文書PR1本。Issue3部分ならRefs #3/open維持、手動merge。
+- [ ] 失敗は自動回復・再試行し、保護範囲の再承認待ちで終了しない。利用者が明示的に引き継ぎを指示した場合等は現在状態と回復手順を残す。
 
-#### Task3 今回の停止（未完了）
+## 実行履歴と現在の未完了
 
-最初の新規読取20:05:20UTCから、指定16070へ読取11件とprivate作成diff1件を実行した。doctor/同session/211DLL一致、完全panel1025Slot/2011Componentとsynthetic19Slot/21Componentの別プロセス保持を確認。20:16:36UTCのdiffは17期待に対し18creates（標準AI_GeneratedContent.Sourceが未宣言）となり、意味の照合FAILで停止した。native write=0。after bracket等を継ぎ足してfull preflightにしない。
+詳細は本書/Specの`edb7de5332107d69a081798eb78b007082cd62a3`以前のGit履歴と保存raw/review/ledgerにある。過去の「停止せよ」「再開許可待ち」「Root一致blocking」は現在の進行規則ではない。
 
-installed GeneratedContentMetadata.csがrootの自動markerを、installed WorldService.csが現在のrecovery文面を定義する。古いfork checkoutの文面差を、installed source自体の不一致と表現しない。原因説明は封印済み期待値を変える許可ではない。残りはmarker等のinstalled正規化の明示的な取り扱い、独立baselineレビュー/panel詳細diff/完全Root保全/全bracket、new sealed inputs/fullfresh preflight、native全phase/再capture/cleanupと結果レビュー。本試行の再開や旧state復元はしない。Task1/2のcleanレビューや104テストで未完了を埋めない。
+- 20:16の17期待/18creates: installed標準marker差を検出、write0。当時失敗のまま保持し、v3正規化で対応した。
+- 02:21の5読取: Root8953Slot/17977Component、835未対応leafでinconclusive。当時write0、後に保全carrierを対応した。
+- reviewerの/tmp計時file逸脱: 当時停止、過去の存在/上書き不明。現在はtool制限の実証で解消済み。
+- 03:21の6読取: 両Root完全形状、1415slot metadata/2792typed memberの診断差分、旧完全一致gateでfailed。after bracket未採取、write0。113.439秒の指定レビューは当時条件で停止妥当とした。**Root時点差分を現在のblocking理由にはせず、新方針で自動継続する。**
+- `emission-native-finish.nkermyxf`の新packageはcode505の記録。文書改訂や将来の実装修正後は出所を再確認し、必要な新packageを作る。旧seal/判定は変更しない。
+- 今回は方針記載の改訂であり、Task2bの実装修正・native再試行・baseline承認・全Issue完了はまだ実行済みとしない。公開未実施。
 
-指定Claudeによる停止結果の確認は実測77.575秒/exit0/stopped、停止妥当・native_permission=false・baseline未承認。不正確だったworker報告のinstalled source差という表現は、古いfork checkoutとの差に訂正した。歴史的ILと現在binaryのhash bindingは未確認のまま残す。コードの新規修正・native再試行は行わない。
-
-この統合検査が未解消のためpush/PRは行わず、コード1branch・文書1branchをローカル保全する（公開未実施）。同テーマの新規PRを進捗単位で増やさない。実行予算はリセットせず、停止結果の指定Claude確認とhandoffを行う。
-
-#### 2026-11-08 新packageとRoot値不一致停止の実測
-
-制限付き再確認42.784秒/exit0/stopped、実公開tools Glob/Grep/Read・使用Read7/Grep1・MCP=[]でtool-policy適合。SpecPASS・qualityPASS_WITH_ISSUES・R1ADDRESSEDを受理し、以前のoperator待ちは解消済み。新しい505package/executionは43files/211DLL、3実SDKcheck/build/manifest/parse成功、driver/argv/SHAとsource/blob/raw hash記録、前後characterization不変、state不在。旧74packageは凍結のまま。108passedは同じcode505の既存証跡を再利用し、変更なしのsuite再実行/新規F/Lテストは追加していない。
-
-新規6読取は全CLIexit0。Root-before/afterは各8953Slot/17977Componentの完全形状で、追加/削除なしだが完全保全比較は値不一致failed。最終read終了03:21:08.025158UTC後、03:21:09.468067UTCに停止を記録した。診断にはslot metadata1415/typed member2792の変化があり既存アバター/利用者の姿勢等を含むが、原因は断定しない。after session未採取、埋込panel/synthetic一致は専用読取/詳細diff/fullRoot/baselineを代替しない。以後world call0、fixture/state/module/nativewrite0。元phase/recapture/復元/cleanupとTask4は未完了。
-
-指定Claudeによる停止結果レビュー113.439秒/exit0/stopped、公開tools Glob/Grep/Read・使用Glob3/Read14/Grep3・MCP=[]で適合、停止ACCURATE/preservationFAILED/fullpreflightfalse/nativepermissionfalse/baselineNOTAPPROVED。F1blockingを維持し、F2/F3の未採取/埋込比較の限定、F4の次回実行前driver/code hash採取Info、F5の診断投影範囲の限定を記録した。診断を採用条件へ格上げしない。F6のnative SDK metadata/runtimeスコープ接続懸念は別sourceメモで未レビュー/未修正、今回配備の発見ではない。
-
-現在の値変化を除外/許容差/再採取で通さず、全値一致条件を満たす環境または具体的な保護モデルの判断がない限り実機はnot ready。一般的な続行指示を実質変更の承認とみなさない。通常の許可確認は繰り返さず、今回は未完了と根拠を保全する。コード/原raw/seal無変更、draftの記録追記だけ、公開未実施。根拠はPARENT_ROOT/tmp/agents/emission-native-finish.nkermyxf（new-package-receipt.json、restricted-review/tool-policy-proof.json、root-check/、root-stop-review/、final-rulings.md、native-sdk-frame-gap.md）。
-
-### Task 4: 元Planの残りへ接続し、同一PRで公開する
-**Files:** 元PlanのTask4/5/6に必要な変更だけ（判明時に本書へ具体的範囲/検証を追記）、同じbranch、README、Spec/Plan。
-**テスト:** 各変更をS/L/F/Dで判定しSのみ追加。既存の検証を同版/同前提で再利用。実UI・二人・保存再読込を模擬で代用しない。
-- [ ] Task3が成功し独立結果レビュー/cleanupを終えた場合だけ、S4残りの新しい全条件を準備・検証する。Task4全体未完了のままTask5を無条件に進めない。
-- [ ] S4→S5→S6b→S6→S7と、元Task4実UI/Task6の未完了を順に対応。現場で必要な利用者操作は自動成功扱いにしない。
-- [ ] 同じコード/文書branchで最終検証・指定Claudeの必要レビュー・秘密情報検査→同一SHA push→コードPR1本/同テーマ文書PR1本。Issue3部分進捗ならRefs #3、open維持。手動merge待ち。
-- [ ] 予算/安全停止時は残るTaskをpendingとして保全しagent-handoff。PRを進捗単位で増やさない。
+既存ledger: PARENT_ROOT/tmp/agents/emission-native-gate.oq3olakn/sdd/2026-11-07-emission-issue-3-native-gate/progress.md。旧証拠はemission-native-{live,next,finish}の各保存領域、新しい文書改訂記録はPARENT_ROOT/tmp/agents/issue-3-policy.xan7gp06。

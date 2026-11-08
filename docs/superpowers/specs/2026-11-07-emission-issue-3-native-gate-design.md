@@ -1,114 +1,101 @@
-# Issue #3 native Drivegate の再開準備
+# Issue #3 native Drivegate と継続作業の仕様
 
-- 状態: draft
-- 対象: usaturn/resonite-emission-editor#3。元ツールの承認・Task4/5/6の意味は維持する。
-- 実行許可: 利用者の「必要なことは全て承認します。今後は許可を求める必要はありません」。直前に具体的に示した、不足するDrivegate宣言・manifest・封印資料・照合処理・詳細diff基準の新規準備と、その後の既存Task4/5/6の実装/実機確認を許可する。以前の「オフライン実装不要」によるこの準備の停止を解消する。未作成の内容版の承認SHAは発明せず、内容はdraft、委任による実行許可として記録する。
-- コード: /workspaces/create-reso-world/external/emission-editor/.worktrees/issue-3-native-gate、feat/issue-3-native-gate、開始743f1f97dcc3e5224170ffbbfcdcdc430b1997f5。
-- 文書: create-reso-worldの本worktree、開始0d58ac76b3c364ec431a292c8bc41e58f57e933b。旧raw補足Planはcompletedのままで再開しない。元のopen Planはコードrepo mainの docs/superpowers/plans/2026-11-03-tools-avatar-emission-editor.md。
-- PR4のraw receipt基盤は再実装しない。既存の未公開レビュー記録2d8635dは本ブランチへcherry-pickし、元worktreeは変更せず保持した。
+- 状態: draft。コミットしただけで内容承認SHAを発明しない。
+- 対象: `usaturn/resonite-emission-editor#3`。このIssueの完了まで、担当・セッションが変わっても以下の作業方針を適用する。
+- 実行許可: 利用者の既存の準備・実装・実機確認の委任に加え、2026-11-08の具体的な変更指示を記録する。「Root全体の値は完全一致する必要はない」「最初の不一致で停止せず自動再試行する」「保護範囲を実質的に変える場合も、今回のIssue作業に限り確認不要」。直前の「今回のセッションに限り」は最新指示の「今回のIssue作業に限り」で置き換える。
+- コード: `external/emission-editor/.worktrees/issue-3-native-gate`、`feat/issue-3-native-gate`。常設checkoutと親detached HEADは編集しない。
+- 文書: create-reso-worldの`docs/resonite-emission-editor-issue-3-native-gate`ブランチ。コードrepoに残る元機能Spec/Planと、今回の作業・検証方針を区別する。
 
-## 目的・判断
-元PlanのR101停止後に必要となった、別所有fixtureの短いtyped Drivegateを現在の公開ソースから実行可能にする。旧tmp/worlds/toolsや旧state/session、古い試行の継続・復元はしない。小タスクは進捗単位であり、関連変更は本コードbranch/PR1本、同テーマ文書PR1本に集約する。
+## 現在有効な作業方針（Issue #3限定）
 
-選択: private ValueFieldだけの新規fixture、host-onlyのmutable writer、イベントを持たないcolorX/bool Drive helperを別々の親へ置く。既存のnative PG/manifestの方式を使い、元の本体PGや期待値を実機結果に合わせて変えない。
-別案: 既存のReadbackProof/CommitProof全体を配備する方式は書き込み対象と分岐が広すぎるため採用しない。旧資料復元は明示禁止のため採用しない。raw基盤全面変更や一般的な任意コマンド実行ツールは不要。
+この節は、同じIssueの旧Spec/Plan、brief、ledger、handoff、停止時の裁定にある、Root全値一致・初回不一致で作業全体停止・自動再試行禁止・保護範囲変更の再確認待ちより優先する。一般規約の実質変更時の確認は、本Issueでは利用者の明示的な事前委任で充足する。他のIssueやリポジトリへ例外を広げない。過去のraw、失敗判定、レビュー原文、sealは事実として保持し、旧失敗を遡って成功へ書き換えない。
+
+1. **Root全体の値の完全一致を要求しない。** アバターや利用者の位置・回転・scale、solverや入力状態を含め、Rootの時点差分だけでpreflight失敗や作業停止にしない。Root全体を採取する場合も全payloadを残し、差分は診断情報として扱う。動作原因は観測だけから断定しない。
+2. **不一致・切断・検査失敗は自動で調査・修正・再観測・再試行する。** 最初の不一致でIssue全体を止めたり、通常の再開許可を求めたりしない。失敗した試行と新しい試行の記録は分け、同じ失敗の無益な高速反復ではなく原因に応じて方法を自動変更する。
+3. **保護範囲・比較対象・その実装の実質的な見直しも、本Issueでは利用者への追加確認なしに進める。** 担当が理由、新しい保護対象、検証方法をSpec/Plan/ledgerに記録し、実装・レビュー・再試行へ進む。新しい内容版の承認待ちを作らない。これは確認手続きの委任であり、未検証の成功報告、利用者データの破壊、対象外への書込の許可ではない。
+
+## 目的・構成
+
+元PlanのS4/R101以降に必要な、別所有fixtureの短いtyped Drivegateを現行の公開ソースから実行可能にする。PR4のraw receipt基盤は再実装しない。旧tmp/worlds/toolsや旧state/sessionを探索・復元・再生せず、現在の観測から必要な資料を新しく準備する。関連変更はコード1branch/PRと同テーマ文書1branch/PRへ集約する。
+
+private ValueFieldだけのfixture、host-only mutable writer、eventlessなcolorX/bool Drive helperを別々の安定親へ置く。既存ReadbackProof/CommitProof全体の配備や、一般的な任意mutationランナーは採用しない。
 
 ## 受け入れ基準・環境・防御範囲
-Python3.14/uv/Linux、標準ライブラリ、ResoLoop0.2.0、実機doctorで確認する現在のDLLとFlux SDK。port/session/実IDをソースへ固定しない。通常の実機利用の単独動作・二人操作・保存再読込をこの短い試験で証明したとはしない。
 
-入力はnative colorXの完全RGBA/profile（HDR、alpha非1、Linear/sRGB）、bool、非ASCIIを含むraw JSON。値比較でboolと整数、未観測memberの欠落と既知null、型違いを同一視しない。CLI0.2.0はpresentなreference MemberValueのnullable targetIdをnull時に省略するので、その完全なkind/id付きreferenceレコードだけは既知nullとして正規化する。member自体の欠落/unknown kind/idや非null要求はこの規則で補わない（現在runの実ObjectWrite/GlobalReference/DriveProxyと同梱Models/Mapper/OutputWriterで根拠を照合）。presentな完全なkind/id/type付きfieldのvalue省略も同serializerの既知nullであり、null文字列と空文字列を区別する。bool/int/colorのnullをfalse/0として埋めない。完全な保護treeにある未解釈の型付きfieldは、型・ID・全JSON値を厳密に保全する用途だけで比較し、private書込対象として解釈・許可しない。既知mapperのempty/SyncPlaybackの観測と未知kind/欠落を区別し、全member/list/mapを残す。模擬値のprofile変更で元のdictまで変える共有参照を作らない。
+Dev Container、Python3.14/uv/標準ライブラリ、実行時に確認するResoLoop・Flux SDK・Resonite DLL。現在の接続先を確認し、port/session/実IDを公開ソースへ固定しない。
 
-防御対象: 他のパネル/実アバター/既存syntheticを試験write/deleteの対象にしない、古いsession/stateを使わない、生成物や利用者ファイルの上書き、失敗を成功とすること、完全色値の損失、Drive下のOnWrittenをOnFailの成功と誤認すること、未検証/改変したpackageからの実行。
-対象外: 他利用者との不可分な排他、悪意ある管理者による全rawの整合的な書換えの認証、現在のパネルの修復、駆動の解除による既存対象への強制write。complete/executionPermissionと、個別の試験の判定・実行許可を分ける。
+native colorXは完全RGBA/profile（HDR、alpha非1、Linear/sRGB）、bool、非ASCII raw JSONを扱う。boolと整数、欠落memberと既知null、型違いを同一視しない。installed CLI0.2.0のserializerが省略するnullable値は、完全なkind/id付きreference、またはkind/id/type付きfieldがpresentな場合に限り既知nullとして扱う。member欠落やunknown kindを補完せず、nullをfalse/0/空文字列に置換しない。
+
+保全専用の比較は、名前付き非有限値`Infinity`/`-Infinity`/`NaN`、完全RGBAと非空profile文字列、既知`Array_float3`/`Array_floatQ`の全要素・軸・内外ID・payloadを保持する。型付きopaque値の保全とprivate writerへの意味解釈は別であり、private targetは有限値/Linear・sRGBの基準を維持する。低レベルの厳密比較APIを保持しても、それをRoot全体の一律な合否条件にはしない。
+
+Rootの差分とは別に、次を検証する。
+- 操作ごとに、現在のsession、明示した対象ID/親/型/所有、実際のwrite-set/delete-setを照合する。
+- この短いgateのwrite/delete先は新規所有fixtureとそのmodule/helperだけ。既存パネル・実アバター・登録済みsynthetic・materialを試験対象にしない。動作を止めるための既存アバター変更も行わない。
+- 封印資料、SDK生成物、実module/writer/Drive/global/binding/継続edge、private Before/対象/readback/Doneの意味を検証する。未知の情報を成功にせず、自動で必要な採取・解釈・実装修正へ進む。
+- 既存パネル等の確認対象は、ツールの保持すべき値・参照・所有情報・登録内容などを明示する。Root全体の姿勢等の差分をこの対象へ無条件に混ぜない。確認対象の差分は原因と適用状況を調べて回復・再検証する。
+
+厳密な他利用者排他、悪意ある管理者による全証跡の整合的な改ざんの認証は対象外。`complete`/`executionPermission`と個別検査結果を分け、CLI exit0だけでnative成功にしない。
+
+## 自動再試行と回復
+
+- 読取/接続の一時失敗は、現在contextを更新し、短いbackoffを入れて自動再試行する。Root全値一致が得られるframeを探すための再採取は不要である。
+- 同じsignatureが続く場合は、同一操作の反復からsource調査、decoder/照合/実装の修正、再build、新しい試行への切替を自動で行う。「再試行1回まで」「失敗したらIssue全停止」という上限は本Issueへ適用しない。所要時間と進捗は記録し続ける。
+- 書込/作成/削除/deployが失敗・timeoutした場合は、戻り値だけで未適用と決めず、先に現在の値・Done・実体・所有・state・プロセス終了を読み戻す。適用済みなら検証して先へ進み、未適用なら再試行し、部分適用なら所有範囲内で回復・再planして再試行する。状態不明のmutationを盲目的に重複送信しない。
+- 1つのwrite担当が生存中に別のwrite担当を重ねない。生存/終了が不明なら、確認・再接続・ローカル修正を自動継続し、危険な重複操作は実施しない。
+- Capture済みBeforeを現在値で上書きしない。再試行には現在試行の検証可能なcheckpointを使う。別session、帰属不明、改変済みの旧stateを再生しない。継続できない試行は証拠を保持し、所有確認したfixtureを安全に回復/片付け、新token/stateでやり直す。
+- 正当なnative不具合は実装を調査・修正して再試行する。A/B/C、OnWritten/OnFail等の期待を観測結果へ合わせて成功にしない。失敗した試行の原raw/verdictを上書きせず、再試行ごとに新記録を作る。
+- 安全な実行条件を満たさない操作は送らず、その条件の回復を自動で進める。回復不能が具体的に確定した場合は、試行・残作業・不能理由を正確に報告する。単なる不一致を理由に許可待ちへ戻らない。
 
 ## 専用fixtureとnative手順
-生成するrootはResoLoop_Test_EmissionEditor_Drivegate_<token>、独自ownership。許可するComponentはprivate ValueField<int/bool/colorX>と通常のObjectRootのみ。Material/Renderer/AvatarRootは含めない。probe/color-helper/bool-helperは別々の安定親を使う。ポートは$memberの自分のfixtureだけに結ぶ。world/各Flux stateは新しい試行ディレクトリだけに置く。
 
-初期Beforeと対象を同じ値にしない。BeforeColorのRGBAは[0,0,0,1]、BeforeBool=false、ColorTargetのRGBAは[4.25,.5,1.125,.3125]、BoolTarget=trueとする。nativeの初期profileは名前から推測せず完全値を観測・検証する。capture未実施やphase5後のbool復元未実施を検出できないbaselineは拒否する。再capture拒否は6phaseの値だけで実施済みとせず、現在値がBeforeと異なる時点の別のnative試行が必要である。
+rootは`ResoLoop_Test_EmissionEditor_Drivegate_<token>`、独自ownership。private ValueField<int/bool/colorX>とObjectRootを用い、Material/Renderer/AvatarRootは含めない。probe/color-helper/bool-helperは別の安定親、portは自分のfixtureの`$member`だけへ結ぶ。world/Flux stateは試行専用にする。
 
-Probeはhost-only FireOnValueChange<int>1入口、毎frame処理なし。Command0はno-op。
-1. native BeforeColor/BeforeBoolを一度だけcapture、Captured=true/Done=1。
-2. mutable ColorTarget/BoolTargetへA（HDR/Linear/非1alpha、true）を代入。OnWritten=1/OnFail=2を別のColorOutcome/BoolOutcomeへ、完全なColorAfter/BoolAfterをnative readback、最後にDone=2。
-3. color-helper/bool-helperがA/trueをDriveした状態でB（異なる完全色/sRGB、false）を代入。期待は両OnFail=2、実対象とreadbackはA/trueのまま。
-4. color-helperだけを所有/全subtree再確認後に削除して不在を確認。同じB/false候補でcolor=OnWritten、bool=OnFail、B/true。
-5. bool-helperだけを同様に削除して不在確認。C（別HDR/Linear/非1alpha、false）で両OnWritten、C/false。
-6. BeforeColor/BeforeBoolをnativeで復元し、完全5成分とboolを確認。capture再実行は拒否しBeforeを書き換えない。
-各phaseで試験範囲/実継続/Done/readbackを確認する。CLI exit0だけでnative成功にしない。最初の不一致で停止し、期待値変更や自動修復・再試行をしない。
+BeforeColor=[0,0,0,1]、BeforeBool=false、ColorTarget=[4.25,.5,1.125,.3125]、BoolTarget=true。profileは名前から推測せずnative完全値を観測する。capture未実施やbool復元漏れを検出できる初期値にする。
 
-## package・保全・preflight
-prepare_packageは既存でない出力先だけに、fixture宣言・3PGのコピー・親ごとの3manifestを生成する。check/buildはコピーに対して同期実行し、原PGの隣へbrsonを生成しない。テストのfake compilerも実行してこの経路を確認する。packageは全入力/生成SDK record/manifestを列挙したSHA inventoryで封印する。SDK/DLL/CLI版とcode commitも記録する。
-sealされた入力/期待recordはdeployの再ビルド先にしない。別の実行コピーと封印物を照合し、生成物の変更・不足・symlink/範囲外・追加未知ファイルを検出したら実行しない。
+Probeはhost-only FireOnValueChange<int>1入口、毎frame処理なし、Command0=no-op。
+1. BeforeColor/BeforeBoolを一度だけcapture、Captured=true/Done=1。
+2. mutable ColorTarget/BoolTargetへA（HDR/Linear/非1alpha、true）。OnWritten=1/OnFail=2を別々に記録し、完全readback後Done=2。
+3. color/bool helperがA/trueをDriveした状態でB（別完全色/sRGB、false）。両OnFail=2、実対象/readbackはA/true。
+4. 所有/subtreeを確認してcolor helperだけを除去、不在を確認。B/false候補でcolor=OnWritten、bool=OnFail、B/true。
+5. 同様にbool helperだけを除去。C（別HDR/Linear/非1alpha、false）で両OnWritten、C/false。
+6. native Beforeを復元し、完全5成分/boolを確認する。
 
-full preflightは、新しい前面化/URL/排他確認からdiscover→別doctor→native session/所有/全保護値/controls/完全色の別プロセス再採取→panel/fixtureの詳細diffと試験root不在→封印資料と全module/writer/Drive/global/binding/継続edge/subtreeを照合する。
-現在の実機を読み取って用意する保全基準は、現在の意味/型/実参照を元Specと照合して別にレビューし、実機へwriteする前に封印する。観測を単にexpectedへコピーして仕様適合にしない。既存の旧G0や469という値を復元・固定して代用しない。保存パネルへの宣言適用・state採用はこの短いgateでは行わない。
+現在値がBeforeと異なる時点で、別のnative再capture要求が拒否されBeforeが保持されることも実測する。6phaseだけで代用しない。各不一致は自動回復/再試行の記録へ送り、Root全値一致を追加の完了条件にしない。
 
-この短いgateはS4全体/C9/C30/C23/C31の合格ではない。成功・結果レビュー・片付け後にだけ新しいS4全条件の準備へ進み、S4前にS5、S5前にS6bへ進まない。
+## package・SDK・preflight
 
-## 2026-11-07 実装・停止記録
+`prepare_package`は新規出力先だけへfixture・3PGコピー・3manifestを作り、同期check/build/manifest検証後に入力/record/logをSHA inventoryで封印する。全経路のsidecarを隔離し、原PGや封印物の隣へ再buildしない。実行用copyと別々のstateを使い、code commit/CLI/SDK/211等のDLL実inventoryを結ぶ。失敗した出力先を上書きせず新しい試行を自動準備する。
 
-Task1/2のコードはc46cef703f14c73f15a38a6ccac48a6a7b58ce52まで。PR4のraw collectorと既存本体PGは無変更。全104passed、実SDK3PGのcheck/build/manifest検証と新package43ファイル/211DLLの照合、独立に作成した完全typed BoolDriveと実SDK/所有graphの結合比較を実行した。これはoffline比較でありnative成功ではない。唯一のclaude-code_opus_defaultによるTask1/Task2レビューと採用指摘修正の限定再レビューはPASS。capture/restoreが見えない初期値、封印先への再build、cleanな出所の不足、未使用の弱いdiff APIと重複テストは修正済み。
+v3の`normalizedFixture`はinstalled ResoLoop0.2.0の自動markerを入力宣言とは別に表す。key=`drivegate-root/component:FrooxEngine.AI_GeneratedContent:0`、plan型=`FrooxEngine.AI_GeneratedContent`、state/native型=`[FrooxEngine]FrooxEngine.AI_GeneratedContent`、Source=`[resoloop 0.2.0]`。入力へ重複追加せず、markerをwriterのValueFieldへ混ぜない。CLI変更や未知componentは調査・モデル更新・新封印・再試行で扱い、無条件に無視しない。
 
-SDKの正確なpersistant-IDはBSON共通メタデータであり、native persistent memberのIDやengineの名前aliasではない。現在のSDKはNodeComponent.FieldsからAddComponentを作り、現在DLLのComponentBase.Initializeがpersistent=trueを設定する。実runtimeの当該memberは存在・型・値・ID重複を確認し、消して合わせない。SDK記録の余分な型を無条件に許す規則はない。
+native SDKの全layoutとruntime graphを区別する。`_sdk_graph`のruntime-only出力へ全native componentをそのまま渡す接続の懸念は未修正である。正確なheadless producerからpassive metadata/field/default/参照/slotを照合し、BSONの3D専用`Meta: Comments`/`Meta: Packing`や`persistant-ID`をnative member identityへ誤写像しない。必要な修正・レビューを追加確認なしに進める。
 
-新しい16070のpreflightで、同じ現在session、別doctor、完全panel1025Slot/2011Componentとsynthetic19Slot/21Componentの別プロセス再採取・保持を確認した。現在の211DLL hashは新sealと一致する。元UIのnull Operator参照と残るclaim/使用中表示は保全し、所有・競合なし・操作可能性と読み替えたり手動修復したりしていない。
+preflightは現在の前面化/URL/他編集停止の適用性、discover、別doctor、native session/対象所有、明示した保護対象、private色/型/実参照、panel/fixture詳細diffと新root不在、sealed inputs/SDK全結線を確認する。前面化/他編集停止は受領済みであり、反する事実がないのに未回答として再確認しない。Root全体の完全一致は要求しない。新たな値変化やcontext変更は自動再採取/再planで扱う。
 
-20:16:36UTC、private fixtureの詳細作成diffが宣言の17createsではなく18createsとなり、未宣言のAI_GeneratedContent.Sourceが1件含まれたため停止した。CLI exit0でも意味の照合はFAILである。installed NuGetのGeneratedContentMetadata.csはgenerated rootへの標準AI由来marker追加を定義し、installed WorldService.csのrecovery文面は実出力と一致する。古い別fork checkoutを期待値の根拠にしていた差は説明できるが、これで封印済み期待値や許可Componentの集合を事後変更しない。metadataを抑止する回避や自動再試行は行わない。
+現在の保全基準は元機能仕様と意味・型・実参照を照合し、指定Claudeに独立レビューさせて実行前に記録する。担当が保護範囲を見直した理由も同じbriefへ渡し、利用者への再確認をgateにしない。旧G0/固定件数の復元、観測の丸写しだけによる適合判定、旧state採用や保存パネルへの宣言適用はしない。
 
-ワールドへの書き込みは0。fixture/state/moduleを作成せず、after session bracketは停止により未採取。独立baselineレビュー、panel詳細diff、完全Root保全条件、full preflight、native全phase/再capture/cleanup、S4以降、元Task4実UIとTask6は未完了。次はinstalled仕様から正規化・所有範囲を明示的に扱う修正を設計・レビューし、新しい封印入力と全fresh preflightを用意する。今回の停止windowを継ぎ足さない。検証の未解消をdraft PRで迂回せず、同じコード/文書branchをローカル保全する。公開未実施。
+## レビュー・工程・公開
 
-## 2026-11-08 再開時の正規化補足
+唯一のレビュアーは`claude-code_opus_default`、fallback/自己レビュー代替なし。run単位でRead/Grep/Globだけ、空strict MCP/deny、skills/commands無効、個人設定無変更。実init/tools/tool-useを確認し、計時はrunnerへ任せる。制限逸脱や失敗したrunは不採用にし、制限修正・再確認を自動で行う。旧「別途再開許可待ち」は作らない。OS sandbox保証とは呼ばない。
 
-利用者は指定handoffからの続行、ResoniteLink 16070、時間制限なしを指示した。従来の180能動分の記録は保持し、今回以降の時間を追記して合算するが、旧上限を停止理由にはしない。実行許可の範囲と安全停止条件は変更しない。接続先の指定は現在のワールドの前面化の明示ではないため、明示を得るまでは接続・読取・撮影・変更を行わずオフライン準備だけを進める。
+短いgateはS4全体/C9/C30/C23/C31の合格ではない。native成功・結果レビュー・復元/cleanup後にS4残り→S5→S6b→S6→S7へ進む。実UI・二人・保存再読込を模擬成功にしない。利用者への保護範囲の承認要求と、物理的に必要な二人目の参加等を区別する。
 
-Task3前提修正は、installed ResoLoop0.2.0のGeneratedContentMetadataとWorldServiceの正規化を、宣言とは別の封印済み期待モデルに記録する。入力fixtureへ自動markerを重複記述せず、CLIによるroot追加を表現する。対象は本fixtureのrootだけ、keyは`drivegate-root/component:FrooxEngine.AI_GeneratedContent:0`、plan型は`FrooxEngine.AI_GeneratedContent`、配備済みstate/native型は`[FrooxEngine]FrooxEngine.AI_GeneratedContent`（WorldService.CreateComponentStateはcreateで得たResolvedTypeを保存する）、Sourceは`[resoloop 0.2.0]`である。別CLI版・marker欠落・Source欠落/型違い/値違い・別親/余分なComponentを受理しない。完全subtree比較による他の全member保全も維持し、このmarkerは書込対象のValueFieldとして扱わない。既存の17件期待と失敗rawは変更しない。
+raw/実session/state/brson/個人絶対パスはlocal-only。コード/必要な同テーマ文書へ集約し、未検証の成功としてpush/PRしない。Issue部分進捗はRefs #3/open維持、手動merge、force/auto-merge/Actions有効化なし。公開前の秘密情報検査等は維持する。
 
-新package形式v3は入力fixtureと正規化済み期待モデルの関係を検証し、後者をsealに含める。precreateの全key照合と配備後の所有/結線検証は同じ期待モデルを使う。未知のmetadataをまとめて無視する規則は追加しない。DLL/SDKの既存IL記録は過去のhash bindingを発明せず、現在ファイルの前後hashと新規のIL採取を結んだ別記録で検証する。これはnative成功やfull preflightを意味しない。
+## 実行済みの事実と今回の変更境界
 
-この補足は、既に具体的に委任されたinstalled正規化・封印入力・意味/範囲照合の不足修正に限る。旧本体PG、A/B/C/OnWritten/OnFail、実UIや依存順序、既存対象へのwrite禁止は変えない。内容はdraftのまま、承認SHAは発明しない。唯一の指定Claudeが同じ受け入れ基準で実装差分と前提を確認した後に新sealを作る。
+詳しい従来記録は本ファイルとPlanの`edb7de5332107d69a081798eb78b007082cd62a3`以前のGit履歴、下記の保存済み原証拠へ残す。そこでの停止・確認待ちは当時の判断の説明であり、現在の作業指示ではない。
 
-実行記録: コード74c0eab95536e581b7a3a8e95ba31bbed6031d60、全106passed（5.41秒）、compile/diff成功。新規S2件のREDを確認し、既存のdeployed/phase/cleanup経路も同じ正規化へ統合した。唯一のClaudeの実測205.587秒/exit0/停止確認済み/outside_changesなし、SpecPASS・qualityPASS_WITH_ISSUES、Critical/Importantなし。LowのR1は、封印/実SDKparseの前後で現在のCLI/SDK/entrypoint/関連sourceを再hashし、新sealのhashと結ぶcontroller記録で条件を満たした。LowのR2（Source型/kind拒否の追加テスト候補）は実装自体の欠陥ではなく、次の同領域変更または最終レビューへ保留する。
+| 段階 | 実行済みの事実 |
+| --- | --- |
+| Task1/2 | `c46cef7`まで、104passed、実SDK3graph、指定Claudeレビュー。native成功ではない。 |
+| installed正規化 | `74c0eab`、106passed、v3 marker期待、前後SHA/MVID付きcurrent IL。旧17期待/18actual停止は不変。 |
+| Root carrier | `505fb7b`、108passed/compile/diff、835leafの未対応を保全専用で修正。旧02:21のinconclusiveは不変。 |
+| reviewer範囲逸脱 | 固定/tmp計時fileの作成/削除を自己申告、当時停止。既存内容/上書き/漏洩は不明。同じClaudeのtool制限で解消済み。 |
+| 制限付き再確認/新package | 42.784秒/exit0/stopped、実tools=Glob/Grep/Read、使用Read7/Grep1、MCPなし。新505packageは43files/211DLL/3実SDKparse、stateなし。 |
+| 03:21の旧Root試行 | 6読取/全CLIexit0、Root各8953Slot/17977Component、診断1415slot metadata/2792typed member差分。旧全値一致gateでfailed、03:21:09.468067UTCに停止。after session未採取、world write0。 |
+| 旧停止の結果レビュー | 113.439秒/exit0/stopped、実tools=Glob/Grep/Read、当時条件で停止ACCURATE。現在はRoot一致blockingと再試行禁止を本Issueの新方針で解除する。 |
 
-新しいcurrent IL記録は前後SHA/MVIDと結び、211native DLLが旧sealと一致、外部SDKのPacking/ResoniteLinkも同じ採取済みbytesであることを確認した。過去ILのbindingは証明したとしない。adapter由来の実native型と安定keyの実観測照合は、次のfresh preflight/state確認でもfail-closedに保つ。新しいv3 packageは43ファイル/211DLL、実SDK3PGのcheck/build/manifestとsealed parseすべて成功、stateなし、実行コピー不変。記録は`/workspaces/create-reso-world/tmp/agents/emission-native-next.gk7mchty/`の`package-characterization-binding.json`・`normalization-review/result.json`・`review-rulings.md`。`verify_ready_inputs.py`でオフライン再照合済み。
+旧Rootの原因がanimation/他利用者/編集とは断定しない。埋込panel/synthetic一致は専用読取やbaseline承認の代わりにしない。過去のdriver hash不足を遡及補完しない。診断件数はcomponent非member属性を網羅する採否基準ではない。
 
-今回のワールド接続/読取/撮影/書込は0。前面化明示待ちでTask3は未完了、baseline未承認、nativePermission=false。full Root保全・panel詳細diff・fresh identity bracket・現在の競合/前面化確認・意味baselineレビュー・native全phase/再capture/cleanup・S4以降を省略しない。コード/文書ともローカルcommitのみ、公開未実施。
-
-## 2026-11-08 fresh Root採取と保全専用carrierの補足
-
-利用者が現在の対象ワールドの前面化と他編集の停止を明示したため、16070へ完全に新しい読取preflightを開始した。discover→別doctor→現在hierarchy→そこから導出したnative session member→Root深さ64の5件を採取。現session/doctorは一致したが、02:21:30UTCのRoot自己照合はinconclusiveで停止し、それ以後のworld callは行わない。Rootの構造は8953Slot/17977Componentで完全だが、既存照合が保全できないleafが835件あった。342件はSystem.Singleの名前付き非有限値、489件はcolorXのsRGBAlpha、各2件はArray_float3/Array_floatQ。これは新旧値不一致やnative成功ではなく、比較器が完全な実wire表現を未対応としていることを示す。panel再採取/詳細diff/after bracketは未採取、書込0、baseline未承認。
-
-installed OutputWriter/ModelMapperはAllowNamedFloatingPointLiteralsを指定し、Single/DoubleのInfinity・-Infinity・NaNをJSON文字列にする。ResoniteLink.colorXのProfileは文字列carrier、float3/floatQ配列は既知クラスのvaluesと継承IDを含むJSONであり、MapMemberのGetType().Name付きの既知fallbackで採取される。この既知表現だけを**保全比較専用**に扱う。完全なRGBA/profile文字列、名前付き非有限値の区別、配列の全軸/全要素/内外ID/全payloadを厳密比較し、欠落・未知kind・不完全形状を許可しない。bool/intの区別は維持する。private target/writerの有限値/Linear・sRGBという意味判定は変更せず、新carrierをprivate書込へ許可しない。Rootからの除外・未知値の無視・実アバターの変更は行わない。
-
-この意味を保つ最小修正とS回帰・指定Claude確認は既存の型/保全前提準備の委任範囲とする。停止windowを継ぎ足したり、失敗をPASSへ書き換えたりしない。新しい準備の確認後も全fresh preflight・baselineレビューが必要である。根拠はPARENT_ROOT/tmp/agents/emission-native-live.enko3n41の原raw・root-unhandled-summary.json・schema-receipt.jsonとSHA/MVID付きschema-il.logに残す。
-
-コード505fb7b43e111456d4ebfe21f9d11e067ff0e733で保全専用対応、108passed（5.31秒）/compile/diff成功。停止rawの形状自己照合は新しいコードでofflineのみpassedとなり、final-head-local-verification.jsonがclean HEAD/blob/source hashと元raw hashを結ぶ。古いworking-tree版の参考結果と元のinconclusive判定は変更しない。独立baseline・native連続性・fullpreflightの成功ではない。
-
-指定Claude1名のレビューは実測143.204秒/exit0/停止確認済み、技術判定はSpecPASS・qualityPASS_WITH_ISSUES・sourceGROUNDED・停止妥当だった。Low R1の最終HEAD自己照合記録は上記の新規ローカル検証で補完。Info R2の配列組合せ追加は代表Sで十分のため追加しない。前回のSource型/kind負例候補は保留を維持する。
-
-ただしレビュー担当は、明示した作業領域外への変更禁止に反して、計時用の固定名ファイルを/tmp直下に作成・削除したと自己申告した。controllerは当該パスが現在存在しないことのみ確認した。以前の存在/上書きの有無は不明で、秘密漏洩・world変更があったとは主張しない。Git監査のoutside_changes=[]は任意/tmpの監査ではない。これを実行範囲の逸脱として安全上の停止条件にし、技術PASSだけでread-only gate合格や次工程への許可にしない。以降はローカルの最終状態検証・記録・停止確認済みの所有review worktree整理だけを行い、新seal準備・native再試行・公開・別reviewer/fallbackへ進めない。復帰には利用者による停止の解消が必要である。候補は同じClaudeを読取/検索ツールだけに限定した確認と、全く新しいpreflightだが、実装・許可済みとは扱わない。
-
-505fb7bの新packageは未作成。74c0eabの旧v3packageは改変せず保全するが、現コードの実行入力として使わない。現在の前面化確認は受領済みであり、未回答と扱わない。Task3/4以降、独立baselineと全native phase/再capture/復元/cleanupは未完了。実機書込0、公開未実施。
-
-## 2026-11-08 停止解消と読取専用ツールによる再開
-
-利用者は、同じClaudeを読取/検索専用に制限して再確認し、新しいpreflightから再開するという直前の問いに対し、「許可を求めずに、とにかくタスクを終わらせるようにしてください」と指示した。この具体的な再開案への実行指示として、前項のoperator待ちを解消し、通常の確認を求めず同じ範囲の完了へ進める。過去の実行範囲違反をなかったことにせず、既存の未知/不一致停止、全preflight、独立baseline、private所有/復元/cleanup、元Task依存順序を維持する。未確認の実UI・二人・保存再読込を成功扱いにしない。
-
-レビューの再開は同じclaude-code_opus_defaultだけとし、個人設定を変更せず、そのrunの引数でbuilt-in toolsをRead/Grep/Globだけに絞る。MCPは空の明示設定とstrictモード/denyで除外し、skills/commandsも無効にする。実CLI help/公式仕様とadapterの引数構築を確認し、起動前に制限引数、起動後に実際のinit tool一覧と全tool-useを照合する。終了専用EndConversationがCLI仕様で残る場合は非書込の終了操作としてのみ許容する。Bash/Write/Edit/NotebookEdit/委譲/外部MCPを公開・使用したrunは採用しない。これはtool利用の機械的な制限であり、OS全体のsandbox保証とは呼ばない。
-
-制限確認済みの再確認後だけ、clean505fb7bの新しい封印入力と実SDK証跡を作り、停止済み02:21windowと別の完全fresh preflightへ進める。旧74package/stateは転用しない。新しい重大な安全上の境界や実質的な仕様変更が必要なら安全条件を優先し、既存条件を勝手に緩めない。
-
-## 2026-11-08 制限確認の完了とRoot値不一致による停止
-
-前項の具体的な再開指示に基づき、実CLI help・公式仕様・adapterを確認してrun単位の制限を適用した。限定再確認は同じ指定Claude（実model claude-opus-5-5）、42.784秒/exit0/停止確認済み/outside_changes=[]。実initの公開toolsはGlob/Grep/Read、使用はRead7/Grep1、MCP=[]で制限に適合した。SpecPASS・qualityPASS_WITH_ISSUES・旧R1ADDRESSEDを受理し、前回のoperator待ちを解消済みとする。これはOS sandboxの保証ではなく、個人設定は変更していない。
-
-clean505fb7bの新package/executionを別途作成し、43files/211DLL、3実SDKcheck/build/manifest/parseと現在のbytes前後照合を通過した。prepare_new_package.pyのpath/argv/SHA、source/blob/raw hashをnew-package-receipt.jsonへ記録し、以前のdriver記録Infoを新規準備について補完した。元108passedと同じコード版であり、変更のないテストを重複実行していない。旧74packageや停止済みraw/sealは変更していない。
-
-その後の全く新しい読取試行は6call（discover・doctor・現在hierarchy・native session-before・Root-before・Root-after）、全CLIexit0だった。両Rootの8953Slot/17977Componentは完全かつ対応済みの形状で、IDの追加/削除はないが、Rootの完全保全比較は実際の値の不一致でfailedとなった。最終読取終了03:21:08.025158UTCの後、03:21:09.468067UTCに停止を記録した。診断用の投影ではslot metadata1415件、typed member2792件が変化し、既存アバター/利用者の位置・回転等を含む。原因がアニメーション/他利用者/編集であるとはsnapshotだけで断定しない。診断投影はcomponent-levelの全属性の一覧ではなく、採否には完全compare_subtreeの結果を用いる。
-
-session-afterは停止により未採取。panel/syntheticsの埋込subtreeはこの2Root間で一致したが、専用の別読取・詳細diff・独立意味baseline・Root保全やfullpreflight合格ではない。不一致後のworld call0、fixture/state/module作成とnative write0。phase/再capture/復元/cleanup・S4以降は未完了である。Root/アバター/変化fieldを除外したり、許容差を付けたり、静かなframeが得られるまで再採取して通さない。
-
-指定Claudeの停止結果レビューは113.439秒/exit0/停止確認済み/outside_changes=[]、実公開toolsはGlob/Grep/Read、使用Glob3/Read14/Grep3、MCP=[]で適合した。停止ACCURATE・preservationFAILED・fullpreflight=false・nativePermission=false・baselineNOTAPPROVEDを受理。F1のRoot一致条件はblockingのまま、F2/F3は未採取bracket/埋込比較の限定を明記、F4は次の実行前のdriver/code hash採取をInfoとして保持し今回へ遡及補完しない。F5の診断範囲の限定を維持する。F6のnative SDK metadata/runtimeスコープ接続の懸念は別のsource準備メモで、配備結果ではなく、今回レビュー/修正していない。Rootだけが残る条件とはしない。
-
-現在の観測値変化と全値一致条件は両立しておらず、条件を満たす環境または動的状態と不変保護値を区別する具体的な仕様判断がないまま実機を進めない。一般的な完了/続行指示から、実質的な保護範囲変更の承認を推測しない。通常の許可確認を繰り返さず、今回は未完了の停止結果を保全する。根拠・原review・tool-policy proof・raw・各Infoの裁定はPARENT_ROOT/tmp/agents/emission-native-finish.nkermyxfのfinal-rulings.md・root-stop-review/・root-check/・native-sdk-frame-gap.mdにある。コード変更/追加テストなし、文書はdraft、公開未実施。
-
-## 記録・公開
-採取/実session/絶対の個人パス/state/brsonはlocal-only。コードrepoへはPG/生成処理/安全判定とSテスト、READMEだけを追跡する。文書はこのSpec/Planと既存レビュー記録を1つの文書PRへまとめる。新しい小タスク別PRやPR後の自動レビューループを作らない。部分PRはRefs #3、Issueはopen維持。通常ツールのマージは手動限定。
+保存先はPARENT_ROOTの`tmp/agents/emission-native-live.enko3n41`、`emission-native-next.gk7mchty`、`emission-native-finish.nkermyxf`と既存ledger。旧原review/raw/seal/停止裁定は改変しない。今回の文書改訂そのものはgate実装の修正・native再試行の実行・Issue完了を意味しない。
