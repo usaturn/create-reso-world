@@ -101,6 +101,14 @@ Task2b-b完了記録: code `417fe08`→`9d803c1`、全120passed/6.19s、compilea
 
 全Task2bは未完了。Root診断化・実際の自動回復/retry controller、新HEAD package/driver hash/preflight/native0–6/別再capture拒否/復元cleanup/元工程は未実施。新経路の旧`id_maps`引数は参照せず、native対応表は全構造から導出する。接続/書込0、公開未実施。
 
+### Task2b-c: Root診断化・cleanup境界と固定読取の回復
+
+作成前の`reviewed_parent`全値比較と、Rootを安定親とした最終cleanupから全値一致条件を除く。Rootの完全構造/ID、明示した保護対象、所有fixtureだけの削除、既存のsession/diff/SDK/raw検査を保持する。Rootの時点値変化と追加は診断にし、所有外のslot/component消失は成功にしない。これは削除の境界の保全を確認するためであり、並行した消失の原因を断定するためではない。
+
+テストは既存のprecreate/cleanupの代表Sテストへ、動いているRootの正例と保護対象の破損/誤削除の拒否を組み込む。新しい固定文言/L/Dテストは増やさない。suite/compileall/diffを同期実行し、固定読取controllerは隔離fake CLIと新しい実機診断資料で確認する。失敗したraw/attemptを上書きせず、読取失敗はbackoff・新試行、同じ失敗の反復はsource調査へ戻す。mutationの回復は次の未完了項目として区別する。
+
+この区切りは指定ClaudeのRead/Grep/Glob限定の実装・結果レビュー1回（720秒、fallbackなし）を使い、採用修正が必要な場合だけ限定再確認を別記する。実tool/MCP/exit/停止/outside_changesを確認する。現在の利用者申告は16070/前面である。実機診断だけで全Task2b/native/Issue完了にせず、currentHEAD package封印/完全preflight/mutation-aware controller/元工程を残す。
+
 ## Task 3: preflight・native Drivegate・回復/再試行
 
 **Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。

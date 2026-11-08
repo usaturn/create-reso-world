@@ -80,7 +80,11 @@ Task2b-bの比較モデルは、exact native DLLのGetSyncMember/NameOverride/ge
 
 pure比較の入力資料自体は呼出側が認証し、native段階では元layout/BSON receiptと同じpackage/current DLL/所有state/private fieldを`assess_native_owned_graph`で結ぶ。現在のRoot診断化・自動回復/retry controllerは別の未完了作業であり、新照合器だけで全Task2bや実機成功にしない。
 
-preflightは現在の前面化/URL/他編集停止の適用性、discover、別doctor、native session/対象所有、明示した保護対象、private色/型/実参照、panel/fixture詳細diffと新root不在、sealed inputs/SDK全結線を確認する。今回の引き継ぎ開始時、利用者はport16070と「現在は背面、必要なら前面化を依頼する」を明示した。前面化についてはこの最新の申告を優先し、実機操作に必要な時点で依頼する。他編集停止の既存申告は、反する事実がないのに未回答へ戻さない。Root全体の完全一致は要求しない。新たな値変化やcontext変更は自動再採取/再planで扱う。
+Task2b-cでは作成前のRoot比較と最終cleanupを分離する。Root全値差分は診断として保持し、明示した保護対象の厳密な比較、session、所有、diff、SDK、完全なprivate値の検証を維持する。RootのID/完全な構造を確認し、最終cleanupでは所有fixtureの消失と、操作前からある所有外slot/componentの不消失を検証する。所有外の値変化と追加は診断であり、Root全値一致を再導入しない。所有外の消失を観測した場合、原因を当該操作と断定せず、delete-set保全を立証できないものとして調査する。非Rootの所有安定親に対する従来の厳密削除比較は保持する。
+
+この区切りの固定読取controllerは、新しい試行へdiscover/doctor/hierarchy/native-session/Root二重読取を保存し、読取失敗は別試行とbackoffで再観測する。同じ失敗が続く場合はcontrollerのsource調査へ戻し、Issue停止や追加許可待ちにしない。任意コマンドの再送APIやmutationは含めない。読取診断の成功はfull preflight、native0–6、mutation回復の成功ではない。
+
+preflightは現在の前面化/URL/他編集停止の適用性、discover、別doctor、native session/対象所有、明示した保護対象、private色/型/実参照、panel/fixture詳細diffと新root不在、sealed inputs/SDK全結線を確認する。最新の引き継ぎ開始時、利用者はport16070と「現在は前面」を明示した。以前の背面申告より、この最新の申告を優先する。他編集停止の既存申告は、反する事実がないのに未回答へ戻さない。Root全体の完全一致は要求しない。新たな値変化やcontext変更は自動再採取/再planで扱う。
 
 現在の保全基準は元機能仕様と意味・型・実参照を照合し、指定Claudeに独立レビューさせて実行前に記録する。担当が保護範囲を見直した理由も同じbriefへ渡し、利用者への再確認をgateにしない。旧G0/固定件数の復元、観測の丸写しだけによる適合判定、旧state採用や保存パネルへの宣言適用はしない。
 
