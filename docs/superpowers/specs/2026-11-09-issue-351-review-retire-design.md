@@ -63,7 +63,7 @@ pr_review_workspace.py cleanup    --state <session.json> [--strict-reap] [--allo
 #### 分類
 
 1. `load_state` で状態を読む（失敗は終了コード 2）。
-2. 失敗の判定に進むのは `--allow-failed` があり、`run_context` を持つセッションだけ。`run_context` が指す実行記録を読み、`status` が `success` 以外（`started`・`failed`）なら `retirement: "failed"`、`success` なら `saved` として扱う。`run_context` が無いセッション（version 7 と、`review_run.py` を使わない version 8）は `saved` として扱う。
+2. 失敗の判定に進むのは `--allow-failed` があり、`run_context` を持ち、下の「saved の条件」を満たさないセッションだけ。saved の条件を満たすもの（`review_run.py complete` が保存した後に cleanup だけが失敗し、記録が `failed`（`failed_at: cleanup`）か `started` のまま残ったものを含む）は、実行記録にかかわらず `saved` として扱う。それ以外は `run_context` が指す実行記録を読み、`status` が `success` 以外（`started`・`failed`）なら `retirement: "failed"`、`success` なら `saved` として扱う（saved の条件を満たさないので拒否される）。`run_context` が無いセッション（version 7 と、`review_run.py` を使わない version 8）は `saved` として扱う。
 3. 実行記録の結び付け（AW と同じ考え方を CRW の形に合わせる）: 記録のパスは `run_context.run_record` を、`state` の PR repository・PR 番号・head branch・model と `run_context.started_at`、セッションディレクトリ名の接尾辞から作った期待値と一致させる。`reviews/` の外・途中の symlink は拒否する。記録は `review_findings.validate_document` で検査し、`kind: review_run`、`pr`、`reviewed_head`（= `commit`）、`pr_head`、`reviewer`（`review_file` を除く）、`timing.started_at` がセッションと一致することを確かめる。結び付けられなければ退役しない（終了コード 1）。
 4. runner が `success` で、記録がそれを `failed` で打ち消していない（記録が `started`）ものは、失敗セッションとして退役しない（成功した run の成果を失わないため）。
 
@@ -116,6 +116,7 @@ pr_review_workspace.py cleanup    --state <session.json> [--strict-reap] [--allo
 | 実装の土台 | AW の `_validate_reapable_session` の考え方を、CRW の version 7/8・journal・owned-history・`findings_scaffold` に合わせて足す | AW の helper の置き換え | Issue が置き換えを禁じている。CRW の `inspect`・`abandon`・`sessions` を残す | 通常判断の委任 |
 | 失敗の分類の根拠 | `run_context` が指す実行記録の `status` と `runner` | session の中のファイルの有無だけで判定 | 停止の証拠は runner の観測値にしか無い。記録はセッションの値と照合して取り違えを防ぐ | 結び付けられなければ保持 |
 | 失敗セッションの雛形の判定 | `run_context.findings_scaffold` の sha256 と一致 | AW のように immutable から雛形を作り直して比べる | CRW は prepare が digest を記録しており（`abandon` と同じ基準）、1 バイトの編集も成果として残せる | digest が無ければ保持 |
+| 保存済みの判定と失敗の判定の順序（Task 2 のレビューで変更） | `--allow-failed` でも、saved の条件を満たせば記録にかかわらず `saved` | 記録の `status` だけで分類する（当初の文言） | `complete` は保存の後に cleanup が失敗すると記録を `failed`（`cleanup`）にするので、当初の文言では、`--allow-failed` を必ず付ける定期掃除と repo-cleanup が保存済みのセッションを退役できない。受け入れ基準の A1・A6 を基準に直す | 保存済みなら停止の証拠を求めない（`--allow-failed` 無しの saved と同じ） |
 | 停止の確認の順序 | ほかの検査の後に最後に行い、`stop_confirmation_needed` を返す | AW のように最初に確かめる | 「停止未確認だけが理由」のときだけ人の確認で補う、という手順を helper の出力で判断できる | 利用者の理由は停止の確認だけを補う |
 | 終了コード | 0 退役可・1 退役不可・2 入力/状態の誤り | AW のようにすべて 2 | Issue のインターフェースの指定 | なし |
 | `retained_paths` | 成功は null、拒否は `state_file`・`session_dir`・`worktree` | 成功時に残る成果のパスを入れる | review_run.py の既存の慣習に合わせる | なし |

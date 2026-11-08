@@ -140,7 +140,7 @@ git commit -m "feat(pr-review): add strict reap-check and cleanup for saved sess
 - Produces:
   - `def bound_run_record(parent: Path, state: Mapping[str, Any], session_dir: Path) -> dict[str, Any]`: Spec の「分類」3 の照合をして記録を返す。結び付けられなければ `RetirementRefused(retirement=None)`
   - `def failed_stop_evidence(document: Mapping[str, Any], reason: str | None) -> dict[str, Any]`: `{"source": "operator", "reason": reason}` か `{"source": "runner", "run_record_status", "state", "exit_code", "elapsed_seconds", "stop_confirmed": True}`。証拠が無ければ `RetirementRefused(retirement="failed", stop_confirmation_needed=True)`
-  - `validate_reapable_session(..., allow_failed=True)` は `run_context` があり記録が `success` 以外のとき `retirement: "failed"` の条件（Spec の「failed の条件」）で検査し、停止の証拠を最後に求める。runner が `success` で記録が `started` なら拒否する
+  - `validate_reapable_session(..., allow_failed=True)` は `run_context` があり、saved の条件を満たさず（満たせば記録にかかわらず `saved`。Task 2 のレビューで Spec を変更）、記録が `success` 以外のとき `retirement: "failed"` の条件（Spec の「failed の条件」）で検査し、停止の証拠を最後に求める。runner が `success` で記録が `started` なら拒否する
 
 テストの土台: `test_review_run.py` は変えずに、`importlib.util.spec_from_file_location` で別名のモジュールとして読み込み、`prepared` fixture をこのファイルの属性に代入して使う（`prepared = _REVIEW_RUN_TESTS.prepared`）。`_REVIEW_RUN_TESTS.review_run.prepare(prepared["args"])` でセッションを作り、`review_run.main(["fail", "--state", ..., "--reason", "止めた"])` で記録を `failed` にし、`_REVIEW_RUN_TESTS.batch_result(tmp_path / "result.json", state="timed_out")` と `review_run.main(["attach-runner", "--result", ...])` で `stop_confirmed: true` を結び付ける。`pyproject.toml` は `--import-mode=importlib` なので、通常の import はしない。
 
