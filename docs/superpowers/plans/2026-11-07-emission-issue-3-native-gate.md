@@ -157,13 +157,27 @@ Task2b-f完了記録: code`8f5d431`→`40a76fd`、128passed/6.48s/compileall/dif
 
 現在の実機call/write/resourceは0。新native readerと初期値検査の実装完了を、create-onlyの全metadata/所有認証、最初のanchor、create/deploy/helper削除/最終cleanupの回復制御、新package/全preflight/実機0–6/Issue全体の完了とは扱わない。原証拠・失敗した構文/fixture試行・原IL/receipt・レビュー・裁定はPARENT_ROOT/tmp/agents/emission-native-reader.azz5cvq_へ保持する。公開未実施。
 
-### Task2b-g: created-only graph / stage と最終stage0の初期値照合（着手）
+### Task2b-g: created-only graph / stage と最終stage0の初期値照合（完了）
 
 module未配備のfixtureはdeployed native graphとは別のCreatedStageで扱う。seal.normalizedFixtureとcurrent6DLL modelのslot schema、ValueField<int/bool/colorX>/ObjectRoot/AI_GeneratedContentのGetSyncMember・ComponentBase初期化から完全期待を作る。観測から使うのは宣言/stateへ一対一に結んだ実IDだけで、stable metadata/default/初期private値を観測へ合わせない。空roleを一般native graphへ解禁せず、CreatedStage専用branchで完全照合する。初回probe anchorはこのcreated scopeに元probe layout/BSONを加えた新しいNativeDeployedStageで認証する。
 
 環境/共通受け入れ基準は維持。実入力はprivate完全RGBA/sRGB・bool・全slot/component/member、余分/欠落metadata、重複member ID、未知値/型、誤親・外部参照。防御範囲はcreated-onlyを既存パネル/異なる宣言/部分apply/未知metadataと取り違えること。既存のreceipt/session/protected/diff検査を使い、CreatedStageの正例と異常metadata/alias/初期値拒否を代表Sで確かめる。さらにdeferred INITIAL-F2をnative final stage0で同じ初期値APIへ接続し、legacy generic offlineは維持する。重複F/L/Dは増やさず同期suite/compile/diff/必要な一時入力で確認する。
 
 current installed CLIのMapSlot/Inspect/AddPathsとnative schemaをsource根拠へ結び、readonly IL採取は新規session出力へ行う。指定Claude Read/Grep/Globのみのsource/実装レビュー1回（720秒）、採用修正の限定再確認のみ。create/deploy/delete実行controller、完全preflight、新HEAD package、実機試験は別の残作業であり、この型/照合の成功を実機write許可とは扱わない。今回の実行委任内で保護・比較の境界を具体化し、新たな確認待ちは作らない。
+
+Task2b-g完了記録: code`24a5fce`→`fe43cf6`、130passed/6.78s/compileall/diff。CreatedStage専用分岐の完全native初期構造、安定slot/memberを含むID一対一、宣言からの初期値、実DLL inventory、native final stage0の初期値照合を接続。native module/legacy genericの空role拒否は維持。原raw/session/diffも通す一時接続確認でcreated11field/5slot成功、generic空role拒否、native stage0の不正Before拒否/宣言初期値成功を確認した（transport/fullnative認証境界はfake、実機成功ではない）。
+
+指定Claude272.841秒はPASS_WITH_ISSUES、Medium F1のcreated.reviewed_fixtureを次のreaderへ無検証で渡せる経路を実際のREDで再現し、独立生成した期待treeとの厳密比較で修正した。追加S1件（計2件）、130passed。限定58.894秒はCLOSED/新指摘なし。両run実claude-opus-5-5/CLI2.1.319、Read/Grep/Globのみ/MCPなし/exit0/停止確認済み/outside_changes=[]。I1/I2任意整理・coverageのみはskip、追加F/L/Dなし。source capture初回のNewtonsoft属性解決失敗は保持し、r2はDefaultUpdateOrder属性だけを採取、8DLL SHA前後一致/実restore-build-run0。current CLI Inspect/AddPathsの相対pathも実ILに結んだ。全記録はPARENT_ROOT/tmp/agents/emission-created-controller.2e7fvii_。
+
+別のoffline調査で、旧505packageの新隔離コピーに3PGを2回ずつ実SDKbuildし、最初から全出力hashが一致（変更0）を確認した。旧package不変。これは配備時の再buildで封印bytesを変える懸念のcharacterizationであり、新HEAD/live packageやnative成功ではない。今回ここまで実機call/write/resource0、公開未実施。
+
+### Task2b-h: lifecycle固定操作と実機への接続（次の作業）
+
+create/deploy-probe/deploy-color/deploy-bool/remove-color/remove-bool/cleanupの閉じた操作を実装し、任意argvやwriter callbackを受け付けない。既存Commandと同じexecution単位lock/launch intent/実終了・processgroup確認/新attemptで一人のwriterを保つ。操作前後のtyped PrecreateScope/CreatedStage/NativeDeployedStage/CleanupStageを実際に検証し、適用済みなら再送せず、完全な未適用だけ再試行、partial/unknownは新観測とsource調査/回復へ進む。helper操作は元baseline/Before/private値/Doneと固定phase条件を照合する。create先IDは現在stateとabsence-before/root差分に結び、helper削除先は全layoutで確認した自分の安定親の唯一childだけ、最終cleanupはBefore復元と所有外不消失を確認する。旧state/名前だけの帰属推測やblind replayを許可しない。
+
+共通基準の環境/実入力/防御範囲を維持。Sはlost-ack適用済みのcreate/deploy/deleteを二重送信しない正例、未適用retry、誤phase/foreign-target/未知process/partial状態の拒否を代表例にする。既存の同じ守りは再テストせず、固定値/L/Dのmatrixを増やさない。同期suite/compile/diff、fake CLI processと一時flow確認を使用する。最後のRoot cleanupではID指定inspectの相対pathとRoot全体の絶対pathの違いをcurrent CLI sourceから具体的に照合し、全値filterではなくpath表現だけを検証して結ぶ。
+
+実機準備と並行できるreadonly source/保護意味baseline/identity producer/実CLI・SDK選択の調査は、指定Claude Read/Grep/Glob限定1回（720秒）。実装/実行前のsource・protected semantic preflight・固定driverのレビュー1回と、採用修正の限定再確認だけを使用する。全runtime/controller/code/CLI/SDKの実hashを実行前に記録し、残コード後の新cleanHEAD packageへ結ぶ。初期値codec callchain、現在のnative session producer、明示保護対象/detailed diff/全SDK結線を未知のまま合格にしない。時間制限なしだが30分checkpointと継承予算は維持し、checkpointだけを理由に作業全体を終了しない。
 
 ## Task 3: preflight・native Drivegate・回復/再試行
 
