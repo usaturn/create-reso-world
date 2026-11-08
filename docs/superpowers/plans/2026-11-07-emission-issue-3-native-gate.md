@@ -38,7 +38,7 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 5. 元PG/封印物の隣へcompiler sidecarを出さず、同じphaseや古いstateで復元記録を上書きしない。
 
 ## 実行予算
-今回の不足前提/最初のnative gateに180能動分。ledgerはPARENT_ROOT/tmp/agents/emission-native-gate.oq3olakn/budget.jsonl。budget開始前17:46:16–17:48:54の準備約2分38秒は別記し、既存の過去予算はリセットしない。
+当初は今回の不足前提/最初のnative gateに180能動分。2026-11-08再開時、利用者が時間制限なしを明示したため、この上限は解除するが過去の所要時間は保持する。元ledgerはPARENT_ROOT/tmp/agents/emission-native-gate.oq3olakn/budget.jsonl（endまで記録済み、約169.1能動分）。budget開始前17:46:16–17:48:54の準備約2分38秒は別記し、既存の過去予算はリセットしない。今回の着手は01:49:55UTC、続行記録はPARENT_ROOT/tmp/agents/emission-native-next.gk7mchty/continuation.jsonl。30分checkpointとTask別所要時間は引き続き記録し、安全停止は解除しない。
 準備15、package/判定実装55、検証/レビュー30、fresh preflight/native60、保存/公開20分を目安。元Task4/5/6全完了までの保証時間ではない。
 30能動分ごと・Task境界・50%/100%・失敗直後にcheckpoint。worker目安30分、保存予約5分、無進捗10分でcontroller確認（共有writer/検証をkillしない）。reviewerは各12分枠内、Task1・全差分/実機前・native結果の3段階を同じ1名で担当する。採用修正確認が必要なら同じ担当に範囲限定。PR後の追加ループは起動しない。
 同じ信頼性失敗の再試行1回、安全失敗は全停止。予算不足は同じbranchに保全してhandoffし、小タスクごとにPRを増やさない。
@@ -68,6 +68,16 @@ Specの同名節と「専用fixtureとnative手順」「package・保全・prefl
 - [x] 同じbranchにcommitし、指定Claude1名の全差分/実機前レビューで確認。レビュー不能ならwriteしない。
 
 実行記録: c46cef7まで。全104passed/compile/diff成功。実SDKの全3graphを封印済parseに結び、独立typed BoolDrive/所有graphで正例・実参照逸脱等の負例を確認。T2-R1（実宣言のcapture/restoreが観測不能）とT2-R2（未使用の弱いdiff API/2重複テスト）を採用し修正、唯一のClaudeで限定確認PASS/PASS。実行copy分離とclean provenanceはTask1で確認済み。現在使える新packageはSESSION/task2-fix1/sdk-observable、codeCommit=c46cef7、43ファイル/211DLL、正確なsibling executionRoot。過去sdk-finalは宣言変更により不適格であり、変更せず履歴として残す。present nullと欠落、保全専用opaque値とprivate target意味、SDKの正確なpersistant-ID表記とnative persistentの関係はSpecの実装記録に従う。native再capture拒否は未実施であり、6phase比較が代わりに証明しない。
+
+#### Task2/3 接続部のinstalled正規化修正（2026-11-08）
+
+**Files:** drivegate_package.py・drivegate_runtime.pyと対応Sテスト、README。本体PG/raw基盤には触らない。
+**範囲:** Specの「2026-11-08 再開時の正規化補足」と既存受け入れ基準をそのまま適用する。input宣言へ自動metadataを重複記述せず、v3 sealに正規化期待モデルを保持する。precreate/配備後所有照合に一貫して使用し、markerはtyped Sourceと正確なkey/親/型を検証、private ValueFieldへ混入させない。
+**テスト:** S（metadataの欠落/改変や余分なComponentを見逃した範囲許可を防止）。代表正負例だけ追加し、既存全subtree/偽CLIテストと統合する。CLI版拒否は、未対応の正規化を黙って許可する損害を防ぐS。文書/固定文言/ファイル一覧だけのFテストは追加しない。
+**代わりの検証:** 全pytest、compile/diff、現在assembly前後hash付きIL再採取、sole-Claudeの修正範囲確認、新しいclean HEADから実SDK3PG/package/parse検証。過去失敗/旧sealは変更せず、修正後の成功やnative許可へ読み替えない。
+- [ ] source-groundedな正例と欠落/改変/余分なmetadata拒否をRED→GREENにする。
+- [ ] 全suite/compile/diff後にcommitし、同じ受け入れ基準・原文の要件を唯一のclaude-code_opus_defaultへ渡して確認する。
+- [ ] 新規IL証跡と新package/executionを準備し、nativePermission=falseのまま残る前面化/fullpreflight条件を明示する。
 
 ### Task 3: fresh preflightと短いDrivegateを逐次実行する
 **Files:** 生成物/実raw/ログ/stateはSESSION以下だけ（commitしない）、Spec/Planの結果追記。

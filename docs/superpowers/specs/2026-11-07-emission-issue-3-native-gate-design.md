@@ -56,5 +56,15 @@ SDKの正確なpersistant-IDはBSON共通メタデータであり、native persi
 
 ワールドへの書き込みは0。fixture/state/moduleを作成せず、after session bracketは停止により未採取。独立baselineレビュー、panel詳細diff、完全Root保全条件、full preflight、native全phase/再capture/cleanup、S4以降、元Task4実UIとTask6は未完了。次はinstalled仕様から正規化・所有範囲を明示的に扱う修正を設計・レビューし、新しい封印入力と全fresh preflightを用意する。今回の停止windowを継ぎ足さない。検証の未解消をdraft PRで迂回せず、同じコード/文書branchをローカル保全する。公開未実施。
 
+## 2026-11-08 再開時の正規化補足
+
+利用者は指定handoffからの続行、ResoniteLink 16070、時間制限なしを指示した。従来の180能動分の記録は保持し、今回以降の時間を追記して合算するが、旧上限を停止理由にはしない。実行許可の範囲と安全停止条件は変更しない。接続先の指定は現在のワールドの前面化の明示ではないため、明示を得るまでは接続・読取・撮影・変更を行わずオフライン準備だけを進める。
+
+Task3前提修正は、installed ResoLoop0.2.0のGeneratedContentMetadataとWorldServiceの正規化を、宣言とは別の封印済み期待モデルに記録する。入力fixtureへ自動markerを重複記述せず、CLIによるroot追加を表現する。対象は本fixtureのrootだけ、keyは`drivegate-root/component:FrooxEngine.AI_GeneratedContent:0`、plan/state型は`FrooxEngine.AI_GeneratedContent`、native型は`[FrooxEngine]FrooxEngine.AI_GeneratedContent`、Sourceは`[resoloop 0.2.0]`である。別CLI版・marker欠落・Source欠落/型違い/値違い・別親/余分なComponentを受理しない。完全subtree比較による他の全member保全も維持し、このmarkerは書込対象のValueFieldとして扱わない。既存の17件期待と失敗rawは変更しない。
+
+新package形式v3は入力fixtureと正規化済み期待モデルの関係を検証し、後者をsealに含める。precreateの全key照合と配備後の所有/結線検証は同じ期待モデルを使う。未知のmetadataをまとめて無視する規則は追加しない。DLL/SDKの既存IL記録は過去のhash bindingを発明せず、現在ファイルの前後hashと新規のIL採取を結んだ別記録で検証する。これはnative成功やfull preflightを意味しない。
+
+この補足は、既に具体的に委任されたinstalled正規化・封印入力・意味/範囲照合の不足修正に限る。旧本体PG、A/B/C/OnWritten/OnFail、実UIや依存順序、既存対象へのwrite禁止は変えない。内容はdraftのまま、承認SHAは発明しない。唯一の指定Claudeが同じ受け入れ基準で実装差分と前提を確認した後に新sealを作る。
+
 ## 記録・公開
 採取/実session/絶対の個人パス/state/brsonはlocal-only。コードrepoへはPG/生成処理/安全判定とSテスト、READMEだけを追跡する。文書はこのSpec/Planと既存レビュー記録を1つの文書PRへまとめる。新しい小タスク別PRやPR後の自動レビューループを作らない。部分PRはRefs #3、Issueはopen維持。通常ツールのマージは手動限定。
