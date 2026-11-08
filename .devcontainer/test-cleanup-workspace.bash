@@ -37,6 +37,7 @@ S2="$(dirname "$S2_STATE")"
 printf '# unsaved draft\n' > "$S2_DRAFT"
 mkdir -p "$T/pr-review-42-abandoned"
 printf 'diff\n' > "$T/pr-review-42-diff.patch"
+printf 'notes\n' > "$T/pr-review-notes.txt"
 
 run_cleanup() {
     HOME="$TEST_ROOT/home" WORKSPACE_CLEANUP_TMP_ROOT="$T" WORKSPACE_CLEANUP_MIN_AGE_DAYS=0 "$@" bash "$SCRIPT"
@@ -67,6 +68,24 @@ grep -q "^keep .*: $T/pr-review-42-abandoned" <<<"$output" || fail "no keep line
 $output"
 [[ "$output" == *"protected loose pr-review file (unverifiable provenance): $T/pr-review-42-diff.patch"* ]] \
     || fail "no protected loose file line
+$output"
+[[ "$output" == *"protected loose pr-review file (unverifiable provenance): $T/pr-review-notes.txt"* ]] \
+    || fail "no protected line for the loose file without a PR number
+$output"
+
+# 1c. スクリプトの位置が解決できないとき（stdin から起動）は、cwd の相対パスや cwd 由来の場所にある
+#     コードを helper として実行せず、pr-review を保持する。定期実行の cwd は不定のため
+CWD_TRAP="$TEST_ROOT/trap/a/b"
+for base in "$CWD_TRAP" "$TEST_ROOT/trap"; do
+    mkdir -p "$base/.agents/skills/pr-review/scripts"
+    printf 'import pathlib\npathlib.Path(%s).touch()\nraise SystemExit(0)\n' "'$TEST_ROOT/trap-ran'" \
+        > "$base/.agents/skills/pr-review/scripts/pr_review_workspace.py"
+done
+output="$(cd "$CWD_TRAP" && HOME="$TEST_ROOT/home" WORKSPACE_CLEANUP_TMP_ROOT="$T" WORKSPACE_CLEANUP_MIN_AGE_DAYS=0 \
+    WORKSPACE_CLEANUP_DRY_RUN=1 bash <"$SCRIPT")"
+[ ! -e "$TEST_ROOT/trap-ran" ] || fail "helper was taken from the cwd
+$output"
+grep -q "^keep (pr-review helper unavailable: ): $S2" <<<"$output" || fail "no unavailable keep line
 $output"
 
 # 2. 設定の既定値: 変数を渡さなければ /tmp、1 日、dry-run なし。

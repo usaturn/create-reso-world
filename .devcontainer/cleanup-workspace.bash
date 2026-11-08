@@ -56,9 +56,13 @@ resolve_pr_review_helper() {
         return 0
     fi
     local self root
-    self="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null)" || self=""
-    if [ -z "$self" ]; then
-        printf '%s' '.agents/skills/pr-review/scripts/pr_review_workspace.py'
+    # BASH_SOURCE[0] が空（stdin から起動など）だと readlink -f が cwd を返すので、先に弾く
+    self=""
+    if [ -n "${BASH_SOURCE[0]:-}" ]; then
+        self="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null)" || self=""
+    fi
+    if [ -z "$self" ] || [ ! -f "$self" ]; then
+        printf '%s' ''
         return 0
     fi
     root="$(dirname -- "$(dirname -- "$self")")"
@@ -89,18 +93,6 @@ dir_is_old_enough() {
     fi
     local threshold=$((MIN_AGE_DAYS - 1))
     [ -n "$(find "$dir" -maxdepth 0 -mtime "+${threshold}" 2>/dev/null)" ]
-}
-
-# $1（basename）から PR 番号を取り出して stdout に出す。
-# `pr-review-<数字>` の直後が 行末・`-`・`.` のいずれかであるものだけを受け付ける。
-# 取り出せなければ 1 を返す（安全側: 対象外にする）。
-pr_number_of() {
-    local base="$1"
-    if [[ "$base" =~ ^pr-review-([0-9]+)([-.].*)?$ ]]; then
-        printf '%s' "${BASH_REMATCH[1]}"
-        return 0
-    fi
-    return 1
 }
 
 # $1（絶対パス、実パス化済み）が自分自身のリポジトリの
@@ -255,11 +247,9 @@ cleanup_pr_review_dirs() {
 # TMP_ROOT 直下の loose な pr-review-* ファイルは出所と内容を確かめられないので、
 # 削除せず報告だけする。
 cleanup_orphaned_pr_session_files() {
-    local entry base protected=0
+    local entry protected=0
     for entry in "${TMP_ROOT}"/pr-review-*; do
         [ -f "$entry" ] || continue
-        base="$(basename "$entry")"
-        pr_number_of "$base" >/dev/null || continue
         echo "protected loose pr-review file (unverifiable provenance): ${entry}"
         protected=$((protected + 1))
     done
