@@ -181,7 +181,8 @@ after_run は後処理ごとの index / state / exit_code / stop_confirmed / std
 
 BatchResult
   schema_version / run_id / state / assignments / results / outside_changes /
-  checkout_audit / elapsed_seconds / artifact_dir。
+  unprotected_changes / checkout_audit / elapsed_seconds / artifact_dir。
+  outside_changes・unprotected_changes・checkout_audit は下の「期限と保持」の監査の結果。
   assignments は self を含む有効な一次担当。成功・失敗混在は partial_success。
   state は success / self / partial_success / failed。
 
@@ -232,14 +233,35 @@ PID/starttime が一致する場合だけ追加の group member を観測する�
 
 監査は開始前から登録されていた checkout の HEAD・index・tracked ファイル・
 非 ignored untracked ファイルの内容を比較する。initialized submodule も含む。
-すべての登録済み checkout を監査する。
-変化・監査不能は ``checkout_audit`` と ``outside_changes`` に返し、
-issue-to-pr・review-verify・review-fix-planning の受け取り入口が拒否する。
+Gitignored 資源、symlink の参照先、Git 外の任意のディレクトリ、実行中に登録された
+checkout（runner の試行を含む）は監査範囲外。
+外部セッションによる変更と委譲先による変更の因果までは断定しない。
+
+runner は、渡された repository の checkout（対象）と、その repository の main worktree
+（``git worktree list`` の先頭）を保護する。repository に自身の checkout が無い
+（bare repository など）ときは、登録されたすべての checkout を保護する。
+checkout_audit は観測ごとに path / kind / reason / locked / prunable / protected を返す。
+kind は次のどれか。
+
+- unavailable_before: 開始前から監査できない
+- unavailable_after: 終了後に読めず、登録は残っている（または登録を一覧できない）
+- content_changed: 内容が変わった
+- removed: 終了後に読めず、登録も無くなった（``git worktree remove`` などで回収された）
+
+outside_changes は、保護する checkout の観測と、どの checkout でも監査できない登録
+（unavailable_before・unavailable_after）のパス。unprotected_changes は、保護しない
+checkout の content_changed と removed のパスで、多くはほかのセッションが自分の worktree を
+変えた・回収したものである。どちらも警告として返し、runner の処理自体は止めない。
+issue-to-pr・review-verify・review-fix-planning の受け取り入口は outside_changes があれば
+拒否し、unprotected_changes は理由にしない。判定は ``workspace.blocks_acceptance`` の 1 か所にある。
+protected の無い古い checkout_audit は保護として読み、unprotected_changes の無い古い結果は
+空として読む（古い outside_changes は全件なので、読み直しても受け取りを止める側になる）。
+main worktree も保護するので、実行中に親の checkout を動かすと（repo-cleanup-after-merge の
+origin/main への追従など）content_changed として受け取りが止まる。実行中は親の checkout を動かさない。
 起動前も共通の ``require_auditable_workflow`` と runner が全登録を確認し、
 監査不能なら予約・外部担当の起動より前に止める。
-Gitignored 資源、symlink の参照先、Git 外の任意のディレクトリは監査範囲外。
-外部セッションによる変更と委譲先による変更の因果までは断定しない。
-非隔離担当での直列運用と、消えた登録の所有者の照合・個別 repair / remove は、リポジトリルートの ``docs/agent-runner-checkout-recovery.md`` に記載する。
+消えた登録の所有者の照合・個別 repair / remove は、リポジトリルートの
+``docs/agent-runner-checkout-recovery.md`` に記載する。
 監査は他セッションの登録を自動で回収しない。
 
 環境変数は agent.env の名前だけ引き継ぎ、PATH が無ければ os.defpath を使う。

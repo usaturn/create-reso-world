@@ -100,7 +100,7 @@ model は CLI が返す表示名である。
 
 - ``writes = false`` は runner の指示であり、Cursor の sandbox でも OS でも保証しない。
   ``-f`` のため、担当はファイルを書き換えられる。
-  ほかの checkout の変更は、runner の ``outside_changes`` ・ ``checkout_audit`` が事後に報告するだけで、任意のパスへの書き込みは防がない。
+  ほかの checkout の変更は runner が事後に報告するだけで（対象と main worktree の変更と監査できない登録は ``outside_changes`` 、それ以外の checkout の内容の変化・登録ごとの回収は ``unprotected_changes`` ）、任意のパスへの書き込みは防がない。
 - ``-f`` でも、利用者が ``permissions.deny`` に書いたコマンドは拒否される（CLI のヘルプ）。
   helper が使うコマンド（``uv`` ・ ``git`` ・ ``gh`` など）を拒否すると、PR レビューの担当は完了できない。
 - ``writes = true`` のロールには ``--sandbox`` を付けないので、sandbox の扱いは利用者の設定（``sandbox.mode``）と ``-f`` の挙動に従う。

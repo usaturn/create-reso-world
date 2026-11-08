@@ -33,9 +33,10 @@ def test_batch_reports_parallel_checkout_edit(repository: Path, tmp_path: Path) 
         output_dir=tmp_path / "run", adapter_loader=lambda _: EditingAdapter(),
     )
     assert batch.state == "success" and batch.results[0].attempts[0].stop_confirmed
-    assert batch.outside_changes == [str(neighbor)]
-    assert [(item.path, item.kind) for item in batch.checkout_audit] == [
-        (str(neighbor), "content_changed")
+    assert batch.outside_changes == []
+    assert batch.unprotected_changes == [str(neighbor)]
+    assert [(item.path, item.kind, item.protected) for item in batch.checkout_audit] == [
+        (str(neighbor), "content_changed", False)
     ]
 
 
