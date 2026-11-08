@@ -36,7 +36,7 @@
 1. 個人設定に旧名の完全な定義を残し、`devin_swe2_medium` と同じ役割に並べた設定 — 拒否されない。README がそう書いていること（Task 3 の Step 3 で実際の挙動を確かめる）
 2. 個人設定が workflow の `agents`・`fallback` で旧名を参照するだけの設定 — 雛形から旧定義が消えるので `invalid_reference` で止まる。README の移行の節が、参照を新しい名前に変える手順を書いていること（Task 3 の Step 3）
 3. 2 つの新しい agent を同じ役割に並べた設定 — `duplicate_model`。片方だけなら受け入れる（Task 3 の Step 2）
-4. `--assign inspect=devin_swe2_medium` のように Medium を単独で選ぶ指定 — 受け入れる（Task 3 の Step 2）
+4. `--assign inspect=devin_swe2_medium` のように Medium を単独で選ぶ指定 — 受け入れる（`check` には `--assign` が無いので、`load_config` に同じ割り当てを渡して確かめる。Task 3 の Step 2）
 5. README の #305 の表と過去の記録 — 変わらない（Task 3 の Step 5 の `git diff`）
 
 ---

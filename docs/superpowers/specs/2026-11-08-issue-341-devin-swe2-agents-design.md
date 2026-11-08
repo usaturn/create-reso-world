@@ -19,7 +19,7 @@ Devin の agent 名を、ほかの agent と同じ命名規則に揃える。今
 - `.devcontainer/agent-runner.toml` の Devin の agent は `devin_swe2-max_default`（`model = "swe-2-max"`、`model_key` なし）だけで、既定の `[workflows.review.assignments.inspect]` が参照している
 - 旧名を参照する現行の記述は `.devcontainer/agent-runner.toml` と `.devcontainer/README.md` だけ（`docs/superpowers/` の過去の Spec・Plan、`.agents/skills/issue-to-pr/evals/validation.md` の当時の記録、テストの入力例 `devin-swe` を除く）
 - この環境の個人設定 `~/.config/agent-runner/config.toml` に Devin の agent 名は無い
-- `devin models list`（devin 3000.12.28、2026-11-08T08:34:41Z）の SWE-2 は `swe-2-high`・`swe-2-medium`・`swe-2-max` と `-lightning` の 3 つ。記録は親 checkout の `tmp/agents/issue-341.8ff800qg/devin-models-swe2.txt`
+- `devin models list`（devin 3000.12.28、2026-11-08T08:34:41Z）の SWE-2 は `swe-2-high`・`swe-2-medium`・`swe-2-max` と、それぞれの `-lightning` 版（計 6 つ）。記録は親 checkout の `tmp/agents/issue-341.8ff800qg/devin-models-swe2.txt`
 - Devin の adapter は `--model <agent.model>` だけを渡し、effort を渡す引数は無い。名前の付け方はこの制約とは別に決める
 - 同一モデルの判定（`tools/agent_runner/config.py`）は、agent ごとに `{model}`、`model_key` があれば `{model, model_key}` の比較集合を作り、同じ役割の候補間に共通要素があれば `duplicate_model` で拒否する。既存の `tools/agent_runner/tests/test_config.py` が `model_key` の比較を確かめている
 
@@ -54,7 +54,7 @@ Devin の agent 名を、ほかの agent と同じ命名規則に揃える。今
 | R6 | README の命名規則・既定のレビュアー・`model_key` の説明・移行の節が上の決定記録のとおりで、#305 の表は変わらない | `git diff` と記述の読解 |
 | R7 | ルートの `README.md` の「テスト」にある `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` が通る | 終了コード 0 |
 
-防御範囲: 同じ役割に同じ SWE-2 を並べる誤りを `model_key` で起動前に止める。対象外は、個人設定に旧名の定義を残した場合（雛形の `model_key` を継承しないので止まらない。README で移行を案内する）と、`swe-2-high`・lightning 系（定義しない）。
+防御範囲: 同じ役割に同じ SWE-2 を並べる誤りを `model_key` で起動前に止める。対象外は、個人設定に旧名の完全な定義を残した場合（雛形の `model_key` を継承しないので止まらない。README で移行を案内する）と、`swe-2-high`・lightning 系（定義しない）。
 
 ## 対象外
 

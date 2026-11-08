@@ -96,7 +96,7 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
      「pi-superagents のランチャー別 model tier」）
    - #305 の Terra / DeepInfra の追加: 「Terra / DeepInfra ランチャーの既存環境への追加」に従う。
      既存の `models.json` は rebuild でも更新されない
-   - agent-runner の旧名参照: 「旧担当からの個人設定の移行」に従って手動で更新する。rebuild による設定消失を移行の代わりにしない
+   - agent-runner の旧名参照: 「旧担当からの個人設定の移行」に従って手動で更新する。Devin の改名（#341）は「Devin の agent 名の変更（#341）」に従う。rebuild による設定消失を移行の代わりにしない
    - pi の project trust: まだ承認していなければ、リポジトリのルートで素の `pi` を起動して承認する。
      承認の後に `.pi/settings.json`・`.pi/mcp.json`・`.pi/APPEND_SYSTEM.md`（pi 固有の指示）と
      プロジェクトのスキル（`.agents/skills`）が読まれる
@@ -943,17 +943,22 @@ runner では `pi_commandcode_deepseek4-flash_max` を `--assign` で明示し�
 #341 で `devin_swe2-max_default` を `devin_swe2_max` に改名し、`devin_swe2_medium` を足した。
 上の #305 の表は当時の変更記録なので書き換えない。#305 より前の `devin-swe` も、今の名前は `devin_swe2_max` である。
 
-自動の移行も旧名の alias も用意しない。個人設定（上の「場所の解決規則」で確かめる）をバックアップしてから、
-workflow の `agents` と `fallback` の旧名（`devin-swe`・`devin_swe2-max_default`）を `devin_swe2_max` に変える。
-変えなければ `invalid_reference` で止まる。
+自動の移行も旧名の alias も用意しない。個人設定（非対話エージェントのランナー（agent-runner）の個人設定の場所の規則で確かめる）を
+バックアップしてから、次の両方を同じ編集で行う。
 
-個人設定に旧名の `[agents.*]` の節を残すと、雛形の `model_key = "swe-2"` を継承しない。
-そのため `devin_swe2_medium` と同じ役割に並べても、同じモデルとして拒否されない。
-独自の上書きが無ければ旧名の節を消し、雛形の `devin_swe2_max` を継承させる。
-上書きが要るなら `[agents.devin_swe2_max]` に移してから旧名の節を消す。
+- workflow の `agents` と `fallback` の旧名（`devin-swe`・`devin_swe2-max_default`）を `devin_swe2_max` に変える
+- 旧名の `[agents.*]` の節を消す。独自の上書きがあれば `[agents.devin_swe2_max]` に移してから消す。
+  table が統合されるので、移した節は雛形の `model_key = "swe-2"` を継承する
+
+移行しないときの挙動は、個人設定の書き方で変わる。
+
+- 旧名を参照するだけの設定: 雛形から旧定義が無くなるので `invalid_reference` で止まる
+- 旧名の節に一部のキーだけを書いた上書き（`env` だけなど）: `runtime` などが欠けるので `invalid_type` で止まる
+- 旧名の節が完全な定義: 独自の agent として読み込まれるので止まらない。
+  雛形の `model_key` を継承しないため、`devin_swe2_medium` と同じ役割に並べても拒否されない
 
 編集後は、リポジトリのルートで上記の `check` と `list` を実行する。
-この環境の個人設定には Devin の名前が無いので、移行は要らない。
+旧名を書いていない個人設定（rebuild で置かれる `agent-runner-personal.toml` を含む）は移行が要らない。
 
 ## pi の旧拡張・MCP 設定の移行
 

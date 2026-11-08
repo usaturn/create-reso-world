@@ -113,7 +113,7 @@ approval = "noninteractive"
 skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
 env = ["HOME", "PATH"]
 
-# SWE-2 は tier（medium・high・max）を --model の UID で選ぶ。tier は effort の軸なので、名の effort の段に置く。
+# SWE-2 は tier（medium・high・max）を --model の UID で選ぶ。tier は effort の軸なので、agent 名の effort の段に置く。
 # 2 つは同じ model_key なので同じモデルとして扱い、同じ役割に並べられない。
 [agents.devin_swe2_max]
 runtime = "devin"
