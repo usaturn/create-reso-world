@@ -181,6 +181,12 @@ create/deploy-probe/deploy-color/deploy-bool/remove-color/remove-bool/cleanupの
 
 Task2b-h準備記録（実装未完了）: 予定したreadonly source調査1回は502.452秒/exit0/停止確認済み/outside_changes=[]、実claude-opus-5-5、Read/Grep/Globのみ/MCPなしで完了。原payloadは今回session/context-source/result.json。actor実装/preflightレビュー1回はまだ未使用である。08:17の新7read/7exit0ではpanel1025/2011とsynthetic19/21を2Root間で保持したが、原結果はdiagnostic-only/fullpreflight等falseのまま。後続の10DLL ILでWorldSessionID.ComputeとperWorld Host.World/Port告知を採取し、CLI/SDK inventoryでは関連21DLLすべて一致した。これらはsource準備の事実であり、複数保護root、cleanup path、lifecycle、newpackage/fullpreflight/native0–6の完了ではない。Specのsource/保護節と今回reportに、未実装の接続条件を具体化した。時点差分だけを理由に許可待ちへ戻さない。
 
+Task2b-hのAPI接続記録（全Hは未完了）: code`6883b93`で複数保護対象の`ProtectedScope`と各対象の完全no-op diff templateを実装し、precreate/stage/reader/Command/phase/cleanupへ接続した。全key/実ID/親/pathとdiffの結合、集合削減・template変更の拒否、Root readがfixtureを含んでも選択した保護対象だけと重複判定する条件を実装した。ID inspectとRoot inspectのcleanup pathも、元全経路・実親・祖先prefixを検証してコピーのpathだけ変換する。原anchor/Beforeは変更しない。
+
+新S2件と既存の代表Sで、2root保全/Rootの正常変動/集合削減/全no-op diff・receipt接続/読取/Command/cleanupを確認。fixture/native認証をstubにした既存のcollector/Commandテストはその境界を維持し、実機成功とは呼ばない。旧cleanup比較だけを一時pluginで戻すと正例が失敗する実REDを再現した。132passed/6.59s、compileall/diff exit0。初回の未実装APIのimport失敗は構造上の不足であり、このbehavioral REDと区別する。
+
+今回の実機call/write/resourceと新モデルrunは0。指定ClaudeのH実装/preflightレビュー1回はまだ未使用であり、本変更はそのレビュー前の部分実装である。次は現在の意味baseline/読取専用state/全planとproducer topology/discovery、固定create/deploy/remove/cleanupの適用確認・同一writer制御、初回anchor/currentHEAD package/driver/toolchain/fullpreflightを接続し、まとめて指定レビューする。native0–6と元工程・Issueは未完了。記録はPARENT_ROOT/tmp/agents/emission-lifecycle.f5r0mdyb。公開未実施。
+
 ## Task 3: preflight・native Drivegate・回復/再試行
 
 **Files:** 試行専用raw/log/state/verdictはPARENT_ROOT/tmp/agentsのセッション領域、結果を本Spec/Plan/ledgerへ追記。
