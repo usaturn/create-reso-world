@@ -1,5 +1,7 @@
 # Issue #354 Repo Cleanup Implementation Plan
 
+状態: `draft`。内容の承認ではなく、利用者の issue-to-pr 実行許可で実装した。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Implementation tasks are dispatched sequentially with issue-to-pr/scripts/implement_task.py to the user-selected runner agent; no nested agents.
 
 **Goal:** squash/rebase で取り込まれた branch と、終了 PR の残存 pinned ref を、所有・保存・競合の保護を維持して整理できるようにする。
@@ -57,11 +59,11 @@
 
 **テストの要否:** 必要（S: 後追いcommit/別PR/別baseの誤削除、未取り込み誤判定の既知不具合）。固定文言・一覧だけの検査は不可。同じ守りを複数層で重ねず、代表の実行テストと通る例を残す。
 
-- [ ] Step 1: SKILLから実行部分を抽出し、real temporary Git + fake ghで祖先/squash/rebaseの正例、未マージ・PR不明・head不一致・別repo・未統合baseの保持を検証するテストを書く。squash/rebaseは実際に commit graph を作り、祖先でないことを独立に確かめる。
-- [ ] Step 2: 変更前に対象テストを `uv run pytest .agents/skills/repo-cleanup-after-merge/tests -q` でRED確認し、実出力を報告する。新しいブロック不在だけでなく既存手順の失敗根拠も記録する。
-- [ ] Step 3: Spec R1/R2 の判定を最小実装。gh は対象 --repo を常に固定し `state,headRefName,headRefOid,mergeCommit,isCrossRepository` を取得、未知は保持。リモート削除コマンドは自動実行しない。手順5は変更しない。
-- [ ] Step 4: 同じ関連testsをGREEN確認、git diff --check、追加テストのS/D基準を自己確認する。
-- [ ] Step 5: 対象パスだけstageし `feat: recognize PR-proven merged cleanup branches` でcommit。RED/GREEN・所要時間・懸念を返す。
+- [x] Step 1: SKILLから実行部分を抽出し、real temporary Git + fake ghで祖先/squash/rebaseの正例、未マージ・PR不明・head不一致・別repo・未統合baseの保持を検証するテストを書く。squash/rebaseは実際に commit graph を作り、祖先でないことを独立に確かめる。
+- [x] Step 2: 変更前に対象テストを `uv run pytest .agents/skills/repo-cleanup-after-merge/tests -q` でRED確認し、実出力を報告する。新しいブロック不在だけでなく既存手順の失敗根拠も記録する。
+- [x] Step 3: Spec R1/R2 の判定を最小実装。gh は対象 --repo を常に固定し `state,headRefName,headRefOid,mergeCommit,isCrossRepository` を取得、未知は保持。リモート削除コマンドは自動実行しない。手順5は変更しない。
+- [x] Step 4: 同じ関連testsをGREEN確認、git diff --check、追加テストのS/D基準を自己確認する。
+- [x] Step 5: 対象パスだけstageし `feat: recognize PR-proven merged cleanup branches` でcommit。RED/GREEN・所要時間・懸念を返す。
 
 ## Task 2: 残存 pinned ref と version7 例外を整理する
 
@@ -71,10 +73,10 @@
 
 **テストの要否:** 必要（S: open PR/現行sessionの取得先破壊、別repo誤削除、並行更新の消失）。SKILLの実行ゲートを抽出し、正例と守る反例で操作結果を観測する。version7の文章整合はFなので文言固定テスト不要、適用シナリオで検証する。
 
-- [ ] Step 1: 既存refが処理されないbaselineと、CASなら並行更新を保持すべきことを実行で確認しテストを書く。少なくとも終了PRの削除正例と、open/current session/所属不明/読取後更新の保持を代表1件ずつ検証し、同じ守りを重複網羅しない。手順が判断を要求する部分はcontrollerの適用シナリオで補う。
-- [ ] Step 2: REDを確認してから R3/R4 を実装。version7/8 helperは変えず、手順5は一字も変えない。gate Aとガードレールを既存例外に揃え、exit2とrun_context/version8の保護を維持する。
-- [ ] Step 3: `uv run pytest .agents/skills/repo-cleanup-after-merge/tests -q`、`git diff --check`。変更範囲を自己確認する。
-- [ ] Step 4: 対象だけstageし `feat: safely retire residual PR review refs` でcommit。RED/GREEN・所要時間・懸念を返す。
+- [x] Step 1: 既存refが処理されないbaselineと、CASなら並行更新を保持すべきことを実行で確認しテストを書く。少なくとも終了PRの削除正例と、open/current session/所属不明/読取後更新の保持を代表1件ずつ検証し、同じ守りを重複網羅しない。手順が判断を要求する部分はcontrollerの適用シナリオで補う。
+- [x] Step 2: REDを確認してから R3/R4 を実装。version7/8 helperは変えず、手順5は一字も変えない。gate Aとガードレールを既存例外に揃え、exit2とrun_context/version8の保護を維持する。
+- [x] Step 3: `uv run pytest .agents/skills/repo-cleanup-after-merge/tests -q`、`git diff --check`。変更範囲を自己確認する。
+- [x] Step 4: 対象だけstageし `feat: safely retire residual PR review refs` でcommit。RED/GREEN・所要時間・懸念を返す。
 
 ## 統合確認・公開（controller）
 

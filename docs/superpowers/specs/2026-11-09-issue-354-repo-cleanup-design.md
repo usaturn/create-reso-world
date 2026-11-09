@@ -44,6 +44,17 @@ R4. coordinator の決定 https://github.com/usaturn/create-reso-world/issues/35
 
 追加テストは実際の気付きにくい誤削除・誤分類・競合を防ぐ S と、実際の不具合の再発防止だけ。文言・frontmatter の写し合わせ、一般的な構文/オプションの L テストは追加しない。同じ守りは代表1件。SKILL のコードブロックを抽出して実行し、単なる文字列検査にしない。writing-skills の無し/ありの適用シナリオは別の読み取り専用担当で各1回、作業前後を比較する。
 
+## 実行記録（公開前）
+
+- Task1 は `9361d044`、base 除外の修正は `d9180ca3`。Task2 は `0d27e0e3`、symbolic ref/CAS/session 検証の修正は `4a7219b8`。全体レビューの root/大小文字/一覧上限/重複テスト修正は `9be97ac9`。
+- 指定 runner は全依頼で `pi_opencode-go_deepseek4-flash_max`、観測モデルは `opencode-go/deepseek-v4.1-flash`、effort max。Task1 2依頼（約1191秒・115秒）、Task2 2依頼（約825秒・390秒）、全体修正1依頼（約405秒）。全て importable/accepted、停止確認 true、cleanup の retained は無し。
+- 各 Task と限定再レビュー、最後の全体レビューと1回の修正・限定再レビューを実施。最後の関連テストは controller が clean HEAD `9be97ac9` で51件成功、終了コード0。追加テストはS、重複CASテストはDとして代表へ集約した。
+- R1/R2: 実 Git の祖先/squash/rebase と、未マージ・不明・head/base不一致を確認。最後の修正で残存 TARGET_ROOT の別 clone 削除、repository 大小文字の session 取り違え、100件での一意性誤判定を再現して防いだ。
+- R3/R4: session 無し終了PRのref削除正例、open/current session、曖昧な旧ref、symbolic ref、一覧後の更新、所属の型/形式不正の保持を確認。手順5/helperは変更しない。GREEN適用では旧形式の複数所属・不完全なsession一覧は保持、version7の限定例外のみ従来経路と判定した。
+- GREENの担当がrebase入力に「mergeCommitがnull」という未提示の前提を加えたため、その部分は採用しない。入力はAと同じreachableなmergeCommitであり、実rebase履歴テストと公式REST/GraphQL資料をcontrollerが照合した。欠落時は安全側に保持する。
+- skill-efficiency-check は終了コード0、Issues/Warningsなし。別helperファイルへの分離は所有範囲外なので、SKILL内の実行ブロックを維持する。
+- 共通の全体検証・scan・PR・指定ループは、この記録の後で実行し、HEAD/base/ログをPRとセッションへ記録する。未実行を成功としない。
+
 ## 既知の baseline
 
 変更前の読み取り専用適用シナリオで、squash/rebase は `git log` が非空のため保持、セッションの無い ref は手順が無いため保持となった。version7 の例外と gate A の衝突も残る。これは新しい手順で改善すべき挙動であり、機械テストと合わせて再確認する。
