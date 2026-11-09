@@ -651,4 +651,19 @@ Run: `git diff --stat "$CODE_BASE_SHA"...HEAD` → 変更は `tools/review_eval/
 
 ## 完了
 
-（実行の後に記録する）
+- 実装の担当: runner の `pi_opencode-go_deepseek4-flash_max`（観測したモデル `deepseek-v4.1-flash`、provider `opencode-go`、effort `max`）。割り当ては利用者の `--implement` による。controller は `claude-opus-5-5`
+- Task ごとの依頼（runner の所要時間）:
+
+| Task | 依頼の回数 | 所要時間 | 結果 |
+| --- | --- | --- | --- |
+| 1 基盤モジュール・設定・store | 1 | 67 秒 | Approved（Minor 1 件は L として直さない） |
+| 2 capture | 1 | 101 秒 | Approved（Minor 2 件は直さない） |
+| 3 台帳と packet | 1 | 43 秒 | controller のレビュー（AW との差は import だけ、4 モジュールは cmp で一致） |
+| 4 inventory・reconcile・CLI | 1 | 89 秒 | controller のレビュー（差分は Plan の本文どおり） |
+| 5 文書 | 1 | 359 秒 | Approved（事実確認つき。Minor 2 件は最後の修正に含めた） |
+| 最後の全体レビューの修正 | 1 | 40 秒 | 指摘 3 件を解消（store の推奨の例、`status` の終了コード 2 の条件、`sources.rst` の `unknown` の扱い） |
+
+- Plan の訂正（最後の全体レビューの裁定）: Task 5 の Step 2 の 5 が指定した store の例 `/home/vscode/review-eval/collected` は、`/home/vscode` が Dev Container の overlay 上で rebuild で消えるので、`/workspaces/reso-world/private/review-eval/collected`（ホストの bind mount 上、`/private/` は ignore の対象）に改め、「rebuild 後も残る場所に置く。`.worktrees/` の中には置かない」を足した
+- Task 6 の手動の確認（3・4）は HEAD `261e5b9` のコードで実行した（以降の commit は文書だけ）。7 項目とも期待どおり（設定なしの `status`・`config check`、一時 HOME に何も作らない、壊れた TOML、相対パス・末尾の `/` の review_dir、実 gitleaks 8.30.1 の既定の argv で秘密を含む方だけ `withheld_secret`）
+- 検証の結果は PR 本文と、`PARENT_ROOT/tmp/agents/issue-352.83snyw06/` の検証の記録に書く
+- 持ち越し: Spec の「持ち越し」のとおり（全体のテストの隔離、4 経路への接続と `shim.run_hook` の実際の起動の確認は #357。gitleaks の既定の argv はコミットしない手動の確認だけが守る）
