@@ -312,7 +312,7 @@ worktree 本体の削除と、手順 6 の残骸削除は **別の判断**であ
 
 `git worktree remove` は作業ツリーだけを消す。親ディレクトリに残る `session.json` や `review-backup/` は **git 管理外**であり、`git status` にも `git worktree list` にも現れない。
 
-この手順は、`worktree/` が無くなった残骸ディレクトリだけに適用する。手順 1・5 で残した worktree を含むディレクトリは消さない。helper が拒否したセッションと、`session.json` に `run_context` を持つセッションは、worktree が無くても対象にしない。worktree を外してからこの手順で消す迂回をしない。停止未確認の失敗セッションを、年齢や PID の不在を根拠に即時に消さない。
+この手順は、`worktree/` が無くなった残骸ディレクトリだけに適用する。手順 1・5 で残した worktree を含むディレクトリは消さない。helper が拒否したセッションは、`run_context` の無い version 7 が終了コード 1 で拒否され、手順 5 の通常経路に進んだ場合を除き、worktree が無くても対象にしない。version 8、`run_context` を持つセッション、終了コード 2 のセッションは保持する。worktree を外してからこの手順で消す迂回をしない。停止未確認の失敗セッションを、年齢や PID の不在を根拠に即時に消さない。
 
 残骸の `session.json` を版ごとに読む。version 7 は `main_root` + `destination` が正式保存先で、`pr_repository` と PR 番号も照合する。version 8 は `parent_root` + `destination` が本文で、候補の相対パスは helper の `findings_artifact_paths` が state の repository・PR 番号・model・commit から返す値を使い、同じ `parent_root` に結合する。`pr_repo` と PR 番号も照合する。候補パスを state の架空の欄から読んだり、手で命名したりしない。`target_root`（checkout または所有 bundle repository）へ保存先を結合しない。branch 名の変換で推測しない。
 
@@ -485,6 +485,255 @@ git push "$REMOTE" --delete <branch>
 git fetch --prune
 ```
 
+### 残存 pinned ref を整理する
+
+手順 9 のあと、手順 11 の前に実行する。fork の経路では手順 10 の sync を先に済ませてから実行する。`git for-each-ref` で `refs/pr-review` を一覧し、セッションを持たない ref も含めて、対応する repository と PR を確定できたものだけを片付ける。オブジェクト自体は PR の取得元に残るが、レビュー中の session が読む ref を消すと取得先を壊すため、PR の終了だけで決めない。
+
+- `REF_CHECKOUT`: ref を読む checkout（create-reso-world は `MAIN_ROOT`、通常ツールは `CLEANUP_ROOT`、fork は `external/resoloop`）
+- `REF_REPOS`: 旧形式 `refs/pr-review/<N>` の候補 repository。create-reso-world と通常ツールは `PR_REPO` だけ、fork の経路は `usaturn/resoloop` と `orange3134/resoloop` を改行で並べる。新形式 `refs/pr-review/repos/<owner>/<repo>/<N>` は ref 名の repository を使う
+- `REF_SESSION_ROOT`: pr-review が使った一時ルート。既定は `${TMPDIR:-/tmp}`。別の `--temp-root` を使った可能性を排除できない場合は削除しない
+
+手順 1 の helper の `sessions` は登録済み worktree だけを列挙し、セッションを持たない ref、登録の無い残骸、bundle、別の `--temp-root` のセッションを網羅しない。helper が同じ repository と PR の session を保持と返したら、その ref は削除しない。下の関数は `REF_SESSION_ROOT` の `pr-review-*` も調べるが、これも全一覧ではない。保持中の session や所属を確定できないときは、その ref を保持して手順 11 で報告する。
+
+```bash
+cleanup_residual_ref_inventory() {
+  if [ "$#" -ne 1 ]; then
+    printf '%s\n' 'cleanup: 残存 ref 一覧の引数が足りない' >&2
+    return 2
+  fi
+  local checkout=$1
+  git -C "$checkout" for-each-ref --format='%(refname) %(objectname)' refs/pr-review
+}
+
+cleanup_residual_ref_keep() {
+  printf '保持: %s（%s）\n' "$1" "$2" >&2
+}
+
+cleanup_residual_ref_same_checkout() {
+  local left=$1 right=$2
+  [ -d "$left" ] && [ -d "$right" ] || return 1
+  [ "$(cd -- "$left" && pwd -P)" = "$(cd -- "$right" && pwd -P)" ]
+}
+
+cleanup_residual_ref_retire() {
+  if [ "$#" -ne 3 ]; then
+    printf '%s\n' 'cleanup: 残存 ref の引数が足りない' >&2
+    return 2
+  fi
+  local checkout=$1 ref=$2 expected=$3
+  local number rest owner repo_name pr_json fields reported state head
+  local session_root session_dir session_name version session_repo session_number
+  local session_main_root target_kind target_root current
+  local -a repos=()
+  case "$expected" in
+    ''|*[!0-9a-f]*)
+      cleanup_residual_ref_keep "$ref" '読んだ ref の値が commit SHA ではない'
+      return 1
+      ;;
+  esac
+  case "$ref" in
+    refs/pr-review/repos/*)
+      rest=${ref#refs/pr-review/repos/}
+      owner=${rest%%/*}
+      rest=${rest#*/}
+      repo_name=${rest%%/*}
+      number=${rest#*/}
+      case "$owner" in
+        ''|*[!A-Za-z0-9-]*)
+          cleanup_residual_ref_keep "$ref" 'repository を確定できない'
+          return 1
+          ;;
+      esac
+      case "$repo_name" in
+        ''|*[!A-Za-z0-9._-]*)
+          cleanup_residual_ref_keep "$ref" 'repository を確定できない'
+          return 1
+          ;;
+      esac
+      case "$number" in
+        ''|*[!0-9]*)
+          cleanup_residual_ref_keep "$ref" 'PR 番号を確定できない'
+          return 1
+          ;;
+      esac
+      repos=("$owner/$repo_name")
+      ;;
+    refs/pr-review/*)
+      number=${ref#refs/pr-review/}
+      case "$number" in
+        ''|*[!0-9]*)
+          cleanup_residual_ref_keep "$ref" '旧形式 ref の PR 番号を確定できない'
+          return 1
+          ;;
+      esac
+      if [ -z "${REF_REPOS:-}" ]; then
+        cleanup_residual_ref_keep "$ref" '旧形式 ref の所属 repository が未設定'
+        return 1
+      fi
+      while IFS= read -r repo_name; do
+        [ -n "$repo_name" ] && repos+=("$repo_name")
+      done <<< "$REF_REPOS"
+      if [ "${#repos[@]}" -ne 1 ]; then
+        cleanup_residual_ref_keep "$ref" '旧形式 ref の所属 repository を一意に確定できない'
+        return 1
+      fi
+      ;;
+    *)
+      cleanup_residual_ref_keep "$ref" '残存 pinned ref の形式ではない'
+      return 1
+      ;;
+  esac
+  for repo_name in "${repos[@]}"; do
+    if ! pr_json=$(gh pr view "$number" --repo "$repo_name" --json number,state,headRefOid); then
+      cleanup_residual_ref_keep "$ref" "PR $repo_name#$number の状態を照会できない"
+      return 1
+    fi
+    if ! fields=$(printf '%s' "$pr_json" | jq -er '[.number, .state, .headRefOid] | @tsv'); then
+      cleanup_residual_ref_keep "$ref" "PR $repo_name#$number の応答を読めない"
+      return 1
+    fi
+    IFS=$'\t' read -r reported state head <<< "$fields"
+    if [ "$reported" != "$number" ] || [ -z "$state" ] || [ -z "$head" ]; then
+      cleanup_residual_ref_keep "$ref" "PR $repo_name#$number の応答が一致しない"
+      return 1
+    fi
+    case "$state" in
+      MERGED|CLOSED) ;;
+      *)
+        cleanup_residual_ref_keep "$ref" "PR $repo_name#$number が $state"
+        return 1
+        ;;
+    esac
+  done
+  session_root=${REF_SESSION_ROOT:-${TMPDIR:-/tmp}}
+  if [ ! -d "$session_root" ]; then
+    cleanup_residual_ref_keep "$ref" 'session の一時ルートを確認できない'
+    return 1
+  fi
+  for session_dir in "$session_root"/pr-review-*; do
+    if [ ! -e "$session_dir" ] && [ ! -L "$session_dir" ]; then
+      continue
+    fi
+    session_name=${session_dir##*/}
+    case "$session_name" in
+      "pr-review-$number-"*) ;;
+      *) continue ;;
+    esac
+    if [ -L "$session_dir" ] || [ ! -f "$session_dir/session.json" ]; then
+      cleanup_residual_ref_keep "$ref" "session の状態を確認できない: $session_dir"
+      return 1
+    fi
+    if ! version=$(jq -er 'if type == "object" then .version else error("not an object") end' "$session_dir/session.json" 2>/dev/null); then
+      cleanup_residual_ref_keep "$ref" "session の状態を読めない: $session_dir"
+      return 1
+    fi
+    case "$version" in
+      7)
+        if ! session_repo=$(jq -er '.pr_repository' "$session_dir/session.json" 2>/dev/null) \
+          || ! session_number=$(jq -er '.pr_number' "$session_dir/session.json" 2>/dev/null) \
+          || ! session_main_root=$(jq -er '.main_root' "$session_dir/session.json" 2>/dev/null); then
+          cleanup_residual_ref_keep "$ref" "session の所属を読めない: $session_dir"
+          return 1
+        fi
+        if [ -z "$session_repo" ] || [ -z "$session_number" ] || [ -z "$session_main_root" ]; then
+          cleanup_residual_ref_keep "$ref" "session の所属が欠けている: $session_dir"
+          return 1
+        fi
+        if [ "$session_number" != "$number" ] || [ "$session_repo" != "${repos[0]}" ]; then
+          continue
+        fi
+        if ! cleanup_residual_ref_same_checkout "$session_main_root" "$checkout"; then
+          if [ ! -d "$session_main_root" ]; then
+            cleanup_residual_ref_keep "$ref" "session の checkout を確認できない: $session_dir"
+            return 1
+          fi
+          continue
+        fi
+        cleanup_residual_ref_keep "$ref" "保持中の session がある: $session_dir"
+        return 1
+        ;;
+      8)
+        if ! session_repo=$(jq -er '.pr_repo' "$session_dir/session.json" 2>/dev/null) \
+          || ! session_number=$(jq -er '.pr_number' "$session_dir/session.json" 2>/dev/null) \
+          || ! target_kind=$(jq -er '.target_kind' "$session_dir/session.json" 2>/dev/null); then
+          cleanup_residual_ref_keep "$ref" "session の所属を読めない: $session_dir"
+          return 1
+        fi
+        if [ -z "$session_repo" ] || [ -z "$session_number" ] || [ -z "$target_kind" ]; then
+          cleanup_residual_ref_keep "$ref" "session の所属が欠けている: $session_dir"
+          return 1
+        fi
+        if [ "$session_number" != "$number" ] || [ "$session_repo" != "${repos[0]}" ]; then
+          continue
+        fi
+        case "$target_kind" in
+          owned-history)
+            continue
+            ;;
+          checkout)
+            if ! target_root=$(jq -er '.target_root' "$session_dir/session.json" 2>/dev/null) \
+              || [ -z "$target_root" ]; then
+              cleanup_residual_ref_keep "$ref" "session の checkout を読めない: $session_dir"
+              return 1
+            fi
+            if ! cleanup_residual_ref_same_checkout "$target_root" "$checkout"; then
+              if [ ! -d "$target_root" ]; then
+                cleanup_residual_ref_keep "$ref" "session の checkout を確認できない: $session_dir"
+                return 1
+              fi
+              continue
+            fi
+            cleanup_residual_ref_keep "$ref" "保持中の session がある: $session_dir"
+            return 1
+            ;;
+          *)
+            cleanup_residual_ref_keep "$ref" "session の対象種別を確認できない: $session_dir"
+            return 1
+            ;;
+        esac
+        ;;
+      *)
+        cleanup_residual_ref_keep "$ref" "未知の version の session がある: $session_dir"
+        return 1
+        ;;
+    esac
+  done
+  if ! current=$(git -C "$checkout" for-each-ref --format='%(objectname)' "$ref"); then
+    cleanup_residual_ref_keep "$ref" 'ref の現在値を読めない'
+    return 1
+  fi
+  if [ "$current" != "$expected" ]; then
+    cleanup_residual_ref_keep "$ref" '読み取り後に ref の値が変わった'
+    return 1
+  fi
+  if ! git -C "$checkout" update-ref -d "$ref" "$expected"; then
+    cleanup_residual_ref_keep "$ref" 'ref を compare-and-delete できない'
+    return 1
+  fi
+  printf '削除: %s %s\n' "$ref" "$expected"
+}
+```
+
+最初に一覧だけを表示し、削除はまだ行わない。
+
+```bash
+set -euo pipefail
+: "${REF_CHECKOUT:?ref を読む checkout}" "${REF_REPOS:?旧形式 ref の候補 repository}"
+printf '%s\n' '残存 pinned ref（削除はまだ行わない）:'
+cleanup_residual_ref_inventory "$REF_CHECKOUT"
+```
+
+一覧の各 ref について、上の関数を実行する。`REF_OID` は一覧で読んだ値のまま渡し、削除の直前に読み直した新しい値で置き換えない。
+
+```bash
+set -euo pipefail
+: "${REF_CHECKOUT:?ref を読む checkout}" "${REF_REPOS:?旧形式 ref の候補 repository}"
+REF_SESSION_ROOT="${REF_SESSION_ROOT:-${TMPDIR:-/tmp}}"
+cleanup_residual_ref_inventory "$REF_CHECKOUT" | while IFS=' ' read -r REF REF_OID; do
+  cleanup_residual_ref_retire "$REF_CHECKOUT" "$REF" "$REF_OID" || true
+done
+```
+
 ### 10. resoloop の上流に追従する（fork の経路だけ）
 
 上流 `orange3134/resoloop` で PR がマージされたら、fork の `main` を上流へ追従させる。リポジトリのルートで実行する。fork の経路ではこの手順を手順 3 の判定より先に行う。「fork の経路だけの手順」を見る。
@@ -505,7 +754,7 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定する}" branch -a
 ```
 
-`usaturn/create-reso-world` では `MAIN_ROOT` の HEAD が detached で `origin/main` と一致することを報告する。既存ローカル `main` と、それを checkout している他 worktree は「変更せず保持」として報告する。削除した対象、保留した対象、その理由も報告する。
+`usaturn/create-reso-world` では `MAIN_ROOT` の HEAD が detached で `origin/main` と一致することを報告する。既存ローカル `main` と、それを checkout している他 worktree は「変更せず保持」として報告する。削除した対象、保留した対象、その理由も報告する。残存 pinned ref を削除または保持した場合は、ref 名・repository・PR・理由を報告する。
 
 手順 1 で控えた `prunable`・`locked` な worktree と、`sessions` が `removable: false` を返した `/tmp/pr-review-*`（`reason` を添える）と、手順 4・5 で削除しなかった worktree は、パスと理由（`prunable` や `locked` の行の内容、`git -C` の終了コード、branch を持たない別 run の worktree であること）を添えて、所有者の確認が要るものとして報告する。移動済みの worktree は、所有者が移動先を確かめて `git worktree repair <移動先>` を個別に行う。本体が無い登録は、所有する run の停止と対応を確かめた所有者が、対象を限定して回収を判断する。このスキルでは repair も回収も行わない。
 
@@ -524,11 +773,15 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 - 「時間が無い」「手早く」と言われたので確認を飛ばそうとしている
 - `git worktree remove` の前に `status --short --ignored` を見ていない
 - `/tmp/pr-review-*` の session を、番号・branch・commit の一致や、片方のリポジトリの PR 一覧に無いことを根拠に、終了した PR のものとみなそうとしている
-- helper が拒否した pr-review のセッションを、`git worktree remove` で worktree を外してから手順 6 で消そうとしている。`--operator-confirmed-stopped` の理由をエージェントが作ろうとしている
+- helper が拒否した pr-review のセッションを、`run_context` の無い version 7 が終了コード 1 で拒否された場合以外に、`git worktree remove` で worktree を外してから手順 6 で消そうとしている。version 8・`run_context` 有り・終了コード 2 を保持せずに進もうとしている。`--operator-confirmed-stopped` の理由をエージェントが作ろうとしている
+- `refs/pr-review/*` を、`git for-each-ref` の一覧だけで一括削除しようとしている。所属 repository と PR、PR の終了、open PR・保持中 session の非使用を確かめていない
+- session が無い、または helper の `sessions` が何も返さないことを、ref を削除してよい証拠にしている。登録の無い残骸・bundle・別の一時ルートを確認していない
+- `git update-ref -d <ref>` を読んだ値なしで実行している、または並行更新で失敗した削除を新しい値でやり直している
+- 旧形式 `refs/pr-review/<N>` を、fork と上流の片方の PR が終了しただけで消そうとしている
 - `git log --oneline <base>..<branch>` が非空だから未取り込み、空だから取り込み済みと決めつけている。PR と head の対応、squash/rebase の `mergeCommit` を確かめていない
 - `git branch -d` が成功したので、選択した base に取り込まれているとみなしている。upstream がその branch 自身を指していても `-d` は成功する
 
-**いずれかに該当したら、削除を中止して手順 1・4・5・6・9 のいずれかに戻る。**
+**いずれかに該当したら、削除を中止して手順 1・4・5・6・9 のいずれか、または残存 pinned ref の一覧に戻る。**
 
 ## 言い訳と現実
 
@@ -559,7 +812,9 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 - `prunable`・`locked` な worktree と、branch を checkout していない別 run の worktree（手順 5 の `/tmp/pr-review-*` を除く）を `git worktree remove` しない。
 - ユーザー確認なしに `git push`（`--delete` を含む）や `scripts/resoloop-fork.sh sync` を実行しない。
 - Open PR が残っている branch と worktree を削除しない。detached な pr-review worktree も含む。
-- pr-review のセッションは helper の `cleanup --strict-reap` で退役させる。拒否されたセッション（`run_context` を持つものと version 8 を含む）は、worktree の削除と手順 6 に回さず保持する。
+- pr-review のセッションは helper の `cleanup --strict-reap` で退役させる。拒否されたセッションは、`run_context` の無い version 7 が終了コード 1 で拒否された場合を除き、worktree の削除と手順 6 に回さず保持する。version 8、`run_context` を持つセッション、終了コード 2 は保持する。
+- 残存 pinned ref は、`refs/pr-review` の一覧から所属 repository と PR を確定し、PR が MERGED/CLOSED で、open PR と現行・保持中の session が使っていないことを確かめたものだけを `git update-ref -d <ref> <読んだ値>` で削除する。読取後に値が変わったら保持し、新しい値で再実行しない。所属が一意でない旧形式 ref は保持する。
+- helper の `sessions` の成功を全 session の一覧とみなさない。登録の無い残骸・bundle・別の一時ルートを確認できず、非使用を確定できない ref は保持する。
 - `--operator-confirmed-stopped` の理由を、エージェントが作らない。
 - gitignore 対象のファイルは、再生成できるキャッシュを除き、正本と照合するかユーザーの確認を得るまで削除しない（`reviews/`、`docs_draft/`、`tmp/`、`external/` など。worktree ごと消す場合も同じ）。
 - コンフリクト解消、rebase、リリース作業は行わない。
