@@ -52,7 +52,7 @@ def test_managed_cleanup_resolves_only_registered_common_dir(
         f"#!{sys.executable}\n"
         "import json, os, sys\n"
         "expected = ['pr', 'view', '7', '--repo', os.environ['PR_REPO'], "
-        "'--json', 'state,headRefName,headRefOid,mergeCommit,isCrossRepository']\n"
+        "'--json', 'state,headRefName,headRefOid,mergeCommit,isCrossRepository,headRepository,headRepositoryOwner']\n"
         "if sys.argv[1:] != expected: sys.exit(91)\n"
         "print(os.environ['FIXTURE_PR'])\n",
         encoding="utf-8",

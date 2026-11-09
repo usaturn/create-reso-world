@@ -95,7 +95,7 @@ def work(tmp_path: Path) -> Path:
 FAKE_GH_SOURCE = f'''#!{sys.executable}
 import json, os, sys
 args = sys.argv[1:]
-fields = "state,headRefName,headRefOid,mergeCommit,isCrossRepository"
+fields = "state,headRefName,headRefOid,mergeCommit,isCrossRepository,headRepository,headRepositoryOwner"
 repo = os.environ["FAKE_GH_REPO"]
 with open(os.environ["FAKE_GH_PRS_FILE"], encoding="utf-8") as stream:
     prs = json.load(stream)
@@ -146,8 +146,9 @@ def fake_gh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 def pr_payload(
     number: int, branch: str, head: str, *, state: str = "MERGED",
-    merge: str | None = None, cross: bool = False,
+    merge: str | None = None, cross: bool = False, head_repo: str = PR_REPO,
 ) -> dict[str, object]:
+    owner, name = head_repo.split("/")
     return {
         "number": number,
         "state": state,
@@ -155,6 +156,8 @@ def pr_payload(
         "headRefOid": head,
         "mergeCommit": None if merge is None else {"oid": merge},
         "isCrossRepository": cross,
+        "headRepository": {"id": "R_fixture", "name": name},
+        "headRepositoryOwner": {"id": "U_fixture", "login": owner},
     }
 
 
@@ -290,6 +293,57 @@ def test_branch_evidence_retains_unproven_pr_evidence(
 
     assert result.returncode != 0, (mutation, result.stdout, result.stderr)
     assert result.stdout == ""
+
+
+UPSTREAM_REPO = "orange3134/resoloop"
+FORK_REPO = "usaturn/resoloop"
+
+
+def make_no_ff(work: Path, branch: str) -> str:
+    git(work, "checkout", "-q", "-b", branch, "main")
+    head = commit_file(work, f"{branch} file.txt", "fork change\n")
+    git(work, "checkout", "-q", "main")
+    git(work, "merge", "-q", "--no-ff", "-m", f"merge {branch}", branch)
+    return head
+
+
+@pytest.mark.parametrize("merge_style", ["no-ff", "squash"])
+def test_branch_evidence_accepts_an_upstream_pr_only_from_the_verified_fork(
+    work: Path, fake_gh, merge_style: str,
+) -> None:
+    # Upstream PRs from the fork are always cross-repository. They are integrated
+    # only when the PR head repository is the verified fork (case-insensitive);
+    # another fork that reuses the branch name and head must stay retained.
+    if merge_style == "no-ff":
+        head = make_no_ff(work, "fork-feature")
+        merge, expected = git(work, "rev-parse", "main"), "ancestor"
+    else:
+        head, merge = make_squash(work, "fork-feature")
+        expected = "pr"
+    args = [str(work), UPSTREAM_REPO, "7", "fork-feature", "refs/heads/fork-feature",
+            "refs/heads/main"]
+
+    def evidence(head_repo: str | None, expected_repo: str | None):
+        payload = pr_payload(7, "fork-feature", head, merge=merge, cross=True,
+                             head_repo=head_repo or FORK_REPO)
+        if head_repo is None:
+            del payload["headRepository"]
+        fake_gh({"7": payload}, repo=UPSTREAM_REPO)
+        return run_evidence(work, args if expected_repo is None else [*args, expected_repo])
+
+    accepted = evidence("UsaTurn/ResoLoop", "usaturn/RESOLOOP")
+    assert accepted.returncode == 0, (accepted.stdout, accepted.stderr)
+    assert accepted.stdout.strip() == expected
+
+    for head_repo, expected_repo in (
+        ("someone/resoloop", FORK_REPO),  # unrelated fork
+        (None, FORK_REPO),                # head repository unknown
+        (FORK_REPO, ""),                  # route did not verify a fork
+        (FORK_REPO, None),                # six-argument caller
+    ):
+        refused = evidence(head_repo, expected_repo)
+        assert refused.returncode != 0, (head_repo, expected_repo, refused.stdout)
+        assert refused.stdout == "", (head_repo, expected_repo)
 
 
 def test_branch_evidence_retains_a_pr_merged_into_another_base(

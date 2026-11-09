@@ -42,7 +42,7 @@ def isolated_git_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     for name in tuple(os.environ):
         if name.startswith("GIT_") or name in {
             "BASH_ENV", "ENV", "MAIN_ROOT", "TARGET_ROOT", "PR_REPO", "PR_NUMBER",
-            "BASE_REF",
+            "BASE_REF", "CLEANUP_ROUTE", "CLEANUP_ROOT", "EXPECTED_HEAD_REPO",
         }:
             monkeypatch.delenv(name)
     home = tmp_path / "home"
@@ -135,7 +135,7 @@ def run_bash(commands: str, *, cwd: Path, env: dict[str, str]) -> subprocess.Com
 FAKE_GH_SOURCE = f'''#!{sys.executable}
 import json, os, sys
 args = sys.argv[1:]
-fields = "state,headRefName,headRefOid,mergeCommit,isCrossRepository"
+fields = "state,headRefName,headRefOid,mergeCommit,isCrossRepository,headRepository,headRepositoryOwner"
 if (len(args) != 7 or args[:2] != ["pr", "view"]
         or args[3:5] != ["--repo", os.environ["PR_REPO"]]
         or args[5:] != ["--json", fields]):
@@ -169,15 +169,18 @@ def fake_gh_environment(
 
 def pr_payload(
     branch: str, head: str, *, number: int = 7, merge: str | None = None,
-    state: str = "MERGED",
+    state: str = "MERGED", cross: bool = False, head_repo: str = PR_REPO,
 ) -> dict[str, object]:
+    owner, name = head_repo.split("/")
     return {
         "number": number,
         "state": state,
         "headRefName": branch,
         "headRefOid": head,
         "mergeCommit": None if merge is None else {"oid": merge},
-        "isCrossRepository": False,
+        "isCrossRepository": cross,
+        "headRepository": {"id": "R_fixture", "name": name},
+        "headRepositoryOwner": {"id": "U_fixture", "login": owner},
     }
 
 
@@ -449,10 +452,66 @@ def test_steps_8_and_11_stop_when_main_root_is_unset_instead_of_using_callers_re
     assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
 
 
+def all_refs_and_head(work: Path) -> tuple[str, str]:
+    return (
+        git(work, "for-each-ref", "--format=%(refname) %(objectname)"),
+        git(work, "rev-parse", "HEAD"),
+    )
+
+
 def test_step8_uses_the_route_specific_root(checkout: Path) -> None:
     # A stale TARGET_ROOT from another clone must not override the MAIN_ROOT
-    # whose clean detached checkout step 7 verified. The fork path may still
-    # use TARGET_ROOT when MAIN_ROOT is absent.
+    # whose clean detached checkout step 7 verified, and a stale fork
+    # EXPECTED_HEAD_REPO must not let the create route accept a cross-repository
+    # PR. The fork route uses TARGET_ROOT and accepts its verified fork's PR.
+    remote = checkout.parent / "remote.git"
+    foreign = checkout.parent / "foreign clone"
+    git(checkout.parent, "clone", "-q", str(remote), str(foreign))
+    target = git(checkout, "rev-parse", "origin/main")
+    git(checkout, "branch", "merged-feature", target)
+    git(foreign, "branch", "merged-feature", target)
+    prs = {"7": pr_payload("merged-feature", target, merge=target, cross=True,
+                           head_repo="usaturn/resoloop")}
+    commands = section_bash(EVIDENCE_TITLE) + "\n" + step_bash(8).replace(
+        "<branch>", "merged-feature"
+    )
+    env = {
+        **os.environ,
+        **fake_gh_environment(checkout, prs),
+        "CLEANUP_ROUTE": "create",
+        "MAIN_ROOT": str(checkout),
+        "TARGET_ROOT": str(foreign),
+        "EXPECTED_HEAD_REPO": "usaturn/resoloop",
+        "PR_NUMBER": "7",
+        "BASE_REF": "refs/remotes/origin/main",
+    }
+
+    conflicting = run_bash(commands, cwd=checkout, env=env)
+
+    assert conflicting.returncode != 0, (conflicting.stdout, conflicting.stderr)
+    assert "TARGET_ROOT" in conflicting.stderr
+    assert "refs/heads/merged-feature " in local_refs(checkout)
+    assert "refs/heads/merged-feature " in local_refs(foreign)
+
+    create_env = {key: value for key, value in env.items() if key != "TARGET_ROOT"}
+    stale_fork_expectation = run_bash(commands, cwd=checkout, env=create_env)
+
+    assert stale_fork_expectation.returncode != 0, stale_fork_expectation.stdout
+    assert "refs/heads/merged-feature " in local_refs(checkout)
+
+    fork_env = {key: value for key, value in env.items() if key != "MAIN_ROOT"}
+    fork_env.update({"CLEANUP_ROUTE": "fork", "TARGET_ROOT": str(checkout)})
+    accepted = run_bash(commands, cwd=checkout, env=fork_env)
+
+    assert accepted.returncode == 0, (accepted.stdout, accepted.stderr)
+    assert "refs/heads/merged-feature " not in local_refs(checkout)
+    assert "refs/heads/merged-feature " in local_refs(foreign)
+
+
+def test_step8_stops_when_only_a_stale_target_root_is_set(checkout: Path) -> None:
+    # A fresh shell can lose MAIN_ROOT while a fork TARGET_ROOT left over from
+    # an earlier call points at another clone of the same remote. Falling back
+    # to it deletes that clone's merged branch: the wrong checkout is changed.
     remote = checkout.parent / "remote.git"
     foreign = checkout.parent / "foreign clone"
     git(checkout.parent, "clone", "-q", str(remote), str(foreign))
@@ -466,26 +525,18 @@ def test_step8_uses_the_route_specific_root(checkout: Path) -> None:
     env = {
         **os.environ,
         **fake_gh_environment(checkout, prs),
-        "MAIN_ROOT": str(checkout),
         "TARGET_ROOT": str(foreign),
         "PR_NUMBER": "7",
         "BASE_REF": "refs/remotes/origin/main",
     }
+    before = (all_refs_and_head(checkout), all_refs_and_head(foreign))
 
-    conflicting = run_bash(commands, cwd=checkout, env=env)
+    result = run_bash(commands, cwd=checkout, env=env)
 
-    assert conflicting.returncode != 0, (conflicting.stdout, conflicting.stderr)
-    assert "TARGET_ROOT" in conflicting.stderr
-    assert "refs/heads/merged-feature " in local_refs(checkout)
-    assert "refs/heads/merged-feature " in local_refs(foreign)
-
-    fork_env = {key: value for key, value in env.items() if key != "MAIN_ROOT"}
-    fork_env["TARGET_ROOT"] = str(checkout)
-    accepted = run_bash(commands, cwd=checkout, env=fork_env)
-
-    assert accepted.returncode == 0, (accepted.stdout, accepted.stderr)
-    assert "refs/heads/merged-feature " not in local_refs(checkout)
-    assert "refs/heads/merged-feature " in local_refs(foreign)
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "CLEANUP_ROUTE" in result.stderr or "MAIN_ROOT" in result.stderr
+    assert "not fully merged" not in result.stderr
+    assert (all_refs_and_head(checkout), all_refs_and_head(foreign)) == before
 
 
 def test_step8_gates_dash_d_on_selected_base_and_rechecks_before_dash_D(
