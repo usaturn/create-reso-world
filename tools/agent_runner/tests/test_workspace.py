@@ -194,14 +194,30 @@ def test_audit_diagnoses_unavailable_baseline(
         assert not any(workspace.blocks_acceptance(item) for item in diagnostics)
         snapshot = workspace.require_auditable_checkouts(repository)
         assert snapshot[str(external)] is None and snapshot.failures[str(external)] == diagnostics[0]
-        with pytest.raises(workspace.CheckoutAuditError) as caught:
-            workspace.require_auditable_checkouts(external)
-        assert caught.value.findings and all(item.protected for item in caught.value.findings)
-        assert "SECRET" not in str(caught.value) and "SECRET" not in repr(caught.value.findings)
+        assert "SECRET" not in repr(diagnostics)
         assert changed_checkouts(before) == [str(external)]
     finally:
         if kind == "unreadable":
             external.chmod(0o755)
+
+
+def test_preflight_stops_only_for_a_registered_target_that_cannot_be_fingerprinted(
+    repository: Path, tmp_path: Path
+) -> None:
+    # Git keeps working in both checkouts; only reading a tracked file fails.
+    target = create_worktree(repository, "HEAD", tmp_path / "target")
+    other = create_worktree(repository, "HEAD", tmp_path / "other")
+    (other / "tracked.txt").chmod(0)
+    try:
+        snapshot = workspace.require_auditable_checkouts(target)
+        assert snapshot[str(other)] is None and snapshot.failures[str(other)].protected is False
+        (target / "tracked.txt").chmod(0)
+        with pytest.raises(workspace.CheckoutAuditError) as caught:
+            workspace.require_auditable_checkouts(target)
+        assert [(item.path, item.protected) for item in caught.value.findings] == [(str(target), True)]
+    finally:
+        (target / "tracked.txt").chmod(0o644)
+        (other / "tracked.txt").chmod(0o644)
 
 
 @pytest.mark.parametrize("mutation", ["disappear", "recover"])

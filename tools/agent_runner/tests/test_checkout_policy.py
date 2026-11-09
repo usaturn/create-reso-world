@@ -61,12 +61,18 @@ def test_unavailable_neighbor_is_reported_and_unavailable_target_blocks_launch(
     assert [(item.path, item.kind, item.protected) for item in batch.checkout_audit] == [
         (str(neighbor), "unavailable_before", False)
     ]
-    with pytest.raises(workspace.CheckoutAuditError):
-        require_auditable_workflow(configuration(), "audit", neighbor, adapter_loader=no_launch)
-    with pytest.raises(RunnerError):
-        run_workflow(
-            configuration(), "audit", "respond", neighbor,
-            output_dir=tmp_path / "blocked", adapter_loader=no_launch,
-        )
-    assert not (tmp_path / "blocked").exists()
+    target = workspace.create_worktree(repository, "HEAD", tmp_path / "target")
+    (target / "tracked.txt").chmod(0)  # git still works; only the fingerprint fails
+    try:
+        with pytest.raises(workspace.CheckoutAuditError) as caught:
+            require_auditable_workflow(configuration(), "audit", target, adapter_loader=no_launch)
+        assert [(item.path, item.protected) for item in caught.value.findings] == [(str(target), True)]
+        with pytest.raises(RunnerError):
+            run_workflow(
+                configuration(), "audit", "respond", target,
+                output_dir=tmp_path / "blocked", adapter_loader=no_launch,
+            )
+        assert not (tmp_path / "blocked").exists()
+    finally:
+        (target / "tracked.txt").chmod(0o644)
     assert str(neighbor) in git(repository, "worktree", "list", "--porcelain")
