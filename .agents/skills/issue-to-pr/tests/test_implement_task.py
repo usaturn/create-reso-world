@@ -76,6 +76,31 @@ def test_check_implement_replaces_primary(tmp_path: Path) -> None:
     assert payload["self"] is False
 
 
+def test_project_refuses_a_write_enabled_review_role(tmp_path: Path) -> None:
+    """S: a review role that can write could modify the work it reviews, so projection must refuse to run it."""
+    assignments = (
+        '\n[workflows.issue.assignments.implement]\nagents = ["codex"]\n'
+        '\n[workflows.issue.assignments.spec-review]\nagents = ["claude-opus"]\n'
+    )
+
+    def config_for(name: str, writes: bool) -> Any:
+        root = tmp_path / name
+        root.mkdir()
+        role = (
+            IMPLEMENT_ROLE
+            + f'\n[roles.spec-review]\nwrites = {str(writes).lower()}\n'
+            'deadline_seconds = 60\nresult_shape = "json"\n'
+        )
+        return mod.load_config(template(root, assignments, role=role), workflow="issue")
+
+    selected = mod.project(config_for("read-only", False), "spec-review", writes=False)
+    assert set(selected.workflows["issue"].assignments) == {"spec-review"}
+    assert selected.roles["spec-review"].writes is False
+
+    with pytest.raises(mod.ConfigError):
+        mod.project(config_for("writable", True), "spec-review", writes=False)
+
+
 @pytest.mark.parametrize(
     ("assignment", "role", "personal", "args"),
     [

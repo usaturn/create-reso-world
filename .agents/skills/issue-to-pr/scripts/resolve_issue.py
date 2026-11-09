@@ -1,4 +1,4 @@
-"""Resolve an open GitHub Issue and the issue-to-pr options (--base, --implement, --merge and the loop options) without modifying Git or GitHub state.
+"""Resolve an open GitHub Issue and the issue-to-pr options (--base, --implement, --spec-review, --design-review, --merge and the loop options) without modifying Git or GitHub state.
 
 Refuses to start from a directory Git does not track, such as a world project under worlds/.
 """
@@ -26,6 +26,8 @@ SUPPORTED_REPOSITORIES = ("usaturn/create-reso-world", "usaturn/resoloop", "usat
 # ループ用のオプション。名前・値・意味は pr-review-fix-loop の start と同じで、--merge と一緒のときだけ受け付ける。
 # 範囲・役割の名前・担当の存在などは、loop.py check-options が start と同じ関数で確かめる
 LOOP_OPTIONS = frozenset({"--max-cycles", "--assign", "--template", "--config"})
+# 明示した run にだけ有効にするレビューの opt-in。loop.py へは渡さず、--merge の有無に関係なく受け付ける
+REVIEW_OPTIONS = frozenset({"--spec-review", "--design-review"})
 # 起動したときの cwd を基準に絶対パスにするループ用のオプション（loop.py は別の cwd で起動しうる）
 PATH_OPTIONS = frozenset({"--template", "--config"})
 # 受け付けないオプションと、その理由
@@ -97,6 +99,8 @@ class ParsedInput(NamedTuple):
     reference: str
     loop_args: list[str] | None
     implement: str | None
+    spec_review: str | None
+    design_review: str | None
     base: str
     base_explicit: bool
 
@@ -120,11 +124,12 @@ def loop_value(name: str, value: str, cwd: Path) -> str:
 
 
 def parse_input(text: str, cwd: Path) -> ParsedInput:
-    """利用者の引数を Issue・ループ・実装担当・base（明示指定の有無を含む）に分ける。
+    """利用者の引数を Issue・ループ・実装担当・レビュー・base（明示指定の有無を含む）に分ける。
 
-    --base・--implement と --merge は Issue の参照の前でも後でもよく、1 回だけ書ける。値は次の語か --opt=value の形で書く。
-    ループ用のオプションは --merge と一緒のときだけ受け付け、書いた順のまま返す（--opt=value は 2 語に分け、
-    パスは cwd を基準に絶対パスにする）。--merge が無ければ loop_args は None。
+    --base・--implement・--spec-review・--design-review と --merge は Issue の参照の前でも後でもよく、
+    1 回だけ書ける。値は次の語か --opt=value の形で書く。レビューは明示されたときだけ値を持ち、
+    loop_args には混ぜない。ループ用のオプションは --merge と一緒のときだけ受け付け、書いた順のまま返す
+    （--opt=value は 2 語に分け、パスは cwd を基準に絶対パスにする）。--merge が無ければ loop_args は None。
     """
     try:
         words = shlex.split(text)
@@ -134,6 +139,7 @@ def parse_input(text: str, cwd: Path) -> ParsedInput:
     merge = 0
     loop_args: list[str] = []
     implement: list[str] = []
+    reviews: dict[str, list[str]] = {"--spec-review": [], "--design-review": []}
     bases: list[str] = []
     index = 0
     while index < len(words):
@@ -150,13 +156,20 @@ def parse_input(text: str, cwd: Path) -> ParsedInput:
                 raise ValueError(f"--merge は値を取りません: {word}")
             merge += 1
             continue
-        if name not in {"--implement", "--base"} and name not in LOOP_OPTIONS:
+        if name not in {"--implement", "--base"} | REVIEW_OPTIONS and name not in LOOP_OPTIONS:
             raise ValueError(f"未知のオプションです: {word}")
         if not separator:
             if index == len(words) or words[index].startswith("-"):
                 raise ValueError(f"{name} の値がありません")
             value = words[index]
             index += 1
+        if name in REVIEW_OPTIONS:
+            if IMPLEMENT_VALUE.fullmatch(value) is None:
+                raise ValueError(
+                    f"{name} の値は agent 名の形（英数字で始まり、英数字・_・.・- だけ）にしてください: {value!r}"
+                )
+            reviews[name].append(value)
+            continue
         if name == "--base":
             if not value:
                 raise ValueError("--base の値が空です")
@@ -178,12 +191,17 @@ def parse_input(text: str, cwd: Path) -> ParsedInput:
         raise ValueError("--base は 1 回だけ指定してください")
     if len(implement) > 1:
         raise ValueError("--implement は 1 回だけ指定してください")
+    for name, values in reviews.items():
+        if len(values) > 1:
+            raise ValueError(f"{name} は 1 回だけ指定してください")
     if loop_args and not merge:
         raise ValueError(f"{loop_args[0]} などのループ用のオプションは、--merge と一緒のときだけ指定できます")
     if len(references) != 1:
         raise ValueError(f"Issue を 1 つだけ指定してください（指定された語: {references or 'なし'}）")
     return ParsedInput(
         references[0], loop_args if merge else None, implement[0] if implement else None,
+        reviews["--spec-review"][0] if reviews["--spec-review"] else None,
+        reviews["--design-review"][0] if reviews["--design-review"] else None,
         bases[0] if bases else "main", bool(bases),
     )
 
@@ -278,7 +296,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "input",
         help="利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを書かれたまま切り出した"
-        "文字列（後ろに続く自然文は含めない）。オプションは --base BRANCH、--implement AGENT、--merge と、--merge と一緒のときの"
+        "文字列（後ろに続く自然文は含めない）。オプションは --base BRANCH、--implement AGENT、"
+        "--spec-review AGENT、--design-review AGENT、--merge と、--merge と一緒のときの"
         "ループ用のオプション（--max-cycles・--assign・--template・--config）。"
         "- で始まりうるので、前に -- を置いて渡す",
     )
@@ -296,6 +315,8 @@ def main(argv: list[str] | None = None) -> int:
             **fetch_issue(repo, number),
             "merge": None if parsed.loop_args is None else {"loop_args": parsed.loop_args},
             "implement": parsed.implement,
+            "spec_review": parsed.spec_review,
+            "design_review": parsed.design_review,
             "base": base,
             "base_explicit": parsed.base_explicit,
         }

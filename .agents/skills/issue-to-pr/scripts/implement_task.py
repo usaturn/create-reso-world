@@ -58,21 +58,27 @@ class TaskInputError(ValueError):
 # --- 設定 ---------------------------------------------------------------------------------------------------------
 
 
-def project(config: Config) -> Config:
-    """workflow issue の implement だけを残す。投影の外への依存（同モデルの除外）を黙って捨てない。"""
+def project(config: Config, role_name: str = ROLE, *, writes: bool = True) -> Config:
+    """workflow issue の選択した role だけを残す。投影の外への依存（同モデルの除外）を黙って捨てない。
+
+    writes はその role に期待する書込権限。read-only のレビュー role には False を渡し、
+    設定が書き込みを許していれば runner を起動しない。
+    """
     config = validate_config(config, WORKFLOW)
     workflow = config.workflows[WORKFLOW]
-    role = config.roles.get(ROLE)
-    assignment = workflow.assignments.get(ROLE)
+    role = config.roles.get(role_name)
+    assignment = workflow.assignments.get(role_name)
     if role is None or assignment is None:
         raise ConfigError("invalid_reference")
-    if role.writes is not True or role.result_shape != "json" or len(assignment.agents) != 1:
+    if role.writes is not writes or role.result_shape != "json" or len(assignment.agents) != 1:
         raise ConfigError("invalid_config")
-    constraints = {name: other for name, other in workflow.exclude_same_model_as.items() if name == ROLE}
-    if any(other != ROLE for other in constraints.values()):
+    constraints = {name: other for name, other in workflow.exclude_same_model_as.items() if name == role_name}
+    if any(other != role_name for other in constraints.values()):
         raise ConfigError("invalid_reference")
     selected = config.model_copy(deep=True)
-    selected.workflows = {WORKFLOW: Workflow(assignments={ROLE: assignment}, exclude_same_model_as=constraints)}
+    selected.workflows = {
+        WORKFLOW: Workflow(assignments={role_name: assignment}, exclude_same_model_as=constraints)
+    }
     return validate_config(selected, WORKFLOW)
 
 
@@ -475,6 +481,8 @@ def summarize(assignment: Assignment, batch: BatchResult, assessment: Assessment
         "changed_files": assessment.changed_files,
         "result": assessment.result.model_dump(mode="json") if assessment.result is not None else None,
         "outside_changes": batch.outside_changes,
+        # 保護しない checkout の観測は報告だけにする。accept を止めるかは outside_changes だけで決める
+        "unprotected_changes": batch.unprotected_changes,
         "elapsed_seconds": batch.elapsed_seconds,
         "artifact_dir": str(batch.artifact_dir),
     }
@@ -604,10 +612,8 @@ def _registered(repository: Path) -> set[str]:
     }
 
 
-def cleanup(run_dir: Path) -> dict[str, Any]:
-    """停止を確認した試行の worktree の登録を外し（force しない）、何も残らなければ run_dir を消す。"""
-    request, batch = load_record(run_dir)
-    repository = Path(request.repository)
+def remove_attempts(repository: Path, batch: BatchResult) -> tuple[list[str], list[dict[str, str]]]:
+    """停止を確認した試行の worktree の登録を外す（force しない）。消せなかったものは理由付きで返す。"""
     removed: list[str] = []
     retained: list[dict[str, str]] = []
     for attempt in (attempt for outcome in batch.results for attempt in outcome.attempts):
@@ -625,6 +631,13 @@ def cleanup(run_dir: Path) -> dict[str, Any]:
             removed.append(work)
         else:
             retained.append({"path": work, "reason": "git worktree remove refused (uncommitted or untracked files)"})
+    return removed, retained
+
+
+def cleanup(run_dir: Path) -> dict[str, Any]:
+    """停止を確認した試行の worktree の登録を外し、何も残らなければ run_dir を消す。"""
+    request, batch = load_record(run_dir)
+    removed, retained = remove_attempts(Path(request.repository), batch)
     removed_run_dir = not retained
     if removed_run_dir:
         shutil.rmtree(run_dir)
