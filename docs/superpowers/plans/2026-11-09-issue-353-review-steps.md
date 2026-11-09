@@ -84,7 +84,7 @@ T1 は入力と共有処理、T2 はレビューの安全なライフサイク�
 - Modify: `.devcontainer/README.md`
 - Modify: `README.md`
 - Modify: `tools/agent_runner/interfaces.rst`（roles と workflow issue の割り当ての節だけ）
-- Conditional test adjustment: `tools/agent_runner/tests/test_config.py`（既存の挙動テストの期待値変更が必要な場合だけ。固定 agent 名テストは新設しない）
+- Conditional test adjustment: `tools/agent_runner/tests/test_config.py` と `.agents/skills/issue-to-pr/tests/test_implement_task.py`（既存の挙動テストの見直しが必要な場合だけ。固定 agent 名テストは新設しない。Task 3 で判明した #157 の旧 self-default 条件は #353 の明示変更に整合させる）
 
 **Interfaces:**
 - Consumes: Task 2 の CLI。controller が事前に提供する旧スキルの同一シナリオ適用結果。
@@ -118,6 +118,8 @@ ledger は `/workspaces/reso-world/tmp/agents/issue-353._kkg4w5l/budget.jsonl`�
 ## 実行中の検証調整
 
 Task 1 で、ruff は pyproject/uv.lock に未導入、uvx の全ルール14件は変更前と同じであることを観測した。依存追加や無関係な修正を避け、上記の静的検証を `uvx --offline ruff check --select E4,E7,E9,F` と新規指摘の差分確認へ調整した。全ルール成功とは報告しない。機能・安全条件は変更しない。
+
+Task 3 では #157 の旧 self-default だけを固定した既存テストが #353 の新しい既定変更と矛盾して失敗した。test_implement_task.py は本 Issue の所有なので Task 3 の条件付き検証見直しに含め、F/L の固定値テストを増やさず整合させる。所有外の review-fix-planning の2文書に残る旧 opus 既定の説明は今回編集せず、残件として記録する。
 
 ## contingency（代替策）
 
