@@ -360,6 +360,7 @@ def test_branch_pr_number_retains_when_the_list_reaches_the_limit(
     )
 
     assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "取得上限" in result.stderr
     assert result.stdout == ""
 
 
