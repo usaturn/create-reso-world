@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（実行許可であり、内容承認は未取得）
+- 状態: `completed`（コード変更とレビュー修正判断の完了。作成時は draft、実行許可で進めており内容承認は未取得。実 API の未確認項目は下記のまま残る）
 - 対象: https://github.com/usaturn/create-reso-world/issues/368
 - 利用者の指示: `/skill:issue-to-pr` に Issue URL と `--implement pi_opencode-go_deepseek4-flash_max --merge --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=claude-code_opus_default,devin_swe2_max,pi_opencode-go_deepseek4-flash_max` を指定。
 - 許可範囲: 通常の設計判断、指定担当による実装、ローカル検証、commit、検査後の push、PR、指定ループの finalize によるマージ。設定・契約・実資格情報・他者の作業は変更しない。
@@ -55,6 +55,39 @@
 | 指定 runner に Task ごとに逐次依頼 | self / 同時実装 | implement check は `self=false`、fallback 無し | 利用者 `--implement`。担当失敗は代行せず停止 |
 | PR 後の最大 3 サイクル | 既定値を利用者指定と記録 / 無制限 | check-options の既定 `max_cycles=3` | inspect 3 担当、implement は利用者指定。self-review/fix-check は既定 self |
 | 実 API 未確認を明記し反映後に確認 | 移植元の実測を再検証扱い | 課金/認証状態を自動テストへ持ち込まず、Issue の未確認時の報告手順を使う | 未確認を成功にしない。ログ・PR と Issue コメントに残す |
+
+## PR #369 のレビュー修正判断（サイクル 1）
+
+- planner: `openai-codex/gpt-6.1-sol`（pi、環境変数で確認）。実行許可は上記 issue-to-pr の `--merge`。
+- 対象 HEAD: `35ab77747874a97a2b0ed3ec50bd785c7e601fd6`。base は当初の `04b4196973cb1353d4a53e039d3ccb43db818831` のまま、対象 HEAD の祖先。
+- 結論: **2 修正不要**。全指摘・未確認候補は 0 件。解消済み 0 / 対応する 0 / 対応しない 0、前の判断・設計見直し・修正する影響経路は無し。
+
+| レビューファイル | モデル / runtime | HEAD | このサイクルで再実行 | 結論・loop の受取 |
+| --- | --- | --- | --- | --- |
+| `SWE-2-Max.md` | SWE-2 Max / devin | `35ab77747874` | yes | Approve、accepted |
+| `deepseek-v4.1-flash.md` | deepseek-v4.1-flash / pi | `35ab77747874` | yes | Needs manual verification（実 API）、accepted |
+| `claude-opus-5-5.md` | claude-opus-5-5 / claude-code | `35ab77747874` | yes | 保存済み本文は Approve。ただし runner は awaiting_approval・exit0 で rejected。停止確認済み。保存された同 HEAD の本文・候補を補助入力として読み、accepted の人数には加えない |
+
+全レビュー本文と候補一覧を読み、候補一覧の validate/check-pair は 3 件とも成功した。失敗したレビュアーを「成功・指摘なしの担当」として扱っていない。成立した 2 担当と controller の現行版確認を根拠とする。
+
+### 要件・検証の対応と共有条件
+
+共有するキー選択→認証変数→CLI→README の意味の統合は controller が担当した。3 つのコード/文書ファイルと新規 Spec/Plan の全文、関連する run-tests.bash/test-readme.bash を読み取り専用担当が精読し、controller が同じ clean HEAD を照合して採用した。PR 起因の致命的欠陥は無し。既存 README の test-readme の説明のずれは今回の原因と無関係で、本 PR の修正に含めない。
+
+| 条件 | 担当・観測結果 | 根拠 |
+| --- | --- | --- |
+| キー選択・拒否・両認証・隔離・権限 | Task 1 実装後に controller が正常側/拒否側と引数・親環境を確認 | `verification-1.log`、`verification-5.log` と integration probe。全て exit0 |
+| tier/上限と README | Task 1 と Task 2 controller の仕様/差分・出典照合 | モデル一覧/文言の固定値テストは追加していない |
+| 全体回帰 | 最後の実装 commit、clean な同 HEAD で実行 | `run-tests.bash`: 27 PASS / 0、`check-layout.sh`: PASS / 0、pytest: 1354 passed / 0 |
+| 実 API | 未実施のまま反映後の確認へ | README と PR の手順。移植元の成功を本 checkout の成功に読み替えない |
+
+検証 argv・終了コード・実ログは `/workspaces/reso-world/tmp/agents/issue-368.2pe62w37/verification.json` と `verification-1.log`〜`verification-8.log`。継承した VIRTUAL_ENV を uv が無視して worktree の環境を使う警告はあるが、検証の失敗は無い。HEAD・clean 状態・全コマンドの exit0・ログの存在・同じ祖先 base を確かめ、issue-to-pr の再利用条件によりこのサイクルの checks に採用した。Spec だけの追記はコード/設定/検証前提を変えない。
+
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#369-feat-issue-368-ccdgo/verified/35ab77747874.json`。confirmed/not_reproduced/unverified はいずれも 0。実通信等は coverage.remaining に明記。
+- 工程の記録の保存先: 同ディレクトリの `35ab77747874.planning.json`（投稿後に記録）。
+- 修正担当の割り当て: `pi_opencode-go_deepseek4-flash_max`。このサイクルでは修正不要のため呼び出し無し。
+- 修正後自己レビュー/fix-check: 既定 self、呼び出し **0 回**（修正無し）。Task/branch の初回レビューとは区別する。
+- マージ・Issue 更新はまだ実施済みとは記録しない。後続の状況コメントと finalize の結果を基準にする。`Refs #368` を維持し、実 API の残りを Issue へコメントする。
 
 ## 受け入れ基準（実装・レビュー共通）
 
