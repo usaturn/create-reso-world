@@ -321,6 +321,8 @@ class BatchInfo(StrictModel):
     assignments: dict[str, list[str]]
     result_file: str
     outside_changes: list[str]
+    # runner が保護しない checkout（main worktree を含む）の変化・回収・監査不能。警告だけ。古い記録は空
+    unprotected_changes: list[str] = Field(default_factory=list[str])
 
 
 class CleanupInfo(StrictModel):
@@ -2139,6 +2141,7 @@ def _review_batch(
         assignments=batch.assignments,
         result_file=str(result_copy),
         outside_changes=batch.outside_changes,
+        unprotected_changes=batch.unprotected_changes,
     )
     part.ended_at = now()
     part.seconds = batch.elapsed_seconds
@@ -2221,6 +2224,7 @@ def review(
         "accepted": [_reviewer_summary(entry) for entry in accepted],
         "rejected": [_reviewer_summary(entry) for entry in entries if entry.verdict == "rejected"],
         "outside_changes": batch.outside_changes,
+        "unprotected_changes": batch.unprotected_changes,
         "retained": retained + reviewer_retained,
     }
     if cycle.review.rerun is not None:
