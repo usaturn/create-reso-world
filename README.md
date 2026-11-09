@@ -19,7 +19,8 @@ Resonite 向けのワールド・ツールの作成、Blender などを使った
 │                              resoloop-meshy.sh（Meshy プラグインの checkout）、scan-before-push.sh（push の前の秘密情報の検査）、
 │                              superpowers-review-copy.sh（Spec・Plan の確認用コピー）、setup_pi*.zsh（pi の設定）
 ├── tools/                     external_tools（登録済み外部ツールの共通 resolver・取得 CLI）、agent_runner（別のエージェントの非対話の起動と結果の回収）、
-│                              devenv_migration（pi の設定の移行のテスト）、test_support（共有のテストの fixture）
+│                              devenv_migration（pi の設定の移行のテスト）、test_support（共有のテストの fixture）、
+│                              review_eval（レビュー記録の私有の保存先への収集。既定は無効。tools/review_eval/README.rst）
 ├── external-tools.toml        通常ツールの登録候補（運用には常設親への採用が必要）
 ├── templates/world-project/   プロジェクトの雛形
 ├── docs/                      新規開発の入口（new-development.md）、設計と計画（superpowers/）、fork・Meshy プラグイン・外部ツールの運用、
