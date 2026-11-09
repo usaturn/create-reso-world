@@ -176,9 +176,22 @@ if ! command -v claude >/dev/null 2>&1; then
 fi
 
 step "Installing the Claude Code plugins"
-if ! claude plugin marketplace add dashed/claude-marketplace; then
-    fail "Failed to add the dashed/claude-marketplace marketplace."
+for marketplace in \
+    anthropics/skills \
+    anthropics/claude-plugins-official \
+    addyosmani/web-quality-skills \
+    dashed/claude-marketplace; do
+    if ! claude plugin marketplace add "$marketplace"; then
+        fail "Failed to add marketplace ${marketplace}."
+    fi
+done
+
+# ローカルに残った古いカタログでのインストール失敗を防ぐ
+if ! claude plugin marketplace update anthropic-agent-skills; then
+    fail "Failed to update anthropic-agent-skills marketplace."
 fi
+
+# 既存の for plugin in ... done はこの後に残す
 # 一覧は .claude/settings.json の enabledPlugins と同じにする（.devcontainer/test-install-beforehand.bash が検査する）
 for plugin in \
     example-skills@anthropic-agent-skills \
