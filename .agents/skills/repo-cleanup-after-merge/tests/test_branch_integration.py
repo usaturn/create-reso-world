@@ -508,6 +508,8 @@ def test_gate_b_clears_a_stale_fork_expectation_on_the_create_route(
     main_head = git(work, "rev-parse", "HEAD")
     git(work, "push", "-q", "origin", "main")
     git(work, "fetch", "-q", "origin", "--prune")
+    # The fork route only enumerates a remote whose URL is the verified fork.
+    git(work, "remote", "set-url", "origin", f"https://github.com/{FORK_REPO}.git")
     fake_gh({"11": pr_payload(11, "squashed", squashed_head, merge=main_head,
                               cross=True, head_repo=FORK_REPO)}, repo=UPSTREAM_REPO)
     commands = section_bash(EVIDENCE_TITLE) + "\n" + section_bash(GATE_B_TITLE)
@@ -541,3 +543,55 @@ def test_gate_b_clears_a_stale_fork_expectation_on_the_create_route(
         line.startswith("候補:") and "squashed" in line and "#11" in line
         for line in fork_route.stdout.splitlines()
     ), fork_route.stdout
+
+
+def test_gate_b_deletes_upstream_pr_branches_only_from_the_verified_fork_remote(
+    work: Path, fake_gh,
+) -> None:
+    # A fork->upstream PR is queried in the upstream repository and merged into
+    # upstream/main, but its head branch lives on the fork (origin). When the
+    # upstream also has a same-named branch at the same OID, choosing the
+    # remote by the PR's repository would present (and later delete) the
+    # upstream branch. Gate B must enumerate only a remote whose URL is the
+    # verified head repository and stop without candidates otherwise.
+    head, squash = make_squash(work, "fork-feature")
+    for remote in ("origin", "upstream"):
+        git(work, "update-ref", f"refs/remotes/{remote}/fork-feature", head)
+    git(work, "update-ref", "refs/remotes/upstream/main", squash)
+    git(work, "remote", "set-url", "origin", f"https://github.com/{FORK_REPO}.git")
+    git(work, "remote", "add", "upstream", f"https://github.com/{UPSTREAM_REPO}.git")
+    fake_gh({"7": pr_payload(7, "fork-feature", head, merge=squash, cross=True,
+                             head_repo=FORK_REPO)}, repo=UPSTREAM_REPO)
+    commands = section_bash(EVIDENCE_TITLE) + "\n" + section_bash(GATE_B_TITLE)
+    env = {
+        **os.environ,
+        "CHECKOUT": str(work),
+        "PR_REPO": UPSTREAM_REPO,
+        "BASE_REF": "refs/remotes/upstream/main",
+        "CLEANUP_ROUTE": "fork",
+        "EXPECTED_HEAD_REPO": FORK_REPO,
+    }
+    refs_before = git(work, "for-each-ref", "--format=%(refname) %(objectname)")
+    remotes_before = git(work, "remote", "-v")
+
+    def gate_b(remote: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["bash", "--noprofile", "--norc", "-c", commands],
+            cwd=work, env={**env, "REMOTE": remote}, capture_output=True, text=True,
+            timeout=20,
+        )
+
+    fork_remote = gate_b("origin")
+    assert fork_remote.returncode == 0, (fork_remote.stdout, fork_remote.stderr)
+    assert any(
+        line.startswith("候補:") and "fork-feature" in line and "#7" in line
+        for line in fork_remote.stdout.splitlines()
+    ), fork_remote.stdout
+
+    upstream_remote = gate_b("upstream")
+    assert upstream_remote.returncode != 0, (upstream_remote.stdout, upstream_remote.stderr)
+    assert not any(
+        line.startswith("候補:") for line in upstream_remote.stdout.splitlines()
+    ), upstream_remote.stdout
+    assert git(work, "for-each-ref", "--format=%(refname) %(objectname)") == refs_before
+    assert git(work, "remote", "-v") == remotes_before
