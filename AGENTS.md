@@ -7,6 +7,12 @@
 
 Resonite 向けのワールド・ツールの作成、Blender などを使ったモデルの作成、VR 環境に関するツールやモデルの開発を行う開発環境。どれも基本的に Resonite が関与する（例: Resonite 側からツールやモデルを取り込んで変換する）。主に [resoloop](https://github.com/orange3134/resoloop) と Blender を使い、Dev Container の定義と共通の規約・スキル・雛形を管理する。新しく開発を始めるときの入口は `docs/new-development.md` である。ワールドのプロジェクトはローカルの作業物で git の追跡対象外であり、`worlds/` の直下に作る（issue #57）。追跡解除した従来位置の `MyResoniteProject/`、`akichi/`、`slum02/`、`slum03/` もローカルの作業物として残る。resoloop のプラグイン（Meshy 用の usaturn/resoloop-meshy）は、別のリポジトリとして `external/resoloop-meshy` に checkout して開発する（「リポジトリ境界」）。
 
+## Issue #3 作業に限る明示的な委任
+
+`usaturn/resonite-emission-editor#3`の作業では、利用者の2026-11-08の具体的指示により、Root全体の値の完全一致を要求せず、不一致・切断・検査失敗は原因調査/修正/回復後に自動再試行する。保護範囲・比較対象・その実装の実質変更についても、本Issueの作業全体（別セッションへの引き継ぎを含む）では追加確認を求めない。下記の一般的な内容確認・再承認・RED後の裁定待ちは、この明示委任で充足する。他Issueへ例外を広げない。
+
+具体的な判定対象・再試行の二重適用防止・実行許可の範囲は`docs/superpowers/specs/2026-11-07-emission-issue-3-native-gate-design.md`の「最低限残す確認」と、`docs/superpowers/plans/2026-11-07-emission-issue-3-native-gate.md`の「実行予算・contingency」に従う。未知情報を成功にすること、所有不明の書込や実アバター等への対象外操作、失敗証拠の書換えを許可するものではない。一般的な初回停止/再試行禁止は本Issueに適用しないが、危険な個別操作を送らず必要条件を自動で回復する。
+
 ## 基本方針
 
 - ユーザの指示が曖昧な場合は、作業を始める前にユーザに質問する
