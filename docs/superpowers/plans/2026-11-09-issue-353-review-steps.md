@@ -50,11 +50,11 @@ T1 は入力と共有処理、T2 はレビューの安全なライフサイク�
 - Produces: `remove_attempts(repository: Path, batch: BatchResult) -> tuple[list[str], list[dict[str, str]]]`。
 - Produces: resolve_issue JSON の `spec_review: str | None`, `design_review: str | None`。
 
-- [ ] Step 1: S テストを先に追加し RED を確認する。期待 writes=false の review role は false なら投影でき、true なら実行権限を与えない。opt-in 無指定は null、--merge の後ろの明示レビュー値を取り出し loop_args は元の --assign だけになることを1件で確認する（別の担当を起動する損害を防ぐ）。既存 cleanup/scope の回帰は既存テストを使う。
-- [ ] Step 2: 上記 project/remove_attempts を実装する。既存の project の依存除外条件、一人の担当/json/権限検査、cleanup の force 不使用、停止・機密・dirty の保持を変えない。summarize に unprotected_changes を足す。
-- [ ] Step 3: パーサへ両オプションを追加する。IMPLEMENT_VALUE と同形、重複・欠値・不正値を拒否する。--merge の前後で独立して処理し、既存 --base と repo 解決は変えない。L の不正値だけの検証は一時実行で行い、テストを増やさない。
-- [ ] Step 4: `uv run --locked pytest .agents/skills/issue-to-pr/tests -q`、`uvx --offline ruff check --select E4,E7,E9,F .agents/skills/issue-to-pr/scripts/implement_task.py .agents/skills/issue-to-pr/scripts/resolve_issue.py` を同期実行する。PASS / 終了コード0を期待。S テストに理由をコメントし、diff を確認する。
-- [ ] Step 5: 上記4ファイルの変更だけを明示 stage し、`feat(issue-to-pr): add review options and shared runner helpers` で commit。commands・RED/GREEN・懸念・Task 内訳と所要時間を結果に返す。
+- [x] Step 1: S テストを先に追加し RED を確認する。期待 writes=false の review role は false なら投影でき、true なら実行権限を与えない。opt-in 無指定は null、--merge の後ろの明示レビュー値を取り出し loop_args は元の --assign だけになることを1件で確認する（別の担当を起動する損害を防ぐ）。既存 cleanup/scope の回帰は既存テストを使う。
+- [x] Step 2: 上記 project/remove_attempts を実装する。既存の project の依存除外条件、一人の担当/json/権限検査、cleanup の force 不使用、停止・機密・dirty の保持を変えない。summarize に unprotected_changes を足す。
+- [x] Step 3: パーサへ両オプションを追加する。IMPLEMENT_VALUE と同形、重複・欠値・不正値を拒否する。--merge の前後で独立して処理し、既存 --base と repo 解決は変えない。L の不正値だけの検証は一時実行で行い、テストを増やさない。
+- [x] Step 4: `uv run --locked pytest .agents/skills/issue-to-pr/tests -q`、`uvx --offline ruff check --select E4,E7,E9,F .agents/skills/issue-to-pr/scripts/implement_task.py .agents/skills/issue-to-pr/scripts/resolve_issue.py` を同期実行する。PASS / 終了コード0を期待。S テストに理由をコメントし、diff を確認する。
+- [x] Step 5: 上記4ファイルの変更だけを明示 stage し、`feat(issue-to-pr): add review options and shared runner helpers` で commit。commands・RED/GREEN・懸念・Task 内訳と所要時間を結果に返す。
 
 ### Task 2: Spec と設計レビューの helpers
 
@@ -69,12 +69,12 @@ T1 は入力と共有処理、T2 はレビューの安全なライフサイク�
 - Produces: Spec に定めた ReviewRequest/ReviewResult/Decisions、Kind、DESIGN_REVIEW、check/review/submit/decide/cleanup の CLI。
 - AW の参照ファイル（採用版ではない）: `/workspaces/reso-world/tmp/agents/issue-353._kkg4w5l/upstream/review_spec.py` と `review_design.py`。全体を読んで差分を限定するが、AW の保存先・preflight は採用しない。
 
-- [ ] Step 1: 独立に構成した UTF-8/CRLF の Spec・ID・ハッシュで、self の完了→採否→次工程の正例と取り違えの拒否を S テストにする。欠落/重複/未反映の採否が decisions.json/reflected.md を残さないこと、既存記録を上書きしないことを確認し RED を記録する。
-- [ ] Step 2: review_spec を実装する。Spec 記載のスキーマ・Kind・同担当で1回だけ再レビュー、SESSION 配下 ledger / 新規 runner-dir、repository/Spec DOC_ROOT 双方の記録保護・包含/実パス検査を実装する。`--ledger-dir` は明示または SESSION、未設定は入力エラー。既存の --template/--config の fallback を保持し、実行前に require_auditable_workflow を呼ぶ。
-- [ ] Step 3: fake adapter / injected run_workflow で、incomplete・不一致・outside_changes・停止未確認が failed となることと、unprotected_changes のみでは completed となり報告が残る正例を確認する。cleanup は停止・機密・dirty を保持し、正常な外部 run の出力だけを消して ledger は残す。共通の守りは spec tests に置き design 側へ重複しない。
-- [ ] Step 4: review_design を Kind の共通処理で実装する。sound→continue と、wrong_approach/blocking/questions_for_user/needs_judgment→stop、changes_what_is_built/ask_user の adopt 拒否、Spec レビュー開始後と2回目の設計レビューを拒否する S テストを先に RED→GREEN で確認する。_admit は同じ外部 ledger-root を見る。
-- [ ] Step 5: `uv run --locked pytest .agents/skills/issue-to-pr/tests -q`、`uvx --offline ruff check --select E4,E7,E9,F .agents/skills/issue-to-pr/scripts/review_spec.py .agents/skills/issue-to-pr/scripts/review_design.py` を同期実行する。PASS / 終了コード0を期待。S の理由をテストに記し、一般的な例外・文言・スキーマ型だけのテストは追加しない。
-- [ ] Step 6: 上記4ファイルを明示 stage し、`feat(issue-to-pr): add opt-in spec and design review gates` で commit。CLI/JSON の使い方、RED/GREEN、Task 内訳と所要時間を結果に返す。
+- [x] Step 1: 独立に構成した UTF-8/CRLF の Spec・ID・ハッシュで、self の完了→採否→次工程の正例と取り違えの拒否を S テストにする。欠落/重複/未反映の採否が decisions.json/reflected.md を残さないこと、既存記録を上書きしないことを確認し RED を記録する。
+- [x] Step 2: review_spec を実装する。Spec 記載のスキーマ・Kind・同担当で1回だけ再レビュー、SESSION 配下 ledger / 新規 runner-dir、repository/Spec DOC_ROOT 双方の記録保護・包含/実パス検査を実装する。`--ledger-dir` は明示または SESSION、未設定は入力エラー。既存の --template/--config の fallback を保持し、実行前に require_auditable_workflow を呼ぶ。
+- [x] Step 3: fake adapter / injected run_workflow で、incomplete・不一致・outside_changes・停止未確認が failed となることと、unprotected_changes のみでは completed となり報告が残る正例を確認する。cleanup は停止・機密・dirty を保持し、正常な外部 run の出力だけを消して ledger は残す。共通の守りは spec tests に置き design 側へ重複しない。
+- [x] Step 4: review_design を Kind の共通処理で実装する。sound→continue と、wrong_approach/blocking/questions_for_user/needs_judgment→stop、changes_what_is_built/ask_user の adopt 拒否、Spec レビュー開始後と2回目の設計レビューを拒否する S テストを先に RED→GREEN で確認する。_admit は同じ外部 ledger-root を見る。
+- [x] Step 5: `uv run --locked pytest .agents/skills/issue-to-pr/tests -q`、`uvx --offline ruff check --select E4,E7,E9,F .agents/skills/issue-to-pr/scripts/review_spec.py .agents/skills/issue-to-pr/scripts/review_design.py` を同期実行する。PASS / 終了コード0を期待。S の理由をテストに記し、一般的な例外・文言・スキーマ型だけのテストは追加しない。
+- [x] Step 6: 上記4ファイルを明示 stage し、`feat(issue-to-pr): add opt-in spec and design review gates` で commit。CLI/JSON の使い方、RED/GREEN、Task 内訳と所要時間を結果に返す。
 
 ### Task 3: スキル・role・既定担当と説明の統合
 
@@ -90,12 +90,12 @@ T1 は入力と共有処理、T2 はレビューの安全なライフサイク�
 - Consumes: Task 2 の CLI。controller が事前に提供する旧スキルの同一シナリオ適用結果。
 - Produces: 明示 opt-in→check→Spec 保存/commit→設計レビュー→Spec レビューまたは builder check→Plan の一貫した手順、json の結果/採否作成例、cleanup と停止/PR の記録。
 
-- [ ] Step 1: writing-skills と skill-creator、RST 編集は rst-writer を読む。controller の RED 記録を確認する。子の中からモデルや subagent を起動しない。
-- [ ] Step 2: SKILL.md を targeted edit する。両レビュー無指定なら helper check も起動しない。--spec-review 時は builder check を置換し、--design-review は置換しない。ledger-dir は必ず SESSION を明示し、runner の新規パスも外部 SESSION 下にする。request/result/decisions の作成、採否後 Spec commit、再レビュー上限、型/版/順序の失敗・停止、実行時間・fallback/identity・保存/retained パスを記録する。既存の安全ブロックを削らない。
-- [ ] Step 3: roles.spec-review と roles.design-review を writes=false / json / 1800 秒で追加し、レビュー assignment は雛形に作らない。sonnet_default は sonnet_xhigh に置き換え、model=sonnet / effort=xhigh、issue/fix implement の既定を変更する。Issue 指定のコメントを実際の意味で揃える。
-- [ ] Step 4: README と interfaces.rst の該当説明を更新する。個人設定の旧名は手動置換、agents のない review assignment 節の invalid_type、明示引数と fallback の関係を記す。#364 が直した監査節、model_key、CLI 例、dsh_removed、導入実装は変えない。
-- [ ] Step 5: テスト追加は原則不要（文書/一覧/既定名は F、設定不整合は L）。`uv run --locked pytest .agents/skills/issue-to-pr/tests tools/agent_runner/tests/test_config.py -q`、一時 config に対する両 helper check の0/2、旧名なしでの load_config と実際の assignments、`bash scripts/check-layout.sh` を同期実行する。個人設定導入は変更しないので install-beforehand テストの追加・変更は不要。必要なら既存検証を実行する。
-- [ ] Step 6: `git diff --check` と RST の参照/構造・関連設定の実読込を確認して、担当ファイルだけを明示 stage し、`feat(issue-to-pr): document review flow and default to sonnet xhigh` で commit。GREEN の同一シナリオを controller が新スキル付きで1回行う。Task 内訳と所要時間を報告する。
+- [x] Step 1: writing-skills と skill-creator、RST 編集は rst-writer を読む。controller の RED 記録を確認する。子の中からモデルや subagent を起動しない。
+- [x] Step 2: SKILL.md を targeted edit する。両レビュー無指定なら helper check も起動しない。--spec-review 時は builder check を置換し、--design-review は置換しない。ledger-dir は必ず SESSION を明示し、runner の新規パスも外部 SESSION 下にする。request/result/decisions の作成、採否後 Spec commit、再レビュー上限、型/版/順序の失敗・停止、実行時間・fallback/identity・保存/retained パスを記録する。既存の安全ブロックを削らない。
+- [x] Step 3: roles.spec-review と roles.design-review を writes=false / json / 1800 秒で追加し、レビュー assignment は雛形に作らない。sonnet_default は sonnet_xhigh に置き換え、model=sonnet / effort=xhigh、issue/fix implement の既定を変更する。Issue 指定のコメントを実際の意味で揃える。
+- [x] Step 4: README と interfaces.rst の該当説明を更新する。個人設定の旧名は手動置換、agents のない review assignment 節の invalid_type、明示引数と fallback の関係を記す。#364 が直した監査節、model_key、CLI 例、dsh_removed、導入実装は変えない。
+- [x] Step 5: テスト追加は原則不要（文書/一覧/既定名は F、設定不整合は L）。`uv run --locked pytest .agents/skills/issue-to-pr/tests tools/agent_runner/tests/test_config.py -q`、一時 config に対する両 helper check の0/2、旧名なしでの load_config と実際の assignments、`bash scripts/check-layout.sh` を同期実行する。個人設定導入は変更しないので install-beforehand テストの追加・変更は不要。必要なら既存検証を実行する。
+- [x] Step 6: `git diff --check` と RST の参照/構造・関連設定の実読込を確認して、担当ファイルだけを明示 stage し、`feat(issue-to-pr): document review flow and default to sonnet xhigh` で commit。GREEN の同一シナリオを controller が新スキル付きで1回行う。Task 内訳と所要時間を報告する。
 
 ## 実行方式・レビュー・統合検証
 
@@ -114,6 +114,16 @@ Task レビューは各1回、指摘修正は SDD 上限内。最終全体レビ
 同じ信頼性失敗の再試行は1回まで（ただし implement_task failed はその時点で停止し self に移行しない）。安全失敗は再試行なし。checkpoint は準備/各 Task/検証/各ループサイクル、予算50%/100%、worker失敗直後。100%で延長せず停止する。
 
 ledger は `/workspaces/reso-world/tmp/agents/issue-353._kkg4w5l/budget.jsonl`、SDD 記録は同 SESSION の `sdd/2026-11-09-issue-353-review-steps/`。保存した検証をループで使う間は消さず、残った場合は最終報告に完全パスを書く。runner の出力は依頼ごとに cleanup、retained は消さず報告する。
+
+## 実行記録（公開前）
+
+- T1: c13a6a4、T2: 0b7ac11 + 252fe25、T3: a3dc3a3 + 5d84dfc + da06c28、最終修正: 4cc76b7。各 Task と最終修正の読み取り専用レビューは clean。
+- 指定担当は全依頼で pi_opencode-go_deepseek4-flash_max、runner 観測は opencode-go / deepseek-v4.1-flash / max、fallback なし。実装依頼は T1 1回（約890秒）、T2 2回（合計約1515秒）、T3 3回（合計約3363秒）、最終修正1回（約720秒）。
+- 最終修正で新規 runner-dir の親準備、外部結果本文の読取、D 重複テストを整理。Task 2 の停止不明・self の HEAD 変化、Task 3 のレビュー間の request 更新も修正・再レビュー済み。
+- 変更前/変更後の同一2シナリオを各1子で適用した。新規 opt-in と非起動・builder 条件は読み取られたが、変更後の回答にはコマンドと条件の誤読も残ったため、万能な GREEN 成功とは記録しない。実際の fake ライフサイクルと構造確認を追加した。
+- 担当の一度の bare python3 使用は規約逸脱として ledger に記録した。検証は uv 経由、以後の依頼で禁止を再明示した。
+- 全体pytestは親ボードの統合担当の範囲。117件の関連回帰、layout、対象の静的検査を最終 clean HEAD で再実行し、SESSION の final-checks.json と各ログに記録する。これは結果の先取りではなく公開前の必須検証である。
+- 状態は draft のまま（内容の承認なし）。公開と --merge の結果は PR/Issue と SESSION に記録し、PR 作成後は本ブランチをループ外で変更しない。
 
 ## 実行中の検証調整
 
