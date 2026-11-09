@@ -490,3 +490,54 @@ def test_gate_b_excludes_the_documented_short_base_reference(
         if line.startswith(("候補:", "保持:"))
     ]
     assert not any("main" in line for line in decisions), result.stdout
+
+
+def test_gate_b_clears_a_stale_fork_expectation_on_the_create_route(
+    work: Path, fake_gh,
+) -> None:
+    # A create/managed shell can keep EXPECTED_HEAD_REPO from an earlier fork
+    # cleanup. Gate B must normalize it by route and must not present a
+    # cross-repository PR's branch as a remote-deletion candidate. The fork
+    # route still presents it, so an always-refusing implementation fails.
+    git(work, "checkout", "-q", "-b", "squashed", "main")
+    squashed_head = commit_file(work, "remote squash.txt", "squashed\n")
+    git(work, "push", "-q", "origin", "squashed")
+    git(work, "checkout", "-q", "main")
+    git(work, "merge", "--squash", "squashed")
+    git(work, "commit", "-qm", "squash on main")
+    main_head = git(work, "rev-parse", "HEAD")
+    git(work, "push", "-q", "origin", "main")
+    git(work, "fetch", "-q", "origin", "--prune")
+    fake_gh({"11": pr_payload(11, "squashed", squashed_head, merge=main_head,
+                              cross=True, head_repo=FORK_REPO)}, repo=UPSTREAM_REPO)
+    commands = section_bash(EVIDENCE_TITLE) + "\n" + section_bash(GATE_B_TITLE)
+    env = {
+        **os.environ,
+        "CHECKOUT": str(work),
+        "PR_REPO": UPSTREAM_REPO,
+        "REMOTE": "origin",
+        "BASE_REF": "refs/remotes/origin/main",
+        "EXPECTED_HEAD_REPO": FORK_REPO,
+    }
+
+    create_route = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", commands],
+        cwd=work, env=env, capture_output=True, text=True, timeout=20,
+    )
+
+    assert create_route.returncode == 0, (create_route.stdout, create_route.stderr)
+    assert not any(
+        line.startswith("候補:") for line in create_route.stdout.splitlines()
+    ), create_route.stdout
+
+    fork_env = {**env, "CLEANUP_ROUTE": "fork"}
+    fork_route = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", commands],
+        cwd=work, env=fork_env, capture_output=True, text=True, timeout=20,
+    )
+
+    assert fork_route.returncode == 0, (fork_route.stdout, fork_route.stderr)
+    assert any(
+        line.startswith("候補:") and "squashed" in line and "#11" in line
+        for line in fork_route.stdout.splitlines()
+    ), fork_route.stdout

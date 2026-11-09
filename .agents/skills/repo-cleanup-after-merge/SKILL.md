@@ -32,6 +32,8 @@ git の操作はほぼ全て取り消せる。取り消せないのは次の 2 �
 
 手順 3、通常ツールの削除候補の照合、手順 8、ゲート B は、この判定で `ancestor` または `pr` が返った branch だけを「取り込み済み」とみなす。判定は read-only で、branch・ref・worktree を変更しない。同じシェルで次のブロックを実行してから、`cleanup_branch_evidence` を呼ぶ。引数は順に、対象 checkout、対象 repository、明示した PR 番号、branch 名、候補 ref（`refs/heads/...` または `refs/remotes/...`）、選択した取り込み先 base ref、省略可能な検証済みの fork（`EXPECTED_HEAD_REPO`。`owner/name`、空可）である。候補 ref の現在値と PR の `headRefOid` が一致し、PR が `MERGED` で、`headRefName` が branch と一致するときだけ判定する。さらに、`isCrossRepository` が false の PR か、`isCrossRepository` が true で PR の head repository（`headRepositoryOwner.login`/`headRepository.name`）が 7 番目の引数と大小文字を区別せずに一致する PR だけを受け付ける。7 番目が空・省略（6 引数の呼び出し）なら同じ repository の PR だけを判定する。候補が base の祖先なら `ancestor`、祖先でなくても `mergeCommit` が base に到達可能なら `pr` を返す。PR の照会失敗、`state`・`headRefName`・`headRefOid`・`isCrossRepository` の欠落、検証済みの fork ではない cross-repository の PR（7 番目が空、head repository の欠落・不一致、無関係な fork）、head 不一致、未統合 base は保持する。PR 型で必要な `mergeCommit` を読めない場合も保持する。`gh` は必ず `--repo` で対象 repository を固定し、返却値を推測で補わない。
 
+7 番目の値は `cleanup_expected_head_repo` で経路から決める。`CLEANUP_ROUTE` が `fork` のときだけ `EXPECTED_HEAD_REPO` を返し、`create`・`managed`（未設定を含む）では空にする。手順 3 とゲート B はこの関数を使い、環境に残った `EXPECTED_HEAD_REPO` で cross-repository の PR を候補にしない。経路の値が不明なときは、取り込み判定を行わずに停止する。
+
 ```bash
 cleanup_branch_evidence() {
   if [ "$#" -ne 6 ] && [ "$#" -ne 7 ]; then
@@ -109,6 +111,22 @@ cleanup_branch_pr_number() {
   [ -n "$numbers" ] || return 1
   printf '%s\n' "$numbers"
 }
+
+cleanup_expected_head_repo() {
+  case "${CLEANUP_ROUTE:-create}" in
+    fork)
+      : "${EXPECTED_HEAD_REPO:?fork の経路では EXPECTED_HEAD_REPO（checkout の origin の owner/name）を設定する}"
+      printf '%s\n' "$EXPECTED_HEAD_REPO"
+      ;;
+    create|managed)
+      printf '%s\n' ''
+      ;;
+    *)
+      printf 'cleanup: CLEANUP_ROUTE が不明なため取り込み判定を行わない: %s\n' "$CLEANUP_ROUTE" >&2
+      return 1
+      ;;
+  esac
+}
 ```
 
 `cleanup_branch_pr_number` は、同じ branch 名と head を持つ PR がちょうど 1 件のときだけ番号を返す。0 件・複数件・照会失敗では何も返さず、呼び出し側は branch を保持する。一覧が取得上限（100 件）に達した場合も、次のページに同じ branch と head の PR が残り得るため、一意性を断定せず保持する。
@@ -181,7 +199,7 @@ printf 'cleanup: %s の取り込みの証拠: %s\n' "$CLEANUP_BRANCH" "$CLEANUP_
 fork の checkout は、`scripts/resoloop-fork.sh checkout <ref>` や `install <ref>` が取り出したコミットで detached HEAD になっていることが多く、利用者が作業ブランチにいることもある。`build` はこれを動かさない。この前提から、fork の経路は次の順で進める。
 
 1. ユーザー確認を得てから（Claude Code では AskUserQuestion）、手順 10 の `sync` を先に実行し、fork の `main` を上流へ追従させる。手順 2 の `fetch --prune` の前でよい
-2. マージ済みかの判定（手順 3）は、上流 `orange3134/resoloop` 発の PR は `upstream/main` を、fork 内（`usaturn/resoloop` 発）の PR は `origin/main` を基準にする。fork の上流 PR は常に cross-repository なので、手順 3・8・ゲート B では `CLEANUP_ROUTE=fork`、`TARGET_ROOT=<external/resoloop の絶対パス>`、`EXPECTED_HEAD_REPO=usaturn/resoloop`（checkout の origin）を設定し、PR の head repository が一致するときだけ取り込み済みと判定する。`sync` を先に済ませていないと、上流でマージ済みの PR がこの fork の `origin/main` ではまだ未取り込みに見える
+2. マージ済みかの判定（手順 3）は、上流 `orange3134/resoloop` 発の PR は `upstream/main` を、fork 内（`usaturn/resoloop` 発）の PR は `origin/main` を基準にする。fork の上流 PR は常に cross-repository なので、手順 3・8・ゲート B では `CLEANUP_ROUTE=fork`、`PARENT_ROOT=<create-reso-world の main checkout>`、`TARGET_ROOT=$PARENT_ROOT/external/resoloop`、`EXPECTED_HEAD_REPO=usaturn/resoloop`（checkout の origin）を設定し、PR の head repository が一致するときだけ取り込み済みと判定する。手順 8 は `TARGET_ROOT` が `$PARENT_ROOT/external/resoloop` と一致することも確かめる。`sync` を先に済ませていないと、上流でマージ済みの PR がこの fork の `origin/main` ではまだ未取り込みに見える
 3. 手順 7（メイン作業ツリーを `origin/main` の detached HEAD に更新する操作）は実行しない。`external/resoloop` の HEAD は、detached でもブランチでもそのまま残す。誤って動かしていた場合は、`git -C external/resoloop reflog` で元の位置を確かめて戻す
 
 `bash scripts/resoloop-fork.sh sync` と `git -C external/resoloop ...` は、エージェントがどの作業ディレクトリから開始していても、リポジトリのルート（`cd "$(git rev-parse --show-toplevel)"`）で実行する。
@@ -239,7 +257,7 @@ git fetch --all --prune
 
 `usaturn/create-reso-world` の既存ローカル `main` は保持対象であり、この判定から除外する。古い・分岐している場合もそのまま残し、対応する PR の `MERGED` 確認は要求しない。fork の経路でも `external/resoloop` のローカル `main`（ベース branch）を同様に除外し、削除しない。
 
-それ以外の branch ごとに、branch の現在の head と対応する PR 番号を確定し、「branch の取り込み判定」を実行する。PR 番号は `cleanup_branch_pr_number` で、branch 名と head が一致する PR がちょうど 1 件のときだけ採用する。0 件・複数件・照会失敗なら対応不明として保持する。base は create-reso-world では `origin/main`、通常ツールでは `CLEANUP_BASE`、fork では上流 PR なら `upstream/main`、fork 内 PR なら `origin/main` を使う。`EXPECTED_HEAD_REPO` は fork の経路だけで checkout の origin（`usaturn/resoloop`）を設定し、上流 PR の head repository がそれと一致するときだけ cross-repository の PR を判定する。create-reso-world と通常ツールでは設定しない（`unset EXPECTED_HEAD_REPO`）。
+それ以外の branch ごとに、branch の現在の head と対応する PR 番号を確定し、「branch の取り込み判定」を実行する。PR 番号は `cleanup_branch_pr_number` で、branch 名と head が一致する PR がちょうど 1 件のときだけ採用する。0 件・複数件・照会失敗なら対応不明として保持する。base は create-reso-world では `origin/main`、通常ツールでは `CLEANUP_BASE`、fork では上流 PR なら `upstream/main`、fork 内 PR なら `origin/main` を使う。手順 3 の `EXPECTED_HEAD_REPO` は `cleanup_expected_head_repo` で経路から決める。fork の経路では checkout の origin（`usaturn/resoloop`）を設定し、上流 PR の head repository がそれと一致するときだけ cross-repository の PR を判定する。create-reso-world と通常ツール（`CLEANUP_ROUTE` の未設定を含む）では空にし、環境に残った値を使わない。
 
 ```bash
 # 同じシェルで「branch の取り込み判定」のブロックを先に実行する。
@@ -247,11 +265,13 @@ CHECKOUT=<対象 checkout>
 PR_REPO=<対象 repository>
 BASE_REF=<選択した取り込み先 base ref>
 BRANCH=<branch>
+: "${CHECKOUT:?対象 checkout}" "${PR_REPO:?対象 repository}" "${BASE_REF:?取り込み先 base ref}" "${BRANCH:?branch}"
+EXPECTED_HEAD_REPO=$(cleanup_expected_head_repo) || exit 1
 PR_NUMBER=$(cleanup_branch_pr_number "$CHECKOUT" "$PR_REPO" "$BRANCH" "refs/heads/$BRANCH") || {
   printf 'branch %s は対応 PR を 1 件に確定できないため保持する\n' "$BRANCH" >&2
   exit 1
 }
-EVIDENCE=$(cleanup_branch_evidence "$CHECKOUT" "$PR_REPO" "$PR_NUMBER" "$BRANCH" "refs/heads/$BRANCH" "$BASE_REF" "${EXPECTED_HEAD_REPO:-}") || {
+EVIDENCE=$(cleanup_branch_evidence "$CHECKOUT" "$PR_REPO" "$PR_NUMBER" "$BRANCH" "refs/heads/$BRANCH" "$BASE_REF" "$EXPECTED_HEAD_REPO") || {
   printf 'branch %s は取り込みを確認できないため保持する\n' "$BRANCH" >&2
   exit 1
 }
@@ -424,7 +444,7 @@ Git は通常 ignore 対象のファイルを確認なしに上書きするた�
 削除先は `CLEANUP_ROUTE`（`create`・`fork`・`managed`）で決める。ツール呼び出しごとにシェルや環境変数が引き継がれない実行環境があるため、手順 7 と別の呼び出しでこのブロックを実行するときも、その呼び出しで経路と削除先を設定する。経路の条件を満たさないときは、branch・ref・HEAD を何も変えずに削除の前で停止する。
 
 - `create`（`usaturn/create-reso-world`）: 手順 7 で clean と detached HEAD を確認した `MAIN_ROOT` だけを削除先にする。`TARGET_ROOT` が同時に設定されていて別の checkout を指す場合は、どちらも削除せず停止する。`EXPECTED_HEAD_REPO` は環境に残っていても空にし、cross-repository の PR を受け付けない
-- `fork`（`external/resoloop`）: `TARGET_ROOT` に `external/resoloop` の絶対パス、`EXPECTED_HEAD_REPO` に checkout の origin の `usaturn/resoloop`、`BASE_REF` に上流 PR なら `upstream/main`、fork 内 PR なら `origin/main` を設定する。上流 PR は head repository が `EXPECTED_HEAD_REPO` と一致するときだけ取り込み済みと判定する。手順 7 を省略し、削除のために HEAD を動かさない。`MAIN_ROOT` は要求せず、設定するなら `TARGET_ROOT` と同じ checkout のときだけ許可する
+- `fork`（`external/resoloop`）: `PARENT_ROOT` に親の create-reso-world main checkout、`TARGET_ROOT` に `$PARENT_ROOT/external/resoloop` の絶対パス、`EXPECTED_HEAD_REPO` に checkout の origin の `usaturn/resoloop`、`BASE_REF` に上流 PR なら `upstream/main`、fork 内 PR なら `origin/main` を設定する。削除の前に `TARGET_ROOT` が `$PARENT_ROOT/external/resoloop` と一致することを確かめ、一致しなければ削除しない。上流 PR は head repository が `EXPECTED_HEAD_REPO` と一致するときだけ取り込み済みと判定する。手順 7 を省略し、削除のために HEAD を動かさない。`MAIN_ROOT` は要求せず、設定するなら `TARGET_ROOT` と同じ checkout のときだけ許可する
 - `managed`（通常ツール）: 対象照合の `CLEANUP_ROOT` を削除先にする。`EXPECTED_HEAD_REPO` は環境に残っていても空にする
 
 `CLEANUP_ROUTE` を設定しないときは、`MAIN_ROOT` だけが設定され `TARGET_ROOT` が未設定なら `create` とみなす。それ以外（特に `MAIN_ROOT` が未設定で `TARGET_ROOT` だけが残っている場合）は、古い `TARGET_ROOT` が同じ remote の別 clone を指している可能性があるため停止する。
@@ -465,6 +485,13 @@ case "$route" in
   fork)
     : "${TARGET_ROOT:?fork の経路では TARGET_ROOT（external/resoloop の絶対パス）を設定する}"
     : "${EXPECTED_HEAD_REPO:?fork の経路では EXPECTED_HEAD_REPO（checkout の origin の owner/name）を設定する}"
+    : "${PARENT_ROOT:?fork の経路では親の create-reso-world checkout（PARENT_ROOT）を設定する}"
+    if ! fork_expected=$(cd -- "$PARENT_ROOT/external/resoloop" 2>/dev/null && pwd -P) \
+      || ! fork_target=$(cd -- "$TARGET_ROOT" 2>/dev/null && pwd -P) \
+      || [ "$fork_expected" != "$fork_target" ]; then
+      printf '%s\n' 'fork の経路の TARGET_ROOT が親 checkout の external/resoloop と一致しないため削除しない' >&2
+      exit 1
+    fi
     if [ -n "${MAIN_ROOT:-}" ]; then
       cleanup_same_checkout "$MAIN_ROOT" "$TARGET_ROOT" MAIN_ROOT TARGET_ROOT || exit 1
     fi
@@ -518,11 +545,12 @@ warning: deleting branch '<branch>' that has been merged to
 
 ### 9. ゲート B: リモート branch の削除はユーザー確認を得る
 
-手順 8 でローカル branch を消すと対象名が手元から消える。リモート側から独立に洗い出す。祖先の一覧だけに限定せず、手順 3 と同じ「branch の取り込み判定」で `ancestor` または `pr` が返る branch を提示する。`REMOTE` は対象の remote（create-reso-world は `origin`、通常ツールは `CLEANUP_BASE_REMOTE`、fork は PR の所属に合わせる）、`BASE_REF` と `EXPECTED_HEAD_REPO` は手順 3 と同じにする（`EXPECTED_HEAD_REPO` は fork の経路だけで設定する）。`BASE_REF` は `origin/main` と `refs/remotes/origin/main` のどちらでもよいため、比較の前に base の branch 名へ正規化し、一覧の ref 名と直接比べない。
+手順 8 でローカル branch を消すと対象名が手元から消える。リモート側から独立に洗い出す。祖先の一覧だけに限定せず、手順 3 と同じ「branch の取り込み判定」で `ancestor` または `pr` が返る branch を提示する。`REMOTE` は対象の remote（create-reso-world は `origin`、通常ツールは `CLEANUP_BASE_REMOTE`、fork は PR の所属に合わせる）、`BASE_REF` と `EXPECTED_HEAD_REPO` は手順 3 と同じにする。ゲート B も `cleanup_expected_head_repo` で `EXPECTED_HEAD_REPO` を経路から決め、create・managed（未設定を含む）では空にして、環境に残った値で cross-repository の PR を候補にしない。`BASE_REF` は `origin/main` と `refs/remotes/origin/main` のどちらでもよいため、比較の前に base の branch 名へ正規化し、一覧の ref 名と直接比べない。
 
 ```bash
 set -euo pipefail
 : "${CHECKOUT:?対象 checkout}" "${PR_REPO:?対象 repository}" "${REMOTE:?対象 remote}" "${BASE_REF:?取り込み先 base ref}"
+EXPECTED_HEAD_REPO=$(cleanup_expected_head_repo) || exit 1
 case "$BASE_REF" in
   refs/remotes/*/*) base_branch=${BASE_REF#refs/remotes/*/} ;;
   refs/heads/*) base_branch=${BASE_REF#refs/heads/} ;;
@@ -539,7 +567,7 @@ git -C "$CHECKOUT" for-each-ref --format='%(refname)' "refs/remotes/$REMOTE" | w
     printf '保持: %s（対応 PR を 1 件に確定できない）\n' "$branch" >&2
     continue
   fi
-  if EVIDENCE=$(cleanup_branch_evidence "$CHECKOUT" "$PR_REPO" "$PR_NUMBER" "$branch" "$remote_ref" "$BASE_REF" "${EXPECTED_HEAD_REPO:-}"); then
+  if EVIDENCE=$(cleanup_branch_evidence "$CHECKOUT" "$PR_REPO" "$PR_NUMBER" "$branch" "$remote_ref" "$BASE_REF" "$EXPECTED_HEAD_REPO"); then
     printf '候補: %s (%s, PR #%s)\n' "$branch" "$EVIDENCE" "$PR_NUMBER"
   else
     printf '保持: %s（取り込みを確認できない）\n' "$branch" >&2
@@ -919,7 +947,9 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 - `git branch -d` が成功したので、選択した base に取り込まれているとみなしている。upstream がその branch 自身を指していても `-d` は成功する
 - `TARGET_ROOT` の既存値が手順 7 の `MAIN_ROOT` と別の checkout を指しているのに、片方を削除先に選ぼうとしている
 - `MAIN_ROOT` が未設定で `TARGET_ROOT` だけが残っているシェルで、`CLEANUP_ROUTE` を確かめずに `TARGET_ROOT` を削除先にしようとしている
+- fork の経路で、`TARGET_ROOT` が `$PARENT_ROOT/external/resoloop` と一致することを確かめずに、残った `CLEANUP_ROUTE=fork` で別 clone を削除しようとしている
 - cross-repository の PR を、`fork` の経路以外で、または head repository が `EXPECTED_HEAD_REPO` と一致することを確かめずに取り込み済みとみなしている。create・managed の経路に前の fork 作業の `EXPECTED_HEAD_REPO` を残している
+- ゲート B で `cleanup_expected_head_repo` を通さず、環境に残った `EXPECTED_HEAD_REPO` で cross-repository の PR を候補に出そうとしている
 - PR 一覧の取得上限に達したのに、その中の 1 件を一意な対応とみなしている
 - session の repository 名の大小文字差を別 repository とみなし、同じ PR の ref を削除しようとしている
 
@@ -947,7 +977,7 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 
 ## ガードレール
 
-- `git branch -D` でマージ判定を握り潰さない。使ってよいのは、手順 8 で「branch の取り込み判定」を `-d` の前と `-D` の直前に通し、`ancestor` または `pr` を再確認できた branch だけである。削除先は `CLEANUP_ROUTE` で決め、create-reso-world（`create`）では手順 7 で確認した `MAIN_ROOT`、fork（`fork`）では `TARGET_ROOT`、通常ツール（`managed`）では `CLEANUP_ROOT` にする。`MAIN_ROOT` と `TARGET_ROOT` が別の checkout を指すとき、経路を決められないとき（`MAIN_ROOT` が無く `TARGET_ROOT` だけが残っているときを含む）は削除しない。cross-repository の PR は、`fork` の経路で head repository が `EXPECTED_HEAD_REPO` と一致するときだけ取り込み済みとみなす。
+- `git branch -D` でマージ判定を握り潰さない。使ってよいのは、手順 8 で「branch の取り込み判定」を `-d` の前と `-D` の直前に通し、`ancestor` または `pr` を再確認できた branch だけである。削除先は `CLEANUP_ROUTE` で決め、create-reso-world（`create`）では手順 7 で確認した `MAIN_ROOT`、fork（`fork`）では `TARGET_ROOT`（`$PARENT_ROOT/external/resoloop` と一致することを削除の前に確かめたもの）、通常ツール（`managed`）では `CLEANUP_ROOT` にする。`MAIN_ROOT` と `TARGET_ROOT` が別の checkout を指すとき、経路を決められないとき（`MAIN_ROOT` が無く `TARGET_ROOT` だけが残っているときを含む）は削除しない。cross-repository の PR は、`fork` の経路で head repository が `EXPECTED_HEAD_REPO` と一致するときだけ取り込み済みとみなす。ゲート B も `cleanup_expected_head_repo` で `EXPECTED_HEAD_REPO` を経路から決め、stale な値で cross-repository の PR を候補にしない。
 - `git branch -d` の upstream 判定だけを削除の根拠にしない。削除の前に、選択した base と明示した PR の `headRefOid`・`mergeCommit` を同じ判定で確かめる。
 - `git worktree remove` に `--force` を付けない。
 - 対象を限定しない `git worktree prune` を実行しない。

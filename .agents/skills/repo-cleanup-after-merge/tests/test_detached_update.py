@@ -133,7 +133,7 @@ def run_bash(commands: str, *, cwd: Path, env: dict[str, str]) -> subprocess.Com
 
 
 FAKE_GH_SOURCE = f'''#!{sys.executable}
-import json, os, sys
+import json, os, pathlib, sys
 args = sys.argv[1:]
 fields = "state,headRefName,headRefOid,mergeCommit,isCrossRepository,headRepository,headRepositoryOwner"
 if (len(args) != 7 or args[:2] != ["pr", "view"]
@@ -143,6 +143,15 @@ if (len(args) != 7 or args[:2] != ["pr", "view"]
     sys.exit(91)
 with open(os.environ["FAKE_GH_PRS_FILE"], encoding="utf-8") as stream:
     prs = json.load(stream)
+counter = os.environ.get("FAKE_GH_COUNTER")
+second = os.environ.get("FAKE_GH_SECOND_PRS_FILE")
+if counter and second:
+    path = pathlib.Path(counter)
+    count = int(path.read_text(encoding="utf-8") or "0") if path.exists() else 0
+    path.write_text(str(count + 1), encoding="utf-8")
+    if count >= 1:
+        with open(second, encoding="utf-8") as stream:
+            prs = json.load(stream)
 pr = prs.get(args[2])
 if pr is None:
     sys.exit(1)
@@ -463,13 +472,19 @@ def test_step8_uses_the_route_specific_root(checkout: Path) -> None:
     # A stale TARGET_ROOT from another clone must not override the MAIN_ROOT
     # whose clean detached checkout step 7 verified, and a stale fork
     # EXPECTED_HEAD_REPO must not let the create route accept a cross-repository
-    # PR. The fork route uses TARGET_ROOT and accepts its verified fork's PR.
+    # PR. The fork route uses TARGET_ROOT under PARENT_ROOT/external/resoloop
+    # and accepts its verified fork's PR.
     remote = checkout.parent / "remote.git"
     foreign = checkout.parent / "foreign clone"
     git(checkout.parent, "clone", "-q", str(remote), str(foreign))
+    fork_parent = checkout.parent / "fork parent"
+    fork_root = fork_parent / "external" / "resoloop"
+    fork_root.parent.mkdir(parents=True)
+    git(checkout.parent, "clone", "-q", str(remote), str(fork_root))
     target = git(checkout, "rev-parse", "origin/main")
     git(checkout, "branch", "merged-feature", target)
     git(foreign, "branch", "merged-feature", target)
+    git(fork_root, "branch", "merged-feature", target)
     prs = {"7": pr_payload("merged-feature", target, merge=target, cross=True,
                            head_repo="usaturn/resoloop")}
     commands = section_bash(EVIDENCE_TITLE) + "\n" + step_bash(8).replace(
@@ -492,6 +507,7 @@ def test_step8_uses_the_route_specific_root(checkout: Path) -> None:
     assert "TARGET_ROOT" in conflicting.stderr
     assert "refs/heads/merged-feature " in local_refs(checkout)
     assert "refs/heads/merged-feature " in local_refs(foreign)
+    assert "refs/heads/merged-feature " in local_refs(fork_root)
 
     create_env = {key: value for key, value in env.items() if key != "TARGET_ROOT"}
     stale_fork_expectation = run_bash(commands, cwd=checkout, env=create_env)
@@ -500,12 +516,67 @@ def test_step8_uses_the_route_specific_root(checkout: Path) -> None:
     assert "refs/heads/merged-feature " in local_refs(checkout)
 
     fork_env = {key: value for key, value in env.items() if key != "MAIN_ROOT"}
-    fork_env.update({"CLEANUP_ROUTE": "fork", "TARGET_ROOT": str(checkout)})
+    fork_env.update({
+        "CLEANUP_ROUTE": "fork",
+        "PARENT_ROOT": str(fork_parent),
+        "TARGET_ROOT": str(fork_root),
+    })
     accepted = run_bash(commands, cwd=checkout, env=fork_env)
 
     assert accepted.returncode == 0, (accepted.stdout, accepted.stderr)
-    assert "refs/heads/merged-feature " not in local_refs(checkout)
+    assert "refs/heads/merged-feature " not in local_refs(fork_root)
+    assert "refs/heads/merged-feature " in local_refs(checkout)
     assert "refs/heads/merged-feature " in local_refs(foreign)
+
+
+def test_step8_stops_when_a_stale_fork_route_points_at_a_foreign_checkout(
+    checkout: Path,
+) -> None:
+    # A shell can keep CLEANUP_ROUTE=fork, TARGET_ROOT, and EXPECTED_HEAD_REPO
+    # from an earlier fork cleanup while losing MAIN_ROOT. The route value
+    # alone must not select a different clone as the deletion target.
+    remote = checkout.parent / "remote.git"
+    foreign = checkout.parent / "foreign clone"
+    git(checkout.parent, "clone", "-q", str(remote), str(foreign))
+    fork_parent = checkout.parent / "fork parent"
+    fork_root = fork_parent / "external" / "resoloop"
+    fork_root.parent.mkdir(parents=True)
+    git(checkout.parent, "clone", "-q", str(remote), str(fork_root))
+    target = git(checkout, "rev-parse", "origin/main")
+    git(checkout, "branch", "merged-feature", target)
+    git(foreign, "branch", "merged-feature", target)
+    git(fork_root, "branch", "merged-feature", target)
+    prs = {"7": pr_payload("merged-feature", target, merge=target, cross=True,
+                           head_repo="usaturn/resoloop")}
+    commands = section_bash(EVIDENCE_TITLE) + "\n" + step_bash(8).replace(
+        "<branch>", "merged-feature"
+    )
+    env = {
+        **os.environ,
+        **fake_gh_environment(checkout, prs),
+        "CLEANUP_ROUTE": "fork",
+        "PARENT_ROOT": str(fork_parent),
+        "TARGET_ROOT": str(foreign),
+        "EXPECTED_HEAD_REPO": "usaturn/resoloop",
+        "PR_NUMBER": "7",
+        "BASE_REF": "refs/remotes/origin/main",
+    }
+    before = (
+        all_refs_and_head(checkout),
+        all_refs_and_head(foreign),
+        all_refs_and_head(fork_root),
+    )
+
+    result = run_bash(commands, cwd=checkout, env=env)
+
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "external/resoloop" in result.stderr
+    assert "not fully merged" not in result.stderr
+    assert (
+        all_refs_and_head(checkout),
+        all_refs_and_head(foreign),
+        all_refs_and_head(fork_root),
+    ) == before
 
 
 def test_step8_stops_when_only_a_stale_target_root_is_set(checkout: Path) -> None:
@@ -575,6 +646,45 @@ def test_step8_gates_dash_d_on_selected_base_and_rechecks_before_dash_D(
     assert unmerged.returncode != 0, (unmerged.stdout, unmerged.stderr)
     assert "取り込みを確認できない" in unmerged.stderr
     assert "refs/heads/unmerged-feature " in local_refs(checkout)
+
+
+def test_step8_stops_when_the_dash_d_recheck_loses_the_pr_evidence(
+    checkout: Path,
+) -> None:
+    # -d can refuse "not fully merged" although the branch is merged into the
+    # selected base (the target HEAD predates the merge). The recheck before
+    # -D must use the same evidence again; if the PR state changes in between,
+    # the branch must stay. This detects deleting the recheck guard.
+    stale = git(checkout, "rev-parse", "HEAD")
+    target = advance_remote(checkout)
+    git(checkout, "checkout", "-q", "--detach", stale)
+    git(checkout, "branch", "--no-track", "merged-feature", target)
+    prs = {"7": pr_payload("merged-feature", target, merge=target)}
+    second = {"7": pr_payload("merged-feature", target, merge=target, state="OPEN")}
+    commands = section_bash(EVIDENCE_TITLE) + "\n" + step_bash(8).replace(
+        "<branch>", "merged-feature"
+    )
+    env = {
+        **os.environ,
+        **fake_gh_environment(checkout, prs),
+        "MAIN_ROOT": str(checkout),
+        "PR_NUMBER": "7",
+        "BASE_REF": "refs/remotes/origin/main",
+    }
+    tools = checkout.parent / "cleanup fake gh"
+    second_file = tools / "prs-second.json"
+    second_file.write_text(json.dumps(second), encoding="utf-8")
+    env.update({
+        "FAKE_GH_SECOND_PRS_FILE": str(second_file),
+        "FAKE_GH_COUNTER": str(tools / "view-count"),
+    })
+
+    result = run_bash(commands, cwd=checkout, env=env)
+
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "not fully merged" in result.stderr
+    assert "取り込みを再確認できない" in result.stderr
+    assert "refs/heads/merged-feature " in local_refs(checkout)
 
 
 def test_cleanup_keeps_the_forks_local_main_out_of_deletion_candidates() -> None:
