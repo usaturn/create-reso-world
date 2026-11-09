@@ -873,65 +873,64 @@ def test_an_interrupt_after_a_rename_is_undone(
     assert managed_state(scenario.review_dir) == before
 
 
-def test_accept_does_not_attribute_a_disappeared_checkout_to_content_changes(
+def test_accept_counts_an_old_record_without_protection_as_blocking(
+    dispatch: Any, scenario: Scenario, tmp_path: Path
+) -> None:
+    run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload())
+    saved = json.loads((run_dir / "dispatch.json").read_text(encoding="utf-8"))
+    saved["batch"]["checkout_audit"] = [
+        {
+            "path": str(tmp_path / "other session"),
+            "kind": "content_changed",
+            "reason": "content_changed",
+            "locked": False,
+            "prunable": False,
+        }
+    ]
+    (run_dir / "dispatch.json").write_text(json.dumps(saved), encoding="utf-8")
+    assert accept(dispatch, run_dir) == 1
+    assert written(scenario.review_dir) == []
+
+
+def test_another_sessions_worktree_does_not_block_accept(
     dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     from tools.agent_runner.workspace import create_worktree
 
-    external = create_worktree(scenario.root, "HEAD", tmp_path / "external")
+    other = create_worktree(scenario.root, "HEAD", tmp_path / "other session")
 
-    class Disappearing(PayloadAdapter):
+    class OtherSession(PayloadAdapter):
         def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
-            shutil.rmtree(external)
+            (other / "tool.py").write_text("another session\n", encoding="utf-8")
             return super().collect(context, stdout_path, stderr_path)
 
-    result = dispatch.dispatch(
-        config("probe"),
-        scenario.request,
-        tmp_path / "run",
-        adapter_loader=loader_for(Disappearing(scenario.payload())),
+    payload = scenario.payload()
+    digest = hashlib.sha256(dispatch.SKILL.read_bytes()).hexdigest()
+    payload["verified"]["skill"] = {"path": ".agents/skills/review-verify/SKILL.md", "sha256": digest}
+    code = dispatch.main(
+        main_argv(tmp_path, scenario.request, "probe"), adapter_loader=loader_for(OtherSession(payload))
     )
-    assert result["batch"]["checkout_audit"][0]["kind"] == "unavailable_after"
-    assert accept(dispatch, tmp_path / "run") == 1
-    assert "cannot be audited" in capsys.readouterr().err
-    assert written(scenario.review_dir) == []
+    line = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert line["outside_changes"] == []
+    assert line["unprotected_changes"] == [str(other)]
+    assert accept(dispatch, tmp_path / "main-run") == 0
 
 
-@pytest.mark.parametrize("failure", ["moved"])
-def test_fix_check_environment_preflight_does_not_launch(
-    dispatch: Any,
-    scenario: Scenario,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    failure: str,
+def test_repository_whose_head_is_not_to_is_refused(
+    dispatch: Any, scenario: Scenario, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from tools.agent_runner.workspace import CheckoutAuditError, create_worktree
+    from tools.agent_runner.workspace import create_worktree
 
-    external = create_worktree(scenario.root, "HEAD", tmp_path / "旧 checkout\n入力")
-    if failure == "locked":
-        subprocess.run(["git", "-C", str(scenario.root), "worktree", "lock", str(external)], check=True)
-    if failure == "moved":
-        external.rename(tmp_path / "移動済み")
-    else:
-        shutil.rmtree(external)
-    output = tmp_path / "run"
-    with pytest.raises(CheckoutAuditError):
-        dispatch.dispatch(config("probe"), scenario.request, output)
-    assert not output.exists()
-    assert written(scenario.review_dir) == []
-    code = dispatch.main(main_argv(tmp_path, scenario.request, "probe"))
-    assert code == 1
-    report = json.loads(capsys.readouterr().out)
-    assert report["category"] == "environment" and report["state"] == "failed"
-    assert report["checkout_audit"][0]["path"] == str(external)
-    assert report["checkout_audit"][0]["kind"] == "unavailable_before"
-    assert not output.exists()
-    if failure == "moved":
-        git(scenario.root, "worktree", "repair", str(tmp_path / "移動済み"))
-        run_dir = run_external(dispatch, scenario, tmp_path, scenario.payload())
-        result = json.loads((run_dir / "dispatch.json").read_text())
-        assert result["batch"]["checkout_audit"] == [] and result["batch"]["outside_changes"] == []
-        assert accept(dispatch, run_dir) == 0
+    base_checkout = create_worktree(scenario.root, scenario.base, tmp_path / "base checkout")
+    request = {**scenario.request, "repository": str(base_checkout)}
+    loader = loader_for(PayloadAdapter(scenario.payload()))
+    with pytest.raises(ValueError, match="HEAD is to"):
+        dispatch.dispatch(config("probe"), request, tmp_path / "refused", adapter_loader=loader)
+    assert not (tmp_path / "refused").exists()
+    assert dispatch.main(main_argv(tmp_path, request, "probe"), adapter_loader=loader) == 2
+    assert "HEAD is to" in capsys.readouterr().err
+    assert not (tmp_path / "main-run").exists()
 
 
 def test_accept_rejects_outside_changes_and_dispatch_exits_1_for_them(

@@ -188,16 +188,36 @@ def test_audit_diagnoses_unavailable_baseline(
                 "reason": reason,
                 "locked": locked,
                 "prunable": prunable,
+                "protected": False,
             }
         ]
-        with pytest.raises(workspace.CheckoutAuditError) as caught:
-            workspace.require_auditable_checkouts(repository)
-        assert caught.value.findings == diagnostics
-        assert "SECRET" not in str(caught.value)
+        assert not any(workspace.blocks_acceptance(item) for item in diagnostics)
+        snapshot = workspace.require_auditable_checkouts(repository)
+        assert snapshot[str(external)] is None and snapshot.failures[str(external)] == diagnostics[0]
+        assert "SECRET" not in repr(diagnostics)
         assert changed_checkouts(before) == [str(external)]
     finally:
         if kind == "unreadable":
             external.chmod(0o755)
+
+
+def test_preflight_stops_only_for_a_registered_target_that_cannot_be_fingerprinted(
+    repository: Path, tmp_path: Path
+) -> None:
+    # Git keeps working in both checkouts; only reading a tracked file fails.
+    target = create_worktree(repository, "HEAD", tmp_path / "target")
+    other = create_worktree(repository, "HEAD", tmp_path / "other")
+    (other / "tracked.txt").chmod(0)
+    try:
+        snapshot = workspace.require_auditable_checkouts(target)
+        assert snapshot[str(other)] is None and snapshot.failures[str(other)].protected is False
+        (target / "tracked.txt").chmod(0)
+        with pytest.raises(workspace.CheckoutAuditError) as caught:
+            workspace.require_auditable_checkouts(target)
+        assert [(item.path, item.protected) for item in caught.value.findings] == [(str(target), True)]
+    finally:
+        (target / "tracked.txt").chmod(0o644)
+        (other / "tracked.txt").chmod(0o644)
 
 
 @pytest.mark.parametrize("mutation", ["disappear", "recover"])
@@ -339,3 +359,67 @@ def test_git_common_dir_ignores_ambient_git_routing(
     monkeypatch.setenv("GIT_DIR", str(other / ".git"))
     monkeypatch.setattr(environ, "_literal", environ.literal_environ() | {"GIT_DIR": str(other / ".git")})
     assert workspace.git_common_dir(repository) == (repository / ".git").resolve()
+
+
+# Other sessions change and clean up their own worktrees while a run is going (#756). Only the
+# checkout given to the run may block it; the main worktree and other sessions' checkouts are
+# reported only, even when they vanish (Spec R8).
+@pytest.mark.parametrize(
+    ("which", "mutation", "kind", "protected"),
+    [
+        ("target", "change", "content_changed", True),
+        ("main", "change", "content_changed", False),
+        ("other", "remove", "removed", False),
+        ("other", "vanish", "unavailable_after", False),
+    ],
+)
+def test_audit_protects_only_the_target(
+    repository: Path, tmp_path: Path, which: str, mutation: str, kind: str, protected: bool
+) -> None:
+    target = create_worktree(repository, "HEAD", tmp_path / "対象 checkout\n改行")
+    other = create_worktree(repository, "HEAD", tmp_path / "other session")
+    before = snapshot_checkouts(target)
+    checkout = {"target": target, "main": repository, "other": other}[which]
+    if mutation == "change":
+        (checkout / "tracked.txt").write_text("changed by another session\n")
+    elif mutation == "remove":
+        git(repository, "worktree", "remove", "--force", str(checkout))
+    else:
+        shutil.rmtree(checkout)
+    [finding] = workspace.audit_checkouts(before)
+    assert (finding.path, finding.kind, finding.protected) == (str(checkout), kind, protected)
+    assert workspace.blocks_acceptance(finding) is protected
+
+
+def test_target_given_through_a_symlink_is_protected(repository: Path, tmp_path: Path) -> None:
+    target = create_worktree(repository, "HEAD", tmp_path / "feature")
+    link = tmp_path / "link to feature"
+    link.symlink_to(target, target_is_directory=True)
+    before = snapshot_checkouts(link)
+    (target / "tracked.txt").write_text("changed\n")
+    [finding] = workspace.audit_checkouts(before)
+    assert (finding.path, finding.protected) == (str(target), True)
+    assert workspace.blocks_acceptance(finding)
+
+
+def test_unidentified_target_protects_every_checkout(repository: Path, tmp_path: Path) -> None:
+    bare = tmp_path / "bare.git"
+    git(tmp_path, "clone", "-q", "--bare", str(repository), str(bare))
+    linked = create_worktree(bare, "HEAD", tmp_path / "linked")
+    before = snapshot_checkouts(bare)
+    (linked / "tracked.txt").write_text("changed\n")
+    [finding] = workspace.audit_checkouts(before)
+    assert (finding.path, finding.kind, finding.protected) == (str(linked), "content_changed", True)
+    assert workspace.blocks_acceptance(finding)
+
+
+def test_unmatched_target_protects_every_checkout(
+    repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    other = create_worktree(repository, "HEAD", tmp_path / "other session")
+    monkeypatch.setattr(workspace, "_toplevel", lambda _: str(tmp_path / "unregistered"))
+    before = snapshot_checkouts(other)
+    (other / "tracked.txt").write_text("changed\n")
+    [finding] = workspace.audit_checkouts(before)
+    assert (finding.path, finding.protected) == (str(other), True)
+    assert workspace.blocks_acceptance(finding)

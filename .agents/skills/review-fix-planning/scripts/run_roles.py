@@ -315,8 +315,14 @@ def run(
         for revision in (data.source_head, data.revision):
             if resolve_revision(repository, revision) != revision:
                 raise RoleInputError("revision is not a commit")
+        head = resolve_revision(repository)
     except WorkspaceError:
         raise RoleInputError("repository/revisions cannot be resolved") from None
+    if head != data.revision:
+        raise RoleInputError(
+            "repository must be the checkout whose HEAD is revision: the worktree holding the fixes, "
+            "which is the only checkout the runner protects"
+        )
     if output_dir.exists() or output_dir.is_symlink():
         raise RoleInputError("output directory must be new")
     role_prompts: dict[str, str] = {}
@@ -500,6 +506,7 @@ def main(argv: list[str] | None = None) -> int:
                 "artifact_dir": str(batch.artifact_dir),
                 "pending_self": list(saved["self_prompts"]),
                 "outside_changes": batch.outside_changes,
+                "unprotected_changes": batch.unprotected_changes,
                 "checkout_audit": [finding.model_dump() for finding in batch.checkout_audit],
                 "review_changes": saved["review_changes"],
             },

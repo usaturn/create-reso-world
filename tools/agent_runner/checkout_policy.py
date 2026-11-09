@@ -1,4 +1,4 @@
-"""Require all registered checkouts to be auditable before paid work."""
+"""Require the requested checkout to be auditable before paid work; others are reported only."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -12,9 +12,10 @@ def require_auditable_workflow(
     config: Config, workflow: str, repository: Path, *,
     adapter_loader: Callable[[str], Adapter] = load_adapter,
 ) -> CheckoutSnapshot:
-    """Preflight all registrations before reservations or external execution.
+    """Preflight the requested checkout before reservations or external execution.
 
-    The configuration and loader arguments remain compatible with strict callers;
-    the audit boundary always covers every registered checkout.
+    The configuration and loader arguments remain compatible with strict callers.
+    Only the requested checkout (every registration when it cannot be identified)
+    must be auditable; other registrations are fingerprinted and reported only.
     """
     return require_auditable_checkouts(repository)

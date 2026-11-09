@@ -487,3 +487,32 @@ def test_unconfirmed_stop_blocks_fix_check_accept_and_keeps_budget(
     with pytest.raises(mod.verifier.AcceptError, match="not success"):
         mod.verifier.accept(batch.artifact_dir / "fix-check-receipt")
     assert len(json.loads(inputs[1].read_text())["activities"]) == 1
+
+
+def fix_worktree(inputs: tuple[dict[str, Any], Path, dict[str, Any]], tmp_path: Path) -> Path:
+    request = inputs[0]
+    repo = Path(request["repository"])
+    git(repo, "checkout", "-q", "--detach", request["source_head"])
+    worktree = tmp_path / "修正の worktree"
+    git(repo, "worktree", "add", "-q", "--detach", str(worktree), request["revision"])
+    return worktree
+
+
+def test_repository_whose_head_is_not_revision_is_refused(inputs: Any, tmp_path: Path) -> None:
+    request, planning, fix_input = inputs
+    worktree = fix_worktree(inputs, tmp_path)
+    with pytest.raises(mod.RoleInputError, match="HEAD is revision"):
+        mod.run(config(), "self-review", request, tmp_path / "refused", planning_file=planning, fix_input=fix_input)
+    assert not (tmp_path / "refused").exists()
+    assert json.loads(planning.read_text())["activities"] == []
+    request["repository"] = fix_input["repository"] = str(worktree)
+    batch = mod.run(
+        config(),
+        "self-review",
+        request,
+        tmp_path / "run",
+        planning_file=planning,
+        fix_input=fix_input,
+        adapter_loader=FakeAdapter(),
+    )
+    assert batch.state == "self"

@@ -44,10 +44,15 @@ from tools.agent_runner.models import BatchResult, CheckoutAudit  # noqa: E402
 from tools.agent_runner.workspace import (  # noqa: E402
     CheckoutAuditError,
     WorkspaceError,
+    blocks_acceptance,
     git_common_dir,
     resolve_revision,
 )
 
+REPOSITORY_NOT_AT_TO = (
+    "repository must be the checkout whose HEAD is to: the worktree holding the fixes, "
+    "which is the only checkout the runner protects"
+)
 SKILL = Path(__file__).resolve().parents[1] / "SKILL.md"
 REVIEW_FINDINGS = ROOT / ".agents/scripts/review_findings.py"
 
@@ -302,8 +307,11 @@ def dispatch(
         for revision in (data.from_, data.to):
             if resolve_revision(repository, revision) != revision:
                 raise ValueError("revision is not a commit")
+        head = resolve_revision(repository)
     except WorkspaceError:
         raise ValueError("repository/from/to cannot be resolved") from None
+    if head != data.to:
+        raise ValueError(REPOSITORY_NOT_AT_TO)
     require_auditable_workflow(config, "fix", repository, adapter_loader=adapter_loader)
     try:
         raw: object = json.loads(Path(data.verified_file).read_text(encoding="utf-8"))
@@ -398,6 +406,7 @@ REQUEST_ERRORS = frozenset(
     {
         "revision is not a commit",
         "repository/from/to cannot be resolved",
+        REPOSITORY_NOT_AT_TO,
         "verified_file is not valid JSON",
         "verified_file must contain a verified document",
         "review_dir must be an existing directory",
@@ -456,7 +465,10 @@ def read_dispatch(run_dir: Path) -> dict[str, Any]:
 
 
 def check_batch(batch: Mapping[str, Any]) -> None:
-    """停止確認前には保存先も読み直さない。"""
+    """停止確認前には保存先も読み直さない。
+
+    保護しない checkout の内容の変化・登録ごとの回収は理由にしない。判定は runner と同じ `blocks_acceptance`。
+    """
     if batch.get("state") != "success":
         raise AcceptError(f"batch state is {batch.get('state')}, not success")
     attempts = [attempt for result in batch["results"] for attempt in result["attempts"]]
@@ -469,10 +481,11 @@ def check_batch(batch: Mapping[str, Any]) -> None:
         diagnostics = [CheckoutAudit.model_validate(item) for item in cast(list[object], raw_diagnostics)]
     except ValidationError:
         raise AcceptError("invalid checkout audit diagnostics") from None
-    if any(item.kind in {"unavailable_before", "unavailable_after"} for item in diagnostics):
-        raise AcceptError("a checkout registered before the run cannot be audited; see batch.checkout_audit")
-    if diagnostics or batch.get("outside_changes"):
-        raise AcceptError("a checkout registered before the run was changed")
+    blocking = [item for item in diagnostics if blocks_acceptance(item)]
+    if any(item.kind in {"unavailable_before", "unavailable_after"} for item in blocking):
+        raise AcceptError("a checkout the run protects cannot be audited; see batch.checkout_audit")
+    if blocking or batch.get("outside_changes"):
+        raise AcceptError("a checkout the run protects was changed or removed")
 
 
 def final_payload(batch: Mapping[str, Any]) -> dict[str, Any]:
@@ -720,6 +733,7 @@ def main(argv: list[str] | None = None, *, adapter_loader: Callable[[str], Adapt
                 "state": batch["state"],
                 "artifact_dir": batch["artifact_dir"],
                 "outside_changes": outside,
+                "unprotected_changes": batch.get("unprotected_changes", []),
                 "checkout_audit": batch["checkout_audit"],
                 "review_changes": changes,
             }

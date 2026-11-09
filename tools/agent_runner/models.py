@@ -255,22 +255,37 @@ AuditReason = Literal[
 
 
 class CheckoutAudit(StrictModel):
-    """Observations only: fixed reasons, no Git stderr or attribution to a worker."""
+    """Observations only: fixed reasons, no Git stderr or attribution to a worker.
+
+    ``removed`` is a checkout that was unreadable after the run and is no longer registered.
+    ``protected`` marks the requested checkout (every registration when it cannot be
+    identified); the main worktree is not protected unless it is the requested one. Records
+    saved before this field existed are read as protected, so they are never accepted by mistake.
+    """
 
     path: str
-    kind: Literal["unavailable_before", "unavailable_after", "content_changed"]
+    kind: Literal["unavailable_before", "unavailable_after", "content_changed", "removed"]
     reason: AuditReason
     locked: bool = False
     prunable: bool = False
+    protected: bool = True
 
 
 class BatchResult(StrictModel):
+    """``outside_changes`` lists the protected checkout's observations and blocks acceptance.
+
+    ``unprotected_changes`` reports every observation (``content_changed``, ``removed``,
+    ``unavailable_*``) of unprotected checkouts, the main worktree included, and does not
+    block acceptance. Records saved without it are read as ``[]``.
+    """
+
     schema_version: Literal[1] = 1
     run_id: Identifier
     state: BatchState
     assignments: dict[Identifier, list[Identifier]]
     results: list[Result]
     outside_changes: list[str]
+    unprotected_changes: list[str] = Field(default_factory=list[str])
     checkout_audit: list[CheckoutAudit] = Field(default_factory=list[CheckoutAudit])
     elapsed_seconds: ElapsedSeconds
     artifact_dir: Path
