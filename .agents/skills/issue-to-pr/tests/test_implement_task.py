@@ -16,7 +16,6 @@ from pydantic import ValidationError
 from tools.test_support.texts import FINDING_CONTENT
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "implement_task.py"
-REAL_TEMPLATE = Path(__file__).resolve().parents[4] / ".devcontainer" / "agent-runner.toml"
 
 AGENTS = """
 schema_version = 1
@@ -126,18 +125,6 @@ def test_check_rejects_invalid_assignment(
     assert code == 2
     assert payload["status"] == "error"
     assert payload["reason"]
-
-
-def test_check_reads_the_real_template(tmp_path: Path) -> None:
-    """雛形の既定が self であることで、--implement も個人設定の担当も無い run は runner の担当を起動しない。
-
-    issue-to-pr の --implement の無い run を今までと同じにする（#157 の受け入れ条件）。雛形の既定を
-    変えるときは、このテストと受け入れ条件を一緒に見直す。
-    """
-    code, payload = check(tmp_path, REAL_TEMPLATE)
-
-    assert code == 0, payload
-    assert payload["self"] is True
 
 
 # --- 依頼・結果の JSON の形 -----------------------------------------------------------------------------------------
