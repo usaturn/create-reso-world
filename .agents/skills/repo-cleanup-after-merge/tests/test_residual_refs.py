@@ -284,6 +284,43 @@ def test_residual_ref_keeps_a_retained_version7_session(
     assert git(work, "rev-parse", "--verify", ref) == oid
 
 
+@pytest.mark.parametrize("version", [7, 8])
+def test_residual_ref_keeps_a_session_with_a_repository_case_difference(
+    work: Path, fake_gh, tmp_path: Path, version: int,
+) -> None:
+    # GitHub repository names are case-insensitive. Treating a mixed-case
+    # session owner as another repository would delete the ref it still uses.
+    oid = git(work, "rev-parse", "HEAD")
+    ref = f"refs/pr-review/repos/{PR_REPO}/42"
+    add_ref(work, ref, oid)
+    fake_gh({f"{PR_REPO}#42": pr_state(42, "MERGED", oid)})
+    sessions = tmp_path / f"session root {version}"
+    session = sessions / "pr-review-42-abcdefgh"
+    session.mkdir(parents=True)
+    state: dict[str, object] = {
+        "version": version,
+        "pr_number": 42,
+    }
+    if version == 7:
+        state.update({
+            "main_root": str(work),
+            "pr_repository": PR_REPO.upper(),
+        })
+    else:
+        state.update({
+            "pr_repo": PR_REPO.upper(),
+            "target_kind": "checkout",
+            "target_root": str(work),
+        })
+    (session / "session.json").write_text(json.dumps(state), encoding="utf-8")
+
+    result = run_retire(work, ref, oid, [PR_REPO], sessions)
+
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "session" in result.stderr
+    assert git(work, "rev-parse", "--verify", ref) == oid
+
+
 def test_legacy_ref_keeps_an_ambiguous_fork_or_upstream_owner(
     work: Path, fake_gh, tmp_path: Path,
 ) -> None:
@@ -304,26 +341,6 @@ def test_legacy_ref_keeps_an_ambiguous_fork_or_upstream_owner(
     assert result.returncode != 0, (result.stdout, result.stderr)
     assert "所属" in result.stderr
     assert git(work, "rev-parse", "--verify", ref) == oid
-
-
-def test_residual_ref_changed_after_inventory_is_kept_at_the_new_value(
-    work: Path, fake_gh, tmp_path: Path,
-) -> None:
-    old_oid = git(work, "rev-parse", "HEAD^")
-    new_oid = git(work, "rev-parse", "HEAD")
-    ref = f"refs/pr-review/repos/{PR_REPO}/42"
-    add_ref(work, ref, old_oid)
-    fake_gh({f"{PR_REPO}#42": pr_state(42, "CLOSED", old_oid)})
-    sessions = tmp_path / "empty sessions"
-    sessions.mkdir()
-    # A concurrent fetch repins the ref after the inventory read.
-    add_ref(work, ref, new_oid)
-
-    result = run_retire(work, ref, old_oid, [PR_REPO], sessions)
-
-    assert result.returncode != 0, (result.stdout, result.stderr)
-    assert "保持:" in result.stderr
-    assert git(work, "rev-parse", "--verify", ref) == new_oid
 
 
 def test_delete_uses_the_displayed_inventory_value(

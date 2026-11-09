@@ -76,11 +76,19 @@ cleanup_branch_pr_number() {
     printf '%s\n' 'cleanup: PR 番号の判定引数が足りない' >&2
     return 2
   fi
-  local checkout=$1 repo=$2 branch=$3 candidate_ref=$4 head pr_list numbers
+  local checkout=$1 repo=$2 branch=$3 candidate_ref=$4 head pr_list pr_count numbers
+  local limit=100
   if ! head=$(git -C "$checkout" rev-parse --verify --quiet "${candidate_ref}^{commit}"); then
     return 1
   fi
-  if ! pr_list=$(gh pr list --state all --head "$branch" --repo "$repo" --json number,headRefName,headRefOid --limit 100); then
+  if ! pr_list=$(gh pr list --state all --head "$branch" --repo "$repo" --json number,headRefName,headRefOid --limit "$limit"); then
+    return 1
+  fi
+  if ! pr_count=$(printf '%s' "$pr_list" | jq -er 'if type == "array" then length else error("not an array") end'); then
+    return 1
+  fi
+  if [ "$pr_count" -ge "$limit" ]; then
+    printf 'cleanup: PR 一覧が取得上限 %s 件に達したため対応を確定できない\n' "$limit" >&2
     return 1
   fi
   if ! numbers=$(printf '%s' "$pr_list" | jq -r --arg branch "$branch" --arg head "$head" '[.[] | select(.headRefName == $branch and .headRefOid == $head) | .number] | if length == 1 then .[0] else empty end'); then
@@ -91,7 +99,7 @@ cleanup_branch_pr_number() {
 }
 ```
 
-`cleanup_branch_pr_number` は、同じ branch 名と head を持つ PR がちょうど 1 件のときだけ番号を返す。0 件・複数件・照会失敗では何も返さず、呼び出し側は branch を保持する。
+`cleanup_branch_pr_number` は、同じ branch 名と head を持つ PR がちょうど 1 件のときだけ番号を返す。0 件・複数件・照会失敗では何も返さず、呼び出し側は branch を保持する。一覧が取得上限（100 件）に達した場合も、次のページに同じ branch と head の PR が残り得るため、一意性を断定せず保持する。
 
 ### 通常ツールの対象照合
 
@@ -401,13 +409,26 @@ Git は通常 ignore 対象のファイルを確認なしに上書きするた�
 
 手順 7 が成功したあとで実行する（fork の経路では手順 7 を省略する）。手順 7 で停止した場合は branch 削除に進まない。`usaturn/create-reso-world` の既存ローカル `main` と、fork の経路では `external/resoloop` のローカル `main` は、マージ済みでも候補から必ず除外し、そのまま保持する。メイン作業ツリーが feature を checkout したままだと `git branch -d` は `used by worktree` / `checked out` で失敗する。
 
-以下は `usaturn/create-reso-world` 用である。削除は、手順 7 で更新した `MAIN_ROOT` を対象にする。ツール呼び出しごとにシェルや環境変数が引き継がれない実行環境があるため、手順 7 と別の呼び出しでこのブロックを実行するときも、その呼び出しで `MAIN_ROOT` を設定する。fork の経路では、`TARGET_ROOT` に `external/resoloop` の絶対パス、`BASE_REF` に上流 PR なら `upstream/main`、fork 内 PR なら `origin/main` を設定する。fork では手順 7 を省略し、削除のために HEAD を動かさない。`MAIN_ROOT` の設定も要求しない。
+以下は `usaturn/create-reso-world` 用である。削除は、手順 7 で clean と detached HEAD を確認した `MAIN_ROOT` だけを対象にする。ツール呼び出しごとにシェルや環境変数が引き継がれない実行環境があるため、手順 7 と別の呼び出しでこのブロックを実行するときも、その呼び出しで `MAIN_ROOT` を設定する。`TARGET_ROOT` が同時に設定されていて別の checkout を指す場合は、どちらも削除せず停止する。fork の経路では、`TARGET_ROOT` に `external/resoloop` の絶対パス、`BASE_REF` に上流 PR なら `upstream/main`、fork 内 PR なら `origin/main` を設定する。fork では手順 7 を省略し、削除のために HEAD を動かさない。`MAIN_ROOT` の設定も要求せず、`TARGET_ROOT` だけを使う。
 
 `git branch -d` の前に、同じシェルで「branch の取り込み判定」を実行し、`PR_NUMBER`（手順 3 で確定した値）、`BASE_REF`（手順 3 と同じ取り込み先）、`PR_REPO` を設定する。`-d` は upstream や実行先の HEAD を基準にするので、それだけでは選択した base への取り込みを確かめられない。判定を先に通し、`-d` が成功しても別 base の upstream を根拠に削除されないようにする。`-D` は、`-d` が `not fully merged` で拒否したときに、同じ判定をもう一度通した branch だけに使う。
 
 ```bash
 set -e
-TARGET_ROOT="${TARGET_ROOT:-${MAIN_ROOT:-}}"
+if [ -n "${MAIN_ROOT:-}" ] && [ -n "${TARGET_ROOT:-}" ]; then
+  if ! main_root_real=$(cd -- "$MAIN_ROOT" 2>/dev/null && pwd -P) \
+    || ! target_root_real=$(cd -- "$TARGET_ROOT" 2>/dev/null && pwd -P); then
+    printf '%s\n' 'MAIN_ROOT と TARGET_ROOT の checkout を確認できないため削除しない' >&2
+    exit 1
+  fi
+  if [ "$main_root_real" != "$target_root_real" ]; then
+    printf '%s\n' 'MAIN_ROOT と TARGET_ROOT が別の checkout を指すため削除しない' >&2
+    exit 1
+  fi
+fi
+if [ -n "${MAIN_ROOT:-}" ]; then
+  TARGET_ROOT=$MAIN_ROOT
+fi
 : "${TARGET_ROOT:?削除対象 checkout（MAIN_ROOT または fork の TARGET_ROOT）を設定する}"
 : "${PR_REPO:?対象 repository}" "${PR_NUMBER:?対応 PR}" "${BASE_REF:?取り込み先 base ref}"
 BRANCH=<branch>
@@ -494,7 +515,7 @@ git fetch --prune
 - `REF_SESSION_ROOT`: pr-review が使った一時ルート。既定は `${TMPDIR:-/tmp}`。別の `--temp-root` を使った可能性を排除できない場合は削除しない
 - `REF_INVENTORY`: 一覧で読んだ `(ref, OID)` を保存するファイル。`mktemp` で作った一意のパスを指定し、削除ではこの保存値だけを使う
 
-手順 1 の helper の `sessions` は登録済み worktree だけを列挙し、セッションを持たない ref、登録の無い残骸、bundle、別の `--temp-root` のセッションを網羅しない。helper が同じ repository と PR の session を保持と返したら、その ref は削除しない。下の関数は `REF_SESSION_ROOT` の `pr-review-*` も調べるが、これも全一覧ではない。保持中の session や所属を確定できないときは、その ref を保持して手順 11 で報告する。symbolic ref は参照先の branch を消さないように一覧に載せず、保持として報告する。session の所属は repository・PR 番号の型と形式を確かめ、読めない・不正な値は「別の PR」とみなさず保持する。
+手順 1 の helper の `sessions` は登録済み worktree だけを列挙し、セッションを持たない ref、登録の無い残骸、bundle、別の `--temp-root` のセッションを網羅しない。helper が同じ repository と PR の session を保持と返したら、その ref は削除しない。下の関数は `REF_SESSION_ROOT` の `pr-review-*` も調べるが、これも全一覧ではない。保持中の session や所属を確定できないときは、その ref を保持して手順 11 で報告する。symbolic ref は参照先の branch を消さないように一覧に載せず、保持として報告する。session の所属は repository・PR 番号の型と形式を確かめ、読めない・不正な値は「別の PR」とみなさず保持する。GitHub の repository 名は大小文字を区別しないため、ref と session の repository 名は小文字に正規化して比較する。
 
 ```bash
 cleanup_residual_ref_inventory() {
@@ -518,6 +539,10 @@ cleanup_residual_ref_inventory() {
 
 cleanup_residual_ref_keep() {
   printf '保持: %s（%s）\n' "$1" "$2" >&2
+}
+
+cleanup_residual_ref_repo_key() {
+  printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'
 }
 
 cleanup_residual_ref_same_checkout() {
@@ -577,7 +602,7 @@ cleanup_residual_ref_retire() {
           return 1
           ;;
       esac
-      repos=("$owner/$repo_name")
+      repos=("$(cleanup_residual_ref_repo_key "$owner/$repo_name")")
       ;;
     refs/pr-review/*)
       number=${ref#refs/pr-review/}
@@ -592,7 +617,7 @@ cleanup_residual_ref_retire() {
         return 1
       fi
       while IFS= read -r repo_name; do
-        [ -n "$repo_name" ] && repos+=("$repo_name")
+        [ -n "$repo_name" ] && repos+=("$(cleanup_residual_ref_repo_key "$repo_name")")
       done <<< "$REF_REPOS"
       if [ "${#repos[@]}" -ne 1 ]; then
         cleanup_residual_ref_keep "$ref" '旧形式 ref の所属 repository を一意に確定できない'
@@ -675,6 +700,7 @@ cleanup_residual_ref_retire() {
           cleanup_residual_ref_keep "$ref" "session の所属が欠けている: $session_dir"
           return 1
         fi
+        session_repo=$(cleanup_residual_ref_repo_key "$session_repo")
         if [ "$session_number" != "$number" ] || [ "$session_repo" != "${repos[0]}" ]; then
           continue
         fi
@@ -714,6 +740,7 @@ cleanup_residual_ref_retire() {
           cleanup_residual_ref_keep "$ref" "session の所属が欠けている: $session_dir"
           return 1
         fi
+        session_repo=$(cleanup_residual_ref_repo_key "$session_repo")
         if [ "$session_number" != "$number" ] || [ "$session_repo" != "${repos[0]}" ]; then
           continue
         fi
@@ -840,6 +867,9 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 - 旧形式 `refs/pr-review/<N>` を、fork と上流の片方の PR が終了しただけで消そうとしている
 - `git log --oneline <base>..<branch>` が非空だから未取り込み、空だから取り込み済みと決めつけている。PR と head の対応、squash/rebase の `mergeCommit` を確かめていない
 - `git branch -d` が成功したので、選択した base に取り込まれているとみなしている。upstream がその branch 自身を指していても `-d` は成功する
+- `TARGET_ROOT` の既存値が手順 7 の `MAIN_ROOT` と別の checkout を指しているのに、片方を削除先に選ぼうとしている
+- PR 一覧の取得上限に達したのに、その中の 1 件を一意な対応とみなしている
+- session の repository 名の大小文字差を別 repository とみなし、同じ PR の ref を削除しようとしている
 
 **いずれかに該当したら、削除を中止して手順 1・4・5・6・9 のいずれか、または残存 pinned ref の一覧に戻る。**
 
@@ -865,7 +895,7 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 
 ## ガードレール
 
-- `git branch -D` でマージ判定を握り潰さない。使ってよいのは、手順 8 で「branch の取り込み判定」を `-d` の前と `-D` の直前に通し、`ancestor` または `pr` を再確認できた branch だけである。
+- `git branch -D` でマージ判定を握り潰さない。使ってよいのは、手順 8 で「branch の取り込み判定」を `-d` の前と `-D` の直前に通し、`ancestor` または `pr` を再確認できた branch だけである。create-reso-world では手順 7 で確認した `MAIN_ROOT`、fork では `TARGET_ROOT` を削除先にし、両方が別の checkout を指すときは削除しない。
 - `git branch -d` の upstream 判定だけを削除の根拠にしない。削除の前に、選択した base と明示した PR の `headRefOid`・`mergeCommit` を同じ判定で確かめる。
 - `git worktree remove` に `--force` を付けない。
 - 対象を限定しない `git worktree prune` を実行しない。
@@ -873,7 +903,7 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 - ユーザー確認なしに `git push`（`--delete` を含む）や `scripts/resoloop-fork.sh sync` を実行しない。
 - Open PR が残っている branch と worktree を削除しない。detached な pr-review worktree も含む。
 - pr-review のセッションは helper の `cleanup --strict-reap` で退役させる。拒否されたセッションは、`run_context` の無い version 7 が終了コード 1 で拒否された場合を除き、worktree の削除と手順 6 に回さず保持する。version 8、`run_context` を持つセッション、終了コード 2 は保持する。
-- 残存 pinned ref は、`refs/pr-review` の一覧から所属 repository と PR を確定し、PR が MERGED/CLOSED で、open PR と現行・保持中の session が使っていないことを確かめたものだけを `git update-ref --no-deref -d <ref> <読んだ値>` で削除する。一覧で読んだ値は保存し、削除の前に inventory を取り直さない。読取後に値が変わったら保持し、新しい値で再実行しない。symbolic ref は削除せず、参照先を消さない。所属が一意でない旧形式 ref は保持する。session の所属は型と形式を検証し、不正なら保持する。
+- 残存 pinned ref は、`refs/pr-review` の一覧から所属 repository と PR を確定し、PR が MERGED/CLOSED で、open PR と現行・保持中の session が使っていないことを確かめたものだけを `git update-ref --no-deref -d <ref> <読んだ値>` で削除する。一覧で読んだ値は保存し、削除の前に inventory を取り直さない。読取後に値が変わったら保持し、新しい値で再実行しない。symbolic ref は削除せず、参照先を消さない。所属が一意でない旧形式 ref は保持する。session の所属は型と形式を検証し、repository 名は大小文字を区別せず正規化して比較し、不正なら保持する。
 - helper の `sessions` の成功を全 session の一覧とみなさない。登録の無い残骸・bundle・別の一時ルートを確認できず、非使用を確定できない ref は保持する。
 - `--operator-confirmed-stopped` の理由を、エージェントが作らない。
 - gitignore 対象のファイルは、再生成できるキャッシュを除き、正本と照合するかユーザーの確認を得るまで削除しない（`reviews/`、`docs_draft/`、`tmp/`、`external/` など。worktree ごと消す場合も同じ）。

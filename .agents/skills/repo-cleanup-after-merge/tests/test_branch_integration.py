@@ -339,6 +339,30 @@ def test_branch_pr_number_requires_exactly_one_matching_head(
     assert result.stdout == ""
 
 
+def test_branch_pr_number_retains_when_the_list_reaches_the_limit(
+    work: Path, fake_gh,
+) -> None:
+    # A full page cannot prove uniqueness: another matching PR may be on the
+    # next page. Treat the single match in the page as unknown, not unique.
+    base = git(work, "rev-parse", "main")
+    git(work, "branch", "limit-branch", base)
+    prs: dict[str, dict[str, object]] = {}
+    for index in range(100):
+        head = base if index == 0 else f"{index:040x}"
+        prs[str(1000 + index)] = pr_payload(1000 + index, "limit-branch", head)
+    fake_gh(prs)
+    commands = section_bash(EVIDENCE_TITLE) + '\ncleanup_branch_pr_number "$@"\n'
+
+    result = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", commands, "cleanup",
+         str(work), PR_REPO, "limit-branch", "refs/heads/limit-branch"],
+        cwd=work, env=dict(os.environ), capture_output=True, text=True, timeout=20,
+    )
+
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert result.stdout == ""
+
+
 def test_gate_b_presents_pr_merged_branches_that_are_not_ancestors(
     work: Path, fake_gh,
 ) -> None:

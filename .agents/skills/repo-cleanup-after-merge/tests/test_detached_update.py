@@ -449,6 +449,45 @@ def test_steps_8_and_11_stop_when_main_root_is_unset_instead_of_using_callers_re
     assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
 
 
+def test_step8_uses_the_route_specific_root(checkout: Path) -> None:
+    # A stale TARGET_ROOT from another clone must not override the MAIN_ROOT
+    # whose clean detached checkout step 7 verified. The fork path may still
+    # use TARGET_ROOT when MAIN_ROOT is absent.
+    remote = checkout.parent / "remote.git"
+    foreign = checkout.parent / "foreign clone"
+    git(checkout.parent, "clone", "-q", str(remote), str(foreign))
+    target = git(checkout, "rev-parse", "origin/main")
+    git(checkout, "branch", "merged-feature", target)
+    git(foreign, "branch", "merged-feature", target)
+    prs = {"7": pr_payload("merged-feature", target, merge=target)}
+    commands = section_bash(EVIDENCE_TITLE) + "\n" + step_bash(8).replace(
+        "<branch>", "merged-feature"
+    )
+    env = {
+        **os.environ,
+        **fake_gh_environment(checkout, prs),
+        "MAIN_ROOT": str(checkout),
+        "TARGET_ROOT": str(foreign),
+        "PR_NUMBER": "7",
+        "BASE_REF": "refs/remotes/origin/main",
+    }
+
+    conflicting = run_bash(commands, cwd=checkout, env=env)
+
+    assert conflicting.returncode != 0, (conflicting.stdout, conflicting.stderr)
+    assert "TARGET_ROOT" in conflicting.stderr
+    assert "refs/heads/merged-feature " in local_refs(checkout)
+    assert "refs/heads/merged-feature " in local_refs(foreign)
+
+    fork_env = {key: value for key, value in env.items() if key != "MAIN_ROOT"}
+    fork_env["TARGET_ROOT"] = str(checkout)
+    accepted = run_bash(commands, cwd=checkout, env=fork_env)
+
+    assert accepted.returncode == 0, (accepted.stdout, accepted.stderr)
+    assert "refs/heads/merged-feature " not in local_refs(checkout)
+    assert "refs/heads/merged-feature " in local_refs(foreign)
+
+
 def test_step8_gates_dash_d_on_selected_base_and_rechecks_before_dash_D(
     checkout: Path,
 ) -> None:
