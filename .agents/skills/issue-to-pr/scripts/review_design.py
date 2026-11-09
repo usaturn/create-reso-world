@@ -263,7 +263,7 @@ def _admit(spec_path: Path, assignment: Assignment, ledger_root: Path) -> int:
                 "a review without a result exists: submit the self review, or confirm that its runner stopped"
             )
         record = review_spec._read(review_dir / "review.json")
-        if record["stop_unconfirmed"]:
+        if review_spec._stop_unconfirmed(record):
             raise ReviewInputError("a previous review has attempts whose stop is not confirmed")
         if record["state"] != "completed":
             continue

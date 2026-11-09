@@ -440,6 +440,17 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _stop_unconfirmed(record: dict[str, Any]) -> bool:
+    """停止を確かめられていない試行があるか。
+
+    runner が戻らなかった外部実行は、どの試行が動いているか分からないので停止未確認として扱う。
+    結果の無い失敗を単なる failed として読み飛ばし、旧担当が動いたまま次のレビューを始めない。
+    """
+    if record["stop_unconfirmed"]:
+        return True
+    return record["mode"] == "external" and record.get("batch") is None
+
+
 def next_round(ledger: Path, kind: Kind = SPEC_REVIEW) -> int:
     """何回目のレビューかを決める。始められなければ ReviewInputError。失敗したレビューは数えない。"""
     round_ = 1
@@ -449,7 +460,7 @@ def next_round(ledger: Path, kind: Kind = SPEC_REVIEW) -> int:
                 "a review without a result exists: submit the self review, or confirm that its runner stopped"
             )
         record = _read(review_dir / "review.json")
-        if record["stop_unconfirmed"]:
+        if _stop_unconfirmed(record):
             raise ReviewInputError("a previous review has attempts whose stop is not confirmed")
         if record["state"] != "completed":
             continue
@@ -806,6 +817,14 @@ def submit(review_dir: Path, result_path: Path, kind: Kind = SPEC_REVIEW) -> dic
     spec_path = Path(request["request"]["spec_path"])
     if _sha256(_read_spec(spec_path)) != request["spec_sha256"]:
         reasons.append("the Spec changed during the review")
+    repository = Path(request["request"]["repository"])
+    try:
+        current_revision = implement.head(repository)
+    except (subprocess.SubprocessError, OSError):
+        reasons.append("the repository cannot be read after the review")
+    else:
+        if current_revision != request["request"]["revision"]:
+            reasons.append("the repository changed during the review")
     # このセッション自身のレビュー。外部 agent の起動や runner によるモデルの観測は無い（identity は null）
     record = _record(
         "self",

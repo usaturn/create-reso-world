@@ -229,6 +229,26 @@ def test_self_review_records_outside_both_worktrees_and_advances(fx: Fixture) ->
     assert mod.decide(Path(second["review_dir"]), second_decisions)["next"] == "plan"
 
 
+def test_self_submit_refuses_after_the_code_head_moved(fx: Fixture) -> None:
+    """S: コード HEAD が変わった後も self の結果を completed にすると、未レビューの版で次工程へ進む。"""
+    summary = fx.review()
+    review_dir = Path(summary["review_dir"])
+    (fx.feature / "src.py").write_text("value = 2\n", encoding="utf-8")
+    git(fx.feature, "add", "-A")
+    git(fx.feature, "commit", "-qm", "changed during the review")
+
+    result = write_json(fx.tmp / "result.json", result_for(summary))
+    submitted = mod.submit(review_dir, result)
+
+    assert submitted["state"] == "failed", submitted["reasons"]
+    assert any("repository" in reason for reason in submitted["reasons"]), submitted["reasons"]
+    recorded = json.loads((review_dir / "review.json").read_text(encoding="utf-8"))
+    assert recorded["state"] == "failed"
+    decisions = write_json(fx.tmp / "decisions.json", {"decisions": []})
+    with pytest.raises(mod.ReviewInputError):
+        mod.decide(review_dir, decisions)
+
+
 def test_missing_session_and_worktree_ledgers_are_refused(fx: Fixture, monkeypatch: pytest.MonkeyPatch) -> None:
     """S: 既定の保存先を推測すると、記録がコードや Spec の worktree に入り回収で消える。"""
     with pytest.raises(mod.ReviewInputError):
@@ -557,6 +577,27 @@ def test_cleanup_retains_unstopped_or_sensitive_reviewer_area(
     assert reviewer.is_dir()
     assert fx.runner.is_dir()
     assert review_dir.is_dir()
+
+
+def test_review_after_a_runner_without_a_result_is_refused(fx: Fixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    """S: runner が戻らなかった試行を failed として読み飛ばすと、旧担当が動いたまま次のレビューを始める。"""
+
+    def broken_run(*args: Any, **kwargs: Any) -> BatchResult:
+        kwargs["output_dir"].mkdir(parents=True)
+        (kwargs["output_dir"] / "log.txt").write_text("partial\n", encoding="utf-8")
+        raise OSError("the runner did not finish")
+
+    monkeypatch.setattr(mod, "run_workflow", broken_run)
+    failed = mod.review(fx.config(["reviewer"]), fx.request(), fx.runner, ledger_dir=fx.ledger)
+    assert failed["state"] == "failed"
+    review_dir = Path(failed["review_dir"])
+    second_runner = fx.tmp / "session" / "runner-2"
+
+    with pytest.raises(mod.ReviewInputError):
+        mod.review(fx.config(["reviewer"]), fx.request(), second_runner, ledger_dir=fx.ledger)
+
+    assert mod._reviews(fx.ledger / "design.spec-review") == [review_dir]
+    assert not second_runner.exists()
 
 
 def test_cleanup_removes_only_safe_runner_output_and_keeps_the_ledger(
