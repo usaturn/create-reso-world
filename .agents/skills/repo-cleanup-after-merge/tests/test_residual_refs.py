@@ -54,7 +54,7 @@ def isolated_git_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     for name in tuple(os.environ):
         if name.startswith("GIT_") or name in {
             "BASH_ENV", "ENV", "REF_CHECKOUT", "REF_REPOS", "REF_SESSION_ROOT",
-            "PR_REPO", "PR_NUMBER", "BASE_REF", "REMOTE",
+            "REF_INVENTORY", "PR_REPO", "PR_NUMBER", "BASE_REF", "REMOTE",
         }:
             monkeypatch.delenv(name)
     home = tmp_path / "home"
@@ -163,6 +163,39 @@ def run_retire(
     }
     return subprocess.run(
         ["bash", "--noprofile", "--norc", "-c", commands, "cleanup", str(work), ref, oid],
+        cwd=work, env=env, capture_output=True, text=True, timeout=20,
+    )
+
+
+def run_listing_block(
+    work: Path, inventory: Path, repos: list[str],
+) -> subprocess.CompletedProcess[str]:
+    commands = section_bash(0) + "\n" + section_bash(1)
+    env = {
+        **os.environ,
+        "REF_CHECKOUT": str(work),
+        "REF_REPOS": "\n".join(repos),
+        "REF_INVENTORY": str(inventory),
+    }
+    return subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", commands, "cleanup"],
+        cwd=work, env=env, capture_output=True, text=True, timeout=20,
+    )
+
+
+def run_delete_block(
+    work: Path, inventory: Path, repos: list[str], session_root: Path,
+) -> subprocess.CompletedProcess[str]:
+    commands = section_bash(0) + "\n" + section_bash(2)
+    env = {
+        **os.environ,
+        "REF_CHECKOUT": str(work),
+        "REF_REPOS": "\n".join(repos),
+        "REF_INVENTORY": str(inventory),
+        "REF_SESSION_ROOT": str(session_root),
+    }
+    return subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", commands, "cleanup"],
         cwd=work, env=env, capture_output=True, text=True, timeout=20,
     )
 
@@ -291,3 +324,76 @@ def test_residual_ref_changed_after_inventory_is_kept_at_the_new_value(
     assert result.returncode != 0, (result.stdout, result.stderr)
     assert "保持:" in result.stderr
     assert git(work, "rev-parse", "--verify", ref) == new_oid
+
+
+def test_delete_uses_the_displayed_inventory_value(
+    work: Path, fake_gh, tmp_path: Path,
+) -> None:
+    old_oid = git(work, "rev-parse", "HEAD^")
+    new_oid = git(work, "rev-parse", "HEAD")
+    ref = f"refs/pr-review/repos/{PR_REPO}/42"
+    add_ref(work, ref, old_oid)
+    fake_gh({f"{PR_REPO}#42": pr_state(42, "CLOSED", old_oid)})
+    sessions = tmp_path / "empty sessions"
+    sessions.mkdir()
+    inventory = tmp_path / "saved inventory.txt"
+
+    listed = run_listing_block(work, inventory, [PR_REPO])
+    assert listed.returncode == 0, (listed.stdout, listed.stderr)
+    assert f"{ref} {old_oid}" in listed.stdout.splitlines()
+    add_ref(work, ref, new_oid)
+
+    result = run_delete_block(work, inventory, [PR_REPO], sessions)
+
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert "削除:" not in result.stdout
+    assert "読み取り後に ref の値が変わった" in result.stderr
+    assert git(work, "rev-parse", "--verify", ref) == new_oid
+
+
+def test_symbolic_ref_cannot_delete_its_target_branch(
+    work: Path, fake_gh, tmp_path: Path,
+) -> None:
+    target = "refs/heads/main"
+    target_oid = git(work, "rev-parse", target)
+    ref = f"refs/pr-review/repos/{PR_REPO}/42"
+    git(work, "symbolic-ref", ref, target)
+    fake_gh({f"{PR_REPO}#42": pr_state(42, "CLOSED", target_oid)})
+    sessions = tmp_path / "empty sessions"
+    sessions.mkdir()
+
+    listed = run_inventory(work)
+    result = run_retire(work, ref, target_oid, [PR_REPO], sessions)
+
+    assert listed.returncode == 0, (listed.stdout, listed.stderr)
+    assert ref not in [line.split(" ", 1)[0] for line in listed.stdout.splitlines()]
+    assert "symbolic" in listed.stderr
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "symbolic" in result.stderr
+    assert git(work, "rev-parse", "--verify", target) == target_oid
+    assert git(work, "symbolic-ref", "-q", ref) == target
+
+
+def test_malformed_session_ownership_keeps_the_ref(
+    work: Path, fake_gh, tmp_path: Path,
+) -> None:
+    oid = git(work, "rev-parse", "HEAD")
+    ref = f"refs/pr-review/repos/{PR_REPO}/42"
+    add_ref(work, ref, oid)
+    fake_gh({f"{PR_REPO}#42": pr_state(42, "CLOSED", oid)})
+    sessions = tmp_path / "session root"
+    session = sessions / "pr-review-42-malformed"
+    session.mkdir(parents=True)
+    (session / "session.json").write_text(json.dumps({
+        "version": 7,
+        "main_root": str(work),
+        "pr_repository": [],
+        "pr_number": 42,
+    }), encoding="utf-8")
+
+    result = run_retire(work, ref, oid, [PR_REPO], sessions)
+
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "保持:" in result.stderr
+    assert "所属" in result.stderr
+    assert git(work, "rev-parse", "--verify", ref) == oid
