@@ -1,6 +1,6 @@
 # agent-runner の checkout 監査と worktree 登録の回収
 
-runner の監査は、登録された checkout の変化を観測する。書き込み元は特定できない。隔離を保証できない担当では、並行作業中の別 checkout の変化も成果の受け取りを拒否する理由になる。書き込みを伴う依頼は、そのリポジトリのほかのセッションが停止しているときに行う。隔離した担当で必須監査を限定できる条件は [共通インターフェース](../tools/agent_runner/interfaces.rst) にある。
+runner の監査は、登録された checkout の変化を観測する。書き込み元は特定できない。runner が保護するのは依頼された checkout だけで、特定できなければ全登録を保護する。保護する checkout の変化・消失・監査不能は `outside_changes` となり、受け取り入口が成果を拒否する。main worktree を含む保護しない checkout の内容の変化・回収・監査不能は `unprotected_changes` として報告するだけで、起動も受け取りも止めない（[共通インターフェース](../tools/agent_runner/interfaces.rst)）。担当がほかのセッションの worktree や親の checkout に書き込んでも止まらないので、`unprotected_changes` を確かめ、必要なら成果を確かめ直す。
 
 `checkout_audit` の `unavailable_before` / `unavailable_after` は、変化が無かったことを確認できない状態である。`locked` と `prunable` は登録の情報であり、削除の許可ではない。監査は repair・remove・prune を自動実行しない。
 

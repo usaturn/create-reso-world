@@ -81,7 +81,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `review.reviewers[]` | `requested_agent`・`actual_agent`、runner の state、`verdict`（`accepted`・`rejected`）と `reason`、runner が観測した `identity`、payload の `reviewer`・`timing`、成果 2 件のパスと SHA-256、`active_findings`、pr-review の `cleanup`・`warnings`・`retained_paths`。却下したときは `rejected_stage`（`runner`: 停止未確認・runner の失敗、`payload`: payload の形・pr-review の失敗、`binding`: request・担当・PR の不一致、`head`: レビューした HEAD の不一致、`artifacts`: 成果 2 件の欠落・不整合）と、その試行の `request.json` の写しの `request_file`・`request_sha256`（写せないときは null）。失敗した担当がいるレビュアーは、診断の `diagnostic_file`・`diagnostic_sha256`（保存できなかったときは null）と、保存できなかった理由の `diagnostic_error`（4.1 節） |
 | `review.rerun` | 再実行したときだけ。`agents`（起動し直した実担当）、`replaced`（置き換えた 1 回目の `reviewers[]` の記録）、再実行の `output_dir`・`started_at`・`ended_at`・`seconds`・`batch`・`after_run`・`cleanup`。`review.reviewers` は再実行の結果で置き換えた後の記録 |
 | `review.reused[]` | 再利用した成果 2 件のパスと SHA-256、`model`・`runtime`・`reviewed_head`・`active_findings` |
-| `review.batch` | runner の run ID・state・assignments・`result_file`（写し）・`outside_changes` |
+| `review.batch` | runner の run ID・state・assignments・`result_file`（写し）・`outside_changes`（runner が保護する checkout の変化・消失・監査不能）・`unprotected_changes`（保護しない checkout の内容の変化・回収・監査不能。多くはほかのセッションの worktree や親の checkout。古い記録には無い） |
 | `review.output_dir`・`comments_file`・`started_at`・`ended_at`・`seconds`・`cleanup` | レビューの実行と回収 |
 | `planning` | `round`・`comment_id`・`posted`、`outcome`・`commit`・`stop_reason`・`merged`、判断の件数（`state` 別・`change` 別）、`planning_file`・`verified_file` とその SHA-256、`finalize`（結果の内容・`result_file`・`round_dir`）、`role_runs[]`（`run_roles.py` の出力ごとの実際の担当と状態）、`ended_at` |
 
