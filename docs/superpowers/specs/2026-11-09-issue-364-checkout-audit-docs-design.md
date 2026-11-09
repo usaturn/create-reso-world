@@ -84,3 +84,11 @@ Dev Container の専用 linked worktree で日本語の4段落を編集する。
 - `run_roles.py --phase self-review` は1回。self-review / fix-check は設定どおり `self`、観測モデル `gpt-6.1-sol`。観点2のPR全体レビューは指摘0、観点1の反証と観点3の検出力は原指摘解消・新規テスト不要(F)・未確認なし。自己レビュー後の実装修正はなく、2回目の自己レビューは実施していない。
 - 確認済み一覧と工程記録: `reviews/usaturn/create-reso-world/#371-fix-issue-364-checkout-audit-docs/verified/2e841135901f.json`・同 `.planning.json`、`cbbb94ff7c0c.fix-check.json`。自己レビューの保存・cleanup は成功。詳細ログは親の `tmp/agents/issue-364.95_cvygq/`。
 - 結論1: 修正して既存 PR へ反映する。push・コメント・次サイクル・マージの結果は実行後の状況コメントと最終報告に残す。
+
+## サイクル2: 修正不要の確認
+
+- planner: `gpt-6.1-sol` / pi。現行の公開 HEAD は `c820beb9d686ecc085a9937132d53aad9daaaf83`。同じ `claude-opus-5-5.md` はこの HEAD を Update で再レビューし、I-1 の解消を確認、新規指摘0件・Approve。自己レビューの `gpt-6.1-sol-commit-cbbb94ff7c0c9937042eedf50ab895868b7d4bb8.md` は祖先の記録で、新たな入力指摘はない。
+- 全指摘の分類: 解消済み1件（`claude-opus-5-5#I-1@2e841135901f`、前の `fix` から変更）、対応する0・対応しない0・未確認0。前節の4か所と呼出元・実装を現行 HEAD で照合し、同じ保護条件であることを確認した。新たな実装修正・自己レビューは行っていない。
+- 同じ clean HEAD で最終共通検証を再実行: `bash .devcontainer/run-tests.bash` 27件、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` 1,354件、`git diff --check` がすべて終了コード0。ログ・argv・HEAD は親の `tmp/agents/issue-364.95_cvygq/final-validation.json`、最終化用の記録は `final-checks.json`。
+- base は `7f008486fdf43d9d79b84d0adcde02fc4e41d8ef` のままで、検証した HEAD の祖先。base の前進や未検証の merge はない。
+- 結論2: 修正不要。Spec のみの最終記録を直接の子 commit とし、記録付きコメント・検査付き push・`finalize.py` の照合を通してからマージする。マージ・Issue 更新の結果を先取りせず、実結果は状況コメントと最終報告に残す。
