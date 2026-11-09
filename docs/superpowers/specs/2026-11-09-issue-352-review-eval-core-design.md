@@ -7,7 +7,7 @@
 - 実行許可: 利用者の明示 `/issue-to-pr` と引数
   `#352 --implement pi_opencode-go_deepseek4-flash_max --merge --assign implement=pi_opencode-go_deepseek4-flash_max`。
 - 許可の範囲: 通常の設計判断を推奨案で決めること、検証、commit、push、PR の作成、PR 修正ループ（`finalize.py`）によるマージまで。設計内容の承認ではない。
-- 基準: usaturn/create-reso-world / origin / refs/heads/main / `144f3ed535fe969aa79ed1fe132128d176017cb8`（#352 本文の「対象 branch: main」「PR の base は main」と一致）。
+- 基準: usaturn/create-reso-world / origin / refs/heads/main / `0b5bcb60fd24692b0de3aa2224a7d5847f121bea`（#352 本文の「対象 branch: main」「PR の base は main」と一致）。着手時に捕捉した `144f3ed535fe969aa79ed1fe132128d176017cb8` から、push の前の確認までに PR #366（emission editor の文書と、同 Issue #3 に限る `AGENTS.md` の委任）のマージで進んだ。利用者が 2026-11-09 に「rebase して続行」を選んだので（決定 D13）、rebase してから base を取り直し、検証をやり直した。
 - 予約: `refs/heads/agent-claims/issue-352` = `ffa8cdce9a98e0f7122640c566dc550f9418e337`（#352 の issuecomment-6734204168 に記録）。
 - 着手前の確認: #352 に先行（`blocked_by`）・コメント・既存 PR・branch・worktree・claim は無かった。親 #349 の実行マップでも先行なし。
 
@@ -106,6 +106,7 @@ AW と同じ。既定は gitleaks の `dir`（`--redact`・`--exit-code 99`・JS
 - **D10 `pyproject.toml`・`.gitignore`**: 変えない / testpaths に `tools/review_eval/tests` を足す、store のパスを ignore に足す / `testpaths` は既に `tools` を含む。store に既定値は無く、リポジトリの中に固定の store を作らない。`/reviews/` は既に ignore の対象 / 委任。
 - **D11 README.md**: 「構成」の 1 行に足すだけ / 段落を足す、足さない / 入口は README.rst に置き（#352 本文）、構成の一覧に無いと見つけにくい / 委任。
 - **D12 `status` の挙動**: AW どおり（設定が無ければ `{"enabled": false}` で 0、設定はあるが store を初期化していなければ 2、未処理の failure があれば 1） / `enabled = false` なら store を見ずに 0 / #352 本文の受け入れと一致し、AW と同じ表示を保つ / 委任。
+- **D13 base の移動（利用者の判断）**: feature branch を新しい `main`（`0b5bcb60`）に rebase し、base を取り直して全検証をやり直してから公開する / ここで止める / 利用者が 2026-11-09 に選んだ（issue-to-pr の push の前の確認で base の移動を観測して止まり、確認した）。移動した commit は #352 の所有ファイルと重ならない / 利用者の判断（この run の、この移動に限る）。
 
 ## 受け入れ基準
 
