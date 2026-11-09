@@ -590,4 +590,15 @@ issue-to-pr の run（2026-11-08T16:24Z〜）では、`implement_task.py check` 
 
 ## 完了記録
 
-（実行タスクが、実行した検証の結果・時間・公開の状態を書く）
+issue-to-pr の run（2026-11-08T16:24Z〜17:45Z は session `820ddf33`、2026-11-09T03:05Z〜は引き継ぎの受け手の session `a9ceeed2`。どちらも Claude Code / Opus 5.5）で、Task 1・2・2A・3・4・5 を取り込んだ。Task 6 は行っていない（Spec の R4）。状態は `draft` のまま（内容の承認は無い）。
+
+- 実装の担当: 全 Task とも runner の `claude-code_sonnet_default`（観測したモデル `claude-sonnet-5-5`）。依頼の回数と runner の所要時間: Task 1 は 1 回（225 秒）、Task 2 は 1 回（49 秒）、Task 2A は 2 回（88 秒、レビューの指摘の修正 64 秒）、Task 3 は 3 回（1 回目 89 秒 `rejected`＝ほかのセッションの worktree の変化、2 回目 757 秒 `failed`＝`response_failed`、3 回目 97 秒）、Task 4 は 1 回（671 秒。担当が `python -` の標準入力の待ちで約 9 分止まった）、Task 5 は 1 回（42 秒）
+- タスクレビュー（sonnet のサブエージェント）: すべて clean。Task 2A は Important 1 件（指定のテストが「登録は一覧できるが依頼された checkout の指紋だけ取れない」ときの停止を通らない）を同じ担当の修正 1 回で解消した。controller の変異の確認で、修正の前は preflight の停止を外しても全テストが通り、修正の後は 2 件が失敗する
+- 統合確認（HEAD `8028c5da`、2026-11-09T04:1xZ）: `uv run pytest tools/agent_runner/tests/test_workspace.py tools/agent_runner/tests/test_runner.py tools/agent_runner/tests/test_checkout_policy.py tools/agent_runner/tests/test_models.py` 79 passed・終了コード 0、`uv run pytest .agents/skills/review-verify/tests/test_dispatch.py .agents/skills/review-fix-planning/tests/test_run_roles.py .agents/skills/pr-review-fix-loop/tests/test_loop_review.py .agents/skills/pr-review-fix-loop/tests/test_loop_reviewer_protocol.py .agents/skills/issue-to-pr/tests/test_implement_task_run.py` 152 passed・0、`uv run pytest tools .agents/skills/pr-review/tests` 555 passed（4 分 56 秒）・0、`bash scripts/check-layout.sh` 0
+- 一時的な確認（コミットしない。worktree の外に置き、片付けた）: 変更前の形の `dispatch.json`（`unprotected_changes`・`protected` が無い）の accept は `KeyError` にならず終了コード 0。`run_workflow` の実行中に、依頼していない linked worktree と main worktree を変えると `outside_changes == []`、両方が `unprotected_changes`。Task 5 の Step 3: `loop.review` の出力と `cycle-1.json` の `review.batch` に `unprotected_changes` が入る（Task 5 の前の版では `KeyError`）
+- `git diff --stat d790e5f3 HEAD`: 所有ファイルと Spec・Plan だけ。`checkout_policy.py` は docstring だけ
+- 最終の全体レビュー（opus）: マージしてよい。Critical・Important なし。Minor は致命的でないので直していない（理由は SDD の ledger）
+- 最終形との差（設計の節は書き換えていない）: Global Constraints の「起動前の preflight を撤去・変更しない」と要件照合の表の「2（変えない）」は、R8 の後は「撤去しない。止める範囲は保護する checkout の監査不能と登録の一覧の失敗に狭める」と読む。Spec の「テスト」の表の `require_auditable_checkouts(external)` が止まる確認は、R8 の後は `test_workspace.py` の `test_preflight_stops_only_for_a_registered_target_that_cannot_be_fingerprinted` と `test_checkout_policy.py` の `test_unavailable_neighbor_is_reported_and_unavailable_target_blocks_launch`（依頼された checkout の tracked ファイルを読めなくする形）が受け持つ
+- base: `690001b6` で始め、`origin/main` が `d790e5f3`（PR #358）に進んだので、利用者の判断で rebase した（Spec の R11）
+- 公開: このファイルを commit した時点では未実施。PR は base `main`、本文は `Refs #350`。`--merge` のループの結果は PR と #350 のコメントに書く
+- 所要時間（受け手の session）: 再開・base の移動の確認・rebase・claim 約 8 分、Task 2A 約 21 分（レビューの指摘の修正を含む）、Task 3 約 10 分、Task 4 約 19 分、Task 5 約 10 分（Step 3 を含む）、統合確認と最終の全体レビュー 約 18 分。各依頼の前の静止待ちは約 4 分ずつ
