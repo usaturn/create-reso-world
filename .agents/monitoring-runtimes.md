@@ -66,7 +66,7 @@ done
 - 中断: runner 自体に SIGINT を送り、終了まで待つ。runner は共有の cancel と、process group・観測済みの子孫への TERM → KILL で停止を試み、確かめた結果を保存する。runner をいきなり SIGKILL すると、この終了処理と結果の保存は保証されない
 - 停止未確認: `stop_confirmed=false` と、保存された `work_dir`・ログの実際のパスを報告し、依存する仕事や fallback を始めない。使用中の領域は消さない。`sensitive_paths` に挙がった receipt などは秘密が残っているおそれがあるので、その内容を転載しない
 
-役割の期限は実行枠を得た時点から数え、worktree の準備と明示した fallback を含む。停止の確認の猶予で期限を超えることがある。既存の checkout の外部の変更は `outside_changes` として報告されるが、他のセッションの変更との因果は断定しない。
+役割の期限は実行枠を得た時点から数え、worktree の準備と明示した fallback を含む。停止の確認の猶予で期限を超えることがある。既存の checkout の外部の変更のうち、runner が保護する checkout（依頼された checkout。特定できなければ全登録）の変化・消失・監査不能は `outside_changes`、保護しない checkout（main worktree も、依頼された checkout でなければ保護しない）の内容の変化・回収・監査不能は `unprotected_changes` として報告される。受け取り入口は `outside_changes` があれば拒否するが、`unprotected_changes` は報告だけで起動も受け取りも止めない。`unprotected_changes` を確かめ、必要なら成果を確かめ直す。どちらも他のセッションの変更との因果は断定しない。
 
 ログと worktree は成功のときも残る。停止を確かめて成果を保存した後に、対象の repository で `git worktree remove <work_dir>` を実行して登録を外し、その run が所有する領域だけを回収する。停止未確認・変更が残る worktree を勝手に消したり、他の run の領域を掃除したりしない。
 
