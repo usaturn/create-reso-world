@@ -9,15 +9,19 @@ from the fixtures, not from the skill's wording or eval lists.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 SKILL = Path(__file__).resolve().parents[1] / "SKILL.md"
+EVIDENCE_TITLE = "branch の取り込み判定"
+PR_REPO = "usaturn/create-reso-world"
 
 
 def git(repo: Path, *args: str) -> str:
@@ -36,7 +40,10 @@ def isolated_git_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     # Hooks, signing, config overrides, repository selectors and shell startup
     # files from the agent's environment must not reach these temporary repos.
     for name in tuple(os.environ):
-        if name.startswith("GIT_") or name in {"BASH_ENV", "ENV", "MAIN_ROOT"}:
+        if name.startswith("GIT_") or name in {
+            "BASH_ENV", "ENV", "MAIN_ROOT", "TARGET_ROOT", "PR_REPO", "PR_NUMBER",
+            "BASE_REF",
+        }:
             monkeypatch.delenv(name)
     home = tmp_path / "home"
     home.mkdir()
@@ -102,6 +109,18 @@ def step_bash(step: int) -> str:
     return blocks[0]
 
 
+def section_bash(title: str) -> str:
+    section = re.search(
+        rf"^### {re.escape(title)}\n(.*?)(?=^### |^## |\Z)",
+        SKILL.read_text(encoding="utf-8"),
+        re.M | re.S,
+    )
+    assert section, f"cleanup has no executable {title} block"
+    blocks = re.findall(r"```bash\n(.*?)```", section.group(1), re.S)
+    assert len(blocks) == 1, f"{title} must have one runnable bash block"
+    return blocks[0]
+
+
 def run_bash(commands: str, *, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", "--noprofile", "--norc", "-c", commands],
@@ -113,18 +132,89 @@ def run_bash(commands: str, *, cwd: Path, env: dict[str, str]) -> subprocess.Com
     )
 
 
+FAKE_GH_SOURCE = f'''#!{sys.executable}
+import json, os, sys
+args = sys.argv[1:]
+fields = "state,headRefName,headRefOid,mergeCommit,isCrossRepository"
+if (len(args) != 7 or args[:2] != ["pr", "view"]
+        or args[3:5] != ["--repo", os.environ["PR_REPO"]]
+        or args[5:] != ["--json", fields]):
+    print("unexpected gh argv: " + repr(args), file=sys.stderr)
+    sys.exit(91)
+with open(os.environ["FAKE_GH_PRS_FILE"], encoding="utf-8") as stream:
+    prs = json.load(stream)
+pr = prs.get(args[2])
+if pr is None:
+    sys.exit(1)
+print(json.dumps(pr))
+'''
+
+
+def fake_gh_environment(
+    work: Path, prs: dict[str, dict[str, object]],
+) -> dict[str, str]:
+    tools = work.parent / "cleanup fake gh"
+    tools.mkdir(exist_ok=True)
+    script = tools / "gh"
+    script.write_text(FAKE_GH_SOURCE, encoding="utf-8")
+    script.chmod(0o755)
+    prs_file = tools / "prs.json"
+    prs_file.write_text(json.dumps(prs), encoding="utf-8")
+    return {
+        "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_GH_PRS_FILE": str(prs_file),
+        "PR_REPO": PR_REPO,
+    }
+
+
+def pr_payload(
+    branch: str, head: str, *, number: int = 7, merge: str | None = None,
+    state: str = "MERGED",
+) -> dict[str, object]:
+    return {
+        "number": number,
+        "state": state,
+        "headRefName": branch,
+        "headRefOid": head,
+        "mergeCommit": None if merge is None else {"oid": merge},
+        "isCrossRepository": False,
+    }
+
+
+def run_step8(
+    work: Path, branch: str, prs: dict[str, dict[str, object]], *,
+    number: str = "7", base_ref: str = "refs/remotes/origin/main",
+) -> subprocess.CompletedProcess[str]:
+    commands = section_bash(EVIDENCE_TITLE) + "\n" + step_bash(8).replace("<branch>", branch)
+    env = {
+        **os.environ,
+        **fake_gh_environment(work, prs),
+        "MAIN_ROOT": str(work),
+        "PR_NUMBER": number,
+        "BASE_REF": base_ref,
+    }
+    return run_bash(commands, cwd=work, env=env)
+
+
 def run_step7(
-    work: Path, *, cwd: Path | None = None, following_delete: bool = False
+    work: Path, *, cwd: Path | None = None, following_delete: bool = False,
+    prs: dict[str, dict[str, object]] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     commands = step_bash(7)
+    env = {**os.environ, "MAIN_ROOT": str(work)}
     if following_delete:
+        env.update(fake_gh_environment(work, prs or {}))
+        env.update({"PR_NUMBER": "7", "BASE_REF": "refs/remotes/origin/main"})
         # Execute the actual step 8 in the same shell. Step 7 must stop it
         # itself on failure; the harness deliberately does not add -e or -C.
-        commands += "\n" + step_bash(8).replace("<branch>", "merged-feature")
+        commands += (
+            "\n" + section_bash(EVIDENCE_TITLE) + "\n"
+            + step_bash(8).replace("<branch>", "merged-feature")
+        )
     return subprocess.run(
         ["bash", "--noprofile", "--norc", "-c", commands],
         cwd=cwd or work,
-        env={**os.environ, "MAIN_ROOT": str(work)},
+        env=env,
         capture_output=True,
         text=True,
         timeout=20,
@@ -241,7 +331,7 @@ def test_branch_deletion_refuses_a_branch_not_merged_into_origin_main(checkout: 
     result = run_step7(checkout, following_delete=True)
 
     assert result.returncode != 0, (result.stdout, result.stderr)
-    assert "not fully merged" in result.stderr
+    assert "取り込みを確認できない" in result.stderr
     assert local_refs(checkout) == refs_before
     assert_detached_at(checkout, target)
 
@@ -359,20 +449,14 @@ def test_steps_8_and_11_stop_when_main_root_is_unset_instead_of_using_callers_re
     assert git(linked, "symbolic-ref", "--short", "HEAD") == "active-feature"
 
 
-def test_step8_recheck_for_not_fully_merged_discriminates_merge_state(
+def test_step8_gates_dash_d_on_selected_base_and_rechecks_before_dash_D(
     checkout: Path,
 ) -> None:
     # Fork-like target: HEAD is a detached commit that predates the merge and
     # must not move, so -d refuses a branch that IS merged into the base. The
-    # `not fully merged` arm must re-check with merge-base before concluding,
-    # and only then may -D delete the verified branch.
-    recheck = re.search(
-        r"`(git -C external/resoloop merge-base --is-ancestor [^`]*)`",
-        step_text(8),
-    )
-    assert recheck, (
-        "step 8 must prescribe a merge-base re-check for `not fully merged`"
-    )
+    # `not fully merged` arm must re-check the same PR/base evidence before -D.
+    # The unmerged branch has an upstream pointing at itself, which would let
+    # -d succeed; the pre-check must keep it because the selected base lacks it.
     stale = git(checkout, "rev-parse", "HEAD")
     target = advance_remote(checkout)
     git(checkout, "checkout", "-q", "--detach", stale)
@@ -381,31 +465,26 @@ def test_step8_recheck_for_not_fully_merged_discriminates_merge_state(
     (checkout / "unmerged.txt").write_text("local only\n", encoding="utf-8")
     git(checkout, "add", "unmerged.txt")
     git(checkout, "commit", "-qm", "unmerged work")
+    unmerged_head = git(checkout, "rev-parse", "HEAD")
     git(checkout, "checkout", "-q", "--detach", stale)
+    git(checkout, "update-ref", "refs/remotes/origin/unmerged-feature", unmerged_head)
+    git(checkout, "branch", "--set-upstream-to=origin/unmerged-feature", "unmerged-feature")
+    prs = {
+        "7": pr_payload("merged-feature", target, merge=target),
+        "8": pr_payload("unmerged-feature", unmerged_head, merge=unmerged_head),
+    }
 
-    refused = subprocess.run(
-        ["git", "-C", str(checkout), "branch", "-d", "merged-feature"],
-        capture_output=True,
-        text=True,
-        timeout=20,
-    )
-    assert refused.returncode != 0
-    assert "not fully merged" in refused.stderr
+    merged = run_step8(checkout, "merged-feature", prs, number="7")
 
-    def recheck_for(branch: str) -> subprocess.CompletedProcess[str]:
-        command = (
-            recheck.group(1)
-            .replace("external/resoloop", f'"{checkout}"')
-            .replace("<branch>", branch)
-            .replace("<基準>", "origin/main")
-        )
-        return run_bash(command, cwd=checkout, env=dict(os.environ))
+    assert merged.returncode == 0, (merged.stdout, merged.stderr)
+    assert "not fully merged" in merged.stderr
+    assert "refs/heads/merged-feature " not in local_refs(checkout)
 
-    assert recheck_for("merged-feature").returncode == 0
-    assert recheck_for("unmerged-feature").returncode != 0
-    git(checkout, "branch", "-D", "merged-feature")
-    assert "refs/heads/merged-feature" not in local_refs(checkout)
-    assert "refs/heads/unmerged-feature" in local_refs(checkout)
+    unmerged = run_step8(checkout, "unmerged-feature", prs, number="8")
+
+    assert unmerged.returncode != 0, (unmerged.stdout, unmerged.stderr)
+    assert "取り込みを確認できない" in unmerged.stderr
+    assert "refs/heads/unmerged-feature " in local_refs(checkout)
 
 
 def test_cleanup_keeps_the_forks_local_main_out_of_deletion_candidates() -> None:
@@ -632,7 +711,10 @@ def test_protected_world_update_from_linked_project_deletes_only_merged_branch(
     # change; its own inode and bytes must not.
     peer_before = (peer.lstat().st_ino, peer.read_bytes())
 
-    result = run_step7(checkout, cwd=project, following_delete=True)
+    result = run_step7(
+        checkout, cwd=project, following_delete=True,
+        prs={"7": pr_payload("merged-feature", target, merge=target)},
+    )
 
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert_detached_at(checkout, target)

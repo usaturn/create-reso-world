@@ -28,6 +28,71 @@ git の操作はほぼ全て取り消せる。取り消せないのは次の 2 �
 
 両方にまたがる整理は、リポジトリごとにこの手順を回す。pr-review の `session.json` の `destination` は相対パス。version 7 は `main_root`、version 8 は `parent_root` に結合して正式保存先を得る。version 8 の `target_root` は Git 操作先であり、保存先ではない。新規レビューは全リポジトリとも create-reso-world の親 checkout の `reviews/<owner>/<repo>/#<PR>-<branch>/` に保存する。旧配置は移さない。
 
+### branch の取り込み判定
+
+手順 3、通常ツールの削除候補の照合、手順 8、ゲート B は、この判定で `ancestor` または `pr` が返った branch だけを「取り込み済み」とみなす。判定は read-only で、branch・ref・worktree を変更しない。同じシェルで次のブロックを実行してから、`cleanup_branch_evidence` を呼ぶ。引数は順に、対象 checkout、対象 repository、明示した PR 番号、branch 名、候補 ref（`refs/heads/...` または `refs/remotes/...`）、選択した取り込み先 base ref である。候補 ref の現在値と PR の `headRefOid` が一致し、PR が `MERGED` で、`headRefName` が branch と一致し、`isCrossRepository` が false のときだけ判定する。候補が base の祖先なら `ancestor`、祖先でなくても `mergeCommit` が base に到達可能なら `pr` を返す。PR の照会失敗、`state`・`headRefName`・`headRefOid`・`isCrossRepository` の欠落、別 repository、head 不一致、未統合 base は保持する。PR 型で必要な `mergeCommit` を読めない場合も保持する。`gh` は必ず `--repo` で対象 repository を固定し、返却値を推測で補わない。
+
+```bash
+cleanup_branch_evidence() {
+  if [ "$#" -ne 6 ]; then
+    printf '%s\n' 'cleanup: 取り込み判定の引数が足りない' >&2
+    return 2
+  fi
+  local checkout=$1 repo=$2 number=$3 branch=$4 candidate_ref=$5 base_ref=$6
+  local head pr_json fields state head_name head_oid cross merge_oid
+  if ! head=$(git -C "$checkout" rev-parse --verify --quiet "${candidate_ref}^{commit}"); then
+    printf 'cleanup: 候補 ref を読めない: %s\n' "$candidate_ref" >&2
+    return 1
+  fi
+  if ! pr_json=$(gh pr view "$number" --repo "$repo" --json state,headRefName,headRefOid,mergeCommit,isCrossRepository); then
+    printf 'cleanup: PR #%s を照会できない\n' "$number" >&2
+    return 1
+  fi
+  if ! fields=$(printf '%s' "$pr_json" | jq -r '[.state, .headRefName, .headRefOid, (.isCrossRepository | tostring), (.mergeCommit.oid // "")] | @tsv'); then
+    printf 'cleanup: PR #%s の応答を読めない\n' "$number" >&2
+    return 1
+  fi
+  IFS=$'\t' read -r state head_name head_oid cross merge_oid <<< "$fields"
+  if [ "$state" != MERGED ] || [ "$head_name" != "$branch" ] || [ "$head_oid" != "$head" ] || [ "$cross" != false ]; then
+    printf 'cleanup: PR #%s と branch %s の対応を確認できない\n' "$number" "$branch" >&2
+    return 1
+  fi
+  if git -C "$checkout" merge-base --is-ancestor "$head" "$base_ref" 2>/dev/null; then
+    printf 'ancestor\n'
+    return 0
+  fi
+  if [ -n "$merge_oid" ] \
+    && git -C "$checkout" rev-parse --verify --quiet "${merge_oid}^{commit}" >/dev/null 2>&1 \
+    && git -C "$checkout" merge-base --is-ancestor "$merge_oid" "$base_ref" 2>/dev/null; then
+    printf 'pr\n'
+    return 0
+  fi
+  printf 'cleanup: branch %s は %s に取り込まれていない\n' "$branch" "$base_ref" >&2
+  return 1
+}
+
+cleanup_branch_pr_number() {
+  if [ "$#" -ne 4 ]; then
+    printf '%s\n' 'cleanup: PR 番号の判定引数が足りない' >&2
+    return 2
+  fi
+  local checkout=$1 repo=$2 branch=$3 candidate_ref=$4 head pr_list numbers
+  if ! head=$(git -C "$checkout" rev-parse --verify --quiet "${candidate_ref}^{commit}"); then
+    return 1
+  fi
+  if ! pr_list=$(gh pr list --state all --head "$branch" --repo "$repo" --json number,headRefName,headRefOid --limit 100); then
+    return 1
+  fi
+  if ! numbers=$(printf '%s' "$pr_list" | jq -r --arg branch "$branch" --arg head "$head" '[.[] | select(.headRefName == $branch and .headRefOid == $head) | .number] | if length == 1 then .[0] else empty end'); then
+    return 1
+  fi
+  [ -n "$numbers" ] || return 1
+  printf '%s\n' "$numbers"
+}
+```
+
+`cleanup_branch_pr_number` は、同じ branch 名と head を持つ PR がちょうど 1 件のときだけ番号を返す。0 件・複数件・照会失敗では何も返さず、呼び出し側は branch を保持する。
+
 ### 通常ツールの対象照合
 
 読んだ skill の source checkout を `TOOL_ROOT`、常設親を `PARENT_ROOT`、整理対象 PR の base repository を `PR_REPO` として事前に設定する。`CODE_ROOT` を指定するなら登録済み常設 checkout の絶対パスだけ。登録は削除の許可ではない。[共通運用](../../../docs/external-tools-workflow.md)を読み、整理の依頼と対象 repo 自身の `AGENTS.md`・`README.md` を確認する。
@@ -74,7 +139,7 @@ CLEANUP_BASE="refs/remotes/$CLEANUP_BASE_REMOTE/$CLEANUP_BASE_BRANCH"
 
 ### 通常ツールの削除候補の照合
 
-手順 1 の対象外を除き、手順 2 の fetch 後、手順 3 で branch の候補を調べる際に実行する。直前の対象照合と同じシェルで、候補 worktree の絶対パス `CLEANUP_CANDIDATE` と対応する `PR_NUMBER` を設定する。これは候補の判定だけであり、成功後も所有・clean・ignored ファイルの手順 4 と、手順 5 の削除条件を省かない。
+手順 1 の対象外を除き、手順 2 の fetch 後、手順 3 で branch の候補を調べる際に実行する。直前の対象照合と同じシェルで、候補 worktree の絶対パス `CLEANUP_CANDIDATE` と対応する `PR_NUMBER` を設定し、先に「branch の取り込み判定」のブロックを実行する。これは候補の判定だけであり、成功後も所有・clean・ignored ファイルの手順 4 と、手順 5 の削除条件を省かない。
 
 ```bash
 : "${CLEANUP_ROOT:?対象照合を先に実行する}" "${CLEANUP_CANDIDATE:?候補 worktree の絶対パス}" "${PR_NUMBER:?対応 PR}"
@@ -85,14 +150,11 @@ CLEANUP_CANDIDATE=$(printf '%s' "$CANDIDATE_CONTEXT" | jq -er .checkout)
 test "$CLEANUP_CANDIDATE" != "$CLEANUP_ROOT" || exit 66
 CLEANUP_BRANCH=$(git -C "$CLEANUP_CANDIDATE" symbolic-ref --short HEAD) || exit 66
 test "$CLEANUP_BRANCH" != "$CLEANUP_BASE_BRANCH" || exit 66
-git -C "$CLEANUP_ROOT" merge-base --is-ancestor "refs/heads/$CLEANUP_BRANCH" "$CLEANUP_BASE" || exit 66
-CLEANUP_PR=$(gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json state,headRefName,headRefOid) || exit 66
-CLEANUP_HEAD=$(git -C "$CLEANUP_CANDIDATE" rev-parse HEAD) || exit 66
-printf '%s' "$CLEANUP_PR" | jq -e --arg branch "$CLEANUP_BRANCH" --arg head "$CLEANUP_HEAD" \
-  '.state == "MERGED" and .headRefName == $branch and .headRefOid == $head' >/dev/null || exit 66
+CLEANUP_EVIDENCE=$(cleanup_branch_evidence "$CLEANUP_CANDIDATE" "$PR_REPO" "$PR_NUMBER" "$CLEANUP_BRANCH" "refs/heads/$CLEANUP_BRANCH" "$CLEANUP_BASE") || exit 66
+printf 'cleanup: %s の取り込みの証拠: %s\n' "$CLEANUP_BRANCH" "$CLEANUP_EVIDENCE"
 ```
 
-拒否された候補は削除せず理由を報告する。共通 Git ディレクトリが違う・未マージ・PR 対応不明なら、親の worktree や同 origin の別 clone が clean でも残す。通常ツールの登録だけで pr-review の session や失敗 clone の staging の削除を許可しない。
+拒否された候補は削除せず理由を報告する。共通 Git ディレクトリが違う・未マージ・PR 対応不明なら、親の worktree や同 origin の別 clone が clean でも残す。`git log` の出力が空でないことだけを未取り込みの根拠にせず、squash/rebase は `pr` の証拠で候補にする。通常ツールの登録だけで pr-review の session や失敗 clone の staging の削除を許可しない。
 
 ### fork の経路（`external/resoloop`）だけの手順
 
@@ -157,14 +219,27 @@ git fetch --all --prune
 
 `usaturn/create-reso-world` の既存ローカル `main` は保持対象であり、この判定から除外する。古い・分岐している場合もそのまま残し、対応する PR の `MERGED` 確認は要求しない。fork の経路でも `external/resoloop` のローカル `main`（ベース branch）を同様に除外し、削除しない。
 
-それ以外の branch ごとに次を実行する。
+それ以外の branch ごとに、branch の現在の head と対応する PR 番号を確定し、「branch の取り込み判定」を実行する。PR 番号は `cleanup_branch_pr_number` で、branch 名と head が一致する PR がちょうど 1 件のときだけ採用する。0 件・複数件・照会失敗なら対応不明として保持する。base は create-reso-world では `origin/main`、通常ツールでは `CLEANUP_BASE`、fork では上流 PR なら `upstream/main`、fork 内 PR なら `origin/main` を使う。
 
 ```bash
-git log --oneline origin/main..<branch>
+# 同じシェルで「branch の取り込み判定」のブロックを先に実行する。
+CHECKOUT=<対象 checkout>
+PR_REPO=<対象 repository>
+BASE_REF=<選択した取り込み先 base ref>
+BRANCH=<branch>
+PR_NUMBER=$(cleanup_branch_pr_number "$CHECKOUT" "$PR_REPO" "$BRANCH" "refs/heads/$BRANCH") || {
+  printf 'branch %s は対応 PR を 1 件に確定できないため保持する\n' "$BRANCH" >&2
+  exit 1
+}
+EVIDENCE=$(cleanup_branch_evidence "$CHECKOUT" "$PR_REPO" "$PR_NUMBER" "$BRANCH" "refs/heads/$BRANCH" "$BASE_REF") || {
+  printf 'branch %s は取り込みを確認できないため保持する\n' "$BRANCH" >&2
+  exit 1
+}
+printf 'branch %s: %s (PR #%s)\n' "$BRANCH" "$EVIDENCE" "$PR_NUMBER"
 ```
 
-- 出力が空: `origin/main` に取り込み済みである。`gh pr list --state all` の対応する要素が `"state": "MERGED"` であることも確認する。
-- 出力がある: 未取り込みである。この branch と対応する worktree は削除しない。
+- `ancestor` または `pr` が返った branch だけを取り込み済みとして次の手順へ進める。`pr` は squash/rebase で head が base の祖先でなくても、PR の `mergeCommit` が同じ base に到達可能な場合だけ返る。
+- 判定できない branch は削除しない。`git log --oneline <base>..<branch>` が非空であることだけを未取り込みの根拠にしない。逆に、出力が空でも PR の対応を確認できなければ保持する。
 
 fork の経路で上流 PR を判定する場合は基準が異なる。「fork の経路だけの手順」を見る。
 
@@ -326,20 +401,44 @@ Git は通常 ignore 対象のファイルを確認なしに上書きするた�
 
 手順 7 が成功したあとで実行する（fork の経路では手順 7 を省略する）。手順 7 で停止した場合は branch 削除に進まない。`usaturn/create-reso-world` の既存ローカル `main` と、fork の経路では `external/resoloop` のローカル `main` は、マージ済みでも候補から必ず除外し、そのまま保持する。メイン作業ツリーが feature を checkout したままだと `git branch -d` は `used by worktree` / `checked out` で失敗する。
 
-以下は `usaturn/create-reso-world` 用である。削除は、手順 7 で更新した `MAIN_ROOT` を対象にする。ツール呼び出しごとにシェルや環境変数が引き継がれない実行環境があるため、手順 7 と別の呼び出しでこのブロックを実行するときも、その呼び出しで `MAIN_ROOT` を設定する。fork の経路では、リポジトリのルートで `git -C external/resoloop branch -d <branch>` に読み替える。fork では手順 7 を省略し、削除のために HEAD を動かさない。`MAIN_ROOT` の設定も要求しない。
+以下は `usaturn/create-reso-world` 用である。削除は、手順 7 で更新した `MAIN_ROOT` を対象にする。ツール呼び出しごとにシェルや環境変数が引き継がれない実行環境があるため、手順 7 と別の呼び出しでこのブロックを実行するときも、その呼び出しで `MAIN_ROOT` を設定する。fork の経路では、`TARGET_ROOT` に `external/resoloop` の絶対パス、`BASE_REF` に上流 PR なら `upstream/main`、fork 内 PR なら `origin/main` を設定する。fork では手順 7 を省略し、削除のために HEAD を動かさない。`MAIN_ROOT` の設定も要求しない。
+
+`git branch -d` の前に、同じシェルで「branch の取り込み判定」を実行し、`PR_NUMBER`（手順 3 で確定した値）、`BASE_REF`（手順 3 と同じ取り込み先）、`PR_REPO` を設定する。`-d` は upstream や実行先の HEAD を基準にするので、それだけでは選択した base への取り込みを確かめられない。判定を先に通し、`-d` が成功しても別 base の upstream を根拠に削除されないようにする。`-D` は、`-d` が `not fully merged` で拒否したときに、同じ判定をもう一度通した branch だけに使う。
 
 ```bash
-git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定する}" branch -d <branch>
+set -e
+TARGET_ROOT="${TARGET_ROOT:-${MAIN_ROOT:-}}"
+: "${TARGET_ROOT:?削除対象 checkout（MAIN_ROOT または fork の TARGET_ROOT）を設定する}"
+: "${PR_REPO:?対象 repository}" "${PR_NUMBER:?対応 PR}" "${BASE_REF:?取り込み先 base ref}"
+BRANCH=<branch>
+EVIDENCE=$(cleanup_branch_evidence "$TARGET_ROOT" "$PR_REPO" "$PR_NUMBER" "$BRANCH" "refs/heads/$BRANCH" "$BASE_REF") || {
+  printf 'branch %s の取り込みを確認できないため削除しない\n' "$BRANCH" >&2
+  exit 1
+}
+printf '取り込みの証拠: %s (%s)\n' "$BRANCH" "$EVIDENCE"
+if ! branch_delete_output=$(LC_ALL=C git -C "$TARGET_ROOT" branch -d "$BRANCH" 2>&1); then
+  printf '%s\n' "$branch_delete_output" >&2
+  case "$branch_delete_output" in
+    *"not fully merged"*) ;;
+    *) exit 1 ;;
+  esac
+  EVIDENCE=$(cleanup_branch_evidence "$TARGET_ROOT" "$PR_REPO" "$PR_NUMBER" "$BRANCH" "refs/heads/$BRANCH" "$BASE_REF") || {
+    printf 'branch %s の取り込みを再確認できないため削除しない\n' "$BRANCH" >&2
+    exit 1
+  }
+  printf '取り込みの証拠: %s (%s)\n' "$BRANCH" "$EVIDENCE"
+  git -C "$TARGET_ROOT" branch -D "$BRANCH"
+else
+  printf '%s\n' "$branch_delete_output"
+fi
 ```
-
-`-D` は使わない。例外は、後述の `merge-base` 再確認で取り込み済みと確かめた branch だけである。
 
 `-d` が拒否した場合、理由で分岐する。拒否を未マージと同一視しない。
 
 - `used by worktree` または `checked out`: 未マージではない。手順 7 が済んでいなければ手順 7 に戻る。他 worktree が掴んでいるならその worktree を残し、この branch は削除しない
-- `not fully merged`: そのまま未マージと断定しない。`-d` の取り込み判定は upstream と実行先の HEAD を基準にするため、upstream の remote-tracking ref が削除・prune 済みのときや、実行先の HEAD がその branch の取り込み点より古いときは、マージ済みでも拒否される。fork の経路では削除のために HEAD を動かさないので、古い detached HEAD へのこの拒否は普通に起きる。手順 3 と同じ基準へ再確認する。create-reso-world では `git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定する}" merge-base --is-ancestor <branch> origin/main`、fork の経路では `git -C external/resoloop merge-base --is-ancestor <branch> <基準>`（上流 PR の基準は `upstream/main`、fork 内 PR は `origin/main`）を実行する。取り込み済みならその branch に限り `git -C <対象> branch -D <branch>` で削除してよい。明示的な取り込み確認を済ませた上での削除であり、マージ判定を握り潰すことには当たらない（`-D` も worktree に掴まれた branch は拒否する）。未取り込み、または再確認できない場合は削除せず、手順 3 の結果とともにユーザーへ報告する
+- `not fully merged`: そのまま未マージと断定しない。`-d` の取り込み判定は upstream と実行先の HEAD を基準にするため、upstream の remote-tracking ref が削除・prune 済みのときや、実行先の HEAD がその branch の取り込み点より古いときは、取り込み済みでも拒否される。fork の経路では削除のために HEAD を動かさないので、古い detached HEAD へのこの拒否は普通に起きる。上のブロックは、この場合だけ同じ判定をもう一度実行し、`ancestor` または `pr` を再確認できた branch に限り `-D` を使う。未取り込み、または再確認できない場合は削除せず、手順 3 の結果とともにユーザーへ報告する。`-D` も worktree に掴まれた branch は拒否する
 
-detached HEAD では次の warning が出るが、**削除が成功していれば正常**である。upstream にマージ済みであることは確認できており、拒否ではない。
+detached HEAD で `-d` が upstream を根拠に成功するときは、次の warning が出るが、**削除が成功していれば正常**である。選択した base への取り込みは事前の判定で確認済みであり、拒否ではない。
 
 ```
 warning: deleting branch '<branch>' that has been merged to
@@ -348,18 +447,35 @@ warning: deleting branch '<branch>' that has been merged to
 
 ### 9. ゲート B: リモート branch の削除はユーザー確認を得る
 
-手順 8 でローカル branch を消すと対象名が手元から消える。リモート側から独立に洗い出す。
+手順 8 でローカル branch を消すと対象名が手元から消える。リモート側から独立に洗い出す。祖先の一覧だけに限定せず、手順 3 と同じ「branch の取り込み判定」で `ancestor` または `pr` が返る branch を提示する。`REMOTE` は対象の remote（create-reso-world は `origin`、通常ツールは `CLEANUP_BASE_REMOTE`、fork は PR の所属に合わせる）、`BASE_REF` は手順 3 と同じ取り込み先にする。
 
 ```bash
-git branch -r --merged origin/main | grep -E '^ *origin/' | grep -vE 'origin/(HEAD|main)$'
+set -euo pipefail
+: "${CHECKOUT:?対象 checkout}" "${PR_REPO:?対象 repository}" "${REMOTE:?対象 remote}" "${BASE_REF:?取り込み先 base ref}"
+printf '%s\n' 'リモート branch の候補（削除はまだ行わない）:'
+git -C "$CHECKOUT" for-each-ref --format='%(refname)' "refs/remotes/$REMOTE" | while IFS= read -r remote_ref; do
+  branch=${remote_ref#"refs/remotes/$REMOTE/"}
+  if [ "$branch" = HEAD ] || [ "$remote_ref" = "$BASE_REF" ]; then
+    continue
+  fi
+  if ! PR_NUMBER=$(cleanup_branch_pr_number "$CHECKOUT" "$PR_REPO" "$branch" "$remote_ref"); then
+    printf '保持: %s（対応 PR を 1 件に確定できない）\n' "$branch" >&2
+    continue
+  fi
+  if EVIDENCE=$(cleanup_branch_evidence "$CHECKOUT" "$PR_REPO" "$PR_NUMBER" "$branch" "$remote_ref" "$BASE_REF"); then
+    printf '候補: %s (%s, PR #%s)\n' "$branch" "$EVIDENCE" "$PR_NUMBER"
+  else
+    printf '保持: %s（取り込みを確認できない）\n' "$branch" >&2
+  fi
+done
 ```
 
-候補が複数ある場合は、手順 1 で取得した `gh pr list --state all` の `headRefName` と突き合わせ、**どの PR 由来か**を添えて提示する。対応する PR が見つからないリモート branch は候補から外し、そのまま残す。
+候補が複数ある場合は、上の出力の PR 番号を添えて提示する。対応する PR が見つからないリモート branch は候補から外し、そのまま残す。手順 1 で整理対象外にしたオープン PR の `headRefName` に一致する branch は、上の出力に候補として出ても削除候補にしない。
 
 マージ済みでも、リモート branch の削除を独断で実行しない。対象を提示してユーザー確認を求め（Claude Code では AskUserQuestion を使う）、承認を得てから実行する。
 
 ```bash
-git push origin --delete <branch>
+git push "$REMOTE" --delete <branch>
 git fetch --prune
 ```
 
@@ -403,6 +519,8 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 - `git worktree remove` の前に `status --short --ignored` を見ていない
 - `/tmp/pr-review-*` の session を、番号・branch・commit の一致や、片方のリポジトリの PR 一覧に無いことを根拠に、終了した PR のものとみなそうとしている
 - helper が拒否した pr-review のセッションを、`git worktree remove` で worktree を外してから手順 6 で消そうとしている。`--operator-confirmed-stopped` の理由をエージェントが作ろうとしている
+- `git log --oneline <base>..<branch>` が非空だから未取り込み、空だから取り込み済みと決めつけている。PR と head の対応、squash/rebase の `mergeCommit` を確かめていない
+- `git branch -d` が成功したので、選択した base に取り込まれているとみなしている。upstream がその branch 自身を指していても `-d` は成功する
 
 **いずれかに該当したら、削除を中止して手順 1・4・5・6・9 のいずれかに戻る。**
 
@@ -428,7 +546,8 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 
 ## ガードレール
 
-- `git branch -D` でマージ判定を握り潰さない。使ってよいのは、手順 8 の `merge-base` 再確認で取り込み済みと確かめた branch だけである。
+- `git branch -D` でマージ判定を握り潰さない。使ってよいのは、手順 8 で「branch の取り込み判定」を `-d` の前と `-D` の直前に通し、`ancestor` または `pr` を再確認できた branch だけである。
+- `git branch -d` の upstream 判定だけを削除の根拠にしない。削除の前に、選択した base と明示した PR の `headRefOid`・`mergeCommit` を同じ判定で確かめる。
 - `git worktree remove` に `--force` を付けない。
 - 対象を限定しない `git worktree prune` を実行しない。
 - `prunable`・`locked` な worktree と、branch を checkout していない別 run の worktree（手順 5 の `/tmp/pr-review-*` を除く）を `git worktree remove` しない。
