@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（実行許可であり内容の承認ではない）
+- 状態: `completed`（実行許可であり内容の承認ではない。PR #373 のレビュー修正 サイクル2 を反映）
 - 対象: usaturn/create-reso-world #354、親 #349、base `main`
 - 利用者の指示: `/skill:issue-to-pr #354 --implement pi_opencode-go_deepseek4-flash_max --merge --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=claude-code_opus_default,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`。続けて「#364が完了したことを確認して作業を実行してください。」
 - 委任: 通常の設計判断、検証、commit、push、PR、指定ループの finalize によるマージ。実際の利用者の branch/ref/worktree を掃除する許可ではない。
@@ -15,7 +15,7 @@
 
 ## 要件
 
-R1. 取り込みの証拠を祖先型と PR 型にする。どちらも対象 repository に明示した PR の `state == MERGED`、branch 名と `headRefOid` の完全一致を確認する。`isCrossRepository` が true、対応不明、欠落・照会失敗は保持する。PR 型では `mergeCommit` が選択した取り込み先 base に到達可能なことも確認し、別 base にしか入っていない PR を取り込み済みにしない。`git log` が非空なことだけでは拒否しない。
+R1. 取り込みの証拠を祖先型と PR 型にする。どちらも対象 repository に明示した PR の `state == MERGED`、branch 名と `headRefOid` の完全一致を確認する。`isCrossRepository` が true、対応不明、欠落・照会失敗は原則保持する。ただし fork の経路の上流 PR は、`CLEANUP_ROUTE=fork` で、PR の head repository が検証済みの fork（`EXPECTED_HEAD_REPO`、`usaturn/resoloop`）と一致し、`TARGET_ROOT` が親 checkout の `external/resoloop` と一致する場合に限り受理する。無関係な fork と所属不明は保持する。PR 型では `mergeCommit` が選択した取り込み先 base に到達可能なことも確認し、別 base にしか入っていない PR を取り込み済みにしない。`git log` が非空なことだけでは拒否しない。
 
 R2. 手順 3・通常ツールの候補照合・手順 8 の `-D` の再確認・ゲート B の候補提示で同じ意味の判定を使う。`-d` が拒否しても、直前に R1 を再確認した branch だけを `-D` にできる。他 worktree が保持する branch、既存 local main/base、open PR、dirty/ignored の保護は維持する。リモート branch は祖先一覧だけに限定せず PR 型も提示するが、削除には必ず別のユーザー確認が必要。
 
@@ -58,3 +58,59 @@ R4. coordinator の決定 https://github.com/usaturn/create-reso-world/issues/35
 ## 既知の baseline
 
 変更前の読み取り専用適用シナリオで、squash/rebase は `git log` が非空のため保持、セッションの無い ref は手順が無いため保持となった。version7 の例外と gate A の衝突も残る。これは新しい手順で改善すべき挙動であり、機械テストと合わせて再確認する。
+
+## PR #373 サイクル2の修正方針（実装・検証）
+
+実行許可: 利用者の「破棄してやり直してください」と、PR #373 の review-fix-planning 完遂（loop run `7b99a6f023664832ab25d035d4185720`）。planner は deepseek-v4.1-flash / claude-code。入力 HEAD は `3b8f55365c9b`、レビューは loop の reuse で 3 件（claude-opus-5-5・deepseek-v4.1-flash・SWE-2 Max）。確認済みの一覧は `reviews/usaturn/create-reso-world/#373-fix-issue-354-repo-cleanup/verified/3b8f55365c9b.json`。
+
+| 指摘 | 分類 | 根拠 |
+| --- | --- | --- |
+| `deepseek-v4.1-flash#H-1@3b8f55365c9b` | 対応する（引き継ぎ） | `MAIN_ROOT` 不在 + 古い `TARGET_ROOT` が同じ remote の別 clone を指すと、手順 8 がその clone の取り込み済み branch を削除する。誤った対象への操作で致命的。(a) 隔離再現 V-1。 |
+| `claude-opus-5-5#M-1@3b8f55365c9b` | 対応する（引き継ぎ） | fork の上流 PR は常に `isCrossRepository: true` のため、取り込み済みでも共通判定が保持を返し、SKILL が示す通常の fork 手順が機能しない。主要な処理の停止で致命的、D1。(a) 隔離再現 V-2。 |
+| `SWE-2-Max#L-1@3b8f55365c9b` | 対応しない（引き継ぎ） | `evals/evals.json` の期待文が手順 3 の更新に追随していない。文書のみで非致命的、`evals.json` は変更範囲外。見直す条件: 期待文の更新が変更範囲に入ったとき、または利用者が指定したとき。 |
+| `SWE-2-Max#U-1@3b8f55365c9b` | 解消済み（引き継ぎ） | 対応している v7/v8 の session は main checkout を要求し、linked root の session は helper が拒否するため再現しない。V-4 の `not_reproduced`。 |
+| `fix-check#V-1@1a1f7d4bbd8c` | 対応する（新規） | 前の fork 作業の `CLEANUP_ROUTE=fork`・`TARGET_ROOT`・`EXPECTED_HEAD_REPO` が同じシェルに残り `MAIN_ROOT` を失うと、別 clone の branch を削除した。経路の値だけで削除先を決めていた。`TARGET_ROOT` が `$PARENT_ROOT/external/resoloop` と一致することを削除の前に確かめる。 |
+| `fix-check#V-3@1a1f7d4bbd8c` | 対応する（新規） | ゲート B が環境に残った `EXPECTED_HEAD_REPO` をそのまま渡し、create/managed でも cross-repository の PR をリモート削除候補に提示し得た。`cleanup_expected_head_repo` で経路から決め、create/managed（未設定を含む）では空にする。 |
+| `deepseek-v4.1-flash-commit-1a1f7d4bbd8c#L-2@1a1f7d4bbd8c` | 対応する（新規） | Spec R1 と Plan の Global Constraints・受け入れ基準が cross-repository を一律保持と述べ、検証済み fork の例外と食い違う。将来 M-1 を再導入し得るため、Spec/Plan を実装に合わせる。 |
+| `deepseek-v4.1-flash-commit-1a1f7d4bbd8c#L-3@1a1f7d4bbd8c` | 対応する（新規） | `-D` 直前の再確認ガードを削除しても既存テストが通る。再確認の 2 回目で PR が OPEN に変わった場合に branch を削除しない負例を足す。 |
+| `deepseek-v4.1-flash-commit-1a1f7d4bbd8c#L-4@1a1f7d4bbd8c` | 対応する（新規） | 手順 3 の新しいブロックが `CHECKOUT` の空値を検査せず、`git -C ""` が呼び出し元の cwd を読む。`:?` で空値を拒否する。 |
+
+### 守る条件の設計・再発の見直し
+
+H-1 は、前の全体レビューで扱った削除先の同定の適用漏れに当たる（同じ守る条件の 2 回目）。両 root が存在するときの比較だけでは、`MAIN_ROOT` の無い create 呼び出しと正当な fork 入力を区別できない。経路を明示する `CLEANUP_ROUTE` を導入し、`create` は `MAIN_ROOT`、`fork` は `PARENT_ROOT/external/resoloop` と一致する `TARGET_ROOT` + `EXPECTED_HEAD_REPO`、`managed` は `CLEANUP_ROOT` を削除先とする。経路を決められない・root が欠ける・別 checkout を指す場合は、branch・ref・HEAD を変更する前に停止する。
+
+最初の修正は `CLEANUP_ROUTE` だけで削除先を決めていたため、前の fork 作業の変数が同じシェルに残る入力で別 clone を削除した（fix-check V-1）。経路の値だけでなく、fork の削除先が親 checkout の `external/resoloop` と一致することを確かめる形に直した。ゲート B も同じ経路判定を通し（V-3）、手順 3 は対象 checkout の空値を拒否する（L-4）。
+
+M-1 は、PR が追加した cross-repository の一律保持の回帰。cross-repository をすべて拒否すると fork の通常手順が止まり、すべて受け付けると無関係な fork の branch を削除し得る。`cleanup_branch_evidence` に 7 番目の引数（検証済みの fork の `owner/name`）を足し、PR の head repository がそれと一致するときだけ cross-repository を受け付ける。`create` と `managed` は空に固定し、無関係な fork と head 不明は保持する。
+
+比較: 点の fallback 分岐を増やす案は同定条件が分散するため不採用。cross-repository を全面保持する保証縮小は、Issue #354 の「fork 経路を変えない」に反するため不採用。経路・削除先・head の所属を明示して 1 か所で判定する案を選ぶ。
+
+| 守る条件 | 経路 | 判定 | 変更前／観測する結果 | 検証・assertion | 証拠 |
+| --- | --- | --- | --- | --- | --- |
+| create の削除先は `MAIN_ROOT` だけ | 手順 8 の create・別呼び出し | 修正する | `MAIN_ROOT` なし + stale `TARGET_ROOT` = 別 clone → 全 ref/HEAD 不変で停止 | 実 Git 2 clone。実行前後の全 ref/HEAD 比較。拒否理由が `CLEANUP_ROUTE` か `MAIN_ROOT` | `test_step8_stops_when_only_a_stale_target_root_is_set`（実行済み） |
+| fork の削除先は `$PARENT_ROOT/external/resoloop` と一致 | 手順 8 の fork | 修正する | stale な fork 変数で `TARGET_ROOT` = 別 clone → 全 ref/HEAD 不変で停止 | 実 Git 3 clone。実行前後の全 ref/HEAD 比較。`external/resoloop` の不一致を確認 | `test_step8_stops_when_a_stale_fork_route_points_at_a_foreign_checkout`（実行済み） |
+| fork の cross-repository は検証済み head だけ | 手順 3・8・ゲート B・通常ツール | 修正する | 正例: head = `usaturn/resoloop`（大小文字違いを含む）で `ancestor`/`pr`。反例: 無関係 fork・head 欠落・expected 空・6 引数 → 保持 | fake gh の正例と反例。既存の cross-repository 保持も維持 | `test_branch_evidence_accepts_an_upstream_pr_only_from_the_verified_fork`、`test_step8_uses_the_route_specific_root`（実行済み） |
+| create・managed では stale `EXPECTED_HEAD_REPO` を無効にする | 手順 3・8・ゲート B | 修正する | create に `EXPECTED_HEAD_REPO` が残っても手順 3・ゲート B が cross-repository の PR を候補にしない | `cleanup_expected_head_repo` の経路判定。ゲート B の create/fork 正例と反例 | `test_gate_b_clears_a_stale_fork_expectation_on_the_create_route`、`test_step8_uses_the_route_specific_root` の create ケース（実行済み） |
+| 経路不明・root 欠落・別 checkout は削除前停止 | 手順 8 | 修正する | `MAIN_ROOT` なし + `TARGET_ROOT` のみ、route 不明、`MAIN_ROOT` と `TARGET_ROOT` が別 → ref/HEAD 不変 | 実行 | H-1・V-1 のテスト、既存の競合ケース、`test_steps_8_and_11_stop_when_main_root_is_unset_instead_of_using_callers_repo` |
+| `-D` の直前に同じ判定をやり直す | 手順 8 の `not fully merged` 経路 | 修正する | 再確認で PR が OPEN に変わったら branch を削除しない | fake gh の 2 回目を OPEN に切り替える。削除後に branch が残ることを確認 | `test_step8_stops_when_the_dash_d_recheck_loses_the_pr_evidence`（実行済み） |
+| 対象 checkout の空値は cwd に fallback しない | 手順 3 | 修正する | `CHECKOUT` などが空なら停止し、`git -C ""` を実行しない | `:?` の追加。空値の拒否は L（呼び出し側の即時エラー）として個別テストを足さない | `: "${CHECKOUT:?...}"` ほか（静的確認） |
+| 既存の create 正例・祖先/squash/rebase・managed・無関係 fork 保持 | 各経路 | 既に満たす（変更影響を確認） | 削除・候補の結果が従来どおり | 既存テスト 57 件 | 57 passed（11.15 秒） |
+| 失敗時に何も変えない | route・root・head の検証失敗 | 修正する | 失敗の前後で全 ref/HEAD が不変 | 実行前後の状態比較。中心のガードを外した対照で負例が失敗する | 下の変異対照 |
+| `evals.json` の期待文 | evals/evals.json | 対象外 | 文言の陳腐化は非致命的。変更範囲外 | 静的照合 | L-1 の `skip` |
+
+### 実行した検証
+
+- RED: 新しい `--json` フィールドに対する既存の正例と M-1 の新規テストが失敗（11 failed / 43 passed）。判定関数だけを実装し手順 8 を変更前のままにした版では、H-1 のテストが失敗し、stdout に `Deleted branch merged-feature` が出て別 clone の branch が実際に削除された（2 failed / 52 passed）。
+- GREEN: `uv run pytest .agents/skills/repo-cleanup-after-merge/tests -q` → 57 passed（11.15 秒）。`git diff --check` → 終了コード 0。
+- 環境の全体検証: ``bash .devcontainer/run-tests.bash` → 27 件 PASS、`bash scripts/check-layout.sh` → PASS、`uv run pytest tests/skills .agents/skills .agents/scripts tools -q` → 1385 passed（594.69 秒）。すべて終了コード 0。`
+- 変異対照: route フォールバック（H-1）、create の `EXPECTED_HEAD_REPO` 消去、head repository 検査（M-1）、fork の削除先の一致（V-1）、ゲート B の経路判定（V-3）、`-D` の再確認（L-3）をそれぞれ外した隔離 worktree で、対応する代表テストが失敗することを確認した。負例には異常を 1 つだけ入れ、他の入力は正常にした。
+- 実 gh の読み取り: `gh pr list --head <branch> --repo orange3134/resoloop --state all --json ...` が fork の PR #19 を返し、`gh pr view 19` が `headRepository`・`headRepositoryOwner`・`isCrossRepository` を返すことを確認した（書き込みなし）。fork 手順 3 の PR 番号照会はこの経路で成立する（fix-check V-4 の未確認を解消）。
+- 自己レビュー: `run_roles.py --phase self-review` の 1 回。self-review は `deepseek-v4.1-flash-commit-1a1f7d4bbd8c28be3b8c1f16ad1df09e8166b5e5.md` に Low 3 件（L-2・L-3・L-4）を記録し、すべてこのサイクルで修正した。修正後の再レビューはしていない。fix-check は `fix-check#V-1`・`V-2`・`V-3`・`V-4` を記録し、V-1・V-3・L-2（=V-2）を修正、V-4 は実 gh の読み取りで解消した。
+
+### 実行の担当・時間
+
+- 実装: `claude-code_opus_default`（実際のモデル claude-opus-5-5、claude-code）、約 260 秒。commit `1a1f7d4b`（実装担当の `c46247f7` を cherry-pick し、H-1 テストの拒否理由の assertion を足して amend）。
+- レビュー修正: 司令塔（deepseek-v4.1-flash / claude-code）。commit `1faff0af2bac7a50cbd253623822aca32168d13a`。
+- 自己レビュー・修正の確認: 既定の `self` で 1 回。fix-check は約 1703 秒、self-review は約 10 分。
+- レビュアーの構成: `claude-opus-5-5.md`（claude-opus-5-5 / claude-code / `3b8f55365c9b` / Initial / Approve）、`deepseek-v4.1-flash.md`（deepseek-v4.1-flash / pi / `3b8f55365c9b` / Initial / Request changes）、`SWE-2-Max.md`（SWE-2 Max / devin / `3b8f55365c9b` / Initial / Approve）。
+- サイクル: 2（loop の run `7b99a6f0…` のサイクル 1、判断の round は 2）。

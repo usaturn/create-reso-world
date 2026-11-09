@@ -16,7 +16,7 @@
 
 - 編集は `.agents/skills/repo-cleanup-after-merge/SKILL.md` と同 `tests/`、本 Spec・Plan に限る。手順 5 と `pr_review_workspace.py` は変更しない。
 - CLEANUP_BASE・fork sync・version 7/8 の gate A の照合本体・removable・--force 禁止・ignored gate は維持する。
-- 祖先型/PR型とも対象 repository の MERGED PR と branch/headRefOid の一致が必要。別 repository・未マージ・対応不明は保持。PR型は mergeCommit が選択した base に含まれることも確かめる。
+- 祖先型/PR型とも対象 repository の MERGED PR と branch/headRefOid の一致が必要。未マージ・対応不明・無関係な fork/別 repository は保持。fork の経路の上流 PR は、head repository が検証済みの fork（EXPECTED_HEAD_REPO）と一致し、TARGET_ROOT が親 checkout の external/resoloop と一致する場合だけ受理する。PR型は mergeCommit が選択した base に含まれることも確かめる。
 - local main/base、open PR、dirty/ignored、locked/prunable、所有不明の worktree は保護する。remote branch 削除は別の明示確認が必要。
 - ref の削除は対応 PR の MERGED/CLOSED、open PR と現行・保持中 session が使わないこと、所属確定、読取値による compare-and-delete が必要。未知なら保持する。
 - run_context 無し version7 + helper exit1 の例外だけを gate A/ガードレールに合わせる。version8・run_context 有り・exit2 は保持。
@@ -26,7 +26,7 @@
 
 動作環境: Linux Dev Container の Bash/Git/jq、uv/pytest。実 gh の代わりに引数も検証する fake を使い、Git は一意の一時 repository。入力は空白入りのパス、非 ASCII/複数行の追跡内容、祖先・squash・rebase で取り込まれた branch と PR の JSON、repo 修飾および旧形式 ref。
 
-防御範囲: MERGED と branch/head の完全一致に基づき、選んだ base に取り込まれた branch だけを候補にする。PR 不明・OPEN・head 不一致・cross repository・未統合 base は保持。ref は MERGED/CLOSED かつ open PR/現行・保持中 session の非使用を確認し、所属不明/並行更新は保持。version7 の狭い例外以外の helper 拒否は迂回しない。remote 削除は別の利用者確認。対象外: 実際の利用者の branch/ref/worktree の掃除、helper の変更、上記既存の安全境界の緩和。
+防御範囲: MERGED と branch/head の完全一致に基づき、選んだ base に取り込まれた branch だけを候補にする。PR 不明・OPEN・head 不一致・未統合 base・無関係な fork/cross repository は保持。fork の経路では head repository が EXPECTED_HEAD_REPO と一致し、TARGET_ROOT が親の external/resoloop と一致する場合だけ受理する。ref は MERGED/CLOSED かつ open PR/現行・保持中 session の非使用を確認し、所属不明/並行更新は保持。version7 の狭い例外以外の helper 拒否は迂回しない。remote 削除は別の利用者確認。対象外: 実際の利用者の branch/ref/worktree の掃除、helper の変更、上記既存の安全境界の緩和。
 
 ## Review Focus
 
@@ -61,7 +61,7 @@
 
 - [x] Step 1: SKILLから実行部分を抽出し、real temporary Git + fake ghで祖先/squash/rebaseの正例、未マージ・PR不明・head不一致・別repo・未統合baseの保持を検証するテストを書く。squash/rebaseは実際に commit graph を作り、祖先でないことを独立に確かめる。
 - [x] Step 2: 変更前に対象テストを `uv run pytest .agents/skills/repo-cleanup-after-merge/tests -q` でRED確認し、実出力を報告する。新しいブロック不在だけでなく既存手順の失敗根拠も記録する。
-- [x] Step 3: Spec R1/R2 の判定を最小実装。gh は対象 --repo を常に固定し `state,headRefName,headRefOid,mergeCommit,isCrossRepository` を取得、未知は保持。リモート削除コマンドは自動実行しない。手順5は変更しない。
+- [x] Step 3: Spec R1/R2 の判定を最小実装。gh は対象 --repo を常に固定し `state,headRefName,headRefOid,mergeCommit,isCrossRepository,headRepository,headRepositoryOwner` を取得、未知は保持。fork の上流 PR は `headRepository`/`headRepositoryOwner` が `EXPECTED_HEAD_REPO` と一致し、`TARGET_ROOT` が親 checkout の `external/resoloop` と一致する場合だけ受理する。リモート削除コマンドは自動実行しない。手順5は変更しない。
 - [x] Step 4: 同じ関連testsをGREEN確認、git diff --check、追加テストのS/D基準を自己確認する。
 - [x] Step 5: 対象パスだけstageし `feat: recognize PR-proven merged cleanup branches` でcommit。RED/GREEN・所要時間・懸念を返す。
 
