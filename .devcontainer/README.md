@@ -23,7 +23,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 <!-- tool-table:start -->
 | ツール | 導入方法 | mount | initialize.bash の mkdir | zshrc の関数 | update() の項目 |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`、`ccdo`、`ccds`（alias）、`ccdd`、`ccddg`、`ccdu`、`ccdol` | `claude update` |
+| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`、`ccdo`、`ccds`（alias）、`ccdd`、`ccddg`、`ccdgo`、`ccdol` | `claude update` |
 | Codex | `npm install -g @openai/codex@latest` | `~/.codex` | `~/.codex` | `cod` | `npm install -g @openai/codex@latest` |
 | pi | `npm install -g` で本体、`pi install` で拡張。通常ランチャー 11 本を `~/.local/bin` に置く。Command Code の 2 本は再契約時の手動配置 | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`、`curo`（alias） | `agent update` |
@@ -62,7 +62,7 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 ```
 
 書式は `KEY=VALUE` の 1 行 1 変数である（zsh が読むので、空白や記号を含む値は引用符で囲む）。
-通常の対象は `DEEPINFRA_TOKEN`、`OPENCODE_API_KEY`、`CONTEXT7_API_KEY`、
+通常の対象は `DEEPINFRA_TOKEN`、`OPENCODE_API_KEY`、`OPENCODE_GO_CLAUDE_API_KEY`、`CONTEXT7_API_KEY`、
 `GOOGLE_DEV_KNOWLEDGE_API_KEY` などで、書き換えたら新しいシェルを開く。
 変数ごとの用途と、無いときの挙動は「API トークン」の節にある。
 `COMMANDCODE_API_KEY` は契約停止中のため通常利用には不要で、再契約して手動で再有効化するときだけ使う。
@@ -772,15 +772,19 @@ Command Code GOAT の `piccg`・`piccd` は契約停止中のため通常導入�
 | --- | --- | --- | --- | --- |
 | `claude-deepinfra` / `ccdd` | DeepInfra | `deepseek-ai/DeepSeek-V4.1-Flash` | `zai-org/GLM-5.3` | `DEEPINFRA_TOKEN` |
 | `claude-deepinfra-glm` / `ccddg` | DeepInfra | `zai-org/GLM-5.3-Flash` | `deepseek-ai/DeepSeek-V4.1-Flash` | `DEEPINFRA_TOKEN` |
-| `claude-opencode-union` / `ccdu` | OpenCode Go | `union-alpha`（`--model union-alpha` で起動） | `union-alpha` | 下記の OpenCode キー |
+| `claude-opencode-go` / `ccdgo` | OpenCode Go | `deepseek-v4.1-flash[1m]` | `hy4[1m]` | 下記の OpenCode キー |
 | `claude-ollama` / `ccdol` | Ollama Cloud（`https://ollama.com`） | `deepseek-v4.1-flash:1017[1m]` | `deepseek-v4.1-flash:1017[1m]` | `OLLAMA_API_KEY` |
 
 DeepInfra の sonnet は `deepseek-ai/DeepSeek-V4-Flash-0731`、haiku は
-`openai/gpt-oss-20b`。OpenCode のモデル割り当てとサブエージェントは `union-alpha` を使う。
+`openai/gpt-oss-20b`。OpenCode Go の sonnet は `muse-spark-1.3-contributor[1m]`、
+haiku は `glm-5.3-flash[1m]` で、4 つの tier すべてに `[1m]` を付ける。
+サブエージェントは tier のモデル割り当てを使う。
 OpenCode のキーは `OPENCODE_GO_CLAUDE_API_KEY`、`OPENCODE_API_KEY`、
-`OPENCODE_GO_API_KEY` の順に、最初の空でない値を使う。キーがなければ起動を止める。
+`OPENCODE_GO_API_KEY` の順に、最初の空でない値を使う。選んだ値に英数字が無ければ
+下位のキーへ切り替えず、値を表示せずに起動を止める。
 Ollama Cloud は 4 つの tier（fable・opus・sonnet・haiku）すべてに同じモデルを割り当てる。
-詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある。
+詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」と
+「OpenCode Go のモデルで Claude Code を起動する（#368）」にある。
 
 短い起動名だけが `--dangerously-skip-permissions` を付ける。
 通常名は権限確認を省略せず起動する。追加の `--model` などは既定引数の後へ渡す。
@@ -790,7 +794,7 @@ Ollama Cloud は 4 つの tier（fable・opus・sonnet・haiku）すべてに同
 既存コンテナでは、rebuild によって `.devcontainer/zshrc.txt` の更新を反映できる。
 rebuild 前に反映する場合は、同ファイルの Claude alias・`cc_launcher_unsets`・
 4 つのプロバイダ関数を既存の `~/.zshrc` の対応箇所に反映し、新しい zsh を開く。
-Claude CLI 自体の更新は `claude update` を使う。`feature-dev` と `ccdu` は引き続き利用できる。
+Claude CLI 自体の更新は `claude update` を使う。`feature-dev` は引き続き利用でき、`ccdgo` はこの更新で使えるようになる。
 
 onboarding の書き換えスクリプトは導入・自動実行しない。`~/.claude.json` はファイルの
 bind mount なので、移植元の一時ファイルから rename する方式はそのまま使えない。
@@ -885,6 +889,238 @@ Ollama の Claude Code 連携の手順は、WebSearch などのサーバー側�
 `-p` で起動すると、標準エラーに
 `[claude-code:unrecognized_model] {"model":"deepseek-v4.1-flash:1017[1m]",...}` が 1 行出る。
 知らないモデル名を使ったことの通知で、応答は成功する。
+
+### OpenCode Go のモデルで Claude Code を起動する（#368）
+
+`claude-opencode-go` / `ccdgo`（`zshrc.txt` の関数）は、Claude Code の接続先を
+OpenCode Go の Anthropic 互換 API に切り替えて起動する（#368、移植元は
+usaturn/agent-workspace#868）。`ccdgo` は `--dangerously-skip-permissions` を付けて起動し、
+`claude-opencode-go` は付けない。後ろに書いた引数（`-p` やプロンプト、`--model` など）は
+そのまま `claude` に渡る。`--model` を後ろに書くと起動時の `--model opus` より後ろになるので、
+最後の指定が使われる（例: `ccdgo --model sonnet`）。
+
+`claude-opencode-go` は Claude Code の既定の permission mode（auto mode）で起動するため、
+セッションの最初の要求に beta の `dangerous-tool-use-2026-09-03` が付いて OpenCode Go に
+`400 invalid_request_error: safeguards: requires a native Anthropic Messages target` で
+拒否され、Claude Code がそれを外して再試行する。画面にはエラーが出ない（「移植元 PR #868 で確認したこと」参照）。
+`ccdgo`（`--dangerously-skip-permissions`）の `-p` ではこの 400 は出なかった。
+
+この節の実 API の結果は、移植元の usaturn/agent-workspace PR #868 を Claude Code 2.1.319 で
+確認したものである。この checkout では実 API を呼び直しておらず、未確認の項目は末尾にまとめる。
+
+| 項目 | 値 |
+| --- | --- |
+| 接続先（`ANTHROPIC_BASE_URL`） | `https://opencode.ai/zen/go` |
+| 認証 | `ANTHROPIC_API_KEY` と `ANTHROPIC_AUTH_TOKEN` に同じキーを入れる（`x-api-key` で通り、Bearer だけでは 401。`ANTHROPIC_AUTH_TOKEN` は claude.ai のログインに戻らないための保険） |
+| キーの解決順 | `OPENCODE_GO_CLAUDE_API_KEY` → `OPENCODE_API_KEY` → `OPENCODE_GO_API_KEY`（空・未設定の変数は飛ばし、空白だけの変数は飛ばさずに止まる） |
+| effort（`CLAUDE_CODE_EFFORT_LEVEL`） | `max` |
+| 出力上限（`CLAUDE_CODE_MAX_OUTPUT_TOKENS`） | 65,536 |
+| claude.ai の MCP コネクタ（`ENABLE_CLAUDEAI_MCP_SERVERS`） | `false` |
+| API キーの作成 | OpenCode Console |
+
+#### tier とモデル
+
+| tier | モデル名 | model ID | context | output の上限 |
+| --- | --- | --- | --- | --- |
+| fable | Hy4 | `hy4[1m]` | 1,048,576 | 65,536 |
+| opus（起動時） | DeepSeek V4.1 Flash | `deepseek-v4.1-flash[1m]` | 1,000,000 | 384,000 |
+| sonnet | Muse Spark 1.3 Contributor | `muse-spark-1.3-contributor[1m]` | 1,048,576 | 131,072 |
+| haiku | GLM 5.3 Flash | `glm-5.3-flash[1m]` | 1,000,000 | 131,072 |
+
+起動時は opus（DeepSeek V4.1 Flash）を使う。`/model` でほかの tier に切り替えられる。
+`[1m]` は Claude Code に 1M のコンテキストとして扱わせる印で、OpenCode Go へ送るときは
+外れる（後述）。
+
+#### 前提
+
+- OpenCode Go のサブスクリプションが必要である
+- Muse Spark 1.3 Contributor は提供地域が限られる。OpenCode のワークスペースで
+  「Allow paid endpoints that train on request data」を有効にする。無効だと Sonnet tier と、
+  それを使うサブエージェントの要求が失敗する
+- DeepSeek V4.1 Flash を中国から使う場合は、ワークスペースの Regions を Global にする
+
+#### 起動
+
+```bash
+export OPENCODE_GO_CLAUDE_API_KEY="..."
+ccdgo
+```
+
+`-p` でプロンプトを渡す場合も同じである。
+
+```bash
+export OPENCODE_GO_CLAUDE_API_KEY="..."
+ccdgo -p "テストを実行して結果を要約して"
+```
+
+`zshrc.txt` は Dev Container の作成時に `install_beforehand.bash` が `~/.zshrc` に連結する。
+#368 より前に作ったコンテナには `claude-opencode-go` / `ccdgo` が無く、
+`claude-opencode-union` / `ccdu` が残る。Rebuild Container で反映するか、`~/.zshrc` の旧ブロックを
+この関数へ置き換えて新しい zsh を開く。既に起動したシェルは新しいシェルへ切り替える。
+
+`OPENCODE_GO_CLAUDE_API_KEY`・`OPENCODE_API_KEY`・`OPENCODE_GO_API_KEY` の順に、
+空・未設定を飛ばして最初の非空値を使う。選んだ値に英数字（A-Z/a-z/0-9）が 1 文字も
+含まれなければ、値を表示せずに 3 つの変数名を案内して終了コード 1 で止まり、`claude` を
+起動しない。空白だけの優先キーは下位のキーへ読み替えずに止まる。判定は `ccdol` と同じで、
+ASCII の空白・NBSP（U+00A0）・BOM（U+FEFF）だけの値も拒否する。空白だけの値を下位へ
+読み替えると意図と別のアカウントのキーで外部へ要求を送り、値をそのまま渡すと Claude Code が
+trim して保存済みの claude.ai の OAuth トークンを送るおそれがある。
+
+親シェルの認証情報やモデルの指定は、`ccdd` / `ccddg` / `ccdol` と共通の
+`cc_launcher_unsets` で外してから起動する。`OPENCODE_GO_CLAUDE_API_KEY`・
+`OPENCODE_API_KEY`・`OPENCODE_GO_API_KEY` を含む親の値は子に届かず、選んだキーだけが
+`ANTHROPIC_API_KEY` と `ANTHROPIC_AUTH_TOKEN` として子に渡る。移植元 PR #868 の実ランチャーで、
+親の `ANTHROPIC_MODEL`・`DEEPINFRA_TOKEN`・`OLLAMA_API_KEY`・`ANTHROPIC_CUSTOM_HEADERS` と
+3 つのキーの変数が子の環境に無いことを確かめた。
+
+#### 認証
+
+移植元 PR #868 は、2026-11-09 に Claude Code 2.1.319 で次の結果を実 API で確かめた。
+
+| 送るヘッダー | 結果 |
+| --- | --- |
+| `Authorization: Bearer <key>` だけ（セッションのヘッダーなし） | 400 `MissingSessionID` |
+| `Authorization: Bearer <key>` だけ＋`x-claude-code-session-id` | 401 `Go requires a credential` |
+| `x-api-key` だけ＋`x-claude-code-session-id` | 200 |
+| Bearer と `x-api-key`（同じキー）＋`x-claude-code-session-id` | 200 |
+
+このため認証は `x-api-key`（`ANTHROPIC_API_KEY`）で行う。`ANTHROPIC_AUTH_TOKEN` にも
+同じキーを入れるのは、claude.ai のログインに戻らないようにするためである。Claude Code は
+両方のヘッダーを送り、OpenCode Go は `x-api-key` で受け付ける。Go のエンドポイントは
+`x-opencode-session` などのセッションのヘッダーを求めるが、Claude Code が送る
+`x-claude-code-session-id` を受理するので `ANTHROPIC_CUSTOM_HEADERS` は設定しない。
+
+Claude Code は `ANTHROPIC_AUTH_TOKEN` → `ANTHROPIC_API_KEY` → … → `/login` の順で
+認証を使う。`ANTHROPIC_AUTH_TOKEN` は保存済みのログインより直ちに優先される。
+`ANTHROPIC_API_KEY` だけだと、対話起動では 1 回承認するまで保存済みの claude.ai の
+OAuth トークンが使われるため、このランチャーは両方に同じキーを入れる。`-p` は承認なしで
+キーを使う。移植元 PR #868 は、実際の `~/.claude`（claude.ai にログイン済み）で `-p` を実行し、
+キー以外の `Authorization` が送られないことを確かめた。ログインしたままの対話起動は
+確かめていない。
+
+初回の対話起動では「Detected a custom API key in your environment」
+「Do you want to use this API key?」と聞かれ、既定は「No (recommended)」。キーを使うには
+「Yes」へ移す。
+
+- 「Yes」: 要求は成功する。Claude Code は `Authorization: Bearer <key>` と
+  `x-api-key: <key>` の両方を送り、OpenCode Go は `x-api-key` で認証する
+- 「No」: `Authorization: Bearer <key>` だけを送り、すべての要求が
+  401 `Go requires a credential` で失敗する（最大 10 回再試行する）。選択は記憶され、
+  `/config` の「Use custom API key」で変えられる
+
+キーを承認すると、起動画面に
+`⚠ Both ANTHROPIC_AUTH_TOKEN and ANTHROPIC_API_KEY set · auth may not work as expected`
+と、`ANTHROPIC_API_KEY` を外す案内が出る。このランチャーでは同じキーを意図して両方に
+入れており、要求は成功する。案内に従って `ANTHROPIC_API_KEY` を外すと Bearer だけになり、
+すべての要求が 401 になる。キーを断ったときはこの警告は出ない。
+
+OpenCode の手順は `/logout` を求めている。このランチャーは `ANTHROPIC_AUTH_TOKEN` があるので、
+ログインしたままでも OAuth は送られない（ドキュメントと `-p` の実測）。ただしログインした
+ままの対話起動は確かめていないので、`/logout` を勧める。
+
+#### 接続先の確認
+
+起動したら `/status` で次を確かめる。
+
+- `Auth token: ANTHROPIC_AUTH_TOKEN`
+- `API key: ANTHROPIC_API_KEY`
+- `Anthropic base URL: https://opencode.ai/zen/go`
+- `Model: opus (deepseek-v4.1-flash[1m])`
+
+`~/.claude/settings.json` やプロジェクトの `.claude/settings.json`・`.claude/settings.local.json`
+の `env` に `ANTHROPIC_BASE_URL`・`ANTHROPIC_AUTH_TOKEN`・`ANTHROPIC_DEFAULT_*_MODEL` などが
+あると、シェルの値より優先される。`/status` が上と違うときは、まず `settings.json` の
+`env` を確かめる。
+
+#### 1M のコンテキスト
+
+4 つの tier の model 変数すべてに `[1m]` を付けている。Claude Code は `[1m]` を 1M の
+コンテキストとして扱う印に使い、OpenCode Go へ送る model ID からは外す。`/status`・
+`/context`・`/model` に付く `[1m]` はこの印である。`/context` は 1M を分母にする
+（Fable で `44.8k/1m tokens (4%)`）。`/model` の一覧では fable と haiku に
+「(1M context)」の表示が無いが、Fable の `/context` は 1M だった。
+
+OpenCode Go の `/v1/models` の上限は、Hy4 が context 1,048,576・input 983,010・
+output 65,536、DeepSeek V4.1 Flash が context 1,000,000・output 384,000、
+Muse Spark 1.3 Contributor が context 1,048,576・output 131,072、GLM 5.3 Flash が
+context 1,000,000・output 131,072 である。Hy4 は入力の上限が 983,010 で 1M より少し小さい。
+
+1M に近い長さの会話は確かめていない（費用）。
+
+#### effort と出力上限
+
+- effort は `max` で起動する。`/v1/models` の `capabilities.reasoning.effort` は
+  Hy4 が `none`・`high`、DeepSeek V4.1 Flash が `low`・`high`・`max`、
+  Muse Spark 1.3 Contributor が `minimal`〜`xhigh`、GLM 5.3 Flash が `low`・`high`・`max`。
+  Hy4 と Muse Spark の一覧に `max` は無いが、`max` を送った要求は 200 で受け付けられた。
+  どの段階に読み替えられるかは不明である
+- 出力上限 65,536 は Hy4 の出力上限に合わせた値である。Muse Spark と GLM は 131,072、
+  DeepSeek V4.1 Flash は 384,000 まで出せるが、tier を切り替えても同じ 65,536 を送る
+- どの要求も `max_tokens: 65536`・`output_config.effort: max`・`thinking.type: adaptive`・
+  `stream: true` で送られる
+
+#### 400 MissingSessionID が出たとき
+
+Go のエンドポイントは `x-opencode-session` などのセッションのヘッダーを求めるが、
+Claude Code が送る `x-claude-code-session-id` を受理する。Claude Code が
+`x-claude-code-session-id` を送らなくなると `400 MissingSessionID` になる。
+親シェルの `ANTHROPIC_CUSTOM_HEADERS` は `cc_launcher_unsets` で外れるので、
+`zshrc.txt` の `claude-opencode-go ccdgo` の `env` に次を足す。
+
+```zsh
+ANTHROPIC_CUSTOM_HEADERS="x-opencode-session: $(cat /proc/sys/kernel/random/uuid)"
+```
+
+#### 移植元 PR #868 で確認したこと（2026-11-09、Claude Code 2.1.319）
+
+実 API と stub で次を確かめた。
+
+- `/status` は上記の表示になった。初回の対話起動ではキーの承認を求められ、「Yes」で
+  要求が成功した
+- `-p` を tier ごとに 1 回ずつ実行し、opus → `deepseek-v4.1-flash`、fable → `hy4`、
+  sonnet → `muse-spark-1.3-contributor`、haiku → `glm-5.3-flash` がすべて 200 だった。
+  `/model` で fable・haiku・sonnet に切り替えて 1 通ずつ送るのも成功した
+- `ccdgo -p` で Read・`Bash(echo $((6*7)))`・general-purpose サブエージェントを使う要求を
+  実行し、期待どおりの答えになった。`/v1/messages` の 4 要求はすべて 200 で、
+  サブエージェントも `deepseek-v4.1-flash` を使った。応答には thinking・tool_use・text の
+  ブロックが入り、ツールの結果を載せた要求も 200 だった
+- すべての要求で `max_tokens: 65536`・`output_config.effort: max`・
+  `thinking.type: adaptive`・`stream: true`、`x-claude-code-session-id` ヘッダーがあり、
+  `anthropic-beta` に `context-1m-2025-08-07` が入っていた。model ID は `[1m]` を外して
+  送られた。Muse Spark と GLM は thinking のブロックを返さず、text だけだった
+- 対話セッションでツールを使わない GLM 5.3 Flash（Haiku tier）の要求（セッション名）が
+  200 になり、セッションに名前が付いた
+- `claude-opencode-go` は 2.1.319 の既定の permission mode（auto mode）で起動する。
+  セッションの最初の要求に beta の `dangerous-tool-use-2026-09-03` が付き、OpenCode Go が
+  `400 invalid_request_error: safeguards: requires a native Anthropic Messages target` で
+  拒否した。Claude Code はその beta を外して再試行し、画面にエラーを出さずに会話が続いた。
+  `/status` の `Auto mode server: Disabled` を確認した。`ccdgo`
+  （`--dangerously-skip-permissions`）の `-p` ではこの 400 は出なかった
+- `-p` は標準エラーに
+  `[claude-code:unrecognized_model] {"model":"deepseek-v4.1-flash[1m]",...}` を 1 行出す
+  （#852 と同じ通知で、応答は成功する）
+- 実ランチャーで、親の `ANTHROPIC_MODEL`・`DEEPINFRA_TOKEN`・`OLLAMA_API_KEY`・
+  `ANTHROPIC_CUSTOM_HEADERS` と 3 つのキーの変数が子の環境に無いことを確かめた
+- stub の `claude` で、改行・連続する空白・日本語を含む引数、`-p`、`--output-format json` が
+  それぞれ 1 つの引数として届くことを確かめた。`ccdgo` は `--dangerously-skip-permissions`
+  を付け、`claude-opencode-go` は付けない。後ろの `--model sonnet` はそのまま渡り、
+  Claude Code は最後の `--model` を使う。キーが未設定・空・空白だけのときは終了コード 1 で
+  `claude` を起動せず、呼び出し元のシェルは続く。メッセージは 3 つの変数名を出し、値は
+  表示しない
+
+#### 本 checkout で未確認のこと
+
+この checkout の変更は、stub の `claude` と隔離した HOME のテストだけで確かめており、
+実キー・課金 API・実 claude.ai のログインは使っていない。次の項目は移植元 PR #868 の結果を
+この checkout の確認結果として扱わず、反映後に手で確かめる。
+
+- 対話起動での `/status` と `/model` の表示、4 つの tier の実通信
+- 通常の応答と streaming・thinking・Read/Bash を含む会話の継続、サブエージェント
+- auto mode（`claude-opencode-go`）の最初の 400 と再試行
+- 1M に近い長さの会話（費用）
+- claude.ai にログインしたままの対話起動
+- Hy4 と Muse Spark で `effort: max` が何に読み替えられるか
+- Muse Spark 1.3 Contributor のプライバシー設定を無効にしたときの失敗
 
 ## 非対話エージェントのランナー（agent-runner）
 
@@ -1082,7 +1318,8 @@ pi install --approve npm:@plannotator/pi-extension
 
 `pigou` と新規モデル雛形の `union-alpha` は廃止した。既存の `~/.local/bin/pigou` や
 利用者の `models.json` は自動では消さない。不要な旧ファイルとモデルは利用者が内容を確認して
-整理する。`ccdu`（Claude Code）は対象外なので変更しない。
+整理する。Claude Code の OpenCode Go ランチャーは #368 で `ccdgo` に置き換えた
+（「OpenCode Go のモデルで Claude Code を起動する（#368）」）。
 
 ## pi のモデル定義とランチャー
 
@@ -1627,9 +1864,10 @@ export される（`OLLAMA_API_KEY` は書かない。下の項目）。書か�
   pi の OpenCode Go を使うときに必要になる
 - `OPENCODE_GO_API_KEY` は旧名である。OpenCode Go を使う `pigo`・`pigod`・`pigs`・`pixg` は、
   `OPENCODE_API_KEY` が空のときだけこの値を `OPENCODE_API_KEY` に引き継いでから起動する
-- `ccdu`（Claude Code で OpenCode Go を使う）は `auth.json` を読まない。
+- `ccdgo`（Claude Code で OpenCode Go を使う）は `auth.json` を読まない。
   `OPENCODE_GO_CLAUDE_API_KEY`、`OPENCODE_API_KEY`、`OPENCODE_GO_API_KEY` の順に
-  最初の空でない値を使い、どれも無ければ起動を止める
+  最初の非空値を使い、その値に英数字が無ければ下位のキーへ切り替えずに起動を止める。
+  選んだキーは子の `claude` に `ANTHROPIC_API_KEY` と `ANTHROPIC_AUTH_TOKEN` の両方で渡す
 - `DEEPINFRA_TOKEN` は `models.json` の `apiKey` が `$DEEPINFRA_TOKEN` を
   参照するため、pi で deepinfra を使うシェルで export しておく必要がある。
   `pidid` は未設定・空値なら起動を止める。`auth.json` のログインだけではこの確認を通らない。
@@ -1637,7 +1875,7 @@ export される（`OLLAMA_API_KEY` は書かない。下の項目）。書か�
   この変数を使い、無ければ起動を止める
 - `OLLAMA_API_KEY` は Claude Code の `ccdol`・`claude-ollama` だけが読む。
   「秘密情報」の env ファイルには書かず、使うシェルで export する。
-  子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ccdd`・`ccddg`・`ccdu` の子には渡さない。
+  子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ccdd`・`ccddg`・`ccdgo` の子には渡さない。
   未設定・空・空白だけ（Unicode の空白を含む）で英数字を 1 文字も含まないなら、値を表示せずにエラーを出して起動を止める。
   キーは `https://ollama.com/settings/keys` で作る。
   詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある
