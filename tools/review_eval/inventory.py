@@ -380,11 +380,14 @@ def inventory(store: Store, repository: str, pr: int) -> dict[str, Any]:
 
 
 def review_dirs(config: Config, repository: str, pr: int | None = None) -> list[Path] | None:
-    """`reviews/<owner>/<repo>/` の下の `#<N>-*`（symlink を除く）。repo の形が誤りなら None。"""
+    """`reviews/<owner>/<repo>/` の下の `#<N>-*`（symlink を除く）。repo の形が誤りなら None。
+
+    CRW の保存先（review_target.py）と同じく、owner/repo を小文字にして組み立てる。
+    """
     owner, _, name = repository.partition("/")
     if not owner or not name or "/" in name or owner.startswith(".") or name.startswith("."):
         return None
-    base = config.workspace_root / "reviews" / owner / name
+    base = config.workspace_root / "reviews" / owner.lower() / name.lower()
     try:
         entries = sorted(base.iterdir()) if base.is_dir() and not base.is_symlink() else []
     except OSError:

@@ -107,3 +107,28 @@ def test_reconcile_counts_legacy_layouts_without_reading_them(
     assert report["counts"]["legacy_layout"] == 2
     assert [item["review_dir"] for item in report["unobserved"]] == ["reviews/usaturn/alpha/#5-feat"]
     assert store.observations() == []
+
+
+def test_mixed_case_repo_lists_the_lowercase_review_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CRW は owner/repo を小文字にして保存する（review_target.py）。大文字を含む repo 名でも同じ場所を列挙する。"""
+    root = tmp_path / "workspace"
+    review_dir = root / "reviews" / "usaturn" / "alpha" / "#5-feat"
+    review_dir.mkdir(parents=True)
+    (review_dir / "claude-opus-5-5.md").write_bytes(_review_markdown("大文字の repo 名で取る本文\n2 行目"))
+    store = Store.init(tmp_path / "store")
+    config = write_collection_config(
+        tmp_path / "review-eval.toml", store=store.root, workspace_root=root, repos=["Usaturn/Alpha"]
+    )
+    monkeypatch.setenv("REVIEW_EVAL_CONFIG", str(config))
+
+    assert main(["reconcile", "--repo", "Usaturn/Alpha"]) == 1
+    report = json.loads(capsys.readouterr().out)
+    assert [item["review_dir"] for item in report["unobserved"]] == ["reviews/usaturn/alpha/#5-feat"]
+
+    assert main(["ingest", "--repo", "USATURN/ALPHA"]) == 0
+    capsys.readouterr()
+    assert [(o.pr, o.review_dir, o.path) for o in store.observations()] == [
+        (5, "reviews/usaturn/alpha/#5-feat", "claude-opus-5-5.md")
+    ]
