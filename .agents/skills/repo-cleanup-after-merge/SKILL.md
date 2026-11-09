@@ -447,15 +447,21 @@ warning: deleting branch '<branch>' that has been merged to
 
 ### 9. ゲート B: リモート branch の削除はユーザー確認を得る
 
-手順 8 でローカル branch を消すと対象名が手元から消える。リモート側から独立に洗い出す。祖先の一覧だけに限定せず、手順 3 と同じ「branch の取り込み判定」で `ancestor` または `pr` が返る branch を提示する。`REMOTE` は対象の remote（create-reso-world は `origin`、通常ツールは `CLEANUP_BASE_REMOTE`、fork は PR の所属に合わせる）、`BASE_REF` は手順 3 と同じ取り込み先にする。
+手順 8 でローカル branch を消すと対象名が手元から消える。リモート側から独立に洗い出す。祖先の一覧だけに限定せず、手順 3 と同じ「branch の取り込み判定」で `ancestor` または `pr` が返る branch を提示する。`REMOTE` は対象の remote（create-reso-world は `origin`、通常ツールは `CLEANUP_BASE_REMOTE`、fork は PR の所属に合わせる）、`BASE_REF` は手順 3 と同じ取り込み先にする。`BASE_REF` は `origin/main` と `refs/remotes/origin/main` のどちらでもよいため、比較の前に base の branch 名へ正規化し、一覧の ref 名と直接比べない。
 
 ```bash
 set -euo pipefail
 : "${CHECKOUT:?対象 checkout}" "${PR_REPO:?対象 repository}" "${REMOTE:?対象 remote}" "${BASE_REF:?取り込み先 base ref}"
+case "$BASE_REF" in
+  refs/remotes/*/*) base_branch=${BASE_REF#refs/remotes/*/} ;;
+  refs/heads/*) base_branch=${BASE_REF#refs/heads/} ;;
+  */*) base_branch=${BASE_REF#*/} ;;
+  *) base_branch=$BASE_REF ;;
+esac
 printf '%s\n' 'リモート branch の候補（削除はまだ行わない）:'
 git -C "$CHECKOUT" for-each-ref --format='%(refname)' "refs/remotes/$REMOTE" | while IFS= read -r remote_ref; do
   branch=${remote_ref#"refs/remotes/$REMOTE/"}
-  if [ "$branch" = HEAD ] || [ "$remote_ref" = "$BASE_REF" ]; then
+  if [ "$branch" = HEAD ] || [ "$branch" = "$base_branch" ]; then
     continue
   fi
   if ! PR_NUMBER=$(cleanup_branch_pr_number "$CHECKOUT" "$PR_REPO" "$branch" "$remote_ref"); then

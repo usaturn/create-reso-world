@@ -381,3 +381,33 @@ def test_gate_b_presents_pr_merged_branches_that_are_not_ancestors(
     remote_refs = git(work, "for-each-ref", "--format=%(refname)", "refs/remotes/origin")
     assert "refs/remotes/origin/squashed" in remote_refs
     assert "refs/remotes/origin/unmerged" in remote_refs
+
+
+def test_gate_b_excludes_the_documented_short_base_reference(
+    work: Path, fake_gh,
+) -> None:
+    # `origin/main` is the documented BASE_REF form in step 3. The remote ref
+    # enumerated below is `refs/remotes/origin/main`, so comparing the raw
+    # strings lets a MERGED main PR turn the base branch into a candidate.
+    main_head = git(work, "rev-parse", "main")
+    fake_gh({"31": pr_payload(31, "main", main_head, merge=main_head)})
+    commands = section_bash(EVIDENCE_TITLE) + "\n" + section_bash(GATE_B_TITLE)
+    env = {
+        **os.environ,
+        "CHECKOUT": str(work),
+        "PR_REPO": PR_REPO,
+        "REMOTE": "origin",
+        "BASE_REF": "origin/main",
+    }
+
+    result = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", commands],
+        cwd=work, env=env, capture_output=True, text=True, timeout=20,
+    )
+
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    decisions = [
+        line for line in result.stdout.splitlines()
+        if line.startswith(("候補:", "保持:"))
+    ]
+    assert not any("main" in line for line in decisions), result.stdout
