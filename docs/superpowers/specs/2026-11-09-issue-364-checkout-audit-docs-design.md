@@ -43,3 +43,11 @@
 Dev Container の専用 linked worktree で日本語の4段落を編集する。保護対象、別 checkout、特定不能、古い記録の各場合を現行 interfaces.rst と意味で照合する。`git diff` が上記4か所と本 Spec・Plan のみであること、`git diff --check` と `bash scripts/check-layout.sh` の終了コード0を確認する。README の共通検査も実行し、結果を PR とセッションの検証記録に残す。
 
 文書からコードの挙動変更や sandbox の保証を導かない。実 CLI の追加評価、回収・repair・削除、後続 Issue の開始は対象外。
+
+## 実行記録（PR 作成前）
+
+- Task 1 は `80c299b126d8463054e6c80dc2c22da65d35131a` で実装。指定4か所だけの差分（7行追加・5行削除）を条件1〜5と意味で照合した。
+- `git diff --check`、`bash scripts/check-layout.sh` は終了コード0。新規テストなし（F）。独立した全体レビューは Critical / Important / Minor いずれも0件。
+- レビュー子の初回依頼は scope 宣言の不足で未実施。`Review scope: branch` を追加して再送し、全体レビューを完了した。追加の内容裁定・保留項目はない。
+- 最終 clean HEAD での共通検証は、この記録の commit 後に行い、結果を PR と `/workspaces/reso-world/tmp/agents/issue-364.95_cvygq/validation.json` に記録する。未実行の検査を成功とは記載しない。
+- Task・意味照合・独立レビューの証拠は同セッションの `task-1.diff`、`task-1-layout.log`、`branch-review.md`、`sdd/2026-11-09-issue-364-checkout-audit-docs/progress.md`。

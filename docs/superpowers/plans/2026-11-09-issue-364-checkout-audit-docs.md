@@ -43,10 +43,10 @@
 
 **テスト:** 新規不要（F）。代替検証は下記の実行・差分・意味照合。
 
-- [ ] 4か所を最小置換する。両方の区分、保護対象と特定不能の例外、受け取り拒否と報告のみ、古い記録への注記、因果を断定しない既存注意を文脈に応じて記す。
-- [ ] Spec の条件1〜5と Review Focus を、現行 interfaces.rst と4か所の diff に対応付けて意味照合する。回収手順や隣接段落が変わっていないことも確認する。
-- [ ] `git diff --check`、`bash scripts/check-layout.sh` を実行する。Expected: 終了コード0。新規テスト・実装差分がない。
-- [ ] 明示した4パスだけを stage し `docs: align checkout audit reporting guidance` で commit する。実行証拠は親のセッションに記録する。
+- [x] 4か所を最小置換する。両方の区分、保護対象と特定不能の例外、受け取り拒否と報告のみ、古い記録への注記、因果を断定しない既存注意を文脈に応じて記す。
+- [x] Spec の条件1〜5と Review Focus を、現行 interfaces.rst と4か所の diff に対応付けて意味照合する。回収手順や隣接段落が変わっていないことも確認する。
+- [x] `git diff --check`、`bash scripts/check-layout.sh` を実行する。Expected: 終了コード0。新規テスト・実装差分がない。
+- [x] 明示した4パスだけを stage し `docs: align checkout audit reporting guidance` で commit する。実行証拠は親のセッションに記録する。
 
 ## 要件・検証対応 / 統合
 
