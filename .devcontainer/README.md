@@ -1161,8 +1161,8 @@ runtime が `cursor` の担当（雛形の `cursor_auto_default`・`cursor_grok4
 `-f` だけ）。シェルを使えるので、レビューの役割でも pr-review・review-verify の helper を実行できる。
 `writes = false` は claude-code・devin・pi と同じく runner の指示であって sandbox ではなく、checkout の変更は
 runner が事後に報告する。保護する checkout（依頼の `repository` の checkout。特定できなければ全登録）の変化・消失・監査不能は
-`outside_changes` となり、受け取り入口が拒否する。main worktree を含む保護しない checkout の内容の変化・回収・監査不能は
-`unprotected_changes` として報告するだけで、起動も受け取りも止めない。`~/.cursor/cli-config.json` の `permissions.deny` に helper が使う
+`outside_changes` となり、受け取り入口が拒否する。保護しない checkout（main worktree も、依頼の `repository` の checkout でなければ
+保護しない）の内容の変化・回収・監査不能は `unprotected_changes` として報告するだけで、起動も受け取りも止めない。`~/.cursor/cli-config.json` の `permissions.deny` に helper が使う
 コマンドを書くと、`-f` でも拒否されて完了しない。起動の理由・実機の記録・既知の制限は
 [tools/agent_runner/runtimes/cursor.rst](../tools/agent_runner/runtimes/cursor.rst) にある。
 
