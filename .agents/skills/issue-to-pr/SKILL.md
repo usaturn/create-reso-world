@@ -245,7 +245,7 @@ fi
 
 `--spec-review` / `--design-review` が無い run は、この節の helper を起動せず、3 の builder check に進む。ある run は、Spec の commit の後、writing-plans の前に次を行う。設計レビュー → Spec レビューの順で、`--design-review` が無ければ設計レビューを省き、`--spec-review` が無ければ Spec レビューを省く。Spec レビューがある run は builder check を行わない。設計レビューは builder check を代替しない。
 
-レビューの記録は `SESSION` の下だけに置き、コード・Spec の worktree には置かない。`--ledger-dir` には常に `"$SESSION"` を明示する（環境変数や既定値に任せない）。外部担当の runner の出力先も、`SESSION` の下のまだ存在しないパス（例: `"$SESSION/review-runner/design-1"`）にする。ledger と runner-dir が互いを含む場合、worktree の中にある場合、symlink の場合は helper が終了コード 2 で拒否する。拒否されたら、別の場所を推測せずに止まる。
+レビューの記録は `SESSION` の下だけに置き、コード・Spec の worktree には置かない。`--ledger-dir` には常に `"$SESSION"` を明示する（環境変数や既定値に任せない）。外部担当の runner の出力先も、`SESSION` の下のまだ存在しないパス（例: `"$SESSION/review-runner/design-1"`）にする。`review-runner` のような親ディレクトリは、外部レビューの前に `mkdir -p "$SESSION/review-runner"` で作り、runner-dir 自体はまだ存在しない状態を保つ（実 runner は親を作らない）。ledger と runner-dir が互いを含む場合、worktree の中にある場合、symlink の場合は helper が終了コード 2 で拒否する。拒否されたら、別の場所を推測せずに止まる。
 
 **依頼 JSON は、設計レビュー・Spec レビュー・再レビューのそれぞれを始める直前に作る。** ファイル名は review ごとに分け（例: `"$SESSION/<spec-stem>.design-request.json"`・`"$SESSION/<spec-stem>.spec-request.json"`・`"$SESSION/<spec-stem>.spec-rereview-request.json"`）、`ReviewRequest` を書く。`spec_path` は `DOC_ROOT` の Spec の絶対パス、`repository` はレビューする `CODE_ROOT` の絶対パス、`revision` はその時点の `git -C "$CODE_ROOT" rev-parse HEAD` の完全 SHA、`issue` は `issue.json` の `repo`・`number`・`url`・`title`・`body`、`context` は Issue のコメントの要点・適用する AGENTS.md・受け入れ条件など（複数行の日本語可）。`spec_path` と `repository` は別の worktree でよい。**Spec を commit した後は `CODE_ROOT` の HEAD が変わりうる（`DOC_ROOT` と `CODE_ROOT` が同じ checkout なら必ず変わる）ので、前のレビューの依頼を使い回さず、review の直前に今の HEAD で作り直す。** helper は review の開始時に `revision` と現在の HEAD を照合し、違えば終了コード 2 で拒否する。
 
@@ -262,6 +262,7 @@ fi
 **設計レビュー（`--design-review` があるときだけ）。** 次の helper を実行する。外部担当のときは `--runner-dir` を付け、`self` のときは付けない。`--runner-dir` はまだ存在しないパスにする。
 
    ```bash
+   mkdir -p "$SESSION/review-runner" || exit 2
    uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/review_design.py" review \
      --request "$SESSION/<spec-stem>.design-request.json" \
      --ledger-dir "$SESSION" \
@@ -284,7 +285,7 @@ fi
    }
    ```
 
-   指摘があるときは、prompt の `RESULT_SHAPE` の全項目（`id`・`decision_ref`・`problem`・`evidence`・`alternative`・`tradeoffs`・`impact`・`recommendation`・`severity`）を埋める。`self` の結果は次の `submit` で記録する。`state: completed` なら外部担当のレビューが完了している。`state: failed`、`status: incomplete`、`review_id` / `spec_sha256` の不一致、`outside_changes`、Spec / HEAD の変化はレビュー失敗であり、指摘 0 件として扱わない。失敗したらそのレビューを成功にせず止まる。`unprotected_changes` は記録して報告するが、それだけで失敗にしない。
+   指摘があるときは、prompt の `RESULT_SHAPE` の全項目（`id`・`decision_ref`・`problem`・`evidence`・`alternative`・`tradeoffs`・`impact`・`recommendation`・`severity`）を埋める。`self` の結果は次の `submit` で記録する。`state: completed` なら外部担当のレビューが完了している。**review の標準出力は `findings` / `concerns` の件数だけなので、採否を作る前に、出力の `review_dir` にある `review.json` を読み、`result` の `findings` / `concerns` の本文を使う。** `state: failed`、`status: incomplete`、`review_id` / `spec_sha256` の不一致、`outside_changes`、Spec / HEAD の変化はレビュー失敗であり、指摘 0 件として扱わない。失敗したらそのレビューを成功にせず止まる。`unprotected_changes` は記録して報告するが、それだけで失敗にしない。
 
    ```bash
    uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/review_design.py" submit \
@@ -293,7 +294,7 @@ fi
 
    `submit` の終了コード 1 はレビュー失敗、2 は結果の形・`review_id`・`spec_sha256` の拒否である。どちらも採否へ進まず止まる（拒否では `review.json` を作らない。`review_dir` と理由を報告する）。
 
-**Spec レビュー（`--spec-review` があるときだけ）。** 設計レビューを行った場合はその採否を Spec に反映して commit した後、行っていない場合は Spec の commit 後に行う。**review を始める直前に、その時点の `CODE_ROOT` HEAD で新しい依頼 JSON（例: `"$SESSION/<spec-stem>.spec-request.json"`）を作り、`--request` に渡す。前の設計レビューの依頼を使い回さない。** 手順は設計レビューと同じで、`review_design.py` の代わりに `review_spec.py` を使い、`--design-review` の代わりに `--spec-review` を渡す。結果は `status`・`findings`・`incomplete` を持ち、runner-dir は `"$SESSION/review-runner/spec-1"` のような新しいパスにする。`self` の結果は `{"review_id": "<review の出力>", "spec_sha256": "<review の出力>", "status": "completed", "findings": [], "incomplete": []}` の形で、指摘は prompt の `RESULT_SHAPE` の `id`・`section`・`problem`・`evidence`・`impact`・`severity`・`suggestion` を埋める。`review_spec.py submit --review-dir "<review_dir>" --result "$SESSION/<spec-stem>.spec-result.json"` で記録し、終了コード 1/2 は設計レビューと同じく停止する。設計レビューを 2 回目に始める場合や、Spec レビューの後に設計レビューを始める場合は、helper が拒否する。拒否されたら順序を変えずに止まる。
+**Spec レビュー（`--spec-review` があるときだけ）。** 設計レビューを行った場合はその採否を Spec に反映して commit した後、行っていない場合は Spec の commit 後に行う。**review を始める直前に、その時点の `CODE_ROOT` HEAD で新しい依頼 JSON（例: `"$SESSION/<spec-stem>.spec-request.json"`）を作り、`--request` に渡す。前の設計レビューの依頼を使い回さない。** 手順は設計レビューと同じで、`review_design.py` の代わりに `review_spec.py` を使い、`--design-review` の代わりに `--spec-review` を渡す。結果は `status`・`findings`・`incomplete` を持ち、runner-dir は `"$SESSION/review-runner/spec-1"` のような新しいパスにし、親の `"$SESSION/review-runner"` は先に `mkdir -p` で作る（設計レビューを行わない run でも同じ）。`self` の結果は `{"review_id": "<review の出力>", "spec_sha256": "<review の出力>", "status": "completed", "findings": [], "incomplete": []}` の形で、指摘は prompt の `RESULT_SHAPE` の `id`・`section`・`problem`・`evidence`・`impact`・`severity`・`suggestion` を埋める。`review_spec.py submit --review-dir "<review_dir>" --result "$SESSION/<spec-stem>.spec-result.json"` で記録し、終了コード 1/2 は設計レビューと同じく停止する。設計レビューを 2 回目に始める場合や、Spec レビューの後に設計レビューを始める場合は、helper が拒否する。拒否されたら順序を変えずに止まる。
 
 **採否を記録する。** 結果のすべての `findings` / `concerns` を、重複なく 1 回ずつ採否に含める。採用する指摘は Spec の該当箇所に反映し、レビューの記録（`review_dir`・`review_id`・reviewed / reflected の SHA・担当・回数・`elapsed_seconds`・`requested_agent`・`actual_agent`・`identity`・`fallback` の使用・`outside_changes`・`unprotected_changes`）を決定記録に追記してから `decide` を呼ぶ。記録の追記だけを採用の反映にしない。
 

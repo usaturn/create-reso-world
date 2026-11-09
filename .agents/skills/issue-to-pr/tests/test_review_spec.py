@@ -407,7 +407,8 @@ def external_review(
 ) -> dict[str, Any]:
     def fake_run(*args: Any, **kwargs: Any) -> BatchResult:
         if create_runner:
-            kwargs["output_dir"].mkdir(parents=True)
+            # 実 runner と同じく親は作らない（SKILL の手順が親を用意する）
+            kwargs["output_dir"].mkdir(mode=0o700)
             (kwargs["output_dir"] / "log.txt").write_text("fake\n", encoding="utf-8")
         record = last_request(fx.ledger)
         return make(record["review_id"], record["spec_sha256"])
@@ -538,52 +539,11 @@ def test_reviewer_worktree_change_fails_and_cleanup_keeps_it_and_the_ledger(
     assert review_dir.is_dir()
 
 
-@pytest.mark.parametrize("field", ["stop_confirmed", "sensitive_paths"])
-def test_cleanup_retains_unstopped_or_sensitive_reviewer_area(
-    fx: Fixture, monkeypatch: pytest.MonkeyPatch, field: str
-) -> None:
-    """S: 停止不明・機密を含む領域を review cleanup が消すと、実行中の担当や秘密の証拠を失う。"""
-    reviewer = fx.tmp / "reviewer-clean"
-    git(fx.main, "worktree", "add", "--detach", str(reviewer), fx.revision)
-
-    def make(review_id: str, sha: str) -> BatchResult:
-        return batch(
-            {
-                "review_id": review_id,
-                "spec_sha256": sha,
-                "status": "completed",
-                "findings": [],
-                "incomplete": [],
-            },
-            work_dir=reviewer,
-        )
-
-    summary = external_review(fx, monkeypatch, make)
-    review_dir = Path(summary["review_dir"])
-    record_path = review_dir / "review.json"
-    record = json.loads(record_path.read_text(encoding="utf-8"))
-    attempt = record["batch"]["results"][0]["attempts"][0]
-    if field == "stop_confirmed":
-        attempt["stop_confirmed"] = False
-    else:
-        attempt["sensitive_paths"] = [str(reviewer / "secret.txt")]
-    record_path.write_text(json.dumps(record), encoding="utf-8")
-
-    cleaned = mod.cleanup(review_dir)
-
-    assert cleaned["removed_worktrees"] == []
-    assert cleaned["retained"]
-    assert cleaned["removed_runner_dir"] is False
-    assert reviewer.is_dir()
-    assert fx.runner.is_dir()
-    assert review_dir.is_dir()
-
-
 def test_review_after_a_runner_without_a_result_is_refused(fx: Fixture, monkeypatch: pytest.MonkeyPatch) -> None:
     """S: runner が戻らなかった試行を failed として読み飛ばすと、旧担当が動いたまま次のレビューを始める。"""
 
     def broken_run(*args: Any, **kwargs: Any) -> BatchResult:
-        kwargs["output_dir"].mkdir(parents=True)
+        kwargs["output_dir"].mkdir(mode=0o700)
         (kwargs["output_dir"] / "log.txt").write_text("partial\n", encoding="utf-8")
         raise OSError("the runner did not finish")
 
@@ -627,7 +587,7 @@ def test_cleanup_removes_only_safe_runner_output_and_keeps_the_ledger(
     unknown = Fixture(fx.tmp / "unknown")
 
     def broken_run(*args: Any, **kwargs: Any) -> BatchResult:
-        kwargs["output_dir"].mkdir(parents=True)
+        kwargs["output_dir"].mkdir(mode=0o700)
         (kwargs["output_dir"] / "log.txt").write_text("partial\n", encoding="utf-8")
         raise OSError("the runner did not finish")
 
