@@ -22,7 +22,7 @@ SKILL.md の結論 1 の手順 1 で、「対応する」項目を設定の担�
 
 | キー | 値 |
 | --- | --- |
-| `repository` | `MAIN_ROOT` の絶対パス |
+| `repository` | `MAIN_ROOT` の絶対パス（HEAD が `revision` と同じ checkout。違えば `run_roles` は起動・予約の前に終了コード 2 で止まる。runner が保護するのはこの checkout だけで、ほかの checkout（親の main worktree を含む）の変化・回収・監査不能は `unprotected_changes` に報告するだけ） |
 | `source_head` | `HEAD_SHA`（レビュー対象の push 済み HEAD）の完全な SHA。途中で別の HEAD に置き換えない |
 | `revision` | 修正を始める commit の完全な SHA（通常は `HEAD_SHA`） |
 | `pr` | `{"repository": "$PR_REPO", "number": $PR_NUMBER}` |
@@ -46,6 +46,7 @@ uv run --project "$TOPLEVEL" --locked python \
 - 外部の担当なら、停止の確認（各 attempt の `stop_confirmed`）の後に、実際の Request・Result の role・agent・commit・work_dir を照合し、その commit の差分だけを確かめてから `MAIN_ROOT` に取り込む（runner の worktree は同じ Git を使うので、`git -C "${MAIN_ROOT:?}" cherry-pick <commit>` で取り込める）。応答の `success` を、テストの合格や commit の成功とみなさない
 - 取り込んだ後は、SKILL.md の「実装後」の手順 1〜3 を司令塔が行う。要件対応と経路表を照合し、共有条件は統合担当の確認結果と証拠で確かめる。担当別のテスト成功だけを共有保証の完了に読み替えない。既存の PR の head ブランチ以外のブランチ・PR を作らない
 - 終了コード: 0 は回収した（`self` を含む）、1 は失敗・停止未確認・領域の変更、2 は入力・設定・起動の誤り（理由は標準エラー出力）
+- 標準出力の JSON は `state`・`artifact_dir`・`pending_self`・`outside_changes`・`unprotected_changes`・`checkout_audit`・`review_changes` を持つ。ほかの checkout の変化・回収（`unprotected_changes`）は終了コードに影響しない
 - 起動の前の checkout の監査で止まったとき（終了コード 1、標準出力の `category` が `environment`）は、`checkout_audit` に挙がったパスと状態を報告し、結論 3（環境）にする。worktree の登録を勝手に消したり直したりしない
 
 ## 2. 修正後の自己レビュー（`--phase self-review`、1 回だけ）
@@ -62,7 +63,7 @@ SKILL.md の「修正後の自己レビュー」の 1 回は、この呼び出�
 
 | キー | 値 |
 | --- | --- |
-| `repository` | `MAIN_ROOT` |
+| `repository` | `MAIN_ROOT`（HEAD が `revision` と同じ checkout。違えば `run_roles` は起動・予約の前に終了コード 2 で止まる。runner が保護するのはこの checkout だけで、ほかの checkout（親の main worktree を含む）の変化・回収・監査不能は `unprotected_changes` に報告するだけ） |
 | `from` | `source_head` |
 | `to` | `revision` |
 | `fix_ids` | 「対応する」判断の ID（判断の記録の `id`） |
