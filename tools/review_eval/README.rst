@@ -48,8 +48,9 @@ CLI は ``python -m tools.review_eval`` である。
 
 保存先（ ``store`` ）は、設定で絶対パスを明示する必須の項目である。
 コードの既定値は無い。
-下の例の ``/home/vscode/review-eval/collected`` は運用の推奨であり、既定値ではない。
+下の例の ``/workspaces/reso-world/private/review-eval/collected`` は運用の推奨であり、既定値ではない。
 リポジトリの中に置くときは git の追跡対象外の私有の場所にする。
+rebuild 後も残る場所に置く。 ``.worktrees/`` の中には置かない。
 ``store`` は ``workspace_root/reviews`` の中には置けない。
 
 .. code-block:: toml
@@ -58,7 +59,7 @@ CLI は ``python -m tools.review_eval`` である。
    enabled = true
    approved_by = "利用者またはデータ管理担当の名前"
    approved_on = 2026-10-30
-   store = "/home/vscode/review-eval/collected"
+   store = "/workspaces/reso-world/private/review-eval/collected"
    workspace_root = "/workspaces/reso-world"
    max_store_bytes = 1073741824
    # 以下は省略できる（既定値あり）
@@ -109,7 +110,7 @@ CLI は ``python -m tools.review_eval`` である。
 ``review-eval status`` で、有効か無効か、保存先、observation の数、blob の合計バイト数、未処理の failure を確認できる。
 設定ファイルが無ければ ``{"enabled": false}`` を出して終了コード 0 になる。
 未処理の failure があれば終了コード 1 になる。
-有効なのに保存先を初期化していなければ、終了コード 2 になる。
+設定ファイルがあり、保存先が未初期化か設定に誤りがあれば、終了コード 2 になる。
 
 保存先の形は ``review-eval-store/v1`` で、ディレクトリは 0700、ファイルは 0600 である。
 blob と observation は一時ファイルと ``os.link`` で作り、既存を上書きしない。

@@ -128,7 +128,7 @@ runner の after_run が起動する ``attach-runner`` は、depth が付いて�
      - ``prepare`` から ``complete`` ・ ``fail``
      - ``runs/<開始時刻>-<model>-<8文字>.json`` （ ``kind: review_run`` ）と findings の ``reviewer``
      - 実行ごとに別ファイル
-     - Request の無い単独実行は run_id・request_id・agent_id・role が ``unknown`` になる。収集は ``unknown`` を ``null`` にする
+     - Request の無い単独実行は run_id・request_id・agent_id・role が ``unknown`` になる。収集は変換しない（bytes をそのまま保存する）
      - 不要。区別は ``unknown`` の有無と、loop の ``review.batch.run_id`` との一致で読み取り側が導く
      - 1
    * - 時間
