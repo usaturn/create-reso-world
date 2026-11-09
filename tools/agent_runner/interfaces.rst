@@ -237,9 +237,10 @@ Gitignored 資源、symlink の参照先、Git 外の任意のディレクトリ
 checkout（runner の試行を含む）は監査範囲外。
 外部セッションによる変更と委譲先による変更の因果までは断定しない。
 
-runner は、渡された repository の checkout（対象）と、その repository の main worktree
-（``git worktree list`` の先頭）を保護する。repository に自身の checkout が無い
-（bare repository など）ときは、登録されたすべての checkout を保護する。
+runner は、渡された repository の checkout（対象）だけを保護する。main worktree
+（``git worktree list`` の先頭）も、対象でなければ保護しない。対象を特定できない
+（bare repository、``--show-toplevel`` が取れない、どの登録とも実パスが一致しない）ときは、
+登録されたすべての checkout を保護する。
 checkout_audit は観測ごとに path / kind / reason / locked / prunable / protected を返す。
 kind は次のどれか。
 
@@ -248,18 +249,17 @@ kind は次のどれか。
 - content_changed: 内容が変わった
 - removed: 終了後に読めず、登録も無くなった（``git worktree remove`` などで回収された）
 
-outside_changes は、保護する checkout の観測と、どの checkout でも監査できない登録
-（unavailable_before・unavailable_after）のパス。unprotected_changes は、保護しない
-checkout の content_changed と removed のパスで、多くはほかのセッションが自分の worktree を
-変えた・回収したものである。どちらも警告として返し、runner の処理自体は止めない。
-issue-to-pr・review-verify・review-fix-planning の受け取り入口は outside_changes があれば
-拒否し、unprotected_changes は理由にしない。判定は ``workspace.blocks_acceptance`` の 1 か所にある。
+outside_changes は保護する checkout の観測のパス、unprotected_changes は保護しない
+checkout の観測（内容の変化・回収・監査不能）のパスである。後者の多くは、ほかのセッションが
+自分の worktree や親の checkout を変えた・回収したものである。どちらも警告として返し、
+runner の処理自体は止めない。issue-to-pr・review-verify・review-fix-planning の受け取り入口は
+outside_changes があれば拒否し、unprotected_changes は理由にしない。
+判定は ``workspace.blocks_acceptance`` の 1 か所にある。
 protected の無い古い checkout_audit は保護として読み、unprotected_changes の無い古い結果は
 空として読む（古い outside_changes は全件なので、読み直しても受け取りを止める側になる）。
-main worktree も保護するので、実行中に親の checkout を動かすと（repo-cleanup-after-merge の
-origin/main への追従など）content_changed として受け取りが止まる。実行中は親の checkout を動かさない。
-起動前も共通の ``require_auditable_workflow`` と runner が全登録を確認し、
-監査不能なら予約・外部担当の起動より前に止める。
+起動前は共通の ``require_auditable_workflow`` と runner が登録を確認し、保護する checkout を
+監査できないとき、または登録を一覧できないときだけ、予約・外部担当の起動より前に止める。
+保護しない checkout を監査できなくても起動し、unavailable_before として unprotected_changes に報告する。
 消えた登録の所有者の照合・個別 repair / remove は、リポジトリルートの
 ``docs/agent-runner-checkout-recovery.md`` に記載する。
 監査は他セッションの登録を自動で回収しない。

@@ -5,10 +5,11 @@ Audits cover HEAD, index entries, tracked files and nonignored untracked files
 referents, and arbitrary directories outside registered checkouts are outside
 this boundary. A changed fingerprint is evidence of change, not attribution.
 
-Protected checkouts are the one given to the run and the main worktree (every
-registration when the given path has no checkout). ``blocks_acceptance`` is true
-for a protected finding and for any ``unavailable_*``; other checkouts' content
-changes and removals are reported only.
+Only the checkout given to the run is protected (every registration when it
+cannot be identified). The main worktree and other sessions' checkouts are
+reported only: their changes, removals and unauditable states never stop a
+launch or an acceptance. ``blocks_acceptance`` is true exactly for a protected
+finding.
 """
 
 import hashlib
@@ -227,16 +228,16 @@ def _registered(common_dir: Path) -> set[str] | None:
 
 
 def blocks_acceptance(finding: CheckoutAudit) -> bool:
-    """Protected findings and every unauditable checkout must stop acceptance."""
-    return finding.protected or finding.kind in ("unavailable_before", "unavailable_after")
+    """Only a finding on a protected checkout stops acceptance; the rest is reported."""
+    return finding.protected
 
 
 def snapshot_checkouts(repository: Path) -> CheckoutSnapshot:
     """Fingerprint all registered checkouts, retaining None and safe failure metadata."""
     records = _git(repository, "worktree", "list", "--porcelain", "-z").split(b"\x00\x00")
     result = CheckoutSnapshot(git_common_dir(repository))
-    target = _toplevel(repository)
-    for index, record in enumerate(records):
+    entries: list[tuple[str, bool, bool]] = []
+    for record in records:
         fields = record.split(b"\x00")
         if b"bare" in fields:
             continue
@@ -244,27 +245,34 @@ def snapshot_checkouts(repository: Path) -> CheckoutSnapshot:
         prunable = any(field == b"prunable" or field.startswith(b"prunable ") for field in fields)
         for field in fields:
             if field.startswith(b"worktree "):
-                path = os.fsdecode(field[len(b"worktree ") :])
-                result.flags[path] = (locked, prunable)
-                if index == 0 or target is None or os.path.realpath(path) == target:
-                    result.protected.add(path)
-                try:
-                    result[path] = _fingerprint(Path(path))
-                except WorkspaceError as error:
-                    result[path] = None
-                    result.failures[path] = CheckoutAudit(
-                        path=path,
-                        kind="unavailable_before",
-                        reason=error.reason,
-                        locked=locked,
-                        prunable=prunable,
-                        protected=path in result.protected,
-                    )
+                entries.append((os.fsdecode(field[len(b"worktree ") :]), locked, prunable))
+    # Decide the protected set from every record first, so early failures carry the final value.
+    target = _toplevel(repository)
+    matched = {path for path, _, _ in entries if os.path.realpath(path) == target}
+    result.protected = matched or {path for path, _, _ in entries}
+    for path, locked, prunable in entries:
+        result.flags[path] = (locked, prunable)
+        try:
+            result[path] = _fingerprint(Path(path))
+        except WorkspaceError as error:
+            result[path] = None
+            result.failures[path] = CheckoutAudit(
+                path=path,
+                kind="unavailable_before",
+                reason=error.reason,
+                locked=locked,
+                prunable=prunable,
+                protected=path in result.protected,
+            )
     return result
 
 
 def require_auditable_checkouts(repository: Path) -> CheckoutSnapshot:
-    """Preflight for strict consumers; never repair, prune, reserve or launch."""
+    """Preflight for strict consumers; never repair, prune, reserve or launch.
+
+    Stops only when a protected checkout cannot be fingerprinted (or registrations cannot
+    be listed); an unauditable unprotected checkout stays in the snapshot for the report.
+    """
     try:
         snapshot = snapshot_checkouts(repository)
     except WorkspaceError as error:
@@ -274,7 +282,7 @@ def require_auditable_checkouts(repository: Path) -> CheckoutSnapshot:
     failures = [
         snapshot.failures.get(path)
         or CheckoutAudit(path=path, kind="unavailable_before", reason="audit_unavailable")
-        for path in sorted(snapshot)
+        for path in sorted(snapshot.protected)
         if snapshot.get(path) is None
     ]
     if failures:

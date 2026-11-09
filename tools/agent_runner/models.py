@@ -258,8 +258,9 @@ class CheckoutAudit(StrictModel):
     """Observations only: fixed reasons, no Git stderr or attribution to a worker.
 
     ``removed`` is a checkout that was unreadable after the run and is no longer registered.
-    ``protected`` marks the requested checkout and the main worktree. Records saved before
-    this field existed are read as protected, so they are never accepted by mistake.
+    ``protected`` marks the requested checkout (every registration when it cannot be
+    identified); the main worktree is not protected unless it is the requested one. Records
+    saved before this field existed are read as protected, so they are never accepted by mistake.
     """
 
     path: str
@@ -271,10 +272,11 @@ class CheckoutAudit(StrictModel):
 
 
 class BatchResult(StrictModel):
-    """``outside_changes`` lists protected checkouts' observations and every ``unavailable_*``.
+    """``outside_changes`` lists the protected checkout's observations and blocks acceptance.
 
-    ``unprotected_changes`` only reports ``content_changed``/``removed`` of unprotected checkouts
-    and does not block acceptance. Records saved without it are read as ``[]``.
+    ``unprotected_changes`` reports every observation (``content_changed``, ``removed``,
+    ``unavailable_*``) of unprotected checkouts, the main worktree included, and does not
+    block acceptance. Records saved without it are read as ``[]``.
     """
 
     schema_version: Literal[1] = 1

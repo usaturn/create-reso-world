@@ -191,11 +191,13 @@ def test_audit_diagnoses_unavailable_baseline(
                 "protected": False,
             }
         ]
-        assert all(workspace.blocks_acceptance(item) for item in diagnostics)
+        assert not any(workspace.blocks_acceptance(item) for item in diagnostics)
+        snapshot = workspace.require_auditable_checkouts(repository)
+        assert snapshot[str(external)] is None and snapshot.failures[str(external)] == diagnostics[0]
         with pytest.raises(workspace.CheckoutAuditError) as caught:
-            workspace.require_auditable_checkouts(repository)
-        assert caught.value.findings == diagnostics
-        assert "SECRET" not in str(caught.value)
+            workspace.require_auditable_checkouts(external)
+        assert caught.value.findings and all(item.protected for item in caught.value.findings)
+        assert "SECRET" not in str(caught.value) and "SECRET" not in repr(caught.value.findings)
         assert changed_checkouts(before) == [str(external)]
     finally:
         if kind == "unreadable":
@@ -344,18 +346,18 @@ def test_git_common_dir_ignores_ambient_git_routing(
 
 
 # Other sessions change and clean up their own worktrees while a run is going (#756). Only the
-# checkout given to the run and the main worktree may block it; a checkout that vanished while
-# still registered stays unauditable.
+# checkout given to the run may block it; the main worktree and other sessions' checkouts are
+# reported only, even when they vanish (Spec R8).
 @pytest.mark.parametrize(
     ("which", "mutation", "kind", "protected"),
     [
         ("target", "change", "content_changed", True),
-        ("main", "change", "content_changed", True),
+        ("main", "change", "content_changed", False),
         ("other", "remove", "removed", False),
         ("other", "vanish", "unavailable_after", False),
     ],
 )
-def test_audit_protects_only_the_target_and_the_main_worktree(
+def test_audit_protects_only_the_target(
     repository: Path, tmp_path: Path, which: str, mutation: str, kind: str, protected: bool
 ) -> None:
     target = create_worktree(repository, "HEAD", tmp_path / "対象 checkout\n改行")
@@ -370,7 +372,7 @@ def test_audit_protects_only_the_target_and_the_main_worktree(
         shutil.rmtree(checkout)
     [finding] = workspace.audit_checkouts(before)
     assert (finding.path, finding.kind, finding.protected) == (str(checkout), kind, protected)
-    assert workspace.blocks_acceptance(finding) is (protected or kind == "unavailable_after")
+    assert workspace.blocks_acceptance(finding) is protected
 
 
 def test_target_given_through_a_symlink_is_protected(repository: Path, tmp_path: Path) -> None:
@@ -395,20 +397,13 @@ def test_unidentified_target_protects_every_checkout(repository: Path, tmp_path:
     assert workspace.blocks_acceptance(finding)
 
 
-def test_unlisted_registrations_keep_a_vanished_checkout_unauditable(
+def test_unmatched_target_protects_every_checkout(
     repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     other = create_worktree(repository, "HEAD", tmp_path / "other session")
-    before = snapshot_checkouts(repository)
-    git(repository, "worktree", "remove", "--force", str(other))
-    original = workspace._git  # pyright: ignore[reportPrivateUsage]
-
-    def failing(repository: Path, *arguments: str) -> bytes:
-        if arguments[:2] == ("worktree", "list"):
-            raise WorkspaceError()
-        return original(repository, *arguments)
-
-    monkeypatch.setattr(workspace, "_git", failing)
+    monkeypatch.setattr(workspace, "_toplevel", lambda _: str(tmp_path / "unregistered"))
+    before = snapshot_checkouts(other)
+    (other / "tracked.txt").write_text("changed\n")
     [finding] = workspace.audit_checkouts(before)
-    assert (finding.path, finding.kind, finding.protected) == (str(other), "unavailable_after", False)
+    assert (finding.path, finding.protected) == (str(other), True)
     assert workspace.blocks_acceptance(finding)
