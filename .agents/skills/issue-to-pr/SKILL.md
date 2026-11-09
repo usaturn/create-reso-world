@@ -1,7 +1,7 @@
 ---
 name: issue-to-pr
 description: "Issue の URL・#番号を指定して『着手して』『実装して PR まで』『推奨案で進めて』と依頼されたときに使う。PR の番号・URL、PR レビュー・レビュー指摘の修正計画、ボードの親 Issue からの子の選択には使わない。ワールドのプロジェクト（`worlds/<name>/` と従来位置）を cwd にしているときや、Issue がワールドの作業のときも使わない（そのプロジェクトを cwd にして、その `AGENTS.md` に従って進める）。"
-argument-hint: "<Issue> [--base BRANCH] [--implement AGENT] [--merge [--max-cycles N] [--assign ROLE=AGENT[,AGENT]]... [--template PATH] [--config PATH]]"
+argument-hint: "<Issue> [--base BRANCH] [--implement AGENT] [--spec-review AGENT] [--design-review AGENT] [--merge [--max-cycles N] [--assign ROLE=AGENT[,AGENT]]... [--template PATH] [--config PATH]]"
 ---
 
 # Issue to PR
@@ -20,7 +20,7 @@ argument-hint: "<Issue> [--base BRANCH] [--implement AGENT] [--merge [--max-cycl
 
 一度明示入口から開始した run では、工程ごとに次のコマンド入力を求めず、各スキルを読んで最後まで続ける。ランタイムの明示された承認・ツール制限は迂回しない。
 
-**オプションは `--base`・`--implement`・`--merge`・ループ用のオプション（`--merge` と一緒のときだけ）を受け付ける。** ほかのオプション（`--hold-action`・`--fresh-review` を含む）は、2 章の helper が理由を出して終了コード 2 で止まる。そのまま止まって理由を伝える。オプションを外して続けない。
+**オプションは `--base`・`--implement`・`--spec-review`・`--design-review`・`--merge`・ループ用のオプション（`--merge` と一緒のときだけ）を受け付ける。** ほかのオプション（`--hold-action`・`--fresh-review` を含む）は、2 章の helper が理由を出して終了コード 2 で止まる。そのまま止まって理由を伝える。オプションを外して続けない。
 
 ### `--base`
 
@@ -30,11 +30,20 @@ argument-hint: "<Issue> [--base BRANCH] [--implement AGENT] [--merge [--max-cycl
 
 ### `--implement`
 
-Plan の Task を実装する担当は、agent-runner の `workflows.issue` の `implement` で決まる（雛形 `.devcontainer/agent-runner.toml` < 個人設定 < `--implement`）。雛形の既定は `self`（このセッションが自分で実装する）。
+Plan の Task を実装する担当は、agent-runner の `workflows.issue` の `implement` で決まる（雛形 `.devcontainer/agent-runner.toml` < 個人設定 < `--implement`）。雛形の既定は `claude-code_sonnet_xhigh`（`model = "sonnet"`、effort `xhigh`）。`self` を選ぶとこのセッションが自分で実装する。
 
 - `--implement AGENT`（`--implement=AGENT` も同じ）は、その回だけ一次担当を置き換える。値は agent-runner の設定にある agent 名か `self`。`fallback` は設定のものを保つ
 - Issue の参照の前でも後でも書け、1 回だけ書ける
 - 担当の検査は 2 章の 3、依頼の手順は 4 章の「Task の実装を runner の担当に依頼する」
+
+### `--spec-review` と `--design-review`
+
+Spec レビューと設計レビューは、利用者がこの 2 つの引数を書いた run だけで行う。雛形・個人設定にレビューの assignment や fallback があっても、引数が無ければ helper の `check` も runner も起動しない。`--merge` と一緒でも `loop_args` には入れない（PR 修正ループの `--assign` とは別）。
+
+- `--spec-review AGENT` / `--design-review AGENT`（`=AGENT` も同じ）は、その run のレビュー担当を置き換える。値は agent-runner の agent 名か `self`。各 1 回だけ書ける
+- 明示した担当が一次担当になり、個人設定の `fallback` は保つ。設定だけでは担当を選ばない
+- `--spec-review` を指定した run は、通常の builder check の代わりに Spec レビューを行う。Spec レビューが失敗しても builder check で代えない
+- `--design-review` は builder check を代替しない。設計レビューの後、Spec レビューが無ければ builder check を 1 回行う。両方指定したときは設計レビュー → Spec レビュー → Plan の順で、builder check は行わない
 
 ### `--merge`
 
@@ -75,7 +84,7 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
    ```
 
    - 受け付ける表記: `https://github.com/<owner>/<repo>/issues/N`、`<owner>/<repo>#N`、`#N`（**現在の checkout の origin** で解決する。番号からリポジトリを推測しない）。対象は既存 parent / fork / meshy と、検証済み常設親の採用済み台帳にある通常ツール。未登録 repo の新規実装は扱わない
-   - 成功: 終了コード 0、`repo`・`number`・`url`・`title`・`body`・`merge`・`implement`・`base`・`base_explicit` の JSON。`merge` は `--merge` が無ければ `null`、あれば `{"loop_args": [...]}`（利用者が書いた順のループ用のオプション。パスは絶対パス）。`implement` は `--implement` の値か `null`。`base` は branch 名（未指定は対象の既定 base）、`base_explicit` は利用者が指定したかの真偽値。`--base` は `merge.loop_args` には含めず、ループにも渡さない。**最初に `repo` と `title` を利用者に表示する。** 失敗: 終了コード 2 と stderr の理由。副作用に進まずに止まる
+   - 成功: 終了コード 0、`repo`・`number`・`url`・`title`・`body`・`merge`・`implement`・`spec_review`・`design_review`・`base`・`base_explicit` の JSON。`merge` は `--merge` が無ければ `null`、あれば `{"loop_args": [...]}`（利用者が書いた順のループ用のオプション。パスは絶対パス）。`implement` は `--implement` の値か `null`。`spec_review`・`design_review` は明示値か `null`。`base` は branch 名（未指定は対象の既定 base）、`base_explicit` は利用者が指定したかの真偽値。`--base` は `merge.loop_args` には含めず、ループにも渡さない。**最初に `repo` と `title` を利用者に表示する。** 失敗: 終了コード 2 と stderr の理由。副作用に進まずに止まる
    - cwd が git の追跡しないディレクトリ（ワールドのプロジェクトなど）の中にあると（`git check-ignore -q .` が成功する）、helper は入力を読む前に終了コード 2 で止まる。下の「ワールドの作業で止まったとき」に従う
    - helper は入力の字句検証 → repo 解決 → profile 検査 → Issue 読取の順で進む。登録済み通常ツールの `--merge` は GitHub 照会の前に止める。登録は作成・clone・実装・公開・マージの許可ではない
    - helper は入力・対象の検証と Issue の確認だけで、競合・予約・承認を確かめた証拠にはならない
@@ -94,7 +103,16 @@ Plan の Task を実装する担当は、agent-runner の `workflows.issue` の 
      uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/implement_task.py" check [--implement <値>]
      ```
 
-     終了コード 0 なら、出力の `assignment`（`agents`・`fallback`）と `self` を Spec の決定記録に写す（雛形の既定の `self` は既定の適用と書き、利用者の指定と書かない）。終了コード 2 なら `reason` を利用者に伝えて止まる（設定に無い agent、`agents` が 2 つ以上、`implement` の役割の `writes = false` など）。worktree・Herdr・予約のどれにも触れない。
+     終了コード 0 なら、出力の `assignment`（`agents`・`fallback`）と `self` を Spec の決定記録に写す（雛形の既定の `claude-code_sonnet_xhigh` は既定の適用と書き、利用者の指定と書かない）。終了コード 2 なら `reason` を利用者に伝えて止まる（設定に無い agent、`agents` が 2 つ以上、`implement` の役割の `writes = false` など）。worktree・Herdr・予約のどれにも触れない。
+
+   - 続けて、明示されたレビューの担当だけを検査する。`spec_review`・`design_review` が `null` なら、その helper の `check` を起動しない（設定だけを理由に起動しない）。値があるときだけ、対応する helper を実行する。
+
+     ```bash
+     uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/review_design.py" check --design-review <値>
+     uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/review_spec.py" check --spec-review <値>
+     ```
+
+     終了コード 0 なら、出力の `assignment`（`agents`・`fallback`）と `self` を決定記録に写す（明示値と、個人設定で保たれた `fallback` を区別して書く）。終了コード 2 なら `reason` を利用者に伝えて止まる（設定に無い agent、`agents` が 2 つ以上、レビュー役割の `writes` が `true`、`agents` の無い個人設定の assignment など）。worktree・Herdr・予約のどれにも触れない。ループ用の `--template`・`--config` はここに渡さない。
 
 4. 本文、全ページのコメント、依存関係を読む。本文が利用者の承認・判断を求めていて、決定の記録が無ければ、推奨案での委任で代えずに止まる。Issue がワールドのプロジェクト（`worlds/<name>/` と従来位置）の中身を変える作業を含むときも止まり、下の「ワールドの作業で止まったとき」に従う（雛形の `templates/world-project/` や `scripts/new-world.sh` など、追跡するファイルの変更は当たらない）。
 5. 実装の対象 `TARGET_REPO` を決める。既定は helper の `repo`。本文に実装対象が明記されていればそれを使い、Issue の repo と混同しない。既存 parent / fork / meshy または採用済み台帳の通常ツールだけを扱う。対象 checkout を共通 context helper で解決し、その `code_root` を `TARGET_ROOT` にする。未知 repo に明示 `CODE_ROOT` を渡して新規実装を許可しない（その経路は PR レビュー・承認済み review-fix 専用）。
@@ -222,7 +240,88 @@ fi
 
 1. **`superpowers:brainstorming` 必須。** 利用者はこの指示で質問を省くことを選んでいるので、問答をせずに推奨案を選ぶ。意図・受け入れ条件・編集禁止を整理する。
 2. Spec を `DOC_ROOT` の `docs/superpowers/specs/` に書いて commit する。冒頭に管理・実行許可（利用者の指示の引用、許可された範囲、状態 `draft`）を書き、`approved` にしない。**決定記録**を設け、各項目に「選択した案 / 検討した別案 / 選択理由 / 委任指示または停止条件」を残す。確認用のコピー（`scripts/superpowers-review-copy.sh`）は作らない。
-3. **`superpowers:writing-plans` 必須。** Plan を `DOC_ROOT` の `docs/superpowers/plans/` に作って commit する。実在する Spec のパス、Task、担当ファイル、検証の入口（2 章の 5 で読んだ repo 側の規則）、実行方式と理由、contingency を書く。AGENTS.md の SDD 実行運用に従う。実装前に [要件・原因・検証の対応](../review-fix-planning/references/convergence.md) の「1. 実装前の要件照合」を読み、Spec の条件・除外範囲と Task・観測結果・検証を照合する。共有する入力・状態・順序・外部仕様の確認は統合担当の Task にする。単純な変更は Plan の短い対応メモでよく、別帳票は作らない。
+
+### Spec・設計レビュー（明示されたときだけ）
+
+`--spec-review` / `--design-review` が無い run は、この節の helper を起動せず、3 の builder check に進む。ある run は、Spec の commit の後、writing-plans の前に次を行う。設計レビュー → Spec レビューの順で、`--design-review` が無ければ設計レビューを省き、`--spec-review` が無ければ Spec レビューを省く。Spec レビューがある run は builder check を行わない。設計レビューは builder check を代替しない。
+
+レビューの記録は `SESSION` の下だけに置き、コード・Spec の worktree には置かない。`--ledger-dir` には常に `"$SESSION"` を明示する（環境変数や既定値に任せない）。外部担当の runner の出力先も、`SESSION` の下のまだ存在しないパス（例: `"$SESSION/review-runner/design-1"`）にする。ledger と runner-dir が互いを含む場合、worktree の中にある場合、symlink の場合は helper が終了コード 2 で拒否する。拒否されたら、別の場所を推測せずに止まる。
+
+**依頼 JSON を作る。** `"$SESSION/<spec-stem>.review-request.json"` に `ReviewRequest` を書く。`spec_path` は `DOC_ROOT` の Spec の絶対パス、`repository` はレビューする `CODE_ROOT` の絶対パス、`revision` はその時点の `git -C "$CODE_ROOT" rev-parse HEAD` の完全 SHA、`issue` は `issue.json` の `repo`・`number`・`url`・`title`・`body`、`context` は Issue のコメントの要点・適用する AGENTS.md・受け入れ条件など（複数行の日本語可）。`spec_path` と `repository` は別の worktree でよい。
+
+   ```json
+   {
+     "spec_path": "/abs/DOC_ROOT/docs/superpowers/specs/...-design.md",
+     "repository": "/abs/CODE_ROOT",
+     "revision": "<CODE_ROOT の完全 HEAD SHA>",
+     "issue": {"repo": "usaturn/create-reso-world", "number": 42, "url": "https://github.com/usaturn/create-reso-world/issues/42", "title": "...", "body": "..."},
+     "context": "複数行の日本語の文脈"
+   }
+   ```
+
+**設計レビュー（`--design-review` があるときだけ）。** 次の helper を実行する。外部担当のときは `--runner-dir` を付け、`self` のときは付けない。`--runner-dir` はまだ存在しないパスにする。
+
+   ```bash
+   uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/review_design.py" review \
+     --request "$SESSION/<spec-stem>.review-request.json" \
+     --ledger-dir "$SESSION" \
+     --design-review <値> \
+     --runner-dir "$SESSION/review-runner/design-1"
+   ```
+
+   出力が `state: self` なら、`prompt_path` の依頼文を読み、出力の `review_id`・`spec_sha256` を使って結果 JSON を `"$SESSION/<spec-stem>.design-result.json"` に書く。
+
+   ```json
+   {
+     "review_id": "<review の出力>",
+     "spec_sha256": "<review の出力>",
+     "status": "completed",
+     "verdict": "sound",
+     "assessment": "設計は妥当",
+     "concerns": [],
+     "questions_for_user": [],
+     "incomplete": []
+   }
+   ```
+
+   指摘があるときは、prompt の `RESULT_SHAPE` の全項目（`id`・`decision_ref`・`problem`・`evidence`・`alternative`・`tradeoffs`・`impact`・`recommendation`・`severity`）を埋める。`self` の結果は次の `submit` で記録する。`state: completed` なら外部担当のレビューが完了している。`state: failed`、`status: incomplete`、`review_id` / `spec_sha256` の不一致、`outside_changes`、Spec / HEAD の変化はレビュー失敗であり、指摘 0 件として扱わない。失敗したらそのレビューを成功にせず止まる。`unprotected_changes` は記録して報告するが、それだけで失敗にしない。
+
+   ```bash
+   uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/review_design.py" submit \
+     --review-dir "<review_dir>" --result "$SESSION/<spec-stem>.design-result.json"
+   ```
+
+   `submit` の終了コード 1 はレビュー失敗、2 は結果の形・`review_id`・`spec_sha256` の拒否である。どちらも採否へ進まず止まる（拒否では `review.json` を作らない。`review_dir` と理由を報告する）。
+
+**Spec レビュー（`--spec-review` があるときだけ）。** 設計レビューを行った場合はその採否を Spec に反映して commit した後、行っていない場合は Spec の commit 後に行う。手順は設計レビューと同じで、`review_design.py` の代わりに `review_spec.py` を使い、`--design-review` の代わりに `--spec-review` を渡す。結果は `status`・`findings`・`incomplete` を持ち、runner-dir は `"$SESSION/review-runner/spec-1"` のような新しいパスにする。`self` の結果は `{"review_id": "<review の出力>", "spec_sha256": "<review の出力>", "status": "completed", "findings": [], "incomplete": []}` の形で、指摘は prompt の `RESULT_SHAPE` の `id`・`section`・`problem`・`evidence`・`impact`・`severity`・`suggestion` を埋める。`review_spec.py submit --review-dir "<review_dir>" --result "$SESSION/<spec-stem>.spec-result.json"` で記録し、終了コード 1/2 は設計レビューと同じく停止する。設計レビューを 2 回目に始める場合や、Spec レビューの後に設計レビューを始める場合は、helper が拒否する。拒否されたら順序を変えずに止まる。
+
+**採否を記録する。** 結果のすべての `findings` / `concerns` を、重複なく 1 回ずつ採否に含める。採用する指摘は Spec の該当箇所に反映し、レビューの記録（`review_dir`・`review_id`・reviewed / reflected の SHA・担当・回数・`elapsed_seconds`・`requested_agent`・`actual_agent`・`identity`・`fallback` の使用・`outside_changes`・`unprotected_changes`）を決定記録に追記してから `decide` を呼ぶ。記録の追記だけを採用の反映にしない。
+
+   ```json
+   {"decisions": [
+     {"id": "S1", "decision": "adopt", "reason": "...", "reflected_in": "..."},
+     {"id": "S2", "decision": "reject", "reason": "...", "reflected_in": null}
+   ]}
+   ```
+
+   設計レビューは `changes_what_is_built` を持ち、`true` の採用と `recommendation: ask_user` の採用はできない。採否を決められないときは `needs_judgment` にして止まる。
+
+   ```json
+   {"decisions": [
+     {"id": "D1", "decision": "reject", "changes_what_is_built": false, "reason": "...", "reflected_in": null}
+   ]}
+   ```
+
+   ```bash
+   uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/review_spec.py" decide \
+     --review-dir "<review_dir>" --decisions "$SESSION/<spec-stem>.spec-decisions.json"
+   ```
+
+   設計レビューでは `review_design.py decide` を使う。`decide` の終了コード 2 は、採否の欠落・重複・未反映、版の不一致などの拒否である。拒否では採否も反映後 snapshot も書かれないので、Spec を commit せずに止まり、変更内容と `review_dir` を報告する。出力の `next` が `stop` なら止まる。設計レビューの `next: continue` は Spec を commit して次へ進む。Spec レビューの `next: plan` は Spec を commit して 3 へ進む。`next: rereview` は初回に `important` を採用したときだけで、Spec を commit してから同じ担当のまま新しい runner-dir で 1 回だけ再レビューする。2 回目を超える再レビュー、閉じた gate の後の新規レビュー、担当を変えた再レビューは helper が拒否するので、やり直さず止まる。
+
+**後片付けと記録。** 結果と採否を記録したレビュー、および失敗して結果だけが記録されたレビューについて `cleanup --review-dir "<review_dir>"` を実行する。`self` では何もしない。外部担当では、停止を確認できた試行の worktree と、安全に片付いた runner-dir だけを消し、レビューの記録（ledger）は残す。`retained` は消さず、完全パスと理由を記録して最終報告（止まるときは停止報告）に含める。停止未確認の試行が残る場合は、そのレビューを成功扱いせず止まる。結果の記録が無いレビューでは `cleanup` を使わず、runner-dir のパスを報告する。`cleanup` の結果は SESSION の記録と最終報告に書き、レビュー済みの Spec の版を変えない。
+
+3. **Spec の builder check と `superpowers:writing-plans` 必須。** Spec レビューを行った run は builder check を省略し、Spec レビューが代わる。設計レビューだけ、またはどちらも無い run は、`superpowers:brainstorming` の builder check（読み取り専用の別 context。サブエージェントが使えなければ自分で builder として読む）を 1 回行い、Spec に反映して commit する。利用者にしか決められない指摘が残るなら止まる。その後 Plan を `DOC_ROOT` の `docs/superpowers/plans/` に作って commit する。実在する Spec のパス、Task、担当ファイル、検証の入口（2 章の 5 で読んだ repo 側の規則）、実行方式と理由、contingency を書く。AGENTS.md の SDD 実行運用に従う。実装前に [要件・原因・検証の対応](../review-fix-planning/references/convergence.md) の「1. 実装前の要件照合」を読み、Spec の条件・除外範囲と Task・観測結果・検証を照合する。共有する入力・状態・順序・外部仕様の確認は統合担当の Task にする。単純な変更は Plan の短い対応メモでよく、別帳票は作らない。
 4. 実行方式は次で決める。ランタイムのツール仕様を確かめ、存在しない一覧操作や同期フラグを渡さない。リポジトリが要求する起動条件を満たせなければ inline を選ぶ。
 
    | 条件 | 選ぶ方式 |
@@ -353,7 +452,7 @@ fi
   - Issue が `TARGET_REPO` にあるボードの子（2 章の 7）: `Refs #N`。close と親の更新は、マージの後に調整役が行う
   - 上のどれにも当たらない: `Closes #N`
 - マージの後でなければ確かめられない項目が残るときは、Issue の指定に関係なく、その項目を PR 本文と最終報告に書き、run の最後（`--merge` のときはループの終了の後）に、PR の URL とその項目を Issue へコメントする
-- PR 本文には、変更概要、**Spec の決定と理由、実行方式と理由**、実行した検証と結果、作業時間と主要 Task 別の内訳も書く。未実行の確認を成功と書かない。
+- PR 本文には、変更概要、**Spec の決定と理由、実行方式と理由**、実行した検証と結果、作業時間と主要 Task 別の内訳も書く。Spec・設計レビューを行った run は、helper・`self` のどちらで行ったか、担当（明示値・保たれた `fallback`・`actual_agent`・`identity`）、回数、採否の要点、レビュー記録の `SESSION` のパス（commit しない）も書く。未実行の確認を成功と書かない。
 - `DOCS_SEPARATE` が `true` なら、上の文書用 PR は Spec・Plan だけを含める。本文は `Refs <Issue の URL>` とコードの PR の URL。コードの PR の本文にも文書の PR の URL を足す。
 - CI は 2 章の 5 で確認した対象ごとの規則に従う。CI 必須のリポジトリは PR の checks が green になってから完了とする。失敗したら直すか、直せなければ止まる。`--merge` のときは、PR の作成後に CI を待たずにループへ進む（マージの前に `finalize.py` が CI の成功を確かめ、実行中なら `wait_for: ci` で待つ。PR の変更による失敗は、review-fix-planning が致命的な指摘として直す）。
 - `--merge` のときのループの `finalize.py` によるマージを除き、マージ・タグ・リリース・デプロイ・プロビジョニングは行わない。admin マージ・auto-merge・force push・branch の削除は、どの場合もしない。
@@ -388,14 +487,14 @@ PR を作った後（`DOCS_SEPARATE` が `true` なら、文書の PR も作っ�
 
 ## 停止時の報告
 
-不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が手動マージ対象（meshy・登録済み通常ツール）、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、マージ済みの PR で PR にする作業が残っていない Issue、未完了の依存、Issue の明示の承認要求、要求 base の未指定・矛盾・曖昧さ、base の不存在・不一致・捕捉後の移動、実 PR の base/head の不一致、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
+不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が手動マージ対象（meshy・登録済み通常ツール）、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、マージ済みの PR で PR にする作業が残っていない Issue、未完了の依存、Issue の明示の承認要求、要求 base の未指定・矛盾・曖昧さ、base の不存在・不一致・捕捉後の移動、実 PR の base/head の不一致、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。Spec・設計レビューでも、helper の終了コード 2（型・版・保存先・順序の拒否）、`state: failed`・`status: incomplete`・`review_id` / `spec_sha256` の不一致、採否の欠落・重複・未反映、設計レビューの `wrong_approach`・`blocking`・`questions_for_user`・`needs_judgment`、Spec レビューの後の設計レビューや 2 回目を超える再レビュー、停止未確認の `retained` では止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
 
 検査で止まったら、どの worktree も push せず、PR を作らない。`AGENTS.md` の「push の前の秘密情報の検査」の条件を満たす検出なら、その commit を直し、検証（`--merge` のときは検証の記録も）と、公開するすべての worktree の検査をやり直して続ける。条件を満たさない検出では止まり、回避しない。gitleaks は自分で導入せず、`bash "$PARENT_ROOT/.devcontainer/install_gitleaks.bash"` での導入を次の操作として報告する。検査が全部通った後の push や PR の作成が失敗して一部だけ公開されたら、公開済みの branch・PR を報告し、取り消さない。
 
-**理由 / 現在の状態 / 実施済みの検証と終了コード / 存在する worktree・branch・Spec・Plan・ログ / 次の操作** を報告する。Task を runner の担当に依頼した run では、`cleanup` が残したもの（`retained`）と、`cleanup` を使えなかった `RUN_DIR` の完全パスも書く。ループで止まったときは、ループの `stage`・`reason`・`next`・run のディレクトリ・残した資源の完全パスも書く。作っていないパスは「未作成」と書く。通常の工程の区切り、推奨案の選択、実装方式の選択は停止の理由にしない。
+**理由 / 現在の状態 / 実施済みの検証と終了コード / 存在する worktree・branch・Spec・Plan・ログ / 次の操作** を報告する。Spec・設計レビューで止まったときは、`review_dir`・`review_id`・reviewed / reflected の SHA・`next`・`retained` の完全パスも書く。Task を runner の担当に依頼した run では、`cleanup` が残したもの（`retained`）と、`cleanup` を使えなかった `RUN_DIR` の完全パスも書く。ループで止まったときは、ループの `stage`・`reason`・`next`・run のディレクトリ・残した資源の完全パスも書く。作っていないパスは「未作成」と書く。通常の工程の区切り、推奨案の選択、実装方式の選択は停止の理由にしない。
 
 ## ランタイムごとの違い
 
-- **Claude Code:** `/issue-to-pr <Issue> [--base BRANCH] [--implement AGENT] [--merge [ループ用のオプション]]`。スラッシュコマンドの引数（`ARGUMENTS`）から、2 章の規則で `INPUT` を切り出す。モデルが自分の判断で Skill ツールからこのスキルを呼ぶときは、利用者のメッセージから同じ規則で `INPUT` を切り出して args に渡す。利用者が書いた `--base`・`--implement`・`--merge`・ループ用のオプションは書かれたとおりに含め、書かれていないものは足さない（自然文の「マージまで」は `--merge` ではない）。pr-review-fix-loop は Skill ツールで起動せず、5 章のとおりファイルとして読む。
-- **Pi:** `/skill:issue-to-pr` の引数から、2 章の規則で `INPUT` を切り出す。`/sp-brainstorm` から入るときは、Issue の URL を最初に書き、`--base`・`--implement`・`--merge`・ループ用のオプションはその直後に続ける（`/sp-brainstorm <Issue URL> [--base BRANCH] [--implement AGENT] [--merge [ループ用のオプション]] issue-to-pr を使い、…`）。1 章の入口を案内するときも、利用者が書いた `--base`・`--implement`・`--merge`・ループ用のオプションだけを含める。
+- **Claude Code:** `/issue-to-pr <Issue> [--base BRANCH] [--implement AGENT] [--spec-review AGENT] [--design-review AGENT] [--merge [ループ用のオプション]]`。スラッシュコマンドの引数（`ARGUMENTS`）から、2 章の規則で `INPUT` を切り出す。モデルが自分の判断で Skill ツールからこのスキルを呼ぶときは、利用者のメッセージから同じ規則で `INPUT` を切り出して args に渡す。利用者が書いた `--base`・`--implement`・`--spec-review`・`--design-review`・`--merge`・ループ用のオプションは書かれたとおりに含め、書かれていないものは足さない（自然文の「マージまで」は `--merge` ではない）。pr-review-fix-loop は Skill ツールで起動せず、5 章のとおりファイルとして読む。
+- **Pi:** `/skill:issue-to-pr` の引数から、2 章の規則で `INPUT` を切り出す。`/sp-brainstorm` から入るときは、Issue の URL を最初に書き、`--base`・`--implement`・`--spec-review`・`--design-review`・`--merge`・ループ用のオプションはその直後に続ける（`/sp-brainstorm <Issue URL> [--base BRANCH] [--implement AGENT] [--spec-review AGENT] [--design-review AGENT] [--merge [ループ用のオプション]] issue-to-pr を使い、…`）。1 章の入口を案内するときも、利用者が書いた `--base`・`--implement`・`--spec-review`・`--design-review`・`--merge`・ループ用のオプションだけを含める。
 - **`--controller-model`・`--controller-runtime`（5 章のループ）:** `--controller-runtime` は Claude Code なら `claude-code`、Pi なら `pi`。`--controller-model` は、現在提示されている正確なモデル ID（Pi は pi-model-name のスキルで `PI_PROVIDER` と `PI_MODEL` を確かめる。pr-review-fix-loop の「ランタイムごとの違い」）。

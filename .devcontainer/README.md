@@ -97,7 +97,7 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
      「pi-superagents のランチャー別 model tier」）
    - #305 の Terra / DeepInfra の追加: 「Terra / DeepInfra ランチャーの既存環境への追加」に従う。
      既存の `models.json` は rebuild でも更新されない
-   - agent-runner の旧名参照: 「旧担当からの個人設定の移行」に従って手動で更新する。Devin の改名（#341）は「Devin の agent 名の変更（#341）」に従う。rebuild による設定消失を移行の代わりにしない
+   - agent-runner の旧名参照: 「旧担当からの個人設定の移行」に従って手動で更新する。Devin の改名（#341）は「Devin の agent 名の変更（#341）」、Sonnet の xhigh への置換（#353）は同じ移行の節に従う。rebuild による設定消失を移行の代わりにしない
    - pi の project trust: まだ承認していなければ、リポジトリのルートで素の `pi` を起動して承認する。
      承認の後に `.pi/settings.json`・`.pi/mcp.json`・`.pi/APPEND_SYSTEM.md`（pi 固有の指示）と
      プロジェクトのスキル（`.agents/skills`）が読まれる
@@ -1198,7 +1198,8 @@ model の段に入れず、effort の段に置く。effort は設定値を使い
 
 既定の `review.inspect` は
 `pi_openai-codex_gpt6-sol_max,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`、
-`fix.implement` は `claude-code_opus_default`。`fix.self-review`・`fix.fix-check`・`issue.implement` は `self` のままである。
+`fix.implement` と `issue.implement` は `claude-code_sonnet_xhigh`（`model = "sonnet"`、effort `xhigh`）。
+`fix.self-review`・`fix.fix-check` は `self` のままである。
 Sol の runner の effort は `max` を維持する（`pigs` 単独の既定 `xhigh` とは異なる）。
 Sol / OpenCode Go DeepSeek の `OPENCODE_API_KEY` と、review の後処理の `uv --project .` も維持する。
 #337 で既定の第三担当を Command Code から OpenCode Go に置換した。上の #305 の旧名対応表は当時の変更記録であり、
@@ -1210,7 +1211,7 @@ Command Code の agent 定義自体は再契約後の明示的な `--assign` 用
 | --- | --- | --- | --- | --- |
 | `pi_openai-codex_gpt6-terra_xhigh` | `pigt` | `openai-codex / gpt-6.1-terra` | `xhigh` | Codex OAuth（`auth.json`） |
 | `pi_openai-codex_gpt6-astra_xhigh` | `piga` | `openai-codex / gpt-6-astra` | `xhigh` | Codex OAuth（`auth.json`） |
-| `claude-code_sonnet_default` | `claude` | 未指定 / `sonnet` | 未指定 | 既存の Claude Code のログイン |
+| `claude-code_sonnet_xhigh` | `claude` | 未指定 / `sonnet` | `xhigh` | 既存の Claude Code のログイン |
 | `pi_google-vertex_gemini4-argon_high` | `pigema` | `google-vertex / gemini-4-argon` | `high` | Vertex ADC（「Vertex AI の Gemini ランチャー」） |
 | `pi_deepinfra_deepseek4-flash_high` | `pidid` | `deepinfra / deepseek-ai/DeepSeek-V4.1-Flash-1017` | `high` | `DEEPINFRA_TOKEN` |
 
@@ -1227,6 +1228,24 @@ SWE-2 の `devin_swe2_max`・`devin_swe2_medium` にも同じ `model_key = "swe-
 `devin_swe2_medium`（SWE-2 Medium）は既定のどの割り当てにも入っておらず、`--assign` か個人設定で選べる。
 2 つは同じ `model_key` なので、同じ役割に並べると `duplicate_model` で拒否される。
 
+### Spec・設計レビューの opt-in と既定担当（#353）
+
+issue-to-pr は、利用者が `--spec-review AGENT` / `--design-review AGENT` を明示した run だけで
+Spec レビューと設計レビューを行う。雛形・個人設定にレビューの assignment や fallback があっても、
+引数が無ければ helper の `check` も runner も起動しない。`--merge` のループ用 `--assign` とは別で、
+`loop_args` には含めない。
+
+- 雛形の `roles.spec-review` と `roles.design-review` は `writes = false`、`result_shape = "json"`、
+  `deadline_seconds = 1800`。レビューの assignment は雛形に置かない
+- 明示した担当が一次担当になり、個人設定に明示した `fallback` は保たれる。設定だけでは担当を選ばない
+- `--spec-review` は通常の builder check を代替する。`--design-review` は代替しない
+  （設計レビューの後、Spec レビューが無ければ builder check を 1 回行う）
+- レビュー記録は `SESSION` の下（`--ledger-dir "$SESSION"`）に置き、runner の出力先も `SESSION` の下の
+  新しいディレクトリにする。コード・Spec の worktree には置かない。レビューの採否を反映した Spec は
+  DOC_ROOT に commit し、記録は commit しない
+- 個人設定でレビューの assignment を書くときは `agents` が必要である。`agents` の無い節
+  （`fallback` だけなど）は `invalid_type` で止まる。`fallback` は雛形ではなく個人設定に書く
+
 ### 旧担当からの個人設定の移行
 
 #243 で DSH 担当を撤去した。個人設定 `~/.config/agent-runner/config.toml` に `runtime = "dsh"` の agent 定義があれば削除し、
@@ -1242,6 +1261,13 @@ SWE-2 の `devin_swe2_max`・`devin_swe2_medium` にも同じ `model_key = "swe-
 - 定義の有無にかかわらず、workflow の `agents` と `fallback` の旧名参照を新名へ変更する。
   参照だけを持つ設定では、雛形から旧定義が無くなるので、変更しなければ `invalid_reference` で停止する。
   旧雛形を丸ごと重ねた設定は旧定義があるため読み込めるが、新名への移行は別途必要である
+
+#353 で `claude-code_sonnet_default` を `claude-code_sonnet_xhigh`（`model = "sonnet"`、`effort = "xhigh"`）に
+置き換えた。自動移行も旧名の alias も用意しない。個人設定をバックアップしてから、workflow の `agents` と
+`fallback` の `claude-code_sonnet_default` を `claude-code_sonnet_xhigh` に手で置き換える。旧名の定義を残すと、
+完全な定義なら独自 agent として読み込まれ、`model` などが欠けた上書きなら `invalid_type`、参照だけなら
+`invalid_reference` で止まる。`check` / `list` で実効割当を確認し、個人設定の自動変更や rebuild による設定消失を
+移行の代わりにしない。
 
 編集後は、リポジトリのルートで上記の `check` と `list` を実行する。
 この環境の既存個人設定は旧名の参照だけを持つため、マージ後に利用者による移行が必要であり、本変更では触らない。

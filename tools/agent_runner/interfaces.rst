@@ -28,12 +28,22 @@ TOML の ``schema_version = 1`` と以下の三層を使う。
   ``deadline_seconds``: 有限の正数。
   ``result_shape``: json（空でない object）または text（空白だけでない string）。
 
+  雛形の ``spec-review`` と ``design-review`` は、``writes = false``・``result_shape = "json"``・
+  ``deadline_seconds = 1800`` とする。両 role の assignment は雛形に置かず、issue-to-pr の
+  ``--spec-review`` / ``--design-review`` の明示指定でだけ担当を選ぶ。
+
 ``workflows.<workflow>.assignments.<role>``
   ``agents``: 並行担当の agent_id の配列、または ``["self"]`` のみ。
   ``fallback``: 明示した順序の代替候補の配列（既定は空、self は不可）。
   未対応・失敗を理由に別モデルや対話方式へ暗黙に切り替えない。
   fallback は役割内の共有候補で、一つの候補を複数の並行担当へ割り当てない。
   使用済み候補しか残らなければ、元の失敗と fallback_exhausted を返す。
+
+  雛形の ``issue.implement`` と ``fix.implement`` の既定は ``claude-code_sonnet_xhigh``
+  （``model = "sonnet"``、``effort = "xhigh"``）。``spec-review`` / ``design-review`` の assignment は
+  雛形に置かない。個人設定に置く場合は ``agents`` を必須とし、``fallback`` だけの節は ``invalid_type`` になる。
+  明示された ``--spec-review`` / ``--design-review`` はその run の ``agents`` を置き換え、個人設定の
+  明示済み ``fallback`` は保持する。設定だけではレビュー担当を選ばず、起動もしない。
 
 ``workflows.<workflow>.exclude_same_model_as``
   任意の role → 他の role の table。
