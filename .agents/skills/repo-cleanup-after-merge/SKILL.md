@@ -137,6 +137,9 @@ cleanup_remote_repo_key() {
     http://github.com/*) url=${url#http://github.com/} ;;
     *) return 1 ;;
   esac
+  while [ "${url%/}" != "$url" ]; do
+    url=${url%/}
+  done
   url=${url%.git}
   case "$url" in
     */*/* | /* | */ | '') return 1 ;;
@@ -563,38 +566,45 @@ warning: deleting branch '<branch>' that has been merged to
 
 ### 9. ゲート B: リモート branch の削除はユーザー確認を得る
 
-手順 8 でローカル branch を消すと対象名が手元から消える。リモート側から独立に洗い出す。祖先の一覧だけに限定せず、手順 3 と同じ「branch の取り込み判定」で `ancestor` または `pr` が返る branch を提示する。PR の照会先（`PR_REPO`）、取り込み先 base（`BASE_REF`）、削除元 remote（`REMOTE`）を区別する。`REMOTE` は削除する head branch がある remote で、PR の head repository に対応させる。create-reso-world は `origin`、通常ツールは `CLEANUP_BASE_REMOTE`（same-repository の head remote）、fork は上流 PR でも fork 内 PR でも `origin`（検証済みの head repository `usaturn/resoloop`）にする。fork→上流の PR では、`PR_REPO` は PR が属する `orange3134/resoloop`、`BASE_REF` は `upstream/main` だが、`REMOTE` は `upstream` にしない。`PR_REPO` や `BASE_REF` の remote に合わせると、同名・同 OID の上流 branch を fork の PR を根拠に候補にし、承認後の `git -C "$CHECKOUT" push "$REMOTE" --delete` も上流を指す。`BASE_REF` と `EXPECTED_HEAD_REPO` は手順 3 と同じにする。fork の経路（`EXPECTED_HEAD_REPO` が空でない）では、`REMOTE` の fetch URL と push URL の両方を GitHub の `owner/name` に正規化し（`git@github.com:`、`ssh://git@github.com/`、`https://github.com/`、`http://github.com/` の形。末尾の `.git` を除く）、`EXPECTED_HEAD_REPO` と大小文字を区別せずに比べる。承認後の `git push` は push URL を使うため、fetch URL だけを確かめない。一致しない・URL を解釈できないときは、候補を出さずに停止する。削除と prune は `git -C "$CHECKOUT"` で検証済みの checkout に対して実行し、cwd の repository に依存させない。ゲート B も `cleanup_expected_head_repo` で `EXPECTED_HEAD_REPO` を経路から決め、create・managed（未設定を含む）では空にして、環境に残った値で cross-repository の PR を候補にしない。`BASE_REF` は `origin/main` と `refs/remotes/origin/main` のどちらでもよいため、比較の前に base の branch 名へ正規化し、一覧の ref 名と直接比べない。
+手順 8 でローカル branch を消すと対象名が手元から消える。リモート側から独立に洗い出す。祖先の一覧だけに限定せず、手順 3 と同じ「branch の取り込み判定」で `ancestor` または `pr` が返る branch を提示する。PR の照会先（`PR_REPO`）、取り込み先 base（`BASE_REF`）、削除元 remote（`REMOTE`）を区別する。`REMOTE` は削除する head branch がある remote で、PR の head repository に対応させる。create-reso-world は `origin`、通常ツールは `CLEANUP_BASE_REMOTE`（same-repository の head remote）、fork は上流 PR でも fork 内 PR でも `origin`（検証済みの head repository `usaturn/resoloop`）にする。fork→上流の PR では、`PR_REPO` は PR が属する `orange3134/resoloop`、`BASE_REF` は `upstream/main` だが、`REMOTE` は `upstream` にしない。`PR_REPO` や `BASE_REF` の remote に合わせると、同名・同 OID の上流 branch を fork の PR を根拠に候補にし、承認後の `git -C "$CHECKOUT" push "$REMOTE" --delete` も上流を指す。`BASE_REF` と `EXPECTED_HEAD_REPO` は手順 3 と同じにする。`REMOTE` の URL は、期待する repository（fork の経路では `EXPECTED_HEAD_REPO`、create・managed では `PR_REPO`）と照合する。`git remote get-url --all` と `git remote get-url --push --all` で fetch URL と push URL をすべて読み、1 件ずつ GitHub の `owner/name` に正規化し（`git@github.com:`、`ssh://git@github.com/`、`https://github.com/`、`http://github.com/` の形。末尾の `/` をすべて除いてから末尾の `.git` を除くので、`.../resoloop/`・`.../resoloop.git`・`.../resoloop.git/` は同じ repository になる）、期待する repository と大小文字を区別せずに比べる。承認後の `git push` は設定されたすべての push URL へ送るため、fetch URL や最初の 1 件だけを確かめない。1 件でも一致しない・解釈できない URL があれば、候補を出さずに停止する。削除と prune は `git -C "$CHECKOUT"` で検証済みの checkout に対して実行し、cwd の repository に依存させない。ゲート B も `cleanup_expected_head_repo` で `EXPECTED_HEAD_REPO` を経路から決め、create・managed（未設定を含む）では空にして、環境に残った値で cross-repository の PR を候補にしない。`BASE_REF` は `origin/main` と `refs/remotes/origin/main` のどちらでもよいため、比較の前に base の branch 名へ正規化し、一覧の ref 名と直接比べない。
 
 ```bash
 set -euo pipefail
 : "${CHECKOUT:?対象 checkout}" "${PR_REPO:?対象 repository}" "${REMOTE:?対象 remote}" "${BASE_REF:?取り込み先 base ref}"
 EXPECTED_HEAD_REPO=$(cleanup_expected_head_repo) || exit 1
-if [ -n "$EXPECTED_HEAD_REPO" ]; then
-  # fork の経路: 削除元 remote は検証済みの head repository だけにする。
-  # 承認後の push は push URL を使うため、fetch URL と push URL の両方を確かめる。
-  expected_key=$(printf '%s' "$EXPECTED_HEAD_REPO" | LC_ALL=C tr '[:upper:]' '[:lower:]')
-  for remote_kind in fetch push; do
-    if [ "$remote_kind" = push ]; then
-      remote_url=$(git -C "$CHECKOUT" remote get-url --push "$REMOTE") || {
-        printf 'cleanup: remote %s の push URL を読めないため候補を出さない\n' "$REMOTE" >&2
-        exit 1
-      }
-    else
-      remote_url=$(git -C "$CHECKOUT" remote get-url "$REMOTE") || {
-        printf 'cleanup: remote %s の fetch URL を読めないため候補を出さない\n' "$REMOTE" >&2
-        exit 1
-      }
-    fi
+# 削除元 remote は、fork では検証済みの head repository、create・managed では PR_REPO だけにする。
+# 承認後の push は設定されたすべての push URL へ送るため、fetch と push の全 URL を確かめる。
+expected_repo=${EXPECTED_HEAD_REPO:-$PR_REPO}
+expected_key=$(printf '%s' "$expected_repo" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+for remote_kind in fetch push; do
+  if [ "$remote_kind" = push ]; then
+    remote_urls=$(git -C "$CHECKOUT" remote get-url --push --all "$REMOTE") || {
+      printf 'cleanup: remote %s の push URL を読めないため候補を出さない\n' "$REMOTE" >&2
+      exit 1
+    }
+  else
+    remote_urls=$(git -C "$CHECKOUT" remote get-url --all "$REMOTE") || {
+      printf 'cleanup: remote %s の fetch URL を読めないため候補を出さない\n' "$REMOTE" >&2
+      exit 1
+    }
+  fi
+  if [ -z "$remote_urls" ]; then
+    printf 'cleanup: remote %s の %s URL が無いため候補を出さない\n' "$REMOTE" "$remote_kind" >&2
+    exit 1
+  fi
+  while IFS= read -r remote_url; do
     if ! remote_key=$(cleanup_remote_repo_key "$remote_url"); then
       printf 'cleanup: remote %s の %s URL を GitHub の owner/name として解釈できないため候補を出さない: %s\n' "$REMOTE" "$remote_kind" "$remote_url" >&2
       exit 1
     fi
     if [ "$remote_key" != "$expected_key" ]; then
-      printf 'cleanup: remote %s の %s URL（%s）が PR の head repository %s と一致しないため候補を出さない\n' "$REMOTE" "$remote_kind" "$remote_url" "$EXPECTED_HEAD_REPO" >&2
+      printf 'cleanup: remote %s の %s URL（%s）が期待する repository %s と一致しないため候補を出さない\n' "$REMOTE" "$remote_kind" "$remote_url" "$expected_repo" >&2
       exit 1
     fi
-  done
-fi
+  done <<EOF_URLS
+$remote_urls
+EOF_URLS
+done
 case "$BASE_REF" in
   refs/remotes/*/*) base_branch=${BASE_REF#refs/remotes/*/} ;;
   refs/heads/*) base_branch=${BASE_REF#refs/heads/} ;;
@@ -994,7 +1004,8 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 - fork の経路で、`TARGET_ROOT` が `$PARENT_ROOT/external/resoloop` と一致することを確かめずに、残った `CLEANUP_ROUTE=fork` で別 clone を削除しようとしている
 - cross-repository の PR を、`fork` の経路以外で、または head repository が `EXPECTED_HEAD_REPO` と一致することを確かめずに取り込み済みとみなしている。create・managed の経路に前の fork 作業の `EXPECTED_HEAD_REPO` を残している
 - ゲート B で `cleanup_expected_head_repo` を通さず、環境に残った `EXPECTED_HEAD_REPO` で cross-repository の PR を候補に出そうとしている
-- fork→上流の PR のリモート branch を、PR の所属や取り込み先 base に合わせて `upstream` から列挙・削除しようとしている。削除元 remote は head repository に対応する `origin` であり、fetch URL と push URL の両方が `EXPECTED_HEAD_REPO` と一致しない remote を候補に出していない
+- fork→上流の PR のリモート branch を、PR の所属や取り込み先 base に合わせて `upstream` から列挙・削除しようとしている。削除元 remote は head repository に対応する `origin` である
+- ゲート B で、`REMOTE` の fetch URL・push URL のうち最初の 1 件だけを確かめている、または create・managed で URL を確かめていない。fetch と push のすべての URL が期待する repository（fork は `EXPECTED_HEAD_REPO`、create・managed は `PR_REPO`）と一致しない remote は候補に出さない
 - ゲート B の承認後の削除で `git -C "$CHECKOUT"` を付けず、cwd の repository の remote を操作しようとしている。push URL が fetch URL と異なる remote を検証していない
 - PR 一覧の取得上限に達したのに、その中の 1 件を一意な対応とみなしている
 - session の repository 名の大小文字差を別 repository とみなし、同じ PR の ref を削除しようとしている
@@ -1024,7 +1035,7 @@ git -C "${MAIN_ROOT:?メイン作業ツリーの絶対パスを事前に設定�
 ## ガードレール
 
 - `git branch -D` でマージ判定を握り潰さない。使ってよいのは、手順 8 で「branch の取り込み判定」を `-d` の前と `-D` の直前に通し、`ancestor` または `pr` を再確認できた branch だけである。削除先は `CLEANUP_ROUTE` で決め、create-reso-world（`create`）では手順 7 で確認した `MAIN_ROOT`、fork（`fork`）では `TARGET_ROOT`（`$PARENT_ROOT/external/resoloop` と一致することを削除の前に確かめたもの）、通常ツール（`managed`）では `CLEANUP_ROOT` にする。`MAIN_ROOT` と `TARGET_ROOT` が別の checkout を指すとき、経路を決められないとき（`MAIN_ROOT` が無く `TARGET_ROOT` だけが残っているときを含む）は削除しない。cross-repository の PR は、`fork` の経路で head repository が `EXPECTED_HEAD_REPO` と一致するときだけ取り込み済みとみなす。ゲート B も `cleanup_expected_head_repo` で `EXPECTED_HEAD_REPO` を経路から決め、stale な値で cross-repository の PR を候補にしない。
-- ゲート B の削除元 remote（`REMOTE`）は PR の head repository に対応させ、PR の照会先（`PR_REPO`）や取り込み先 base（`BASE_REF`）と混同しない。fork の経路では `REMOTE=origin` とし、fetch URL と push URL の両方が `EXPECTED_HEAD_REPO` と一致しない・解釈できない remote では候補を出さずに停止する。削除と prune は `git -C "$CHECKOUT"` で検証済みの checkout に対して実行し、cwd の repository に依存させない。
+- ゲート B の削除元 remote（`REMOTE`）は PR の head repository に対応させ、PR の照会先（`PR_REPO`）や取り込み先 base（`BASE_REF`）と混同しない。fork の経路では `REMOTE=origin` とする。fetch URL と push URL はすべて（`--all`）読み、末尾の `/` と `.git` を除いて `owner/name` に正規化し、期待する repository（fork は `EXPECTED_HEAD_REPO`、create・managed は `PR_REPO`）と比べる。1 件でも一致しない・解釈できない URL があれば、候補を出さずに停止する。削除と prune は `git -C "$CHECKOUT"` で検証済みの checkout に対して実行し、cwd の repository に依存させない。
 - `git branch -d` の upstream 判定だけを削除の根拠にしない。削除の前に、選択した base と明示した PR の `headRefOid`・`mergeCommit` を同じ判定で確かめる。
 - `git worktree remove` に `--force` を付けない。
 - 対象を限定しない `git worktree prune` を実行しない。

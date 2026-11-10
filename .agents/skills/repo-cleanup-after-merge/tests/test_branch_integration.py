@@ -437,6 +437,8 @@ def test_gate_b_presents_pr_merged_branches_that_are_not_ancestors(
         "11": pr_payload(11, "squashed", squashed_head, merge=main_head),
         "12": pr_payload(12, "unmerged", unmerged_head, merge=unmerged_head),
     })
+    # Gate B only enumerates a remote whose fetch/push URLs are the PR repository.
+    git(work, "remote", "set-url", "origin", f"https://github.com/{PR_REPO}.git")
     commands = section_bash(EVIDENCE_TITLE) + "\n" + section_bash(GATE_B_TITLE)
     env = {
         **os.environ,
@@ -470,6 +472,7 @@ def test_gate_b_excludes_the_documented_short_base_reference(
     # strings lets a MERGED main PR turn the base branch into a candidate.
     main_head = git(work, "rev-parse", "main")
     fake_gh({"31": pr_payload(31, "main", main_head, merge=main_head)})
+    git(work, "remote", "set-url", "origin", f"https://github.com/{PR_REPO}.git")
     commands = section_bash(EVIDENCE_TITLE) + "\n" + section_bash(GATE_B_TITLE)
     env = {
         **os.environ,
@@ -508,8 +511,9 @@ def test_gate_b_clears_a_stale_fork_expectation_on_the_create_route(
     main_head = git(work, "rev-parse", "HEAD")
     git(work, "push", "-q", "origin", "main")
     git(work, "fetch", "-q", "origin", "--prune")
-    # The fork route only enumerates a remote whose URL is the verified fork.
-    git(work, "remote", "set-url", "origin", f"https://github.com/{FORK_REPO}.git")
+    # The create route checks the remote against PR_REPO, the fork route
+    # against the verified fork.
+    git(work, "remote", "set-url", "origin", f"https://github.com/{UPSTREAM_REPO}.git")
     fake_gh({"11": pr_payload(11, "squashed", squashed_head, merge=main_head,
                               cross=True, head_repo=FORK_REPO)}, repo=UPSTREAM_REPO)
     commands = section_bash(EVIDENCE_TITLE) + "\n" + section_bash(GATE_B_TITLE)
@@ -532,6 +536,7 @@ def test_gate_b_clears_a_stale_fork_expectation_on_the_create_route(
         line.startswith("候補:") for line in create_route.stdout.splitlines()
     ), create_route.stdout
 
+    git(work, "remote", "set-url", "origin", f"https://github.com/{FORK_REPO}.git")
     fork_env = {**env, "CLEANUP_ROUTE": "fork"}
     fork_route = subprocess.run(
         ["bash", "--noprofile", "--norc", "-c", commands],
@@ -615,6 +620,28 @@ def test_gate_b_deletes_upstream_pr_branches_only_from_the_verified_fork_remote(
         line.startswith("候補:") for line in wrong_push.stdout.splitlines()
     ), wrong_push.stdout
     git(work, "config", "--unset", "remote.origin.pushurl")
+
+    # `git push --delete` sends to every configured push URL, so each one must
+    # be the verified fork: two fork push URLs pass, a second upstream one stops.
+    fork_url = f"https://github.com/{FORK_REPO}.git"
+    git(work, "config", "--add", "remote.origin.pushurl", fork_url)
+    git(work, "config", "--add", "remote.origin.pushurl", fork_url)
+    both_fork = gate_b("origin")
+    assert both_fork.returncode == 0, (both_fork.stdout, both_fork.stderr)
+    assert any(
+        line.startswith("候補:") and "fork-feature" in line
+        for line in both_fork.stdout.splitlines()
+    ), both_fork.stdout
+    git(work, "config", "--unset-all", "remote.origin.pushurl")
+    git(work, "config", "--add", "remote.origin.pushurl", fork_url)
+    git(work, "config", "--add", "remote.origin.pushurl",
+        f"https://github.com/{UPSTREAM_REPO}.git")
+    second_push = gate_b("origin")
+    assert second_push.returncode != 0, (second_push.stdout, second_push.stderr)
+    assert not any(
+        line.startswith("候補:") for line in second_push.stdout.splitlines()
+    ), second_push.stdout
+    git(work, "config", "--unset-all", "remote.origin.pushurl")
 
     assert git(work, "for-each-ref", "--format=%(refname) %(objectname)") == refs_before
     assert git(work, "remote", "-v") == remotes_before
