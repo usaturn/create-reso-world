@@ -131,7 +131,7 @@ M-1 は、PR が追加した cross-repository の一律保持の回帰。cross-r
 
 ### 守る条件の設計
 
-ゲート B の削除元 remote は PR の head repository に対応させる。fork→upstream PR では、PR の照会先は `orange3134/resoloop`、取り込み先 base は `upstream/main`、削除元 remote は fork の `origin`（検証済み head repository `usaturn/resoloop`）とする。ゲート B は fork の経路で `REMOTE` の fetch URL と push URL の両方を GitHub の `owner/name` に正規化し、`EXPECTED_HEAD_REPO` と一致するときだけ候補を出す。承認後の削除と prune は `git -C "$CHECKOUT"` で検証済みの checkout に対して実行する。一致しない・URL を解釈できないときは、候補を出さずに停止する。
+ゲート B の削除元 remote は PR の head repository に対応させる。fork→upstream PR では、PR の照会先は `orange3134/resoloop`、取り込み先 base は `upstream/main`、削除元 remote は fork の `origin`（検証済み head repository `usaturn/resoloop`）とする。ゲート B は fork の経路で `REMOTE` の fetch URL と push URL の両方を GitHub の `owner/name` に正規化し、`EXPECTED_HEAD_REPO` と一致するときだけ候補を出す。サイクル4で、fetch と push のすべての URL、create・managed の `PR_REPO`、平文 HTTP の拒否に拡張した。承認後の削除と prune は `git -C "$CHECKOUT"` で検証済みの checkout に対して実行する。一致しない・URL を解釈できないときは、候補を出さずに停止する。
 
 最初の修正 `134e7ce3` は remote の選択と fetch URL の検証だけだったため、承認後の削除が cwd の repository と push URL に依存する経路が残った（自己レビュー M-1、fix-check V-1）。削除コマンドの checkout 固定と push URL の検証を追加した。
 
@@ -161,3 +161,51 @@ M-1 は、PR が追加した cross-repository の一律保持の回帰。cross-r
 - 自己レビュー・修正の確認: 既定の `self` で 1 回。self-review 約 478 秒、fix-check 約 365 秒。
 - レビュアーの構成: `gpt-6.1-sol.md`（gpt-6.1-sol / pi / `c613393fbc64` / Initial / Approve）、`SWE-2-Max.md`（SWE-2 Max / devin / `c613393fbc64` / Update / Approve）。
 - サイクル: 3（loop の run `7b99a6f0…` のサイクル 2、判断の round は 3）。
+
+## PR #373 サイクル4の修正（ゲート B の URL 正規化と全送信先）
+
+入力 HEAD は `799dbb98`。レビューは gpt-6.1-sol（M-2・M-3）と SWE-2 Max（M-1）。確認済みの一覧は `verified/799dbb98321a.json`。
+
+| 指摘 | 分類 | 根拠 |
+| --- | --- | --- |
+| `gpt-6.1-sol#M-2@799dbb98321a` | 対応する（新規） | fork の既存手順が許可する末尾 `/` 付きの URL をゲート B が拒否し、正常な fork checkout で候補を提示できない。`cleanup_remote_repo_key` で末尾 `/` を取り除いてから `.git` を取り除く。 |
+| `gpt-6.1-sol#M-3@799dbb98321a` / `SWE-2-Max#M-1@799dbb98321a` | 対応する（新規） | `git remote get-url --push` は最初の 1 件だけを返すため、複数の pushurl（または複数の url）があると、承認後の削除が未検証 repository にも届く。fetch と push の全 URL を `--all` で検査し、1 件でも解釈不能・不一致なら停止する。 |
+| `deepseek-v4.1-flash-commit-9fe0d95bffb4acb18f7cb472f220d4e510f9e12e#L-1@9fe0d95bffb4` | 対応する（新規） | `cleanup_remote_repo_key` が平文 HTTP の URL を受理していた。HTTPS・SSH に限定し、HTTP を拒否する。 |
+| `fix-check#V-1@9fe0d95bffb4` / `deepseek-v4.1-flash-commit-9fe0d95bffb4acb18f7cb472f220d4e510f9e12e#I-1@9fe0d95bffb4` | 対応する（新規） | Plan と Spec のサイクル3の記述が「fetch と push の両方」のままで、変更後の「すべての URL」「create・managed は PR_REPO」を述べていない。両文書を更新した。 |
+| `fix-check#V-2@9fe0d95bffb4` | 対応する（新規） | create・managed の URL 検査を省略する退行を既存テストが検出しない。same-repository の PR と fork の pushurl を使う負例を追加した。 |
+| `deepseek-v4.1-flash-commit-9fe0d95bffb4acb18f7cb472f220d4e510f9e12e#I-2@9fe0d95bffb4` | 対応する（新規） | Spec は `completed`、Plan は issue-to-pr の `draft` で、PR 本文の「両文書は draft」が Spec の状態と食い違う。PR 本文を Spec completed・Plan draft に更新した。 |
+| 前サイクルの fix 2 件（`fix-check#V-1@134e7ce35b18`・`deepseek-v4.1-flash-commit-134e7ce3…L-1@134e7ce35b18`） | 解消済み（変更） | `799dbb98` の関連 59 テストと 2 名のレビューで、削除先の固定と push URL の検査を確認した。 |
+| `SWE-2-Max#L-1@3b8f55365c9b` | 対応しない（引き継ぎ） | `evals.json` の期待文。非変更範囲で非致命的。 |
+| `deepseek-v4.1-flash-commit-134e7ce3…L-2@134e7ce35b18` | 対応しない（引き継ぎ） | fork の旧形式 ref は 2 repository の所属を一意に確定できないため保持する。 |
+| `SWE-2-Max#U-1@3b8f55365c9b` | 解消済み（引き継ぎ） | v7/v8 の session は main checkout を要求し、linked root は helper が拒否する。 |
+
+### 守る条件の設計
+
+ゲート B の期待 repository は、fork の経路では `EXPECTED_HEAD_REPO`、create・managed（`EXPECTED_HEAD_REPO` が空）では `PR_REPO` とする。fetch と push のそれぞれで `git remote get-url --all` / `git remote get-url --push --all` を使い、返った URL をすべて正規化して期待 repository と比べる。1 件でも解釈できない・一致しない URL があれば、候補を出す前に停止する。末尾 `/` と `.git` の表記差は同じ repository として扱い、平文 HTTP は受け付けない。削除は引き続き `git -C "$CHECKOUT" push "$REMOTE" --delete <branch>` とし、cwd に依存させない。
+
+| 守る条件 | 経路 | 判定 | 変更前／観測する結果 | 検証・assertion | 証拠 |
+| --- | --- | --- | --- | --- | --- |
+| fetch と push の全 URL が期待 repository と一致する | ゲート B の候補提示 | 修正する | pushurl が [fork, 上流] だと 2 件目を検査せず、削除が上流にも届く | 2 pushurl の正例（[fork, fork]）と反例（[fork, 上流]）。refs/remotes と remote 設定の不変 | `test_gate_b_deletes_upstream_pr_branches_only_from_the_verified_fork_remote`（実行済み） |
+| create・managed は `PR_REPO` の全 URL を検査する | ゲート B | 修正する | 期待 repository が空で URL 検査を通らない | same-repository の PR と fork の pushurl で候補を出さない | `test_gate_b_clears_a_stale_fork_expectation_on_the_create_route`（実行済み） |
+| 末尾 `/` と `.git` の表記差を同一視し、HTTP を拒否する | URL 正規化 | 修正する | `.../resoloop/`・`.../resoloop.git/` を拒否し、HTTP を受理する | `cleanup_remote_repo_key` の一時確認と HTTP の負例 | `test_gate_b_deletes…` の HTTP 負例（実行済み） |
+| 削除は検証済み checkout に固定する | 手順 9 の削除 | 既に満たす | cwd 依存の削除 | 既存の削除先テスト | 59 passed |
+| 前サイクルの fix 2 件 | 各経路 | 解消済み | 修正前の欠陥が再現しない | 59 tests と 2 名のレビュー | 判定の記録 |
+| `evals.json`・旧形式 ref | 文書・残存 ref | 対象外／保持 | 非致命的・所属不明 | 静的照合・保持 | L-1・L-2 の判断 |
+| 実際の remote branch 削除 | 承認後 | 対象外 | テストでは実行しない | 静的確認 | 外部 push は対象外 |
+
+### 実行した検証
+
+- RED: `799dbb98` のテスト変更のみの状態で、2 件目の上流 pushurl の反例が失敗した（1 failed, 58 passed）。M-2 はレビュアーの隔離再現で、末尾 `/` の 2 表記が候補を出さないことを確認した。
+- GREEN: `uv run pytest .agents/skills/repo-cleanup-after-merge/tests -q` → 59 passed（11.79 秒）。`git diff --check` → 終了コード 0。
+- 一時確認: `cleanup_remote_repo_key` が `https://github.com/usaturn/resoloop/`・`.../resoloop.git/`・`.../resoloop.git`・`.../resoloop//`・`git@github.com:usaturn/resoloop.git` を同じ `usaturn/resoloop` にし、`https://github.com/usaturn/` と `http://github.com/usaturn/resoloop.git` を拒否した。
+- 変異対照: push の全 URL 検査を最初の 1 件に戻すとゲート B のテストが失敗し、HTTP を再び受理すると HTTP の負例が失敗し、create の `PR_REPO` fallback を外すと create 側の負例が失敗することを、隔離 worktree で確認した。末尾 `/` の除去を外す変異は 59 passed のままで、明示的なエラー停止の L として永続テストを追加していない。
+- 全体検証: ``bash .devcontainer/run-tests.bash` → 27 件 PASS、`bash scripts/check-layout.sh` → PASS、`uv run pytest tests/skills .agents/skills .agents/scripts tools -q` → 1387 passed（550.46 秒）。すべて終了コード 0。`
+- 自己レビュー: `run_roles.py --phase self-review` の 1 回。self-review は `deepseek-v4.1-flash-commit-9fe0d95bffb4acb18f7cb472f220d4e510f9e12e.md` に L-1（HTTP）・I-1（文書）・I-2（状態）を記録し、L-1・I-1・I-2 を修正した。fix-check は `9fe0d95bffb4.fix-check.json` に V-1（文書）・V-2（create 側のテスト）を記録し、修正した。修正後の再レビューはしていない。
+
+### 実行の担当・時間
+
+- 実装: `claude-code_opus_default`（実際のモデル claude-opus-5-5、claude-code）、約 114 秒。commit `9fe0d95b`（実装担当の `aa0b6988` を cherry-pick）。
+- レビュー修正: 司令塔（deepseek-v4.1-flash / claude-code）。commit `9954e8cfcd3efd495dcb79a7f4c90816e4110b47`。
+- 自己レビュー・修正の確認: 既定の `self` で 1 回。self-review 約 569 秒、fix-check 約 452 秒。
+- レビュアーの構成: `gpt-6.1-sol.md`（gpt-6.1-sol / pi / `799dbb98321a` / Update / Approve）、`SWE-2-Max.md`（SWE-2 Max / devin / `799dbb98321a` / Update / Approve）。
+- サイクル: 4（loop の run `7b99a6f0…` のサイクル 3、判断の round は 4）。この run はサイクル上限 3 に達するため、修正を push した後にマージせず `fixes_pushed` で終わる。

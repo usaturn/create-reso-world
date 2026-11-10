@@ -17,7 +17,7 @@
 - 編集は `.agents/skills/repo-cleanup-after-merge/SKILL.md` と同 `tests/`、本 Spec・Plan に限る。手順 5 と `pr_review_workspace.py` は変更しない。
 - CLEANUP_BASE・fork sync・version 7/8 の gate A の照合本体・removable・--force 禁止・ignored gate は維持する。
 - 祖先型/PR型とも対象 repository の MERGED PR と branch/headRefOid の一致が必要。未マージ・対応不明・無関係な fork/別 repository は保持。fork の経路の上流 PR は、head repository が検証済みの fork（EXPECTED_HEAD_REPO）と一致し、TARGET_ROOT が親 checkout の external/resoloop と一致する場合だけ受理する。PR型は mergeCommit が選択した base に含まれることも確かめる。
-- ゲート B の削除元 remote は PR の head repository に対応させ、fork→upstream PR では PR_REPO=orange3134/resoloop、BASE_REF=upstream/main、REMOTE=origin（fork）とする。削除と prune は git -C CHECKOUT で実行し、fetch URL と push URL の両方が EXPECTED_HEAD_REPO と一致するときだけ候補にする。
+- ゲート B の削除元 remote は PR の head repository に対応させ、fork→upstream PR では PR_REPO=orange3134/resoloop、BASE_REF=upstream/main、REMOTE=origin（fork）とする。削除と prune は git -C CHECKOUT で実行し、fetch URL と push URL のすべてが期待 repository（fork は EXPECTED_HEAD_REPO、create・managed は PR_REPO）と一致するときだけ候補にする。平文 HTTP は受け付けない。
 - local main/base、open PR、dirty/ignored、locked/prunable、所有不明の worktree は保護する。remote branch 削除は別の明示確認が必要。
 - ref の削除は対応 PR の MERGED/CLOSED、open PR と現行・保持中 session が使わないこと、所属確定、読取値による compare-and-delete が必要。未知なら保持する。
 - run_context 無し version7 + helper exit1 の例外だけを gate A/ガードレールに合わせる。version8・run_context 有り・exit2 は保持。
