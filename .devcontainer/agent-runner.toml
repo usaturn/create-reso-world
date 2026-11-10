@@ -184,7 +184,7 @@ agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_max", "pi_opencode-go_deep
 # review-fix-planning の run_roles.py が使う担当（#116 のボードの D-13）。self は司令塔が自分で実行する。
 # self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
 [workflows.fix.assignments.implement]
-agents = ["claude-code_opus_default"]
+agents = ["self"]
 
 [workflows.fix.assignments.self-review]
 agents = ["self"]
