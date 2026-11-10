@@ -38,6 +38,14 @@
 
 Dev Container の Git / uv / pytest で、一時ローカル親 repo と初期化済み submodule を使う。`ignore=all` の submodule にローカル commit がある場合、および入れ子 submodule の index の印で変更が隠れる場合、`reap-check` と strict cleanup が終了コード1で保持し、ファイルと commit が残る。gitlink と一致する clean な submodule は終了コード0で退役でき、保存レビューは残る。既存テストを維持する。
 
+## 復旧・実装記録
+
+- 2026-11-10 の利用者の追加指示: 「途中まで実行していたが、$HOME が他のセッションに削除された為、続行不可能となっている。リポジトリ内に救出可能なものがあれば、それを使って作業を続行してください」。担当指定と `--merge` は維持する。内容承認とは区別し、状態は `draft` のまま。
+- 旧担当はコードを commit したが、runner の最終判定は `awaiting_authentication` / `failed`。この記録を成功へ変更せず、停止確認後にログと commit を保全した。
+- 同じ指定担当へ復旧依頼を1回実施。救出 commit を再利用し、内容が同一の `99ba96a9ba873d13a759aff14ed0c71257110c13` で関連110件・対象3件、構文検査、diff検査が成功。新runnerは `success` / `stop_confirmed=true`、helperで再判定して正式に受領した。
+- Task review と全体 review は修正指摘なし。既存のロック内再判定、pin・ownership・stop・draft の経路も確認した。対象外の未初期化 module・非strict cleanup・全refs/stashの保全保証は追加しない。
+- これから最終文書 commit を含む HEAD で計画済みの全体検証を実行する。終了コード・HEAD・clean status・ログは親checkoutの復旧セッションに記録し、PR本文へ結果を反映する。検証・scan・base/競合の再確認前に公開しない。
+
 ## 根拠
 
 Context7 `/git/htmldocs` の git-submodule は foreach の `$toplevel` / `$sm_path` と直近 superproject、および recursive の挙動を定義する。git-ls-files は `-v` の小文字（assume-unchanged）と `S`（skip-worktree）を定義する。取得結果はセッションログに保存。変更前の対象テスト: 107 passed, exit 0。

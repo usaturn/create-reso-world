@@ -48,18 +48,26 @@ HEAD 比較の親を取り違えないこと、設定で隠れた index flags �
 
 **テストの要否:** S。誤った eligible は削除につながり、利用者の commit / ファイルを無言で失う。別の守りに対する拒否2例と正しい通過1例を代表として残す。F/L/D のテストは足さない。
 
-- [ ] **Step 1: 実 Git の回帰テストを書く。** `test_strict_reap_keeps_a_submodule_local_commit`（ignore=all、ローカル commit）、`test_strict_reap_keeps_nested_submodule_index_flags`（入れ子で skip-worktree の付いたファイルを変更）、`test_strict_reap_retires_clean_submodules`。既存 fixture を最小拡張し、変更を入れる前に保存済み状態を作る。両拒否例は `workspace.main(["reap-check", "--state", state_file]) == 1` と `workspace.main(["cleanup", "--strict-reap", "--state", state_file]) == 1`、内容・HEAD・session残存を確認する。通過例は両入口0、退役および保存レビュー残存を確認する。
-- [ ] **Step 2: RED を確認する。** `uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py -k 'submodule' -v`。現行実装の拒否例が eligible/削除につながるため失敗し、clean例は通ることをログへ保存する。構文/import失敗をREDにしない。
-- [ ] **Step 3: 最小実装。** 既存 foreach 再帰内で、直近 superproject HEAD の gitlink と submodule HEAD の一致、status、index flags、ignoredを直接確認する。コマンド代入を引用し、Git失敗を握り潰さない。必要なら親と子のstatusに `--ignore-submodules=none` を明示する。新しい汎用ツリー走査は導入しない。
-- [ ] **Step 4: GREEN と回帰確認。** 上の対象テストと `uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py` を同期実行する。assume-unchanged は一時的な実 Git シナリオでも保持を確認する。ログは attempt外の指定セッションに保存する。
-- [ ] **Step 5: Commit。** 明示した2ファイルだけ stageし `fix: preserve submodule work during strict review retirement` でcommitする。RED/GREEN、HEAD、所要時間、残る懸念を報告する。
+- [x] **Step 1: 実 Git の回帰テストを書く。** `test_strict_reap_keeps_a_submodule_local_commit`（ignore=all、ローカル commit）、`test_strict_reap_keeps_nested_submodule_index_flags`（入れ子で skip-worktree の付いたファイルを変更）、`test_strict_reap_retires_clean_submodules`。既存 fixture を最小拡張し、変更を入れる前に保存済み状態を作る。両拒否例は `workspace.main(["reap-check", "--state", state_file]) == 1` と `workspace.main(["cleanup", "--strict-reap", "--state", state_file]) == 1`、内容・HEAD・session残存を確認する。通過例は両入口0、退役および保存レビュー残存を確認する。
+- [x] **Step 2: RED を確認する。** `uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py -k 'submodule' -v`。現行実装の拒否例が eligible/削除につながるため失敗し、clean例は通ることをログへ保存する。構文/import失敗をREDにしない。
+- [x] **Step 3: 最小実装。** 既存 foreach 再帰内で、直近 superproject HEAD の gitlink と submodule HEAD の一致、status、index flags、ignoredを直接確認する。コマンド代入を引用し、Git失敗を握り潰さない。必要なら親と子のstatusに `--ignore-submodules=none` を明示する。新しい汎用ツリー走査は導入しない。
+- [x] **Step 4: GREEN と回帰確認。** 上の対象テストと `uv run pytest .agents/skills/pr-review/tests/test_pr_review_workspace.py` を同期実行する。assume-unchanged は一時的な実 Git シナリオでも保持を確認する。ログは attempt外の指定セッションに保存する。
+- [x] **Step 5: Commit。** 明示した2ファイルだけ stageし `fix: preserve submodule work during strict review retirement` でcommitする。RED/GREEN、HEAD、所要時間、残る懸念を報告する。
 
 ### 統合・レビュー・公開（controller）
 
-- [ ] 取り込んだHEADで対象テストを再実行しTask reviewのspec/qualityを確認する。全体reviewは捕捉base `1f20820f0b628c707784aa6f7f55146225139fd2` から行う。
+- [x] 取り込んだHEADで対象テストを再実行しTask reviewのspec/qualityを確認する。全体reviewは捕捉base `1f20820f0b628c707784aa6f7f55146225139fd2` から行う。
 - [ ] `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` を同期実行し、最終HEAD・clean status・argv・終了コード・ログを記録する。
 - [ ] Spec→Plan→Task→証拠を照合し、base/競合再確認、scan、検査SHA push、PRを作る（Closes #360）。CIはAGENTS.mdに従い無効のまま。
 - [ ] 指定inspect3担当・implement担当で修正ループを最大3サイクル実施し、finalize以外でマージしない。
+
+## 復旧・レビュー記録
+
+利用者のHOME消失後の救出・続行指示により、既存Spec/Planと実装commitを復旧した。旧runnerの認証待ち失敗は維持し、同じ指定担当へ1回だけ再依頼した。新担当の観測モデルは opencode-go / deepseek-v4.1-flash / effort=max。新commit `99ba96a9ba873d13a759aff14ed0c71257110c13` は救出元と同じ内容であり、対象3件・全110件・構文検査・diff検査が成功。helperによるaccept後、controllerの110件も成功。両依頼の停止を確認して成果とログを保全し、各依頼の専用worktreeはcleanupで回収済み（retainedなし）。
+
+旧依頼794.70秒（失敗）、復旧依頼259.33秒（成功）。Task reviewと最終全体reviewは指摘なし。変更されないロック内再判定・既存保護はcontrollerがコードと既存回帰テストの結果を照合した。追加の仕様・承認は発明しない。全体検証は最終文書commit後に実施し、結果をPRへ記録する。
+
+証拠の保存先は `/workspaces/reso-world/tmp/agents/issue-360-recovery.ywtgkr2k/`。元の予算ledgerは中断時間も保守的に能動時間へ算入しており、遡って差し引かず既存360分内で続行する。
 
 ## 実行予算
 
