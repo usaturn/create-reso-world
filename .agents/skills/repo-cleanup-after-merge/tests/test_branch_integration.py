@@ -536,6 +536,27 @@ def test_gate_b_clears_a_stale_fork_expectation_on_the_create_route(
         line.startswith("候補:") for line in create_route.stdout.splitlines()
     ), create_route.stdout
 
+    # The create route checks every push URL against PR_REPO. A same-repository
+    # PR would otherwise be accepted, so a fork push URL must stop before any
+    # candidate is presented.
+    git(work, "config", "remote.origin.pushurl",
+        f"https://github.com/{FORK_REPO}.git")
+    fake_gh({"11": pr_payload(11, "squashed", squashed_head, merge=main_head,
+                              cross=False, head_repo=UPSTREAM_REPO)},
+            repo=UPSTREAM_REPO)
+    create_wrong_push = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", commands],
+        cwd=work, env=env, capture_output=True, text=True, timeout=20,
+    )
+    assert create_wrong_push.returncode != 0, (create_wrong_push.stdout, create_wrong_push.stderr)
+    assert not any(
+        line.startswith("候補:") for line in create_wrong_push.stdout.splitlines()
+    ), create_wrong_push.stdout
+    git(work, "config", "--unset", "remote.origin.pushurl")
+    fake_gh({"11": pr_payload(11, "squashed", squashed_head, merge=main_head,
+                              cross=True, head_repo=FORK_REPO)},
+            repo=UPSTREAM_REPO)
+
     git(work, "remote", "set-url", "origin", f"https://github.com/{FORK_REPO}.git")
     fork_env = {**env, "CLEANUP_ROUTE": "fork"}
     fork_route = subprocess.run(
@@ -608,6 +629,16 @@ def test_gate_b_deletes_upstream_pr_branches_only_from_the_verified_fork_remote(
     assert not any(
         line.startswith("候補:") for line in wrong_fetch.stdout.splitlines()
     ), wrong_fetch.stdout
+    git(work, "remote", "set-url", "origin", f"https://github.com/{FORK_REPO}.git")
+
+    # Plain HTTP is not an accepted GitHub URL form; the other repository
+    # identity checks reject it.
+    git(work, "remote", "set-url", "origin", f"http://github.com/{FORK_REPO}.git")
+    wrong_scheme = gate_b("origin")
+    assert wrong_scheme.returncode != 0, (wrong_scheme.stdout, wrong_scheme.stderr)
+    assert not any(
+        line.startswith("候補:") for line in wrong_scheme.stdout.splitlines()
+    ), wrong_scheme.stdout
     git(work, "remote", "set-url", "origin", f"https://github.com/{FORK_REPO}.git")
 
     # The approved deletion uses the push URL. A push URL pointing elsewhere
