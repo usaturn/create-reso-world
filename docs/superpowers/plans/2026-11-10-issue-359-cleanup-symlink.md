@@ -71,11 +71,11 @@
 
 **テストの要否:** 新しい導入経路からの安全な退役とデータ保持は、実際の気付きにくい不具合の再発防止および誤削除防止（S）のため動的テストを追加する。symlink の有無・パスだけを検査するテスト、文言コピー、既存 helper 不在テストの重複は追加しない。構文・存在・実行権限だけのテストは L のため不要。直接実行がその確認を兼ねる。
 
-- [ ] **Step 1: 動的回帰テストを追加する。** 既存 test-install-beforehand の関数抽出・一時領域パターンを使う。偽 HOME の bin に旧コピーを置き、実配置関数を実行する。実 helper でローカル git repo と保存済み/未保存の session を作る（test-cleanup-workspace の API を参照し、同ファイル自体は変えない）。複数行・日本語の保存本文と未保存 draft の独立した期待内容を持ち、空白を含む一時パスを使う。helper env を解除して導入先を直接実行し、保存済みだけの退役、登録解除、保存本文保持、未保存 draft と登録の保持を観測する。再配置・再実行も観測する。テスト内は一時 HOME を env のワンショットで渡し、Python は uv を使う。元 repository のファイルへ chmod しない。
-- [ ] **Step 2: RED を確認する。** `bash .devcontainer/run-tests.bash .devcontainer/test-install-beforehand.bash`。現行コピー方式で、保存済みが退役されず失敗することを確認し、実際の出力を報告に残す。fixture の import / 構文失敗は目的の RED ではない。
-- [ ] **Step 3: 最小修正を行う。** cleanup の cp / chmod だけを絶対 symlink の配置に置換する。`WORKSPACE_ROOT` を使い、古い通常ファイルを置換する。既存ディレクトリを宛先と誤認して内部へリンクを作らない。失敗は既存どおり `return 1` で伝える。他の配置は変えない。
-- [ ] **Step 4: GREEN と回帰を確認する。** 他の run-tests 実行が無いことを確認後、`bash .devcontainer/run-tests.bash .devcontainer/test-cleanup-workspace.bash .devcontainer/test-install-beforehand.bash` と `bash -n .devcontainer/install_beforehand.bash .devcontainer/test-install-beforehand.bash`。全成功、実行前後の git diff と status に許可範囲外の変更が無いこと。
-- [ ] **Step 5: Commit と報告。** 2 ファイルだけ stage し、`fix: resolve cleanup helper through installed symlink`。結果には RED/GREEN の対象版・argv・終了コード・主な観測結果、所要時間を含める。runner の worktree 外へ成果ファイルを作らない。報告は helper が指定する JSON で返す。
+- [x] **Step 1: 動的回帰テストを追加する。** 既存 test-install-beforehand の関数抽出・一時領域パターンを使う。偽 HOME の bin に旧コピーを置き、実配置関数を実行する。実 helper でローカル git repo と保存済み/未保存の session を作る（test-cleanup-workspace の API を参照し、同ファイル自体は変えない）。複数行・日本語の保存本文と未保存 draft の独立した期待内容を持ち、空白を含む一時パスを使う。helper env を解除して導入先を直接実行し、保存済みだけの退役、登録解除、保存本文保持、未保存 draft と登録の保持を観測する。再配置・再実行も観測する。テスト内は一時 HOME を env のワンショットで渡し、Python は uv を使う。元 repository のファイルへ chmod しない。
+- [x] **Step 2: RED を確認する。** `bash .devcontainer/run-tests.bash .devcontainer/test-install-beforehand.bash`。現行コピー方式で、保存済みが退役されず失敗することを確認し、実際の出力を報告に残す。fixture の import / 構文失敗は目的の RED ではない。
+- [x] **Step 3: 最小修正を行う。** cleanup の cp / chmod だけを絶対 symlink の配置に置換する。`WORKSPACE_ROOT` を使い、古い通常ファイルを置換する。既存ディレクトリを宛先と誤認して内部へリンクを作らない。失敗は既存どおり `return 1` で伝える。他の配置は変えない。
+- [x] **Step 4: GREEN と回帰を確認する。** 他の run-tests 実行が無いことを確認後、`bash .devcontainer/run-tests.bash .devcontainer/test-cleanup-workspace.bash .devcontainer/test-install-beforehand.bash` と `bash -n .devcontainer/install_beforehand.bash .devcontainer/test-install-beforehand.bash`。全成功、実行前後の git diff と status に許可範囲外の変更が無いこと。
+- [x] **Step 5: Commit と報告。** 2 ファイルだけ stage し、`fix: resolve cleanup helper through installed symlink`。結果には RED/GREEN の対象版・argv・終了コード・主な観測結果、所要時間を含める。runner の worktree 外へ成果ファイルを作らない。報告は helper が指定する JSON で返す。
 
 ## controller の統合・公開手順
 
