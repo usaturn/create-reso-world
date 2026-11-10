@@ -194,7 +194,13 @@ class ClaudeCode:
         lines.extend(prompt_lines(context.work_dir, agent.skill_sources, context.role.skills))
         if context.role.result_shape == "json":
             lines.append("Return your final answer as a JSON object.")
-        return LaunchSpec(argv=tuple(argv), stdin="\n\n".join(lines).encode("utf-8"))
+        # Keep this noninteractive child's work in the foreground so it finishes
+        # before the result, and give Bash 10 minutes instead of its 120s default.
+        env = {
+            "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1",
+            "BASH_DEFAULT_TIMEOUT_MS": "600000",
+        }
+        return LaunchSpec(argv=tuple(argv), stdin="\n\n".join(lines).encode("utf-8"), env=env)
 
     def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
         events = list(_events(stdout_path))
