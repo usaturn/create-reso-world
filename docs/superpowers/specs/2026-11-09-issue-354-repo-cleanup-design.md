@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `completed`（実行許可であり内容の承認ではない。PR #373 のレビュー修正 サイクル2 を反映）
+- 状態: `completed`（実行許可であり内容の承認ではない。PR #373 のレビュー修正 サイクル5の確認を反映）
 - 対象: usaturn/create-reso-world #354、親 #349、base `main`
 - 利用者の指示: `/skill:issue-to-pr #354 --implement pi_opencode-go_deepseek4-flash_max --merge --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=claude-code_opus_default,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`。続けて「#364が完了したことを確認して作業を実行してください。」
 - 委任: 通常の設計判断、検証、commit、push、PR、指定ループの finalize によるマージ。実際の利用者の branch/ref/worktree を掃除する許可ではない。
@@ -209,3 +209,86 @@ M-1 は、PR が追加した cross-repository の一律保持の回帰。cross-r
 - 自己レビュー・修正の確認: 既定の `self` で 1 回。self-review 約 569 秒、fix-check 約 452 秒。
 - レビュアーの構成: `gpt-6.1-sol.md`（gpt-6.1-sol / pi / `799dbb98321a` / Update / Approve）、`SWE-2-Max.md`（SWE-2 Max / devin / `799dbb98321a` / Update / Approve）。
 - サイクル: 4（loop の run `7b99a6f0…` のサイクル 3、判断の round は 4）。この run はサイクル上限 3 に達するため、修正を push した後にマージせず `fixes_pushed` で終わる。
+
+## PR #373 サイクル5の確認（コード修正不要）
+
+- 実行許可: 利用者が明示した `/skill:pr-review-fix-loop https://github.com/usaturn/create-reso-world/pull/373 --assign inspect=devin_swe2_max,claude-code_opus_default`。既存PRの確認・採否・必要な修正・検証・push・finalizeまでであり、利用者のbranch/ref/worktreeの掃除や別PRの作成は含めない。
+- planner: `openai-codex/gpt-6.1-sol` / pi（bash内のPI_PROVIDERとPI_MODELで確認）。loop run `23b349e63400400eaedfa92c4b57ee44` のサイクル1、判断のrecordは round 5。
+- 入力HEAD: `89afc5fd3a14f1b9b1421a812cf70b31e8696a11`。既存専用worktreeがcleanかつ同じHEADであることを確認して借用した。他runの領域は変更・削除しない。
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#373-fix-issue-354-repo-cleanup/verified/89afc5fd3a14.json`、工程の記録は同stemの `.planning.json`。候補ペアと全7レビューHEADの祖先関係を検査した。
+- 結論: **2 修正不要として最終化へ進む**。前の判断20件を引き継ぎ、前のfix6件を現行HEADで解消済みに変更した。解消済み18 / 対応する0 / 対応しない4。新しい受理形の追加や文言だけの修正・テスト追加は行わない。
+- 実装担当・自己レビュー: コード修正なしのため `run_roles.py` は未実行。implementの設定はclaude-code_opus_default、self-review/fix-checkはselfだが、今回の担当実行や自己レビュー枠の消費は無い（0回）。同じ条件の再発に当たる「対応する」指摘も無い。
+
+### レビュアーの構成
+
+| ファイル | モデル / runtime | 対象HEAD | 今回の扱い | 推奨 |
+| --- | --- | --- | --- | --- |
+| `SWE-2-Max.md` | SWE-2 Max / devin | `89afc5fd3a14` | 今回再実行・accepted | Approve |
+| `claude-opus-5-5.md` | claude-opus-5-5 / claude-code | `89afc5fd3a14` | 今回再実行・accepted | Approve |
+| `deepseek-v4.1-flash.md` | deepseek-v4.1-flash / pi | `3b8f55365c9b` | 古い入力、採否は引き継ぎ | Request changes |
+| `gpt-6.1-sol.md` | gpt-6.1-sol / pi | `799dbb98321a` | 古い入力、採否は引き継ぎ | Approve |
+| `deepseek-v4.1-flash-commit-9fe0d95bffb4acb18f7cb472f220d4e510f9e12e.md` | deepseek-v4.1-flash / claude-code | `9fe0d95bffb4` | 古い入力、採否は引き継ぎ | Approve |
+| `deepseek-v4.1-flash-commit-134e7ce35b18a8c5cc448bf06dd5e19ad737d47b.md` | deepseek-v4.1-flash / claude-code | `134e7ce35b18` | 古い入力、採否は引き継ぎ | Approve |
+| `deepseek-v4.1-flash-commit-1a1f7d4bbd8c28be3b8c1f16ad1df09e8166b5e5.md` | deepseek-v4.1-flash / claude-code | `1a1f7d4bbd8c` | 古い入力、採否は引き継ぎ | Approve |
+
+現在HEADの2担当はrunner/成果物ともaccepted、rejectedは無し。古い5レビューの判断済み指摘は新しい修正要求として再採用せず、全レビューの未判断・Pending・Unverifiedが残っていないことを確認した。
+
+### 全判断と根拠
+
+| 判断ID | 分類 | 根拠 |
+| --- | --- | --- |
+| `deepseek-v4.1-flash#H-1@3b8f55365c9b` | 解消済み（引き継ぎ） | 修正後の HEAD c613393f の関連 57 テストと SWE-2 Max の再現で、この指摘の修正が現行 HEAD にあり、対象の欠陥が再現しないことを確認した。 |
+| `claude-opus-5-5#M-1@3b8f55365c9b` | 解消済み（引き継ぎ） | 修正後の HEAD c613393f の関連 57 テストと SWE-2 Max の再現で、この指摘の修正が現行 HEAD にあり、対象の欠陥が再現しないことを確認した。 |
+| `SWE-2-Max#L-1@3b8f55365c9b` | 対応しない（引き継ぎ） | 評価文の陳腐化は事実だが、文書のみで致命的ではない。evals.json は PR の変更許可範囲外である。 |
+| `SWE-2-Max#U-1@3b8f55365c9b` | 解消済み（引き継ぎ） | 対応している v7/v8 の session の作成・読み込みは main checkout を要求し、linked root の session は helper が拒否するため再現しない。 |
+| `fix-check#V-1@1a1f7d4bbd8c` | 解消済み（引き継ぎ） | 修正後の HEAD c613393f の関連 57 テストと SWE-2 Max の再現で、この指摘の修正が現行 HEAD にあり、対象の欠陥が再現しないことを確認した。 |
+| `fix-check#V-3@1a1f7d4bbd8c` | 解消済み（引き継ぎ） | 修正後の HEAD c613393f の関連 57 テストと SWE-2 Max の再現で、この指摘の修正が現行 HEAD にあり、対象の欠陥が再現しないことを確認した。 |
+| `fix-check#V-2@1a1f7d4bbd8c` | 解消済み（引き継ぎ） | 修正後の HEAD c613393f の関連 57 テストと SWE-2 Max の再現で、この指摘の修正が現行 HEAD にあり、対象の欠陥が再現しないことを確認した。 |
+| `deepseek-v4.1-flash-commit-1a1f7d4bbd8c#L-3@1a1f7d4bbd8c` | 解消済み（引き継ぎ） | 修正後の HEAD c613393f の関連 57 テストと SWE-2 Max の再現で、この指摘の修正が現行 HEAD にあり、対象の欠陥が再現しないことを確認した。 |
+| `deepseek-v4.1-flash-commit-1a1f7d4bbd8c#L-4@1a1f7d4bbd8c` | 解消済み（引き継ぎ） | 修正後の HEAD c613393f の関連 57 テストと SWE-2 Max の再現で、この指摘の修正が現行 HEAD にあり、対象の欠陥が再現しないことを確認した。 |
+| `fix-check#V-4@1a1f7d4bbd8c` | 解消済み（引き継ぎ） | 実 gh の読み取りで、gh pr list --head <branch> --repo orange3134/resoloop --state all が fork の PR #19 を返し、gh pr view 19 が headRepository・headRepositoryOwner・isCrossRepository を返すことを確認した。コードの変更は不要。 |
+| `gpt-6.1-sol#M-1@c613393fbc64` | 解消済み（引き継ぎ） | ゲート B の削除元 remote を head repository に対応させ、fetch URL を検証する修正を 134e7ce3 で実装した。削除コマンドの cwd 依存と push URL は別の指摘として e79c6620 で修正した。 |
+| `fix-check#V-1@134e7ce35b18` | 解消済み（引き継ぎ） | 799dbb98 の関連 59 テストと 2 名のレビューで、削除と prune の git -C "$CHECKOUT" 固定、fetch URL と push URL の検査を確認した。 |
+| `deepseek-v4.1-flash-commit-134e7ce35b18a8c5cc448bf06dd5e19ad737d47b#L-1@134e7ce35b18` | 解消済み（引き継ぎ） | 799dbb98 の関連 59 テストで、fetch URL・push URL の負例と削除先の固定を確認した。 |
+| `deepseek-v4.1-flash-commit-134e7ce35b18a8c5cc448bf06dd5e19ad737d47b#L-2@134e7ce35b18` | 対応しない（引き継ぎ） | 旧形式 ref は fork/upstream の 2 repository の所属を一意に確定できないため保持する。誤削除を避ける保守的な動作で非致命的。 |
+| `gpt-6.1-sol#M-2@799dbb98321a` | 解消済み（変更） | 89afc5fdのcommitted内容で解消を確認。関連59テスト、12入力の隔離ゲートB probe、Spec/Plan全URL・PR_REPOとlive PR本文の状態照合。HEAD/base統合とも必要検証成功。 |
+| `gpt-6.1-sol#M-3@799dbb98321a` | 解消済み（変更） | 89afc5fdのcommitted内容で解消を確認。関連59テスト、12入力の隔離ゲートB probe、Spec/Plan全URL・PR_REPOとlive PR本文の状態照合。HEAD/base統合とも必要検証成功。 |
+| `deepseek-v4.1-flash-commit-9fe0d95bffb4acb18f7cb472f220d4e510f9e12e#L-1@9fe0d95bffb4` | 解消済み（変更） | 89afc5fdのcommitted内容で解消を確認。関連59テスト、12入力の隔離ゲートB probe、Spec/Plan全URL・PR_REPOとlive PR本文の状態照合。HEAD/base統合とも必要検証成功。 |
+| `fix-check#V-1@9fe0d95bffb4` | 解消済み（変更） | 89afc5fdのcommitted内容で解消を確認。関連59テスト、12入力の隔離ゲートB probe、Spec/Plan全URL・PR_REPOとlive PR本文の状態照合。HEAD/base統合とも必要検証成功。 |
+| `fix-check#V-2@9fe0d95bffb4` | 解消済み（変更） | 89afc5fdのcommitted内容で解消を確認。関連59テスト、12入力の隔離ゲートB probe、Spec/Plan全URL・PR_REPOとlive PR本文の状態照合。HEAD/base統合とも必要検証成功。 |
+| `deepseek-v4.1-flash-commit-9fe0d95bffb4acb18f7cb472f220d4e510f9e12e#I-2@9fe0d95bffb4` | 解消済み（変更） | 89afc5fdのcommitted内容で解消を確認。関連59テスト、12入力の隔離ゲートB probe、Spec/Plan全URL・PR_REPOとlive PR本文の状態照合。HEAD/base統合とも必要検証成功。 |
+| `SWE-2-Max#L-2@89afc5fd3a14` | 対応しない（新規） | 隔離再現で事実と確認。既存fork helper/managed resolverも同表記を受理せず、公式の通常経路の回帰ではない。明確なメッセージ付き安全停止で、誤削除・漏えい・誤対象操作は起きず致命的でない。対応するには受理範囲の新要件が必要。 |
+| `planner#S-1@89afc5fd3a14` | 対応しない（新規） | Planはissue-to-pr時のdraftと実行予定、Specは後段review-fix完遂のcompletedで、同じ状態にする要件はない。古い参照・予定の記録は実行コード/削除条件に影響しない文書上の情報で非致命的。Spec冒頭のサイクル番号は今回の必須の記録更新で5へ進める。 |
+
+「対応しない」の見直し条件: evalsの文言は変更範囲に入ったとき、旧形式refは所属を一意に確定できる仕様が決まったとき、URL表記は公式fork/managed resolverの受理範囲が広がったとき、文書状態は誤操作につながる具体的な利用経路が確認されたとき。いずれも利用者が名指しで指定した場合は見直す。
+
+### 要件対応と統合確認
+
+統合担当はplanner。Issue #354本文とcoordinator決定comment-6743479090、PRの保証・制限、既存Spec R1〜R4とPlanを照合した。共有するbranch取り込み判定、route/root/head repositoryの同定、refの所有と非使用の条件を個々のテスト成功だけでなく次の経路と結び付けた。
+
+| 要件 | 現行の確認対象・観測結果 | 証拠 |
+| --- | --- | --- |
+| R1/R2: 祖先/squash/rebase、PR/head/base照合、誤対象の保持 | 手順3・8・ゲートB・通常ツールの共通関数と全呼出元、テスト全文。正常候補、未マージ/不明/別repo/base/head差の保持、-D前の再判定 | 隔離HEADの関連59テスト成功。全7変更ファイル全文の読取 |
+| R2: fetch/push全送信先を同定、create/managedのPR_REPO | 2pushurlの正負例、HTTP拒否、末尾/と.git/受理。create/managedの正常候補と別pushurl停止をそれぞれ実行 | 一時probe 12入力、全ref/config不変、関連59テスト |
+| R3: refの所有・非使用・終了PR、symbolic拒否、CAS | 旧形式の所属不明は保持、repo修飾refの正例、open/session/並行更新/symbolicの保持 | test_residual_refs.py全文と実行。旧形式refの制約は維持 |
+| R4: version7限定例外と所有境界 | 手順5/helperを変更せず、run_context無しv7/exit1だけ既存経路。v8/run_context/exit2は保持 | 全体差分とcommitted本文・関連テスト |
+| 文書の現在状態 | live PR本文はSpec completed・Plan draft。Planは初期計画としてdraft、Specはreview-fix完遂の状態 | PR読取とSpec/Plan全体の意味照合。古い計画注記から実行保証を追加しない |
+
+L-2の独立再現では、抽出したゲートBが `.GIT`・`.Git`・ポート付きsshをexit1で拒否し、候補なし・全ref/config不変だった。末尾/、.git/、scp形式、ポート無しsshは正常候補を出した。fork helperのsame_urlとmanaged registry/contextのURL解析も前者を受理しておらず、既存の公式経路を壊す回帰ではない。これは明確な停止で気付けるLのため永続テストを足さない。既存の安全性テストはSの代表と正常側を維持し、同一守りの組合せ追加や固定文言のテストを増やさない。
+
+### 実行した検証と残る範囲
+
+検証したbase先端は `60af10023b74706e473c7e3c0ae56d820584479f`。これは入力HEADの祖先ではないため、別のmktemp隔離worktreeでHEADにこのbaseをmergeした一時commit `99ebcdd2a441d320ce68a7ba73a1c513713b608e`（tree `9a609193545937c5c61bd216578494e8f13e4a28`）も検証した。このmergeはpushしない。
+
+| コマンド | 入力HEAD | baseとの統合ツリー |
+| --- | --- | --- |
+| `bash .devcontainer/run-tests.bash` | 27件PASS / exit0 | 27件PASS / exit0 |
+| `bash scripts/check-layout.sh` | PASS / exit0 | PASS / exit0 |
+| `uv run --locked pytest -p no:cacheprovider tests/skills .agents/skills -q` | 759 passed / exit0（509.50秒） | 759 passed / exit0（530.43秒） |
+| `git diff --check 60af1002...HEAD` | exit0 | exit0 |
+
+- 隔離HEADの関連テストは59 passed（12.49秒）。一時probeは1 passed（0.81秒、12入力）で、実Gitとfake ghのみを使った。追加テストやコード変更は無い。
+- validation/checksの記録にargv・終了コード・対象HEAD/tree・実測時間を保存した。HEADと統合ツリーの検証後はtracked差分なし。一時worktreeはgit worktree removeを通して回収した。
+- 実環境の掃除、実GitHubへの削除push、実sessionの退役は対象外で未実行。managedは実登録ツールを触らずfake APIと一時Gitで経路の正負を実行した。これらを実機確認済みとはしない。
+- 確認済みの一覧はconfirmed 2（新L-2と旧形式refの意図された保持）/ not_reproduced 11 / unverified 0。確認工程は1525.88秒。読取補助2件は全文・関連経路の確認で、採否とテスト実行はplannerが担当した。全体の判断工程は約42分（検証約21分を含む）。
+- GitHub Actionsはこのリポジトリの規約どおり無効のまま。Specだけのcommitを入力HEADの直接の子として追加し、記録付きコメント・Gitleaks検査・fast-forward pushの後、finalizeがHEAD/base/merge親を照合する。push・マージ・Issueの結果はこのSpecに追記せず、状況コメントと完了報告へ記録する。
