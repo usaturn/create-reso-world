@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`。内容の承認は未取得。issue-to-pr の委任による実行であり、承認と混同しない。
+- 状態: `completed`。実装・検証・PR #384 の採否確認を完了。内容の承認は未取得であり、issue-to-pr / review-fix-planning の実行委任を承認と混同しない。マージ・Issue更新の結果はこの文書では先取りせず、PRの状況コメントと最終化結果で記録する。
 - 対象: https://github.com/usaturn/create-reso-world/issues/370
 - 利用者指示: `#370 --implement pi_opencode-go_deepseek4-flash_max --merge --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=claude-code_opus_default,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`、および「途中で main が進んでいる場合は留意して止めずに進めてください」。
 - 許可: 推奨案の選択、Spec/Plan、指定担当による実装、検証、commit/push/PR、指定ループの finalize によるマージ。安全ガードの解除・force push・実モデルを使う検証は禁止。
@@ -51,4 +51,43 @@ Claude adapter は terminal permission_denials を検出すると awaiting_appro
 
 2026-11-10 再開: 利用者の残存成果からの続行指示に基づき、認証待ちで終了した旧担当の未コミット差分を救出し、同じ指定担当へ再依頼した。`d3eca560` で正式成果を取り込み、Taskレビューで再現した診断の認証優先の回帰と重複テストを `9f838ec4` で修正した。既存の認証分類を保持しながら承認根拠を保存するため、設計の認証優先は変更していない。
 
-調整役の関連テスト69件と実adapterによる認証優先の修正前後の対照は終了コード0。実装担当は回収後の保存診断を含むRED/GREENと関連回帰の成功を報告し、Taskの修正レビューは指摘2件を解消済みと判定した。全体の検証・レビュー・公開は別途記録する。証拠と救出パッチは `/workspaces/reso-world/tmp/agents/issue-370-recovery.evovwtrp/`、元の進捗・予算は `/workspaces/reso-world/tmp/agents/issue-370.kiyh524z/`。元の承認済み版はなく、状態はdraftのままとする。
+調整役の関連テスト69件と実adapterによる認証優先の修正前後の対照は終了コード0。実装担当は回収後の保存診断を含むRED/GREENと関連回帰の成功を報告し、Taskの修正レビューは指摘2件を解消済みと判定した。全体の検証・レビュー・公開は別途記録する。証拠と救出パッチは `/workspaces/reso-world/tmp/agents/issue-370-recovery.evovwtrp/`、元の進捗・予算は `/workspaces/reso-world/tmp/agents/issue-370.kiyh524z/`。元の承認済み版はなく、内容の承認は記録していない。
+
+## PR #384 レビュー修正ループ: サイクル1
+
+- 実行許可: 利用者の明示`--merge`、指定実装担当・inspectの3担当、および「main が進んでいるが、途中で止めずに最後まで対応せよ。また、今後も最後に main を確認した時より進んでいても、最後まで対応せよ」。mainの前進では検証を省かず、新しい先端との組み合わせを再検証して続ける。
+- planner: `openai-codex/gpt-6.1-sol`（pi）。検証・採否は調整役が行い、独立reconで診断とrunnerの接続を確認した。
+- 対象HEAD: `d43fefa6d040f022500919acb2ccb9a175adc6fe`。同じHEADを3レビュアーとも今回レビューし、失敗・却下はない。
+
+| レビューファイル | モデル / runtime | HEAD | 今回実行 | 推奨 |
+|---|---|---|---|---|
+| claude-opus-5-5.md | claude-opus-5-5 / claude-code | d43fefa6d040 | yes | Approve |
+| SWE-2-Max.md | SWE-2-Max / devin | d43fefa6d040 | yes | Approve |
+| deepseek-v4.1-flash.md | deepseek-v4.1-flash / pi | d43fefa6d040 | yes | Approve |
+
+### 全指摘と採否
+
+解消済み0 / 対応する0 / 対応しない4件（重複をまとめた2論点）。重大度ラベルや票数ではなく、現行HEADの事実とreview-fix-planningの採用条件で決定した。
+
+| 出典 | 判定 | 根拠・見直す条件 |
+|---|---|---|
+| claude-opus-5-5#L-1@d43fefa6d040 | 対応しない | denialと別原因が共存すると、認証以外のrate_limit/connection/sandboxがcauseではapprovalになることを実adapterの隔離fixtureで再現した。有効な拒否根拠を優先する設計4と一致し、別原因を優先すべきかは仕様・設計の是非である。成功化・秘密露出・破壊的操作・主要処理停止は起こらない。別原因を優先する利用者の名指し指示、または具体的な致命的損害の再現で見直す。 |
+| claude-opus-5-5#I-1@d43fefa6d040 | 対応しない | records.mdのapproval欄/分類説明の追記漏れはコミット済み内容で確認したが、列挙不足であり致命的な誤操作を指示する手順ではない。非致命的な文書追記は今回の採用条件外。名指し指示または具体的な誤操作で見直す。 |
+| SWE-2-Max#I-1@d43fefa6d040 | 対応しない | 上の文書追記漏れと同じ論点。判断の記録で同じsourcesへ統合。 |
+| deepseek-v4.1-flash#I-1@d43fefa6d040 | 対応しない | 上の文書追記漏れと同じ論点。判断の記録で同じsourcesへ統合。 |
+
+既知の制約はPR本文にも記載する。情報が失われないという保証はadapterが実際に承認待ちとした安全な根拠を対象とし、同時にログへ出た認証以外の原因をcauseへ並列保存する保証ではない。原因分類全体の再設計、records.md等の網羅的な追記はここでは実施しない。
+
+### 要件対応・検証
+
+A1/A3は実adapter→runnerの保存→keep_diagnostic→生ログ回収後の構造情報と非漏えい、A2/A4は正常回答/同名キーの非採用とexit0での拒否、A5は関連回帰で確認済み。共有条件の統合は調整役が担当し、これらの保証を広げたり狭めたりする修正は追加していない。対応する指摘がないため、修正用の影響経路表・追加実装・run_rolesの自己レビューは該当しない（0回、未実施を成功扱いしない）。同じ条件の再発・修正による回帰の設計見直しも今回はなし。
+
+- 元HEADの全体検証: shell27スイート・pytest1398件・配置・diff-check、すべてexit0、clean HEAD。
+- mainが`1f20820f0b628c707784aa6f7f55146225139fd2`から`70634b5d1ad7bc7bab24ca6258edfed0a7c16fe7`へ進行。PR HEADへ新baseをmergeした一時ツリー`79cae3c93c26ac83c945a16e1c47475496976f7b`を作り、shell27スイート・pytest1401件・配置・diff-checkをすべてexit0で再確認した。テストのみ一時HOMEへ隔離し、実HOMEは差し替えていない。検証後に一時worktreeを回収した。
+- 実adapterの採否用対照: 利用上限・隔離・接続はcause=approval、認証はauthenticationを保持、承認根拠は保存（exit0）。静的な文書照合もexit0。検証のための実CLI/APIは未使用。
+- 確認済み一覧: `reviews/usaturn/create-reso-world/#384-fix-issue-370-approval-diagnostics/verified/d43fefa6d040.json`。工程の記録は同stemの`.planning.json`。入力3件の候補一覧はvalidate/check-pair成功。
+- 最終投稿前にmainがさらに`50f0e6a9fb3c166efd6dfb6c8404dbf72a1a9291`へ進行したため、未公開のSpecコミットだけを更新した。PRのコードHEADは動かさず、同じHEADへ新baseをmergeした一時ツリー`249bc0b70ee960275339da0f2695d3549261c8cc`で再検証した。全収集1442件のpytestを重複しない8組へ分割し、各組固有のHOME/TMPDIRで全件1回ずつ実行、全組exit0。shell27スイート・配置・diff-checkもexit0。一時worktreeは回収済み。検証範囲は削減していない。2回目の再検証は`merge-verification-2.json`と`advanced-base-2-check-1.log`〜`advanced-base-2-check-11.log`に保存。
+- 再検証記録: `/workspaces/reso-world/tmp/agents/issue-370-recovery.evovwtrp/merge-verification.json`、`advanced-base-check-1.log`〜`advanced-base-check-4.log`、`review-causes-probe.log`、`review-statement-search.log`。
+- 担当時間: レビュアー実測はClaude203.4秒、Devin963.4秒、DeepSeek728.4秒（並行なので合算しない）。main統合の再検証は約819秒。plannerの採否時間は未計測。実装と自己レビューの担当起動は今回なし。
+
+結論2: 修正不要。検証したコードHEADの上に、このSpecだけのコミットを載せ、状況コメント・秘密検査・head/baseの再確認・finalizeの照合を経て最終化する。マージとIssue更新の実施結果はPRの状況コメント・finalizeの結果・完了報告に残す。
