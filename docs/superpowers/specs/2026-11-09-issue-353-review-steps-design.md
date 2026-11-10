@@ -323,3 +323,50 @@ S-1の `a13852a3` は最終要素のsymlinkを監査側でだけ拒否し、祖�
 確認済み一覧: `verified/bfd1a72e5338.json`。自己レビュー: `gpt-6.1-sol-commit-87403ff0b7629aef19b7b9024ac631c87296dd3e.md`。fix-check: `verified/87403ff0b762.fix-check.json`。工程の記録: `verified/bfd1a72e5338.planning.json`。保存先はいずれもPR #376のレビューディレクトリ。
 
 結論は1（修正して既存PRへpush）。公開後のSHA・状況コメント・新loop・マージ結果はPR/loop記録とhandoffに記し、このSpecへ結果追記だけのcommitを増やさない。
+
+## レビュー修正（2026-11-10、判断サイクル4）
+
+planner: `openai-codex/gpt-6.1-sol`（pi）。対象HEADは `3afb44b1fa2a936bcb3c2a4416ea8f62ff8ddb41`。利用者のhandoff指定による継続と、既存のissue-to-pr `--merge`・review-fix-planningの完遂指示を実行許可とする。内容の承認SHAはない。完了済みPlanの通常実装は再開しない。
+
+新loop `a0f75c1805f24bae84901334639e1ccb` のサイクル1で、指定のopus xhighとDeepSeek maxは受理、SWE-2 Maxはrunnerのrate_limit（response_failed、exit1）で拒否、stop_confirmed=true。拒否を指摘0件とは扱わず、runner失敗の再試行はしない。今回のSWE成果はない。前のskip3件は新しい根拠がないため引き継ぐ。
+
+### 指摘・自己確認の採否
+
+| 参照 | 判断 | 根拠・見直す条件 |
+|---|---|---|
+| claude-opus-5-5#L-1@3afb44b1fa2a | 対応しない | symlink/`..`を含む手組みのoutput-dirでrejected/retainedを再現。正規化した実pathの再現ではimportable/回収成功（agent_tmp自体を使った実行ではなく、公式pathの性質はコードで照合）。対象外の出力先表記に限る停止で、別対象操作や成功誤報はない。公式pathでの再現、データ損害、利用者の名指しで見直す。 |
+| claude-opus-5-5#L-2@3afb44b1fa2a | 対応しない | implementの部分回収後の再cleanupでis missingを再現。通常手順は1回回収してretainedを保持・報告するため、通常の取り込みを妨げない。reviewの再cleanupは回収記録を持つ。通常手順への影響、消失・誤操作の再現、利用者の名指しで見直す。 |
+| claude-opus-5-5#L-3@3afb44b1fa2a | 対応しない | receipt追記のI/O失敗で後続worktreeの報告漏れを再現。ただし失敗がretainedとして明示され、後続実体・登録・runnerを保持し、追記を戻した再cleanupは完了。失敗報告の列挙不足であり、成功誤報や削除ではない。回復不能・消失・成功誤報、利用者の名指しで見直す。 |
+| planner#S-1@3afb44b1fa2a | 対応する | SKILL.md:299はdecide前にreflected SHAをSpec自身へ記入させる。両reviewの正常手順でSpec内の値とdecideが記録する値の不一致を再現。公式手順の誤った版記録で、分類(b)の事実誤認に該当する。 |
+| planner#S-2@3afb44b1fa2a | 対応しない | 採否の欠落/重複テストが未反映ガードに隠れることを、対象の全件対応ガードだけを外した隔離対照で確認。現行の全件対応ガードは存在し、欠落を受理する実装の欠陥や回帰ガードの削除ではない。将来の検出力改善として見送り、実装側の採否漏れ・記録破損の再現、または名指しで見直す。 |
+| planner#S-3@3afb44b1fa2a | 対応しない | test_review_spec.py:265-274は同じ保存先実体を直接とsymlinkで確認するD重複。テスト採用基準との不一致は記録するが、現在のガード・動作を損なわない重複整理だけを今回の致命的修正へ足さない。テストを所有する別タスク、利用者の名指しで見直す。 |
+
+前セッションの再現と確認済み一覧を救出し、復旧controllerが独立の読み取り専用担当でS-1の両経路と採否の整合を確認した。この調査は15変更ファイルの全文確認とは扱わない。その後、予約済み自己レビューの担当が15変更ファイル全文と関連依存を読み、不足していた固定全体差分とbase AGENTSはcontrollerがファイルで渡し、同じ役割の残りの照合を終えた。各担当の読取範囲・未知の識別情報は保存レビューに区別して記した。controllerは今回の全変更・両decideの生バイト記録・影響する手順を直接確認し、隔離した修正後commitで実行検証した。S-1の原指摘は「反映後 SHA を Spec 自身へ事前記入する手順が循環しています」。S-2は「採否の欠落・重複テストが別の拒否条件に隠されています」、S-3は「同じ実体を別パスで確認する D テストがあります」。
+
+### 守る条件と影響経路
+
+S-1は既存の記録手順の誤りで、今回までのworktree境界の修正とは別の原因。過去にこの条件を修正した記録はなく、設計の見直しのきっかけには該当しない。統合担当はcontroller。
+
+条件は、decideが保存する反映後snapshotの生バイトとSHAが一致し、同じSHAを記録するために対象Specを再変更しないこと。Specには採否理由・反映箇所と決定時に既知の情報を残し、decide後に得たreflected SHAはSESSIONと最終報告に保存する方法を推奨する。Spec自身へハッシュを埋める案は自己参照になるため採用しない。hash計算仕様・版検査を変える案は不要で、helperは変更しない。
+
+| 守る条件 | 経路 | 判定 | 観測する結果・方法 | 証拠 |
+|---|---|---|---|---|
+| 最終SpecのSHAをそのSpecへ埋めない | SKILL.md共通採否手順→spec.decide | 修正する | 複数行日本語/CRLFのSpecを使うself正常ライフサイクル。Spec変更を終えてdecideし、戻り値・decisions.json・reflected.md・現在SpecのSHAが一致、後処理でSpec不変 | ee787309の隔離版で重要指摘採用→rereview、指摘なし→plan。全SHAとcommit blobが一致、SESSION記録前後のSpec不変。旧手順は不一致。controller/self-review-lifecycle.log |
+| 同上 | 共通手順→design.decide | 修正する（同じ手順） | sound/continueの正常入力でも同じ比較。SESSIONへの記録だけを追加する | ee787309の隔離版でsound/採用の両方→continue、全SHAとcommit blob一致・SESSION記録で不変。同じprobeで旧手順の不一致も確認 |
+| 採否・停止・再レビューの検査を維持 | 両helperのdecide/submit、SKILLの分岐 | 既に満たす | 本体は変更しない。既存関連回帰と最終差分で確認 | helper差分なし。両decideを精読、修正後の関連141件/自己レビュー内の絞った30件が成功。文書候補64件・5主張・変更1ファイルのfix-check検査を完了 |
+
+動作環境は現行Dev Container/uv、一時Gitとself/fakeのみ。文書の固定文言を写すFテストは作らず、手順を実行する使い捨てprobeで検証する。実モデルによるスキル挙動比較を追加しない。実装は既定を推測せず、loopから渡されたDeepSeek maxへ1件依頼する。担当の実装・検証は同期で待ち、以後の自己レビューはこのsource_headの枠を最大1回だけ使う。以前のbfd1a72eの予約は再利用しない。
+
+### 修正・検証・自己レビューの結果
+
+修正は指定の `pi_opencode-go_deepseek4-flash_max` に1件依頼した。観測モデルはopencode-go/deepseek-v4.1-flash/max、stop_confirmed=true、326.26秒（batch329.67秒）。子commit6365b61bを差分確認してee787309193f51fadc0cd8090b5544065e4a3b75へ取り込んだ。変更はSKILL.mdの共通採否/decide/停止報告だけで、helper・設定・テストは変更していない。runnerのoutside_changesは空、保護対象外の既存不在worktree等はunprotected_changesとして記録し、他の作業領域を修復・削除していない。
+
+controllerはee787309で関連141 passed（216.78秒）、環境27件成功、skills800 passed（672.43秒）、layout/diff --check成功を同期で確認し、自己レビュー前のGitleaksも成功した。複数行日本語CRLF/別code-doc checkoutの手順probeで、旧手順の不一致と新手順の4正常分岐を比較した。返値・decisions.json・reflected.md・現在Spec・commit blobの一致はhashlibとgitの生バイト比較で確認した。固定文言テストや有料モデルによる反復評価は追加していない。
+
+run_roles.pyのself-reviewを1回だけ予約し、self-review=self/fix-check=selfを実行した。自己レビューの固定PR全体差分は15ファイル、結果はactive0、helperの保存/cleanup成功。fix-checkはcontrollerが行い、文書候補64件（consistent25/unrelated39）、5主張、変更1ファイルを全件照合し、新しい違反なし。自己レビュー後のコード修正はない。このSpecの結果追記は今回の実質修正と同じ公開単位の最後に1回だけcommitし、公開後の結果だけのcommitは増やさない。
+
+自己レビュー: `gpt-6.1-sol-commit-ee787309193f51fadc0cd8090b5544065e4a3b75.md`、修正確認: `verified/ee787309193f.fix-check.json`。今回の自己レビューは約790秒、fix-checkの記録対象143秒（既存検証の再利用分を0秒に換算していない）。前のsource_headの枠は再利用していない。
+
+結論は1（修正して既存PRへpush）。今回の採否は前の13判断に新しい6判断を加え、resolved10/fix1/skip8。S-1だけを今回の致命的修正として採用した。push・判断コメント・次のloop・最終化の結果はPR/loop記録とhandoffに記す。
+
+救出元SESSION: `/workspaces/reso-world/tmp/agents/issue-353-c4.6gq06jrc`（repro-round4.py/json）。復旧・検証SESSION: `/workspaces/reso-world/tmp/agents/pr376-recovery.vwhu4pkm`。controller-checks.jsonl、controller/self-review-lifecycle.log、fix-checkと担当のroles/logを保持する。各実測のargv/HEAD/exitを記録し、前セッションの未記録時間は推測しない。
