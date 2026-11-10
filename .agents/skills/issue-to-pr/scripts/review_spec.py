@@ -624,6 +624,13 @@ def start(
         _write_new(review_dir / "review.json", record)
         return _summary(review_dir, record, kind)
     reasons, result = assess(batch, spec_path, request.revision, expected, kind)
+    try:
+        current_revision = implement.head(repository)
+    except (subprocess.SubprocessError, OSError):
+        reasons.append("the repository cannot be read after the review")
+    else:
+        if current_revision != request.revision:
+            reasons.append("the repository changed during the review")
     outcome = batch.results[0] if len(batch.results) == 1 else None
     attempts = [attempt for item in batch.results for attempt in item.attempts]
     record = _record(
@@ -728,7 +735,9 @@ def assess(
 
     runner の checkout 監査は実行中に作られた試行の worktree を見ないので、停止を確認したすべての試行
     （fallback の前に失敗した一次担当を含む）の worktree を git で読み、writes = false の違反を探す。
-    worktree が無い試行は、レビューの結果を持たない準備失敗として対象外にし、それ以外は監査できないので採用しない。
+    worktree と request.json の両方が無い試行は、準備の前に終わってレビューの結果を持たないものとして
+    対象外にする。request.json が残っているのに worktree が無い試行は、準備後に消えたか変更された
+    ものとして、監査できないので採用しない。
     """
     reasons: list[str] = []
     attempts = [attempt for outcome in batch.results for attempt in outcome.attempts]
@@ -763,6 +772,9 @@ def assess(
         if not attempt.stop_confirmed or attempt.work_dir is None:
             continue
         if not attempt.work_dir.exists():
+            if attempt.request_path is None or not attempt.request_path.exists():
+                # 準備の前に終わった試行。レビューの結果を持たないので監査対象外
+                continue
             reasons.append(f"the worktree of {attempt.agent_id} is missing, so its changes cannot be audited")
             continue
         try:

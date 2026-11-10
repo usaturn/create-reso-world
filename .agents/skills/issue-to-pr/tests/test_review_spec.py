@@ -363,6 +363,8 @@ def batch(
     unprotected: list[str] | None = None,
     stop: bool = True,
     work_dir: Path | None = None,
+    request_path: Path | None = None,
+    previous_attempts: list[Attempt] | None = None,
 ) -> BatchResult:
     attempt = Attempt(
         agent_id="reviewer",
@@ -370,6 +372,7 @@ def batch(
         elapsed_seconds=0.1,
         stop_confirmed=stop,
         work_dir=work_dir,
+        request_path=request_path,
         payload=payload,
         identity=Identity(model="fake"),
     )
@@ -379,7 +382,7 @@ def batch(
         requested_agent="reviewer",
         actual_agent="reviewer",
         state="success",
-        attempts=[attempt],
+        attempts=[*(previous_attempts or []), attempt],
     )
     return BatchResult(
         run_id="run-1",
@@ -504,6 +507,101 @@ def test_unprotected_changes_are_only_reported(fx: Fixture, monkeypatch: pytest.
     assert summary["unprotected_changes"] == ["/other/checkout: content_changed"]
     record = json.loads((Path(summary["review_dir"]) / "review.json").read_text(encoding="utf-8"))
     assert record["unprotected_changes"] == ["/other/checkout: content_changed"]
+
+
+def test_external_review_fails_when_the_repository_moves_during_the_review(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: レビュー中に CODE_ROOT の HEAD が変わったのに completed と記録すると、別の版を採用する。"""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        (fx.feature / "src.py").write_text("value = 2\n", encoding="utf-8")
+        git(fx.feature, "commit", "-qam", "move during review")
+        return batch(
+            {
+                "review_id": review_id,
+                "spec_sha256": sha,
+                "status": "completed",
+                "findings": [],
+                "incomplete": [],
+            }
+        )
+
+    summary = external_review(fx, monkeypatch, make)
+
+    assert summary["state"] == "failed"
+    assert any("the repository changed during the review" in reason for reason in summary["reasons"]), summary[
+        "reasons"
+    ]
+
+
+def test_external_review_accepts_a_fallback_after_preparation_failed(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: 準備前に終わった試行の不在 worktree を拒否すると、有効な fallback の結果を失う。"""
+    attempt_dir = fx.tmp / "failed-before-preparation" / "attempt-1"
+    primary = Attempt(
+        agent_id="primary",
+        state="response_failed",
+        elapsed_seconds=0.1,
+        stop_confirmed=True,
+        work_dir=attempt_dir / "worktree",
+        request_path=attempt_dir / "request.json",
+    )
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(
+            {
+                "review_id": review_id,
+                "spec_sha256": sha,
+                "status": "completed",
+                "findings": [],
+                "incomplete": [],
+            },
+            previous_attempts=[primary],
+        )
+
+    summary = external_review(fx, monkeypatch, make)
+
+    assert summary["state"] == "completed", summary["reasons"]
+    record = json.loads((Path(summary["review_dir"]) / "review.json").read_text(encoding="utf-8"))
+    assert record["state"] == "completed"
+    assert record["result"]["review_id"] == summary["review_id"]
+
+
+def test_external_review_rejects_a_worktree_missing_after_preparation(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: 準備後に消えた worktree を黙って受け入れると、読取専用の監査を飛ばして成功扱いする。"""
+    attempt_dir = fx.tmp / "missing-after-preparation" / "attempt-1"
+    attempt_dir.mkdir(parents=True)
+    request_path = attempt_dir / "request.json"
+    request_path.write_text("{}", encoding="utf-8")
+    primary = Attempt(
+        agent_id="primary",
+        state="response_failed",
+        elapsed_seconds=0.1,
+        stop_confirmed=True,
+        work_dir=attempt_dir / "worktree",
+        request_path=request_path,
+    )
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(
+            {
+                "review_id": review_id,
+                "spec_sha256": sha,
+                "status": "completed",
+                "findings": [],
+                "incomplete": [],
+            },
+            previous_attempts=[primary],
+        )
+
+    summary = external_review(fx, monkeypatch, make)
+
+    assert summary["state"] == "failed"
+    assert any("the worktree of primary is missing" in reason for reason in summary["reasons"]), summary["reasons"]
 
 
 def test_reviewer_worktree_change_fails_and_cleanup_keeps_it_and_the_ledger(
