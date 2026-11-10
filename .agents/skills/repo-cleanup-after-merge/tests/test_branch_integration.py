@@ -593,5 +593,70 @@ def test_gate_b_deletes_upstream_pr_branches_only_from_the_verified_fork_remote(
     assert not any(
         line.startswith("候補:") for line in upstream_remote.stdout.splitlines()
     ), upstream_remote.stdout
+
+    # The URL check is independent of the remote name: REMOTE=origin with the
+    # base repository's fetch URL must be refused. Without this, replacing the
+    # URL check with a remote-name check would still pass the tests above.
+    git(work, "remote", "set-url", "origin", f"https://github.com/{UPSTREAM_REPO}.git")
+    wrong_fetch = gate_b("origin")
+    assert wrong_fetch.returncode != 0, (wrong_fetch.stdout, wrong_fetch.stderr)
+    assert not any(
+        line.startswith("候補:") for line in wrong_fetch.stdout.splitlines()
+    ), wrong_fetch.stdout
+    git(work, "remote", "set-url", "origin", f"https://github.com/{FORK_REPO}.git")
+
+    # The approved deletion uses the push URL. A push URL pointing elsewhere
+    # must stop before a candidate is presented.
+    git(work, "config", "remote.origin.pushurl",
+        f"https://github.com/{UPSTREAM_REPO}.git")
+    wrong_push = gate_b("origin")
+    assert wrong_push.returncode != 0, (wrong_push.stdout, wrong_push.stderr)
+    assert not any(
+        line.startswith("候補:") for line in wrong_push.stdout.splitlines()
+    ), wrong_push.stdout
+    git(work, "config", "--unset", "remote.origin.pushurl")
+
     assert git(work, "for-each-ref", "--format=%(refname) %(objectname)") == refs_before
     assert git(work, "remote", "-v") == remotes_before
+
+
+def test_gate_b_deletion_uses_the_verified_checkout_not_the_caller_cwd(
+    work: Path,
+) -> None:
+    # The approved deletion block must push from CHECKOUT. A caller cwd in a
+    # different checkout with the same remote name and branch must not lose
+    # its remote branch.
+    branch = "merged-feature"
+    git(work, "checkout", "-q", "-b", branch, "main")
+    commit_file(work, "fork.txt", "fork\n")
+    git(work, "push", "-q", "origin", branch)
+    git(work, "checkout", "-q", "main")
+
+    parent_remote = work.parent / "parent remote.git"
+    parent_remote.mkdir()
+    git(parent_remote, "init", "-q", "--bare", "-b", "main")
+    parent = work.parent / "parent checkout"
+    git(work.parent, "clone", "-q", str(parent_remote), str(parent))
+    (parent / "parent.txt").write_text("parent\n", encoding="utf-8")
+    git(parent, "add", "parent.txt")
+    git(parent, "commit", "-qm", "parent base")
+    git(parent, "push", "-q", "origin", "main")
+    git(parent, "checkout", "-q", "-b", branch)
+    (parent / "parent-branch.txt").write_text("parent branch\n", encoding="utf-8")
+    git(parent, "add", "parent-branch.txt")
+    git(parent, "commit", "-qm", "parent branch")
+    git(parent, "push", "-q", "origin", branch)
+
+    deletion = section_bash(GATE_B_TITLE, 1).replace("<branch>", branch)
+    env = {**os.environ, "CHECKOUT": str(work), "REMOTE": "origin"}
+
+    result = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", deletion],
+        cwd=parent, env=env, capture_output=True, text=True, timeout=20,
+    )
+
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    fork_refs = git(work, "for-each-ref", "--format=%(refname)", "refs/remotes/origin")
+    assert f"refs/remotes/origin/{branch}" not in fork_refs
+    parent_refs = git(parent, "for-each-ref", "--format=%(refname)", "refs/remotes/origin")
+    assert f"refs/remotes/origin/{branch}" in parent_refs
