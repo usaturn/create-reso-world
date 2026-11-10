@@ -45,11 +45,11 @@ Spec 1–4 は Task 1 の共通指示と文意レビュー。stash/プロセス�
 - Consumes: `run_workflow` が作る `Request.prompt`、既存 `FakeAdapter` の payload、既存 `_scope_lines`。
 - Produces: 既存の2行構成を保った共通指示。APIの引数・戻り値は変更しない。
 
-- [ ] **Step 1: RED を追加する。** 既存 `test_write_exceptions_follow_the_work_scope_lines` で実際に捕捉した共通指示に、全 git stash（pop含む）の禁止・worktree共有の理由、pkill -f/killall の禁止・自分が起動したプロセスだけ PID 指定で停止可が含まれることを確認する。F∩S: 文が落ちても通常の実行ではエラーにならず、他セッションの作業消失・無関係のプロセス停止になるため。テストにこの理由を書く。無関係な固定文言・一覧のテストは足さない。既存の例外有無の対照を保ち、caller 本文は受け入れ基準の複数行日本語にする。
-- [ ] **Step 2: RED を観測する。** `uv run pytest tools/agent_runner/tests/test_runner.py::test_write_exceptions_follow_the_work_scope_lines -q`。禁止がまだ無いことによる失敗を記録する。
-- [ ] **Step 3: 最小実装。** `instructions` の1行目で既存の checkout 制限の直後へ Spec の禁止事項と理由を自然な英語で追加する。文字列リテラルを分割して読みやすくするが生成される改行数は変えない。代替手段も writes と許可範囲に従う。安全制限は write exceptions で解除されないことを明記する。別モジュール・共通定数の新設や既存処理の整理は不要。
-- [ ] **Step 4: GREEN・回帰を同期実行。** focused test、`uv run pytest tools/agent_runner/tests .agents/skills/issue-to-pr/tests -q`、`uv run pytest .agents/skills/review-fix-planning/tests/test_run_roles.py .agents/skills/review-verify/tests/test_dispatch.py .agents/skills/pr-review-fix-loop/tests/test_loop_reviewer_protocol.py -q`。各終了0を確認。`git diff --check`。異常時は原因を調べ、範囲外変更が必要なら報告する。
-- [ ] **Step 5: commit・報告。** 2ファイルだけを stage して `fix: clarify runner safety instructions for shared resources` で commit。自己レビューし、RED/GREEN、実コマンド・終了コード、所要時間・懸念を結果に含める。サブエージェントを起動しない。push・PR・Issue更新は controller の担当。
+- [x] **Step 1: RED を追加する。** 既存 `test_write_exceptions_follow_the_work_scope_lines` で実際に捕捉した共通指示に、全 git stash（pop含む）の禁止・worktree共有の理由、pkill -f/killall の禁止・自分が起動したプロセスだけ PID 指定で停止可が含まれることを確認する。F∩S: 文が落ちても通常の実行ではエラーにならず、他セッションの作業消失・無関係のプロセス停止になるため。テストにこの理由を書く。無関係な固定文言・一覧のテストは足さない。既存の例外有無の対照を保ち、caller 本文は受け入れ基準の複数行日本語にする。
+- [x] **Step 2: RED を観測する。** `uv run pytest tools/agent_runner/tests/test_runner.py::test_write_exceptions_follow_the_work_scope_lines -q`。禁止がまだ無いことによる失敗を記録する。
+- [x] **Step 3: 最小実装。** `instructions` の1行目で既存の checkout 制限の直後へ Spec の禁止事項と理由を自然な英語で追加する。文字列リテラルを分割して読みやすくするが生成される改行数は変えない。代替手段も writes と許可範囲に従う。安全制限は write exceptions で解除されないことを明記する。別モジュール・共通定数の新設や既存処理の整理は不要。
+- [x] **Step 4: GREEN・回帰を同期実行。** focused test、`uv run pytest tools/agent_runner/tests .agents/skills/issue-to-pr/tests -q`、`uv run pytest .agents/skills/review-fix-planning/tests/test_run_roles.py .agents/skills/review-verify/tests/test_dispatch.py .agents/skills/pr-review-fix-loop/tests/test_loop_reviewer_protocol.py -q`。各終了0を確認。`git diff --check`。異常時は原因を調べ、範囲外変更が必要なら報告する。
+- [x] **Step 5: commit・報告。** 2ファイルだけを stage して `fix: clarify runner safety instructions for shared resources` で commit。自己レビューし、RED/GREEN、実コマンド・終了コード、所要時間・懸念を結果に含める。サブエージェントを起動しない。push・PR・Issue更新は controller の担当。
 
 ## 統合・公開（controller）
 
@@ -58,6 +58,15 @@ Task の受け取り・cleanup後、同じ関連検査と `bash scripts/check-la
 ## 実行予算
 
 全体240分（準備20、実装・Task review25、統合検証・全体review・PR25、残りは最大3サイクルのレビュー45分＋短い計画修正）。ledger は `/workspaces/reso-world/tmp/agents/issue-361.vyd2ce_h/budget.jsonl` と同セッションの `sdd/2026-11-10-issue-361-runner-safety/progress.md`。実装の期限はrunner既定90分、レビューは45分。同期 foreground で待つ（tool timeoutなし）、独自の途中停止は宣言しないので予約枠・無進捗の打切りは適用しない。失敗の同原因の再試行は1回まで、failed・安全失敗は停止。実 agent の起動は recon 1回、Task実装1回（retry/修正は各1回まで）、Task review 1回、全体review 1回、ループは指定3人×最大3サイクルと必要な修正だけ。phase境界・失敗直後・50%/100%でcheckpoint。最終検証の記録はループ再利用に必要なのでセッションを残す。
+
+## 実装・Task review の結果
+
+- 実装: `a91d4d90`。指定担当の実測 identity は `opencode-go/deepseek-v4.1-flash`、effort `max`。初回394.010秒、修正99.505秒、依頼は2回。自己申告の時間内訳より runner の実測を優先する。
+- 初回 RED: stash 禁止のない旧実装で focused test が失敗。GREEN: focused 1件、runner/issue-to-pr 364件、関連workflow 83件が成功（担当のログを controller が保存）。
+- Task review のP2: 単語の存在だけでは禁止・PID所有範囲の脱落を検知できない。要件内として採用し、`17bf7693` で既存テストを修正。禁止・限定を含む検査へ変更し、旧指示でRED、現指示でGREENを確認。controller の受け取り後 focused test も1件成功。再レビューで指摘解消、追加不具合なし。
+- 独立した根拠: `/tmp` に新規作成したrepositoryの2 worktreeで、片方のstashが他方のpopで適用・dropされることを確認し、その使い捨てrepositoryを削除。実環境のstashは操作していない。
+- controller の配置検査: `bash scripts/check-layout.sh` 終了0。
+- 最後の文書commit後の clean HEAD の一括検証と、そのHEAD・base・argv・終了コード・ログはセッションの `final-checks.json` と `verification.json` に記録してから公開する。公開後の修正ループの記録はレビューディレクトリに保存する。
 
 ## contingency（代替策）
 
