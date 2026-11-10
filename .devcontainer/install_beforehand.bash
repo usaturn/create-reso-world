@@ -459,8 +459,14 @@ place_herdr_helpers() {
     chmod +x "${HOME}/bin/herdr-agent-task.bash" || return 1
     cp .devcontainer/herdr-agent-task.bash "${HOME}/bin/herdr-agent-task" || return 1
     chmod +x "${HOME}/bin/herdr-agent-task" || return 1
-    cp .devcontainer/cleanup-workspace.bash "${HOME}/bin/cleanup-workspace.bash" || return 1
-    chmod +x "${HOME}/bin/cleanup-workspace.bash" || return 1
+    local cleanup_helper="${HOME}/bin/cleanup-workspace.bash"
+    # 既存のコピーは、実体への絶対 symlink に置き換える。宛先が通常のディレクトリなら、
+    # その中へリンクを作らず失敗させる。cleanup 本体は git モード 100755 なので、
+    # リンク先の chmod はしない。
+    if [ -d "$cleanup_helper" ] && [ ! -L "$cleanup_helper" ]; then
+        return 1
+    fi
+    ln -sfn "${WORKSPACE_ROOT}/.devcontainer/cleanup-workspace.bash" "$cleanup_helper" || return 1
 }
 if ! place_herdr_helpers; then
     fail "Failed to place the Herdr helper scripts in ~/bin."
