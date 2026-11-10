@@ -741,15 +741,18 @@ def assess(
 
     runner の checkout 監査は実行中に作られた試行の worktree を見ないので、停止を確認したすべての試行
     （fallback の前に失敗した一次担当を含む）の worktree を git で読み、writes = false の違反を探す。
-    payload を持たず準備の前に終わった試行だけを対象外にし、payload を持つ試行と request.json が残る
-    試行は worktree が無いと監査できないので採用しない。worktree は symlink を含まず、repository に
-    登録された同じ common-dir の実体でなければ、参照先の HEAD/status を読まずに採用しない。
+    準備の前に終わった試行だけを対象外にし、結果や依頼記録がある試行は worktree が無いと監査できない
+    ので採用しない。worktree の分類は implement_task.classify_attempt_worktree と共有し、symlink を
+    含むパス、未登録・common-dir 違いのパス、読めないパスは参照先の HEAD/status を読まずに採用しない。
     """
     reasons: list[str] = []
     attempts = [attempt for outcome in batch.results for attempt in outcome.attempts]
     unstopped = [attempt.agent_id for attempt in attempts if not attempt.stop_confirmed]
     if unstopped:
         reasons.append(f"stop_unconfirmed: attempts of {', '.join(unstopped)}; their areas are retained")
+    sensitive = [attempt.agent_id for attempt in attempts if attempt.stop_confirmed and attempt.sensitive_paths]
+    if sensitive:
+        reasons.append(f"sensitive_paths: attempts of {', '.join(sensitive)}; their areas are retained")
     result: Any = None
     if len(batch.results) != 1:
         reasons.append("the runner returned an unexpected number of results")
@@ -775,29 +778,19 @@ def assess(
     if batch.outside_changes:
         reasons.append(f"outside_changes: {', '.join(batch.outside_changes)}")
     for attempt in attempts:
-        if not attempt.stop_confirmed:
+        status = implement.classify_attempt_worktree(repository, attempt)
+        if status.kind == "prepare-failed":
+            # 準備の前に終わった試行。レビューの結果を持たないので監査対象外
             continue
-        if attempt.work_dir is not None and attempt.work_dir.is_symlink():
-            # symlink をたどると clean な参照先を読み、担当の変更を見落とす
+        if status.kind == "unconfirmed":
+            # stop_unconfirmed と sensitive_paths は上で理由にまとめた。領域は監査しない
+            continue
+        if status.kind != "registered":
             reasons.append(
-                f"the worktree of {attempt.agent_id} {implement.WORKTREE_SYMLINK}, so its changes cannot be audited"
+                f"the worktree of {attempt.agent_id} {status.reason}, so its changes cannot be audited"
             )
             continue
-        if attempt.work_dir is None or not attempt.work_dir.exists():
-            if attempt.payload is None and (
-                attempt.request_path is None or not attempt.request_path.exists()
-            ):
-                # 準備の前に終わった試行。レビューの結果を持たないので監査対象外
-                continue
-            # 結果を持つ試行か、準備の記録が残る試行。読取専用の監査を飛ばして受理しない
-            reasons.append(f"the worktree of {attempt.agent_id} is missing, so its changes cannot be audited")
-            continue
-        problem = implement.worktree_problem(repository, attempt.work_dir)
-        if problem is not None:
-            reasons.append(
-                f"the worktree of {attempt.agent_id} {problem}, so its changes cannot be audited"
-            )
-            continue
+        assert attempt.work_dir is not None
         try:
             moved = implement.head(attempt.work_dir) != revision
             changed = implement.status_paths(attempt.work_dir)
@@ -959,8 +952,127 @@ def _previous(ledger: Path, spec_bytes: bytes) -> dict[str, Any]:
     }
 
 
+CLEANUP_RECEIPT = "cleanup.jsonl"
+
+
+class CleanupEvent(_Strict):
+    """review.cleanup が記録する、成功した回収 1 件。既存の結果・採否とは別の追記専用ファイルに置く。"""
+
+    event: Literal["worktree_removed", "runner_dir_removed"]
+    review_id: str
+    kind: str
+    spec_sha256: str
+    run_id: str
+    runner_dir: str
+    path: str
+    removed_at: str
+
+
+def _receipt_path(review_dir: Path) -> Path:
+    return review_dir / CLEANUP_RECEIPT
+
+
+def _read_cleanup_events(
+    review_dir: Path,
+    request: dict[str, Any],
+    kind: Kind,
+    batch: BatchResult,
+    runner_dir: Path,
+) -> list[CleanupEvent]:
+    """回収記録を読み、このレビュー・batch・runner 領域に結び付いた記録だけを受け付ける。
+
+    記録の破損・symlink・対応不一致は、worktree や runner 出力を消す前に拒否する。
+    """
+    path = _receipt_path(review_dir)
+    if path.is_symlink():
+        raise ReviewInputError("the cleanup receipt must not be a symbolic link")
+    if not path.exists():
+        return []
+    if not path.is_file():
+        raise ReviewInputError("the cleanup receipt must be a regular file")
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        raise ReviewInputError("the cleanup receipt cannot be read") from None
+    paths = {
+        str(attempt.work_dir)
+        for outcome in batch.results
+        for attempt in outcome.attempts
+        if attempt.work_dir is not None
+    }
+    events: list[CleanupEvent] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            event = CleanupEvent.model_validate_json(line)
+        except ValidationError:
+            raise ReviewInputError("the cleanup receipt is invalid") from None
+        if (
+            event.review_id != request["review_id"]
+            or event.kind != kind.role
+            or event.spec_sha256 != request["spec_sha256"]
+            or event.run_id != batch.run_id
+            or event.runner_dir != str(runner_dir)
+        ):
+            raise ReviewInputError("the cleanup receipt does not match this review")
+        if event.event == "worktree_removed":
+            if event.path not in paths:
+                raise ReviewInputError("the cleanup receipt names a path outside this batch")
+        elif event.path != str(runner_dir):
+            raise ReviewInputError("the cleanup receipt names another runner directory")
+        events.append(event)
+    return events
+
+
+def _append_cleanup_event(review_dir: Path, event: CleanupEvent) -> None:
+    """回収記録を 1 行追記する。既存の記録は差し替えない。"""
+    path = _receipt_path(review_dir)
+    if path.is_symlink():
+        raise ReviewInputError("the cleanup receipt must not be a symbolic link")
+    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except OSError:
+        raise ReviewInputError("the cleanup receipt cannot be written") from None
+    try:
+        with os.fdopen(descriptor, "a", encoding="utf-8") as stream:
+            stream.write(json.dumps(event.model_dump(mode="json"), ensure_ascii=False) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    except OSError:
+        raise ReviewInputError("the cleanup receipt cannot be written") from None
+
+
+def _cleanup_event(
+    request: dict[str, Any],
+    kind: Kind,
+    batch: BatchResult,
+    runner_dir: Path,
+    event: Literal["worktree_removed", "runner_dir_removed"],
+    path: Path,
+) -> CleanupEvent:
+    return CleanupEvent(
+        event=event,
+        review_id=request["review_id"],
+        kind=kind.role,
+        spec_sha256=request["spec_sha256"],
+        run_id=batch.run_id,
+        runner_dir=str(runner_dir),
+        path=str(path),
+        removed_at=_now(),
+    )
+
+
 def cleanup(review_dir: Path, kind: Kind = SPEC_REVIEW) -> dict[str, Any]:
-    """外部実行の runner の worktree の登録を外し、何も残らなければ runner の出力先を消す。記録は消さない。"""
+    """外部実行の runner の worktree の登録を外し、何も残らなければ runner の出力先を消す。記録は消さない。
+
+    回収の成功は review_dir の追記専用の cleanup.jsonl に残す。同じ cleanup の再実行は記録済みの
+    worktree と runner 領域を no-op にし、回収後に再出現した path は保持する。記録が壊れている・
+    このレビューと対応しないときは、何も消す前に拒否する。
+    """
     request = _request_of(review_dir, kind)
     if request["mode"] == "self":
         return {"removed_worktrees": [], "retained": [], "removed_runner_dir": False}
@@ -978,7 +1090,39 @@ def cleanup(review_dir: Path, kind: Kind = SPEC_REVIEW) -> dict[str, Any]:
     batch = BatchResult.model_validate_json(json.dumps(record["batch"]))
     repository = Path(request["request"]["repository"])
     spec_path = Path(request["request"]["spec_path"])
-    removed, retained = implement.remove_attempts(repository, batch)
+    events = _read_cleanup_events(review_dir, request, kind, batch, runner_dir)
+    collected = {event.path for event in events if event.event == "worktree_removed"}
+    runner_collected = any(event.event == "runner_dir_removed" for event in events)
+
+    def append_event(event: Literal["worktree_removed", "runner_dir_removed"], path: Path) -> None:
+        _append_cleanup_event(review_dir, _cleanup_event(request, kind, batch, runner_dir, event, path))
+
+    if runner_collected:
+        # 既に回収した runner 領域の再実行は no-op。再出現した path だけを保持の理由にする
+        retained: list[dict[str, str]] = []
+        if runner_dir.exists() or runner_dir.is_symlink():
+            retained.append(
+                {"path": str(runner_dir), "reason": "the runner directory reappeared after it was collected"}
+            )
+        for attempt in (attempt for outcome in batch.results for attempt in outcome.attempts):
+            status = implement.classify_attempt_worktree(repository, attempt, collected=collected)
+            if status.kind in {"prepare-failed", "collected"}:
+                continue
+            reason = status.reason or "the worktree still exists after the runner directory was collected"
+            retained.append(
+                {
+                    "path": implement.retained_path(attempt, batch, parent=status.kind == "unconfirmed"),
+                    "reason": reason,
+                }
+            )
+        return {"removed_worktrees": [], "retained": retained, "removed_runner_dir": False}
+
+    removed, retained = implement.remove_attempts(
+        repository,
+        batch,
+        collected=collected,
+        on_removed=lambda path: append_event("worktree_removed", path),
+    )
     ledger = _real(Path(request["ledger_dir"]))
     resolved = _real(runner_dir)
     protected = [
@@ -991,9 +1135,33 @@ def cleanup(review_dir: Path, kind: Kind = SPEC_REVIEW) -> dict[str, Any]:
         or any(_overlaps(resolved, root) for root in protected)
     ):
         retained.append({"path": str(runner_dir), "reason": "the runner directory changed; check it by hand"})
-    removed_runner_dir = not retained and runner_dir.is_dir() and not runner_dir.is_symlink()
-    if removed_runner_dir:
-        shutil.rmtree(runner_dir)
+    removed_runner_dir = False
+    if not retained:
+        if not runner_dir.exists() and not runner_dir.is_symlink():
+            retained.append({"path": str(runner_dir), "reason": "the runner directory is missing; check it by hand"})
+        elif not runner_dir.is_dir() or runner_dir.is_symlink():
+            retained.append(
+                {"path": str(runner_dir), "reason": "the runner directory is not a real directory; check it by hand"}
+            )
+        else:
+            try:
+                shutil.rmtree(runner_dir)
+            except OSError:
+                retained.append(
+                    {"path": str(runner_dir), "reason": "the runner directory could not be removed; check it by hand"}
+                )
+            else:
+                try:
+                    append_event("runner_dir_removed", runner_dir)
+                except ReviewInputError:
+                    retained.append(
+                        {
+                            "path": str(runner_dir),
+                            "reason": "the runner directory was removed but its cleanup receipt could not be written; check it by hand",
+                        }
+                    )
+                else:
+                    removed_runner_dir = True
     return {"removed_worktrees": removed, "retained": retained, "removed_runner_dir": removed_runner_dir}
 
 

@@ -9,6 +9,7 @@ import importlib.util
 import hashlib
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -646,7 +647,7 @@ def test_external_review_rejects_a_successful_attempt_without_a_worktree(
 def test_external_review_rejects_a_symlink_worktree(
     fx: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """S: symlink をたどって clean な参照先を監査・削除すると、担当の変更を見落とし別 checkout を失う。"""
+    """S: symlink をたどって clean な参照先を監査すると、担当の変更を見落として成功扱いする。"""
     link = fx.tmp / "reviewer-link"
     link.symlink_to(fx.reviewer, target_is_directory=True)
     # 参照先はレビューした版のまま clean なので、symlink を許す実装では completed になる
@@ -671,23 +672,16 @@ def test_external_review_rejects_a_symlink_worktree(
 
     summary = external_review(fx, monkeypatch, make)
 
-    review_dir = Path(summary["review_dir"])
-    cleaned = mod.cleanup(review_dir)
-
-    assert cleaned["removed_worktrees"] == []
-    assert any(item["path"] == str(link) and "symlink" in item["reason"] for item in cleaned["retained"])
-    assert link.is_symlink()
-    assert os.readlink(link) == link_target
-    assert (fx.reviewer / "src.py").read_bytes() == target_bytes
-    assert stat.S_IMODE((fx.reviewer / "src.py").stat().st_mode) == target_mode
-    assert git(fx.main, "worktree", "list", "--porcelain") == registered
-    assert fx.runner.is_dir()
-    assert review_dir.is_dir()
     assert summary["state"] == "failed"
     assert any(
         "the worktree of reviewer contains a symlink, so its changes cannot be audited" in reason
         for reason in summary["reasons"]
     ), summary["reasons"]
+    assert link.is_symlink()
+    assert os.readlink(link) == link_target
+    assert (fx.reviewer / "src.py").read_bytes() == target_bytes
+    assert stat.S_IMODE((fx.reviewer / "src.py").stat().st_mode) == target_mode
+    assert git(fx.main, "worktree", "list", "--porcelain") == registered
 
 
 def test_external_review_rejects_a_worktree_below_a_symlinked_directory(
@@ -701,6 +695,7 @@ def test_external_review_rejects_a_worktree_below_a_symlinked_directory(
     assert not work.is_symlink()
     assert git(work, "rev-parse", "HEAD") == fx.revision
     assert git(work, "status", "--porcelain") == ""
+    registered = git(fx.main, "worktree", "list", "--porcelain")
 
     def make(review_id: str, sha: str) -> BatchResult:
         return batch(
@@ -721,6 +716,9 @@ def test_external_review_rejects_a_worktree_below_a_symlinked_directory(
         "the worktree of reviewer contains a symlink, so its changes cannot be audited" in reason
         for reason in summary["reasons"]
     ), summary["reasons"]
+    assert fx.reviewer.is_dir()
+    assert git(fx.reviewer, "status", "--porcelain") == ""
+    assert git(fx.main, "worktree", "list", "--porcelain") == registered
 
 
 def test_external_review_rejects_a_clean_checkout_of_another_repository(
@@ -751,6 +749,8 @@ def test_external_review_rejects_a_clean_checkout_of_another_repository(
         "the worktree of reviewer is not a registered worktree of the repository" in reason
         for reason in summary["reasons"]
     ), summary["reasons"]
+    assert foreign.is_dir()
+    assert git(foreign, "status", "--porcelain") == ""
 
 
 def test_reviewer_worktree_change_fails_and_cleanup_keeps_it_and_the_ledger(
@@ -849,3 +849,212 @@ def test_cleanup_removes_only_safe_runner_output_and_keeps_the_ledger(
     assert any(item["path"] == str(unknown.runner) for item in retained["retained"])
     assert unknown.runner.is_dir()
     assert Path(failed["review_dir"]).is_dir()
+
+
+# --- 回収実績と再実行 -----------------------------------------------------------------------------------------------
+
+
+def completed(review_id: str, sha: str) -> dict[str, Any]:
+    return {
+        "review_id": review_id,
+        "spec_sha256": sha,
+        "status": "completed",
+        "findings": [],
+        "incomplete": [],
+    }
+
+
+def cleanup_events(review_dir: Path) -> list[dict[str, Any]]:
+    return [
+        json.loads(line)
+        for line in (review_dir / "cleanup.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def test_cleanup_records_collection_and_a_repeat_is_a_noop(fx: Fixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    """S: 回収実績を残さないと再実行で別の対象を消し、記録を上書きすると履歴を失う。"""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(completed(review_id, sha), work_dir=fx.reviewer)
+
+    summary = external_review(fx, monkeypatch, make)
+    review_dir = Path(summary["review_dir"])
+    review_bytes = (review_dir / "review.json").read_bytes()
+
+    first = mod.cleanup(review_dir)
+
+    assert first == {"removed_worktrees": [str(fx.reviewer)], "retained": [], "removed_runner_dir": True}
+    events = cleanup_events(review_dir)
+    assert [event["event"] for event in events] == ["worktree_removed", "runner_dir_removed"]
+    assert all(event["review_id"] == summary["review_id"] for event in events)
+    assert all(event["spec_sha256"] == summary["spec_sha256"] for event in events)
+    assert all(event["run_id"] == "run-1" for event in events)
+    assert all(event["runner_dir"] == str(fx.runner) for event in events)
+    assert (review_dir / "review.json").read_bytes() == review_bytes
+
+    second = mod.cleanup(review_dir)
+
+    assert second == {"removed_worktrees": [], "retained": [], "removed_runner_dir": False}
+    assert not fx.reviewer.exists()
+    assert not fx.runner.exists()
+    assert (review_dir / "review.json").read_bytes() == review_bytes
+
+
+def test_cleanup_after_a_partial_collection_leaves_the_collected_worktree_alone(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: 部分回収の再実行で回収済みの worktree を別の対象として扱わない。"""
+    clean = fx.tmp / "reviewer-clean-2"
+    git(fx.main, "worktree", "add", "--detach", str(clean), fx.revision)
+    dirty = fx.tmp / "reviewer-dirty"
+    git(fx.main, "worktree", "add", "--detach", str(dirty), fx.revision)
+    (dirty / "src.py").write_text("changed = 1\n", encoding="utf-8")
+    primary = Attempt(
+        agent_id="primary",
+        state="response_failed",
+        elapsed_seconds=0.1,
+        stop_confirmed=True,
+        work_dir=clean,
+    )
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(completed(review_id, sha), previous_attempts=[primary], work_dir=dirty)
+
+    summary = external_review(fx, monkeypatch, make)
+    review_dir = Path(summary["review_dir"])
+
+    first = mod.cleanup(review_dir)
+
+    assert first["removed_worktrees"] == [str(clean)]
+    assert [item["path"] for item in first["retained"]] == [str(dirty)]
+    assert first["removed_runner_dir"] is False
+    assert not clean.exists()
+    assert dirty.is_dir()
+    assert fx.runner.is_dir()
+
+    git(dirty, "checkout", "--", "src.py")
+    second = mod.cleanup(review_dir)
+
+    assert second == {"removed_worktrees": [str(dirty)], "retained": [], "removed_runner_dir": True}
+    assert not dirty.exists()
+    assert not fx.runner.exists()
+    events = cleanup_events(review_dir)
+    assert [event["path"] for event in events if event["event"] == "worktree_removed"] == [str(clean), str(dirty)]
+
+
+def test_cleanup_keeps_a_path_and_runner_directory_that_reappear_after_collection(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: 回収後に再出現した path を消すと、今回の回収対象でない新しい作業を失う。"""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(completed(review_id, sha), work_dir=fx.reviewer)
+
+    summary = external_review(fx, monkeypatch, make)
+    review_dir = Path(summary["review_dir"])
+    mod.cleanup(review_dir)
+    assert not fx.reviewer.exists()
+    assert not fx.runner.exists()
+
+    fx.reviewer.mkdir()
+    (fx.reviewer / "new.txt").write_text("new\n", encoding="utf-8")
+    fx.runner.mkdir()
+    (fx.runner / "log.txt").write_text("new\n", encoding="utf-8")
+
+    cleaned = mod.cleanup(review_dir)
+
+    assert cleaned["removed_worktrees"] == []
+    assert cleaned["removed_runner_dir"] is False
+    assert any(item["path"] == str(fx.reviewer) for item in cleaned["retained"])
+    assert any(item["path"] == str(fx.runner) for item in cleaned["retained"])
+    assert (fx.reviewer / "new.txt").read_text(encoding="utf-8") == "new\n"
+    assert (fx.runner / "log.txt").read_text(encoding="utf-8") == "new\n"
+
+
+@pytest.mark.parametrize("receipt", ["corrupt", "mismatch", "symlink"])
+def test_cleanup_refuses_a_bad_receipt_before_side_effects(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch, receipt: str
+) -> None:
+    """S: 壊れた・対応しない回収記録を信じると、別の対象を消すか履歴を上書きする。"""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(completed(review_id, sha), work_dir=fx.reviewer)
+
+    summary = external_review(fx, monkeypatch, make)
+    review_dir = Path(summary["review_dir"])
+    path = review_dir / "cleanup.jsonl"
+    if receipt == "corrupt":
+        path.write_text("{not json}\n", encoding="utf-8")
+    elif receipt == "mismatch":
+        path.write_text(
+            json.dumps(
+                {
+                    "event": "worktree_removed",
+                    "review_id": "0" * 32,
+                    "kind": "spec-review",
+                    "spec_sha256": summary["spec_sha256"],
+                    "run_id": "run-1",
+                    "runner_dir": str(fx.runner),
+                    "path": str(fx.reviewer),
+                    "removed_at": "2026-11-10T00:00:00+00:00",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    else:
+        target = fx.tmp / "receipt-target.json"
+        target.write_text("do not read\n", encoding="utf-8")
+        path.symlink_to(target)
+
+    with pytest.raises(mod.ReviewInputError):
+        mod.cleanup(review_dir)
+
+    assert fx.reviewer.is_dir()
+    assert fx.runner.is_dir()
+    assert (review_dir / "review.json").is_file()
+
+
+def test_cleanup_keeps_runner_output_when_a_collection_receipt_cannot_be_written(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: 回収の記録に失敗したのに完了扱いすると、再実行で別の対象を消すか証拠を失う。"""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(completed(review_id, sha), work_dir=fx.reviewer)
+
+    summary = external_review(fx, monkeypatch, make)
+    review_dir = Path(summary["review_dir"])
+
+    def broken(review_dir: Path, event: Any) -> None:
+        raise mod.ReviewInputError("cannot write")
+
+    monkeypatch.setattr(mod, "_append_cleanup_event", broken)
+    cleaned = mod.cleanup(review_dir)
+
+    assert cleaned["removed_worktrees"] == [str(fx.reviewer)]
+    assert cleaned["removed_runner_dir"] is False
+    assert any(item["path"] == str(fx.reviewer) and "receipt" in item["reason"] for item in cleaned["retained"])
+    assert fx.runner.is_dir()
+    assert review_dir.is_dir()
+
+
+def test_cleanup_keeps_the_ledger_when_the_runner_directory_disappears_without_a_record(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: 記録なしの runner 領域の消失を回収完了と推測すると、確認できない証拠を片付けたことにする。"""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(completed(review_id, sha), work_dir=fx.reviewer)
+
+    summary = external_review(fx, monkeypatch, make)
+    review_dir = Path(summary["review_dir"])
+    shutil.rmtree(fx.runner)
+
+    cleaned = mod.cleanup(review_dir)
+
+    assert cleaned["removed_worktrees"] == [str(fx.reviewer)]
+    assert cleaned["removed_runner_dir"] is False
+    assert any(item["path"] == str(fx.runner) for item in cleaned["retained"])
+    assert review_dir.is_dir()
