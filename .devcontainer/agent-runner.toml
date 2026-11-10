@@ -179,7 +179,7 @@ after_run = [[
 # 指定が無いときの既定構成。Command Code GOAT は契約終了のため既定から外す（#337）。
 # その回の --assign inspect=... または個人設定で選び直せる。
 [workflows.review.assignments.inspect]
-agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]
+agents = ["claude-code_opus_default", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]
 
 # review-fix-planning の run_roles.py が使う担当（#116 のボードの D-13）。self は司令塔が自分で実行する。
 # self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
