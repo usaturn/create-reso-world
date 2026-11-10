@@ -46,11 +46,11 @@ controller は共有条件（同じ NDJSON → 同じ状態 → payload → 保�
 **Interfaces:** 既存 `_classify(context, events, stderr) -> tuple[ReceiptStatus, Payload]` と Receipt.payload → Attempt.payload を消費する。awaiting_approval の payload.approval と AttemptDiagnostic.approval に小さな許可リストを追加する。source は permission_denials / diagnostic_text、後者は stderr / error_event / terminal_result の列挙で経路を区別する。terminal subtype は success / error / other / 未観測、is_error は厳密 bool / 未観測、拒否の有無と list の件数を保存する。キー名の微調整は実装判断として一貫させ、report に書く。
 **Tests:** S のため必要。失敗根拠の静かな消失・もっともらしい誤分類・拒否の成功化・秘密の永続化を防ぐ。既存ガードの代表テストを再利用し D の網羅を増やさない。文書/設定の固定値テストは追加しない。
 
-- [ ] **Step 1:** 実 adapter を使う terminal denial と stderr の対照を追加し、回収後の保存診断が根拠を失う RED を観測する。正常回答/引用/tool result の承認語、成功 payload の同名キーを対照にする。秘密 fixture の raw 入力・任意 subtype・不正メタデータの非漏えいも確認する。
-- [ ] **Step 2:** `uv run --locked pytest -q tools/agent_runner/tests/adapters/claude_code .agents/skills/pr-review-fix-loop/tests/test_loop_diagnostics.py` を同期実行し、意図した理由で失敗したことを report へ記す。
-- [ ] **Step 3:** Spec の設計1〜5に従い最小実装を行う。allowlist の再構築を使い、認証・承認の状態優先順、成功 payload、停止/秘密/境界ガードは変えない。実装上の診断専用 failure payload の意味をコードの docstring/comment に残す。
-- [ ] **Step 4:** 同じ関連テストを GREEN にし、`uv run --locked pytest -q tools/agent_runner/tests .agents/skills/pr-review-fix-loop/tests` と `git diff --check` を同期実行する。実モデルは起動しない。最後の成果提出までに検証の終了を待つ。
-- [ ] **Step 5:** 上記4ファイルだけを stage して `fix: preserve sanitized Claude approval diagnostics` で commit。報告は実際の変更・RED/GREEN・argv/終了コード・HEAD・所要時間と内訳・懸念を含む JSON。入れ子 agent、push/PR/Issue/Herdr、他 checkout の編集は禁止。
+- [x] **Step 1:** 実 adapter を使う terminal denial と stderr の対照を追加し、回収後の保存診断が根拠を失う RED を観測する。正常回答/引用/tool result の承認語、成功 payload の同名キーを対照にする。秘密 fixture の raw 入力・任意 subtype・不正メタデータの非漏えいも確認する。
+- [x] **Step 2:** `uv run --locked pytest -q tools/agent_runner/tests/adapters/claude_code .agents/skills/pr-review-fix-loop/tests/test_loop_diagnostics.py` を同期実行し、意図した理由で失敗したことを report へ記す。
+- [x] **Step 3:** Spec の設計1〜5に従い最小実装を行う。allowlist の再構築を使い、認証・承認の状態優先順、成功 payload、停止/秘密/境界ガードは変えない。実装上の診断専用 failure payload の意味をコードの docstring/comment に残す。
+- [x] **Step 4:** 同じ関連テストを GREEN にし、`uv run --locked pytest -q tools/agent_runner/tests .agents/skills/pr-review-fix-loop/tests` と `git diff --check` を同期実行する。実モデルは起動しない。最後の成果提出までに検証の終了を待つ。
+- [x] **Step 5:** 上記4ファイルだけを stage して `fix: preserve sanitized Claude approval diagnostics` で commit。報告は実際の変更・RED/GREEN・argv/終了コード・HEAD・所要時間と内訳・懸念を含む JSON。入れ子 agent、push/PR/Issue/Herdr、他 checkout の編集は禁止。
 
 ## 統合・公開（controller）
 
@@ -74,4 +74,12 @@ ledger: `/workspaces/reso-world/tmp/agents/issue-370.kiyh524z/budget.jsonl` と�
 
 ## 実施記録
 
-準備: 基準SHA上の関連テスト58件 PASS / exit0。検証ログ `/workspaces/reso-world/tmp/agents/issue-370.kiyh524z/baseline.log`。Task/統合の結果は実行後に追記する。
+準備: 基準SHA上の関連テスト58件 PASS / exit0。検証ログ `/workspaces/reso-world/tmp/agents/issue-370.kiyh524z/baseline.log`。
+
+再開時の救出: 旧担当は約549秒で認証待ち・停止確認済み、未コミット4ファイルを残し正式成果なし。利用者の再開指示で差分を救出し、担当を変更せず再依頼した。元の失敗を成功扱いせず、`d3eca560`（担当実測447.3秒）をaccept後、Taskレビューの指摘を `9f838ec4`（担当実測247.5秒）で修正した。実装担当への依頼は旧1件＋救出再開1件＋レビュー修正1件。いずれも pi_opencode-go_deepseek4-flash_max、観測モデル opencode-go/deepseek-v4.1-flash/max、fallbackなし。
+
+Task 1は実装・修正レビュー完了。調整役の関連テストは69件 PASS / exit0。認証優先の回帰は実adapterの対照で再現し、修正後は承認根拠を保持したままauthenticationになることを確認した。新規の重複stderrケースはD基準に従って削除し、代表となる既存テストを残した。
+
+A1/A3: 実adapter → runner保存 → keep_diagnostic → 生ログ回収後の構造情報・秘密マーカー非漏えいを統合テストで確認。A2/A4: 正常回答の同名キー/承認語を除外し、exit0でも拒否を受け入れない対照を確認。A5: 担当と調整役の関連テスト、実装担当の回帰が成功。全体回帰・配置検査・ブランチ全体レビュー・秘密検査・PR/ループはこの後の証拠に基づいて報告する。
+
+救出・担当ログ・controller検証は `/workspaces/reso-world/tmp/agents/issue-370-recovery.evovwtrp/`。旧進捗・予算は継続し、停止中の未記録時間も保守的に能動時間へ含めた。旧attemptのcleanupは未コミット変更のため保持、新しい2回の担当領域は記録・ログを保存後にcleanup成功。公開とマージの結果を先取りせず、Spec/Planの状態はdraftを維持する。

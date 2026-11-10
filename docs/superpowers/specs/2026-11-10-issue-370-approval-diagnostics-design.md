@@ -47,4 +47,8 @@ Claude adapter は terminal permission_denials を検出すると awaiting_appro
 
 ## 検証・結果
 
-準備時の関連テストは58件成功、終了コード0（`/workspaces/reso-world/tmp/agents/issue-370.kiyh524z/baseline.log`）。実装後の証拠は Plan とセッション記録へ追記する。
+準備時の関連テストは58件成功、終了コード0（`/workspaces/reso-world/tmp/agents/issue-370.kiyh524z/baseline.log`）。
+
+2026-11-10 再開: 利用者の残存成果からの続行指示に基づき、認証待ちで終了した旧担当の未コミット差分を救出し、同じ指定担当へ再依頼した。`d3eca560` で正式成果を取り込み、Taskレビューで再現した診断の認証優先の回帰と重複テストを `9f838ec4` で修正した。既存の認証分類を保持しながら承認根拠を保存するため、設計の認証優先は変更していない。
+
+調整役の関連テスト69件と実adapterによる認証優先の修正前後の対照は終了コード0。実装担当は回収後の保存診断を含むRED/GREENと関連回帰の成功を報告し、Taskの修正レビューは指摘2件を解消済みと判定した。全体の検証・レビュー・公開は別途記録する。証拠と救出パッチは `/workspaces/reso-world/tmp/agents/issue-370-recovery.evovwtrp/`、元の進捗・予算は `/workspaces/reso-world/tmp/agents/issue-370.kiyh524z/`。元の承認済み版はなく、状態はdraftのままとする。
