@@ -294,7 +294,14 @@ def run_workflow(
                 return finished("timed_out")
             paths.update(stdout_path=stdout_path, stderr_path=stderr_path)
             instructions = (
-                f"Work in this worktree only: {work_dir}. Do not modify other checkouts.\n"
+                f"Work in this worktree only: {work_dir}. Do not modify other checkouts. "
+                "Do not run any git stash command, including git stash pop: stashes are shared by all worktrees "
+                "of the same repository, so this can discard another session's work. If you need to set work "
+                "aside, use temporary copies only within your permitted write scope, or commit in your own "
+                "worktree when this role may write. Do not stop processes by pattern (pkill -f or killall); "
+                "only stop processes you started by PID. Do not run python or python3 directly, and do not "
+                "pass a heredoc to python -; use uv run for Python. These safety restrictions apply whether "
+                "writes=true or writes=false and are not lifted by write exceptions.\n"
                 f"writes={role.writes}: {'changes are permitted here' if role.writes else 'do not modify files'}. "
                 "This is an instruction, not a sandbox.\n"
             )

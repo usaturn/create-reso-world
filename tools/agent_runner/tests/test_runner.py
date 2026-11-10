@@ -643,7 +643,7 @@ def _scope_lines(batch_prompt: object, body: str) -> list[str]:
 
 
 def test_write_exceptions_follow_the_work_scope_lines(repository: Path) -> None:
-    body = "review the change"
+    body = "変更を確認する\n次の行も保持する"
     exceptions = ("/x/reviews: run records", "uv cache with spaces")
     plain = run_workflow(configuration(), "audit", body, repository, adapter_loader=lambda _: FakeAdapter())
     granted = run_workflow(
@@ -659,6 +659,15 @@ def test_write_exceptions_follow_the_work_scope_lines(repository: Path) -> None:
     assert kinds(scope) == ["Work in this worktree only", "writes"]
     lines = _scope_lines(prompts[1], body)
     assert kinds(lines[:2]) == kinds(scope) and lines[1] == scope[1]
+    # F∩S: この安全指示が落ちても runner は正常終了するので、テストが無ければ、共有 stash の
+    # 操作による他セッションの作業消失や、pkill -f・killall による無関係なプロセスの停止に気付けない。
+    # 書き込み例外は許可範囲を足すだけなので、例外の有無によらず共通指示の1行目で禁止を確認する。
+    for first in (scope[0], lines[0]):
+        safety = first.lower()
+        assert "git stash" in safety and "pop" in safety
+        assert "shared" in safety and "worktree" in safety
+        assert "pkill -f" in safety and "killall" in safety
+        assert "pid" in safety and "you started" in safety
     assert lines[2] == runner.EXCEPTIONS_HEADING
     assert lines[3:] == [f"- {item}" for item in exceptions]
 
