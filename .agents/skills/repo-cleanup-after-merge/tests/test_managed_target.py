@@ -52,7 +52,7 @@ def test_managed_cleanup_resolves_only_registered_common_dir(
         f"#!{sys.executable}\n"
         "import json, os, sys\n"
         "expected = ['pr', 'view', '7', '--repo', os.environ['PR_REPO'], "
-        "'--json', 'state,headRefName,headRefOid']\n"
+        "'--json', 'state,headRefName,headRefOid,mergeCommit,isCrossRepository,headRepository,headRepositoryOwner']\n"
         "if sys.argv[1:] != expected: sys.exit(91)\n"
         "print(os.environ['FIXTURE_PR'])\n",
         encoding="utf-8",
@@ -61,7 +61,21 @@ def test_managed_cleanup_resolves_only_registered_common_dir(
     monkeypatch.setenv("PATH", f"{tools}{os.pathsep}{os.environ['PATH']}")
 
     registered_checkout = workspace.registered
-    git(registered_checkout, "update-ref", "refs/remotes/origin/main", "HEAD")
+    # A squash merge is not an ancestor of the candidate branch. The shared
+    # predicate must still accept the managed worktree through PR evidence.
+    (workspace.linked / "tool-change.txt").write_text("材質の変更\n", encoding="utf-8")
+    git(workspace.linked, "add", "tool-change.txt")
+    git(workspace.linked, "commit", "-m", "tool change")
+    linked_head = git(workspace.linked, "rev-parse", "HEAD")
+    (registered_checkout / "tool-change.txt").write_text("材質の変更\n", encoding="utf-8")
+    git(registered_checkout, "add", "tool-change.txt")
+    git(registered_checkout, "commit", "-m", "squash tool change")
+    squash_commit = git(registered_checkout, "rev-parse", "HEAD")
+    git(registered_checkout, "update-ref", "refs/remotes/origin/main", squash_commit)
+    assert subprocess.run(
+        ["git", "-C", str(registered_checkout), "merge-base", "--is-ancestor",
+         linked_head, squash_commit], capture_output=True, text=True,
+    ).returncode == 1, "the fixture must exercise the PR (squash) path, not ancestry"
     unrelated_worktree = tmp_path / "unrelated merged worktree"
     git(workspace.other_clone, "worktree", "add", "-b", "other-merged", str(unrelated_worktree))
     git(workspace.other_clone, "update-ref", "refs/remotes/origin/main", "HEAD")
@@ -79,18 +93,24 @@ def test_managed_cleanup_resolves_only_registered_common_dir(
     # removal command (later cleanliness/ownership gates are satisfied fixtures).
     removal = section_bash("5. worktree を削除する").replace('<path>', '"$CLEANUP_CANDIDATE"')
     commands = (
-        section_bash("通常ツールの対象照合")
+        section_bash("branch の取り込み判定")
+        + section_bash("通常ツールの対象照合")
         + '\nprintf "TARGET=%s\\n" "$CLEANUP_ROOT"\n'
         + section_bash("通常ツールの削除候補の照合")
         + '\ncd -- "$CLEANUP_ROOT"\n' + removal
     )
 
-    def run(candidate: Path, code_root: Path | None = None) -> subprocess.CompletedProcess[str]:
+    def run(candidate: Path, code_root: Path | None = None,
+            integrated: bool = True) -> subprocess.CompletedProcess[str]:
         branch = git(candidate, "branch", "--show-current")
+        candidate_head = git(candidate, "rev-parse", "HEAD")
         env = dict(os.environ, TOOL_ROOT=str(TOOL_ROOT), PARENT_ROOT=str(workspace.parent),
                    PR_REPO=workspace.repository, PR_NUMBER="7", CLEANUP_CANDIDATE=str(candidate),
                    FIXTURE_PR=json.dumps({"state": "MERGED", "headRefName": branch,
-                                          "headRefOid": git(candidate, "rev-parse", "HEAD")}))
+                                          "headRefOid": candidate_head,
+                                          "mergeCommit": {"oid": squash_commit if integrated
+                                                          else candidate_head},
+                                          "isCrossRepository": False}))
         if code_root:
             env["CODE_ROOT"] = str(code_root)
         return subprocess.run(["bash", "--noprofile", "--norc", "-c", commands],
@@ -101,7 +121,7 @@ def test_managed_cleanup_resolves_only_registered_common_dir(
     assert "common_dir_mismatch" in refused_clone.stderr
     refused_parent = run(parent_worktree)
     assert refused_parent.returncode != 0, refused_parent.stdout + refused_parent.stderr
-    refused_unmerged = run(unmerged)
+    refused_unmerged = run(unmerged, integrated=False)
     assert refused_unmerged.returncode != 0, refused_unmerged.stdout + refused_unmerged.stderr
 
     accepted = run(workspace.linked)

@@ -1197,8 +1197,9 @@ model の段に入れず、effort の段に置く。effort は設定値を使い
 | `cursor-grok47` | `cursor_grok4_xhigh` |
 
 既定の `review.inspect` は
-`pi_openai-codex_gpt6-sol_max,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`、
-`fix.implement` と `issue.implement` は `claude-code_sonnet_xhigh`（`model = "sonnet"`、effort `xhigh`）。
+`claude-code_opus_default,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`、
+`issue.implement` は `claude-code_sonnet_xhigh`（`model = "sonnet"`、effort `xhigh`）、
+`fix.implement` は `self`（main の #377）。
 `fix.self-review`・`fix.fix-check` は `self` のままである。
 Sol の runner の effort は `max` を維持する（`pigs` 単独の既定 `xhigh` とは異なる）。
 Sol / OpenCode Go DeepSeek の `OPENCODE_API_KEY` と、review の後処理の `uv --project .` も維持する。

@@ -13,7 +13,7 @@
 
 ## 目的と範囲
 
-利用者が明示した run にだけ、Plan 前の Spec レビューと、その前の設計レビューを追加する。別担当の失敗を自己レビューの成功へ読み替えず、レビュー対象の版と指摘の採否を保存する。既定の Plan 実装・レビュー修正担当を sonnet xhigh に変更する。
+利用者が明示した run にだけ、Plan 前の Spec レビューと、その前の設計レビューを追加する。別担当の失敗を自己レビューの成功へ読み替えず、レビュー対象の版と指摘の採否を保存する。既定の Plan 実装担当を sonnet xhigh に変更し、レビュー修正（`fix.implement`）は main の #377 の `self` を維持する。
 
 変更対象は Issue 本文の「変更してよい」に限る。主な対象は issue-to-pr の scripts・tests・SKILL.md、`.devcontainer/agent-runner.toml`、`.devcontainer/README.md`、`README.md`、`tools/agent_runner/interfaces.rst` の roles/割り当て節と関連 config テスト。文書の Spec/Plan はこの PR に含める。
 
@@ -70,7 +70,7 @@ Concern は id/decision_ref/problem/evidence/alternative/tradeoffs/impact/recomm
 
 Spec と決定記録を DOC_ROOT に commit → 指定時のみ設計レビュー → 指定時のみ Spec レビュー（通常の builder check を代替）、無指定なら builder check 1回 → writing-plans。設計レビューは builder check を代替しない。新しいフローも Spec・Plan は draft のまま commit し、SESSION に置くレビュー記録を commit しない。
 
-両 workflow の implement の既定は claude-code_sonnet_xhigh。既存個人設定の sonnet_default 参照は、利用者が手動で xhigh へ直す。自動移行やユーザ設定の変更はしない。agents のない review assignment 節は invalid_type になること、fallback は個人設定で指定することを記す。README/設定コメント/interfaces.rst の意味を揃え、監査節・CLI 例・model_key は変えない。
+issue workflow の implement の既定は claude-code_sonnet_xhigh。fix workflow の implement は main の #377 の self を維持する（#353 の当初の変更は issue にだけ適用する）。既存個人設定の sonnet_default 参照は、利用者が手動で xhigh へ直す。自動移行やユーザ設定の変更はしない。agents のない review assignment 節は invalid_type になること、fallback は個人設定で指定することを記す。README/設定コメント/interfaces.rst の意味を揃え、監査節・CLI 例・model_key は変えない。
 
 ## 受け入れ基準・防御範囲・検証
 
@@ -182,6 +182,13 @@ PR #376 のサイクル 2 で得たレビュー結果と、サイクル 2 の自
 - S-1: `review_spec.assess` で `attempt.work_dir.is_symlink()` のときは、参照先の HEAD/status を読まずに拒否する。修正 commit `a13852a3`。
 - V-1: この Spec の M-1 記述を、payload の有無と symlink を含む最終条件に更新した。コードの変更はない。
 
+### main の #377 との競合解消
+
+- main `1b0df121`（PR #377「Update agent-runner」）の取り込みで `.devcontainer/agent-runner.toml` が競合した。利用者の決定（2026-11-10）に従い、main の新しい既定を優先した。
+- 解消: `review.inspect` は main の `claude-code_opus_default,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`、`fix.implement` は main の `self` を採用した。`issue.implement` は #353 の `claude-code_sonnet_xhigh`、`roles.spec-review`・`roles.design-review`、`claude-code_sonnet_xhigh` エージェント、Spec・README・interfaces.rst の説明を残した。
+- `README.md`・`.devcontainer/README.md`・`tools/agent_runner/interfaces.rst` の既定の記述を、issue は sonnet xhigh、fix は main の self に揃えた。
+- 競合解消はマージ commit に含める。マージ結果で関連テストと環境全体のテストを再実行する。
+
 ### 守る条件と影響経路
 
 | 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 |
@@ -207,7 +214,7 @@ M-3 は M-1 修正の回帰（きっかけ 2）であり、点の修正ではな
 - `bash scripts/check-layout.sh`: PASS、終了コード 0
 - `git diff --check adfe7ebc...HEAD`: 終了コード 0
 - `bash .devcontainer/run-tests.bash`: PASS 27 tests、終了コード 0
-- `uv run pytest tests/skills .agents/skills -q`: 748 passed in 495.80s、終了コード 0
+- `uv run pytest tests/skills .agents/skills -q`: 781 passed in 586.11s、終了コード 0
 
 未確認の事項: なし。
 

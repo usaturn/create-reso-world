@@ -39,8 +39,9 @@ TOML の ``schema_version = 1`` と以下の三層を使う。
   fallback は役割内の共有候補で、一つの候補を複数の並行担当へ割り当てない。
   使用済み候補しか残らなければ、元の失敗と fallback_exhausted を返す。
 
-  雛形の ``issue.implement`` と ``fix.implement`` の既定は ``claude-code_sonnet_xhigh``
-  （``model = "sonnet"``、``effort = "xhigh"``）。``spec-review`` / ``design-review`` の assignment は
+  雛形の ``issue.implement`` の既定は ``claude-code_sonnet_xhigh``
+  （``model = "sonnet"``、``effort = "xhigh"``）。``fix.implement`` の既定は ``self``（main の #377）で、
+  review-fix-planning の司令塔が自分で実行する。``spec-review`` / ``design-review`` の assignment は
   雛形に置かない。個人設定に置く場合は ``agents`` を必須とし、``fallback`` だけの節は ``invalid_type`` になる。
   明示された ``--spec-review`` / ``--design-review`` はその run の ``agents`` を置き換え、個人設定の
   明示済み ``fallback`` は保持する。設定だけではレビュー担当を選ばず、起動もしない。
