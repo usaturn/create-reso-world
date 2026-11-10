@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（内容の承認を記録したものではない）
+- 状態: `completed`（2026-11-10 のレビュー修正と検証を反映。内容の承認 SHA はない）
 - 対象: https://github.com/usaturn/create-reso-world/issues/353 / 親 #349
 - repository: `usaturn/create-reso-world`、PR base: `main`
 - base: `refs/heads/main` / `b61b36a3e11f969f4e4ab41c401dadfa00a86e90`、origin: `https://github.com/usaturn/create-reso-world.git`
@@ -87,3 +87,66 @@ Spec と決定記録を DOC_ROOT に commit → 指定時のみ設計レビュ�
 テストは S（失敗の成功扱い、取り違え、記録消失、書込権限、順序違反）のみに限定する。F の名前・コメントの一致、L の構文/例外だけの追加テストは作らない。既定 agent の固定名テストは不要。通常の不正入力のパーサ検証は一時実行で代える。
 
 controller は上記条件ごとに Task の証拠を照合し、最後の変更後の関連検証とブランチ全体レビューを行う。base の移動・claim 喪失・有料担当の失敗・安全失敗・Gitleaks の失敗は既存の停止規則に従う。未確認を完了にしない。
+
+## レビュー修正（2026-11-10、サイクル 1）
+
+PR #376 に対して、`pr-review-fix-loop` のサイクル 1 で得たレビュー結果を選別し、必要な修正を行った。planner は `deepseek-v4.1-flash`（claude-code）、サイクルは 1、レビュー対象 HEAD は `1628ff29b68745097911b867576b2b32e47816b9`。
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルの扱い |
+|---|---|---|---|---|
+| `claude-opus-5-5.md` | `claude-opus-5-5` | claude-code | `1628ff29b687` | 受理（Approve、Info 1 件） |
+| `deepseek-v4.1-flash.md` | `deepseek-v4.1-flash` | pi | `1628ff29b687` | 再実行して受理（Approve、Medium 2 件） |
+| （レビューファイルなし） | `devin_swe2_max` | devin | — | runner の期限切れで拒否。指摘 0 件として扱わない |
+
+### 指摘の分類
+
+| ID | 区分 | 内容 |
+|---|---|---|
+| `deepseek-v4.1-flash#M-1` | 対応する | 準備前に終わった一次担当の worktree 不在を拒否し、有効な fallback の結果を失う（Medium、現行 HEAD で再現） |
+| `deepseek-v4.1-flash#M-2` | 対応する | 外部レビュー中に CODE_ROOT の HEAD が変わっても completed と記録する（Medium、現行 HEAD で再現） |
+| `claude-opus-5-5#I-1` | 対応しない | `review-fix-planning` の旧 opus 既定の記述。動作は変わらず、致命的でない。#353 の所有外 |
+
+解消済みの指摘はない。I-1 は `revisit_when`: `review-fix-planning` の所有者が既定の記述を更新するとき、または利用者が指定したとき。
+
+### 修正内容
+
+- M-1: `review_spec.assess` で、`attempt.work_dir` が存在しない場合に `attempt.request_path` も `None` または存在しなければ準備失敗として対象外にし、`request_path` が残る worktree 不在だけを拒否する。docstring も同じ意味に更新した。
+- M-2: `review_spec.start` で `assess` の後に `implement.head(repository)` を読み、`request.revision` と違えば `the repository changed during the review`、読めなければ `the repository cannot be read after the review` を理由に加える。`review_design.py` も同じ `start` を共有する。
+- 変更ファイル: `.agents/skills/issue-to-pr/scripts/review_spec.py`、`.agents/skills/issue-to-pr/tests/test_review_spec.py`。修正 commit は `7053c02ebd81e6afef292817bacc2ad5056c48ef`。
+
+### 守る条件と影響経路
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果 |
+|---|---|---|---|---|---|
+| 準備前に worktree と request.json が無い試行は監査対象外、request.json が残る不在だけ拒否する | `review_spec.assess`（外部 spec review） | 修正する | 正例 completed、負例 failed + missing worktree | 新規 S テスト 2 件 | 120 passed に含まれる |
+| 同上 | `review_design`（共有 `assess`） | 既に同じ経路 | 同じ判定 | 共有実装の代表テスト + review_design の既存テスト | 120 passed に含まれる |
+| 同上 | `submit`（self） | 対象外 | self は batch の attempt を持たない | 既存の submit テスト | 120 passed に含まれる |
+| 同上 | `test_reviewer_worktree_change_fails...` | 既に満たす | worktree が存在して変更されたら failed | 既存テスト | 120 passed に含まれる |
+| 外部レビュー開始後に CODE_ROOT の HEAD が変わったら completed にしない | `review_spec.start`（外部 spec review） | 修正する | HEAD 変化で failed + repository changed | 新規 S テスト | 120 passed に含まれる |
+| 同上 | `review_spec.start`（外部 design review、共有） | 修正する（同じ `start`） | 同じ理由で failed | review_spec の代表テスト + review_design の既存テスト | 120 passed に含まれる |
+| 同上 | `submit`（self） | 既に満たす | 820-827 行で repository HEAD を確認 | 既存の submit テスト | 120 passed に含まれる |
+| 同上 | 通常の外部レビュー（HEAD 不変） | 既に満たす | completed のまま | 既存の external review テスト | 120 passed に含まれる |
+
+同じ条件の再発と設計の見直しのきっかけには当たらない。最初のレビュー修正で、原因は初回実装の適用漏れである。M-2 は外部と self の両方が使う共通の `start` で条件を保つ形にした。
+
+### 検証
+
+- `uv run --locked pytest .agents/skills/issue-to-pr/tests tools/agent_runner/tests/test_config.py -q`: 120 passed in 168.48s、終了コード 0
+- `uvx --offline ruff check --select E4,E7,E9,F .agents/skills/issue-to-pr/scripts/review_spec.py .agents/skills/issue-to-pr/tests/test_review_spec.py`: All checks passed、終了コード 0
+- `bash scripts/check-layout.sh`: PASS、終了コード 0
+- `bash .devcontainer/run-tests.bash`: PASS 27 tests、終了コード 0
+- `uv run pytest tests/skills .agents/skills -q`: 746 passed in 530.74s、終了コード 0
+- `git diff --check 1628ff29...HEAD`: 終了コード 0
+- 修正後の自己レビュー（`run_roles.py --phase self-review` 1 回）: self-review（pr-review 全体）は active findings 0、fix-check は新しい指摘 0。fix-check では環境全体のテスト（C-6）を再実行しなかったが、司令塔が修正後に `run-tests.bash` 27 件と `tests/skills` 746 件を実行して終了コード 0 を確認した。
+- fix-check の対照: 修正のガードを外すと、追加した 2 つのテスト（fallback の受理、HEAD 変化の拒否）が失敗することを確認した。
+
+### 結論・実行許可・記録
+
+- 結論: 1（修正して push）。修正 commit `7053c02e` とこの Spec の commit を PR #376 の head へ push する。
+- 実行許可: 明示 issue-to-pr 入力 `#353 ... --merge ...` と、2026-11-10 の「#353の作業を引き継いでください」。内容の承認ではない。
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#376-feat-issue-353-review-steps/verified/1628ff29b687.json`
+- fix-check: `reviews/usaturn/create-reso-world/#376-feat-issue-353-review-steps/verified/7053c02ebd81.fix-check.json`
+- 工程の記録: `reviews/usaturn/create-reso-world/#376-feat-issue-353-review-steps/verified/1628ff29b687.planning.json`
+- 判断の記録と状況コメント: サイクル 1 の `review-fix-planning` コメント（PR #376）
