@@ -642,6 +642,37 @@ def test_external_review_rejects_a_successful_attempt_without_a_worktree(
         )
 
 
+def test_external_review_rejects_a_symlink_worktree(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: symlink をたどって clean な参照先を監査すると、担当の変更を見落として成功扱いする。"""
+    link = fx.tmp / "reviewer-link"
+    link.symlink_to(fx.reviewer, target_is_directory=True)
+    # 参照先はレビューした版のまま clean なので、symlink を許す実装では completed になる
+    assert git(fx.reviewer, "rev-parse", "HEAD") == fx.revision
+    assert git(fx.reviewer, "status", "--porcelain") == ""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(
+            {
+                "review_id": review_id,
+                "spec_sha256": sha,
+                "status": "completed",
+                "findings": [],
+                "incomplete": [],
+            },
+            work_dir=link,
+        )
+
+    summary = external_review(fx, monkeypatch, make)
+
+    assert summary["state"] == "failed"
+    assert any(
+        "the worktree of reviewer is a symlink, so its changes cannot be audited" in reason
+        for reason in summary["reasons"]
+    ), summary["reasons"]
+
+
 def test_reviewer_worktree_change_fails_and_cleanup_keeps_it_and_the_ledger(
     fx: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:

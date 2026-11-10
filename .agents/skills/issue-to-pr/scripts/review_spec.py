@@ -736,7 +736,8 @@ def assess(
     runner の checkout 監査は実行中に作られた試行の worktree を見ないので、停止を確認したすべての試行
     （fallback の前に失敗した一次担当を含む）の worktree を git で読み、writes = false の違反を探す。
     payload を持たず準備の前に終わった試行だけを対象外にし、payload を持つ試行と request.json が残る
-    試行は worktree が無いと監査できないので採用しない。
+    試行は worktree が無いと監査できないので採用しない。worktree 自体が symlink のときも、参照先の
+    HEAD/status を読むと担当の変更を検出できないので採用しない。
     """
     reasons: list[str] = []
     attempts = [attempt for outcome in batch.results for attempt in outcome.attempts]
@@ -769,6 +770,12 @@ def assess(
         reasons.append(f"outside_changes: {', '.join(batch.outside_changes)}")
     for attempt in attempts:
         if not attempt.stop_confirmed:
+            continue
+        if attempt.work_dir is not None and attempt.work_dir.is_symlink():
+            # symlink をたどると clean な参照先を読み、担当の変更を見落とす
+            reasons.append(
+                f"the worktree of {attempt.agent_id} is a symlink, so its changes cannot be audited"
+            )
             continue
         if attempt.work_dir is None or not attempt.work_dir.exists():
             if attempt.payload is None and (
