@@ -73,6 +73,8 @@ class Fixture:
         self.feature = tmp_path / "feature"
         git(self.main, "worktree", "add", "-q", "-b", "feature", str(self.feature))
         self.revision = git(self.feature, "rev-parse", "HEAD")
+        self.reviewer = tmp_path / "reviewer-clean"
+        git(self.main, "worktree", "add", "--detach", str(self.reviewer), self.revision)
 
         self.doc = tmp_path / "docs-root"
         self.doc.mkdir()
@@ -499,6 +501,7 @@ def test_unprotected_changes_are_only_reported(fx: Fixture, monkeypatch: pytest.
                 "incomplete": [],
             },
             unprotected=["/other/checkout: content_changed"],
+            work_dir=fx.reviewer,
         )
 
     summary = external_review(fx, monkeypatch, make)
@@ -524,7 +527,8 @@ def test_external_review_fails_when_the_repository_moves_during_the_review(
                 "status": "completed",
                 "findings": [],
                 "incomplete": [],
-            }
+            },
+            work_dir=fx.reviewer,
         )
 
     summary = external_review(fx, monkeypatch, make)
@@ -559,6 +563,7 @@ def test_external_review_accepts_a_fallback_after_preparation_failed(
                 "incomplete": [],
             },
             previous_attempts=[primary],
+            work_dir=fx.reviewer,
         )
 
     summary = external_review(fx, monkeypatch, make)
@@ -596,12 +601,45 @@ def test_external_review_rejects_a_worktree_missing_after_preparation(
                 "incomplete": [],
             },
             previous_attempts=[primary],
+            work_dir=fx.reviewer,
         )
 
     summary = external_review(fx, monkeypatch, make)
 
     assert summary["state"] == "failed"
     assert any("the worktree of primary is missing" in reason for reason in summary["reasons"]), summary["reasons"]
+
+
+def test_external_review_rejects_a_successful_attempt_without_a_worktree(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: 成功した試行の worktree が無いのに受理すると、読取専用の監査を飛ばして成功扱いする。"""
+
+    def make(work_dir: Path | None) -> Any:
+        def build(review_id: str, sha: str) -> BatchResult:
+            return batch(
+                {
+                    "review_id": review_id,
+                    "spec_sha256": sha,
+                    "status": "completed",
+                    "findings": [],
+                    "incomplete": [],
+                },
+                work_dir=work_dir,
+            )
+
+        return build
+
+    # 結果を持つ試行は、worktree のパスが無い場合も、パスはあるが消えている場合も監査できない
+    for name, with_path in (("missing-worktree", True), ("no-worktree-path", False)):
+        case = Fixture(fx.tmp / name)
+        work_dir = case.tmp / "gone-worktree" if with_path else None
+        summary = external_review(case, monkeypatch, make(work_dir))
+        assert summary["state"] == "failed", name
+        assert any("the worktree of reviewer is missing" in reason for reason in summary["reasons"]), (
+            name,
+            summary["reasons"],
+        )
 
 
 def test_reviewer_worktree_change_fails_and_cleanup_keeps_it_and_the_ledger(
@@ -671,14 +709,16 @@ def test_cleanup_removes_only_safe_runner_output_and_keeps_the_ledger(
                 "status": "completed",
                 "findings": [],
                 "incomplete": [],
-            }
+            },
+            work_dir=fx.reviewer,
         )
 
     summary = external_review(fx, monkeypatch, make)
     review_dir = Path(summary["review_dir"])
     cleaned = mod.cleanup(review_dir)
 
-    assert cleaned == {"removed_worktrees": [], "retained": [], "removed_runner_dir": True}
+    assert cleaned == {"removed_worktrees": [str(fx.reviewer)], "retained": [], "removed_runner_dir": True}
+    assert not fx.reviewer.exists()
     assert not fx.runner.exists()
     assert review_dir.is_dir()
 

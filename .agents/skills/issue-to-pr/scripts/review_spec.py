@@ -735,9 +735,8 @@ def assess(
 
     runner の checkout 監査は実行中に作られた試行の worktree を見ないので、停止を確認したすべての試行
     （fallback の前に失敗した一次担当を含む）の worktree を git で読み、writes = false の違反を探す。
-    worktree と request.json の両方が無い試行は、準備の前に終わってレビューの結果を持たないものとして
-    対象外にする。request.json が残っているのに worktree が無い試行は、準備後に消えたか変更された
-    ものとして、監査できないので採用しない。
+    payload を持たず準備の前に終わった試行だけを対象外にし、payload を持つ試行と request.json が残る
+    試行は worktree が無いと監査できないので採用しない。
     """
     reasons: list[str] = []
     attempts = [attempt for outcome in batch.results for attempt in outcome.attempts]
@@ -769,12 +768,15 @@ def assess(
     if batch.outside_changes:
         reasons.append(f"outside_changes: {', '.join(batch.outside_changes)}")
     for attempt in attempts:
-        if not attempt.stop_confirmed or attempt.work_dir is None:
+        if not attempt.stop_confirmed:
             continue
-        if not attempt.work_dir.exists():
-            if attempt.request_path is None or not attempt.request_path.exists():
+        if attempt.work_dir is None or not attempt.work_dir.exists():
+            if attempt.payload is None and (
+                attempt.request_path is None or not attempt.request_path.exists()
+            ):
                 # 準備の前に終わった試行。レビューの結果を持たないので監査対象外
                 continue
+            # 結果を持つ試行か、準備の記録が残る試行。読取専用の監査を飛ばして受理しない
             reasons.append(f"the worktree of {attempt.agent_id} is missing, so its changes cannot be audited")
             continue
         try:
