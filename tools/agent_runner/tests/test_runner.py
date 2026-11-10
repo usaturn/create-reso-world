@@ -664,10 +664,14 @@ def test_write_exceptions_follow_the_work_scope_lines(repository: Path) -> None:
     # 書き込み例外は許可範囲を足すだけなので、例外の有無によらず共通指示の1行目で禁止を確認する。
     for first in (scope[0], lines[0]):
         safety = first.lower()
-        assert "git stash" in safety and "pop" in safety
-        assert "shared" in safety and "worktree" in safety
+        # 名詞の存在だけでは、"Do not run any" や "only" を削って共有 stash の操作や
+        # 無関係なプロセス停止を再び許す変更を見逃すため、禁止そのものと PID 所有の限定を確認する。
+        assert "do not run any git stash command" in safety
+        assert "including git stash pop" in safety
+        assert "stashes are shared by all worktrees" in safety
+        assert "do not stop processes by pattern" in safety
         assert "pkill -f" in safety and "killall" in safety
-        assert "pid" in safety and "you started" in safety
+        assert "only stop processes you started by pid" in safety
     assert lines[2] == runner.EXCEPTIONS_HEADING
     assert lines[3:] == [f"- {item}" for item in exceptions]
 
