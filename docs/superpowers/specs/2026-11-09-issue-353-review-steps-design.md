@@ -112,7 +112,7 @@ PR #376 に対して、`pr-review-fix-loop` のサイクル 1 で得たレビュ
 
 ### 修正内容
 
-- M-1: `review_spec.assess` で、`attempt.work_dir` が存在しない場合に `attempt.request_path` も `None` または存在しなければ準備失敗として対象外にし、`request_path` が残る worktree 不在だけを拒否する。docstring も同じ意味に更新した。
+- M-1: `review_spec.assess` で、`attempt.work_dir` が存在しない場合に `attempt.payload is None` かつ `attempt.request_path` も `None` または存在しなければ準備失敗として対象外にし、payload を持つ試行や `request_path` が残る試行は拒否する。worktree 自体が symlink のときも拒否する。docstring も同じ意味に更新した。
 - M-2: `review_spec.start` で `assess` の後に `implement.head(repository)` を読み、`request.revision` と違えば `the repository changed during the review`、読めなければ `the repository cannot be read after the review` を理由に加える。`review_design.py` も同じ `start` を共有する。
 - 変更ファイル: `.agents/skills/issue-to-pr/scripts/review_spec.py`、`.agents/skills/issue-to-pr/tests/test_review_spec.py`。修正 commit は `7053c02ebd81e6afef292817bacc2ad5056c48ef`。
 
@@ -150,3 +150,72 @@ PR #376 に対して、`pr-review-fix-loop` のサイクル 1 で得たレビュ
 - fix-check: `reviews/usaturn/create-reso-world/#376-feat-issue-353-review-steps/verified/7053c02ebd81.fix-check.json`
 - 工程の記録: `reviews/usaturn/create-reso-world/#376-feat-issue-353-review-steps/verified/1628ff29b687.planning.json`
 - 判断の記録と状況コメント: サイクル 1 の `review-fix-planning` コメント（PR #376）
+
+## レビュー修正（2026-11-10、サイクル 2）
+
+PR #376 のサイクル 2 で得たレビュー結果と、サイクル 2 の自己レビュー・fix-check の結果を反映した。planner は `deepseek-v4.1-flash`（claude-code）、サイクルは 2、レビュー対象 HEAD は `adfe7ebc1e9c6f65e7ed28d43baab81b1757a3f7`。
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルの扱い |
+|---|---|---|---|---|
+| `claude-opus-5-5.md` | `claude-opus-5-5` | claude-code | `adfe7ebc1e9c` | 受理（Approve、指摘 0） |
+| `SWE-2-Max.md` | `SWE-2 Max` | devin | `adfe7ebc1e9c` | 受理（Approve、指摘 0） |
+| `deepseek-v4.1-flash.md` | `deepseek-v4.1-flash` | pi | `adfe7ebc1e9c` | 受理（Approve、M-3 1 件） |
+
+### 前のサイクルの判断
+
+- `M-1`・`M-2`: サイクル1の `fix` を現行 HEAD で確認し、`resolved`（修正 commit `7053c02e`、追加テスト、サイクル2の 3 レビュアーが active findings 0）。
+- `I-1`: サイクル1の `skip` を引き継ぐ（新しい根拠なし）。
+
+### 指摘の分類
+
+| ID | 区分 | 内容 |
+|---|---|---|
+| `deepseek-v4.1-flash#M-3` | 対応する | 成功した試行の worktree 不在を監査せず受理する（Medium、safety、現行 HEAD で再現） |
+| `deepseek-v4.1-flash-commit-6fa1e57f926e#S-1` | 対応する | worktree を clean な checkout への symlink に置き換えると監査を回避する（High、safety、self-review） |
+| `fix-check#V-1` | 対応する | Spec の M-1 記述が payload 条件を欠く（fix-check。この Spec 更新で解消） |
+
+### 修正内容
+
+- M-3: `review_spec.assess` の skip を、`attempt.payload is None` かつ `request_path` も None/不在の準備失敗だけに限定した。payload を持つ試行は worktree 不在なら拒否する。修正 commit `6fa1e57f`。
+- S-1: `review_spec.assess` で `attempt.work_dir.is_symlink()` のときは、参照先の HEAD/status を読まずに拒否する。修正 commit `a13852a3`。
+- V-1: この Spec の M-1 記述を、payload の有無と symlink を含む最終条件に更新した。コードの変更はない。
+
+### 守る条件と影響経路
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 |
+|---|---|---|---|---|
+| payload を持つ試行の worktree が無い場合は監査せず受理しない | `review_spec.assess`（外部 spec/design review 共有） | 修正する | valid payload + workdir/request 不在 → failed | 新規 S テスト（M-3） |
+| worktree が symlink なら受理しない | `review_spec.assess` | 修正する | clean checkout への symlink + valid payload → failed + symlink | 新規 S テスト（S-1） |
+| payload を持たず準備前に終わった試行は対象外 | `review_spec.assess` | 既に満たす | primary payload なし + worktree/request 不在 → skip、fallback completed | 既存の fallback テスト |
+| request.json が残る worktree 不在は拒否 | `review_spec.assess` | 既に満たす | failed + missing | 既存の missing-after-preparation テスト |
+| self の submit | `submit` | 対象外 | batch の attempt を持たない | 既存の submit テスト |
+
+M-3 は M-1 修正の回帰（きっかけ 2）であり、点の修正ではなく payload の有無で監査対象を決める条件を 1 か所にまとめた。S-1 は PR が追加した `assess` の symlink 経路で、worktree 自体の symlink を拒否する。保証を狭めていない。
+
+### 自己レビュー・fix-check
+
+- 自己レビューは `run_roles.py --phase self-review` を 1 回実行。self-review は `6fa1e57f` で High の S-1（symlink、safety）を 1 件見つけ、修正した。2 回目の自己レビューは行っていない（S-1 修正後の再レビューはしていない）。
+- fix-check は `6fa1e57f` の M-3 を確認し、主張 C-1〜C-6 は holds、C-7（環境全体のテストの再実行）は未実施で残した。V-1（Spec の M-1 記述の不一致）を 1 件見つけ、この Spec の更新で解消する。fix-check の結果は `verified/6fa1e57f926e.fix-check.json`。
+- ガードを外した対照で、M-3・S-1 の追加テストが失敗することを確認した。
+
+### 検証
+
+- `uv run --locked pytest .agents/skills/issue-to-pr/tests tools/agent_runner/tests/test_config.py -q`: 122 passed in 158.27s、終了コード 0
+- `uvx --offline ruff check --select E4,E7,E9,F .agents/skills/issue-to-pr/scripts/review_spec.py .agents/skills/issue-to-pr/tests/test_review_spec.py`: All checks passed、終了コード 0
+- `bash scripts/check-layout.sh`: PASS、終了コード 0
+- `git diff --check adfe7ebc...HEAD`: 終了コード 0
+- `bash .devcontainer/run-tests.bash`: PASS 27 tests、終了コード 0
+- `uv run pytest tests/skills .agents/skills -q`: 748 passed in 495.80s、終了コード 0
+
+未確認の事項: なし。
+
+### 結論・実行許可・記録
+
+- 結論: 1（修正して push）。M-3 の `6fa1e57f`、S-1 の `a13852a3`、およびこの Spec の commit を PR #376 の head へ push する。
+- 実行許可: 明示 issue-to-pr 入力 `#353 ... --merge ...` と、2026-11-10 の「#353の作業を引き継いでください」。内容の承認ではない。
+- 確認済みの一覧: `verified/adfe7ebc1e9c.json`
+- fix-check: `verified/6fa1e57f926e.fix-check.json`
+- 工程の記録: `verified/adfe7ebc1e9c.planning.json`
+- 状況コメント: サイクル 2 の `review-fix-planning` コメント（PR #376）
