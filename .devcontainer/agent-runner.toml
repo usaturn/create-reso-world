@@ -20,6 +20,20 @@ writes = true
 deadline_seconds = 5400
 result_shape = "json"
 
+# Spec・設計レビューは --spec-review / --design-review の明示指定でだけ使う。
+# 雛形に両 role の assignment は置かない（設定だけでは起動しない）。
+[roles.spec-review]
+skills = []
+writes = false
+deadline_seconds = 1800
+result_shape = "json"
+
+[roles.design-review]
+skills = []
+writes = false
+deadline_seconds = 1800
+result_shape = "json"
+
 [roles.self-review]
 skills = []
 writes = false
@@ -145,10 +159,11 @@ provider = "openai-codex"
 effort = "xhigh"
 env = ["HOME", "PATH"]
 
-[agents.claude-code_sonnet_default]
+[agents.claude-code_sonnet_xhigh]
 runtime = "claude-code"
 command = ["claude"]
 model = "sonnet"
+effort = "xhigh"
 env = ["HOME", "PATH"]
 
 [agents.pi_google-vertex_gemini4-argon_high]
@@ -192,7 +207,8 @@ agents = ["self"]
 [workflows.fix.assignments.fix-check]
 agents = ["self"]
 
-# issue-to-pr の Plan の Task を実装する担当。既定の self はこのセッションが自分で実装する。
+# issue-to-pr の Plan の Task を実装する担当。雛形の既定は claude-code_sonnet_xhigh。
 # その回の --implement AGENT か個人設定で選び直せる（担当の fallback は個人設定に書く）。
+# self を選ぶとこのセッションが自分で実装する。
 [workflows.issue.assignments.implement]
-agents = ["self"]
+agents = ["claude-code_sonnet_xhigh"]

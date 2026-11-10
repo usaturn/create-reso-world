@@ -128,6 +128,8 @@ def test_resolves_supported_forms_without_changing_git(
         "body": "Keep unrelated work intact.",
         "merge": None,
         "implement": None,
+        "spec_review": None,
+        "design_review": None,
         "base": "main",
         "base_explicit": False,
     }
@@ -331,6 +333,27 @@ def test_implement_is_returned_separately_from_loop_args(
     payload = json.loads(result.stdout)
     assert payload["implement"] == implement
     assert payload["merge"] == merge
+
+
+def test_opt_in_reviews_are_separate_from_loop_args(checkout: Path, gh_stub: Path) -> None:
+    """S: enabling a paid review by default, or passing its value to the loop, can start an unintended agent."""
+    unspecified = resolve(checkout, "#42")
+    assert unspecified.returncode == 0, unspecified.stderr
+    payload = json.loads(unspecified.stdout)
+    assert payload["spec_review"] is None
+    assert payload["design_review"] is None
+
+    before = subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout)
+    result = resolve(
+        checkout, "#42 --merge --spec-review self --design-review fake-agent --assign inspect=fake-agent"
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["spec_review"] == "self"
+    assert payload["design_review"] == "fake-agent"
+    assert payload["merge"] == {"loop_args": ["--assign", "inspect=fake-agent"]}
+    assert payload["implement"] is None
+    assert unchanged(checkout, before)
 
 
 @pytest.mark.parametrize(

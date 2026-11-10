@@ -12,10 +12,12 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import unicodedata
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -38,7 +40,7 @@ from tools.agent_runner.adapters import Adapter, load_adapter  # noqa: E402
 from tools.agent_runner.checkout_policy import require_auditable_workflow  # noqa: E402
 from tools.agent_runner.config import validate_config  # noqa: E402
 from tools.agent_runner.environ import literal_environ  # noqa: E402
-from tools.agent_runner.models import Assignment, BatchResult  # noqa: E402
+from tools.agent_runner.models import Assignment, Attempt, BatchResult  # noqa: E402
 from tools.agent_runner.workspace import CheckoutAuditError  # noqa: E402
 
 DEFAULT_TEMPLATE = ROOT / ".devcontainer/agent-runner.toml"
@@ -58,21 +60,27 @@ class TaskInputError(ValueError):
 # --- 設定 ---------------------------------------------------------------------------------------------------------
 
 
-def project(config: Config) -> Config:
-    """workflow issue の implement だけを残す。投影の外への依存（同モデルの除外）を黙って捨てない。"""
+def project(config: Config, role_name: str = ROLE, *, writes: bool = True) -> Config:
+    """workflow issue の選択した role だけを残す。投影の外への依存（同モデルの除外）を黙って捨てない。
+
+    writes はその role に期待する書込権限。read-only のレビュー role には False を渡し、
+    設定が書き込みを許していれば runner を起動しない。
+    """
     config = validate_config(config, WORKFLOW)
     workflow = config.workflows[WORKFLOW]
-    role = config.roles.get(ROLE)
-    assignment = workflow.assignments.get(ROLE)
+    role = config.roles.get(role_name)
+    assignment = workflow.assignments.get(role_name)
     if role is None or assignment is None:
         raise ConfigError("invalid_reference")
-    if role.writes is not True or role.result_shape != "json" or len(assignment.agents) != 1:
+    if role.writes is not writes or role.result_shape != "json" or len(assignment.agents) != 1:
         raise ConfigError("invalid_config")
-    constraints = {name: other for name, other in workflow.exclude_same_model_as.items() if name == ROLE}
-    if any(other != ROLE for other in constraints.values()):
+    constraints = {name: other for name, other in workflow.exclude_same_model_as.items() if name == role_name}
+    if any(other != role_name for other in constraints.values()):
         raise ConfigError("invalid_reference")
     selected = config.model_copy(deep=True)
-    selected.workflows = {WORKFLOW: Workflow(assignments={ROLE: assignment}, exclude_same_model_as=constraints)}
+    selected.workflows = {
+        WORKFLOW: Workflow(assignments={role_name: assignment}, exclude_same_model_as=constraints)
+    }
     return validate_config(selected, WORKFLOW)
 
 
@@ -413,6 +421,12 @@ def assess(request: TaskRequest, batch: BatchResult) -> Assessment:
             verdict="failed",
             reasons=[f"stop_unconfirmed: attempts of {', '.join(unstopped)}; their areas are retained"],
         )
+    sensitive = [attempt.agent_id for attempt in attempts if attempt.sensitive_paths]
+    if sensitive:
+        return Assessment(
+            verdict="failed",
+            reasons=[f"sensitive_paths: attempts of {', '.join(sensitive)}; their areas are retained"],
+        )
     if len(batch.results) != 1:
         return Assessment(verdict="failed", reasons=["runner returned an unexpected number of results"])
     outcome = batch.results[0]
@@ -437,6 +451,14 @@ def assess(request: TaskRequest, batch: BatchResult) -> Assessment:
         return Assessment(verdict="retry", reasons=[f"status: {result.status}"], work_dir=work_dir, result=result)
     if attempt.work_dir is None:
         return Assessment(verdict="rejected", reasons=["the successful attempt has no worktree"], result=result)
+    status = classify_attempt_worktree(Path(request.repository), attempt)
+    if status.kind != "registered":
+        return Assessment(
+            verdict="rejected",
+            reasons=[f"the runner worktree {status.reason}"],
+            work_dir=work_dir,
+            result=result,
+        )
     try:
         return _inspect(request, result, attempt.work_dir)
     except subprocess.SubprocessError, OSError:
@@ -475,6 +497,8 @@ def summarize(assignment: Assignment, batch: BatchResult, assessment: Assessment
         "changed_files": assessment.changed_files,
         "result": assessment.result.model_dump(mode="json") if assessment.result is not None else None,
         "outside_changes": batch.outside_changes,
+        # 保護しない checkout の観測は報告だけにする。accept を止めるかは outside_changes だけで決める
+        "unprotected_changes": batch.unprotected_changes,
         "elapsed_seconds": batch.elapsed_seconds,
         "artifact_dir": str(batch.artifact_dir),
     }
@@ -604,27 +628,220 @@ def _registered(repository: Path) -> set[str]:
     }
 
 
-def cleanup(run_dir: Path) -> dict[str, Any]:
-    """停止を確認した試行の worktree の登録を外し（force しない）、何も残らなければ run_dir を消す。"""
-    request, batch = load_record(run_dir)
-    repository = Path(request.repository)
+WORKTREE_SYMLINK = "contains a symlink"
+WORKTREE_UNREGISTERED = "is not a registered worktree of the repository"
+WORKTREE_COMMON_DIR = "uses a different git common directory than the repository"
+WORKTREE_UNREADABLE = "cannot be read with git"
+WORKTREE_NOT_ABSOLUTE = "is not a normalized absolute path"
+WORKTREE_NOT_DIRECTORY = "is not a directory"
+WORKTREE_MISSING = "is missing"
+WORKTREE_REAPPEARED = "reappeared after an earlier cleanup"
+WORKTREE_COLLECTED = "was collected by an earlier cleanup"
+
+WorktreeKind = Literal[
+    "registered",
+    "prepare-failed",
+    "missing",
+    "improper",
+    "unknown",
+    "collected",
+    "reappeared",
+    "unconfirmed",
+]
+
+
+@dataclass(frozen=True)
+class WorktreeStatus:
+    """試行の worktree を、監査と回収が同じ事実で分類した結果。"""
+
+    kind: WorktreeKind
+    reason: str = ""
+
+
+def _lexists(path: Path) -> bool | None:
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return False
+    except (OSError, ValueError):
+        return None
+    return True
+
+
+def _symlink_component(path: Path) -> bool | None:
+    """パスのどの構成要素（最終要素を含む）が symlink か。参照先はたどらない。"""
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current = current / part
+        try:
+            info = os.lstat(current)
+        except FileNotFoundError:
+            return False
+        except (OSError, ValueError):
+            return None
+        if stat.S_ISLNK(info.st_mode):
+            return True
+    return False
+
+
+def _canonical_absolute(path: Path) -> bool:
+    try:
+        text = str(path)
+    except (OSError, ValueError):
+        return False
+    return path.is_absolute() and os.path.normpath(text) == text
+
+
+def _attempt_record_exists(attempt: Attempt) -> bool | None:
+    if attempt.state == "success" or attempt.payload is not None:
+        return True
+    if attempt.request_path is None:
+        return False
+    return _lexists(attempt.request_path)
+
+
+def classify_attempt_worktree(
+    repository: Path,
+    attempt: Attempt,
+    *,
+    collected: Collection[str] = (),
+) -> WorktreeStatus:
+    """停止確認済みの試行の worktree を、監査と回収で共有する状態に分類する。
+
+    準備前に終わった試行（結果も依頼記録も無い）だけを対象外にし、成功した試行を準備前と推測しない。
+    symlink を含むパス、登録されていないパス、common-dir が違うパス、読めないパスは実体として扱わない。
+    collected は同じレビューの回収記録にあるパスで、不在なら回収済み、再出現なら保持の根拠にする。
+    """
+    if not attempt.stop_confirmed:
+        return WorktreeStatus("unconfirmed", "stop not confirmed")
+    if attempt.sensitive_paths:
+        return WorktreeStatus("unconfirmed", "sensitive paths may hold secrets")
+    work = attempt.work_dir
+    if work is None:
+        record = _attempt_record_exists(attempt)
+        if record is None:
+            return WorktreeStatus("unknown", WORKTREE_UNREADABLE)
+        if record:
+            return WorktreeStatus("missing", WORKTREE_MISSING)
+        return WorktreeStatus("prepare-failed", "ended before preparation")
+    if not _canonical_absolute(work):
+        return WorktreeStatus("improper", WORKTREE_NOT_ABSOLUTE)
+    symlink = _symlink_component(work)
+    if symlink is None:
+        return WorktreeStatus("unknown", WORKTREE_UNREADABLE)
+    if symlink:
+        return WorktreeStatus("improper", WORKTREE_SYMLINK)
+    exists = _lexists(work)
+    if exists is None:
+        return WorktreeStatus("unknown", WORKTREE_UNREADABLE)
+    path = Path(os.path.abspath(work))
+    try:
+        registered = {Path(entry) for entry in _registered(repository)}
+    except (subprocess.SubprocessError, OSError):
+        return WorktreeStatus("unknown", WORKTREE_UNREADABLE)
+    is_registered = path in registered
+    if not exists:
+        if str(path) in collected:
+            if is_registered:
+                return WorktreeStatus("reappeared", WORKTREE_REAPPEARED)
+            return WorktreeStatus("collected", WORKTREE_COLLECTED)
+        if is_registered:
+            return WorktreeStatus("missing", WORKTREE_MISSING)
+        record = _attempt_record_exists(attempt)
+        if record is None:
+            return WorktreeStatus("unknown", WORKTREE_UNREADABLE)
+        if not record:
+            return WorktreeStatus("prepare-failed", "ended before preparation")
+        return WorktreeStatus("missing", WORKTREE_MISSING)
+    if str(path) in collected:
+        return WorktreeStatus("reappeared", WORKTREE_REAPPEARED)
+    if not is_registered:
+        return WorktreeStatus("improper", WORKTREE_UNREGISTERED)
+    try:
+        info = os.lstat(path)
+    except (OSError, ValueError):
+        return WorktreeStatus("unknown", WORKTREE_UNREADABLE)
+    if not stat.S_ISDIR(info.st_mode):
+        return WorktreeStatus("improper", WORKTREE_NOT_DIRECTORY)
+    try:
+        common = Path(_text(_git(repository, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout))
+        other = Path(_text(_git(path, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout))
+    except (subprocess.SubprocessError, OSError):
+        return WorktreeStatus("unknown", WORKTREE_UNREADABLE)
+    if os.path.realpath(common) != os.path.realpath(other):
+        return WorktreeStatus("improper", WORKTREE_COMMON_DIR)
+    try:
+        _git(path, "rev-parse", "--verify", "HEAD")
+    except (subprocess.SubprocessError, OSError):
+        return WorktreeStatus("unknown", WORKTREE_UNREADABLE)
+    return WorktreeStatus("registered")
+
+
+def retained_path(attempt: Attempt, batch: BatchResult, *, parent: bool = False) -> str:
+    """保持を報告するパス。worktree が無い試行は依頼記録か runner 出力の場所を返す。"""
+    if attempt.work_dir is not None:
+        return str(attempt.work_dir.parent if parent else attempt.work_dir)
+    if attempt.request_path is not None:
+        return str(attempt.request_path.parent)
+    return str(batch.artifact_dir)
+
+
+def remove_attempts(
+    repository: Path,
+    batch: BatchResult,
+    *,
+    collected: Collection[str] = (),
+    on_removed: Callable[[Path], None] | None = None,
+) -> tuple[list[str], list[dict[str, str]]]:
+    """停止を確認した試行の worktree の登録を外す（force しない）。消せなかったものは理由付きで返す。
+
+    classify_attempt_worktree と同じ分類を使い、symlink を含むパス、未登録・common-dir 違いのパス、
+    読めないパス、予期しない不在は git worktree remove に渡さず保持する。回収記録がある不在は no-op、
+    再出現は保持する。on_removed は 1 件の回収が成功するたびに呼び、失敗したらそこで止めて保持する。
+    """
     removed: list[str] = []
     retained: list[dict[str, str]] = []
     for attempt in (attempt for outcome in batch.results for attempt in outcome.attempts):
-        if attempt.work_dir is None:
+        status = classify_attempt_worktree(repository, attempt, collected=collected)
+        if status.kind in {"prepare-failed", "collected"}:
             continue
-        work = str(attempt.work_dir)
-        if not attempt.stop_confirmed:
-            retained.append({"path": str(attempt.work_dir.parent), "reason": "stop not confirmed"})
-        elif attempt.sensitive_paths:
-            retained.append({"path": str(attempt.work_dir.parent), "reason": "sensitive paths may hold secrets"})
-        elif not attempt.work_dir.exists():
-            if work in _registered(repository):
-                retained.append({"path": work, "reason": "registered but missing; remove the registration by hand"})
-        elif _git(repository, "worktree", "remove", "--", work, check=False).returncode == 0:
-            removed.append(work)
-        else:
-            retained.append({"path": work, "reason": "git worktree remove refused (uncommitted or untracked files)"})
+        if status.kind == "unconfirmed":
+            retained.append({"path": retained_path(attempt, batch, parent=True), "reason": status.reason})
+            continue
+        if status.kind != "registered":
+            retained.append({"path": retained_path(attempt, batch), "reason": status.reason})
+            continue
+        assert attempt.work_dir is not None
+        work = Path(os.path.abspath(attempt.work_dir))
+        # 分類と削除の間に置き換えられていないことを、副作用の直前にもう一度確かめる
+        again = classify_attempt_worktree(repository, attempt, collected=collected)
+        if again.kind != "registered":
+            retained.append({"path": str(work), "reason": again.reason})
+            continue
+        if _git(repository, "worktree", "remove", "--", str(work), check=False).returncode != 0:
+            retained.append(
+                {"path": str(work), "reason": "git worktree remove refused (uncommitted or untracked files)"}
+            )
+            continue
+        removed.append(str(work))
+        if on_removed is not None:
+            try:
+                on_removed(work)
+            except Exception:
+                retained.append(
+                    {
+                        "path": str(work),
+                        "reason": "the worktree was removed but its cleanup receipt could not be written; check it by hand",
+                    }
+                )
+                break
+    return removed, retained
+
+
+def cleanup(run_dir: Path) -> dict[str, Any]:
+    """停止を確認した試行の worktree の登録を外し、何も残らなければ run_dir を消す。"""
+    request, batch = load_record(run_dir)
+    removed, retained = remove_attempts(Path(request.repository), batch)
     removed_run_dir = not retained
     if removed_run_dir:
         shutil.rmtree(run_dir)

@@ -136,6 +136,7 @@ Resonite 向けのワールド・ツールの作成、Blender などを使った
   `.pi/mcp.json`（Google Developer Knowledge の MCP サーバー）、`.pi/APPEND_SYSTEM.md`（pi 固有の指示）、プロジェクトのスキル（`.agents/skills`）が読まれる。ワールドはプロジェクト直下の `.pi` symlink（ルートへの相対パスはプロジェクトの深さに応じる）から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
   「組み込み MCP と廃止した拡張」にある。
 - pi-superagents: 組み込みと同じ定義（`sp-*.md`）は追跡しない。独自に変えた `.agents/sp-implementer.md` だけを追跡する。
+- issue-to-pr: 設計レビューと Spec レビューは、`--design-review AGENT` / `--spec-review AGENT` を明示した run だけで行う。無指定では起動しない。Plan の実装の既定は `claude-code_sonnet_xhigh`（`model = "sonnet"`、effort `xhigh`）、レビュー修正（`fix.implement`）の既定は `self`（main の #377）で司令塔が自分で実行する。個人設定の `claude-code_sonnet_default` は手動で置き換える。詳細は `.devcontainer/README.md` の「Spec・設計レビューの opt-in と既定担当（#353）」にある。
 
 ## プロジェクトを作る
 
