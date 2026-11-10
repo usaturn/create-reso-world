@@ -98,6 +98,41 @@ def _failure_status(*texts: str) -> ReceiptStatus | None:
     return None
 
 
+def _terminal_subtype(result: dict[str, object] | None) -> str:
+    """The terminal result's subtype as a fixed diagnostic value, never its original text."""
+    if result is None:
+        return "not_observed"
+    subtype = result.get("subtype")
+    if subtype == "success":
+        return "success"
+    if subtype == "error":
+        return "error"
+    return "other"
+
+
+def _approval_payload(
+    result: dict[str, object] | None, source: str, diagnostic_sources: list[str]
+) -> dict[str, object]:
+    """Diagnostic evidence for ``awaiting_approval``; this payload is not a model answer.
+
+    Only the classifier's source, normalized terminal metadata, and the presence/count of
+    permission denials are retained. Denial entries, tool inputs, the raw subtype, and any
+    diagnostic text stay out of the receipt and the persisted diagnostic.
+    """
+    denials = result.get("permission_denials") if result is not None else None
+    is_error = result.get("is_error") if result is not None else None
+    return {
+        "approval": {
+            "source": source,
+            "terminal_subtype": _terminal_subtype(result),
+            "is_error": is_error if type(is_error) is bool else None,
+            "permission_denials": bool(denials),
+            "denial_count": len(denials) if isinstance(denials, list) else None,
+            "diagnostic_sources": diagnostic_sources,
+        }
+    }
+
+
 def _receipt(request: Request, status: ReceiptStatus, payload: Payload = None) -> Receipt:
     return Receipt(
         run_id=request.run_id,
@@ -147,18 +182,25 @@ def _classify(context: AdapterContext, events: list[dict[str, object]], stderr: 
         event for event in events
         if event.get("type") == "error" or (event.get("type") == "assistant" and event.get("error"))
     ]
-    diagnostics = [stderr, *(json.dumps(event) for event in errors)]
+    channels: list[tuple[str, str]] = [("stderr", stderr)]
+    channels.extend(("error_event", json.dumps(event)) for event in errors)
     if result is not None and (result.get("subtype") != "success" or result.get("is_error")):
-        diagnostics.append(json.dumps(result))
-    # Successful model prose and tool data may discuss authentication. Only
+        channels.append(("terminal_result", json.dumps(result)))
+    # Successful model prose and tool data may discuss authentication or approval. Only
     # dedicated failure channels and stderr supply diagnostic classifications.
-    failure = _failure_status(*diagnostics)
+    failure = _failure_status(*(text for _, text in channels))
+    if failure == "awaiting_approval":
+        sources: list[str] = []
+        for source, text in channels:
+            if _failure_status(text) == "awaiting_approval" and source not in sources:
+                sources.append(source)
+        return failure, _approval_payload(result, "diagnostic_text", sources)
     if failure is not None:
         return failure, None
     if result is None:
         return "response_failed", None
     if result.get("permission_denials"):
-        return "awaiting_approval", None
+        return "awaiting_approval", _approval_payload(result, "permission_denials", [])
     if errors or (result_index is not None and any(
         event.get("type") in {"assistant", "user", "_malformed_event"}
         or (event.get("type") == "system" and event.get("subtype") == "init")
