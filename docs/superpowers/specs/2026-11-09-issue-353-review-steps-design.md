@@ -370,3 +370,17 @@ run_roles.pyのself-reviewを1回だけ予約し、self-review=self/fix-check=se
 結論は1（修正して既存PRへpush）。今回の採否は前の13判断に新しい6判断を加え、resolved10/fix1/skip8。S-1だけを今回の致命的修正として採用した。push・判断コメント・次のloop・最終化の結果はPR/loop記録とhandoffに記す。
 
 救出元SESSION: `/workspaces/reso-world/tmp/agents/issue-353-c4.6gq06jrc`（repro-round4.py/json）。復旧・検証SESSION: `/workspaces/reso-world/tmp/agents/pr376-recovery.vwhu4pkm`。controller-checks.jsonl、controller/self-review-lifecycle.log、fix-checkと担当のroles/logを保持する。各実測のargv/HEAD/exitを記録し、前セッションの未記録時間は推測しない。
+
+## 最終確認（2026-11-10、判断サイクル5）
+
+対象HEADは68195dfd85d106b1ff063210de78e34f38351d67。plannerはopenai-codex/gpt-6.1-sol（pi）、状態completedを維持し、内容承認SHAがないことと実行許可を区別する。新runはe9373b20933147faa4a579978bebe93c、今回の利用者指定どおりinspect=claude-code_opus_default/devin_swe2_max/pi_opencode-go_deepseek4-flash_max。旧runのxhigh成果を救出したサイクルを完了してから、割当を手編集せず新runへ切り替えた。
+
+3レビュアー全員の現行pairはhelperが受理し、新しいactive/未確認候補は0。Opusは約113秒、SWEは約570秒、DeepSeekは約393秒、レビュー工程全体は約643秒。SWE本文には存在しない履歴参照・規模の不正確な記述があるため、その説明を事実の根拠には採用せず、正式な19判断の記録・現行committed source・他の実行証拠で確認した。成果の受理と内容の正しさは区別する。
+
+前回S-1を解消済みに変更した。SKILL/helperのblobはee787309から変わっておらず、生バイトprobeの前提が保たれている。前回の採否を含む19判断はresolved11/skip8、対応する指摘0。skipは新しい根拠がないため維持し、既知の制限と回避方法はPR本文に記載済み。新たな実装修正・自己レビューの再予約は行っていない。
+
+検証は対象HEADのままと、最新base70634b5d1ad7bc7bab24ca6258edfed0a7c16fe7を隔離worktreeでmergeした一時commit33897ce67863bafccb79d7e7393b8260bdd52b22の両方で実行した。両方とも環境テスト27件・layout・diff --checkが成功し、skillsはheadで800 passed（605.85秒）、mergeしたツリーで803 passed（644.37秒）。一時mergeをPRへpushしていない。検証後にそのworktreeを回収した。argv/実際のHEAD/base/exit/ログは復旧SESSIONのfinal-validation.jsonl、検証したツリーはverified-merge.json、finalize入力はfinalize-checks.json。
+
+利用者は、mainが最後の確認から進んでも途中停止せず完了まで対応するよう追加指示した。これはmainの前進を理由とする打ち切りをせず、新しい先端を含めて必要な検証をやり直す実行許可として記録し、baseの値だけを書き換えて検証を省く許可とは扱わない。
+
+結論は2（追加修正不要、最終化へ進む）。本節はマージ前の確認記録であり、マージ・関連Issue更新の成功を先取りしない。確認済み一覧はverified/68195dfd85d1.json。判断コメントとfinalize結果・マージ結果はPR/loopと引き継ぎ記録へ保存し、公開後の結果だけを足すcommitは作らない。
