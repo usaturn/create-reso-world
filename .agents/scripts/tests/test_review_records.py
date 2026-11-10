@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import io
 import json
@@ -363,6 +364,34 @@ def test_agent_id_for_follows_the_marker_rule(model: str, expected: str) -> None
     assert review_records.agent_id_for(model) == expected
 
 
+@pytest.mark.parametrize(
+    "model",
+    [
+        "deepseek-v4.1-flash:1017[1m]",
+        "provider/model@release",
+        "日本語モデル[大]",
+    ],
+)
+def test_extended_model_ids_use_a_separate_sha256_namespace(model: str) -> None:
+    digest = hashlib.sha256(model.encode("utf-8")).hexdigest()
+    agent_id = review_records.agent_id_for(model)
+    assert agent_id == f"model--{digest}"
+    # 生成した ID 自体をモデル名として旧変換した値とは一致しない
+    assert review_records.agent_id_for(agent_id) != agent_id
+
+
+def test_extended_model_ids_do_not_conflate_different_symbols() -> None:
+    models = [
+        "deepseek-v4.1-flash:1017[1m]",
+        "deepseek-v4.1-flash:1017(1m)",
+        "provider/model@release",
+        "provider/model#release",
+        "日本語モデル[大]",
+        "日本語モデル（大）",
+    ]
+    assert len({review_records.agent_id_for(model) for model in models}) == len(models)
+
+
 POC_PR: dict[str, Any] = {"repository": "usaturn/maatlog-poc", "number": 484}
 
 
@@ -599,6 +628,18 @@ LOOP_COMMENT = "<!-- review-fix-planning:agent:maatlog-pr-review-loop -->\nPR re
 
 def status_body(record: dict[str, Any]) -> str:
     return review_records.compose_comment(record, HUMAN_PART)
+
+
+@pytest.mark.parametrize("model", ["deepseek-v4.1-flash:1017[1m]", "日本語モデル[大]"])
+def test_extended_model_name_survives_compose_extract_and_fold(model: str) -> None:
+    value = round_two()
+    value["planner"] = {"model": model, "runtime": "pi", "agent_id": review_records.agent_id_for(model)}
+    checked = review_records.validate_record(value)
+    restored = review_records.extract_record(status_body(checked))
+    assert restored == checked
+    state = review_records.fold([(303, restored)])
+    assert state["rounds"][0]["planner"]["model"] == model
+    assert state["decisions"][0]["history"][0]["planner_model"] == model
 
 
 def comment(comment_id: int, body: str, *, association: str = "OWNER") -> dict[str, Any]:
