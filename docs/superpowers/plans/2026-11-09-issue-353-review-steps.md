@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 明示 opt-in の Spec・設計レビューを追加し、Plan 実装とレビュー修正の既定を sonnet xhigh にする。
+**Goal:** 明示 opt-in の Spec・設計レビューを追加し、Plan 実装の既定を sonnet xhigh、レビュー修正（fix.implement）の既定を self にする。
 
 **Architecture:** AW `0eea76aa` のレビュー用スキーマ・状態遷移を参考に、CRW の workflow issue / preflight / 外部 SESSION 記録に適応する。Kind が共通の保存・実行・結果検査を担い、設計レビューだけの停止条件を review_design が持つ。
 
 **Tech Stack:** Python（uv）、既存 Pydantic、pytest、fake adapters / temporary Git、TOML / Markdown / RST。
 
-**Spec:** `docs/superpowers/specs/2026-11-09-issue-353-review-steps-design.md`（状態 draft、実行許可は明示 issue-to-pr と再開指示。承認 SHA はない）
+**Spec:** `docs/superpowers/specs/2026-11-09-issue-353-review-steps-design.md`（状態 completed、実行許可は明示 issue-to-pr と再開指示。承認 SHA はない）
 
 ## Global Constraints
 
@@ -92,7 +92,7 @@ T1 は入力と共有処理、T2 はレビューの安全なライフサイク�
 
 - [x] Step 1: writing-skills と skill-creator、RST 編集は rst-writer を読む。controller の RED 記録を確認する。子の中からモデルや subagent を起動しない。
 - [x] Step 2: SKILL.md を targeted edit する。両レビュー無指定なら helper check も起動しない。--spec-review 時は builder check を置換し、--design-review は置換しない。ledger-dir は必ず SESSION を明示し、runner の新規パスも外部 SESSION 下にする。request/result/decisions の作成、採否後 Spec commit、再レビュー上限、型/版/順序の失敗・停止、実行時間・fallback/identity・保存/retained パスを記録する。既存の安全ブロックを削らない。
-- [x] Step 3: roles.spec-review と roles.design-review を writes=false / json / 1800 秒で追加し、レビュー assignment は雛形に作らない。sonnet_default は sonnet_xhigh に置き換え、model=sonnet / effort=xhigh、issue/fix implement の既定を変更する。Issue 指定のコメントを実際の意味で揃える。
+- [x] Step 3: roles.spec-review と roles.design-review を writes=false / json / 1800 秒で追加し、レビュー assignment は雛形に作らない。sonnet_default は sonnet_xhigh に置き換え、model=sonnet / effort=xhigh、issue implement の既定を変更し、fix implement は main の self を維持する。Issue 指定のコメントを実際の意味で揃える。
 - [x] Step 4: README と interfaces.rst の該当説明を更新する。個人設定の旧名は手動置換、agents のない review assignment 節の invalid_type、明示引数と fallback の関係を記す。#364 が直した監査節、model_key、CLI 例、dsh_removed、導入実装は変えない。
 - [x] Step 5: テスト追加は原則不要（文書/一覧/既定名は F、設定不整合は L）。`uv run --locked pytest .agents/skills/issue-to-pr/tests tools/agent_runner/tests/test_config.py -q`、一時 config に対する両 helper check の0/2、旧名なしでの load_config と実際の assignments、`bash scripts/check-layout.sh` を同期実行する。個人設定導入は変更しないので install-beforehand テストの追加・変更は不要。必要なら既存検証を実行する。
 - [x] Step 6: `git diff --check` と RST の参照/構造・関連設定の実読込を確認して、担当ファイルだけを明示 stage し、`feat(issue-to-pr): document review flow and default to sonnet xhigh` で commit。GREEN の同一シナリオを controller が新スキル付きで1回行う。Task 内訳と所要時間を報告する。
@@ -123,7 +123,7 @@ ledger は `/workspaces/reso-world/tmp/agents/issue-353._kkg4w5l/budget.jsonl`�
 - 変更前/変更後の同一2シナリオを各1子で適用した。新規 opt-in と非起動・builder 条件は読み取られたが、変更後の回答にはコマンドと条件の誤読も残ったため、万能な GREEN 成功とは記録しない。実際の fake ライフサイクルと構造確認を追加した。
 - 担当の一度の bare python3 使用は規約逸脱として ledger に記録した。検証は uv 経由、以後の依頼で禁止を再明示した。
 - 全体pytestは親ボードの統合担当の範囲。117件の関連回帰、layout、対象の静的検査を最終 clean HEAD で再実行し、SESSION の final-checks.json と各ログに記録する。これは結果の先取りではなく公開前の必須検証である。
-- 状態は draft のまま（内容の承認なし）。公開と --merge の結果は PR/Issue と SESSION に記録し、PR 作成後は本ブランチをループ外で変更しない。
+- 実行当時の状態は draft のまま（内容の承認なし）。公開と --merge の結果は PR/Issue と SESSION に記録し、PR 作成後は本ブランチをループ外で変更しない。
 
 ## 実行中の検証調整
 

@@ -9,6 +9,7 @@ import importlib.util
 import hashlib
 import json
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -645,12 +646,16 @@ def test_external_review_rejects_a_successful_attempt_without_a_worktree(
 def test_external_review_rejects_a_symlink_worktree(
     fx: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """S: symlink をたどって clean な参照先を監査すると、担当の変更を見落として成功扱いする。"""
+    """S: symlink をたどって clean な参照先を監査・削除すると、担当の変更を見落とし別 checkout を失う。"""
     link = fx.tmp / "reviewer-link"
     link.symlink_to(fx.reviewer, target_is_directory=True)
     # 参照先はレビューした版のまま clean なので、symlink を許す実装では completed になる
     assert git(fx.reviewer, "rev-parse", "HEAD") == fx.revision
     assert git(fx.reviewer, "status", "--porcelain") == ""
+    link_target = os.readlink(link)
+    target_bytes = (fx.reviewer / "src.py").read_bytes()
+    target_mode = stat.S_IMODE((fx.reviewer / "src.py").stat().st_mode)
+    registered = git(fx.main, "worktree", "list", "--porcelain")
 
     def make(review_id: str, sha: str) -> BatchResult:
         return batch(
@@ -666,9 +671,84 @@ def test_external_review_rejects_a_symlink_worktree(
 
     summary = external_review(fx, monkeypatch, make)
 
+    review_dir = Path(summary["review_dir"])
+    cleaned = mod.cleanup(review_dir)
+
+    assert cleaned["removed_worktrees"] == []
+    assert any(item["path"] == str(link) and "symlink" in item["reason"] for item in cleaned["retained"])
+    assert link.is_symlink()
+    assert os.readlink(link) == link_target
+    assert (fx.reviewer / "src.py").read_bytes() == target_bytes
+    assert stat.S_IMODE((fx.reviewer / "src.py").stat().st_mode) == target_mode
+    assert git(fx.main, "worktree", "list", "--porcelain") == registered
+    assert fx.runner.is_dir()
+    assert review_dir.is_dir()
     assert summary["state"] == "failed"
     assert any(
-        "the worktree of reviewer is a symlink, so its changes cannot be audited" in reason
+        "the worktree of reviewer contains a symlink, so its changes cannot be audited" in reason
+        for reason in summary["reasons"]
+    ), summary["reasons"]
+
+
+def test_external_review_rejects_a_worktree_below_a_symlinked_directory(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: 祖先だけを symlink にしても、参照先の clean checkout を監査して成功扱いしてはならない。"""
+    alias = fx.tmp / "alias"
+    alias.symlink_to(fx.tmp, target_is_directory=True)
+    work = alias / fx.reviewer.name
+    assert work.exists()
+    assert not work.is_symlink()
+    assert git(work, "rev-parse", "HEAD") == fx.revision
+    assert git(work, "status", "--porcelain") == ""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(
+            {
+                "review_id": review_id,
+                "spec_sha256": sha,
+                "status": "completed",
+                "findings": [],
+                "incomplete": [],
+            },
+            work_dir=work,
+        )
+
+    summary = external_review(fx, monkeypatch, make)
+
+    assert summary["state"] == "failed"
+    assert any(
+        "the worktree of reviewer contains a symlink, so its changes cannot be audited" in reason
+        for reason in summary["reasons"]
+    ), summary["reasons"]
+
+
+def test_external_review_rejects_a_clean_checkout_of_another_repository(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: 同じ版の clean な別 repo を監査すると、担当の worktree の変更を見落として成功扱いする。"""
+    foreign = fx.tmp / "foreign"
+    subprocess.run(["git", "clone", "-q", str(fx.main), str(foreign)], check=True)
+    assert git(foreign, "rev-parse", "HEAD") == fx.revision
+    assert git(foreign, "status", "--porcelain") == ""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(
+            {
+                "review_id": review_id,
+                "spec_sha256": sha,
+                "status": "completed",
+                "findings": [],
+                "incomplete": [],
+            },
+            work_dir=foreign,
+        )
+
+    summary = external_review(fx, monkeypatch, make)
+
+    assert summary["state"] == "failed"
+    assert any(
+        "the worktree of reviewer is not a registered worktree of the repository" in reason
         for reason in summary["reasons"]
     ), summary["reasons"]
 

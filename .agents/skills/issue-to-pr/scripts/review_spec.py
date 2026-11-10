@@ -273,7 +273,8 @@ def compose_prompt(
         f"review_id: {review_id}",
         f"spec_sha256: {spec_sha256}",
         f"round: {round_}",
-        f"repository: {request.issue.repo}",
+        f"repository: {request.repository}",
+        f"issue repository: {request.issue.repo}",
         f"issue: #{request.issue.number} {request.issue.url}",
         f"issue title: {request.issue.title}",
         f"revision: {request.revision}",
@@ -623,7 +624,7 @@ def start(
         )
         _write_new(review_dir / "review.json", record)
         return _summary(review_dir, record, kind)
-    reasons, result = assess(batch, spec_path, request.revision, expected, kind)
+    reasons, result = assess(batch, repository, spec_path, request.revision, expected, kind)
     try:
         current_revision = implement.head(repository)
     except (subprocess.SubprocessError, OSError):
@@ -729,15 +730,20 @@ def _record(
 
 
 def assess(
-    batch: BatchResult, spec_path: Path, revision: str, expected: tuple[str, str], kind: Kind = SPEC_REVIEW
+    batch: BatchResult,
+    repository: Path,
+    spec_path: Path,
+    revision: str,
+    expected: tuple[str, str],
+    kind: Kind = SPEC_REVIEW,
 ) -> tuple[list[str], Any | None]:
     """外部実行の結果を採用できるかを確かめる。理由が 1 つでもあれば採用しない。
 
     runner の checkout 監査は実行中に作られた試行の worktree を見ないので、停止を確認したすべての試行
     （fallback の前に失敗した一次担当を含む）の worktree を git で読み、writes = false の違反を探す。
     payload を持たず準備の前に終わった試行だけを対象外にし、payload を持つ試行と request.json が残る
-    試行は worktree が無いと監査できないので採用しない。worktree 自体が symlink のときも、参照先の
-    HEAD/status を読むと担当の変更を検出できないので採用しない。
+    試行は worktree が無いと監査できないので採用しない。worktree は symlink を含まず、repository に
+    登録された同じ common-dir の実体でなければ、参照先の HEAD/status を読まずに採用しない。
     """
     reasons: list[str] = []
     attempts = [attempt for outcome in batch.results for attempt in outcome.attempts]
@@ -774,7 +780,7 @@ def assess(
         if attempt.work_dir is not None and attempt.work_dir.is_symlink():
             # symlink をたどると clean な参照先を読み、担当の変更を見落とす
             reasons.append(
-                f"the worktree of {attempt.agent_id} is a symlink, so its changes cannot be audited"
+                f"the worktree of {attempt.agent_id} {implement.WORKTREE_SYMLINK}, so its changes cannot be audited"
             )
             continue
         if attempt.work_dir is None or not attempt.work_dir.exists():
@@ -785,6 +791,12 @@ def assess(
                 continue
             # 結果を持つ試行か、準備の記録が残る試行。読取専用の監査を飛ばして受理しない
             reasons.append(f"the worktree of {attempt.agent_id} is missing, so its changes cannot be audited")
+            continue
+        problem = implement.worktree_problem(repository, attempt.work_dir)
+        if problem is not None:
+            reasons.append(
+                f"the worktree of {attempt.agent_id} {problem}, so its changes cannot be audited"
+            )
             continue
         try:
             moved = implement.head(attempt.work_dir) != revision

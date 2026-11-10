@@ -612,8 +612,57 @@ def _registered(repository: Path) -> set[str]:
     }
 
 
+WORKTREE_SYMLINK = "contains a symlink"
+WORKTREE_UNREGISTERED = "is not a registered worktree of the repository"
+WORKTREE_COMMON_DIR = "uses a different git common directory than the repository"
+WORKTREE_UNREADABLE = "cannot be read with git"
+
+
+def _has_symlink(path: Path) -> bool:
+    """パスのどの構成要素（最終要素を含む）が symlink か。参照先はたどらない。"""
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
+
+
+def worktree_problem(repository: Path, work: Path) -> str | None:
+    """work が repository の実体の登録 worktree でなければ、その理由を返す。
+
+    symlink を含むパス、登録されていないパス、Git の common-dir が repository と違うパスは、
+    参照先の監査にも削除にも使わない。理由は空でなく、呼び出し側がそのまま失敗・保持の根拠にできる。
+    """
+    try:
+        path = Path(os.path.abspath(work))
+    except (OSError, ValueError):
+        return WORKTREE_UNREADABLE
+    if _has_symlink(path):
+        return WORKTREE_SYMLINK
+    try:
+        registered = {Path(entry) for entry in _registered(repository)}
+        common = Path(_text(_git(repository, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout))
+    except (subprocess.SubprocessError, OSError):
+        return WORKTREE_UNREADABLE
+    if path not in registered:
+        return WORKTREE_UNREGISTERED
+    try:
+        other = Path(_text(_git(path, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout))
+    except (subprocess.SubprocessError, OSError):
+        return WORKTREE_UNREADABLE
+    if os.path.realpath(common) != os.path.realpath(other):
+        return WORKTREE_COMMON_DIR
+    return None
+
+
 def remove_attempts(repository: Path, batch: BatchResult) -> tuple[list[str], list[dict[str, str]]]:
-    """停止を確認した試行の worktree の登録を外す（force しない）。消せなかったものは理由付きで返す。"""
+    """停止を確認した試行の worktree の登録を外す（force しない）。消せなかったものは理由付きで返す。
+
+    symlink を含むパスと、repository の実体の登録 worktree でないパスは、git worktree remove を
+    呼ばずに保持する。参照先の別 checkout を削除しないため。
+    """
     removed: list[str] = []
     retained: list[dict[str, str]] = []
     for attempt in (attempt for outcome in batch.results for attempt in outcome.attempts):
@@ -624,13 +673,22 @@ def remove_attempts(repository: Path, batch: BatchResult) -> tuple[list[str], li
             retained.append({"path": str(attempt.work_dir.parent), "reason": "stop not confirmed"})
         elif attempt.sensitive_paths:
             retained.append({"path": str(attempt.work_dir.parent), "reason": "sensitive paths may hold secrets"})
+        elif attempt.work_dir.is_symlink():
+            retained.append({"path": work, "reason": WORKTREE_SYMLINK})
         elif not attempt.work_dir.exists():
-            if work in _registered(repository):
+            problem = worktree_problem(repository, attempt.work_dir)
+            if problem == WORKTREE_SYMLINK:
+                retained.append({"path": work, "reason": WORKTREE_SYMLINK})
+            elif work in _registered(repository):
                 retained.append({"path": work, "reason": "registered but missing; remove the registration by hand"})
-        elif _git(repository, "worktree", "remove", "--", work, check=False).returncode == 0:
-            removed.append(work)
         else:
-            retained.append({"path": work, "reason": "git worktree remove refused (uncommitted or untracked files)"})
+            problem = worktree_problem(repository, attempt.work_dir)
+            if problem is not None:
+                retained.append({"path": work, "reason": problem})
+            elif _git(repository, "worktree", "remove", "--", work, check=False).returncode == 0:
+                removed.append(work)
+            else:
+                retained.append({"path": work, "reason": "git worktree remove refused (uncommitted or untracked files)"})
     return removed, retained
 
 
