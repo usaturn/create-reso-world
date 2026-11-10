@@ -226,3 +226,100 @@ M-3 は M-1 修正の回帰（きっかけ 2）であり、点の修正ではな
 - fix-check: `verified/6fa1e57f926e.fix-check.json`
 - 工程の記録: `verified/adfe7ebc1e9c.planning.json`
 - 状況コメント: サイクル 2 の `review-fix-planning` コメント（PR #376）
+
+## レビュー修正（2026-11-10、サイクル3・限定再設計）
+
+planner: `openai-codex/gpt-6.1-sol`（pi）。レビュー対象は `bfd1a72e53382242195640b2df13ac1e686364ea`。サイクル1/2の履歴は当時の実装・判断を示し、現在の監査・回収条件は本節の状態表に従う。
+
+### 実行許可・入力
+
+利用者は、引き継ぎとinspect変更の後に一旦停止し、全面削除の是非を相談した。提案した「既存実装を保存し、worktreeの状態・監査・後片付けだけを限定再設計する」に対し、「提案通りに作業を実施してください」と明示した。これは当該安全境界の再設計の実行許可であり、全面削除・保証の縮小・内容の承認SHAを意味しない。元のissue-to-pr `--merge` と所有範囲は維持する。
+
+旧loop `c8e022a0a20d48ff80172e4e71475161` はDevin再実行の結果がない中断を検出した。関連プロセス不在を確認し、helperのrecoverでabandoned・lock解放済み。旧cycle-endは行わず、修正後の新しいrunへ引き継ぐ。拒否・中断を指摘0件とは扱わない。
+
+| レビューファイル | モデル/runtime | HEAD | 入力の扱い |
+|---|---|---|---|
+| claude-opus-5-5.md | claude-opus-5-5 / claude-code | bfd1a72e5338 | 旧loop受理、M-1 |
+| deepseek-v4.1-flash.md | deepseek-v4.1-flash / pi | bfd1a72e5338 | 旧loop受理、H-1/L-1/I-2 |
+| SWE-2-Max.md | SWE-2 Max / devin | bfd1a72e5338 | 旧loopはpayload拒否。保存済み初回成果を別途検証し、計画入力に含めた。再実行の成果はない |
+
+利用者指定の新inspectは `claude-code_opus_xhigh,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`。未登録のopus/xhighは利用者のOKに基づきSESSIONの作業専用templateにだけ追加し、check-options成功。共有・個人設定は変更していない。implementは既存の明示指定 `pi_opencode-go_deepseek4-flash_max`、fallbackなし。
+
+### 分類
+
+| 指摘 | 判断 | 根拠 |
+|---|---|---|
+| deepseek H-1 / opus M-1 | 対応する（統合） | 祖先symlinkで別実体を監査してcompleted、最終symlinkのcleanupで参照先を削除することを隔離実行で確認。安全性の欠陥 |
+| deepseek L-1 | 対応する | 両promptがIssue repoだけをrepositoryと表示し、対象checkoutを含まない。別repoの規則を選ぶ誤りにつながる |
+| deepseek I-2 | 対応する | Planに従うとfixの既定をsonnetに戻す。Spec/設定と実行指示が矛盾する |
+| SWE L-1 | 対応しない | self submit中のSpec消失は明示エラーで拒否し、元のSpec復元後に同じ結果を再submitしてcompletedへ回復することを実行確認。失敗保存方式の統一は今回の致命的修正ではない |
+| SWE I-1 | 対応しない | TOMLコメントの30分の根拠・位置・1回制の説明不足。設定値とスキルの手順は正しく、動作を誤らせない |
+| 旧opus I-1 | 対応しないを引き継ぐ | review-fix-planningの旧既定記述は所有外、新しい根拠なし |
+
+SWE L-1は復元後も回復不能・記録消失・成功誤報を示す新しい再現、または利用者の名指しで見直す。SWE I-1はコメントを所有する別タスクか利用者の名指しで見直す。過去のM-1/M-2/M-3/S-1/V-1は既存ガードと履歴を確認し、以前のfixを現行HEADで解消済みとする。S-1の祖先・回収への適用漏れは今回のH-1として扱う。
+
+### 守る条件の設計
+
+S-1の `a13852a3` は最終要素のsymlinkを監査側でだけ拒否し、祖先・登録実体・回収が同じ前提を共有していなかった。同じ条件の2回目なので点の修正を続けず、状態分類を共有する形へ見直した。最初の今回修正 `fdd8c8f0` でも「準備前に不在」「異常消失」「以前に回収した」の区別が不足したため、利用者の実行指示に従って限定再設計した。
+
+比較した案は、各呼出元へのガード追加、共有する状態分類と最小回収記録、全面削除/runner・sandboxの新設。共有分類と最小記録を選び、他の機能の破棄・新しい一般的な復旧基盤・保証の縮小は採用しない。opt-in、Spec/IDの照合、採否、設計レビューの停止条件、準備失敗からのfallback、停止/機密/dirtyの保護は維持する。
+
+| 状態 | 確認する事実 | 監査/cleanup |
+|---|---|---|
+| 準備前不在 | 停止確認済み、非成功、payload/依頼記録なし、worktree不在・未登録 | 監査対象外、回収対象なし。成功した試行を準備前と推測しない |
+| 登録実体 | 正規の絶対path、全構成要素にsymlinkなし、同repositoryの登録、同common-dir、Gitで読める実体 | HEAD/statusを監査。回収はforceなしのGitだけ。dirtyなら保持 |
+| 予期しない消失 | 成功/payload/依頼記録/登録の事実があるが実体なし、回収実績なし | failed/retained、runner出力とledgerを保持 |
+| 不適切・確認不能 | symlink、未登録、別common-dir、非正規path、lstat/Git等の読取失敗 | 成功根拠にも削除対象にもしない |
+| helper回収済み | 同じreview/batch/runnerに対応する実績があり、現在も不在・未登録 | cleanupの再実行はno-op。新しいレビュー受理の根拠にはしない |
+| 回収後の再出現 | 実績があるpath/runner領域に実体・リンク・登録が再出現 | 新しい対象として削除せず保持 |
+| 停止未確認/機密 | stop未確認またはsensitive_pathsあり | 実体を監査せずfailed/retained。不在を安全扱いしない |
+
+`implement_task.classify_attempt_worktree` を実装/レビューの監査と共有cleanupが利用する。`remove_attempts(repository, batch)` の既存呼出し・戻り値を維持し、review cleanupは回収済みpathと成功通知を任意引数で渡す。designレビューは共通処理を使い、別実装を増やさない。
+
+成功した回収だけをreview ledgerの `cleanup.jsonl` へ追記し、review_id/kind/Specハッシュ/batch.run_id/runner_dir/当該batchのpathへ結び付ける。既存の結果・採否は上書きしない。実績のない消失を完了と推測せず、部分回収の再実行では成功済みの対象を再操作しない。記録のI/O失敗は明示停止/保持とし、削除済みの実体が元に戻ったとは報告しない。
+
+自己レビューで、この新記録がhardlinkだと別ファイルへ追記する欠陥を確認した（下記H-1）。同じ変更が生んだ安全性の欠陥なので、回収記録の所有する実体も境界に含め、読取前と追記前で同じprivate regular file検査を使う設計に見直した。共有inode・symlink・非regular・対応不一致・破損を、最初の削除を含む副作用より前に拒否する。既存の専用ファイルと部分/再実行の挙動は保つ。
+
+### 受け入れ基準・影響経路と実行証拠
+
+環境は現行Dev Containerとuv、fake adapterと一時Git。日本語/複数行UTF-8のSpec・Issue、正常結果、準備失敗+fallback、成功試行のmissing+unregistered、元の登録文字列を保つ祖先symlink、同pathの別common-dir、初回/部分/繰返し回収、回収後の再出現、hardlinkの記録を扱う。sandbox・実APIによるテスト・runner/adapters/他スキルの変更は対象外。停止済み試行を前提とし、悪意ある同時書換え全般への耐性を追加したとは主張しない。
+
+統合担当はcontroller。関連テストの件数だけでなく、入力→共有分類→監査→保存→回収→再実行まで同じ条件が維持されることを確認した。
+
+| 守る条件 | 経路/変更前 | 判定 | 観測する結果/assertion | 最終コード版と実行証拠 |
+|---|---|---|---|---|
+| 別実体を監査/削除しない | spec/design共有assess、remove_attempts。祖先symlinkを受理、最終symlinkの参照先を削除 | 修正する | failed/retained、参照先bytes/mode/リンク/登録保持 | `79429596`、controller独立再現 `repro-final-code.json` と関連141件成功 |
+| 準備前/異常消失を区別 | 成功したmissing+未登録でも出力を削除 | 修正する | missing成功試行でrunner/ledger保持、準備失敗fallbackは成功 | `79429596`、独立再現/関連141件 |
+| 回収済み/再出現を区別 | review.cleanupは過去の成功を保存しなかった | 修正する | 部分/繰返しcleanup正常、再出現は保持、結果を上書きしない | `79429596`、private receipt/partial/repeat/reappearanceのSテストと関連suite |
+| 記録の共有実体へ書かない | 新しいappendがhardlinkへ追記 | 修正する | 削除前に拒否、別ファイルbytes/mode/inode・登録・runner・既存記録保持 | `79429596`、`hardlink-receipt-fixed.json`。不正記録を拒否し全対象保持 |
+| 通常操作/停止・機密・dirty | implement/review/designの共通回収 | 既に満たす条件を維持 | cleanだけ回収、その他保持、fallback/版検査を維持 | `79429596`、関連141件・skills800件 |
+| 対象の取り違えを防ぐ | spec/design compose_promptがIssue repoだけを出した | 修正する | code checkout/Issue repoを別ラベルで生成 | `79429596`、独立prompt生成で両値確認、コードのラベル照合 |
+| 既定担当を誤って変更しない | Planがfixもsonnet、Spec draftと記載 | 修正する | issue=sonnet xhigh/fix=self/Spec completedに整合 | `fdd8c8f0`のPlan修正と最終差分/設定/参照照合。後続は当該値を変更していない |
+| self submitの消失時の記録方式 | Spec消失はエラー、復元で回復 | 対象外 | SWE L-1のskip理由に従う | 一時再現で復元後completed。今回この経路を変更していない |
+
+テストはSだけを追加し、共有ガードは実装モジュールの代表へまとめた。祖先負例は元の登録文字列を維持し、他の異常がガードを隠さない。文書/名前の固定値テストは追加していない。
+
+失敗時は参照先のbytes/mode/リンク・worktree登録・runner/ledger・既存結果の前後を比較した。中心symlinkガードを1つだけ外す隔離対照では、元の登録文字列を保った祖先pathがcompletedになり、安全条件の破れを検出した。private receiptの共有inodeガードだけを外す隔離対照でも、新規hardlink負例1件が失敗した（exit1）。いずれも専用worktreeのガードを外しておらず、対照用worktreeは回収した。
+
+### 自己レビュー・担当・検証結果
+
+- `run_roles.py --phase self-review` は1回だけ。self-review/fix-checkはいずれもselfで、自己レビュー枠の予約を保持した。PR全体レビューは `gpt-6.1-sol`（pi）のprepare/completeが成功、cleanup成功。High H-1（hardlink）とInfo I-2（重複/複数異常のテスト）を記録した。
+- fix-checkは6主張・6変更ファイル・209文書候補を列挙して検査し、回収記録H-1をV-1、テストの問題をV-2として確認した。確認対象版は `87403ff0`。当該版の違反記録を上書きして修正済みにしていない。
+- 修正: 子 `8e083090` → 専用worktree `fdd8c8f0`（最初の境界/prompt/Plan）、子 `e358abeb` → `87403ff0`（共有状態と最小回収記録）、子 `6e442fa9` → `79429596`（private receipt・代表負例の整理）。既存実装/履歴を削除していない。
+- 自己レビュー後の修正は再レビューしていない。最後の変更後にcontrollerが独立再現・対照・関連/環境検証をやり直した。未実施はその修正後の追加レビューと実モデル/APIによるテストであり、成功とは報告しない。
+- 全実装担当は `pi_opencode-go_deepseek4-flash_max`。runner観測は `deepseek-v4.1-flash / opencode-go / max`、fallbackなし、成功した3依頼はstop_confirmed=true。途中の補正依頼は利用者停止で中断し、結果なし・プロセス不在を確認、成果を取り込んでいない。
+- 実装担当は限定再設計と自己レビュー後修正で各1回 `python3` を使った（機械的編集/使い捨てprobe）。規約違反として残す。テスト/検証はuvで実行し、違反を規約遵守や検証成功へ読み替えない。
+
+最終コード `79429596a26b989bd1f808aa18c66be1cd938bb8` でcontrollerが同期実行:
+
+- 関連pytest: **141 passed in 171.31s**、exit0。
+- `bash .devcontainer/run-tests.bash`: **27件成功**、exit0。
+- `uv run pytest tests/skills .agents/skills -q`: **800 passed in 556.46s**、exit0。
+- 変更Pythonのruff E4/E7/E9/F、layout、`git diff --check bfd1a72e...HEAD`: すべてexit0。
+- 独立再現: hardlink拒否前後で別ファイル/登録/runner保持、最終/祖先symlink・別repo・missing成功を拒否/保持、正常回収と両prompt生成を確認。
+
+証拠の保存先は `/workspaces/reso-world/tmp/agents/issue-353-c3.e0m_q84t`（controller-checks.jsonlと各ログ、独立再現、対照差分/結果、全担当の役割/結果）。所要時間はrunner実測で最初の実装764.92秒、限定再設計2759.02秒、自己レビュー後修正899.32秒。自己レビューは400.02秒。未測定のcontroller能動時間を0や推測値で補わない。
+
+確認済み一覧: `verified/bfd1a72e5338.json`。自己レビュー: `gpt-6.1-sol-commit-87403ff0b7629aef19b7b9024ac631c87296dd3e.md`。fix-check: `verified/87403ff0b762.fix-check.json`。工程の記録: `verified/bfd1a72e5338.planning.json`。保存先はいずれもPR #376のレビューディレクトリ。
+
+結論は1（修正して既存PRへpush）。公開後のSHA・状況コメント・新loop・マージ結果はPR/loop記録とhandoffに記し、このSpecへ結果追記だけのcommitを増やさない。
