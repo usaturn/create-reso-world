@@ -1917,6 +1917,8 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
     """1 回の試行の診断。ログは ``read_log_tail`` の条件でだけ読み、読んだ文は分類にだけ使う。
 
     ``runtime`` は担当の設定のランタイム（分からなければ None）。JSON のイベントの stream でない stdout は照合の文にしない。
+    承認待ちの payload はモデルの回答ではなく adapter が実際に使った判定根拠なので、検証済みの項目だけを
+    ``approval`` に保存し、原因の分類では既存の認証優先を維持する。
     """
     unavailable: dict[DiagnosticItem, Unavailable] = {}
     stdout, missing = read_log_tail(attempt.stdout_path, attempt, output_dir)
@@ -1934,6 +1936,11 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
     observed = "stdout" not in unavailable and "stderr" not in unavailable
     text, reported = diagnostic_text(stdout, stderr, prose=runtime not in _EVENT_STREAM_RUNTIMES)
     approval = approval_evidence(attempt, runtime)
+    cause = classify_cause(text, attempt, reported=reported, observed=observed)
+    # 承認根拠は保存するが、既存の分類が認証を示すときは認証を優先する。認証の復旧に必要な診断を、
+    # 同じ文に含まれる承認要求の根拠で上書きしない。
+    if approval is not None and cause != "authentication":
+        cause = "approval"
     return AttemptDiagnostic(
         agent_id=attempt.agent_id,
         state=attempt.state,
@@ -1941,11 +1948,7 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
         exit_code=attempt.exit_code,
         stop_confirmed=attempt.stop_confirmed,
         elapsed_seconds=attempt.elapsed_seconds,
-        cause=(
-            "approval"
-            if approval is not None
-            else classify_cause(text, attempt, reported=reported, observed=observed)
-        ),
+        cause=cause,
         approval=approval,
         unavailable=unavailable,
     )

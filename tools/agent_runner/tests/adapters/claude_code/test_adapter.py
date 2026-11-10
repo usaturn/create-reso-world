@@ -134,14 +134,6 @@ def test_permission_denials_report_awaiting_approval(context: AdapterContext) ->
 @pytest.mark.parametrize(
     ("events", "stderr", "expected"),
     [
-        pytest.param((_result(),), "requires approval", {
-            "source": "diagnostic_text",
-            "terminal_subtype": "success",
-            "is_error": False,
-            "permission_denials": False,
-            "denial_count": 0,
-            "diagnostic_sources": ["stderr"],
-        }, id="stderr"),
         pytest.param((
             {"type": "error", "error": {"message": "requires approval"}},
             _result(),

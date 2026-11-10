@@ -733,6 +733,38 @@ def test_claude_approval_evidence_survives_cleanup(loop: Any, env: Any, case: st
     )
 
 
+def test_claude_authentication_priority_keeps_approval_evidence(loop: Any, env: Any) -> None:
+    # stderr は adapter では承認待ちの根拠になるが、既存の原因分類では認証が優先する。承認根拠を保存しつつ、
+    # 復旧に必要な認証の分類を承認で上書きしない（#370 のレビュー）。実 adapter の保存経路と回収を通す。
+    run_dir = started_cycle(loop, env)
+    result: dict[str, object] = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": '{"status": "success"}',
+        "permission_denials": [],
+        "session_id": "fixture-session",
+    }
+    adapter = ClaudeNDJSONReviewers(
+        {"beta": {"stdout": json.dumps(result) + "\n", "stderr": "Error: token expired; requires approval\n"}},
+        env.reviewers({"alpha": "success"}),
+    )
+
+    reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    assert [entry["agent"] for entry in reviewed["accepted"]] == ["alpha"]
+    (rejected,) = reviewed["rejected"]
+    assert (rejected["agent"], rejected["rejected_stage"], rejected["diagnostic_error"]) == (
+        "beta",
+        "runner",
+        None,
+    )
+    (attempt,) = read_diagnostic(loop, rejected["diagnostic_file"]).attempts
+    assert (attempt.state, attempt.cause, attempt.exit_code) == ("awaiting_approval", "authentication", 0)
+    assert attempt.approval is not None
+    assert (attempt.approval.source, attempt.approval.diagnostic_sources) == ("diagnostic_text", ["stderr"])
+
+
 def test_different_failures_leave_distinct_causes_after_cleanup(loop: Any, env: Any) -> None:
     # Issue #212 の再現と同じ形: 原因の違う失敗が、ログを回収した後も原因の分類で区別できる（受け入れ条件 1・5）
     run_dir = started_cycle(loop, env)
