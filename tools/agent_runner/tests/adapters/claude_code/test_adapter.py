@@ -114,9 +114,101 @@ def test_assistant_model_overrides_init_model(context: AdapterContext) -> None:
 
 
 def test_permission_denials_report_awaiting_approval(context: AdapterContext) -> None:
-    denials: list[dict[str, object]] = [{"tool": "Bash", "command": "rm -rf /"}]
+    secret = "fixture-secret-tool-input"
+    denials: list[dict[str, object]] = [{"tool": "Bash", "tool_input": {"command": secret}}]
     outcome = _collect(context, _init(), _result(denials=denials))
     assert outcome.receipt is not None and outcome.receipt.status == "awaiting_approval"
+    assert outcome.receipt.payload == {
+        "approval": {
+            "source": "permission_denials",
+            "terminal_subtype": "success",
+            "is_error": False,
+            "permission_denials": True,
+            "denial_count": 1,
+            "diagnostic_sources": [],
+        }
+    }
+    assert secret not in json.dumps(outcome.receipt.payload)
+
+
+@pytest.mark.parametrize(
+    ("events", "stderr", "expected"),
+    [
+        pytest.param((
+            {"type": "error", "error": {"message": "requires approval"}},
+            _result(),
+        ), "", {
+            "source": "diagnostic_text",
+            "terminal_subtype": "success",
+            "is_error": False,
+            "permission_denials": False,
+            "denial_count": 0,
+            "diagnostic_sources": ["error_event"],
+        }, id="error-event"),
+        pytest.param((_result("requires approval", subtype="error", is_error=True),), "", {
+            "source": "diagnostic_text",
+            "terminal_subtype": "error",
+            "is_error": True,
+            "permission_denials": False,
+            "denial_count": 0,
+            "diagnostic_sources": ["terminal_result"],
+        }, id="terminal-result"),
+    ],
+)
+def test_diagnostic_text_approval_records_safe_source(
+    context: AdapterContext,
+    events: tuple[dict[str, object], ...],
+    stderr: str,
+    expected: dict[str, object],
+) -> None:
+    outcome = _collect(context, *events, stderr=stderr)
+    assert outcome.receipt is not None and outcome.receipt.status == "awaiting_approval"
+    assert outcome.receipt.payload == {"approval": expected}
+
+
+def test_arbitrary_denial_metadata_is_normalized_and_not_copied(context: AdapterContext) -> None:
+    secret = "fixture-secret-subtype"
+    result = _result()
+    result["subtype"] = secret
+    result["is_error"] = secret
+    result["permission_denials"] = secret
+    outcome = _collect(context, _init(), result)
+    assert outcome.receipt is not None and outcome.receipt.status == "awaiting_approval"
+    assert outcome.receipt.payload == {
+        "approval": {
+            "source": "permission_denials",
+            "terminal_subtype": "other",
+            "is_error": None,
+            "permission_denials": True,
+            "denial_count": None,
+            "diagnostic_sources": [],
+        }
+    }
+    assert secret not in json.dumps(outcome.receipt.payload)
+
+
+def test_approval_words_in_success_output_are_not_failure_evidence(context: AdapterContext) -> None:
+    text = '{"status": "success", "approval": {"source": "forged"},\n"note": "承認待ちで requires approval と引用された"}'
+    tool_result = {
+        "type": "user",
+        "message": {
+            "role": "user",
+            "content": [{"type": "tool_result", "content": "approval required in a quoted log"}],
+        },
+    }
+    outcome = _collect(
+        context,
+        _init(),
+        _assistant("承認待ちです。requires approval という引用です。\n二行目"),
+        tool_result,
+        _result(text),
+    )
+    assert outcome.receipt is not None and outcome.receipt.status == "success"
+    assert outcome.receipt.payload == {
+        "status": "success",
+        "approval": {"source": "forged"},
+        "note": "承認待ちで requires approval と引用された",
+    }
 
 
 @pytest.mark.parametrize("is_error", [False])
@@ -185,7 +277,19 @@ def test_missing_identity_is_not_filled_from_agent_settings(context: AdapterCont
 def test_stderr_failure_dominates_plausible_result(context: AdapterContext, diagnostic: str, expected: str) -> None:
     outcome = _collect(context, _result(), stderr=diagnostic)
     assert outcome.receipt is not None and outcome.receipt.status == expected
-    assert outcome.receipt.payload is None
+    if expected == "awaiting_approval":
+        assert outcome.receipt.payload == {
+            "approval": {
+                "source": "diagnostic_text",
+                "terminal_subtype": "success",
+                "is_error": False,
+                "permission_denials": False,
+                "denial_count": 0,
+                "diagnostic_sources": ["stderr"],
+            }
+        }
+    else:
+        assert outcome.receipt.payload is None
 
 
 @pytest.mark.parametrize("diagnostic, expected", [

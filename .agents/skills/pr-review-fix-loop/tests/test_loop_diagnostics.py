@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 
 from tools.agent_runner.adapters import AdapterOutcome, Capabilities, LaunchSpec
+from tools.agent_runner.adapters.claude_code import ADAPTER as CLAUDE_CODE_ADAPTER
 from tools.agent_runner.models import Attempt, BatchResult, Identity, Result
 
 pytest_plugins = ("tools.test_support.plugin",)
@@ -164,6 +165,106 @@ def test_response_extraction_is_decided_from_the_end_state(
     )
 
     assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
+
+
+def test_success_payload_approval_key_is_not_a_diagnostic(loop: Any, tmp_path: Path) -> None:
+    secret = "fixture-approval-payload-secret"
+    stdout = json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "permission_denials": [],
+            "result": "承認待ち。requires approval と引用された。",
+        }
+    ) + "\n"
+    attempt, output = failed_attempt(
+        tmp_path,
+        stdout=stdout,
+        state="success",
+        reported_state="success",
+        exit_code=0,
+        payload={
+            "approval": {
+                "source": "permission_denials",
+                "terminal_subtype": "success",
+                "is_error": False,
+                "permission_denials": True,
+                "denial_count": 1,
+                "diagnostic_sources": [],
+            },
+            "raw": secret,
+        },
+    )
+
+    diagnostic = loop.diagnose_attempt(attempt, output, runtime="claude-code")
+
+    assert diagnostic.approval is None
+    assert diagnostic.cause == "unknown"
+    assert secret not in diagnostic.model_dump_json()
+
+
+def test_other_runtime_approval_payload_is_not_a_diagnostic(loop: Any, tmp_path: Path) -> None:
+    secret = "fixture-other-runtime-secret"
+    attempt, output = failed_attempt(
+        tmp_path,
+        state="awaiting_approval",
+        exit_code=0,
+        payload={
+            "approval": {
+                "source": "permission_denials",
+                "terminal_subtype": "success",
+                "is_error": False,
+                "permission_denials": True,
+                "denial_count": 1,
+                "diagnostic_sources": [],
+            },
+            "raw": secret,
+        },
+    )
+
+    diagnostic = loop.diagnose_attempt(attempt, output, runtime="pi")
+
+    assert diagnostic.approval is None
+    assert diagnostic.cause == "unknown"
+    assert secret not in diagnostic.model_dump_json()
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        {
+            "source": "permission_denials",
+            "terminal_subtype": "success",
+            "is_error": False,
+            "permission_denials": True,
+            "denial_count": 1,
+            "diagnostic_sources": [],
+            "raw": "fixture-approval-metadata-secret",
+        },
+        {
+            "source": "permission_denials",
+            "terminal_subtype": "success",
+            "is_error": 1,
+            "permission_denials": True,
+            "denial_count": -1,
+            "diagnostic_sources": [],
+        },
+    ],
+    ids=["unknown-key", "wrong-types"],
+)
+def test_malformed_approval_payload_is_not_a_diagnostic(loop: Any, tmp_path: Path, forged: dict[str, Any]) -> None:
+    attempt, output = failed_attempt(
+        tmp_path,
+        state="awaiting_approval",
+        exit_code=0,
+        payload={"approval": forged},
+    )
+
+    diagnostic = loop.diagnose_attempt(attempt, output, runtime="claude-code")
+
+    assert diagnostic.approval is None
+    assert "fixture-approval-metadata-secret" not in diagnostic.model_dump_json()
 
 
 def pi_message(stop_reason: str, error: str | None = None) -> dict[str, Any]:
@@ -467,6 +568,42 @@ sys.exit(spec["exit"])
 """
 
 
+CLAUDE_NDJSON_PROGRAM = r"""
+import json, sys
+spec = json.loads(sys.argv[1])
+sys.stdout.write(spec["stdout"])
+sys.stderr.write(spec["stderr"])
+sys.exit(spec.get("exit", 0))
+"""
+
+
+class ClaudeNDJSONReviewers:
+    """Claude の NDJSON を書く偽の CLI と、本物の Claude adapter の collect を組み合わせる。
+
+    receipt は書かない。runner は adapter が返した receipt を既存の保存経路に載せ、終了コード 0 の成功結果でも
+    permission_denials を承認待ちのまま保存する。
+    """
+
+    def __init__(self, fixtures: dict[str, dict[str, object]], others: Any) -> None:
+        self.capabilities = Capabilities()
+        self.fixtures = fixtures
+        self.others = others
+
+    def __call__(self, runtime: str) -> ClaudeNDJSONReviewers:
+        return self
+
+    def prepare(self, context: Any) -> LaunchSpec:
+        if context.request.agent_id not in self.fixtures:
+            return self.others.prepare(context)
+        fixture = self.fixtures[context.request.agent_id]
+        return LaunchSpec(argv=(sys.executable, "-c", CLAUDE_NDJSON_PROGRAM, json.dumps(fixture)), stdin=b"")
+
+    def collect(self, context: Any, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
+        if context.request.agent_id not in self.fixtures:
+            return self.others.collect(context, stdout_path, stderr_path)
+        return CLAUDE_CODE_ADAPTER.collect(context, stdout_path, stderr_path)
+
+
 class MixedReviewers:
     """failures の担当は FAILING_PROGRAM、ほかは conftest の偽のレビュアー（others）に任せる adapter。
 
@@ -528,6 +665,104 @@ def registered_worktrees(root: Path) -> list[str]:
 def read_diagnostic(loop: Any, path: str | None) -> Any:
     assert path is not None
     return loop.ReviewerDiagnostic.model_validate_json(Path(path).read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("case", ["terminal-denial", "stderr"], ids=["terminal-denial", "stderr"])
+def test_claude_approval_evidence_survives_cleanup(loop: Any, env: Any, case: str) -> None:
+    # 実 adapter の判定根拠が runner の保存経路を通り、生ログの回収後も診断に残る（受け入れ条件 1・4）
+    secret = "fixture-" + uuid.uuid4().hex
+    run_dir = started_cycle(loop, env)
+    result: dict[str, object] = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": '{"status": "success"}',
+        "permission_denials": [],
+        "session_id": "fixture-session",
+    }
+    stderr = ""
+    expected: tuple[str, str, bool, bool, int, list[str]]
+    if case == "terminal-denial":
+        result["permission_denials"] = [{"tool_name": "Bash", "tool_input": {"command": secret}}]
+        expected = ("permission_denials", "success", False, True, 1, [])
+    else:
+        result["subtype"] = secret
+        stderr = "requires approval\n"
+        expected = ("diagnostic_text", "other", False, False, 0, ["stderr"])
+    adapter = ClaudeNDJSONReviewers(
+        {"beta": {"stdout": json.dumps(result) + "\n", "stderr": stderr}},
+        env.reviewers({"alpha": "success"}),
+    )
+
+    reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    assert [entry["agent"] for entry in reviewed["accepted"]] == ["alpha"]
+    (rejected,) = reviewed["rejected"]
+    assert (rejected["agent"], rejected["rejected_stage"], rejected["diagnostic_error"]) == (
+        "beta",
+        "runner",
+        None,
+    )
+    cycle = loop.load_cycles(run_dir)[-1]
+    (attempt,) = read_diagnostic(loop, rejected["diagnostic_file"]).attempts
+    assert (attempt.state, attempt.cause, attempt.exit_code) == ("awaiting_approval", "approval", 0)
+    assert attempt.approval is not None
+    assert (
+        attempt.approval.source,
+        attempt.approval.terminal_subtype,
+        attempt.approval.is_error,
+        attempt.approval.permission_denials,
+        attempt.approval.denial_count,
+        attempt.approval.diagnostic_sources,
+    ) == expected
+    run = loop.load_run(run_dir)
+    assert [resource.state for resource in run.resources] == ["removed"]
+    assert not Path(run.resources[0].path).exists()
+    saved = saved_text(env.review_dir)
+    assert secret not in saved
+    assert secret not in json.dumps(attempt.approval.model_dump(mode="json"), ensure_ascii=False)
+
+    batch_text = Path(cycle.review.batch.result_file).read_text(encoding="utf-8")
+    assert secret not in batch_text
+    batch = BatchResult.model_validate_json(batch_text)
+    beta_attempt = next(result for result in batch.results if result.actual_agent == "beta").attempts[0]
+    assert (beta_attempt.state, beta_attempt.reported_state, beta_attempt.exit_code) == (
+        "awaiting_approval",
+        "awaiting_approval",
+        0,
+    )
+
+
+def test_claude_authentication_priority_keeps_approval_evidence(loop: Any, env: Any) -> None:
+    # stderr は adapter では承認待ちの根拠になるが、既存の原因分類では認証が優先する。承認根拠を保存しつつ、
+    # 復旧に必要な認証の分類を承認で上書きしない（#370 のレビュー）。実 adapter の保存経路と回収を通す。
+    run_dir = started_cycle(loop, env)
+    result: dict[str, object] = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": '{"status": "success"}',
+        "permission_denials": [],
+        "session_id": "fixture-session",
+    }
+    adapter = ClaudeNDJSONReviewers(
+        {"beta": {"stdout": json.dumps(result) + "\n", "stderr": "Error: token expired; requires approval\n"}},
+        env.reviewers({"alpha": "success"}),
+    )
+
+    reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    assert [entry["agent"] for entry in reviewed["accepted"]] == ["alpha"]
+    (rejected,) = reviewed["rejected"]
+    assert (rejected["agent"], rejected["rejected_stage"], rejected["diagnostic_error"]) == (
+        "beta",
+        "runner",
+        None,
+    )
+    (attempt,) = read_diagnostic(loop, rejected["diagnostic_file"]).attempts
+    assert (attempt.state, attempt.cause, attempt.exit_code) == ("awaiting_approval", "authentication", 0)
+    assert attempt.approval is not None
+    assert (attempt.approval.source, attempt.approval.diagnostic_sources) == ("diagnostic_text", ["stderr"])
 
 
 def test_different_failures_leave_distinct_causes_after_cleanup(loop: Any, env: Any) -> None:

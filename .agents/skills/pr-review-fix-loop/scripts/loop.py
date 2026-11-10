@@ -31,7 +31,7 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Literal, cast
+from typing import Annotated, Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -274,6 +274,27 @@ Unavailable = Literal[
     "not_observed",
 ]
 DiagnosticItem = Literal["stdout", "stderr", "exit_code", "reported_state"]
+ApprovalSource = Literal["permission_denials", "diagnostic_text"]
+TerminalSubtype = Literal["success", "error", "other", "not_observed"]
+DiagnosticSource = Literal["stderr", "error_event", "terminal_result"]
+StrictBool = Annotated[bool, Field(strict=True)]
+NonNegativeStrictInt = Annotated[int, Field(strict=True, ge=0)]
+
+
+class ApprovalDiagnostic(StrictModel):
+    """Claude Code が実際に承認待ちと判定した根拠だけを再構築した診断。
+
+    ``source`` は判定に使った経路、``diagnostic_sources`` はテキスト経路の照合先。terminal の
+    subtype は固定値に正規化し、``is_error`` と拒否件数は型を厳密に確かめる。許可していない
+    キー・値は保存せず、根拠が不正なら ``approval`` 自体を付けない。
+    """
+
+    source: ApprovalSource
+    terminal_subtype: TerminalSubtype
+    is_error: StrictBool | None
+    permission_denials: StrictBool
+    denial_count: NonNegativeStrictInt | None
+    diagnostic_sources: list[DiagnosticSource]
 
 
 class AttemptDiagnostic(StrictModel):
@@ -286,6 +307,7 @@ class AttemptDiagnostic(StrictModel):
     stop_confirmed: bool
     elapsed_seconds: float
     cause: Cause
+    approval: ApprovalDiagnostic | None = None
     unavailable: dict[DiagnosticItem, Unavailable] = Field(default_factory=dict[DiagnosticItem, Unavailable])
 
 
@@ -1877,10 +1899,26 @@ def classify_cause(text: str, attempt: Attempt, *, reported: bool, observed: boo
     return "unknown"
 
 
+def approval_evidence(attempt: Attempt, runtime: str | None) -> ApprovalDiagnostic | None:
+    """Claude Code の承認待ち試行の payload から、許可した項目だけを診断へ再構築する。
+
+    payload の ``approval`` はモデルの回答ではなく、adapter が承認待ちと判定した根拠である。
+    成功回答・他ランタイム・承認待ち以外の状態・不正な型や未知のキーは根拠にしない。
+    """
+    if runtime != "claude-code" or attempt.state != "awaiting_approval" or not isinstance(attempt.payload, dict):
+        return None
+    try:
+        return ApprovalDiagnostic.model_validate(attempt.payload.get("approval"))
+    except ValidationError:
+        return None
+
+
 def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None) -> AttemptDiagnostic:
     """1 回の試行の診断。ログは ``read_log_tail`` の条件でだけ読み、読んだ文は分類にだけ使う。
 
     ``runtime`` は担当の設定のランタイム（分からなければ None）。JSON のイベントの stream でない stdout は照合の文にしない。
+    承認待ちの payload はモデルの回答ではなく adapter が実際に使った判定根拠なので、検証済みの項目だけを
+    ``approval`` に保存し、原因の分類では既存の認証優先を維持する。
     """
     unavailable: dict[DiagnosticItem, Unavailable] = {}
     stdout, missing = read_log_tail(attempt.stdout_path, attempt, output_dir)
@@ -1897,6 +1935,12 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
     # 切れた行に試行を終わらせた失敗が隠れうる
     observed = "stdout" not in unavailable and "stderr" not in unavailable
     text, reported = diagnostic_text(stdout, stderr, prose=runtime not in _EVENT_STREAM_RUNTIMES)
+    approval = approval_evidence(attempt, runtime)
+    cause = classify_cause(text, attempt, reported=reported, observed=observed)
+    # 承認根拠は保存するが、既存の分類が認証を示すときは認証を優先する。認証の復旧に必要な診断を、
+    # 同じ文に含まれる承認要求の根拠で上書きしない。
+    if approval is not None and cause != "authentication":
+        cause = "approval"
     return AttemptDiagnostic(
         agent_id=attempt.agent_id,
         state=attempt.state,
@@ -1904,7 +1948,8 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
         exit_code=attempt.exit_code,
         stop_confirmed=attempt.stop_confirmed,
         elapsed_seconds=attempt.elapsed_seconds,
-        cause=classify_cause(text, attempt, reported=reported, observed=observed),
+        cause=cause,
+        approval=approval,
         unavailable=unavailable,
     )
 
