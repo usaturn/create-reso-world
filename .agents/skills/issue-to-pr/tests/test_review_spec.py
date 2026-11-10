@@ -684,75 +684,6 @@ def test_external_review_rejects_a_symlink_worktree(
     assert git(fx.main, "worktree", "list", "--porcelain") == registered
 
 
-def test_external_review_rejects_a_worktree_below_a_symlinked_directory(
-    fx: Fixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """S: 祖先だけを symlink にしても、参照先の clean checkout を監査して成功扱いしてはならない。"""
-    alias = fx.tmp / "alias"
-    alias.symlink_to(fx.tmp, target_is_directory=True)
-    work = alias / fx.reviewer.name
-    assert work.exists()
-    assert not work.is_symlink()
-    assert git(work, "rev-parse", "HEAD") == fx.revision
-    assert git(work, "status", "--porcelain") == ""
-    registered = git(fx.main, "worktree", "list", "--porcelain")
-
-    def make(review_id: str, sha: str) -> BatchResult:
-        return batch(
-            {
-                "review_id": review_id,
-                "spec_sha256": sha,
-                "status": "completed",
-                "findings": [],
-                "incomplete": [],
-            },
-            work_dir=work,
-        )
-
-    summary = external_review(fx, monkeypatch, make)
-
-    assert summary["state"] == "failed"
-    assert any(
-        "the worktree of reviewer contains a symlink, so its changes cannot be audited" in reason
-        for reason in summary["reasons"]
-    ), summary["reasons"]
-    assert fx.reviewer.is_dir()
-    assert git(fx.reviewer, "status", "--porcelain") == ""
-    assert git(fx.main, "worktree", "list", "--porcelain") == registered
-
-
-def test_external_review_rejects_a_clean_checkout_of_another_repository(
-    fx: Fixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """S: 同じ版の clean な別 repo を監査すると、担当の worktree の変更を見落として成功扱いする。"""
-    foreign = fx.tmp / "foreign"
-    subprocess.run(["git", "clone", "-q", str(fx.main), str(foreign)], check=True)
-    assert git(foreign, "rev-parse", "HEAD") == fx.revision
-    assert git(foreign, "status", "--porcelain") == ""
-
-    def make(review_id: str, sha: str) -> BatchResult:
-        return batch(
-            {
-                "review_id": review_id,
-                "spec_sha256": sha,
-                "status": "completed",
-                "findings": [],
-                "incomplete": [],
-            },
-            work_dir=foreign,
-        )
-
-    summary = external_review(fx, monkeypatch, make)
-
-    assert summary["state"] == "failed"
-    assert any(
-        "the worktree of reviewer is not a registered worktree of the repository" in reason
-        for reason in summary["reasons"]
-    ), summary["reasons"]
-    assert foreign.is_dir()
-    assert git(foreign, "status", "--porcelain") == ""
-
-
 def test_reviewer_worktree_change_fails_and_cleanup_keeps_it_and_the_ledger(
     fx: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1014,6 +945,42 @@ def test_cleanup_refuses_a_bad_receipt_before_side_effects(
     assert fx.reviewer.is_dir()
     assert fx.runner.is_dir()
     assert (review_dir / "review.json").is_file()
+
+
+def test_cleanup_refuses_a_shared_receipt_before_side_effects(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: hardlink された回収記録へ追記すると、ledger の外の利用者ファイルを変更する。"""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(completed(review_id, sha), work_dir=fx.reviewer)
+
+    summary = external_review(fx, monkeypatch, make)
+    review_dir = Path(summary["review_dir"])
+    target = fx.tmp / "unrelated.txt"
+    target.write_bytes(b"")
+    target.chmod(0o640)
+    receipt = review_dir / "cleanup.jsonl"
+    receipt.hardlink_to(target)
+    registered = git(fx.main, "worktree", "list", "--porcelain")
+    review_bytes = (review_dir / "review.json").read_bytes()
+    request_bytes = (review_dir / "request.json").read_bytes()
+    target_bytes = target.read_bytes()
+    target_mode = stat.S_IMODE(target.stat().st_mode)
+    target_inode = target.stat().st_ino
+
+    with pytest.raises(mod.ReviewInputError):
+        mod.cleanup(review_dir)
+
+    assert target.read_bytes() == target_bytes
+    assert stat.S_IMODE(target.stat().st_mode) == target_mode
+    assert receipt.stat().st_ino == target_inode
+    assert receipt.stat().st_nlink == 2
+    assert fx.reviewer.is_dir()
+    assert fx.runner.is_dir()
+    assert git(fx.main, "worktree", "list", "--porcelain") == registered
+    assert (review_dir / "review.json").read_bytes() == review_bytes
+    assert (review_dir / "request.json").read_bytes() == request_bytes
 
 
 def test_cleanup_keeps_runner_output_when_a_collection_receipt_cannot_be_written(

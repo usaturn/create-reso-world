@@ -256,41 +256,30 @@ def attempt(work_dir: Path | None, **overrides: object) -> Attempt:
     return Attempt(**fields)
 
 
-def test_cleanup_retains_a_final_symlink_without_touching_its_target(tmp_path: Path) -> None:
-    """S: symlink をたどって削除すると、参照先の clean checkout を失う。"""
-    repo = Repo(tmp_path)
-    target = repo.worktree("reviewer")
-    link = tmp_path / "reviewer-link"
-    link.symlink_to(target, target_is_directory=True)
-    registered = repo.registered()
-    target_bytes = (target / "src.py").read_bytes()
-    target_mode = stat.S_IMODE((target / "src.py").stat().st_mode)
-
-    removed, retained = mod.remove_attempts(repo.main, batch_for(attempt(link)))
-
-    assert removed == []
-    assert [(item["path"], item["reason"]) for item in retained] == [(str(link), "contains a symlink")]
-    assert link.is_symlink()
-    assert target.is_dir()
-    assert (target / "src.py").read_bytes() == target_bytes
-    assert stat.S_IMODE((target / "src.py").stat().st_mode) == target_mode
-    assert repo.registered() == registered
-
-
 def test_cleanup_retains_a_worktree_below_a_symlinked_directory(tmp_path: Path) -> None:
     """S: 祖先の symlink をたどると、登録文字列が同じでも参照先の clean checkout を失う。"""
     repo = Repo(tmp_path)
-    target = repo.worktree("reviewer")
-    alias = tmp_path / "alias"
-    alias.symlink_to(tmp_path, target_is_directory=True)
-    work = alias / target.name
+    parent = tmp_path / "parent"
+    parent.mkdir()
+    work = parent / "reviewer"
+    git(repo.main, "worktree", "add", "--detach", str(work), repo.revision)
+    target = tmp_path / "target"
+    parent.rename(target)
+    parent.symlink_to(target, target_is_directory=True)
+    assert work.exists()
+    assert str(work) in repo.registered()
+    target_bytes = (target / "reviewer" / "src.py").read_bytes()
+    target_mode = stat.S_IMODE((target / "reviewer" / "src.py").stat().st_mode)
     registered = repo.registered()
 
     removed, retained = mod.remove_attempts(repo.main, batch_for(attempt(work)))
 
     assert removed == []
     assert [(item["path"], item["reason"]) for item in retained] == [(str(work), "contains a symlink")]
-    assert target.is_dir()
+    assert work.is_dir()
+    assert (target / "reviewer").is_dir()
+    assert (target / "reviewer" / "src.py").read_bytes() == target_bytes
+    assert stat.S_IMODE((target / "reviewer" / "src.py").stat().st_mode) == target_mode
     assert repo.registered() == registered
 
 

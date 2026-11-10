@@ -19,10 +19,12 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -972,6 +974,26 @@ def _receipt_path(review_dir: Path) -> Path:
     return review_dir / CLEANUP_RECEIPT
 
 
+@contextmanager
+def _open_cleanup_receipt(path: Path, flags: int) -> Iterator[int]:
+    """回収記録を開き、ledger 内の専用の regular file か確かめる。
+
+    symlink をたどらず、hardlink など共有された実体は読み書きしない。追記側も同じ確認をする。
+    """
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_NONBLOCK"):
+        flags |= os.O_NONBLOCK
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ReviewInputError("the cleanup receipt is not a private regular file")
+        yield descriptor
+    finally:
+        os.close(descriptor)
+
+
 def _read_cleanup_events(
     review_dir: Path,
     request: dict[str, Any],
@@ -981,18 +1003,21 @@ def _read_cleanup_events(
 ) -> list[CleanupEvent]:
     """回収記録を読み、このレビュー・batch・runner 領域に結び付いた記録だけを受け付ける。
 
-    記録の破損・symlink・対応不一致は、worktree や runner 出力を消す前に拒否する。
+    記録の破損・symlink/hardlink・対応不一致は、worktree や runner 出力を消す前に拒否する。
     """
     path = _receipt_path(review_dir)
-    if path.is_symlink():
-        raise ReviewInputError("the cleanup receipt must not be a symbolic link")
-    if not path.exists():
-        return []
-    if not path.is_file():
-        raise ReviewInputError("the cleanup receipt must be a regular file")
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError):
+        with _open_cleanup_receipt(path, os.O_RDONLY) as descriptor:
+            data = bytearray()
+            while chunk := os.read(descriptor, 65536):
+                data.extend(chunk)
+    except FileNotFoundError:
+        return []
+    except OSError:
+        raise ReviewInputError("the cleanup receipt cannot be read") from None
+    try:
+        lines = data.decode("utf-8").splitlines()
+    except UnicodeDecodeError:
         raise ReviewInputError("the cleanup receipt cannot be read") from None
     paths = {
         str(attempt.work_dir)
@@ -1026,22 +1051,18 @@ def _read_cleanup_events(
 
 
 def _append_cleanup_event(review_dir: Path, event: CleanupEvent) -> None:
-    """回収記録を 1 行追記する。既存の記録は差し替えない。"""
+    """回収記録を 1 行追記する。既存の記録は差し替えず、共有された実体には書かない。"""
     path = _receipt_path(review_dir)
-    if path.is_symlink():
-        raise ReviewInputError("the cleanup receipt must not be a symbolic link")
-    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
+    line = json.dumps(event.model_dump(mode="json"), ensure_ascii=False) + "\n"
     try:
-        descriptor = os.open(path, flags, 0o600)
-    except OSError:
-        raise ReviewInputError("the cleanup receipt cannot be written") from None
-    try:
-        with os.fdopen(descriptor, "a", encoding="utf-8") as stream:
-            stream.write(json.dumps(event.model_dump(mode="json"), ensure_ascii=False) + "\n")
-            stream.flush()
-            os.fsync(stream.fileno())
+        with _open_cleanup_receipt(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT) as descriptor:
+            data = line.encode("utf-8")
+            while data:
+                written = os.write(descriptor, data)
+                if written <= 0:
+                    raise OSError("short write")
+                data = data[written:]
+            os.fsync(descriptor)
     except OSError:
         raise ReviewInputError("the cleanup receipt cannot be written") from None
 
