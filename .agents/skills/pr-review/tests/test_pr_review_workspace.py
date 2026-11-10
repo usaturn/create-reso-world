@@ -261,6 +261,47 @@ def make_repo(path: Path, *, tracked_reviews: bool = True) -> str:
     return git(path, "rev-parse", "HEAD")
 
 
+def make_submodule_fixture(tmp_path: Path, *, nested: bool = False) -> tuple[Path, str]:
+    """Return a parent repository whose initialized submodules come from local fixture repositories."""
+    nested_source = tmp_path / "nested-source"
+    if nested:
+        nested_source.mkdir()
+        subprocess.run(["git", "init", "-b", "main", str(nested_source)], check=True, capture_output=True)
+        git(nested_source, "config", "user.name", "Test User")
+        git(nested_source, "config", "user.email", "test@example.com")
+        (nested_source / "README.md").write_text("nested one\nnested two\n", encoding="utf-8")
+        git(nested_source, "add", "README.md")
+        git(nested_source, "commit", "-m", "nested fixture")
+
+    source = tmp_path / "submodule-source"
+    source.mkdir()
+    subprocess.run(["git", "init", "-b", "main", str(source)], check=True, capture_output=True)
+    git(source, "config", "user.name", "Test User")
+    git(source, "config", "user.email", "test@example.com")
+    (source / "README.md").write_text("submodule one\nsubmodule two\n", encoding="utf-8")
+    git(source, "add", "README.md")
+    git(source, "commit", "-m", "submodule fixture")
+    if nested:
+        git(source, "-c", "protocol.file.allow=always", "submodule", "add", str(nested_source), "nested módulo")
+        with (source / ".gitmodules").open("a", encoding="utf-8") as stream:
+            stream.write("\tignore = all\n")
+        git(source, "add", ".gitmodules", "nested módulo")
+        git(source, "commit", "-m", "nested submodule fixture")
+
+    repo = tmp_path / "repo"
+    make_repo(repo)
+    git(repo, "-c", "protocol.file.allow=always", "submodule", "add", str(source), "sub módulo")
+    with (repo / ".gitmodules").open("a", encoding="utf-8") as stream:
+        stream.write("\tignore = all\n")
+    git(repo, "add", ".gitmodules", "sub módulo")
+    git(repo, "commit", "-m", "submodule fixture")
+    return repo, git(repo, "rev-parse", "HEAD")
+
+
+def init_submodules(worktree: Path) -> None:
+    git(worktree, "-c", "protocol.file.allow=always", "submodule", "update", "--init", "--recursive")
+
+
 def test_snapshot_does_not_refresh_index(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GIT_OPTIONAL_LOCKS", "1")
     repo = tmp_path / "repo"
@@ -663,13 +704,17 @@ def create_session(
     monkeypatch: pytest.MonkeyPatch,
     *,
     tracked_reviews: bool = True,
+    repo: Path | None = None,
+    commit: str | None = None,
 ) -> dict[str, Any]:
     codex_home = tmp_path / "codex"
     write_rollout(codex_home, ["gpt-5.6-sol"])
     monkeypatch.setenv("CODEX_HOME", str(codex_home))
     monkeypatch.setenv("CODEX_THREAD_ID", THREAD_ID)
-    repo = tmp_path / "repo"
-    commit = make_repo(repo, tracked_reviews=tracked_reviews)
+    if repo is None:
+        repo = tmp_path / "repo"
+        commit = make_repo(repo, tracked_reviews=tracked_reviews)
+    assert commit is not None
     result = workspace.create(
         argparse.Namespace(
             repo=str(repo),
@@ -1868,6 +1913,96 @@ def test_strict_reap_retires_a_saved_session(created_session: dict[str, Any], ca
     state_file = result["state_file"]
     session_dir = Path(state_file).parent
     saved = saved_session(created_session)
+
+    assert workspace.main(["reap-check", "--state", state_file]) == 0
+    checked = json.loads(capsys.readouterr().out)
+    assert (checked["status"], checked["retirement"], checked["retained_paths"]) == ("eligible", "saved", None)
+    assert workspace.main(["cleanup", "--strict-reap", "--state", state_file]) == 0
+    retired = json.loads(capsys.readouterr().out)
+
+    assert retired["status"] == "retired" and retired["stop_evidence"] is None
+    assert not session_dir.exists() and result["worktree"] not in git(repo, "worktree", "list")
+    assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
+
+
+def test_strict_reap_keeps_a_submodule_local_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # ignore=all で親の status が隠しても、submodule の HEAD が親 HEAD の gitlink と違えば退役しない。
+    repo, commit = make_submodule_fixture(tmp_path)
+    session = create_session(tmp_path, monkeypatch, repo=repo, commit=commit)
+    result = session["result"]
+    state_file = result["state_file"]
+    session_dir = Path(state_file).parent
+    worktree = Path(result["worktree"])
+    init_submodules(worktree)
+    saved = saved_session(session)
+    submodule = worktree / "sub módulo"
+    git(submodule, "config", "user.name", "Test User")
+    git(submodule, "config", "user.email", "test@example.com")
+    (submodule / "local.txt").write_text("local work one\nlocal work two\n", encoding="utf-8")
+    git(submodule, "add", "local.txt")
+    git(submodule, "commit", "-m", "local review work")
+    local_head = git(submodule, "rev-parse", "HEAD")
+    assert git(worktree, "rev-parse", "HEAD:sub módulo") != local_head
+
+    assert workspace.main(["reap-check", "--state", state_file]) == 1
+    kept = json.loads(capsys.readouterr().out)
+    assert kept["status"] == "retained" and kept["reason"]
+    assert kept["retained_paths"]["session_dir"] == str(session_dir)
+    assert workspace.main(["cleanup", "--strict-reap", "--state", state_file]) == 1
+    capsys.readouterr()
+
+    assert session_dir.is_dir() and worktree.is_dir()
+    assert git(submodule, "rev-parse", "HEAD") == local_head
+    assert (submodule / "local.txt").read_text(encoding="utf-8") == "local work one\nlocal work two\n"
+    assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
+
+
+def test_strict_reap_keeps_nested_submodule_index_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 入れ子 submodule の skip-worktree は status に出ないため、index flags を直接見て保持する。
+    repo, commit = make_submodule_fixture(tmp_path, nested=True)
+    session = create_session(tmp_path, monkeypatch, repo=repo, commit=commit)
+    result = session["result"]
+    state_file = result["state_file"]
+    session_dir = Path(state_file).parent
+    worktree = Path(result["worktree"])
+    init_submodules(worktree)
+    saved = saved_session(session)
+    nested = worktree / "sub módulo" / "nested módulo"
+    nested_head = git(nested, "rev-parse", "HEAD")
+    git(nested, "update-index", "--skip-worktree", "README.md")
+    (nested / "README.md").write_text("changed one\nchanged two\n", encoding="utf-8")
+    assert git(nested, "status", "--porcelain", "--untracked-files=all") == ""
+    assert "S README.md" in git(nested, "ls-files", "-v").splitlines()
+
+    assert workspace.main(["reap-check", "--state", state_file]) == 1
+    kept = json.loads(capsys.readouterr().out)
+    assert kept["status"] == "retained" and kept["reason"]
+    assert kept["retained_paths"]["session_dir"] == str(session_dir)
+    assert workspace.main(["cleanup", "--strict-reap", "--state", state_file]) == 1
+    capsys.readouterr()
+
+    assert session_dir.is_dir() and worktree.is_dir()
+    assert git(nested, "rev-parse", "HEAD") == nested_head
+    assert (nested / "README.md").read_text(encoding="utf-8") == "changed one\nchanged two\n"
+    assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
+
+
+def test_strict_reap_retires_clean_submodules(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 正しく通る例: gitlink と一致した clean な submodule だけを退役し、保存レビューは残す。
+    repo, commit = make_submodule_fixture(tmp_path, nested=True)
+    session = create_session(tmp_path, monkeypatch, repo=repo, commit=commit)
+    result = session["result"]
+    state_file = result["state_file"]
+    session_dir = Path(state_file).parent
+    worktree = Path(result["worktree"])
+    init_submodules(worktree)
+    saved = saved_session(session)
 
     assert workspace.main(["reap-check", "--state", state_file]) == 0
     checked = json.loads(capsys.readouterr().out)

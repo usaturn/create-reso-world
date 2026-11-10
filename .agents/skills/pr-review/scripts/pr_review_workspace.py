@@ -1478,9 +1478,15 @@ def _require_clean_worktree(worktree: Path, target: Path, state: Mapping[str, An
         if line[:1].islower() or line[:1] == "S":
             raise WorkspaceError("session worktree has skip-worktree or assume-unchanged entries")
     script = (
-        "set -e; git --no-optional-locks status --porcelain --untracked-files=all; "
+        "set -e; "
+        "git --no-optional-locks status --ignore-submodules=none --porcelain --untracked-files=all; "
         "ignored=$(git ls-files --others --ignored --exclude-standard --directory); "
-        "printf '%s\\n' \"$ignored\" | sed -e '/^$/d' -e 's/^/IGNORED /'"
+        "printf '%s\\n' \"$ignored\" | sed -e '/^$/d' -e 's/^/IGNORED /'; "
+        "gitlink=$(git -C \"$toplevel\" rev-parse \"HEAD:$sm_path\"); "
+        "head=$(git rev-parse HEAD); "
+        "if [ \"$head\" != \"$gitlink\" ]; then printf 'HEAD %s %s\\n' \"$gitlink\" \"$head\"; fi; "
+        "flags=$(git ls-files -v); "
+        "printf '%s\\n' \"$flags\" | sed -n -e '/^[a-z]/s/^/FLAGS /p' -e '/^S/s/^/FLAGS /p'"
     )
     submodules = str(git(worktree, "submodule", "foreach", "--quiet", "--recursive", script))
     for line in submodules.splitlines():
