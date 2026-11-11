@@ -55,8 +55,19 @@ def main(argv: list[str]) -> int:
                 (state.parent / "got-term").write_text("term\n", encoding="utf-8")
 
             signal.signal(signal.SIGTERM, record_term)
-            time.sleep(1.5)
-            return 0
+            # watcher が hold/deadline を記録するまで終了しない。固定秒数のスケジューリングに
+            # 依存せず「期限後も生存」を保証する（#396）。書きかけの末尾行は読み飛ばす。
+            events = state / "events.jsonl"
+            while True:
+                if events.exists():
+                    for line in events.read_text(encoding="utf-8").splitlines():
+                        try:
+                            event = json.loads(line)
+                        except ValueError:
+                            continue
+                        if isinstance(event, dict) and event.get("decision") == "hold" and event.get("reason") == "deadline":
+                            return 0
+                time.sleep(INTERVAL)
         case "finalize-late":
             # 保存への移行を見た直後に、もう 1 件だけ新しい項目を書き、保存に少し時間をかける worker。
             for number in itertools.count(1):
