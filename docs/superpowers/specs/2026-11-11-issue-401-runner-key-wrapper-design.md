@@ -29,24 +29,24 @@
 
 ## wrapper の仕様（`tools/agent_runner/with_keys.py`）
 
-- 起動の形: `python <PARENT_ROOT>/tools/agent_runner/with_keys.py -- <command> [args...]`。`uv run --project "$PARENT_ROOT" --locked` の中で実行し、`--` の後ろの `python` は uv の環境の python になる。リポジトリのルートを `sys.path` に足してから `tools.agent_runner.config` を import する（helper は任意の cwd から呼ばれるため）
-- 引数: `--` が無い、または `--` の後ろが空なら、usage を stderr に出して終了コード 2
-- 補う名前: runner の実効設定（wrapper と同じ checkout の `.devcontainer/agent-runner.toml` と、`resolve_config_path()` が返す個人設定。個人設定のファイルが無ければ雛形だけ）を `load_config` で読み、全 agent の `env` の和集合から `HOME`・`PATH` と `GIT_` で始まる名前を除いたもの。設定を読めない（`ConfigError`）ときは、分類名だけを stderr に出して終了コード 2。helper に `--template`・`--config` で別の設定を渡しても wrapper はそれを読まない（その設定だけにある名前は補わない）
+- 起動の形: `python <PARENT_ROOT>/tools/agent_runner/with_keys.py [--template PATH] [--config PATH] -- <command> [args...]`。`uv run --project "$PARENT_ROOT" --locked` の中で実行し、`--` の後ろの `python` は uv の環境の python になる。リポジトリのルートを `sys.path` に足してから `tools.agent_runner.config` を import する（helper は任意の cwd から呼ばれるため）
+- 引数: `--` が無い、または `--` の後ろが空なら、usage を stderr に出して終了コード 2。`--` の前には `--template PATH`・`--config PATH` だけを受け付ける（runner・helper の同名のオプションと同じ意味。設計レビュー D2）
+- 補う名前: runner の実効設定を `load_config` で読み、全 agent の `env` の和集合から `HOME`・`PATH` と `GIT_` で始まる名前を除いたもの。雛形は `--template` があればそれ、無ければ wrapper と同じ checkout の `.devcontainer/agent-runner.toml`。個人設定は `--config` があればそれ、無ければ `resolve_config_path()` が返すパス（ファイルが無ければ雛形だけ）。設定を読めない（`ConfigError`）ときは、分類名だけを stderr に出して終了コード 2。helper に `--template`・`--config` を渡す呼び出しでは、wrapper にも同じ値を渡す（実際の runner と同じ設定から名前を決める）
 - 補う条件: 今の環境に無いか、値が空の名前だけ。今の環境に値があれば、env ファイルに別の値があっても上書きしない
 - 読み元: 今の環境 → `~/.config/create-reso-world/env`（`Path.home()` 基準）の順だけ。ファイルが無ければ何もしない。開けない・UTF-8 で読めないときは、パスだけを stderr に出して補わずに続ける
 - 解析: shell として実行しない。1 行ずつ静的に読む。受け付ける行は `NAME=VALUE` と `export NAME=VALUE`（env ファイルは `set -a` で読まれるので `export` の有無を問わない）。値は、`$`・`` ` ``・`\` を含まない二重引用符の文字列、単一引用符の文字列、空白・引用符・`$`・`` ` ``・`\`・`;`・`|`・`&`・`<`・`>`・`(`・`)` を含まない裸の語のどれか。引用は外す。後ろには空白と `#` のコメントだけを付けられる。同じ名前が複数あれば最後の行を使う（`source` と同じ）。値が空の行では補わない
-- 使わなかった行: 無視する（停止しない）。決定記録の D3
+- 使わなかった行: 補う名前と関係ない行は無視する（停止しない）。補う名前への代入に見える行（行頭の空白・`export` の後に `NAME=` が続く）で、値を上の規則で解析できないものがあれば、その名前はそれより前の行の値も含めて補わない（通常のシェルは後の行の値を使うので、前の literal を使うと別のアカウントの key で要求を送りうる。設計レビュー D1）。補わなかった名前は stderr に名前だけを出す（例: `with_keys: skipped DEEPINFRA_TOKEN (unparsable assignment in /home/vscode/.config/create-reso-world/env)`）。決定記録の D3
 - 出力: 補った名前と読み元のパスだけを stderr に 1 行で出す（例: `with_keys: filled DEEPINFRA_TOKEN, OPENCODE_API_KEY from /home/vscode/.config/create-reso-world/env`）。値は出さない。補うものが無ければ何も出さない
 - 起動: 補った環境で `os.execvpe` する。key が見つからない名前は補わずに起動し、agent の exec が今と同じエラーで失敗する
 
 ## runner を起動する経路の変更
 
-runner を起動するコマンドを `uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- python <helper> ...` の形にし、各箇所の直後に「`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）」の 1 文を足す。
+runner を起動するコマンドを `uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- python <helper> ...` の形にし、各箇所の直後に「`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）」の 1 文を足す。helper に `--template`・`--config` を渡せる箇所（review-fix-planning の `run_roles.py`、review-verify の `dispatch.py`）では、渡すときは wrapper の `--` の前にも同じ値を渡すと書く。
 
 | 箇所 | 対象 |
 | --- | --- |
 | `.agents/skills/issue-to-pr/SKILL.md` | `review_design.py review` のコマンド、Spec レビューの段落（`review_spec.py review` も同じ wrapper を通すと書く）、`implement_task.py run` のコマンド |
-| `.agents/skills/pr-review-fix-loop/scripts/loop.py` | `command("review", ...)` が返す `next` を wrapper 経由にする（他の subcommand は runner を起動しないので変えない） |
+| `.agents/skills/pr-review-fix-loop/scripts/loop.py` | `review` の `next` を wrapper 経由にし、run に保存した `--template`（と `--config` があればそれ）を wrapper にも渡す（他の subcommand は runner を起動しないので変えない） |
 | `.agents/skills/review-fix-planning/references/execution.md` | `run_roles.py --phase implement`・`--phase self-review` の 2 つ |
 | `.agents/skills/review-verify/references/fix-check.md` | `dispatch.py`（起動の行。`accept` は runner を起動しないので変えない）。Issue は review-verify の `SKILL.md` と書いているが、本リポジトリでは起動のコマンドがこの参照文書にある |
 | `.agents/monitoring-runtimes.md` | 「agent-runner の同期実行と停止確認」の CLI の例 |
@@ -76,10 +76,10 @@ runner を起動するコマンドを `uv run --project "$PARENT_ROOT" --locked 
 AGENTS.md の「テストの採用基準」で S（と F∩S）に当たるものだけを、各代表 1 件で足す。
 
 1. `tools/agent_runner/tests/test_with_keys.py`（S）: 1 件のテスト。一時 HOME に env ファイルを置き、`AGENT_RUNNER_CONFIG` を一時ディレクトリの存在しないパスにして（利用者の個人設定を読まない）、wrapper を subprocess で起動し、子の環境を JSON で返させる。入力と確かめること:
-   - env ファイルの `DEEPINFRA_TOKEN`（雛形の `pi_deepinfra_deepseek4-flash_high` の `env`）が、今の環境に無いとき子に届く
+   - env ファイルの `COMMANDCODE_API_KEY`（雛形の `pi_commandcode_deepseek4-flash_max` の `env`）が、今の環境に無いとき子に届く
    - 今の環境に値がある `OPENCODE_API_KEY` は、env ファイルの別の値で上書きされない（別のアカウントの key で外部へ要求を送る失敗はエラーにならない）
    - どの agent の `env` にも無い `MESHY_API_KEY` は、env ファイルにあっても子に届かない
-   - `$(...)` を含む行は実行も採用もされない（同じ名前の literal の行の後に置き、literal の値が残り、目印のファイルが作られない）
+   - `DEEPINFRA_TOKEN` の literal の行の後に `DEEPINFRA_TOKEN="$(touch <目印>)"` を置くと、目印のファイルは作られず（実行しない）、`DEEPINFRA_TOKEN` は子に届かない（前の literal に戻らない）
    - stderr に値が出ない
    偽の値は実行時に組み立てる（gitleaks の検出を避ける。AGENTS.md の「push の前の秘密情報の検査」）
 2. `.devcontainer/test-herdr-migration.bash` の `test_alibaba_exec_requires_key`（S と F∩S）: `install_beforehand.bash` と同じくテスト用 HOME の `~/.local/bin` に置き、`env -i`（locale を渡さない）で直接起動する。`MAAS_ANTHROPIC_TOKEN=$' \xc2\xa0\xef\xbb\xbf\xe3\x80\x80'`（ASCII の空白・NBSP・BOM・全角空白）では非 0 で終わり、stub の `claude` が起動しない。通る例として、偽の有効な key では stub が起動し、`ANTHROPIC_AUTH_TOKEN` がその値で、`ANTHROPIC_API_KEY` と `MAAS_ANTHROPIC_TOKEN` が無く、`ANTHROPIC_BASE_URL` が `maas.aliyuncs.com` の接続先であることを確かめる。損害（ガードが外れても起動は成功し、claude.ai の認証情報が `maas.aliyuncs.com` に送られる）をコメントに書く。末尾の実行の一覧に足す
@@ -114,8 +114,8 @@ AGENTS.md の「テストの採用基準」で S（と F∩S）に当たるも�
 | ID | 選択した案 | 検討した別案 | 選択理由 | 委任指示または停止条件 |
 | --- | --- | --- | --- | --- |
 | D1 | 読み元は今の環境 → `~/.config/create-reso-world/env` だけ | 移植元の `keys.env`・`~/.zshrc` | Issue の決定済み事項（2026-11-11 の利用者の回答） | 利用者の決定 |
-| D2 | 補う名前は雛形 + 個人設定の全 agent の `env` の和集合（`HOME`・`PATH`・`GIT_*` を除く）。helper の `--template`・`--config` は読まない | 起動する agent の `env` だけを補う | runner の割り当て・fallback は helper の中で決まり、wrapper からは分からない。どの agent に渡すかは runner の per-agent allowlist が決めるので、和集合でも子に渡る範囲は今と同じ | Issue の指定 |
-| D3 | 解析で使わなかった行は無視する | 停止する | env ファイルは zsh が `set -a; source` で読む一般の秘密情報のファイルで、runner に関係ない行（展開を使う値など）があっても正しい。止めると runner が使えなくなる。読めなかった key は補われず、agent が今と同じ認証エラーで止まるので、黙って成功しない | Issue の委任（wrapper の細部） |
+| D2 | 補う名前は雛形 + 個人設定の全 agent の `env` の和集合（`HOME`・`PATH`・`GIT_*` を除く）。wrapper は helper と同じ `--template`・`--config` を受け取り、呼び出し側は helper に渡す値を wrapper にも渡す | 起動する agent の `env` だけを補う／明示した設定を読まない（初版） | runner の割り当て・fallback は helper の中で決まり、wrapper からは分からない。どの agent に渡すかは runner の per-agent allowlist が決めるので、和集合でも子に渡る範囲は今と同じ。明示した設定を読まないと、その設定だけにある名前を補えず、使わない既定の個人設定の誤りで止まる（設計レビュー D2 を採用） | Issue の指定と委任（CLI の形・個人設定のパスの解決） |
+| D3 | 補う名前と関係ない行は無視する。補う名前への解析できない代入があれば、その名前は前の行の値も含めて補わず、名前だけを stderr に出す | 停止する／解析できない行を無視して前の literal を使う（初版） | env ファイルは zsh が `set -a; source` で読む一般の秘密情報のファイルで、runner に関係ない行（展開を使う値など）があっても正しい。止めると runner が使えなくなる。前の literal を使うと通常のシェルと違う key を送りうる（設計レビュー D1 を採用）。補わなかった key は agent が今と同じ認証エラーで止まるので、黙って成功しない | Issue の委任（wrapper の細部） |
 | D4 | CLI は `python <PARENT_ROOT>/tools/agent_runner/with_keys.py -- <command>`、`sys.path` にルートを足す | `python -m tools.agent_runner.with_keys` | helper は任意の cwd から呼ばれ、`-m` はリポジトリのルートを cwd にする必要がある。移植元と同じ形 | Issue の委任 |
 | D5 | 個人設定のパスは runner と同じ `resolve_config_path()` | 固定の `~/.config/agent-runner/config.toml` | `AGENT_RUNNER_CONFIG`・`XDG_CONFIG_HOME` を設定した利用者でも runner と同じ設定になる | Issue の委任 |
 | D6 | pr-review の `review_run.py` は wrapper 経由にしない | 同じ扱いにする | `review_run.py` は runner を起動しない（runner の子と `after_run` が呼ぶ）。runner を起動するのは `loop.py review`・`run_roles.py`・`dispatch.py`・issue-to-pr の helper と CLI だけ | Issue の委任（移植元に無い経路） |
@@ -124,6 +124,14 @@ AGENTS.md の「テストの採用基準」で S（と F∩S）に当たるも�
 | D9 | `claude-alibaba-exec` のガードは `[[ $key == *[A-Za-z0-9]* ]]` と `shopt -s globasciiranges` | 移植元の `LC_ALL=C` の `[[:graph:]]` | Issue の指定（`ccda` と同じ判定）。`globasciiranges` を明示して、範囲の比較が locale に依らないことをコードで示す | Issue の指定 |
 | D10 | 実機の観測はマージの後に行い、PR は `Refs #401` | マージの前に行う | このセッションはランチャー起動セッションではなく、env ファイルも無く、`claude-alibaba-exec` は Rebuild で入る。前提を作るには利用者の env ファイルや HOME を変える必要があり、許可範囲の外 | issue-to-pr の「マージの後でなければ確かめられない項目」 |
 | D11 | テストは with_keys の 1 件と alibaba-exec の 1 件（通る例を含む） | 移植元と同じ（通る例なし） | AGENTS.md の D の規則（拒否のテストに通る例を残す）と、上書きしないことの守り | テストの採用基準 |
+
+## 設計レビューの記録
+
+- helper（`review_design.py`）で外部の担当が実施。担当は `pi_openai-codex_gpt6-sol_xhigh`（`--design-review` で利用者が指定、fallback 無し）。`actual_agent` も同じで、runner が観測したモデルは `openai-codex` の `gpt-6.1-sol`（effort `xhigh`）。1 回、247 秒
+- `review_id` `99c53dfc95bb4fad8c51dcc99423dcea`、reviewed の Spec SHA-256 `04efb12860cc69226fdb8d58690efee60467e0c5ad6f4e5131e6fc09910664c3`。verdict `concerns`（2 件、どちらも `worth_considering`）
+- 採否: D1（解析できない再代入で前の literal を使う）は採用し、「使わなかった行」・テスト 1・決定記録 D3 に反映。D2（明示した設定を読まない）は採用し、wrapper の CLI・「補う名前」・経路の表・決定記録 D2 に反映。どちらも作るものは変えない（wrapper の細部と CLI の形は Issue の委任の範囲）
+- `outside_changes` は無し。`unprotected_changes` は、この run の前からある他の作業の `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 つの worktree で、触れていない
+- 記録は commit しない `tmp/agents/issue-401.key82at4/` にある
 
 ## 割り当て（2 章の検査の結果）
 
