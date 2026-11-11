@@ -14,7 +14,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 SETUPS = {"setup_pi.zsh": "deepinfra", "setup_pi_commandcode_goat.zsh": "commandcode",
-          "setup_pi_opencode_go.zsh": "opencode-go"}
+          "setup_pi_opencode_go.zsh": "opencode-go", "setup_pi_alibaba.zsh": "alibaba"}
 
 
 def snapshot(root: Path) -> dict:
@@ -43,16 +43,21 @@ class Harness:
         self.models.chmod(0o600)
         self.auth.write_text(json.dumps({"keep": {"type": "api_key", "key": "SYNTHETIC_AUTH"}}))
         self.auth.chmod(0o600)
+        provider = SETUPS[script]
         pi = self.bin / "pi"
+        # --list-models の 1 列目は、引数の setup が書く provider。環境変数が無ければその provider を出す。
         pi.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALL_LOG"\n'
-                      'case "$1" in\n--list-models) printf "opencode-go %s 1000\\n" "$2";;\n'
+                      'case "$1" in\n--list-models)\n'
+                      '  provider="${FAKE_PI_PROVIDER:-' + provider + '}"\n'
+                      '  printf "%s %s 1000\\n" "$provider" "$2";;\n'
                       'update) [ "$2" = --models ] || exit 99;;\n*) exit 99;;\nesac\n')
         pi.chmod(0o755)
 
     def run(self, *, directory: str | None = None,
             api_key: str | None = "SYNTHETIC_NEW_KEY") -> subprocess.CompletedProcess[str]:
         env = {"HOME": str(self.home), "PATH": f"{self.bin}:/usr/bin:/bin",
-               "DEEPINFRA_TOKEN": "SYNTHETIC_TOKEN", "CALL_LOG": str(self.root / "calls")}
+               "DEEPINFRA_TOKEN": "SYNTHETIC_TOKEN", "CALL_LOG": str(self.root / "calls"),
+               "FAKE_PI_PROVIDER": SETUPS[self.script]}
         if api_key is not None:
             env["OPENCODE_API_KEY"] = api_key
         if directory is not None:
@@ -82,9 +87,11 @@ def test_setup_targets_the_same_agent_directory_as_pi(tmp_path: Path, directory:
     assert "SYNTHETIC_NEW_KEY" not in result.stdout + result.stderr
 
 
-def test_update_preserves_other_providers_and_private_permissions(tmp_path: Path) -> None:
+@pytest.mark.parametrize("script", ["setup_pi_opencode_go.zsh", "setup_pi_alibaba.zsh"])
+def test_update_preserves_other_providers_and_private_permissions(tmp_path: Path, script: str) -> None:
     # Break: replacing providers drops other providers' keys; write_text(tmp)+replace broadens private data.
-    script, encoding = "setup_pi_opencode_go.zsh", "utf-8"
+    # 防ぐ損害: 新しい setup がほかの provider を消す・退避しないと、データが失われてもエラーにならない。
+    encoding = "utf-8"
     h = Harness(tmp_path, script)
     before_models = h.models.read_bytes()
     h.models.write_text(before_models.decode(), encoding=encoding)
@@ -96,8 +103,9 @@ def test_update_preserves_other_providers_and_private_permissions(tmp_path: Path
     provider = SETUPS[script]
     assert models[provider] == json.loads((ROOT / ".devcontainer/pi-models.json").read_text())["providers"][provider]
     assert stat.S_IMODE(h.models.stat().st_mode) == 0o600
-    assert json.loads(h.auth.read_text(encoding="utf-8-sig"))["keep"]["key"] == "SYNTHETIC_AUTH"
-    assert stat.S_IMODE(h.auth.stat().st_mode) == 0o600
+    if script == "setup_pi_opencode_go.zsh":
+        assert json.loads(h.auth.read_text(encoding="utf-8-sig"))["keep"]["key"] == "SYNTHETIC_AUTH"
+        assert stat.S_IMODE(h.auth.stat().st_mode) == 0o600
     for backup in h.agent.glob("models.json.bak.*"):
         assert stat.S_IMODE(backup.stat().st_mode) == 0o600
         assert json.loads(backup.read_text(encoding="utf-8-sig"))["providers"]["keep"] == h.other
