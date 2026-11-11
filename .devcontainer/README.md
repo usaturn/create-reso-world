@@ -1198,7 +1198,7 @@ model の段に入れず、effort の段に置く。effort は設定値を使い
 
 既定の `review.inspect` は
 `claude-code_opus_default,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`、
-`issue.implement` は `claude-code_sonnet_xhigh`（`model = "sonnet"`、effort `xhigh`）、
+`issue.implement` は `self`（#391。司令塔が自分で実行する）、
 `fix.implement` は `self`（main の #377）。
 `fix.self-review`・`fix.fix-check` は `self` のままである。
 Sol の runner の effort は `max` を維持する（`pigs` 単独の既定 `xhigh` とは異なる）。
