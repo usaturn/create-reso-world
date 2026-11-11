@@ -139,3 +139,14 @@ AGENTS.md の「テストの採用基準」の S だけを、それぞれ代表 
 - `piaq` のメッセージの文面、コメントの量
 - T1・T2 のテストの補助関数の形（既存の形に合わせる）
 - README の各節での記述の位置と量
+
+## レビュー記録
+
+### 設計レビュー（1 回目）
+
+- 方式: issue-to-pr の `review_design.py`、外部担当
+- 担当: `--design-review pi_openai-codex_gpt6-sol_xhigh`（明示。fallback なし）。runner が観測した agent は `pi_openai-codex_gpt6-sol_xhigh`、identity は model `gpt-6.1-sol`・provider `openai-codex`・effort `xhigh`。fallback は使っていない
+- `review_id`: `01be30a6ebbf4fe8921eeb7b1b41af0e`、reviewed の Spec の SHA-256: `f4375a7b26be09e23f11dd6c11d2c4f35cbf4104611646bbff872de3b235a9ae`、所要 122 秒
+- 結果: `verdict: sound`、concerns 0 件、利用者への問い 0 件。採否の対象は無い
+- `outside_changes`: なし。`unprotected_changes`: 他の作業の使い捨ての worktree（`/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*`）6 件。このレビューの対象外で、記録だけ残す
+- 記録の場所（commit しない）: `tmp/agents/issue-402.ht7fd2ih/2026-11-11-issue-402-piaq-token-plan-design.design-review/review-1/`
