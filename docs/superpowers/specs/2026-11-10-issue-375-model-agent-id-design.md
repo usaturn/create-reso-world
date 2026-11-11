@@ -54,7 +54,14 @@
 
 - `SWE-2-Max#L-1@c9fb38e4c9dc`（単一サロゲートの例外形式）: 隔離した PR head と旧 base でサロゲート 3 種と正常入力を実行。新実装は `UnicodeEncodeError`、旧版は `RecordError` で、どちらも POST/PATCH などの書き込み前に停止する。有効な UTF-8 の通常モデル名での機能停止・誤結果・誤更新・失敗の成功扱いはないため、致命的な指摘に該当せず skip。証拠: `tmp/agents/pr385-complete.bo8wtrs9/reproduce-surrogates.log`・`reproduce-surrogates.py`（コミットしない）。この run は新しい根拠がないため inherited で引き継ぐ。
 - レビュー本文の保存先: `reviews/usaturn/create-reso-world/#385-fix-issue-375-model-agent-id/`。
-- この run の Spec レビュー（pi_alibaba_qwen4-max_max）とループのレビュー記録は、実行後にここへ追記する。
+
+### この run の Spec レビュー（2026-11-12・review_spec.py 外部担当）
+
+- 担当: `pi_alibaba_qwen4-max_max`（利用者の `--spec-review` 明示指定。fallback は設定どおり空）。runner 実測 identity: model=`qwen4-max-preview`、provider=`alibaba`、effort=`max`、session=`01a1cb9d-c75b-711e-80bf-ab30a169f647`。
+- 1 回目（review-1）は `MAAS_ANTHROPIC_TOKEN` 未設定で piaq が起動せず `response_failed`（3.4 秒・停止確認済み・cleanup 済み・retained なし）。ccda が同じ MaaS トークンを `ANTHROPIC_AUTH_TOKEN` で渡していることを確認し、起動時のみ `MAAS_ANTHROPIC_TOKEN` へマッピングして再試行した（値の表示・保存はしない）。失敗は予算 ledger に reliability で記録済み。
+- 2 回目（review-2）成功。所要 580.1 秒。review_dir: `tmp/agents/issue-375.r6210n1p/2026-11-10-issue-375-model-agent-id-design.spec-review/review-2`（review-1 は失敗記録として保持）、review_id: `45b411718f18485498fe5fa61ff72ccb`、reviewed spec sha256: `1a7beed1a9db4f9a414d5ddbd9b3f90b2da2e40caba21a6c524040667f227b0e`、outside_changes: なし、unprotected_changes: 他セッションの worktree 登録（報告のみ・起動を止めない）。
+- findings 1 件: S1（minor・実行予算の内訳がサイクル見積りと算術的に矛盾）。採用し、「実行予算（継続 phase）」と Plan の継続予算の内訳を「ループ枠 120 分＝期待値 2 サイクル×（レビュー 45 分＋計画・修正 約 15 分）、max-cycles 3 は上限」に修正した。important の採用はないため再レビューは行わない。
+- ループのレビュー記録は、実行後にここへ追記する。
 
 ## 統合検証の履歴
 
@@ -77,7 +84,7 @@ bash scripts/check-layout.sh
 
 ## 実行予算（継続 phase・2026-11-12）
 
-初回の能動時間予算 360 分（ledger `tmp/agents/issue-375.tvb249sg/budget.jsonl`）は round 2 時点で超過し、await-user で停止していた。2026-11-12 の利用者の明示指示（マージまで必ず完了）により続行を許可され、旧 ledger は resume+end でクローズした（履歴の補正・リセットはしない）。継続 phase は新 ledger `tmp/agents/issue-375.r6210n1p/budget.jsonl`（能動 180 分）で数える。内訳の目安: Spec 更新・外部 Spec レビュー 30 分、Plan 更新・統合検証 30 分、ループ（最大 3 サイクル ×（レビュー 45 分＋計画・修正））120 分。checkpoint は phase 境界・50%・100%・worker 失敗直後。同じ信頼性失敗の再試行は 1 回まで。安全失敗・予算 100% は停止（「途中で停止せずに」の例外）。完了済みの検証・有料レビューは同一 HEAD・base で再利用し、セッション交代だけで繰り返さない。
+初回の能動時間予算 360 分（ledger `tmp/agents/issue-375.tvb249sg/budget.jsonl`）は round 2 時点で超過し、await-user で停止していた。2026-11-12 の利用者の明示指示（マージまで必ず完了）により続行を許可され、旧 ledger は resume+end でクローズした（履歴の補正・リセットはしない）。継続 phase は新 ledger `tmp/agents/issue-375.r6210n1p/budget.jsonl`（能動 180 分）で数える。内訳の目安: Spec 更新・外部 Spec レビュー 30 分、Plan 更新・統合検証 30 分、ループ枠 120 分。ループ枠の期待値は 2 サイクル ×（レビュー期限 45 分＋計画・修正 約 15 分）= 120 分。max-cycles 3 は上限であり、3 サイクル目は予算に余裕がある場合だけ回す（予算 100% の停止が優先する）。checkpoint は phase 境界・50%・100%・worker 失敗直後。同じ信頼性失敗の再試行は 1 回まで。安全失敗・予算 100% は停止（「途中で停止せずに」の例外）。完了済みの検証・有料レビューは同一 HEAD・base で再利用し、セッション交代だけで繰り返さない。
 
 ## 残作業と完遂手順（この run）
 

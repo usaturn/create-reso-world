@@ -112,7 +112,7 @@
 
 能動時間360分（準備30・実装/レビュー60・検証/PR30・ループ最大3×80分）。ledger は run のセッションディレクトリ `tmp/agents/issue-375.tvb249sg/budget.jsonl`、SDD は同ディレクトリの `sdd/2026-11-10-issue-375-model-agent-id/`。phase 境界、50%/100%、worker 失敗直後を checkpoint にする。runner implement の役割期限90分、レビュー45分。pi は timeout 無しの同期呼出しで待つ。共有 worktree/検証には事前打切りを適用せず、runner の停止確認を使う。実装1依頼、Taskレビュー1、全体レビュー1、各レビューの修正は規則内で同担当に最大1依頼を基本とする。ループは指定3レビュアー/最大3サイクル。同じ信頼性失敗の再試行は1回まで、安全失敗・担当失敗・予算100%は停止。既存の停止条件を緩めない。
 
-継続 phase（2026-11-12・Task 3）: 上記 360 分は round 2 時点で超過し await-user で停止。利用者の「マージまで必ず完了」の明示指示で続行を許可され、旧 ledger は resume+end でクローズ（履歴は補正しない）。新 ledger `tmp/agents/issue-375.r6210n1p/budget.jsonl` で能動 180 分（Spec 更新・外部 Spec レビュー 30・Plan 更新・統合検証 30・ループ最大 3×（レビュー 45＋計画・修正）120）。checkpoint・再試行上限・停止条件は同じ。完了済みの検証・有料レビューは同一 HEAD・base で再利用する。ループのレビュアーはこの run の指定 2 担当。
+継続 phase（2026-11-12・Task 3）: 上記 360 分は round 2 時点で超過し await-user で停止。利用者の「マージまで必ず完了」の明示指示で続行を許可され、旧 ledger は resume+end でクローズ（履歴は補正しない）。新 ledger `tmp/agents/issue-375.r6210n1p/budget.jsonl` で能動 180 分（Spec 更新・外部 Spec レビュー 30・Plan 更新・統合検証 30・ループ枠 120＝期待値 2 サイクル×（レビュー 45＋計画・修正 約 15）。max-cycles 3 は上限で、3 サイクル目は予算に余裕がある場合だけ。予算 100% の停止が優先）。checkpoint・再試行上限・停止条件は同じ。完了済みの検証・有料レビューは同一 HEAD・base で再利用する。ループのレビュアーはこの run の指定 2 担当。
 
 ## contingency（代替策）
 
