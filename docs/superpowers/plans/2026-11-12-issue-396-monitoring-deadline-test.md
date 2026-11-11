@@ -101,7 +101,7 @@ controller が `repro_deadline_delay.py`（red モード）で旧コードの誤
 
 - [ ] **Step 2: `undeclared` モードをハンドシェイクに変更する**
 
-`fake_worker.py` の `case "undeclared":` を次のとおり変更する（`signal.alarm(60)` は main の冒頭のまま。SIGTERM ハンドラーの取り付けもまま）:
+`fake_worker.py` の `case "undeclared":` を次のとおり変更する（`signal.alarm(60)` は main の冒頭のまま。SIGTERM ハンドラーの取り付けもそのまま）:
 
 ```python
 case "undeclared":

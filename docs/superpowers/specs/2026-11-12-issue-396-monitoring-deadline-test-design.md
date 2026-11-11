@@ -109,7 +109,7 @@
 ### D2: worker が待つ対象 — `events.jsonl` の `hold/deadline`
 
 - 選択した案: `state/events.jsonl` をポーリングし、`hold`/`deadline` の行を探す
-- 検討した別案: `status.json` の `decision`/`deadline_exceeded` を待つ → アトミックに置き換わるファイルで同样に可能だが、`events.jsonl` は追記専用で一度書いたら消えず、テストが assertion する対象そのものなので、待つ対象と検査対象が一致するこちらを選ぶ
+- 検討した別案: `status.json` の `decision`/`deadline_exceeded` を待つ → アトミックに置き換わるファイルで同様に可能だが、`events.jsonl` は追記専用で一度書いたら消えず、テストが assertion する対象そのものなので、待つ対象と検査対象が一致するこちらを選ぶ
 - 選択理由: assertion と同じ記録を待つため、ハンドシェイクがテストの非 vacuous 性を直接保証する
 - 委任指示: 推奨案委任。停止条件: なし（実装の詳細）
 
