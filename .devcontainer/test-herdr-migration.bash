@@ -21,17 +21,26 @@ extract_cc_launcher_unsets() {
         | sort -u \
         | sed 's/^-u //'
 }
-# zshrc テンプレートを隔離環境で実行する共通部。$@ で追加の VAR=value を渡せる。
-run_zshrc_code() {
+# zshrc テンプレートを隔離環境で実行する共通部。標準出力は $2 のファイルへ書き、
+# $@ で追加の VAR=value を渡せる。
+run_zshrc_code_with_stdout() {
     local test_home="$1"
-    local zsh_code="$2"
-    shift 2
+    local stdout_file="$2"
+    local zsh_code="$3"
+    shift 3
     env -u TMUX -u HERDR_ENV -u HERDR_SOCKET_PATH \
         HOME="$test_home" \
         PATH="$test_home/bin:/usr/bin:/bin" \
         HERDR_TEST_LOG="$test_home/herdr.log" \
         ZSHRC_TEMPLATE="$ZSHRC_TEMPLATE" \
-        "$@" /usr/bin/zsh -f -c "$zsh_code" </dev/null >/dev/null
+        "$@" /usr/bin/zsh -f -c "$zsh_code" </dev/null >"$stdout_file"
+}
+# 標準出力を捨てて実行する。出力を検査しない呼び出しはこちらを使う。
+run_zshrc_code() {
+    local test_home="$1"
+    local zsh_code="$2"
+    shift 2
+    run_zshrc_code_with_stdout "$test_home" /dev/null "$zsh_code" "$@"
 }
 # herdr（status server だけ応答する）と starship のスタブを用意する。
 make_stub_home() {
@@ -490,10 +499,47 @@ test_opencode_go_launcher_requires_key() {
     [ ! -s "$log" ] || fail 'ccdgo must not start claude when the first non-empty key is blank'
 }
 
+# S: ccdd / ccddg は DEEPINFRA_TOKEN が未設定・空、または ASCII 英数字を 1 文字も含まないとき、
+# 子 claude を起動せずに失敗する。Claude Code は ANTHROPIC_AUTH_TOKEN が空か空白だけだと、
+# 保存済みの claude.ai の OAuth トークンを接続先へ送る。このガードが外れても起動は成功し、
+# claude.ai の認証情報が DeepInfra に送られる。未設定・空の拒否は同じ判定（${DEEPINFRA_TOKEN:-} と
+# *[A-Za-z0-9]*）が担うので、入力は ASCII の空白・NBSP（U+00A0）・BOM（U+FEFF）だけの 1 件にする。
+# 空だけを止める書き方（[[ -z ... ]]）も、空白（[[:space:]]）だけを除く書き方も NBSP・BOM を通すので、
+# この 1 件でどちらの誤りも分かる。通常名は同じ関数本体なので短縮名で代表させ、
+# 正しいキーで起動する例は送り先と env 隔離のテストにある。
+test_deepinfra_launcher_requires_key() {
+    local test_home="${TEST_ROOT}/home-deepinfra-key"
+    make_stub_home "$test_home"
+    local log="${TEST_ROOT}/deepinfra-key-claude.log"
+    : > "$log"
+    printf '%s\n' '#!/bin/sh' 'echo started >> "$HERDR_TEST_CLAUDE_DUMP"' > "$test_home/bin/claude"
+    chmod +x "$test_home/bin/claude"
+
+    local fn out err rc
+    for fn in ccdd ccddg; do
+        out="${TEST_ROOT}/deepinfra-key-${fn}.out"
+        err="${TEST_ROOT}/deepinfra-key-${fn}.err"
+        rc=0
+        run_zshrc_code_with_stdout "$test_home" "$out" \
+            "source \"\$ZSHRC_TEMPLATE\" >/dev/null 2>&1; ${fn} probe" \
+            HERDR_TEST_CLAUDE_DUMP="$log" DEEPINFRA_TOKEN=$' \xc2\xa0\xef\xbb\xbf' 2>"$err" || rc=$?
+        [ "$rc" -ne 0 ] || fail "${fn} must fail when DEEPINFRA_TOKEN has no letters or digits"
+        [ ! -s "$log" ] || fail "${fn} must not start claude when DEEPINFRA_TOKEN has no letters or digits"
+        # 失敗は固定文で知らせ、入力した値をそのまま出さない（端末・ログへの漏えいを避ける）。
+        # 出力先が stderr から stdout へ変わっても値が漏れないよう、両方を検査する。
+        [ -s "$err" ] || fail "${fn} must report an error without the token value"
+        assert_absent "$err" $'\xc2\xa0'
+        assert_absent "$err" $'\xef\xbb\xbf'
+        assert_absent "$out" $'\xc2\xa0'
+        assert_absent "$out" $'\xef\xbb\xbf'
+    done
+}
+
 test_session_cwd_repair
 test_session_cwd_repair_multi_workspace
 test_cc_launcher_env_unsets
 test_cc_launcher_destination_and_exit_status
 test_ollama_launcher_requires_key
 test_opencode_go_launcher_requires_key
+test_deepinfra_launcher_requires_key
 printf 'PASS: herdr Dev Container migration\n'

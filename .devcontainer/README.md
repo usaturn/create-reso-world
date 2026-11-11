@@ -782,6 +782,9 @@ haiku は `glm-5.3-flash[1m]` で、4 つの tier すべてに `[1m]` を付け�
 OpenCode のキーは `OPENCODE_GO_CLAUDE_API_KEY`、`OPENCODE_API_KEY`、
 `OPENCODE_GO_API_KEY` の順に、最初の空でない値を使う。選んだ値に英数字が無ければ
 下位のキーへ切り替えず、値を表示せずに起動を止める。
+DeepInfra は `DEEPINFRA_TOKEN` を使い、未設定・空・空白だけ（Unicode の空白を含む）で
+ASCII の英数字を 1 文字も含まないなら、値を表示せずに起動を止める。この英数字の判定は
+Claude Code のランチャーだけのもので、pi の `pidid` は未設定・空値だけを止める。
 Ollama Cloud は 4 つの tier（fable・opus・sonnet・haiku）すべてに同じモデルを割り当てる。
 詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」と
 「OpenCode Go のモデルで Claude Code を起動する（#368）」にある。
@@ -1901,7 +1904,9 @@ export される（`OLLAMA_API_KEY` は書かない。下の項目）。書か�
   参照するため、pi で deepinfra を使うシェルで export しておく必要がある。
   `pidid` は未設定・空値なら起動を止める。`auth.json` のログインだけではこの確認を通らない。
   Claude Code の `ccdd`・`ccddg`（通常名は `claude-deepinfra`・`claude-deepinfra-glm`）も
-  この変数を使い、無ければ起動を止める
+  この変数を使い、未設定・空・空白だけ（Unicode の空白を含む）で ASCII の英数字を 1 文字も
+  含まないなら、値を表示せずにエラーを出して起動を止める。この英数字の判定は Claude Code の
+  ランチャーだけのもので、`pidid` は未設定・空値だけを止める
 - `OLLAMA_API_KEY` は Claude Code の `ccdol`・`claude-ollama` だけが読む。
   「秘密情報」の env ファイルには書かず、使うシェルで export する。
   子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ccdd`・`ccddg`・`ccdgo` の子には渡さない。
