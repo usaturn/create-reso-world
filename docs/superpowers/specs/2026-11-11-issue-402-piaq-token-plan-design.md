@@ -35,7 +35,8 @@ usaturn/agent-workspace#928（PR #931、マージコミット `4c425ab1dd3afe551
 - `pi --list-models qwen4-max-preview` は、`MAAS_ANTHROPIC_TOKEN` がある環境では `alibaba qwen4-max-preview 991.8K 65.5K` を出し、key を外すと `No models matching` になる（Pi は key を解決できない provider をモデル一覧から外す）
 - `~/.local/bin` に `piaq` は無い。`subagent.d/piaq/`（旧位置。移植元の setup が書く）はあるが、本リポジトリの位置 `subagent.d/create-reso-world/piaq/` は無い
 - `ccda`（`.devcontainer/zshrc.txt` の関数）の key の判定は `[[ ${MAAS_ANTHROPIC_TOKEN:-} != *[A-Za-z0-9]* ]]`。移植元の `piaq` は `[[:graph:]]` で、本リポジトリより緩い
-- ランチャー起動セッションでは `zshrc.txt` が `MAAS_ANTHROPIC_TOKEN` を unset する（他のランチャーの子に key を渡さない既存の守り）
+- `zshrc.txt` の ccd 系のランチャー関数（`ccdd`・`ccddg`・`ccdgo`・`ccdol`・`ccda`）は、`cc_launcher_unsets` の `env -u` で、自分が起動する子から `MAAS_ANTHROPIC_TOKEN` を外す（`ccda` は自分の子に `ANTHROPIC_AUTH_TOKEN` として渡し直す）。シェルのセッション全体から unset する仕組みは無い。そのため、これらのランチャーで起動したエージェントのセッション（以下「ランチャー起動セッション」）の中には key が無い
+- agent-runner の子の環境は、runner が agent の `env` の allowlist に挙げた変数だけで組み立てる（`zshrc.txt` は読み込まれない）。runner を起動したシェルに key が無ければ、allowlist に挙げても子には届かない
 - 本リポジトリのランチャー別の tier 設定は `scripts/setup_pi_superagents.zsh` が `LAUNCHERS` から `subagent.d/create-reso-world/<launcher>/config.json` に置き、tier の拡張は `pi-superagents-model-guard.ts`（移植元の `pi-superagents-tier-guard.ts` ではない）
 - provider の setup（`setup_pi.zsh`・`setup_pi_commandcode_goat.zsh`・`setup_pi_opencode_go.zsh`）は `pi-provider-setup.py` で `providers.<name>` だけを置き換え、変更があるときだけ `models.json.bak.*` へ退避する。tier 設定には触れない。テストは `tools/devenv_migration/tests/test_pi_provider_setup.py`
 - #401（open、PR 未作成）は `claude-code_alibaba_opus_max`（`provider = "alibaba"`、`model_key = "qwen4-max-preview"`）を `pi_deepinfra_deepseek4-flash_high` の後に足す予定。#365（open）は `agent-runner.toml` の追従
@@ -73,7 +74,7 @@ usaturn/agent-workspace#928（PR #931、マージコミット `4c425ab1dd3afe551
   2. `python3 .devcontainer/pi-provider-setup.py "$PI_DIR" .devcontainer/pi-models.json alibaba` で `providers.alibaba` だけを置き換える（ほかの provider を保ち、変更があるときだけ更新前に退避する。key は要らない）
   3. `pi-superagents-exec.zsh` と `piaq` を `~/.local/bin` に置く。tier 設定には触れない（`setup_pi_superagents.zsh` が置く。既存の provider の setup と同じ分担）
   4. `MAAS_ANTHROPIC_TOKEN` が `ccda` と同じ判定で有効なときだけ、`pi --list-models` の provider・model の列で `alibaba/qwen4-max-preview`・`alibaba/qwen3.8-flash` を確かめ、無ければ終了コード 1。key が無いときは、確認を省いたことと、key を export して `piaq` を使うことを表示して終了コード 0
-  5. 最後に、tier 設定のために `zsh scripts/setup_pi_superagents.zsh` を実行するよう表示する
+  5. 最後に、tier 設定のために `zsh scripts/setup_pi_superagents.zsh --if-absent` を実行するよう表示する（フラグ無しだと既存の全ランチャーの tier 設定を退避して上書きするので、`piaq` の設定だけを新しく置く `--if-absent` を案内する。`install_beforehand.bash`・README の既存環境の案内と同じ）
 - 検討した別案: 既存の `setup_pi.zsh`（DeepInfra 専用で `DEEPINFRA_TOKEN` を必須にする）に足す。移植元の `setup_pi_alibaba.zsh` をそのまま写す（独自の退避・置き換え、tier 設定の配置）
 - 選択理由: Issue が `pi-provider-setup.py` の形を求めている。key を必須にすると、ファイルに key を置かない方針の下で setup の実行が不必要に難しくなる。Pi は key の無い provider をモデル一覧から外すので、key が無いときの一覧の確認は必ず失敗し、意味を持たない
 - 委任指示: Issue の「setup スクリプトを新しく作るか、既存の setup に足すか」はエージェントに任せている
@@ -84,7 +85,7 @@ usaturn/agent-workspace#928（PR #931、マージコミット `4c425ab1dd3afe551
 
 ### D6. runner agent
 
-- 選択した案: `.devcontainer/agent-runner.toml` に `[agents.pi_alibaba_qwen4-max_max]`（`runtime = "pi"`・`command = ["piaq"]`・`model = "qwen4-max-preview"`・`provider = "alibaba"`・`effort = "max"`・`env = ["HOME", "PATH", "MAAS_ANTHROPIC_TOKEN"]`）を足す。`[workflows]` は変えない。場所は `pi_google-vertex_gemini4-argon_high` の後（`pi_deepinfra_deepseek4-flash_high` の前）にし、#401 が `pi_deepinfra_deepseek4-flash_high` の後に足す行と重ならないようにする。前のコメントに、`piaq` を呼ぶこと、key を export したシェルから使うこと（ランチャー起動セッションでは key が unset され、本リポジトリでは env ファイルからも補わないので `launch_failed` 相当で止まる）、`model` が #401 の `claude-code_alibaba_opus_max` の `model_key` と同じで同じ役割に並べられないことを書く
+- 選択した案: `.devcontainer/agent-runner.toml` に `[agents.pi_alibaba_qwen4-max_max]`（`runtime = "pi"`・`command = ["piaq"]`・`model = "qwen4-max-preview"`・`provider = "alibaba"`・`effort = "max"`・`env = ["HOME", "PATH", "MAAS_ANTHROPIC_TOKEN"]`）を足す。`[workflows]` は変えない。場所は `pi_google-vertex_gemini4-argon_high` の後（`pi_deepinfra_deepseek4-flash_high` の前）にし、#401 が `pi_deepinfra_deepseek4-flash_high` の後に足す行と重ならないようにする。前のコメントに、`piaq` を呼ぶこと、key を export したシェルから使うこと（子に渡るのは `env` の allowlist に挙げた変数だけで、runner を起動したシェルに key が無ければ届かない。ccd 系のランチャーは自分の子から key を外すので、ランチャー起動セッションの中には key が無く、本リポジトリでは env ファイルからも補わない。その場合 `piaq` は key の案内を出して終了コード 1 で止まる）、`model` が #401 の `claude-code_alibaba_opus_max` の `model_key` と同じで同じ役割に並べられないことを書く
 - 検討した別案: 移植元と同じく `claude-code_alibaba_opus_max` の直後に置く（本リポジトリにはまだ無い）
 - 選択理由: #401 と #365 のどちらが先にマージされても、差分の取り直しが小さい
 
@@ -96,6 +97,7 @@ usaturn/agent-workspace#928（PR #931、マージコミット `4c425ab1dd3afe551
   - 「API トークン」: `MAAS_ANTHROPIC_TOKEN` を `piaq` も使うこと、ファイルに置かず使うシェルで export すること
   - 「非対話エージェントのランナー（agent-runner）」: `pi_alibaba_qwen4-max_max` と使い方（key を export した通常のシェルから。Rebuild 前は `piaq` が無いので setup が要る）
   - 「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」: Pi からも同じ Token Plan を使えること（`piaq`）と、既存環境への反映（`zsh scripts/setup_pi_alibaba.zsh` と `zsh scripts/setup_pi_superagents.zsh`）。ランチャー起動セッションの `with_keys.py` では key を補えないこと
+  - ランチャーの本数・一覧を挙げるほかの箇所も合わせて更新する（冒頭の「通常ランチャー 11 本」、既存環境の更新の「通常の 11 本の pi ランチャー」、「エージェント向けツールの導入」の手動 install の手順、「13 本分を維持（通常配置は 11 本）」、「pi の TUI モードと Herdr のスクロール履歴」の列挙など。`piaq` で通常配置は 12 本、tier 設定は 14 本になる）。本数は実装の時点の README とコードを数えて合わせる
   - 実機の観測（Task の最後に書く）
 - 委任指示: 「README の節の構成」はエージェントに任せている
 
@@ -150,3 +152,16 @@ AGENTS.md の「テストの採用基準」の S だけを、それぞれ代表 
 - 結果: `verdict: sound`、concerns 0 件、利用者への問い 0 件。採否の対象は無い
 - `outside_changes`: なし。`unprotected_changes`: 他の作業の使い捨ての worktree（`/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*`）6 件。このレビューの対象外で、記録だけ残す
 - 記録の場所（commit しない）: `tmp/agents/issue-402.ht7fd2ih/2026-11-11-issue-402-piaq-token-plan-design.design-review/review-1/`
+
+### Spec レビュー（1 回目）
+
+- 方式: issue-to-pr の `review_spec.py`、外部担当
+- 担当: `--spec-review devin_swe2_max`（明示。fallback なし）。runner が観測した agent は `devin_swe2_max`、identity は model `SWE-2 Max`（provider・effort は観測なし、CLI 3000.12.43）。fallback は使っていない
+- `review_id`: `951e8b3229a84ec88cca1f2c284e69ae`、reviewed の Spec の SHA-256: `ab13053a40b495e8e3f6b832151015185fc8912269abd4d5b5dd38e17d9c185d`、所要 858 秒
+- 結果: findings 3 件（すべて minor）。すべて採用
+  - S1（現状の観測・D6）: unset はセッション全体ではなく ccd 系のランチャー関数の子だけで、runner の子は env allowlist で決まる → 「現状の観測」と D6 のコメントの説明を 2 つの仕組みに分けて書き直した（`zshrc.txt` の `cc_launcher_unsets` で確認）
+  - S2（D4）: setup の最後の案内に `--if-absent` が無く、既存の tier の編集を上書きしうる → 案内を `--if-absent` 付きにした
+  - S3（D7）: README のランチャーの本数・一覧を挙げるほかの箇所が更新の対象から漏れている → D7 に追記した
+- `outside_changes`: なし。`unprotected_changes`: 設計レビューと同じ、他の作業の使い捨ての worktree 6 件（記録だけ）
+- 記録の場所（commit しない）: `tmp/agents/issue-402.ht7fd2ih/2026-11-11-issue-402-piaq-token-plan-design.spec-review/review-1/`
+- 2026-11-11 21:33 ごろの利用者の指示「devin_swe2_maxに対しては、JSONだけを返却してくださいと必ず指示をしてください。」により、以後の `devin_swe2_max` への依頼の prompt に、JSON だけを返す指示を必ず入れる（このレビューは指示の前に起動済みで、helper の依頼文の JSON の指示だけだった）
