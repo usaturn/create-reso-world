@@ -106,4 +106,12 @@ env = {
 
 ## レビュー記録
 
-（設計レビュー・Spec レビューの実施後に追記する）
+### 設計レビュー 1 回目（helper `review_design.py`、外部 runner）
+
+- 担当: 明示 `--design-review pi_openai-codex_gpt6-sol_xhigh`。requested_agent / actual_agent とも `pi_openai-codex_gpt6-sol_xhigh`。identity: model `gpt-6.1-sol` / provider `openai-codex` / effort `xhigh`。fallback の使用なし（個人設定に fallback なし）。
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-382.mbplkg1i/2026-11-12-issue-382-claude-bash-timeout-cap-design.design-review/review-1`
+- review_id: `9ab14dd9e3994466ac688b6b3ce3c44c`。reviewed spec sha256: `7b15c03aebd9be979963cad1458ceffd2eb37cf506da9244a0441ae24049e5cc`。
+- 結果: status completed / verdict **sound** / concerns 0 件 / questions_for_user 0 件 / incomplete 0 件。elapsed_seconds 73.78。
+- 評価の要点: 残り時間から子プロセスの Bash 上限だけを導出する方式は Issue の原因と LaunchSpec.env の配送に適合。既定 10 分・背景化無効・runner の期限と停止確認・厳格な結果判定を維持でき、変更は局所的で戻しやすい。代替案比較と fake 対照の検証方針も妥当。
+- 採否: 指摘 0 件のため採用・不採用の判断なし。
+- outside_changes: なし。unprotected_changes: `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の使い捨て worktree（他セッションの prunable 登録）と `.worktrees/issue-355-herdr-merge` の観測。本 run の変更ではなく、受け取りは止めない（報告のみ）。
