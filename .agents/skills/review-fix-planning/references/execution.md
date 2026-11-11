@@ -10,7 +10,7 @@ review-fix-planning の完遂で、修正の実装・修正後の自己レビュ
 SESSION="$(uv run --no-project python "$TOPLEVEL/.agents/scripts/agent_tmp.py" mkdir "review-fix-planning-pr$PR_NUMBER")"
 ```
 
-agent-runner の設定は、雛形（`$TOPLEVEL/.devcontainer/agent-runner.toml`）→ 個人設定 → 明示した `--assign` の順に重なる。雛形の既定は、`implement` が `claude-code_opus_default`、`self-review`・`fix-check` が `self` である。PR 修正ループ（#156 で入る）から呼ばれたときは、ループが返す `planning.run_roles_options`（`--template`・`--config`・`--assign`）をそのまま付ける。存在しない担当や、投影できない設定を `self` に黙って置き換えない。
+agent-runner の設定は、雛形（`$TOPLEVEL/.devcontainer/agent-runner.toml`）→ 個人設定 → 明示した `--assign` の順に重なる。雛形の既定は、`implement` が `claude-code_opus_default`、`self-review`・`fix-check` が `self` である。PR 修正ループ（#156 で入る）から呼ばれたときは、ループが返す `planning.run_roles_options`（`--template`・`--config`・`--assign`）を helper に付ける。そのうち `--template`・`--config` は、wrapper の `--` の前にも同じ値を渡す。`--assign` は helper だけに付ける。存在しない担当や、投影できない設定を `self` に黙って置き換えない。
 
 `run_roles.py` は、すべての担当の終了と停止の確認まで戻らない同期のコマンドで、役割の期限は最大 90 分（implement）になる。`.agents/monitoring-runtimes.md` の「agent-runner の同期実行と停止確認」のとおりに待つ（Claude Code ではバックグラウンドで起動して終了の通知を待つ）。途中で止めるときは、`run_roles.py` のプロセスに SIGINT を送って runner に担当を止めさせ、いきなり SIGKILL しない（自己レビューの枠は止めても戻らない）。
 
@@ -37,10 +37,12 @@ SKILL.md の結論 1 の手順 1 で、「対応する」項目を設定の担�
 - 結果の JSON に、行った操作、作った commit、実行した検証の argv・HEAD・終了コード、終わらなかったこと、残したパスを書く。測れない識別情報は `unknown` にする
 
 ```bash
-uv run --project "$TOPLEVEL" --locked python \
-  "$TOPLEVEL/.agents/skills/review-fix-planning/scripts/run_roles.py" \
+uv run --project "$TOPLEVEL" --locked python "$TOPLEVEL/tools/agent_runner/with_keys.py" -- \
+  python "$TOPLEVEL/.agents/skills/review-fix-planning/scripts/run_roles.py" \
   --phase implement --request "$SESSION/implement-request.json" --output-dir "$SESSION/implement-run"
 ```
+
+`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）。helper に `--template`・`--config` を渡すときは、wrapper の `--` の前にも同じ値を渡す。渡さない既定では、wrapper と helper が同じ checkout の雛形と `resolve_config_path()` の個人設定を使うので、何も足さなくてよい。
 
 - 割り当てが `self` なら外部を起動しない。`<artifact_dir>/roles.json`（`artifact_dir` は `--output-dir` と同じパス）の `self_prompts.implement` を司令塔が自分で実行する
 - 外部の担当なら、停止の確認（各 attempt の `stop_confirmed`）の後に、実際の Request・Result の role・agent・commit・work_dir を照合し、その commit の差分だけを確かめてから `MAIN_ROOT` に取り込む（runner の worktree は同じ Git を使うので、`git -C "${MAIN_ROOT:?}" cherry-pick <commit>` で取り込める）。応答の `success` を、テストの合格や commit の成功とみなさない
@@ -81,11 +83,13 @@ SKILL.md の「修正後の自己レビュー」の 1 回は、この呼び出�
 `run_roles.py` は、fix-check の依頼に固定の指示・7 項目・review-verify の SKILL.md を足し、全体の依頼に「自分の役割の依頼だけを実行する」指示を付ける。
 
 ```bash
-uv run --project "$TOPLEVEL" --locked python \
-  "$TOPLEVEL/.agents/skills/review-fix-planning/scripts/run_roles.py" \
+uv run --project "$TOPLEVEL" --locked python "$TOPLEVEL/tools/agent_runner/with_keys.py" -- \
+  python "$TOPLEVEL/.agents/skills/review-fix-planning/scripts/run_roles.py" \
   --phase self-review --request "$SESSION/self-review-request.json" --output-dir "$SESSION/self-review-run" \
   --planning-file "$REVIEW_DIR/verified/${HEAD_SHA:0:12}.planning.json" --fix-input "$SESSION/fix-input.json"
 ```
+
+`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）。helper に `--template`・`--config` を渡すときは、wrapper の `--` の前にも同じ値を渡す。渡さない既定では、wrapper と helper が同じ checkout の雛形と `resolve_config_path()` の個人設定を使うので、何も足さなくてよい。
 
 ### 2.3 1 回の枠
 

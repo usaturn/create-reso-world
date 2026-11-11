@@ -263,12 +263,15 @@ fi
 
    ```bash
    mkdir -p "$SESSION/review-runner" || exit 2
-   uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/review_design.py" review \
+   uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- \
+     python "$SKILL_DIR/scripts/review_design.py" review \
      --request "$SESSION/<spec-stem>.design-request.json" \
      --ledger-dir "$SESSION" \
      --design-review <値> \
      --runner-dir "$SESSION/review-runner/design-1"
    ```
+
+   `with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）。helper に `--template`・`--config` を渡すときは、wrapper の `--` の前にも同じ値を渡す。渡さない既定では、wrapper と helper が同じ checkout の雛形と `resolve_config_path()` の個人設定を使うので、何も足さなくてよい。
 
    出力が `state: self` なら、`prompt_path` の依頼文を読み、出力の `review_id`・`spec_sha256` を使って結果 JSON を `"$SESSION/<spec-stem>.design-result.json"` に書く。
 
@@ -294,7 +297,7 @@ fi
 
    `submit` の終了コード 1 はレビュー失敗、2 は結果の形・`review_id`・`spec_sha256` の拒否である。どちらも採否へ進まず止まる（拒否では `review.json` を作らない。`review_dir` と理由を報告する）。
 
-**Spec レビュー（`--spec-review` があるときだけ）。** 設計レビューを行った場合はその採否を Spec に反映して commit した後、行っていない場合は Spec の commit 後に行う。**review を始める直前に、その時点の `CODE_ROOT` HEAD で新しい依頼 JSON（例: `"$SESSION/<spec-stem>.spec-request.json"`）を作り、`--request` に渡す。前の設計レビューの依頼を使い回さない。** 手順は設計レビューと同じで、`review_design.py` の代わりに `review_spec.py` を使い、`--design-review` の代わりに `--spec-review` を渡す。結果は `status`・`findings`・`incomplete` を持ち、runner-dir は `"$SESSION/review-runner/spec-1"` のような新しいパスにし、親の `"$SESSION/review-runner"` は先に `mkdir -p` で作る（設計レビューを行わない run でも同じ）。`self` の結果は `{"review_id": "<review の出力>", "spec_sha256": "<review の出力>", "status": "completed", "findings": [], "incomplete": []}` の形で、指摘は prompt の `RESULT_SHAPE` の `id`・`section`・`problem`・`evidence`・`impact`・`severity`・`suggestion` を埋める。`review_spec.py submit --review-dir "<review_dir>" --result "$SESSION/<spec-stem>.spec-result.json"` で記録し、終了コード 1/2 は設計レビューと同じく停止する。設計レビューを 2 回目に始める場合や、Spec レビューの後に設計レビューを始める場合は、helper が拒否する。拒否されたら順序を変えずに止まる。
+**Spec レビュー（`--spec-review` があるときだけ）。** 設計レビューを行った場合はその採否を Spec に反映して commit した後、行っていない場合は Spec の commit 後に行う。**review を始める直前に、その時点の `CODE_ROOT` HEAD で新しい依頼 JSON（例: `"$SESSION/<spec-stem>.spec-request.json"`）を作り、`--request` に渡す。前の設計レビューの依頼を使い回さない。** 手順は設計レビューと同じで、`review_design.py` の代わりに `review_spec.py` を使い、`--design-review` の代わりに `--spec-review` を渡す。`review_spec.py review` も設計レビューと同じ wrapper を通す。`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）。helper に `--template`・`--config` を渡すときは、wrapper の `--` の前にも同じ値を渡す。渡さない既定では、wrapper と helper が同じ checkout の雛形と `resolve_config_path()` の個人設定を使うので、何も足さなくてよい。結果は `status`・`findings`・`incomplete` を持ち、runner-dir は `"$SESSION/review-runner/spec-1"` のような新しいパスにし、親の `"$SESSION/review-runner"` は先に `mkdir -p` で作る（設計レビューを行わない run でも同じ）。`self` の結果は `{"review_id": "<review の出力>", "spec_sha256": "<review の出力>", "status": "completed", "findings": [], "incomplete": []}` の形で、指摘は prompt の `RESULT_SHAPE` の `id`・`section`・`problem`・`evidence`・`impact`・`severity`・`suggestion` を埋める。`review_spec.py submit --review-dir "<review_dir>" --result "$SESSION/<spec-stem>.spec-result.json"` で記録し、終了コード 1/2 は設計レビューと同じく停止する。設計レビューを 2 回目に始める場合や、Spec レビューの後に設計レビューを始める場合は、helper が拒否する。拒否されたら順序を変えずに止まる。
 
 **採否を記録する。** 結果のすべての `findings` / `concerns` を、重複なく 1 回ずつ採否に含める。採用する指摘は Spec の該当箇所に反映し、`decide` の前に、既知のレビュー記録（`review_dir`・`review_id`・reviewed の SHA・担当・回数・`elapsed_seconds`・`requested_agent`・`actual_agent`・`identity`・`fallback` の使用・`outside_changes`・`unprotected_changes`）も決定記録に追記する。Spec の実質的な反映と、Spec に書くレビュー記録はこの時点で済ませる。reflected の SHA は `decide` が返すまで存在しないので、Spec に書かず、`decide` の後に SESSION と最終報告へ記録する。記録の追記だけを採用の反映にしない。
 
@@ -347,9 +350,12 @@ fi
 3. **依頼:** 終わるまで待つ（`implement` の役割の期限は 90 分。`monitoring-long-tasks` に従い、Claude Code では `run_in_background: true` の完了通知で待つ）。
 
    ```bash
-   uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/implement_task.py" run \
+   uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- \
+     python "$SKILL_DIR/scripts/implement_task.py" run \
      --request "$REQUEST_JSON" --output-dir "$RUN_DIR" [--implement <値>]
    ```
+
+   `with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）。helper に `--template`・`--config` を渡すときは、wrapper の `--` の前にも同じ値を渡す。渡さない既定では、wrapper と helper が同じ checkout の雛形と `resolve_config_path()` の個人設定を使うので、何も足さなくてよい。
 
    出力の `verdict` で次を決める。どの `verdict` でも、次の依頼を出す前・止まる前に、その依頼の `RUN_DIR` を 5 のとおり片付ける。
 

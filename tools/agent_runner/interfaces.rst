@@ -316,8 +316,9 @@ CLI と API
 
    uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner check
    uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner list
-   uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner \
-     --config /path/to/personal.toml run --workflow audit \
+   uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" \
+     --config /path/to/personal.toml -- \
+     python -m tools.agent_runner --config /path/to/personal.toml run --workflow audit \
      --repository /path/to/repository --revision HEAD \
      --prompt-file /path/to/prompt.txt --concurrency 2 \
      --assign inspect=agent-a,agent-b --output-dir /tmp/unique-new-directory \
@@ -325,6 +326,12 @@ CLI と API
 
 リポジトリのルート（``$PARENT_ROOT``、または同じリポジトリの worktree のルート）を cwd にして実行する。
 ``python -m`` は cwd から ``tools`` を読むので、ほかの cwd では ``No module named 'tools'`` で止まる。
+``check``・``list`` は担当を起動しないので wrapper を通さない。
+``run`` の例が示す ``--config``（と ``--template``）は、``with_keys.py`` の ``--`` の前と、
+runner のサブコマンドの前の両方に同じ値を置く。省略する既定では、wrapper と runner の両方が、
+同じ checkout の雛形（``.devcontainer/agent-runner.toml``）と ``resolve_config_path()`` の個人設定を使う。
+``with_keys.py`` は、ランチャー起動セッションでも runner に key を届ける wrapper である
+（``.devcontainer/README.md`` の「API トークン」節）。
 既定の雛形は、cwd ではなくランナーのある checkout の ``.devcontainer/agent-runner.toml`` を読む。
 グローバルの --template / --config はサブコマンドの前に置く。
 output-dir は既存 directory/symlink を拒否する。省略時は /tmp 内の一意の directory。
@@ -346,6 +353,10 @@ run は同期で全依頼の終了・停止確認まで待つ。
    config = load_config(template, personal, assignments={"inspect": ["agent-a"]}, workflow="audit")
    result = run_workflow(config, "audit", prompt, repository,
                          revision="HEAD", concurrency=2, output_dir=None, cancel=None)
+
+同じプロセスで ``run_workflow`` を呼ぶ呼び出しは ``with_keys.py`` を通せない。
+ランチャー起動セッションで key を届けるには、そのプロセス自体を ``with_keys.py`` 経由で起動するか、
+CLI の ``run`` を使う。起動後に ``os.environ`` を変えても子には届かない。
 
 API は既存 asyncio event loop 内からは呼ばない。
 ``write_exceptions`` は、呼び出し側が作業範囲の指示（``Work in this worktree only`` と ``writes=...``）への

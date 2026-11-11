@@ -516,8 +516,40 @@ def save_cycle(run_dir: Path, cycle: CycleRecord) -> None:
     write_json(cycle_path(run_dir, cycle.cycle), cycle)
 
 
-def command(subcommand: str, *args: str) -> list[str]:
-    """この helper を同じ版で呼び直す完全なコマンド。"""
+def command(
+    subcommand: str,
+    *args: str,
+    template: str | None = None,
+    config: str | None = None,
+) -> list[str]:
+    """この helper を同じ版で呼び直す完全なコマンド。
+
+    ``review`` だけは runner を起動する。``ROOT`` はこのファイル
+    （``.agents/skills/pr-review-fix-loop/scripts/loop.py``）の 4 つ上の checkout である。
+    issue-to-pr と pr-review-fix-loop は ``PARENT_ROOT``（main checkout）の ``loop.py`` を
+    起動し、feature worktree のものは使わない。その起動では ``ROOT`` は ``PARENT_ROOT`` を指す。
+    ランチャー起動セッションでも key を届けるため、その run に保存した ``options.template``
+    （``options.config`` があればそれも）を ``with_keys.py`` の ``--`` の前に渡す。
+    ほかの subcommand は runner を起動しないので wrapper を通さない。
+    """
+    if subcommand == "review":
+        if template is None:
+            raise ValueError("review の next には保存した options.template が要る")
+        wrapped = [
+            "uv",
+            "run",
+            "--project",
+            str(ROOT),
+            "--locked",
+            "python",
+            str(ROOT / "tools/agent_runner/with_keys.py"),
+            "--template",
+            template,
+        ]
+        if config is not None:
+            wrapped.extend(["--config", config])
+        wrapped.extend(["--", "python", str(HELPER), subcommand, *args])
+        return wrapped
     return [
         "uv",
         "run",
@@ -1396,7 +1428,9 @@ def cycle_begin(run_dir: Path, *, github: GitHub | None = None) -> dict[str, Any
         output["planning"] = planning_guidance(run)
         output["next"] = command("cycle-end", "--run", str(run_dir))
     else:
-        output["next"] = command("review", "--run", str(run_dir))
+        output["next"] = command(
+            "review", "--run", str(run_dir), template=run.options.template, config=run.options.config
+        )
     return output
 
 
@@ -2109,7 +2143,9 @@ def _review_batch(
                 "runner",
                 f"runner でレビュアーを起動できない（{type(error).__name__}）。何も起動していない。"
                 "原因（設定・入れ子の起動など）を直してから review をやり直す",
-                next_command=command("review", "--run", str(run_dir)),
+                next_command=command(
+                    "review", "--run", str(run_dir), template=run.options.template, config=run.options.config
+                ),
             ) from error
         # 後処理の前に runner の結果を残し、途中で止まっても保存した結果から再開する
         write_json(output_dir / "result.json", batch)
@@ -2275,7 +2311,9 @@ def review(
     if cycle.review.rerun is not None:
         output["rerun"] = {"agents": list(cycle.review.rerun.agents)}
     if pending:
-        output["next"] = command("review", "--run", str(run_dir))
+        output["next"] = command(
+            "review", "--run", str(run_dir), template=run.options.template, config=run.options.config
+        )
         return output
     output["planning"] = planning_guidance(run)
     output["next"] = command("cycle-end", "--run", str(run_dir))
@@ -2431,7 +2469,9 @@ def _next_step(run: RunRecord, existing: Sequence[CycleRecord], run_dir: Path) -
             return command(
                 "finish", "--run", str(run_dir), f"--abort={_failed_review_reason(existing[-1].review.reviewers)}"
             )
-        return command("review", "--run", str(run_dir))
+        return command(
+            "review", "--run", str(run_dir), template=run.options.template, config=run.options.config
+        )
     return command("cycle-end", "--run", str(run_dir))
 
 
