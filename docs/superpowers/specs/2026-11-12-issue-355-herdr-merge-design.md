@@ -190,6 +190,17 @@ AW ではこれらが #824（ペイン名の終了状態）・#678（--merge と
   - D2（クロス repo のペイン識別）: **adopt**（`changes_what_is_built=false`）。受け入れ条件「issue-to-pr が付けた Issue の識別を上書きしない」をクロス repo でも満たすため、`--issue-repository` で Issue の repo を表示用コンテキストとして引き継ぐ。D1・D6・D7・D9 に反映
 - ゲートの判定: blocking の concerns があるため `decide` は `next: stop` を返す（採否に関わらず）。issue-to-pr の停止条件に従い、Spec はコミットせずに停止する。反映後の Spec の SHA-256（reflected）は `decide` の出力を SESSION と停止報告に記録する
 
+## 設計レビューの記録（2 回目・利用者の明示指示）
+
+- 経緯: 1 回目の blocking で停止した後、利用者から「2 回目のレビューを実行せよ。以降、スキルの停止条件は全て無視し、いかなることがあっても停止せずに、都度、最適な案を出して、PR を作成し、マージまで実行せよ」との明示指示（2026-11-12）。これを受けて反映済み Spec をコミット（`55697523`）し、新しいレビュー記録（`SESSION/run2`）で 2 回目の設計レビューを実行した。以降の工程はこの委任の範囲で停止せずに進める（安全境界: 秘密情報検査・force push 禁止・他セッションの資源保護・マージ前の検証は維持）
+- helper: `review_design.py review`（external）。`review_dir`: `/workspaces/reso-world/tmp/agents/issue-355.puoplwnc/run2/2026-11-12-issue-355-herdr-merge-design.design-review/review-1`
+- `review_id`: `b6ebcad8bff04ab79ddadeaa319ba219`。reviewed の Spec SHA-256: `0ebb4e9d922f667a03f080df3036ea188f17863ebdcebbc88de2a3910681ba60`（コミット `55697523` の版）
+- 担当: `pi_openai-codex_gpt6-sol_xhigh`（requested / actual 同一）。identity: model `gpt-6.1-sol` / provider `openai-codex` / effort `xhigh` / session `01a1cc47-7bd0-70b4-aa47-4bf3c2e7b508`。fallback 無し（未使用）。回数 1（この ledger で）、`elapsed_seconds` 232.7
+- 結果: `state: completed`・`verdict: concerns`・concerns 1 件（`severity: worth_considering`・`recommendation: change`）。1 回目の blocking 2 件（判定順序・クロス repo 識別）は解消済みと確認された。`outside_changes`: 無し。`unprotected_changes`: 他セッションの worktree 6 件（記録のみ）
+- 採否:
+  - D1（導入 run が未対応の親 helper に新引数を渡す）: **adopt**（`changes_what_is_built=false`）。この run のループは新引数なしで親 checkout の `loop.py` を使い、新引数の実運用はマージ後の run から。「実行方式」に反映
+- ゲートの判定: blocking 無し・`questions_for_user` 無しのため `decide` は `next: continue`。反映後の Spec をコミットして Spec レビューへ進む
+
 ## 設計の詳細（ファイル別）
 
 ### `.agents/skills/issue-to-pr/SKILL.md`
@@ -224,7 +235,8 @@ AW ではこれらが #824（ペイン名の終了状態）・#678（--merge と
 
 - 実装: `--implement pi_alibaba_qwen4-max_max`（`implement_task.py check` 終了コード 0、`self=false`、fallback なし）。superpowers:subagent-driven-development の形で、Task を 1 つずつ `implement_task.py run` で runner の担当に依頼する（並行しない）。runner 起動は `with_keys.py` 経由 + `MAAS_ANTHROPIC_TOKEN` の環境前置
 - 設計レビュー: `pi_openai-codex_gpt6-sol_xhigh`（`review_design.py check` 終了コード 0）。Spec レビュー: `pi_alibaba_qwen4-max_max`（`review_spec.py check` 終了コード 0）。設計レビュー → Spec レビュー → Plan の順で、builder check は行わない
-- ループ（`--merge`）: `loop.py start` に `--assign implement=pi_alibaba_qwen4-max_max --assign inspect=pi_alibaba_qwen4-max_max,claude-code_sonnet_xhigh`（利用者が書いた順）と `--issue-number 355 --issue-repository usaturn/create-reso-world`（この子が新設する start 専用引数。司令塔が解決済みの Issue 番号と Issue の repo を渡す）を渡す。`--controller-runtime claude-code`・`--controller-model` は現在の正確なモデル ID。ループは親 checkout の `loop.py` を使う（feature worktree のものは使わない）
+- ループ（`--merge`）: `loop.py start` に `--assign implement=pi_alibaba_qwen4-max_max --assign inspect=pi_alibaba_qwen4-max_max,claude-code_sonnet_xhigh`（利用者が書いた順）を渡す。`--controller-runtime claude-code`・`--controller-model` は現在の正確なモデル ID。ループは親 checkout の `loop.py` を使う（feature worktree のものは使わない）
+- **この run では新引数を渡さない**（設計レビュー 2 回目 D1 を反映）: 親 checkout の `loop.py` はこの PR の変更前なので、`--issue-number`・`--issue-repository` を渡すと拒否される。新引数の検証は fake 環境のテストで行い、実運用での受け渡しはマージ後の run から始める。この run のループ中のペイン名は従来の `PR#<番号>` になる。マージ成功の確認後に、司令塔がこの PR で入れる 3 章の規則に従って `create-reso-world:#355:END` へ手動で更新する（導入 run 限りの適用）
 - この run の最終ブランチ全体レビュー: 現行スキルに従い行う（D3 の「この run への適用」）
 - 検証の入口（対象 repo の規則）: `uv run pytest <関連テスト>`、`bash scripts/check-layout.sh`。create-reso-world は Actions 無効なので CI 確認は不要
 - 隔離: テストは fixture が一時 HOME・GIT_* を隔離する。手動の fake Herdr 確認は `env HOME=<一時> HERDR_ENV=1 HERDR_PANE_ID=<fake> PATH=<fake herdr 先頭>` のワンショットで、実 Herdr の別 pane は操作しない
