@@ -96,7 +96,7 @@
 - [ ] **Step 3: 実装する**
 
   - `pi-models.json`: 移植元の `providers.alibaba` を値ごと足す（Global Constraints）。ほかの provider は 1 バイトも変えない
-  - `piaq`: `.devcontainer/piccd` の形（ヘルパの探索と source、`pi_agent_directory`、python3 の判定スクリプト）。Spec D2 のとおり models.json が無いときも `no-file` で止める。案内は `zsh scripts/setup_pi_alibaba.zsh`。key の判定は `[[ ${MAAS_ANTHROPIC_TOKEN:-} != *[A-Za-z0-9]* ]]`、案内は `export MAAS_ANTHROPIC_TOKEN="..."`（ランチャーの外のシェルで export すること）
+  - `piaq`: `.devcontainer/piccd` の形（ヘルパの探索と source、`pi_agent_directory`、python3 の判定スクリプト）。Spec D2 のとおり models.json が無いときも `no-file` で止める。案内は `zsh scripts/setup_pi_alibaba.zsh`。key の判定は `[[ ${MAAS_ANTHROPIC_TOKEN:-} != *[A-Za-z0-9]* ]]`、案内は `read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN`（ランチャーの外のシェルで、値をコマンド行に書かずに export すること）
   - `piaq.json`: Spec D3
   - `setup_pi_superagents.zsh`: `LAUNCHERS` の `pidid` の後に `piaq`
 

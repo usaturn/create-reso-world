@@ -147,7 +147,7 @@ if [[ ${MAAS_ANTHROPIC_TOKEN:-} != *[A-Za-z0-9]* ]]; then
     print -ru2 -- "Model Studio のコンソールで作成した API キーを、piaq を起動するシェルで export してから再実行してください"
     print -ru2 -- "（ccda などのランチャーが起動したセッションには key が渡りません）:"
     print -ru2 -- ""
-    print -ru2 -- '  export MAAS_ANTHROPIC_TOKEN="..."'
+    print -ru2 -- "  read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN"
     exit 1
 fi
 

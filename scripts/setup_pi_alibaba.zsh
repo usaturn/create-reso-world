@@ -171,7 +171,7 @@ if [[ ${MAAS_ANTHROPIC_TOKEN:-} != *[A-Za-z0-9]* ]]; then
     log "MAAS_ANTHROPIC_TOKEN is unset, empty, or has no letters or digits."
     log "Skipping 'pi --list-models' validation."
     log "Export the key in this shell, then run piaq:"
-    log '  export MAAS_ANTHROPIC_TOKEN="..."'
+    print -r -- "  read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN"
     log "  piaq"
 else
     log "Checking Alibaba model availability..."
@@ -248,6 +248,6 @@ print
 print "Run piaq from a shell where the key is exported"
 print "(a launcher-started session does not have the key):"
 print
-print '  export MAAS_ANTHROPIC_TOKEN="..."'
+print -r -- "  read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN"
 print "  piaq"
 print

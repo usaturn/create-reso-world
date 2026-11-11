@@ -1393,11 +1393,13 @@ Rebuild 前は `~/.local/bin/piaq` が無い。既存の `models.json` には Re
 `zsh scripts/setup_pi_superagents.zsh --if-absent` を実行してから使う。既定の workflow 割り当てには入れない。
 
 ```bash
-export MAAS_ANTHROPIC_TOKEN="..."
+read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN
 uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner run \
   --workflow review --assign inspect=pi_alibaba_qwen4-max_max \
   --repository . --revision HEAD --prompt-file /path/to/prompt.txt
 ```
+
+入力値は画面に表示されず、コマンド履歴にも値が残らない。
 
 同一モデルの判定は、agent ごとの比較集合で行う。`model` は空でない値が必須で、省略・null は不可。`model_key` のみ任意である。
 比較集合は `{model}` とし、`model_key` もあれば `{model, model_key}` とする。同じ役割の `agents` / `fallback` の全候補間、または `exclude_same_model_as` で指定した役割間に共通要素があれば、
@@ -1851,9 +1853,11 @@ Rebuild 前に `piaq` が無いとき、または既存の `models.json` へ反�
 ```bash
 zsh scripts/setup_pi_alibaba.zsh
 zsh scripts/setup_pi_superagents.zsh --if-absent
-export MAAS_ANTHROPIC_TOKEN="..."
+read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN
 piaq
 ```
+
+入力値は画面に表示されず、コマンド履歴にも値が残らない。
 
 key があるときだけ、setup は `pi --list-models` の provider・model の列で `alibaba/qwen4-max-preview` と
 `alibaba/qwen3.8-flash` を確かめ、見つからなければ終了コード 1 で終わる。key が無いときは確認を省いて終了コード 0 とし、
