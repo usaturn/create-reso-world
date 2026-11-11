@@ -43,7 +43,7 @@
 
 ## runner を起動する経路の変更
 
-runner を起動するコマンドを `uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- python <helper> ...` の形にし、各箇所の直後に「`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）」の 1 文を足す。helper に `--template`・`--config` を渡せる箇所（issue-to-pr の `implement_task.py`・`review_spec.py`・`review_design.py`、review-fix-planning の `run_roles.py`、review-verify の `dispatch.py`）では、渡すときは wrapper の `--` の前にも同じ値を渡すと書く。渡さない既定では、wrapper と helper が同じ checkout の雛形と `resolve_config_path()` の個人設定を使うので、何も足さなくてよいと書く（Spec レビュー S2）。`check`・`list` は担当を起動しないので wrapper を通さない。
+runner を起動するコマンドを `uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- python <helper> ...` の形にし、各箇所の直後に「`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）」の 1 文を足す。helper に `--template`・`--config` を渡せる箇所（issue-to-pr の `implement_task.py`・`review_spec.py`・`review_design.py`、review-fix-planning の `run_roles.py`、review-verify の `dispatch.py`）では、渡すときは wrapper の `--` の前にも同じ値を渡すと書く。渡さない既定では、wrapper と helper が同じ checkout の雛形と `resolve_config_path()` の個人設定を使うので、何も足さなくてよいと書く（Spec レビュー S2）。`check`・`list` は担当を起動しないので wrapper を通さない。CLI の `run` の例（`interfaces.rst`・README）も同じ規則にする: 例が `--template`・`--config` を示すときは、同じ値を `with_keys.py` の `--` の前と、runner のサブコマンドの前の両方に置く。省略する既定では、両方とも同じ checkout の雛形と `resolve_config_path()` を使うと書く（Spec の再レビュー S1）。`interfaces.rst` の Python API の例（同じプロセスで `run_workflow` を呼ぶ）は wrapper を通せないので、ランチャー起動セッションで key を届けるには、そのプロセス自体を `with_keys.py` 経由で起動するか CLI の `run` を使う、と書き足す（起動後に `os.environ` を変えても子に届かない。Spec の再レビュー S2）。
 
 | 箇所 | 対象 |
 | --- | --- |
@@ -54,7 +54,7 @@ runner を起動するコマンドを `uv run --project "$PARENT_ROOT" --locked 
 | `.agents/monitoring-runtimes.md` | 「agent-runner の同期実行と停止確認」の CLI の例 |
 | `.devcontainer/README.md` | agent-runner の節の `run` の例 |
 | `AGENTS.md` | 「エージェント運用」の agent-runner の起動の一文。`run` で担当を起動するときは `with_keys.py` 経由にすると書き足す（Spec レビュー S1） |
-| `tools/agent_runner/interfaces.rst` | 「CLI と API」の `run` の例（`check`・`list` はそのまま。Spec レビュー S1） |
+| `tools/agent_runner/interfaces.rst` | 「CLI と API」の `run` の例（`check`・`list` はそのまま。Spec レビュー S1）と、Python API の例の注記（再レビュー S2） |
 
 ## Alibaba の runner agent
 
@@ -141,7 +141,8 @@ AGENTS.md の「テストの採用基準」で S（と F∩S）に当たるも�
 
 - helper（`review_spec.py`）で外部の担当が実施。担当は `pi_xai_grok4_xhigh`（`--spec-review` で利用者が指定、fallback 無し）。`actual_agent` も同じで、runner が観測したモデルは `xai` の `grok-4.7`（effort `xhigh`）。1 回目、1265 秒
 - `review_id` `9c107a11a0ca43a1a04ce624450a9046`、reviewed の Spec SHA-256 `23e1e5846243179017268bdbcd3757cb31c65442dd67938c0af794c0c206e0df`。指摘 3 件（S1・S2 `important`、S3 `minor`）
-- 採否: S1 採用（`AGENTS.md`・`interfaces.rst` を経路の表に足し、D8 を改めた）。S2 採用（`--template`・`--config` を渡す helper に issue-to-pr の 3 スクリプトを足した）。S3 採用（`claude-alibaba-exec` が親の認証の変数を外し、テストの通る例に親の `ANTHROPIC_API_KEY`・`CLAUDE_CODE_OAUTH_TOKEN` を置く）
+- 2 回目（再レビュー）: `review_id` `dfa8290ee5b24be98226ba73c4590392`、1379 秒、reviewed の Spec SHA-256 `550a059ec3924b6270a750fbf38b179d5443c6603152e51af954d699334fcca5`。指摘 2 件（S1 `important`: CLI の `run` の例の `--config` を wrapper にも渡す規則、S2 `minor`: Python API の例は wrapper を通せない）。どちらも採用し、「runner を起動する経路の変更」に反映
+- 1 回目の採否: S1 採用（`AGENTS.md`・`interfaces.rst` を経路の表に足し、D8 を改めた）。S2 採用（`--template`・`--config` を渡す helper に issue-to-pr の 3 スクリプトを足した）。S3 採用（`claude-alibaba-exec` が親の認証の変数を外し、テストの通る例に親の `ANTHROPIC_API_KEY`・`CLAUDE_CODE_OAUTH_TOKEN` を置く）
 - `outside_changes` は無し。`unprotected_changes` は他の作業の worktree（`/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*`、並行する #402 の `.worktrees/issue-402-piaq-launcher` とその runner の worktree）で、触れていない
 
 ## 失敗した Spec レビューの記録（1 回目の指示）
