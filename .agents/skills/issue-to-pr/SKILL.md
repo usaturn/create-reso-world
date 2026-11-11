@@ -81,6 +81,13 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
    while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
    uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" --parent-root "$PARENT_ROOT" -- "$INPUT" > "$SESSION/issue.json" || exit 2
+   merge_requested="$(jq -r '.merge != null' "$SESSION/issue.json")" || exit 2
+   if [ "$merge_requested" = true ]; then
+     merge_base="$(jq -r .base "$SESSION/issue.json")" || exit 2
+     if [ "$merge_base" != main ]; then
+       printf '%s\n' "BASE が統合用 branch（${merge_base}）のため --merge を適用しない。ループと finalize.py は既定 branch（main）へのマージと Issue の close を前提にする" > "$SESSION/merge-disabled.txt" || exit 2
+     fi
+   fi
    ```
 
    - 受け付ける表記: `https://github.com/<owner>/<repo>/issues/N`、`<owner>/<repo>#N`、`#N`（**現在の checkout の origin** で解決する。番号からリポジトリを推測しない）。対象は既存 parent / fork / meshy と、検証済み常設親の採用済み台帳にある通常ツール。未登録 repo の新規実装は扱わない
@@ -88,7 +95,8 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    - cwd が git の追跡しないディレクトリ（ワールドのプロジェクトなど）の中にあると（`git check-ignore -q .` が成功する）、helper は入力を読む前に終了コード 2 で止まる。下の「ワールドの作業で止まったとき」に従う
    - helper は入力の字句検証 → repo 解決 → profile 検査 → Issue 読取の順で進む。登録済み通常ツールの `--merge` は GitHub 照会の前に止める。登録は作成・clone・実装・公開・マージの許可ではない
    - helper は入力・対象の検証と Issue の確認だけで、競合・予約・承認を確かめた証拠にはならない
-   - `merge` が `null` でなければ、続けて `PARENT_ROOT` の `loop.py` で、ループ用のオプションと agent-runner の設定を検査する。`loop_args` の要素を順に、それぞれ 1 つの引数として渡す（空なら引数なし）。
+   - `merge` が非 null で `base` が `main` でないとき、input ブロックは理由を `$SESSION/merge-disabled.txt` に記録する（下の 5 の規則: 統合用 branch では `--merge` を適用しない）。`issue.json` の `merge` は非 null のままにする
+   - `merge` が `null` でなく、かつ `merge-disabled.txt` が無いときだけ、続けて `PARENT_ROOT` の `loop.py` で、ループ用のオプションと agent-runner の設定を検査する。無効化された run はループ設定の検査を起動せず（使わないループの設定の不備で PR 作成が止まらないようにする）、記録された理由を利用者に伝えて `--merge` が無い run として続ける。`loop_args` の要素を順に、それぞれ 1 つの引数として渡す（空なら引数なし）。
 
      ```bash
      uv run --project "$PARENT_ROOT" --locked python \
@@ -132,7 +140,7 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    TARGET_ROOT="$(jq -er .code_root "$SESSION/target.json")" || exit 2
    DOCS_SEPARATE="$(jq -r 'if (.document_repository | type) == "string" and (.repository | type) == "string" then .document_repository != .repository else error("target.json lacks document_repository") end' "$SESSION/target.json")" || exit 2
    merge_requested="$(jq -r '.merge != null' "$SESSION/issue.json")" || exit 2
-   if [ "$merge_requested" = true ]; then
+   if [ "$merge_requested" = true ] && [ ! -f "$SESSION/merge-disabled.txt" ]; then
      case "$TARGET_REPO" in
        usaturn/create-reso-world|usaturn/resoloop) ;;
        *) printf '%s\n' 'この対象は手動マージです。--merge を外して指示し直してください' >&2; exit 2 ;;
@@ -140,6 +148,8 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    fi
    ```
 
+   - `BASE` が統合用 branch（既定の `main` 以外）のときは `--merge` を適用しない（判定と記録は 3 の input ブロック）。理由（ループと `finalize.py` は既定 branch へのマージと Issue の close を前提にする）を利用者に伝え、`--merge` が無い run として続ける。ループ用オプションは使わず、最終の全体レビューを行い、CI 必須の対象は CI green を確認して PR の作成で終える
+   - 上の手動マージ拒否（meshy・登録済み通常ツール）は `merge_requested=true` かつ `merge-disabled.txt` が無いときだけ適用する。無効化済みの run は `--merge` なしとして続行する（対象・権限の確認は維持）
    - 登録済み通常ツールは `managed-tool-v1`（手動マージ）。context の結果は常設 checkout に限り、実装は後で作る同 common-dir の名前付き branch の linked worktree で行う。台帳が壊れている・未採用・checkout 不在・remote/送信先不一致・候補が複数なら停止し、親や近くの repo に切り替えない。clone・探索はしない
    - 検証コマンド・編集範囲・追加の実行許可は、解決した repo 自身の `AGENTS.md` と `README.md` を読んで決める。登録済み通常ツールの base / CI は共通 CLI（`PARENT_ROOT` で `uv run --no-project python -m tools.external_tools list`、対象 key の `show`）の採用済み情報を使う。`ci=required` は PR checks の成功を確認し、`disabled` だけを免除する。別 repo や未知 repo に CI 免除を広げない
    - 既存 parent / fork / meshy の特殊経路・検証・CI はルート `AGENTS.md`、`README.md`、fork は `docs/resoloop-fork-workflow.md`、meshy は `docs/resoloop-meshy-workflow.md` に従う。不在時も各手順書の clone コマンドを案内して停止し、自動取得しない
@@ -152,7 +162,7 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    - `TARGET_ROOT`（と文書用の worktree を作る場合は `PARENT_ROOT`）の既存の worktree、ローカル・remote の branch（`issue-N` を番号の境界で照合し、N=58 と N=580 を混同しない）
    - 未完了の先行 Issue・必要な未マージ PR
 
-   既存の open PR で止まるときは、その PR の URL と base（`gh pr view <PR> --repo <repo> --json url,baseRefName`）を報告し、レビューは `/pr-review <PR の URL>`、指摘の修正の計画は `review-fix-planning` で行えると伝える。案内には PR の URL を使う（番号だけでは、別のリポジトリの PR を cwd の origin の PR として解決する）。`--merge` があっても、既存の PR をループに乗せない（`loop.py start` を実行しない）。ループで続けるかは利用者が決め、続けるなら `/pr-review-fix-loop <PR の URL>` で行える。
+   既存の open PR で止まるときは、その PR の URL と base（`gh pr view <PR> --repo <repo> --json url,baseRefName`）を報告し、レビューは `/pr-review <PR の URL>`、指摘の修正の計画は `review-fix-planning` で行えると伝える。案内には PR の URL を使う（番号だけでは、別のリポジトリの PR を cwd の origin の PR として解決する）。`--merge` があっても、既存の PR をループに乗せない（`loop.py start` を実行しない）。ループで続けるかは利用者が決める。base が対象 repository の既定 branch なら、続けるなら `/pr-review-fix-loop <PR の URL>` で行えると案内する。base がそれ以外（統合用 branch など）ならループを案内せず、`/pr-review <PR の URL>`（マージしない）だけを案内する（ループはマージまで進めてしまうため）。
 
    worktree を作る直前と、push・PR の作成の前に、Issue の状態と競合を調べ直す。新しい競合や close があれば止まり、この run で作った worktree・branch と他者の作業を区別して報告する。
 
@@ -207,14 +217,16 @@ worktree・branch・Spec・Plan・PR を作らない（ワールドのプロジ�
 
 ## 3. Herdr と作業場所
 
-着手の条件がそろったら、`HERDR_ENV=1` のときに `herdr-agent-task` と `herdr` を読む。**現在の pane** の名前とタスクを設定する。ほかの pane や focus を変えない。
+着手の条件がそろったら、`HERDR_ENV=1` のときに `herdr-agent-task` と `herdr` を読む。**現在の pane** の名前とタスクを設定する。ほかの pane や focus を変えない。ペイン名は `<Issue の repo の repo 部分>:#<Issue 番号>`（例: `create-reso-world:#355`）にする。repo 部分は解決した Issue の repo（`issue.json` の `repo`）で、実装の対象（`TARGET_REPO`）や PR の repo から作らない。Issue と実装対象が別リポジトリでも、同じ Issue の識別を保つためである。
 
 ```bash
-herdr pane rename "${HERDR_PANE_ID:?}" "Issue#${NUMBER:?}"
+ISSUE_REPO="$(jq -r .repo "$SESSION/issue.json")" || exit 2
+pane_label="${ISSUE_REPO##*/}:#${NUMBER:?}"
+herdr pane rename "${HERDR_PANE_ID:?}" "$pane_label" && ISSUE_PANE_ID="${HERDR_PANE_ID}" && ISSUE_PANE_LABEL="$pane_label"
 herdr-agent-task set "Issue #$NUMBER 実装・PR作成"
 ```
 
-現在の pane が分からない・rename が失敗したときは、別の pane を推測せず、rename を省いて続け、最終報告に書く。
+rename が成功したときだけ `ISSUE_PANE_ID`・`ISSUE_PANE_LABEL` が確定する。run の間この 2 つを保持し、終了状態の更新（下の「ペイン名の終了状態」）にも同じラベルを使う。現在の pane が分からない・rename が失敗したときは、別の pane を推測せず、rename を省いて続け、最終報告に書く。この run では `ISSUE_PANE_ID`・`ISSUE_PANE_LABEL` が確定しないので、終了状態の更新もしない。
 
 **必須:** `superpowers:using-git-worktrees` に従い、status・worktree 一覧・ignore を確かめる。名前と未使用の branch を下の規則で決め、コードの絶対パスを `CODE_ROOT`、branch を `CODE_BRANCH` にする。文書を分離する場合はその絶対パスを `DOC_ROOT`、branch を `DOC_BRANCH` にし、分離しない場合は `DOC_ROOT="$CODE_ROOT"`。再確認後、捕捉した SHA から新しい worktree を作る（未更新の `origin/<branch>` を開始点にしない）。
 
@@ -235,6 +247,35 @@ fi
 ```
 
 以降、Spec・Plan を置く checkout を `DOC_ROOT` と呼ぶ（`DOCS_SEPARATE` が `false` なら実装の worktree、`true` なら create-reso-world の文書用の worktree）。
+
+### ペイン名の終了状態（Issue 起点の run だけ）
+
+`HERDR_ENV=1` で、かつ開始時の rename が成功して `ISSUE_PANE_ID`・`ISSUE_PANE_LABEL` が確定している run だけ、終了時にペイン名を更新する。開始時の rename が失敗・スキップだった run は更新しない（ラベルが確定していないため）。別の pane を探さず、rename の再帰的な再試行もしない。この表示処理で既存の停止・回収・マージ権限は変えない。
+
+| run の結果 | ペイン名 |
+| --- | --- |
+| 対応 PR のマージ成功を確認（finalize の `merged: true`、ループの `no_fix_needed` でマージ済みなど） | 確認した時点で `${ISSUE_PANE_LABEL}:END` |
+| 予期しない障害で中断 | 停止報告の前に `${ISSUE_PANE_LABEL}:Glitch` |
+| PR 作成だけの完了・マージ未実施・通常の工程区切り/待機・想定された停止 | 名前を維持 |
+
+マージ成功を確認した時点で:
+
+```bash
+herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:END"
+```
+
+予期しない障害で中断するとき（停止報告の前）:
+
+```bash
+herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
+```
+
+分類は次のとおり。ループ helper の `stopped`・`error` の値だけで決めず、`stage`・`reason` と実際の原因で分類する。
+
+- **予期しない障害（`:Glitch`）:** 必要なツール/API の失敗、担当の起動・結果形式の失敗（設計レビュー・Spec レビューの失敗を含む）、全レビュアーの失敗、資源の停止未確認、解消できない検証失敗、後片付けなどの実行障害。マージ後に関連 Issue の更新などが失敗して中断する場合は `Glitch` を優先し、報告ではマージ成功と未完了の後続処理を分ける
+- **想定された停止（名前を維持）:** 不正入力・設定の事前拒否、競合・claim/ロック、Issue の closed 化、未完了依存、明示承認待ち、許可されない操作・安全境界での停止、Spec/設計レビューの `decide` の `stop`、builder check の利用者判断、PR の HEAD 移動、base の捕捉後の移動、実行予算・サイクルの上限。CI 待ちなどの待機や、run を中断せず再試行・回復する一時的な失敗も `Glitch` にしない
+
+終了状態の rename が失敗しても、元の停止理由・マージ結果を隠さず、それと別に「pane 名が未更新であること」を報告する。
 
 ## 4. 推奨案 → Spec → Plan → 実装
 
@@ -336,6 +377,7 @@ fi
 
    Pi の `/sp-implement` は直列実行、`/sp-implement-parallel` は依存を満たした独立 Task を別 worktree で並列実行する入口。SDD なら常に parallel という対応ではない。同じファイルを同時に書かせない。run 中は選んだスキルで続け、コマンド再入力待ちにしない。
 5. 選んだスキルの実装・TDD・レビューに従い、最後のブランチ全体のレビューを省かない。実装担当（inline なら自分）へ、照合した条件・除外範囲・共有前提・必要な証拠を渡す。個別 Task の成功だけで共通条件を満たしたとせず、統合担当が条件単位で確認する。スキルを作る場合は `superpowers:writing-skills` の無し/ありの振る舞い比較を行い、固定文言の検査テストで代用しない。テストは AGENTS.md の「テストの採用基準」に従い、迷ったら書かない。検証の失敗は `systematic-debugging` で調べ、解消できなければ止まる。
+8. 項目 5 の例外として、`--merge` が適用される run は、実装スキルの最終のブランチ全体レビュー（全 Task の後のブランチ全体のレビュー）を行わず、ループの 1 サイクル目で代える。Task ごとのレビューは残す。最終レビューに回すはずだった minor の指摘（ledger の `deferred`）は PR 本文に一覧で書く。`--merge` が無い（適用されないを含む）run は最終レビューを省かない。「適用される」は 5 章のループ節の冒頭のとおり `merge-disabled.txt` が無い run を指す
 
 ### Task の実装を runner の担当に依頼する（`self` 以外のとき）
 
@@ -375,9 +417,11 @@ fi
 
    `run` が終了コード 2（`status: error`）で終わったときは `task.json` が無く、`cleanup` を使えない。`RUN_DIR` が存在すれば、その完全パスを停止の報告に書く。`reason` が `checkout_audit` なら、`checkout_audit` に並んだ登録（消えた worktree など）を報告して止まる。他の作業の領域でありうるので、自分で prune・削除しない。`IMPLEMENT_SESSION` は、すべての依頼の `cleanup` の後に空になったときだけ `rmdir` で消す。run 全体の `SESSION` はこの後片付けの対象にしない。中身が残っていれば消さずに完全パスを報告する（`rm -rf` で消すと runner の worktree の登録だけが残り、runner を使う入口が起動の前の監査で止まる）
 
-失敗を理由に、このセッションが `self` で実装を引き取らない（`tools/agent_runner/interfaces.rst` の「失敗を理由に別モデルへ暗黙に切り替えない」と同じ）。止まった Task の後の Task・最後の全体レビュー・PR には進まない。担当を変えるかは利用者が決める。すべての Task を取り込めたときの最後の全体レビューと PR は、`self` のときと同じ。PR 本文には、5 章の項目に加えて、割り当て（雛形・個人設定・`--implement` のどれで決まったか）、runner が観測した agent・モデル、Task ごとの依頼の回数と所要時間を書く。
+失敗を理由に、このセッションが `self` で実装を引き取らない（`tools/agent_runner/interfaces.rst` の「失敗を理由に別モデルへ暗黙に切り替えない」と同じ）。止まった Task の後の Task・最後の全体レビュー・PR には進まない。担当を変えるかは利用者が決める。すべての Task を取り込めたときの最後の全体レビューは 4 章 8 に従い、PR は `self` のときと同じ。PR 本文には、5 章の項目に加えて、割り当て（雛形・個人設定・`--implement` のどれで決まったか）、runner が観測した agent・モデル、Task ごとの依頼の回数と所要時間を書く。
 
 ## 5. 検証・PR・完了
+
+この章の「`--merge` のとき」は、`--merge` が適用された run（`merge-disabled.txt` が無い run。2 章 5 の規則で統合用 branch では無効化される）を指す。無効化された run は `--merge` が無い run として扱う。
 
 - **`verification-before-completion` と `finishing-a-development-branch` 必須。** 終了方法は PR の作成を選び、改めて選択肢を尋ねない。検証は 2 章の 5 で確認した repo 側の入口で行う。長時間の検証・子・CI は `monitoring-long-tasks` 必須で、終了を待ち、終了コードと実ログを確かめる。
 - `--merge` のときは、最後の commit の後に検証し、検証した HEAD、そのときの `git status --porcelain` が空だったこと、各コマンドの argv と終了コード、ログの完全パスを `PARENT_ROOT/tmp/agents/` のセッションディレクトリに記録する。実 PR 作成後の照合でも同じ base であることを確認し、検証したツリーが含むコード base の完全 SHA（`CODE_BASE_SHA`）を `base` に記録する。PR の `baseRefOid` や文書 main の SHA で代えない。同じ場所に、`finalize.py` の `--checks-file` の形のファイルも作る（形は review-fix-planning の `references/execution.md` の 3 章のとおり）。ループで再利用する条件になる（下の「`--merge` のとき: PR の作成後のループ」の 5）
@@ -464,26 +508,29 @@ fi
 - CI は 2 章の 5 で確認した対象ごとの規則に従う。CI 必須のリポジトリは PR の checks が green になってから完了とする。失敗したら直すか、直せなければ止まる。`--merge` のときは、PR の作成後に CI を待たずにループへ進む（マージの前に `finalize.py` が CI の成功を確かめ、実行中なら `wait_for: ci` で待つ。PR の変更による失敗は、review-fix-planning が致命的な指摘として直す）。
 - `--merge` のときのループの `finalize.py` によるマージを除き、マージ・タグ・リリース・デプロイ・プロビジョニングは行わない。admin マージ・auto-merge・force push・branch の削除は、どの場合もしない。
 - ボードの子の成果の公開・予約の解放は `planning-parallel-issues` に従う。自分の所有物だけを扱う。`--merge` のときは、PR の作成の直後には解放しない。ループの `finish` の後（ループのエラーで `finish` まで進めないときは、止まった時点）に、結果と再開の方法を子 Issue に書いてから解放する。
-- 完了したら Herdr のタスクを completed にし、PR の URL、検証結果、worktree・branch、実在する Spec・Plan・残したログの絶対パス、所要時間を報告する。`--merge` が無ければ、レビューは `/pr-review <PR の URL>` で行えることを 1 行で伝える。尋ねて止まらない。`--merge` のときは、この 1 行の代わりに、下の節の 6 の報告を加える。
+- 完了したら Herdr のタスクを completed にし、PR の URL、検証結果、worktree・branch、実在する Spec・Plan・残したログの絶対パス、所要時間、ペイン名の更新結果（3 章の「ペイン名の終了状態」のとおり `:END`・`:Glitch`・維持のどれか。開始時・終了時の rename の失敗やスキップがあったときは、その理由と pane 名が未更新であること）を報告する。`--merge` が無ければ、レビューは `/pr-review <PR の URL>` で行えることを 1 行で伝える。尋ねて止まらない。`--merge` のときは、この 1 行の代わりに、下の節の 6 の報告を加える。
 
 ### `--merge` のとき: PR の作成後のループ
 
+`merge-disabled.txt` がある run（統合用 branch の子）はループを始めない。この節を使わず `--merge` が無い run と同じく PR の作成で終える。ここで改めて判断しない。この章の「`--merge` のとき」は、`--merge` が適用された run（`merge-disabled.txt` が無い run）を指す。
+
 PR を作った後（`DOCS_SEPARATE` が `true` なら、文書の PR も作った後）、このセッションが司令塔としてループを回す。ループが終わるまで、review-fix-planning の手順の外で feature worktree を変えない（未 commit の変更や PR に無い commit を残さない。review-fix-planning は、clean で HEAD が PR の head の worktree を修正に使い、そうでなければ結論 3 で止まる）。Spec・Plan への記録は PR を作る前に済ませ、ループの間の記録はセッションディレクトリと PR・Issue のコメントに置く。
 
-1. `HERDR_ENV=1` なら、Herdr のタスクを `herdr-agent-task set "PR #<PR の番号> レビュー・マージ"` に変える。ペインの名前は `start` が `PR#<番号>` に変えるので、自分で変えない
+1. `HERDR_ENV=1` なら、Herdr のタスクを `herdr-agent-task set "PR #<PR の番号> レビュー・マージ"` に変える。ペインの名前は `start` が 3 章・起動節の規則どおりのラベル（Issue 起点は `<repo>:#<N>`、単独起動は `PR#<番号>`）に改名するので、自分で変えない
 2. `PARENT_ROOT` の `.agents/skills/pr-review-fix-loop/SKILL.md` をファイルとして読む（`disable-model-invocation: true` なので、Skill ツールでは起動できない）
-3. `PARENT_ROOT` の `loop.py` で `start` を実行する。feature worktree の `loop.py` は使わない（`loop.py` は置き場所からスキルと helper を決めるので、PR で変えているものでレビューさせない）。`<PR の URL>` はコードの PR。文書の PR はループに乗せず、マージもしない（URL と状態を報告する）
+3. `PARENT_ROOT` の `loop.py` で `start` を実行する。feature worktree の `loop.py` は使わない（`loop.py` は置き場所からスキルと helper を決めるので、PR で変えているものでレビューさせない）。`<PR の URL>` はコードの PR。文書の PR はループに乗せず、マージもしない（URL と状態を報告する）。issue-to-pr からの起動では `--issue-number <Issue の番号>` と `--issue-repository <Issue の repo>` を一緒に渡す（値は `issue.json` の `number`・`repo`）。これで `start` のペイン名は 3 章の開始時と同じ `<repo>:#<N>` になり、クロス repo でも PR の repo から再導出しない。この 2 つは表示用の引数で、`loop_args` には入れず、`check-options` にも渡さない（start 専用）。マージ権限・対象 Issue の推測には使わない
 
    ```bash
    uv run --project "$PARENT_ROOT" --locked python \
      "$PARENT_ROOT/.agents/skills/pr-review-fix-loop/scripts/loop.py" start "<PR の URL>" \
      --controller-model "<あなたの正確なモデル ID>" --controller-runtime "<ランタイム>" \
+     --issue-number <Issue の番号> --issue-repository <Issue の repo（owner/repo）> \
      <loop_args の各要素>
    ```
 
 4. 以降は pr-review-fix-loop の SKILL.md 全体（守ること・起動の注意・サイクル・終わり方・止まったとき・監視・最終報告）に従う。起動のコマンドは上の 3 のとおり
 5. **検証の記録の再利用:** 1 サイクル目で修正不要となり、サイクルの HEAD が上で記録した HEAD と同じなら、その記録を review-fix-planning の結論 2 の手順 1 の検証の記録（`finalize.py` の `--checks-file`）に使ってよい。条件は、同じ HEAD、検証のときに未 commit の変更が無い、すべての終了コードが 0、ログが残っていること。どれかを確かめられなければ、計画の中で検証し直す。記録の形と base の扱い（結論 2 の手順 2）は review-fix-planning のとおりにし、実 PR の `baseRefName` を使い、base が進んでいたときの merge の検証は省かない。捕捉済み SHA を無検証で新値に書き換えず、既存の HEAD・base・merge 第1親・CI の guard を保つ
-6. **終了:** pr-review-fix-loop の SKILL.md の「最終報告」の項目と、5 章の完了の報告の項目を書き、ループの結果で次の区分を加える。ループの段階の所要時間も書く
+6. **終了:** pr-review-fix-loop の SKILL.md の「最終報告」の項目と、5 章の完了の報告の項目を書き、ループの結果で次の区分を加える。ループの段階の所要時間も書く。ペイン名は 3 章の「ペイン名の終了状態」に従って更新する（マージ成功の確認で `:END`、予期しない障害の中断は停止報告の前に `:Glitch`、それ以外は維持）
 
    | ループの結果 | 報告 | マージ |
    | --- | --- | --- |
@@ -494,7 +541,7 @@ PR を作った後（`DOCS_SEPARATE` が `true` なら、文書の PR も作っ�
 
 ## 停止時の報告
 
-不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が手動マージ対象（meshy・登録済み通常ツール）、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、マージ済みの PR で PR にする作業が残っていない Issue、未完了の依存、Issue の明示の承認要求、要求 base の未指定・矛盾・曖昧さ、base の不存在・不一致・捕捉後の移動、実 PR の base/head の不一致、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。Spec・設計レビューでも、helper の終了コード 2（型・版・保存先・順序の拒否）、`state: failed`・`status: incomplete`・`review_id` / `spec_sha256` の不一致、採否の欠落・重複・未反映、設計レビューの `wrong_approach`・`blocking`・`questions_for_user`・`needs_judgment`、Spec レビューの後の設計レビューや 2 回目を超える再レビュー、停止未確認の `retained` では止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
+不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が手動マージ対象（meshy・登録済み通常ツール。2 章 5 で `--merge` を無効化した run を除く）、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、マージ済みの PR で PR にする作業が残っていない Issue、未完了の依存、Issue の明示の承認要求、要求 base の未指定・矛盾・曖昧さ、base の不存在・不一致・捕捉後の移動、実 PR の base/head の不一致、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。Spec・設計レビューでも、helper の終了コード 2（型・版・保存先・順序の拒否）、`state: failed`・`status: incomplete`・`review_id` / `spec_sha256` の不一致、採否の欠落・重複・未反映、設計レビューの `wrong_approach`・`blocking`・`questions_for_user`・`needs_judgment`、Spec レビューの後の設計レビューや 2 回目を超える再レビュー、停止未確認の `retained` では止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
 
 検査で止まったら、どの worktree も push せず、PR を作らない。`AGENTS.md` の「push の前の秘密情報の検査」の条件を満たす検出なら、その commit を直し、検証（`--merge` のときは検証の記録も）と、公開するすべての worktree の検査をやり直して続ける。条件を満たさない検出では止まり、回避しない。gitleaks は自分で導入せず、`bash "$PARENT_ROOT/.devcontainer/install_gitleaks.bash"` での導入を次の操作として報告する。検査が全部通った後の push や PR の作成が失敗して一部だけ公開されたら、公開済みの branch・PR を報告し、取り消さない。
 

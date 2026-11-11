@@ -62,3 +62,17 @@ def test_check_options_reports_the_options_start_would_record(
     run = json.loads((Path(started["run_dir"]) / "run.json").read_text(encoding="utf-8"))
     assert output["options"] == {key: value for key, value in run["options"].items() if key != "fresh_review"}
     assert output["assignments"] == run["assignments"]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [["--issue-number", "355"], ["--issue-repository", "usaturn/create-reso-world"]],
+)
+def test_check_options_rejects_issue_context_options(loop: Any, isolated: Any, arguments: list[str]) -> None:
+    # Issue コンテキストの引数は start 専用。check-options が受け付けると、start が拒否する引数でも検証 ok を
+    # 返して issue-to-pr が先へ進む（失敗の成功報告）。拒否でも GitHub・記録に触れないことを確かめる。
+    with pytest.raises(SystemExit) as exc:
+        loop.main(["check-options", *arguments, "--template", str(isolated.template)])
+
+    assert exc.value.code == 2
+    assert_untouched(isolated)

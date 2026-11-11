@@ -44,13 +44,15 @@ uv run --project "$TOOL_ROOT" --locked python \
   - `start` は、`run_roles.py` が設定だけで拒否する fix の割り当て（上の codex の担当のほか、一次担当が 2 つ以上、`self-review`・`fix-check` の `writes = true` など。個人設定で決まるものを含む）と、codex の担当を含む `inspect` の割り当てを、run を作る前に終了コード 2（`config`）で止める。`reason` を利用者に伝えて止まる。別の担当や `self` に自分で切り替えない。
 - `--template`・`--config`: agent-runner の雛形と個人設定。既定は雛形 `.devcontainer/agent-runner.toml` と既存の個人設定。
 - `--fresh-review`: 現在の HEAD のレビューの成果があっても、レビュアーを起動する。
+- `--issue-number N`: issue-to-pr から呼ぶときだけ、入力解決・所有者確認済みの Issue 番号（正整数）を渡す。表示用の内部コンテキストで、マージ権限や対象 Issue の推測には使わない。
+- `--issue-repository OWNER/REPO`: Issue のリポジトリ（`owner/repo` 形式）。`--issue-number` と一緒に渡す（単独の指定は終了コード 2 で拒否する）。ペイン名の表示のために Issue の repo を引き継ぐだけで、マージ権限や対象 Issue の推測には使わない。
 - `--hold-action` は無い。移植元（usaturn/agent-workspace）のループにはあるが、このリポジトリの review-fix-planning には判断保留（Hold）が無いので受け付けない。付いていれば `start` が終了コード 2 で拒否する。外して続けず、理由を伝えて、外して始めてよいかを利用者に尋ねる。
-- `check-options`: `start` と同じオプション（`--fresh-review` を除く）と agent-runner の設定だけを、`start` と同じ関数で検査する。PR・ロック・run・GitHub・Herdr に触れず、記録を書かない。成功の出力の `options`・`assignments` は `start` が `run.json` に保存するものと同じで、`next` は null。issue-to-pr の `--merge` は、worktree を作る前にこれを呼ぶ。終了コード 2 なら `reason` を利用者に伝えて止まる。
+- `check-options`: `start` と同じオプション（`--fresh-review` を除く）と agent-runner の設定だけを、`start` と同じ関数で検査する。`--issue-number`・`--issue-repository` は start 専用で受け付けない（終了コード 2）。PR・ロック・run・GitHub・Herdr に触れず、記録を書かない。成功の出力の `options`・`assignments` は `start` が `run.json` に保存するものと同じで、`next` は null。issue-to-pr の `--merge` は、worktree を作る前にこれを呼ぶ。終了コード 2 なら `reason` を利用者に伝えて止まる。
 - 扱う PR は、共通 `review-workspace` resolver が `CODE_ROOT` なしで確定できる対象だけ。既存 parent / fork の特殊経路と、常設親の採用済み台帳の通常ツールを使う。通常ツールは台帳不在・未登録・checkout 不在・不一致なら、費用のかかる起動前に停止し、探索・clone や親への fallback はしない。未登録 repo の明示 `CODE_ROOT` レビュー・承認済み review-fix は個別スキルの経路であり、この CLI へ引数を追加しない。
 - 通常ツールもレビュー保存先・既存 CLI は同じ。検証は対象 repo の `AGENTS.md` / `README.md`、CI は採用済み台帳と [共通運用](../../../docs/external-tools-workflow.md) の実設定照合に従う。登録は外部操作の許可ではない。マージは review-fix-planning の既存許可範囲のままで、通常ツールを自動マージしない。修正不要でも手動マージ待ちとして停止する。
 - 終了コード 3（`lock_held`）は、別の run がこの PR を使っていることを示す。`next`（`status`）で持ち主を確かめ、利用者に報告して止まる。古く見えても消さない。
 - `warnings` に未 commit の変更があるときは、レビュアーが作業ツリーのスキルと helper（未 commit の変更を含む）を読むことを利用者に伝える。
-- Herdr のペインの中（`HERDR_ENV=1` で `HERDR_PANE_ID` がある）で起動すると、`start` は run を始めた後で、現在のペインの名前を `PR#<番号>` に変える。結果は出力と `run.json` の `herdr_pane` にある。`herdr` を自分で呼ばない。名前を変えられなくても run は続き、理由が `warnings` に入るので、利用者に伝える。
+- Herdr のペインの中（`HERDR_ENV=1` で `HERDR_PANE_ID` がある）で起動すると、`start` は run を始めた後で、現在のペインの名前を変える。単独起動は `PR#<PR番号>`。`--issue-number` があるときだけ `<repo>:#<Issue番号>`。repo 部分は `--issue-repository` があればその Issue の repo、無ければ解決済み PR の `owner/repo` の repo 部分。PR 本文や現在のペイン名から Issue を推測しない。Issue 起点の `:END`/`:Glitch` の更新は呼出元の issue-to-pr の 3 章が担当し、loop 単独起動の終了時の名前は変えない。結果は出力と `run.json` の `herdr_pane` にある。`herdr` を自分で呼ばない。名前を変えられなくても run は続き、理由が `warnings` に入るので、利用者に伝える。
 
 ## サイクル
 
