@@ -4,7 +4,9 @@
 
 - 状態: `draft`（issue-to-pr の実行許可で進めている。内容の承認は得ていない）
 - 対象: https://github.com/usaturn/create-reso-world/issues/401
-- 利用者の指示（2026-11-11）: `/issue-to-pr #401 --merge --spec-review devin_swe2_max --design-review pi_openai-codex_gpt6-sol_xhigh --implement devin_swe2_max --assign implement=devin_swe2_max --assign inspect=pi_xai_grok4_xhigh,pi_openai-codex_gpt6-sol_xhigh`
+- 利用者の指示（2026-11-11、1 回目）: `/issue-to-pr #401 --merge --spec-review devin_swe2_max --design-review pi_openai-codex_gpt6-sol_xhigh --implement devin_swe2_max --assign implement=devin_swe2_max --assign inspect=pi_xai_grok4_xhigh,pi_openai-codex_gpt6-sol_xhigh`。設計レビューの後、`devin_swe2_max` の Spec レビューが 2 回とも `response_failed`（最後の発言が前置きの文で始まり、devin adapter が JSON として読めない）で止まった。2 回目は利用者の指示「devin_swe2_max に問題を回避する指示を送ってください」で、依頼の `context` に JSON だけを返す指示を足したが、同じ形で失敗した
+- 利用者の指示（2026-11-11、2 回目。この run の実行許可）: `/issue-to-pr #401 --merge --spec-review pi_xai_grok4_xhigh --design-review pi_openai-codex_gpt6-sol_xhigh --implement pi_xai_grok4_xhigh --assign implement=pi_xai_grok4_xhigh --assign inspect=pi_xai_grok4_xhigh,pi_openai-codex_gpt6-sol_xhigh` と「途中でメインがマージされたら、追随して作業を止めずに続行してください。」。1 回目の worktree・branch・Spec・設計レビューの記録（この session で作ったもの）を引き継ぐ。設計レビューは 1 回目で完了しているので繰り返さない（helper も 2 回目の設計レビューを拒否する）
+- base の追随（2 回目の指示による）: `recheck_bases` が `main` の移動を観測したら、止まらずに新しい先端を採用する。push の前は branch を新しい先端へ rebase し、push の後は新しい先端を branch へ merge する（force push しない）。どちらの後も、捕捉した SHA の記録（`code-base.json`）を更新し、検証をやり直してから次へ進む。競合を解消できないとき、検証が失敗したときは止まる
 - 許可範囲: 通常の設計判断を推奨案で決めること、指定した担当による設計レビュー・Spec レビュー・Task の実装、ローカルの検証、commit、検査の後の push、PR の作成、PR 修正ループの `finalize.py` によるマージ。利用者の env ファイル・個人設定・資格情報・他者の作業は変更しない
 - コード/文書: 同じ worktree・同じ PR（`DOCS_SEPARATE=false`）。base: `usaturn/create-reso-world`、`origin`、`refs/heads/main`、`65b7800c82101f102d3549830a864ddce4127474`。親 Issue・要求 base・未完了の依存・競合する PR・予約は、確認の時点で無し
 - 移植元: usaturn/agent-workspace#927、PR #929（マージコミット `c5afca3ff4bef84e21feeb2fc3bd447b6f482209`）。前提の #923 は本リポジトリの #397（PR #399）で取り込み済み
@@ -133,12 +135,20 @@ AGENTS.md の「テストの採用基準」で S（と F∩S）に当たるも�
 - `outside_changes` は無し。`unprotected_changes` は、この run の前からある他の作業の `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 つの worktree で、触れていない
 - 記録は commit しない `tmp/agents/issue-401.key82at4/` にある
 
+## 失敗した Spec レビューの記録（1 回目の指示）
+
+- 担当 `devin_swe2_max`（SWE-2 Max、CLI 3000.12.43）。`review_id` `5d54e63ecc894595a1ba6651ca6e2758`（797 秒）と `a89d21cf492c42fab2d1db7bea625b86`（763 秒、JSON だけを返す指示を追加）。どちらも reviewed の Spec SHA-256 `657146042b0cd999adec36516cfd79d297e12ca943ae68535858bff0a3755d66`、`state: failed`（`runner: response_failed`）、reflected は未作成
+- 原因: 担当の最後の発言が前置きの文で始まり、その後にコードフェンス付きの JSON が続いた。`tools/agent_runner/adapters/devin.py` の `_json_object` は発言の先頭から JSON を読むので受け付けない。保存された出力で同じ処理を再生して確かめた
+- 結果は採否に使っていない。`cleanup` で runner の worktree と runner-dir を消し、`retained` は無し
+
 ## 割り当て（2 章の検査の結果）
 
-- Task の実装: `devin_swe2_max`（`--implement` の明示。`fallback` は無し。`self` は false）
-- 設計レビュー: `pi_openai-codex_gpt6-sol_xhigh`（`--design-review` の明示。`fallback` は無し）
-- Spec レビュー: `devin_swe2_max`（`--spec-review` の明示。`fallback` は無し）。Spec レビューがあるので builder check は行わない
-- PR 修正ループ（`check-options`）: `max_cycles` 3（既定の適用）、`inspect` = `pi_xai_grok4_xhigh`・`pi_openai-codex_gpt6-sol_xhigh`（利用者の指定）、fix の `implement` = `devin_swe2_max`（利用者の指定）、`self-review`・`fix-check` = `self`（雛形の既定の適用）
+2 回目の指示での検査の結果。
+
+- Task の実装: `pi_xai_grok4_xhigh`（`--implement` の明示。`fallback` は無し。`self` は false）
+- 設計レビュー: `pi_openai-codex_gpt6-sol_xhigh`（`--design-review` の明示。`fallback` は無し。1 回目で完了）
+- Spec レビュー: `pi_xai_grok4_xhigh`（`--spec-review` の明示。`fallback` は無し）。Spec レビューがあるので builder check は行わない
+- PR 修正ループ（`check-options`）: `max_cycles` 3（既定の適用）、`inspect` = `pi_xai_grok4_xhigh`・`pi_openai-codex_gpt6-sol_xhigh`（利用者の指定）、fix の `implement` = `pi_xai_grok4_xhigh`（利用者の指定）、`self-review`・`fix-check` = `self`（雛形の既定の適用）
 
 ## builder に任せること
 
