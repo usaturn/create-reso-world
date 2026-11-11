@@ -59,7 +59,8 @@ class Workflow:
     repo: str
 
     def run(
-        self, argument: str, *, required: str = "", before_publish: str = "", before_pr: str = "",
+        self, argument: str, *, required: str = "", before_target: str = "",
+        before_publish: str = "", before_pr: str = "",
     ) -> subprocess.CompletedProcess[str]:
         env = dict(os.environ, INPUT=argument, REQUIRED=required, TARGET_REPO=self.repo,
                    TARGET_ROOT=str(self.target), PARENT_ROOT=str(self.parent),
@@ -68,7 +69,10 @@ class Workflow:
                    DOC_BRANCH="docs/issue-42-change", PR_TITLE="変更の実装",
                    CODE_PR_BODY=str(self.session / "body.md"),
                    DOC_PR_BODY=str(self.session / "body.md"))
-        chunks = [step("input"), step("target"),
+        chunks = [step("input"),
+                  # A probe between input and target must stop the flow on failure, like step().
+                  *([before_target + " || exit $?"] if before_target else []),
+                  step("target"),
                   # The requirement reaches capture only through SESSION, never a shell array.
                   'if [ -n "$REQUIRED" ]; then printf "%s\\n" "$REQUIRED"; fi > "$SESSION/required-bases.txt"',
                   step("capture"), step("worktree"),
@@ -253,13 +257,18 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fi
 @pytest.mark.parametrize("workflow,argument,base", [
     (False, "#42", "main"),
     (True, f"--base={INTEGRATION} #42 --merge", INTEGRATION),
+    (False, "#42 --merge", "main"),
 ], indirect=["workflow"])
 def test_documented_flow_pins_worktree_diff_scan_and_pr(
     workflow: Workflow, argument: str, base: str,
 ) -> None:
     """Hardcoding main at any consumer silently drops integration work or scans the wrong history."""
     expected = git(workflow.remote, "rev-parse", f"refs/heads/{base}")
-    result = workflow.run(argument, required=base if base != "main" else "")
+    result = workflow.run(
+        argument, required=base if base != "main" else "",
+        # The input block must record the disabled merge before target runs.
+        before_target='test -f "$SESSION/merge-disabled.txt"' if base != "main" and "--merge" in argument else "",
+    )
     assert result.returncode == 0, result.stderr
     assert git(workflow.code, "rev-parse", "HEAD^") == expected
     assert (workflow.code / "integration-only").exists() == (base != "main")
@@ -282,6 +291,16 @@ def test_documented_flow_pins_worktree_diff_scan_and_pr(
     assert code_create[code_create.index("--head") + 1] == "feat/issue-42-change"
     merge = json.loads((workflow.session / "issue.json").read_text())["merge"]
     assert merge == ({"loop_args": []} if "--merge" in argument else None)
+    merge_disabled = workflow.session / "merge-disabled.txt"
+    if "--merge" in argument and base != "main":
+        # An integration base would otherwise let the loop merge and close the Issue.
+        assert merge_disabled.exists()
+        reason = merge_disabled.read_text()
+        assert base in reason
+        assert "ループ" in reason and "finalize.py" in reason and "マージ" in reason and "close" in reason
+    else:
+        # main + --merge (and runs without --merge) must keep the loop enabled.
+        assert not merge_disabled.exists()
     pushes = [json.loads(line) for line in (workflow.session / "pushes.jsonl").read_text().splitlines()]
     # A document scan must finish before either repository is published.
     assert all(push["scans"] == len(scans) for push in pushes)

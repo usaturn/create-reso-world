@@ -81,6 +81,12 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
    while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
    uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" --parent-root "$PARENT_ROOT" -- "$INPUT" > "$SESSION/issue.json" || exit 2
+   if [ "$(jq -r '.merge != null' "$SESSION/issue.json")" = true ]; then
+     merge_base="$(jq -r .base "$SESSION/issue.json")" || exit 2
+     if [ "$merge_base" != main ]; then
+       printf '%s\n' "BASE が統合用 branch（${merge_base}）のため --merge を適用しない。ループと finalize.py は既定 branch（main）へのマージと Issue の close を前提にする" > "$SESSION/merge-disabled.txt" || exit 2
+     fi
+   fi
    ```
 
    - 受け付ける表記: `https://github.com/<owner>/<repo>/issues/N`、`<owner>/<repo>#N`、`#N`（**現在の checkout の origin** で解決する。番号からリポジトリを推測しない）。対象は既存 parent / fork / meshy と、検証済み常設親の採用済み台帳にある通常ツール。未登録 repo の新規実装は扱わない
@@ -88,7 +94,8 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    - cwd が git の追跡しないディレクトリ（ワールドのプロジェクトなど）の中にあると（`git check-ignore -q .` が成功する）、helper は入力を読む前に終了コード 2 で止まる。下の「ワールドの作業で止まったとき」に従う
    - helper は入力の字句検証 → repo 解決 → profile 検査 → Issue 読取の順で進む。登録済み通常ツールの `--merge` は GitHub 照会の前に止める。登録は作成・clone・実装・公開・マージの許可ではない
    - helper は入力・対象の検証と Issue の確認だけで、競合・予約・承認を確かめた証拠にはならない
-   - `merge` が `null` でなければ、続けて `PARENT_ROOT` の `loop.py` で、ループ用のオプションと agent-runner の設定を検査する。`loop_args` の要素を順に、それぞれ 1 つの引数として渡す（空なら引数なし）。
+   - `merge` が非 null で `base` が `main` でないとき、input ブロックは理由を `$SESSION/merge-disabled.txt` に記録する（下の 5 の規則: 統合用 branch では `--merge` を適用しない）。`issue.json` の `merge` は非 null のままにする
+   - `merge` が `null` でなく、かつ `merge-disabled.txt` が無いときだけ、続けて `PARENT_ROOT` の `loop.py` で、ループ用のオプションと agent-runner の設定を検査する。無効化された run はループ設定の検査を起動せず（使わないループの設定の不備で PR 作成が止まらないようにする）、記録された理由を利用者に伝えて `--merge` が無い run として続ける。`loop_args` の要素を順に、それぞれ 1 つの引数として渡す（空なら引数なし）。
 
      ```bash
      uv run --project "$PARENT_ROOT" --locked python \
@@ -132,7 +139,7 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    TARGET_ROOT="$(jq -er .code_root "$SESSION/target.json")" || exit 2
    DOCS_SEPARATE="$(jq -r 'if (.document_repository | type) == "string" and (.repository | type) == "string" then .document_repository != .repository else error("target.json lacks document_repository") end' "$SESSION/target.json")" || exit 2
    merge_requested="$(jq -r '.merge != null' "$SESSION/issue.json")" || exit 2
-   if [ "$merge_requested" = true ]; then
+   if [ "$merge_requested" = true ] && [ ! -f "$SESSION/merge-disabled.txt" ]; then
      case "$TARGET_REPO" in
        usaturn/create-reso-world|usaturn/resoloop) ;;
        *) printf '%s\n' 'この対象は手動マージです。--merge を外して指示し直してください' >&2; exit 2 ;;
@@ -140,6 +147,8 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    fi
    ```
 
+   - `BASE` が統合用 branch（既定の `main` 以外）のときは `--merge` を適用しない（判定と記録は 3 の input ブロック）。理由（ループと `finalize.py` は既定 branch へのマージと Issue の close を前提にする）を利用者に伝え、`--merge` が無い run として続ける。ループ用オプションは使わず、最終の全体レビューを行い、CI 必須の対象は CI green を確認して PR の作成で終える
+   - 上の手動マージ拒否（meshy・登録済み通常ツール）は `merge_requested=true` かつ `merge-disabled.txt` が無いときだけ適用する。無効化済みの run は `--merge` なしとして続行する（対象・権限の確認は維持）
    - 登録済み通常ツールは `managed-tool-v1`（手動マージ）。context の結果は常設 checkout に限り、実装は後で作る同 common-dir の名前付き branch の linked worktree で行う。台帳が壊れている・未採用・checkout 不在・remote/送信先不一致・候補が複数なら停止し、親や近くの repo に切り替えない。clone・探索はしない
    - 検証コマンド・編集範囲・追加の実行許可は、解決した repo 自身の `AGENTS.md` と `README.md` を読んで決める。登録済み通常ツールの base / CI は共通 CLI（`PARENT_ROOT` で `uv run --no-project python -m tools.external_tools list`、対象 key の `show`）の採用済み情報を使う。`ci=required` は PR checks の成功を確認し、`disabled` だけを免除する。別 repo や未知 repo に CI 免除を広げない
    - 既存 parent / fork / meshy の特殊経路・検証・CI はルート `AGENTS.md`、`README.md`、fork は `docs/resoloop-fork-workflow.md`、meshy は `docs/resoloop-meshy-workflow.md` に従う。不在時も各手順書の clone コマンドを案内して停止し、自動取得しない
@@ -467,6 +476,8 @@ fi
 - 完了したら Herdr のタスクを completed にし、PR の URL、検証結果、worktree・branch、実在する Spec・Plan・残したログの絶対パス、所要時間を報告する。`--merge` が無ければ、レビューは `/pr-review <PR の URL>` で行えることを 1 行で伝える。尋ねて止まらない。`--merge` のときは、この 1 行の代わりに、下の節の 6 の報告を加える。
 
 ### `--merge` のとき: PR の作成後のループ
+
+`merge-disabled.txt` がある run（統合用 branch の子）はループを始めない。この節を使わず `--merge` が無い run と同じく PR の作成で終える。ここで改めて判断しない。この章の「`--merge` のとき」は、`--merge` が適用された run（`merge-disabled.txt` が無い run）を指す。
 
 PR を作った後（`DOCS_SEPARATE` が `true` なら、文書の PR も作った後）、このセッションが司令塔としてループを回す。ループが終わるまで、review-fix-planning の手順の外で feature worktree を変えない（未 commit の変更や PR に無い commit を残さない。review-fix-planning は、clean で HEAD が PR の head の worktree を修正に使い、そうでなければ結論 3 で止まる）。Spec・Plan への記録は PR を作る前に済ませ、ループの間の記録はセッションディレクトリと PR・Issue のコメントに置く。
 
