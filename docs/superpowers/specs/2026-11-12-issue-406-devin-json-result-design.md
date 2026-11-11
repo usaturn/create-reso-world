@@ -81,7 +81,7 @@ usaturn/agent-workspace では同じクラスの問題が先に対策済みで�
 スクラッチ検証（SESSION の `scratch-verification.md`）で、既存の devin テスト・parser 回帰テスト 40 件が全て pass することを確認した。そのうえで、参照実装の挙動として次の 2 つの変化を受け入れる:
 
 1. **閉じていない fence の中の完全な JSON**: 現行は拒否、移植版は採用する（例: `` ```json\n{"ok":true} ``）。fence が閉じていないとき、移植版のスキャナは fence を境界とみなさず通常の走査で完全な object を採用する。JSON 自体は途切れておらず、Issue の反例（JSON が途中で切れている・壊れた候補）に当たらない。既存の回帰テスト `test_devin_fence_failure_in_either_channel_is_read_only` は `_ends_with` の経路で失敗するため pass し続ける（このテストの守りは collect の読み取り専用性であり、パーサの fence 判定ではない）
-2. **空 object `{}`**: 現行は拒否、移植版は adapter 層で success（payload `{}`）にする。JSON 役割の結果は下流の `payload_check`（`TaskResult.model_validate` など）が必須フィールドの欠落で `invalid_result` にするため、誤った成功にはならない。プロンプトの「空でない JSON object」指示は現状のまま
+2. **空 object `{}`**: 現行は拒否、移植版は adapter 層で success（payload `{}`）にする。ただし runner は `result_shape == "json"` のとき payload が空でない dict であることを必須で検査し（`tools/agent_runner/runner.py` の `isinstance(payload, dict) and bool(payload)`）、空なら `payload_check` の有無によらず `invalid_result` にする。さらに helper の `payload_check`（`TaskResult.model_validate` など）も必須フィールドの欠落で拒否する。したがって誤った成功にはならない。プロンプトの「空でない JSON object」指示は現状のまま
 
 devin 層に fence の閉じ確認や空 object の拒否を足さない（境界ロジックの書き直しになり、移植の指示に反する）。
 
@@ -92,27 +92,23 @@ devin 層に fence の閉じ確認や空 object の拒否を足さない（境�
 
 ### テスト（D5）
 
-AGENTS.md の「テストの採用基準」に従い、S（気付けない損害）の代表 1 件ずつと、Issue が指定する陽性の対照を `tools/agent_runner/tests/adapters/devin/test_adapter.py` に追加する。偽の CLI のケースは既存の fixture 機構（`--fake-export` / `--fake-stdout`）で駆動する（`fake_cli.py` 自体は変更しない。fixture 駆動なのでケースの追加はテスト側で行う）。
+AGENTS.md の「テストの採用基準」に従う。守りはそれを実装しているモジュールのテストに置き、同じ守りの層またぎ重複は代表 1 件にする（設計レビュー concern D1 の採用。下の「設計レビュー記録」）。パーサ（`json_result`）が実装する拒否境界は `json_result` の単体テストに、devin が実装する隔離と runner 経路の救済は devin のテストに置く。偽の CLI のケースは既存の fixture 機構（`--fake-export` / `--fake-stdout`）で駆動する（`fake_cli.py` 自体は変更しない）。
 
-陽性の対照（受け付けるようになる形。壊れると完了した作業が再び捨てられる＝本 Issue の損害）:
+**A. `json_result` の単体テスト（新設 `tools/agent_runner/tests/adapters/test_json_result.py`）** — パーサが実装する拒否境界の S 代表 1 件ずつと、拒否テストに伴う陽性の対照 1 件:
 
-- T1: 文章 → JSON（本文の形・複数行・日本語を含む）と、文章 → fence 付き JSON（コメントの形）で success、payload が JSON と一致（パラメータ化 1 件）
-- T2: 訂正（古い fence JSON → 日本語の文章 → 新しい fence JSON）で最後の有効 object を採用（agent-workspace の `test_collect_uses_corrected_json_result` の移植・devin の export + stdout 形への適合）
+- U1: 閉じた fence 内の壊れた wrapper に完全な内部 object がある場合は `None`（内部・直前の有効 object を救済しない。agent-workspace の `test_collect_rejects_complete_result_inside_malformed_wrapper` のパーサ層への移植）
+- U2: fence をインラインスパンが横切る壊れた訂正は `None`（`test_collect_rejects_broken_correction_inside_fence_crossed_by_inline_span` のパーサ層への移植）
+- U3: 有効な object の後に途切れた候補がある場合は `None`（前の有効な JSON にフォールバックしない）
+- U4: 文章 → 有効 object はその object を返す（U1〜U3 の拒否テストに対する「正しく通る例」。何でも拒否する実装で通らないようにする AGENTS.md の要件）
 
-S の守り（壊れた回答・誤った payload を成功にしない）:
+**B. devin のテスト（`tools/agent_runner/tests/adapters/devin/test_adapter.py` に追加）** — devin が実装する隔離と、実際の損害が起きた runner 経路の救済:
 
-- T3: 最後の発話が文章だけで、途中の発話に JSON がある場合は `response_failed`（隔離。agent-workspace の collect の穴を持ち込まないことの代表）
-- T4: 閉じた fence 内の壊れた wrapper に完全な内部 object がある場合は `response_failed`・payload None（`test_collect_rejects_complete_result_inside_malformed_wrapper` の移植・適合）
-- T5: fence をインラインスパンが横切る壊れた訂正は `response_failed`（`test_collect_rejects_broken_correction_inside_fence_crossed_by_inline_span` の移植・適合）
-- T6: 文章の後の途切れた JSON は `response_failed`（前の有効な JSON にフォールバックしない）
+- T1: 最後の発話が文章だけで、途中の発話に JSON がある場合は `response_failed`・payload None（#188 の隔離。agent-workspace の collect の穴を持ち込まないことの代表。devin の `_final_agent_message` / `collect` が実装する守り）
+- T2: `run_workflow` + 偽 CLI の端到端。Issue が指定する受け入れ 3 形（文章 → JSON・文章 → fence 付き JSON・訂正）をパラメータ化 1 件にまとめ、attempt が success で payload が最後の有効 JSON と一致することを確かめる（`test_retained_export_with_secrets_is_redacted_before_collection` と同じ起動機構。訂正は agent-workspace の `test_collect_uses_corrected_json_result` の適合）。陽性の対照であり、壊れると完了した作業が再び捨てられる＝本 Issue の損害の再発防止
 
-偽 CLI の端到端（実際の損害が起きた runner 経路の代表）:
+重複の回避（D）: 受け入れ 3 形は T2 の偽 CLI 端到端 1 件に集約し、adapter 層の `_collect` で同じ救済を重ねない（設計レビュー concern D1）。既存テストがカバーする形（plain object・fenced object・配列の拒否・壊れた object の拒否・stdout の途切れ・診断の優先）は追加しない。`first_json_object`・`request_prompt` はこの Issue で使う経路が無いのでテストを足さない。D3 の 2 つの挙動変化を固定するテストも足さない（Issue の受け入れ条件の範囲外。rst に挙動を記載する）。
 
-- T7: `run_workflow` + 偽 CLI で、最後の発話が本文の形（文章 → JSON）のとき attempt が success で payload を受け取る（`test_retained_export_with_secrets_is_redacted_before_collection` と同じ起動機構）
-
-重複の回避（D）: 既存テストがカバーする形（plain object・fenced object・配列の拒否・壊れた object の拒否・stdout の途切れ・診断の優先）は追加しない。`json_result` 単体のユニットテストファイルは作らない（守りは損害が現れる devin の collect 経由で確かめる。移植元も adapter 層のテストでカバーしている）。`first_json_object`・`request_prompt` はこの Issue で使う経路が無いのでテストを足さない。D3 の 2 つの挙動変化を固定するテストも足さない（Issue の受け入れ条件の範囲外。rst に挙動を記載する）。
-
-RED の確認: T1・T2・T7 は現行パーサで失敗する（受け入れ形の救済）。T3〜T6 は現行でも pass する守りであり、移植で穴が開かないことを確かめる（移植前後で green を維持する）。
+RED の確認: T2 の受け入れ 3 形は現行パーサで失敗する（救済の対象）。U1〜U4 は移植する `json_result` の単体テストなので、移植後はそのまま pass する（パーサの拒否境界が保たれることの確認）。T1 は現行でも pass する隔離の守りであり、移植で穴が開かないことを確かめる（移植前後で green を維持する）。
 
 ## 決定記録
 
@@ -122,7 +118,7 @@ RED の確認: T1・T2・T7 は現行パーサで失敗する（受け入れ形�
 | D2 | `_payload` を `json_object` + `is not None` に置換。隔離（最後の発話のみ・`_ends_with`）は維持 | stdout 全体を走査する agent-workspace の collect をそのまま移植 | Issue が隔離の維持を指示。stdout 走査は「最後の発話が文章だけ・途中に JSON」で古い JSON を拾う穴がある（Issue で実行確認済み） | Issue 本文の組み込み方（明示指示） |
 | D3 | 参照実装の挙動を受け入れる（閉じていない fence の完全な JSON の採用・空 object の adapter 層 success）。devin 層の追加ガードなし | devin 層に fence の閉じ確認・空 object 拒否を足す | スキャナを書き直さない指示。既存テスト 40 件は pass（スクラッチ確認）。空 object は下流の payload_check が拒否し誤った成功にならない。閉じていない fence の JSON は途切れていない | 推奨案（issue-to-pr の委任）。設計レビューで確認 |
 | D4 | `request_prompt`・`first_json_object` も移植するが接続しない | devin の prepare を `request_prompt` に切り替える | Issue が「プロンプトの JSON 指示は現状のまま」と指示。他 adapter への展開は別 Issue | Issue 本文（明示指示） |
-| D5 | T1〜T7 を devin のテストに追加。単体テストファイル・未使用関数のテスト・D3 固定テストは作らない | json_result 単体のユニットテストファイルを新設 | AGENTS.md の S 代表 1 件・D 重複回避。Issue が指定する陽性対照 3 形と偽 CLI ケース。守りは損害が現れる collect 経由で確かめる | Issue 本文のテスト指示 + AGENTS.md のテスト採用基準 |
+| D5 | パーサの拒否境界 U1〜U4 を `test_json_result.py`（新設）に、devin の隔離 T1 と受け入れ 3 形の偽 CLI 端到端 T2（パラメータ化 1 件）を devin のテストに置く。未使用関数・D3 固定テストは作らない | 当初案: T1〜T7 をすべて devin のテストに置き単体テストを作らない | AGENTS.md の「守りはそれを実装しているモジュールのテストに置く」「D は代表 1 件」。設計レビュー concern D1 を採用（テスト配置のみの変更で、実装範囲・受け入れ条件・挙動は変わらない）。Issue の「偽の CLI にこれらのケースを追加」は受け入れ 3 形の T2 で満たす | Issue 本文のテスト指示 + AGENTS.md のテスト採用基準 + 設計レビュー concern D1 の採用 |
 | D6 | devin.rst と devin.py docstring を移植後の挙動に更新 | ドキュメント変更なし | 挙動の説明（「空でない JSON object であることを求め」）が実装と食い違うため | 推奨案（issue-to-pr の委任） |
 | D7 | 検証は `uv run pytest tools`（全体）+ `bash .devcontainer/run-tests.bash` + `bash scripts/check-layout.sh` + 実 evidence の再生。実 devin CLI は起動しない | 実 devin CLI での再現確認 | Issue の動作環境が「偽の CLI でのテストと、手元に残る実際の出力」。実 CLI 起動は費用がかかり、受け入れ条件は偽 CLI と記録でカバーできる | Issue 本文の受け入れ条件・検証 |
 | D8 | 実行方式は SDD 形で `implement_task.py` により Task を 1 つずつ runner の担当（pi_alibaba_qwen4-max_max）に依頼。Task 1 = 移植 + 組み込み + テスト + ドキュメント（TDD を 1 Task 内で完結）、統合検証は controller が実行 | Task を移植とテストに分割 / controller が self で実装 | `--implement pi_alibaba_qwen4-max_max`（check の `self: false`）。TDD の RED/GREEN は同一 Task でないと成立しない。変更は 4 ファイルで凝集している | 利用者の `--implement` 指定 |
@@ -135,6 +131,18 @@ RED の確認: T1・T2・T7 は現行パーサで失敗する（受け入れ形�
 - `implement_task.py check --implement pi_alibaba_qwen4-max_max`（終了コード 0）: `assignment.agents = [pi_alibaba_qwen4-max_max]`（利用者の指定）、`fallback = []`、`self = false`
 - `review_design.py check --design-review pi_openai-codex_gpt6-sol_xhigh`（終了コード 0）: `assignment.agents = [pi_openai-codex_gpt6-sol_xhigh]`（利用者の指定）、`fallback = []`、`self = false`
 - `review_spec.py check --spec-review pi_alibaba_qwen4-max_max`（終了コード 0）: `assignment.agents = [pi_alibaba_qwen4-max_max]`（利用者の指定）、`fallback = []`、`self = false`
+
+### 設計レビュー記録（1 回目・採用反映済み）
+
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-406.95mq71g7/2026-11-12-issue-406-devin-json-result-design.design-review/review-1`（SESSION の下。コミットしない）
+- review_id: `939a5e1952954da1bfd920f30a447cbb`
+- reviewed spec sha256: `f62af03918dd4c8b20e3611538deed5c548001e7745095b12150003e12f72462`
+- 担当: `pi_openai-codex_gpt6-sol_xhigh`（明示値）。requested_agent / actual_agent とも同じ。fallback の使用なし（fallback は空）
+- identity: model `gpt-6.1-sol` / provider `openai-codex` / effort `xhigh` / session `01a1cc32-f7ca-7790-bc8a-0a02efb6ee8a`
+- 回数: 1 回目（round 1）。elapsed_seconds: 195.33
+- verdict: `concerns`（concern 1 件・questions_for_user なし・incomplete なし）
+- outside_changes: なし。unprotected_changes: 他セッションの worktree 8 件（`/tmp/pr-review-376-*` の 4 件、`/tmp/review-fix-planning.*` の 2 件、`.worktrees/issue-355-herdr-merge`、`tmp/agents/issue-396.z5hf2du1/.../worktree`）。この run の所有物ではないため触らない（報告のみ）
+- 採否: concern D1（テスト配置・severity worth_considering・recommendation change）を **採用**（`changes_what_is_built: false`）。パーサが実装する拒否境界を `json_result` の単体テスト（U1〜U4）に移し、受け入れ 3 形を偽 CLI 端到端のパラメータ化 1 件（T2）に集約して T1/T7 の層またぎ重複を解消した。devin の隔離テスト（T1）は維持。D5 とテスト節に反映済み。assessment の「空 object は runner の必須検査で拒否される」を確認し（`runner.py` の `isinstance(payload, dict) and bool(payload)`）、D3.2 の根拠に追記した
 
 ### 競合の確認（2 章の 6）
 
@@ -154,8 +162,8 @@ RED の確認: T1・T2・T7 は現行パーサで失敗する（受け入れ形�
 
 ## 検証の計画
 
-1. Task 1 の RED: T1・T2・T7 が現行パーサで失敗することを実行で確認
-2. Task 1 の GREEN: `uv run pytest tools/agent_runner/tests/adapters/devin tools/agent_runner/tests/adapters/test_parser_regressions.py -q` が全て pass
+1. Task 1 の RED: T2 の受け入れ 3 形が現行パーサで失敗することを実行で確認（T1 の隔離は現行でも pass）
+2. Task 1 の GREEN: `uv run pytest tools/agent_runner/tests/adapters/devin tools/agent_runner/tests/adapters/test_json_result.py tools/agent_runner/tests/adapters/test_parser_regressions.py -q` が全て pass
 3. 統合検証（controller）: `uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`
 4. 実 evidence の再生: `tmp/agents/issue-402.ht7fd2ih/task-2-failed-evidence/stdout.log` の最後の発話（文章 → JSON）を移植後の collect に通し、success で payload が受け取れることを確認（スクラッチまたは一時テストで。コミットするテストは T1 が同じ形を代表する）
 5. 移植の正: `json_result.py` の sha256 が参照版と一致
