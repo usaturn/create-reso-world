@@ -136,3 +136,31 @@ AGENTS.md の「テストの採用基準」により、テストは足さない�
   - fix-check（観点 1・3）: 主張 11 件のうち holds 10・violates 1。衝突の印なし、両方の install・見出し・手順の番号、`duplicate_model` の組み合わせ、`needed_names` に `MAAS_ANTHROPIC_TOKEN` が入ることを確かめた。新しい指摘 `fix-check#V-1@1dd88a1eec51`（confirmed）
 - 自己レビューの指摘の判定: I-1 と fix-check#V-1 は同じ内容で「対応しない」。merge で入った #403 の記述のうち、衝突しなかった 3 か所（README 1312・1445・1900 行の「`with_keys.py` で補う経路も無い」）、`agent-runner.toml` 184-185 行のコメント、README 2334 行の key の解決経路の表（`pi_alibaba_qwen4-max_max` が無い）が、この PR の wrapper の挙動（`MAAS_ANTHROPIC_TOKEN` も補う名前に入る）と合わない。ただし `MAAS_ANTHROPIC_TOKEN` は env ファイルに置かない方針で、記述どおりに進めると key を使うシェルで export して起動するので、誤った結果・止まる経路が無い。致命的でない。fix-check は blocking としたが、採否は SKILL の「分類の仕様」で決める。見直す条件: `MAAS_ANTHROPIC_TOKEN` を env ファイルに置く運用を認めるとき、または利用者が指定したとき。自己レビュー後の修正は無く、2 回目の自己レビューはしていない
 - 未確認: 実プロバイダ・ランチャー起動セッションでの実機の観測（マージの後の確認）
+
+---
+
+## サイクル 3（HEAD `36e582b28fa904a2752f990d3f393dd4e3ab99a0`）
+
+- 状態: `completed`（結論 2。修正不要としてマージ）
+- 確認済みの一覧: `verified/36e582b28fa9.json`（候補 0 件）
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `36e582b28fa9`（Update） | はい | Needs manual verification |
+| `grok-4.7.md` | grok-4.7 | pi | `36e582b28fa9`（Update） | はい | Approve |
+| `claude-opus-5-5-commit-334b1436….md`・`claude-opus-5-5-commit-1dd88a1e….md` | claude-opus-5-5 | claude-code | `334b1436ad41`・`1dd88a1eec51` | いいえ（修正後の自己レビュー。指摘は判断済み） | Approve |
+
+### 振り分け
+
+- `planner#S-1@bba81f617615`（前回 fix）: 解消済み。`1dd88a1e` で base `23cf4bc7` を merge して衝突を解消し、`23cf4bc7` は head `36e582b2` の祖先（`git merge-base --is-ancestor`）。両レビュアーの Update でも active 0
+- 前のサイクルの skip 3 件: 引き継ぎ（新しい根拠なし）
+- 件数: 解消済み 1 / 対応する 0 / 対応しない 0（このサイクルの新規）
+
+### 検証と結論
+
+- 結論: 2（修正不要。`finalize.py --spec-commit` でマージ）
+- 検証（`36e582b2`、専用の worktree、base `23cf4bc7` は head の祖先なので head だけで検証）: `uv run --locked pytest tools/agent_runner -q` 0、`uv run --locked pytest .agents/skills/issue-to-pr .agents/skills/pr-review-fix-loop .agents/skills/review-verify -q` 0、`bash .devcontainer/run-tests.bash` 0、`bash scripts/check-layout.sh` 0、`uv run --locked python -m tools.agent_runner check` 0。検証の後の `git status --porcelain` は空
+- gpt-6.1-sol の Needs manual verification の理由（実プロバイダの起動・identity）は、PR が `Refs #401` でマージの後の確認として残している項目で、このサイクルの判断を変えない
+- 実行許可: issue-to-pr の `--merge` による PR 修正ループの完遂（冒頭の管理・実行許可）
