@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`。実行指示は内容の承認ではない。
+- 状態: `completed`（コードとレビュー判断の完了。実行指示は内容の承認ではない）。
 - 対象: https://github.com/usaturn/create-reso-world/issues/347
 - 利用者の指示: `#347 --merge --spec-review pi_deepinfra_deepseek4-flash_high --implement pi_deepinfra_deepseek4-flash_high --assign inspect=devin_swe2_max,pi_openai-codex_gpt6-sol_max --assign implement=pi_deepinfra_deepseek4-flash_high`。
 - 許可範囲: 通常の設計判断、指定担当による Spec レビュー・実装、ローカル検証、commit、検査後の push、PR、および指定ループの finalize によるマージ。実キー・実 API、他者の作業や設定は変更しない。
@@ -37,3 +37,17 @@
 - review-1: `pi_deepinfra_deepseek4-flash_high`、実観測 `deepinfra / deepseek-ai/DeepSeek-V4.1-Flash-1017 / high`、fallback なし、391.817 秒、review ID `87e38fbc6a66471f854c29bccbc250d5`、reviewed SHA-256 `defb16f749016e2187e34152489b795a08fabd332220c595346534df42ea81c8`。
 - S1（minor）採用: 別名は同じ関数本体であり、回帰テストは両方の本体を短縮名で代表し、通常名の正常系は既存テストに任せる。
 - outside_changes はなし。unprotected_changes は既に欠落していた他の 6 worktree 登録で、対象 worktree は保護されていた。`review.json` に理由と完全パスを記録。
+
+## PR #395 レビュー修正判断（サイクル 1）
+
+- 実行許可は上記 `--merge`。planner は `gpt-6.1-terra`（codex）、対象 HEAD `f9f4d2594acef4cbd73c8fccc3f426a49484621f`。結論 2: 修正不要。全指摘・未確認候補は 0、解消済み 0 / 対応する 0 / 対応しない 0。設計見直しなし。
+
+| レビュー | モデル | runtime | HEAD | このサイクルで再実行 | 結果 |
+| --- | --- | --- | --- | --- | --- |
+| `SWE-2-Max.md` | SWE-2 Max | devin | `f9f4d2594ace` | はい | Approve、accepted |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `f9f4d2594ace` | はい | Approve、accepted |
+
+- 確認済み一覧: `reviews/usaturn/create-reso-world/#395-fix-issue-347-deepinfra-key/verified/f9f4d2594ace.json`。工程の記録は同じ `verified/f9f4d2594ace.planning.json` に保存する。
+- 受け入れ条件の確認: 無効値の拒否・正常値の認証と環境隔離・README を同じ HEAD の差分とレビュー実行で照合。全体の shell 27 件・layout・pytest 1442 件の再実行は exit 0。検証前後 clean、base `05989c35e66b8c6f3e6026c3beb19227d8812d8d`。最初の pytest 時間依存失敗も検証記録に保存。実キー・実 API は対象外。
+- 修正担当は指定 `pi_deepinfra_deepseek4-flash_high`、自己レビュー・fix-check は既定 self。修正不要のため、このサイクルでそれらの呼び出しは 0 回。
+- 判断の記録は PR #395 のサイクル 1 の状況コメントに保存する。マージ・Issue 更新はこの時点では行っていない。
