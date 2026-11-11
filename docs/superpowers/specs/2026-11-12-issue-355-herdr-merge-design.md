@@ -40,7 +40,7 @@ AW ではこれらが #824（ペイン名の終了状態）・#678（--merge と
 
 変更してよい（Issue 本文の「変更してよい」に従う）:
 
-- `.agents/skills/issue-to-pr/SKILL.md` の 2 章 5（target ブロックを含む）・2 章 6 の既存 open PR 案内・3 章・4 章 8（新設）・5 章。および 4 章 8 と整合させるための「Task の実装を runner の担当に依頼する」節の最終レビューの 1 文
+- `.agents/skills/issue-to-pr/SKILL.md` の 2 章 3（input ブロックの merge-disabled 判定と check-options の呼出条件。Issue の「ループ用オプションを使わず続行」を満たすために必要で、設計レビュー 1 回目 D1 が採用した判定時点）・2 章 5（target ブロックを含む）・2 章 6 の既存 open PR 案内・3 章・4 章 8（新設）・5 章。および 4 章 8 と整合させるための「Task の実装を runner の担当に依頼する」節の最終レビューの 1 文
 - `.agents/skills/issue-to-pr/scripts/resolve_issue.py`（境界のコメントのみ。後述 D8）
 - `.agents/skills/pr-review-fix-loop/SKILL.md` の起動節（`--issue-number` と Herdr の項）
 - `.agents/skills/pr-review-fix-loop/scripts/loop.py` の Herdr 節・start・CLI の start 引数（reconcile・診断・collect は触らない）
@@ -218,6 +218,18 @@ AW ではこれらが #824（ペイン名の終了状態）・#678（--merge と
   - S2（records.md の herdr_pane 記述が実装と不一致になる）: **adopt**。records.md は #356・#357 の所有なのでこの子では編集せず、「既知の不整合」に記録・PR 本文に明記・親 Issue へ所有移動の提案コメント、で対処する。「編集範囲と所有」に反映
   - S3（5 章項目 1 のペイン名の説明が新動作と不一致）: **adopt**。5 章の編集一覧に項目 1 の書き換えを追加。「設計の詳細」の 5 章に反映
 - ゲートの判定: important を採用したため `decide` は `next: rereview`。Spec をコミットして同じ担当で 1 回だけ再レビューする
+
+## Spec レビューの記録（2 回目・再レビュー）
+
+- helper: `review_spec.py review`（external）。`review_dir`: `/workspaces/reso-world/tmp/agents/issue-355.puoplwnc/2026-11-12-issue-355-herdr-merge-design.spec-review/review-2`
+- `review_id`: `e4966f260f8e40ef83171100f5d8d7e0`。reviewed の Spec SHA-256: `deceeaa12e52be2e9d0d29f36819c51a4bc602b48292478aed99a2f35cad1849`（コミット `d40a5e68` の版）
+- 担当: `pi_alibaba_qwen4-max_max`（requested / actual 同一）。identity: model `qwen4-max-preview` / provider `alibaba` / effort `max` / session `01a1cc5d-a136-76de-92f9-a38577535413`。`elapsed_seconds` 544.7
+- 結果: **`state: failed`**（`runner: response_failed`・`outside_changes: feature worktree`）。ゲートは失敗であり、成功したレビューとして扱わない（`submit`・`decide` は実行していない）。3 回目のレビューは helper が拒否するため実行しない
+  - `response_failed` の原因: 最終メッセージが結果 JSON の前に説明文を付け、code fence も使わなかった（piaq の既知の形式失敗）。レビュー内容自体は stdout.log の最終 message に完了した形で残っていた（S1・S2・S3 はすべて resolved と確認。新規の minor 指摘 S4 が 1 件）
+  - `outside_changes` の原因: 司令塔がレビュー実行中に feature worktree へ未コミットの Plan ファイルを配置したことを helper が検知したもの。`git status` で Plan ファイル（untracked）以外の変更が無いこと・HEAD が `d40a5e68` のまま不変であることを確認済み。レビュアーによる書き込みではない
+- 司令塔の裁定（利用者の「スキルの停止条件は無視し、停止せず最適な案を出して続行」の明示委任 2026-11-12 に基づく）:
+  - S4（編集範囲の列挙に 2 章 3 が漏れ）: **adopt**。実質的な範囲拡大ではなく列挙の記載漏れ（設計レビュー D1 の採用済み判定時点）。 「編集範囲と所有」に 2 章 3 を追加して反映
+  - 再レビューの内容（S1〜S3 resolved）は情報として確認し、ゲートの失敗はこの記録と最終報告に開示した上で、Plan の作成・実装へ進む。教訓: runner 実行中は feature worktree に未コミットの変更を置かない（以後、依頼の前にコミットを済ませる）
 
 ## 設計の詳細（ファイル別）
 
