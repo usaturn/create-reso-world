@@ -1225,8 +1225,9 @@ ccda -p "テストを実行して結果を要約して"
 モデルの対応（fable・opus は `qwen4-max-preview`、sonnet・haiku は `qwen3.8-flash`。`[1m]` は付けない）は
 `zshrc.txt` の `ccda` と揃える。片方を変えるときは、もう片方も変える。
 
-`MAAS_ANTHROPIC_TOKEN` は env ファイルに置かないので、wrapper では補えない。
-key を export した通常のシェルから起動する。ランチャー起動セッションからは、この agent の key は補えない。
+`MAAS_ANTHROPIC_TOKEN` は `claude-code_alibaba_opus_max` の `env` にあるので、env ファイルに書けば wrapper は補う。
+env ファイルに置かない方針なので、通常は補われない。
+key を export した通常のシェルから起動する。ランチャー起動セッションからは、ファイルに無いので通常は補われない。
 
 ```bash
 read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN
@@ -2089,14 +2090,14 @@ export される（`OLLAMA_API_KEY` と `MAAS_ANTHROPIC_TOKEN` は書かない�
   含まないなら、値を表示せずにエラーを出して起動を止める。この英数字の判定は Claude Code の
   ランチャーだけのもので、`pidid` は未設定・空値だけを止める
 - `OLLAMA_API_KEY` は Claude Code の `ccdol`・`claude-ollama` だけが読む。
-  「秘密情報」の env ファイルには書かないので、wrapper では補えない。使うシェルで export する。
+  「秘密情報」の env ファイルには書かない。どの agent の `env` にも無いので、wrapper では補えない。使うシェルで export する。
   子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ccdd`・`ccddg`・`ccdgo`・`ccda` の子には渡さない。
   未設定・空・空白だけ（Unicode の空白を含む）で英数字を 1 文字も含まないなら、値を表示せずにエラーを出して起動を止める。
   キーは `https://ollama.com/settings/keys` で作る。
   詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある
 - `MAAS_ANTHROPIC_TOKEN` は Claude Code の `ccda`・`claude-alibaba` と、agent-runner の
   `claude-code_alibaba_opus_max` が呼ぶ `claude-alibaba-exec` が読む。
-  「秘密情報」の env ファイルには書かないので、wrapper では補えない。使うシェルで export する。
+  補う名前には入るが、env ファイルに置かない方針なので、通常は補われない。使うシェルで export する。
   子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ANTHROPIC_API_KEY` には入れない。
   `ccdd`・`ccddg`・`ccdgo`・`ccdol` の子には渡らない。
   未設定・空、または ASCII の英数字を 1 文字も含まない（NBSP・BOM などの Unicode の空白だけを含む）なら、
@@ -2145,12 +2146,15 @@ wrapper は shell として env ファイルを実行しない。補う名前を
   個人設定は `--config` があればそれ、無ければ `resolve_config_path()` が返すパス（ファイルが無ければ雛形だけ）
 - 補う条件: 今の環境に無いか、値が空の名前だけ。今の環境に値があれば、env ファイルに別の値があっても上書きしない
 - 読み元と順序: 今の環境、次に `~/.config/create-reso-world/env`（`Path.home()` 基準）だけ。
-  ファイルが無ければ何もしない。開けない・UTF-8 で読めないときは、パスだけを stderr に出して補わずに続ける
-- 解析: 1 行ずつ静的に読む。受け付ける行は `NAME=VALUE` と `export NAME=VALUE`。
+  ファイルが無ければ何もしない。開けない・UTF-8 で読めないときは、
+  `with_keys: cannot read <パス>` を stderr に出して補わずに続ける（値は出さない）
+- 解析: 改行（`\n`）だけで区切って 1 行ずつ静的に読む。末尾の `\r` は取り除く。受け付ける行は `NAME=VALUE` と `export NAME=VALUE`。
   値は、`$`・バッククォート・`\` を含まない二重引用符の文字列、単一引用符の文字列、
   空白・引用符・`$`・バッククォート・`\`・`;`・`|`・`&`・`<`・`>`・`(`・`)` を含まない裸の語のどれか。
   引用は外す。後ろには空白と `#` のコメントだけを付けられる。同じ名前が複数あれば最後の行を使う。
-  値が空の行では補わない。`$` の展開やコマンド置換は実行しない
+  値が空の行では補わない。`$` の展開やコマンド置換は実行しない。
+  値が `~` で始まる行と、`:~` を含む行は解析できない代入として扱う。
+  条件分岐・`unset`・`+=`・`typeset` 等は解釈しない。KEY=VALUE だけで書く
 - 使わなかった行: 補う名前と関係ない行は無視する（停止しない）。補う名前への代入に見える行
   （行頭の空白・`export` の後に `NAME=` が続く）で、値を上の規則で解析できないものがあれば、
   その名前はそれより前の行の値も含めて補わない。補わなかった名前は stderr に名前だけを出す
@@ -2165,7 +2169,8 @@ wrapper は shell として env ファイルを実行しない。補う名前を
 - 起動: 補った環境で `--` の後ろのコマンドを起動する。key が見つからない名前は補わずに起動し、
   agent の exec が今と同じエラーで失敗する
 
-`OLLAMA_API_KEY` と `MAAS_ANTHROPIC_TOKEN` は env ファイルに置かないので、wrapper では補えない。
+`MAAS_ANTHROPIC_TOKEN` は補う名前に入るが、env ファイルに置かない方針なので、通常は補われない。
+`OLLAMA_API_KEY` はどの agent の `env` にも無いので、wrapper では補えない。
 その場合は、key を export した通常のシェルから runner を起動する。
 雛形に Ollama の runner agent は無い。`MAAS_ANTHROPIC_TOKEN` を使う runner agent は
 「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」にある。
@@ -2179,7 +2184,7 @@ wrapper は shell として env ファイルを実行しない。補う名前を
 | 今の環境、または env ファイル | `pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max`・`pi_openai-codex_gpt6-sol_xhigh` | `OPENCODE_API_KEY` |
 | 今の環境、または env ファイル | `pi_commandcode_deepseek4-flash_max` | `COMMANDCODE_API_KEY`（契約停止中。通常は書かない） |
 | 今の環境、または env ファイル | `pi_google-vertex_gemini3-flash_high`・`pi_google-vertex_gemini4-argon_high` | `GOOGLE_APPLICATION_CREDENTIALS`・`GOOGLE_CLOUD_PROJECT`・`GCLOUD_PROJECT`・`GOOGLE_CLOUD_LOCATION` |
-| 今の環境だけ（env ファイルには置かない） | `claude-code_alibaba_opus_max` | `MAAS_ANTHROPIC_TOKEN` |
+| 通常は今の環境だけ（env ファイルに置かない方針） | `claude-code_alibaba_opus_max` | `MAAS_ANTHROPIC_TOKEN` |
 | `~/.pi/agent/auth.json` | `pi_openai-codex_gpt6-sol_xhigh`・`pi_openai-codex_gpt6-terra_xhigh`・`pi_openai-codex_gpt6-astra_xhigh` | `/login openai-codex` の OAuth |
 | `~/.pi/agent/auth.json` | `pi_xai_grok4_xhigh` | `/login xai` の OAuth |
 | `~/.pi/agent/auth.json` | `pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max` | 保存した api_key（`OPENCODE_API_KEY` が無くてもここから読める） |

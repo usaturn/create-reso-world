@@ -26,6 +26,7 @@ _SKIPPED_NAMES = frozenset({"HOME", "PATH"})
 _LOOKS_LIKE = re.compile(r"^[ \t]*(?:export[ \t]+)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)=")
 # 値は、展開になる $・`・\ を含まない二重引用符、単一引用符、危険な文字を含まない裸の語、空。
 # 後ろは空白と # コメントだけ。これ以外は解析できない代入として扱う。
+# 値が ~ で始まる行と、:~ を含む行も解析できない（文字どおり渡すとシェルと違う値になりうる）。
 _ASSIGNMENT = re.compile(
     r"""
     ^[ \t]*
@@ -70,24 +71,32 @@ def _parsed_value(match: re.Match[str]) -> str:
     return bare if bare is not None else ""
 
 
+def _tilde_unparsable(line: str, value: str) -> bool:
+    """値が ~ で始まる、または行に :~ がある。文字どおり渡すとシェルと違う値になりうる。"""
+    return value.startswith("~") or ":~" in line
+
+
 def parse_assignments(text: str, names: set[str]) -> tuple[dict[str, str], list[str]]:
-    """1 行ずつ静的に読む。解析できない再代入は、その名前の候補をすべて捨てる。"""
+    """改行だけで区切って静的に読む。解析できない再代入は、その名前の候補をすべて捨てる。"""
     values: dict[str, str] = {}
     skipped: set[str] = set()
-    for line in text.splitlines():
+    # shell は \n だけで行を区切る。splitlines() は U+2028 等でも切れて別の値になる。
+    for raw_line in text.split("\n"):
+        line = raw_line.removesuffix("\r")
         looked = _LOOKS_LIKE.match(line)
         if looked is None or looked.group("name") not in names:
             continue
         name = looked.group("name")
         parsed = _ASSIGNMENT.fullmatch(line)
-        if parsed is None:
+        value = _parsed_value(parsed) if parsed is not None else None
+        if value is None or _tilde_unparsable(line, value):
             # 通常のシェルは後の行を使う。前の literal を残すと別の key を送りうる。
             skipped.add(name)
             values.pop(name, None)
             continue
         if name in skipped:
             continue
-        values[name] = _parsed_value(parsed)
+        values[name] = value
     return values, sorted(skipped)
 
 
@@ -99,7 +108,8 @@ def fill_environment(
     """未設定・空の名前だけを source から補う。
 
     戻り値は (環境, 補った名前, 解析できず補わなかった名前)。ファイルが無ければ
-    何もしない。開けない・UTF-8 で読めないときはパスだけを stderr に出して補わない。
+    何もしない。開けない・UTF-8 で読めないときは ``with_keys: cannot read <path>``
+    を stderr に出して補わない。値は出さない。
     """
     environment = dict(environ)
     # 今の環境に値がある名前は除く。別の値で上書きしない。
@@ -109,8 +119,8 @@ def fill_environment(
     except FileNotFoundError:
         return environment, [], []
     except (OSError, UnicodeDecodeError):
-        # 例外文はファイルの断片を含みうる。パスだけを出す。
-        print(source, file=sys.stderr)
+        # 例外文はファイルの断片を含みうる。値は出さず、読めないことだけを出す。
+        print(f"with_keys: cannot read {source}", file=sys.stderr)
         return environment, [], []
     assignments, skipped = parse_assignments(text, names)
     filled: list[str] = []
