@@ -84,3 +84,55 @@ AGENTS.md の「テストの採用基準」により、テストは足さない�
   - fix-check（観点 1・3）: 主張 10 件すべて holds。F1・F2 とも修正前の HEAD で失敗し修正後で通る（検出力あり）。壊れた設定は修正後も終了コード 2。新しい指摘 `fix-check#V-1@334b1436ad41`（元の Spec・Plan の記述が修正前のまま）。保存: `verified/334b1436ad41.fix-check.json`
 - 自己レビューの指摘の判定: I-1 と fix-check#V-1 は同じ内容（元の設計の Spec・Plan の記述が古い）。grok-4.7#I-1 と同じ理由（Spec・Plan は設計の記録で、利用者が読む README・interfaces・手順は修正後の形に揃っており、そのとおりに進めて誤った結果になる経路が無い）で「対応しない」。自己レビュー後の修正は無く、2 回目の自己レビューはしていない
 - 未確認: 実プロバイダ・ランチャー起動セッションでの実機の観測（マージの後の確認。PR は Refs #401）。ruff・rstcheck は環境に無く実行していない
+
+---
+
+## サイクル 2（HEAD `bba81f617615487bdd34b31b6a4a2bb5fd197230`）
+
+- 状態: `completed`（結論 1。衝突の解消を修正として扱った）
+- 確認済みの一覧: `verified/bba81f617615.json`（候補 0 件）
+
+### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `bba81f617615`（Update） | はい | Needs manual verification |
+| `grok-4.7.md` | grok-4.7 | pi | `bba81f617615`（Update） | はい | Approve |
+| `claude-opus-5-5-commit-334b1436ad4102f1d5483debc58a571a6a14550e.md` | claude-opus-5-5 | claude-code | `334b1436ad41` | いいえ（サイクル 1 の自己レビュー。I-1 はサイクル 1 で判断済み） | Approve |
+
+### 指摘の一覧と振り分け
+
+| 判断 ID | 区分 | 根拠 |
+| --- | --- | --- |
+| `gpt-6.1-sol#M-1@d480c833a771`（前回 fix） | 解消済み | `334b1436` の with_keys.py が workflows を検査せずに agents.env だけを読む。サイクル 1 の再現（retired・dup が 2 → 0）と、両レビュアーの Update の Resolved findings |
+| `gpt-6.1-sol#M-2@d480c833a771`（前回 fix） | 解消済み | `334b1436` で手順の wrapper が後段と同じ checkout から導かれる。サイクル 1 の再現と、両レビュアーの Update の Resolved findings |
+| `planner#S-1@bba81f617615`（自己確認） | 対応する | 下記 |
+| サイクル 1 の skip 2 件（`grok-4.7#I-1@d480c833a771`、自己レビューの I-1） | 対応しない（引き継ぎ） | 新しい根拠なし |
+
+件数: 解消済み 2 / 対応する 1 / 対応しない 2（引き継ぎ）。
+
+### planner#S-1: base と衝突して PR を main に入れられない
+
+- 致命的である理由: base（origin/main）が `23cf4bc7`（PR #403、Issue #402 の `piaq` と `pi_alibaba_qwen4-max_max`）に進み、head と `.devcontainer/README.md`・`.devcontainer/install_beforehand.bash` が衝突して merge できない。この PR のマージ（`--merge` の目的）が止まる。また、#403 の README は「ランチャー起動セッションから `with_keys.py` で補う経路も無い」と書いており、この PR が入ると事実と違う。(a) `git merge-tree --write-tree` で衝突を再現した
+- 実行許可: 利用者の指示「途中でメインがマージされたら、追随して作業を止めずに続行してください。」と、SKILL の結論 2 の手順 3（衝突の解消を修正として扱い結論 1 に切り替える）
+- 修正方針: `23cf4bc7` を `--no-ff` で merge し、両方の変更を残して衝突を解消する（force push しない）。`install_beforehand.bash` の見出しに `piaq` と `claude-alibaba-exec` の両方、README の手動の手順に両方の install と連番、agent の組み合わせの段落は両方を残して現在の事実（`duplicate_model`）に合わせ、`MAAS_ANTHROPIC_TOKEN` の項は読む主体 3 つと「補う名前には入るが、env ファイルに置かない方針なので、通常は補われない」に揃える
+
+| 守る条件 | 経路 | 判定 | 観測する結果 | 確かめる方法 | 実行結果・証拠 |
+| --- | --- | --- | --- | --- | --- |
+| PR が base に merge でき、両方の変更が残る | `.devcontainer/install_beforehand.bash`・`.devcontainer/README.md` の衝突 | 修正する | 衝突の印が無い、piaq と claude-alibaba-exec の両方の install・説明がある | `rg` で衝突の印、`git show` で該当箇所 | `1dd88a1e`（親 `bba81f61`・`23cf4bc7`）。衝突の印なし（rg の一致は rst の下線だけ）。見出し・手順 20〜23・組み合わせの段落・MAAS の項を確認 |
+| 自動 merge した設定が有効 | `.devcontainer/agent-runner.toml`（両方の agent） | 既に満たす | `load_config` が通り、両方の agent がある | `uv run --locked python -m tools.agent_runner check` | 下の検証 |
+| 両方のテストが動く | `.devcontainer/test-herdr-migration.bash`（`test_alibaba_launcher_requires_key`・`test_alibaba_exec_requires_key`） | 既に満たす | PASS | `bash .devcontainer/run-tests.bash` | 下の検証 |
+| wrapper の補う名前に新しい agent の env が入る | `with_keys.needed_names`（`pi_alibaba_qwen4-max_max` の `MAAS_ANTHROPIC_TOKEN`） | 既に満たす | 和集合に含まれる（同じ名前は claude-code_alibaba_opus_max にもある） | `uv run --locked pytest tools/agent_runner -q` | 下の検証 |
+
+- 修正の担当: `run_roles.py --phase implement`（`--assign implement=pi_xai_grok4_xhigh`）。observed `xai` の `grok-4.7`（xhigh）、437 秒、停止を確認。merge commit `1dd88a1eec5154782c141be9ab7d65fcff02a561` を fast-forward で取り込んだ
+- 同じ条件の再発: 当たらない（衝突の解消はサイクル 1 の F1・F2 と別の条件）
+
+### 検証・自己レビュー・結論
+
+- 結論: 1（衝突を解消した merge commit を既存 PR へ push）
+- 実行した検証（`1dd88a1e`、専用の worktree）: `uv run --locked pytest tools/agent_runner -q` 0、`uv run --locked pytest .agents/skills/issue-to-pr .agents/skills/pr-review-fix-loop .agents/skills/review-verify -q` 0、`bash .devcontainer/run-tests.bash` 0、`bash scripts/check-layout.sh` 0、`uv run --locked python -m tools.agent_runner check` 0、push の前の検査は検出なし。base `23cf4bc7` は検証の後も動いていない
+- 自己レビュー: `run_roles.py --phase self-review` の 1 回（`verified/bba81f617615.planning.json` に `pre_push_review` を予約）。self-review・fix-check とも `self`（claude-opus-5-5、サブエージェント）
+  - self-review（観点 2）: Approve。active 1 件（`claude-opus-5-5-commit-1dd88a1eec5154782c141be9ab7d65fcff02a561#I-1@1dd88a1eec51`、Info）
+  - fix-check（観点 1・3）: 主張 11 件のうち holds 10・violates 1。衝突の印なし、両方の install・見出し・手順の番号、`duplicate_model` の組み合わせ、`needed_names` に `MAAS_ANTHROPIC_TOKEN` が入ることを確かめた。新しい指摘 `fix-check#V-1@1dd88a1eec51`（confirmed）
+- 自己レビューの指摘の判定: I-1 と fix-check#V-1 は同じ内容で「対応しない」。merge で入った #403 の記述のうち、衝突しなかった 3 か所（README 1312・1445・1900 行の「`with_keys.py` で補う経路も無い」）、`agent-runner.toml` 184-185 行のコメント、README 2334 行の key の解決経路の表（`pi_alibaba_qwen4-max_max` が無い）が、この PR の wrapper の挙動（`MAAS_ANTHROPIC_TOKEN` も補う名前に入る）と合わない。ただし `MAAS_ANTHROPIC_TOKEN` は env ファイルに置かない方針で、記述どおりに進めると key を使うシェルで export して起動するので、誤った結果・止まる経路が無い。致命的でない。fix-check は blocking としたが、採否は SKILL の「分類の仕様」で決める。見直す条件: `MAAS_ANTHROPIC_TOKEN` を env ファイルに置く運用を認めるとき、または利用者が指定したとき。自己レビュー後の修正は無く、2 回目の自己レビューはしていない
+- 未確認: 実プロバイダ・ランチャー起動セッションでの実機の観測（マージの後の確認）
