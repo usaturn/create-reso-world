@@ -1,6 +1,6 @@
 # Issue #375: 正確なモデル識別子から安全なコメント ID を導出する
 
-- 状態: draft
+- 状態: completed（2026-11-12・レビュー修正サイクル 3 の結論 2 による。内容の承認は記録しない）
 - 対象: https://github.com/usaturn/create-reso-world/issues/375
 - 既存 PR: https://github.com/usaturn/create-reso-world/pull/385（`fix/issue-375-model-agent-id`）
 - 実行許可（初回・2026-11-10）: 利用者は `/skill:issue-to-pr` 相当の明示入口から `#375 --implement pi_opencode-go_deepseek4-flash_max --merge --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=claude-code_opus_default,devin_swe2_max,pi_opencode-go_deepseek4-flash_max` を指示した。通常の設計判断、実装・検証・commit・push・PR、指定ループ内の finalize によるマージを委任している。内容の承認とは区別する。
@@ -95,3 +95,25 @@ bash scripts/check-layout.sh
 5. 利用者の指定（inspect=pi_alibaba_qwen4-max_max,pi_openai-codex_gpt6-sol_xhigh、implement=pi_alibaba_qwen4-max_max）で既存 PR のループを start する。終了済み run の記録は reuse 判定に任せ、--fresh-review は足さない。
 6. ループ内の review-fix-planning 完遂で採否・検証・状況コメントを行い、結論 2 なら Spec を `completed` にした Spec 1 ファイルだけの直接の子コミットを載せ、finalize.py --spec-commit でマージと関連 Issue の更新を行う。head/base・merge 第一親の照合は省略しない。
 7. マージ後に PR・Issue の状態を観測して報告する。L-1 の skip は新しい根拠がない限り維持する。
+
+## レビュー修正サイクル 3（2026-11-12・完遂）
+
+- 実行許可: 利用者の 2026-11-12 指示（上記「実行許可（続行・2026-11-12・この run）」）。既存 PR #385 の完遂と finalize によるマージを含む。
+- planner: qwen4-max-preview（claude-code）。サイクル: 3（round 1・2 は c9fb38e4 の stopped 記録）。
+- レビュアーの構成:
+
+|レビューファイル|モデル|ランタイム|レビュー HEAD|今回再実行|Merge recommendation|
+|---|---|---|---|---|---|
+|qwen4-max-preview.md|qwen4-max-preview|pi|a39a52a0bb10|はい|Approve|
+|gpt-6.1-sol.md|gpt-6.1-sol|pi|a39a52a0bb10|はい|Approve|
+|claude-opus-5-5.md|claude-opus-5-5|claude-code|c9fb38e4c9dc|いいえ（stale）|Approve|
+|SWE-2-Max.md|SWE-2 Max|devin|c9fb38e4c9dc|いいえ（stale）|Approve|
+|deepseek-v4.1-flash.md|deepseek-v4.1-flash|pi|c9fb38e4c9dc|いいえ（stale）|Approve|
+
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 1。
+  - `SWE-2-Max#L-1@c9fb38e4c9dc`: skip（inherited）。新しい根拠なし。今サイクルの qwen4-max-preview と round 2 の planner が隔離再現で旧新とも書き込み前に停止することを確認。見直す条件は round 2 の記録のまま。
+- 要件対応: Spec「仕様」1〜6 と「範囲・対象外」は実装済みで、今サイクルの 2 レビュアーが全体差分（7 ファイル・+310/-8）の精読と実行検証（対象 109 件・関連 197 件・スクラッチ再現）で照合。共有条件（モデル名→導出→コメント保存→読取→更新）は fake gh の POST→PATCH 対象分離と v1/v2 round trip で確認。対象外（旧形式同士の既存衝突・review_file 変換・記録スキーマ・ランナー選択）は差分が触れていないことを確認。
+- 実行した検証: controller が head `a39a52a0` に base `1ad2c1c7`（origin/main 先端）を merge した隔離ツリー（統合 commit `2d223c51`、push していない）で、対象 pytest 109 件・全体 pytest 1448 件・Dev Container 27 件・check-layout・`git diff --check` を実行し全終了コード 0。証拠: `tmp/agents/issue-375.r6210n1p/integration-2/`（checks.json・evidence.json・各ログ）。
+- 自己レビュー: 未実施（結論 2・修正なし。run_roles.py は 0 回）。
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#385-fix-issue-375-model-agent-id/verified/a39a52a0bb10.json`（review_findings.py validate 成功。候補 0 件・coverage.remaining なし）。
+- 結論: 2（no_fix_needed）。Spec のコミット S は検証済み HEAD の直接の子で Spec 1 ファイルだけ。状況コメントは push の前に投稿し、マージと Issue 更新は finalize.py が行う（push・マージ・Issue 更新の結果は Spec に追記しない）。
