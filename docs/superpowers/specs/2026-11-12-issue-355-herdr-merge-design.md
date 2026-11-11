@@ -40,7 +40,7 @@ AW ではこれらが #824（ペイン名の終了状態）・#678（--merge と
 
 変更してよい（Issue 本文の「変更してよい」に従う）:
 
-- `.agents/skills/issue-to-pr/SKILL.md` の 2 章 3（input ブロックの merge-disabled 判定と check-options の呼出条件。Issue の「ループ用オプションを使わず続行」を満たすために必要で、設計レビュー 1 回目 D1 が採用した判定時点）・2 章 5（target ブロックを含む）・2 章 6 の既存 open PR 案内・3 章・4 章 8（新設）・5 章。および 4 章 8 と整合させるための「Task の実装を runner の担当に依頼する」節の最終レビューの 1 文
+- `.agents/skills/issue-to-pr/SKILL.md` の 2 章 3（input ブロックの merge-disabled 判定と check-options の呼出条件。Issue の「ループ用オプションを使わず続行」を満たすために必要で、設計レビュー 1 回目 D1 が採用した判定時点）・2 章 5（target ブロックを含む）・2 章 6 の既存 open PR 案内・3 章・4 章 8（新設）・5 章。および 4 章 8 と整合させるための「Task の実装を runner の担当に依頼する」節の最終レビューの 1 文。「停止時の報告」章の手動マージ拒否の列挙への merge-disabled 例外注記（Task 2 の target ブロック条件と整合させるための最小注記。司令塔裁定・最終レビュー追認済み）
 - `.agents/skills/issue-to-pr/scripts/resolve_issue.py`（境界のコメントのみ。後述 D8）
 - `.agents/skills/pr-review-fix-loop/SKILL.md` の起動節（`--issue-number` と Herdr の項）
 - `.agents/skills/pr-review-fix-loop/scripts/loop.py` の Herdr 節・start・CLI の start 引数（reconcile・診断・collect は触らない）
