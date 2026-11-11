@@ -507,6 +507,47 @@ test_alibaba_launcher_requires_key() {
     [ ! -s "$log" ] || fail 'ccda must not start claude when MAAS_ANTHROPIC_TOKEN is blank'
 }
 
+# S: claude-alibaba-exec は MAAS_ANTHROPIC_TOKEN が ASCII の英数字を 1 文字も含まないとき、子 claude を起動せずに失敗する。
+# ガードが外れても起動は成功し、claude.ai の認証情報が maas.aliyuncs.com に送られる。
+# ANTHROPIC_API_KEY が残ると承認まで OAuth が送られうる。正しい key でも、親の ANTHROPIC_API_KEY・
+# CLAUDE_CODE_OAUTH_TOKEN・MAAS_ANTHROPIC_TOKEN を子に残すと、起動は成功したまま claude.ai の認証情報が
+# maas.aliyuncs.com に送られる。空白だけの拒否と、英数字を含む key で stub が起動する例を同じ関数で確かめる。
+# env -i で locale（LANG・LC_*）を渡さない。runner の子はそれらを引き継がない。範囲の比較が locale に依ると、
+# このテストの locale では止まり、locale の無い起動では通る（またはその逆）ことがある。
+test_alibaba_exec_requires_key() {
+    local test_home="${TEST_ROOT}/home-alibaba-exec-key"
+    make_stub_home "$test_home"
+    mkdir -p "$test_home/.local/bin"
+    install -m 0755 "${REPO_ROOT}/.devcontainer/claude-alibaba-exec" "$test_home/.local/bin/claude-alibaba-exec"
+    local log="${TEST_ROOT}/alibaba-exec-key-claude.log"
+    : > "$log"
+    printf '%s\n' '#!/bin/sh' 'env > "$HERDR_TEST_CLAUDE_DUMP"' > "$test_home/bin/claude"
+    chmod +x "$test_home/bin/claude"
+
+    local rc=0
+    env -i HOME="$test_home" PATH="$test_home/.local/bin:$test_home/bin:/usr/bin:/bin" \
+        HERDR_TEST_CLAUDE_DUMP="$log" \
+        MAAS_ANTHROPIC_TOKEN=$' \xc2\xa0\xef\xbb\xbf\xe3\x80\x80' \
+        "$test_home/.local/bin/claude-alibaba-exec" probe || rc=$?
+    [ "$rc" -ne 0 ] || fail 'claude-alibaba-exec must fail when MAAS_ANTHROPIC_TOKEN has no letters or digits'
+    [ ! -s "$log" ] || fail 'claude-alibaba-exec must not start claude when MAAS_ANTHROPIC_TOKEN has no letters or digits'
+
+    : > "$log"
+    rc=0
+    env -i HOME="$test_home" PATH="$test_home/.local/bin:$test_home/bin:/usr/bin:/bin" \
+        HERDR_TEST_CLAUDE_DUMP="$log" \
+        ANTHROPIC_API_KEY=fake-anthropic \
+        CLAUDE_CODE_OAUTH_TOKEN=fake-oauth \
+        MAAS_ANTHROPIC_TOKEN=fake-maas \
+        "$test_home/.local/bin/claude-alibaba-exec" probe || rc=$?
+    [ "$rc" -eq 0 ] || fail 'claude-alibaba-exec must start claude when MAAS_ANTHROPIC_TOKEN has letters or digits'
+    assert_contains "$log" '^ANTHROPIC_AUTH_TOKEN=fake-maas$'
+    assert_contains "$log" '^ANTHROPIC_BASE_URL=https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic$'
+    assert_absent "$log" '^ANTHROPIC_API_KEY='
+    assert_absent "$log" '^CLAUDE_CODE_OAUTH_TOKEN='
+    assert_absent "$log" '^MAAS_ANTHROPIC_TOKEN='
+}
+
 # S: ccdgo は空白だけの優先キーを、有効な下位キーへ黙って読み替えず、子 claude を起動せずに失敗する。
 # 読み替えると、利用者が優先キーで使うつもりのアカウントとは別のキーで外部へ要求を送る。さらに
 # Claude Code は両方の認証変数を trim（Unicode の空白も除く）して空とみなすため、空白だけでも
@@ -576,4 +617,5 @@ test_ollama_launcher_requires_key
 test_opencode_go_launcher_requires_key
 test_deepinfra_launcher_requires_key
 test_alibaba_launcher_requires_key
+test_alibaba_exec_requires_key
 printf 'PASS: herdr Dev Container migration\n'

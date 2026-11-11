@@ -1,0 +1,100 @@
+#!/bin/bash -p
+# 特権モード（-p）の bash は、継承した BASH_ENV・ENV のファイルを読まず、環境から渡る関数
+# （BASH_FUNC_*）も取り込まない。呼び出し側が外した認証情報を、起動時に読まれるファイルが
+# 入れ直さないようにするための指定である。`#!/usr/bin/env bash` に戻すと、BASH_ENV を
+# export した対話シェルから起動したときに、外した変数が子の claude へ再注入される。
+#
+# Alibaba Cloud Model Studio の Token Plan の Anthropic 互換 API で Claude Code を起動する
+# （#401、移植元 usaturn/agent-workspace#927）。
+# 呼び出し元は agent-runner の claude-code_alibaba_opus_max（.devcontainer/agent-runner.toml）である。
+# モデルの対応と接続先は zshrc.txt の claude-alibaba / ccda と揃える（fable・opus は
+# qwen4-max-preview、sonnet・haiku は qwen3.8-flash。[1m] は付けない）。ccda はこの exec を
+# 使わないので、片方の対応を変えるときはもう片方も揃える。
+#
+# runner 経由では子の環境は agent.env の名前だけなので、親の認証情報は元から無い。
+# 通常のシェルから直接実行したときも、親の認証情報が maas.aliyuncs.com へ渡らないよう、
+# 下の exec env で外す。
+# --model と --dangerously-skip-permissions は呼び出し側が引数で渡す。
+set -euo pipefail
+
+# モデルに [1m] を付けないのは、1M のコンテキストの根拠が無いため（/v1/models は 404 で
+# 一覧を取れない）。付けない場合は 200K と見なされる。ccda と同じ。
+fable='qwen4-max-preview'
+opus='qwen4-max-preview'
+sonnet='qwen3.8-flash'
+haiku='qwen3.8-flash'
+
+# Claude Code は ANTHROPIC_AUTH_TOKEN を trim して空なら未設定とみなし、保存済みの claude.ai の
+# OAuth トークンを接続先へ送る。trim は NBSP・BOM・全角空白などの Unicode の空白も除くので、
+# ASCII の英数字を 1 文字も含まなければ起動しない（値は表示しない）。
+# runner の子は LANG・LC_* を引き継がない。bash の範囲は locale の照合順で比べることがあるので、
+# globasciiranges を明示して文字コードで比べる。判定は ccda の [[ $key == *[A-Za-z0-9]* ]] と同じで、
+# 移植元の LC_ALL=C の [[:graph:]] は使わない。
+shopt -s globasciiranges
+key="${MAAS_ANTHROPIC_TOKEN-}"
+if [[ $key != *[A-Za-z0-9]* ]]; then
+    echo "claude-alibaba-exec: MAAS_ANTHROPIC_TOKEN is not set, empty, or has no letters or digits; export the Alibaba Cloud Model Studio Token Plan key before starting agent-runner" >&2
+    exit 1
+fi
+
+# ANTHROPIC_API_KEY は渡さない。ccda が Bearer の ANTHROPIC_AUTH_TOKEN だけを渡すのと揃える。
+# -u の名前は、zshrc.txt の cc_launcher_unsets のうちこのスクリプトが自分で設定しないものすべて
+# （自分で設定する ANTHROPIC_AUTH_TOKEN は除く。MAAS_ANTHROPIC_TOKEN は cc_launcher_unsets にあり、
+# ここで外す）。一覧は cc_launcher_unsets と揃える。zshrc.txt の定義は変えない。
+exec env \
+    -u ANTHROPIC_API_KEY \
+    -u DEEPINFRA_TOKEN \
+    -u OLLAMA_API_KEY \
+    -u COMMANDCODE_API_KEY \
+    -u OPENCODE_GO_CLAUDE_API_KEY \
+    -u OPENCODE_API_KEY \
+    -u OPENCODE_GO_API_KEY \
+    -u MAAS_ANTHROPIC_TOKEN \
+    -u ANTHROPIC_AWS_API_KEY \
+    -u ANTHROPIC_FOUNDRY_API_KEY \
+    -u ANTHROPIC_FOUNDRY_AUTH_TOKEN \
+    -u ANTHROPIC_IDENTITY_TOKEN \
+    -u ANTHROPIC_IDENTITY_TOKEN_FILE \
+    -u ANTHROPIC_CUSTOM_HEADERS \
+    -u ANTHROPIC_MODEL \
+    -u ANTHROPIC_DEFAULT_MODEL \
+    -u ANTHROPIC_SMALL_FAST_MODEL \
+    -u ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION \
+    -u ANTHROPIC_CUSTOM_MODEL_OPTION \
+    -u ANTHROPIC_CUSTOM_MODEL_OPTION_NAME \
+    -u ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION \
+    -u ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES \
+    -u CLAUDE_CODE_OAUTH_TOKEN \
+    -u CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR \
+    -u CLAUDE_CODE_OAUTH_REFRESH_TOKEN \
+    -u CLAUDE_CODE_SESSION_ACCESS_TOKEN \
+    -u CLAUDE_CODE_HFI_BEARER_TOKEN \
+    -u CLAUDE_CODE_CLIENT_KEY \
+    -u CLAUDE_CODE_CLIENT_KEY_PASSPHRASE \
+    -u CLAUDE_CODE_GATEWAY_TOKEN \
+    -u CLAUDE_CODE_GATEWAY_TOKEN_FILE_DESCRIPTOR \
+    -u CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR \
+    -u CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR \
+    -u CLAUDE_CODE_USE_BEDROCK \
+    -u CLAUDE_CODE_USE_FOUNDRY \
+    -u CLAUDE_CODE_USE_GATEWAY \
+    -u CLAUDE_CODE_USE_ANTHROPIC_AWS \
+    -u CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD \
+    -u CLAUDE_CODE_USE_MANTLE \
+    -u CLAUDE_CODE_USE_VERTEX \
+    -u CLAUDE_CODE_MAX_CONTEXT_TOKENS \
+    -u CLAUDE_CODE_SUBAGENT_MODEL \
+    -u CLAUDE_CODE_SUBAGENT_MODEL_FORCE \
+    -u CLAUDE_CODE_AUTO_MODE_MODEL \
+    -u CLAUDE_CODE_BG_CLASSIFIER_MODEL \
+    -u ANTHROPIC_BETAS \
+    ANTHROPIC_BASE_URL=https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic \
+    ANTHROPIC_AUTH_TOKEN="$key" \
+    ANTHROPIC_DEFAULT_FABLE_MODEL="$fable" \
+    ANTHROPIC_DEFAULT_OPUS_MODEL="$opus" \
+    ANTHROPIC_DEFAULT_SONNET_MODEL="$sonnet" \
+    ANTHROPIC_DEFAULT_HAIKU_MODEL="$haiku" \
+    ENABLE_CLAUDEAI_MCP_SERVERS=false \
+    CLAUDE_CODE_EFFORT_LEVEL=max \
+    CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
+    claude "$@"

@@ -183,6 +183,19 @@ provider = "deepinfra"
 effort = "high"
 env = ["HOME", "PATH", "DEEPINFRA_TOKEN"]
 
+# claude-alibaba-exec（.devcontainer/claude-alibaba-exec）で Alibaba Cloud Model Studio の
+# Token Plan につなぐ。モデルの対応は zshrc.txt の ccda と揃える（fable・opus は
+# qwen4-max-preview、sonnet・haiku は qwen3.8-flash）。model が opus なので
+# claude-code_opus_default と同じ役割に並べられない。
+[agents.claude-code_alibaba_opus_max]
+runtime = "claude-code"
+command = ["claude-alibaba-exec"]
+model = "opus"
+model_key = "qwen4-max-preview"
+provider = "alibaba"
+effort = "max"
+env = ["HOME", "PATH", "MAAS_ANTHROPIC_TOKEN"]
+
 # after_run はレビュー結果に runner の実行記録を付ける。
 # 個人設定は書き換えない。after_run = [] で無効にした caller は attach-runner を明示実行する。
 [workflows.review]
