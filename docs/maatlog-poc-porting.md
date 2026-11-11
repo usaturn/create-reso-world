@@ -112,6 +112,8 @@ Context7 の扱いは、さらに Issue #162（2026-10-18）で変えた。Conte
 | `.devcontainer/test-herdr-migration.bash` の `ccda` の検査 | 同じファイル | 適応 | `ccda` の検査を外し、再混入の検査を足した。here-string などの差分は移植先が新しいので保つ | #18 |
 | なし | `.devcontainer/test-initialize-mounts.bash`・`.devcontainer/test-readme.bash`・`.devcontainer/test-shell-tools.bash`・`tests/scripts/test-docs.bash` | 適応 | 除外したものを必須にしていた検査を新しい方針に合わせ、再混入の検査を足した | #18 |
 
+`ccda` の除外は #397 で見直し、移植元 #923 の新しい割り当てで取り入れた。この表と R-4・R-9 は移植時点の記録として残す。
+
 ### Dev Container・シェル・文書の共有ファイル
 
 | 移植元のパス | 移植先のパス | 判断 | 理由 | 担当 Issue |

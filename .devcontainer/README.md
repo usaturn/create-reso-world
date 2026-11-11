@@ -23,7 +23,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 <!-- tool-table:start -->
 | ツール | 導入方法 | mount | initialize.bash の mkdir | zshrc の関数 | update() の項目 |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`、`ccdo`、`ccds`（alias）、`ccdd`、`ccddg`、`ccdgo`、`ccdol` | `claude update` |
+| Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`、`ccdo`、`ccds`（alias）、`ccdd`、`ccddg`、`ccdgo`、`ccdol`、`ccda` | `claude update` |
 | Codex | `npm install -g @openai/codex@latest` | `~/.codex` | `~/.codex` | `cod` | `npm install -g @openai/codex@latest` |
 | pi | `npm install -g` で本体、`pi install` で拡張。通常ランチャー 11 本を `~/.local/bin` に置く。Command Code の 2 本は再契約時の手動配置 | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`、`curo`（alias） | `agent update` |
@@ -43,13 +43,14 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 未導入のツールを呼ぶ関数（`cod`、`genv`、`buni`）は、コマンドが無ければ理由を表示して 127 を返す。
 `update()` は無いツールの項目を飛ばし、飛ばした項目を表示する。
 
-Grok Build（`grok`）は導入しない。Claude Code を Alibaba Cloud 経由で使う `ccda`（`claude-alibaba`）も置かない。
+Grok Build（`grok`）は導入しない。
 ホストの `~/.grok` は mount せず、削除もしない。不要になったら利用者がホスト側で消す。
 
 ## 秘密情報
 
 Meshy の `MESHY_API_KEY` は例外で、env / credentials ファイルへ保存せず、利用者が zsh で非表示入力して環境変数だけで渡す。手順は [Meshy → ResoLoop](../docs/meshy-resoloop.md)。
 Ollama Cloud の `OLLAMA_API_KEY` も例外で、ホストの env ファイルには書かず、使うシェルで export する。手順は「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」。
+Alibaba Cloud Model Studio の Token Plan の `MAAS_ANTHROPIC_TOKEN` も例外で、ホストの env ファイルには書かず、使うシェルで export する。理由は、env ファイルの変数はすべてのシェルに export され、ランチャーを通さない `claude`・pi などにも渡るためである。手順は「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」。
 
 それ以外の API トークンなどの秘密情報は、ホストの `~/.config/create-reso-world/env` に置き、リポジトリには置かない。
 このディレクトリは Dev Container に bind mount され（`initialize.bash` がホスト側に mode 700 で作る）、
@@ -67,16 +68,17 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 変数ごとの用途と、無いときの挙動は「API トークン」の節にある。
 `COMMANDCODE_API_KEY` は契約停止中のため通常利用には不要で、再契約して手動で再有効化するときだけ使う。
 
-撤去した `ccda` が使っていた `MAAS_ANTHROPIC_TOKEN` は、もう使わない。`env` に残っていれば削除する。
-プロバイダ切替ランチャー（`ccdd` など）はこの変数を子プロセスから外さないため、残すと子プロセスにも渡る。
+`MAAS_ANTHROPIC_TOKEN` は `ccda`（`claude-alibaba`）だけが読み、ほかのプロバイダ切替ランチャー（`ccdd`・`ccddg`・`ccdgo`・`ccdol`）の子プロセスからは `cc_launcher_unsets` で外す。
 
 ## 既存環境の更新
 
 2026-10 に pi と Claude Code の設定を取り込み、pi のランチャー・拡張・MCP、Claude Code のランチャー、
-除外したツール（Grok Build・`ccda`）の扱いが変わった。既存の環境には次の順に反映する。
+除外したツール（Grok Build・`ccda`）の扱いが変わった。`ccda` は #397 で新しい割り当て（Alibaba Cloud Model Studio の Token Plan）で戻した。
+既存の環境には次の順に反映する。
 
 1. ホストの作業ツリーを最新の `origin/main` に追従させる。rebuild は作業ツリーの `.devcontainer/` を使う。
-2. ホストの `~/.config/create-reso-world/env` を見直す。`MAAS_ANTHROPIC_TOKEN` を削除し、
+2. ホストの `~/.config/create-reso-world/env` を見直す。env ファイルに `MAAS_ANTHROPIC_TOKEN` があれば
+   env ファイルからは外す（`ccda` を使うなら、使うシェルで export する。「API トークン」）。
    Google Developer Knowledge の MCP を使う場合は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す（「API トークン」）。
    不要な `COMMANDCODE_API_KEY` の解除と agent-runner の割当は「Command Code GOAT の契約終了後の移行」に従う。
 3. Dev Containers: Rebuild Container を実行する。postCreate が次を行う。
@@ -112,12 +114,14 @@ rebuild しない場合は、3 の代わりに次を行う。
 - `ca-certificates`: `sudo apt-get update && sudo apt-get install -y ca-certificates` の後に、6 の確認を行う
 - pi の旧拡張の撤去と共有拡張の導入: 「pi の旧拡張・MCP 設定の移行」の手動コマンド
 - 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除。
-  2 で `env` から消した `MAAS_ANTHROPIC_TOKEN` も、使用中のシェルでは `unset MAAS_ANTHROPIC_TOKEN` で外す
+  2 で `env` から外した `MAAS_ANTHROPIC_TOKEN` は、使用中のシェルに残る。`ccda` を使わないシェルでは
+  `unset MAAS_ANTHROPIC_TOKEN` を実行して外す（`ccda` を使うシェルでは外さなくてよい）
 - pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜19 の `install -m 0755` で通常の 11 本を置き直す。
   同じ節の 8 の `models.json` のコピーは既存の定義を上書きするので行わない。共通ヘルパは、4 で実行する
   `zsh scripts/setup_pi_superagents.zsh --if-absent` が更新する
 - Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映。古い `~/.zshrc` に残る
-  `ccda`（`claude-alibaba`）の関数と、`update()` の Grok Build の行も削除する
+  2026-10 以前の `ccda`（`claude-alibaba`）の関数は、`zshrc.txt` の新しい関数に置き換える。
+  `update()` の Grok Build の行も削除する
 
 ## トラストストアの確認（eMudhra 中間CA の侵害）
 
@@ -774,6 +778,7 @@ Command Code GOAT の `piccg`・`piccd` は契約停止中のため通常導入�
 | `claude-deepinfra-glm` / `ccddg` | DeepInfra | `zai-org/GLM-5.3-Flash` | `deepseek-ai/DeepSeek-V4.1-Flash` | `DEEPINFRA_TOKEN` |
 | `claude-opencode-go` / `ccdgo` | OpenCode Go | `deepseek-v4.1-flash[1m]` | `hy4[1m]` | 下記の OpenCode キー |
 | `claude-ollama` / `ccdol` | Ollama Cloud（`https://ollama.com`） | `deepseek-v4.1-flash:1017[1m]` | `deepseek-v4.1-flash:1017[1m]` | `OLLAMA_API_KEY` |
+| `claude-alibaba` / `ccda` | Alibaba Cloud Model Studio の Token Plan | `qwen4-max-preview` | `qwen4-max-preview` | `MAAS_ANTHROPIC_TOKEN` |
 
 DeepInfra の sonnet は `deepseek-ai/DeepSeek-V4-Flash-0731`、haiku は
 `openai/gpt-oss-20b`。OpenCode Go の sonnet は `muse-spark-1.3-contributor[1m]`、
@@ -786,8 +791,10 @@ DeepInfra は `DEEPINFRA_TOKEN` を使い、未設定・空・空白だけ（Uni
 ASCII の英数字を 1 文字も含まないなら、値を表示せずに起動を止める。この英数字の判定は
 Claude Code のランチャーだけのもので、pi の `pidid` は未設定・空値だけを止める。
 Ollama Cloud は 4 つの tier（fable・opus・sonnet・haiku）すべてに同じモデルを割り当てる。
-詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」と
-「OpenCode Go のモデルで Claude Code を起動する（#368）」にある。
+Alibaba Cloud Model Studio の Token Plan の sonnet・haiku は `qwen3.8-flash` で、`[1m]` を付けない。
+`MAAS_ANTHROPIC_TOKEN` が未設定・空・ASCII の英数字を 1 文字も含まないときは、値を表示せずに起動を止める。
+詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」「OpenCode Go のモデルで Claude Code を起動する（#368）」
+「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」にある。
 
 短い起動名だけが `--dangerously-skip-permissions` を付ける。
 通常名は権限確認を省略せず起動する。追加の `--model` などは既定引数の後へ渡す。
@@ -796,7 +803,7 @@ Ollama Cloud は 4 つの tier（fable・opus・sonnet・haiku）すべてに同
 
 既存コンテナでは、rebuild によって `.devcontainer/zshrc.txt` の更新を反映できる。
 rebuild 前に反映する場合は、同ファイルの Claude alias・`cc_launcher_unsets`・
-4 つのプロバイダ関数を既存の `~/.zshrc` の対応箇所に反映し、新しい zsh を開く。
+5 つのプロバイダ関数を既存の `~/.zshrc` の対応箇所に反映し、新しい zsh を開く。
 Claude CLI 自体の更新は `claude update` を使う。`feature-dev` は引き続き利用でき、`ccdgo` はこの更新で使えるようになる。
 
 onboarding の書き換えスクリプトは導入・自動実行しない。`~/.claude.json` はファイルの
@@ -1124,6 +1131,120 @@ ANTHROPIC_CUSTOM_HEADERS="x-opencode-session: $(cat /proc/sys/kernel/random/uuid
 - claude.ai にログインしたままの対話起動
 - Hy4 と Muse Spark で `effort: max` が何に読み替えられるか
 - Muse Spark 1.3 Contributor のプライバシー設定を無効にしたときの失敗
+
+### Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）
+
+`claude-alibaba` / `ccda`（`zshrc.txt` の関数）は、Claude Code の接続先を Alibaba Cloud
+Model Studio の Token Plan の Anthropic 互換 API に切り替え、Qwen のモデルで起動する
+（#397、移植元は usaturn/agent-workspace#923）。`ccda` は `--dangerously-skip-permissions` を
+付けて起動し、`claude-alibaba` は付けない。後ろに書いた引数（`-p` やプロンプト、`--model` など）は
+そのまま `claude` に渡る。`--model` を後ろに書くと起動時の `--model opus` より後ろになるので、
+最後の指定が使われる（例: `ccda --model sonnet`）。
+
+| 項目 | 値 |
+| --- | --- |
+| 接続先（`ANTHROPIC_BASE_URL`） | `https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic` |
+| 認証 | `ANTHROPIC_AUTH_TOKEN` にだけキーを入れる（`ANTHROPIC_API_KEY` には入れない） |
+| キー | `MAAS_ANTHROPIC_TOKEN` |
+| effort（`CLAUDE_CODE_EFFORT_LEVEL`） | `max` |
+| 出力上限（`CLAUDE_CODE_MAX_OUTPUT_TOKENS`） | 65,536 |
+| claude.ai の MCP コネクタ（`ENABLE_CLAUDEAI_MCP_SERVERS`） | `false` |
+| API キーの作成 | Model Studio のコンソール |
+
+#### tier とモデル
+
+| tier | model ID |
+| --- | --- |
+| fable | `qwen4-max-preview` |
+| opus（起動時） | `qwen4-max-preview` |
+| sonnet | `qwen3.8-flash` |
+| haiku | `qwen3.8-flash` |
+
+起動時は opus（`qwen4-max-preview`）を使う。`/model` でほかの tier に切り替えられる。
+`qwen4-max-preview` の応答の `model` は `qwen4.0-max-preview` である（移植元の実測）。
+
+4 つの tier の model 変数に `[1m]` は付けない。1M のコンテキストの根拠が無く、
+`/v1/models` は 404 を返してモデルの一覧を API から取れないためである。`[1m]` を付けると
+Claude Code は 1M のコンテキストとして扱うが、確かめていない上限を表示させることになる。
+
+#### 前提
+
+- Alibaba Cloud Model Studio の Token Plan の契約が必要である
+- キーは Model Studio のコンソールで作る
+
+#### 起動
+
+```bash
+read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN
+ccda
+```
+
+入力値は画面に表示されず、コマンド履歴にも値が残らない。
+端末の表示や pane のスクロールバックに値が残らないようにするため、キーをコマンドラインに直接書かない。
+
+`-p` でプロンプトを渡す場合も同じである。
+
+```bash
+read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN
+ccda -p "テストを実行して結果を要約して"
+```
+
+`zshrc.txt` は Dev Container の作成時に `install_beforehand.bash` が `~/.zshrc` に連結する。
+#397 より前に作ったコンテナには `claude-alibaba` / `ccda` が無いので、Rebuild Container で
+反映する。
+
+`MAAS_ANTHROPIC_TOKEN` が未設定・空、または ASCII の英数字を 1 文字も含まない
+（NBSP・BOM などの Unicode の空白だけを含む）ときは、値を表示せずにエラーを出して終了し、
+`claude` を起動しない（終了コード 1）。別の接続先で起動して成功扱いにはしない。
+
+親シェルの認証情報やモデルの指定は、`ccdd` / `ccddg` / `ccdgo` / `ccdol` と共通の
+`cc_launcher_unsets` で外してから起動する。`MAAS_ANTHROPIC_TOKEN` を含む親の値は子に
+届かず、このキーだけが `ANTHROPIC_AUTH_TOKEN` として子に渡る。
+
+#### 接続先の確認
+
+起動したら `/status` で次を確かめる。
+
+- `Auth token: ANTHROPIC_AUTH_TOKEN`
+- `Anthropic base URL: https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic`
+- `Model: opus (qwen4-max-preview)`
+
+`API key:` の行は無い（`ANTHROPIC_API_KEY` を渡さないため）。`~/.claude/settings.json` や
+プロジェクトの `.claude/settings.json`・`.claude/settings.local.json` の `env` に
+`ANTHROPIC_BASE_URL`・`ANTHROPIC_AUTH_TOKEN`・`ANTHROPIC_DEFAULT_*_MODEL` などがあると、
+シェルの値より優先される。`/status` が上と違うときは、まず `settings.json` の `env` を
+確かめる。
+
+#### 移植元で確認したこと（2026-11-11、Claude Code 2.1.322）
+
+この節の実 API の結果は、移植元（usaturn/agent-workspace#923）が 2026-11-11 に Claude Code 2.1.322 で
+確かめたものである。この checkout では実 API を呼び直しておらず、未確認の項目は末尾にまとめる。
+
+curl で `/v1/messages` に 1 往復して次を確かめた。
+
+- 接続先 `https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic` は有効である
+  （#18 で撤去した旧ランチャーと同じ接続先）
+- 認証は `Authorization: Bearer <key>` と `x-api-key: <key>` のどちらでも 200 になる
+- `qwen4-max-preview` と `qwen3.8-flash` は 200 になる
+- 両モデルとも `max_tokens` の 65,536 と 131,072 を拒否しない
+- `/v1/models` は 404（`Not support`）を返す。モデル一覧は API から取れない
+
+`ccda -p "1+1 の答えを数字だけで答えて" --model <tier> --output-format json` を tier ごとに
+1 回ずつ実行し、4 つとも終了コード 0・`is_error: false`・結果は `2` だった。`modelUsage` の
+モデルは fable → `qwen4-max-preview`、opus → `qwen4-max-preview`、sonnet → `qwen3.8-flash`、
+haiku → `qwen3.8-flash` である。標準エラーには
+`[claude-code:unrecognized_model] {"model":"qwen4-max-preview",...}` のような通知が 1 行
+出る（#852・#867 と同じ通知で、応答は成功する）。
+
+Context7（`ctx7`）の Alibaba Model Studio の文書には、Token Plan の Claude Code 向けの
+接続先・ヘッダーの記述が見つからなかった（3 回の上限まで照会した）。接続先と認証は上の
+実測を根拠にする。
+
+確かめていないこと:
+
+- `/status` の表示（上記は確認する項目として書いた）
+- 対話起動（`-p` でのみ確かめた）
+- 1M に近い長さの会話と、モデルのコンテキストの上限（API からは取れない）
 
 ## 非対話エージェントのランナー（agent-runner）
 
@@ -1887,7 +2008,7 @@ commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同�
 Meshy の `MESHY_API_KEY` はここには含めない。ファイルを作らない非表示入力の手順は「Meshy CLI と生成物の受け渡し」にある。
 
 次の変数は、「秘密情報」の節の `~/.config/create-reso-world/env` に書けばシェルの起動時に
-export される（`OLLAMA_API_KEY` は書かない。下の項目）。書かない場合は、必要なときに手動で export する。
+export される（`OLLAMA_API_KEY` と `MAAS_ANTHROPIC_TOKEN` は書かない。下の項目）。書かない場合は、必要なときに手動で export する。
 
 - `OPENCODE_API_KEY` は `pigo`・`pigod` と、`pigs`・`pixg` の OpenCode Go の tier の
   子 Pi の実行には不要である。bind mount した `auth.json` に資格情報が残るため、pi はそこから読む
@@ -1909,10 +2030,17 @@ export される（`OLLAMA_API_KEY` は書かない。下の項目）。書か�
   ランチャーだけのもので、`pidid` は未設定・空値だけを止める
 - `OLLAMA_API_KEY` は Claude Code の `ccdol`・`claude-ollama` だけが読む。
   「秘密情報」の env ファイルには書かず、使うシェルで export する。
-  子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ccdd`・`ccddg`・`ccdgo` の子には渡さない。
+  子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ccdd`・`ccddg`・`ccdgo`・`ccda` の子には渡さない。
   未設定・空・空白だけ（Unicode の空白を含む）で英数字を 1 文字も含まないなら、値を表示せずにエラーを出して起動を止める。
   キーは `https://ollama.com/settings/keys` で作る。
   詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある
+- `MAAS_ANTHROPIC_TOKEN` は Claude Code の `ccda`・`claude-alibaba` だけが読む。
+  「秘密情報」の env ファイルには書かず、使うシェルで export する。
+  子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ANTHROPIC_API_KEY` には入れない。
+  `ccdd`・`ccddg`・`ccdgo`・`ccdol` の子には渡らない。
+  未設定・空、または ASCII の英数字を 1 文字も含まない（NBSP・BOM などの Unicode の空白だけを含む）なら、
+  値を表示せずに起動を止める。キーは Model Studio のコンソールで作る。
+  詳しくは「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」にある
 - `COMMANDCODE_API_KEY` は契約停止中のため通常利用には不要で、常時 export は推奨しない。
   再契約し、手動 setup で `piccg`・`piccd` を再有効化するときだけ使う。
   `models.json` の `apiKey` が環境変数を参照し、未設定なら両ランチャーは起動を止める。
