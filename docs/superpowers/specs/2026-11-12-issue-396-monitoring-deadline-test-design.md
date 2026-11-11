@@ -25,6 +25,14 @@
 - `pi_alibaba_qwen4-max_max` を起動するすべての runner 起動（Spec レビュー・Task 実装・ループのレビューと修正）で、このセッションの `ANTHROPIC_AUTH_TOKEN` の値を `MAAS_ANTHROPIC_TOKEN` として子に渡す。値はログ・文書・コミットに書かない
 - 作業中に `origin/main` が進んだら（他の PR のマージ）、停止せずに追随する: base を再捕捉し、feature branch を新しい base に rebase し、検証をやり直して続行する。この run に限り issue-to-pr の「捕捉後の base 移動で停止」を利用者が明示的に解除した。rebase が競合して解消できないときは停止する（別の停止条件であり、この委任では解消しない）
 
+追加指示（2026-11-12、Spec レビュー 1 回目の失敗報告後。原文）:
+
+> 下記でお願いします。また同様のことがあった場合は全て pi_opencode-go_deepseek4-flash_max に変更してください
+> --spec-review pi_opencode-go_deepseek4-flash_max
+
+- Spec レビューの担当を `pi_opencode-go_deepseek4-flash_max` に変更して再依頼する（1 回目は `pi_alibaba_qwen4-max_max` が `runner: response_failed` で失敗。失敗したレビューは helper の回数に数えないため、別担当の新しいレビューとして開始できる）
+- 事前委任: この run で `pi_alibaba_qwen4-max_max` に同様の失敗（runner の結果回収失敗・`response_failed` など）が起きた場合は、利用者の追加確認なしに、その時点で `pi_alibaba_qwen4-max_max` に割り当たっているすべての役割（Task 実装・ループの implement・inspect）を `pi_opencode-go_deepseek4-flash_max` に変更して続行する。安全の失敗・権限拒否は対象外（従来どおり全体停止）
+
 ## 意図と問題
 
 `test_undeclared_stop_never_signals`（`.agents/skills/monitoring-long-tasks/tests/test_task_watch_process.py`）は、`--stop none`（停止を宣言していない対象には決してシグナルを送らない）という安全の守りを端到端で確かめるテストである。worker が期限（0.3 秒）後も生存している間に watcher が `hold/deadline` を観測し、その後 worker が正常終了して `completed` になることを要求する。
@@ -78,8 +86,8 @@
 ## 検証計画
 
 1. ベースライン: worktree で `uv run pytest .agents/skills/monitoring-long-tasks -q -p no:cacheprovider`（実装前に 25 passed を確認済み）
-2. RED（修正前の決定的再現）: 一時スクリプトで watcher を起動直後に SIGSTOP し、旧 worker の sleep 1.5 秒より長い 2 秒待って SIGCONT する。旧コードでは `hold/deadline` が記録されず完了すること（誤失敗の再現）を確認する
-3. GREEN: 同じ遅延再現を修正後のコードで実行し、`hold/deadline` が記録され、`completed`・`deadline_exceeded=true`・`stop=null`・`got-term` なしになることを確認する
+2. RED（修正前の決定的再現）: 一時スクリプト（セッションディレクトリの `repro_deadline_delay.py`）で、`state/declaration.json` の出現（＝対象の Popen 済み。`task_watch.py` は Popen の後に declaration を書く）を待ってから watcher を SIGSTOP する。SIGCONT する前に、旧 worker が終了したことを `/proc/<target.pid>/stat` の状態（Z/X または消失）で確認する（上限 15 秒。固定秒数の待ちに依存しない）。これにより watcher の再開時の初回観測は必ず「終了済み・elapsed >= deadline」になり、旧コードで `hold/deadline` が記録されず完了すること（誤失敗の再現）が決定的に確認できる
+3. GREEN: 同じハーネスを修正後のコードで実行する。修正後の worker は `hold/deadline` の記録を待つため終了しないので、SIGSTOP 後は deadline（0.3 秒）を超える固定 2 秒で SIGCONT する（worker の終了待ちはしない）。`hold/deadline` が記録され、`completed`・`deadline_exceeded=true`・`stop=null`・`got-term` なしになることを確認する
 4. 安定性: 修正後の単体テストを 30 回反復実行して全件成功を確認する
 5. 並行負荷: 全体テスト `env -u CODEX_THREAD_ID uv run pytest tests/skills .agents/skills .agents/scripts tools -q -p no:cacheprovider` を、シェルテスト（`tests/` 配下の bash テスト）または CPU 負荷と並行させて実行し、全件成功を確認する（PR #395 の失敗は並行実行時に発生した）
 6. レイアウト: `bash scripts/check-layout.sh`
@@ -139,6 +147,20 @@
 - 検討した別案: issue-to-pr の既定（base 移動で停止）→ 利用者が明示的に解除したので不採用
 - 選択理由: 利用者の明示指示（「途中でメインがマージされたら、追随して作業を止めずに続行してください」）
 - 委任指示: 利用者の 2026-11-12 の指示。この run に限る。停止条件: rebase の競合が解消できないとき、移動が fast-forward でないとき、追随後の検証が失敗したとき
+
+### D8: Spec レビュー担当の変更と失敗時の担当変更の事前委任（D4 の担当を置き換える）
+
+- 選択した案: Spec レビューを `pi_opencode-go_deepseek4-flash_max` で再依頼する。以降、`pi_alibaba_qwen4-max_max` に同様の失敗（`response_failed` など runner の結果回収失敗）が起きたら、その時点で同担当に割り当たっているすべての役割を `pi_opencode-go_deepseek4-flash_max` に変更して続行する
+- 検討した別案: 同じ担当（`pi_alibaba_qwen4-max_max`）で再依頼 → 失敗の原因はモデルが結果 JSON の前に説明文を付ける挙動で、再発し得るため不採用。self でのレビュー → 利用者が外部担当を明示したので不採用
+- 選択理由: 利用者の追加指示（「下記でお願いします。また同様のことがあった場合は全て pi_opencode-go_deepseek4-flash_max に変更してください」）。1 回目のレビューは `state: failed` で停止し、失敗記録をセッションに残した（review_dir: `tmp/agents/issue-396.z5hf2du1/2026-11-12-issue-396-monitoring-deadline-test-design.spec-review/review-1`）。失敗したレビューは helper の `next_round` が数えないため、別担当の新しいレビュー（round 1）として開始できる
+- 委任指示: 利用者の 2026-11-12 の追加指示。停止条件: 変更後の担当でもレビューが失敗したとき、安全の失敗・権限拒否（担当変更では解消しない）
+
+### D9: RED 再現の同期点の明確化（controller による文言修正）
+
+- 選択した案: 検証計画 2・3 の SIGSTOP/SIGCONT の同期点を明記する（declaration.json の出現待ち・SIGCONT 前の旧 worker 終了確認）。一時ハーネスもこの手順に合わせる
+- 検討した別案: 「起動直後」の曖昧な文言のままにする → worker の Popen 前に停止すると再現せず、固定 2 秒待ちも Python 起動分の余裕が少ないため不採用
+- 選択理由: 失敗した 1 回目のレビューの生出力がこの曖昧さを指摘していた（minor。採否はしていない・レビューは成功扱いしない）。controller のハーネスは既に declaration.json 待ちを実装しており RED は再現済みだったが、Spec の文言が実装より曖昧だったため、検証計画を実装と一致させた
+- 委任指示: 推奨案委任の範囲の文言明確化（設計の意味は変えない）。停止条件: なし
 
 ## 成果物
 
