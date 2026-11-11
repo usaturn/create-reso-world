@@ -490,10 +490,43 @@ test_opencode_go_launcher_requires_key() {
     [ ! -s "$log" ] || fail 'ccdgo must not start claude when the first non-empty key is blank'
 }
 
+# S: ccdd / ccddg は DEEPINFRA_TOKEN が未設定・空、または ASCII 英数字を 1 文字も含まないとき、
+# 子 claude を起動せずに失敗する。Claude Code は ANTHROPIC_AUTH_TOKEN が空か空白だけだと、
+# 保存済みの claude.ai の OAuth トークンを接続先へ送る。このガードが外れても起動は成功し、
+# claude.ai の認証情報が DeepInfra に送られる。未設定・空の拒否は同じ判定（${DEEPINFRA_TOKEN:-} と
+# *[A-Za-z0-9]*）が担うので、入力は ASCII の空白・NBSP（U+00A0）・BOM（U+FEFF）だけの 1 件にする。
+# 空だけを止める書き方（[[ -z ... ]]）も、空白（[[:space:]]）だけを除く書き方も NBSP・BOM を通すので、
+# この 1 件でどちらの誤りも分かる。通常名は同じ関数本体なので短縮名で代表させ、
+# 正しいキーで起動する例は送り先と env 隔離のテストにある。
+test_deepinfra_launcher_requires_key() {
+    local test_home="${TEST_ROOT}/home-deepinfra-key"
+    make_stub_home "$test_home"
+    local log="${TEST_ROOT}/deepinfra-key-claude.log"
+    : > "$log"
+    printf '%s\n' '#!/bin/sh' 'echo started >> "$HERDR_TEST_CLAUDE_DUMP"' > "$test_home/bin/claude"
+    chmod +x "$test_home/bin/claude"
+
+    local fn err rc
+    for fn in ccdd ccddg; do
+        err="${TEST_ROOT}/deepinfra-key-${fn}.err"
+        rc=0
+        run_zshrc_code "$test_home" \
+            "source \"\$ZSHRC_TEMPLATE\" >/dev/null 2>&1; ${fn} probe" \
+            HERDR_TEST_CLAUDE_DUMP="$log" DEEPINFRA_TOKEN=$' \xc2\xa0\xef\xbb\xbf' 2>"$err" || rc=$?
+        [ "$rc" -ne 0 ] || fail "${fn} must fail when DEEPINFRA_TOKEN has no letters or digits"
+        [ ! -s "$log" ] || fail "${fn} must not start claude when DEEPINFRA_TOKEN has no letters or digits"
+        # 失敗は固定文で知らせ、入力した値をそのまま出さない（端末・ログへの漏えいを避ける）
+        [ -s "$err" ] || fail "${fn} must report an error without the token value"
+        assert_absent "$err" $'\xc2\xa0'
+        assert_absent "$err" $'\xef\xbb\xbf'
+    done
+}
+
 test_session_cwd_repair
 test_session_cwd_repair_multi_workspace
 test_cc_launcher_env_unsets
 test_cc_launcher_destination_and_exit_status
 test_ollama_launcher_requires_key
 test_opencode_go_launcher_requires_key
+test_deepinfra_launcher_requires_key
 printf 'PASS: herdr Dev Container migration\n'

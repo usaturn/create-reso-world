@@ -130,6 +130,14 @@ function claude-deepinfra ccdd () {
   local haiku=openai/gpt-oss-20b
   local -a opts
   [[ $funcstack[1] == ccdd ]] && opts=(--dangerously-skip-permissions)
+  # Claude Code は ANTHROPIC_AUTH_TOKEN を trim して空なら未設定とみなし、保存済みの claude.ai の
+  # OAuth トークンを接続先へ送る。trim は NBSP・BOM などの Unicode の空白も除くので、zsh の
+  # [[:space:]]（ロケール依存）では足りない。ASCII の英数字を 1 文字も含まなければ起動しない
+  # （[A-Za-z0-9] は文字コードで比べるのでロケールに依らない。値は表示しない）。
+  if [[ ${DEEPINFRA_TOKEN:-} != *[A-Za-z0-9]* ]]; then
+    print -u2 -- "${funcstack[1]}: DEEPINFRA_TOKEN is not set, empty, or has no letters or digits; export a DeepInfra API token in this shell"
+    return 1
+  fi
 
   env "${cc_launcher_unsets[@]}" \
     ANTHROPIC_BASE_URL="https://api.deepinfra.com/anthropic" \
@@ -151,6 +159,14 @@ function claude-deepinfra-glm ccddg () {
   local haiku=openai/gpt-oss-20b
   local -a opts
   [[ $funcstack[1] == ccddg ]] && opts=(--dangerously-skip-permissions)
+  # Claude Code は ANTHROPIC_AUTH_TOKEN を trim して空なら未設定とみなし、保存済みの claude.ai の
+  # OAuth トークンを接続先へ送る。trim は NBSP・BOM などの Unicode の空白も除くので、zsh の
+  # [[:space:]]（ロケール依存）では足りない。ASCII の英数字を 1 文字も含まなければ起動しない
+  # （[A-Za-z0-9] は文字コードで比べるのでロケールに依らない。値は表示しない）。
+  if [[ ${DEEPINFRA_TOKEN:-} != *[A-Za-z0-9]* ]]; then
+    print -u2 -- "${funcstack[1]}: DEEPINFRA_TOKEN is not set, empty, or has no letters or digits; export a DeepInfra API token in this shell"
+    return 1
+  fi
 
   env "${cc_launcher_unsets[@]}" \
     ANTHROPIC_BASE_URL="https://api.deepinfra.com/anthropic" \
