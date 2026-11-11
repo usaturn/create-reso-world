@@ -243,3 +243,12 @@
 - 担当が `failed`・上限の `retry` / `rejected`: その Task で停止して報告する（self で引き取らない）
 - `main` が進んだ（`recheck_bases` が移動を観測した。利用者の指示「途中でメインがマージされたら、追随して作業を止めずに続行してください」）: push の前なら `git -C "$CODE_ROOT" rebase <新しい SHA>`、push の後なら `git -C "$CODE_ROOT" merge --no-edit <新しい SHA>`（force push しない）。`code-base.json` の `sha` と `vars.sh` の `CODE_BASE_SHA` を新しい SHA にし、Task 4 の検証をやり直してから続ける。競合を解消できない・検証が失敗するなら止まる。runner の担当に依頼している最中は、その依頼の完了を待ってから追随する（依頼の `revision` と取り込みの `--ff-only` を崩さない）
 - 実装担当の `pi_xai_grok4_xhigh` が JSON 以外を返して `response_failed` になる: 再試行の上限（1 回）の中で、依頼の `prompt` に応答の形式を明記して依頼し直す。また失敗したら止まる（担当を変えるかは利用者が決める）
+
+## 実行の記録
+
+- 実行方式: Task 1〜3 と最終レビューの修正を runner の担当 `pi_xai_grok4_xhigh`（`--implement` の明示。observed: `xai` の `grok-4.7`、effort `xhigh`）に `implement_task.py run` で順に依頼した。どれも 1 回で `importable`、`accept` で取り込み、`cleanup` で `retained` は無し。Task のレビューと最終の全体レビューは controller が別 context のサブエージェントで行った
+- 依頼ごとの所要: Task 1 988 秒（`361c665`→rebase 後 `9ea7d4f`）、Task 2 542 秒（`9cd85fb`→`0602e4d`）、Task 3 1198 秒（`b96bb0e`→`a053e3c`）、最終レビューの修正 698 秒（`de0f09e`→`d2d39f3`）
+- レビュー: Task 1〜3 は Approved（Minor のみ。ledger に保留）。最終の全体レビューは With fixes（Minor 6 件）。M1〜M5 を 1 回の修正で直し、範囲を絞った再レビューで全件対応済み。M6 は保留
+- base の追随: 実装の後に `main` が `030fa791`（#404）に進んだ。push の前なので rebase し、#404 の `ccda` の sonnet・haiku の変更（`qwen4-max-preview`）に `claude-alibaba-exec` と今回の文書を揃えた（controller の commit）。利用者の指示で、rebase の後の検証はやり直していない
+- 全体の時間: 20:55 着手。Spec・設計レビュー・失敗した Spec レビュー 2 回（devin_swe2_max の `response_failed`）・利用者の再指示・Spec レビューと再レビュー・Plan で約 2 時間 10 分、実装・Task レビュー・最終レビュー・修正で約 50 分、追随と PR の準備で約 10 分（23:55 時点）
+- 裁定（ledger の `Ruling:`）: `loop.py` の `ROOT` を wrapper の起点にする／`pr-review-fix-loop/SKILL.md` の `run_roles_options` の記述は変えない／README の pi opencode-go の `auth.json` の記述は移植元どおり残す／最終レビューの M1〜M5 を採用し M6 は保留／#404 へ rebase して値を揃え、README の #397 の節の古い値（`qwen3.8-flash`）は main 側の既存の記述なので変えない
