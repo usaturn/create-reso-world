@@ -235,12 +235,16 @@ run_launcher() {
     local pi_path="$PATH"
     case "$launcher" in
         pigt|pidid) model_home "$launcher" >/dev/null; pi_path="${MODEL_SHIM}/bin:${PATH}" ;;
+        # piaq はヘルパの起動前の照合を使わず、自分で models.json の provider / model の
+        # 定義を確かめる。定義が無いと起動前に止まるので、リポジトリの定義を置く。
+        piaq) cp "${REPO_ROOT}/.devcontainer/pi-models.json" "${home}/.pi/agent/models.json" ;;
     esac
     env HOME="$home" PATH="$pi_path" \
         PI_CODING_AGENT_DIR="${home}/.pi/agent" \
         COMMANDCODE_API_KEY="dummy-for-dry-run" \
         OPENCODE_API_KEY="dummy-for-dry-run" \
         DEEPINFRA_TOKEN="dummy-for-dry-run" \
+        MAAS_ANTHROPIC_TOKEN="dummy-for-dry-run" \
         PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
         zsh "${REPO_ROOT}/.devcontainer/${launcher}" "$@"
 }
@@ -326,6 +330,38 @@ test_only_vertex_launchers_overlay_auth() {
             assert_eq "$overlay" 0 "${launcher} does not use google-vertex and must not overlay auth.json"
         fi
     done
+}
+
+# 防ぐ損害: 空白だけの key（全角空白など、ASCII の英数字を 1 文字も含まない値）のまま起動すると、
+# models.json の apiKey の参照は解決できず、誤った認証のまま Pi が進み、エラーで分からない。
+# 値を出力に出さないことも見る。
+# 陽性の対照（英数字を含む key では Pi の argv まで届く）が無いと、定義やヘルパが別の理由で
+# Pi の前に止まってもテストが通ってしまう。
+test_piaq_refuses_blank_key() {
+    local home status out blank_key
+    # $'\u3000'（全角空白）は非 UTF-8 ロケールの bash では展開されず、英数字を含む
+    # リテラルの文字列になってしまうため、UTF-8 のバイト列（E3 80 80）で組み立てる。
+    blank_key="$(printf '\xe3\x80\x80')"
+    home="$(make_home piaq with-config)"
+    cp "${REPO_ROOT}/.devcontainer/pi-models.json" "${home}/.pi/agent/models.json"
+    set +e
+    out="$(env HOME="$home" PI_CODING_AGENT_DIR="${home}/.pi/agent" \
+        MAAS_ANTHROPIC_TOKEN="$blank_key" \
+        PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
+        zsh "${REPO_ROOT}/.devcontainer/piaq" 2>"${TEST_ROOT}/piaq-blank.err")"
+    status=$?
+    set -e
+    assert_eq "$status" "1" "a blank-only key must exit 1"
+    assert_eq "$out" "" "a blank-only key must not reach the Pi argv"
+    case "${out}$(<"${TEST_ROOT}/piaq-blank.err")" in
+        *"$blank_key"*) fail "the key value must not appear in the output" ;;
+    esac
+
+    out="$(env HOME="$home" PI_CODING_AGENT_DIR="${home}/.pi/agent" \
+        MAAS_ANTHROPIC_TOKEN="dummy-for-dry-run" \
+        PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1 \
+        zsh "${REPO_ROOT}/.devcontainer/piaq")"
+    assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "bwrap" "a key with letters or digits must reach bwrap"
 }
 
 SETUP="${REPO_ROOT}/scripts/setup_pi_superagents.zsh"
@@ -782,6 +818,7 @@ test_missing_bwrap_fails_closed
 test_actual_and_dry_run_argv_match
 test_launchers_wrap_pi_with_their_own_config
 test_only_vertex_launchers_overlay_auth
+test_piaq_refuses_blank_key
 test_setup_preserves_prior_generation_on_name_collision
 test_setup_if_absent_preserves_user_edits
 test_setup_guards_shared_bind_target
