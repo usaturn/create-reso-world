@@ -81,7 +81,8 @@ def sanitize_agent_id(value: str) -> str:
 
 
 def marker_for(agent_id: str) -> str:
-    return f"{records.AGENT_MARKER_PREFIX}{sanitize_agent_id(agent_id)} -->"
+    """An agent marker for an id that was already derived from a model name."""
+    return f"{records.AGENT_MARKER_PREFIX}{agent_id} -->"
 
 
 def _lines(body: str) -> list[str]:
@@ -136,7 +137,7 @@ def find_own_comment_id(comments: Sequence[Mapping[str, Any]], model_name: str, 
     ``comments`` are the comments ``list_comments`` returns. Markers are compared as whole lines,
     and only trusted authors' comments are considered.
     """
-    own = marker_for(model_name)
+    own = marker_for(sanitize_agent_id(model_name))
     matches: list[int] = []
     for comment in comments:
         lines = _lines(cast(str, comment["body"]))

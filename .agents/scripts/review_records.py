@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import re
 import sys
@@ -233,14 +234,24 @@ def _is_unverified(ref: str) -> bool:
 def agent_id_for(model: str) -> str:
     """モデル識別子から、状況コメントのマーカーに使う ID を作る。
 
-    ``/`` と半角空白を ``-`` にし、連続する ``-`` を 1 つにまとめる。
+    旧形式を先に試す。``/`` と半角空白を ``-`` にし、連続する ``-`` を
+    1 つにまとめた結果が ``[A-Za-z0-9][A-Za-z0-9._-]*`` に収まるなら、
+    旧 v1/v2 の記録とマーカーを読めるよう、その値を変えずに返す。
+    収まらない有効な単一行のモデル名は、``model--`` に続けて、元の文字列の
+    UTF-8 バイト列に対する SHA-256 の小文字 16 進 64 桁を付けた ID にする。
+    旧変換は ``--`` を残さないため、新旧の ID は交わらない。同じ ID に
+    見える文字列をモデル名として渡した場合も、旧形式として変換する。
     """
+    problems = identity_problems(model, "planner.model")
+    if problems:
+        raise RecordError(problems)
     agent_id = model.replace("/", "-").replace(" ", "-")
     while "--" in agent_id:
         agent_id = agent_id.replace("--", "-")
-    if _FILE_NAME.fullmatch(agent_id) is None:
-        raise RecordError([f"planner.model: cannot be turned into an agent id: {model!r}"])
-    return agent_id
+    if _FILE_NAME.fullmatch(agent_id) is not None:
+        return agent_id
+    digest = hashlib.sha256(model.encode("utf-8")).hexdigest()
+    return f"model--{digest}"
 
 
 def _check_pr(problems: _Problems, value: object) -> None:

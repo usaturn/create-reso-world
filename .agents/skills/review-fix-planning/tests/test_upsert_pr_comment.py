@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 from collections.abc import Sequence
@@ -202,7 +203,27 @@ def test_agent_id_comes_from_the_shared_module_whatever_the_cwd(
     for model in ("Cursor Grok 4.6", "opencode/deepseek-v4-flash-free", "foo--bar", MODEL):
         assert helper.sanitize_agent_id(model) == records.agent_id_for(model)
     with pytest.raises(helper.CommentError, match="safe agent id"):
-        helper.sanitize_agent_id("bad<model>")
+        helper.sanitize_agent_id("bad<!--model")
+
+
+def test_record_less_upsert_keeps_extended_model_comments_apart() -> None:
+    model = "deepseek-v4.1-flash:1017[1m]"
+    digest = hashlib.sha256(model.encode("utf-8")).hexdigest()
+    marker = f"<!-- review-fix-planning:agent:model--{digest} -->"
+    other = comment(41, f"{AGENT_MARKER}\nold")
+
+    first = FakeGh(pr_view=pr_view(), comments=[other])
+    assert mod.upsert(PR, REPO, model, BODY, runner=first)["action"] == "created"
+    (argv, payload), *_ = first.writes()
+    assert argv[3] == "POST"
+    created_body = json.loads(payload or "")["body"]
+    assert created_body.split("\n")[0] == marker
+
+    second = FakeGh(pr_view=pr_view(), comments=[other, comment(99, created_body)])
+    assert mod.upsert(PR, REPO, model, BODY, runner=second)["action"] == "updated"
+    (argv, _payload), *_ = second.writes()
+    assert argv[3:5] == ("PATCH", f"repos/{REPO}/issues/comments/99")
+    assert all("/41" not in argument for argument in argv)
 
 
 # --- 記録なしの本文 ---
