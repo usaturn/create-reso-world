@@ -74,7 +74,7 @@ env = {
 - 防御範囲: runner の当該 CLI 子プロセスの env だけに適用する。親環境・対話設定・共有設定は書き換えない。対象外の反例: 対話の claude（env 変更なし）、他 runtime の adapter（変更なし）、親環境の `BASH_MAX_TIMEOUT_MS`（allowlist に無く継承されない）、個人設定の短い期限（外側の runner 期限が優先）。
 - 条件:
   1. 背景化無効のまま、既定 10 分を超え role の残り期限内に収まる正常な検証を完走できる上限になること（現行最短 1800 秒で導出上限 1680000ms > 実測 833.97 秒）。既定 600000 と背景化無効は維持。
-  2. 上限は残り時間から 120 秒の予約を引いた値を超えず、下限 600000 を下回らないこと。runner の期限・停止確認は変更しない。
+  2. 上限は `max(600000, int((残り秒数 - 120) * 1000))` であること。残り時間が 720 秒以上のときは残り時間から 120 秒の予約を引いた値を超えず、常に下限 600000 を下回らない（短い role では下限が優先し、runner の外側の期限が引き続き優先する）。runner の期限・停止確認は変更しない。
   3. `_classify` の最後の result・後続イベント・permission_denials の判定を緩めない（差分が prepare とテストに限定され、既存分類の回帰が通ること）。
   4. 短い通常コマンドと、既定上限を超えるが role 期限内の長いコマンドを対照にして確認すること。fake/一時プローブを使い、有料モデルの反復は行わない。
   5. 親の対話セッション・共有設定を変更しないこと。
@@ -125,3 +125,13 @@ env = {
 - review_id: `9e2689a3f3ab4c1f9d3d61398ee4cdb6`。reviewed spec sha256: `eac28bfcb5b2a9d0d203a6a3c14a0793c0d53491a9e4e7bd1158a6cee7153d60`。
 - 結果: runner の batch は success（exit 0・stop_confirmed true・434.98 秒）。結果 JSON は完全に出力され findings 2 件を記録したが、helper は `outside_changes: CODE_ROOT` を理由に受け取りを拒否（state: failed）。原因は controller がレビュー実行中に Plan 草案を CODE_ROOT に書いたこと（監査対象の保護 checkout の内容変化）。
 - 扱い: 失敗レビューの findings は採用しない。利用者の停止条件例外指示（D11）により、並行書き込みなしで review-2 として再実行する。cleanup 済み（停止確認済み・retained なし）。ledger は保存。
+
+### Spec レビュー 2 回目（review-2、helper `review_spec.py`、外部 runner）
+
+- 担当: 明示 `--spec-review pi_alibaba_qwen4-max_max`（review-1 と同じ）。requested_agent / actual_agent とも同じ。identity: model `qwen4-max-preview` / provider `alibaba` / effort `max`。fallback の使用なし。
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-382.mbplkg1i/2026-11-12-issue-382-claude-bash-timeout-cap-design.spec-review/review-2`
+- review_id: `44dbbbcd2d934a3ea84d2508c89c5621`。reviewed spec sha256: `a3a462b8ad713f459eefe74d192d961af4e18dfbbdcb4b18c021a759cb2c78cb`。round 1（失敗した review-1 は回数に数えない）。
+- 結果: status completed / findings **1 件（S1, minor）** / incomplete 0 件。elapsed_seconds 514.70。outside_changes: なし。
+- unprotected_changes: `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*`（他セッションの prunable 登録）、`.worktrees/issue-355-herdr-merge`・`.worktrees/issue-396-flaky-deadline-test`・issue-396 の review-runner worktree（他セッションの作業）。本 run の変更ではなく、報告のみ。
+- 採否:
+  - **S1（採用・minor）**: 受け入れ基準の条件 2 が、720 秒未満の role で「残り − 120 秒以下」と「下限 600000 以上」を同時に要求する文面になっており、設計式 `max(600000, ...)` の「下限優先」挙動と文字どおりには矛盾する（60 秒 role の正しい実装を条件 2 違反と誤指摘する恐れ）。→ 条件 2 を設計式と一致する文面に修正（Spec と Plan の両方）。実装内容（式・定数・案内行）は変わらない。
