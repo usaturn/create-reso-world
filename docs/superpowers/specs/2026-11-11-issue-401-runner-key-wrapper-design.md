@@ -43,7 +43,7 @@
 
 ## runner を起動する経路の変更
 
-runner を起動するコマンドを `uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- python <helper> ...` の形にし、各箇所の直後に「`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）」の 1 文を足す。helper に `--template`・`--config` を渡せる箇所（review-fix-planning の `run_roles.py`、review-verify の `dispatch.py`）では、渡すときは wrapper の `--` の前にも同じ値を渡すと書く。
+runner を起動するコマンドを `uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- python <helper> ...` の形にし、各箇所の直後に「`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）」の 1 文を足す。helper に `--template`・`--config` を渡せる箇所（issue-to-pr の `implement_task.py`・`review_spec.py`・`review_design.py`、review-fix-planning の `run_roles.py`、review-verify の `dispatch.py`）では、渡すときは wrapper の `--` の前にも同じ値を渡すと書く。渡さない既定では、wrapper と helper が同じ checkout の雛形と `resolve_config_path()` の個人設定を使うので、何も足さなくてよいと書く（Spec レビュー S2）。`check`・`list` は担当を起動しないので wrapper を通さない。
 
 | 箇所 | 対象 |
 | --- | --- |
@@ -53,6 +53,8 @@ runner を起動するコマンドを `uv run --project "$PARENT_ROOT" --locked 
 | `.agents/skills/review-verify/references/fix-check.md` | `dispatch.py`（起動の行。`accept` は runner を起動しないので変えない）。Issue は review-verify の `SKILL.md` と書いているが、本リポジトリでは起動のコマンドがこの参照文書にある |
 | `.agents/monitoring-runtimes.md` | 「agent-runner の同期実行と停止確認」の CLI の例 |
 | `.devcontainer/README.md` | agent-runner の節の `run` の例 |
+| `AGENTS.md` | 「エージェント運用」の agent-runner の起動の一文。`run` で担当を起動するときは `with_keys.py` 経由にすると書き足す（Spec レビュー S1） |
+| `tools/agent_runner/interfaces.rst` | 「CLI と API」の `run` の例（`check`・`list` はそのまま。Spec レビュー S1） |
 
 ## Alibaba の runner agent
 
@@ -62,7 +64,7 @@ runner を起動するコマンドを `uv run --project "$PARENT_ROOT" --locked 
 
 - `#!/bin/bash -p` と、その理由のコメント（継承した `BASH_ENV`・`ENV`・`BASH_FUNC_*` を読まない）
 - キーの確認: `ccda` と同じく、`MAAS_ANTHROPIC_TOKEN` が ASCII の英数字を 1 文字も含まなければ、値を表示せずに固定文を stderr に出して `exit 1`。判定は `[[ $key == *[A-Za-z0-9]* ]]` とし、範囲を文字コードで比べるよう `shopt -s globasciiranges` を明示する（runner の子は `LANG`・`LC_*` を引き継がないので、locale に依らない書き方にする）。移植元の `LC_ALL=C` の `[[:graph:]]` は取り込まない
-- 子の環境: `env -u MAAS_ANTHROPIC_TOKEN` で外し、`ANTHROPIC_BASE_URL=https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic`、`ANTHROPIC_AUTH_TOKEN="$key"`（`ANTHROPIC_API_KEY` は渡さない）、fable・opus を `qwen4-max-preview`、sonnet・haiku を `qwen3.8-flash`（`[1m]` なし）、`ENABLE_CLAUDEAI_MCP_SERVERS=false`、`CLAUDE_CODE_EFFORT_LEVEL=max`、`CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536` を足して `claude "$@"` を exec する。値は `zshrc.txt` の `ccda` と揃え、片方を変えるときはもう片方も変えるとコメントに書く
+- 子の環境: `env -u MAAS_ANTHROPIC_TOKEN` に加えて、`zshrc.txt` の `cc_launcher_unsets` にある名前のうち、このスクリプトが自分で設定しない名前（`ANTHROPIC_API_KEY`・`ANTHROPIC_CUSTOM_HEADERS`・`ANTHROPIC_MODEL`・`CLAUDE_CODE_OAUTH_TOKEN` など）を `-u` で外す。一覧は `cc_launcher_unsets` と揃えるとコメントに書く（`zshrc.txt` の定義は変えない）。runner 経由では子の環境は `agent.env` の名前だけなので元から無いが、通常のシェルから直接実行したときに親の認証情報が `maas.aliyuncs.com` へ渡らないようにする（Spec レビュー S3）。そのうえで、`ANTHROPIC_BASE_URL=https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic`、`ANTHROPIC_AUTH_TOKEN="$key"`（`ANTHROPIC_API_KEY` は渡さない）、fable・opus を `qwen4-max-preview`、sonnet・haiku を `qwen3.8-flash`（`[1m]` なし）、`ENABLE_CLAUDEAI_MCP_SERVERS=false`、`CLAUDE_CODE_EFFORT_LEVEL=max`、`CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536` を足して `claude "$@"` を exec する。値は `zshrc.txt` の `ccda` と揃え、片方を変えるときはもう片方も変えるとコメントに書く
 - 実行権限 0755
 
 ### `.devcontainer/agent-runner.toml`
@@ -84,7 +86,7 @@ AGENTS.md の「テストの採用基準」で S（と F∩S）に当たるも�
    - `DEEPINFRA_TOKEN` の literal の行の後に `DEEPINFRA_TOKEN="$(touch <目印>)"` を置くと、目印のファイルは作られず（実行しない）、`DEEPINFRA_TOKEN` は子に届かない（前の literal に戻らない）
    - stderr に値が出ない
    偽の値は実行時に組み立てる（gitleaks の検出を避ける。AGENTS.md の「push の前の秘密情報の検査」）
-2. `.devcontainer/test-herdr-migration.bash` の `test_alibaba_exec_requires_key`（S と F∩S）: `install_beforehand.bash` と同じくテスト用 HOME の `~/.local/bin` に置き、`env -i`（locale を渡さない）で直接起動する。`MAAS_ANTHROPIC_TOKEN=$' \xc2\xa0\xef\xbb\xbf\xe3\x80\x80'`（ASCII の空白・NBSP・BOM・全角空白）では非 0 で終わり、stub の `claude` が起動しない。通る例として、偽の有効な key では stub が起動し、`ANTHROPIC_AUTH_TOKEN` がその値で、`ANTHROPIC_API_KEY` と `MAAS_ANTHROPIC_TOKEN` が無く、`ANTHROPIC_BASE_URL` が `maas.aliyuncs.com` の接続先であることを確かめる。損害（ガードが外れても起動は成功し、claude.ai の認証情報が `maas.aliyuncs.com` に送られる）をコメントに書く。末尾の実行の一覧に足す
+2. `.devcontainer/test-herdr-migration.bash` の `test_alibaba_exec_requires_key`（S と F∩S）: `install_beforehand.bash` と同じくテスト用 HOME の `~/.local/bin` に置き、`env -i`（locale を渡さない）で直接起動する。`MAAS_ANTHROPIC_TOKEN=$' \xc2\xa0\xef\xbb\xbf\xe3\x80\x80'`（ASCII の空白・NBSP・BOM・全角空白）では非 0 で終わり、stub の `claude` が起動しない。通る例として、親の環境に偽の `ANTHROPIC_API_KEY`・`CLAUDE_CODE_OAUTH_TOKEN` を置いたうえで偽の有効な key で起動すると stub が起動し、`ANTHROPIC_AUTH_TOKEN` がその値で、`ANTHROPIC_API_KEY`・`CLAUDE_CODE_OAUTH_TOKEN`・`MAAS_ANTHROPIC_TOKEN` が無く、`ANTHROPIC_BASE_URL` が `maas.aliyuncs.com` の接続先であることを確かめる。損害（ガードが外れても起動は成功し、claude.ai の認証情報が `maas.aliyuncs.com` に送られる）をコメントに書く。末尾の実行の一覧に足す
 
 テストにしないもの: `loop.py` の `command("review")` の形（wrapper が無ければ起動のエラー、通らなければ agent が今と同じ認証エラーで止まる。L）、wrapper の usage と設定の読み込みの失敗（終了コード 2 とメッセージ。L）、SKILL.md・参照文書・README の文言（F）、agent-runner.toml の値（`check` が検証する。モデルは実機の `identity.model` で確かめる）、install の行（Rebuild で `launch_failed` として現れる。L）。
 
@@ -122,7 +124,7 @@ AGENTS.md の「テストの採用基準」で S（と F∩S）に当たるも�
 | D5 | 個人設定のパスは runner と同じ `resolve_config_path()` | 固定の `~/.config/agent-runner/config.toml` | `AGENT_RUNNER_CONFIG`・`XDG_CONFIG_HOME` を設定した利用者でも runner と同じ設定になる | Issue の委任 |
 | D6 | pr-review の `review_run.py` は wrapper 経由にしない | 同じ扱いにする | `review_run.py` は runner を起動しない（runner の子と `after_run` が呼ぶ）。runner を起動するのは `loop.py review`・`run_roles.py`・`dispatch.py`・issue-to-pr の helper と CLI だけ | Issue の委任（移植元に無い経路） |
 | D7 | review-verify は `references/fix-check.md` の `dispatch.py` の起動を変える | Issue の文言どおり `SKILL.md` | 本リポジトリでは起動のコマンドが `references/fix-check.md` にあり、`SKILL.md` に起動のコマンドが無い | Issue の委任 |
-| D8 | `AGENTS.md` の「エージェント運用」の runner の起動の一文は変えない | wrapper を書き足す | 起動手順は `.agents/monitoring-runtimes.md` と各スキルが受け持ち、`AGENTS.md` はそこを指している。Issue の対象一覧にも無い | 推奨案で決定 |
+| D8 | `run` の一般の手順（`AGENTS.md` の「エージェント運用」の一文、`interfaces.rst`・README の `run` の例、`monitoring-runtimes.md`）も wrapper 経由にする。`check`・`list` は変えない | `AGENTS.md`・`interfaces.rst` を変えない（初版） | `AGENTS.md` 自身が起動のコマンドを書いており、規則どおりに起動したランチャー起動セッションで key が届かないままになる。README が仕様として指す `interfaces.rst` と起動例が食い違う（Spec レビュー S1 を採用）。`check`・`list` は担当を起動しない | Issue の「ほかの起動経路を同じ扱いにするかを Spec で決める」 |
 | D9 | `claude-alibaba-exec` のガードは `[[ $key == *[A-Za-z0-9]* ]]` と `shopt -s globasciiranges` | 移植元の `LC_ALL=C` の `[[:graph:]]` | Issue の指定（`ccda` と同じ判定）。`globasciiranges` を明示して、範囲の比較が locale に依らないことをコードで示す | Issue の指定 |
 | D10 | 実機の観測はマージの後に行い、PR は `Refs #401` | マージの前に行う | このセッションはランチャー起動セッションではなく、env ファイルも無く、`claude-alibaba-exec` は Rebuild で入る。前提を作るには利用者の env ファイルや HOME を変える必要があり、許可範囲の外 | issue-to-pr の「マージの後でなければ確かめられない項目」 |
 | D11 | テストは with_keys の 1 件と alibaba-exec の 1 件（通る例を含む） | 移植元と同じ（通る例なし） | AGENTS.md の D の規則（拒否のテストに通る例を残す）と、上書きしないことの守り | テストの採用基準 |
@@ -134,6 +136,13 @@ AGENTS.md の「テストの採用基準」で S（と F∩S）に当たるも�
 - 採否: D1（解析できない再代入で前の literal を使う）は採用し、「使わなかった行」・テスト 1・決定記録 D3 に反映。D2（明示した設定を読まない）は採用し、wrapper の CLI・「補う名前」・経路の表・決定記録 D2 に反映。どちらも作るものは変えない（wrapper の細部と CLI の形は Issue の委任の範囲）
 - `outside_changes` は無し。`unprotected_changes` は、この run の前からある他の作業の `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 つの worktree で、触れていない
 - 記録は commit しない `tmp/agents/issue-401.key82at4/` にある
+
+## Spec レビューの記録（2 回目の指示）
+
+- helper（`review_spec.py`）で外部の担当が実施。担当は `pi_xai_grok4_xhigh`（`--spec-review` で利用者が指定、fallback 無し）。`actual_agent` も同じで、runner が観測したモデルは `xai` の `grok-4.7`（effort `xhigh`）。1 回目、1265 秒
+- `review_id` `9c107a11a0ca43a1a04ce624450a9046`、reviewed の Spec SHA-256 `23e1e5846243179017268bdbcd3757cb31c65442dd67938c0af794c0c206e0df`。指摘 3 件（S1・S2 `important`、S3 `minor`）
+- 採否: S1 採用（`AGENTS.md`・`interfaces.rst` を経路の表に足し、D8 を改めた）。S2 採用（`--template`・`--config` を渡す helper に issue-to-pr の 3 スクリプトを足した）。S3 採用（`claude-alibaba-exec` が親の認証の変数を外し、テストの通る例に親の `ANTHROPIC_API_KEY`・`CLAUDE_CODE_OAUTH_TOKEN` を置く）
+- `outside_changes` は無し。`unprotected_changes` は他の作業の worktree（`/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*`、並行する #402 の `.worktrees/issue-402-piaq-launcher` とその runner の worktree）で、触れていない
 
 ## 失敗した Spec レビューの記録（1 回目の指示）
 
