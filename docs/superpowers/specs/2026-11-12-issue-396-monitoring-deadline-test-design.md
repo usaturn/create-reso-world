@@ -162,6 +162,13 @@
 - 選択理由: 失敗した 1 回目のレビューの生出力がこの曖昧さを指摘していた（minor。採否はしていない・レビューは成功扱いしない）。controller のハーネスは既に declaration.json 待ちを実装しており RED は再現済みだったが、Spec の文言が実装より曖昧だったため、検証計画を実装と一致させた
 - 委任指示: 推奨案委任の範囲の文言明確化（設計の意味は変えない）。停止条件: なし
 
+### Spec レビュー記録（helper 経由・外部担当）
+
+- 1 回目（失敗・成功扱いしない）: `pi_alibaba_qwen4-max_max`。`state: failed` / `runner: response_failed`（結果 JSON の前の説明文で adapter が抽出できず）。review_dir: `tmp/agents/issue-396.z5hf2du1/2026-11-12-issue-396-monitoring-deadline-test-design.spec-review/review-1`、review_id: `7f70148e9e574e28bdad2ecda0e5f112`、reviewed spec_sha256: `d6e92d398f03f879d084226f46477b4e359b2f13edf09a88f32638f82c1c88ac`、elapsed 304.04 秒、stop_confirmed=true。詳細はセッションの `spec-review-1-failure-record.md`
+- 2 回目（完了）: review_dir: `tmp/agents/issue-396.z5hf2du1/2026-11-12-issue-396-monitoring-deadline-test-design.spec-review/review-2`、review_id: `fc8ab4d6f20148b7892614f444748c95`、reviewed spec_sha256: `82eb71ba83da7bd2070c3e4b1570568724c5c926e7b185c044bd8b53413315ec`、requested_agent / actual_agent: `pi_opencode-go_deepseek4-flash_max`（D8 による変更。fallback の使用なし）、identity: model=deepseek-v4.1-flash / provider=opencode-go / effort=max / session_id=01a1cc43-bf4d-71da-b9dc-aa11c67ed0bc、回数: 1（失敗した 1 回目は helper の回数に数えない）、elapsed_seconds: 600.83、findings: 0 件・incomplete: 0 件、outside_changes: なし
+- unprotected_changes（報告のみ・失敗理由ではない。他セッションの作業領域）: `/tmp/pr-review-376-2f0d17b0/worktree`・`/tmp/pr-review-376-79fe98e5/worktree`・`/tmp/pr-review-376-7f95b4e6/worktree`・`/tmp/pr-review-376-c9a6d3e9/worktree`・`/tmp/review-fix-planning.9AkFc2/worktree`・`/tmp/review-fix-planning.a6ogtH/worktree`・`.worktrees/issue-355-herdr-merge`・`.worktrees/issue-382-claude-bash-timeout-cap`・`.worktrees/issue-406-devin-json-result`・`tmp/agents/issue-406.95mq71g7/review-runner/spec-1/b39ecc722de84c5ab5b080c9dc6e76d7/attempt-1/worktree`
+- 採否: findings 0 件のため採否対象なし。reflected_spec_sha256 は decide の出力をセッションと最終報告に記録する（Spec には書き戻さない）
+
 ## 成果物
 
 - 変更: `.agents/skills/monitoring-long-tasks/tests/fake_worker.py`（`undeclared` モードのハンドシェイク化）
