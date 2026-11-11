@@ -263,8 +263,8 @@ function claude-opencode-go ccdgo () {
 function claude-alibaba ccda () {
   local fable=qwen4-max-preview
   local opus=qwen4-max-preview
-  local sonnet=qwen3.8-flash
-  local haiku=qwen3.8-flash
+  local sonnet=qwen4-max-preview
+  local haiku=qwen4-max-preview
   local -a opts
   [[ $funcstack[1] == ccda ]] && opts=(--dangerously-skip-permissions)
   # Claude Code は ANTHROPIC_AUTH_TOKEN を trim して空なら未設定とみなし、保存済みの claude.ai の
