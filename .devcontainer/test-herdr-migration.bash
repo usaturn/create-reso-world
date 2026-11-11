@@ -254,7 +254,7 @@ assert current["tabs"][0]["panes"]["0"]["cwd"] == sys.argv[2]
 PY
 }
 
-# F∩S: ccdd / ccddg / ccdgo / ccdol の env -u 共有リストが、親シェルで export された認証材料・プロバイダ切替・
+# F∩S: ccdd / ccddg / ccdgo / ccdol / ccda の env -u 共有リストが、親シェルで export された認証材料・プロバイダ切替・
 # モデルのピン留めの値を子 claude へ漏らさない。漏れても子は動くので、気付かないまま別の資格情報で
 # 動いたり、資格情報が他のプロバイダへ渡ったりする。unset の一覧は expected_unsets が基準で、
 # 配列の追加・削除のどちらでも更新が要る（配列外の env -u は比較しない）。
@@ -313,6 +313,7 @@ test_cc_launcher_env_unsets() {
         CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR
         COMMANDCODE_API_KEY
         DEEPINFRA_TOKEN
+        MAAS_ANTHROPIC_TOKEN
         OLLAMA_API_KEY
         OPENCODE_API_KEY
         OPENCODE_GO_API_KEY
@@ -326,6 +327,7 @@ test_cc_launcher_env_unsets() {
 
     local -a env_args=(
         DEEPINFRA_TOKEN=fake-di
+        MAAS_ANTHROPIC_TOKEN=fake-maas
         OLLAMA_API_KEY=fake-ollama
         # ccdgo のキー解決チェーンをテスト値で固定する。3 つを別の値にして、
         # 親シェルの export が残っていても最初の非空値 OPENCODE_GO_CLAUDE_API_KEY が選ばれることを確かめる
@@ -336,7 +338,7 @@ test_cc_launcher_env_unsets() {
     local v
     for v in "${unset_vars[@]}"; do
         case "$v" in
-            DEEPINFRA_TOKEN | OLLAMA_API_KEY | OPENCODE_API_KEY | \
+            DEEPINFRA_TOKEN | MAAS_ANTHROPIC_TOKEN | OLLAMA_API_KEY | OPENCODE_API_KEY | \
                 OPENCODE_GO_API_KEY | OPENCODE_GO_CLAUDE_API_KEY)
                 continue
                 ;;
@@ -345,7 +347,7 @@ test_cc_launcher_env_unsets() {
     done
 
     local fn log
-    for fn in ccdd ccddg ccdgo ccdol; do
+    for fn in ccdd ccddg ccdgo ccdol ccda; do
         log="${dump_dir}/${fn}.log"
         : > "$log"
         run_zshrc_code "$test_home" \
@@ -359,11 +361,12 @@ test_cc_launcher_env_unsets() {
     local source_key
     for source_key in \
         DEEPINFRA_TOKEN \
+        MAAS_ANTHROPIC_TOKEN \
         OLLAMA_API_KEY \
         OPENCODE_GO_CLAUDE_API_KEY \
         OPENCODE_API_KEY \
         OPENCODE_GO_API_KEY; do
-        for fn in ccdd ccddg ccdgo ccdol; do
+        for fn in ccdd ccddg ccdgo ccdol ccda; do
             assert_absent "${dump_dir}/${fn}.log" "^${source_key}="
         done
     done
@@ -374,6 +377,7 @@ test_cc_launcher_env_unsets() {
     assert_contains "${dump_dir}/ccdgo.log" '^ANTHROPIC_API_KEY=fake-go-claude$'
     assert_contains "${dump_dir}/ccdgo.log" '^ANTHROPIC_AUTH_TOKEN=fake-go-claude$'
     assert_contains "${dump_dir}/ccdol.log" '^ANTHROPIC_AUTH_TOKEN=fake-ollama$'
+    assert_contains "${dump_dir}/ccda.log" '^ANTHROPIC_AUTH_TOKEN=fake-maas$'
 }
 
 
@@ -400,16 +404,16 @@ PY
     chmod +x "$test_home/bin/claude"
 }
 
-# F∩S: 権限確認を省く --dangerously-skip-permissions は短縮名（ccdd / ccddg / ccdgo / ccdol）だけに付ける。
+# F∩S: 権限確認を省く --dangerously-skip-permissions は短縮名（ccdd / ccddg / ccdgo / ccdol / ccda）だけに付ける。
 # 通常名に付いても動くので、了承の無いまま権限確認が外れる。
 test_cc_launcher_destination_and_exit_status() {
     local test_home="${TEST_ROOT}/home-cc-destination"
     make_claude_probe "$test_home"
     local fn log rc
-    for fn in ccdd ccddg ccdgo ccdol claude-deepinfra claude-deepinfra-glm claude-opencode-go claude-ollama; do
+    for fn in ccdd ccddg ccdgo ccdol ccda claude-deepinfra claude-deepinfra-glm claude-opencode-go claude-ollama claude-alibaba; do
         log="${test_home}/${fn}.json"
         run_zshrc_code "$test_home" "source \"\$ZSHRC_TEMPLATE\"; ${fn} probe" \
-            HERDR_TEST_CLAUDE_DUMP="$log" DEEPINFRA_TOKEN=fake-di OPENCODE_GO_CLAUDE_API_KEY=fake-go OLLAMA_API_KEY=fake-ollama
+            HERDR_TEST_CLAUDE_DUMP="$log" DEEPINFRA_TOKEN=fake-di MAAS_ANTHROPIC_TOKEN=fake-maas OPENCODE_GO_CLAUDE_API_KEY=fake-go OLLAMA_API_KEY=fake-ollama
         python3 - "$log" "$fn" <<'PY'
 import json
 import sys
@@ -421,15 +425,20 @@ argv, env = data["argv"], data["env"]
 # 利用者の引数より前の、ランチャーが付ける部分にだけ省略のフラグが入る（モデル名などは照合しない）
 assert argv[-1] == "probe", (name, argv)
 skip = "--dangerously-skip-permissions"
-if name in ("ccdd", "ccddg", "ccdgo", "ccdol"):
+if name in ("ccdd", "ccddg", "ccdgo", "ccdol", "ccda"):
     assert skip in argv[:-1], (name, argv)
 else:
     assert skip not in argv, (name, argv)
 opencode_go = name in ("ccdgo", "claude-opencode-go")
 ollama = name in ("ccdol", "claude-ollama")
+alibaba = name in ("ccda", "claude-alibaba")
 if ollama:
     assert env["ANTHROPIC_BASE_URL"] == "https://ollama.com", (name, env)
     assert env["ANTHROPIC_AUTH_TOKEN"] == "fake-ollama", (name, env)
+    assert env["ANTHROPIC_API_KEY"] is None, (name, env)
+elif alibaba:
+    assert env["ANTHROPIC_BASE_URL"] == "https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic", (name, env)
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "fake-maas", (name, env)
     assert env["ANTHROPIC_API_KEY"] is None, (name, env)
 elif opencode_go:
     assert env["ANTHROPIC_BASE_URL"] == "https://opencode.ai/zen/go", (name, env)
@@ -472,6 +481,30 @@ test_ollama_launcher_requires_key() {
         HERDR_TEST_CLAUDE_DUMP="$log" OLLAMA_API_KEY=$' \xc2\xa0\xef\xbb\xbf' 2>/dev/null || rc=$?
     [ "$rc" -ne 0 ] || fail 'ccdol must fail when OLLAMA_API_KEY is blank'
     [ ! -s "$log" ] || fail 'ccdol must not start claude when OLLAMA_API_KEY is blank'
+}
+
+# S: ccda は MAAS_ANTHROPIC_TOKEN が未設定・空、または ASCII 英数字を 1 文字も含まないとき、
+# 子 claude を起動せずに失敗する。Claude Code は ANTHROPIC_AUTH_TOKEN が空か空白だけだと、
+# 保存済みの claude.ai の OAuth トークンを接続先へ送る。このガードが外れても起動は成功し、
+# claude.ai の認証情報が maas.aliyuncs.com に送られる。未設定・空の拒否は同じ判定
+# （${MAAS_ANTHROPIC_TOKEN:-} と *[A-Za-z0-9]*）が担うので、入力は ASCII の空白・NBSP（U+00A0）・
+# BOM（U+FEFF）だけの 1 件にする。空だけを止める書き方（[[ -z ... ]]）も、空白（[[:space:]]）だけを
+# 除く書き方も NBSP・BOM を通すので、この 1 件でどちらの誤りも分かる。
+# 正しいキーで起動する例は送り先のテストにある。
+test_alibaba_launcher_requires_key() {
+    local test_home="${TEST_ROOT}/home-alibaba-key"
+    make_stub_home "$test_home"
+    local log="${TEST_ROOT}/alibaba-key-claude.log"
+    : > "$log"
+    printf '%s\n' '#!/bin/sh' 'echo started >> "$HERDR_TEST_CLAUDE_DUMP"' > "$test_home/bin/claude"
+    chmod +x "$test_home/bin/claude"
+
+    local rc=0
+    run_zshrc_code "$test_home" \
+        'source "$ZSHRC_TEMPLATE" >/dev/null 2>&1; ccda probe' \
+        HERDR_TEST_CLAUDE_DUMP="$log" MAAS_ANTHROPIC_TOKEN=$' \xc2\xa0\xef\xbb\xbf' 2>/dev/null || rc=$?
+    [ "$rc" -ne 0 ] || fail 'ccda must fail when MAAS_ANTHROPIC_TOKEN is blank'
+    [ ! -s "$log" ] || fail 'ccda must not start claude when MAAS_ANTHROPIC_TOKEN is blank'
 }
 
 # S: ccdgo は空白だけの優先キーを、有効な下位キーへ黙って読み替えず、子 claude を起動せずに失敗する。
@@ -542,4 +575,5 @@ test_cc_launcher_destination_and_exit_status
 test_ollama_launcher_requires_key
 test_opencode_go_launcher_requires_key
 test_deepinfra_launcher_requires_key
+test_alibaba_launcher_requires_key
 printf 'PASS: herdr Dev Container migration\n'

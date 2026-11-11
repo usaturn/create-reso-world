@@ -69,7 +69,7 @@ alias devs="devin --model gpt-6-1-sol-xhigh --permission-mode dangerous"
 alias devo="devin --model claude-opus-5-5-xhigh --permission-mode dangerous"
 alias agd="agy --dangerously-skip-permissions"
 
-# プロバイダ切替ランチャー（ccdd / ccddg / ccdgo / ccdol）共通の env -u リスト。
+# プロバイダ切替ランチャー（ccdd / ccddg / ccdgo / ccdol / ccda）共通の env -u リスト。
 # 親シェルで export された主要な認証材料・プロバイダ切替・モデルピン留系の値が
 # 第三者プロバイダの子プロセスへ漏れるのを防ぐ。対象範囲の正本は
 # test-herdr-migration.bash の expected_unsets。関数側で代入する変数は
@@ -83,6 +83,7 @@ typeset -a cc_launcher_unsets=(
     -u OPENCODE_GO_CLAUDE_API_KEY
     -u OPENCODE_API_KEY
     -u OPENCODE_GO_API_KEY
+    -u MAAS_ANTHROPIC_TOKEN
     -u ANTHROPIC_AWS_API_KEY
     -u ANTHROPIC_FOUNDRY_API_KEY
     -u ANTHROPIC_FOUNDRY_AUTH_TOKEN
@@ -248,6 +249,40 @@ function claude-opencode-go ccdgo () {
     ANTHROPIC_DEFAULT_OPUS_MODEL="${opus}" \
     ANTHROPIC_DEFAULT_SONNET_MODEL="${sonnet}" \
     ANTHROPIC_DEFAULT_HAIKU_MODEL="${haiku}" \
+    ENABLE_CLAUDEAI_MCP_SERVERS=false \
+    CLAUDE_CODE_EFFORT_LEVEL=max \
+    CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
+    claude --model opus "${opts[@]}" "$@"
+}
+
+# Alibaba Cloud Model Studio の Token Plan（Qwen）で Claude Code を起動する（#397、移植元 usaturn/agent-workspace#923）。
+# Bearer の ANTHROPIC_AUTH_TOKEN だけを渡す。移植元の実測で Bearer が 200 になった。
+# ANTHROPIC_API_KEY だけだと、対話起動で承認するまで保存済みの claude.ai の OAuth トークンが
+# 接続先へ送られうる。
+# model ID に [1m] は付けない。/v1/models が 404 で、1M のコンテキストの根拠が無い。
+function claude-alibaba ccda () {
+  local fable=qwen4-max-preview
+  local opus=qwen4-max-preview
+  local sonnet=qwen3.8-flash
+  local haiku=qwen3.8-flash
+  local -a opts
+  [[ $funcstack[1] == ccda ]] && opts=(--dangerously-skip-permissions)
+  # Claude Code は ANTHROPIC_AUTH_TOKEN を trim して空なら未設定とみなし、保存済みの claude.ai の
+  # OAuth トークンを接続先へ送る。trim は NBSP・BOM などの Unicode の空白も除くので、zsh の
+  # [[:space:]]（ロケール依存）では足りない。ASCII の英数字を 1 文字も含まなければ起動しない
+  # （[A-Za-z0-9] は文字コードで比べるのでロケールに依らない。値は表示しない）。
+  if [[ ${MAAS_ANTHROPIC_TOKEN:-} != *[A-Za-z0-9]* ]]; then
+    print -u2 -- "${funcstack[1]}: MAAS_ANTHROPIC_TOKEN is not set, empty, or has no letters or digits; create a key in the Model Studio console and export it in this shell"
+    return 1
+  fi
+
+  env "${cc_launcher_unsets[@]}" \
+    ANTHROPIC_BASE_URL="https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic" \
+    ANTHROPIC_AUTH_TOKEN="$MAAS_ANTHROPIC_TOKEN" \
+    ANTHROPIC_DEFAULT_FABLE_MODEL=${fable} \
+    ANTHROPIC_DEFAULT_OPUS_MODEL=${opus} \
+    ANTHROPIC_DEFAULT_SONNET_MODEL=${sonnet} \
+    ANTHROPIC_DEFAULT_HAIKU_MODEL=${haiku} \
     ENABLE_CLAUDEAI_MCP_SERVERS=false \
     CLAUDE_CODE_EFFORT_LEVEL=max \
     CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
