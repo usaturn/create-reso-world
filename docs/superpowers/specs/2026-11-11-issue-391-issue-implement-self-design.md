@@ -1,6 +1,6 @@
 # Issue #391: issue 実装担当の既定を self にする
 
-状態: draft
+状態: completed
 
 ## 管理・実行許可
 
@@ -30,3 +30,18 @@
 1 回目: helper による外部レビュー、review ID `c200bb5884894a2694257f5fabc8a6ab`、reviewed SHA-256 `2043b96e68b62db0844be8d51095a5b459105f489e9c3b40516dbf2d2acdb004`。指定・実担当 `pi_deepinfra_deepseek4-flash_high`、deepinfra / deepseek-ai/DeepSeek-V4.1-Flash-1017 / high、fallback なし、所要 321.09 秒。outside_changes は空。unprotected_changes は事前から prunable の 6 worktree（`/tmp/pr-review-376-2f0d17b0/worktree`、`/tmp/pr-review-376-79fe98e5/worktree`、`/tmp/pr-review-376-7f95b4e6/worktree`、`/tmp/pr-review-376-c9a6d3e9/worktree`、`/tmp/review-fix-planning.9AkFc2/worktree`、`/tmp/review-fix-planning.a6ogtH/worktree`）。S1–S4 を採用し、説明の正の確認、既存テスト、一時設定の隔離、fallback の由来を明確化した。
 
 2 回目: helper による外部レビュー、review ID `57b02a25d39a465c926b4db4b69044a4`、reviewed SHA-256 `4f6b20a0b8592daa80b4aec28879f41b8b9d0d7bae93723501b716f77359227a`。指定・実担当 `pi_deepinfra_deepseek4-flash_high`、deepinfra / deepseek-ai/DeepSeek-V4.1-Flash-1017 / high、fallback なし、所要 299.80 秒。outside_changes は空。unprotected_changes は 1 回目と同じ 6 worktree。S1 を採用し Dev Container の既存テストを追加した。
+
+## PR #392 レビューと判断（サイクル 1）
+
+対象 HEAD `2397cbbad5ae7dae1500ae24c96acf771b366fc2`、base `b0deb7f813ba3013361795e43eec4616b38544f0`。利用者の `--merge` 指示に基づく完遂。planner は GPT-6.1-Terra-xhigh（codex）。
+
+| レビュアー | ランタイム | 対象 | 今回実行 | 指摘 |
+|---|---|---|---|---|
+| SWE-2-Max | devin | 2397cbbad5ae | はい | 0 |
+| gpt-6.1-sol | pi | 2397cbbad5ae | はい | 0 |
+
+両レビューの active・未確認候補は 0 件。確認済み一覧 `reviews/usaturn/create-reso-world/#392-fix-issue-391-issue-implement-self/verified/2397cbbad5ae.json` は検証済みで残り 0 件。修正不要のため修正担当・自己レビュー・fix-check は起動せず、自己レビュー回数は 0。レビュー時に報告された既存の prunable な 6 worktree はこの作業では触れなかった。
+
+要件対応: 既定 self と明示 Sonnet は実 helper で確認、個人設定と fallback の優先順位は確認済み一覧の独立実行で確認。5 ファイルの記述と変更禁止の設定は差分と TOML 比較で照合。#353 の履歴を保持。新規テストは F のため不要。統合担当が同一 HEAD で全体を確認した。
+
+検証: `uv run pytest` 1442 passed、関連 pytest 141 passed、`bash scripts/check-layout.sh` 終了 0、`env -u CODEX_THREAD_ID bash .devcontainer/run-tests.bash` 27 passed。通常実行は一時 HOME に現在の Codex 識別子を引き継いで 2 件失敗し、識別子を除く一時環境で再実行した。ログと検証記録は `/workspaces/reso-world/tmp/agents/issue-391.jity6r6g/`。結論は修正不要。マージと Issue の更新は最終化の結果で確認する。
