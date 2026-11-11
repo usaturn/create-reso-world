@@ -8,7 +8,7 @@
 # （#401、移植元 usaturn/agent-workspace#927）。
 # 呼び出し元は agent-runner の claude-code_alibaba_opus_max（.devcontainer/agent-runner.toml）である。
 # モデルの対応と接続先は zshrc.txt の claude-alibaba / ccda と揃える（fable・opus は
-# qwen4-max-preview、sonnet・haiku は qwen3.8-flash。[1m] は付けない）。ccda はこの exec を
+# qwen4-max-preview、sonnet・haiku も qwen4-max-preview（#404 で ccda に合わせた）。[1m] は付けない）。ccda はこの exec を
 # 使わないので、片方の対応を変えるときはもう片方も揃える。
 #
 # runner 経由では子の環境は agent.env の名前だけなので、親の認証情報は元から無い。
@@ -21,8 +21,8 @@ set -euo pipefail
 # 一覧を取れない）。付けない場合は 200K と見なされる。ccda と同じ。
 fable='qwen4-max-preview'
 opus='qwen4-max-preview'
-sonnet='qwen3.8-flash'
-haiku='qwen3.8-flash'
+sonnet='qwen4-max-preview'
+haiku='qwen4-max-preview'
 
 # Claude Code は ANTHROPIC_AUTH_TOKEN を trim して空なら未設定とみなし、保存済みの claude.ai の
 # OAuth トークンを接続先へ送る。trim は NBSP・BOM・全角空白などの Unicode の空白も除くので、

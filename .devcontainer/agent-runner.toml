@@ -185,7 +185,7 @@ env = ["HOME", "PATH", "DEEPINFRA_TOKEN"]
 
 # claude-alibaba-exec（.devcontainer/claude-alibaba-exec）で Alibaba Cloud Model Studio の
 # Token Plan につなぐ。モデルの対応は zshrc.txt の ccda と揃える（fable・opus は
-# qwen4-max-preview、sonnet・haiku は qwen3.8-flash）。model が opus なので
+# qwen4-max-preview、sonnet・haiku も qwen4-max-preview）。model が opus なので
 # claude-code_opus_default と同じ役割に並べられない。
 [agents.claude-code_alibaba_opus_max]
 runtime = "claude-code"

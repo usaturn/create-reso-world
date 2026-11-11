@@ -1222,7 +1222,7 @@ ccda -p "テストを実行して結果を要約して"
 
 `claude-alibaba-exec` は `install_beforehand.bash` が `~/.local/bin` に置く。Rebuild 前は
 `~/.local/bin` に無いため、runner の run は `launch_failed` になる。
-モデルの対応（fable・opus は `qwen4-max-preview`、sonnet・haiku は `qwen3.8-flash`。`[1m]` は付けない）は
+モデルの対応（fable・opus・sonnet・haiku のどれも `qwen4-max-preview`。`[1m]` は付けない）は
 `zshrc.txt` の `ccda` と揃える。片方を変えるときは、もう片方も変える。
 
 `MAAS_ANTHROPIC_TOKEN` は `claude-code_alibaba_opus_max` の `env` にあるので、env ファイルに書けば wrapper は補う。
