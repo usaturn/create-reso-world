@@ -67,7 +67,7 @@ usaturn/agent-workspace では同じクラスの問題が先に対策済みで�
 
 ### 移植（D1）
 
-`tools/agent_runner/adapters/json_result.py` を新設し、usaturn/agent-workspace @ `f65dd6a23f1d8b9bdaa3b68d9cfbe607c25ec822` の同名ファイル（`json_result.py` の最終更新は 1b3f635、#918 / PR #934）をそのまま移植する。`json_object()`・`first_json_object()`・`request_prompt()` とモジュール docstring・ヘルパ一式を含む 345 行。スキャナを「もっと単純に」書き直さない（fence・インラインコードの境界は複数の修正を経て現在の形になっており、書き直しは回帰を招く）。移植の正は byte 一致（sha256 の照合）で確かめる。
+`tools/agent_runner/adapters/json_result.py` を新設し、usaturn/agent-workspace @ `f65dd6a23f1d8b9bdaa3b68d9cfbe607c25ec822` の同名ファイル（`json_result.py` の最終更新は 1b3f635、#918 / PR #934）をそのまま移植する。`json_object()`・`first_json_object()`・`request_prompt()` とモジュール docstring・ヘルパ一式を含む 345 行。スキャナを「もっと単純に」書き直さない（fence・インラインコードの境界は複数の修正を経て現在の形になっており、書き直しは回帰を招く）。移植の正は byte 一致で確かめる: 期待 sha256 は `a636a027b87cdfa095e838f30a0d4ba1ad49c22a4ba33225428c3f4368495bac`。参照コピーは SESSION（`tmp/agents/issue-406.95mq71g7/`）の `port-source/json_result.py`（固定 revision から取得した byte コピー）。再取得が必要な場合は `gh api "repos/usaturn/agent-workspace/contents/tools/agent_runner/adapters/json_result.py?ref=f65dd6a23f1d8b9bdaa3b68d9cfbe607c25ec822" --jq .content | base64 -d` で固定 commit から取得して照合する。
 
 ### devin への組み込み（D2）
 
@@ -121,7 +121,7 @@ RED の確認: T2 の受け入れ 3 形は現行パーサで失敗する（救�
 | D5 | パーサの拒否境界 U1〜U4 を `test_json_result.py`（新設）に、devin の隔離 T1 と受け入れ 3 形の偽 CLI 端到端 T2（パラメータ化 1 件）を devin のテストに置く。未使用関数・D3 固定テストは作らない | 当初案: T1〜T7 をすべて devin のテストに置き単体テストを作らない | AGENTS.md の「守りはそれを実装しているモジュールのテストに置く」「D は代表 1 件」。設計レビュー concern D1 を採用（テスト配置のみの変更で、実装範囲・受け入れ条件・挙動は変わらない）。Issue の「偽の CLI にこれらのケースを追加」は受け入れ 3 形の T2 で満たす | Issue 本文のテスト指示 + AGENTS.md のテスト採用基準 + 設計レビュー concern D1 の採用 |
 | D6 | devin.rst と devin.py docstring を移植後の挙動に更新 | ドキュメント変更なし | 挙動の説明（「空でない JSON object であることを求め」）が実装と食い違うため | 推奨案（issue-to-pr の委任） |
 | D7 | 検証は `uv run pytest tools`（全体）+ `bash .devcontainer/run-tests.bash` + `bash scripts/check-layout.sh` + 実 evidence の再生。実 devin CLI は起動しない | 実 devin CLI での再現確認 | Issue の動作環境が「偽の CLI でのテストと、手元に残る実際の出力」。実 CLI 起動は費用がかかり、受け入れ条件は偽 CLI と記録でカバーできる | Issue 本文の受け入れ条件・検証 |
-| D8 | 実行方式は SDD 形で `implement_task.py` により Task を 1 つずつ runner の担当（pi_alibaba_qwen4-max_max）に依頼。Task 1 = 移植 + 組み込み + テスト + ドキュメント（TDD を 1 Task 内で完結）、統合検証は controller が実行 | Task を移植とテストに分割 / controller が self で実装 | `--implement pi_alibaba_qwen4-max_max`（check の `self: false`）。TDD の RED/GREEN は同一 Task でないと成立しない。変更は 4 ファイルで凝集している | 利用者の `--implement` 指定 |
+| D8 | 実行方式は SDD 形で `implement_task.py` により Task を 1 つずつ runner の担当（pi_alibaba_qwen4-max_max）に依頼。Task 1 = 移植 + 組み込み + テスト + ドキュメント（TDD を 1 Task 内で完結）、統合検証は controller が実行 | Task を移植とテストに分割 / controller が self で実装 | `--implement pi_alibaba_qwen4-max_max`（check の `self: false`）。TDD の RED/GREEN は同一 Task でないと成立しない。変更は 5 ファイル（`adapters/json_result.py` 新設・`tests/adapters/test_json_result.py` 新設・`adapters/devin.py`・`tests/adapters/devin/test_adapter.py`・`runtimes/devin.rst`）に凝集している | 利用者の `--implement` 指定 |
 | D9 | main の追随は fast-forward に限り、再捕捉 → rebase → 再検証で続行 | base 移動で常に停止（スキルの既定） / 非 FF も追従 | 利用者が「途中でメインがマージされたら、追随して作業を止めずに続行」と明示指示。マージによる前進（祖先関係あり）に限り、履歴の書き換えは停止条件のまま | 利用者の自然文の明示指示。非 FF は停止 |
 | D10 | `MAAS_ANTHROPIC_TOKEN` を `ANTHROPIC_AUTH_TOKEN` からワンショットで渡す | env ファイルに書く / 永続 export | 利用者の明示指示。README の規則（env ファイルに書かない・使うシェルで export）と整合。runner は起動時環境から子の環境を作るため、起動コマンドへの前置きで届く | 利用者の自然文の明示指示 |
 
@@ -144,6 +144,22 @@ RED の確認: T2 の受け入れ 3 形は現行パーサで失敗する（救�
 - outside_changes: なし。unprotected_changes: 他セッションの worktree 8 件（`/tmp/pr-review-376-*` の 4 件、`/tmp/review-fix-planning.*` の 2 件、`.worktrees/issue-355-herdr-merge`、`tmp/agents/issue-396.z5hf2du1/.../worktree`）。この run の所有物ではないため触らない（報告のみ）
 - 採否: concern D1（テスト配置・severity worth_considering・recommendation change）を **採用**（`changes_what_is_built: false`）。パーサが実装する拒否境界を `json_result` の単体テスト（U1〜U4）に移し、受け入れ 3 形を偽 CLI 端到端のパラメータ化 1 件（T2）に集約して T1/T7 の層またぎ重複を解消した。devin の隔離テスト（T1）は維持。D5 とテスト節に反映済み。assessment の「空 object は runner の必須検査で拒否される」を確認し（`runner.py` の `isinstance(payload, dict) and bool(payload)`）、D3.2 の根拠に追記した
 
+### Spec レビュー記録（1 回目・採用反映済み）
+
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-406.95mq71g7/2026-11-12-issue-406-devin-json-result-design.spec-review/review-1`（SESSION の下。コミットしない）
+- review_id: `f316bf07f677461aa77555e18f4ec8cd`
+- reviewed spec sha256: `ee05a377768273fdf0ad40ae488ff3bfe732b682fd5e8bb3079843a6c1f76ff7`（設計レビュー反映後のコミット `c4ce1a31` の版）
+- 担当: `pi_alibaba_qwen4-max_max`（明示値）。requested_agent / actual_agent とも同じ。fallback の使用なし（fallback は空）
+- identity: model `qwen4-max-preview` / provider `alibaba` / effort `max` / session `01a1cc3b-2202-722e-baed-bf662232e33d`
+- 回数: 1 回目（round 1）。elapsed_seconds: 610.29
+- status: `completed`（findings 3 件・すべて minor・incomplete なし）
+- outside_changes: なし。unprotected_changes: 他セッションの worktree 12 件（`/tmp/pr-review-376-*` 4 件・`/tmp/review-fix-planning.*` 2 件・`.worktrees/issue-355-herdr-merge`・`.worktrees/issue-382-claude-bash-timeout-cap`・`.worktrees/issue-396-flaky-deadline-test`・`tmp/agents/issue-355.*` / `issue-382.*` / `issue-402-update.*` の runner worktree 3 件）。この run の所有物ではないため触らない（報告のみ）
+- 採否: 3 件すべて **採用**（いずれも minor・表記/自己完結性の修正で設計の意味は変わらない）
+  - S1: 検証の計画 4 の「コミットするテストは T1 が同じ形を代表する」を T2 に修正（D1 採用後の番号取り残し）
+  - S2: D1 に期待 sha256・参照コピーのパス・再取得手順を明記し、検証の計画 5 を固定値との照合に修正
+  - S3: D8 の「4 ファイル」を「5 ファイル」に修正しファイル名を列挙
+- important の採用は無いため再レビューは行わない（helper の gate は plan へ）
+
 ### 競合の確認（2 章の 6）
 
 - open PR: なし（全ページ確認）。#406 のマージ済み PR: なし（検索で当たった #381・#405・#403 は関連するだけの別 Issue の PR）
@@ -165,8 +181,8 @@ RED の確認: T2 の受け入れ 3 形は現行パーサで失敗する（救�
 1. Task 1 の RED: T2 の受け入れ 3 形が現行パーサで失敗することを実行で確認（T1 の隔離は現行でも pass）
 2. Task 1 の GREEN: `uv run pytest tools/agent_runner/tests/adapters/devin tools/agent_runner/tests/adapters/test_json_result.py tools/agent_runner/tests/adapters/test_parser_regressions.py -q` が全て pass
 3. 統合検証（controller）: `uv run pytest tests/skills .agents/skills .agents/scripts tools`、`bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`
-4. 実 evidence の再生: `tmp/agents/issue-402.ht7fd2ih/task-2-failed-evidence/stdout.log` の最後の発話（文章 → JSON）を移植後の collect に通し、success で payload が受け取れることを確認（スクラッチまたは一時テストで。コミットするテストは T1 が同じ形を代表する）
-5. 移植の正: `json_result.py` の sha256 が参照版と一致
+4. 実 evidence の再生: `tmp/agents/issue-402.ht7fd2ih/task-2-failed-evidence/stdout.log` の最後の発話（文章 → JSON）を移植後の collect に通し、success で payload が受け取れることを確認（スクラッチまたは一時テストで。コミットするテストは T2 が同じ形を代表する）
+5. 移植の正: `json_result.py` の sha256 が D1 の固定値 `a636a027b87cdfa095e838f30a0d4ba1ad49c22a4ba33225428c3f4368495bac` と一致
 6. 検証の記録: `--merge` のため、検証した HEAD・`git status --porcelain` が空・各コマンドの argv と終了コード・ログの完全パスを SESSION に記録し、`finalize.py` の `--checks-file` の形でも保存する
 
 ## 持ち越し候補（この Issue ではやらない）
