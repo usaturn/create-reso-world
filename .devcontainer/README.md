@@ -1856,9 +1856,29 @@ piaq
 ```
 
 key があるときだけ、setup は `pi --list-models` の provider・model の列で `alibaba/qwen4-max-preview` と
-`alibaba/qwen3.8-flash` を確かめる。無いときは終了コード 1。key が無いときは確認を省いて終了コード 0 とし、
+`alibaba/qwen3.8-flash` を確かめ、見つからなければ終了コード 1 で終わる。key が無いときは確認を省いて終了コード 0 とし、
 export して `piaq` を使うよう表示する。agent-runner の `pi_alibaba_qwen4-max_max` は同じ `piaq` を呼ぶ。
 使い方は「非対話エージェントのランナー（agent-runner）」にある。
+
+#### 実機の観測（2026-11-11、Pi 1.5.2）
+
+key の値は表示していない。
+
+- `zsh scripts/setup_pi_alibaba.zsh`（usaturn/agent-workspace の setup が同じ `providers.alibaba` を入れていた既存の `~/.pi`）:
+  終了コード 0、`already up to date`。`models.json` は変わらず、退避ファイルも増えなかった。key があったので
+  `alibaba/qwen4-max-preview`・`alibaba/qwen3.8-flash` の両方がモデル一覧に見つかった
+- `zsh scripts/setup_pi_superagents.zsh --if-absent`: 終了コード 0。`piaq` の tier 設定だけが新しく置かれた
+- 通常のシェルで `piaq -p "1+1 の答えを数字だけで答えて" </dev/null`: 終了コード 0 で `2` を返した。
+  セッション記録は provider `alibaba`、model `qwen4-max-preview`、応答のモデル `qwen4.0-max-preview`、thinking `max`
+- 疑似端末での対話起動: `3+4 の答えを数字だけで答えて` に `7` が返り、`/quit` で終了コード 0
+- `MAAS_ANTHROPIC_TOKEN` を外した環境での `piaq -p`: key の案内を出して終了コード 1、Pi は起動しなかった
+- agent-runner: 個人設定が無い環境（空の `--config`）と重ねた環境の両方で `check`・`list` が終了コード 0、
+  `list` に `pi_alibaba_qwen4-max_max` が出た。`run --workflow review --assign inspect=pi_alibaba_qwen4-max_max`
+  （改行と日本語を含むプロンプト）は `success`、identity は model `qwen4-max-preview`・provider `alibaba`・effort `max`
+- key の値は `models.json`・Pi のセッション記録・runner の result とログのどれにも無かった（検索して一致 0 件）
+
+確かめていないこと: Rebuild した新規コンテナでの配置（`install_beforehand.bash` は sudo・apt を含むので、
+配置の処理と `test-install-beforehand.bash` で確かめた）、画像の入力、総コンテキストと `max_tokens` の公式の上限。
 
 ### SuperGrok / X Premium の Grok 4.7 ランチャー
 
