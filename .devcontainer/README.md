@@ -976,7 +976,7 @@ ASCII の空白・NBSP（U+00A0）・BOM（U+FEFF）だけの値も拒否する�
 読み替えると意図と別のアカウントのキーで外部へ要求を送り、値をそのまま渡すと Claude Code が
 trim して保存済みの claude.ai の OAuth トークンを送るおそれがある。
 
-親シェルの認証情報やモデルの指定は、`ccdd` / `ccddg` / `ccdol` と共通の
+親シェルの認証情報やモデルの指定は、`ccdd` / `ccddg` / `ccdol` / `ccda` と共通の
 `cc_launcher_unsets` で外してから起動する。`OPENCODE_GO_CLAUDE_API_KEY`・
 `OPENCODE_API_KEY`・`OPENCODE_GO_API_KEY` を含む親の値は子に届かず、選んだキーだけが
 `ANTHROPIC_API_KEY` と `ANTHROPIC_AUTH_TOKEN` として子に渡る。移植元 PR #868 の実ランチャーで、
@@ -1217,30 +1217,35 @@ ccda -p "テストを実行して結果を要約して"
 
 #### 移植元で確認したこと（2026-11-11、Claude Code 2.1.322）
 
-この節の実 API の結果は、移植元（usaturn/agent-workspace#923）が 2026-11-11 に Claude Code 2.1.322 で
-確かめたものである。この checkout では実 API を呼び直しておらず、未確認の項目は末尾にまとめる。
+この節の curl の結果は、移植元（usaturn/agent-workspace#923）が 2026-11-11 に Claude Code 2.1.322 で
+確かめたものである。接続先は、このリポジトリの #18 で撤去した旧ランチャーと同じである。
+この checkout の `ccda -p` の結果は次の節に分けて書く。
 
 curl で `/v1/messages` に 1 往復して次を確かめた。
 
 - 接続先 `https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic` は有効である
-  （#18 で撤去した旧ランチャーと同じ接続先）
 - 認証は `Authorization: Bearer <key>` と `x-api-key: <key>` のどちらでも 200 になる
 - `qwen4-max-preview` と `qwen3.8-flash` は 200 になる
 - 両モデルとも `max_tokens` の 65,536 と 131,072 を拒否しない
 - `/v1/models` は 404（`Not support`）を返す。モデル一覧は API から取れない
 
-`ccda -p "1+1 の答えを数字だけで答えて" --model <tier> --output-format json` を tier ごとに
-1 回ずつ実行し、4 つとも終了コード 0・`is_error: false`・結果は `2` だった。`modelUsage` の
-モデルは fable → `qwen4-max-preview`、opus → `qwen4-max-preview`、sonnet → `qwen3.8-flash`、
-haiku → `qwen3.8-flash` である。標準エラーには
-`[claude-code:unrecognized_model] {"model":"qwen4-max-preview",...}` のような通知が 1 行
-出る（#852・#867 と同じ通知で、応答は成功する）。
+#### #397 で確認したこと（2026-11-11、Claude Code 2.1.322）
+
+この checkout では、2026-11-11 に Claude Code 2.1.322 で
+`ccda -p "1+1 の答えを数字だけで答えて" --model <tier> --output-format json` を
+fable・opus・sonnet・haiku の 4 つの tier で 1 回ずつ実行した。4 つとも終了コード 0・
+`is_error: false`・結果は `2` だった。`modelUsage` のモデルは fable → `qwen4-max-preview`、
+opus → `qwen4-max-preview`、sonnet → `qwen3.8-flash`、haiku → `qwen3.8-flash` である。
+標準エラーには
+`[claude-code:unrecognized_model] {"model":"qwen4-max-preview","query_source":"sdk"}`
+（sonnet・haiku は `qwen3.8-flash`）の通知が 1 行ずつ出た（移植元 usaturn/agent-workspace の
+#852・#867 と同じ通知で、応答は成功する）。
 
 Context7（`ctx7`）の Alibaba Model Studio の文書には、Token Plan の Claude Code 向けの
 接続先・ヘッダーの記述が見つからなかった（3 回の上限まで照会した）。接続先と認証は上の
 実測を根拠にする。
 
-確かめていないこと:
+この checkout で確かめていないこと:
 
 - `/status` の表示（上記は確認する項目として書いた）
 - 対話起動（`-p` でのみ確かめた）
