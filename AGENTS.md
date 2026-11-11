@@ -186,7 +186,7 @@ rm / rmdir の削除対象にシェル変数を使う場合は、各変数に `$
 ## エージェント運用
 
 - 長時間コマンド、検証、バックグラウンド処理、サブエージェントの完了・生存・進捗を監視するときは monitoring-long-tasks スキルを使う。監視手順はスキルが正本であり、各ランタイムでどのツールを使うかはリポジトリルートの `.agents/monitoring-runtimes.md` を参照する（プロジェクトを cwd にしている場合も、パスはリポジトリルート基準）
-- 別のエージェント（モデル）を非対話で起動して結果を回収するときは、リポジトリのルートを cwd にして agent-runner（`uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner`）を使う。仕様は `tools/agent_runner/interfaces.rst`、待ち方と停止の確かめ方は `.agents/monitoring-runtimes.md` の「agent-runner の同期実行と停止確認」にある。runner の担当（`AGENT_RUNNER_DEPTH=1`）の中から runner を起動しない（runner が `nested_invocation` で拒否する）。#150・#151 で adapter が入るまでは、どの runtime も `unsupported` を返すので、それまでは各スキルの従来の起動方法を使う
+- 別のエージェント（モデル）を非対話で起動して結果を回収するときは、リポジトリのルートを cwd にして agent-runner を使う。`run` で担当を起動するときは `uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py -- python -m tools.agent_runner run ...` の形（cwd の `tools/agent_runner/with_keys.py` 経由。wrapper は後段と同じ checkout のものを使う。別の checkout の wrapper を使うときは、後段の雛形を `--template` で wrapper に渡す）にする（`.devcontainer/README.md` の「API トークン」節）。`check`・`list` は `uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner` のままである。仕様は `tools/agent_runner/interfaces.rst`、待ち方と停止の確かめ方は `.agents/monitoring-runtimes.md` の「agent-runner の同期実行と停止確認」にある。runner の担当（`AGENT_RUNNER_DEPTH=1`）の中から runner を起動しない（runner が `nested_invocation` で拒否する）。#150・#151 で adapter が入るまでは、どの runtime も `unsupported` を返すので、それまでは各スキルの従来の起動方法を使う
 - 本物の担当（モデル）を起動する確認は費用がかかるので、Issue・Plan に書いた回数と対象に限る。テストは偽の adapter・偽の CLI だけを使う
 
 ### SDD 実行運用

@@ -51,7 +51,7 @@ done
 
 ## agent-runner の同期実行と停止確認
 
-`uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner run ...`（リポジトリのルートを cwd にする）は、全ての担当の終了と停止の確認まで戻らない同期のコマンドである。完了・生存・進捗を分ける原則は `monitoring-long-tasks` のまま適用する。Herdr の pane・idle の判定や、別のランタイムへの暗黙の切り替えは使わない。
+`uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py -- python -m tools.agent_runner run ...`（リポジトリのルートを cwd にする。wrapper は後段と同じ checkout のものを使う。別の checkout の wrapper を使うときは、後段の雛形を `--template` で wrapper に渡す）は、全ての担当の終了と停止の確認まで戻らない同期のコマンドである。`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）。完了・生存・進捗を分ける原則は `monitoring-long-tasks` のまま適用する。Herdr の pane・idle の判定や、別のランタイムへの暗黙の切り替えは使わない。
 
 | ランタイム | 起動と完了 |
 | --- | --- |
