@@ -17,6 +17,19 @@
   ```
 
 - 許可された範囲: issue-to-pr による推奨案での設計・Spec・Plan・実装・検証・commit・push・PR 作成と、`--merge` による PR 修正ループと `finalize.py` のマージ。これは実行許可であり、この Spec の内容の承認（`approved`）ではない
+- 2 回目の指示（2026-11-11 22:0x、Task 2 の `failed` で止まった後）:
+
+  ```text
+  /issue-to-pr #402 --merge
+  --spec-review pi_xai_grok4_xhigh
+  --design-review pi_openai-codex_gpt6-sol_xhigh
+  --implement pi_xai_grok4_xhigh
+  --assign implement=pi_xai_grok4_xhigh
+  --assign inspect=pi_xai_grok4_xhigh,pi_openai-codex_gpt6-sol_xhigh
+  途中でメインがマージされたら、追随して作業を止めずに続行してください。
+  ```
+
+  既存の worktree・branch が残っていたので進め方を利用者に尋ね、「Task 2 から続ける」の回答を得た。設計レビューと Spec レビューは 1 回目の run の結果を使い、やり直さない（今回の `--spec-review`・`--design-review` の担当は使わない）。Task 2 以降の実装は `pi_xai_grok4_xhigh`（`--implement` の明示。fallback なし）、PR 修正ループは inspect が `pi_xai_grok4_xhigh`・`pi_openai-codex_gpt6-sol_xhigh`、fix の implement が `pi_xai_grok4_xhigh`（`--assign` の明示）、self-review・fix-check は `self`、サイクルの上限 3（既定の適用）
 - base の追随: 作業中に `origin/main` が進んだら、利用者の指示に従い、止まらずに feature branch へ `origin/main` を merge（rebase・force push はしない）し、検証をやり直してから続ける。旧・新の SHA と取り込んだ差分は SESSION の記録と PR 本文に書く
 - 担当（2 章の検査の結果）:
   - Plan の Task の実装: `devin_swe2_max`（`--implement` の明示。fallback なし）
