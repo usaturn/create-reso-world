@@ -210,4 +210,23 @@
 
 ## 完了
 
-（実行後に記入する）
+状態は `draft` のまま（実行の記録だけを足した）。
+
+- 1 回目の run（`--implement devin_swe2_max`）: Task 1 を取り込んだ。Task 2 は担当の返答が JSON だけにならず `failed`（`runner: response_failed`）で停止した
+- 2 回目の run（利用者の再指示 `--implement pi_xai_grok4_xhigh`、「Task 2 から続ける」）: Task 2〜3 を `pi_xai_grok4_xhigh`（`grok-4.7`）に依頼して取り込んだ。Task 4 は controller が行った
+
+| Task | 担当（runner が観測したモデル） | 依頼の回数 | 所要 | Task のレビュー |
+| --- | --- | --- | --- | --- |
+| 1 | `devin_swe2_max`（SWE-2 Max） | 1 | 588 秒 | Approved |
+| 2 | `devin_swe2_max`（failed）→ `pi_xai_grok4_xhigh`（grok-4.7） | 1＋2（うち修正 1） | 502 秒＋1197 秒＋560 秒 | 修正 1 回（T2 が退避の欠如を検出しなかった）の後に clean |
+| 3 | `pi_xai_grok4_xhigh`（grok-4.7） | 1 | 674 秒 | Approved |
+| 4 | controller | — | 約 15 分 | — |
+
+controller の裁定（ledger の `Ruling:`）:
+
+- Task 1: T1 の全角空白を `printf '\xe3\x80\x80'` で組み立てる担当の変更を採用（`$'\u3000'` は非 UTF-8 ロケールの bash で文字にならず T1 が空振りする）
+- Task 2: 退避を止めた変異で T2 が通ることを確かめ、Spec D8 の T2 の守りの不足として修正に回した
+- Task 3: 担当が `AGENT_RUNNER_DEPTH` を外して `agent-runner check`・`list` を実行した（読み取りのみ）。規約違反として記録し、controller が実行し直した
+- Task 3: README の「無いときは終了コード 1」の誤読を招く文言を Task 4 の commit で直した
+
+持ち越しの minor: `test-pi-superagents.bash` の models.json のコピーが 2 か所、`piaq` の判定ブロックが `piccd` と重複（Spec の指定）、T2 の `FAKE_PI_PROVIDER` の冗長と `pre_update` の重複、setup の Summary の `Models :` が 2 行、#402 の README の節が setup のヘルパの配置に触れていない
