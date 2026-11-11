@@ -136,7 +136,7 @@ Resonite 向けのワールド・ツールの作成、Blender などを使った
   `.pi/mcp.json`（Google Developer Knowledge の MCP サーバー）、`.pi/APPEND_SYSTEM.md`（pi 固有の指示）、プロジェクトのスキル（`.agents/skills`）が読まれる。ワールドはプロジェクト直下の `.pi` symlink（ルートへの相対パスはプロジェクトの深さに応じる）から同じ設定を読む。キーと挙動は `.devcontainer/README.md` の「API トークン」と
   「組み込み MCP と廃止した拡張」にある。
 - pi-superagents: 組み込みと同じ定義（`sp-*.md`）は追跡しない。独自に変えた `.agents/sp-implementer.md` だけを追跡する。
-- issue-to-pr: 設計レビューと Spec レビューは、`--design-review AGENT` / `--spec-review AGENT` を明示した run だけで行う。無指定では起動しない。Plan の実装の既定は `self`（#391）で司令塔が自分で実行し、`--implement AGENT` か個人設定で担当を選び直せる。レビュー修正（`fix.implement`）の既定も `self`（main の #377）で司令塔が自分で実行する。個人設定に旧名 `claude-code_sonnet_default` があれば手動で置き換える（#353）。詳細は `.devcontainer/README.md` の「Spec・設計レビューの opt-in と既定担当（#353）」にある。
+- issue-to-pr: 設計レビューと Spec レビューは、`--design-review AGENT` / `--spec-review AGENT` を明示した run だけで行う。無指定では起動しない。Plan の実装の既定は `self`（#391）で司令塔が自分で実行し、`--implement AGENT` か個人設定で担当を選び直せる。レビュー修正（`fix.implement`）の既定も `self`（main の #377）で司令塔が自分で実行する。個人設定に旧名 `claude-code_sonnet_default` があれば手動で置き換える（#353）。詳細は `.devcontainer/README.md` の「Spec・設計レビューの opt-in と既定担当（#353）」にある。Herdr のペイン名は `Issue#<N>` から `<repo>:#<N>`（Issue のリポジトリ名 + Issue 番号）に変わった（#355）。マージ成功の確認で `:END`、予期しない障害での停止で `:Glitch` が付き、PR 作成だけの完了や想定された停止では名前を維持する。
 
 ## プロジェクトを作る
 

@@ -26,6 +26,8 @@ SUPPORTED_REPOSITORIES = ("usaturn/create-reso-world", "usaturn/resoloop", "usat
 # ループ用のオプション。名前・値・意味は pr-review-fix-loop の start と同じで、--merge と一緒のときだけ受け付ける。
 # 範囲・役割の名前・担当の存在などは、loop.py check-options が start と同じ関数で確かめる
 LOOP_OPTIONS = frozenset({"--max-cycles", "--assign", "--template", "--config"})
+# --issue-number・--issue-repository は issue-to-pr の入力オプションではなく、loop.py の start に
+# 司令塔が渡す表示用の別引数。loop_args には入れない（ここでは未知のオプションとして終了コード 2 で拒否する）
 # 明示した run にだけ有効にするレビューの opt-in。loop.py へは渡さず、--merge の有無に関係なく受け付ける
 REVIEW_OPTIONS = frozenset({"--spec-review", "--design-review"})
 # 起動したときの cwd を基準に絶対パスにするループ用のオプション（loop.py は別の cwd で起動しうる）
