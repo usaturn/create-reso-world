@@ -91,11 +91,13 @@ def test_setup_targets_the_same_agent_directory_as_pi(tmp_path: Path, directory:
 def test_update_preserves_other_providers_and_private_permissions(tmp_path: Path, script: str) -> None:
     # Break: replacing providers drops other providers' keys; write_text(tmp)+replace broadens private data.
     # 防ぐ損害: 新しい setup がほかの provider を消す・退避しないと、データが失われてもエラーにならない。
+    # 退避が 0 件だと for は成功するので、更新前の models.json が残っていることを失敗にする。
     encoding = "utf-8"
     h = Harness(tmp_path, script)
     before_models = h.models.read_bytes()
     h.models.write_text(before_models.decode(), encoding=encoding)
     h.auth.write_text(h.auth.read_text(), encoding=encoding)
+    pre_update = h.models.read_bytes()
     result = h.run()
     assert result.returncode == 0, result.stdout + result.stderr
     models = json.loads(h.models.read_text(encoding="utf-8-sig"))["providers"]
@@ -106,11 +108,15 @@ def test_update_preserves_other_providers_and_private_permissions(tmp_path: Path
     if script == "setup_pi_opencode_go.zsh":
         assert json.loads(h.auth.read_text(encoding="utf-8-sig"))["keep"]["key"] == "SYNTHETIC_AUTH"
         assert stat.S_IMODE(h.auth.stat().st_mode) == 0o600
-    for backup in h.agent.glob("models.json.bak.*"):
+    backups_found = list(h.agent.glob("models.json.bak.*"))
+    assert pre_update in {backup.read_bytes() for backup in backups_found}, (
+        "退避が無いと、更新前の models.json が失われてもエラーにならない"
+    )
+    for backup in backups_found:
         assert stat.S_IMODE(backup.stat().st_mode) == 0o600
         assert json.loads(backup.read_text(encoding="utf-8-sig"))["providers"]["keep"] == h.other
     first_models, first_auth = h.models.read_bytes(), h.auth.read_bytes()
-    backups = {p.name: p.read_bytes() for p in h.agent.glob("models.json.bak.*")}
+    backups = {p.name: p.read_bytes() for p in backups_found}
     again = h.run()
     assert again.returncode == 0, again.stdout + again.stderr
     assert (h.models.read_bytes(), h.auth.read_bytes()) == (first_models, first_auth)
