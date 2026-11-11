@@ -207,8 +207,8 @@ agents = ["self"]
 [workflows.fix.assignments.fix-check]
 agents = ["self"]
 
-# issue-to-pr の Plan の Task を実装する担当。雛形の既定は claude-code_sonnet_xhigh。
+# issue-to-pr の Plan の Task を実装する担当。雛形の既定は self で、司令塔が自分で実装する。
 # その回の --implement AGENT か個人設定で選び直せる（担当の fallback は個人設定に書く）。
-# self を選ぶとこのセッションが自分で実装する。
+# --implement は agents を置き換え、fallback を保つ。
 [workflows.issue.assignments.implement]
-agents = ["claude-code_sonnet_xhigh"]
+agents = ["self"]

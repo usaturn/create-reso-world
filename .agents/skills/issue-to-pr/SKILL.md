@@ -30,7 +30,7 @@ argument-hint: "<Issue> [--base BRANCH] [--implement AGENT] [--spec-review AGENT
 
 ### `--implement`
 
-Plan の Task を実装する担当は、agent-runner の `workflows.issue` の `implement` で決まる（雛形 `.devcontainer/agent-runner.toml` < 個人設定 < `--implement`）。雛形の既定は `claude-code_sonnet_xhigh`（`model = "sonnet"`、effort `xhigh`）。`self` を選ぶとこのセッションが自分で実装する。
+Plan の Task を実装する担当は、agent-runner の `workflows.issue` の `implement` で決まる（雛形 `.devcontainer/agent-runner.toml` < 個人設定 < `--implement`）。雛形の既定は `self` で、このセッション（司令塔）が自分で実装する。`--implement AGENT` か個人設定で別の担当を選べる。`--implement` は `agents` を置き換え、`fallback` は設定のものを保つ。
 
 - `--implement AGENT`（`--implement=AGENT` も同じ）は、その回だけ一次担当を置き換える。値は agent-runner の設定にある agent 名か `self`。`fallback` は設定のものを保つ
 - Issue の参照の前でも後でも書け、1 回だけ書ける
@@ -103,7 +103,7 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
      uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/scripts/implement_task.py" check [--implement <値>]
      ```
 
-     終了コード 0 なら、出力の `assignment`（`agents`・`fallback`）と `self` を Spec の決定記録に写す（雛形の既定の `claude-code_sonnet_xhigh` は既定の適用と書き、利用者の指定と書かない）。終了コード 2 なら `reason` を利用者に伝えて止まる（設定に無い agent、`agents` が 2 つ以上、`implement` の役割の `writes = false` など）。worktree・Herdr・予約のどれにも触れない。
+     終了コード 0 なら、出力の `assignment`（`agents`・`fallback`）と `self` を Spec の決定記録に写す（雛形の既定の `self` は既定の適用と書き、利用者の指定と書かない）。終了コード 2 なら `reason` を利用者に伝えて止まる（設定に無い agent、`agents` が 2 つ以上、`implement` の役割の `writes = false` など）。worktree・Herdr・予約のどれにも触れない。
 
    - 続けて、明示されたレビューの担当だけを検査する。`spec_review`・`design_review` が `null` なら、その helper の `check` を起動しない（設定だけを理由に起動しない）。値があるときだけ、対応する helper を実行する。
 
