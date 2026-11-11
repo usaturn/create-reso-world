@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（issue-to-pr の実行許可で進める。内容の承認は得ていない）
+- 状態: `completed`（実装と PR #399 のレビュー修正判断の完了。作成時は `draft`、issue-to-pr の実行許可で進めており内容の承認は得ていない。マージの後に確かめる項目は下記のまま残る）
 - 対象: https://github.com/usaturn/create-reso-world/issues/397
 - 利用者の指示（2026-11-11）: `/issue-to-pr #397 --merge --spec-review pi_opencode-go_deepseek4-flash_max --implement pi_opencode-go_deepseek4-flash_max --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=devin_swe2_max,pi_openai-codex_gpt6-sol_xhigh`。1 回目は `pi_openai-codex_gpt6-sol_xhigh` が設定に無く停止し、PR #398 で設定に入った後、「最初からやり直してください」で再開した
 - 許可範囲: 通常の設計判断、指定担当による実装、ローカル検証、Issue が許す実 API の確認（4 tier を各 1 回）、commit、検査後の push、PR 作成、PR 修正ループの `finalize.py` によるマージ。契約・キーの発行・利用者の settings・他者の作業は変更しない
@@ -97,3 +97,26 @@ AGENTS.md の「テストの採用基準」に従い、S と F∩S だけを足�
 | PR 修正ループは inspect `devin_swe2_max`・`pi_openai-codex_gpt6-sol_xhigh`、implement `pi_opencode-go_deepseek4-flash_max`（利用者の指定）。サイクルの上限 3、self-review・fix-check は `self`（既定の適用） | — | `check-options` の結果 | ループの停止・エラーで停止 |
 | 実 API の確認は controller が実装の後に 4 tier を各 1 回行う | 実行しない / 担当に任せる | Issue が各 1 回を許す。このシェルにキーがある（値は表示しない）。費用の回数を controller が管理する | モデルが無い・応答しないなら別モデルに替えず停止して報告 |
 | PR 本文は `Refs #397` | `Closes #397` | Rebuild 後のコンテナでの `/status`・対話起動は、マージの後でなければ確かめられない | マージの後に Issue へ確認項目をコメントする |
+
+## PR #399 のレビュー修正判断（サイクル 1）
+
+- 実行許可: 利用者の `/issue-to-pr #397 --merge ...` による PR 修正ループ（review-fix-planning の完遂）。planner は `claude-opus-5-5`（Claude Code）。ループの run `fcb73bd1d0ad4f58b49340d31f03adbb`、レビューディレクトリ `reviews/usaturn/create-reso-world/#399-feat-issue-397-ccda-token-plan/`
+- 対象 HEAD: `a9ede17e697c166d983fd6d7565b0be70797287c`。base `0c4952ec824f65de900c58caa2b3ffe267e53ce7` は head の祖先で、先端は動いていない
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | このサイクルで実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- |
+| `SWE-2-Max.md` | SWE-2 Max（`devin_swe2_max`） | devin | `a9ede17e697c` | はい | Approve |
+| `gpt-6.1-sol.md` | gpt-6.1-sol（`pi_openai-codex_gpt6-sol_xhigh`） | pi | `a9ede17e697c` | はい | Needs manual verification（Rebuild 後の対話起動と `/status` が未確認のため。指摘は 0 件） |
+
+- 確認済みの一覧: `verified/a9ede17e697c.json`（review-verify の cycle。2 件とも `confirmed`、文書の静的な確認）
+- 要件対応: Issue #397 の受け入れ条件と、この Spec の防御範囲を照合した。ランチャーの値・漏れの防止・キーの確認・権限の省略は、両レビュアーが偽の CLI で実行して確かめ、指摘は無い。実 API は issue-to-pr の Task 3 で 4 tier を確かめた。共有条件（README の値と `zshrc.txt` の値の一致）は両レビュアーと最終レビューが照合した
+
+| 指摘 | 区分 | 根拠 |
+| --- | --- | --- |
+| `SWE-2-Max#L-1@a9ede17e697c`（README:1244 の Context7 の照会が #397 の節にあり、移植元の作業と読めない） | 対応しない | 記述の主体の書き方だけで、案内のとおりに進めても誤った操作・結果・秘密情報の露出は起きない。致命的の条件に当たらない |
+| `SWE-2-Max#I-1@a9ede17e697c`（README:1221 の比較対象と 1250 の「上記」が曖昧） | 対応しない | 表記の曖昧さで、文脈から意味が取れ、手順の結果を変えない |
+
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 2。設計の見直し: なし
+- 結論: 2（修正不要でマージ）。修正が無いので、自己レビューと修正の確認（`run_roles.py`）は行っていない
+- 検証（head のみのツリー、`a9ede17e`、検証の前後で作業ツリーは clean）: `bash .devcontainer/run-tests.bash` は終了コード 0（27 本 PASS）、`bash scripts/check-layout.sh` は終了コード 0
+- 未確認（マージの後に確かめる）: Rebuild 後の対話の zsh での `/status` の表示と対話起動
