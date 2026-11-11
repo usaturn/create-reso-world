@@ -1,0 +1,10 @@
+{
+  "superagents": {
+    "extensions": ["~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"],
+    "modelTiers": {
+      "cheap": { "model": "alibaba/qwen3.8-flash", "thinking": "max" },
+      "balanced": { "model": "alibaba/qwen4-max-preview", "thinking": "max" },
+      "max": { "model": "alibaba/qwen4-max-preview", "thinking": "max" }
+    }
+  }
+}

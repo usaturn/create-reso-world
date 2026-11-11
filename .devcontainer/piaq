@@ -1,0 +1,159 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+
+#
+# pi-superagents のランチャー別設定を適用する共通ヘルパ。
+# setup_pi_superagents.zsh が本体と一緒に ~/.local/bin へ配置する。
+# リポジトリから直接実行する場合は .devcontainer/ 側を使う。
+#
+typeset -a PI_SUPERAGENTS_HELPER_CANDIDATES=(
+    "${0:A:h}/pi-superagents-exec.zsh"
+    "${HOME}/.local/bin/pi-superagents-exec.zsh"
+)
+typeset PI_SUPERAGENTS_HELPER=""
+for _candidate in "${PI_SUPERAGENTS_HELPER_CANDIDATES[@]}"; do
+    if [[ -f "${_candidate}" ]]; then
+        PI_SUPERAGENTS_HELPER="${_candidate}"
+        break
+    fi
+done
+unset _candidate
+if [[ -z "${PI_SUPERAGENTS_HELPER}" ]]; then
+    print -ru2 -- "[${0:t}] ERROR: pi-superagents-exec.zsh が見つかりません。"
+    print -ru2 -- ""
+    print -ru2 -- "リポジトリのルートで setup スクリプトを一度実行してください:"
+    print -ru2 -- ""
+    print -ru2 -- "  zsh scripts/setup_pi_superagents.zsh"
+    exit 1
+fi
+source "${PI_SUPERAGENTS_HELPER}"
+
+typeset REPLY
+pi_agent_directory
+readonly PI_DIR="${REPLY}"
+unset REPLY
+readonly MODELS_JSON="${PI_DIR}/models.json"
+readonly PROVIDER="alibaba"
+readonly MODEL="qwen4-max-preview"
+
+#
+# pi + Alibaba Cloud Model Studio Token Plan + qwen4-max-preview
+#
+# alibaba は pi の built-in provider ではないため、provider 定義は
+# models.json（bind mount した ~/.pi 側）にしか無い。models.json 自体が
+# 無い・provider が無い・このモデルだけが無い環境で起動すると、pi が
+# Unknown provider やモデル一覧の不整合で落ちる。piccd は models.json が
+# 無いときはチェックを素通りするが、alibaba は組み込みに無いので解決
+# できず、piaq は無いときも setup を案内して止める。
+#
+# 判定できないとき（python3 が無い、models.json が読めない・壊れている）は
+# チェックをスキップして pi に委ねる。ランチャが余計に起動を妨げないため。
+#
+typeset check="ok"
+if [[ ! -f "${MODELS_JSON}" ]]; then
+    check="no-file"
+elif command -v python3 >/dev/null 2>&1; then
+    if ! check="$(python3 - "${MODELS_JSON}" "${PROVIDER}" "${MODEL}" <<'PY'
+import json
+import sys
+
+try:
+    data = json.loads(open(sys.argv[1]).read())
+except Exception:
+    print("ok")
+    sys.exit(0)
+
+if not isinstance(data, dict):
+    print("ok")
+    sys.exit(0)
+
+providers = data.get("providers")
+if not isinstance(providers, dict):
+    print("ok")
+    sys.exit(0)
+
+provider = providers.get(sys.argv[2])
+if not isinstance(provider, dict):
+    print("no-provider")
+    sys.exit(0)
+
+models = provider.get("models")
+if not isinstance(models, list):
+    print("no-model")
+    sys.exit(0)
+
+ids = [entry.get("id") for entry in models if isinstance(entry, dict)]
+
+print("ok" if sys.argv[3] in ids else "no-model")
+PY
+)"
+    then
+        check="ok"
+    fi
+fi
+
+case "${check}" in
+    ok)
+        ;;
+    no-file)
+        print -ru2 -- "[piaq] ERROR: models.json が見つかりません:"
+        print -ru2 -- "  ${MODELS_JSON}"
+        print -ru2 -- ""
+        print -ru2 -- "provider \"${PROVIDER}\" は pi の built-in ではないため、models.json の定義が必要です。"
+        print -ru2 -- "リポジトリのルートで setup スクリプトを一度実行してください:"
+        print -ru2 -- ""
+        print -ru2 -- "  zsh scripts/setup_pi_alibaba.zsh"
+        exit 1
+        ;;
+    no-provider)
+        print -ru2 -- "[piaq] ERROR: provider \"${PROVIDER}\" is not defined in"
+        print -ru2 -- "  ${MODELS_JSON}"
+        print -ru2 -- ""
+        print -ru2 -- "リポジトリのルートで setup スクリプトを一度実行してください:"
+        print -ru2 -- ""
+        print -ru2 -- "  zsh scripts/setup_pi_alibaba.zsh"
+        exit 1
+        ;;
+    no-model)
+        print -ru2 -- "[piaq] ERROR: model \"${MODEL}\" is not defined in"
+        print -ru2 -- "  ${MODELS_JSON}"
+        print -ru2 -- ""
+        print -ru2 -- "provider \"${PROVIDER}\" の定義が古い可能性があります。"
+        print -ru2 -- "リポジトリのルートで setup スクリプトを一度実行してください:"
+        print -ru2 -- ""
+        print -ru2 -- "  zsh scripts/setup_pi_alibaba.zsh"
+        exit 1
+        ;;
+    *)
+        #
+        # 想定外の出力。判断できないのでチェックせず pi に委ねる。
+        #
+        ;;
+esac
+
+#
+# 認証は models.json の apiKey フィールド（"$MAAS_ANTHROPIC_TOKEN"）が
+# 実行時の環境変数を参照して解決する。実行のたびに MAAS_ANTHROPIC_TOKEN
+# が必要。
+#
+# 値が空白だけ（NBSP・BOM・全角空白だけなど、ASCII の英数字を 1 文字も
+# 含まない値）だと参照は解決できず、誤った認証のまま pi が進む。
+# [A-Za-z0-9] は文字コードで比べるのでロケールに依らない。値は表示しない。
+#
+if [[ ${MAAS_ANTHROPIC_TOKEN:-} != *[A-Za-z0-9]* ]]; then
+    print -ru2 -- "[piaq] ERROR: MAAS_ANTHROPIC_TOKEN is not set, empty, or has no letters or digits."
+    print -ru2 -- ""
+    print -ru2 -- "Model Studio のコンソールで作成した API キーを、piaq を起動するシェルで export してから再実行してください"
+    print -ru2 -- "（ccda などのランチャーが起動したセッションには key が渡りません）:"
+    print -ru2 -- ""
+    print -ru2 -- "  read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN"
+    exit 1
+fi
+
+pi_superagents_exec piaq \
+    --provider alibaba \
+    --model qwen4-max-preview \
+    --models qwen4-max-preview \
+    --thinking max \
+    "$@" || exit 1

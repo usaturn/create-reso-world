@@ -25,7 +25,7 @@ Herdr の復元手順は `.devcontainer/docs/herdr-session-cwd-restore.md` を�
 | --- | --- | --- | --- | --- | --- |
 | Claude Code | installer（`claude.ai/install.sh`）。プラグインは `.claude/settings.json` の `enabledPlugins` と同じ 5 つ | `~/.claude`、`~/.claude.json` | `~/.claude`、`~/.claude.json`（touch） | `ccd`、`ccdo`、`ccds`（alias）、`ccdd`、`ccddg`、`ccdgo`、`ccdol`、`ccda` | `claude update` |
 | Codex | `npm install -g @openai/codex@latest` | `~/.codex` | `~/.codex` | `cod` | `npm install -g @openai/codex@latest` |
-| pi | `npm install -g` で本体、`pi install` で拡張。通常ランチャー 11 本を `~/.local/bin` に置く。Command Code の 2 本は再契約時の手動配置 | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
+| pi | `npm install -g` で本体、`pi install` で拡張。通常ランチャー 12 本を `~/.local/bin` に置く。Command Code の 2 本は再契約時の手動配置 | `~/.pi` | `~/.pi` | — | `pi update`、`pi update --extensions` |
 | Cursor | installer（`cursor.com/install`） | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `~/.cursor`、`~/.config/cursor`、`~/.local/share/cursor-agent` | `cur`、`curo`（alias） | `agent update` |
 | Devin | installer（`cli.devin.ai/install.sh`） | `~/.local/share/devin`、`~/.config/devin` | `~/.local/share/devin`、`~/.config/devin` | `dev`、`devs`、`devo`（alias） | `devin update`、`devin plugins update superpowers` |
 | Antigravity CLI | installer（`antigravity.google/cli/install.sh`） | `~/.gemini/antigravity-cli` | `~/.gemini/antigravity-cli` | `agd`（alias） | `agy update` |
@@ -50,7 +50,7 @@ Grok Build（`grok`）は導入しない。
 
 Meshy の `MESHY_API_KEY` は例外で、env / credentials ファイルへ保存せず、利用者が zsh で非表示入力して環境変数だけで渡す。手順は [Meshy → ResoLoop](../docs/meshy-resoloop.md)。
 Ollama Cloud の `OLLAMA_API_KEY` も例外で、ホストの env ファイルには書かず、使うシェルで export する。手順は「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」。
-Alibaba Cloud Model Studio の Token Plan の `MAAS_ANTHROPIC_TOKEN` も例外で、ホストの env ファイルには書かず、使うシェルで export する。理由は、env ファイルの変数はすべてのシェルに export され、ランチャーを通さない `claude`・pi などにも渡るためである。手順は「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」。
+Alibaba Cloud Model Studio の Token Plan の `MAAS_ANTHROPIC_TOKEN` も例外で、ホストの env ファイルには書かず、使うシェルで export する。`ccda` と `piaq` が読む。理由は、env ファイルの変数はすべてのシェルに export され、ランチャーを通さない `claude`・pi などにも渡るためである。手順は「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」。
 
 それ以外の API トークンなどの秘密情報は、ホストの `~/.config/create-reso-world/env` に置き、リポジトリには置かない。
 このディレクトリは Dev Container に bind mount され（`initialize.bash` がホスト側に mode 700 で作る）、
@@ -68,7 +68,7 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 変数ごとの用途と、無いときの挙動は「API トークン」の節にある。
 `COMMANDCODE_API_KEY` は契約停止中のため通常利用には不要で、再契約して手動で再有効化するときだけ使う。
 
-`MAAS_ANTHROPIC_TOKEN` は `ccda`（`claude-alibaba`）だけが読み、ほかのプロバイダ切替ランチャー（`ccdd`・`ccddg`・`ccdgo`・`ccdol`）の子プロセスからは `cc_launcher_unsets` で外す。
+`MAAS_ANTHROPIC_TOKEN` は `ccda`（`claude-alibaba`）と `piaq` が読む。ccd 系のランチャー（`ccdd`・`ccddg`・`ccdgo`・`ccdol`・`ccda`）は、`cc_launcher_unsets` で自分の子からこの変数を外す（`ccda` は子に `ANTHROPIC_AUTH_TOKEN` として渡し直す）。
 
 ## 既存環境の更新
 
@@ -78,14 +78,14 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
 
 1. ホストの作業ツリーを最新の `origin/main` に追従させる。rebuild は作業ツリーの `.devcontainer/` を使う。
 2. ホストの `~/.config/create-reso-world/env` を見直す。env ファイルに `MAAS_ANTHROPIC_TOKEN` があれば
-   env ファイルからは外す（`ccda` を使うなら、使うシェルで export する。「API トークン」）。
+   env ファイルからは外す（`ccda` または `piaq` を使うなら、使うシェルで export する。「API トークン」）。
    Google Developer Knowledge の MCP を使う場合は `GOOGLE_DEV_KNOWLEDGE_API_KEY` を足す（「API トークン」）。
    不要な `COMMANDCODE_API_KEY` の解除と agent-runner の割当は「Command Code GOAT の契約終了後の移行」に従う。
 3. Dev Containers: Rebuild Container を実行する。postCreate が次を行う。
    - Plannotator は導入・保持する。context7-pi は導入しないが、共有の `~/.pi` の登録は消さない。
      pi の旧拡張の撤去は自動では行わない（「pi の旧拡張・MCP 設定の移行」）
    - Context7 CLI（`ctx7`）を npm の最新版で導入する（「Context7 CLI（ctx7）」）
-   - 通常の 11 本の pi ランチャーと共通ヘルパの配置。Command Code の `piccg`・`piccd` は配置しない。
+   - 通常の 12 本の pi ランチャーと共通ヘルパの配置。Command Code の `piccg`・`piccd` は配置しない。
      ヘルパは pi を `--tui-mode regular` で起動する
      （「pi の TUI モードと Herdr のスクロール履歴」）
    - `claude-alibaba-exec` を `~/.local/bin` に置く（「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」）
@@ -100,6 +100,10 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
      「pi-superagents のランチャー別 model tier」）
    - #305 の Terra / DeepInfra の追加: 「Terra / DeepInfra ランチャーの既存環境への追加」に従う。
      既存の `models.json` は rebuild でも更新されない
+   - #402 の `piaq`: Rebuild は `~/.local/bin/piaq` と欠けている tier を置くが、既存の `models.json` には
+     `alibaba` を入れない。Rebuild 前、または既存の `models.json` へ反映するときは
+     「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」の Pi の手順
+     （`zsh scripts/setup_pi_alibaba.zsh` と `zsh scripts/setup_pi_superagents.zsh --if-absent`）に従う
    - agent-runner の旧名参照: 「旧担当からの個人設定の移行」に従って手動で更新する。Devin の改名（#341）は「Devin の agent 名の変更（#341）」、Sonnet の xhigh への置換（#353）は同じ移行の節に従う。rebuild による設定消失を移行の代わりにしない
    - pi の project trust: まだ承認していなければ、リポジトリのルートで素の `pi` を起動して承認する。
      承認の後に `.pi/settings.json`・`.pi/mcp.json`・`.pi/APPEND_SYSTEM.md`（pi 固有の指示）と
@@ -115,12 +119,13 @@ rebuild しない場合は、3 の代わりに次を行う。
 - `ca-certificates`: `sudo apt-get update && sudo apt-get install -y ca-certificates` の後に、6 の確認を行う
 - pi の旧拡張の撤去と共有拡張の導入: 「pi の旧拡張・MCP 設定の移行」の手動コマンド
 - 廃止した環境変数: 「組み込み MCP と廃止した拡張」の `unset` と、`~/.zshrc` の export 行の削除。
-  2 で `env` から外した `MAAS_ANTHROPIC_TOKEN` は、使用中のシェルに残る。`ccda` を使わないシェルでは
-  `unset MAAS_ANTHROPIC_TOKEN` を実行して外す（`ccda` を使うシェルでは外さなくてよい）
-- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜19 の `install -m 0755` で通常の 11 本を置き直す。
-  同じ節の 8 の `models.json` のコピーは既存の定義を上書きするので行わない。共通ヘルパは、4 で実行する
+  2 で `env` から外した `MAAS_ANTHROPIC_TOKEN` は、使用中のシェルに残る。`ccda` も `piaq` も使わないシェルでは
+  `unset MAAS_ANTHROPIC_TOKEN` を実行して外す（`ccda` または `piaq` を使うシェルでは外さなくてよい）
+- pi のランチャーと共通ヘルパ: 「エージェント向けツールの導入」の 9〜20 の `install -m 0755` で通常の 12 本を置き直す。
+  同じ節の 8 の `models.json` のコピーは既存の定義を上書きするので行わない。既存の `models.json` へ `alibaba` を反映するときは
+  `zsh scripts/setup_pi_alibaba.zsh` を実行する。共通ヘルパは、4 で実行する
   `zsh scripts/setup_pi_superagents.zsh --if-absent` が更新する
-- `claude-alibaba-exec`: 同じ節の 20 の `install -m 0755` で `~/.local/bin` に置く。
+- `claude-alibaba-exec`: 同じ節の 21 の `install -m 0755` で `~/.local/bin` に置く。
   置かないと runner の `claude-code_alibaba_opus_max` は `launch_failed` になる
 - Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映。古い `~/.zshrc` に残る
   2026-10 以前の `ccda`（`claude-alibaba`）の関数は、`zshrc.txt` の新しい関数に置き換える。
@@ -754,9 +759,10 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 17. `install -m 0755 .devcontainer/pigema ~/.local/bin/pigema`
 18. `install -m 0755 .devcontainer/pigt ~/.local/bin/pigt`
 19. `install -m 0755 .devcontainer/pidid ~/.local/bin/pidid`
-20. `install -m 0755 .devcontainer/claude-alibaba-exec ~/.local/bin/claude-alibaba-exec`
-21. `zsh scripts/setup_pi_superagents.zsh --if-absent`
-22. `bash .devcontainer/install_ctx7.bash`
+20. `install -m 0755 .devcontainer/piaq ~/.local/bin/piaq`
+21. `install -m 0755 .devcontainer/claude-alibaba-exec ~/.local/bin/claude-alibaba-exec`
+22. `zsh scripts/setup_pi_superagents.zsh --if-absent`
+23. `bash .devcontainer/install_ctx7.bash`
 
 Command Code GOAT の `piccg`・`piccd` は契約停止中のため通常導入から外している。
 再契約時は「Command Code GOAT の契約終了後の移行」の手動 setup を使う。
@@ -1294,6 +1300,34 @@ Context7（`ctx7`）の Alibaba Model Studio の文書には、Token Plan の Cl
 - 対話起動（`-p` でのみ確かめた）
 - 1M に近い長さの会話と、モデルのコンテキストの上限（API からは取れない）
 
+#### Pi から同じ Token Plan を使う（#402）
+
+`piaq` は同じ Token Plan の `qwen4-max-preview` で Pi を起動する。接続先は上の Anthropic 互換 API ではなく、
+`.devcontainer/pi-models.json` の `providers.alibaba`（OpenAI 互換
+`https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`）である。thinking は `max`。
+key は `MAAS_ANTHROPIC_TOKEN` で、ファイルに書かず、使うシェルで export する。
+
+ランチャー起動セッションの中には key が無い。ccd 系のランチャーは `cc_launcher_unsets` で自分の子から
+`MAAS_ANTHROPIC_TOKEN` を外す（`ccda` は子に `ANTHROPIC_AUTH_TOKEN` として渡し直すだけで、変数名はそのまま残さない）。
+このリポジトリは key を env ファイルに置かず、`with_keys.py` で補う経路も無い。そのセッションから `piaq` を起動すると、
+値を表示せず終了コード 1 で終わり、Pi は起動しない。key を export した通常のシェルから使う。
+
+新規コンテナでは Rebuild が `piaq` と、`models.json` が無い場合の雛形（`alibaba` を含む）と、欠けている tier を置く。
+既存の `models.json` は Rebuild でも更新されない。Rebuild 前は `piaq` も無い。既存環境へ反映するときは、
+リポジトリのルートで次を実行する。
+
+```bash
+zsh scripts/setup_pi_alibaba.zsh
+zsh scripts/setup_pi_superagents.zsh --if-absent
+```
+
+`setup_pi_alibaba.zsh` は `providers.alibaba` だけを置き、`~/.local/bin/piaq` を置く。tier 設定は書かず、
+上の `--if-absent` を案内する（フラグ無しだと既存の全ランチャーの tier 設定を退避して上書きする）。
+key が無くても provider の反映とランチャーの配置までは終了コード 0 で終わる。key があるときだけ
+`pi --list-models` で `alibaba/qwen4-max-preview` と `alibaba/qwen3.8-flash` を確かめる。
+詳細は「Alibaba Cloud Model Studio の Token Plan の Qwen4 Max Preview ランチャー（#402）」。
+agent-runner の `pi_alibaba_qwen4-max_max` は同じ `piaq` を呼ぶ（「非対話エージェントのランナー（agent-runner）」）。
+
 ## 非対話エージェントのランナー（agent-runner）
 
 端末 UI を操作せずに、agent（起動方法）・role（仕事）・workflow（割り当て）の 3 層の設定から各エージェントの CLI を
@@ -1390,7 +1424,7 @@ Sol / OpenCode Go DeepSeek の `OPENCODE_API_KEY` と、review の後処理の `
 #337 で既定の第三担当を Command Code から OpenCode Go に置換した。上の #305 の旧名対応表は当時の変更記録であり、
 Command Code の agent 定義自体は再契約後の明示的な `--assign` 用に残している。
 
-追加する 5 agent は次のとおり。資格情報の実値は設定・ログへ書かない。
+追加する 6 agent は次のとおり。資格情報の実値は設定・ログへ書かない。
 
 | agent ID | command | provider / model | effort | 認証 |
 | --- | --- | --- | --- | --- |
@@ -1398,10 +1432,29 @@ Command Code の agent 定義自体は再契約後の明示的な `--assign` 用
 | `pi_openai-codex_gpt6-astra_xhigh` | `piga` | `openai-codex / gpt-6-astra` | `xhigh` | Codex OAuth（`auth.json`） |
 | `claude-code_sonnet_xhigh` | `claude` | 未指定 / `sonnet` | `xhigh` | 既存の Claude Code のログイン |
 | `pi_google-vertex_gemini4-argon_high` | `pigema` | `google-vertex / gemini-4-argon` | `high` | Vertex ADC（「Vertex AI の Gemini ランチャー」） |
+| `pi_alibaba_qwen4-max_max` | `piaq` | `alibaba / qwen4-max-preview` | `max` | `MAAS_ANTHROPIC_TOKEN`（ファイルに書かない） |
 | `pi_deepinfra_deepseek4-flash_high` | `pidid` | `deepinfra / deepseek-ai/DeepSeek-V4.1-Flash-1017` | `high` | `DEEPINFRA_TOKEN` |
 
 追加 agent の env は `HOME` / `PATH`、DeepInfra ではさらに `DEEPINFRA_TOKEN`、Argon では既存 Vertex と同じ
-`GOOGLE_APPLICATION_CREDENTIALS` / `GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` を引き継ぐ。
+`GOOGLE_APPLICATION_CREDENTIALS` / `GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION`、
+Alibaba では `MAAS_ANTHROPIC_TOKEN` を引き継ぐ。
+
+`pi_alibaba_qwen4-max_max` は `piaq` を呼ぶ。key を export した通常のシェル（ランチャー起動セッションの外）から使う。
+子に渡るのは `env` に挙げた変数だけで、runner を起動したシェルに key が無ければ届かない。届かないとき `piaq` は
+値を表示せず終了コード 1 で止まり、Pi を起動しない。ccd 系のランチャーは自分の子から key を外すので、
+ランチャー起動セッションの中には key が無い。このリポジトリは env ファイルに key を置かず、`with_keys.py` で補う経路も無い。
+Rebuild 前は `~/.local/bin/piaq` が無い。既存の `models.json` には Rebuild でも `alibaba` が入らない。
+どちらも、リポジトリのルートで `zsh scripts/setup_pi_alibaba.zsh` と
+`zsh scripts/setup_pi_superagents.zsh --if-absent` を実行してから使う。既定の workflow 割り当てには入れない。
+
+```bash
+read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN
+uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner run \
+  --workflow review --assign inspect=pi_alibaba_qwen4-max_max \
+  --repository . --revision HEAD --prompt-file /path/to/prompt.txt
+```
+
+入力値は画面に表示されず、コマンド履歴にも値が残らない。
 
 同一モデルの判定は、agent ごとの比較集合で行う。`model` は空でない値が必須で、省略・null は不可。`model_key` のみ任意である。
 比較集合は `{model}` とし、`model_key` もあれば `{model, model_key}` とする。同じ役割の `agents` / `fallback` の全候補間、または `exclude_same_model_as` で指定した役割間に共通要素があれば、
@@ -1414,6 +1467,8 @@ SWE-2 の `devin_swe2_max`・`devin_swe2_medium` にも同じ `model_key = "swe-
 2 つは同じ `model_key` なので、同じ役割に並べると `duplicate_model` で拒否される。
 `claude-code_alibaba_opus_max` は `model` が `opus` なので、`claude-code_opus_default` と同じ役割に並べられない。
 組み合わせは「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」にある。
+`pi_alibaba_qwen4-max_max` の `model` は `qwen4-max-preview` で、#401 の `claude-code_alibaba_opus_max` の
+`model_key` と同じ文字列になる。`claude-code_alibaba_opus_max` と同じ役割に並べると `duplicate_model` で拒否される。
 
 ### Spec・設計レビューの opt-in と既定担当（#353）
 
@@ -1556,6 +1611,7 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
 - `.devcontainer/pigod` → `~/.local/bin/pigod`。pigo と同じ理由で毎回上書き
 - `.devcontainer/piga`・`pigt`・`pigs`・`pigl` → `~/.local/bin/`。同様に毎回上書き
 - `.devcontainer/pidid` → `~/.local/bin/pidid`。同様に毎回上書き
+- `.devcontainer/piaq` → `~/.local/bin/piaq`。同様に毎回上書き
 - `.devcontainer/pixg` → `~/.local/bin/pixg`。同様に毎回上書き
 - `.devcontainer/pigemf`・`pigemp`・`pigema` → `~/.local/bin/`。同様に毎回上書き
 - `.devcontainer/claude-alibaba-exec` → `~/.local/bin/claude-alibaba-exec`。同様に毎回上書き
@@ -1565,7 +1621,7 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
   `.devcontainer/pi-herdr-launcher-resume.ts` → `~/.pi/agent/extensions/herdr-launcher-resume.ts`、
   `.devcontainer/pi-superagents-model-guard.ts` → `~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts`。
   `install_beforehand.bash` は `setup_pi_superagents.zsh` を呼んでこの 5 種を配置する。
-  tier は手動再有効化用の `piccg`・`piccd` を含む 13 本分を維持する（実行ファイルの通常配置は 11 本）
+  tier は手動再有効化用の `piccg`・`piccd` を含む 14 本分を維持する（実行ファイルの通常配置は 12 本）
   （詳細は後述の「pi-superagents のランチャー別 model tier」「子 Pi の model の照合」「Herdr の復元とランチャー」を参照）
 
 `piccg`・`piccd` の実行ファイルは上の通常配置に含めず、再契約時の手動 setup だけで配置する。
@@ -1633,7 +1689,7 @@ Windows の実ブラウザーでの閲覧と承認／修正要求の往復は利
 ### モデル定義の管理
 
 独自のモデル定義は `.devcontainer/pi-models.json` を単一の情報源とする。
-`install_beforehand.bash` も 3 つの setup スクリプトも、定義を埋め込まずこの
+`install_beforehand.bash` も 4 つの setup スクリプトも、定義を埋め込まずこの
 ファイルから読む。定義を変更するときはこのファイルを編集してコミットする。
 `openai-codex` の GPT-6 モデル、`xai` の Grok 4.7、`google-vertex` の
 Gemini 3.8 Flash / Gemini 3.1 Pro Preview / Gemini 4 Argon は Pi の組み込みカタログを使うため、
@@ -1807,6 +1863,84 @@ Pi 本体が古い場合は `pi update` も行う。単なる catalog 更新は 
 catalog の不足には `pi update --models`、DeepInfra 定義の不足には `setup_pi.zsh`、tier の不足には
 `setup_pi_superagents.zsh --if-absent` を使う。exact ID が更新後も解決できなければ、別名で代用せず未確認として扱う。
 `pi --list-models` の確認は認証を解決するので、このメタデータだけの検査とは区別する。
+
+### Alibaba Cloud Model Studio の Token Plan の Qwen4 Max Preview ランチャー（#402）
+
+| launcher | Provider / Model | thinking | key |
+|---|---|---|---|
+| `piaq` | `alibaba/qwen4-max-preview` | `max` | `MAAS_ANTHROPIC_TOKEN` |
+
+`piaq` は、Alibaba Cloud Model Studio の Token Plan の Qwen4 Max Preview で Pi を起動するラッパーである。
+`ccda` と同じ Token Plan を使うが、接続先は Claude Code の Anthropic 互換 API ではなく、
+`.devcontainer/pi-models.json` の `providers.alibaba`（OpenAI 互換
+`https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`、`openai-completions`、Bearer）である。
+alibaba は Pi の組み込み provider ではない。
+
+定義するモデルは `qwen4-max-preview`（親）と `qwen3.8-flash`（tier の cheap）である。
+`piaq` は `--provider alibaba --model qwen4-max-preview --models qwen4-max-preview --thinking max` で起動する。
+子 Pi は全 tier が `max` で、cheap は `alibaba/qwen3.8-flash`、balanced と max は `alibaba/qwen4-max-preview` である
+（「pi-superagents のランチャー別 model tier」）。
+
+認証は `models.json` の `apiKey`（`$MAAS_ANTHROPIC_TOKEN`）が実行時の環境変数を参照する。key はファイルに書かない。
+使うシェルで export する。判定は `ccda` と同じで、未設定・空、または ASCII の英数字を 1 文字も含まない
+（NBSP・BOM・全角空白だけを含む）ときは、値を表示せずに終了コード 1 で終わり、Pi を起動しない。
+
+`models.json` が無い、`alibaba` が無い、または `qwen4-max-preview` が無いときは、
+`zsh scripts/setup_pi_alibaba.zsh` を案内して終了コード 1 で終わる。JSON として読めない、または `python3` が無いときは
+判定せず Pi に委ねる。
+
+key が届く仕組みは 2 つに分かれる。
+
+- ccd 系のランチャー（`ccdd`・`ccddg`・`ccdgo`・`ccdol`・`ccda`）は、`cc_launcher_unsets` の `env -u` で、
+  自分の子から `MAAS_ANTHROPIC_TOKEN` を外す（`ccda` は子に `ANTHROPIC_AUTH_TOKEN` として渡し直す）。
+  シェルのセッション全体から unset する仕組みは無い。そのため、これらのランチャーで起動したセッションの中には key が無い
+- agent-runner の子は、agent の `env` に挙げた変数だけを受け取る（`zshrc.txt` は読まれない）。
+  runner を起動したシェルに key が無ければ、allowlist に挙げても届かない
+
+このリポジトリは `MAAS_ANTHROPIC_TOKEN` を env ファイルに置かず、`with_keys.py` で補う経路も無い。
+ランチャー起動セッションから `piaq` を使うと、key の案内を出して終了コード 1 で止まる。
+key を export した通常のシェル（ランチャー起動セッションの外）から使う。
+
+新規コンテナでは `install_beforehand.bash` が `piaq` を毎回上書きで置き、`models.json` が無いときだけ雛形（`alibaba` を含む）を置く。
+tier は `setup_pi_superagents.zsh --if-absent` が置く。既存の `models.json` は Rebuild でも更新されない。
+Rebuild 前に `piaq` が無いとき、または既存の `models.json` へ反映するときは、リポジトリのルートで次を実行する。
+`setup_pi_alibaba.zsh` は key を要らない。ほかの provider は保ち、変更があるときだけ更新前に退避する。
+定義が同じ 2 回目は何も変えない。tier 設定は書かず、`--if-absent` の実行を案内する
+（フラグ無しは既存の全ランチャーの tier 設定を退避して上書きする）。
+
+```bash
+zsh scripts/setup_pi_alibaba.zsh
+zsh scripts/setup_pi_superagents.zsh --if-absent
+read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN
+piaq
+```
+
+入力値は画面に表示されず、コマンド履歴にも値が残らない。
+
+key があるときだけ、setup は `pi --list-models` の provider・model の列で `alibaba/qwen4-max-preview` と
+`alibaba/qwen3.8-flash` を確かめ、見つからなければ終了コード 1 で終わる。key が無いときは確認を省いて終了コード 0 とし、
+export して `piaq` を使うよう表示する。agent-runner の `pi_alibaba_qwen4-max_max` は同じ `piaq` を呼ぶ。
+使い方は「非対話エージェントのランナー（agent-runner）」にある。
+
+#### 実機の観測（2026-11-11、Pi 1.5.2）
+
+key の値は表示していない。
+
+- `zsh scripts/setup_pi_alibaba.zsh`（usaturn/agent-workspace の setup が同じ `providers.alibaba` を入れていた既存の `~/.pi`）:
+  終了コード 0、`already up to date`。`models.json` は変わらず、退避ファイルも増えなかった。key があったので
+  `alibaba/qwen4-max-preview`・`alibaba/qwen3.8-flash` の両方がモデル一覧に見つかった
+- `zsh scripts/setup_pi_superagents.zsh --if-absent`: 終了コード 0。`piaq` の tier 設定だけが新しく置かれた
+- 通常のシェルで `piaq -p "1+1 の答えを数字だけで答えて" </dev/null`: 終了コード 0 で `2` を返した。
+  セッション記録は provider `alibaba`、model `qwen4-max-preview`、応答のモデル `qwen4.0-max-preview`、thinking `max`
+- 疑似端末での対話起動: `3+4 の答えを数字だけで答えて` に `7` が返り、`/quit` で終了コード 0
+- `MAAS_ANTHROPIC_TOKEN` を外した環境での `piaq -p`: key の案内を出して終了コード 1、Pi は起動しなかった
+- agent-runner: 個人設定が無い環境（空の `--config`）と重ねた環境の両方で `check`・`list` が終了コード 0、
+  `list` に `pi_alibaba_qwen4-max_max` が出た。`run --workflow review --assign inspect=pi_alibaba_qwen4-max_max`
+  （改行と日本語を含むプロンプト）は `success`、identity は model `qwen4-max-preview`・provider `alibaba`・effort `max`
+- key の値は `models.json`・Pi のセッション記録・runner の result とログのどれにも無かった（検索して一致 0 件）
+
+確かめていないこと: Rebuild した新規コンテナでの配置（`install_beforehand.bash` は sudo・apt を含むので、
+配置の処理と `test-install-beforehand.bash` で確かめた）、画像の入力、総コンテキストと `max_tokens` の公式の上限。
 
 ### SuperGrok / X Premium の Grok 4.7 ランチャー
 
@@ -2031,7 +2165,7 @@ pi remove npm:pi-lens
 ### setup スクリプトを使う場面
 
 `scripts/setup_pi.zsh`（deepinfra）、`scripts/setup_pi_opencode_go.zsh`
-（opencode-go）は、リビルドのたびに実行するものではない。
+（opencode-go）、`scripts/setup_pi_alibaba.zsh`（alibaba）は、リビルドのたびに実行するものではない。
 `scripts/setup_pi_commandcode_goat.zsh`（commandcode）は契約停止中の再有効化用であり、
 再契約後の初回と、その後のリビルドのたびにも実行する。共通して次の場面でも使う。
 
@@ -2043,7 +2177,7 @@ pi remove npm:pi-lens
   （`install_beforehand.bash` は既存ファイルを上書きしないため）
 
 いずれも冪等で、`providers` のうち対象プロバイダのエントリだけを置き換える。
-3本は `.devcontainer/pi-provider-setup.py` で入力と保存先を先に検証する。
+4本は `.devcontainer/pi-provider-setup.py` で入力と保存先を先に検証する。
 `PI_CODING_AGENT_DIR` の `~`・`~/` は HOME へ展開し、相対パスは実行時の cwd が基準になる。
 UTF-8 BOM 付きの models/auth も読める。models の既存 mode と他 provider は保持し、新規は `0600`、
 auth は `0600` にする。models の変更時だけ、元のバイト列と mode を一意なバックアップに残す。
@@ -2060,6 +2194,9 @@ I/O 障害では途中まで書いたファイルを置かず非0で終わるが
 この2本は互換な共通ヘルパも一緒に更新し、既存のランチャー別 tier 設定は変更しない。
 `setup_pi.zsh` は `.devcontainer/pidid` も配置し、`setup_pi_superagents.zsh --if-absent` で
 共通ヘルパと欠けている tier を配置する。既存 tier は保持する。
+`setup_pi_alibaba.zsh` は `.devcontainer/piaq` を配置し、`providers.alibaba` だけを雛形に合わせる。
+key は要らない。tier 設定は書かず、最後に `zsh scripts/setup_pi_superagents.zsh --if-absent` の実行を案内する。
+フラグ無しだと既存の全ランチャーの tier 設定を退避して上書きする。
 
 commandcode の 2 つのランチャを `setup_pi_commandcode_goat.zsh` が同居して
 受け持つのは、両者が同じ `providers.commandcode` エントリを共有するためで
@@ -2097,11 +2234,15 @@ export される（`OLLAMA_API_KEY` と `MAAS_ANTHROPIC_TOKEN` は書かない�
   未設定・空・空白だけ（Unicode の空白を含む）で英数字を 1 文字も含まないなら、値を表示せずにエラーを出して起動を止める。
   キーは `https://ollama.com/settings/keys` で作る。
   詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある
-- `MAAS_ANTHROPIC_TOKEN` は Claude Code の `ccda`・`claude-alibaba` と、agent-runner の
-  `claude-code_alibaba_opus_max` が呼ぶ `claude-alibaba-exec` が読む。
-  補う名前には入るが、env ファイルに置かない方針なので、通常は補われない。使うシェルで export する。
-  子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ANTHROPIC_API_KEY` には入れない。
-  `ccdd`・`ccddg`・`ccdgo`・`ccdol` の子には渡らない。
+- `MAAS_ANTHROPIC_TOKEN` は Claude Code の `ccda`・`claude-alibaba`、agent-runner の
+  `claude-code_alibaba_opus_max` が呼ぶ `claude-alibaba-exec`、Pi の `piaq`
+  （agent-runner の `pi_alibaba_qwen4-max_max` も `piaq` を呼ぶ）が読む。
+  「秘密情報」の env ファイルには書かず、使うシェルで export する。
+  補う名前には入るが、env ファイルに置かない方針なので、通常は補われない。
+  `ccda` の子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ANTHROPIC_API_KEY` には入れない。
+  `piaq` は `models.json` の `apiKey`（`$MAAS_ANTHROPIC_TOKEN`）から解決する。
+  `ccdd`・`ccddg`・`ccdgo`・`ccdol` の子には渡らない。`ccda` が起動したセッションにも、変数名
+  `MAAS_ANTHROPIC_TOKEN` は残らない。
   未設定・空、または ASCII の英数字を 1 文字も含まない（NBSP・BOM などの Unicode の空白だけを含む）なら、
   値を表示せずに起動を止める。キーは Model Studio のコンソールで作る。
   詳しくは「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」にある
@@ -2208,8 +2349,8 @@ Pi 1.0.0 から、対話 TUI の既定モードは `fullscreen` になった。�
 代替画面を使って会話履歴を Pi 内で管理するため、Herdr の通常のスクロール履歴に
 過去の出力が残らず、コピーモードでさかのぼれない。
 
-通常配置の `pigo`・`pigod`・`piga`・`pigt`・`pidid`・`pigs`・`pigl`・`pixg`・
-`pigemf`・`pigemp`・`pigema` の 11 本と、再契約時に手動配置する `piccg`・`piccd` の 2 本は、
+通常配置の `pigo`・`pigod`・`piga`・`pigt`・`pidid`・`piaq`・`pigs`・`pigl`・`pixg`・
+`pigemf`・`pigemp`・`pigema` の 12 本と、再契約時に手動配置する `piccg`・`piccd` の 2 本は、
 共通ヘルパ `pi-superagents-exec.zsh` から
 `pi --tui-mode regular` を起動する。regular は通常画面と端末のスクロール履歴を
 使うため、画面高を超えた出力も Herdr のコピーモードで読める。
@@ -2217,7 +2358,7 @@ Pi 1.0.0 から、対話 TUI の既定モードは `fullscreen` になった。�
 provider・model・thinking・認証確認・ランチャー別設定の分離は従来どおりで、
 `--resume`・`--session`・メッセージなどの追加引数もそのまま転送する。
 
-Dev Container の初期化／リビルドでは `install_beforehand.bash` が通常の 11 本のラッパーを
+Dev Container の初期化／リビルドでは `install_beforehand.bash` が通常の 12 本のラッパーを
 配置し、`setup_pi_superagents.zsh --if-absent` が共通ヘルパを更新する。
 リビルドしない既存環境では、更新済みの親リポジトリのルートで次を実行し、
 ラッパーを起動し直す。
@@ -2259,6 +2400,7 @@ Herdr の復元用の Pi の拡張（「Herdr の復元とランチャー」）�
 | `piga` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6-astra` |
 | `pigt` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-terra` |
 | `pidid` | `deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` | `deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` | `deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` |
+| `piaq` | `alibaba/qwen3.8-flash` | `alibaba/qwen4-max-preview` | `alibaba/qwen4-max-preview` |
 | `pigs` | `opencode-go/deepseek-v4.1-flash` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
 | `pigl` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
 | `pixg` | `opencode-go/deepseek-v4.1-flash` | `opencode-go/deepseek-v4.1-flash` | `xai/grok-4.7` |
@@ -2268,6 +2410,7 @@ Herdr の復元用の Pi の拡張（「Herdr の復元とランチャー」）�
 
 `piga` / `pigt` の子 Pi は `cheap` / `balanced` が `xhigh`、`max` が `max`。
 `pidid` は全 tier が `high`。
+`piaq` は全 tier が `max`。
 `pigs` の子 Pi は `cheap` が `max`、`balanced` が `xhigh`、`max` が `max`。
 `pigl` の子 Pi は全 tier が `xhigh`。`pixg` の子 Pi は DeepSeek の
 `cheap` / `balanced` が `max`、Grok の `max` が `xhigh`。
