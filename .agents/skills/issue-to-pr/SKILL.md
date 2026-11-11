@@ -81,7 +81,8 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
    while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
    uv run --no-project python "$SKILL_DIR/scripts/resolve_issue.py" --parent-root "$PARENT_ROOT" -- "$INPUT" > "$SESSION/issue.json" || exit 2
-   if [ "$(jq -r '.merge != null' "$SESSION/issue.json")" = true ]; then
+   merge_requested="$(jq -r '.merge != null' "$SESSION/issue.json")" || exit 2
+   if [ "$merge_requested" = true ]; then
      merge_base="$(jq -r .base "$SESSION/issue.json")" || exit 2
      if [ "$merge_base" != main ]; then
        printf '%s\n' "BASE が統合用 branch（${merge_base}）のため --merge を適用しない。ループと finalize.py は既定 branch（main）へのマージと Issue の close を前提にする" > "$SESSION/merge-disabled.txt" || exit 2
@@ -219,7 +220,7 @@ worktree・branch・Spec・Plan・PR を作らない（ワールドのプロジ�
 着手の条件がそろったら、`HERDR_ENV=1` のときに `herdr-agent-task` と `herdr` を読む。**現在の pane** の名前とタスクを設定する。ほかの pane や focus を変えない。ペイン名は `<Issue の repo の repo 部分>:#<Issue 番号>`（例: `create-reso-world:#355`）にする。repo 部分は解決した Issue の repo（`issue.json` の `repo`）で、実装の対象（`TARGET_REPO`）や PR の repo から作らない。Issue と実装対象が別リポジトリでも、同じ Issue の識別を保つためである。
 
 ```bash
-ISSUE_REPO="$(jq -r .repo "$SESSION/issue.json")"
+ISSUE_REPO="$(jq -r .repo "$SESSION/issue.json")" || exit 2
 pane_label="${ISSUE_REPO##*/}:#${NUMBER:?}"
 herdr pane rename "${HERDR_PANE_ID:?}" "$pane_label" && ISSUE_PANE_ID="${HERDR_PANE_ID}" && ISSUE_PANE_LABEL="$pane_label"
 herdr-agent-task set "Issue #$NUMBER 実装・PR作成"

@@ -69,7 +69,7 @@ def test_check_options_reports_the_options_start_would_record(
     [["--issue-number", "355"], ["--issue-repository", "usaturn/create-reso-world"]],
 )
 def test_check_options_rejects_issue_context_options(loop: Any, isolated: Any, arguments: list[str]) -> None:
-    # Issue 上下文の引数は start 専用。check-options が受け付けると、start が拒否する引数でも検証 ok を
+    # Issue コンテキストの引数は start 専用。check-options が受け付けると、start が拒否する引数でも検証 ok を
     # 返して issue-to-pr が先へ進む（失敗の成功報告）。拒否でも GitHub・記録に触れないことを確かめる。
     with pytest.raises(SystemExit) as exc:
         loop.main(["check-options", *arguments, "--template", str(isolated.template)])
