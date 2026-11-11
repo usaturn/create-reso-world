@@ -18,9 +18,13 @@
 
 - 選択: 雛形の assignment と現行の説明を一緒に更新する。別案: runner に特例を追加する。理由: 既存の self と設定の優先順位を使え、変更範囲が Issue に一致する。委任: Issue と issue-to-pr の推奨案で進める指示。
 - 選択: 固定値のテストを追加せず実際の helper と既存テストで検証する。別案: 設定と文言を写すテストを追加する。理由: AGENTS.md の F に該当する。停止条件: 受け入れを検証できない場合は停止する。
-- 実装担当は明示指定 `pi_deepinfra_deepseek4-flash_high`、fallback は個人設定により空、self は false。Spec レビューも明示指定の同 agent、fallback 空、self false。Plan の Task ごとに runner へ依頼する。
+- 実装担当は明示指定 `pi_deepinfra_deepseek4-flash_high`、fallback は雛形の既定で空、self は false（明示指定は agents のみを置き換え fallback を維持）。Spec レビューも明示指定の同 agent、fallback 空、self false。Plan の Task ごとに runner へ依頼する。
 - マージループは利用者指定の inspect `devin_swe2_max` / `pi_openai-codex_gpt6-sol_max`、implement `pi_deepinfra_deepseek4-flash_high`。fallback は空。既定適用は max_cycles 3、self-review と fix-check は self。
 
 ## 受け入れと検証
 
-雛形だけの一時設定で `implement_task.py check` が self true と空 fallback を返し、明示 `--implement claude-code_sonnet_xhigh` がその agent を選ぶこと。fix とレビュー担当の既定が不変であること。指定ファイルを検索し、issue の既定を sonnet とする現行の説明が残らないこと。`uv run pytest tools/agent_runner/tests/test_config.py` と `bash scripts/check-layout.sh` を実行する。失敗や不明を成功と扱わない。
+雛形だけの一時設定で `implement_task.py check` が self true と空 fallback を返し、明示 `--implement claude-code_sonnet_xhigh` がその agent を選ぶこと。fix とレビュー担当の既定が不変であること。5 ファイルのそれぞれで issue の既定が self と説明され、sonnet とする現行の説明が残らないことを検索と目視で確認する。空の一時 TOML を `--config`、作業 worktree の雛形を `--template` に指定し、既定と明示指定の両方を検証する。`uv run pytest`、`uv run pytest tools/agent_runner/tests/test_config.py .agents/skills/issue-to-pr/tests` と `bash scripts/check-layout.sh` を実行する。失敗や不明を成功と扱わない。
+
+## Spec レビュー
+
+1 回目: helper による外部レビュー、review ID `c200bb5884894a2694257f5fabc8a6ab`、reviewed SHA-256 `2043b96e68b62db0844be8d51095a5b459105f489e9c3b40516dbf2d2acdb004`。指定・実担当 `pi_deepinfra_deepseek4-flash_high`、deepinfra / deepseek-ai/DeepSeek-V4.1-Flash-1017 / high、fallback なし、所要 321.09 秒。outside_changes は空。unprotected_changes は事前から prunable の 6 worktree（`/tmp/pr-review-376-2f0d17b0/worktree`、`/tmp/pr-review-376-79fe98e5/worktree`、`/tmp/pr-review-376-7f95b4e6/worktree`、`/tmp/pr-review-376-c9a6d3e9/worktree`、`/tmp/review-fix-planning.9AkFc2/worktree`、`/tmp/review-fix-planning.a6ogtH/worktree`）。S1–S4 を採用し、説明の正の確認、既存テスト、一時設定の隔離、fallback の由来を明確化した。
