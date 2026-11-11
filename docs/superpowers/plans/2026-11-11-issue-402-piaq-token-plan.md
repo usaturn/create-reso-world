@@ -83,7 +83,7 @@
 - [ ] **Step 1: 失敗するテストを書く** — `test_piaq_refuses_blank_key` を `.devcontainer/test-pi-superagents.bash` に足し、末尾の実行一覧に加える。
 
   - 一時 HOME（`make_home piaq with-config`）に、`.devcontainer/pi-models.json` の `alibaba` を含む models.json を置く
-  - 全角空白（`$'　'`）だけの `MAAS_ANTHROPIC_TOKEN` で `piaq` を dry-run（`PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1`）で起動する: 終了コード 1、stdout が空（Pi の argv が出ない）、stdout+stderr に key の値が無い
+  - 全角空白（`$'\u3000'`）だけの `MAAS_ANTHROPIC_TOKEN` で `piaq` を dry-run（`PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1`）で起動する: 終了コード 1、stdout が空（Pi の argv が出ない）、stdout+stderr に key の値が無い
   - 同じ HOME で `MAAS_ANTHROPIC_TOKEN=dummy-for-dry-run`: 終了コード 0、stdout の 1 行目が `bwrap`（陽性の対照）
   - 防ぐ損害と、陽性の対照を置く理由をコメントに書く
   - 既存の `run_launcher` に `MAAS_ANTHROPIC_TOKEN="dummy-for-dry-run"` を足し、`piaq` のときは HOME の models.json に `alibaba` の定義を置く（`test_launchers_wrap_pi_with_their_own_config`・`test_only_vertex_launchers_overlay_auth` が `piaq` を拾うため）。ヘルパの model guard の起動前の照合が `pidid` と同じく偽の catalog を必要とするなら、`pigt|pidid` と同じ `model_home` の扱いに `piaq` を加える
@@ -103,7 +103,7 @@
 - [ ] **Step 4: テストを通す・確かめる**
 
   Run: `bash .devcontainer/test-pi-superagents.bash` → `OK` で終了コード 0
-  一時的な確認（コミットしない）: T1 の key の判定を外したコピーで T1 が落ちること。未設定・空・NBSP（`$' '`）・BOM（`$'﻿'`）の key でも終了コード 1 で dry-run 出力が無いこと。一時 HOME で models.json が無い・`alibaba` が無い・モデルが無いときに案内付きの終了コード 1 になること
+  一時的な確認（コミットしない）: T1 の key の判定を外したコピーで T1 が落ちること。未設定・空・NBSP（`$'\u00a0'`）・BOM（`$'\ufeff'`）の key でも終了コード 1 で dry-run 出力が無いこと。一時 HOME で models.json が無い・`alibaba` が無い・モデルが無いときに案内付きの終了コード 1 になること
   Run: `jq . .devcontainer/pi-models.json >/dev/null` と `zsh -n .devcontainer/piaq`
 
 - [ ] **Step 5: Commit**
