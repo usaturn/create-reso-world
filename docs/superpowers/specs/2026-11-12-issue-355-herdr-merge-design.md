@@ -60,6 +60,12 @@ AW ではこれらが #824（ペイン名の終了状態）・#678（--merge と
 - `issue-to-pr/SKILL.md` の 1 章・4 章 1〜7（`issue-review-steps` が所有。完了済みだが編集しない）
 - `tools/agent_runner`・`review-fix-planning`・`.devcontainer/agent-runner.toml`・`.devcontainer/README.md`（この子の所有ではない）
 
+### 既知の不整合（この子では編集しない・Spec レビュー S2 を反映）
+
+- `pr-review-fix-loop/references/records.md` の `herdr_pane` 節は `label` を「`PR#<番号>`（リポジトリ名は付けない）」と固定し、rename コマンドも `PR#<番号>` で書いている。この子の変更後（`--issue-number` ありの start は `<repo>:#<N>`）は記述が実装と一致しなくなる
+- 扱い: records.md は親 #349 の所有表で `loop-reconcile`（#356）・`review-eval-hooks`（#357）の所有であり、この子の「変更してよい」に含まれない。ボードの規則（子がほかの子の所有ファイルを編集しない）に従い、**この子では編集しない**。既知の不整合としてここに記録し、PR 本文に明記する。親 Issue にコメントで所有の移動（#356 での herdr_pane 節の最小更新）を提案し、coordinator の実行マップ更新に委ねる
+- 検討した別案: この子で records.md を最小更新する → 所有境界を超えるため不採用（利用者の「停止せず続行」の委任は他セッションの所有 files の編集を許可するものではない）
+
 ## 決定記録
 
 ### D1: ペイン名の表記 — `<repo>:#<N>` に変える（採用。設計レビュー D2 を反映）
@@ -90,8 +96,8 @@ AW ではこれらが #824（ペイン名の終了状態）・#678（--merge と
 
 ### D3: 4 章 8 — `--merge` のときは最終ブランチ全体レビューをループ 1 サイクル目で代える（新設）
 
-- 選択した案: 4 章に項目 8 を足す。「`--merge` が適用される run は、実装スキルの最終のブランチ全体レビュー（全 Task の後のブランチ全体のレビュー）を行わず、ループの 1 サイクル目で代える。Task ごとのレビューは残す。最終レビューに回すはずだった minor の指摘（ledger の `deferred`）は PR 本文に一覧で書く。`--merge` が無い（適用されないを含む）run は最終レビューを省かない」
-- 整合編集: 「Task の実装を runner の担当に依頼する」節の「すべての Task を取り込めたときの最後の全体レビューと PR は、`self` のときと同じ」を、4 章 8 に従う形に書き換える（PR は同じ・最終レビューは 4 章 8 のとおり）。停止時の「止まった Task の後の Task・最後の全体レビュー・PR には進まない」はそのまま残す
+- 選択した案: 4 章に項目 8 を足す。**項目 5 の例外として位置づける**（Spec レビュー S1 を反映）。冒頭を「項目 5 の例外として、`--merge` が適用される run は、実装スキルの最終のブランチ全体レビュー（全 Task の後のブランチ全体のレビュー）を行わず、ループの 1 サイクル目で代える」とし、「Task ごとのレビューは残す。最終レビューに回すはずだった minor の指摘（ledger の `deferred`）は PR 本文に一覧で書く。`--merge` が無い（適用されないを含む）run は最終レビューを省かない」を続ける。**項目 5 自体は編集しない**（4 章 1〜7 は編集禁止。例外の指定は項目 8 の側だけが持つ）
+- 整合編集: 「Task の実装を runner の担当に依頼する」節の「すべての Task を取り込めたときの最後の全体レビューと PR は、`self` のときと同じ」を、**self・runner の両経路で項目 8 を指す形**に書き換える（例:「すべての Task を取り込めたときの最後の全体レビューは 4 章 8 に従い、PR は `self` のときと同じ」）。停止時の「止まった Task の後の Task・最後の全体レビュー・PR には進まない」はそのまま残す
 - 項目番号: CRW の 4 章は現在 1〜5。Issue とボードが「4 章 8」を正規の参照先として固定しているため、6・7 を作らず 8 を足す（AW の番号に合わせる）
 - 検討した別案: 6 として追加 → ボードの他 Issue（#378 など）の「4 章 8」参照とずれるため不採用
 - 選択理由: Issue の明示指示。重複レビューのコストを削りつつ、ループが必ず 1 サイクル目のレビューを行うので検査は減らない
@@ -201,6 +207,18 @@ AW ではこれらが #824（ペイン名の終了状態）・#678（--merge と
   - D1（導入 run が未対応の親 helper に新引数を渡す）: **adopt**（`changes_what_is_built=false`）。この run のループは新引数なしで親 checkout の `loop.py` を使い、新引数の実運用はマージ後の run から。「実行方式」に反映
 - ゲートの判定: blocking 無し・`questions_for_user` 無しのため `decide` は `next: continue`。反映後の Spec をコミットして Spec レビューへ進む
 
+## Spec レビューの記録（1 回目）
+
+- helper: `review_spec.py review`（external）。`review_dir`: `/workspaces/reso-world/tmp/agents/issue-355.puoplwnc/2026-11-12-issue-355-herdr-merge-design.spec-review/review-1`
+- `review_id`: `a8c560da68a145c0a43fbd293840c528`。reviewed の Spec SHA-256: `112f5c37a64a0aff6e355973aca114d6a4976cd8f489ce8e0c1044501c49527b`（コミット `a6fd464a` の版）
+- 担当: 明示 `--spec-review pi_alibaba_qwen4-max_max`（requested / actual 同一）。identity: model `qwen4-max-preview` / provider `alibaba` / effort `max` / session `01a1cc4c-a605-76be-93e1-b5d1d2acb02b`。fallback 無し（未使用）。`elapsed_seconds` 939.6。key は利用者指示どおり `MAAS_ANTHROPIC_TOKEN="${ANTHROPIC_AUTH_TOKEN}"` の環境前置で受け渡し
+- 結果: `status: completed`・findings 3 件（S1 important・S2 important・S3 minor）。`outside_changes`: 無し。`unprotected_changes`: 他セッションの worktree 12 件（記録のみ）
+- 採否:
+  - S1（項目 5 と項目 8 の矛盾）: **adopt**。項目 8 を項目 5 の例外として書き、項目 5 自体は編集しない。runner 節の書き換えは self・runner 両経路で項目 8 を指す。D3 に反映
+  - S2（records.md の herdr_pane 記述が実装と不一致になる）: **adopt**。records.md は #356・#357 の所有なのでこの子では編集せず、「既知の不整合」に記録・PR 本文に明記・親 Issue へ所有移動の提案コメント、で対処する。「編集範囲と所有」に反映
+  - S3（5 章項目 1 のペイン名の説明が新動作と不一致）: **adopt**。5 章の編集一覧に項目 1 の書き換えを追加。「設計の詳細」の 5 章に反映
+- ゲートの判定: important を採用したため `decide` は `next: rereview`。Spec をコミットして同じ担当で 1 回だけ再レビューする
+
 ## 設計の詳細（ファイル別）
 
 ### `.agents/skills/issue-to-pr/SKILL.md`
@@ -210,7 +228,7 @@ AW ではこれらが #824（ペイン名の終了状態）・#678（--merge と
 - 2 章 6: 既存 open PR の案内を base で分ける（D5）
 - 3 章: 開始時の rename を `ISSUE_PANE_ID`・`ISSUE_PANE_LABEL`（`<repo>:#<N>`、解決した Issue の repo の repo 部分）の保持に変える。CRW の「現在 pane が分からない・rename が失敗したときは、別の pane を推測せず、rename を省いて続け、最終報告に書く」は残す。成功したときだけ両変数が確定し、終了状態の更新に使えることを書く。「ペイン名の終了状態」の節（表・分類・失敗時の報告）を足す（D2）
 - 4 章: 項目 8 を足す（D3）。runner 節の最終レビューの 1 文を整合させる
-- 5 章: 「`--merge` のとき: PR の作成後のループ」の冒頭に、適用しない run はループを始めないことを書く（D4）。ループの `start` には `--issue-number N` と `--issue-repository <Issue の repo>` を渡すことを書く（D1・D6）。「`--merge` のとき」の各記述は適用された run を指すことを明確にする。完了報告にペイン名の更新結果（`:END`/`:Glitch`/維持・rename 失敗の理由）を含めることを書く
+- 5 章: 「`--merge` のとき: PR の作成後のループ」の冒頭に、適用しない run はループを始めないことを書く（D4）。ループの `start` には `--issue-number N` と `--issue-repository <Issue の repo>` を渡すことを書く（D1・D6）。項目 1 の「ペインの名前は `start` が `PR#<番号>` に変えるので、自分で変えない」を「ペインの名前は `start` が 3 章・起動節の規則どおりのラベル（Issue 起点は `<repo>:#<N>`、単独起動は `PR#<番号>`）に改名するので、自分で変えない」に書き換える（Spec レビュー S3）。「`--merge` のとき」の各記述は適用された run を指すことを明確にする。完了報告にペイン名の更新結果（`:END`/`:Glitch`/維持・rename 失敗の理由）を含めることを書く
 - 1 章・4 章 1〜7・2 章のそれ以外の節は変えない
 
 ### `.agents/skills/pr-review-fix-loop/scripts/loop.py`
