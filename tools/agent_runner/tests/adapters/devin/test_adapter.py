@@ -493,3 +493,81 @@ def test_tool_run_final_step_calling_tool_fails(context: AdapterContext) -> None
         context, _tool_run_stdout(), export=_tool_run_export(final_tool_calls=calls)
     )
     assert outcome.receipt is not None and outcome.receipt.status != "success"
+
+
+# #406: the final agent message may start with prose and end with the JSON
+# result. The shapes below are the real failures from #402 (implement) and
+# #401 (spec review), exercised through the fake CLI and the runner path.
+_PROSE_BODY = (
+    "All done — the setup script is tracked as 100644, matching the other "
+    "`setup_pi*.zsh` scripts (they're invoked as `zsh scripts/…`). "
+    "Tree is clean after the linear commit on `03fb4c29`.\n"
+    "セットアップは完了しました。"
+)
+_BODY_PAYLOAD = {"status": "DONE", "commit": "d747b6f3"}
+_REVIEW_PAYLOAD = {"status": "completed", "findings": []}
+_CORRECTED_PAYLOAD = {"commands": ["validation completed"], "details": {"note": "訂正後"}}
+_CORRECTION_FINAL = (
+    '```json\n{"commands": []}\n```\n'
+    "先ほどの報告は誤りです。訂正します。\n"
+    "```json\n" + json.dumps(_CORRECTED_PAYLOAD, ensure_ascii=False) + "\n```"
+)
+
+
+def test_prose_only_final_does_not_borrow_earlier_json(
+    context: AdapterContext,
+) -> None:
+    # The isolation of #188: only the final agent message is the answer. An
+    # earlier agent step's JSON must not rescue a prose-only final message.
+    final = "All done — no JSON in this message."
+    export = _tool_run_export(final)
+    cast(list[object], export["steps"]).insert(
+        -1,
+        {
+            "source": "agent",
+            "message": '{"status": "DONE"}',
+            "tool_calls": [
+                {"tool_call_id": "call-j", "function_name": "read", "arguments": {}}
+            ],
+        },
+    )
+    stdout = "".join(_PROGRESS) + '{"status": "DONE"}' + final + "\n"
+    outcome = _collect(context, stdout, export=export)
+    assert outcome.receipt is not None
+    assert outcome.receipt.status == "response_failed"
+    assert outcome.receipt.payload is None
+
+
+@pytest.mark.parametrize(
+    "final,payload",
+    [
+        (_PROSE_BODY + "\n\n" + json.dumps(_BODY_PAYLOAD), _BODY_PAYLOAD),
+        (
+            "I've completed a thorough review of the spec.\n\n```json\n"
+            + json.dumps(_REVIEW_PAYLOAD)
+            + "\n```",
+            _REVIEW_PAYLOAD,
+        ),
+        (_CORRECTION_FINAL, _CORRECTED_PAYLOAD),
+    ],
+    ids=["prose-then-json", "prose-then-fenced-json", "correction"],
+)
+def test_fake_cli_prose_then_json_payload_is_received(
+    repository: Path, tmp_path: Path, final: str, payload: dict[str, object]
+) -> None:
+    fixture = tmp_path / "export.json"
+    fixture.write_text(json.dumps(_export(message=final)), encoding="utf-8")
+    out = tmp_path / "out.txt"
+    out.write_text(final + "\n", encoding="utf-8")
+    config = _devin_config(
+        _runtime_agent(
+            tmp_path, "--fake-export", str(fixture), "--fake-stdout", str(out)
+        )
+    )
+    batch = run_workflow(
+        config, "audit", "PROMPT", repository, output_dir=tmp_path / "run"
+    )
+    assert batch.state == "success"
+    attempt = batch.results[0].attempts[0]
+    assert attempt.state == "success"
+    assert attempt.payload == payload

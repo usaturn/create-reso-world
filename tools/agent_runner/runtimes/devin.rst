@@ -36,7 +36,11 @@ ATIF の ``agent.model_name`` 、 ``agent.version`` 、 ``session_id`` をそれ
 ``devin -p`` の標準出力には、実行中のすべての agent 応答が区切りなしで連結される。
 そのため回答は最終 ATIF 応答とし、標準出力がその回答で終わることだけを確かめる。
 回答の後ろには改行で区切った通常の行を許すが、回答と同じ行に続く文字と、後続の JSON や壊れた JSON は失敗とする。
-JSON 形式の役割では最終 ATIF 応答が空でない JSON object であることを求め、payload は最終 ATIF 応答から取り出す。
+JSON 形式の役割では、最終 ATIF 応答を ``json_result.json_object`` で読み、payload は最後にデコードできた JSON object とする。
+文章の後に JSON が続く形（fence 付きを含む）を受け付け、訂正では最後の有効な object を採用する。
+壊れた object 候補がある場合は応答全体を拒否し、前の有効な JSON にフォールバックしない。
+閉じたインラインコード span・閉じた非 JSON fence の中の壊れた候補は拒否に使わない（移植元の既知の限界は ``json_result`` の docstring に従う）。
+最後の発話だけを読み、途中の発話や stdout から JSON を探さない隔離は変わらない。
 非ゼロ終了の判定と停止確認は runner が行う。
 
 認証・承認待ちは、標準エラーと export の error の step（ ``source`` が ``error`` 、 ``is_error`` が真、または ``error`` を持つ step）の文だけで判定する。

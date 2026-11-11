@@ -6,7 +6,9 @@ whose final agent message is the answer; it also reports the observed model,
 CLI version, and session id. ``devin -p`` prints every agent message to stdout
 without separators, so stdout must end with that answer. Those messages are the
 model's own words, so only stderr and the export's error steps report the CLI's
-failures. Only local parsing happens here; this module never starts a process.
+failures. The answer is read with ``json_result.json_object``, which accepts a
+JSON object after prose and takes the last valid object. Only local parsing
+happens here; this module never starts a process.
 """
 
 import json
@@ -20,6 +22,7 @@ from tools.agent_runner.adapters import (
     Capabilities,
     LaunchSpec,
 )
+from tools.agent_runner.adapters.json_result import json_object
 from tools.agent_runner.adapters.skills import prompt_lines
 from tools.agent_runner.models import (
     Identity,
@@ -73,34 +76,10 @@ def _ends_with(stdout: str, answer: str) -> bool:
     return not rest.strip() and _plain_tail(tail)
 
 
-def _json_object(text: str) -> dict[str, object] | None:
-    # Decode from the start, never search nested objects in a malformed answer.
-    candidate = text.strip()
-    fenced = candidate.startswith("```")
-    if fenced:
-        opening = re.match(r"```(?:json|JSON)\b[^\n]*\n", candidate)
-        if opening is None:
-            return None
-        candidate = candidate[opening.end():].lstrip()
-    try:
-        value, end = json.JSONDecoder().raw_decode(candidate)
-    except ValueError:
-        return None
-    tail = candidate[end:].strip()
-    if fenced:
-        # Do not interpret backticks inside a JSON string as the closing fence.
-        if not tail.startswith("```"):
-            return None
-        tail = tail[3:].strip()
-    if not _plain_tail(tail):
-        return None
-    return cast(dict[str, object], value) if isinstance(value, dict) and value else None
-
-
 def _payload(text: str, shape: ResultShape) -> tuple[ReceiptStatus, Payload]:
     if shape == "text":
         return ("success", text) if text.strip() else ("response_failed", None)
-    parsed = _json_object(text)
+    parsed = json_object(text)
     return ("success", parsed) if parsed is not None else ("response_failed", None)
 
 
