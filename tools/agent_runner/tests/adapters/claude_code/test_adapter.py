@@ -336,3 +336,27 @@ def test_truncated_event_after_success_invalidates_completion(context: AdapterCo
     outcome = ADAPTER.collect(context, path, _write_stderr(context, ""))
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"
     assert outcome.receipt.payload is None
+
+
+@pytest.mark.parametrize(
+    ("deadline_seconds", "expected_cap_ms"),
+    [
+        pytest.param(5400.0, 5280000, id="implement"),
+        pytest.param(2700.0, 2580000, id="inspect"),
+        pytest.param(1800.0, 1680000, id="fix-check-shortened"),
+        pytest.param(1800.5, 1680500, id="fractional-remaining"),
+        pytest.param(720.0, 600000, id="floor-boundary"),
+        pytest.param(60.0, 600000, id="short-role-floor"),
+    ],
+)
+def test_prepare_caps_bash_timeout_by_request_deadline(
+    context: AdapterContext, deadline_seconds: float, expected_cap_ms: int
+) -> None:
+    # S: a wrong cap silently truncates required verification, or lets one
+    # command spend the whole role deadline and lose the final result.
+    context.request.deadline_seconds = deadline_seconds
+    spec = ADAPTER.prepare(context)
+    assert spec.env["BASH_MAX_TIMEOUT_MS"] == str(expected_cap_ms)
+    assert spec.env["BASH_DEFAULT_TIMEOUT_MS"] == "600000"
+    assert spec.env["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] == "1"
+    assert str(expected_cap_ms) in spec.stdin.decode()

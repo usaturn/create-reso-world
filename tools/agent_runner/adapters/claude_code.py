@@ -29,6 +29,8 @@ _APPROVAL = re.compile(
 )
 _INTERRUPT = re.compile(r"interrupt|abort|cancel", re.IGNORECASE)
 _FENCE = re.compile(r"```(?:json|JSON)\b[^\n]*\n")
+_DEFAULT_BASH_TIMEOUT_MS = 600_000
+_BASH_TIMEOUT_MARGIN_SECONDS = 120.0
 
 
 def _events(path: Path) -> Iterator[dict[str, object]]:
@@ -237,10 +239,21 @@ class ClaudeCode:
         if context.role.result_shape == "json":
             lines.append("Return your final answer as a JSON object.")
         # Keep this noninteractive child's work in the foreground so it finishes
-        # before the result, and give Bash 10 minutes instead of its 120s default.
+        # before the result. Bash keeps its 10-minute default; a long verification
+        # may request up to the role's remaining time minus a reserve for the
+        # final result. The runner's outer deadline still applies.
+        cap_ms = max(
+            _DEFAULT_BASH_TIMEOUT_MS,
+            int((context.request.deadline_seconds - _BASH_TIMEOUT_MARGIN_SECONDS) * 1000),
+        )
+        lines.append(
+            "Bash commands time out after 10 minutes by default. For a command "
+            f"expected to take longer, pass an explicit timeout of up to {cap_ms} ms."
+        )
         env = {
             "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1",
-            "BASH_DEFAULT_TIMEOUT_MS": "600000",
+            "BASH_DEFAULT_TIMEOUT_MS": str(_DEFAULT_BASH_TIMEOUT_MS),
+            "BASH_MAX_TIMEOUT_MS": str(cap_ms),
         }
         return LaunchSpec(argv=tuple(argv), stdin="\n\n".join(lines).encode("utf-8"), env=env)
 
