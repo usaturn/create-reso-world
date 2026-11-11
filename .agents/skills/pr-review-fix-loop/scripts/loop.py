@@ -714,12 +714,24 @@ class GitHub:
 # --- Herdr --------------------------------------------------------------------------------------------------------
 
 
-def rename_pane(number: int) -> HerdrPane:
-    """Herdr のペインの中なら、現在のペイン（HERDR_PANE_ID）の名前を ``PR#<番号>`` に変える。
+def rename_pane(
+    number: int,
+    *,
+    repository: str,
+    issue_number: int | None = None,
+    issue_repository: str | None = None,
+) -> HerdrPane:
+    """Herdr のペインの中なら、現在のペイン（HERDR_PANE_ID）の名前を変える。
 
+    ``issue_number`` があれば ``<repo>:#<Issue番号>``（repo 部分は ``issue_repository`` があればそれ、
+    無ければ ``repository`` の repo 部分）、無ければ ``PR#<番号>``。
     ほかのペインやフォーカスは変えない。ペインの名前は表示だけの情報なので、失敗しても例外にせず結果で返す。
     """
-    label = f"PR#{number}"
+    label = (
+        f"{(issue_repository or repository).rsplit('/', 1)[-1]}:#{issue_number}"
+        if issue_number is not None
+        else f"PR#{number}"
+    )
     pane_id = os.environ.get("HERDR_PANE_ID", "")
     if os.environ.get("HERDR_ENV") != "1":
         return HerdrPane(state="skipped", pane_id=None, label=label, reason="HERDR_ENV が 1 ではない（Herdr の外）")
@@ -1310,6 +1322,8 @@ def start(
     template: Path = DEFAULT_TEMPLATE,
     config: Path | None = None,
     fresh_review: bool = False,
+    issue_number: int | None = None,
+    issue_repository: str | None = None,
     github: GitHub | None = None,
     parent_root: Path | None = None,
     tool_root: Path = ROOT,
@@ -1318,6 +1332,15 @@ def start(
         raise LoopError(
             2, "arguments", f"--controller-runtime は {', '.join(RUNTIMES)}、--controller-model は空にしない"
         )
+    # Issue の表示用コンテキストの検証はロック取得の前（無効値でロックや run を残さない）
+    if issue_number is not None and issue_number < 1:
+        raise LoopError(2, "arguments", "--issue-number は正整数にする")
+    if issue_repository is not None:
+        if issue_number is None:
+            raise LoopError(2, "arguments", "--issue-repository は --issue-number と一緒に渡す")
+        parts = issue_repository.split("/")
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise LoopError(2, "arguments", "--issue-repository は owner/repo 形式にする")
     options, assignments = check_options(
         max_cycles=max_cycles,
         assign=assign,
@@ -1361,7 +1384,9 @@ def start(
         )
         save_run(run_dir, run)
         # run を始めた後だけ変える（失敗する start や、別の run が使っている PR では変えない）
-        pane = rename_pane(pr.number)
+        pane = rename_pane(
+            pr.number, repository=pr.repository, issue_number=issue_number, issue_repository=issue_repository
+        )
         run.herdr_pane = pane
         save_run(run_dir, run)
     except BaseException:
@@ -2530,6 +2555,15 @@ def parser() -> argparse.ArgumentParser:
     begin.add_argument("--controller-runtime", required=True, choices=RUNTIMES)
     _add_option_arguments(begin)
     begin.add_argument("--fresh-review", action="store_true", help="現在の HEAD の成果があってもレビュアーを起動する")
+    begin.add_argument(
+        "--issue-number",
+        type=int,
+        help="issue-to-pr から呼ぶときの Issue 番号（正整数）。ペイン名が <repo>:#<Issue番号> になる",
+    )
+    begin.add_argument(
+        "--issue-repository",
+        help="Issue のリポジトリ（owner/repo）。--issue-number と一緒に渡す。ペイン名の表示だけに使う",
+    )
     check = commands.add_parser(
         "check-options",
         help="start のオプションと agent-runner の設定だけを検査する（PR・ロック・run・GitHub に触れない）",
@@ -2571,6 +2605,8 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
             template=args.template.resolve(),
             config=args.config.resolve() if args.config else None,
             fresh_review=args.fresh_review,
+            issue_number=args.issue_number,
+            issue_repository=args.issue_repository,
         )
     if name == "check-options":
         options, assignments = check_options(
