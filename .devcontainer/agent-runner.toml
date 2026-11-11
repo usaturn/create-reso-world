@@ -55,12 +55,12 @@ provider = "commandcode"
 effort = "max"
 env = ["HOME", "PATH", "COMMANDCODE_API_KEY"]
 
-[agents.pi_openai-codex_gpt6-sol_max]
+[agents.pi_openai-codex_gpt6-sol_xhigh]
 runtime = "pi"
 command = ["pigs"]
 model = "gpt-6.1-sol"
 provider = "openai-codex"
-effort = "max"
+effort = "xhigh"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
 
 [agents.pi_xai_grok4_xhigh]
