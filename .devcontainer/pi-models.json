@@ -1,5 +1,57 @@
 {
   "providers": {
+    "alibaba": {
+      "name": "Alibaba Cloud Model Studio Token Plan",
+      "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+      "apiKey": "$MAAS_ANTHROPIC_TOKEN",
+      "api": "openai-completions",
+      "authHeader": true,
+      "compat": {
+        "thinkingFormat": "qwen",
+        "supportsDeveloperRole": false,
+        "supportsStore": false,
+        "supportsStrictMode": true,
+        "supportsReasoningEffort": true
+      },
+      "models": [
+        {
+          "id": "qwen4-max-preview",
+          "name": "Qwen4 Max Preview (Token Plan)",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 991808,
+          "maxTokens": 65536,
+          "thinkingLevelMap": {
+            "minimal": "minimal",
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": "xhigh",
+            "max": "max"
+          }
+        },
+        {
+          "id": "qwen3.8-flash",
+          "name": "Qwen3.8 Flash (Token Plan)",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 991808,
+          "maxTokens": 65536,
+          "thinkingLevelMap": {
+            "minimal": "minimal",
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": "xhigh",
+            "max": "max"
+          }
+        }
+      ]
+    },
     "commandcode": {
       "name": "Command Code",
       "baseUrl": "https://api.commandcode.ai/provider/v1",

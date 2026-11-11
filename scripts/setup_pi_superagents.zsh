@@ -49,7 +49,7 @@ readonly SUBAGENT_D="${EXT_DIR}/subagent.d"
 readonly LAUNCHER_ROOT="${SUBAGENT_D}/create-reso-world"
 readonly BIN_DIR="${HOME}/.local/bin"
 
-readonly LAUNCHERS=(pigo pigod piccg piccd piga pigt pidid pigs pigl pixg pigemf pigemp pigema)
+readonly LAUNCHERS=(pigo pigod piccg piccd piga pigt pidid piaq pigs pigl pixg pigemf pigemp pigema)
 
 #
 # ランチャーを通さない Pi（素の pi、Herdr の復元による再開）は bwrap の mount が無く、共有の bind 先の

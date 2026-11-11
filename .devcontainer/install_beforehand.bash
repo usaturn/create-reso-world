@@ -371,7 +371,7 @@ if [ ! -f "${HOME}/.pi/agent/models.json" ]; then
     fi
 fi
 
-step "Placing the launchers (pigo / pigod / piga / pigt / pidid / pigs / pigl / pixg / pigemf / pigemp / pigema)"
+step "Placing the launchers (pigo / pigod / piga / pigt / pidid / piaq / pigs / pigl / pixg / pigemf / pigemp / pigema)"
 # Pi ランチャーは ~/.local/bin に置く。ここは bind mount の
 # 対象外でリビルドのたびに失われるため、models.json と違い毎回上書きで配置する。
 if ! mkdir -p "${HOME}/.local/bin"; then
@@ -391,6 +391,9 @@ if ! install -m 0755 .devcontainer/pigt "${HOME}/.local/bin/pigt"; then
 fi
 if ! install -m 0755 .devcontainer/pidid "${HOME}/.local/bin/pidid"; then
     fail "Failed to place pidid."
+fi
+if ! install -m 0755 .devcontainer/piaq "${HOME}/.local/bin/piaq"; then
+    fail "Failed to place piaq."
 fi
 if ! install -m 0755 .devcontainer/pigs "${HOME}/.local/bin/pigs"; then
     fail "Failed to place pigs."
