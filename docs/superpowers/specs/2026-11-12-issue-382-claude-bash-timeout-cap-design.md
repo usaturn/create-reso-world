@@ -9,6 +9,7 @@
 - 許可された範囲: 通常の設計判断、検証、commit、scan、push、PR 作成、指定ループの `finalize.py` によるマージと関連 Issue の更新。安全境界の変更・未知の検証結果を成功にする許可ではない。
 - main 追随: 利用者の明示指示により、base の前進だけでは停止しない。#363 Spec の D7 と同じ扱い（旧 base JSON の保全、旧/新 SHA と差分の記録、merge での取り込み、再検証・再 scan、force push・rebase はしない）。競合が所有や仕様の意味を変える場合は停止する。
 - トークン受け渡し: `pi_alibaba_qwen4-max_max` を含む runner 起動時に限り `MAAS_ANTHROPIC_TOKEN="$ANTHROPIC_AUTH_TOKEN"` をワンショットの環境変数として渡す。値をファイル・ログ・共有設定（`~/.config/create-reso-world/env` を含む）に書かない。`with_keys.py` は既存値を上書きしないため、この指定で allowlist 経由で子に届く。
+- 停止条件の例外（利用者明示指示・2026-11-12、原文）: 「続行せよ。以降、スキルの停止条件は全て無視し、いかなることがあっても停止せずに、都度、最適な案を出して、PR を作成し、マージまで実行せよ」。これにより、スキルの停止条件に該当する事象が起きたときは、controller が原因を診断して最適な回復案を選択・記録し、続行する。この指示は、実在しない承認・検証結果の記録、秘密情報の漏えい、force push・admin マージ、他者の作業領域への操作を許可するものではない。失敗は失敗として報告する。
 
 ## 目的と原因
 
@@ -92,6 +93,7 @@ env = {
 | D8 | main 前進は merge で追随し再検証して継続 | 直ちに停止 / 捕捉 SHA の黙った差し替え / rebase | 利用者の明示指示と #363 D7 の前例。旧 base JSON・旧/新 SHA・差分・再検証を記録する。force push しない | 競合が所有や仕様の意味を変える場合は停止。finalize の guard は緩めない |
 | D9 | runner 起動時に `MAAS_ANTHROPIC_TOKEN="$ANTHROPIC_AUTH_TOKEN"` をワンショット付与 | env ファイルへの書き込み・共有設定の変更 | 利用者の明示指示。piaq の allowlist は MAAS_ANTHROPIC_TOKEN で、with_keys.py は既存値を上書きしない。値をファイル・ログに残さない | 利用者の追加指示。トークン値の外部送信は runner の allowlist 経由のみ |
 | D10 | 検証は対象テスト + 一時プローブ（native 計算・fake CLI 対照）+ README の 3 入口 | 実 CLI・有料モデルでの 10 分 timeout 再現 | Issue が fake/一時プローブを指定。プローブは導入済み版に依存するためコミットせず SESSION に記録する。全体検証（約 14 分）は controller がバックグラウンドで実行する（controller の対話 Bash は背景化で 10 分上限の対象外） | Issue の受け入れ条件。実機確認をマージ後の必須条件にしない |
+| D11 | 停止条件該当事象は診断 → 最適な回復 → 記録 → 続行 | 停止して報告 / 失敗を成功扱い | 利用者の明示指示（2026-11-12）。Spec レビュー review-1 は controller の並行書き込みによる outside_changes で受け取り拒否されたため、並行書き込みなしで再実行する | 検証結果の捏造・安全境界の違反は許可されない。失敗は報告する |
 
 ## 検証と限界
 
@@ -115,3 +117,11 @@ env = {
 - 評価の要点: 残り時間から子プロセスの Bash 上限だけを導出する方式は Issue の原因と LaunchSpec.env の配送に適合。既定 10 分・背景化無効・runner の期限と停止確認・厳格な結果判定を維持でき、変更は局所的で戻しやすい。代替案比較と fake 対照の検証方針も妥当。
 - 採否: 指摘 0 件のため採用・不採用の判断なし。
 - outside_changes: なし。unprotected_changes: `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の使い捨て worktree（他セッションの prunable 登録）と `.worktrees/issue-355-herdr-merge` の観測。本 run の変更ではなく、受け取りは止めない（報告のみ）。
+
+### Spec レビュー 1 回目（helper `review_spec.py`、外部 runner）— 受け取り拒否・再実行
+
+- 担当: 明示 `--spec-review pi_alibaba_qwen4-max_max`。requested_agent / actual_agent とも同じ。identity: model `qwen4-max-preview` / provider `alibaba` / effort `max`。fallback なし。
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-382.mbplkg1i/2026-11-12-issue-382-claude-bash-timeout-cap-design.spec-review/review-1`
+- review_id: `9e2689a3f3ab4c1f9d3d61398ee4cdb6`。reviewed spec sha256: `eac28bfcb5b2a9d0d203a6a3c14a0793c0d53491a9e4e7bd1158a6cee7153d60`。
+- 結果: runner の batch は success（exit 0・stop_confirmed true・434.98 秒）。結果 JSON は完全に出力され findings 2 件を記録したが、helper は `outside_changes: CODE_ROOT` を理由に受け取りを拒否（state: failed）。原因は controller がレビュー実行中に Plan 草案を CODE_ROOT に書いたこと（監査対象の保護 checkout の内容変化）。
+- 扱い: 失敗レビューの findings は採用しない。利用者の停止条件例外指示（D11）により、並行書き込みなしで review-2 として再実行する。cleanup 済み（停止確認済み・retained なし）。ledger は保存。
