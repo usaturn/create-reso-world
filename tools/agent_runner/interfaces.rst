@@ -316,7 +316,7 @@ CLI と API
 
    uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner check
    uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner list
-   uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" \
+   uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py \
      --config /path/to/personal.toml -- \
      python -m tools.agent_runner --config /path/to/personal.toml run --workflow audit \
      --repository /path/to/repository --revision HEAD \
@@ -328,11 +328,16 @@ CLI と API
 ``python -m`` は cwd から ``tools`` を読むので、ほかの cwd では ``No module named 'tools'`` で止まる。
 ``check``・``list`` は担当を起動しないので wrapper を通さない。
 ``run`` の例が示す ``--config``（と ``--template``）は、``with_keys.py`` の ``--`` の前と、
-runner のサブコマンドの前の両方に同じ値を置く。省略する既定では、wrapper と runner の両方が、
-同じ checkout の雛形（``.devcontainer/agent-runner.toml``）と ``resolve_config_path()`` の個人設定を使う。
+runner のサブコマンドの前の両方に同じ値を置く。wrapper は後段と同じ checkout のものを使う。
+上の例の ``tools/agent_runner/with_keys.py`` は cwd の相対パスなので、``python -m`` が読む checkout と揃う。
+別の checkout の wrapper を使うときは、後段の雛形を ``--template`` で wrapper に渡す。
+渡さない既定では、wrapper は自身のファイルがある checkout の雛形（``.devcontainer/agent-runner.toml``）を読み、
+runner は読み込んだ ``cli.py`` がある checkout の雛形を読む。両方が同じ checkout のときだけ、
+省略しても同じ雛形と ``resolve_config_path()`` の個人設定を使う。
 ``with_keys.py`` は、ランチャー起動セッションでも runner に key を届ける wrapper である
 （``.devcontainer/README.md`` の「API トークン」節）。
-既定の雛形は、cwd ではなくランナーのある checkout の ``.devcontainer/agent-runner.toml`` を読む。
+既定の雛形は、cwd ではなく、wrapper またはランナーのファイルがある checkout の
+``.devcontainer/agent-runner.toml`` を読む。
 グローバルの --template / --config はサブコマンドの前に置く。
 output-dir は既存 directory/symlink を拒否する。省略時は /tmp 内の一意の directory。
 ``--write-exception`` は API の ``write_exceptions`` の 1 件にあたる。繰り返し指定でき、指定した順に並ぶ。

@@ -1231,7 +1231,7 @@ key を export した通常のシェルから起動する。ランチャー起�
 
 ```bash
 read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN
-uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- \
+uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py -- \
   python -m tools.agent_runner run --workflow review --assign inspect=claude-code_alibaba_opus_max \
   --repository /path/to/repository --revision HEAD --prompt-file /path/to/prompt.txt
 ```
@@ -1318,7 +1318,7 @@ Claude Code・Codex・Cursor・Devin・Pi の adapter と、起動設定の雛�
 ```bash
 uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner check
 uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner list
-uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" \
+uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py \
   --config /path/to/personal.toml -- \
   python -m tools.agent_runner --config /path/to/personal.toml run --workflow audit \
   --repository /path/to/repository --revision HEAD \
@@ -1326,8 +1326,10 @@ uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner
 ```
 
 `check`・`list` は担当を起動しないので wrapper を通さない。`run` の例が示す `--config`（と `--template`）は、
-`with_keys.py` の `--` の前と、runner のサブコマンドの前の両方に同じ値を置く。省略する既定では、wrapper と
-runner の両方が、同じ checkout の雛形（`.devcontainer/agent-runner.toml`）と `resolve_config_path()` の個人設定を使う。
+`with_keys.py` の `--` の前と、runner のサブコマンドの前の両方に同じ値を置く。wrapper は後段と同じ checkout のものを使う。
+上の例の `tools/agent_runner/with_keys.py` は cwd の相対パスなので、`python -m` が読む checkout と揃う。
+別の checkout の wrapper を使うときは、後段の雛形を `--template` で wrapper に渡す。
+wrapper と runner が同じ checkout のとき、渡さない既定では両方がその checkout の雛形（`.devcontainer/agent-runner.toml`）と `resolve_config_path()` の個人設定を使う。
 `with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）。
 設定が妥当なら、未対応の runtime があっても `check`・`list` は成功し、`run` はその担当を `unsupported` で返す。
 完了・停止の確かめ方は `.agents/monitoring-runtimes.md` の「agent-runner の同期実行と停止確認」にある。
@@ -2119,10 +2121,11 @@ export される（`OLLAMA_API_KEY` と `MAAS_ANTHROPIC_TOKEN` は書かない�
 ランチャー（`ccdd`・`ccddg`・`ccdgo`・`ccdol`・`ccda`）で起動したセッションは、
 `cc_launcher_unsets` により親シェルの認証情報が外れている。このセッションから
 agent-runner の `run` で担当を起動するときは、起動するコマンドを
-`tools/agent_runner/with_keys.py` 経由にする。`check`・`list` は担当を起動しないので通さない。
+cwd の `tools/agent_runner/with_keys.py` 経由にする。`check`・`list` は担当を起動しないので通さない。
+wrapper は後段と同じ checkout のものを使う。別の checkout の wrapper を使うときは、後段の雛形を `--template` で wrapper に渡す。
 
 ```bash
-uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- \
+uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py -- \
   python -m tools.agent_runner run --workflow review \
   --assign inspect=pi_deepinfra_deepseek4-flash_high \
   --repository /path/to/repository --revision HEAD \
@@ -2131,19 +2134,22 @@ uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner
 
 `--` の後ろの `python` は、`uv run --project "$PARENT_ROOT" --locked` の環境の python である。
 helper や CLI に `--template`・`--config` を渡すときは、`with_keys.py` の `--` の前にも同じ値を渡す。
-CLI の `run` では、runner のサブコマンドの前にも同じ値を置く。渡さない既定では、wrapper と
-runner の両方が、wrapper と同じ checkout の雛形（`.devcontainer/agent-runner.toml`）と
-`resolve_config_path()` の個人設定を使う。
+CLI の `run` では、runner のサブコマンドの前にも同じ値を置く。上の例は cwd の相対パスなので、
+`python -m` が読む checkout と揃う。wrapper と runner が同じ checkout のとき、渡さない既定では
+両方がその checkout の雛形（`.devcontainer/agent-runner.toml`）と `resolve_config_path()` の個人設定を使う。
+別の checkout の wrapper を使うときは、後段の雛形を `--template` で wrapper に渡す。
 
 wrapper は shell として env ファイルを実行しない。補う名前を実効設定から決め、不足しているものだけを
 今の環境と env ファイルから補ってから、`--` の後ろのコマンドを `os.execvpe` する。
 ランチャーを使わない通常のシェルからでも、補うものが無いだけで同じコマンドが動く。
 `keys.env` と `~/.zshrc` は読まない。
 
-- 補う名前: `load_config` で読んだ全 agent の `env` の和集合から、`HOME`・`PATH` と `GIT_` で始まる名前を除いたもの。
+- 補う名前: 雛形と個人設定を後段と同じ規則で重ねた全 agent の `env` の和集合から、`HOME`・`PATH` と `GIT_` で始まる名前を除いたもの。
+  workflows の担当・fallback の参照と重複は検査しない（後段が上書き後に検査する）。
   どの agent の `env` にも無い名前は、env ファイルにあっても子に届かない。
-  雛形は `--template` があればそれ、無ければ wrapper と同じ checkout の `.devcontainer/agent-runner.toml`。
-  個人設定は `--config` があればそれ、無ければ `resolve_config_path()` が返すパス（ファイルが無ければ雛形だけ）
+  雛形は `--template` があればそれ、無ければ wrapper のファイルがある checkout の `.devcontainer/agent-runner.toml`。
+  個人設定は `--config` があればそれ、無ければ `resolve_config_path()` が返すパス（ファイルが無ければ雛形だけ）。
+  後段が別の checkout の雛形を読むときは、その雛形を `--template` で wrapper に渡す
 - 補う条件: 今の環境に無いか、値が空の名前だけ。今の環境に値があれば、env ファイルに別の値があっても上書きしない
 - 読み元と順序: 今の環境、次に `~/.config/create-reso-world/env`（`Path.home()` 基準）だけ。
   ファイルが無ければ何もしない。開けない・UTF-8 で読めないときは、
@@ -2162,7 +2168,7 @@ wrapper は shell として env ファイルを実行しない。補う名前を
   パスは実際の `Path.home()`）
 - 出力: 補った名前と読み元のパスだけを stderr に 1 行で出す
   （`with_keys: filled DEEPINFRA_TOKEN, OPENCODE_API_KEY from /home/vscode/.config/create-reso-world/env`）。
-  値は出さない。補うものが無ければ何も出さない。設定を読めないときは、分類のメッセージ
+  値は出さない。補うものが無ければ何も出さない。設定を読めないとき、または `agents` の形が壊れているときは、分類のメッセージ
   （`agent-runner configuration error: <分類名>`。値やパスは含まない）だけを stderr に出して終了コード 2。
   `--` が無い、または `--` の後ろが空なら、`usage: with_keys.py [--template PATH] [--config PATH] -- <command> [args...]`
   を stderr に出して終了コード 2

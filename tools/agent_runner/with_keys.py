@@ -4,8 +4,9 @@ runner は起動時の環境（``/proc/self/environ``）から子の環境を組
 ``os.environ`` を変えても子には届かないので、不足している key を補った環境で
 ``os.execvpe`` し直す。
 
-補う名前は、実効設定（雛形と個人設定）の全 agent の ``env`` から ``HOME``・``PATH``・
-``GIT_*`` を除いたもの。今の環境に値がある名前は上書きしない。読み元は
+補う名前は、雛形と個人設定を後段と同じ規則で重ねた全 agent の ``env`` から
+``HOME``・``PATH``・``GIT_*`` を除いたもの。workflows の担当・fallback の参照と重複は
+検査しない（後段が上書き後に検査する）。今の環境に値がある名前は上書きしない。読み元は
 ``~/.config/create-reso-world/env`` だけ。shell としては実行せず、解析できない代入が
 ある名前は前の行の値も含めて補わない。値は stderr に出さない。
 """
@@ -17,6 +18,8 @@ import re
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+
+from pydantic import ValidationError
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = ROOT / ".devcontainer/agent-runner.toml"
@@ -46,7 +49,15 @@ _ASSIGNMENT = re.compile(
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.agent_runner.config import ConfigError, load_config, resolve_config_path  # noqa: E402
+from tools.agent_runner.config import (  # noqa: E402
+    ConfigError,
+    _merge,
+    _read,
+    _reject_removed_runtime,
+    _validation_category,
+    resolve_config_path,
+)
+from tools.agent_runner.models import Agent, Config  # noqa: E402
 
 
 class _Usage(Exception):
@@ -54,10 +65,26 @@ class _Usage(Exception):
 
 
 def needed_names(template: Path, personal: Path | None) -> set[str]:
-    """全 agent の env から HOME・PATH・GIT_* を除いた名前。"""
-    loaded = load_config(template, personal)
-    names = {name for agent in loaded.agents.values() for name in agent.env}
+    """全 agent の env から HOME・PATH・GIT_* を除いた名前。
+
+    雛形と個人設定は後段と同じ規則で重ねる。担当の参照・重複は検査しない。
+    後段が上書きで受け付ける設定を、ここだけで拒否しない。
+    """
+    data = _read(template)
+    if personal is not None:
+        data = _merge(data, _read(personal))
+    names = {name for agent in _agents_for_env(data).values() for name in agent.env}
     return {name for name in names if name not in _SKIPPED_NAMES and not name.startswith("GIT_")}
+
+
+def _agents_for_env(data: dict[str, object]) -> dict[str, Agent]:
+    """agents の形だけを検査する。workflows の担当・fallback は後段に任せる。"""
+    _reject_removed_runtime(data)
+    try:
+        loaded = Config.model_validate({"schema_version": 1, "agents": data.get("agents", {})})
+    except ValidationError as error:
+        raise ConfigError(_validation_category(error)) from None
+    return loaded.agents
 
 
 def _parsed_value(match: re.Match[str]) -> str:

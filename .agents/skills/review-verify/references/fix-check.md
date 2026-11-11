@@ -27,12 +27,12 @@ request は次の7項目だけを持つ JSON object。全て必須、未知キ�
 固定仕様は [agent_runner のインターフェース](../../../../tools/agent_runner/interfaces.rst)。工程名 `fix_check` に対応する設定の役割名は **`fix-check`**。`workflows.fix.assignments.fix-check` の一次担当 1 件と明示 fallback を使う。他の役割を一緒に起動しない。
 
 ```bash
-uv run --project "$PARENT_ROOT" --locked python "$PARENT_ROOT/tools/agent_runner/with_keys.py" -- \
+uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/../../../tools/agent_runner/with_keys.py" -- \
   python "$SKILL_DIR/scripts/dispatch.py" \
   --request "$FIX_INPUT" --output-dir "$NEW_RUN_DIR"
 ```
 
-`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）。helper に `--template`・`--config` を渡すときは、wrapper の `--` の前にも同じ値を渡す。渡さない既定では、wrapper と helper が同じ checkout の雛形と `resolve_config_path()` の個人設定を使うので、何も足さなくてよい。`accept` は runner を起動しないので wrapper を通さない。
+`with_keys.py` は、ランチャー起動セッションでも runner に key を届ける wrapper である（`.devcontainer/README.md` の「API トークン」節）。wrapper は後段と同じ checkout のものを使う。上の `$SKILL_DIR/../../../tools/agent_runner/with_keys.py` は helper と同じ checkout から導く。別の checkout の wrapper を使うときは、後段の雛形を `--template` で wrapper に渡す。helper に `--template`・`--config` を渡すときは、wrapper の `--` の前にも同じ値を渡す。wrapper と helper が同じ checkout のとき、渡さない既定では両方がその checkout の雛形と `resolve_config_path()` の個人設定を使うので、何も足さなくてよい。`accept` は runner を起動しないので wrapper を通さない。
 
 `SKILL_DIR` はこのスキル本体の絶対パス。既定 template は TOOL_ROOT の `.devcontainer/agent-runner.toml`、personal config は明示 `--config` または既存の設定解決順を使う。共有 template に workflow.fix が無ければ、利用者設定か session 内の明示 `--template` で供給する。共有設定へ自動追加しない。request は上の 7 項目を持つ JSON、NEW_RUN_DIR は既存でない一意の保存先（親 main root の agent_tmp.py で作ったセッション領域の子）。`--template`/`--config` を使うときは上のとおり wrapper の `--` の前にも同じ値を渡す。担当だけ上書きする場合は `--assign <agent_id|self>` を helper だけに付ける。書き込み役・複数一次担当・不完全入力は拒否する。
 
