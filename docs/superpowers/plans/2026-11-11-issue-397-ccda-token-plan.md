@@ -178,3 +178,14 @@
 - `review_id` `0ed0b7794cea4f4792fa63477334d39d`、reviewed の Spec SHA-256 `142425c17fc127e3a115d2578821478c1eeb8feb21e021a5be7256c32b113eee`（指摘 0 件のため reflected も同じ値）。`next: plan`
 - `outside_changes` は無し。`unprotected_changes` は、この run の前からある他の作業の `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 つの worktree で、触れていない
 - `cleanup` は runner の worktree と runner-dir を消し、`retained` は無し。記録は commit しない `tmp/agents/issue-397.07kekhs0/` にある
+
+## 実行の記録
+
+- 実装の担当: `pi_opencode-go_deepseek4-flash_max`（`--implement` で利用者が指定、fallback 無し）。runner が観測したモデルは `opencode-go` の `deepseek-v4.1-flash`（effort `max`）。依頼は Task ごとに 1 回で、依頼し直しは無し
+  - Task 1（ランチャーとテスト）: 223 秒、`importable`、`255c3fb9`。Task のレビューは承認（軽微 1 件は直さない裁定）
+  - Task 2（案内と移植の記録）: 296 秒、`importable`、`42f25687`。Task のレビューは承認（軽微 2 件は最終レビューで直すと判定）
+  - 最終レビューの修正: 207 秒、`importable`、`c92c976d`
+- Task 3（controller）: `bash .devcontainer/run-tests.bash`（27 本 PASS）と `bash scripts/check-layout.sh` が終了コード 0。実 API は 4 tier を各 1 回実行し、すべて終了コード 0・`is_error: false`・結果 `2`。`modelUsage` は fable・opus → `qwen4-max-preview`、sonnet・haiku → `qwen3.8-flash`。標準エラーに `[claude-code:unrecognized_model]` が 1 行ずつ
+- 最終レビュー（ブランチ全体）は「修正すれば可」で、Important 1 件と Minor 2 件を 1 回の修正で直した。範囲を絞った再レビューで 4 件とも解消を確認した
+- 残した指摘（裁定）: 修正で、移植元の Context7 の照会の段落が「#397 で確認したこと」の節の後ろに来て、この checkout の作業と読める（Important）。ほかに、#18 の文の主語と「上記」の曖昧さ（Minor 2 件）。SDD の規定で 2 回目の修正は出さず、PR 本文に既知の残りとして書いた
+- 能動時間: 着手から PR の前まで約 32 分（Spec と Spec レビュー 約 12 分、Task 1 約 6 分、Task 2 約 7 分、最終レビューと修正 約 7 分）
