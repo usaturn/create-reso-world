@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: draft。内容承認は受けていない。issue-to-pr の委任により推奨案で進める。
+- 状態: completed。内容承認は受けていない。利用者の明示的な実行許可とレビュー修正ループによる検証・判断の完了を表す。
 - 対象: usaturn/create-reso-world#382。PR base: origin の refs/heads/main（捕捉 SHA `ae4b6e71361314fb3de6008f8d31b830fec90f3c`）。
 - 利用者入力（原文）: `/issue-to-pr #382 --merge --design-review pi_openai-codex_gpt6-sol_xhigh --spec-review pi_alibaba_qwen4-max_max --implement pi_alibaba_qwen4-max_max --assign implement=pi_alibaba_qwen4-max_max --assign inspect=pi_alibaba_qwen4-max_max,claude-code_sonnet_xhigh`
 - 追加指示（原文）: 「pi_alibaba_qwen4-max_max を動かす為に、 ANTHROPIC_AUTH_TOKEN を MAAS_ANTHROPIC_TOKEN として渡してください。」「途中でメインがマージされたら、追随して作業を止めずに続行してください。」
@@ -135,3 +135,19 @@ env = {
 - unprotected_changes: `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*`（他セッションの prunable 登録）、`.worktrees/issue-355-herdr-merge`・`.worktrees/issue-396-flaky-deadline-test`・issue-396 の review-runner worktree（他セッションの作業）。本 run の変更ではなく、報告のみ。
 - 採否:
   - **S1（採用・minor）**: 受け入れ基準の条件 2 が、720 秒未満の role で「残り − 120 秒以下」と「下限 600000 以上」を同時に要求する文面になっており、設計式 `max(600000, ...)` の「下限優先」挙動と文字どおりには矛盾する（60 秒 role の正しい実装を条件 2 違反と誤指摘する恐れ）。→ 条件 2 を設計式と一致する文面に修正（Spec と Plan の両方）。実装内容（式・定数・案内行）は変わらない。
+
+## PR #411 サイクル 1 の判断・実行結果
+
+planner: qwen4-max-preview（runtime: claude-code、controller）。対象 HEAD `a0469a787e3671b4571b7e4e1a117a1d39daa383`。サイクル 1。
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | 再実行 | 推奨 |
+| --- | --- | --- | --- | --- | --- |
+| qwen4-max-preview.md | qwen4-max-preview | pi | a0469a787e36 | true | Approve |
+| claude-sonnet-5-5.md | claude-sonnet-5-5 | claude-code | a0469a787e36 | true | Approve |
+
+- 指摘: 0 件（両レビュアー、active 0）。分類: 解消済み 0 / 対応する 0 / 対応しない 0。**結論 2（修正不要）**。コード修正・自己レビューの起動は 0 回。
+- 両レビュアーが独立に prepare の境界値プローブ（5400/2700/1800/小数/720/60 秒ほか）・導入済み CLI 2.1.322 の kK/kX 計算照合・`tools/agent_runner/tests`（295 passed）を実行し、受け入れ条件 5 件すべてを確認。
+- 確認済み一覧: `reviews/usaturn/create-reso-world/#411-fix-issue-382-claude-bash-timeout-cap/verified/a0469a787e36.json`（0 件・coverage closed。sonnet の未実施 3 件は controller の実行証拠で閉じ、有料 CLI 再現は Issue #382 と D10 で対象外）。
+- 検証（HEAD a0469a78・clean）: 対象テスト 295 passed / 全体 pytest 1454 passed（836.13s）/ run-tests.bash 27 PASS / check-layout.sh PASS、すべて exit 0。
+- base 前進: 検証中に origin/main が ae4b6e71 → 7e2d1a89 へ前進（PR #410・devin adapter・本 PR と重複なし）。利用者指示（D8）と結論 2 の手順 2 により、head に新 base を merge した一時ツリー `43ea90d1` で再検証: 対象テスト 303 passed / 全体 pytest 1462 passed（801.43s）/ run-tests.bash 27 PASS / check-layout.sh PASS、すべて exit 0。検証の記録の base は `7e2d1a89`。一時ツリーは検証後に破棄（push せず）。
+- 判断の記録: SESSION の round.json（review-records/v2・no_fix_needed）。工程の詳細は SESSION ディレクトリと PR の状況コメントに記録する。push・マージ・Issue 更新の結果はこの Spec に先取りせず、状況コメントと完了報告に記録する。
