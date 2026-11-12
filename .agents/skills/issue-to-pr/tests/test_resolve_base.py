@@ -624,14 +624,14 @@ def test_advance_guards_and_state_chain(
     flow = start_session(normal, "flow")
     capture_bases(normal, flow)
     flow_initial = read_state(flow, "code")
-    write_owned(flow, ["src/ours"])
+    write_owned(flow, ["src/ours", "src/ours/file.txt"])
     rejected(inspect_advance(normal, flow, "feat/flow"))
     first_tip = advance_remote(normal, "code", {"incoming.txt": "base change\n"}, "advance one")
     empty = flow / "empty-owned.json"
     empty.write_text(json.dumps({"code": []}), encoding="utf-8")
     rejected(inspect_advance(normal, flow, "feat/flow", owned=empty))
     duplicate = flow / "duplicate-owned.json"
-    duplicate.write_text(json.dumps({"code": ["src/ours", "src/ours/file.txt"]}), encoding="utf-8")
+    duplicate.write_text(json.dumps({"code": ["src/ours", "src/ours/"]}), encoding="utf-8")
     rejected(inspect_advance(normal, flow, "feat/flow", owned=duplicate))
     invalid = flow / "invalid-owned.json"
     for bad_path in ("/absolute", "src/../bad", "src//bad", "src/./bad", "", "src\\bad"):
@@ -968,7 +968,8 @@ def test_advance_guards_and_state_chain(
     capture_bases(separate, docs_session)
     code_initial = read_state(docs_session, "code")
     docs_initial = read_state(docs_session, "docs")
-    write_owned(docs_session, ["src/ours"], ["docs/superpowers/specs"])
+    write_owned(docs_session, ["src/ours", "src/ours/file.txt"],
+                ["docs/superpowers/specs/", "docs/superpowers/specs/spec.md"])
     rejected(call_base(
         "--inspect-advance", "--session", docs_session,
         "--owned-paths-file", docs_session / "owned-paths.json",
@@ -987,7 +988,7 @@ def test_advance_guards_and_state_chain(
     duplicate_docs = docs_session / "duplicate-docs.json"
     duplicate_docs.write_text(json.dumps({
         "code": ["src/ours"],
-        "docs": ["docs/superpowers/specs", "docs/superpowers/specs/spec.md"],
+        "docs": ["docs/superpowers/specs", "docs/superpowers/specs/"],
     }), encoding="utf-8")
     rejected(inspect_advance(separate, docs_session, "feat/separate", "docs/separate",
                             owned=duplicate_docs))
@@ -1007,11 +1008,15 @@ def test_advance_guards_and_state_chain(
     commit_files(doc_root, {"docs/superpowers/specs/spec.md": "design\n"}, "docs work")
     code_head_before = git(code_root, "rev-parse", "HEAD")
     doc_head_before = git(doc_root, "rev-parse", "HEAD")
+    code_state_before = (docs_session / "code-base.json").read_bytes()
+    docs_state_before = (docs_session / "docs-base.json").read_bytes()
     code_tip = advance_remote(separate, "code", {"incoming-code.txt": "code base\n"}, "code base")
     advance_remote(separate, "docs", {"docs/superpowers/specs/base.md": "docs base\n"}, "docs overlap")
     rejected(inspect_advance(separate, docs_session, "feat/separate", "docs/separate"))
     assert git(code_root, "rev-parse", "HEAD") == code_head_before
     assert git(doc_root, "rev-parse", "HEAD") == doc_head_before
+    assert (docs_session / "code-base.json").read_bytes() == code_state_before
+    assert (docs_session / "docs-base.json").read_bytes() == docs_state_before
     set_remote(separate, "docs", docs_initial["sha"])
     docs_tip = advance_remote(separate, "docs", {"incoming-docs.txt": "docs base\n"}, "docs base")
     inspection = inspect_advance(separate, docs_session, "feat/separate", "docs/separate")

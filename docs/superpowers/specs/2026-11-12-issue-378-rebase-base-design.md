@@ -61,7 +61,7 @@
    - `capture` ブロックはリダイレクト上書き（`>`）ではなく `resolve_base.py ... --write-state "$SESSION/code-base.json"`（文書分離時は `--write-state "$SESSION/docs-base.json"` も）を呼ぶ。
    - `--write-state` は出力先 `<stem>.json` と対になる初期固定ファイル `<stem>.initial.json`（`code-base.initial.json` / `docs-base.initial.json`）の両方がまだ存在せず symlink でないことを確かめ、両方とも排他作成（`"x"` モード）で同じ JSON を書き出す。既にどちらかが存在する場合は終了コード 2 で拒否する（`capture` の再実行による黙った上書きを防止）。
    - `code-base.json`・`docs-base.json` の JSON 形式は従来どおり `{"repo", "remote", "branch", "ref", "sha"}` の 5 キーを維持し、既存の読み取り箇所との互換性を保つ。
-   - `capture` ブロックは末尾で `TARGET_ROOT`・`TARGET_REPO`・`PARENT_ROOT`・`DOCS_SEPARATE`・`CODE_BASE_BRANCH`・`CODE_BASE_SHA`（および `DOCS_SEPARATE != false` 時の `DOC_BASE_SHA`）と `recheck_bases` 関数定義を `$SESSION/base-env.bash` に書き出す。終了コード 2 で中断した後の別シェルでも `source "$SESSION/base-env.bash"` で同じ変数と関数を復元できる。
+   - `capture` ブロックは末尾で `TARGET_ROOT`・`TARGET_REPO`・`PARENT_ROOT`・`DOCS_SEPARATE`・`CODE_BASE_BRANCH`・`CODE_BASE_SHA`・`SKILL_DIR`（および `DOCS_SEPARATE != false` 時の `DOC_BASE_SHA`）を `export` して `declare -p` で `$SESSION/base-env.bash` に書き出す。`CODE_ROOT`・`CODE_BRANCH` が設定済みなら、`DOC_ROOT`（既定は `CODE_ROOT`）・`DOC_BRANCH` とともに同じファイルへ追記する。末尾に `recheck_bases` 関数定義も追記する。`inspect-advance`・`advance`・`worktree`・`reverify`・`diff`・`publish`・`pr` の各ブロックは先頭でこのファイルを読み込み、`advance` は更新後の値で書き直す。既存の `$SESSION/resume.bash` があれば上書きせず、更新後の `base-env.bash` を追記して退避変数を保持する。これにより、終了コード 2 で中断した後の別シェルでも同じ変数と関数を復元できる。
 
 2. **所有パスの定義と更新時点（`$SESSION/owned-paths.json`）**
    - 形式（UTF-8 の通常ファイル、symlink 不可）:
@@ -71,7 +71,7 @@
        "docs": ["docs/superpowers/specs/", "docs/superpowers/plans/"]
      }
      ```
-   - 各要素は空でないリポジトリ相対 POSIX パスとし、先頭 `/`・空要素・`.`・`..` セグメント・NUL 文字を含むパスは終了コード 2 で拒否する（末尾 `/` は正規化して除去し、ルート全体を指す `/` や `""` は拒否する）。2 つのパス `a`・`b` の重複は `a == b` または `a` が `b/` 配下、または `b` が `a/` 配下（双方向のディレクトリ包含・ファイル一致）で判定する。
+   - 各要素は空でないリポジトリ相対 POSIX パスとし、先頭 `/`・空要素・`.`・`..` セグメント・NUL 文字を含むパスは終了コード 2 で拒否する（末尾 `/` は正規化して除去し、ルート全体を指す `/` や `""` は拒否する）。リスト内の重複は、正規化後の文字列が完全に一致する場合（例: `docs/superpowers/specs` と `docs/superpowers/specs/`）だけを終了コード 2 で拒否する。親ディレクトリと配下ファイル（例: `src/ours` と `src/ours/file.txt`）は、所有範囲の和集合として同じリストに併記できる。一方、前進した base の変更ファイルと所有パスとの重なり検査（1.3 の 5）は、`a == b` または `a` が `b/` 配下、または `b` が `a/` 配下（双方向のディレクトリ包含・ファイル一致）で判定し、親ディレクトリを所有していれば配下の変更を拒否する。
    - **空リスト禁止:** `code` は常に 1 件以上の配列であることを必須とし、空配列 `[]` は終了コード 2 で拒否する（空リストで所有ファイル重複検査を素通りさせない）。`DOCS_SEPARATE` が `true` のときは `docs` も 1 件以上の配列であることを必須とし、`DOCS_SEPARATE` が `false` のときは `docs` は省略または `[]` とする（`DOCS_SEPARATE=false` なのに `docs` に非空配列が渡された場合も混同防止のため終了コード 2 で拒否する）。
    - **生成元・更新時点と `code` / `docs` への振り分け:**
      1. **worktree 作成前（2 章 6、`capture` の直後）:** 司令塔が 2 章 5〜6 で確認した Issue 本文の「変更してよい」「変更候補」または対象モジュール/スキルディレクトリを `code` に入れ、Spec・Plan 保存先ディレクトリ（`"docs/superpowers/specs/"`・`"docs/superpowers/plans/"`）を `DOCS_SEPARATE=false` なら `code` に、`DOCS_SEPARATE=true` なら `docs` に入れて `$SESSION/owned-paths.json` を作成する。
@@ -129,7 +129,7 @@
      - `old_head`・`new_head`: `phase == "pre_worktree"` のときは**両方とも `null`**、`phase == "worktree"` のときは**両方とも 40 桁小文字 hex SHA**（片方だけ `null` や逆の組み合わせは不正として終了コード 2 で拒否）
      - `changed_files`: 文字列配列（`list[str]`）
      - `premise_note`: 非空文字列
-   - **同一シェルおよび別シェルへの反映:** `<!-- base-workflow:advance -->` ブロックは前のブロックが `exit 2` で終わった後の新しいシェルから単独起動されても動くよう、先頭で `$SESSION/target.json` から `TARGET_ROOT`・`TARGET_REPO`・`PARENT_ROOT`・`DOCS_SEPARATE` を読み、`resolve_base.py --advance` の成功直後に更新後の `code-base.json`（および `docs-base.json`）から `CODE_BASE_BRANCH`・`CODE_BASE_SHA`（および `DOC_BASE_SHA`）を読み込み、`recheck_bases` 関数を再定義し、`$SESSION/base-env.bash`（および既存の `$SESSION/resume.bash` があればその内容）を最新値で書き換えてから `recheck_bases || exit 2` を実行する。この末尾の `recheck_bases` が非 0 で失敗した場合（`advance` の直後にさらに remote の base が前進した場合）も、未 push である限り 2 章 6 の同じ前進追随ループ（上限 3 回まで）に再度入る。
+   - **同一シェルおよび別シェルへの反映:** `<!-- base-workflow:advance -->` ブロックは前のブロックが `exit 2` で終わった後の新しいシェルから単独起動されても動くよう、先頭で `$SESSION/base-env.bash` を読み込んで `SKILL_DIR`・`CODE_ROOT`・`CODE_BRANCH`・`DOC_ROOT`・`DOC_BRANCH` などを復元する。続いて `$SESSION/target.json` から `TARGET_ROOT`・`TARGET_REPO`・`PARENT_ROOT`・`DOCS_SEPARATE` を補い、`DOC_ROOT`（既定は `CODE_ROOT`）と `DOC_BRANCH`（既定は空）を確定してから `resolve_base.py --advance` を呼ぶ。成功後は更新後の `code-base.json`（および `docs-base.json`）から `CODE_BASE_BRANCH`・`CODE_BASE_SHA`（および `DOC_BASE_SHA`）を読み込み、`recheck_bases` 関数を再定義し、`$SESSION/base-env.bash` を `export` + `declare -p` で書き直す。既存の `$SESSION/resume.bash` があれば上書きせず、更新後の `base-env.bash` を追記して退避変数を保持したまま base 関連の値だけを最新にする。その後 `recheck_bases || exit 2` を実行する。この末尾の `recheck_bases` が非 0 で失敗した場合（`advance` の直後にさらに remote の base が前進した場合）も、未 push である限り 2 章 6 の同じ前進追随ループ（上限 3 回まで）に再度入る。
 
 5. **必須検証コマンドの固定（`--set-verify-cmds`）と再検証の実行（`--reverify`）**
    - **必須検証コマンドの固定（`--set-verify-cmds`）:**
@@ -187,9 +187,9 @@
 Claude Code 等の Bash 実行環境では `eval '<block>' && true` の形で動くことがあり `set -e` だけでは途中失敗で止まらないため（`test_base_workflow.py` の `as_runtime` が検証する条件）、追加・変更するすべての `<!-- base-workflow:... -->` ブロックでも各コマンドに明示的な `|| exit 2` を付ける。また、ブロック失敗後に新しいシェルで次のブロックを実行するランタイムでも変数が欠落しないよう、`$SESSION/base-env.bash` の保存・更新を組み込む。
 
 1. **2 章 6（`capture`・所有パス記録・未 push 時の前進追随フロー）**
-   - `<!-- base-workflow:capture -->` ブロックの `resolve_base.py` 呼び出しを `--write-state "$SESSION/code-base.json"`（および `DOCS_SEPARATE != false` 時は `--write-state "$SESSION/docs-base.json"`）に更新し、末尾で `$SESSION/base-env.bash` に変数と `recheck_bases` 関数を保存する。
+   - `<!-- base-workflow:capture -->` ブロックの `resolve_base.py` 呼び出しを `--write-state "$SESSION/code-base.json"`（および `DOCS_SEPARATE != false` 時は `--write-state "$SESSION/docs-base.json"`）に更新し、末尾で `TARGET_ROOT`・`TARGET_REPO`・`PARENT_ROOT`・`DOCS_SEPARATE`・`CODE_BASE_BRANCH`・`CODE_BASE_SHA`・`SKILL_DIR`（および `DOCS_SEPARATE != false` 時の `DOC_BASE_SHA`）を `export` して `declare -p` で `$SESSION/base-env.bash` に保存する。`CODE_ROOT`・`CODE_BRANCH` が設定済みなら `DOC_ROOT`（既定は `CODE_ROOT`）・`DOC_BRANCH` も同じファイルへ追記し、最後に `recheck_bases` 関数を追記する。
    - `capture` の直後（`worktree` の前）に初期の `$SESSION/owned-paths.json` を作り、4 章 3 の Plan コミット直後に 1.2 の振り分け規則に従って `$SESSION/owned-paths.json` を更新するとともに、Plan の必須検証コマンドを `$SESSION/verify-cmds.json` に書いて `--set-verify-cmds` で固定する手順を明記する。
-   - 2 章 6 に自己完結した実行可能な `<!-- base-workflow:inspect-advance -->` と `<!-- base-workflow:advance -->` の Bash ブロックを追加する。`advance` ブロックは `$SESSION/target.json` と更新後の base JSON からすべての変数と `recheck_bases` を復元・更新し、`$SESSION/base-env.bash`（および既存の `$SESSION/resume.bash`）を書き換えたうえで `recheck_bases || exit 2` を実行する。別シェルで後続の `worktree`・`diff`・`publish` を実行するときは `source "$SESSION/base-env.bash"` で最新状態を読む。
+   - 2 章 6 に自己完結した実行可能な `<!-- base-workflow:inspect-advance -->` と `<!-- base-workflow:advance -->` の Bash ブロックを追加する。各ブロックは先頭で `$SESSION/base-env.bash` を読み込んで `SKILL_DIR`・`CODE_ROOT`・`CODE_BRANCH`・`DOC_ROOT`・`DOC_BRANCH` を復元する。`advance` ブロックは `$SESSION/target.json` と更新後の base JSON からすべての変数と `recheck_bases` を復元・更新し、`$SESSION/base-env.bash` を書き直したうえで、既存の `$SESSION/resume.bash` には上書きせず追記してから `recheck_bases || exit 2` を実行する。`worktree`・`reverify`・`diff`・`publish`・`pr` の各ブロックも先頭で `$SESSION/base-env.bash` を読み込み、`pr` は続けて `resume.bash` を読む。別シェルで後続ブロックを実行するときも同じファイルから最新状態を復元する。
    - **未 push の base 移動失敗からの復帰ループ（4 章は編集しない）:**
      - **対象となるすべての未 push 失敗点:** ① 3 章 `base-workflow:worktree` の `recheck_bases`、② 5 章冒頭の最終検証前の `recheck_bases`、③ 5 章 `base-workflow:diff` の `recheck_bases`、④ 5 章 `base-workflow:publish` における push 開始前の `recheck_bases` **および `scripts/scan-before-push.sh` の `--expected-base-sha` 不一致（`base moved`）失敗**、⑤ `base-workflow:advance` 末尾の `recheck_bases`（`advance` 中にさらに base が前進した場合）。
      - これらでブロックが非 0 終了したとき、司令塔は **run 全体を停止せず**直ちに次のループに入る:
@@ -218,7 +218,8 @@ Claude Code 等の Bash 実行環境では `eval '<block>' && true` の形で動
      - `--write-state` の二重書き込み拒否、および未前進通常状態で `--check-publish-gate`・`--check-pr-gate` が `reverified.json` 無しで終了コード 0 を返すこと
      - `pre_worktree`（`CODE_ROOT` 未作成）での前進検査・適用が `TARGET_ROOT` を使って成功し `old_head: null, new_head: null` の記録を作り、その後の worktree 作成・コミット・`--set-verify-cmds`・`--reverify` を経て `--check-publish-gate` と `--check-pr-gate` を通過すること
      - 空の所有パスリスト（`{"code": []}`、および `DOCS_SEPARATE=true` 時の `{"code": ["a"], "docs": []}`）の拒否
-     - 非 fast-forward 変化の拒否、push 済みブランチの拒否、`code` 所有パス重複の拒否、`DOCS_SEPARATE=true` での `docs` 所有パス重複の拒否、および非重複時の `docs` + `code` 前進・`DOC_ROOT` rebase・`"cwd": "docs"` を含む必須検証コマンド実行での成功
+     - 正規化後の同一パス重複（`docs: ["docs/superpowers/specs", "docs/superpowers/specs/"]`）の拒否と、親ディレクトリ + 配下ファイルの和集合（`code: ["src/ours", "src/ours/file.txt"]`、`docs: ["docs/superpowers/specs/", "docs/superpowers/specs/spec.md"]`）を使った `DOCS_SEPARATE=false` / `true` の前進成功。docs の変更ファイルが親ディレクトリ配下（`docs/superpowers/specs/base.md`）と重なる場合は終了コード 2 で拒否し、worktree の `HEAD` と両 state JSON が変わらないこと
+     - 非 fast-forward 変化の拒否、push 済みブランチの拒否、`code` の同一パス重複の拒否、`DOCS_SEPARATE=true` での `docs` の同一パス重複の拒否、および非重複時の `docs` + `code` 前進・`DOC_ROOT` rebase・`"cwd": "docs"` を含む必須検証コマンド実行での成功
      - worktree 変更重複・`merge-tree` 衝突・未コミット変更の拒否（いずれも拒否時に worktree `HEAD` と state JSON が不変であること）
      - 累計前進 3 回までの成功と 4 回目の拒否
      - 古い部分的な `checks.json` があっても `--advance` がそれを `required-verify-cmds.json` に流用せず削除すること、`--set-verify-cmds` 後のコマンド削減・差し替えの拒否、`--reverify` での不完全なコマンド一覧の拒否、非 0 終了コマンド（`exit 1`）で `reverified.json` が作られず `--check-publish-gate` が拒否すること、および `--reverify` 成功後に追加コミット（stale HEAD）を作ると `--check-publish-gate` が拒否すること
@@ -228,7 +229,7 @@ Claude Code 等の Bash 実行環境では `eval '<block>' && true` の形で動
    - 新規 S テスト 1 件（`test_unpushed_base_advance_requires_reverify_and_pr_record`）: `SKILL.md` から抽出した実ブロック（`input`・`target`・`capture`・`worktree`・`diff`・`inspect-advance`・`advance`・`reverify`・`publish`・`pr`）を実行し、次の復帰・防御の一連の流れを検証する:
      - 未 push のまま remote の base が前進した状態で `publish`（`recheck_bases` または `scan-before-push.sh` 中の移動を含む）を実行すると終了コード 2 で止まり、remote に何も push されないこと
      - `code-base.json` を手動で新 SHA に書き換えてゲート回避を試みても `publish` が終了コード 2 で拒否すること
-     - 失敗したブロックの後の**別シェル（新しい `bash -c` プロセス）**で `inspect-advance` → `advance` を実行すると、`advance` ブロック単独で成功して `$SESSION/base-env.bash` と `CODE_BASE_SHA` を更新し（`advance` 直後にさらに 2 回目の base 前進が起きた場合も同じループで追随でき）、`source "$SESSION/base-env.bash"` した別シェルで `recheck_bases` が成功すること
+     - 失敗したブロックの後の**別シェル（新しい `bash -c` プロセス）**で `inspect-advance` → `advance` → `reverify` → `diff` → `publish` を、`SESSION`・`SKILL_DIR`・`PATH`・`HOME`・`GIT_CONFIG_NOSYSTEM` だけを持つ環境から実行しても、各ブロックが `$SESSION/base-env.bash` を読み込んで成功し、`advance` が `$SESSION/base-env.bash` と `CODE_BASE_SHA` を更新すること（`advance` 直後にさらに 2 回目の base 前進が起きた場合も同じループで追随できる）。`resume.bash` に退避した `CUSTOM_RESUME_VAR` は保持され、`CODE_BASE_SHA` は最新値になること。`source "$SESSION/base-env.bash"` した別シェルで `recheck_bases` が成功すること
      - `advance` 後に `reverify` を省いて `publish` を再実行すると終了コード 2 で止まり push されないこと
      - `reverify` 実行後に `diff` → `publish` が成功し、PR 本文に全前進の旧/新 SHA と再検証コマンドが無い状態では再開シェルの `pr` が `gh pr create` の前に終了コード 2 で止まり、すべて記載した状態では `pr` が成功して新しい base 上のコミットが公開されること
 

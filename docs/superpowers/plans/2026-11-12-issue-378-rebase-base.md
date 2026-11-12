@@ -36,7 +36,7 @@
   - **拒否する反例・境界条件（負例、すべて副作用や部分更新を残さず終了コード 2 で拒否）:**
     1. `--write-state` の既存ファイルまたは `initial.json` に対する再実行、symlink 指定、`code-base.json` / `docs-base.json` の手動書き換え、`base-advances.jsonl` の欠損・連鎖不一致・レコードスキーマ違反（`pre_worktree` で `old_head/new_head` が `null` でない、`worktree` で 40 桁小文字 hex SHA でない、`DOCS_SEPARATE=false` で `target == "docs"` がある等）。
     2. `CODE_BRANCH` または `DOCS_SEPARATE=true` 時の `DOC_BRANCH` が既に `origin` に存在する状態（`publish` 途中で `DOC_BRANCH` だけ push 済みの場合や PR 作成前を含む）での `--inspect-advance` / `--advance`、および push 後の `pr` ブロックでの base 移動。
-    3. base 未移動、非 fast-forward 変化（巻き戻し・別系統への差し替え）、空の所有パス配列（`{"code": []}` や `DOCS_SEPARATE=true` 時の `docs: []`）、`..`・`.`・先頭 `/`・空文字を含む不正な所有パス、`code` または `docs` の所有パス重複（ファイル一致・双方向ディレクトリ包含）、worktree の片方のみ存在、未コミット変更、`<old_sha>..HEAD` のマージコミット、`<old_sha>..HEAD` 変更ファイルとの重複、`merge-tree` 衝突、対象ごとの累計前進 3 回超過（4 回目）、`--inspect-advance` 後〜`--advance` 前のさらなる remote / worktree 変化。
+    3. base 未移動、非 fast-forward 変化（巻き戻し・別系統への差し替え）、空の所有パス配列（`{"code": []}` や `DOCS_SEPARATE=true` 時の `docs: []`）、`..`・`.`・先頭 `/`・空文字を含む不正な所有パス、正規化後の同一パス重複（親ディレクトリと配下ファイルの和集合は受理）、worktree の片方のみ存在、未コミット変更、`<old_sha>..HEAD` のマージコミット、`<old_sha>..HEAD` 変更ファイルとの重複、`merge-tree` 衝突、対象ごとの累計前進 3 回超過（4 回目）、`--inspect-advance` 後〜`--advance` 前のさらなる remote / worktree 変化。
     4. 古い `checks.json` から `required-verify-cmds.json` を自動生成しないこと（古い `checks.json` は `--advance` で削除）、`--set-verify-cmds` 後のコマンド削減・`cwd` 変更・差し替え、`--reverify` への不完全なコマンド一覧指定、`--reverify` 内の非 0 終了コマンド（`reverified.json` と `checks.json` を残さない）、`--reverify` 省略、`--reverify` 成功後の追加コミット（stale HEAD）や未コミット変更・ログ欠損/SHA-256 不一致、PR 本文での旧/新 SHA または必須検証コマンド記載欠落。
 
 ## 要件・原因・検証の対応
@@ -44,7 +44,7 @@
 | Spec 要件・安全境界 | 担当 Task | 観測できる結果・検証手段 |
 | --- | --- | --- |
 | `--write-state` による `initial.json` 排他保存と二重捕捉拒否（Spec 1.1） | Task 1, Task 2 | `test_resolve_base.py::test_advance_guards_and_state_chain`、`test_base_workflow.py`（`capture` ブロック実行） |
-| 非空の `owned-paths.json`（`code` / `docs` 両対応）と重複・不正パス拒否（Spec 1.2, 1.3） | Task 1 | `test_resolve_base.py::test_advance_guards_and_state_chain`（空リスト拒否、`code` 重複拒否、`DOCS_SEPARATE=true` の `docs` 重複拒否・非重複成功） |
+| 非空の `owned-paths.json`（`code` / `docs` 両対応）と、正規化後の同一パス重複・不正パスの拒否、親ディレクトリ + 配下ファイルの和集合の受理（Spec 1.2, 1.3） | Task 1 | `test_resolve_base.py::test_advance_guards_and_state_chain`（空リスト拒否、`code` の同一パス重複拒否、`DOCS_SEPARATE=true` の `docs` の同一パス重複拒否、親子の和集合での非重複成功と、変更ファイルが親ディレクトリ配下と重なる場合の拒否） |
 | `pre_worktree`（`TARGET_ROOT` / `PARENT_ROOT` 使用、`old_head/new_head: null`）と `worktree` rebase・失敗時ロールバック・上限 3 回（Spec 1.3, 1.4） | Task 1 | `test_resolve_base.py::test_advance_guards_and_state_chain`（`pre_worktree` → ゲート通過、非 FF・push 済み・変更重複・衝突・dirty 時の無副作用拒否、3 回成功と 4 回目拒否） |
 | `--set-verify-cmds`（`cwd: code/docs/parent` 正規化、差し替え拒否、古い `checks.json` 非流用）と `--reverify`（非 0 終了拒否、ログ SHA-256）（Spec 1.4, 1.5） | Task 1 | `test_resolve_base.py::test_advance_guards_and_state_chain`（古い `checks.json` 削除、不完全コマンド拒否、`exit 1` 拒否、`cwd: "docs"` 成功、stale HEAD 拒否） |
 | `--check-publish-gate`・`--check-pr-gate`（通常 run の即時 0 終了、前進時の連鎖・再検証・PR 本文記載の強制）（Spec 1.6） | Task 1, Task 2 | `test_resolve_base.py`（全既存 8 件 + 新規 1 件）、`test_base_workflow.py`（全既存ケース + 新規 `test_unpushed_base_advance_requires_reverify_and_pr_record`） |
@@ -83,7 +83,7 @@
 - **担当ファイル（`allowed_files`）:**
   - `.agents/skills/issue-to-pr/scripts/resolve_base.py`
   - `.agents/skills/issue-to-pr/tests/test_resolve_base.py`
-- **テストの要否と理由:** **要（区分 `S`）**。`--write-state` の上書き防止、push 済み・非 fast-forward・所有パス重複・変更重複・衝突・上限超過時の拒否、必須検証コマンドの改ざん・省略・失敗・stale HEAD の拒否は、壊れてもエラーにならず未検証の `(base, HEAD)` 公開や公開済み履歴の破壊を招く `S` に当たる。既存の 8 テストはすべて維持し、新規テストは重複（`D`）を避けて 1 関数 `test_advance_guards_and_state_chain` に集約する。引数不足や `--help` のテスト（`L`）は書かない。
+- **テストの要否と理由:** **要（区分 `S`）**。`--write-state` の上書き防止、push 済み・非 fast-forward・所有パスの同一重複・変更ファイルの包含重複・衝突・上限超過時の拒否、必須検証コマンドの改ざん・省略・失敗・stale HEAD の拒否は、壊れてもエラーにならず未検証の `(base, HEAD)` 公開や公開済み履歴の破壊を招く `S` に当たる。既存の 8 テストはすべて維持し、新規テストは重複（`D`）を避けて 1 関数 `test_advance_guards_and_state_chain` に集約する。引数不足や `--help` のテスト（`L`）は書かない。
 
 ### 実装仕様（Task 1）
 
@@ -116,7 +116,8 @@
    - **`owned-paths.json` の検証:**
      - JSON オブジェクトを読み、`code` が 1 件以上の `list[str]` であること、`docs_separate` が `True` なら `docs` も 1 件以上の `list[str]`、`False` なら `docs` は省略または `[]`（非空なら `ValueError`）であることを検証する。
      - 各パスの正規化: 空文字列・NUL 文字・先頭 `/`・バックスラッシュを拒否し、`stripped = raw.rstrip("/")` が空・`"."` の場合や `stripped.split("/")` に `""`・`"."`・`".."` が含まれる場合は `ValueError`。
-     - 2 パス `a`, `b` の重複判定: `a == b or a.startswith(b + "/") or b.startswith(a + "/")`。
+     - リスト内の重複判定: 正規化後の文字列が完全一致する場合（例: `docs/superpowers/specs` と `docs/superpowers/specs/`）だけを `ValueError` とする。親ディレクトリと配下ファイル（例: `src/ours` と `src/ours/file.txt`）は和集合として受理する。
+     - 前進した base の変更ファイルと所有パスとの重なり判定: `a == b or a.startswith(b + "/") or b.startswith(a + "/")`（双方向のディレクトリ包含・ファイル一致）。
 
 3. **新 CLI モード（相互排他。既存の通常捕捉モードとも排他）:**
    - **`--inspect-advance`:**
@@ -166,7 +167,7 @@
 
 - [ ] **Step 1: 失敗する単体 S テスト `test_advance_guards_and_state_chain` を `.agents/skills/issue-to-pr/tests/test_resolve_base.py` に追加する**
   - 既存の 8 テスト関数は一切削らず維持する。
-  - Spec 3.1 の全検証項目（`--write-state` 二重実行拒否、未前進時の両ゲート即時 0、`pre_worktree` 前進→worktree 作成→`--set-verify-cmds`→`--reverify`→両ゲート通過、空 `owned-paths` 拒否、非 FF・push 済み・`code` 所有パス重複・`DOCS_SEPARATE=true` の `docs` 所有パス重複と `"cwd": "docs"` 成功・変更重複・`merge-tree` 衝突・dirty 時の無副作用拒否、3 回成功と 4 回目拒否、古い `checks.json` 非流用、`--set-verify-cmds` 差し替え拒否、不完全コマンド拒否、`exit 1` コマンド拒否、stale HEAD 拒否）をカバーする。
+  - Spec 3.1 の全検証項目（`--write-state` 二重実行拒否、未前進時の両ゲート即時 0、`pre_worktree` 前進→worktree 作成→`--set-verify-cmds`→`--reverify`→両ゲート通過、空 `owned-paths` 拒否、正規化後の同一パス重複と親子包含の受理・変更ファイルの包含重複拒否、非 FF・push 済み・`code` の同一パス重複・`DOCS_SEPARATE=true` の `docs` の同一パス重複と `"cwd": "docs"` 成功・変更重複・`merge-tree` 衝突・dirty 時の無副作用拒否、3 回成功と 4 回目拒否、古い `checks.json` 非流用、`--set-verify-cmds` 差し替え拒否、不完全コマンド拒否、`exit 1` コマンド拒否、stale HEAD 拒否）をカバーする。
 - [ ] **Step 2: RED を確認する**
   - Run: `uv run --project /workspaces/reso-world/.worktrees/issue-378-rebase-base --locked pytest .agents/skills/issue-to-pr/tests/test_resolve_base.py -k test_advance_guards_and_state_chain`
   - Expected: 未実装の新フラグにより FAIL（既存 8 テストは PASS）。
@@ -196,11 +197,14 @@
    - **2 章 3（76 行付近）の最小整合注記:**
      - 「終了コードが 0 でないブロックの後は、次のブロックへ進まない。base の取得をやり直して SHA を差し替えない。」を「終了コードが 0 でないブロックの後は、そのまま次のブロックへ進まない（未 push の base 前進で 2 章 6 の前進追随フローに入る場合を除く）。2 章 6 の未 push 条件付き前進追随の手順を除き、base の取得をやり直して SHA を差し替えない。」に更新し、`$SESSION/base-env.bash` による別シェル復元の説明を 1 文添える。
    - **2 章 6（`<!-- base-workflow:capture -->` と未 push 前進追随手順・ブロック）:**
-     - `<!-- base-workflow:capture -->` で `resolve_base.py` に `--write-state "$SESSION/code-base.json"`（および `DOCS_SEPARATE != false` 時は `--write-state "$SESSION/docs-base.json"`）を渡し、末尾で `declare -p TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA > "$SESSION/base-env.bash" || exit 2`（`DOCS_SEPARATE != false` 時は `DOC_BASE_SHA` も追記）と `declare -f recheck_bases >> "$SESSION/base-env.bash" || exit 2` を実行する。
+     - `<!-- base-workflow:capture -->` で `resolve_base.py` に `--write-state "$SESSION/code-base.json"`（および `DOCS_SEPARATE != false` 時は `--write-state "$SESSION/docs-base.json"`）を渡し、末尾で `TARGET_ROOT`・`TARGET_REPO`・`PARENT_ROOT`・`DOCS_SEPARATE`・`CODE_BASE_BRANCH`・`CODE_BASE_SHA`・`SKILL_DIR`（`DOCS_SEPARATE != false` 時は `DOC_BASE_SHA` も）を `export` + `declare -p` で `$SESSION/base-env.bash` に書き出す。`CODE_ROOT`・`CODE_BRANCH` が設定済みなら `DOC_ROOT`（既定は `CODE_ROOT`）・`DOC_BRANCH` も追記し、最後に `recheck_bases` 関数を追記する。
      - `capture` の説明の後に、`owned-paths.json` の初期作成（`capture` 直後）と Plan コミット直後のリポジトリ別振り分け更新（`DOCS_SEPARATE=false` なら全パスを `code`、`true` なら `CODE_ROOT` 側を `code`・`DOC_ROOT` 側 Spec/Plan 等を `docs`、空配列不可）、および未 push のすべての base 移動失敗点（`worktree`・5 章冒頭・`diff`・`publish` の push 前 `recheck_bases` と `scan-before-push.sh` の `--expected-base-sha` 不一致・`advance` 末尾の `recheck_bases`）からの復帰ループ（`inspect-advance` → `preflight`・`checkout_policy`・外部仕様・共有インターフェース・`AGENTS.md` の前提確認と `$SESSION/advance-premise.txt` 作成 → `advance` → `worktree` または `reverify` → PR 本文更新 → `diff` → `publish` → `pr`、上限 3 回、push 済みや条件不成立は停止）を明記し、次の 2 ブロックを置く:
        - `<!-- base-workflow:inspect-advance -->`:
          ```bash
          set -euo pipefail
+         if [ -f "$SESSION/base-env.bash" ]; then
+           source "$SESSION/base-env.bash" || exit 2
+         fi
          git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
          while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
          uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
@@ -213,15 +217,17 @@
        - `<!-- base-workflow:advance -->`:
          ```bash
          set -euo pipefail
-         git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
-         while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
          if [ -f "$SESSION/base-env.bash" ]; then
            source "$SESSION/base-env.bash" || exit 2
          fi
+         git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+         while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
          TARGET_ROOT="${TARGET_ROOT:-$(jq -er .code_root "$SESSION/target.json")}" || exit 2
          TARGET_REPO="${TARGET_REPO:-$(jq -er .repository "$SESSION/target.json")}" || exit 2
          PARENT_ROOT="${PARENT_ROOT:-$(jq -er .parent_root "$SESSION/target.json")}" || exit 2
          DOCS_SEPARATE="$(jq -r 'if (.document_repository | type) == "string" and (.repository | type) == "string" then .document_repository != .repository else error("target.json lacks document_repository") end' "$SESSION/target.json")" || exit 2
+         DOC_ROOT="${DOC_ROOT:-$CODE_ROOT}"
+         DOC_BRANCH="${DOC_BRANCH:-}"
          uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
            --advance --session "$SESSION" \
            --inspection "$SESSION/advance-inspection.json" \
@@ -245,13 +251,15 @@
                --expected-sha "$DOC_BASE_SHA" > "$SESSION/docs-base-recheck.json" || return
            fi
          }
-         declare -p TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA > "$SESSION/base-env.bash" || exit 2
+         export TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA SKILL_DIR CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH
+         declare -p TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA SKILL_DIR CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH > "$SESSION/base-env.bash" || exit 2
          if [ "$DOCS_SEPARATE" != false ]; then
+           export DOC_BASE_SHA
            declare -p DOC_BASE_SHA >> "$SESSION/base-env.bash" || exit 2
          fi
          declare -f recheck_bases >> "$SESSION/base-env.bash" || exit 2
          if [ -f "$SESSION/resume.bash" ]; then
-           cp "$SESSION/base-env.bash" "$SESSION/resume.bash" || exit 2
+           cat "$SESSION/base-env.bash" >> "$SESSION/resume.bash" || exit 2
          fi
          recheck_bases || exit 2
          ```
@@ -293,9 +301,9 @@
      1. `input` → `target` → `capture` → `worktree` → `CODE_ROOT/change` コミット後、remote の `main` を所有外ファイル（例: `unrelated.txt`）のコミット `base_v2` へ前進させる。
      2. その状態で `publish` を実行すると終了コード 2 で失敗し、`workflow.remote` に `feat/issue-42-change` が push されていないこと。
      3. `code-base.json` の `sha` を手動で `base_v2` に書き換えても、`publish`（`--check-publish-gate`）が終了コード 2 で拒否し push されないこと（確認後に元の捕捉 SHA に戻す）。
-     4. 失敗したブロックとは**別の新しい `bash -c` プロセス**で、`owned-paths.json`（`{"code": ["change", "docs/superpowers/specs", "docs/superpowers/plans"]}`）と `advance-premise.txt` を用意して `inspect-advance` → `advance` を実行すると成功し、さらに remote の `main` を 2 回目の前進 `base_v3`（例: `scan` 中または連続マージを模した 2 回目の非重複前進）へ進めて再度別シェルで `inspect-advance` → `advance` を実行しても成功し、`source "$SESSION/base-env.bash"` した別シェルで `recheck_bases` が終了コード 0 で通ること。
+     4. 失敗したブロックとは**別の新しい `bash -c` プロセス**で、`owned-paths.json`（`{"code": ["change", "docs/superpowers/specs", "docs/superpowers/specs/2026-11-12-issue-42-design.md", "docs/superpowers/plans", "docs/superpowers/plans/2026-11-12-issue-42.md"]}`）と `advance-premise.txt` を用意し、`SESSION`・`SKILL_DIR`・`PATH`・`HOME`・`GIT_CONFIG_NOSYSTEM` だけを持つ環境で `inspect-advance` → `advance` を実行すると成功し、さらに remote の `main` を 2 回目の前進 `base_v3`（例: `scan` 中または連続マージを模した 2 回目の非重複前進）へ進めて再度同じ環境で `inspect-advance` → `advance` を実行しても成功し、`source "$SESSION/base-env.bash"` した別シェルで `recheck_bases` が終了コード 0 で通ること。`resume.bash` に退避した `CUSTOM_RESUME_VAR` が保持され、`CODE_BASE_SHA` が最新値 `base_v3` になること。
      5. `reverify` を実行せずに `source "$SESSION/base-env.bash"` + `publish` を実行すると終了コード 2 で拒否され push されないこと。
-     6. `verify-cmds.json`（空白を含むパスでも動く実コマンド配列）を用意して別シェルで `reverify` を実行し、`source "$SESSION/base-env.bash"` したシェルで `diff` → `publish` が終了コード 0 で成功すること。
+     6. `verify-cmds.json`（空白を含むパスでも動く実コマンド配列）を用意し、`SESSION`・`SKILL_DIR`・`PATH`・`HOME`・`GIT_CONFIG_NOSYSTEM` だけを持つ別シェルで `reverify` を実行し、同じ環境の `diff` → `publish` が終了コード 0 で成功すること。
      7. 旧/新 SHA と再検証コマンドを書いていない `body.md` のまま再開シェルで `pr` を実行すると `gh pr create` の前に終了コード 2 で止まること。続いて 2 回分の旧/新 SHA（7 桁以上）と必須検証コマンドを `body.md` に記載して再開シェルで `pr` を実行すると終了コード 0 で PR が作られ、`workflow.remote` の `refs/heads/feat/issue-42-change` の親が `base_v3` になっていること。
 
 ### ステップ（Task 2）

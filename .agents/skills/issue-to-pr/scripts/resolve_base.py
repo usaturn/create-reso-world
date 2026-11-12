@@ -402,7 +402,7 @@ def _owned_list(value: object, label: str, *, nonempty: bool) -> list[str]:
     normalized = [_normalize_owned_path(item) for item in value]
     for index, first in enumerate(normalized):
         for second in normalized[index + 1:]:
-            if _paths_overlap(first, second):
+            if first == second:
                 raise ValueError(f"owned-paths.json の {label} に重複するパスがあります")
     return normalized
 

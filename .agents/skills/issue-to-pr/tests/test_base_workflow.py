@@ -67,6 +67,14 @@ class Workflow:
                     CODE_PR_BODY=str(self.session / "body.md"),
                     DOC_PR_BODY=str(self.session / "body.md"))
 
+    def base_env(self) -> dict[str, str]:
+        """A new shell after exit 2: only SESSION, SKILL_DIR and the process basics remain."""
+        return {key: os.environ[key] for key in ("PATH", "HOME", "GIT_CONFIG_NOSYSTEM")
+                if key in os.environ} | {
+            "SESSION": str(self.session),
+            "SKILL_DIR": str(self.parent / ".agents/skills/issue-to-pr"),
+        }
+
     def run(
         self, argument: str, *, required: str = "", before_target: str = "",
         before_publish: str = "", before_pr: str = "",
@@ -101,16 +109,21 @@ class Workflow:
         return result
 
 
-def run_shell(workflow: Workflow, commands: list[str]) -> subprocess.CompletedProcess[str]:
+def run_shell(
+    workflow: Workflow, commands: list[str], env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(["bash", "-c", "\n".join(commands)], cwd=workflow.target,
-                            env=workflow.env(), text=True, capture_output=True)
+                            env=env or workflow.env(), text=True, capture_output=True)
     (workflow.session / "stdout.log").write_text(result.stdout)
     (workflow.session / "stderr.log").write_text(result.stderr)
     return result
 
 
-def run_block(workflow: Workflow, name: str, setup: str = "true") -> subprocess.CompletedProcess[str]:
-    return run_shell(workflow, [as_runtime(procedure(name), setup) + " || exit $?"])
+def run_block(
+    workflow: Workflow, name: str, setup: str = "true",
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return run_shell(workflow, [as_runtime(procedure(name), setup) + " || exit $?"], env=env)
 
 
 @pytest.fixture
@@ -437,7 +450,14 @@ def test_unpushed_base_advance_requires_reverify_and_pr_record(
     assert result.returncode == 0, result.stderr
     base_v1 = json.loads((workflow.session / "code-base.json").read_text())["sha"]
     assert (workflow.session / "code-base.initial.json").exists()
+    base_env = (workflow.session / "base-env.bash").read_text()
     assert (workflow.session / "base-env.bash").exists()
+    assert f'CODE_ROOT="{workflow.code}"' in base_env
+    assert 'CODE_BRANCH="feat/issue-42-change"' in base_env
+    # A resumed shell may already hold unrelated values; advance must update the base
+    # values without discarding them.
+    (workflow.session / "resume.bash").write_text(
+        "CUSTOM_RESUME_VAR=kept\nCODE_BASE_SHA=stale\n", encoding="utf-8")
 
     # The fixture's git wrapper refuses arbitrary transports. Advance the real
     # bare remote from an unrelated seed with the system git.
@@ -457,7 +477,7 @@ def test_unpushed_base_advance_requires_reverify_and_pr_record(
         return sha
 
     base_v2 = advance_remote("unrelated-1.txt")
-    publish = run_block(workflow, "publish", setup='source "$SESSION/base-env.bash"')
+    publish = run_block(workflow, "publish", env=workflow.base_env())
     assert publish.returncode == 2, publish.stderr
     assert git(workflow.remote, "branch", "--list", "feat/issue-42-change") == ""
 
@@ -467,21 +487,25 @@ def test_unpushed_base_advance_requires_reverify_and_pr_record(
     tampered = json.loads(captured_state)
     tampered["sha"] = base_v2
     state_path.write_text(json.dumps(tampered, ensure_ascii=False), encoding="utf-8")
-    tampered_publish = run_block(workflow, "publish", setup='source "$SESSION/base-env.bash"')
+    tampered_publish = run_block(workflow, "publish", env=workflow.base_env())
     assert tampered_publish.returncode == 2, tampered_publish.stderr
     assert git(workflow.remote, "branch", "--list", "feat/issue-42-change") == ""
     state_path.write_bytes(captured_state)
 
-    (workflow.session / "owned-paths.json").write_text(json.dumps(
-        {"code": ["change", "docs/superpowers/specs", "docs/superpowers/plans"]},
-        ensure_ascii=False), encoding="utf-8")
+    (workflow.session / "owned-paths.json").write_text(json.dumps({"code": [
+        "change",
+        "docs/superpowers/specs",
+        "docs/superpowers/specs/2026-11-12-issue-42-design.md",
+        "docs/superpowers/plans",
+        "docs/superpowers/plans/2026-11-12-issue-42.md",
+    ]}, ensure_ascii=False), encoding="utf-8")
     (workflow.session / "advance-premise.txt").write_text(
         "preflight・checkout_policy・外部仕様・共有インターフェース・AGENTS.md の前提は変わらない\n"
         "複数行の前提確認\n", encoding="utf-8")
 
-    inspect = run_block(workflow, "inspect-advance")
+    inspect = run_block(workflow, "inspect-advance", env=workflow.base_env())
     assert inspect.returncode == 0, inspect.stderr
-    advance = run_block(workflow, "advance")
+    advance = run_block(workflow, "advance", env=workflow.base_env())
     assert advance.returncode == 0, advance.stderr
     assert json.loads((workflow.session / "code-base.json").read_text())["sha"] == base_v2
     records = [json.loads(line) for line in
@@ -492,9 +516,9 @@ def test_unpushed_base_advance_requires_reverify_and_pr_record(
 
     # A second movement while the run continues must use the same loop and refresh base-env.bash.
     base_v3 = advance_remote("unrelated-2.txt")
-    inspect = run_block(workflow, "inspect-advance")
+    inspect = run_block(workflow, "inspect-advance", env=workflow.base_env())
     assert inspect.returncode == 0, inspect.stderr
-    advance = run_block(workflow, "advance")
+    advance = run_block(workflow, "advance", env=workflow.base_env())
     assert advance.returncode == 0, advance.stderr
     assert json.loads((workflow.session / "code-base.json").read_text())["sha"] == base_v3
     records = [json.loads(line) for line in
@@ -504,8 +528,14 @@ def test_unpushed_base_advance_requires_reverify_and_pr_record(
     assert base_v3 in (workflow.session / "base-env.bash").read_text()
     recheck = run_shell(workflow, ['source "$SESSION/base-env.bash" && recheck_bases'])
     assert recheck.returncode == 0, recheck.stderr
+    resumed = run_shell(workflow, [
+        'source "$SESSION/resume.bash"',
+        'printf "%s\\n%s\\n" "$CUSTOM_RESUME_VAR" "$CODE_BASE_SHA"',
+    ])
+    assert resumed.returncode == 0, resumed.stderr
+    assert resumed.stdout.splitlines() == ["kept", base_v3]
 
-    publish = run_block(workflow, "publish", setup='source "$SESSION/base-env.bash"')
+    publish = run_block(workflow, "publish", env=workflow.base_env())
     assert publish.returncode == 2, publish.stderr
     assert git(workflow.remote, "branch", "--list", "feat/issue-42-change") == ""
 
@@ -516,21 +546,21 @@ def test_unpushed_base_advance_requires_reverify_and_pr_record(
     ]
     (workflow.session / "verify-cmds.json").write_text(
         json.dumps(commands, ensure_ascii=False), encoding="utf-8")
-    reverify = run_block(workflow, "reverify")
+    reverify = run_block(workflow, "reverify", env=workflow.base_env())
     assert reverify.returncode == 0, reverify.stderr
     assert (workflow.session / "reverified.json").exists()
     assert (workflow.session / "checks.json").exists()
 
-    diff = run_block(workflow, "diff", setup='source "$SESSION/base-env.bash"')
+    diff = run_block(workflow, "diff", env=workflow.base_env())
     assert diff.returncode == 0, diff.stderr
-    publish = run_block(workflow, "publish", setup='source "$SESSION/base-env.bash"')
+    publish = run_block(workflow, "publish", env=workflow.base_env())
     assert publish.returncode == 0, publish.stderr
     pushed = git(workflow.remote, "rev-parse", "refs/heads/feat/issue-42-change")
     assert git(workflow.remote, "rev-parse", "refs/heads/feat/issue-42-change^") == base_v3
 
     body = workflow.session / "body.md"
     body.write_text("複数行の本文\nRefs #42\n", encoding="utf-8")
-    pr = run_block(workflow, "pr", setup='source "$SESSION/base-env.bash"')
+    pr = run_block(workflow, "pr")
     assert pr.returncode == 2, pr.stderr
     calls = [json.loads(line) for line in (workflow.session / "gh.jsonl").read_text().splitlines()]
     assert not any(call[:2] == ["pr", "create"] for call in calls)
@@ -540,7 +570,7 @@ def test_unpushed_base_advance_requires_reverify_and_pr_record(
     lines.extend(["", "必須検証コマンド:"])
     lines.extend("- " + " ".join(command["argv"]) for command in commands)
     body.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    pr = run_block(workflow, "pr", setup='source "$SESSION/base-env.bash"')
+    pr = run_block(workflow, "pr")
     assert pr.returncode == 0, pr.stderr
     assert git(workflow.remote, "rev-parse", "refs/heads/feat/issue-42-change") == pushed
     created = json.loads((workflow.session / "code-pr.json").read_text())

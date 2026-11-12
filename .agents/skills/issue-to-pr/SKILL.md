@@ -202,9 +202,17 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
          --expected-sha "$DOC_BASE_SHA" > "$SESSION/docs-base-recheck.json" || return
      fi
    }
-   declare -p TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA > "$SESSION/base-env.bash" || exit 2
+   export TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA SKILL_DIR
+   declare -p TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA SKILL_DIR > "$SESSION/base-env.bash" || exit 2
    if [ "$DOCS_SEPARATE" != false ]; then
+     export DOC_BASE_SHA
      declare -p DOC_BASE_SHA >> "$SESSION/base-env.bash" || exit 2
+   fi
+   if [ -n "${CODE_ROOT:-}" ] && [ -n "${CODE_BRANCH:-}" ]; then
+     DOC_ROOT="${DOC_ROOT:-$CODE_ROOT}"
+     DOC_BRANCH="${DOC_BRANCH:-}"
+     export CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH
+     declare -p CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH >> "$SESSION/base-env.bash" || exit 2
    fi
    declare -f recheck_bases >> "$SESSION/base-env.bash" || exit 2
    ```
@@ -226,6 +234,9 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    <!-- base-workflow:inspect-advance -->
    ```bash
    set -euo pipefail
+   if [ -f "$SESSION/base-env.bash" ]; then
+     source "$SESSION/base-env.bash" || exit 2
+   fi
    git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
    while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
    uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
@@ -239,15 +250,17 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    <!-- base-workflow:advance -->
    ```bash
    set -euo pipefail
-   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
-   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
    if [ -f "$SESSION/base-env.bash" ]; then
      source "$SESSION/base-env.bash" || exit 2
    fi
+   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
    TARGET_ROOT="${TARGET_ROOT:-$(jq -er .code_root "$SESSION/target.json")}" || exit 2
    TARGET_REPO="${TARGET_REPO:-$(jq -er .repository "$SESSION/target.json")}" || exit 2
    PARENT_ROOT="${PARENT_ROOT:-$(jq -er .parent_root "$SESSION/target.json")}" || exit 2
    DOCS_SEPARATE="$(jq -r 'if (.document_repository | type) == "string" and (.repository | type) == "string" then .document_repository != .repository else error("target.json lacks document_repository") end' "$SESSION/target.json")" || exit 2
+   DOC_ROOT="${DOC_ROOT:-$CODE_ROOT}"
+   DOC_BRANCH="${DOC_BRANCH:-}"
    uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
      --advance --session "$SESSION" \
      --inspection "$SESSION/advance-inspection.json" \
@@ -271,13 +284,15 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
          --expected-sha "$DOC_BASE_SHA" > "$SESSION/docs-base-recheck.json" || return
      fi
    }
-   declare -p TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA > "$SESSION/base-env.bash" || exit 2
+   export TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA SKILL_DIR CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH
+   declare -p TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA SKILL_DIR CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH > "$SESSION/base-env.bash" || exit 2
    if [ "$DOCS_SEPARATE" != false ]; then
+     export DOC_BASE_SHA
      declare -p DOC_BASE_SHA >> "$SESSION/base-env.bash" || exit 2
    fi
    declare -f recheck_bases >> "$SESSION/base-env.bash" || exit 2
    if [ -f "$SESSION/resume.bash" ]; then
-     cp "$SESSION/base-env.bash" "$SESSION/resume.bash" || exit 2
+     cat "$SESSION/base-env.bash" >> "$SESSION/resume.bash" || exit 2
    fi
    recheck_bases || exit 2
    ```
@@ -315,8 +330,15 @@ rename が成功したときだけ `ISSUE_PANE_ID`・`ISSUE_PANE_LABEL` が確�
 <!-- base-workflow:worktree -->
 ```bash
 set -euo pipefail
+if [ -f "$SESSION/base-env.bash" ]; then
+  source "$SESSION/base-env.bash" || exit 2
+fi
 git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
 while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+DOC_ROOT="${DOC_ROOT:-$CODE_ROOT}"
+DOC_BRANCH="${DOC_BRANCH:-}"
+export SKILL_DIR CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH
+declare -p SKILL_DIR CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH >> "$SESSION/base-env.bash" || exit 2
 recheck_bases || exit 2
 git -C "$TARGET_ROOT" worktree add -b "$CODE_BRANCH" "$CODE_ROOT" "$CODE_BASE_SHA" || exit 2
 if [ "$DOCS_SEPARATE" != false ]; then
@@ -509,6 +531,9 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
   <!-- base-workflow:reverify -->
   ```bash
   set -euo pipefail
+  if [ -f "$SESSION/base-env.bash" ]; then
+    source "$SESSION/base-env.bash" || exit 2
+  fi
   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
   uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
@@ -525,6 +550,9 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
   <!-- base-workflow:diff -->
   ```bash
   set -euo pipefail
+  if [ -f "$SESSION/base-env.bash" ]; then
+    source "$SESSION/base-env.bash" || exit 2
+  fi
   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
   recheck_bases || exit 2
@@ -539,6 +567,9 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
   <!-- base-workflow:publish -->
   ```bash
   set -euo pipefail
+  if [ -f "$SESSION/base-env.bash" ]; then
+    source "$SESSION/base-env.bash" || exit 2
+  fi
   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
   SCAN="$PARENT_ROOT/scripts/scan-before-push.sh"
@@ -565,6 +596,12 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
   <!-- base-workflow:pr -->
   ```bash
   set -euo pipefail
+  if [ -f "$SESSION/base-env.bash" ]; then
+    source "$SESSION/base-env.bash" || exit 2
+  fi
+  if [ -f "$SESSION/resume.bash" ]; then
+    source "$SESSION/resume.bash" || exit 2
+  fi
   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
   DOCS_SEPARATE="$(jq -r 'if (.document_repository | type) == "string" and (.repository | type) == "string" then .document_repository != .repository else error("target.json lacks document_repository") end' "$SESSION/target.json")" || exit 2
