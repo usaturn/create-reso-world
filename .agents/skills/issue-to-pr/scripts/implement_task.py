@@ -518,6 +518,14 @@ def run(
         raise TaskInputError("issue.implement is self: the controller implements the Task itself (no runner launch)")
     repository = Path(request.repository)
     check_feature(repository, request.revision)
+    # 起動後の classify_attempt_worktree と同じ条件で、担当を起動する前に出力先を拒否する。
+    if not _canonical_absolute(output_dir):
+        raise TaskInputError("output directory must be a normalized absolute path")
+    symlink = _symlink_component(output_dir)
+    if symlink is None:
+        raise TaskInputError("output directory cannot be inspected")
+    if symlink:
+        raise TaskInputError("output directory must not contain a symlink")
     if output_dir.exists() or output_dir.is_symlink():
         raise TaskInputError("output directory must be new")
     require_auditable_workflow(selected, WORKFLOW, repository, adapter_loader=adapter_loader)
