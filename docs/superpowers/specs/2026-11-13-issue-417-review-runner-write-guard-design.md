@@ -193,6 +193,21 @@ Issue #417 の「対応時に決めること・受け入れ条件」をそのま
 - 致命的な指摘なし → 修正パスなし。自己レビュー後の修正は再レビューしていない（本節と状況コメントに記録）
 - push 前の揃え確認: Spec commit 後に committed tree で 4 箇所の文面一致・旧文面残存なしを確認し、結果を状況コメントと ledger に記録する
 
+## レビュー修正（サイクル 2・PR #422）
+
+- 現行 HEAD: `c38785a73fc215c6ed8a28999480654058f6ca02`（サイクル 1 の修正 97ddedfa＋Spec commit）。planner: qwen4-max-preview（claude-code・self）
+- レビュアーの構成: SWE-2-Max.md（SWE-2 Max・devin・226.5 秒・Update・Approve・Info 1）/ deepseek-v4.1-flash.md（deepseek-v4.1-flash・pi・888.3 秒・Update・Approve・Info 3）。両者とも現行 HEAD を再実行（rerun）
+- サイクル 1 の fix（L-1）: 両レビュアーが現行 HEAD で解消を確認（4 箇所の文面が実装と一致）。判断は `resolved` に変更
+- 分類: 解消済み 1（L-1）/ 対応する 0 / 対応しない 4
+  - `SWE-2-Max#I-1@c38785a73fc2` と `deepseek-v4.1-flash#I-4@c38785a73fc2`（統合）: Spec:149「基准」・Spec:158「落とた」の誤字。表記の揺れであり致命的ではない（ツールの誤った結果・データ消失・停止を生まない）
+  - `deepseek-v4.1-flash#I-2@c38785a73fc2`: サイクル 1 の分類表がレビュアー 2 件の指摘のみを数え、自己レビューの M-1（対応しない）を表外の段落で扱っている。記録の書き方・集計範囲の表記であり、M-1 の判断は判断の記録と本文書 192 行目に記録済みで失われていない。致命的ではない
+  - `deepseek-v4.1-flash#I-3@c38785a73fc2`: Plan Task 1 Step 3 の Expected「diff は追加行のみ」が、項目 3 行末への追記（1 行の変更）と一致しない。Task 1 実行時に ledger で裁定済み（Ruling: 既存文の先頭一致を確認・追記 329 文字）。歴史的文書の期待値の表記であり、executing-plans の裁定機構が扱う。致命的ではない
+  - 見直す条件（共通）: 利用者が表記・記録の整備を依頼したとき
+- 結論: 2（修正不要）。対応する 0 件・全指摘と変更ファイル全文・関連処理の確認済み
+- 検証（現行 HEAD・clean tree・feature worktree）: run-tests.bash PASS 27（exit 0）/ check-layout PASS（exit 0）/ uv run pytest tests/skills .agents/skills 832 passed in 614.51s（exit 0）。ログ: tmp/agents/review-fix-planning-pr422.3571315y/{run-tests-c2,check-layout-c2,pytest-subset-c2}.log
+- base: `bce027ba003a4090fee3f4a2e9c85a6383009e51`（取り直し・head の祖先）
+- 自己レビュー: 未実施（修正がないため）
+
 ## 編集禁止
 
 - `.agents/skills/issue-to-pr/SKILL.md` の frontmatter・既存段落の文言（追加のみ行う）
