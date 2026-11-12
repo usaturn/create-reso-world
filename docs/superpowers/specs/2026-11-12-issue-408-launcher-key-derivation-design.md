@@ -115,7 +115,7 @@ Issue の「エージェントに任せる事項」にある「`ccdgo` が選択
 
 #### 1.3 解決順序・既存値の保持・標準エラー出力
 
-`tools/agent_runner/with_keys.py` の実在関数 `fill_environment(environ, names, source)` と `parse_assignments(text, names)` をベースに、解決順序を次の 3 段階とする。`fill_environment` の戻り値は `(environment, derived, filled, skipped)`（`tuple[dict[str, str], list[str], list[str], list[str]]`）とする。
+`tools/agent_runner/with_keys.py` の実在関数 `fill_environment(environ, names, source)` と `parse_assignments(text, names)` をベースに、解決順序を次の 3 段階とする。`fill_environment` の戻り値は `(environment, derived, filled, skipped)`（`tuple[dict[str, str], list[str], list[str], list[str]]`）とする。あわせて同ファイルのモジュール docstring（7〜12 行付近）および `fill_environment` の docstring（135〜140 行付近）も、読み元が「今の環境 → ランチャー環境の導出 → `~/.config/create-reso-world/env`」の 3 段階であること・戻り値 4 要素に合わせて更新する。
 
 1. **今の環境（`environ`）**: `pending = {name for name in names if not environment.get(name)}` とし、既に非空文字列が入っている名前は `pending` に入れず元の値を保持する。空白のみの非空値が既に設定されている場合も上書きしない（後段の key ガードで意図どおり停止させ、黙って別アカウントの key に差し替えない）。
 2. **ランチャー環境の導出（`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`）**: `pending` が空でなければ、`_LAUNCHER_BASE_URL_KEYS.get(environment.get("ANTHROPIC_BASE_URL", ""))` を引き、得られた名前 `derived_name` が `pending` に含まれ、かつ `environment.get("ANTHROPIC_AUTH_TOKEN", "")` が `[A-Za-z0-9]` を含む場合に、`environment[derived_name] = auth_token` を設定して `pending.remove(derived_name)` し、`derived = [derived_name]` に記録する。`main()` では標準エラーへ次の 1 行を出力する（key の値やトークン長は一切含めない）。
@@ -195,9 +195,10 @@ Issue の「エージェントに任せる事項」にある「`ccdgo` が選択
 
 `.devcontainer/` 配下にはワークスペースの絶対パスを書かない（`test-readme.bash` の不変条件）。以下の箇所を一貫して更新する。
 
-1. **「既存環境の更新」と「エージェント向けツールの導入」**:
+1. **「既存環境の更新」・「エージェント向けツールの導入」・「install_beforehand.bash の配置一覧」**:
    - postCreate が `~/.local/bin` に置く一覧（91 行付近）と、rebuild しない場合の手動 `install -m 0755` 案内（128〜129 行付近）に `claude-ollama-exec`（未配置だと `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` が `launch_failed` になること）を加える。
    - 「エージェント向けツールの導入」の番号付き手順（763〜765 行）の `21. install -m 0755 .devcontainer/claude-alibaba-exec ...` の次に `22. install -m 0755 .devcontainer/claude-ollama-exec ~/.local/bin/claude-ollama-exec` を追加し、後続を `23`・`24` に繰り下げ、128 行付近の番号参照（`21`・`22`）を揃える。
+   - `install_beforehand.bash` が配置するものの詳細一覧（1606〜1617 行）で、`claude-alibaba-exec` の直後に `- .devcontainer/claude-ollama-exec → ~/.local/bin/claude-ollama-exec。同様に毎回上書き` を追加する。
 2. **「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」節（912 行付近）**:
    - `#397` の Alibaba 節にならい、`#### agent-runner から使う` 小節を追加する。
    - 雛形の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` の設定表（`command`・`model`・`model_key`・`provider`・`effort`・`env`）、Rebuild 前の `~/.local/bin/claude-ollama-exec` 手動配置、通常シェルで `OLLAMA_API_KEY` を export して `with_keys.py` 経由で起動する例、`ccdol` セッションでは `with_keys.py` が `ANTHROPIC_AUTH_TOKEN` から `OLLAMA_API_KEY` を補うこと（他ランチャーセッションからは補われないこと）、`claude-ollama-exec` の英数字 key ガードと Bearer のみ送信、および `duplicate_model` で同じ役割に並べられない組み合わせを記載する。
@@ -331,3 +332,15 @@ Issue 本文の最終的な動作環境は「Rebuild 後の Dev Container」で�
     - `S3`（`minor`, `adopt`）: `1.3` の関数名を実在の `fill_environment`・`parse_assignments` に合わせ、段階 3 の `parse_assignments` に未解決の `pending` だけを渡して解決済み変数の不要な `skipped` 警告を出さない仕様に明確化。
     - `S4`（`minor`, `adopt`）: `3. .devcontainer/README.md` の更新範囲に 2224〜2248 行（API トークン節の各変数の箇条書きにある `OLLAMA_API_KEY`・`MAAS_ANTHROPIC_TOKEN`・`DEEPINFRA_TOKEN` の旧記述）を追加。
     - `S5`（`minor`, `adopt`）: `受け入れ条件・検証計画 3` で、稼働中コンテナからは Rebuild できないためマージ前は一時 `PATH` で `claude-ollama-exec` 本体と実 API を確認し、Rebuild による `~/.local/bin` 配置と対話セッションからの再確認をマージ後確認項目（`Refs #408`）とすることを区分して明記。
+- 2 回目（再レビュー、外部 runner `review_spec.py`）:
+  - `review_dir`: `/workspaces/reso-world/tmp/agents/issue-408.kwkykzl6/2026-11-12-issue-408-launcher-key-derivation-design.spec-review/review-2`
+  - `review_id`: `a2903333105e4623a69367a983679621`
+  - reviewed `spec_sha256`: `503382e88b4abd86831807754c4f82fe8e7b82fdc0a2988c8c289a04d8922a77`
+  - `requested_agent` / `actual_agent`: `pi_opencode-go_deepseek4-flash_max` / `pi_opencode-go_deepseek4-flash_max`（`fallback` 未使用）
+  - `identity`: `model="deepseek-v4.1-flash"`, `provider="opencode-go"`, `effort="max"`, `cli_version=null`, `session_id="01a1cf04-db77-776d-9364-a40bfcca7d6f"`
+  - `elapsed_seconds`: `1145.72`
+  - `outside_changes`: `[]`
+  - `unprotected_changes`: 既存の prunable な一時 worktree 6 件および並行セッションの他 Issue worktree 2 件（`.worktrees/issue-378-rebase-base`・`tmp/agents/issue-378.pu_as9oz/...`。いずれも本 run の保護対象外）
+  - 採否（`minor` 2 件すべて `adopt`、`important` 0 件のため Plan 作成へ進行）:
+    - `S1`（`minor`, `adopt`）: `3. .devcontainer/README.md` の更新仕様 1 に `install_beforehand.bash` の配置一覧（1606〜1617 行）への `claude-ollama-exec` 追加を明記。
+    - `S2`（`minor`, `adopt`）: `1.3 解決順序・既存値の保持・標準エラー出力` に `tools/agent_runner/with_keys.py` のモジュール docstring および `fill_environment` の docstring を 3 段階の解決順序・戻り値 4 要素に合わせて更新することを明記。
