@@ -289,3 +289,17 @@ Rebuild 後のコンテナで `~/.local/bin/claude-ollama-exec` の配置と対�
 | D6 | `test_with_keys.py` は既存の代表テスト 1 件を拡張し、`test-herdr-migration.bash` に `test_ollama_exec_requires_key` を 1 件追加する | 条件ごとに個別テスト関数を新設する / モデル名や README の固定値テストを足す | `AGENTS.md`「テストの採用基準」（S の代表 1 件、F・L・D 禁止）および `#issuecomment-6816243774` の明示指示に従うため | `AGENTS.md` と Issue コメントの基準。反するテストはコミットしない |
 | D7 | 設計レビューは `claude-code_opus_default`、Spec レビューと Task 実装は `pi_opencode-go_deepseek4-flash_max`、PR ループは `inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,claude-code_opus_default`・`fix.implement=pi_opencode-go_deepseek4-flash_max`・`max_cycles=3`（既定）で実行する | `self` による代行や別モデルへの切り替え | Step 2 の各 `check` で全担当が `self=false`・`fallback=[]` と確定済み。担当失敗時に `self` で引き取らない規則を守る | 利用者の明示オプション。担当の失敗・停止未確認・`wrong_approach` / `blocking` 等は停止 |
 | D8 | `origin/main` の前進を検出した場合は push 前に `rebase`、push 後に `merge --no-edit` で追随し、再検証後に `code-base.json` を更新して続行する | base 移動で即停止する / 再検証なしで SHA だけ書き換える | 利用者が「途中でメインがマージされたら、追随して作業を止めずに続行してください。」と明示委任しているため。実行中の runner がある間は完了を待ってから追随し、force push と無検証更新は行わない | 利用者の明示委任。コンフリクトが仕様変更を伴う場合は停止 |
+
+### 設計レビュー記録
+
+- 1 回目（外部 runner `review_design.py`）:
+  - `review_dir`: `/workspaces/reso-world/tmp/agents/issue-408.kwkykzl6/2026-11-12-issue-408-launcher-key-derivation-design.design-review/review-1`
+  - `review_id`: `ba4a149581844aec97695d209e0debfe`
+  - reviewed `spec_sha256`: `243243fd3c901220cade5bd6897d2b7b22a2283d7a190c998c36dea867305baa`
+  - `requested_agent` / `actual_agent`: `claude-code_opus_default` / `claude-code_opus_default`（`fallback` 未使用）
+  - `identity`: `model="claude-opus-5-5"`, `provider=null`, `effort=null`, `cli_version="2.1.322"`, `session_id="af4f954b-51a7-41f4-b66c-6a0e1b466e99"`
+  - `elapsed_seconds`: `28.16`
+  - `verdict`: `sound`（`concerns: 0`、`questions_for_user: 0`、`incomplete: 0`）
+  - `outside_changes`: `[]`
+  - `unprotected_changes`: 既存の prunable な一時 worktree 登録 6 件（`/tmp/pr-review-376-*` 4 件、`/tmp/review-fix-planning.*` 2 件。本 run の保護対象外）
+  - 採否: 指摘 0 件のため `decisions: []`
