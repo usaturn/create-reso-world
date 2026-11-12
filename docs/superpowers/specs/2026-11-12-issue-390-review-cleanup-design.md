@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`。内容承認ではなく issue-to-pr の実行許可で進める。
+- 状態: `completed`。内容承認ではなく issue-to-pr と review-fix-planning の実行許可に基づく実装・検証・選別の完了。マージ結果は後続の最終化で確認する。
 - 取りまとめ: https://github.com/usaturn/create-reso-world/issues/390
 - 共同実装: https://github.com/usaturn/create-reso-world/issues/389
 - 利用者指示: `#390 --merge --spec-review pi_opencode-go_deepseek4-flash_max --implement pi_opencode-go_deepseek4-flash_max --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,claude-code_opus_default`。
@@ -80,3 +80,35 @@ Linux Dev Container、uv、実 Git worktree と実 agent-runner、fake adapter/C
 - S1/S2 important、S3〜S6 minor をすべて採用。保存形式、今回削除と過去削除の報告、path→試行の対応、拒否時の情報、ロック、PR の close 指定を本文へ反映。実装する機能の範囲は変更なし。important 採用により同じ担当で 1 回だけ再レビューする。
 - 2 回目: review_dir `/workspaces/reso-world/tmp/agents/issue-390.bq1npfwa/2026-11-12-issue-390-review-cleanup-design.spec-review/review-2`、review_id `98d0152163124772b72512fbd893bf9c`、reviewed SHA-256 `5e295a216e6b8869d396c3713726dc5a285d350b81ee8136b2db7befa1b5cceb`。helper/外部担当、requested/actual は同じ明示 agent、identity opencode-go / deepseek-v4.1-flash / max、fallback=[]、elapsed_seconds=752.4692806669918。outside_changes=[]、unprotected_changes は1回目と同じ旧 /tmp 6件。全試行停止確認済み、sensitive_paths=[]。
 - 2 回目 S1/S2 important と S3〜S6 minor を採用し、通常 retained の records、旧 Spec の対象パス、JSONL の追記限定、key の種別、runner-collected 前の再追記、現在の common-dir 照合を本文へ反映。上限に従いこれ以上の Spec 再レビューは行わない。
+
+## PR #419 レビュー修正サイクル1の結果
+
+- 状態 completed は本Specの実装・検証と指摘選別の完了を示す。内容承認ではない。利用者の #390 --merge に基づきreview-fix-planningを完遂し、追加のコード修正は不要とした。マージ・Issue更新はこの記録の後にfinalize.pyで行い、成功を先に記録しない。
+- 対象は 9eaa8eb6d8882413233a846a148ac88da61171ab、base c3a8e113c3af010fac94820266b93e107d6dbfaf。planner=openai-codex/gpt-6.1-sol / pi。コード・文書の8変更ファイルと関連経路・テストを照合済み。確認済み一覧: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#419-fix-issue-390-review-cleanup/verified/9eaa8eb6d888.json`。工程記録も同stemのplanning.jsonへ保存する。
+
+| レビューファイル | モデル / runtime | HEAD | このサイクルで再実行 | 推奨 |
+|---|---|---|---|---|
+| SWE-2-Max.md | SWE-2 Max / devin | 9eaa8eb6d888 | true | Approve |
+| deepseek-v4.1-flash.md | deepseek-v4.1-flash / pi | 9eaa8eb6d888 | true | Approve |
+| claude-opus-5-5.md | claude-opus-5-5 / claude-code | 9eaa8eb6d888 | true | Approve |
+
+- Devin初回はReview historyのHEAD不一致で却下し、helper指定の1回の再実行で受領した。失敗を指摘なしに数えていない。全員停止確認済み、retained=[]。診断はloop/cycle-1/diagnosticsに保存。
+
+| 判断IDと出典 | 区分 | 根拠・見直し条件 |
+|---|---|---|
+| `SWE-2-Max#F-1@9eaa8eb6d888`（`deepseek-v4.1-flash#L-1@9eaa8eb6d888`と統合） | 対応しない | 破損/手編集されたrequestでのみ構造化報告を迂回するが、例外で削除前に止まり対象bytes・登録・HEAD/statusを保持する。通常の正規記録のcleanupとI/O復旧は成功。秘密露出・データ破損・誤対象・主要処理停止の基準に当たらず、利用者によるこの指摘の名指しもない。 見直し: 正常生成された記録から到達する再現、誤削除・成功誤報・保全喪失の新証拠、または利用者が指摘を名指ししたとき。 |
+| `SWE-2-Max#F-2@9eaa8eb6d888` | 対応しない | on_removedを渡さないimplement cleanupの到達不能な報告分岐。実行時の誤削除・成功誤報・主要処理停止がなく保守性のみ。implement側へ証拠機構を追加することは本Issueの保証外。 見直し: この分岐が実際に使われる変更、実行時損害の再現、または利用者が指摘を名指ししたとき。 |
+| `claude-opus-5-5#L-1@9eaa8eb6d888` | 対応しない | CLIテストは既存corrupt receiptの守りとD重複し、追加差分はLの出力検査。指摘は事実だが既存の正しい動作や安全性を阻害せず、完遂workflowは非致命的なテスト整理を追加対応しない。 見直し: この重複が検証の失敗を隠す具体的再現、または利用者がテスト整理を名指ししたとき。 |
+
+### 要件対応・残る制限
+
+#389の起動前拒否/正規経路と#390の実runner四対照・独立成功証拠・全未処理一覧・既存記録保全・安全境界・過去記録訂正はTask1/2と現行HEADの実行証拠で満たす。共有する入力・分類・保存/再追記/別CLI復旧/no-opの統合担当はcontroller。要件の意味は変更しない。成功証拠保存前のcrash・証拠自体の障害・任意の破損修復を保証しない境界も維持する。
+
+不正requestの構造化報告は上記V-1で確認した既知の未達であり、正規生成された記録の受け入れ条件とは区別する。上の仕様中の「request自体が不正でもrequest.jsonを照合先へ」という記述は全入力では実装されていない。通常記録を使い、破損時はrequest.jsonを手動で照合し、自動修復/対象の推測削除をしない。到達不能なimplement報告分岐およびCLIテスト重複は実行時損害を持たない制約として残す。PR説明にも開示する。これらは本サイクルの選別であり、過去の失敗証拠を書き換えない。
+
+### 検証・三択の結論
+
+- 変更前後の状態を追う隔離再現: 不正JSON/mode欠落/runner_dir欠落のCLIはexit1、削除前停止・bytes/登録/HEAD/status不変。null/ledger不一致はrecords付きexit2、正常記録はexit0で回収。検査script全体はexit0。静的2指摘もコミット済み内容で確認。
+- 同じclean HEADのissue-to-pr検証記録を再利用する条件を確認: `/workspaces/reso-world/tmp/agents/issue-390.bq1npfwa/validation-final.json` とchecks.json。shell27本、pytest1481件、layout、固定base差分、一時6件が全てexit0、全ログ実在、開始/終了clean、HEAD/base一致。baseはheadの祖先であり、mergeした組合せの追加検証は不要。
+- 対応する0件/解消済み0件/対応しない3件（4出典）。追加実装・自己レビューは行わない（修正0件のためrun_roles呼出し0回、自己レビュー回数0）。設定はimplementが利用者指定pi_opencode-go_deepseek4-flash_max、self-review/fix-checkは既定self。設計見直しトリガーは対象となるfixがないため該当しない。
+- 結論2: コードの追加修正不要。保存済み検証とbaseを再照合し、このSpecだけを直接の子コミットにして投稿・検査付きpush・finalizeへ進む。Spec/PRの文書記録を実行時検証の代用にしない。
