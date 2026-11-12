@@ -16,7 +16,16 @@ from typing import Any
 import pytest
 
 from tools.agent_runner import Config
-from tools.agent_runner.models import Assignment, Role, Workflow
+from tools.agent_runner.models import (
+    Agent,
+    Assignment,
+    Attempt,
+    BatchResult,
+    Identity,
+    Result,
+    Role,
+    Workflow,
+)
 
 pytest_plugins = ("tools.test_support.plugin",)
 pytestmark = pytest.mark.usefixtures("outside_runner")
@@ -269,3 +278,96 @@ def test_design_refuses_after_spec_review_started_or_a_second_time(fx: Fixture) 
         fx.review()
     assert mod.review_spec._reviews(fx.ledger / "design.design-review") == [review_dir]
     assert summary["round"] == 1
+
+
+def design_batch(review_id: str, sha: str, work_dir: Path) -> BatchResult:
+    attempt = Attempt(
+        agent_id="reviewer",
+        state="success",
+        elapsed_seconds=0.1,
+        stop_confirmed=True,
+        work_dir=work_dir,
+        payload={
+            "review_id": review_id,
+            "spec_sha256": sha,
+            "status": "completed",
+            "verdict": "sound",
+            "assessment": "問題なし",
+            "concerns": [],
+            "questions_for_user": [],
+            "incomplete": [],
+        },
+        identity=Identity(model="fake"),
+    )
+    outcome = Result(
+        request_id="request-1",
+        role="design-review",
+        requested_agent="reviewer",
+        actual_agent="reviewer",
+        state="success",
+        attempts=[attempt],
+    )
+    return BatchResult(
+        run_id="run-1",
+        state="success",
+        assignments={"design-review": ["reviewer"]},
+        results=[outcome],
+        outside_changes=[],
+        elapsed_seconds=0.1,
+        artifact_dir=Path("/tmp/design-review-artifact"),
+    )
+
+
+def test_design_cleanup_uses_the_shared_evidence_and_reports_precheck_records(
+    fx: Fixture,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """S: design の委譲で証拠・保持一覧を落とすと、共通 cleanup と同じ回復と照合ができない。"""
+    reviewer = fx.tmp / "reviewer"
+    git(fx.main, "worktree", "add", "--detach", str(reviewer), fx.revision)
+    runner = fx.tmp / "session" / "runner-1"
+
+    def fake_run(*args: Any, **kwargs: Any) -> BatchResult:
+        kwargs["output_dir"].mkdir(mode=0o700)
+        (kwargs["output_dir"] / "log.txt").write_text("fake\n", encoding="utf-8")
+        review_dir = mod.review_spec._reviews(fx.ledger / "design.design-review")[-1]
+        request = json.loads((review_dir / "request.json").read_text(encoding="utf-8"))
+        return design_batch(request["review_id"], request["spec_sha256"], reviewer)
+
+    monkeypatch.setattr(mod.review_spec, "run_workflow", fake_run)
+    config = Config(
+        agents={"reviewer": Agent(runtime="pi", command=["fake-reviewer"], model="reviewer")},
+        roles={"design-review": Role(writes=False, deadline_seconds=60.0, result_shape="json")},
+        workflows={"issue": Workflow(assignments={"design-review": Assignment(agents=["reviewer"])})},
+    )
+    summary = mod.review(config, fx.request(), runner, ledger_dir=fx.ledger)
+    assert summary["state"] == "completed", summary["reasons"]
+    review_dir = Path(summary["review_dir"])
+    (review_dir / "cleanup.jsonl").write_text("{not json}\n", encoding="utf-8")
+
+    code = mod.main(["cleanup", "--review-dir", str(review_dir)])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 2
+    assert payload["status"] == "error"
+    assert any(item["path"] == str(reviewer) for item in payload["retained"])
+    assert any(item["path"] == str(runner) for item in payload["retained"])
+    assert str(review_dir / "cleanup.jsonl") in payload["records"]
+    assert reviewer.is_dir()
+    assert runner.is_dir()
+
+    (review_dir / "cleanup.jsonl").unlink()
+    cleaned = mod.cleanup(review_dir)
+
+    assert cleaned == {"removed_worktrees": [str(reviewer)], "retained": [], "removed_runner_dir": True}
+    assert not reviewer.exists()
+    assert not runner.exists()
+    events = [
+        json.loads(line)
+        for line in (review_dir / "cleanup.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert [event["event"] for event in events] == ["worktree_removed", "runner_dir_removed"]
+    assert all(event["kind"] == "design-review" for event in events)
+    assert len(list(review_dir.glob("cleanup-success-*.json"))) == 2

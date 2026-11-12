@@ -455,7 +455,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
     except (ConfigError, ReviewInputError, RunnerError, OSError, subprocess.SubprocessError) as error:
-        return int(review_spec._error(review_spec.failure_reason(error)))
+        extra: dict[str, Any] = {}
+        if isinstance(error, ReviewInputError):
+            if hasattr(error, "retained"):
+                extra["retained"] = error.retained
+            if hasattr(error, "records"):
+                extra["records"] = error.records
+        return int(review_spec._error(review_spec.failure_reason(error), **extra))
     print(json.dumps(payload, ensure_ascii=False))
     return code
 
