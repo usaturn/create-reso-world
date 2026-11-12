@@ -400,6 +400,8 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
    }
    ```
 
+**レビュー runner の実行中は対象 checkout を変更しない。** `review` の起動から結果の受け取り（外部は `review` の完了、`self` は `submit` 成功）まで、レビュー対象 checkout（`CODE_ROOT`。`DOC_ROOT` が同一の checkout ならその `DOC_ROOT`）への書き込み・コミットをしない。runner の checkout 監査は実行の開始前に登録されていた checkout の HEAD・index・tracked ファイル・非 ignored untracked ファイルを終了後の状態と比較する（`tools/agent_runner/interfaces.rst`「期限と保持」）ため、Plan 草案のような untracked ファイル 1 件でも `outside_changes` の拒否になり、完了した有料レビューが失われて再実行が必要になる。待機中の準備（Plan 草案・調査メモなど）は `SESSION` の下で行い、並行作業は対象 checkout の読み取りと `SESSION` への書き込みに限る。対象 checkout への書き込み・コミットはレビュー結果の受け取り後に行う。これは設計レビュー・Spec レビュー・再レビューのいずれでも同じである。
+
 **設計レビュー（`--design-review` があるときだけ）。** 次の helper を実行する。外部担当のときは `--runner-dir` を付け、`self` のときは付けない。`--runner-dir` はまだ存在しないパスにする。
 
    ```bash
@@ -489,7 +491,7 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
    - `task`: 1 行の Task 名。`allowed_files`: Plan のその Task の担当ファイル（root からの相対パス。`/` で終わればディレクトリ）
    - `commit_message`: Plan の commit の手順のメッセージ（担当が commit できなかったときに helper が使う）
    - `prompt`: 担当がそれだけで作業できる依頼。Plan のその Task の全文、Spec の関係する節、受け入れ基準（Task をレビューする担当に渡すものと同じ）、実行する関連テストと静的チェック、テストの要否と理由。担当がどのスキルを読めるかはランタイムで違うので、スキルを前提にしない。作業範囲・禁止事項・返す JSON の形は helper が足す
-3. **依頼:** 終わるまで待つ（`implement` の役割の期限は 90 分。`monitoring-long-tasks` に従い、Claude Code では `run_in_background: true` の完了通知で待つ）。
+3. **依頼:** 終わるまで待つ（`implement` の役割の期限は 90 分。`monitoring-long-tasks` に従い、Claude Code では `run_in_background: true` の完了通知で待つ）。依頼の実行中は feature worktree（`CODE_ROOT`）への書き込み・コミットをしない。runner はレビューと同じ checkout 監査を行うため、実行中の書き込み（untracked ファイルを含む）は `outside_changes` の拒否（`rejected`）になる。これは項目 2 の起動前の「未 commit の変更を残さない」に加えて、実行中の条件である。次の依頼の準備・ledger への記録は `SESSION` / `IMPLEMENT_SESSION` の下で行い、feature worktree への書き込み・コミットは依頼が終わって verdict の処理（`accept` を含む）が済んでから行う。
 
    ```bash
    uv run --project "$PARENT_ROOT" --locked python "$SKILL_DIR/../../../tools/agent_runner/with_keys.py" -- \
