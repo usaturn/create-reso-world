@@ -842,8 +842,20 @@ def _request_of(review_dir: Path, kind: Kind = SPEC_REVIEW) -> dict[str, Any]:
     if review_dir.is_symlink() or path.is_symlink() or not path.is_file():
         raise ReviewInputError("review directory must be a real directory with request.json written by review")
     record: dict[str, Any] = _read(path)
-    ledger = Path(record["ledger_dir"]).resolve(strict=False)
-    if _real(review_dir).parent != ledger or REVIEW_DIR.fullmatch(review_dir.name) is None:
+    try:
+        ledger_root = Path(record["ledger_root"])
+        ledger = Path(record["ledger_dir"])
+        canonical = (
+            review_dir.is_absolute()
+            and ledger_root.is_absolute()
+            and ledger.is_absolute()
+            and _real(review_dir) == review_dir
+            and _real(ledger_root) == ledger_root
+            and _real(ledger) == ledger
+        )
+    except (KeyError, OSError, RuntimeError, TypeError):
+        canonical = False
+    if not canonical or review_dir.parent != ledger or REVIEW_DIR.fullmatch(review_dir.name) is None:
         raise ReviewInputError("review directory is not inside the recorded ledger")
     if record.get("kind") != kind.role:
         raise ReviewInputError("review directory belongs to a different review kind")

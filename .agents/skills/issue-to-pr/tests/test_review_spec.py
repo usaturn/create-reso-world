@@ -878,6 +878,38 @@ def test_cleanup_after_a_partial_collection_leaves_the_collected_worktree_alone(
     assert [event["path"] for event in events if event["event"] == "worktree_removed"] == [str(clean), str(dirty)]
 
 
+def test_cleanup_rejects_a_changed_review_parent_before_side_effects(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S: 親を symlink に差し替えた領域で消すと、記録の外の対象を消して履歴を失う。"""
+
+    def make(review_id: str, sha: str) -> BatchResult:
+        return batch(completed(review_id, sha), work_dir=fx.reviewer)
+
+    summary = external_review(fx, monkeypatch, make)
+    review_dir = Path(summary["review_dir"])
+    parent = review_dir.parent
+    moved = fx.tmp / "moved-review-parent"
+    parent.rename(moved)
+    parent.symlink_to(moved, target_is_directory=True)
+    registered = git(fx.main, "worktree", "list", "--porcelain")
+    review_bytes = (moved / review_dir.name / "review.json").read_bytes()
+    request_bytes = (moved / review_dir.name / "request.json").read_bytes()
+
+    with pytest.raises(mod.CleanupInputError) as raised:
+        mod.cleanup(review_dir)
+
+    assert str(review_dir / "request.json") in raised.value.records
+    assert fx.reviewer.is_dir()
+    assert fx.runner.is_dir()
+    assert git(fx.main, "worktree", "list", "--porcelain") == registered
+    assert not list(moved.rglob("cleanup-success-*.json"))
+    assert not (moved / review_dir.name / "cleanup.jsonl").exists()
+    assert (moved / review_dir.name / "review.json").read_bytes() == review_bytes
+    assert (moved / review_dir.name / "request.json").read_bytes() == request_bytes
+    assert parent.is_symlink()
+
+
 def test_cleanup_keeps_a_path_and_runner_directory_that_reappear_after_collection(
     fx: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1070,119 +1102,6 @@ def success_evidence(
     return review_dir / f"cleanup-success-{key}.json", payload
 
 
-@pytest.mark.parametrize(("fallback", "fault"), [(False, False), (True, False), (False, True), (True, True)])
-def test_cleanup_recovers_from_a_receipt_write_failure_with_evidence(
-    fx: Fixture, monkeypatch: pytest.MonkeyPatch, fallback: bool, fault: bool
-) -> None:
-    """S: 証拠なしで missing を成功にすると別の対象を消し、中断後の一覧を落とすと未回収を見落とす。"""
-    primary: Path | None = None
-    previous: list[Attempt] = []
-    if fallback:
-        primary = fx.tmp / "一次レビュアー"
-        git(fx.main, "worktree", "add", "--detach", str(primary), fx.revision)
-        request_path = fx.tmp / "primary-records" / "request.json"
-        request_path.parent.mkdir()
-        request_path.write_text("{}\n", encoding="utf-8")
-        previous.append(
-            Attempt(
-                agent_id="primary",
-                state="response_failed",
-                elapsed_seconds=0.1,
-                stop_confirmed=True,
-                work_dir=primary,
-                request_path=request_path,
-            )
-        )
-
-    def make(review_id: str, sha: str) -> BatchResult:
-        return batch(completed(review_id, sha), previous_attempts=previous, work_dir=fx.reviewer)
-
-    summary = external_review(fx, monkeypatch, make)
-    review_dir = Path(summary["review_dir"])
-    review_bytes = (review_dir / "review.json").read_bytes()
-    request_bytes = (review_dir / "request.json").read_bytes()
-    spec_bytes = fx.spec.read_bytes()
-    head = git(fx.feature, "rev-parse", "HEAD")
-    first_worktree = str(primary) if primary is not None else str(fx.reviewer)
-    other_worktrees = [str(fx.reviewer)] if primary is not None else []
-
-    if fault:
-        receipt = review_dir / "cleanup.jsonl"
-        real_write = os.write
-        injected = {"done": False}
-
-        def flaky_write(descriptor: int, data: bytes) -> int:
-            if not injected["done"]:
-                try:
-                    opened = Path(os.readlink(f"/proc/self/fd/{descriptor}")).resolve(strict=False)
-                except OSError:
-                    opened = None
-                if opened == receipt.resolve(strict=False):
-                    injected["done"] = True
-                    raise OSError(errno.EIO, "simulated write failure")
-            return real_write(descriptor, data)
-
-        monkeypatch.setattr(mod.os, "write", flaky_write)
-        interrupted = mod.cleanup(review_dir)
-
-        assert injected["done"]
-        assert interrupted["removed_worktrees"] == [first_worktree]
-        retained = [item["path"] for item in interrupted["retained"]]
-        assert first_worktree in retained
-        for path in other_worktrees + [str(fx.runner)]:
-            assert path in retained
-        assert interrupted["removed_runner_dir"] is False
-        assert interrupted["records"]
-        assert str(fx.runner) in interrupted["records"]
-        assert fx.runner.is_dir()
-        assert list(review_dir.glob("cleanup-success-*.json"))
-
-        recovered_run = subprocess.run(
-            [sys.executable, str(SCRIPT), "cleanup", "--review-dir", str(review_dir)],
-            capture_output=True,
-            text=True,
-        )
-        assert recovered_run.returncode == 0, recovered_run.stderr
-        recovered = json.loads(recovered_run.stdout)
-        recovered_removed = [str(fx.reviewer)] if fallback else []
-        assert recovered == {
-            "removed_worktrees": recovered_removed,
-            "retained": [],
-            "removed_runner_dir": True,
-        }
-        assert not fx.reviewer.exists()
-        assert primary is None or not primary.exists()
-        assert not fx.runner.exists()
-        events = cleanup_events(review_dir)
-        expected_worktrees = ([str(primary)] if primary is not None else []) + [str(fx.reviewer)]
-        assert [event["path"] for event in events if event["event"] == "worktree_removed"] == expected_worktrees
-        assert events[-1]["event"] == "runner_dir_removed"
-        no_op = mod.cleanup(review_dir)
-        assert no_op == {"removed_worktrees": [], "retained": [], "removed_runner_dir": False}
-    else:
-        cleaned = mod.cleanup(review_dir)
-        expected_removed = ([str(primary)] if primary is not None else []) + [str(fx.reviewer)]
-        assert cleaned == {
-            "removed_worktrees": expected_removed,
-            "retained": [],
-            "removed_runner_dir": True,
-        }
-        assert not fx.reviewer.exists()
-        assert primary is None or not primary.exists()
-        assert not fx.runner.exists()
-        no_op = mod.cleanup(review_dir)
-        assert no_op == {"removed_worktrees": [], "retained": [], "removed_runner_dir": False}
-
-    assert (review_dir / "review.json").read_bytes() == review_bytes
-    assert (review_dir / "request.json").read_bytes() == request_bytes
-    assert fx.spec.read_bytes() == spec_bytes
-    assert git(fx.feature, "rev-parse", "HEAD") == head
-    registered = git(fx.main, "worktree", "list", "--porcelain")
-    assert str(fx.feature) in registered
-    assert str(fx.main) in registered
-    assert str(fx.reviewer) not in registered
-
-
 @pytest.mark.parametrize("case", ["wrong-common-dir", "symlink"])
 def test_cleanup_rejects_invalid_success_evidence_before_side_effects(
     fx: Fixture, monkeypatch: pytest.MonkeyPatch, case: str
@@ -1311,8 +1230,9 @@ class FakeReviewAdapter:
 
     capabilities = Capabilities()
 
-    def __init__(self, ledger: Path) -> None:
+    def __init__(self, ledger: Path, *, fail_agents: set[str] | frozenset[str] = frozenset()) -> None:
         self.ledger = ledger
+        self.fail_agents = fail_agents
 
     def __call__(self, runtime: str) -> FakeReviewAdapter:
         return self
@@ -1328,48 +1248,84 @@ class FakeReviewAdapter:
     ) -> AdapterOutcome:
         review_dir = mod._reviews(self.ledger / "design.spec-review")[-1]
         request = json.loads((review_dir / "request.json").read_text(encoding="utf-8"))
+        failed = context.request.agent_id in self.fail_agents
         receipt = Receipt(
             schema_version=1,
             run_id=context.request.run_id,
             request_id=context.request.request_id,
             agent_id=context.request.agent_id,
             role=context.request.role,
-            status="success",
-            payload=completed(request["review_id"], request["spec_sha256"]),
+            status="response_failed" if failed else "success",
+            payload=None if failed else completed(request["review_id"], request["spec_sha256"]),
         )
         return AdapterOutcome(receipt, Identity(model=context.agent.model))
 
 
-def test_cleanup_recovers_a_real_runner_receipt_failure(
+def test_cleanup_recovers_a_real_fallback_and_reports_unprocessed_attempts(
     fx: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """S: fixture の batch だけでは実 runner の request.json と worktree の回復を確かめられない。"""
+    """S: 実 runner の複数試行で記録に失敗したとき、後続を消さず、別 CLI の回復で欠落だけを追記する。"""
+    runner = fx.tmp / "session" / "runner-一次"
     config = Config(
         agents={
-            "reviewer": Agent(
+            name: Agent(
                 runtime="pi",
                 command=[sys.executable, "-c", "import sys; sys.stdin.buffer.read()"],
-                model="reviewer",
+                model=name,
             )
+            for name in ("primary", "reviewer")
         },
         roles={"spec-review": Role(writes=False, deadline_seconds=60.0, result_shape="json")},
-        workflows={"issue": Workflow(assignments={"spec-review": Assignment(agents=["reviewer"])})},
+        workflows={
+            "issue": Workflow(
+                assignments={"spec-review": Assignment(agents=["primary"], fallback=["reviewer"])}
+            )
+        },
     )
     summary = mod.review(
         config,
         fx.request(),
-        fx.runner,
+        runner,
         ledger_dir=fx.ledger,
-        adapter_loader=FakeReviewAdapter(fx.ledger),
+        adapter_loader=FakeReviewAdapter(fx.ledger, fail_agents={"primary"}),
     )
     assert summary["state"] == "completed", summary["reasons"]
     review_dir = Path(summary["review_dir"])
     record = json.loads((review_dir / "review.json").read_text(encoding="utf-8"))
-    attempt = record["batch"]["results"][0]["attempts"][0]
-    worktree = Path(attempt["work_dir"])
-    assert worktree.is_dir()
-    assert attempt["request_path"] is not None
-    assert Path(attempt["request_path"]).is_file()
+    attempts = record["batch"]["results"][0]["attempts"]
+    assert [attempt["agent_id"] for attempt in attempts] == ["primary", "reviewer"]
+    assert [attempt["state"] for attempt in attempts] == ["response_failed", "success"]
+    first, second = attempts
+    first_worktree = Path(first["work_dir"])
+    second_worktree = Path(second["work_dir"])
+    request_paths = [Path(attempt["request_path"]) for attempt in attempts]
+    assert first_worktree.is_dir()
+    assert second_worktree.is_dir()
+    assert all(path.is_file() for path in request_paths)
+    assert all(path.is_relative_to(runner) for path in (first_worktree, second_worktree))
+
+    unrelated = fx.tmp / "unrelated-worktree"
+    git(fx.main, "worktree", "add", "--detach", str(unrelated), fx.revision)
+    unrelated_head = git(unrelated, "rev-parse", "HEAD")
+
+    def snapshot(root: Path, skip: tuple[Path, ...] = ()) -> dict[str, bytes]:
+        return {
+            str(path.relative_to(root)): path.read_bytes()
+            for path in sorted(root.rglob("*"))
+            if path.is_file()
+            and not path.is_symlink()
+            and not any(path.is_relative_to(item) for item in skip)
+        }
+
+    worktrees = (first_worktree, second_worktree)
+    runner_before = snapshot(runner, worktrees)
+    ledger_before = snapshot(fx.ledger)
+    request_bytes = {path: path.read_bytes() for path in request_paths}
+    review_bytes = (review_dir / "review.json").read_bytes()
+    spec_bytes = fx.spec.read_bytes()
+    head = git(fx.feature, "rev-parse", "HEAD")
+    status = git(fx.feature, "status", "--porcelain")
+    registered_before = git(fx.main, "worktree", "list", "--porcelain")
 
     receipt = review_dir / "cleanup.jsonl"
     real_write = os.write
@@ -1390,12 +1346,32 @@ def test_cleanup_recovers_a_real_runner_receipt_failure(
     interrupted = mod.cleanup(review_dir)
 
     assert injected["done"]
-    assert interrupted["removed_worktrees"] == [str(worktree)]
-    assert any(item["path"] == str(worktree) for item in interrupted["retained"])
-    assert any(item["path"] == str(fx.runner) for item in interrupted["retained"])
-    assert str(attempt["request_path"]) in interrupted["records"]
-    assert not worktree.exists()
-    assert fx.runner.is_dir()
+    assert interrupted["removed_worktrees"] == [str(first_worktree)]
+    assert not first_worktree.exists()
+    assert second_worktree.is_dir()
+    assert runner.is_dir()
+    retained = {item["path"]: item["reason"] for item in interrupted["retained"]}
+    assert str(first_worktree) in retained
+    assert "receipt could not be written" in retained[str(first_worktree)]
+    assert str(second_worktree) in retained
+    assert "not processed" in retained[str(second_worktree)]
+    assert str(runner) in retained
+    assert interrupted["removed_runner_dir"] is False
+    assert all(str(path) in interrupted["records"] for path in request_paths)
+    assert str(runner) in interrupted["records"]
+    assert str(receipt) in interrupted["records"]
+    assert len(list(review_dir.glob("cleanup-success-*.json"))) == 1
+
+    assert snapshot(runner, worktrees) == runner_before
+    assert {path: path.read_bytes() for path in request_paths} == request_bytes
+    ledger_after_failure = snapshot(fx.ledger)
+    assert {key: ledger_after_failure[key] for key in ledger_after_failure if key in ledger_before} == ledger_before
+    assert (review_dir / "review.json").read_bytes() == review_bytes
+    assert fx.spec.read_bytes() == spec_bytes
+    assert git(fx.feature, "rev-parse", "HEAD") == head
+    assert git(fx.feature, "status", "--porcelain") == status
+    assert git(unrelated, "rev-parse", "HEAD") == unrelated_head
+    assert str(unrelated) in registered_before
 
     recovered_run = subprocess.run(
         [sys.executable, str(SCRIPT), "cleanup", "--review-dir", str(review_dir)],
@@ -1404,15 +1380,39 @@ def test_cleanup_recovers_a_real_runner_receipt_failure(
     )
     assert recovered_run.returncode == 0, recovered_run.stderr
     assert json.loads(recovered_run.stdout) == {
-        "removed_worktrees": [],
+        "removed_worktrees": [str(second_worktree)],
         "retained": [],
         "removed_runner_dir": True,
     }
-    assert not fx.runner.exists()
+    assert not second_worktree.exists()
+    assert not runner.exists()
     events = cleanup_events(review_dir)
-    assert [event["event"] for event in events] == ["worktree_removed", "runner_dir_removed"]
+    assert [event["event"] for event in events] == [
+        "worktree_removed",
+        "worktree_removed",
+        "runner_dir_removed",
+    ]
+    assert [event["path"] for event in events if event["event"] == "worktree_removed"] == [
+        str(first_worktree),
+        str(second_worktree),
+    ]
+
+    ledger_after_recovery = snapshot(fx.ledger)
+    assert {
+        key: ledger_after_recovery[key] for key in ledger_after_recovery if key in ledger_before
+    } == ledger_before
+    assert (review_dir / "review.json").read_bytes() == review_bytes
+    assert fx.spec.read_bytes() == spec_bytes
+    assert git(fx.feature, "rev-parse", "HEAD") == head
+    assert git(fx.feature, "status", "--porcelain") == status
+    assert git(unrelated, "rev-parse", "HEAD") == unrelated_head
     assert mod.cleanup(review_dir) == {
         "removed_worktrees": [],
         "retained": [],
         "removed_runner_dir": False,
     }
+    registered = git(fx.main, "worktree", "list", "--porcelain")
+    assert str(fx.feature) in registered
+    assert str(unrelated) in registered
+    assert str(first_worktree) not in registered
+    assert str(second_worktree) not in registered
