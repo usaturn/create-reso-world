@@ -58,17 +58,20 @@ class Workflow:
     docs: Path
     repo: str
 
+    def env(self, argument: str = "#42", required: str = "") -> dict[str, str]:
+        return dict(os.environ, INPUT=argument, REQUIRED=required, TARGET_REPO=self.repo,
+                    TARGET_ROOT=str(self.target), PARENT_ROOT=str(self.parent),
+                    SKILL_DIR=str(self.parent / ".agents/skills/issue-to-pr"), SESSION=str(self.session), CODE_ROOT=str(self.code),
+                    DOC_ROOT=str(self.docs), CODE_BRANCH="feat/issue-42-change",
+                    DOC_BRANCH="docs/issue-42-change", PR_TITLE="変更の実装",
+                    CODE_PR_BODY=str(self.session / "body.md"),
+                    DOC_PR_BODY=str(self.session / "body.md"))
+
     def run(
         self, argument: str, *, required: str = "", before_target: str = "",
         before_publish: str = "", before_pr: str = "",
     ) -> subprocess.CompletedProcess[str]:
-        env = dict(os.environ, INPUT=argument, REQUIRED=required, TARGET_REPO=self.repo,
-                   TARGET_ROOT=str(self.target), PARENT_ROOT=str(self.parent),
-                   SKILL_DIR=str(self.parent / ".agents/skills/issue-to-pr"), SESSION=str(self.session), CODE_ROOT=str(self.code),
-                   DOC_ROOT=str(self.docs), CODE_BRANCH="feat/issue-42-change",
-                   DOC_BRANCH="docs/issue-42-change", PR_TITLE="変更の実装",
-                   CODE_PR_BODY=str(self.session / "body.md"),
-                   DOC_PR_BODY=str(self.session / "body.md"))
+        env = self.env(argument, required)
         chunks = [step("input"),
                   # A probe between input and target must stop the flow on failure, like step().
                   *([before_target + " || exit $?"] if before_target else []),
@@ -96,6 +99,18 @@ class Workflow:
         (self.session / "stdout.log").write_text(result.stdout)
         (self.session / "stderr.log").write_text(result.stderr)
         return result
+
+
+def run_shell(workflow: Workflow, commands: list[str]) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(["bash", "-c", "\n".join(commands)], cwd=workflow.target,
+                            env=workflow.env(), text=True, capture_output=True)
+    (workflow.session / "stdout.log").write_text(result.stdout)
+    (workflow.session / "stderr.log").write_text(result.stderr)
+    return result
+
+
+def run_block(workflow: Workflow, name: str, setup: str = "true") -> subprocess.CompletedProcess[str]:
+    return run_shell(workflow, [as_runtime(procedure(name), setup) + " || exit $?"])
 
 
 @pytest.fixture
@@ -406,3 +421,128 @@ def test_declared_tool_keeps_documents_in_its_own_pr(workflow: Workflow) -> None
     scans = [json.loads(line) for line in (workflow.session / "scans.jsonl").read_text().splitlines()]
     assert [scan["cwd"] for scan in scans] == [str(workflow.code)]
     assert not (workflow.session / "docs-pr.json").exists()
+
+
+def test_unpushed_base_advance_requires_reverify_and_pr_record(
+    workflow: Workflow, tmp_path: Path,
+) -> None:
+    """S: a moved remote base must force a recorded rebase and reverify before publishing."""
+    result = run_shell(workflow, [
+        step("input"), step("target"),
+        ': > "$SESSION/required-bases.txt"',
+        step("capture"), step("worktree"),
+        'printf "new implementation\\n" > "$CODE_ROOT/change"',
+        'git -C "$CODE_ROOT" add change && git -C "$CODE_ROOT" commit -qm implementation',
+    ])
+    assert result.returncode == 0, result.stderr
+    base_v1 = json.loads((workflow.session / "code-base.json").read_text())["sha"]
+    assert (workflow.session / "code-base.initial.json").exists()
+    assert (workflow.session / "base-env.bash").exists()
+
+    # The fixture's git wrapper refuses arbitrary transports. Advance the real
+    # bare remote from an unrelated seed with the system git.
+    real_git = shutil.which("git", path=os.defpath)
+    assert real_git
+    seed = tmp_path / "advance-seed"
+    subprocess.run([real_git, "clone", "-q", str(workflow.remote), str(seed)], check=True)
+    subprocess.run([real_git, "-C", str(seed), "config", "user.name", "Base advance"], check=True)
+    subprocess.run([real_git, "-C", str(seed), "config", "user.email", "base@example.test"], check=True)
+
+    def advance_remote(name: str) -> str:
+        (seed / name).write_text(f"{name}\n", encoding="utf-8")
+        subprocess.run([real_git, "-C", str(seed), "add", name], check=True)
+        subprocess.run([real_git, "-C", str(seed), "commit", "-qm", name], check=True)
+        sha = subprocess.check_output([real_git, "-C", str(seed), "rev-parse", "HEAD"], text=True).strip()
+        subprocess.run([real_git, "-C", str(seed), "push", "-q", "origin", "HEAD:refs/heads/main"], check=True)
+        return sha
+
+    base_v2 = advance_remote("unrelated-1.txt")
+    publish = run_block(workflow, "publish", setup='source "$SESSION/base-env.bash"')
+    assert publish.returncode == 2, publish.stderr
+    assert git(workflow.remote, "branch", "--list", "feat/issue-42-change") == ""
+
+    # Hand-editing the captured state must not turn the gate into a way around the advance record.
+    state_path = workflow.session / "code-base.json"
+    captured_state = state_path.read_bytes()
+    tampered = json.loads(captured_state)
+    tampered["sha"] = base_v2
+    state_path.write_text(json.dumps(tampered, ensure_ascii=False), encoding="utf-8")
+    tampered_publish = run_block(workflow, "publish", setup='source "$SESSION/base-env.bash"')
+    assert tampered_publish.returncode == 2, tampered_publish.stderr
+    assert git(workflow.remote, "branch", "--list", "feat/issue-42-change") == ""
+    state_path.write_bytes(captured_state)
+
+    (workflow.session / "owned-paths.json").write_text(json.dumps(
+        {"code": ["change", "docs/superpowers/specs", "docs/superpowers/plans"]},
+        ensure_ascii=False), encoding="utf-8")
+    (workflow.session / "advance-premise.txt").write_text(
+        "preflight・checkout_policy・外部仕様・共有インターフェース・AGENTS.md の前提は変わらない\n"
+        "複数行の前提確認\n", encoding="utf-8")
+
+    inspect = run_block(workflow, "inspect-advance")
+    assert inspect.returncode == 0, inspect.stderr
+    advance = run_block(workflow, "advance")
+    assert advance.returncode == 0, advance.stderr
+    assert json.loads((workflow.session / "code-base.json").read_text())["sha"] == base_v2
+    records = [json.loads(line) for line in
+               (workflow.session / "base-advances.jsonl").read_text().splitlines()]
+    assert [(record["old_sha"], record["new_sha"]) for record in records] == [(base_v1, base_v2)]
+    recheck = run_shell(workflow, ['source "$SESSION/base-env.bash" && recheck_bases'])
+    assert recheck.returncode == 0, recheck.stderr
+
+    # A second movement while the run continues must use the same loop and refresh base-env.bash.
+    base_v3 = advance_remote("unrelated-2.txt")
+    inspect = run_block(workflow, "inspect-advance")
+    assert inspect.returncode == 0, inspect.stderr
+    advance = run_block(workflow, "advance")
+    assert advance.returncode == 0, advance.stderr
+    assert json.loads((workflow.session / "code-base.json").read_text())["sha"] == base_v3
+    records = [json.loads(line) for line in
+               (workflow.session / "base-advances.jsonl").read_text().splitlines()]
+    assert [(record["old_sha"], record["new_sha"]) for record in records] == [
+        (base_v1, base_v2), (base_v2, base_v3)]
+    assert base_v3 in (workflow.session / "base-env.bash").read_text()
+    recheck = run_shell(workflow, ['source "$SESSION/base-env.bash" && recheck_bases'])
+    assert recheck.returncode == 0, recheck.stderr
+
+    publish = run_block(workflow, "publish", setup='source "$SESSION/base-env.bash"')
+    assert publish.returncode == 2, publish.stderr
+    assert git(workflow.remote, "branch", "--list", "feat/issue-42-change") == ""
+
+    commands = [
+        {"cwd": "code", "argv": ["git", "status", "--porcelain"]},
+        {"cwd": "parent", "argv": ["printf", "%s", "検証 完了"]},
+        {"cwd": "code", "argv": ["test", "-d", str(workflow.parent)]},
+    ]
+    (workflow.session / "verify-cmds.json").write_text(
+        json.dumps(commands, ensure_ascii=False), encoding="utf-8")
+    reverify = run_block(workflow, "reverify")
+    assert reverify.returncode == 0, reverify.stderr
+    assert (workflow.session / "reverified.json").exists()
+    assert (workflow.session / "checks.json").exists()
+
+    diff = run_block(workflow, "diff", setup='source "$SESSION/base-env.bash"')
+    assert diff.returncode == 0, diff.stderr
+    publish = run_block(workflow, "publish", setup='source "$SESSION/base-env.bash"')
+    assert publish.returncode == 0, publish.stderr
+    pushed = git(workflow.remote, "rev-parse", "refs/heads/feat/issue-42-change")
+    assert git(workflow.remote, "rev-parse", "refs/heads/feat/issue-42-change^") == base_v3
+
+    body = workflow.session / "body.md"
+    body.write_text("複数行の本文\nRefs #42\n", encoding="utf-8")
+    pr = run_block(workflow, "pr", setup='source "$SESSION/base-env.bash"')
+    assert pr.returncode == 2, pr.stderr
+    calls = [json.loads(line) for line in (workflow.session / "gh.jsonl").read_text().splitlines()]
+    assert not any(call[:2] == ["pr", "create"] for call in calls)
+
+    lines = ["複数行の本文", "Refs #42", "", "base 前進の記録:"]
+    lines.extend(f"- {record['old_sha']} -> {record['new_sha']}" for record in records)
+    lines.extend(["", "必須検証コマンド:"])
+    lines.extend("- " + " ".join(command["argv"]) for command in commands)
+    body.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    pr = run_block(workflow, "pr", setup='source "$SESSION/base-env.bash"')
+    assert pr.returncode == 0, pr.stderr
+    assert git(workflow.remote, "rev-parse", "refs/heads/feat/issue-42-change") == pushed
+    created = json.loads((workflow.session / "code-pr.json").read_text())
+    assert created == {"url": "https://github.com/usaturn/create-reso-world/pull/90",
+                       "baseRefName": "main", "headRefOid": pushed}
