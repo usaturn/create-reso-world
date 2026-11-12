@@ -809,7 +809,17 @@ def remove_attempts(
     """
     removed: list[str] = []
     retained: list[dict[str, str]] = []
+    stopped = False
     for attempt in (attempt for outcome in batch.results for attempt in outcome.attempts):
+        if stopped:
+            # 記録の失敗で中断した後は削除せず、残りの試行をすべて報告する
+            retained.append(
+                {
+                    "path": retained_path(attempt, batch),
+                    "reason": "not processed because an earlier cleanup record could not be written; check it by hand",
+                }
+            )
+            continue
         status = classify_attempt_worktree(repository, attempt, collected=collected)
         if status.kind in {"prepare-failed", "collected"}:
             continue
@@ -835,14 +845,20 @@ def remove_attempts(
         if on_removed is not None:
             try:
                 on_removed(work)
-            except Exception:
+            except Exception as error:
+                stage = getattr(error, "cleanup_stage", None)
+                detail = (
+                    "its cleanup success evidence could not be saved"
+                    if stage == "evidence"
+                    else "its cleanup receipt could not be written"
+                )
                 retained.append(
                     {
                         "path": str(work),
-                        "reason": "the worktree was removed but its cleanup receipt could not be written; check it by hand",
+                        "reason": f"the worktree was removed but {detail}; check it by hand",
                     }
                 )
-                break
+                stopped = True
     return removed, retained
 
 
@@ -850,6 +866,18 @@ def cleanup(run_dir: Path) -> dict[str, Any]:
     """停止を確認した試行の worktree の登録を外し、何も残らなければ run_dir を消す。"""
     request, batch = load_record(run_dir)
     removed, retained = remove_attempts(Path(request.repository), batch)
+    record_failed = any(
+        "cleanup receipt could not be written" in item["reason"]
+        or "cleanup success evidence could not be saved" in item["reason"]
+        for item in retained
+    )
+    if record_failed and not any(item["path"] == str(run_dir) for item in retained):
+        retained.append(
+            {
+                "path": str(run_dir),
+                "reason": "the run directory was not removed because the cleanup stopped after a record failure; check it by hand",
+            }
+        )
     removed_run_dir = not retained
     if removed_run_dir:
         shutil.rmtree(run_dir)
