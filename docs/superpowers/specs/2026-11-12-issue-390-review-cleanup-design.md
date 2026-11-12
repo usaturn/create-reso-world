@@ -31,14 +31,14 @@
 
 ## 成功証拠と復旧の仕様
 
-- 保存先は `review_dir/cleanup-success-<key>.json`。key は UTF-8 の `event + "\n" + path` の SHA-256（小文字 64 桁）。1 イベント 1 ファイル。トップレベルの専用 prefix を列挙し、不正な名前・重複・未知スキーマ・部分書込は拒否する。新規ファイルだけを O_CREAT|O_EXCL|O_NOFOLLOW、mode 0600 で作り、fdopen のバッファ付き書込→flush→fsync→親 directory fsync を終えてから JSONL を追記する。既存証拠は上書きしない。symlink・hardlink・非 regular file と不正な親領域は拒否する。JSONL の既存 private regular file 検査も残す。
-- JSON スキーマは厳密な object: `version: 1`、`event: CleanupEvent`（既存の全フィールド）、`review_sha256: str`（review.json 生バイトの SHA-256）、`repository: str`、`common_dir: str`（削除前の実 common-dir）、`request_id: str|null`、`attempt_index: int|null`（outcome 内 0 始まり）、`agent_id: str|null`。work_dir は event.path。runner-dir イベントだけ試行の 3 フィールドを null にする。他のレビュー・batch・対象へ転用できないよう、全フィールドを保存済み request/review/batch と照合する。
+- 保存先は `review_dir/cleanup-success-<key>.json`。key は UTF-8 の `event_type + "\n" + path` の SHA-256（小文字 64 桁）。event_type は `worktree_removed` または `runner_dir_removed` の種別リテラルだけで、CleanupEvent 全体・removed_at は含めない。1 イベント 1 ファイル。トップレベルの専用 prefix を列挙し、不正な名前・重複・未知スキーマ・部分書込は拒否する。新規ファイルだけを O_CREAT|O_EXCL|O_NOFOLLOW、mode 0600 で作り、fdopen のバッファ付き書込→flush→fsync→親 directory fsync を終えてから JSONL を追記する。既存証拠は上書きしない。symlink・hardlink・非 regular file と不正な親領域は拒否する。JSONL の既存 private regular file 検査も残す。
+- JSON スキーマは厳密な object: `version: 1`、`event: CleanupEvent`（既存の全フィールド）、`review_sha256: str`（review.json 生バイトの SHA-256）、`repository: str`、`common_dir: str`（削除前の実 common-dir）、`request_id: str|null`、`attempt_index: int|null`（outcome 内 0 始まり）、`agent_id: str|null`。work_dir は event.path。runner-dir イベントだけ試行の 3 フィールドを null にする。他のレビュー・batch・対象へ転用できないよう、識別フィールドを保存済み request/review/batch と照合する。repository は request.repository と一致させる。common_dir は削除前に取得した実 common-dir を記録し、再実行時にも request.repository で `git rev-parse --path-format=absolute --git-common-dir` を実行した実パスと照合する。runner-dir イベントにも同じ repository の common-dir を使う。
 - `on_removed(Path)` の署名は変えず、review cleanup が batch 内の path→(Result.request_id, attempt_index, Attempt) の一意な map を削除前に作る。重複 work_dir は副作用前に拒否する。implement cleanup の呼出し仕様は変えない。
 - git worktree remove の終了 0 の後だけ証拠を作り、保存完了後に cleanup.jsonl へ追記する。runner-dir の削除成功も同様。削除予定は成功証拠にしない。同一 key の既存証拠は読取・照合だけ行い、JSONL に同一 event が既にあれば追記しない。不一致は拒否し、欠落した event だけ再追記する。
 - 同レビューの `review_dir/cleanup.lock` を private regular file として開き、receipt/sidecar の読取前から全処理終了まで fcntl.flock(LOCK_EX|LOCK_NB) で直列化する。取得失敗は削除せず終了 2 と保持一覧を返す。fd を閉じて解放し、lock ファイルは消さず再利用する。プロセス終了で OS がロックを解放するため stale lock の手動削除は不要。並行取得拒否と通常再実行を S の代表テストで確認する。
-- 再実行では、証拠の形式・識別情報・保存済みレビューとの対応と現在の対象状態を照合する。照合済み成功証拠は JSONL と合わせ既存 collected 分類へ渡せる。JSONL に未反映なら追記し直せる。既存 JSONL・Spec・request・review・prompt・runner メタデータは変更しない。
+- 再実行では、証拠の形式・識別情報・保存済みレビューとの対応と現在の対象状態を照合する。照合済み成功証拠は JSONL と合わせ既存 collected 分類へ渡せる。JSONL に未反映なら追記し直せる。欠落イベントの照合・再追記（runner_dir_removed を含む）は runner_collected の早期 return より前に行う。cleanup.jsonl の既存行は書き換えず、欠落イベントの追記だけを行う。Spec・request・review・prompt・runner メタデータは変更しない。
 - `removed_worktrees` は今回の呼出しで実際に削除できた path だけ。復旧・no-op の呼出しでは過去の削除分を加えない。callback 失敗後も今回削除分を残す。`retained` は実体保持だけでなく「回収の未完了・要確認」を表し、削除済みの対象では理由に削除済み／証拠保存または JSONL 追記の未完了を明記する。成功した runner-dir 削除は `removed_runner_dir=true`、その後の記録失敗でも true とし retained に未完了理由を追加する。既存の再実行 no-op の期待と callback 失敗時の両一覧への包含は維持する。
-- 証拠不明の消失は retained とし、完全パス・停止理由・確認すべき review/request/receipt 記録の場所を示す。callback 失敗以降の未処理全試行と runner-dir も完全パスと理由を返す。receipt/sidecar/lock の事前検査拒否では ReviewInputError の互換サブクラスに retained を持たせ、Spec/design 両 CLI が既存 `status:error, reason` に `retained` と `records`（照合すべき絶対パス一覧）を追加して終了 2。直接呼出しの例外互換と削除前拒否を維持し、既存 bad/shared receipt テストに情報の確認を加える。通常の中断は retained 結果の終了 1 を維持する。
+- 証拠不明の消失は retained とし、完全パス・停止理由・確認すべき review/request/receipt 記録の場所を示す。callback 失敗以降の未処理全試行と runner-dir も完全パスと理由を返す。receipt/sidecar/lock の事前検査拒否では ReviewInputError の互換サブクラスに retained を持たせ、Spec/design 両 CLI が既存 `status:error, reason` に `retained` と `records`（照合すべき絶対パス一覧）を追加して終了 2。直接呼出しの例外互換と削除前拒否を維持し、既存 bad/shared receipt テストに情報の確認を加える。通常の中断は retained 結果の終了 1 を維持する。通常結果でも retained が非空なら、同じトップレベル `records: list[str]` を付ける。理由の種類によらず、review_dir/request.json・review.json・cleanup.jsonl、全 sidecar、batch の全 attempt.request_path、runner-dir を絶対パス・重複なしで列挙する（prepare-failed 等の request_path=None は除く）。retained が空の正常結果の形は変えない。review.json の不在・不正は、読めた request に基づく runner-dir と確定できる記録パスを付けて拒否する。request 自体が不正で対象一覧を確定できない場合の推測は対象外とし、review_dir/request.json を照合先として示す。
 - 旧 JSONL の成功記録は既存の照合条件で受理する。成功証拠のない旧 missing は成功に移行しない。実体または登録の再出現、別 common-dir、symlink、private receipt 不適合、sensitive_paths、停止未確認を従来どおり拒否する。
 - 保証範囲は、成功証拠を保存でき、直後の JSONL 追記だけが単発で失敗したケース。Git 削除成功から成功証拠の保存完了前の crash、証拠保存自体の障害、未知の破損や JSONL の途中書込みからの自動復旧は保証しない。それらは証拠不足として停止・報告し、失敗を成功にしない。
 
@@ -52,12 +52,12 @@
 
 ### Task 2 — #390
 
-1. 修正後の実 runner＋fake の成功 1 試行、および失敗 primary＋成功 fallback のそれぞれで、worktree 削除成功後の cleanup.jsonl 最初の os.write だけへ EIO を注入する。初回は明示失敗し、I/O 回復後の別 CLI プロセスから通常 cleanup で残る worktree・runner-dir を回収し、さらに再実行が no-op である。各 normal 対照も確認する。
+1. 修正後の実 runner＋fake の成功 1 試行、および失敗 primary＋成功 fallback のそれぞれで、worktree 削除成功後の cleanup.jsonl 最初の os.write だけへ EIO を注入する。初回は明示失敗し、I/O 回復後の別 CLI プロセスから通常 cleanup で残る worktree・runner-dir を回収し、さらに再実行が no-op である。各 normal 対照も確認する。runner-dir 削除後の JSONL 追記失敗も一時検証し、2 回目で欠落イベントが追記され、3 回目が no-op である。
 2. 同一レビュー・試行・worktree の成功証拠を用いる。証拠のない旧記録・不明消失は拒否して手動照合情報を示す。予定＋不在だけで成功としない。
-3. 中断時に全未処理試行と runner-dir を削除せず、完全パスと理由を報告する。
+3. 中断時に全未処理試行と runner-dir を削除せず、完全パスと理由、照合先 records を報告する。
 4. 既存 Spec/ledger/runner メタデータの生バイト、無関係な登録、CODE_ROOT HEAD/status を前後比較し、不正な改変がない。
 5. 予期しない消失・再出現、symlink/別 common-dir、private receipt、停止未確認の既存拒否を維持する。design の委譲も同じ仕様である。
-6. 過去記録を改変しない。旧 Spec の回復可能という一般化は、元の記録を残し訂正注記を追記する。PR 説明も実装と新証拠に合わせる。
+6. 過去記録を改変しない。`docs/superpowers/specs/2026-11-09-issue-353-review-steps-design.md` の旧 #L-3（当初339行）の回復可能という一般化は、元の行を残し訂正注記を同ファイル末尾へ追記する。同ファイルの旧 #L-2（当初338行）は関連ケースとして記録するが対象外で、implement cleanup の従来の回収挙動は変えない。PR 説明も実装と新証拠に合わせる。
 7. main 向けの 1 本の PR 本文に `Closes #389` と `Closes #390` をそれぞれ記載し、両 Task の各受け入れ条件に対応する検証結果を示す。
 
 ### 動作環境・実入力・防御範囲
@@ -78,3 +78,5 @@ Linux Dev Container、uv、実 Git worktree と実 agent-runner、fake adapter/C
 - helper `review_spec.py`、外部担当、1 回目。review_dir: `/workspaces/reso-world/tmp/agents/issue-390.bq1npfwa/2026-11-12-issue-390-review-cleanup-design.spec-review/review-1`。review_id: `2444b3d7c78644608c5becba7290aa1a`、reviewed SHA-256: `fafe03c1db37069b13b0b24415d8d32681ce29cc32c125d8c3affd082ad54469`。
 - requested/actual agent はともに `pi_opencode-go_deepseek4-flash_max`（明示指定）、fallback=[]、identity は opencode-go / deepseek-v4.1-flash / max。elapsed_seconds=864.1938527860038。outside_changes=[]、unprotected_changes は旧 /tmp review worktree 6 件の監査不能で、保護対象の HEAD/status に変化なし。停止確認済み、sensitive_paths=[]。
 - S1/S2 important、S3〜S6 minor をすべて採用。保存形式、今回削除と過去削除の報告、path→試行の対応、拒否時の情報、ロック、PR の close 指定を本文へ反映。実装する機能の範囲は変更なし。important 採用により同じ担当で 1 回だけ再レビューする。
+- 2 回目: review_dir `/workspaces/reso-world/tmp/agents/issue-390.bq1npfwa/2026-11-12-issue-390-review-cleanup-design.spec-review/review-2`、review_id `98d0152163124772b72512fbd893bf9c`、reviewed SHA-256 `5e295a216e6b8869d396c3713726dc5a285d350b81ee8136b2db7befa1b5cceb`。helper/外部担当、requested/actual は同じ明示 agent、identity opencode-go / deepseek-v4.1-flash / max、fallback=[]、elapsed_seconds=752.4692806669918。outside_changes=[]、unprotected_changes は1回目と同じ旧 /tmp 6件。全試行停止確認済み、sensitive_paths=[]。
+- 2 回目 S1/S2 important と S3〜S6 minor を採用し、通常 retained の records、旧 Spec の対象パス、JSONL の追記限定、key の種別、runner-collected 前の再追記、現在の common-dir 照合を本文へ反映。上限に従いこれ以上の Spec 再レビューは行わない。
