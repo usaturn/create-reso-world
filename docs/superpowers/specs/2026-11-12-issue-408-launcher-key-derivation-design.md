@@ -115,15 +115,15 @@ Issue の「エージェントに任せる事項」にある「`ccdgo` が選択
 
 #### 1.3 解決順序・既存値の保持・標準エラー出力
 
-`build_environment(names, environ=..., env_file=..., stderr=...)` の解決順序を次の 3 段階とする。
+`tools/agent_runner/with_keys.py` の実在関数 `fill_environment(environ, names, source)` と `parse_assignments(text, names)` をベースに、解決順序を次の 3 段階とする。`fill_environment` の戻り値は `(environment, derived, filled, skipped)`（`tuple[dict[str, str], list[str], list[str], list[str]]`）とする。
 
-1. **今の環境（`environ`）**: `bool(environ.get(name))` が真（非空文字列）の名前は補う対象（`missing`）に入れず、既存の値をそのまま保持する。空白のみの非空値が既に設定されている場合も上書きしない（後段の key ガードで意図どおり停止させ、黙って別アカウントの key に差し替えない）。
-2. **ランチャー環境の導出（`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`）**: `missing` が空でなければ、`_LAUNCHER_BASE_URL_KEYS.get(environ.get("ANTHROPIC_BASE_URL", ""))` を引き、得られた名前が `missing` に含まれ、かつ `environ.get("ANTHROPIC_AUTH_TOKEN", "")` が `[A-Za-z0-9]` を含む場合に、`updated[derived_name] = auth_token` を設定して `missing` からその名前を除き、標準エラーへ次の 1 行を出力する（key の値やトークン長は一切含めない）。
+1. **今の環境（`environ`）**: `pending = {name for name in names if not environment.get(name)}` とし、既に非空文字列が入っている名前は `pending` に入れず元の値を保持する。空白のみの非空値が既に設定されている場合も上書きしない（後段の key ガードで意図どおり停止させ、黙って別アカウントの key に差し替えない）。
+2. **ランチャー環境の導出（`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`）**: `pending` が空でなければ、`_LAUNCHER_BASE_URL_KEYS.get(environment.get("ANTHROPIC_BASE_URL", ""))` を引き、得られた名前 `derived_name` が `pending` に含まれ、かつ `environment.get("ANTHROPIC_AUTH_TOKEN", "")` が `[A-Za-z0-9]` を含む場合に、`environment[derived_name] = auth_token` を設定して `pending.remove(derived_name)` し、`derived = [derived_name]` に記録する。`main()` では標準エラーへ次の 1 行を出力する（key の値やトークン長は一切含めない）。
    ```text
    with_keys: filled <NAME> from launcher environment (ANTHROPIC_BASE_URL)
    ```
-   ランチャー導出を env ファイルより先に置く理由は、例えば `ccdgo` セッションで親シェルが `OPENCODE_GO_CLAUDE_API_KEY` を選んでいた場合や、`ccdd` セッションで親シェルが env ファイルとは別の `DEEPINFRA_TOKEN` を一時 export していた場合に、現在起動中のランチャーセッションが実際に使っている認証情報と一致させるためである。導出で補われた名前は `missing` から外れるため、直後の段階 3 で env ファイルに同名の行（または解析不能な代入行）があっても上書きされず、不要な `skipped` 警告も出さない。
-3. **env ファイル（`~/.config/create-reso-world/env`）**: 段階 2 の後も `missing` が残っている場合のみ、従来どおり `env_file` が存在すれば `parse_env_file` で静的に読み、残りの `missing` を補う。出力形式（`with_keys: cannot read <path>`、`with_keys: skipped <NAME> (unparsable assignment in <path>)`、`with_keys: filled <NAMES> from <path>`）は既存のまま維持する。段階 2 と段階 3 の両方でそれぞれ別の変数を補った場合は、段階 2 の 1 行に続けて段階 3 の行が標準エラーへ出力される。
+   ランチャー導出を env ファイルより先に置く理由は、例えば `ccdgo` セッションで親シェルが `OPENCODE_GO_CLAUDE_API_KEY` を選んでいた場合や、`ccdd` セッションで親シェルが env ファイルとは別の `DEEPINFRA_TOKEN` を一時 export していた場合に、現在起動中のランチャーセッションが実際に使っている認証情報と一致させるためである。
+3. **env ファイル（`~/.config/create-reso-world/env`）**: 段階 2 の後に `not pending` となった場合は `source` を読まずに `(environment, derived, [], [])` を返す。`pending` が残っている場合のみ、従来どおり `source` を UTF-8 で読み、`parse_assignments(text, pending)` に **残りの `pending` だけ**を渡して解析する（`names` 全体は渡さない）。これにより、今の環境で既に設定済みの変数や段階 2 で導出済みの変数については、env ファイルに同名の行や解析不能な代入行があっても上書きされず、不要な `skipped` 警告も出ない。`main()` の標準エラー出力は `_report_derived(derived)` → `_report_skipped(skipped, source)` → `_report_filled(filled, source)` の順とし、既存の出力形式（`with_keys: cannot read <path>`、`with_keys: skipped <NAME> (unparsable assignment in <path>)`、`with_keys: filled <NAMES> from <path>`）を維持する。
 
 ### 2. Ollama の runner agent と `claude-ollama-exec` の取り込み（移植元 #860）
 
@@ -141,7 +141,7 @@ Issue の「エージェントに任せる事項」にある「`ccdgo` が選択
   ```text
   claude-ollama-exec: OLLAMA_API_KEY is not set, empty, or has no letters or digits; export an Ollama API key before starting agent-runner
   ```
-- 子プロセスの起動: `claude-alibaba-exec` および `zshrc.txt` の `cc_launcher_unsets` と同一の 25 個の `-u` 指定（`ANTHROPIC_API_KEY`・`ANTHROPIC_BASE_URL`・`ANTHROPIC_CUSTOM_HEADERS`・`ANTHROPIC_MODEL`・`ANTHROPIC_SMALL_FAST_MODEL`・`ANTHROPIC_DEFAULT_FABLE_MODEL`・`ANTHROPIC_DEFAULT_OPUS_MODEL`・`ANTHROPIC_DEFAULT_SONNET_MODEL`・`ANTHROPIC_DEFAULT_HAIKU_MODEL`・`CLAUDE_CODE_SUBAGENT_MODEL`・`CLAUDE_CODE_EFFORT_LEVEL`・`CLAUDE_CODE_MAX_OUTPUT_TOKENS`・`CLAUDE_CODE_MAX_CONTEXT_TOKENS`・`CLAUDE_CODE_OAUTH_TOKEN`・`CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR`・`CLAUDE_CODE_API_KEY_HELPER_TTL_MS`・`CLAUDE_CODE_USE_BEDROCK`・`CLAUDE_CODE_USE_VERTEX`・`CLAUDE_CODE_USE_FOUNDRY`・`DEEPINFRA_TOKEN`・`OLLAMA_API_KEY`・`OPENCODE_GO_CLAUDE_API_KEY`・`OPENCODE_API_KEY`・`OPENCODE_GO_API_KEY`・`MAAS_ANTHROPIC_TOKEN`）を付けた `exec env` で次を設定して `claude "$@"` を起動する。
+- 子プロセスの起動: `.devcontainer/zshrc.txt` の `cc_launcher_unsets`（47 変数）から、このスクリプト自身が直後に設定する `ANTHROPIC_AUTH_TOKEN` を除いた **`.devcontainer/claude-alibaba-exec`（45〜90 行）と完全に同一の 46 個の `-u` 指定**（`ANTHROPIC_API_KEY`・`DEEPINFRA_TOKEN`・`OLLAMA_API_KEY`・`COMMANDCODE_API_KEY`・`OPENCODE_GO_CLAUDE_API_KEY`・`OPENCODE_API_KEY`・`OPENCODE_GO_API_KEY`・`MAAS_ANTHROPIC_TOKEN`・`ANTHROPIC_AWS_API_KEY`・`ANTHROPIC_FOUNDRY_API_KEY`・`ANTHROPIC_FOUNDRY_AUTH_TOKEN`・`ANTHROPIC_IDENTITY_TOKEN`・`ANTHROPIC_IDENTITY_TOKEN_FILE`・`ANTHROPIC_CUSTOM_HEADERS`・`ANTHROPIC_MODEL`・`ANTHROPIC_DEFAULT_MODEL`・`ANTHROPIC_SMALL_FAST_MODEL`・`ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION`・`ANTHROPIC_CUSTOM_MODEL_OPTION`・`ANTHROPIC_CUSTOM_MODEL_OPTION_NAME`・`ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION`・`ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES`・`CLAUDE_CODE_OAUTH_TOKEN`・`CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR`・`CLAUDE_CODE_OAUTH_REFRESH_TOKEN`・`CLAUDE_CODE_SESSION_ACCESS_TOKEN`・`CLAUDE_CODE_HFI_BEARER_TOKEN`・`CLAUDE_CODE_CLIENT_KEY`・`CLAUDE_CODE_CLIENT_KEY_PASSPHRASE`・`CLAUDE_CODE_GATEWAY_TOKEN`・`CLAUDE_CODE_GATEWAY_TOKEN_FILE_DESCRIPTOR`・`CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR`・`CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR`・`CLAUDE_CODE_USE_BEDROCK`・`CLAUDE_CODE_USE_FOUNDRY`・`CLAUDE_CODE_USE_GATEWAY`・`CLAUDE_CODE_USE_ANTHROPIC_AWS`・`CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD`・`CLAUDE_CODE_USE_MANTLE`・`CLAUDE_CODE_USE_VERTEX`・`CLAUDE_CODE_MAX_CONTEXT_TOKENS`・`CLAUDE_CODE_SUBAGENT_MODEL`・`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`・`CLAUDE_CODE_AUTO_MODE_MODEL`・`CLAUDE_CODE_BG_CLASSIFIER_MODEL`・`ANTHROPIC_BETAS`）を付けた `exec env` で次を設定して `claude "$@"` を起動する。
   - `ANTHROPIC_BASE_URL=https://ollama.com`
   - `ANTHROPIC_AUTH_TOKEN="$key"`（Bearer 認証のみ。`ANTHROPIC_API_KEY` と `OLLAMA_API_KEY` は子に渡さない）
   - `ANTHROPIC_DEFAULT_FABLE_MODEL="$fable"`
@@ -205,13 +205,17 @@ Issue の「エージェントに任せる事項」にある「`ccdgo` が選択
    - 1234〜1237 行（`#397` の `claude-code_alibaba_opus_max` 説明）: 通常シェルでの export に加え、`ccda` 起動セッションからは `with_keys.py` が `ANTHROPIC_BASE_URL` の一致で `ANTHROPIC_AUTH_TOKEN` から `MAAS_ANTHROPIC_TOKEN` を補うこと、他プロバイダのランチャーセッションからは補われないことに更新する。
    - 1310〜1314 行（`#397` 内の `#402` 説明）、1442〜1455 行（`agent の命名と同一モデルの比較` 内の `pi_alibaba_qwen4-max_max` 説明と起動例。起動例も `with_keys.py` 経由に揃える）、1892〜1903 行（`#402` の `piaq` 節）の 3 か所にある「`with_keys.py` で補う経路も無い」を解消する。具体的には、対話の `piaq` をランチャーセッションの中で直接呼ぶ場合は引き続き `MAAS_ANTHROPIC_TOKEN` が無く終了コード 1 で止まる一方、`ccda` セッションから `with_keys.py` 経由で agent-runner の `pi_alibaba_qwen4-max_max` を起動する場合は `ANTHROPIC_AUTH_TOKEN` から補われる（`ccda` 以外のランチャーセッションからは補われない）と区別して記述する。
    - `agent の命名と同一モデルの比較` 節（1427〜1441 行付近）で、#305 以降の追加 agent の説明と矛盾しない形で、Claude Code 用の exec を使う雛形 agent（#401 の `claude-code_alibaba_opus_max` と #408 の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max`）への案内を補う。
-4. **「API トークン」→「ランチャー起動セッションから runner を使う（#401・#408）」節（2260〜2345 行）**:
-   - 見出し・本文を #408 の一般化に合わせて更新する。
+4. **「API トークン」節の各変数説明（2224〜2248 行）と「ランチャー起動セッションから runner を使う（#401・#408）」小節（2260〜2345 行）**:
+   - 直前の各変数の箇条書き（2224〜2248 行）にある古い記述もあわせて更新する:
+     - `DEEPINFRA_TOKEN`（2224〜2230 行）: `ccdd`・`ccddg` 起動セッションから `with_keys.py` 経由でランナーを起動するときは `ANTHROPIC_AUTH_TOKEN` から補われることを補記する。
+     - `OLLAMA_API_KEY`（2231〜2236 行）: 「`ccdol`・`claude-ollama` だけが読む」「どの agent の `env` にも無いので、wrapper では補えない」を改め、agent-runner の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` が呼ぶ `claude-ollama-exec` も読むこと、env ファイルには置かないが `ccdol` セッションからは `with_keys.py` が `ANTHROPIC_AUTH_TOKEN` から補うこと（他ランチャーセッションからは補われないこと）に更新する。
+     - `MAAS_ANTHROPIC_TOKEN`（2237〜2248 行）: 2241 行の「補う名前には入るが、env ファイルに置かない方針なので、通常は補われない」を改め、env ファイルには置かないが `ccda` セッションからは `with_keys.py` が `ANTHROPIC_AUTH_TOKEN` から補うこと（他ランチャーセッションからは補われないこと）に更新する。
+   - 小節見出し・本文（2260〜2345 行）を #408 の一般化に合わせて更新する。
    - 「補う条件」「読み元と順序」「出力」を次のとおり更新する:
      - 順序: `今の環境（非空）` → `ランチャー環境の導出（ANTHROPIC_BASE_URL の完全一致かつ ANTHROPIC_AUTH_TOKEN が ASCII 英数字を含むとき、対応する 1 変数のみ）` → `~/.config/create-reso-world/env`。
      - 4 ランチャーの `ANTHROPIC_BASE_URL` と補う変数名の対応表、完全一致・クロス導出禁止・空白のみ非導出・既存値非上書きの規則、`COMMANDCODE_API_KEY` は導出元ランチャーが無く env ファイル経路のみであること、Vertex の `GOOGLE_*` は `cc_launcher_unsets` の対象外のためランチャー起動セッションでも親シェルの値が残ること。
-     - 標準エラー出力: ランチャー環境から補ったときは `with_keys: filled <NAME> from launcher environment (ANTHROPIC_BASE_URL)` を 1 行出し、値は出さないこと。
-   - 古くなった記述（「`MAAS_ANTHROPIC_TOKEN` は通常は補われない」「`OLLAMA_API_KEY` はどの agent の `env` にも無いので wrapper では補えない」「雛形に Ollama の runner agent は無い」、2319〜2323 行・2343 行）を現行仕様に置き換える。
+     - 標準エラー出力: ランチャー環境から補ったときは `with_keys: filled <NAME> from launcher environment (ANTHROPIC_BASE_URL)` を 1 行出し、値は出さないこと。導出済みの変数は env ファイルの解析対象（`pending`）から外れるため、env ファイルに同名の行があっても上書きも `skipped` 表示もしないこと。
+   - 小節内の古くなった記述（「`MAAS_ANTHROPIC_TOKEN` は通常は補われない」「`OLLAMA_API_KEY` はどの agent の `env` にも無いので wrapper では補えない」「雛形に Ollama の runner agent は無い」、2319〜2323 行・2343 行）を現行仕様に置き換える。
    - プロバイダごとの key 解決経路の表（2328〜2342 行）を次のとおり更新する:
      - `DEEPINFRA_TOKEN`: 今の環境、`ccdd` / `ccddg` セッションの導出、または env ファイル（`pi_deepinfra_deepseek4-flash_high`）
      - `OPENCODE_API_KEY`: 今の環境、`ccdgo` セッションの導出、または env ファイル（`pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max`・`pi_openai-codex_gpt6-sol_xhigh`。ただし `opencode-go` の第一経路は下の `auth.json`）
@@ -223,18 +227,18 @@ Issue の「エージェントに任せる事項」にある「`ccdgo` が選択
 
 ## テスト計画（AGENTS.md「テストの採用基準」）
 
-追加・変更する自動テストは、壊れてもエラーにならずに損害が残る **S（気付けない損害）** の代表各 1 件に限定し、F（文書・設定・モデル一覧の固定値照合）・L（構文エラーや `check-layout.sh` で気付けるもの）・D（同じ守りの別ケース分割）は書かない。テスト内の偽トークン文字列は Gitleaks の誤検知を避けるため実行時に連結して組み立てる。
+追加・変更する自動テストは、壊れてもエラーにならずに損害が残る **S（気付けない損害）**（および安全境界を守る **F∩S**）の代表各 1 件に限定し、F（文書・設定・モデル一覧の固定値照合）・L（構文エラーや `check-layout.sh` で気付けるもの）・D（同じ守りの別ケース分割）は書かない。テスト内の偽トークン文字列は Gitleaks の誤検知を避けるため実行時に連結して組み立てる。
 
-1. **`tools/agent_runner/tests/test_with_keys.py`（既存の代表テスト 1 件の拡張、新設関数 0 件）**:
-   - `#issuecomment-6816243774` の指示どおり、テスト関数は新設せず既存の `test_fills_only_missing_agent_env_without_evaluating_shell_syntax` を拡張する。
-   - テスト用テンプレートの `agent.env` に `MAAS_ANTHROPIC_TOKEN`・`OLLAMA_API_KEY`・`COMMANDCODE_API_KEY` を含め、次の陽性・陰性の対照を確認する:
-     - **陽性対照（導出 + env ファイル併用）**: `ANTHROPIC_BASE_URL` が `ccda` の URL で `ANTHROPIC_AUTH_TOKEN` に有効な偽トークンがあり、`MAAS_ANTHROPIC_TOKEN` が未設定のとき、`MAAS_ANTHROPIC_TOKEN` が導出され、標準エラーに `with_keys: filled MAAS_ANTHROPIC_TOKEN from launcher environment (ANTHROPIC_BASE_URL)` が出て秘密値は一切含まれず、残りの未設定変数（`DEEPINFRA_TOKEN` 等）は引き続き env ファイルから補われる。
-     - **陰性対照（異プロバイダ非導出・未登録 URL・空白トークン・`COMMANDCODE_API_KEY` 非導出）**: 上記 `ccda` の URL では `OLLAMA_API_KEY`・`COMMANDCODE_API_KEY` は補われない。また未登録の `ANTHROPIC_BASE_URL`（部分一致を含む URL など）や、ASCII 英数字を含まない空白（`" \u00a0\ufeff\u3000"`）の `ANTHROPIC_AUTH_TOKEN` では対応変数も補われない。
-     - **非上書きと優先順序（同じ代表テスト内で確認）**: 既に `environ` にある非空値（例: `OPENCODE_API_KEY="from-environ"`、および `MAAS_ANTHROPIC_TOKEN` が非空の場合）は `ANTHROPIC_AUTH_TOKEN` でも env ファイルでも上書きされない。一方、`ccdgo` の URL で `OPENCODE_API_KEY` が `environ` に無く env ファイルに別の値があるときは、動作中セッションの `ANTHROPIC_AUTH_TOKEN` が優先され env ファイルで上書きされない。
+1. **`tools/agent_runner/tests/test_with_keys.py`（既存の代表テスト `test_wrapper_fills_missing_allowlisted_names_only` の拡張、新設関数 0 件）**:
+   - `#issuecomment-6816243774` の指示どおり、テスト関数は新設せず実在する代表テスト `test_wrapper_fills_missing_allowlisted_names_only`（実雛形 `.devcontainer/agent-runner.toml` と存在しない `AGENT_RUNNER_CONFIG` を使用）を拡張する。
+   - 既存 fixture の守り（`COMMANDCODE_API_KEY` は env ファイルから補われる、`OPENCODE_API_KEY` は `child_env` の既存値を保ち env ファイルで上書きしない、`MESHY_API_KEY` は allowlist 外のため子に渡さない、`DEEPINFRA_TOKEN` は解析不能な `$(touch ...)` 再代入があるため前の行の literal も含めて補わず実行もしない）をすべて維持する。
+   - 同じ関数内で次の陽性・陰性の対照を追加確認する:
+     - **サブプロセス実行での陽性対照と異プロバイダ陰性対照**: `child_env` に `ANTHROPIC_BASE_URL="https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic"` と有効な偽トークン `ANTHROPIC_AUTH_TOKEN=fake_f` を追加して `WRAPPER` を実行する。`MAAS_ANTHROPIC_TOKEN == fake_f` が導出される一方、雛形の `claude-code_ollama_*` 追加で allowlist に入った `OLLAMA_API_KEY` は `ccda` の URL からは導出されない（`"OLLAMA_API_KEY" not in environment`）。残りの未設定変数 `COMMANDCODE_API_KEY` は引き続き env ファイルから補われ、`DEEPINFRA_TOKEN` の解析不能行は引き続き拒否される。標準エラーに `with_keys: filled MAAS_ANTHROPIC_TOKEN from launcher environment (ANTHROPIC_BASE_URL)` が出て、すべての偽トークン実値（`fake_f` を含む）が `completed.stderr` に含まれないことを確かめる。
+     - **`fill_environment` 直接呼び出しによる境界対照（同じテスト関数内）**: 実雛形の `needed_names(TEMPLATE, None)` を使い、(a) 未登録・部分一致 URL（例: `https://ollama.com/v1`）で env ファイル不在のときは `COMMANDCODE_API_KEY` を含め 1 変数も導出されないこと、(b) 登録済み URL（`https://ollama.com`）でも ASCII 英数字を含まない空白（`" \u00a0\ufeff\u3000"`）の `ANTHROPIC_AUTH_TOKEN` では `OLLAMA_API_KEY` が導出されないこと、(c) `ccda` の URL でも `MAAS_ANTHROPIC_TOKEN` が既に `environ` にあるときは上書きされないこと、(d) `ccdgo` の URL（`https://opencode.ai/zen/go`）で `OPENCODE_API_KEY` が `environ` に未設定かつ env ファイルに別の `OPENCODE_API_KEY`（および解析不能な再代入行）があるときは、ランチャーの `ANTHROPIC_AUTH_TOKEN` が採用されて env ファイルで上書きされず `skipped` にも入らないことを確かめる。
 2. **`.devcontainer/test-herdr-migration.bash`（`test_ollama_exec_requires_key` の追加、代表 1 件）**:
    - `claude-ollama-exec` は `claude-alibaba-exec` とは別の独立したスクリプトであるため、`#issuecomment-6816243774` に従い `test_alibaba_exec_requires_key` と同型の代表テスト `test_ollama_exec_requires_key` を 1 件追加し、`main()` から呼ぶ。
-   - **拒否側（S）**: 隔離 HOME と stub `claude` の環境で、`OLLAMA_API_KEY=$' \xc2\xa0\xef\xbb\xbf\xe3\x80\x80'`（ASCII 空白・NBSP・BOM・全角空白）かつ親に `ANTHROPIC_API_KEY`・`CLAUDE_CODE_OAUTH_TOKEN` があるとき、非 0 で終了し stub `claude` が一度も起動しないこと（保存済み OAuth トークンの `ollama.com` への送信防止）。
-   - **陽性対照（S）**: 同じ環境で英数字を含む偽の `OLLAMA_API_KEY` を渡したとき、終了コード 0 で stub `claude` が起動し、引数と `ANTHROPIC_BASE_URL=https://ollama.com`・`ANTHROPIC_AUTH_TOKEN` が届き、親の `ANTHROPIC_API_KEY`・`CLAUDE_CODE_OAUTH_TOKEN` と `OLLAMA_API_KEY` 自体が子の環境から外れていること。
+   - **拒否側（S）**: 隔離 HOME・`env -i`（locale 非継承）・stub `claude` の環境で、`OLLAMA_API_KEY=$' \xc2\xa0\xef\xbb\xbf\xe3\x80\x80'`（ASCII 空白・NBSP・BOM・全角空白）かつ親に `ANTHROPIC_API_KEY`・`CLAUDE_CODE_OAUTH_TOKEN` があるとき、非 0 で終了し stub `claude` が一度も起動しないこと（保存済み OAuth トークンの `ollama.com` への送信防止）。
+   - **陽性対照と全 `cc_launcher_unsets` 隔離確認（S・F∩S）**: 同じ環境で、`extract_cc_launcher_unsets "$ZSHRC_TEMPLATE"` から取得した全変数（`OLLAMA_API_KEY` 自身を除く 46 変数）に `POLLUTED_<変数名>` を与え、`OLLAMA_API_KEY=fake-ollama` を渡して実行したとき、終了コード 0 で stub `claude` が起動し、`ANTHROPIC_BASE_URL=https://ollama.com` と `ANTHROPIC_AUTH_TOKEN=fake-ollama` が届き、子の環境ダンプに `POLLUTED_` も `^OLLAMA_API_KEY=` も一切残らないこと（`cc_launcher_unsets` との `-u` 集合の一致を実行で検証する）。
 
 ## 受け入れ条件・検証計画
 
@@ -260,11 +264,13 @@ Issue の「エージェントに任せる事項」にある「`ccdgo` が選択
 - 導出した key は `agent.env` にその変数名を持つ担当の子にだけ渡り、別プロバイダの担当の子には渡らないこと。
 - `with_keys.py` の stderr、ランナーのログ・`result.json`・標準出力要約に偽トークンの実値が 1 件も出ないこと。
 
-### 3. 実機観測（PR マージ前 1 回・マージ後 1 回）
+### 3. 実機観測（マージ前の確認範囲と、マージ後の Rebuild 後確認範囲の区分）
 
-Issue 本文および `#issuecomment-6816243774` に従い、有料・実 API を使う試行は各対象 1 回ずつに限る。利用者所有の `~/.pi`・`~/.config/create-reso-world/env`・`~/.local/bin` は一切書き換えない。
+Issue 本文の最終的な動作環境は「Rebuild 後の Dev Container」であり、実機観測は「各 agent 1 回ずつ、PR マージ前 1 回・マージ後 1 回」と定められている（`#issuecomment-6816243774`）。一方、稼働中の Dev Container セッション内からは自身の Rebuild（`postCreateCommand` による `~/.local/bin/claude-ollama-exec` 配置）を実行できず、マージ前に共有の `~/.local/bin`・`~/.pi`・`~/.config/create-reso-world/env` を直接書き換えることも安全境界に反する。そのため、マージ前とマージ後の確認範囲を次のとおり明確に分ける。
 
-このコンテナ環境では親シェルに `MAAS_ANTHROPIC_TOKEN`・`OLLAMA_API_KEY`・`DEEPINFRA_TOKEN` が設定済みであり、`~/.local/bin` に `piaq`・`pidid`・`claude-alibaba-exec` が配置済みである。マージ前の実機確認では、以下のとおり実ランチャー関数（`.devcontainer/zshrc.txt` の `ccda`・`ccdol`・`ccdd`）が作る子環境（外側の `claude` 呼び出しだけを `$SESSION` 内の一時 shim で受け、元の `PATH` を戻して `with_keys.py -- python -m tools.agent_runner ... run` を実行することで、外側 Claude Code の二重課金を避けつつ実ランチャー関数の環境構築をそのまま通す）で行う。Rebuild 前のため `~/.local/bin/claude-ollama-exec` だけは `$SESSION` 内の一時 bin ディレクトリを `PATH` 先頭に置いて解決し、その前提を PR 本文に明記する。
+#### マージ前にこの run で確認する範囲（各 agent 最大 1 回）
+
+親シェルに既存の `MAAS_ANTHROPIC_TOKEN`・`OLLAMA_API_KEY`・`DEEPINFRA_TOKEN` と、配置済みの `~/.local/bin/{piaq,pidid,claude-alibaba-exec}` を使う。実ランチャー関数（`.devcontainer/zshrc.txt` の `ccda`・`ccdol`・`ccdd`）が構築する子環境をそのまま通すため、外側の `claude` 呼び出しだけを `$SESSION` 内の一時 shim で受けて元の `PATH` に戻し、`with_keys.py -- python -m tools.agent_runner ... run` を実行する（外側 Claude Code の二重課金を避けつつ、実ランチャーの `cc_launcher_unsets`・`ANTHROPIC_BASE_URL`・`ANTHROPIC_AUTH_TOKEN` 設定を忠実に通す）。Rebuild 前のため `claude-ollama-exec` だけは `$SESSION` 内の一時ディレクトリに `install -m 0755` で置いてその試行の `PATH` に加え、`claude-ollama-exec` 本体と Ollama Cloud 実 API・導出経路を検証する。
 
 1. **`ccda` セッション環境 + wrapper（手当てなし）→ `pi_alibaba_qwen4-max_max`**（1 回）: `state == "success"`、`identity` が `qwen4-max-preview` / `alibaba` / `max` と実測されること。
 2. **`ccda` セッション環境 + wrapper（手当てなし）→ `claude-code_alibaba_opus_max`**（1 回）: `state == "success"`、`identity.model` が `qwen4-max-preview` 系と実測されること。
@@ -275,18 +281,22 @@ Issue 本文および `#issuecomment-6816243774` に従い、有料・実 API �
    - **wrapper 経由（手当てなし）**（1 回）: 導出した `DEEPINFRA_TOKEN` で `state == "success"`、`identity` に DeepSeek V4.1 Flash 系 / `deepinfra` が実測されること。
 6. **秘密値の非露出確認**: 上記すべての出力ディレクトリ（`result.json`・`stdout.log`・`stderr.log`・wrapper の stderr）に対して、環境中の実 key 値との一致が 0 件であることをプログラムで検査し、値自体は表示せず一致件数（0 件）だけを `$SESSION` と PR 本文に記録する。
 
-Rebuild 後のコンテナで `~/.local/bin/claude-ollama-exec` の配置と対話ランチャーセッション内からの実機観測（マージ後 1 回）を行う項目が受け入れ条件に残るため、PR 本文は `Closes #408` ではなく **`Refs #408`** とし、run の最後に PR URL とマージ後の確認項目（および `#401` への参照案内）を Issue #408 にコメントする。
+#### マージ後（Rebuild 後の Dev Container）に残る確認項目
+
+- Dev Container の Rebuild により `install_beforehand.bash` が `~/.local/bin/claude-ollama-exec`（権限 `0755`）を標準 `PATH` 上へ配置すること（一時 `PATH` 無しでの解決）。
+- Rebuild 後のコンテナで、実際の `ccda`・`ccdol`・`ccdd`（または `ccddg`）の起動セッションおよび key を export した通常のシェルから、上記の同じ実機観測を 1 回ずつ行って Issue #408 に記録すること（完了後に #401 もその記録を参照して閉じる）。
+- このマージ後確認が受け入れ条件に残るため、PR 本文は `Closes #408` ではなく **`Refs #408`** とし、run の最後に PR URL と上記マージ後確認項目を Issue #408 にコメントする。
 
 ## 決定記録
 
 | ID | 選択した案 | 検討した別案 | 選択理由 | 委任指示または停止条件 |
 | --- | --- | --- | --- | --- |
-| D1 | `with_keys.py` の優先順を `今の環境（非空） → ランチャー導出（ANTHROPIC_BASE_URL 完全一致） → env ファイル` にする | `今の環境 → env ファイル → ランチャー導出` にする | `ccdgo` で `OPENCODE_GO_CLAUDE_API_KEY` が選ばれた場合や、親シェルで env ファイルと別の key を一時 export してランチャーを起動した場合に、動作中ランチャーセッションの key と一致させるため。`MAAS_ANTHROPIC_TOKEN`・`OLLAMA_API_KEY` は env ファイルに置かないためどちらでも同じ | Issue「エージェントに任せる事項」（順序の決定）。既存環境変数を上書きする場合は停止 |
+| D1 | `with_keys.py` の優先順を `今の環境（非空） → ランチャー導出（ANTHROPIC_BASE_URL 完全一致） → env ファイル` にし、段階 3 の `parse_assignments` には未解決の `pending` だけを渡す | `今の環境 → env ファイル → ランチャー導出` にする / `names` 全体を `parse_assignments` に渡す | 動作中ランチャーセッションが選んだ key と一致させ、既に解決済みの変数に対する不要な `skipped` 警告や上書きを防ぐため | Issue「エージェントに任せる事項」（順序の決定）。既存環境変数を上書きする場合は停止 |
 | D2 | `with_keys.py` の導出時にも `ANTHROPIC_AUTH_TOKEN` が ASCII 英数字（`[A-Za-z0-9]`）を 1 文字以上含むことを要求する | 非空（`bool(auth_token)`）だけで導出し、各 exec のガードに任せる | `claude-alibaba-exec`・`claude-ollama-exec`・`piaq` には英数字ガードがあるが、`pidid` と `pigod` の環境変数参照には ASCII 英数字ガードが無い。導出側でも同じ英数字条件を課すことで、空白・NBSP・BOM のみの `ANTHROPIC_AUTH_TOKEN` がどの担当にも渡らない | Issue「エージェントに任せる事項」（値の妥当性判定の共有） |
 | D3 | `ccdgo`（`https://opencode.ai/zen/go`）から `OPENCODE_API_KEY` への導出を有効にする | OpenCode Go の導出を見送る | `zshrc.txt`・`README.md`（#368）・`setup_pi_opencode_go.zsh`・`pigod` により、`ccdgo` の 3 変数と Pi `opencode-go` の `OPENCODE_API_KEY` はどちらも同じ OpenCode Console の API キーであることを確認できたため。第一経路の `auth.json` は不変 | Issue「エージェントに任せる事項」（妥当性確認） |
-| D4 | `zshrc.txt` の `ccdol` は変更せず、独立した `.devcontainer/claude-ollama-exec` を新設してモデル・環境変数を揃える | `ccdol` を `claude-ollama-exec` を呼ぶ薄いラッパーに書き換える（移植元 #860 の形） | Rebuild 前のコンテナや隔離 HOME のシェルテストでは `~/.local/bin/claude-ollama-exec` が未配置であり、`ccdol` から呼ぶと Rebuild 前の `zshrc.txt` 反映で `ccdol` が壊れる。`#401` の `ccda` と `claude-alibaba-exec` の構成に揃える方が安全で変更範囲も最小になる | Issue「エージェントに任せる事項」（`ccdol` の薄いラッパー化の採否） |
+| D4 | `zshrc.txt` の `ccdol` は変更せず、独立した `.devcontainer/claude-ollama-exec`（`claude-alibaba-exec` と同一の 46 個の `-u` 指定）を新設してモデル・環境変数を揃える | `ccdol` を `claude-ollama-exec` を呼ぶ薄いラッパーに書き換える（移植元 #860 の形） | Rebuild 前のコンテナや隔離 HOME のシェルテストでは `~/.local/bin/claude-ollama-exec` が未配置であり、`ccdol` から呼ぶと Rebuild 前の `zshrc.txt` 反映で `ccdol` が壊れる。`#401` の `ccda` と `claude-alibaba-exec` の構成に揃える方が安全で変更範囲も最小になる | Issue「エージェントに任せる事項」（`ccdol` の薄いラッパー化の採否） |
 | D5 | ランチャー導出時の標準エラー出力を `with_keys: filled <NAME> from launcher environment (ANTHROPIC_BASE_URL)` とし、env ファイル由来の行と分ける | env ファイルと同じ行に混ぜる / 何も出さない | 値を一切出さずに「どの変数がランチャー環境から補われたか」を診断可能にし、ファイルパス由来の `from <path>` と明確に区別できるため | Issue「エージェントに任せる事項」（stderr の文言） |
-| D6 | `test_with_keys.py` は既存の代表テスト 1 件を拡張し、`test-herdr-migration.bash` に `test_ollama_exec_requires_key` を 1 件追加する | 条件ごとに個別テスト関数を新設する / モデル名や README の固定値テストを足す | `AGENTS.md`「テストの採用基準」（S の代表 1 件、F・L・D 禁止）および `#issuecomment-6816243774` の明示指示に従うため | `AGENTS.md` と Issue コメントの基準。反するテストはコミットしない |
+| D6 | `test_with_keys.py` は実在の `test_wrapper_fills_missing_allowlisted_names_only` を拡張し、`test-herdr-migration.bash` に全 `cc_launcher_unsets` 隔離を含む `test_ollama_exec_requires_key` を 1 件追加する | 条件ごとに個別テスト関数を新設する / モデル名や README の固定値テストを足す | `AGENTS.md`「テストの採用基準」（S・F∩S の代表 1 件、F・L・D 禁止）および `#issuecomment-6816243774` の明示指示に従うため | `AGENTS.md` と Issue コメントの基準。反するテストはコミットしない |
 | D7 | 設計レビューは `claude-code_opus_default`、Spec レビューと Task 実装は `pi_opencode-go_deepseek4-flash_max`、PR ループは `inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,claude-code_opus_default`・`fix.implement=pi_opencode-go_deepseek4-flash_max`・`max_cycles=3`（既定）で実行する | `self` による代行や別モデルへの切り替え | Step 2 の各 `check` で全担当が `self=false`・`fallback=[]` と確定済み。担当失敗時に `self` で引き取らない規則を守る | 利用者の明示オプション。担当の失敗・停止未確認・`wrong_approach` / `blocking` 等は停止 |
 | D8 | `origin/main` の前進を検出した場合は push 前に `rebase`、push 後に `merge --no-edit` で追随し、再検証後に `code-base.json` を更新して続行する | base 移動で即停止する / 再検証なしで SHA だけ書き換える | 利用者が「途中でメインがマージされたら、追随して作業を止めずに続行してください。」と明示委任しているため。実行中の runner がある間は完了を待ってから追随し、force push と無検証更新は行わない | 利用者の明示委任。コンフリクトが仕様変更を伴う場合は停止 |
 
@@ -303,3 +313,21 @@ Rebuild 後のコンテナで `~/.local/bin/claude-ollama-exec` の配置と対�
   - `outside_changes`: `[]`
   - `unprotected_changes`: 既存の prunable な一時 worktree 登録 6 件（`/tmp/pr-review-376-*` 4 件、`/tmp/review-fix-planning.*` 2 件。本 run の保護対象外）
   - 採否: 指摘 0 件のため `decisions: []`
+
+### Spec レビュー記録
+
+- 1 回目（外部 runner `review_spec.py`）:
+  - `review_dir`: `/workspaces/reso-world/tmp/agents/issue-408.kwkykzl6/2026-11-12-issue-408-launcher-key-derivation-design.spec-review/review-1`
+  - `review_id`: `1d3afbede0ec4d7e846ca8b4d6f9c3dd`
+  - reviewed `spec_sha256`: `01e415072a9c838d98f67875a466eb0f763e3db4d411eac646b4e05a65d8cda2`
+  - `requested_agent` / `actual_agent`: `pi_opencode-go_deepseek4-flash_max` / `pi_opencode-go_deepseek4-flash_max`（`fallback` 未使用）
+  - `identity`: `model="deepseek-v4.1-flash"`, `provider="opencode-go"`, `effort="max"`, `cli_version=null`, `session_id="01a1cedb-db6e-743e-a53e-f837d24e3789"`
+  - `elapsed_seconds`: `1269.46`
+  - `outside_changes`: `[]`
+  - `unprotected_changes`: 既存の prunable な一時 worktree 6 件および並行セッションの他 Issue worktree 3 件（`.worktrees/issue-378-rebase-base`・`.worktrees/issue-390-review-cleanup`・`tmp/agents/issue-378.pu_as9oz/...`。いずれも本 run の保護対象外）
+  - 採否（5 件すべて `adopt`、`important` 2 件採用のため再レビュー実施）:
+    - `S1`（`important`, `adopt`）: `2.1 .devcontainer/claude-ollama-exec` の `-u` 一覧を `claude-alibaba-exec` と同一の 46 個（`cc_launcher_unsets` 47 個から `ANTHROPIC_AUTH_TOKEN` を除いた全変数）に修正し、`test_ollama_exec_requires_key` で `extract_cc_launcher_unsets` の全変数汚染が子に残らないことを実行確認する仕様へ更新。
+    - `S2`（`important`, `adopt`）: `テスト計画 1` の関数名を実在の `test_wrapper_fills_missing_allowlisted_names_only`（実雛形使用）に修正し、既存の `COMMANDCODE_API_KEY`（env ファイル補充）・`DEEPINFRA_TOKEN`（解析不能行スキップ）等を維持したまま導出の陽性・陰性対照を追加する形に整理。
+    - `S3`（`minor`, `adopt`）: `1.3` の関数名を実在の `fill_environment`・`parse_assignments` に合わせ、段階 3 の `parse_assignments` に未解決の `pending` だけを渡して解決済み変数の不要な `skipped` 警告を出さない仕様に明確化。
+    - `S4`（`minor`, `adopt`）: `3. .devcontainer/README.md` の更新範囲に 2224〜2248 行（API トークン節の各変数の箇条書きにある `OLLAMA_API_KEY`・`MAAS_ANTHROPIC_TOKEN`・`DEEPINFRA_TOKEN` の旧記述）を追加。
+    - `S5`（`minor`, `adopt`）: `受け入れ条件・検証計画 3` で、稼働中コンテナからは Rebuild できないためマージ前は一時 `PATH` で `claude-ollama-exec` 本体と実 API を確認し、Rebuild による `~/.local/bin` 配置と対話セッションからの再確認をマージ後確認項目（`Refs #408`）とすることを区分して明記。
