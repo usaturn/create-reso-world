@@ -27,7 +27,7 @@
 2. 配置の到達範囲: 追加 A が設計レビュー・Spec レビュー・再レビューのすべてに適用される位置（節の共通部）にあること。追加 B が待機の指示（項目 3）に結び付いていること
 3. 既存記述との整合: 「未 commit の変更を残さない」（起動前）と実行中禁止の関係が明示され、矛盾しないこと。`outside_changes` の失敗扱い・開始時 HEAD 照合の既存記述と重複・矛盾しないこと
 4. 編集範囲の限定: `git diff` の対象が SKILL.md の 2 段落の追加のみであること（frontmatter・marked block・他ファイルの変更なし）
-5. 受け取り後の書き込み再開: レビューは `submit` 成功後、実装は verdict 処理（`accept` を含む）完了後であること。項目 4 の「取り込んだ後」のテスト実行と矛盾しないこと
+5. 受け取り後の書き込み再開: レビューは結果の受け取り（外部は `review` の完了、`self` は `submit` 成功）後、実装は verdict 処理（`accept` を含む）完了後であること。項目 4 の「取り込んだ後」のテスト実行と矛盾しないこと
 
 ## 受け入れ基準
 
@@ -53,7 +53,7 @@
 「Spec・設計レビュー」節で、次の文脈の間に挿入する（前: 依頼 JSON の例の閉じ ```、後: `**設計レビュー（`--design-review` があるときだけ）。**`）:
 
 ```markdown
-**レビュー runner の実行中は対象 checkout を変更しない。** `review` の起動から結果の受け取り（`submit` 成功）まで、レビュー対象 checkout（`CODE_ROOT`。`DOC_ROOT` が同一の checkout ならその `DOC_ROOT`）への書き込み・コミットをしない。runner の checkout 監査は実行の開始前に登録されていた checkout の HEAD・index・tracked ファイル・非 ignored untracked ファイルを終了後の状態と比較する（`tools/agent_runner/interfaces.rst`「期限と保持」）ため、Plan 草案のような untracked ファイル 1 件でも `outside_changes` の拒否になり、完了した有料レビューが失われて再実行が必要になる。待機中の準備（Plan 草案・調査メモなど）は `SESSION` の下で行い、並行作業は対象 checkout の読み取りと `SESSION` への書き込みに限る。対象 checkout への書き込み・コミットはレビュー結果の受け取り後に行う。これは設計レビュー・Spec レビュー・再レビューのいずれでも同じである。
+**レビュー runner の実行中は対象 checkout を変更しない。** `review` の起動から結果の受け取り（外部は `review` の完了、`self` は `submit` 成功）まで、レビュー対象 checkout（`CODE_ROOT`。`DOC_ROOT` が同一の checkout ならその `DOC_ROOT`）への書き込み・コミットをしない。runner の checkout 監査は実行の開始前に登録されていた checkout の HEAD・index・tracked ファイル・非 ignored untracked ファイルを終了後の状態と比較する（`tools/agent_runner/interfaces.rst`「期限と保持」）ため、Plan 草案のような untracked ファイル 1 件でも `outside_changes` の拒否になり、完了した有料レビューが失われて再実行が必要になる。待機中の準備（Plan 草案・調査メモなど）は `SESSION` の下で行い、並行作業は対象 checkout の読み取りと `SESSION` への書き込みに限る。対象 checkout への書き込み・コミットはレビュー結果の受け取り後に行う。これは設計レビュー・Spec レビュー・再レビューのいずれでも同じである。
 ```
 
 - [ ] **Step 2: 追加 B を挿入する**
