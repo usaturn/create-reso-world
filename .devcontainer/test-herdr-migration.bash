@@ -548,6 +548,64 @@ test_alibaba_exec_requires_key() {
     assert_absent "$log" '^MAAS_ANTHROPIC_TOKEN='
 }
 
+# S: claude-ollama-exec は OLLAMA_API_KEY が ASCII の英数字を 1 文字も含まないとき、子 claude を起動せずに失敗する。
+# ガードが外れても起動は成功し、claude.ai の認証情報が ollama.com に送られる。正しい key でも、親の
+# ANTHROPIC_API_KEY・CLAUDE_CODE_OAUTH_TOKEN・OLLAMA_API_KEY を子に残すと、起動は成功したまま
+# claude.ai の認証情報が ollama.com に送られる。空白だけの拒否と、英数字を含む key で stub が起動する例を
+# 同じ関数で確かめる。陽性対照では OLLAMA_API_KEY 以外の cc_launcher_unsets をすべて親に置き、
+# 子の環境ダンプに POLLUTED_ も入力元の key も残らないことを確かめる（-u の漏れの検出）。
+# env -i で locale（LANG・LC_*）を渡さない。runner の子はそれらを引き継がない。範囲の比較が locale に依ると、
+# このテストの locale では止まり、locale の無い起動では通る（またはその逆）ことがある。
+test_ollama_exec_requires_key() {
+    local test_home="${TEST_ROOT}/home-ollama-exec-key"
+    make_stub_home "$test_home"
+    mkdir -p "$test_home/.local/bin"
+    install -m 0755 "${REPO_ROOT}/.devcontainer/claude-ollama-exec" "$test_home/.local/bin/claude-ollama-exec"
+    local log="${TEST_ROOT}/ollama-exec-key-claude.log"
+    local err="${TEST_ROOT}/ollama-exec-key-claude.err"
+    : > "$log"
+    : > "$err"
+    printf '%s\n' '#!/bin/sh' 'env > "$HERDR_TEST_CLAUDE_DUMP"' > "$test_home/bin/claude"
+    chmod +x "$test_home/bin/claude"
+
+    local rc=0
+    env -i HOME="$test_home" PATH="$test_home/.local/bin:$test_home/bin:/usr/bin:/bin" \
+        HERDR_TEST_CLAUDE_DUMP="$log" \
+        ANTHROPIC_API_KEY=fake-anthropic \
+        CLAUDE_CODE_OAUTH_TOKEN=fake-oauth \
+        OLLAMA_API_KEY=$' \xc2\xa0\xef\xbb\xbf\xe3\x80\x80' \
+        "$test_home/.local/bin/claude-ollama-exec" probe 2>"$err" || rc=$?
+    [ "$rc" -ne 0 ] || fail 'claude-ollama-exec must fail when OLLAMA_API_KEY has no letters or digits'
+    [ ! -s "$log" ] || fail 'claude-ollama-exec must not start claude when OLLAMA_API_KEY has no letters or digits'
+    # 失敗は固定文で知らせ、入力した値をそのまま出さない（端末・ログへの漏えいを避ける）。
+    assert_absent "$err" $'\xc2\xa0'
+    assert_absent "$err" $'\xef\xbb\xbf'
+
+    : > "$log"
+    rc=0
+    local -a launcher_unsets env_args=()
+    mapfile -t launcher_unsets < <(extract_cc_launcher_unsets "$ZSHRC_TEMPLATE")
+    local v
+    for v in "${launcher_unsets[@]}"; do
+        if [ "$v" = OLLAMA_API_KEY ]; then
+            continue
+        fi
+        env_args+=("${v}=POLLUTED_${v}")
+    done
+    env -i HOME="$test_home" PATH="$test_home/.local/bin:$test_home/bin:/usr/bin:/bin" \
+        HERDR_TEST_CLAUDE_DUMP="$log" \
+        OLLAMA_API_KEY=fake-ollama \
+        "${env_args[@]}" \
+        "$test_home/.local/bin/claude-ollama-exec" probe || rc=$?
+    [ "$rc" -eq 0 ] || fail 'claude-ollama-exec must start claude when OLLAMA_API_KEY has letters or digits'
+    assert_contains "$log" '^ANTHROPIC_AUTH_TOKEN=fake-ollama$'
+    assert_contains "$log" '^ANTHROPIC_BASE_URL=https://ollama.com$'
+    assert_contains "$log" '^ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-v4.1-flash:1017\[1m\]$'
+    assert_absent "$log" 'POLLUTED_'
+    assert_absent "$log" '^OLLAMA_API_KEY='
+    assert_absent "$log" '^ANTHROPIC_API_KEY='
+}
+
 # S: ccdgo は空白だけの優先キーを、有効な下位キーへ黙って読み替えず、子 claude を起動せずに失敗する。
 # 読み替えると、利用者が優先キーで使うつもりのアカウントとは別のキーで外部へ要求を送る。さらに
 # Claude Code は両方の認証変数を trim（Unicode の空白も除く）して空とみなすため、空白だけでも
@@ -618,4 +676,5 @@ test_opencode_go_launcher_requires_key
 test_deepinfra_launcher_requires_key
 test_alibaba_launcher_requires_key
 test_alibaba_exec_requires_key
+test_ollama_exec_requires_key
 printf 'PASS: herdr Dev Container migration\n'
