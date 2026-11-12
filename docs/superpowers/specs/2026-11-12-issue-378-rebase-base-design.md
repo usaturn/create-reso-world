@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（内容の承認は記録していない。`issue-to-pr` による実行許可に基づき `draft` のままコミットする）
+- 状態: `completed`（`issue-to-pr` による初期作成時は `draft`、PR #421 の `review-fix-planning` 完遂のサイクル 1 修正・自己レビュー・検証完了に伴い `completed` に更新。内容の承認は記録せず、利用者の実行許可に基づき実施）
 - 対象 Issue: https://github.com/usaturn/create-reso-world/issues/378
 - 対象リポジトリ: `usaturn/create-reso-world`（`DOCS_SEPARATE = false`、PR の base: `main`）
 - 捕捉した基準 base: `usaturn/create-reso-world` / `origin` / `refs/heads/main` / `c3a8e113c3af010fac94820266b93e107d6dbfaf`
@@ -285,3 +285,99 @@ Claude Code 等の Bash 実行環境では `eval '<block>' && true` の形で動
   - `S13`（`important`, `adopt`）: 古い `checks.json` から `required-verify-cmds.json` を自動生成する経路を廃止し、`--set-verify-cmds` だけで必須検証コマンドを排他固定する仕様とテストを設計 1.4・1.5・3.1・D2 に反映
   - `S14`（`minor`, `adopt`）: 必須検証コマンド要素に `cwd`（`"code" | "docs" | "parent"`）を持てる正規化形式を定義し、`DOCS_SEPARATE=true` での `docs` 側検証コマンド実行テストを設計 1.5・1.6・3.1・D2 に追加
   - `S15`（`minor`, `adopt`）: Plan コミット直後の `owned-paths.json` 更新時にリポジトリ別（`CODE_ROOT` 側 Task は `code`、`DOC_ROOT` 側 Spec/Plan/Task は `docs`）へ振り分ける規則を設計 1.2・2.1・D3 に明記
+
+## PR レビュー修正記録（PR #421）
+
+### サイクル 1（レビュー対象 HEAD: `dd00ecc7b5202b16f7866abbef0634716e899bc6`）
+
+- 対象 PR: `usaturn/create-reso-world#421`（ブランチ `feat/issue-378-rebase-base`、base `main` `fa9958511ed1ce7bdc0a467f763c9772b459af61`）
+- サイクル番号（`round`）: `1`
+- 結論: **結論 1（修正して push、`fixes_pushed`）**
+- 実行許可: 利用者の `/issue-to-pr #378 --merge --spec-review pi_opencode-go_deepseek4-flash_max --implement pi_opencode-go_deepseek4-flash_max --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,claude-code_opus_default` の明示指示に基づく完遂モード
+- planner モデル・ランタイム: `gemini-3.1-pro`（ランタイム: `antigravity`、`agent_id: self`）
+- 確認済み一覧・工程記録のパス:
+  - 確認済み一覧: `reviews/usaturn/create-reso-world/#421-feat-issue-378-rebase-base/verified/dd00ecc7b520.json`（および `.md`）
+  - 工程記録: `reviews/usaturn/create-reso-world/#421-feat-issue-378-rebase-base/verified/dd00ecc7b520.planning.json`
+  - 修正の確認（`fix_check`）: `reviews/usaturn/create-reso-world/#421-feat-issue-378-rebase-base/verified/ef1be44c4b81.fix-check.json`（および `.md`、`.statement-candidates.json`）
+
+#### レビュアーの構成
+
+| レビューファイル | モデル | ランタイム | 担当 ID | レビュー HEAD | Mode | このサイクルで再実行したか（`rerun`） | Merge recommendation | 所要時間（秒） |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `SWE-2-Max.md` | `SWE-2 Max` | `devin` | `devin_swe2_max` | `dd00ecc7b520` | `Initial` | `true` | `Approve` | `960.29` |
+| `claude-opus-5-5.md` | `claude-opus-5-5` | `claude-code` | `claude-code_opus_default` | `dd00ecc7b520` | `Initial` | `true` | `Approve` | `699.09` |
+| `deepseek-v4.1-flash.md` | `deepseek-v4.1-flash` | `pi` | `pi_opencode-go_deepseek4-flash_max` | `dd00ecc7b520` | `Initial` | `true` | `Request changes` | `990.99` |
+
+- 入力から外したファイル: なし（3 名とも現行 HEAD `dd00ecc7b5202b16f7866abbef0634716e899bc6` をレビュー）
+- 前のサイクルの判断: 0 件（初回サイクル）
+
+#### 全指摘の一覧と 3 区分の振り分け
+
+- 分類件数: **解消済み 0 件 / 対応する 2 件 / 対応しない 0 件**（未確認候補 0 件）
+
+| 判断 ID / 出典 | 区分 | 重大度（参考） | PR 起因 | 判定理由・根拠（1 行） |
+| --- | --- | --- | --- | --- |
+| `deepseek-v4.1-flash#H-1@dd00ecc7b520`（確認済み `V-1`） | 対応する（`fix`） | `High` | `introduced`（`dd00ecc7b520`） | ブロックが `exit 2` で終了した後の新しいシェルで `$SESSION/base-env.bash` から復帰ブロック（`inspect-advance`・`advance`・`reverify`・`diff`・`publish`・`pr`）を実行すると、`CODE_ROOT`・`CODE_BRANCH`・`DOC_ROOT`・`DOC_BRANCH`・`SKILL_DIR` が保存・source されず `CODE_ROOT: unbound variable` で停止し、また `advance` が `cp` で既存の `resume.bash` を上書きして退避変数を消去することを隔離 worktree で再現したため（分類仕様 2(a)・(b)、D1 該当） |
+| `deepseek-v4.1-flash#M-1@dd00ecc7b520`（確認済み `V-2`） | 対応する（`fix`） | `Medium` | `introduced`（`70db091cd9e7`） | Spec 1.2 と `SKILL.md:214` が案内する初期所有ディレクトリ（例: `.agents/skills/issue-to-pr` や `docs/superpowers/specs/`）と Plan コミット後の具体ファイルパス（`allowed_files`・Spec/Plan ファイルパス）の和集合を `owned-paths.json` に入れると、`resolve_base.py:_owned_list` が `_paths_overlap` で親子包含を「重複するパス」として終了コード 2 で拒否し `--inspect-advance` が止まることを隔離 worktree で再現したため（分類仕様 2(a)・(b)、D1 該当） |
+
+- 「解消済み」の項目: なし（0 件）
+- 「対応しない」の項目: なし（0 件）
+- 設計の見直しのきっかけ該当: なし（サイクル 1 の初回指摘であり、同じ守る条件の 2 回目や回帰ではない）
+
+#### PR の約束・制限と既存 Spec・Plan への要件対応
+
+- Issue #378 および本 Spec の目的である「未 push の base 前進時に、ブロックが `exit 2` で中断した後の別シェルでも `$SESSION/base-env.bash` から復帰ループ（`inspect-advance` → `advance` → `worktree` または `reverify` → `diff` → `publish` → `pr`）を完走できること」「`capture` 直後の初期所有パスと Plan 確定後の `allowed_files`・Spec/Plan パスの和集合で `owned-paths.json` を更新し、所有範囲との重なりを機械検査できること」を、実装・手順・テストの間で一貫して成立させる。
+- 所有境界の制限（`.agents/skills/issue-to-pr/SKILL.md` 4 章および `implement_task.py` は編集しない）を引き続き厳守する。
+
+#### 「対応する」項目ごとの修正方針・検証方法と「守る条件と影響経路」の表
+
+1. **`deepseek-v4.1-flash#H-1@dd00ecc7b520`（`V-1`）**
+   - **修正方針:**
+     - `<!-- base-workflow:capture -->` 末尾で `TARGET_ROOT`・`TARGET_REPO`・`PARENT_ROOT`・`DOCS_SEPARATE`・`CODE_BASE_BRANCH`・`CODE_BASE_SHA`・`SKILL_DIR`（および `DOCS_SEPARATE != false` 時は `DOC_BASE_SHA`）を `export` して `declare -p` で `$SESSION/base-env.bash` に書き出し、`CODE_ROOT`・`CODE_BRANCH` が設定済みなら `DOC_ROOT`・`DOC_BRANCH` とともに追記し、最後に `declare -f recheck_bases` を追記する。
+     - `<!-- base-workflow:worktree -->` の先頭で `$SESSION/base-env.bash` を source し、`recheck_bases || exit 2` の直前に `SKILL_DIR`・`CODE_ROOT`・`CODE_BRANCH`・`DOC_ROOT`・`DOC_BRANCH` を `$SESSION/base-env.bash` に追記する（`pre_worktree` で `recheck_bases` が `exit 2` になった場合も後続の `inspect-advance`・`advance`・`worktree` が別シェルで変数を復元できるようにする）。
+     - `inspect-advance`・`advance`・`reverify`・`diff`・`publish`・`pr` の各ブロック先頭で `$SESSION/base-env.bash` を source する（`pr` は続けて `resume.bash` も source する）。
+     - `<!-- base-workflow:advance -->` は更新後の全変数と `recheck_bases` で `$SESSION/base-env.bash` を書き直し、既存の `$SESSION/resume.bash` があれば `cp` で上書きせず `cat "$SESSION/base-env.bash" >> "$SESSION/resume.bash"` で追記して退避変数を保持する。
+   - **検証方法:** `test_base_workflow.py::test_unpushed_base_advance_requires_reverify_and_pr_record` にて、`SESSION`・`SKILL_DIR`・`PATH`・`HOME`・`GIT_CONFIG_NOSYSTEM` のみを持つ最小環境の新規シェルで `inspect-advance` → `advance` → `reverify` → `diff` → `publish` が成功し、`resume.bash` の既存変数 `CUSTOM_RESUME_VAR=kept` が保持されたまま `CODE_BASE_SHA` が最新値に更新されることを検証する。
+
+2. **`deepseek-v4.1-flash#M-1@dd00ecc7b520`（`V-2`）**
+   - **修正方針:**
+     - `.agents/skills/issue-to-pr/scripts/resolve_base.py` の `_owned_list` におけるリスト内重複検査を `if _paths_overlap(first, second):` から `if first == second:` に変更し、正規化後の同一パス重複（例: `"docs/superpowers/specs"` と `"docs/superpowers/specs/"`）は引き続き終了コード 2 で拒否しつつ、親ディレクトリと配下ファイルの和集合（例: `[".agents/skills/issue-to-pr", ".agents/skills/issue-to-pr/scripts/resolve_base.py"]` や `["docs/superpowers/specs/", "docs/superpowers/specs/2026-11-12-design.md"]`）を受理する。
+     - `_inspect_target` におけるリモート `<old_sha>..<new_sha>` の変更ファイルと `owned-paths.json` の重なり検査は、引き続き `_paths_overlap`（双方向の包含・一致）を使用する。
+     - `SKILL.md`・Spec・Plan の記述を実装と一致させる。
+   - **検証方法:** `test_resolve_base.py::test_advance_guards_and_state_chain` と `test_base_workflow.py::test_unpushed_base_advance_requires_reverify_and_pr_record` にて、正規化後の同一パス重複が終了コード 2 で拒否されること、親ディレクトリと配下ファイルの和集合で `--inspect-advance`・`--advance` が成功すること、およびリモート変更が親ディレクトリ配下に重なる場合は終了コード 2 で拒否され worktree `HEAD` と state JSON が不変であることを検証する。
+
+| 守る条件 | 影響経路（入口 → 内部処理 → 出力/副作用） | 確認方法と観測結果 |
+| --- | --- | --- |
+| ブロックが `exit 2` で終了した後の新しいシェルで、`SESSION` の保存物から `worktree`・`inspect-advance`・`advance`・`reverify`・`diff`・`publish`・`pr` が必要変数と `recheck_bases` を復元できる | `capture` / `worktree` / `advance` → `export` + `declare -p` / `declare -f` → `$SESSION/base-env.bash` → 後続ブロック先頭の `source "$SESSION/base-env.bash"` | `test_base_workflow.py`（最小環境の新規シェルで `inspect-advance` → `advance` → `reverify` → `diff` → `publish` が `exit_code == 0` で完走し、ガード除去対照では `CODE_ROOT: unbound variable`（`rc=1`）で失敗することを確認） |
+| `advance` が既存の `$SESSION/resume.bash` の退避変数を消去せず、base 関連の変数・関数だけを最新値に更新する | `advance` → `cat "$SESSION/base-env.bash" >> "$SESSION/resume.bash"` → 再開時の `source "$SESSION/resume.bash"` | `test_base_workflow.py`（`CUSTOM_RESUME_VAR=kept` が保持されつつ `CODE_BASE_SHA` が最新値 `base_v3` に更新されることを確認） |
+| `owned-paths.json` が親ディレクトリと配下ファイルの和集合を受理し、正規化後の同一パス重複は終了コード 2 で拒否し、リモート `<old_sha>..<new_sha>` の変更と所有パスの双方向包含・一致は終了コード 2 で拒否する | `resolve_base.py:_owned_list`（`first == second`）→ `_inspect_target`（`_paths_overlap`）→ `advance-inspection.json` / 終了コード 0 または 2（拒否時は worktree `HEAD`・state JSON 不変） | `test_resolve_base.py`・`test_base_workflow.py`（親子和集合で成功し、同一パス重複とリモート変更重複で終了コード 2・状態不変を確認。ガード除去対照では同一パス重複が素通りして失敗することを確認） |
+
+#### 役割の割り当て・実行記録（`run_roles.py`）と自己レビュー
+
+- **実装（`run_roles.py --phase implement`）:**
+  - 出力ディレクトリ: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr421.0lzruc3b/implement-run`（`run_id: 218e3a46660740d48825a5f611bcba27`）
+  - 割り当て・実担当: `requested_agent: "pi_opencode-go_deepseek4-flash_max"` → `actual_agent: "pi_opencode-go_deepseek4-flash_max"`（`model: "deepseek-v4.1-flash"`, `runtime: "pi"`, `provider: "opencode-go"`, `effort: "max"`, `session_id: "01a1d034-5a45-724c-8d4e-083aa855441c"`, `request_id: "fd5d9f00e29a4b7e9b66ffd5bbff30ca"`）
+  - 試行回数・所要時間: 1 回（`state: "success"`, `elapsed_seconds: 1554.88`）、runner 作成コミット `dbfcb1d9b2a8d68641539a25dde3603f3d57d919` を `MAIN_ROOT` へ `ef1be44c4b81af1d4b552895bd33fdee7d8a376b` として適用
+- **修正後の自己レビュー（`run_roles.py --phase self-review`、呼び出し 1 回）:**
+  - 出力ディレクトリ: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr421.0lzruc3b/self-review-run`（`run_id: 98f7d65bb9684a988bd90c763711bbb0`）
+  - 割り当て: `self-review: ["self"]`（`request_id: "e00ddd90765942168397345d28334ca4"`）、`fix-check: ["self"]`（`request_id: "5b0f0117e2be4838b78a88ce726eb0a5"`）。`dd00ecc7b520.planning.json` に `pre_push_review` 枠を 1 回予約し、司令塔（`self`）が両役割を実行した。
+  - **観点 2（`self-review`: PR 全体の再レビュー）:** `review_run.py prepare/complete`（対象コミット `ef1be44c4b81af1d4b552895bd33fdee7d8a376b`、保存先 `reviews/usaturn/create-reso-world/#421-feat-issue-378-rebase-base/claude-opus-4-6-commit-ef1be44c4b81af1d4b552895bd33fdee7d8a376b.md` および `findings/claude-opus-4-6-commit-ef1be44c4b81af1d4b552895bd33fdee7d8a376b-ef1be44c4b81.json`、所要時間 `145.66` 秒）を実行し、merge-base `fa9958511ed1ce7bdc0a467f763c9772b459af61` からの全 6 変更ファイルの全文と差分を精読した。結果: **Active findings 0 件、Unverified candidates 0 件、`Approve`**。
+  - **観点 1（反証）および観点 3（検証の検出力）（`fix-check`: `review-verify` mode `fix_check`）:** `dd00ecc7b5202b16f7866abbef0634716e899bc6..ef1be44c4b81af1d4b552895bd33fdee7d8a376b` に対して `review_findings.py statement-candidates`（386 件の statement candidates）と 3 件の主張（`C-1`〜`C-3`）・全 6 変更ファイルの検証を実行し、`verified/ef1be44c4b81.fix-check.json`（および `.md`、所要時間 `150.0` 秒）を保存・validate した。結果: **全 386 件 `consistent`、全主張 `holds`、全変更ファイル `passed`、findings 0 件（`blocking_fixes: 0`）**。
+  - 自己レビュー後のコード修正は無く、この Spec 完了記録のコミット後は再レビューを行わない。
+
+#### 実行した検証と「失敗時の検証」の対照結果
+
+1. **失敗時の検証（隔離一時 worktree でのガード有無の対照）:**
+   - 対照 1（`M-1` の `_owned_list` 重複拒否ガード）:
+     - 修正版（`ef1be44c4b81`）: `_load_owned` に正規化後の同一パス重複 `["docs/superpowers/specs", "docs/superpowers/specs/"]` を渡すと `ValueError`（終了コード 2）で拒否され、親子和集合 `["docs/superpowers/specs/", "docs/superpowers/specs/2026-11-12-design.md"]` は受理される。
+     - ガード除去版（`if first == second:` を除去した対照）: 同一パス重複 `["src/ours", "src/ours/"]` が拒否されず通過し、負例テストが失敗することを確認した。
+   - 対照 2（`H-1` の別シェル `base-env.bash` 復元ガード）:
+     - 修正版（`ef1be44c4b81`）: `SESSION`・`SKILL_DIR`・`PATH`・`HOME`・`GIT_CONFIG_NOSYSTEM` のみを持つ新規シェルで `inspect-advance` → `advance` → `reverify` → `diff` → `publish` が `exit_code == 0` で成功する。
+     - ガード除去版（`inspect-advance` 先頭の `source "$SESSION/base-env.bash"` を除去した対照）: `test_unpushed_base_advance_requires_reverify_and_pr_record` が `CODE_ROOT: unbound variable`（`rc=1`）で失敗することを確認した。
+2. **テスト・全体検証の実行結果:**
+   - `uv run --project /workspaces/reso-world/.worktrees/issue-378-rebase-base --locked pytest .agents/skills/issue-to-pr/tests/test_resolve_base.py .agents/skills/issue-to-pr/tests/test_base_workflow.py -q`: `20 passed`（終了コード 0）
+   - `uv run --project /workspaces/reso-world/.worktrees/issue-378-rebase-base --locked pytest tests/skills .agents/skills -q`: `132 passed`（終了コード 0）
+   - `bash .devcontainer/run-tests.bash`: `PASS: 27 test(s)`（終了コード 0）
+   - `bash scripts/check-layout.sh`: `PASS: check-layout`（終了コード 0）
+   - `.agents/skills/issue-to-pr/SKILL.md` 4 章の不変確認: `git diff fa9958511ed1ce7bdc0a467f763c9772b459af61..HEAD -- .agents/skills/issue-to-pr/SKILL.md` で 4 章に差分が無いことを確認（終了コード 0）
+
