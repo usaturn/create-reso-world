@@ -58,11 +58,11 @@ Linux Dev Container、uv、実 Git worktree と実 agent-runner、fake adapter/C
 **条件:** 上の Task 1 全条件と動作環境・実入力・防御範囲をそのまま適用。
 **テスト要否:** L の新規拒否は恒久不要。既存 S を実行し、一時 script で副作用の不在と正常対照を確認。
 
-- [ ] 一時再現を SESSION 下へ作り、fake の起動回数・出力先・Git登録・HEAD の前後を記録する。変更前に問題を観測する。
-- [ ] run_workflow より前で正規絶対パス・symlink 構成要素を検査する。読取不能も起動せず拒否する。resolve で黙って受理しない。
-- [ ] 一時検証の両拒否例と正規 run→accept→cleanup、実行後の差替え拒否を実行する。
-- [ ] `uv run pytest .agents/skills/issue-to-pr/tests/test_implement_task.py .agents/skills/issue-to-pr/tests/test_implement_task_run.py -q`、`git diff --check` を実行し、ログの完全パスと終了コードを報告。
-- [ ] 明示ファイルだけ commit: `fix(issue-to-pr): validate implementation output before launch`。
+- [x] 一時再現を SESSION 下へ作り、fake の起動回数・出力先・Git登録・HEAD の前後を記録する。変更前に問題を観測する。
+- [x] run_workflow より前で正規絶対パス・symlink 構成要素を検査する。読取不能も起動せず拒否する。resolve で黙って受理しない。
+- [x] 一時検証の両拒否例と正規 run→accept→cleanup、実行後の差替え拒否を実行する。
+- [x] `uv run pytest .agents/skills/issue-to-pr/tests/test_implement_task.py .agents/skills/issue-to-pr/tests/test_implement_task_run.py -q`、`git diff --check` を実行し、ログの完全パスと終了コードを報告。
+- [x] 明示ファイルだけ commit: `fix(issue-to-pr): validate implementation output before launch`。
 
 ## Task 2: #390 の成功証拠・復旧・中断報告
 
@@ -72,13 +72,13 @@ Linux Dev Container、uv、実 Git worktree と実 agent-runner、fake adapter/C
 **条件:** 上の Task 2 全条件と動作環境・実入力・防御範囲をそのまま適用。Task 1 の判定を維持。
 **テスト要否:** 削除証拠の誤認・記録欠落・競合は S。real runner＋fake の代表復旧、未知消失拒否、証拠・lock の安全境界を先に RED にする。正常対照を残し D は統合する。
 
-- [ ] 既存 fixture と実 runner の差を確認し、成功1試行／失敗primary＋成功fallback の fault/normal を構成する。実 runner の request.json をそのまま使い、_append_cleanup_event 内の最初の os.write だけに単発 EIO を注入する。変更前の missing 継続と後続一覧欠落を確認する。
-- [ ] 恒久 S の代表テストを先に RED にする。別 CLI での復旧→再実行、既存 bytes/無関係登録/HEAD保全、証拠なし・不正証拠拒否、後続一覧、lock 競合を assert。L/F/D を足さない。
-- [ ] Spec の flat sidecar、strict schema、key、fsync 保存順、private regular file、現在の common-dir と batch/path一意性の照合を実装。lock を読取前に取得。欠落イベントの再追記を早期 no-op より前にする。
-- [ ] callback 失敗後の削除を止め、後続を報告だけ行う。通常 retained の records と事前拒否の互換例外・CLI終了2（Spec/design両方）を実装。
-- [ ] 旧 Spec 末尾に #390 の訂正根拠と旧 #L-2 の対象外を追記する。元の行・失敗証拠は書き換えない。
-- [ ] Task 2 全条件の四対照、別 CLI、runner-dir 追記失敗の一時検証、design 委譲、既存安全境界を実行する。`uv run pytest .agents/skills/issue-to-pr/tests -q` と `git diff --check`、利用可能な静的検査を実行しログを報告。
-- [ ] 明示ファイルだけ commit: `fix(issue-to-pr): recover review cleanup from receipt append failures`。
+- [x] 既存 fixture と実 runner の差を確認し、成功1試行／失敗primary＋成功fallback の fault/normal を構成する。実 runner の request.json をそのまま使い、_append_cleanup_event 内の最初の os.write だけに単発 EIO を注入する。変更前の missing 継続と後続一覧欠落を確認する。
+- [x] 恒久 S の代表テストを先に RED にする。別 CLI での復旧→再実行、既存 bytes/無関係登録/HEAD保全、証拠なし・不正証拠拒否、後続一覧、lock 競合を assert。L/F/D を足さない。
+- [x] Spec の flat sidecar、strict schema、key、fsync 保存順、private regular file、現在の common-dir と batch/path一意性の照合を実装。lock を読取前に取得。欠落イベントの再追記を早期 no-op より前にする。
+- [x] callback 失敗後の削除を止め、後続を報告だけ行う。通常 retained の records と事前拒否の互換例外・CLI終了2（Spec/design両方）を実装。
+- [x] 旧 Spec 末尾に #390 の訂正根拠と旧 #L-2 の対象外を追記する。元の行・失敗証拠は書き換えない。
+- [x] Task 2 全条件の四対照、別 CLI、runner-dir 追記失敗の一時検証、design 委譲、既存安全境界を実行する。`uv run pytest .agents/skills/issue-to-pr/tests -q` と `git diff --check`、利用可能な静的検査を実行しログを報告。
+- [x] 明示ファイルだけ commit: `fix(issue-to-pr): recover review cleanup from receipt append failures`。
 
 ## Task 3: controller の統合・検証・公開
 
@@ -100,3 +100,13 @@ worker の期限は helper の役割上限（implement 5400秒、Spec/inspect 27
 ## contingency（代替策）
 
 初回 RED の fixture/API 前提差は意味を保つ最小修正を ledger に残して継続する。証拠が保存できない crash 窓・部分JSONLは自動修復へ広げず停止情報を返す。実装で責務が肥大化するなら同 scripts の小モジュールへ分離し、共有 classifier と runner は作り直さない。Task が rejected/retry なら同じ担当へ文脈を補い新RUN_DIRで1回まで、failed は停止しselfへ切替不可。base移動・競合・未知の外部送信・安全境界違反は停止。必要条件を削って成功にせず、未完了は根拠と残作業を保存して引き継ぐ。
+
+## 実装・Task review 記録（公開前）
+
+- Task1: 252b5d20、依頼1回226.73秒。fakeの事前拒否・正常run/accept/cleanup・差替え拒否、一時検証GREEN、controller44passed。Task review clean、指摘なし。
+- Task2: 20c5fb87＋修正2713b664、依頼2回1859.54秒＋576.20秒。初回は実装前REDを省いた逸脱があり、後からの旧版counterfactualで失敗を確認したがTDD遵守とは記録しない。修正サイクルでは親symlink拒否をRED→GREENで確認。
+- Task2 reviewのImportant3件（親安全性・実runner四対照と保全証拠・D重複）を採用し、限定再レビューで全てADDRESSED。controller39passed、実runner四対照＋runner-dir障害5passed、全てexit0。未変更の不正requestの構造化エラー報告はMinorとしてdeferred、PR本文とループへ渡す。
+- 全依頼requested/actual=pi_opencode-go_deepseek4-flash_max、identity=opencode-go/deepseek-v4.1-flash/max、fallback=[]、stop_confirmed=true、outside_changes=[]。unprotected_changesは既存prunable /tmp6件の監査不能で、他者の資源には触れていない。各依頼cleanup retained=[]。
+- 詳細ログ・採否・reviewed/reflected SHA・所要・brief/review package: /workspaces/reso-world/tmp/agents/issue-390.bq1npfwa/。正式なSpecはdraftのまま（実行許可のみ）。Specレビューのcleanupは両回成功、retained=[]。
+- 最終HEADの全体検証・Gitleaks・PR公開・PRレビュー修正ループはこの記録時点で未実施。これらの結果はSESSIONとPR本文へ記録し、ループ中にこのPlanやSpecへ追加コミットしない。
+
