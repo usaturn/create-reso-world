@@ -73,7 +73,7 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
 
 3. `INPUT` は、**利用者が書いた引数の先頭から、Issue の参照とオプションのうち最後のものまでを、書かれたまま切り出した文字列**である。後ろに続く自然文は含めない（`#12 推奨案で進めて` なら `#12`、`#12 --merge --max-cycles 2 途中で止めずに` なら `#12 --merge --max-cycles 2`）。語を足したり並べ替えたりしない。読み取り専用の helper を、起動したときの cwd のまま（checkout のルートへ `cd` せずに）実行する。
 
-   `SESSION` は `PARENT_ROOT/tmp/agents/` の、この run のセッションディレクトリ（`agent_tmp.py mkdir issue-N`）にする。以降の Bash ブロックは配列・変数・関数を共有する。別シェルに移るときは、最初に `set -euo pipefail` を実行し、保存 JSON から同じ値を読み戻し（読み込みの失敗は `|| exit 2` で止める）、関数を定義し直す。publish が scan で決める SHA は `SESSION` のファイル（`code-sha.txt`・`docs-sha.txt`）に保存し、`pr` ブロックは同じシェルでも別シェルでも先頭でそこから読む（無い・空なら PR を作る前に止まる）。文書を分けるかの `DOCS_SEPARATE` も、`pr` ブロックは `target.json` から決め直す。各ブロックは先頭で helper と同じ規則（`scripts/git_env.py`）により継承した `GIT_*` を除去し（remote の認証に使う transport の設定 `TRANSPORT_AUTH` は残す）、検証・worktree・diff・scan・push・PR 作成で同じ Git 環境を使う。ブロックは bash と zsh のどちらでもそのまま実行できる。**停止は errexit に頼らない。** ランタイムがブロックを `&&` の並びの中の `eval` で実行すると（Claude Code の Bash ツール）`set -e` は効かないので、失敗すると後続が無効になるコマンド（helper と値の読み込み、`recheck_bases`、`[ -n … ]`、`jq -e`、worktree の作成、push、PR の作成と保存）に `|| exit 2` を付けている。`set -euo pipefail` は errexit が効くシェルでの二重の守りとして残す。ブロックは先頭から最上位のコマンド列として実行し、`|| exit 2` を外したり、`if` の条件や `&&` / `||` の一部に包んだりしない。終了コードが 0 でないブロックの後は、次のブロックへ進まない。base の取得をやり直して SHA を差し替えない。引数は引用と Bash 配列で渡し、`eval` しない。
+   `SESSION` は `PARENT_ROOT/tmp/agents/` の、この run のセッションディレクトリ（`agent_tmp.py mkdir issue-N`）にする。以降の Bash ブロックは配列・変数・関数を共有する。別シェルに移るときは、最初に `set -euo pipefail` を実行し、保存 JSON から同じ値を読み戻し（読み込みの失敗は `|| exit 2` で止める）、関数を定義し直す。publish が scan で決める SHA は `SESSION` のファイル（`code-sha.txt`・`docs-sha.txt`）に保存し、`pr` ブロックは同じシェルでも別シェルでも先頭でそこから読む（無い・空なら PR を作る前に止まる）。文書を分けるかの `DOCS_SEPARATE` も、`pr` ブロックは `target.json` から決め直す。各ブロックは先頭で helper と同じ規則（`scripts/git_env.py`）により継承した `GIT_*` を除去し（remote の認証に使う transport の設定 `TRANSPORT_AUTH` は残す）、検証・worktree・diff・scan・push・PR 作成で同じ Git 環境を使う。ブロックは bash と zsh のどちらでもそのまま実行できる。**停止は errexit に頼らない。** ランタイムがブロックを `&&` の並びの中の `eval` で実行すると（Claude Code の Bash ツール）`set -e` は効かないので、失敗すると後続が無効になるコマンド（helper と値の読み込み、`recheck_bases`、`[ -n … ]`、`jq -e`、worktree の作成、push、PR の作成と保存）に `|| exit 2` を付けている。`set -euo pipefail` は errexit が効くシェルでの二重の守りとして残す。ブロックは先頭から最上位のコマンド列として実行し、`|| exit 2` を外したり、`if` の条件や `&&` / `||` の一部に包んだりしない。終了コードが 0 でないブロックの後は、そのまま次のブロックへ進まない（未 push の base 前進で 2 章 6 の前進追随フローに入る場合を除く）。2 章 6 の未 push 条件付き前進追随の手順を除き、base の取得をやり直して SHA を差し替えない。別シェルに移るときは `$SESSION/base-env.bash` を `source` して、捕捉した base と `recheck_bases` を復元する。引数は引用と Bash 配列で渡し、`eval` しない。
 
    <!-- base-workflow:input -->
    ```bash
@@ -182,13 +182,15 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
    required_bases="$(cat "$SESSION/required-bases.txt")" || exit 2
    while IFS= read -r required; do [ -z "$required" ] || base_args+=(--required-base "$required"); done <<< "$required_bases"
    uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
-     --checkout "$TARGET_ROOT" --repo "$TARGET_REPO" "${base_args[@]}" > "$SESSION/code-base.json" || exit 2
-   CODE_BASE_BRANCH="$(jq -r .branch "$SESSION/code-base.json")" || exit 2
-   CODE_BASE_SHA="$(jq -r .sha "$SESSION/code-base.json")" || exit 2
+     --checkout "$TARGET_ROOT" --repo "$TARGET_REPO" "${base_args[@]}" \
+     --write-state "$SESSION/code-base.json" || exit 2
+   CODE_BASE_BRANCH="$(jq -er .branch "$SESSION/code-base.json")" || exit 2
+   CODE_BASE_SHA="$(jq -er .sha "$SESSION/code-base.json")" || exit 2
    if [ "$DOCS_SEPARATE" != false ]; then
      uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
-       --checkout "$PARENT_ROOT" --repo usaturn/create-reso-world > "$SESSION/docs-base.json" || exit 2
-     DOC_BASE_SHA="$(jq -r .sha "$SESSION/docs-base.json")" || exit 2
+       --checkout "$PARENT_ROOT" --repo usaturn/create-reso-world \
+       --write-state "$SESSION/docs-base.json" || exit 2
+     DOC_BASE_SHA="$(jq -er .sha "$SESSION/docs-base.json")" || exit 2
    fi
    recheck_bases() {
      uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
@@ -200,9 +202,100 @@ Spec レビューと設計レビューは、利用者がこの 2 つの引数を
          --expected-sha "$DOC_BASE_SHA" > "$SESSION/docs-base-recheck.json" || return
      fi
    }
+   export TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA SKILL_DIR
+   declare -p TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA SKILL_DIR > "$SESSION/base-env.bash" || exit 2
+   if [ "$DOCS_SEPARATE" != false ]; then
+     export DOC_BASE_SHA
+     declare -p DOC_BASE_SHA >> "$SESSION/base-env.bash" || exit 2
+   fi
+   if [ -n "${CODE_ROOT:-}" ] && [ -n "${CODE_BRANCH:-}" ]; then
+     DOC_ROOT="${DOC_ROOT:-$CODE_ROOT}"
+     DOC_BRANCH="${DOC_BRANCH:-}"
+     export CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH
+     declare -p CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH >> "$SESSION/base-env.bash" || exit 2
+   fi
+   declare -f recheck_bases >> "$SESSION/base-env.bash" || exit 2
    ```
 
-   `recheck_bases` は origin の対象と完全 ref の先端を捕捉した SHA に照合する。worktree の直前、差分の確認、scan の前、全 scan 後の各 push の直前、各 PR 作成の直前と作成後に実行する。移動を観測したら新 SHA を採用せず停止し、旧/新 SHA・差分・必要な再検証を報告する。複数 repository を一括ロックする保証はない。
+   `recheck_bases` は origin の対象と完全 ref の先端を捕捉した SHA に照合する。worktree の直前、差分の確認、scan の前、全 scan 後の各 push の直前、各 PR 作成の直前と作成後に実行する。移動を観測したら新 SHA を採用せず、旧/新 SHA・差分・必要な再検証を報告する。ただし未 push で下の復帰ループの条件を満たす場合は、停止せず復帰ループに進む。複数 repository を一括ロックする保証はない。
+
+   `$SESSION/owned-paths.json` は capture の直後に `{"code": [...], "docs": [...]}` の形で作り、4 章 3 の Plan を commit した直後に、変更するファイルの所有をリポジトリ別に更新する。`DOCS_SEPARATE` が `false` なら全パスを `code` に置き `docs` は空にする。`true` なら `CODE_ROOT` 側のパスを `code`、`DOC_ROOT` 側の Spec・Plan などを `docs` に置く。`code` と、文書分離時の `docs` は空配列にしない。所有パスはリポジトリ相対の POSIX パスで、`.`・`..`・先頭の `/`・空文字を含めない。
+
+   Plan の必須検証コマンドは、4 章 3 の Plan を commit した直後に `$SESSION/verify-cmds.json` へ配列（`["cmd", "arg", ...]` または `{"cwd": "code" | "docs" | "parent", "argv": [...]}`）で書き、`resolve_base.py --set-verify-cmds --session "$SESSION" --commands-file "$SESSION/verify-cmds.json"` で固定する。固定後の削減・`cwd` の変更・差し替えはできない。古い `checks.json` から必須検証コマンドを作らない。
+
+   **未 push の base 前進からの復帰:** 次のいずれかでブロックが終了コード 2 になったとき、司令塔は run 全体を止めず、未 push の条件を満たす限り次のループに入る。① 3 章 `base-workflow:worktree` の `recheck_bases`、② 5 章冒頭の最終検証前の `recheck_bases`、③ 5 章 `base-workflow:diff` の `recheck_bases`、④ 5 章 `base-workflow:publish` の push 前の `recheck_bases` と `scripts/scan-before-push.sh` の `--expected-base-sha` 不一致（`base moved`）、⑤ `base-workflow:advance` 末尾の `recheck_bases`。
+   1. `<!-- base-workflow:inspect-advance -->` を実行して `$SESSION/advance-inspection.json` を得る。終了コードが 2 なら停止して報告する（既に片方でも push 済み、非 fast-forward、所有パスや変更ファイルとの重複、衝突、累計 3 回の上限到達、scan の失敗原因が base 移動でない、などを含む）。
+   2. `advance-inspection.json` のコミットと変更ファイルを確認し、`preflight`・`checkout_policy`・外部仕様・共有インターフェース・適用される `AGENTS.md` の前提が変わっていなければ、根拠を `$SESSION/advance-premise.txt` に書く。前提が変わっていれば停止して報告する。
+   3. `<!-- base-workflow:advance -->` を実行する。末尾の `recheck_bases` がさらなる前進で失敗したら 1 に戻り、各対象リポジトリの累計 3 回まで追随する。
+   4. 再開先は、worktree 未作成（`pre_worktree`）なら `<!-- base-workflow:worktree -->` をやり直して 4 章へ進む。worktree 作成済みなら必ず 5 章の `<!-- base-workflow:reverify -->` を実行し、PR 本文に全前進の旧/新 SHA と再検証コマンドを反映してから `<!-- base-workflow:diff -->` → `<!-- base-workflow:publish -->` → `<!-- base-workflow:pr -->` を順に実行する。
+
+   push 済みの検出点（`publish` で片方の push が済んだ後の `recheck_bases`、`base-workflow:pr` の `recheck_bases`、PR 作成後）で失敗したときは rebase せず、従来どおり停止して旧/新 SHA と公開済み資源を報告する。
+
+   <!-- base-workflow:inspect-advance -->
+   ```bash
+   set -euo pipefail
+   if [ -f "$SESSION/base-env.bash" ]; then
+     source "$SESSION/base-env.bash" || exit 2
+   fi
+   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+   uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+     --inspect-advance --session "$SESSION" \
+     --owned-paths-file "$SESSION/owned-paths.json" \
+     --code-root "$CODE_ROOT" --code-branch "$CODE_BRANCH" \
+     --doc-root "${DOC_ROOT:-$CODE_ROOT}" --doc-branch "${DOC_BRANCH:-}" \
+     > "$SESSION/advance-inspection.json" || exit 2
+   ```
+
+   <!-- base-workflow:advance -->
+   ```bash
+   set -euo pipefail
+   if [ -f "$SESSION/base-env.bash" ]; then
+     source "$SESSION/base-env.bash" || exit 2
+   fi
+   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+   TARGET_ROOT="${TARGET_ROOT:-$(jq -er .code_root "$SESSION/target.json")}" || exit 2
+   TARGET_REPO="${TARGET_REPO:-$(jq -er .repository "$SESSION/target.json")}" || exit 2
+   PARENT_ROOT="${PARENT_ROOT:-$(jq -er .parent_root "$SESSION/target.json")}" || exit 2
+   DOCS_SEPARATE="$(jq -r 'if (.document_repository | type) == "string" and (.repository | type) == "string" then .document_repository != .repository else error("target.json lacks document_repository") end' "$SESSION/target.json")" || exit 2
+   DOC_ROOT="${DOC_ROOT:-$CODE_ROOT}"
+   DOC_BRANCH="${DOC_BRANCH:-}"
+   uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+     --advance --session "$SESSION" \
+     --inspection "$SESSION/advance-inspection.json" \
+     --owned-paths-file "$SESSION/owned-paths.json" \
+     --premise-file "$SESSION/advance-premise.txt" \
+     --code-root "$CODE_ROOT" --code-branch "$CODE_BRANCH" \
+     --doc-root "${DOC_ROOT:-$CODE_ROOT}" --doc-branch "${DOC_BRANCH:-}" \
+     > "$SESSION/advance-result.json" || exit 2
+   CODE_BASE_BRANCH="$(jq -er .branch "$SESSION/code-base.json")" || exit 2
+   CODE_BASE_SHA="$(jq -er .sha "$SESSION/code-base.json")" || exit 2
+   if [ "$DOCS_SEPARATE" != false ]; then
+     DOC_BASE_SHA="$(jq -er .sha "$SESSION/docs-base.json")" || exit 2
+   fi
+   recheck_bases() {
+     uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+       --checkout "$TARGET_ROOT" --repo "$TARGET_REPO" --base "$CODE_BASE_BRANCH" \
+       --expected-sha "$CODE_BASE_SHA" > "$SESSION/code-base-recheck.json" || return
+     if [ "$DOCS_SEPARATE" != false ]; then
+       uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+         --checkout "$PARENT_ROOT" --repo usaturn/create-reso-world --base main \
+         --expected-sha "$DOC_BASE_SHA" > "$SESSION/docs-base-recheck.json" || return
+     fi
+   }
+   export TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA SKILL_DIR CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH
+   declare -p TARGET_ROOT TARGET_REPO PARENT_ROOT DOCS_SEPARATE CODE_BASE_BRANCH CODE_BASE_SHA SKILL_DIR CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH > "$SESSION/base-env.bash" || exit 2
+   if [ "$DOCS_SEPARATE" != false ]; then
+     export DOC_BASE_SHA
+     declare -p DOC_BASE_SHA >> "$SESSION/base-env.bash" || exit 2
+   fi
+   declare -f recheck_bases >> "$SESSION/base-env.bash" || exit 2
+   if [ -f "$SESSION/resume.bash" ]; then
+     cat "$SESSION/base-env.bash" >> "$SESSION/resume.bash" || exit 2
+   fi
+   recheck_bases || exit 2
+   ```
 
 7. ボードの子（GitHub の親 Issue があり、子か親の本文にボードのキーがある）は **`planning-parallel-issues` 必須**。予約・先行条件・成果の公開・所有権の再確認・解放はそちらに従い、このスキルに写さない。親からの子の選択は担当外。
 
@@ -237,8 +330,15 @@ rename が成功したときだけ `ISSUE_PANE_ID`・`ISSUE_PANE_LABEL` が確�
 <!-- base-workflow:worktree -->
 ```bash
 set -euo pipefail
+if [ -f "$SESSION/base-env.bash" ]; then
+  source "$SESSION/base-env.bash" || exit 2
+fi
 git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
 while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+DOC_ROOT="${DOC_ROOT:-$CODE_ROOT}"
+DOC_BRANCH="${DOC_BRANCH:-}"
+export SKILL_DIR CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH
+declare -p SKILL_DIR CODE_ROOT CODE_BRANCH DOC_ROOT DOC_BRANCH >> "$SESSION/base-env.bash" || exit 2
 recheck_bases || exit 2
 git -C "$TARGET_ROOT" worktree add -b "$CODE_BRANCH" "$CODE_ROOT" "$CODE_BASE_SHA" || exit 2
 if [ "$DOCS_SEPARATE" != false ]; then
@@ -426,11 +526,33 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
 - **`verification-before-completion` と `finishing-a-development-branch` 必須。** 終了方法は PR の作成を選び、改めて選択肢を尋ねない。検証は 2 章の 5 で確認した repo 側の入口で行う。長時間の検証・子・CI は `monitoring-long-tasks` 必須で、終了を待ち、終了コードと実ログを確かめる。
 - `--merge` のときは、最後の commit の後に検証し、検証した HEAD、そのときの `git status --porcelain` が空だったこと、各コマンドの argv と終了コード、ログの完全パスを `PARENT_ROOT/tmp/agents/` のセッションディレクトリに記録する。実 PR 作成後の照合でも同じ base であることを確認し、検証したツリーが含むコード base の完全 SHA（`CODE_BASE_SHA`）を `base` に記録する。PR の `baseRefOid` や文書 main の SHA で代えない。同じ場所に、`finalize.py` の `--checks-file` の形のファイルも作る（形は review-fix-planning の `references/execution.md` の 3 章のとおり）。ループで再利用する条件になる（下の「`--merge` のとき: PR の作成後のループ」の 5）
 - 統合確認では [要件・原因・検証の対応](../review-fix-planning/references/convergence.md) の「3. 検証と閉じ方」を読む。Spec→Plan→Task→実行証拠を条件単位で照合し、判定の両側・意味のある操作順・検証の独立した根拠・最後の修正で影響した経路を確認する。要件の欠落や未確認をテスト件数や別版のレビューで埋めず、必要な証拠が揃ってから公開する。
+- 最終検証の前に `$SESSION/verify-cmds.json` へ必須検証コマンドの配列（`["cmd", "arg", ...]` または `{"cwd": "code" | "docs" | "parent", "argv": [...]}`）を用意し、`--set-verify-cmds` で固定する。最終検証の前に `recheck_bases` を確認し、未 push で base が前進していれば先に 2 章 6 の前進追随を行ってから検証する（長い実装後の検証の二度手間を防ぐ）。1 回でも base 前進追随を行った run（`$SESSION/base-advances.jsonl` がある run、`pre_worktree` での前進を含む）では、次の `<!-- base-workflow:reverify -->` で必須検証コマンドを固定・実行し、`$SESSION/reverified.json` と `$SESSION/checks.json` を作る。検証後に `diff` や push 前の `publish`（`scan-before-push.sh` を含む）でさらに base 前進を観測したときも、2 章 6 の前進追随の後に `<!-- base-workflow:reverify -->` からやり直す。
+
+  <!-- base-workflow:reverify -->
+  ```bash
+  set -euo pipefail
+  if [ -f "$SESSION/base-env.bash" ]; then
+    source "$SESSION/base-env.bash" || exit 2
+  fi
+  git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
+  while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
+  uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+    --set-verify-cmds --session "$SESSION" \
+    --commands-file "$SESSION/verify-cmds.json" || exit 2
+  uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+    --reverify --session "$SESSION" \
+    --commands-file "$SESSION/verify-cmds.json" \
+    --code-root "$CODE_ROOT" --doc-root "${DOC_ROOT:-$CODE_ROOT}" || exit 2
+  ```
+
 - 差分は捕捉した base から確認する。後続のレビューにも repository / ref / SHA と差分の根拠を渡し、`origin/main` 固定に戻さない。
 
   <!-- base-workflow:diff -->
   ```bash
   set -euo pipefail
+  if [ -f "$SESSION/base-env.bash" ]; then
+    source "$SESSION/base-env.bash" || exit 2
+  fi
   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
   recheck_bases || exit 2
@@ -445,10 +567,16 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
   <!-- base-workflow:publish -->
   ```bash
   set -euo pipefail
+  if [ -f "$SESSION/base-env.bash" ]; then
+    source "$SESSION/base-env.bash" || exit 2
+  fi
   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
   SCAN="$PARENT_ROOT/scripts/scan-before-push.sh"
   recheck_bases || exit 2
+  uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+    --check-publish-gate --session "$SESSION" \
+    --code-root "$CODE_ROOT" --doc-root "${DOC_ROOT:-$CODE_ROOT}" || exit 2
   CODE_SHA="$(bash "$SCAN" -C "$CODE_ROOT" --base "origin/$CODE_BASE_BRANCH" --expected-base-sha "$CODE_BASE_SHA")" || exit 2
   [ -n "$CODE_SHA" ] || exit 2
   printf '%s\n' "$CODE_SHA" > "$SESSION/code-sha.txt" || exit 2
@@ -468,6 +596,12 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
   <!-- base-workflow:pr -->
   ```bash
   set -euo pipefail
+  if [ -f "$SESSION/base-env.bash" ]; then
+    source "$SESSION/base-env.bash" || exit 2
+  fi
+  if [ -f "$SESSION/resume.bash" ]; then
+    source "$SESSION/resume.bash" || exit 2
+  fi
   git_unset="$(uv run --no-project python "$SKILL_DIR/scripts/git_env.py")" || exit 2
   while IFS= read -r git_env; do [ -z "$git_env" ] || unset "$git_env" || exit 2; done <<< "$git_unset"
   DOCS_SEPARATE="$(jq -r 'if (.document_repository | type) == "string" and (.repository | type) == "string" then .document_repository != .repository else error("target.json lacks document_repository") end' "$SESSION/target.json")" || exit 2
@@ -478,6 +612,10 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
     [ -n "$DOC_SHA" ] || exit 2
   fi
   recheck_bases || exit 2
+  uv run --no-project python "$SKILL_DIR/scripts/resolve_base.py" \
+    --check-pr-gate --session "$SESSION" \
+    --code-root "$CODE_ROOT" --doc-root "${DOC_ROOT:-$CODE_ROOT}" \
+    --code-pr-body "$CODE_PR_BODY" --doc-pr-body "${DOC_PR_BODY:-}" || exit 2
   CODE_PR_URL="$(gh pr create --repo "$TARGET_REPO" --base "$CODE_BASE_BRANCH" --head "$CODE_BRANCH" \
     --title "$PR_TITLE" --body-file "$CODE_PR_BODY")" || exit 2
   printf '%s\n' "$CODE_PR_URL" > "$SESSION/code-pr-url.txt" || exit 2
@@ -503,7 +641,7 @@ herdr pane rename "${ISSUE_PANE_ID:?}" "${ISSUE_PANE_LABEL}:Glitch"
   - Issue が `TARGET_REPO` にあるボードの子（2 章の 7）: `Refs #N`。close と親の更新は、マージの後に調整役が行う
   - 上のどれにも当たらない: `Closes #N`
 - マージの後でなければ確かめられない項目が残るときは、Issue の指定に関係なく、その項目を PR 本文と最終報告に書き、run の最後（`--merge` のときはループの終了の後）に、PR の URL とその項目を Issue へコメントする
-- PR 本文には、変更概要、**Spec の決定と理由、実行方式と理由**、実行した検証と結果、作業時間と主要 Task 別の内訳も書く。Spec・設計レビューを行った run は、helper・`self` のどちらで行ったか、担当（明示値・保たれた `fallback`・`actual_agent`・`identity`）、回数、採否の要点、レビュー記録の `SESSION` のパス（commit しない）も書く。未実行の確認を成功と書かない。
+- PR 本文には、変更概要、**Spec の決定と理由、実行方式と理由**、実行した検証と結果、作業時間と主要 Task 別の内訳も書く。base 前進追随を行った run では、rebase（または worktree 作成前の再捕捉）を行ったこと、各前進の旧/新 base SHA、やり直した必須検証コマンドと結果も書く。Spec・設計レビューを行った run は、helper・`self` のどちらで行ったか、担当（明示値・保たれた `fallback`・`actual_agent`・`identity`）、回数、採否の要点、レビュー記録の `SESSION` のパス（commit しない）も書く。未実行の確認を成功と書かない。
 - `DOCS_SEPARATE` が `true` なら、上の文書用 PR は Spec・Plan だけを含める。本文は `Refs <Issue の URL>` とコードの PR の URL。コードの PR の本文にも文書の PR の URL を足す。
 - CI は 2 章の 5 で確認した対象ごとの規則に従う。CI 必須のリポジトリは PR の checks が green になってから完了とする。失敗したら直すか、直せなければ止まる。`--merge` のときは、PR の作成後に CI を待たずにループへ進む（マージの前に `finalize.py` が CI の成功を確かめ、実行中なら `wait_for: ci` で待つ。PR の変更による失敗は、review-fix-planning が致命的な指摘として直す）。
 - `--merge` のときのループの `finalize.py` によるマージを除き、マージ・タグ・リリース・デプロイ・プロビジョニングは行わない。admin マージ・auto-merge・force push・branch の削除は、どの場合もしない。
@@ -541,7 +679,7 @@ PR を作った後（`DOCS_SEPARATE` が `true` なら、文書の PR も作っ�
 
 ## 停止時の報告
 
-不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が手動マージ対象（meshy・登録済み通常ツール。2 章 5 で `--merge` を無効化した run を除く）、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、マージ済みの PR で PR にする作業が残っていない Issue、未完了の依存、Issue の明示の承認要求、要求 base の未指定・矛盾・曖昧さ、base の不存在・不一致・捕捉後の移動、実 PR の base/head の不一致、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。Spec・設計レビューでも、helper の終了コード 2（型・版・保存先・順序の拒否）、`state: failed`・`status: incomplete`・`review_id` / `spec_sha256` の不一致、採否の欠落・重複・未反映、設計レビューの `wrong_approach`・`blocking`・`questions_for_user`・`needs_judgment`、Spec レビューの後の設計レビューや 2 回目を超える再レビュー、停止未確認の `retained` では止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
+不正な入力（helper・`check-options`・`implement_task.py check` の終了コード 2）、cwd が git の追跡しないディレクトリの中・Issue がワールドの作業を含む（「ワールドの作業で止まったとき」）、`--merge` で `TARGET_REPO` が手動マージ対象（meshy・登録済み通常ツール。2 章 5 で `--merge` を無効化した run を除く）、Task の依頼の `failed`、再試行の上限に達した `retry`・`rejected`、対象・remote の確認の失敗、競合、マージ済みの PR で PR にする作業が残っていない Issue、未完了の依存、Issue の明示の承認要求、要求 base の未指定・矛盾・曖昧さ、base の不存在・不一致・捕捉後の移動（2 章 6 の条件を満たして前進追随・再検証する場合を除く）、実 PR の base/head の不一致、禁止・取り消せない操作、想定外の外部送信、必要なツール・API の失敗、解消できない検証の失敗、push の前の検査の検出（`AGENTS.md` の条件で直せるものを除く）・失敗（gitleaks が無い・版が違うを含む）、ループの停止・エラーでは止まる。Spec・設計レビューでも、helper の終了コード 2（型・版・保存先・順序の拒否）、`state: failed`・`status: incomplete`・`review_id` / `spec_sha256` の不一致、採否の欠落・重複・未反映、設計レビューの `wrong_approach`・`blocking`・`questions_for_user`・`needs_judgment`、Spec レビューの後の設計レビューや 2 回目を超える再レビュー、停止未確認の `retained` では止まる。停止条件は「途中で止めずに」の例外であり、省略・成功扱い・別のリポジトリへの切り替えで回避しない。
 
 検査で止まったら、どの worktree も push せず、PR を作らない。`AGENTS.md` の「push の前の秘密情報の検査」の条件を満たす検出なら、その commit を直し、検証（`--merge` のときは検証の記録も）と、公開するすべての worktree の検査をやり直して続ける。条件を満たさない検出では止まり、回避しない。gitleaks は自分で導入せず、`bash "$PARENT_ROOT/.devcontainer/install_gitleaks.bash"` での導入を次の操作として報告する。検査が全部通った後の push や PR の作成が失敗して一部だけ公開されたら、公開済みの branch・PR を報告し、取り消さない。
 
