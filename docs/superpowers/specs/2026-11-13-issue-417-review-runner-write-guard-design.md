@@ -46,7 +46,7 @@ Issue #417 の「対応時に決めること・受け入れ条件」をそのま
 
 節内の「依頼 JSON は…review の直前に今の HEAD で作り直す」の段落と JSON 例の直後、「**設計レビュー（`--design-review` があるときだけ）。**」の直前に、次の段落を追加する。この位置は、開始時 HEAD 照合（既存）と各レビューの helper 起動手順（後続）の間にあり、設計レビュー・Spec レビュー・再レビューのすべてに適用される。
 
-> **レビュー runner の実行中は対象 checkout を変更しない。** `review` の起動から結果の受け取り（`submit` 成功）まで、レビュー対象 checkout（`CODE_ROOT`。`DOC_ROOT` が同一の checkout ならその `DOC_ROOT`）への書き込み・コミットをしない。runner の checkout 監査は開始前後の HEAD・index・tracked ファイル・非 ignored untracked ファイルを比較する（`tools/agent_runner/interfaces.rst`「期限と保持」）ため、Plan 草案のような untracked ファイル 1 件でも `outside_changes` の拒否になり、完了した有料レビューが失われて再実行が必要になる。待機中の準備（Plan 草案・調査メモなど）は `SESSION` の下で行い、並行作業は対象 checkout の読み取りと `SESSION` への書き込みに限る。対象 checkout への書き込み・コミットはレビュー結果の受け取り後に行う。これは設計レビュー・Spec レビュー・再レビューのいずれでも同じである。
+> **レビュー runner の実行中は対象 checkout を変更しない。** `review` の起動から結果の受け取り（`submit` 成功）まで、レビュー対象 checkout（`CODE_ROOT`。`DOC_ROOT` が同一の checkout ならその `DOC_ROOT`）への書き込み・コミットをしない。runner の checkout 監査は実行の開始前に登録されていた checkout の HEAD・index・tracked ファイル・非 ignored untracked ファイルを終了後の状態と比較する（`tools/agent_runner/interfaces.rst`「期限と保持」）ため、Plan 草案のような untracked ファイル 1 件でも `outside_changes` の拒否になり、完了した有料レビューが失われて再実行が必要になる。待機中の準備（Plan 草案・調査メモなど）は `SESSION` の下で行い、並行作業は対象 checkout の読み取りと `SESSION` への書き込みに限る。対象 checkout への書き込み・コミットはレビュー結果の受け取り後に行う。これは設計レビュー・Spec レビュー・再レビューのいずれでも同じである。
 
 ### 追加 B: 「Task の実装を runner の担当に依頼する」節の実行中書き込み禁止
 
@@ -105,6 +105,14 @@ Issue #417 の「対応時に決めること・受け入れ条件」をそのま
 - 検討した別案: #378 の完了を待って停止する
 - 選択理由: #378 は既にマージ済みで、base（`main` @ `bce027ba`）に統合済み。open PR・claim ref・issue-417 の branch/worktree は存在しないことを確認した
 - 委任指示または停止条件: 新しい競合・close を検出したら停止する
+
+### Spec レビュー記録（1 回目）
+
+- helper: `review_spec.py`（external runner）。`review_dir`: `/workspaces/reso-world/tmp/agents/issue-417.usgohlf8/2026-11-13-issue-417-review-runner-write-guard-design.spec-review/review-1`
+- `review_id`: `1e4055a4cd6a4aadac94f00b7a040bc8`。reviewed の SHA（`spec_sha256`）: `5f28bee0d450ffd05b696cafaf56818c91b2f08be8d6f6ab2b913a05dbba5d99`
+- 担当: `devin_swe2_max`（明示指定）。`requested_agent`: `devin_swe2_max`、`actual_agent`: `devin_swe2_max`、`identity`: model `SWE-2 Max`・CLI `3000.12.43`・session `stupendous-dresser`。fallback の使用: なし
+- 回数: 1 回目。`elapsed_seconds`: 262.45。`outside_changes`: なし。`unprotected_changes`: `/tmp/pr-review-376-2f0d17b0/worktree`・`/tmp/pr-review-376-79fe98e5/worktree`・`/tmp/pr-review-376-7f95b4e6/worktree`・`/tmp/pr-review-376-c9a6d3e9/worktree`・`/tmp/review-fix-planning.9AkFc2/worktree`・`/tmp/review-fix-planning.a6ogtH/worktree`（他セッションの使い捨て worktree の観測。報告のみで失敗の理由にしない）
+- 採否: S1（minor・追加 A の監査比較時点の表現）を採用し、追加 A の文面を「実行の開始前に登録されていた checkout の…を終了後の状態と比較する」に修正した（監査仕様 interfaces.rst「期限と保持」と一致）。禁止ルール自体の変更はない
 
 ## 編集禁止
 
