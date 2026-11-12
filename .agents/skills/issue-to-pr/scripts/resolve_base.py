@@ -30,6 +30,7 @@ from resolve_issue import (
 SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 COMMIT = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
+HEX_TOKEN = re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{7,40}(?![0-9a-fA-F])")
 STATE_KEYS = frozenset({"repo", "remote", "branch", "ref", "sha"})
 ADVANCE_KEYS = frozenset({
     "target", "repo", "branch", "ref", "old_sha", "new_sha", "phase",
@@ -174,8 +175,10 @@ def _remove_any(path: Path) -> None:
         path.unlink()
 
 
-def _write_state(path: Path, payload: dict[str, str]) -> None:
+def _write_state_target(path: Path) -> tuple[Path, Path]:
     path = path.expanduser()
+    if path.stem.endswith(".initial"):
+        raise ValueError("--write-state には初期固定ファイルではなく base 状態ファイルを指定してください")
     initial = path.with_name(f"{path.stem}.initial{path.suffix}")
     parent = path.parent
     if parent.is_symlink() or not parent.is_dir():
@@ -183,6 +186,11 @@ def _write_state(path: Path, payload: dict[str, str]) -> None:
     for destination in (path, initial):
         if os.path.lexists(destination):
             raise ValueError("--write-state の保存先または初期固定ファイルが既に存在します")
+    return path, initial
+
+
+def _write_state(path: Path, payload: dict[str, str]) -> None:
+    path, initial = _write_state_target(path)
     created: list[Path] = []
     try:
         for destination in (path, initial):
@@ -198,7 +206,10 @@ def _write_state(path: Path, payload: dict[str, str]) -> None:
 
 
 def _verify_checkout(root: Path, repo: str) -> tuple[str, Path]:
-    root = root.expanduser().resolve(strict=True)
+    root = root.expanduser()
+    if root.is_symlink():
+        raise ValueError("checkout に symlink は指定できません")
+    root = root.resolve(strict=True)
     require_tracked_cwd(root)
     if Path(git(root, "rev-parse", "--show-toplevel")).resolve() != root:
         raise ValueError("checkout は対象リポジトリのルートを指定してください")
@@ -312,6 +323,9 @@ def _read_advances(
 def _verify_state_chain(
     advances: list[dict[str, object]], initial: dict[str, str], current: dict[str, str], target: str,
 ) -> None:
+    for key in ("repo", "remote", "branch", "ref"):
+        if initial[key] != current[key]:
+            raise ValueError(f"{target} の base 状態の {key} が初期値と一致しません")
     records = [record for record in advances if record["target"] == target]
     if not records:
         if initial["sha"] != current["sha"]:
@@ -341,12 +355,10 @@ def _context(session_arg: Path) -> Context:
     repository = str(target["repository"])
     document = str(target["document_repository"])
     docs_separate = document.casefold() != repository.casefold()
+    if docs_separate and supported(document) != DOCUMENT_REPOSITORY:
+        raise ValueError("target.json の document_repository が文書リポジトリと一致しません")
     code_repo, target_root = _verify_checkout(Path(str(target["code_root"])), repository)
-    parent_path = Path(str(target["parent_root"])).expanduser()
-    if docs_separate:
-        _, parent_root = _verify_checkout(parent_path, DOCUMENT_REPOSITORY)
-    else:
-        parent_root = parent_path.resolve(strict=False)
+    _, parent_root = _verify_checkout(Path(str(target["parent_root"])), DOCUMENT_REPOSITORY)
     code_state = _read_state(session / "code-base.json", code_repo)
     code_initial = _read_state(session / "code-base.initial.json", code_repo)
     docs_state = docs_initial = None
@@ -415,7 +427,8 @@ def _load_owned(path: Path, docs_separate: bool) -> tuple[list[str], list[str], 
 
 
 def _changed_files(checkout: Path, old_sha: str, new_sha: str) -> list[str]:
-    output = git_output(checkout, "diff", "--name-only", "-z", old_sha, new_sha)
+    output = git_output(
+        checkout, "diff", "--no-renames", "--name-only", "-z", old_sha, new_sha)
     return [item for item in output.split("\0") if item]
 
 
@@ -442,9 +455,14 @@ def _verify_worktree(
     if path.is_symlink() or not path.is_dir():
         raise ValueError("作業 worktree が実在する通常ディレクトリではありません")
     root = path.resolve(strict=True)
+    if root == checkout.expanduser().resolve(strict=True):
+        raise ValueError("worktree に常設の checkout は指定できません")
     if Path(git(root, "rev-parse", "--show-toplevel")).resolve() != root:
         raise ValueError("worktree のルートが --code-root / --doc-root と一致しません")
+    git_dir = Path(git(root, "rev-parse", "--path-format=absolute", "--git-dir")).resolve()
     common = Path(git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
+    if git_dir == common:
+        raise ValueError("常設の checkout を worktree として扱えません")
     expected_common = Path(
         git(checkout, "rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
     if common != expected_common:
@@ -474,13 +492,20 @@ def _verify_worktree_clean(path: Path, checkout: Path, base_sha: str) -> str:
     if path.is_symlink() or not path.is_dir():
         raise ValueError("検証対象の worktree が実在する通常ディレクトリではありません")
     root = path.resolve(strict=True)
+    if root == checkout.expanduser().resolve(strict=True):
+        raise ValueError("検証対象に常設の checkout は指定できません")
     if Path(git(root, "rev-parse", "--show-toplevel")).resolve() != root:
         raise ValueError("検証対象のパスが worktree のルートではありません")
+    git_dir = Path(git(root, "rev-parse", "--path-format=absolute", "--git-dir")).resolve()
     common = Path(git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
+    if git_dir == common:
+        raise ValueError("常設の checkout を検証対象の worktree として扱えません")
     expected_common = Path(
         git(checkout, "rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
     if common != expected_common:
         raise ValueError("検証対象の worktree が対象 checkout と同じ Git ディレクトリに属していません")
+    if _git_result(root, "symbolic-ref", "--quiet", "--short", "HEAD").returncode:
+        raise ValueError("検証対象の worktree が detached HEAD です")
     if git(root, "status", "--porcelain", "--untracked-files=normal"):
         raise ValueError("検証対象の worktree に未コミットの変更があります")
     if not git_ok(root, "merge-base", "--is-ancestor", base_sha, "HEAD"):
@@ -498,10 +523,23 @@ class Inspection:
     payload: dict[str, object]
     code_branch: str
     doc_branch: str
+    doc_root: Path
 
 
 def _path_exists(path: Path) -> bool:
     return path.is_symlink() or path.exists()
+
+
+def _doc_root(args: argparse.Namespace, context: Context) -> Path:
+    code_root = args.code_root.expanduser()
+    if not context.docs_separate:
+        return code_root
+    if args.doc_root is None:
+        raise ValueError("文書分離の run では --doc-root が必須です")
+    doc_root = args.doc_root.expanduser()
+    if doc_root.resolve(strict=False) == code_root.resolve(strict=False):
+        raise ValueError("文書分離の run では --doc-root に --code-root と別のパスを指定してください")
+    return doc_root
 
 
 def _inspection(args: argparse.Namespace) -> Inspection:
@@ -528,7 +566,7 @@ def _inspection(args: argparse.Namespace) -> Inspection:
     code_exists = _path_exists(code_path)
     if code_path.is_symlink():
         raise ValueError("--code-root に symlink は指定できません")
-    doc_path = args.doc_root.expanduser()
+    doc_path = _doc_root(args, context)
     if context.docs_separate:
         if doc_path.is_symlink():
             raise ValueError("--doc-root に symlink は指定できません")
@@ -564,11 +602,15 @@ def _inspection(args: argparse.Namespace) -> Inspection:
 
     def inspect_target(
         target: str, checkout: Path, old_sha: str, new_sha: str, owned: list[str],
+        branch: str,
     ) -> dict[str, object]:
         advanced = old_sha != new_sha
+        payload: dict[str, object] = {
+            "advanced": advanced, "old_sha": old_sha, "new_sha": new_sha,
+            "commits": [], "changed_files": [], "branch": branch, "head_sha": None,
+        }
         if not advanced:
-            return {"advanced": False, "old_sha": old_sha, "new_sha": new_sha,
-                    "commits": [], "changed_files": []}
+            return payload
         count = sum(1 for record in context.advances if record["target"] == target)
         if count >= args.max_advances:
             raise ValueError(f"{target} の base 前進が上限（{args.max_advances} 回）に達しています")
@@ -577,25 +619,27 @@ def _inspection(args: argparse.Namespace) -> Inspection:
         changed = _changed_files(checkout, old_sha, new_sha)
         if _overlaps_owned(changed, owned):
             raise ValueError(f"{target} の base 変更ファイルが所有パスと重複しています")
-        return {"advanced": True, "old_sha": old_sha, "new_sha": new_sha,
-                "commits": _commits(checkout, old_sha, new_sha), "changed_files": changed}
+        payload["commits"] = _commits(checkout, old_sha, new_sha)
+        payload["changed_files"] = changed
+        return payload
 
     targets["code"] = inspect_target(
-        "code", context.target_root, context.code_state["sha"], code_new, code_owned)
+        "code", context.target_root, context.code_state["sha"], code_new, code_owned, code_branch)
     if context.docs_separate and context.docs_state is not None and docs_new is not None:
         targets["docs"] = inspect_target(
-            "docs", context.parent_root, context.docs_state["sha"], docs_new, docs_owned)
+            "docs", context.parent_root, context.docs_state["sha"], docs_new, docs_owned,
+            doc_branch)
 
     if phase == "worktree":
         code_target = targets["code"]
-        _verify_worktree(
+        code_target["head_sha"] = _verify_worktree(
             code_path, context.target_root, code_branch, context.code_state["sha"],
             str(code_target["new_sha"]), bool(code_target["advanced"]),
             list(code_target["changed_files"]),
         )
         if context.docs_separate and "docs" in targets:
             docs_target = targets["docs"]
-            _verify_worktree(
+            docs_target["head_sha"] = _verify_worktree(
                 doc_path, context.parent_root, doc_branch, context.docs_state["sha"],  # type: ignore[union-attr]
                 str(docs_target["new_sha"]), bool(docs_target["advanced"]),
                 list(docs_target["changed_files"]),
@@ -607,7 +651,7 @@ def _inspection(args: argparse.Namespace) -> Inspection:
         "owned_paths_sha256": owned_sha,
         "targets": targets,
     }
-    return Inspection(context, phase, payload, code_branch, doc_branch)
+    return Inspection(context, phase, payload, code_branch, doc_branch, doc_path)
 
 
 def _compare_inspection(recorded: object, live: dict[str, object]) -> None:
@@ -630,32 +674,25 @@ def _compare_inspection(recorded: object, live: dict[str, object]) -> None:
             raise ValueError("--inspection の対象が不正です")
         if recorded_target.get("advanced") is not live_target["advanced"]:
             raise ValueError("--inspection が現在の検査結果と一致しません")
-        for key in ("old_sha", "new_sha"):
+        for key in ("old_sha", "new_sha", "branch", "head_sha"):
             if recorded_target.get(key) != live_target[key]:
                 raise ValueError("--inspection が現在の検査結果と一致しません")
 
 
-def _append_advances(path: Path, records: list[dict[str, object]]) -> None:
-    prefix = b""
-    if path.exists() and path.stat().st_size:
-        with path.open("rb") as existing:
-            existing.seek(-1, os.SEEK_END)
-            if existing.read(1) != b"\n":
-                prefix = b"\n"
-    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags, 0o600)
-    with os.fdopen(descriptor, "wb") as handle:
-        handle.write(prefix + b"".join(_json_bytes(record) for record in records))
+def _appended_advances(path: Path, records: list[dict[str, object]]) -> bytes:
+    existing = _read_bytes(path, path.name) if os.path.lexists(path) else b""
+    prefix = b"\n" if existing and not existing.endswith(b"\n") else b""
+    return existing + prefix + b"".join(_json_bytes(record) for record in records)
 
 
-def _replace_states(states: list[tuple[Path, dict[str, str]]]) -> None:
+def _replace_files(files: list[tuple[Path, bytes]]) -> None:
     staged: list[tuple[str, Path]] = []
     try:
-        for path, payload in states:
+        for path, data in files:
             descriptor, temporary = tempfile.mkstemp(
                 dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
             with os.fdopen(descriptor, "wb") as handle:
-                handle.write(_json_bytes(payload))
+                handle.write(data)
             os.chmod(temporary, 0o600)
             staged.append((temporary, path))
         for temporary, path in staged:
@@ -679,27 +716,27 @@ def _advance(args: argparse.Namespace) -> dict[str, object]:
     context = live.context
     records: list[dict[str, object]] = []
     applied: list[tuple[Path, str]] = []
-    current: Path | None = None
+    current: tuple[Path, str] | None = None
     try:
         for target in ("code", "docs"):
             target_payload = live.payload["targets"].get(target)  # type: ignore[union-attr]
             if not isinstance(target_payload, dict) or not target_payload["advanced"]:
                 continue
             if live.phase == "worktree":
-                path = (args.code_root if target == "code" else args.doc_root).expanduser()
-                current = path.resolve(strict=True)
-                old_head = git(current, "rev-parse", "--verify", "HEAD^{commit}")
+                path = (args.code_root if target == "code" else live.doc_root).expanduser()
+                rebase_root = path.resolve(strict=True)
+                old_head = git(rebase_root, "rev-parse", "--verify", "HEAD^{commit}")
                 if COMMIT.fullmatch(old_head) is None:
                     raise ValueError("rebase 前の worktree HEAD を確定できません")
+                current = (rebase_root, old_head)
                 result = _git_result(
-                    current, "rebase", "--onto", str(target_payload["new_sha"]),
+                    rebase_root, "rebase", "--onto", str(target_payload["new_sha"]),
                     str(target_payload["old_sha"]))
                 if result.returncode:
                     raise ValueError("rebase に失敗したため前進を適用しませんでした")
-                applied.append((current, old_head))
-                rebased = applied[-1][0]
+                applied.append((rebase_root, old_head))
                 current = None
-                new_head = git(rebased, "rev-parse", "--verify", "HEAD^{commit}")
+                new_head = git(rebase_root, "rev-parse", "--verify", "HEAD^{commit}")
                 if COMMIT.fullmatch(new_head) is None:
                     raise ValueError("rebase 後の worktree HEAD を確定できません")
             else:
@@ -722,30 +759,37 @@ def _advance(args: argparse.Namespace) -> dict[str, object]:
             })
     except BaseException:
         if current is not None:
-            _git_result(current, "rebase", "--abort")
+            _git_result(current[0], "rebase", "--abort")
+            _git_result(current[0], "reset", "--hard", current[1])
         for path, old_head in reversed(applied):
             _git_result(path, "reset", "--hard", old_head)
         raise
 
     for name in ("reverified.json", "checks.json", "code-sha.txt", "docs-sha.txt"):
         _remove_any(context.session / name)
-    _append_advances(context.session / "base-advances.jsonl", records)
-    new_states: list[tuple[Path, dict[str, str]]] = []
-    result_states: dict[str, dict[str, str] | None] = {"code": None, "docs": None}
+    new_states: list[tuple[Path, bytes]] = []
+    result_states: dict[str, dict[str, str] | None] = {
+        "code": dict(context.code_state),
+        "docs": dict(context.docs_state) if context.docs_state is not None else None,
+    }
     for record in records:
         if record["target"] == "code":
             next_state = dict(context.code_state)
             next_state["sha"] = str(record["new_sha"])
-            new_states.append((context.session / "code-base.json", next_state))
+            new_states.append((context.session / "code-base.json", _json_bytes(next_state)))
             result_states["code"] = next_state
         else:
             if context.docs_state is None:
                 raise ValueError("docs の base 状態がありません")
             next_state = dict(context.docs_state)
             next_state["sha"] = str(record["new_sha"])
-            new_states.append((context.session / "docs-base.json", next_state))
+            new_states.append((context.session / "docs-base.json", _json_bytes(next_state)))
             result_states["docs"] = next_state
-    _replace_states(new_states)
+    _replace_files([
+        (context.session / "base-advances.jsonl",
+         _appended_advances(context.session / "base-advances.jsonl", records)),
+        *new_states,
+    ])
     return {
         "records": records,
         "code_base": result_states["code"],
@@ -826,6 +870,7 @@ def _write_log(path: Path, data: bytes) -> None:
 
 def _reverify(args: argparse.Namespace) -> dict[str, object]:
     context = _context(args.session)
+    doc_root = _doc_root(args, context)
     required, required_bytes = _read_required(context.session, context.docs_separate)
     if args.commands_file is not None:
         supplied = _normalize_commands(
@@ -842,11 +887,11 @@ def _reverify(args: argparse.Namespace) -> dict[str, object]:
         if context.docs_state is None:
             raise ValueError("docs の base 状態がありません")
         docs_head = _verify_worktree_clean(
-            args.doc_root.expanduser(), context.parent_root, context.docs_state["sha"])
+            doc_root, context.parent_root, context.docs_state["sha"])
     _verify_remote_state(context)
     _remove_any(context.session / "reverified.json")
     _remove_any(context.session / "checks.json")
-    cwd_map = {"code": code_root, "docs": args.doc_root.expanduser(), "parent": context.parent_root}
+    cwd_map = {"code": code_root, "docs": doc_root, "parent": context.parent_root}
     logs: list[tuple[Path, str]] = []
     try:
         for index, command in enumerate(required, 1):
@@ -856,12 +901,12 @@ def _reverify(args: argparse.Namespace) -> dict[str, object]:
             try:
                 completed = subprocess.run(
                     list(command["argv"]), cwd=cwd_map[str(command["cwd"])],
-                    env=git_environment(transport_auth=False), capture_output=True, text=True, timeout=3600,
+                    env=git_environment(transport_auth=False), capture_output=True, timeout=3600,
                 )
             except (OSError, subprocess.TimeoutExpired) as exc:
                 raise ValueError(f"再検証コマンド {index} を実行できませんでした") from exc
-            output = (completed.stdout or "") + (completed.stderr or "")
-            _write_log(log, output.encode("utf-8"))
+            output = (completed.stdout or b"") + (completed.stderr or b"")
+            _write_log(log, output)
             if completed.returncode:
                 raise ValueError(f"再検証コマンド {index} が終了コード {completed.returncode} で失敗しました")
             logs.append((log, _sha256(log.read_bytes())))
@@ -875,7 +920,7 @@ def _reverify(args: argparse.Namespace) -> dict[str, object]:
             if context.docs_state is None:
                 raise ValueError("docs の base 状態がありません")
             if _verify_worktree_clean(
-                args.doc_root.expanduser(), context.parent_root, context.docs_state["sha"]) != docs_head:
+                doc_root, context.parent_root, context.docs_state["sha"]) != docs_head:
                 raise ValueError("再検証中に docs worktree の HEAD が変化しました")
     except BaseException:
         # A command may have written these names itself; a failed run must not leave a passing record.
@@ -906,9 +951,9 @@ def _reverify(args: argparse.Namespace) -> dict[str, object]:
         "base": context.code_state["sha"],
         "commands": [{"argv": command["argv"], "exit_code": 0} for command in required],
     }
-    _replace_states([
-        (context.session / "reverified.json", reverified),
-        (context.session / "checks.json", checks),
+    _replace_files([
+        (context.session / "reverified.json", _json_bytes(reverified)),
+        (context.session / "checks.json", _json_bytes(checks)),
     ])
     return reverified
 
@@ -932,6 +977,7 @@ def _check_publish(args: argparse.Namespace) -> tuple[Context, dict[str, object]
         return context, {}, []
     if not context.advances:
         raise ValueError("base 前進の記録がありません")
+    _verify_remote_state(context)
     required, required_bytes = _read_required(context.session, context.docs_separate)
     payload = _read_json(context.session / "reverified.json", "reverified.json")
     if not isinstance(payload, dict):
@@ -978,7 +1024,7 @@ def _check_publish(args: argparse.Namespace) -> tuple[Context, dict[str, object]
         if context.docs_state is None:
             raise ValueError("docs の base 状態がありません")
         docs_head = _verify_worktree_clean(
-            args.doc_root.expanduser(), context.parent_root, context.docs_state["sha"])
+            _doc_root(args, context), context.parent_root, context.docs_state["sha"])
         if payload.get("doc_base_sha") != context.docs_state["sha"]:
             raise ValueError("reverified.json の docs base SHA が一致しません")
         if payload.get("doc_head_sha") != docs_head:
@@ -1001,9 +1047,21 @@ def _pr_body(value: str, label: str) -> str:
     if not value:
         return value
     candidate = Path(value).expanduser()
-    if "\n" not in value and candidate.is_file() and not candidate.is_symlink():
+    if candidate.is_symlink():
+        raise ValueError(f"{label} が symlink です")
+    if "\n" not in value and candidate.is_file():
         return _read_text(candidate, label)
+    looks_like_path = (
+        "/" in value or "\\" in value or value.startswith((".", "~"))
+        or (candidate.suffix.lower() in (".md", ".txt", ".json") and " " not in value)
+    )
+    if "\n" not in value and looks_like_path:
+        raise ValueError(f"{label} のファイルが存在しません")
     return value
+
+
+def _body_has_sha(body: str, sha: str) -> bool:
+    return any(sha.startswith(token) for token in HEX_TOKEN.findall(body))
 
 
 def _check_pr_gate(args: argparse.Namespace) -> None:
@@ -1019,12 +1077,16 @@ def _check_pr_gate(args: argparse.Namespace) -> None:
             raise ValueError("docs-sha.txt が再検証した HEAD と一致しません")
     if args.code_pr_body is None:
         raise ValueError("--code-pr-body が必要です")
+    if context.docs_separate and not args.doc_pr_body:
+        raise ValueError("文書分離の run では --doc-pr-body が必要です")
     code_body = _read_text(args.code_pr_body, "code-pr-body")
     doc_body = _pr_body(args.doc_pr_body, "doc-pr-body")
+    if context.docs_separate and not doc_body.strip():
+        raise ValueError("--doc-pr-body が空です")
     for record in context.advances:
         body = code_body if record["target"] == "code" else doc_body
         old_sha, new_sha = str(record["old_sha"]), str(record["new_sha"])
-        if old_sha[:7] not in body or new_sha[:7] not in body:
+        if not _body_has_sha(body, old_sha) or not _body_has_sha(body, new_sha):
             raise ValueError("PR 本文に base 前進の旧/新 SHA の記載がありません")
     for command in required:
         argv = command["argv"]
@@ -1081,8 +1143,6 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 raise ValueError("前進の各モードは base の捕捉引数と同時に指定できません")
             _require_argument(args.session, "--session")
-            if args.doc_root is None:
-                args.doc_root = args.code_root
             if args.inspect_advance or args.advance:
                 _require_argument(args.owned_paths_file, "--owned-paths-file")
                 _require_argument(args.code_root, "--code-root")
@@ -1111,6 +1171,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _require_argument(args.checkout, "--checkout")
             _require_argument(args.repo, "--repo")
+            if args.write_state is not None:
+                _write_state_target(args.write_state)
             payload = resolve_base(
                 args.checkout, args.repo, args.base, args.required_base, args.expected_sha)
             if args.write_state is not None:

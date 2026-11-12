@@ -495,6 +495,7 @@ def advance_remote_rename(
     git(seed, "switch", "--quiet", "main")
     git(seed, "fetch", "--quiet", "origin", "main")
     git(seed, "reset", "--hard", "FETCH_HEAD")
+    (seed / new_path).parent.mkdir(parents=True, exist_ok=True)
     git(seed, "mv", old_path, new_path)
     git(seed, "commit", "--quiet", "-m", message)
     sha = git(seed, "rev-parse", "HEAD")
@@ -602,6 +603,16 @@ def test_advance_guards_and_state_chain(
     rejected(call_base("--checkout", normal.code, "--repo", normal.code_repo,
                        "--write-state", link))
     assert not (plain / "linked-base.initial.json").exists()
+    rejected(call_base("--checkout", normal.code, "--repo", normal.code_repo,
+                       "--write-state", plain / "code-base.initial.json"))
+    assert not (plain / "code-base.initial.initial.json").exists()
+    rewritten_plain = dict(initial)
+    rewritten_plain["branch"] = "other"
+    rewritten_plain["ref"] = "refs/heads/other"
+    (plain / "code-base.json").write_text(json.dumps(rewritten_plain), encoding="utf-8")
+    rejected(call_base("--check-publish-gate", "--session", plain,
+                       "--code-root", tmp_path / "not-created"))
+    (plain / "code-base.json").write_text(json.dumps(initial), encoding="utf-8")
     assert call_base("--check-publish-gate", "--session", plain,
                      "--code-root", tmp_path / "not-created").returncode == 0
     assert call_base("--check-pr-gate", "--session", plain,
@@ -614,6 +625,7 @@ def test_advance_guards_and_state_chain(
     capture_bases(normal, flow)
     flow_initial = read_state(flow, "code")
     write_owned(flow, ["src/ours"])
+    rejected(inspect_advance(normal, flow, "feat/flow"))
     first_tip = advance_remote(normal, "code", {"incoming.txt": "base change\n"}, "advance one")
     empty = flow / "empty-owned.json"
     empty.write_text(json.dumps({"code": []}), encoding="utf-8")
@@ -736,6 +748,12 @@ def test_advance_guards_and_state_chain(
     assert inspected["targets"]["code"]["new_sha"] == conflict_tip
     (flow / "advance-inspection.json").write_text(inspection.stdout, encoding="utf-8")
     worktree_state_bytes = (flow / "code-base.json").read_bytes()
+    extra_head = commit_files(code_root, {"extra-clean.txt": "extra\n"}, "extra clean commit")
+    rejected(advance_base(normal, flow, "feat/flow"))
+    assert git(code_root, "rev-parse", "HEAD") == extra_head
+    assert (flow / "code-base.json").read_bytes() == worktree_state_bytes
+    git(code_root, "reset", "--hard", head_before)
+    rejected(advance_base(normal, flow, "feat/other"))
     (code_root / "shared.txt").write_text("changed after inspection\n", encoding="utf-8")
     rejected(advance_base(normal, flow, "feat/flow"))
     assert git(code_root, "rev-parse", "HEAD") == head_before
@@ -759,13 +777,17 @@ def test_advance_guards_and_state_chain(
     # The required command list is fixed, and an incomplete list or a failing command
     # cannot leave a passing verification record.
     commands = [["bash", "-c", "test -f src/ours/file.txt"],
-                {"cwd": "code", "argv": ["bash", "-c", "test -f shared.txt"]}]
+                {"cwd": "code", "argv": ["bash", "-c", "test -f shared.txt"]},
+                {"cwd": "code", "argv": ["bash", "-c", "printf '\\377'"]}]
     assert set_verify(flow, commands).returncode == 0
     assert set_verify(flow, commands).returncode == 0
     required = json.loads((flow / "required-verify-cmds.json").read_text())
     rejected(set_verify(flow, commands[:1]))
     rejected(set_verify(flow, [{"cwd": "code", "argv": commands[0]}]))
     rejected(set_verify(flow, [{"cwd": "docs", "argv": ["bash", "-c", "true"]}]))
+    rejected(set_verify(flow, [commands[0], {"cwd": "parent", "argv": [
+        "bash", "-c", "test -f shared.txt"]}]))
+    rejected(set_verify(flow, [commands[0], ["bash", "-c", "true"]]))
     assert json.loads((flow / "required-verify-cmds.json").read_text()) == required
     partial = flow / "partial-cmds.json"
     partial.write_text(json.dumps(commands[:1]), encoding="utf-8")
@@ -773,6 +795,8 @@ def test_advance_guards_and_state_chain(
     assert not (flow / "reverified.json").exists()
     verified = reverify(normal, flow)
     assert verified.returncode == 0, verified.stderr
+    rejected(call_base("--reverify", "--session", flow, "--code-root", normal.code))
+    assert (flow / "reverified.json").exists()
     reverified = json.loads((flow / "reverified.json").read_text())
     assert reverified["advance_count"] == 2
     assert reverified["code_base_sha"] == conflict_tip
@@ -789,6 +813,25 @@ def test_advance_guards_and_state_chain(
     first_log.write_text("tampered\n", encoding="utf-8")
     rejected(publish_gate(normal, flow))
     first_log.write_bytes(first_log_bytes)
+    assert publish_gate(normal, flow).returncode == 0
+    advance_remote(normal, "code", {"moved-after-verify.txt": "moved\n"}, "moved after verify")
+    rejected(publish_gate(normal, flow))
+    set_remote(normal, "code", conflict_tip)
+    assert publish_gate(normal, flow).returncode == 0
+    records_bytes = (flow / "base-advances.jsonl").read_bytes()
+    records = advance_records(flow)
+    bad_head = dict(records[1])
+    bad_head["old_head"] = "A" * 40
+    (flow / "base-advances.jsonl").write_text(
+        json.dumps(records[0]) + "\n" + json.dumps(bad_head) + "\n", encoding="utf-8")
+    rejected(publish_gate(normal, flow))
+    (flow / "base-advances.jsonl").write_bytes(records_bytes)
+    bad_chain = dict(records[1])
+    bad_chain["old_sha"] = "0" * 40
+    (flow / "base-advances.jsonl").write_text(
+        json.dumps(records[0]) + "\n" + json.dumps(bad_chain) + "\n", encoding="utf-8")
+    rejected(publish_gate(normal, flow))
+    (flow / "base-advances.jsonl").write_bytes(records_bytes)
     assert publish_gate(normal, flow).returncode == 0
 
     # A failing reverify deletes old passing records and writes no new ones.
@@ -819,8 +862,78 @@ def test_advance_guards_and_state_chain(
         lines.append(shlex.join(command["argv"]))
     body.write_text("\n".join(lines) + "\n", encoding="utf-8")
     assert pr_gate(normal, flow, body).returncode == 0
+    wrong_body = flow / "wrong-body.md"
+    wrong_lines = []
+    for record in advance_records(flow):
+        for sha in (str(record["old_sha"]), str(record["new_sha"])):
+            wrong_lines.append(sha[:7] + ("0" if sha[7] != "0" else "1"))
+    for command in required:
+        wrong_lines.append(" ".join(command["argv"]))
+    wrong_body.write_text("\n".join(wrong_lines) + "\n", encoding="utf-8")
+    rejected(pr_gate(normal, flow, wrong_body))
     commit_files(code_root, {"stale.txt": "later\n"}, "later commit")
     rejected(publish_gate(normal, flow))
+
+    # Renames keep both the old and new paths: an owned file moved by the base, and a
+    # worktree file moved on both sides, are rejected instead of silently following.
+    renames = make_advance_world(tmp_path / "renames", mapping)
+    rename_session = start_session(renames, "renames")
+    rename_initial_tip = advance_remote(renames, "code", {
+        "src/ours/target.py": "owned base\n",
+        "shared/base.txt": "shared base\n",
+    }, "owned and shared base")
+    capture_bases(renames, rename_session)
+    rename_initial = read_state(rename_session, "code")
+    assert rename_initial["sha"] == rename_initial_tip
+    write_owned(rename_session, ["src/ours"])
+    advance_remote_rename(
+        renames, "code", "src/ours/target.py", "legacy/target.py", "move owned file")
+    rejected(inspect_advance(renames, rename_session, "feat/renames"))
+    assert not (rename_session / "base-advances.jsonl").exists()
+    set_remote(renames, "code", rename_initial["sha"])
+    write_owned(rename_session, ["unrelated"])
+    rename_root = add_worktree(
+        renames, rename_session, "code", "feat/renames", rename_initial["sha"])
+    git(rename_root, "mv", "shared/base.txt", "shared/mine.txt")
+    git(rename_root, "commit", "--quiet", "-m", "worktree rename")
+    rename_head = git(rename_root, "rev-parse", "HEAD")
+    advance_remote_rename(
+        renames, "code", "shared/base.txt", "legacy/base.txt", "move shared file")
+    rejected(inspect_advance(renames, rename_session, "feat/renames"))
+    assert git(rename_root, "rev-parse", "HEAD") == rename_head
+    assert not (rename_session / "base-advances.jsonl").exists()
+
+    # A merge commit inside the worktree change range is not a linear rebase candidate.
+    set_remote(renames, "code", rename_initial["sha"])
+    merge_session = start_session(renames, "merges")
+    capture_bases(renames, merge_session)
+    write_owned(merge_session, ["unrelated"])
+    merge_root = add_worktree(
+        renames, merge_session, "code", "feat/merges", rename_initial["sha"])
+    git(merge_root, "switch", "--quiet", "-c", "side")
+    commit_files(merge_root, {"side.txt": "side\n"}, "side work")
+    git(merge_root, "switch", "--quiet", "feat/merges")
+    commit_files(merge_root, {"main.txt": "main\n"}, "main work")
+    git(merge_root, "merge", "--quiet", "--no-ff", "-m", "merge side", "side")
+    advance_remote(renames, "code", {"incoming-merge.txt": "base\n"}, "base for merge")
+    rejected(inspect_advance(renames, merge_session, "feat/merges"))
+    assert not (merge_session / "base-advances.jsonl").exists()
+
+    # A non-overlapping rename still records both paths for later audits.
+    set_remote(renames, "code", rename_initial["sha"])
+    rename_record = start_session(renames, "rename-record")
+    capture_bases(renames, rename_record)
+    write_owned(rename_record, ["unrelated"])
+    write_premise(rename_record)
+    advance_remote_rename(
+        renames, "code", "content.txt", "moved-content.txt", "record rename")
+    inspection = inspect_advance(renames, rename_record, "feat/rename-record")
+    assert inspection.returncode == 0, inspection.stderr
+    (rename_record / "advance-inspection.json").write_text(
+        inspection.stdout, encoding="utf-8")
+    assert advance_base(renames, rename_record, "feat/rename-record").returncode == 0
+    renamed_files = advance_records(rename_record)[0]["changed_files"]
+    assert "content.txt" in renamed_files and "moved-content.txt" in renamed_files
 
     # Three consecutive advances succeed; the fourth is refused with no further state change.
     limits = make_advance_world(tmp_path / "limits", mapping)
@@ -836,14 +949,14 @@ def test_advance_guards_and_state_chain(
             records_path.write_bytes(records_path.read_bytes().rstrip(b"\n"))
         last_tip = advance_remote(limits, "code", {
             f"limit-{number}.txt": f"advance {number}\n"}, f"limit {number}")
-        inspection = inspect_advance(limits, limited, "feat/limits")
+        inspection = inspect_advance(limits, limited, INTEGRATION)
         assert inspection.returncode == 0, inspection.stderr
         (limited / "advance-inspection.json").write_text(inspection.stdout, encoding="utf-8")
-        assert advance_base(limits, limited, "feat/limits").returncode == 0
+        assert advance_base(limits, limited, INTEGRATION).returncode == 0
         assert len(advance_records(limited)) == number
     assert read_state(limited, "code")["sha"] == last_tip
     advance_remote(limits, "code", {"limit-4.txt": "too many\n"}, "limit four")
-    rejected(inspect_advance(limits, limited, "feat/limits"))
+    rejected(inspect_advance(limits, limited, INTEGRATION))
     assert len(advance_records(limited)) == 3
     assert read_state(limited, "code")["sha"] == last_tip
 
@@ -856,6 +969,18 @@ def test_advance_guards_and_state_chain(
     code_initial = read_state(docs_session, "code")
     docs_initial = read_state(docs_session, "docs")
     write_owned(docs_session, ["src/ours"], ["docs/superpowers/specs"])
+    rejected(call_base(
+        "--inspect-advance", "--session", docs_session,
+        "--owned-paths-file", docs_session / "owned-paths.json",
+        "--code-root", worktree_path(separate, docs_session, "code"),
+        "--code-branch", "feat/separate"))
+    rejected(call_base(
+        "--inspect-advance", "--session", docs_session,
+        "--owned-paths-file", docs_session / "owned-paths.json",
+        "--code-root", worktree_path(separate, docs_session, "code"),
+        "--code-branch", "feat/separate",
+        "--doc-root", worktree_path(separate, docs_session, "code"),
+        "--doc-branch", "docs/separate"))
     empty_docs = docs_session / "empty-docs.json"
     empty_docs.write_text(json.dumps({"code": ["src/ours"], "docs": []}), encoding="utf-8")
     rejected(inspect_advance(separate, docs_session, "feat/separate", "docs/separate", owned=empty_docs))
@@ -927,8 +1052,47 @@ def test_advance_guards_and_state_chain(
     code_lines += [" ".join(command["argv"]) for command in required]
     code_body.write_text("\n".join(code_lines) + "\n", encoding="utf-8")
     rejected(pr_gate(separate, docs_session, code_body))
+    rejected(pr_gate(separate, docs_session, code_body,
+                     str(docs_session / "missing-doc-body.md")))
+    linked_doc_body = docs_session / "linked-doc-body.md"
+    linked_doc_body.symlink_to(code_body)
+    rejected(pr_gate(separate, docs_session, code_body, str(linked_doc_body)))
     doc_body = "\n".join(
         f"{record['old_sha'][:7]} -> {record['new_sha'][:7]}"
         for record in records if record["target"] == "docs"
     )
     assert pr_gate(separate, docs_session, code_body, doc_body).returncode == 0
+
+    # A docs-separate run that advances only code still requires a valid docs PR body,
+    # even though there is no docs advance record to quote.
+    code_only = start_session(separate, "code-only")
+    capture_bases(separate, code_only)
+    write_owned(code_only, ["src/ours"], ["docs/superpowers/specs"])
+    code_only_tip = advance_remote(separate, "code", {"code-only.txt": "code only\n"}, "code only")
+    inspection = inspect_advance(separate, code_only, "feat/code-only", "docs/code-only")
+    assert inspection.returncode == 0, inspection.stderr
+    (code_only / "advance-inspection.json").write_text(inspection.stdout, encoding="utf-8")
+    write_premise(code_only)
+    assert advance_base(separate, code_only, "feat/code-only", "docs/code-only").returncode == 0
+    code_only_root = add_worktree(
+        separate, code_only, "code", "feat/code-only", code_only_tip)
+    docs_only_root = add_worktree(
+        separate, code_only, "docs", "docs/code-only", docs_tip)
+    commit_files(code_only_root, {"code-only-work.txt": "work\n"}, "code only work")
+    commit_files(docs_only_root, {"docs/code-only-work.md": "work\n"}, "docs only work")
+    assert set_verify(code_only, [["bash", "-c", "test -f code-only-work.txt"]]).returncode == 0
+    assert reverify(separate, code_only).returncode == 0
+    code_only_reverified = json.loads((code_only / "reverified.json").read_text())
+    (code_only / "code-sha.txt").write_text(
+        code_only_reverified["code_head_sha"] + "\n", encoding="utf-8")
+    (code_only / "docs-sha.txt").write_text(
+        code_only_reverified["doc_head_sha"] + "\n", encoding="utf-8")
+    code_only_record = advance_records(code_only)[0]
+    code_only_body = code_only / "code-body.md"
+    code_only_body.write_text(
+        f"{code_only_record['old_sha'][:7]} -> {code_only_record['new_sha'][:7]}\n"
+        "bash -c test -f code-only-work.txt\n", encoding="utf-8")
+    rejected(pr_gate(separate, code_only, code_only_body))
+    rejected(pr_gate(separate, code_only, code_only_body,
+                     str(code_only / "missing-doc-body.md")))
+    assert pr_gate(separate, code_only, code_only_body, "docs の変更なし\n").returncode == 0
