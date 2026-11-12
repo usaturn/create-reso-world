@@ -109,4 +109,3 @@ worker の期限は helper の役割上限（implement 5400秒、Spec/inspect 27
 - 全依頼requested/actual=pi_opencode-go_deepseek4-flash_max、identity=opencode-go/deepseek-v4.1-flash/max、fallback=[]、stop_confirmed=true、outside_changes=[]。unprotected_changesは既存prunable /tmp6件の監査不能で、他者の資源には触れていない。各依頼cleanup retained=[]。
 - 詳細ログ・採否・reviewed/reflected SHA・所要・brief/review package: /workspaces/reso-world/tmp/agents/issue-390.bq1npfwa/。正式なSpecはdraftのまま（実行許可のみ）。Specレビューのcleanupは両回成功、retained=[]。
 - 最終HEADの全体検証・Gitleaks・PR公開・PRレビュー修正ループはこの記録時点で未実施。これらの結果はSESSIONとPR本文へ記録し、ループ中にこのPlanやSpecへ追加コミットしない。
-
