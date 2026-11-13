@@ -50,13 +50,13 @@
 
 **テスト要否:** 新規の恒久テストは不要（F / L）。権限・env・duplicate_model の S は既存テストを実行する。下記の一時適用シナリオと CLI 検査を行い、文字列の固定値テストはコミットしない。
 
-- [ ] Step 1 (controller): base のスキルの既定担当説明と、空 config の設定解決・run_roles.py の self 分岐を使う一時適用シナリオを実行し、不一致を記録する。コード編集前に RED の根拠を残す。実モデルを呼ばない。ログ・一時スクリプトは controller が SESSION に作る。runner 担当には結果を渡し、許可4ファイル以外への書込を要求しない。
-- [ ] Step 2: AW の定義順にカタログを並べ、Opus xhigh / effort を変更する。AW のコメントを基本にし、Spec の CRW 固有説明と #408 の値を保つ。roles は AW の順序と説明に揃え、値は維持する。
-- [ ] Step 3: README の現行名・割当・effort・旧名手動移行・Sol max の完全な個人設定例を整える。#305 の履歴表は当時の記録として残す。API key の値は書かない。Ollama 節は機械的な名前追従以外を変更しない。
-- [ ] Step 4: review-fix-planning の 2 文書は実効の既定 implement=`self` と明示変更/fallback の説明に揃える。安全・レビュー・マージ手順を変えない。
-- [ ] Step 5 (controller、取り込み後): Step 1 を変更後で再実行し、説明と helper の self 分岐の一致を確認する。空 config check/list、旧名参照だけは拒否 / 移行後は成功、完全な旧名定義は保持、Sol max の独自定義は成功 / 同一モデルとの混在は拒否を、実設定解決で確認する。入力ファイルのバイトが変わらないことも確認する。AW との差異を TOML parse と diff で説明する。
-- [ ] Step 6: `uv run --locked pytest tools/agent_runner/tests -q`、`bash .devcontainer/test-install-beforehand.bash`、`bash scripts/check-layout.sh`、`git diff --check` を同期実行する。追加テスト無し、許可外差分無しを確認する。
-- [ ] Step 7: 4 ファイルだけ stage し `git commit -m "chore: align runner catalog and migration docs with current AW"`。結果 JSON の commands / concerns に commit・実行 argv / exit・所要時間・実装の要点を返す。ログと報告ファイルは controller が runner 出力から保存する。worker は SESSION・他 checkout に書かない。
+- [x] Step 1 (controller): base のスキルの既定担当説明と、空 config の設定解決・run_roles.py の self 分岐を使う一時適用シナリオを実行し、不一致を記録する。コード編集前に RED の根拠を残す。実モデルを呼ばない。ログ・一時スクリプトは controller が SESSION に作る。runner 担当には結果を渡し、許可4ファイル以外への書込を要求しない。
+- [x] Step 2: AW の定義順にカタログを並べ、Opus xhigh / effort を変更する。AW のコメントを基本にし、Spec の CRW 固有説明と #408 の値を保つ。roles は AW の順序と説明に揃え、値は維持する。
+- [x] Step 3: README の現行名・割当・effort・旧名手動移行・Sol max の完全な個人設定例を整える。#305 の履歴表は当時の記録として残す。API key の値は書かない。Ollama 節は機械的な名前追従以外を変更しない。
+- [x] Step 4: review-fix-planning の 2 文書は実効の既定 implement=`self` と明示変更/fallback の説明に揃える。安全・レビュー・マージ手順を変えない。
+- [x] Step 5 (controller、取り込み後): Step 1 を変更後で再実行し、説明と helper の self 分岐の一致を確認する。空 config check/list、旧名参照だけは拒否 / 移行後は成功、完全な旧名定義は保持、Sol max の独自定義は成功 / 同一モデルとの混在は拒否を、実設定解決で確認する。入力ファイルのバイトが変わらないことも確認する。AW との差異を TOML parse と diff で説明する。
+- [x] Step 6: `uv run --locked pytest tools/agent_runner/tests -q`、`bash .devcontainer/test-install-beforehand.bash`、`bash scripts/check-layout.sh`、`git diff --check` を同期実行する。追加テスト無し、許可外差分無しを確認する。
+- [x] Step 7: 4 ファイルだけ stage し `git commit -m "chore: align runner catalog and migration docs with current AW"`。結果 JSON の commands / concerns に commit・実行 argv / exit・所要時間・実装の要点を返す。ログと報告ファイルは controller が runner 出力から保存する。worker は SESSION・他 checkout に書かない。
 
 ## 統合担当（controller）
 
@@ -98,3 +98,9 @@ cwd は CODE_ROOT。config は SESSION の `empty-config.toml`（空ファイル
 ## 要件照合・self-review
 
 Spec のカタログ・並び・固有差分・移行・スキル修正は全て Task 1 に対応。各条件の観測は Step 1/5 の一時シナリオ、Step 6 の実行検証と controller の差分照合で得る。共有前提の確認は統合担当に集約する。未実施の検証を成功と記録しない。Plan の長さと変更4ファイルの規模を照合済み。
+
+## Task 実行記録
+
+Task 1 は `7f5fe7c8..f15bab49`、読み取り専用 Task レビューは Spec compliance PASS / quality APPROVED。初回依頼は書込先の文脈不足で NEEDS_CONTEXT（29.11秒・変更無し）、controller の一時検証へ責任を分けた2回目は importable（185.995秒）、requested=actual `pi_openai-codex_gpt6-terra_xhigh` / identity `openai-codex / gpt-6.1-terra / xhigh`。両方 stop_confirmed=true、outside_changes=[]、cleanup の retained=[]。再依頼の上限を消費済み。
+
+controller が AW の21 agentの順・値、roles の順・値、workflows を比較し、env の2箇所と project の意図的相違だけであることを確認した。旧名参照の拒否・移行後成功・旧完全定義保持・部分定義拒否・README max例・duplicate_model の11ケースは全て期待どおりで、入力バイト不変。スキル適用シナリオは変更前の不一致（exit1）→変更後の一致（exit0）、実helper self分岐・保存、外部attempt0を確認した。CLI check/list・関連pytest305件・install-beforehand・layout・diff checkは成功。最後の README 全体検証と PR 修正ループはこの記録時点では未実施。ログと報告は SESSION に保持する。

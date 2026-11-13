@@ -96,7 +96,7 @@ Spec レビュー、Task helper、PR 修正ループは PARENT_ROOT の helper �
 - Assignment / loop check は全て exit 0。明示された担当と fallback の保持を確認。
 - baseline `768c7c41`: `uv run --locked pytest tools/agent_runner/tests -q` は 305 passed / exit 0。ログは `/workspaces/reso-world/tmp/agents/issue-365.iuvh4cpo/baseline-agent-runner.log`。
 - repository の write / triage 権限あり、rulesets なし、claim branch の protected=false、Actions enabled=false を確認。claim は `42578d1a7ce39692a4c7e7664f52fc5c364c31f3`。
-- 実装・PR 作成はまだ行っていない。
+- 準備時点では実装・PR 作成を行っていなかった。現在の実行結果は下の記録を参照する。
 
 ## Spec レビュー記録
 
@@ -106,3 +106,11 @@ Spec レビュー、Task helper、PR 修正ループは PARENT_ROOT の helper �
 - unprotected_changes: 既存の prunable な `/tmp/pr-review-376-*` 4 件と `/tmp/review-fix-planning.*` 2 件、別担当の `/workspaces/reso-world/tmp/agents/issue-431-implement.3t3ggqnv/task-1-attempt-1/03196e104041442dbb9f6da231e9606e/attempt-1/worktree`。対象 worktree の変更は無く、他者の領域には手を加えない。
 - S1（important）採用: 別 context の追加モデル実行と API を呼ばない検証条件との曖昧さを解消した。受け入れ基準を、一時 config に隔離した設定解決と helper self 分岐の適用シナリオに具体化した。固定文言テストや追加の有料モデル実行は行わない。反映後の SHA は decide の出力として SESSION に保存し、Spec へ書き戻さない。
 - 再レビュー: 同じ ledger の `review-2`、review_id `d2e51246c7c441faa1c6d2cdf6226bd1`、reviewed SHA-256 `6107dec65dff0c7e9a6806697044baba3ce6bebc552a34210a4059a001116752`。requested=actual と identity は初回と同じ（session_id は別）、2 回目、30.18 秒、fallback 無し、findings=[]、incomplete=[]、stop_confirmed=true、outside_changes=[]。unprotected_changes は既存 prunable の 6 件のみ。採否は空配列として記録する。
+
+## 実行記録（内容の承認とは区別）
+
+- 実装 commit `f15bab49fcd914d8ebc7cab9cb148e58b17a38fa`、許可4ファイルのみ。実装担当は指定どおり Terra、初回 NEEDS_CONTEXT（書込先の矛盾・変更なし）を経て2回目で取り込み。安全制限を外さず、一時シナリオ・ログ保存だけを controller に分けた。Spec の設計・受け入れの意味は不変。
+- Task レビューは Spec compliance PASS / quality APPROVED。controller は AW と parse 比較し、21 agent と roles の順・値、workflow の一致（意図的相違は env 2件と after_run の project）を確認した。#408 の Ollama 値・roles 値は base と同じ。
+- 個人設定の11一時シナリオは期待どおり。旧名参照だけは invalid_reference、移行後・旧名完全定義・README の max 例は成功、部分定義は invalid_type、Sol xhigh/max の併記は duplicate_model。入力のバイトは全て不変。
+- 2スキル文書の適用シナリオ: 変更前は既定の説明が実helperの self 結果と異なり exit1、変更後は一致して exit0。両方とも実 run_roles の self 分岐と roles.json 保存を通し、外部adapter呼出・外部attemptは0。
+- CLI check/list と関連 pytest305件、担当の install-beforehand / layout / diff check は exit0。記録時点では README 全体の最終検証と PR 修正ループは未実施。全ログは `/workspaces/reso-world/tmp/agents/issue-365.iuvh4cpo/`。
