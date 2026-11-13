@@ -199,13 +199,26 @@ def test_logs_are_read_only_when_safe(
             "authentication",
             id="assistant-cli-error",
         ),
+        pytest.param(
+            json.dumps({"type": "tool_result", "is_error": True, "error": "HTTP 401 Unauthorized"}) + "\n",
+            "",
+            "unknown",
+            id="tool-result-error-field-is-tool-output",
+        ),
+        pytest.param(
+            json.dumps({"type": "user", "error": {"message": "HTTP 401 Unauthorized"}}) + "\n",
+            "",
+            "unknown",
+            id="user-error-object-is-body",
+        ),
     ],
 )
 def test_cause_uses_only_failure_channels(loop: Any, tmp_path: Path, stdout: str, stderr: str, cause: str) -> None:
     # 失敗のイベントから使うのは安全な CLI のエラー欄（文字列の message・error・error.message）だけで、
-    # message があっても error.message を捨てない。assistant に CLI が付けた error（authentication_failed など）は
-    # 本文の型のイベントでも分類に使う（本文に認証の語が無くても authentication になる）。
-    # tool_result・result/content・モデル本文は is_error=true でも分類しない（PR の本文やコードの偽陽性）
+    # message があっても error.message を捨てない。CLI が失敗の報告を付ける本文の型のイベントは assistant だけ
+    # （authentication_failed などは本文に認証の語が無くても authentication になる）。tool_result・user の
+    # error 欄はツールの出力・会話の本文で CLI の失敗の報告ではないので、result/content・モデル本文と
+    # 同じく is_error=true でも分類しない（PR の本文やコードの偽陽性）
     attempt, output = failed_attempt(tmp_path, stdout=stdout, stderr=stderr)
 
     assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
