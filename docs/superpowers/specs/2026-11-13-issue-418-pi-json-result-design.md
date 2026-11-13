@@ -1,6 +1,6 @@
 # Issue #418: pi adapter の JSON 結果抽出を json_result.json_object に移植する
 
-- 状態: draft
+- 状態: completed
 - 対象リポジトリ: usaturn/create-reso-world
 - Issue: https://github.com/usaturn/create-reso-world/issues/418
 - 関連: #406（PR #410・devin 移植済み）、#414（同種・pi）、#416（包括展開・pi 部分重複）、#349（ボード所有）
@@ -130,3 +130,51 @@ pi の `collect` 経路（`_classify` → `_payload` → 抽出関数）に、�
 1. **json_object への差し替え（採用）**: devin と同じ構成。`_json_object` と `_FENCE` を削除し、`json_object` を import。拒否仕様は json_result に一元化。最小の変更で #406 の恩恵を pi に届ける
 2. **独自 fence regex の拡張（不採用）**: prose 前置きを受け付けるよう `_FENCE` を拡張する。拒否仕様（壊れた候補・example 境界・巻き戻し禁止）を再実装する必要があり、json_result との D（重複）と保守コストが増える。Issue が json_result を明示
 3. **フォールバック併用（不採用）**: `_json_object` を残し、None のとき json_object にフォールバックする。古い抽出規則が残り、訂正で古い object を採用する問題（#416 の表で実測済み）が残る。2 つの抽出規則が並存し、挙動の予測が難しくなる
+
+## PR #423 の最終レビューと判断（サイクル1）
+
+- planner: `openai-codex/gpt-6.1-sol`（runtime pi）。issue-to-pr --merge の実行許可により完遂。内容の approved を記録したものではない。
+- 対象: usaturn/create-reso-world PR #423 / reviewed HEAD `a3bb20a9e473eaad7e71b9bdb840b89c03f1c72a` / base `777a67a8116d2d63652105802c9aa1dfc565e5aa`。
+- Spec/Plan は本ファイルと `docs/superpowers/plans/2026-11-13-issue-418-pi-json-result.md` を基準にした。新たな Spec は作らない。
+- 入力は `/workspaces/reso-world/reviews/usaturn/create-reso-world/#423-fix-issue-418-pi-json-result` の直下3レビューファイルと対応する findings JSON。全て現行HEAD、check-pair成功。前の判断は空。
+
+| レビューファイル | 指定担当 / 観測モデル / runtime | 再実行 | 結果 | 本文の実測時間 |
+| --- | --- | --- | --- | --- |
+| SWE-2-Max.md | devin_swe2_max / SWE-2 Max / devin | true（Initial） | accepted / Approve / 指摘0 | 203.880秒 |
+| deepseek-v4.1-flash.md | pi_opencode-go_deepseek4-flash_max / deepseek-v4.1-flash / pi | true（Initial） | accepted / Approve / Info2 | 768.274秒 |
+| claude-opus-5-5.md | claude-code_opus_default / claude-opus-5-5 / claude-code | true（Initial） | accepted / Approve / Info1 | 113.908秒 |
+
+3担当ともfallbackなし、runner停止確認済み。loop review全体873.532秒、outside_changesなし、retainedなし。
+
+### 全指摘の分類
+
+解消済み0 / 対応する0 / 対応しない3。以下は全て現行HEADで事実確認済み。重大度や多数決ではなく review-fix-planning の採否基準で判断した。
+
+| ID（いずれも検出時 a3bb20a9e473） | 分類 | 根拠と見直す条件 |
+| --- | --- | --- |
+| deepseek-v4.1-flash#I-1 | 対応しない | 共有単体テスト4件に未閉鎖fenceの受付固定が無く、前記の既存テスト根拠は過大。現在の動作は別途fake collectで確認済み。文書の根拠精度と将来の保険の指摘であり、現行の誤動作を示さない。追加テストは採用しない。挙動の不具合再現または利用者の名指しで見直す。 |
+| deepseek-v4.1-flash#I-2 | 対応しない | jsonc/json5/JSONCの壊れた候補がheadでは拒否され、baseでは後続結果を採用することを隔離再現した。json-prefix言語は結果用と扱う共有ヘルパーの既存設計を採る範囲であり、壊れたjson系fenceを許容する仕様変更は採用しない。文書条件の精度とこの既知の境界をPR説明へ開示する。共有ヘルパーの仕様変更、保証違反となる正しい入力の再現、または利用者の名指しで見直す。 |
+| claude-opus-5-5#I-1 | 対応しない | 指摘の語句は存在するが表現だけの問題で、誤手順・出力・操作の原因ではない。非致命的指摘を対応しないルールに従う。誤操作等の実害または利用者の名指しで見直す。 |
+
+### 要件対応・観測の証拠
+
+| 条件 / 経路 | 分類 | 現行版の証拠 |
+| --- | --- | --- |
+| prose + 裸JSON / collect→_payload→json_object | 既に満たす | 同じHEADで関連43件成功。独立に構成したfixture、訂正の最後のobject、両形の壊れた候補拒否を確認。 |
+| 完了判定・破損行・診断優先 / _classify等 | 既に満たす | これらの関数はbaseから不変。既存lifecycle/診断/backtickを含む関連suite成功。 |
+| 未閉鎖fence・proseのみ・prose+fence | 既に満たす | controllerの3つのfake collect観測。順にsuccess / response_failed / success。固定テストの有無とは区別する。 |
+| example言語の境界 / _example_fence | 対象外（変更しない） | jsonc/json5/JSONCの壊れた例は拒否、pythonはsuccessを隔離worktreeで再現。共有スキャナの仕様変更は対象外。 |
+| 他adapter・request_prompt | 対象外 | 依頼と当初Specが除外。差分なし。 |
+
+統合担当はcontroller。現行HEADの全変更ファイル・関連ヘルパーとテストを確認した。確認済み一覧は `/workspaces/reso-world/reviews/usaturn/create-reso-world/#423-fix-issue-418-pi-json-result/verified/a3bb20a9e473.json`（confirmed3 / unverified0、remaining空）。一時worktreeは撤去済み。検証前提を実装と共有するfixture生成はしていない。
+
+### 検証・結論
+
+`/workspaces/reso-world/tmp/agents/issue-418.u_ouh3so/verification-details.json` の6コマンドを再利用する。同じHEAD・base・cleanな検証開始/終了・全exit0・残存ログのSHA256を再照合した。
+関連pytest43件、agent_runner305件、shell27件、layout PASS、全体pytest1485件、compileall成功。検証baseは上記SHAで、headの祖先。追加のbase merge検証は不要。実APIで不具合を再現していない。
+
+- 結論: 2（修正不要として最終化）。コード変更・追加テスト・修正担当起動は不要。
+- 自己レビュー: 未実施（結論1の修正が無いため、予約枠を消費しない）。
+- 実装修正の割当は利用者指定 Terra、self-review/fix-check は既定selfだが、いずれも未起動。
+- 判断の記録: サイクル1 / `/workspaces/reso-world/tmp/agents/review-fix-planning-pr423.wz6d8ru9/round.json`。工程記録: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#423-fix-issue-418-pi-json-result/verified/a3bb20a9e473.planning.json`。
+- 本節はマージ前の判断と検証結果であり、push・マージ・Issue更新済みという意味ではない。それらの結果は状況コメントと最終報告に残す。
