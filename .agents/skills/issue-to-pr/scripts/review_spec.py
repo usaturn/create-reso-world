@@ -1074,6 +1074,21 @@ def _read_private_bytes(path: Path, label: str) -> bytes:
         os.close(descriptor)
 
 
+def _read_regular_bytes(path: Path) -> bytes:
+    """特殊ファイルを開いても入力を待たず、regular file のみを読む。"""
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOCTTY", 0)
+    descriptor = os.open(path, flags)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise OSError("not a regular file")
+        with os.fdopen(descriptor, "rb") as stream:
+            descriptor = -1
+            return stream.read()
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
 def _write_new_private(path: Path, data: bytes) -> None:
     """新規ファイルだけを 0600 で作り、flush・fsync・親 directory の fsync まで終える。"""
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
@@ -1115,6 +1130,7 @@ def _cleanup_records(
         entries = []
     paths.extend(entry for entry in entries if entry.name.startswith(CLEANUP_SUCCESS_PREFIX))
     if batch is not None:
+        paths.append(batch.artifact_dir)
         for outcome in batch.results:
             for attempt in outcome.attempts:
                 if attempt.request_path is not None:
@@ -1160,6 +1176,7 @@ def _precheck_retained(batch: BatchResult | None, runner_dir: Path | None, reaso
             retained.append({"path": text, "reason": reason})
 
     if batch is not None:
+        add(batch.artifact_dir)
         for outcome in batch.results:
             for attempt in outcome.attempts:
                 if attempt.work_dir is not None:
@@ -1465,8 +1482,21 @@ def _cleanup_absolute(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip()) and "\x00" not in value and Path(value).is_absolute()
 
 
+def _cleanup_canonical(path: Path) -> bool:
+    if not _cleanup_absolute(str(path)) or str(path) != _absolute_path(path):
+        return False
+    try:
+        return _real(path) == path
+    except (OSError, RuntimeError):
+        return False
+
+
 def _check_cleanup_metadata(
-    review_dir: Path, request: dict[str, Any], record: dict[str, Any] | None, kind: Kind
+    review_dir: Path,
+    request: dict[str, Any],
+    record: dict[str, Any] | None,
+    kind: Kind,
+    batch: BatchResult | None,
 ) -> None:
     """削除や成功証拠に必要な値を、保存済みのレビューと Spec 写しで照合する。"""
     mode = request.get("mode")
@@ -1486,11 +1516,24 @@ def _check_cleanup_metadata(
         if not _cleanup_absolute(nested.get(name)):
             raise ReviewInputError(f"the request {name} must be an absolute path")
     try:
-        spec_sha256 = _sha256((review_dir / "spec.md").read_bytes())
+        spec_sha256 = _sha256(_read_regular_bytes(review_dir / "spec.md"))
     except OSError:
         raise ReviewInputError("the saved Spec cannot be read") from None
     if request["spec_sha256"] != spec_sha256:
         raise ReviewInputError("the request spec_sha256 does not match the saved Spec")
+    if batch is not None:
+        artifact = batch.artifact_dir
+        if not _cleanup_canonical(artifact):
+            raise ReviewInputError("the batch artifact_dir must be a canonical absolute path")
+        if runner is None or Path(runner) != artifact or runner != _absolute_path(runner):
+            raise ReviewInputError("the batch artifact_dir does not match the request runner_dir")
+        for outcome in batch.results:
+            for attempt in outcome.attempts:
+                for path in (attempt.work_dir, attempt.request_path):
+                    if path is not None and (
+                        not _cleanup_canonical(path) or path == artifact or not path.is_relative_to(artifact)
+                    ):
+                        raise ReviewInputError("the batch attempt path is not a canonical path inside artifact_dir")
     if record is not None:
         if record.get("mode") != mode:
             raise ReviewInputError("the review mode does not match the request")
@@ -1527,7 +1570,7 @@ def cleanup(review_dir: Path, kind: Kind = SPEC_REVIEW) -> dict[str, Any]:
     review_unreadable = False
     if review_path.exists() or review_path.is_symlink():
         try:
-            review_bytes = review_path.read_bytes()
+            review_bytes = _read_regular_bytes(review_path)
             value = json.loads(review_bytes.decode("utf-8"))
             if not isinstance(value, dict):
                 raise ValueError("not an object")
@@ -1542,7 +1585,7 @@ def cleanup(review_dir: Path, kind: Kind = SPEC_REVIEW) -> dict[str, Any]:
             pass
     records = _cleanup_records(review_dir, request, batch, runner_dir)
     try:
-        _check_cleanup_metadata(review_dir, request, record, kind)
+        _check_cleanup_metadata(review_dir, request, record, kind, batch)
         if review_unreadable:
             raise ReviewInputError("the review result cannot be read")
     except ReviewInputError as error:
