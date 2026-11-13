@@ -102,3 +102,9 @@ meshy の既知経路は共通 resolver 内に定義されていないため、�
 - 外部 helper、requested/actual agent: `pi_openai-codex_gpt6-terra_xhigh` / `pi_openai-codex_gpt6-terra_xhigh`。identity: `{"model": "gpt-6.1-terra", "provider": "openai-codex", "effort": "xhigh", "session_id": "01a1d485-ca7e-71f1-bbce-ab511a4203d0", "cli_version": null, "skill_versions": {}}`。fallback 不使用、elapsed_seconds=71.245。
 - S1（important）を採用。scripts/superpowers_context.py の既知経路を確認し、meshy の code_root を呼び出し側で固定し origin を確認する方針と A6 の対照検証を追加した。既存境界を具体化する修正で、許可対象を増やさない。
 - outside_changes=[]、unprotected_changes は設計レビューに記載した同じ削除済み6登録。触らず記録のみ。
+
+### Spec レビュー2回目の記録
+
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-431.0zsmult7/2026-11-13-issue-431-issue-authoring-design.spec-review/review-2`、review_id: `e1c22c7ef5794abba20c4b94cfdc17dd`、reviewed Spec SHA-256: `86b47b82fe19bae16b618818e3d7582adc1545d260b2ec3fc7027cdaf999eb89`。
+- 外部 helper、requested/actual agent: `pi_openai-codex_gpt6-terra_xhigh` / `pi_openai-codex_gpt6-terra_xhigh`。identity: `{"model": "gpt-6.1-terra", "provider": "openai-codex", "effort": "xhigh", "session_id": "01a1d489-6300-7605-a381-5b98ac4375da", "cli_version": null, "skill_versions": {}}`。fallback 不使用、elapsed_seconds=33.297。
+- 指摘0件、incompleteなし。採否の対象なし。outside_changes=[]、unprotected_changes は同じ削除済み6登録。
