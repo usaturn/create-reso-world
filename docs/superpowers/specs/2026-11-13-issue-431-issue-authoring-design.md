@@ -120,3 +120,69 @@ meshy の既知経路は共通 resolver 内に定義されていないため、�
 - A6: 実際の親resolverの正常系と未知repoの拒否、実Git/contextを使うmeshy固定checkoutの正常系・origin不一致・別checkoutへのsymlinkの拒否を確認した。
 
 行動比較は同じTerraで各条件1回のみ。スキル無しでも3つの案を保存できたが、既存コメント取得と関連検索が省かれた。導入後は両方を実行した。今回の結果を一般の成功率や速度向上の根拠にはしない。記録は `.agents/skills/issue-authoring/evals/create-reso-world-validation.md`、実行証拠は `/workspaces/reso-world/tmp/agents/issue-431.0zsmult7/` に保存した。
+
+## PR #433 のレビュー修正（サイクル1）
+
+対象は公開 HEAD `f9347d1fc607a38eefbbf4a1edfee066ccafcc4b`、取り込んだ修正は `e67a669a67d0eaa2866d5c370f2e405eb51650ee`。planner は `gpt-6-astra`（codex）。利用者の `--merge` と review-fix-planning の完遂に基づく実行許可で進め、内容の承認を受けたとは記録しない。
+
+指定された3レビュアーのうち、`claude-code_opus_default`（実際 `claude-opus-5-5`、220.229秒）は指摘0件、`pi_opencode-go_deepseek4-flash_max`（実際 `deepseek-v4.1-flash`、1636.253秒）は2件を保存した。双方の Merge recommendation は Needs manual verification で、未読・未実行とされた範囲を司令塔が変更ファイル全文、関連コード、検証証拠に照合した。
+
+`devin_swe2_max` は response_failed・終了コード1、停止確認済み、成果なし。診断の cause は unknown で、stderr はプランに関する拒否を示した。成果なしを指摘0件とみなさず入力から除外した。利用者から復旧した旨と再依頼の指示を受けたため、次のサイクルでも Devin を含む元の3担当を使う。診断は `/workspaces/reso-world/reviews/usaturn/create-reso-world/#433-feat-issue-431-issue-authoring/loop/aee0e36c433441a992e37de2c1f994e9/cycle-1/diagnostics/aced397c02ef4605844b7575901dff80.json`。
+
+### 採否・原因・修正方針
+
+- 対応する: `deepseek-v4.1-flash#M-1@f9347d1fc607`（Medium）。本文PATCH後にラベル追加が失敗し、その間に他の利用者が本文・タイトルを変更すると、再実行がラベルを書き換えて `published` を返す。実helper・実Gitleaksとfake GitHubによる旧版の再現で、本文/タイトル各例で追加書込み2件と承認案との不一致を観測した。誤った成功と承認内容から外れた書込みなので分類(a)に当たる。
+- 対応しない: `deepseek-v4.1-flash#L-1@f9347d1fc607`（Low）。初回create/updateの恒久的な正常系テスト不足は事実だが、司令塔の実行では両方成功し、独立した致命的な誤動作はない。AGENTS.mdのS基準に従い一般的な網羅は追加しない。M-1の拒否に対する正常再開は今回のS回帰テストで対にした。create/update/関連付けの実利用経路で気付かない損害が再現するか、欠ける守りの具体例が出たら見直す。
+
+原因は、進行記録の `body=done` を現在の本文・タイトルの一致とみなしたこと。本文・タイトルの承認案との一致と、ラベルの正当な途中状態を同じ読取りで確認する `_require_update_state` を導入した。再開前、各ラベル書込み前、完了判定前に使う。自分が既に適用したラベルは認め、外部変更だけで拒否する。本文更新前の `_body_applied` を常に再利用する案は、ラベル追加済みの正当な再開を拒否するので選ばなかった。再試行の一律禁止、新しい永続ロック、journal全体の作り替えも不要と判断した。
+
+守る条件は、不一致を読んだ後の追加書込みと誤成功を防ぎ、正常な途中状態から復旧できること。すでに完了した書込みを巻き戻すものではない。GitHubの読取りと後続書込みの間に発生する同時編集を不可分に防ぐ保証は追加しない。
+
+### 要件と経路の検証結果
+
+統合担当は司令塔 `gpt-6-astra`。A2の競合時停止と正しい成功報告を回復し、A1/A3/A4/A6は今回の2ファイル修正で前提を変えない。共通の本文更新・ラベル進行・journalの読書き順を、同じコミットの隔離worktreeで確認した。
+
+| 経路 | 対象版での観測 |
+|---|---|
+| body doneからの再開、本文/タイトル/ラベルの外部変更 | 3例ともconflict、追加書込み0。remote全状態とdraft/preview/journalのbytes・modeが不変 |
+| add失敗からの正常再開、add成功/remove失敗からの再開 | 残りだけ処理してpublished。承認案の本文・タイトル・最終ラベルに一致 |
+| 初回updateとcreate | それぞれpublished。承認案に一致。create/commentの処理は変更していない |
+| 同じ実行中、add後の外部本文変更 | DELETEへ進まずconflict。既に成功したPATCH/POSTだけが残る |
+| 全step done、finish前中断後の外部タイトル変更 | 再開はconflict。書込み0・全管理状態不変 |
+| 本文PATCH成功の応答だけを喪失 | 再開は再PATCHせずpublished |
+
+代表のS回帰テストを1件追加し、拒否と正当な途中状態からの再開を含めた。修正後の隔離worktreeで本文/タイトルの一致ガードだけを外した対照では、その負例1件が `published != conflict` で失敗した。共有featureは変異させていない。実GitHubへの書込みは使っていない。
+
+実装担当は指定 `pi_openai-codex_gpt6-terra_xhigh`、観測モデル `gpt-6.1-terra` / `openai-codex` / `xhigh`。1回164.863秒、fallbackなし、commit `f778beffa19da31cc2422fc71ec336b471c477b8` を停止確認と差分照合の後に取り込み、`e67a669a` になった。今回が初回の修正で、同条件の再発・修正による回帰の設計見直し条件には当たらない。
+
+司令塔の検証は修正コミットで、`uv run --locked pytest tests/skills .agents/skills -q` が846 passed（789.84秒）、`env -u CODEX_THREAD_ID bash .devcontainer/run-tests.bash` が27件成功（112.528秒）、配置検査とdiff検査が終了コード0。前後とも作業ツリーに変更なし。CODEX_THREAD_IDの除外は、初回公開前にbaseでも再現した一時HOMEとの干渉を隔離するための指定である。自己レビュー前のGitleaks 8.30.1は14コミットを検査し検出なし。
+
+詳細と全状態比較は `/workspaces/reso-world/tmp/agents/review-fix-433.hb8vc9hg/` の `fixed-reproduction/`、`accepted-checks/`、`controller-fix-evidence.json` に保存した。必須検証中にmainが `c120e59fc2a69cc7bc1640fafee13286b9b9c627` へ進んだことを確認した。最終化では最新baseを含むツリーを別途検証する。
+
+### 自己レビューで判明した別ホストへの送信
+
+`run_roles.py --phase self-review` を1回だけ予約し、self-review と fix-check をそれぞれ1回実施した。self-review は `gpt-6-astra` / codex、1504.328秒、対象 `e67a669a67d0eaa2866d5c370f2e405eb51650ee` のPR全体を読み、Medium 1件、Merge recommendation は Approve。fix-check は同モデル / codex、877.917秒で、修正の主張15件、変更2ファイル、関連する文書の候補15件を確認し、元の再開時の競合を再現せず、未確認・追加指摘とも0件だった。fix-check はこの時点の再開修正を確認したもので、後の送信先修正を確認した記録ではない。
+
+追加で対応した指摘は `gpt-6-astra-commit-e67a669a67d0eaa2866d5c370f2e405eb51650ee#M-1@e67a669a67d0`。共通 resolver が GitHub.com の repo を照合しても、相対 endpoint の `gh api` が `GH_HOST` を継承し、別ホストへの update/comment を `published` と報告する。抽出も別ホストの記録を指定 repo の JSONL として返す。実 gh と loopback TLS fixture を使う司令塔の独立再現でも観測した。誤対象への書込み・記録の取り違えなので分類(a)として採用した。重大度や Approve の表記だけで除外しない。元の再開修正とは別原因で、修正による回帰ではない。
+
+原因は、repo 識別と API ホストを別々に決めていたこと。publish と extract の各API入口に `--hostname github.com` を明示し、現行の直接操作手順も API のホスト指定または GitHub.com の完全な repo URL にそろえた。親シェルの `GH_HOST` やユーザの永続設定を変更せず、GitHub Enterprise 対応は追加しない。draft 時だけの環境検査では、公開までの環境変化を防げないので採用しなかった。
+
+統合担当は司令塔 `gpt-6-astra`。A2の承認された投稿先、A4の記録の帰属、A6の誤対象防止を、repo とホストの組で照合した。
+
+| 経路 | 最新の実装コミット `77d0993ee51415fff05059b32969fade8b230b0f` での観測 |
+|---|---|
+| publish共通API入口（読取り・create・update・comment・ラベル） | 実gh・実helperを2つのローカルTLS fixtureにつなぎ、GH_HOST未設定の正常update、別ホスト設定下のupdate/create、draft後に設定を変更したcommentを確認。すべてGitHub.com用fixtureだけに届き成功、別ホストへの要求0件 |
+| extractの独立したAPI入口 | 同じ実CLIの別ホスト設定下でIssue/コメントをGitHub.com用fixtureから抽出。別ホスト由来の記録0件 |
+| SKILL・3モード・共通書式の直接CLI手順 | API、issue view/edit/close、label createの5種類について実ghの引数受理とホスト選択を確認。試験用プロキシで接続を403拒否し、すべてapi.github.comを選択。実操作の成功を示す試験ではなく、外部への転送0件 |
+| 先の再開修正 | 最新コミットで7ケースと操作順3ケースを再実行。外部編集時の追加書込み停止、正常再開、応答喪失後の復旧を維持 |
+| ローカルの書式・reshape・archive処理 | HTTPを呼ばず今回の変更対象外。既存の保存処理を変更せず、対象テストを含む共通検証で確認 |
+
+送信先を守るSテストをpublishとextractの独立した入口に各1件追加した。正しい公開・抽出を含め、隔離したworktreeでホスト指定だけを片方ずつ外すと、対応する負例がそれぞれ1件失敗した。同じ入口のaction組合せや文書の固定文言のテストは追加していない。実GitHubへの試験書込みは全検証を通して0件。
+
+追加修正の担当も指定 `pi_openai-codex_gpt6-terra_xhigh`、実際 `gpt-6.1-terra` / `openai-codex` / `xhigh`。1回209.554秒、fallbackなし。workerの `7e00b46b76dac9075848502325a0c698f7add273` を停止確認と全差分の照合後に取り込み `77d0993e` となった。自己レビューの枠は既に使用したため、この追加修正を再レビューしていない。司令塔が新しいコミットで検証し、push後の次サイクルでDevinを含む指定3モデルへ全体レビューを依頼する。
+
+このサイクルの採否は対応する2件・対応しない1件、未確認0件。自己レビュー・fix-checkの再予約はしていない。内容の承認は受けていないため、利用者の issue-to-pr に関する文書保存規則に従い Spec・Plan の状態は draft を維持し、この節でレビュー修正作業の完了を記録する。
+
+証拠: `/workspaces/reso-world/tmp/agents/review-fix-433.hb8vc9hg/host-fix-evidence-summary.json`、同ディレクトリの `final-routing/`、`doc-cli-eq5o4ufy/`、`host-checks/`。自己レビューと修正確認は `reviews/usaturn/create-reso-world/#433-feat-issue-431-issue-authoring/` 内の commitレビュー、`verified/e67a669a67d0.fix-check.json`。サイクルの状況コメントはPR #433にreview-records v2のサイクル1として投稿する。
+
+最新の共通検証（上記77d0993e、前後clean）: `uv run --locked pytest tests/skills .agents/skills -q` は848 passed（843.70秒）、シェル共通テスト27件、配置検査、diff検査はすべてexit 0。シェルには既存の一時HOMEとの干渉を除く `env -u CODEX_THREAD_ID` を適用した。実行argv・時間・ログSHAは `host-checks/checks.json` に保存した。
