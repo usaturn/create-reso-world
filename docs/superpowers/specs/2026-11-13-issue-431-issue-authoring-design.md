@@ -186,3 +186,28 @@ meshy の既知経路は共通 resolver 内に定義されていないため、�
 証拠: `/workspaces/reso-world/tmp/agents/review-fix-433.hb8vc9hg/host-fix-evidence-summary.json`、同ディレクトリの `final-routing/`、`doc-cli-eq5o4ufy/`、`host-checks/`。自己レビューと修正確認は `reviews/usaturn/create-reso-world/#433-feat-issue-431-issue-authoring/` 内の commitレビュー、`verified/e67a669a67d0.fix-check.json`。サイクルの状況コメントはPR #433にreview-records v2のサイクル1として投稿する。
 
 最新の共通検証（上記77d0993e、前後clean）: `uv run --locked pytest tests/skills .agents/skills -q` は848 passed（843.70秒）、シェル共通テスト27件、配置検査、diff検査はすべてexit 0。シェルには既存の一時HOMEとの干渉を除く `env -u CODEX_THREAD_ID` を適用した。実行argv・時間・ログSHAは `host-checks/checks.json` に保存した。
+
+## PR #433 の最終確認（サイクル2）
+
+対象HEADは `e05e682ea07c5544c6ab1fd86bfa03eab1554151`。plannerは `gpt-6-astra` / codex。利用者の復旧連絡に従い、Devinを含む元の3担当を再起動し、全担当の停止と成果の対応をloopが確認した。rejected・outside_changes・retainedはいずれも空で、暗黙のfallbackはない。既存の別作業に属する削除済みworktree登録6件はunprotected_changesとして報告され、今回変更していない。
+
+| レビューファイル・実際のモデル | ランタイム | 対象HEAD・今回の再実行 | 推奨 | レビュー時間 |
+|---|---|---|---|---|
+| SWE-2-Max.md / SWE-2 Max | devin | e05e682ea07c・あり | Approve | 579.063秒 |
+| deepseek-v4.1-flash.md | pi | e05e682ea07c・あり | Approve | 749.591秒 |
+| claude-opus-5-5.md | claude-code | e05e682ea07c・あり | Needs manual verification | 254.738秒 |
+| gpt-6-astra-commit-e67a669a67d0eaa2866d5c370f2e405eb51650ee.md | codex | e67a669a67d0・なし。前サイクルの自己レビュー | Approve | 前サイクル1504.328秒 |
+
+現行HEADの3レビューはactive指摘・未確認候補とも0件。自己レビューの古いホスト指摘は書き換えず、現行HEADで再現しなくなったことを確認した。DevinとClaudeが精読を省いた評価シナリオ・内部処理・履歴資料は、司令塔の前サイクルの全28ファイル全文確認と今回のコミット済みblobの照合で補った。18ファイルは同一、変更10ファイルは再開修正・ホスト修正と本Specの差分を全文確認している。
+
+- `deepseek-v4.1-flash#M-1@f9347d1fc607`: 解消済み。対象HEADの隔離worktreeで実helper・実Gitleaks・fake GitHubによる7ケースを実行した。本文・タイトル・ラベルの外部変更時はいずれもconflict、追加書込み0、remoteとdraft/journalのbytes・mode不変。正常な途中状態からの再開、初回update/createはpublishedで承認案に一致した。
+- `gpt-6-astra-commit-e67a669a67d0eaa2866d5c370f2e405eb51650ee#M-1@e67a669a67d0`: 解消済み。対象HEADの実ghと2つのローカルTLS fixtureで5ケースを実行し、通常update、別ホスト設定下のupdate/create、draft後にホストを変更したcomment、extractがすべてGitHub.com用fixtureだけに到達した。別ホスト要求0、実GitHub書込み0。共通入口と直接手順の条件も照合した。
+- `deepseek-v4.1-flash#L-1@f9347d1fc607`: 対応しない判断を引き継ぐ。create/update一般の網羅不足について新しい損害・欠ける守りの根拠は無く、S基準で今回の回帰に必要な正負の確認に限定した。見直す条件はサイクル1と同じ。
+
+対象テストは18 passed。操作順3例、直接CLI5種類、ガードを外す対照の証拠は、実装blobが変わっていないためサイクル1の結果を引き継いだ。実サービスへの書込み試験と過去の評価の再実行は対象外のままで、実施したことにはしない。実際の返値が承認内容から外れる場合も、検証した照合経路はconflictで停止する。
+
+最新main `c120e59fc2a69cc7bc1640fafee13286b9b9c627` を対象HEADへ一時mergeし、競合なし。検証した一時コミットは `0c05afa06380edb1eaea6fe568956202076db25b`、treeは `d4baa986b6c4026dae2bdcd42639aafcf69eb864`、両親は上記対象HEADとmainの順である。共有featureにはこのmergeを取り込んでいない。このツリーで共通pytest848 passed（900.77秒）、`env -u CODEX_THREAD_ID bash .devcontainer/run-tests.bash` 27件（132.909秒）、配置検査とdiff検査のexit 0を確認した。実行前後は同じHEADでclean、ログSHAも照合した。最終化の直前にもbaseが進んでいないことを確認する。
+
+確認済み一覧は `reviews/usaturn/create-reso-world/#433-feat-issue-431-issue-authoring/verified/e05e682ea07c.json`、確認時間272.651秒、coverage.remainingは0。実行証拠は `/workspaces/reso-world/tmp/agents/review-fix-433-cycle2.d2lzvozl/`、統合検証は `/workspaces/reso-world/tmp/agents/review-fix-433.hb8vc9hg/merged-checks/`。サイクル1の判断コメントは <https://github.com/usaturn/create-reso-world/pull/433#issuecomment-6854610373>。サイクル2の判断は同PRへreview-records v2で投稿する。
+
+結論は修正不要。解消済み2件、対応しない1件、対応する0件。追加実装・新しい自己レビュー・fix-checkは不要で、実施していない。このSpecだけを対象HEADの直接の子としてコミットし、状況投稿・秘密情報検査・push・finalize.pyの照合を経てマージする。文書状態は利用者のissue-to-prの規則に従いdraftを維持し、ここに最終確認の完了を記録する。内容の承認を得たとは扱わない。実際のpush・マージ・Issue更新の結果は状況コメントと完了報告に記録する。
