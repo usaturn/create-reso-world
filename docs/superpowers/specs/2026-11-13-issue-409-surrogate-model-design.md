@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（内容の承認ではなく、issue-to-pr による実行許可）
+- 状態: `completed`（実装・検証・レビューの完了。内容の承認を記録するものではない。マージ結果は状況コメントと完了報告に記す）
 - 対象: https://github.com/usaturn/create-reso-world/issues/409
 - 利用者の明示指示:
   ```text
@@ -91,3 +91,51 @@
 - review_dir: `/workspaces/reso-world/tmp/agents/issue-409.8hux350m/2026-11-13-issue-409-surrogate-model-design.spec-review/review-1`。所要 244.527 秒、`completed`、findings/incomplete は空、attempt 終了コード 0、停止確認 true。
 - 全指摘 0 件につき採否も空。設計・受け入れ基準の実質変更なし。Spec レビューが builder check を代替し、再レビューは行わない。
 - `outside_changes=[]`。`unprotected_changes` は事前から不在の他セッションの登録 6 件（`/tmp/pr-review-376-2f0d17b0/worktree`、`/tmp/pr-review-376-79fe98e5/worktree`、`/tmp/pr-review-376-7f95b4e6/worktree`、`/tmp/pr-review-376-c9a6d3e9/worktree`、`/tmp/review-fix-planning.9AkFc2/worktree`、`/tmp/review-fix-planning.a6ogtH/worktree`）。対象 checkout の変更ではなく、他セッションとの因果は断定しない。これらは片付けない。
+
+## PR #426・サイクル1の確認と結論
+
+- 対象: https://github.com/usaturn/create-reso-world/pull/426
+- 判断対象HEAD: `376fcb00182199f59feb50979e009892c4b23627`。plannerはランタイム提示の `gpt-6.1-sol` / `pi`（provider `openai-codex`）。issue-to-pr の明示 `--merge` によりreview-fix-planningを完遂する実行許可で進めた。
+- 現行の本SpecとPlanを基準に確認し、同テーマの新しいSpecは作らない。この追記は最終化用の文書のみの変更で、実装・設計・受け入れ条件を変えない。
+
+### レビュアーの構成
+
+| ファイル | モデル / runtime | 対象HEAD | 再実行 / Mode | 推奨 | 実測レビュー時間 |
+|---|---|---|---|---|---|
+| SWE-2-Max.md | SWE-2-Max / devin | 376fcb001821 | true / Initial | Approve | 228.764秒 |
+| deepseek-v4.1-flash.md | deepseek-v4.1-flash / pi | 376fcb001821 | true / Initial | Approve | 514.163秒 |
+| claude-opus-5-5.md | claude-opus-5-5 / claude-code | 376fcb001821 | true / Initial | Approve | 114.358秒 |
+
+入力は `/workspaces/reso-world/reviews/usaturn/create-reso-world/#426-fix-issue-409-surrogate-model/` の全3本文・候補JSON・実行記録。loopは3担当ともaccepted、rejected/retainedなし、outside_changesなし。unprotected_changesは他者の不在checkout6件で、今回の対象ではない。全候補JSONのvalidateと本文とのcheck-pairも成功した。
+
+### 全指摘の採否・結論
+
+- 全指摘・未検証候補は0件。解消済み0 / 対応する0 / 対応しない0。以前の判断記録も空で、引き継ぎ・見直しはない。IDを補って存在しない指摘を作らない。
+- 結論2: 修正不要として最終化する。単なるApprove票数ではなく、条件ごとの実行証拠、全変更ファイルと共通境界の読解を照合した結果である。
+- 追加の実装修正・テスト追加・設計見直しはない。run_roles.pyは未実行、修正後の自己レビュー0回（修正がないため）。loopの割り当てはimplementが明示 `pi_openai-codex_gpt6-terra_xhigh`、self-review/fix-checkは設定のselfだが、未実行を実施済みとしない。
+- 確認済み一覧: `verified/376fcb001821.json`（review-findings/v2、全判定0、coverage.remaining空）。工程記録は投稿後に同stemのplanning.jsonへ実施した工程だけ記録する。
+
+### 要件・共有条件と証拠
+
+| 条件・経路 | 今回の判定 | HEADで観測した結果・証拠 |
+|---|---|---|
+| encode不能なplanner.modelを共通境界で拒否 | 既に満たす | SテストのRED→GREEN、再base後の統合fold/validateは65・コメント12345付き診断・stdout空・tracebackなし |
+| 正常ASCII/非ASCIIのID・往復を維持 | 既に満たす | 既存テストを含む関連110件成功。旧形式の早期returnと成功時のUTF-8 bytesは変更なし |
+| 不正コメント除外後の読取復旧 | 既に満たす | 正常単独と不正＋正常からexcludeしたfoldの結果が一致、正常コメント22222を保持 |
+| upsertの外部操作前の拒否 | 既に満たす | compose_bodyの実入力でCommentError、正常モデルの対照成功。upsertはcompose/validate後に初めてghを呼ぶコード順序も確認 |
+| 別欄の自由記述や環境拡張 | 対象外 | Specの除外範囲と一致。今回の差分は共通encode境界だけで、その原因と無関係な新制限は導入しない |
+
+controllerが共有するモデル入力・RecordErrorの伝播・collector診断・除外復旧・writerの副作用順序を統合照合した。読み取り担当sp-reconが変更したreview_recordsとテストの全文、関連upsertの捕捉・通信順序を確認し、controllerがHEAD一致/clean状態を確認した。既存の正常fixtureにplanner.modelだけをJSONエスケープで差し替え、他の拒否条件に隠れない入力を使用。今回の修正によって影響する経路に未確認はない。
+
+### 最終検証・base前進
+
+初回の最終検証後、未pushの非重複fast-forwardをhelperで1回追随した。old base `9c3ad41e99bfc91e557f900a301bc6d6884edf0d` → new base `181042480de8b500126b025030255fd34640f71a`、old head `763657b8f1480415ecefc087502e1b941ae5dfa2` → reviewed head `376fcb00182199f59feb50979e009892c4b23627`。所有パスと安全規約・今回の共有入力/例外境界の前提に変更なし。必須コマンドを全て再実行し、前後clean・同一HEADを確認した。
+
+- `bash .devcontainer/run-tests.bash`: 27本PASS、exit0。
+- `bash scripts/check-layout.sh`: PASS、exit0。
+- `uv run pytest tests/skills .agents/skills .agents/scripts tools -q`: 1486 passed、1209.41秒、exit0。
+- 再検証・統合ログ: `/workspaces/reso-world/tmp/agents/issue-409.8hux350m/reverify-{1,2,3}.log`・`integration-after-advance.log`・`integration-result.json`。`checks.json`と`verification-current.json`でHEAD/base/コマンド/clean状態/保存ログhashを照合した。
+- サイクル1は同じHEADなのでissue-to-prの再利用条件を満たす。baseを再取得し、上記new baseが現行mainかつheadの祖先であることを確認。検証したのはhead単独のツリーで、新しい組み合わせのmergeは不要。Actionsは規約どおり無効、実機受け入れの残りはない。
+- Specレビューのcleanupはretainedなし。実装担当も専用worktree/run-dirのcleanup済み。実装のRED/GREEN/全体ログは `/workspaces/reso-world/tmp/agents/issue-409-implement.xi2dl71o/task-1-evidence/` に保持する。
+
+マージ・Issue更新はまだ実施済みとせず、このSpecだけのcommit・状況記録を照合した後にfinalize.pyで行う。結果・コメントURL・ループID・最終所要時間はPRの状況記録と完了報告へ残す。
