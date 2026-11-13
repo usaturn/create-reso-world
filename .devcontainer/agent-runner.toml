@@ -176,7 +176,7 @@ env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT",
 
 # piaq（.devcontainer/piaq。Rebuild で ~/.local/bin に配置）で Alibaba Cloud Model Studio の
 # Token Plan の qwen4-max-preview につなぐ。key は MAAS_ANTHROPIC_TOKEN。ファイルには書かない。
-# 使うのは、key を export した通常のシェル（ランチャー起動セッションの外）からである。
+# 通常のシェルでは key を export して使う。
 # 子に渡るのは env の allowlist に挙げた変数だけで、zshrc.txt は読まれない。runner を起動した
 # シェルに key が無ければ、allowlist に挙げても子には届かない。
 # ccd 系のランチャー（ccdd・ccddg・ccdgo・ccdol・ccda）は、cc_launcher_unsets の env -u で

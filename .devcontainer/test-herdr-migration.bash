@@ -553,7 +553,9 @@ test_alibaba_exec_requires_key() {
 # ANTHROPIC_API_KEY・CLAUDE_CODE_OAUTH_TOKEN・OLLAMA_API_KEY を子に残すと、起動は成功したまま
 # claude.ai の認証情報が ollama.com に送られる。空白だけの拒否と、英数字を含む key で stub が起動する例を
 # 同じ関数で確かめる。陽性対照では OLLAMA_API_KEY 以外の cc_launcher_unsets をすべて親に置き、
-# 子の環境ダンプに POLLUTED_ も入力元の key も残らないことを確かめる（-u の漏れの検出）。
+# 子の環境ダンプに POLLUTED_ も入力元の key も残らず、引数がそのまま渡ることを確かめる（-u の漏れの検出）。
+# 送り先（ANTHROPIC_BASE_URL）と ENABLE_CLAUDEAI_MCP_SERVERS=false は、他社のモデルへ利用者の
+# データを渡さない F∩S として確かめる。
 # env -i で locale（LANG・LC_*）を渡さない。runner の子はそれらを引き継がない。範囲の比較が locale に依ると、
 # このテストの locale では止まり、locale の無い起動では通る（またはその逆）ことがある。
 test_ollama_exec_requires_key() {
@@ -565,7 +567,10 @@ test_ollama_exec_requires_key() {
     local err="${TEST_ROOT}/ollama-exec-key-claude.err"
     : > "$log"
     : > "$err"
-    printf '%s\n' '#!/bin/sh' 'env > "$HERDR_TEST_CLAUDE_DUMP"' > "$test_home/bin/claude"
+    printf '%s\n' '#!/bin/sh' \
+        'env > "$HERDR_TEST_CLAUDE_DUMP"' \
+        'printf '\''__ARGV__=%s\n'\'' "$*" >> "$HERDR_TEST_CLAUDE_DUMP"' \
+        > "$test_home/bin/claude"
     chmod +x "$test_home/bin/claude"
 
     local rc=0
@@ -600,7 +605,8 @@ test_ollama_exec_requires_key() {
     [ "$rc" -eq 0 ] || fail 'claude-ollama-exec must start claude when OLLAMA_API_KEY has letters or digits'
     assert_contains "$log" '^ANTHROPIC_AUTH_TOKEN=fake-ollama$'
     assert_contains "$log" '^ANTHROPIC_BASE_URL=https://ollama.com$'
-    assert_contains "$log" '^ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-v4.1-flash:1017\[1m\]$'
+    assert_contains "$log" '^ENABLE_CLAUDEAI_MCP_SERVERS=false$'
+    assert_contains "$log" '^__ARGV__=probe$'
     assert_absent "$log" 'POLLUTED_'
     assert_absent "$log" '^OLLAMA_API_KEY='
     assert_absent "$log" '^ANTHROPIC_API_KEY='
