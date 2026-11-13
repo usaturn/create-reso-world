@@ -1870,8 +1870,9 @@ _DIAGNOSTIC_LINE = re.compile(
     re.IGNORECASE,
 )
 _EXTRACTION_STATES = frozenset({"response_failed", "missing_result", "invalid_result"})
-# ツールの出力・モデルの本文のイベント。is_error が true でも CLI の失敗の報告ではないので、分類の文には使わない
-# （失敗の報告の事実は _failure_event が別に数える）。result はモデルの最終応答の包みで、本文と区別できない
+# ツールの出力・モデルの本文のイベント。is_error が true でも本文は CLI の失敗の報告ではないので、message などの
+# 本文の欄は分類の文に使わない（失敗の報告の事実は _failure_event が別に数える）。CLI が付けた error 欄は本文では
+# ないので使う（_event_error_text）。result はモデルの最終応答の包みで、本文と区別できない
 _BODY_EVENT_TYPES = frozenset({"tool_result", "result", "assistant", "user"})
 # stdout が JSON のイベントの stream のランタイム。モデルの発言は JSON の文字列の中にだけあり、JSON でない行は CLI の出力
 # である。Devin（devin -p）はモデルの発言を平文で stdout に書き、コードブロックの中のログの例も行頭から始まるので、
@@ -1961,17 +1962,19 @@ def _event_error_text(event: dict[str, object]) -> str:
     """失敗のイベントから使う、安全な CLI のエラー欄だけの文。文字列の ``message`` と、文字列の ``error`` か
     ``error.message`` をすべて使う（``message`` があるだけで本物の ``error.message`` を捨てない）。
 
-    ツールの出力・モデルの本文のイベント（``_BODY_EVENT_TYPES``）は ``is_error`` が true でも CLI の失敗の報告では
-    ないので、文は空にする。``result``・``content`` は失敗のイベント（``is_error`` が true）でもモデルの最終応答と
-    区別できないので使わない。安全な欄が無ければ空の文を返す（失敗の報告の事実は別に数える）。
+    ツールの出力・モデルの本文のイベント（``_BODY_EVENT_TYPES``）は ``is_error`` が true でも ``message`` などの
+    本文の欄は使わないが、CLI が付けた ``error`` 欄（Claude Code の assistant が付ける ``authentication_failed``・
+    ``rate_limit`` などの失敗の列挙値）は CLI の失敗の報告なので使う。``result``・``content`` は失敗のイベント
+    （``is_error`` が true）でもモデルの最終応答と区別できないので使わない。安全な欄が無ければ空の文を返す
+    （失敗の報告の事実は別に数える）。
     """
     kind = event.get("type")
-    if isinstance(kind, str) and kind.lower() in _BODY_EVENT_TYPES:
-        return ""
+    body = isinstance(kind, str) and kind.lower() in _BODY_EVENT_TYPES
     parts: list[str] = []
-    message = event.get("message")
-    if isinstance(message, str):
-        parts.append(message)
+    if not body:
+        message = event.get("message")
+        if isinstance(message, str):
+            parts.append(message)
     error = event.get("error")
     if isinstance(error, str):
         parts.append(error)
@@ -1989,7 +1992,8 @@ def diagnostic_text(stdout: str | None, stderr: str | None, *, prose: bool, succ
     分類の文を空で返し、失敗の原因は付けない。
 
     文は stderr の全体と、stdout の失敗のイベントの安全な CLI のエラー欄（``_event_error_text``。JSON 全体や
-    ``result``・``content`` は使わず、tool_result・result・assistant・user の出力と本文のイベントは文を提供しない）と、診断の行と、stream の中で最後に
+    ``result``・``content`` は使わず、tool_result・result・assistant・user の出力と本文のイベントは本文の欄ではなく
+    CLI が付けた ``error`` 欄だけ使う）と、診断の行と、stream の中で最後に
     現れた assistant のメッセージが失敗で終わっていれば（pi の ``stopReason`` が ``error``）その ``errorMessage``。
     pi は提供元の失敗をこの形にだけ書き、終了コード 0 で終わる。最後のメッセージは agent_end の履歴の行
     （1 MiB を超えうる）の前の message_end にもある。失敗の報告があっても安全に取り出せる文が無いときは、
