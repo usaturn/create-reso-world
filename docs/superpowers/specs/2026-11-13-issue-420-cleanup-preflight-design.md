@@ -29,10 +29,10 @@
 
 ## 削除前検査の仕様
 
-1. cleanup が参照する保存済み request の mode、review_id、spec_sha256、runner_dir、request.repository/spec_path を、欠落・null・不正型を含め検査する。mode は self/external、識別子は空白だけや NUL を許さない文字列、spec_sha256 は保存済み Spec 写しの SHA-256 として成立する値、パスは使用前に絶対パスとして解釈可能な値とする。external には runner_dir が必須。削除証拠へ渡す値について、削除後にはじめて型検証や必須キー参照が失敗する状態を残さない。self は削除しない既存仕様を保つ。
-2. 保存済み review.json の mode と request の mode を対応させ、構造化 result がある場合は種類別 result の検証と review_id/spec_sha256 の一致を確かめる。Spec の照合は review_dir/spec.md の生バイトに対して行い、レビュー後に編集された元 Spec を基準にしない。失敗した試行の不正 payload はレビュー失敗の正常な記録でもあるため、それを有効なレビュー結果として採用・補完しない。result が無い正規の失敗レビューを、成功 result 必須という理由だけで回収不能にしない。
+1. cleanup が参照する保存済み request の mode、review_id、spec_sha256、runner_dir、request.repository/spec_path を、欠落・null・不正型を含め検査する。mode は self/external、識別子は空白だけや NUL を許さない文字列、spec_sha256 は保存済み Spec 写しの SHA-256 として成立する値、runner_dir・request.repository・request.spec_path は保存済みの値自体が文字列で `Path(value).is_absolute()` を満たし、空・相対・NUL・不正型を拒否する。external には runner_dir が必須。削除証拠へ渡す値について、削除後にはじめて型検証や必須キー参照が失敗する状態を残さない。self は削除しない既存仕様を保つ。
+2. mode とパス等は self 分岐前に裸アクセスを避けて読取検査し、読める review.json/batch から保持対象を収集してから構造化拒否する。review.json がある場合は self を名乗る request も mode の一致を確認し、external を self に変えて成功 no-op にしない。正規の未 submit self（review.json なし）は既存 no-op を維持する。保存済み review.json が `state=completed` の場合だけ、構造化 result の種類別検証と review_id/spec_sha256 の一致を必須とする。`state=failed` には不一致 result 自体が正常に保存されるので、それだけを理由に回収を拒否しない。Spec の照合は review_dir/spec.md の生バイトに対して行い、レビュー後に編集された元 Spec を基準にしない。失敗した試行の不正 payload はレビュー失敗の正常な記録でもあるため、それを有効なレビュー結果として採用・補完しない。result が無い正規の失敗レビューを、成功 result 必須という理由だけで回収不能にしない。
 3. batch/試行と削除対象・証拠の対応には既存の厳密な BatchResult 検証、path→試行 map、private evidence/receipt、common-dir 照合と分類を維持する。新しい事前検査は副作用前に削除証拠の必要条件を満たすかを確かめるものとし、任意の破損記録を推測修復する仕組みにしない。
-4. 識別情報不正を検出した場合、worktree 実体・Git 登録・runner-dir・既存 ledger/runner メタデータ・CODE_ROOT・Spec を変更せず拒否する。cleanup.lock や成功証拠、cleanup.jsonl を新規作成・追記する前に止める。CLI は既存の構造化エラーで reason、retained（読取記録から確定できる全試行と runner-dir）、records（request/review/receipt/既存 sidecar/試行 request 等）を返す。対象を確定できない破損では推測せず、確定できる照合先を示す。
+4. 識別情報不正を検出した場合、worktree 実体・Git 登録・runner-dir・既存 ledger/runner メタデータ・CODE_ROOT・Spec を変更せず拒否する。cleanup.lock や成功証拠、cleanup.jsonl を新規作成・追記する前に止める。CLI は既存の構造化エラーで reason、retained（読取記録から確定できる全試行と runner-dir）、records（request/review/保存済み Spec 写し `review_dir/spec.md`/receipt/既存 sidecar/試行 request 等）を返す。対象を確定できない破損では推測せず、確定できる照合先を示す。
 5. 一時 fixture の不正 request を元の生バイトへ戻した後、通常の別 CLI プロセスから全正規対象を回収でき、再実行は no-op になる。通常 cleanup の証拠保存→JSONL 追記、再追記による復旧、再出現・証拠なし missing の拒否は変えない。
 
 ## 受け入れ基準
@@ -50,3 +50,10 @@
 恒久テストは、識別メタデータの欠落を代表に、削除・登録・記録の無変更と復元後の通常 CLI 回収/no-op を実 runner＋fake で確かめる S を置く。同じ守りの variant や design への複製を増やさず、Issue の他代表入力・fallback・正常対照は一時検証にする。対応不一致の新しい守りに独立した S の損害がある場合は、同じ受け入れフロー内で必要な代表だけを追加する。既存の安全 S テストは削らない。
 
 検証入口は README の `bash .devcontainer/run-tests.bash`、`bash scripts/check-layout.sh`、`uv run pytest tests/skills .agents/skills .agents/scripts tools` と関連 pytest。一時検証とログは SESSION のみ。ベースラインは関連 pytest 132 passed / exit 0（608.21 秒）、`/workspaces/reso-world/tmp/agents/issue-420.xlpq2lqf/baseline.log`。GitHub Actions は無効のまま。
+
+## Spec レビューの記録
+
+- helper review_spec.py / 外部担当、1 回目。review_dir: `/workspaces/reso-world/tmp/agents/issue-420.xlpq2lqf/2026-11-13-issue-420-cleanup-preflight-design.spec-review/review-1`、review_id: `61af556355184a0ba6a3961f03dcc2e8`、reviewed SHA-256: `0cf124d1cbd20161407bbfe515720451060db55b346f9d34ea8507e093f66e77`。
+- requested/actual: devin_swe2_max（明示指定）、identity.model=SWE-2 Max、session_id=plaid-song、cli_version=3000.12.57、provider/effort=null、fallback=[]。elapsed_seconds=1049.446099278999。全試行停止確認済み、sensitive_paths=[]、outside_changes=[]。
+- unprotected_changes は既存 /tmp の6登録と親 checkout。親 HEAD は並行作業のマージで `181042480de8b500126b025030255fd34640f71a` へ前進。保護対象 feature checkout はレビュー中変更なし。base 前進は公開前に専用 helper で所有パス・前提を照合し、許可される未 push 追随と再検証を行う。
+- S1〜S4 はすべて minor として採用。S1: 保存値自体が絶対パスである要件を明記。S2: 正常生成される failed result の不一致は回収阻害に使わず、completed の対応を検査。S3: self 早期分岐・retained 収集・batch 未完了との順序を明記。S4: 照合先 spec.md を records に含める。assess/cleanup/既存 mismatch テストで根拠を確認。構築対象の変更ではなく、既存の正規失敗回収と副作用前拒否を具体化したもの。important 採用なしのため再レビューしない。
