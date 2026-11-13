@@ -1881,6 +1881,10 @@ def read_log_tail(path: Path | None, attempt: Attempt, output_dir: Path) -> tupl
 
     停止を確認できない試行（生きた書き手が差し替えうる）、``sensitive_paths``、このレビューの runner の出力の外、
     symlink・特殊ファイルは読まない。上限を超えたら末尾だけを読み、理由に ``partial`` を返す。
+
+    出力への所属は絶対パスの字句上で検証し（``..`` は拒否）、root から各祖先を ``O_DIRECTORY | O_NOFOLLOW`` と
+    ``dir_fd`` で順に開いて fd で固定する。途中で祖先が symlink に差し替えられても辿らず、最後のファイルは
+    ``O_NOFOLLOW | O_NONBLOCK`` で開く。祖先の ELOOP/ENOTDIR は ``not_regular_file``。fd は全経路で閉じる。
     """
     if path is None:
         return None, "not_recorded"
@@ -1888,16 +1892,25 @@ def read_log_tail(path: Path | None, attempt: Attempt, output_dir: Path) -> tupl
         return None, "not_stopped"
     if any(path == item or path.is_relative_to(item) for item in attempt.sensitive_paths):
         return None, "sensitive"
+    absolute, output_absolute = path.absolute(), output_dir.absolute()
+    if ".." in absolute.parts or ".." in output_absolute.parts or not absolute.is_relative_to(output_absolute):
+        return None, "outside_output"
     try:
-        if not path.resolve().is_relative_to(output_dir.resolve()):
-            return None, "outside_output"
-        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        # 最終要素だけの O_NOFOLLOW では親ディレクトリの symlink を通ってしまう。各ディレクトリを fd で固定し、
+        # 全要素を symlink をたどらずに開く。開けなかったときも、すでに開いた fd は finally で閉じる
+        parent_fd = os.open(absolute.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            for component in absolute.parts[1:-1]:
+                child_fd = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd)
+                os.close(parent_fd)
+                parent_fd = child_fd
+            descriptor = os.open(absolute.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent_fd)
+        finally:
+            os.close(parent_fd)
     except FileNotFoundError:
         return None, "missing"
     except OSError as error:
-        return None, "not_regular_file" if error.errno == errno.ELOOP else "unreadable"
-    except RuntimeError:
-        return None, "unreadable"
+        return None, "not_regular_file" if error.errno in (errno.ELOOP, errno.ENOTDIR) else "unreadable"
     try:
         with os.fdopen(descriptor, "rb") as stream:
             size = os.fstat(stream.fileno())
@@ -1940,20 +1953,49 @@ def _latest_assistant(event: dict[str, object]) -> dict[str, object] | None:
     return latest
 
 
-def diagnostic_text(stdout: str | None, stderr: str | None, *, prose: bool) -> tuple[str, bool]:
+def _event_error_text(event: dict[str, object]) -> str:
+    """失敗のイベントから使う、安全な CLI のエラー欄だけの文。文字列の ``message``、文字列の ``error`` か
+    ``error.message`` の順に取り出す。
+
+    ``result``・``content`` は失敗のイベント（``is_error`` が true）でもモデルの最終応答と区別できず、tool_result の
+    出力や assistant の本文は CLI の失敗の報告ではないので、分類に使わない。安全な欄が無ければ空の文を返す
+    （失敗の報告の事実は別に数える）。
+    """
+    message = event.get("message")
+    if isinstance(message, str):
+        return message
+    error = event.get("error")
+    if isinstance(error, str):
+        return error
+    if isinstance(error, dict):
+        inner = cast(dict[str, object], error).get("message")
+        if isinstance(inner, str):
+            return inner
+    return ""
+
+
+def diagnostic_text(stdout: str | None, stderr: str | None, *, prose: bool, successful: bool) -> tuple[str, bool]:
     """原因の分類に使う文と、stdout に試行を終わらせた失敗の報告があったか。
 
-    文は stderr の全体と、stdout の失敗のイベント・診断の行と、stream の中で最後に現れた assistant のメッセージが失敗で
-    終わっていれば（pi の ``stopReason`` が ``error``）その ``errorMessage``。pi は提供元の失敗をこの形にだけ書き、
-    終了コード 0 で終わる。最後のメッセージは agent_end の履歴の行（1 MiB を超えうる）の前の message_end にもある。
-    担当が自動の再試行で回復した一時的な失敗（再試行の通知と、再試行の前の失敗）は使わず、再試行を使い切った・
-    取り消した通知（``success`` が false）だけを、その ``finalError`` で数える。モデルの本文・ツールの出力・プロンプト
-    は、レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない（各 adapter が状態の分類に、
+    成功した試行（``successful`` は runner の ``attempt.state == "success"``。``reported_state`` は根拠にしない）は
+    分類の文を空で返し、失敗の原因は付けない。
+
+    文は stderr の全体と、stdout の失敗のイベントの安全な CLI のエラー欄（``_event_error_text``。JSON 全体や
+    ``result``・``content``・tool_result の出力・assistant の本文は使わない）と、診断の行と、stream の中で最後に
+    現れた assistant のメッセージが失敗で終わっていれば（pi の ``stopReason`` が ``error``）その ``errorMessage``。
+    pi は提供元の失敗をこの形にだけ書き、終了コード 0 で終わる。最後のメッセージは agent_end の履歴の行
+    （1 MiB を超えうる）の前の message_end にもある。失敗の報告があっても安全に取り出せる文が無いときは、
+    報告の事実だけを数えて文は空にし、``response_extraction`` と推測しない。担当が自動の再試行で回復した
+    一時的な失敗（再試行の通知と、再試行の前の失敗）は使わず、再試行を使い切った・取り消した通知
+    （``success`` が false）だけを、その ``finalError`` で数える。モデルの本文・ツールの出力・プロンプトは、
+    レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない（各 adapter が状態の分類に、
     回復した失敗とモデルの本文を使わないのと同じ。#212）。
 
     ``prose`` は stdout がモデルの発言の平文（Devin）か、ランタイムが分からないとき。その stdout は文にせず、
     失敗の報告に見える行があることだけを返す（報告の有無を判定できないので、応答の取り出しの失敗と推測させない）。
     """
+    if successful:
+        return "", False
     reported: list[str] = []
     final: str | None = None
     for line in (stdout or "").split("\n"):
@@ -1971,7 +2013,7 @@ def diagnostic_text(stdout: str | None, stderr: str | None, *, prose: bool) -> t
                 error = mapping.get("finalError")
                 reported.append(error if isinstance(error, str) else "")
         elif _failure_event(mapping):
-            reported.append(line)
+            reported.append(_event_error_text(mapping))
         elif (message := _latest_assistant(mapping)) is not None:
             error = message.get("errorMessage")
             failed = message.get("stopReason") == "error"
@@ -2025,6 +2067,7 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
     """1 回の試行の診断。ログは ``read_log_tail`` の条件でだけ読み、読んだ文は分類にだけ使う。
 
     ``runtime`` は担当の設定のランタイム（分からなければ None）。JSON のイベントの stream でない stdout は照合の文にしない。
+    成功した試行（``state == "success"``）は分類の文を空にして unknown のままにする（``reported_state`` は根拠にしない）。
     承認待ちの payload はモデルの回答ではなく adapter が実際に使った判定根拠なので、検証済みの項目だけを
     ``approval`` に保存し、原因の分類では既存の認証優先を維持する。
     """
@@ -2042,7 +2085,9 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
     # stdout・stderr を両方とも丸ごと読めたときだけ、失敗の報告の有無を観測したとみなす。末尾だけを読んだログ（partial）は、
     # 切れた行に試行を終わらせた失敗が隠れうる
     observed = "stdout" not in unavailable and "stderr" not in unavailable
-    text, reported = diagnostic_text(stdout, stderr, prose=runtime not in _EVENT_STREAM_RUNTIMES)
+    text, reported = diagnostic_text(
+        stdout, stderr, prose=runtime not in _EVENT_STREAM_RUNTIMES, successful=attempt.state == "success"
+    )
     approval = approval_evidence(attempt, runtime)
     cause = classify_cause(text, attempt, reported=reported, observed=observed)
     # 承認根拠は保存するが、既存の分類が認証を示すときは認証を優先する。認証の復旧に必要な診断を、

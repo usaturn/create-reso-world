@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import uuid
@@ -61,9 +62,12 @@ def failed_attempt(tmp_path: Path, *, stdout: str = "", stderr: str = "", **upda
         "outside_output",
         "symlink",
         "fifo",
+        "ancestor-swap",
     ],
 )
-def test_logs_are_read_only_when_safe(loop: Any, tmp_path: Path, case: str) -> None:
+def test_logs_are_read_only_when_safe(
+    loop: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
     # 読めば authentication になるログを置き、読んではいけない条件では読まずに理由を残す（受け入れ条件 2・4）
     attempt, output = failed_attempt(tmp_path, stderr=AUTH_LINE)
     log = attempt.stderr_path
@@ -86,10 +90,33 @@ def test_logs_are_read_only_when_safe(loop: Any, tmp_path: Path, case: str) -> N
     elif case == "fifo":
         log.unlink()
         os.mkfifo(log)
+    elif case == "ancestor-swap":
+        # os.open の境界で祖先ディレクトリを出力の外への symlink に差し替える。字句上のパスが出力の内側でも、
+        # 差し替えられた祖先は辿らず、出力の外の認証文字列を読まない（祖先 fd 固定の受け入れ条件）
+        outside = tmp_path / "outside"
+        (outside / "attempt-1").mkdir(parents=True)
+        (outside / "attempt-1" / "stderr.log").write_text(AUTH_LINE, encoding="utf-8")
+        real_open = os.open
+        swapped = False
+
+        def swap_open(path: Any, flags: int, *args: Any, **kwargs: Any) -> int:
+            nonlocal swapped
+            if not swapped and (path == log or (path == "request-1" and kwargs.get("dir_fd") is not None)):
+                swapped = True
+                shutil.rmtree(log.parent.parent)
+                log.parent.parent.symlink_to(outside)
+            return real_open(path, flags, *args, **kwargs)
+
+        monkeypatch.setattr(loop.os, "open", swap_open)
 
     diagnostic = loop.diagnose_attempt(attempt.model_copy(update=update), output, runtime="pi")
 
-    expected = {"readable": None, "symlink": "not_regular_file", "fifo": "not_regular_file"}.get(case, case)
+    expected = {
+        "readable": None,
+        "symlink": "not_regular_file",
+        "fifo": "not_regular_file",
+        "ancestor-swap": "not_regular_file",
+    }.get(case, case)
     assert diagnostic.unavailable.get("stderr") == expected
     assert diagnostic.cause == ("authentication" if case == "readable" else "unknown")
 
@@ -126,12 +153,81 @@ def test_logs_are_read_only_when_safe(loop: Any, tmp_path: Path, case: str) -> N
             id="traceback-line-number-is-not-a-status",
         ),
         pytest.param("[ERROR] connection refused\n", "", "connection", id="bracketed-diagnostic"),
+        pytest.param(
+            json.dumps({"type": "tool_result", "is_error": True, "content": "HTTP 401 Unauthorized"}) + "\n",
+            "",
+            "unknown",
+            id="tool-result-error-body",
+        ),
+        pytest.param(
+            json.dumps(
+                {"type": "result", "subtype": "success", "is_error": True, "result": "HTTP 401 Unauthorized"}
+            )
+            + "\n",
+            "",
+            "unknown",
+            id="result-error-body",
+        ),
+        pytest.param(
+            json.dumps({"type": "error", "message": {"text": "HTTP 401 Unauthorized"}}) + "\n",
+            "",
+            "unknown",
+            id="error-message-not-a-string",
+        ),
+        pytest.param(
+            json.dumps({"type": "error", "error": {"message": "invalid api key"}}) + "\n",
+            "",
+            "authentication",
+            id="error-object-message",
+        ),
+        pytest.param(
+            json.dumps({"type": "turn.failed", "error": "invalid api key"}) + "\n",
+            "",
+            "authentication",
+            id="error-string",
+        ),
     ],
 )
 def test_cause_uses_only_failure_channels(loop: Any, tmp_path: Path, stdout: str, stderr: str, cause: str) -> None:
+    # 失敗のイベントから使うのは安全な CLI のエラー欄（文字列の message・error・error.message）だけ。
+    # tool_result・result/content・モデル本文は is_error=true でも分類しない（PR の本文やコードの偽陽性）
     attempt, output = failed_attempt(tmp_path, stdout=stdout, stderr=stderr)
 
     assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
+
+
+@pytest.mark.parametrize(
+    ("state", "reported", "cause"),
+    [
+        ("success", "success", "unknown"),
+        ("response_failed", "response_failed", "authentication"),
+        # reported_state は adapter の分類で成功の根拠にしない。失敗の試行は同じログを今までどおり分類する
+        ("response_failed", "success", "authentication"),
+    ],
+    ids=["success", "failed", "reported-success-is-not-success"],
+)
+def test_successful_attempts_have_no_failure_cause(
+    loop: Any, tmp_path: Path, state: str, reported: str, cause: str
+) -> None:
+    # 成功した試行（state == success）に失敗の原因は付けない。ログに認証の語があっても unknown。
+    # 同じログでも失敗の試行は authentication になる（陽性対照）
+    attempt, output = failed_attempt(tmp_path, stderr=AUTH_LINE, state=state, reported_state=reported, exit_code=0)
+
+    assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
+
+
+def test_reported_failure_without_safe_text_is_not_response_extraction(loop: Any, tmp_path: Path) -> None:
+    # 失敗の報告があっても安全に取り出せる文が無い（result 本文だけ）ときは、報告の事実だけを数えて文は空にし、
+    # response_extraction と推測しない。本文そのものも分類しない（終了コード 0 の取り出し失敗の条件で確かめる）
+    stdout = (
+        json.dumps(
+            {"type": "result", "subtype": "success", "is_error": True, "result": "HTTP 401 Unauthorized"}
+        )
+        + "\n"
+    )
+    attempt, output = failed_attempt(tmp_path, stdout=stdout, exit_code=0)
+
+    assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == "unknown"
 
 
 @pytest.mark.parametrize(
@@ -344,8 +440,19 @@ PI_RETRY = [
         pytest.param(
             [CLAUDE_INIT, claude_retry("overloaded", 529), CLAUDE_OVERLOADED],
             1,
+            # result 本文はモデルの最終応答と区別できないので分類しない。失敗の報告はあるので unknown
+            "unknown",
+            id="claude-retries-exhausted-result-only",
+        ),
+        pytest.param(
+            [
+                CLAUDE_INIT,
+                claude_retry("overloaded", 529),
+                {"type": "error", "error": {"message": "API Error: 529 overloaded_error"}},
+            ],
+            1,
             "connection",
-            id="claude-retries-exhausted",
+            id="claude-retries-exhausted-error-field",
         ),
         pytest.param(
             [
@@ -382,7 +489,8 @@ def test_recovered_failures_do_not_decide_the_cause(
     loop: Any, tmp_path: Path, events: list[dict[str, Any]], exit_code: int, cause: str
 ) -> None:
     # 回復した一時的な失敗ではなく、試行を終わらせた失敗で分類する（PR #237 の claude-opus-5-5#M-1）。
-    # 再試行を使い切った・取り消した失敗は報告なので、分類できなくても response_extraction にしない
+    # 再試行を使い切った・取り消した失敗は報告なので、分類できなくても response_extraction にしない。
+    # result 本文だけ（CLAUDE_OVERLOADED）は分類せず、同じ接続障害を CLI の error.message で報告した対照は connection
     stdout = "".join(json.dumps(event) + "\n" for event in events)
     attempt, output = failed_attempt(tmp_path, stdout=stdout, exit_code=exit_code)
 

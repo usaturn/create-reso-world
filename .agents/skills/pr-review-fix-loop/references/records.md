@@ -135,7 +135,7 @@ finalize.py がマージを観測した後に `cycle-end` が GitHub の失敗�
 | `state` | runner の `Result.state` |
 | `attempts[]` | 試行（fallback を含む起動順）ごとに `agent_id`・`state`・`reported_state`（adapter が出力から分類した、adapter と runner が置き換える前の状態。`tools/agent_runner/interfaces.rst`）・`exit_code`・`stop_confirmed`・`elapsed_seconds`・`cause`・`unavailable` |
 
-`cause`（原因の分類）は、試行を終わらせた失敗の報告だけから決める。stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない）、stream の中で最後に現れた assistant のメッセージ（pi の `message_start`・`message_end`・`turn_end` の `message` と `agent_end` の `messages`）が失敗で終わっていれば（`stopReason` が `error`）その `errorMessage`、JSON でない行のうち行頭（字下げなし）のコロン付き・角括弧付きの診断の行（`Error:`・`fatal:`・`panic:`・`[ERROR]`・`<名前>Error:`・`Traceback (most recent call last)`・`bwrap:` など）を、既知のパターンと上から照合して、最初に当たった分類名である。stdout を照合に使うのは、stdout が JSON のイベントの stream の担当（設定のランタイムが `claude-code`・`codex`・`cursor`・`pi`）だけである。Devin（`devin -p`）はモデルの発言を平文で stdout に書き、コードブロックの中のログの例も行頭から始まるので、Devin と設定からランタイムが分からない担当の stdout は照合の文にしない（stderr は使う）。その stdout に失敗の報告に見える行（診断の行・失敗のイベントなど）があれば、報告の有無を判定できないので `response_extraction` と推測しない。担当が自動の再試行で回復した一時的な失敗は使わない: 再試行の通知（`type` か `subtype` に `retry` を含むイベント。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを、その `finalError` で数える。pi の再試行の前の失敗（後に別の assistant のメッセージが続く失敗メッセージ）も使わない。照合した文字列は残さない。モデルの本文・ツールの出力・プロンプトは使わない（レビュー対象のコードや PR の本文が認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ数える。各ログは末尾から 64 MiB までを読む（pi の `agent_end` は会話の履歴全体を 1 行に含み、1 MiB を超える）。
+`cause`（原因の分類）は、試行を終わらせた失敗の報告だけから決める。成功した試行（`state` が `success`）に失敗の原因は付けない: 分類の文は空で、`cause` は `unknown` である。`reported_state`（adapter の分類）は成功の根拠にしない。分類の文は、stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない）の安全な CLI のエラー欄（文字列の `message`、文字列の `error` または `error.message`）だけと、stream の中で最後に現れた assistant のメッセージ（pi の `message_start`・`message_end`・`turn_end` の `message` と `agent_end` の `messages`）が失敗で終わっていれば（`stopReason` が `error`）その `errorMessage`、JSON でない行のうち行頭（字下げなし）のコロン付き・角括弧付きの診断の行（`Error:`・`fatal:`・`panic:`・`[ERROR]`・`<名前>Error:`・`Traceback (most recent call last)`・`bwrap:` など）である。失敗のイベントの JSON 全体は分類に流さない。`result`・`content` は、`type=result` かつ `is_error=true` でもモデルの最終応答と区別できないので使わない。tool_result の出力・assistant の本文も使わない。失敗の報告があっても安全に取り出せる文が無いときは、報告の事実だけを数え（文は空）、`response_extraction` と推測しない。これらを既知のパターンと上から照合して、最初に当たった分類名である。stdout を照合に使うのは、stdout が JSON のイベントの stream の担当（設定のランタイムが `claude-code`・`codex`・`cursor`・`pi`）だけである。Devin（`devin -p`）はモデルの発言を平文で stdout に書き、コードブロックの中のログの例も行頭から始まるので、Devin と設定からランタイムが分からない担当の stdout は照合の文にしない（stderr は使う）。その stdout に失敗の報告に見える行（診断の行・失敗のイベントなど）があれば、報告の有無を判定できないので `response_extraction` と推測しない。担当が自動の再試行で回復した一時的な失敗は使わない: 再試行の通知（`type` か `subtype` に `retry` を含むイベント。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを、その `finalError` で数える。pi の再試行の前の失敗（後に別の assistant のメッセージが続く失敗メッセージ）も使わない。照合した文字列は残さない。モデルの本文・ツールの出力・プロンプトは使わない（レビュー対象のコードや PR の本文が認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ数える。各ログは末尾から 64 MiB までを読む（pi の `agent_end` は会話の履歴全体を 1 行に含み、1 MiB を超える）。ログの読取は、読む前に停止確認・出力ディレクトリへの所属・`sensitive_paths` を検査する。出力への所属は絶対パスの字句上で検証し、`..` は拒否する。絶対パスの root から各祖先を `O_DIRECTORY | O_NOFOLLOW` と `dir_fd` で順に開いて fd で固定するので、途中で祖先が symlink に差し替えられても辿らず、最後のファイルは `O_NOFOLLOW | O_NONBLOCK` で開く。特殊ファイルは読まない。祖先の ELOOP/ENOTDIR は `not_regular_file` とし、fd は全経路で閉じる。
 
 | `cause` | 意味 |
 | --- | --- |
@@ -147,7 +147,7 @@ finalize.py がマージを観測した後に `cycle-end` が GitHub の失敗�
 | `connection` | 提供元への接続の失敗と、提供元の一時的な障害（5xx・過負荷） |
 | `runtime_error` | ランタイム（CLI）自身の例外・異常終了 |
 | `response_extraction` | ログの照合はどれにも当たらず、stdout・stderr を丸ごと観測でき（`unavailable` に `stdout`・`stderr` が無い。`partial` も観測としない）、停止を確認でき、終了コードが 0 で、試行を終わらせた失敗の報告が無い（失敗のイベント・使い切った再試行・pi の最後の失敗メッセージ・診断の行が無い）のに結果を得られなかった（`reported_state` が `success` でなく、`sensitive_paths` が無い） |
-| `unknown` | 観測したログの照合がどれにも当たらず、`response_extraction` の条件も満たさない。stdout・stderr の一方でも丸ごと観測できなかった（`unavailable` に `stdout`・`stderr` がある）ときは、終了状態から推測しない |
+| `unknown` | 観測したログの照合がどれにも当たらず、`response_extraction` の条件も満たさない。stdout・stderr の一方でも丸ごと観測できなかった（`unavailable` に `stdout`・`stderr` がある）ときは、終了状態から推測しない。成功した試行（`state` が `success`）は常に `unknown` |
 
 `unavailable` は、取得できなかった情報（キーは `stdout`・`stderr`・`exit_code`・`reported_state`）と、その理由である。
 
@@ -156,8 +156,8 @@ finalize.py がマージを観測した後に `cycle-end` が GitHub の失敗�
 | `not_recorded` | runner がログのパスを記録していない |
 | `not_stopped` | 停止を確認できない試行なので読まない（生きた書き手が差し替えうる） |
 | `sensitive` | runner の `sensitive_paths`（その下を含む）にあるので読まない |
-| `outside_output` | このレビューの runner の出力ディレクトリの外なので読まない |
-| `missing`・`not_regular_file`・`unreadable` | ファイルが無い・symlink か特殊ファイル・読めない |
+| `outside_output` | このレビューの runner の出力ディレクトリの外なので読まない（所属は絶対パスの字句上で検証し、`..` は拒否する） |
+| `missing`・`not_regular_file`・`unreadable` | ファイルが無い・symlink か特殊ファイル（祖先の symlink・ELOOP/ENOTDIR を含む）・読めない |
 | `partial` | 64 MiB を超えたので末尾だけを読んだ。読んだ部分は照合に使うが、切れた行に最後の失敗が隠れうるので `response_extraction` の推測には観測としない |
 | `not_observed` | `exit_code`・`reported_state` が null |
 
