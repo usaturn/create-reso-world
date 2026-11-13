@@ -6,45 +6,28 @@
 # workflow の割り当て（[workflows.*]）はそれを使う子（#153・#155・#157）が足す。
 schema_version = 1
 
-# 役割の期限（usaturn/agent-workspace#616）。PR レビューの全体の予算に合わせて 45 分とし、implement だけ 90 分にする。
-# fix-check は呼び出し側（review-verify・review-fix-planning）が 1800 秒に切り詰める。
-[roles.inspect]
-skills = []
-writes = false
-deadline_seconds = 2700
-result_shape = "json"
+[agents.claude-code_opus_xhigh]
+runtime = "claude-code"
+command = ["claude"]
+model = "opus"
+effort = "xhigh"
+env = ["HOME", "PATH"]
 
-[roles.implement]
-skills = []
-writes = true
-deadline_seconds = 5400
-result_shape = "json"
+# SWE-2 は tier（medium・high・max）を --model の UID で選ぶ。tier は effort の軸なので、agent 名の effort の段に置く。
+# 2 つは同じ model_key なので同じモデルとして扱い、同じ役割に並べられない。
+[agents.devin_swe2_max]
+runtime = "devin"
+command = ["devin"]
+model = "swe-2-max"
+model_key = "swe-2"
+env = ["HOME", "PATH"]
 
-# Spec・設計レビューは --spec-review / --design-review の明示指定でだけ使う。
-# 雛形に両 role の assignment は置かない（設定だけでは起動しない）。
-[roles.spec-review]
-skills = []
-writes = false
-deadline_seconds = 1800
-result_shape = "json"
-
-[roles.design-review]
-skills = []
-writes = false
-deadline_seconds = 1800
-result_shape = "json"
-
-[roles.self-review]
-skills = []
-writes = false
-deadline_seconds = 2700
-result_shape = "json"
-
-[roles.fix-check]
-skills = []
-writes = false
-deadline_seconds = 2700
-result_shape = "json"
+[agents.devin_swe2_medium]
+runtime = "devin"
+command = ["devin"]
+model = "swe-2-medium"
+model_key = "swe-2"
+env = ["HOME", "PATH"]
 
 [agents.pi_commandcode_deepseek4-flash_max]
 runtime = "pi"
@@ -71,19 +54,19 @@ provider = "xai"
 effort = "xhigh"
 env = ["HOME", "PATH"]
 
+[agents.pi_opencode-go_glm5-flash_max]
+runtime = "pi"
+command = ["pi"]
+model = "glm-5.3-flash"
+provider = "opencode-go"
+effort = "max"
+env = ["HOME", "PATH", "OPENCODE_API_KEY"]
+
 [agents.pi_opencode-go_deepseek4-flash_max]
 runtime = "pi"
 command = ["pigod"]
 model = "deepseek-v4.1-flash"
 model_key = "deepseek-v4.1-flash"
-provider = "opencode-go"
-effort = "max"
-env = ["HOME", "PATH", "OPENCODE_API_KEY"]
-
-[agents.pi_opencode-go_glm5-flash_max]
-runtime = "pi"
-command = ["pi"]
-model = "glm-5.3-flash"
 provider = "opencode-go"
 effort = "max"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
@@ -95,53 +78,6 @@ model = "gemini-3.8-flash"
 provider = "google-vertex"
 effort = "high"
 env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"]
-
-[agents.claude-code_opus_default]
-runtime = "claude-code"
-command = ["claude"]
-model = "opus"
-env = ["HOME", "PATH"]
-
-[agents.codex_openai_gpt6-sol_default]
-runtime = "codex"
-command = ["codex", "exec"]
-model = "gpt-6.1-sol"
-provider = "openai"
-approval = "noninteractive"
-skill_sources = [".agents/skills", ".codex/skills"]
-env = ["HOME", "PATH"]
-
-[agents.cursor_auto_default]
-runtime = "cursor"
-command = ["agent"]
-model = "auto"
-approval = "noninteractive"
-skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
-env = ["HOME", "PATH"]
-
-[agents.cursor_grok4_xhigh]
-runtime = "cursor"
-command = ["agent"]
-model = "grok-4.7-xhigh"
-approval = "noninteractive"
-skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
-env = ["HOME", "PATH"]
-
-# SWE-2 は tier（medium・high・max）を --model の UID で選ぶ。tier は effort の軸なので、agent 名の effort の段に置く。
-# 2 つは同じ model_key なので同じモデルとして扱い、同じ役割に並べられない。
-[agents.devin_swe2_max]
-runtime = "devin"
-command = ["devin"]
-model = "swe-2-max"
-model_key = "swe-2"
-env = ["HOME", "PATH"]
-
-[agents.devin_swe2_medium]
-runtime = "devin"
-command = ["devin"]
-model = "swe-2-medium"
-model_key = "swe-2"
-env = ["HOME", "PATH"]
 
 [agents.pi_openai-codex_gpt6-terra_xhigh]
 runtime = "pi"
@@ -166,13 +102,53 @@ model = "sonnet"
 effort = "xhigh"
 env = ["HOME", "PATH"]
 
-[agents.pi_google-vertex_gemini4-argon_high]
-runtime = "pi"
-command = ["pigema"]
-model = "gemini-4-argon"
-provider = "google-vertex"
-effort = "high"
-env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"]
+# claude-ollama-exec（.devcontainer/claude-ollama-exec。Rebuild で ~/.local/bin に配置）で
+# Ollama Cloud（https://ollama.com）につなぐ。モデルの対応は zshrc.txt の ccdol と揃える
+# （4 つの tier すべて deepseek-v4.1-flash:1017[1m]）。
+# OLLAMA_API_KEY はファイルに書かず、通常のシェルでは export して使う。ccdol のセッションから
+# with_keys.py 経由で runner を起動する場合は、ANTHROPIC_BASE_URL の一致で ANTHROPIC_AUTH_TOKEN から
+# OLLAMA_API_KEY が補われる。それ以外のランチャーのセッションや with_keys.py を通さない直接起動では
+# key が届かず、claude-ollama-exec の key ガードで終了コード 1 で止まる。
+# 同一モデル比較（duplicate_model）: model_key = "deepseek-v4.1-flash" により、既存の DeepSeek V4.1 Flash
+# 系 3 agent（pi_commandcode_deepseek4-flash_max・pi_opencode-go_deepseek4-flash_max・
+# pi_deepinfra_deepseek4-flash_high）および Ollama の 2 agent 同士は同じ役割に並べられない。加えて
+# opus 側は claude-code_opus_xhigh・claude-code_alibaba_opus_max と、sonnet 側は
+# claude-code_sonnet_xhigh と model が一致するため同じ役割に並べられない。将来 tier ごとに別モデルへ
+# 変えた場合は model_key も別値にすること。
+[agents.claude-code_ollama_opus_max]
+runtime = "claude-code"
+command = ["claude-ollama-exec"]
+model = "opus"
+model_key = "deepseek-v4.1-flash"
+provider = "ollama"
+effort = "max"
+env = ["HOME", "PATH", "OLLAMA_API_KEY"]
+
+[agents.claude-code_ollama_sonnet_max]
+runtime = "claude-code"
+command = ["claude-ollama-exec"]
+model = "sonnet"
+model_key = "deepseek-v4.1-flash"
+provider = "ollama"
+effort = "max"
+env = ["HOME", "PATH", "OLLAMA_API_KEY"]
+
+# claude-alibaba-exec（.devcontainer/claude-alibaba-exec）で Alibaba Cloud Model Studio の
+# Token Plan につなぐ。モデルの対応は zshrc.txt の ccda と揃える（fable・opus は
+# qwen4-max-preview、sonnet・haiku も qwen4-max-preview）。model が opus なので
+# claude-code_opus_xhigh と同じ役割に並べられない。
+# ccda のセッションから with_keys.py 経由で runner を起動する場合は、ANTHROPIC_BASE_URL の一致で
+# ANTHROPIC_AUTH_TOKEN から MAAS_ANTHROPIC_TOKEN が補われる。それ以外のランチャー（ccdd・ccddg・
+# ccdgo・ccdol）のセッションや with_keys.py を通さない直接起動では key が届かず、
+# claude-alibaba-exec の key ガードで終了コード 1 で止まる。
+[agents.claude-code_alibaba_opus_max]
+runtime = "claude-code"
+command = ["claude-alibaba-exec"]
+model = "opus"
+model_key = "qwen4-max-preview"
+provider = "alibaba"
+effort = "max"
+env = ["HOME", "PATH", "MAAS_ANTHROPIC_TOKEN"]
 
 # piaq（.devcontainer/piaq。Rebuild で ~/.local/bin に配置）で Alibaba Cloud Model Studio の
 # Token Plan の qwen4-max-preview につなぐ。key は MAAS_ANTHROPIC_TOKEN。ファイルには書かない。
@@ -196,6 +172,14 @@ provider = "alibaba"
 effort = "max"
 env = ["HOME", "PATH", "MAAS_ANTHROPIC_TOKEN"]
 
+[agents.pi_google-vertex_gemini4-argon_high]
+runtime = "pi"
+command = ["pigema"]
+model = "gemini-4-argon"
+provider = "google-vertex"
+effort = "high"
+env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"]
+
 [agents.pi_deepinfra_deepseek4-flash_high]
 runtime = "pi"
 command = ["pidid"]
@@ -205,53 +189,77 @@ provider = "deepinfra"
 effort = "high"
 env = ["HOME", "PATH", "DEEPINFRA_TOKEN"]
 
-# claude-alibaba-exec（.devcontainer/claude-alibaba-exec）で Alibaba Cloud Model Studio の
-# Token Plan につなぐ。モデルの対応は zshrc.txt の ccda と揃える（fable・opus は
-# qwen4-max-preview、sonnet・haiku も qwen4-max-preview）。model が opus なので
-# claude-code_opus_default と同じ役割に並べられない。
-# ccda のセッションから with_keys.py 経由で runner を起動する場合は、ANTHROPIC_BASE_URL の一致で
-# ANTHROPIC_AUTH_TOKEN から MAAS_ANTHROPIC_TOKEN が補われる。それ以外のランチャー（ccdd・ccddg・
-# ccdgo・ccdol）のセッションや with_keys.py を通さない直接起動では key が届かず、
-# claude-alibaba-exec の key ガードで終了コード 1 で止まる。
-[agents.claude-code_alibaba_opus_max]
-runtime = "claude-code"
-command = ["claude-alibaba-exec"]
-model = "opus"
-model_key = "qwen4-max-preview"
-provider = "alibaba"
-effort = "max"
-env = ["HOME", "PATH", "MAAS_ANTHROPIC_TOKEN"]
+# codex exec --json。実測既定モデルは gpt-6.1-sol（openai）。
+[agents.codex_openai_gpt6-sol_default]
+runtime = "codex"
+command = ["codex", "exec"]
+model = "gpt-6.1-sol"
+provider = "openai"
+approval = "noninteractive"
+skill_sources = [".agents/skills", ".codex/skills"]
+env = ["HOME", "PATH"]
 
-# claude-ollama-exec（.devcontainer/claude-ollama-exec。Rebuild で ~/.local/bin に配置）で
-# Ollama Cloud（https://ollama.com）につなぐ。モデルの対応は zshrc.txt の ccdol と揃える
-# （4 つの tier すべて deepseek-v4.1-flash:1017[1m]）。
-# OLLAMA_API_KEY はファイルに書かず、通常のシェルでは export して使う。ccdol のセッションから
-# with_keys.py 経由で runner を起動する場合は、ANTHROPIC_BASE_URL の一致で ANTHROPIC_AUTH_TOKEN から
-# OLLAMA_API_KEY が補われる。それ以外のランチャーのセッションや with_keys.py を通さない直接起動では
-# key が届かず、claude-ollama-exec の key ガードで終了コード 1 で止まる。
-# 同一モデル比較（duplicate_model）: model_key = "deepseek-v4.1-flash" により、既存の DeepSeek V4.1 Flash
-# 系 3 agent（pi_commandcode_deepseek4-flash_max・pi_opencode-go_deepseek4-flash_max・
-# pi_deepinfra_deepseek4-flash_high）および Ollama の 2 agent 同士は同じ役割に並べられない。加えて
-# opus 側は claude-code_opus_default・claude-code_alibaba_opus_max と、sonnet 側は
-# claude-code_sonnet_xhigh と model が一致するため同じ役割に並べられない。将来 tier ごとに別モデルへ
-# 変えた場合は model_key も別値にすること。
-[agents.claude-code_ollama_opus_max]
-runtime = "claude-code"
-command = ["claude-ollama-exec"]
-model = "opus"
-model_key = "deepseek-v4.1-flash"
-provider = "ollama"
-effort = "max"
-env = ["HOME", "PATH", "OLLAMA_API_KEY"]
+# Cursor Agent（agent/cursor-agent は同一バイナリへの symlink）。model は slug、auto は実測の既定。
+[agents.cursor_auto_default]
+runtime = "cursor"
+command = ["agent"]
+model = "auto"
+approval = "noninteractive"
+skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
+env = ["HOME", "PATH"]
 
-[agents.claude-code_ollama_sonnet_max]
-runtime = "claude-code"
-command = ["claude-ollama-exec"]
-model = "sonnet"
-model_key = "deepseek-v4.1-flash"
-provider = "ollama"
-effort = "max"
-env = ["HOME", "PATH", "OLLAMA_API_KEY"]
+# Grok-4.7 を Cursor CLI 側で明示する agent。grok-4.7-xhigh は --list-models の実在 slug。
+[agents.cursor_grok4_xhigh]
+runtime = "cursor"
+command = ["agent"]
+model = "grok-4.7-xhigh"
+approval = "noninteractive"
+skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
+env = ["HOME", "PATH"]
+
+# 役割の期限（usaturn/agent-workspace#616）。PR レビューの全体の予算に合わせて 45 分とし、implement だけ 90 分にする。
+# fix-check は呼び出し側（review-verify・review-fix-planning）が 1800 秒に切り詰める。
+[roles.inspect]
+skills = []
+writes = false
+deadline_seconds = 2700
+result_shape = "json"
+
+[roles.implement]
+skills = []
+writes = true
+deadline_seconds = 5400
+result_shape = "json"
+
+[roles.self-review]
+skills = []
+writes = false
+deadline_seconds = 2700
+result_shape = "json"
+
+[roles.fix-check]
+skills = []
+writes = false
+deadline_seconds = 2700
+result_shape = "json"
+
+# issue-to-pr の --spec-review 指定時だけ Spec をレビューする（usaturn/agent-workspace#848・#853）。書き込まない。
+# 担当は引数で決まり、雛形に assignment は置かない。個人設定に fallback を書く場合も agents が必要。
+# 期限は 30 分（期限切れは run の停止になる）。
+[roles.spec-review]
+skills = []
+writes = false
+deadline_seconds = 1800
+result_shape = "json"
+
+# issue-to-pr の --design-review 指定時だけ、Spec レビューと Plan の前に設計と別案をレビューする（usaturn/agent-workspace#861）。
+# 担当は引数で決まり、雛形に assignment は置かない。個人設定に fallback を書く場合も agents が必要。
+# 期限は Spec レビューと同じ 30 分。
+[roles.design-review]
+skills = []
+writes = false
+deadline_seconds = 1800
+result_shape = "json"
 
 # after_run はレビュー結果に runner の実行記録を付ける。
 # 個人設定は書き換えない。after_run = [] で無効にした caller は attach-runner を明示実行する。
@@ -261,10 +269,11 @@ after_run = [[
   ".agents/skills/pr-review/scripts/review_run.py", "attach-runner", "--result", "{result}",
 ]]
 
-# 指定が無いときの既定構成。Command Code GOAT は契約終了のため既定から外す（#337）。
-# その回の --assign inspect=... または個人設定で選び直せる。
+# workflow の割り当て既定値（usaturn/agent-workspace#565）。review のレビュアーは依頼ごとに
+# --assign inspect=agent-a,agent-b または個人設定で選べる。下の 3 人は性能の順位ではない。
+# Command Code GOAT は契約終了のため既定から外す（#337）。
 [workflows.review.assignments.inspect]
-agents = ["claude-code_opus_default", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]
+agents = ["claude-code_opus_xhigh", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]
 
 # review-fix-planning の run_roles.py が使う担当（#116 のボードの D-13）。self は司令塔が自分で実行する。
 # self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
@@ -277,8 +286,9 @@ agents = ["self"]
 [workflows.fix.assignments.fix-check]
 agents = ["self"]
 
-# issue-to-pr の Plan の Task を実装する担当。雛形の既定は self で、司令塔が自分で実装する。
-# その回の --implement AGENT か個人設定で選び直せる（担当の fallback は個人設定に書く）。
-# --implement は agents を置き換え、fallback を保つ。
+# issue-to-pr の Plan の Task を実装する担当（usaturn/agent-workspace#679）。fix.implement とは別に選ぶ。
+# 既定は self で、司令塔が自分で実装し runner を起動しない。
+# 外部担当と fallback は個人設定に書く。その回だけの --implement AGENT は agents を置き換え fallback を保つ。
+# agents は 1 つだけ。
 [workflows.issue.assignments.implement]
 agents = ["self"]
