@@ -7,7 +7,7 @@
 - 利用者指示: `#415 --merge --spec-review pi_alibaba_qwen4-max_max --implement pi_alibaba_qwen4-max_max --assign implement=pi_alibaba_qwen4-max_max --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,claude-code_opus_xhigh`
 - 追加指示: 「作業中 pi_alibaba_qwen4-max_max でうまくいかない場合は devin_swe2_max に変更してリトライして」。安全上の拒否・停止未確認は再試行しない。helper の順序・同一担当の制約を迂回しない。
 - issue-to-pr の委任により推奨案を選び、検証・commit・push・PR・レビュー修正ループへ進む。マージはループの `finalize.py` だけが行う。
-- repository: `usaturn/create-reso-world`。base: origin / `refs/heads/main` / `bcff80ed97c70b31cb30afd3dfb6f9264594efb2`。
+- repository: `usaturn/create-reso-world`。現在の base: origin / `refs/heads/main` / `ae50a14428bb4200054dfdcefd135dcacec20654`（初期 `bcff80ed97c70b31cb30afd3dfb6f9264594efb2` から、未pushの前進追随1回）。
 - Spec・Plan はコードと同じ worktree・PR に含める。確認用コピーは作らない。
 
 ## 目的と原因
@@ -92,4 +92,7 @@
 - 利用者の追加指示により、Spec レビューの再試行・以降の実装とレビュー修正の担当は `devin_swe2_max` へ変更する。check はいずれも `self=false`、fallbackは空。失敗レビューは helper の `next_round()` が回数に数えず、停止確認済みなので新規の初回レビューを許可する。完了済みレビューの担当変更や再レビュー制約の迂回ではない。
 - Devin 再試行も helper により失敗。指定・実担当 `devin_swe2_max`、観測モデル `SWE-2 Max`、CLI `3000.12.57`、342.662秒。`invalid_result`、CLI終了0・停止確認済み。review_id `efcfff9d477a44ffb96059325be20103`、reviewed SHA-256 `6015cbdbafdc9d352f58781b2a0810c40729e5ab61a8a99c4cf9a6b89d28be56`。返却JSONの各findingに未許可の `suggestion_ja` があり、実 `ReviewResult.model_validate()` でも `extra_forbidden` を確認した。結果を補正しての submit・採否決定は行わず、reflected は未作成。返却文にある指摘2件は未受理の参考情報で、Spec へ採用していない。
 - Devin の outside_changesなし、unprotected_changes は前回と同じ6登録。cleanup は試行worktreeとrunner-dirを回収、retainedなし。`review-2/` の失敗記録、`devin-failure.json` と `devin-failed-stdout.log` をセッション領域に残す。
-- 停止位置: Specレビュー未通過。Plan・コード実装・最終検証・push・PR・ループ・マージは未実施。実装の引き取りや追加モデル起動をせず、再試行方法の明示指示を待つ。ローカル文書コミットのみで、公開未実施。
+- 前回の停止位置: Specレビュー未通過。Plan・コード実装・最終検証・push・PR・ループ・マージは未実施。ローカル文書コミットのみで、公開未実施。
+- その後、利用者が指定した `agy_gemini4-hydrogen_high` は未登録で、事前checkが終了2 `config: invalid_reference`。モデルを起動せず停止した。
+- 今回の明示指示「pi_opencode-go_deepseek4-flash_max に変更してリトライして」により、Specレビューを同agentで再試行する。check成功、self=false、fallback空。実装担当は先の明示切替指示に基づくDevinを維持し、今回のレビュアー変更を他役割へ推測で広げない。
+- 再開時にmainの前進を確認。PR #437の変更はagent-runner.tomlのコメント、README、別テーマのSpec/Planのみ。両TOML blobのparse結果が等しく、AGENTS.md・実装・対象テスト・共有仕様は不変、所有パスとの重複なし。helperで未pushのfeatureを新baseへrebaseした。公開前の必須検証を新base/HEADで再実行する。
