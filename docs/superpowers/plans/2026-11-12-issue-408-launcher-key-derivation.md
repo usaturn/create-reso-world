@@ -325,3 +325,48 @@ Run（`CODE_ROOT` で実行し、各ログと終了コードを `$SESSION` に�
 3. `uv run --locked pytest tests/skills .agents/skills .agents/scripts tools`
 4. `uv run --locked python -m tools.agent_runner check` および `list`
 すべて終了コード 0 であることを確認し、検証した `HEAD` と `CODE_BASE_SHA` を記録した `$SESSION/checks.json` を保存してから Step 5（`scan-before-push.sh` → push → PR 作成 → `--merge` ループ）へ進む。
+
+## 実行記録（2026-11-13）
+
+Issue #408 の残作業を、既存の Spec（`2026-11-12-issue-408-launcher-key-derivation-design.md`）と Plan に従って実行した。担当は `--implement pi_opencode-go_deepseek4-flash_max`（Plan の管理・実行許可のとおり）で、Task 1〜3 の実装とレビュー指摘の修正を runner 経由で依頼した。Task 4 は司令塔が実行した。
+
+### Task ごとの結果
+
+- **Task 1**: `.devcontainer/claude-ollama-exec`・`install_beforehand.bash`・`agent-runner.toml`・`test-herdr-migration.bash` を追加（`9b41a3b4`）。レビュー 1 回目で 3 件（コメント矛盾・stub の引数記録・モデル名固定値の削除）を採用し、修正（`a99e67c7`）。再レビューは clean。`test-herdr-migration.bash`・`test-install-beforehand.bash`・`test-readme.bash`・`agent_runner check` / `list` はすべて exit 0。
+- **Task 2**: `with_keys.py` に 4 URL の完全一致導出と 3 段階の解決順序を実装し、既存の代表テストを拡張（`35c6a51f`）。レビュー 1 回目で 2 件（Ollama の陽性対照の追加・重複した marker 確認の整理）を採用し、修正（`57cc0203`）。`pytest tools/agent_runner/tests` は 303 passed、exit 0。
+- **Task 3**: `.devcontainer/README.md` を更新（`04a37c28`）。レビュー 1 回目で 1 件（`pi_alibaba_qwen4-max_max` の起動経路の記述が `ccda` + `with_keys.py` の導出と矛盾して見える）を採用し、修正（`4bb3ae67`）。`test-readme.bash`・`check-layout.sh`・`git diff --check` は exit 0。
+- **Task 4**: 下記の統合検証を実行。
+
+### 統合検証
+
+- `duplicate_model` の一時確認（コミットしない）: `claude-code_ollama_opus_max` と `pi_opencode-go_deepseek4-flash_max`、`claude-code_ollama_sonnet_max`、`claude-code_opus_default`、`claude-code_sonnet_xhigh` の各組み合わせを同じ役割に置くと、`check` はすべて `duplicate_model`（exit 2）で拒否した。変更前の雛形コピーは exit 0。
+- 反例（偽 CLI・隔離環境）: 4 つのランチャー URL それぞれで、`with_keys.py` は対応する 1 変数だけを導出し（stderr の `filled` 行で確認）、偽 CLI の子環境ではその変数が対応する担当にだけ渡り、他の担当には渡らなかった。`COMMANDCODE_API_KEY` はどの URL でも導出されず、全ログ・result.json に偽トークンの実値は 0 件だった。
+- 実機観測（マージ前、各 agent 1 回）: 後述の表のとおり。出力ファイルに実 key の値の一致は 0 件（件数のみ確認）。
+- 最終 HEAD のリポジトリ全体検証: `bash .devcontainer/run-tests.bash`・`bash scripts/check-layout.sh`・`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools`・`uv run --locked python -m tools.agent_runner check` / `list` を実行し、すべて exit 0。
+
+### 実機観測の結果（マージ前、各 agent 1 回）
+
+| 確認 | 起動元 | agent | state | identity（実測） | 所要 | 備考 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | `ccda` セッション + wrapper | `pi_alibaba_qwen4-max_max` | success | `qwen4-max-preview` / `alibaba` / `max` | 10.9 秒 | 導出した `MAAS_ANTHROPIC_TOKEN` で成功 |
+| 2 | `ccda` セッション + wrapper | `claude-code_alibaba_opus_max` | success | `qwen4.0-max-preview` / CLI 2.1.323 | 22.8 秒 | 導出した `MAAS_ANTHROPIC_TOKEN` で成功 |
+| 3 | 通常のシェル（`MAAS_ANTHROPIC_TOKEN` export） | `claude-code_alibaba_opus_max` | success | `qwen4.0-max-preview` / CLI 2.1.323 | 27.2 秒 | 既存値を上書きせず成功 |
+| 4 | `ccdol` セッション + wrapper（一時 PATH の `claude-ollama-exec`） | `claude-code_ollama_opus_max` | success | `deepseek-v4.1-flash:1017` / CLI 2.1.323 | 8.6 秒 | 導出した `OLLAMA_API_KEY` で成功。初回は確認用 shim の PATH 設定不備で `launch_failed`（API 未呼出）となり、shim を直して 1 回だけ再実行した |
+| 5a | `ccdd` セッション + wrapper なし | `pi_deepinfra_deepseek4-flash_high` | failed（`response_failed`） | 未観測 | 0.3 秒 | `pidid` が `DEEPINFRA_TOKEN is not set.` で終了コード 1。API 課金なし |
+| 5b | `ccdd` セッション + wrapper | `pi_deepinfra_deepseek4-flash_high` | success | `deepseek-ai/DeepSeek-V4.1-Flash-1017` / `deepinfra` / `high` | 5.5 秒 | 導出した `DEEPINFRA_TOKEN` で成功 |
+
+- 生成物（`result.json`・stdout/stderr・outer ログ）の実 key 値の一致は、`live-checks/secret-scan.json` のとおり全 key 0 件（5629 ファイルを走査）。
+- 実 API を呼んだ成功試行は、各 agent 1 回（ccdol の初回 `launch_failed` は API 未呼出のため成功試行に数えない）。
+
+### 所要時間
+
+- Task 1: 実装 151.7 秒 + 修正 218.7 秒（runner 実測）、レビュー 2 回（約 5 分・約 5 分）
+- Task 2: 実装 203.9 秒 + 修正 95.9 秒（runner 実測）、レビュー 1 回（約 10 分）
+- Task 3: 実装 421.2 秒 + 修正 30.3 秒（runner 実測）、レビュー 1 回（約 16 分）
+- Task 4: `duplicate_model` 確認・偽 CLI 反例（4 URL × 5 agent）・実機 6 試行・秘密走査・base 前進追随・最終検証
+- 司令塔の作業開始からマージ前検証まで: 約 60 分（2026-11-13 10:20〜11:20）
+
+### 注記
+
+- Plan Task 2 Step 1(d) の `assert not marker.exists()` は、Task 2 レビューの T2-R2（同じ守りの重複・検出力なし、`AGENTS.md` の D）を採用して削除した。前半のサブプロセス検査が同じ守りを確認している。
+- `origin/main` は実行中に `c3a8e113` から `777a67a8` へ前進した。利用者の「途中でメインがマージされたら、追随して作業を止めずに続行してください」の委任に従い、Task 3 完了後に rebase して再検証した。前進分は issue-to-pr スキル・helper・テストと他 Issue の文書のみで、本 Issue の変更ファイルとは重複しない。
