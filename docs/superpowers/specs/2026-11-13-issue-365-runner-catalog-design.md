@@ -1,6 +1,6 @@
 # Issue #365: agent-runner カタログを AW 現行に揃える
 
-- 状態: `draft`（内容の承認を示すものではない）
+- 状態: `completed`（PR #432 のレビュー修正工程を完了。内容の approved や Issue #365 の全受け入れ完了を示すものではない）
 - 対象: https://github.com/usaturn/create-reso-world/issues/365 （親 #349、key `runner-catalog`）
 - CODE_ROOT / DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-365-runner-catalog`
 - base: `usaturn/create-reso-world` / `origin` / `refs/heads/main` / `768c7c410558c1b4b705e82ac0c4687c35b51734`
@@ -113,4 +113,45 @@ Spec レビュー、Task helper、PR 修正ループは PARENT_ROOT の helper �
 - Task レビューは Spec compliance PASS / quality APPROVED。controller は AW と parse 比較し、21 agent と roles の順・値、workflow の一致（意図的相違は env 2件と after_run の project）を確認した。#408 の Ollama 値・roles 値は base と同じ。
 - 個人設定の11一時シナリオは期待どおり。旧名参照だけは invalid_reference、移行後・旧名完全定義・README の max 例は成功、部分定義は invalid_type、Sol xhigh/max の併記は duplicate_model。入力のバイトは全て不変。
 - 2スキル文書の適用シナリオ: 変更前は既定の説明が実helperの self 結果と異なり exit1、変更後は一致して exit0。両方とも実 run_roles の self 分岐と roles.json 保存を通し、外部adapter呼出・外部attemptは0。
-- CLI check/list と関連 pytest305件、担当の install-beforehand / layout / diff check は exit0。記録時点では README 全体の最終検証と PR 修正ループは未実施。全ログは `/workspaces/reso-world/tmp/agents/issue-365.iuvh4cpo/`。
+- CLI check/list と関連 pytest305件、担当の install-beforehand / layout / diff check は exit0。上の Task 実行記録時点では最終検証と PR 修正ループは未実施だった。その後の結果は次節のとおり。全ログは `/workspaces/reso-world/tmp/agents/issue-365.iuvh4cpo/`。
+
+## PR #432 / サイクル1のレビュー修正結果
+
+- 実行許可: issue-to-pr の明示 `--merge` によるループの review-fix-planning 完遂。planner は `openai-codex/gpt-6.1-sol` / pi（ランタイム変数から確認）。
+- 結論: 2（致命的な追加修正無し、最終化へ進む）。これは全 Issue 条件の達成を意味しない。コメントの揃え漏れは残るため #365 を open のままにする。
+- 対象 HEAD: `c3ced71d93234793641c0e5f990682dfd844467b`、base `768c7c410558c1b4b705e82ac0c4687c35b51734`。
+
+| レビューファイル / 実担当 | model / runtime | 対象 HEAD | 再実行 | 結果 |
+|---|---|---|---|---|
+| `deepseek-v4.1-flash.md` / `pi_opencode-go_deepseek4-flash_max` | deepseek-v4.1-flash / pi | c3ced71d9323 | このサイクルの Initial | accepted、3指摘、Approve、1098.39秒 |
+| `claude-opus-5-5.md` / `claude-code_opus_default` | claude-opus-5-5 / claude-code | c3ced71d9323 | このサイクルの Initial | accepted、2指摘、Approve、215.70秒 |
+| 成果無し / `devin_swe2_max` | 未取得 / devin | c3ced71d9323 | runner失敗の再実行無し | rejected、response_failed、exit1、stop_confirmed=true、1.086秒 |
+
+Devin の失敗を指摘0件として扱わず、計画の入力から外した。診断は review_dir の `loop/4d82b4d1f184472da94980d2e9e7ef3e/cycle-1/diagnostics/e7fda4f120264c818d816f3a11ffc2b6.json`、cause=unknown。outside_changes=[]、retained=[]。ほかの checkout の prunable 登録は unprotected_changes として報告されたが変更しない。
+
+### 全指摘の採否
+
+| 指摘（検出HEADは全て c3ced71d9323） | 区分 | 根拠 |
+|---|---|---|
+| deepseek M-1 / opus L-2 | 対応しない | 旧IssueのSol先頭との差は存在するが、矛盾を具体的に報告した後の利用者の判断委任でD2を裁定済み。AW現行とbaseはOpus先頭。設定の誤動作ではなく仕様の選択で、追加変更しない。Issue側にも経緯をコメントし、受け入れの先頭モデルの1箇所を同じ値に追従した。特定コミットの内容承認とはしない |
+| opus L-1 / deepseek I-1 / deepseek I-2 | 対応しない | 古い冒頭注記、rolesの呼出元実ファイル名省略、AWコメントの要約は実在する。設定値・1800秒切り詰め・起動オプションの意味は正しい。主要処理停止・誤操作に至らない説明上の差なので、この修正ループでは直さない。PR本文の既知の制限に開示し #365 の残作業にする |
+
+元の5指摘を2判断に集約: 解消済み0 / 対応する0 / 対応しない2。重大度や票数でなく分類の仕様に従った。追加実装・run_roles・修正後の自己レビューは未実施（修正無しなので不要）。既定のfix担当は明示Terra、self-review/fix-checkはselfだが、このサイクルでは起動していない。設計見直しのきっかけ無し。
+
+### 要件・経路・検証の対応
+
+- カタログの値・並び、改名参照、手動移行、Ollama/roles保護は Task 1 と controller 統合検証で確認。コメントの完全一致は未達として保証を訂正し、PR本文に開示。未達をテスト件数で埋めない。
+- 既定先頭は隔離worktreeの `load_config(template,None)` でOpus、明示Sol上書きでSol、exit0。モデル起動0。検証用worktreeの登録を外して親ディレクトリを削除済み。
+- コメントは固定HEAD/base/AWの全文を比較した静的な確認。review-verify cycle は confirmed2 / not_reproduced0 / unverified0（採否とは別）。rolesを切り詰める実装 `dispatch.py:117` / `run_roles.py:135` と既存の設定解決・テストも確認。
+- 全変更6ファイル・関連する設定解決・roles・既存テストを精読。レビュアーが実行しなかった確認は同じHEADの既存ログで閉じた。実モデル・実サービスの受け入れ検証は対象外で、認証成功を主張しない。
+
+最終検証は最後の実装/記録 commit `c3ced71d` に対して、作業ツリーが実行前後ともcleanであることと全8コマンドexit0を記録したものを再利用する。baseを取得し直し同じSHAでheadの祖先であることを確認済み。CLI check/list（空config）、関連pytest305 passed、install-beforehand PASS、Dev Container27 PASS、layout PASS、全体pytest1489 passed（803.27秒）、diff check成功。uvが親VIRTUAL_ENVを無視する警告は記録し、警告無しとは報告しない。
+
+- review_dir: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#432-feat-issue-365-runner-catalog`
+- 確認済み一覧: `verified/c3ced71d9323.json` と `.md`
+- 工程記録: `verified/c3ced71d9323.planning.json`（投稿後に記録）
+- ループ: `loop/4d82b4d1f184472da94980d2e9e7ef3e/`
+- 検証ログとchecks: `/workspaces/reso-world/tmp/agents/issue-365.iuvh4cpo/verification-record.json`・`checks.json`・`final-check-1..8.log`
+- 最終化の記録・本文・検証記録: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr432.usnjqy_5/`
+
+このSpecだけの直接の子commitを最終化用に載せる。マージ・push・Issue更新の結果は、このSpecへ後追いせず状況コメントと完了報告に記録する。
