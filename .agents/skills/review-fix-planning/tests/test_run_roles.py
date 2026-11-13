@@ -7,14 +7,16 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from tools.agent_runner import Config, ConfigError
+from tools.agent_runner import Config, ConfigError, runner
 from tools.agent_runner.adapters import AdapterContext, AdapterOutcome, Capabilities, LaunchSpec
 from tools.agent_runner.models import Agent, Assignment, Identity, Receipt, Role, Runtime, Workflow
+from tools.agent_runner.process import ProcessResult
 from tools.agent_runner.runner import EXCEPTIONS_HEADING
 
 pytest_plugins = ("tools.test_support.plugin",)
@@ -211,6 +213,18 @@ def granted(lines: list[str], path: object) -> int:
     return sum(line.startswith((f"{path}:", f"{path} ")) for line in lines)
 
 
+def require_external_success(batch: Any) -> None:
+    """外部に依頼した各役割の成功を要求する。失敗した役割名・state・attempt の診断を出す。"""
+    for result in batch.results:
+        if result.actual_agent == "self":
+            continue
+        attempts = [
+            (attempt.agent_id, attempt.state, attempt.exit_code, attempt.stop_confirmed)
+            for attempt in result.attempts
+        ]
+        assert result.state == "success", f"{result.role}: state={result.state} attempts={attempts}"
+
+
 @pytest.fixture
 def parent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """親の main worktree。fixture の repository とは別の Git ディレクトリ（プロジェクトの PR と同じ形）。"""
@@ -221,12 +235,36 @@ def parent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return root
 
 
+@pytest.fixture
+def prepared_worktree(monkeypatch: pytest.MonkeyPatch) -> None:
+    """runner の worktree 準備だけを置き換える。空の destination と準備ログを作り成功を返す（実 worktree は作らない）。"""
+
+    async def prepared(
+        repository: Path,
+        commit: str,
+        destination: Path,
+        *,
+        deadline_seconds: float,
+        cancel: threading.Event,
+        stdout_path: Path,
+        stderr_path: Path,
+        secrets: tuple[str, ...] = (),
+    ) -> ProcessResult:
+        destination.mkdir(parents=True)
+        stdout_path.write_bytes(b"")
+        stderr_path.write_bytes(b"")
+        return ProcessResult(None, 0, True, 0.0)
+
+    monkeypatch.setattr(runner, "prepare_worktree", prepared)
+
+
 def test_external_review_roles_list_their_write_exceptions_with_the_role(
-    inputs: tuple[dict[str, Any], Path, dict[str, Any]], tmp_path: Path, parent: Path
+    inputs: tuple[dict[str, Any], Path, dict[str, Any]], tmp_path: Path, parent: Path, prepared_worktree: None
 ) -> None:
     """runner は全役割に同じ一覧を付けるので、各行は末尾で役割を名指しする（#658）。"""
     adapter = FakeAdapter()
-    launch(inputs, tmp_path, config("a", "b"), adapter_loader=adapter)
+    batch = launch(inputs, tmp_path, config("a", "b"), adapter_loader=adapter)
+    require_external_success(batch)
     prompts = [exception_lines(request.prompt) for request in adapter.requests]
     assert len(prompts) == 2 and prompts[0] == prompts[1]
     lines = prompts[0]
@@ -248,10 +286,15 @@ def test_external_review_roles_list_their_write_exceptions_with_the_role(
 
 @pytest.mark.parametrize("assigned", [("self", "b"), ("a", "self")])
 def test_only_the_externally_assigned_role_lists_exceptions(
-    inputs: tuple[dict[str, Any], Path, dict[str, Any]], tmp_path: Path, parent: Path, assigned: tuple[str, str]
+    inputs: tuple[dict[str, Any], Path, dict[str, Any]],
+    tmp_path: Path,
+    parent: Path,
+    assigned: tuple[str, str],
+    prepared_worktree: None,
 ) -> None:
     adapter = FakeAdapter()
-    launch(inputs, tmp_path, config(*assigned), adapter_loader=adapter)
+    batch = launch(inputs, tmp_path, config(*assigned), adapter_loader=adapter)
+    require_external_success(batch)
     lines = exception_lines(adapter.requests[0].prompt)
     external = SELF_REVIEW if assigned[0] != "self" else FIX_CHECK
     assert lines and all(line.endswith(external) for line in lines)
@@ -298,6 +341,7 @@ def test_single_call_uses_both_review_roles_and_retains_self_instructions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     assigned: tuple[str, str],
+    prepared_worktree: None,
 ) -> None:
     original = mod.run_workflow
     calls: list[dict[str, Any]] = []
@@ -309,6 +353,7 @@ def test_single_call_uses_both_review_roles_and_retains_self_instructions(
     monkeypatch.setattr(mod, "run_workflow", counted)
     adapter = FakeAdapter()
     batch = launch(inputs, tmp_path, config(*assigned), adapter_loader=adapter)
+    require_external_success(batch)
     assert len(calls) == 1 and calls[0]["concurrency"] == 2
     assert {result.role for result in batch.results} == {"self-review", "fix-check"}
     assert len(adapter.requests) == sum(name != "self" for name in assigned)
@@ -457,7 +502,9 @@ def test_review_assignment_that_cannot_run_the_helpers_stops_before_reserving_th
 
 
 
-def test_review_directory_tampering_is_not_accepted_or_cleaned(inputs: Any, tmp_path: Path) -> None:
+def test_review_directory_tampering_is_not_accepted_or_cleaned(
+    inputs: Any, tmp_path: Path, prepared_worktree: None
+) -> None:
     class Tampering(FakeAdapter):
         def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:
             Path(inputs[2]["review_dir"], "external-change").write_text("do not erase")
@@ -472,7 +519,7 @@ def test_review_directory_tampering_is_not_accepted_or_cleaned(inputs: Any, tmp_
 
 
 def test_unconfirmed_stop_blocks_fix_check_accept_and_keeps_budget(
-    inputs: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    inputs: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prepared_worktree: None
 ) -> None:
     original = mod.run_workflow
 
