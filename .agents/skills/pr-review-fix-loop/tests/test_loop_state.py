@@ -424,6 +424,13 @@ def test_abort_records_the_merge_state_it_observed(
     assert finished["result"]["merged"] is expected
     run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
     assert (run["state"], run["result"]["merged"]) == ("ended", expected)
+    # abort を受理した時刻を初回だけ保存する（reconcile の日時照合の根拠。merged の 3 値は変えない）
+    assert run["aborted_at"] is not None
+    aborted_at = run["aborted_at"]
+    with pytest.raises(loop.LoopError) as again:
+        loop.finish(run_dir, abort="external: 二回目", github=env.github)
+    assert again.value.code == 3
+    assert json.loads((run_dir / "run.json").read_text(encoding="utf-8"))["aborted_at"] == aborted_at
 
 
 def test_finalize_result_is_only_for_abort_and_must_be_a_finalize_result(
