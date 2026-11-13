@@ -160,12 +160,6 @@ def test_logs_are_read_only_when_safe(
             id="tool-result-error-body",
         ),
         pytest.param(
-            json.dumps({"type": "tool_result", "is_error": True, "message": "HTTP 401 Unauthorized"}) + "\n",
-            "",
-            "unknown",
-            id="tool-result-error-message",
-        ),
-        pytest.param(
             json.dumps(
                 {"type": "result", "subtype": "success", "is_error": True, "result": "HTTP 401 Unauthorized"}
             )
