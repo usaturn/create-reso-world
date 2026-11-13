@@ -82,13 +82,15 @@ Specの削除前検査1〜5と反映済みS1〜S4を実装する。必要値の�
 
 Step2のコマンドと `uv run --project /workspaces/reso-world --locked pytest .agents/skills/issue-to-pr/tests -q` を実行する。さらにプロジェクトsuite `uv run --project /workspaces/reso-world --locked pytest tests/skills .agents/skills .agents/scripts tools -q` を同期実行し、失敗は省略せず報告する。`git diff --check` も実行する。
 
-- [ ] **Step 5: 一時検証をSESSIONへ保存して実行する**
+- [ ] **Step 5: controller が一時検証をSESSIONへ保存して実行する**
+
+implement_task.py の担当は許可2ファイル以外へ書けないため、担当はStep1〜4と6を行い、TaskResultのconcernsに検証内容・所要時間を記す。controllerがrunnerログを保全してreportを作り、本StepをTaskレビュー前に実行する。担当へ外部ファイル書込を要求してhelperの制限を迂回しない。
 
 コミットしない検査を `/workspaces/reso-world/tmp/agents/issue-420.xlpq2lqf/` 下へ置く。実runner＋fake、通常CLIの独立プロセスで、正常Spec/design、review_id欠落/spec_sha256欠落/null・代表型不正、fallback保持一覧、mode/相対runner/nested request不正、completed不一致、正規failed不一致/null、未submit self、元Spec更新後の回収を確かめる。入力間の直積は作らず、各独立条件の代表にする。既存のJSONL復旧/private/common-dir/symlink/停止未確認/missingのSで重複ガードを補完する。検査は実資源・実モデル・認証情報を使わず、一時Gitだけを操作する。スクリプトとログの絶対パス・入力/結果・前後不変性を報告する。
 
 - [ ] **Step 6: Commitと報告**
 
-指定2ファイルだけstageして `fix: validate cleanup metadata before removing review artifacts` でcommitする。自己レビューし、Task結果、コミット、RED/GREEN・回帰/一時検証の各コマンドと終了コード、ログ、変更の要点、懸念、着手からの時間と内訳を報告する。子を起動しない。push/PR/Issue/ref操作はしない。テスト・lintは同期で完了を待つ。
+指定2ファイルだけstageして `fix: validate cleanup metadata before removing review artifacts` でcommitする。自己レビューし、TaskResultでTask結果、コミット、RED/GREEN・回帰の各コマンドと終了コード、変更の要点、懸念、着手からの時間と内訳を報告する。個別ログ/reportは担当に書かせずcontrollerがrunnerログから保存する。子を起動しない。push/PR/Issue/ref操作はしない。テスト・lintは同期で完了を待つ。
 
 ## controller 統合・最終検証・公開
 
