@@ -53,7 +53,7 @@ PR #432（merged 2026-11-13、merge commit `c120e59f`）でカタログの値・
 4. **spec-review**: AW の 3 行に `usaturn/agent-workspace#848・#853` を付ける。
 5. **design-review**: AW の 3 行に `usaturn/agent-workspace#861` を付ける。
 6. **after_run**: AW の 1 行「PR レビューの後処理。ランナーの観測値を実行記録へ追記する。」。CRW の追加注記（個人設定は書き換えない / after_run = [] の caller は attach-runner を明示実行）は個人設定の例コメントと README が案内するので TOML からは落とす。`--project .` の値は維持。
-7. **inspect**: AW の 4 行に `usaturn/agent-workspace#565`・`#616` を付け、#337 の経緯行（Command Code GOAT は契約終了のため既定から外す）を保持する。
+7. **inspect**: AW の 4 行を基本に `usaturn/agent-workspace#565` を付け、#337 の経緯行（Command Code GOAT は契約終了のため既定から外す）を保持する。AW の 4 行目「#616 で利用者が個人設定で使っている構成に合わせた」は AW 固有の出自記述で、CRW の実個人設定には割り当ての上書きが無く事実と合わないため削除し、4 行目は「下の 3 人は指定が無いときの既定値で、性能の順位ではない。」とする（D9）。
 8. **issue.implement**: AW の 5 行に `usaturn/agent-workspace#679` を付ける。`self` の値は維持。
 9. **fix.assignments**: CRW のコメント（run_roles.py が使う担当・self の説明・codex 拒否注記）を保持する。参照 `#116` だけを `usaturn/agent-workspace#116` に直す。AW に無いコメントだが、CRW 固有の拒否挙動を説明する理由がコメント本文にある。
 
@@ -64,6 +64,7 @@ PR #432（merged 2026-11-13、merge commit `c120e59f`）でカタログの値・
 - `[workflows.issue.assignments.implement]` の `self`（#391 の利用者決定）。
 - Ollama / alibaba / piaq の CRW 固有コメント（#408・#402・#401 の key 導出・key ガード・env allowlist・現行 tier・duplicate_model 詳細。README の各 agent 節が理由を案内）。completed Spec の「意図的に揃えない箇所」を継承する。
 - fix.assignments の codex 拒否注記（CRW の run_roles.py の挙動。コメント本文が理由）。
+- inspect の 4 行目から AW 固有の出自記述「#616 で利用者が個人設定で使っている構成に合わせた」を削除（CRW の実個人設定に割り当て上書きが無く事実と合わないため。D9）。
 - `agy_*` 6 agent の不在（対象外の新しい agent 追加。agy adapter 不在。README に理由を追記）。
 - AW の Issue 参照を `usaturn/agent-workspace#N` と書く（CRW の文書慣例）。
 
@@ -88,13 +89,14 @@ PR #432（merged 2026-11-13、merge commit `c120e59f`）でカタログの値・
 | D6 | 個人設定は移行不要を確認し README の古い環境記述を更新 | 自動移行・alias・記述の現状維持 | 実個人設定に旧名参照が無いことを確認済み。防御範囲「実個人設定を変更しない」。古い記述は現行と不一致 |
 | D7 | 新規恒久テスト無し。check/list・pytest・install-beforehand・layout・AW 差分比較で検証 | コメント固定値テスト | Issue「新しい恒久テストは追加しない（F / L）」。コメント文面は F。S の duplicate_model・env 境界は既存テストが守る |
 | D8 | executing-plans で inline 実装（self） | subagent-driven-development / runner 担当 | implement は既定の self。同じファイルの逐次コメント編集で 1–2 Task の小変更。issue-to-pr 4 章の表どおり |
+| D9 | inspect の AW 4 行目から AW 固有の出自記述「#616 で利用者が個人設定で使っている構成に合わせた」を削除 | AW 原文をそのまま写す / 行ごと削除 | CRW の実個人設定には割り当て上書きが無く、そのまま写すと存在しない上書きを根拠にする誤ったコメントが残る（S の「もっともらしいが誤った結果」）。節見出し「CRW の事実・規約を保持」と roles 期限で CRW 実ファイル名を要求した前例に沿う。builder check の質問 1 への裁定（委任範囲内の文面決定。利用者承認ではない） |
 
 ## 受け入れ基準
 
 - **動作環境**: Ubuntu Dev Container、uv / Python の既存 locked 環境。リポジトリルート（worktree）から検証コマンドを実行できること。実 API・実モデルは起動しない。
 - **実入力**: `.devcontainer/agent-runner.toml` の日本語複数行 TOML コメント、AW 現行ファイル（blob `69e841dd`）、旧名参照の無い実個人設定（`schema_version = 1` とコメント例のみ）、SESSION の空の一時 config。
 - **防御範囲**: 実個人設定・key・ログイン・履歴・#408 の値（Ollama 定義・exec・key 導出）を変更しない。alias と自動移行は対象外。`check` の成功を認証や実サービス起動の成功と表示しない。`[workflows.issue.assignments.implement]` の `self`・`after_run` の `--project .`・`env` の `OPENCODE_API_KEY` を変えない。過去の Spec・Plan・レビュー記録の agent 名を書き換えない。agent / role / workflow の値・並び・`schema_version` を変えない。
-- TOML のコメントが AW 原文を基本に揃い、CRW の差異（実ファイル名・参照規約・#337 経緯・codex 拒否注記・install_beforehand 説明）には理由がある。Ollama / alibaba / piaq のコメントと値は base から変わらない。
+- TOML のコメントが AW 原文を基本に揃い、CRW の差異（実ファイル名・参照規約・#337 経緯・codex 拒否注記・install_beforehand 説明・AW 固有の出自記述の削除）には理由がある。Ollama / alibaba / piaq のコメントと値は base から変わらない。
 - `agy_*` agent は追加されず、README に追加しない理由がある。
 - README の移行節の環境記述が現行の個人設定（旧名参照なし）と一致する。命名表・既定割当・Ollama 節は変わらない。
 - 雛形単独（空 config）と実効（実個人設定）の `check`・`list` が成功し、既定割当に `duplicate_model` が無い。旧 Opus 名への現行参照が履歴・移行説明以外に無い。
