@@ -49,10 +49,10 @@
 
 **テスト要否:** 新規恒久テストなし。既存の安全権限S/F∩Sの検査を弱めず更新し、Lに当たるfixture自身と診断の確認は一時検証で行う。
 
-- [ ] **Step 1: 現状とRED相当の対照。** 対象テストを読む。セッション領域の一時pluginで元のrunner準備を即時timed_outにしたとき、対象テストが要求不足で失敗することを観測する。実20秒待機や実モデル再現はしない。一時ファイルは担当用セッション領域、追跡worktree外に置く。
+- [ ] **Step 1: 現状とRED相当の対照。** controllerが依頼前に、セッション領域の一時pluginで元のrunner準備を即時timed_outにし、対象テストが要求不足で失敗することを観測して担当へ渡す。担当は対象テストを読み、実装する。実20秒待機や実モデル再現はしない。一時ファイルはcontrollerのセッション領域、追跡worktree外に置く。runner担当は許可された対象ファイル以外へ書かない。
 - [ ] **Step 2: 局所fixture。** 上記signatureのfixtureを追加し、Spec列挙5テストへ明示適用。実行・receipt・collect・監査を丸ごと置き換えない。既存runnerテストのquick_prepareの前例を参照できる。
 - [ ] **Step 3: 状態診断。** 必要な外部役割の成功を要求し、失敗した役割名/stateとattempt診断をassertionに含めてから要求件数・例外一覧を照合する。既存の安全assertionは残す。意図的に失敗を作る改ざん・停止未確認テストに成功必須を誤適用しない。
-- [ ] **Step 4: GREEN・診断対照。** 一時pluginの同じ準備失敗条件でも新fixtureが適用された対象テストは成功することを確認。別の一時注入でadapterの失敗を起こし、失敗が状態付きで分かることを確認する。`uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q` と `git diff --check` を同期実行し結果を報告する。受け入れ基準と禁止範囲の構造確認も行う。
+- [ ] **Step 4: GREEN・診断対照。** 担当は `uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q` と `git diff --check` を同期実行し結果を報告する。受け入れ基準と禁止範囲の構造確認も行う。controllerが取り込み後、一時pluginの同じ準備失敗条件で新fixtureの対象テストは成功すること、別のadapter失敗注入では状態付きで失敗することを確認する。
 - [ ] **Step 5: commitと報告。** 対象ファイルのみstageし `test: decouple external role assertions from worktree preparation` でcommit。所要時間・対照/テストのコマンド/終了コード・限界を報告。サブエージェント・有料再現・GitHub書込は禁止。
 
 ## Task 2: 取り込み後の統合・検証・公開（controller）
