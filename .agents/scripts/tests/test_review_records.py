@@ -738,6 +738,14 @@ def test_collect_records_names_every_broken_comment() -> None:
     assert "comment 9: body: a round status comment must contain a records block" in problems
 
 
+def test_collect_records_reports_surrogate_model_with_comment_id() -> None:
+    body = status_body(review_records.validate_record(round_v2()))
+    body = body.replace('"model": "claude-opus-5-5"', '"model": ' + json.dumps("x\ud800y"))
+    # Keep the comment ID in the diagnostic so the broken record can be identified and excluded.
+    problems = problems_of(lambda: review_records.collect_records([comment(12345, body)]))
+    assert any(problem.startswith("comment 12345: planner.model:") for problem in problems)
+
+
 def test_collect_records_rejects_markers_that_disagree_with_the_record() -> None:
     body = status_body(review_records.validate_record(round_one()))
     lines = body.split("\n")

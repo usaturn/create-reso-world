@@ -250,7 +250,11 @@ def agent_id_for(model: str) -> str:
         agent_id = agent_id.replace("--", "-")
     if _FILE_NAME.fullmatch(agent_id) is not None:
         return agent_id
-    digest = hashlib.sha256(model.encode("utf-8")).hexdigest()
+    try:
+        model_bytes = model.encode("utf-8")
+    except UnicodeEncodeError:
+        raise RecordError(["planner.model: must be UTF-8 encodable"]) from None
+    digest = hashlib.sha256(model_bytes).hexdigest()
     return f"model--{digest}"
 
 
