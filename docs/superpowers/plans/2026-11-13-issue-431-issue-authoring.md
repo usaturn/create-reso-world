@@ -75,7 +75,7 @@ Spec A1-A6 の本文とこの節を実装担当・Task レビュアー双方の 
 
 ### Task 3: 3 モードの手順・シナリオ・統合確認
 
-**Files:** `.agents/skills/issue-authoring/SKILL.md`、`agents/openai.yaml`、`references/authoring.md`、`references/reshaping.md`、`references/evaluation.md`、`evals/` の移植対象一式と今回の評価手順。Task 1/2 の helper は読み取りのみ。
+**Files:** `.agents/skills/issue-authoring/SKILL.md`、`agents/openai.yaml`、`references/authoring.md`、`references/reshaping.md`、`references/evaluation.md`、`evals/` の移植対象一式と今回の評価手順。Task 1/2 の helper の機能は変更しない。下記の Task レビューで確認した文書参照・テストの軽微な修正に限り、`.agents/issue-format.md`、3 helper の冒頭 docstring、`tests/test_publish_issue.py`、`tests/test_extract_issues.py` も対象にする。
 
 **Interfaces:** Task 2 の実 CLI で create/update/comment を保存し、reshape prepare/build/verify、extract の出力を読む。未計測は `EvaluationResult.achieved=null`、actual/gap に理由を持たせる。手順の実行例はルート `uv run --locked`。入力と出力 directory を分ける。
 
@@ -83,6 +83,7 @@ Spec A1-A6 の本文とこの節を実装担当・Task レビュアー双方の 
 
 - [ ] controller がスキル無しの現行 HEAD で、同じ3モードの依頼を1つの外部評価に渡す。実 GitHub 書込み禁止、入力は固定 fixture と fake CLI、結果は SESSION。保存された案の有無と観測した挙動を記録する。
 - [ ] 指定元の手順・agent 定義・評価シナリオを移植し、repository-ownership/projects.toml/個別 project 文書に依存する手順を既存境界へ置換する。未実装のモードや過去の評価を今回の成功と記さない。
+- [ ] Task 1 レビューの T1/T2（移植元 #869 参照、issue-to-pr の項目番号）を修正する。Task 2 レビューの T1（docstring の出典・テスト数）、T2（同じ draft 不変性を二重照合する assertion）、T3（stderr の Issue 番号を照合する弱い assertion）を修正する。出典番号は owner/repo を付けるか除き、架空のテスト入力の番号を実 Issue への参照とみなさない。テスト追加はせず、既存 S テストの診断対象の確認と重複整理に限る。
 - [ ] 後片付けは agent_tmp mkdir と AGENTS.md のガードを使い、存在しない agent_tmp rm を案内しない。承認待ち・途中停止・非対話の保存物を消さない。
 - [ ] 日本語複数行の新規案、元本文と管理対象を含む整形差分、実測1件/未計測1件の評価案を、fake GitHub で実 helper から各1件作成して記録する。controller が条件 A1-A6 と保存物を照合する。
 - [ ] controller がスキルありで同じ3モードの依頼を1回評価する。実 helper の結果、案の保存、未計測、承認待ちと fake 書込0件を確認し、無しの結果と比較する。実行例・参照・相対リンクも確認する。
