@@ -1,0 +1,6 @@
+interface:
+  display_name: "Issue Authoring"
+  short_description: "Issue の起票・整形・評価の案を作り、承認後に投稿する"
+  default_prompt: "$issue-authoring を使い、指定リポジトリの Issue を起票・整形・評価してください。案を保存して利用者に見せ、承認を得てから投稿します。"
+policy:
+  allow_implicit_invocation: true

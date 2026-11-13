@@ -1,0 +1,369 @@
+{
+  "provenance": "移植元 usaturn/agent-workspace commit 6e71fae4d25f217b23ce2409517cf602437a3cbf の履歴。今回の実行結果ではない。",
+  "skill_name": "issue-authoring",
+  "mode": "評価（集計の局所比較）",
+  "method": {
+    "purpose": "選択済み Issue の母集団、metadata の状態、有効な run・評価の数え方、method ごとの観測根拠を、旧版と新版の評価手順に同じ入力を与えて比べる。",
+    "documents": {
+      "baseline": {
+        "commit": "335c69a6c4c5d2ae9239e585108085fcd992ba5c",
+        "path": ".agents/skills/issue-authoring/references/evaluation.md",
+        "sha256": "d102c54d84d50e722c9119d8cb6bd57a93fd00b3ced83b7ab7806ace1d7c8801"
+      },
+      "green": {
+        "commit": "663c78053a372c4359a468cc300efed5e0f5090b",
+        "path": ".agents/skills/issue-authoring/references/evaluation.md",
+        "sha256": "526de689a8a97f5f46528b56cc6f683994e111f0d15cb5b44a50af1920a09f31"
+      }
+    },
+    "input": {
+      "path": "/workspaces/agent-workspace/tmp/agents/issue-888-behavior.0p0nn9np/input.json",
+      "sha256": "f49c4ab3d28599632b1b974289ac1ab72e2ab7360cbdf4579cfbeba5d5508811",
+      "observations_path": "/workspaces/agent-workspace/tmp/agents/issue-888-behavior.0p0nn9np/observations.jsonl",
+      "observations_sha256": "5bfb6b6739c56021160da0bd113a3e20d42f979c2f1537c482e8f336d7da8f34",
+      "preconditions": "架空入力のみ。登録済み repository・Issue であり PR でないことは確認済み。評価対象の本文と metadata.targets は一致し、評価対象のコメントは全 0 件。対象選択は、2026-11-09 に作成された番号一覧を別の API 応答で確認して固定済み。通常運用の作業ログは未提供。",
+      "selection_basis": "対象の番号一覧は metadata の status・value・filed_on ではなく、別 API で確認した作成日の番号一覧である。選択済み Issue を metadata の状態や値で母集団から外さない。",
+      "observation_matrix": [
+        {
+          "number": 900901,
+          "metadata": {
+            "status": "ok",
+            "version": 1
+          },
+          "check": {
+            "complete": true,
+            "problem_codes": []
+          },
+          "run_records_extraction_status": [
+            "ok",
+            "broken",
+            "unknown_version"
+          ],
+          "evaluations_extraction_status": [
+            "ok",
+            "broken",
+            "unknown_version"
+          ]
+        },
+        {
+          "number": 900902,
+          "metadata": {
+            "status": "broken",
+            "version": 1,
+            "line": 65
+          },
+          "check": {
+            "complete": false,
+            "problem_codes": [
+              "block_broken"
+            ]
+          },
+          "run_records_extraction_status": [],
+          "evaluations_extraction_status": []
+        },
+        {
+          "number": 900903,
+          "metadata": {
+            "status": "missing",
+            "version": null
+          },
+          "check": {
+            "complete": false,
+            "problem_codes": [
+              "block_missing"
+            ]
+          },
+          "run_records_extraction_status": [],
+          "evaluations_extraction_status": []
+        },
+        {
+          "number": 900904,
+          "metadata": {
+            "status": "unknown_version",
+            "version": 999,
+            "line": 65
+          },
+          "check": {
+            "complete": false,
+            "problem_codes": [
+              "block_unknown_version"
+            ]
+          },
+          "run_records_extraction_status": [],
+          "evaluations_extraction_status": []
+        }
+      ],
+      "cases": [
+        {
+          "name": "main",
+          "subject_issue": 900888,
+          "selected_issue_numbers": [
+            900901,
+            900902
+          ],
+          "target_count": 4
+        },
+        {
+          "name": "boundary",
+          "subject_issue": 900889,
+          "selected_issue_numbers": [
+            900901,
+            900903,
+            900904
+          ],
+          "target_count": 1
+        }
+      ]
+    },
+    "task_prompts": {
+      "baseline": {
+        "path": "/workspaces/agent-workspace/tmp/agents/issue-888-behavior.0p0nn9np/baseline-task.txt",
+        "sha256": "004837db35f1649322f9c0a49b712e8b0060fedd4604c66f19330b9a233a1f82"
+      },
+      "green": {
+        "path": "/workspaces/agent-workspace/tmp/agents/issue-888-behavior.0p0nn9np/green-task.txt",
+        "sha256": "c8c764ee0ffa6d64d953f6e4d5d23bcedfba3065b7d1cb6ed7530b5c22d92662"
+      },
+      "common_shape": "同じ input を使い、評価手順の局所適用として case 別の Evaluation JSON を回答する。入力・対象確認は提示済みで、追加の情報取得・ツール呼出し・ファイル読み取りをしない。10 分以内とし、モデル識別子を環境で確認できなければ unknown とする。baseline と green の task は、参照する evaluation.md の版だけが異なる。"
+    },
+    "runtime": {
+      "harness": "pi-superagents sp-research",
+      "model_in_harness_metadata": "deepseek-v4.1-flash",
+      "thinking": "max",
+      "model_in_answer": "unknown",
+      "trials_per_variant": 1,
+      "tool_calls_per_trial": 0,
+      "claude_code": "未実施",
+      "execution_mode": "非対話の単発実行。ランタイムのエンドツーエンド比較ではない。"
+    },
+    "durations_ms": {
+      "baseline": 216702,
+      "green": 219011
+    },
+    "scoring": {
+      "path": "/workspaces/agent-workspace/tmp/agents/issue-888-behavior.0p0nn9np/score.json",
+      "sha256": "10616c887bed5dfd0a25806c9180b42326806cb76ae35f64828ccea007cfc65c",
+      "by": "controller",
+      "scorer": "PI_PROVIDER=openai-codex, PI_MODEL=gpt-6.1-sol",
+      "basis": "回答の件数・達成判定・scope の記述を controller のモデル（PI_PROVIDER=openai-codex、PI_MODEL=gpt-6.1-sol）が確認して採点した。score.json に人による確認の記録はない。文言の一致では採点していない。実装担当は独立に再採点していない。"
+    }
+  },
+  "scenarios": [
+    {
+      "id": "main",
+      "prompt": "提示済みの input と評価手順だけを使い、main の subject（#900888）の targets を case 別の Evaluation JSON として評価する。",
+      "selected_issue_numbers": [
+        900901,
+        900902
+      ],
+      "targets": [
+        {
+          "metric": "書式適合率",
+          "target": "100%",
+          "method": "事前確認した対象番号リストの全Issueについて、抽出JSONLのcheck.complete=trueを適合として割合を測る"
+        },
+        {
+          "metric": "有効な実行記録の件数",
+          "target": "1件以上",
+          "method": "対象番号リストのIssueのrun_recordsから有効な実行記録の件数を測る"
+        },
+        {
+          "metric": "有効な評価記録の件数",
+          "target": "1件以上",
+          "method": "対象番号リストのIssueのevaluationsから有効な評価記録の件数を測る"
+        },
+        {
+          "metric": "通常の確認作業の平均時間",
+          "target": "3分以内",
+          "method": "マージ後の通常運用5回の作業ログの開始・終了時刻から平均時間を計算する。run-recordのissue実装時間は別の計測なので使用しない"
+        }
+      ],
+      "expected": {
+        "format": {
+          "compliant_issues": [
+            900901
+          ],
+          "noncompliant_issues": [
+            900902
+          ],
+          "numerator": 1,
+          "denominator": 2,
+          "rate": "50%",
+          "achieved": false
+        },
+        "valid_runs": {
+          "count": 1,
+          "included": [
+            {
+              "issue": 900901,
+              "record_id": 1
+            }
+          ],
+          "excluded": [
+            {
+              "issue": 900901,
+              "record_id": 2,
+              "extraction_status": "broken"
+            },
+            {
+              "issue": 900901,
+              "record_id": 3,
+              "extraction_status": "unknown_version"
+            }
+          ]
+        },
+        "valid_evaluations": {
+          "count": 1,
+          "included": [
+            {
+              "issue": 900901,
+              "record_id": 4
+            }
+          ],
+          "excluded": [
+            {
+              "issue": 900901,
+              "record_id": 5,
+              "extraction_status": "broken"
+            },
+            {
+              "issue": 900901,
+              "record_id": 6,
+              "extraction_status": "unknown_version"
+            }
+          ]
+        },
+        "time": {
+          "achieved": null,
+          "reason": "マージ後の通常運用5回の作業ログ（開始・終了時刻と対象入力）が提供されていない。run-record の active_minutes は method で使用対象外とされている。"
+        },
+        "criteria": [
+          "選択済みの #900902 を metadata の broken という理由で分母から落とさず、check.complete=false の不適合として数える。",
+          "run_records の配列長 3 ではなく、extraction.status=ok の 1 件だけを有効な実行記録とする。",
+          "evaluations の配列長 3 ではなく、extraction.status=ok の 1 件だけを有効な評価記録とする。",
+          "method が check.complete を指定しているので、書式適合率は check.complete を観測根拠にする。",
+          "通常運用の作業ログが無いので、平均時間は achieved=null とし、0 や達成に置き換えない。",
+          "scope に数える単位（Issue・run・評価）、対象範囲、選択／除外条件、データ源を書く。"
+        ]
+      },
+      "observed": {
+        "baseline": {
+          "format": {
+            "numerator": 1,
+            "denominator": 2,
+            "rate": "50.0%",
+            "achieved": false
+          },
+          "valid_runs": 1,
+          "valid_evaluations": 1,
+          "time_achieved": null,
+          "selected_issues_retained": true,
+          "only_ok_records_counted": true,
+          "method_check_used": true,
+          "scope_units": true,
+          "criteria_met": true,
+          "document_contradiction_obeyed": false,
+          "notes": "#900902 を broken のまま不適合として計上した。run_records は id=1 の ok だけ、evaluations は id=4 の ok だけを数え、id=2・5（対象違い）と id=3・6（v999）を除外した。時間は通常運用ログが無いため null。旧文書の『check は判定に使わない』という記述には従わず、method 明示の check.complete を使った。数値の誤判定は観測されていない。"
+        },
+        "green": {
+          "format": {
+            "numerator": 1,
+            "denominator": 2,
+            "rate": "50.0%",
+            "achieved": false
+          },
+          "valid_runs": 1,
+          "valid_evaluations": 1,
+          "time_achieved": null,
+          "selected_issues_retained": true,
+          "only_ok_records_counted": true,
+          "method_check_used": true,
+          "scope_units": true,
+          "criteria_met": true,
+          "notes": "#900902 を metadata broken のまま不適合として残した。run_records と evaluations は extraction.status=ok の 1 件だけを数え、broken・unknown_version を診断用として除外した。scope に選択済みの番号一覧と、metadata の状態で対象を絞らないこと、記録は status=ok だけを数えることを書いた。時間は通常運用ログが未提供のため null。"
+        }
+      }
+    },
+    {
+      "id": "boundary",
+      "prompt": "提示済みの input と評価手順だけを使い、boundary の subject（#900889）の targets を case 別の Evaluation JSON として評価する。",
+      "selected_issue_numbers": [
+        900901,
+        900903,
+        900904
+      ],
+      "targets": [
+        {
+          "metric": "書式適合率",
+          "target": "100%",
+          "method": "事前確認した対象番号リストの全Issueについて、抽出JSONLのcheck.complete=trueを適合として割合を測る"
+        }
+      ],
+      "expected": {
+        "format": {
+          "compliant_issues": [
+            900901
+          ],
+          "noncompliant_issues": [
+            900903,
+            900904
+          ],
+          "numerator": 1,
+          "denominator": 3,
+          "rate": "33.3%",
+          "achieved": false
+        },
+        "criteria": [
+          "#900903 の metadata missing と #900904 の unknown_version を、選択済み Issue として分母に残す。",
+          "壊れたブロックや未知の版から目標値を復元しない。",
+          "scope に数える単位（Issue）、対象範囲、選択／除外条件、データ源を書く。"
+        ]
+      },
+      "observed": {
+        "baseline": {
+          "format": {
+            "numerator": 1,
+            "denominator": 3,
+            "rate": "33.3%",
+            "achieved": false
+          },
+          "selected_issues_retained": true,
+          "scope_units": true,
+          "criteria_met": true,
+          "notes": "#900903（missing）と #900904（v999、line 65）を不適合として計上した。対象 3 件のうち適合は #900901 の 1 件。"
+        },
+        "green": {
+          "format": {
+            "numerator": 1,
+            "denominator": 3,
+            "rate": "33.3%",
+            "achieved": false
+          },
+          "selected_issues_retained": true,
+          "scope_units": true,
+          "criteria_met": true,
+          "notes": "metadata の状態で対象を絞らず、#900903 missing と #900904 unknown_version を不適合として保持した。対象 3 件のうち適合は #900901 の 1 件。"
+        }
+      }
+    }
+  ],
+  "result_summary": {
+    "baseline": {
+      "same_counts_as_expected": true,
+      "wrong_count_observed": false,
+      "note": "この入力では旧版の誤判定は再現しなかった。ただし、旧文書の矛盾する記述が実行されなかっただけであり、旧文書が安全である証明ではない。"
+    },
+    "green": {
+      "same_counts_as_expected": true,
+      "criteria_met": true,
+      "note": "非 ok の選択済み Issue を保持し、有効な run・評価は extraction.status=ok だけを数え、method ごとの観測を使った。"
+    },
+    "difference": "観測した件数と達成判定は両版で同じ。実運用の誤判定頻度や改善率は測っていない。"
+  },
+  "limitations": [
+    "各版 1 試行、モデルは harness metadata の deepseek-v4.1-flash のみ。ばらつきや他のモデルの挙動は未確認。",
+    "評価 JSON の局所適用であり、ランタイムのエンドツーエンド比較ではない。Claude Code、draft 保存、承認ゲート、publish は実行していない。",
+    "入力は架空の main・boundary 2 ケースのみ。実在 Issue や通常運用の作業ログは使っていない。",
+    "回答内の model は unknown。モデルと所要時間は harness metadata による記録で、回答から独立に確認したものではない。"
+  ]
+}

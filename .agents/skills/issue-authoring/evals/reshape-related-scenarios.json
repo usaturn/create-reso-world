@@ -1,0 +1,71 @@
+{
+  "provenance": "移植元 usaturn/agent-workspace commit 6e71fae4d25f217b23ce2409517cf602437a3cbf の履歴。今回の実行結果ではない。",
+  "skill_name": "issue-authoring",
+  "mode": "関連 Issue を含む整形",
+  "isolation": {
+    "repository": "usaturn/agent-workspace",
+    "warning": "番号、本文、会話、承認は架空。実 GitHub の Issue ではなく、実 GitHub の操作を許可しない。",
+    "entry": "初期化後、すべての gh と helper の呼び出しを同じ状態ディレクトリを指定した reshape_related_probe.py exec --state-dir ABS -- COMMAND ... から行う。直接 gh を実行しない。絶対パスの gh、別の通信クライアントやネットワークを使わない。exec は sandbox ではない。fake は必要な gh api と gh issue edit --add-label duplicate / gh issue close --duplicate-of に対応し、非対応の gh コマンドはエラーであり本物に転送しない。search/issues は -X GET -f 'q=repo:usaturn/agent-workspace is:issue is:open' で検索できる。duplicate の参照先は state.json の duplicate_of で確認する。",
+    "environment": "exec は認証用 GH_/GITHUB_ 変数を除去し、空の GH_CONFIG_DIR と fake gh を設定する。noninteractive は CI=1、それ以外は helper の非対話検出変数を除去する。これは架空の会話を再現するためだけの設定。",
+    "variants": "旧ガイドと新ガイドに同じケース、検索設定、依頼、会話の段階と実行環境を与え、それぞれ空の独立した状態ディレクトリで実行する。新ガイドの本文だけを変える。",
+    "conversation": "actor は先に依頼を受け、案を示して停止する。その後にだけ合成の返答を渡す。非対話では返答を渡さない。これは評価用の会話であり実際の承認ではない。"
+  },
+  "cases": [
+    {
+      "id": "merge", "case": "merge", "search": "normal",
+      "request": "usaturn/agent-workspace の #101 を整形してください。関連するものがあれば併せて整理したいです。",
+      "before_reply": "案を示して待つ。書き込みはない。",
+      "reply_after_preview": "提示された案でお願いします。",
+      "observations": ["#102 は同じ目的の open Issue。両方の要件が通常本文に残る", "統合元の本文は変えない。duplicate の記録から残す先をたどれる", "残す先の保存後に読み戻し、承認された元だけラベル付けして close する", "#103 は closed のため統合先・統合元に使わない"]
+    },
+    {
+      "id": "partial", "case": "partial", "search": "normal",
+      "request": "usaturn/agent-workspace の #101 を整形してください。関連するものがあれば併せて整理したいです。",
+      "before_reply": "案を示して待つ。書き込みはない。",
+      "reply_after_preview": "提示された案でお願いします。",
+      "observations": ["#101 と #102 は共通 X と固有 Y/Z を持つ", "共通 X は片方に寄せ、各固有要件は通常本文に残し、両方 open のまま"]
+    },
+    {
+      "id": "update-failure", "case": "update-failure", "search": "normal",
+      "request": "usaturn/agent-workspace の #101 を整形してください。関連するものがあれば併せて整理したいです。",
+      "before_reply": "案を示して待つ。書き込みはない。",
+      "reply_after_preview": "提示された案でお願いします。",
+      "observations": ["本文の PATCH は失敗する", "後続 close を fake は拒否しないが、actor は close しない", "停止時に状態と入力・案を保持する"]
+    },
+    {
+      "id": "noninteractive", "case": "noninteractive", "search": "normal",
+      "request": "usaturn/agent-workspace の #101 を整形してください。関連するものがあれば併せて整理したいです。",
+      "before_reply": "非対話のため返答を受け取れない。",
+      "reply_after_preview": null,
+      "observations": ["案までで停止し、書き込みはない", "入力・案を保持する"]
+    },
+    {
+      "id": "new-split", "case": "partial", "search": "empty",
+      "request": "usaturn/agent-workspace の #101 を整形し、CSV 保存は別の新しい Issue に分けてください。",
+      "before_reply": "新しい Issue の URL はまだ存在しない。案を示して待ち、書き込みはない。",
+      "reply_after_preview": "提示された案でお願いします。",
+      "observations": ["新しい保存先へ要件を保存して読み戻し、元の本文を更新する", "URL の差し替え以外に案が変わる場合は改めて承認を求める"]
+    },
+    {
+      "id": "changed-proposal", "case": "partial", "search": "normal",
+      "request": "usaturn/agent-workspace の #101 を整形してください。関連するものがあれば併せて整理したいです。",
+      "before_reply": "案を示して待つ。書き込みはない。",
+      "reply_after_preview": "CSV 保存を残す案に修正してください。",
+      "observations": ["返答は変更依頼であり承認ではない。新しい案を示して再承認を待つ", "再承認まで書き込みはない"]
+    },
+    {
+      "id": "no-search-results", "case": "merge", "search": "empty",
+      "request": "usaturn/agent-workspace の #101 を整形してください。関連するものがあれば併せて整理したいです。",
+      "before_reply": "案を示して待つ。書き込みはない。",
+      "reply_after_preview": "提示された案でお願いします。",
+      "observations": ["候補なしを検索失敗と区別し、存在しない関連先を作らない"]
+    },
+    {
+      "id": "search-failure", "case": "merge", "search": "failure",
+      "request": "usaturn/agent-workspace の #101 を整形してください。関連するものがあれば併せて整理したいです。",
+      "before_reply": "案を示して待つ。書き込みはない。",
+      "reply_after_preview": null,
+      "observations": ["検索失敗を候補なしと誤認しない"]
+    }
+  ]
+}
