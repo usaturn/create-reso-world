@@ -176,14 +176,16 @@ env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT",
 
 # piaq（.devcontainer/piaq。Rebuild で ~/.local/bin に配置）で Alibaba Cloud Model Studio の
 # Token Plan の qwen4-max-preview につなぐ。key は MAAS_ANTHROPIC_TOKEN。ファイルには書かない。
-# 使うのは、key を export した通常のシェル（ランチャー起動セッションの外）からである。
+# 通常のシェルでは key を export して使う。
 # 子に渡るのは env の allowlist に挙げた変数だけで、zshrc.txt は読まれない。runner を起動した
 # シェルに key が無ければ、allowlist に挙げても子には届かない。
 # ccd 系のランチャー（ccdd・ccddg・ccdgo・ccdol・ccda）は、cc_launcher_unsets の env -u で
 # 自分の子から MAAS_ANTHROPIC_TOKEN を外す（ccda は子に ANTHROPIC_AUTH_TOKEN として渡し直す）。
 # シェル全体から unset する仕組みは無く、本リポジトリでは env ファイルからも補わない。
-# そのためランチャー起動セッションの中には key が無く、その中から runner を起動しても届かない。
-# その場合 piaq は key の案内を出して終了コード 1 で止まり、Pi を起動しない。
+# ccda のセッションから with_keys.py 経由で runner を起動する場合は、ANTHROPIC_BASE_URL の一致で
+# ANTHROPIC_AUTH_TOKEN から MAAS_ANTHROPIC_TOKEN が補われる。それ以外のランチャー（ccdd・ccddg・
+# ccdgo・ccdol）のセッションや with_keys.py を通さない直接起動では key が届かず、piaq は key の
+# 案内を出して終了コード 1 で止まり、Pi を起動しない。
 # model の qwen4-max-preview は #401 の claude-code_alibaba_opus_max の model_key と同じなので、
 # 2 つは同じモデルとして扱われ、同じ役割に並べられない。
 [agents.pi_alibaba_qwen4-max_max]
@@ -207,6 +209,10 @@ env = ["HOME", "PATH", "DEEPINFRA_TOKEN"]
 # Token Plan につなぐ。モデルの対応は zshrc.txt の ccda と揃える（fable・opus は
 # qwen4-max-preview、sonnet・haiku も qwen4-max-preview）。model が opus なので
 # claude-code_opus_default と同じ役割に並べられない。
+# ccda のセッションから with_keys.py 経由で runner を起動する場合は、ANTHROPIC_BASE_URL の一致で
+# ANTHROPIC_AUTH_TOKEN から MAAS_ANTHROPIC_TOKEN が補われる。それ以外のランチャー（ccdd・ccddg・
+# ccdgo・ccdol）のセッションや with_keys.py を通さない直接起動では key が届かず、
+# claude-alibaba-exec の key ガードで終了コード 1 で止まる。
 [agents.claude-code_alibaba_opus_max]
 runtime = "claude-code"
 command = ["claude-alibaba-exec"]
@@ -215,6 +221,37 @@ model_key = "qwen4-max-preview"
 provider = "alibaba"
 effort = "max"
 env = ["HOME", "PATH", "MAAS_ANTHROPIC_TOKEN"]
+
+# claude-ollama-exec（.devcontainer/claude-ollama-exec。Rebuild で ~/.local/bin に配置）で
+# Ollama Cloud（https://ollama.com）につなぐ。モデルの対応は zshrc.txt の ccdol と揃える
+# （4 つの tier すべて deepseek-v4.1-flash:1017[1m]）。
+# OLLAMA_API_KEY はファイルに書かず、通常のシェルでは export して使う。ccdol のセッションから
+# with_keys.py 経由で runner を起動する場合は、ANTHROPIC_BASE_URL の一致で ANTHROPIC_AUTH_TOKEN から
+# OLLAMA_API_KEY が補われる。それ以外のランチャーのセッションや with_keys.py を通さない直接起動では
+# key が届かず、claude-ollama-exec の key ガードで終了コード 1 で止まる。
+# 同一モデル比較（duplicate_model）: model_key = "deepseek-v4.1-flash" により、既存の DeepSeek V4.1 Flash
+# 系 3 agent（pi_commandcode_deepseek4-flash_max・pi_opencode-go_deepseek4-flash_max・
+# pi_deepinfra_deepseek4-flash_high）および Ollama の 2 agent 同士は同じ役割に並べられない。加えて
+# opus 側は claude-code_opus_default・claude-code_alibaba_opus_max と、sonnet 側は
+# claude-code_sonnet_xhigh と model が一致するため同じ役割に並べられない。将来 tier ごとに別モデルへ
+# 変えた場合は model_key も別値にすること。
+[agents.claude-code_ollama_opus_max]
+runtime = "claude-code"
+command = ["claude-ollama-exec"]
+model = "opus"
+model_key = "deepseek-v4.1-flash"
+provider = "ollama"
+effort = "max"
+env = ["HOME", "PATH", "OLLAMA_API_KEY"]
+
+[agents.claude-code_ollama_sonnet_max]
+runtime = "claude-code"
+command = ["claude-ollama-exec"]
+model = "sonnet"
+model_key = "deepseek-v4.1-flash"
+provider = "ollama"
+effort = "max"
+env = ["HOME", "PATH", "OLLAMA_API_KEY"]
 
 # after_run はレビュー結果に runner の実行記録を付ける。
 # 個人設定は書き換えない。after_run = [] で無効にした caller は attach-runner を明示実行する。

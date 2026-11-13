@@ -6,9 +6,11 @@ runner は起動時の環境（``/proc/self/environ``）から子の環境を組
 
 補う名前は、雛形と個人設定を後段と同じ規則で重ねた全 agent の ``env`` から
 ``HOME``・``PATH``・``GIT_*`` を除いたもの。workflows の担当・fallback の参照と重複は
-検査しない（後段が上書き後に検査する）。今の環境に値がある名前は上書きしない。読み元は
-``~/.config/create-reso-world/env`` だけ。shell としては実行せず、解析できない代入が
-ある名前は前の行の値も含めて補わない。値は stderr に出さない。
+検査しない（後段が上書き後に検査する）。解決順序は、今の環境（非空値を保持・上書き
+しない）→ ランチャー環境の ``ANTHROPIC_BASE_URL`` の完全一致による導出 →
+``~/.config/create-reso-world/env``。段階 1・2 で解決した名前は env ファイルから
+上書きしない。shell としては実行せず、解析できない代入がある名前は前の行の値も含めて
+補わない。値は stderr に出さない。
 """
 
 from __future__ import annotations
@@ -45,6 +47,16 @@ _ASSIGNMENT = re.compile(
     """,
     re.VERBOSE,
 )
+# ランチャーが設定する ANTHROPIC_BASE_URL と、そのセッションで使う key の変数名。
+# 完全一致だけを扱い、前後の空白除去・末尾スラッシュの正規化・部分一致はしない。
+_LAUNCHER_BASE_URL_KEYS: Mapping[str, str] = {
+    "https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic": "MAAS_ANTHROPIC_TOKEN",
+    "https://ollama.com": "OLLAMA_API_KEY",
+    "https://api.deepinfra.com/anthropic": "DEEPINFRA_TOKEN",
+    "https://opencode.ai/zen/go": "OPENCODE_API_KEY",
+}
+# ASCII 英数字を 1 文字も含まないトークンは key として使えない。
+_ASCII_ALNUM = re.compile(r"[A-Za-z0-9]")
 
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -131,25 +143,41 @@ def fill_environment(
     environ: Mapping[str, str],
     names: set[str],
     source: Path,
-) -> tuple[dict[str, str], list[str], list[str]]:
-    """未設定・空の名前だけを source から補う。
+) -> tuple[dict[str, str], list[str], list[str], list[str]]:
+    """今の環境、ランチャー環境の導出、source の順に、未設定・空の名前だけを補う。
 
-    戻り値は (環境, 補った名前, 解析できず補わなかった名前)。ファイルが無ければ
-    何もしない。開けない・UTF-8 で読めないときは ``with_keys: cannot read <path>``
-    を stderr に出して補わない。値は出さない。
+    戻り値は (環境, ランチャーから導出した名前, source から補った名前,
+    解析できず補わなかった名前)。今の環境に非空の値がある名前は上書きしない。
+    ランチャーの導出は ``ANTHROPIC_BASE_URL`` の完全一致と、ASCII 英数字を含む
+    ``ANTHROPIC_AUTH_TOKEN`` のときだけ行う。ファイルが無ければ何もしない。
+    開けない・UTF-8 で読めないときは ``with_keys: cannot read <path>`` を stderr に
+    出して補わない。値は出さない。
     """
     environment = dict(environ)
     # 今の環境に値がある名前は除く。別の値で上書きしない。
     pending = {name for name in names if not environment.get(name)}
+    derived: list[str] = []
+    derived_name = _LAUNCHER_BASE_URL_KEYS.get(environment.get("ANTHROPIC_BASE_URL", ""))
+    auth_token = environment.get("ANTHROPIC_AUTH_TOKEN", "")
+    if (
+        derived_name is not None
+        and derived_name in pending
+        and _ASCII_ALNUM.search(auth_token) is not None
+    ):
+        environment[derived_name] = auth_token
+        pending.remove(derived_name)
+        derived.append(derived_name)
+    if not pending:
+        return environment, derived, [], []
     try:
         text = source.read_text(encoding="utf-8")
     except FileNotFoundError:
-        return environment, [], []
+        return environment, derived, [], []
     except (OSError, UnicodeDecodeError):
         # 例外文はファイルの断片を含みうる。値は出さず、読めないことだけを出す。
         print(f"with_keys: cannot read {source}", file=sys.stderr)
-        return environment, [], []
-    assignments, skipped = parse_assignments(text, names)
+        return environment, derived, [], []
+    assignments, skipped = parse_assignments(text, pending)
     filled: list[str] = []
     for name in sorted(assignments):
         value = assignments[name]
@@ -157,7 +185,7 @@ def fill_environment(
             continue
         environment[name] = value
         filled.append(name)
-    return environment, filled, skipped
+    return environment, derived, filled, skipped
 
 
 def _parse_args(arguments: Sequence[str]) -> tuple[Path | None, Path | None, list[str]]:
@@ -195,6 +223,12 @@ def _personal(explicit: Path | None) -> Path | None:
     return None
 
 
+def _report_derived(names: Sequence[str]) -> None:
+    for name in names:
+        detail = f"with_keys: filled {name} from launcher environment (ANTHROPIC_BASE_URL)"
+        print(detail, file=sys.stderr)
+
+
 def _report_filled(names: Sequence[str], source: Path) -> None:
     if not names:
         return
@@ -221,7 +255,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(str(error), file=sys.stderr)
         return 2
     source = Path.home() / ".config/create-reso-world/env"
-    environment, filled, skipped = fill_environment(os.environ, names, source)
+    environment, derived, filled, skipped = fill_environment(os.environ, names, source)
+    _report_derived(derived)
     _report_skipped(skipped, source)
     _report_filled(filled, source)
     sys.stderr.flush()
