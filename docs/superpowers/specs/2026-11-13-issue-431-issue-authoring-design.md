@@ -29,6 +29,8 @@
 
 まず `usaturn/create-reso-world` で全モードを動かす。外部を解決する場合は AGENTS.md の既存経路（ResoLoop fork/upstream、resoloop-meshy、採用済み external-tools の通常ツール）に限り、常設 checkout・remote・必要な実送信先を共通 resolver で照合する。未登録 repo の任意 CODE_ROOT 指定を新しい投稿経路に使わない。不在・不一致・未採用・壊れた台帳・曖昧さは拒否し、clone・探索・登録・別対象への切替をしない。書式を読む処理が新たな実装・release・実機操作の許可を作らない。
 
+meshy の既知経路は共通 resolver 内に定義されていないため、呼び出し側の issue_format.py で検証済み親の固定パス `<PARENT_ROOT>/external/resoloop-meshy` だけを code_root に渡す。resolver は拡張しない。返された checkout がこの固定パスの常設 checkout であることと、origin が `usaturn/resoloop-meshy` に一致することを確認する。任意の別 checkout・別 remote による代替を認めない。固定パス不在時は既存の clone 手順を案内して停止し、自動 clone しない。
+
 ラベルは共通書式の表に集約する。移植元だけに存在する tools/devenv、tools/workspace、projects.toml、repository-ownership の説明を、ルートの Python 環境、external-tools、現在の review/issue/skill/Dev Container の領域に合わせる。必要に応じて Resonite/Blender の領域を記す。既存ラベルを一括変更せず、不足ラベルの作成も投稿案に含めて承認後に行う。外部対象にもこの書式を使う場合はその旨を案に明示し、repo 固有の AGENTS.md/README を先に読む。既存の issue-to-pr や planning-parallel-issues がこの新書式を既に使用していると記述しない。
 
 ### 投稿・整形・抽出 helper
@@ -55,7 +57,7 @@
 | A3 | 整形が元本文の情報を保つ | snapshot と復元結果の一致、管理ブロックの保持、verify の正常系と改変拒否 |
 | A4 | 未計測を実測・成功と扱わない評価案を作る | 目標・実測値・データ源を含む評価案と、測れなかった項目の理由付き未計測 |
 | A5 | shared format/helper のテストをルートで実行できる | `uv run --locked pytest .agents/scripts/tests/test_issue_format.py .agents/skills/issue-authoring/tests -q`、全体 pytest、layout の終了コードとログ |
-| A6 | 指定対象以外を黙って選ばない | 実 resolver を通した親の正常系と未登録・不一致の拒否。共通 resolver 自体の重複テストは増やさない |
+| A6 | 指定対象以外を黙って選ばない | 実 resolver を通した親の正常系と未登録の拒否。meshy 固定経路の正常系、別 checkout と origin 不一致の拒否。共通 resolver 自体の重複テストは増やさない |
 
 テストは AGENTS.md の S に限る。秘密の漏れ、誤投稿、誤対象、競合による上書き、元本文や抽出記録の欠落、未計測の成功扱いを守る代表例を採用し、拒否には正常系を対にする。文言・見出し・ラベル一覧やパスの存在だけを照合する F/L のテストは追加しない。リンク・参照・CLI の実行・構造確認・diff は一時検証と layout に任せる。移植元テストも基準に照らして選ぶ。
 
@@ -93,3 +95,10 @@
   `/tmp/review-fix-planning.9AkFc2/worktree`
   `/tmp/review-fix-planning.a6ogtH/worktree`
   ）。対象 checkout の変更ではなく、記録のみとし回収しない。
+
+### Spec レビュー1回目の記録
+
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-431.0zsmult7/2026-11-13-issue-431-issue-authoring-design.spec-review/review-1`、review_id: `e7c06d8c1cf44b57a05ee985b59be933`、reviewed Spec SHA-256: `a4482ef5d8213909802282a17c6fb76824b10f5cb15d5cb089bc74cde9bc5756`。
+- 外部 helper、requested/actual agent: `pi_openai-codex_gpt6-terra_xhigh` / `pi_openai-codex_gpt6-terra_xhigh`。identity: `{"model": "gpt-6.1-terra", "provider": "openai-codex", "effort": "xhigh", "session_id": "01a1d485-ca7e-71f1-bbce-ab511a4203d0", "cli_version": null, "skill_versions": {}}`。fallback 不使用、elapsed_seconds=71.245。
+- S1（important）を採用。scripts/superpowers_context.py の既知経路を確認し、meshy の code_root を呼び出し側で固定し origin を確認する方針と A6 の対照検証を追加した。既存境界を具体化する修正で、許可対象を増やさない。
+- outside_changes=[]、unprotected_changes は設計レビューに記載した同じ削除済み6登録。触らず記録のみ。
