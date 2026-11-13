@@ -125,6 +125,7 @@ stdout の失敗イベントは JSON 全体を分類に流さない。error/fail
 - S4 minor: 保存済み証拠の不整合は status も4で止めることと検証行を追加して採用。
 - S5 minor: aborted_at の設定対象を finish --abort に限定して採用。
 - S6 minor: check-layout 成功を統合の受け入れ基準に追加して採用。
+- 再レビュー: 同 helper / 担当 / identity、review_id `ff76a5ab26604bcf890e95361c333ced`、reviewed SHA-256 `ffc35d6cac0b4623fc857cdd68064cd19f741e910ca6506a8ec671676dca8458`。記録は同セッションの `review-2/`。636.8367869600042 秒、指摘0、不完全項目0、停止確認済み、fallback なし、outside_changes=[]。unprotected_changes は前記6件と親 checkout・#415 worktree の変化（8件）。保護対象は不変。ほかの作業の変化との因果は断定せず、自分の基準 tree を変更していない。
 
 ## 事前検証
 
