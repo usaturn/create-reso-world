@@ -108,3 +108,15 @@ meshy の既知経路は共通 resolver 内に定義されていないため、�
 - review_dir: `/workspaces/reso-world/tmp/agents/issue-431.0zsmult7/2026-11-13-issue-431-issue-authoring-design.spec-review/review-2`、review_id: `e1c22c7ef5794abba20c4b94cfdc17dd`、reviewed Spec SHA-256: `86b47b82fe19bae16b618818e3d7582adc1545d260b2ec3fc7027cdaf999eb89`。
 - 外部 helper、requested/actual agent: `pi_openai-codex_gpt6-terra_xhigh` / `pi_openai-codex_gpt6-terra_xhigh`。identity: `{"model": "gpt-6.1-terra", "provider": "openai-codex", "effort": "xhigh", "session_id": "01a1d489-6300-7605-a381-5b98ac4375da", "cli_version": null, "skill_versions": {}}`。fallback 不使用、elapsed_seconds=33.297。
 - 指摘0件、incompleteなし。採否の対象なし。outside_changes=[]、unprotected_changes は同じ削除済み6登録。
+
+## 実装・統合の記録（2026-11-13）
+
+- Task1/2/3を指定Terraで実装し、Claude OpusによるTaskレビューはいずれも仕様適合・品質を合格と判定した。Task1/2の軽微な文書参照・テスト診断の指摘をTask3で修正し、Task3の指摘は0件。共有resolverやhelperの保護範囲は設計どおり維持した。
+- A1: 実helperのcreate/update/commentが各1件のdraftとpreviewを保存。source checkoutを実行時に使わず、Gitleaks実版8.30.1とfake GitHub応答を使った。
+- A2: 承認後改変・元Issueの競合・秘密検出・非対話で書込み0件、正常な承認相当入力で1回のfake投稿、再送防止を対象テストで確認。モデル評価も案の保存だけで止まった。
+- A3: 独立に作ったfixtureの元本文と復元結果がバイト一致し、管理対象も保持された。旧metadataと後から追加した管理対象が保存済み原文を壊さないSテストを補完した。
+- A4: 作業時間2/3/1分は平均2分で達成。未回収の転記ミス記録はactual/gapに理由を記しachieved=null。0・成功・失敗に置換していない。
+- A5: ルートlocked環境の対象pytestは15件成功。最終全体検証は実装計画の必須3コマンドで行い、公開HEADと固定baseに結び付けてSESSIONのchecks.jsonへ保存する。
+- A6: 実際の親resolverの正常系と未知repoの拒否、実Git/contextを使うmeshy固定checkoutの正常系・origin不一致・別checkoutへのsymlinkの拒否を確認した。
+
+行動比較は同じTerraで各条件1回のみ。スキル無しでも3つの案を保存できたが、既存コメント取得と関連検索が省かれた。導入後は両方を実行した。今回の結果を一般の成功率や速度向上の根拠にはしない。記録は `.agents/skills/issue-authoring/evals/create-reso-world-validation.md`、実行証拠は `/workspaces/reso-world/tmp/agents/issue-431.0zsmult7/` に保存した。

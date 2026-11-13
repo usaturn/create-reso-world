@@ -54,10 +54,10 @@ Spec A1-A6 の本文とこの節を実装担当・Task レビュアー双方の 
 
 **テスト:** S。誤対象・metadata の欠落・壊れたブロックの成功扱いを防ぐ。移植元3テストを適合させ、対象解決の正常系/未登録拒否を代表1件で検証する。meshy 固定経路の正常系と、別 checkout・origin 不一致の拒否も実入力で確認する（誤対象への書込み防止）。共通 resolver の個別組合せの重複テストは作らない。
 
-- [ ] 移植元テストと対象解決のテストを先に配置し、create-reso-world の正常系・未登録拒否・metadata 保持の期待結果が実装前に満たされないことを確認する。 import 不在だけで S の証拠とはせず、移植後の環境適合前の失敗も確認する。
-- [ ] 共有書式と helper を移植し、登録方式を上記インターフェースへ置換する。ラベルの説明・例を移植先の領域に合わせ、既存スキルが新書式に対応済みとの記述を避ける。
-- [ ] `uv run --locked pytest .agents/scripts/tests/test_issue_format.py -q` を実行し、正常系と拒否の両側が通ることを確認する。CLI `labels --repo usaturn/create-reso-world` で表を読み込めることを確認する。
-- [ ] `git diff --check`、該当 Python の構文検査を行い、明示パスだけを commit: `feat: port shared issue format and repository resolution`。
+- [x] 移植元テストと対象解決のテストを先に配置し、create-reso-world の正常系・未登録拒否・metadata 保持の期待結果が実装前に満たされないことを確認する。 import 不在だけで S の証拠とはせず、移植後の環境適合前の失敗も確認する。
+- [x] 共有書式と helper を移植し、登録方式を上記インターフェースへ置換する。ラベルの説明・例を移植先の領域に合わせ、既存スキルが新書式に対応済みとの記述を避ける。
+- [x] `uv run --locked pytest .agents/scripts/tests/test_issue_format.py -q` を実行し、正常系と拒否の両側が通ることを確認する。CLI `labels --repo usaturn/create-reso-world` で表を読み込めることを確認する。
+- [x] `git diff --check`、該当 Python の構文検査を行い、明示パスだけを commit: `feat: port shared issue format and repository resolution`。
 
 ### Task 2: 投稿・整形・抽出 helper と保護テスト
 
@@ -67,11 +67,11 @@ Spec A1-A6 の本文とこの節を実装担当・Task レビュアー双方の 
 
 **テスト:** S。誤投稿・漏洩・競合上書き・本文や記録の消失を防ぐ既存テストを移植する。秘密検出時に書込0件、hashを変えない正常な投稿、元本文復元、壊れた metadata と正常 Issue を同時に保持する観測を揃える。1つの守りは代表1件で、文言・一覧・help の固定テストは作らない。
 
-- [ ] テストを先に移植し、fake GitHub と fake scanner を create-reso-world に合わせる。秘密の見本は実行時に生成し、ソースに検出される値を残さない。
-- [ ] helper を移植し、Gitleaks の pin ファイル・実行例を適合させる。canary、redact、設定上書き排除、draft hash、競合、非対話、journal、再送防止を維持する。Task 1 のファイル変更が必要なら勝手に範囲を広げず結果に理由を返す。
-- [ ] `uv run --locked pytest .agents/scripts/tests/test_issue_format.py .agents/skills/issue-authoring/tests -q` を実行。改変・競合・秘密・非対話で書込0件、承認済み相当の正常入力では期待する fake 書込が生じることを確認する。
-- [ ] 相対リンクを作り、明示パスを stage して `bash scripts/check-layout.sh`、`git diff --check`、構文検査を実行する。
-- [ ] commit: `feat: port issue publishing reshaping and extraction helpers`。
+- [x] テストを先に移植し、fake GitHub と fake scanner を create-reso-world に合わせる。秘密の見本は実行時に生成し、ソースに検出される値を残さない。
+- [x] helper を移植し、Gitleaks の pin ファイル・実行例を適合させる。canary、redact、設定上書き排除、draft hash、競合、非対話、journal、再送防止を維持する。Task 1 のファイル変更が必要なら勝手に範囲を広げず結果に理由を返す。
+- [x] `uv run --locked pytest .agents/scripts/tests/test_issue_format.py .agents/skills/issue-authoring/tests -q` を実行。改変・競合・秘密・非対話で書込0件、承認済み相当の正常入力では期待する fake 書込が生じることを確認する。
+- [x] 相対リンクを作り、明示パスを stage して `bash scripts/check-layout.sh`、`git diff --check`、構文検査を実行する。
+- [x] commit: `feat: port issue publishing reshaping and extraction helpers`。
 
 ### Task 3: 3 モードの手順・シナリオ・統合確認
 
@@ -81,14 +81,14 @@ Spec A1-A6 の本文とこの節を実装担当・Task レビュアー双方の 
 
 **テスト:** 新しい固定文言テストは不要（F/L）。スキルの無し/ありの行動比較と実 helper の操作結果で検証する。データ保存・未計測を守る既存の S テストは Task 2 に置き、同じ守りを docs 用テストで重ねない。
 
-- [ ] controller がスキル無しの現行 HEAD で、同じ3モードの依頼を1つの外部評価に渡す。実 GitHub 書込み禁止、入力は固定 fixture と fake CLI、結果は SESSION。保存された案の有無と観測した挙動を記録する。
-- [ ] 指定元の手順・agent 定義・評価シナリオを移植し、repository-ownership/projects.toml/個別 project 文書に依存する手順を既存境界へ置換する。未実装のモードや過去の評価を今回の成功と記さない。
-- [ ] Task 1 レビューの T1/T2（移植元 #869 参照、issue-to-pr の項目番号）を修正する。Task 2 レビューの T1（docstring の出典・テスト数）、T2（同じ draft 不変性を二重照合する assertion）、T3（stderr の Issue 番号を照合する弱い assertion）を修正する。出典番号は owner/repo を付けるか除き、架空のテスト入力の番号を実 Issue への参照とみなさない。テスト追加はせず、既存 S テストの診断対象の確認と重複整理に限る。
-- [ ] 移植元との追加照合で不足が分かった S テストを補う。管理対象の追加後も保存済み原文を取り違えない正常系と、一意でない対応の拒否を代表1件にする（凍結した履歴の書換えを防ぐ）。既存の原文保持テストには旧metadataの保存を1例含める。改行・位置・padの組合せは網羅しない。これは上の軽微指摘への対応とは別の、Task 2で移植しなかった保護の補完であり、helperの機能は変えない。
-- [ ] 後片付けは agent_tmp mkdir と AGENTS.md のガードを使い、存在しない agent_tmp rm を案内しない。承認待ち・途中停止・非対話の保存物を消さない。
-- [ ] 日本語複数行の新規案、元本文と管理対象を含む整形差分、実測1件/未計測1件の評価案を、fake GitHub で実 helper から各1件作成して記録する。controller が条件 A1-A6 と保存物を照合する。
-- [ ] controller がスキルありで同じ3モードの依頼を1回評価する。実 helper の結果、案の保存、未計測、承認待ちと fake 書込0件を確認し、無しの結果と比較する。実行例・参照・相対リンクも確認する。
-- [ ] `uv run --locked pytest .agents/scripts/tests/test_issue_format.py .agents/skills/issue-authoring/tests -q`、`bash scripts/check-layout.sh`、`git diff --check` を実行し、commit: `docs: add issue authoring workflows and validation scenarios`。
+- [x] controller がスキル無しの現行 HEAD で、同じ3モードの依頼を1つの外部評価に渡す。実 GitHub 書込み禁止、入力は固定 fixture と fake CLI、結果は SESSION。保存された案の有無と観測した挙動を記録する。
+- [x] 指定元の手順・agent 定義・評価シナリオを移植し、repository-ownership/projects.toml/個別 project 文書に依存する手順を既存境界へ置換する。未実装のモードや過去の評価を今回の成功と記さない。
+- [x] Task 1 レビューの T1/T2（移植元 #869 参照、issue-to-pr の項目番号）を修正する。Task 2 レビューの T1（docstring の出典・テスト数）、T2（同じ draft 不変性を二重照合する assertion）、T3（stderr の Issue 番号を照合する弱い assertion）を修正する。出典番号は owner/repo を付けるか除き、架空のテスト入力の番号を実 Issue への参照とみなさない。テスト追加はせず、既存 S テストの診断対象の確認と重複整理に限る。
+- [x] 移植元との追加照合で不足が分かった S テストを補う。管理対象の追加後も保存済み原文を取り違えない正常系と、一意でない対応の拒否を代表1件にする（凍結した履歴の書換えを防ぐ）。既存の原文保持テストには旧metadataの保存を1例含める。改行・位置・padの組合せは網羅しない。これは上の軽微指摘への対応とは別の、Task 2で移植しなかった保護の補完であり、helperの機能は変えない。
+- [x] 後片付けは agent_tmp mkdir と AGENTS.md のガードを使い、存在しない agent_tmp rm を案内しない。承認待ち・途中停止・非対話の保存物を消さない。
+- [x] 日本語複数行の新規案、元本文と管理対象を含む整形差分、実測1件/未計測1件の評価案を、fake GitHub で実 helper から各1件作成して記録する。controller が条件 A1-A6 と保存物を照合する。
+- [x] controller がスキルありで同じ3モードの依頼を1回評価する。実 helper の結果、案の保存、未計測、承認待ちと fake 書込0件を確認し、無しの結果と比較する。実行例・参照・相対リンクも確認する。
+- [x] `uv run --locked pytest .agents/scripts/tests/test_issue_format.py .agents/skills/issue-authoring/tests -q`、`bash scripts/check-layout.sh`、`git diff --check` を実行し、commit: `docs: add issue authoring workflows and validation scenarios`。
 
 ## 要件・Task・検証の対応
 
@@ -122,3 +122,15 @@ runner が期限と停止確認を管理する。予約枠は末尾5分を保存
 - 共通設定を変えずに既存 pytest と layout を使う。構造上不足すると分かった場合だけ必要最小限の変更を計画へ記録する。
 - 実モデル失敗を self 実装や fake 成功で置換しない。残りは未完了として報告する。
 - base 前進は issue-to-pr の未push条件付き復帰と必須再検証だけで追随する。push後の移動は停止する。
+
+## 実装時点の記録（2026-11-13）
+
+3 Task は指定の `pi_openai-codex_gpt6-terra_xhigh`（実モデル `gpt-6.1-terra`、provider `openai-codex`、effort `xhigh`）へ逐次依頼し、helperで受け入れた。Task1 282.715秒、Task2 273.830秒、Task3 278.130秒、Task3の評価記録追記82.776秒。暗黙のfallbackはない。
+
+Taskレビューは `claude-code_opus_default`（実モデル `claude-opus-5-5`）で、Task1 76.145秒、Task2 68.246秒、Task3 100.216秒。いずれも仕様適合・品質を合格と判定。Task1/2の軽微指摘5件をTask3で修正し、Task3の指摘は0件。全runnerの停止を確認し、専用worktreeを回収した。他セッションや古い登録のunprotected_changesは削除していない。
+
+対象テストは実装版 `5d8fc3bcf4b6dc776a42ae015d3f252ee06da43c` で15件成功。旧metadata・原文と管理対象の保持、管理対象追加後の履歴保持、曖昧な対応の拒否を含む。Task3レビュー後の一時確認でも拒否の理由が一意でない対応であると確認した。一時確認の初回はcontroller側の英文照合が誤って終了コード1になり、実装の例外発生箇所を確認して照合だけ修正した後は0。実装は変更していない。Ruffは未導入のため未実行であり、成功とは扱わない。構文・JSON・配置・差分検査は成功した。
+
+スキル無し/ありは同一fixtureで各1回（各3モード）、同じTerraを使用した。いずれも実helperで3つの案を保存し、元本文のバイト列・管理対象・実測true/未計測null・fake書込み0件をcontrollerが照合した。導入後は既存コメント取得と関連検索も行った。単一条件での観測であり、一般の成功率を表さない。詳細は `.agents/skills/issue-authoring/evals/create-reso-world-validation.md`。
+
+検証ログ・runner結果・条件A1〜A6の対応は `/workspaces/reso-world/tmp/agents/issue-431.0zsmult7/`。最終clean HEADでの全体検証はこの記録をコミットした後に行い、HEAD/base/argv/終了コードを `checks.json`、実ログを同SESSIONに保存する。状態draftは内容承認を得ていないことを表し、利用者の実行許可と区別する。公開結果はPRとレビュー修正ループの記録に残す。
