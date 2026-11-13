@@ -8,6 +8,7 @@
 - 追加指示: 「作業中 pi_alibaba_qwen4-max_max でうまくいかない場合は devin_swe2_max に変更してリトライして」。安全上の拒否・停止未確認は再試行しない。helper の順序・同一担当の制約を迂回しない。
 - issue-to-pr の委任により推奨案を選び、検証・commit・push・PR・レビュー修正ループへ進む。マージはループの `finalize.py` だけが行う。
 - repository: `usaturn/create-reso-world`。現在の base: origin / `refs/heads/main` / `ae50a14428bb4200054dfdcefd135dcacec20654`（初期 `bcff80ed97c70b31cb30afd3dfb6f9264594efb2` から、未pushの前進追随1回）。
+- 現在の担当: Specレビュー `pi_opencode-go_deepseek4-flash_max`、Planの実装・レビュー修正 `devin_swe2_max`。初期のQwen指定と失敗・切替履歴は下に保持する。
 - Spec・Plan はコードと同じ worktree・PR に含める。確認用コピーは作らない。
 
 ## 目的と原因
@@ -26,7 +27,7 @@
 - 安全指示全文の一致テストや本文の複製は追加しない。
 - 実モデルによるテスト再現は行わない。ワークフローで明示指定されたレビュー・実装担当の起動と、fake adapter のみの検証を区別する。
 
-実 worktree 作成・期限・停止確認そのものの網羅は、既存の runner/workspace テストが担う。本変更で実装側の変更が必要なら着手前に停止し、#400 との結合方針の更新が必要であることを報告する。
+実 worktree 作成・期限・停止確認そのものの網羅は、既存の runner/workspace テストが担う。runner 側の変更が必要と判明したら編集前に停止し、方針を更新して #415 に #400 の native `blocked_by` を設定する。#400 を先にマージし、その内容を作業ブランチへ取り込んでから再開する。同時編集しない。#400 が段落構造を変える案へ切り替わる場合も、helper の対応を含む結合方針を先に両 Issue で更新する。これは今回の runner 編集許可ではなく、停止後に満たす条件である。
 
 ## 設計
 
@@ -37,7 +38,15 @@
 3. `FakeAdapter` が要求を記録し、偽のローカルプログラムを実行して receipt を回収する。
 4. 外部2役割の同一の一覧、各行の役割限定、各パスの付与数を既存の期待値で照合する。
 
-対象テストと、同じ要求件数・一覧を検査する直接関連テストにのみ fixture を適用する。autouse で全テストを置き換えず、改ざん・停止未確認・履歴などの検査を広く fake にしない。
+fixture の適用先は、外部役割の準備後の処理を前提にする次の5テストに限定する（parametrize の各ケースを含む）。
+
+- `test_external_review_roles_list_their_write_exceptions_with_the_role`
+- `test_only_the_externally_assigned_role_lists_exceptions`
+- `test_single_call_uses_both_review_roles_and_retains_self_instructions`
+- `test_review_directory_tampering_is_not_accepted_or_cleaned`
+- `test_unconfirmed_stop_blocks_fix_check_accept_and_keeps_budget`
+
+autouse で全テストへ適用しない。5テストでも差し替えるのは準備だけであり、実際のプロンプト生成・fake subprocess/collect・改ざん検出・停止未確認の拒否・回数枠の保持は実処理を残す。起動前拒否や履歴を検査する他のテストは変更しない。
 
 `launch()` の返した batch を受け取り、外部役割が成功して必要な要求を残したかを照合してから一覧を比較する。失敗時の assertion には役割名・state・attempt の state/終了コード等、原因を特定できる診断を含める。成功しなかった役割を無視して合格にしない。
 
@@ -50,7 +59,7 @@
 - 防御範囲: 外部2役割に同じ一覧が渡ること、各行が役割を限定すること、役割ごとの許可パスの既存 assertion を弱めない。要求が欠ける・失敗する側は状態付きで失敗する。実 worktree 準備の成功そのもの、任意の安全指示文言、#400 の実装変更は対象外。
 - `exception_lines()` は変更せず、#400 が維持する「安全指示1行 → writes1行 → 見出し・一覧 → 空行 → 本文」の構造に対応し続ける。
 - 対象ファイルの単独実行、runner 全体、README の共通検証を成功させる。
-- 対象ファイルの pytest とシェル共通検証を同時実行する確認を2回行い、対象テストの失敗0回を観測する。回数を結果に応じて増やして成功率を作らない。
+- 対象ファイルの pytest とシェル共通検証を同時実行する確認を2回行い、`test_run_roles.py` 全体の失敗0回を観測する。回数を結果に応じて増やして成功率を作らない。
 - #400 は完了依存ではない。未マージなら現在版での成功と両変更が揃った実行の未確認を区別して記録する。結合確認がマージ後に残る場合は `Refs #415` とし、残項目を Issue へ報告する。
 
 ## テスト採用基準
@@ -68,14 +77,14 @@
 
 ### D2: 状態付き診断と既存の検査範囲
 
-- 選択した案: batch の役割結果を一覧照合前に検査し、失敗時に state を出す。同じ要求件数に依存する直接関連テストにも局所 fixture を適用できる。
+- 選択した案: batch の役割結果を一覧照合前に検査し、失敗時に state を出す。設計節に列挙した5テストでworktree準備だけを局所置換し、本来の許可範囲・改ざん・停止拒否の検査は残す。
 - 検討した別案: 件数 assertion のみ、全テストを autouse で高速化する。
 - 選択理由: 前者は原因が分からず、後者は本来検査する経路まで変える。安全検査の意味を保つ範囲に限定する。
 - 委任指示または停止条件: 通常設計判断の委任。許可範囲を弱める変更は不可。
 
 ### D3: 担当・レビュー・公開
 
-- 選択した案: Spec レビューと Plan の実装は明示指定 `pi_alibaba_qwen4-max_max`。両方の check 結果は `self=false`、fallback は個人設定から保持された空配列。builder check は Spec レビューで代替する。
+- 選択した案: 現在の担当は管理節のとおり、Specレビュー DeepSeek / 実装・修正 Devin。初期指定はQwenだったが利用枠超過で変更した。check はいずれも `self=false`、fallback は個人設定から保持された空配列。builder check は Spec レビューで代替する。
 - 検討した別案: 司令塔の inline 実装、無指定の設計レビュー。
 - 選択理由: 利用者の明示した担当を優先する。設計レビューは指定がないので起動しない。
 - 委任指示または停止条件: Qwen の信頼性の失敗時は停止確認後、明示指示の範囲で Devin を検討する。ただし Spec 再レビューの同一担当制約・安全拒否は迂回しない。
@@ -96,3 +105,6 @@
 - その後、利用者が指定した `agy_gemini4-hydrogen_high` は未登録で、事前checkが終了2 `config: invalid_reference`。モデルを起動せず停止した。
 - 今回の明示指示「pi_opencode-go_deepseek4-flash_max に変更してリトライして」により、Specレビューを同agentで再試行する。check成功、self=false、fallback空。実装担当は先の明示切替指示に基づくDevinを維持し、今回のレビュアー変更を他役割へ推測で広げない。
 - 再開時にmainの前進を確認。PR #437の変更はagent-runner.tomlのコメント、README、別テーマのSpec/Planのみ。両TOML blobのparse結果が等しく、AGENTS.md・実装・対象テスト・共有仕様は不変、所有パスとの重複なし。helperで未pushのfeatureを新baseへrebaseした。公開前の必須検証を新base/HEADで再実行する。
+- DeepSeekの有効な初回レビュー: helper外部実行、review_dir `/workspaces/reso-world/tmp/agents/issue-415.gjerrhip/2026-11-13-issue-415-stable-role-tests-design.spec-review/review-3`、review_id `a1fa83ab67af42f1aec6181fd3eecddf`、reviewed SHA-256 `faba8b18dd755a0306edf97970a609f7f73675ed6ff51831727c67c3bc879125`。指定・実担当 `pi_opencode-go_deepseek4-flash_max`、観測 `deepseek-v4.1-flash` / `opencode-go` / `max`、1027.553秒、attempt停止確認済み・終了0、fallback未使用、outside_changesなし。
+- unprotected_changes は消えた既存6登録と、実行中に変化した親checkout・#356のworktree/試行領域。いずれも本Specのcheckoutではなく、対象HEAD・tracked/untrackedに変化なし。親の移動は既に確認したbase前進先と同じで、実装・規則の前提を変えない。他者領域は触らない。
+- 採否: S1 importantを採用し、対象5テストを列挙、準備だけの置換と本来の検査維持を明記、並行確認の合否をファイル全体の失敗0回へ明確化した。S2 minorを採用し現在の担当を管理節に明示。S3 minorを採用し、runner変更が必要なときのnative依存・先行マージ・取り込み・段落構造変更時の条件をIssueに合わせた。範囲・意味の変更やrunner編集許可の拡張はない。重要指摘採用により同担当で再レビューを1回行う。
