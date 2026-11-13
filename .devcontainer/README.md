@@ -1497,6 +1497,8 @@ Alibaba では `MAAS_ANTHROPIC_TOKEN` を引き継ぐ。
 「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」と
 「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある。
 
+AW の雛形には Antigravity CLI（runtime `agy`）の agent があるが、本リポジトリには追加しない。#365 の範囲は新しい agent の追加を含まず、agent_runner に agy adapter が無い（agy CLI 自体は「導入ツール一覧」にある）。
+
 `pi_alibaba_qwen4-max_max` は `piaq` を呼ぶ。通常のシェルでは `MAAS_ANTHROPIC_TOKEN` を export して使う。
 子に渡るのは `env` に挙げた変数だけなので、`with_keys.py` を通さない場合、runner を起動したシェルに key が無ければ届かない。
 届かないとき `piaq` は値を表示せず終了コード 1 で止まり、Pi を起動しない。ccd 系のランチャーは自分の子から key を外すので、
@@ -1605,7 +1607,7 @@ agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_max", "pi_opencode-go_deep
 ```
 
 編集後は、リポジトリのルートで上記の `check` と `list` を実行する。成功は設定の検査であり、認証や実サービス起動の成功を意味しない。
-この環境の既存個人設定は旧名の参照だけを持つため、マージ後に利用者による移行が必要であり、本変更では触らない。
+この環境の個人設定は #365 残作業の着手時（2026-11-14）に旧名の参照・定義が無いことを確認済み（agent-runner-personal.toml の例コメントのみ）で、移行は不要。
 マージ前の PR 修正ループは、親 checkout の旧雛形と既存設定をそのまま使い、`--config` / `--assign` を勝手に補わない。
 
 ### Command Code GOAT の契約終了後の移行
