@@ -79,3 +79,17 @@
 担当の検査結果: 設計 `claude-code_opus_default`、Spec と Task 実装 `pi_openai-codex_gpt6-terra_xhigh` は利用者の明示値。いずれも fallback は設定上空、self は false。PR 後の inspect は明示された `devin_swe2_max,pi_opencode-go_deepseek4-flash_max,claude-code_opus_default`、fix implement は明示された `pi_openai-codex_gpt6-terra_xhigh`。fix self-review/fix-check の self は設定の既定。loop の max_cycles=3 と template は既定の適用で、config override はない。各 check は終了コード 0。
 
 レビュー結果と採否は、実際に受け取った後にこの節へ追記する。
+
+### 設計レビューの記録
+
+- 外部 helper による1回目。review_dir: `/workspaces/reso-world/tmp/agents/issue-431.0zsmult7/2026-11-13-issue-431-issue-authoring-design.design-review/review-1`、review_id: `13c360f615f64b23b95f7507956c904a`。
+- reviewed Spec SHA-256: `aca455623d7cfbc4a21b816fd5fda895ecb0a399a29fc747b422a1fd4c9f2632`。requested/actual agent: `claude-code_opus_default` / `claude-code_opus_default`。観測 identity: `{"model": "claude-opus-5-5", "provider": null, "effort": null, "session_id": "21b5c0c0-08c7-4932-9cc1-2f4b625b89ae", "cli_version": "2.1.323", "skill_versions": {}}`。fallback 不使用、elapsed_seconds=41.860。
+- verdict=sound、指摘0件、questions_for_user/incomplete なし。D1-D6 を維持し、採否の対象はない。
+- outside_changes=[]。unprotected_changes は開始前から存在する削除済みの別作業 worktree 登録6件（
+  `/tmp/pr-review-376-2f0d17b0/worktree`
+  `/tmp/pr-review-376-79fe98e5/worktree`
+  `/tmp/pr-review-376-7f95b4e6/worktree`
+  `/tmp/pr-review-376-c9a6d3e9/worktree`
+  `/tmp/review-fix-planning.9AkFc2/worktree`
+  `/tmp/review-fix-planning.a6ogtH/worktree`
+  ）。対象 checkout の変更ではなく、記録のみとし回収しない。
