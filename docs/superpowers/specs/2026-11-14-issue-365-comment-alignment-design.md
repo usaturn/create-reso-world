@@ -59,6 +59,7 @@ PR #432（merged 2026-11-13、merge commit `c120e59f`）でカタログの値・
 
 ### 揃えない差分（理由をコメントか README に残す）
 
+- 冒頭の agent 名参照は CRW の実節名「agent の命名と同一モデルの比較」を当て、install_beforehand の説明 2 行を保持する（設計項目 1。AW の節名「agent の命名規則」は CRW の README に存在しない。install_beforehand 説明は Issue 差分表が保持を指示）。
 - Sol / OpenCode Go DeepSeek の `env = OPENCODE_API_KEY`（Pi の正式名・旧名からの引き継ぎ。README 記載済み）。
 - review の `after_run --project .`（CRW に tools/devenv が無い。README 記載済み）。
 - `[workflows.issue.assignments.implement]` の `self`（#391 の利用者決定）。
