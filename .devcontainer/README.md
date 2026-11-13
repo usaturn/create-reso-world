@@ -89,6 +89,7 @@ touch ~/.config/create-reso-world/env && chmod 600 ~/.config/create-reso-world/e
      ヘルパは pi を `--tui-mode regular` で起動する
      （「pi の TUI モードと Herdr のスクロール履歴」）
    - `claude-alibaba-exec` を `~/.local/bin` に置く（「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」）
+   - `claude-ollama-exec` を `~/.local/bin` に置く（「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」）
    - Claude Code の alias（`ccd`・`ccdo`・`ccds`）とプロバイダ関数を含むシェル設定の配置
      （「Claude Code の起動と更新」）
    - Grok Build は導入しない。`PI_DISTILL_*` と `PI_EXTENSIONS_LOCALE` を export しない
@@ -127,6 +128,8 @@ rebuild しない場合は、3 の代わりに次を行う。
   `zsh scripts/setup_pi_superagents.zsh --if-absent` が更新する
 - `claude-alibaba-exec`: 同じ節の 21 の `install -m 0755` で `~/.local/bin` に置く。
   置かないと runner の `claude-code_alibaba_opus_max` は `launch_failed` になる
+- `claude-ollama-exec`: 同じ節の 22 の `install -m 0755` で `~/.local/bin` に置く。
+  置かないと runner の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` は `launch_failed` になる
 - Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映。古い `~/.zshrc` に残る
   2026-10 以前の `ccda`（`claude-alibaba`）の関数は、`zshrc.txt` の新しい関数に置き換える。
   `update()` の Grok Build の行も削除する
@@ -761,8 +764,9 @@ Dev Container を使わないローカル環境のみ、以下を手動で順に
 19. `install -m 0755 .devcontainer/pidid ~/.local/bin/pidid`
 20. `install -m 0755 .devcontainer/piaq ~/.local/bin/piaq`
 21. `install -m 0755 .devcontainer/claude-alibaba-exec ~/.local/bin/claude-alibaba-exec`
-22. `zsh scripts/setup_pi_superagents.zsh --if-absent`
-23. `bash .devcontainer/install_ctx7.bash`
+22. `install -m 0755 .devcontainer/claude-ollama-exec ~/.local/bin/claude-ollama-exec`
+23. `zsh scripts/setup_pi_superagents.zsh --if-absent`
+24. `bash .devcontainer/install_ctx7.bash`
 
 Command Code GOAT の `piccg`・`piccd` は契約停止中のため通常導入から外している。
 再契約時は「Command Code GOAT の契約終了後の移行」の手動 setup を使う。
@@ -855,6 +859,49 @@ ccdol
 英数字を 1 文字も含まないときは、キーの値を表示せずにエラーを出し、`claude` を起動しない（終了コード 1）。
 Claude Code は `ANTHROPIC_AUTH_TOKEN` を trim（Unicode の空白も除く）して空なら、
 保存済みの claude.ai の OAuth トークンを接続先へ送るため、起動の前に止めている。
+
+#### agent-runner から使う（#408）
+
+雛形の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` は `claude-ollama-exec`
+（`.devcontainer/claude-ollama-exec`）を呼び、`ccdol` と同じ接続先へつなぐ。役割には既定で割り当てない。
+
+| 項目 | `claude-code_ollama_opus_max` | `claude-code_ollama_sonnet_max` |
+| --- | --- | --- |
+| `command` | `claude-ollama-exec` | `claude-ollama-exec` |
+| `model` | `opus` | `sonnet` |
+| `model_key` | `deepseek-v4.1-flash` | `deepseek-v4.1-flash` |
+| `provider` | `ollama` | `ollama` |
+| `effort` | `max` | `max` |
+| `env` | `HOME`・`PATH`・`OLLAMA_API_KEY` | `HOME`・`PATH`・`OLLAMA_API_KEY` |
+
+`claude-ollama-exec` は `install_beforehand.bash` が `~/.local/bin` に置く。Rebuild 前に使うときは、
+「エージェント向けツールの導入」の 22 の `install -m 0755` で `~/.local/bin` に置く。
+置かないと `~/.local/bin` に無いため、runner の run は `launch_failed` になる。
+モデルの対応（fable・opus・sonnet・haiku のどれも `deepseek-v4.1-flash:1017[1m]`）は
+`zshrc.txt` の `ccdol` と揃える。片方を変えるときは、もう片方も変える。
+
+`OLLAMA_API_KEY` は両方の agent の `env` にあるので、env ファイルに書けば wrapper は補う。
+ただし env ファイルには置かない方針なので、通常は key を export したシェルから起動する。
+`ccdol` 起動セッションからは、`with_keys.py` が `ANTHROPIC_BASE_URL`（`https://ollama.com`）の
+完全一致で `ANTHROPIC_AUTH_TOKEN` から `OLLAMA_API_KEY` を補う。`ccdd`・`ccddg`・`ccdgo`・`ccda`
+のセッションからは補われない。
+
+```bash
+read -rs 'OLLAMA_API_KEY?Ollama API key (非表示): ' && export OLLAMA_API_KEY
+uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py -- \
+  python -m tools.agent_runner run --workflow review --assign inspect=claude-code_ollama_opus_max \
+  --repository /path/to/repository --revision HEAD --prompt-file /path/to/prompt.txt
+```
+
+- runner は起動時の環境から `agent.env` に書いた名前の値だけを子に渡す。起動後の export は子に届かない
+- `claude-ollama-exec` は、未設定・空、または ASCII の英数字を 1 文字も含まない `OLLAMA_API_KEY` では
+  値を表示せずに終了し、`claude` を起動しない（終了コード 1）。子には `ANTHROPIC_AUTH_TOKEN` だけを渡し、
+  `ANTHROPIC_API_KEY` は渡さない（Bearer 認証のみ）
+- 同じ役割に並べられない組み合わせ（`check` が `duplicate_model` で拒否する）: `model_key` が
+  `deepseek-v4.1-flash` の agent（`pi_commandcode_deepseek4-flash_max`・
+  `pi_opencode-go_deepseek4-flash_max`・`pi_deepinfra_deepseek4-flash_high` と Ollama の 2 agent 同士）。
+  さらに `opus` 側は `model` が `opus` の `claude-code_opus_default`・`claude-code_alibaba_opus_max`、
+  `sonnet` 側は `model` が `sonnet` の `claude-code_sonnet_xhigh` と同じ役割に並べられない
 
 #### 接続先の確認
 
@@ -1232,8 +1279,10 @@ ccda -p "テストを実行して結果を要約して"
 `zshrc.txt` の `ccda` と揃える。片方を変えるときは、もう片方も変える。
 
 `MAAS_ANTHROPIC_TOKEN` は `claude-code_alibaba_opus_max` の `env` にあるので、env ファイルに書けば wrapper は補う。
-env ファイルに置かない方針なので、通常は補われない。
-key を export した通常のシェルから起動する。ランチャー起動セッションからは、ファイルに無いので通常は補われない。
+ただし env ファイルには置かない方針なので、key を export した通常のシェルから起動する。
+`ccda` 起動セッションから `with_keys.py` 経由で起動するときは、`ANTHROPIC_BASE_URL`（Token Plan の
+Anthropic 互換 API）の完全一致で `ANTHROPIC_AUTH_TOKEN` から `MAAS_ANTHROPIC_TOKEN` を補う。
+`ccdd`・`ccddg`・`ccdgo`・`ccdol` のセッションからは補われない。
 
 ```bash
 read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN
@@ -1309,8 +1358,11 @@ key は `MAAS_ANTHROPIC_TOKEN` で、ファイルに書かず、使うシェル�
 
 ランチャー起動セッションの中には key が無い。ccd 系のランチャーは `cc_launcher_unsets` で自分の子から
 `MAAS_ANTHROPIC_TOKEN` を外す（`ccda` は子に `ANTHROPIC_AUTH_TOKEN` として渡し直すだけで、変数名はそのまま残さない）。
-このリポジトリは key を env ファイルに置かず、`with_keys.py` で補う経路も無い。そのセッションから `piaq` を起動すると、
+このリポジトリは key を env ファイルに置かない。そのセッションから対話の `piaq` を直接起動すると、
 値を表示せず終了コード 1 で終わり、Pi は起動しない。key を export した通常のシェルから使う。
+`ccda` セッションから `with_keys.py` 経由で agent-runner の `pi_alibaba_qwen4-max_max` を起動する場合は、
+`ANTHROPIC_BASE_URL` の完全一致で `ANTHROPIC_AUTH_TOKEN` から `MAAS_ANTHROPIC_TOKEN` が補われる
+（`ccda` 以外のランチャーセッションからは補われない）。
 
 新規コンテナでは Rebuild が `piaq` と、`models.json` が無い場合の雛形（`alibaba` を含む）と、欠けている tier を置く。
 既存の `models.json` は Rebuild でも更新されない。Rebuild 前は `piaq` も無い。既存環境へ反映するときは、
@@ -1371,7 +1423,7 @@ wrapper と runner が同じ checkout のとき、渡さない既定では両方
 
 ランチャー（`ccdd`・`ccddg`・`ccdgo`・`ccdol`・`ccda`）で起動したセッションは、`cc_launcher_unsets` で親の認証情報が外れている。
 このセッションから `run` で担当を起動するときは、上の例のように `with_keys.py` を経由する。補う名前・読み元・解析の規則は
-「API トークン」節の「ランチャー起動セッションから runner を使う（#401）」にある。ランチャーを使わない通常のシェルからでも、
+「API トークン」節の「ランチャー起動セッションから runner を使う（#401・#408）」にある。ランチャーを使わない通常のシェルからでも、
 補うものが無いだけで同じコマンドが動く。
 
 runtime が `cursor` の担当（雛形の `cursor_auto_default`・`cursor_grok4_xhigh` と、同じ runtime の任意の名前の担当）は、`writes = false` の役割
@@ -1439,17 +1491,25 @@ Command Code の agent 定義自体は再契約後の明示的な `--assign` 用
 `GOOGLE_APPLICATION_CREDENTIALS` / `GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION`、
 Alibaba では `MAAS_ANTHROPIC_TOKEN` を引き継ぐ。
 
+このほか、Claude Code 用の exec を呼ぶ雛形 agent として、#401 の `claude-code_alibaba_opus_max` と
+#408 の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` がある。設定と使い方は
+「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」と
+「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある。
+
 `pi_alibaba_qwen4-max_max` は `piaq` を呼ぶ。key を export した通常のシェル（ランチャー起動セッションの外）から使う。
 子に渡るのは `env` に挙げた変数だけで、runner を起動したシェルに key が無ければ届かない。届かないとき `piaq` は
 値を表示せず終了コード 1 で止まり、Pi を起動しない。ccd 系のランチャーは自分の子から key を外すので、
-ランチャー起動セッションの中には key が無い。このリポジトリは env ファイルに key を置かず、`with_keys.py` で補う経路も無い。
+ランチャー起動セッションの中には key が無い。このリポジトリは env ファイルに key を置かない。
+`ccda` セッションから `with_keys.py` 経由で起動するときは、`ANTHROPIC_BASE_URL` の完全一致で
+`ANTHROPIC_AUTH_TOKEN` から `MAAS_ANTHROPIC_TOKEN` が補われる（`ccda` 以外のランチャーセッションからは補われない）。
 Rebuild 前は `~/.local/bin/piaq` が無い。既存の `models.json` には Rebuild でも `alibaba` が入らない。
 どちらも、リポジトリのルートで `zsh scripts/setup_pi_alibaba.zsh` と
 `zsh scripts/setup_pi_superagents.zsh --if-absent` を実行してから使う。既定の workflow 割り当てには入れない。
 
 ```bash
 read -rs 'MAAS_ANTHROPIC_TOKEN?Model Studio API key (非表示): ' && export MAAS_ANTHROPIC_TOKEN
-uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner run \
+uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py -- \
+  python -m tools.agent_runner run \
   --workflow review --assign inspect=pi_alibaba_qwen4-max_max \
   --repository . --revision HEAD --prompt-file /path/to/prompt.txt
 ```
@@ -1460,13 +1520,16 @@ uv run --project "$PARENT_ROOT" --locked python -m tools.agent_runner run \
 比較集合は `{model}` とし、`model_key` もあれば `{model, model_key}` とする。同じ役割の `agents` / `fallback` の全候補間、または `exclude_same_model_as` で指定した役割間に共通要素があれば、
 起動前に `duplicate_model` で拒否する。キーは model の比較を置き換えないため、同じ model ならキーが片方だけ、
 または互いに異なっても重複になる。文字列は完全一致で、自動正規化や未知の別名の推測はしない。
-CommandCode / OpenCode Go / DeepInfra の 3 DeepSeek agent には `model_key = "deepseek-v4.1-flash"` を付け、
+CommandCode / OpenCode Go / DeepInfra の 3 DeepSeek agent と Ollama の 2 agent には `model_key = "deepseek-v4.1-flash"` を付け、
 provider ごとに異なる model ID でも同じ役割には混在させない。キー無しで異なる model の設定は受け入れる。
 SWE-2 の `devin_swe2_max`・`devin_swe2_medium` にも同じ `model_key = "swe-2"` を付けている。
 `devin_swe2_medium`（SWE-2 Medium）は既定のどの割り当てにも入っておらず、`--assign` か個人設定で選べる。
 2 つは同じ `model_key` なので、同じ役割に並べると `duplicate_model` で拒否される。
 `claude-code_alibaba_opus_max` は `model` が `opus` なので、`claude-code_opus_default` と同じ役割に並べられない。
-組み合わせは「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」にある。
+`claude-code_ollama_opus_max` も同じく `model` が `opus` で、`claude-code_ollama_sonnet_max` は `model` が `sonnet` なので
+`claude-code_sonnet_xhigh` と同じ役割に並べられない。組み合わせは
+「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」と
+「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある。
 `pi_alibaba_qwen4-max_max` の `model` は `qwen4-max-preview` で、#401 の `claude-code_alibaba_opus_max` の
 `model_key` と同じ文字列になる。`claude-code_alibaba_opus_max` と同じ役割に並べると `duplicate_model` で拒否される。
 
@@ -1615,6 +1678,7 @@ models.json だけが bind mount の内側で、他が外側にあるためで�
 - `.devcontainer/pixg` → `~/.local/bin/pixg`。同様に毎回上書き
 - `.devcontainer/pigemf`・`pigemp`・`pigema` → `~/.local/bin/`。同様に毎回上書き
 - `.devcontainer/claude-alibaba-exec` → `~/.local/bin/claude-alibaba-exec`。同様に毎回上書き
+- `.devcontainer/claude-ollama-exec` → `~/.local/bin/claude-ollama-exec`。同様に毎回上書き
 - `.devcontainer/pi-superagents/<launcher>.json` → `~/.pi/agent/extensions/subagent.d/create-reso-world/<launcher>/config.json`、
   `.devcontainer/pi-superagents-exec.zsh` → `~/.local/bin/pi-superagents-exec.zsh`、
   共有の bind 先 `~/.pi/agent/extensions/subagent/config.json` の停止用の設定、
@@ -1897,9 +1961,12 @@ key が届く仕組みは 2 つに分かれる。
 - agent-runner の子は、agent の `env` に挙げた変数だけを受け取る（`zshrc.txt` は読まれない）。
   runner を起動したシェルに key が無ければ、allowlist に挙げても届かない
 
-このリポジトリは `MAAS_ANTHROPIC_TOKEN` を env ファイルに置かず、`with_keys.py` で補う経路も無い。
-ランチャー起動セッションから `piaq` を使うと、key の案内を出して終了コード 1 で止まる。
+このリポジトリは `MAAS_ANTHROPIC_TOKEN` を env ファイルに置かない。
+ランチャー起動セッションから対話の `piaq` を直接使うと、key の案内を出して終了コード 1 で止まる。
 key を export した通常のシェル（ランチャー起動セッションの外）から使う。
+`ccda` セッションから `with_keys.py` 経由で agent-runner の `pi_alibaba_qwen4-max_max` を起動する場合は、
+`ANTHROPIC_BASE_URL` の完全一致で `ANTHROPIC_AUTH_TOKEN` から `MAAS_ANTHROPIC_TOKEN` が補われる
+（`ccda` 以外のランチャーセッションからは補われない）。
 
 新規コンテナでは `install_beforehand.bash` が `piaq` を毎回上書きで置き、`models.json` が無いときだけ雛形（`alibaba` を含む）を置く。
 tier は `setup_pi_superagents.zsh --if-absent` が置く。既存の `models.json` は Rebuild でも更新されない。
@@ -2227,10 +2294,17 @@ export される（`OLLAMA_API_KEY` と `MAAS_ANTHROPIC_TOKEN` は書かない�
   Claude Code の `ccdd`・`ccddg`（通常名は `claude-deepinfra`・`claude-deepinfra-glm`）も
   この変数を使い、未設定・空・空白だけ（Unicode の空白を含む）で ASCII の英数字を 1 文字も
   含まないなら、値を表示せずにエラーを出して起動を止める。この英数字の判定は Claude Code の
-  ランチャーだけのもので、`pidid` は未設定・空値だけを止める
-- `OLLAMA_API_KEY` は Claude Code の `ccdol`・`claude-ollama` だけが読む。
-  「秘密情報」の env ファイルには書かない。どの agent の `env` にも無いので、wrapper では補えない。使うシェルで export する。
-  子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ccdd`・`ccddg`・`ccdgo`・`ccda` の子には渡さない。
+  ランチャーだけのもので、`pidid` は未設定・空値だけを止める。
+  `ccdd`・`ccddg` 起動セッションから `with_keys.py` 経由でランナーを起動するときは、
+  `ANTHROPIC_BASE_URL` の完全一致で `ANTHROPIC_AUTH_TOKEN` から `DEEPINFRA_TOKEN` が補われる
+  （ほかのランチャーセッションからは補われない）
+- `OLLAMA_API_KEY` は Claude Code の `ccdol`・`claude-ollama` と、agent-runner の
+  `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` が呼ぶ `claude-ollama-exec` が読む。
+  「秘密情報」の env ファイルには書かない。`ccdol` 起動セッションから `with_keys.py` 経由で
+  ランナーを起動するときは、`ANTHROPIC_BASE_URL`（`https://ollama.com`）の完全一致で
+  `ANTHROPIC_AUTH_TOKEN` から補われる（ほかのランチャーセッションからは補われない）。使うシェルで export する。
+  子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ANTHROPIC_API_KEY` は渡さない。
+  `ccdd`・`ccddg`・`ccdgo`・`ccda` の子には渡さない。
   未設定・空・空白だけ（Unicode の空白を含む）で英数字を 1 文字も含まないなら、値を表示せずにエラーを出して起動を止める。
   キーは `https://ollama.com/settings/keys` で作る。
   詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある
@@ -2238,7 +2312,8 @@ export される（`OLLAMA_API_KEY` と `MAAS_ANTHROPIC_TOKEN` は書かない�
   `claude-code_alibaba_opus_max` が呼ぶ `claude-alibaba-exec`、Pi の `piaq`
   （agent-runner の `pi_alibaba_qwen4-max_max` も `piaq` を呼ぶ）が読む。
   「秘密情報」の env ファイルには書かず、使うシェルで export する。
-  補う名前には入るが、env ファイルに置かない方針なので、通常は補われない。
+  `ccda` 起動セッションから `with_keys.py` 経由でランナーを起動するときは、`ANTHROPIC_BASE_URL` の
+  完全一致で `ANTHROPIC_AUTH_TOKEN` から補われる（ほかのランチャーセッションからは補われない）。
   `ccda` の子の `claude` には `ANTHROPIC_AUTH_TOKEN` としてだけ渡し、`ANTHROPIC_API_KEY` には入れない。
   `piaq` は `models.json` の `apiKey`（`$MAAS_ANTHROPIC_TOKEN`）から解決する。
   `ccdd`・`ccddg`・`ccdgo`・`ccdol` の子には渡らない。`ccda` が起動したセッションにも、変数名
@@ -2257,7 +2332,7 @@ export される（`OLLAMA_API_KEY` と `MAAS_ANTHROPIC_TOKEN` は書かない�
 - `CONTEXT7_API_KEY` は、共有の `find-docs` スキルが使う Context7 CLI（`ctx7`）が読む（「Context7 CLI（ctx7）」）。
   未設定のまま `cod` を起動すると、入力を求める（Codex から `ctx7` を呼ぶときにも使う）。無くても動くが、レート制限が低くなる
 
-#### ランチャー起動セッションから runner を使う（#401）
+#### ランチャー起動セッションから runner を使う（#401・#408）
 
 ランチャー（`ccdd`・`ccddg`・`ccdgo`・`ccdol`・`ccda`）で起動したセッションは、
 `cc_launcher_unsets` により親シェルの認証情報が外れている。このセッションから
@@ -2281,7 +2356,7 @@ CLI の `run` では、runner のサブコマンドの前にも同じ値を置�
 別の checkout の wrapper を使うときは、後段の雛形を `--template` で wrapper に渡す。
 
 wrapper は shell として env ファイルを実行しない。補う名前を実効設定から決め、不足しているものだけを
-今の環境と env ファイルから補ってから、`--` の後ろのコマンドを `os.execvpe` する。
+今の環境、ランチャー環境の導出、env ファイルの順に補ってから、`--` の後ろのコマンドを `os.execvpe` する。
 ランチャーを使わない通常のシェルからでも、補うものが無いだけで同じコマンドが動く。
 `keys.env` と `~/.zshrc` は読まない。
 
@@ -2291,35 +2366,55 @@ wrapper は shell として env ファイルを実行しない。補う名前を
   雛形は `--template` があればそれ、無ければ wrapper のファイルがある checkout の `.devcontainer/agent-runner.toml`。
   個人設定は `--config` があればそれ、無ければ `resolve_config_path()` が返すパス（ファイルが無ければ雛形だけ）。
   後段が別の checkout の雛形を読むときは、その雛形を `--template` で wrapper に渡す
-- 補う条件: 今の環境に無いか、値が空の名前だけ。今の環境に値があれば、env ファイルに別の値があっても上書きしない
-- 読み元と順序: 今の環境、次に `~/.config/create-reso-world/env`（`Path.home()` 基準）だけ。
-  ファイルが無ければ何もしない。開けない・UTF-8 で読めないときは、
-  `with_keys: cannot read <パス>` を stderr に出して補わずに続ける（値は出さない）
+- 補う条件: 今の環境に無いか、値が空の名前だけ。今の環境に値があれば、ランチャーの導出値や
+  env ファイルに別の値があっても上書きしない（空白だけの非空値も保持し、後段の key ガードで止める）
+- 読み元と順序:
+  1. 今の環境（非空の値は保持する）
+  2. ランチャー環境の導出。`ANTHROPIC_BASE_URL` の完全一致と、`ANTHROPIC_AUTH_TOKEN` が ASCII 英数字を
+     1 文字以上含むときだけ、対応する 1 変数を補う。前後の空白除去・末尾の `/` の正規化・部分一致はしない
+  3. `~/.config/create-reso-world/env`（`Path.home()` 基準）。ファイルが無ければ何もしない。
+     開けない・UTF-8 で読めないときは、`with_keys: cannot read <パス>` を stderr に出して補わずに続ける（値は出さない）
+
+  | `ANTHROPIC_BASE_URL`（完全一致） | 補う変数名 | ランチャー |
+  | --- | --- | --- |
+  | `https://api.deepinfra.com/anthropic` | `DEEPINFRA_TOKEN` | `ccdd`・`ccddg` |
+  | `https://opencode.ai/zen/go` | `OPENCODE_API_KEY` | `ccdgo` |
+  | `https://ollama.com` | `OLLAMA_API_KEY` | `ccdol` |
+  | `https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic` | `MAAS_ANTHROPIC_TOKEN` | `ccda` |
+
+  一致した URL の 1 変数だけを補い、ほかのプロバイダの変数は補わない（クロス導出しない）。
+  `COMMANDCODE_API_KEY` は導出元のランチャーが無いので、env ファイル経路だけを使う。
+  `GOOGLE_APPLICATION_CREDENTIALS` などの `GOOGLE_*` は `cc_launcher_unsets` の対象外なので、
+  ランチャー起動セッションでも親シェルの値が残る
 - 解析: 改行（`\n`）だけで区切って 1 行ずつ静的に読む。末尾の `\r` は取り除く。受け付ける行は `NAME=VALUE` と `export NAME=VALUE`。
   値は、`$`・バッククォート・`\` を含まない二重引用符の文字列、単一引用符の文字列、
   空白・引用符・`$`・バッククォート・`\`・`;`・`|`・`&`・`<`・`>`・`(`・`)` を含まない裸の語のどれか。
   引用は外す。後ろには空白と `#` のコメントだけを付けられる。同じ名前が複数あれば最後の行を使う。
   値が空の行では補わない。`$` の展開やコマンド置換は実行しない。
   値が `~` で始まる行と、`:~` を含む行は解析できない代入として扱う。
-  条件分岐・`unset`・`+=`・`typeset` 等は解釈しない。KEY=VALUE だけで書く
+  条件分岐・`unset`・`+=`・`typeset` 等は解釈しない。KEY=VALUE だけで書く。
+  解析するのは 1・2 で解決しなかった残りの `pending` だけなので、解決済みの名前は読まない
 - 使わなかった行: 補う名前と関係ない行は無視する（停止しない）。補う名前への代入に見える行
   （行頭の空白・`export` の後に `NAME=` が続く）で、値を上の規則で解析できないものがあれば、
   その名前はそれより前の行の値も含めて補わない。補わなかった名前は stderr に名前だけを出す
   （`with_keys: skipped DEEPINFRA_TOKEN (unparsable assignment in /home/vscode/.config/create-reso-world/env)`。
   パスは実際の `Path.home()`）
-- 出力: 補った名前と読み元のパスだけを stderr に 1 行で出す
+- 出力: ランチャー環境から補った名前は、1 変数につき 1 行
+  `with_keys: filled <NAME> from launcher environment (ANTHROPIC_BASE_URL)` を stderr に出す。
+  env ファイルから補った名前は、名前と読み元のパスを 1 行で出す
   （`with_keys: filled DEEPINFRA_TOKEN, OPENCODE_API_KEY from /home/vscode/.config/create-reso-world/env`）。
-  値は出さない。補うものが無ければ何も出さない。設定を読めないとき、または `agents` の形が壊れているときは、分類のメッセージ
+  値は出さない。補うものが無ければ何も出さない。ランチャーから導出した変数は env ファイルの解析対象（`pending`）から
+  外れるので、env ファイルに同名の行があっても上書きせず、`skipped` も出さない。設定を読めないとき、または `agents` の形が壊れているときは、分類のメッセージ
   （`agent-runner configuration error: <分類名>`。値やパスは含まない）だけを stderr に出して終了コード 2。
   `--` が無い、または `--` の後ろが空なら、`usage: with_keys.py [--template PATH] [--config PATH] -- <command> [args...]`
   を stderr に出して終了コード 2
 - 起動: 補った環境で `--` の後ろのコマンドを起動する。key が見つからない名前は補わずに起動し、
   agent の exec が今と同じエラーで失敗する
 
-`MAAS_ANTHROPIC_TOKEN` は補う名前に入るが、env ファイルに置かない方針なので、通常は補われない。
-`OLLAMA_API_KEY` はどの agent の `env` にも無いので、wrapper では補えない。
-その場合は、key を export した通常のシェルから runner を起動する。
-雛形に Ollama の runner agent は無い。`MAAS_ANTHROPIC_TOKEN` を使う runner agent は
+`MAAS_ANTHROPIC_TOKEN` と `OLLAMA_API_KEY` は env ファイルに置かない方針なので、通常は key を export した
+シェルから runner を起動する。`ccda` セッションでは `MAAS_ANTHROPIC_TOKEN` を、`ccdol` セッションでは
+`OLLAMA_API_KEY` を、ランチャー環境から補う。`OLLAMA_API_KEY` を使う runner agent は
+「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」、`MAAS_ANTHROPIC_TOKEN` を使う runner agent は
 「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」にある。
 
 プロバイダごとの key の解決経路は次のとおり。wrapper が補うのは、上の補う名前のうち
@@ -2327,11 +2422,12 @@ wrapper は shell として env ファイルを実行しない。補う名前を
 
 | 経路 | 雛形の agent | key |
 | --- | --- | --- |
-| 今の環境、または env ファイル | `pi_deepinfra_deepseek4-flash_high` | `DEEPINFRA_TOKEN` |
-| 今の環境、または env ファイル | `pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max`・`pi_openai-codex_gpt6-sol_xhigh` | `OPENCODE_API_KEY` |
-| 今の環境、または env ファイル | `pi_commandcode_deepseek4-flash_max` | `COMMANDCODE_API_KEY`（契約停止中。通常は書かない） |
-| 今の環境、または env ファイル | `pi_google-vertex_gemini3-flash_high`・`pi_google-vertex_gemini4-argon_high` | `GOOGLE_APPLICATION_CREDENTIALS`・`GOOGLE_CLOUD_PROJECT`・`GCLOUD_PROJECT`・`GOOGLE_CLOUD_LOCATION` |
-| 通常は今の環境だけ（env ファイルに置かない方針） | `claude-code_alibaba_opus_max` | `MAAS_ANTHROPIC_TOKEN` |
+| 今の環境、`ccdd` / `ccddg` セッションの導出、または env ファイル | `pi_deepinfra_deepseek4-flash_high` | `DEEPINFRA_TOKEN` |
+| 今の環境、`ccdgo` セッションの導出、または env ファイル（`opencode-go` の第一経路は下の `auth.json`） | `pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max`・`pi_openai-codex_gpt6-sol_xhigh` | `OPENCODE_API_KEY` |
+| 今の環境、または env ファイルのみ（導出元ランチャー無し） | `pi_commandcode_deepseek4-flash_max` | `COMMANDCODE_API_KEY`（契約停止中。通常は書かない） |
+| 今の環境（`cc_launcher_unsets` 対象外のためランチャーセッションでも残る）、または env ファイル | `pi_google-vertex_gemini3-flash_high`・`pi_google-vertex_gemini4-argon_high` | `GOOGLE_APPLICATION_CREDENTIALS`・`GOOGLE_CLOUD_PROJECT`・`GCLOUD_PROJECT`・`GOOGLE_CLOUD_LOCATION` |
+| 今の環境、または `ccda` セッションの導出（env ファイルに置かない方針） | `pi_alibaba_qwen4-max_max`・`claude-code_alibaba_opus_max` | `MAAS_ANTHROPIC_TOKEN` |
+| 今の環境、または `ccdol` セッションの導出（env ファイルに置かない方針） | `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` | `OLLAMA_API_KEY` |
 | `~/.pi/agent/auth.json` | `pi_openai-codex_gpt6-sol_xhigh`・`pi_openai-codex_gpt6-terra_xhigh`・`pi_openai-codex_gpt6-astra_xhigh` | `/login openai-codex` の OAuth |
 | `~/.pi/agent/auth.json` | `pi_xai_grok4_xhigh` | `/login xai` の OAuth |
 | `~/.pi/agent/auth.json` | `pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max` | 保存した api_key（`OPENCODE_API_KEY` が無くてもここから読める） |
@@ -2340,7 +2436,8 @@ wrapper は shell として env ファイルを実行しない。補う名前を
 | HOME 配下のログイン | `cursor_auto_default`・`cursor_grok4_xhigh` | `~/.cursor`・`~/.config/cursor` |
 | HOME 配下のログイン | `devin_swe2_max`・`devin_swe2_medium` | `~/.config/devin`・`~/.local/share/devin` |
 
-`OLLAMA_API_KEY` は雛形のどの agent の `env` にも無く、env ファイルにも置かない。wrapper では補えない。
+`OLLAMA_API_KEY` は雛形の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` の `env` にあり、
+`ccdol` セッションではランチャー環境から補う。env ファイルには置かない。
 `OPENCODE_GO_API_KEY` も雛形の `env` には無いので、ファイルにあっても子には届かない。
 
 ### pi の TUI モードと Herdr のスクロール履歴
