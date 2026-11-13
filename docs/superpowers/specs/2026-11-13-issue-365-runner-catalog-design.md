@@ -84,7 +84,7 @@ Spec レビュー、Task helper、PR 修正ループは PARENT_ROOT の helper �
 - README の現行割当、effort、スキルの self の説明が実際の設定と一致する。履歴・移行説明以外に旧 Opus 名への現行参照が残らない。
 - 雛形単独の check / list は成功し、既定に duplicate_model は無い。旧名参照だけの設定は拒否し、手動移行後は成功する。独自の旧名完全定義と max の個人設定は自動で失われない。
 - 防御範囲: 実個人設定・key・ログイン・履歴・#408 の値を変更しない。alias と自動移行は対象外。check の成功を認証や実サービス起動の成功と表示しない。
-- 新規の固定値テストは追加しない。スキルの説明変更は、変更前と変更後に別 context で実効の既定担当を説明させる適用シナリオで比較する。
+- 新規の固定値テストは追加しない。スキルの説明変更は、変更前後の説明に従う一時適用シナリオと実際の設定解決・helper の self 分岐を比較する。既定割当を外部モデルと説明する変更前に不一致を観測し、変更後は self と一致することを確認する。対象手順を実行する検証であって固定文言の照合だけで代えない。個人設定は空の一時 config に隔離し、self の helper 呼出しまたは fake adapter / fake CLI のみを使う。検証のために実モデルを追加起動せず、別 context に説明させることは必須条件にしない。
 - Issue 指定と README の検証入口を実行する。マージは PR 修正ループ内の finalize.py に限る。ボードの子なので PR は `Refs #365` とし、マージ後に完了状態を記録する。
 
 ## 検証入口
@@ -96,4 +96,12 @@ Spec レビュー、Task helper、PR 修正ループは PARENT_ROOT の helper �
 - Assignment / loop check は全て exit 0。明示された担当と fallback の保持を確認。
 - baseline `768c7c41`: `uv run --locked pytest tools/agent_runner/tests -q` は 305 passed / exit 0。ログは `/workspaces/reso-world/tmp/agents/issue-365.iuvh4cpo/baseline-agent-runner.log`。
 - repository の write / triage 権限あり、rulesets なし、claim branch の protected=false、Actions enabled=false を確認。claim は `42578d1a7ce39692a4c7e7664f52fc5c364c31f3`。
-- 実装・Spec レビュー・PR 作成はまだ行っていない。
+- 実装・PR 作成はまだ行っていない。
+
+## Spec レビュー記録
+
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-365.iuvh4cpo/2026-11-13-issue-365-runner-catalog-design.spec-review/review-1`
+- review_id: `49d56796d14e44dd88817a503ca4c237`、reviewed SHA-256: `a6b2811aace1a5a17e956cf0ad693c4a8c28da717e436b50d81dee1a2f020fa8`。
+- helper `review_spec.py` の external mode。requested=actual=`pi_openai-codex_gpt6-terra_xhigh`、identity `openai-codex / gpt-6.1-terra / xhigh`、1 回目、65.97 秒、fallback 無し。stop_confirmed=true、outside_changes=[]。
+- unprotected_changes: 既存の prunable な `/tmp/pr-review-376-*` 4 件と `/tmp/review-fix-planning.*` 2 件、別担当の `/workspaces/reso-world/tmp/agents/issue-431-implement.3t3ggqnv/task-1-attempt-1/03196e104041442dbb9f6da231e9606e/attempt-1/worktree`。対象 worktree の変更は無く、他者の領域には手を加えない。
+- S1（important）採用: 別 context の追加モデル実行と API を呼ばない検証条件との曖昧さを解消した。受け入れ基準を、一時 config に隔離した設定解決と helper self 分岐の適用シナリオに具体化した。固定文言テストや追加の有料モデル実行は行わない。反映後の SHA は decide の出力として SESSION に保存し、Spec へ書き戻さない。
