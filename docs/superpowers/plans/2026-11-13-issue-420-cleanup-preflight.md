@@ -66,29 +66,29 @@ Linux Dev Container・uv・実 Git worktree・実 agent-runner＋fake adapter/CL
 
 **テストの要否:** S。必須メタデータ不正で削除が進むと、例外で気付いても証拠・登録が失われ復元後も回収不能になる。代表の1本で欠落→無変更拒否→復元→回収→no-opを確かめる。型・欠落フィールド全組合せはDのため恒久化しない。別レビュー識別情報の取り違えは独立したSとして必要なら代表1本を置く。既存Sは維持する。
 
-- [ ] **Step 1: S代表の失敗テストを書く**
+- [x] **Step 1: S代表の失敗テストを書く**
 
 `test_cleanup_preserves_targets_until_request_metadata_is_restored` を実runner＋FakeReviewAdapterで作る。review_idを欠落させて別CLIの拒否を実行し、worktree実体・登録・runner/ledger bytes（不正入力を含む実行直前のsnapshot）・CODE_ROOT HEAD/status・Specを前後比較する。retainedに全試行とrunner、recordsにrequest/review/spec.md/試行依頼があることも損害確認に添える。元requestだけ復元した後は別CLIで回収し、再実行no-opを確かめる。正常対照を含める。新しい対応照合の独立Sを追加する場合は `test_cleanup_rejects_a_completed_review_identity_mismatch` で正常対照も確かめる。
 
-- [ ] **Step 2: REDを確認する**
+- [x] **Step 2: REDを確認する**
 
 `uv run --project /workspaces/reso-world --locked pytest .agents/skills/issue-to-pr/tests/test_review_spec.py -k 'preserves_targets_until_request_metadata_is_restored or completed_review_identity_mismatch' -q`。現行では欠落時に対象が先に削除され、対応不一致も拒否されないことでFAILすること。構文/fixture誤りをREDと呼ばない。出力をSESSIONへ保存する。
 
-- [ ] **Step 3: 最小の削除前検査を実装する**
+- [x] **Step 3: 最小の削除前検査を実装する**
 
 Specの削除前検査1〜5と反映済みS1〜S4を実装する。必要値の厳密な形・保存値自体の絶対パス・保存済みSpec写し・completed resultの対応を確認する。failed resultは正常に不一致を含み得るので、一律の成功result要求を追加しない。selfを名乗るexternalの誤成功を防ぎ、未submit selfを維持する。読むことができるbatchから保持一覧を集め、最初の副作用より前に構造化拒否。_cleanup_recordsにspec.mdを加える。過去の証拠なしmissingや削除成功証拠の規則は緩めない。
 
-- [ ] **Step 4: GREENと既存回帰を確認する**
+- [x] **Step 4: GREENと既存回帰を確認する**
 
 Step2のコマンドと `uv run --project /workspaces/reso-world --locked pytest .agents/skills/issue-to-pr/tests -q` を実行する。さらにプロジェクトsuite `uv run --project /workspaces/reso-world --locked pytest tests/skills .agents/skills .agents/scripts tools -q` を同期実行し、失敗は省略せず報告する。`git diff --check` も実行する。
 
-- [ ] **Step 5: controller が一時検証をSESSIONへ保存して実行する**
+- [x] **Step 5: controller が一時検証をSESSIONへ保存して実行する**
 
 implement_task.py の担当は許可2ファイル以外へ書けないため、担当はStep1〜4と6を行い、TaskResultのconcernsに検証内容・所要時間を記す。controllerがrunnerログを保全してreportを作り、本StepをTaskレビュー前に実行する。担当へ外部ファイル書込を要求してhelperの制限を迂回しない。
 
 コミットしない検査を `/workspaces/reso-world/tmp/agents/issue-420.xlpq2lqf/` 下へ置く。実runner＋fake、通常CLIの独立プロセスで、正常Spec/design、review_id欠落/spec_sha256欠落/null・代表型不正、fallback保持一覧、mode/相対runner/nested request不正、completed不一致、正規failed不一致/null、未submit self、元Spec更新後の回収を確かめる。入力間の直積は作らず、各独立条件の代表にする。既存のJSONL復旧/private/common-dir/symlink/停止未確認/missingのSで重複ガードを補完する。検査は実資源・実モデル・認証情報を使わず、一時Gitだけを操作する。スクリプトとログの絶対パス・入力/結果・前後不変性を報告する。
 
-- [ ] **Step 6: Commitと報告**
+- [x] **Step 6: Commitと報告**
 
 指定2ファイルだけstageして `fix: validate cleanup metadata before removing review artifacts` でcommitする。自己レビューし、TaskResultでTask結果、コミット、RED/GREEN・回帰の各コマンドと終了コード、変更の要点、懸念、着手からの時間と内訳を報告する。個別ログ/reportは担当に書かせずcontrollerがrunnerログから保存する。子を起動しない。push/PR/Issue/ref操作はしない。テスト・lintは同期で完了を待つ。
 
@@ -116,3 +116,14 @@ Specレビューは1回完了（1049秒）、important採用なし。実装役�
 ## contingency（代替策）
 
 最初のREDでfixture/実出力の前提差なら、意味を保つ最小修正をledgerに記録して継続。保証の意味・防御範囲を変える場合は停止。過剰な全schema検証が正規failed回収を阻む場合は、cleanupが使う必要値とcompleted対応に限定し、正規failedの対照を確認する。採否基準の後付け変更はしない。実runnerの準備不良はfixtureの一時Gitだけ修正し、実資源のprune/手動修復で迂回しない。予算不足では未検証条件・残りと必要時間を報告し、要件を満たしたふりでPR/mergeしない。
+
+## 実装・Task検証記録
+
+- Task1実装: `b8d9de9cc61532d6221d5094934b92366ca05894`。指定 requested/actual は pi_openai-codex_gpt6-terra_xhigh、実測 openai-codex/gpt-6.1-terra / xhigh、fallback=[]。依頼1回、runner elapsed=2167.8265880609997秒、stop_confirmed=true、exit0、outside_changes=[]。旧/tmpの6登録はunprotected_changesとして記録。受取importable→accept成功、cleanup retained=[]でこのrunのattempt/worktreeだけ回収。
+- 実装担当のRED: 代表2件が欠落時の削除先行とcompleted不一致の未拒否でFAIL（exit1）。GREEN: 同2件成功、関連134件（537.02秒）と全体1487件（1404.54秒）がexit0。最後のテスト整形後に代表2件を再実行して成功。担当所要約35分34秒（関連約9分、全体約23分24秒、その他実装・検証・自己レビュー）。
+- Ruff check/formatは担当が任意で試したが未導入のためexit2。必須検証ではなく、成功扱いしない。依存を追加せず、READMEの検証入口を用いる。
+- controllerの実runner＋fake一時検証: `validate_cleanup_matrix.py`、19シナリオ/33.119秒/exit0、HEADは上記commit。正常Spec/design、欠落/null/型不正、fallback2試行全保持、mode改変・相対/null runner・nested不正、completed不一致・保存Spec hash不一致、failed mismatch/null/incomplete、元Spec/HEAD更新後、未submit self。全拒否でfixtureの実体/登録/ledger/runner/feature/Specが不変、request生バイトだけ復元後の別CLI回収とno-opを確認。failed result互換の3件は保存済み失敗結果を模した一時fixtureであり、新しい実モデルが生成した記録とは主張しない。
+- Task review: read-only sp-review、Spec適合✅/quality Approved、Critical/Important/Minorなし。最初の起動は必須文字列不足でNEEDS_CONTEXT（レビュー未実施）、正しい `Review scope: task` を付けた再依頼で上記判定。ruffは未検証と明示。既存のprivate/common-dir/symlink/停止未確認/missing/JSONL復旧は134件suiteの既存Sで確認、新テストは独立S2件だけ。
+- 詳細ログ/brief/report/review: `/workspaces/reso-world/tmp/agents/issue-420.xlpq2lqf/` と `sdd/2026-11-13-issue-420-cleanup-preflight/`。raw runner stdout/stderr、抽出したtool結果、各helper JSON、一時matrixのscript/logを保持。外部実モデルは指定Specレビューと指定実装1回のみ（PR後の指定loopはこの後）。
+- Base前進1回: `9c3ad41e99bfc91e557f900a301bc6d6884edf0d` → `181042480de8b500126b025030255fd34640f71a`（PR #424）。所有4パス重複なし、AGENTS/cleanup/preflight/checkout_policy/runner共有仕様は不変。追加wrapper導出機能はCLI呼出し形・本runの指定担当を変えないことを確認し、専用helperで未push rebase。最終必須4コマンドはこの記録commitの後にreverifyで全実行し、結果をSESSION/PRに保存する。
+- 状態はdraftのまま。実装Taskは完了、最終検証・scan/push/PR・指定loop/finalizeはこの記録時点で未実施。マージ成功は先に記録しない。
