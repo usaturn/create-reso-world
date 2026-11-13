@@ -109,7 +109,7 @@ def test_fenced_json_with_nested_code_backticks_is_data(tmp_path: Path, runtime:
     _success(outcome, payload)
 
 
-@pytest.mark.parametrize("runtime", ("claude-code", "pi"))
+@pytest.mark.parametrize("runtime", ("claude-code",))
 @pytest.mark.parametrize("text", ['```json\n{"ok":true}', '```json\n{"outer":{"ok":true},\n```'])
 def test_invalid_fence_cannot_salvage_inner_json(tmp_path: Path, runtime: str, text: str) -> None:
     outcome = _collect(_context(tmp_path, runtime), _jsonl(_events(runtime, text)))

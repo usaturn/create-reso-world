@@ -102,6 +102,30 @@ def test_collect_success_extracts_identity_and_payload(context: AdapterContext) 
     assert outcome.identity.cli_version is None
 
 
+def test_collect_prose_json_result(context: AdapterContext) -> None:
+    text = 'Review complete.\n{"status":"completed","findings":[]}'
+    outcome = _collect(context, [_session(), _agent_end([_assistant(text)]), {"type": "agent_settled"}])
+    assert outcome.receipt.status == "success"
+    assert outcome.receipt.payload == {"status": "completed", "findings": []}
+
+
+def test_collect_uses_last_corrected_json_result(context: AdapterContext) -> None:
+    text = '```json\n{"version":"old"}\n```\n訂正します。\n```json\n{"version":"new"}\n```'
+    outcome = _collect(context, [_session(), _agent_end([_assistant(text)]), {"type": "agent_settled"}])
+    assert outcome.receipt.status == "success"
+    assert outcome.receipt.payload == {"version": "new"}
+
+
+@pytest.mark.parametrize("text", [
+    '{"ok":true}\n{"broken": }',
+    '```json\n{"ok":true}\n```\n訂正します。\n```json\n{"broken": }\n```',
+])
+def test_collect_rejects_malformed_json_candidate(context: AdapterContext, text: str) -> None:
+    outcome = _collect(context, [_session(), _agent_end([_assistant(text)]), {"type": "agent_settled"}])
+    assert outcome.receipt.status == "response_failed"
+    assert outcome.receipt.payload is None
+
+
 def test_exit_zero_without_agent_end_is_response_failed(context: AdapterContext) -> None:
     outcome = _collect(context, [_session(), {"type": "agent_start"}])
     assert outcome.receipt is not None and outcome.receipt.status == "response_failed"

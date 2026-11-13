@@ -45,9 +45,12 @@ JSON の役割では最終回答を JSON object にする指示も加える。
 後続の ``session`` 、 ``agent_start`` や ``turn_start`` がある場合は、次の実行が未完了として扱う。
 ``agent_settled.aborted = true`` または中断を示す ``stopReason`` は ``interrupted`` になる。
 
-正常な ``stopReason`` と、役割に対応した空でない JSON object または text を要求する。
+正常な ``stopReason`` と、役割に対応した JSON object または空でない text を要求する。
 Pi の JSON 出力は失敗でも終了コード 0 になる場合があるため、イベントの欠落、異常な終了理由、不正な応答は ``response_failed`` とする。
-JSON では object 全体か JSON code fence 内の object を受け付ける。
+JSON では回答全体の object に加え、説明文に続く裸の object や code fence 内の object も受け付け、複数ある場合は最後の object を採用する。
+JSON fence や言語指定のない fence、裸の壊れた object 候補があれば応答を拒否し、先行結果や壊れた候補の内部へ巻き戻さない。
+閉じた inline code span と、明示的に JSON 以外の言語を指定した閉じた fence 内の壊れた候補は例示として拒否理由にしない。例示内の有効な object は候補になる。
+未閉鎖の fence 内でも有効な JSON object は受け付ける。
 非ゼロ終了は runner が失敗として扱う。
 
 stderr と明示的なエラーイベント、失敗した最終 assistant の診断内容から認証待ち・承認待ちを分類する。

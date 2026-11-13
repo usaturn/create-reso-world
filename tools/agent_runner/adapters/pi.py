@@ -4,7 +4,8 @@ The prompt goes over stdin; stdout is NDJSON events. ``session`` reports the
 session id, ``agent_end`` carries the final assistant message (model,
 provider, thinkingLevel, stopReason, text parts), and ``agent_settled`` marks
 clean completion. A zero exit code without a complete event stream is still a
-failure. Only local parsing happens here; this module never starts a process.
+failure. JSON results use the shared extraction helper. Only local parsing
+happens here; this module never starts a process.
 """
 
 import json
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import cast
 
 from tools.agent_runner.adapters import AdapterContext, AdapterOutcome, Capabilities, LaunchSpec
+from tools.agent_runner.adapters.json_result import json_object
 from tools.agent_runner.adapters.skills import prompt_lines, verified_versions
 from tools.agent_runner.models import Identity, Payload, Receipt, ReceiptStatus, Request, ResultShape
 
@@ -28,7 +30,6 @@ _APPROVAL = re.compile(
     r"|permission (?:denied|required)|grant access|confirm(?:ed)? (?:to )?continue)",
     re.IGNORECASE,
 )
-_FENCE = re.compile(r"```(?:json|JSON)\b[^\n]*\n")
 _STOP_OK = {"stop", "endturn", "end_turn", "completed", "complete", "finished", "normal"}
 
 
@@ -60,31 +61,10 @@ def _text(path: Path) -> str:
         return ""
 
 
-def _json_object(text: str) -> dict[str, object] | None:
-    try:
-        value: object = json.loads(text.strip())
-    except ValueError:
-        pass
-    else:
-        return cast(dict[str, object], value) if isinstance(value, dict) else None
-    decoder = json.JSONDecoder()
-    for opening in _FENCE.finditer(text):
-        candidate = text[opening.end():].lstrip()
-        try:
-            value, end = decoder.raw_decode(candidate)
-        except ValueError:
-            continue
-        # JSON strings may contain backticks. Only the decoder's object end
-        # can determine where to look for the Markdown closing fence.
-        if isinstance(value, dict) and candidate[end:].lstrip().startswith("```"):
-            return cast(dict[str, object], value)
-    return None
-
-
 def _payload(text: str, shape: ResultShape) -> tuple[ReceiptStatus, Payload]:
     if shape == "text":
         return ("success", text) if text.strip() else ("response_failed", None)
-    parsed = _json_object(text)
+    parsed = json_object(text)
     return ("success", parsed) if parsed is not None else ("response_failed", None)
 
 
