@@ -1,9 +1,7 @@
-# 非対話のエージェントのランナー（tools/agent_runner）の雛形。資格情報の値は書かない。
-# 命名: [agent の命名と同一モデルの比較](README.md#agent-catalog-names)
+# 汎用の非対話エージェント実行ツール。資格情報の値は書かない。
+# agent 名の規則: .devcontainer/README.md「agent の命名と同一モデルの比較」を参照。
 # 個人設定 ~/.config/agent-runner/config.toml はこの雛形に重ねて読む。install_beforehand.bash は、個人設定が無いときに
 # agent-runner-personal.toml を置き、この雛形は写さない。
-# 仕様は tools/agent_runner/interfaces.rst。agent の定義（[agents.*]）は adapter と一緒に #150・#151 が、
-# workflow の割り当て（[workflows.*]）はそれを使う子（#153・#155・#157）が足す。
 schema_version = 1
 
 [agents.claude-code_opus_xhigh]
@@ -13,8 +11,8 @@ model = "opus"
 effort = "xhigh"
 env = ["HOME", "PATH"]
 
-# SWE-2 は tier（medium・high・max）を --model の UID で選ぶ。tier は effort の軸なので、agent 名の effort の段に置く。
-# 2 つは同じ model_key なので同じモデルとして扱い、同じ役割に並べられない。
+# Devin の SWE-2 は tier（medium・high・max）を --model の UID で選ぶ。tier は effort の軸なので名の effort の段に置く。
+# 2 つは同じ model_key で同じモデルとして扱う（同じ役割に並べられない）。
 [agents.devin_swe2_max]
 runtime = "devin"
 command = ["devin"]
@@ -217,8 +215,8 @@ approval = "noninteractive"
 skill_sources = [".cursor/skills", ".claude/skills", ".agents/skills", ".codex/skills"]
 env = ["HOME", "PATH"]
 
-# 役割の期限（usaturn/agent-workspace#616）。PR レビューの全体の予算に合わせて 45 分とし、implement だけ 90 分にする。
-# fix-check は呼び出し側（review-verify・review-fix-planning）が 1800 秒に切り詰める。
+# 役割の期限（usaturn/agent-workspace#616）。pr-review の全体予算に合わせて 45 分とし、implement だけ 90 分にする。
+# fix-check は呼び出し側（review-verify の dispatch.py・review-fix-planning の run_roles.py）が 1800 秒に切り詰める。
 [roles.inspect]
 skills = []
 writes = false
@@ -243,39 +241,40 @@ writes = false
 deadline_seconds = 2700
 result_shape = "json"
 
-# issue-to-pr の --spec-review 指定時だけ Spec をレビューする（usaturn/agent-workspace#848・#853）。書き込まない。
-# 担当は引数で決まり、雛形に assignment は置かない。個人設定に fallback を書く場合も agents が必要。
-# 期限は 30 分（期限切れは run の停止になる）。
+# issue-to-pr の `--spec-review AGENT` を書いた run だけ、Spec を保存した後・Plan の前に Spec をレビューする役割（usaturn/agent-workspace#848・#853）。ファイルを書かない。
+# 担当は引数で決まり、雛形に割り当ては置かない（個人設定に fallback を書くときは同じ節に agents も書く。agents は引数で置き換わる）。
+# xhigh の reviewer が既存のコードを確かめながら読む時間を見て 30 分とする（期限切れは issue-to-pr の run の停止になる）。
 [roles.spec-review]
 skills = []
 writes = false
 deadline_seconds = 1800
 result_shape = "json"
 
-# issue-to-pr の --design-review 指定時だけ、Spec レビューと Plan の前に設計と別案をレビューする（usaturn/agent-workspace#861）。
-# 担当は引数で決まり、雛形に assignment は置かない。個人設定に fallback を書く場合も agents が必要。
-# 期限は Spec レビューと同じ 30 分。
+# issue-to-pr の `--design-review AGENT` を書いた run だけ、Spec を保存した後・Spec レビューと Plan の前に、設計の妥当性と別案をレビューする役割（usaturn/agent-workspace#861）。ファイルを書かない。
+# 担当は引数で決まり、雛形に割り当ては置かない（個人設定に fallback を書くときは同じ節に agents も書く。agents は引数で置き換わる）。
+# 期限は Spec レビューと同じ 30 分とする（期限切れは issue-to-pr の run の停止になる）。
 [roles.design-review]
 skills = []
 writes = false
 deadline_seconds = 1800
 result_shape = "json"
 
-# after_run はレビュー結果に runner の実行記録を付ける。
-# 個人設定は書き換えない。after_run = [] で無効にした caller は attach-runner を明示実行する。
+# PR レビューの後処理。ランナーの観測値を実行記録へ追記する。
 [workflows.review]
 after_run = [[
   "uv", "run", "--project", ".", "--locked", "python",
   ".agents/skills/pr-review/scripts/review_run.py", "attach-runner", "--result", "{result}",
 ]]
 
-# workflow の割り当て既定値（usaturn/agent-workspace#565）。review のレビュアーは依頼ごとに
-# --assign inspect=agent-a,agent-b または個人設定で選べる。下の 3 人は性能の順位ではない。
+# workflow の割り当て既定値（usaturn/agent-workspace#565）。
+# review の inspect（レビュアー）は固定しない。依頼ごとに --assign inspect=agent-a,agent-b で選ぶ。
+# いつも使う構成は、個人設定のこの節の agents を書き換える。
+# 下の 3 人は指定が無いときの既定値で、性能の順位ではない。
 # Command Code GOAT は契約終了のため既定から外す（#337）。
 [workflows.review.assignments.inspect]
 agents = ["claude-code_opus_xhigh", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]
 
-# review-fix-planning の run_roles.py が使う担当（#116 のボードの D-13）。self は司令塔が自分で実行する。
+# review-fix-planning の run_roles.py が使う担当（usaturn/agent-workspace#116 のボードの D-13）。self は司令塔が自分で実行する。
 # self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
 [workflows.fix.assignments.implement]
 agents = ["self"]
@@ -286,9 +285,10 @@ agents = ["self"]
 [workflows.fix.assignments.fix-check]
 agents = ["self"]
 
-# issue-to-pr の Plan の Task を実装する担当（usaturn/agent-workspace#679）。fix.implement とは別に選ぶ。
-# 既定は self で、司令塔が自分で実装し runner を起動しない。
-# 外部担当と fallback は個人設定に書く。その回だけの --implement AGENT は agents を置き換え fallback を保つ。
+# issue-to-pr が Plan の Task を 1 つずつ実装させる担当（usaturn/agent-workspace#679）。レビュー修正の fix.implement とは別に選ぶ。
+# 既定は self。issue-to-pr を実行しているセッション（司令塔）が自分で実装し、runner を起動しない。
+# 外部の担当に任せるときは、個人設定のこの節の agents を書き換え、代わりの候補を fallback に明示する。
+# その回だけ変えるときは /issue-to-pr <Issue> --implement <agent> と書く（fallback は保つ）。
 # agents は 1 つだけ。
 [workflows.issue.assignments.implement]
 agents = ["self"]
