@@ -83,3 +83,11 @@
 - `.agents/scripts/tests/test_review_records.py`: S の代表 1 件。正常例は既存のものを保持。
 - 本 Spec と対応 Plan のみ文書として変更。
 - controller が同じ入力の解釈と、読取→診断→除外による復旧、validate/upsert の共通例外の接続を統合確認する。Task ごとのテスト成功だけを全経路の保証にしない。
+
+## Spec レビュー記録
+
+- helper `review_spec.py` による外部レビュー、1 回目。requested/actual agent は `devin_swe2_max`、identity は model `SWE-2 Max`、session `highly-soapwort`、CLI `3000.12.57`（provider/effort は未観測）。fallback 使用なし。
+- review ID: `2dba7a1023314d4f9c04fda9d1300642`、reviewed Spec SHA-256: `3e8bd25455ac0bb844d294ae7749e99a5be11c29e1a99bfbf6d99c46432db8cc`。
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-409.8hux350m/2026-11-13-issue-409-surrogate-model-design.spec-review/review-1`。所要 244.527 秒、`completed`、findings/incomplete は空、attempt 終了コード 0、停止確認 true。
+- 全指摘 0 件につき採否も空。設計・受け入れ基準の実質変更なし。Spec レビューが builder check を代替し、再レビューは行わない。
+- `outside_changes=[]`。`unprotected_changes` は事前から不在の他セッションの登録 6 件（`/tmp/pr-review-376-2f0d17b0/worktree`、`/tmp/pr-review-376-79fe98e5/worktree`、`/tmp/pr-review-376-7f95b4e6/worktree`、`/tmp/pr-review-376-c9a6d3e9/worktree`、`/tmp/review-fix-planning.9AkFc2/worktree`、`/tmp/review-fix-planning.a6ogtH/worktree`）。対象 checkout の変更ではなく、他セッションとの因果は断定しない。これらは片付けない。
