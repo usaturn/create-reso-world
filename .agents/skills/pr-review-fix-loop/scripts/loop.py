@@ -736,8 +736,12 @@ class GitHub:
     def comment(self, repository: str, comment_id: int) -> dict[str, Any]:
         """単一コメントの生応答。判断の記録の正規化では落ちる投稿・更新日時も取得する。"""
         value = self._api(f"repos/{repository}/issues/comments/{comment_id}")
-        if not isinstance(value, dict) or cast(dict[str, Any], value).get("id") != comment_id:
+        if not isinstance(value, dict):
             raise LoopError(5, "github", "指定コメントの応答が依頼と食い違う")
+        posted_id = cast(dict[str, Any], value).get("id")
+        # 応答の ID の不一致は証拠の不整合（4）。基盤障害（5）と混ぜない
+        if type(posted_id) is not int or posted_id != comment_id:
+            raise LoopError(4, "record_inconsistent", "単一コメントの応答の ID が指定コメントと一致しない")
         return cast(dict[str, Any], value)
 
     def login(self) -> str:
@@ -2591,6 +2595,18 @@ def _read_reconciliation(run_dir: Path, run: RunRecord, existing: Sequence[Cycle
         or saved.result != _reconciled_result(cycle.cycle)
     ):
         raise LoopError(4, "record_inconsistent", "照合結果と元の PR・run・サイクルが一致しない")
+    # 保存済みの finalize 結果も証拠の一部。reconcile が受け付ける成功結果と同じ条件を再検証する
+    finalize = saved.finalize.result
+    comment = finalize.get("comment")
+    posted_id = cast(dict[str, Any], comment).get("comment_id") if isinstance(comment, dict) else None
+    if (
+        finalize.get("outcome") != "no_fix_needed"
+        or finalize.get("merged") is not True
+        or type(posted_id) is not int
+        or posted_id != saved.comment_id
+        or finalize.get("spec_commit") not in (None, saved.head)
+    ):
+        raise LoopError(4, "record_inconsistent", "保存済みの finalize 結果が照合の証拠と一致しない")
     _check_reconcile_times(
         run, cycle, created_at=saved.comment_created_at, updated_at=saved.comment_updated_at, merged_at=saved.merged_at
     )

@@ -2,6 +2,8 @@
 
 成功の対照と、独立した守り（finalize・ID・PR 所属・投稿者・本文・HEAD・過去記録・日時・既存証拠）の代表拒否。
 証拠が一致したときだけ reconcile.json を追記し、元の run/cycle の bytes と abort 結果は書き換えない。
+実 CLI の 4 ケース（成功・コメント不一致・HEAD 不一致・既存証拠）は、それぞれの守りの代表テストが兼ねる
+（同じ守りを直接呼出しと CLI で重複して検証しない）。
 """
 
 from __future__ import annotations
@@ -51,6 +53,7 @@ class ReconcileGh:
         self.single_body: str | None = None
         self.single_login: str | None = None
         self.single_issue_url: str | None = None
+        self.single_id: int | None = None
 
     def set_times(self, comment_id: int, *, created: Any = T_CREATED, updated: Any = T_UPDATED) -> None:
         self.times[comment_id] = {"created_at": created, "updated_at": updated}
@@ -78,6 +81,8 @@ class ReconcileGh:
                 raw["body"] = self.single_body
             if self.single_login is not None:
                 raw["user"] = {"login": self.single_login}
+            if self.single_id is not None:
+                raw["id"] = self.single_id
             return subprocess.CompletedProcess(args, 0, json.dumps(raw, ensure_ascii=False), "")
         result = self.gh.runner(args)
         pulls = f"repos/{self.gh.repository}/pulls/{NUMBER}"
@@ -176,16 +181,17 @@ def refuse_new(loop: Any, scene: SimpleNamespace, *, stage: str | None = None, c
 # --- 成功の対照 ---------------------------------------------------------------------------------------------------
 
 
-def test_reconcile_confirms_a_merged_abort_with_matching_evidence(scene: SimpleNamespace, loop: Any) -> None:
-    # 本文は日本語・複数行・末尾改行を含む（正規化しない照合の成功入力）
+def test_reconcile_confirms_a_merged_abort_with_matching_evidence(
+    scene: SimpleNamespace, loop: Any, monkeypatch: pytest.MonkeyPatch, capsys: Any
+) -> None:
+    # 実 CLI（argparse・dispatch・main）の成功ケースを兼ねる。本文は日本語・複数行・末尾改行を含む（正規化しない照合の入力）
     assert "レビュー状況" in scene.body and scene.body.count("\n") >= 3 and scene.prose.endswith("\n")
     before_run = (scene.run_dir / "run.json").read_bytes()
     before_cycle = (scene.run_dir / "cycle-1.json").read_bytes()
 
-    output = loop.reconcile(
-        scene.run_dir, finalize_result=scene.finalize, comment_id=scene.comment_id, github=scene.github
-    )
+    code, output = cli(loop, monkeypatch, capsys, scene.github, reconcile_argv(scene))
 
+    assert code == 0
     assert output["status"] == "ok"
     assert output["result"] == {
         "outcome": "no_fix_needed",
@@ -223,6 +229,12 @@ def test_reconcile_confirms_a_merged_abort_with_matching_evidence(scene: SimpleN
         index for index, call in enumerate(calls) if call[-1].endswith(f"issues/comments/{scene.comment_id}")
     )
     assert list_index < single_index
+    # status も実 CLI で読む。照合後の論理結果と元の abort 結果を返す
+    code, shown = cli(loop, monkeypatch, capsys, scene.github, ["status", "--run", str(scene.run_dir)])
+    assert code == 0
+    assert shown["reconciled"] == evidence
+    assert shown["result"]["merged"] is True
+    assert shown["original_result"]["ended_by"] == "abort"
 
 
 def test_reconcile_rerun_with_the_same_evidence_keeps_the_file(scene: SimpleNamespace, loop: Any) -> None:
@@ -288,12 +300,6 @@ def test_comment_id_in_the_finalize_result_must_not_be_a_bool(scene: SimpleNames
     refuse_new(loop, scene, finalize_result=bad, comment_id=1, stage="record_inconsistent")
 
 
-def test_unknown_comment_is_not_reconciled(scene: SimpleNamespace, loop: Any, tmp_path: Path) -> None:
-    # finalize も同じ未知 ID を指すとき、一覧への所属確認で拒否する（存在しない・別 PR の ID）
-    bad = write_finalize(tmp_path / "unknown.json", 999999)
-    refuse_new(loop, scene, finalize_result=bad, comment_id=999999, stage="record_missing")
-
-
 # --- PR 所属・投稿者・本文の不一致 -------------------------------------------------------------------------------
 
 
@@ -320,22 +326,21 @@ def test_body_must_match_without_normalization(scene: SimpleNamespace, loop: Any
     [
         (1, "HTTP 404: Not Found (https://api.github.com/)", 4, "record_missing"),
         (1, "HTTP 502 Bad Gateway", 5, "github"),
+        (0, "", 4, "record_inconsistent"),
     ],
-    ids=["gone-after-list", "infrastructure"],
+    ids=["gone-after-list", "infrastructure", "wrong-response-id"],
 )
 def test_single_comment_failure_after_the_list(
     scene: SimpleNamespace, loop: Any, status: int, stderr: str, code: int, stage: str
 ) -> None:
     scene.gh.single_status, scene.gh.single_stderr = status, stderr
+    if status == 0:
+        # 応答の ID が依頼と違うのは証拠の不整合（4）で、基盤障害（5）ではない
+        scene.gh.single_id = scene.comment_id + 1
     refuse_new(loop, scene, code=code, stage=stage)
 
 
-# --- HEAD・spec_commit の不一致 ----------------------------------------------------------------------------------
-
-
-def test_merged_at_another_head_is_not_reconciled(scene: SimpleNamespace, loop: Any, env: Any) -> None:
-    scene.gh.gh.merged_head = env.push("サイクルの後の commit")
-    refuse_new(loop, scene, stage="merge_mismatch")
+# --- spec_commit の不一致（HEAD 不一致の代表は実 CLI のケース） ----------------------------------------------------
 
 
 def test_spec_commit_head_is_out_of_scope(scene: SimpleNamespace, loop: Any, env: Any, tmp_path: Path) -> None:
@@ -457,25 +462,8 @@ def test_lock_refuses_reconcile(scene: SimpleNamespace, loop: Any, env: Any) -> 
 # --- 既存証拠の保持と status の再検証 ----------------------------------------------------------------------------
 
 
-def test_existing_evidence_is_not_overwritten(scene: SimpleNamespace, loop: Any, tmp_path: Path) -> None:
-    loop.reconcile(scene.run_dir, finalize_result=scene.finalize, comment_id=scene.comment_id, github=scene.github)
-    path = scene.run_dir / "reconcile.json"
-    before = path.read_bytes()
-
-    # finalize 結果の移動・再整形は同じ証拠ではない（場所と元バイト列も証拠）
-    moved = tmp_path / "moved.json"
-    moved.write_bytes(scene.finalize.read_bytes())
-    reformatted = tmp_path / "reformatted.json"
-    reformatted.write_text(json.dumps(json.loads(scene.finalize.read_text(encoding="utf-8"))), encoding="utf-8")
-    for other in (moved, reformatted):
-        with pytest.raises(loop.LoopError) as error:
-            loop.reconcile(scene.run_dir, finalize_result=other, comment_id=scene.comment_id, github=scene.github)
-        assert (error.value.code, error.value.stage) == (4, "record_inconsistent")
-        assert path.read_bytes() == before
-
-
-@pytest.mark.parametrize("target", ["run.json", "cycle-1.json", "reconcile.json"])
-def test_status_revalidates_saved_evidence(scene: SimpleNamespace, loop: Any, target: str) -> None:
+@pytest.mark.parametrize("case", ["run-notes", "cycle-head", "evidence-result", "evidence-finalize-result"])
+def test_status_revalidates_saved_evidence(scene: SimpleNamespace, loop: Any, case: str) -> None:
     loop.reconcile(scene.run_dir, finalize_result=scene.finalize, comment_id=scene.comment_id, github=scene.github)
     ok = loop.status(run_dir=scene.run_dir)
     assert ok["result"]["merged"] is True and ok["reconciled"] is not None
@@ -483,14 +471,18 @@ def test_status_revalidates_saved_evidence(scene: SimpleNamespace, loop: Any, ta
     assert ok["cycles"][-1]["state"] == "ended"
 
     # 保存後に元記録・証拠が改変されたら、status は 4 で止まり merged=true を返さない
-    path = scene.run_dir / target
+    name = "reconcile.json" if case.startswith("evidence") else ("run.json" if case == "run-notes" else "cycle-1.json")
+    path = scene.run_dir / name
     value = json.loads(path.read_text(encoding="utf-8"))
-    if target == "run.json":
+    if case == "run-notes":
         value["notes"].append("改変")
-    elif target == "cycle-1.json":
+    elif case == "cycle-head":
         value["head"] = "0" * 40
-    else:
+    elif case == "evidence-result":
         value["result"]["merged"] = False
+    else:
+        # 保存済み証拠の finalize 結果だけの改変（merged=false）も成功にしない
+        value["finalize"]["result"]["merged"] = False
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
     with pytest.raises(loop.LoopError) as error:
         loop.status(run_dir=scene.run_dir)
@@ -542,7 +534,7 @@ def test_abort_time_survives_held_and_recover(loop: Any, env: Any, tmp_path: Pat
     assert json.loads(run_path.read_text(encoding="utf-8"))["aborted_at"] == T_ABORT
 
 
-# --- 実 CLI（argparse・dispatch・main の経路）の 4 ケース ----------------------------------------------------------
+# --- 実 CLI（argparse・dispatch・main の経路）の不一致 3 ケース。成功ケースは成功の対照が兼ねる ---------------------
 
 
 def cli(
@@ -572,19 +564,10 @@ def reconcile_argv(scene: SimpleNamespace, **changes: Any) -> list[str]:
     ]
 
 
-def test_cli_reconcile_success(scene: SimpleNamespace, loop: Any, monkeypatch: pytest.MonkeyPatch, capsys: Any) -> None:
-    code, output = cli(loop, monkeypatch, capsys, scene.github, reconcile_argv(scene))
-    assert code == 0
-    assert output["result"]["merged"] is True and output["result"]["outcome"] == "no_fix_needed"
-    assert output["reconciled"]["comment_id"] == scene.comment_id
-    code, status = cli(loop, monkeypatch, capsys, scene.github, ["status", "--run", str(scene.run_dir)])
-    assert code == 0
-    assert status["reconciled"] is not None and status["original_result"]["ended_by"] == "abort"
-
-
 def test_cli_reconcile_comment_mismatch(
     scene: SimpleNamespace, loop: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any
 ) -> None:
+    # 存在しない・別 PR の ID は、一覧への所属確認で単一取得の前に拒否する（コメント不一致の代表）
     other = scene.comment_id + 1
     bad = write_finalize(tmp_path / "other.json", other)
     code, output = cli(
@@ -601,6 +584,7 @@ def test_cli_reconcile_comment_mismatch(
 def test_cli_reconcile_head_mismatch(
     scene: SimpleNamespace, loop: Any, env: Any, monkeypatch: pytest.MonkeyPatch, capsys: Any
 ) -> None:
+    # マージされた HEAD がサイクルの HEAD と違う run は照合しない（HEAD 不一致の代表）
     scene.gh.gh.merged_head = env.push("サイクルの後の commit")
     code, output = cli(loop, monkeypatch, capsys, scene.github, reconcile_argv(scene))
     assert code == 4 and output["stage"] == "merge_mismatch"
@@ -610,12 +594,16 @@ def test_cli_reconcile_head_mismatch(
 def test_cli_reconcile_existing_evidence(
     scene: SimpleNamespace, loop: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any
 ) -> None:
+    # 既存証拠の代表。finalize 結果の移動・再整形は同じ証拠ではない（場所と元バイト列も証拠）
     code, _ = cli(loop, monkeypatch, capsys, scene.github, reconcile_argv(scene))
     assert code == 0
     path = scene.run_dir / "reconcile.json"
     before = path.read_bytes()
+    moved = tmp_path / "moved.json"
+    moved.write_bytes(scene.finalize.read_bytes())
     reformatted = tmp_path / "reformatted.json"
     reformatted.write_text(json.dumps(json.loads(scene.finalize.read_text(encoding="utf-8"))), encoding="utf-8")
-    code, output = cli(loop, monkeypatch, capsys, scene.github, reconcile_argv(scene, finalize_result=str(reformatted)))
-    assert code == 4 and output["stage"] == "record_inconsistent"
-    assert path.read_bytes() == before
+    for other in (moved, reformatted):
+        code, output = cli(loop, monkeypatch, capsys, scene.github, reconcile_argv(scene, finalize_result=str(other)))
+        assert code == 4 and output["stage"] == "record_inconsistent"
+        assert path.read_bytes() == before
