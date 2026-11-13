@@ -19,6 +19,7 @@
 - `check-options` 成功: max_cycles=3 は既定。inspect の3担当・fix.implement の Terra は明示指定。fallback は全て空。self-review / fix-check は既定 self。
 - `implement_task.py check` 成功: agents=`[pi_openai-codex_gpt6-terra_xhigh]`、fallback=`[]`、self=false。実装担当は以前の self ではない。
 - 実行方式: runner に Task を一つずつ依頼する SDD。実装・テスト・文書は同じ配線変更なので1 Taskにまとめる。取り込み後は別 context の読み取り専用 Task レビューを行う。最後の全体レビューは --merge ループ1回目で代える。
+- 再開の実行許可: runner が旧 pi 抽出により response_failed となった後、controller の具体的な提案「保存済み成果を検証して取り込む方法で再開していいっちゃ？」に対し、利用者は「再開してください。」と指示した。failed を成功扱いせず、保存済みの実装 commit `ff3333420d5ff26907df8d61380193a61c023498` の範囲・履歴・差分を照合して取り込み、テストと独立 Task レビューをやり直す例外を許可されたものとする。新たな実装担当への切替・追加課金は行っていない。
 - Spec レビューは前セッションの devin_swe2_max / SWE-2 Max、319.7秒、S1 minor採用、next=plan、cleanup retained=0 を引き継ぐ。builder check を重複して行わない。レビュー済み Spec のバイト列は変えない。
 - base: origin / refs/heads/main / `777a67a8116d2d63652105802c9aa1dfc565e5aa`。新しい branch / worktree を作らず `fix/issue-418-pi-json-result` を使う。
 
@@ -84,15 +85,15 @@ Dev Container（Ubuntu 26.04）・Python 3.14・`uv run pytest`。偽 NDJSON を
 
 **テストの要否:** S。完了した有料結果の損失、古い訂正結果の静かな採用、壊れた結果の成功扱いを防ぐ配線テスト。json_result の規則自体は既存単体テストに任せる。文書は差分の意味を検査する。
 
-- [ ] Step 1: `test_collect_prose_json_result` を追加し、prose + 裸 JSON が success で期待 payload になることを確認する。既存 `_session` / `_assistant` / `_agent_end` / `_collect` を使う。
-- [ ] Step 2: `test_collect_uses_last_corrected_json_result` を追加する。古い fence `{"version":"old"}` → 日本語訂正 prose → 新しい fence `{"version":"new"}` を与え、success と payload `{"version":"new"}` を比較する。
-- [ ] Step 3: `test_collect_rejects_malformed_json_candidate` を追加する。先行有効結果の後に壊れた候補を置く非 fence 形と閉鎖 JSON fence 形を parametrize。両方 response_failed / payload=None を確認する。
-- [ ] Step 4: 新規テストのみ `uv run pytest tools/agent_runner/tests/adapters/pi/test_adapter.py -q -k 'prose_json_result or last_corrected_json_result or malformed_json_candidate'` で実行し、旧抽出で prose・訂正・閉鎖壊れ候補の失敗を確認する。既に通る非 fence 拒否の対照はそのまま残す。
-- [ ] Step 5: pi.py に `from tools.agent_runner.adapters.json_result import json_object` を加え、`_FENCE` と `_json_object` を削除し、`_payload` の呼出しを直接差し替える。モジュール docstring に共有抽出を使うことを追記する。`re` は診断等で引き続き必要。
-- [ ] Step 6: `test_invalid_fence_cannot_salvage_inner_json` の runtime parametrization から pi だけを外し、claude-code と既存 text fixtures は維持する。
-- [ ] Step 7: pi.rst の抽出説明を prose + 裸/fence JSON、最後の object、壊れた候補拒否と巻き戻し禁止、example の例外、未閉鎖 fence の接受へ更新する。RST 文書のラベル・構造は維持する。
-- [ ] Step 8: `uv run pytest tools/agent_runner/tests/adapters/pi tools/agent_runner/tests/adapters/test_parser_regressions.py tools/agent_runner/tests/adapters/test_json_result.py -q` と `uv run --locked python -m compileall -q tools/agent_runner/adapters/pi.py tools/agent_runner/tests/adapters/pi/test_adapter.py tools/agent_runner/tests/adapters/test_parser_regressions.py` を同期実行し、終了コード0を確認する。
-- [ ] Step 9: diff と自己レビューで編集禁止の関数・ファイルを変えていないことを確認し、担当4パスだけを stage・commit する。メッセージ `fix(agent-runner): use shared JSON result extraction for pi`。引き継いだ trailer `Co-Authored-By: Claude Code <noreply@anthropic.com>` を維持する。所要時間、RED/GREEN、テスト結果、commit、懸念を報告する。
+- [x] Step 1: `test_collect_prose_json_result` を追加し、prose + 裸 JSON が success で期待 payload になることを確認する。既存 `_session` / `_assistant` / `_agent_end` / `_collect` を使う。
+- [x] Step 2: `test_collect_uses_last_corrected_json_result` を追加する。古い fence `{"version":"old"}` → 日本語訂正 prose → 新しい fence `{"version":"new"}` を与え、success と payload `{"version":"new"}` を比較する。
+- [x] Step 3: `test_collect_rejects_malformed_json_candidate` を追加する。先行有効結果の後に壊れた候補を置く非 fence 形と閉鎖 JSON fence 形を parametrize。両方 response_failed / payload=None を確認する。
+- [x] Step 4: 新規テストのみ `uv run pytest tools/agent_runner/tests/adapters/pi/test_adapter.py -q -k 'prose_json_result or last_corrected_json_result or malformed_json_candidate'` で実行し、旧抽出で prose・訂正・閉鎖壊れ候補の失敗を確認する。既に通る非 fence 拒否の対照はそのまま残す。
+- [x] Step 5: pi.py に `from tools.agent_runner.adapters.json_result import json_object` を加え、`_FENCE` と `_json_object` を削除し、`_payload` の呼出しを直接差し替える。モジュール docstring に共有抽出を使うことを追記する。`re` は診断等で引き続き必要。
+- [x] Step 6: `test_invalid_fence_cannot_salvage_inner_json` の runtime parametrization から pi だけを外し、claude-code と既存 text fixtures は維持する。
+- [x] Step 7: pi.rst の抽出説明を prose + 裸/fence JSON、最後の object、壊れた候補拒否と巻き戻し禁止、example の例外、未閉鎖 fence の接受へ更新する。RST 文書のラベル・構造は維持する。
+- [x] Step 8: `uv run pytest tools/agent_runner/tests/adapters/pi tools/agent_runner/tests/adapters/test_parser_regressions.py tools/agent_runner/tests/adapters/test_json_result.py -q` と `uv run --locked python -m compileall -q tools/agent_runner/adapters/pi.py tools/agent_runner/tests/adapters/pi/test_adapter.py tools/agent_runner/tests/adapters/test_parser_regressions.py` を同期実行し、終了コード0を確認する。
+- [x] Step 9: diff と自己レビューで編集禁止の関数・ファイルを変えていないことを確認し、担当4パスだけを stage・commit する。メッセージ `fix(agent-runner): use shared JSON result extraction for pi`。引き継いだ trailer `Co-Authored-By: Claude Code <noreply@anthropic.com>` を維持する。所要時間、RED/GREEN、テスト結果、commit、懸念を報告する。
 
 ## controller の統合・公開手順
 
