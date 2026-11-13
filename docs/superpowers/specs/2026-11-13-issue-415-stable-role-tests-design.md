@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`。内容の承認を受けたとは扱わない。
+- 状態: `completed`（本PRの実装・検証・レビュー判断。#400との後続結合確認は未完了として残す）。issue-to-prによる実行委任であり、内容の承認を受けたとは扱わない。
 - 対象: https://github.com/usaturn/create-reso-world/issues/415
 - 利用者指示: `#415 --merge --spec-review pi_alibaba_qwen4-max_max --implement pi_alibaba_qwen4-max_max --assign implement=pi_alibaba_qwen4-max_max --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,claude-code_opus_xhigh`
 - 追加指示: 「作業中 pi_alibaba_qwen4-max_max でうまくいかない場合は devin_swe2_max に変更してリトライして」。安全上の拒否・停止未確認は再試行しない。helper の順序・同一担当の制約を迂回しない。
@@ -109,3 +109,29 @@ autouse で全テストへ適用しない。5テストでも差し替えるの�
 - unprotected_changes は消えた既存6登録と、実行中に変化した親checkout・#356のworktree/試行領域。いずれも本Specのcheckoutではなく、対象HEAD・tracked/untrackedに変化なし。親の移動は既に確認したbase前進先と同じで、実装・規則の前提を変えない。他者領域は触らない。
 - 採否: S1 importantを採用し、対象5テストを列挙、準備だけの置換と本来の検査維持を明記、並行確認の合否をファイル全体の失敗0回へ明確化した。S2 minorを採用し現在の担当を管理節に明示。S3 minorを採用し、runner変更が必要なときのnative依存・先行マージ・取り込み・段落構造変更時の条件をIssueに合わせた。範囲・意味の変更やrunner編集許可の拡張はない。重要指摘採用により同担当で再レビューを1回行う。
 - 再レビュー（有効レビュー2回目、最後の1回）: helper外部実行、review_dir `/workspaces/reso-world/tmp/agents/issue-415.gjerrhip/2026-11-13-issue-415-stable-role-tests-design.spec-review/review-4`、review_id `e6c3ed9be4454962bc3b1fa903105bca`、reviewed SHA-256 `8044a6f6a4754a342e003af2477e93b2e1894827369a1338e70a78256c6669f7`。同じ指定・実担当と観測モデル、523.125秒、completed、指摘0件・incompleteなし、停止確認済み・終了0、outside_changesなし、unprotected_changesは既存6登録のみ、fallback未使用。全3指摘の反映を確認した結果としてPlanへ進む。レビューのcleanupとreflectedのSHAはSESSIONのhelper出力に記録し、レビューした文書をSHA自己参照のために変更しない。
+
+## PR #438・サイクル1の全体レビューと判断
+
+- 実行許可: 元のissue-to-pr `--merge` に基づく完遂。plannerは `gpt-6.1-sol` / pi（bashのPI_MODEL/PI_PROVIDERを確認）。結論2: 追加の実装修正は不要。マージ・Issue更新の実施結果はこの文書へ先取りせずPRコメントと最終報告へ記録する。
+- 対象HEAD `34c574411608a9b0d5ff833e3b9c75c605cef09b`、base `ae50a14428bb4200054dfdcefd135dcacec20654`。HEADは現行PRと一致しclean。全3変更ファイルの全文と関連run_roles/runner/workspace/dispatch・既存テストを確認した。
+
+| レビューファイル | モデル / runtime | HEAD12 | 再実行 | 結論 | 所要時間 |
+|---|---|---|---|---|---|
+| SWE-2-Max.md | SWE-2 Max / devin | 34c574411608 | はい | Approve、指摘0 | 352.414秒 |
+| deepseek-v4.1-flash.md | deepseek-v4.1-flash / pi | 34c574411608 | はい | Approve、指摘0 | 479.447秒 |
+| claude-opus-5-5.md | claude-opus-5-5 / claude-code | 34c574411608 | はい | Approve、Low 1件 | 393.491秒 |
+
+### 全指摘の採否
+
+`claude-opus-5-5#L-1@34c574411608`: **対応しない**。停止未確認テストはfake役割が失敗したときも同じnot-success拒否で合格する既存の前提確認不足。隔離したheadとbaseの両方でadapter.prepare失敗を注入し、ともに1 passed（0.38秒/0.41秒、終了0）を確認した。事実として認め、解消済みとはしない。ただし停止未確認を拒否する本体ガードは不変で、今回の例外一覧テストは成功状態を要求する。fake担当の追加の失敗を同時に起こした検査不足だけで、実在する通常経路で新たに安全境界の破れ・主要処理の停止・誤操作が生じる根拠はないため、致命的な指摘だけを直す基準に従い対応しない。Planの成功要求を除外した説明は、そのテストの役割stateも成功のままである点を十分区別していなかったが、この説明の追補をコード修正へ広げない。停止拒否実装の変更・実在する失敗構成の新証拠・利用者の名指し依頼があれば見直す。
+
+分類は解消済み0 / 対応する0 / 対応しない1。前のサイクルの判断なし。致命的な既存問題・自己確認の新規欠陥なし。設計見直しのきっかけなし。追加実装・run_roles・自己レビューは不要のため未実施（回数0）。
+
+### 要件と検証の照合
+
+- 準備分離: 対象5テストのfixtureはprepareだけを置換し、例外選択→実プロンプト→FakeAdapter→既存パス/役割assertionを保持。controllerの同一準備失敗注入は旧版RED、新版7ケースGREEN。adapter失敗注入は役割/state/attempt付きで拒否を確認した。
+- 変更範囲・入力: コードは対象テスト1ファイルだけ。exception_lines()/20秒期限/runner本体は不変。片側self/両側self、既存非ASCIIパスのケースも成功。PRの保証は実worktree作成そのものや任意の停止拒否テストの前提網羅には広げない。
+- 最終検証: 最後の文書commit後のcleanな対象HEADで、対象18・runner305・全体1507、シェル27本、配置/diff検査、対象pytestとシェルの並行2回を全て終了0で確認。固定base前進1回後に全7コマンドを再実行した。uvの親VIRTUAL_ENV不一致警告は対象project環境を使用したもので、永続設定は変更していない。
+- 全体レビューの未実施一括検証は上記の同HEADのcontroller証拠で閉じた。#400はまだOPENで両変更の結合検証は未実施。Refs #415で残し、マージ後に対象ファイルとrunner全体の確認が必要であることをIssueへ報告する。
+- 確認済み一覧: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#438-fix-issue-415-stable-role-tests/verified/34c574411608.json`（confirmed 1、unverified 0）。工程記録は同stemの `.planning.json` に、実施した判断工程だけを記録する。
+- 実行証拠: `/workspaces/reso-world/tmp/agents/issue-415.gjerrhip/` のchecks.json、reverified.json、reverify-1.log〜7.log、並行2回のparallel-05ig0sen、対照ログ、low-1-repro-head.log/base.log。review-fix最終化資料は `/workspaces/reso-world/tmp/agents/review-fix-planning-pr438.5tr49r0e/`。再現用の隔離worktreeと一時領域は回収済み。
