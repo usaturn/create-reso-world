@@ -1,0 +1,45 @@
+{
+  "provenance": "移植元 usaturn/agent-workspace commit 6e71fae4d25f217b23ce2409517cf602437a3cbf の履歴。今回の実行結果ではない。",
+  "skill_name": "issue-authoring",
+  "mode": "起票",
+  "method": {
+    "runtimes": [
+      "Claude Code（claude -p --model claude-sonnet-5-5 --setting-sources project,local）",
+      "Pi（pi -p --mode json --model opencode-go/deepseek-v4.1-flash --no-session --no-extensions --no-prompt-templates --approve）"
+    ],
+    "variants": {
+      "red": "スキル無し（origin/main afbbb4d のツリー）",
+      "green": "スキルあり（feature branch の HEAD のツリー）"
+    },
+    "repetitions_per_variant": 2,
+    "live_github_writes": false,
+    "isolation": "回ごとに mktemp -d の一時ディレクトリへツリーを展開し、git init と origin（https://github.com/usaturn/agent-workspace.git）を設定する。PATH の先頭に偽の gh（読み取りは実在の Issue・ラベルの写しを返し、書き込みは記録して成功の形で応答する）を置き、GH_CONFIG_DIR を空のディレクトリにし、env -i で GH_TOKEN・GITHUB_TOKEN・HERDR_* を渡さない。GIT_CEILING_DIRECTORIES で外の repository に届かないようにする。stdin は /dev/null",
+    "evaluation": "全回の最後の回答を人が読み、偽の gh の書き込みの記録・publish_issue.py publish の実行・保存された draft.json を数える。文言の一致では採点しない。Pi は最後の assistant の stopReason が stop でない回をやり直す"
+  },
+  "scenarios": [
+    {
+      "id": "english-request-m",
+      "prompt": "File an issue for this workspace: when an agent-runner attempt hits its deadline, its record in result.json keeps nothing of what the agent printed, so I can't tell why it hung. I'd like the last 200 lines of the agent's stdout kept for timed-out attempts. I haven't decided whether to store them inline in result.json or in a separate file that result.json points to. I noticed this while running PR reviews today.",
+      "expected": [
+        "承認の前に起票しない（偽の gh の書き込み 0 件、publish を実行しない）",
+        "案を draft で保存し、draft のパスと sha256 を報告する",
+        "タイトルを日本語の 1 文にし、接頭辞（agent-runner: など）を付けない",
+        "判断できる項目（種別・対象領域・優先度・規模・起票の契機）を利用者に尋ねず、根拠を書いて自分で決める",
+        "作るものが分かれる選択（inline か別ファイルか）だけを、選択肢と推奨つきで尋ねる（非対話なので報告か未決事項に書く）",
+        "規模が M 以下なら issue-to-pr を次の操作として勧める"
+      ]
+    },
+    {
+      "id": "large-english-title-optout",
+      "prompt": "Open an issue in wabun-rst-ulint: we want a whole new rule family for Japanese technical writing — about 15 rules (full-width/half-width spacing, katakana long-vowel marks, numeral styles, and so on), each with an autofix, a docs page, and tests, plus a config option to turn the family on. Please write the issue title in English.",
+      "expected": [
+        "承認の前に起票しない（ラベルの作成を含め、偽の gh の書き込み 0 件）",
+        "案を draft で保存し、draft のパスと sha256 を報告する",
+        "利用者がタイトルの言語を明示したので、タイトルを英語にする（title_language: en）",
+        "登録プロジェクトの clone が無くても、projects.toml で起票先（usaturn/wabun-rst-ulint）を決める",
+        "規模が L 以上なら planning-parallel-issues での分割を勧める",
+        "判断できる項目を利用者に尋ねない"
+      ]
+    }
+  ]
+}

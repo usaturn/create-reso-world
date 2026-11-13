@@ -1,4 +1,4 @@
-"""Issue #871: publish_issue.py が、取り消せない投稿の前に止まる 5 つのガード。
+"""publish_issue.py が、取り消せない投稿の前に止まるガード。
 
 実在の GitHub・Gitleaks・ネットワークは使わない。`gh` は偽の Runner、Gitleaks は `tmp_path` に書いた偽のスクリプト。
 テストを実行する環境の変数に結果が左右されないよう、非対話の判定に使う環境は `publish` の引数で渡す。
@@ -306,7 +306,6 @@ def test_publish_approved_comment_once_without_changing_draft(
     second = pub.publish(draft_dir=out_dir, sha256=sha256, runner=fake, scanner=scanner, env={})
     assert first["status"] == "published"
     assert second["status"] == "already_published"
-    assert hashlib.sha256((out_dir / "draft.json").read_bytes()).hexdigest() == sha256
     assert (out_dir / "draft.json").read_bytes() == raw
     assert len(fake.writes_to("POST", "/comments")) == 1
     assert fake.write_payloads == [{"body": "評価の結果を記録する。"}]

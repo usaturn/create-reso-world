@@ -160,7 +160,7 @@ def test_broken_metadata_is_emitted_without_losing_other_issues() -> None:
     broken_record = records[0]
     assert broken_record["metadata"]["status"] == "broken"
     assert broken_record["metadata"]["reason"]
-    assert str(1) in stderr.getvalue()
+    assert "issue #1 metadata:" in stderr.getvalue()
     assert broken_record["metadata"]["reason"] in stderr.getvalue()
     assert records[1]["metadata"]["status"] == "ok"
     assert records[2]["metadata"]["status"] == "missing"

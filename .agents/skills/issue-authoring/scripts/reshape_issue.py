@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Issue の本文を、管理対象の範囲を変えずに整形する（Issue #869）。
+"""Issue の本文を、管理対象の範囲を変えずに整形する。
 
 - ``prepare``: snapshot の本文を、編集できるスロットと ``planning-parallel-issues`` の管理対象に分ける
 - ``build``: 編集したスロットを管理対象と組み立て、整形前の本文の archive を末尾に足す

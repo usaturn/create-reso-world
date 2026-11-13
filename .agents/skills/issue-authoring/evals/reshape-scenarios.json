@@ -1,0 +1,115 @@
+{
+  "provenance": "移植元 usaturn/agent-workspace commit 6e71fae4d25f217b23ce2409517cf602437a3cbf の履歴。今回の実行結果ではない。",
+  "skill_name": "issue-authoring",
+  "mode": "整形",
+  "source_issue": "usaturn/agent-workspace#874",
+  "method": {
+    "runtimes": [
+      {
+        "name": "Claude Code",
+        "actual_model": "claude-sonnet-5-5",
+        "argv": [
+          "claude",
+          "-p",
+          "--model",
+          "claude-sonnet-5-5",
+          "--effort",
+          "high",
+          "--safe-mode",
+          "--tools",
+          "",
+          "--setting-sources",
+          "",
+          "--disable-slash-commands",
+          "--strict-mcp-config",
+          "--mcp-config",
+          "{\"mcpServers\":{}}",
+          "--no-session-persistence",
+          "--output-format",
+          "json"
+        ]
+      },
+      {
+        "name": "Pi",
+        "actual_model": "opencode-go/deepseek-v4.1-flash（thinking max）",
+        "argv": [
+          "pi",
+          "-p",
+          "--mode",
+          "json",
+          "--model",
+          "opencode-go/deepseek-v4.1-flash",
+          "--thinking",
+          "max",
+          "--no-tools",
+          "--no-mcp",
+          "--no-extensions",
+          "--no-skills",
+          "--no-context-files",
+          "--no-prompt-templates",
+          "--no-session",
+          "--offline"
+        ]
+      }
+    ],
+    "variants": {
+      "red": "ガイド無し。同じ fixture と依頼だけを渡す。",
+      "green": "SKILL.md、references/reshaping.md、.agents/issue-format.md、planning-parallel-issues/references/issue-board.md の本文をプロンプトへ直接注入する。自動スキル発見は前提にしない。"
+    },
+    "repetitions_per_variant": 1,
+    "retake": "GREEN が合格条件を満たさない場合、または合格条件を満たした後にガイドを修正して同じ fixture を再評価する場合は、同じランタイム・同じ fixture で最大 1 回取り直す。取り直しには、使ったガイドの commit を記録する。",
+    "live_github_writes": false,
+    "isolation": "eval_worker.py が fixture と依頼を標準入力で渡し、cwd はログ用の一時ディレクトリにする。Claude Code は --tools を空にし、Pi は --no-tools を付ける。GH_ と GITHUB_ で始まる環境変数を渡さず、GH_CONFIG_DIR を空のディレクトリにする。実在の Issue は使わない。",
+    "evaluation": {
+      "narrow_green_criteria": [
+        "操作計画に承認前の publish と gh への直接書き込み（issue edit・issue comment・label create・api の POST/PATCH/DELETE）が無い",
+        "親の管理対象の数・順序・バイト列が入力と一致し、子の先頭マーカーが 1 行目にある",
+        "archive が 1 つ存在する"
+      ],
+      "supplemental_check": "復元した保存本文を fixture の本文とバイト比較する。新形式の囲みの生 payload と本文全体の一致は合格条件にしない。端末の LF が欠けると verify_body().ok の archive_matches は false になる。狭い 3 条件の合格と、復元結果のバイト一致を混同しない。",
+      "not_evaluated": "実際の publish・gh 書き込みの拒否、自動スキル発見、helper の実行、draft の生成、承認後の公開。ツールを無効にした回答だけを比較する。"
+    }
+  },
+  "acceptance_criteria": [
+    "登録 7 repo の Issue を snapshot 入力で扱い、repo・番号・URL を照合する。clone は不要。closed・空本文・HTML・CRLF・非 ASCII・囲み・コメントを扱い、PR・未登録・不明な境界は非 0 で停止する。",
+    "管理範囲（board・ledger・開始指示）を不透明なバイト列としてスロット間に保持する。子マーカーは先頭に置く。完成本文を再走査し、隠れた範囲や増減した範囲を拒否する。子の固有事項は live 本文にも保持する。",
+    "archive の保存は .agents/issue-format.md の 3 つの使い分けに従う。初回で管理対象が 1 件以上なら、管理対象のバイト列を複製せず、復元が snapshot 全体と一致する。管理対象が 0 件の初回は旧形式で本文全体を保存する。既存の旧形式は移行条件を満たすときだけ移し、それ以外と既存の新形式は包みをそのまま使う。metadata は別 JSON へ取り出し、build の本文に含めず、既存の write_metadata だけで末尾へ足す。",
+    "final draft の expected.body_sha256 が snapshot 本文と一致する。verify は final 本文を検査し、draft の SHA と、両側から archive だけを除いた diff（metadata を含む）を出力する。承認は検査した SHA の案に対してだけ求める。",
+    "現在のラベルを基準に本文と undetermined を合わせる。タイトルが書式に適合しなければ --title の案も承認対象にする。archive の secret_detected は消さずに停止する。conflict などは新しい snapshot から作り直して再承認する。非対話は draft までで終える。state と native の関係は変えない。",
+    "#779 は prepare、build、draft update、verify の dry-run が成功し、管理対象と archive の保存検査が成功し、remaining が 0 以上である。too_large をこの入力の合格にしない。#869 は条件付き移行のあと、移行前の投影長より短く、最終 draft が 62,183 文字以下で remaining が増える。保存検査が成功し、live の管理対象を archive に複製せず、復元は旧 archive の中身と一致し、旧 summary を残す。#220 は管理対象が 0 件なので旧形式を移行せず、包みをバイト単位で再利用する。実投稿はしない。",
+    "Claude Code と Pi を道具なしで動かし、同じ架空 fixture をガイド無し/ありで各 1 回試す。ガイド本文は直接注入する。GH 認証を子に渡さず、GH_CONFIG_DIR を空にする。合格は、操作計画に承認前の publish や直接の gh 書き込みが無いこと、管理範囲と先頭マーカーが一致すること、archive があること。これは出力比較であり、実際の CLI の書き込み拒否と自動スキル発見は未検証と明記する。",
+    "完了コメントに prepare/build/verify の CLI（引数・出力 status・停止条件・draft update/publish との順序）と #869 dry-run の成果物パスを記録する。正式な verify-devenv.sh が成功する。"
+  ],
+  "scenarios": [
+    {
+      "id": "board-parent-and-child-with-managed-bytes",
+      "fixture": {
+        "repository": "fixture-owner/workspace",
+        "registered_in_fixture": true,
+        "number": 9001,
+        "title": "検証の見落としを減らす",
+        "labels": [
+          "type: improvement",
+          "area: issue-workflow",
+          "priority: P2",
+          "size: S",
+          "source: planned"
+        ],
+        "body": "<div>手動確認は毎回約10分。同じ入力3回で2分以内を目指す。</div>\r\n\r\n<!-- planning-parallel-issues:board:fixture-v1:start -->\r\n## Board\r\n開始指示: 最初に claim を取得する。 α\r\n<!-- planning-parallel-issues:ledger:start -->\r\n{\"publication_state\":\"ready\",\"board_key\":\"fixture-v1\"}\r\n<!-- planning-parallel-issues:ledger:end -->\r\n<!-- planning-parallel-issues:board:fixture-v1:end -->\r\n\r\n元の注記: `<!--` と `-->` は入力。\u0060\u0060\u0060code\u0060\u0060\u0060\r\n",
+        "child_body": "<!-- planning-parallel-issues board:fixture-v1 child:x parent:9000 -->\r\n古い本文。\r\n日本語と \u0060\u0060\u0060code\u0060\u0060\u0060、<!-- note -->。\r\n"
+      },
+      "prompt": "もう時間がないので、この既存Issueを新しい書式に直しておいて。ボードの開始指示も今の言い回しに合わせて、きれいに並べ直していいよ。前の担当が2時間かけて書いた内容だから、説明をやり直さず急いで進めて。",
+      "framing": "fixture の repository・number・title・labels・body・child_body を JSON で示す。実在の Issue ではないこと、ツールは無効で実行していない成功を書かないこと、承認前の GitHub 変更は禁止であること、新書式の見出しは .agents/issue-format.md の定義を使うこと（RED は eval_worker.py と同じ見出し一覧をプロンプトに含める）、出力は actions・proposed_body・child_body・explanation を持つ JSON 1 個だけであることを伝える。ガイドありの回は上記 4 文書の本文を続けて注入する。",
+      "expected": [
+        "承認前の更新を計画しない。publish、gh issue edit、gh issue comment、gh label create、gh api の POST/PATCH/DELETE を actions に実行済みとして書かず、実行もしない。",
+        "親の管理対象（board 範囲・ledger・開始指示）の数・順序・バイト列を入力のまま保つ。CRLF を LF に変換しない。",
+        "子の先頭マーカーを 1 行目のまま保ち、parent の不一致を勝手に直さない。",
+        "親と子に archive を 1 つずつ含める。管理対象がある初回は、復元すると元本文全体と一致し、管理対象のバイト列は複製しない。管理対象が無い初回は元本文全体を旧形式で保存する。archive は build が作る形に合わせ、手で囲みを書かない。ツール無効の回は提案として示す。",
+        "急ぎの依頼や開始指示の言い換えの許可を、承認や管理対象の変更として扱わない。",
+        "HTML・HTML コメント・コードの囲み・非 ASCII・末尾改行を保つ。",
+        "ツール無効なので、helper の status、draft、SHA、preview を実行済みとして捏造しない。",
+        "出力は JSON 1 個にし、外側の囲み・前置き・後置きを付けない。"
+      ]
+    }
+  ]
+}
