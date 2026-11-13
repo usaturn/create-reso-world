@@ -900,7 +900,7 @@ uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py 
 - 同じ役割に並べられない組み合わせ（`check` が `duplicate_model` で拒否する）: `model_key` が
   `deepseek-v4.1-flash` の agent（`pi_commandcode_deepseek4-flash_max`・
   `pi_opencode-go_deepseek4-flash_max`・`pi_deepinfra_deepseek4-flash_high` と Ollama の 2 agent 同士）。
-  さらに `opus` 側は `model` が `opus` の `claude-code_opus_default`・`claude-code_alibaba_opus_max`、
+  さらに `opus` 側は `model` が `opus` の `claude-code_opus_xhigh`・`claude-code_alibaba_opus_max`、
   `sonnet` 側は `model` が `sonnet` の `claude-code_sonnet_xhigh` と同じ役割に並べられない
 
 #### 接続先の確認
@@ -1296,7 +1296,7 @@ uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py 
   `MAAS_ANTHROPIC_TOKEN` では値を表示せずに終了し、`claude` を起動しない（終了コード 1）。
   子には `ANTHROPIC_AUTH_TOKEN` だけを渡し、`ANTHROPIC_API_KEY` は渡さない
 - 同じ役割に並べられない組み合わせ（`check` が `duplicate_model` で拒否する）:
-  `model` が `opus` の `claude-code_opus_default`、`model_key` が `qwen4-max-preview` の agent。
+  `model` が `opus` の `claude-code_opus_xhigh`、`model_key` が `qwen4-max-preview` の agent。
   `claude-code_sonnet_xhigh` は `model` が `sonnet` なので、この組み合わせには当たらない
 
 #### 接続先の確認
@@ -1467,11 +1467,12 @@ model の段に入れず、effort の段に置く。effort は設定値を使い
 | `cursor-grok47` | `cursor_grok4_xhigh` |
 
 既定の `review.inspect` は
-`claude-code_opus_default,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`、
+`claude-code_opus_xhigh,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`、
 `issue.implement` は `self`（#391。司令塔が自分で実行する）、
 `fix.implement` は `self`（main の #377）。
 `fix.self-review`・`fix.fix-check` は `self` のままである。
-Sol の runner の effort は `max` を維持する（`pigs` 単独の既定 `xhigh` とは異なる）。
+Opus の `claude-code_opus_xhigh` と Sol の `pi_openai-codex_gpt6-sol_xhigh` の runner の effort はどちらも `xhigh`。
+Sol は `pigs` 単独の既定とも一致する。#305 の表の Sol `max` は当時の記録である。
 Sol / OpenCode Go DeepSeek の `OPENCODE_API_KEY` と、review の後処理の `uv --project .` も維持する。
 #337 で既定の第三担当を Command Code から OpenCode Go に置換した。上の #305 の旧名対応表は当時の変更記録であり、
 Command Code の agent 定義自体は再契約後の明示的な `--assign` 用に残している。
@@ -1526,7 +1527,7 @@ provider ごとに異なる model ID でも同じ役割には混在させない�
 SWE-2 の `devin_swe2_max`・`devin_swe2_medium` にも同じ `model_key = "swe-2"` を付けている。
 `devin_swe2_medium`（SWE-2 Medium）は既定のどの割り当てにも入っておらず、`--assign` か個人設定で選べる。
 2 つは同じ `model_key` なので、同じ役割に並べると `duplicate_model` で拒否される。
-`claude-code_alibaba_opus_max` は `model` が `opus` なので、`claude-code_opus_default` と同じ役割に並べられない。
+`claude-code_alibaba_opus_max` は `model` が `opus` なので、`claude-code_opus_xhigh` と同じ役割に並べられない。
 `claude-code_ollama_opus_max` も同じく `model` が `opus` で、`claude-code_ollama_sonnet_max` は `model` が `sonnet` なので
 `claude-code_sonnet_xhigh` と同じ役割に並べられない。組み合わせは
 「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」と
@@ -1575,7 +1576,35 @@ Spec レビューと設計レビューを行う。雛形・個人設定にレビ
 `invalid_reference` で止まる。`check` / `list` で実効割当を確認し、個人設定の自動変更や rebuild による設定消失を
 移行の代わりにしない。
 
-編集後は、リポジトリのルートで上記の `check` と `list` を実行する。
+Opus の雛形は `claude-code_opus_default` から `claude-code_opus_xhigh`（`effort = "xhigh"`）に変更した。
+自動移行や alias は無い。個人設定をバックアップし、旧名の `[agents.claude-code_opus_default]` の独自上書きが
+必要なら `[agents.claude-code_opus_xhigh]` に移して旧節を削除し、workflow の `agents` と `fallback` の旧名参照も
+新名に手で変更する。旧名参照だけなら `invalid_reference`、旧名の部分定義は必須項目の不足により
+`invalid_type` になり得る。完全な旧名定義は独自 agent として残り、自動では消えない。
+
+Sol も旧名 `pi_openai-codex_gpt6-sol_max` から `pi_openai-codex_gpt6-sol_xhigh` へ移行できる。
+個人設定に旧名の定義があれば独自の上書きを新名の節へ移して旧節を削除し、workflow の `agents` と
+`fallback` の参照も手で変更する。参照だけなら `invalid_reference`、部分定義は `invalid_type` に
+なり得る。完全な旧名定義は独自 agent として残り、自動変更されない。
+
+Sol の旧 `max` を使い続ける場合は、個人設定に完全な独自定義と割り当てを書く。以下は `review.inspect` を
+上書きする例であり、既存の個人設定と合わせて編集する。雛形の `xhigh` と独自の `max` は同じ model なので、
+同じ役割の `agents` / `fallback` に混在させると `duplicate_model` で拒否される。
+
+```toml
+[agents.pi_openai-codex_gpt6-sol_max]
+runtime = "pi"
+command = ["pigs"]
+model = "gpt-6.1-sol"
+provider = "openai-codex"
+effort = "max"
+env = ["HOME", "PATH", "OPENCODE_API_KEY"]
+
+[workflows.review.assignments.inspect]
+agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]
+```
+
+編集後は、リポジトリのルートで上記の `check` と `list` を実行する。成功は設定の検査であり、認証や実サービス起動の成功を意味しない。
 この環境の既存個人設定は旧名の参照だけを持つため、マージ後に利用者による移行が必要であり、本変更では触らない。
 マージ前の PR 修正ループは、親 checkout の旧雛形と既存設定をそのまま使い、`--config` / `--assign` を勝手に補わない。
 
@@ -2432,7 +2461,7 @@ wrapper は shell として env ファイルを実行しない。補う名前を
 | `~/.pi/agent/auth.json` | `pi_openai-codex_gpt6-sol_xhigh`・`pi_openai-codex_gpt6-terra_xhigh`・`pi_openai-codex_gpt6-astra_xhigh` | `/login openai-codex` の OAuth |
 | `~/.pi/agent/auth.json` | `pi_xai_grok4_xhigh` | `/login xai` の OAuth |
 | `~/.pi/agent/auth.json` | `pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max` | 保存した api_key（`OPENCODE_API_KEY` が無くてもここから読める） |
-| HOME 配下のログイン | `claude-code_opus_default`・`claude-code_sonnet_xhigh` | `~/.claude`・`~/.claude.json` |
+| HOME 配下のログイン | `claude-code_opus_xhigh`・`claude-code_sonnet_xhigh` | `~/.claude`・`~/.claude.json` |
 | HOME 配下のログイン | `codex_openai_gpt6-sol_default` | `~/.codex` |
 | HOME 配下のログイン | `cursor_auto_default`・`cursor_grok4_xhigh` | `~/.cursor`・`~/.config/cursor` |
 | HOME 配下のログイン | `devin_swe2_max`・`devin_swe2_medium` | `~/.config/devin`・`~/.local/share/devin` |
