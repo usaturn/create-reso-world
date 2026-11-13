@@ -59,13 +59,13 @@
 
 **テスト要否:** S（実際に再発した、記録診断からコメント ID を失う不具合）の代表 1 件をコミットする。同じ守りの別組み合わせは D、CLI 終了コードだけのテストは L とし、一時検証にする。
 
-- [ ] **Step 1: S 回帰テストを先に書く。** 名前 `test_collect_records_reports_surrogate_model_with_comment_id`。正常 v2 記録から生成したコメントの JSON の planner.model だけを `x\ud800y` にし、JSON エスケープのまま collect_records に入れる。render/compose に不正モデルを直接渡して fixture 作成中に落とさない。`problems_of()` の結果に `comment 12345: planner.model:` で始まる診断があることを assert する。拒否の理由をテスト内コメントに書く。
-- [ ] **Step 2: RED を確認。** `uv run pytest .agents/scripts/tests/test_review_records.py -k surrogate_model -q`。encode の `UnicodeEncodeError` による FAIL を記録する。fixture/構文/import の失敗は RED の根拠にしない。
-- [ ] **Step 3: 最小修正。** agent_id_for の `model.encode("utf-8")` だけの失敗を捕捉し、安全な `RecordError` にする。hashlib の入力は成功時の同じ UTF-8 バイト列。caller や _text、正常 ID への変換は変えない。
-- [ ] **Step 4: GREEN と関連回帰。** Step 2 のコマンド、続いて `uv run pytest .agents/scripts/tests/test_review_records.py .agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py -q`、`git diff --check`。新規 1 件、正常側を含む全成功を確認する。
-- [ ] **Step 5: コミットと報告。** 明示パスのみ stage、`fix: reject unencodable model names as record errors`。self-review と実行した RED/GREEN、変更ファイル、所要時間、concerns を報告する。担当の full suite は `uv run pytest tests/skills .agents/skills .agents/scripts tools -q`。実行を同期で待ち、成功/失敗とログを報告する（他原因の失敗を隠さない）。
-- [ ] **Step 6: controller の取り込み・Task レビュー。** helper の判定と停止を確認して accept、実際の取り込み HEAD で関連回帰を実行。実装時と同じ brief・受け入れ基準、担当報告、Task 開始 BASE からの review package を読み取り専用レビュアーに渡す。spec compliance と task quality の両方を確認する。元の findings をそのまま渡して必要な修正も同じ担当に依頼する。
-- [ ] **Step 7: controller の統合検証。** SESSION の不正 v2 コメントを fold に入力し 65/コメント12345/tracebackなしを確認。validate の同じ record で65を確認。正常コメントだけと、不正＋正常コメントから --exclude-comment 12345 した結果が等しいことを確認。upsert の compose_body を不正モデルで直接呼び CommentError を確認（ネットワークなし）。既存正常モデルのテストを対応する証拠とする。
+- [x] **Step 1: S 回帰テストを先に書く。** 名前 `test_collect_records_reports_surrogate_model_with_comment_id`。正常 v2 記録から生成したコメントの JSON の planner.model だけを `x\ud800y` にし、JSON エスケープのまま collect_records に入れる。render/compose に不正モデルを直接渡して fixture 作成中に落とさない。`problems_of()` の結果に `comment 12345: planner.model:` で始まる診断があることを assert する。拒否の理由をテスト内コメントに書く。
+- [x] **Step 2: RED を確認。** `uv run pytest .agents/scripts/tests/test_review_records.py -k surrogate_model -q`。encode の `UnicodeEncodeError` による FAIL を記録する。fixture/構文/import の失敗は RED の根拠にしない。
+- [x] **Step 3: 最小修正。** agent_id_for の `model.encode("utf-8")` だけの失敗を捕捉し、安全な `RecordError` にする。hashlib の入力は成功時の同じ UTF-8 バイト列。caller や _text、正常 ID への変換は変えない。
+- [x] **Step 4: GREEN と関連回帰。** Step 2 のコマンド、続いて `uv run pytest .agents/scripts/tests/test_review_records.py .agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py -q`、`git diff --check`。新規 1 件、正常側を含む全成功を確認する。
+- [x] **Step 5: コミットと報告。** 明示パスのみ stage、`fix: reject unencodable model names as record errors`。self-review と実行した RED/GREEN、変更ファイル、所要時間、concerns を報告する。担当の full suite は `uv run pytest tests/skills .agents/skills .agents/scripts tools -q`。実行を同期で待ち、成功/失敗とログを報告する（他原因の失敗を隠さない）。
+- [x] **Step 6: controller の取り込み・Task レビュー。** helper の判定と停止を確認して accept、実際の取り込み HEAD で関連回帰を実行。実装時と同じ brief・受け入れ基準、担当報告、Task 開始 BASE からの review package を読み取り専用レビュアーに渡す。spec compliance と task quality の両方を確認する。元の findings をそのまま渡して必要な修正も同じ担当に依頼する。
+- [x] **Step 7: controller の統合検証。** SESSION の不正 v2 コメントを fold に入力し 65/コメント12345/tracebackなしを確認。validate の同じ record で65を確認。正常コメントだけと、不正＋正常コメントから --exclude-comment 12345 した結果が等しいことを確認。upsert の compose_body を不正モデルで直接呼び CommentError を確認（ネットワークなし）。既存正常モデルのテストを対応する証拠とする。
 - [ ] **Step 8: 完了記録と最終検証。** Plan のチェックボックス・Task/検証/所要時間を事実に基づき更新して commit。以下の必須検証 3 本を clean な最後の HEAD で実行し、head/base/status/argv/終了コード/ログを SESSION の checks.json 等に記録する。
 
 ## 要件・原因・検証の対応
@@ -105,4 +105,12 @@
 
 ## 完了記録
 
-未実施。実行証拠と所要時間を確認後に追記する。
+- Task 1 実装: `pi_openai-codex_gpt6-terra_xhigh`（明示指定）、runner 実測 model `gpt-6.1-terra` / provider `openai-codex` / effort `xhigh`、session `01a1d2d4-9d5b-724d-b77e-04fc48ae5967`。依頼1回、fallbackなし、所要1430.647秒（担当内訳: 実装/関連確認約35秒、全体検証1342.03秒、最終確認/commit約18秒）。
+- 実装commit `8ea11df444cee63f89853b85144d6d62f13305b0`。Sテスト1件でRED（UnicodeEncodeError）→GREEN。関連110 passed、全体1486 passed、すべて期待する終了コード（REDのみ1、ほか0）。
+- controller が accept 成功、関連110 passedを再確認。Taskレビューは spec compliant / quality Approved、Critical/Important/Minorなし。最初のレビュー依頼は `Review scope: task` の追記要求があり、追記後に同スコープで実施（追加の実装依頼なし）。
+- controller統合: foldは65・comment12345付き診断・stdout空・tracebackなし、validateは65、正常foldと不正コメント除外後のfoldは同じ正常記録、upsert compose_bodyはCommentError。全て実入力で観測し、実ネットワーク書込は行っていない。
+- 原因に関わる読取・検証・書込前変換・除外復旧の接続はこの実装HEADで確認済み。既存正常ASCII/非ASCIIの回帰も成功。対象外の自由記述の別原因は変更していない。
+- 証拠: `/workspaces/reso-world/tmp/agents/issue-409-implement.xi2dl71o/task-1-evidence/`（担当RED/GREEN/関連/全体ログ・report）、`/workspaces/reso-world/tmp/agents/issue-409.8hux350m/integration.log`・`integration-result.json`・`related-after-import.log`。runnerの停止確認true、cleanupは専用worktree/run-dirを除去しretainedなし。証拠はコミットしないため残す。
+- Specレビューのcleanupもretainedなし。reviewed/reflected SHAとdecide結果は SESSION/spec-decide.json に記録。Specレビュー済みバイト列は変更していない。
+- Step 8の必須3検証・公開は、この文書のコミット後にcleanな最後のHEADで実施する。結果とHEAD/base/status/ログはSESSION/checks.json・verification.jsonとPR本文に記録し、未実行を成功としない。公開後のループ記録もSESSION/PRに置き、このチェックボックス更新のためだけに検証済みHEADを変更しない。
+- deferred/parked: なし。実装担当の監査で unprotected_changes（他セッションと親checkoutを含む）が報告されたが、outside_changesは空。親や他者の変更は回収せず、取込後に今回の差分と統合確認を行った。
