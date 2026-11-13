@@ -4,6 +4,7 @@
 テストを実行する環境の変数に結果が左右されないよう、非対話の判定に使う環境は `publish` の引数で渡す。
 """
 
+import copy
 import hashlib
 import importlib.util
 import json
@@ -13,6 +14,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, unquote
 
 import pytest
 
@@ -138,6 +140,16 @@ class FakeGh:
             issue = self.issues[(repo, int(tail[1]))]
             issue.update(payload)
             return self._reply(argv, 0, json.dumps(issue))
+        if tail[0] == "issues" and len(tail) >= 3 and tail[2] == "labels":
+            issue = self.issues[(repo, int(tail[1]))]
+            names = [label["name"] for label in issue["labels"]]
+            if method == "POST" and len(tail) == 3:
+                names.extend(name for name in payload["labels"] if name.casefold() not in {n.casefold() for n in names})
+            elif method == "DELETE" and len(tail) == 4:
+                names = [name for name in names if name.casefold() != unquote(tail[3]).casefold()]
+            else:
+                raise AssertionError(argv)
+            issue["labels"] = [{"name": name} for name in names]
         return self._reply(argv, 0, "{}")
 
     @staticmethod
@@ -235,6 +247,54 @@ def test_publish_does_not_overwrite_body_changed_after_reading(pub: Any, tmp_pat
 
     assert result["status"] == "conflict"
     assert fake.writes() == []
+
+
+def test_update_resume_rejects_changed_body_and_allows_partial_labels(pub: Any, tmp_path: Path) -> None:
+    """途中公開後の外部編集で誤成功・追加書込みしない一方、正当な途中状態は再開できる。"""
+    fake = FakeGh()
+    labels, body = conforming_update(pub)
+    old_label = next(label.name for label in pub.fmt.load_rules(REPO).labels if label.family == "triage")
+    initial_labels = labels[1:] + [old_label]
+    fake.labels[REPO] = labels + [old_label]
+    fake.issues[(REPO, ISSUE)] = issue_json(ISSUE, title="対象の Issue", body="古い本文", labels=initial_labels)
+    out_dir = tmp_path / "draft"
+    out_dir.mkdir()
+    scanner = fake_gitleaks(pub, tmp_path / "working-scanner", silent=False)
+    saved = pub.draft_update(
+        repo=REPO, issue=ISSUE, read_json=copy.deepcopy(fake.issues[(REPO, ISSUE)]),
+        body=body, metadata=None, title=None, add_labels=[labels[0]], remove_labels=[old_label],
+        out_dir=out_dir, runner=fake, scanner=scanner,
+    )
+    assert saved["status"] == "draft_saved"
+    endpoint = f"repos/{REPO}/issues/{ISSUE}/labels"
+    fake.fail_posts_to.add(endpoint)
+    result = pub.publish(draft_dir=out_dir, sha256=saved["sha256"], runner=fake, scanner=scanner, env={})
+    assert result["step"] == "add_labels"
+    assert fake.issues[(REPO, ISSUE)]["body"] == body
+
+    fake.fail_posts_to.clear()
+    fake.issues[(REPO, ISSUE)]["body"] = "別のセッションが書いた本文"
+    remote_before = copy.deepcopy((fake.issues, fake.labels))
+    files_before = {p.name: (p.read_bytes(), p.stat().st_mode) for p in out_dir.iterdir()}
+    writes_before = list(fake.writes())
+    result = pub.publish(draft_dir=out_dir, sha256=saved["sha256"], runner=fake, scanner=scanner, env={})
+    assert result["status"] == "conflict"
+    assert (fake.issues, fake.labels) == remote_before
+    assert fake.writes() == writes_before
+    assert {p.name: (p.read_bytes(), p.stat().st_mode) for p in out_dir.iterdir()} == files_before
+
+    fake.issues[(REPO, ISSUE)]["body"] = body
+    remove_endpoint = f"{endpoint}/{quote(old_label, safe='')}"
+    fake.fail_posts_to.add(remove_endpoint)
+    result = pub.publish(draft_dir=out_dir, sha256=saved["sha256"], runner=fake, scanner=scanner, env={})
+    assert result["step"] == f"remove_label:{old_label}"
+    assert labels[0] in [label["name"] for label in fake.issues[(REPO, ISSUE)]["labels"]]
+    fake.fail_posts_to.clear()
+    writes_before = len(fake.writes())
+    result = pub.publish(draft_dir=out_dir, sha256=saved["sha256"], runner=fake, scanner=scanner, env={})
+    assert result["status"] == "published"
+    assert [call[3] for call in fake.writes()[writes_before:]] == ["DELETE"]
+    assert {label["name"] for label in fake.issues[(REPO, ISSUE)]["labels"]} == set(labels)
 
 
 def test_publish_refuses_non_interactive_run(pub: Any, tmp_path: Path) -> None:

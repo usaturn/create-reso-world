@@ -1049,21 +1049,22 @@ def _label_path(draft: Draft, expected: Expected) -> tuple[list[str], list[tuple
     return steps, path
 
 
-def _require_labels_on_path(ctx: _Context, target: IssueTarget, expected: Expected) -> None:
-    """ラベルを当てる前に、今のラベルが読んだ時点から最終までの手順の途中（記録の済んだ手順以降）にあると確かめる。
-
-    手順が途中で止まった後の再実行は、途中の集合になる。それ以外は、読んだ後に誰かが変えている。
-    """
+def _require_update_state(ctx: _Context, target: IssueTarget, expected: Expected) -> IssueSnapshot:
+    """本文・タイトルが承認案どおりで、ラベルが記録に沿った途中状態にあると確かめる。"""
     steps, path = _label_path(ctx.draft, expected)
     finished = 0
     for step in steps:
         if ctx.journal.state(step) != "done":
             break
         finished += 1
-    if finished == len(steps):
-        return
     current = _get_issue(ctx.runner, target.repository, target.number, step="labels_state")
-    if _label_keys(current.label_names) not in path[finished:]:
+    if current.is_pull_request:
+        raise _not_an_issue(target.repository, target.number)
+    if (
+        _body_sha256(current.body) != _body_sha256(ctx.draft.body)
+        or current.title != (ctx.draft.title if ctx.draft.title is not None else expected.title)
+        or _label_keys(current.label_names) not in path[finished:]
+    ):
         raise _Stop(
             {
                 "status": "conflict",
@@ -1072,13 +1073,14 @@ def _require_labels_on_path(ctx: _Context, target: IssueTarget, expected: Expect
                 "completed": ctx.journal.done_steps(),
             }
         )
+    return current
 
 
 def _update_labels(ctx: _Context, target: IssueTarget, expected: Expected) -> None:
     base = f"repos/{target.repository}/issues/{target.number}"
     draft = ctx.draft
-    _require_labels_on_path(ctx, target, expected)
     if draft.labels and ctx.journal.state("add_labels") != "done":
+        _require_update_state(ctx, target, expected)
         ctx.journal.intent("add_labels")
         _call(ctx.runner, "POST", f"{base}/labels", step="add_labels", payload={"labels": list(draft.labels)})
         ctx.journal.done("add_labels")
@@ -1086,8 +1088,8 @@ def _update_labels(ctx: _Context, target: IssueTarget, expected: Expected) -> No
         step = f"remove_label:{name}"
         if ctx.journal.state(step) == "done":
             continue
+        current = _require_update_state(ctx, target, expected)
         ctx.journal.intent(step)
-        current = _get_issue(ctx.runner, target.repository, target.number, step=step)
         if name.casefold() in {item.casefold() for item in current.label_names}:
             _call(ctx.runner, "DELETE", f"{base}/labels/{quote(name, safe='')}", step=step)
         ctx.journal.done(step)
@@ -1099,9 +1101,12 @@ def _run_update(ctx: _Context) -> str:
         raise PublishError("the draft has no target")
     if ctx.journal.state("body") != "done":
         _body_applied(ctx, target, expected)  # 作るラベルの書き込みの前に、読んだ後に変わっていれば止める
+    else:
+        _require_update_state(ctx, target, expected)
     _ensure_labels(ctx)
     _update_body(ctx, target, expected)
     _update_labels(ctx, target, expected)
+    _require_update_state(ctx, target, expected)
     return f"https://github.com/{target.repository}/issues/{target.number}"
 
 
