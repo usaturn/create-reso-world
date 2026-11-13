@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`。実行許可であり内容の承認ではない。
+- 状態: `completed`。実装・検証・レビュー修正を完了し、review-fix-planningの最終化へ進む。利用者の実行許可による完了であり、内容の承認（approved）を記録したものではない。
 - 対象: https://github.com/usaturn/create-reso-world/issues/420
 - 利用者指示: `#420 --merge --spec-review devin_swe2_max --implement pi_openai-codex_gpt6-terra_xhigh --assign implement=pi_openai-codex_gpt6-terra_xhigh --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,claude-code_opus_default`（改行を空白で表記）。
 - 許可範囲: 通常の設計判断、指定担当での Spec レビュー・実装、検証、commit、scan 付き push、PR 作成、指定レビュー修正ループ内の finalize によるマージ。実機操作・他セッションの回収・任意の記録修復は許可に含めない。
@@ -63,7 +63,7 @@
 
 ### 範囲・実行許可・構成
 
-対象HEAD `06c16cf3f9d2d9874c04b562358a81863706cffd`、base `38eec3263d0558b190602d5b6dd8ffdd31874610`。planner=openai-codex/gpt-6.1-sol / pi。利用者の#420 --mergeと指定loopによる完遂の実行許可。現行Specは本ファイル1件、Planも同テーマ1件を確認し、新しい回別文書を作らない。issue-to-prの規則に従い状態draftを維持し、実装・検証・レビュー修正の完了を実行記録に残す。内容承認とは区別し、文書だけを先にcommit/pushしない。
+対象HEAD `06c16cf3f9d2d9874c04b562358a81863706cffd`、base `38eec3263d0558b190602d5b6dd8ffdd31874610`。planner=openai-codex/gpt-6.1-sol / pi。利用者の#420 --mergeと指定loopによる完遂の実行許可。現行Specは本ファイル1件、Planも同テーマ1件を確認し、新しい回別文書を作らない。サイクル1の公開時はissue-to-prのdraft状態を維持し、実装・検証・レビュー修正の完了を実行記録に残した。サイクル2の修正不要の最終化ではreview-fix-planningの手順でcompletedへ更新する。いずれも内容承認とは区別する。
 
 | レビュー | モデル/runtime | HEAD | 今回再実行 | 推奨 |
 |---|---|---|---|---|
@@ -129,3 +129,24 @@ Specはdraftの未commit変更として専用worktreeに保持。非Specの修�
 - 再開時の新規実行: 境界10件/10.813秒、元matrix19件/18.305秒、正規prepare-failed＋fallbackと非正規attemptの2件、全3変更Python構文、関連Spec/design41テスト/8.81秒、diff checkが全てexit0。実runner＋fakeだけを使用。必須の未確認なし。任意ruff未導入は未検証のままで、成功に含めない。
 - 自己レビュー入口が管理する隔離worktreeはcompleteが回収し、追加fixtureも自身の一時領域から回収済み。旧/tmp6登録には触れていない。実行記録は`/workspaces/reso-world/tmp/agents/review-fix-planning-pr428.tbrt__6a/`の`recovery-authorization.json`、`self-pr-prepare-recovery1.json`、`self-pr-complete-recovery1.json`、`fix-check-*.log`と、元の失敗/stop記録を保持。
 - 修正の実装・必要検証・同じ予約枠の自己レビュー/fix-checkを完了し、既存PRへscan付きpushする。公開後の次のサイクルとfinalizeはこの記録時点では未実施で、マージ成功を先に記録しない。旧サイクル1の停止コメントは同じ番号で復旧結果へ更新し、終了済みloopの記録は過去のstoppedとして保持する。
+
+## PR #428 サイクル2 — 修正不要の最終化
+
+- 対象は公開HEAD `cb85af1d86869d5a1425b9aae0aab3eb02f0cedd`、base `38eec3263d0558b190602d5b6dd8ffdd31874610`。このbaseは対象HEADの祖先であり、mergeを加えない同じツリーを検証した。共通context/保存先/remoteを再照合し、現行Specは本ファイルのみ、同テーマPlanを追加していない。
+- 再開loopは `4ab6d3fbb8364270b1f8e38d077ad258`（loop内cycle1、PRの判断記録はround2）。旧loop `bc0ceed8a4454e1badd18eda45af2670` はstopped/merged=falseの履歴として保持。旧失敗/自己レビュー予約を消して上限を回避していない。
+
+| レビュー | 実際の担当 / runtime | HEAD / mode | 結果 | runner実測秒数 |
+|---|---|---|---|---|
+| SWE-2-Max.md | devin_swe2_max / devin | cb85af1d8686 / Update | accepted・Approve・active0 | 627.586 |
+| deepseek-v4.1-flash.md | pi_opencode-go_deepseek4-flash_max / pi | cb85af1d8686 / Update | accepted・Approve・active0 | 1086.629 |
+| claude-opus-5-5.md | claude-code_opus_default / claude-code | cb85af1d8686 / Update | accepted・Approve・active0 | 224.576 |
+
+- requested/actualは全員一致、fallback=[]、全試行stop_confirmed=true。batch/outside_changes=[]、rejected/retained=[]、after_runもsuccess/exit0/stop_confirmed。旧/tmp6登録のunprotectedだけ報告し、削除・pruneしていない。レビュー工程全体1093.024秒、各workerの時間を足して壁時計時間としない。
+- 現行3レビュアー/候補pairをvalidate・check-pairし、Unverified/Pending/activeなし、全員が前回fixを実行で解消確認。push前のgpt-6.1-sol指定commit自己レビューは70c5f8cbの古い成果として区別し、新しい候補の入力から外した（指摘0・未判断なし）。plannerは実PI_PROVIDER/PI_MODELで確認したopenai-codex/gpt-6.1-sol / pi。
+- 前回`deepseek-v4.1-flash#H-1@06c16cf3f9d2`と`SWE-2-Max#M-1@06c16cf3f9d2`は、70c5f8cbの修正と現行cb85af1dの隔離実行で解消済み。削除前の対応検査とnonblocking/regular検査が実際に働き、元入力復元後の通常CLI回収/no-opを確認。前回skipの`SWE-2-Max#L-1@06c16cf3f9d2`は新しい根拠なしで引継ぎ、標準配置依存をPR本文に明記した。分類は解消済み2/対応する0/対応しない1。新しい実装・2回目の自己レビューは不要。
+- controllerは現行cb85af1dの使い捨てworktreeで10境界/12.287秒、元19matrix/24.891秒、prepare-failed＋fallbackと非正規attemptの2述語、関連Spec/design41テスト/11.13秒、変更3Python構文を再実行してexit0。拒否時の全fixture不変・登録不変と復元回収/no-opを確認。レビュアーが省略したdevice/symlink-FIFO/design/fallbackの確認もこの実行で閉じた。検査用worktree/fixtureは回収済み。
+- 最終必須検証は同じclean cb85af1dでshell27本/101.683秒、layout/0.416秒、全pytest1489件/891.00秒、diff check/exit0。`checks.json`のhead/baseはこの実行に結び付け、最新baseへ値だけを差し替えていない。任意ruff未導入は未検証のまま。GitHub Actionsは無効の規則に従う。
+- 確認済み一覧は`reviews/usaturn/create-reso-world/#428-fix-issue-420-cleanup-preflight/verified/cb85af1d8686.json`、要約と工程記録も同stem。現行候補0、新規confirmed/not_reproduced/unverified=0/0/0、coverage.remainingなし。前回fixの解消判断・実行根拠はround2に保持する。
+- サイクル1の復旧コメントは https://github.com/usaturn/create-reso-world/pull/428#issuecomment-6845856720 。サイクル2の記録付きコメントはこのSpec-only commit作成後・push前に同じPRへ投稿し、そのcomment_id/URLを工程記録とloopへ保存する。判断JSON・本文・検証記録・実行ログ・finalize結果は`/workspaces/reso-world/tmp/agents/review-fix-planning-pr428-final.i6cpxf9i/`へ保存する。
+- 結論2（修正不要）として、このSpecだけを検証済みHEADの直接の子へcommitし、base/公開HEADの再照合、記録付きコメント、同一SHAの秘密情報検査とfast-forward pushを経て、`finalize.py --spec-commit`でマージ/closing Issue確認を行う。この記録時点ではマージ・Issue更新は未実施で、結果を先取りしない。
+- 実装の防御範囲、同時手編集/一貫した偽造・真正性認証/過去missingの証拠後付けの除外、固定標準projectパスのskipは変更なし。内容の承認を推測せず、完遂の実行許可だけを用いる。
