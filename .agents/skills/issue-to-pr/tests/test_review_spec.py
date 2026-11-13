@@ -422,7 +422,17 @@ def external_review(
             kwargs["output_dir"].mkdir(mode=0o700)
             (kwargs["output_dir"] / "log.txt").write_text("fake\n", encoding="utf-8")
         record = last_request(fx.ledger)
-        return make(record["review_id"], record["spec_sha256"])
+        result = make(record["review_id"], record["spec_sha256"])
+        result.artifact_dir = kwargs["output_dir"]
+        for outcome in result.results:
+            for index, attempt in enumerate(outcome.attempts, 1):
+                if attempt.work_dir == fx.reviewer:
+                    target = fx.runner / outcome.request_id / f"attempt-{index}" / "worktree"
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    git(fx.main, "worktree", "move", str(fx.reviewer), str(target))
+                    fx.reviewer = target
+                    attempt.work_dir = target
+        return result
 
     monkeypatch.setattr(mod, "run_workflow", fake_run)
     return mod.review(
@@ -692,8 +702,7 @@ def test_reviewer_worktree_change_fails_and_cleanup_keeps_it_and_the_ledger(
     fx: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """S: 読取専用の担当がコードを変えたのに成功扱いすると、レビューした版と実際の版がずれる。"""
-    reviewer = fx.tmp / "reviewer-worktree"
-    git(fx.main, "worktree", "add", "--detach", str(reviewer), fx.revision)
+    reviewer = fx.reviewer
     (reviewer / "src.py").write_text("changed = 1\n", encoding="utf-8")
 
     def make(review_id: str, sha: str) -> BatchResult:
@@ -713,6 +722,7 @@ def test_reviewer_worktree_change_fails_and_cleanup_keeps_it_and_the_ledger(
     assert summary["state"] == "failed"
     assert any("changed its worktree" in reason for reason in summary["reasons"]), summary["reasons"]
     review_dir = Path(summary["review_dir"])
+    reviewer = fx.reviewer
     cleaned = mod.cleanup(review_dir)
     assert cleaned["removed_worktrees"] == []
     assert any(item["path"] == str(reviewer) for item in cleaned["retained"])
@@ -854,6 +864,16 @@ def test_cleanup_after_a_partial_collection_leaves_the_collected_worktree_alone(
     )
 
     def make(review_id: str, sha: str) -> BatchResult:
+        nonlocal clean, dirty
+        for index, source in enumerate((clean, dirty), 1):
+            target = fx.runner / "request-1" / f"attempt-{index}" / "worktree"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            git(fx.main, "worktree", "move", str(source), str(target))
+            if index == 1:
+                clean = target
+                primary.work_dir = target
+            else:
+                dirty = target
         return batch(completed(review_id, sha), previous_attempts=[primary], work_dir=dirty)
 
     summary = external_review(fx, monkeypatch, make)
@@ -924,9 +944,8 @@ def test_cleanup_keeps_a_path_and_runner_directory_that_reappear_after_collectio
     assert not fx.reviewer.exists()
     assert not fx.runner.exists()
 
-    fx.reviewer.mkdir()
+    fx.reviewer.mkdir(parents=True)
     (fx.reviewer / "new.txt").write_text("new\n", encoding="utf-8")
-    fx.runner.mkdir()
     (fx.runner / "log.txt").write_text("new\n", encoding="utf-8")
 
     cleaned = mod.cleanup(review_dir)
@@ -1061,11 +1080,18 @@ def test_cleanup_keeps_the_ledger_when_the_runner_directory_disappears_without_a
 
     summary = external_review(fx, monkeypatch, make)
     review_dir = Path(summary["review_dir"])
+    with monkeypatch.context() as patch:
+        def broken(*args: Any) -> None:
+            raise mod.ReviewInputError("cannot write")
+        patch.setattr(mod, "_append_cleanup_event", broken)
+        partial = mod.cleanup(review_dir)
+    assert partial["removed_worktrees"] == [str(fx.reviewer)]
+    assert partial["removed_runner_dir"] is False
     shutil.rmtree(fx.runner)
 
     cleaned = mod.cleanup(review_dir)
 
-    assert cleaned["removed_worktrees"] == [str(fx.reviewer)]
+    assert cleaned["removed_worktrees"] == []
     assert cleaned["removed_runner_dir"] is False
     assert any(item["path"] == str(fx.runner) for item in cleaned["retained"])
     assert review_dir.is_dir()
@@ -1259,6 +1285,158 @@ class FakeReviewAdapter:
             payload=None if failed else completed(request["review_id"], request["spec_sha256"]),
         )
         return AdapterOutcome(receipt, Identity(model=context.agent.model))
+
+
+def test_cleanup_preserves_targets_until_request_metadata_is_restored(fx: Fixture) -> None:
+    """S: 不完全な識別情報で削除すると、証拠が残らず復元後も回収できない。"""
+    runner = fx.tmp / "session" / "runner-日本語"
+    config = Config(
+        agents={
+            "reviewer": Agent(
+                runtime="pi", command=[sys.executable, "-c", "import sys; sys.stdin.buffer.read()"], model="fake"
+            )
+        },
+        roles={"spec-review": Role(writes=False, deadline_seconds=60.0, result_shape="json")},
+        workflows={"issue": Workflow(assignments={"spec-review": Assignment(agents=["reviewer"])})},
+    )
+    summary = mod.review(
+        config, fx.request(), runner, ledger_dir=fx.ledger, adapter_loader=FakeReviewAdapter(fx.ledger)
+    )
+    assert summary["state"] == "completed", summary["reasons"]
+    review_dir = Path(summary["review_dir"])
+    request_path = review_dir / "request.json"
+    original = request_path.read_bytes()
+    request = json.loads(original)
+    del request["review_id"]
+    write_json(request_path, request)
+    record = json.loads((review_dir / "review.json").read_bytes())
+    attempts = record["batch"]["results"][0]["attempts"]
+    worktrees = [Path(attempt["work_dir"]) for attempt in attempts]
+    attempt_requests = [Path(attempt["request_path"]) for attempt in attempts]
+
+    def snapshot(root: Path) -> dict[str, bytes]:
+        return {
+            str(p.relative_to(root)): p.read_bytes()
+            for p in root.rglob("*")
+            if p.is_file() and not p.is_symlink()
+        }
+
+    before_runner = snapshot(runner)
+    before_ledger = snapshot(fx.ledger)
+    before_git = git(fx.main, "worktree", "list", "--porcelain")
+    before_head = git(fx.feature, "rev-parse", "HEAD")
+    before_status = git(fx.feature, "status", "--porcelain")
+    before_spec = fx.spec.read_bytes()
+    command = [
+        "uv", "run", "--project", "/workspaces/reso-world", "--locked", "python",
+        str(SCRIPT), "cleanup", "--review-dir", str(review_dir),
+    ]
+    rejected = subprocess.run(command, capture_output=True, text=True)
+    assert rejected.returncode == 2, (rejected.stdout, rejected.stderr)
+    payload = json.loads(rejected.stdout)
+    assert payload["status"] == "error"
+    assert {str(p) for p in [*worktrees, runner]} <= {item["path"] for item in payload["retained"]}
+    assert {
+        str(p) for p in [request_path, review_dir / "review.json", review_dir / "spec.md", *attempt_requests]
+    } <= set(payload["records"])
+    assert all(p.is_dir() for p in worktrees)
+    assert snapshot(runner) == before_runner
+    assert snapshot(fx.ledger) == before_ledger
+    assert git(fx.main, "worktree", "list", "--porcelain") == before_git
+    assert git(fx.feature, "rev-parse", "HEAD") == before_head
+    assert git(fx.feature, "status", "--porcelain") == before_status
+    assert fx.spec.read_bytes() == before_spec
+    request_path.write_bytes(original)
+    recovered = subprocess.run(command, capture_output=True, text=True)
+    assert recovered.returncode == 0, (recovered.stdout, recovered.stderr)
+    assert json.loads(recovered.stdout) == {
+        "removed_worktrees": [str(p) for p in worktrees], "retained": [], "removed_runner_dir": True
+    }
+    assert all(not p.exists() for p in [*worktrees, runner])
+    registered = git(fx.main, "worktree", "list", "--porcelain")
+    assert all(str(p) not in registered for p in worktrees)
+    noop = subprocess.run(command, capture_output=True, text=True)
+    assert noop.returncode == 0, (noop.stdout, noop.stderr)
+    assert json.loads(noop.stdout) == {"removed_worktrees": [], "retained": [], "removed_runner_dir": False}
+
+
+def test_cleanup_rejects_runner_dir_mismatch_before_removing_anything(fx: Fixture) -> None:
+    """S: 別の runner を削除すると無関係な利用者のデータが失われる。"""
+    runner = fx.tmp / "session" / "runner-日本語"
+    config = Config(
+        agents={"reviewer": Agent(runtime="pi", command=["/usr/bin/true"], model="fake")},
+        roles={"spec-review": Role(writes=False, deadline_seconds=60.0, result_shape="json")},
+        workflows={"issue": Workflow(assignments={"spec-review": Assignment(agents=["reviewer"])})},
+    )
+    summary = mod.review(config, fx.request(), runner, ledger_dir=fx.ledger, adapter_loader=FakeReviewAdapter(fx.ledger))
+    assert summary["state"] == "completed", summary["reasons"]
+    review_dir = Path(summary["review_dir"])
+    request_path = review_dir / "request.json"
+    original = request_path.read_bytes()
+    victim = fx.tmp / "victim"
+    victim.mkdir()
+    (victim / "keep.txt").write_text("keep", encoding="utf-8")
+    request = json.loads(original)
+    request["runner_dir"] = str(victim)
+    write_json(request_path, request)
+    record = json.loads((review_dir / "review.json").read_bytes())
+    attempts = record["batch"]["results"][0]["attempts"]
+    worktrees = [Path(attempt["work_dir"]) for attempt in attempts]
+    attempt_requests = [Path(attempt["request_path"]) for attempt in attempts]
+
+    def snapshot(root: Path) -> dict[str, bytes]:
+        return {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file() and not p.is_symlink()}
+
+    before = {root: snapshot(root) for root in (runner, victim, fx.ledger)}
+    registered = git(fx.main, "worktree", "list", "--porcelain")
+    head = git(fx.feature, "rev-parse", "HEAD")
+    status = git(fx.feature, "status", "--porcelain")
+    spec = fx.spec.read_bytes()
+    command = ["uv", "run", "--project", "/workspaces/reso-world", "--locked", "python",
+               str(SCRIPT), "cleanup", "--review-dir", str(review_dir)]
+    rejected = subprocess.run(command, capture_output=True, text=True)
+    assert rejected.returncode == 2, (rejected.stdout, rejected.stderr)
+    payload = json.loads(rejected.stdout)
+    assert {str(p) for p in [*worktrees, runner, victim]} <= {item["path"] for item in payload["retained"]}
+    assert {str(p) for p in [request_path, review_dir / "review.json", review_dir / "spec.md", *attempt_requests]} <= set(payload["records"])
+    assert all(p.is_dir() for p in worktrees)
+    assert {root: snapshot(root) for root in before} == before
+    assert git(fx.main, "worktree", "list", "--porcelain") == registered
+    assert git(fx.feature, "rev-parse", "HEAD") == head
+    assert git(fx.feature, "status", "--porcelain") == status
+    assert fx.spec.read_bytes() == spec
+    request_path.write_bytes(original)
+    recovered = subprocess.run(command, capture_output=True, text=True)
+    assert recovered.returncode == 0, (recovered.stdout, recovered.stderr)
+    assert json.loads(recovered.stdout) == {"removed_worktrees": [str(p) for p in worktrees], "retained": [], "removed_runner_dir": True}
+    assert not runner.exists() and all(not p.exists() for p in worktrees)
+    assert snapshot(victim) == before[victim]
+    assert all(str(p) not in git(fx.main, "worktree", "list", "--porcelain") for p in worktrees)
+    noop = subprocess.run(command, capture_output=True, text=True)
+    assert noop.returncode == 0, (noop.stdout, noop.stderr)
+    assert json.loads(noop.stdout) == {"removed_worktrees": [], "retained": [], "removed_runner_dir": False}
+
+
+def test_cleanup_rejects_a_completed_review_identity_mismatch(fx: Fixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    """S: 別レビューの識別情報で削除証拠を記録しない。"""
+    summary = external_review(
+        fx, monkeypatch, lambda review_id, sha: batch(completed(review_id, sha), work_dir=fx.reviewer)
+    )
+    review_dir = Path(summary["review_dir"])
+    request_path = review_dir / "request.json"
+    original = request_path.read_bytes()
+    request = json.loads(original)
+    request["review_id"] = "another-review"
+    write_json(request_path, request)
+    with pytest.raises(mod.CleanupInputError):
+        mod.cleanup(review_dir)
+    assert fx.reviewer.is_dir() and fx.runner.is_dir()
+    assert str(fx.reviewer) in git(fx.main, "worktree", "list", "--porcelain")
+    assert not (review_dir / "cleanup.lock").exists()
+    request_path.write_bytes(original)
+    assert mod.cleanup(review_dir) == {
+        "removed_worktrees": [str(fx.reviewer)], "retained": [], "removed_runner_dir": True
+    }
 
 
 def test_cleanup_recovers_a_real_fallback_and_reports_unprocessed_attempts(

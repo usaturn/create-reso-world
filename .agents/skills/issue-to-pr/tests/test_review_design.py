@@ -314,7 +314,7 @@ def design_batch(review_id: str, sha: str, work_dir: Path) -> BatchResult:
         results=[outcome],
         outside_changes=[],
         elapsed_seconds=0.1,
-        artifact_dir=Path("/tmp/design-review-artifact"),
+        artifact_dir=work_dir.parents[2],
     )
 
 
@@ -329,8 +329,13 @@ def test_design_cleanup_uses_the_shared_evidence_and_reports_precheck_records(
     runner = fx.tmp / "session" / "runner-1"
 
     def fake_run(*args: Any, **kwargs: Any) -> BatchResult:
+        nonlocal reviewer
         kwargs["output_dir"].mkdir(mode=0o700)
         (kwargs["output_dir"] / "log.txt").write_text("fake\n", encoding="utf-8")
+        target = runner / "request-1" / "attempt-1" / "worktree"
+        target.parent.mkdir(parents=True)
+        git(fx.main, "worktree", "move", str(reviewer), str(target))
+        reviewer = target
         review_dir = mod.review_spec._reviews(fx.ledger / "design.design-review")[-1]
         request = json.loads((review_dir / "request.json").read_text(encoding="utf-8"))
         return design_batch(request["review_id"], request["spec_sha256"], reviewer)

@@ -1074,6 +1074,21 @@ def _read_private_bytes(path: Path, label: str) -> bytes:
         os.close(descriptor)
 
 
+def _read_regular_bytes(path: Path) -> bytes:
+    """特殊ファイルを開いても入力を待たず、regular file のみを読む。"""
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOCTTY", 0)
+    descriptor = os.open(path, flags)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise OSError("not a regular file")
+        with os.fdopen(descriptor, "rb") as stream:
+            descriptor = -1
+            return stream.read()
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
 def _write_new_private(path: Path, data: bytes) -> None:
     """新規ファイルだけを 0600 で作り、flush・fsync・親 directory の fsync まで終える。"""
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
@@ -1106,6 +1121,7 @@ def _cleanup_records(
     paths: list[str | Path] = [
         review_dir / "request.json",
         review_dir / "review.json",
+        review_dir / "spec.md",
         review_dir / CLEANUP_RECEIPT,
     ]
     try:
@@ -1114,6 +1130,7 @@ def _cleanup_records(
         entries = []
     paths.extend(entry for entry in entries if entry.name.startswith(CLEANUP_SUCCESS_PREFIX))
     if batch is not None:
+        paths.append(batch.artifact_dir)
         for outcome in batch.results:
             for attempt in outcome.attempts:
                 if attempt.request_path is not None:
@@ -1159,6 +1176,7 @@ def _precheck_retained(batch: BatchResult | None, runner_dir: Path | None, reaso
             retained.append({"path": text, "reason": reason})
 
     if batch is not None:
+        add(batch.artifact_dir)
         for outcome in batch.results:
             for attempt in outcome.attempts:
                 if attempt.work_dir is not None:
@@ -1460,6 +1478,76 @@ def _cleanup_event(
     )
 
 
+def _cleanup_absolute(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and "\x00" not in value and Path(value).is_absolute()
+
+
+def _cleanup_canonical(path: Path) -> bool:
+    if not _cleanup_absolute(str(path)) or str(path) != _absolute_path(path):
+        return False
+    try:
+        return _real(path) == path
+    except (OSError, RuntimeError):
+        return False
+
+
+def _check_cleanup_metadata(
+    review_dir: Path,
+    request: dict[str, Any],
+    record: dict[str, Any] | None,
+    kind: Kind,
+    batch: BatchResult | None,
+) -> None:
+    """削除や成功証拠に必要な値を、保存済みのレビューと Spec 写しで照合する。"""
+    mode = request.get("mode")
+    if mode not in ("self", "external"):
+        raise ReviewInputError("the request mode is invalid")
+    for name in ("review_id", "spec_sha256"):
+        value = request.get(name)
+        if not isinstance(value, str) or not value.strip() or "\x00" in value:
+            raise ReviewInputError(f"the request {name} is invalid")
+    runner = request.get("runner_dir")
+    if (mode == "external" or runner is not None) and not _cleanup_absolute(runner):
+        raise ReviewInputError("the request runner_dir must be an absolute path")
+    nested = request.get("request")
+    if not isinstance(nested, dict):
+        raise ReviewInputError("the request details are invalid")
+    for name in ("repository", "spec_path"):
+        if not _cleanup_absolute(nested.get(name)):
+            raise ReviewInputError(f"the request {name} must be an absolute path")
+    try:
+        spec_sha256 = _sha256(_read_regular_bytes(review_dir / "spec.md"))
+    except OSError:
+        raise ReviewInputError("the saved Spec cannot be read") from None
+    if request["spec_sha256"] != spec_sha256:
+        raise ReviewInputError("the request spec_sha256 does not match the saved Spec")
+    if batch is not None:
+        artifact = batch.artifact_dir
+        if not _cleanup_canonical(artifact):
+            raise ReviewInputError("the batch artifact_dir must be a canonical absolute path")
+        if runner is None or Path(runner) != artifact or runner != _absolute_path(runner):
+            raise ReviewInputError("the batch artifact_dir does not match the request runner_dir")
+        for outcome in batch.results:
+            for attempt in outcome.attempts:
+                for path in (attempt.work_dir, attempt.request_path):
+                    if path is not None and (
+                        not _cleanup_canonical(path) or path == artifact or not path.is_relative_to(artifact)
+                    ):
+                        raise ReviewInputError("the batch attempt path is not a canonical path inside artifact_dir")
+    if record is not None:
+        if record.get("mode") != mode:
+            raise ReviewInputError("the review mode does not match the request")
+        if record.get("state") == "completed":
+            try:
+                result = kind.result.model_validate(record.get("result"))
+            except ValidationError:
+                raise ReviewInputError("the completed review result is invalid") from None
+            if (result.review_id, result.spec_sha256) != (request["review_id"], request["spec_sha256"]):
+                raise ReviewInputError("the completed review result does not match the request")
+            if result.status != "completed":
+                raise ReviewInputError("the completed review result is incomplete")
+
+
 def cleanup(review_dir: Path, kind: Kind = SPEC_REVIEW) -> dict[str, Any]:
     """外部実行の runner の worktree の登録を外し、何も残らなければ runner の出力先を消す。記録は消さない。
 
@@ -1470,33 +1558,48 @@ def cleanup(review_dir: Path, kind: Kind = SPEC_REVIEW) -> dict[str, Any]:
     review_dir = Path(_absolute_path(review_dir))
     try:
         request = _request_of(review_dir, kind)
+    except (ReviewInputError, OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as error:
+        reason = str(error) if isinstance(error, ReviewInputError) else "the review request cannot be read"
+        raise CleanupInputError(reason, records=_cleanup_records(review_dir, None, None, None)) from None
+
+    runner_value = request.get("runner_dir")
+    runner_dir = Path(runner_value) if _cleanup_absolute(runner_value) else None
+    review_path = review_dir / "review.json"
+    review_bytes = b""
+    record: dict[str, Any] | None = None
+    review_unreadable = False
+    if review_path.exists() or review_path.is_symlink():
+        try:
+            review_bytes = _read_regular_bytes(review_path)
+            value = json.loads(review_bytes.decode("utf-8"))
+            if not isinstance(value, dict):
+                raise ValueError("not an object")
+            record = value
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            review_unreadable = True
+    batch: BatchResult | None = None
+    if record is not None and record.get("batch") is not None:
+        try:
+            batch = BatchResult.model_validate_json(json.dumps(record["batch"]))
+        except ValidationError:
+            pass
+    records = _cleanup_records(review_dir, request, batch, runner_dir)
+    try:
+        _check_cleanup_metadata(review_dir, request, record, kind, batch)
+        if review_unreadable:
+            raise ReviewInputError("the review result cannot be read")
     except ReviewInputError as error:
-        raise CleanupInputError(str(error), records=[review_dir / "request.json"]) from None
+        reason = str(error)
+        raise CleanupInputError(reason, retained=_precheck_retained(batch, runner_dir, reason), records=records) from None
     if request["mode"] == "self":
         return {"removed_worktrees": [], "retained": [], "removed_runner_dir": False}
-    runner_dir = Path(_absolute_path(request["runner_dir"]))
-    if not (review_dir / "review.json").is_file():
+    assert runner_dir is not None
+    if record is None:
         reason = "the review has no result: confirm that its runner stopped before cleaning up"
-        raise CleanupInputError(
-            reason,
-            retained=_precheck_retained(None, runner_dir, reason),
-            records=_cleanup_records(review_dir, request, None, runner_dir),
-        )
-    try:
-        review_bytes = (review_dir / "review.json").read_bytes()
-        record = json.loads(review_bytes.decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        raise CleanupInputError(
-            "the review result cannot be read",
-            retained=_precheck_retained(None, runner_dir, "the review result cannot be read"),
-            records=_cleanup_records(review_dir, request, None, runner_dir),
-        ) from None
-    if not isinstance(record, dict) or "batch" not in record:
-        raise CleanupInputError(
-            "the review result cannot be read",
-            retained=_precheck_retained(None, runner_dir, "the review result cannot be read"),
-            records=_cleanup_records(review_dir, request, None, runner_dir),
-        )
+        raise CleanupInputError(reason, retained=_precheck_retained(None, runner_dir, reason), records=records)
+    if "batch" not in record:
+        reason = "the review result cannot be read"
+        raise CleanupInputError(reason, retained=_precheck_retained(None, runner_dir, reason), records=records)
     if record["batch"] is None:
         # runner が戻らなかった。中身を確かめられないので消さない
         present = runner_dir.exists() or runner_dir.is_symlink()
@@ -1511,15 +1614,13 @@ def cleanup(review_dir: Path, kind: Kind = SPEC_REVIEW) -> dict[str, Any]:
         if retained:
             payload["records"] = _cleanup_records(review_dir, request, None, runner_dir)
         return payload
-    try:
-        batch = BatchResult.model_validate_json(json.dumps(record["batch"]))
-    except ValidationError:
+    if batch is None:
         reason = "the review result cannot be read"
         raise CleanupInputError(
             reason,
             retained=_precheck_retained(None, runner_dir, reason),
-            records=_cleanup_records(review_dir, request, None, runner_dir),
-        ) from None
+            records=records,
+        )
     repository = Path(request["request"]["repository"])
     spec_path = Path(request["request"]["spec_path"])
     records = _cleanup_records(review_dir, request, batch, runner_dir)
