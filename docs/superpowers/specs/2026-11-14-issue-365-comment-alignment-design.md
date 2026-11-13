@@ -1,6 +1,6 @@
 # Issue #365 残作業: agent-runner.toml のコメント文面を AW 現行に揃える
 
-- 状態: `draft`
+- 状態: `completed`
 - 対象: https://github.com/usaturn/create-reso-world/issues/365 （親 #349、key `runner-catalog`）
 - CODE_ROOT / DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-365-comment-alignment`
 - branch: `feat/issue-365-comment-alignment`
@@ -123,3 +123,70 @@ worktree を cwd にして:
 - 競合: 本 Issue の open PR 無し。前回 claim は PR #432 マージ後に解放済み。issue-365 の worktree・branch（local/remote）は残っていない。
 - claim: `refs/heads/agent-claims/issue-365` / `e49e6e27e7e0de9be2aa65e3b0a2ced2473e8a4b`（base `bcff80ed` の tree から作った session-unique 空 commit）。着手コメント https://github.com/usaturn/create-reso-world/issues/365#issuecomment-6861318401 。
 - 権限: write/triage あり、rulesets なし、main の branch protection は "Branch not protected"（404）、Actions enabled=false。
+
+## PR #437 レビュー修正ループ（サイクル1、2026-11-14）
+
+### 範囲・実行許可・結論
+
+- 利用者が `/skill:pr-review-fix-loop https://github.com/usaturn/create-reso-world/pull/437 --assign inspect=devin_swe2_max,pi_alibaba_qwen4-max_max,claude-code_opus_xhigh` を明示実行した。初回実装の「PR 作成で終える」とは別の依頼であり、今回の完遂は採否判断・必要な修正・push・状況コメント・許可範囲内の最終化を含む。内容の approved を意味しない。
+- planner: `openai-codex/gpt-6.1-sol`（pi）。レビュー対象 HEAD: `2a9b9b887a44487912b831c7c813de8fa3403834`、比較 base: `bcff80ed97c70b31cb30afd3dfb6f9264594efb2`。
+- 結論2: **追加修正不要として最終化へ進む**。解消済み0 / 対応する0 / 対応しない2。設定・コード・README・Plan は変更しない。本 Spec の結果追記のみを1コミットにする。push・マージ・Issue 更新の実施結果は状況コメントと完了報告に残す。
+- 既存の同テーマ Spec はこの文書、Plan は `docs/superpowers/plans/2026-11-14-issue-365-comment-alignment.md`。PR #432 の completed 文書は先行範囲であり更新しない。レビュー回別の新規 Spec は作らない。
+
+### レビュアーの構成と入力
+
+| レビューファイル | モデル / runtime | 対象 HEAD | 今回の再実行 | 結果 |
+| --- | --- | --- | --- | --- |
+| `SWE-2-Max.md` | `SWE-2 Max` / devin（実担当 `devin_swe2_max`） | `2a9b9b887a44` | はい、Initial | accepted、指摘0、Approve |
+| `claude-opus-5-5.md` | `claude-opus-5-5` / claude-code（実担当 `claude-code_opus_xhigh`） | `2a9b9b887a44` | はい、Initial | accepted、Low 1 / Info 1、Approve |
+| 成果なし | runner のモデル欄 `qwen4-max-preview` / pi（実担当 `pi_alibaba_qwen4-max_max`） | 同じ HEAD への依頼 | 起動したが失敗 | rejected（runner / response_failed / rate_limit）、停止確認済み。指摘なしとは扱わず、採否の入力にしない |
+
+入力は `reviews/usaturn/create-reso-world/#437-feat-issue-365-comment-alignment/` の2本文、対応する候補一覧・実行記録。候補一覧の validate と check-pair は成功。前の判断の記録は0件で、引き継ぎは無い。loop run は `95763a7e4395413b995858bfcdac636b`。Qwen の診断は同ディレクトリの `loop/95763a7e4395413b995858bfcdac636b/cycle-1/diagnostics/0de5dd5387d34ce88dfdbd087e292179.json`。runner が報告した他の古い一時 worktree の変化は入力に取り込まず、その内容・登録を変更しない。
+
+### 全指摘の分類
+
+| ID | 区分 | 現行 HEAD での確認と理由 | 見直す条件 |
+| --- | --- | --- | --- |
+| `claude-opus-5-5#L-1@2a9b9b887a44` | 対応しない | TOML:277・この文書の設計9/D4・Plan:114/116 の `usaturn/agent-workspace#116` は実際には CRW #116 のボードを指すべきである。両 repository の Issue API で確認した。歴史的な設計判断の参照先の誤りであり、設定値・操作対象・主要処理を変えず、誤操作を指示する手順ではない。致命的な条件には当たらない | 参照が操作対象の選択に使われる再現、または利用者による名指しの修正依頼 |
+| `claude-opus-5-5#I-1@2a9b9b887a44` | 対応しない | README:1500 の `AW` は全文に1回のみで定義が無いことを確認した。Antigravity agent の不追加理由の可読性だけに影響し、設定や実行の誤りを生まない | 曖昧さによる誤操作の具体的な根拠、または利用者による名指しの修正依頼 |
+
+「事実として正しい」ことと、この完遂で修正することを区別した。参照元は https://github.com/usaturn/create-reso-world/issues/116 、AW の完全名は `usaturn/agent-workspace` である。設計9/D4・Plan の過去の実装方針を、正しい出典を示す今後の指示として使わない。PR の既知の制限にも条件と回避方法を記載する。
+
+### 要件と検証の対応
+
+統合担当は planner。動作環境・実入力・防御範囲は上記受け入れ基準のまま変更しない。
+
+| PR / Issue の条件 | 観測した結果と検証方法 | 判定 |
+| --- | --- | --- |
+| agent / role / workflow の値・並び・schema_version を変えない | base/head の TOML parse 結果と順序付き JSON が一致し、コメント以外の全行も一致（21 agent） | 満たす |
+| AW のコメントに揃え、CRW の実装事情を保持 | AW `36c321cb` の blob `69e841dd` と SHA256 を取り直して照合。全差分を精読し、宣言済み除外とL-1の参照先だけが残る | 主要な文面差3点は解消。L-1は残るため全要件完了とは扱わない |
+| 期限・呼出元名・codex拒否の説明が実装と一致 | committed `dispatch.py:117` / `run_roles.py:135,157,311` を照合。1800秒切り詰めと起動前拒否が一致 | 満たす |
+| 実個人設定を変えず、旧名移行の必要性を確認 | 個人設定はコメント例の雛形とバイト一致、旧名参照・定義なし。空/実個人 config の check/list 全4実行 exit 0 | この環境では移行不要。認証・実サービス成功とは表示しない |
+| agyを追加せず理由を記録 | AWに6 agent、CRWに定義・adapterなし、READMEに不追加の理由あり | 満たす。略語の未定義I-1は残る |
+| 防御範囲とテスト採用基準 | 全4ファイルの全文、関連処理・テストを確認。実個人設定・key・既存Ollama関連・設定値・過去文書は変更していない。新規テストなし | 維持。文言の固定値テストはF/Lで不要 |
+
+「対応する」が無いため、修正の影響経路表・失敗時のガード対照・設計の見直しは該当しない。別案は文書の2件を軽微な修正として直す案だが、この完遂の致命的な指摘だけに絞る基準と一致しないため選ばない。
+
+### 実行した検証
+
+検証したツリーは PR HEAD のみ。取得した最新 base `bcff80ed97c70b31cb30afd3dfb6f9264594efb2` は HEAD の祖先であり、一時 merge は不要だった。
+
+| コマンド・確認 | 結果 |
+| --- | --- |
+| `uv run --project . --locked pytest tools/agent_runner/tests` | 305 passed、exit 0（約34秒） |
+| `bash .devcontainer/run-tests.bash` | 27本PASS、exit 0（約124秒、install-beforehandを含む） |
+| `bash scripts/check-layout.sh` | PASS、exit 0 |
+| `git diff --check bcff80ed..2a9b9b88` | exit 0 |
+| 雛形単独/実効の `python -m tools.agent_runner ... check` / `list` | 4実行すべてexit 0 |
+| TOML parse・順序・コメント以外の全行、AW差分、個人設定、旧名の現行参照 | 一致/宣言した差分のみ。旧名の現行参照なし。L-1/I-1の事実は確認済み |
+| 全指摘・変更ファイル全文・関連処理とテスト | 確認済み。README・関連経路は読み取り専用 sp-recon に委譲し、親で HEAD/clean と committed diff を再照合 |
+
+チェック実行時のログは一意のセッション `tmp/agents/review-fix-planning-pr437.jfzkh9es/check-{1,2,3,4}.log`、最終化に渡す記録は同ディレクトリの `checks.json`。完了後のセッション回収後も、対象版・結果・静的根拠はこの文書と確認済み一覧に残る。検証スクラッチの出現数の初回比較では「21行」を「21回」と取り違えて止まったが、`rg -c`=21行 / `rg -o | wc -l`=23回と原因を確認し、行数で比較し直して成功した。実装や受け入れ条件の変更ではない。
+
+確認済み一覧: `reviews/usaturn/create-reso-world/#437-feat-issue-365-comment-alignment/verified/2a9b9b887a44.json` と `.md`。工程の記録: 同 stem の `.planning.json`。実装・自己レビュー・fix-check は未実施（結論2のため該当なし）。`run_roles.py` は呼んでおらず、self-review の枠の消費は0回。設定上の3役はselfだが、実行した担当とは扱わない。未確認の指摘なし。実 API・実モデルの接続確認は今回の検証範囲外。
+
+### 所要時間とIssueへの反映方針
+
+- レビュー: 2026-11-13T19:00:53Z開始、SWE-2 Max 約329秒、Opus 約359秒。Qwen は約7秒でrate_limit、再実行なし。
+- 採否・確認工程: 開始観測19:07:16Z、確認済み一覧保存19:21:52Z。読み取り委譲の子は時計を持たないため約18分の自己見積りのみで、実測として採用しない。検証コマンドの合計は約159秒。実装/自己レビュー時間は該当なし。最終化までの時間はloopの記録に残す。
+- #365 は主な文面差と個人設定確認を達成した一方、文書参照の誤りと未定義略語を残す。全受け入れ完了と報告せず、マージ後に実施結果・残りを同Issueと親#349へ記録する。Issueのopen/closedと要件の達成は区別する。
