@@ -79,11 +79,14 @@
 - 検討した別案: 司令塔の inline 実装、無指定の設計レビュー。
 - 選択理由: 利用者の明示した担当を優先する。設計レビューは指定がないので起動しない。
 - 委任指示または停止条件: Qwen の信頼性の失敗時は停止確認後、明示指示の範囲で Devin を検討する。ただし Spec 再レビューの同一担当制約・安全拒否は迂回しない。
-- ループ: 利用者指定の inspect 3担当と implement Qwen。サイクル上限3は既定の適用、self-review/fix-check の `self` は既定、fallback はいずれも空。最終ブランチ全体レビューは `--merge` のループ1回目で行う。Task ごとのレビューは省略しない。
+- ループ: 利用者指定の inspect 3担当。初期 implement は Qwen だったが、下記の利用枠超過後は追加指示により Devin へ変更する。サイクル上限3は既定の適用、self-review/fix-check の `self` は既定、fallback はいずれも空。最終ブランチ全体レビューは `--merge` のループ1回目で行う。Task ごとのレビューは省略しない。
 
 ## 調査と検証の記録
 
 - Issue 本文・全コメント（0件）・native blockers（0件）・parent（不在）を確認。競合する #415 の PR・branch・claim はなし。#400 は open で、本文の結合方針どおり並行可能。
 - 独立した読み取り専用調査で、runner の import 済み `prepare_worktree` の束縛を差し替える既存 runner テストの前例と、残すべきプロンプト生成経路を確認した。
 - 変更前: `uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q`、18 passed in 2.90s、終了0。
-- ローカル記録: `/workspaces/reso-world/tmp/agents/issue-415.gjerrhip/`。まだ安定化の実装・Spec レビュー・結合検証はしていない。
+- ローカル記録: `/workspaces/reso-world/tmp/agents/issue-415.gjerrhip/`。まだ安定化の実装・結合検証はしていない。
+- 初回 Spec レビューは helper による外部実行、指定・実担当とも `pi_alibaba_qwen4-max_max`、観測値 `qwen4-max-preview` / `alibaba` / `max`。66.161秒、`response_failed`、CLI終了0だが429 `insufficient_quota` で結果未取得。review_id `8ca2b79569854cc1a4e4aabc59207c00`、reviewed SHA-256 `e831398b523032ec6c0cb1ae1d78787c3f91bde191dc6f95167a5a25b0f943cf`、reflected は未作成。成功・指摘0件とは扱わない。
+- 全試行の停止確認済み、outside_changesなし。unprotected_changes は6件の既存の消えたレビュー用worktree登録で、このrunでは変更・削除しない。`review-1/` の記録と `qwen-failure.json` に保存。cleanup は試行worktreeとrunner-dirを回収、retainedなし。
+- 利用者の追加指示により、Spec レビューの再試行・以降の実装とレビュー修正の担当は `devin_swe2_max` へ変更する。check はいずれも `self=false`、fallbackは空。失敗レビューは helper の `next_round()` が回数に数えず、停止確認済みなので新規の初回レビューを許可する。完了済みレビューの担当変更や再レビュー制約の迂回ではない。
