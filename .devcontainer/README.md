@@ -1496,10 +1496,11 @@ Alibaba では `MAAS_ANTHROPIC_TOKEN` を引き継ぐ。
 「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」と
 「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある。
 
-`pi_alibaba_qwen4-max_max` は `piaq` を呼ぶ。key を export した通常のシェル（ランチャー起動セッションの外）から使う。
-子に渡るのは `env` に挙げた変数だけで、runner を起動したシェルに key が無ければ届かない。届かないとき `piaq` は
-値を表示せず終了コード 1 で止まり、Pi を起動しない。ccd 系のランチャーは自分の子から key を外すので、
+`pi_alibaba_qwen4-max_max` は `piaq` を呼ぶ。通常のシェルでは `MAAS_ANTHROPIC_TOKEN` を export して使う。
+子に渡るのは `env` に挙げた変数だけなので、`with_keys.py` を通さない場合、runner を起動したシェルに key が無ければ届かない。
+届かないとき `piaq` は値を表示せず終了コード 1 で止まり、Pi を起動しない。ccd 系のランチャーは自分の子から key を外すので、
 ランチャー起動セッションの中には key が無い。このリポジトリは env ファイルに key を置かない。
+そのため、`with_keys.py` を通さずにランチャー起動セッションから対話の `piaq` を直接起動すると、key が届かず終了コード 1 で止まる。
 `ccda` セッションから `with_keys.py` 経由で起動するときは、`ANTHROPIC_BASE_URL` の完全一致で
 `ANTHROPIC_AUTH_TOKEN` から `MAAS_ANTHROPIC_TOKEN` が補われる（`ccda` 以外のランチャーセッションからは補われない）。
 Rebuild 前は `~/.local/bin/piaq` が無い。既存の `models.json` には Rebuild でも `alibaba` が入らない。
