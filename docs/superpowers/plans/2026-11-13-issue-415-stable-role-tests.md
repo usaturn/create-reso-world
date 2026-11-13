@@ -49,11 +49,11 @@
 
 **テスト要否:** 新規恒久テストなし。既存の安全権限S/F∩Sの検査を弱めず更新し、Lに当たるfixture自身と診断の確認は一時検証で行う。
 
-- [ ] **Step 1: 現状とRED相当の対照。** controllerが依頼前に、セッション領域の一時pluginで元のrunner準備を即時timed_outにし、対象テストが要求不足で失敗することを観測して担当へ渡す。担当は対象テストを読み、実装する。実20秒待機や実モデル再現はしない。一時ファイルはcontrollerのセッション領域、追跡worktree外に置く。runner担当は許可された対象ファイル以外へ書かない。
-- [ ] **Step 2: 局所fixture。** 上記signatureのfixtureを追加し、Spec列挙5テストへ明示適用。実行・receipt・collect・監査を丸ごと置き換えない。既存runnerテストのquick_prepareの前例を参照できる。
-- [ ] **Step 3: 状態診断。** 必要な外部役割の成功を要求し、失敗した役割名/stateとattempt診断をassertionに含めてから要求件数・例外一覧を照合する。既存の安全assertionは残す。意図的に失敗を作る改ざん・停止未確認テストに成功必須を誤適用しない。
-- [ ] **Step 4: GREEN・診断対照。** 担当は `uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q` と `git diff --check` を同期実行し結果を報告する。受け入れ基準と禁止範囲の構造確認も行う。controllerが取り込み後、一時pluginの同じ準備失敗条件で新fixtureの対象テストは成功すること、別のadapter失敗注入では状態付きで失敗することを確認する。
-- [ ] **Step 5: commitと報告。** 対象ファイルのみstageし `test: decouple external role assertions from worktree preparation` でcommit。所要時間・対照/テストのコマンド/終了コード・限界を報告。サブエージェント・有料再現・GitHub書込は禁止。
+- [x] **Step 1: 現状とRED相当の対照。** controllerが依頼前に、セッション領域の一時pluginで元のrunner準備を即時timed_outにし、対象テストが要求不足で失敗することを観測して担当へ渡す。担当は対象テストを読み、実装する。実20秒待機や実モデル再現はしない。一時ファイルはcontrollerのセッション領域、追跡worktree外に置く。runner担当は許可された対象ファイル以外へ書かない。
+- [x] **Step 2: 局所fixture。** 上記signatureのfixtureを追加し、Spec列挙5テストへ明示適用。実行・receipt・collect・監査を丸ごと置き換えない。既存runnerテストのquick_prepareの前例を参照できる。
+- [x] **Step 3: 状態診断。** 必要な外部役割の成功を要求し、失敗した役割名/stateとattempt診断をassertionに含めてから要求件数・例外一覧を照合する。既存の安全assertionは残す。意図的に失敗を作る改ざん・停止未確認テストに成功必須を誤適用しない。
+- [x] **Step 4: GREEN・診断対照。** 担当は `uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q` と `git diff --check` を同期実行し結果を報告する。受け入れ基準と禁止範囲の構造確認も行う。controllerが取り込み後、一時pluginの同じ準備失敗条件で新fixtureの対象テストは成功すること、別のadapter失敗注入では状態付きで失敗することを確認する。
+- [x] **Step 5: commitと報告。** 対象ファイルのみstageし `test: decouple external role assertions from worktree preparation` でcommit。所要時間・対照/テストのコマンド/終了コード・限界を報告。サブエージェント・有料再現・GitHub書込は禁止。
 
 ## Task 2: 取り込み後の統合・検証・公開（controller）
 
@@ -61,8 +61,8 @@
 
 **テスト要否:** 追加なし。既存テストの実行と一時対照・構造検査で証拠を残す。
 
-- [ ] **Step 1: accept・Taskレビュー。** Task 1のBASEを記録。helper accept後に対象ファイルpytestとdiff検査を実行。brief・実装報告・diffパッケージを読み取り専用sp-reviewへ渡し、仕様準拠・品質双方の判定を得る。レビュー子にはテストを実行させない。重要指摘だけを同担当へ原文で渡す。
-- [ ] **Step 2: 共通条件の統合確認。** controllerが5テストの適用先、実例外生成/プロンプト付与の保持、exception_lines()/期限/runner不変、状態診断を条件ごとに確認する。差分外のrunner準備はrunner全体の検証で担う。#400の実状態と段落構造の前提を再確認する。
+- [x] **Step 1: accept・Taskレビュー。** Task 1のBASEを記録。helper accept後に対象ファイルpytestとdiff検査を実行。brief・実装報告・diffパッケージを読み取り専用sp-reviewへ渡し、仕様準拠・品質双方の判定を得る。レビュー子にはテストを実行させない。重要指摘だけを同担当へ原文で渡す。
+- [x] **Step 2: 共通条件の統合確認。** controllerが5テストの適用先、実例外生成/プロンプト付与の保持、exception_lines()/期限/runner不変、状態診断を条件ごとに確認する。差分外のrunner準備はrunner全体の検証で担う。#400の実状態と段落構造の前提を再確認する。
 - [ ] **Step 3: 最終検証。** 最後のcommit後、cleanなHEADで固定したverify-cmdsをhelper --reverifyにより実行。対象ファイルとrunner、全pytest、シェル27本、check-layout、diff検査。さらに対象ファイルpytestとシェル検証の同時実行を2回（同じ1回用の一時スクリプトを2回）行い、両者の終了を待ちexit0を確認する。親環境のCODEX_THREAD_IDは検証プロセスだけから除外し、永続環境を変更しない。
 - [ ] **Step 4: 公開。** Issue/競合/baseを再確認。scan-before-push.shは親のものを使い捕捉baseのSHAを照合。全scan後の検査SHAだけをpushし、PRのbase/headを照合する。Refs #415と#400の残結合確認、Spec採否・実装担当・時間・base前進と再検証をPRに記録する。
 - [ ] **Step 5: ループ。** 元のinspect 3担当、実装は利用者指示でDevinへ変更したことを記録しloop起動。自己レビュー/fix-checkは既定self。finalize.pyのみがマージする。終了時にIssue state・残項目・資源・Herdrを報告する。
@@ -78,6 +78,14 @@ Task 1が同原因の準備依存と失敗診断を修正、Task 2が入力→�
 runner実装期限90分、Specレビュー30分、ループinspect45分。提出の予約枠は実装15分・レビュー5分を目安とするが、事前停止宣言は行わずrunnerの期限と停止確認を使う。piは同期foreground待機、ツールtimeoutを付けない。監視ログを後から確認し、未確認停止を成功にしない。追加有料の評価は行わない。実装依頼1回、重要指摘の修正は上限2回、同一信頼性失敗の再試行は最大1回。ただしhelperがfailedなら停止し、controllerがselfで引き取らない。
 
 ledgerとbrief等は `/workspaces/reso-world/tmp/agents/issue-415.gjerrhip/sdd/2026-11-13-issue-415-stable-role-tests/`、実装runnerの依頼は別のagent_tmpセッションに置く。失敗記録と最終検証ログを必要な間保持し、停止未確認やユーザ所有領域を削除しない。
+
+## 実施記録（公開前）
+
+- Spec gate: DeepSeek有効レビュー2回（1027.553秒、523.125秒）。重要1件・軽微2件を採用、再レビュー指摘0件。Qwen/Devinの失敗は未受理のまま履歴保持。
+- Task 1: Devin/SWE-2 Max、依頼1回1124.339秒、commit `1a84986d612ce11a463833e0d6527466e07cd002`、accept成功、cleanup retainedなし。controllerの対象18件と、準備タイムアウトの旧版RED→新版7ケースGREEN、adapter失敗の役割/state診断を確認した。
+- Taskレビュー: 読み取り専用sp-review、仕様準拠・品質Approved、指摘0、約5分。最初の依頼で必須scope行が不足し、補足して再依頼した。Task 2の全体検証と結合確認はcontroller担当。
+- 統合確認: 5テストで準備だけを置換し、実例外生成・プロンプト追加・既存安全assertionを維持。コード差分は対象1ファイルのみ、exception_lines()/20秒期限/runner本体不変。#400はOPEN、両変更の結合確認は未実施としてIssueへ残す。
+- 以下の最終検証・公開・loopの実結果は、最後の文書commit後のHEADに対しSESSIONとPRへ記録する。事前に成功とは記載しない。
 
 ## contingency（代替策）
 
