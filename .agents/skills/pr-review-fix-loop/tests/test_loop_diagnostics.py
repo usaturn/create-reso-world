@@ -160,6 +160,12 @@ def test_logs_are_read_only_when_safe(
             id="tool-result-error-body",
         ),
         pytest.param(
+            json.dumps({"type": "tool_result", "is_error": True, "message": "HTTP 401 Unauthorized"}) + "\n",
+            "",
+            "unknown",
+            id="tool-result-error-message",
+        ),
+        pytest.param(
             json.dumps(
                 {"type": "result", "subtype": "success", "is_error": True, "result": "HTTP 401 Unauthorized"}
             )
@@ -181,6 +187,15 @@ def test_logs_are_read_only_when_safe(
             id="error-object-message",
         ),
         pytest.param(
+            json.dumps(
+                {"type": "error", "message": "request failed", "error": {"message": "HTTP 401 Unauthorized"}}
+            )
+            + "\n",
+            "",
+            "authentication",
+            id="error-message-and-error-object",
+        ),
+        pytest.param(
             json.dumps({"type": "turn.failed", "error": "invalid api key"}) + "\n",
             "",
             "authentication",
@@ -189,8 +204,9 @@ def test_logs_are_read_only_when_safe(
     ],
 )
 def test_cause_uses_only_failure_channels(loop: Any, tmp_path: Path, stdout: str, stderr: str, cause: str) -> None:
-    # 失敗のイベントから使うのは安全な CLI のエラー欄（文字列の message・error・error.message）だけ。
-    # tool_result・result/content・モデル本文は is_error=true でも分類しない（PR の本文やコードの偽陽性）
+    # 失敗のイベントから使うのは安全な CLI のエラー欄（文字列の message・error・error.message）だけで、
+    # message があっても error.message を捨てない。tool_result・result/content・モデル本文は is_error=true でも
+    # 分類しない（PR の本文やコードの偽陽性）
     attempt, output = failed_attempt(tmp_path, stdout=stdout, stderr=stderr)
 
     assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
@@ -216,16 +232,25 @@ def test_successful_attempts_have_no_failure_cause(
     assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == cause
 
 
-def test_reported_failure_without_safe_text_is_not_response_extraction(loop: Any, tmp_path: Path) -> None:
-    # 失敗の報告があっても安全に取り出せる文が無い（result 本文だけ）ときは、報告の事実だけを数えて文は空にし、
-    # response_extraction と推測しない。本文そのものも分類しない（終了コード 0 の取り出し失敗の条件で確かめる）
-    stdout = (
-        json.dumps(
-            {"type": "result", "subtype": "success", "is_error": True, "result": "HTTP 401 Unauthorized"}
-        )
-        + "\n"
-    )
-    attempt, output = failed_attempt(tmp_path, stdout=stdout, exit_code=0)
+@pytest.mark.parametrize(
+    "stdout_event",
+    [
+        pytest.param(
+            {"type": "result", "subtype": "success", "is_error": True, "result": "HTTP 401 Unauthorized"},
+            id="result-body-only",
+        ),
+        pytest.param(
+            {"type": "tool_result", "is_error": True, "message": "HTTP 401 Unauthorized"},
+            id="tool-result-message",
+        ),
+    ],
+)
+def test_reported_failure_without_safe_text_is_not_response_extraction(
+    loop: Any, tmp_path: Path, stdout_event: dict[str, Any]
+) -> None:
+    # 失敗の報告があっても安全に取り出せる文が無い（result 本文だけ・tool_result の出力）ときは、報告の事実だけを
+    # 数えて文は空にし、response_extraction と推測しない。本文そのものも分類しない（終了コード 0 の取り出し失敗の条件で確かめる）
+    attempt, output = failed_attempt(tmp_path, stdout=json.dumps(stdout_event) + "\n", exit_code=0)
 
     assert loop.diagnose_attempt(attempt, output, runtime="pi").cause == "unknown"
 
