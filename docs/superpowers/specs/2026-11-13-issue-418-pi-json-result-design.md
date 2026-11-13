@@ -59,6 +59,21 @@ pi adapter の `_json_object` は「テキスト全体が JSON object」か「``
 - 選択理由: agent_end 以降の破損行・異常 stopReason・agent_settled の必須・認証/承認診断の優先は、JSON 抽出とは独立した安全境界。移植は `_payload` が呼ぶ抽出関数の差し替えに限る
 - 委任指示または停止条件: 編集禁止。緩める変更は停止条件
 
+## レビュー記録
+
+### Spec レビュー 1 回目（2026-11-13）
+
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-418.u_ouh3so/2026-11-13-issue-418-pi-json-result-design.spec-review/review-1`
+- review_id: `f97509066cbf4bf28f777191c24966d0`
+- reviewed の SHA: `3f0cabdf0862eee3debc662031e06fb700caee4ffad7d24f139eb825d8a15343`
+- 担当: `devin_swe2_max`（requested = actual）
+- identity: model `SWE-2 Max` / provider null / effort null / session `helix-sneeze` / cli `3000.12.43`
+- 回数: 1 回・elapsed_seconds: 319.7
+- fallback: 未使用
+- outside_changes: なし
+- unprotected_changes: `/tmp` の古い prunable worktree 6 件（この run と無関係）
+- 指摘: S1（minor）→ 採用。テストの採用基準と編集範囲に訂正形（最後の有効 object 採用）を明記し、拒否 fixture を閉鎖 fence 内 malformed と非 fence の両形に指定した
+
 ## 受け入れ基準
 
 ### 動作環境
@@ -98,14 +113,15 @@ pi の `collect` 経路（`_classify` → `_payload` → 抽出関数）に、�
 |---|---|
 | `tools/agent_runner/adapters/pi.py` | `_json_object`・`_FENCE` を削除。`json_result.json_object` を import。`_payload` を差し替え。モジュール docstring を更新 |
 | `tools/agent_runner/runtimes/pi.rst` | 50 行目の「object 全体か JSON code fence 内の object を受け付ける」を新しい仕様に更新 |
-| `tools/agent_runner/tests/adapters/pi/test_adapter.py` | S テストを追加: prose + JSON の成功・壊れた候補の拒否（collect 経路） |
+| `tools/agent_runner/tests/adapters/pi/test_adapter.py` | S テストを追加: prose + JSON の成功・訂正形（最後の有効 object 採用）・壊れた候補の拒否（閉鎖 fence 内 malformed と非 fence の両形を parametrize）（collect 経路） |
 | `tools/agent_runner/tests/adapters/test_parser_regressions.py` | `test_invalid_fence_cannot_salvage_inner_json` の parametrization から "pi" を外す |
 
 ## テストの採用基準
 
-- **S（書く）**: pi collect 経路で prose + 非 fence JSON が success になること。壊れた候補が response_failed になること。これらが壊れると、完了した有料実行が失われる（prose 拒否）、または誤った結果が成功として採用される（壊れた候補の接受）— エラーにならず気付けない損害
+- **S（書く）**: pi collect 経路で (1) prose + 非 fence JSON が success になること、(2) 訂正形（古い fence JSON → prose → 新しい fence JSON）で payload が**最後の**有効 object になること、(3) 壊れた候補が response_failed になること。(1) が壊れると完了した有料実行が失われる。(2) が壊れると `first_json_object` への誤配線・回帰で古い object が静かに採用される（`json_object` と `first_json_object` を区別できる唯一のケース）。(3) が壊れると誤った結果が成功として採用される。いずれもエラーにならず気付けない損害。拒否の fixture は閉鎖 fence 内 malformed JSON（D4 の記述どおり）と非 fence の壊れた候補の両形を parametrize する
 - **D（重複しない）**: json_result の単体テスト（`test_json_result.py`）は既存。同じ抽出規則の網羅はそちらに任せる。pi 側の S テストは「pi adapter が json_object を正しく配線している」ことの確認であり、json_object 自体の規則テストとは守りが異なる（配線を戻したら pi テストは失敗するが json_result テストは通る）
 - **陽性対照**: 拒否テストには正しく通る例（prose + JSON の成功）を少なくとも 1 件残す
+- **固定テスト不要**: 未閉鎖 fence + 有効 JSON の接受（受け入れ #7）は意図的な挙動変更であり、pi.rst に記載する。json_result の既存テストが規則を固定しているため、pi 側に追加の固定テストは書かない
 - **F（書かない）**: pi.rst の文言を写して照合するテストは書かない。文書更新は `git diff` と構成確認で代える
 - **L（書かない）**: import エラー・構文エラーは既存の pytest 実行で気付ける
 
