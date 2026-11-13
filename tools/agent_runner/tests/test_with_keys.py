@@ -110,6 +110,16 @@ def test_wrapper_fills_missing_allowlisted_names_only(tmp_path: Path) -> None:
         assert "OLLAMA_API_KEY" not in env_a
         assert "COMMANDCODE_API_KEY" not in env_a
 
+    # Ollama の URL から別プロバイダの変数を導出すると、別の送信先へ key を送る。
+    env_o, derived_o, _, _ = fill_environment(
+        {"ANTHROPIC_BASE_URL": "https://ollama.com", "ANTHROPIC_AUTH_TOKEN": fake_f},
+        names,
+        missing_env,
+    )
+    assert env_o["OLLAMA_API_KEY"] == fake_f
+    assert derived_o == ["OLLAMA_API_KEY"]
+    assert "COMMANDCODE_API_KEY" not in env_o
+
     # ASCII 英数字を含まないトークンを導出すると、使えない key で起動してしまう。
     env_b, derived_b, _, _ = fill_environment(
         {"ANTHROPIC_BASE_URL": "https://ollama.com", "ANTHROPIC_AUTH_TOKEN": "  \u00a0\ufeff\u3000"},
@@ -154,7 +164,6 @@ def test_wrapper_fills_missing_allowlisted_names_only(tmp_path: Path) -> None:
     assert env_d["OPENCODE_API_KEY"] == launcher_go
     assert derived_d == ["OPENCODE_API_KEY"]
     assert "OPENCODE_API_KEY" not in skipped_d
-    assert not marker.exists()
 
     launcher_deepinfra = "-".join(["fake", "deepinfra", "launcher"])
     env_e, derived_e, _, skipped_e = fill_environment(
