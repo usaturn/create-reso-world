@@ -8,6 +8,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -369,6 +370,40 @@ def test_publish_approved_comment_once_without_changing_draft(
     assert (out_dir / "draft.json").read_bytes() == raw
     assert len(fake.writes_to("POST", "/comments")) == 1
     assert fake.write_payloads == [{"body": "評価の結果を記録する。"}]
+
+
+def test_host_change_after_draft_does_not_send_to_other_host(
+    pub: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """別ホストへの誤投稿と成功記録を防ぐ。draft 後の環境変更も検査する。"""
+    fake = FakeGh()
+    other_calls: list[list[str]] = []
+
+    def route(args: Sequence[str], *, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+        argv = list(args)
+        host = argv[argv.index("--hostname") + 1] if "--hostname" in argv else os.environ["GH_HOST"]
+        if host != "github.com":
+            other_calls.append(argv)
+        return fake(argv, input_text=input_text)
+
+    monkeypatch.setenv("GH_HOST", "draft.invalid")
+    fake.issues[(REPO, ISSUE)] = issue_json(ISSUE, title="対象の Issue", body="本文")
+    out_dir = tmp_path / "draft"
+    out_dir.mkdir()
+    saved = pub.draft_comment(
+        repo=REPO, issue=ISSUE, body="評価の結果を記録する。", out_dir=out_dir, runner=route,
+        scanner=fake_gitleaks(pub, tmp_path / "draft-scanner", silent=False),
+    )
+    assert saved["status"] == "draft_saved"
+    sha256 = saved["sha256"]
+    monkeypatch.setenv("GH_HOST", "other.invalid")
+    result = pub.publish(
+        draft_dir=out_dir, sha256=sha256, runner=route,
+        scanner=fake_gitleaks(pub, tmp_path / "publish-scanner", silent=False), env={},
+    )
+    assert result["status"] == "published"
+    assert len(fake.writes_to("POST", "/comments")) == 1
+    assert other_calls == []
 
 
 def test_publish_does_not_resend_comment_after_lost_response(pub: Any, tmp_path: Path) -> None:

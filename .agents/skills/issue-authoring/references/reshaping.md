@@ -11,8 +11,8 @@
 `SKILL.md` の投稿の流れの手順 1 と同じく、入力用のディレクトリを作り、対象の snapshot と現在のラベルをファイルに保存する。
 
 ```bash
-gh api repos/<owner>/<repo>/issues/<N> > <入力ディレクトリ>/issue.json
-gh api --paginate repos/<owner>/<repo>/labels > <入力ディレクトリ>/labels.json
+gh api --hostname github.com repos/<owner>/<repo>/issues/<N> > <入力ディレクトリ>/issue.json
+gh api --hostname github.com --paginate repos/<owner>/<repo>/labels > <入力ディレクトリ>/labels.json
 ```
 
 - `number`・`html_url`・`pull_request` を確認する。snapshot が別のリポジトリ・別の番号のものなら止まる。`prepare` も URL と番号を照合し、`pull_request` を拒否する
@@ -22,10 +22,10 @@ gh api --paginate repos/<owner>/<repo>/labels > <入力ディレクトリ>/label
 
 ### 関連 Issue の調査と整理の適格性
 
-snapshot 取得後、タイトルと通常本文から特徴語を選び、登録先を固定して軽く検索する。例えば次のように `is:issue` を付け、state は指定しない。全件収集は必須でない。結果が多ければ語を絞り、有力候補は `gh api repos/<owner>/<repo>/issues/<候補番号>` で現在の本文・state・番号・URL・`pull_request` を読み、対象自身と PR を除いて目的と受け入れ条件を比べる。
+snapshot 取得後、タイトルと通常本文から特徴語を選び、登録先を固定して軽く検索する。例えば次のように `is:issue` を付け、state は指定しない。全件収集は必須でない。結果が多ければ語を絞り、有力候補は `gh api --hostname github.com repos/<owner>/<repo>/issues/<候補番号>` で現在の本文・state・番号・URL・`pull_request` を読み、対象自身と PR を除いて目的と受け入れ条件を比べる。
 
 ```bash
-gh api -X GET search/issues -f q='<特徴語> repo:<owner>/<repo> is:issue' --jq '.items[] | [.number, .state, .title] | @tsv'
+gh api --hostname github.com -X GET search/issues -f q='<特徴語> repo:<owner>/<repo> is:issue' --jq '.items[] | [.number, .state, .title] | @tsv'
 ```
 
 検索の終了状態も確認し、成功して候補が無い場合と、失敗して調査できなかった場合を区別する。検索語と候補番号、候補なし、または調査できずを「関連 Issue・依存関係」に短く記録する。失敗時も通常整形は続けられる。closed 候補は過去の類似としてのみ参照し、目的や関係を判断できなければ関連リンクに留める。
@@ -235,13 +235,13 @@ uv run --locked \
 複数 Issue では次の順に進める。各本文の投稿は上記 helper を使い、結果を記録する。
 
 1. 承認された移動先を先に create または update する。更新不要の既存先も対象とする。
-2. 移動先の現在本文を `gh api repos/<owner>/<repo>/issues/<N>` で読み戻し、移す要件が archive だけでなく通常本文に載り、元へのリンクがあると確認する。
+2. 移動先の現在本文を `gh api --hostname github.com repos/<owner>/<repo>/issues/<N>` で読み戻し、移す要件が archive だけでなく通常本文に載り、元へのリンクがあると確認する。
 3. 部分重複・分割は、確認した移動先へのリンクと固有要件を残して元を更新する。複数の移動でも、各移動先の保存を確認してからその要件を元から外す。同一目的で閉じる元の本文は更新しない。
 4. 案に含まれる全本文更新の成功と移動先の読戻しを確認後、残す先と閉じる元の repo・番号・通常 Issue・open 状態、承認済みの対応と対話での承認を再確認する。元の現在本文を読み直し、引き継ぐ要件に取りこぼしがなく、案を変える競合がないことを確認する。そのうえで承認された統合元だけに、次の 2 操作を順に行う。source ラベルは外さない。部分重複・分割だけでは close しない。
 
    ```bash
-   gh issue edit <元> --repo <owner>/<repo> --add-label duplicate
-   gh issue close <元> --repo <owner>/<repo> --duplicate-of <先>
+   gh issue edit <元> --repo https://github.com/<owner>/<repo> --add-label duplicate
+   gh issue close <元> --repo https://github.com/<owner>/<repo> --duplicate-of <先>
    ```
 
 5. 失敗・競合・結果不明なら停止し、済んだ操作・確認済み URL・未実施操作・次に確認するものを報告する。本文更新の失敗・競合・結果不明の後に close しない。作成結果が不明なら再送しない。再開時は現在の状態を読み、実施済みを繰り返さず残りだけ行い、案が変われば必要な再承認を得る。

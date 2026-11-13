@@ -27,7 +27,7 @@ Python の例はリポジトリルートから実行する。秘密情報検査�
 
 `draft` の `--out-dir` は空のディレクトリでなければ終了コード 2 で止まる。入力のファイルを `--out-dir` に置かず、案は保存のたびに新しい空のディレクトリへ書く。
 
-1. 入力用に、親の main worktree で `uv run --locked python .agents/scripts/agent_tmp.py mkdir issue-src` を実行してディレクトリを作る。本文（`--body-file`）・機械可読ブロックの JSON（`--metadata-file`）・読んだ時点の Issue の JSON（`--read-json`。`gh api repos/<owner>/<repo>/issues/<N>` の出力）のファイルは、ここに置く
+1. 入力用に、親の main worktree で `uv run --locked python .agents/scripts/agent_tmp.py mkdir issue-src` を実行してディレクトリを作る。本文（`--body-file`）・機械可読ブロックの JSON（`--metadata-file`）・読んだ時点の Issue の JSON（`--read-json`。`gh api --hostname github.com repos/<owner>/<repo>/issues/<N>` の出力）のファイルは、ここに置く
 2. 案を保存するたびに（作り直しを含む）、`uv run --locked python .agents/scripts/agent_tmp.py mkdir issue-draft` で新しい空のディレクトリを作る。そのディレクトリを `--out-dir` にして `uv run --locked python .agents/skills/issue-authoring/scripts/publish_issue.py draft {create|update|comment} ... --out-dir <そのディレクトリ>` を実行する（引数は各サブコマンドの `--help`）
 3. **ターンを終える前には、問いを尋ねて終えるときも承認を求めて終えるときも、必ず手順 2 で案を保存する。** 問いがあっても先に尋ねず、その時点の根拠で案を作る（答えで決まる項目は `references/authoring.md` の 3 の未確定・未決事項で書く）。実行が対話か非対話かの判断に頼らない
 4. 承認を求めるなら、出力の `preview` の `preview.md` を**全文**、`draft` のパス、`sha256` とともに利用者に見せてターンを終える。問いを尋ねるなら、選択肢つきの問いに `draft` のパス・`sha256` を添えてターンを終える

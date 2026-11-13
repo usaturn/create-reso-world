@@ -13,19 +13,19 @@ open・closed の両方を、全ページで探す（PR は除く）。
 - タイトルの一覧:
 
   ```bash
-  gh api --paginate "repos/<owner>/<repo>/issues?state=all&per_page=100" --jq '.[] | select(.pull_request == null) | [.number, .state, (.state_reason // ""), .title] | @tsv'
+  gh api --hostname github.com --paginate "repos/<owner>/<repo>/issues?state=all&per_page=100" --jq '.[] | select(.pull_request == null) | [.number, .state, (.state_reason // ""), .title] | @tsv'
   ```
 
 - 本文の語の検索（`is:issue` で PR を除き、state を指定しないので open・closed の両方。全ページを取る）:
 
   ```bash
-  gh api --paginate -X GET search/issues -f q='<語> repo:<owner>/<repo> is:issue' -f per_page=100 --jq '.items[] | [.number, .state, (.state_reason // ""), .title] | @tsv'
+  gh api --hostname github.com --paginate -X GET search/issues -f q='<語> repo:<owner>/<repo> is:issue' -f per_page=100 --jq '.items[] | [.number, .state, (.state_reason // ""), .title] | @tsv'
   ```
 
   検索 API は 1 つの検索で 1,000 件までしか返さない。一致の件数は次で確かめ、1,000 を超えたら語を絞る。
 
   ```bash
-  gh api -X GET search/issues -f q='<語> repo:<owner>/<repo> is:issue' -f per_page=1 --jq .total_count
+  gh api --hostname github.com -X GET search/issues -f q='<語> repo:<owner>/<repo> is:issue' -f per_page=1 --jq .total_count
   ```
 
 探した範囲（語・件数・日付）と結果を、本文の「関連 Issue・依存関係」の「重複」に書く。同じ目的の open の Issue があれば、新しく作るか既存のものを使うか（答えで作るものが変わる）を尋ねる。closed のものは「過去の類似」に書く。
@@ -73,7 +73,7 @@ open・closed の両方を、全ページで探す（PR は除く）。
 `IssueMetadata`（定義元の 5 章）の JSON を、`SKILL.md` の投稿の流れの手順 1 の入力用ディレクトリ（`--out-dir` の外）にファイルで書き、`draft create --metadata-file` で渡す。helper が `write_metadata` で本文に入れるので、ブロックを手で書かない。`bases` の `sha` は、clone が無くても次で取れる。
 
 ```bash
-gh api repos/<owner>/<repo>/commits/<branch> --jq .sha
+gh api --hostname github.com repos/<owner>/<repo>/commits/<branch> --jq .sha
 ```
 
 ## 8. ラベルと関係

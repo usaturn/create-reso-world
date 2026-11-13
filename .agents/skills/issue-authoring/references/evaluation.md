@@ -7,7 +7,7 @@ Issue の目標値を評価し、評価コメントの案を作るときの手�
 ## 1. 入力と対象を確かめる
 
 1. 対象を `--repo owner/repo` で明示し、共通 resolver と AGENTS.md「リポジトリ境界」に従い常設親・採用済み台帳・remote を確認する。不在・不一致・未登録では止まり、別対象に切り替えない
-2. 対象が Issue であり、PR ではないことを確かめる。`gh api repos/<owner>/<repo>/issues/<N>` の応答に `pull_request` があれば PR であり、評価の対象外である。PR の番号でも `gh issue view` は成功することがあるので、`gh issue view` だけで判断しない
+2. 対象が Issue であり、PR ではないことを確かめる。`gh api --hostname github.com repos/<owner>/<repo>/issues/<N>` の応答に `pull_request` があれば PR であり、評価の対象外である。PR の番号でも `gh issue view` は成功することがあるので、`gh issue view` だけで判断しない
 3. 評価する Issue の母集団を先に決める。対象の選び方（番号の一覧、ラベル、期間など）とデータ源を決め、母集団と根拠を `scope` に残す。JSONL の Issue 行には `created_at` が無いので、期間で選ぶときは独立した API 情報や事前に確認した番号一覧を使う。対象を特定できなければ情報不足として扱い、読めた `metadata` だけを対象全体としない。選択済みの Issue は、`metadata` の `status` や `value`（`filed_on` を含む）で母集団から外さない。この選択は、記録の `extraction.status` で有効な run・評価だけを数える操作とは別である
 4. 本文と、全ページのコメントを読む（open・closed のどちらでもよい）。既存の評価コメントをすべて確認し、どの目標をいつ評価したか、同じ目標を二重に記録しないかを見る。評価コメントを編集したり、過去の評価を現在の値として流用したりしない
 5. `metadata` の状態を抽出結果で確かめる。`value` を読むのは `status` が `ok` のときだけである。`broken` のときは理由と行を、`unknown_version` のときは版と行を報告する。壊れた JSON や知らない版から、目標値を復元しない

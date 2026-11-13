@@ -3,6 +3,7 @@
 import importlib.util
 import io
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -67,6 +68,32 @@ def comment(number: int, body: str | None, *, association: str = "OWNER", commen
         "author_association": association,
         "issue_url": f"https://api.github.com/repos/{REPO}/issues/{number}",
     }
+
+
+def test_extract_uses_github_when_environment_selects_another_host(monkeypatch: Any) -> None:
+    """別ホストの Issue やコメントを指定 repo の記録として混同しない。"""
+    extractor = load_extractor()
+    fake = FakeGh([[issue(1, body="first")], [issue(3, body="second")]], {
+        1: [[comment(1, "first comment")], [comment(1, "second comment", comment_id=2)]],
+        3: [[]],
+    })
+    other_calls: list[list[str]] = []
+
+    def route(args: Any, *, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+        argv = list(args)
+        host = argv[argv.index("--hostname") + 1] if "--hostname" in argv else os.environ["GH_HOST"]
+        if host != "github.com":
+            other_calls.append(argv)
+        return fake(argv, input_text=input_text)
+
+    monkeypatch.setenv("GH_HOST", "other.invalid")
+    stdout, stderr = io.StringIO(), io.StringIO()
+    code = extractor.run(["--repo", REPO], runner=route, stdout=stdout, stderr=stderr)
+    records = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    assert code == 0, stderr.getvalue()
+    assert [record["number"] for record in records] == [1, 3]
+    assert len(fake.calls) == 3
+    assert other_calls == []
 
 
 def test_broken_metadata_is_emitted_without_losing_other_issues() -> None:

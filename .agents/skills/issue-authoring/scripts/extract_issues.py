@@ -132,7 +132,8 @@ def _pages(raw: str, where: str) -> list[list[dict[str, Any]]]:
 
 
 def _fetch_pages(endpoint: str, runner: Runner) -> list[list[dict[str, Any]]]:
-    argv = ["gh", "api", "--paginate", "--slurp", endpoint]
+    # 指定 repo の記録に別ホストの Issue を混ぜない。
+    argv = ["gh", "api", "--paginate", "--slurp", endpoint, "--hostname", "github.com"]
     try:
         result = runner(argv, input_text=None)
     except OSError, subprocess.TimeoutExpired, UnicodeError:

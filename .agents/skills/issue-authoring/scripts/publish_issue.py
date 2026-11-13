@@ -405,6 +405,8 @@ def _call(
     if payload is not None:
         argv += ["--input", "-"]
         input_text = json.dumps(payload)  # ASCII のみの JSON にし、実行環境の文字コードに左右されないようにする
+    # resolver が確認した GitHub.com と API の送信先を一致させる。
+    argv += ["--hostname", "github.com"]
     try:
         done = runner(argv, input_text=input_text)
     except OSError as error:

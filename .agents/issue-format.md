@@ -221,10 +221,10 @@
 
 ### 不足するラベルを作る手順
 
-1. 対象のリポジトリの既存のラベルを `gh api --paginate repos/<owner>/<repo>/labels` で取得し、ファイルに保存する
+1. 対象のリポジトリの既存のラベルを `gh api --hostname github.com --paginate repos/<owner>/<repo>/labels` で取得し、ファイルに保存する
 2. `issue_format.py labels --repo <owner>/<repo> --existing-json <そのファイル>` で、この文書の表の定義のうち無いものを出す
 3. 起票・整形の案に、作るラベル（名前・色・説明）を含め、利用者の承認を得る
-4. 承認の後に `gh label create "<名前>" --repo <owner>/<repo> --color <色> --description "<説明>"` で作る。`--force` を付けない（既存のラベルの色・説明を上書きする）。already exists で失敗したら、取得し直して名前を比べる
+4. 承認の後に `gh label create "<名前>" --repo https://github.com/<owner>/<repo> --color <色> --description "<説明>"` で作る。`--force` を付けない（既存のラベルの色・説明を上書きする）。already exists で失敗したら、取得し直して名前を比べる
 5. ラベルの定義は必ずこの文書の表から読む。スキルや helper に写さない
 
 ## 5. 機械可読ブロック（本文）
@@ -431,8 +431,8 @@ v1 のキー（`Evaluation`）:
 
 ## 8. 重複・誤検知で閉じるとき
 
-- 重複: `gh issue close <N> --repo <owner>/<repo> --duplicate-of <重複先>`（`state_reason` が `duplicate` になる）。`duplicate` ラベルを付ける
-- 誤検知（実際には問題が無かった）: `gh issue close <N> --repo <owner>/<repo> --reason "not planned"` と `invalid` ラベル
+- 重複: `gh issue close <N> --repo https://github.com/<owner>/<repo> --duplicate-of <重複先>`（`state_reason` が `duplicate` になる）。`duplicate` ラベルを付ける
+- 誤検知（実際には問題が無かった）: `gh issue close <N> --repo https://github.com/<owner>/<repo> --reason "not planned"` と `invalid` ラベル
 - 対応しない判断（問題はあるがやらない）: `--reason "not planned"`。`invalid` は付けない
 - 発見経路（`source:`）ごとの重複・誤検知の割合は、`state_reason` とこのラベルから数える。閉じるときに `source:` のラベルを外さない
 
@@ -452,8 +452,8 @@ issue_format.py labels --repo OWNER/NAME [--existing-json PATH]
 issue_format.py extract --kind {metadata,run-record,evaluation} --file PATH
 ~~~
 
-- `check`: 本文・ラベル・タイトルを検査する。`--issue-json` は `gh api repos/<owner>/<repo>/issues/<N>` か `gh issue view --json title,body,labels` の出力（`title`・`body`・`labels[].name` を読む。`body` は `null` も可で、空文字として検査する。`body`・`labels` のキーが無い JSON は入力の誤り）。`--issue-json` は `--label`・`--title` と同時に使えない（usage エラー）。`--body-file` は改行を変換せずに読む（CRLF の本文をそのまま検査する）。標準出力に JSON（`ok`・`complete`・`problems`・`undetermined`・`metadata`（`status`・`version`・`reason`・`line`））を出す。`ok` は、終了コードが 0 になる結果かどうか。終了コードは、`complete` なら 0。`--allow-undetermined` を付けたときは、`problems` が無ければ未確定があっても 0（`issue-authoring` が未確定のまま起票するとき）。それ以外は 1
-- `labels`: 定義を出す。標準出力に JSON（`repository`・`definitions`（`name`・`family`・`value`・`color`・`description`））を出す。`--existing-json`（`gh api --paginate repos/<owner>/<repo>/labels` の出力。`--paginate` で配列が複数連結されても、すべての配列の要素を読む）があれば、`missing`（定義にあって無いもの。`definitions` と同じ形）も出す。配列が 1 つも無い入力は入力の誤り。終了コードは 0
+- `check`: 本文・ラベル・タイトルを検査する。`--issue-json` は `gh api --hostname github.com repos/<owner>/<repo>/issues/<N>` か `gh issue view <N> --repo https://github.com/<owner>/<repo> --json title,body,labels` の出力（`title`・`body`・`labels[].name` を読む。`body` は `null` も可で、空文字として検査する。`body`・`labels` のキーが無い JSON は入力の誤り）。`--issue-json` は `--label`・`--title` と同時に使えない（usage エラー）。`--body-file` は改行を変換せずに読む（CRLF の本文をそのまま検査する）。標準出力に JSON（`ok`・`complete`・`problems`・`undetermined`・`metadata`（`status`・`version`・`reason`・`line`））を出す。`ok` は、終了コードが 0 になる結果かどうか。終了コードは、`complete` なら 0。`--allow-undetermined` を付けたときは、`problems` が無ければ未確定があっても 0（`issue-authoring` が未確定のまま起票するとき）。それ以外は 1
+- `labels`: 定義を出す。標準出力に JSON（`repository`・`definitions`（`name`・`family`・`value`・`color`・`description`））を出す。`--existing-json`（`gh api --hostname github.com --paginate repos/<owner>/<repo>/labels` の出力。`--paginate` で配列が複数連結されても、すべての配列の要素を読む）があれば、`missing`（定義にあって無いもの。`definitions` と同じ形）も出す。配列が 1 つも無い入力は入力の誤り。終了コードは 0
 - `extract`: ファイル（本文かコメント）から指定した種類のブロックを取り出し、標準出力に JSON（`status`・`version`・`reason`・`line`・`value`）を出す。終了コードは、`ok` なら 0、それ以外は 1
 - 入力・定義の誤り（未登録のリポジトリ、読めないファイル、壊れた JSON の入力、定義の表の誤り）は、標準エラー出力に `issue_format: <理由>` を書いて終了コード 2 で終える（argparse の usage エラーも 2）
 - 標準出力の JSON は `ensure_ascii=False` で出す
