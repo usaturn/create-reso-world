@@ -64,10 +64,11 @@ def fake_gitleaks(pub: Any, directory: Path, *, silent: bool) -> Any:
     directory.mkdir(parents=True)
     body = directory / "gitleaks_body.py"
     body.write_text(FAKE_GITLEAKS.format(version=FAKE_VERSION, silent=silent), encoding="utf-8")
-    # shebang の長さの上限を避けるため、短い sh のラッパーから実行する
+    # スキャナーの作業ディレクトリからでも、ルートの lock 済み環境で実行する。
     wrapper = directory / "gitleaks"
+    root = Path(__file__).resolve().parents[4]
     wrapper.write_text(
-        f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(body))} "$@"\n',
+        f'#!/bin/sh\nexec uv run --project {shlex.quote(str(root))} --locked python {shlex.quote(str(body))} "$@"\n',
         encoding="utf-8",
     )
     wrapper.chmod(0o755)
