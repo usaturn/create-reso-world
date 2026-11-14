@@ -672,6 +672,18 @@ def test_write_exceptions_follow_the_work_scope_lines(repository: Path) -> None:
         assert "do not stop processes by pattern" in safety
         assert "pkill -f" in safety and "killall" in safety
         assert "only stop processes you started by pid" in safety
+        # リポジトリのテスト・検証の入口の許可が落ちると、担当が python3 を使う入口を
+        # 「禁止」と読んで実行せず、より狭い独自確認のまま成果を返してもエラーにならない。
+        # python・python3 の直接起動と heredoc の禁止が落ちると、uv 環境の外の実行や
+        # 任意コードの実行を止められない。どちらも先頭行の意味を固定する。
+        assert "do not run python or python3 directly" in safety
+        assert "do not pass a heredoc to python -" in safety
+        assert "repository's test and verification entry points" in safety
+        assert "bash .devcontainer/run-tests.bash" in safety
+        assert "bash .devcontainer/test-*.bash" in safety
+        assert "bash scripts/check-layout.sh" in safety
+        assert "even when they use python3 internally" in safety
+        assert "does not permit wrapping python or python3" in safety
     assert lines[2] == runner.EXCEPTIONS_HEADING
     assert lines[3:] == [f"- {item}" for item in exceptions]
 
