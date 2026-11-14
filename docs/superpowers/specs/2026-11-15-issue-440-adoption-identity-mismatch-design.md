@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`
+- 状態: `completed`（PR #453 の PR 修正ループ 1 サイクル目で修正不要と確かめた。下の「結果」）
 - 対象: https://github.com/usaturn/create-reso-world/issues/440
 - 利用者の指示（2026-11-15、`/issue-to-pr` の引数）:
 
@@ -150,3 +150,21 @@ v1 の判断記録、records の無い集計、別 PR の records、検出 HEAD 
   - S2（minor、採用）: 候補だけ全 unknown の分岐を既存テストが通らない。D4 に 1 ケース足し、既存テストの説明を actor 側と候補側に分けた
   - S3（minor、採用）: D3 の `recorded` の定義を D2 の 4 に合わせ、D4 の片側 unknown ケースで `recorded` を確かめ、D5 に部分 unknown を書いた
   - S4（minor、採用）: 既存 fixture では同じ担当の複数 source を検証できない。D4 に Task 2 の一時的な実行の入力と期待値を書いた
+
+## 結果（review-fix-planning、PR #453 サイクル 1）
+
+- planner: `claude-opus-5-5`（claude-code）。対象 HEAD `a68d2a5ff3a2737e45228de2d9595a36400cc24e`、base `main` `95f6ad844b44a037a991379c410f1e9897f1f946`（検証の時点の先端。HEAD の祖先ではないので、head に merge した一時的なツリーで検証した）
+- レビュアーの構成（pr-review-fix-loop の run `df6e6dc54e744d3e80555d0d56e248c9`、全員このサイクルで実行・受け付け）:
+
+  | レビューファイル | 担当 | モデル | ランタイム | 所要 | Merge recommendation |
+  | --- | --- | --- | --- | --- | --- |
+  | `SWE-2-Max.md` | `devin_swe2_max` | SWE-2 Max | devin | 395 秒 | Approve |
+  | `deepseek-v4.1-flash.md` | `pi_opencode-go_deepseek4-flash_max` | deepseek-v4.1-flash | pi | 853 秒 | Approve |
+  | `gpt-6.1-sol.md` | `pi_openai-codex_gpt6-sol_xhigh` | gpt-6.1-sol | pi | 338 秒 | Approve |
+
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 1
+  - `deepseek-v4.1-flash#I-1@a68d2a5ff3a2`（Info、対応しない）: `.agents/review-findings.md:937` の診断の条件が、actor 側・候補側の実行識別子がすべて unknown のときに診断を出さない例外を書いていない。文書と実装の食い違いとして確かめたが、全 unknown のときの集計結果は null（未評価）で安全側にあり、致命的ではない。論点: 7.1 節を改訂するときに、全 unknown の除外を書き足す
+- 確認済みの一覧（review-verify mode cycle、司令塔が実行）: `reviews/usaturn/create-reso-world/#453-fix-issue-440-adoption-model-label/verified/a68d2a5ff3a2.json`。confirmed 1（I-1）/ not_reproduced 0 / unverified 0、coverage.remaining なし。隔離 worktree で 8 条件の再現（全 unknown の 2 条件で診断 0 件、片側だけ unknown・観測値が重ならない場合は診断 1 件）と、条件を述べる文書の検索を行った
+- 検証（head に base `95f6ad84` を merge した隔離 worktree の一時的なツリー、push しない）: `uv run pytest tests/skills .agents/skills .agents/scripts tools -q`（1584 passed）、`bash scripts/check-layout.sh`（PASS）、`bash .devcontainer/run-tests.bash`（27 件 PASS）、`uv run --locked python -m py_compile …`（成功）。すべて終了 0
+- 自己レビュー: 修正が無いため行っていない（結論 2）
+- 結論: 2（修正不要でマージ）。未確認の事項: 実モデルによる再現（Issue の対象外）
