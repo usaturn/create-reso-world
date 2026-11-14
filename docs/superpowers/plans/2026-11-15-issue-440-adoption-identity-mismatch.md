@@ -40,7 +40,7 @@
   3. テスト: `test_review_findings.py` に、受け入れ基準の「対照」「表記差」「片側だけ unknown」「候補だけ全 unknown」の 4 つの入力を同じ fixture から作り、`stats` の結果の 2 人の担当の `adopted` と `provenance.diagnostics` を確かめるテストを 1 件足す（`pytest.mark.parametrize` でまとめる）。期待値: 対照は `[1, 1]` と `[]`。表記差・片側だけ unknown は先頭が `None`、もう一方が `1`、診断 1 件（`kind`・`source`・`review_file`・`actor` と `recorded` の `model`、片側だけ unknown では `recorded` の `run_id`・`request_id` の `unknown` も観測値のまま）。候補だけ全 unknown は先頭が `None`、もう一方が `1`、`[]`。runtime 差・観測値が重ならない場合・複数 source のテストは足さない（Spec D4。Task 2 で確かめる）。別 session・actor 側の全 unknown のテストは既にあるので足さない。既存テストの期待値は変えない（`diagnostics` キーの追加で壊れる箇所があれば、そこだけ直す）
   4. 文書: `.agents/review-findings.md` 7.1 節の採否の段落（「採否は records.pr が一致する資料だけに適用し、…」）に、実行識別子が矛盾しない（それぞれ同じ値か片方が unknown。部分的な unknown を含む）のに他の識別情報が違う場合は採用を推定せず `adopted` を null にし、`provenance.diagnostics` に出すことと、要素の形を書き足す。日本語表現は AGENTS.md の「日本語表現」に従う
 - テストの要否: 書く。表記差で採用を黙って 0 にする誤りは、終了コード 0 のままもっともらしい集計になるので、AGENTS.md「テストの採用基準」の S に当たる。代表 1 件と、正しく採用される対照を同じテストに置く
-- 検証（担当が実行する）: `uv run pytest .agents/scripts/tests/test_review_findings.py -q` が成功、`uv run ruff check .agents/scripts/review_findings.py .agents/scripts/tests/test_review_findings.py` と `uv run ruff format --check` の同じファイルが成功、`git diff --stat` が上の 3 ファイルだけ
+- 検証（担当が実行する）: `uv run pytest .agents/scripts/tests/test_review_findings.py -q` が成功、`uv run --locked python -m py_compile .agents/scripts/review_findings.py .agents/scripts/tests/test_review_findings.py` が成功（ruff はリポジトリの依存でも README の検査でもなく、base の既存コードでも失敗するため使わない。実行中に判明して差し替えた）、`git diff --stat` が上の 3 ファイルだけ
 - commit メッセージ: `fix: report adoption identity mismatches instead of counting zero (#440)`
 
 ## Task 2: 4 条件の確認と回帰（司令塔）

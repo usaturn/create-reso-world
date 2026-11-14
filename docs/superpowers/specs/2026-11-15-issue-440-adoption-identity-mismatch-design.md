@@ -120,7 +120,7 @@ v1 の判断記録、records の無い集計、別 PR の records、検出 HEAD 
 - `uv run --locked pytest .agents/scripts/tests/test_review_findings.py`
 - Issue の再現手順を 4 条件で実行し、戻り値・診断・件数を確かめる
 - README.md「テスト」のうち、変更に関係する `uv run pytest tests/skills .agents/skills .agents/scripts tools` と `bash scripts/check-layout.sh`
-- `uv run ruff check` と `uv run ruff format --check` を変更したファイルに実行する
+- `uv run --locked python -m py_compile` を変更した Python ファイルに実行する（当初は ruff を予定したが、ruff はリポジトリの依存でも README の検査でもなく、base の既存コードでも失敗するため、実装中に差し替えた）
 
 ## レビュー記録
 
