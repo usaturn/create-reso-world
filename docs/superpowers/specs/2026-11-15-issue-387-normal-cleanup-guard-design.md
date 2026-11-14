@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（issue-to-pr の実行委任で作成。内容の承認は得ていない）
+- 状態: `completed`（issue-to-pr の実行委任で実装し、PR #447 の PR 修正ループ サイクル 1 で修正不要を確認した。内容の承認は得ていない）
 - 対象: https://github.com/usaturn/create-reso-world/issues/387
 - 利用者指示（2026-11-15）: `/issue-to-pr #387 --merge --spec-review pi_alibaba_qwen4-max_max --implement pi_alibaba_qwen4-max_max --assign implement=pi_alibaba_qwen4-max_max --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,pi_openai-codex_gpt6-sol_xhigh`
 - issue-to-pr の委任として、推奨案で設計し、検証・commit・push・PR 作成、PR 修正ループ（`--merge`）による修正不要の確認後のマージまで進む。実行許可であり、内容の承認（`approved`）ではない。
@@ -79,3 +79,32 @@ AGENTS.md の「テストの採用基準」で S（無言のデータ損失・�
 - 動作環境: Dev Container（Ubuntu 26.04、git、uv）。ローカルの実 Git fixture（`tmp_path`）。実モデルの起動・実 PR の削除はしない。
 - 実入力: 非 ASCII・空白を含む submodule パス `sub módulo`、`ignore=all` の submodule、submodule 内のローカル commit（複数行の `local.txt`）。親 worktree の HEAD は固定 commit のまま（CLI の cleanup・complete の両経路で同じ入力）。親 worktree の HEAD 不一致は complete では save が先に拒否するので、この Issue の入力にしない。
 - 防御範囲: 対象は非 strict `cleanup`（CLI と `review_run.complete` の両方の入口）が、`_require_clean_worktree` が拒否する状態のセッションを消さないこと。対象外の反例: clean な保存済みセッション（submodule の有無に関わらず）は従来どおり退役する。cache（`.venv`・`__pycache__` など）だけの ignored ファイルは退役を妨げない。strict 退役の判定内容は変えない。
+
+## 実装と base の前進
+
+- 実装: Plan の Task 1 を runner の担当（`pi_alibaba_qwen4-max_max`、観測モデル alibaba / qwen4-max-preview）に 2 回依頼した（本実装と、Task レビューの指摘「拒否時の pinned ref 保持が未検証」の修正）。どちらも importable で取り込んだ。
+- 着手時の base は `c8a2f58ffb65eced3e18993d97c439bb2d23197b`。実装後に main が PR #444 で `df345cc97e95727f97688d6a882e010df81ab255` へ前進し、issue-to-pr の前進追随の検査が `.agents/skills/pr-review/references/noninteractive.md` の重複（変更箇所は別）で止まった。利用者の指示「1 rebase して、作業を続行してください。」で手動 rebase（衝突なし）し、base を捕捉し直して必須検証をやり直した。
+
+## レビュー修正（PR #447、サイクル 1）
+
+- 日付: 2026-11-15
+- レビュアーの構成:
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | Mode | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| `SWE-2-Max.md` | SWE-2 Max | devin | `a257462e4f6d` | Initial | はい | Approve |
+| `deepseek-v4.1-flash.md` | deepseek-v4.1-flash | pi | `a257462e4f6d` | Initial | はい | Approve |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `a257462e4f6d` | Initial | はい | Approve |
+
+- planner: claude-opus-5-5（claude-code）
+- 入力から外したファイル: なし（3 名とも現行 HEAD をレビュー、loop の判定は 3 名とも accepted）
+- 前のサイクルの判断: 0 件（記録なし）
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 0（active な指摘・未検証候補とも 0 件）
+- 要件対応: Issue #387 の受け入れ条件 5 項目は、上の「受け入れ基準」「テスト」と 3 名のレビューの照合で満たすことを確認した。修正が無いため、新しい守る条件・影響経路の表は無い。非 strict `cleanup` の呼出元は `review_run.complete` と CLI だけで（`git grep`）、どちらも新規テストで確かめている。
+- 実行許可: issue-to-pr の `--merge` による PR 修正ループの完遂の委任（修正不要ならマージと関連 Issue の更新まで）。
+- 実行した検証（feature worktree `.worktrees/issue-387-normal-cleanup-guard`、HEAD `a257462e`、未コミットの変更なし、base `df345cc9` を含む）:
+  - `uv run --locked pytest -q .agents/skills/pr-review .agents/skills/pr-review-fix-loop` → 376 passed、終了 0
+  - `bash scripts/check-layout.sh` → 終了 0
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#447-fix-issue-387-normal-cleanup-guard/verified/a257462e4f6d.json`
+- 自己レビュー: 未実施（修正が無いため。結論 2 では自己レビューを行わない）
+- 結論: 2（修正不要としてマージ）
