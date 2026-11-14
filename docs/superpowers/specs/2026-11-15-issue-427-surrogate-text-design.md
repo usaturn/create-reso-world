@@ -64,14 +64,14 @@
 
 - 選択した案: `agent_id_for()` の `try: model.encode("utf-8") except UnicodeEncodeError` はそのまま残す
 - 検討した別案: `_text()` の検査で到達しなくなるので削る
-- 選択理由: `agent_id_for()` は `identity_problems()` を先に呼ぶので、`_text()` の変更後は同じ文言で先に拒否される。残しても挙動は変わらず、#426 の修正をやり直さない（Issue の対象外）。`planner.model` の問題が `_check_planner()` の `_text()` と `agent_id_for()` の 2 か所から同じ文言で出ることがあるが、制御文字など既存の問題でも同じ重なりがあり、拒否の結果（終了コード 65）は変わらない
+- 選択理由: `agent_id_for()` は `identity_problems()` を先に呼ぶので、`_text()` の変更後は同じ文言で先に拒否される。残しても挙動は変わらず、#426 の修正をやり直さない（Issue の対象外）。`planner.model` の問題が `_check_planner()` の `_text()` と `agent_id_for()` の 2 か所から同じ文言で出ることがあるが、制御文字など既存の問題でも同じ重なりがあり、拒否の結果（終了コード 65）は変わらない。重複した行は許容し、`_Problems` で同じ問題を 1 行にまとめる変更はしない（Spec レビュー S2）。#426 の対照の `planner.model` は、3 コマンドとも終了コード 65 で、stderr に `planner.model: must be UTF-8 encodable`（`fold` では `comment 12345: ` が付く）を 1 行以上含めばよい
 - 委任指示または停止条件: 推奨案での委任。Issue の対象外「PR #426 のモデル名修正のやり直し」
 
 ### D5. テストは共通境界の代表 1 件にする
 
-- 選択した案: `.agents/scripts/tests/test_review_records.py` に 1 件足す。`planner.model` 以外の欄（`stop_reason` の `external:` より後）に `x\ud800y` を入れたコメントを `collect_records()` に渡し、`comment 12345: stop_reason: must be UTF-8 encodable` で拒否されることと、同じ欄に文字としてのバックスラッシュを含む `x\\ud800y` を入れた記録が通ることを確かめる
+- 選択した案: `.agents/scripts/tests/test_review_records.py` に 1 件足す。`planner.model` 以外の欄（`stop_reason` の `external:` より後）に `x\ud800y` を入れたコメントを `collect_records()` に渡し、`comment 12345: stop_reason: must be UTF-8 encodable` で拒否されることと、同じ欄に文字としてのバックスラッシュを含む `x\\ud800y` を入れた記録が通ることを確かめる。同じテストの中で、`_pattern()` 経由の欄として `decisions[0].carry_over.issue`（URL の所有者の部分に `x\ud800y`）のコメントも `collect_records()` に渡し、`comment <ID>: decisions[0].carry_over.issue: must be UTF-8 encodable` で拒否されることを確かめる（Spec レビュー S1）
 - 検討した別案: 欄 × caller（`validate`・`render`・`fold`・投稿）の組み合わせを網羅する
-- 選択理由: 検証が不正な値を受理して成功を返すと、後段の失敗と検証結果が食い違い、`fold` はコメント ID を示さずに落ちる（AGENTS.md の S）。守りは共通の関数の 1 か所なので、代表 1 件にする（D）。`_pattern()` 経由の `carry_over.issue` は Task の確認で 1 回確かめ、テストにしない。拒否のテストに通る例を残す。CLI の終了コード・投稿経路は、下の「受け入れ基準」の手動の確認で確かめ、テストにしない
+- 選択理由: 検証が不正な値を受理して成功を返すと、後段の失敗と検証結果が食い違い、`fold` はコメント ID を示さずに落ちる（AGENTS.md の S）。守りは共通の関数の 1 か所なので、テストは 1 件にする（D）。ただし共通の関数を呼ぶ入口は `_text()` と `_pattern()` の 2 つで、片方の呼び出しを外しても他方の確認では気付けないので、1 件の中で両方の入口を代表 1 欄ずつ確かめる（既存の `planner.model` のテストは `agent_id_for()` でも拒否されるため、`_text()` の守りの代わりにならない）。拒否のテストに通る例を残す。CLI の終了コード・投稿経路は、下の「受け入れ基準」の手動の確認で確かめ、テストにしない
 - 委任指示または停止条件: Issue の受け入れ条件（テストは共通境界の代表 1 件）
 
 ### D6. 文書は変えない
@@ -86,6 +86,11 @@
 - 設計レビュー 1 回目: helper `review_design.py`（外部担当）。明示した担当 `pi_openai-codex_gpt6-sol_xhigh`（`fallback` なし）、`actual_agent` 同じ、`identity` は `openai-codex` / `gpt-6.1-sol`（effort `xhigh`）。`review_id` `877078374f1441ac9f532526d3230146`、reviewed の Spec SHA-256 `d3795769cb69c919484abb4f6882fdd5fab4d5516fef316116318a2e372ae785`（commit `c0d40a224d13ab6ac6a4e43c5816a20161bb8ef6`）、`elapsed_seconds` 114.6、`outside_changes` なし、`unprotected_changes` は他の作業の worktree 8 件（この run の checkout ではない）。verdict `concerns`、指摘 1 件
   - D1（blocking、`change`）: `_text()` だけでは `decisions[].carry_over.issue` の単一サロゲートを拒否できない → 採用。D2 を `_text()` と `_pattern()` の共通の関数に改め、受け入れ基準の実入力に `carry_over.issue` を加えた。作るもの（拒否）は変えない
 
+- Spec レビュー 1 回目: helper `review_spec.py`（外部担当）。明示した担当 `pi_opencode-go_deepseek4-flash_max`（`fallback` なし）、`actual_agent` 同じ、`identity` は `opencode-go` / `deepseek-v4.1-flash`（effort `max`）。`review_id` `33c84fe343bb4dffbea67c16b15099f9`、reviewed の Spec SHA-256 `474ddb51431b1fbf7f38de1074d58b2986a58e0dd788e15678e41f63fbc4810b`（commit `66894d0d7b517ce2bb2b20eaf1ce2f15c6d58847`）、`elapsed_seconds` 1241.2、`outside_changes` なし、`unprotected_changes` は他の作業の worktree と親 checkout（この run の checkout ではない）。指摘 3 件
+  - S1（important）: 代表テストが `_text()` 経由だけで、`_pattern()` 経由の `carry_over.issue` を守らない → 採用。D5 のテストで両方の入口を確かめる
+  - S2（minor）: #426 の `planner.model` の対照が受け入れ基準から落ち、重複行の期待が無い → 採用。実入力に加え、D4 に期待（重複を許容）を書いた
+  - S3（minor）: 型検査の入口が無い → 採用。検証を README の入口に限り、ruff は参考の実行にした
+
 ## 変更するもの
 
 - `.agents/scripts/review_records.py`: UTF-8 エンコードの検査の共通の関数を足し、`_text()` と `_pattern()` から呼ぶ。`_text()` では文字列であることを確かめた後、空白・制御文字の検査とは独立に調べる（ほかの問題があっても、この問題を落とさない）
@@ -95,7 +100,7 @@
 
 - 動作環境: `/workspaces/reso-world/.worktrees/issue-427-surrogate-text`（隔離 worktree）、uv 管理の CPython、通常の UTF-8 出力環境。実 GitHub への投稿・実サービスへの書込みはしない
 - 実入力:
-  - Issue の再現手順のスクリプトで作る、JSON エスケープ `\ud800` を含む記録とコメント。異常にする欄は `decisions[0].reason`・`seats[0].model`・`stop_reason` の `external:` より後の 3 つ（Issue の再現）と、`decisions[0].carry_over.issue` の URL の所有者の部分（設計レビュー D1）で、1 欄ずつ変える
+  - Issue の再現手順のスクリプトで作る、JSON エスケープ `\ud800` を含む記録とコメント。異常にする欄は `decisions[0].reason`・`seats[0].model`・`stop_reason` の `external:` より後の 3 つ（Issue の再現）と、`decisions[0].carry_over.issue` の URL の所有者の部分（設計レビュー D1）で、1 欄ずつ変える。#426 の対照として `planner.model` にも同じ値を入れ、Issue の評価方法どおり終了コードと stderr を比べる（Spec レビュー S2。期待は D4）
   - 対照: 正常な日本語・絵文字（例: `外部の障害で停止 🚧`）、文字としてのバックスラッシュを含む `x\\ud800y`（JSON では `"x\\\\ud800y"`）、既存の記録（既存のテストの記録）
 - 防御範囲:
   - 対象: CLI の `validate`・`render`・`fold` と、`upsert_pr_comment.py` の `_checked_record()`（ネットワーク操作の前の検査）
@@ -107,7 +112,7 @@
 - 検証:
   - 上の振る舞いを、Issue の再現手順の 3 コマンドで欄ごとに 1 回ずつ確かめる（結果は PR 本文に書く）
   - 投稿経路は、一時的なスクリプト（コミットしない）で 1 回確かめる
-  - `uv run --locked pytest .agents/scripts/tests/test_review_records.py` と、関係するテスト（`.agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py`）・`ruff check`・`ruff format --check`・型検査（リポジトリの既存の入口）が通る
+  - `uv run --locked pytest .agents/scripts/tests/test_review_records.py` と、関係するテスト（`.agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py`）、README の「テスト」の `uv run pytest tests/skills .agents/skills .agents/scripts tools` と `bash scripts/check-layout.sh` が通る。リポジトリには lint・型検査の入口が無い（`pyproject.toml` の dev 依存は pytest と pyyaml だけ）ので、参考として `uvx ruff check` と `uvx ruff format --check` を変更したファイルにだけ実行し、型検査は行わない（Spec レビュー S3）
 
 ## 対象外
 
