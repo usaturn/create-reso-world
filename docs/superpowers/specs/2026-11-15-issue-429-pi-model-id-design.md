@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`
+- 状態: `completed`（PR #444 の PR 修正ループ 1 サイクル目で修正不要と確かめた。下の「結果」）
 - 対象: https://github.com/usaturn/create-reso-world/issues/429
 - 利用者の指示（2026-11-15、`/issue-to-pr` の引数）:
 
@@ -123,3 +123,20 @@ Pi の `pi-model-name` スキルの同梱スクリプト `print-pi-model.sh` は
 - 利用者所有の節: `bash tests/scripts/test-instructions.bash` が成功する（`.pi/APPEND_SYSTEM.md` のペルソナ節が変わっていない）
 - 配置の検査: `bash scripts/check-layout.sh`
 - `git diff` で、変更が上の 4 ファイルと Spec・Plan に限られることを確かめる
+
+## 結果（review-fix-planning、PR #444 サイクル 1）
+
+- planner: `claude-opus-5-5`（claude-code）。対象 HEAD `b02478020c71d407d7af74ea49704236a22f7e38`、base `main` `c8a2f58ffb65eced3e18993d97c439bb2d23197b`（検証の時点の先端で、HEAD の祖先）
+- レビュアーの構成（pr-review-fix-loop の run `e073b6bebf5e44f09e0e1c0fdb44cbc9`、全員このサイクルで実行・受け付け）:
+
+  | レビューファイル | 担当 | モデル | ランタイム | 所要 | Merge recommendation |
+  | --- | --- | --- | --- | --- | --- |
+  | `SWE-2-Max.md` | `devin_swe2_max` | SWE-2 Max | devin | 257 秒 | Approve |
+  | `deepseek-v4.1-flash.md` | `pi_opencode-go_deepseek4-flash_max` | deepseek-v4.1-flash | pi | 678 秒 | Approve |
+  | `gpt-6.1-sol.md` | `pi_openai-codex_gpt6-sol_xhigh` | gpt-6.1-sol | pi | 393 秒 | Approve |
+
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 0（どのレビュアーも active な指摘・Unverified candidates が 0 件）
+- 確認済みの一覧（review-verify mode cycle、司令塔が実行）: `reviews/usaturn/create-reso-world/#444-fix-issue-429-pi-model-id/verified/b02478020c71.json`。confirmed 0 / not_reproduced 0 / unverified 0。隔離 worktree で文書の 2 経路の受理、既定出力・不一致値・欠落の拒否、照合失敗後も予約が 1 件のまま残り再予約が拒否されることを確かめ（一時テスト 5 passed）、同じ条件を述べる文書（`loop.py` のレビュアー依頼文、issue-to-pr・pr-review-fix-loop の `--controller-model`）に食い違いが無いことを照合した。参考として、`deepseek-v4.1-flash` のレビュアーは自分の prepare に `PI_MODEL` 単体を渡して成功している
+- 検証（PR の head の worktree、前後とも `git status --porcelain` は空）: `bash .devcontainer/run-tests.bash`（27 件 PASS）、`uv run --locked pytest tests/skills .agents/skills -q`（902 passed）、`bash scripts/check-layout.sh`（PASS）。すべて終了 0
+- 自己レビュー: 修正が無いため行っていない（結論 2）
+- 結論: 2（修正不要でマージ）。未確認の事項: 実 Pi CLI・実モデルでの prepare（有料モデルの起動が必要で、Issue #429 の評価方法の対象外）
