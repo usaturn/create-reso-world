@@ -27,6 +27,7 @@
 
 1. pi の bash ツール内で `PI_PROVIDER` と `PI_MODEL` の両方を確認する。スクリプトを使う場合は、同スキルに記載された絶対パスの取得手順に従う。
 2. 片方でも空なら停止し、ユーザに正確なモデル識別子を確認する。セッション履歴の `model_change` を正式な `MODEL_NAME` の根拠にしない。
+3. pr-review の prepare では `--model-name` を省くか、`print-pi-model.sh --model` の出力（`PI_MODEL` 単体）だけを渡す。既定出力 `provider/model` は表示・`--controller-model`・状況コメント用であり、prepare には渡さない。
 
 ## Response Persona
 

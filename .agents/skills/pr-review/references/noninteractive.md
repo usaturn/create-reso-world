@@ -8,7 +8,7 @@
 |---|---|
 | `--pr` | 必須。番号・`#番号`は親origin、URLはそのrepo。非対話で欠けたらfailed。別repoの同じ番号を探さない |
 | `--runtime` | 必須。claude-code / devin / pi / codex / cursor |
-| `--model-name` | 現runtimeが提示した正確なモデルだけ。Codexは省略。Piは省略すれば実PI_MODELを使うがPI_PROVIDERも必須。指定値の不一致は拒否 |
+| `--model-name` | 現runtimeが提示した正確なモデルだけ。Codexは省略。Piは省略（helperが実PI_PROVIDER・PI_MODELを読む）か`print-pi-model.sh --model`の出力（`PI_MODEL`単体）だけを渡す。既定出力`provider/model`は表示・記録用で、Piの`--model-name`には渡さない。PI_PROVIDERも必須。指定値の不一致は拒否 |
 | `--request` | runnerが渡した実Request JSON。run_id/request_id/agent_id/roleを使用し、work_dir=cwd、result_shape=jsonを照合。非runnerなら省略し未観測をunknownにする |
 | `--review-commit` | 任意の40桁SHA。省略はresolve時のPR head。明示指定はPR全体の対象commitであり、commit単体diffの指定ではない |
 | `--source-root` | 対象 commit を持つ main checkout の絶対パス（`CODE_ROOT`）。既知経路以外は必須で、PR base repo と一致する remote が 1 件必要。ResoLoop の上流 PR は origin でなく upstream を使う。linked worktree の未 push object は main checkout と共有。checkout の探索・clone はしない |
@@ -36,7 +36,7 @@ uv run --project "$TOPLEVEL" --locked python "$RUN_HELPER" prepare \
   --records-comments "$COMMENTS_JSON"
 ```
 
-Codexはmodel-nameを省き、Piも現在envから読むときは省く。通常headならreview-commitを省く。非runnerならrequestを省く。source-rootやrecords-commentsも省略できる。既存の `pr_review_workspace.py create --target` / legacy呼び方は他callerの互換のため残すが、このskillの別手順にはしない。
+例の `--model-name "$MODEL_NAME"` は Pi 以外の runtime の値である。Codexはmodel-nameを省く。Piは `--model-name` を省く（helperが実際の `PI_PROVIDER`・`PI_MODEL` を読む）か、`print-pi-model.sh --model` の出力（`PI_MODEL` 単体）だけを渡す。pi-model-name の既定出力 `provider/model` は表示・`--controller-model`・状況コメント用の値で、Pi の `--model-name` に渡すと `--model-name does not match this runtime's PI_MODEL` で拒否される。通常headならreview-commitを省く。非runnerならrequestを省く。source-rootやrecords-commentsも省略できる。既存の `pr_review_workspace.py create --target` / legacy呼び方は他callerの互換のため残すが、このskillの別手順にはしない。
 
 成功は exit0・`status: prepared`。返されたstate_file / worktree / draft / findings_draft / previous_review / destination / reviewer / reviewed_head / pr_head / base / records / diff_command / attempt_idをそのまま使う。モデル名・パス・対象を作り直さない。prepare は resolve、照合済み base remote/commit object 確認、PR head fetch、API head照合、fresh detached worktree、destination snapshot、merge-base、v2候補scaffoldを作る。merge-base用のbase fetchは、そのfresh worktreeの専用refに固定し、共有の追跡ref・tag・FETCH_HEADを更新しない。専用refは既存helperのworktree cleanupで一緒に消える。対象 checkout が shallow の場合は、照合済み remote からセッション内の所有 Git repository へ完全な履歴を直接取得する。指定された未 push commit の object は元 checkout から取得する。元の shallow boundary・共有 ref・FETCH_HEAD は変えず、complete が保存・cleanup まで行う。
 
