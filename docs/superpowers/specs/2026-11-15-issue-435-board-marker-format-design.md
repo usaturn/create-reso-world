@@ -135,3 +135,14 @@ GitHub 上で `board-ledger` を本文に持つ create-reso-world の Issue は 
   - S4（minor）: D3 に範囲の中の子マーカーの扱いと HTML コメントの読み替えを、D4 に除外の判定の条件を足した
   - S5（minor）: D5 のテストを、LF の基本形と CRLF の変換、拒否 3 ケースに直した
   - S6（minor）: 「`:board:` 形式」「`board-ledger` 形式」の名前を付け、`:board:` 形式の構造と推奨を D2 に書いた
+
+### Spec レビュー（2 回目・再レビュー）
+
+- 担当: 1 回目と同じ `claude-code_sonnet_xhigh`（`actual_agent` も同じ。model `claude-sonnet-5-5`・CLI 2.1.325）
+- `review_id`: `12c6117260b54557bb31cb05d844628a`、reviewed の Spec SHA-256: `1bbf3d7d29d1596e4dce800478ad905d5625630f4edd7ee89c65e6a91f72b591`、対象 revision `87bd4db9fc2137851d4f05f75ab50f748652e2ba`
+- 所要時間: 約 228 秒。`outside_changes`: なし。`unprotected_changes`: 1 回目と同じ他の作業の 6 件
+- 採否: 4 件すべて採用
+  - S1（important）: D5 に子マーカーのテスト（子の本文と、`board-ledger` 形式の範囲の中の子マーカー）を足した
+  - S2（important）: 受け入れ基準の防御範囲を (a) 管理対象にしない・(b) 拒否する・(c) 節の検査の除外に分け、Issue の文言の読み替えを書いた
+  - S3（minor）: D3 に拒否の対象の行の形と、`board-ledger` 行の拒否が新しい制限であることを書いた
+  - S4（minor）: D2 に推奨する `:board:` 形式の例と範囲の内外を書き、`reshaping.md` の「`issue-board.md` の形」を修正範囲に加えた
