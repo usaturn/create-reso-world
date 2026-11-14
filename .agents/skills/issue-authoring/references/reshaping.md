@@ -1,6 +1,6 @@
 # 既存 Issue の整形手順
 
-既存の Issue を `.agents/issue-format.md` の書式へ組み直すときの手順。節・ラベル・機械可読ブロック・整形前の本文の保存の定義は同文書を読み、ここには写さない。投稿の流れ・承認・非対話・後片付けは `SKILL.md` に従う。ボードと子の管理対象、子の本文の節の置き場所は `planning-parallel-issues/references/issue-board.md` を読む。
+既存の Issue を `.agents/issue-format.md` の書式へ組み直すときの手順。節・ラベル・機械可読ブロック・整形前の本文の保存の定義は同文書を読み、ここには写さない。投稿の流れ・承認・非対話・後片付けは `SKILL.md` に従う。ボードと子の管理対象の内容、子の本文の節の置き場所は `planning-parallel-issues/references/issue-board.md` を、管理対象のマーカーの構文は `.agents/issue-format.md` の「planning-parallel-issues のマーカー」を読む。
 
 整形は、意味の整理をエージェントが行い、分割・合成・最終案の保存検査を `.agents/skills/issue-authoring/scripts/reshape_issue.py` が行う。この helper は GitHub へ接続も投稿もしない。本文・タイトル・ラベルなどの通常投稿には既存の `publish_issue.py` の draft → 承認 → publish を使い、直接の編集や PATCH で迂回しない。同一目的の統合元を閉じるときだけ、下記 7 の条件を満たして重複ラベル追加と duplicate close を行う。
 
@@ -18,7 +18,7 @@ gh api --hostname github.com --paginate repos/<owner>/<repo>/labels > <入力デ
 - `number`・`html_url`・`pull_request` を確認する。snapshot が別のリポジトリ・別の番号のものなら止まる。`prepare` も URL と番号を照合し、`pull_request` を拒否する
 - closed・空本文・HTML・CRLF・非 ASCII・コードの囲み・HTML コメントを含む本文も、そのまま snapshot に保存する。改行コードを変換しない。自分でファイルを読み書きするときも、`Path.read_text()` などの改行変換を使わず、UTF-8 のバイト列として読む
 - 現在のラベルは snapshot の `labels` を使う。本文の概要表より現在のラベルを優先し、昔の本文の分類へ戻さない。`planning:`・`implementation:` は変えない
-- 本文に管理対象があるかどうかにかかわらず、管理対象の外に独立した開始指示が無いか、`issue-board.md` の形に照らして確認する。既知の管理対象が無く、開始指示だけがある本文も通常の 1 スロットとして扱わない。境界が不明なら、推測して整形せず止まる
+- 本文に管理対象があるかどうかにかかわらず、管理対象の外に独立した開始指示が無いか、ボードの内容の形（`planning-parallel-issues/references/issue-board.md`）とマーカーの構文（`.agents/issue-format.md` の「planning-parallel-issues のマーカー」）に照らして確認する。既知の管理対象が無く、開始指示だけがある本文も通常の 1 スロットとして扱わない。境界が不明なら、推測して整形せず止まる
 
 ### 関連 Issue の調査と整理の適格性
 
@@ -61,7 +61,7 @@ uv run --locked \
 次の場合は整形を進めず、標準エラー出力の理由を報告して止まる。
 
 - 終了コードが 0 以外、または `managed_count` と本文の見た目が合わない
-- 管理対象の開始・終了の対応が壊れている、未知の `planning-parallel-issues` の行がある
+- 管理対象の開始・終了の対応が壊れている、`.agents/issue-format.md` の「planning-parallel-issues のマーカー」の「拒否する形」に当たる行（未知の `planning-parallel-issues` の行、壊れた `board-ledger` 形式の範囲など）がある
 - 管理対象が HTML コメントや閉じていない囲みの中に隠れている、archive や metadata が管理対象と重なる
 - 既存 metadata が壊れている、未知の版である、archive が壊れている
 - PR・未登録リポジトリ・snapshot の対象違い
@@ -88,7 +88,7 @@ helper が拒否する入力は終了コード 2 で止まる。`managed_count` 
 `segments.json` を複製し、複製した JSON 配列だけを編集する。要素の数・順序は変えない。管理対象を移すためにスロットを結合・分割・並べ替えたり、管理対象のマーカーや開始指示をスロットへ書き写したりしない。
 
 - 通常の Issue はスロットが 1 個である。共有書式の必須の節を、事実を失わないように組み直す
-- 親のボードは、共有書式の節 → ボードの管理対象 → 後置きの内容、の順を保つ。ボードの範囲・ledger・開始指示は `issue-board.md` の形のまま触らない。利用者が開始指示の文言を整えてよいと言っても、管理対象の開始指示・ledger・ボード範囲はバイト同一のまま動かさない。文言の変更が必要なら、管理対象を編集する別の依頼として止まる
+- 親のボードは、共有書式の節 → ボードの管理対象 → 後置きの内容、の順を保つ。ボードの範囲・ledger・開始指示は、`issue-board.md` が定める内容の形と、`.agents/issue-format.md` の「planning-parallel-issues のマーカー」が定めるマーカーの構文のまま触らない。利用者が開始指示の文言を整えてよいと言っても、管理対象の開始指示・ledger・ボード範囲はバイト同一のまま動かさない。文言の変更が必要なら、管理対象を編集する別の依頼として止まる
 - 子は先頭のマーカーを 1 行目のままにする。最初のスロットは空文字のままにし、共有書式の節とボード固有の節をその後ろに置く。担当ファイル・共有インターフェース・検証・成果物・状態と反映などの子固有の項目は、archive にだけ残さず、live の本文にも書く。マーカーの `parent:` が親の番号と食い違っても、勝手に直さずに報告する
 - 空本文は空のスロットから始める。閉じた Issue も本文を整形してよいが、state は変えない
 - HTML と HTML コメント、コードの囲み、非 ASCII は、意味を変えずに扱う。閉じていない囲みやコメントをスロットへ入れない。入れた結果、helper の再走査で管理対象の認識が変わる本文は拒否される

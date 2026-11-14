@@ -51,7 +51,7 @@
 - **未決事項とエージェントに任せる事項の区別**: `issue-to-pr` は、本文が利用者の判断・承認を求めていると停止する（`issue-to-pr` の SKILL.md 2 章の 4）。推奨案で決めてよいことは「エージェントに任せる事項」に書く。「未決事項」には、利用者しか決められず、答えで作るものが変わることだけを書く。着手してよい Issue の「未決事項」は「なし」にする
 - 受け入れ条件は、`issue-to-pr` の Spec レビュー・builder check が「利用者の判断」の問いを出さない程度に、観察できる形で書く
 - **概要の表の分類の行**（種別・対象領域・優先度・規模の区分・起票の契機の区分）は、ラベルの値の表示である。ラベルを基準とし、食い違ったらラベルに合わせて本文を直す。helper は本文の表とラベルの一致を検査しない
-- **ほかのスキルの管理対象の節**: `planning-parallel-issues` の `<!-- planning-parallel-issues:<名前>:start -->` から同じ名前の `:end -->` までの範囲（ボード、ledger など）は、そのスキルの形のまま置く。helper は節の検査でこの範囲を読まない。ボードの子の先頭のマーカー行（`<!-- planning-parallel-issues board:… -->`）も変えない
+- **ほかのスキルの管理対象の節**: `planning-parallel-issues` の管理対象（ボード・ledger の範囲と、ボードの子の先頭のマーカー行）は、そのスキルの形のまま置く。helper は節の検査でこの範囲を読まない。マーカーの構文、拒否する形、既存ボードの保守の規則は、3 章の「planning-parallel-issues のマーカー」に定める
 - 見出しの判定は、コードブロック（backtick 3 個以上か `~~~` 以上の囲み）の外の行だけで行う。リスト項目の中の囲み（リスト記号（`-`・`*`・`+`・`1.`・`1)`）と空白 1〜4 個の直後に書いた囲み）もコードブロックとして扱う。この囲みの閉じの行は、リスト項目の内容の位置（開きの行で囲みの文字が始まる列）から 3 列以内に字下げして書く。内容の位置より字下げの少ない行（空行を除く）はリスト項目の終わりなので、閉じの無い囲みはその行の前で終わり、その行は囲みの外として判定し直す。引用（`>`）の中の囲みは追わず、コードブロックとして扱わない
 - 見出しは、行頭から `## ` で書く（行頭に空白を置かない）。行頭に空白を置いた行は、GitHub の画面では見出しとして表示されることがあるが、helper は見出しとして数えず、その節が無いものとして `section_missing` にする
 - **HTML コメント**: コードブロックの外で、行頭（空白 0〜3 個）が `<!--` の行から、最初に `-->` を含む行まで（`-->` が無ければ本文の終わりまで）は、GitHub の画面に出ない。helper は節の検査でこの範囲を読まない。コメントの中に書いた見出しは節として数えず、コメントだけの節は空の節（`section_empty`）になる。画面に出したい節は、コメントの外に書く
@@ -107,6 +107,71 @@
 3. **再利用**: 既存の新形式、および移行しない旧形式は、包みをバイト単位でそのまま残す。保存本文は、旧形式なら中身そのもの、新形式なら位置マーカーを live の管理対象で戻した本文である
 
 上限を超える本文は、新形式でも `too_large` で止める。本文・管理対象・archive を削らない。
+
+### planning-parallel-issues のマーカー
+
+`planning-parallel-issues` が親 Issue（ボード）と子の本文に置く管理対象のマーカーの構文は、この小節だけが定める。`reshape_issue.py`・`issue_format.py`・`publish_issue.py` はこの小節に従う。`planning-parallel-issues` の references と `issue-authoring` の `references/reshaping.md` は、構文を写さずにここを参照する。ボードの内容の形（表の列、開始指示など）は `planning-parallel-issues` の `references/issue-board.md` が定める。
+
+**用語**: マーカーの形を次の 2 つの名前で呼ぶ。本章の archive の「旧形式」「新形式」（`issue-format-original`・`issue-format-original-managed-v1`）とは別のものである。
+
+- **`:board:` 形式**: `<!-- planning-parallel-issues:<名前>:start -->` から、同じ名前の `<!-- planning-parallel-issues:<名前>:end -->` までの範囲。`<名前>` は `board:<key>`（ボード）か `ledger`（ledger）
+- **`board-ledger` 形式**: ボード行 `<!-- planning-parallel-issues board: <key> -->`、`<!-- board-ledger:start -->`、`<!-- board-ledger:end -->` からなる範囲。既存のボードを読むための形で、新しく書かない
+
+どちらの形も、行全体が一致する行だけを正規のマーカーとして読む。コードブロックの中と HTML コメントの中の行は、マーカーとして読まない。行頭に空白を置いたものなど、正規の形に読めない行は、下の「拒否する形」に当たる。
+
+**`:board:` 形式の構造**: 範囲は入れ子にでき、管理対象になるのは外側の範囲だけである（範囲全体をバイト列のまま保つ）。受け付ける構造は、`board:<key>` の範囲の中に `ledger` の範囲を入れる形と、`ledger` の範囲の単独である。
+
+新しいボードは、`board:<key>` の範囲の中に `ledger` の範囲を 1 つ入れる形で書く。範囲の内側に置くのは、key を持つ ledger の表と、依存関係の端点の表（と、`issue-board.md` の開始指示を管理対象にするならその文）である。`## Publication ledger` の見出しは範囲の外に置く（範囲の中の見出しは節の検査で読まれず、整形でもバイト列のまま動かない）。
+
+```text
+## Publication ledger
+
+<!-- planning-parallel-issues:board:<key>:start -->
+<!-- planning-parallel-issues:ledger:start -->
+| key | issue | database id | node_id | html_url | canonical parent |
+|---|---|---|---|---|---|
+| `<child-key>` | #N | … | … | … | #P |
+
+| child key | blocked_by key | child database id | blocker database id |
+|---|---|---|---|
+<!-- planning-parallel-issues:ledger:end -->
+<!-- planning-parallel-issues:board:<key>:end -->
+```
+
+**`board-ledger` 形式の構文**: 次の 3 種の行が、この順に、ボード行と開始の行の間に別の行を挟まずに並ぶ 1 つの範囲である。新しく書かない。既存のボードの読み取りのために、helper が認識する。
+
+1. ボード行 `<!-- planning-parallel-issues board: <key> -->`。`board:` の後に半角空白 1 個を置く。`<key>` は空白を含まない 1 文字以上
+2. 直後の行 `<!-- board-ledger:start -->`
+3. その後の最初の `<!-- board-ledger:end -->` の行
+
+範囲の全体（ボード行から終わりの行まで）が、kind `ledger`・name `legacy-ledger:<key>` の 1 つの管理対象になる（archive の位置マーカーは `ledger:legacy-ledger:<key>`）。範囲の中身（表や説明文）はバイト列のまま保つ。
+
+**子マーカー**: 子の本文の 1 行目 `<!-- planning-parallel-issues board:<board> child:<child> parent:<N> -->` である。`<board>`・`<child>` は空白を含まない 1 文字以上、`<N>` は 1 以上の整数。1 つの本文に 1 つだけ置き、1 行目から動かさない。`:board:` 形式・`board-ledger` 形式のどちらの範囲の中にある子マーカーの行も、範囲のバイト列の一部として保ち、拒否しない。
+
+**拒否する形**: `reshape_issue.py` の `prepare` は、次を終了コード 2 で拒否する。
+
+- `:board:` 形式の開始に対応する終わりが無い、終わりに対応する開始が無い、名前が `board:<key>`・`ledger` 以外
+- `board-ledger` 形式の範囲が壊れている（ボード行の直後の行が `<!-- board-ledger:start -->` でない、`<!-- board-ledger:end -->` が無い、範囲の中に子マーカー以外の `planning-parallel-issues` 行・`board-ledger` 行がある）
+- ボード行の無い `<!-- board-ledger:start -->`・`<!-- board-ledger:end -->`、`:board:` 形式の範囲の中の `board-ledger` 形式の行
+- 上のどれにも読めない `planning-parallel-issues` 行（行頭の空白 0〜3 個の後に `<!-- planning-parallel-issues` が続く行）と `board-ledger` 行（同じく `<!-- board-ledger:` が続く行）
+- 子マーカーが 1 行目にない、または 2 つ以上ある
+
+**管理対象にしない形**: 次は管理対象にしないだけで、拒否しない（既存の挙動）。
+
+- `planning-parallel-issues`・`board-ledger` の行でない任意の HTML コメント
+- コードブロックの中（閉じていない囲みを含む）と HTML コメントの中のマーカー行。管理対象がこれらの中に隠れていないかは、`issue-authoring` の `references/reshaping.md` の手順で確かめ、境界が不明なら整形を進めずに止まる
+
+`issue_format.py` の節の検査は、対応する終わりの無い開始を範囲にしないだけで、拒否しない。
+
+**既存ボードの保守**: 既存のボードは、今のマーカーの形のまま、範囲の中身（ledger の表など）だけを更新する。`board-ledger` 形式から `:board:` 形式への書き換えは管理対象の変更に当たる。整形済み（archive を持つ）のボードでは、archive の位置マーカーと対応しなくなり、次の `prepare` が止まるので行わない。移行が必要なら、別の依頼にする。
+
+**この小節に従う helper**:
+
+| helper | この小節で定めること |
+|---|---|
+| `reshape_issue.py` | 管理対象の範囲を読み、バイト単位で保つ。拒否する形を終了コード 2 で止める |
+| `issue_format.py` | 節の検査で、`:board:` 形式の範囲と `board-ledger` 形式の範囲（ボード行から最初の `<!-- board-ledger:end -->` まで。ボード行の直後の行が `<!-- board-ledger:start -->` のときだけ）を読まない |
+| `publish_issue.py` | `draft` の隠れたコメントの警告（`hidden_comment`）から、`<!-- issue-format:`・`<!-- planning-parallel-issues:`・`<!-- planning-parallel-issues board:` で始まる行と、`<!-- board-ledger:start -->`・`<!-- board-ledger:end -->` の行を除く |
 
 ## 4. ラベル
 
@@ -484,7 +549,7 @@ issue_format.py extract --kind {metadata,run-record,evaluation} --file PATH
 | `block_misplaced` | 本文に `run-record`・`evaluation` のブロックがある |
 | `title_empty`・`title_prefix`・`title_not_japanese` | 2 章（`title` を渡したときだけ） |
 
-- **節の検査で読まない範囲**: 次の行を読まない。(1) コードブロックの中（`issue-format-original` と `issue-format-original-managed-v1` の囲みと、リスト項目の中の囲みを含む。リスト項目の中の囲みは、リスト記号の後の囲みで、閉じはリスト項目の内容の位置から 3 列以内に字下げした行。字下げの足りない行でリスト項目が終わり、閉じの無い囲みはその行の前で終わる。引用（`>`）の中の囲みは追わない）と、その囲みの前後の `<details><summary>…</summary>` の行・`</details>` の行（空行を挟んで隣り合うもの）。(2) HTML コメント（コードブロックの外で、行頭（空白 0〜3 個）の `<!--` の行から、最初に `-->` を含む行まで。`-->` が無ければ本文の終わりまで。機械可読ブロックの範囲を含む。壊れたブロックも、表示されない範囲を除く）。(3) `planning-parallel-issues` の管理対象の範囲
+- **節の検査で読まない範囲**: 次の行を読まない。(1) コードブロックの中（`issue-format-original` と `issue-format-original-managed-v1` の囲みと、リスト項目の中の囲みを含む。リスト項目の中の囲みは、リスト記号の後の囲みで、閉じはリスト項目の内容の位置から 3 列以内に字下げした行。字下げの足りない行でリスト項目が終わり、閉じの無い囲みはその行の前で終わる。引用（`>`）の中の囲みは追わない）と、その囲みの前後の `<details><summary>…</summary>` の行・`</details>` の行（空行を挟んで隣り合うもの）。(2) HTML コメント（コードブロックの外で、行頭（空白 0〜3 個）の `<!--` の行から、最初に `-->` を含む行まで。`-->` が無ければ本文の終わりまで。機械可読ブロックの範囲を含む。壊れたブロックも、表示されない範囲を除く）。(3) `planning-parallel-issues` の管理対象の範囲（`:board:` 形式と `board-ledger` 形式。構文は 3 章の「planning-parallel-issues のマーカー」に定める）
 - 節の検査は、上の読む行だけで行う。表に無い見出しは無視する。見出しは、行頭の `## ` で始まる行（行頭に空白を置いた行は数えない）のうち、`## ` の後ろの文字列から、前後の空白を除き、さらに末尾が「空白に続く `#` の並び」（閉じの `#`）ならそれも除いたものが、表の見出しと完全に一致するものだけを数える。`##   概要`（`## ` の後に空白が続く行）や `## 概要 ##`、行末に空白のある `## 概要` は `概要` として数える。`## 概要#` のように `#` の前に空白が無いときは `#` を除かず、`概要#` のままなので一致しない。節の内容は、見出しの次の行から、次のレベル 1・2 の見出しか本文の終わりまでの、読む行である（コードブロックやコメントだけの節は、内容が空になる）
 - 5 系統と `triage` の接頭辞（`type:` のように `:` で終わる系統名）を持たないラベル（`bug`・`planning: ready` など）は無視する
 - `label_missing`・`label_multiple` は、定義にあるラベルだけを数える。定義に無いラベルは `label_unknown` になり、数えない
