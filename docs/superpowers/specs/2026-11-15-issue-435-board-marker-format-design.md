@@ -99,3 +99,12 @@ GitHub 上で `board-ledger` を本文に持つ create-reso-world の Issue は 
 
 - 正規表現・エラーメッセージの文言、関数の分け方
 - テストの本文の具体的な文字列
+
+## レビューの記録
+
+### 設計レビュー（1 回目）
+
+- 担当: `--design-review pi_openai-codex_gpt6-sol_xhigh`（明示値。`fallback` なし）、`actual_agent` も同じ。`identity`: model `gpt-6.1-sol`・provider `openai-codex`・effort `xhigh`
+- `review_id`: `462050a34ea848b19e6b298dc1a83a19`、reviewed の Spec SHA-256: `6f6bdcb43db929c3755c6bc0ea6e2e1662b0019cc245903ff6a4f30b64c42e17`、対象 revision `b98775b10cfd1536c9be364e82d6acad22efa057`
+- 所要時間: 約 100 秒（`elapsed_seconds` 99.6）。`outside_changes`: なし。`unprotected_changes`: 他の作業が残した `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 件（この run の変更ではない）
+- 結果: verdict `sound`、concerns 0 件。採否の対象なし
