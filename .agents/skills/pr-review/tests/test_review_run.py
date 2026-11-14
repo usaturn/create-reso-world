@@ -519,6 +519,77 @@ def test_complete_reports_saved_but_uncleaned_result_as_failure(
     assert record["outputs"]["review_sha256"] == sha256(Path(completed["review_file"]))
 
 
+def test_complete_keeps_a_submodule_local_commit(
+    prepared: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 保存は成功しても、ignore=all の submodule のローカル commit は complete の cleanup で消さない（無言のデータ損失）。
+    source, remote = prepared["source"], prepared["remote"]
+    submodule_source = tmp_path / "submodule-source"
+    submodule_source.mkdir()
+    subprocess.run(
+        ["git", "init", "-b", "main", str(submodule_source)], check=True, capture_output=True
+    )
+    git(submodule_source, "config", "user.name", "Test")
+    git(submodule_source, "config", "user.email", "test@example.com")
+    (submodule_source / "README.md").write_text("submodule one\nsubmodule two\n", encoding="utf-8")
+    git(submodule_source, "add", "README.md")
+    git(submodule_source, "commit", "-m", "submodule fixture")
+    git(source, "-c", "protocol.file.allow=always", "submodule", "add", str(submodule_source), "sub módulo")
+    with (source / ".gitmodules").open("a", encoding="utf-8") as stream:
+        stream.write("\tignore = all\n")
+    git(source, "add", ".gitmodules", "sub módulo")
+    git(source, "commit", "-m", "submodule fixture")
+    head = git(source, "rev-parse", "HEAD")
+    git(source, "push", str(remote), "HEAD:feature", "HEAD:refs/pull/7/head")
+    target = review_run.workspace.load_review_target()
+
+    def live_pr(repository: str, number: int, *, runner: Any = None) -> Any:
+        assert (repository, number) == (REPOSITORY, 7)
+        return target.PullRequest(
+            repository,
+            number,
+            f"https://github.com/{repository}/pull/{number}",
+            "feature",
+            head,
+            repository,
+            "main",
+            "open",
+            f"https://github.com/{repository}.git",
+        )
+
+    monkeypatch.setattr(target, "fetch_pull_request", live_pr)
+    result = review_run.prepare(prepared["args"])
+    worktree = Path(result["worktree"])
+    git(worktree, "-c", "protocol.file.allow=always", "submodule", "update", "--init", "--recursive")
+    mark_reviewed(result)
+    submodule = worktree / "sub módulo"
+    git(submodule, "config", "user.name", "Test")
+    git(submodule, "config", "user.email", "test@example.com")
+    (submodule / "local.txt").write_text("local work one\nlocal work two\n", encoding="utf-8")
+    git(submodule, "add", "local.txt")
+    git(submodule, "commit", "-m", "local review work")
+    local_head = git(submodule, "rev-parse", "HEAD")
+    # 親 worktree の HEAD は固定 commit のまま（save の verify_state が先に拒否しない入力）。
+    assert git(worktree, "rev-parse", "HEAD") == result["reviewed_head"]
+    assert git(worktree, "rev-parse", "HEAD:sub módulo") != local_head
+
+    completed = review_run.complete(argparse.Namespace(state=result["state_file"]))
+
+    assert completed["status"] == "failed"
+    assert completed["cleanup"] == "failed"
+    assert completed["reason"]
+    assert Path(completed["review_file"]).is_file()
+    assert Path(completed["findings_file"]).is_file()
+    assert completed["retained_paths"]["worktree"] == result["worktree"]
+    assert worktree.is_dir()
+    assert Path(result["state_file"]).is_file()
+    assert git(submodule, "rev-parse", "HEAD") == local_head
+    git(submodule, "cat-file", "-e", local_head)
+    assert (submodule / "local.txt").read_text(encoding="utf-8") == "local work one\nlocal work two\n"
+
+
 def test_prepare_base_fetch_failure_returns_correlated_retained_paths(
     prepared: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,

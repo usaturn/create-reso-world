@@ -1415,6 +1415,10 @@ def cleanup(args: argparse.Namespace) -> dict[str, Any]:
         target = session_target(state)
         require_session_worktree(worktree, target)
         require_saved_findings(repo, state)
+        try:
+            _require_clean_worktree(worktree, target, state)
+        except WorkspaceError as error:
+            raise RetirementRefused(str(error), retirement="saved") from error
         if state["version"] == STATE_VERSION_TARGET:
             # Compare-and-delete only this repository's pinned PR ref.
             pr_ref = pinned_review_ref(state["pr_number"], session_repository(state))
