@@ -46,7 +46,7 @@ Claude Code の試行に構造化された承認拒否（`permission_denials`）
 `records.md` の 4.1 節（診断の記録）と `loop.py` の説明を、新しい規則と矛盾しないように直す。対象は次のとおり。
 
 - `attempts[]` の欄の列挙に `approval` を足し、子キー（`source`・`terminal_subtype`・`is_error`・`permission_denials`・`denial_count`・`diagnostic_sources`）の意味と、Claude Code の承認待ちの試行だけに付き、拒否の中身・`tool_input`・本文は保存しないことを書く
-- `cause` の段落の冒頭（「試行を終わらせた失敗の報告だけから決める」）に、承認根拠がある試行の扱い（上の 1・2 の規則）を足す
+- `cause` の段落の冒頭（「試行を終わらせた失敗の報告だけから決める」）に、承認根拠がある試行の扱い（上の 1・2 の規則）を足す。文面は実装が保証する範囲に合わせる: 承認根拠のある試行では、認証はログに報告があれば常に、それ以外は失敗で終わった試行のログで報告された失敗の原因を `cause` にし、複数の失敗が報告されていればパターンの照合の順で最初に当たったものを選び、どれが最後に試行を終わらせたかは判定しないこと
 - `cause` の表の `approval` の行、`unknown`・`response_extraction` の行を、承認根拠がある試行では `approval` になることと矛盾しない説明にする
 - 限定（利用者の決定）: 承認根拠と別の原因を併存して残すのは、CLI の失敗の欄（assistant の `error`、stderr など分類の文に使う欄）に根拠がある場合だけで、terminal result の `result` 本文だけに書かれた失敗は #356 により分類せず、承認根拠があれば `approval` のままになることを書く
 - `loop.py` の `diagnose_attempt` の docstring と上書きのコメント、`ApprovalDiagnostic` の docstring を同じ意味にする
@@ -60,10 +60,11 @@ PR 本文には、Issue の受け入れ条件の字句（`result` 本文だけ�
   - denial は `{"tool_name": "Bash", "tool_input": {"command": "fixture-<uuid>"}}` の 1 件（`tool_input` は fixture の値だけ）
   - 利用上限: assistant イベントに `error: "rate_limit"`、本文（`message.content`）と terminal result の `result` に複数行・非 ASCII の文（例: `API Error: 429 rate limit exceeded\n利用上限に達しました`）。terminal は `subtype: error_during_execution`、`is_error: true`、終了コード 1
   - 接続失敗: stderr に `Error: connect ECONNREFUSED 127.0.0.1:443`、terminal result の `result` に複数行・非 ASCII の文。terminal は失敗、終了コード 1
-  - 対照: 同じ利用上限で denial が空の入力、denial があり成功 terminal・終了コード 0 の入力、その成功 terminal の入力に stderr の `Error: connect ECONNREFUSED 127.0.0.1:443` を足した入力（雑音）
+  - 対照: 失敗 terminal（`error_during_execution`、`is_error: true`、終了コード 1）の `result` 本文にだけ `API Error: 429 rate limit exceeded\n利用上限に達しました` を書き、assistant の `error` 欄・stderr は空で denial 1 件の入力（Issue の再現入力の形）、同じ利用上限で denial が空の入力、denial があり成功 terminal・終了コード 0 の入力、その成功 terminal の入力に stderr の `Error: connect ECONNREFUSED 127.0.0.1:443` を足した入力（雑音）
 - 合格条件:
   - denial＋利用上限で `cause` が `rate_limit`、denial＋接続失敗で `connection`。どちらも `approval` 欄に `source: permission_denials`・`denial_count: 1` が残り、`state` は `awaiting_approval`
   - denial なしの利用上限は `response_failed`／`rate_limit`／`approval` なし（今と同じ）
+  - denial＋失敗 terminal で `result` 本文だけに失敗の文があるときは `awaiting_approval`／`approval`／承認根拠あり（今と同じ。利用者の決定による限定）
   - denial＋成功 terminal は `awaiting_approval`／`approval`／承認根拠あり（今と同じ）。stderr の雑音を足しても `approval`
   - 各ケースとも、拒否側のレビュアーは却下（`rejected_stage: runner`）され成功にならない、`unavailable == {}`、runner の出力領域は回収済み（`removed`、パスが存在しない）、保存した記録に fixture の秘密値・本文の文が写らない
 - 防御範囲（対象）: 承認拒否がある試行の原因の分類と承認根拠の保存。認証優先、停止の確認、`sensitive_paths`、出力の外のログを読まないこと、保存先の境界は今のまま
@@ -73,11 +74,11 @@ PR 本文には、Issue の受け入れ条件の字句（`result` 本文だけ�
 
 「テストの採用基準」の S（別の原因を選ぶ・情報を失う、失敗を成功と報告する）に当たる。
 
-- `test_loop_diagnostics.py` に、本物の adapter → runner → 保存 → 回収の流れで、denial＋利用上限・denial＋接続失敗・denial なしの利用上限・denial＋成功 terminal＋stderr の雑音の 4 ケースを確かめる parametrize のテストを 1 つ足す。実装の前に RED を確かめる（denial の失敗 2 ケースが `approval` で落ちる。雑音のケースは今の実装でも通るが、2 の条件を外した実装で落ちる守りとして置く）
+- `test_loop_diagnostics.py` に、本物の adapter → runner → 保存 → 回収の流れで、denial＋利用上限・denial＋接続失敗・denial なしの利用上限・denial＋成功 terminal＋stderr の雑音・denial＋失敗 terminal で `result` 本文だけに失敗の文（CLI の失敗の欄は空。Issue の再現入力の形）の 5 ケースを確かめる parametrize のテストを 1 つ足す。実装の前に RED を確かめる（denial の失敗 2 ケースが `approval` で落ちる。雑音のケースは今の実装でも通るが、2 の条件を外した実装で落ちる守りとして置く。`result` 本文だけのケースも今の実装で通るが、失敗 terminal で `unknown` を `approval` に戻さない実装や、#356 の本文の分類を戻す実装で落ちる守りとして置く）
 - 利用上限と接続失敗を両方残す理由: 分類の入力の経路が違う（利用上限は stdout の assistant の `error` 欄、接続失敗は stderr）うえ、Issue の受け入れ条件が両方を要求する
 - 4 つ目の対照（denial＋成功 terminal）は、既存の `test_claude_approval_evidence_survives_cleanup` の `terminal-denial` が同じ入力を同じ流れで確かめているので、新しいケースを足さず（D）、そのテストに `unavailable == {}` の確認だけを足す
 - 既存の認証優先（`test_claude_authentication_priority_keeps_approval_evidence`）と停止確認・`sensitive_paths` のテストは残す
-- 文書の文言のテストは書かない（F）
+- 文書の文言のテストは書かない（F）。代わりに、`git diff` で records.md と `loop.py` の説明の変更対象（`approval` の子キーの列挙、`cause` の段落の冒頭、表の `approval`・`unknown`・`response_extraction` の行、限定の説明、`diagnose_attempt`・`ApprovalDiagnostic` の docstring と上書きのコメント）を 1 つずつ確かめ、`bash scripts/check-layout.sh` とリポジトリの全体のテスト（`.devcontainer/run-tests.bash`。lint を含む）を通し、結果を PR 本文で報告する
 
 ## 決定記録
 
@@ -88,7 +89,7 @@ PR 本文には、Issue の受け入れ条件の字句（`result` 本文だけ�
 | 3 | 承認で置き換える `cause` は `unknown` と `response_extraction` だけ | `unknown` だけ | `response_extraction` は「失敗の報告が無いのに結果を得られなかった」の推測で、承認待ちの試行では承認拒否のほうが確かな説明になる。今の実装では `awaiting_approval` は `_EXTRACTION_STATES` に無く出ないが、条件として明示する | 委任 |
 | 4 | 新しいテストは 4 ケース（失敗 3 ＋成功 terminal の雑音 1）の parametrize 1 つ、denial＋成功 terminal（雑音なし）は既存テストに確認を 1 行足す | 雑音なしの成功 terminal も新しいテストにする | 雑音なしの成功 terminal は既存テストと同じ入力・同じ流れで、「テストの採用基準」の D に当たる | 委任 |
 | 5 | records.md 4.1 の `attempts[]` に `approval` を足し、`cause` との関係を書く | 列挙漏れを直さない | Issue の完了条件（採用した設計と一致する形で説明する）。`approval` 欄を書かずに関係は説明できない | Issue の完了条件 |
-| 7 | 原因を残すのは、認証か、試行が失敗で終わったとき（`is_error` true・`terminal_subtype` が success でない・終了コードが 0 でない）だけ | (b) ログのどこかにある失敗の報告で決め、`cause` の定義を「報告された失敗」に変える | Spec レビュー S1。`cause` は「試行を終わらせた失敗の原因」であり、承認拒否だけで成功 terminal に終わった試行で雑音の語を原因にすると別の原因を選ぶ（S）。認証は既存のテストと復旧の必要から今どおり常に優先する | 委任（Spec レビューの採否） |
+| 7 | 原因を残すのは、認証か、試行が失敗で終わったとき（`is_error` true・`terminal_subtype` が success でない・終了コードが 0 でない）だけ | (b) ログのどこかにある失敗の報告で決め、`cause` の定義を「報告された失敗」に変える | Spec レビュー S1。`cause` は「試行を終わらせた失敗の原因」であり、承認拒否だけで成功 terminal に終わった試行で雑音の語を原因にすると別の原因を選ぶ（S）。認証は既存のテストと復旧の必要から今どおり常に優先する。認証を例外にする理由: 既存のテスト（`test_claude_authentication_priority_keeps_approval_evidence`）が成功 terminal での認証優先を固定しており、資格情報の復旧は承認の見直しより先に必要になるため（Spec レビュー S7）。複数の失敗が報告されたときは照合の順で最初に当たったものを選び、どれが最後に試行を終わらせたかは判定しない | 委任（Spec レビューの採否） |
 | 6 | #357・#443 とは `loop.py` の `diagnose_attempt` と records.md 4.1 の範囲だけを変えて重ならないようにする | — | Issue のコメント（#388 → #357 の順） | #357 の範囲・ボードの依存は変えない |
 
 ### 実行の設定（2 章の検査結果）
@@ -109,7 +110,8 @@ PR 本文には、Issue の受け入れ条件の字句（`result` 本文だけ�
 
 - 担当: `claude-code_sonnet_xhigh`（利用者の明示、`fallback` 空）。`actual_agent` 同じ、`identity` は claude-sonnet-5-5（CLI 2.1.325）。1 回目、`elapsed_seconds` 約 220
 - `review_dir`: `tmp/agents/issue-388.zzoas0k7/2026-11-15-issue-388-approval-terminal-cause-design.spec-review/review-1`、`review_id` `3708889b007f42098709046b7aee4f4c`、reviewed の Spec SHA-256 `247a5f5881a9a0980770bfeafd78c1fd4dd4d241438c416c67d743d90b206184`
-- 指摘 5 件（S1 important、S2〜S5 minor）をすべて採用し、本文に反映した: S1 は設計の 2 の条件と雑音のケース、S2・S3 は records.md と loop.py の説明の対象と PR 本文の記載、S4 はテストの理由、S5 は一時パスの扱いと fixture の形
+- 再レビュー（2 回目）: `review_id` `cfa338f550ea4486ac07149e2708aaab`、reviewed の Spec SHA-256 `6ef94977ae9ddbb57d76230288d1270b51d80a6360abf45dee94b5c5ba0e6944`、`elapsed_seconds` 約 237。指摘 3 件（S6〜S8、すべて minor）を採用した: S6 は `result` 本文だけのケースをテストに足す、S7 は records.md の文面と認証を例外にする理由、S8 は文書の代わりの検証
+- 1 回目の指摘 5 件（S1 important、S2〜S5 minor）をすべて採用し、本文に反映した: S1 は設計の 2 の条件と雑音のケース、S2・S3 は records.md と loop.py の説明の対象と PR 本文の記載、S4 はテストの理由、S5 は一時パスの扱いと fixture の形
 - `outside_changes` なし。`unprotected_changes` は別の作業の worktree 7 件（この run の対象外）
 
 ## 対象外
