@@ -52,16 +52,16 @@
 
 **テスト要否:** 既存の F∩S テスト 1 件を更新する。許可文が落ちると担当がリポジトリのテスト入口を実行せず、より狭い確認のまま成果が返る（S）。禁止文が落ちると uv 環境外の Python 実行や heredoc を止められない（S）。新しいテストは、プロンプト全文・段落構造の固定（F）または同じ守りの別組み合わせ（D）になるため追加しない。`writes=true` は一時プローブで確認する。
 
-- [ ] **Step 1: ベースラインの記録。** worktree のルートで `uv run --project . --locked pytest tools/agent_runner -q` と `uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q` を実行し、終了コードと件数を SESSION のログに記録する。
-- [ ] **Step 2: runner.py の文言更新。** 禁止文の直後、末尾の「These safety restrictions apply whether writes=true or writes=false and are not lifted by write exceptions.」の前に、次を同じ 1 行の文字列連結として足す。物理行は分けてよいが、生成文字列に改行を足さない。
+- [x] **Step 1: ベースラインの記録。** worktree のルートで `uv run --project . --locked pytest tools/agent_runner -q` と `uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q` を実行し、終了コードと件数を SESSION のログに記録する。
+- [x] **Step 2: runner.py の文言更新。** 禁止文の直後、末尾の「These safety restrictions apply whether writes=true or writes=false and are not lifted by write exceptions.」の前に、次を同じ 1 行の文字列連結として足す。物理行は分けてよいが、生成文字列に改行を足さない。
 
   `You may run the repository's test and verification entry points, such as bash .devcontainer/run-tests.bash, bash .devcontainer/test-*.bash, and bash scripts/check-layout.sh, even when they use python3 internally; this does not permit wrapping python or python3 in a command of your own.`
 
-- [ ] **Step 3: F∩S テストの更新。** `test_write_exceptions_follow_the_work_scope_lines` の既存ループに、小文字の `safety` に対して次を確認する assertion と、防ぐ損害のコメントを足す。
+- [x] **Step 3: F∩S テストの更新。** `test_write_exceptions_follow_the_work_scope_lines` の既存ループに、小文字の `safety` に対して次を確認する assertion と、防ぐ損害のコメントを足す。
   - 許可: `repository's test and verification entry points`、`bash .devcontainer/run-tests.bash`、`bash .devcontainer/test-*.bash`、`bash scripts/check-layout.sh`、`even when they use python3 internally`、`does not permit wrapping python or python3`。
   - 禁止の維持: `do not run python or python3 directly`、`do not pass a heredoc to python -`。
-- [ ] **Step 4: 対象テストの GREEN と一時プローブ。** `uv run --project . --locked pytest tools/agent_runner/tests/test_runner.py -q -k write_exceptions_follow_the_work_scope_lines` を実行する。続けて `$SESSION/writes_true_probe.py` に、`pytest_plugins = ("tools.agent_runner.tests.test_runner", "tools.test_support.plugin")` と `@pytest.mark.usefixtures("outside_runner")` を付け、既存の `configuration()` の `inspect` 役割を `model_copy(update={"writes": True})` に置き換えた config で `run_workflow` を実行する一時テストを置く。`_scope_lines` で先頭行を取り出し、Step 3 と同じ許可・禁止の部分文字列を含むことを確認する。worktree のルートから `uv run --project . --locked pytest "$SESSION/writes_true_probe.py" -q` を実行する。一時ファイルはコミットせず、worktree に置かない。
-- [ ] **Step 5: commit。** 2 ファイルだけを stage し、`fix: allow repository test entry points in runner safety instruction` で commit する。`git diff --check` と `git status --porcelain` を確認する。
+- [x] **Step 4: 対象テストの GREEN と一時プローブ。** `uv run --project . --locked pytest tools/agent_runner/tests/test_runner.py -q -k write_exceptions_follow_the_work_scope_lines` を実行する。続けて `$SESSION/writes_true_probe.py` に、`pytest_plugins = ("tools.agent_runner.tests.test_runner", "tools.test_support.plugin")` と `@pytest.mark.usefixtures("outside_runner")` を付け、既存の `configuration()` の `inspect` 役割を `model_copy(update={"writes": True})` に置き換えた config で `run_workflow` を実行する一時テストを置く。`_scope_lines` で先頭行を取り出し、Step 3 と同じ許可・禁止の部分文字列を含むことを確認する。worktree のルートから `uv run --project . --locked pytest "$SESSION/writes_true_probe.py" -q` を実行する。一時ファイルはコミットせず、worktree に置かない。
+- [x] **Step 5: commit。** 2 ファイルだけを stage し、`fix: allow repository test entry points in runner safety instruction` で commit する。`git diff --check` と `git status --porcelain` を確認する。
 
 ## Task 2: 最終検証・ブランチ全体レビュー・公開（controller）
 
@@ -69,13 +69,13 @@
 
 **テスト要否:** 追加なし。既存テスト、リポジトリの入口（check-layout・全 pytest）、ビルド・解析の実行で確かめる。ブランチ全体のレビューは `superpowers:requesting-code-review` に従い、読み取り専用の別 context で行う。
 
-- [ ] **Step 1: 最終検証。** 最後の commit 後の clean な HEAD で、base の再確認後に次を実行し、argv・終了コード・ログのパスを SESSION に記録する。
+- [x] **Step 1: 最終検証。** 最後の commit 後の clean な HEAD で、base の再確認後に次を実行し、argv・終了コード・ログのパスを SESSION に記録する。
   - `uv run --project . --locked pytest tools/agent_runner -q`
   - `uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q`
   - `uv run --project . --locked pytest tests/skills .agents/skills .agents/scripts tools -q`（README の全 pytest）
   - `bash scripts/check-layout.sh`
   - `git diff --check` と `git status --porcelain`（空であること）
-- [ ] **Step 2: ブランチ全体レビュー。** `superpowers:requesting-code-review` に従い、base からの差分（2 ファイル + Spec・Plan）を読み取り専用のレビュアーに渡す。指摘は採否を決めて記録し、致命的な指摘だけを修正して再検証する。レビューは PR に記録する。
+- [x] **Step 2: ブランチ全体レビュー。** `superpowers:requesting-code-review` に従い、base からの差分（2 ファイル + Spec・Plan）を読み取り専用のレビュアーに渡す。指摘は採否を決めて記録し、致命的な指摘だけを修正して再検証する。レビューは PR に記録する。
 - [ ] **Step 3: 公開。** Issue の状態・競合・base を再確認し、`scripts/scan-before-push.sh` で検査した commit だけを push し、PR を作成する。PR 本文に変更概要、Spec の決定と理由、実行方式、検証結果、レビュー結果、作業時間を書く。Issue は `Closes #400` とせず `Refs #400` とし（マージはこの run では行わない）、残項目を書く。
 - [ ] **Step 4: Issue の更新。** Issue #400 に、実装・検証・PR の結果と残項目（マージ、マージ後のレビュー修正 run 3 回の評価）をコメントする。Issue #415 に、#400 の変更と #415 のテストを両方含む結合検証の結果をコメントする。Issue #400 は完了条件が main へのマージのためクローズせず、その理由を報告する。
 
@@ -108,5 +108,8 @@
 - ベースライン（変更前）: runner 305 passed、roles 18 passed、いずれも終了 0。
 - Task 1: TDD の順序にするため、Plan の Step 3（テストの assertion 追加）を先に実行した。RED は許可文の不在による assertion 失敗（1 failed、終了 1）。次に Step 2（runner.py の文言）を実装し、対象テスト 1 passed、runner 305 passed、roles 18 passed、`git diff --check` 終了 0 を確認した。
 - `writes=true` の一時プローブ: `writes=False` と `writes=True` の先頭行が同じで、許可・禁止の部分文字列を含むことを確認した（1 passed、終了 0）。プローブは `$SESSION/writes_true_probe.py` に置き、コミットしていない。
-- Task 1 の commit: `6776160e`。Spec は `4327e994`、Plan は `9ae0de67`。
+- Task 1 の commit: `6776160e`。Spec は `4327e994`、Plan は `9ae0de67`。実施記録の commit は `7cc48d96`。
+- 最終検証（HEAD `7cc48d96`、clean）: `uv run --project . --locked pytest tests/skills .agents/skills .agents/scripts tools -q` は 1561 passed（889.68 秒、終了 0）。`bash scripts/check-layout.sh` は終了 0。`uv run --project . --locked pytest tools/agent_runner -q` は 305 passed、`uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q` は 18 passed、`git diff --check` は終了 0。ログは `/workspaces/reso-world/tmp/agents/issue-400.2wum565u/logs/final-verify-1.log`。
+- ブランチ全体レビュー（`950186cd..7cc48d96`、読み取り専用の別 context、モデル opus）: Critical 0、Important 0、Minor 3、判定 Yes（Ready to merge）。レビュアーも runner 305 passed、roles 18 passed、review-verify 64 passed、diff check 0 を確認した。Minor 3 件（ラッパー禁止 assertion の後半未固定、`use uv run for Python` 未固定、Plan のチェックボックス）は、いずれも任意の改善として ledger に記録し、今回は対応しない。
+- 最終の文書 commit の後に、必須 2 コマンド（runner・roles）を再実行して結果を確定する。全 pytest・check-layout はコード変更のない文書追記のみのため、上の `7cc48d96` の結果を維持する。
 - 最終検証・ブランチ全体レビュー・PR・Issue 更新は Task 2 で記録する。

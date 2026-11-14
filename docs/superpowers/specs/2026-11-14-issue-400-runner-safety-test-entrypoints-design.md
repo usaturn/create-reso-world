@@ -110,3 +110,5 @@ PR #399 のレビュー修正ループでは、inspect 担当が `.devcontainer/
 - Task 1 の GREEN: `runner.py` の先頭 1 行に許可文を連結した。対象テストは 1 passed、`tools/agent_runner` 全体は 305 passed、`test_run_roles.py` は 18 passed、`git diff --check` は終了 0。
 - `writes=true` の一時プローブ: `$SESSION/writes_true_probe.py` で `writes=False` と `writes=True` の先頭行が同じであること、`writes=True` の行が `writes=True: changes are permitted here` で始まること、許可・禁止の部分文字列を含むことを確認した（1 passed、終了 0）。worktree の rootdir を明示して実行し、親 checkout のコードを読まないようにした。プローブはコミットしない。
 - 実装の commit: `6776160e`（`tools/agent_runner/runner.py`・`tools/agent_runner/tests/test_runner.py`）。Spec は `4327e994`、Plan は `9ae0de67`。
+- 最終検証（HEAD `7cc48d96`、clean）: 全 pytest（`tests/skills .agents/skills .agents/scripts tools`）は 1561 passed、`bash scripts/check-layout.sh` は終了 0、runner 305 passed、`test_run_roles.py` 18 passed、`git diff --check` は終了 0。
+- ブランチ全体レビュー（`950186cd..7cc48d96`、読み取り専用の別 context、モデル opus）: Critical 0、Important 0、Minor 3、判定 Yes。Minor は任意の改善として Plan の実施記録と ledger に残し、今回は対応しない。レビュアーも runner 305 passed、roles 18 passed、review-verify 64 passed、diff check 0 を確認した。
