@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`
+- 状態: `completed`（PR #449 のレビュー修正ループのサイクル 1 で修正不要と判定。内容の承認（`approved`）は記録しない）
 - 対象: usaturn/create-reso-world#435（https://github.com/usaturn/create-reso-world/issues/435）
 - 利用者の指示（2026-11-15）: `/issue-to-pr #435 --merge --design-review pi_openai-codex_gpt6-sol_xhigh --spec-review claude-code_sonnet_xhigh --implement claude-code_sonnet_xhigh --assign implement=claude-code_sonnet_xhigh --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,pi_openai-codex_gpt6-sol_xhigh`
 - 許可された範囲: issue-to-pr の委任により、通常の設計判断を推奨案で決め、検証・commit・push・PR 作成まで進める。`--merge` により、PR 修正ループ（pr-review-fix-loop）で修正不要と確かめられたときだけ、ループの `finalize.py` がマージする。これは実行許可であり、内容の承認（`approved`）ではない
@@ -170,3 +170,23 @@ GitHub 上で `board-ledger` を本文に持つ create-reso-world の Issue は 
   - S3（minor）: D3 に拒否の対象の行の形と、`board-ledger` 行の拒否が新しい制限であることを書いた
   - S4（minor）: D2 に推奨する `:board:` 形式の例と範囲の内外を書き、`reshaping.md` の「`issue-board.md` の形」を修正範囲に加えた
 - 手順の逸脱の記録: controller の置換の失敗で、2 回目の `decide` の時点の Spec には上の 4 件の実質の反映が入っておらず、記録の追記だけが入っていた（`decide` の `reflected_spec_sha256` `937b29b4fc8ba48c563f354f13d44ccd774b626cf133473361dd33434906c5aa` はこの版で、commit `335c31338aa8e87760eef8f68e222fc70221bdaa`）。`decide` はやり直せないので、記録は変えず、4 件の実質の反映を次の commit で入れた。反映後の版はレビューを受けていない
+
+## PR のレビュー（サイクル 1）
+
+- 対象: PR #449、HEAD `1194ba89672a20d01962c1064dfe7ad35f003cd3`、base `273ace19215430fa05042a512d63dc19e4e3a058`。planner `claude-opus-5-5`（claude-code）。loop の run `64f77d05b5c84fa49185fef0e49f71a8`
+- レビュアーの構成（すべてこのサイクルで再実行・Initial・Approve）:
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | 指摘 |
+| --- | --- | --- | --- | --- |
+| SWE-2-Max | SWE-2 Max | devin | `1194ba89672a` | 0 |
+| deepseek-v4.1-flash | deepseek-v4.1-flash | pi | `1194ba89672a` | 1（I-1・Info） |
+| gpt-6.1-sol | gpt-6.1-sol | pi | `1194ba89672a` | 1（L-1・Low） |
+
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#449-fix-issue-435-board-marker-format/verified/1194ba89672a.json`（confirmed 2）
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 2
+  - `deepseek-v4.1-flash#I-1@1194ba89672a`（対応しない）: `.agents/issue-format.md:122` と Spec D2 の「受け付ける構造」の列挙が helper の実際の受理範囲（board 単独・board の中の ledger 2 つ・ledger の中の board）より狭い。文書の記述だけで、記述どおりに書いたボードは受理されるので致命的でない
+  - `gpt-6.1-sol#L-1@1194ba89672a`（対応しない）: ledger の中の複数行 HTML コメントに終わりのマーカーがあると `issue_format._excluded_numbers` の範囲が途中で終わる。実在のボードに無い形で、結果は `draft update` の `check_failed` での停止（管理対象は reshape が保つ）。`:board:` 形式も base から同じ規則
+- 要件対応: Spec の受け入れ基準と D1〜D6 は実装で満たされ、今回の修正は無い（共有条件の統合確認は Task 3 で実施済み）
+- 結論: 2（修正不要でマージ）。実行許可は issue-to-pr の `--merge`（Spec 冒頭）
+- 検証（HEAD `1194ba89` 単体。base はこの HEAD の祖先で一時 merge は不要）: `bash scripts/check-layout.sh` 0、`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools -q` 0（1574 passed）、`bash .devcontainer/run-tests.bash` 0（27 suites）
+- 自己レビュー: 修正が無いので実施していない（`run_roles.py` は起動していない）
