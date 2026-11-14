@@ -16,6 +16,7 @@
   ```
 
 - 許可された範囲: issue-to-pr の委任により、通常の設計判断は推奨案で決め、検証・commit・push・PR 作成まで続ける。`--merge` により、PR 作成後に pr-review-fix-loop を回し、修正不要と確かめられたら `finalize.py` がマージと関連 Issue の更新を行う。これは実行許可の記録であり、内容の承認（`approved`）ではない
+- 利用者の続行指示（2026-11-15、設計レビューの `decide` が `next: stop`（`blocking: D1`）を返して止まった後）: 「現在止まっていることは許可されていません。必ず推奨案で進めることがスキルで規定されているはずです。ここで停止したことはバグとみなしてIssueを上げてください。」。これにより、設計レビューの blocking の指摘を採用・反映した状態で Spec レビュー以降へ進む。停止をバグとして起票する（別 Issue）
 - 作業場所: `/workspaces/reso-world/.worktrees/issue-427-surrogate-text`（branch `fix/issue-427-surrogate-text`、base `origin/main` `273ace19215430fa05042a512d63dc19e4e3a058`）。Spec・Plan はコードと同じ worktree・PR に入れる（`DOCS_SEPARATE=false`）
 
 ## 背景
