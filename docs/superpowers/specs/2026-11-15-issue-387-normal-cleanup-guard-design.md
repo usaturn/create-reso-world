@@ -58,6 +58,12 @@ PR レビューの通常の完了処理（`review_run.complete`）は、保存�
 - Spec レビュー: `--spec-review pi_alibaba_qwen4-max_max`（利用者の指定）。`fallback` は `[]`。設計レビューは指定なし。
 - PR 修正ループ（`check-options`）: `max_cycles` 3（既定の適用）。`--assign implement=pi_alibaba_qwen4-max_max`、`--assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,pi_openai-codex_gpt6-sol_xhigh`（利用者の指定）。`self-review`・`fix-check` は `self`（既定の適用）。template は `.devcontainer/agent-runner.toml`（既定の適用）。
 
+### Spec レビューの記録
+
+- 1 回目: runner（helper `review_spec.py`）。担当は `--spec-review pi_alibaba_qwen4-max_max`（明示値）、`fallback` は `[]`、`requested_agent`・`actual_agent` とも `pi_alibaba_qwen4-max_max`、`identity` は provider `alibaba`・model `qwen4-max-preview`・effort `max`。`review_id` `23bcfd176a0b4dc88d50f9573f1ca64c`、reviewed の Spec SHA-256 `5b4f5b1eedd59d60e4c06511f0fdc727b6a3c35146b4c1009d1ce3903f8e60ab`、`elapsed_seconds` 877.7、`outside_changes` なし。`unprotected_changes` は他の作業の worktree 8 件（この run の対象外）。レビュー記録は SESSION（`tmp/agents/issue-387.263ahgq0/`）の下に置き、commit しない。
+- S1（important・採用）: complete 経路の拒否テストに親 worktree の HEAD 不一致を使うと、save の `verify_state` が先に拒否して cleanup に到達しない。テスト 2 と受け入れ基準の実入力を、submodule 内のローカル commit（親 HEAD は固定 commit のまま）に改めた。
+- S2（minor・採用）: D1 のトレードオフで、保持したセッションが strict 退役で自動回収されるように読める記述を、同じ検査で保持され続け、利用者が作業を退避・削除してから回収すると改めた。
+
 ## テスト
 
 AGENTS.md の「テストの採用基準」で S（無言のデータ損失・失敗を成功と報告しない）に当たるものだけを書く。
